@@ -6,6 +6,7 @@ import (
 	"testing"
 
 	"github.com/koopa0/goen/internal/i18n"
+	"github.com/koopa0/goen/internal/loyalty"
 	"github.com/koopa0/goen/internal/ui/layouts"
 )
 
@@ -14,7 +15,7 @@ func TestPointsCountsSelectSingularAtTheirConsumers(t *testing.T) {
 	for _, locale := range []i18n.Locale{i18n.En, i18n.ZhHant} {
 		for _, n := range []int64{1, 2} {
 			ctx := i18n.WithLocale(t.Context(), locale)
-			v := PointsView{Balance: n, Redeemable: n, PerCredit: n, Minimum: n, ExpiringPoints: n, ExpiringOn: "2030-01-01"}
+			v := loyalty.PointsView{Balance: n, Redeemable: n, PerCredit: n, Minimum: n, ExpiringPoints: n, ExpiringOn: "2030-01-01"}
 			unit, expiryVerb := "points", "expire"
 			if n == 1 {
 				unit, expiryVerb = "point", "expires"
@@ -33,7 +34,7 @@ func TestPointsCountsSelectSingularAtTheirConsumers(t *testing.T) {
 				step = fmt.Sprintf("%d 點", n)
 				detail = fmt.Sprintf("點數不足，少扣 %d 點", n)
 			}
-			body := renderComponent(t, ctx, Points(layouts.Page{}, v))
+			body := renderComponent(t, ctx, loyalty.Points(layouts.Page{}, v))
 			for _, want := range []string{">" + using + "</span>", rule, expiring} {
 				if !strings.Contains(body, want) {
 					t.Errorf("Points(%s, %d) does not contain %q", locale, n, want)
@@ -45,7 +46,7 @@ func TestPointsCountsSelectSingularAtTheirConsumers(t *testing.T) {
 			if got := v.StepAmountText(ctx); got != step {
 				t.Errorf("StepAmountText(%s, %d) = %q, want %q", locale, n, got, step)
 			}
-			entry := PointsEntry{Kind: PointsClawedBack, ShortfallPoints: n}
+			entry := loyalty.PointsEntry{Kind: loyalty.PointsClawedBack, ShortfallPoints: n}
 			if got := entry.Detail(ctx); got != detail {
 				t.Errorf("Detail(%s, %d) = %q, want %q", locale, n, got, detail)
 			}

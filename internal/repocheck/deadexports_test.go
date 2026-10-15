@@ -45,7 +45,7 @@ var unreferencedExports = map[string]string{
 		"third member of the Size set beside SizeSmall and SizeLarge",
 	"github.com/koopa0/goen/internal/ui/pages.FreeDeliveryUnstated": "the zero value of FreeDeliveryKind, named because silence is a " +
 		"decision (the methods on offer disagree); every switch on Kind falls through to it",
-	"github.com/koopa0/goen/internal/ui/pages.ReversedForReturn": "the 'return' reason that reverse_return_points writes into " +
+	"github.com/koopa0/goen/internal/loyalty.ReversedForReturn": "the 'return' reason that reverse_return_points writes into " +
 		"loyalty_entries.reason; pointsHistoryEntry converts the stored text with " +
 		"PointsReversalReason(r.Reason), so the value arrives from the database and only its sibling " +
 		"ReversedForCancellation is compared in Go",
