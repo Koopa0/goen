@@ -10,7 +10,6 @@ import (
 	"github.com/koopa0/goen/internal/keyset"
 	"github.com/koopa0/goen/internal/ui/components"
 	"github.com/koopa0/goen/internal/ui/layouts"
-	"github.com/koopa0/goen/internal/ui/pages/admin"
 	"github.com/koopa0/goen/internal/user"
 	"github.com/koopa0/goen/internal/web"
 )
@@ -56,7 +55,7 @@ func (h *Handler) Questions(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	view.Notice = components.NoticeFrom(r, notices)
-	web.Render(w, r, h.log, http.StatusOK, admin.Questions(
+	web.Render(w, r, h.log, http.StatusOK, Questions(
 		layouts.Page{Title: i18n.T(r.Context(), i18n.KeyAdminPageQuestions)}, view))
 }
 
@@ -73,14 +72,14 @@ func (h *Handler) AnswerQuestion(w http.ResponseWriter, r *http.Request) {
 	id := r.PathValue("id")
 
 	var err error
-	switch admin.QuestionAction(r.PostFormValue("action")) {
-	case admin.QuestionHideAction:
+	switch QuestionAction(r.PostFormValue("action")) {
+	case QuestionHideAction:
 		err = h.store.HideQuestion(r.Context(), id)
-	case admin.QuestionShowAction:
+	case QuestionShowAction:
 		err = h.store.ShowQuestion(r.Context(), id)
-	case admin.QuestionHideAnswerAction:
+	case QuestionHideAnswerAction:
 		err = h.store.HideAnswer(r.Context(), id, r.PostFormValue("answer_id"))
-	case admin.QuestionAnswerAction, "":
+	case QuestionAnswerAction, "":
 		err = h.store.AnswerQuestion(r.Context(), id, u.ID, r.PostFormValue("body"))
 	default:
 		err = ErrNotFound
@@ -112,7 +111,7 @@ func (h *Handler) rejectAnswer(w http.ResponseWriter, r *http.Request, id string
 			view.Rows[i].Error = i18n.T(r.Context(), i18n.KeyAdminQuestionBodyError)
 		}
 	}
-	web.Render(w, r, h.log, http.StatusUnprocessableEntity, admin.Questions(
+	web.Render(w, r, h.log, http.StatusUnprocessableEntity, Questions(
 		layouts.Page{Title: i18n.T(r.Context(), i18n.KeyAdminPageQuestions)}, view))
 }
 
@@ -128,7 +127,7 @@ func (h *Handler) Reviews(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	view.Notice = components.NoticeFrom(r, notices)
-	web.Render(w, r, h.log, http.StatusOK, admin.Reviews(
+	web.Render(w, r, h.log, http.StatusOK, Reviews(
 		layouts.Page{Title: i18n.T(r.Context(), i18n.KeyAdminPageReviews)}, view))
 }
 
@@ -164,7 +163,7 @@ func (h *Handler) Messages(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	view.Notice = components.NoticeFrom(r, notices)
-	web.Render(w, r, h.log, http.StatusOK, admin.Messages(
+	web.Render(w, r, h.log, http.StatusOK, Messages(
 		layouts.Page{Title: i18n.T(r.Context(), i18n.KeyAdminPageMessages)}, view))
 }
 
