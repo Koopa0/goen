@@ -1160,7 +1160,8 @@ INSERT INTO membership_tiers (code, name, name_en, min_spend_cents,
     ('gold',     '金卡會員', 'Gold',     5000000,  13000, 2),
     ('platinum', '白金會員', 'Platinum', 15000000, 15000, 3);
 
-INSERT INTO sale_campaigns (id, slug, title, title_en, image_key, image_alt, image_alt_en, starts_at, ends_at) VALUES
+-- Each header is a file in assets/media/products/, embedded in the binary.
+INSERT INTO sale_campaigns (id, slug, title, title_en, bundled_key, image_alt, image_alt_en, starts_at, ends_at) VALUES
     ('000002dc-0000-4000-8000-0000000002dc', 'autumn-picks', '秋日選物', 'Autumn picks', 'campaign-autumn.webp', '秋日色調的書與杯', 'Books and a mug in autumn colours',
      (shop_today() - 20)::timestamp AT TIME ZONE 'Asia/Taipei', (shop_today() + 10)::timestamp AT TIME ZONE 'Asia/Taipei'),
     ('000002dd-0000-4000-8000-0000000002dd', 'tea-coffee-week', '茶與咖啡週', 'Tea and coffee week', 'campaign-tea-week.webp', '茶具與茶葉', 'A tea set and tea leaves',
