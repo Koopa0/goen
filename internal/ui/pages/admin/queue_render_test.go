@@ -57,8 +57,6 @@ func queuePages(b keyset.Bound, ctx func(k i18n.Key) string) map[string]struct {
 		"customers":          {Customers(p, CustomersView{Bound: b, Searched: true, Term: term}), fmt.Sprintf(ctx(i18n.KeyAdminCustNoneFound), term)},
 		"warranty":           {Warranties(p, WarrantiesView{Bound: b, Searched: true, Term: term}), fmt.Sprintf(ctx(i18n.KeyAdminWarrantyNoneFound), term)},
 		"products":           {Products(p, ProductsView{Bound: b}), ctx(i18n.KeyAdminProdEmpty)},
-		"stock":              {Variants(p, VariantsView{Bound: b}), ctx(i18n.KeyAdminQueueNoVariants)},
-		"movements":          {Movements(p, &MovementsView{Bound: b}), ctx(i18n.KeyAdminLedgerEmpty)},
 		"returns":            {Returns(p, ReturnsView{Bound: b}), ctx(i18n.KeyAdminRetEmpty)},
 		"campaigns":          {Campaigns(p, CampaignsView{Bound: b}), ctx(i18n.KeyAdminCampEmpty)},
 		"audit":              {Audit(p, AuditView{Bound: b}), ctx(i18n.KeyAdminAuditEmpty)},

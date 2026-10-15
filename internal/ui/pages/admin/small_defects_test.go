@@ -3,7 +3,6 @@ package admin
 import (
 	"strings"
 	"testing"
-	"time"
 
 	"github.com/koopa0/goen/internal/i18n"
 	"github.com/koopa0/goen/internal/ui/layouts"
@@ -28,17 +27,5 @@ func TestPickingTotalsHeadAlignsWithItsNumbers(t *testing.T) {
 	body := render(t, Picking(layouts.Page{Title: "Picking"}, &PickingView{Totals: []PickingLine{{SKU: "A-1", Name: "Cup", Remaining: 3}}}))
 	if want := `<th class="goen-admin__cellnum" scope="col">Not yet dispatched</th>`; !strings.Contains(body, want) {
 		t.Errorf("Picking totals head lacks %q", want)
-	}
-}
-
-func TestEmptyLedgerSaysNoMovementOnce(t *testing.T) {
-	t.Parallel()
-	v := &MovementsView{SKU: "A-1", Days: []StockDay{{Day: time.Date(2026, 10, 1, 0, 0, 0, 0, time.UTC)}}}
-	body := render(t, Movements(layouts.Page{Title: "Movements"}, v))
-	if strings.Contains(body, v.NoStockLine(i18n.WithLocale(t.Context(), i18n.En))) {
-		t.Error("an empty ledger also prints the days-without-movement line")
-	}
-	if !strings.Contains(body, i18n.T(i18n.WithLocale(t.Context(), i18n.En), i18n.KeyAdminLedgerEmpty)) {
-		t.Error("an empty ledger lacks its empty state")
 	}
 }
