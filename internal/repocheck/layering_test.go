@@ -59,7 +59,6 @@ var viewPackageImporters = []string{
 	"internal/catalog",
 	"internal/home",
 	"internal/loyalty",
-	"internal/payment",
 	"internal/product",
 	"internal/returns/buyer",
 	"internal/site",
@@ -192,7 +191,6 @@ var viewValueReads = map[string]int{
 	"internal/catalog/store.go":            2,
 	"internal/home/hero.go":                8,
 	"internal/loyalty/store.go":            3,
-	"internal/payment/handler.go":          2,
 	"internal/product/handler.go":          8,
 	"internal/product/review.go":           12,
 }

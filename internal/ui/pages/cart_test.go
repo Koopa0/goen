@@ -18,6 +18,7 @@ import (
 	"github.com/koopa0/goen/internal/i18n"
 	"github.com/koopa0/goen/internal/invoice"
 	"github.com/koopa0/goen/internal/order"
+	"github.com/koopa0/goen/internal/payment"
 	"github.com/koopa0/goen/internal/shoptime"
 	"github.com/koopa0/goen/internal/ui/components"
 	"github.com/koopa0/goen/internal/ui/layouts"
@@ -1625,7 +1626,7 @@ func TestWithoutPaymentsTheOrderPageLeadsNowhereNearThePayPage(t *testing.T) {
 		t.Error("the order page no longer says the order is unpaid")
 	}
 
-	pay := renderToString(t, Pay(PayMeta(ctx, "GO-260101-000009"), PayView{Number: "GO-260101-000009"}))
+	pay := renderToString(t, payment.Pay(payment.PayMeta(ctx, "GO-260101-000009"), payment.PayView{Number: "GO-260101-000009"}))
 	if !strings.Contains(pay, `href="/orders/GO-260101-000009"`) || !strings.Contains(pay, `href="/contact"`) {
 		t.Errorf("the pay page of a shop with no payments offers no way out:\n%s", pay)
 	}
