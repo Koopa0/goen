@@ -19,7 +19,6 @@ type PlacedSnapshot struct {
 	ShippingCents  int64        `json:"shipping_cents"`
 	DiscountCents  int64        `json:"discount_cents"`
 	DiscountReason string       `json:"discount_reason"`
-	TaxCents       int64        `json:"tax_cents"`
 	CreditCents    int64        `json:"credit_cents"`
 	ShippingName   string       `json:"shipping_name"`
 	DeliveryTo     string       `json:"delivery_to"`

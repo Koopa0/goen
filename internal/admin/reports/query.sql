@@ -33,7 +33,7 @@ SELECT
 FROM (
     SELECT (coalesce((SELECT sum(ol.unit_price_cents * ol.quantity)
                       FROM order_lines ol WHERE ol.order_id = o.id), 0)
-            - o.discount_cents + o.shipping_cents + o.tax_cents)::bigint AS total
+            - o.discount_cents + o.shipping_cents)::bigint AS total
     FROM orders o
     JOIN sold_orders s ON s.id = o.id
     WHERE o.placed_at >= @from_at::timestamptz AND o.placed_at < @to_at::timestamptz
@@ -52,7 +52,7 @@ LEFT JOIN (
     SELECT shop_day(o.placed_at) AS day,
            (coalesce((SELECT sum(ol.unit_price_cents * ol.quantity)
                       FROM order_lines ol WHERE ol.order_id = o.id), 0)
-            - o.discount_cents + o.shipping_cents + o.tax_cents)::bigint AS total
+            - o.discount_cents + o.shipping_cents)::bigint AS total
     FROM orders o
     JOIN sold_orders s ON s.id = o.id
     WHERE o.placed_at >= @from_at::timestamptz AND o.placed_at < @to_at::timestamptz
@@ -79,7 +79,7 @@ CROSS JOIN LATERAL (
                o.placed_at)::timestamptz AS funded_at,
            (coalesce((SELECT sum(ol.unit_price_cents * ol.quantity)
                       FROM order_lines ol WHERE ol.order_id = o.id), 0)
-            - o.discount_cents + o.shipping_cents + o.tax_cents)::bigint AS total_cents
+            - o.discount_cents + o.shipping_cents)::bigint AS total_cents
 ) f
 WHERE o.placed_at >= @since::timestamptz
 ORDER BY f.funded_at DESC, o.id DESC

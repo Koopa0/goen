@@ -126,7 +126,7 @@ func orderRow(ctx context.Context, o *db.RecentOrdersRow) admin.OrderRow {
 		StatusIntent: intent,
 		PlacedAt:     shoptime.Minute(o.PlacedAt),
 		Recipient:    o.Recipient,
-		TotalCents:   o.SubtotalCents - o.DiscountCents + o.ShippingCents + o.TaxCents,
+		TotalCents:   o.SubtotalCents - o.DiscountCents + o.ShippingCents,
 	}
 }
 

@@ -1772,8 +1772,10 @@ COMMENT ON COLUMN shipping_version_zones.surcharge_cents IS
 --
 -- One column per lifecycle: payment state lives in `payments`, return state in
 -- `return_requests`, and what remains here is fulfilment. The money columns are
--- the ones that are NOT derivable — a discount granted, a fee quoted, a tax
--- assessed.
+-- the ones that are NOT derivable — a discount granted, a fee quoted. There is
+-- no tax column: every price in the shop already includes tax (the Terms say
+-- so, and the ECPay request sets vat='1'), so a total is goods less discount
+-- plus shipping and no tax is ever added on top.
 
 -- The shop's calendar. Every deadline goen counts in DAYS is the same
 -- question — 消保法 §19's seven days, a warranty term, a point's validity,
@@ -1875,7 +1877,6 @@ CREATE TABLE orders (
     currency             text NOT NULL DEFAULT 'TWD',
     discount_cents       bigint NOT NULL DEFAULT 0,
     shipping_cents       bigint NOT NULL DEFAULT 0,
-    tax_cents            bigint NOT NULL DEFAULT 0,
     -- The version that was in force, plus its name as shown. The FK explains
     -- the price; the snapshot survives the version being superseded.
     shipping_version_id  uuid NOT NULL REFERENCES shipping_method_versions (id) ON DELETE RESTRICT,
@@ -1904,7 +1905,6 @@ CREATE TABLE orders (
     CONSTRAINT orders_locale_known CHECK (locale IN ('zh-Hant', 'en')),
     CONSTRAINT orders_discount_non_negative CHECK (discount_cents >= 0),
     CONSTRAINT orders_shipping_non_negative CHECK (shipping_cents >= 0),
-    CONSTRAINT orders_tax_non_negative CHECK (tax_cents >= 0),
     CONSTRAINT orders_shipping_code_present CHECK (shipping_method_code ~ '[^[:space:]]'),
     CONSTRAINT orders_shipping_name_present CHECK (shipping_method_name ~ '[^[:space:]]'),
     CONSTRAINT orders_fulfillment_status_known CHECK (fulfillment_status IN (
@@ -2540,7 +2540,7 @@ BEGIN
             USING ERRCODE = 'check_violation', CONSTRAINT = 'orders_have_delivery';
     END IF;
 
-    IF subtotal - o.discount_cents + o.shipping_cents + o.tax_cents < 0 THEN
+    IF subtotal - o.discount_cents + o.shipping_cents < 0 THEN
         RAISE EXCEPTION 'order % totals below zero', o.order_number
             USING ERRCODE = 'check_violation', CONSTRAINT = 'orders_total_non_negative';
     END IF;
@@ -2650,7 +2650,6 @@ LANGUAGE plpgsql SET search_path = pg_catalog, public, pg_temp AS $$
 BEGIN
     IF NEW.discount_cents = OLD.discount_cents
        AND NEW.shipping_cents = OLD.shipping_cents
-       AND NEW.tax_cents = OLD.tax_cents
        AND NEW.currency = OLD.currency
        AND NEW.order_number = OLD.order_number
        AND NEW.shipping_version_id = OLD.shipping_version_id
@@ -3942,7 +3941,7 @@ BEGIN
              AND ((postal_code ~ '[^[:space:]]' AND city ~ '[^[:space:]]'
                    AND district ~ '[^[:space:]]' AND street ~ '[^[:space:]]')
                   OR pickup_chain ~ '[^[:space:]]'))
-       OR subtotal - o.discount_cents + o.shipping_cents + o.tax_cents < 0 THEN
+       OR subtotal - o.discount_cents + o.shipping_cents < 0 THEN
         RAISE EXCEPTION 'order % is not complete enough to be paid', o.order_number
             USING ERRCODE = 'check_violation', CONSTRAINT = 'payments_require_complete_order';
     END IF;
@@ -5249,7 +5248,7 @@ REVOKE SELECT ON
 -- unreadable until somebody decides it is business data.
 REVOKE SELECT ON orders, return_requests, order_events FROM reporting;
 GRANT SELECT (id, order_number, user_id, fulfillment_status, currency,
-              discount_cents, shipping_cents, tax_cents, shipping_version_id,
+              discount_cents, shipping_cents, shipping_version_id,
               shipping_method_code, shipping_method_name, locale,
               placed_at, cancelled_at, completed_at, updated_at)
     ON orders TO reporting;
@@ -5380,7 +5379,7 @@ AS $$
     SELECT (
         coalesce((SELECT sum(ol.unit_price_cents * ol.quantity)
                   FROM order_lines ol WHERE ol.order_id = o.id), 0)
-        - o.discount_cents + o.shipping_cents + o.tax_cents
+        - o.discount_cents + o.shipping_cents
     ) + coalesce((
         SELECT sum(s.amount_cents + coalesce(r.amount_cents, 0))
         FROM store_credit_entries s
@@ -5629,7 +5628,7 @@ RETURNS bigint LANGUAGE sql STABLE SET search_path = pg_catalog, public, pg_temp
     SELECT coalesce(sum(greatest(
         (coalesce((SELECT sum(ol.unit_price_cents * ol.quantity)
                    FROM order_lines ol WHERE ol.order_id = o.id), 0)
-         - o.discount_cents + o.shipping_cents + o.tax_cents)
+         - o.discount_cents + o.shipping_cents)
         - (rf.card_cents + rf.credit_cents), 0)), 0)::bigint
     FROM orders o
     JOIN committed_orders c ON c.id = o.id
@@ -5859,7 +5858,7 @@ SET search_path = pg_catalog, public, pg_temp AS $$
         SELECT o.discount_cents::numeric AS discount,
                o.shipping_cents::numeric AS shipping,
                (coalesce(sum(ol.unit_price_cents::numeric * ol.quantity), 0)
-                - o.discount_cents + o.shipping_cents + o.tax_cents)::numeric AS total,
+                - o.discount_cents + o.shipping_cents)::numeric AS total,
                coalesce(sum(ol.unit_price_cents::numeric * ol.quantity), 0) AS subtotal,
                min(ol.tax_type) AS tax_type
         FROM orders o
@@ -6066,8 +6065,7 @@ BEGIN
     END IF;
 
     SELECT (floor(((coalesce(sum(ol.unit_price_cents::numeric * ol.quantity), 0)
-                  - v_order.discount_cents + v_order.shipping_cents
-                  + v_order.tax_cents) / 100)) * 100)::bigint
+                  - v_order.discount_cents + v_order.shipping_cents) / 100)) * 100)::bigint
     INTO v_amount FROM order_lines ol WHERE ol.order_id = v_order.id;
     SELECT jsonb_agg(jsonb_build_object(
                'description', l.description, 'quantity', l.quantity,
@@ -8458,7 +8456,7 @@ LANGUAGE sql STABLE SET search_path = pg_catalog, public, pg_temp AS $$
     ), order_total AS (
         SELECT greatest(
             coalesce(sum(ol.unit_price_cents::numeric * ol.quantity), 0)
-            - o.discount_cents + o.shipping_cents + o.tax_cents, 0) AS amount
+            - o.discount_cents + o.shipping_cents, 0) AS amount
         FROM orders o JOIN target t ON t.order_id = o.id
         LEFT JOIN order_lines ol ON ol.order_id = o.id
         GROUP BY o.id
@@ -8635,7 +8633,7 @@ BEGIN
     RETURNING * INTO v_return;
 
     SELECT coalesce(sum(ol.unit_price_cents * ol.quantity), 0)
-           - v_order.discount_cents + v_order.shipping_cents + v_order.tax_cents
+           - v_order.discount_cents + v_order.shipping_cents
     INTO v_total
     FROM order_lines ol WHERE ol.order_id = v_order.id;
     IF v_return.goods_refund_cents + v_return.shipping_refund_cents <> v_total THEN
@@ -8889,7 +8887,7 @@ BEGIN
     SELECT o.user_id,
            (coalesce((SELECT sum(ol.unit_price_cents * ol.quantity)::bigint
                       FROM order_lines ol WHERE ol.order_id = o.id), 0)
-            - o.discount_cents + o.shipping_cents + o.tax_cents)::bigint
+            - o.discount_cents + o.shipping_cents)::bigint
     INTO v_user, v_total
     FROM orders o
     WHERE o.id = p_order_id AND order_is_committed(o.id)
@@ -9447,11 +9445,11 @@ GRANT INSERT (order_id, return_request_id, order_line_id, quantity)
 
 REVOKE INSERT, UPDATE ON orders FROM store;
 GRANT INSERT (id, order_number, user_id, fulfillment_status, discount_cents,
-              shipping_cents, tax_cents, shipping_version_id,
+              shipping_cents, shipping_version_id,
               shipping_method_code, shipping_method_name, customer_note, locale,
               placed_at, cancelled_at, updated_at),
       UPDATE (id, order_number, user_id, fulfillment_status, discount_cents,
-              shipping_cents, tax_cents, shipping_version_id,
+              shipping_cents, shipping_version_id,
               shipping_method_code, shipping_method_name, customer_note, locale,
               placed_at, cancelled_at, updated_at)
     ON orders TO store;

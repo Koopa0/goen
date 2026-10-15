@@ -100,7 +100,7 @@ WITH target AS (
            order_is_committed(o.id) AS committed,
            (coalesce((SELECT sum(ol.unit_price_cents * ol.quantity) FROM order_lines ol
                       WHERE ol.order_id = o.id), 0)
-            - o.discount_cents + o.shipping_cents + o.tax_cents)::bigint AS total_cents,
+            - o.discount_cents + o.shipping_cents)::bigint AS total_cents,
            coalesce((SELECT sum(p.captured_amount_cents) FROM payments p
                      WHERE p.order_id = o.id AND p.status = 'succeeded'), 0)::bigint
                AS card_capacity_cents

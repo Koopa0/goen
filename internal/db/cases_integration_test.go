@@ -1123,11 +1123,6 @@ VALUES ('66666666-6666-4666-8666-666666666666', '44444444-4444-4444-8444-4444444
 		accept:     `INSERT INTO orders (id, shipping_cents, shipping_version_id, shipping_method_code, shipping_method_name) VALUES ('11110001-0000-4000-8000-000000000001', 0, 'ffff0002-0000-4000-8000-000000000000', 'home_delivery', '宅配到府');`,
 	},
 	{
-		constraint: "orders_tax_non_negative",
-		reject:     `INSERT INTO orders (id, tax_cents, shipping_version_id, shipping_method_code, shipping_method_name) VALUES ('11110001-0000-4000-8000-000000000001', -1, 'ffff0002-0000-4000-8000-000000000000', 'home_delivery', '宅配到府');`,
-		accept:     `INSERT INTO orders (id, tax_cents, shipping_version_id, shipping_method_code, shipping_method_name) VALUES ('11110001-0000-4000-8000-000000000001', 0, 'ffff0002-0000-4000-8000-000000000000', 'home_delivery', '宅配到府');`,
-	},
-	{
 		constraint: "outbox_messages_attempts_non_negative",
 		reject:     `INSERT INTO outbox_messages (topic, dedupe_key, payload, attempts) VALUES ('order.confirmation', 'order-66666666-confirmation', '{}'::jsonb, -1);`,
 		accept:     `INSERT INTO outbox_messages (topic, dedupe_key, payload, attempts) VALUES ('order.confirmation', 'order-66666666-confirmation', '{}'::jsonb, 0);`,

@@ -35,7 +35,7 @@ var demoHistoryInvariants = []struct {
 		FROM orders o
 		JOIN committed_orders c ON c.id = o.id
 		WHERE (SELECT sum(ol.unit_price_cents * ol.quantity) FROM order_lines ol WHERE ol.order_id = o.id)
-		      - o.discount_cents + o.shipping_cents + o.tax_cents
+		      - o.discount_cents + o.shipping_cents
 		   <> coalesce((SELECT p.captured_amount_cents FROM payments p
 		                WHERE p.order_id = o.id AND p.status = 'succeeded'), 0)
 		      - coalesce((SELECT sum(e.amount_cents) FROM store_credit_entries e
@@ -48,7 +48,7 @@ var demoHistoryInvariants = []struct {
 		       WHERE d.order_id = o.id AND d.kind = 'invoice' AND d.status = 'issued'
 		         AND d.amount_cents = ((SELECT sum(ol.unit_price_cents * ol.quantity)
 		                                FROM order_lines ol WHERE ol.order_id = o.id)
-		                               - o.discount_cents + o.shipping_cents + o.tax_cents) / 100 * 100) <> 1`},
+		                               - o.discount_cents + o.shipping_cents) / 100 * 100) <> 1`},
 	{"an order that left is shipped in full and holds nothing", `
 		SELECT o.order_number
 		FROM orders o

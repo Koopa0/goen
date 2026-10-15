@@ -537,8 +537,8 @@ BEGIN
 
     SET ROLE store;
     INSERT INTO orders (order_number, user_id, shipping_version_id, shipping_method_code,
-                        shipping_method_name, shipping_cents, discount_cents, tax_cents, locale)
-    VALUES (v_number, v_buyer.user_id, v_ship.id, v_ship.code, v_ship.name, v_shipping, 0, 0, 'zh-Hant')
+                        shipping_method_name, shipping_cents, discount_cents, locale)
+    VALUES (v_number, v_buyer.user_id, v_ship.id, v_ship.code, v_ship.name, v_shipping, 0, 'zh-Hant')
     RETURNING id INTO v_order;
     FOR i IN 1..cardinality(v_variants) LOOP
         INSERT INTO order_lines (order_id, product_id, variant_id, sku, product_name, variant_label,

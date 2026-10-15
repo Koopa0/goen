@@ -765,7 +765,6 @@ type OrderView struct {
 	DiscountCents  int64
 	DiscountReason string
 	CreditCents    int64
-	TaxCents       int64
 	Timeline       []OrderEvent
 	Shipments      []OrderShipment
 	Invoice        *OrderInvoice
@@ -893,7 +892,7 @@ func (v *OrderView) Discount() string { return "-" + twd(v.DiscountCents) }
 func (v *OrderView) Total() string { return twd(v.TotalCents()) }
 
 func (v *OrderView) TotalCents() int64 {
-	return v.SubtotalCents - v.DiscountCents + v.ShippingCents + v.TaxCents
+	return v.SubtotalCents - v.DiscountCents + v.ShippingCents
 }
 
 // UsedCredit gates the credit row: without it the summary and the payment page

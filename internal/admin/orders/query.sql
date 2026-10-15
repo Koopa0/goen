@@ -6,7 +6,6 @@ SELECT json_build_object('At', o.placed_at, 'ID', o.id)::text AS page_cursor,
     o.placed_at,
     o.shipping_cents,
     o.discount_cents,
-    o.tax_cents,
     coalesce(pd.recipient_name, '') AS recipient,
     coalesce((SELECT sum(ol.unit_price_cents * ol.quantity) FROM order_lines ol
               WHERE ol.order_id = o.id), 0)::bigint AS subtotal_cents,
@@ -46,7 +45,6 @@ SELECT json_build_object('At', o.placed_at, 'ID', o.id)::text AS page_cursor,
     o.placed_at,
     o.shipping_cents,
     o.discount_cents,
-    o.tax_cents,
     coalesce(pd.recipient_name, '') AS recipient,
     coalesce((SELECT sum(ol.unit_price_cents * ol.quantity) FROM order_lines ol
               WHERE ol.order_id = o.id), 0)::bigint AS subtotal_cents,
@@ -71,7 +69,7 @@ FROM orders GROUP BY fulfillment_status, funded;
 -- name: AdminOrderByNumber :one
 SELECT
     o.id, o.order_number, o.fulfillment_status, o.placed_at,
-    o.shipping_cents, o.discount_cents, o.tax_cents,
+    o.shipping_cents, o.discount_cents,
     -- A missing translation retains the order's snapshot, not another locale.
     coalesce(CASE WHEN @locale::text = 'en' THEN sv.name_en ELSE sv.name END,
              o.shipping_method_name)::text AS shipping_method_name,
@@ -101,7 +99,7 @@ SELECT
     -- order_amount_after_credit stays the one definition of that arithmetic.
     (coalesce((SELECT sum(ol.unit_price_cents * ol.quantity) FROM order_lines ol
                WHERE ol.order_id = o.id), 0)
-     - o.discount_cents + o.shipping_cents + o.tax_cents
+     - o.discount_cents + o.shipping_cents
      - order_amount_after_credit(o.id))::bigint AS credit_cents,
     (SELECT sm.destination_kind FROM shipping_method_versions v
      JOIN shipping_methods sm ON sm.id = v.method_id
@@ -133,7 +131,7 @@ SELECT o.id, o.fulfillment_status, order_is_committed(o.id) AS committed,
        order_amount_after_credit(o.id) AS owed_cents,
        (coalesce((SELECT sum(ol.unit_price_cents * ol.quantity) FROM order_lines ol
                   WHERE ol.order_id = o.id), 0)
-        - o.discount_cents + o.shipping_cents + o.tax_cents
+        - o.discount_cents + o.shipping_cents
         - order_amount_after_credit(o.id))::bigint AS credit_cents
 FROM orders o WHERE o.order_number = $1 FOR UPDATE OF o;
 
