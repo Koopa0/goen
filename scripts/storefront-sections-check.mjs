@@ -204,6 +204,66 @@ try {
     assert.equal((await button()).display, 'none', `${label}: still offered once the box is unticked`);
     console.log(`${label}: hidden until a product is ticked`);
   }
+
+  // Anything that can be pressed is a pill with one corner, in rem so it grows
+  // with the text. The wishlist heart and the hero arrows are circles, and the
+  // footer's button sits 4px inside its field.
+  {
+    const label = 'pressable corners';
+    const measure = (selectors, rootSize) => evaluate(`(() => {
+      document.documentElement.style.fontSize = ${JSON.stringify(rootSize)};
+      return Object.fromEntries(${JSON.stringify(selectors)}.map(selector => {
+        const element = document.querySelector(selector);
+        if (!element) return [selector, null];
+        const style = getComputedStyle(element);
+        return [selector, { radius: style.borderRadius, height: element.getBoundingClientRect().height,
+          shadow: style.boxShadow, border: style.borderTopColor, background: style.backgroundColor,
+          page: getComputedStyle(document.body).backgroundColor }];
+      }));
+    })()`);
+    const length = (got, what) => {
+      assert.match(got.radius, /^\d+(\.\d+)?px$/, `${label}: ${what} has a ${got.radius} corner, not a length`);
+      return parseFloat(got.radius);
+    };
+    const field = '.goen-footer__field > .goen-input';
+    const submit = '.goen-footer__field > .goen-btn';
+    const filled = '.goen-summary__actions .goen-btn--primary';
+    const cartPills = [filled, '.goen-stepper', '.goen-header__lang > summary', '.goen-header__backoffice', field];
+    const heart = '.goen-header__action--wide';
+    const chip = '.goen-filters__chip';
+    const arrow = '.goen-hero__arrow';
+    const corner = {};
+    for (const rootSize of ['', '200%']) {
+      const scale = rootSize || '100%';
+      await open('/cart', 1440);
+      const cart = await measure([...cartPills, submit, heart], rootSize);
+      for (const selector of [...cartPills, submit, heart]) assert.ok(cart[selector]?.height > 0, `${label}: ${selector} is not drawn in the cart at ${scale}`);
+      corner[scale] = length(cart[field], field);
+      for (const selector of cartPills) {
+        assert.equal(length(cart[selector], selector), corner[scale], `${label}: ${selector} has a ${cart[selector].radius} corner at ${scale}, not the footer field's ${corner[scale]}px`);
+        assert.ok(corner[scale] >= cart[selector].height / 2 - 0.5, `${label}: ${selector} is ${cart[selector].height}px tall with a ${corner[scale]}px corner at ${scale}, not a full pill`);
+      }
+      assert.equal(length(cart[submit], submit), corner[scale] - 4, `${label}: the footer button's corner at ${scale} is ${cart[submit].radius}, not its field's ${corner[scale]}px less 4px`);
+      assert.equal(cart[heart].radius, '50%', `${label}: the wishlist heart at ${scale} is ${cart[heart].radius}, not a circle`);
+      assert.equal(cart[filled].shadow, 'none', `${label}: the filled button at ${scale} casts a shadow: ${cart[filled].shadow}`);
+
+      await open('/c/audio', 1440);
+      const listing = await measure([chip], rootSize);
+      assert.ok(listing[chip]?.height > 0, `${label}: no filter chip is drawn at ${scale}`);
+      assert.equal(length(listing[chip], chip), corner[scale], `${label}: a filter chip has a ${listing[chip].radius} corner at ${scale}, not ${corner[scale]}px`);
+      assert.ok(corner[scale] >= listing[chip].height / 2 - 0.5, `${label}: a filter chip is ${listing[chip].height}px tall with a ${corner[scale]}px corner at ${scale}, not a full pill`);
+
+      await open('/home', 1440);
+      const hero = await measure([arrow], rootSize);
+      assert.ok(hero[arrow]?.height > 0, `${label}: no hero arrow is drawn at ${scale}`);
+      assert.equal(hero[arrow].radius, '50%', `${label}: a hero arrow at ${scale} is ${hero[arrow].radius}, not a circle`);
+      assert.equal(hero[arrow].border, 'rgba(0, 0, 0, 0)', `${label}: a hero arrow's border at ${scale} is ${hero[arrow].border}, not transparent`);
+      assert.notEqual(hero[arrow].background, hero[arrow].page, `${label}: a hero arrow at ${scale} is the page's own ${hero[arrow].page}`);
+      assert.notEqual(hero[arrow].background, 'rgba(0, 0, 0, 0)', `${label}: a hero arrow at ${scale} has no fill`);
+    }
+    assert.equal(corner['200%'], corner['100%'] * 2, `${label}: ${corner['100%']}px at 100% text is ${corner['200%']}px at 200%, not double`);
+    console.log(`${label}: ${corner['100%']}px at 100% text, ${corner['200%']}px at 200%; heart and hero arrows round, footer button 4px inside its field`);
+  }
 } finally {
   socket.close();
   await fetch(`${debugging}/json/close/${target.id}`);
