@@ -16,7 +16,7 @@ import (
 )
 
 // dayArithmetic is a window function adding a day count of its own to a date.
-var dayArithmetic = regexp.MustCompile(`[+-]\s*\d`)
+var dayArithmetic = regexp.MustCompile(`[+-]\s*\d+`)
 
 // TestTheReturnWindowsAreNamedOnceInTheSchema pins the two return windows every
 // page states and the return decision applies. The literals are right: the copy

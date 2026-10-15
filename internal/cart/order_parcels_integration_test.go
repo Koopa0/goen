@@ -55,6 +55,13 @@ func TestTheParcelCarriesTheDatabasesLastDays(t *testing.T) {
 		t.Fatalf("shipments = %+v, want one delivered parcel", view.Shipments)
 	}
 	got := view.Shipments[0]
+	var rescissionDays int64
+	if err := pool.QueryRow(ctx, `SELECT rescission_days()`).Scan(&rescissionDays); err != nil {
+		t.Fatalf("read rescission_days: %v", err)
+	}
+	if got.RescissionDays != rescissionDays {
+		t.Errorf("the parcel states %d days to cancel, rescission_days() = %d", got.RescissionDays, rescissionDays)
+	}
 	if len(got.Lines) != 1 || len(view.Unshipped) != 0 {
 		t.Errorf("parcel lines = %d, unshipped = %d; want the one line in the parcel", len(got.Lines), len(view.Unshipped))
 	}
