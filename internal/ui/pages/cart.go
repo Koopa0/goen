@@ -6,7 +6,6 @@ import (
 	"slices"
 	"strconv"
 	"strings"
-	"time"
 
 	"github.com/koopa0/goen/internal/shipping"
 
@@ -15,7 +14,6 @@ import (
 	"github.com/koopa0/goen/internal/fieldrule"
 	"github.com/koopa0/goen/internal/i18n"
 	"github.com/koopa0/goen/internal/invoice"
-	"github.com/koopa0/goen/internal/order"
 	"github.com/koopa0/goen/internal/ui/components"
 	"github.com/koopa0/goen/internal/ui/layouts"
 )
@@ -405,74 +403,10 @@ type CheckoutAddress struct {
 
 func (v *CheckoutView) ToPickupPoint() bool { return v.Destination == shipping.DestinationPickupPoint }
 
-type PickupChainChoice struct {
-	Value shipping.Chain
-	Label string
-}
-
-// KnownPickupChainChoices keeps historical orders correctable when checkout no longer takes their chain.
-func KnownPickupChainChoices() []PickupChainChoice {
-	return choicesFor(shipping.Chains())
-}
-
 // CheckoutPickupChainChoices excludes chains whose store picker checkout does not integrate.
 func CheckoutPickupChainChoices() []PickupChainChoice {
 	chains := shipping.Chains()
 	return choicesFor(slices.DeleteFunc(chains, func(chain shipping.Chain) bool { return !chain.AtCheckout() }))
-}
-
-func choicesFor(chains []shipping.Chain) []PickupChainChoice {
-	out := make([]PickupChainChoice, 0, len(chains))
-	for _, c := range chains {
-		out = append(out, PickupChainChoice{Value: c, Label: pickupChainLabel(c)})
-	}
-	return out
-}
-
-func pickupChainLabel(code shipping.Chain) string {
-	switch code {
-	case "":
-		return ""
-	case shipping.ChainSevenEleven:
-		return "7-ELEVEN"
-	case shipping.ChainFamilyMart:
-		return "全家 FamilyMart" // i18n-exempt: a chain's own name, already bilingual
-	case shipping.ChainHiLife:
-		return "萊爾富 Hi-Life" // i18n-exempt: a chain's own name, already bilingual
-	case shipping.ChainOKMart:
-		return "OK mart"
-	default:
-		panic("pages: unknown pickup chain: " + string(code))
-	}
-}
-
-type Delivery struct {
-	PostalCode string
-	City       string
-	District   string
-	Street     string
-
-	PickupChain     shipping.Chain
-	PickupStoreCode string
-	PickupStoreName string
-}
-
-// IsPickup reads the chain as the destination: the store behind it comes from the
-// carrier's picker and is absent on an order placed before one existed.
-func (d Delivery) IsPickup() bool { return d.PickupChain != "" }
-
-func (d Delivery) Line() string {
-	if d.IsPickup() {
-		line := pickupChainLabel(d.PickupChain)
-		if d.PickupStoreName != "" {
-			line += " " + d.PickupStoreName
-		}
-		if d.PickupStoreCode != "" {
-			line += "(" + d.PickupStoreCode + ")"
-		}
-		return line
-	}
-	return strings.TrimSpace(d.PostalCode + " " + d.City + d.District + d.Street)
 }
 
 type SavedAddress struct {
@@ -612,119 +546,6 @@ func (v *CheckoutView) PlacementNote(ctx context.Context) string {
 	return i18n.T(ctx, i18n.KeyCheckoutZeroSubmitNote)
 }
 
-type OrderLine struct {
-	SKU         string
-	Name        string
-	Label       string
-	UnitCents   int64
-	Quantity    int32
-	ImageURL    string
-	ImageSrcset string
-	ImageAlt    string
-	// WarrantyMonths is the promise the line copied at checkout; zero when it carried none.
-	WarrantyMonths int
-	// Registered counts the units this line's share has registered, and WarrantyUntil is the day their cover ends.
-	Registered    int
-	WarrantyUntil time.Time
-}
-
-func (l OrderLine) HasImage() bool { return l.ImageURL != "" }
-
-func (l OrderLine) UnitPrice() string { return twd(l.UnitCents) }
-
-func (l OrderLine) LineTotal() string { return twd(l.UnitCents * int64(l.Quantity)) }
-
-func (l OrderLine) QuantityText() string { return strconv.FormatInt(int64(l.Quantity), 10) }
-
-// OrderEvent carries no actor: anyone holding the order number can reach this page.
-type OrderEvent struct {
-	Kind order.EventKind
-	Note string
-	At   time.Time
-	// Unsent marks the refunded event of units the shop could not send.
-	Unsent bool
-}
-
-// ShowsNote reports whether the note belongs on the customer's history. A shipped event's note is the
-// carrier's name and tracking number written in the shop's language, which the parcel already states in the
-// reader's own.
-func (e OrderEvent) ShowsNote() bool { return e.Note != "" && e.Kind != order.EventShipped }
-
-// LabelKey is the short word the order's own history uses for the event.
-func (e OrderEvent) LabelKey() i18n.Key {
-	switch e.Kind {
-	case order.EventPlaced:
-		return i18n.KeyEventPlaced
-	case order.EventPaid:
-		return i18n.KeyStatusPaid
-	case order.EventPicking:
-		return i18n.KeyEventPicking
-	case order.EventShipped:
-		return i18n.KeyEventShipped
-	case order.EventInTransit:
-		return i18n.KeyStatusInTransit
-	case order.EventDelivered:
-		return i18n.KeyEventDelivered
-	case order.EventCompleted:
-		return i18n.KeyStatusCompleted
-	case order.EventCancelled:
-		return i18n.KeyEventCancelled
-	case order.EventRefunded:
-		if e.Unsent {
-			return i18n.KeyEventRefundedUnsent
-		}
-		return i18n.KeyStatusRefunded
-	default:
-		panic("pages: no label for order event kind " + string(e.Kind))
-	}
-}
-
-// LookupLabelKey is LabelKey for a reader that must survive a kind it does not
-// know.
-func (e OrderEvent) LookupLabelKey() (i18n.Key, bool) {
-	switch e.Kind {
-	case order.EventPlaced:
-		return i18n.KeyStatusPlaced, true
-	case order.EventPaid:
-		return i18n.KeyStatusPaid, true
-	case order.EventPicking:
-		return i18n.KeyStatusPicking, true
-	case order.EventShipped:
-		return i18n.KeyStatusShipped, true
-	case order.EventInTransit:
-		return i18n.KeyStatusInTransit, true
-	case order.EventDelivered:
-		return i18n.KeyStatusDelivered, true
-	case order.EventCompleted:
-		return i18n.KeyStatusCompleted, true
-	case order.EventCancelled:
-		return i18n.KeyStatusCancelled, true
-	case order.EventRefunded:
-		return i18n.KeyStatusRefunded, true
-	default:
-		return "", false
-	}
-}
-
-// OrderShipment is one parcel. The right to cancel and the warranty of the lines in it count from its own delivery.
-type OrderShipment struct {
-	Carrier   shipping.Carrier
-	Tracking  string
-	ShippedAt time.Time
-	// DeliveredAt is zero until the parcel arrives, or is collected from a store.
-	DeliveredAt time.Time
-	// RescissionEnds and GoodwillEnds are the last day of the right to cancel and the last day of unused
-	// returns, as the database reads them; zero until the parcel is delivered.
-	RescissionEnds time.Time
-	GoodwillEnds   time.Time
-	// Lines are the units of each line that went in this parcel.
-	Lines []OrderLine
-}
-
-func (s OrderShipment) TrackURL() string { return s.Carrier.TrackingURL(s.Tracking) }
-
-func (s OrderShipment) Delivered() bool { return !s.DeliveredAt.IsZero() }
-
 type CheckoutInvoice struct {
 	Type          invoice.Preference
 	MobileBarcode string
@@ -748,182 +569,6 @@ func (i CheckoutInvoice) NeedsMobileBarcode() bool { return i.Chosen().NeedsMobi
 
 func (i CheckoutInvoice) NeedsTaxID() bool { return i.Chosen().NeedsTaxID() }
 
-type OrderView struct {
-	Number       string
-	Status       order.FulfillmentStatus
-	Email        string
-	ShippingName string
-	DeliveryTo   string
-	PlacedAt     time.Time
-	// Now is the moment the page is read; the days left and the grids count from it.
-	Now time.Time
-	// HoldUntil is the earliest stored reservation expiry, zero without rows; Checkout Session expiry is bound to it.
-	HoldUntil time.Time
-	// Pickup is set for an order collected from a store, where delivery reads as collection.
-	Pickup bool
-	// Lines are the lines as bought; Unshipped are the units no parcel carries yet.
-	Lines          []OrderLine
-	Unshipped      []OrderLine
-	Returned       *OrderReturned
-	SubtotalCents  int64
-	ShippingCents  int64
-	DiscountCents  int64
-	DiscountReason string
-	CreditCents    int64
-	Timeline       []OrderEvent
-	Shipments      []OrderShipment
-	Invoice        *OrderInvoice
-	Cancelled      bool
-	Committed      bool
-	OwedCents      int64
-	// ShowWarrantyLink is set only when a signed-in account owns the order: guest-token
-	// viewers must not see account-only registration.
-	ShowWarrantyLink bool
-	// PaymentRefreshURL is a bounded presentation hint, never evidence of payment.
-	PaymentRefreshURL string
-	// PaymentConfirmationPending preserves the return hint after checks stop; it never changes payment facts.
-	PaymentConfirmationPending bool
-	// PaymentReturnHint is untrusted; it only hides cancellation until the stored stock hold ends.
-	PaymentReturnHint bool
-	// The bounds behind that URL, quoted in the notice so the copy cannot drift from the handler.
-	PaymentRefreshSeconds, PaymentRefreshChecks int
-	// Where payments are off, a link to the payment page would lead to a page that sends the shopper back here.
-	PaymentsEnabled bool
-}
-
-// OrderReturned is an order whose every unit is in a return whose refund has settled. At is the day the last of them was refunded.
-type OrderReturned struct {
-	At          time.Time
-	RefundCents int64
-}
-
-type PaymentState string
-
-const (
-	PaymentNone     PaymentState = ""
-	PaymentAwaiting PaymentState = "awaiting"
-	PaymentPaid     PaymentState = "paid"
-	PaymentRefunded PaymentState = "refunded"
-)
-
-// PaymentState reads the order's own facts: a cancelled order is refunded only where
-// a refund is on its timeline, and a partial refund on a delivered order leaves it paid.
-func (v *OrderView) PaymentState() PaymentState {
-	switch {
-	case v.Returned != nil:
-		return PaymentRefunded
-	case v.Status == order.FulfillmentCancelled:
-		for _, e := range v.Timeline {
-			if e.Kind == order.EventRefunded {
-				return PaymentRefunded
-			}
-		}
-		return PaymentNone
-	case v.AwaitingPayment():
-		return PaymentAwaiting
-	default:
-		return PaymentPaid
-	}
-}
-
-func (s PaymentState) Key() i18n.Key {
-	switch s {
-	case PaymentAwaiting:
-		return i18n.KeyStatusAwaitingPayment
-	case PaymentRefunded:
-		return i18n.KeyStatusRefunded
-	default:
-		return i18n.KeyStatusPaid
-	}
-}
-
-// StateKey leaves paying to its own row, so a placed order stays 訂單已送出 until it moves.
-func (v *OrderView) StateKey() i18n.Key {
-	if v.Returned != nil {
-		return i18n.KeyStatusRefunded
-	}
-	switch v.Status {
-	case order.FulfillmentPicking:
-		return i18n.KeyStatusPicking
-	case order.FulfillmentShipped:
-		return i18n.KeyStatusShipped
-	case order.FulfillmentDelivered:
-		return i18n.KeyStatusDelivered
-	case order.FulfillmentCompleted:
-		return i18n.KeyStatusCompleted
-	case order.FulfillmentCancelled:
-		return i18n.KeyStatusCancelled
-	default:
-		return i18n.KeyOrderPlaced
-	}
-}
-
-func (v *OrderView) Owed() string { return twd(v.OwedCents) }
-
-func (v *OrderView) CanCancel() bool {
-	return v.Status == order.FulfillmentPending && !v.Committed
-}
-
-// ShowCancel keeps an unresolved return from racing cancellation before the stock hold ends.
-func (v *OrderView) ShowCancel() bool {
-	return v.CanCancel() && v.PaymentRefreshURL == "" && !v.paymentReturnHoldsCancel()
-}
-
-func (v *OrderView) paymentReturnHoldsCancel() bool {
-	return v.PaymentReturnHint && v.AwaitingPayment() && v.HoldUntil.After(v.Now)
-}
-
-// CancelVoidsInvoice reports whether cancelling voids the order's 統一發票:
-// store credit paid it in full, and the invoice was owed then.
-func (v *OrderView) CancelVoidsInvoice() bool { return v.CreditCents > 0 && v.OwedCents == 0 }
-
-func OrderMeta(ctx context.Context, number string) layouts.Page {
-	return layouts.Page{Title: fmt.Sprintf(i18n.T(ctx, i18n.KeyOrderMeta), number)}
-}
-
-func (v *OrderView) Subtotal() string { return twd(v.SubtotalCents) }
-
-func (v *OrderView) Shipping(ctx context.Context) string {
-	if v.ShippingCents == 0 {
-		return i18n.T(ctx, i18n.KeyFreeShipping)
-	}
-	return twd(v.ShippingCents)
-}
-
-func (v *OrderView) Discounted() bool { return v.DiscountCents > 0 }
-
-func (v *OrderView) Discount() string { return "-" + twd(v.DiscountCents) }
-
-func (v *OrderView) Total() string { return twd(v.TotalCents()) }
-
-func (v *OrderView) TotalCents() int64 {
-	return v.SubtotalCents - v.DiscountCents + v.ShippingCents
-}
-
-// UsedCredit gates the credit row: without it the summary and the payment page
-// state different figures, since the credit is debited in the order's own transaction.
-func (v *OrderView) UsedCredit() bool { return v.CreditCents > 0 }
-
-func (v *OrderView) Credit() string { return "-" + twd(v.CreditCents) }
-
-func (v *OrderView) CanRequestReturn() bool {
-	if v.Returned != nil {
-		return false
-	}
-	switch v.Status {
-	case order.FulfillmentShipped, order.FulfillmentDelivered, order.FulfillmentCompleted:
-		return true
-	default:
-		return false
-	}
-}
-
-func (v *OrderView) WarrantyLink() string { return "/account/warranty/" + v.Number }
-
-func (v *OrderView) AwaitingPayment() bool {
-	return awaitingPayment(v.Status, v.Committed, v.OwedCents)
-}
-
 func (v *CheckoutView) HasCoupon() bool {
 	return v.CouponApplied != "" && (v.CouponDiscountCents > 0 || v.CouponFreeShipping)
 }
@@ -931,56 +576,6 @@ func (v *CheckoutView) HasCoupon() bool {
 func (v *CheckoutView) CouponDiscount() string { return "-" + twd(v.CouponDiscountCents) }
 
 func (i CheckoutInvoice) NeedsDonationCode() bool { return i.Chosen() == invoice.PreferenceDonate }
-
-type OrderInvoice struct {
-	Documents     []OrderInvoiceDocument
-	Type          invoice.Preference
-	MobileBarcode string
-	DonationCode  string
-	TaxID         string
-}
-
-type OrderInvoiceDocument struct {
-	Allowance   bool
-	Number      string
-	RandomCode  string
-	AmountCents int64
-	Voided      bool
-	IssuedOn    string
-}
-
-func (d OrderInvoiceDocument) Label(ctx context.Context) string {
-	if d.Allowance {
-		return i18n.T(ctx, i18n.KeyAdminDocAllowance)
-	}
-	return i18n.T(ctx, i18n.KeyAdminDocInvoice)
-}
-
-func (d OrderInvoiceDocument) Amount() string { return twd(d.AmountCents) }
-
-// ChoiceText masks a mobile carrier: it is a key to somebody's invoice archive and
-// the page may be read from a link.
-func (i *OrderInvoice) ChoiceText(ctx context.Context) string {
-	switch i.Type {
-	case invoice.PreferenceMember:
-		return i18n.T(ctx, i18n.KeyAdminInvoiceCarrierMember)
-	case invoice.PreferenceMobile:
-		return fmt.Sprintf(i18n.T(ctx, i18n.KeyAdminInvoiceCarrierMobileBarcode), maskMobileBarcode(i.MobileBarcode))
-	case invoice.PreferenceDonate:
-		return fmt.Sprintf(i18n.T(ctx, i18n.KeyAdminInvoiceDonate), i.DonationCode)
-	case invoice.PreferenceCompany:
-		return fmt.Sprintf(i18n.T(ctx, i18n.KeyAdminInvoiceTaxID), i.TaxID)
-	default:
-		panic("pages: no label for invoice type " + string(i.Type))
-	}
-}
-
-func maskMobileBarcode(code string) string {
-	if len(code) <= 3 {
-		return code
-	}
-	return code[:1] + strings.Repeat("*", len(code)-3) + code[len(code)-2:]
-}
 
 // cartLineSwap names what one quantity update changes: that line's text and price,
 // the summary, the item count, the notices and the header's cart link. The stepper
