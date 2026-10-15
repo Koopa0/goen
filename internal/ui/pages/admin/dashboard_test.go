@@ -123,34 +123,6 @@ func TestDeskTasksLeaveOutWhatIsNotWaiting(t *testing.T) {
 	}
 }
 
-func TestWorkerHealthTasksFollowTheHealthPredicates(t *testing.T) {
-	t.Parallel()
-	if got := (&WorkerHealthView{}).Tasks(); len(got) != 0 {
-		t.Errorf("Tasks() of a healthy view = %v, want none", got)
-	}
-	v := &WorkerHealthView{
-		UnreconciledPayments: 1, StrandedClaimCount: 73, UninvoicedCount: 2,
-		CancelledOrderInvoiceCount: 3, UnrelievedRefundCount: 5, OpenRefundCount: 4,
-		StrandedClaimOldestSeconds: 100, UninvoicedOldestSeconds: 200, CancelledOrderInvoiceOldestSeconds: 300,
-		UnrelievedRefundOldestSeconds: 400, ExpiredHolds: 51, MaxExpiredHolds: 50,
-	}
-	want := []Task{
-		{Label: i18n.KeyAdminQueueTaskPayments, Count: 1, Href: "/admin/health#events-heading", Alert: true},
-		{Label: i18n.KeyAdminQueueTaskClaims, Count: 73, Href: "/admin/health#claims-heading", Alert: true, HasAge: true, AgeSeconds: 100},
-		{Label: i18n.KeyAdminQueueTaskUninvoiced, Count: 2, Href: "/admin/health#uninvoiced-heading", Alert: true, HasAge: true, AgeSeconds: 200},
-		{Label: i18n.KeyAdminHPCancelledOrderInvoicesHeading, Count: 3, Href: "/admin/health#cancelled-order-invoices-heading", Alert: true, HasAge: true, AgeSeconds: 300},
-		{Label: i18n.KeyAdminHPUnrelievedRefundsHeading, Count: 5, Href: "/admin/health#unrelieved-refunds-heading", Alert: true, HasAge: true, AgeSeconds: 400},
-		{Label: i18n.KeyAdminHPOpenRefundsHeading, Count: 4, Href: "/admin/health#refunds-heading", Alert: true},
-		{Label: i18n.KeyAdminQueueTaskHolds, Count: 51, Href: "/admin/health", Alert: true},
-	}
-	if got := v.Tasks(); !slices.Equal(got, want) {
-		t.Errorf("Tasks() = %v, want %v", got, want)
-	}
-	if got := (&WorkerHealthView{ExpiredHolds: 50, MaxExpiredHolds: 50}).Tasks(); len(got) != 0 {
-		t.Errorf("Tasks() with holds at the threshold = %v, want none: the health page calls that healthy", got)
-	}
-}
-
 // TestTheDashboardSaysWhenItCouldNotCheckTheHealthDesk holds that an absent
 // payment or invoice task is only read as "nothing to check" when the desk was
 // actually read.

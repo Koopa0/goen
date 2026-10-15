@@ -16,8 +16,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/koopa0/goen/internal/ui/pages/admin"
-
 	"github.com/google/go-cmp/cmp"
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgxpool"
@@ -57,7 +55,7 @@ func TestTheHealthPageNamesARefundThatDidNotLand(t *testing.T) {
 	}
 
 	// Found by identity, never by position: the suite is shuffled and other tests leave refunds behind.
-	var found *admin.OpenRefund
+	var found *health.OpenRefund
 	for i := range view.OpenRefunds {
 		if view.OpenRefunds[i].Key == "return:"+requestID.String() {
 			found = &view.OpenRefunds[i]
@@ -68,7 +66,7 @@ func TestTheHealthPageNamesARefundThatDidNotLand(t *testing.T) {
 		t.Fatalf("the stalled refund for return %s is on no page — the row exists "+
 			"only for reconciliation and nothing can read it", requestID)
 	}
-	want := admin.OpenRefund{
+	want := health.OpenRefund{
 		OrderNumber: orderNumber,
 		Key:         "return:" + requestID.String(),
 		Status:      "pending",

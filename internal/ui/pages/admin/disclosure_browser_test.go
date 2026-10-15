@@ -9,10 +9,10 @@ import (
 
 	"github.com/a-h/templ"
 
+	"github.com/koopa0/goen/internal/admin/health"
 	"github.com/koopa0/goen/internal/admin/twofactor"
 	"github.com/koopa0/goen/internal/i18n"
 	"github.com/koopa0/goen/internal/ui/layouts"
-	"github.com/koopa0/goen/internal/ui/pages/admin"
 	"github.com/koopa0/goen/internal/ui/uitest"
 )
 
@@ -32,7 +32,7 @@ func TestAdminContentDisclosuresWorkWithTheKeyboard(t *testing.T) {
 		var component templ.Component
 		switch r.URL.Path {
 		case "/health":
-			component = admin.Health(layouts.Page{}, &admin.WorkerHealthView{})
+			component = health.Health(layouts.Page{}, &health.WorkerHealthView{})
 		case "/twofactor":
 			component = twofactor.TwoFactor(layouts.Page{}, twofactor.TwoFactorView{
 				Enabled: true, Enrolling: true, URI: "otpauth://totp/goen:disclosure-fixture",

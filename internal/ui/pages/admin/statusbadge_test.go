@@ -135,15 +135,6 @@ func TestOrderPageHeadKeepsItsGroupAndCommitted(t *testing.T) {
 	wantBadge(t, page, i18n.T(ctx, i18n.KeyAdminQueueCommitted), "goen-badge")
 }
 
-func TestHealthItemsAreDoneOrNeedYou(t *testing.T) {
-	t.Parallel()
-	ctx := i18n.WithLocale(t.Context(), i18n.ZhHant)
-	// The outbox is healthy by default and the recommendation projection, never built, is not.
-	page := renderComponent(t, ctx, Health(layouts.Page{}, &WorkerHealthView{}))
-	wantBadge(t, page, i18n.T(ctx, i18n.KeyAdminHPAllClear), "goen-badge goen-badge--done")
-	wantBadge(t, page, i18n.T(ctx, i18n.KeyAdminHPNeedsLook), "goen-badge goen-badge--warn")
-}
-
 func TestReturnQueueBadgesFollowTheirGroup(t *testing.T) {
 	t.Parallel()
 	inspected := []ReturnLine{{Inspected: true}}

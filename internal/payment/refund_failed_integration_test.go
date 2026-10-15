@@ -17,7 +17,6 @@ import (
 	"github.com/koopa0/goen/internal/order/access"
 	"github.com/koopa0/goen/internal/outbox"
 	"github.com/koopa0/goen/internal/payment"
-	"github.com/koopa0/goen/internal/ui/pages/admin"
 )
 
 // goenRefund is a refund goen issued against a captured payment, standing in
@@ -101,7 +100,7 @@ func openAlarms(t *testing.T, ctx context.Context, objectRef string) int {
 	return n
 }
 
-func healthEvent(t *testing.T, ctx context.Context, eventID string) (admin.UnreconciledEvent, bool) {
+func healthEvent(t *testing.T, ctx context.Context, eventID string) (health.UnreconciledEvent, bool) {
 	t.Helper()
 	page, err := health.NewStore(pool).WorkerHealth(ctx, outbox.NewStore(pool, slog.New(slog.DiscardHandler)))
 	if err != nil {
@@ -112,7 +111,7 @@ func healthEvent(t *testing.T, ctx context.Context, eventID string) (admin.Unrec
 			return e, true
 		}
 	}
-	return admin.UnreconciledEvent{}, false
+	return health.UnreconciledEvent{}, false
 }
 
 // storeWebhook is the webhook as production runs it, under the store role,

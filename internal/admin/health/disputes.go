@@ -8,7 +8,6 @@ import (
 
 	"github.com/koopa0/goen/internal/payment"
 	"github.com/koopa0/goen/internal/shoptime"
-	"github.com/koopa0/goen/internal/ui/pages/admin"
 )
 
 // disputeReadTimeout keeps the health page from waiting on Stripe.
@@ -39,16 +38,16 @@ func (s *Store) OrderNumbersBySession(ctx context.Context, sessionIDs []string) 
 func readDisputes(
 	ctx context.Context, src DisputeSource, timeout time.Duration, log *slog.Logger,
 	orders func(ctx context.Context, sessionIDs []string) (map[string]string, error),
-) admin.DisputeState {
+) DisputeState {
 	if src == nil {
-		return admin.DisputeState{}
+		return DisputeState{}
 	}
 	stripeCtx, cancelStripe := context.WithTimeout(ctx, timeout)
 	defer cancelStripe()
 	found, err := src.DisputesNeedingResponse(stripeCtx)
 	if err != nil {
 		log.WarnContext(ctx, "read disputes from Stripe", "error", err)
-		return admin.DisputeState{Configured: true, Unknown: true}
+		return DisputeState{Configured: true, Unknown: true}
 	}
 	var sessionIDs []string
 	for i := range found {
@@ -68,16 +67,16 @@ func readDisputes(
 			ordersUnknown = true
 		}
 	}
-	return admin.DisputeState{
+	return DisputeState{
 		Configured: true, OrdersUnknown: ordersUnknown, Items: openDisputes(found, matched, src.DisputeURL),
 	}
 }
 
-func openDisputes(found []payment.Dispute, orderOf map[string]string, url func(id string) string) []admin.OpenDispute {
-	out := make([]admin.OpenDispute, len(found))
+func openDisputes(found []payment.Dispute, orderOf map[string]string, url func(id string) string) []OpenDispute {
+	out := make([]OpenDispute, len(found))
 	for i := range found {
 		d := &found[i]
-		out[i] = admin.OpenDispute{
+		out[i] = OpenDispute{
 			URL: url(d.ID), OrderNumber: orderOf[d.SessionID], AmountCents: d.AmountCents, Currency: d.Currency,
 		}
 		if !d.RespondBy.IsZero() {

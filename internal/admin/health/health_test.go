@@ -9,7 +9,6 @@ import (
 	"time"
 
 	"github.com/koopa0/goen/internal/i18n"
-	"github.com/koopa0/goen/internal/ui/pages/admin"
 )
 
 func TestWorkerAgeSecondsSaturateInsteadOfWrappingHealthy(t *testing.T) {
@@ -19,7 +18,7 @@ func TestWorkerAgeSecondsSaturateInsteadOfWrappingHealthy(t *testing.T) {
 		t.Fatalf("durationFromSeconds(MaxInt64) = %v, want saturation at %v",
 			got, time.Duration(math.MaxInt64))
 	}
-	view := admin.WorkerHealthView{
+	view := WorkerHealthView{
 		OutboxPending:        1,
 		OutboxOldest:         got,
 		OutboxStaleAfter:     OutboxStaleAfter,
