@@ -707,7 +707,7 @@ templ Order(p layouts.Page, v *OrderView) {
 					}
 					if v.AllowanceAttention != "" {
 						<p class="ui-alert ui-alert--error" role="status">{ v.AllowanceAttentionText(ctx) }</p>
-						@technicalDetail(v.allowanceAttentionDetail())
+						@components.TechnicalDetail(v.allowanceAttentionDetail())
 					}
 					if !v.InvoicingEnabled {
 						<p class="goen-admin__hint">

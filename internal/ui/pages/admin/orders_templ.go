@@ -3791,7 +3791,7 @@ func Order(p layouts.Page, v *OrderView) templ.Component {
 					if templ_7745c5c3_Err != nil {
 						return templ_7745c5c3_Err
 					}
-					templ_7745c5c3_Err = technicalDetail(v.allowanceAttentionDetail()).Render(ctx, templ_7745c5c3_Buffer)
+					templ_7745c5c3_Err = components.TechnicalDetail(v.allowanceAttentionDetail()).Render(ctx, templ_7745c5c3_Buffer)
 					if templ_7745c5c3_Err != nil {
 						return templ_7745c5c3_Err
 					}
