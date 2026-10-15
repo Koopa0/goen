@@ -735,7 +735,7 @@ templ Order(p layouts.Page, v *OrderView) {
 									<select class="ui-select" id="unsent-reason" name="reason" required>
 										<option value="" selected disabled>{ i18n.T(ctx, i18n.KeyAdminUnsentReasonChoose) }</option>
 										for _, reason := range returns.UnsentReasons {
-											<option value={ string(reason) }>{ UnsentReasonLabel(ctx, reason) }</option>
+											<option value={ string(reason) }>{ reason.Label(ctx) }</option>
 										}
 									</select>
 								</div>

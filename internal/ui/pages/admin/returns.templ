@@ -48,21 +48,21 @@ templ Returns(p layouts.Page, v ReturnsView) {
 							// Consumer Protection Act §19 I: seven days from receipt, unwaivable under §19 V.
 							if r.Rescission() {
 								<span class="goen-admin__meta">
-									<strong>{ r.WindowText(ctx) }</strong>
+									<strong>{ r.Window.Label(ctx) }</strong>
 									{ i18n.T(ctx, i18n.KeyAdminRetMustAccept) }
 								</span>
 							} else if (r.Goodwill() || r.Mixed()) && !r.mixedStatutoryApproval() {
 								<span class="goen-admin__meta">
-									<strong>{ r.WindowText(ctx) }</strong>
+									<strong>{ r.Window.Label(ctx) }</strong>
 									{ i18n.T(ctx, i18n.KeyAdminRetGoodwillHint) }
 								</span>
 							} else if r.Late() {
 								<span class="goen-admin__meta">
-									{ r.WindowText(ctx) }
+									{ r.Window.Label(ctx) }
 									{ i18n.T(ctx, i18n.KeyAdminRetLateHint) }
 								</span>
 							} else {
-								<span class="goen-admin__meta">{ r.WindowText(ctx) }</span>
+								<span class="goen-admin__meta">{ r.Window.Label(ctx) }</span>
 							}
 							<span class="goen-admin__meta">{ r.Reason }</span>
 							if len(r.Lines) > 0 {
@@ -72,7 +72,7 @@ templ Returns(p layouts.Page, v ReturnsView) {
 											<span class="goen-admin__meta">{ l.Line() }</span>
 											<span class="goen-admin__meta">{ l.SKU } · { l.UnitPrice() }</span>
 											if l.Window != "" {
-												<span class="goen-admin__meta">{ ReturnLineWindowText(ctx, l.Window) }</span>
+												<span class="goen-admin__meta">{ l.Window.Label(ctx) }</span>
 											}
 											if l.Inspected {
 												<span class="goen-admin__meta">
