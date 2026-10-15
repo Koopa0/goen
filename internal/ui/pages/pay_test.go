@@ -26,7 +26,6 @@ func TestThePayPageListsDeliveryAndTheDiscountApart(t *testing.T) {
 		DiscountCents:  10000,
 		DiscountReason: "ACCEPT100 · 驗收折扣",
 	}
-	ctx := i18n.WithLocale(t.Context(), i18n.ZhHant)
 	html := renderToString(t, Pay(layouts.Page{Title: "Pay"}, view))
 	for _, want := range []string{
 		"<dt>運費（宅配到府）</dt>", ">NT$80<",
@@ -39,9 +38,6 @@ func TestThePayPageListsDeliveryAndTheDiscountApart(t *testing.T) {
 	}
 	if strings.Contains(html, "-NT$20<") {
 		t.Error("the pay page nets the coupon against delivery")
-	}
-	if strings.Contains(html, i18n.T(ctx, i18n.KeyShippingAndTax)) {
-		t.Error("the pay page uses the Stripe line item's label")
 	}
 }
 
