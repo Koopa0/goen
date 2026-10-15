@@ -13,6 +13,7 @@ import (
 	"github.com/koopa0/goen/internal/admin/access"
 	"github.com/koopa0/goen/internal/i18n"
 	"github.com/koopa0/goen/internal/outbox"
+	"github.com/koopa0/goen/internal/ui/components"
 	"github.com/koopa0/goen/internal/ui/layouts"
 	"github.com/koopa0/goen/internal/ui/pages/admin"
 	"github.com/koopa0/goen/internal/web"
@@ -47,11 +48,11 @@ func (h *Handler) Routes(mux *http.ServeMux, ac *access.Control) {
 	mux.HandleFunc("POST /admin/health/reconcile", ac.RequireStaff(h.Reconcile))
 }
 
-var notices = map[string]web.NoticeEntry{
-	"reconciled":    web.Done(i18n.KeyAdminNoticeReconciled),
-	"invoicequeued": web.Done(i18n.KeyAdminNoticeInvoiceQueued),
-	"notflagged":    web.Done(i18n.KeyAdminNoticeNotFlagged),
-	"mustrefund":    web.Refused(i18n.KeyAdminNoticePaymentMustRefund),
+var notices = map[string]components.NoticeEntry{
+	"reconciled":    components.NoticeDone(i18n.KeyAdminNoticeReconciled),
+	"invoicequeued": components.NoticeDone(i18n.KeyAdminNoticeInvoiceQueued),
+	"notflagged":    components.NoticeDone(i18n.KeyAdminNoticeNotFlagged),
+	"mustrefund":    components.NoticeRefused(i18n.KeyAdminNoticePaymentMustRefund),
 }
 
 // Reconcile records an explicit money outcome: an event is released only after full
@@ -171,7 +172,7 @@ func (h *Handler) Page(w http.ResponseWriter, r *http.Request) {
 		access.ServerError(w, r, h.log)
 		return
 	}
-	view.Notice = web.Notice(r, notices)
+	view.Notice = components.NoticeFrom(r, notices)
 	view.Pools = h.poolHealth()
 	view.Disputes = readDisputes(r.Context(), h.disputes, disputeReadTimeout, h.log, h.store.OrderNumbersBySession)
 	web.Render(w, r, h.log, http.StatusOK, admin.Health(

@@ -12,6 +12,7 @@ import (
 	"github.com/koopa0/goen/internal/keyset"
 	"github.com/koopa0/goen/internal/media"
 	"github.com/koopa0/goen/internal/newsletter"
+	"github.com/koopa0/goen/internal/ui/components"
 	"github.com/koopa0/goen/internal/ui/layouts"
 	"github.com/koopa0/goen/internal/ui/pages/admin"
 	"github.com/koopa0/goen/internal/web"
@@ -46,12 +47,12 @@ func (h *Handler) Routes(mux *http.ServeMux, ac *access.Control) {
 	mux.HandleFunc("POST /admin/home/{id}/promote", ac.RequireStaff(h.PromoteHero))
 }
 
-var notices = map[string]web.NoticeEntry{
-	"ok":      web.Done(i18n.KeyAdminNoticeOK),
-	"refused": web.Refused(i18n.KeyAdminNoticeRefused),
-	"saved":   web.Done(i18n.KeyAdminNoticeSaved),
-	"sent":    web.Done(i18n.KeyAdminNoticeSent),
-	"already": web.Done(i18n.KeyAdminNoticeAlready),
+var notices = map[string]components.NoticeEntry{
+	"ok":      components.NoticeDone(i18n.KeyAdminNoticeOK),
+	"refused": components.NoticeRefused(i18n.KeyAdminNoticeRefused),
+	"saved":   components.NoticeDone(i18n.KeyAdminNoticeSaved),
+	"sent":    components.NoticeDone(i18n.KeyAdminNoticeSent),
+	"already": components.NoticeDone(i18n.KeyAdminNoticeAlready),
 }
 
 func (h *Handler) FAQ(w http.ResponseWriter, r *http.Request) {
@@ -61,7 +62,7 @@ func (h *Handler) FAQ(w http.ResponseWriter, r *http.Request) {
 		access.ServerError(w, r, h.log)
 		return
 	}
-	view.Notice = web.Notice(r, notices)
+	view.Notice = components.NoticeFrom(r, notices)
 	web.Render(w, r, h.log, http.StatusOK, admin.FAQ(
 		layouts.Page{Title: i18n.T(r.Context(), i18n.KeyAdminPageFAQ)}, &view))
 }
@@ -168,7 +169,7 @@ func (h *Handler) Home(w http.ResponseWriter, r *http.Request) {
 		access.ServerError(w, r, h.log)
 		return
 	}
-	view.Notice = web.Notice(r, notices)
+	view.Notice = components.NoticeFrom(r, notices)
 	web.Render(w, r, h.log, http.StatusOK, admin.Home(
 		layouts.Page{Title: i18n.T(r.Context(), i18n.KeyAdminPageHero)}, &view))
 }
@@ -378,7 +379,7 @@ func (h *Handler) Newsletter(w http.ResponseWriter, r *http.Request) {
 		access.ServerError(w, r, h.log)
 		return
 	}
-	view.Notice = web.Notice(r, notices)
+	view.Notice = components.NoticeFrom(r, notices)
 	web.Render(w, r, h.log, http.StatusOK, admin.Newsletter(
 		layouts.Page{Title: i18n.T(r.Context(), i18n.KeyAdminPageNewsletter)}, view))
 }

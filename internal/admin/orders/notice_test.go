@@ -10,7 +10,6 @@ import (
 	"github.com/koopa0/goen/internal/ui/components"
 	"github.com/koopa0/goen/internal/ui/layouts"
 	"github.com/koopa0/goen/internal/ui/pages/admin"
-	"github.com/koopa0/goen/internal/web"
 )
 
 func TestARedirectedNoticeIsShownAsItsOwnOutcome(t *testing.T) {
@@ -71,7 +70,7 @@ func TestARedirectedNoticeIsShownAsItsOwnOutcome(t *testing.T) {
 		ctx := i18n.WithLocale(t.Context(), i18n.ZhHant)
 		req := httptest.NewRequestWithContext(ctx, http.MethodGet, "/admin/orders?"+tc.name+"=1", http.NoBody)
 		var page strings.Builder
-		view := admin.OrdersView{Notice: web.Notice(req, notices)}
+		view := admin.OrdersView{Notice: components.NoticeFrom(req, notices)}
 		if err := admin.Orders(layouts.Page{Title: "orders"}, view).Render(ctx, &page); err != nil {
 			t.Fatal(err)
 		}
@@ -102,7 +101,7 @@ func TestInvoicingOffHasItsOwnSentence(t *testing.T) {
 	}{{"invoicingoff", true}, {"refused", false}} {
 		req := httptest.NewRequestWithContext(ctx, http.MethodGet, "/admin/orders/G1?"+tc.query+"=1", http.NoBody)
 		var page strings.Builder
-		view := admin.OrderView{Notice: web.Notice(req, notices)}
+		view := admin.OrderView{Notice: components.NoticeFrom(req, notices)}
 		if err := admin.Order(layouts.Page{Title: "order"}, &view).Render(ctx, &page); err != nil {
 			t.Fatal(err)
 		}

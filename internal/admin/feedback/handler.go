@@ -8,6 +8,7 @@ import (
 	"github.com/koopa0/goen/internal/admin/access"
 	"github.com/koopa0/goen/internal/i18n"
 	"github.com/koopa0/goen/internal/keyset"
+	"github.com/koopa0/goen/internal/ui/components"
 	"github.com/koopa0/goen/internal/ui/layouts"
 	"github.com/koopa0/goen/internal/ui/pages/admin"
 	"github.com/koopa0/goen/internal/user"
@@ -37,10 +38,10 @@ func (h *Handler) Routes(mux *http.ServeMux, ac *access.Control) {
 	mux.HandleFunc("POST /admin/questions/{id}", ac.RequireStaff(h.AnswerQuestion))
 }
 
-var notices = map[string]web.NoticeEntry{
-	"ok":      web.Done(i18n.KeyAdminNoticeOK),
-	"refused": web.Refused(i18n.KeyAdminNoticeRefused),
-	"gone":    web.Refused(i18n.KeyAdminNoticeGone),
+var notices = map[string]components.NoticeEntry{
+	"ok":      components.NoticeDone(i18n.KeyAdminNoticeOK),
+	"refused": components.NoticeRefused(i18n.KeyAdminNoticeRefused),
+	"gone":    components.NoticeRefused(i18n.KeyAdminNoticeGone),
 }
 
 func (h *Handler) Questions(w http.ResponseWriter, r *http.Request) {
@@ -54,7 +55,7 @@ func (h *Handler) Questions(w http.ResponseWriter, r *http.Request) {
 		access.ServerError(w, r, h.log)
 		return
 	}
-	view.Notice = web.Notice(r, notices)
+	view.Notice = components.NoticeFrom(r, notices)
 	web.Render(w, r, h.log, http.StatusOK, admin.Questions(
 		layouts.Page{Title: i18n.T(r.Context(), i18n.KeyAdminPageQuestions)}, view))
 }
@@ -126,7 +127,7 @@ func (h *Handler) Reviews(w http.ResponseWriter, r *http.Request) {
 		access.ServerError(w, r, h.log)
 		return
 	}
-	view.Notice = web.Notice(r, notices)
+	view.Notice = components.NoticeFrom(r, notices)
 	web.Render(w, r, h.log, http.StatusOK, admin.Reviews(
 		layouts.Page{Title: i18n.T(r.Context(), i18n.KeyAdminPageReviews)}, view))
 }
@@ -162,7 +163,7 @@ func (h *Handler) Messages(w http.ResponseWriter, r *http.Request) {
 		access.ServerError(w, r, h.log)
 		return
 	}
-	view.Notice = web.Notice(r, notices)
+	view.Notice = components.NoticeFrom(r, notices)
 	web.Render(w, r, h.log, http.StatusOK, admin.Messages(
 		layouts.Page{Title: i18n.T(r.Context(), i18n.KeyAdminPageMessages)}, view))
 }

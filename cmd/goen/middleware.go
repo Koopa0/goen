@@ -350,7 +350,7 @@ func withLocale(next http.Handler, secure bool) http.Handler {
 		w.Header().Add("Vary", "Accept-Language, Cookie")
 		ctx := i18n.WithLocale(r.Context(), l)
 		// The path and query, so the language switch can send the visitor back.
-		ctx = web.WithRequestPath(ctx, localeReturnPath(r))
+		ctx = layouts.WithReturnPath(ctx, localeReturnPath(r))
 		next.ServeHTTP(w, r.WithContext(ctx))
 	})
 }

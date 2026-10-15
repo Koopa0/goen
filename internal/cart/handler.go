@@ -1951,7 +1951,7 @@ func (h *Handler) WithCount(next http.Handler) http.Handler {
 			next.ServeHTTP(w, r)
 			return
 		}
-		next.ServeHTTP(w, r.WithContext(web.WithCartCount(r.Context(), n)))
+		next.ServeHTTP(w, r.WithContext(layouts.WithCartCount(r.Context(), n)))
 	})
 }
 

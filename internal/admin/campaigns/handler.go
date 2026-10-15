@@ -44,10 +44,10 @@ func (h *Handler) Routes(mux *http.ServeMux, ac *access.Control) {
 	mux.HandleFunc("POST /admin/campaigns/{slug}/window", ac.RequireStaff(h.SetWindow))
 }
 
-var notices = map[string]web.NoticeEntry{
-	"ok":         web.Done(i18n.KeyAdminNoticeOK),
-	"refused":    web.Refused(i18n.KeyAdminNoticeRefused),
-	"nodiscount": web.Refused(i18n.KeyAdminNoticeNoDiscount),
+var notices = map[string]components.NoticeEntry{
+	"ok":         components.NoticeDone(i18n.KeyAdminNoticeOK),
+	"refused":    components.NoticeRefused(i18n.KeyAdminNoticeRefused),
+	"nodiscount": components.NoticeRefused(i18n.KeyAdminNoticeNoDiscount),
 }
 
 func (h *Handler) Page(w http.ResponseWriter, r *http.Request) {
@@ -57,7 +57,7 @@ func (h *Handler) Page(w http.ResponseWriter, r *http.Request) {
 		access.ServerError(w, r, h.log)
 		return
 	}
-	view.Notice = web.Notice(r, notices)
+	view.Notice = components.NoticeFrom(r, notices)
 	web.Render(w, r, h.log, http.StatusOK, admin.Campaigns(
 		layouts.Page{Title: i18n.T(r.Context(), i18n.KeyAdminPageCampaigns)}, view))
 }
@@ -98,7 +98,7 @@ func (h *Handler) Create(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *Handler) Edit(w http.ResponseWriter, r *http.Request) {
-	h.render(w, r, http.StatusOK, web.Notice(r, notices), nil)
+	h.render(w, r, http.StatusOK, components.NoticeFrom(r, notices), nil)
 }
 
 func (h *Handler) render(w http.ResponseWriter, r *http.Request, status int, notice components.Result, errs map[string]string) {

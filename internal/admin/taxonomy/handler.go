@@ -38,10 +38,10 @@ func (h *Handler) Routes(mux *http.ServeMux, ac *access.Control) {
 	mux.HandleFunc("POST /admin/categories/{slug}/image/remove", ac.RequireStaff(h.RemoveCategoryImage))
 }
 
-var notices = map[string]web.NoticeEntry{
-	"ok":      web.Done(i18n.KeyAdminNoticeOK),
-	"refused": web.Refused(i18n.KeyAdminNoticeRefused),
-	"inuse":   web.Refused(i18n.KeyAdminNoticeInUse),
+var notices = map[string]components.NoticeEntry{
+	"ok":      components.NoticeDone(i18n.KeyAdminNoticeOK),
+	"refused": components.NoticeRefused(i18n.KeyAdminNoticeRefused),
+	"inuse":   components.NoticeRefused(i18n.KeyAdminNoticeInUse),
 }
 
 func (h *Handler) Page(w http.ResponseWriter, r *http.Request) {
@@ -51,7 +51,7 @@ func (h *Handler) Page(w http.ResponseWriter, r *http.Request) {
 		access.ServerError(w, r, h.log)
 		return
 	}
-	view.Notice = web.Notice(r, notices)
+	view.Notice = components.NoticeFrom(r, notices)
 	web.Render(w, r, h.log, http.StatusOK, admin.Taxonomy(
 		layouts.Page{Title: i18n.T(r.Context(), i18n.KeyAdminPageTaxonomy)}, &view))
 }
@@ -138,7 +138,7 @@ func (h *Handler) Edit(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *Handler) EditCategory(w http.ResponseWriter, r *http.Request) {
-	h.renderCategory(w, r, http.StatusOK, web.Notice(r, notices), nil)
+	h.renderCategory(w, r, http.StatusOK, components.NoticeFrom(r, notices), nil)
 }
 
 func (h *Handler) renderCategory(w http.ResponseWriter, r *http.Request, status int, notice components.Result, errs map[string]string) {
