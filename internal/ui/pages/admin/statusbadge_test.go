@@ -12,7 +12,6 @@ import (
 	"github.com/koopa0/goen/internal/returns"
 	"github.com/koopa0/goen/internal/ui/components"
 	"github.com/koopa0/goen/internal/ui/layouts"
-	"github.com/koopa0/goen/internal/user"
 )
 
 // badgeClasses returns the class attribute of every badge whose text contains word.
@@ -183,18 +182,6 @@ func TestHealthItemsAreDoneOrNeedYou(t *testing.T) {
 	page := renderComponent(t, ctx, Health(layouts.Page{}, &WorkerHealthView{}))
 	wantBadge(t, page, i18n.T(ctx, i18n.KeyAdminHPAllClear), "goen-badge goen-badge--done")
 	wantBadge(t, page, i18n.T(ctx, i18n.KeyAdminHPNeedsLook), "goen-badge goen-badge--warn")
-}
-
-func TestStaffEnrollmentBadgesAreDoneOrNeedYou(t *testing.T) {
-	t.Parallel()
-	ctx := i18n.WithLocale(t.Context(), i18n.ZhHant)
-	view := StaffView{Rows: []StaffRow{
-		{ID: "on", Role: user.RoleStaff, Enrolled: true},
-		{ID: "off", Role: user.RoleStaff},
-	}}
-	page := renderComponent(t, ctx, Staff(layouts.Page{}, view))
-	wantBadge(t, page, i18n.T(ctx, i18n.KeyAdminTOTPOn), "goen-badge goen-badge--done")
-	wantBadge(t, page, i18n.T(ctx, i18n.KeyAdminTOTPOff), "goen-badge goen-badge--warn")
 }
 
 func TestQuestionQueueWaitingNeedsYouAndTheCountIsPlainText(t *testing.T) {

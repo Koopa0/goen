@@ -7,7 +7,6 @@ import (
 
 	"github.com/koopa0/goen/internal/i18n"
 	"github.com/koopa0/goen/internal/ui/layouts"
-	"github.com/koopa0/goen/internal/user"
 )
 
 func TestPickingSlipsEmptyStateIsAboutPicking(t *testing.T) {
@@ -29,22 +28,6 @@ func TestPickingTotalsHeadAlignsWithItsNumbers(t *testing.T) {
 	body := render(t, Picking(layouts.Page{Title: "Picking"}, &PickingView{Totals: []PickingLine{{SKU: "A-1", Name: "Cup", Remaining: 3}}}))
 	if want := `<th class="goen-admin__cellnum" scope="col">Not yet dispatched</th>`; !strings.Contains(body, want) {
 		t.Errorf("Picking totals head lacks %q", want)
-	}
-}
-
-func TestStaffRowPrintsAnEmailOnce(t *testing.T) {
-	t.Parallel()
-	for name, tc := range map[string]struct {
-		row   StaffRow
-		count int
-	}{
-		"no name":   {StaffRow{ID: "1", Email: "nameless@example.com", Role: user.RoleStaff}, 1},
-		"with name": {StaffRow{ID: "2", Email: "named@example.com", Role: user.RoleStaff, Name: "Mei"}, 1},
-	} {
-		body := render(t, Staff(layouts.Page{Title: "Staff"}, StaffView{Rows: []StaffRow{tc.row}}))
-		if got := strings.Count(body, tc.row.Email); got != tc.count {
-			t.Errorf("%s: %q appears %d times in the staff list, want %d", name, tc.row.Email, got, tc.count)
-		}
 	}
 }
 

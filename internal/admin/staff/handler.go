@@ -9,7 +9,6 @@ import (
 	"github.com/koopa0/goen/internal/admin/audit"
 	"github.com/koopa0/goen/internal/i18n"
 	"github.com/koopa0/goen/internal/ui/layouts"
-	"github.com/koopa0/goen/internal/ui/pages/admin"
 	"github.com/koopa0/goen/internal/user"
 	"github.com/koopa0/goen/internal/web"
 )
@@ -58,7 +57,7 @@ func (h *Handler) Page(w http.ResponseWriter, r *http.Request) {
 	view.NoKey = !h.factorsEnabled
 	view.Actor = actorID(r)
 	view.Notice = web.Notice(r, notices)
-	web.Render(w, r, h.log, http.StatusOK, admin.Staff(
+	web.Render(w, r, h.log, http.StatusOK, Staff(
 		layouts.Page{Title: i18n.T(r.Context(), i18n.KeyAdminPageStaff)}, view))
 }
 
@@ -82,7 +81,7 @@ func (h *Handler) Add(w http.ResponseWriter, r *http.Request) {
 		view.AddRole = user.Role(r.PostFormValue("role"))
 		view.AddError = i18n.T(r.Context(), i18n.KeyStaffAlreadyExists)
 		view.NoKey = !h.factorsEnabled
-		web.Render(w, r, h.log, http.StatusUnprocessableEntity, admin.Staff(
+		web.Render(w, r, h.log, http.StatusUnprocessableEntity, Staff(
 			layouts.Page{Title: i18n.T(r.Context(), i18n.KeyAdminPageStaff)}, view))
 		return
 	}
