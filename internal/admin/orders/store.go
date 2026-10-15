@@ -103,7 +103,7 @@ func orderStatus(ctx context.Context, status order.FulfillmentStatus, committed 
 	if returned {
 		return i18n.T(ctx, i18n.KeyStatusRefunded), components.IntentNeutral
 	}
-	return admin.FundedFulfillmentLabel(ctx, status, committed, owedCents), admin.FundedFulfillmentIntent(status, committed, owedCents)
+	return status.FundedLabel(ctx, committed, owedCents), components.FundedFulfillmentIntent(status, committed, owedCents)
 }
 
 // listPosition is a reader's place in the orders queue. The query builds it as
@@ -539,7 +539,7 @@ func (s *Store) fillRefundBeforeShipment(ctx context.Context, view *admin.OrderV
 			(n == order.FulfillmentCompleted && (len(view.Shippable) > 0 || view.UnsentOpen)) {
 			continue
 		}
-		view.Next = append(view.Next, admin.Transition{Value: n, Label: admin.FulfillmentLabel(ctx, n)})
+		view.Next = append(view.Next, admin.Transition{Value: n, Label: n.Label(ctx)})
 	}
 	return nil
 }

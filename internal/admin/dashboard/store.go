@@ -137,5 +137,5 @@ func orderStatus(ctx context.Context, status order.FulfillmentStatus, o *db.Rece
 	if o.Returned {
 		return i18n.T(ctx, i18n.KeyStatusRefunded), components.IntentNeutral
 	}
-	return admin.FundedFulfillmentLabel(ctx, status, o.Committed, o.OwedCents), admin.FundedFulfillmentIntent(status, o.Committed, o.OwedCents)
+	return status.FundedLabel(ctx, o.Committed, o.OwedCents), components.FundedFulfillmentIntent(status, o.Committed, o.OwedCents)
 }

@@ -1,4 +1,5 @@
-// Package order is the vocabulary of an order: its fulfillment states, event kinds and number.
+// Package order is the vocabulary of an order: its fulfillment states and the
+// back office's words for them, its event kinds and its number.
 package order
 
 import (
