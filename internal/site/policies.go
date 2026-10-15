@@ -271,9 +271,7 @@ var policies = map[string]pages.PolicyDoc{
 						pages.CheckoutDraftHoursText()),
 					fmt.Sprintf("寄給你的電子郵件紀錄，在寄出 %[1]s 天後刪除；無法寄出的郵件在建立 %[1]s 天後刪除。", pages.MailRetainDaysText()),
 					fmt.Sprintf("登入狀態最長維持 %s 天，到期後即刪除。", pages.SessionDaysText()),
-					// Until the stock-alert sweep exists, the second sentence is the
-					// truth; the sweep's PR replaces it with the deletion period.
-					"補貨通知申請會保留到我們寄出通知為止。目前寄出通知後的申請紀錄不會自動刪除。",
+					fmt.Sprintf("補貨通知申請會保留到我們寄出通知為止，寄出後 %s 天刪除。", pages.StockAlertRetainDaysText()),
 					"透過聯絡表單送出的訊息目前不會自動刪除；刪除帳號時，若該電子郵件已驗證，會一併刪除。",
 					"訂單財務紀錄與發票資料目前沒有設定刪除期限；訂單上的收件資料會保留到你刪除帳號為止。",
 				},
@@ -285,7 +283,7 @@ var policies = map[string]pages.PolicyDoc{
 						pages.CheckoutDraftHoursText()),
 					fmt.Sprintf("Records of mail we send you are deleted %[1]s days after delivery; mail that could not be delivered is deleted %[1]s days after it was created.", pages.MailRetainDaysText()),
 					fmt.Sprintf("A sign-in lasts at most %s days and is deleted when it expires.", pages.SessionDaysText()),
-					"A restock alert is kept until we send the notice. Alerts already notified are not yet deleted automatically.",
+					fmt.Sprintf("A restock alert is kept until we send the notice, and deleted %s days after that.", pages.StockAlertRetainDaysText()),
 					"Messages sent through the contact form are not deleted automatically; deleting your account deletes them too if that email address is verified.",
 					"Order financial records and invoice data have no set deletion date; the delivery details on an order are kept until you delete your account.",
 				},

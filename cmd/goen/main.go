@@ -37,6 +37,7 @@ import (
 	"github.com/koopa0/goen/internal/payment"
 	"github.com/koopa0/goen/internal/ratelimit"
 	"github.com/koopa0/goen/internal/recommend"
+	"github.com/koopa0/goen/internal/restock"
 	"github.com/koopa0/goen/internal/web"
 )
 
@@ -870,6 +871,7 @@ func startWorkers(ctx context.Context, d workerDeps) {
 	}
 
 	d.run(func() { recommend.NewStore(d.maintenance, d.log).RefreshForever(ctx) })
+	d.run(func() { restock.NewStore(d.maintenance).SweepForever(ctx, d.log) })
 }
 
 // newOutboxStore is the outbox with a handler for each topic goen enqueues. A

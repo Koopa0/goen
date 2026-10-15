@@ -135,6 +135,9 @@ const guestCartRetainDays = 30
 // cart.DraftTTL.
 const checkoutDraftHours = 1
 
+// restock.NotifiedRetain.
+const stockAlertRetainDays = 30
+
 // outbox.Retain, for delivered and for undelivered mail alike.
 const mailRetainDays = 30
 
@@ -144,6 +147,7 @@ const sessionDays = 14
 func NewsletterConfirmHoursText() string { return strconv.Itoa(newsletterConfirmHours) }
 func NewsletterRetainDaysText() string   { return strconv.Itoa(newsletterRetainDays) }
 func GuestCartRetainDaysText() string    { return strconv.Itoa(guestCartRetainDays) }
+func StockAlertRetainDaysText() string   { return strconv.Itoa(stockAlertRetainDays) }
 func CheckoutDraftHoursText() string     { return strconv.Itoa(checkoutDraftHours) }
 func MailRetainDaysText() string         { return strconv.Itoa(mailRetainDays) }
 func SessionDaysText() string            { return strconv.Itoa(sessionDays) }

@@ -18215,6 +18215,24 @@ func (q *Queries) SweepDeliveredMessages(ctx context.Context, retain pgtype.Inte
 	return result.RowsAffected(), nil
 }
 
+const sweepNotifiedStockNotifications = `-- name: SweepNotifiedStockNotifications :one
+SELECT sweep_notified_stock_notifications($1::interval, $2::integer)::bigint AS deleted
+`
+
+type SweepNotifiedStockNotificationsParams struct {
+	Retain pgtype.Interval
+	Batch  int32
+}
+
+// How many alerts one call deleted. The function lists only alerts whose notice
+// already went out, and a batch at a time.
+func (q *Queries) SweepNotifiedStockNotifications(ctx context.Context, arg SweepNotifiedStockNotificationsParams) (int64, error) {
+	row := q.db.QueryRow(ctx, sweepNotifiedStockNotifications, arg.Retain, arg.Batch)
+	var deleted int64
+	err := row.Scan(&deleted)
+	return deleted, err
+}
+
 const sweepUndeliveredMessages = `-- name: SweepUndeliveredMessages :many
 DELETE FROM outbox_messages
 WHERE delivered_at IS NULL
