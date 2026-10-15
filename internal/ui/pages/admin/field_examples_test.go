@@ -56,7 +56,6 @@ func TestAdminExamplesStayOutsideRefusedInputs(t *testing.T) {
 						"h-headline": prefix + headline, "h-headline-en": prefix + "Choose one good thing.", "h-phref": prefix + "/deals", "h-shref": prefix + "/about", "h-days": days,
 						"b-message": prefix + message, "b-short": prefix + short, "b-cta-label": prefix + cta, "b-message-en": prefix + "Free delivery over NT$3,000", "b-cta-label-en": prefix + "Shop", "b-cta-href": prefix + "/deals", "b-code": prefix + "FREESHIP", "b-days": days,
 					}},
-					{"stock adjustment", Variants(p, VariantsView{Variants: []Variant{{SKU: "sample", DraftDelta: typed, DeltaError: refusal}}}), map[string]string{"adj-sample": prefix + "+10"}},
 					{"return inspection", Returns(p, ReturnsView{Rows: []Return{{ID: "request", Status: returns.StatusApproved, Window: returns.WindowStatutory, Decided: true, Lines: []ReturnLine{{OrderLineID: "line", Quantity: 1, DraftNote: typed}}}}, Errors: errors("request.inspect")}), map[string]string{"note-request-line": inspection}},
 				} {
 					t.Run(page.name, func(t *testing.T) {

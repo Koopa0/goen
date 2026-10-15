@@ -1,4 +1,4 @@
-package admin
+package stock
 
 import (
 	"context"
@@ -9,6 +9,7 @@ import (
 	"github.com/koopa0/goen/internal/keyset"
 	"github.com/koopa0/goen/internal/ui/components"
 	"github.com/koopa0/goen/internal/ui/layouts"
+	"github.com/koopa0/goen/internal/ui/pages/admin"
 )
 
 type Variant struct {
@@ -51,7 +52,7 @@ type VariantsView struct {
 	// ShowCover is set on the desk's opening page only: not on a search, the
 	// sold out filter or a later page of the list.
 	ShowCover   bool
-	AtRisk      []StockRisk
+	AtRisk      []admin.StockRisk
 	MoreSoldOut int
 	// Return is this page's own address, filter and position, which each form
 	// posts back so a write returns to the page it was made on.
