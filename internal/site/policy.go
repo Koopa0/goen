@@ -7,7 +7,6 @@ import (
 	"github.com/koopa0/goen/internal/db"
 	"github.com/koopa0/goen/internal/i18n"
 	"github.com/koopa0/goen/internal/ui/layouts"
-	"github.com/koopa0/goen/internal/ui/pages"
 	"github.com/koopa0/goen/internal/web"
 )
 
@@ -19,25 +18,25 @@ func (h *Handler) FAQ(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	web.Render(w, r, h.log, http.StatusOK, pages.FAQ(
+	web.Render(w, r, h.log, http.StatusOK, FAQ(
 		layouts.Page{
 			Title:       i18n.T(r.Context(), i18n.KeyFAQTitle),
 			Description: i18n.T(r.Context(), i18n.KeyFAQDescription),
 		}, faqView(rows)))
 }
 
-func faqView(rows []db.FAQEntriesRow) pages.FAQView {
-	view := pages.FAQView{}
-	var current *pages.FAQGroup
+func faqView(rows []db.FAQEntriesRow) FAQView {
+	view := FAQView{}
+	var current *FAQGroup
 	var category string
 	for i := range rows {
 		e := &rows[i]
 		if current == nil || category != e.CanonicalCategory {
-			view.Groups = append(view.Groups, pages.FAQGroup{Category: e.Category})
+			view.Groups = append(view.Groups, FAQGroup{Category: e.Category})
 			current = &view.Groups[len(view.Groups)-1]
 			category = e.CanonicalCategory
 		}
-		current.Items = append(current.Items, pages.FAQItem{
+		current.Items = append(current.Items, FAQItem{
 			Question: e.Question, Answer: e.Answer,
 		})
 	}
@@ -52,8 +51,8 @@ func (h *Handler) Shipping(w http.ResponseWriter, r *http.Request) {
 		h.serverError(w, r)
 		return
 	}
-	view := pages.ShippingView{Methods: methods}
-	web.Render(w, r, h.log, http.StatusOK, pages.Shipping(
+	view := ShippingView{Methods: methods}
+	web.Render(w, r, h.log, http.StatusOK, Shipping(
 		layouts.Page{
 			Title:       i18n.T(r.Context(), i18n.KeyShippingTitle),
 			Description: i18n.T(r.Context(), i18n.KeyShippingDescription),
@@ -67,7 +66,7 @@ func (h *Handler) Policy(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	doc = doc.For(i18n.FromContext(r.Context()))
-	web.Render(w, r, h.log, http.StatusOK, pages.Policy(
+	web.Render(w, r, h.log, http.StatusOK, Policy(
 		layouts.Page{Title: doc.Title, Description: doc.Summary}, doc))
 }
 

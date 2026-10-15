@@ -6,7 +6,7 @@ import (
 	"time"
 
 	"github.com/koopa0/goen/internal/newsletter"
-	"github.com/koopa0/goen/internal/ui/pages"
+	"github.com/koopa0/goen/internal/site"
 )
 
 // The privacy policy states how long a confirmation link works and how long an
@@ -15,14 +15,14 @@ import (
 func TestThePrivacyPolicyStatesTheNewsletterPeriodsTheStoreEnforces(t *testing.T) {
 	t.Parallel()
 
-	hours, err := strconv.Atoi(pages.NewsletterConfirmHoursText())
+	hours, err := strconv.Atoi(site.NewsletterConfirmHoursText())
 	if err != nil {
 		t.Fatalf("parse stated confirmation window: %v", err)
 	}
 	if got := time.Duration(hours) * time.Hour; got != newsletter.ConfirmTTL {
 		t.Errorf("privacy states a %v confirmation link, the store issues %v", got, newsletter.ConfirmTTL)
 	}
-	days, err := strconv.Atoi(pages.NewsletterRetainDaysText())
+	days, err := strconv.Atoi(site.NewsletterRetainDaysText())
 	if err != nil {
 		t.Fatalf("parse stated retention: %v", err)
 	}

@@ -9,7 +9,6 @@ import (
 	"github.com/koopa0/goen/internal/db"
 	"github.com/koopa0/goen/internal/i18n"
 	"github.com/koopa0/goen/internal/ui/layouts"
-	"github.com/koopa0/goen/internal/ui/pages"
 	"github.com/koopa0/goen/internal/web"
 )
 
@@ -34,7 +33,7 @@ func NewHandler(log *slog.Logger, baseURL string, catalogue Catalogue, content *
 }
 
 func (h *Handler) About(w http.ResponseWriter, r *http.Request) {
-	web.Render(w, r, h.log, http.StatusOK, pages.About(pages.AboutMeta(r.Context())))
+	web.Render(w, r, h.log, http.StatusOK, About(AboutMeta(r.Context())))
 }
 
 func (h *Handler) NotFound(w http.ResponseWriter, r *http.Request) {
