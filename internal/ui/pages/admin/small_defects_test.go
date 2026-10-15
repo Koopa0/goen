@@ -53,16 +53,3 @@ func TestEmptyLedgerSaysNoMovementOnce(t *testing.T) {
 		t.Error("an empty ledger lacks its empty state")
 	}
 }
-
-func TestZonePrefixRowsFollowLines(t *testing.T) {
-	t.Parallel()
-	for _, tc := range []struct{ raw, want string }{
-		{"209 210 211 212 880 881 882 883 884 885", "3"},
-		{"", "3"},
-		{"209\n210\n211\n212", "5"},
-	} {
-		if got := zonePrefixRows(tc.raw); got != tc.want {
-			t.Errorf("zonePrefixRows(%q) = %s, want %s", tc.raw, got, tc.want)
-		}
-	}
-}

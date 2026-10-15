@@ -18,7 +18,6 @@ import (
 	"github.com/koopa0/goen/internal/money"
 	"github.com/koopa0/goen/internal/ui/components"
 	"github.com/koopa0/goen/internal/ui/layouts"
-	"github.com/koopa0/goen/internal/ui/pages/admin"
 	"github.com/koopa0/goen/internal/web"
 )
 
@@ -78,8 +77,8 @@ func (h *Handler) CreateMethod(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-func methodFormOf(r *http.Request) (*NewMethod, admin.MethodDraft, map[string]string) {
-	draft := admin.MethodDraft{
+func methodFormOf(r *http.Request) (*NewMethod, MethodDraft, map[string]string) {
+	draft := MethodDraft{
 		Code: r.PostFormValue("code"), Destination: r.PostFormValue("destination"),
 		Name: r.PostFormValue("name"), NameEn: r.PostFormValue("name_en"),
 		Carrier: r.PostFormValue("carrier"), CarrierEn: r.PostFormValue("carrier_en"),
@@ -159,7 +158,7 @@ func (h *Handler) CreateZone(w http.ResponseWriter, r *http.Request) {
 		h.log.ErrorContext(r.Context(), "create shipping zone", "error", err)
 		access.ServerError(w, r, h.log)
 	case len(errs) > 0:
-		h.rejectShippingForm(w, r, errs, &shippingDrafts{zone: admin.ZoneDraft{
+		h.rejectShippingForm(w, r, errs, &shippingDrafts{zone: ZoneDraft{
 			Code: r.PostFormValue("code"), Name: r.PostFormValue("name"), NameEn: r.PostFormValue("name_en"), Prefixes: r.PostFormValue("prefixes"),
 		}})
 	default:
@@ -182,7 +181,7 @@ func (h *Handler) SetZonePrefixes(w http.ResponseWriter, r *http.Request) {
 		h.log.ErrorContext(r.Context(), "set zone prefixes", "error", err)
 		access.ServerError(w, r, h.log)
 	case len(errs) > 0:
-		h.rejectShippingForm(w, r, errs, &shippingDrafts{prefixes: admin.ZonePrefixesDraft{
+		h.rejectShippingForm(w, r, errs, &shippingDrafts{prefixes: ZonePrefixesDraft{
 			ZoneID: zoneID, Prefixes: prefixes,
 		}})
 	default:
@@ -223,10 +222,10 @@ func (h *Handler) DeleteZone(w http.ResponseWriter, r *http.Request) {
 }
 
 type shippingDrafts struct {
-	method   admin.MethodDraft
-	zone     admin.ZoneDraft
-	prefixes admin.ZonePrefixesDraft
-	version  *admin.VersionDraft
+	method   MethodDraft
+	zone     ZoneDraft
+	prefixes ZonePrefixesDraft
+	version  *VersionDraft
 }
 
 func (h *Handler) rejectShippingForm(
@@ -255,7 +254,7 @@ func (h *Handler) rejectShippingForm(
 	if drafts.version != nil {
 		view.VersionDraft = *drafts.version
 	}
-	web.Render(w, r, h.log, http.StatusUnprocessableEntity, admin.Shipping(
+	web.Render(w, r, h.log, http.StatusUnprocessableEntity, Shipping(
 		layouts.Page{Title: i18n.T(r.Context(), i18n.KeyAdminPageShipping)}, view))
 }
 
@@ -273,7 +272,7 @@ func dollars(v string, blankOK bool) (int64, bool) {
 // shippingView is the configuration with each pickup-point method marked as not
 // offered where checkout hides it: a method listed here with a disable button
 // reads as live, and the same condition as the checkout is what keeps it true.
-func (h *Handler) shippingView(ctx context.Context) (admin.ShippingView, error) {
+func (h *Handler) shippingView(ctx context.Context) (ShippingView, error) {
 	view, err := h.store.Configuration(ctx)
 	if err != nil {
 		return view, err
@@ -293,7 +292,7 @@ func (h *Handler) Page(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	view.Notice = components.NoticeFrom(r, notices)
-	web.Render(w, r, h.log, http.StatusOK, admin.Shipping(
+	web.Render(w, r, h.log, http.StatusOK, Shipping(
 		layouts.Page{Title: i18n.T(r.Context(), i18n.KeyAdminPageShipping)}, view))
 }
 
@@ -320,8 +319,8 @@ func (h *Handler) PublishVersion(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-func versionFormOf(r *http.Request) (ShippingVersion, admin.VersionDraft, map[string]string) {
-	draft := admin.VersionDraft{
+func versionFormOf(r *http.Request) (ShippingVersion, VersionDraft, map[string]string) {
+	draft := VersionDraft{
 		MethodID: r.PostFormValue("method"), Name: r.PostFormValue("name"), NameEn: r.PostFormValue("name_en"),
 		Carrier: r.PostFormValue("carrier"), CarrierEn: r.PostFormValue("carrier_en"),
 		Fee: r.PostFormValue("fee"), FreeOver: r.PostFormValue("free_over"),
@@ -404,8 +403,8 @@ func (h *Handler) rejectSurcharge(w http.ResponseWriter, r *http.Request, messag
 		access.NotFound(w, r, h.log)
 		return
 	}
-	view.SurchargeDraft = admin.SurchargeDraft{MethodID: methodID, ZoneID: zoneID, Amount: r.PostFormValue("amount")}
+	view.SurchargeDraft = SurchargeDraft{MethodID: methodID, ZoneID: zoneID, Amount: r.PostFormValue("amount")}
 	view.Errors = map[string]string{"surcharge": message}
-	web.Render(w, r, h.log, http.StatusUnprocessableEntity, admin.Shipping(
+	web.Render(w, r, h.log, http.StatusUnprocessableEntity, Shipping(
 		layouts.Page{Title: i18n.T(r.Context(), i18n.KeyAdminPageShipping)}, view))
 }
