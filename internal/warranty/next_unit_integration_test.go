@@ -31,7 +31,15 @@ func reverseWarrantyParcels(t *testing.T, laterQuantity int) (fixture, uuid.UUID
 	if err := tx.QueryRow(t.Context(), `SELECT s.order_id,s.id FROM order_shipments s JOIN order_shipment_lines sl ON sl.shipment_id=s.id WHERE sl.order_line_id=$1`, f.lineID).Scan(&orderID, &firstShipment); err != nil {
 		t.Fatal(err)
 	}
+	// The first parcel left before the second: moved back as time would, past
+	// order_shipments_moments_frozen, which holds every writer.
+	if _, err := tx.Exec(t.Context(), `SET LOCAL session_replication_role = replica`); err != nil {
+		t.Fatal(err)
+	}
 	if _, err := tx.Exec(t.Context(), `UPDATE order_shipments SET shipped_at='2026-08-08T12:00:00+08:00' WHERE id=$1`, firstShipment); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := tx.Exec(t.Context(), `SET LOCAL session_replication_role = origin`); err != nil {
 		t.Fatal(err)
 	}
 	var secondShipment uuid.UUID

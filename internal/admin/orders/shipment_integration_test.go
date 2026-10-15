@@ -13,6 +13,7 @@ import (
 
 	"github.com/google/go-cmp/cmp"
 	"github.com/google/uuid"
+	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgtype"
 
 	"github.com/koopa0/goen/internal/admin/admintest"
@@ -62,7 +63,14 @@ func TestLaterParcelArrivalWhileGoodsRemainOutstanding(t *testing.T) {
 			third := ship("THIRD-"+number, lines[0])
 			// A dispatch clock ahead of the database cannot create an arrival
 			// before dispatch; the per-parcel operation must keep the bulk rule.
-			if _, err := pool.Exec(localeCtx, `UPDATE order_shipments SET shipped_at = now() + interval '1 minute' WHERE id = $1`, second); err != nil {
+			// Moved past order_shipments_moments_frozen, which holds every writer.
+			if err := pgx.BeginFunc(localeCtx, pool, func(tx pgx.Tx) error {
+				if _, err := tx.Exec(localeCtx, `SET LOCAL session_replication_role = replica`); err != nil {
+					return err
+				}
+				_, err := tx.Exec(localeCtx, `UPDATE order_shipments SET shipped_at = now() + interval '1 minute' WHERE id = $1`, second)
+				return err
+			}); err != nil {
 				t.Fatal(err)
 			}
 			before := readParcelArrivalState(t, localeCtx, orderID, first, second)

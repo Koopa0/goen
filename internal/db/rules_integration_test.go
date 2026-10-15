@@ -311,6 +311,14 @@ var ruleCases = []ruleCase{
 		         WHERE order_id = '6666aaaa-6666-4666-8666-666666666666';`,
 	},
 	{
+		// As the owner: when a parcel left is fixed once it is written.
+		rule: "order_shipments_moments_frozen",
+		reject: `UPDATE order_shipments SET shipped_at = shipped_at - interval '1 day'
+		         WHERE id = '66660002-0000-4000-8000-000000000000';`,
+		accept: `UPDATE order_shipments SET delivered_at = greatest(now(), shipped_at)
+		         WHERE id = '66660002-0000-4000-8000-000000000000' AND delivered_at IS NULL;`,
+	},
+	{
 		rule: "orders_money_frozen_once_committed",
 		reject: `UPDATE orders SET discount_cents = 50000
 		         WHERE id = '66666666-6666-4666-8666-666666666666';`,
