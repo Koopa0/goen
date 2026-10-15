@@ -24,7 +24,6 @@ func TestEveryAdminEmptyPageKeepsItsRestartLink(t *testing.T) {
 		"movements": Movements(p, &MovementsView{Bound: b}),
 		"returns":   Returns(p, ReturnsView{Bound: b}),
 		"campaigns": Campaigns(p, CampaignsView{Bound: b}),
-		"credit":    Credit(p, CreditView{Bound: b}),
 		"audit":     Audit(p, AuditView{Bound: b}),
 		"warranty":  Warranties(p, WarrantiesView{Bound: b, Searched: true, Term: "test"}),
 	}

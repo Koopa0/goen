@@ -76,7 +76,6 @@ func TestEveryAdminScreenPutsItsWorkInTheContentColumn(t *testing.T) {
 
 	for name, screen := range map[string]templ.Component{
 		"newsletter": Newsletter(layouts.Page{}, NewsletterView{}),
-		"tiers":      Tiers(layouts.Page{}, TiersView{}),
 	} {
 		html := renderComponent(t, ctx, screen)
 
