@@ -133,9 +133,14 @@ CREATE TABLE categories (
     -- nearest ancestor that sets one, and a root with NULL is false: a
     -- comparison only means something where products share the same specs.
     comparable boolean,
-    -- The department's photograph, a key of the kind product_images.storage_key
-    -- holds, so one resolver serves an uploaded digest and an embedded file.
-    image_key    text,
+    -- The department's photograph: an upload (media_digest, whose foreign key
+    -- is added after media_objects is created) or a file embedded in the
+    -- binary (bundled_key, a name in assets/media/products/), never both.
+    -- Two columns because one cannot carry a foreign key while it may hold a
+    -- filename, and without one an upload attached while the sweeper deletes
+    -- it leaves the department pointing at nothing.
+    media_digest text,
+    bundled_key  text,
     image_alt    text,
     image_alt_en text,
     position   integer NOT NULL DEFAULT 0,
@@ -155,8 +160,15 @@ CREATE TABLE categories (
     CONSTRAINT categories_tone_known CHECK (
         tone IS NULL OR tone IN ('paper', 'stone', 'mist', 'sage', 'blush', 'ink')
     ),
+    CONSTRAINT categories_image_one_source
+        CHECK (num_nonnulls(media_digest, bundled_key) <= 1),
+    -- The slug grammar plus the one extension embedded photographs use. It
+    -- also keeps a digest out: 64 hex characters never end in '.webp', so an
+    -- upload cannot be stored here, past the foreign key.
+    CONSTRAINT categories_bundled_key_format
+        CHECK (bundled_key ~ '^[a-z0-9]+(-[a-z0-9]+)*\.webp$'),
     CONSTRAINT categories_image_has_alt
-        CHECK (image_key IS NULL
+        CHECK (num_nonnulls(media_digest, bundled_key) = 0
                OR (image_alt IS NOT NULL AND image_alt ~ '[^[:space:]]')),
     CONSTRAINT categories_not_own_parent CHECK (parent_id IS DISTINCT FROM id)
 );
@@ -9369,6 +9381,17 @@ CREATE TRIGGER media_objects_immutable
     BEFORE UPDATE ON media_objects
     FOR EACH ROW EXECUTE FUNCTION forbid_change('media_objects_immutable');
 
+-- The image columns that hold an upload, each declared before media_objects
+-- existed. RESTRICT is what closes the sweeper's window: whichever of the attach
+-- and the delete comes second is refused, so neither can leave a page pointing
+-- at a deleted image. Indexed because every delete here checks the referencing
+-- table (PostgreSQL docs, 5.5.5 Foreign Keys).
+ALTER TABLE categories
+    ADD CONSTRAINT categories_media_digest_fk
+    FOREIGN KEY (media_digest) REFERENCES media_objects (digest) ON DELETE RESTRICT;
+
+CREATE INDEX categories_media_digest_idx ON categories (media_digest);
+
 GRANT SELECT ON media_objects TO store;
 GRANT SELECT, DELETE ON media_objects TO admin;
 GRANT INSERT (digest, content_type, bytes, width, height, byte_size)
@@ -10194,8 +10217,8 @@ GRANT INSERT (slug, name),
 REVOKE INSERT, UPDATE ON categories FROM admin;
 GRANT INSERT (parent_id, slug, name, name_en, icon_key, tone, comparable,
               position),
-      UPDATE (name, name_en, icon_key, tone, comparable, image_key, image_alt,
-              image_alt_en)
+      UPDATE (name, name_en, icon_key, tone, comparable, media_digest,
+              bundled_key, image_alt, image_alt_en)
     ON categories TO admin;
 
 -- A coupon's terms are what its redemptions were priced on: the back office

@@ -765,12 +765,12 @@ func (q *Queries) AdminCategories(ctx context.Context) ([]AdminCategoriesRow, er
 const adminCategoryImage = `-- name: AdminCategoryImage :one
 SELECT c.name,
        coalesce(c.tone, '')::text AS tone,
-       coalesce(c.image_key, '')::text AS image_key,
+       coalesce(c.media_digest, c.bundled_key, '')::text AS image_key,
        coalesce(c.image_alt, '')::text AS image_alt,
        coalesce(c.image_alt_en, '')::text AS image_alt_en,
        coalesce(m.width, 0)::integer AS image_width
 FROM categories c
-LEFT JOIN media_objects m ON m.digest = c.image_key
+LEFT JOIN media_objects m ON m.digest = c.media_digest
 WHERE c.slug = $1::text
 `
 
@@ -4522,7 +4522,7 @@ const categoryBySlug = `-- name: CategoryBySlug :one
 WITH RECURSIVE trail AS (
     SELECT c.id, c.parent_id, c.slug,
            localized_name(c.name, c.name_en, $2::text) AS name,
-           c.tone, c.image_key,
+           c.tone, c.media_digest, c.bundled_key,
            localized_name(c.image_alt, c.image_alt_en, $2::text) AS image_alt,
            0 AS depth
     FROM categories c
@@ -4530,7 +4530,7 @@ WITH RECURSIVE trail AS (
     UNION ALL
     SELECT c.id, c.parent_id, c.slug,
            localized_name(c.name, c.name_en, $2::text),
-           c.tone, c.image_key,
+           c.tone, c.media_digest, c.bundled_key,
            localized_name(c.image_alt, c.image_alt_en, $2::text),
            t.depth + 1
     FROM categories c
@@ -4552,15 +4552,15 @@ SELECT
         (SELECT a.tone FROM trail a WHERE a.tone IS NOT NULL ORDER BY a.depth LIMIT 1),
         'stone'
     )::text AS tone,
-    coalesce(photo.image_key, '')::text AS image_key,
+    coalesce(photo.media_digest, photo.bundled_key, '')::text AS image_key,
     coalesce(photo.image_alt, '')::text AS image_alt,
     coalesce(m.width, 0)::integer AS image_width
 FROM trail self
 LEFT JOIN LATERAL (
-    SELECT a.image_key, a.image_alt FROM trail a
-    WHERE a.image_key IS NOT NULL ORDER BY a.depth LIMIT 1
+    SELECT a.media_digest, a.bundled_key, a.image_alt FROM trail a
+    WHERE num_nonnulls(a.media_digest, a.bundled_key) = 1 ORDER BY a.depth LIMIT 1
 ) photo ON true
-LEFT JOIN media_objects m ON m.digest = photo.image_key
+LEFT JOIN media_objects m ON m.digest = photo.media_digest
 WHERE self.depth = 0
 `
 
@@ -5473,7 +5473,7 @@ func (q *Queries) ClearCart(ctx context.Context, cartID uuid.UUID) error {
 
 const clearCategoryImage = `-- name: ClearCategoryImage :execrows
 UPDATE categories
-SET image_key = NULL, image_alt = NULL, image_alt_en = NULL
+SET media_digest = NULL, bundled_key = NULL, image_alt = NULL, image_alt_en = NULL
 WHERE slug = $1::text
 `
 
@@ -7524,7 +7524,7 @@ WHERE m.digest = $1::text
   AND NOT EXISTS (SELECT 1 FROM product_images p WHERE p.storage_key = m.digest)
   AND NOT EXISTS (SELECT 1 FROM hero_slides h WHERE h.image_key = m.digest)
   AND NOT EXISTS (SELECT 1 FROM sale_campaigns c WHERE c.image_key = m.digest)
-  AND NOT EXISTS (SELECT 1 FROM categories k WHERE k.image_key = m.digest)
+  AND NOT EXISTS (SELECT 1 FROM categories k WHERE k.media_digest = m.digest)
 `
 
 // The reference predicate is REPEATED here, not assumed. Selecting candidates
@@ -7541,11 +7541,14 @@ WHERE m.digest = $1::text
 // sweeper has run leaves a slide pointing at a deleted object. Measured — it is
 // not a theory.
 //
-// Left open, and the reason is the shape of the column rather than the size of
-// the window: closing it properly is a foreign key, and storage_key deliberately
-// holds two kinds of key — an embedded filename from the seed or a digest — so
-// it cannot reference media_objects at all. The window itself is the
-// milliseconds of one DELETE against an orphan more than 24 hours old.
+// Closing it properly is a foreign key. categories.media_digest has one
+// (categories_media_digest_fk, ON DELETE RESTRICT): the in-flight attach holds
+// a lock this DELETE waits on, and the delete is then refused, which Reclaim
+// reads as "attached". The other three columns are still open, because each
+// holds two kinds of key — an embedded filename from the seed or a digest — and
+// cannot reference media_objects until it is split the same way (#1930). Their
+// window is the milliseconds of one DELETE against an orphan more than 24 hours
+// old.
 func (q *Queries) DeleteMedia(ctx context.Context, digest string) (int64, error) {
 	result, err := q.db.Exec(ctx, deleteMedia, digest)
 	if err != nil {
@@ -16581,11 +16584,11 @@ func (q *Queries) RevokeStaff(ctx context.Context, pUserID uuid.UUID) (bool, err
 const rootCategories = `-- name: RootCategories :many
 SELECT c.id, c.slug, localized_name(c.name, c.name_en, $1::text) AS name, c.icon_key,
        coalesce(c.tone, 'stone')::text AS tone,
-       coalesce(c.image_key, '')::text AS image_key,
+       coalesce(c.media_digest, c.bundled_key, '')::text AS image_key,
        coalesce(localized_name(c.image_alt, c.image_alt_en, $1::text), '')::text AS image_alt,
        coalesce(m.width, 0)::integer AS image_width
 FROM categories c
-LEFT JOIN media_objects m ON m.digest = c.image_key
+LEFT JOIN media_objects m ON m.digest = c.media_digest
 WHERE c.parent_id IS NULL
 ORDER BY c.position, c.name, c.id
 `
@@ -17184,21 +17187,23 @@ func (q *Queries) SetCartItemQuantity(ctx context.Context, arg SetCartItemQuanti
 
 const setCategoryImage = `-- name: SetCategoryImage :execrows
 UPDATE categories
-SET image_key = $1::text, image_alt = $2::text,
+SET media_digest = $1::text, bundled_key = NULL, image_alt = $2::text,
     image_alt_en = nullif($3::text, '')
 WHERE slug = $4::text
 `
 
 type SetCategoryImageParams struct {
-	ImageKey   string
-	ImageAlt   string
-	ImageAltEn string
-	Slug       string
+	MediaDigest string
+	ImageAlt    string
+	ImageAltEn  string
+	Slug        string
 }
 
+// An upload replaces an embedded photograph too: categories_image_one_source
+// allows one of the two.
 func (q *Queries) SetCategoryImage(ctx context.Context, arg SetCategoryImageParams) (int64, error) {
 	result, err := q.db.Exec(ctx, setCategoryImage,
-		arg.ImageKey,
+		arg.MediaDigest,
 		arg.ImageAlt,
 		arg.ImageAltEn,
 		arg.Slug,
@@ -17211,12 +17216,13 @@ func (q *Queries) SetCategoryImage(ctx context.Context, arg SetCategoryImagePara
 
 const setCategoryImageText = `-- name: SetCategoryImageText :one
 WITH category AS MATERIALIZED (
-    SELECT id, image_key FROM categories WHERE slug = $1::text FOR UPDATE
+    SELECT id, num_nonnulls(media_digest, bundled_key) = 1 AS has_image
+    FROM categories WHERE slug = $1::text FOR UPDATE
 ), updated AS (
     UPDATE categories c
     SET image_alt = $2::text, image_alt_en = nullif($3::text, '')
     FROM category
-    WHERE c.id = category.id AND category.image_key IS NOT NULL
+    WHERE c.id = category.id AND category.has_image
     RETURNING c.id
 )
 SELECT EXISTS (SELECT 1 FROM category)::boolean AS found,
@@ -19043,7 +19049,7 @@ SELECT digest FROM media_objects m
 WHERE NOT EXISTS (SELECT 1 FROM product_images p WHERE p.storage_key = m.digest)
   AND NOT EXISTS (SELECT 1 FROM hero_slides h WHERE h.image_key = m.digest)
   AND NOT EXISTS (SELECT 1 FROM sale_campaigns c WHERE c.image_key = m.digest)
-  AND NOT EXISTS (SELECT 1 FROM categories k WHERE k.image_key = m.digest)
+  AND NOT EXISTS (SELECT 1 FROM categories k WHERE k.media_digest = m.digest)
   AND m.created_at < now() - interval '24 hours'
 ORDER BY m.created_at
 LIMIT $1
@@ -20235,7 +20241,7 @@ SELECT
      WHERE NOT EXISTS (SELECT 1 FROM product_images p WHERE p.storage_key = m.digest)
        AND NOT EXISTS (SELECT 1 FROM hero_slides h WHERE h.image_key = m.digest)
        AND NOT EXISTS (SELECT 1 FROM sale_campaigns c WHERE c.image_key = m.digest)
-       AND NOT EXISTS (SELECT 1 FROM categories k WHERE k.image_key = m.digest)
+       AND NOT EXISTS (SELECT 1 FROM categories k WHERE k.media_digest = m.digest)
        AND m.created_at < now() - interval '24 hours')::bigint AS unreferenced_media
 `
 

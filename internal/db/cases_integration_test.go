@@ -248,8 +248,18 @@ var checkCases = []checkCase{
 	},
 	{
 		constraint: "categories_image_has_alt",
-		reject:     `INSERT INTO categories (id, slug, name, image_key, image_alt, position) VALUES ('00000094-0000-4000-8000-000000000094', 'photo-no-alt', '有圖館別', 'campaign-banner-01.webp', E'\t', 41);`,
-		accept:     `INSERT INTO categories (id, slug, name, image_key, image_alt, position) VALUES ('00000094-0000-4000-8000-000000000094', 'photo-with-alt', '有圖館別', 'campaign-banner-01.webp', '館別照片', 41);`,
+		reject:     `INSERT INTO categories (id, slug, name, bundled_key, image_alt, position) VALUES ('00000094-0000-4000-8000-000000000094', 'photo-no-alt', '有圖館別', 'campaign-banner-01.webp', E'\t', 41);`,
+		accept:     `INSERT INTO categories (id, slug, name, bundled_key, image_alt, position) VALUES ('00000094-0000-4000-8000-000000000094', 'photo-with-alt', '有圖館別', 'campaign-banner-01.webp', '館別照片', 41);`,
+	},
+	{
+		constraint: "categories_image_one_source",
+		reject:     `INSERT INTO media_objects (digest, content_type, bytes, width, height, byte_size) VALUES (repeat('c', 64), 'image/png', '\x00', 1, 1, 1); INSERT INTO categories (id, slug, name, media_digest, bundled_key, image_alt, position) VALUES ('00000095-0000-4000-8000-000000000095', 'two-photos', '兩張圖', repeat('c', 64), 'department-tech.webp', '館別照片', 42);`,
+		accept:     `INSERT INTO media_objects (digest, content_type, bytes, width, height, byte_size) VALUES (repeat('c', 64), 'image/png', '\x00', 1, 1, 1); INSERT INTO categories (id, slug, name, media_digest, image_alt, position) VALUES ('00000095-0000-4000-8000-000000000095', 'one-photo', '一張圖', repeat('c', 64), '館別照片', 42);`,
+	},
+	{
+		constraint: "categories_bundled_key_format",
+		reject:     `INSERT INTO categories (id, slug, name, bundled_key, image_alt, position) VALUES ('00000096-0000-4000-8000-000000000096', 'digest-as-file', '摘要當檔名', repeat('c', 64), '館別照片', 43);`,
+		accept:     `INSERT INTO categories (id, slug, name, bundled_key, image_alt, position) VALUES ('00000096-0000-4000-8000-000000000096', 'named-file', '檔名', 'department-tech.webp', '館別照片', 43);`,
 	},
 	{
 		constraint: "categories_not_own_parent",

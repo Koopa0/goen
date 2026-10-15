@@ -17,6 +17,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/jackc/pgx/v5/pgxpool"
 
@@ -321,14 +322,16 @@ func TestACategorysHeaderPhotographIsNotReclaimed(t *testing.T) {
 	if err != nil {
 		t.Fatalf("upload: %v", err)
 	}
+	// Aged first: ageUploads re-inserts the row, which the foreign key refuses
+	// once a category points at it.
+	ageUploads(t, photo.Digest)
 	if _, err = pool.Exec(ctx, `
-		INSERT INTO categories (slug, name, image_key, image_alt, position)
+		INSERT INTO categories (slug, name, media_digest, image_alt, position)
 		SELECT 'photo-sweep-check', '版面檢查', $1, '測試圖片',
 		       coalesce(max(position), 0) + 1 FROM categories WHERE parent_id IS NULL`,
 		photo.Digest); err != nil {
 		t.Fatalf("attach to a category: %v", err)
 	}
-	ageUploads(t, photo.Digest)
 
 	if _, err = s.Sweep(ctx, slog.New(slog.DiscardHandler)); err != nil {
 		t.Fatalf("sweep: %v", err)
@@ -463,6 +466,106 @@ func TestAnUploadAttachedMidSweepSurvivesIt(t *testing.T) {
 	if heroGone || !exists(t, hero.Digest) {
 		t.Error("a hero image attached between the sweeper's read and its delete " +
 			"was reclaimed; the home page's largest picture is now a 404")
+	}
+}
+
+// TestADepartmentPhotographAttachedDuringTheDeleteSurvivesIt holds the window
+// the repeated predicate cannot: an attach still IN FLIGHT when the sweeper's
+// DELETE runs, which that DELETE's snapshot cannot see. categories_media_digest_fk
+// closes it — the attach holds a lock the DELETE waits on, and the delete is
+// refused once the attach commits. Reclaim runs as admin, the sweeper's role.
+func TestADepartmentPhotographAttachedDuringTheDeleteSurvivesIt(t *testing.T) {
+	ctx := t.Context()
+	photo, err := media.NewStore(pool).Put(ctx, bytes.NewReader(samplePNG(t, 78, 58)))
+	if err != nil {
+		t.Fatalf("upload: %v", err)
+	}
+	ageUploads(t, photo.Digest)
+	if _, err = pool.Exec(ctx, `
+		INSERT INTO categories (slug, name, position)
+		SELECT 'in-flight-photo', '版面檢查', coalesce(max(position), 0) + 1
+		FROM categories WHERE parent_id IS NULL`); err != nil {
+		t.Fatalf("create category: %v", err)
+	}
+	t.Cleanup(func() {
+		if _, cleanErr := pool.Exec(context.WithoutCancel(ctx),
+			`DELETE FROM categories WHERE slug = 'in-flight-photo'`); cleanErr != nil {
+			t.Errorf("remove category: %v", cleanErr)
+		}
+	})
+
+	config := pool.Config().Copy()
+	config.AfterConnect = func(ctx context.Context, conn *pgx.Conn) error {
+		_, roleErr := conn.Exec(ctx, `SET ROLE admin`)
+		return roleErr
+	}
+	admin, err := pgxpool.NewWithConfig(ctx, config)
+	if err != nil {
+		t.Fatalf("admin pool: %v", err)
+	}
+	t.Cleanup(admin.Close)
+
+	attach, err := pool.Begin(ctx)
+	if err != nil {
+		t.Fatalf("begin attach: %v", err)
+	}
+	defer func() { _ = attach.Rollback(context.WithoutCancel(ctx)) }()
+	if _, err = attach.Exec(ctx, `
+		UPDATE categories SET media_digest = $1, image_alt = '測試圖片'
+		WHERE slug = 'in-flight-photo'`, photo.Digest); err != nil {
+		t.Fatalf("attach: %v", err)
+	}
+	var attacher int32
+	if err = attach.QueryRow(ctx, `SELECT pg_backend_pid()`).Scan(&attacher); err != nil {
+		t.Fatalf("read the attach's backend: %v", err)
+	}
+
+	type reclaimed struct {
+		gone bool
+		err  error
+	}
+	done := make(chan reclaimed, 1)
+	go func() {
+		gone, reclaimErr := media.NewStore(admin).Reclaim(ctx, photo.Digest)
+		done <- reclaimed{gone, reclaimErr}
+	}()
+
+	// The interleaving is driven, not hoped for: commit only once the DELETE
+	// is waiting on the attach's lock.
+	var early *reclaimed
+	for deadline := time.Now().Add(10 * time.Second); early == nil; {
+		select {
+		case r := <-done:
+			early = &r
+			continue
+		case <-time.After(20 * time.Millisecond):
+		}
+		_, waiting, blockedErr := dbtest.Blocked(ctx, pool, dbtest.Match{
+			QueryLike: "-- name: DeleteMedia %", BlockedBy: []int32{attacher},
+		})
+		if blockedErr != nil {
+			t.Fatalf("read the delete's wait: %v", blockedErr)
+		}
+		if waiting {
+			break
+		}
+		if time.Now().After(deadline) {
+			t.Fatal("the DELETE neither finished nor waited on the attach")
+		}
+	}
+	if err = attach.Commit(ctx); err != nil {
+		t.Fatalf("commit attach: %v", err)
+	}
+	got := early
+	if got == nil {
+		r := <-done
+		got = &r
+	}
+
+	if got.err != nil || got.gone || !exists(t, photo.Digest) {
+		t.Errorf("Reclaim during an in-flight attach = %v, %v, kept=%v; want false, nil and the "+
+			"upload kept — the department page's photograph is now a 404",
+			got.gone, got.err, exists(t, photo.Digest))
 	}
 }
 

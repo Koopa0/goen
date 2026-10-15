@@ -29,7 +29,7 @@ func TestCarouselDepartmentsNeedListedProducts(t *testing.T) {
 			for _, q := range []string{
 				`DELETE FROM hero_slides`,
 				`UPDATE sale_campaigns SET is_active = false`,
-				`UPDATE categories SET image_key = NULL`,
+				`UPDATE categories SET bundled_key = NULL, media_digest = NULL`,
 			} {
 				if _, err = tx.Exec(ctx, q); err != nil {
 					t.Fatalf("isolate carousel: %v", err)
@@ -58,7 +58,7 @@ func TestCarouselDepartmentsNeedListedProducts(t *testing.T) {
 				}
 				var categoryID uuid.UUID
 				if err = tx.QueryRow(ctx, `
-					INSERT INTO categories (slug, name, image_key, image_alt, position)
+					INSERT INTO categories (slug, name, bundled_key, image_alt, position)
 					VALUES ($1, $1, $2, 'Department photograph',
 					    (SELECT coalesce(max(position), -1) + 1 FROM categories WHERE parent_id IS NULL))
 					RETURNING id`, root.slug, image).Scan(&categoryID); err != nil {

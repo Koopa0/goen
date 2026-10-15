@@ -11,8 +11,8 @@ versioned `/static/` asset handler.
 - `products/campaign-*.webp` are
   campaign headers (1600x600). `products/department-<slug>.webp` (800px, with a
   `-400` rendition) are the department photographs, in `products/` because a
-  department's `image_key` is resolved like a product's storage key, which names
-  no folder; the home tiles read them by slug.
+  department's `bundled_key` is resolved like a product's storage key, which
+  names no folder; the home tiles read them by slug.
 - `*-400.webp`, `*-800.webp`, and the hero `*-720.webp` files are responsive
   derivatives; the unsuffixed storage-key files remain the source assets.
   The repo has no script that creates derivatives for a new photo, so a new

@@ -47,7 +47,7 @@ func (s *Store) SetCategoryImage(ctx context.Context, slug, digest, alt, altEn s
 	},
 		func(ctx context.Context, q *db.Queries) error {
 			n, err := q.SetCategoryImage(ctx, db.SetCategoryImageParams{
-				Slug: strings.TrimSpace(slug), ImageKey: digest, ImageAlt: alt, ImageAltEn: altEn,
+				Slug: strings.TrimSpace(slug), MediaDigest: digest, ImageAlt: alt, ImageAltEn: altEn,
 			})
 			if err != nil {
 				return db.WrapRefusal(err, ErrRefused)

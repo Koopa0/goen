@@ -31,7 +31,7 @@ SELECT digest FROM media_objects m
 WHERE NOT EXISTS (SELECT 1 FROM product_images p WHERE p.storage_key = m.digest)
   AND NOT EXISTS (SELECT 1 FROM hero_slides h WHERE h.image_key = m.digest)
   AND NOT EXISTS (SELECT 1 FROM sale_campaigns c WHERE c.image_key = m.digest)
-  AND NOT EXISTS (SELECT 1 FROM categories k WHERE k.image_key = m.digest)
+  AND NOT EXISTS (SELECT 1 FROM categories k WHERE k.media_digest = m.digest)
   AND m.created_at < now() - interval '24 hours'
 ORDER BY m.created_at
 LIMIT $1;
@@ -50,15 +50,18 @@ LIMIT $1;
 -- sweeper has run leaves a slide pointing at a deleted object. Measured — it is
 -- not a theory.
 --
--- Left open, and the reason is the shape of the column rather than the size of
--- the window: closing it properly is a foreign key, and storage_key deliberately
--- holds two kinds of key — an embedded filename from the seed or a digest — so
--- it cannot reference media_objects at all. The window itself is the
--- milliseconds of one DELETE against an orphan more than 24 hours old.
+-- Closing it properly is a foreign key. categories.media_digest has one
+-- (categories_media_digest_fk, ON DELETE RESTRICT): the in-flight attach holds
+-- a lock this DELETE waits on, and the delete is then refused, which Reclaim
+-- reads as "attached". The other three columns are still open, because each
+-- holds two kinds of key — an embedded filename from the seed or a digest — and
+-- cannot reference media_objects until it is split the same way (#1930). Their
+-- window is the milliseconds of one DELETE against an orphan more than 24 hours
+-- old.
 -- name: DeleteMedia :execrows
 DELETE FROM media_objects m
 WHERE m.digest = @digest::text
   AND NOT EXISTS (SELECT 1 FROM product_images p WHERE p.storage_key = m.digest)
   AND NOT EXISTS (SELECT 1 FROM hero_slides h WHERE h.image_key = m.digest)
   AND NOT EXISTS (SELECT 1 FROM sale_campaigns c WHERE c.image_key = m.digest)
-  AND NOT EXISTS (SELECT 1 FROM categories k WHERE k.image_key = m.digest);
+  AND NOT EXISTS (SELECT 1 FROM categories k WHERE k.media_digest = m.digest);

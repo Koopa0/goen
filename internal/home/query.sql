@@ -178,11 +178,11 @@ LIMIT 1;
 -- name: RootCategories :many
 SELECT c.id, c.slug, localized_name(c.name, c.name_en, @locale::text) AS name, c.icon_key,
        coalesce(c.tone, 'stone')::text AS tone,
-       coalesce(c.image_key, '')::text AS image_key,
+       coalesce(c.media_digest, c.bundled_key, '')::text AS image_key,
        coalesce(localized_name(c.image_alt, c.image_alt_en, @locale::text), '')::text AS image_alt,
        coalesce(m.width, 0)::integer AS image_width
 FROM categories c
-LEFT JOIN media_objects m ON m.digest = c.image_key
+LEFT JOIN media_objects m ON m.digest = c.media_digest
 WHERE c.parent_id IS NULL
 ORDER BY c.position, c.name, c.id;
 
