@@ -113,6 +113,12 @@ var (
 
 	KeyAuditFAQDelete = key("audit.faq.delete", Message{ZhHant: "刪除常見問題", En: "Delete FAQ entry"})
 
+	KeyAuditFAQCategoryCreate = key("audit.faq.category.create", Message{ZhHant: "新增常見問題分類", En: "Add FAQ category"})
+
+	KeyAuditFAQCategoryRename = key("audit.faq.category.rename", Message{ZhHant: "修改常見問題分類", En: "Rename FAQ category"})
+
+	KeyAuditFAQCategoryDelete = key("audit.faq.category.delete", Message{ZhHant: "刪除常見問題分類", En: "Delete FAQ category"})
+
 	KeyAuditBannerCreate = key("audit.banner.create", Message{ZhHant: "新增促銷條", En: "Add promo strip"})
 
 	KeyAuditBannerToggle = key("audit.banner.toggle", Message{ZhHant: "開關促銷條", En: "Promo strip active state"})

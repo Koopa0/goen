@@ -71,6 +71,30 @@ var (
 		En:     "Current questions and answers",
 	})
 
+	KeyAdminFaqpPickCategory = key("admin.faqp.category.pick", Message{
+		ZhHant: "選擇分類",
+		En:     "Choose a category",
+	})
+
+	KeyAdminFaqpNoCategories = key("admin.faqp.category.none", Message{
+		ZhHant: "還沒有分類。先在下方「分類」新增一個。",
+		En:     "No categories yet. Add one under Categories below.",
+	})
+
+	KeyAdminFaqpCategories = key("admin.faqp.categories", Message{ZhHant: "分類", En: "Categories"})
+
+	KeyAdminFaqpCategoriesLead = key("admin.faqp.categories.lead", Message{
+		ZhHant: "改一次分類名稱，底下的問答都會換到新的標題下。",
+		En:     "Rename a category once and every entry in it moves under the new heading.",
+	})
+
+	KeyAdminFaqpCategoryAdd = key("admin.faqp.category.add", Message{ZhHant: "新增分類", En: "Add category"})
+
+	KeyAdminFaqpCategoryInUse = key("admin.faqp.category.inuse", Message{
+		ZhHant: "這個分類還有問答，先刪掉那些問答再刪分類。",
+		En:     "This category still has entries. Delete those first.",
+	})
+
 	KeyAdminFaqpSave = key("admin.faqp.save", Message{ZhHant: "儲存", En: "Save"})
 
 	KeyAdminFaqpUpdated = key("admin.faqp.updated", Message{ZhHant: "最後修改 %s", En: "Last edited %s"})
@@ -93,6 +117,16 @@ var (
 	KeyFormFAQAnswer = key("form.faq.answer", Message{
 		ZhHant: "請填寫答案，不超過 2000 個字。",
 		En:     "An answer is required, 2000 characters at most.",
+	})
+
+	KeyFormFAQPickCategory = key("form.faq.category.pick", Message{
+		ZhHant: "請選擇分類。",
+		En:     "Choose a category.",
+	})
+
+	KeyFormFAQCategoryTaken = key("form.faq.category.taken", Message{
+		ZhHant: "已經有分類用這個名稱。",
+		En:     "Another category already has this name.",
 	})
 
 	KeyFormFAQCategoryEnLong = key("form.faq.category.en.long", Message{

@@ -4,12 +4,14 @@ import (
 	"testing"
 
 	"github.com/google/go-cmp/cmp"
+	"github.com/google/uuid"
 
 	"github.com/koopa0/goen/internal/db"
 )
 
-func TestFAQGroupsUseCanonicalCategories(t *testing.T) {
+func TestFAQGroupsByCategoryRow(t *testing.T) {
 	t.Parallel()
+	orders, shipping := uuid.New(), uuid.New()
 	for _, tt := range []struct {
 		name string
 		rows []db.FAQEntriesRow
@@ -17,10 +19,10 @@ func TestFAQGroupsUseCanonicalCategories(t *testing.T) {
 	}{
 		{name: "empty"},
 		{
-			name: "partial translations keep one group",
+			name: "one category is one group",
 			rows: []db.FAQEntriesRow{
-				{CanonicalCategory: "Orders", Category: "Orders", Question: "First?", Answer: "First."},
-				{CanonicalCategory: "Orders", Category: "Translated orders", Question: "Second?", Answer: "Second."},
+				{CategoryID: orders, Category: "Orders", Question: "First?", Answer: "First."},
+				{CategoryID: orders, Category: "Orders", Question: "Second?", Answer: "Second."},
 			},
 			want: FAQView{Groups: []FAQGroup{
 				{Category: "Orders", Items: []FAQItem{
@@ -30,10 +32,12 @@ func TestFAQGroupsUseCanonicalCategories(t *testing.T) {
 			}},
 		},
 		{
-			name: "colliding translations keep separate groups",
+			// A Chinese-only heading and another heading's English name may read
+			// the same to an English visitor; they are still two categories.
+			name: "two categories reading the same keep separate groups",
 			rows: []db.FAQEntriesRow{
-				{CanonicalCategory: "Orders", Category: "Help", Question: "Order?", Answer: "Order answer."},
-				{CanonicalCategory: "Shipping", Category: "Help", Question: "Shipping?", Answer: "Shipping answer."},
+				{CategoryID: orders, Category: "Help", Question: "Order?", Answer: "Order answer."},
+				{CategoryID: shipping, Category: "Help", Question: "Shipping?", Answer: "Shipping answer."},
 			},
 			want: FAQView{Groups: []FAQGroup{
 				{Category: "Help", Items: []FAQItem{{Question: "Order?", Answer: "Order answer."}}},

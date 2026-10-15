@@ -141,7 +141,7 @@ func TestRefundCopyNamesBothPayoutChannels(t *testing.T) {
 	}
 	mustNameBoth(t, "seed FAQ INSERT (zh-Hant)", insert)
 
-	enAt := strings.Index(src, "('"+faqQuestion+"', 'Returns'")
+	enAt := strings.Index(src, "('"+faqQuestion+"', 'When will I get my refund?'")
 	if enAt < 0 {
 		t.Fatal("seed has no refund FAQ English")
 	}
@@ -157,46 +157,6 @@ func TestRefundCopyNamesBothPayoutChannels(t *testing.T) {
 		t.Error("catalogue seed still carries the Stripe-only refund sentences; " +
 			"a kept database never reaches an UPDATE buried after brands_pkey")
 	}
-
-	repair, err := os.ReadFile(filepath.Join("..", "..", "seed", "repair_refund_faq.sql"))
-	if err != nil {
-		t.Fatalf("read the refund FAQ repair: %v", err)
-	}
-	fix := string(repair)
-	if strings.Contains(fix, "INSERT INTO") || strings.Contains(fix, "DELETE FROM") ||
-		strings.Contains(fix, "UPDATE brands") || strings.Contains(fix, "UPDATE products") {
-		t.Error("the refund FAQ repair is not bounded: it must rewrite one FAQ row")
-	}
-	if n := strings.Count(fix, "UPDATE faq_entries"); n != 2 {
-		t.Errorf("refund FAQ repair has %d UPDATE faq_entries, want 2 (one locale each)", n)
-	}
-	if strings.Contains(fix, " OR ") {
-		t.Error("refund FAQ repair matches locales with OR; a shop-edited locale would be overwritten")
-	}
-	for i, block := range strings.Split(fix, "UPDATE faq_entries")[1:] {
-		hasZh := strings.Contains(block, "SET answer =")
-		hasEn := strings.Contains(block, "SET answer_en =")
-		if hasZh && hasEn {
-			t.Errorf("UPDATE %d rewrites both locales", i+1)
-		}
-	}
-	for _, want := range []string{faqQuestion, oldZh, oldEn} {
-		if !strings.Contains(fix, want) {
-			t.Errorf("shipped refund FAQ repair is missing %q", want)
-		}
-	}
-
-	zhInsert := sqlStringAfter(t, src, "('退貨', '"+faqQuestion+"',")
-	enValues := sqlStringAfter(t, src, "'When will I get my refund?',")
-	zhSet := sqlStringAfter(t, fix, "SET answer =")
-	enSet := sqlStringAfter(t, fix, "SET answer_en =")
-	if zhInsert != zhSet || enValues != enSet {
-		t.Errorf("fresh INSERT/VALUES and the shipped repair disagree:\n"+
-			"  insert zh = %q\n  repair zh = %q\n  values en = %q\n  repair en = %q",
-			zhInsert, zhSet, enValues, enSet)
-	}
-	mustNameBoth(t, "shipped refund FAQ repair (zh-Hant)", zhSet)
-	mustNameBoth(t, "shipped refund FAQ repair (en)", enSet)
 
 	for _, locale := range []i18n.Locale{i18n.ZhHant, i18n.En} {
 		lead := i18n.T(i18n.WithLocale(t.Context(), locale), i18n.KeyAdminRetLead)
@@ -270,47 +230,33 @@ func TestActiveInvoiceFAQDoesNotCallTheIssuerUnbuilt(t *testing.T) {
 	if err != nil {
 		t.Fatalf("read the seed: %v", err)
 	}
-	repair, err := os.ReadFile(filepath.Join("..", "..", "seed", "repair_invoice_faq.sql"))
-	if err != nil {
-		t.Fatalf("read the invoice FAQ repair: %v", err)
-	}
 	src := string(seed)
-	fix := string(repair)
-
-	zhInsert := sqlStringAfter(t, src, "('發票', '發票怎麼開立？',")
-	enValues := sqlStringAfter(t, src, "'How is my invoice issued?',")
-	rewrite := rewriteInvoiceFAQ(t, fix)
-	if zhInsert != rewrite.zh || enValues != rewrite.en {
-		t.Errorf("fresh INSERT/VALUES and the shipped repair disagree:\n"+
-			"  insert zh = %q\n  repair zh = %q\n  values en = %q\n  repair en = %q",
-			zhInsert, rewrite.zh, enValues, rewrite.en)
-	}
-	if strings.Contains(fix, "INSERT INTO") || strings.Contains(fix, "DELETE FROM") ||
-		strings.Contains(fix, "UPDATE brands") || strings.Contains(fix, "UPDATE products") {
-		t.Error("the invoice FAQ repair is not bounded: it must rewrite one FAQ row")
+	answer := struct{ zh, en string }{
+		zh: sqlStringAfter(t, src, "('發票', '發票怎麼開立？',"),
+		en: sqlStringAfter(t, src, "'How is my invoice issued?',"),
 	}
 
-	for loc, answer := range map[string]string{"zh-Hant": rewrite.zh, "en": rewrite.en} {
-		if strings.Contains(answer, "尚未完成") || strings.Contains(answer, "not built yet") {
-			t.Errorf("%s invoice FAQ still says the issuer is unfinished: %q", loc, answer)
+	for loc, text := range map[string]string{"zh-Hant": answer.zh, "en": answer.en} {
+		if strings.Contains(text, "尚未完成") || strings.Contains(text, "not built yet") {
+			t.Errorf("%s invoice FAQ still says the issuer is unfinished: %q", loc, text)
 		}
-		if strings.Contains(answer, "successfully issued") ||
-			strings.Contains(answer, "已成功開立") {
-			t.Errorf("%s invoice FAQ invents a successful filing: %q", loc, answer)
+		if strings.Contains(text, "successfully issued") ||
+			strings.Contains(text, "已成功開立") {
+			t.Errorf("%s invoice FAQ invents a successful filing: %q", loc, text)
 		}
 	}
-	if !strings.Contains(rewrite.zh, "綠界") || !strings.Contains(rewrite.zh, "設定") {
-		t.Errorf("Chinese invoice FAQ does not describe ECPay as a deployment: %q", rewrite.zh)
+	if !strings.Contains(answer.zh, "綠界") || !strings.Contains(answer.zh, "設定") {
+		t.Errorf("Chinese invoice FAQ does not describe ECPay as a deployment: %q", answer.zh)
 	}
-	if !strings.Contains(rewrite.en, "ECPay") || !strings.Contains(rewrite.en, "credentials") {
-		t.Errorf("English invoice FAQ does not describe ECPay as a deployment: %q", rewrite.en)
+	if !strings.Contains(answer.en, "ECPay") || !strings.Contains(answer.en, "credentials") {
+		t.Errorf("English invoice FAQ does not describe ECPay as a deployment: %q", answer.en)
 	}
 	// Capture queues the issue: the copy must not have a buyer wait on staff.
-	if !strings.Contains(rewrite.zh, "付款完成") || !strings.Contains(rewrite.zh, "自動開立") {
-		t.Errorf("Chinese invoice FAQ does not say payment issues the invoice: %q", rewrite.zh)
+	if !strings.Contains(answer.zh, "付款完成") || !strings.Contains(answer.zh, "自動開立") {
+		t.Errorf("Chinese invoice FAQ does not say payment issues the invoice: %q", answer.zh)
 	}
-	if !strings.Contains(rewrite.en, "automatically") || !strings.Contains(rewrite.en, "payment completes") {
-		t.Errorf("English invoice FAQ does not say payment issues the invoice: %q", rewrite.en)
+	if !strings.Contains(answer.en, "automatically") || !strings.Contains(answer.en, "payment completes") {
+		t.Errorf("English invoice FAQ does not say payment issues the invoice: %q", answer.en)
 	}
 
 	// The statutory return row is a different authority. Editing it here
@@ -319,41 +265,6 @@ func TestActiveInvoiceFAQDoesNotCallTheIssuerUnbuilt(t *testing.T) {
 		!strings.Contains(src, "Rescinding within seven days, counted from the day after you receive the goods, costs you nothing") {
 		t.Error("the statutory return FAQ was edited")
 	}
-}
-
-type invoiceFAQCopy struct{ zh, en string }
-
-func rewriteInvoiceFAQ(t *testing.T, src string) invoiceFAQCopy {
-	t.Helper()
-	const where = "WHERE question IN ('發票怎麼開立?', '發票怎麼開立？');"
-	i := strings.LastIndex(src, where)
-	if i < 0 {
-		t.Fatal("the shipped repair has no UPDATE of 發票怎麼開立？")
-	}
-	block := src[:i]
-	start := strings.LastIndex(block, "UPDATE faq_entries")
-	if start < 0 {
-		t.Fatal("the shipped repair has no UPDATE faq_entries")
-	}
-	block = block[start:]
-	return invoiceFAQCopy{
-		zh: sqlCaseThenValue(t, block, "SET answer = CASE"),
-		en: sqlCaseThenValue(t, block, "answer_en = CASE"),
-	}
-}
-
-func sqlCaseThenValue(t *testing.T, src, marker string) string {
-	t.Helper()
-	i := strings.Index(src, marker)
-	if i < 0 {
-		t.Fatalf("seed has no %q", marker)
-	}
-	rest := src[i+len(marker):]
-	j := strings.Index(rest, "THEN ")
-	if j < 0 {
-		t.Fatalf("seed has no THEN after %q", marker)
-	}
-	return sqlStringAfter(t, rest[j:], "THEN ")
 }
 
 func sqlStringAfter(t *testing.T, src, marker string) string {

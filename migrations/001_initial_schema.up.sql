@@ -4917,31 +4917,53 @@ CREATE TRIGGER sale_campaign_variant_still_valid
     AFTER UPDATE OF compare_at_price_cents, is_active OR DELETE ON product_variants
     FOR EACH ROW EXECUTE FUNCTION sale_campaign_variant_still_valid();
 
+-- A FAQ heading is a row the entries point at, not a spelling they repeat: a
+-- rename is one UPDATE, and the page groups entries by category_id, so two
+-- spellings of one heading cannot split it and one English name cannot merge two.
+-- position orders the headings; the desk appends a new one at max + 1.
+CREATE TABLE faq_categories (
+    id       uuid PRIMARY KEY DEFAULT uuidv7(),
+    name     text NOT NULL,
+    -- The English name, or NULL for one the shop has not translated; NULL falls
+    -- back to `name` at read time, as categories.name_en does.
+    name_en  text,
+    position integer NOT NULL,
+    CONSTRAINT faq_categories_name_present CHECK (name ~ '[^[:space:]]'),
+    CONSTRAINT faq_categories_name_bounded CHECK (char_length(name) <= 40),
+    CONSTRAINT faq_categories_name_en_present
+        CHECK (name_en IS NULL OR name_en ~ '[^[:space:]]'),
+    CONSTRAINT faq_categories_name_en_bounded CHECK (char_length(name_en) <= 40)
+);
+
+-- One heading per name in each language: two headings reading the same would
+-- leave the reader, and the desk's category select, unable to tell them apart.
+CREATE UNIQUE INDEX faq_categories_name_key ON faq_categories (name);
+CREATE UNIQUE INDEX faq_categories_name_en_key ON faq_categories (name_en);
+CREATE UNIQUE INDEX faq_categories_position_key ON faq_categories (position);
+
 CREATE TABLE faq_entries (
-    id         uuid PRIMARY KEY DEFAULT uuidv7(),
-    category   text NOT NULL,
-    question   text NOT NULL,
-    answer     text NOT NULL,
+    id          uuid PRIMARY KEY DEFAULT uuidv7(),
+    -- RESTRICT: a heading still holding entries is not deleted under them.
+    category_id uuid NOT NULL REFERENCES faq_categories (id) ON DELETE RESTRICT,
+    question    text NOT NULL,
+    answer      text NOT NULL,
     -- The English FAQ, each field separately optional; an entry with none
     -- renders its Chinese.
-    category_en text,
     question_en text,
     answer_en   text,
-    position   integer NOT NULL DEFAULT 0,
-    created_at timestamptz NOT NULL DEFAULT now(),
-    updated_at timestamptz NOT NULL DEFAULT now(),
-    CONSTRAINT faq_entries_category_present CHECK (category ~ '[^[:space:]]'),
+    position    integer NOT NULL DEFAULT 0,
+    created_at  timestamptz NOT NULL DEFAULT now(),
+    updated_at  timestamptz NOT NULL DEFAULT now(),
     CONSTRAINT faq_entries_question_present CHECK (question ~ '[^[:space:]]'),
     CONSTRAINT faq_entries_answer_present CHECK (answer ~ '[^[:space:]]'),
-    CONSTRAINT faq_entries_category_en_present
-        CHECK (category_en IS NULL OR category_en ~ '[^[:space:]]'),
     CONSTRAINT faq_entries_question_en_present
         CHECK (question_en IS NULL OR question_en ~ '[^[:space:]]'),
     CONSTRAINT faq_entries_answer_en_present
         CHECK (answer_en IS NULL OR answer_en ~ '[^[:space:]]')
 );
 
-CREATE UNIQUE INDEX faq_entries_position_key ON faq_entries (category, position);
+-- Also the foreign key's index: category_id leads it.
+CREATE UNIQUE INDEX faq_entries_position_key ON faq_entries (category_id, position);
 
 CREATE TRIGGER faq_entries_set_updated_at
     BEFORE UPDATE ON faq_entries
@@ -9812,7 +9834,8 @@ GRANT INSERT (digest, user_id, user_agent, ip, expires_at) ON sessions TO store;
 REVOKE INSERT, UPDATE, DELETE ON
     products, product_images, product_specs, product_options,
     product_option_values, variant_option_values, categories, brands,
-    promo_banners, hero_slides, faq_entries, membership_tiers, sale_campaigns,
+    promo_banners, hero_slides, faq_categories, faq_entries, membership_tiers,
+    sale_campaigns,
     sale_campaign_products, shipping_methods, shipping_zones,
     shipping_zone_prefixes, shipping_version_zones, media_objects
     FROM store;
@@ -10176,10 +10199,16 @@ GRANT INSERT (eyebrow, headline, body, primary_cta_label, primary_cta_href,
       UPDATE (position, is_active)
     ON hero_slides TO admin;
 
+REVOKE INSERT, UPDATE ON faq_categories FROM admin;
+GRANT INSERT (name, name_en, position),
+      UPDATE (name, name_en)
+    ON faq_categories TO admin;
+
+-- category_id is written once: moving an entry between headings would have to
+-- renumber its position, and the desk does not offer it.
 REVOKE INSERT, UPDATE ON faq_entries FROM admin;
-GRANT INSERT (category, question, answer, category_en, question_en, answer_en,
-              position),
-      UPDATE (question, answer, category_en, question_en, answer_en)
+GRANT INSERT (category_id, question, answer, question_en, answer_en, position),
+      UPDATE (question, answer, question_en, answer_en)
     ON faq_entries TO admin;
 
 -- Shipping. A method's fees live in its append-only versions; the method itself
