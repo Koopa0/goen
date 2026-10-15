@@ -293,7 +293,8 @@ LIMIT 1;
 
 -- Every refund of one order, card and store credit together, oldest first.
 -- Credit refunds are the positive store-credit entries, the same definition
--- order_refunds uses. Who: the staff member the audit trail names for a card
+-- order_refunds uses: a return's payout, and the reversal of a spend on a
+-- cancelled order. Who: the staff member the audit trail names for a card
 -- refund, and the entry's own actor for a credit one; empty when none is known.
 -- Both are named by CURRENT email, never by the editable full_name.
 -- A credit refund is labelled by its kind, and shows its reason only when staff
