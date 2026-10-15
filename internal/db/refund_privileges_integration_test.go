@@ -2,7 +2,14 @@
 
 package db_test
 
-import "testing"
+import (
+	"context"
+	"errors"
+	"testing"
+
+	"github.com/google/uuid"
+	"github.com/jackc/pgx/v5/pgconn"
+)
 
 func TestRefundExecutionFunctionsExposeOnlyNarrowAdminDoors(t *testing.T) {
 	narrowDoors := []string{
@@ -90,4 +97,97 @@ func TestOnlyTheDoorsOpenAndSettleAnUnsentRefund(t *testing.T) {
 			}
 		}
 	}
+}
+
+// TestADecidedReturnKeepsItsOrderAndReason: settle_unsent_refund reads an
+// unsent refund's reason to write its units off or put them back on sale.
+// The storefront files a customer's request as before and can change no
+// request afterwards; a door, which runs as the owner, cannot change a
+// decided request's order or reason either.
+func TestADecidedReturnKeepsItsOrderAndReason(t *testing.T) {
+	ctx := t.Context()
+	o := newUnsentOrder(t, unsentOrderTotal)
+	unsentID := o.mustOpen(t, "lost", unsentClaim{o.lineB, 2})
+
+	// The customer returns the unit of b that arrived, as the storefront does.
+	customerID := uuid.New()
+	tx, err := schemaPool(t).Begin(ctx)
+	if err != nil {
+		t.Fatalf("begin: %v", err)
+	}
+	defer func() { _ = tx.Rollback(context.WithoutCancel(ctx)) }()
+	for _, stmt := range []string{
+		`SET LOCAL ROLE store`,
+		`INSERT INTO return_requests (id, order_id, requested_by_user_id, reason)
+		 VALUES ('` + customerID.String() + `', '` + o.id.String() + `', '` + o.user.String() + `', '不需要了')`,
+		`INSERT INTO return_request_lines (order_id, return_request_id, order_line_id, quantity)
+		 VALUES ('` + o.id.String() + `', '` + customerID.String() + `', '` + o.lineB.String() + `', 1)`,
+	} {
+		if _, err := tx.Exec(ctx, stmt); err != nil {
+			t.Fatalf("the customer files a return: %v", err)
+		}
+	}
+	if err := tx.Commit(ctx); err != nil {
+		t.Fatalf("commit the customer's return: %v", err)
+	}
+	if err := asAdminRole(t, nil, `UPDATE return_requests SET status = 'approved', decided_at = now()
+	                               WHERE id = $1`, customerID); err != nil {
+		t.Fatalf("approve the customer's return: %v", err)
+	}
+
+	if roleHoldsTableVerb(t, "store", "return_requests", "UPDATE") {
+		t.Error("store holds UPDATE on return_requests; no storefront statement updates a return")
+	}
+
+	// rewrite runs stmt on the request id as role, or as the owner when role is
+	// empty, after filing the request first when file is set.
+	rewrite := func(role, file, stmt string, id uuid.UUID) error {
+		t.Helper()
+		tx, err := schemaPool(t).Begin(ctx)
+		if err != nil {
+			t.Fatalf("begin: %v", err)
+		}
+		defer func() { _ = tx.Rollback(context.WithoutCancel(ctx)) }()
+		if file != "" {
+			if scanErr := tx.QueryRow(ctx, file, o.id).Scan(&id); scanErr != nil {
+				t.Fatalf("file a request: %v", scanErr)
+			}
+		}
+		if role != "" {
+			if _, roleErr := tx.Exec(ctx, "SET LOCAL ROLE "+role); roleErr != nil {
+				t.Fatalf("set role %s: %v", role, roleErr)
+			}
+		}
+		_, err = tx.Exec(ctx, stmt, id)
+		return err
+	}
+	for _, request := range []struct {
+		name string
+		id   uuid.UUID
+	}{{"the unsent refund", unsentID}, {"the customer's return", customerID}} {
+		for _, stmt := range []string{
+			`UPDATE return_requests SET reason = 'customer_withdrew' WHERE id = $1`,
+			`UPDATE return_requests SET order_id = '` + uuid.NewString() + `' WHERE id = $1`,
+		} {
+			err := rewrite("store", "", stmt, request.id)
+			if pgErr, ok := errors.AsType[*pgconn.PgError](err); !ok || pgErr.Code != "42501" {
+				t.Errorf("store, %s: %s failed with %v, want PgError 42501", request.name, stmt, err)
+			}
+			requireRule(t, "the owner, "+request.name+": "+stmt, rewrite("", "", stmt, request.id),
+				"return_requests_claim_frozen")
+		}
+	}
+
+	// The door's own window: an unsent request is written as requested and
+	// approved in one transaction, and its code is fixed from the start.
+	requireRule(t, "the reason of an unsent refund before approval", rewrite("",
+		`INSERT INTO return_requests (order_id, reason, unsent) VALUES ($1, 'lost', true) RETURNING id`,
+		`UPDATE return_requests SET reason = 'customer_withdrew' WHERE id = $1`, uuid.Nil),
+		"return_requests_claim_frozen")
+	// Nor does the statement that decides a request change what it decides on.
+	requireRule(t, "the reason in the deciding statement", rewrite("",
+		`INSERT INTO return_requests (order_id, reason) VALUES ($1, '不需要了') RETURNING id`,
+		`UPDATE return_requests SET status = 'rejected', decided_at = now(), reason = '改變心意'
+		 WHERE id = $1`, uuid.Nil),
+		"return_requests_claim_frozen")
 }
