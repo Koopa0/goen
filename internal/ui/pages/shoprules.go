@@ -3,6 +3,7 @@ package pages
 import (
 	"context"
 	"fmt"
+	"strconv"
 	"strings"
 
 	"github.com/koopa0/goen/internal/i18n"
@@ -15,6 +16,17 @@ const (
 	RescissionDays = 7
 	ReturnDays     = 14
 )
+
+// A cart-package test binds HoldMinutesText to this private enforcement constant.
+const holdMinutes = 60
+
+func HoldMinutesText() string { return strconv.Itoa(holdMinutes) }
+
+// A Checkout Session must fit inside the hold. A payment-package test binds this
+// to the hold less the session lifetime the payment page enforces.
+const payStartMinutes = 29
+
+func PayStartMinutesText() string { return strconv.Itoa(payStartMinutes) }
 
 // ShopRules is what the shop states about itself, from where each rule is stored.
 type ShopRules struct {
