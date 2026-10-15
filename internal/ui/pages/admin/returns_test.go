@@ -272,19 +272,6 @@ func TestTheReturnQueueHTMLNamesTheRefundChannels(t *testing.T) {
 	})
 }
 
-func TestEveryReturnPolicyWindowHasALabel(t *testing.T) {
-	t.Parallel()
-	for _, locale := range []i18n.Locale{i18n.ZhHant, i18n.En} {
-		ctx := i18n.WithLocale(t.Context(), locale)
-		for _, window := range []returns.PolicyWindow{returns.WindowStatutory, returns.WindowGoodwill, returns.WindowLate, returns.WindowUndelivered, returns.WindowMixed} {
-			label := ReturnLineWindowText(ctx, window)
-			if label == "" || label == string(window) {
-				t.Errorf("WindowText(%q) in %s = %q, want a catalogue label", window, locale, label)
-			}
-		}
-	}
-}
-
 func TestAnApprovedReturnWithMoneyOutstandingOffersToSendItAgain(t *testing.T) {
 	base := func(id string) Return {
 		return Return{

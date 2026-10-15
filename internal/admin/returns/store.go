@@ -249,7 +249,7 @@ func buildReturnQueue(
 		// An unsent refund's reason is the staff member's code, not the
 		// customer's words.
 		if r.Unsent {
-			item.Reason = admin.UnsentReasonLabel(ctx, returnrules.UnsentReason(r.Reason))
+			item.Reason = returnrules.UnsentReason(r.Reason).Label(ctx)
 		}
 		if a, ok := assessmentByRequest[r.ID]; ok {
 			item.AssessmentVersion = a.Version

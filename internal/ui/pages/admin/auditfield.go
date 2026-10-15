@@ -231,7 +231,7 @@ func reasonText(ctx context.Context, e AuditEntry, value string) string {
 		return value
 	}
 	if r, ok := returns.ParseUnsentReason(value); ok {
-		return UnsentReasonLabel(ctx, r)
+		return r.Label(ctx)
 	}
 	return value
 }
@@ -253,7 +253,7 @@ func policyWindowText(ctx context.Context, _ AuditEntry, value string) string {
 	if !ok {
 		return value
 	}
-	return ReturnLineWindowText(ctx, w)
+	return w.Label(ctx)
 }
 
 func couponKindText(ctx context.Context, _ AuditEntry, value string) string {

@@ -41,22 +41,6 @@ func unsentLinesText(ctx context.Context, lines []UnsentLine) string {
 	return strings.Join(parts, i18n.T(ctx, i18n.KeyListSeparator))
 }
 
-// UnsentReasonLabel is the staff member's code as the back office words it.
-func UnsentReasonLabel(ctx context.Context, r returns.UnsentReason) string {
-	switch r {
-	case returns.UnsentDamaged:
-		return i18n.T(ctx, i18n.KeyUnsentReasonDamaged)
-	case returns.UnsentLost:
-		return i18n.T(ctx, i18n.KeyUnsentReasonLost)
-	case returns.UnsentSupplierFailed:
-		return i18n.T(ctx, i18n.KeyUnsentReasonSupplierFailed)
-	case returns.UnsentCustomerWithdrew:
-		return i18n.T(ctx, i18n.KeyUnsentReasonCustomerWithdrew)
-	default:
-		return string(r)
-	}
-}
-
 // UnsentOpenText says which units the unfinished refund covers.
 func (v *OrderView) UnsentOpenText(ctx context.Context) string {
 	return fmt.Sprintf(i18n.T(ctx, i18n.KeyAdminUnsentOpen), unsentLinesText(ctx, v.UnsentOpenLines))
@@ -93,7 +77,7 @@ func (v UnsentRefundConfirmation) ItemsText(ctx context.Context) string {
 }
 
 func (v UnsentRefundConfirmation) ReasonText(ctx context.Context) string {
-	return UnsentReasonLabel(ctx, v.Reason)
+	return v.Reason.Label(ctx)
 }
 
 // StockText is what settling does to the units' stock: a withdrawn unit goes

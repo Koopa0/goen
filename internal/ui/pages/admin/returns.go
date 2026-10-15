@@ -141,10 +141,6 @@ func (r *Return) RestockedUnits() int32 {
 
 func (r *Return) RestockedUnitsText() string { return strconv.FormatInt(int64(r.RestockedUnits()), 10) }
 
-func ReturnLineWindowText(ctx context.Context, window returns.PolicyWindow) string {
-	return (&Return{Window: window}).WindowText(ctx)
-}
-
 func (r *Return) Rescission() bool { return r.Window == returns.WindowStatutory }
 
 // CanReject excludes requests whose undelivered lines have no recorded start
@@ -181,23 +177,6 @@ func (r *Return) mixedStatutoryApproval() bool {
 		}
 	}
 	return true
-}
-
-func (r *Return) WindowText(ctx context.Context) string {
-	switch r.Window {
-	case returns.WindowStatutory:
-		return i18n.T(ctx, i18n.KeyAdminReturnWindowWithin)
-	case returns.WindowGoodwill:
-		return i18n.T(ctx, i18n.KeyAdminReturnWindowGoodwill)
-	case returns.WindowLate:
-		return i18n.T(ctx, i18n.KeyAdminReturnWindowAfter)
-	case returns.WindowUndelivered:
-		return i18n.T(ctx, i18n.KeyAdminReturnWindowUndelivered)
-	case returns.WindowMixed:
-		return i18n.T(ctx, i18n.KeyAdminReturnWindowMixed)
-	default:
-		panic("pages: unknown rescission window: " + string(r.Window))
-	}
 }
 
 func (r *Return) AssessmentVersionText() string {
