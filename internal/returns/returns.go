@@ -1,5 +1,6 @@
 // Package returns decides a return request: the §19 window each line falls in,
 // what the buyer is owed, why a decision is refused, and the request's status.
+// It also holds the back office's words for a window and an unsent reason.
 package returns
 
 type Status string

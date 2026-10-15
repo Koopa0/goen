@@ -205,7 +205,7 @@ func (v *OrderView) CanRequestReturn() bool {
 func (v *OrderView) WarrantyLink() string { return "/account/warranty/" + v.Number }
 
 func (v *OrderView) AwaitingPayment() bool {
-	return awaitingPayment(v.Status, v.Committed, v.OwedCents)
+	return order.AwaitingPayment(v.Status, v.Committed, v.OwedCents)
 }
 
 type OrderInvoice struct {

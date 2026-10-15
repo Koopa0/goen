@@ -33,12 +33,16 @@ func TestEveryViewModelFieldIsAssigned(t *testing.T) {
 	templates := templSources(t)
 	packages := viewModelPackages(templates)
 	files := repositoryGo(t)
-	components := templComponents(t)
+	generated := generatedTemplGo(t)
+	components := templComponents(generated)
 	if len(components) < minComponents {
 		t.Fatalf("found %d templ components in the generated *_templ.go files, want at least %d — "+
 			"the walk stopped reaching them", len(components), minComponents)
 	}
-	taken := templateTakes(files, components, packages)
+	// A struct a .templ file declares is copied verbatim into its generated
+	// file, so the declarations are read from both; the assignments stay
+	// hand-written (see isHandWrittenGo).
+	taken := templateTakes(slices.Concat(files, generated), components, packages)
 	declared, models, holds := declaredFields(taken)
 	if len(declared) < minViewModelFields {
 		t.Fatalf("found %d view-model fields, want at least %d — the parse is wrong",
@@ -107,8 +111,8 @@ func TestEveryViewModelFieldIsAssigned(t *testing.T) {
 // goenModule is the repository's module, the prefix of every import path below.
 const goenModule = "github.com/koopa0/goen"
 
-// The floors under the walks. Measured on da0f2600: 250 components in 86
-// generated files, 1671 view-model fields, 1690 assignments. A walk that stopped
+// The floors under the walks. Measured on 900683a9: 252 components in 89
+// generated files, 236 view models with 1703 fields, 1723 assignments. A walk that stopped
 // reaching its input drops far below them; moving a template or a view between
 // packages keeps the totals.
 const (
@@ -179,17 +183,20 @@ type component struct {
 	calls []*ast.CallExpr
 }
 
+// generatedTemplGo parses every *_templ.go file under internal/.
+func generatedTemplGo(t *testing.T) []source {
+	t.Helper()
+	return goFiles(t, "internal", isGeneratedTempl)
+}
+
 // templComponents is every function the generated *_templ.go files declare that
 // returns a templ.Component, read from the generated signatures rather than from
 // the .templ sources: templ's own parser has already decided what a receiver, a
 // generic parameter or a multi-line parameter list is, and `make templ-check`
 // keeps the generated files equal to the sources.
-func templComponents(t *testing.T) []component {
-	t.Helper()
-
-	files := goFiles(t, "internal", isGeneratedTempl)
-	out := make([]component, 0, len(files))
-	for _, src := range files {
+func templComponents(generated []source) []component {
+	out := make([]component, 0, len(generated))
+	for _, src := range generated {
 		out = append(out, componentsOf(src)...)
 	}
 	return out
@@ -266,8 +273,9 @@ type viewModel struct {
 }
 
 // templateTakes is the set of view models, keyed <import path>.Type: every
-// exported struct declared in one of the view-model packages that a templ
-// component takes or reads.
+// exported struct declared in one of the view-model packages — in a .go file or
+// in a .templ file, whose declarations the generated *_templ.go repeats — that a
+// templ component takes or reads.
 //
 // It starts at what a component is handed — the receiver and parameter types —
 // and at what it fetches — the results of the package-level functions its body

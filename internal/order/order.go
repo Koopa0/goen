@@ -1,4 +1,5 @@
-// Package order is the vocabulary of an order: its fulfillment states, event kinds and number.
+// Package order is the vocabulary of an order: its fulfillment states and the
+// back office's words for them, its event kinds and its number.
 package order
 
 import (
@@ -128,4 +129,11 @@ func NormalizeNumber(s string) (number string, ok bool) {
 		return n, true
 	}
 	return "", false
+}
+
+// AwaitingPayment is the one definition of an order that still needs paying.
+// 'pending' alone misses an order paid wholly from store credit or zeroed by a
+// coupon: it has no payment row and owes nothing.
+func AwaitingPayment(status FulfillmentStatus, committed bool, owedCents int64) bool {
+	return status == FulfillmentPending && !committed && owedCents > 0
 }

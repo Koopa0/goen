@@ -242,9 +242,9 @@ func Returns(p layouts.Page, v ReturnsView) templ.Component {
 							return templ_7745c5c3_Err
 						}
 						var templ_7745c5c3_Var14 string
-						templ_7745c5c3_Var14, templ_7745c5c3_Err = templ.JoinStringErrs(r.WindowText(ctx))
+						templ_7745c5c3_Var14, templ_7745c5c3_Err = templ.JoinStringErrs(r.Window.Label(ctx))
 						if templ_7745c5c3_Err != nil {
-							return templ.Error{Err: templ_7745c5c3_Err, FileName: `ui/pages/admin/returns.templ`, Line: 51, Col: 36}
+							return templ.Error{Err: templ_7745c5c3_Err, FileName: `ui/pages/admin/returns.templ`, Line: 51, Col: 38}
 						}
 						_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var14))
 						if templ_7745c5c3_Err != nil {
@@ -273,9 +273,9 @@ func Returns(p layouts.Page, v ReturnsView) templ.Component {
 							return templ_7745c5c3_Err
 						}
 						var templ_7745c5c3_Var16 string
-						templ_7745c5c3_Var16, templ_7745c5c3_Err = templ.JoinStringErrs(r.WindowText(ctx))
+						templ_7745c5c3_Var16, templ_7745c5c3_Err = templ.JoinStringErrs(r.Window.Label(ctx))
 						if templ_7745c5c3_Err != nil {
-							return templ.Error{Err: templ_7745c5c3_Err, FileName: `ui/pages/admin/returns.templ`, Line: 56, Col: 36}
+							return templ.Error{Err: templ_7745c5c3_Err, FileName: `ui/pages/admin/returns.templ`, Line: 56, Col: 38}
 						}
 						_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var16))
 						if templ_7745c5c3_Err != nil {
@@ -304,9 +304,9 @@ func Returns(p layouts.Page, v ReturnsView) templ.Component {
 							return templ_7745c5c3_Err
 						}
 						var templ_7745c5c3_Var18 string
-						templ_7745c5c3_Var18, templ_7745c5c3_Err = templ.JoinStringErrs(r.WindowText(ctx))
+						templ_7745c5c3_Var18, templ_7745c5c3_Err = templ.JoinStringErrs(r.Window.Label(ctx))
 						if templ_7745c5c3_Err != nil {
-							return templ.Error{Err: templ_7745c5c3_Err, FileName: `ui/pages/admin/returns.templ`, Line: 61, Col: 28}
+							return templ.Error{Err: templ_7745c5c3_Err, FileName: `ui/pages/admin/returns.templ`, Line: 61, Col: 30}
 						}
 						_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var18))
 						if templ_7745c5c3_Err != nil {
@@ -335,9 +335,9 @@ func Returns(p layouts.Page, v ReturnsView) templ.Component {
 							return templ_7745c5c3_Err
 						}
 						var templ_7745c5c3_Var20 string
-						templ_7745c5c3_Var20, templ_7745c5c3_Err = templ.JoinStringErrs(r.WindowText(ctx))
+						templ_7745c5c3_Var20, templ_7745c5c3_Err = templ.JoinStringErrs(r.Window.Label(ctx))
 						if templ_7745c5c3_Err != nil {
-							return templ.Error{Err: templ_7745c5c3_Err, FileName: `ui/pages/admin/returns.templ`, Line: 65, Col: 58}
+							return templ.Error{Err: templ_7745c5c3_Err, FileName: `ui/pages/admin/returns.templ`, Line: 65, Col: 60}
 						}
 						_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var20))
 						if templ_7745c5c3_Err != nil {
@@ -420,9 +420,9 @@ func Returns(p layouts.Page, v ReturnsView) templ.Component {
 									return templ_7745c5c3_Err
 								}
 								var templ_7745c5c3_Var25 string
-								templ_7745c5c3_Var25, templ_7745c5c3_Err = templ.JoinStringErrs(ReturnLineWindowText(ctx, l.Window))
+								templ_7745c5c3_Var25, templ_7745c5c3_Err = templ.JoinStringErrs(l.Window.Label(ctx))
 								if templ_7745c5c3_Err != nil {
-									return templ.Error{Err: templ_7745c5c3_Err, FileName: `ui/pages/admin/returns.templ`, Line: 75, Col: 80}
+									return templ.Error{Err: templ_7745c5c3_Err, FileName: `ui/pages/admin/returns.templ`, Line: 75, Col: 64}
 								}
 								_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var25))
 								if templ_7745c5c3_Err != nil {

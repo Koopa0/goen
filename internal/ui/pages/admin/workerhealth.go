@@ -370,14 +370,14 @@ type StrandedClaim struct {
 }
 
 func (c StrandedClaim) ExplainedKindText(ctx context.Context) string {
-	if key, known := InvoiceOperationLabels[c.Kind]; known {
+	if key, known := invoice.OperationKindLabels[c.Kind]; known {
 		return i18n.T(ctx, key)
 	}
 	return i18n.T(ctx, i18n.KeyAdminHPInvoiceKindUnknown)
 }
 
 func (c StrandedClaim) ExplainedStatusText(ctx context.Context) string {
-	if key, known := InvoiceOperationStatuses[c.Status]; known {
+	if key, known := invoice.OperationStatusLabels[c.Status]; known {
 		return i18n.T(ctx, key)
 	}
 	return i18n.T(ctx, i18n.KeyAdminHPInvoiceStatusUnknown)
