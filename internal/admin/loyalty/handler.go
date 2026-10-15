@@ -41,11 +41,11 @@ func (h *Handler) Routes(mux *http.ServeMux, ac *access.Control) {
 	mux.HandleFunc("POST /admin/credit", ac.RequireStaff(h.GrantCredit))
 }
 
-var notices = map[string]web.NoticeEntry{
-	"ok":          web.Done(i18n.KeyAdminNoticeOK),
-	"refused":     web.Refused(i18n.KeyAdminNoticeRefused),
-	"creditneeds": web.Refused(i18n.KeyAdminNoticeCreditNeeds),
-	"tiersneeds":  web.Refused(i18n.KeyAdminNoticeTiersNeeds),
+var notices = map[string]components.NoticeEntry{
+	"ok":          components.NoticeDone(i18n.KeyAdminNoticeOK),
+	"refused":     components.NoticeRefused(i18n.KeyAdminNoticeRefused),
+	"creditneeds": components.NoticeRefused(i18n.KeyAdminNoticeCreditNeeds),
+	"tiersneeds":  components.NoticeRefused(i18n.KeyAdminNoticeTiersNeeds),
 }
 
 func (h *Handler) Credit(w http.ResponseWriter, r *http.Request) {
@@ -113,11 +113,11 @@ func creditView(ledger Ledger) admin.CreditView {
 // blank box, so a grant nothing confirms is one somebody makes twice.
 func creditNotice(r *http.Request) components.Result {
 	if r.URL.Query().Get("ok") != "1" {
-		return web.Notice(r, notices)
+		return components.NoticeFrom(r, notices)
 	}
 	balance, err := strconv.ParseInt(r.URL.Query().Get("balance"), 10, 64)
 	if err != nil {
-		return web.Notice(r, notices)
+		return components.NoticeFrom(r, notices)
 	}
 	return components.Result{
 		Outcome: components.OutcomeDone,
@@ -194,7 +194,7 @@ func (h *Handler) Tiers(w http.ResponseWriter, r *http.Request) {
 		access.ServerError(w, r, h.log)
 		return
 	}
-	view.Notice = web.Notice(r, notices)
+	view.Notice = components.NoticeFrom(r, notices)
 	web.Render(w, r, h.log, http.StatusOK, admin.Tiers(
 		layouts.Page{Title: i18n.T(r.Context(), i18n.KeyAdminPageTiers)}, view))
 }

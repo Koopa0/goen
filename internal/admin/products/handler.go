@@ -57,12 +57,12 @@ func (h *Handler) Routes(mux *http.ServeMux, ac *access.Control) {
 	mux.HandleFunc("POST /admin/products/{slug}/images/move", ac.RequireStaff(h.MoveImage))
 }
 
-var notices = map[string]web.NoticeEntry{
-	"ok":         web.Done(i18n.KeyAdminNoticeOK),
-	"refused":    web.Refused(i18n.KeyAdminNoticeRefused),
-	"imageneeds": web.Refused(i18n.KeyAdminNoticeImageNeeds),
-	"badoption":  web.Refused(i18n.KeyAdminNoticeBadOption),
-	"specfailed": web.Failed(i18n.KeyAdminNoticeSpecFailed),
+var notices = map[string]components.NoticeEntry{
+	"ok":         components.NoticeDone(i18n.KeyAdminNoticeOK),
+	"refused":    components.NoticeRefused(i18n.KeyAdminNoticeRefused),
+	"imageneeds": components.NoticeRefused(i18n.KeyAdminNoticeImageNeeds),
+	"badoption":  components.NoticeRefused(i18n.KeyAdminNoticeBadOption),
+	"specfailed": components.NoticeFailed(i18n.KeyAdminNoticeSpecFailed),
 }
 
 func (h *Handler) List(w http.ResponseWriter, r *http.Request) {
@@ -72,7 +72,7 @@ func (h *Handler) List(w http.ResponseWriter, r *http.Request) {
 		access.ServerError(w, r, h.log)
 		return
 	}
-	view.Notice = web.Notice(r, notices)
+	view.Notice = components.NoticeFrom(r, notices)
 	web.Render(w, r, h.log, http.StatusOK, admin.Products(
 		layouts.Page{Title: i18n.T(r.Context(), i18n.KeyAdminPageProducts)}, view))
 }
@@ -113,7 +113,7 @@ func (h *Handler) Create(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *Handler) Edit(w http.ResponseWriter, r *http.Request) {
-	h.renderProduct(w, r, http.StatusOK, web.Notice(r, notices))
+	h.renderProduct(w, r, http.StatusOK, components.NoticeFrom(r, notices))
 }
 
 // product reads the editor's product; a failure to read its sales or reviews is

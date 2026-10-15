@@ -10,7 +10,6 @@ import (
 	"github.com/koopa0/goen/internal/ui/components"
 	"github.com/koopa0/goen/internal/ui/layouts"
 	"github.com/koopa0/goen/internal/ui/pages/admin"
-	"github.com/koopa0/goen/internal/web"
 )
 
 func TestARedirectedNoticeIsShownAsItsOwnOutcome(t *testing.T) {
@@ -22,7 +21,7 @@ func TestARedirectedNoticeIsShownAsItsOwnOutcome(t *testing.T) {
 		ctx := i18n.WithLocale(t.Context(), i18n.En)
 		req := httptest.NewRequestWithContext(ctx, http.MethodGet, "/admin/products?"+tc.query+"=1", http.NoBody)
 		var page strings.Builder
-		if err := admin.Products(layouts.Page{Title: "products"}, admin.ProductsView{Notice: web.Notice(req, notices)}).Render(ctx, &page); err != nil {
+		if err := admin.Products(layouts.Page{Title: "products"}, admin.ProductsView{Notice: components.NoticeFrom(req, notices)}).Render(ctx, &page); err != nil {
 			t.Fatal(err)
 		}
 		got := page.String()

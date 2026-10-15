@@ -36,7 +36,6 @@ type importRule struct {
 // disappear; one whose edge is gone fails, so each task proves its own work.
 var exceptions = map[string]string{
 	"internal/ui/layouts -> internal/web":                  "T31",
-	"internal/web -> internal/ui/components":               "T31",
 	"internal/admin/content -> internal/home":              "T66",
 	"internal/i18n -> internal/shipping":                   "T27",
 	"internal/admin/admintest -> internal/admin/invoicing": "T48",

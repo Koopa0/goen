@@ -60,7 +60,7 @@ func (h *Handler) List(w http.ResponseWriter, r *http.Request) {
 		access.ServerError(w, r, h.log)
 		return
 	}
-	view.Notice = web.Notice(r, notices)
+	view.Notice = components.NoticeFrom(r, notices)
 	web.Render(w, r, h.log, http.StatusOK, admin.Orders(admin.OrdersMeta(r.Context()), view))
 }
 
@@ -78,7 +78,7 @@ func (h *Handler) Order(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	logUnrecognized(r.Context(), h.log, view.Number, view.Timeline)
-	view.Notice = web.Notice(r, notices)
+	view.Notice = components.NoticeFrom(r, notices)
 	view.AllowanceOperationID = uuid.NewString()
 	web.Render(w, r, h.log, http.StatusOK,
 		admin.Order(layouts.Page{Title: fmt.Sprintf(i18n.T(r.Context(), i18n.KeyAdminPageOrder), view.Number)}, &view))
@@ -269,44 +269,44 @@ func (h *Handler) StaffNote(w http.ResponseWriter, r *http.Request) {
 	http.Redirect(w, r, "/admin/orders/"+number+"?ok=1", http.StatusSeeOther) //nolint:gosec // G710: validated by order.ValidNumber
 }
 
-var notices = map[string]web.NoticeEntry{
-	"ok":              web.Done(i18n.KeyAdminNoticeOK),
-	"refused":         web.Refused(i18n.KeyAdminNoticeRefused),
-	"shipped":         web.Done(i18n.KeyAdminNoticeShipped),
-	"parceldelivered": web.Done(i18n.KeyAdminNoticeShipmentDelivered),
-	"toolate":         web.Refused(i18n.KeyAdminNoticeTooLate),
-	"deliveryneeds":   web.Refused(i18n.KeyAdminNoticeDeliveryNeeds),
-	"paidcancel":      web.Refused(i18n.KeyAdminNoticePaidCancel),
-	"refunded":        web.Done(i18n.KeyAdminNoticeRefunded),
-	"refundpending":   web.Failed(i18n.KeyAdminNoticeRefundPending),
-	"cancelinvoice":   web.Failed(i18n.KeyAdminNoticeCancelInvoice),
-	"refundretry":     web.Failed(i18n.KeyAdminNoticeRefundRetry),
-	"cancelretry":     web.Failed(i18n.KeyAdminNoticeCancelRetry),
-	"refundshipped":   web.Refused(i18n.KeyAdminNoticeRefundShipped),
-	"refundhasreturn": web.Refused(i18n.KeyAdminNoticeRefundHasReturn),
-	"refundcancelled": web.Refused(i18n.KeyAdminNoticeRefundCancelled),
-	"refundunpaid":    web.Refused(i18n.KeyAdminNoticeRefundUnpaid),
-	"refundchanged":   web.Refused(i18n.KeyAdminNoticeRefundChanged),
-	"refundpicking":   web.Refused(i18n.KeyAdminNoticeRefundPicking),
-	"refundreason":    web.Refused(i18n.KeyAdminRefundErrReason),
-	"refundmismatch":  web.Failed(i18n.KeyAdminNoticeRefundMismatch),
-	"refundunsure":    web.Failed(i18n.KeyAdminNoticeRefundUnsure),
-	"unfunded":        web.Refused(i18n.KeyAdminNoticeUnfunded),
-	"owesparcel":      web.Refused(i18n.KeyAdminNoticeOwesParcel),
-	"invoiced":        web.Done(i18n.KeyAdminNoticeInvoiced),
-	"voided":          web.Done(i18n.KeyAdminNoticeVoided),
-	"hasinvoice":      web.Refused(i18n.KeyAdminNoticeHasInvoice),
-	"noinvoice":       web.Refused(i18n.KeyAdminNoticeNoInvoice),
-	"invoicefailed":   web.Failed(i18n.KeyAdminNoticeInvoiceFailed),
-	"invoicingoff":    web.Refused(i18n.KeyAdminNoticeInvoicingOff),
-	"invoicepending":  web.Failed(i18n.KeyAdminNoticeInvoicePending),
-	"allowed":         web.Done(i18n.KeyAdminNoticeAllowed),
-	"allowsent":       web.Done(i18n.KeyAdminNoticeAllowSent),
-	"allowtoomuch":    web.Refused(i18n.KeyAdminNoticeAllowTooMuch),
-	"allowclaimed":    web.Refused(i18n.KeyAdminNoticeAllowClaimed),
-	"voidreason":      web.Refused(i18n.KeyAdminNoticeVoidReason),
-	"voidfailed":      web.Failed(i18n.KeyAdminNoticeVoidFailed),
-	"allowfailed":     web.Failed(i18n.KeyAdminNoticeAllowFailed),
+var notices = map[string]components.NoticeEntry{
+	"ok":              components.NoticeDone(i18n.KeyAdminNoticeOK),
+	"refused":         components.NoticeRefused(i18n.KeyAdminNoticeRefused),
+	"shipped":         components.NoticeDone(i18n.KeyAdminNoticeShipped),
+	"parceldelivered": components.NoticeDone(i18n.KeyAdminNoticeShipmentDelivered),
+	"toolate":         components.NoticeRefused(i18n.KeyAdminNoticeTooLate),
+	"deliveryneeds":   components.NoticeRefused(i18n.KeyAdminNoticeDeliveryNeeds),
+	"paidcancel":      components.NoticeRefused(i18n.KeyAdminNoticePaidCancel),
+	"refunded":        components.NoticeDone(i18n.KeyAdminNoticeRefunded),
+	"refundpending":   components.NoticeFailed(i18n.KeyAdminNoticeRefundPending),
+	"cancelinvoice":   components.NoticeFailed(i18n.KeyAdminNoticeCancelInvoice),
+	"refundretry":     components.NoticeFailed(i18n.KeyAdminNoticeRefundRetry),
+	"cancelretry":     components.NoticeFailed(i18n.KeyAdminNoticeCancelRetry),
+	"refundshipped":   components.NoticeRefused(i18n.KeyAdminNoticeRefundShipped),
+	"refundhasreturn": components.NoticeRefused(i18n.KeyAdminNoticeRefundHasReturn),
+	"refundcancelled": components.NoticeRefused(i18n.KeyAdminNoticeRefundCancelled),
+	"refundunpaid":    components.NoticeRefused(i18n.KeyAdminNoticeRefundUnpaid),
+	"refundchanged":   components.NoticeRefused(i18n.KeyAdminNoticeRefundChanged),
+	"refundpicking":   components.NoticeRefused(i18n.KeyAdminNoticeRefundPicking),
+	"refundreason":    components.NoticeRefused(i18n.KeyAdminRefundErrReason),
+	"refundmismatch":  components.NoticeFailed(i18n.KeyAdminNoticeRefundMismatch),
+	"refundunsure":    components.NoticeFailed(i18n.KeyAdminNoticeRefundUnsure),
+	"unfunded":        components.NoticeRefused(i18n.KeyAdminNoticeUnfunded),
+	"owesparcel":      components.NoticeRefused(i18n.KeyAdminNoticeOwesParcel),
+	"invoiced":        components.NoticeDone(i18n.KeyAdminNoticeInvoiced),
+	"voided":          components.NoticeDone(i18n.KeyAdminNoticeVoided),
+	"hasinvoice":      components.NoticeRefused(i18n.KeyAdminNoticeHasInvoice),
+	"noinvoice":       components.NoticeRefused(i18n.KeyAdminNoticeNoInvoice),
+	"invoicefailed":   components.NoticeFailed(i18n.KeyAdminNoticeInvoiceFailed),
+	"invoicingoff":    components.NoticeRefused(i18n.KeyAdminNoticeInvoicingOff),
+	"invoicepending":  components.NoticeFailed(i18n.KeyAdminNoticeInvoicePending),
+	"allowed":         components.NoticeDone(i18n.KeyAdminNoticeAllowed),
+	"allowsent":       components.NoticeDone(i18n.KeyAdminNoticeAllowSent),
+	"allowtoomuch":    components.NoticeRefused(i18n.KeyAdminNoticeAllowTooMuch),
+	"allowclaimed":    components.NoticeRefused(i18n.KeyAdminNoticeAllowClaimed),
+	"voidreason":      components.NoticeRefused(i18n.KeyAdminNoticeVoidReason),
+	"voidfailed":      components.NoticeFailed(i18n.KeyAdminNoticeVoidFailed),
+	"allowfailed":     components.NoticeFailed(i18n.KeyAdminNoticeAllowFailed),
 }
 
 func (h *Handler) CorrectDelivery(w http.ResponseWriter, r *http.Request) {

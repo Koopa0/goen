@@ -8,6 +8,7 @@ import (
 	"github.com/koopa0/goen/internal/admin/access"
 	"github.com/koopa0/goen/internal/admin/audit"
 	"github.com/koopa0/goen/internal/i18n"
+	"github.com/koopa0/goen/internal/ui/components"
 	"github.com/koopa0/goen/internal/ui/layouts"
 	"github.com/koopa0/goen/internal/user"
 	"github.com/koopa0/goen/internal/web"
@@ -38,13 +39,13 @@ func (h *Handler) Routes(mux *http.ServeMux, ac *access.Control) {
 	mux.HandleFunc("POST /admin/staff/factor", ac.RequireAdmin(h.RemoveFactor))
 }
 
-var notices = map[string]web.NoticeEntry{
-	"ok":          web.Done(i18n.KeyAdminNoticeOK),
-	"cleared":     web.Done(i18n.KeyStaffCredentialCleared),
-	"self":        web.Refused(i18n.KeyStaffSelf),
-	"last":        web.Refused(i18n.KeyStaffLastAdmin),
-	"needs":       web.Refused(i18n.KeyStaffNeeds),
-	"notenrolled": web.Refused(i18n.KeyStaffInvalid),
+var notices = map[string]components.NoticeEntry{
+	"ok":          components.NoticeDone(i18n.KeyAdminNoticeOK),
+	"cleared":     components.NoticeDone(i18n.KeyStaffCredentialCleared),
+	"self":        components.NoticeRefused(i18n.KeyStaffSelf),
+	"last":        components.NoticeRefused(i18n.KeyStaffLastAdmin),
+	"needs":       components.NoticeRefused(i18n.KeyStaffNeeds),
+	"notenrolled": components.NoticeRefused(i18n.KeyStaffInvalid),
 }
 
 func (h *Handler) Page(w http.ResponseWriter, r *http.Request) {
@@ -56,7 +57,7 @@ func (h *Handler) Page(w http.ResponseWriter, r *http.Request) {
 	}
 	view.NoKey = !h.factorsEnabled
 	view.Actor = actorID(r)
-	view.Notice = web.Notice(r, notices)
+	view.Notice = components.NoticeFrom(r, notices)
 	web.Render(w, r, h.log, http.StatusOK, Staff(
 		layouts.Page{Title: i18n.T(r.Context(), i18n.KeyAdminPageStaff)}, view))
 }

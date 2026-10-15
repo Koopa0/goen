@@ -43,11 +43,11 @@ func (h *Handler) Routes(mux *http.ServeMux, ac *access.Control) {
 	mux.HandleFunc("POST /admin/stock/arrival", ac.RequireStaff(h.SetArrival))
 }
 
-var notices = map[string]web.NoticeEntry{
-	"ok":               web.Done(i18n.KeyAdminNoticeOK),
-	"refused":          web.Refused(i18n.KeyAdminNoticeRefused),
-	"received":         web.Done(i18n.KeyAdminNoticeReceived),
-	"receipt-conflict": web.Refused(i18n.KeyAdminReceiptConflict),
+var notices = map[string]components.NoticeEntry{
+	"ok":               components.NoticeDone(i18n.KeyAdminNoticeOK),
+	"refused":          components.NoticeRefused(i18n.KeyAdminNoticeRefused),
+	"received":         components.NoticeDone(i18n.KeyAdminNoticeReceived),
+	"receipt-conflict": components.NoticeRefused(i18n.KeyAdminReceiptConflict),
 }
 
 func (h *Handler) Variants(w http.ResponseWriter, r *http.Request) {
@@ -68,7 +68,7 @@ func (h *Handler) Variants(w http.ResponseWriter, r *http.Request) {
 		}
 		view.AtRisk, view.MoreSoldOut = admin.StockRisks(listed, now), more
 	}
-	view.Notice = web.Notice(r, notices)
+	view.Notice = components.NoticeFrom(r, notices)
 	view.Return = stockReturn(r.URL.Query().Get("soldout"), view.Term, r.URL.Query().Get(keyset.Param), "", "")
 	web.Render(w, r, h.log, http.StatusOK, admin.Variants(admin.VariantsMeta(r.Context()), view))
 }
@@ -295,7 +295,7 @@ func (h *Handler) Movements(w http.ResponseWriter, r *http.Request) {
 	view, err := h.store.Movements(r.Context(), r.PathValue("sku"), time.Now(), r.URL.Query().Get(keyset.Param))
 	switch {
 	case err == nil:
-		view.Notice = web.Notice(r, notices)
+		view.Notice = components.NoticeFrom(r, notices)
 		web.Render(w, r, h.log, http.StatusOK, admin.Movements(
 			layouts.Page{Title: view.SKU}, &view))
 	case errors.Is(err, ErrNotFound):
