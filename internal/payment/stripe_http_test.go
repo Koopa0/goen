@@ -295,7 +295,7 @@ func TestTheSessionExpiresWithTheStockHold(t *testing.T) {
 // has to satisfy: payments_capture_matches_order refuses a capture that is not
 // exactly order_amount_after_credit, so the line items must sum to it.
 //
-// Both directions: shipping and tax add to the lines, while a coupon and store
+// Both directions: shipping adds to the lines, while a coupon and store
 // credit take away.
 func TestTheSessionTotalsWhatTheOrderOwes(t *testing.T) {
 	for _, tt := range []struct {

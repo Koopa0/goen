@@ -87,11 +87,6 @@ var (
 
 	KeyPayMeta = key("pay.meta", Message{ZhHant: "付款 %s", En: "Pay for %s"})
 
-	KeyShippingAndTax = key("pay.shippingandtax", Message{
-		ZhHant: "運費與稅金",
-		En:     "Delivery and tax",
-	})
-
 	// A reduced order reaches Stripe as one line naming itself; the itemisation
 	// lives on goen's own order page, which the confirmation links to.
 	KeyPayOrderLine = key("pay.orderline", Message{ZhHant: "訂單 %s", En: "Order %s"})
