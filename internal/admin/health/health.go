@@ -16,6 +16,7 @@ import (
 	"github.com/koopa0/goen/internal/admin/audit"
 	"github.com/koopa0/goen/internal/db"
 	"github.com/koopa0/goen/internal/outbox"
+	"github.com/koopa0/goen/internal/payment"
 	"github.com/koopa0/goen/internal/refund"
 	"github.com/koopa0/goen/internal/shoptime"
 	"github.com/koopa0/goen/internal/ui/pages/admin"
@@ -68,12 +69,25 @@ const (
 	// live: many passes of the outbox and of the invoice reconciler.
 	UninvoicedAfter = 15 * time.Minute
 	UnvoidedAfter   = 15 * time.Minute
+	// LapsedCheckoutAfter is how long a lapsed order's checkout may stay
+	// unsettled: the payment sweeper's grace and several of its passes.
+	LapsedCheckoutAfter = payment.LapsedSessionGrace + 9*payment.LapsedSessionInterval
 )
 
-func (s *Store) WorkerHealth(ctx context.Context, messages *outbox.Store) (admin.WorkerHealthView, error) {
-	row, err := s.q.WorkerHealth(ctx, outbox.StuckAfterAttempts)
+func (s *Store) workerHealth(ctx context.Context) (db.WorkerHealthRow, error) {
+	row, err := s.q.WorkerHealth(ctx, db.WorkerHealthParams{
+		MaxAttempts: outbox.StuckAfterAttempts, LapsedAfter: interval(LapsedCheckoutAfter),
+	})
 	if err != nil {
-		return admin.WorkerHealthView{}, fmt.Errorf("read worker health: %w", err)
+		return db.WorkerHealthRow{}, fmt.Errorf("read worker health: %w", err)
+	}
+	return row, nil
+}
+
+func (s *Store) WorkerHealth(ctx context.Context, messages *outbox.Store) (admin.WorkerHealthView, error) {
+	row, err := s.workerHealth(ctx)
+	if err != nil {
+		return admin.WorkerHealthView{}, err
 	}
 	unreconciledCount, err := s.q.UnreconciledPaymentCount(ctx)
 	if err != nil {
@@ -84,6 +98,7 @@ func (s *Store) WorkerHealth(ctx context.Context, messages *outbox.Store) (admin
 		OutboxOldest:         durationFromSeconds(row.OutboxOldestSeconds),
 		OutboxStuck:          row.OutboxStuck,
 		ExpiredHolds:         row.ExpiredHolds,
+		LapsedCheckouts:      row.LapsedCheckouts,
 		CopurchaseAge:        durationFromSeconds(row.CopurchaseAgeSeconds),
 		CopurchaseEverBuilt:  row.CopurchaseEverBuilt,
 		ExpiredSessions:      row.ExpiredSessions,
@@ -192,9 +207,9 @@ func (s *Store) staffTaskCounts(ctx context.Context) (admin.WorkerHealthView, er
 // Tasks is what /admin/health judges to need a person, read through the same
 // queries and thresholds as the page and none of the lists it names them in.
 func (s *Store) Tasks(ctx context.Context) ([]admin.Task, error) {
-	row, err := s.q.WorkerHealth(ctx, outbox.StuckAfterAttempts)
+	row, err := s.workerHealth(ctx)
 	if err != nil {
-		return nil, fmt.Errorf("read worker health: %w", err)
+		return nil, err
 	}
 	view, err := s.staffTaskCounts(ctx)
 	if err != nil {
@@ -202,6 +217,7 @@ func (s *Store) Tasks(ctx context.Context) ([]admin.Task, error) {
 	}
 	view.ExpiredHolds = row.ExpiredHolds
 	view.MaxExpiredHolds = MaxExpiredHolds
+	view.LapsedCheckouts = row.LapsedCheckouts
 	if view.OpenRefundCount, err = s.q.OpenRefundCount(ctx); err != nil {
 		return nil, fmt.Errorf("count open refunds: %w", err)
 	}

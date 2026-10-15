@@ -54,6 +54,11 @@ var (
 		En:     "Unpaid orders still holding stock past their deadline",
 	})
 
+	KeyAdminQueueTaskCheckouts = key("admin.queue.task.checkouts", Message{
+		ZhHant: "逾期仍未結束結帳的未付款訂單",
+		En:     "Unpaid orders past their deadline whose checkout never closed",
+	})
+
 	KeyAdminQueueTaskPayments = key("admin.queue.task.payments", Message{
 		ZhHant: "付款待核對",
 		En:     "Payments to check",

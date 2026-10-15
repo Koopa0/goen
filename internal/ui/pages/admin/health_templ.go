@@ -1990,6 +1990,10 @@ func Health(p layouts.Page, v *WorkerHealthView) templ.Component {
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
+			templ_7745c5c3_Err = healthItem(v.CheckoutsSettled(), i18n.T(ctx, i18n.KeyAdminHPCheckoutsName), v.CheckoutsText(ctx), i18n.T(ctx, i18n.KeyAdminHPCheckoutsNote)).Render(ctx, templ_7745c5c3_Buffer)
+			if templ_7745c5c3_Err != nil {
+				return templ_7745c5c3_Err
+			}
 			templ_7745c5c3_Err = healthItem(v.RecommendHealthy(), i18n.T(ctx, i18n.KeyAdminHPProjectionName), v.RecommendText(ctx), i18n.T(ctx, i18n.KeyAdminHPProjectionNote)).Render(ctx, templ_7745c5c3_Buffer)
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
@@ -2020,7 +2024,7 @@ func Health(p layouts.Page, v *WorkerHealthView) templ.Component {
 				var templ_7745c5c3_Var131 string
 				templ_7745c5c3_Var131, templ_7745c5c3_Err = templ.JoinStringErrs(i18n.T(ctx, i18n.KeyAdminHPPoolsHeading))
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `ui/pages/admin/health.templ`, Line: 396, Col: 99}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `ui/pages/admin/health.templ`, Line: 397, Col: 99}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var131))
 				if templ_7745c5c3_Err != nil {
@@ -2033,7 +2037,7 @@ func Health(p layouts.Page, v *WorkerHealthView) templ.Component {
 				var templ_7745c5c3_Var132 string
 				templ_7745c5c3_Var132, templ_7745c5c3_Err = templ.JoinStringErrs(i18n.T(ctx, i18n.KeyAdminHPPoolsHint))
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `ui/pages/admin/health.templ`, Line: 397, Col: 73}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `ui/pages/admin/health.templ`, Line: 398, Col: 73}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var132))
 				if templ_7745c5c3_Err != nil {
@@ -2046,7 +2050,7 @@ func Health(p layouts.Page, v *WorkerHealthView) templ.Component {
 				var templ_7745c5c3_Var133 string
 				templ_7745c5c3_Var133, templ_7745c5c3_Err = templ.JoinStringErrs(i18n.T(ctx, i18n.KeyAdminHPColPool))
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `ui/pages/admin/health.templ`, Line: 402, Col: 63}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `ui/pages/admin/health.templ`, Line: 403, Col: 63}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var133))
 				if templ_7745c5c3_Err != nil {
@@ -2059,7 +2063,7 @@ func Health(p layouts.Page, v *WorkerHealthView) templ.Component {
 				var templ_7745c5c3_Var134 string
 				templ_7745c5c3_Var134, templ_7745c5c3_Err = templ.JoinStringErrs(i18n.T(ctx, i18n.KeyAdminHPColPoolMax))
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `ui/pages/admin/health.templ`, Line: 403, Col: 94}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `ui/pages/admin/health.templ`, Line: 404, Col: 94}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var134))
 				if templ_7745c5c3_Err != nil {
@@ -2072,7 +2076,7 @@ func Health(p layouts.Page, v *WorkerHealthView) templ.Component {
 				var templ_7745c5c3_Var135 string
 				templ_7745c5c3_Var135, templ_7745c5c3_Err = templ.JoinStringErrs(i18n.T(ctx, i18n.KeyAdminHPColPoolAcquired))
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `ui/pages/admin/health.templ`, Line: 404, Col: 99}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `ui/pages/admin/health.templ`, Line: 405, Col: 99}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var135))
 				if templ_7745c5c3_Err != nil {
@@ -2085,7 +2089,7 @@ func Health(p layouts.Page, v *WorkerHealthView) templ.Component {
 				var templ_7745c5c3_Var136 string
 				templ_7745c5c3_Var136, templ_7745c5c3_Err = templ.JoinStringErrs(i18n.T(ctx, i18n.KeyAdminHPColPoolIdle))
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `ui/pages/admin/health.templ`, Line: 405, Col: 95}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `ui/pages/admin/health.templ`, Line: 406, Col: 95}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var136))
 				if templ_7745c5c3_Err != nil {
@@ -2098,7 +2102,7 @@ func Health(p layouts.Page, v *WorkerHealthView) templ.Component {
 				var templ_7745c5c3_Var137 string
 				templ_7745c5c3_Var137, templ_7745c5c3_Err = templ.JoinStringErrs(i18n.T(ctx, i18n.KeyAdminHPColPoolTotal))
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `ui/pages/admin/health.templ`, Line: 406, Col: 96}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `ui/pages/admin/health.templ`, Line: 407, Col: 96}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var137))
 				if templ_7745c5c3_Err != nil {
@@ -2111,7 +2115,7 @@ func Health(p layouts.Page, v *WorkerHealthView) templ.Component {
 				var templ_7745c5c3_Var138 string
 				templ_7745c5c3_Var138, templ_7745c5c3_Err = templ.JoinStringErrs(i18n.T(ctx, i18n.KeyAdminHPColPoolAcquires))
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `ui/pages/admin/health.templ`, Line: 407, Col: 99}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `ui/pages/admin/health.templ`, Line: 408, Col: 99}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var138))
 				if templ_7745c5c3_Err != nil {
@@ -2124,7 +2128,7 @@ func Health(p layouts.Page, v *WorkerHealthView) templ.Component {
 				var templ_7745c5c3_Var139 string
 				templ_7745c5c3_Var139, templ_7745c5c3_Err = templ.JoinStringErrs(i18n.T(ctx, i18n.KeyAdminHPColPoolEmpty))
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `ui/pages/admin/health.templ`, Line: 408, Col: 96}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `ui/pages/admin/health.templ`, Line: 409, Col: 96}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var139))
 				if templ_7745c5c3_Err != nil {
@@ -2137,7 +2141,7 @@ func Health(p layouts.Page, v *WorkerHealthView) templ.Component {
 				var templ_7745c5c3_Var140 string
 				templ_7745c5c3_Var140, templ_7745c5c3_Err = templ.JoinStringErrs(i18n.T(ctx, i18n.KeyAdminHPColPoolWait))
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `ui/pages/admin/health.templ`, Line: 409, Col: 95}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `ui/pages/admin/health.templ`, Line: 410, Col: 95}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var140))
 				if templ_7745c5c3_Err != nil {
@@ -2155,7 +2159,7 @@ func Health(p layouts.Page, v *WorkerHealthView) templ.Component {
 					var templ_7745c5c3_Var141 string
 					templ_7745c5c3_Var141, templ_7745c5c3_Err = templ.JoinStringErrs(p.Name)
 					if templ_7745c5c3_Err != nil {
-						return templ.Error{Err: templ_7745c5c3_Err, FileName: `ui/pages/admin/health.templ`, Line: 415, Col: 51}
+						return templ.Error{Err: templ_7745c5c3_Err, FileName: `ui/pages/admin/health.templ`, Line: 416, Col: 51}
 					}
 					_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var141))
 					if templ_7745c5c3_Err != nil {
@@ -2168,7 +2172,7 @@ func Health(p layouts.Page, v *WorkerHealthView) templ.Component {
 					var templ_7745c5c3_Var142 string
 					templ_7745c5c3_Var142, templ_7745c5c3_Err = templ.JoinStringErrs(strconv.Itoa(int(p.Max)))
 					if templ_7745c5c3_Err != nil {
-						return templ.Error{Err: templ_7745c5c3_Err, FileName: `ui/pages/admin/health.templ`, Line: 416, Col: 69}
+						return templ.Error{Err: templ_7745c5c3_Err, FileName: `ui/pages/admin/health.templ`, Line: 417, Col: 69}
 					}
 					_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var142))
 					if templ_7745c5c3_Err != nil {
@@ -2181,7 +2185,7 @@ func Health(p layouts.Page, v *WorkerHealthView) templ.Component {
 					var templ_7745c5c3_Var143 string
 					templ_7745c5c3_Var143, templ_7745c5c3_Err = templ.JoinStringErrs(strconv.Itoa(int(p.Acquired)))
 					if templ_7745c5c3_Err != nil {
-						return templ.Error{Err: templ_7745c5c3_Err, FileName: `ui/pages/admin/health.templ`, Line: 417, Col: 74}
+						return templ.Error{Err: templ_7745c5c3_Err, FileName: `ui/pages/admin/health.templ`, Line: 418, Col: 74}
 					}
 					_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var143))
 					if templ_7745c5c3_Err != nil {
@@ -2194,7 +2198,7 @@ func Health(p layouts.Page, v *WorkerHealthView) templ.Component {
 					var templ_7745c5c3_Var144 string
 					templ_7745c5c3_Var144, templ_7745c5c3_Err = templ.JoinStringErrs(strconv.Itoa(int(p.Idle)))
 					if templ_7745c5c3_Err != nil {
-						return templ.Error{Err: templ_7745c5c3_Err, FileName: `ui/pages/admin/health.templ`, Line: 418, Col: 70}
+						return templ.Error{Err: templ_7745c5c3_Err, FileName: `ui/pages/admin/health.templ`, Line: 419, Col: 70}
 					}
 					_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var144))
 					if templ_7745c5c3_Err != nil {
@@ -2207,7 +2211,7 @@ func Health(p layouts.Page, v *WorkerHealthView) templ.Component {
 					var templ_7745c5c3_Var145 string
 					templ_7745c5c3_Var145, templ_7745c5c3_Err = templ.JoinStringErrs(strconv.Itoa(int(p.Total)))
 					if templ_7745c5c3_Err != nil {
-						return templ.Error{Err: templ_7745c5c3_Err, FileName: `ui/pages/admin/health.templ`, Line: 419, Col: 71}
+						return templ.Error{Err: templ_7745c5c3_Err, FileName: `ui/pages/admin/health.templ`, Line: 420, Col: 71}
 					}
 					_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var145))
 					if templ_7745c5c3_Err != nil {
@@ -2220,7 +2224,7 @@ func Health(p layouts.Page, v *WorkerHealthView) templ.Component {
 					var templ_7745c5c3_Var146 string
 					templ_7745c5c3_Var146, templ_7745c5c3_Err = templ.JoinStringErrs(strconv.FormatInt(p.TotalAcquires, 10))
 					if templ_7745c5c3_Err != nil {
-						return templ.Error{Err: templ_7745c5c3_Err, FileName: `ui/pages/admin/health.templ`, Line: 420, Col: 83}
+						return templ.Error{Err: templ_7745c5c3_Err, FileName: `ui/pages/admin/health.templ`, Line: 421, Col: 83}
 					}
 					_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var146))
 					if templ_7745c5c3_Err != nil {
@@ -2233,7 +2237,7 @@ func Health(p layouts.Page, v *WorkerHealthView) templ.Component {
 					var templ_7745c5c3_Var147 string
 					templ_7745c5c3_Var147, templ_7745c5c3_Err = templ.JoinStringErrs(strconv.FormatInt(p.EmptyAcquires, 10))
 					if templ_7745c5c3_Err != nil {
-						return templ.Error{Err: templ_7745c5c3_Err, FileName: `ui/pages/admin/health.templ`, Line: 421, Col: 83}
+						return templ.Error{Err: templ_7745c5c3_Err, FileName: `ui/pages/admin/health.templ`, Line: 422, Col: 83}
 					}
 					_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var147))
 					if templ_7745c5c3_Err != nil {
@@ -2246,7 +2250,7 @@ func Health(p layouts.Page, v *WorkerHealthView) templ.Component {
 					var templ_7745c5c3_Var148 string
 					templ_7745c5c3_Var148, templ_7745c5c3_Err = templ.JoinStringErrs(p.AcquireWait.Round(time.Millisecond).String())
 					if templ_7745c5c3_Err != nil {
-						return templ.Error{Err: templ_7745c5c3_Err, FileName: `ui/pages/admin/health.templ`, Line: 422, Col: 91}
+						return templ.Error{Err: templ_7745c5c3_Err, FileName: `ui/pages/admin/health.templ`, Line: 423, Col: 91}
 					}
 					_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var148))
 					if templ_7745c5c3_Err != nil {
@@ -2270,7 +2274,7 @@ func Health(p layouts.Page, v *WorkerHealthView) templ.Component {
 				var templ_7745c5c3_Var149 string
 				templ_7745c5c3_Var149, templ_7745c5c3_Err = templ.JoinStringErrs(i18n.T(ctx, i18n.KeyAdminHPStuckHeading))
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `ui/pages/admin/health.templ`, Line: 432, Col: 99}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `ui/pages/admin/health.templ`, Line: 433, Col: 99}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var149))
 				if templ_7745c5c3_Err != nil {
@@ -2283,7 +2287,7 @@ func Health(p layouts.Page, v *WorkerHealthView) templ.Component {
 				var templ_7745c5c3_Var150 string
 				templ_7745c5c3_Var150, templ_7745c5c3_Err = templ.JoinStringErrs(i18n.T(ctx, i18n.KeyAdminHPColTopic))
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `ui/pages/admin/health.templ`, Line: 437, Col: 64}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `ui/pages/admin/health.templ`, Line: 438, Col: 64}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var150))
 				if templ_7745c5c3_Err != nil {
@@ -2296,7 +2300,7 @@ func Health(p layouts.Page, v *WorkerHealthView) templ.Component {
 				var templ_7745c5c3_Var151 string
 				templ_7745c5c3_Var151, templ_7745c5c3_Err = templ.JoinStringErrs(i18n.T(ctx, i18n.KeyAdminHPColKey))
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `ui/pages/admin/health.templ`, Line: 438, Col: 62}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `ui/pages/admin/health.templ`, Line: 439, Col: 62}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var151))
 				if templ_7745c5c3_Err != nil {
@@ -2309,7 +2313,7 @@ func Health(p layouts.Page, v *WorkerHealthView) templ.Component {
 				var templ_7745c5c3_Var152 string
 				templ_7745c5c3_Var152, templ_7745c5c3_Err = templ.JoinStringErrs(i18n.T(ctx, i18n.KeyAdminHPColAttempts))
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `ui/pages/admin/health.templ`, Line: 439, Col: 95}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `ui/pages/admin/health.templ`, Line: 440, Col: 95}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var152))
 				if templ_7745c5c3_Err != nil {
@@ -2322,7 +2326,7 @@ func Health(p layouts.Page, v *WorkerHealthView) templ.Component {
 				var templ_7745c5c3_Var153 string
 				templ_7745c5c3_Var153, templ_7745c5c3_Err = templ.JoinStringErrs(i18n.T(ctx, i18n.KeyAdminHPColLastError))
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `ui/pages/admin/health.templ`, Line: 440, Col: 68}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `ui/pages/admin/health.templ`, Line: 441, Col: 68}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var153))
 				if templ_7745c5c3_Err != nil {
@@ -2335,7 +2339,7 @@ func Health(p layouts.Page, v *WorkerHealthView) templ.Component {
 				var templ_7745c5c3_Var154 string
 				templ_7745c5c3_Var154, templ_7745c5c3_Err = templ.JoinStringErrs(i18n.T(ctx, i18n.KeyAdminHPColNextRetry))
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `ui/pages/admin/health.templ`, Line: 441, Col: 68}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `ui/pages/admin/health.templ`, Line: 442, Col: 68}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var154))
 				if templ_7745c5c3_Err != nil {
@@ -2353,7 +2357,7 @@ func Health(p layouts.Page, v *WorkerHealthView) templ.Component {
 					var templ_7745c5c3_Var155 string
 					templ_7745c5c3_Var155, templ_7745c5c3_Err = templ.JoinStringErrs(m.Topic)
 					if templ_7745c5c3_Err != nil {
-						return templ.Error{Err: templ_7745c5c3_Err, FileName: `ui/pages/admin/health.templ`, Line: 447, Col: 52}
+						return templ.Error{Err: templ_7745c5c3_Err, FileName: `ui/pages/admin/health.templ`, Line: 448, Col: 52}
 					}
 					_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var155))
 					if templ_7745c5c3_Err != nil {
@@ -2366,7 +2370,7 @@ func Health(p layouts.Page, v *WorkerHealthView) templ.Component {
 					var templ_7745c5c3_Var156 string
 					templ_7745c5c3_Var156, templ_7745c5c3_Err = templ.JoinStringErrs(m.Key)
 					if templ_7745c5c3_Err != nil {
-						return templ.Error{Err: templ_7745c5c3_Err, FileName: `ui/pages/admin/health.templ`, Line: 448, Col: 22}
+						return templ.Error{Err: templ_7745c5c3_Err, FileName: `ui/pages/admin/health.templ`, Line: 449, Col: 22}
 					}
 					_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var156))
 					if templ_7745c5c3_Err != nil {
@@ -2379,7 +2383,7 @@ func Health(p layouts.Page, v *WorkerHealthView) templ.Component {
 					var templ_7745c5c3_Var157 string
 					templ_7745c5c3_Var157, templ_7745c5c3_Err = templ.JoinStringErrs(m.AttemptsText())
 					if templ_7745c5c3_Err != nil {
-						return templ.Error{Err: templ_7745c5c3_Err, FileName: `ui/pages/admin/health.templ`, Line: 449, Col: 61}
+						return templ.Error{Err: templ_7745c5c3_Err, FileName: `ui/pages/admin/health.templ`, Line: 450, Col: 61}
 					}
 					_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var157))
 					if templ_7745c5c3_Err != nil {
@@ -2392,7 +2396,7 @@ func Health(p layouts.Page, v *WorkerHealthView) templ.Component {
 					var templ_7745c5c3_Var158 string
 					templ_7745c5c3_Var158, templ_7745c5c3_Err = templ.JoinStringErrs(m.Reason(ctx))
 					if templ_7745c5c3_Err != nil {
-						return templ.Error{Err: templ_7745c5c3_Err, FileName: `ui/pages/admin/health.templ`, Line: 450, Col: 30}
+						return templ.Error{Err: templ_7745c5c3_Err, FileName: `ui/pages/admin/health.templ`, Line: 451, Col: 30}
 					}
 					_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var158))
 					if templ_7745c5c3_Err != nil {
@@ -2405,7 +2409,7 @@ func Health(p layouts.Page, v *WorkerHealthView) templ.Component {
 					var templ_7745c5c3_Var159 string
 					templ_7745c5c3_Var159, templ_7745c5c3_Err = templ.JoinStringErrs(m.NextAttempt)
 					if templ_7745c5c3_Err != nil {
-						return templ.Error{Err: templ_7745c5c3_Err, FileName: `ui/pages/admin/health.templ`, Line: 451, Col: 30}
+						return templ.Error{Err: templ_7745c5c3_Err, FileName: `ui/pages/admin/health.templ`, Line: 452, Col: 30}
 					}
 					_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var159))
 					if templ_7745c5c3_Err != nil {
@@ -2483,7 +2487,7 @@ func healthItem(healthy bool, name, state, note string) templ.Component {
 		var templ_7745c5c3_Var163 string
 		templ_7745c5c3_Var163, templ_7745c5c3_Err = templ.JoinStringErrs(name)
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `ui/pages/admin/health.templ`, Line: 469, Col: 41}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `ui/pages/admin/health.templ`, Line: 470, Col: 41}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var163))
 		if templ_7745c5c3_Err != nil {
@@ -2509,7 +2513,7 @@ func healthItem(healthy bool, name, state, note string) templ.Component {
 				var templ_7745c5c3_Var165 string
 				templ_7745c5c3_Var165, templ_7745c5c3_Err = templ.JoinStringErrs(i18n.T(ctx, i18n.KeyAdminHPAllClear))
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `ui/pages/admin/health.templ`, Line: 472, Col: 43}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `ui/pages/admin/health.templ`, Line: 473, Col: 43}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var165))
 				if templ_7745c5c3_Err != nil {
@@ -2537,7 +2541,7 @@ func healthItem(healthy bool, name, state, note string) templ.Component {
 				var templ_7745c5c3_Var167 string
 				templ_7745c5c3_Var167, templ_7745c5c3_Err = templ.JoinStringErrs(i18n.T(ctx, i18n.KeyAdminHPNeedsLook))
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `ui/pages/admin/health.templ`, Line: 476, Col: 44}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `ui/pages/admin/health.templ`, Line: 477, Col: 44}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var167))
 				if templ_7745c5c3_Err != nil {
@@ -2557,7 +2561,7 @@ func healthItem(healthy bool, name, state, note string) templ.Component {
 		var templ_7745c5c3_Var168 string
 		templ_7745c5c3_Var168, templ_7745c5c3_Err = templ.JoinStringErrs(state)
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `ui/pages/admin/health.templ`, Line: 480, Col: 42}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `ui/pages/admin/health.templ`, Line: 481, Col: 42}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var168))
 		if templ_7745c5c3_Err != nil {
@@ -2570,7 +2574,7 @@ func healthItem(healthy bool, name, state, note string) templ.Component {
 		var templ_7745c5c3_Var169 string
 		templ_7745c5c3_Var169, templ_7745c5c3_Err = templ.JoinStringErrs(note)
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `ui/pages/admin/health.templ`, Line: 481, Col: 39}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `ui/pages/admin/health.templ`, Line: 482, Col: 39}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var169))
 		if templ_7745c5c3_Err != nil {
@@ -2613,7 +2617,7 @@ func technicalDetail(raw string) templ.Component {
 			var templ_7745c5c3_Var171 string
 			templ_7745c5c3_Var171, templ_7745c5c3_Err = templ.JoinStringErrs(i18n.T(ctx, i18n.KeyAdminTechnicalDetails))
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `ui/pages/admin/health.templ`, Line: 488, Col: 56}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `ui/pages/admin/health.templ`, Line: 489, Col: 56}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var171))
 			if templ_7745c5c3_Err != nil {
@@ -2626,7 +2630,7 @@ func technicalDetail(raw string) templ.Component {
 			var templ_7745c5c3_Var172 string
 			templ_7745c5c3_Var172, templ_7745c5c3_Err = templ.JoinStringErrs(raw)
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `ui/pages/admin/health.templ`, Line: 489, Col: 14}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `ui/pages/admin/health.templ`, Line: 490, Col: 14}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var172))
 			if templ_7745c5c3_Err != nil {

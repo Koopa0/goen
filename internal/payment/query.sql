@@ -34,6 +34,38 @@ SELECT record_complete_payment(
     @intended_amount_cents::bigint
 );
 
+-- Checkout Sessions goen still records as payable on an unpaid order whose
+-- every stock hold ran out more than @grace ago. A session ends before the
+-- order's earliest hold, so each has ended at Stripe and only the event saying
+-- how is missing; until it comes, LapsedUnpaidOrders keeps the order, its store
+-- credit and its coupon. An order with an unresolved provider event already
+-- needs a person and is left to them. Newest first, so sessions Stripe cannot
+-- answer for do not hold back ones that have just lapsed.
+-- WorkerHealth counts the same predicate (lapsed_checkouts).
+-- name: LapsedCheckoutSessions :many
+SELECT p.provider_ref, o.order_number, p.intended_amount_cents
+FROM payments p
+JOIN orders o ON o.id = p.order_id
+CROSS JOIN LATERAL (
+    SELECT max(ir.expires_at) AS lapsed_at
+    FROM inventory_reservations ir WHERE ir.order_id = o.id
+) h
+WHERE p.provider = 'stripe'
+  AND p.status IN ('requires_payment', 'requires_action', 'processing')
+  AND o.fulfillment_status = 'pending'
+  AND NOT order_is_committed(o.id)
+  AND h.lapsed_at < now() - @grace::interval
+  AND NOT EXISTS (
+      SELECT 1
+      FROM payment_webhook_events e
+      JOIN payments ep
+        ON ep.provider = e.provider AND ep.provider_ref = e.object_ref
+      WHERE ep.order_id = o.id
+        AND e.unreconciled IS NOT NULL AND e.reconciled_at IS NULL
+  )
+ORDER BY h.lapsed_at DESC, p.id
+LIMIT @batch;
+
 -- :execrows is what makes a replay visible to Go: 1 means "ours to process",
 -- 0 means "already seen".
 -- name: RecordWebhookEvent :execrows

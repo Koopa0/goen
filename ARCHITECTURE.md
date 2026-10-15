@@ -69,6 +69,8 @@ The webhook verifies the signature on the raw body, then in one transaction clai
 
 A database failure rolls back the claim and its effects and answers `500`, so Stripe retries. A verified event that cannot be applied safely commits an alarm and answers `200`, leaving staff a durable exception. See [webhook application][payment-store].
 
+Stripe sends only the events its endpoint subscribes to; [.env.example](.env.example) names them. When a lapsed order's `checkout.session.expired` never arrives, a worker asks Stripe about the session and records the answer as the pay route does; the expiry sweeper then cancels the order and returns its store credit and coupon. See [lapsed sessions][payment-lapsed].
+
 ### Recovering a complete session
 
 A complete session can leave a payment in `requires_reconciliation` with no webhook alarm for that reference. Staff check Stripe and use `ReconcileCompletePayment`:
@@ -278,6 +280,7 @@ CI runs formatting, vet, lint, dead-code and generated-code checks, migration li
 [orderaccess]: internal/order/access
 [payment-store]: internal/payment/store.go
 [payment-handler]: internal/payment/handler.go
+[payment-lapsed]: internal/payment/lapsed.go
 [stripe]: internal/payment/stripe.go
 [order]: internal/order
 [orders]: internal/admin/orders

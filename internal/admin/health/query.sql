@@ -77,6 +77,28 @@ SELECT
                  AND e.unreconciled IS NOT NULL AND e.reconciled_at IS NULL
            )
        )))::bigint AS expired_holds,
+    -- LapsedCheckoutSessions' predicate, aged @lapsed_after rather than its
+    -- grace: a session the payment sweeper has asked Stripe about pass after
+    -- pass and still could not close, so the order keeps its credit and coupon.
+    (SELECT count(*) FROM payments p
+     JOIN orders o ON o.id = p.order_id
+     CROSS JOIN LATERAL (
+         SELECT max(ir.expires_at) AS lapsed_at
+         FROM inventory_reservations ir WHERE ir.order_id = o.id
+     ) h
+     WHERE p.provider = 'stripe'
+       AND p.status IN ('requires_payment', 'requires_action', 'processing')
+       AND o.fulfillment_status = 'pending'
+       AND NOT order_is_committed(o.id)
+       AND h.lapsed_at < now() - @lapsed_after::interval
+       AND NOT EXISTS (
+           SELECT 1
+           FROM payment_webhook_events e
+           JOIN payments ep
+             ON ep.provider = e.provider AND ep.provider_ref = e.object_ref
+           WHERE ep.order_id = o.id
+             AND e.unreconciled IS NOT NULL AND e.reconciled_at IS NULL
+       ))::bigint AS lapsed_checkouts,
     (SELECT coalesce(extract(epoch FROM now() - max(refreshed_at)), 0)
      FROM copurchase_refreshes)::bigint AS copurchase_age_seconds,
     EXISTS (SELECT 1 FROM copurchase_refreshes) AS copurchase_ever_built,
