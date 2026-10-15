@@ -75,7 +75,6 @@ func TestEveryAdminScreenPutsItsWorkInTheContentColumn(t *testing.T) {
 	ctx := layouts.WithStaff(i18n.WithLocale(t.Context(), i18n.ZhHant), true)
 
 	for name, screen := range map[string]templ.Component{
-		"coupons":    Coupons(layouts.Page{}, CouponsView{}),
 		"newsletter": Newsletter(layouts.Page{}, NewsletterView{}),
 		"tiers":      Tiers(layouts.Page{}, TiersView{}),
 	} {

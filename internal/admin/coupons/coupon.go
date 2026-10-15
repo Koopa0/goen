@@ -22,7 +22,6 @@ import (
 	"github.com/koopa0/goen/internal/keyset"
 	"github.com/koopa0/goen/internal/money"
 	"github.com/koopa0/goen/internal/shoptime"
-	"github.com/koopa0/goen/internal/ui/pages/admin"
 )
 
 var (
@@ -151,26 +150,26 @@ type position struct {
 	At   time.Time
 }
 
-func (s *Store) Coupons(ctx context.Context, after ...string) (admin.CouponsView, error) {
+func (s *Store) Coupons(ctx context.Context, after ...string) (CouponsView, error) {
 	const scope = "/admin/coupons"
 	from, resumed := keyset.Resume(scope, after, func(p position) bool { return p.ID != uuid.Nil })
 	rows, err := s.q.AdminCoupons(ctx, db.AdminCouponsParams{HasCursor: resumed, AfterRank: from.Rank, AfterAt: from.At, AfterID: from.ID, RowLimit: keyset.PageLimit})
 	if err != nil {
-		return admin.CouponsView{}, fmt.Errorf("read coupons: %w", err)
+		return CouponsView{}, fmt.Errorf("read coupons: %w", err)
 	}
 	rows, bound := keyset.PageBound(scope, resumed, rows, keyset.PageSize, func(r *db.AdminCouponsRow) string { return r.PageCursor })
-	view := admin.CouponsView{Bound: bound}
+	view := CouponsView{Bound: bound}
 	for i := range rows {
 		r := &rows[i]
 		kind, ok := coupon.Parse(r.Kind)
 		if !ok {
-			return admin.CouponsView{}, fmt.Errorf("read coupons: coupon %s has unknown kind %q", r.Code, r.Kind)
+			return CouponsView{}, fmt.Errorf("read coupons: coupon %s has unknown kind %q", r.Code, r.Kind)
 		}
 		endsAt := ""
 		if r.EndsAt.Valid {
 			endsAt = shoptime.Minute(r.EndsAt.Time)
 		}
-		view.Rows = append(view.Rows, admin.Coupon{
+		view.Rows = append(view.Rows, Coupon{
 			Code: r.Code, Description: r.Description, Kind: kind,
 			KindText:    kindLabel(ctx, kind),
 			AmountCents: r.AmountCents.Int64,
