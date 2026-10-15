@@ -61,10 +61,14 @@ var policies = map[string]pages.PolicyDoc{
 				Body: []string{
 					"我們確認退貨後，系統依原付款組成退回：卡款立刻向 Stripe 發出退款，購物金退回餘額。金額依訂單本身的單價計算，並扣除這些商品分攤的折扣。卡款入帳時間由發卡銀行決定，通常是數個工作天；購物金退回後可立刻再用於結帳。",
 					"退款依原路退回，不會改用其他管道。",
+					// open_unsent_refund: the paid price less the discount share,
+					// by the return arithmetic, no fee; delivery stays (#1965).
+					"已付款的商品若無法寄出，我們會依原付款方式全額退還該商品的款項，不收任何費用；其他商品照常出貨。",
 				},
 				BodyEn: []string{
 					"Once we confirm the return, we pay it back the way you paid: the card share is refunded through Stripe immediately, and store credit returns to your balance. The amount comes from the order's own prices, less the share of any discount those goods carried. When a card refund lands is your card issuer's decision, usually a few working days; credit is available again at once.",
 					"A refund always follows the original payment: card through Stripe, store credit to your balance. We will not substitute another channel.",
+					"If something you paid for cannot be sent, we refund it in full the way you paid, with no charge, and the rest of the order ships as normal.",
 				},
 			},
 			// Consumer Protection Act §19 I: seven days from receipt, no reason,

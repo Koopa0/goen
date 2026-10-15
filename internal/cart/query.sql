@@ -395,6 +395,15 @@ LEFT JOIN LATERAL (
 ) img ON true
 WHERE ol.order_id = @order_id ORDER BY ol.position, ol.id;
 
+-- How many units of each line an unsent refund claims. They will not be sent, so they are no longer waiting for a
+-- parcel; shipment_lines_within_purchase refuses one that carries them.
+-- name: OrderUnsentUnits :many
+SELECT rl.order_line_id, sum(rl.quantity)::integer AS quantity
+FROM return_request_lines rl
+JOIN return_requests r ON r.id = rl.return_request_id
+WHERE r.order_id = $1 AND r.unsent AND r.status <> 'rejected'
+GROUP BY rl.order_line_id;
+
 -- Which lines, and how many of each, went in which parcel, in the order OrderTracking lists the parcels.
 -- name: OrderParcelLines :many
 SELECT sl.shipment_id, sl.order_line_id, sl.quantity
@@ -469,12 +478,16 @@ INSERT INTO order_events (order_id, kind) VALUES ($1, 'placed');
 
 -- The customer sees WHAT happened, never WHO did it; the back office reads the
 -- same table with the actor joined. A refund's note is the provider's refund
--- id, which the back office needs and the shopper has no use for.
+-- id, which the back office needs and the shopper has no use for. unsent marks
+-- the refund of units the shop could not send (open_unsent_refund), which the
+-- page names as such.
 -- name: OrderTimeline :many
-SELECT kind,
-       (CASE WHEN kind = 'refunded' THEN '' ELSE coalesce(note, '') END)::text AS note,
-       occurred_at
-FROM order_events WHERE order_id = $1 ORDER BY occurred_at, id;
+SELECT e.kind,
+       (CASE WHEN e.kind = 'refunded' THEN '' ELSE coalesce(e.note, '') END)::text AS note,
+       e.occurred_at,
+       EXISTS (SELECT 1 FROM return_requests r
+               WHERE r.id = e.return_request_id AND r.unsent)::boolean AS unsent
+FROM order_events e WHERE e.order_id = $1 ORDER BY e.occurred_at, e.id;
 
 -- What the customer may read of the order's filed invoice: nothing exists
 -- before issue, so an order with no rows shows no panel.

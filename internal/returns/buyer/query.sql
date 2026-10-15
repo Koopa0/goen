@@ -1,5 +1,7 @@
 -- What an order's customer may ask to return: what SHIPPED, minus what an
 -- unrejected request already claims. return_within_shipment enforces the same.
+-- An unsent refund claims units that never shipped, so it does not use up the
+-- ones that did: return_within_shipment counts each kind against its own.
 -- name: ReturnableLines :many
 SELECT ol.id,
        ol.sku,
@@ -10,7 +12,8 @@ SELECT ol.id,
                   WHERE sl.order_line_id = ol.id), 0)
         - coalesce((SELECT sum(rl.quantity) FROM return_request_lines rl
                     JOIN return_requests r ON r.id = rl.return_request_id
-                    WHERE rl.order_line_id = ol.id AND r.status <> 'rejected'), 0)
+                    WHERE rl.order_line_id = ol.id AND r.status <> 'rejected'
+                      AND NOT r.unsent), 0)
        )::integer AS returnable
 FROM order_lines ol
 WHERE ol.order_id = $1
@@ -34,11 +37,12 @@ VALUES (@order_id, @return_request_id, @order_line_id, @quantity::integer);
 
 -- An order's return requests, for the customer's own page. No actor: the page is
 -- reachable by anyone holding the number, so it must not name staff. A refund
--- before shipment is not a request the customer made; the order page's
--- refunded entry already tells them the money is back.
+-- before shipment and a refund of units that were never sent are not requests
+-- the customer made; the order page's refunded entry already tells them the
+-- money is back.
 -- name: ReturnsForOrder :many
 SELECT r.id, r.status, r.reason, r.resolution, r.created_at, r.decided_at
-FROM return_requests r WHERE r.order_id = $1 AND NOT r.before_shipment
+FROM return_requests r WHERE r.order_id = $1 AND NOT r.before_shipment AND NOT r.unsent
 ORDER BY r.created_at DESC, r.id;
 
 -- Whether this order already has a request nobody has decided yet.

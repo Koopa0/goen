@@ -234,7 +234,7 @@ func buildReturnQueue(
 			ID:          r.ID.String(),
 			OrderNumber: r.OrderNumber,
 			Status:      returnrules.Status(r.Status),
-			StatusText:  statusText(ctx, returnrules.Status(r.Status), r.BeforeShipment),
+			StatusText:  statusText(ctx, returnrules.Status(r.Status), r.BeforeShipment, r.Unsent),
 			Reason:      r.Reason,
 			Units:       r.Units,
 			AmountCents: r.RefundableCents,
@@ -244,6 +244,12 @@ func buildReturnQueue(
 			Window:      returnrules.PolicyWindow(r.RescissionWindow),
 
 			BeforeShipment: r.BeforeShipment,
+			Unsent:         r.Unsent,
+		}
+		// An unsent refund's reason is the staff member's code, not the
+		// customer's words.
+		if r.Unsent {
+			item.Reason = admin.UnsentReasonLabel(ctx, returnrules.UnsentReason(r.Reason))
 		}
 		if a, ok := assessmentByRequest[r.ID]; ok {
 			item.AssessmentVersion = a.Version

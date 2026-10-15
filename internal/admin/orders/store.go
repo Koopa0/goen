@@ -534,8 +534,9 @@ func (s *Store) fillRefundBeforeShipment(ctx context.Context, view *admin.OrderV
 		if (n == order.FulfillmentCancelled && view.Funded) ||
 			(n == order.FulfillmentPicking && (opened || view.Unpaid)) ||
 			// orders_finished_when_shipped: an order that still owes a parcel is
-			// not finished, and Shippable is what is still outstanding.
-			(n == order.FulfillmentCompleted && len(view.Shippable) > 0) {
+			// not finished, and Shippable is what is still outstanding. Units an
+			// unsent refund claims are owed until it settles.
+			(n == order.FulfillmentCompleted && (len(view.Shippable) > 0 || view.UnsentOpen)) {
 			continue
 		}
 		view.Next = append(view.Next, admin.Transition{Value: n, Label: admin.FulfillmentLabel(ctx, n)})
@@ -673,7 +674,7 @@ func (s *Store) Ship(ctx context.Context, number string, d Dispatch, actor uuid.
 		return shipErr
 	}
 
-	if fillErr := fillParcel(ctx, q, row.ID, shipmentID, number, d.Lines); fillErr != nil {
+	if fillErr := shipParcel(ctx, q, row.ID, shipmentID, number, d.Lines); fillErr != nil {
 		return fillErr
 	}
 
@@ -730,11 +731,8 @@ func requireCarrierFor(
 	return nil
 }
 
-// fillParcel writes what is in this parcel and settles the holds behind it,
-// which are one act: a line without its hold settled leaves stock spoken for
-// against goods that have gone out, and a hold without its line leaves the
-// parcel unable to say what it carried.
-func fillParcel(
+// shipParcel decides what is in this parcel and writes it.
+func shipParcel(
 	ctx context.Context, q *db.Queries, orderID, shipmentID uuid.UUID,
 	number string, want map[uuid.UUID]int32,
 ) error {
@@ -742,11 +740,26 @@ func fillParcel(
 	if err != nil {
 		return err
 	}
+	return fillParcel(ctx, q, orderID, shipmentID, packed)
+}
+
+// fillParcel writes what is in this parcel and settles the holds behind it,
+// which are one act: a line without its hold settled leaves stock spoken for
+// against goods that have gone out, and a hold without its line leaves the
+// parcel unable to say what it carried. shipment_within_purchase refusing a
+// line is a quantity the form should not have offered, such as a unit an
+// unsent refund took: a notice, never a failure of the page.
+func fillParcel(
+	ctx context.Context, q *db.Queries, orderID, shipmentID uuid.UUID, packed []parcelLine,
+) error {
 	for _, p := range packed {
 		if lineErr := q.CreateShipmentLine(ctx, db.CreateShipmentLineParams{
 			OrderID: orderID, ShipmentID: shipmentID,
 			OrderLineID: p.lineID, Quantity: p.quantity,
 		}); lineErr != nil {
+			if db.IsConstraint(lineErr, "shipment_within_purchase") {
+				return fmt.Errorf("%w: %w", ErrQuantity, lineErr)
+			}
 			return fmt.Errorf("record shipment line: %w", lineErr)
 		}
 		if consumeErr := q.ConsumeReservationPartial(ctx, db.ConsumeReservationPartialParams{

@@ -46,6 +46,12 @@ func letters(text string) map[string]func(context.Context, Notifier) error {
 			return n.SendOrderTerminal(ctx, &OrderTerminal{OrderID: uuid.New(), Kind: TerminalDelivered},
 				TerminalRecipient{Address: to, Name: text, OrderNumber: "GO-260101-000001"})
 		},
+		"SendOrderPartRefunded": func(ctx context.Context, n Notifier) error {
+			return n.SendOrderPartRefunded(ctx, &OrderPartRefunded{OrderID: uuid.New(), ReturnRequestID: uuid.New()},
+				&PartRefundLetter{Address: to, Name: text, OrderNumber: "GO-260101-000001",
+					Items:       []PartRefundItem{{Name: text, Label: text, Quantity: 2}},
+					RefundCents: 150000, CardCents: 100000, CreditCents: 50000})
+		},
 		"SendRestockNotice": func(ctx context.Context, n Notifier) error {
 			return n.SendRestockNotice(ctx, &RestockNotice{
 				Email: to, ProductName: text, Slug: "koto-pad", SKU: "KP-1",

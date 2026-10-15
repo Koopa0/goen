@@ -11,8 +11,10 @@ SELECT record_inventory_movement(
 -- line's own shipment. A later unrelated parcel on the same order must not
 -- reopen a window that line already closed. now() would move a filed request
 -- into a later window the day the staff member opens it.
+-- An unsent refund's units never left, so no parcel delivered them: the
+-- sibling units of the same line that did ship are not its window.
 -- name: ReturnQueue :many
-SELECT json_build_object('Rank', return_payout_outstanding(r.id), 'Priority', (r.status = 'requested'), 'At', r.created_at, 'ID', r.id)::text AS page_cursor, r.id, r.status, r.reason, r.created_at, r.decided_at, r.before_shipment,
+SELECT json_build_object('Rank', return_payout_outstanding(r.id), 'Priority', (r.status = 'requested'), 'At', r.created_at, 'ID', r.id)::text AS page_cursor, r.id, r.status, r.reason, r.created_at, r.decided_at, r.before_shipment, r.unsent,
        o.order_number,
        (SELECT coalesce(sum(rl.quantity), 0) FROM return_request_lines rl
         WHERE rl.return_request_id = r.id)::integer AS units,
@@ -35,6 +37,7 @@ SELECT json_build_object('Rank', return_payout_outstanding(r.id), 'Priority', (r
                    WHERE osl.order_line_id = rl.order_line_id
                      AND s.order_id = r.order_id
                      AND s.delivered_at IS NOT NULL
+                     AND NOT r.unsent
                    ORDER BY s.delivered_at DESC
                    LIMIT 1
                ) sh ON true
@@ -85,6 +88,7 @@ SELECT r.id, r.status, r.reason, r.order_id,
                    WHERE osl.order_line_id = rl.order_line_id
                      AND s.order_id = r.order_id
                      AND s.delivered_at IS NOT NULL
+                     AND NOT r.unsent
                    ORDER BY s.delivered_at DESC
                    LIMIT 1
                ) sh ON true
@@ -100,6 +104,7 @@ WHERE r.id = $1;
 -- and "looked at, nothing arrived" are different facts. restockable is false for
 -- a line whose variant was deleted, so the form cannot offer a refused control.
 -- policy_window is THIS line's shipment, never a later parcel on the order.
+-- An unsent refund's line has none: its units never left.
 -- name: ReturnLines :many
 SELECT rl.return_request_id, ol.id AS order_line_id, ol.sku, ol.product_name,
        ol.variant_label, ol.unit_price_cents, rl.quantity,
@@ -120,6 +125,7 @@ LEFT JOIN LATERAL (
     WHERE osl.order_line_id = rl.order_line_id
       AND s.order_id = r.order_id
       AND s.delivered_at IS NOT NULL
+      AND NOT r.unsent
     ORDER BY s.delivered_at DESC
     LIMIT 1
 ) sh ON true

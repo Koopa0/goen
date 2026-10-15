@@ -31,10 +31,11 @@ var (
 	// invoice.void_due name the order too, but they only start an invoice
 	// operation, which is listed in its own right.
 	orderMailLabels = map[string]i18n.Key{
-		outbox.TopicOrderPlaced.Name():   i18n.KeyAdminTimelineMailPlaced,
-		outbox.TopicOrderPaid.Name():     i18n.KeyAdminTimelineMailPaid,
-		outbox.TopicOrderShipped.Name():  i18n.KeyAdminTimelineMailShipped,
-		outbox.TopicOrderTerminal.Name(): i18n.KeyAdminTimelineMailTerminal,
+		outbox.TopicOrderPlaced.Name():       i18n.KeyAdminTimelineMailPlaced,
+		outbox.TopicOrderPaid.Name():         i18n.KeyAdminTimelineMailPaid,
+		outbox.TopicOrderShipped.Name():      i18n.KeyAdminTimelineMailShipped,
+		outbox.TopicOrderTerminal.Name():     i18n.KeyAdminTimelineMailTerminal,
+		outbox.TopicOrderPartRefunded.Name(): i18n.KeyAdminTimelineMailPartRefunded,
 	}
 	orderMailTopics = slices.Collect(maps.Keys(orderMailLabels))
 	mailStatuses    = map[string]i18n.Key{

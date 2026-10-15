@@ -55,6 +55,14 @@ func TestARedirectedNoticeIsShownAsItsOwnOutcome(t *testing.T) {
 		{"voidreason", components.OutcomeRefused},
 		{"voidfailed", components.OutcomeFailed},
 		{"allowfailed", components.OutcomeFailed},
+		{"unsentrefunded", components.OutcomeDone},
+		{"unsentallowance", components.OutcomeFailed},
+		{"unsentdiffers", components.OutcomeRefused},
+		{"unsentbounds", components.OutcomeRefused},
+		{"unsentreason", components.OutcomeRefused},
+		{"unsentineligible", components.OutcomeRefused},
+		{"unsentundecided", components.OutcomeRefused},
+		{"unsenthold", components.OutcomeFailed},
 	}
 	if len(want) != len(notices) {
 		t.Fatalf("the table names %d redirects, notices has %d", len(want), len(notices))

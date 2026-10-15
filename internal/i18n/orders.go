@@ -183,6 +183,9 @@ var (
 
 	KeyEventCancelled = key("order.event.cancelled", Message{ZhHant: "取消", En: "Cancelled"})
 
+	// The refunded event of units the shop could not send (open_unsent_refund).
+	KeyEventRefundedUnsent = key("order.event.refunded.unsent", Message{ZhHant: "無法出貨，已退款", En: "Not sent — refunded"})
+
 	KeyOrderHistory = key("order.history", Message{ZhHant: "訂單紀錄", En: "Order history"})
 
 	KeyOrderDeliveryTo = key("order.deliveryto", Message{ZhHant: "配送到", En: "Delivering to"})

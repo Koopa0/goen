@@ -67,6 +67,20 @@ func TestOrderEventLabelsCoverEveryKind(t *testing.T) {
 	}
 }
 
+// The refund of units the shop could not send says so; a return's refund does not.
+func TestARefundOfUnsentUnitsIsNamedAsSuch(t *testing.T) {
+	t.Parallel()
+	for locale, want := range map[i18n.Locale]string{i18n.ZhHant: "無法出貨，已退款", i18n.En: "Not sent — refunded"} {
+		ctx := i18n.WithLocale(t.Context(), locale)
+		if got := i18n.T(ctx, OrderEvent{Kind: order.EventRefunded, Unsent: true}.LabelKey()); got != want {
+			t.Errorf("%s: the refund of unsent units reads %q, want %q", locale, got, want)
+		}
+		if got := i18n.T(ctx, OrderEvent{Kind: order.EventRefunded}.LabelKey()); got == want {
+			t.Errorf("%s: a return's refund reads %q too", locale, got)
+		}
+	}
+}
+
 func TestTheAdminTimelineKeepsItsStatusWords(t *testing.T) {
 	t.Parallel()
 	ctx := i18n.WithLocale(t.Context(), i18n.ZhHant)

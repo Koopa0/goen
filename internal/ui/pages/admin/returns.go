@@ -47,6 +47,9 @@ type Return struct {
 	// BeforeShipment is a paid order refunded before anything shipped: nothing
 	// comes back to inspect, and its order page finishes it.
 	BeforeShipment bool
+	// Unsent is a refund of units a partly shipped order will not send:
+	// nothing comes back to inspect either, and its order page settles it.
+	Unsent bool
 }
 
 // CanRetryPayout reports whether the approved decision has money left behind a
@@ -62,7 +65,7 @@ func (r *Return) PayoutStranded() bool {
 }
 
 func (r *Return) AwaitingGoods() bool {
-	if r.Status != returns.StatusApproved || r.BeforeShipment {
+	if r.Status != returns.StatusApproved || r.BeforeShipment || r.Unsent {
 		return false
 	}
 	for i := range r.Lines {
@@ -95,7 +98,7 @@ func (r *Return) standing() (i18n.Key, components.Intent) {
 			return i18n.KeyAdminReturnOnItsWay, components.IntentProgress
 		}
 	case returns.StatusCompleted:
-		if r.BeforeShipment {
+		if r.BeforeShipment || r.Unsent {
 			return "", components.IntentNeutral
 		}
 		return "", components.IntentDone

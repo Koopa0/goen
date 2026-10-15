@@ -208,3 +208,48 @@ WHERE order_number = @order_number::text;
 -- makes is theirs, whoever presses Resume.
 -- name: RefundOpenedBy :one
 SELECT requested_by_user_id FROM return_requests WHERE id = $1 AND before_shipment;
+
+-- One auto-committed statement: the door opens and approves a refund of the
+-- named units a partly shipped order will not send, or returns the one it
+-- opened before and has not settled, whatever lines this press names. The
+-- caller compares them (UnsentRefundLines) before paying anything.
+-- name: OpenUnsentRefund :one
+SELECT open_unsent_refund(
+    @order_number::text, @line_ids::uuid[], @quantities::integer[],
+    @reason::text, @note::text, @actor_user_id::uuid, @request_id::text
+)::uuid AS return_request_id;
+
+-- Releases or writes off the refunded units' hold and completes the refund,
+-- once its money has gone back; a second press does nothing.
+-- name: SettleUnsentRefund :exec
+SELECT settle_unsent_refund(
+    @return_request_id::uuid, @actor_user_id::uuid, @request_id::text
+);
+
+-- What the order page reads to offer the refund of units that will not be
+-- sent, and the one Resume finishes. open_unsent_refund re-derives every fact
+-- under the order lock; this only decides whether to show the door.
+-- name: UnsentRefundState :one
+SELECT o.fulfillment_status, u.id AS return_request_id
+FROM orders o
+LEFT JOIN return_requests u ON u.order_id = o.id AND u.unsent AND u.status = 'approved'
+WHERE o.order_number = @order_number::text;
+
+-- The lines of one unsent refund, as its door named them.
+-- name: UnsentRefundLines :many
+SELECT rl.order_line_id, rl.quantity, ol.product_name,
+       coalesce(ol.variant_label, '')::text AS variant_label
+FROM return_request_lines rl
+JOIN order_lines ol ON ol.id = rl.order_line_id
+WHERE rl.return_request_id = @return_request_id
+ORDER BY ol.position, ol.id;
+
+-- The money an unsent refund's approval froze: the return arithmetic's, card
+-- first and then credit. The preview reads it inside a transaction it rolls
+-- back, so what it shows is what confirming freezes.
+-- name: UnsentRefundFrozen :one
+SELECT (coalesce(goods_refund_cents, 0) + coalesce(shipping_refund_cents, 0))::bigint AS refund_cents,
+       coalesce(card_refund_cents, 0)::bigint AS card_cents,
+       coalesce(credit_refund_cents, 0)::bigint AS credit_cents,
+       reason
+FROM return_requests WHERE id = @return_request_id AND unsent;

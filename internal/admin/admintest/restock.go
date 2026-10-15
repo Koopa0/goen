@@ -18,10 +18,21 @@ import (
 
 func AdminRolePool(t *testing.T, owner *pgxpool.Pool) *pgxpool.Pool {
 	t.Helper()
+	return rolePool(t, owner, "admin")
+}
+
+// StoreRolePool is the storefront's role, which files a customer's return.
+func StoreRolePool(t *testing.T, owner *pgxpool.Pool) *pgxpool.Pool {
+	t.Helper()
+	return rolePool(t, owner, "store")
+}
+
+func rolePool(t *testing.T, owner *pgxpool.Pool, role string) *pgxpool.Pool {
+	t.Helper()
 	cfg := owner.Config().Copy()
 	cfg.MaxConns = 2
 	cfg.AfterConnect = func(ctx context.Context, conn *pgx.Conn) error {
-		_, err := conn.Exec(ctx, `SET ROLE admin`)
+		_, err := conn.Exec(ctx, `SET ROLE `+role)
 		return err
 	}
 	p, err := pgxpool.NewWithConfig(t.Context(), cfg)
@@ -29,9 +40,9 @@ func AdminRolePool(t *testing.T, owner *pgxpool.Pool) *pgxpool.Pool {
 		t.Fatal(err)
 	}
 	t.Cleanup(p.Close)
-	var role string
-	if err := p.QueryRow(t.Context(), `SELECT current_user`).Scan(&role); err != nil || role != "admin" {
-		t.Fatalf("current_user = %q, want admin: %v", role, err)
+	var current string
+	if err := p.QueryRow(t.Context(), `SELECT current_user`).Scan(&current); err != nil || current != role {
+		t.Fatalf("current_user = %q, want %s: %v", current, role, err)
 	}
 	return p
 }

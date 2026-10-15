@@ -83,7 +83,8 @@ func creditPaidPending(r *beforeShipment) bool {
 
 // FillOrder puts the refund before shipment on the order page, offered or open
 // for Resume, and reports whether one was ever opened: an order being refunded
-// is neither picked nor shipped.
+// is neither picked nor shipped. It also puts the refund of units a partly
+// shipped order will not send there, which reads view.Shippable.
 func (s *Store) FillOrder(ctx context.Context, view *admin.OrderView, number string) (opened bool, err error) {
 	row, err := readBeforeShipment(ctx, s.q, number)
 	if err != nil {
@@ -91,6 +92,12 @@ func (s *Store) FillOrder(ctx context.Context, view *admin.OrderView, number str
 	}
 	view.RefundOffered, view.RefundOpen = beforeShipmentRefundState(&row)
 	view.RefundCreditPaid = view.RefundOffered && creditPaidPending(&row)
+	offered, open, err := s.unsentOnOrder(ctx, number, len(view.Shippable))
+	if err != nil {
+		return false, err
+	}
+	view.UnsentOffered = offered
+	view.UnsentOpen, view.UnsentOpenLines = open != nil, unsentLines(open)
 	return row.ReturnRequestID.Valid, nil
 }
 
