@@ -190,7 +190,7 @@ func (w Warranty) State(ctx context.Context) string {
 
 // Facts is the cover's end, under the name of what it covers.
 func (w Warranty) Facts(ctx context.Context) []components.Stat {
-	return []components.Stat{dateStat(ctx, i18n.T(ctx, i18n.KeyOrderWarrantyUntil), w.ExpiresOn, "")}
+	return []components.Stat{components.DateStat(ctx, i18n.T(ctx, i18n.KeyOrderWarrantyUntil), w.ExpiresOn, "")}
 }
 
 func (w Warranty) Href() string {
