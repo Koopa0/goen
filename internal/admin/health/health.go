@@ -176,7 +176,7 @@ func (s *Store) WorkerHealth(ctx context.Context, messages *outbox.Store) (admin
 	if err != nil {
 		return admin.WorkerHealthView{}, err
 	}
-	view.UnrelievedRefunds, view.UnrelievedRefundCount = unrelievedRefunds(unrelieved), unrelievedCount
+	view.UnrelievedRefunds, view.UnrelievedRefundCount = unrelievedRows(unrelieved), unrelievedCount
 	return view, nil
 }
 
@@ -269,10 +269,10 @@ func (s *Store) CancelledOrderInvoices(
 	return out, total, nil
 }
 
-// UnrelievedRefund is a live 統一發票 whose order gave back money that no 折讓
+// UnrelievedInvoice is a live 統一發票 whose order gave back money that no 折讓
 // relieves and nothing is filing: AmountCents is the allowance owed, the one
 // claim_invoice_allowance would file, and Since when it became owed.
-type UnrelievedRefund struct {
+type UnrelievedInvoice struct {
 	OrderNumber string
 	Number      string
 	AmountCents int64
@@ -283,17 +283,17 @@ type UnrelievedRefund struct {
 // olderThan, newest first and at most 50, with how many there are in all.
 func (s *Store) UnrelievedRefunds(
 	ctx context.Context, olderThan time.Duration,
-) ([]UnrelievedRefund, int64, error) {
+) ([]UnrelievedInvoice, int64, error) {
 	rows, err := s.q.UnrelievedRefunds(ctx, interval(olderThan))
 	if err != nil {
 		return nil, 0, fmt.Errorf("read refunds no allowance relieves: %w", err)
 	}
-	out := make([]UnrelievedRefund, len(rows))
+	out := make([]UnrelievedInvoice, len(rows))
 	var total int64
 	for i := range rows {
 		r := &rows[i]
 		total = r.Total
-		out[i] = UnrelievedRefund{
+		out[i] = UnrelievedInvoice{
 			OrderNumber: r.OrderNumber, Number: r.Number, AmountCents: r.AmountCents, Since: r.Since,
 		}
 	}
@@ -379,10 +379,10 @@ func strandedClaims(rows []db.StrandedInvoiceClaimsRow) []admin.StrandedClaim {
 	return out
 }
 
-func unrelievedRefunds(refunds []UnrelievedRefund) []admin.UnrelievedRefund {
-	out := make([]admin.UnrelievedRefund, len(refunds))
-	for i := range refunds {
-		r := &refunds[i]
+func unrelievedRows(invoices []UnrelievedInvoice) []admin.UnrelievedRefund {
+	out := make([]admin.UnrelievedRefund, len(invoices))
+	for i := range invoices {
+		r := &invoices[i]
 		out[i] = admin.UnrelievedRefund{
 			OrderNumber: r.OrderNumber, Number: r.Number, AmountCents: r.AmountCents,
 			Since: shoptime.Minute(r.Since),

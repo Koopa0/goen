@@ -81,7 +81,7 @@ func TestARefundWithNoAllowanceFiledNeedsAPerson(t *testing.T) {
 			if listed := unrelieved(t, ctx, store, health.UnrelievedAfter); len(listed) != 0 {
 				t.Errorf("a refund paid back just now lists %v, want it inside the margin", listed)
 			}
-			want := health.UnrelievedRefund{OrderNumber: number, Number: invoiceNumber(t, ctx, owner, orderID), AmountCents: 100000}
+			want := health.UnrelievedInvoice{OrderNumber: number, Number: invoiceNumber(t, ctx, owner, orderID), AmountCents: 100000}
 			if listed := unrelieved(t, ctx, store, 0); len(listed) != 1 || withoutSince(listed[0]) != want {
 				t.Fatalf("with no margin the page lists %v, want %+v", listed, want)
 			}
@@ -203,7 +203,7 @@ func backdate(t *testing.T, ctx context.Context, owner *pgxpool.Pool, stmt strin
 	}
 }
 
-func unrelieved(t *testing.T, ctx context.Context, store *health.Store, olderThan time.Duration) []health.UnrelievedRefund {
+func unrelieved(t *testing.T, ctx context.Context, store *health.Store, olderThan time.Duration) []health.UnrelievedInvoice {
 	t.Helper()
 	listed, total, err := store.UnrelievedRefunds(ctx, olderThan)
 	if err != nil {
@@ -215,7 +215,7 @@ func unrelieved(t *testing.T, ctx context.Context, store *health.Store, olderTha
 	return listed
 }
 
-func withoutSince(r health.UnrelievedRefund) health.UnrelievedRefund {
+func withoutSince(r health.UnrelievedInvoice) health.UnrelievedInvoice {
 	r.Since = time.Time{}
 	return r
 }
