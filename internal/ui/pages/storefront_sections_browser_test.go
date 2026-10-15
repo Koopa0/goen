@@ -16,8 +16,10 @@ import (
 	"github.com/koopa0/goen/internal/ui/uitest"
 )
 
-// The home page's hero tabs, departments and rules row, the deals page's
-// running campaigns and the search page's compare button, measured as drawn.
+// The home page's hero tabs, hero arrows, departments and rules row, the deals
+// page's running campaigns, the search page's compare button, the cart's
+// stepper and filled button, a department's filter chip, and the corners every
+// pressable control shares, measured as drawn.
 func TestStorefrontSectionsAsDrawn(t *testing.T) {
 	_, port := uitest.Browser(t, "CDP_PORT")
 	root, err := filepath.Abs("../../..")
@@ -64,6 +66,23 @@ func TestStorefrontSectionsAsDrawn(t *testing.T) {
 		w.Header().Set("Content-Type", "text/html; charset=utf-8")
 		if renderErr := Search(layouts.Page{}, view).Render(i18n.WithLocale(r.Context(), i18n.En), w); renderErr != nil {
 			t.Errorf("render search fixture: %v", renderErr)
+		}
+	})
+	mux.HandleFunc("GET /cart", func(w http.ResponseWriter, r *http.Request) {
+		view := CartView{ItemCount: 1, SubtotalCents: 89000, Lines: []CartLine{
+			{VariantID: "tote-natural", Slug: "canvas-tote", Name: "Canvas tote", Quantity: 1, Available: 5, UnitCents: 89000},
+		}}
+		ctx := layouts.WithStaff(i18n.WithLocale(r.Context(), i18n.En), true)
+		w.Header().Set("Content-Type", "text/html; charset=utf-8")
+		if renderErr := Cart(layouts.Page{}, view).Render(ctx, w); renderErr != nil {
+			t.Errorf("render cart fixture: %v", renderErr)
+		}
+	})
+	mux.HandleFunc("GET /c/audio", func(w http.ResponseWriter, r *http.Request) {
+		view := ListingView{Slug: "audio", Name: "Audio", Filtered: true, InStockOnly: true, Query: "in_stock=1"}
+		w.Header().Set("Content-Type", "text/html; charset=utf-8")
+		if renderErr := Listing(layouts.Page{}, view, nil, nil).Render(i18n.WithLocale(r.Context(), i18n.En), w); renderErr != nil {
+			t.Errorf("render listing fixture: %v", renderErr)
 		}
 	})
 	server := httptest.NewServer(mux)
