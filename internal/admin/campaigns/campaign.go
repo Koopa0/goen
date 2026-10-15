@@ -20,7 +20,6 @@ import (
 	"github.com/koopa0/goen/internal/keyset"
 	"github.com/koopa0/goen/internal/shoptime"
 	"github.com/koopa0/goen/internal/ui/components"
-	"github.com/koopa0/goen/internal/ui/pages/admin"
 	"github.com/koopa0/goen/internal/web"
 )
 
@@ -93,18 +92,18 @@ func (f *Form) Validate(ctx context.Context) map[string]string {
 	return errs
 }
 
-func (s *Store) List(ctx context.Context, after ...string) (admin.CampaignsView, error) {
+func (s *Store) List(ctx context.Context, after ...string) (CampaignsView, error) {
 	const scope = "/admin/campaigns"
 	from, resumed := keyset.Resume(scope, after, func(p position) bool { return p.ID != uuid.Nil })
 	rows, err := s.q.AdminCampaigns(ctx, db.AdminCampaignsParams{HasCursor: resumed, AfterRank: from.Rank, AfterAt: from.At, AfterID: from.ID, RowLimit: keyset.PageLimit})
 	if err != nil {
-		return admin.CampaignsView{}, fmt.Errorf("read campaigns: %w", err)
+		return CampaignsView{}, fmt.Errorf("read campaigns: %w", err)
 	}
 	rows, bound := keyset.PageBound(scope, resumed, rows, keyset.PageSize, func(r *db.AdminCampaignsRow) string { return r.PageCursor })
-	view := admin.CampaignsView{Bound: bound}
+	view := CampaignsView{Bound: bound}
 	for i := range rows {
 		c := &rows[i]
-		view.Rows = append(view.Rows, admin.CampaignRow{
+		view.Rows = append(view.Rows, CampaignRow{
 			Slug: c.Slug, Title: c.Title, Products: c.Products,
 			Active: c.IsActive, Running: c.IsRunning, Sellable: c.IsSellable,
 			StartsAtText: shoptime.Day(c.StartsAt),
@@ -129,15 +128,15 @@ func (s *Store) Image(ctx context.Context, slug string) (components.HeaderImage,
 	}, row.Tone, nil
 }
 
-func (s *Store) Detail(ctx context.Context, slug string) (admin.CampaignDetail, error) {
+func (s *Store) Detail(ctx context.Context, slug string) (CampaignDetail, error) {
 	row, err := s.q.AdminCampaign(ctx, db.AdminCampaignParams{Slug: slug, Locale: string(i18n.FromContext(ctx))})
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
-			return admin.CampaignDetail{}, ErrNotFound
+			return CampaignDetail{}, ErrNotFound
 		}
-		return admin.CampaignDetail{}, fmt.Errorf("read campaign: %w", err)
+		return CampaignDetail{}, fmt.Errorf("read campaign: %w", err)
 	}
-	return admin.CampaignDetail{
+	return CampaignDetail{
 		Title: row.Title, Label: row.Label, Starts: row.StartsAt, Ends: row.EndsAt,
 		StartsAtInput: shoptime.InputMinute(row.StartsAt), EndsAtInput: shoptime.InputMinute(row.EndsAt),
 		Active: row.IsActive, Running: row.IsRunning, Sellable: row.IsSellable,
@@ -183,7 +182,7 @@ func (s *Store) SetWindow(ctx context.Context, slug, startsAt, endsAt string) (m
 
 const searchLimit = 10
 
-func (s *Store) SearchProducts(ctx context.Context, slug, term string) ([]admin.CampaignProduct, error) {
+func (s *Store) SearchProducts(ctx context.Context, slug, term string) ([]CampaignProduct, error) {
 	term = web.SearchTerm(term)
 	if term == "" {
 		return nil, nil
@@ -194,9 +193,9 @@ func (s *Store) SearchProducts(ctx context.Context, slug, term string) ([]admin.
 	if err != nil {
 		return nil, fmt.Errorf("search campaign products: %w", err)
 	}
-	out := make([]admin.CampaignProduct, 0, len(rows))
+	out := make([]CampaignProduct, 0, len(rows))
 	for i := range rows {
-		out = append(out, admin.CampaignProduct{
+		out = append(out, CampaignProduct{
 			Slug: rows[i].Slug, Name: rows[i].Name, ImageKey: rows[i].ImageKey,
 			PriceCents: rows[i].PriceCents, CompareCents: rows[i].CompareAtPriceCents,
 			SellableUnits: rows[i].SellableUnits, HasVariant: rows[i].HasVariant, HasDiscountedVariant: rows[i].HasDiscountedVariant, Draft: rows[i].IsDraft,
@@ -349,14 +348,14 @@ func (s *Store) UnfeatureProduct(ctx context.Context, campaign, product string) 
 		})
 }
 
-func (s *Store) Products(ctx context.Context, slug string) ([]admin.CampaignProduct, error) {
+func (s *Store) Products(ctx context.Context, slug string) ([]CampaignProduct, error) {
 	rows, err := s.q.AdminCampaignProducts(ctx, slug)
 	if err != nil {
 		return nil, fmt.Errorf("read campaign products: %w", err)
 	}
-	out := make([]admin.CampaignProduct, 0, len(rows))
+	out := make([]CampaignProduct, 0, len(rows))
 	for i := range rows {
-		out = append(out, admin.CampaignProduct{
+		out = append(out, CampaignProduct{
 			Slug: rows[i].Slug, Name: rows[i].Name, ImageKey: rows[i].ImageKey,
 			PriceCents: rows[i].PriceCents, CompareCents: rows[i].CompareAtPriceCents,
 			SellableUnits: rows[i].SellableUnits, HasVariant: rows[i].HasVariant, HasDiscountedVariant: rows[i].HasDiscountedVariant, Draft: rows[i].IsDraft,

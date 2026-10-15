@@ -8,6 +8,7 @@ import (
 	"strconv"
 	"testing"
 
+	"github.com/koopa0/goen/internal/admin/campaigns"
 	"github.com/koopa0/goen/internal/admin/coupons"
 	"github.com/koopa0/goen/internal/admin/feedback"
 	"github.com/koopa0/goen/internal/payment"
@@ -32,13 +33,13 @@ func methodFormActions(t *testing.T) map[string][]string {
 		"internal/ui/layouts/banner.templ:templ.SafeURL(b.DismissAction())":                             {(layouts.Banner{}).DismissAction()},
 		"internal/ui/layouts/email_link.templ:templ.SafeURL(v.Action)":                                  newsletterFormActions(t),
 		"internal/ui/pages/admin/product.templ:templ.SafeURL(v.Action() + \"#sec-details\")":            {product.Action() + "#sec-details", newProduct.Action() + "#sec-details"},
-		"internal/ui/pages/admin/campaign.templ:templ.SafeURL(v.ToneAction())":                          {(&admin.CampaignView{Slug: "campaign"}).ToneAction()},
-		"internal/ui/pages/admin/campaign.templ:templ.SafeURL(v.WindowAction())":                        {(&admin.CampaignView{Slug: "campaign"}).WindowAction()},
-		"internal/ui/pages/admin/campaign.templ:templ.SafeURL(v.ActiveAction())":                        {(&admin.CampaignView{Slug: "campaign"}).ActiveAction()},
+		"internal/admin/campaigns/page.templ:templ.SafeURL(v.ToneAction())":                             {(&campaigns.CampaignView{Slug: "campaign"}).ToneAction()},
+		"internal/admin/campaigns/page.templ:templ.SafeURL(v.WindowAction())":                           {(&campaigns.CampaignView{Slug: "campaign"}).WindowAction()},
+		"internal/admin/campaigns/page.templ:templ.SafeURL(v.ActiveAction())":                           {(&campaigns.CampaignView{Slug: "campaign"}).ActiveAction()},
 		"internal/ui/pages/admin/category.templ:templ.SafeURL(v.ImageAction())":                         {(admin.CategoryView{Slug: "category"}).ImageAction()},
 		"internal/ui/pages/admin/category.templ:templ.SafeURL(v.ImageRemoveAction())":                   {(admin.CategoryView{Slug: "category"}).ImageRemoveAction()},
-		"internal/ui/pages/admin/campaign.templ:templ.SafeURL(v.ImageAction())":                         {(&admin.CampaignView{Slug: "campaign"}).ImageAction()},
-		"internal/ui/pages/admin/campaign.templ:templ.SafeURL(v.ImageRemoveAction())":                   {(&admin.CampaignView{Slug: "campaign"}).ImageRemoveAction()},
+		"internal/admin/campaigns/page.templ:templ.SafeURL(v.ImageAction())":                            {(&campaigns.CampaignView{Slug: "campaign"}).ImageAction()},
+		"internal/admin/campaigns/page.templ:templ.SafeURL(v.ImageRemoveAction())":                      {(&campaigns.CampaignView{Slug: "campaign"}).ImageRemoveAction()},
 		"internal/ui/pages/admin/product.templ:templ.SafeURL(v.ImageAction())":                          {product.ImageAction()},
 		"internal/ui/pages/admin/product.templ:templ.SafeURL(v.ImageRemoveAction())":                    {product.ImageRemoveAction()},
 		"internal/ui/pages/admin/product.templ:templ.SafeURL(v.ImageOptionAction())":                    {product.ImageOptionAction()},
@@ -62,8 +63,8 @@ func methodFormActions(t *testing.T) map[string][]string {
 		"internal/admin/feedback/review_page.templ:templ.SafeURL(r.Action())":                           {(feedback.Review{}).Action(), (feedback.Review{Hidden: true}).Action()},
 		"internal/admin/coupons/page.templ:templ.SafeURL(c.Action())":                                   {(coupons.Coupon{Code: "coupon"}).Action()},
 		"internal/ui/pages/admin/newsletter.templ:templ.SafeURL(issue.SendAction())":                    {(admin.NewsletterIssue{ID: "issue"}).SendAction()},
-		"internal/ui/pages/admin/campaign.templ:templ.SafeURL(c.ToggleAction())":                        {(admin.CampaignRow{Slug: "campaign"}).ToggleAction()},
-		"internal/ui/pages/admin/campaign.templ:templ.SafeURL(v.FeatureAction())":                       {(&admin.CampaignView{Slug: "campaign"}).FeatureAction()},
+		"internal/admin/campaigns/page.templ:templ.SafeURL(c.ToggleAction())":                           {(campaigns.CampaignRow{Slug: "campaign"}).ToggleAction()},
+		"internal/admin/campaigns/page.templ:templ.SafeURL(v.FeatureAction())":                          {(&campaigns.CampaignView{Slug: "campaign"}).FeatureAction()},
 		"internal/ui/pages/admin/home.templ:templ.SafeURL(slide.PromoteAction())":                       {(admin.HeroSlide{ID: "slide"}).PromoteAction()},
 		"internal/ui/pages/admin/home.templ:templ.SafeURL(slide.ToggleAction())":                        {(admin.HeroSlide{ID: "slide"}).ToggleAction()},
 		"internal/admin/feedback/question_page.templ:templ.SafeURL(q.AnswerAction())":                   {(feedback.Question{ID: "question"}).AnswerAction()},
