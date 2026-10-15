@@ -360,13 +360,16 @@ body {
 
   /* The one hue, 藍 (blue): what a shopper can press, where they are, and
      how far a period has run. 7.15:1 on white, so it is the link text as well
-     as the ring and the fill; a price is never blue, or it reads as a link.
-     --mark marks a stretch of time on the storefront; a chart's dates are drawn
-     in --ink-2. The second ring of the goen mark is this blue too. 藍墨 (ink blue) is the same hue pressed:
-     hover, text on a blue tint, and a label that is not an action. The tints
+     as the ring and the fill. --mark marks a stretch of time on the storefront;
+     a chart's dates are drawn in --ink-2. The second ring of the goen mark is
+     this blue too. 藍墨 (ink blue) is the same hue pressed: hover, text on a
+     blue tint, a price on a shelf, and a label that is not an action. The tints
      are opaque so text on them is measured against one colour. */
   --accent: #2a56a0;
   --accent-deep: #26395a;
+  /* A price on a shelf, a product page and the buy bar. Cart, checkout and
+     order amounts are the ledger and keep the text colour. */
+  --price: var(--accent-deep);
   --mark: #2a56a0;
   /* The part of a period still to come: the mark at 30%. Unlike the tints it
      stays translucent, so on a tone it is the tone's ground under the blue.

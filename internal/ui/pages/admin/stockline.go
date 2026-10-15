@@ -9,10 +9,7 @@ import (
 	"github.com/koopa0/goen/internal/ui/chart"
 )
 
-// StockLineDays is how many shop days the stock line covers, today included.
-const StockLineDays = 90
-
-// minLineMovements is the fewest movements in those days that make a line: with
+// minLineMovements is the fewest movements in the days drawn that make a line: with
 // one there is a single step to draw and nothing to read about how often goods
 // arrive.
 const minLineMovements = 2

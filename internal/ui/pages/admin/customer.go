@@ -8,6 +8,7 @@ import (
 	"github.com/koopa0/goen/internal/i18n"
 	"github.com/koopa0/goen/internal/keyset"
 	"github.com/koopa0/goen/internal/money"
+	"github.com/koopa0/goen/internal/order"
 	"github.com/koopa0/goen/internal/ui/chart"
 	"github.com/koopa0/goen/internal/ui/components"
 )
@@ -47,6 +48,19 @@ func (r CustomerRow) DisplayName() string {
 	return r.Name
 }
 
+// RecentOrder is one line of the customer page's recent orders: the part of an
+// order the page shows, which is not the orders desk's OrderRow.
+type RecentOrder struct {
+	Number       string
+	Status       order.FulfillmentStatus
+	StatusText   string
+	StatusIntent components.Intent
+	PlacedAt     string
+	TotalCents   int64
+}
+
+func (o RecentOrder) Total() string { return money.TWD(o.TotalCents) }
+
 type CustomerView struct {
 	ID          string
 	Email       string
@@ -58,7 +72,7 @@ type CustomerView struct {
 	SpentCents  int64
 	CreditCents int64
 	Points      int64
-	Recent      []OrderRow
+	Recent      []RecentOrder
 
 	// WindowSpendCents is the spend over WindowDays that tiers are judged by;
 	// SpentCents is lifetime. NextTierName is empty at the top tier or with no tiers.

@@ -10,7 +10,7 @@ import (
 )
 
 func HomeMeta(ctx context.Context) layouts.Page {
-	return layouts.Page{Description: describeDepartments(ctx, i18n.KeyHomeDescription)}
+	return layouts.Page{Description: layouts.DescribeDepartments(ctx, i18n.KeyHomeDescription)}
 }
 
 type HomeCategory struct {

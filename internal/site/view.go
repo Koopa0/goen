@@ -1,4 +1,4 @@
-package pages
+package site
 
 import (
 	"context"

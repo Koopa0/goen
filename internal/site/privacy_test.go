@@ -7,7 +7,6 @@ import (
 
 	"github.com/koopa0/goen/internal/i18n"
 	"github.com/koopa0/goen/internal/ui/layouts"
-	"github.com/koopa0/goen/internal/ui/pages"
 )
 
 func TestPrivacyDisclosuresRenderOnce(t *testing.T) {
@@ -15,7 +14,7 @@ func TestPrivacyDisclosuresRenderOnce(t *testing.T) {
 		t.Run(string(locale), func(t *testing.T) {
 			doc := policies["privacy"].For(locale)
 			var out strings.Builder
-			if err := pages.Policy(layouts.Page{}, doc).Render(i18n.WithLocale(t.Context(), locale), &out); err != nil {
+			if err := Policy(layouts.Page{}, doc).Render(i18n.WithLocale(t.Context(), locale), &out); err != nil {
 				t.Fatal(err)
 			}
 			body := out.String()
@@ -40,7 +39,7 @@ func TestPrivacyDisclosesCollectedAndRetainedData(t *testing.T) {
 		t.Run(string(locale), func(t *testing.T) {
 			doc := policies["privacy"].For(locale)
 			var out strings.Builder
-			if err := pages.Policy(layouts.Page{}, doc).Render(i18n.WithLocale(t.Context(), locale), &out); err != nil {
+			if err := Policy(layouts.Page{}, doc).Render(i18n.WithLocale(t.Context(), locale), &out); err != nil {
 				t.Fatal(err)
 			}
 			body := out.String()
@@ -107,20 +106,20 @@ func TestPrivacyRetentionSectionStatesEachEnforcedPeriod(t *testing.T) {
 		want    [][]string // the numbers each leading paragraph must carry, in order
 	}{
 		{i18n.ZhHant, "保存多久", [][]string{
-			{pages.NewsletterConfirmHoursText() + " 小時", pages.NewsletterRetainDaysText() + " 天"},
-			{pages.GuestCartRetainDaysText() + " 天"},
-			{pages.CheckoutDraftHoursText() + " 小時"},
-			{pages.MailRetainDaysText() + " 天"},
-			{pages.SessionDaysText() + " 天"},
-			{pages.StockAlertRetainDaysText() + " 天"},
+			{NewsletterConfirmHoursText() + " 小時", NewsletterRetainDaysText() + " 天"},
+			{GuestCartRetainDaysText() + " 天"},
+			{CheckoutDraftHoursText() + " 小時"},
+			{MailRetainDaysText() + " 天"},
+			{SessionDaysText() + " 天"},
+			{StockAlertRetainDaysText() + " 天"},
 		}},
 		{i18n.En, "How long we keep it", [][]string{
-			{pages.NewsletterConfirmHoursText() + " hours", pages.NewsletterRetainDaysText() + " days"},
-			{pages.GuestCartRetainDaysText() + " days"},
-			{pages.CheckoutDraftHoursText() + " hour"},
-			{pages.MailRetainDaysText() + " days"},
-			{pages.SessionDaysText() + " days"},
-			{pages.StockAlertRetainDaysText() + " days"},
+			{NewsletterConfirmHoursText() + " hours", NewsletterRetainDaysText() + " days"},
+			{GuestCartRetainDaysText() + " days"},
+			{CheckoutDraftHoursText() + " hour"},
+			{MailRetainDaysText() + " days"},
+			{SessionDaysText() + " days"},
+			{StockAlertRetainDaysText() + " days"},
 		}},
 	} {
 		t.Run(string(tc.locale), func(t *testing.T) {

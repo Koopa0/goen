@@ -629,7 +629,7 @@ func renderReturnsPolicy(t *testing.T, locale i18n.Locale) string {
 	}
 	doc = doc.For(locale)
 	var b strings.Builder
-	if err := pages.Policy(
+	if err := Policy(
 		layouts.Page{Title: doc.Title, Description: doc.Summary},
 		doc,
 	).Render(i18n.WithLocale(t.Context(), locale), &b); err != nil {
@@ -816,9 +816,9 @@ func TestReturnsCountsTheStatutoryWindowInTheStatutesWord(t *testing.T) {
 func TestTheShippingPageStatesTheSurchargeItCharges(t *testing.T) {
 	t.Parallel()
 
-	m := pages.ShippingMethod{
+	m := ShippingMethod{
 		Name: "宅配到府", FeeCents: 8000, FreeOverCents: 300000,
-		Surcharges: []pages.ZoneSurcharge{
+		Surcharges: []ZoneSurcharge{
 			{Name: "離島", Cents: 20000},
 			{Name: "澎湖", Cents: 15000},
 		},
@@ -854,7 +854,7 @@ func TestTheShippingPageStatesTheSurchargeItCharges(t *testing.T) {
 		})
 	}
 
-	plain := pages.ShippingMethod{Name: "超商取貨", FeeCents: 6000}
+	plain := ShippingMethod{Name: "超商取貨", FeeCents: 6000}
 	if plain.HasSurcharges() {
 		t.Error("a method with no surcharge reports one")
 	}

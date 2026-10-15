@@ -1,0 +1,67 @@
+package admin
+
+import (
+	"github.com/koopa0/goen/internal/i18n"
+	"github.com/koopa0/goen/internal/ui/components"
+	"github.com/koopa0/goen/internal/ui/layouts"
+)
+
+templ Picking(p layouts.Page, v *PickingView) {
+	@layouts.Admin(p, "orders") {
+		<div class="ui-page-head goen-admin__batchcontrols">
+			<div>
+				<h1 class="ui-page-head__title">{ i18n.T(ctx, i18n.KeyAdminPickingSlips) }</h1>
+				<p class="ui-page-head__sub">{ v.ScopeText(ctx) }</p>
+			</div>
+			@components.ButtonLink(components.ButtonProps{ButtonStyle: components.ButtonStyleGhost}, "/admin/orders?status=picking") {
+				{ i18n.T(ctx, i18n.KeyAdminQueueOrders) }
+			}
+		</div>
+		if len(v.Totals) == 0 {
+			<div class="goen-admin__empty">
+				<p class="goen-admin__emptytitle">{ i18n.T(ctx, i18n.KeyAdminPickingNone) }</p>
+			</div>
+		} else {
+			<section class="goen-admin__picklist" aria-labelledby="pick-list-title">
+				<h2 class="goen-admin__optitle" id="pick-list-title">{ i18n.T(ctx, i18n.KeyAdminPickingTotals) }</h2>
+				<div class="goen-admin__tablewrap">
+					<table class="ui-table goen-admin__table">
+						<thead>
+							<tr>
+								<th scope="col">SKU</th>
+								<th scope="col">{ i18n.T(ctx, i18n.KeyAdminColProduct) }</th>
+								<th class="goen-admin__cellnum" scope="col">{ i18n.T(ctx, i18n.KeyAdminPickingRemaining) }</th>
+							</tr>
+						</thead>
+						<tbody>
+							for _, l := range v.Totals {
+								<tr>
+									<td class="goen-admin__cellkey">{ l.SKU }</td>
+									<td>
+										{ l.Name }
+										if l.Label != "" {
+											<span class="goen-admin__meta">{ l.Label }</span>
+										}
+									</td>
+									<td class="goen-admin__cellnum">{ l.RemainingText() }</td>
+								</tr>
+							}
+						</tbody>
+					</table>
+				</div>
+			</section>
+		}
+		<div>
+			for _, slip := range v.Slips {
+				<section class="goen-admin__slip" aria-label={ slip.Number }>
+					<h2 class="goen-admin__optitle">{ slip.Number }</h2>
+					<p class="goen-admin__meta">{ slip.PlacedAt } · { slip.ShippingName }</p>
+					@orderItemsAndDelivery(slip)
+				</section>
+			}
+		</div>
+		<div class="goen-admin__batchcontrols">
+			@components.ListPager(v.Bound)
+		</div>
+	}
+}

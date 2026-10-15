@@ -6,7 +6,7 @@ import (
 	"time"
 
 	"github.com/koopa0/goen/internal/account"
-	"github.com/koopa0/goen/internal/ui/pages"
+	"github.com/koopa0/goen/internal/site"
 )
 
 // The privacy policy states how long a sign-in lasts. Sessions are not renewed,
@@ -14,7 +14,7 @@ import (
 func TestThePrivacyPolicyStatesTheSessionLifetimeTheStoreGrants(t *testing.T) {
 	t.Parallel()
 
-	days, err := strconv.Atoi(pages.SessionDaysText())
+	days, err := strconv.Atoi(site.SessionDaysText())
 	if err != nil {
 		t.Fatalf("parse stated session lifetime: %v", err)
 	}
