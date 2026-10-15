@@ -257,6 +257,13 @@ func TestTheShopCanFindAWarrantyTheCustomerRegistered(t *testing.T) {
 			if !got.InForce {
 				t.Error("a warranty registered today reads as expired")
 			}
+			var owner string
+			if err := pool.QueryRow(ctx, `SELECT user_id::text FROM orders WHERE order_number = $1`, number).Scan(&owner); err != nil {
+				t.Fatalf("read the order's customer: %v", err)
+			}
+			if got.CustomerID != owner {
+				t.Errorf("warranty row names customer %q, want the order's customer %q", got.CustomerID, owner)
+			}
 		})
 	}
 

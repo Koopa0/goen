@@ -2371,6 +2371,7 @@ SELECT json_build_object('At', w.expires_on::timestamptz, 'ID', w.id)::text AS p
        ol.product_name, coalesce(ol.variant_label, '') AS variant_label,
        o.id AS order_id, o.order_number, o.fulfillment_status,
        coalesce(u.full_name, '') AS customer_name,
+       coalesce(u.id::text, '')::text AS customer_id,
        coalesce(u.email, '') AS customer_email
 FROM warranty_registrations w
 JOIN order_lines ol ON ol.id = w.order_line_id
@@ -2405,6 +2406,7 @@ type AdminSearchWarrantiesRow struct {
 	OrderNumber       string
 	FulfillmentStatus string
 	CustomerName      string
+	CustomerID        string
 	CustomerEmail     string
 }
 
@@ -2440,6 +2442,7 @@ func (q *Queries) AdminSearchWarranties(ctx context.Context, arg AdminSearchWarr
 			&i.OrderNumber,
 			&i.FulfillmentStatus,
 			&i.CustomerName,
+			&i.CustomerID,
 			&i.CustomerEmail,
 		); err != nil {
 			return nil, err

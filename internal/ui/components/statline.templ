@@ -6,7 +6,7 @@ templ StatLine(stats []Stat, variant StatLineVariant) {
 		<dl class={ variant.class() }>
 			for _, s := range items {
 				<div>
-					<dt>{ s.Label }</dt>
+					@statLabel(s.Label, s.LabelHref)
 					@statValue(s)
 				</div>
 			}
@@ -20,12 +20,22 @@ templ GlanceStatLine(stats []LinkedStat) {
 		<dl class="ui-statline ui-statline--glance">
 			for _, s := range items {
 				<div>
-					<dt><a href={ templ.SafeURL(s.Href) }>{ s.Label }</a></dt>
+					@statLabel(s.Label, s.Href)
 					@statValue(s.Stat)
 				</div>
 			}
 		</dl>
 	}
+}
+
+templ statLabel(label, href string) {
+	<dt>
+		if href != "" {
+			<a href={ templ.SafeURL(href) }>{ label }</a>
+		} else {
+			{ label }
+		}
+	</dt>
 }
 
 templ statValue(s Stat) {

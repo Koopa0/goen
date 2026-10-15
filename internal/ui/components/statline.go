@@ -32,11 +32,14 @@ func (v StatLineVariant) class() string {
 
 // Stat is one labelled figure. Note says how the figure is counted, in at most two lines.
 // Trend is a drawing under the note; the line holds it without importing what draws it.
+// LabelHref, when set, makes the label a link to the screen that explains the figure; the figure stays outside
+// the link, as in GlanceStatLine, so the link's name says what it opens.
 type Stat struct {
-	Label string
-	Value StatValue
-	Note  string
-	Trend templ.Component
+	Label     string
+	Value     StatValue
+	Note      string
+	Trend     templ.Component
+	LabelHref string
 }
 
 // StatValue is a figure with an optional leading or trailing unit, kept together across lines. The zero value prints nothing, and a stat with no value is left out.
