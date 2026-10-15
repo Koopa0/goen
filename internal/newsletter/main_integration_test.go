@@ -28,7 +28,7 @@ import (
 	"github.com/koopa0/goen/internal/newsletter"
 	"github.com/koopa0/goen/internal/outbox"
 	"github.com/koopa0/goen/internal/ratelimit"
-	"github.com/koopa0/goen/internal/ui/pages/pagestest"
+	"github.com/koopa0/goen/internal/ui/uitest"
 )
 
 var pool *pgxpool.Pool
@@ -1117,7 +1117,7 @@ func TestDeadNewsletterLinksOfferRecovery(t *testing.T) {
 				if locale == i18n.ZhHant {
 					heading = "\u9019\u500b\u9023\u7d50\u5df2\u5931\u6548"
 				}
-				pagestest.AssertEmailLink(t, res.Body.String(), heading, reason, destination)
+				uitest.AssertEmailLink(t, res.Body.String(), heading, reason, destination)
 				if strings.Contains(res.Body.String(), token) {
 					t.Error("dead-link recovery leaks the token")
 				}

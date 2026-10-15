@@ -92,7 +92,7 @@ func orderRow(ctx context.Context, o *db.AdminOrdersRow, returned bool) admin.Or
 		StatusIntent: intent,
 		PlacedAt:     shoptime.Minute(o.PlacedAt),
 		Recipient:    o.Recipient,
-		TotalCents:   o.SubtotalCents - o.DiscountCents + o.ShippingCents + o.TaxCents,
+		TotalCents:   o.SubtotalCents - o.DiscountCents + o.ShippingCents,
 	}
 }
 
@@ -218,7 +218,7 @@ func (s *Store) Order(ctx context.Context, number string) (admin.OrderView, erro
 		PlacedAt:      shoptime.Minute(o.PlacedAt),
 		ShippingName:  o.ShippingMethodName,
 		SubtotalCents: o.SubtotalCents, ShippingCents: o.ShippingCents,
-		DiscountCents: o.DiscountCents, DiscountReason: o.DiscountReason, TaxCents: o.TaxCents,
+		DiscountCents: o.DiscountCents, DiscountReason: o.DiscountReason,
 		Email: o.Email, Recipient: o.RecipientName, Phone: o.Phone,
 		Address: pages.Delivery{
 			PostalCode: o.PostalCode, City: o.City, District: o.District, Street: o.Street,

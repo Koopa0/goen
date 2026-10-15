@@ -1357,12 +1357,16 @@ var ruleCases = []ruleCase{
 	},
 	{
 		rule: "return_before_shipment_full_total",
-		// Delivery and goods go back; tax_cents is not part of any return, so a
-		// taxed order cannot be refunded in full through one.
-		reject: paidPendingOrder(5000) + refundRuleStaff + `
+		// Delivery and goods go back, and the two halves must add up to the
+		// order's total. Nothing a row can hold makes them differ, so the case
+		// replaces the goods allocation (inside the case's own transaction) with
+		// one that under-refunds: the drift this cross-check exists to catch.
+		reject: paidPendingOrder + refundRuleStaff + `
+		         CREATE OR REPLACE FUNCTION return_goods_refundable_amount(p_return_request_id uuid)
+		         RETURNS bigint LANGUAGE sql AS 'SELECT 0::bigint';
 		         SELECT open_refund_before_shipment('GO-260721-000388', 'rule',
 		                '55550001-0000-4000-8000-000000000001', 'rule-req');`,
-		accept: paidPendingOrder(0) + refundRuleStaff + `
+		accept: paidPendingOrder + refundRuleStaff + `
 		         SELECT open_refund_before_shipment('GO-260721-000388', 'rule',
 		                '55550001-0000-4000-8000-000000000001', 'rule-req');`,
 	},
@@ -1433,16 +1437,13 @@ const beforeShipmentLine = `
 	VALUES ('6666bbbb-6666-4666-8666-666666666666', '6666b003-0000-4000-8000-000000000000',
 	        '6666b001-0000-4000-8000-000000000000', 1);`
 
-// paidPendingOrder captures the fixture's unpaid order, taxed or not: paid and
-// still pending, it is committed and nothing has shipped.
-func paidPendingOrder(taxCents int) string {
-	return fmt.Sprintf(`
-		UPDATE orders SET tax_cents = %[1]d WHERE id = '6666aaaa-6666-4666-8666-666666666666';
-		INSERT INTO payments (order_id, provider_ref, status, intended_amount_cents,
-		                      captured_amount_cents, paid_at)
-		VALUES ('6666aaaa-6666-4666-8666-666666666666', 'pi_rule_before_shipment', 'succeeded',
-		        %[2]d, %[2]d, now());`, taxCents, 3690000+taxCents)
-}
+// paidPendingOrder captures the fixture's unpaid order: paid and still
+// pending, it is committed and nothing has shipped.
+const paidPendingOrder = `
+	INSERT INTO payments (order_id, provider_ref, status, intended_amount_cents,
+	                      captured_amount_cents, paid_at)
+	VALUES ('6666aaaa-6666-4666-8666-666666666666', 'pi_rule_before_shipment', 'succeeded',
+	        3690000, 3690000, now());`
 
 // creditRefundedBeforeShipment is a store-credit-funded order refunded before
 // shipment and then cancelled: the return posted the credit back.
@@ -2791,7 +2792,7 @@ func TestZeroOwedOrderIsCommitted(t *testing.T) {
 	})
 
 	t.Run("money frozen", func(t *testing.T) {
-		err := run(t, `UPDATE orders SET discount_cents = 0, tax_cents = 999
+		err := run(t, `UPDATE orders SET shipping_cents = shipping_cents + 999
 			WHERE id = '`+zeroOwed+`';`)
 		if err == nil {
 			t.Fatal("rewrote the money on a committed zero-owed order")

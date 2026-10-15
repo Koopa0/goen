@@ -43,6 +43,10 @@ func TestStoredRowsDecodeUnderTheirTopicsType(t *testing.T) {
 	decodesTo(t, TopicOrderPlaced,
 		`{"locale":"zh-Hant","order_number":"GO-1","email":"a@example.com","name":"A","total_cents":1000,"owed_cents":0}`,
 		email.OrderPlaced{Locale: "zh-Hant", OrderNumber: "GO-1", Email: "a@example.com", Name: "A", TotalCents: 1000, OwedCents: 0})
+	// This row was queued while snapshots still carried "tax_cents" (always 0
+	// in practice, 43 here to prove the value is dropped, not read). The field
+	// is gone from the Go type, and encoding/json ignores the unknown key, so a
+	// row still waiting in outbox_messages decodes to the same value as before.
 	decodesTo(t, TopicOrderPlaced,
 		`{"locale":"en","order_number":"GO-1","email":"a@example.com","name":"A","total_cents":1000,"owed_cents":900,`+
 			`"snapshot":{"lines":[{"sku":"MUG-1","name":"Mug","label":"Blue","unit_cents":450,"quantity":2}],`+
@@ -56,7 +60,6 @@ func TestStoredRowsDecodeUnderTheirTopicsType(t *testing.T) {
 				ShippingCents:  60,
 				DiscountCents:  30,
 				DiscountReason: "spring",
-				TaxCents:       43,
 				CreditCents:    100,
 				ShippingName:   "A Buyer",
 				DeliveryTo:     "7-11 Taipei",
@@ -128,5 +131,37 @@ func TestAFundedOrderWritesZeroOwed(t *testing.T) {
 	const want = `{"locale":"en","order_number":"GO-1","email":"a@example.com","name":"A","total_cents":1000,"owed_cents":0}`
 	if string(got) != want {
 		t.Errorf("a funded order is stored as\n%s\nwant\n%s", got, want)
+	}
+}
+
+// TestAPlacedSnapshotIsStoredWithoutTax holds the encoded half of the snapshot:
+// the JSON the order page's confirmation row is written as. Prices include tax,
+// so no tax figure is stored; every other key keeps its name and its place.
+func TestAPlacedSnapshotIsStoredWithoutTax(t *testing.T) {
+	t.Parallel()
+
+	got, err := json.Marshal(email.PlacedSnapshot{
+		Lines:          []email.PlacedLine{{SKU: "MUG-1", Name: "Mug", Label: "Blue", UnitCents: 450, Quantity: 2}},
+		SubtotalCents:  900,
+		ShippingCents:  60,
+		DiscountCents:  30,
+		DiscountReason: "spring",
+		CreditCents:    100,
+		ShippingName:   "A Buyer",
+		DeliveryTo:     "7-11 Taipei",
+		Phone:          "0912345678",
+		DeliveryNote:   "leave at door",
+		HoldUntil:      time.Date(2026, 8, 10, 12, 0, 0, 0, time.UTC),
+		StartBy:        time.Date(2026, 8, 7, 15, 22, 0, 0, time.UTC),
+	})
+	if err != nil {
+		t.Fatalf("marshal: %v", err)
+	}
+	const want = `{"lines":[{"sku":"MUG-1","name":"Mug","label":"Blue","unit_cents":450,"quantity":2}],` +
+		`"subtotal_cents":900,"shipping_cents":60,"discount_cents":30,"discount_reason":"spring",` +
+		`"credit_cents":100,"shipping_name":"A Buyer","delivery_to":"7-11 Taipei","phone":"0912345678",` +
+		`"delivery_note":"leave at door","hold_until":"2026-08-10T12:00:00Z","start_by":"2026-08-07T15:22:00Z"}`
+	if string(got) != want {
+		t.Errorf("a snapshot is stored as\n%s\nwant\n%s", got, want)
 	}
 }

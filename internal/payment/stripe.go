@@ -31,7 +31,7 @@ type Gateway struct {
 const maxStripeIDCharacters = 255
 
 // Payment-mode Checkout Sessions accept at most 100 line_items;
-// goen's shipping-and-tax line is one of them.
+// goen's delivery line is one of them.
 const maxCheckoutLineItems = 100
 
 var errInvalidStripeResponse = errors.New("payment: Stripe returned an invalid response")
@@ -144,7 +144,7 @@ func (g *Gateway) StartSession(ctx context.Context, o *Order, attempt int32) (st
 	// Stripe's page must total what capture_payment will record, and
 	// payments_capture_matches_order demands exactly order_amount_after_credit — which is
 	// o.TotalCents, the total less the store credit spent on it. The difference
-	// from the lines runs BOTH ways: shipping and tax add, while a coupon and
+	// from the lines runs BOTH ways: shipping adds, while a coupon and
 	// store credit take away.
 	//
 	// Reductions and orders exceeding Stripe's line-item limit use one line
@@ -158,7 +158,7 @@ func (g *Gateway) StartSession(ctx context.Context, o *Order, attempt int32) (st
 		items = append(items, lineItem(displayName(l), l.UnitCents, int64(l.Quantity)))
 	}
 	if rest := o.TotalCents - lineTotal; rest > 0 {
-		items = append(items, lineItem(i18n.T(ctx, i18n.KeyShippingAndTax), rest, 1))
+		items = append(items, lineItem(i18n.T(ctx, i18n.KeyShippingFee), rest, 1))
 	}
 	if o.TotalCents < lineTotal || len(items) > maxCheckoutLineItems {
 		// One line naming the order, priced at what is actually owed. The

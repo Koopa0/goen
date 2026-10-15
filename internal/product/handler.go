@@ -63,7 +63,7 @@ func (h *Handler) Detail(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		h.log.ErrorContext(r.Context(), "load product", "error", err, "slug", slug)
-		web.Render(w, r, h.log, http.StatusInternalServerError, pages.Notice(
+		web.Render(w, r, h.log, http.StatusInternalServerError, layouts.Notice(
 			layouts.Page{Title: i18n.T(r.Context(), i18n.KeyCannotLoad)}, "",
 			i18n.T(r.Context(), i18n.KeyCannotLoad),
 			i18n.T(r.Context(), i18n.KeyCannotLoadProduct)))
@@ -88,7 +88,7 @@ func (h *Handler) Detail(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *Handler) notFound(w http.ResponseWriter, r *http.Request) {
-	web.Render(w, r, h.log, http.StatusNotFound, pages.Notice(
+	web.Render(w, r, h.log, http.StatusNotFound, layouts.Notice(
 		layouts.Page{Title: i18n.T(r.Context(), i18n.KeyProductNotFound)}, "404",
 		i18n.T(r.Context(), i18n.KeyProductNotFound),
 		i18n.T(r.Context(), i18n.KeyProductNotFoundBody)))
@@ -126,7 +126,7 @@ func (h *Handler) Review(w http.ResponseWriter, r *http.Request) {
 		h.rejectReview(w, r, slug, &draft, errs)
 	default:
 		h.log.ErrorContext(r.Context(), "add review", "error", err, "slug", slug)
-		web.Render(w, r, h.log, http.StatusInternalServerError, pages.Notice(
+		web.Render(w, r, h.log, http.StatusInternalServerError, layouts.Notice(
 			layouts.Page{Title: i18n.T(r.Context(), i18n.KeyTryAgainTitle)}, "",
 			i18n.T(r.Context(), i18n.KeyTryAgainTitle),
 			i18n.T(r.Context(), i18n.KeyLoggedTryAgain)))
@@ -179,7 +179,7 @@ func (h *Handler) Notify(w http.ResponseWriter, r *http.Request) {
 		h.rejectNotify(w, r, slug, addr, outcome)
 	default:
 		h.log.ErrorContext(r.Context(), "restock notice", "error", err, "slug", slug)
-		web.Render(w, r, h.log, http.StatusInternalServerError, pages.Notice(
+		web.Render(w, r, h.log, http.StatusInternalServerError, layouts.Notice(
 			layouts.Page{Title: i18n.T(r.Context(), i18n.KeyTryAgainTitle)}, "",
 			i18n.T(r.Context(), i18n.KeyTryAgainTitle),
 			i18n.T(r.Context(), i18n.KeyTryAgainBody)))
@@ -203,7 +203,7 @@ func (h *Handler) rejectNotify(w http.ResponseWriter, r *http.Request, slug, add
 			return
 		}
 		h.log.ErrorContext(r.Context(), "reload product", "error", err, "slug", slug)
-		web.Render(w, r, h.log, http.StatusInternalServerError, pages.Notice(
+		web.Render(w, r, h.log, http.StatusInternalServerError, layouts.Notice(
 			layouts.Page{Title: i18n.T(r.Context(), i18n.KeyTryAgainTitle)}, "",
 			i18n.T(r.Context(), i18n.KeyTryAgainTitle),
 			i18n.T(r.Context(), i18n.KeyTryAgainBody)))
@@ -220,7 +220,7 @@ func (h *Handler) rejectReview(w http.ResponseWriter, r *http.Request, slug stri
 	view, err := h.store.Load(r.Context(), slug, ParseSelection(r.URL.Query()))
 	if err != nil {
 		h.log.ErrorContext(r.Context(), "reload product", "error", err, "slug", slug)
-		web.Render(w, r, h.log, http.StatusInternalServerError, pages.Notice(
+		web.Render(w, r, h.log, http.StatusInternalServerError, layouts.Notice(
 			layouts.Page{Title: i18n.T(r.Context(), i18n.KeyTryAgainTitle)}, "",
 			i18n.T(r.Context(), i18n.KeyTryAgainTitle),
 			i18n.T(r.Context(), i18n.KeyTryAgainBody)))
@@ -294,7 +294,7 @@ func (h *Handler) Ask(w http.ResponseWriter, r *http.Request) {
 		h.rejectAsk(w, r, slug, body, "bad")
 	default:
 		h.log.ErrorContext(r.Context(), "ask question", "error", err, "slug", slug)
-		web.Render(w, r, h.log, http.StatusInternalServerError, pages.Notice(
+		web.Render(w, r, h.log, http.StatusInternalServerError, layouts.Notice(
 			layouts.Page{Title: i18n.T(r.Context(), i18n.KeyTryAgainTitle)}, "",
 			i18n.T(r.Context(), i18n.KeyTryAgainTitle),
 			i18n.T(r.Context(), i18n.KeyLoggedTryAgain)))
@@ -305,7 +305,7 @@ func (h *Handler) rejectAsk(w http.ResponseWriter, r *http.Request, slug, body, 
 	view, err := h.store.Load(r.Context(), slug, ParseSelection(r.URL.Query()))
 	if err != nil {
 		h.log.ErrorContext(r.Context(), "reload product", "error", err, "slug", slug)
-		web.Render(w, r, h.log, http.StatusInternalServerError, pages.Notice(
+		web.Render(w, r, h.log, http.StatusInternalServerError, layouts.Notice(
 			layouts.Page{Title: i18n.T(r.Context(), i18n.KeyTryAgainTitle)}, "",
 			i18n.T(r.Context(), i18n.KeyTryAgainTitle),
 			i18n.T(r.Context(), i18n.KeyTryAgainBody)))

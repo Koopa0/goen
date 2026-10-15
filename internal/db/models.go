@@ -377,7 +377,6 @@ type Order struct {
 	Currency           string
 	DiscountCents      int64
 	ShippingCents      int64
-	TaxCents           int64
 	ShippingVersionID  uuid.UUID
 	ShippingMethodCode string
 	ShippingMethodName string

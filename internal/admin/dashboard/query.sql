@@ -89,7 +89,6 @@ SELECT o.order_number,
     o.placed_at,
     o.shipping_cents,
     o.discount_cents,
-    o.tax_cents,
     coalesce(pd.recipient_name, '') AS recipient,
     coalesce((SELECT sum(ol.unit_price_cents * ol.quantity) FROM order_lines ol
               WHERE ol.order_id = o.id), 0)::bigint AS subtotal_cents,

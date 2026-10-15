@@ -899,7 +899,7 @@ SELECT u.id, u.email, coalesce(u.full_name, '') AS full_name,
        coalesce((SELECT sum(greatest(
                             coalesce((SELECT sum(ol.unit_price_cents * ol.quantity)
                                       FROM order_lines ol WHERE ol.order_id = o.id), 0)
-                            + o.shipping_cents + o.tax_cents - o.discount_cents
+                            + o.shipping_cents - o.discount_cents
                             - (rf.card_cents + rf.credit_cents), 0))
                  FROM orders o
                  JOIN committed_orders c ON c.id = o.id
@@ -950,7 +950,7 @@ func (q *Queries) AdminCustomer(ctx context.Context, id uuid.UUID) (AdminCustome
 
 const adminCustomerOrders = `-- name: AdminCustomerOrders :many
 SELECT o.id, o.order_number, o.fulfillment_status, o.placed_at,
-       o.shipping_cents, o.discount_cents, o.tax_cents,
+       o.shipping_cents, o.discount_cents,
        order_is_committed(o.id) AS committed,
        order_amount_after_credit(o.id) AS owed_cents,
        coalesce((SELECT sum(ol.unit_price_cents * ol.quantity) FROM order_lines ol
@@ -973,7 +973,6 @@ type AdminCustomerOrdersRow struct {
 	PlacedAt          time.Time
 	ShippingCents     int64
 	DiscountCents     int64
-	TaxCents          int64
 	Committed         bool
 	OwedCents         int64
 	SubtotalCents     int64
@@ -995,7 +994,6 @@ func (q *Queries) AdminCustomerOrders(ctx context.Context, arg AdminCustomerOrde
 			&i.PlacedAt,
 			&i.ShippingCents,
 			&i.DiscountCents,
-			&i.TaxCents,
 			&i.Committed,
 			&i.OwedCents,
 			&i.SubtotalCents,
@@ -1266,7 +1264,7 @@ func (q *Queries) AdminMessages(ctx context.Context, arg AdminMessagesParams) ([
 const adminOrderByNumber = `-- name: AdminOrderByNumber :one
 SELECT
     o.id, o.order_number, o.fulfillment_status, o.placed_at,
-    o.shipping_cents, o.discount_cents, o.tax_cents,
+    o.shipping_cents, o.discount_cents,
     -- A missing translation retains the order's snapshot, not another locale.
     coalesce(CASE WHEN $1::text = 'en' THEN sv.name_en ELSE sv.name END,
              o.shipping_method_name)::text AS shipping_method_name,
@@ -1296,7 +1294,7 @@ SELECT
     -- order_amount_after_credit stays the one definition of that arithmetic.
     (coalesce((SELECT sum(ol.unit_price_cents * ol.quantity) FROM order_lines ol
                WHERE ol.order_id = o.id), 0)
-     - o.discount_cents + o.shipping_cents + o.tax_cents
+     - o.discount_cents + o.shipping_cents
      - order_amount_after_credit(o.id))::bigint AS credit_cents,
     (SELECT sm.destination_kind FROM shipping_method_versions v
      JOIN shipping_methods sm ON sm.id = v.method_id
@@ -1320,7 +1318,6 @@ type AdminOrderByNumberRow struct {
 	PlacedAt             time.Time
 	ShippingCents        int64
 	DiscountCents        int64
-	TaxCents             int64
 	ShippingMethodName   string
 	DiscountReason       string
 	CustomerNote         pgtype.Text
@@ -1358,7 +1355,6 @@ func (q *Queries) AdminOrderByNumber(ctx context.Context, arg AdminOrderByNumber
 		&i.PlacedAt,
 		&i.ShippingCents,
 		&i.DiscountCents,
-		&i.TaxCents,
 		&i.ShippingMethodName,
 		&i.DiscountReason,
 		&i.CustomerNote,
@@ -1543,7 +1539,6 @@ SELECT json_build_object('At', o.placed_at, 'ID', o.id)::text AS page_cursor,
     o.placed_at,
     o.shipping_cents,
     o.discount_cents,
-    o.tax_cents,
     coalesce(pd.recipient_name, '') AS recipient,
     coalesce((SELECT sum(ol.unit_price_cents * ol.quantity) FROM order_lines ol
               WHERE ol.order_id = o.id), 0)::bigint AS subtotal_cents,
@@ -1576,7 +1571,6 @@ type AdminOrdersRow struct {
 	PlacedAt          time.Time
 	ShippingCents     int64
 	DiscountCents     int64
-	TaxCents          int64
 	Recipient         string
 	SubtotalCents     int64
 	Committed         bool
@@ -1609,7 +1603,6 @@ func (q *Queries) AdminOrders(ctx context.Context, arg AdminOrdersParams) ([]Adm
 			&i.PlacedAt,
 			&i.ShippingCents,
 			&i.DiscountCents,
-			&i.TaxCents,
 			&i.Recipient,
 			&i.SubtotalCents,
 			&i.Committed,
@@ -2279,7 +2272,6 @@ SELECT json_build_object('At', o.placed_at, 'ID', o.id)::text AS page_cursor,
     o.placed_at,
     o.shipping_cents,
     o.discount_cents,
-    o.tax_cents,
     coalesce(pd.recipient_name, '') AS recipient,
     coalesce((SELECT sum(ol.unit_price_cents * ol.quantity) FROM order_lines ol
               WHERE ol.order_id = o.id), 0)::bigint AS subtotal_cents,
@@ -2311,7 +2303,6 @@ type AdminSearchOrdersRow struct {
 	PlacedAt          time.Time
 	ShippingCents     int64
 	DiscountCents     int64
-	TaxCents          int64
 	Recipient         string
 	SubtotalCents     int64
 	Committed         bool
@@ -2348,7 +2339,6 @@ func (q *Queries) AdminSearchOrders(ctx context.Context, arg AdminSearchOrdersPa
 			&i.PlacedAt,
 			&i.ShippingCents,
 			&i.DiscountCents,
-			&i.TaxCents,
 			&i.Recipient,
 			&i.SubtotalCents,
 			&i.Committed,
@@ -3295,7 +3285,7 @@ WITH target AS (
            order_is_committed(o.id) AS committed,
            (coalesce((SELECT sum(ol.unit_price_cents * ol.quantity) FROM order_lines ol
                       WHERE ol.order_id = o.id), 0)
-            - o.discount_cents + o.shipping_cents + o.tax_cents)::bigint AS total_cents,
+            - o.discount_cents + o.shipping_cents)::bigint AS total_cents,
            coalesce((SELECT sum(p.captured_amount_cents) FROM payments p
                      WHERE p.order_id = o.id AND p.status = 'succeeded'), 0)::bigint
                AS card_capacity_cents
@@ -6333,11 +6323,11 @@ func (q *Queries) CreateNewsletterIssue(ctx context.Context, arg CreateNewslette
 const createOrder = `-- name: CreateOrder :one
 INSERT INTO orders (
     order_number, user_id, shipping_version_id, shipping_method_code,
-    shipping_method_name, shipping_cents, discount_cents, tax_cents, customer_note,
+    shipping_method_name, shipping_cents, discount_cents, customer_note,
     locale
 ) VALUES (
     next_order_number(), $1, $2, $3,
-    $4, $5, $6, 0, $7,
+    $4, $5, $6, $7,
     $8
 )
 RETURNING id, order_number
@@ -9427,7 +9417,7 @@ CROSS JOIN LATERAL (
                o.placed_at)::timestamptz AS funded_at,
            (coalesce((SELECT sum(ol.unit_price_cents * ol.quantity)
                       FROM order_lines ol WHERE ol.order_id = o.id), 0)
-            - o.discount_cents + o.shipping_cents + o.tax_cents)::bigint AS total_cents
+            - o.discount_cents + o.shipping_cents)::bigint AS total_cents
 ) f
 WHERE o.placed_at >= $1::timestamptz
 ORDER BY f.funded_at DESC, o.id DESC
@@ -9857,7 +9847,7 @@ SELECT o.id, o.fulfillment_status, order_is_committed(o.id) AS committed,
        order_amount_after_credit(o.id) AS owed_cents,
        (coalesce((SELECT sum(ol.unit_price_cents * ol.quantity) FROM order_lines ol
                   WHERE ol.order_id = o.id), 0)
-        - o.discount_cents + o.shipping_cents + o.tax_cents
+        - o.discount_cents + o.shipping_cents
         - order_amount_after_credit(o.id))::bigint AS credit_cents
 FROM orders o WHERE o.order_number = $1 FOR UPDATE OF o
 `
@@ -11909,7 +11899,7 @@ const orderReceiptAmount = `-- name: OrderReceiptAmount :one
 SELECT (
     coalesce((SELECT sum(ol.unit_price_cents * ol.quantity)
               FROM order_lines ol WHERE ol.order_id = o.id), 0)
-    - o.discount_cents + o.shipping_cents + o.tax_cents
+    - o.discount_cents + o.shipping_cents
 )::bigint
 FROM orders o WHERE o.id = $1
 `
@@ -12130,7 +12120,7 @@ func (q *Queries) OrderShipments(ctx context.Context, orderID uuid.UUID) ([]Orde
 
 const orderSummaryByNumber = `-- name: OrderSummaryByNumber :one
 SELECT o.id, o.order_number, o.fulfillment_status,
-       o.shipping_cents, o.discount_cents, o.tax_cents,
+       o.shipping_cents, o.discount_cents,
        -- WHICH discount, joined rather than snapshotted: coupons.code is never
        -- updated and the FK is ON DELETE RESTRICT, so one join always reaches it.
        coalesce((SELECT c.code || ' · ' || c.description
@@ -12148,7 +12138,7 @@ SELECT o.id, o.order_number, o.fulfillment_status,
        -- refuses a page that re-derives it.
        (coalesce((SELECT sum(ol.unit_price_cents * ol.quantity) FROM order_lines ol
                   WHERE ol.order_id = o.id), 0)
-        - o.discount_cents + o.shipping_cents + o.tax_cents
+        - o.discount_cents + o.shipping_cents
         - order_amount_after_credit(o.id))::bigint AS credit_cents,
        coalesce(pd.email, '') AS email,
        coalesce(pd.postal_code, '') AS postal_code,
@@ -12181,7 +12171,6 @@ type OrderSummaryByNumberRow struct {
 	FulfillmentStatus  string
 	ShippingCents      int64
 	DiscountCents      int64
-	TaxCents           int64
 	DiscountReason     string
 	ShippingMethodName string
 	PlacedAt           time.Time
@@ -12208,7 +12197,6 @@ func (q *Queries) OrderSummaryByNumber(ctx context.Context, arg OrderSummaryByNu
 		&i.FulfillmentStatus,
 		&i.ShippingCents,
 		&i.DiscountCents,
-		&i.TaxCents,
 		&i.DiscountReason,
 		&i.ShippingMethodName,
 		&i.PlacedAt,
@@ -12438,7 +12426,7 @@ LEFT JOIN (
     SELECT shop_day(o.placed_at) AS day,
            (coalesce((SELECT sum(ol.unit_price_cents * ol.quantity)
                       FROM order_lines ol WHERE ol.order_id = o.id), 0)
-            - o.discount_cents + o.shipping_cents + o.tax_cents)::bigint AS total
+            - o.discount_cents + o.shipping_cents)::bigint AS total
     FROM orders o
     JOIN sold_orders s ON s.id = o.id
     WHERE o.placed_at >= $3::timestamptz AND o.placed_at < $4::timestamptz
@@ -13811,7 +13799,6 @@ SELECT o.order_number,
     o.placed_at,
     o.shipping_cents,
     o.discount_cents,
-    o.tax_cents,
     coalesce(pd.recipient_name, '') AS recipient,
     coalesce((SELECT sum(ol.unit_price_cents * ol.quantity) FROM order_lines ol
               WHERE ol.order_id = o.id), 0)::bigint AS subtotal_cents,
@@ -13843,7 +13830,6 @@ type RecentOrdersRow struct {
 	PlacedAt          time.Time
 	ShippingCents     int64
 	DiscountCents     int64
-	TaxCents          int64
 	Recipient         string
 	SubtotalCents     int64
 	Committed         bool
@@ -13872,7 +13858,6 @@ func (q *Queries) RecentOrders(ctx context.Context, rowLimit int32) ([]RecentOrd
 			&i.PlacedAt,
 			&i.ShippingCents,
 			&i.DiscountCents,
-			&i.TaxCents,
 			&i.Recipient,
 			&i.SubtotalCents,
 			&i.Committed,
@@ -16088,7 +16073,7 @@ SELECT
 FROM (
     SELECT (coalesce((SELECT sum(ol.unit_price_cents * ol.quantity)
                       FROM order_lines ol WHERE ol.order_id = o.id), 0)
-            - o.discount_cents + o.shipping_cents + o.tax_cents)::bigint AS total
+            - o.discount_cents + o.shipping_cents)::bigint AS total
     FROM orders o
     JOIN sold_orders s ON s.id = o.id
     WHERE o.placed_at >= $1::timestamptz AND o.placed_at < $2::timestamptz
@@ -18365,7 +18350,7 @@ CROSS JOIN LATERAL (
                o.placed_at)::timestamptz AS funded_at,
            ((coalesce((SELECT sum(ol.unit_price_cents * ol.quantity)
                        FROM order_lines ol WHERE ol.order_id = o.id), 0)
-             - o.discount_cents + o.shipping_cents + o.tax_cents) / 100 * 100)::bigint
+             - o.discount_cents + o.shipping_cents) / 100 * 100)::bigint
                AS amount_cents
 ) f
 WHERE (order_is_committed(o.id)
@@ -19031,7 +19016,6 @@ SELECT
     o.placed_at,
     o.shipping_cents,
     o.discount_cents,
-    o.tax_cents,
     coalesce((SELECT sum(ol.unit_price_cents * ol.quantity) FROM order_lines ol
               WHERE ol.order_id = o.id), 0)::bigint AS subtotal_cents,
     (SELECT count(*) FROM order_lines ol WHERE ol.order_id = o.id)::bigint AS line_count,
@@ -19076,7 +19060,6 @@ type UserOrdersRow struct {
 	PlacedAt          time.Time
 	ShippingCents     int64
 	DiscountCents     int64
-	TaxCents          int64
 	SubtotalCents     int64
 	LineCount         int64
 	Committed         bool
@@ -19107,7 +19090,6 @@ func (q *Queries) UserOrders(ctx context.Context, arg UserOrdersParams) ([]UserO
 			&i.PlacedAt,
 			&i.ShippingCents,
 			&i.DiscountCents,
-			&i.TaxCents,
 			&i.SubtotalCents,
 			&i.LineCount,
 			&i.Committed,

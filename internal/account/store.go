@@ -349,7 +349,7 @@ func (s *Store) Overview(ctx context.Context, u user.User, after ...string) (pag
 			Number:     o.OrderNumber,
 			Status:     order.FulfillmentStatus(o.FulfillmentStatus),
 			PlacedAt:   shoptime.DateOf(o.PlacedAt, now),
-			TotalCents: o.SubtotalCents - o.DiscountCents + o.ShippingCents + o.TaxCents,
+			TotalCents: o.SubtotalCents - o.DiscountCents + o.ShippingCents,
 			LineCount:  o.LineCount,
 			Committed:  o.Committed,
 			OwedCents:  o.OwedCents,

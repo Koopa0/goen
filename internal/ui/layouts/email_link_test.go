@@ -1,4 +1,4 @@
-package pages_test
+package layouts_test
 
 import (
 	"strings"
@@ -8,28 +8,28 @@ import (
 	"golang.org/x/net/html"
 
 	"github.com/koopa0/goen/internal/i18n"
-	"github.com/koopa0/goen/internal/ui/pages"
-	"github.com/koopa0/goen/internal/ui/pages/pagestest"
+	"github.com/koopa0/goen/internal/ui/layouts"
+	"github.com/koopa0/goen/internal/ui/uitest"
 )
 
 func TestEmailLinkPageRenderContract(t *testing.T) {
 	for _, tt := range []struct {
 		name, destination, en, zh string
-		recovery                  pages.EmailLinkRecovery
+		recovery                  layouts.EmailLinkRecovery
 		token                     string
 		envelopes                 int
 	}{
-		{name: "subscribe", recovery: pages.EmailLinkSubscribe, destination: "/newsletter", en: "Subscribe", zh: "訂閱"},
-		{name: "contact", recovery: pages.EmailLinkContact, destination: "mailto:contact@koopa0.dev", en: "contact@koopa0.dev", zh: "contact@koopa0.dev"},
-		{name: "verify", recovery: pages.EmailLinkVerify, destination: "/account#email-heading", en: "Email address", zh: "電子郵件"},
-		{name: "reset", recovery: pages.EmailLinkReset, destination: "/forgot", en: "Ask for a new link", zh: "重新申請"},
-		{name: "live", recovery: pages.EmailLinkNoRecovery, destination: "/newsletter/confirm", en: "Confirm", zh: "Confirm", token: "live-token", envelopes: 1},
-		{name: "notice", recovery: pages.EmailLinkNoRecovery, envelopes: 1},
+		{name: "subscribe", recovery: layouts.EmailLinkSubscribe, destination: "/newsletter", en: "Subscribe", zh: "訂閱"},
+		{name: "contact", recovery: layouts.EmailLinkContact, destination: "mailto:contact@koopa0.dev", en: "contact@koopa0.dev", zh: "contact@koopa0.dev"},
+		{name: "verify", recovery: layouts.EmailLinkVerify, destination: "/account#email-heading", en: "Email address", zh: "電子郵件"},
+		{name: "reset", recovery: layouts.EmailLinkReset, destination: "/forgot", en: "Ask for a new link", zh: "重新申請"},
+		{name: "live", recovery: layouts.EmailLinkNoRecovery, destination: "/newsletter/confirm", en: "Confirm", zh: "Confirm", token: "live-token", envelopes: 1},
+		{name: "notice", recovery: layouts.EmailLinkNoRecovery, envelopes: 1},
 	} {
 		for _, locale := range i18n.Locales() {
 			t.Run(tt.name+"/"+locale.Tag(), func(t *testing.T) {
 				ctx := i18n.WithLocale(t.Context(), locale)
-				view := pages.EmailLinkView{
+				view := layouts.EmailLinkView{
 					Heading: "Email link", Body: "Open the next step.", Recovery: tt.recovery,
 					Action: "/newsletter/confirm", Submit: "Confirm", Token: "live-token",
 				}
@@ -37,11 +37,11 @@ func TestEmailLinkPageRenderContract(t *testing.T) {
 					view.Token = ""
 				}
 				var rendered strings.Builder
-				if err := pages.EmailLinkPage(pages.EmailLinkMeta(view.Heading), view).Render(ctx, &rendered); err != nil {
+				if err := layouts.EmailLinkPage(layouts.EmailLinkMeta(view.Heading), view).Render(ctx, &rendered); err != nil {
 					t.Fatal(err)
 				}
 				body := rendered.String()
-				pagestest.AssertEmailLink(t, body, "Email link", "Open the next step.", tt.destination)
+				uitest.AssertEmailLink(t, body, "Email link", "Open the next step.", tt.destination)
 				doc, err := html.Parse(strings.NewReader(body))
 				if err != nil {
 					t.Fatal(err)

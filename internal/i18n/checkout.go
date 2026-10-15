@@ -241,70 +241,70 @@ var (
 		En:     "Your items, delivery, discount, or store credit changed. Check the new details and submit again.",
 	})
 
-	KeyNameRequired = key("valid.name.required", Message{ZhHant: "請填寫收件人姓名", En: "Enter the recipient's name"})
+	KeyNameRequired = key("valid.name.required", Message{ZhHant: "請填寫收件人姓名。", En: "Enter the recipient's name."})
 
-	KeyNameTooLong = key("valid.name.toolong", Message{ZhHant: "姓名過長", En: "That name is too long"})
+	KeyNameTooLong = key("valid.name.toolong", Message{ZhHant: "姓名過長。", En: "That name is too long."})
 
-	KeyPhoneRequired = key("valid.phone.required", Message{ZhHant: "請填寫聯絡電話", En: "Enter a phone number"})
+	KeyPhoneRequired = key("valid.phone.required", Message{ZhHant: "請填寫聯絡電話。", En: "Enter a phone number."})
 
 	KeyPhoneMalformed = key("valid.phone.malformed", Message{
-		ZhHant: "電話格式不正確",
-		En:     "That does not look like a phone number",
+		ZhHant: "電話格式不正確。",
+		En:     "That does not look like a phone number.",
 	})
 
-	KeyNoteTooLong = key("valid.note.toolong", Message{ZhHant: "備註過長", En: "That note is too long"})
+	KeyNoteTooLong = key("valid.note.toolong", Message{ZhHant: "備註過長。", En: "That note is too long."})
 
 	KeyPostalCodeMalformed = key("valid.postal.malformed", Message{
-		ZhHant: "郵遞區號需為 3 到 6 位數字",
-		En:     "A postcode is 3 to 6 digits",
+		ZhHant: "郵遞區號需為 3 到 6 位數字。",
+		En:     "A postcode is 3 to 6 digits.",
 	})
 
 	KeyPostalCodeRequired = key("valid.postal.required", Message{
-		ZhHant: "請填寫郵遞區號",
-		En:     "Enter a postcode",
+		ZhHant: "請填寫郵遞區號。",
+		En:     "Enter a postcode.",
 	})
 
-	KeyCityRequired = key("valid.city.required", Message{ZhHant: "請填寫縣市", En: "Enter a city or county"})
+	KeyCityRequired = key("valid.city.required", Message{ZhHant: "請填寫縣市。", En: "Enter a city or county."})
 
-	KeyDistrictRequired = key("valid.district.required", Message{ZhHant: "請填寫鄉鎮市區", En: "Enter a district"})
+	KeyDistrictRequired = key("valid.district.required", Message{ZhHant: "請填寫鄉鎮市區。", En: "Enter a district."})
 
-	KeyStreetRequired = key("valid.street.required", Message{ZhHant: "請填寫地址", En: "Enter the street address"})
+	KeyStreetRequired = key("valid.street.required", Message{ZhHant: "請填寫地址。", En: "Enter the street address."})
 
-	KeyStreetTooLong = key("valid.street.toolong", Message{ZhHant: "地址過長", En: "That address is too long"})
+	KeyStreetTooLong = key("valid.street.toolong", Message{ZhHant: "地址過長。", En: "That address is too long."})
 
 	KeyPickupChainRequired = key("valid.pickup.chain", Message{
-		ZhHant: "請選擇超商",
-		En:     "Choose a convenience store chain",
+		ZhHant: "請選擇超商。",
+		En:     "Choose a convenience store chain.",
 	})
 
 	KeyStoreCodeMalformed = key("valid.pickup.code", Message{
-		ZhHant: "店號需為 1 到 10 碼數字或英文字母",
-		En:     "A store number is 1 to 10 digits or letters",
+		ZhHant: "店號需為 1 到 10 碼數字或英文字母。",
+		En:     "A store number is 1 to 10 digits or letters.",
 	})
 
 	KeyStoreNameTooLong = key("valid.pickup.name.toolong", Message{
-		ZhHant: "門市名稱過長",
-		En:     "That store name is too long",
+		ZhHant: "門市名稱過長。",
+		En:     "That store name is too long.",
 	})
 
 	KeyFieldHasControlChars = key("valid.controlchars", Message{
-		ZhHant: "含有不允許的字元",
-		En:     "Contains characters that are not allowed",
+		ZhHant: "含有不允許的字元。",
+		En:     "Contains characters that are not allowed.",
 	})
 
 	KeyCheckoutEmailRequired = key("valid.email.required", Message{
-		ZhHant: "請填寫電子郵件",
-		En:     "Enter an email address",
+		ZhHant: "請填寫電子郵件。",
+		En:     "Enter an email address.",
 	})
 
 	KeyCheckoutEmailTooLong = key("valid.email.toolong", Message{
-		ZhHant: "電子郵件過長",
-		En:     "That email address is too long",
+		ZhHant: "電子郵件過長。",
+		En:     "That email address is too long.",
 	})
 
 	KeyCheckoutEmailMalformed = key("valid.email.malformed", Message{
-		ZhHant: "電子郵件格式不正確",
-		En:     "That does not look like an email address",
+		ZhHant: "電子郵件格式不正確。",
+		En:     "That does not look like an email address.",
 	})
 
 	KeyInvoiceDonate = key("invoice.donate", Message{

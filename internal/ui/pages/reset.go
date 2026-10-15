@@ -4,7 +4,10 @@ import (
 	"context"
 	"fmt"
 
+	"github.com/a-h/templ"
+
 	"github.com/koopa0/goen/internal/i18n"
+	"github.com/koopa0/goen/internal/ui/layouts"
 )
 
 type ForgotView struct {
@@ -22,20 +25,38 @@ func (v ForgotView) SentMessage(ctx context.Context) string {
 }
 
 type ResetView struct {
-	Token   string
-	Error   string
-	Expired bool
+	Token      string
+	Error      string
+	ErrorField string
+	Expired    bool
 }
 
 func (v ResetView) Usable() bool { return !v.Expired && v.Token != "" }
 
 func (v ResetView) HasError() bool { return v.Error != "" }
 
-func (v ResetView) RecoveryView(ctx context.Context) EmailLinkView {
-	view := EmailLinkView{
+func (v ResetView) Invalid(field string) bool {
+	if !v.HasError() {
+		return false
+	}
+	if v.ErrorField == "" {
+		return field == "password"
+	}
+	return v.ErrorField == field
+}
+
+func (v ResetView) PasswordAttrs(attrs templ.Attributes) templ.Attributes {
+	if !v.Invalid("password") {
+		attrs["aria-describedby"] = "password-hint"
+	}
+	return attrs
+}
+
+func (v ResetView) RecoveryView(ctx context.Context) layouts.EmailLinkView {
+	view := layouts.EmailLinkView{
 		Heading:  i18n.T(ctx, i18n.KeyResetTitle),
 		Body:     i18n.T(ctx, i18n.KeyEmailLinkIncomplete),
-		Recovery: EmailLinkReset,
+		Recovery: layouts.EmailLinkReset,
 	}
 	if v.Expired {
 		view.Heading = i18n.T(ctx, i18n.KeyEmailLinkDeadTitle)

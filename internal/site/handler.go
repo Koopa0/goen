@@ -38,7 +38,7 @@ func (h *Handler) About(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *Handler) NotFound(w http.ResponseWriter, r *http.Request) {
-	web.Render(w, r, h.log, http.StatusNotFound, pages.Notice(
+	web.Render(w, r, h.log, http.StatusNotFound, layouts.Notice(
 		layouts.Page{Title: i18n.T(r.Context(), i18n.KeyPageNotFoundTitle)},
 		"404",
 		i18n.T(r.Context(), i18n.KeyPageNotFound),
@@ -47,7 +47,7 @@ func (h *Handler) NotFound(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *Handler) BadRequest(w http.ResponseWriter, r *http.Request) {
-	web.Render(w, r, h.log, http.StatusBadRequest, pages.Notice(
+	web.Render(w, r, h.log, http.StatusBadRequest, layouts.Notice(
 		layouts.Page{Title: i18n.T(r.Context(), i18n.KeyAddressUnreadable)}, "400",
 		i18n.T(r.Context(), i18n.KeyAddressUnreadable),
 		i18n.T(r.Context(), i18n.KeyAddressRecovery)))

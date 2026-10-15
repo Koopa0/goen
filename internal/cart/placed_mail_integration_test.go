@@ -97,7 +97,7 @@ func TestCheckoutQueuesTheCompletePlacedConfirmation(t *testing.T) {
 					if err := pool.QueryRow(ctx, `SELECT o.placed_at, min(ir.expires_at) FROM orders o JOIN inventory_reservations ir ON ir.order_id=o.id WHERE o.order_number=$1 GROUP BY o.placed_at`, number).Scan(&placed, &heldUntil); err != nil {
 						t.Fatalf("read actual reservation: %v", err)
 					}
-					want := email.PlacedSnapshot{Lines: []email.PlacedLine{{SKU: sku, Name: name, UnitCents: 100000, Quantity: 2}}, SubtotalCents: 200000, ShippingCents: funding.shipping, DiscountCents: funding.discount, DiscountReason: couponCode + " · 測試折扣", TaxCents: 0, CreditCents: funding.credit, ShippingName: shippingName, DeliveryTo: deliveryTo, Phone: "0912345678", DeliveryNote: "Recorded delivery note", HoldUntil: heldUntil, StartBy: heldUntil.Add(-31 * time.Minute)}
+					want := email.PlacedSnapshot{Lines: []email.PlacedLine{{SKU: sku, Name: name, UnitCents: 100000, Quantity: 2}}, SubtotalCents: 200000, ShippingCents: funding.shipping, DiscountCents: funding.discount, DiscountReason: couponCode + " · 測試折扣", CreditCents: funding.credit, ShippingName: shippingName, DeliveryTo: deliveryTo, Phone: "0912345678", DeliveryNote: "Recorded delivery note", HoldUntil: heldUntil, StartBy: heldUntil.Add(-31 * time.Minute)}
 					got := *payload.Snapshot
 					if !got.HoldUntil.Equal(want.HoldUntil) || !got.StartBy.Equal(want.StartBy) {
 						t.Errorf("queued deadlines = %s/%s, want actual hold %s and existing start %s", got.HoldUntil, got.StartBy, want.HoldUntil, want.StartBy)
@@ -262,7 +262,7 @@ func placedOrderPayload(t *testing.T, number string) (payload email.OrderPlaced,
 	if err := pool.QueryRow(t.Context(), `
 		SELECT (SELECT coalesce(sum(ol.unit_price_cents * ol.quantity), 0)
 		          FROM order_lines ol WHERE ol.order_id = o.id)
-		       - o.discount_cents + o.shipping_cents + o.tax_cents,
+		       - o.discount_cents + o.shipping_cents,
 		       order_amount_after_credit(o.id)
 		FROM orders o WHERE o.order_number = $1`, number).Scan(&total, &owed); err != nil {
 		t.Fatalf("read order totals for %s: %v", number, err)

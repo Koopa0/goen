@@ -39,7 +39,6 @@ import (
 var viewPackageImporters = []string{
 	"cmd/goen",
 	"internal/account",
-	"internal/admin/access",
 	"internal/admin/audit",
 	"internal/admin/campaigns",
 	"internal/admin/content",
@@ -192,7 +191,7 @@ var storeMethodsNamingViews = map[string]int{
 
 var viewValueReads = map[string]int{
 	"cmd/goen/server.go":                   2,
-	"internal/account/handler.go":          4,
+	"internal/account/handler.go":          2,
 	"internal/admin/campaigns/campaign.go": 1,
 	"internal/admin/dashboard/handler.go":  1,
 	"internal/admin/feedback/handler.go":   4,
@@ -208,7 +207,6 @@ var viewValueReads = map[string]int{
 	"internal/catalog/store.go":            2,
 	"internal/home/hero.go":                8,
 	"internal/loyalty/store.go":            3,
-	"internal/newsletter/handler.go":       4,
 	"internal/payment/handler.go":          2,
 	"internal/product/handler.go":          8,
 	"internal/product/review.go":           12,
