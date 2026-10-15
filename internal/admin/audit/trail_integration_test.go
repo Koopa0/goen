@@ -16,7 +16,6 @@ import (
 	"github.com/koopa0/goen/internal/admin/staff"
 	"github.com/koopa0/goen/internal/db"
 	"github.com/koopa0/goen/internal/ui/layouts"
-	"github.com/koopa0/goen/internal/ui/pages/admin"
 )
 
 func TestTheTrailCannotBeRewritten(t *testing.T) {
@@ -80,7 +79,7 @@ func TestASystemAuditRowIsReadAsTheSystem(t *testing.T) {
 	t.Errorf("no audit row carries %s among %d rows", trigger, len(view.Rows))
 }
 
-func customerViewRow(t *testing.T, ctx context.Context, customerID uuid.UUID) (admin.AuditEntry, bool) {
+func customerViewRow(t *testing.T, ctx context.Context, customerID uuid.UUID) (audit.AuditEntry, bool) {
 	t.Helper()
 	view, err := audit.NewStore(pool).Events(ctx)
 	if err != nil {
@@ -91,7 +90,7 @@ func customerViewRow(t *testing.T, ctx context.Context, customerID uuid.UUID) (a
 			return *e, true
 		}
 	}
-	return admin.AuditEntry{}, false
+	return audit.AuditEntry{}, false
 }
 
 // TestACustomerViewNamesTheCustomerUntilTheAccountIsErased: the audit row
@@ -146,14 +145,14 @@ func TestAStaffGrantNamesThePersonUntilTheAccountIsErased(t *testing.T) {
 		t.Fatalf("read the promoted user: %v", err)
 	}
 
-	page := func() (admin.AuditEntry, string) {
+	page := func() (audit.AuditEntry, string) {
 		t.Helper()
 		view, err := audit.NewStore(pool).Events(ctx)
 		if err != nil {
 			t.Fatalf("Events: %v", err)
 		}
 		var html bytes.Buffer
-		if err := admin.Audit(layouts.Page{}, view).Render(ctx, &html); err != nil {
+		if err := audit.Audit(layouts.Page{}, view).Render(ctx, &html); err != nil {
 			t.Fatalf("render the audit page: %v", err)
 		}
 		for i := range view.Rows {
@@ -162,7 +161,7 @@ func TestAStaffGrantNamesThePersonUntilTheAccountIsErased(t *testing.T) {
 			}
 		}
 		t.Fatal("the staff.grant row is not on the trail")
-		return admin.AuditEntry{}, ""
+		return audit.AuditEntry{}, ""
 	}
 
 	row, html := page()

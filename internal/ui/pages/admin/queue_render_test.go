@@ -9,6 +9,7 @@ import (
 
 	"github.com/a-h/templ"
 
+	"github.com/koopa0/goen/internal/admin/audit"
 	"github.com/koopa0/goen/internal/db"
 	"github.com/koopa0/goen/internal/i18n"
 	"github.com/koopa0/goen/internal/keyset"
@@ -61,7 +62,7 @@ func queuePages(b keyset.Bound, ctx func(k i18n.Key) string) map[string]struct {
 		"movements":          {Movements(p, &MovementsView{Bound: b}), ctx(i18n.KeyAdminLedgerEmpty)},
 		"returns":            {Returns(p, ReturnsView{Bound: b}), ctx(i18n.KeyAdminRetEmpty)},
 		"campaigns":          {Campaigns(p, CampaignsView{Bound: b}), ctx(i18n.KeyAdminCampEmpty)},
-		"audit":              {Audit(p, AuditView{Bound: b}), ctx(i18n.KeyAdminAuditEmpty)},
+		"audit":              {audit.Audit(p, audit.AuditView{Bound: b}), ctx(i18n.KeyAdminAuditEmpty)},
 	}
 }
 

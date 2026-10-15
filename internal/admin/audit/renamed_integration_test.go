@@ -16,7 +16,6 @@ import (
 	"github.com/koopa0/goen/internal/admin/staff"
 	"github.com/koopa0/goen/internal/db"
 	"github.com/koopa0/goen/internal/ui/layouts"
-	"github.com/koopa0/goen/internal/ui/pages/admin"
 )
 
 // The audit page names a person by their current address. A display name is
@@ -27,20 +26,20 @@ import (
 // address.
 
 // renderedTrail reads the trail and renders the page the way /admin/audit does.
-func renderedTrail(t *testing.T, ctx context.Context) (view admin.AuditView, html string) {
+func renderedTrail(t *testing.T, ctx context.Context) (view audit.AuditView, html string) {
 	t.Helper()
 	view, err := audit.NewStore(pool).Events(ctx)
 	if err != nil {
 		t.Fatalf("Events: %v", err)
 	}
 	var page bytes.Buffer
-	if err := admin.Audit(layouts.Page{}, view).Render(ctx, &page); err != nil {
+	if err := audit.Audit(layouts.Page{}, view).Render(ctx, &page); err != nil {
 		t.Fatalf("render the audit page: %v", err)
 	}
 	return view, page.String()
 }
 
-func rowWithRequest(t *testing.T, view admin.AuditView, requestID string) admin.AuditEntry {
+func rowWithRequest(t *testing.T, view audit.AuditView, requestID string) audit.AuditEntry {
 	t.Helper()
 	for i := range view.Rows {
 		if view.Rows[i].RequestID == requestID {
@@ -48,7 +47,7 @@ func rowWithRequest(t *testing.T, view admin.AuditView, requestID string) admin.
 		}
 	}
 	t.Fatalf("no audit row carries request %s among %d rows", requestID, len(view.Rows))
-	return admin.AuditEntry{}
+	return audit.AuditEntry{}
 }
 
 // TestARenamedActorIsStillNamedByAddress: staff A changes a product's status,
@@ -107,7 +106,7 @@ func TestARenamedStaffTargetIsStillNamedByAddress(t *testing.T) {
 	colleague := "Colleague " + suffix
 	admintest.RenameUser(t, pool, target, colleague)
 	view, html := renderedTrail(t, ctx)
-	var row admin.AuditEntry
+	var row audit.AuditEntry
 	for i := range view.Rows {
 		if e := &view.Rows[i]; e.Action == string(audit.ActionGrantStaff) && e.CustomerID == target.String() {
 			row = *e
@@ -147,7 +146,7 @@ func TestARenamedCustomerIsStillNamedByAddress(t *testing.T) {
 	colleague := "Colleague " + uuid.NewString()[:8]
 	admintest.RenameUser(t, pool, customerID, colleague)
 	view, html := renderedTrail(t, ctx)
-	var row admin.AuditEntry
+	var row audit.AuditEntry
 	for i := range view.Rows {
 		if e := &view.Rows[i]; e.Action == "customer.view" && e.CustomerID == customerID.String() {
 			row = *e
