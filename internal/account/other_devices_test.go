@@ -9,6 +9,7 @@ import (
 	"github.com/google/go-cmp/cmp"
 	"github.com/google/uuid"
 
+	"github.com/koopa0/goen/internal/bearer"
 	"github.com/koopa0/goen/internal/i18n"
 	"github.com/koopa0/goen/internal/user"
 )
@@ -60,10 +61,7 @@ func TestSigningOutOtherDevicesRequiresCurrentAuthentication(t *testing.T) {
 			}
 			request := httptest.NewRequestWithContext(ctx, http.MethodPost, "/account/sessions/others/end", nil)
 			if tt.cookie {
-				token, err := NewToken()
-				if err != nil {
-					t.Fatal(err)
-				}
+				token := bearer.New()
 				cookies := httptest.NewRecorder()
 				SetSessionCookie(cookies, token, false)
 				request.AddCookie(cookies.Result().Cookies()[0])

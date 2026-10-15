@@ -3,10 +3,13 @@ package media
 import (
 	"context"
 	"errors"
+	"fmt"
 	"io"
 	"log/slog"
 	"mime/multipart"
+	"net"
 	"net/http"
+	"os"
 	"regexp"
 	"strconv"
 	"time"
@@ -142,7 +145,7 @@ func (h *Handler) StoreUpload(w http.ResponseWriter, r *http.Request, field stri
 func (h *Handler) OpenUpload(w http.ResponseWriter, r *http.Request, field string) (*Upload, error) {
 	r.Body = http.MaxBytesReader(w, r.Body, MaxUploadBytes)
 	if err := r.ParseMultipartForm(1 << 20); err != nil { //nolint:gosec // G120: bounded by MaxBytesReader above
-		return nil, ErrTooLarge
+		return nil, uploadReadError(r, err)
 	}
 	// The caller reads the text fields beside the image from this same parse,
 	// and web.ParseForm is not on this path to refuse them.
@@ -156,6 +159,40 @@ func (h *Handler) OpenUpload(w http.ResponseWriter, r *http.Request, field strin
 		return nil, nil
 	}
 	return &Upload{file: file, form: r.MultipartForm, uploads: h.uploads}, nil
+}
+
+// uploadReadError names why a multipart parse failed. Only the size cap
+// (*http.MaxBytesError) is the file's fault; a body the server stopped waiting
+// for, or the client dropped, says nothing about its size, and a body that is
+// not a form says nothing about the file at all. Telling staff "too large" for
+// the other two sends them to shrink a file that was never the problem.
+func uploadReadError(r *http.Request, err error) error {
+	if tooBig, ok := errors.AsType[*http.MaxBytesError](err); ok {
+		return fmt.Errorf("%w (cap %d bytes): %w", ErrTooLarge, tooBig.Limit, err)
+	}
+	if errors.Is(err, context.Canceled) {
+		return fmt.Errorf("%w: %w", ErrUploadAborted, err)
+	}
+	// The server's ReadTimeout surfaces as a net.Error that reports Timeout, and
+	// os.ErrDeadlineExceeded when a deadline is set on the connection directly.
+	// A reset or a closed connection is a net.Error too, and a body that ends
+	// before its Content-Length is io.ErrUnexpectedEOF, which is also what the
+	// multipart reader reports for a form cut off inside a part: all of them
+	// mean the bytes stopped coming, and staff's remedy is the same, to send it
+	// again.
+	if netErr, ok := errors.AsType[net.Error](err); ok {
+		return fmt.Errorf("%w (timeout=%t): %w", ErrUploadIncomplete, netErr.Timeout(), err)
+	}
+	if errors.Is(err, os.ErrDeadlineExceeded) || errors.Is(err, io.ErrUnexpectedEOF) {
+		return fmt.Errorf("%w: %w", ErrUploadIncomplete, err)
+	}
+	// The server cancels the request's context when a read fails, so a cancelled
+	// context says nothing about why until the error itself has been read: it
+	// only separates a client that left from a form that was never one.
+	if r.Context().Err() != nil {
+		return fmt.Errorf("%w: %w", ErrUploadAborted, err)
+	}
+	return fmt.Errorf("%w: %w", ErrUploadUnreadable, err)
 }
 
 type Upload struct {
@@ -249,6 +286,10 @@ func uploadRefusalNotice(err error) (i18n.Key, bool) {
 		return i18n.KeyAdminNoticeLosslessWebP, true
 	case errors.Is(err, ErrBusy):
 		return i18n.KeyAdminNoticeUploadBusy, true
+	case errors.Is(err, ErrUploadIncomplete):
+		return i18n.KeyAdminNoticeUploadIncomplete, true
+	case errors.Is(err, ErrUploadUnreadable):
+		return i18n.KeyAdminNoticeUploadUnreadable, true
 	default:
 		return "", false
 	}

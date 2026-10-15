@@ -11,8 +11,7 @@ import (
 
 	"github.com/google/uuid"
 
-	"github.com/koopa0/goen/internal/account"
-	"github.com/koopa0/goen/internal/admin/refunds"
+	"github.com/koopa0/goen/internal/bearer"
 	"github.com/koopa0/goen/internal/payment"
 )
 
@@ -32,7 +31,7 @@ func TestUnstorableTextNeverReachesTheDatabase(t *testing.T) {
 			StorePool: pool, Payments: gateway, BaseURL: "http://127.0.0.1",
 		},
 		BackOffice: BackOfficeConfig{
-			AdminPool: pool, Payments: gateway, Refunder: refunds.NewRefunder(""),
+			AdminPool: pool, Payments: gateway, Refunder: gateway,
 		},
 	}, slog.New(slog.DiscardHandler))
 
@@ -42,13 +41,10 @@ func TestUnstorableTextNeverReachesTheDatabase(t *testing.T) {
 		staffEmail).Scan(&staffID); err != nil {
 		t.Fatalf("create the staff account: %v", err)
 	}
-	token, err := account.NewToken()
-	if err != nil {
-		t.Fatalf("mint a session token: %v", err)
-	}
+	token := bearer.New()
 	if _, err = pool.Exec(ctx, `
-		INSERT INTO sessions (token_hash, user_id, expires_at)
-		VALUES ($1, $2, now() + interval '1 hour')`, account.HashToken(token), staffID); err != nil {
+		INSERT INTO sessions (digest, user_id, expires_at)
+		VALUES ($1, $2, now() + interval '1 hour')`, bearer.Digest(token), staffID); err != nil {
 		t.Fatalf("open the staff session: %v", err)
 	}
 

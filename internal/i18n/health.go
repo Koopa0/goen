@@ -65,6 +65,16 @@ var (
 
 	KeyAdminHPInvoiceProviderRejected = key("admin.hp.invoice.providerrejected", Message{ZhHant: "加值中心拒絕這次操作。", En: "The provider rejected this operation."})
 
+	KeyAdminHPInvoiceSentBeforeCancellation = key("admin.hp.invoice.sentbeforecancellation", Message{ZhHant: "訂單取消前，發票已送出給加值中心，請確認是否需要作廢。", En: "The invoice was sent to the provider before the order was cancelled; check whether it must be voided."})
+
+	KeyAdminHPInvoiceWithdrawn = key("admin.hp.invoice.withdrawn", Message{ZhHant: "訂單已取消，發票尚未送出，已撤回。", En: "The order was cancelled before the invoice was sent, so the issue was withdrawn."})
+
+	KeyAdminHPInvoiceResendAuthorized = key("admin.hp.invoice.resendauthorized", Message{ZhHant: "已授權重新送出折讓，等待下一次處理。", En: "A resend of the allowance was authorized and is waiting to be processed."})
+
+	KeyAdminHPInvoiceInvalidRefrozen = key("admin.hp.invoice.invalidrefrozen", Message{ZhHant: "加值中心已將折讓作廢，金額已重新計算，等待重新送出。", En: "The provider invalidated the allowance; its amount was recalculated and it is waiting to be sent again."})
+
+	KeyAdminHPInvoiceProviderInvalid = key("admin.hp.invoice.providerinvalid", Message{ZhHant: "加值中心已將已送出的折讓作廢，這次操作已結束，剩餘金額須另行申請折讓。", En: "The provider invalidated the allowance that was sent; this operation is closed and any amount still owed needs a new allowance."})
+
 	KeyAdminColKind = key("admin.col.kind", Message{ZhHant: "種類", En: "Kind"})
 
 	KeyAdminHPLead = key("admin.hp.lead", Message{

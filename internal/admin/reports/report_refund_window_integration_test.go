@@ -15,6 +15,7 @@ import (
 
 	"github.com/koopa0/goen/internal/admin/admintest"
 	"github.com/koopa0/goen/internal/admin/reports"
+	"github.com/koopa0/goen/internal/admin/stock"
 	"github.com/koopa0/goen/internal/i18n"
 )
 
@@ -70,7 +71,7 @@ func TestRefundOnlyReportWindow(t *testing.T) {
 		t.Fatalf("record older pending refund: %v", err)
 	}
 
-	s := reports.NewStore(p)
+	s := reports.NewStore(p, stock.NewStore(p))
 	h := reports.NewHandler(s, slog.New(slog.DiscardHandler))
 	for _, days := range []int32{7, 30, 90} {
 		view, err := s.ReportAt(ctx, days, time.Now())
@@ -87,7 +88,7 @@ func TestRefundOnlyReportWindow(t *testing.T) {
 		t.Fatalf("settle the older refund request: %v", err)
 	}
 	for _, days := range []int32{7, 30, 90} {
-		view, err := s.ReportAt(ctx, days, time.Now())
+		view, err := s.ReportAt(ctx, days, admintest.DatabaseNow(t, p))
 		if err != nil {
 			t.Fatalf("read refund-only report: %v", err)
 		}
@@ -135,7 +136,7 @@ func TestRefundBeforeShipmentLeavesBothReportFigures(t *testing.T) {
 		t.Fatalf("create buyer: %v", err)
 	}
 	if _, err := p.Exec(ctx,
-		`SELECT post_store_credit($1, $2, '測試發放', NULL, 'report-grant', NULL)`,
+		`SELECT post_store_credit($1, $2, '測試發放', NULL, 'grant:report', NULL)`,
 		buyer, int64(300000)); err != nil {
 		t.Fatalf("grant credit: %v", err)
 	}
@@ -208,11 +209,11 @@ func TestRefundBeforeShipmentLeavesBothReportFigures(t *testing.T) {
 		t.Fatalf("post the credit half: %v", err)
 	}
 
-	s := reports.NewStore(p)
+	s := reports.NewStore(p, stock.NewStore(p))
 	onlyTheOtherOrder := func(state string) {
 		t.Helper()
 		for _, days := range []int32{7, 30, 90} {
-			view, err := s.ReportAt(ctx, days, time.Now())
+			view, err := s.ReportAt(ctx, days, admintest.DatabaseNow(t, p))
 			if err != nil {
 				t.Fatalf("read report: %v", err)
 			}

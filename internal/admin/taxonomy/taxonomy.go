@@ -14,7 +14,6 @@ import (
 	"github.com/koopa0/goen/internal/admin/audit"
 	"github.com/koopa0/goen/internal/db"
 	"github.com/koopa0/goen/internal/i18n"
-	"github.com/koopa0/goen/internal/pgerr"
 	"github.com/koopa0/goen/internal/ui/icons"
 	"github.com/koopa0/goen/internal/ui/pages"
 	"github.com/koopa0/goen/internal/ui/pages/admin"
@@ -124,10 +123,10 @@ func (s *Store) CreateBrand(ctx context.Context, f *Form) (map[string]string, er
 			return q.CreateBrand(ctx, db.CreateBrandParams{Slug: f.Slug, Name: f.Name})
 		})
 	if err != nil {
-		if pgerr.IsConstraint(err, "brands_slug_key") {
+		if db.IsConstraint(err, "brands_slug_key") {
 			return map[string]string{"slug": i18n.T(ctx, i18n.KeyFormSlugTakenBrand)}, nil
 		}
-		return nil, pgerr.WrapRefusal(err, ErrRefused)
+		return nil, db.WrapRefusal(err, ErrRefused)
 	}
 	return nil, nil
 }
@@ -158,19 +157,19 @@ func (s *Store) CreateCategory(ctx context.Context, f *Form) (map[string]string,
 		})
 	if err != nil {
 		switch {
-		case pgerr.IsConstraint(err, "categories_slug_key"):
+		case db.IsConstraint(err, "categories_slug_key"):
 			return map[string]string{"slug": i18n.T(ctx, i18n.KeyFormSlugTakenCategory)}, nil
 		case errors.Is(err, ErrNotFound),
-			pgerr.IsConstraint(err, "categories_parent_id_fkey"),
-			pgerr.IsConstraint(err, "categories_not_own_parent"):
+			db.IsConstraint(err, "categories_parent_id_fkey"),
+			db.IsConstraint(err, "categories_not_own_parent"):
 			return map[string]string{"parent": i18n.T(ctx, i18n.KeyFormParentMissing)}, nil
-		case pgerr.IsConstraint(err, "categories_position_key"):
+		case db.IsConstraint(err, "categories_position_key"):
 			// Not a field: position is computed inside the INSERT and never
 			// typed, so there is nothing on the form to point at. The second
 			// attempt reads a fresh maximum and goes through.
 			return map[string]string{"form": i18n.T(ctx, i18n.KeyFormPositionTaken)}, nil
 		}
-		return nil, pgerr.WrapRefusal(err, ErrRefused)
+		return nil, db.WrapRefusal(err, ErrRefused)
 	}
 	return nil, nil
 }
@@ -216,7 +215,7 @@ func (s *Store) Rename(ctx context.Context, kind, slug, name, nameEn, iconKey, t
 				})
 			}
 			if err != nil {
-				return pgerr.WrapRefusal(err, ErrRefused)
+				return db.WrapRefusal(err, ErrRefused)
 			}
 			if n == 0 {
 				return ErrNotFound
@@ -242,7 +241,7 @@ func (s *Store) Delete(ctx context.Context, kind, slug string) error {
 				n, err = q.DeleteCategory(ctx, slug)
 			}
 			if err != nil {
-				return pgerr.WrapRefusal(err, ErrRefused)
+				return db.WrapRefusal(err, ErrRefused)
 			}
 			if n == 0 {
 				return ErrInUse

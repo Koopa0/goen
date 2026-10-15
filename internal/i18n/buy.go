@@ -13,8 +13,8 @@ var (
 	KeyViewCart = key("buy.view_cart", Message{ZhHant: "查看購物車", En: "View cart"})
 
 	KeyAddRefused = key("buy.add.refused", Message{
-		ZhHant: "這個規格剛剛被買走了，沒有加入購物車。",
-		En:     "That option has just sold out, so nothing was added.",
+		ZhHant: "這個款式剛剛被買走了，沒有加入購物車。",
+		En:     "That variant has just sold out, so nothing was added.",
 	})
 
 	KeyCartLineLimit = key("buy.cart.line_limit", Message{
@@ -25,7 +25,7 @@ var (
 	KeySoldOut = key("buy.soldout", Message{ZhHant: "已售完", En: "Sold out"})
 
 	KeyChooseOptions = key("buy.choose", Message{
-		ZhHant: "請選擇款式",
+		ZhHant: "請選擇選項",
 		En:     "Choose options",
 	})
 

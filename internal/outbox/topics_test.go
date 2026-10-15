@@ -8,6 +8,7 @@ import (
 	"path/filepath"
 	"regexp"
 	"slices"
+	"sort"
 	"strconv"
 	"strings"
 	"testing"
@@ -143,4 +144,125 @@ func readFile(t *testing.T, path string) string {
 		t.Fatalf("read %s: %v", path, err)
 	}
 	return string(b)
+}
+
+// Add only. A topic is never renamed or removed while a row may carry it; add a
+// new topic and keep the old handler for at least outbox.Retain.
+var frozenTopics = []string{
+	"order.placed",
+	"account.password_reset",
+	"order.paid",
+	"order.shipped",
+	"order.terminal",
+	"catalogue.restocked",
+	"newsletter.confirm",
+	"newsletter.welcome",
+	"newsletter.issue",
+	"account.email_verify",
+	"staff.invitation",
+	"staff.enrolment",
+	"account.password_reset_request",
+	"account.registration",
+	"invoice.due",
+	"invoice.void_due",
+}
+
+// A queued row carries its topic name as text, so the names are stored data:
+// renaming one strands every row already written under it.
+func TestTopicNamesAreFrozen(t *testing.T) {
+	t.Parallel()
+
+	declared := topicVars(t)
+	got := make([]string, 0, len(declared))
+	for _, name := range declared {
+		got = append(got, name)
+	}
+	sort.Strings(got)
+	want := slices.Clone(frozenTopics)
+	sort.Strings(want)
+
+	for _, name := range want {
+		if !slices.Contains(got, name) {
+			t.Errorf("topic %q is no longer declared in outbox.go; rows queued under it would be stranded. "+
+				"Add a new topic and keep the old handler instead of renaming or removing", name)
+		}
+	}
+	for _, name := range got {
+		if !slices.Contains(want, name) {
+			t.Errorf("outbox.go declares topic %q that is not in the frozen list; "+
+				"if it is new, add it to frozenTopics (add only)", name)
+		}
+	}
+	if len(slices.Compact(slices.Clone(got))) != len(got) {
+		t.Errorf("two variables declare the same topic name: %v", got)
+	}
+}
+
+var (
+	sqlTopicEquals = regexp.MustCompile(`(?i)\btopic\s*=\s*'([^']+)'`)
+	sqlTopicIn     = regexp.MustCompile(`(?i)\btopic\s+IN\s*\(([^)]*)\)`)
+	sqlQuoted      = regexp.MustCompile(`'([^']+)'`)
+)
+
+// sqlFiles is every migration and every sqlc query file under internal/.
+func sqlFiles(t *testing.T) []string {
+	t.Helper()
+	paths, err := filepath.Glob(filepath.Join("..", "..", "migrations", "*.up.sql"))
+	if err != nil || len(paths) == 0 {
+		t.Fatalf("find migrations: paths=%d, error=%v", len(paths), err)
+	}
+	err = filepath.WalkDir("..", func(path string, d os.DirEntry, err error) error {
+		if err != nil {
+			return err
+		}
+		if !d.IsDir() && d.Name() == "query.sql" {
+			paths = append(paths, path)
+		}
+		return nil
+	})
+	if err != nil {
+		t.Fatalf("walk internal/: %v", err)
+	}
+	return paths
+}
+
+// SQL cannot import a Go constant, so a topic renamed in Go leaves its literal
+// behind and the erase or cleanup that matches it silently matches nothing.
+func TestSQLTopicLiteralsAreRegistered(t *testing.T) {
+	t.Parallel()
+
+	registered := map[string]bool{}
+	for _, name := range topicVars(t) {
+		registered[name] = true
+	}
+
+	type use struct{ path, topic string }
+	var found []use
+	for _, path := range sqlFiles(t) {
+		src := readFile(t, path)
+		for _, m := range sqlTopicEquals.FindAllStringSubmatch(src, -1) {
+			found = append(found, use{path, m[1]})
+		}
+		for _, m := range sqlTopicIn.FindAllStringSubmatch(src, -1) {
+			for _, q := range sqlQuoted.FindAllStringSubmatch(m[1], -1) {
+				found = append(found, use{path, q[1]})
+			}
+		}
+	}
+	for _, name := range sqlProducerTopics(t) {
+		found = append(found, use{"migrations (INSERT INTO outbox_messages)", name})
+	}
+
+	// Today: one producer and six literals in 001 (an IN list holds three), two
+	// in account/query.sql. The floor stops a scan that stopped matching from
+	// passing with nothing to check.
+	const minimum = 9
+	if len(found) < minimum {
+		t.Fatalf("found %d topic literals in SQL, want at least %d: the scan stopped matching", len(found), minimum)
+	}
+	for _, u := range found {
+		if !registered[u.topic] {
+			t.Errorf("%s names topic %q, which outbox.go does not declare", u.path, u.topic)
+		}
+	}
 }

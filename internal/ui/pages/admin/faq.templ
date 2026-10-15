@@ -25,9 +25,9 @@ templ FAQ(p layouts.Page, v *FAQView) {
 				</p>
 			</div>
 		</div>
-		@Announce(v.Notice)
-		@RefusalSummary(summarizeRefusal(i18n.KeyAdminFaqpAdd, v.Errors, refusalField{"category", "faq-category"}, refusalField{"question", "faq-question"}, refusalField{"answer", "faq-answer"}, refusalField{"category_en", "faq-category-en"}, refusalField{"question_en", "faq-question-en"}, refusalField{"answer_en", "faq-answer-en"}))
-		@RefusalSummary(summarizeRefusal(i18n.KeyAdminRefusalFAQ, v.EditErrors, refusalField{"question", "q-" + v.Edit.ID}, refusalField{"answer", "a-" + v.Edit.ID}, refusalField{"question_en", "qe-" + v.Edit.ID}, refusalField{"answer_en", "ae-" + v.Edit.ID}))
+		@layouts.Announce(v.Notice)
+		@layouts.RefusalSummary(layouts.SummarizeRefusal(i18n.KeyAdminFaqpAdd, v.Errors, layouts.RefusalField{Key: "category", ID: "faq-category"}, layouts.RefusalField{Key: "question", ID: "faq-question"}, layouts.RefusalField{Key: "answer", ID: "faq-answer"}, layouts.RefusalField{Key: "category_en", ID: "faq-category-en"}, layouts.RefusalField{Key: "question_en", ID: "faq-question-en"}, layouts.RefusalField{Key: "answer_en", ID: "faq-answer-en"}))
+		@layouts.RefusalSummary(layouts.SummarizeRefusal(i18n.KeyAdminRefusalFAQ, v.EditErrors, layouts.RefusalField{Key: "question", ID: "q-" + v.Edit.ID}, layouts.RefusalField{Key: "answer", ID: "a-" + v.Edit.ID}, layouts.RefusalField{Key: "question_en", ID: "qe-" + v.Edit.ID}, layouts.RefusalField{Key: "answer_en", ID: "ae-" + v.Edit.ID}))
 		if v.Untranslated() > 0 {
 			@components.Notice(components.NoticeProps{Intent: components.IntentWarn}) {
 				{ fmt.Sprintf(i18n.T(ctx, i18n.KeyAdminFaqpNoEnglish), untranslatedText(v)) }
@@ -45,13 +45,10 @@ templ FAQ(p layouts.Page, v *FAQView) {
 						Name:      "category",
 						Value:     v.Draft.Category,
 						Invalid:   v.HasErr("category"),
-						Describes: "faq-category-error",
-						Attrs: templ.Attributes{
-							"maxlength":   "40",
-							"placeholder": i18n.T(ctx, i18n.KeyAdminFaqpCategoryPlaceholder),
-							"required":    true,
-						},
+						Describes: v.categoryDescribedBy(),
+						Attrs:     v.categoryAttrs(),
 					})
+					<p class="goen-admin__hint" id="faq-category-example">{ fmt.Sprintf(i18n.T(ctx, i18n.KeyFieldExample), i18n.T(ctx, i18n.KeyAdminFaqpCategoryExample)) }</p>
 					if v.HasErr("category") {
 						<p class="ui-error-text" id="faq-category-error" role="alert">{ v.Err("category") }</p>
 					}
@@ -217,7 +214,7 @@ templ FAQ(p layouts.Page, v *FAQView) {
 									}
 								</div>
 								<div class="goen-admin__field">
-									@components.Label(components.LabelProps{For: "qe-" + e.ID, Class: "goen-sr-only"}) {
+									@components.Label(components.LabelProps{For: "qe-" + e.ID}) {
 										{ i18n.T(ctx, i18n.KeyAdminFaqpQuestionEn) }
 									}
 									@components.Input(components.FieldProps{
@@ -226,14 +223,14 @@ templ FAQ(p layouts.Page, v *FAQView) {
 										Value:     e.QuestionEn,
 										Invalid:   v.RowErr(stored, "question_en"),
 										Describes: "faq-err-question_en-" + e.ID,
-										Attrs:     templ.Attributes{"maxlength": "200", "placeholder": "English question"},
+										Attrs:     templ.Attributes{"maxlength": "200"},
 									})
 									if v.RowErr(stored,"question_en") {
 										<p class="ui-error-text" id={ "faq-err-question_en-" + e.ID }>{ v.EditErrors["question_en"] }</p>
 									}
 								</div>
 								<div class="goen-admin__field">
-									@components.Label(components.LabelProps{For: "ae-" + e.ID, Class: "goen-sr-only"}) {
+									@components.Label(components.LabelProps{For: "ae-" + e.ID}) {
 										{ i18n.T(ctx, i18n.KeyAdminFaqpAnswerEn) }
 									}
 									@components.Textarea(components.FieldProps{
@@ -241,7 +238,7 @@ templ FAQ(p layouts.Page, v *FAQView) {
 										Name:      "answer_en",
 										Invalid:   v.RowErr(stored, "answer_en"),
 										Describes: "faq-err-answer_en-" + e.ID,
-										Attrs:     templ.Attributes{"maxlength": "2000", "placeholder": "English answer", "rows": "3"},
+										Attrs:     templ.Attributes{"maxlength": "2000", "rows": "3"},
 									}) {
 										{ e.AnswerEn }
 									}

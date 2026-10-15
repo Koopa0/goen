@@ -17,11 +17,11 @@ type AuditEntry struct {
 	At        string
 	RequestID string
 	Changes   []AuditChange
-	// CustomerName is the customer a customer.view row is about, by CustomerID.
-	// It is empty when the account is erased or has neither a name nor an email
-	// to read.
-	CustomerName string
-	CustomerID   string
+	// CustomerEmail is the customer a customer.view row is about, by CustomerID:
+	// their current address, never the display name they may edit. It is empty
+	// when the account is erased.
+	CustomerEmail string
+	CustomerID    string
 	// System is goen acting on a fact, such as the 統一發票 a sale owes; no
 	// person acted, and Label says what was done.
 	System bool
@@ -102,6 +102,13 @@ var actionLabels = map[string]i18n.Key{
 	"customer.view":                       i18n.KeyAuditCustomerView,
 	"newsletter.send":                     i18n.KeyAuditNewsletterSend,
 	"newsletter.compose":                  i18n.KeyAuditNewsletterCompose,
+	"refund.provider_attempt":             i18n.KeyAuditRefundProviderAttempt,
+	"refund.provider_rejected":            i18n.KeyAuditRefundProviderRejected,
+	"refund.provider_pending":             i18n.KeyAuditRefundProviderPending,
+	"refund.provider_requires_action":     i18n.KeyAuditRefundProviderRequiresAction,
+	"refund.provider_succeeded":           i18n.KeyAuditRefundProviderSucceeded,
+	"refund.provider_failed":              i18n.KeyAuditRefundProviderFailed,
+	"refund.provider_cancelled":           i18n.KeyAuditRefundProviderCancelled,
 	"order.ship":                          i18n.KeyAuditOrderShip,
 	"order.advance":                       i18n.KeyAuditOrderAdvance,
 	"return.decide":                       i18n.KeyAuditReturnDecide,

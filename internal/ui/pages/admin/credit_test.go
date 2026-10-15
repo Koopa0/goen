@@ -37,29 +37,39 @@ func TestCreditConfirmationShowsWhatWillBeGranted(t *testing.T) {
 	}
 }
 
-func TestCreditLedgerTranslatesTheReasonsGoenWroteAndKeepsStaffText(t *testing.T) {
+func TestCreditLedgerLabelsEachKindAndKeepsStaffText(t *testing.T) {
 	t.Parallel()
 	for _, tt := range []struct {
 		locale i18n.Locale
+		kind   PostingKind
 		reason string
 		want   string
 	}{
-		{i18n.En, "order cancelled", "Order cancelled, credit returned"},
-		{i18n.En, "訂單折抵", "Applied to an order"},
-		{i18n.En, "退貨退回購物金", "Credit for a return"},
-		{i18n.En, "points", "Points redeemed"},
-		{i18n.ZhHant, "order cancelled", "訂單取消，購物金退回"},
-		{i18n.ZhHant, "points", "點數兌換"},
-		{i18n.En, "goodwill for a late parcel", "goodwill for a late parcel"},
+		{i18n.En, PostingOrderReversal, "", "Order cancelled, credit returned"},
+		{i18n.En, PostingOrderSpend, "", "Applied to an order"},
+		{i18n.En, PostingReturnPayout, "", "Credit for a return"},
+		{i18n.En, PostingPointsRedemption, "", "Points redeemed"},
+		{i18n.ZhHant, PostingOrderSpend, "", "訂單折抵"},
+		{i18n.ZhHant, PostingOrderReversal, "", "訂單取消，購物金退回"},
+		{i18n.ZhHant, PostingReturnPayout, "", "退貨退回購物金"},
+		{i18n.ZhHant, PostingPointsRedemption, "", "點數兌換"},
+		{i18n.En, PostingStaffGrant, "goodwill for a late parcel", "goodwill for a late parcel"},
+		// Staff text that spells a label shows as typed: kind, not the words, decides.
+		{i18n.En, PostingStaffGrant, "points", "points"},
+		{i18n.En, PostingStaffGrant, "order cancelled", "order cancelled"},
+		{i18n.ZhHant, PostingStaffGrant, "訂單折抵", "訂單折抵"},
+		{i18n.ZhHant, PostingStaffGrant, "退貨退回購物金", "退貨退回購物金"},
+		// And a system posting never shows its (absent or misleading) reason.
+		{i18n.En, PostingPointsRedemption, "goodwill", "Points redeemed"},
 	} {
 		ctx := i18n.WithLocale(t.Context(), tt.locale)
 		var body strings.Builder
-		v := CreditView{Rows: []CreditEntry{{Email: "a@example.test", AmountCents: -500, Reason: tt.reason}}}
+		v := CreditView{Rows: []CreditEntry{{Email: "a@example.test", AmountCents: -500, Kind: tt.kind, Reason: tt.reason}}}
 		if err := Credit(layouts.Page{Title: "credit"}, v).Render(ctx, &body); err != nil {
 			t.Fatal(err)
 		}
 		if !strings.Contains(body.String(), ">"+tt.want+"</span>") {
-			t.Errorf("%s %q: ledger does not show %q", tt.locale, tt.reason, tt.want)
+			t.Errorf("%s %s %q: ledger does not show %q", tt.locale, tt.kind, tt.reason, tt.want)
 		}
 	}
 }

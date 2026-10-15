@@ -13,10 +13,11 @@ import (
 
 	"github.com/google/uuid"
 
+	"github.com/koopa0/goen/internal/bearer"
 	"github.com/koopa0/goen/internal/cart"
 	invoicepkg "github.com/koopa0/goen/internal/invoice"
-	"github.com/koopa0/goen/internal/order"
 	"github.com/koopa0/goen/internal/order/access"
+	"github.com/koopa0/goen/internal/order/delivery"
 	"github.com/koopa0/goen/internal/ratelimit"
 )
 
@@ -32,7 +33,7 @@ func TestCheckoutPersistsTheDonationPreference(t *testing.T) {
 				t.Fatal(err)
 			}
 			shippingID := shipVersionFor(t, "home_delivery")
-			addr := &order.Delivery{Email: "buyer@example.com", RecipientName: "Buyer", Phone: "0912345678", PostalCode: "110", City: "台北市", District: "信義區", Street: "松高路 1 號"}
+			addr := &delivery.Details{Email: "buyer@example.com", RecipientName: "Buyer", Phone: "0912345678", PostalCode: "110", City: "台北市", District: "信義區", Street: "松高路 1 號"}
 			// The type is the value the checkout radio group submits.
 			inv := &cart.Invoice{Type: invoicepkg.Preference(tt.kind), MobileBarcode: tt.barcode, DonationCode: tt.donation}
 			shown := checkoutQuote(t, s, cartID, uuid.NullUUID{}, shippingID, addr, "")
@@ -58,10 +59,7 @@ func TestCheckoutDonationChoiceRoundTripWithoutScript(t *testing.T) {
 		t.Run(tt.kind, func(t *testing.T) {
 			ctx := t.Context()
 			s := cart.NewStore(pool)
-			token, err := cart.NewToken()
-			if err != nil {
-				t.Fatal(err)
-			}
+			token := bearer.New()
 			id, err := s.Create(ctx, token, uuid.NullUUID{})
 			if err != nil {
 				t.Fatal(err)

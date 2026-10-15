@@ -7,6 +7,8 @@ import (
 	"testing"
 	"time"
 
+	nethtml "golang.org/x/net/html"
+
 	"github.com/koopa0/goen/internal/i18n"
 	"github.com/koopa0/goen/internal/returns"
 )
@@ -119,5 +121,46 @@ func TestReturnFormUsesTheExistingPendingDeliverySentence(t *testing.T) {
 				}
 			})
 		}
+	}
+}
+
+// The page cannot tell whether the order may still be cancelled (a paid order
+// that has not shipped may not), and a refunded one has nothing left to cancel,
+// so it states the fact the refusal states and does not send the customer to a
+// button the order page may not show.
+func TestNothingReturnableIsStatedAsTheRefusalStatesIt(t *testing.T) {
+	t.Parallel()
+	for _, locale := range []i18n.Locale{i18n.ZhHant, i18n.En} {
+		t.Run(string(locale), func(t *testing.T) {
+			t.Parallel()
+			ctx := i18n.WithLocale(t.Context(), locale)
+			view := ReturnsView{Number: "GO-NONE", Lines: []ReturnsLine{{ID: "line"}}}
+			var rendered strings.Builder
+			if err := Returns(ReturnsMeta(ctx, view.Number), view).Render(ctx, &rendered); err != nil {
+				t.Fatal(err)
+			}
+			doc, err := nethtml.Parse(strings.NewReader(rendered.String()))
+			if err != nil {
+				t.Fatal(err)
+			}
+			var notice *nethtml.Node
+			for n := range doc.Descendants() {
+				if n.Type == nethtml.ElementNode && attrValue(n, "id") == "return-nothing" {
+					notice = n
+				}
+			}
+			if notice == nil {
+				t.Fatal("no notice says that nothing can be returned")
+			}
+			var text strings.Builder
+			for n := range notice.Descendants() {
+				if n.Type == nethtml.TextNode {
+					text.WriteString(n.Data)
+				}
+			}
+			if got, want := strings.TrimSpace(text.String()), i18n.T(ctx, i18n.KeyReturnNothingShort); got != want {
+				t.Errorf("notice = %q, want the refusal's sentence %q", got, want)
+			}
+		})
 	}
 }

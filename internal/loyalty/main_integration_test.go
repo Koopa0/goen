@@ -202,7 +202,7 @@ func TestARedemptionPostsPointsAndCreditTogether(t *testing.T) {
 	var creditRows int
 	if err := pool.QueryRow(ctx,
 		`SELECT count(*), coalesce(sum(amount_cents), 0) FROM store_credit_entries
-		 WHERE account_id = $1 AND reason = 'points'`, accountID).Scan(&creditRows, &credit); err != nil {
+		 WHERE account_id = $1 AND kind = 'points_redemption'`, accountID).Scan(&creditRows, &credit); err != nil {
 		t.Fatalf("read credit: %v", err)
 	}
 	if creditRows != 1 || credit != 5000 {
@@ -228,7 +228,7 @@ func TestAnOversizedRedemptionIsRejectedBeforeItClaimsAnOperation(t *testing.T) 
 			(SELECT count(*) FROM loyalty_redemption_operations WHERE id=$1),
 			(SELECT count(*) FROM loyalty_entries WHERE account_id=$2 AND kind='spend'),
 			(SELECT count(*) FROM store_credit_entries
-			 WHERE account_id=$2 AND reason='points')`, operationID, accountID).
+			 WHERE account_id=$2 AND kind='points_redemption')`, operationID, accountID).
 		Scan(&operations, &spends, &credits); err != nil {
 		t.Fatalf("read rejected redemption effects: %v", err)
 	}
@@ -267,7 +267,7 @@ func TestAnOversizedRedemptionPOSTKeepsItsDraftWithoutDatabaseEffects(t *testing
 			+ (SELECT count(*) FROM loyalty_entries
 			   WHERE account_id=$2 AND kind='spend')
 			+ (SELECT count(*) FROM store_credit_entries
-			   WHERE account_id=$2 AND reason='points')`, operationID, accountID).Scan(&effects); err != nil {
+			   WHERE account_id=$2 AND kind='points_redemption')`, operationID, accountID).Scan(&effects); err != nil {
 		t.Fatalf("read oversized POST effects: %v", err)
 	}
 	if effects != 0 {
@@ -709,12 +709,8 @@ func TestReturnPointSlicesFollowAccountLockedPostingOrderDespiteInvertedTimestam
 
 	deadline := time.Now().Add(5 * time.Second)
 	for {
-		var waiting bool
-		if err := pool.QueryRow(ctx, `
-			SELECT EXISTS (
-				SELECT 1 FROM pg_stat_activity
-				WHERE application_name=$1 AND wait_event_type='Lock'
-			)`, appName).Scan(&waiting); err != nil {
+		_, waiting, err := dbtest.Blocked(ctx, pool, dbtest.Match{Application: appName})
+		if err != nil {
 			t.Fatalf("observe blocked settlement: %v", err)
 		}
 		if waiting {
@@ -1180,9 +1176,9 @@ func TestMoneyPostingDoorsAreRoleNarrowAndDataAuthoritative(t *testing.T) {
 
 	store := roleConn(t, "store")
 	adminRole := roleConn(t, "admin")
-	_, err := store.Exec(ctx, `SELECT post_store_credit($1, 1, 'mint', NULL, 'mint', NULL)`, owner)
+	_, err := store.Exec(ctx, `SELECT post_store_credit($1, 1, 'mint', NULL, 'grant:mint', NULL)`, owner)
 	requirePermissionDenied(t, err)
-	_, err = adminRole.Exec(ctx, `SELECT post_store_credit($1, -1, 'debit', NULL, 'debit', $2)`, owner, actor)
+	_, err = adminRole.Exec(ctx, `SELECT post_store_credit($1, -1, NULL, NULL, 'order:debit', $2)`, owner, actor)
 	requirePermissionDenied(t, err)
 	_, err = store.Exec(ctx, `SELECT grant_store_credit($1, 100, 'mint', $2, $3)`, owner, actor, uuid.New())
 	requirePermissionDenied(t, err)
@@ -1239,7 +1235,7 @@ func TestMoneyPostingDoorsAreRoleNarrowAndDataAuthoritative(t *testing.T) {
 	}
 	attributionOrder := openOrderFor(t, userID, 1000)
 	if _, execErr := pool.Exec(ctx, `
-		SELECT post_store_credit($1, -1, 'collision fixture', NULL,
+		SELECT post_store_credit($1, -1, NULL, NULL,
 		                         'order:'||$2::text, NULL)`, owner, attributionOrder); execErr != nil {
 		t.Fatalf("seed mismatched checkout attribution: %v", execErr)
 	}

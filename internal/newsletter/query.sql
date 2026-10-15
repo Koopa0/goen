@@ -25,6 +25,14 @@ DELETE FROM newsletter_confirmations
 WHERE digest = $1 AND expires_at > now()
 RETURNING email;
 
+-- A request nobody answered. Only newsletter_confirmations is touched: a row in
+-- newsletter_subscribers is a confirmed subscription or an opt-out, and the
+-- opt-out is the record that stops the list emailing somebody again. Keyed on
+-- created_at, which a repeated request moves forward together with expires_at.
+-- name: DeleteStaleNewsletterConfirmations :execrows
+DELETE FROM newsletter_confirmations
+WHERE created_at < now() - sqlc.arg(retain)::interval;
+
 -- Confirming is the only thing that clears a previous opt-out, so a form
 -- submission by somebody else cannot undo it. The unsubscribe secret is KEPT
 -- when an address rejoins, so every link ever mailed to it goes on working.
@@ -80,6 +88,7 @@ SELECT id, subject, body, sent_at FROM newsletter_issues WHERE id = $1;
 -- name: NewsletterCounts :one
 SELECT
     count(*) FILTER (WHERE unsubscribed_at IS NULL)     AS active,
+    count(*) FILTER (WHERE unsubscribed_at IS NULL AND locale = 'en') AS english_active,
     count(*) FILTER (WHERE unsubscribed_at IS NOT NULL) AS unsubscribed,
     (SELECT count(*) FROM newsletter_confirmations WHERE expires_at > now()) AS awaiting
 FROM newsletter_subscribers;

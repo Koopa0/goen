@@ -613,6 +613,7 @@ th {
   font-size: var(--fs-14);
   font-weight: var(--fw-medium);
   line-height: 1;
+  overflow-wrap: anywhere;
 }
 
 .goen-input {
@@ -1731,11 +1732,12 @@ th {
 
 .goen-footer__field > .goen-btn {
   border-radius: var(--r-md);
+  flex-wrap: wrap;
   grid-area: 1 / 2;
   margin: 4px;
   max-width: 100%;
   min-height: 2.75rem;
-  overflow-wrap: anywhere;
+  overflow-wrap: normal;
   z-index: 1;
 }
 
@@ -1749,7 +1751,7 @@ th {
   container-type: inline-size;
 }
 
-@container (max-width: 17rem) {
+@container (max-width: 24rem) {
   .goen-footer__field {
     grid-template-columns: minmax(0, 1fr);
   }
@@ -1763,6 +1765,11 @@ th {
     grid-area: auto;
     justify-self: start;
     margin: 0.25rem 0 0;
+    width: 100%;
+  }
+
+  .goen-footer__field > .goen-btn.goen-btn--ghost {
+    padding-inline: 0.25rem;
   }
 }
 
@@ -1799,6 +1806,12 @@ th {
   color: var(--n-500);
   font-size: var(--fs-14);
   margin: 0;
+}
+
+.goen-footer__signup-example {
+  flex: 0 0 100%;
+  margin: 0;
+  overflow-wrap: anywhere;
 }
 
 .goen-footer__signup-error {
@@ -4975,29 +4988,27 @@ input.goen-check {
 
 .goen-pdp__notifyrow .goen-input {
   flex: 1 1 14ch;
-  min-width: 14ch;
+  min-width: min(14ch, 100%);
 }
 
-/* Wishlist and compare: text buttons. The row is pulled out by the buttons'
-   own padding so the first label lines up with the column's edge. */
 .goen-pdp__links,
 .goen-pdp__similar {
   align-items: center;
   display: flex;
   flex-wrap: wrap;
   gap: 0 0.5rem;
-  margin: -0.75rem 0 0 -0.75rem;
+  margin: -0.75rem 0 0 0px;
 }
 
 /* With the specs, not pulled up into the buy column's rhythm. */
 .goen-pdp__similar {
-  margin: 0.5rem 0 0 -0.75rem;
+  margin: 0.5rem 0 0 0px;
 }
 
 .goen-pdp__links .goen-btn,
 .goen-pdp__similar .goen-btn {
   color: var(--n-700);
-  padding: 0 0.75rem;
+  padding: 0 0px;
 }
 
 .goen-pdp__wish {
@@ -5071,6 +5082,8 @@ input.goen-check {
   font-weight: var(--fw-medium);
   line-height: 1.5;
   margin: 0;
+  min-width: 0;
+  overflow-wrap: anywhere;
 }
 
 .goen-pdp__accpanel {
@@ -5388,11 +5401,13 @@ input.goen-check {
 .goen-pdp__stars {
   border: 0;
   margin: 0;
+  min-width: 0;
   padding: 0;
 }
 
 .goen-pdp__starrow {
-  display: inline-flex;
+  display: flex;
+  flex-wrap: wrap;
 }
 
 .goen-pdp__star {
@@ -5595,6 +5610,7 @@ input.goen-check {
   font-size: var(--fs-ed-30);
   font-weight: var(--fw-display);
   margin: 0;
+  overflow-wrap: anywhere;
 }
 
 .goen-pagehead--search .goen-pagehead__title {
@@ -5613,6 +5629,7 @@ input.goen-check {
   font-size: var(--fs-14);
   font-variant-numeric: tabular-nums;
   margin: 0;
+  overflow-wrap: anywhere;
 }
 
 /* The stock hold in words. While a payment can start it sits on the blue that
@@ -5858,6 +5875,11 @@ input.goen-check {
   display: block;
   overflow: hidden;
   width: 100%;
+}
+
+.goen-pay__lines .goen-line__thumb {
+  flex: 0 0 96px;
+  width: 96px;
 }
 
 .goen-line__img,
@@ -7423,6 +7445,7 @@ input.goen-check {
   font-size: var(--fs-14);
   gap: 0.5rem;
   margin: 0;
+  overflow-wrap: anywhere;
 }
 
 /* Saved addresses are rows parted by space. */

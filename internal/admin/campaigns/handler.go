@@ -9,9 +9,9 @@ import (
 	"unicode/utf8"
 
 	"github.com/koopa0/goen/internal/admin/access"
+	"github.com/koopa0/goen/internal/db"
 	"github.com/koopa0/goen/internal/i18n"
 	"github.com/koopa0/goen/internal/media"
-	"github.com/koopa0/goen/internal/pgerr"
 	"github.com/koopa0/goen/internal/ui/components"
 	"github.com/koopa0/goen/internal/ui/layouts"
 	"github.com/koopa0/goen/internal/ui/pages/admin"
@@ -111,9 +111,9 @@ func (h *Handler) render(w http.ResponseWriter, r *http.Request, status int, not
 	image, tone, err := h.store.Image(r.Context(), slug)
 	if err != nil {
 		if errors.Is(err, ErrNotFound) {
-			web.Render(w, r, h.log, http.StatusNotFound, admin.MissingRecord(
+			web.Render(w, r, h.log, http.StatusNotFound, layouts.MissingRecord(
 				layouts.Page{Title: i18n.T(r.Context(), i18n.KeyAdminMissingCampaign)},
-				admin.MissingRecordView{Section: "campaigns", Heading: i18n.T(r.Context(), i18n.KeyAdminMissingCampaign), Body: i18n.T(r.Context(), i18n.KeyAdminNotFoundBody), BackLabel: i18n.KeyAdminBackCampaigns}))
+				layouts.MissingRecordView{Section: "campaigns", Heading: i18n.T(r.Context(), i18n.KeyAdminMissingCampaign), Body: i18n.T(r.Context(), i18n.KeyAdminNotFoundBody), BackLabel: i18n.KeyAdminBackCampaigns}))
 			return
 		}
 		h.log.ErrorContext(r.Context(), "read campaign image", "error", err)
@@ -258,7 +258,7 @@ func (h *Handler) FeatureProduct(w http.ResponseWriter, r *http.Request) {
 	case err == nil:
 		//nolint:gosec // G710: slug is the route's own path value
 		http.Redirect(w, r, back+"?ok=1", http.StatusSeeOther)
-	case pgerr.IsConstraint(err, "sale_campaign_needs_discount"):
+	case db.IsConstraint(err, "sale_campaign_needs_discount"):
 		h.log.WarnContext(r.Context(), "feature product", "campaign", slug, "error", err)
 		//nolint:gosec // G710: slug is the route's own path value
 		http.Redirect(w, r, back+"?nodiscount=1", http.StatusSeeOther)
@@ -301,6 +301,8 @@ func (h *Handler) respondToUploadError(w http.ResponseWriter, r *http.Request, e
 	switch {
 	case errors.Is(err, web.ErrFormText):
 		http.Error(w, i18n.T(r.Context(), i18n.KeyAdminBadForm), http.StatusBadRequest)
+	case errors.Is(err, media.ErrUploadAborted):
+		// The browser went away mid-upload; there is no one to answer.
 	case media.IsRefusal(err):
 		h.log.WarnContext(r.Context(), "campaign image upload", "error", err, "slug", r.PathValue("slug"))
 		h.render(w, r, http.StatusUnprocessableEntity, components.Result{}, map[string]string{"image": i18n.T(r.Context(), media.UploadNotice(err))})

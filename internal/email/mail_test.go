@@ -42,7 +42,7 @@ func TestEveryMessageIsSentInThePayloadsLanguage(t *testing.T) {
 		"order.placed": func(n Notifier, ctx context.Context, l string) error {
 			return n.SendOrderPlaced(ctx, &OrderPlaced{
 				Locale: l, Email: "a@b.co", Name: "Alex", OrderNumber: "GO-260101-000001",
-				TotalCents: 123400,
+				TotalCents: 123400, OwedCents: 123400,
 			})
 		},
 		"order.paid": func(n Notifier, ctx context.Context, l string) error {
@@ -125,6 +125,7 @@ func TestAnUnknownLocaleFallsBackRatherThanFailing(t *testing.T) {
 		n, sink := notifier(t)
 		if err := n.SendOrderPlaced(t.Context(), &OrderPlaced{
 			Locale: tag, Email: "a@b.co", Name: "王小明", OrderNumber: "GO-260101-000001",
+			TotalCents: 123400, OwedCents: 123400,
 		}); err != nil {
 			t.Fatalf("locale %q: %v", tag, err)
 		}
@@ -185,8 +186,6 @@ func TestARestockNoticeIdentifiesTheQueuedVariant(t *testing.T) {
 	}
 }
 
-func centsPtr(n int64) *int64 { return &n }
-
 // TestAPlacedLetterNamesWhatIsStillOwed: store credit and a coupon change
 // the amount payable, not the order total. The confirmation must quote the
 // former and drop the pay CTA when nothing remains.
@@ -205,7 +204,7 @@ func TestAPlacedLetterNamesWhatIsStillOwed(t *testing.T) {
 		n, sink := notifier(t)
 		if err := n.SendOrderPlaced(t.Context(), &OrderPlaced{
 			Locale: "zh-Hant", Email: "a@b.co", Name: "王小明",
-			OrderNumber: number, TotalCents: total, OwedCents: centsPtr(0),
+			OrderNumber: number, TotalCents: total, OwedCents: 0,
 		}); err != nil {
 			t.Fatalf("send: %v", err)
 		}
@@ -226,7 +225,7 @@ func TestAPlacedLetterNamesWhatIsStillOwed(t *testing.T) {
 		n, sink = notifier(t)
 		if err := n.SendOrderPlaced(t.Context(), &OrderPlaced{
 			Locale: "en", Email: "a@b.co", Name: "Alex",
-			OrderNumber: number, TotalCents: total, OwedCents: centsPtr(0),
+			OrderNumber: number, TotalCents: total, OwedCents: 0,
 		}); err != nil {
 			t.Fatalf("send en: %v", err)
 		}
@@ -248,7 +247,7 @@ func TestAPlacedLetterNamesWhatIsStillOwed(t *testing.T) {
 		n, sink := notifier(t)
 		if err := n.SendOrderPlaced(t.Context(), &OrderPlaced{
 			Locale: "zh-Hant", Email: "a@b.co", Name: "王小明",
-			OrderNumber: number, TotalCents: total, OwedCents: centsPtr(owed),
+			OrderNumber: number, TotalCents: total, OwedCents: owed,
 		}); err != nil {
 			t.Fatalf("send: %v", err)
 		}
@@ -266,7 +265,7 @@ func TestAPlacedLetterNamesWhatIsStillOwed(t *testing.T) {
 		n, sink = notifier(t)
 		if err := n.SendOrderPlaced(t.Context(), &OrderPlaced{
 			Locale: "en", Email: "a@b.co", Name: "Alex",
-			OrderNumber: number, TotalCents: total, OwedCents: centsPtr(owed),
+			OrderNumber: number, TotalCents: total, OwedCents: owed,
 		}); err != nil {
 			t.Fatalf("send en: %v", err)
 		}
@@ -279,24 +278,6 @@ func TestAPlacedLetterNamesWhatIsStillOwed(t *testing.T) {
 		}
 		if !strings.Contains(en, "View it and pay") {
 			t.Errorf("the English letter dropped the pay CTA:\n%s", en)
-		}
-	})
-
-	t.Run("a queued row without owed_cents keeps the total", func(t *testing.T) {
-		t.Parallel()
-
-		n, sink := notifier(t)
-		if err := n.SendOrderPlaced(t.Context(), &OrderPlaced{
-			Locale: "en", Email: "a@b.co", Name: "Alex",
-			OrderNumber: number, TotalCents: total,
-		}); err != nil {
-			t.Fatalf("send: %v", err)
-		}
-		if !strings.Contains(sink.msg.Body, "NT$1,999") {
-			t.Errorf("an already-queued letter did not fall back to the total:\n%s", sink.msg.Body)
-		}
-		if !strings.Contains(sink.msg.Body, "View it and pay") {
-			t.Errorf("an already-queued letter dropped the pay CTA:\n%s", sink.msg.Body)
 		}
 	})
 }
@@ -326,7 +307,7 @@ func TestTheConfirmationCarriesTheStatutoryDisclosure(t *testing.T) {
 
 	placed := &OrderPlaced{
 		Locale: "zh-Hant", OrderNumber: "GO-260806-000001",
-		Email: "who@example.test", Name: "王小明", TotalCents: 199900,
+		Email: "who@example.test", Name: "王小明", TotalCents: 199900, OwedCents: 199900,
 	}
 
 	t.Run("configured", func(t *testing.T) {
@@ -447,7 +428,7 @@ func TestTheDisclosureDividerIsNotGluedToTheLinkAboveIt(t *testing.T) {
 		sink := &captured{}
 		n := New(sink, "https://goen.test", "goen", "contact@goen.test")
 		if err := n.SendOrderPlaced(t.Context(), &OrderPlaced{
-			Locale: locale, Email: "a@b.co", OrderNumber: "GO-260101-000001", TotalCents: 100,
+			Locale: locale, Email: "a@b.co", OrderNumber: "GO-260101-000001", TotalCents: 100, OwedCents: 100,
 		}); err != nil {
 			t.Fatal(err)
 		}
@@ -467,7 +448,7 @@ func TestAPlacedLetterSaysTheItemsAreHeldOnlyWhenPaymentIsDue(t *testing.T) {
 			n, sink := notifier(t)
 			if err := n.SendOrderPlaced(t.Context(), &OrderPlaced{
 				Locale: locale, Email: "a@b.co", Name: "Alex",
-				OrderNumber: "GO-260101-000001", TotalCents: 199900, OwedCents: centsPtr(owed),
+				OrderNumber: "GO-260101-000001", TotalCents: 199900, OwedCents: owed,
 			}); err != nil {
 				t.Fatal(err)
 			}

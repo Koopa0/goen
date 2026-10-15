@@ -19,8 +19,8 @@ import (
 	"github.com/koopa0/goen/internal/ratelimit"
 )
 
-// TestAnOrderLookupIsBoundedPerAddressFromAnyClient: order numbers are counted
-// through the day, so the address is the only secret the lookup asks for, and
+// TestAnOrderLookupIsBoundedPerAddressFromAnyClient: an address is guessable
+// from outside, so it is the weak half of the pair the lookup asks for, and
 // a bound per client alone is lifted by asking from somewhere else. Each ask
 // here comes from a different client, IPv4 and IPv6 alike; the address runs
 // out anyway, the right number is then refused like a wrong one, and another
@@ -90,5 +90,50 @@ func TestAnOrderLookupIsBoundedPerAddressFromAnyClient(t *testing.T) {
 
 	if res := find("GO-000101-000999", "someone-else-"+uuid.NewString()+"@example.com"); res.Code != http.StatusUnprocessableEntity {
 		t.Errorf("another address answered %d, want the uniform 422: the bound is per address", res.Code)
+	}
+}
+
+// TestTheDaysFirstNumberNoLongerFindsAnOrderAndATypedNumberStillDoes holds the
+// point of random order numbers at the door a stranger uses: knowing a
+// customer's address and the day, the counter's first number of the day,
+// GO-<day>-000001, names nothing, while the real number finds the order even
+// typed in lower case with its 0 and 1 read as o and l.
+func TestTheDaysFirstNumberNoLongerFindsAnOrderAndATypedNumberStillDoes(t *testing.T) {
+	ctx := t.Context()
+	s := cart.NewStore(pool)
+	victim := "find-random-" + uuid.NewString() + "@example.com"
+	placed := placeUnpaidOrderFor(t, s, victim)
+	// A draw can hold no 0 or 1 to misread, so the order takes a number that
+	// holds both: the draw's day and 01 with four hex characters.
+	number := placed[:len("GO-YYMMDD-")] + "01" + strings.ToUpper(uuid.NewString()[:4])
+	if _, err := pool.Exec(ctx, `UPDATE orders SET order_number = $1 WHERE order_number = $2`, number, placed); err != nil {
+		t.Fatalf("give the order a number with a 0 and a 1: %v", err)
+	}
+	h := cart.NewHandler(s, access.NewStore(pool, false), slog.New(slog.DiscardHandler), false,
+		ratelimit.New(ratelimit.Config{Every: time.Millisecond, Burst: 1000, TTL: time.Hour, MaxKeys: 1000}),
+		nil, nil)
+	find := func(orderNumber string) *httptest.ResponseRecorder {
+		req := httptest.NewRequestWithContext(ctx, http.MethodPost, "/orders/find",
+			strings.NewReader(url.Values{"number": {orderNumber}, "email": {victim}}.Encode()))
+		req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+		req.RemoteAddr = "192.0.2.1:4000"
+		res := httptest.NewRecorder()
+		h.FindOrder(res, req)
+		return res
+	}
+
+	guess := number[:len("GO-YYMMDD-")] + "000001"
+	if res := find(guess); res.Code != http.StatusUnprocessableEntity {
+		t.Errorf("the day's first counter number %s answered %d, want the uniform 422", guess, res.Code)
+	}
+
+	typed := strings.ToLower(number)
+	typed = typed[:len("go-yymmdd-")] + strings.NewReplacer("0", "o", "1", "l").Replace(typed[len("go-yymmdd-"):])
+	if !strings.Contains(typed, "o") || !strings.Contains(typed, "l") {
+		t.Fatalf("typed %q misreads nothing", typed)
+	}
+	res := find(" " + typed + " ")
+	if res.Code != http.StatusSeeOther || res.Header().Get("Location") != "/orders/"+number {
+		t.Errorf("%q answered %d to %q, want 303 to /orders/%s", typed, res.Code, res.Header().Get("Location"), number)
 	}
 }

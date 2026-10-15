@@ -8,6 +8,11 @@ DEADCODE_VERSION := v0.50.0
 ACTIONLINT_VERSION := v1.7.12
 AXE_CORE_VERSION := 4.13.0
 
+# Every goen database is created from template0 on PostgreSQL's builtin C.UTF-8
+# locale, and migrations/001 refuses any other. docker-compose.yml passes the same
+# locale to initdb, which covers only a fresh volume; these flags cover the rest.
+CREATEDB := createdb -U goen --template=template0 --encoding=UTF8 --locale-provider=builtin --builtin-locale=C.UTF-8
+
 # The digest of axe.min.js at that version, as the npm registry tarball and
 # unpkg both serve it. check-layout downloads the file and verifies this before
 # evaluating it in the page, because the alternative — a <script src> at a CDN —
@@ -26,9 +31,22 @@ ACTIONLINT := go run github.com/rhysd/actionlint/cmd/actionlint@$(ACTIONLINT_VER
 # Local development reads .env when it exists; deployment sets the environment
 # itself. Nothing here invents a default database URL: a missing one must stop
 # the binary rather than silently reach some other database.
+#
+# A value the caller gave wins over .env, in this order: the make command line
+# (make GOEN_DATABASE_URL=...), then the environment, then .env. `include .env`
+# would reverse the last two, so GOEN_DATABASE_URL=<other> make db-reset would
+# act on the database in .env while the command line named another. A name is
+# taken from .env only while it is undefined, so even an empty value the caller
+# set is kept, and stops the targets that require one.
+#
+# Only NAME=VALUE lines are read, one value per name (the last line wins), the
+# value taken as written: `$` is literal, and `#` starts a comment as it does in
+# a Makefile. Each name read is exported to the recipes; nothing else is.
+# TestMakefileDotEnvNeverOverridesTheCaller runs all four cases.
 ifneq (,$(wildcard .env))
-include .env
-export
+dotenv_names := $(sort $(shell sed -n 's/^\([A-Za-z_][A-Za-z0-9_]*\)[[:space:]]*=.*/\1/p' .env))
+dotenv_value = $(subst $$,$$$$,$(shell sed -n 's/^$(1)[[:space:]]*=[[:space:]]*//p' .env | tail -n 1))
+$(foreach name,$(dotenv_names),$(if $(filter undefined,$(origin $(name))),$(eval $(name) := $(call dotenv_value,$(name)))$(eval export $(name))))
 endif
 
 .PHONY: build run test test-race test-integration production-build-check integration-build-check \
@@ -52,7 +70,7 @@ run: gen
 	@$(MAKE) --no-print-directory schema-drift; status=$$?; \
 		case $$status in \
 		0) ;; \
-		1) echo 'run: the development database does not match migrations/; back up anything you need, then run make db-reset' >&2; exit 1;; \
+		1) echo 'run: the development database does not match migrations/; back up anything you need, then run PGOPTIONS="-c goen.catalogue_seed=development" make db-reset' >&2; exit 1;; \
 		*) echo "run: could not compare the development database with migrations/ (schema-drift exited $$status; its message is above). If the database is not running: make db-up" >&2; exit $$status;; \
 		esac
 	GOEN_INSECURE_COOKIES=1 go run ./cmd/goen
@@ -152,9 +170,11 @@ check-layout-run:
 	@psql "$$GOEN_DATABASE_URL" -X -q -v env=$(LAYOUT_DIR)/env -f scripts/check-layout.sql \
 		|| { echo 'scripts/check-layout.sql was refused (psql named the statement above); no page was measured' >&2; exit 2; }
 	@node --env-file=$(LAYOUT_DIR)/env scripts/reflow-check.mjs /@1024@en@text200 /@1024@text200 /@320@en@text200 /@320@text200 /@1024@en
+	@CDP_PORT="$${CDP_PORT:-9222}" go test -count=1 -run '^TestCarouselCurrentTabStaysVisibleWithoutMovingThePage$$' ./internal/ui/pages
 	@node --env-file=$(LAYOUT_DIR)/env --test scripts/reflow-staff-check.test.mjs
 	@CDP_PORT="$${CDP_PORT:-9222}" go test -count=1 -run '^TestGalleryThumbnailsWrapAndKeepNativeSelection$$' ./internal/ui/pages
 	@node --env-file=$(LAYOUT_DIR)/env scripts/reflow-check.mjs --staff /@1024@en@text200 /@1024@text200 /@320@en@text200 /@320@text200 /@1024@en
+	@CDP_PORT=$${CDP_PORT:-9222} go test -count=1 ./internal/ui/pages/admin -run '^TestAdminContentDisclosuresWorkWithTheKeyboard$$'
 	@set -e; for path in '/cart' '/checkout' '/checkout?ship={PICKUP_SHIP}' '/contact' '/p/pixelight-9' '/p/pixelight-9-pro' '/p/pixelight-9-pro?%E5%AE%B9%E9%87%8F=256GB' '/p/pixelight-9-pro?%E5%AE%B9%E9%87%8F=256GB&%E9%A1%8F%E8%89%B2=%E6%98%9F%E9%9C%A7%E8%97%8D' '/p/nimbus-buds-pro?%E9%A1%8F%E8%89%B2=%E9%9B%B2%E7%99%BD' '/privacy' '/s/layout-campaign' '/search?q=pixelight' '/search?q=%C2%A0%E3%80%80pixelight%E2%80%83'; do \
 		node --env-file=$(LAYOUT_DIR)/env scripts/reflow-check.mjs "$$path@320" "$$path@320@text200" "$$path@320@en" "$$path@320@en@text200"; \
 	done
@@ -165,6 +185,7 @@ check-layout-run:
 	@CDP_PORT=$${CDP_PORT:-9222} go test -count=1 ./internal/ui/pages/admin -run '^TestCampaignEditorReflowsInBothLanguages$$'
 	@GOEN_CHROME="$(LAYOUT_CHROME)" go test -tags integration -count=1 -run '^TestCompetingProductChoicesKeepThePurchaseTogether$$' ./internal/ui/pages
 	@node --env-file=$(LAYOUT_DIR)/env scripts/button-icons-check.mjs
+	@GOEN_CHROME="$(LAYOUT_CHROME)" go test -tags integration -count=1 -run '^TestProductChoiceAgainstAnInFlightPurchase$$' ./internal/ui/pages
 	@COLOUR_SLUG='$(COLOUR_SLUG)' COLOUR_VALUE='$(COLOUR_VALUE)' COLOUR_KEY='$(COLOUR_KEY)' \
 		node --env-file=$(LAYOUT_DIR)/env scripts/check-layout.mjs; status=$$?; \
 		kill $$(cat $(LAYOUT_DIR)/pid) 2>/dev/null; sleep 1; rm -rf $(LAYOUT_DIR) 2>/dev/null; \
@@ -180,21 +201,21 @@ check-layout-run:
 integration-build-check:
 	go vet -tags=integration ./...
 
-# -path must match templ-check's, or each run of one invalidates the other:
-# generating from the repository root writes a different projection than
-# generating from internal/ui, so verify passed and then failed on its own
-# output.
+# Both gen and templ-check generate from internal, so the projection is the
+# same for each and one cannot invalidate the other. Generating from the
+# repository root or from a subdirectory writes a different projection
+# (FileName: carries the path below -path). internal covers every package,
+# present and future, so a template added outside internal/ui is generated,
+# checked and formatted without a Makefile edit.
 gen:
-	go tool templ generate -path internal/ui
-	go tool templ generate -path internal/email
+	go tool templ generate -path internal
 
 # The committed *_templ.go must match the .templ sources. Nothing else checks
 # it: `gen` runs before every other target and would quietly repair a stale
 # projection, so a drifted generated file would only ever be noticed as a
 # surprising diff.
 templ-check:
-	go tool templ generate -check -path internal/ui
-	go tool templ generate -check -path internal/email
+	go tool templ generate -check -path internal
 
 # Vulnerability scan of the module graph and the code that actually reaches it.
 # govulncheck reports only vulnerabilities on a call path from this binary,
@@ -203,7 +224,7 @@ vuln:
 	$(GOVULNCHECK) ./...
 
 fmt:
-	go tool templ fmt internal/ui internal/email
+	go tool templ fmt internal
 	golangci-lint fmt ./...
 
 # Read-only: templ's own -fail mode rewrites the tree before reporting, which
@@ -212,7 +233,7 @@ fmt-check:
 	@set -eu; \
 	tmp=$$(mktemp -d "$${TMPDIR:-/tmp}/goen-templ-fmt.XXXXXX"); \
 	trap 'rm -rf "$$tmp"' 0 HUP INT TERM; \
-	find internal/ui internal/email -type f -name '*.templ' -print | LC_ALL=C sort > "$$tmp/files"; \
+	find internal -type f -name '*.templ' -print | LC_ALL=C sort > "$$tmp/files"; \
 	[ -s "$$tmp/files" ] || { echo 'templ source list is empty' >&2; exit 1; }; \
 	while IFS= read -r file; do \
 		go tool templ fmt -stdout "$$file" > "$$tmp/formatted"; \
@@ -484,7 +505,7 @@ schema-drift:
 	trap 'rc=$$?; docker compose exec -T db dropdb -U goen --if-exists --force "$$ref" >/dev/null 2>&1 || true; rm -rf "$$tmp"; if [ "$$rc" = 1 ] && [ -z "$$drift" ]; then exit 4; fi' 0 HUP INT TERM; \
 	docker compose exec -T db true >/dev/null 2>&1 \
 		|| { echo 'schema-drift: the compose db service is not running; start it with make db-up' >&2; exit 4; }; \
-	docker compose exec -T db createdb -U goen "$$ref"; \
+	docker compose exec -T db $(CREATEDB) "$$ref"; \
 	base=$${GOEN_DATABASE_URL%%\?*}; \
 	case "$$GOEN_DATABASE_URL" in *\?*) query="?$${GOEN_DATABASE_URL#*\?}";; *) query="";; esac; \
 	refurl="$${base%/*}/$$ref$$query"; \
@@ -576,7 +597,7 @@ restore-drill:
 	tail -n +2 "$$work/held.txt" > "$$work/rows-live.raw"; \
 	sort "$$work/rows-live.raw" > "$$work/rows-live.txt"; \
 	test -s "$$work/rows-live.txt" || { echo 'restore-drill: no live row counts were read' >&2; exit 3; }; \
-	docker compose exec -T db createdb -U goen "$$copy"; \
+	docker compose exec -T db $(CREATEDB) "$$copy"; \
 	echo 'restore-drill: restoring into a throwaway...'; \
 	pg_restore -d "$$copyurl" --no-owner --exit-on-error "$$work/goen.dump" > "$$work/restore.log" 2>&1 \
 		|| { echo 'restore-drill: FAIL — pg_restore refused the dump.' >&2; cat "$$work/restore.log" >&2; exit 1; }; \
@@ -630,7 +651,7 @@ restore-drill:
 
 db-reset:
 	docker compose exec -T db dropdb -U goen --if-exists --force goen
-	docker compose exec -T db createdb -U goen goen
+	docker compose exec -T db $(CREATEDB) goen
 	$(MAKE) migrate-up
 	$(MAKE) db-seed
 	@echo 'database rebuilt from migrations/ and seeded'
@@ -641,8 +662,10 @@ demo-restore-check:
 
 workflow-check:
 	$(ACTIONLINT) -shellcheck=
-	go test ./internal/db -run '^TestCI' -count=1
-	go test ./internal/db -run '^TestCommitAttribution' -count=1
+	@go test -list '^TestCI' ./internal/repocheck | grep -q '^TestCI' || { echo 'workflow-check: no TestCI tests in internal/repocheck' >&2; exit 1; }
+	@go test -list '^TestCommitAttribution' ./internal/repocheck | grep -q '^TestCommitAttribution' || { echo 'workflow-check: no TestCommitAttribution tests in internal/repocheck' >&2; exit 1; }
+	go test ./internal/repocheck -run '^TestCI' -count=1
+	go test ./internal/repocheck -run '^TestCommitAttribution' -count=1
 
 .PHONY: test-filter-feedback
 test-filter-feedback:

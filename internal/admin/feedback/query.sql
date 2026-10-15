@@ -80,9 +80,12 @@ WHERE id = $1 AND handled_at IS NOT NULL;
 UPDATE product_questions SET hidden_at = NULL
 WHERE id = @question_id AND hidden_at IS NOT NULL;
 
+-- A staff answer names its author by CURRENT email, not by full_name, which the
+-- author can change on /account/profile; a customer's answer keeps the name
+-- that customer gave.
 -- name: AdminQuestionAnswers :many
 SELECT a.id, a.question_id, a.body, a.is_staff, a.hidden_at, a.created_at,
-       coalesce(u.full_name, '')::text AS author
+       CASE WHEN a.is_staff THEN coalesce(u.email, '') ELSE coalesce(u.full_name, '') END::text AS author
 FROM product_answers a
 LEFT JOIN users u ON u.id = a.user_id
 WHERE a.question_id = ANY(@question_ids::uuid[])
@@ -92,3 +95,9 @@ ORDER BY a.question_id, a.created_at, a.id;
 -- name: HideQuestionAnswer :execrows
 UPDATE product_answers SET hidden_at = now()
 WHERE id = @answer_id AND question_id = @question_id AND hidden_at IS NULL;
+
+-- name: AnswerQuestionAsStaff :execrows
+INSERT INTO product_answers (question_id, user_id, body, is_staff)
+SELECT q.id, @user_id, @body::text, true
+FROM product_questions q
+WHERE q.id = @question_id AND q.hidden_at IS NULL;

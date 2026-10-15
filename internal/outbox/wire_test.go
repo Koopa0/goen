@@ -2,8 +2,10 @@ package outbox
 
 import (
 	"context"
+	"encoding/json"
 	"reflect"
 	"testing"
+	"time"
 
 	"github.com/google/uuid"
 
@@ -33,15 +35,36 @@ func decodesTo[T any](t *testing.T, tp Topic[T], raw string, want T) {
 func TestStoredRowsDecodeUnderTheirTopicsType(t *testing.T) {
 	t.Parallel()
 
-	owed := int64(900)
 	order := uuid.MustParse("6666aaaa-6666-4666-8666-666666666666")
 
 	decodesTo(t, TopicOrderPlaced,
 		`{"locale":"en","order_number":"GO-1","email":"a@example.com","name":"A","total_cents":1000,"owed_cents":900}`,
-		email.OrderPlaced{Locale: "en", OrderNumber: "GO-1", Email: "a@example.com", Name: "A", TotalCents: 1000, OwedCents: &owed})
+		email.OrderPlaced{Locale: "en", OrderNumber: "GO-1", Email: "a@example.com", Name: "A", TotalCents: 1000, OwedCents: 900})
 	decodesTo(t, TopicOrderPlaced,
-		`{"locale":"zh-Hant","order_number":"GO-1","email":"a@example.com","name":"A","total_cents":1000}`,
-		email.OrderPlaced{Locale: "zh-Hant", OrderNumber: "GO-1", Email: "a@example.com", Name: "A", TotalCents: 1000})
+		`{"locale":"zh-Hant","order_number":"GO-1","email":"a@example.com","name":"A","total_cents":1000,"owed_cents":0}`,
+		email.OrderPlaced{Locale: "zh-Hant", OrderNumber: "GO-1", Email: "a@example.com", Name: "A", TotalCents: 1000, OwedCents: 0})
+	decodesTo(t, TopicOrderPlaced,
+		`{"locale":"en","order_number":"GO-1","email":"a@example.com","name":"A","total_cents":1000,"owed_cents":900,`+
+			`"snapshot":{"lines":[{"sku":"MUG-1","name":"Mug","label":"Blue","unit_cents":450,"quantity":2}],`+
+			`"subtotal_cents":900,"shipping_cents":60,"discount_cents":30,"discount_reason":"spring","tax_cents":43,`+
+			`"credit_cents":100,"shipping_name":"A Buyer","delivery_to":"7-11 Taipei","phone":"0912345678",`+
+			`"delivery_note":"leave at door","hold_until":"2026-08-10T12:00:00Z","start_by":"2026-08-07T15:22:00Z"}}`,
+		email.OrderPlaced{Locale: "en", OrderNumber: "GO-1", Email: "a@example.com", Name: "A", TotalCents: 1000, OwedCents: 900,
+			Snapshot: &email.PlacedSnapshot{
+				Lines:          []email.PlacedLine{{SKU: "MUG-1", Name: "Mug", Label: "Blue", UnitCents: 450, Quantity: 2}},
+				SubtotalCents:  900,
+				ShippingCents:  60,
+				DiscountCents:  30,
+				DiscountReason: "spring",
+				TaxCents:       43,
+				CreditCents:    100,
+				ShippingName:   "A Buyer",
+				DeliveryTo:     "7-11 Taipei",
+				Phone:          "0912345678",
+				DeliveryNote:   "leave at door",
+				HoldUntil:      time.Date(2026, 8, 10, 12, 0, 0, 0, time.UTC),
+				StartBy:        time.Date(2026, 8, 7, 15, 22, 0, 0, time.UTC),
+			}})
 	decodesTo(t, TopicOrderPaid,
 		`{"locale":"en","order_number":"GO-1","email":"a@example.com","name":"A","amount_cents":1000,"card":"Visa •••• 4242"}`,
 		email.OrderPaid{Locale: "en", OrderNumber: "GO-1", Email: "a@example.com", Name: "A", AmountCents: 1000, Card: "Visa •••• 4242"})
@@ -87,4 +110,23 @@ func TestStoredRowsDecodeUnderTheirTopicsType(t *testing.T) {
 	decodesTo(t, TopicInvoiceVoidDue,
 		`{"order_number":"GO-1","trigger":"cancel:GO-1"}`,
 		InvoiceVoidDue{OrderNumber: "GO-1", Trigger: "cancel:GO-1"})
+}
+
+// TestAFundedOrderWritesZeroOwed holds the producer half of the wire: Enqueue
+// stores what json.Marshal writes, and a fully funded order owes 0, which the
+// letter reads as "nothing payable". A zero left out of the JSON would be
+// indistinguishable from a field nobody wrote.
+func TestAFundedOrderWritesZeroOwed(t *testing.T) {
+	t.Parallel()
+
+	got, err := json.Marshal(email.OrderPlaced{
+		Locale: "en", OrderNumber: "GO-1", Email: "a@example.com", Name: "A", TotalCents: 1000, OwedCents: 0,
+	})
+	if err != nil {
+		t.Fatalf("marshal: %v", err)
+	}
+	const want = `{"locale":"en","order_number":"GO-1","email":"a@example.com","name":"A","total_cents":1000,"owed_cents":0}`
+	if string(got) != want {
+		t.Errorf("a funded order is stored as\n%s\nwant\n%s", got, want)
+	}
 }

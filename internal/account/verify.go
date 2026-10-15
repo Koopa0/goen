@@ -13,11 +13,11 @@ import (
 	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/jackc/pgx/v5/pgtype"
 
+	"github.com/koopa0/goen/internal/bearer"
 	"github.com/koopa0/goen/internal/db"
 	"github.com/koopa0/goen/internal/email"
 	"github.com/koopa0/goen/internal/i18n"
 	"github.com/koopa0/goen/internal/outbox"
-	"github.com/koopa0/goen/internal/pgtx"
 	"github.com/koopa0/goen/internal/user"
 )
 
@@ -65,19 +65,16 @@ func (s *Store) queueVerification(ctx context.Context, userID, addr string, link
 	}
 	addr = email.Clean(addr)
 	if EmailError(addr) != "" {
-		return fmt.Errorf("requesting verification of %q: not a usable address", addr)
+		return fmt.Errorf("requesting verification for user %s: not a usable address", id)
 	}
 
-	token, tokenErr := NewToken()
-	if tokenErr != nil {
-		return tokenErr
-	}
+	token := bearer.New()
 
 	tx, beginErr := s.pool.Begin(ctx)
 	if beginErr != nil {
 		return fmt.Errorf("begin verification request: %w", beginErr)
 	}
-	defer pgtx.Rollback(ctx, tx)
+	defer db.Rollback(ctx, tx)
 	q := s.q.WithTx(tx)
 	if _, lockErr := q.LockUserForEmailVerification(ctx, id); lockErr != nil {
 		if errors.Is(lockErr, pgx.ErrNoRows) {
@@ -90,14 +87,14 @@ func (s *Store) queueVerification(ctx context.Context, userID, addr string, link
 	}
 
 	if reqErr := q.RequestEmailVerification(ctx, db.RequestEmailVerificationParams{
-		UserID: id, Email: addr, Digest: HashToken(token),
+		UserID: id, Email: addr, Digest: bearer.Digest(token),
 		Ttl: pgtype.Interval{Microseconds: int64(VerifyTokenTTL / time.Microsecond), Valid: true},
 	}); reqErr != nil {
 		return fmt.Errorf("record verification request: %w", reqErr)
 	}
 
 	link.Email, link.Token, link.Locale = addr, token, i18n.FromContext(ctx).Tag()
-	digest := HashToken(token)
+	digest := bearer.Digest(token)
 	if err := outbox.Enqueue(ctx, q, outbox.TopicEmailVerify, "verify:"+hex.EncodeToString(digest), &link); err != nil {
 		return err
 	}
@@ -119,7 +116,7 @@ func (s *Store) DeliverAddressVerify(
 	send func(context.Context, *email.AddressVerify) error,
 	tell func(context.Context, *email.AccountExists) error,
 ) error {
-	verification, err := usableVerification(ctx, s.q, HashToken(p.Token))
+	verification, err := usableVerification(ctx, s.q, bearer.Digest(p.Token))
 	if errors.Is(err, ErrVerifyInvalid) {
 		return nil
 	}
@@ -167,7 +164,7 @@ func (s *Store) RegistrationAddress(ctx context.Context, token string) (string, 
 	if token == "" {
 		return "", ErrVerifyInvalid
 	}
-	verification, err := usableVerification(ctx, s.q, HashToken(token))
+	verification, err := usableVerification(ctx, s.q, bearer.Digest(token))
 	if err != nil {
 		return "", err
 	}
@@ -185,7 +182,7 @@ func (s *Store) CompleteRegistration(ctx context.Context, token, password string
 	if token == "" {
 		return Confirmed{}, ErrVerifyInvalid
 	}
-	verification, err := usableVerification(ctx, s.q, HashToken(token))
+	verification, err := usableVerification(ctx, s.q, bearer.Digest(token))
 	if err != nil {
 		return Confirmed{}, err
 	}
@@ -209,7 +206,7 @@ func (s *Store) confirm(ctx context.Context, token string, asker uuid.NullUUID, 
 	if token == "" {
 		return Confirmed{}, ErrVerifyInvalid
 	}
-	digest := HashToken(token)
+	digest := bearer.Digest(token)
 	verification, err := usableVerification(ctx, s.q, digest)
 	if err != nil {
 		return Confirmed{}, err
@@ -219,7 +216,7 @@ func (s *Store) confirm(ctx context.Context, token string, asker uuid.NullUUID, 
 	if err != nil {
 		return Confirmed{}, fmt.Errorf("begin verification: %w", err)
 	}
-	defer pgtx.Rollback(ctx, tx)
+	defer db.Rollback(ctx, tx)
 	q := s.q.WithTx(tx)
 
 	lockedUser, err := lockVerificationAccount(ctx, q, verification.UserID)

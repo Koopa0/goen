@@ -13,6 +13,7 @@ import (
 
 	"github.com/google/uuid"
 
+	"github.com/koopa0/goen/internal/bearer"
 	"github.com/koopa0/goen/internal/cart"
 	"github.com/koopa0/goen/internal/order/access"
 	"github.com/koopa0/goen/internal/user"
@@ -29,10 +30,7 @@ func aMember(t *testing.T, s *cart.Store, label string) (token string, u user.Us
 		RETURNING id`, email).Scan(&userID); err != nil {
 		t.Fatalf("create member: %v", err)
 	}
-	tok, err := cart.NewToken()
-	if err != nil {
-		t.Fatalf("token: %v", err)
-	}
+	tok := bearer.New()
 	cartID, err := s.Create(t.Context(), tok, uuid.NullUUID{UUID: userID, Valid: true})
 	if err != nil {
 		t.Fatalf("create cart: %v", err)
@@ -86,10 +84,7 @@ func TestAGuestCheckoutHasNeitherControlAndNoPrefill(t *testing.T) {
 	s := cart.NewStore(pool)
 	h := cart.NewHandler(s, access.NewStore(pool, false), slog.New(slog.DiscardHandler), false, testLimiter(), nil, nil)
 	// A cart nobody owns: a signed-out request for a member's cart is turned away.
-	token, err := cart.NewToken()
-	if err != nil {
-		t.Fatalf("token: %v", err)
-	}
+	token := bearer.New()
 	cartID, err := s.Create(t.Context(), token, uuid.NullUUID{})
 	if err != nil {
 		t.Fatalf("create cart: %v", err)

@@ -20,7 +20,8 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 
 	"github.com/koopa0/goen/internal/account"
-	"github.com/koopa0/goen/internal/pgtx"
+	"github.com/koopa0/goen/internal/db"
+	"github.com/koopa0/goen/internal/db/dbtest"
 	"github.com/koopa0/goen/internal/user"
 )
 
@@ -66,7 +67,7 @@ func runDefaultAddressRace(t *testing.T, firstKind, secondKind addressWrite) {
 	if beginErr != nil {
 		t.Fatal(beginErr)
 	}
-	defer pgtx.Rollback(ctx, firstBlock)
+	defer db.Rollback(ctx, firstBlock)
 	holdDefaultAddressWriter(t, ctx, firstBlock, u.ID, firstID, firstKind)
 	var firstPID int
 	if err := firstBlock.QueryRow(ctx, `SELECT pg_backend_pid()`).Scan(&firstPID); err != nil {
@@ -79,7 +80,7 @@ func runDefaultAddressRace(t *testing.T, firstKind, secondKind addressWrite) {
 		if beginErr != nil {
 			t.Fatal(beginErr)
 		}
-		defer pgtx.Rollback(ctx, secondBlock)
+		defer db.Rollback(ctx, secondBlock)
 		holdDefaultAddressWriter(t, ctx, secondBlock, u.ID, secondID, secondKind)
 		if err := secondBlock.QueryRow(ctx, `SELECT pg_backend_pid()`).Scan(&secondPID); err != nil {
 			t.Fatal(err)
@@ -103,10 +104,14 @@ func runDefaultAddressRace(t *testing.T, firstKind, secondKind addressWrite) {
 	// A selection holds the account lock before its address UPDATE; an addition
 	// waits at the held account row before clearing any default.
 	waitForDefaultAddressBlock(t, ctx, prefix+"-first", []int{firstPID}, firstDone)
-	var firstWriterPID int
-	if err := pool.QueryRow(ctx, `SELECT pid FROM pg_stat_activity WHERE application_name=$1`, prefix+"-first").Scan(&firstWriterPID); err != nil {
-		t.Fatal(err)
+	firstWriters, lookupErr := dbtest.Backends(ctx, pool, dbtest.Match{Application: prefix + "-first"})
+	if lookupErr != nil {
+		t.Fatal(lookupErr)
 	}
+	if len(firstWriters) != 1 {
+		t.Fatalf("backends named %q = %d, want exactly 1", prefix+"-first", len(firstWriters))
+	}
+	firstWriterPID := int(firstWriters[0].PID)
 	secondDone := startDefaultAddressRequest(ctx, &workers, secondHandler, u, secondKind, secondID, "second added")
 	// The serialized writer waits on the first writer or the held account.
 	// The address and unique-entry blockers retain the failing interleaving
@@ -186,11 +191,14 @@ func startDefaultAddressRequest(ctx context.Context, workers *sync.WaitGroup, h 
 
 func waitForDefaultAddressBlock(t *testing.T, ctx context.Context, application string, blockers []int, done <-chan *httptest.ResponseRecorder) {
 	t.Helper()
+	blockerPIDs := make([]int32, 0, len(blockers))
+	for _, pid := range blockers {
+		blockerPIDs = append(blockerPIDs, int32(pid)) //nolint:gosec // G115: a backend pid is an int4 in pg_backend_pid()
+	}
 	ticker := time.NewTicker(5 * time.Millisecond)
 	defer ticker.Stop()
 	for {
-		var blocked bool
-		err := pool.QueryRow(ctx, `SELECT EXISTS (SELECT 1 FROM pg_stat_activity WHERE application_name=$1 AND wait_event_type='Lock' AND pg_blocking_pids(pid) && $2::integer[])`, application, blockers).Scan(&blocked)
+		_, blocked, err := dbtest.Blocked(ctx, pool, dbtest.Match{Application: application, BlockedBy: blockerPIDs})
 		if err != nil {
 			t.Fatalf("observe address writer lock: %v", err)
 		}

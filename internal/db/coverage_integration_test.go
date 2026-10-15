@@ -753,7 +753,7 @@ func TestReportingCannotReadCredentialsOrPII(t *testing.T) {
 		"shipping_methods":         {[]string{"code", "destination_kind"}, published},
 		"shipping_zone_prefixes":   {[]string{"prefix"}, published},
 		"shipping_zones":           {[]string{"code", "name", "name_en"}, published},
-		"store_credit_entries":     {[]string{"idempotency_key", "reason"}, shopWords},
+		"store_credit_entries":     {[]string{"idempotency_key", "kind", "reason"}, shopWords},
 		"visible_reviews":          {[]string{"body", "title"}, customerPub},
 		"warranty_registrations": {[]string{"serial_number"},
 			"the manufacturer's number on the unit, which the privacy policy retains"},
@@ -1211,7 +1211,7 @@ func TestNoStoredFunctionIsPublicExecute(t *testing.T) {
 var adminForbiddenTables = []string{
 	"payments", "refunds", "inventory_movements",
 	"inventory_reservations", "store_credit_entries", "audit_events",
-	"loyalty_redemption_operations", "order_number_counters",
+	"loyalty_redemption_operations",
 }
 
 // TestAdminCannotWriteMoneyOrStockDirectly is the back office's half: `admin` is a wider set
@@ -1325,7 +1325,7 @@ func TestAdminHasNoDirectWriteToMoney(t *testing.T) {
 	adminForbidden := []string{
 		"payments", "refunds", "inventory_movements",
 		"inventory_reservations", "store_credit_entries",
-		"loyalty_redemption_operations", "order_number_counters",
+		"loyalty_redemption_operations",
 	}
 	for _, table := range adminForbidden {
 		for _, priv := range []string{"INSERT", "UPDATE", "DELETE"} {

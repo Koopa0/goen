@@ -14,7 +14,6 @@ import (
 	"github.com/koopa0/goen/internal/admin/audit"
 	"github.com/koopa0/goen/internal/db"
 	"github.com/koopa0/goen/internal/i18n"
-	"github.com/koopa0/goen/internal/pgerr"
 	"github.com/koopa0/goen/internal/postcode"
 )
 
@@ -71,10 +70,10 @@ func (s *Store) CreateZone(ctx context.Context, z *NewZone) (map[string]string, 
 		}
 		return nil
 	}); err != nil {
-		if pgerr.IsConstraint(err, "shipping_zones_code_key") {
+		if db.IsConstraint(err, "shipping_zones_code_key") {
 			return map[string]string{"zone_code": i18n.T(ctx, i18n.KeyFormZoneCodeTaken)}, nil
 		}
-		return nil, pgerr.WrapRefusal(err, ErrRefused)
+		return nil, db.WrapRefusal(err, ErrRefused)
 	}
 	return nil, nil
 }
@@ -150,7 +149,7 @@ func (s *Store) DeleteZone(ctx context.Context, id string) error {
 		}
 		n, execErr := q.DeleteShippingZone(ctx, zoneID)
 		if execErr != nil {
-			return pgerr.WrapRefusal(execErr, ErrRefused)
+			return db.WrapRefusal(execErr, ErrRefused)
 		}
 		if n != 0 {
 			return nil

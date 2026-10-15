@@ -34,7 +34,8 @@ import (
 func TestEveryAuditActionHasALabel(t *testing.T) {
 	t.Parallel()
 
-	actions := append(declaredActions(t), schemaActions(t)...)
+	literals, _ := schemaActions(t)
+	actions := append(declaredActions(t), literals...)
 	// Well under the 63 declared, so a parser that silently stops matching
 	// fails here rather than passing over an empty corpus.
 	if len(actions) < 50 {
@@ -74,8 +75,18 @@ func TestNewsletterComposeRendersAPhrase(t *testing.T) {
 // e.g. `'invoice.allowance_provider_invalid', 'invoice_documents',`.
 var schemaWrittenAction = regexp.MustCompile(`'([a-z_]+\.[a-z0-9_.]+)',\s*'[a-z_]+',`)
 
-// schemaActions is every action written by a stored function rather than by Go.
-func schemaActions(t *testing.T) []string {
+// schemaAssignedAction matches an action a schema function keeps in a variable
+// before inserting it, e.g. `v_action := 'refund.provider_rejected';`.
+var schemaAssignedAction = regexp.MustCompile(`v_action\s*:=\s*'([a-z_]+\.[a-z0-9_.]+)'\s*;`)
+
+// schemaConcatenatedAction matches the head of an action the schema builds from
+// a value, e.g. `'refund.provider_' || p_status`. Its tail is not a literal, so
+// only the prefix can be read.
+var schemaConcatenatedAction = regexp.MustCompile(`'([a-z_]+\.[a-z0-9_]*)'\s*\|\|`)
+
+// schemaActions is every action written by a stored function rather than by Go:
+// the literal ones, and the prefixes of the ones built from a value.
+func schemaActions(t *testing.T) (literals, prefixes []string) {
 	t.Helper()
 
 	body, err := os.ReadFile(filepath.Join("..", "..", "..", "migrations", "001_initial_schema.up.sql"))
@@ -87,18 +98,24 @@ func schemaActions(t *testing.T) []string {
 	domains := map[string]bool{
 		"invoice": true, "order": true, "payment": true, "return": true,
 		"credit": true, "stock": true, "shipping": true, "tier": true,
-		"review": true, "customer": true, "newsletter": true,
+		"review": true, "customer": true, "newsletter": true, "refund": true,
 	}
-	var out []string
-	for _, m := range schemaWrittenAction.FindAllStringSubmatch(string(body), -1) {
-		if domains[strings.SplitN(m[1], ".", 2)[0]] {
-			out = append(out, m[1])
+	for _, pattern := range []*regexp.Regexp{schemaWrittenAction, schemaAssignedAction} {
+		for _, m := range pattern.FindAllStringSubmatch(string(body), -1) {
+			if domains[strings.SplitN(m[1], ".", 2)[0]] {
+				literals = append(literals, m[1])
+			}
 		}
 	}
-	if len(out) == 0 {
+	for _, m := range schemaConcatenatedAction.FindAllStringSubmatch(string(body), -1) {
+		if domains[strings.SplitN(m[1], ".", 2)[0]] {
+			prefixes = append(prefixes, m[1])
+		}
+	}
+	if len(literals) == 0 {
 		t.Fatal("found no schema-written actions; the pattern has stopped matching")
 	}
-	return out
+	return literals, prefixes
 }
 
 // declaredActions is every string constant of type Action in action.go.

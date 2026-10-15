@@ -133,12 +133,8 @@ BEGIN
         EXECUTE v_stmt;
     END LOOP;
 
-    -- A day's counter and an order's number are unique, and checked row by
-    -- row: moved forward latest first, none lands on one not yet moved.
-    FOR r IN SELECT business_date FROM order_number_counters ORDER BY business_date DESC LOOP
-        UPDATE order_number_counters SET business_date = business_date + v_days
-        WHERE business_date = r.business_date;
-    END LOOP;
+    -- An order's number is unique, and checked row by row: moved forward latest
+    -- first, none lands on one not yet moved.
     FOR r IN SELECT id FROM orders ORDER BY order_number DESC LOOP
         UPDATE orders
         SET order_number = 'GO-' || to_char(to_date(substr(order_number, 4, 6), 'YYMMDD') + v_days, 'YYMMDD')

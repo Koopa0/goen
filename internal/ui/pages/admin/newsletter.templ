@@ -23,7 +23,7 @@ templ Newsletter(p layouts.Page, v NewsletterView) {
 				</p>
 			</div>
 		</div>
-		@Announce(v.Notice)
+		@layouts.Announce(v.Notice)
 		<div class="goen-admin__stats">
 			<div class="goen-stat">
 				<span class="goen-stat__label">{ i18n.T(ctx, i18n.KeyAdminNewsOnList) }</span>
@@ -40,7 +40,8 @@ templ Newsletter(p layouts.Page, v NewsletterView) {
 		</div>
 		@components.Card(components.CardProps{Class: "goen-admin__add"}) {
 			<h2 class="goen-admin__heading">{ i18n.T(ctx, i18n.KeyAdminNewsCompose) }</h2>
-			<form class="goen-admin__form" method="post" action="/admin/newsletter">
+			<form class="goen-admin__form" method="post" action="/admin/newsletter" aria-describedby="newsletter-audience">
+				<p class="goen-admin__hint" id="newsletter-audience">{ fmt.Sprintf(i18n.T(ctx, i18n.KeyAdminNewsAudience), v.Active, v.EnglishActive) }</p>
 				<div class="goen-admin__field">
 					@components.Label(components.LabelProps{For: "issue-subject"}) {
 						{ i18n.T(ctx, i18n.KeyAdminNewsSubject) }

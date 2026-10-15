@@ -7,11 +7,7 @@
 package newsletter
 
 import (
-	"crypto/rand"
-	"crypto/sha256"
-	"encoding/base64"
 	"errors"
-	"fmt"
 	"time"
 
 	"github.com/koopa0/goen/internal/email"
@@ -19,6 +15,14 @@ import (
 )
 
 const ConfirmTTL = 48 * time.Hour
+
+// ConfirmationRetain is how long an address nobody confirmed stays in
+// newsletter_confirmations, counted from the request. The link is dead after
+// [ConfirmTTL]; the rest is a grace for a late click or a support question, and
+// no longer, because the address belongs to somebody who never said yes.
+const ConfirmationRetain = 14 * 24 * time.Hour
+
+const ConfirmationSweepInterval = 24 * time.Hour
 
 // ErrNotFound is one error for unknown, spent and expired, so it cannot tell
 // somebody walking tokens which guess was real.
@@ -32,21 +36,6 @@ const (
 	Requested Outcome = iota
 	AlreadyActive
 )
-
-const tokenBytes = 32
-
-func NewToken() (string, error) {
-	b := make([]byte, tokenBytes)
-	if _, err := rand.Read(b); err != nil {
-		return "", fmt.Errorf("reading token entropy: %w", err)
-	}
-	return base64.RawURLEncoding.EncodeToString(b), nil
-}
-
-func HashToken(token string) []byte {
-	sum := sha256.Sum256([]byte(token))
-	return sum[:]
-}
 
 func Validate(addr string) i18n.Key {
 	switch {

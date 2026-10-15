@@ -890,13 +890,6 @@ func (v *OrderView) Discounted() bool { return v.DiscountCents > 0 }
 
 func (v *OrderView) Discount() string { return "-" + twd(v.DiscountCents) }
 
-func DiscountLabel(ctx context.Context, reason string) string {
-	if reason == "" {
-		return i18n.T(ctx, i18n.KeyDiscount)
-	}
-	return fmt.Sprintf(i18n.T(ctx, i18n.KeyDiscountFor), reason)
-}
-
 func (v *OrderView) Total() string { return twd(v.TotalCents()) }
 
 func (v *OrderView) TotalCents() int64 {

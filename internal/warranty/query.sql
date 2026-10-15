@@ -6,11 +6,15 @@
 -- name: RegistrableLines :many
 SELECT
     ol.id AS order_line_id,
+    o.order_number,
     ol.product_name,
     ol.variant_label,
     p.slug AS product_slug,
     ol.warranty_months,
     coalesce(ol.warranty_note, '') AS warranty_note,
+    -- sqlc types the lateral date as non-null, so retain its presence separately.
+    (parcel.expires_on IS NOT NULL)::boolean AS has_expiry,
+    coalesce(parcel.expires_on, shop_today())::date AS expires_on,
     greatest(coalesce(delivered.units, 0) - coalesce(returned.units, 0), 0)::integer AS delivered_units,
     coalesce(returned.units, 0)::integer AS returned_units,
     coalesce(registered.units, 0)::integer AS registered_units
@@ -35,9 +39,28 @@ LEFT JOIN LATERAL (
     SELECT count(*) AS units
     FROM warranty_registrations w WHERE w.order_line_id = ol.id
 ) registered ON true
-WHERE o.order_number = @order_number::text
+LEFT JOIN LATERAL (
+    SELECT (shop_day(p.delivered_at) + make_interval(months => ol.warranty_months))::date AS expires_on
+    FROM (
+        SELECT s.delivered_at, sl.quantity,
+               sum(sl.quantity) OVER (ORDER BY s.shipped_at, s.id) - sl.quantity AS units_before
+        FROM order_shipment_lines sl
+        JOIN order_shipments s ON s.id = sl.shipment_id
+        WHERE sl.order_line_id = ol.id
+    ) p
+    WHERE coalesce(registered.units, 0) + 1 > p.units_before
+      AND coalesce(registered.units, 0) + 1 <= p.units_before + p.quantity
+      AND p.delivered_at IS NOT NULL
+      AND coalesce(registered.units, 0) + 1 <= greatest(coalesce(delivered.units, 0) - coalesce(returned.units, 0), 0)
+      AND NOT EXISTS (
+          SELECT 1 FROM warranty_registrations w
+          WHERE w.order_line_id = ol.id
+            AND w.unit_no = coalesce(registered.units, 0) + 1
+      )
+) parcel ON true
+WHERE (sqlc.narg(order_number)::text IS NULL OR o.order_number = sqlc.narg(order_number)::text)
   AND o.user_id = @user_id
-ORDER BY ol.position, ol.id;
+ORDER BY o.placed_at DESC, o.id, ol.position, ol.id;
 
 -- Register one unit. expires_on is computed here from the delivery date and the
 -- promise copied onto the order, never from today's mutable catalogue. Unit n
@@ -82,6 +105,7 @@ WHERE ol.id = @order_line_id
 -- What this customer has registered.
 -- name: MyWarranties :many
 SELECT w.id, w.unit_no, coalesce(w.serial_number, '') AS serial_number,
+       w.order_line_id,
        w.registered_at, w.expires_on,
        (w.expires_on >= shop_today())::boolean AS in_force,
        ol.product_name, ol.variant_label, o.id AS order_id, o.order_number,

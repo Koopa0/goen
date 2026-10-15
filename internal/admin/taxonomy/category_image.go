@@ -12,11 +12,13 @@ import (
 
 	"github.com/koopa0/goen/internal/admin/audit"
 	"github.com/koopa0/goen/internal/db"
-	"github.com/koopa0/goen/internal/pgerr"
+	"github.com/koopa0/goen/internal/ui/components"
 	"github.com/koopa0/goen/internal/ui/pages/admin"
 )
 
 const MaxAltRunes = 200
+
+var ErrImageRequired = errors.New("taxonomy: category image required")
 
 func (s *Store) CategoryHeader(ctx context.Context, slug string) (admin.CategoryView, error) {
 	row, err := s.q.AdminCategoryImage(ctx, slug)
@@ -28,17 +30,16 @@ func (s *Store) CategoryHeader(ctx context.Context, slug string) (admin.Category
 	}
 	return admin.CategoryView{
 		Slug: slug, Name: row.Name, Tone: row.Tone,
-		Image: admin.Header{Key: row.ImageKey, Alt: row.ImageAlt, AltEn: row.ImageAltEn, Width: row.ImageWidth},
+		Image: components.HeaderImage{Key: row.ImageKey, Alt: row.ImageAlt, AltEn: row.ImageAltEn, Width: row.ImageWidth},
 	}, nil
 }
 
 // SetCategoryImage makes a stored upload the category's header photograph. The
 // alt text is required: categories_image_has_alt refuses an image without it.
 func (s *Store) SetCategoryImage(ctx context.Context, slug, digest, alt, altEn string) error {
-	alt, altEn = strings.TrimSpace(alt), strings.TrimSpace(altEn)
-	if alt == "" || utf8.RuneCountInString(alt) > MaxAltRunes ||
-		utf8.RuneCountInString(altEn) > MaxAltRunes {
-		return fmt.Errorf("%w: header alt text is required and bounded at %d runes", ErrInvalid, MaxAltRunes)
+	alt, altEn, err := categoryImageText(alt, altEn)
+	if err != nil {
+		return err
 	}
 	return audit.Run(ctx, s.pool, audit.Event{
 		Action: audit.ActionSetCategoryImage, Table: "categories", ID: uuid.NullUUID{},
@@ -49,13 +50,46 @@ func (s *Store) SetCategoryImage(ctx context.Context, slug, digest, alt, altEn s
 				Slug: strings.TrimSpace(slug), ImageKey: digest, ImageAlt: alt, ImageAltEn: altEn,
 			})
 			if err != nil {
-				return pgerr.WrapRefusal(err, ErrRefused)
+				return db.WrapRefusal(err, ErrRefused)
 			}
 			if n == 0 {
 				return ErrNotFound
 			}
 			return nil
 		})
+}
+
+func (s *Store) SetCategoryImageText(ctx context.Context, slug, alt, altEn string) error {
+	alt, altEn, err := categoryImageText(alt, altEn)
+	if err != nil {
+		return err
+	}
+	return audit.Run(ctx, s.pool, audit.Event{
+		Action: audit.ActionSetCategoryImage, Table: "categories", ID: uuid.NullUUID{},
+		After: map[string]any{"category": slug, "alt": alt, "alt_en": altEn},
+	}, func(ctx context.Context, q *db.Queries) error {
+		result, err := q.SetCategoryImageText(ctx, db.SetCategoryImageTextParams{
+			Slug: strings.TrimSpace(slug), ImageAlt: alt, ImageAltEn: altEn,
+		})
+		if err != nil {
+			return db.WrapRefusal(err, ErrRefused)
+		}
+		if !result.Found {
+			return ErrNotFound
+		}
+		if !result.Changed {
+			return ErrImageRequired
+		}
+		return nil
+	})
+}
+
+func categoryImageText(rawAlt, rawAltEn string) (alt, altEn string, err error) {
+	alt, altEn = strings.TrimSpace(rawAlt), strings.TrimSpace(rawAltEn)
+	if alt == "" || utf8.RuneCountInString(alt) > MaxAltRunes || utf8.RuneCountInString(altEn) > MaxAltRunes {
+		return "", "", fmt.Errorf("%w: header alt text is required and bounded at %d runes", ErrInvalid, MaxAltRunes)
+	}
+	return alt, altEn, nil
 }
 
 // ClearCategoryImage removes the photograph; the media object itself stays.
@@ -67,7 +101,7 @@ func (s *Store) ClearCategoryImage(ctx context.Context, slug string) error {
 		func(ctx context.Context, q *db.Queries) error {
 			n, err := q.ClearCategoryImage(ctx, strings.TrimSpace(slug))
 			if err != nil {
-				return pgerr.WrapRefusal(err, ErrRefused)
+				return db.WrapRefusal(err, ErrRefused)
 			}
 			if n == 0 {
 				return ErrNotFound

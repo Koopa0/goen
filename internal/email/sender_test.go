@@ -501,7 +501,7 @@ func TestTheLogSenderNeverWritesTheBody(t *testing.T) {
 		showBody bool
 		wantBody bool
 	}{
-		{name: "the zero value, which is what main constructs", showBody: false, wantBody: false},
+		{name: "the zero value, which is what a deployment gets", showBody: false, wantBody: false},
 		{name: "opted in for local development", showBody: true, wantBody: true},
 	}
 	for _, tt := range tests {
@@ -525,6 +525,9 @@ func TestTheLogSenderNeverWritesTheBody(t *testing.T) {
 					"log is a live credential in a place the customer cannot read "+
 					"and everybody else can:\n%s", got, tt.wantBody, line)
 			}
+			if tt.wantBody && !strings.Contains(line, ` link="`+liveResetLink+`"`) {
+				t.Errorf("the link is not repeated whole, so a terminal cannot open it:\n%s", line)
+			}
 			if !strings.Contains(line, "customer@example.com") {
 				t.Errorf("the recipient is missing from the log:\n%s", line)
 			}
@@ -536,5 +539,21 @@ func TestTheLogSenderNeverWritesTheBody(t *testing.T) {
 					"indistinguishable from a full one:\n%s", line)
 			}
 		})
+	}
+}
+
+// The outbox worker logs what Send returns. An address that fails validation
+// is still someone's typing, so the refusal names no part of it.
+func TestRefusalToSendDoesNotCarryTheAddress(t *testing.T) {
+	t.Parallel()
+	const typed = "jane.doe.private@@example.test"
+	err := SMTPSender{Addr: "127.0.0.1:1"}.Send(t.Context(), &Message{To: typed})
+	if err == nil {
+		t.Fatal("Send: nil error for an invalid recipient")
+	}
+	for _, secret := range []string{typed, "jane.doe", "example.test"} {
+		if strings.Contains(err.Error(), secret) {
+			t.Errorf("error %q carries %q", err, secret)
+		}
 	}
 }

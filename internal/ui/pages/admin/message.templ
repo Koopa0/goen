@@ -28,7 +28,7 @@ templ Messages(p layouts.Page, v MessagesView) {
 				}
 			</div>
 		</div>
-		@Announce(v.Notice)
+		@layouts.Announce(v.Notice)
 		if v.Empty() && !v.PastEnd {
 			<div class="goen-admin__empty">
 				<span class="goen-modqueue__emptyicon">

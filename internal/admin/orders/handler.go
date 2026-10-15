@@ -8,8 +8,8 @@ import (
 	"net/http"
 	"strconv"
 	"strings"
-	"time"
 
+	"github.com/koopa0/goen/internal/db"
 	"github.com/koopa0/goen/internal/shipping"
 
 	"github.com/google/uuid"
@@ -19,7 +19,6 @@ import (
 	"github.com/koopa0/goen/internal/i18n"
 	"github.com/koopa0/goen/internal/order"
 	"github.com/koopa0/goen/internal/payment"
-	"github.com/koopa0/goen/internal/pgerr"
 	"github.com/koopa0/goen/internal/ui/components"
 	"github.com/koopa0/goen/internal/ui/layouts"
 	"github.com/koopa0/goen/internal/ui/pages/admin"
@@ -42,7 +41,6 @@ func NewHandler(store *Store, sessions payment.SessionCloser, log *slog.Logger) 
 }
 
 func (h *Handler) Routes(mux *http.ServeMux, ac *access.Control) {
-	mux.HandleFunc("GET /admin", ac.RequireStaff(h.Dashboard))
 	mux.HandleFunc("GET /admin/orders", ac.RequireStaff(h.List))
 	mux.HandleFunc("GET /admin/orders/picking/slips", ac.RequireStaff(h.PickingSlips))
 	mux.HandleFunc("GET /admin/orders/{number}", ac.RequireStaff(h.Order))
@@ -51,26 +49,6 @@ func (h *Handler) Routes(mux *http.ServeMux, ac *access.Control) {
 	mux.HandleFunc("POST /admin/orders/{number}/shipments/{shipment}/delivered", ac.RequireStaff(h.DeliverShipment))
 	mux.HandleFunc("POST /admin/orders/{number}/note", ac.RequireStaff(h.StaffNote))
 	mux.HandleFunc("POST /admin/orders/{number}/delivery", ac.RequireStaff(h.CorrectDelivery))
-}
-
-func (h *Handler) Dashboard(w http.ResponseWriter, r *http.Request) {
-	view, err := h.store.Dashboard(r.Context())
-	if err != nil {
-		h.log.ErrorContext(r.Context(), "read dashboard", "error", err)
-		access.ServerError(w, r, h.log)
-		return
-	}
-	if health, err := h.store.HealthTasks(r.Context()); err != nil {
-		h.log.ErrorContext(r.Context(), "read health tasks for the dashboard", "error", err)
-		view.HealthUnavailable = true
-	} else {
-		view.Tasks = append(view.Tasks, health...)
-	}
-	if err := h.store.FillWeek(r.Context(), &view, time.Now()); err != nil {
-		h.log.ErrorContext(r.Context(), "read the last seven days for the dashboard", "error", err)
-		view.WeekUnavailable = !errors.Is(err, admin.ErrLatestPaid)
-	}
-	web.Render(w, r, h.log, http.StatusOK, admin.Dashboard(admin.Meta(r.Context()), view))
 }
 
 func (h *Handler) List(w http.ResponseWriter, r *http.Request) {
@@ -89,9 +67,9 @@ func (h *Handler) Order(w http.ResponseWriter, r *http.Request) {
 	view, err := h.store.Order(r.Context(), r.PathValue("number"))
 	if err != nil {
 		if errors.Is(err, ErrNotFound) {
-			web.Render(w, r, h.log, http.StatusNotFound, admin.MissingRecord(
+			web.Render(w, r, h.log, http.StatusNotFound, layouts.MissingRecord(
 				layouts.Page{Title: i18n.T(r.Context(), i18n.KeyAdminNoOrderTitle)},
-				admin.MissingRecordView{Section: "orders", Heading: fmt.Sprintf(i18n.T(r.Context(), i18n.KeyAdminNoOrderHead), r.PathValue("number")), Body: i18n.T(r.Context(), i18n.KeyAdminNoOrderBody), BackLabel: i18n.KeyAdminBackOrders, OrderNumber: r.PathValue("number")}))
+				layouts.MissingRecordView{Section: "orders", Heading: fmt.Sprintf(i18n.T(r.Context(), i18n.KeyAdminNoOrderHead), r.PathValue("number")), Body: i18n.T(r.Context(), i18n.KeyAdminNoOrderBody), BackLabel: i18n.KeyAdminBackOrders, OrderNumber: r.PathValue("number")}))
 			return
 		}
 		h.log.ErrorContext(r.Context(), "read order", "error", err)
@@ -120,11 +98,11 @@ func (h *Handler) Advance(w http.ResponseWriter, r *http.Request) {
 	case err == nil:
 		payment.CloseSessions(r.Context(), h.sessions, h.log, number, sessions)
 		http.Redirect(w, r, "/admin/orders/"+number+"?ok=1", http.StatusSeeOther) //nolint:gosec // G710: validated by order.ValidNumber
-	case errors.Is(err, ErrPaidCancel), pgerr.IsConstraint(err, "orders_paid_cancel_needs_refund"):
+	case errors.Is(err, ErrPaidCancel), db.IsConstraint(err, "orders_paid_cancel_needs_refund"):
 		http.Redirect(w, r, "/admin/orders/"+number+"?paidcancel=1", http.StatusSeeOther) //nolint:gosec // G710: validated by order.ValidNumber
-	case pgerr.IsConstraint(err, "orders_funded_to_leave_pending"):
+	case db.IsConstraint(err, "orders_funded_to_leave_pending"):
 		http.Redirect(w, r, "/admin/orders/"+number+"?unfunded=1", http.StatusSeeOther) //nolint:gosec // G710: validated by order.ValidNumber
-	case pgerr.IsConstraint(err, "orders_finished_when_shipped"):
+	case db.IsConstraint(err, "orders_finished_when_shipped"):
 		http.Redirect(w, r, "/admin/orders/"+number+"?owesparcel=1", http.StatusSeeOther) //nolint:gosec // G710: validated by order.ValidNumber
 	case errors.Is(err, ErrRefused):
 		// Logged in full; the page names the rule only for the refusals a shop
@@ -165,7 +143,7 @@ func (h *Handler) Ship(w http.ResponseWriter, r *http.Request) {
 	case err == nil:
 		//nolint:gosec // G710: validated by order.ValidNumber
 		http.Redirect(w, r, "/admin/orders/"+number+"?shipped=1", http.StatusSeeOther)
-	case pgerr.IsConstraint(err, "order_shipments_tracking_key"):
+	case db.IsConstraint(err, "order_shipments_tracking_key"):
 		h.rejectShip(w, r, &shipRefusal{tracking: i18n.KeyAdminTrackingTaken})
 	case errors.Is(err, ErrQuantity):
 		h.rejectShip(w, r, &shipRefusal{quantity: i18n.KeyAdminNoticeBadParcel})

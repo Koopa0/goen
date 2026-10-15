@@ -16,11 +16,14 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 
 	"github.com/koopa0/goen/internal/admin/admintest"
+	"github.com/koopa0/goen/internal/admin/dashboard"
+	"github.com/koopa0/goen/internal/admin/health"
+	"github.com/koopa0/goen/internal/admin/reports"
 	"github.com/koopa0/goen/internal/admin/stock"
 	"github.com/koopa0/goen/internal/cart"
+	"github.com/koopa0/goen/internal/db"
 	"github.com/koopa0/goen/internal/i18n"
 	"github.com/koopa0/goen/internal/inventory"
-	"github.com/koopa0/goen/internal/pgtx"
 	"github.com/koopa0/goen/internal/user"
 )
 
@@ -629,10 +632,10 @@ func TestAVariantNotForSaleIsNeitherCountedNorListedAsSoldOut(t *testing.T) {
 	owner := admintest.Pool(t)
 	ctx, _ := admintest.StaffContext(t, owner)
 	s := stock.NewStore(owner)
-	dashboard := admintest.OrderStore(owner, admintest.Refunder{}, nil, nil)
+	landing := dashboard.NewStore(owner, s, health.NewStore(owner), reports.NewStore(owner, s))
 	read := func() (counted int64, listed int) {
 		t.Helper()
-		view, err := dashboard.Dashboard(ctx)
+		view, err := landing.Dashboard(ctx)
 		if err != nil {
 			t.Fatalf("Dashboard: %v", err)
 		}
@@ -696,7 +699,7 @@ func TestRetiringPublishedVariantsThroughTheStockRoute(t *testing.T) {
 			if err != nil {
 				t.Fatalf("begin fixture: %v", err)
 			}
-			defer pgtx.Rollback(ctx, tx)
+			defer db.Rollback(ctx, tx)
 			var productID uuid.UUID
 			if err := tx.QueryRow(ctx, `
     INSERT INTO products (brand_id, category_id, slug, name, status, published_at)

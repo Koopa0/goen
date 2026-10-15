@@ -527,14 +527,13 @@ BEGIN
     v_shipping := CASE WHEN v_ship.free_over_cents IS NOT NULL AND v_subtotal >= v_ship.free_over_cents
                        THEN 0 ELSE v_ship.fee_cents END;
     v_total := v_subtotal + v_shipping;
-    -- next_order_number() numbers today's orders; this is the same count kept
-    -- for the simulated day, after any order that day already has. store may
-    -- not write the counter.
-    INSERT INTO order_number_counters (business_date, last_no)
-    VALUES (v_ord.placed_on, 1)
-    ON CONFLICT (business_date) DO UPDATE
-    SET last_no = order_number_counters.last_no + 1
-    RETURNING 'GO-' || to_char(business_date, 'YYMMDD') || '-' || to_char(last_no, 'FM000000') INTO v_number;
+    -- next_order_number() numbers today's orders: its date is today's. The
+    -- simulated day keeps the random suffix and takes its own date, drawn again
+    -- while the number is taken, as the function does for today.
+    LOOP
+        v_number := 'GO-' || to_char(v_ord.placed_on, 'YYMMDD') || substr(next_order_number(), 10);
+        EXIT WHEN NOT EXISTS (SELECT 1 FROM orders WHERE order_number = v_number);
+    END LOOP;
 
     SET ROLE store;
     INSERT INTO orders (order_number, user_id, shipping_version_id, shipping_method_code,
@@ -708,8 +707,8 @@ BEGIN
         PERFORM consume_reservation_partial(v_line.reservation_id, v_line.quantity);
     END LOOP;
     UPDATE orders SET fulfillment_status = 'shipped' WHERE id = v_ord.order_id;
-    INSERT INTO order_events (order_id, kind, note, actor_user_id)
-    VALUES (v_ord.order_id, 'shipped', '黑貓宅急便 ' || v_tracking, v_staff);
+    INSERT INTO order_events (order_id, kind, actor_user_id, shipment_id)
+    VALUES (v_ord.order_id, 'shipped', v_staff, v_shipment);
     PERFORM record_audit_event(v_staff, 'order.ship', 'orders', v_ord.order_id, NULL,
         jsonb_build_object('carrier', 'black_cat', 'tracking', v_tracking));
     SET CONSTRAINTS ALL IMMEDIATE;

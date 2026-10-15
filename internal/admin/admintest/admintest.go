@@ -18,6 +18,7 @@ import (
 	"runtime"
 	"sync/atomic"
 	"testing"
+	"time"
 
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
@@ -25,10 +26,10 @@ import (
 
 	"github.com/koopa0/goen/internal/admin/access"
 	"github.com/koopa0/goen/internal/admin/audit"
+	"github.com/koopa0/goen/internal/db"
 	"github.com/koopa0/goen/internal/db/dbtest"
 	"github.com/koopa0/goen/internal/email"
 	"github.com/koopa0/goen/internal/outbox"
-	"github.com/koopa0/goen/internal/pgtx"
 	"github.com/koopa0/goen/internal/refund"
 	"github.com/koopa0/goen/internal/user"
 	"github.com/koopa0/goen/internal/web"
@@ -67,6 +68,22 @@ func Pool(t *testing.T) *pgxpool.Pool {
 	return pool
 }
 
+// DatabaseNow is the database's clock at this moment. A test that has the
+// database stamp a row with now() and then asks a store about everything up to
+// the present must ask with this and not with time.Now: a database in a
+// container can run a millisecond or more ahead of the host, and a row it
+// stamped would then lie in the future of the question and be left out of the
+// answer. Rows are stamped at the start of their transaction, so the database's
+// clock read afterwards is never earlier than any of them.
+func DatabaseNow(t *testing.T, p *pgxpool.Pool) time.Time {
+	t.Helper()
+	var now time.Time
+	if err := p.QueryRow(t.Context(), `SELECT clock_timestamp()`).Scan(&now); err != nil {
+		t.Fatalf("read the database clock: %v", err)
+	}
+	return now
+}
+
 // StaffContext creates an admin user in p and returns a context that carries it
 // and a request id, as the access wrapper leaves it for a back-office handler.
 func StaffContext(t *testing.T, p *pgxpool.Pool) (context.Context, uuid.UUID) {
@@ -80,6 +97,30 @@ func StaffContext(t *testing.T, p *pgxpool.Pool) (context.Context, uuid.UUID) {
 	}
 	ctx := user.NewContext(t.Context(), user.User{ID: id.String(), Role: user.RoleAdmin})
 	return web.WithRequestID(ctx, "req-"+id.String()[:8]), id
+}
+
+// NamedStaff creates an admin called name and returns a context that carries
+// them, as StaffContext does, with their id and address. Two of them with
+// different names let a test say which of the two a page showed.
+func NamedStaff(t *testing.T, p *pgxpool.Pool, name string) (ctx context.Context, id uuid.UUID, address string) {
+	t.Helper()
+	if err := p.QueryRow(t.Context(), `
+		INSERT INTO users (email, role, full_name)
+		VALUES ('named-' || gen_random_uuid() || '@goen.invalid', 'admin', $1)
+		RETURNING id, email`, name).Scan(&id, &address); err != nil {
+		t.Fatalf("create staff %q: %v", name, err)
+	}
+	ctx = user.NewContext(t.Context(), user.User{ID: id.String(), Role: user.RoleAdmin})
+	return web.WithRequestID(ctx, "req-"+id.String()[:8]), id, address
+}
+
+// RenameUser sets a user's display name to name, which is all /account/profile
+// asks of anybody, staff included.
+func RenameUser(t *testing.T, p *pgxpool.Pool, id uuid.UUID, name string) {
+	t.Helper()
+	if _, err := p.Exec(t.Context(), `UPDATE users SET full_name = $2 WHERE id = $1`, id, name); err != nil {
+		t.Fatalf("rename %s to %q: %v", id, name, err)
+	}
 }
 
 // AuditRows counts the audit events of one action.
@@ -131,7 +172,7 @@ func OrderForCustomer(t *testing.T, pool *pgxpool.Pool, userID uuid.UUID, cents 
 	if err != nil {
 		t.Fatalf("begin: %v", err)
 	}
-	defer pgtx.Rollback(ctx, tx)
+	defer db.Rollback(ctx, tx)
 
 	var orderID uuid.UUID
 	if err := tx.QueryRow(ctx, `
@@ -295,21 +336,14 @@ func WaitForBlockedApplication(
 ) int32 {
 	t.Helper()
 	for {
-		var pid int32
-		var blockers []int32
-		err := pool.QueryRow(ctx, `
-			SELECT pid, pg_blocking_pids(pid) FROM pg_stat_activity
-			WHERE datname = current_database() AND application_name = $1
-			  AND state = 'active' AND wait_event_type = 'Lock'`, applicationName).
-			Scan(&pid, &blockers)
-		if err == nil {
-			for _, got := range blockers {
-				if got == blockerPID {
-					return pid
-				}
-			}
-		} else if !errors.Is(err, pgx.ErrNoRows) {
+		blocked, ok, err := dbtest.Blocked(ctx, pool, dbtest.Match{
+			Application: applicationName, Active: true, BlockedBy: []int32{blockerPID},
+		})
+		if err != nil {
 			t.Fatalf("trace blocked writer %q: %v", applicationName, err)
+		}
+		if ok {
+			return blocked.PID
 		}
 		if ctx.Err() != nil {
 			t.Fatalf("writer %q never blocked behind pid %d: %v", applicationName, blockerPID, ctx.Err())
@@ -369,7 +403,7 @@ func PaidUnshippedOrder(t *testing.T, pool *pgxpool.Pool, cardCents, creditCents
 	if err != nil {
 		t.Fatalf("begin: %v", err)
 	}
-	defer pgtx.Rollback(ctx, tx)
+	defer db.Rollback(ctx, tx)
 	if err := tx.QueryRow(ctx, `
 		INSERT INTO orders (order_number, user_id, shipping_version_id,
 		                    shipping_method_code, shipping_method_name, shipping_cents)

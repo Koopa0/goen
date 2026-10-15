@@ -14,9 +14,10 @@ import (
 
 	"github.com/google/uuid"
 
+	"github.com/koopa0/goen/internal/bearer"
 	"github.com/koopa0/goen/internal/cart"
-	"github.com/koopa0/goen/internal/order"
 	"github.com/koopa0/goen/internal/order/access"
+	"github.com/koopa0/goen/internal/order/delivery"
 	"github.com/koopa0/goen/internal/ratelimit"
 	"github.com/koopa0/goen/internal/user"
 )
@@ -32,7 +33,7 @@ type integrityCheckout struct {
 	variant uuid.UUID
 	shipID  uuid.UUID
 	coupon  string
-	addr    *order.Delivery
+	addr    *delivery.Details
 }
 
 func newIntegrityCheckout(t *testing.T) *integrityCheckout {
@@ -40,10 +41,7 @@ func newIntegrityCheckout(t *testing.T) *integrityCheckout {
 	ctx := t.Context()
 	s := cart.NewStore(pool)
 	userID := creditedCustomer(t, 5000)
-	token, err := cart.NewToken()
-	if err != nil {
-		t.Fatalf("token: %v", err)
-	}
+	token := bearer.New()
 	cartID, err := s.Create(ctx, token, uuid.NullUUID{UUID: userID, Valid: true})
 	if err != nil {
 		t.Fatalf("create cart: %v", err)
@@ -60,7 +58,7 @@ func newIntegrityCheckout(t *testing.T) *integrityCheckout {
 		userID: userID, cartID: cartID, token: token, variant: variant,
 		shipID: shipVersionFor(t, "home_delivery"),
 		coupon: coupon(t, "INTEGRITY"+strings.ToUpper(uuid.NewString()[:8]), "amount", 10000, 0, 0, 0, 0),
-		addr: &order.Delivery{
+		addr: &delivery.Details{
 			Email: "integrity@example.com", RecipientName: "王小明", Phone: "0912345678",
 			PostalCode: "110", City: "台北市", District: "信義區", Street: "松高路 1 號",
 		},

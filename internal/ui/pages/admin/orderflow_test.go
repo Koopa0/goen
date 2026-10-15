@@ -36,24 +36,10 @@ func TestAPaidOrderAwaitingFulfilmentStartsPickingWithOneButton(t *testing.T) {
 		if strings.Contains(html, `id="next-status"`) {
 			t.Errorf("%s: the one-entry status menu is still there", locale)
 		}
-		if strings.Contains(html, i18n.T(ctx, i18n.KeyAdminQueueStatusSave)) {
+		if strings.Contains(html, map[i18n.Locale]string{i18n.ZhHant: "更新狀態", i18n.En: "Update the status"}[locale]) {
 			t.Errorf("%s: the generic update button is still there", locale)
 		}
 	}
-
-	t.Run("other moves keep the menu", func(t *testing.T) {
-		t.Parallel()
-		for name, next := range map[string][]Transition{
-			"cancel only":    {{Value: order.FulfillmentCancelled}},
-			"two moves":      {{Value: order.FulfillmentPicking}, {Value: order.FulfillmentCancelled}},
-			"deliver or end": {{Value: order.FulfillmentDelivered}, {Value: order.FulfillmentCompleted}},
-		} {
-			html := renderOrder(t, i18n.En, &OrderView{Number: "GO-1", Status: order.FulfillmentPending, Next: next})
-			if !strings.Contains(html, `id="next-status"`) {
-				t.Errorf("%s: lost its status menu", name)
-			}
-		}
-	})
 }
 
 // The refund before shipment is offered from the paid state, not only from

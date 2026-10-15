@@ -15,8 +15,6 @@ import (
 	"github.com/koopa0/goen/internal/admin/audit"
 	"github.com/koopa0/goen/internal/db"
 	"github.com/koopa0/goen/internal/email"
-	"github.com/koopa0/goen/internal/pgerr"
-	"github.com/koopa0/goen/internal/pgtx"
 	"github.com/koopa0/goen/internal/ui/pages/admin"
 	"github.com/koopa0/goen/internal/user"
 )
@@ -72,32 +70,43 @@ func (s *Store) AddStaff(ctx context.Context, address, name, role string) (bool,
 
 	var cleared bool
 	err = s.write(ctx, audit.ActionGrantStaff, func(ctx context.Context, q *db.Queries) (uuid.UUID, any, error) {
-		credentialCleared, upsertErr := q.UpsertStaff(ctx, db.UpsertStaffParams{
-			Email: address, FullName: name, Role: role,
-		})
-		if upsertErr != nil {
-			switch {
-			case pgerr.IsConstraint(upsertErr, "users_keep_one_admin"):
-				return uuid.UUID{}, nil, ErrLastAdmin
-			case pgerr.IsConstraint(upsertErr, "users_staff_already_exists"):
-				return uuid.UUID{}, nil, ErrAlreadyStaff
-			}
-			return uuid.UUID{}, nil, fmt.Errorf("add staff %s: %w", address, upsertErr)
+		credentialCleared, target, promoteErr := promoteStaff(ctx, q, address, name, role)
+		if promoteErr != nil {
+			return uuid.UUID{}, nil, promoteErr
 		}
 		cleared = credentialCleared
-		target, lookupErr := q.UserByEmail(ctx, address)
-		if lookupErr != nil {
-			return uuid.UUID{}, nil, fmt.Errorf("read promoted staff %s: %w", address, lookupErr)
-		}
 		if enqueueErr := enqueueStaffInvitation(ctx, q, target.ID); enqueueErr != nil {
 			return uuid.UUID{}, nil, enqueueErr
 		}
-		return target.ID, map[string]string{"email": target.Email, "role": target.Role}, nil
+		return target.ID, map[string]string{"role": target.Role}, nil
 	})
 	if err != nil {
 		return false, err
 	}
 	return cleared, nil
+}
+
+// promoteStaff writes the staff row and reads it back. Its errors name the step
+// and never the address: the handler logs them at ERROR, and a database that is
+// failing is exactly when every attempt would write one more address to the log.
+func promoteStaff(ctx context.Context, q *db.Queries, address, name, role string) (cleared bool, target db.UserByEmailRow, err error) {
+	cleared, err = q.UpsertStaff(ctx, db.UpsertStaffParams{
+		Email: address, FullName: name, Role: role,
+	})
+	if err != nil {
+		switch {
+		case db.IsConstraint(err, "users_keep_one_admin"):
+			return false, db.UserByEmailRow{}, ErrLastAdmin
+		case db.IsConstraint(err, "users_staff_already_exists"):
+			return false, db.UserByEmailRow{}, ErrAlreadyStaff
+		}
+		return false, db.UserByEmailRow{}, fmt.Errorf("add staff: %w", err)
+	}
+	target, err = q.UserByEmail(ctx, address)
+	if err != nil {
+		return false, db.UserByEmailRow{}, fmt.Errorf("read promoted staff: %w", err)
+	}
+	return cleared, target, nil
 }
 
 func (s *Store) RevokeStaff(ctx context.Context, userID string) error {
@@ -130,7 +139,7 @@ func (s *Store) RevokeStaff(ctx context.Context, userID string) error {
 		if lookupErr != nil {
 			return uuid.UUID{}, nil, fmt.Errorf("read revoked staff: %w", lookupErr)
 		}
-		return target, map[string]string{"email": row.Email, "role": row.Role}, nil
+		return target, map[string]string{"role": row.Role}, nil
 	})
 }
 
@@ -158,19 +167,18 @@ func (s *Store) RemoveFactor(ctx context.Context, userID string) error {
 		if !removed {
 			return uuid.UUID{}, nil, ErrNotEnrolled
 		}
-		row, lookupErr := q.UserByID(ctx, target)
-		if lookupErr != nil {
-			return uuid.UUID{}, nil, fmt.Errorf("read recovered staff: %w", lookupErr)
-		}
-		return target, map[string]string{"email": row.Email}, nil
+		// No payload: the row's entity_id names the user, and the page resolves
+		// the name when it renders, so erasing the account breaks the link.
+		return target, nil, nil
 	})
 }
 
 // write runs a staff write and records who did it in one transaction: an audit
 // row for a rolled-back grant is a lie, and a grant that commits without one is
 // a gap /admin/audit cannot close. work names the user it acted on, and what to
-// record about them; a TOTP secret there would live forever, because
-// audit_events is append-only and erase_user does not reach it.
+// record about them; a TOTP secret or an email address there would live
+// forever, because audit_events is append-only and erase_user does not reach
+// it. Ids and codes only: the page resolves the name when it renders.
 func (s *Store) write(
 	ctx context.Context,
 	action audit.Action,
@@ -180,7 +188,7 @@ func (s *Store) write(
 	if err != nil {
 		return fmt.Errorf("begin %s: %w", action, err)
 	}
-	defer pgtx.Rollback(ctx, tx)
+	defer db.Rollback(ctx, tx)
 	q := s.q.WithTx(tx)
 
 	target, after, err := work(ctx, q)

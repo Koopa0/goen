@@ -14,7 +14,7 @@ import (
 	stockdesk "github.com/koopa0/goen/internal/admin/stock"
 	"github.com/koopa0/goen/internal/db"
 	"github.com/koopa0/goen/internal/i18n"
-	"github.com/koopa0/goen/internal/pgtx"
+	"github.com/koopa0/goen/internal/inventory"
 	"github.com/koopa0/goen/internal/shoptime"
 	"github.com/koopa0/goen/internal/ui/chart"
 	"github.com/koopa0/goen/internal/ui/pages/admin"
@@ -22,16 +22,16 @@ import (
 
 func TestRevenueCountsOnlyCommittedOrders(t *testing.T) {
 	ctx := t.Context()
-	s := reports.NewStore(pool)
+	s := reports.NewStore(pool, stockdesk.NewStore(pool))
 
-	before, err := s.ReportAt(ctx, 30, time.Now())
+	before, err := s.ReportAt(ctx, 30, admintest.DatabaseNow(t, pool))
 	if err != nil {
 		t.Fatalf("report: %v", err)
 	}
 
 	unpaid := reportOrder(t, 100000, false)
 	_ = unpaid
-	mid, err := s.ReportAt(ctx, 30, time.Now())
+	mid, err := s.ReportAt(ctx, 30, admintest.DatabaseNow(t, pool))
 	if err != nil {
 		t.Fatalf("report: %v", err)
 	}
@@ -44,7 +44,7 @@ func TestRevenueCountsOnlyCommittedOrders(t *testing.T) {
 	}
 
 	reportOrder(t, 100000, true)
-	after, err := s.ReportAt(ctx, 30, time.Now())
+	after, err := s.ReportAt(ctx, 30, admintest.DatabaseNow(t, pool))
 	if err != nil {
 		t.Fatalf("report: %v", err)
 	}
@@ -54,9 +54,51 @@ func TestRevenueCountsOnlyCommittedOrders(t *testing.T) {
 	}
 }
 
+// A report counts the orders placed before the moment it is asked about, and the
+// database stamps an order with its own clock. Asked with a host clock that
+// runs behind the database's, an order made a moment ago is not there yet, so a
+// test that places an order and then asks about "now" must ask with the
+// database's clock. This fixes both halves without waiting for a clock that
+// happens to differ: the host 2 ms behind the stamp misses the order, the
+// database's own clock does not.
+func TestAnOrderJustPlacedIsCountedAtTheDatabaseClockNotAHostClockBehindIt(t *testing.T) {
+	ctx := t.Context()
+	s := reports.NewStore(pool, stockdesk.NewStore(pool))
+
+	before, err := s.ReportAt(ctx, 30, admintest.DatabaseNow(t, pool))
+	if err != nil {
+		t.Fatalf("report: %v", err)
+	}
+	orderID := reportOrder(t, 100000, false)
+	var placedAt time.Time
+	if err = pool.QueryRow(ctx, `SELECT placed_at FROM orders WHERE id = $1`, orderID).Scan(&placedAt); err != nil {
+		t.Fatalf("read placed_at: %v", err)
+	}
+
+	behind, err := s.ReportAt(ctx, 30, placedAt.Add(-2*time.Millisecond))
+	if err != nil {
+		t.Fatalf("report from a host clock behind the database: %v", err)
+	}
+	if behind.Placed != before.Placed {
+		t.Errorf("asked 2 ms before the order was stamped, the report places %d orders, want the %d it had: "+
+			"the order lies in the future of the question, which is what DatabaseNow avoids",
+			behind.Placed, before.Placed)
+	}
+
+	at, err := s.ReportAt(ctx, 30, admintest.DatabaseNow(t, pool))
+	if err != nil {
+		t.Fatalf("report at the database clock: %v", err)
+	}
+	if at.Placed != before.Placed+1 {
+		t.Errorf("asked at the database's clock, the report places %d orders, want %d", at.Placed, before.Placed+1)
+	}
+	t.Logf("orders placed: %d before, %d asked 2 ms before the stamp, %d asked at the database clock",
+		before.Placed, behind.Placed, at.Placed)
+}
+
 func TestBestSellerHistorySurvivesRetirementOfAPurchasedVariant(t *testing.T) {
 	ctx := t.Context()
-	s := reports.NewStore(pool)
+	s := reports.NewStore(pool, stockdesk.NewStore(pool))
 	tx, err := pool.Begin(ctx)
 	if err != nil {
 		t.Fatalf("begin: %v", err)
@@ -125,7 +167,7 @@ func TestBestSellerHistorySurvivesRetirementOfAPurchasedVariant(t *testing.T) {
 
 	assertSeller := func(stage string) {
 		t.Helper()
-		view, err := s.ReportAt(ctx, 30, time.Now())
+		view, err := s.ReportAt(ctx, 30, admintest.DatabaseNow(t, pool))
 		if err != nil {
 			t.Fatalf("%s report: %v", stage, err)
 		}
@@ -180,7 +222,7 @@ func TestBestSellersLeaveOutAnOrderRefundedBeforeShipment(t *testing.T) {
 
 	_, staff := admintest.StaffContext(t, pool)
 	backOffice := admintest.AdminRolePool(t, pool)
-	s := reports.NewStore(backOffice)
+	s := reports.NewStore(backOffice, stockdesk.NewStore(backOffice))
 	listed := func() bool {
 		t.Helper()
 		view, err := s.ReportAt(ctx, 7, now)
@@ -263,7 +305,7 @@ func TestStockCoverLeavesOutAnOrderRefundedBeforeShipment(t *testing.T) {
 
 func TestTheWindowIsAnAllowlist(t *testing.T) {
 	ctx := t.Context()
-	s := reports.NewStore(pool)
+	s := reports.NewStore(pool, stockdesk.NewStore(pool))
 
 	for _, days := range []int32{7, 30, 90} {
 		view, err := s.ReportAt(ctx, days, time.Now())
@@ -365,9 +407,9 @@ func reportOrderAt(t *testing.T, cents int64, paid bool, placedAt *time.Time) uu
 
 func TestCommittedCoversAnOrderWithNoPaymentRow(t *testing.T) {
 	ctx := t.Context()
-	s := reports.NewStore(pool)
+	s := reports.NewStore(pool, stockdesk.NewStore(pool))
 
-	before, err := s.ReportAt(ctx, 30, time.Now())
+	before, err := s.ReportAt(ctx, 30, admintest.DatabaseNow(t, pool))
 	if err != nil {
 		t.Fatalf("report: %v", err)
 	}
@@ -387,7 +429,7 @@ func TestCommittedCoversAnOrderWithNoPaymentRow(t *testing.T) {
 		t.Fatalf("the fixture wrote %d payments; this case is about an order with none", payments)
 	}
 
-	after, err := s.ReportAt(ctx, 30, time.Now())
+	after, err := s.ReportAt(ctx, 30, admintest.DatabaseNow(t, pool))
 	if err != nil {
 		t.Fatalf("report: %v", err)
 	}
@@ -403,7 +445,7 @@ func TestCommittedCoversAnOrderWithNoPaymentRow(t *testing.T) {
 
 func TestStockRowsCapSoldOutAndKeepEstimatesListed(t *testing.T) {
 	ctx := t.Context()
-	s := reports.NewStore(pool)
+	s := reports.NewStore(pool, stockdesk.NewStore(pool))
 
 	// One more sold out SKU than the list holds, so the count is at least 1
 	// whatever the seed leaves, and a SKU of ten orders that must still show.
@@ -417,7 +459,7 @@ func TestStockRowsCapSoldOutAndKeepEstimatesListed(t *testing.T) {
 		orderOnVariant(t, estimatedID, estimated, 1, nil)
 	}
 
-	now := time.Now()
+	now := admintest.DatabaseNow(t, pool)
 	raw, err := db.New(pool).StockAtRisk(ctx, db.StockAtRiskParams{
 		FromAt: now.AddDate(0, 0, -30), ToAt: now.Add(time.Minute),
 	})
@@ -440,11 +482,11 @@ func TestStockRowsCapSoldOutAndKeepEstimatesListed(t *testing.T) {
 	var soldOut int
 	afterSoldOut := true
 	for i, r := range view.AtRisk {
-		if r.Estimate().State != admin.CoverSoldOut {
+		if r.Estimate().State != inventory.CoverSoldOut {
 			continue
 		}
 		soldOut++
-		if i > 0 && view.AtRisk[i-1].Estimate().State != admin.CoverSoldOut {
+		if i > 0 && view.AtRisk[i-1].Estimate().State != inventory.CoverSoldOut {
 			afterSoldOut = false
 		}
 	}
@@ -458,8 +500,8 @@ func TestStockRowsCapSoldOutAndKeepEstimatesListed(t *testing.T) {
 	switch {
 	case !ok:
 		t.Errorf("report lacks %s: sold out rows must not push the estimates off the list", estimated)
-	case row.Estimate().State != admin.CoverEstimated:
-		t.Errorf("ten orders read as state %d, want CoverEstimated %d", row.Estimate().State, admin.CoverEstimated)
+	case row.Estimate().State != inventory.CoverEstimated:
+		t.Errorf("ten orders read as state %d, want CoverEstimated %d", row.Estimate().State, inventory.CoverEstimated)
 	case row.Sellable != 5 || row.Sold != 10 || row.Orders != 10:
 		t.Errorf("stock 10, safety 5, ten orders of one: sellable %d sold %d orders %d, want 5, 10 and 10",
 			row.Sellable, row.Sold, row.Orders)
@@ -468,7 +510,7 @@ func TestStockRowsCapSoldOutAndKeepEstimatesListed(t *testing.T) {
 
 func TestStockWindowIsWholeShopDays(t *testing.T) {
 	ctx := t.Context()
-	s := reports.NewStore(pool)
+	s := reports.NewStore(pool, stockdesk.NewStore(pool))
 	now := shopMoment(t, "2024-03-10 15:20:00")
 
 	variantID, sku := newVariant(t, 20, 2)
@@ -497,7 +539,7 @@ func TestStockWindowIsWholeShopDays(t *testing.T) {
 
 func TestStockTimeAndSoldOutComeFromTheLedger(t *testing.T) {
 	ctx := t.Context()
-	s := reports.NewStore(pool)
+	s := reports.NewStore(pool, stockdesk.NewStore(pool))
 	now := shopMoment(t, "2024-03-10 15:20:00")
 
 	// Stock 10 over safety 2, received on 02-25: nothing to sell before, so the
@@ -587,7 +629,7 @@ func newVariant(t *testing.T, stock, safety int) (id uuid.UUID, sku string) {
 	if err != nil {
 		t.Fatalf("begin: %v", err)
 	}
-	defer pgtx.Rollback(ctx, tx)
+	defer db.Rollback(ctx, tx)
 
 	var productID uuid.UUID
 	if err := tx.QueryRow(ctx, `
@@ -623,7 +665,7 @@ func orderOnVariant(t *testing.T, variantID uuid.UUID, sku string, units int, pl
 	if err != nil {
 		t.Fatalf("begin: %v", err)
 	}
-	defer pgtx.Rollback(ctx, tx)
+	defer db.Rollback(ctx, tx)
 
 	var orderID uuid.UUID
 	if err := tx.QueryRow(ctx, `
@@ -660,7 +702,7 @@ func orderOnVariant(t *testing.T, variantID uuid.UUID, sku string, units int, pl
 
 func TestAPeriodIsWholeShopDaysAndThePreviousStopsAtTheSameHour(t *testing.T) {
 	ctx := t.Context()
-	s := reports.NewStore(pool)
+	s := reports.NewStore(pool, stockdesk.NewStore(pool))
 	at := func(wallClock string) time.Time {
 		t.Helper()
 		moment, err := shoptime.ParseSecond(wallClock)
@@ -725,8 +767,8 @@ func TestAPeriodIsWholeShopDaysAndThePreviousStopsAtTheSameHour(t *testing.T) {
 		{"2024-03-03 15:21:00", 2048},
 	} {
 		if _, insertErr := pool.Exec(ctx, `
-			INSERT INTO store_credit_entries (account_id, amount_cents, reason, idempotency_key, order_id, created_at)
-			VALUES ($1, $2::bigint, '折讓', 'window-' || $2::bigint::text, $3, $4::timestamptz)`,
+			INSERT INTO store_credit_entries (account_id, amount_cents, idempotency_key, order_id, created_at)
+			VALUES ($1, $2::bigint, 'return-credit:window-' || $2::bigint::text, $3, $4::timestamptz)`,
 			account, credit.cents, paid, at(credit.created)); insertErr != nil {
 			t.Fatalf("credit at %s: %v", credit.created, insertErr)
 		}
@@ -759,7 +801,7 @@ func TestAPeriodIsWholeShopDaysAndThePreviousStopsAtTheSameHour(t *testing.T) {
 // to more than the tile.
 func TestPaidByShopDayAddsUpToRevenue(t *testing.T) {
 	ctx := t.Context()
-	s := reports.NewStore(pool)
+	s := reports.NewStore(pool, stockdesk.NewStore(pool))
 	at := func(wallClock string) time.Time {
 		t.Helper()
 		moment, err := shoptime.ParseSecond(wallClock)
@@ -856,7 +898,7 @@ func TestPaidByShopDayAddsUpToRevenue(t *testing.T) {
 
 func TestReturnedProductsCountOnlyDecidedUnitsOfOrdersPlacedInThePeriod(t *testing.T) {
 	ctx := t.Context()
-	s := reports.NewStore(pool)
+	s := reports.NewStore(pool, stockdesk.NewStore(pool))
 
 	countedID, counted := newVariant(t, 20, 0)
 	orderOnVariant(t, countedID, counted, 12, nil)
@@ -873,7 +915,7 @@ func TestReturnedProductsCountOnlyDecidedUnitsOfOrdersPlacedInThePeriod(t *testi
 	orderOnVariant(t, declinedID, declined, 6, nil)
 	returnUnits(t, orderOf(t, declined, false), 2, "rejected")
 
-	view, err := s.ReportAt(ctx, 30, time.Now())
+	view, err := s.ReportAt(ctx, 30, admintest.DatabaseNow(t, pool))
 	if err != nil {
 		t.Fatalf("report: %v", err)
 	}
@@ -933,7 +975,7 @@ func returnUnits(t *testing.T, orderID uuid.UUID, qty int, status string) {
 	if err != nil {
 		t.Fatalf("begin: %v", err)
 	}
-	defer pgtx.Rollback(ctx, tx)
+	defer db.Rollback(ctx, tx)
 
 	var lineID uuid.UUID
 	var sold int
@@ -981,7 +1023,7 @@ func returnUnits(t *testing.T, orderID uuid.UUID, qty int, status string) {
 // one refunded before shipment and the ones outside the period are on no day.
 func TestPaidOrdersPerDayAddUpToThePaidOrderTile(t *testing.T) {
 	ctx := t.Context()
-	s := reports.NewStore(pool)
+	s := reports.NewStore(pool, stockdesk.NewStore(pool))
 	at := func(wallClock string) time.Time {
 		t.Helper()
 		moment, err := shoptime.ParseSecond(wallClock)
@@ -1043,7 +1085,7 @@ func TestPaidOrdersPerDayAddUpToThePaidOrderTile(t *testing.T) {
 
 func TestCampaignsAreThoseOnDuringThePeriod(t *testing.T) {
 	ctx := t.Context()
-	s := reports.NewStore(pool)
+	s := reports.NewStore(pool, stockdesk.NewStore(pool))
 	at := func(wallClock string) time.Time {
 		t.Helper()
 		moment, err := shoptime.ParseSecond(wallClock)
@@ -1105,7 +1147,7 @@ func TestCampaignsAreThoseOnDuringThePeriod(t *testing.T) {
 
 func TestAnEmptyPeriodNamesTheLatestPaidOrdersDay(t *testing.T) {
 	ctx := t.Context()
-	s := reports.NewStore(pool)
+	s := reports.NewStore(pool, stockdesk.NewStore(pool))
 	at := func(wallClock string) time.Time {
 		t.Helper()
 		moment, err := shoptime.ParseSecond(wallClock)
@@ -1156,7 +1198,7 @@ func TestAnEmptyPeriodNamesTheLatestPaidOrdersDay(t *testing.T) {
 // figure, since the orders carry no discount, shipping or tax.
 func TestDepartmentsAddUpToTheRevenueFigure(t *testing.T) {
 	ctx := t.Context()
-	s := reports.NewStore(pool)
+	s := reports.NewStore(pool, stockdesk.NewStore(pool))
 
 	suffix := uuid.NewString()
 	rootA := departmentName("A", suffix)
@@ -1165,7 +1207,7 @@ func TestDepartmentsAddUpToTheRevenueFigure(t *testing.T) {
 	idB := newCategory(t, rootB, nil)
 	idChild := newCategory(t, departmentName("child", suffix), &idA)
 
-	before, err := s.ReportAt(ctx, 30, time.Now())
+	before, err := s.ReportAt(ctx, 30, admintest.DatabaseNow(t, pool))
 	if err != nil {
 		t.Fatalf("report: %v", err)
 	}
@@ -1184,7 +1226,7 @@ func TestDepartmentsAddUpToTheRevenueFigure(t *testing.T) {
 		refunded, staff, "dept-"+refunded); err != nil {
 		t.Fatalf("refund before shipment: %v", err)
 	}
-	after, err := s.ReportAt(ctx, 30, time.Now())
+	after, err := s.ReportAt(ctx, 30, admintest.DatabaseNow(t, pool))
 	if err != nil {
 		t.Fatalf("report: %v", err)
 	}
@@ -1238,7 +1280,7 @@ func categoryOrder(t *testing.T, categoryID uuid.UUID, cents int64, paid bool) (
 	if err != nil {
 		t.Fatalf("begin: %v", err)
 	}
-	defer pgtx.Rollback(ctx, tx)
+	defer db.Rollback(ctx, tx)
 
 	var productID, orderID uuid.UUID
 	if err := tx.QueryRow(ctx, `

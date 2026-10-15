@@ -5,6 +5,7 @@ import (
 	"encoding/hex"
 	"errors"
 	"fmt"
+	"log/slog"
 	"time"
 
 	"github.com/jackc/pgx/v5"
@@ -12,11 +13,11 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/jackc/pgx/v5/pgxpool"
 
+	"github.com/koopa0/goen/internal/bearer"
 	"github.com/koopa0/goen/internal/db"
 	"github.com/koopa0/goen/internal/email"
 	"github.com/koopa0/goen/internal/i18n"
 	"github.com/koopa0/goen/internal/outbox"
-	"github.com/koopa0/goen/internal/pgtx"
 )
 
 type Store struct {
@@ -36,24 +37,21 @@ func NewStore(pool *pgxpool.Pool) *Store {
 func (s *Store) Request(ctx context.Context, addr string) (Outcome, error) {
 	addr = email.Clean(addr)
 	if Validate(addr) != "" {
-		return AlreadyActive, fmt.Errorf("requesting confirmation for %q: not a usable address", addr)
+		return AlreadyActive, errors.New("requesting confirmation: not a usable address")
 	}
 
-	token, err := NewToken()
-	if err != nil {
-		return AlreadyActive, err
-	}
+	token := bearer.New()
 
 	tx, err := s.pool.Begin(ctx)
 	if err != nil {
 		return AlreadyActive, fmt.Errorf("beginning newsletter request: %w", err)
 	}
-	defer pgtx.Rollback(ctx, tx)
+	defer db.Rollback(ctx, tx)
 	q := db.New(tx)
 
 	_, err = q.RequestNewsletterConfirm(ctx, db.RequestNewsletterConfirmParams{
 		Email:  addr,
-		Digest: HashToken(token),
+		Digest: bearer.Digest(token),
 		Ttl:    interval(ConfirmTTL),
 	})
 	if err != nil {
@@ -83,19 +81,16 @@ func (s *Store) Confirm(ctx context.Context, token string) (string, error) {
 		return "", ErrNotFound
 	}
 
-	leave, err := NewToken()
-	if err != nil {
-		return "", err
-	}
+	leave := bearer.New()
 
 	tx, err := s.pool.Begin(ctx)
 	if err != nil {
 		return "", fmt.Errorf("beginning newsletter confirm: %w", err)
 	}
-	defer pgtx.Rollback(ctx, tx)
+	defer db.Rollback(ctx, tx)
 	q := db.New(tx)
 
-	addr, err := q.SpendNewsletterConfirmation(ctx, HashToken(token))
+	addr, err := q.SpendNewsletterConfirmation(ctx, bearer.Digest(token))
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
 			return "", ErrNotFound
@@ -144,7 +139,40 @@ func (s *Store) Unsubscribe(ctx context.Context, token string) (string, error) {
 
 // dedupeOf hashes the token so the outbox row's key is not itself the link.
 func dedupeOf(token string) string {
-	return hex.EncodeToString(HashToken(token))
+	return hex.EncodeToString(bearer.Digest(token))
+}
+
+// SweepConfirmations deletes requests older than [ConfirmationRetain]. It
+// touches newsletter_confirmations only: a subscription and an opt-out in
+// newsletter_subscribers are never deleted here.
+func (s *Store) SweepConfirmations(ctx context.Context) (int64, error) {
+	n, err := s.q.DeleteStaleNewsletterConfirmations(ctx, interval(ConfirmationRetain))
+	if err != nil {
+		return 0, fmt.Errorf("delete stale newsletter confirmations: %w", err)
+	}
+	return n, nil
+}
+
+// SweepConfirmationsForever runs once at startup, so a host redeployed more
+// often than the interval still clears unanswered requests.
+func (s *Store) SweepConfirmationsForever(ctx context.Context, log *slog.Logger) {
+	t := time.NewTicker(ConfirmationSweepInterval)
+	defer t.Stop()
+	for {
+		n, err := s.SweepConfirmations(ctx)
+		if err != nil && ctx.Err() == nil {
+			log.ErrorContext(ctx, "sweep unanswered newsletter requests", "error", err)
+		}
+		if n > 0 {
+			log.InfoContext(ctx, "deleted unanswered newsletter requests", "deleted", n,
+				"retain_days", int(ConfirmationRetain.Hours()/24))
+		}
+		select {
+		case <-ctx.Done():
+			return
+		case <-t.C:
+		}
+	}
 }
 
 func interval(d time.Duration) pgtype.Interval {

@@ -20,23 +20,24 @@ import (
 	"github.com/koopa0/goen/internal/admin/invoicing"
 	"github.com/koopa0/goen/internal/admin/refunds"
 	"github.com/koopa0/goen/internal/invoice"
+	"github.com/koopa0/goen/internal/invoice/issuer"
 	"github.com/koopa0/goen/internal/outbox"
 	"github.com/koopa0/goen/internal/ui/pages/admin"
 )
 
-func fakeECPay(t *testing.T, issuedAt time.Time) (*invoice.FakeECPay, *invoice.Store) {
+func fakeECPay(t *testing.T, issuedAt time.Time) (*issuer.FakeECPay, *issuer.Store) {
 	t.Helper()
-	fake, err := invoice.NewFakeECPay(issuedAt)
+	fake, err := issuer.NewFakeECPay(issuedAt)
 	if err != nil {
 		t.Fatalf("fake ECPay: %v", err)
 	}
 	t.Cleanup(fake.Close)
-	return fake, invoice.NewStore(pool, fake.Gateway())
+	return fake, issuer.NewStore(pool, fake.Gateway())
 }
 
 // capturedOrderOwingAnInvoice is a card-captured, unshipped order whose
 // 統一發票 the system has claimed and not yet sent.
-func capturedOrderOwingAnInvoice(t *testing.T, ctx context.Context, invoices *invoice.Store) (string, uuid.UUID) {
+func capturedOrderOwingAnInvoice(t *testing.T, ctx context.Context, invoices *issuer.Store) (string, uuid.UUID) {
 	t.Helper()
 	number, orderID, _ := admintest.PaidUnshippedOrder(t, pool, 500000, 0, true)
 	if _, err := pool.Exec(ctx, `
@@ -50,7 +51,7 @@ func capturedOrderOwingAnInvoice(t *testing.T, ctx context.Context, invoices *in
 	return number, orderID
 }
 
-func issueNow(t *testing.T, ctx context.Context, invoices *invoice.Store, orderID uuid.UUID) {
+func issueNow(t *testing.T, ctx context.Context, invoices *issuer.Store, orderID uuid.UUID) {
 	t.Helper()
 	var operationID uuid.UUID
 	if err := pool.QueryRow(ctx, `
@@ -180,7 +181,7 @@ func TestRefundBeforeShipmentAsksTheBuyerForAnAllowancePastTheVoidWindow(t *test
 		&status, &ip, &email, &agreedAt, &documents); err != nil {
 		t.Fatalf("read the settled allowance: %v", err)
 	}
-	if status != "succeeded" || documents != 1 || ip != invoice.FakeBuyerIP ||
+	if status != "succeeded" || documents != 1 || ip != issuer.FakeBuyerIP ||
 		email != "buyer@example.com" || agreedAt == "" {
 		t.Errorf("allowance %s with %d documents, consent ip %q email %q at %q; "+
 			"want it settled with the buyer's agreement kept", status, documents, ip, email, agreedAt)
@@ -215,14 +216,14 @@ func TestAnAllowanceTheBuyerIgnoresNeedsAPerson(t *testing.T) {
 		allowance.id).Scan(&status, &category); err != nil {
 		t.Fatalf("read the lapsed allowance: %v", err)
 	}
-	if status != "attention" || category != invoice.CategoryBuyerUnconfirmed {
-		t.Errorf("lapsed allowance is %s/%s, want attention/%s", status, category, invoice.CategoryBuyerUnconfirmed)
+	if status != "attention" || category != string(invoice.ReasonAllowanceBuyerUnconfirmed) {
+		t.Errorf("lapsed allowance is %s/%s, want attention/%s", status, category, string(invoice.ReasonAllowanceBuyerUnconfirmed))
 	}
 	var view admin.OrderView
 	if err := invoicing.NewStore(pool, invoices, invoices).FillOrder(ctx, &view, number); err != nil {
 		t.Fatalf("fill the order page: %v", err)
 	}
-	if view.AllowanceAttention != invoice.CategoryBuyerUnconfirmed || view.AllowanceAwaitingUntil != "" {
+	if view.AllowanceAttention != string(invoice.ReasonAllowanceBuyerUnconfirmed) || view.AllowanceAwaitingUntil != "" {
 		t.Errorf("order page shows attention %q, awaiting %q; want only that the customer never agreed",
 			view.AllowanceAttention, view.AllowanceAwaitingUntil)
 	}
@@ -284,7 +285,7 @@ func dueNow(t *testing.T, ctx context.Context, operationID uuid.UUID) {
 // system's claim would wait for ever and hold the cancellation with it.
 func TestRefundBeforeShipmentWithdrawsAnIssueNothingWillSend(t *testing.T) {
 	ctx, _ := admintest.StaffContext(t, pool)
-	invoices := invoice.NewStore(pool, &invoice.Gateway{})
+	invoices := issuer.NewStore(pool, &issuer.Gateway{})
 	s := refunds.NewStore(pool, admintest.Refunder{}, invoices)
 	number, orderID := capturedOrderOwingAnInvoice(t, ctx, invoices)
 
@@ -337,7 +338,7 @@ func TestRefundBeforeShipmentPaysOutWhileECPayHangs(t *testing.T) {
 // before the 加值中心 was unconfigured may exist at ECPay, so it is not withdrawn.
 func TestRefundBeforeShipmentKeepsAnIssueThatMayHaveReachedECPay(t *testing.T) {
 	ctx, _ := admintest.StaffContext(t, pool)
-	invoices := invoice.NewStore(pool, &invoice.Gateway{})
+	invoices := issuer.NewStore(pool, &issuer.Gateway{})
 	var sent atomic.Int64
 	s := refunds.NewStore(pool, admintest.Refunder{Sent: &sent}, invoices)
 	number, orderID := capturedOrderOwingAnInvoice(t, ctx, invoices)
@@ -476,16 +477,16 @@ func TestTheCancellationCountsAnAllowanceSentToTheBuyer(t *testing.T) {
 func TestASentAllowanceECPayDidNotAcceptStillCancelsAndIsListed(t *testing.T) {
 	for _, tt := range []struct {
 		name   string
-		answer invoice.FakeAllowanceAnswer
+		answer issuer.FakeAllowanceAnswer
 		status string
 		reason string
 	}{
-		{name: "no reply", answer: invoice.FakeAllowanceNoReply,
+		{name: "no reply", answer: issuer.FakeAllowanceNoReply,
 			status: "pending", reason: "allowance_send_ambiguous"},
-		{name: "reply naming another invoice", answer: invoice.FakeAllowanceOtherInvoice,
-			status: "attention", reason: invoice.CategorySuccessMismatch},
-		{name: "amount still held", answer: invoice.FakeAllowanceAmountHeld,
-			status: "attention", reason: invoice.CategoryAmountStillHeld},
+		{name: "reply naming another invoice", answer: issuer.FakeAllowanceOtherInvoice,
+			status: "attention", reason: string(invoice.ReasonAllowanceSuccessMismatch)},
+		{name: "amount still held", answer: issuer.FakeAllowanceAmountHeld,
+			status: "attention", reason: string(invoice.ReasonAllowanceAmountStillHeld)},
 	} {
 		t.Run(tt.name, func(t *testing.T) {
 			ctx, _ := admintest.StaffContext(t, pool)

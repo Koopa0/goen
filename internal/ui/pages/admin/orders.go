@@ -433,20 +433,7 @@ func (v *OrderView) Discount() string {
 	return "-" + money.TWD(v.DiscountCents)
 }
 
-// StartsPicking reports that the only move this order has is into picking: a
-// paid order awaiting fulfilment. It is one action, so the page shows it as a
-// button and not as a menu with one entry.
-func (v *OrderView) StartsPicking() bool {
-	return len(v.Next) == 1 && v.Next[0].Value == order.FulfillmentPicking
-}
-
 func (v *OrderView) CanAdvance() bool { return len(v.Next) > 0 }
-
-// NextIsDestructive reports that the first move offered is the cancellation, so
-// the menu must not preselect it.
-func (v *OrderView) NextIsDestructive() bool {
-	return len(v.Next) > 0 && v.Next[0].Value == order.FulfillmentCancelled
-}
 
 // QtyValue is what a dispatch quantity field holds: what staff typed on a
 // refused dispatch, otherwise everything still outstanding.
@@ -584,14 +571,14 @@ func (v *OrderView) AllowanceAttentionText(ctx context.Context) string {
 }
 
 func (v *OrderView) allowanceAttentionKey() i18n.Key {
-	switch v.AllowanceAttention {
-	case invoice.CategoryBuyerUnconfirmed:
+	switch invoice.Reason(v.AllowanceAttention) {
+	case invoice.ReasonAllowanceBuyerUnconfirmed:
 		return i18n.KeyAdminQueueAllowanceUnconfirmed
-	case invoice.CategoryAmountStillHeld:
+	case invoice.ReasonAllowanceAmountStillHeld:
 		return i18n.KeyAdminQueueAllowanceAmountHeld
-	case invoice.CategorySuccessMismatch:
+	case invoice.ReasonAllowanceSuccessMismatch:
 		return i18n.KeyAdminQueueAllowanceMismatch
-	case invoice.CategoryMultipleCandidates:
+	case invoice.ReasonAllowanceMultipleUnknownCandidates:
 		return i18n.KeyAdminQueueAllowanceCandidates
 	default:
 		return i18n.KeyAdminQueueAllowanceAttention

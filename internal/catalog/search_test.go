@@ -116,19 +116,9 @@ func TestSearchKeepsATermWrappedInUnicodeSpaceThenCapsRunes(t *testing.T) {
 	}
 }
 
-// TestEscapeLikeLeavesNoWildcard: every search pattern goen builds from typed
-// words, storefront and back office, escapes LIKE's syntax through this.
-func TestEscapeLikeLeavesNoWildcard(t *testing.T) {
-	for q, want := range map[string]string{
-		"%%":           `\%\%`,
-		"a_b@goen.dev": `a\_b@goen.dev`,
-		`50\%`:         `50\\\%`,
-		"pixel":        "pixel",
-	} {
-		if got := EscapeLike(q); got != want {
-			t.Errorf("EscapeLike(%q) = %q, want %q", q, got, want)
-		}
-	}
+// TestSearchPatternEscapesTypedWildcards: a typed _ or % reaches the pattern
+// escaped, between goen's own wildcards.
+func TestSearchPatternEscapesTypedWildcards(t *testing.T) {
 	if got := SearchPattern("_"); got != `%\_%` {
 		t.Errorf("SearchPattern(%q) = %q, want the escaped term between goen's own wildcards", "_", got)
 	}

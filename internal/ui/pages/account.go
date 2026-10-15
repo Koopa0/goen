@@ -124,6 +124,8 @@ type AccountView struct {
 	ReturnAfterWelcome string
 	CartAdjusted       bool
 
+	PasswordSetupSent          bool
+	HasPassword                bool
 	EmailVerified              bool
 	EmailConfirmationRequested bool
 	EmailReentry               bool
@@ -202,6 +204,21 @@ func (v *AccountView) AddrInvalid(field string) bool { return v.AddressErrors[fi
 
 func (v *AccountView) AddrErr(field string) string { return v.AddressErrors[field] }
 
+func (v *AccountView) addressLabelDescribedBy() string {
+	if v.AddrInvalid("label") {
+		return "addr-label-example addr-label-error"
+	}
+	return "addr-label-example"
+}
+
+func (v *AccountView) addressLabelAttrs() templ.Attributes {
+	attrs := templ.Attributes{"maxlength": "30", "autocomplete": "off"}
+	if !v.AddrInvalid("label") {
+		attrs["aria-describedby"] = v.addressLabelDescribedBy()
+	}
+	return attrs
+}
+
 func AccountMeta(ctx context.Context) layouts.Page {
 	return layouts.Page{Title: i18n.T(ctx, i18n.KeyAccountTitle)}
 }
@@ -222,6 +239,11 @@ func (v *AccountView) HasOrders() bool { return len(v.Orders) > 0 }
 func (v *AccountView) HasAddresses() bool { return len(v.Addresses) > 0 }
 
 func (v *AccountView) HasNotice() bool { return v.Notice != "" }
+
+func googlePasswordSetupText(ctx context.Context) (before, after string) {
+	before, after, _ = strings.Cut(i18n.T(ctx, i18n.KeyGoogleOnlyMethod), "%s")
+	return before, after
+}
 
 type SignInRecovery uint8
 

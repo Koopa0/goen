@@ -89,10 +89,10 @@ func TestTheAllowanceActionSaysTheCustomerAgreesOnline(t *testing.T) {
 			category string
 			want     string
 		}{
-			{category: invoice.CategoryBuyerUnconfirmed, want: i18n.T(ctx, i18n.KeyAdminQueueAllowanceUnconfirmed)},
-			{category: invoice.CategoryAmountStillHeld, want: i18n.T(ctx, i18n.KeyAdminQueueAllowanceAmountHeld)},
-			{category: invoice.CategorySuccessMismatch, want: i18n.T(ctx, i18n.KeyAdminQueueAllowanceMismatch)},
-			{category: invoice.CategoryMultipleCandidates, want: i18n.T(ctx, i18n.KeyAdminQueueAllowanceCandidates)},
+			{category: string(invoice.ReasonAllowanceBuyerUnconfirmed), want: i18n.T(ctx, i18n.KeyAdminQueueAllowanceUnconfirmed)},
+			{category: string(invoice.ReasonAllowanceAmountStillHeld), want: i18n.T(ctx, i18n.KeyAdminQueueAllowanceAmountHeld)},
+			{category: string(invoice.ReasonAllowanceSuccessMismatch), want: i18n.T(ctx, i18n.KeyAdminQueueAllowanceMismatch)},
+			{category: string(invoice.ReasonAllowanceMultipleUnknownCandidates), want: i18n.T(ctx, i18n.KeyAdminQueueAllowanceCandidates)},
 			{category: "allowance_lookup_mismatch", want: i18n.T(ctx, i18n.KeyAdminQueueAllowanceAttention)},
 		} {
 			attention := refunded()

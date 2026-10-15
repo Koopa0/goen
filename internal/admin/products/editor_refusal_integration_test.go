@@ -30,10 +30,10 @@ import (
 	"github.com/koopa0/goen/internal/admin/audit"
 	"github.com/koopa0/goen/internal/admin/content"
 	"github.com/koopa0/goen/internal/admin/products"
+	"github.com/koopa0/goen/internal/db"
 	"github.com/koopa0/goen/internal/i18n"
 	"github.com/koopa0/goen/internal/media"
 	"github.com/koopa0/goen/internal/newsletter"
-	"github.com/koopa0/goen/internal/pgtx"
 	"github.com/koopa0/goen/internal/ui/pages/admin"
 )
 
@@ -548,7 +548,7 @@ func TestProductImageAttachmentFailuresAnswer500AndRecover(t *testing.T) {
 				if err != nil {
 					t.Fatal(err)
 				}
-				defer pgtx.Rollback(ctx, holder)
+				defer db.Rollback(ctx, holder)
 				if _, err = holder.Exec(ctx, `SELECT 1 FROM products WHERE slug = $1 FOR UPDATE`, slug); err != nil {
 					t.Fatal(err)
 				}
@@ -747,7 +747,7 @@ func holdUploadWrite(t *testing.T, owner *pgxpool.Pool) func() {
 	if err != nil {
 		t.Fatal(err)
 	}
-	t.Cleanup(func() { pgtx.Rollback(ctx, tx) })
+	t.Cleanup(func() { db.Rollback(ctx, tx) })
 	if _, err := tx.Exec(ctx, `LOCK TABLE media_objects IN SHARE MODE`); err != nil {
 		t.Fatal(err)
 	}

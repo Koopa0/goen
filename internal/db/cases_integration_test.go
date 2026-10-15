@@ -438,20 +438,20 @@ var checkCases = []checkCase{
 	},
 	{
 		constraint: "staff_totp_secret_present",
-		reject:     `INSERT INTO staff_totp_credentials (user_id, secret_encrypted, confirmed_at, last_step) SELECT id, ''::bytea, NULL, NULL FROM users LIMIT 1;`,
-		accept:     `INSERT INTO staff_totp_credentials (user_id, secret_encrypted, confirmed_at, last_step) SELECT id, '\x0102'::bytea, NULL, NULL FROM users LIMIT 1;`,
+		reject:     `INSERT INTO staff_totp_credentials (user_id, secret_encrypted, confirmed_at, last_step, mailed_code_digest) SELECT id, ''::bytea, NULL, NULL, sha256('totp-secret-a'::bytea) FROM users LIMIT 1;`,
+		accept:     `INSERT INTO staff_totp_credentials (user_id, secret_encrypted, confirmed_at, last_step, mailed_code_digest) SELECT id, '\x0102'::bytea, NULL, NULL, sha256('totp-secret-b'::bytea) FROM users LIMIT 1;`,
 	},
 	{
 		constraint: "staff_totp_step_needs_confirmation",
-		reject:     `INSERT INTO staff_totp_credentials (user_id, secret_encrypted, confirmed_at, last_step) SELECT id, '\x0102'::bytea, NULL, 12345 FROM users LIMIT 1;`,
-		accept:     `INSERT INTO staff_totp_credentials (user_id, secret_encrypted, confirmed_at, last_step) SELECT id, '\x0102'::bytea, now(), 12345 FROM users LIMIT 1;`,
+		reject:     `INSERT INTO staff_totp_credentials (user_id, secret_encrypted, confirmed_at, last_step, mailed_code_digest) SELECT id, '\x0102'::bytea, NULL, 12345, sha256('totp-step-a'::bytea) FROM users LIMIT 1;`,
+		accept:     `INSERT INTO staff_totp_credentials (user_id, secret_encrypted, confirmed_at, last_step, mailed_code_digest) SELECT id, '\x0102'::bytea, now(), 12345, NULL FROM users LIMIT 1;`,
 	},
 	{
 		constraint: "sessions_totp_after_creation",
-		reject: `INSERT INTO sessions (token_hash, user_id, expires_at, created_at, totp_verified_at)
+		reject: `INSERT INTO sessions (digest, user_id, expires_at, created_at, totp_verified_at)
 		         SELECT sha256('totp-check-a'::bytea), id, now() + interval '1 day',
 		                now(), now() - interval '1 hour' FROM users LIMIT 1;`,
-		accept: `INSERT INTO sessions (token_hash, user_id, expires_at, created_at, totp_verified_at)
+		accept: `INSERT INTO sessions (digest, user_id, expires_at, created_at, totp_verified_at)
 		         SELECT sha256('totp-check-b'::bytea), id, now() + interval '1 day',
 		                now(), now() FROM users LIMIT 1;`,
 	},
@@ -733,6 +733,41 @@ VALUES ('66666666-6666-4666-8666-666666666666', '44444444-4444-4444-8444-4444444
 		accept:     `INSERT INTO email_verifications (user_id, email, digest, expires_at) VALUES ((SELECT id FROM users LIMIT 1), 'new@example.com', sha256('v1'::bytea), now() + interval '1 day');`,
 	},
 	{
+		constraint: "sessions_digest_sha256",
+		reject:     `INSERT INTO sessions (digest, user_id, expires_at) VALUES ('\xdead'::bytea, '55555555-5555-4555-8555-555555555555', now() + interval '1 day');`,
+		accept:     `INSERT INTO sessions (digest, user_id, expires_at) VALUES (sha256('session-digest'::bytea), '55555555-5555-4555-8555-555555555555', now() + interval '1 day');`,
+	},
+	{
+		constraint: "password_reset_tokens_digest_sha256",
+		reject:     `INSERT INTO password_reset_tokens (digest, user_id, expires_at) VALUES ('\xdead'::bytea, '55555555-5555-4555-8555-555555555555', now() + interval '1 hour');`,
+		accept:     `INSERT INTO password_reset_tokens (digest, user_id, expires_at) VALUES (sha256('reset-digest'::bytea), '55555555-5555-4555-8555-555555555555', now() + interval '1 hour');`,
+	},
+	{
+		constraint: "carts_digest_sha256",
+		reject:     `INSERT INTO carts (id, digest) VALUES ('11115008-0000-4000-8000-000000000001', '\xdead'::bytea);`,
+		accept:     `INSERT INTO carts (id, digest) VALUES ('11115008-0000-4000-8000-000000000001', sha256('cart-digest'::bytea));`,
+	},
+	{
+		constraint: "staff_totp_credentials_mailed_code_digest_sha256",
+		reject:     `INSERT INTO staff_totp_credentials (user_id, secret_encrypted, mailed_code_digest) SELECT id, '\x0102'::bytea, '\xdead'::bytea FROM users LIMIT 1;`,
+		accept:     `INSERT INTO staff_totp_credentials (user_id, secret_encrypted, mailed_code_digest) SELECT id, '\x0102'::bytea, sha256('mailed-code'::bytea) FROM users LIMIT 1;`,
+	},
+	{
+		// An unconfirmed credential holds the mailed code that will confirm it,
+		// and confirming spends the code: a confirmed credential still holding
+		// one would leave a code that has already done its work.
+		constraint: "staff_totp_credentials_mailed_code_shape",
+		reject:     `INSERT INTO staff_totp_credentials (user_id, secret_encrypted, confirmed_at, mailed_code_digest) SELECT id, '\x0102'::bytea, now(), sha256('mailed-code-unspent'::bytea) FROM users LIMIT 1;`,
+		accept:     `INSERT INTO staff_totp_credentials (user_id, secret_encrypted, confirmed_at, mailed_code_digest) SELECT id, '\x0102'::bytea, now(), NULL FROM users LIMIT 1;`,
+	},
+	{
+		// The other direction: an unconfirmed credential with no code to
+		// confirm it with can never be confirmed.
+		constraint: "staff_totp_credentials_mailed_code_shape",
+		reject:     `INSERT INTO staff_totp_credentials (user_id, secret_encrypted, confirmed_at, mailed_code_digest) SELECT id, '\x0102'::bytea, NULL, NULL FROM users LIMIT 1;`,
+		accept:     `INSERT INTO staff_totp_credentials (user_id, secret_encrypted, confirmed_at, mailed_code_digest) SELECT id, '\x0102'::bytea, NULL, sha256('mailed-code-pending'::bytea) FROM users LIMIT 1;`,
+	},
+	{
 		// What an interval subtracted instead of added looks like.
 		constraint: "email_verifications_expires_after_created",
 		reject:     `INSERT INTO email_verifications (user_id, email, digest, expires_at) VALUES ((SELECT id FROM users LIMIT 1), 'new@example.com', sha256('v1'::bytea), now() - interval '1 day');`,
@@ -806,6 +841,40 @@ VALUES ('66666666-6666-4666-8666-666666666666', '44444444-4444-4444-8444-4444444
 		         );`,
 	},
 	{
+		constraint: "order_events_shipment_shape",
+		reject: `INSERT INTO order_events (
+		             id, order_id, kind, shipment_id
+		         ) VALUES (
+		             '11110001-0000-4000-8000-000000000022',
+		             '66666666-6666-4666-8666-666666666666', 'placed',
+		             '66660002-0000-4000-8000-000000000000'
+		         );`,
+		accept: `INSERT INTO order_events (
+		             id, order_id, kind, shipment_id
+		         ) VALUES (
+		             '11110001-0000-4000-8000-000000000022',
+		             '66666666-6666-4666-8666-666666666666', 'shipped',
+		             '66660002-0000-4000-8000-000000000000'
+		         );`,
+	},
+	{
+		constraint: "order_events_shipped_note_absent",
+		reject: `INSERT INTO order_events (
+		             id, order_id, kind, note, shipment_id
+		         ) VALUES (
+		             '11110001-0000-4000-8000-000000000023',
+		             '66666666-6666-4666-8666-666666666666', 'shipped', 'black cat 903-2214-8871',
+		             '66660002-0000-4000-8000-000000000000'
+		         );`,
+		accept: `INSERT INTO order_events (
+		             id, order_id, kind, shipment_id
+		         ) VALUES (
+		             '11110001-0000-4000-8000-000000000023',
+		             '66666666-6666-4666-8666-666666666666', 'shipped',
+		             '66660002-0000-4000-8000-000000000000'
+		         );`,
+	},
+	{
 		constraint: "order_lines_product_name_present",
 		reject:     `INSERT INTO order_lines (id, order_id, sku, product_name, unit_price_cents, quantity, position) VALUES ('11110001-0000-4000-8000-000000000002', '6666aaaa-6666-4666-8666-666666666666', 'PXL-TEST-BL', E'\t', 3690000, 1, 5);`,
 		accept:     `INSERT INTO order_lines (id, order_id, sku, product_name, unit_price_cents, quantity, position) VALUES ('11110001-0000-4000-8000-000000000002', '6666aaaa-6666-4666-8666-666666666666', 'PXL-TEST-BL', '測試手機', 3690000, 1, 5);`,
@@ -842,11 +911,6 @@ VALUES ('66666666-6666-4666-8666-666666666666', '44444444-4444-4444-8444-4444444
 		constraint: "order_lines_unit_price_in_range",
 		reject:     `INSERT INTO order_lines (id, order_id, sku, product_name, unit_price_cents, quantity, position) VALUES ('11110001-0000-4000-8000-000000000004', '6666aaaa-6666-4666-8666-666666666666', 'PXL-TEST-BL', 'Pixelight 9 Pro 5G', -1, 1, 5);`,
 		accept:     `INSERT INTO order_lines (id, order_id, sku, product_name, unit_price_cents, quantity, position) VALUES ('11110001-0000-4000-8000-000000000004', '6666aaaa-6666-4666-8666-666666666666', 'PXL-TEST-BL', 'Pixelight 9 Pro 5G', 0, 1, 5);`,
-	},
-	{
-		constraint: "order_number_counters_in_range",
-		reject:     `INSERT INTO order_number_counters (business_date, last_no) VALUES ('2026-07-24', 0);`,
-		accept:     `INSERT INTO order_number_counters (business_date, last_no) VALUES ('2026-07-24', 1);`,
 	},
 	{
 		constraint: "order_access_grants_digest_sha256",
@@ -1037,8 +1101,8 @@ VALUES ('66666666-6666-4666-8666-666666666666', '44444444-4444-4444-8444-4444444
 	},
 	{
 		constraint: "orders_number_format",
-		reject:     `INSERT INTO orders (id, order_number, shipping_version_id, shipping_method_code, shipping_method_name) VALUES ('11110001-0000-4000-8000-000000000001', 'GO-260724-00099', 'ffff0002-0000-4000-8000-000000000000', 'home_delivery', '宅配到府');`,
-		accept:     `INSERT INTO orders (id, order_number, shipping_version_id, shipping_method_code, shipping_method_name) VALUES ('11110001-0000-4000-8000-000000000001', 'GO-260724-000999', 'ffff0002-0000-4000-8000-000000000000', 'home_delivery', '宅配到府');`,
+		reject:     `INSERT INTO orders (id, order_number, shipping_version_id, shipping_method_code, shipping_method_name) VALUES ('11110001-0000-4000-8000-000000000001', 'GO-261014-ABCDEI', 'ffff0002-0000-4000-8000-000000000000', 'home_delivery', '宅配到府');`,
+		accept:     `INSERT INTO orders (id, order_number, shipping_version_id, shipping_method_code, shipping_method_name) VALUES ('11110001-0000-4000-8000-000000000001', 'GO-261014-ABCDEF', 'ffff0002-0000-4000-8000-000000000000', 'home_delivery', '宅配到府');`,
 	},
 	{
 		constraint: "orders_shipping_code_present",
@@ -1075,8 +1139,8 @@ VALUES ('66666666-6666-4666-8666-666666666666', '44444444-4444-4444-8444-4444444
 	},
 	{
 		constraint: "password_reset_tokens_expiry_after_creation",
-		reject:     `INSERT INTO password_reset_tokens (token_hash, user_id, created_at, expires_at) VALUES ('\x01', '55555555-5555-4555-8555-555555555555', '2026-01-01 00:00:00+00', '2026-01-01 00:00:00+00');`,
-		accept:     `INSERT INTO password_reset_tokens (token_hash, user_id, created_at, expires_at) VALUES ('\x01', '55555555-5555-4555-8555-555555555555', '2026-01-01 00:00:00+00', '2026-01-01 00:00:00.000001+00');`,
+		reject:     `INSERT INTO password_reset_tokens (digest, user_id, created_at, expires_at) VALUES (sha256('reset-expiry-a'::bytea), '55555555-5555-4555-8555-555555555555', '2026-01-01 00:00:00+00', '2026-01-01 00:00:00+00');`,
+		accept:     `INSERT INTO password_reset_tokens (digest, user_id, created_at, expires_at) VALUES (sha256('reset-expiry-b'::bytea), '55555555-5555-4555-8555-555555555555', '2026-01-01 00:00:00+00', '2026-01-01 00:00:00.000001+00');`,
 	},
 	{
 		constraint: "payment_webhook_events_event_id_valid",
@@ -1115,13 +1179,13 @@ VALUES ('66666666-6666-4666-8666-666666666666', '44444444-4444-4444-8444-4444444
 	},
 	{
 		constraint: "carts_checkout_draft_paired",
-		reject:     `INSERT INTO carts (id, token_hash, checkout_draft) VALUES ('11115006-0000-4000-8000-000000000001', '\x0601', '{}'::jsonb);`,
-		accept:     `INSERT INTO carts (id, token_hash, checkout_draft, checkout_draft_at) VALUES ('11115006-0000-4000-8000-000000000001', '\x0602', '{}'::jsonb, now());`,
+		reject:     `INSERT INTO carts (id, digest, checkout_draft) VALUES ('11115006-0000-4000-8000-000000000001', sha256('cart-draft-paired-a'::bytea), '{}'::jsonb);`,
+		accept:     `INSERT INTO carts (id, digest, checkout_draft, checkout_draft_at) VALUES ('11115006-0000-4000-8000-000000000001', sha256('cart-draft-paired-b'::bytea), '{}'::jsonb, now());`,
 	},
 	{
 		constraint: "carts_checkout_draft_bounded",
-		reject:     `INSERT INTO carts (id, token_hash, checkout_draft, checkout_draft_at) VALUES ('11115007-0000-4000-8000-000000000001', '\x0701', jsonb_build_object('note', repeat('x', 9000)), now());`,
-		accept:     `INSERT INTO carts (id, token_hash, checkout_draft, checkout_draft_at) VALUES ('11115007-0000-4000-8000-000000000001', '\x0702', jsonb_build_object('note', repeat('x', 100)), now());`,
+		reject:     `INSERT INTO carts (id, digest, checkout_draft, checkout_draft_at) VALUES ('11115007-0000-4000-8000-000000000001', sha256('cart-draft-bounded-a'::bytea), jsonb_build_object('note', repeat('x', 9000)), now());`,
+		accept:     `INSERT INTO carts (id, digest, checkout_draft, checkout_draft_at) VALUES ('11115007-0000-4000-8000-000000000001', sha256('cart-draft-bounded-b'::bytea), jsonb_build_object('note', repeat('x', 100)), now());`,
 	},
 	{
 		constraint: "payments_currency_is_twd",
@@ -1782,18 +1846,18 @@ VALUES ('66666666-6666-4666-8666-666666666666', '44444444-4444-4444-8444-4444444
 	},
 	{
 		constraint: "sessions_expiry_after_creation",
-		reject:     `INSERT INTO sessions (token_hash, user_id, created_at, expires_at) VALUES ('\x01', '55555555-5555-4555-8555-555555555555', '2026-01-01 00:00:00+00', '2026-01-01 00:00:00+00');`,
-		accept:     `INSERT INTO sessions (token_hash, user_id, created_at, expires_at) VALUES ('\x01', '55555555-5555-4555-8555-555555555555', '2026-01-01 00:00:00+00', '2026-01-01 00:00:00.000001+00');`,
+		reject:     `INSERT INTO sessions (digest, user_id, created_at, expires_at) VALUES (sha256('session-expiry-a'::bytea), '55555555-5555-4555-8555-555555555555', '2026-01-01 00:00:00+00', '2026-01-01 00:00:00+00');`,
+		accept:     `INSERT INTO sessions (digest, user_id, created_at, expires_at) VALUES (sha256('session-expiry-b'::bytea), '55555555-5555-4555-8555-555555555555', '2026-01-01 00:00:00+00', '2026-01-01 00:00:00.000001+00');`,
 	},
 	{
 		constraint: "sessions_user_agent_bounded",
-		reject:     `INSERT INTO sessions (token_hash, user_id, user_agent, expires_at) VALUES ('\x01', '55555555-5555-4555-8555-555555555555', repeat('瀏', 513), now() + interval '1 day');`,
-		accept:     `INSERT INTO sessions (token_hash, user_id, user_agent, expires_at) VALUES ('\x01', '55555555-5555-4555-8555-555555555555', repeat('瀏', 512), now() + interval '1 day');`,
+		reject:     `INSERT INTO sessions (digest, user_id, user_agent, expires_at) VALUES (sha256('session-agent-bounded-a'::bytea), '55555555-5555-4555-8555-555555555555', repeat('瀏', 513), now() + interval '1 day');`,
+		accept:     `INSERT INTO sessions (digest, user_id, user_agent, expires_at) VALUES (sha256('session-agent-bounded-b'::bytea), '55555555-5555-4555-8555-555555555555', repeat('瀏', 512), now() + interval '1 day');`,
 	},
 	{
 		constraint: "sessions_user_agent_no_controls",
-		reject:     `INSERT INTO sessions (token_hash, user_id, user_agent, expires_at) VALUES ('\x01', '55555555-5555-4555-8555-555555555555', E'browser\nforged', now() + interval '1 day');`,
-		accept:     `INSERT INTO sessions (token_hash, user_id, user_agent, expires_at) VALUES ('\x01', '55555555-5555-4555-8555-555555555555', 'browser/1', now() + interval '1 day');`,
+		reject:     `INSERT INTO sessions (digest, user_id, user_agent, expires_at) VALUES (sha256('session-agent-controls-a'::bytea), '55555555-5555-4555-8555-555555555555', E'browser\nforged', now() + interval '1 day');`,
+		accept:     `INSERT INTO sessions (digest, user_id, user_agent, expires_at) VALUES (sha256('session-agent-controls-b'::bytea), '55555555-5555-4555-8555-555555555555', 'browser/1', now() + interval '1 day');`,
 	},
 	{
 		constraint: "membership_tiers_code_format",
@@ -1938,39 +2002,58 @@ VALUES ('66666666-6666-4666-8666-666666666666', '44444444-4444-4444-8444-4444444
 	{
 		constraint: "store_credit_entries_amount_non_zero",
 		reject: `INSERT INTO store_credit_entries (account_id, amount_cents, reason, idempotency_key)
-VALUES ('a0000001-0000-4000-8000-000000000000', 0, '購物金調整', 'sc-amount-1');`,
+VALUES ('a0000001-0000-4000-8000-000000000000', 0, '購物金調整', 'grant:sc-amount-1');`,
 		accept: `INSERT INTO store_credit_entries (account_id, amount_cents, reason, idempotency_key)
-VALUES ('a0000001-0000-4000-8000-000000000000', 1, '購物金調整', 'sc-amount-1');`,
+VALUES ('a0000001-0000-4000-8000-000000000000', 1, '購物金調整', 'grant:sc-amount-1');`,
 	},
 	{
 		constraint: "store_credit_entries_amount_in_range",
 		// A positive credit over the ceiling: the guard permits it (the balance only climbs), so the
 		// range CHECK is what refuses it.
 		reject: `INSERT INTO store_credit_entries (account_id, amount_cents, reason, idempotency_key)
-VALUES ('a0000001-0000-4000-8000-000000000000', 10000000001, '購物金調整', 'sc-range');`,
+VALUES ('a0000001-0000-4000-8000-000000000000', 10000000001, '購物金調整', 'grant:sc-range');`,
 		accept: `INSERT INTO store_credit_entries (account_id, amount_cents, reason, idempotency_key)
-VALUES ('a0000001-0000-4000-8000-000000000000', 10000000000, '購物金調整', 'sc-range');`,
+VALUES ('a0000001-0000-4000-8000-000000000000', 10000000000, '購物金調整', 'grant:sc-range');`,
 	},
 	{
+		// A blank key has no prefix either, so kind_known would also refuse it;
+		// PostgreSQL checks CHECK constraints in name order and key_present sorts first.
 		constraint: "store_credit_entries_key_present",
 		reject: `INSERT INTO store_credit_entries (account_id, amount_cents, reason, idempotency_key)
 VALUES ('a0000001-0000-4000-8000-000000000000', 1, '購物金調整', E'\t');`,
 		accept: `INSERT INTO store_credit_entries (account_id, amount_cents, reason, idempotency_key)
-VALUES ('a0000001-0000-4000-8000-000000000000', 1, '購物金調整', E'\tsc-key');`,
+VALUES ('a0000001-0000-4000-8000-000000000000', 1, '購物金調整', E'grant:\tsc-key');`,
+	},
+	{
+		// The kind is read off the key prefix, so a key with a prefix nobody listed has none.
+		constraint: "store_credit_entries_kind_known",
+		reject: `INSERT INTO store_credit_entries (account_id, amount_cents, reason, idempotency_key)
+VALUES ('a0000001-0000-4000-8000-000000000000', 1, '購物金調整', 'sc-unknown-prefix');`,
+		accept: `INSERT INTO store_credit_entries (account_id, amount_cents, reason, idempotency_key)
+VALUES ('a0000001-0000-4000-8000-000000000000', 1, '購物金調整', 'grant:sc-unknown-prefix');`,
+	},
+	{
+		// Staff text belongs to a grant alone. TestStoreCreditKindAndReasonAreOneFact
+		// holds the other direction: a grant with no reason.
+		constraint: "store_credit_entries_reason_matches_kind",
+		reject: `INSERT INTO store_credit_entries (account_id, amount_cents, reason, idempotency_key)
+VALUES ('a0000001-0000-4000-8000-000000000000', 1, '購物金調整', 'return-credit:sc-reason-kind');`,
+		accept: `INSERT INTO store_credit_entries (account_id, amount_cents, idempotency_key)
+VALUES ('a0000001-0000-4000-8000-000000000000', 1, 'return-credit:sc-reason-kind');`,
 	},
 	{
 		constraint: "store_credit_entries_reason_present",
 		reject: `INSERT INTO store_credit_entries (account_id, amount_cents, reason, idempotency_key)
-VALUES ('a0000001-0000-4000-8000-000000000000', 1, E'\t', 'sc-reason-1');`,
+VALUES ('a0000001-0000-4000-8000-000000000000', 1, E'\t', 'grant:sc-reason-1');`,
 		accept: `INSERT INTO store_credit_entries (account_id, amount_cents, reason, idempotency_key)
-VALUES ('a0000001-0000-4000-8000-000000000000', 1, E'\t購物金', 'sc-reason-1');`,
+VALUES ('a0000001-0000-4000-8000-000000000000', 1, E'\t購物金', 'grant:sc-reason-1');`,
 	},
 	{
 		constraint: "store_credit_entries_reason_bounded",
 		reject: `INSERT INTO store_credit_entries (account_id, amount_cents, reason, idempotency_key)
-VALUES ('a0000001-0000-4000-8000-000000000000', 1, repeat('購', 201), 'sc-reason-bound');`,
+VALUES ('a0000001-0000-4000-8000-000000000000', 1, repeat('購', 201), 'grant:sc-reason-bound');`,
 		accept: `INSERT INTO store_credit_entries (account_id, amount_cents, reason, idempotency_key)
-VALUES ('a0000001-0000-4000-8000-000000000000', 1, repeat('購', 200), 'sc-reason-bound');`,
+VALUES ('a0000001-0000-4000-8000-000000000000', 1, repeat('購', 200), 'grant:sc-reason-bound');`,
 	},
 	{
 		constraint: "user_identities_provider_known",
@@ -2256,6 +2339,25 @@ var uniqueCases = []uniqueCase{
 		         );`,
 	},
 	{
+		index: "order_events_shipment_key",
+		reject: `INSERT INTO order_events (
+		             id, order_id, kind, shipment_id
+		         ) VALUES
+		             ('11110041-0000-4000-8000-000000000001',
+		              '66666666-6666-4666-8666-666666666666', 'shipped',
+		              '66660002-0000-4000-8000-000000000000'),
+		             ('11110041-0000-4000-8000-000000000002',
+		              '66666666-6666-4666-8666-666666666666', 'shipped',
+		              '66660002-0000-4000-8000-000000000000');`,
+		accept: `INSERT INTO order_events (
+		             id, order_id, kind, shipment_id
+		         ) VALUES (
+		             '11110041-0000-4000-8000-000000000001',
+		             '66666666-6666-4666-8666-666666666666', 'shipped',
+		             '66660002-0000-4000-8000-000000000000'
+		         );`,
+	},
+	{
 		index: "coupons_code_key",
 		// Case-insensitive: SUMMER20 and summer20 are one code to a customer reading a card.
 		reject: `INSERT INTO coupons (id, code, description, kind, amount_cents) VALUES ('cccc0003-0000-4000-8000-000000000001', 'fixturecode', '測試', 'amount', 20000);`,
@@ -2272,19 +2374,19 @@ var uniqueCases = []uniqueCase{
 		accept: `INSERT INTO store_credit_accounts (id, user_id) VALUES ('11115002-0000-4000-8000-000000000001', '5555aaaa-5555-4555-8555-555555555555');`,
 	},
 	{
-		index:  "carts_token_hash_key",
-		reject: `INSERT INTO carts (id, token_hash) VALUES ('11115003-0000-4000-8000-000000000001', '\x0102');`,
-		accept: `INSERT INTO carts (id, token_hash) VALUES ('11115003-0000-4000-8000-000000000001', '\x9999');`,
+		index:  "carts_digest_key",
+		reject: `INSERT INTO carts (id, digest) VALUES ('11115003-0000-4000-8000-000000000001', sha256('fixture-cart'::bytea));`,
+		accept: `INSERT INTO carts (id, digest) VALUES ('11115003-0000-4000-8000-000000000001', sha256('other-cart'::bytea));`,
 	},
 	{
 		index: "carts_one_per_user",
-		reject: `INSERT INTO carts (id, user_id, token_hash) VALUES
-		 ('11115004-0000-4000-8000-000000000001','55555555-5555-4555-8555-555555555555','\x0401'),
-		 ('11115005-0000-4000-8000-000000000001','55555555-5555-4555-8555-555555555555','\x0402');`,
+		reject: `INSERT INTO carts (id, user_id, digest) VALUES
+		 ('11115004-0000-4000-8000-000000000001','55555555-5555-4555-8555-555555555555',sha256('cart-per-user-a'::bytea)),
+		 ('11115005-0000-4000-8000-000000000001','55555555-5555-4555-8555-555555555555',sha256('cart-per-user-b'::bytea));`,
 		// Partial on user_id IS NOT NULL, so two guest carts are admitted.
-		accept: `INSERT INTO carts (id, user_id, token_hash) VALUES
-		 ('11115004-0000-4000-8000-000000000001', NULL, '\x0501'),
-		 ('11115005-0000-4000-8000-000000000001', NULL, '\x0502');`,
+		accept: `INSERT INTO carts (id, user_id, digest) VALUES
+		 ('11115004-0000-4000-8000-000000000001', NULL, sha256('cart-guest-a'::bytea)),
+		 ('11115005-0000-4000-8000-000000000001', NULL, sha256('cart-guest-b'::bytea));`,
 	},
 	{
 		index:  "addresses_one_default_per_user",
@@ -2693,24 +2795,24 @@ VALUES ('66666666-6666-4666-8666-666666666666', '4444aaaa-4444-4444-8444-4444444
 	{
 		index: "store_credit_entries_idempotency_key",
 		reject: `INSERT INTO store_credit_entries (account_id, amount_cents, reason, idempotency_key)
-VALUES ('a0000001-0000-4000-8000-000000000000', 1, '購物金調整', 'fixture-grant');`,
+VALUES ('a0000001-0000-4000-8000-000000000000', 1, '購物金調整', 'grant:fixture');`,
 		accept: `INSERT INTO store_credit_entries (account_id, amount_cents, reason, idempotency_key)
-VALUES ('a0000001-0000-4000-8000-000000000000', 1, '購物金調整', 'fixture-grant-2');`,
+VALUES ('a0000001-0000-4000-8000-000000000000', 1, '購物金調整', 'grant:fixture-2');`,
 	},
 	{
 		index: "store_credit_entries_reverses_key",
 		reject: `INSERT INTO store_credit_entries (id, account_id, amount_cents, reason, idempotency_key)
-VALUES ('11110001-0000-4000-8000-000000000001', 'a0000001-0000-4000-8000-000000000000', 30000, '購物金補發', 'sc-orig');
-INSERT INTO store_credit_entries (id, account_id, amount_cents, reason, idempotency_key, reverses_id)
-VALUES ('11110001-0000-4000-8000-000000000002', 'a0000001-0000-4000-8000-000000000000', -30000, '沖銷', 'sc-rev-1', '11110001-0000-4000-8000-000000000001');
-INSERT INTO store_credit_entries (id, account_id, amount_cents, reason, idempotency_key, reverses_id)
-VALUES ('11110001-0000-4000-8000-000000000003', 'a0000001-0000-4000-8000-000000000000', -30000, '沖銷', 'sc-rev-2', '11110001-0000-4000-8000-000000000001');`,
+VALUES ('11110001-0000-4000-8000-000000000001', 'a0000001-0000-4000-8000-000000000000', 30000, '購物金補發', 'grant:sc-orig');
+INSERT INTO store_credit_entries (id, account_id, amount_cents, idempotency_key, reverses_id)
+VALUES ('11110001-0000-4000-8000-000000000002', 'a0000001-0000-4000-8000-000000000000', -30000, 'reverse:sc-rev-1', '11110001-0000-4000-8000-000000000001');
+INSERT INTO store_credit_entries (id, account_id, amount_cents, idempotency_key, reverses_id)
+VALUES ('11110001-0000-4000-8000-000000000003', 'a0000001-0000-4000-8000-000000000000', -30000, 'reverse:sc-rev-2', '11110001-0000-4000-8000-000000000001');`,
 		accept: `INSERT INTO store_credit_entries (id, account_id, amount_cents, reason, idempotency_key)
-VALUES ('11110001-0000-4000-8000-000000000001', 'a0000001-0000-4000-8000-000000000000', 30000, '購物金補發', 'sc-orig');
-INSERT INTO store_credit_entries (id, account_id, amount_cents, reason, idempotency_key, reverses_id)
-VALUES ('11110001-0000-4000-8000-000000000002', 'a0000001-0000-4000-8000-000000000000', -30000, '沖銷', 'sc-rev-1', '11110001-0000-4000-8000-000000000001');
-INSERT INTO store_credit_entries (id, account_id, amount_cents, reason, idempotency_key, reverses_id)
-VALUES ('11110001-0000-4000-8000-000000000003', 'a0000001-0000-4000-8000-000000000000', -1, '購物金調整', 'sc-rev-2', NULL);`,
+VALUES ('11110001-0000-4000-8000-000000000001', 'a0000001-0000-4000-8000-000000000000', 30000, '購物金補發', 'grant:sc-orig');
+INSERT INTO store_credit_entries (id, account_id, amount_cents, idempotency_key, reverses_id)
+VALUES ('11110001-0000-4000-8000-000000000002', 'a0000001-0000-4000-8000-000000000000', -30000, 'reverse:sc-rev-1', '11110001-0000-4000-8000-000000000001');
+INSERT INTO store_credit_entries (id, account_id, amount_cents, idempotency_key, reverses_id)
+VALUES ('11110001-0000-4000-8000-000000000003', 'a0000001-0000-4000-8000-000000000000', -1, 'order:sc-rev-2', NULL);`,
 	},
 	{
 		index:  "user_identities_provider_subject_key",

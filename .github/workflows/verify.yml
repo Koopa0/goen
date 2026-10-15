@@ -11,7 +11,10 @@ permissions:
   contents: read
 
 concurrency:
-  group: verify-${{ github.ref }}
+  # A push to main gets its own group: a group shared by ref keeps one pending
+  # run and cancels it for the next push, so most commits never ran. Pull
+  # requests share a group per ref and cancel superseded runs.
+  group: verify-${{ github.event_name == 'push' && github.sha || github.ref }}
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 env:
@@ -131,10 +134,9 @@ jobs:
   # a database, a running server AND a Chrome, so a failure here reads as "a page
   # broke" rather than as a slow lint run or a schema change.
   #
-  # needs: verify, because there is no sense spending five minutes seeding a
-  # catalogue for a tree that does not compile.
+  # It runs in parallel with verify and builds the tree itself, so a broken tree
+  # still fails here, at "Start the storefront".
   layout:
-    needs: verify
     runs-on: ubuntu-24.04
     timeout-minutes: 30
 
@@ -167,7 +169,7 @@ jobs:
         run: |
           set -euo pipefail
           make migrate-up
-          make db-seed
+          PGOPTIONS='-c goen.catalogue_seed=development' make db-seed
 
       - name: Control boundary contrast calculations
         run: node --test scripts/control-boundary.test.mjs

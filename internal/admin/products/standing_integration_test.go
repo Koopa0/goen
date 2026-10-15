@@ -9,7 +9,7 @@ import (
 	"github.com/google/uuid"
 
 	"github.com/koopa0/goen/internal/admin/products"
-	"github.com/koopa0/goen/internal/pgtx"
+	"github.com/koopa0/goen/internal/db"
 	"github.com/koopa0/goen/internal/shoptime"
 )
 
@@ -43,7 +43,7 @@ func standingOrder(t *testing.T, productID, variantID uuid.UUID, sku string, uni
 	if err != nil {
 		t.Fatalf("begin: %v", err)
 	}
-	defer pgtx.Rollback(ctx, tx)
+	defer db.Rollback(ctx, tx)
 	var orderID uuid.UUID
 	if err := tx.QueryRow(ctx, `
 		INSERT INTO orders (order_number, shipping_version_id, shipping_method_code,

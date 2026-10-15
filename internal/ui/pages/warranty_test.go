@@ -46,8 +46,8 @@ func TestWarrantyCopyWaitsForDelivery(t *testing.T) {
 			))
 			order := renderWarrantyInLocale(t, ctx, WarrantyOrder(
 				layouts.Page{Title: "Warranty"}, WarrantyOrderView{
-					Number: "GOEN-TEST",
-					Notice: i18n.T(ctx, i18n.KeyWarrantyRefused),
+					Number:  "GOEN-TEST",
+					Refusal: i18n.T(ctx, i18n.KeyWarrantyRefused),
 					Lines: []WarrantyLine{{
 						ID: "line-1", Name: "Item", Months: 12, HasTerm: true,
 					}},
@@ -75,7 +75,7 @@ func TestWarrantyOrderEmptyHintMatchesWhy(t *testing.T) {
 	t.Parallel()
 	ctx := i18n.WithLocale(t.Context(), i18n.En)
 	afterShipping := i18n.T(ctx, i18n.KeyWarrantyAfterShipping)
-	allDone := i18n.T(ctx, i18n.KeyWarrantyAllDone)
+	allDone := i18n.T(ctx, i18n.KeyWarrantyOrderAllDone)
 	noTerm := i18n.T(ctx, i18n.KeyWarrantyNoTerm)
 
 	tests := []struct {
@@ -158,8 +158,8 @@ func TestWarrantyOrderAllRegisteredHasNoFuturePromise(t *testing.T) {
 			}},
 		},
 	))
-	if got := warrantyEmptyDesc(html); got != i18n.T(ctx, i18n.KeyWarrantyAllDone) {
-		t.Errorf("empty hint = %q, want %q", got, i18n.T(ctx, i18n.KeyWarrantyAllDone))
+	if got := warrantyEmptyDesc(html); got != i18n.T(ctx, i18n.KeyWarrantyOrderAllDone) {
+		t.Errorf("empty hint = %q, want %q", got, i18n.T(ctx, i18n.KeyWarrantyOrderAllDone))
 	}
 	title := warrantyEmptyTitle(html)
 	if title != i18n.T(ctx, i18n.KeyWarrantyNothingHere) {

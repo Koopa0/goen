@@ -17,10 +17,11 @@ import (
 	"github.com/google/uuid"
 
 	"github.com/koopa0/goen/internal/account"
+	"github.com/koopa0/goen/internal/bearer"
 	"github.com/koopa0/goen/internal/cart"
 	"github.com/koopa0/goen/internal/i18n"
-	"github.com/koopa0/goen/internal/order"
 	"github.com/koopa0/goen/internal/order/access"
+	"github.com/koopa0/goen/internal/order/delivery"
 	"github.com/koopa0/goen/internal/ratelimit"
 )
 
@@ -55,7 +56,7 @@ func TestCartAdjustmentSurvivesAuthenticationAndCheckout(t *testing.T) {
 					if mode == "signin" || mode == "retry" {
 						u := registerProved(t, accounts, email)
 						uid = uuid.MustParse(u.ID)
-						if err := pool.QueryRow(ctx, `INSERT INTO carts(token_hash,user_id) VALUES($1,$2) RETURNING id`, account.HashToken("account-"+suffix), uid).Scan(&accountCart); err != nil {
+						if err := pool.QueryRow(ctx, `INSERT INTO carts(digest,user_id) VALUES($1,$2) RETURNING id`, bearer.Digest("account-"+suffix), uid).Scan(&accountCart); err != nil {
 							t.Fatal(err)
 						}
 						if _, err := pool.Exec(ctx, `INSERT INTO cart_items(cart_id,variant_id,quantity) VALUES($1,$2,2)`, accountCart, variantID); err != nil {
@@ -64,7 +65,7 @@ func TestCartAdjustmentSurvivesAuthenticationAndCheckout(t *testing.T) {
 						guestQuantity = 2
 					}
 					guestToken := "guest-" + suffix
-					if err := pool.QueryRow(ctx, `INSERT INTO carts(token_hash) VALUES($1) RETURNING id`, account.HashToken(guestToken)).Scan(&guestCart); err != nil {
+					if err := pool.QueryRow(ctx, `INSERT INTO carts(digest) VALUES($1) RETURNING id`, bearer.Digest(guestToken)).Scan(&guestCart); err != nil {
 						t.Fatal(err)
 					}
 					if _, err := pool.Exec(ctx, `INSERT INTO cart_items(cart_id,variant_id,quantity) VALUES($1,$2,$3)`, guestCart, variantID, guestQuantity); err != nil {
@@ -184,7 +185,7 @@ func TestCartAdjustmentSurvivesAuthenticationAndCheckout(t *testing.T) {
 						t.Fatal(err)
 					}
 					owner := uuid.NullUUID{UUID: uid, Valid: true}
-					address := &order.Delivery{Email: email, RecipientName: "Fixture", Phone: "0912345678", PostalCode: "110", City: "Taipei", District: "Xinyi", Street: "1 Test Road"}
+					address := &delivery.Details{Email: email, RecipientName: "Fixture", Phone: "0912345678", PostalCode: "110", City: "Taipei", District: "Xinyi", Street: "1 Test Road"}
 					store := cart.NewStore(appPool)
 					quote := accountCheckoutQuote(t, store, accountCart, owner, shippingID, address.PostalCode)
 					number, err := store.PlaceOrder(ctx, accountCart, owner, shippingID, address, nil, "", quote, checkoutAttemptKey(suffix))

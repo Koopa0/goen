@@ -29,7 +29,7 @@ func letters(text string) map[string]func(context.Context, Notifier) error {
 	return map[string]func(context.Context, Notifier) error{
 		"SendOrderPlaced": func(ctx context.Context, n Notifier) error {
 			return n.SendOrderPlaced(ctx, &OrderPlaced{
-				Email: to, Name: text, OrderNumber: "GO-260101-000001", TotalCents: 123400,
+				Email: to, Name: text, OrderNumber: "GO-260101-000001", TotalCents: 123400, OwedCents: 123400,
 			})
 		},
 		"SendOrderPaid": func(ctx context.Context, n Notifier) error {
@@ -184,7 +184,7 @@ func TestNoTextInALetterCanAddAMailHeader(t *testing.T) {
 		sink := &recorded{}
 		n := New(sink, "https://goen.test", "", "")
 		if err := n.SendOrderPlaced(t.Context(), &OrderPlaced{
-			Email: to, OrderNumber: "GO-260101-000001", TotalCents: 100,
+			Email: to, OrderNumber: "GO-260101-000001", TotalCents: 100, OwedCents: 100,
 		}); err == nil || len(sink.msgs) != 0 {
 			t.Errorf("SendOrderPlaced to %q = %v and sent %d messages, want a refusal", to, err, len(sink.msgs))
 		}

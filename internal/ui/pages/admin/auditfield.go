@@ -49,6 +49,7 @@ var auditFields = map[string]auditField{
 	"active":                           {i18n.KeyAuditFieldActive, nil, nil},
 	"allowance":                        {i18n.KeyAdminDocAllowance, nil, nil},
 	"alt":                              {i18n.KeyAuditFieldImageAlt, nil, nil},
+	"alt_en":                           {i18n.KeyAdminCatAltEn, nil, nil},
 	"assessment_version":               {i18n.KeyAuditFieldAssessmentVersion, nil, nil},
 	"attempt_no":                       {i18n.KeyAuditFieldRefundAttempt, nil, nil},
 	"brand_id":                         {i18n.KeyAdminProdBrand, nil, nil},
@@ -180,7 +181,7 @@ func (e AuditEntry) ReadableChanges(ctx context.Context) []ReadableChange {
 		default:
 			row.Text = show(c.Before + c.After)
 		}
-		if c.Field == "user_id" && e.CustomerName != "" {
+		if c.Field == "user_id" && e.CustomerEmail != "" {
 			row.Href = "/admin/customers/" + e.CustomerID
 		}
 		rows = append(rows, row)
@@ -273,8 +274,8 @@ func couponValueText(_ context.Context, e AuditEntry, value string) string {
 }
 
 func customerText(_ context.Context, e AuditEntry, value string) string {
-	if e.CustomerName != "" {
-		return e.CustomerName
+	if e.CustomerEmail != "" {
+		return e.CustomerEmail
 	}
 	return value
 }

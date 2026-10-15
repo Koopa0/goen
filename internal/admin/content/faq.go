@@ -11,7 +11,6 @@ import (
 	"github.com/koopa0/goen/internal/admin/audit"
 	"github.com/koopa0/goen/internal/db"
 	"github.com/koopa0/goen/internal/i18n"
-	"github.com/koopa0/goen/internal/pgerr"
 	"github.com/koopa0/goen/internal/shoptime"
 	"github.com/koopa0/goen/internal/ui/pages/admin"
 )
@@ -97,7 +96,7 @@ func (s *Store) CreateFAQEntry(ctx context.Context, f *FAQForm) (map[string]stri
 			CategoryEn: f.CategoryEn, QuestionEn: f.QuestionEn, AnswerEn: f.AnswerEn,
 		})
 	}); err != nil {
-		return nil, pgerr.WrapRefusal(err, ErrRefused)
+		return nil, db.WrapRefusal(err, ErrRefused)
 	}
 	return nil, nil
 }
@@ -119,7 +118,7 @@ func (s *Store) UpdateFAQEntry(ctx context.Context, f *FAQForm) (map[string]stri
 			CategoryEn: f.CategoryEn, QuestionEn: f.QuestionEn, AnswerEn: f.AnswerEn,
 		})
 		if execErr != nil {
-			return pgerr.WrapRefusal(execErr, ErrRefused)
+			return db.WrapRefusal(execErr, ErrRefused)
 		}
 		if n == 0 {
 			return ErrNotFound
@@ -142,7 +141,7 @@ func (s *Store) DeleteFAQEntry(ctx context.Context, id string) error {
 	}, func(ctx context.Context, q *db.Queries) error {
 		n, execErr := q.DeleteFAQEntry(ctx, entryID)
 		if execErr != nil {
-			return pgerr.WrapRefusal(execErr, ErrRefused)
+			return db.WrapRefusal(execErr, ErrRefused)
 		}
 		if n == 0 {
 			return ErrNotFound

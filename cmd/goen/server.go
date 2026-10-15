@@ -16,6 +16,7 @@ import (
 	"github.com/koopa0/goen/internal/admin/content"
 	"github.com/koopa0/goen/internal/admin/coupons"
 	customerdesk "github.com/koopa0/goen/internal/admin/customers"
+	"github.com/koopa0/goen/internal/admin/dashboard"
 	"github.com/koopa0/goen/internal/admin/feedback"
 	"github.com/koopa0/goen/internal/admin/health"
 	"github.com/koopa0/goen/internal/admin/invoicing"
@@ -34,7 +35,7 @@ import (
 	"github.com/koopa0/goen/internal/catalog"
 	"github.com/koopa0/goen/internal/contact"
 	"github.com/koopa0/goen/internal/home"
-	"github.com/koopa0/goen/internal/invoice"
+	"github.com/koopa0/goen/internal/invoice/issuer"
 	rewards "github.com/koopa0/goen/internal/loyalty"
 	"github.com/koopa0/goen/internal/media"
 	"github.com/koopa0/goen/internal/newsletter"
@@ -102,7 +103,7 @@ type StorefrontConfig struct {
 	SecureCookies bool
 	// Invoices checks mobile barcodes at checkout, or is disabled and the
 	// checkout accepts none.
-	Invoices *invoice.Gateway
+	Invoices *issuer.Gateway
 	// Google signs customers in, or is disabled and 404s its two routes.
 	Google *account.Google
 	// StoreMap is the carrier's convenience-store picker, or is disabled and
@@ -125,13 +126,15 @@ type BackOfficeConfig struct {
 	MaintenancePool *pgxpool.Pool
 	Payments        *payment.Gateway
 	Refunder        refunds.Refunder
-	// SecureCookies selects the __Host- cookie prefix.
-	SecureCookies bool
 	// TOTPKey is parsed key material from twofactor.ParseKey; nil disables
 	// enrolment.
 	TOTPKey []byte
+	// TOTPPreviousKey is the key TOTPKey replaced, parsed the same way, or nil.
+	// Secrets sealed under it still open and are re-sealed under TOTPKey on the
+	// owner's next sign-in.
+	TOTPPreviousKey []byte
 	// Invoices issues uniform invoices, or is disabled and renders no controls.
-	Invoices *invoice.Gateway
+	Invoices *issuer.Gateway
 	StoreMap *cart.StoreMap
 }
 
@@ -174,8 +177,12 @@ func newRouter(cfg *RouterConfig, log *slog.Logger) http.Handler {
 		sessionCloser(front.Payments), front.StoreMap, barcodeChecker)
 	customers := account.NewHandler(account.NewStore(pool), basket, log, secureCookies, front.Google)
 	customers.OfferDemoAccount(front.DemoAccount)
+	// One store decides whether this deployment has a second factor at all, so
+	// /admin and the storefront's account doors cannot disagree about it.
+	factorStore := twofactor.NewStore(adminPool, cfg.BackOffice.TOTPKey, cfg.BackOffice.TOTPPreviousKey)
+	customers.RequireStepUpFromStaff(storefrontStepUp(factorStore, pool, log))
 	storefrontRoutes(mux, front, log, catalogue, sitePages, basket, customers, orderAccess, findLimit)
-	backOfficeRoutes(mux, &cfg.BackOffice, log, poolsOnHealthPage(pool, adminPool, cfg.BackOffice.MaintenancePool))
+	backOfficeRoutes(mux, &cfg.BackOffice, factorStore, log, poolsOnHealthPage(pool, adminPool, cfg.BackOffice.MaintenancePool))
 	mux.HandleFunc("GET /", sitePages.NotFound)
 
 	// Applied inner to outer, so a request passes through them in the reverse of
@@ -335,6 +342,9 @@ func storefrontRoutes(mux *http.ServeMux, cfg *StorefrontConfig, log *slog.Logge
 	mux.HandleFunc("POST /signin", clearSpeculations(ratelimit.Guard(authLimit, log, customers.SignIn)))
 	mux.HandleFunc("GET /forgot", customers.ForgotPage)
 	mux.HandleFunc("POST /forgot", ratelimit.Guard(authLimit, log, customers.Forgot))
+	// RequireUser's sign-in return URL would issue GET to this POST-only action.
+	mux.HandleFunc("POST /account/password/setup",
+		ratelimit.Guard(authLimit, log, customers.RequestPasswordSetup))
 	mux.HandleFunc("GET /reset", customers.ResetPage)
 	mux.HandleFunc("POST /reset", ratelimit.Guard(authLimit, log, customers.Reset))
 	// Open to a signed-out visitor, who is sent on rather than refused: a
@@ -385,14 +395,13 @@ func storefrontRoutes(mux *http.ServeMux, cfg *StorefrontConfig, log *slog.Logge
 
 // backOfficeRoutes registers /admin, every desk on the `admin` pool. The store
 // pool reaches it only as statistics on the health page.
-func backOfficeRoutes(mux *http.ServeMux, cfg *BackOfficeConfig, log *slog.Logger, healthPools []health.NamedPool) {
+func backOfficeRoutes(mux *http.ServeMux, cfg *BackOfficeConfig, factorStore *twofactor.Store, log *slog.Logger, healthPools []health.NamedPool) {
 	adminPool, gateway, refunder := cfg.AdminPool, cfg.Payments, cfg.Refunder
-	secureCookies, totpKey := cfg.SecureCookies, cfg.TOTPKey
-	// The second factor runs on the ADMIN pool. On the storefront pool `store`
+	// factorStore (built in newRouter) runs the second factor on the ADMIN pool.
+	// On the storefront pool `store`
 	// would need write on staff_totp_credentials and users.role, so any slip
 	// reachable from a product page escalates to admin.
-	factorStore := twofactor.NewStore(adminPool, totpKey)
-	factors := twofactor.NewHandler(factorStore, log, secureCookies)
+	factors := twofactor.NewHandler(factorStore, log)
 	var stepUp func(*http.Request) (bool, error)
 	if factorStore.Enabled() {
 		stepUp = factors.StepUp
@@ -401,9 +410,9 @@ func backOfficeRoutes(mux *http.ServeMux, cfg *BackOfficeConfig, log *slog.Logge
 	// invoice store exists either way.
 	invoiceGateway := cfg.Invoices
 	if invoiceGateway == nil {
-		invoiceGateway = &invoice.Gateway{}
+		invoiceGateway = &issuer.Gateway{}
 	}
-	invoices := invoice.NewStore(adminPool, invoiceGateway)
+	invoices := issuer.NewStore(adminPool, invoiceGateway)
 	var invoiceWriter invoicing.Writer
 	if invoices.Enabled() {
 		invoiceWriter = invoices
@@ -413,8 +422,9 @@ func backOfficeRoutes(mux *http.ServeMux, cfg *BackOfficeConfig, log *slog.Logge
 	checkup := health.NewStore(adminPool).WithInvoicing(invoices.Enabled())
 	payouts := refunds.NewStore(adminPool, refunder, invoices)
 	invoicingStore := invoicing.NewStore(adminPool, invoices, invoiceWriter)
-	salesFigures := reports.NewStore(adminPool)
-	orderDesk := orders.NewHandler(orders.NewStore(adminPool, payouts, invoicingStore, stockroom, checkup, salesFigures), sessionCloser(gateway), log)
+	salesFigures := reports.NewStore(adminPool, stockroom)
+	orderDesk := orders.NewHandler(orders.NewStore(adminPool, payouts, invoicingStore), sessionCloser(gateway), log)
+	landing := dashboard.NewHandler(dashboard.NewStore(adminPool, stockroom, checkup, salesFigures), log)
 	trail := audit.NewHandler(audit.NewStore(adminPool), log)
 	figures := reports.NewHandler(salesFigures, log)
 	warehouse := stock.NewHandler(stockroom, log)
@@ -437,6 +447,7 @@ func backOfficeRoutes(mux *http.ServeMux, cfg *BackOfficeConfig, log *slog.Logge
 	// The back office. A signed-in customer gets a 404 rather than a 403, which
 	// would confirm that /admin is a real place.
 	backOffice := adminaccess.New(log, stepUp).WithHealthTaskCount(checkup.StaffTaskCount)
+	landing.Routes(mux, backOffice)
 	orderDesk.Routes(mux, backOffice)
 	trail.Routes(mux, backOffice)
 	figures.Routes(mux, backOffice)
@@ -459,6 +470,19 @@ func backOfficeRoutes(mux *http.ServeMux, cfg *BackOfficeConfig, log *slog.Logge
 	mux.HandleFunc("POST /admin/verify", backOffice.StaffOnly(factors.Verify))
 	mux.HandleFunc("POST /admin/verify/enrol", backOffice.StaffOnly(factors.Enrol))
 	mux.HandleFunc("POST /admin/verify/confirm", backOffice.StaffOnly(factors.Confirm))
+}
+
+// storefrontStepUp is the back office's own question, "did this session pass
+// the second factor?", asked for the storefront's account doors: the same
+// twofactor.Handler.StepUp, so the two cannot drift. It reads over the store
+// pool, which holds SELECT on sessions and never sees the TOTP key or a
+// credential row, so the storefront still cannot reach the admin pool. It is
+// nil when factors reports no key, which is /admin's own "second factor off".
+func storefrontStepUp(factors *twofactor.Store, storePool *pgxpool.Pool, log *slog.Logger) func(*http.Request) (bool, error) {
+	if !factors.Enabled() {
+		return nil
+	}
+	return twofactor.NewHandler(twofactor.NewStore(storePool, nil, nil), log).StepUp
 }
 
 // sessionCloser hands the gateway to the cancel doors, or nothing at all.

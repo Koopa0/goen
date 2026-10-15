@@ -17,12 +17,9 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 
 	"github.com/koopa0/goen/internal/admin/audit"
-	"github.com/koopa0/goen/internal/admin/loyalty"
-	"github.com/koopa0/goen/internal/catalog"
 	"github.com/koopa0/goen/internal/db"
 	"github.com/koopa0/goen/internal/i18n"
 	"github.com/koopa0/goen/internal/order"
-	"github.com/koopa0/goen/internal/pgtx"
 	"github.com/koopa0/goen/internal/shoptime"
 	"github.com/koopa0/goen/internal/ui/components"
 	"github.com/koopa0/goen/internal/ui/pages/admin"
@@ -65,7 +62,7 @@ func (s *Store) Search(ctx context.Context, term string, after ...string) (admin
 	view.Searched = true
 
 	rows, err := s.q.AdminSearchCustomers(ctx, db.AdminSearchCustomersParams{HasCursor: resumed, AfterAt: from.At, AfterID: from.ID,
-		EscapedTerm: catalog.EscapeLike(term), RowLimit: web.PageLimit,
+		EscapedTerm: db.EscapeLike(term), RowLimit: web.PageLimit,
 	})
 	if err != nil {
 		return admin.CustomersView{}, fmt.Errorf("search customers: %w", err)
@@ -94,7 +91,7 @@ func (s *Store) Profile(ctx context.Context, id string) (admin.CustomerView, err
 	if err != nil {
 		return admin.CustomerView{}, fmt.Errorf("begin customer read: %w", err)
 	}
-	defer pgtx.Rollback(ctx, tx)
+	defer db.Rollback(ctx, tx)
 	q := s.q.WithTx(tx)
 
 	row, err := q.AdminCustomer(ctx, uid)
@@ -106,7 +103,7 @@ func (s *Store) Profile(ctx context.Context, id string) (admin.CustomerView, err
 	}
 
 	standing, err := q.MemberStanding(ctx, db.MemberStandingParams{
-		UserID: uid, WindowDays: loyalty.MembershipWindowDays, Locale: string(i18n.FromContext(ctx)),
+		UserID: uid, Locale: string(i18n.FromContext(ctx)),
 	})
 	if err != nil {
 		return admin.CustomerView{}, fmt.Errorf("read customer standing: %w", err)
@@ -144,7 +141,7 @@ func (s *Store) Profile(ctx context.Context, id string) (admin.CustomerView, err
 		Since: shoptime.Day(row.CreatedAt), Verified: row.Verified,
 		Orders: row.Orders, SpentCents: row.Spent,
 		CreditCents: row.CreditCents, Points: row.Points,
-		WindowDays: loyalty.MembershipWindowDays, WindowSpendCents: standing.SpendCents, NextTierName: standing.NextName,
+		WindowDays: standing.WindowDays, WindowSpendCents: standing.SpendCents, NextTierName: standing.NextName,
 		NextTierCents: standing.SpendCents + standing.NextNeedsCents,
 	}
 	for i := range orders {

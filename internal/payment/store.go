@@ -18,9 +18,8 @@ import (
 	"github.com/koopa0/goen/internal/db"
 	"github.com/koopa0/goen/internal/email"
 	"github.com/koopa0/goen/internal/i18n"
-	"github.com/koopa0/goen/internal/invoice"
+	"github.com/koopa0/goen/internal/invoice/issuer"
 	"github.com/koopa0/goen/internal/outbox"
-	"github.com/koopa0/goen/internal/pgtx"
 	"github.com/koopa0/goen/internal/refund"
 )
 
@@ -64,7 +63,7 @@ func (s *Store) Order(ctx context.Context, number string) (*Order, error) {
 		return nil, fmt.Errorf("read payment state of order %s: %w", number, err)
 	}
 
-	lines, err := s.q.OrderLinesForPayment(ctx, row.ID)
+	lines, err := s.q.OrderLinesForPayment(ctx, db.OrderLinesForPaymentParams{OrderID: row.ID, Locale: i18n.FromContext(ctx).Tag()})
 	if err != nil {
 		return nil, fmt.Errorf("read lines of order %s: %w", number, err)
 	}
@@ -103,6 +102,7 @@ func (s *Store) Order(ctx context.Context, number string) (*Order, error) {
 	for i := range lines {
 		l := &lines[i]
 		o.Lines = append(o.Lines, Line{
+			ImageKey: l.ImageKey, ImageWidth: l.ImageWidth, ImageAlt: l.ImageAlt,
 			Name:      l.ProductName,
 			Label:     l.VariantLabel.String,
 			UnitCents: l.UnitPriceCents,
@@ -288,7 +288,7 @@ func AttributeCompleteCapture(
 	if err := CompleteFunding(ctx, q, row.OrderID, row.OrderNumber, capture); err != nil {
 		return false, err
 	}
-	if err := invoice.EnqueueDue(ctx, q, &outbox.InvoiceDue{
+	if err := issuer.EnqueueDue(ctx, q, &outbox.InvoiceDue{
 		OrderNumber: row.OrderNumber, Trigger: providerRef,
 	}); err != nil {
 		return false, err
@@ -312,7 +312,7 @@ func (s *Store) processWebhook(
 	if err != nil {
 		return false, fmt.Errorf("begin webhook transaction: %w", err)
 	}
-	defer pgtx.Rollback(ctx, tx)
+	defer db.Rollback(ctx, tx)
 
 	webhook := &webhookTx{
 		q: s.q.WithTx(tx), tx: tx, eventID: ev.ID, objectRef: ev.ObjectRef,
@@ -382,7 +382,7 @@ func (w *webhookTx) postCapture(ctx context.Context, c Capture) error {
 	if postErr := post(w.q.WithTx(sp)); postErr != nil {
 		// Back to the savepoint, so the transaction is usable and the caller can
 		// say what happened.
-		pgtx.Rollback(ctx, sp)
+		db.Rollback(ctx, sp)
 		return postErr
 	}
 	if err := sp.Commit(ctx); err != nil {
@@ -449,7 +449,7 @@ func (w *webhookTx) Capture(ctx context.Context, c Capture) (orderNumber string,
 	if err := CompleteFunding(ctx, w.q, row.ID, row.OrderNumber, c); err != nil {
 		return "", err
 	}
-	if err := invoice.EnqueueDue(ctx, w.q, &outbox.InvoiceDue{
+	if err := issuer.EnqueueDue(ctx, w.q, &outbox.InvoiceDue{
 		OrderNumber: row.OrderNumber, Trigger: w.eventID,
 	}); err != nil {
 		return "", err

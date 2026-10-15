@@ -637,15 +637,12 @@ templ Account(p layouts.Page, v *AccountView) {
 											ID:        "addr-label",
 											Value:     v.AddrValue("label"),
 											Invalid:   v.AddrInvalid("label"),
-											Describes: "addr-label-error",
 											Name:      "label",
 											Type:      "text",
-											Attrs: templ.Attributes{
-												"maxlength":    "30",
-												"autocomplete": "off",
-												"placeholder":  i18n.T(ctx, i18n.KeyLabelPlaceholder),
-											},
+											Describes: v.addressLabelDescribedBy(),
+											Attrs:     v.addressLabelAttrs(),
 										})
+										<p class="goen-auth__hint" id="addr-label-example">{ fmt.Sprintf(i18n.T(ctx, i18n.KeyFieldExample), i18n.T(ctx, i18n.KeyLabelExample)) }</p>
 										if v.AddrInvalid("label") {
 											<p class="ui-error-text" id="addr-label-error" role="alert">{ v.AddrErr("label") }</p>
 										}
@@ -840,58 +837,74 @@ templ Account(p layouts.Page, v *AccountView) {
 						</details>
 					</section>
 					<section class="goen-card goen-account__section" aria-labelledby="password-heading">
-						<h2 class="goen-account__heading" id="password-heading">{ i18n.T(ctx, i18n.KeyChangePassword) }</h2>
-						<details class="goen-account__disclosure">
-							<summary class="goen-account__summary">{ i18n.T(ctx, i18n.KeyChangePassword) }</summary>
-							<form class="goen-account__form" method="post" action="/account/password">
-								<div class="goen-account__fields">
-									<div class="goen-field goen-account__field--wide">
-										@components.Label(components.LabelProps{For: "pw-current"}) {
-											{ i18n.T(ctx, i18n.KeyFieldCurrentPassword) }
-										}
-										@components.Input(components.FieldProps{
-											ID:    "pw-current",
-											Name:  "current",
-											Type:  "password",
-											Attrs: templ.Attributes{"required": true, "autocomplete": "current-password"},
-										})
-									</div>
-									<div class="goen-field">
-										@components.Label(components.LabelProps{For: "pw-new"}) {
-											{ i18n.T(ctx, i18n.KeyFieldNewPassword) }
-										}
-										@components.Input(components.FieldProps{
-											ID:   "pw-new",
-											Name: "password",
-											Type: "password",
-											Attrs: templ.Attributes{
-												"required":         true,
-												"minlength":        "10",
-												"autocomplete":     "new-password",
-												"aria-describedby": "pw-hint",
-											},
-										})
-										<p class="goen-account__hint" id="pw-hint">{ i18n.T(ctx, i18n.KeyPasswordHintEndsSessions) }</p>
-									</div>
-									<div class="goen-field">
-										@components.Label(components.LabelProps{For: "pw-confirm"}) {
-											{ i18n.T(ctx, i18n.KeyFieldConfirmNewPassword) }
-										}
-										@components.Input(components.FieldProps{
-											ID:    "pw-confirm",
-											Name:  "confirm",
-											Type:  "password",
-											Attrs: templ.Attributes{"required": true, "autocomplete": "new-password"},
-										})
-									</div>
-								</div>
+						if v.GoogleLinked && !v.HasPassword {
+							<h2 class="goen-account__heading" id="password-heading">{ i18n.T(ctx, i18n.KeySetPassword) }</h2>
+							if v.PasswordSetupSent {
+								@components.Notice(components.NoticeProps{Intent: components.IntentAccent, ID: "password-setup-sent"}) {
+									{ fmt.Sprintf(i18n.T(ctx, i18n.KeyPasswordSetupSent), v.Email) }
+								}
+							}
+							<form class="goen-account__form" method="post" action="/account/password/setup#password-heading">
 								<div class="goen-account__actions">
 									@components.Button(components.ButtonProps{ButtonStyle: components.ButtonStylePrimary}, "submit") {
-										{ i18n.T(ctx, i18n.KeyChangePassword) }
+										{ i18n.T(ctx, i18n.KeySendPasswordSetupLink) }
 									}
 								</div>
 							</form>
-						</details>
+						} else {
+							<h2 class="goen-account__heading" id="password-heading">{ i18n.T(ctx, i18n.KeyChangePassword) }</h2>
+							<details class="goen-account__disclosure">
+								<summary class="goen-account__summary">{ i18n.T(ctx, i18n.KeyChangePassword) }</summary>
+								<form class="goen-account__form" method="post" action="/account/password">
+									<div class="goen-account__fields">
+										<div class="goen-field goen-account__field--wide">
+											@components.Label(components.LabelProps{For: "pw-current"}) {
+												{ i18n.T(ctx, i18n.KeyFieldCurrentPassword) }
+											}
+											@components.Input(components.FieldProps{
+												ID:    "pw-current",
+												Name:  "current",
+												Type:  "password",
+												Attrs: templ.Attributes{"required": true, "autocomplete": "current-password"},
+											})
+										</div>
+										<div class="goen-field">
+											@components.Label(components.LabelProps{For: "pw-new"}) {
+												{ i18n.T(ctx, i18n.KeyFieldNewPassword) }
+											}
+											@components.Input(components.FieldProps{
+												ID:   "pw-new",
+												Name: "password",
+												Type: "password",
+												Attrs: templ.Attributes{
+													"required":         true,
+													"minlength":        "10",
+													"autocomplete":     "new-password",
+													"aria-describedby": "pw-hint",
+												},
+											})
+											<p class="goen-account__hint" id="pw-hint">{ i18n.T(ctx, i18n.KeyPasswordHintEndsSessions) }</p>
+										</div>
+										<div class="goen-field">
+											@components.Label(components.LabelProps{For: "pw-confirm"}) {
+												{ i18n.T(ctx, i18n.KeyFieldConfirmNewPassword) }
+											}
+											@components.Input(components.FieldProps{
+												ID:    "pw-confirm",
+												Name:  "confirm",
+												Type:  "password",
+												Attrs: templ.Attributes{"required": true, "autocomplete": "new-password"},
+											})
+										</div>
+									</div>
+									<div class="goen-account__actions">
+										@components.Button(components.ButtonProps{ButtonStyle: components.ButtonStylePrimary}, "submit") {
+											{ i18n.T(ctx, i18n.KeyChangePassword) }
+										}
+									</div>
+								</form>
+							</details>
+						}
 					</section>
 					if v.GoogleLinked {
 						<section class="goen-card goen-account__section" aria-labelledby="google-heading">
@@ -906,7 +919,8 @@ templ Account(p layouts.Page, v *AccountView) {
 									</div>
 								</form>
 							} else {
-								<p class="goen-account__meta">{ i18n.T(ctx, i18n.KeyGoogleOnlyMethod) }</p>
+								{{ before, after := googlePasswordSetupText(ctx) }}
+								<p class="goen-account__meta">{ before }<a href="#password-heading">{ i18n.T(ctx, i18n.KeySetPassword) }</a>{ after }</p>
 							}
 						</section>
 					}

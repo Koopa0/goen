@@ -14,7 +14,7 @@ import (
 	"github.com/koopa0/goen/internal/db"
 	"github.com/koopa0/goen/internal/i18n"
 	"github.com/koopa0/goen/internal/order"
-	"github.com/koopa0/goen/internal/pgerr"
+	"github.com/koopa0/goen/internal/order/delivery"
 	"github.com/koopa0/goen/internal/web"
 )
 
@@ -97,7 +97,7 @@ func (s *Store) CorrectDelivery(ctx context.Context, number string, d *DeliveryC
 			PickupStoreName: addr.PickupStoreName,
 		})
 		if err != nil {
-			return pgerr.WrapRefusal(err, ErrRefused)
+			return db.WrapRefusal(err, ErrRefused)
 		}
 		if n == 0 {
 			return ErrTooLateToCorrect
@@ -106,8 +106,8 @@ func (s *Store) CorrectDelivery(ctx context.Context, number string, d *DeliveryC
 	})
 }
 
-func validatedDelivery(d *DeliveryCorrection, to shipping.Destination) (*order.Delivery, error) {
-	addr := &order.Delivery{
+func validatedDelivery(d *DeliveryCorrection, to shipping.Destination) (*delivery.Details, error) {
+	addr := &delivery.Details{
 		To: to, Email: d.Email, RecipientName: d.Recipient, Phone: d.Phone,
 		PostalCode: d.PostalCode, City: d.City, District: d.District, Street: d.Street,
 		PickupChain: d.PickupChain, PickupStoreCode: d.PickupStoreCode,
@@ -124,7 +124,7 @@ func validatedDelivery(d *DeliveryCorrection, to shipping.Destination) (*order.D
 // checkDeliveryZone reads the saved postcode only after the order lock is held,
 // so a waiter compares against the correction before it and not an earlier
 // snapshot. A pickup order has no postcode and no zone to leave.
-func checkDeliveryZone(ctx context.Context, q *db.Queries, orderID uuid.UUID, addr *order.Delivery) error {
+func checkDeliveryZone(ctx context.Context, q *db.Queries, orderID uuid.UUID, addr *delivery.Details) error {
 	if addr.To != shipping.DestinationAddress {
 		return nil
 	}

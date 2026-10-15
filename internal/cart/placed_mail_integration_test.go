@@ -17,7 +17,7 @@ import (
 	"github.com/koopa0/goen/internal/cart"
 	"github.com/koopa0/goen/internal/email"
 	"github.com/koopa0/goen/internal/i18n"
-	"github.com/koopa0/goen/internal/order"
+	"github.com/koopa0/goen/internal/order/delivery"
 	"github.com/koopa0/goen/internal/shoptime"
 )
 
@@ -69,7 +69,7 @@ func TestCheckoutQueuesTheCompletePlacedConfirmation(t *testing.T) {
 					if funding.balance > 0 {
 						owner = uuid.NullUUID{UUID: creditedCustomer(t, funding.balance), Valid: true}
 					}
-					addr := &order.Delivery{To: kind, Email: "placed-snapshot@example.com", RecipientName: "Alex", Phone: "0912345678", PostalCode: "110", City: "Taipei", District: "Xinyi", Street: "Recorded Road 1", Note: "Recorded delivery note"}
+					addr := &delivery.Details{To: kind, Email: "placed-snapshot@example.com", RecipientName: "Alex", Phone: "0912345678", PostalCode: "110", City: "Taipei", District: "Xinyi", Street: "Recorded Road 1", Note: "Recorded delivery note"}
 					deliveryTo := "110 TaipeiXinyiRecorded Road 1"
 					if kind == shipping.DestinationPickupPoint {
 						addr.PickupChain, addr.PickupStoreCode, addr.PickupStoreName = shipping.ChainSevenEleven, "012345", "Recorded store"
@@ -106,7 +106,7 @@ func TestCheckoutQueuesTheCompletePlacedConfirmation(t *testing.T) {
 					if !reflect.DeepEqual(got, want) {
 						t.Errorf("PlaceOrder() queued snapshot = %#v, want %#v", got, want)
 					}
-					if payload.Name != "Alex" || payload.Email != addr.Email || payload.Locale != locale.Tag() || payload.OwedCents == nil || *payload.OwedCents != funding.owed {
+					if payload.Name != "Alex" || payload.Email != addr.Email || payload.Locale != locale.Tag() || payload.OwedCents != funding.owed {
 						t.Errorf("PlaceOrder() recipient/locale/funding = %#v", payload)
 					}
 					if !heldUntil.After(placed) {
@@ -183,14 +183,14 @@ func (s *placedConfirmationSink) Send(_ context.Context, m *email.Message) error
 
 // TestCheckoutWritesWhatThePlacedLetterStillOwes is the producer half of the
 // placed-letter owed figure. The renderer already quotes owed_cents; without
-// this, a checkout that omits the field or writes the order total still mails
-// the pay CTA on a funded order. Both credit cases have to land in the
+// this, a checkout that writes the order total still mails the pay CTA on a
+// funded order. Both credit cases have to land in the
 // committed payload; one alone lets the other drift.
 func TestCheckoutWritesWhatThePlacedLetterStillOwes(t *testing.T) {
 	ctx := t.Context()
 	s := cart.NewStore(pool)
 	shipID := shipVersionFor(t, "home_delivery")
-	addr := &order.Delivery{
+	addr := &delivery.Details{
 		Email: "placed-mail@example.com", RecipientName: "王小明", Phone: "0912345678",
 		PostalCode: "110", City: "台北市", District: "信義區", Street: "松高路 1 號",
 	}
@@ -213,12 +213,9 @@ func TestCheckoutWritesWhatThePlacedLetterStillOwes(t *testing.T) {
 			t.Fatalf("a fully funded order still owes %d against total %d; the fixture did not cover it",
 				owed, total)
 		}
-		if payload.OwedCents == nil {
-			t.Fatal("a fully funded checkout omitted owed_cents; the letter falls back to the total and asks the customer to pay")
-		}
-		if *payload.OwedCents != 0 {
+		if payload.OwedCents != 0 {
 			t.Errorf("owed_cents is %d, want 0 — a fully funded letter would still quote an amount due",
-				*payload.OwedCents)
+				payload.OwedCents)
 		}
 	})
 
@@ -243,12 +240,9 @@ func TestCheckoutWritesWhatThePlacedLetterStillOwes(t *testing.T) {
 			t.Fatalf("partly funded remainder is %d against total %d; the fixture is not a partial spend",
 				owed, total)
 		}
-		if payload.OwedCents == nil {
-			t.Fatal("a partly funded checkout omitted owed_cents; the letter falls back to the total")
-		}
-		if *payload.OwedCents != owed {
+		if payload.OwedCents != owed {
 			t.Errorf("owed_cents is %d, want the remainder %d — a partly funded letter would quote the wrong amount due",
-				*payload.OwedCents, owed)
+				payload.OwedCents, owed)
 		}
 	})
 }

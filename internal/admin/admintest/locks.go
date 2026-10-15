@@ -9,7 +9,7 @@ import (
 	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/jackc/pgx/v5/pgxpool"
 
-	"github.com/koopa0/goen/internal/pgtx"
+	"github.com/koopa0/goen/internal/db"
 )
 
 // LockTimeoutPool is a pool whose statements give up on a row lock after
@@ -38,7 +38,7 @@ func HoldRow(t *testing.T, pool *pgxpool.Pool, stmt string, args ...any) {
 	if err != nil {
 		t.Fatalf("begin the lock holder: %v", err)
 	}
-	t.Cleanup(func() { pgtx.Rollback(ctx, holder) })
+	t.Cleanup(func() { db.Rollback(ctx, holder) })
 	if _, err := holder.Exec(ctx, stmt, args...); err != nil {
 		t.Fatalf("hold the row: %v", err)
 	}

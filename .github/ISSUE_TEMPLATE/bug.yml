@@ -14,7 +14,7 @@ body:
         never in a public issue.
 
         **A back-office page answers 500 right after you pulled.** Run
-        `make db-reset` first: `migrations/001` is amended in place, and a
+        `PGOPTIONS='-c goen.catalogue_seed=development' make db-reset` first: `migrations/001` is amended in place, and a
         database built from an older copy is missing what the code reads.
 
   - type: textarea
@@ -37,7 +37,7 @@ body:
     attributes:
       label: How to reproduce it
       description: >-
-        The shortest path from `make db-reset && make run` to the wrong
+        The shortest path from `PGOPTIONS='-c goen.catalogue_seed=development' make db-reset && make run` to the wrong
         behaviour. Forms and URLs are better than prose: which page, which
         fields, which button.
       placeholder: |
@@ -55,6 +55,21 @@ body:
     validations:
       required: true
 
+  - type: dropdown
+    id: harm
+    attributes:
+      label: Who is harmed, and how
+      options:
+        - money or tax
+        - stock or order
+        - personal data or security
+        - a task is blocked (including accessibility)
+        - wrong text a customer acts on
+        - staff-only inconvenience
+        - tests or tooling
+    validations:
+      required: true
+
   - type: textarea
     id: guard
     attributes:
@@ -64,3 +79,16 @@ body:
         what they cover from the schema and the source; if a defect got through,
         something in that coverage has a gap. Name the test or constraint that
         should have refused this and did not.
+
+  - type: checkboxes
+    id: bar
+    attributes:
+      label: Before filing
+      description: The filing bar is in [CONTRIBUTING.md](https://github.com/Koopa0/goen/blob/main/CONTRIBUTING.md#filing-an-issue).
+      options:
+        - label: I reproduced this on the commit above, or the title says UNVERIFIED.
+          required: true
+        - label: I searched open and closed issues, including `noise:` and `duplicate:` titles.
+          required: true
+        - label: This is one defect. If it cites a law or standard, it names the article, why it applies to this shop, and the code path.
+          required: true

@@ -1,7 +1,10 @@
 // Package order is the vocabulary of an order: its fulfillment states, event kinds and number.
 package order
 
-import "slices"
+import (
+	"slices"
+	"strings"
+)
 
 // FulfillmentStatus is orders.fulfillment_status, closed by orders_fulfillment_status_known.
 type FulfillmentStatus string
@@ -60,20 +63,69 @@ const (
 	EventRefunded  EventKind = "refunded"
 )
 
+// numberAlphabet is the suffix alphabet of an order number: Crockford base32,
+// the digits and the letters without I, L, O and U. It is the one written in
+// next_order_number() and orders_number_format.
+const numberAlphabet = "0123456789ABCDEFGHJKMNPQRSTVWXYZ"
+
+const (
+	numberPrefix = "GO-"
+	numberLen    = len(numberPrefix) + 6 + 1 + 6 // GO-YYMMDD-XXXXXX
+	numberDash   = len(numberPrefix) + 6
+)
+
 // ValidNumber reports whether s has the shape next_order_number() produces:
-// GO-YYMMDD-NNNNNN, matching the schema's orders_number_format CHECK. Callers
-// concatenate it into a redirect, so the whole shape is validated.
+// GO-YYMMDD-XXXXXX, six digits of the day and six characters of numberAlphabet,
+// matching the schema's orders_number_format CHECK. Callers concatenate it into
+// a redirect, so the whole shape is validated.
 func ValidNumber(s string) bool {
-	if len(s) != 16 || s[:3] != "GO-" || s[9] != '-' {
+	if len(s) != numberLen || s[:len(numberPrefix)] != numberPrefix || s[numberDash] != '-' {
 		return false
 	}
-	for i, r := range s {
-		if i == 0 || i == 1 || i == 2 || i == 9 {
-			continue
-		}
-		if r < '0' || r > '9' {
+	for i := len(numberPrefix); i < len(s); i++ {
+		switch {
+		case i == numberDash:
+		case i < numberDash:
+			if s[i] < '0' || s[i] > '9' {
+				return false
+			}
+		case strings.IndexByte(numberAlphabet, s[i]) < 0:
 			return false
 		}
 	}
 	return true
+}
+
+// NormalizeNumber reads an order number as a person typed it: surrounding space
+// is dropped, ASCII letters are upper-cased, and after the GO- prefix the
+// characters Crockford base32 reads as look-alikes are mapped to what they
+// stand for (O to 0, I and L to 1). The prefix itself is never mapped. ok is
+// false, and the number empty, when what remains is not a ValidNumber.
+//
+// Every path that takes a number from a person calls this, so a number typed
+// from a printed page or read aloud finds the order it names.
+func NormalizeNumber(s string) (number string, ok bool) {
+	s = strings.TrimSpace(s)
+	if len(s) != numberLen {
+		return "", false
+	}
+	b := []byte(s)
+	for i, c := range b {
+		if 'a' <= c && c <= 'z' {
+			c -= 'a' - 'A'
+		}
+		if i >= len(numberPrefix) {
+			switch c {
+			case 'O':
+				c = '0'
+			case 'I', 'L':
+				c = '1'
+			}
+		}
+		b[i] = c
+	}
+	if n := string(b); ValidNumber(n) {
+		return n, true
+	}
+	return "", false
 }

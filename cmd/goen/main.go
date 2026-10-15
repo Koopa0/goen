@@ -28,7 +28,7 @@ import (
 	"github.com/koopa0/goen/internal/admin/twofactor"
 	"github.com/koopa0/goen/internal/cart"
 	"github.com/koopa0/goen/internal/email"
-	"github.com/koopa0/goen/internal/invoice"
+	"github.com/koopa0/goen/internal/invoice/issuer"
 	"github.com/koopa0/goen/internal/media"
 	"github.com/koopa0/goen/internal/newsletter"
 	"github.com/koopa0/goen/internal/order/access"
@@ -90,6 +90,10 @@ type config struct {
 	// totpKey is parsed key material, kept distinct from the raw environment
 	// string so nothing downstream decides the key format a second time.
 	totpKey []byte
+	// TOTPPreviousKey is the raw GOEN_TOTP_KEY_PREVIOUS; totpPreviousKey is its
+	// parsed form.
+	TOTPPreviousKey string
+	totpPreviousKey []byte
 	// TrustedProxies is the CIDR list whose X-Forwarded-For goen will believe.
 	// Empty is the default and must stay it: a header is set by the client, so
 	// believing one hands an attacker an unlimited supply of rate-limit keys.
@@ -142,7 +146,28 @@ func loadConfig() (config, error) {
 		SMTPFrom:       envOr("GOEN_SMTP_FROM", "goen <no-reply@goen.example>"),
 		SMTPUser:       os.Getenv("GOEN_SMTP_USER"),
 		SMTPPassword:   os.Getenv("GOEN_SMTP_PASSWORD"),
+
+		TOTPPreviousKey: os.Getenv("GOEN_TOTP_KEY_PREVIOUS"),
 	}, nil
+}
+
+// prepareTOTPPreviousKey parses GOEN_TOTP_KEY_PREVIOUS and refuses one that
+// cannot rotate: not a key, set without a current key to re-seal under, or
+// indistinguishable from the current key.
+func (cfg *config) prepareTOTPPreviousKey(key []byte) error {
+	previous, err := twofactor.ParseKey(cfg.TOTPPreviousKey)
+	if err != nil {
+		return fmt.Errorf("GOEN_TOTP_KEY_PREVIOUS: %w", err)
+	}
+	if len(previous) != 0 && len(key) == 0 {
+		return errors.New("GOEN_TOTP_KEY_PREVIOUS is set but GOEN_TOTP_KEY is not: " +
+			"the previous key only reads secrets the current key will re-seal")
+	}
+	if err := twofactor.CheckKeyRotation(key, previous); err != nil {
+		return fmt.Errorf("GOEN_TOTP_KEY_PREVIOUS: %w", err)
+	}
+	cfg.totpPreviousKey = previous
+	return nil
 }
 
 // prepareRuntimePosture refuses a configuration that would serve the site with
@@ -159,6 +184,9 @@ func (cfg *config) prepareRuntimePosture(log *slog.Logger) error {
 		return fmt.Errorf("GOEN_TOTP_KEY: %w", keyErr)
 	}
 	cfg.totpKey = key
+	if err := cfg.prepareTOTPPreviousKey(key); err != nil {
+		return err
+	}
 	// An empty key leaves the step-up function nil and RequireStaff skips the
 	// check when it is nil, so the back office falls back to a password alone.
 	if len(key) == 0 {
@@ -182,7 +210,7 @@ func (cfg *config) prepareRuntimePosture(log *slog.Logger) error {
 				"lost with nothing to show for it. Set it, or set " +
 				"GOEN_INSECURE_COOKIES=1 for local development")
 		}
-		log.Warn("GOEN_SMTP_ADDR is not set; mail is logged, NOT sent, and marked delivered",
+		log.Warn("GOEN_SMTP_ADDR is not set; mail is logged in full, links included, NOT sent, and marked delivered",
 			"set", "GOEN_SMTP_ADDR")
 	}
 
@@ -359,7 +387,37 @@ func reachDatabase(ctx context.Context, pool *pgxpool.Pool, url string, role dat
 		&privileges.schemaOwner, &privileges.memberOfSchemaOwner); roleErr != nil {
 		return fmt.Errorf("check %s database login privileges: %w", role, redactURL(roleErr, url))
 	}
-	return checkDatabaseLogin(role, secureCookies, privileges, log)
+	if err := checkDatabaseLogin(role, secureCookies, privileges, log); err != nil {
+		return err
+	}
+
+	// migrations/001 refuses any other collation when it runs; this catches a
+	// database whose schema was restored or migrated some other way.
+	var provider, locale string
+	if localeErr := pool.QueryRow(pingCtx, `
+		SELECT d.datlocprovider::text, coalesce(d.datlocale, '')
+		FROM pg_catalog.pg_database d WHERE d.datname = current_database()
+	`).Scan(&provider, &locale); localeErr != nil {
+		return fmt.Errorf("check %s database locale: %w", role, redactURL(localeErr, url))
+	}
+	return checkDatabaseLocale(role, provider, locale, secureCookies, log)
+}
+
+// checkDatabaseLocale refuses, or in development warns about, a database that
+// is not on PostgreSQL's builtin C.UTF-8 locale: an operating-system collation
+// can change under the database with a library upgrade and leave its text
+// indexes silently wrong.
+func checkDatabaseLocale(role databaseRole, provider, locale string, secureCookies bool, log *slog.Logger) error {
+	if provider == "b" && locale == "C.UTF-8" {
+		return nil
+	}
+	message := fmt.Sprintf("the database %s reaches through %s uses locale provider %q and locale %q; goen requires the builtin provider with locale \"C.UTF-8\" (recreate it with createdb --template=template0 --encoding=UTF8 --locale-provider=builtin --builtin-locale=C.UTF-8)",
+		role, role.urlVariable(), provider, locale)
+	if secureCookies {
+		return fmt.Errorf("refusing to start: %s", message)
+	}
+	log.Warn(message)
+	return nil
 }
 
 func checkDatabaseLogin(role databaseRole, secureCookies bool, privileges databaseLoginPrivileges, log *slog.Logger) error {
@@ -399,8 +457,8 @@ func reachableAdminPool(ctx context.Context, url string, secureCookies bool, log
 	return pool, nil
 }
 
-func openInvoicing(cfg *config, log *slog.Logger) (*invoice.Gateway, error) {
-	g, err := invoice.NewGateway(cfg.ECPayMerchantID, cfg.ECPayHashKey,
+func openInvoicing(cfg *config, log *slog.Logger) (*issuer.Gateway, error) {
+	g, err := issuer.NewGateway(cfg.ECPayMerchantID, cfg.ECPayHashKey,
 		cfg.ECPayHashIV, cfg.ECPayBaseURL)
 	if err != nil {
 		return nil, err
@@ -427,10 +485,14 @@ func openStoreMap(cfg *config, log *slog.Logger) (*cart.StoreMap, error) {
 	return m, nil
 }
 
+// The one Stripe client the Gateway holds also issues refunds; the back office
+// reaches it through the refunds.Refunder it consumes.
+var _ refunds.Refunder = (*payment.Gateway)(nil)
+
 // openProviders builds the outside services goen talks to and says when any is
 // absent. Each refuses to start on HALF a configuration.
 func openProviders(cfg *config, log *slog.Logger) (
-	payments *payment.Gateway, invoices *invoice.Gateway,
+	payments *payment.Gateway, invoices *issuer.Gateway,
 	googleSignIn *account.Google, storeMap *cart.StoreMap, err error,
 ) {
 	if payments, err = payment.NewGateway(cfg.StripeAPIKey, cfg.StripeWebhookSecret, cfg.BaseURL); err != nil {
@@ -517,7 +579,6 @@ func run() error {
 	if demoErr != nil {
 		return demoErr
 	}
-	refunder := refunds.NewRefunder(cfg.StripeAPIKey)
 
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
@@ -549,8 +610,8 @@ func run() error {
 			Invoices: invoices, Google: googleSignIn, StoreMap: storeMap, DemoAccount: demoAccount,
 		},
 		BackOffice: BackOfficeConfig{
-			AdminPool: adminPool, MaintenancePool: maintenancePool, Payments: gateway, Refunder: refunder,
-			SecureCookies: cfg.SecureCookies, TOTPKey: cfg.totpKey, Invoices: invoices, StoreMap: storeMap,
+			AdminPool: adminPool, MaintenancePool: maintenancePool, Payments: gateway, Refunder: gateway,
+			TOTPKey: cfg.totpKey, TOTPPreviousKey: cfg.totpPreviousKey, Invoices: invoices, StoreMap: storeMap,
 		},
 	}, proxies, log)
 
@@ -742,11 +803,19 @@ func redactURL(err error, url string) error {
 
 // newSender chooses how mail leaves the process. A configured relay must never
 // fall back to the log sender, whose nil return means "delivered".
+//
+// Two conveniences exist only in development, both read from the one switch
+// that already separates it from production (Secure cookies): the log sender
+// prints the body, so a developer can follow the reset link in it, and the SMTP
+// sender accepts a loopback server without STARTTLS, a local capture relay.
+// Outside development neither exists: no mailed token reaches a log, and mail
+// is sent only over a verified STARTTLS connection.
 func newSender(cfg *config, log *slog.Logger) (email.Sender, error) {
+	development := !cfg.SecureCookies
 	if cfg.SMTPAddr == "" {
-		return email.LogSender{Log: log}, nil
+		return email.LogSender{Log: log, ShowBody: development}, nil
 	}
-	s := email.SMTPSender{Addr: cfg.SMTPAddr, From: cfg.SMTPFrom}
+	s := email.SMTPSender{Addr: cfg.SMTPAddr, From: cfg.SMTPFrom, AllowLoopbackPlaintext: development}
 	if cfg.SMTPUser != "" {
 		host, _, err := net.SplitHostPort(cfg.SMTPAddr)
 		if err != nil {
@@ -774,7 +843,7 @@ type workerDeps struct {
 	maintenance *pgxpool.Pool
 	log         *slog.Logger
 	notifier    email.Notifier
-	invoices    *invoice.Gateway
+	invoices    *issuer.Gateway
 	run         func(func())
 }
 
@@ -788,6 +857,8 @@ func startWorkers(ctx context.Context, d workerDeps) {
 	d.run(func() { holds.SweepAttemptsForever(ctx, d.log) })
 	d.run(func() { access.NewStore(d.pool, false).SweepForever(ctx, d.log) })
 	d.run(func() { holds.SweepDraftsForever(ctx, d.log) })
+	d.run(func() { holds.SweepGuestCartsForever(ctx, d.log) })
+	d.run(func() { newsletter.NewStore(d.pool).SweepConfirmationsForever(ctx, d.log) })
 
 	d.run(func() { account.NewStore(d.pool).SweepSessionsForever(ctx, d.log) })
 	// The media sweeper runs on the ADMIN pool: `store` holds SELECT on
@@ -795,7 +866,7 @@ func startWorkers(ctx context.Context, d workerDeps) {
 	// hour, quietly, and nothing is ever reclaimed.
 	d.run(func() { media.NewStore(d.admin).SweepForever(ctx, d.log) })
 	if d.invoices != nil && d.invoices.Enabled() {
-		d.run(func() { invoice.NewStore(d.admin, d.invoices).ReconcileForever(ctx, d.log) })
+		d.run(func() { issuer.NewStore(d.admin, d.invoices).ReconcileForever(ctx, d.log) })
 	}
 
 	d.run(func() { recommend.NewStore(d.maintenance, d.log).RefreshForever(ctx) })
@@ -828,13 +899,13 @@ func newOutboxStore(d workerDeps) *outbox.Store {
 
 // invoiceDueHandler claims on the ADMIN pool: `store` holds no EXECUTE on the
 // invoice doors.
-func invoiceDueHandler(adminPool *pgxpool.Pool, gateway *invoice.Gateway) func(context.Context, *outbox.InvoiceDue) error {
-	return invoice.NewStore(adminPool, gateway).ClaimDue
+func invoiceDueHandler(adminPool *pgxpool.Pool, gateway *issuer.Gateway) func(context.Context, *outbox.InvoiceDue) error {
+	return issuer.NewStore(adminPool, gateway).ClaimDue
 }
 
 // invoiceVoidDueHandler claims on the ADMIN pool, as invoiceDueHandler does.
-func invoiceVoidDueHandler(adminPool *pgxpool.Pool, gateway *invoice.Gateway) func(context.Context, *outbox.InvoiceVoidDue) error {
-	return invoice.NewStore(adminPool, gateway).ClaimVoidDue
+func invoiceVoidDueHandler(adminPool *pgxpool.Pool, gateway *issuer.Gateway) func(context.Context, *outbox.InvoiceVoidDue) error {
+	return issuer.NewStore(adminPool, gateway).ClaimVoidDue
 }
 
 // newsletterIssueHandler delivers one copy of an issue, and asks at DELIVERY

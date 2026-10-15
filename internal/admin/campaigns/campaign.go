@@ -15,11 +15,10 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 
 	"github.com/koopa0/goen/internal/admin/audit"
-	"github.com/koopa0/goen/internal/catalog"
 	"github.com/koopa0/goen/internal/db"
 	"github.com/koopa0/goen/internal/i18n"
-	"github.com/koopa0/goen/internal/pgerr"
 	"github.com/koopa0/goen/internal/shoptime"
+	"github.com/koopa0/goen/internal/ui/components"
 	"github.com/koopa0/goen/internal/ui/pages"
 	"github.com/koopa0/goen/internal/ui/pages/admin"
 	"github.com/koopa0/goen/internal/web"
@@ -117,15 +116,15 @@ func (s *Store) List(ctx context.Context, after ...string) (admin.CampaignsView,
 
 const MaxAltRunes = 200
 
-func (s *Store) Image(ctx context.Context, slug string) (admin.Header, string, error) {
+func (s *Store) Image(ctx context.Context, slug string) (components.HeaderImage, string, error) {
 	row, err := s.q.AdminCampaignImage(ctx, slug)
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
-			return admin.Header{}, "", ErrNotFound
+			return components.HeaderImage{}, "", ErrNotFound
 		}
-		return admin.Header{}, "", fmt.Errorf("read campaign image: %w", err)
+		return components.HeaderImage{}, "", fmt.Errorf("read campaign image: %w", err)
 	}
-	return admin.Header{
+	return components.HeaderImage{
 		Key: row.ImageKey, Alt: row.ImageAlt, AltEn: row.ImageAltEn, Width: row.ImageWidth,
 	}, row.Tone, nil
 }
@@ -173,7 +172,7 @@ func (s *Store) SetWindow(ctx context.Context, slug, startsAt, endsAt string) (m
 				Slug: strings.TrimSpace(slug), StartsAt: starts, EndsAt: ends,
 			})
 			if err != nil {
-				return pgerr.WrapRefusal(err, ErrRefused)
+				return db.WrapRefusal(err, ErrRefused)
 			}
 			if n == 0 {
 				return ErrNotFound
@@ -190,7 +189,7 @@ func (s *Store) SearchProducts(ctx context.Context, slug, term string) ([]admin.
 		return nil, nil
 	}
 	rows, err := s.q.AdminCampaignProductSearch(ctx, db.AdminCampaignProductSearchParams{
-		Locale: string(i18n.FromContext(ctx)), Campaign: slug, EscapedTerm: catalog.EscapeLike(term), RowLimit: searchLimit,
+		Locale: string(i18n.FromContext(ctx)), Campaign: slug, EscapedTerm: db.EscapeLike(term), RowLimit: searchLimit,
 	})
 	if err != nil {
 		return nil, fmt.Errorf("search campaign products: %w", err)
@@ -218,7 +217,7 @@ func (s *Store) SetTone(ctx context.Context, slug, tone string) error {
 		func(ctx context.Context, q *db.Queries) error {
 			n, err := q.SetCampaignTone(ctx, db.SetCampaignToneParams{Slug: strings.TrimSpace(slug), Tone: tone})
 			if err != nil {
-				return pgerr.WrapRefusal(err, ErrRefused)
+				return db.WrapRefusal(err, ErrRefused)
 			}
 			if n == 0 {
 				return ErrNotFound
@@ -244,7 +243,7 @@ func (s *Store) SetImage(ctx context.Context, slug, digest, alt, altEn string) e
 				Slug: strings.TrimSpace(slug), ImageKey: digest, ImageAlt: alt, ImageAltEn: altEn,
 			})
 			if err != nil {
-				return pgerr.WrapRefusal(err, ErrRefused)
+				return db.WrapRefusal(err, ErrRefused)
 			}
 			if n == 0 {
 				return ErrNotFound
@@ -262,7 +261,7 @@ func (s *Store) ClearImage(ctx context.Context, slug string) error {
 		func(ctx context.Context, q *db.Queries) error {
 			n, err := q.ClearCampaignImage(ctx, strings.TrimSpace(slug))
 			if err != nil {
-				return pgerr.WrapRefusal(err, ErrRefused)
+				return db.WrapRefusal(err, ErrRefused)
 			}
 			if n == 0 {
 				return ErrNotFound
@@ -285,10 +284,10 @@ func (s *Store) Create(ctx context.Context, f *Form) (map[string]string, error) 
 			})
 		})
 	if err != nil {
-		if pgerr.IsConstraint(err, "sale_campaigns_slug_key") {
+		if db.IsConstraint(err, "sale_campaigns_slug_key") {
 			return map[string]string{"slug": i18n.T(ctx, i18n.KeyFormSlugTakenCampaign)}, nil
 		}
-		return nil, pgerr.WrapRefusal(err, ErrRefused)
+		return nil, db.WrapRefusal(err, ErrRefused)
 	}
 	return nil, nil
 }
@@ -303,7 +302,7 @@ func (s *Store) SetActive(ctx context.Context, slug string, active bool) error {
 				Slug: strings.TrimSpace(slug), IsActive: active,
 			})
 			if err != nil {
-				return pgerr.WrapRefusal(err, ErrRefused)
+				return db.WrapRefusal(err, ErrRefused)
 			}
 			if n == 0 {
 				return ErrNotFound
@@ -326,7 +325,7 @@ func (s *Store) FeatureProduct(ctx context.Context, campaign, product string) er
 				Campaign: strings.TrimSpace(campaign), Product: strings.TrimSpace(product),
 			})
 			if err != nil {
-				return pgerr.WrapRefusal(err, ErrRefused)
+				return db.WrapRefusal(err, ErrRefused)
 			}
 			if n == 0 {
 				return ErrNotFound
@@ -344,7 +343,7 @@ func (s *Store) UnfeatureProduct(ctx context.Context, campaign, product string) 
 			if err := q.RemoveCampaignProduct(ctx, db.RemoveCampaignProductParams{
 				Campaign: strings.TrimSpace(campaign), Product: strings.TrimSpace(product),
 			}); err != nil {
-				return pgerr.WrapRefusal(err, ErrRefused)
+				return db.WrapRefusal(err, ErrRefused)
 			}
 			return nil
 		})

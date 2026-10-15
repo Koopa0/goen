@@ -21,7 +21,6 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 
 	"github.com/koopa0/goen/assets"
-	"github.com/koopa0/goen/internal/admin/refunds"
 	"github.com/koopa0/goen/internal/payment"
 	"github.com/koopa0/goen/internal/ui/layouts"
 	"github.com/koopa0/goen/internal/user"
@@ -36,17 +35,6 @@ func TestPanicRecoveryUsesProductionRequestTracing(t *testing.T) {
 	want := "return withRequestTracing(handler, log)"
 	if !bytes.Contains(src, []byte(want)) {
 		t.Fatalf("newRouter must return %q so panic recovery sees the request identifier", want)
-	}
-}
-
-func TestNotifyRouteIsGuardedPerIP(t *testing.T) {
-	src, err := os.ReadFile("server.go")
-	if err != nil {
-		t.Fatal(err)
-	}
-	want := `mux.HandleFunc("POST /p/{slug}/notify", ratelimit.Guard(notifyLimit, log, items.Notify))`
-	if !bytes.Contains(src, []byte(want)) {
-		t.Fatal("POST /p/{slug}/notify is registered without ratelimit.Guard")
 	}
 }
 
@@ -212,6 +200,56 @@ func TestNothingStatelessRendersChrome(t *testing.T) {
 		}
 		if !slices.Contains(bannerFreePrefixes, prefix) {
 			t.Errorf("stateless prefix %q is absent from bannerFreePrefixes", prefix)
+		}
+	}
+}
+
+// TestMachineReadableFilesRenderNoChrome pins robots.txt and the sitemap to the
+// chrome-free lists. Neither renders a page: internal/site/sitemap.go uses no
+// layout, so a banner read, the category row and the deals check would be spent
+// on every hit for nothing, and a response with no storefront header is not a
+// page anybody browses from, so it offers no speculation rules either.
+// robots.txt stays out of statelessPrefixes on purpose: that list is pinned
+// exactly above, and the sitemap needs the request budget stateless paths skip.
+func TestMachineReadableFilesRenderNoChrome(t *testing.T) {
+	t.Parallel()
+
+	for _, path := range []string{"/robots.txt", "/sitemap.xml"} {
+		if navPath(path) {
+			t.Errorf("navPath(%q) is true; the category queries would run on every hit of a file that renders no header", path)
+		}
+		if storefrontPath(path) {
+			t.Errorf("storefrontPath(%q) is true; the promotion query would run on every hit of a file that renders no page", path)
+		}
+		req := httptest.NewRequestWithContext(t.Context(), http.MethodGet, path, http.NoBody)
+		if speculates(req) {
+			t.Errorf("GET %s would carry a Speculation-Rules header; it is not a page anybody browses from", path)
+		}
+	}
+
+	for _, entry := range statelessPrefixes {
+		for _, path := range []string{entry, entry + "/x"} {
+			req := httptest.NewRequestWithContext(t.Context(), http.MethodGet, path, http.NoBody)
+			if speculates(req) {
+				t.Errorf("GET %s would carry a Speculation-Rules header; a stateless path renders no storefront header", path)
+			}
+		}
+	}
+
+	// The wiring, not only the predicate: the header is set by securityHeaders.
+	h := securityHeaders(http.HandlerFunc(func(http.ResponseWriter, *http.Request) {}), contentSecurityPolicy, false)
+	for _, tt := range []struct {
+		path string
+		want bool
+	}{
+		{"/healthz", false},
+		{"/p/x", true},
+	} {
+		req := httptest.NewRequestWithContext(t.Context(), http.MethodGet, tt.path, http.NoBody)
+		rec := httptest.NewRecorder()
+		h.ServeHTTP(rec, req)
+		if got := rec.Header().Get("Speculation-Rules") != ""; got != tt.want {
+			t.Errorf("GET %s carries a Speculation-Rules header = %v, want %v", tt.path, got, tt.want)
 		}
 	}
 }
@@ -653,6 +691,12 @@ func TestLanguageSwitchComparisonJourney(t *testing.T) {
 // TestSpeculationRulesAreOfferedOnlyWhereTheyAreSafe locks both halves of the
 // decision in #400: which pages offer speculation rules, and which never do.
 //
+// Only a page that renders the storefront header offers them, and not every
+// such page: one withNoStore keeps out of the caches is read once, so it offers
+// none either, except the cart, which shoppers browse from back into the
+// catalogue. A probe, the favicon, robots.txt, the sitemap, an asset and an
+// uploaded image are not pages at all.
+//
 // The rules document refuses to prerender a link into a personalised or
 // paying page; this is the other half, and the reason there are two. A rule
 // that stops matching is a silent failure — the browser simply prerenders
@@ -661,14 +705,20 @@ func TestLanguageSwitchComparisonJourney(t *testing.T) {
 func TestSpeculationRulesAreOfferedOnlyWhereTheyAreSafe(t *testing.T) {
 	t.Parallel()
 
-	offered := []string{"/", "/c/audio", "/p/nimbus-buds-pro", "/cart", "/about", "/search?q=x"}
+	// "/no-such-page" is the catch-all 404, which renders the storefront header.
+	offered := []string{"/", "/c/audio", "/p/nimbus-buds-pro", "/cart", "/about", "/search?q=x", "/no-such-page"}
 	withheld := []string{
 		"/checkout", "/checkout?ship=1",
 		"/orders/find", "/orders/GO-1/pay",
 		"/account", "/account/points", "/account/wishlist",
 		"/admin", "/admin/orders",
 		"/signin", "/register", "/register/complete?token=x", "/reset?token=x", "/verify?token=x",
+		"/forgot",
+		"/auth/google", "/auth/google/callback?state=x",
+		"/newsletter/confirm?token=x", "/newsletter/unsubscribe?token=x", "/newsletter/thanks",
 		"/static/css/app/app.css",
+		"/media/0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef",
+		"/healthz", "/readyz", "/favicon.ico", "/robots.txt", "/sitemap.xml",
 	}
 
 	for _, path := range offered {
@@ -681,14 +731,50 @@ func TestSpeculationRulesAreOfferedOnlyWhereTheyAreSafe(t *testing.T) {
 	for _, path := range withheld {
 		req := httptest.NewRequestWithContext(t.Context(), http.MethodGet, path, http.NoBody)
 		if speculates(req) {
-			t.Errorf("GET %s offers speculation rules; a page behind a sign-in or "+
-				"inside paying must not hand the browser a rules document", path)
+			t.Errorf("GET %s offers speculation rules; it is not a page with the "+
+				"storefront header, or it is a page withNoStore keeps out of the "+
+				"caches other than the cart, and must not hand the browser a rules document", path)
 		}
 	}
 	// A write has already happened by the time it is answered.
 	if speculates(httptest.NewRequestWithContext(
 		t.Context(), http.MethodPost, "/cart/items", http.NoBody)) {
 		t.Error("a POST offers speculation rules")
+	}
+}
+
+// TestEveryUnstoredPageButTheCartOffersNoSpeculation holds unspeculated and
+// unstoredPrefixes together. A page withNoStore keeps out of the caches is read
+// once, so nothing is gained by speculating from it; the cart is the deliberate
+// exception, because shoppers browse from it back into the catalogue (#400).
+// The two lists stay separate and this test is what stops them drifting apart.
+//
+// Non-vacuity: 12 is the length of unstoredPrefixes on the tree this was
+// written against; the loop must meet /cart exactly once and check at least
+// that many prefixes.
+func TestEveryUnstoredPageButTheCartOffersNoSpeculation(t *testing.T) {
+	t.Parallel()
+
+	var checked, carts int
+	for _, prefix := range unstoredPrefixes {
+		if prefix == "/cart" {
+			carts++
+		}
+		for _, path := range []string{prefix, prefix + "/x"} {
+			req := httptest.NewRequestWithContext(t.Context(), http.MethodGet, path, http.NoBody)
+			if got, want := speculates(req), prefix == "/cart"; got != want {
+				t.Errorf("speculates(GET %s) = %v, want %v: prefix %q is in unstoredPrefixes, "+
+					"so add it to unspeculated or explain why it is an exception like /cart",
+					path, got, want, prefix)
+			}
+		}
+		checked++
+	}
+	if carts != 1 {
+		t.Errorf("unstoredPrefixes holds /cart %d times, want exactly once", carts)
+	}
+	if checked < 12 {
+		t.Errorf("checked %d unstored prefixes, want at least 12", checked)
 	}
 }
 
@@ -1044,7 +1130,7 @@ func TestOnlyTheSecurePosturePinsHTTPS(t *testing.T) {
 				StorePool: idle, Payments: gateway, BaseURL: "https://goen.test", SecureCookies: tt.secure,
 			},
 			BackOffice: BackOfficeConfig{
-				AdminPool: idle, Payments: gateway, Refunder: refunds.NewRefunder(""), SecureCookies: tt.secure,
+				AdminPool: idle, Payments: gateway, Refunder: gateway,
 			},
 		}, slog.New(slog.DiscardHandler))
 		// A probe reaches no database, so the idle pool answers for nothing.
@@ -1079,7 +1165,7 @@ func TestSharePreviewNamesTheConfiguredOriginNotTheRequestHost(t *testing.T) {
 			StorePool: idle, Payments: gateway, BaseURL: "https://goen.test",
 		},
 		BackOffice: BackOfficeConfig{
-			AdminPool: idle, Payments: gateway, Refunder: refunds.NewRefunder(""),
+			AdminPool: idle, Payments: gateway, Refunder: gateway,
 		},
 	}, slog.New(slog.DiscardHandler))
 
@@ -1098,18 +1184,11 @@ func TestSharePreviewNamesTheConfiguredOriginNotTheRequestHost(t *testing.T) {
 
 // TestSigningOutEmptiesTheBrowsersCache pins the second line behind
 // withNoStore: sign-out asks the browser to drop what it holds for this site,
-// and still throws away the speculations the chrome was rendered into.
+// and still throws away the speculations the chrome was rendered into. That
+// POST /signout is wrapped in it at all is held by the clearcache trait of
+// TestStorefrontRouteInventory, which watches the router answer.
 func TestSigningOutEmptiesTheBrowsersCache(t *testing.T) {
 	t.Parallel()
-
-	src, err := os.ReadFile("server.go")
-	if err != nil {
-		t.Fatalf("read server.go: %v", err)
-	}
-	line := routeLine(string(src), `"POST /signout"`)
-	if !strings.Contains(line, "clearCache(") {
-		t.Errorf("POST /signout does not empty the browser's cache\n  %s", strings.TrimSpace(line))
-	}
 
 	signOut := clearSpeculations(clearCache(func(http.ResponseWriter, *http.Request) {}))
 	res := httptest.NewRecorder()

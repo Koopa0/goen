@@ -762,6 +762,57 @@ func TestAClientKeyIsTheAddressForIPv4AndTheSlash64ForIPv6(t *testing.T) {
 	}
 }
 
+func TestAClientNetworkIsTheSlash24ForIPv4AndTheSlash64ForIPv6(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name       string
+		remoteAddr string
+		want       string
+	}{
+		{name: "an IPv4 address is its /24", remoteAddr: "203.0.113.9:54321", want: "203.0.113.0/24"},
+		{name: "the last octet is not part of the network", remoteAddr: "203.0.113.200:1", want: "203.0.113.0/24"},
+		{name: "the next /24 is another network", remoteAddr: "203.0.114.9:1", want: "203.0.114.0/24"},
+		{name: "an IPv6 address is its /64", remoteAddr: "[2001:db8:1:2:dead:beef:0:9]:443", want: "2001:db8:1:2::/64"},
+		{name: "an IPv4-mapped address is its IPv4 network", remoteAddr: "[::ffff:203.0.113.9]:443", want: "203.0.113.0/24"},
+		{name: "something that is no address is kept whole", remoteAddr: "pipe", want: "pipe"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			if got := ClientNetwork(request(t, tt.remoteAddr)); got != tt.want {
+				t.Errorf("ClientNetwork(%q) = %q, want %q", tt.remoteAddr, got, tt.want)
+			}
+		})
+	}
+}
+
+// The network is read from the address the proxy resolution stamped, never from
+// a header of its own, so it trusts exactly what the per-client limits trust.
+func TestAClientNetworkFollowsTheResolvedAddressAndNoHeader(t *testing.T) {
+	t.Parallel()
+
+	r := request(t, "198.51.100.7:1")
+	r.Header.Set("X-Forwarded-For", "203.0.113.9")
+	r.Header.Set("X-Real-IP", "203.0.113.9")
+	if got := ClientNetwork(r); got != "198.51.100.0/24" {
+		t.Errorf("ClientNetwork = %q, want the connection's /24: a header was believed", got)
+	}
+
+	proxies, err := ParseProxies("198.51.100.7")
+	if err != nil {
+		t.Fatalf("ParseProxies: %v", err)
+	}
+	var seen string
+	proxies.Resolve(http.HandlerFunc(func(_ http.ResponseWriter, r *http.Request) {
+		seen = ClientNetwork(r)
+	})).ServeHTTP(httptest.NewRecorder(), r)
+	if seen != "203.0.113.0/24" {
+		t.Errorf("behind a trusted proxy ClientNetwork = %q, want the forwarded client's /24", seen)
+	}
+}
+
 // ClientIP is what sessions and logs record, so it must keep the whole address
 // while the limiter keys on less.
 func TestTheAddressToRecordKeepsAllOfAnIPv6Address(t *testing.T) {

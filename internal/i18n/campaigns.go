@@ -35,7 +35,7 @@ var (
 
 	KeyCampaignEmptyHint = key("campaign.empty.hint", Message{
 		ZhHant: "商品可能剛好都下架了。看看",
-		En:     "Everything in it may have just sold out. Have a look at",
+		En:     "Everything in it may have just been taken off sale. Have a look at",
 	})
 
 	KeyCampaignEmptyLink = key("campaign.empty.link", Message{

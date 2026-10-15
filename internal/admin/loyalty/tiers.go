@@ -8,16 +8,13 @@ import (
 	"fmt"
 	"math"
 	"strings"
-	"time"
 
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgxpool"
 
 	"github.com/koopa0/goen/internal/admin/audit"
 	"github.com/koopa0/goen/internal/db"
-	rewards "github.com/koopa0/goen/internal/loyalty"
 	"github.com/koopa0/goen/internal/money"
-	"github.com/koopa0/goen/internal/pgerr"
 	"github.com/koopa0/goen/internal/ui/pages/admin"
 )
 
@@ -41,13 +38,10 @@ func NewStore(pool *pgxpool.Pool) *Store {
 	return &Store{pool: pool, q: db.New(pool)}
 }
 
-// MembershipWindowDays is the programme's rolling year, in the days the tier queries take.
-const MembershipWindowDays = int32(rewards.MembershipWindow / (24 * time.Hour))
-
 const MaxTierMultiplierBP = 30000
 
 func (s *Store) Tiers(ctx context.Context) (admin.TiersView, error) {
-	rows, err := s.q.AdminMembershipTiers(ctx, MembershipWindowDays)
+	rows, err := s.q.AdminMembershipTiers(ctx)
 	if err != nil {
 		return admin.TiersView{}, fmt.Errorf("read membership tiers: %w", err)
 	}
@@ -97,7 +91,7 @@ func (s *Store) CreateTier(
 				PointsMultiplierBp: multiplier,
 				Position:           position,
 			}); err != nil {
-				return pgerr.WrapRefusal(err, ErrRefused)
+				return db.WrapRefusal(err, ErrRefused)
 			}
 			return nil
 		})

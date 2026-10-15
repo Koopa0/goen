@@ -28,15 +28,10 @@ var stripeHTTPClient = &http.Client{
 	Transport: stripeTransport{next: http.DefaultTransport, limit: stripeReplyLimit},
 }
 
-// NewStripeClient returns a client for apiKey over stripeHTTPClient. Every
+// newStripeClient returns a client for apiKey over stripeHTTPClient. Every
 // Stripe caller in goen builds its client here; .golangci.yml refuses a client
-// built anywhere else and the SDK's global backend.
-func NewStripeClient(apiKey string) *stripe.Client {
-	return newStripeClient(apiKey, &stripe.BackendConfig{})
-}
-
-// newStripeClient keeps the SDK's defaults for whatever backend leaves unset
-// and always supplies goen's HTTP client.
+// built anywhere else and the SDK's global backend. It keeps the SDK's defaults
+// for whatever backend leaves unset and always supplies goen's HTTP client.
 func newStripeClient(apiKey string, backend *stripe.BackendConfig) *stripe.Client {
 	cfg := *backend
 	cfg.HTTPClient = stripeHTTPClient

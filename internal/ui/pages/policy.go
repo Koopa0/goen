@@ -118,3 +118,32 @@ func HoldMinutesText() string { return strconv.Itoa(holdMinutes) }
 const payStartMinutes = 29
 
 func PayStartMinutesText() string { return strconv.Itoa(payStartMinutes) }
+
+// The privacy policy states how long each kind of personal data is kept. Each
+// number below is the one a sweep enforces in another package, which this one
+// cannot import; a test in that package binds it, named beside the constant.
+
+// newsletter.ConfirmTTL.
+const newsletterConfirmHours = 48
+
+// newsletter.ConfirmationRetain.
+const newsletterRetainDays = 14
+
+// cart.GuestCartRetain.
+const guestCartRetainDays = 30
+
+// cart.DraftTTL.
+const checkoutDraftHours = 1
+
+// outbox.Retain, for delivered and for undelivered mail alike.
+const mailRetainDays = 30
+
+// account.SessionTTL.
+const sessionDays = 14
+
+func NewsletterConfirmHoursText() string { return strconv.Itoa(newsletterConfirmHours) }
+func NewsletterRetainDaysText() string   { return strconv.Itoa(newsletterRetainDays) }
+func GuestCartRetainDaysText() string    { return strconv.Itoa(guestCartRetainDays) }
+func CheckoutDraftHoursText() string     { return strconv.Itoa(checkoutDraftHours) }
+func MailRetainDaysText() string         { return strconv.Itoa(mailRetainDays) }
+func SessionDaysText() string            { return strconv.Itoa(sessionDays) }

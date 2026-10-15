@@ -58,7 +58,7 @@ type CampaignDeal struct {
 type Cart struct {
 	ID              uuid.UUID
 	UserID          uuid.NullUUID
-	TokenHash       []byte
+	Digest          []byte
 	CreatedAt       time.Time
 	UpdatedAt       time.Time
 	CheckoutDraft   []byte
@@ -407,6 +407,7 @@ type OrderEvent struct {
 	BySystem        bool
 	OccurredAt      time.Time
 	ReturnRequestID uuid.NullUUID
+	ShipmentID      uuid.NullUUID
 }
 
 type OrderLine struct {
@@ -424,11 +425,6 @@ type OrderLine struct {
 	Position       int32
 	TaxType        string
 	InvoiceUnit    string
-}
-
-type OrderNumberCounter struct {
-	BusinessDate time.Time
-	LastNo       int32
 }
 
 type OrderPrivateDatum struct {
@@ -486,7 +482,7 @@ type OutboxMessage struct {
 }
 
 type PasswordResetToken struct {
-	TokenHash []byte
+	Digest    []byte
 	UserID    uuid.UUID
 	CreatedAt time.Time
 	ExpiresAt time.Time
@@ -759,7 +755,7 @@ type SaleCampaignProduct struct {
 }
 
 type Session struct {
-	TokenHash      []byte
+	Digest         []byte
 	UserID         uuid.UUID
 	UserAgent      pgtype.Text
 	IP             *netip.Addr
@@ -824,12 +820,12 @@ type SoldOrder struct {
 }
 
 type StaffTotpCredential struct {
-	UserID          uuid.UUID
-	SecretEncrypted []byte
-	ConfirmedAt     pgtype.Timestamptz
-	LastStep        pgtype.Int8
-	MailedCodeHash  []byte
-	CreatedAt       time.Time
+	UserID           uuid.UUID
+	SecretEncrypted  []byte
+	ConfirmedAt      pgtype.Timestamptz
+	LastStep         pgtype.Int8
+	MailedCodeDigest []byte
+	CreatedAt        time.Time
 }
 
 type StockNotification struct {
@@ -859,8 +855,9 @@ type StoreCreditEntry struct {
 	ID             uuid.UUID
 	AccountID      uuid.UUID
 	AmountCents    int64
-	Reason         string
+	Reason         pgtype.Text
 	IdempotencyKey string
+	Kind           pgtype.Text
 	OrderID        uuid.NullUUID
 	ReversesID     uuid.NullUUID
 	ActorUserID    uuid.NullUUID

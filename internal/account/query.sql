@@ -97,30 +97,30 @@ UPDATE users SET full_name = $2, phone = $3 WHERE id = $1;
 SELECT u.id, u.email, u.full_name, u.role
 FROM sessions s
 JOIN users u ON u.id = s.user_id
-WHERE s.token_hash = $1 AND s.expires_at > now();
+WHERE s.digest = $1 AND s.expires_at > now();
 
 -- Recency is measured on the database's clock, the one that stamped created_at
 -- and that the expiry check above reads. A missing or expired session is not recent.
 -- name: SessionCreatedSince :one
 SELECT s.created_at > now() - @max_age::interval AS recent
 FROM sessions s
-WHERE s.token_hash = @token_hash AND s.expires_at > now();
+WHERE s.digest = @digest AND s.expires_at > now();
 
 -- The expiry is computed from the DATABASE's clock, which is what every read
 -- and retention sweep compares it with.
 -- name: CreateSession :exec
-INSERT INTO sessions (token_hash, user_id, user_agent, ip, expires_at)
-VALUES (@token_hash, @user_id, @user_agent, @ip, now() + @ttl::interval);
+INSERT INTO sessions (digest, user_id, user_agent, ip, expires_at)
+VALUES (@digest, @user_id, @user_agent, @ip, now() + @ttl::interval);
 
 -- name: DeleteSession :exec
-DELETE FROM sessions WHERE token_hash = $1;
+DELETE FROM sessions WHERE digest = $1;
 
 -- name: DeleteUserSessions :exec
 DELETE FROM sessions WHERE user_id = $1;
 
 -- name: DeleteOtherUserSessions :exec
 DELETE FROM sessions
-WHERE user_id = @user_id AND token_hash <> @current_token_hash::bytea;
+WHERE user_id = @user_id AND digest <> @current_digest::bytea;
 
 -- name: DeleteExpiredSessions :exec
 DELETE FROM sessions WHERE expires_at <= now();
@@ -134,12 +134,12 @@ WHERE (used_at IS NOT NULL OR expires_at <= now())
 
 -- The expiry is computed from the DATABASE's clock, which is what reads it back.
 -- name: CreatePasswordResetToken :exec
-INSERT INTO password_reset_tokens (token_hash, user_id, expires_at)
-VALUES (@token_hash, @user_id, now() + @ttl::interval);
+INSERT INTO password_reset_tokens (digest, user_id, expires_at)
+VALUES (@digest, @user_id, now() + @ttl::interval);
 
 -- name: PasswordResetToken :one
 SELECT user_id FROM password_reset_tokens
-WHERE token_hash = $1 AND used_at IS NULL AND expires_at > now();
+WHERE digest = $1 AND used_at IS NULL AND expires_at > now();
 
 -- Completion takes the account row before it spends the token. erase_user uses
 -- the same user-before-token order, so the two operations cannot deadlock. The
@@ -153,7 +153,7 @@ SELECT id FROM users WHERE id = @user_id::uuid FOR UPDATE;
 -- win, and the caller runs this in the SAME transaction as the password change.
 -- name: SpendPasswordResetToken :one
 UPDATE password_reset_tokens SET used_at = now()
-WHERE token_hash = $1 AND used_at IS NULL AND expires_at > now()
+WHERE digest = $1 AND used_at IS NULL AND expires_at > now()
 RETURNING user_id;
 
 -- A replacement link, a completed reset, or a verified mailbox must leave no
@@ -168,30 +168,8 @@ WHERE user_id = $1 AND used_at IS NULL;
 -- name: DeletePasswordResetMessagesForEmail :exec
 DELETE FROM outbox_messages
 WHERE topic = 'account.password_reset'
-  AND lower(coalesce(payload ->> 'email', payload ->> 'Email', '')) =
+  AND lower(coalesce(payload ->> 'email', '')) =
       lower(@email::text);
-
--- Guest lines for adoption and merge, read after the cart lock is held.
--- name: CartItemRows :many
-SELECT variant_id, quantity FROM cart_items WHERE cart_id = @cart_id::uuid ORDER BY variant_id;
-
--- name: CartForUser :one
-SELECT id FROM carts WHERE user_id = $1;
-
--- Read only after LockCarts has returned. The recheck keeps a second account
--- carrying the same guest cookie from taking over a cart the first account just
--- adopted.
--- name: CartOwner :one
-SELECT user_id FROM carts WHERE id = @cart_id::uuid;
-
--- The predicate is a final ownership fence in addition to CartOwner. :execrows
--- makes a lost race distinguishable from a successful adoption.
--- name: AdoptCart :execrows
-UPDATE carts SET user_id = @user_id::uuid
-WHERE id = @cart_id::uuid AND user_id IS NULL;
-
--- name: DeleteCart :exec
-DELETE FROM carts WHERE id = $1;
 
 -- name: UserOrders :many
 SELECT
@@ -263,7 +241,8 @@ INSERT INTO addresses (user_id, label, recipient_name, phone,
 VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9);
 
 -- Every path that locks both the account row and its carts or addresses takes
--- the account row first: cart adoption (NO KEY UPDATE, then LockCarts), a
+-- the account row first: cart adoption (NO KEY UPDATE through cart's
+-- LockUserForAdoption, then LockCarts), a
 -- default-address write (NO KEY UPDATE, then the address rows), checkout (KEY
 -- SHARE via cart.LockUserForCheckout, then its cart) and erase_user (FOR
 -- UPDATE, then everything it deletes). Cart-item and checkout-draft writes lock
@@ -405,21 +384,22 @@ SELECT EXISTS (
 -- behind it the moment one is cancelled.
 -- name: MemberStanding :one
 SELECT
-    member_spend(@user_id, @window_days::integer, NULL)::bigint AS spend_cents,
+    membership_window_days()::integer AS window_days,
+    member_spend(@user_id, NULL)::bigint AS spend_cents,
     coalesce((SELECT localized_name(t.name, t.name_en, @locale::text)
               FROM membership_tiers t
-              WHERE t.id = member_tier(@user_id, @window_days::integer, NULL)), '')::text
+              WHERE t.id = member_tier(@user_id, NULL)), '')::text
         AS tier_name,
     coalesce((SELECT t.points_multiplier_bp FROM membership_tiers t
-              WHERE t.id = member_tier(@user_id, @window_days::integer, NULL)), 10000)::integer
+              WHERE t.id = member_tier(@user_id, NULL)), 10000)::integer
         AS multiplier_bp,
     coalesce((SELECT localized_name(n.name, n.name_en, @locale::text)
               FROM membership_tiers n
-              WHERE n.min_spend_cents > member_spend(@user_id, @window_days::integer, NULL)
+              WHERE n.min_spend_cents > member_spend(@user_id, NULL)
               ORDER BY n.min_spend_cents LIMIT 1), '')::text AS next_name,
-    coalesce((SELECT n.min_spend_cents - member_spend(@user_id, @window_days::integer, NULL)
+    coalesce((SELECT n.min_spend_cents - member_spend(@user_id, NULL)
               FROM membership_tiers n
-              WHERE n.min_spend_cents > member_spend(@user_id, @window_days::integer, NULL)
+              WHERE n.min_spend_cents > member_spend(@user_id, NULL)
               ORDER BY n.min_spend_cents LIMIT 1), 0)::bigint AS next_needs_cents;
 
 -- Delete the queued copy before replacing its verification row. Both statements

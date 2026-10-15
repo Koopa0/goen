@@ -5,6 +5,7 @@ import (
 	"strconv"
 
 	"github.com/koopa0/goen/internal/i18n"
+	"github.com/koopa0/goen/internal/inventory"
 	"github.com/koopa0/goen/internal/order"
 	"github.com/koopa0/goen/internal/ui/components"
 	"github.com/koopa0/goen/internal/ui/layouts"
@@ -99,15 +100,15 @@ templ Dashboard(p layouts.Page, v DashboardView) {
 			if len(v.Runway) == 0 {
 				switch v.RunwayBasis {
 					case RunwayEstimated:
-						<p class="goen-admin__hint">{ i18n.Count(ctx, i18n.KeyAdminQueueRunwayNone, coverWarnDays, coverWarnDays) }</p>
+						<p class="goen-admin__hint">{ i18n.Count(ctx, i18n.KeyAdminQueueRunwayNone, inventory.CoverWarnDays, inventory.CoverWarnDays) }</p>
 					case RunwayNothingInStock:
-						<p class="goen-admin__hint">{ i18n.Count(ctx, i18n.KeyAdminQueueRunwayNoStock, CoverWindowDays, CoverWindowDays) }</p>
+						<p class="goen-admin__hint">{ i18n.Count(ctx, i18n.KeyAdminQueueRunwayNoStock, inventory.CoverWindowDays, inventory.CoverWindowDays) }</p>
 					default:
 						<p class="goen-admin__hint">{ i18n.T(ctx, i18n.KeyAdminQueueRunwayUnknown) }</p>
 				}
 			} else {
-				<p class="goen-admin__hint">{ fmt.Sprintf(i18n.T(ctx, i18n.KeyAdminQueueRunwayLegend), CoverWindowDays, coverWarnDays) }</p>
-				@StockRiskRows(v.Runway, 0, CoverWindowDays)
+				<p class="goen-admin__hint">{ fmt.Sprintf(i18n.T(ctx, i18n.KeyAdminQueueRunwayLegend), inventory.CoverWindowDays, inventory.CoverWarnDays) }</p>
+				@StockRiskRows(v.Runway, 0, inventory.CoverWindowDays)
 			}
 			<p class="goen-admin__hint">
 				if v.RunwayCut {
@@ -130,7 +131,7 @@ templ Orders(p layouts.Page, v OrdersView) {
 				<h1 class="ui-page-head__title">{ i18n.T(ctx, i18n.KeyAdminQueueOrders) }</h1>
 			</div>
 		</div>
-		@Announce(v.Notice)
+		@layouts.Announce(v.Notice)
 		<form class="goen-admin__search" method="get" action="/admin/orders">
 			<label class="goen-sr-only" for="order-search">{ i18n.T(ctx, i18n.KeyAdminQueueSearchLabel) }</label>
 			<input
@@ -238,6 +239,7 @@ templ Order(p layouts.Page, v *OrderView) {
 			<div>
 				<h1 class="ui-page-head__title">{ v.Number }</h1>
 				<p class="ui-page-head__sub">{ v.PlacedAt } · { v.ShippingName }</p>
+				<p id="order-next-step" class="goen-admin__hint">{ v.nextStepSummary(ctx) }</p>
 			</div>
 			<div class="ui-page-head__actions">
 				@components.Badge(components.BadgeProps{Intent: v.StatusIntent}) {
@@ -250,7 +252,7 @@ templ Order(p layouts.Page, v *OrderView) {
 				}
 			</div>
 		</div>
-		@AnnounceOrder(v.Notice)
+		@layouts.AnnounceOrder(v.Notice)
 		<div class="goen-admin__layout">
 			<div class="goen-admin__orderpanel">
 				@orderItemsAndDelivery(v)
@@ -542,7 +544,7 @@ templ Order(p layouts.Page, v *OrderView) {
 					</div>
 					if v.Discounted() {
 						<div class="goen-admin__totalrow">
-							<span>{ pages.DiscountLabel(ctx, v.DiscountReason) }</span>
+							<span>{ components.DiscountLabel(ctx, v.DiscountReason) }</span>
 							<span class="goen-admin__totalval">{ v.Discount() }</span>
 						</div>
 					}
@@ -698,42 +700,37 @@ templ Order(p layouts.Page, v *OrderView) {
 				if v.CanAdvance() {
 					@components.Card(components.CardProps{Class: "goen-admin__op"}) {
 						<h2 class="goen-admin__optitle">{ i18n.T(ctx, i18n.KeyAdminQueueNextStatus) }</h2>
-						<form class="goen-admin__form" method="post" action={ templ.SafeURL("/admin/orders/" + v.Number + "/status") }>
-							if v.StartsPicking() {
-								<input type="hidden" name="status" value={ string(order.FulfillmentPicking) }/>
-								@components.Button(components.ButtonProps{ButtonStyle: components.ButtonStylePrimary, Block: true}, "submit") {
-									{ i18n.T(ctx, i18n.KeyAdminQueueStartPicking) }
+						<p class="goen-admin__hint">{ i18n.T(ctx, i18n.KeyAdminQueueNextHint) }</p>
+						{{ primary := v.primaryStepIndex() }}
+						if primary >= 0 {
+							<form class="goen-admin__form" method="post" action={ templ.SafeURL("/admin/orders/" + v.Number + "/status") }>
+								<input type="hidden" name="status" value={ string(v.Next[primary].Value) }/>
+								@components.Button(components.ButtonProps{ButtonStyle: components.ButtonStylePrimary, Block: true, Attrs: templ.Attributes{"id": "order-primary-step"}}, "submit") {
+									{ v.Next[primary].submitLabel(ctx) }
 								}
-							} else {
-								<div class="ui-field">
-									<label class="ui-label" for="next-status">{ i18n.T(ctx, i18n.KeyAdminQueueNextStatus) }</label>
-									<select class="ui-select" id="next-status" name="status" required?={ v.NextIsDestructive() }>
-										// Cancelling is irreversible, so it is never the preselected move.
-										if v.NextIsDestructive() {
-											<option value="" selected disabled>{ i18n.T(ctx, i18n.KeyAdminQueueNextChoose) }</option>
-										}
-										for _, n := range v.Next {
-											<option value={ string(n.Value) }>{ n.Label }</option>
-										}
-									</select>
-								</div>
-								if v.CanShip {
-									@components.Button(components.ButtonProps{ButtonStyle: components.ButtonStyleOutline, Block: true}, "submit") {
-										{ i18n.T(ctx, i18n.KeyAdminQueueStatusSave) }
-									}
-								} else {
-									@components.Button(components.ButtonProps{ButtonStyle: components.ButtonStylePrimary, Block: true}, "submit") {
-										{ i18n.T(ctx, i18n.KeyAdminQueueStatusSave) }
+							</form>
+						}
+						if primary < 0 || len(v.Next) > 1 {
+							<details class="goen-disclosure">
+								<summary class="goen-btn goen-btn--outline goen-btn--block">{ i18n.T(ctx, i18n.KeyAdminOrderOtherSteps) }</summary>
+								for i, step := range v.Next {
+									if i != primary {
+										<form class="goen-admin__form" method="post" action={ templ.SafeURL("/admin/orders/" + v.Number + "/status") }>
+											<input type="hidden" name="status" value={ string(step.Value) }/>
+											@components.Button(components.ButtonProps{ButtonStyle: components.ButtonStyleOutline, Block: true}, "submit") {
+												{ step.submitLabel(ctx) }
+											}
+										</form>
 									}
 								}
-								<p class="goen-admin__hint">
-									{ i18n.T(ctx, i18n.KeyAdminQueueNextHint) }
-								</p>
-								if v.PickupDestination {
-									<p class="goen-admin__hint">{ i18n.T(ctx, i18n.KeyAdminQueuePickupCompleteHint) }</p>
-								}
-							}
-						</form>
+							</details>
+						}
+						if v.Status == order.FulfillmentPending {
+							<p class="goen-admin__hint">{ i18n.T(ctx, i18n.KeyAdminOrderUnpaidStepHint) }</p>
+						}
+						if v.PickupDestination {
+							<p class="goen-admin__hint">{ i18n.T(ctx, i18n.KeyAdminQueuePickupCompleteHint) }</p>
+						}
 					}
 				} else if v.Final() {
 					<p class="goen-admin__hint">{ i18n.T(ctx, i18n.KeyAdminQueueFinal) }</p>
@@ -834,13 +831,13 @@ templ Variants(p layouts.Page, v VariantsView) {
 				</p>
 			</div>
 		</div>
-		@Announce(v.Notice)
+		@layouts.Announce(v.Notice)
 		for _, refusal := range v.Refusals() {
-			@RefusalSummary(refusal)
+			@layouts.RefusalSummary(refusal)
 		}
 		if v.ShowCover {
 			<section class="goen-admin__cover">
-				@StockRiskSection(v.AtRisk, v.MoreSoldOut, CoverWindowDays)
+				@StockRiskSection(v.AtRisk, v.MoreSoldOut, inventory.CoverWindowDays)
 			</section>
 		}
 		<section aria-labelledby="stock-list-heading">
@@ -977,17 +974,19 @@ templ variantTable(variants []Variant, back string) {
 							<input
 								class="ui-input ui-input--sm goen-admin__num"
 								id={ "adj-" + x.SKU }
-								type={ dollarInputType(x.DraftDelta) }
+								type={ components.DollarInputType(x.DraftDelta) }
 								inputmode="numeric"
 								name="delta"
 								value={ x.DraftDelta }
-								placeholder="+10"
 								step="1"
 								if x.DeltaError != "" {
 									aria-invalid="true"
-									aria-describedby={ "adj-error-" + x.SKU }
+									aria-describedby={ "adj-example-" + x.SKU + " adj-error-" + x.SKU }
+								} else {
+									aria-describedby={ "adj-example-" + x.SKU }
 								}
 							/>
+							<p class="goen-admin__hint" id={ "adj-example-" + x.SKU }>{ fmt.Sprintf(i18n.T(ctx, i18n.KeyFieldExample), "+10") }</p>
 							if x.DeltaError != "" {
 								<p class="ui-error-text" id={ "adj-error-" + x.SKU } role="alert">{ x.DeltaError }</p>
 							}
@@ -1017,7 +1016,16 @@ templ orderItemsAndDelivery(v *OrderView) {
 		<ul class="goen-order__lines" role="list">
 			for _, l := range v.Lines {
 				<li class="goen-order__line">
-					<div>
+					if !v.OutstandingQuantities {
+						<span class="goen-order__photo">
+							if l.HasImage() {
+								<img class="goen-order__image" src={ l.ImageURL } srcset={ l.ImageSrcset } sizes="40px" alt={ l.ImageAlt } width="40" height="40" loading="lazy" decoding="async"/>
+							} else {
+								<span class="goen-line__ph" aria-hidden="true"></span>
+							}
+						</span>
+					}
+					<div class="goen-order__linebody">
 						<p class="goen-order__name">{ l.Name }</p>
 						if l.Label != "" {
 							<span class="goen-admin__meta">{ l.Label }</span>

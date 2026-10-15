@@ -53,10 +53,10 @@ func TestOnlyUnknownAllowanceAttentionHasEscapedTechnicalDetails(t *testing.T) {
 		key      i18n.Key
 		raw      bool
 	}{
-		{invoice.CategoryBuyerUnconfirmed, i18n.KeyAdminQueueAllowanceUnconfirmed, false},
-		{invoice.CategoryAmountStillHeld, i18n.KeyAdminQueueAllowanceAmountHeld, false},
-		{invoice.CategorySuccessMismatch, i18n.KeyAdminQueueAllowanceMismatch, false},
-		{invoice.CategoryMultipleCandidates, i18n.KeyAdminQueueAllowanceCandidates, false},
+		{string(invoice.ReasonAllowanceBuyerUnconfirmed), i18n.KeyAdminQueueAllowanceUnconfirmed, false},
+		{string(invoice.ReasonAllowanceAmountStillHeld), i18n.KeyAdminQueueAllowanceAmountHeld, false},
+		{string(invoice.ReasonAllowanceSuccessMismatch), i18n.KeyAdminQueueAllowanceMismatch, false},
+		{string(invoice.ReasonAllowanceMultipleUnknownCandidates), i18n.KeyAdminQueueAllowanceCandidates, false},
 		{"allowance_lookup_mismatch", i18n.KeyAdminQueueAllowanceAttention, true},
 		{`unknown_<script>alert("category")</script>`, i18n.KeyAdminQueueAllowanceAttention, true},
 	} {

@@ -15,6 +15,7 @@ import (
 	"github.com/koopa0/goen/internal/admin/audit"
 	"github.com/koopa0/goen/internal/db"
 	"github.com/koopa0/goen/internal/invoice"
+	"github.com/koopa0/goen/internal/invoice/issuer"
 	"github.com/koopa0/goen/internal/shoptime"
 	"github.com/koopa0/goen/internal/ui/pages/admin"
 	"github.com/koopa0/goen/internal/web"
@@ -40,8 +41,8 @@ type Writer interface {
 }
 
 var (
-	_ Reader = (*invoice.Store)(nil)
-	_ Writer = (*invoice.Store)(nil)
+	_ Reader = (*issuer.Store)(nil)
+	_ Writer = (*issuer.Store)(nil)
 )
 
 type Store struct {
@@ -101,7 +102,7 @@ func (s *Store) fillOpenAllowance(ctx context.Context, view *admin.OrderView, nu
 		return fmt.Errorf("read the open allowance of %s: %w", number, err)
 	}
 	if open.Status == "pending" {
-		view.AllowanceAwaitingUntil = shoptime.Minute(open.LastSendAt.Add(invoice.BuyerConsentWindow))
+		view.AllowanceAwaitingUntil = shoptime.Minute(open.LastSendAt.Add(issuer.BuyerConsentWindow))
 		return nil
 	}
 	view.AllowanceAttention = open.LastError
@@ -164,5 +165,5 @@ func filingContext(ctx context.Context) (context.Context, error) {
 	if requestID == "" {
 		return nil, audit.ErrNoActor
 	}
-	return invoice.WithFilingIdentity(ctx, actorID, requestID), nil
+	return issuer.WithFilingIdentity(ctx, actorID, requestID), nil
 }

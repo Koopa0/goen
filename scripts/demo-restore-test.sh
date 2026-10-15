@@ -75,7 +75,8 @@ c=goen-restore-test-$$
 trap 'docker rm -f -v "$c" >/dev/null 2>&1 || true; rm -rf "$tmp"' EXIT
 # The compose image's POSTGRES_USER is the schema owner, as after make migrate-up.
 docker run -d --name "$c" --network none -e POSTGRES_USER=goen -e POSTGRES_DB=goen \
-    -e POSTGRES_HOST_AUTH_METHOD=trust "$image" >/dev/null
+    -e POSTGRES_HOST_AUTH_METHOD=trust \
+    -e POSTGRES_INITDB_ARGS='--locale-provider=builtin --builtin-locale=C.UTF-8' "$image" >/dev/null
 for _ in $(seq 60); do
     docker exec "$c" pg_isready -h 127.0.0.1 -U goen -d goen >/dev/null 2>&1 && break
     sleep 1

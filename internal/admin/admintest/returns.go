@@ -14,8 +14,8 @@ import (
 
 	"github.com/koopa0/goen/internal/admin/refunds"
 	"github.com/koopa0/goen/internal/admin/returns"
+	"github.com/koopa0/goen/internal/db"
 	"github.com/koopa0/goen/internal/payment"
-	"github.com/koopa0/goen/internal/pgtx"
 	"github.com/koopa0/goen/internal/shoptime"
 	"github.com/koopa0/goen/internal/web"
 )
@@ -41,7 +41,7 @@ func ReturnedOrder(
 	if err != nil {
 		t.Fatalf("begin: %v", err)
 	}
-	defer pgtx.Rollback(ctx, tx)
+	defer db.Rollback(ctx, tx)
 
 	var orderID, lineID uuid.UUID
 	if err := tx.QueryRow(ctx, `
@@ -112,7 +112,7 @@ func ReturnedOrderAtWithReason(
 	if err != nil {
 		t.Fatalf("begin: %v", err)
 	}
-	defer pgtx.Rollback(ctx, tx)
+	defer db.Rollback(ctx, tx)
 
 	var orderID, lineID uuid.UUID
 	var orderNumber string
@@ -197,7 +197,7 @@ func LoyaltyReturn(t *testing.T, pool *pgxpool.Pool, prices []int64, returnLine 
 	if beginErr != nil {
 		t.Fatalf("begin order: %v", beginErr)
 	}
-	defer pgtx.Rollback(ctx, tx)
+	defer db.Rollback(ctx, tx)
 	if err := tx.QueryRow(ctx, `
 		INSERT INTO orders (order_number, user_id, shipping_version_id,
 		                    shipping_method_code, shipping_method_name, shipping_cents)
@@ -235,7 +235,7 @@ func LoyaltyReturn(t *testing.T, pool *pgxpool.Pool, prices []int64, returnLine 
 	if beginErr != nil {
 		t.Fatalf("begin delivery: %v", beginErr)
 	}
-	defer pgtx.Rollback(ctx, tx)
+	defer db.Rollback(ctx, tx)
 	MoveOrderToShipped(t, tx, orderID)
 	var shipmentID uuid.UUID
 	if err := tx.QueryRow(ctx, `
@@ -280,7 +280,7 @@ func CreditFundedReturn(
 	if err != nil {
 		t.Fatalf("begin: %v", err)
 	}
-	defer pgtx.Rollback(ctx, tx)
+	defer db.Rollback(ctx, tx)
 
 	var userID uuid.UUID
 	if err := tx.QueryRow(ctx, `
@@ -318,8 +318,8 @@ func CreditFundedReturn(
 		t.Fatalf("create private data: %v", err)
 	}
 	// The spend, while the order is still an open unpaid checkout: the only moment store_credit_guard allows it.
-	if _, err := tx.Exec(ctx, `SELECT post_store_credit($1, $2, '訂單折抵', $3, $4, NULL)`,
-		userID, -creditCents, orderID, "spend:"+orderID.String()); err != nil {
+	if _, err := tx.Exec(ctx, `SELECT post_store_credit($1, $2, NULL, $3, $4, NULL)`,
+		userID, -creditCents, orderID, "order:"+orderID.String()); err != nil {
 		t.Fatalf("spend credit: %v", err)
 	}
 	if card > 0 {

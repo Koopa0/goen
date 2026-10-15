@@ -19,13 +19,13 @@ import (
 
 	"github.com/koopa0/goen/internal/admin/admintest"
 	"github.com/koopa0/goen/internal/admin/refunds"
+	"github.com/koopa0/goen/internal/db"
+	"github.com/koopa0/goen/internal/db/dbtest"
 	"github.com/koopa0/goen/internal/email"
 	"github.com/koopa0/goen/internal/i18n"
+	"github.com/koopa0/goen/internal/money"
 	"github.com/koopa0/goen/internal/outbox"
-	"github.com/koopa0/goen/internal/pgerr"
-	"github.com/koopa0/goen/internal/pgtx"
 	"github.com/koopa0/goen/internal/refund"
-	"github.com/koopa0/goen/internal/ui/pages"
 	"github.com/koopa0/goen/internal/web"
 )
 
@@ -113,7 +113,7 @@ func TestRefundBeforeShipmentCancelsACreditPaidPendingOrder(t *testing.T) {
 	preview := post(url.Values{})
 	body := html.UnescapeString(preview.Body.String())
 	if preview.Code != http.StatusOK ||
-		!strings.Contains(body, fmt.Sprintf(i18n.T(ctx, i18n.KeyAdminRefundCreditReturn), pages.TWD(500000))) ||
+		!strings.Contains(body, fmt.Sprintf(i18n.T(ctx, i18n.KeyAdminRefundCreditReturn), money.TWD(500000))) ||
 		!strings.Contains(body, `value="500000"`) {
 		t.Fatalf("preview = %d, want the store credit cancellation: %s", preview.Code, body)
 	}
@@ -218,8 +218,8 @@ func TestACreditPaidCancellationLosesToWhoeverMovedTheOrderFirst(t *testing.T) {
 			changed: true,
 			moves: []string{
 				`SET LOCAL session_replication_role = replica`,
-				`INSERT INTO store_credit_entries (account_id, amount_cents, reason, reverses_id, idempotency_key)
-				 SELECT account_id, -amount_cents, 'spend reversed', id, 'reverse:' || id
+				`INSERT INTO store_credit_entries (account_id, amount_cents, reverses_id, idempotency_key)
+				 SELECT account_id, -amount_cents, id, 'reverse:' || id
 				 FROM store_credit_entries WHERE order_id = $1 AND amount_cents < 0`,
 			},
 			status: "pending", reversals: 1, held: 1,
@@ -231,7 +231,7 @@ func TestACreditPaidCancellationLosesToWhoeverMovedTheOrderFirst(t *testing.T) {
 			if err != nil {
 				t.Fatalf("begin: %v", err)
 			}
-			defer pgtx.Rollback(ctx, first)
+			defer db.Rollback(ctx, first)
 			if _, err := first.Exec(ctx, `SELECT id FROM orders WHERE id = $1 FOR UPDATE`, orderID); err != nil {
 				t.Fatalf("lock the order: %v", err)
 			}
@@ -251,10 +251,8 @@ func TestACreditPaidCancellationLosesToWhoeverMovedTheOrderFirst(t *testing.T) {
 					t.Fatalf("the cancellation finished while the order was locked: %v", err)
 				default:
 				}
-				if err := pool.QueryRow(ctx, `
-					SELECT EXISTS (SELECT 1 FROM pg_stat_activity
-					               WHERE wait_event_type = 'Lock' AND query LIKE '%name: LockOrderByNumber%')`).
-					Scan(&waiting); err != nil {
+				var err error
+				if _, waiting, err = dbtest.Blocked(ctx, pool, dbtest.Match{QueryLike: "%name: LockOrderByNumber%"}); err != nil {
 					t.Fatalf("observe the cancellation: %v", err)
 				}
 				time.Sleep(10 * time.Millisecond)
@@ -276,7 +274,7 @@ func TestACreditPaidCancellationLosesToWhoeverMovedTheOrderFirst(t *testing.T) {
 			case err := <-result:
 				if !errors.Is(err, refund.ErrRefused) ||
 					(tc.changed && !errors.Is(err, refunds.ErrOrderChanged)) ||
-					(!tc.changed && !pgerr.IsConstraint(err, tc.constraint)) {
+					(!tc.changed && !db.IsConstraint(err, tc.constraint)) {
 					t.Errorf("cancellation after %s = %v, want ErrRefused from %s", tc.name, err, tc.constraint)
 				}
 			case <-time.After(10 * time.Second):

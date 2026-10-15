@@ -18,11 +18,11 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 
 	"github.com/koopa0/goen/assets"
+	"github.com/koopa0/goen/internal/bearer"
 	"github.com/koopa0/goen/internal/db"
 	mailmsg "github.com/koopa0/goen/internal/email"
 	"github.com/koopa0/goen/internal/order"
 	"github.com/koopa0/goen/internal/outbox"
-	"github.com/koopa0/goen/internal/pgtx"
 	"github.com/koopa0/goen/internal/shoptime"
 	"github.com/koopa0/goen/internal/ui/pages"
 	"github.com/koopa0/goen/internal/web"
@@ -59,7 +59,7 @@ func (s *Store) Register(ctx context.Context, c *Credentials, next string) error
 	if err != nil {
 		return fmt.Errorf("begin registration: %w", err)
 	}
-	defer pgtx.Rollback(ctx, tx)
+	defer db.Rollback(ctx, tx)
 	q := s.q.WithTx(tx)
 
 	row, err := q.CreateUserUnlessRegistered(ctx, db.CreateUserUnlessRegisteredParams{
@@ -194,17 +194,14 @@ func (s *Store) StartSession(ctx context.Context, userID, userAgent, ip string) 
 	if err != nil {
 		return "", fmt.Errorf("parse user id: %w", err)
 	}
-	token, err := NewToken()
-	if err != nil {
-		return "", err
-	}
+	token := bearer.New()
 	// The column is inet: an unparseable address is NULL rather than a refused sign-in.
 	var addr *netip.Addr
 	if parsed, perr := netip.ParseAddr(ip); perr == nil {
 		addr = &parsed
 	}
 	if err := s.q.CreateSession(ctx, db.CreateSessionParams{
-		TokenHash: HashToken(token),
+		Digest:    bearer.Digest(token),
 		UserID:    id,
 		UserAgent: text(normaliseUserAgent(userAgent)),
 		IP:        addr,
@@ -222,7 +219,7 @@ func (s *Store) SessionUser(ctx context.Context, token string) (user.User, error
 	if token == "" {
 		return user.User{}, ErrNotFound
 	}
-	row, err := s.q.SessionUser(ctx, HashToken(token))
+	row, err := s.q.SessionUser(ctx, bearer.Digest(token))
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
 			return user.User{}, ErrNotFound
@@ -237,8 +234,8 @@ func (s *Store) SignedInRecently(ctx context.Context, token string, window time.
 		return false, nil
 	}
 	recent, err := s.q.SessionCreatedSince(ctx, db.SessionCreatedSinceParams{
-		TokenHash: HashToken(token),
-		MaxAge:    pgtype.Interval{Microseconds: int64(window / time.Microsecond), Valid: true},
+		Digest: bearer.Digest(token),
+		MaxAge: pgtype.Interval{Microseconds: int64(window / time.Microsecond), Valid: true},
 	})
 	if errors.Is(err, pgx.ErrNoRows) {
 		return false, nil
@@ -253,7 +250,7 @@ func (s *Store) EndSession(ctx context.Context, token string) error {
 	if token == "" {
 		return nil
 	}
-	if err := s.q.DeleteSession(ctx, HashToken(token)); err != nil {
+	if err := s.q.DeleteSession(ctx, bearer.Digest(token)); err != nil {
 		return fmt.Errorf("delete session: %w", err)
 	}
 	return nil
@@ -265,221 +262,8 @@ func (s *Store) endOtherSessions(ctx context.Context, userID, currentToken strin
 		return err
 	}
 	return s.q.DeleteOtherUserSessions(ctx, db.DeleteOtherUserSessionsParams{
-		UserID: id, CurrentTokenHash: HashToken(currentToken),
+		UserID: id, CurrentDigest: bearer.Digest(currentToken),
 	})
-}
-
-func (s *Store) AdoptCart(ctx context.Context, userID string, guestCartID uuid.UUID) error {
-	id, err := uuid.Parse(userID)
-	if err != nil {
-		return fmt.Errorf("parse user id: %w", err)
-	}
-
-	tx, err := s.pool.Begin(ctx)
-	if err != nil {
-		return fmt.Errorf("begin adopt: %w", err)
-	}
-	defer pgtx.Rollback(ctx, tx)
-	q := s.q.WithTx(tx)
-
-	// The account is the stable aggregate root for the one-cart decision. Take
-	// it before reading CartForUser: two first adopters otherwise both observe
-	// no row and meet only at the partial unique index. Every cart lock comes
-	// afterwards and LockCarts sorts UUIDs, which keeps the cross-aggregate
-	// order canonical.
-	if _, err := q.LockUser(ctx, id); err != nil {
-		if errors.Is(err, pgx.ErrNoRows) {
-			return ErrNotFound
-		}
-		return fmt.Errorf("lock account for cart adoption: %w", err)
-	}
-
-	if err := adoptGuestCart(ctx, q, id, guestCartID); err != nil {
-		if !errors.Is(err, ErrQuantityAdjusted) {
-			return err
-		}
-		if commitErr := tx.Commit(ctx); commitErr != nil {
-			return fmt.Errorf("commit adopt: %w", commitErr)
-		}
-		return ErrQuantityAdjusted
-	}
-	if err := tx.Commit(ctx); err != nil {
-		return fmt.Errorf("commit adopt: %w", err)
-	}
-	return nil
-}
-
-func adoptGuestCart(ctx context.Context, q *db.Queries, userID, guestCartID uuid.UUID) error {
-	existing, err := q.CartForUser(ctx, uuid.NullUUID{UUID: userID, Valid: true})
-	switch {
-	case errors.Is(err, pgx.ErrNoRows):
-		if lockErr := lockCarts(ctx, q, guestCartID); lockErr != nil {
-			return lockErr
-		}
-		if ownerErr := requireUnownedCart(ctx, q, guestCartID); ownerErr != nil {
-			return ownerErr
-		}
-		adjusted, prepErr := clampGuestCartLines(ctx, q, guestCartID)
-		if prepErr != nil {
-			return prepErr
-		}
-		n, adoptErr := q.AdoptCart(ctx, db.AdoptCartParams{
-			CartID: guestCartID, UserID: userID,
-		})
-		if adoptErr != nil {
-			return fmt.Errorf("adopt cart: %w", adoptErr)
-		}
-		if n == 0 {
-			return ErrNotFound
-		}
-		if adjusted {
-			return ErrQuantityAdjusted
-		}
-	case err != nil:
-		return fmt.Errorf("read account cart: %w", err)
-	case existing == guestCartID:
-	default:
-		if lockErr := lockCarts(ctx, q, guestCartID, existing); lockErr != nil {
-			return lockErr
-		}
-		if ownerErr := requireUnownedCart(ctx, q, guestCartID); ownerErr != nil {
-			return ownerErr
-		}
-		if mergeErr := mergeGuestIntoAccount(ctx, q, guestCartID, existing); mergeErr != nil {
-			return mergeErr
-		}
-	}
-	return nil
-}
-
-const maxCartLineQuantity int32 = 999
-
-func mergeGuestIntoAccount(
-	ctx context.Context, q *db.Queries, guestID, accountID uuid.UUID,
-) error {
-	guestLines, err := q.CartItemRows(ctx, guestID)
-	if err != nil {
-		return fmt.Errorf("read guest cart lines: %w", err)
-	}
-	var adjusted bool
-	for i := range guestLines {
-		line := &guestLines[i]
-		sellable, err := sellableForMerge(ctx, q, line.VariantID)
-		if err != nil {
-			return err
-		}
-		existing := int32(0)
-		if qty, readErr := q.CartLineQuantity(ctx, db.CartLineQuantityParams{
-			CartID: accountID, VariantID: line.VariantID,
-		}); readErr == nil {
-			existing = qty
-		} else if !errors.Is(readErr, pgx.ErrNoRows) {
-			return fmt.Errorf("read account cart line: %w", readErr)
-		}
-		wanted := existing + line.Quantity
-		merged := clampCartQuantity(wanted, sellable)
-		if merged < wanted {
-			adjusted = true
-		}
-		if existing > 0 {
-			if err := q.SetCartItemQuantity(ctx, db.SetCartItemQuantityParams{
-				CartID: accountID, VariantID: line.VariantID, Quantity: merged,
-			}); err != nil {
-				return fmt.Errorf("merge cart line: %w", err)
-			}
-			continue
-		}
-		if err := q.AddCartItem(ctx, db.AddCartItemParams{
-			CartID: accountID, VariantID: line.VariantID, Quantity: merged,
-		}); err != nil {
-			return fmt.Errorf("merge guest-only line: %w", err)
-		}
-	}
-	if err := q.DeleteCart(ctx, guestID); err != nil {
-		return fmt.Errorf("delete guest cart: %w", err)
-	}
-	if adjusted {
-		return ErrQuantityAdjusted
-	}
-	return nil
-}
-
-func clampGuestCartLines(ctx context.Context, q *db.Queries, cartID uuid.UUID) (bool, error) {
-	lines, err := q.CartItemRows(ctx, cartID)
-	if err != nil {
-		return false, fmt.Errorf("read guest cart lines: %w", err)
-	}
-	var adjusted bool
-	for i := range lines {
-		line := &lines[i]
-		sellable, err := sellableForMerge(ctx, q, line.VariantID)
-		if err != nil {
-			return false, err
-		}
-		clamped := clampCartQuantity(line.Quantity, sellable)
-		if clamped == line.Quantity {
-			continue
-		}
-		adjusted = true
-		if err := q.SetCartItemQuantity(ctx, db.SetCartItemQuantityParams{
-			CartID: cartID, VariantID: line.VariantID, Quantity: clamped,
-		}); err != nil {
-			return false, fmt.Errorf("clamp guest cart line: %w", err)
-		}
-	}
-	return adjusted, nil
-}
-
-func sellableForMerge(ctx context.Context, q *db.Queries, variantID uuid.UUID) (int32, error) {
-	v, err := q.VariantForCart(ctx, variantID)
-	if err != nil {
-		if errors.Is(err, pgx.ErrNoRows) {
-			return 0, ErrCartMergeRefused
-		}
-		return 0, fmt.Errorf("read variant for merge: %w", err)
-	}
-	if !v.IsActive || pages.ProductStatus(v.Status) != pages.ProductActive || v.SellableQuantity <= 0 {
-		return 0, ErrCartMergeRefused
-	}
-	return v.SellableQuantity, nil
-}
-
-func clampCartQuantity(wanted, sellable int32) int32 {
-	if wanted > sellable {
-		wanted = sellable
-	}
-	if wanted > maxCartLineQuantity {
-		wanted = maxCartLineQuantity
-	}
-	return wanted
-}
-
-// requireUnownedCart revalidates after the cart-row lock: a browser token can
-// race another account's sign-in, and ownership that won is not permission to
-// move or delete the cart.
-func requireUnownedCart(ctx context.Context, q *db.Queries, cartID uuid.UUID) error {
-	owner, err := q.CartOwner(ctx, cartID)
-	if errors.Is(err, pgx.ErrNoRows) {
-		return ErrNotFound
-	}
-	if err != nil {
-		return fmt.Errorf("read cart owner for adoption: %w", err)
-	}
-	if owner.Valid {
-		return ErrNotFound
-	}
-	return nil
-}
-
-func lockCarts(ctx context.Context, q *db.Queries, ids ...uuid.UUID) error {
-	locked, err := q.LockCarts(ctx, ids)
-	if err != nil {
-		return fmt.Errorf("lock carts for adoption: %w", err)
-	}
-	if len(locked) != len(ids) {
-		return ErrNotFound
-	}
-	return nil
 }
 
 func (s *Store) ChangePassword(ctx context.Context, userID, password string) error {
@@ -496,7 +280,7 @@ func (s *Store) ChangePassword(ctx context.Context, userID, password string) err
 	if err != nil {
 		return fmt.Errorf("begin password change: %w", err)
 	}
-	defer pgtx.Rollback(ctx, tx)
+	defer db.Rollback(ctx, tx)
 	q := s.q.WithTx(tx)
 
 	if err := q.SetPasswordHash(ctx, db.SetPasswordHashParams{
@@ -529,6 +313,7 @@ func (s *Store) Overview(ctx context.Context, u user.User, after ...string) (pag
 		return pages.AccountView{}, fmt.Errorf("read profile: %w", err)
 	}
 	view.Phone = profile.Phone.String
+	view.HasPassword = profile.HasPassword
 
 	identities, err := s.q.IdentitiesForUser(ctx, id)
 	if err != nil {
@@ -576,7 +361,7 @@ func (s *Store) Overview(ctx context.Context, u user.User, after ...string) (pag
 
 	standing, err := s.q.MemberStanding(ctx, db.MemberStandingParams{
 		Locale: string(i18n.FromContext(ctx)),
-		UserID: id, WindowDays: MembershipWindowDays,
+		UserID: id,
 	})
 	if err != nil {
 		return pages.AccountView{}, fmt.Errorf("read member standing: %w", err)
@@ -654,7 +439,7 @@ func (s *Store) AddAddress(ctx context.Context, userID string, a *Address) error
 	if err != nil {
 		return fmt.Errorf("begin add address: %w", err)
 	}
-	defer pgtx.Rollback(ctx, tx)
+	defer db.Rollback(ctx, tx)
 	q := s.q.WithTx(tx)
 
 	if a.Default {
@@ -748,17 +533,19 @@ func (s *Store) SweepSessions(ctx context.Context) error {
 	return nil
 }
 
+// SweepSessionsForever runs once at startup, so a host redeployed more often
+// than the interval still clears expired sessions and dead reset tokens.
 func (s *Store) SweepSessionsForever(ctx context.Context, log *slog.Logger) {
 	ticker := time.NewTicker(SessionSweepInterval)
 	defer ticker.Stop()
 	for {
+		if err := s.SweepSessions(ctx); err != nil && ctx.Err() == nil {
+			log.ErrorContext(ctx, "sweep expired sessions", "error", err)
+		}
 		select {
 		case <-ctx.Done():
 			return
 		case <-ticker.C:
-			if err := s.SweepSessions(ctx); err != nil && ctx.Err() == nil {
-				log.ErrorContext(ctx, "sweep expired sessions", "error", err)
-			}
 		}
 	}
 }
@@ -777,7 +564,7 @@ func (s *Store) MakeDefaultAddress(ctx context.Context, userID, addressID string
 	if err != nil {
 		return fmt.Errorf("begin set default address: %w", err)
 	}
-	defer pgtx.Rollback(ctx, tx)
+	defer db.Rollback(ctx, tx)
 	q := s.q.WithTx(tx)
 
 	if _, lockErr := q.LockUser(ctx, uid); lockErr != nil {
@@ -1028,7 +815,7 @@ func (s *Store) SignInWithGoogle(ctx context.Context, id Identity) (user.User, e
 	if err != nil {
 		return user.User{}, fmt.Errorf("begin google sign-in: %w", err)
 	}
-	defer pgtx.Rollback(ctx, tx)
+	defer db.Rollback(ctx, tx)
 	q := s.q.WithTx(tx)
 
 	// The provider subject, not its mutable email, is the identity. Serialising
@@ -1064,7 +851,7 @@ func (s *Store) SignInWithGoogle(ctx context.Context, id Identity) (user.User, e
 		// Defensive even for a writer that did not take the advisory lock:
 		// never commit a just-created orphan or return the email-selected
 		// candidate.
-		pgtx.Rollback(ctx, tx)
+		db.Rollback(ctx, tx)
 		return s.googleSubjectOwner(ctx, id.Subject)
 	}
 	return finishGoogleSignIn(ctx, q, tx,
@@ -1089,12 +876,12 @@ func googleLinkCandidate(
 				return uuid.UUID{}, "", pgtype.Text{}, "", ErrOAuthCollision
 			}
 			return uuid.UUID{}, "", pgtype.Text{}, "",
-				fmt.Errorf("create an account for %s: %w", id.Email, createErr)
+				fmt.Errorf("create an account for a google identity: %w", createErr)
 		}
 		return row.ID, row.Email, row.FullName, row.Role, nil
 	case err != nil:
 		return uuid.UUID{}, "", pgtype.Text{}, "",
-			fmt.Errorf("read the account for %s: %w", id.Email, err)
+			fmt.Errorf("read the account for a google identity: %w", err)
 	case !existing.Verified:
 		// Pre-hijacking: an unverified account may belong to whoever registered
 		// the address rather than whoever reads the mailbox.

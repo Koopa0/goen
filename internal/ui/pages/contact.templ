@@ -1,6 +1,8 @@
 package pages
 
 import (
+	"fmt"
+
 	"github.com/koopa0/goen/internal/fieldrule"
 	"github.com/koopa0/goen/internal/i18n"
 	"github.com/koopa0/goen/internal/ui/components"
@@ -46,7 +48,7 @@ templ contactMethod(href, label, value string) {
 // (scripts/check-layout.mjs).
 templ ContactPanel(f ContactForm) {
 	if f.Done {
-		<div class="goen-card contact__panel contact__panel--done" role="status" id="contact-form">
+		<div class="goen-card contact__panel contact__panel--done" role="status" id="contact-form" tabindex="-1">
 			<span class="contact__donemark" aria-hidden="true">
 				@icons.CheckCircle()
 			</span>
@@ -60,6 +62,10 @@ templ ContactPanel(f ContactForm) {
 			</div>
 		</div>
 	} else {
+		// The form swaps itself for the confirmation, and the button that had focus goes
+		// with it: data-focus-after-swap hands focus to the element that now has this id,
+		// which also makes a screen reader read it. On a refusal the id is a form again,
+		// which cannot take focus, so htmx's restore of #contact-submit stands.
 		<form
 			class="contact__panel"
 			id="contact-form"
@@ -68,6 +74,7 @@ templ ContactPanel(f ContactForm) {
 			hx-post="/contact"
 			hx-target="this"
 			hx-swap="outerHTML"
+			data-focus-after-swap="contact-form"
 		>
 			<h2 class="contact__formtitle">{ i18n.T(ctx, i18n.KeyContactFormTitle) }</h2>
 			if f.err("") != "" {
@@ -90,15 +97,15 @@ templ ContactPanel(f ContactForm) {
 						Name:      "name",
 						Type:      "text",
 						Value:     f.Name,
-						Invalid:   f.err("name") != "",
 						Describes: f.describedBy("name"),
-						Attrs: templ.Attributes{
+						Invalid:   f.err("name") != "",
+						Attrs: f.exampleAttrs("name", templ.Attributes{
 							"autocomplete": "name",
 							"maxlength":    "80",
-							"placeholder":  i18n.T(ctx, i18n.KeyNamePlaceholder),
 							"required":     true,
-						},
+						}),
 					})
+					<p class="goen-auth__hint" id="contact-name-example">{ fmt.Sprintf(i18n.T(ctx, i18n.KeyFieldExample), i18n.T(ctx, i18n.KeyNameExample)) }</p>
 					if f.err("name") != "" {
 						<span class="ui-error-text" id={ errorID("name") }>{ f.err("name") }</span>
 					}
@@ -113,15 +120,15 @@ templ ContactPanel(f ContactForm) {
 						Name:      "email",
 						Type:      "email",
 						Value:     f.Email,
-						Invalid:   f.err("email") != "",
 						Describes: f.describedBy("email"),
-						Attrs: fieldrule.Email.Attrs(ctx, templ.Attributes{
+						Invalid:   f.err("email") != "",
+						Attrs: fieldrule.Email.Attrs(ctx, f.exampleAttrs("email", templ.Attributes{
 							"autocomplete": "email",
 							"maxlength":    "254",
-							"placeholder":  "you@example.com",
 							"required":     true,
-						}, fieldrule.Message(i18n.KeyEmailMalformed), fieldrule.ErrorID(errorID("email"))),
+						}), fieldrule.Message(i18n.KeyEmailMalformed), fieldrule.ErrorID(errorID("email"))),
 					})
+					<p class="goen-auth__hint" id="contact-email-example">{ fmt.Sprintf(i18n.T(ctx, i18n.KeyFieldExample), "you@example.com") }</p>
 					if f.err("email") != "" {
 						<span class="ui-error-text" id={ errorID("email") }>{ f.err("email") }</span>
 					}
@@ -156,14 +163,14 @@ templ ContactPanel(f ContactForm) {
 						Name:      "order_ref",
 						Type:      "text",
 						Value:     f.OrderRef,
-						Invalid:   f.err("order_ref") != "",
 						Describes: f.describedBy("order_ref"),
+						Invalid:   f.err("order_ref") != "",
 						Class:     "contact__ref",
-						Attrs: templ.Attributes{
-							"maxlength":   "32",
-							"placeholder": i18n.T(ctx, i18n.KeyOrderRefPlaceholder),
-						},
+						Attrs: f.exampleAttrs("order_ref", templ.Attributes{
+							"maxlength": "32",
+						}),
 					})
+					<p class="goen-auth__hint" id="contact-order_ref-example">{ fmt.Sprintf(i18n.T(ctx, i18n.KeyFieldExample), i18n.T(ctx, i18n.KeyOrderRefExample)) }</p>
 					if f.err("order_ref") != "" {
 						<span class="ui-error-text" id={ errorID("order_ref") }>{ f.err("order_ref") }</span>
 					}
@@ -179,15 +186,15 @@ templ ContactPanel(f ContactForm) {
 						Invalid:   f.err("message") != "",
 						Describes: f.describedBy("message"),
 						Class:     "contact__message",
-						Attrs: templ.Attributes{
-							"maxlength":   "2000",
-							"minlength":   "5",
-							"placeholder": i18n.T(ctx, i18n.KeyMessagePlaceholder),
-							"required":    true,
-						},
+						Attrs: f.exampleAttrs("message", templ.Attributes{
+							"maxlength": "2000",
+							"minlength": "5",
+							"required":  true,
+						}),
 					}) {
 						{ f.Message }
 					}
+					<p class="goen-auth__hint" id="contact-message-hint">{ i18n.T(ctx, i18n.KeyMessagePlaceholder) }</p>
 					if f.err("message") != "" {
 						<span class="ui-error-text" id={ errorID("message") }>{ f.err("message") }</span>
 					}

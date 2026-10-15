@@ -12,6 +12,7 @@ import (
 
 	stripe "github.com/stripe/stripe-go/v86"
 
+	"github.com/koopa0/goen/assets"
 	"github.com/koopa0/goen/internal/i18n"
 	"github.com/koopa0/goen/internal/order"
 	"github.com/koopa0/goen/internal/order/access"
@@ -144,6 +145,9 @@ func (h *Handler) renderPay(w http.ResponseWriter, r *http.Request, o *Order, ha
 		l := &o.Lines[i]
 		view.Lines = append(view.Lines, pages.PayLine{
 			Name: l.Name, Label: l.Label, UnitCents: l.UnitCents, Quantity: l.Quantity,
+			ImageURL:    assets.ProductImageURL(l.ImageKey),
+			ImageSrcset: assets.ProductImageSrcsetAt(l.ImageKey, int(l.ImageWidth)),
+			ImageAlt:    l.ImageAlt,
 		})
 	}
 	web.Render(w, r, h.log, status, pages.Pay(pages.PayMeta(r.Context(), o.Number), view))

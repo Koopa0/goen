@@ -13,7 +13,6 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 
 	"github.com/koopa0/goen/internal/db"
-	"github.com/koopa0/goen/internal/pgtx"
 	"github.com/koopa0/goen/internal/user"
 	"github.com/koopa0/goen/internal/web"
 )
@@ -43,7 +42,7 @@ func Run(ctx context.Context, pool *pgxpool.Pool, e Event, work func(context.Con
 	if err != nil {
 		return fmt.Errorf("begin %s: %w", e.Action, err)
 	}
-	defer pgtx.Rollback(ctx, tx)
+	defer db.Rollback(ctx, tx)
 	q := db.New(tx)
 
 	if err := work(ctx, q); err != nil {

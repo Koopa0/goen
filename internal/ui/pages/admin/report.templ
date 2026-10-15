@@ -5,6 +5,7 @@ import (
 
 	"github.com/koopa0/goen/internal/i18n"
 	"github.com/koopa0/goen/internal/ui/chart"
+	"github.com/koopa0/goen/internal/ui/components"
 	"github.com/koopa0/goen/internal/ui/layouts"
 )
 
@@ -102,7 +103,7 @@ templ Report(p layouts.Page, v *ReportView) {
 				<ul class="goen-report__rows" role="list">
 					{{ top := v.TopUnits() }}
 					for _, item := range v.Sellers {
-						@ReportRow(item.Name, item.Href(), item.Facts(ctx)) {
+						@components.ReportRow(item.Name, item.Href(), item.Facts(ctx)) {
 							if len(v.Sellers) > 1 {
 								<div class="goen-report__plot">
 									@chart.Bar(chart.BarProps{Value: item.Units, Max: top, Label: item.UnitsText()})
@@ -121,7 +122,7 @@ templ Report(p layouts.Page, v *ReportView) {
 					<ul class="goen-report__rows goen-report__departments" role="list">
 						{{ top := v.TopDepartment() }}
 						for _, d := range v.Departments {
-							@ReportRow(d.Name, "", "") {
+							@components.ReportRow(d.Name, "", "") {
 								<div class="goen-report__plot">
 									<span class="goen-sr-only">{ fmt.Sprintf(i18n.T(ctx, i18n.KeyAdminRepDepartmentSales), d.Sales()) }</span>
 									@chart.Bar(chart.BarProps{Value: d.SalesCents, Max: top, Label: d.Sales()})

@@ -567,13 +567,15 @@ templ Checkout(p layouts.Page, v *CheckoutView) {
 											name="invoice_carrier"
 											maxlength="8"
 											autocomplete="off"
-											placeholder="/ABC+123"
 											value={ v.Invoice.MobileBarcode }
 											aria-invalid={ v.Invalid("invoice_carrier") }
 											if v.HasErr("invoice_carrier") {
-												aria-describedby="invoice_carrier-error"
+												aria-describedby="invoice_carrier-example invoice_carrier-error"
+											} else {
+												aria-describedby="invoice_carrier-example"
 											}
 										/>
+										<p class="goen-auth__hint" id="invoice_carrier-example">{ fmt.Sprintf(i18n.T(ctx, i18n.KeyFieldExample), "/ABC+123") }</p>
 										if v.HasErr("invoice_carrier") {
 											<p class="ui-error-text" id="invoice_carrier-error">{ v.Err("invoice_carrier") }</p>
 										}
@@ -701,7 +703,7 @@ templ Checkout(p layouts.Page, v *CheckoutView) {
 							}
 							if v.HasCoupon() && v.CouponDiscountCents > 0 {
 								<div class="goen-summary__row">
-									<dt>{ DiscountLabel(ctx, v.CouponApplied) }</dt>
+									<dt>{ components.DiscountLabel(ctx, v.CouponApplied) }</dt>
 									<dd class="goen-summary__value">{ v.CouponDiscount() }</dd>
 								</div>
 							}
@@ -727,11 +729,12 @@ templ Checkout(p layouts.Page, v *CheckoutView) {
 									name="coupon"
 									maxlength="32"
 									autocomplete="off"
-									placeholder={ i18n.T(ctx, i18n.KeyCouponPlaceholder) }
 									value={ v.CouponCode }
 									aria-invalid={ v.Invalid("coupon") }
 									if v.HasErr("coupon") {
-										aria-describedby="coupon-error"
+										aria-describedby="coupon-hint coupon-error"
+									} else {
+										aria-describedby="coupon-hint"
 									}
 								/>
 								@components.Button(components.ButtonProps{
@@ -741,6 +744,7 @@ templ Checkout(p layouts.Page, v *CheckoutView) {
 									{ i18n.T(ctx, i18n.KeyApplyCoupon) }
 								}
 							</div>
+							<p class="goen-checkout__note" id="coupon-hint">{ i18n.T(ctx, i18n.KeyCouponPlaceholder) }</p>
 							<div id="coupon-message" aria-live="polite">
 								if v.HasErr("coupon") {
 									<p class="ui-error-text" id="coupon-error">{ v.Err("coupon") }</p>
@@ -1031,7 +1035,7 @@ templ Order(p layouts.Page, v *OrderView) {
 						</div>
 						if v.Discounted() {
 							<div class="goen-summary__row">
-								<dt>{ DiscountLabel(ctx, v.DiscountReason) }</dt>
+								<dt>{ components.DiscountLabel(ctx, v.DiscountReason) }</dt>
 								<dd class="goen-summary__value">{ v.Discount() }</dd>
 							</div>
 						}

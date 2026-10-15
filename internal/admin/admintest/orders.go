@@ -4,23 +4,20 @@ package admintest
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"log/slog"
 	"testing"
+	"time"
 
 	"github.com/google/uuid"
-	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/jackc/pgx/v5/pgxpool"
 
-	"github.com/koopa0/goen/internal/admin/health"
 	"github.com/koopa0/goen/internal/admin/invoicing"
 	"github.com/koopa0/goen/internal/admin/orders"
 	"github.com/koopa0/goen/internal/admin/refunds"
-	"github.com/koopa0/goen/internal/admin/reports"
-	"github.com/koopa0/goen/internal/admin/stock"
+	"github.com/koopa0/goen/internal/db"
 	"github.com/koopa0/goen/internal/invoice"
-	"github.com/koopa0/goen/internal/pgtx"
+	"github.com/koopa0/goen/internal/invoice/issuer"
 )
 
 func PlaceUnpaidOrder(t *testing.T, pool *pgxpool.Pool) string {
@@ -40,7 +37,7 @@ func PlaceUnpaidOrderHolding(t *testing.T, pool *pgxpool.Pool, holding bool) str
 	if err != nil {
 		t.Fatalf("begin: %v", err)
 	}
-	defer pgtx.Rollback(ctx, tx)
+	defer db.Rollback(ctx, tx)
 
 	var orderID uuid.UUID
 	var number string
@@ -102,7 +99,7 @@ func PendingOrderHoldingStock(t *testing.T, pool *pgxpool.Pool) (number string, 
 	if err != nil {
 		t.Fatalf("begin: %v", err)
 	}
-	defer pgtx.Rollback(ctx, tx)
+	defer db.Rollback(ctx, tx)
 
 	if err := tx.QueryRow(ctx, `
 		INSERT INTO orders (order_number, shipping_version_id, shipping_method_code, shipping_method_name)
@@ -133,16 +130,6 @@ func PendingOrderHoldingStock(t *testing.T, pool *pgxpool.Pool) (number string, 
 		t.Fatalf("commit: %v", err)
 	}
 	return number, orderID, variantID
-}
-
-// ConstraintName is the constraint a PostgreSQL error names, or "" for any
-// other error.
-func ConstraintName(err error) string {
-	pgErr, ok := errors.AsType[*pgconn.PgError](err)
-	if !ok {
-		return ""
-	}
-	return pgErr.ConstraintName
 }
 
 // AsAdmin runs one statement with the back office's own database role: the suite
@@ -177,7 +164,7 @@ func PlaceHeldOrder(t *testing.T, pool *pgxpool.Pool, vid uuid.UUID) string {
 	if err != nil {
 		t.Fatalf("begin: %v", err)
 	}
-	defer pgtx.Rollback(ctx, tx)
+	defer db.Rollback(ctx, tx)
 
 	var orderID uuid.UUID
 	var number string
@@ -222,7 +209,7 @@ func TwoLineOrderWithStock(t *testing.T, pool *pgxpool.Pool, name string) (
 	if err != nil {
 		t.Fatalf("begin: %v", err)
 	}
-	defer pgtx.Rollback(ctx, tx)
+	defer db.Rollback(ctx, tx)
 
 	if err := tx.QueryRow(ctx, `
 		INSERT INTO orders (order_number, shipping_version_id, shipping_method_code,
@@ -299,32 +286,26 @@ func TwoLineOrderWithStock(t *testing.T, pool *pgxpool.Pool, name string) (
 type DisabledInvoiceWriter struct{}
 
 func (DisabledInvoiceWriter) Issue(context.Context, string) (invoice.Document, error) {
-	return invoice.Document{}, invoice.ErrDisabled
+	return invoice.Document{}, issuer.ErrDisabled
 }
 
 func (DisabledInvoiceWriter) Void(context.Context, string, string) error {
-	return invoice.ErrDisabled
+	return issuer.ErrDisabled
 }
 
 func (DisabledInvoiceWriter) FileAllowance(
 	context.Context, string, uuid.UUID,
 ) (invoice.Document, error) {
-	return invoice.Document{}, invoice.ErrDisabled
+	return invoice.Document{}, issuer.ErrDisabled
 }
 
-// OrderStore builds the order desk's store and the refunds, invoicing, stock and health
-// stores it reads through, all over p, as cmd/goen does.
+// OrderStore builds the order desk's store and the refunds and invoicing stores
+// it reads through, all over p, as cmd/goen does.
 func OrderStore(p *pgxpool.Pool, refunder refunds.Refunder, reader invoicing.Reader, writer invoicing.Writer) *orders.Store {
-	return OrderStoreWithHealth(p, refunder, reader, writer, health.NewStore(p))
-}
-
-// OrderStoreWithHealth is OrderStore with the health desk replaced, for a test
-// that needs it to fail.
-func OrderStoreWithHealth(p *pgxpool.Pool, refunder refunds.Refunder, reader invoicing.Reader, writer invoicing.Writer, desk orders.Health) *orders.Store {
 	if reader == nil {
-		reader = invoice.NewStore(p, &invoice.Gateway{})
+		reader = issuer.NewStore(p, &issuer.Gateway{})
 	}
-	return orders.NewStore(p, refunds.NewStore(p, refunder, nil), invoicing.NewStore(p, reader, writer), stock.NewStore(p), desk, reports.NewStore(p))
+	return orders.NewStore(p, refunds.NewStore(p, refunder, nil), invoicing.NewStore(p, reader, writer))
 }
 
 func OrderDesk(s *orders.Store) *orders.Handler {
@@ -351,7 +332,7 @@ func PaidPickingOrderForUser(t *testing.T, pool *pgxpool.Pool, userID uuid.UUID,
 	if err != nil {
 		t.Fatalf("begin: %v", err)
 	}
-	defer pgtx.Rollback(ctx, tx)
+	defer db.Rollback(ctx, tx)
 
 	if err := tx.QueryRow(ctx, `
 		INSERT INTO orders (order_number, user_id, shipping_version_id,
@@ -397,4 +378,48 @@ func PaidPickingOrderForUser(t *testing.T, pool *pgxpool.Pool, userID uuid.UUID,
 		t.Fatalf("commit: %v", err)
 	}
 	return number, orderID
+}
+
+// PlaceOrderPaidByCredit places a pending order whose store credit covers all
+// of it, placed this long ago.
+func PlaceOrderPaidByCredit(t *testing.T, pool *pgxpool.Pool, ago time.Duration) (number string, placedAt time.Time) {
+	t.Helper()
+	ctx := t.Context()
+	const cents = 5000
+	userID := CreditedAccount(t, pool, cents)
+	tx, err := pool.Begin(ctx)
+	if err != nil {
+		t.Fatalf("begin: %v", err)
+	}
+	defer db.Rollback(ctx, tx)
+	var orderID uuid.UUID
+	if err = tx.QueryRow(ctx, `
+		INSERT INTO orders (order_number, user_id, shipping_version_id,
+		                    shipping_method_code, shipping_method_name, shipping_cents, placed_at)
+		SELECT next_order_number(), $1, v.id, sm.code, v.name, 0, now() - make_interval(secs => $2)
+		FROM shipping_method_versions v JOIN shipping_methods sm ON sm.id = v.method_id
+		ORDER BY v.effective_at LIMIT 1
+		RETURNING id, order_number, placed_at`, userID, ago.Seconds()).Scan(&orderID, &number, &placedAt); err != nil {
+		t.Fatalf("create order: %v", err)
+	}
+	if _, err = tx.Exec(ctx, `
+		INSERT INTO order_private_data (order_id, email, recipient_name, phone,
+		                                postal_code, city, district, street)
+		VALUES ($1, 'c@example.com', '收件', '0912345678', '110', '台北市', '信義區', '路 1 號')`,
+		orderID); err != nil {
+		t.Fatalf("create private data: %v", err)
+	}
+	if _, err = tx.Exec(ctx, `
+		INSERT INTO order_lines (order_id, sku, product_name, unit_price_cents, quantity)
+		VALUES ($1, 'AGE-SKU', '帳齡測試', $2, 1)`, orderID, cents); err != nil {
+		t.Fatalf("create line: %v", err)
+	}
+	if _, err = tx.Exec(ctx, `SELECT post_store_credit($1, $2, NULL, $3, $4, NULL)`,
+		userID, -cents, orderID, "order:"+orderID.String()); err != nil {
+		t.Fatalf("spend credit: %v", err)
+	}
+	if err = tx.Commit(ctx); err != nil {
+		t.Fatalf("commit: %v", err)
+	}
+	return number, placedAt
 }

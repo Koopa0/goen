@@ -17,12 +17,14 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 
 	"github.com/koopa0/goen/assets"
+	"github.com/koopa0/goen/internal/bearer"
 	"github.com/koopa0/goen/internal/db"
 	"github.com/koopa0/goen/internal/i18n"
 	invoicepkg "github.com/koopa0/goen/internal/invoice"
+	"github.com/koopa0/goen/internal/invoice/issuer"
 	"github.com/koopa0/goen/internal/order"
+	"github.com/koopa0/goen/internal/order/delivery"
 	"github.com/koopa0/goen/internal/outbox"
-	"github.com/koopa0/goen/internal/pgtx"
 	"github.com/koopa0/goen/internal/shoptime"
 	"github.com/koopa0/goen/internal/ui/pages"
 )
@@ -49,7 +51,7 @@ func (s *Store) ByToken(ctx context.Context, token string, requester uuid.NullUU
 	if token == "" {
 		return uuid.Nil, ErrNotFound
 	}
-	row, err := s.q.CartByToken(ctx, HashToken(token))
+	row, err := s.q.CartByToken(ctx, bearer.Digest(token))
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
 			return uuid.Nil, ErrNotFound
@@ -66,7 +68,7 @@ func (s *Store) ByToken(ctx context.Context, token string, requester uuid.NullUU
 // carts_one_per_user refuses the second insert, and the winner is the account
 // cart.
 func (s *Store) Create(ctx context.Context, token string, userID uuid.NullUUID) (uuid.UUID, error) {
-	id, err := s.q.CreateCart(ctx, db.CreateCartParams{TokenHash: HashToken(token), UserID: userID})
+	id, err := s.q.CreateCart(ctx, db.CreateCartParams{Digest: bearer.Digest(token), UserID: userID})
 	if err != nil {
 		if existing, ok := s.ownedCartIfTaken(ctx, userID, err); ok {
 			return existing, nil
@@ -113,6 +115,12 @@ func (s *Store) Add(ctx context.Context, cartID, variantID uuid.UUID, quantity i
 	return nil
 }
 
+// sellable is the one test of whether a variant may be put in a cart: listed,
+// active and with stock the shelf can supply.
+func sellable(v *db.VariantForCartRow) bool {
+	return v.IsActive && pages.ProductStatus(v.Status) == pages.ProductActive && v.SellableQuantity > 0
+}
+
 // addCartItem runs through the caller's queries, which may be pool-backed or
 // bound to a larger transaction.
 func addCartItem(
@@ -129,7 +137,7 @@ func addCartItem(
 		}
 		return false, fmt.Errorf("read variant: %w", err)
 	}
-	if !v.IsActive || pages.ProductStatus(v.Status) != pages.ProductActive || v.SellableQuantity <= 0 {
+	if !sellable(&v) {
 		return false, ErrUnavailable
 	}
 	capacity, err := q.CartLineCapacity(ctx, db.CartLineCapacityParams{
@@ -138,7 +146,7 @@ func addCartItem(
 	if err != nil {
 		return false, fmt.Errorf("count cart lines: %w", err)
 	}
-	if !capacity.AlreadyPresent && capacity.LineCount >= invoicepkg.MaxIssueProductLines {
+	if !capacity.AlreadyPresent && capacity.LineCount >= issuer.MaxIssueProductLines {
 		return false, ErrTooManyItems
 	}
 	wanted := capacity.ExistingQuantity + requested
@@ -188,7 +196,7 @@ func setCartLineQuantity(
 		}
 		return false, fmt.Errorf("read variant: %w", err)
 	}
-	if !v.IsActive || pages.ProductStatus(v.Status) != pages.ProductActive || v.SellableQuantity <= 0 {
+	if !sellable(&v) {
 		return false, ErrUnavailable
 	}
 	requested := quantity
@@ -224,7 +232,7 @@ func (s *Store) mutateCart(
 	if err != nil {
 		return fmt.Errorf("begin cart mutation: %w", err)
 	}
-	defer pgtx.Rollback(ctx, tx)
+	defer db.Rollback(ctx, tx)
 	q := s.q.WithTx(tx)
 	if err := lockCart(ctx, q, cartID); err != nil {
 		return err
@@ -247,15 +255,6 @@ func lockCart(ctx context.Context, q *db.Queries, cartID uuid.UUID) error {
 		return ErrNotFound
 	}
 	return nil
-}
-
-// Count is UNITS, not lines, for the header badge.
-func (s *Store) Count(ctx context.Context, cartID uuid.UUID) (int64, error) {
-	n, err := s.q.CartItemCount(ctx, cartID)
-	if err != nil {
-		return 0, fmt.Errorf("count cart: %w", err)
-	}
-	return n, nil
 }
 
 // View reads prices and availability fresh every time: a cart line is not a
@@ -461,7 +460,7 @@ func (s *Store) placeOrder(
 	cartID uuid.UUID,
 	userID uuid.NullUUID,
 	shippingVersionID uuid.UUID,
-	addr *order.Delivery,
+	addr *delivery.Details,
 	inv *Invoice,
 	couponCode string,
 	shown checkoutQuoteID,
@@ -479,7 +478,7 @@ func (s *Store) placeOrder(
 	if err != nil {
 		return "", fmt.Errorf("begin checkout: %w", err)
 	}
-	defer pgtx.Rollback(ctx, tx)
+	defer db.Rollback(ctx, tx)
 	q := s.q.WithTx(tx)
 
 	prior, taken, err := claimCheckoutKey(ctx, q, cartID, attemptID)
@@ -571,7 +570,7 @@ func lockCheckoutTerms(
 	cartID uuid.UUID,
 	userID uuid.NullUUID,
 	shippingVersionID uuid.UUID,
-	addr *order.Delivery,
+	addr *delivery.Details,
 	couponCode string,
 	shown checkoutQuoteID,
 ) (*checkoutTerms, error) {
@@ -579,7 +578,7 @@ func lockCheckoutTerms(
 	if err != nil {
 		return nil, err
 	}
-	if len(lines) > invoicepkg.MaxIssueProductLines {
+	if len(lines) > issuer.MaxIssueProductLines {
 		return nil, ErrTooManyItems
 	}
 
@@ -720,7 +719,7 @@ type orderParts struct {
 	invoice       *Invoice
 	coupon        *Coupon
 	orderNumber   string
-	address       *order.Delivery
+	address       *delivery.Details
 	totalCents    int64
 	creditCents   int64
 }
@@ -771,7 +770,7 @@ func writeOrderParts(ctx context.Context, q *db.Queries, p *orderParts) error {
 	// Store credit paying the whole order is money received now, and 營業稅法 §32
 	// invoices money received before dispatch; picking is too late.
 	if p.creditCents > 0 && p.creditCents == p.totalCents {
-		if dueErr := invoicepkg.EnqueueDue(ctx, q, &outbox.InvoiceDue{
+		if dueErr := issuer.EnqueueDue(ctx, q, &outbox.InvoiceDue{
 			OrderNumber: p.orderNumber, Trigger: "commit:" + p.orderNumber,
 		}); dueErr != nil {
 			return dueErr
@@ -789,7 +788,7 @@ func writeInvoicePreference(
 	q *db.Queries,
 	orderID uuid.UUID,
 	inv *Invoice,
-	addr *order.Delivery,
+	addr *delivery.Details,
 ) error {
 	if inv == nil {
 		inv = &Invoice{Type: invoicepkg.PreferenceMember}
@@ -850,7 +849,7 @@ func finishOrder(
 	ctx context.Context,
 	q *db.Queries,
 	orderID, cartID uuid.UUID,
-	addr *order.Delivery,
+	addr *delivery.Details,
 	attemptID checkoutAttemptID,
 ) error {
 	if err := q.CreateOrderPrivateData(ctx, db.CreateOrderPrivateDataParams{

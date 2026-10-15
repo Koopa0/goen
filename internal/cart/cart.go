@@ -45,6 +45,9 @@ var (
 	// ErrQuantityAdjusted means the write succeeded but kept less than
 	// requested, because stock fell short.
 	ErrQuantityAdjusted = errors.New("cart: quantity adjusted to available stock")
+	// ErrMergeRefused means a guest line cannot be adopted because the catalogue
+	// no longer honours it; the transaction rolls back with both carts unchanged.
+	ErrMergeRefused = errors.New("cart: guest cart contains unavailable merchandise")
 	// errCheckoutChanged means the facts no longer match the quote the customer
 	// confirmed; show the refreshed quote before retrying.
 	errCheckoutChanged = errors.New("cart: checkout quote changed")
@@ -264,9 +267,12 @@ func parseCheckoutQuoteID(value string) (checkoutQuoteID, error) {
 // sibling subdomain cannot write a cart cookie goen would trust.
 const CookieName = "__Host-goen_cart"
 
-const cookieMaxAge = 30 * 24 * 60 * 60 // 30 days
+// GuestCartRetain is how long a guest cart lives, and it is the cart cookie's
+// lifetime: the cookie is set once, when the cart is created, so after this long
+// no browser can name the cart and [Store.SweepGuestCarts] deletes it.
+const GuestCartRetain = 30 * 24 * time.Hour
 
-const tokenBytes = 32
+const cookieMaxAge = int(GuestCartRetain / time.Second)
 
 // MaxLineQuantity matches the schema's CHECK.
 const MaxLineQuantity = 999
@@ -286,19 +292,6 @@ const stripeSessionStartMargin = time.Minute
 // holdTTL: the floor and margin are inventory time, not extra pay time; they
 // let a session started at payWindow expire with the same hold.
 const holdTTL = payWindow + stripeSessionFloor + stripeSessionStartMargin
-
-func NewToken() (string, error) {
-	b := make([]byte, tokenBytes)
-	if _, err := rand.Read(b); err != nil {
-		return "", err
-	}
-	return base64.RawURLEncoding.EncodeToString(b), nil
-}
-
-func HashToken(token string) []byte {
-	sum := sha256.Sum256([]byte(token))
-	return sum[:]
-}
 
 // SetCookie writes the cart cookie; a __Host- cookie without Secure is rejected by the browser, so
 // development uses a different name.
@@ -391,8 +384,6 @@ type Quote struct {
 func (q Quote) Total() (int64, error) {
 	return addCheckoutMoney(q.FeeCents, q.Surcharge)
 }
-
-func (q Quote) HasSurcharge() bool { return q.Surcharge > 0 }
 
 type Invoice struct {
 	Type          invoicepkg.Preference

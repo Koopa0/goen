@@ -10,25 +10,33 @@ import (
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 
-	"github.com/koopa0/goen/internal/admin/stock"
 	"github.com/koopa0/goen/internal/db"
 	"github.com/koopa0/goen/internal/i18n"
-	"github.com/koopa0/goen/internal/pgtx"
+	"github.com/koopa0/goen/internal/inventory"
 	"github.com/koopa0/goen/internal/shoptime"
 	"github.com/koopa0/goen/internal/ui/chart"
 	"github.com/koopa0/goen/internal/ui/pages/admin"
 )
 
-type Store struct {
-	pool  *pgxpool.Pool
-	cover *stock.Store
+// Cover ranks the SKUs by days cover over the last shop days, for the report's
+// stock section; the stock desk implements it.
+type Cover interface {
+	DaysCover(ctx context.Context, days int, now time.Time) (listed []inventory.Risk, moreSoldOut int, err error)
 }
 
-func NewStore(pool *pgxpool.Pool) *Store {
+type Store struct {
+	pool  *pgxpool.Pool
+	cover Cover
+}
+
+func NewStore(pool *pgxpool.Pool, cover Cover) *Store {
 	if pool == nil {
 		panic("reports: NewStore requires a pool")
 	}
-	return &Store{pool: pool, cover: stock.NewStore(pool)}
+	if cover == nil {
+		panic("reports: NewStore requires a cover")
+	}
+	return &Store{pool: pool, cover: cover}
 }
 
 var reportWindows = [...]int32{7, 30, 90}
@@ -57,14 +65,14 @@ func (s *Store) ReportAt(ctx context.Context, days int32, now time.Time) (admin.
 	if err != nil {
 		return admin.ReportView{}, fmt.Errorf("begin report snapshot: %w", err)
 	}
-	defer pgtx.Rollback(ctx, tx)
+	defer db.Rollback(ctx, tx)
 	q := db.New(tx)
 
 	view, err := reportAt(ctx, q, days, now)
 	if err != nil {
 		return admin.ReportView{}, err
 	}
-	view.AtRisk, view.MoreSoldOut = atRisk, moreSoldOut
+	view.AtRisk, view.MoreSoldOut = admin.StockRisks(atRisk, now), moreSoldOut
 	current, _ := periods(now, int(window(days)))
 	view.Returned, view.ReturnedErr = returnedProducts(ctx, tx, current)
 	// The daily charts are figures of the page: failing to read them must not take
@@ -87,7 +95,7 @@ func (s *Store) FillWeek(ctx context.Context, view *admin.DashboardView, now tim
 	if err != nil {
 		return fmt.Errorf("begin week snapshot: %w", err)
 	}
-	defer pgtx.Rollback(ctx, tx)
+	defer db.Rollback(ctx, tx)
 	q := db.New(tx)
 
 	current, before := periods(now, admin.WeekDays)
@@ -208,7 +216,7 @@ func reportAt(ctx context.Context, q *db.Queries, days int32, now time.Time) (ad
 		Placed:    completion.Placed,
 		Committed: completion.Committed,
 		Windows:   windows,
-		StockDays: max(int(days), admin.CoverWindowDays),
+		StockDays: max(int(days), inventory.CoverWindowDays),
 		From:      shoptime.DateOf(current.from, now), To: shoptime.DateOf(current.to, now),
 		Previous: admin.PreviousFigures{
 			From: shoptime.DateOf(before.from, now), To: shoptime.DateOf(before.to, now),
@@ -238,7 +246,7 @@ func returnedProducts(ctx context.Context, tx pgx.Tx, p period) ([]admin.Returne
 	if err != nil {
 		return nil, fmt.Errorf("begin returned products savepoint: %w", err)
 	}
-	defer pgtx.Rollback(ctx, sp)
+	defer db.Rollback(ctx, sp)
 	rows, err := db.New(sp).ReturnedProductsBetween(ctx, db.ReturnedProductsBetweenParams{
 		FromAt: p.from, ToAt: p.to, LimitTo: maxRows,
 	})

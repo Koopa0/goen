@@ -14,6 +14,7 @@ import (
 	"slices"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/google/uuid"
 
@@ -21,9 +22,9 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 
 	"github.com/koopa0/goen/internal/catalog"
+	"github.com/koopa0/goen/internal/db"
 	"github.com/koopa0/goen/internal/db/dbtest"
 	"github.com/koopa0/goen/internal/i18n"
-	"github.com/koopa0/goen/internal/pgtx"
 	"github.com/koopa0/goen/internal/ui/pages"
 )
 
@@ -498,11 +499,15 @@ func TestDealsAreOrderedByHowDeepTheCutIs(t *testing.T) {
 	}
 }
 
+// campaign creates a running campaign. Its window opens an hour ago rather than
+// at the column default now(): the page judges the window with the host's clock,
+// and a database that runs a millisecond ahead of the host (Docker Desktop's VM
+// does) would otherwise read a campaign made a moment ago as not started.
 func campaign(t *testing.T, slug string) string {
 	t.Helper()
 	if _, err := pool.Exec(t.Context(), `
-		INSERT INTO sale_campaigns (slug, title, ends_at)
-		VALUES ($1, '測試活動', now() + interval '7 days')`, slug); err != nil {
+		INSERT INTO sale_campaigns (slug, title, starts_at, ends_at)
+		VALUES ($1, '測試活動', now() - interval '1 hour', now() + interval '7 days')`, slug); err != nil {
 		t.Fatalf("create campaign: %v", err)
 	}
 	return slug
@@ -523,11 +528,11 @@ type sqlExecer interface {
 
 // featureNewProduct puts a new product with one discounted variant holding
 // stock into the campaign; status is the product's status once featured.
-func featureNewProduct(t *testing.T, db sqlExecer, campaignSlug string, stock int, status string) {
+func featureNewProduct(t *testing.T, exec sqlExecer, campaignSlug string, stock int, status string) {
 	t.Helper()
 	ctx := t.Context()
 	slug := "featured-" + uuid.NewString()
-	if _, err := db.Exec(ctx, `
+	if _, err := exec.Exec(ctx, `
 		WITH p AS (
 		    INSERT INTO products (brand_id, category_id, slug, name, status, published_at)
 		    SELECT (SELECT id FROM brands LIMIT 1),
@@ -540,13 +545,13 @@ func featureNewProduct(t *testing.T, db sqlExecer, campaignSlug string, stock in
 		SELECT p.id, upper(replace($1, '-', '')), 1000, 2000, $2, 0, 0 FROM p`, slug, stock); err != nil {
 		t.Fatalf("create product: %v", err)
 	}
-	if _, err := db.Exec(ctx, `
+	if _, err := exec.Exec(ctx, `
 		INSERT INTO sale_campaign_products (campaign_id, product_id)
 		SELECT c.id, p.id FROM sale_campaigns c, products p WHERE c.slug = $1 AND p.slug = $2`,
 		campaignSlug, slug); err != nil {
 		t.Fatalf("feature product: %v", err)
 	}
-	if _, err := db.Exec(ctx, `UPDATE products SET status = $2 WHERE slug = $1`, slug, status); err != nil {
+	if _, err := exec.Exec(ctx, `UPDATE products SET status = $2 WHERE slug = $1`, slug, status); err != nil {
 		t.Fatalf("set product status: %v", err)
 	}
 }
@@ -631,11 +636,35 @@ func plainSlug(t *testing.T) string {
 	return slug
 }
 
+// The state of a campaign is judged with the host's clock, the window's edges
+// come from the database's, and the two may differ by a millisecond or more. A
+// campaign the fixture means to be running must not depend on which is ahead:
+// judged with a host clock behind the database's at the moment of creation, it
+// is still running.
+func TestAFixtureCampaignRunsWhateverTheHostClockReads(t *testing.T) {
+	slug := campaign(t, "window-skew-"+uuid.NewString())
+	var startsAt, endsAt, createdAt time.Time
+	if err := pool.QueryRow(t.Context(),
+		`SELECT starts_at, ends_at, created_at FROM sale_campaigns WHERE slug = $1`, slug,
+	).Scan(&startsAt, &endsAt, &createdAt); err != nil {
+		t.Fatalf("read campaign: %v", err)
+	}
+	for _, behind := range []time.Duration{0, 2 * time.Millisecond, time.Second} {
+		hostNow := createdAt.Add(-behind)
+		if got := pages.CampaignStateAt(startsAt, endsAt, hostNow); got != pages.CampaignRunning {
+			t.Errorf("a campaign created at %v, judged by a host clock %v behind, is %q, want running",
+				createdAt, behind, got)
+		}
+	}
+}
+
 func TestACampaignOutsideItsWindowIsShownAsNotStartedOrEnded(t *testing.T) {
 	ctx := t.Context()
 	s := catalog.NewStore(pool)
 
-	running := campaign(t, "window-now")
+	suffix := "-" + uuid.NewString()
+
+	running := campaign(t, "window-now"+suffix)
 	if err := feature(t, running, discountedSlug(t)); err != nil {
 		t.Fatalf("feature: %v", err)
 	}
@@ -650,9 +679,9 @@ func TestACampaignOutsideItsWindowIsShownAsNotStartedOrEnded(t *testing.T) {
 		setup string
 		want  pages.CampaignState
 	}{
-		{"already ended", "window-ended", `UPDATE sale_campaigns SET starts_at = now() - interval '30 days',
+		{"already ended", "window-ended" + suffix, `UPDATE sale_campaigns SET starts_at = now() - interval '30 days',
 			ends_at = now() - interval '1 day' WHERE slug = $1`, pages.CampaignEnded},
-		{"not started yet", "window-future", `UPDATE sale_campaigns SET starts_at = now() + interval '1 day',
+		{"not started yet", "window-future" + suffix, `UPDATE sale_campaigns SET starts_at = now() + interval '1 day',
 			ends_at = now() + interval '30 days' WHERE slug = $1`, pages.CampaignNotStarted},
 	}
 	for _, tt := range tests {
@@ -674,7 +703,7 @@ func TestACampaignOutsideItsWindowIsShownAsNotStartedOrEnded(t *testing.T) {
 		})
 	}
 
-	off := campaign(t, "window-off")
+	off := campaign(t, "window-off"+suffix)
 	if _, err := pool.Exec(ctx, `UPDATE sale_campaigns SET is_active = false WHERE slug = $1`, off); err != nil {
 		t.Fatalf("switch off: %v", err)
 	}
@@ -693,7 +722,7 @@ func TestSellableProductsComeBeforeSoldOutOnes(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer pgtx.Rollback(ctx, tx)
+	defer db.Rollback(ctx, tx)
 	s := catalog.NewStore(tx)
 
 	deep := newDeal(t, tx, 100, 0)
@@ -759,10 +788,10 @@ func TestSellableProductsComeBeforeSoldOutOnes(t *testing.T) {
 	}
 }
 
-func newDeal(t *testing.T, db sqlExecer, price, stock int) string {
+func newDeal(t *testing.T, exec sqlExecer, price, stock int) string {
 	t.Helper()
 	slug := "deal-" + uuid.NewString()
-	if _, err := db.Exec(t.Context(), `
+	if _, err := exec.Exec(t.Context(), `
 		WITH p AS (
 		    INSERT INTO products (brand_id, category_id, slug, name, status, published_at)
 		    SELECT (SELECT id FROM brands LIMIT 1),

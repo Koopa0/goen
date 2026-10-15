@@ -15,21 +15,23 @@ import (
 
 	"github.com/google/uuid"
 
+	"github.com/koopa0/goen/internal/bearer"
 	"github.com/koopa0/goen/internal/cart"
 	"github.com/koopa0/goen/internal/i18n"
 	"github.com/koopa0/goen/internal/invoice"
-	"github.com/koopa0/goen/internal/order"
+	"github.com/koopa0/goen/internal/invoice/issuer"
 	"github.com/koopa0/goen/internal/order/access"
+	"github.com/koopa0/goen/internal/order/delivery"
 )
 
 type checkoutBarcode struct {
-	status  invoice.BarcodeStatus
+	status  issuer.BarcodeStatus
 	err     error
 	calls   int
 	barcode string
 }
 
-func (c *checkoutBarcode) CheckBarcode(_ context.Context, barcode string) (invoice.BarcodeStatus, error) {
+func (c *checkoutBarcode) CheckBarcode(_ context.Context, barcode string) (issuer.BarcodeStatus, error) {
 	c.calls++
 	c.barcode = barcode
 	return c.status, c.err
@@ -48,10 +50,7 @@ type barcodeCheckout struct {
 func barcodeCheckoutFor(t *testing.T, checker *checkoutBarcode) barcodeCheckout {
 	t.Helper()
 	s := cart.NewStore(pool)
-	token, err := cart.NewToken()
-	if err != nil {
-		t.Fatal(err)
-	}
+	token := bearer.New()
 	id, err := s.Create(t.Context(), token, uuid.NullUUID{})
 	if err != nil {
 		t.Fatal(err)
@@ -66,7 +65,7 @@ func barcodeCheckoutFor(t *testing.T, checker *checkoutBarcode) barcodeCheckout 
 		"postal_code": {"110"}, "city": {"台北市"}, "district": {"信義區"}, "street": {"松仁路 200 號"}, "note": {"please ring"},
 		"shipping": {shipID.String()}, "idempotency": {checkoutAttemptKey(uuid.NewString())},
 		"invoice_type": {string(invoice.PreferenceMobile)}, "invoice_carrier": {" /abc+123 "},
-		"checkout_quote": {checkoutQuote(t, s, id, uuid.NullUUID{}, shipID, &order.Delivery{PostalCode: "110"}, "").String()},
+		"checkout_quote": {checkoutQuote(t, s, id, uuid.NullUUID{}, shipID, &delivery.Details{PostalCode: "110"}, "").String()},
 	}
 	logs := &bytes.Buffer{}
 	return barcodeCheckout{
@@ -102,13 +101,13 @@ func (c barcodeCheckout) assertUnplaced(t *testing.T) {
 }
 
 func TestKnownMissingBarcodeCannotBeOverridden(t *testing.T) {
-	checker := &checkoutBarcode{status: invoice.BarcodeMissing}
+	checker := &checkoutBarcode{status: issuer.BarcodeMissing}
 	checkout := barcodeCheckoutFor(t, checker)
 	w := checkout.post(t)
 	if w.Code != http.StatusUnprocessableEntity || checker.calls != 1 || checker.barcode != "/ABC+123" {
 		t.Fatalf("missing barcode: status=%d calls=%d barcode=%q", w.Code, checker.calls, checker.barcode)
 	}
-	for _, want := range []string{i18n.T(t.Context(), i18n.KeyMobileBarcodeMissing), `id="invoice_carrier"`, `aria-describedby="invoice_carrier-error"`, `aria-invalid="true"`, "carrier@example.com", "please ring", "松仁路 200 號", " /abc+123 ", checkout.form.Get("idempotency")} {
+	for _, want := range []string{i18n.T(t.Context(), i18n.KeyMobileBarcodeMissing), `id="invoice_carrier"`, `aria-describedby="invoice_carrier-example invoice_carrier-error"`, `aria-invalid="true"`, "carrier@example.com", "please ring", "松仁路 200 號", " /abc+123 ", checkout.form.Get("idempotency")} {
 		if !strings.Contains(w.Body.String(), want) {
 			t.Errorf("refusal lost %q", want)
 		}
@@ -118,8 +117,8 @@ func TestKnownMissingBarcodeCannotBeOverridden(t *testing.T) {
 
 func TestProviderFailureDoesNotStopThePlacement(t *testing.T) {
 	for name, checker := range map[string]*checkoutBarcode{
-		"provider error": {status: invoice.BarcodeUnknown, err: errors.New("provider unavailable")},
-		"no verdict":     {status: invoice.BarcodeUnknown},
+		"provider error": {status: issuer.BarcodeUnknown, err: errors.New("provider unavailable")},
+		"no verdict":     {status: issuer.BarcodeUnknown},
 	} {
 		t.Run(name, func(t *testing.T) {
 			checkout := barcodeCheckoutFor(t, checker)
@@ -144,7 +143,7 @@ func TestProviderFailureDoesNotStopThePlacement(t *testing.T) {
 func TestBarcodeCheckRunsOnlyAfterLocalPlacementValidation(t *testing.T) {
 	for _, mode := range []string{"malformed", "other field", "chooser"} {
 		t.Run(mode, func(t *testing.T) {
-			checker := &checkoutBarcode{status: invoice.BarcodeExists}
+			checker := &checkoutBarcode{status: issuer.BarcodeExists}
 			checkout := barcodeCheckoutFor(t, checker)
 			switch mode {
 			case "malformed":
@@ -164,7 +163,7 @@ func TestBarcodeCheckRunsOnlyAfterLocalPlacementValidation(t *testing.T) {
 }
 
 func TestAnExistingBarcodeIsFrozenAfterTheCheck(t *testing.T) {
-	checker := &checkoutBarcode{status: invoice.BarcodeExists}
+	checker := &checkoutBarcode{status: issuer.BarcodeExists}
 	checkout := barcodeCheckoutFor(t, checker)
 	w := checkout.post(t)
 	if w.Code != http.StatusSeeOther || checker.calls != 1 {

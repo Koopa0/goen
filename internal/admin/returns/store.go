@@ -20,8 +20,6 @@ import (
 
 	"github.com/koopa0/goen/internal/admin/audit"
 	"github.com/koopa0/goen/internal/db"
-	"github.com/koopa0/goen/internal/pgerr"
-	"github.com/koopa0/goen/internal/pgtx"
 	"github.com/koopa0/goen/internal/refund"
 	returnrules "github.com/koopa0/goen/internal/returns"
 	"github.com/koopa0/goen/internal/shoptime"
@@ -484,7 +482,7 @@ func (s *Store) Assess(ctx context.Context, id, basis string, facts []LineEligib
 	if err != nil {
 		return fmt.Errorf("begin return assessment: %w", err)
 	}
-	defer pgtx.Rollback(ctx, tx)
+	defer db.Rollback(ctx, tx)
 	q := s.q.WithTx(tx)
 	if _, lockErr := q.LockReturnOrder(ctx, requestID); lockErr != nil {
 		return refusedIfNoRow(lockErr, "lock return order for assessment")
@@ -543,7 +541,7 @@ func (s *Store) closeReturn(
 	if err != nil {
 		return fmt.Errorf("begin return decision: %w", err)
 	}
-	defer pgtx.Rollback(ctx, tx)
+	defer db.Rollback(ctx, tx)
 	q := s.q.WithTx(tx)
 	if _, lockErr := q.LockReturnOrder(ctx, requestID); lockErr != nil {
 		return refusedIfNoRow(lockErr, "lock return order for decision")
@@ -566,7 +564,7 @@ func (s *Store) closeReturn(
 		ID: requestID, Status: string(kind.Status()), Resolution: pgtype.Text{String: resolution, Valid: resolution != ""},
 	})
 	if decideErr != nil {
-		return pgerr.WrapRefusal(decideErr, ErrRefused)
+		return db.WrapRefusal(decideErr, ErrRefused)
 	}
 	if decided == 0 {
 		return fmt.Errorf("%w: return %s was decided by somebody else first",
@@ -721,7 +719,7 @@ func (s *Store) Inspect(
 	if err != nil {
 		return fmt.Errorf("begin return inspection: %w", err)
 	}
-	defer pgtx.Rollback(ctx, tx)
+	defer db.Rollback(ctx, tx)
 	q := s.q.WithTx(tx)
 	// The order before any line, as every return write takes them: each line's
 	// UPDATE locks the line and then, in return_within_shipment, the order, so
@@ -737,7 +735,7 @@ func (s *Store) Inspect(
 			Received: l.Received, Restocked: l.Restocked, Note: l.Note,
 		})
 		if inspectErr != nil {
-			return pgerr.WrapRefusal(inspectErr, ErrRefused)
+			return db.WrapRefusal(inspectErr, ErrRefused)
 		}
 		// Zero rows is one of three refusals the caller has to hear: not
 		// approved, the line belongs elsewhere, or already inspected.
@@ -795,7 +793,7 @@ func (s *Store) Complete(ctx context.Context, id, resolution string) error {
 	if err != nil {
 		return fmt.Errorf("begin return completion: %w", err)
 	}
-	defer pgtx.Rollback(ctx, tx)
+	defer db.Rollback(ctx, tx)
 	q := s.q.WithTx(tx)
 	if _, lockErr := q.LockReturnOrder(ctx, requestID); lockErr != nil {
 		return refusedIfNoRow(lockErr, "lock return order for completion")
@@ -808,7 +806,7 @@ func (s *Store) Complete(ctx context.Context, id, resolution string) error {
 		ID: requestID, Resolution: resolution,
 	})
 	if err != nil {
-		return pgerr.WrapRefusal(err, ErrRefused)
+		return db.WrapRefusal(err, ErrRefused)
 	}
 	if closed == 0 {
 		return fmt.Errorf("%w: return %s is not open for completion", ErrRefused, requestID)

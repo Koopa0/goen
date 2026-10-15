@@ -6,6 +6,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"slices"
 	"strings"
 	"testing"
 
@@ -321,6 +322,63 @@ func TestErasureReachesTheGuestOrdersOfAProvedAddress(t *testing.T) {
 	}
 }
 
+// TestErasureReadsOnlyTheLowerCaseOutboxKeys holds erase_user to the payload keys
+// every producer writes, "email" and "order_number". A row that names the same
+// address or order under the Go field name ("Email", "OrderNumber") is a shape no
+// binary has queued, and the function carries no fallback for it. The controls
+// are the rows in the real shape, which must go: a function that erased nothing
+// would satisfy the survivors alone.
+func TestErasureReadsOnlyTheLowerCaseOutboxKeys(t *testing.T) {
+	ctx := t.Context()
+	tx, beginErr := schemaPool(t).Begin(ctx)
+	if beginErr != nil {
+		t.Fatalf("begin: %v", beginErr)
+	}
+	defer func() { _ = tx.Rollback(context.WithoutCancel(ctx)) }()
+	if _, err := tx.Exec(ctx, fixtures); err != nil {
+		t.Fatalf("fixtures: %v", err)
+	}
+
+	const ming = "55555555-5555-4555-8555-555555555555"
+	// The order erase_user reaches through Ming's account, and the address the
+	// fixture proves below.
+	const number, addr = "GO-260721-000387", "Ming@Example.com"
+	if _, err := tx.Exec(ctx,
+		`UPDATE users SET email_verified_at = now() WHERE id = $1`, ming); err != nil {
+		t.Fatalf("prove Ming's mailbox: %v", err)
+	}
+	for _, row := range []struct{ topic, key, payload string }{
+		{"password.reset", "recipient-real", `{"email": "` + addr + `", "token": "t"}`},
+		{"password.reset", "recipient-go-name", `{"Email": "` + addr + `", "Token": "t"}`},
+		{"order.placed", "order-real", `{"order_number": "` + number + `"}`},
+		{"order.placed", "order-go-name", `{"OrderNumber": "` + number + `"}`},
+	} {
+		if _, err := tx.Exec(ctx, `INSERT INTO outbox_messages (topic, dedupe_key, payload)
+			VALUES ($1, $2, $3::jsonb)`, row.topic, row.key, row.payload); err != nil {
+			t.Fatalf("queue %s: %v", row.key, err)
+		}
+	}
+
+	if _, err := tx.Exec(ctx, `SELECT erase_user($1)`, ming); err != nil {
+		t.Fatalf("erase_user: %v", err)
+	}
+
+	rows, err := tx.Query(ctx, `SELECT dedupe_key FROM outbox_messages
+		WHERE dedupe_key IN ('recipient-real', 'recipient-go-name', 'order-real', 'order-go-name')
+		ORDER BY dedupe_key`)
+	if err != nil {
+		t.Fatalf("read what the outbox kept: %v", err)
+	}
+	kept, err := pgx.CollectRows(rows, pgx.RowTo[string])
+	if err != nil {
+		t.Fatalf("collect what the outbox kept: %v", err)
+	}
+	if want := []string{"order-go-name", "recipient-go-name"}; !slices.Equal(kept, want) {
+		t.Errorf("outbox rows kept after erasure = %v, want exactly %v: the real-shape rows go, "+
+			"and a Go-field-name row is no longer matched", kept, want)
+	}
+}
+
 // TestAnAccountEveryForeignKeyNamesCanBeErased references one account from every
 // foreign key to users, derived from the catalog so a new one is refused until it
 // is populated here, and erases it as store, the role /account/erase runs as. Each
@@ -384,12 +442,12 @@ func TestAnAccountEveryForeignKeyNamesCanBeErased(t *testing.T) {
 		        'every-fk-receipt', 'admin', NULL, '` + account + `')`,
 		`INSERT INTO store_credit_accounts (user_id) VALUES ('` + account + `')`,
 		`INSERT INTO store_credit_entries (account_id, amount_cents, reason, idempotency_key, actor_user_id)
-		 VALUES ('a0000001-0000-4000-8000-000000000000', 100, '補償', 'every-fk-credit', '` + account + `')`,
+		 VALUES ('a0000001-0000-4000-8000-000000000000', 100, '補償', 'grant:every-fk-credit', '` + account + `')`,
 		`INSERT INTO loyalty_redemption_operations (user_id) VALUES ('` + account + `')`,
 		`INSERT INTO newsletter_issues (subject, body, sent_by) VALUES ('每一個', '每一個外鍵', '` + account + `')`,
 		`INSERT INTO addresses (user_id, recipient_name, phone, postal_code, city, district, street)
 		 VALUES ('` + account + `', '全部', '0912345678', '110', '台北市', '信義區', '路 1 號')`,
-		`INSERT INTO carts (token_hash, user_id) VALUES ('\x0995', '` + account + `')`,
+		`INSERT INTO carts (digest, user_id) VALUES (sha256('every-fk-cart'::bytea), '` + account + `')`,
 		`INSERT INTO wishlist_items (user_id, product_id) VALUES ('` + account + `', '33333333-3333-4333-8333-333333333333')`,
 		`INSERT INTO stock_notifications (variant_id, user_id, email)
 		 VALUES ('44444444-4444-4444-8444-444444444444', '` + account + `', 'everything@example.com')`,
@@ -398,14 +456,15 @@ func TestAnAccountEveryForeignKeyNamesCanBeErased(t *testing.T) {
 		`INSERT INTO product_answers (question_id, user_id, body) VALUES ('` + question + `', '` + account + `', '有。')`,
 		`INSERT INTO product_reviews (product_id, user_id, rating, body)
 		 VALUES ('33333333-3333-4333-8333-333333333333', '` + account + `', 5, '好用')`,
-		`INSERT INTO sessions (token_hash, user_id, expires_at)
+		`INSERT INTO sessions (digest, user_id, expires_at)
 		 VALUES (sha256('every-fk-session'::bytea), '` + account + `', now() + interval '1 day')`,
-		`INSERT INTO password_reset_tokens (token_hash, user_id, expires_at)
+		`INSERT INTO password_reset_tokens (digest, user_id, expires_at)
 		 VALUES (sha256('every-fk-reset'::bytea), '` + account + `', now() + interval '1 hour')`,
 		`INSERT INTO email_verifications (user_id, email, digest, expires_at)
 		 VALUES ('` + account + `', 'everything.new@example.com', sha256('every-fk-verify'::bytea), now() + interval '1 day')`,
 		`INSERT INTO user_identities (user_id, provider, provider_subject) VALUES ('` + account + `', 'google', 'every-fk')`,
-		`INSERT INTO staff_totp_credentials (user_id, secret_encrypted) VALUES ('` + account + `', '\x01')`,
+		`INSERT INTO staff_totp_credentials (user_id, secret_encrypted, mailed_code_digest)
+		 VALUES ('` + account + `', '\x01', sha256('every-fk-mailed'::bytea))`,
 	} {
 		if _, refErr := tx.Exec(ctx, stmt); refErr != nil {
 			t.Fatalf("reference the account: %v\n%s", refErr, stmt)

@@ -8,10 +8,10 @@ import (
 	"strings"
 
 	"github.com/koopa0/goen/internal/admin/access"
+	"github.com/koopa0/goen/internal/db"
 	"github.com/koopa0/goen/internal/i18n"
 	"github.com/koopa0/goen/internal/order"
 	"github.com/koopa0/goen/internal/payment"
-	"github.com/koopa0/goen/internal/pgerr"
 	"github.com/koopa0/goen/internal/refund"
 	"github.com/koopa0/goen/internal/returns"
 	"github.com/koopa0/goen/internal/ui/layouts"
@@ -87,7 +87,7 @@ func refundNotice(err error) (refundOutcome, bool) {
 		return refundOutcome{Query: "?refunded=1", Level: slog.LevelInfo}, true
 	case errors.Is(err, ErrUnsettled):
 		return refundOutcome{Query: "?refundpending=1", Level: slog.LevelWarn}, true
-	case pgerr.IsConstraint(err, "orders_cancel_invoice_resolved"):
+	case db.IsConstraint(err, "orders_cancel_invoice_resolved"):
 		return refundOutcome{Query: "?cancelinvoice=1", Level: slog.LevelWarn}, true
 	case errors.Is(err, ErrCancellationIncomplete):
 		return refundOutcome{Query: "?cancelretry=1", Level: slog.LevelError}, true
@@ -97,21 +97,21 @@ func refundNotice(err error) (refundOutcome, bool) {
 		return refundOutcome{Query: "?refundshipped=1", Level: slog.LevelWarn}, true
 	case errors.Is(err, ErrHasReturn):
 		return refundOutcome{Query: "?refundhasreturn=1", Level: slog.LevelWarn}, true
-	case errors.Is(err, ErrOrderCancelled), pgerr.IsConstraint(err, "orders_history_frozen"):
+	case errors.Is(err, ErrOrderCancelled), db.IsConstraint(err, "orders_history_frozen"):
 		return refundOutcome{Query: "?refundcancelled=1", Level: slog.LevelWarn}, true
 	case errors.Is(err, ErrNotPaid):
 		return refundOutcome{Query: "?refundunpaid=1", Level: slog.LevelWarn}, true
-	case pgerr.IsConstraint(err, "orders_paid_cancel_needs_refund"):
+	case db.IsConstraint(err, "orders_paid_cancel_needs_refund"):
 		return refundOutcome{Query: "?refundpicking=1", Level: slog.LevelWarn}, true
 	case errors.Is(err, ErrOrderChanged),
-		pgerr.IsConstraint(err, "return_before_shipment_eligible"),
-		pgerr.IsConstraint(err, "orders_legal_transition"):
+		db.IsConstraint(err, "return_before_shipment_eligible"),
+		db.IsConstraint(err, "orders_legal_transition"):
 		return refundOutcome{Query: "?refundchanged=1", Level: slog.LevelWarn}, true
 	case errors.Is(err, ErrPayoutUnfit),
-		pgerr.IsConstraint(err, "refunds_sources_cover_return"),
-		pgerr.IsConstraint(err, "refunds_credit_attribution"),
-		pgerr.IsConstraint(err, "refunds_card_amount_positive"),
-		pgerr.IsConstraint(err, "refunds_return_captured"):
+		db.IsConstraint(err, "refunds_sources_cover_return"),
+		db.IsConstraint(err, "refunds_credit_attribution"),
+		db.IsConstraint(err, "refunds_card_amount_positive"),
+		db.IsConstraint(err, "refunds_return_captured"):
 		return refundOutcome{Query: "?refundmismatch=1", Level: slog.LevelError}, true
 	case errors.Is(err, ErrInvalid):
 		return refundOutcome{Query: "?refundreason=1", Level: slog.LevelWarn}, true

@@ -94,6 +94,18 @@ func (v *TaxonomyView) Err(which, field string) string {
 	return v.Errors[field]
 }
 
+func (v *TaxonomyView) missingParentChoice() string {
+	if v.Which != "categories" || v.Draft.Parent == "" {
+		return ""
+	}
+	for i := range v.Categories {
+		if v.Categories[i].Slug == v.Draft.Parent {
+			return ""
+		}
+	}
+	return v.Draft.Parent
+}
+
 func (v *TaxonomyView) DraftFor(which, field string) string {
 	if v.Which != which {
 		return ""

@@ -1,6 +1,7 @@
 package admin
 
 import (
+	"fmt"
 	"github.com/koopa0/goen/internal/i18n"
 	"github.com/koopa0/goen/internal/ui/chart"
 	"github.com/koopa0/goen/internal/ui/components"
@@ -21,7 +22,7 @@ templ Campaigns(p layouts.Page, v CampaignsView) {
 				</p>
 			</div>
 		</div>
-		@Announce(v.Notice)
+		@layouts.Announce(v.Notice)
 		if v.Empty() && !v.PastEnd {
 			<div class="goen-admin__empty">
 				<p class="goen-admin__emptytitle">{ i18n.T(ctx, i18n.KeyAdminCampEmpty) }</p>
@@ -89,13 +90,15 @@ templ Campaigns(p layouts.Page, v CampaignsView) {
 						name="title"
 						required
 						maxlength="60"
-						placeholder={ i18n.T(ctx, i18n.KeyAdminCampTitleExample) }
 						value={ v.Draft.Title }
 						if v.HasErr("title") {
 							aria-invalid="true"
-							aria-describedby="k-title-error"
+							aria-describedby="k-title-example k-title-error"
+						} else {
+							aria-describedby="k-title-example"
 						}
 					/>
+					<p class="goen-admin__hint" id="k-title-example">{ fmt.Sprintf(i18n.T(ctx, i18n.KeyFieldExample), i18n.T(ctx, i18n.KeyAdminCampTitleExample)) }</p>
 					if v.HasErr("title") {
 						<p class="ui-error-text" id="k-title-error">{ v.Err("title") }</p>
 					}
@@ -146,13 +149,15 @@ templ Campaigns(p layouts.Page, v CampaignsView) {
 							name="slug"
 							required
 							maxlength="120"
-							placeholder="summer-sale"
 							value={ v.Draft.Slug }
 							if v.HasErr("slug") {
 								aria-invalid="true"
-								aria-describedby="k-slug-error"
+								aria-describedby="k-slug-example k-slug-error"
+							} else {
+								aria-describedby="k-slug-example"
 							}
 						/>
+						<p class="goen-admin__hint" id="k-slug-example">{ fmt.Sprintf(i18n.T(ctx, i18n.KeyFieldExample), "summer-sale") }</p>
 						if v.HasErr("slug") {
 							<p class="ui-error-text" id="k-slug-error">{ v.Err("slug") }</p>
 						}
@@ -212,7 +217,7 @@ templ CampaignForm(p layouts.Page, v CampaignView) {
 				}
 			</form>
 		</div>
-		@Announce(v.Notice)
+		@layouts.Announce(v.Notice)
 		if v.ResultsUnavailable {
 			@components.Card(components.CardProps{Class: "goen-admin__section"}) {
 				<h2 class="goen-admin__heading">{ i18n.T(ctx, i18n.KeyAdminCampResults) }</h2>

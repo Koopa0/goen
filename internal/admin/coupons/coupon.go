@@ -20,7 +20,6 @@ import (
 	"github.com/koopa0/goen/internal/db"
 	"github.com/koopa0/goen/internal/i18n"
 	"github.com/koopa0/goen/internal/money"
-	"github.com/koopa0/goen/internal/pgerr"
 	"github.com/koopa0/goen/internal/shoptime"
 	"github.com/koopa0/goen/internal/ui/pages/admin"
 	"github.com/koopa0/goen/internal/web"
@@ -221,10 +220,10 @@ func (s *Store) CreateCoupon(ctx context.Context, f *Form) (map[string]string, e
 		func(ctx context.Context, q *db.Queries) error {
 			return q.CreateCoupon(ctx, params)
 		}); err != nil {
-		if pgerr.IsConstraint(err, "coupons_code_key") {
+		if db.IsConstraint(err, "coupons_code_key") {
 			return map[string]string{"code": i18n.T(ctx, i18n.KeyFormCouponTaken)}, nil
 		}
-		return nil, pgerr.WrapRefusal(err, ErrRefused)
+		return nil, db.WrapRefusal(err, ErrRefused)
 	}
 	return nil, nil
 }
@@ -246,7 +245,7 @@ func (s *Store) SetCouponActive(ctx context.Context, code string, active bool) e
 			}
 			return nil
 		}); err != nil {
-		return pgerr.WrapRefusal(err, ErrRefused)
+		return db.WrapRefusal(err, ErrRefused)
 	}
 	return nil
 }

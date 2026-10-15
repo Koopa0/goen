@@ -68,7 +68,7 @@ ON CONFLICT (lower(email)) DO NOTHING;
 SELECT id AS customer_id FROM users
 WHERE lower(email) = 'layout-cust@goen.invalid' AND role = 'customer' \gset
 
-INSERT INTO sessions (token_hash, user_id, expires_at) VALUES
+INSERT INTO sessions (digest, user_id, expires_at) VALUES
     (sha256(convert_to(:'admin_token', 'UTF8')), :'staff_id', now() + interval '1 hour'),
     (sha256(convert_to(:'cust_token', 'UTF8')), :'customer_id', now() + interval '1 hour');
 
@@ -227,7 +227,7 @@ FROM generate_series(1, 2);
 
 SET ROLE store;
 
-INSERT INTO carts (token_hash) VALUES (sha256(convert_to(:'cart_token', 'UTF8')))
+INSERT INTO carts (digest) VALUES (sha256(convert_to(:'cart_token', 'UTF8')))
 RETURNING id AS cart_id \gset
 INSERT INTO cart_items (cart_id, variant_id, quantity) VALUES (:'cart_id', :'variant_id', 1);
 
@@ -398,8 +398,8 @@ WHERE s.order_id IN (:'invoice_id', :'form_id');
 SELECT consume_reservation_partial(id, quantity) FROM inventory_reservations
 WHERE order_id IN (:'invoice_id', :'form_id') AND state = 'held';
 UPDATE orders SET fulfillment_status = 'shipped' WHERE id IN (:'invoice_id', :'form_id');
-INSERT INTO order_events (order_id, kind, note, actor_user_id)
-SELECT order_id, 'shipped', '黑貓宅急便 ' || tracking_number, :'staff_id'
+INSERT INTO order_events (order_id, kind, actor_user_id, shipment_id)
+SELECT order_id, 'shipped', :'staff_id', id
 FROM order_shipments WHERE order_id IN (:'invoice_id', :'form_id');
 SELECT record_audit_event(:'staff_id', 'order.ship', 'orders', order_id, NULL,
     jsonb_build_object('carrier', carrier, 'tracking', tracking_number))

@@ -15,7 +15,6 @@ import (
 
 	"github.com/koopa0/goen/internal/db"
 	"github.com/koopa0/goen/internal/db/dbtest"
-	"github.com/koopa0/goen/internal/pgtx"
 )
 
 func TestCampaignFeatureAndLastMarkdownRemovalSerialize(t *testing.T) {
@@ -61,12 +60,12 @@ func TestCampaignFeatureAndLastMarkdownRemovalSerialize(t *testing.T) {
 			if beginErr != nil {
 				t.Fatal(beginErr)
 			}
-			defer pgtx.Rollback(ctx, winner)
+			defer db.Rollback(ctx, winner)
 			follower, beginErr := app.Begin(ctx)
 			if beginErr != nil {
 				t.Fatal(beginErr)
 			}
-			defer pgtx.Rollback(ctx, follower)
+			defer db.Rollback(ctx, follower)
 			var pid int
 			if pidErr := follower.QueryRow(ctx, "SELECT pg_backend_pid()").Scan(&pid); pidErr != nil {
 				t.Fatal(pidErr)
@@ -97,8 +96,7 @@ func TestCampaignFeatureAndLastMarkdownRemovalSerialize(t *testing.T) {
 					completed = true
 				case <-ctx.Done():
 				case <-ticker.C:
-					var waiting bool
-					if waitErr := owner.QueryRow(ctx, `SELECT coalesce(wait_event_type='Lock',false) FROM pg_stat_activity WHERE pid=$1`, pid).Scan(&waiting); waitErr == nil {
+					if _, waiting, waitErr := dbtest.Blocked(ctx, owner, dbtest.Match{PID: int32(pid)}); waitErr == nil { //nolint:gosec // G115: a backend pid is an int4 in pg_backend_pid()
 						blocked = waiting
 					}
 				}

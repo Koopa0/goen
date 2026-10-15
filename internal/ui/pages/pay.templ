@@ -43,6 +43,13 @@ templ Pay(p layouts.Page, v PayView) {
 			<ul class="goen-pay__lines" role="list">
 				for _, l := range v.Lines {
 					<li class="goen-line">
+						<span class="goen-line__thumb">
+							if l.HasImage() {
+								<img class="goen-line__img" src={ l.ImageURL } srcset={ l.ImageSrcset } sizes="96px" alt={ l.ImageAlt } width="96" height="96" loading="lazy" decoding="async"/>
+							} else {
+								<span class="goen-line__ph" aria-hidden="true"></span>
+							}
+						</span>
 						<div class="goen-line__body">
 							<p class="goen-line__name">{ l.Name }</p>
 							if l.Label != "" {
@@ -68,7 +75,7 @@ templ Pay(p layouts.Page, v PayView) {
 					</div>
 					if v.Discounted() {
 						<div class="goen-summary__row">
-							<dt>{ DiscountLabel(ctx, v.DiscountReason) }</dt>
+							<dt>{ components.DiscountLabel(ctx, v.DiscountReason) }</dt>
 							<dd class="goen-summary__value">{ v.Discount() }</dd>
 						</div>
 					}

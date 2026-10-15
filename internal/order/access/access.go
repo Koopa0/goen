@@ -5,9 +5,6 @@ package access
 
 import (
 	"context"
-	"crypto/rand"
-	"crypto/sha256"
-	"encoding/base64"
 	"errors"
 	"fmt"
 	"log/slog"
@@ -19,8 +16,8 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/jackc/pgx/v5/pgxpool"
 
+	"github.com/koopa0/goen/internal/bearer"
 	"github.com/koopa0/goen/internal/db"
-	"github.com/koopa0/goen/internal/pgtx"
 	"github.com/koopa0/goen/internal/user"
 )
 
@@ -37,10 +34,7 @@ const SweepInterval = 24 * time.Hour
 // ErrNotFound means the order number names no order.
 var ErrNotFound = errors.New("access: order not found")
 
-const (
-	maxGrants = 10
-	tokenSize = 32
-)
+const maxGrants = 10
 
 type Store struct {
 	pool   *pgxpool.Pool
@@ -59,19 +53,16 @@ func NewStore(pool *pgxpool.Pool, secure bool) *Store {
 // know locks the customer out of their own order.
 func (s *Store) Grant(w http.ResponseWriter, r *http.Request, number string) error {
 	ctx := r.Context()
-	token, err := newToken()
-	if err != nil {
-		return err
-	}
+	token := bearer.New()
 	tx, err := s.pool.Begin(ctx)
 	if err != nil {
 		return fmt.Errorf("begin grant order access: %w", err)
 	}
-	defer pgtx.Rollback(ctx, tx)
+	defer db.Rollback(ctx, tx)
 	q := s.q.WithTx(tx)
 
 	n, err := q.GrantOrderAccess(ctx, db.GrantOrderAccessParams{
-		Digest: digest(token), OrderNumber: number,
+		Digest: bearer.Digest(token), OrderNumber: number,
 	})
 	if err != nil {
 		return fmt.Errorf("grant access to order %s: %w", number, err)
@@ -155,17 +146,20 @@ func (s *Store) Sweep(ctx context.Context) error {
 	return nil
 }
 
+// SweepForever runs Sweep once at startup and then on a ticker, so a process
+// restarted more often than [SweepInterval] still removes old grants. It blocks;
+// the caller owns the goroutine.
 func (s *Store) SweepForever(ctx context.Context, log *slog.Logger) {
 	t := time.NewTicker(SweepInterval)
 	defer t.Stop()
 	for {
+		if err := s.Sweep(ctx); err != nil && ctx.Err() == nil {
+			log.ErrorContext(ctx, "sweep old order access grants", "error", err)
+		}
 		select {
 		case <-ctx.Done():
 			return
 		case <-t.C:
-			if err := s.Sweep(ctx); err != nil && ctx.Err() == nil {
-				log.ErrorContext(ctx, "sweep old order access grants", "error", err)
-			}
 		}
 	}
 }
@@ -247,23 +241,10 @@ func retainInterval() pgtype.Interval {
 	return pgtype.Interval{Microseconds: int64(Retain / time.Microsecond), Valid: true}
 }
 
-func newToken() (string, error) {
-	b := make([]byte, tokenSize)
-	if _, err := rand.Read(b); err != nil {
-		return "", fmt.Errorf("read random token: %w", err)
-	}
-	return base64.RawURLEncoding.EncodeToString(b), nil
-}
-
-func digest(token string) []byte {
-	sum := sha256.Sum256([]byte(token))
-	return sum[:]
-}
-
 func digests(tokens []string) [][]byte {
 	out := make([][]byte, 0, len(tokens))
 	for _, t := range tokens {
-		out = append(out, digest(t))
+		out = append(out, bearer.Digest(t))
 	}
 	return out
 }

@@ -29,7 +29,7 @@ Placement copies the terms of sale, so later price changes leave history intact.
 
 `net/http` handlers render typed `templ` views. Every write works as a plain `POST` form without JavaScript: success redirects, and a failed validation keeps the input. htmx enhances the returned HTML. CSS, fonts, and scripts are embedded in the binary under content-versioned URLs.
 
-Packages follow features: each groups its handlers, store, SQL, and tests. Stores call sqlc-generated `db.Queries`; `cmd/goen` composes routes, data access, provider clients, and workers. See [composition][server], [assets][assets], and [sqlc configuration][sqlc].
+Packages follow features: each groups its handlers, store, SQL, and tests. Page bodies are moving from `internal/ui/pages` into the features that render them; `internal/repocheck` holds the import policy. Stores call sqlc-generated `db.Queries`; `cmd/goen` composes routes, data access, provider clients, and workers. See [composition][server], [assets][assets], and [sqlc configuration][sqlc].
 
 ### External systems
 
@@ -92,7 +92,7 @@ Held, abandoned, and slowly released stock all reduce what can be sold. How long
 
 Checkout can contend on a variant, its product, a coupon, a credit account, or the order and payment rows. Different variants of one product share the product lock, so every path must take locks in the same order.
 
-Placement also updates the shop day's `order_number_counters` row and holds it until commit, so unrelated purchases meet there. The six-digit counter caps one shop day at 999,999 orders; the next placement that day is refused. Measure lock hold and wait times before changing critical sections or numbering. See the [schema][schema] (`next_order_number`).
+Order numbers take no shared row: `next_order_number` draws six random base32 characters and relies on the unique index, so unrelated purchases do not meet there and a number reveals nothing about the day's others. Measure lock hold and wait times before changing critical sections or numbering. See the [schema][schema].
 
 ## 5. Fulfillment, returns, and refunds
 
@@ -130,7 +130,7 @@ Workers clear expired reservations, checkout attempts and drafts, sessions and r
 
 ## 7. Database authority and security
 
-Application roles change protected payment, refund, invoice, audit, inventory, credit, and counter records only through granted `SECURITY DEFINER` functions; other data uses explicit table or column grants. Constraints, unique keys, transition triggers, and locks on shared rows enforce the rules together, and invariants across rows rely on that serialization. [Catalog-derived tests][conformance] check the [schema's][schema] grants and constraints.
+Application roles change protected payment, refund, invoice, audit, inventory, and credit records only through granted `SECURITY DEFINER` functions; other data uses explicit table or column grants. Constraints, unique keys, transition triggers, and locks on shared rows enforce the rules together, and invariants across rows rely on that serialization. [Catalog-derived tests][conformance] check the [schema's][schema] grants and constraints.
 
 Audit evidence commits with its change, through `audit.Run`, `audit.In`, or the privileged function itself; history is append-only, with explicit handling for account erasure. The `reporting` role has no runtime pool and cannot read credentials, sessions, personal or delivery data, free text, webhook evidence, or the outbox and invoice-operation tables; order and return tables expose listed business columns only. The schema owner runs migrations.
 
@@ -183,7 +183,7 @@ Hold time runs from acquire to release and includes lock waits; read averages wi
 | Experiment | Vary and observe | Pass when |
 | --- | --- | --- |
 | Browse and search | Signed in or not, catalogue size, selectivity, pagination; plans, pool wait, p95/p99. | Growth and repeated-query costs are known. |
-| Checkout contention | Distinct products, sibling variants, one SKU, shared coupons, credit, the day counter. | Stock, credit, and coupons are never spent twice; expected refusals are counted apart. |
+| Checkout contention | Distinct products, sibling variants, one SKU, shared coupons, credit. | Stock, credit, and coupons are never spent twice; expected refusals are counted apart. |
 | Retries and races | Duplicate keys and webhooks, reordered events, capture against expiry or cancellation. | States stay legal, effects happen once, and required alarms exist. |
 | Expensive work | Cold and churning images, uploads, sign-in bursts, reports, cleanup. | CPU, RSS, GC, waiting requests, and checkout latency stay in bounds. |
 | Backlog and outage | Urgent mail among bulk, slow or failing providers, then recovery. | Work age, urgent-mail deadlines, and drain rate meet targets. |
@@ -229,7 +229,7 @@ Cache hits, transactional reads, order commits, and hot stock writes cost differ
 | Lag-tolerant reads compete with transactions | Projection or read replica. | Stock and payment decisions stay on authoritative data. |
 | `ILIKE` search falls short in quality or cost | Search index or service. | Index lag, rebuilds, checkout revalidation. |
 | Images dominate I/O, backup, or restore | Object storage, CDN, precomputed renditions. | References, deletion, orphans, backup consistency. |
-| Stock or counter locks cap throughput | Shorter critical sections or a revised allocation model. | Quantity and money invariants under one authority. |
+| Stock locks cap throughput | Shorter critical sections or a revised allocation model. | Quantity and money invariants under one authority. |
 | Availability exceeds one process or database | Multiple instances and PostgreSQL HA. | Failover, connection budgets, global limits, RPO/RTO. |
 
 A broker should keep the handoff reliable: business transaction plus outbox, then relay, broker, and an idempotent consumer. See [transactional outbox][outbox-pattern].
@@ -257,13 +257,13 @@ CI runs formatting, vet, lint, dead-code and generated-code checks, migration li
 | Composition and lifecycle | [`cmd/goen`][main], [routes][server], [middleware][middleware], [provider posture][provider-posture] |
 | Checkout, reservations, order access | [`internal/cart`][checkout], [expiry][cart-sweeper], [`internal/order/access`][orderaccess] |
 | Payments and recovery | [`internal/payment`][payment-store], [Stripe adapter][stripe], [`internal/admin/health`][health] |
-| Fulfillment, returns, refunds | [`internal/order`][order], [`internal/admin/orders`][orders], [`internal/returns`][returns-rules], [`internal/admin/returns`][returns], [`internal/admin/refunds`][refund-payout] |
-| Invoices and deferred delivery | [`internal/invoice`][invoice-store], [`internal/admin/invoicing`][invoicing], [`internal/outbox`][outbox], [`internal/email`][email] |
+| Fulfillment, returns, refunds | [`internal/order`][order], [`internal/admin/orders`][orders], [`internal/admin/dashboard`][dashboard], [`internal/returns`][returns-rules], [`internal/admin/returns`][returns], [`internal/admin/refunds`][refund-payout] |
+| Invoices and deferred delivery | [`internal/invoice/issuer`][invoice-store], [`internal/admin/invoicing`][invoicing], [`internal/outbox`][outbox], [`internal/email`][email] |
 | Database authority | [Schema][schema], [sqlc configuration][sqlc], [conformance tests][conformance], [`internal/admin/audit`][audit], [`internal/db/dbtest`][dbtest] |
 | Browsing and derived data | [`internal/catalog`][catalog-store], [`internal/home`][home-banner], [`internal/recommend`][recommend], [reports][reports] |
 | Language, money, time | [`internal/i18n`][i18n], [`internal/money`][money], [`internal/shoptime`][shoptime] |
 | Assets and media | [`assets`][assets], [`internal/media`][media-render] |
-| Identity and browser security | [`internal/account`][account], [staff access][access], [`internal/admin/twofactor`][twofactor], [`internal/ratelimit`][ratelimit] |
+| Identity and browser security | [`internal/account`][account], [`internal/bearer`][bearer], [staff access][access], [`internal/admin/twofactor`][twofactor], [`internal/ratelimit`][ratelimit] |
 | Operations | [Health queries][health-sql], [probes][probe], [slow-query tracer][slowquery], [Makefile][makefile], [CI][workflows] |
 
 [contributing]: CONTRIBUTING.md
@@ -281,13 +281,14 @@ CI runs formatting, vet, lint, dead-code and generated-code checks, migration li
 [stripe]: internal/payment/stripe.go
 [order]: internal/order
 [orders]: internal/admin/orders
+[dashboard]: internal/admin/dashboard
 [returns-rules]: internal/returns
 [returns]: internal/admin/returns/store.go
 [refund-payout]: internal/admin/refunds/payout.go
 [before-shipment]: internal/admin/refunds/beforeshipment.go
-[invoice-store]: internal/invoice/store.go
-[invoice-recovery]: internal/invoice/recovery.go
-[invoice-cancellation]: internal/invoice/cancellation.go
+[invoice-store]: internal/invoice/issuer/store.go
+[invoice-recovery]: internal/invoice/issuer/recovery.go
+[invoice-cancellation]: internal/invoice/issuer/cancellation.go
 [invoicing]: internal/admin/invoicing
 [outbox]: internal/outbox/outbox.go
 [outbox-sql]: internal/outbox/query.sql
@@ -298,6 +299,7 @@ CI runs formatting, vet, lint, dead-code and generated-code checks, migration li
 [dbtest]: internal/db/dbtest
 [audit]: internal/admin/audit/audit.go
 [account]: internal/account
+[bearer]: internal/bearer
 [access]: internal/admin/access/access.go
 [twofactor]: internal/admin/twofactor
 [ratelimit]: internal/ratelimit

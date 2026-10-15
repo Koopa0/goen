@@ -5,6 +5,7 @@ package twofactor_test
 import (
 	"bytes"
 	"context"
+	"crypto/sha256"
 	"encoding/base32"
 	"errors"
 	"fmt"
@@ -88,9 +89,9 @@ func mailedCode(t *testing.T, address string) string {
 }
 
 func TestTheEnrolmentSecretPageIsNotCompressed(t *testing.T) {
-	s := twofactor.NewStore(pool, testKey)
+	s := twofactor.NewStore(pool, testKey, nil)
 	userID, email := admintest.AdminUser(t, pool)
-	h := twofactor.NewHandler(s, slog.New(slog.DiscardHandler), false)
+	h := twofactor.NewHandler(s, slog.New(slog.DiscardHandler))
 	ctx := user.NewContext(t.Context(), user.User{ID: userID, Email: email, Role: user.RoleAdmin})
 	req := httptest.NewRequestWithContext(ctx, http.MethodPost, "/admin/verify/enrol", strings.NewReader(""))
 	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
@@ -119,7 +120,7 @@ func TestTheEnrolmentSecretPageIsNotCompressed(t *testing.T) {
 // the statement. A sequential test passes with the guard in Go.
 func TestACodeIsAcceptedExactlyOnceEvenConcurrently(t *testing.T) {
 	ctx := t.Context()
-	s := twofactor.NewStore(pool, testKey)
+	s := twofactor.NewStore(pool, testKey, nil)
 	userID, email := admintest.AdminUser(t, pool)
 	secret := enrol(t, s, userID, email)
 
@@ -172,7 +173,7 @@ func TestACodeIsAcceptedExactlyOnceEvenConcurrently(t *testing.T) {
 
 func TestRestartingEnrolmentInvalidatesTheOldSecret(t *testing.T) {
 	ctx := t.Context()
-	s := twofactor.NewStore(pool, testKey)
+	s := twofactor.NewStore(pool, testKey, nil)
 	userID, email := admintest.AdminUser(t, pool)
 	old := enrol(t, s, userID, email)
 
@@ -214,8 +215,8 @@ func TestRestartingEnrolmentInvalidatesTheOldSecret(t *testing.T) {
 // new authenticator does not finish enrolment without the one mailed to the
 // account's address.
 func TestEnrolmentIsConfirmedOnlyWithTheCodeMailedToTheAccount(t *testing.T) {
-	s := twofactor.NewStore(pool, testKey)
-	h := twofactor.NewHandler(s, slog.New(slog.DiscardHandler), false)
+	s := twofactor.NewStore(pool, testKey, nil)
+	h := twofactor.NewHandler(s, slog.New(slog.DiscardHandler))
 	userID, email := admintest.AdminUser(t, pool)
 	u := user.User{ID: userID, Email: email, Role: user.RoleAdmin}
 
@@ -238,7 +239,7 @@ func TestEnrolmentIsConfirmedOnlyWithTheCodeMailedToTheAccount(t *testing.T) {
 
 	token := "mailed-code-" + userID
 	if _, err := pool.Exec(t.Context(), `
-		INSERT INTO sessions (token_hash, user_id, expires_at)
+		INSERT INTO sessions (digest, user_id, expires_at)
 		VALUES (sha256($1::bytea), $2, now() + interval '1 day')`,
 		[]byte(token), uuid.MustParse(userID)); err != nil {
 		t.Fatalf("create session: %v", err)
@@ -258,7 +259,7 @@ func TestEnrolmentIsConfirmedOnlyWithTheCodeMailedToTheAccount(t *testing.T) {
 		if enrolled, err := s.Enrolled(t.Context(), userID); err != nil || enrolled {
 			t.Errorf("Confirm with %s left Enrolled = %v (err=%v), want false", tt.name, enrolled, err)
 		}
-		if verified, err := s.SessionVerified(t.Context(), token); err != nil || verified {
+		if verified, err := s.SessionVerified(t.Context(), sessionHash(token)); err != nil || verified {
 			t.Errorf("Confirm with %s left SessionVerified = %v (err=%v), want false", tt.name, verified, err)
 		}
 	}
@@ -267,14 +268,14 @@ func TestEnrolmentIsConfirmedOnlyWithTheCodeMailedToTheAccount(t *testing.T) {
 	if loc := out.Header().Get("Location"); out.Code != http.StatusSeeOther || loc != "/admin?enrolled=1" {
 		t.Errorf("Confirm with the mailed code = %d Location %q, want 303 /admin?enrolled=1", out.Code, loc)
 	}
-	if verified, err := s.SessionVerified(t.Context(), token); err != nil || !verified {
+	if verified, err := s.SessionVerified(t.Context(), sessionHash(token)); err != nil || !verified {
 		t.Errorf("Confirm with the mailed code left SessionVerified = %v (err=%v), want true", verified, err)
 	}
 }
 
 func TestAMailedCodeIsFreshLatestAndSingleUse(t *testing.T) {
 	ctx := t.Context()
-	s := twofactor.NewStore(pool, testKey)
+	s := twofactor.NewStore(pool, testKey, nil)
 
 	t.Run("spent", func(t *testing.T) {
 		userID, email := admintest.AdminUser(t, pool)
@@ -365,7 +366,7 @@ func (r *restartAfterRead) TraceQueryEnd(_ context.Context, _ *pgx.Conn, data pg
 func TestConfirmOnlyConfirmsTheSecretItCheckedTheCodeAgainst(t *testing.T) {
 	ctx := t.Context()
 	userID, email := admintest.AdminUser(t, pool)
-	other := twofactor.NewStore(pool, testKey)
+	other := twofactor.NewStore(pool, testKey, nil)
 	first, _, err := other.Begin(ctx, userID, email)
 	if err != nil {
 		t.Fatalf("begin: %v", err)
@@ -382,7 +383,7 @@ func TestConfirmOnlyConfirmsTheSecretItCheckedTheCodeAgainst(t *testing.T) {
 			t.Errorf("restart enrolment: %v", beginErr)
 		}
 		if _, execErr := pool.Exec(ctx, `
-			UPDATE staff_totp_credentials SET mailed_code_hash = sha256(convert_to($2, 'UTF8'))
+			UPDATE staff_totp_credentials SET mailed_code_digest = sha256(convert_to($2, 'UTF8'))
 			WHERE user_id = $1`, uuid.MustParse(userID), mailed); execErr != nil {
 			t.Errorf("keep the first mailed code: %v", execErr)
 		}
@@ -397,7 +398,7 @@ func TestConfirmOnlyConfirmsTheSecretItCheckedTheCodeAgainst(t *testing.T) {
 		t.Fatalf("open pool: %v", err)
 	}
 	defer tracedPool.Close()
-	s := twofactor.NewStore(tracedPool, testKey)
+	s := twofactor.NewStore(tracedPool, testKey, nil)
 
 	step := twofactor.StepAt(time.Now())
 	if err = s.Confirm(ctx, userID, twofactor.Code(first, step), mailed); err == nil {
@@ -420,7 +421,7 @@ func TestConfirmOnlyConfirmsTheSecretItCheckedTheCodeAgainst(t *testing.T) {
 // alone cannot swap the second factor for the attacker's own device.
 func TestAConfirmedFactorCannotBeReplacedByItsOwnHolder(t *testing.T) {
 	ctx := t.Context()
-	s := twofactor.NewStore(pool, testKey)
+	s := twofactor.NewStore(pool, testKey, nil)
 	userID, email := admintest.AdminUser(t, pool)
 	original := enrol(t, s, userID, email)
 
@@ -449,7 +450,7 @@ func TestAConfirmedFactorCannotBeReplacedByItsOwnHolder(t *testing.T) {
 
 func TestAnUnconfirmedCredentialCannotVerify(t *testing.T) {
 	ctx := t.Context()
-	s := twofactor.NewStore(pool, testKey)
+	s := twofactor.NewStore(pool, testKey, nil)
 	userID, email := admintest.AdminUser(t, pool)
 
 	secret, _, err := s.Begin(ctx, userID, email)
@@ -475,7 +476,7 @@ func TestAnUnconfirmedCredentialCannotVerify(t *testing.T) {
 // defeat the factor.
 func TestAStoredSecretIsNotReadableFromTheDatabase(t *testing.T) {
 	ctx := t.Context()
-	s := twofactor.NewStore(pool, testKey)
+	s := twofactor.NewStore(pool, testKey, nil)
 	userID, email := admintest.AdminUser(t, pool)
 	secret := enrol(t, s, userID, email)
 
@@ -493,7 +494,7 @@ func TestAStoredSecretIsNotReadableFromTheDatabase(t *testing.T) {
 		t.Fatal("the plaintext secret appears in the stored bytes")
 	}
 
-	other := twofactor.NewStore(pool, differentKey)
+	other := twofactor.NewStore(pool, differentKey, nil)
 	if err := other.Verify(ctx, userID, twofactor.Code(secret, twofactor.StepAt(time.Now())+1)); err == nil {
 		t.Error("a credential verified under the wrong encryption key")
 	}
@@ -502,11 +503,11 @@ func TestAStoredSecretIsNotReadableFromTheDatabase(t *testing.T) {
 // TestACredentialSealedUnderAnotherKeyIsNotAWrongCode makes a key rotation
 // legible: no digits can fix a credential the configured key cannot open.
 func TestACredentialSealedUnderAnotherKeyIsNotAWrongCode(t *testing.T) {
-	s := twofactor.NewStore(pool, testKey)
+	s := twofactor.NewStore(pool, testKey, nil)
 	userID, email := admintest.AdminUser(t, pool)
 	secret := enrol(t, s, userID, email)
 
-	other := twofactor.NewStore(pool, differentKey)
+	other := twofactor.NewStore(pool, differentKey, nil)
 	err := other.Verify(t.Context(), userID,
 		twofactor.Code(secret, twofactor.StepAt(time.Now())+1))
 	if !errors.Is(err, twofactor.ErrSecretUnreadable) {
@@ -521,11 +522,11 @@ func TestACredentialSealedUnderAnotherKeyIsNotAWrongCode(t *testing.T) {
 // POST redirects to a stable recovery state, while GET must render that same
 // state directly because its Enrolled read decrypts before POST can run.
 func TestAStaleKeyIsExplainedInsteadOfBlamingTheCode(t *testing.T) {
-	s := twofactor.NewStore(pool, testKey)
+	s := twofactor.NewStore(pool, testKey, nil)
 	userID, email := admintest.AdminUser(t, pool)
 	enrol(t, s, userID, email)
-	h := twofactor.NewHandler(twofactor.NewStore(pool, differentKey),
-		slog.New(slog.DiscardHandler), false)
+	h := twofactor.NewHandler(twofactor.NewStore(pool, differentKey, nil),
+		slog.New(slog.DiscardHandler))
 	u := user.User{ID: userID, Email: email}
 
 	post := httptest.NewRequestWithContext(user.NewContext(t.Context(), u),
@@ -565,8 +566,8 @@ func TestAStaleKeyIsExplainedInsteadOfBlamingTheCode(t *testing.T) {
 // out of the user-correctable branch. Retrying different digits cannot repair a
 // failed security-state write, and calling it a bad code hides the incident.
 func TestDatabaseFailuresAreNotReportedAsWrongCodes(t *testing.T) {
-	s := twofactor.NewStore(pool, testKey)
-	h := twofactor.NewHandler(s, slog.New(slog.DiscardHandler), false)
+	s := twofactor.NewStore(pool, testKey, nil)
+	h := twofactor.NewHandler(s, slog.New(slog.DiscardHandler))
 
 	t.Run("step-up verification", func(t *testing.T) {
 		userID, email := admintest.AdminUser(t, pool)
@@ -643,8 +644,8 @@ func forceTOTPUpdateFailure(t *testing.T, userID string) {
 // TestConfirmDoesNotClaimEnrolmentSuccessWhenMarkVerifiedFails: the factor can
 // stay committed, but a failed session stamp is a fault, not /admin?enrolled=1.
 func TestConfirmDoesNotClaimEnrolmentSuccessWhenMarkVerifiedFails(t *testing.T) {
-	s := twofactor.NewStore(pool, testKey)
-	h := twofactor.NewHandler(s, slog.New(slog.DiscardHandler), false)
+	s := twofactor.NewStore(pool, testKey, nil)
+	h := twofactor.NewHandler(s, slog.New(slog.DiscardHandler))
 	userID, email := admintest.AdminUser(t, pool)
 	secret, _, err := s.Begin(t.Context(), userID, email)
 	if err != nil {
@@ -653,7 +654,7 @@ func TestConfirmDoesNotClaimEnrolmentSuccessWhenMarkVerifiedFails(t *testing.T) 
 
 	token := "confirm-mark-verified-fails-" + userID
 	if _, err := pool.Exec(t.Context(), `
-		INSERT INTO sessions (token_hash, user_id, expires_at)
+		INSERT INTO sessions (digest, user_id, expires_at)
 		VALUES (sha256($1::bytea), $2, now() + interval '1 day')`,
 		[]byte(token), uuid.MustParse(userID)); err != nil {
 		t.Fatalf("create session: %v", err)
@@ -677,7 +678,7 @@ func TestConfirmDoesNotClaimEnrolmentSuccessWhenMarkVerifiedFails(t *testing.T) 
 	if !enrolled {
 		t.Error("the factor was rolled back after a failed session stamp")
 	}
-	verified, verifyErr := s.SessionVerified(t.Context(), token)
+	verified, verifyErr := s.SessionVerified(t.Context(), sessionHash(token))
 	if verifyErr != nil {
 		t.Fatalf("session verified: %v", verifyErr)
 	}
@@ -689,8 +690,8 @@ func TestConfirmDoesNotClaimEnrolmentSuccessWhenMarkVerifiedFails(t *testing.T) 
 // TestConfirmWithoutASessionCookieIsNotEnrolmentSuccess: a missing cookie is a
 // signed-out request. Enrolment can stay committed; the 303 is not success.
 func TestConfirmWithoutASessionCookieIsNotEnrolmentSuccess(t *testing.T) {
-	s := twofactor.NewStore(pool, testKey)
-	h := twofactor.NewHandler(s, slog.New(slog.DiscardHandler), false)
+	s := twofactor.NewStore(pool, testKey, nil)
+	h := twofactor.NewHandler(s, slog.New(slog.DiscardHandler))
 	userID, email := admintest.AdminUser(t, pool)
 	secret, _, err := s.Begin(t.Context(), userID, email)
 	if err != nil {
@@ -728,9 +729,7 @@ func postConfirm(
 		http.MethodPost, "/admin/verify/confirm", strings.NewReader(form.Encode()))
 	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
 	if token != "" {
-		req.AddCookie(&http.Cookie{ //nolint:gosec // G124: request cookie, not a Set-Cookie
-			Name: "goen_session", Value: token,
-		})
+		req = req.WithContext(user.WithSession(req.Context(), sessionHash(token)))
 	}
 	out := httptest.NewRecorder()
 	h.Confirm(out, req)
@@ -768,18 +767,18 @@ func forceSessionMarkFailure(t *testing.T, userID string) {
 
 func TestSessionVerificationExpires(t *testing.T) {
 	ctx := t.Context()
-	s := twofactor.NewStore(pool, testKey)
+	s := twofactor.NewStore(pool, testKey, nil)
 	userID, _ := admintest.AdminUser(t, pool)
 
 	const token = "a-session-token-for-this-test"
 	if _, err := pool.Exec(ctx, `
-		INSERT INTO sessions (token_hash, user_id, expires_at)
+		INSERT INTO sessions (digest, user_id, expires_at)
 		VALUES (sha256($1::bytea), $2, now() + interval '1 day')`,
 		[]byte(token), uuid.MustParse(userID)); err != nil {
 		t.Fatalf("create session: %v", err)
 	}
 
-	verified, err := s.SessionVerified(ctx, token)
+	verified, err := s.SessionVerified(ctx, sessionHash(token))
 	if err != nil {
 		t.Fatalf("read: %v", err)
 	}
@@ -787,10 +786,10 @@ func TestSessionVerificationExpires(t *testing.T) {
 		t.Fatal("a session that never verified reported itself verified")
 	}
 
-	if markErr := s.MarkVerified(ctx, token); markErr != nil {
+	if markErr := s.MarkVerified(ctx, sessionHash(token)); markErr != nil {
 		t.Fatalf("mark: %v", markErr)
 	}
-	verified, err = s.SessionVerified(ctx, token)
+	verified, err = s.SessionVerified(ctx, sessionHash(token))
 	if err != nil || !verified {
 		t.Fatalf("a just-verified session reads as unverified (err=%v)", err)
 	}
@@ -798,16 +797,16 @@ func TestSessionVerificationExpires(t *testing.T) {
 	// Age it past the window.
 	if _, ageErr := pool.Exec(ctx, `
 		UPDATE sessions SET totp_verified_at = created_at
-		WHERE token_hash = sha256($1::bytea)`, []byte(token)); ageErr != nil {
+		WHERE digest = sha256($1::bytea)`, []byte(token)); ageErr != nil {
 		t.Fatalf("age: %v", ageErr)
 	}
 	if _, ageErr := pool.Exec(ctx, `
 		UPDATE sessions SET created_at = now() - interval '13 hours',
 		    totp_verified_at = now() - interval '13 hours'
-		WHERE token_hash = sha256($1::bytea)`, []byte(token)); ageErr != nil {
+		WHERE digest = sha256($1::bytea)`, []byte(token)); ageErr != nil {
 		t.Fatalf("age: %v", ageErr)
 	}
-	if verified, err = s.SessionVerified(ctx, token); err != nil {
+	if verified, err = s.SessionVerified(ctx, sessionHash(token)); err != nil {
 		t.Fatalf("read: %v", err)
 	}
 	if verified {
@@ -816,14 +815,14 @@ func TestSessionVerificationExpires(t *testing.T) {
 	}
 
 	// An unknown token is a signed-out request, not a failure.
-	verified, err = s.SessionVerified(ctx, "no-such-token")
+	verified, err = s.SessionVerified(ctx, sessionHash("no-such-token"))
 	if err != nil || verified {
 		t.Errorf("an unknown token gave verified=%v err=%v", verified, err)
 	}
 }
 
 func TestNoKeyMeansNoEnrolment(t *testing.T) {
-	s := twofactor.NewStore(pool, nil)
+	s := twofactor.NewStore(pool, nil, nil)
 	userID, email := admintest.AdminUser(t, pool)
 
 	if s.Enabled() {
@@ -852,7 +851,7 @@ func TestNoKeyMeansNoEnrolment(t *testing.T) {
 // !Enabled branch, whose whole job is to say the factor is off.
 func TestAnUnkeyedDeploymentSaysSoInsteadOf500(t *testing.T) {
 	userID, email := admintest.AdminUser(t, pool)
-	h := twofactor.NewHandler(twofactor.NewStore(pool, nil), slog.New(slog.DiscardHandler), false)
+	h := twofactor.NewHandler(twofactor.NewStore(pool, nil, nil), slog.New(slog.DiscardHandler))
 
 	ctx := user.NewContext(t.Context(), user.User{ID: userID, Email: email, Role: user.RoleAdmin})
 	req := httptest.NewRequestWithContext(ctx, http.MethodGet, "/admin/verify", http.NoBody)
@@ -868,4 +867,11 @@ func TestAnUnkeyedDeploymentSaysSoInsteadOf500(t *testing.T) {
 	if want := i18n.T(ctx, i18n.KeyTwoFAOffBody); !strings.Contains(out.Body.String(), want) {
 		t.Errorf("the off-state notice is missing; want %q in the body", want)
 	}
+}
+
+// sessionHash is what account.Authenticate puts on the request for a session
+// cookie carrying token: sessions.digest.
+func sessionHash(token string) []byte {
+	sum := sha256.Sum256([]byte(token))
+	return sum[:]
 }

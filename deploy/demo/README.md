@@ -6,9 +6,10 @@ A reference for restoring a fixed demo snapshot under systemd:
 [restore.env.example](restore.env.example); [manifest.env](manifest.env) is the
 sanitised application configuration template, not an attestation of the live host.
 
-The timer runs at 03:00 UTC and also catches a missed run when activated. The
-script checks the restore identity and archive before stopping `goen.service`,
-restores the snapshot, then starts the service. It does not create demo history,
+The timer runs at 19:00 UTC (03:00 in Taipei, outside shop hours) and also catches
+a missed run when activated. The script checks the restore identity and archive
+before stopping `goen.service`, restores the snapshot, then starts the service. It
+does not create demo history,
 run `seed/demo_shift.sql`, or refresh the snapshot's anchor day. Each run restores
 the same saved dates; it does not make the history end yesterday.
 
@@ -18,6 +19,24 @@ data in place. `scripts/demo-restore-test.sh`, part of `make verify`, proves bot
 against a throwaway PostgreSQL in CI. If the restore fails, the script attempts
 to restart on the previous data. If starting after a successful restore fails,
 operator recovery is required.
+
+## Creating the database
+
+goen runs only on PostgreSQL's builtin `C.UTF-8` locale, so its sort order and
+character classes do not change with the host's C library. `migrations/001`
+refuses to run in any other database, and the binary refuses to start on one
+unless `GOEN_INSECURE_COOKIES=1` is set. Create the demo database with:
+
+```sh
+createdb --template=template0 --encoding=UTF8 --locale-provider=builtin --builtin-locale=C.UTF-8 goen
+```
+
+or, in SQL, `CREATE DATABASE goen TEMPLATE template0 ENCODING 'UTF8' LOCALE_PROVIDER
+builtin BUILTIN_LOCALE 'C.UTF-8'`.
+
+`restore-demo-db.sh` restores into an existing database (`pg_restore --clean`),
+so a demo database created before this requirement must be recreated once with
+the builtin provider; the restore does not change a database's locale.
 
 ## History and calendar dates
 

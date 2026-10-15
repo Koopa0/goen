@@ -26,7 +26,6 @@ import (
 	"github.com/koopa0/goen/internal/db/dbtest"
 	"github.com/koopa0/goen/internal/i18n"
 	"github.com/koopa0/goen/internal/order/access"
-	"github.com/koopa0/goen/internal/pgtx"
 	"github.com/koopa0/goen/internal/returns/buyer"
 )
 
@@ -236,10 +235,7 @@ func waitForReturnsLock(t *testing.T, pid int, done <-chan struct{}) {
 			t.Fatal("return submission finished before reaching the intended database lock")
 		default:
 		}
-		var waiting bool
-		err := pool.QueryRow(t.Context(), `
-			SELECT wait_event_type = 'Lock' FROM pg_stat_activity WHERE pid = $1`, pid).
-			Scan(&waiting)
+		_, waiting, err := dbtest.Blocked(t.Context(), pool, dbtest.Match{PID: int32(pid)}) //nolint:gosec // G115: a backend pid is an int4 in pg_backend_pid()
 		if err == nil && waiting {
 			return
 		}
@@ -330,7 +326,7 @@ func fundedShippedOrderForReturnErasure(
 	if _, err := tx.Exec(ctx, `
 		SELECT post_store_credit($1, $2, '退貨競態測試額度', NULL, $3, NULL)`,
 		fixture.userID, storeFundsCents,
-		"return-erasure-grant:"+fixture.orderID.String()); err != nil {
+		"grant:return-erasure-"+fixture.orderID.String()); err != nil {
 		t.Fatalf("grant return-erasure credit: %v", err)
 	}
 	if _, err := tx.Exec(ctx,
@@ -649,7 +645,7 @@ func TestAConcurrentReturnRendersTheFreshQuantity(t *testing.T) {
 			if err != nil {
 				t.Fatalf("begin competing return: %v", err)
 			}
-			defer pgtx.Rollback(ctx, competitor)
+			defer db.Rollback(ctx, competitor)
 			var requestID uuid.UUID
 			if err := competitor.QueryRow(ctx, `
 		INSERT INTO return_requests (order_id, reason)

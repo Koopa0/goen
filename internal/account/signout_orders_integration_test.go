@@ -14,9 +14,10 @@ import (
 	"github.com/google/uuid"
 
 	"github.com/koopa0/goen/internal/account"
+	"github.com/koopa0/goen/internal/bearer"
 	"github.com/koopa0/goen/internal/cart"
-	"github.com/koopa0/goen/internal/order"
 	"github.com/koopa0/goen/internal/order/access"
+	"github.com/koopa0/goen/internal/order/delivery"
 	"github.com/koopa0/goen/internal/ratelimit"
 	"github.com/koopa0/goen/internal/user"
 )
@@ -56,10 +57,7 @@ func TestSigningOutEndsTheBrowsersAccessToItsOrders(t *testing.T) {
 	variant := sellableVariant(t, ctx)
 	place := func(buyer uuid.NullUUID, previous *http.Cookie) (string, *http.Cookie) {
 		t.Helper()
-		token, err := cart.NewToken()
-		if err != nil {
-			t.Fatalf("cart token: %v", err)
-		}
+		token := bearer.New()
 		cartID, err := shop.Create(ctx, token, buyer)
 		if err != nil {
 			t.Fatalf("create cart: %v", err)
@@ -67,7 +65,7 @@ func TestSigningOutEndsTheBrowsersAccessToItsOrders(t *testing.T) {
 		if err = shop.Add(ctx, cartID, variant, 1); err != nil {
 			t.Fatalf("add to cart: %v", err)
 		}
-		address := &order.Delivery{Email: addr, RecipientName: "登出測試", Phone: "0912345678",
+		address := &delivery.Details{Email: addr, RecipientName: "登出測試", Phone: "0912345678",
 			PostalCode: "110", City: "台北市", District: "信義區", Street: "松仁路 1 號"}
 		number, err := shop.PlaceOrder(ctx, cartID, buyer, shippingID, address, nil, "",
 			accountCheckoutQuote(t, shop, cartID, buyer, shippingID, address.PostalCode),
@@ -169,10 +167,7 @@ func newPlacedOrders(t *testing.T, name string) *placedOrders {
 	}
 	variant := ownVariant(t, name)
 	for _, buyer := range []uuid.NullUUID{{}, {UUID: uuid.MustParse(p.u.ID), Valid: true}} {
-		token, err := cart.NewToken()
-		if err != nil {
-			t.Fatalf("cart token: %v", err)
-		}
+		token := bearer.New()
 		cartID, err := shop.Create(ctx, token, buyer)
 		if err != nil {
 			t.Fatalf("create cart: %v", err)
@@ -180,7 +175,7 @@ func newPlacedOrders(t *testing.T, name string) *placedOrders {
 		if err = shop.Add(ctx, cartID, variant, 1); err != nil {
 			t.Fatalf("add to cart: %v", err)
 		}
-		address := &order.Delivery{Email: addr, RecipientName: "登出測試", Phone: "0912345678",
+		address := &delivery.Details{Email: addr, RecipientName: "登出測試", Phone: "0912345678",
 			PostalCode: "110", City: "台北市", District: "信義區", Street: "松仁路 1 號"}
 		number, err := shop.PlaceOrder(ctx, cartID, buyer, shippingID, address, nil, "",
 			accountCheckoutQuote(t, shop, cartID, buyer, shippingID, address.PostalCode),
@@ -319,7 +314,7 @@ func TestASessionThatExpiresEndsTheBrowsersAccessToItsOrders(t *testing.T) {
 	if _, err := pool.Exec(ctx, `
 		UPDATE sessions SET created_at = now() - interval '15 days',
 		                    expires_at = now() - interval '1 second'
-		WHERE token_hash = $1`, account.HashToken(session.Value)); err != nil {
+		WHERE digest = $1`, bearer.Digest(session.Value)); err != nil {
 		t.Fatalf("expire the session: %v", err)
 	}
 
@@ -341,8 +336,8 @@ func TestAStaleSessionAtErasureEndsTheBrowsersAccessToItsOrders(t *testing.T) {
 	p := newPlacedOrders(t, "erase-stale")
 	session := p.signIn()
 	if _, err := pool.Exec(t.Context(), `
-		UPDATE sessions SET created_at = now() - interval '1 day' WHERE token_hash = $1`,
-		account.HashToken(session.Value)); err != nil {
+		UPDATE sessions SET created_at = now() - interval '1 day' WHERE digest = $1`,
+		bearer.Digest(session.Value)); err != nil {
 		t.Fatalf("age the session: %v", err)
 	}
 	req := cartForm(t.Context(), "/account/erase", url.Values{"confirm": {p.u.Email}})

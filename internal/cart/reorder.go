@@ -6,7 +6,7 @@ import (
 
 	"github.com/google/uuid"
 
-	"github.com/koopa0/goen/internal/pgtx"
+	"github.com/koopa0/goen/internal/db"
 )
 
 type Reorder struct {
@@ -34,7 +34,7 @@ func (s *Store) Reorder(ctx context.Context, cartID uuid.UUID, number string) (R
 	if err != nil {
 		return Reorder{}, fmt.Errorf("begin reorder: %w", err)
 	}
-	defer pgtx.Rollback(ctx, tx)
+	defer db.Rollback(ctx, tx)
 	q := s.q.WithTx(tx)
 	if lockErr := lockCart(ctx, q, cartID); lockErr != nil {
 		return Reorder{}, lockErr

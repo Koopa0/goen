@@ -98,7 +98,7 @@ func goSources(t *testing.T) map[string]string {
 			return err
 		}
 		if d.IsDir() {
-			if d.Name() == ".git" {
+			if path != root && strings.HasPrefix(d.Name(), ".") {
 				return filepath.SkipDir
 			}
 			return nil

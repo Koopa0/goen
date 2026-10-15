@@ -80,7 +80,7 @@ jobs:
         run: |
           set -euo pipefail
           make migrate-up
-          make db-seed
+          PGOPTIONS='-c goen.catalogue_seed=development' make db-seed
           if [ "$DATA" = layout ]; then
             psql "$GOEN_DATABASE_URL" -X -q -v env=fixtures.env -f scripts/check-layout.sql
           else
@@ -91,7 +91,7 @@ jobs:
           WHERE NOT EXISTS (SELECT 1 FROM users WHERE lower(email) = 'screenshots@goen.invalid');
           SELECT id AS staff_id FROM users WHERE lower(email) = 'screenshots@goen.invalid' AND role = 'admin' \gset
           SET ROLE store;
-          INSERT INTO sessions (token_hash, user_id, expires_at)
+          INSERT INTO sessions (digest, user_id, expires_at)
           VALUES (sha256(convert_to(:'token', 'UTF8')), :'staff_id', now() + interval '1 hour');
           SQL
             psql "$GOEN_DATABASE_URL" -X -v ON_ERROR_STOP=1 -v demo_database=goen -f seed/demo_history.sql

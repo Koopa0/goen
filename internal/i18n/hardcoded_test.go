@@ -169,6 +169,11 @@ func beforeTrailingSQLComment(line string) string {
 // goStringLiteral matches a double-quoted Go or templ attribute string.
 var goStringLiteral = regexp.MustCompile(`"((?:[^"\\]|\\.)*)"`)
 
+// spokenAttributeWord matches an ARIA attribute that carries a quoted word, which a
+// zh-Hant visitor's screen reader reads in English. Ones built from a format
+// string or a catalogue message are not quoted words.
+var spokenAttributeWord = regexp.MustCompile(`aria-(?:label|roledescription|description|valuetext)="[^"{]*[A-Za-z]`)
+
 // hardCodedGeneric reports whether line puts a generic English UI word on a
 // customer's screen; prev is the comment block above it, where an exemption may sit.
 func hardCodedGeneric(path, line, prev string) bool {
@@ -190,6 +195,10 @@ func hardCodedGeneric(path, line, prev string) bool {
 		return true
 	}
 	if strings.Contains(line, `"Email"`) {
+		return true
+	}
+	// A screen reader reads these attributes aloud; a quoted word is in one language only.
+	if spokenAttributeWord.MatchString(line) {
 		return true
 	}
 	return strings.Contains(line, `<th scope="col">English</th>`)

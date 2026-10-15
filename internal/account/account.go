@@ -2,9 +2,7 @@
 package account
 
 import (
-	"context"
 	"crypto/rand"
-	"crypto/sha256"
 	"crypto/subtle"
 	"encoding/base64"
 	"errors"
@@ -31,13 +29,6 @@ var (
 	ErrInvalidInput   = errors.New("account: invalid input")
 	ErrOpenReturn     = errors.New("account: finish the open return before erasure")
 	ErrLastAdmin      = errors.New("account: the last administrator cannot be erased")
-	// ErrQuantityAdjusted means adoption or merge succeeded but a line was
-	// capped to what the shelf can supply.
-	ErrQuantityAdjusted = errors.New("account: quantity adjusted to available stock")
-	// ErrCartMergeRefused means a guest line cannot be adopted because the
-	// catalogue no longer honours it; the transaction rolls back with both
-	// carts unchanged.
-	ErrCartMergeRefused = errors.New("account: guest cart contains unavailable merchandise")
 )
 
 // SessionCookieName carries __Host-, which refuses a subdomain's forgery.
@@ -55,8 +46,6 @@ const SessionTTL = 14 * 24 * 60 * 60
 // order. The cookie of an ended session grants nothing, and presenting it is
 // the only way Authenticate learns to take that proof away.
 const sessionCookieMaxAge = SessionTTL + 30*24*60*60
-
-const ResetTTL = 60 * 60
 
 const (
 	MinPasswordRunes = 10
@@ -87,6 +76,16 @@ const (
 	argonSaltLen = 16
 )
 
+// argon2Cost is the work factor HashPassword spends on one hash.
+type argon2Cost struct {
+	time, memory uint32
+	threads      uint8
+}
+
+// passwordCost is what HashPassword spends. Only export_test.go lowers it, so
+// the program always hashes at the cost the constants above name.
+var passwordCost = argon2Cost{time: argonTime, memory: argonMemory, threads: argonThreads}
+
 func HashPassword(password string) (string, error) {
 	if len(password) > MaxPasswordBytes {
 		return "", errors.New("account: password too long to hash")
@@ -95,10 +94,10 @@ func HashPassword(password string) (string, error) {
 	if _, err := rand.Read(salt); err != nil {
 		return "", fmt.Errorf("read salt: %w", err)
 	}
-	key := argon2.IDKey([]byte(password), salt, argonTime, argonMemory, argonThreads, argonKeyLen)
+	key := argon2.IDKey([]byte(password), salt, passwordCost.time, passwordCost.memory, passwordCost.threads, argonKeyLen)
 
 	return fmt.Sprintf("$argon2id$v=%d$m=%d,t=%d,p=%d$%s$%s",
-		argon2.Version, argonMemory, argonTime, argonThreads,
+		argon2.Version, passwordCost.memory, passwordCost.time, passwordCost.threads,
 		base64.RawStdEncoding.EncodeToString(salt),
 		base64.RawStdEncoding.EncodeToString(key),
 	), nil
@@ -143,21 +142,6 @@ func VerifyPassword(encoded, password string) bool {
 	return subtle.ConstantTimeCompare(got, want) == 1
 }
 
-const tokenBytes = 32
-
-func NewToken() (string, error) {
-	b := make([]byte, tokenBytes)
-	if _, err := rand.Read(b); err != nil {
-		return "", fmt.Errorf("read token: %w", err)
-	}
-	return base64.RawURLEncoding.EncodeToString(b), nil
-}
-
-func HashToken(token string) []byte {
-	sum := sha256.Sum256([]byte(token))
-	return sum[:]
-}
-
 func SetSessionCookie(w http.ResponseWriter, token string, secure bool) {
 	http.SetCookie(w, &http.Cookie{ //nolint:gosec // G124: dev-only opt-out, secure by default
 		Name:     sessionCookieName(secure),
@@ -197,28 +181,6 @@ func sessionCookieName(secure bool) string {
 	return "goen_session"
 }
 
-// FieldMessages keeps the first message per field so a control shows one reason
-// rather than a pile.
-func FieldMessages(ctx context.Context, errs []web.FieldRefusal) map[string]string {
-	if len(errs) == 0 {
-		return nil
-	}
-	out := make(map[string]string, len(errs))
-	for _, e := range errs {
-		if _, seen := out[e.Field]; seen {
-			continue
-		}
-		msg := i18n.T(ctx, e.MessageKey)
-		// Only the too-short message carries a verb; formatting the others
-		// appends %!(EXTRA int=10) beside the field.
-		if e.MessageKey == i18n.KeyPasswordTooShort {
-			msg = fmt.Sprintf(msg, MinPasswordRunes)
-		}
-		out[e.Field] = msg
-	}
-	return out
-}
-
 type Credentials struct {
 	Email    string
 	Password string
@@ -238,8 +200,8 @@ func (c *Credentials) ValidateRegistration() []web.FieldRefusal {
 	if k := EmailError(c.Email); k != "" {
 		errs = append(errs, web.FieldRefusal{Field: "email", MessageKey: k})
 	}
-	if k := PasswordError(c.Password); k != "" {
-		errs = append(errs, web.FieldRefusal{Field: "password", MessageKey: k})
+	if refusal, refused := PasswordRefusal("password", c.Password); refused {
+		errs = append(errs, refusal)
 	} else if c.Confirm != c.Password {
 		errs = append(errs, web.FieldRefusal{Field: "confirm", MessageKey: i18n.KeyPasswordsDiffer})
 	}
@@ -279,6 +241,20 @@ func PasswordError(s string) i18n.Key {
 	return ""
 }
 
+// PasswordRefusal is PasswordError as a refusal of field, carrying the
+// minimum the too-short message states.
+func PasswordRefusal(field, s string) (web.FieldRefusal, bool) {
+	k := PasswordError(s)
+	if k == "" {
+		return web.FieldRefusal{}, false
+	}
+	refusal := web.FieldRefusal{Field: field, MessageKey: k}
+	if k == i18n.KeyPasswordTooShort {
+		refusal.Args = []any{MinPasswordRunes}
+	}
+	return refusal, true
+}
+
 func profileInputValid(name, phone string) bool {
 	return utf8.RuneCountInString(name) <= maxNameRunes &&
 		utf8.RuneCountInString(phone) <= maxPhoneRunes &&
@@ -296,7 +272,3 @@ func normaliseUserAgent(s string) string {
 	}
 	return s
 }
-
-// MembershipWindowDays is loyalty.MembershipWindow in days; window_test.go
-// keeps the two equal.
-const MembershipWindowDays int32 = 365

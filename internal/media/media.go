@@ -51,6 +51,16 @@ var (
 	// MaxDecodedBytes.
 	ErrTooLarge = errors.New("media: the image is too large")
 	ErrBusy     = errors.New("media: every upload slot is busy")
+	// ErrUploadIncomplete is a body that stopped arriving: the server's read
+	// deadline passed, the connection dropped, or it ended short of its length.
+	// It says nothing about the file's size.
+	ErrUploadIncomplete = errors.New("media: the upload did not arrive in full")
+	// ErrUploadUnreadable is a body that arrived but is not a readable
+	// multipart form.
+	ErrUploadUnreadable = errors.New("media: the upload could not be read")
+	// ErrUploadAborted is a request whose client went away. Nobody is left to
+	// read a notice, so a handler answers nothing and logs nothing.
+	ErrUploadAborted = errors.New("media: the client abandoned the upload")
 	// ErrLosslessWebP is a WebP whose decode would run x/image's lossless
 	// decoder, for its frame or its alpha. That decoder builds up to 2600
 	// Huffman groups whatever the picture's size, over 100 MB that no header

@@ -11,8 +11,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/google/uuid"
-
+	"github.com/koopa0/goen/internal/bearer"
 	"github.com/koopa0/goen/internal/email"
 	"github.com/koopa0/goen/internal/i18n"
 	"github.com/koopa0/goen/internal/ratelimit"
@@ -22,12 +21,14 @@ import (
 	"github.com/koopa0/goen/internal/web"
 )
 
-// CartFinder is what account needs of the cart: the cart a request's cookie
-// names, so sign-in can adopt it; forgetting that cookie and the one naming the
-// browser's orders when a session ends; and whether the shop takes payment,
-// which decides whether an unpaid order offers 付款.
+// CartFinder is what account needs of the cart: adopting the guest cart a
+// request's cookie names when someone signs in; forgetting that cookie and the
+// one naming the browser's orders when a session ends; and whether the shop takes
+// payment, which decides whether an unpaid order offers 付款.
 type CartFinder interface {
-	IDForRequest(ctx context.Context, r *http.Request) (uuid.UUID, bool, error)
+	// AdoptRequestCart reports whether a line came out smaller than the guest had
+	// it. An error means the cart was not carried over and has been logged.
+	AdoptRequestCart(ctx context.Context, r *http.Request, userID string) (adjusted bool, err error)
 	RecoveryContents(ctx context.Context, r *http.Request) (pages.CartRecoveryContents, error)
 	ForgetCart(w http.ResponseWriter, r *http.Request)
 	ForgetOrders(w http.ResponseWriter, r *http.Request)
@@ -35,7 +36,12 @@ type CartFinder interface {
 }
 
 type Handler struct {
+	// signinLimit bounds password guesses per account and client network, and
+	// starting Google sign-in per client.
 	signinLimit *ratelimit.Limiter
+	// guessCeiling bounds, per account, the guesses that missed, from every
+	// network together: the bound on a guess spread over many networks.
+	guessCeiling *ratelimit.Limiter
 	// resetLimit has a budget of its own: spending the registration and change
 	// budget for an address must not stop its owner getting a reset link.
 	resetLimit *ratelimit.Limiter
@@ -45,6 +51,9 @@ type Handler struct {
 	secure     bool
 	google     *Google
 	demo       DemoAccount
+	// stepUp reports whether the request's session passed the second factor; nil
+	// is a deployment with none. See [Handler.RequireStepUpFromStaff].
+	stepUp func(*http.Request) (bool, error)
 
 	// mailLimit bounds, per address, the forms that mail an address whoever
 	// names it: each mails the address whether or not it has an account, so
@@ -62,8 +71,19 @@ func NewHandler(store *Store, carts CartFinder, log *slog.Logger, secure bool, g
 	}
 	return &Handler{
 		store: store, carts: carts, log: log, secure: secure, google: google,
+		// Six wrong passwords at once from one network, then one every fifteen
+		// seconds: more than someone retyping needs.
 		signinLimit: ratelimit.New(ratelimit.Config{
 			Every: 15 * time.Second, Burst: 6, TTL: time.Hour, MaxKeys: 65_536,
+		}),
+		// Ten wrong passwords before the first refusal, then ten every fifteen
+		// minutes, whoever sent them: a guess spread over many networks is
+		// held to forty an hour per account. Only misses are charged, so the
+		// owner's right password costs nothing, but the ceiling is shared: an
+		// attacker who keeps it empty keeps every sign-in out until the
+		// refill, which is the cost of bounding a distributed guess.
+		guessCeiling: ratelimit.New(ratelimit.Config{
+			Every: 90 * time.Second, Burst: 10, TTL: time.Hour, MaxKeys: 65_536,
 		}),
 		resetLimit: ratelimit.New(addressMailPace),
 		mailLimit:  ratelimit.New(addressMailPace),
@@ -72,6 +92,45 @@ func NewHandler(store *Store, carts CartFinder, log *slog.Logger, secure bool, g
 
 // OfferDemoAccount must be called before the handler serves.
 func (h *Handler) OfferDemoAccount(d DemoAccount) { h.demo = d }
+
+// RequireStepUpFromStaff makes the doors that end, replace or re-credential an
+// account (erase, password change, sign out of other devices, Google unlink)
+// refuse a staff account whose session has not passed the second factor, and
+// send it to /admin/verify as /admin does. stepUp is the back office's own
+// predicate; nil, a deployment with no second factor, turns the check off, as it
+// does for /admin. A customer is never asked. It must be called before the
+// handler serves.
+//
+// The password alone opens /account, so without this the second factor guards
+// only /admin while the same users row could be erased or locked out from here.
+func (h *Handler) RequireStepUpFromStaff(stepUp func(*http.Request) (bool, error)) {
+	h.stepUp = stepUp
+}
+
+// stepUpPath is where /admin sends a session that has not passed the second
+// factor. It is the back office's route, named here because account may not
+// import the back office.
+const stepUpPath = "/admin/verify"
+
+// refuseUnverifiedStaff answers a staff account whose session has not passed
+// the second factor and reports that it did; the caller returns without acting.
+// A customer, and every account while no second factor is configured, passes.
+func (h *Handler) refuseUnverifiedStaff(w http.ResponseWriter, r *http.Request, u user.User) bool {
+	if !u.IsStaff() || h.stepUp == nil {
+		return false
+	}
+	verified, err := h.stepUp(r)
+	if err != nil {
+		h.log.ErrorContext(r.Context(), "read second factor", "error", err)
+		h.serverError(w, r)
+		return true
+	}
+	if verified {
+		return false
+	}
+	http.Redirect(w, r, stepUpPath, http.StatusSeeOther)
+	return true
+}
 
 func (h *Handler) refuseDemoChange(w http.ResponseWriter, r *http.Request, u user.User) bool {
 	if !h.demo.holds(u.Email) {
@@ -109,7 +168,8 @@ func (h *Handler) Authenticate(next http.Handler) http.Handler {
 			next.ServeHTTP(w, r)
 			return
 		}
-		next.ServeHTTP(w, r.WithContext(user.NewContext(r.Context(), u)))
+		ctx := user.WithSession(user.NewContext(r.Context(), u), bearer.Digest(token))
+		next.ServeHTTP(w, r.WithContext(ctx))
 	})
 }
 
@@ -181,13 +241,17 @@ func (h *Handler) SignIn(w http.ResponseWriter, r *http.Request) {
 	// The demo account's password is printed on this page, so a per-account
 	// bound would guard nothing and let one visitor's mistakes shut out every
 	// other; the per-client bound still holds the cost.
+	var guess passwordGuess
 	if !h.demo.holds(normalised) {
-		if retryAfter, ok := h.signinLimit.Allow("account:" + normalised); !ok {
+		var retryAfter time.Duration
+		var ok bool
+		if guess, retryAfter, ok = h.reservePasswordGuess(r, normalised); !ok {
 			h.log.WarnContext(r.Context(), "sign-in throttled by account")
 			ratelimit.Refuse(r.Context(), w, retryAfter)
 			return
 		}
 	}
+	defer guess.settle(false)
 
 	u, err := h.store.Authenticate(r.Context(), addr, password)
 	if err != nil {
@@ -196,6 +260,7 @@ func (h *Handler) SignIn(w http.ResponseWriter, r *http.Request) {
 			h.serverError(w, r)
 			return
 		}
+		guess.settle(true)
 		h.signInFailed(w, r, addr, next)
 		return
 	}
@@ -412,7 +477,7 @@ func (h *Handler) Register(w http.ResponseWriter, r *http.Request) {
 	next := web.SitePathOr(r.PostFormValue("next"), "/account")
 
 	view := pages.AuthView{Email: c.Email, Name: c.Name, Next: next}
-	if errs := FieldMessages(r.Context(), c.ValidateRegistration()); len(errs) > 0 {
+	if errs := web.FieldMessages(r.Context(), c.ValidateRegistration()); len(errs) > 0 {
 		view.Errors = errs
 		web.Render(w, r, h.log, http.StatusUnprocessableEntity,
 			pages.Register(pages.RegisterMeta(r.Context()), view))
@@ -439,6 +504,9 @@ func (h *Handler) SignOutOtherDevices(w http.ResponseWriter, r *http.Request) {
 	currentToken := ReadSessionCookie(r, h.secure)
 	if !ok || currentToken == "" {
 		http.Redirect(w, r, "/signin", http.StatusSeeOther)
+		return
+	}
+	if h.refuseUnverifiedStaff(w, r, u) {
 		return
 	}
 	if err := h.store.endOtherSessions(r.Context(), u.ID, currentToken); err != nil {
@@ -498,6 +566,10 @@ func (h *Handler) overview(w http.ResponseWriter, r *http.Request, status int, r
 		view.CartAdjusted = r.URL.Query().Get("adjusted") == "1"
 	}
 	view.PaymentsEnabled = h.carts != nil && h.carts.TakesPayment()
+	if r.Method == http.MethodGet {
+		completed := h.consumePasswordSetupNotice(w, r, u)
+		view.PasswordSetupSent = completed && r.URL.Query().Get("password_setup") == "sent"
+	}
 	if refused != nil {
 		refused(&view)
 	}
@@ -651,27 +723,15 @@ func (h *Handler) adoptRequestCart(r *http.Request, userID string) cartAdoption 
 	if h.carts == nil {
 		return cartAdoptionUnchanged
 	}
-	cartID, ok, err := h.carts.IDForRequest(r.Context(), r)
-	if err != nil {
-		h.log.ErrorContext(r.Context(), "read cart for sign-in", "error", err)
+	adjusted, err := h.carts.AdoptRequestCart(r.Context(), r, userID)
+	switch {
+	case err != nil:
 		return cartAdoptionFailed
-	}
-	if !ok {
-		return cartAdoptionUnchanged
-	}
-	err = h.store.AdoptCart(r.Context(), userID, cartID)
-	if err == nil {
-		return cartAdoptionUnchanged
-	}
-	if errors.Is(err, ErrQuantityAdjusted) {
+	case adjusted:
 		return cartAdoptionAdjusted
+	default:
+		return cartAdoptionUnchanged
 	}
-	if errors.Is(err, ErrCartMergeRefused) || errors.Is(err, ErrNotFound) {
-		h.log.WarnContext(r.Context(), "adopt cart", "error", err, "user_id", userID)
-	} else {
-		h.log.ErrorContext(r.Context(), "adopt cart", "error", err, "user_id", userID)
-	}
-	return cartAdoptionFailed
 }
 
 func registrationLanding(next string, outcome cartAdoption) string {
@@ -773,7 +833,7 @@ func (h *Handler) AddAddress(w http.ResponseWriter, r *http.Request) {
 	}
 	a.Trim()
 	if errs := a.Validate(); len(errs) > 0 {
-		h.refuseAddress(w, r, a, FieldMessages(r.Context(), errs), "")
+		h.refuseAddress(w, r, a, web.FieldMessages(r.Context(), errs), "")
 		return
 	}
 	if err := h.store.AddAddress(r.Context(), u.ID, a); err != nil {
@@ -854,7 +914,7 @@ func (h *Handler) UpdateAddress(w http.ResponseWriter, r *http.Request) {
 	bounded := *a
 	bounded.Trim()
 	if errs := bounded.Validate(); len(errs) > 0 {
-		h.refuseAddressEdit(w, r, saved.ID, a, FieldMessages(r.Context(), errs))
+		h.refuseAddressEdit(w, r, saved.ID, a, web.FieldMessages(r.Context(), errs))
 		return
 	}
 	switch err := h.store.updateAddress(r.Context(), u.ID, saved.ID, &bounded); {
@@ -863,7 +923,7 @@ func (h *Handler) UpdateAddress(w http.ResponseWriter, r *http.Request) {
 	case errors.Is(err, ErrNotFound):
 		h.addressNotFound(w, r)
 	case errors.Is(err, ErrInvalidInput):
-		h.refuseAddressEdit(w, r, saved.ID, a, FieldMessages(r.Context(), bounded.Validate()))
+		h.refuseAddressEdit(w, r, saved.ID, a, web.FieldMessages(r.Context(), bounded.Validate()))
 	default:
 		h.log.ErrorContext(r.Context(), "update address", "error", err)
 		h.serverError(w, r)
@@ -934,7 +994,7 @@ func (h *Handler) ChangePassword(w http.ResponseWriter, r *http.Request) {
 		http.Redirect(w, r, "/signin", http.StatusSeeOther)
 		return
 	}
-	if h.refuseDemoChange(w, r, u) {
+	if h.refuseDemoChange(w, r, u) || h.refuseUnverifiedStaff(w, r, u) {
 		return
 	}
 	if err := web.ParseForm(w, r); err != nil {
@@ -975,7 +1035,7 @@ func (h *Handler) Erase(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	// Before the recency check, which would end the session rather than refuse.
-	if h.refuseDemoChange(w, r, u) {
+	if h.refuseDemoChange(w, r, u) || h.refuseUnverifiedStaff(w, r, u) {
 		return
 	}
 	if err := web.ParseForm(w, r); err != nil {
@@ -1251,14 +1311,17 @@ func (h *Handler) CompleteRegistration(w http.ResponseWriter, r *http.Request) {
 		h.serverError(w, r)
 		return
 	}
-	// Before the hash, and the key sign-in uses, so the two share one budget.
-	if retryAfter, ok := h.signinLimit.Allow("account:" + email.Clean(addr)); !ok {
+	// Before the hash, and the budget sign-in uses, so the two share it.
+	guess, retryAfter, ok := h.reservePasswordGuess(r, email.Clean(addr))
+	if !ok {
 		h.log.WarnContext(ctx, "registration completion throttled by account")
 		ratelimit.Refuse(ctx, w, retryAfter)
 		return
 	}
+	defer guess.settle(false)
 
 	confirmed, err := h.store.CompleteRegistration(ctx, token, r.PostFormValue("password"))
+	guess.settle(errors.Is(err, ErrBadCredentials))
 	switch {
 	case err == nil:
 		started, adoption := h.startSession(w, r, user.User{ID: confirmed.UserID})
@@ -1406,6 +1469,9 @@ func (h *Handler) UnlinkGoogle(w http.ResponseWriter, r *http.Request) {
 	u, ok := user.FromContext(r.Context())
 	if !ok {
 		http.Redirect(w, r, "/signin", http.StatusSeeOther)
+		return
+	}
+	if h.refuseUnverifiedStaff(w, r, u) {
 		return
 	}
 	switch err := h.store.UnlinkGoogle(r.Context(), u); {

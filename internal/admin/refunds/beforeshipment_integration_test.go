@@ -20,9 +20,10 @@ import (
 
 	"github.com/koopa0/goen/internal/admin/admintest"
 	"github.com/koopa0/goen/internal/admin/refunds"
+	"github.com/koopa0/goen/internal/db"
+	"github.com/koopa0/goen/internal/db/dbtest"
 	"github.com/koopa0/goen/internal/email"
-	"github.com/koopa0/goen/internal/pgerr"
-	"github.com/koopa0/goen/internal/ui/pages"
+	"github.com/koopa0/goen/internal/money"
 )
 
 func TestRefundBeforeShipmentPaysEveryLegAndCancels(t *testing.T) {
@@ -134,7 +135,7 @@ func TestRefundBeforeShipmentWaitsForInvoiceCorrection(t *testing.T) {
 			VALUES ($1, 'invoice', $2, 500000)`, orderID, uuid.NewString()[:32]); err != nil {
 			t.Fatalf("issue invoice: %v", err)
 		}
-		if _, err := s.RefundBeforeShipment(ctx, number, "顧客取消"); !pgerr.IsConstraint(err, "orders_cancel_invoice_resolved") {
+		if _, err := s.RefundBeforeShipment(ctx, number, "顧客取消"); !db.IsConstraint(err, "orders_cancel_invoice_resolved") {
 			t.Fatalf("refund with a live invoice = %v", err)
 		}
 		if got := admintest.FulfillmentOf(t, pool, orderID); got != "picking" {
@@ -160,7 +161,7 @@ func TestRefundBeforeShipmentWaitsForInvoiceCorrection(t *testing.T) {
 			}
 			return
 		}
-		if !pgerr.IsConstraint(err, "orders_cancel_invoice_resolved") || admintest.FulfillmentOf(t, pool, orderID) == "cancelled" {
+		if !db.IsConstraint(err, "orders_cancel_invoice_resolved") || admintest.FulfillmentOf(t, pool, orderID) == "cancelled" {
 			t.Fatalf("unresolved invoice let the order cancel: %v", err)
 		}
 	}
@@ -254,7 +255,7 @@ func TestRefundBeforeShipmentConfirmsBeforeItPays(t *testing.T) {
 	first := post(url.Values{})
 	body := html.UnescapeString(first.Body.String())
 	if first.Code != http.StatusOK || !strings.Contains(body, `name="confirm"`) ||
-		!strings.Contains(body, pages.TWD(400000)) || !strings.Contains(body, `value="400000"`) {
+		!strings.Contains(body, money.TWD(400000)) || !strings.Contains(body, `value="400000"`) {
 		t.Fatalf("first POST = %d, want the confirmation showing the total: %s", first.Code, body)
 	}
 	nothingWritten(t, "the first POST")
@@ -323,8 +324,8 @@ func TestAdminCancelClawsBackLoyaltyPoints(t *testing.T) {
 		if earlyErr == nil {
 			t.Fatal("loyalty was reversed before the order was cancelled")
 		}
-		if admintest.ConstraintName(earlyErr) != "loyalty_clawback_cancelled_order" {
-			t.Fatalf("refused by %q, want loyalty_clawback_cancelled_order: %v", admintest.ConstraintName(earlyErr), earlyErr)
+		if db.ConstraintName(earlyErr) != "loyalty_clawback_cancelled_order" {
+			t.Fatalf("refused by %q, want loyalty_clawback_cancelled_order: %v", db.ConstraintName(earlyErr), earlyErr)
 		}
 	})
 }
@@ -513,10 +514,8 @@ func waitForBackendLock(t *testing.T, pid int, done <-chan struct{}) {
 			t.Fatalf("backend %d finished before reaching the forced lock boundary", pid)
 		default:
 		}
-		var waiting bool
-		if err := pool.QueryRow(t.Context(), `
-			SELECT coalesce(wait_event_type = 'Lock', false)
-			FROM pg_stat_activity WHERE pid = $1`, pid).Scan(&waiting); err != nil {
+		_, waiting, err := dbtest.Blocked(t.Context(), pool, dbtest.Match{PID: int32(pid)}) //nolint:gosec // G115: a backend pid is an int4 in pg_backend_pid()
+		if err != nil {
 			t.Fatalf("observe backend %d: %v", pid, err)
 		}
 		if waiting {

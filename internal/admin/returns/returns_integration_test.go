@@ -35,10 +35,9 @@ import (
 	"github.com/stripe/stripe-go/v86"
 
 	"github.com/koopa0/goen/internal/account"
-	"github.com/koopa0/goen/internal/admin/loyalty"
-	"github.com/koopa0/goen/internal/admin/refunds"
 	"github.com/koopa0/goen/internal/admin/reports"
 	"github.com/koopa0/goen/internal/admin/returns"
+	"github.com/koopa0/goen/internal/admin/stock"
 	"github.com/koopa0/goen/internal/i18n"
 	"github.com/koopa0/goen/internal/refund"
 	"github.com/koopa0/goen/internal/returns/buyer"
@@ -166,7 +165,7 @@ func TestAReturnTakesBackItsPointsAndSpend(t *testing.T) {
 		}
 		var tier uuid.NullUUID
 		if err := pool.QueryRow(ctx,
-			`SELECT member_tier($1, $2, NULL)`, userID, loyalty.MembershipWindowDays).Scan(&tier); err != nil {
+			`SELECT member_tier($1, NULL)`, userID).Scan(&tier); err != nil {
 			t.Fatalf("read tier: %v", err)
 		}
 		if tier.Valid {
@@ -184,8 +183,8 @@ func TestAReturnTakesBackItsPointsAndSpend(t *testing.T) {
 		if err := pool.QueryRow(ctx, `
 			SELECT t.points_multiplier_bp
 			FROM membership_tiers t
-			WHERE t.id = member_tier($1, $2, $3)`,
-			userID, loyalty.MembershipWindowDays, orderID).Scan(&multiplier); err != nil {
+			WHERE t.id = member_tier($1, $2)`,
+			userID, orderID).Scan(&multiplier); err != nil {
 			t.Fatalf("read changed return-time tier: %v", err)
 		}
 		if multiplier != 13000 {
@@ -432,7 +431,7 @@ func assertReturnedLoyalty(t *testing.T, requestID, orderID, userID uuid.UUID, w
 	ctx := t.Context()
 	var spend int64
 	if err := pool.QueryRow(ctx,
-		`SELECT member_spend($1, $2, NULL)`, userID, loyalty.MembershipWindowDays).Scan(&spend); err != nil {
+		`SELECT member_spend($1, NULL)`, userID).Scan(&spend); err != nil {
 		t.Fatalf("read member spend: %v", err)
 	}
 	if spend != wantSpend {
@@ -758,7 +757,7 @@ func TestAFailedRefundLeavesARowToReconcile(t *testing.T) {
 		{
 			name: "stripe refused the refund",
 			refunder: admintest.Refunder{RefundErr: fmt.Errorf("%w: %w",
-				refunds.ErrCreateRejected,
+				refund.ErrCreateRejected,
 				&stripe.Error{
 					Type: stripe.ErrorTypeInvalidRequest,
 					Code: stripe.ErrorCodeChargeAlreadyRefunded,
@@ -1975,7 +1974,7 @@ func TestASplitReturnStillPostsCreditWhenTheCardAttemptTerminates(t *testing.T) 
 	}{
 		{name: "provider object failed", refunder: admintest.Refunder{State: refund.Failed}},
 		{name: "create API rejected", refunder: admintest.Refunder{RefundErr: fmt.Errorf(
-			"%w: provider rejected create", refunds.ErrCreateRejected)}},
+			"%w: provider rejected create", refund.ErrCreateRejected)}},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -2085,9 +2084,9 @@ func TestASplitRefundWhoseCardIsPendingStillRecordsTheCreditThatLanded(t *testin
 func TestTheRefundFigureCountsCreditToo(t *testing.T) {
 	ctx, _ := admintest.StaffContext(t, pool)
 	s := storeOver(pool, admintest.Refunder{})
-	figures := reports.NewStore(pool)
+	figures := reports.NewStore(pool, stock.NewStore(pool))
 
-	before, err := figures.ReportAt(ctx, 30, time.Now())
+	before, err := figures.ReportAt(ctx, 30, admintest.DatabaseNow(t, pool))
 	if err != nil {
 		t.Fatalf("read report before refund: %v", err)
 	}
@@ -2095,7 +2094,7 @@ func TestTheRefundFigureCountsCreditToo(t *testing.T) {
 	if decideErr := s.Decide(ctx, requestID.String(), "approved", "全額購物金", ""); decideErr != nil {
 		t.Fatalf("Decide: %v", decideErr)
 	}
-	after, err := figures.ReportAt(ctx, 30, time.Now())
+	after, err := figures.ReportAt(ctx, 30, admintest.DatabaseNow(t, pool))
 	if err != nil {
 		t.Fatalf("read report after refund: %v", err)
 	}
@@ -2516,8 +2515,8 @@ func TestASplitReturnResumesWhenTheCREDITHalfLanded(t *testing.T) {
 		t.Fatalf("read the order: %v", err)
 	}
 	if _, err := pool.Exec(ctx, `
-		SELECT post_store_credit($1, $2::bigint, $3::text, $4, $5::text, NULL)`,
-		userID, int64(60000), "退貨補償", orderID,
+		SELECT post_store_credit($1, $2::bigint, NULL, $3, $4::text, NULL)`,
+		userID, int64(60000), orderID,
 		"return-credit:"+requestID.String()); err != nil {
 		t.Fatalf("post the credit half: %v", err)
 	}

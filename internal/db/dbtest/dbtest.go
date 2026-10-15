@@ -21,6 +21,10 @@ import (
 // The schema calls uuidv7(), which is PostgreSQL 18 or later.
 const image = "postgres:18-alpine"
 
+// initdbArgs puts every database of the container on PostgreSQL's builtin
+// C.UTF-8 locale, which migrations/001_initial_schema.up.sql requires.
+const initdbArgs = "--locale-provider=builtin --builtin-locale=C.UTF-8"
+
 // Pool starts a PostgreSQL container for one test and removes it afterwards.
 func Pool(t *testing.T) *pgxpool.Pool {
 	t.Helper()
@@ -39,6 +43,7 @@ func Start(ctx context.Context) (*pgxpool.Pool, func(), error) {
 		postgres.WithDatabase("goen_test"),
 		postgres.WithUsername("goen"),
 		postgres.WithPassword("goen"),
+		testcontainers.WithEnv(map[string]string{"POSTGRES_INITDB_ARGS": initdbArgs}),
 		testcontainers.WithWaitStrategy(
 			wait.ForLog("database system is ready to accept connections").
 				WithOccurrence(2).
@@ -54,7 +59,8 @@ func Start(ctx context.Context) (*pgxpool.Pool, func(), error) {
 		}
 	}
 
-	url, err := container.ConnectionString(ctx, "sslmode=disable")
+	// Seed scripts pass this DSN to libpq, which accepts custom settings through options.
+	url, err := container.ConnectionString(ctx, "sslmode=disable", "options=-c%20goen.catalogue_seed%3Ddevelopment")
 	if err != nil {
 		terminate()
 		return nil, nil, fmt.Errorf("connection string: %w", err)

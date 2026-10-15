@@ -10,7 +10,6 @@ import (
 
 	"github.com/koopa0/goen/internal/admin/admintest"
 	"github.com/koopa0/goen/internal/admin/customers"
-	"github.com/koopa0/goen/internal/admin/loyalty"
 	"github.com/koopa0/goen/internal/i18n"
 	"github.com/koopa0/goen/internal/warranty"
 )
@@ -165,8 +164,8 @@ func TestACustomersSpendCountsOnlyCommittedOrders(t *testing.T) {
 
 	paid := admintest.OrderForCustomer(t, pool, userID, 120000, true)
 	if _, err := pool.Exec(ctx,
-		`SELECT post_store_credit($1, 20000, '退貨', $2, $3, NULL)`,
-		userID, paid, "customer-refund:"+paid.String()); err != nil {
+		`SELECT post_store_credit($1, 20000, NULL, $2, $3, NULL)`,
+		userID, paid, "return-credit:"+paid.String()); err != nil {
 		t.Fatalf("return part of the committed order: %v", err)
 	}
 	cancelled := admintest.OrderForCustomer(t, pool, userID, 990000, false)
@@ -393,13 +392,13 @@ func TestTheCustomerPageShowsTheSpendTiersAreJudgedBy(t *testing.T) {
 	userID := admintest.CreditedAccount(t, pool, 0)
 	admintest.OrderForCustomer(t, pool, userID, 120000, true)
 	old := admintest.OrderForCustomer(t, pool, userID, 70000, true)
-	if _, err := pool.Exec(ctx, `UPDATE orders SET placed_at = now() - make_interval(days => $2 + 1) WHERE id = $1`,
-		old, loyalty.MembershipWindowDays); err != nil {
+	if _, err := pool.Exec(ctx, `UPDATE orders SET placed_at = now() - make_interval(days => membership_window_days() + 1) WHERE id = $1`,
+		old); err != nil {
 		t.Fatalf("age the order: %v", err)
 	}
 
 	var want int64
-	if err := pool.QueryRow(ctx, `SELECT member_spend($1, $2, NULL)`, userID, loyalty.MembershipWindowDays).Scan(&want); err != nil {
+	if err := pool.QueryRow(ctx, `SELECT member_spend($1, NULL)`, userID).Scan(&want); err != nil {
 		t.Fatalf("read member_spend: %v", err)
 	}
 	view, err := s.Profile(ctx, userID.String())

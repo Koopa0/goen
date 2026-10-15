@@ -60,9 +60,9 @@ func TestAllowanceNoticesRemainVisibleWithoutInvoicingActions(t *testing.T) {
 				enabledActions  []string
 			}{
 				{name: "pending", awaiting: "2026-10-10 15:00", message: language.awaiting, disabledMessage: language.stale, enabledActions: []string{"void"}},
-				{name: "unconfirmed", attention: invoice.CategoryBuyerUnconfirmed, message: language.unconfirmed, enabledActions: []string{"void"}},
-				{name: "held amount", attention: invoice.CategoryAmountStillHeld, message: language.held, enabledActions: []string{"void"}},
-				{name: "provider mismatch", attention: invoice.CategorySuccessMismatch, message: language.mismatch, enabledActions: []string{"void"}},
+				{name: "unconfirmed", attention: string(invoice.ReasonAllowanceBuyerUnconfirmed), message: language.unconfirmed, enabledActions: []string{"void"}},
+				{name: "held amount", attention: string(invoice.ReasonAllowanceAmountStillHeld), message: language.held, enabledActions: []string{"void"}},
+				{name: "provider mismatch", attention: string(invoice.ReasonAllowanceSuccessMismatch), message: language.mismatch, enabledActions: []string{"void"}},
 				{name: "no open allowance", enabledActions: []string{"void", "allowance"}},
 				{name: "no invoice", noInvoice: true, enabledActions: []string{"issue"}},
 			} {

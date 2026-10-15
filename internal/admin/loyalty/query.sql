@@ -1,5 +1,8 @@
+-- kind says what the posting is; reason is only what a staff member typed, and
+-- is NULL for every other kind. The label comes from kind, never from reason.
 -- name: RecentCredit :many
-SELECT json_build_object('At', e.created_at, 'ID', e.id)::text AS page_cursor, e.amount_cents, e.reason, e.created_at,
+SELECT json_build_object('At', e.created_at, 'ID', e.id)::text AS page_cursor, e.amount_cents,
+       coalesce(e.kind, '')::text AS kind, coalesce(e.reason, '')::text AS reason, e.created_at,
        coalesce(u.email, '') AS email
 FROM store_credit_entries e
 JOIN store_credit_accounts a ON a.id = e.account_id
@@ -30,12 +33,16 @@ SELECT grant_store_credit(
     @actor_user_id::uuid, @operation_id::uuid
 )::uuid AS entry_id;
 
+-- Each customer's tier is derived once and the customers counted per band, not
+-- one member_tier call per customer and band.
 -- name: AdminMembershipTiers :many
 SELECT t.id, t.code, t.name, coalesce(t.name_en, '') AS name_en,
        t.min_spend_cents, t.points_multiplier_bp, t.position,
-       (SELECT count(*) FROM users u
-        WHERE member_tier(u.id, @window_days::integer, NULL) = t.id)::bigint AS members
+       coalesce(m.members, 0)::bigint AS members
 FROM membership_tiers t
+LEFT JOIN (SELECT member_tier(u.id, NULL) AS tier_id, count(*) AS members
+           FROM users u
+           GROUP BY 1) m ON m.tier_id = t.id
 ORDER BY t.min_spend_cents;
 
 -- name: CreateMembershipTier :exec

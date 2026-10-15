@@ -7,9 +7,9 @@ import (
 
 	"github.com/jackc/pgx/v5"
 
+	"github.com/koopa0/goen/internal/db"
 	"github.com/koopa0/goen/internal/email"
 	"github.com/koopa0/goen/internal/order/cancellation"
-	"github.com/koopa0/goen/internal/pgtx"
 )
 
 // ErrNotCancellable covers every reason, so a guessable order number cannot be
@@ -23,7 +23,7 @@ func (s *Store) CancelOrder(ctx context.Context, number string) error {
 	if err != nil {
 		return fmt.Errorf("begin cancel: %w", err)
 	}
-	defer pgtx.Rollback(ctx, tx)
+	defer db.Rollback(ctx, tx)
 	q := s.q.WithTx(tx)
 
 	// The lock is taken before cancellation or the expiry sweeper can touch the

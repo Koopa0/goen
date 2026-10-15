@@ -29,7 +29,7 @@ goen 是以 Go 打造的全端電商應用。前台、後台與背景工作在�
 
 `net/http` handler 輸出具型別的 `templ` 頁面。每個寫入都能以不需 JavaScript 的一般 `POST` 表單完成：成功後重新導向，驗證失敗則保留輸入。htmx 增強回傳的 HTML。CSS、字型與 script 嵌入執行檔，網址帶內容版本。
 
-套件依功能劃分，各自包含 handler、store、SQL 與測試。store 呼叫 sqlc 產生的 `db.Queries`；`cmd/goen` 組合路由、資料存取、外部客戶端與背景工作。見[組合][server]、[資產][assets]與 [sqlc 設定][sqlc]。
+套件依功能劃分，各自包含 handler、store、SQL 與測試。頁面本體正從 `internal/ui/pages` 移入負責渲染它們的功能套件；`internal/repocheck` 負責套件匯入政策。store 呼叫 sqlc 產生的 `db.Queries`；`cmd/goen` 組合路由、資料存取、外部客戶端與背景工作。見[組合][server]、[資產][assets]與 [sqlc 設定][sqlc]。
 
 ### 外部服務
 
@@ -92,7 +92,7 @@ webhook 先驗證原始 body 的簽章，再於同一筆交易中領取事件、
 
 結帳可能在同一個規格、其所屬商品、折扣碼、購物金帳戶，或訂單與付款列上互相等待。同一商品的不同規格共用商品鎖，因此每條路徑都必須以相同順序取鎖。
 
-下單也會更新當日的 `order_number_counters` 列，並持有到提交為止，所以互不相關的購買會在此交會。六位數計數器讓每個營業日最多 999,999 筆訂單，當日再下單會被拒絕。修改臨界區或編號方式之前，先量測鎖的持有與等待時間。見 [schema][schema]（`next_order_number`）。
+訂單編號不佔用任何共用列：`next_order_number` 抽取六個隨機 base32 字元並依賴唯一索引，所以互不相關的購買不會在此交會，編號也不會洩漏當日其他訂單。修改臨界區或編號方式之前，先量測鎖的持有與等待時間。見 [schema][schema]。
 
 ## 5. 出貨、退貨與退款
 
@@ -130,7 +130,7 @@ SMTP 收下郵件後、確認前若程序中止，郵件可能寄出兩次：寄
 
 ## 7. 資料庫權限與安全
 
-應用程式角色只能透過授權的 `SECURITY DEFINER` 函式變更受保護的付款、退款、發票、稽核、庫存、購物金與計數器紀錄；其他資料使用明確的表或欄位授權。約束、唯一鍵、狀態轉換 trigger 與共用列上的鎖共同守住規則，跨列的不變條件依賴這種序列化。[由 catalog 推導的測試][conformance]檢查 [schema][schema] 的授權與約束。
+應用程式角色只能透過授權的 `SECURITY DEFINER` 函式變更受保護的付款、退款、發票、稽核、庫存與購物金紀錄；其他資料使用明確的表或欄位授權。約束、唯一鍵、狀態轉換 trigger 與共用列上的鎖共同守住規則，跨列的不變條件依賴這種序列化。[由 catalog 推導的測試][conformance]檢查 [schema][schema] 的授權與約束。
 
 稽核證據與它描述的變更一起提交，透過 `audit.Run`、`audit.In` 或特權函式本身寫入；紀錄只能新增，帳號刪除另有明確處理。`reporting` 角色沒有執行期連線池，讀不到憑證、session、個人與收件資料、自由文字、webhook 證據，以及 outbox 與發票操作表；訂單與退貨表只開放列出的業務欄位。migration 由 schema owner 執行。
 
@@ -183,7 +183,7 @@ SQL 速率     ≈ Σ(路由請求率 × 每請求查詢數) + 背景查詢
 | 實驗 | 變因與觀測 | 通過條件 |
 | --- | --- | --- |
 | 瀏覽與搜尋 | 登入與否、商品數、選擇性、分頁；查詢計畫、連線等待、p95/p99。 | 掌握資料成長與重複查詢的成本。 |
-| 結帳競爭 | 不同商品、同商品的規格、單一 SKU、共用折扣碼、購物金、每日計數器。 | 庫存、購物金與折扣碼不重複消耗；預期中的拒絕另外統計。 |
+| 結帳競爭 | 不同商品、同商品的規格、單一 SKU、共用折扣碼、購物金。 | 庫存、購物金與折扣碼不重複消耗；預期中的拒絕另外統計。 |
 | 重試與競爭 | 重複的鍵與 webhook、亂序事件、扣款對上逾期或取消。 | 狀態合法、效果只發生一次、必要的警示存在。 |
 | 昂貴工作 | 冷啟動與頻繁更換的圖片、上傳、登入尖峰、報表、清理。 | CPU、RSS、GC、等待中的請求與結帳延遲維持在範圍內。 |
 | 積壓與中斷 | 大量郵件中夾帶緊急郵件、外部服務變慢或失敗，再恢復。 | 工作年齡、緊急郵件期限與排空速度達標。 |
@@ -229,7 +229,7 @@ goen 有 request ID、結構化的 `slog` 日誌、500 ms 以上的慢查詢紀�
 | 可容忍延遲的讀取與交易互相競爭 | 投影或唯讀副本。 | 庫存與付款判斷仍以權威資料為準。 |
 | `ILIKE` 搜尋的品質或成本不足 | 搜尋索引或服務。 | 索引延遲、重建、結帳時重新驗證。 |
 | 圖片主導 I/O、備份或還原 | 物件儲存、CDN、預先產生縮圖。 | 引用、刪除、孤立檔案、備份一致性。 |
-| 庫存或計數器的鎖限制吞吐量 | 縮短臨界區，或調整分配模型。 | 數量與金額的不變條件仍由單一權威維持。 |
+| 庫存的鎖限制吞吐量 | 縮短臨界區，或調整分配模型。 | 數量與金額的不變條件仍由單一權威維持。 |
 | 可用性需求超過單一程序或資料庫 | 多個實例與 PostgreSQL 高可用。 | 故障切換、連線額度、全域限制、RPO/RTO。 |
 
 採用 broker 時，要保留可靠的交接：業務交易與 outbox 一起提交，再經 relay、broker，交給具冪等性的消費者。見 [transactional outbox][outbox-pattern]。
@@ -257,13 +257,13 @@ CI 執行格式、vet、lint、無用程式碼與生成碼檢查、migration lin
 | 組合與生命週期 | [`cmd/goen`][main]、[路由][server]、[middleware][middleware]、[外部服務設定][provider-posture] |
 | 結帳、保留與訂單存取 | [`internal/cart`][checkout]、[逾期處理][cart-sweeper]、[`internal/order/access`][orderaccess] |
 | 付款與恢復 | [`internal/payment`][payment-store]、[Stripe adapter][stripe]、[`internal/admin/health`][health] |
-| 出貨、退貨與退款 | [`internal/order`][order]、[`internal/admin/orders`][orders]、[`internal/returns`][returns-rules]、[`internal/admin/returns`][returns]、[`internal/admin/refunds`][refund-payout] |
-| 發票與延後寄送 | [`internal/invoice`][invoice-store]、[`internal/admin/invoicing`][invoicing]、[`internal/outbox`][outbox]、[`internal/email`][email] |
+| 出貨、退貨與退款 | [`internal/order`][order]、[`internal/admin/orders`][orders]、[`internal/admin/dashboard`][dashboard]、[`internal/returns`][returns-rules]、[`internal/admin/returns`][returns]、[`internal/admin/refunds`][refund-payout] |
+| 發票與延後寄送 | [`internal/invoice/issuer`][invoice-store]、[`internal/admin/invoicing`][invoicing]、[`internal/outbox`][outbox]、[`internal/email`][email] |
 | 資料庫權限 | [schema][schema]、[sqlc 設定][sqlc]、[一致性測試][conformance]、[`internal/admin/audit`][audit]、[`internal/db/dbtest`][dbtest] |
 | 瀏覽與衍生資料 | [`internal/catalog`][catalog-store]、[`internal/home`][home-banner]、[`internal/recommend`][recommend]、[報表][reports] |
 | 語言、金額與時間 | [`internal/i18n`][i18n]、[`internal/money`][money]、[`internal/shoptime`][shoptime] |
 | 資產與媒體 | [`assets`][assets]、[`internal/media`][media-render] |
-| 身分與瀏覽器安全 | [`internal/account`][account]、[員工存取][access]、[`internal/admin/twofactor`][twofactor]、[`internal/ratelimit`][ratelimit] |
+| 身分與瀏覽器安全 | [`internal/account`][account]、[`internal/bearer`][bearer]、[員工存取][access]、[`internal/admin/twofactor`][twofactor]、[`internal/ratelimit`][ratelimit] |
 | 維運 | [健康查詢][health-sql]、[探針][probe]、[慢查詢紀錄][slowquery]、[Makefile][makefile]、[CI][workflows] |
 
 [contributing]: CONTRIBUTING.md
@@ -281,13 +281,14 @@ CI 執行格式、vet、lint、無用程式碼與生成碼檢查、migration lin
 [stripe]: internal/payment/stripe.go
 [order]: internal/order
 [orders]: internal/admin/orders
+[dashboard]: internal/admin/dashboard
 [returns-rules]: internal/returns
 [returns]: internal/admin/returns/store.go
 [refund-payout]: internal/admin/refunds/payout.go
 [before-shipment]: internal/admin/refunds/beforeshipment.go
-[invoice-store]: internal/invoice/store.go
-[invoice-recovery]: internal/invoice/recovery.go
-[invoice-cancellation]: internal/invoice/cancellation.go
+[invoice-store]: internal/invoice/issuer/store.go
+[invoice-recovery]: internal/invoice/issuer/recovery.go
+[invoice-cancellation]: internal/invoice/issuer/cancellation.go
 [invoicing]: internal/admin/invoicing
 [outbox]: internal/outbox/outbox.go
 [outbox-sql]: internal/outbox/query.sql
@@ -298,6 +299,7 @@ CI 執行格式、vet、lint、無用程式碼與生成碼檢查、migration lin
 [dbtest]: internal/db/dbtest
 [audit]: internal/admin/audit/audit.go
 [account]: internal/account
+[bearer]: internal/bearer
 [access]: internal/admin/access/access.go
 [twofactor]: internal/admin/twofactor
 [ratelimit]: internal/ratelimit

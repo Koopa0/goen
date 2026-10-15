@@ -14,6 +14,7 @@ sql:
       - "internal/returns/buyer/query.sql"
       - "internal/outbox/query.sql"
       - "internal/order/notice/query.sql"
+      - "internal/order/cancellation/query.sql"
       - "internal/loyalty/query.sql"
       - "internal/media/query.sql"
       - "internal/site/query.sql"
@@ -26,6 +27,7 @@ sql:
       - "internal/admin/content/query.sql"
       - "internal/admin/coupons/query.sql"
       - "internal/admin/customers/query.sql"
+      - "internal/admin/dashboard/query.sql"
       - "internal/admin/feedback/query.sql"
       - "internal/admin/health/query.sql"
       - "internal/admin/loyalty/query.sql"
@@ -39,7 +41,7 @@ sql:
       - "internal/admin/returns/query.sql"
       - "internal/admin/reports/query.sql"
       - "internal/admin/reports/orders_export.sql"
-      - "internal/invoice/query.sql"
+      - "internal/invoice/issuer/query.sql"
     gen:
       go:
         package: "db"

@@ -1140,9 +1140,11 @@ func (q *Queries) AdminHeroSlides(ctx context.Context, arg AdminHeroSlidesParams
 const adminMembershipTiers = `-- name: AdminMembershipTiers :many
 SELECT t.id, t.code, t.name, coalesce(t.name_en, '') AS name_en,
        t.min_spend_cents, t.points_multiplier_bp, t.position,
-       (SELECT count(*) FROM users u
-        WHERE member_tier(u.id, $1::integer, NULL) = t.id)::bigint AS members
+       coalesce(m.members, 0)::bigint AS members
 FROM membership_tiers t
+LEFT JOIN (SELECT member_tier(u.id, NULL) AS tier_id, count(*) AS members
+           FROM users u
+           GROUP BY 1) m ON m.tier_id = t.id
 ORDER BY t.min_spend_cents
 `
 
@@ -1157,8 +1159,10 @@ type AdminMembershipTiersRow struct {
 	Members            int64
 }
 
-func (q *Queries) AdminMembershipTiers(ctx context.Context, windowDays int32) ([]AdminMembershipTiersRow, error) {
-	rows, err := q.db.Query(ctx, adminMembershipTiers, windowDays)
+// Each customer's tier is derived once and the customers counted per band, not
+// one member_tier call per customer and band.
+func (q *Queries) AdminMembershipTiers(ctx context.Context) ([]AdminMembershipTiersRow, error) {
+	rows, err := q.db.Query(ctx, adminMembershipTiers)
 	if err != nil {
 		return nil, err
 	}
@@ -1430,7 +1434,7 @@ FROM (
                      WHERE p.order_id = e.order_id AND p.status = 'succeeded'
                  ) THEN 'provider'
                  ELSE 'system' END)::text AS actor_kind,
-           coalesce(u.full_name, u.email, '')::text AS actor_name
+           coalesce(u.email, '')::text AS actor_name
     FROM order_events e
     LEFT JOIN users u ON u.id = e.actor_user_id
     WHERE e.order_id = $1
@@ -1449,7 +1453,7 @@ FROM (
                      AND op.last_error ~ ('^' || op.kind || '_provider_rejected_[0-9]+$')
                 THEN substring(op.last_error FROM '[0-9]+$')
                 ELSE '' END,
-           op.actor_kind, coalesce(u.full_name, u.email, '')
+           op.actor_kind, coalesce(u.email, '')
     FROM invoice_operations op
     LEFT JOIN users u ON u.id = op.actor_user_id
     WHERE op.order_id = $1
@@ -1500,6 +1504,8 @@ type AdminOrderTimelineRow struct {
 // succeeded, and otherwise store credit or a discount closing the funding.
 // An invoice operation and a mail are placed at their creation; status is where
 // they stand now, and done_at when a succeeded operation or a delivered mail got there.
+// The staff member behind an event is named by CURRENT email, never by the
+// editable full_name.
 func (q *Queries) AdminOrderTimeline(ctx context.Context, arg AdminOrderTimelineParams) ([]AdminOrderTimelineRow, error) {
 	rows, err := q.db.Query(ctx, adminOrderTimeline, arg.OrderID, arg.InvoicingEnabled, arg.MailTopics)
 	if err != nil {
@@ -1973,7 +1979,7 @@ func (q *Queries) AdminProducts(ctx context.Context, arg AdminProductsParams) ([
 
 const adminQuestionAnswers = `-- name: AdminQuestionAnswers :many
 SELECT a.id, a.question_id, a.body, a.is_staff, a.hidden_at, a.created_at,
-       coalesce(u.full_name, '')::text AS author
+       CASE WHEN a.is_staff THEN coalesce(u.email, '') ELSE coalesce(u.full_name, '') END::text AS author
 FROM product_answers a
 LEFT JOIN users u ON u.id = a.user_id
 WHERE a.question_id = ANY($1::uuid[])
@@ -1990,6 +1996,9 @@ type AdminQuestionAnswersRow struct {
 	Author     string
 }
 
+// A staff answer names its author by CURRENT email, not by full_name, which the
+// author can change on /account/profile; a customer's answer keeps the name
+// that customer gave.
 func (q *Queries) AdminQuestionAnswers(ctx context.Context, questionIds []uuid.UUID) ([]AdminQuestionAnswersRow, error) {
 	rows, err := q.db.Query(ctx, adminQuestionAnswers, questionIds)
 	if err != nil {
@@ -3126,7 +3135,7 @@ func (q *Queries) AttributeCompletePaymentPaid(ctx context.Context, providerRef 
 const auditEvents = `-- name: AuditEvents :many
 SELECT json_build_object('At', a.occurred_at, 'ID', a.id)::text AS page_cursor, a.action, a.entity_table, a.entity_id, a.before, a.after,
        a.request_id, a.occurred_at,
-       coalesce(u.full_name, u.email, a.actor_id_snapshot::text, '') AS actor,
+       coalesce(u.email, a.actor_id_snapshot::text, '') AS actor,
        (a.actor_kind = 'system')::boolean AS by_system,
        -- What a person calls the record: the order number (for a return, refund or
        -- payment, its order's), the SKU, or the slug. Empty where no name exists
@@ -3142,6 +3151,12 @@ SELECT json_build_object('At', a.occurred_at, 'ID', a.id)::text AS page_cursor, 
                                 JOIN orders o ON o.id = p.order_id WHERE rf.id = a.entity_id)
            WHEN 'products' THEN (SELECT pr.slug FROM products pr WHERE pr.id = a.entity_id)
            WHEN 'product_variants' THEN (SELECT pv.sku FROM product_variants pv WHERE pv.id = a.entity_id)
+           -- A staff change names the person it acted on by their CURRENT address; the
+           -- row holds only the id, so an erased account leaves it blank. A customer
+           -- view has its own column below.
+           WHEN 'users' THEN CASE WHEN a.action <> 'customer.view' THEN
+               (SELECT tu.email FROM users tu WHERE tu.id = a.entity_id)
+           END
        END, '')::text AS subject,
        coalesce(CASE a.entity_table
            WHEN 'products' THEN (SELECT pr.slug FROM products pr WHERE pr.id = a.entity_id)
@@ -3149,8 +3164,8 @@ SELECT json_build_object('At', a.occurred_at, 'ID', a.id)::text AS page_cursor, 
                                          JOIN products pr ON pr.id = pv.product_id WHERE pv.id = a.entity_id)
        END, '')::text AS product_slug,
        coalesce(CASE WHEN a.action = 'customer.view' THEN
-           (SELECT coalesce(nullif(cu.full_name, ''), cu.email) FROM users cu WHERE cu.id = a.entity_id)
-       END, '')::text AS customer_name
+           (SELECT cu.email FROM users cu WHERE cu.id = a.entity_id)
+       END, '')::text AS customer_email
 FROM audit_events a
 LEFT JOIN users u ON u.id = a.actor_user_id
 WHERE (NOT $1::boolean OR (a.occurred_at < $2::timestamptz)
@@ -3167,21 +3182,27 @@ type AuditEventsParams struct {
 }
 
 type AuditEventsRow struct {
-	PageCursor   string
-	Action       string
-	EntityTable  string
-	EntityID     uuid.NullUUID
-	Before       []byte
-	After        []byte
-	RequestID    pgtype.Text
-	OccurredAt   time.Time
-	Actor        string
-	BySystem     bool
-	Subject      string
-	ProductSlug  string
-	CustomerName string
+	PageCursor    string
+	Action        string
+	EntityTable   string
+	EntityID      uuid.NullUUID
+	Before        []byte
+	After         []byte
+	RequestID     pgtype.Text
+	OccurredAt    time.Time
+	Actor         string
+	BySystem      bool
+	Subject       string
+	ProductSlug   string
+	CustomerEmail string
 }
 
+// A person is named by their CURRENT email, never by full_name: anyone may
+// change their own name on /account/profile, so a name on an audit row would let
+// an actor pass their rows to a colleague. Staff cannot change their email
+// (ChangeEmail refuses them), and it is unique. The row stores only ids; the
+// address is read here at render time, and an erased account falls back to the
+// recorded id.
 func (q *Queries) AuditEvents(ctx context.Context, arg AuditEventsParams) ([]AuditEventsRow, error) {
 	rows, err := q.db.Query(ctx, auditEvents,
 		arg.HasCursor,
@@ -3209,7 +3230,7 @@ func (q *Queries) AuditEvents(ctx context.Context, arg AuditEventsParams) ([]Aud
 			&i.BySystem,
 			&i.Subject,
 			&i.ProductSlug,
-			&i.CustomerName,
+			&i.CustomerEmail,
 		); err != nil {
 			return nil, err
 		}
@@ -3329,11 +3350,11 @@ func (q *Queries) BeforeShipmentRefund(ctx context.Context, orderNumber string) 
 }
 
 const beginTOTPEnrolment = `-- name: BeginTOTPEnrolment :execrows
-INSERT INTO staff_totp_credentials (user_id, secret_encrypted, mailed_code_hash)
+INSERT INTO staff_totp_credentials (user_id, secret_encrypted, mailed_code_digest)
 VALUES ($1, $2, $3)
 ON CONFLICT (user_id) DO UPDATE
 SET secret_encrypted = excluded.secret_encrypted,
-    mailed_code_hash = excluded.mailed_code_hash,
+    mailed_code_digest = excluded.mailed_code_digest,
     confirmed_at = NULL,
     last_step = NULL,
     created_at = now()
@@ -3341,16 +3362,16 @@ WHERE staff_totp_credentials.confirmed_at IS NULL
 `
 
 type BeginTOTPEnrolmentParams struct {
-	UserID          uuid.UUID
-	SecretEncrypted []byte
-	MailedCodeHash  []byte
+	UserID           uuid.UUID
+	SecretEncrypted  []byte
+	MailedCodeDigest []byte
 }
 
 // Start or restart enrolment, but never replace a factor that has been proved.
 // The WHERE clause is the guard, in the statement because a read-then-write is
 // a race two concurrent enrolments both win.
 func (q *Queries) BeginTOTPEnrolment(ctx context.Context, arg BeginTOTPEnrolmentParams) (int64, error) {
-	result, err := q.db.Exec(ctx, beginTOTPEnrolment, arg.UserID, arg.SecretEncrypted, arg.MailedCodeHash)
+	result, err := q.db.Exec(ctx, beginTOTPEnrolment, arg.UserID, arg.SecretEncrypted, arg.MailedCodeDigest)
 	if err != nil {
 		return 0, err
 	}
@@ -4078,7 +4099,7 @@ func (q *Queries) CarryZoneSurcharges(ctx context.Context, arg CarryZoneSurcharg
 }
 
 const cartByToken = `-- name: CartByToken :one
-SELECT id, user_id FROM carts WHERE token_hash = $1
+SELECT id, user_id FROM carts WHERE digest = $1
 `
 
 type CartByTokenRow struct {
@@ -4086,8 +4107,8 @@ type CartByTokenRow struct {
 	UserID uuid.NullUUID
 }
 
-func (q *Queries) CartByToken(ctx context.Context, tokenHash []byte) (CartByTokenRow, error) {
-	row := q.db.QueryRow(ctx, cartByToken, tokenHash)
+func (q *Queries) CartByToken(ctx context.Context, digest []byte) (CartByTokenRow, error) {
+	row := q.db.QueryRow(ctx, cartByToken, digest)
 	var i CartByTokenRow
 	err := row.Scan(&i.ID, &i.UserID)
 	return i, err
@@ -5798,20 +5819,20 @@ func (q *Queries) CompleteReturn(ctx context.Context, arg CompleteReturnParams) 
 
 const confirmTOTP = `-- name: ConfirmTOTP :execrows
 UPDATE staff_totp_credentials
-SET confirmed_at = now(), last_step = $1::bigint, mailed_code_hash = NULL
+SET confirmed_at = now(), last_step = $1::bigint, mailed_code_digest = NULL
 WHERE user_id = $2
   AND secret_encrypted = $3
-  AND mailed_code_hash = $4
+  AND mailed_code_digest = $4
   AND created_at > now() - $5::interval
   AND (last_step IS NULL OR last_step < $1::bigint)
 `
 
 type ConfirmTOTPParams struct {
-	Step            int64
-	UserID          uuid.UUID
-	SecretEncrypted []byte
-	MailedCodeHash  []byte
-	MailedCodeTtl   pgtype.Interval
+	Step             int64
+	UserID           uuid.UUID
+	SecretEncrypted  []byte
+	MailedCodeDigest []byte
+	MailedCodeTtl    pgtype.Interval
 }
 
 // Confirm enrolment and record the step in ONE statement: two would leave a
@@ -5824,7 +5845,7 @@ func (q *Queries) ConfirmTOTP(ctx context.Context, arg ConfirmTOTPParams) (int64
 		arg.Step,
 		arg.UserID,
 		arg.SecretEncrypted,
-		arg.MailedCodeHash,
+		arg.MailedCodeDigest,
 		arg.MailedCodeTtl,
 	)
 	if err != nil {
@@ -6007,16 +6028,16 @@ func (q *Queries) CreateCampaign(ctx context.Context, arg CreateCampaignParams) 
 }
 
 const createCart = `-- name: CreateCart :one
-INSERT INTO carts (token_hash, user_id) VALUES ($1, $2) RETURNING id
+INSERT INTO carts (digest, user_id) VALUES ($1, $2) RETURNING id
 `
 
 type CreateCartParams struct {
-	TokenHash []byte
-	UserID    uuid.NullUUID
+	Digest []byte
+	UserID uuid.NullUUID
 }
 
 func (q *Queries) CreateCart(ctx context.Context, arg CreateCartParams) (uuid.UUID, error) {
-	row := q.db.QueryRow(ctx, createCart, arg.TokenHash, arg.UserID)
+	row := q.db.QueryRow(ctx, createCart, arg.Digest, arg.UserID)
 	var id uuid.UUID
 	err := row.Scan(&id)
 	return id, err
@@ -6446,19 +6467,19 @@ func (q *Queries) CreateOrderPrivateData(ctx context.Context, arg CreateOrderPri
 }
 
 const createPasswordResetToken = `-- name: CreatePasswordResetToken :exec
-INSERT INTO password_reset_tokens (token_hash, user_id, expires_at)
+INSERT INTO password_reset_tokens (digest, user_id, expires_at)
 VALUES ($1, $2, now() + $3::interval)
 `
 
 type CreatePasswordResetTokenParams struct {
-	TokenHash []byte
-	UserID    uuid.UUID
-	Ttl       pgtype.Interval
+	Digest []byte
+	UserID uuid.UUID
+	Ttl    pgtype.Interval
 }
 
 // The expiry is computed from the DATABASE's clock, which is what reads it back.
 func (q *Queries) CreatePasswordResetToken(ctx context.Context, arg CreatePasswordResetTokenParams) error {
-	_, err := q.db.Exec(ctx, createPasswordResetToken, arg.TokenHash, arg.UserID, arg.Ttl)
+	_, err := q.db.Exec(ctx, createPasswordResetToken, arg.Digest, arg.UserID, arg.Ttl)
 	return err
 }
 
@@ -6581,12 +6602,12 @@ func (q *Queries) CreateReview(ctx context.Context, arg CreateReviewParams) (int
 }
 
 const createSession = `-- name: CreateSession :exec
-INSERT INTO sessions (token_hash, user_id, user_agent, ip, expires_at)
+INSERT INTO sessions (digest, user_id, user_agent, ip, expires_at)
 VALUES ($1, $2, $3, $4, now() + $5::interval)
 `
 
 type CreateSessionParams struct {
-	TokenHash []byte
+	Digest    []byte
 	UserID    uuid.UUID
 	UserAgent pgtype.Text
 	IP        *netip.Addr
@@ -6597,7 +6618,7 @@ type CreateSessionParams struct {
 // and retention sweep compares it with.
 func (q *Queries) CreateSession(ctx context.Context, arg CreateSessionParams) error {
 	_, err := q.db.Exec(ctx, createSession,
-		arg.TokenHash,
+		arg.Digest,
 		arg.UserID,
 		arg.UserAgent,
 		arg.IP,
@@ -7237,6 +7258,39 @@ func (q *Queries) DeleteFAQEntry(ctx context.Context, entryID uuid.UUID) (int64,
 	return result.RowsAffected(), nil
 }
 
+const deleteIdleGuestCarts = `-- name: DeleteIdleGuestCarts :execrows
+DELETE FROM carts
+WHERE id IN (
+    SELECT c.id FROM carts c
+    WHERE c.user_id IS NULL
+      AND c.updated_at < now() - $1::interval
+      AND NOT EXISTS (
+          SELECT 1 FROM cart_items i
+          WHERE i.cart_id = c.id AND i.added_at >= now() - $1::interval)
+    LIMIT $2::integer
+    FOR UPDATE OF c SKIP LOCKED
+)
+`
+
+type DeleteIdleGuestCartsParams struct {
+	Retain pgtype.Interval
+	Batch  int32
+}
+
+// A guest cart nobody has touched for the retention window. Its cookie lives as
+// long as the window and is set once, when the cart is created, so past it no
+// browser can name the cart. An account's cart (user_id set) is never listed.
+// Idle means none of created_at, updated_at (a checkout draft moves it) or a
+// line's added_at is inside the window. One batch at a time: the delete cascades
+// to cart_items, and SKIP LOCKED leaves a cart a writer holds for the next pass.
+func (q *Queries) DeleteIdleGuestCarts(ctx context.Context, arg DeleteIdleGuestCartsParams) (int64, error) {
+	result, err := q.db.Exec(ctx, deleteIdleGuestCarts, arg.Retain, arg.Batch)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected(), nil
+}
+
 const deleteMedia = `-- name: DeleteMedia :execrows
 DELETE FROM media_objects m
 WHERE m.digest = $1::text
@@ -7312,16 +7366,16 @@ func (q *Queries) DeleteOldOrderAccessGrants(ctx context.Context, retain pgtype.
 
 const deleteOtherUserSessions = `-- name: DeleteOtherUserSessions :exec
 DELETE FROM sessions
-WHERE user_id = $1 AND token_hash <> $2::bytea
+WHERE user_id = $1 AND digest <> $2::bytea
 `
 
 type DeleteOtherUserSessionsParams struct {
-	UserID           uuid.UUID
-	CurrentTokenHash []byte
+	UserID        uuid.UUID
+	CurrentDigest []byte
 }
 
 func (q *Queries) DeleteOtherUserSessions(ctx context.Context, arg DeleteOtherUserSessionsParams) error {
-	_, err := q.db.Exec(ctx, deleteOtherUserSessions, arg.UserID, arg.CurrentTokenHash)
+	_, err := q.db.Exec(ctx, deleteOtherUserSessions, arg.UserID, arg.CurrentDigest)
 	return err
 }
 
@@ -7344,7 +7398,7 @@ func (q *Queries) DeleteOutstandingEmailVerificationMessage(ctx context.Context,
 const deletePasswordResetMessagesForEmail = `-- name: DeletePasswordResetMessagesForEmail :exec
 DELETE FROM outbox_messages
 WHERE topic = 'account.password_reset'
-  AND lower(coalesce(payload ->> 'email', payload ->> 'Email', '')) =
+  AND lower(coalesce(payload ->> 'email', '')) =
       lower($1::text)
 `
 
@@ -7357,11 +7411,11 @@ func (q *Queries) DeletePasswordResetMessagesForEmail(ctx context.Context, email
 }
 
 const deleteSession = `-- name: DeleteSession :exec
-DELETE FROM sessions WHERE token_hash = $1
+DELETE FROM sessions WHERE digest = $1
 `
 
-func (q *Queries) DeleteSession(ctx context.Context, tokenHash []byte) error {
-	_, err := q.db.Exec(ctx, deleteSession, tokenHash)
+func (q *Queries) DeleteSession(ctx context.Context, digest []byte) error {
+	_, err := q.db.Exec(ctx, deleteSession, digest)
 	return err
 }
 
@@ -7375,6 +7429,23 @@ WHERE z.id = $1
 // Decided by the DELETE's own WHERE clause, like DeleteBrand.
 func (q *Queries) DeleteShippingZone(ctx context.Context, zoneID uuid.UUID) (int64, error) {
 	result, err := q.db.Exec(ctx, deleteShippingZone, zoneID)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected(), nil
+}
+
+const deleteStaleNewsletterConfirmations = `-- name: DeleteStaleNewsletterConfirmations :execrows
+DELETE FROM newsletter_confirmations
+WHERE created_at < now() - $1::interval
+`
+
+// A request nobody answered. Only newsletter_confirmations is touched: a row in
+// newsletter_subscribers is a confirmed subscription or an opt-out, and the
+// opt-out is the record that stops the list emailing somebody again. Keyed on
+// created_at, which a repeated request moves forward together with expires_at.
+func (q *Queries) DeleteStaleNewsletterConfirmations(ctx context.Context, retain pgtype.Interval) (int64, error) {
+	result, err := q.db.Exec(ctx, deleteStaleNewsletterConfirmations, retain)
 	if err != nil {
 		return 0, err
 	}
@@ -9871,7 +9942,8 @@ SELECT id FROM users WHERE id = $1::uuid FOR NO KEY UPDATE
 `
 
 // Every path that locks both the account row and its carts or addresses takes
-// the account row first: cart adoption (NO KEY UPDATE, then LockCarts), a
+// the account row first: cart adoption (NO KEY UPDATE through cart's
+// LockUserForAdoption, then LockCarts), a
 // default-address write (NO KEY UPDATE, then the address rows), checkout (KEY
 // SHARE via cart.LockUserForCheckout, then its cart) and erase_user (FOR
 // UPDATE, then everything it deletes). Cart-item and checkout-draft writes lock
@@ -9884,6 +9956,24 @@ SELECT id FROM users WHERE id = $1::uuid FOR NO KEY UPDATE
 // any row lock; store's column UPDATE on users is enough.
 func (q *Queries) LockUser(ctx context.Context, userID uuid.UUID) (uuid.UUID, error) {
 	row := q.db.QueryRow(ctx, lockUser, userID)
+	var id uuid.UUID
+	err := row.Scan(&id)
+	return id, err
+}
+
+const lockUserForAdoption = `-- name: LockUserForAdoption :one
+SELECT id FROM users WHERE id = $1::uuid FOR NO KEY UPDATE
+`
+
+// Guest-cart adoption takes the account row before any cart row, so two first
+// adopters meet here rather than at carts_one_per_user, and checkout's KEY SHARE
+// on the same row (LockUserForCheckout) never waits for a cart lock held by an
+// adopter. NO KEY UPDATE is the same strength as LockUser in
+// internal/account/query.sql, whose comment states the order every path keeps;
+// this copy exists so cart calls no account query. store's column UPDATE on
+// users is what PostgreSQL asks for.
+func (q *Queries) LockUserForAdoption(ctx context.Context, userID uuid.UUID) (uuid.UUID, error) {
+	row := q.db.QueryRow(ctx, lockUserForAdoption, userID)
 	var id uuid.UUID
 	err := row.Scan(&id)
 	return id, err
@@ -10262,11 +10352,11 @@ func (q *Queries) MarkOutboxDelivered(ctx context.Context, arg MarkOutboxDeliver
 }
 
 const markSessionVerified = `-- name: MarkSessionVerified :exec
-UPDATE sessions SET totp_verified_at = now() WHERE token_hash = $1
+UPDATE sessions SET totp_verified_at = now() WHERE digest = $1
 `
 
-func (q *Queries) MarkSessionVerified(ctx context.Context, tokenHash []byte) error {
-	_, err := q.db.Exec(ctx, markSessionVerified, tokenHash)
+func (q *Queries) MarkSessionVerified(ctx context.Context, digest []byte) error {
+	_, err := q.db.Exec(ctx, markSessionVerified, digest)
 	return err
 }
 
@@ -10378,31 +10468,32 @@ func (q *Queries) MediaObject(ctx context.Context, digest string) (MediaObjectRo
 
 const memberStanding = `-- name: MemberStanding :one
 SELECT
-    member_spend($1, $2::integer, NULL)::bigint AS spend_cents,
-    coalesce((SELECT localized_name(t.name, t.name_en, $3::text)
+    membership_window_days()::integer AS window_days,
+    member_spend($1, NULL)::bigint AS spend_cents,
+    coalesce((SELECT localized_name(t.name, t.name_en, $2::text)
               FROM membership_tiers t
-              WHERE t.id = member_tier($1, $2::integer, NULL)), '')::text
+              WHERE t.id = member_tier($1, NULL)), '')::text
         AS tier_name,
     coalesce((SELECT t.points_multiplier_bp FROM membership_tiers t
-              WHERE t.id = member_tier($1, $2::integer, NULL)), 10000)::integer
+              WHERE t.id = member_tier($1, NULL)), 10000)::integer
         AS multiplier_bp,
-    coalesce((SELECT localized_name(n.name, n.name_en, $3::text)
+    coalesce((SELECT localized_name(n.name, n.name_en, $2::text)
               FROM membership_tiers n
-              WHERE n.min_spend_cents > member_spend($1, $2::integer, NULL)
+              WHERE n.min_spend_cents > member_spend($1, NULL)
               ORDER BY n.min_spend_cents LIMIT 1), '')::text AS next_name,
-    coalesce((SELECT n.min_spend_cents - member_spend($1, $2::integer, NULL)
+    coalesce((SELECT n.min_spend_cents - member_spend($1, NULL)
               FROM membership_tiers n
-              WHERE n.min_spend_cents > member_spend($1, $2::integer, NULL)
+              WHERE n.min_spend_cents > member_spend($1, NULL)
               ORDER BY n.min_spend_cents LIMIT 1), 0)::bigint AS next_needs_cents
 `
 
 type MemberStandingParams struct {
-	UserID     uuid.UUID
-	WindowDays int32
-	Locale     string
+	UserID uuid.UUID
+	Locale string
 }
 
 type MemberStandingRow struct {
+	WindowDays     int32
 	SpendCents     int64
 	TierName       string
 	MultiplierBp   int32
@@ -10413,9 +10504,10 @@ type MemberStandingRow struct {
 // Derived on every read, never stored: a stored tier drifts from the orders
 // behind it the moment one is cancelled.
 func (q *Queries) MemberStanding(ctx context.Context, arg MemberStandingParams) (MemberStandingRow, error) {
-	row := q.db.QueryRow(ctx, memberStanding, arg.UserID, arg.WindowDays, arg.Locale)
+	row := q.db.QueryRow(ctx, memberStanding, arg.UserID, arg.Locale)
 	var i MemberStandingRow
 	err := row.Scan(
+		&i.WindowDays,
 		&i.SpendCents,
 		&i.TierName,
 		&i.MultiplierBp,
@@ -10427,6 +10519,7 @@ func (q *Queries) MemberStanding(ctx context.Context, arg MemberStandingParams) 
 
 const myWarranties = `-- name: MyWarranties :many
 SELECT w.id, w.unit_no, coalesce(w.serial_number, '') AS serial_number,
+       w.order_line_id,
        w.registered_at, w.expires_on,
        (w.expires_on >= shop_today())::boolean AS in_force,
        ol.product_name, ol.variant_label, o.id AS order_id, o.order_number,
@@ -10443,6 +10536,7 @@ type MyWarrantiesRow struct {
 	ID           uuid.UUID
 	UnitNo       int16
 	SerialNumber string
+	OrderLineID  uuid.UUID
 	RegisteredAt time.Time
 	ExpiresOn    time.Time
 	InForce      bool
@@ -10467,6 +10561,7 @@ func (q *Queries) MyWarranties(ctx context.Context, userID uuid.NullUUID) ([]MyW
 			&i.ID,
 			&i.UnitNo,
 			&i.SerialNumber,
+			&i.OrderLineID,
 			&i.RegisteredAt,
 			&i.ExpiresOn,
 			&i.InForce,
@@ -10735,21 +10830,28 @@ func (q *Queries) NewestProducts(ctx context.Context, arg NewestProductsParams) 
 const newsletterCounts = `-- name: NewsletterCounts :one
 SELECT
     count(*) FILTER (WHERE unsubscribed_at IS NULL)     AS active,
+    count(*) FILTER (WHERE unsubscribed_at IS NULL AND locale = 'en') AS english_active,
     count(*) FILTER (WHERE unsubscribed_at IS NOT NULL) AS unsubscribed,
     (SELECT count(*) FROM newsletter_confirmations WHERE expires_at > now()) AS awaiting
 FROM newsletter_subscribers
 `
 
 type NewsletterCountsRow struct {
-	Active       int64
-	Unsubscribed int64
-	Awaiting     int64
+	Active        int64
+	EnglishActive int64
+	Unsubscribed  int64
+	Awaiting      int64
 }
 
 func (q *Queries) NewsletterCounts(ctx context.Context) (NewsletterCountsRow, error) {
 	row := q.db.QueryRow(ctx, newsletterCounts)
 	var i NewsletterCountsRow
-	err := row.Scan(&i.Active, &i.Unsubscribed, &i.Awaiting)
+	err := row.Scan(
+		&i.Active,
+		&i.EnglishActive,
+		&i.Unsubscribed,
+		&i.Awaiting,
+	)
 	return i, err
 }
 
@@ -11386,9 +11488,28 @@ func (q *Queries) OrderIsPaid(ctx context.Context, orderID uuid.UUID) (bool, err
 }
 
 const orderLinesByOrder = `-- name: OrderLinesByOrder :many
-SELECT sku, product_name, variant_label, unit_price_cents, quantity
-FROM order_lines WHERE order_id = $1 ORDER BY position, id
+SELECT ol.sku, ol.product_name, ol.variant_label, ol.unit_price_cents, ol.quantity,
+       coalesce(img.storage_key, '') AS image_key,
+       coalesce(localized_name(img.alt_text, img.alt_text_en, $1::text), '')::text AS image_alt,
+       coalesce(img.width, 0)::integer AS image_width
+FROM order_lines ol
+LEFT JOIN LATERAL (
+    SELECT i.storage_key, i.alt_text, i.alt_text_en, i.width FROM product_images i
+    WHERE i.product_id = ol.product_id
+    ORDER BY EXISTS (
+                 SELECT 1 FROM variant_option_values vov
+                 WHERE vov.variant_id = ol.variant_id AND vov.option_value_id = i.option_value_id
+             ) DESC,
+             i.position
+    LIMIT 1
+) img ON true
+WHERE ol.order_id = $2 ORDER BY ol.position, ol.id
 `
+
+type OrderLinesByOrderParams struct {
+	Locale  string
+	OrderID uuid.UUID
+}
 
 type OrderLinesByOrderRow struct {
 	SKU            string
@@ -11396,10 +11517,13 @@ type OrderLinesByOrderRow struct {
 	VariantLabel   pgtype.Text
 	UnitPriceCents int64
 	Quantity       int32
+	ImageKey       string
+	ImageAlt       string
+	ImageWidth     int32
 }
 
-func (q *Queries) OrderLinesByOrder(ctx context.Context, orderID uuid.UUID) ([]OrderLinesByOrderRow, error) {
-	rows, err := q.db.Query(ctx, orderLinesByOrder, orderID)
+func (q *Queries) OrderLinesByOrder(ctx context.Context, arg OrderLinesByOrderParams) ([]OrderLinesByOrderRow, error) {
+	rows, err := q.db.Query(ctx, orderLinesByOrder, arg.Locale, arg.OrderID)
 	if err != nil {
 		return nil, err
 	}
@@ -11413,6 +11537,9 @@ func (q *Queries) OrderLinesByOrder(ctx context.Context, orderID uuid.UUID) ([]O
 			&i.VariantLabel,
 			&i.UnitPriceCents,
 			&i.Quantity,
+			&i.ImageKey,
+			&i.ImageAlt,
+			&i.ImageWidth,
 		); err != nil {
 			return nil, err
 		}
@@ -11425,21 +11552,43 @@ func (q *Queries) OrderLinesByOrder(ctx context.Context, orderID uuid.UUID) ([]O
 }
 
 const orderLinesForPayment = `-- name: OrderLinesForPayment :many
-SELECT product_name, variant_label, unit_price_cents, quantity
-FROM order_lines WHERE order_id = $1 ORDER BY position, id
+SELECT ol.product_name, ol.variant_label, ol.unit_price_cents, ol.quantity,
+       coalesce(img.storage_key, '') AS image_key,
+       coalesce(localized_name(img.alt_text, img.alt_text_en, $1::text), '')::text AS image_alt,
+       coalesce(img.width, 0)::integer AS image_width
+FROM order_lines ol
+LEFT JOIN LATERAL (
+    SELECT i.storage_key, i.alt_text, i.alt_text_en, i.width FROM product_images i
+    WHERE i.product_id = ol.product_id
+    ORDER BY EXISTS (
+                 SELECT 1 FROM variant_option_values vov
+                 WHERE vov.variant_id = ol.variant_id AND vov.option_value_id = i.option_value_id
+             ) DESC,
+             i.position
+    LIMIT 1
+) img ON true
+WHERE ol.order_id = $2 ORDER BY ol.position, ol.id
 `
+
+type OrderLinesForPaymentParams struct {
+	Locale  string
+	OrderID uuid.UUID
+}
 
 type OrderLinesForPaymentRow struct {
 	ProductName    string
 	VariantLabel   pgtype.Text
 	UnitPriceCents int64
 	Quantity       int32
+	ImageKey       string
+	ImageAlt       string
+	ImageWidth     int32
 }
 
 // Named from the order rather than the catalogue: a renamed or repriced product
 // must not move at payment.
-func (q *Queries) OrderLinesForPayment(ctx context.Context, orderID uuid.UUID) ([]OrderLinesForPaymentRow, error) {
-	rows, err := q.db.Query(ctx, orderLinesForPayment, orderID)
+func (q *Queries) OrderLinesForPayment(ctx context.Context, arg OrderLinesForPaymentParams) ([]OrderLinesForPaymentRow, error) {
+	rows, err := q.db.Query(ctx, orderLinesForPayment, arg.Locale, arg.OrderID)
 	if err != nil {
 		return nil, err
 	}
@@ -11452,6 +11601,9 @@ func (q *Queries) OrderLinesForPayment(ctx context.Context, orderID uuid.UUID) (
 			&i.VariantLabel,
 			&i.UnitPriceCents,
 			&i.Quantity,
+			&i.ImageKey,
+			&i.ImageAlt,
+			&i.ImageWidth,
 		); err != nil {
 			return nil, err
 		}
@@ -11686,10 +11838,11 @@ func (q *Queries) OrderRecipient(ctx context.Context, id uuid.UUID) (OrderRecipi
 }
 
 const orderRefundRows = `-- name: OrderRefundRows :many
-SELECT channel, amount_cents, at, reason, staff FROM (
+SELECT channel, amount_cents, at, kind, reason, staff FROM (
     SELECT 'card'::text AS channel, rf.amount_cents, rf.succeeded_at AS at,
+           ''::text AS kind,
            coalesce(rf.reason, '')::text AS reason,
-           coalesce((SELECT coalesce(u.full_name, u.email)
+           coalesce((SELECT u.email
                      FROM audit_events a JOIN users u ON u.id = a.actor_user_id
                      WHERE a.entity_table = 'refunds' AND a.entity_id = rf.id
                      ORDER BY a.occurred_at LIMIT 1), '')::text AS staff
@@ -11697,8 +11850,9 @@ SELECT channel, amount_cents, at, reason, staff FROM (
     WHERE p.order_id = $1 AND rf.status = 'succeeded'
     UNION ALL
     SELECT 'credit'::text, e.amount_cents, e.created_at,
-           e.reason::text,
-           coalesce((SELECT coalesce(u.full_name, u.email) FROM users u
+           coalesce(e.kind, '')::text,
+           coalesce(e.reason, '')::text,
+           coalesce((SELECT u.email FROM users u
                      WHERE u.id = e.actor_user_id), '')::text
     FROM store_credit_entries e
     WHERE e.order_id = $1 AND e.amount_cents > 0
@@ -11710,6 +11864,7 @@ type OrderRefundRowsRow struct {
 	Channel     string
 	AmountCents int64
 	At          pgtype.Timestamptz
+	Kind        string
 	Reason      string
 	Staff       string
 }
@@ -11718,6 +11873,9 @@ type OrderRefundRowsRow struct {
 // Credit refunds are the positive store-credit entries, the same definition
 // order_refunds uses. Who: the staff member the audit trail names for a card
 // refund, and the entry's own actor for a credit one; empty when none is known.
+// Both are named by CURRENT email, never by the editable full_name.
+// A credit refund is labelled by its kind, and shows its reason only when staff
+// typed one; a card refund has no kind.
 func (q *Queries) OrderRefundRows(ctx context.Context, orderID uuid.UUID) ([]OrderRefundRowsRow, error) {
 	rows, err := q.db.Query(ctx, orderRefundRows, orderID)
 	if err != nil {
@@ -11731,6 +11889,7 @@ func (q *Queries) OrderRefundRows(ctx context.Context, orderID uuid.UUID) ([]Ord
 			&i.Channel,
 			&i.AmountCents,
 			&i.At,
+			&i.Kind,
 			&i.Reason,
 			&i.Staff,
 		); err != nil {
@@ -12233,11 +12392,11 @@ func (q *Queries) ParkProductImages(ctx context.Context, slug string) error {
 
 const passwordResetToken = `-- name: PasswordResetToken :one
 SELECT user_id FROM password_reset_tokens
-WHERE token_hash = $1 AND used_at IS NULL AND expires_at > now()
+WHERE digest = $1 AND used_at IS NULL AND expires_at > now()
 `
 
-func (q *Queries) PasswordResetToken(ctx context.Context, tokenHash []byte) (uuid.UUID, error) {
-	row := q.db.QueryRow(ctx, passwordResetToken, tokenHash)
+func (q *Queries) PasswordResetToken(ctx context.Context, digest []byte) (uuid.UUID, error) {
+	row := q.db.QueryRow(ctx, passwordResetToken, digest)
 	var user_id uuid.UUID
 	err := row.Scan(&user_id)
 	return user_id, err
@@ -13406,7 +13565,8 @@ func (q *Queries) ReceiveStock(ctx context.Context, arg ReceiveStockParams) erro
 }
 
 const recentCredit = `-- name: RecentCredit :many
-SELECT json_build_object('At', e.created_at, 'ID', e.id)::text AS page_cursor, e.amount_cents, e.reason, e.created_at,
+SELECT json_build_object('At', e.created_at, 'ID', e.id)::text AS page_cursor, e.amount_cents,
+       coalesce(e.kind, '')::text AS kind, coalesce(e.reason, '')::text AS reason, e.created_at,
        coalesce(u.email, '') AS email
 FROM store_credit_entries e
 JOIN store_credit_accounts a ON a.id = e.account_id
@@ -13427,11 +13587,14 @@ type RecentCreditParams struct {
 type RecentCreditRow struct {
 	PageCursor  string
 	AmountCents int64
+	Kind        string
 	Reason      string
 	CreatedAt   time.Time
 	Email       string
 }
 
+// kind says what the posting is; reason is only what a staff member typed, and
+// is NULL for every other kind. The label comes from kind, never from reason.
 func (q *Queries) RecentCredit(ctx context.Context, arg RecentCreditParams) ([]RecentCreditRow, error) {
 	rows, err := q.db.Query(ctx, recentCredit,
 		arg.HasCursor,
@@ -13449,6 +13612,7 @@ func (q *Queries) RecentCredit(ctx context.Context, arg RecentCreditParams) ([]R
 		if err := rows.Scan(
 			&i.PageCursor,
 			&i.AmountCents,
+			&i.Kind,
 			&i.Reason,
 			&i.CreatedAt,
 			&i.Email,
@@ -13496,6 +13660,90 @@ func (q *Queries) RecentMedia(ctx context.Context, limit int32) ([]RecentMediaRo
 			&i.Height,
 			&i.ByteSize,
 			&i.CreatedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const recentOrders = `-- name: RecentOrders :many
+SELECT o.order_number,
+    o.fulfillment_status,
+    o.placed_at,
+    o.shipping_cents,
+    o.discount_cents,
+    o.tax_cents,
+    coalesce(pd.recipient_name, '') AS recipient,
+    coalesce((SELECT sum(ol.unit_price_cents * ol.quantity) FROM order_lines ol
+              WHERE ol.order_id = o.id), 0)::bigint AS subtotal_cents,
+    order_is_committed(o.id) AS committed,
+    order_amount_after_credit(o.id) AS owed_cents,
+    (EXISTS (SELECT 1 FROM order_lines ol WHERE ol.order_id = o.id)
+     AND NOT EXISTS (
+         SELECT 1 FROM order_lines ol
+         WHERE ol.order_id = o.id
+           AND ol.quantity > coalesce((SELECT sum(rl.quantity) FROM return_request_lines rl
+                                       JOIN return_requests rr ON rr.id = rl.return_request_id
+                                       WHERE rl.order_line_id = ol.id
+                                         AND NOT rr.before_shipment
+                                         AND (rr.status = 'completed'
+                                              OR (rr.status = 'approved'
+                                                  AND (rr.goods_refund_cents + rr.shipping_refund_cents = 0
+                                                       OR EXISTS (SELECT 1 FROM order_events e
+                                                                  WHERE e.return_request_id = rr.id
+                                                                    AND e.kind = 'refunded'))))), 0)))::boolean AS returned
+FROM orders o
+LEFT JOIN order_private_data pd ON pd.order_id = o.id
+ORDER BY o.placed_at DESC, o.id DESC
+LIMIT $1::integer
+`
+
+type RecentOrdersRow struct {
+	OrderNumber       string
+	FulfillmentStatus string
+	PlacedAt          time.Time
+	ShippingCents     int64
+	DiscountCents     int64
+	TaxCents          int64
+	Recipient         string
+	SubtotalCents     int64
+	Committed         bool
+	OwedCents         int64
+	Returned          bool
+}
+
+// The newest orders whatever state they are in, as the landing page lists them.
+// The columns are the ones admin/orders' AdminOrders returns for a queue row,
+// plus returned: whether every unit is in a return whose refund has settled.
+// returned repeats the predicate of ReturnedOrders in internal/cart/query.sql,
+// so that this package reads no other package's query; the test that reads an
+// order through both desks holds the two to the same answer.
+func (q *Queries) RecentOrders(ctx context.Context, rowLimit int32) ([]RecentOrdersRow, error) {
+	rows, err := q.db.Query(ctx, recentOrders, rowLimit)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []RecentOrdersRow{}
+	for rows.Next() {
+		var i RecentOrdersRow
+		if err := rows.Scan(
+			&i.OrderNumber,
+			&i.FulfillmentStatus,
+			&i.PlacedAt,
+			&i.ShippingCents,
+			&i.DiscountCents,
+			&i.TaxCents,
+			&i.Recipient,
+			&i.SubtotalCents,
+			&i.Committed,
+			&i.OwedCents,
+			&i.Returned,
 		); err != nil {
 			return nil, err
 		}
@@ -13750,15 +13998,15 @@ func (q *Queries) RecordNewsletterSend(ctx context.Context, arg RecordNewsletter
 }
 
 const recordOrderEvent = `-- name: RecordOrderEvent :exec
-INSERT INTO order_events (order_id, kind, note, actor_user_id)
+INSERT INTO order_events (order_id, kind, actor_user_id, shipment_id)
 VALUES ($1, $2::text, $3, $4)
 `
 
 type RecordOrderEventParams struct {
 	OrderID     uuid.UUID
 	Kind        string
-	Note        pgtype.Text
 	ActorUserID uuid.NullUUID
+	ShipmentID  uuid.NullUUID
 }
 
 // order_events is append-only three ways — a forbid_change trigger, REVOKE
@@ -13767,8 +14015,8 @@ func (q *Queries) RecordOrderEvent(ctx context.Context, arg RecordOrderEventPara
 	_, err := q.db.Exec(ctx, recordOrderEvent,
 		arg.OrderID,
 		arg.Kind,
-		arg.Note,
 		arg.ActorUserID,
+		arg.ShipmentID,
 	)
 	return err
 }
@@ -13992,21 +14240,25 @@ func (q *Queries) RecordReturnRefundedEvent(ctx context.Context, arg RecordRetur
 
 const recordTOTPStep = `-- name: RecordTOTPStep :execrows
 UPDATE staff_totp_credentials
-SET last_step = $1::bigint
-WHERE user_id = $2
+SET last_step = $1::bigint,
+    secret_encrypted = coalesce($2::bytea, secret_encrypted)
+WHERE user_id = $3
   AND confirmed_at IS NOT NULL
   AND (last_step IS NULL OR last_step < $1::bigint)
 `
 
 type RecordTOTPStepParams struct {
-	Step   int64
-	UserID uuid.UUID
+	Step     int64
+	Resealed []byte
+	UserID   uuid.UUID
 }
 
 // Record an accepted code. The step guard is in the statement: two requests
 // replaying one code both pass a check made in Go, and only one can win here.
+// A secret the current key did not open arrives re-sealed under it and is
+// written by the same statement that accepts the code; NULL leaves it alone.
 func (q *Queries) RecordTOTPStep(ctx context.Context, arg RecordTOTPStepParams) (int64, error) {
-	result, err := q.db.Exec(ctx, recordTOTPStep, arg.Step, arg.UserID)
+	result, err := q.db.Exec(ctx, recordTOTPStep, arg.Step, arg.Resealed, arg.UserID)
 	if err != nil {
 		return 0, err
 	}
@@ -14225,11 +14477,15 @@ func (q *Queries) RegisterWarranty(ctx context.Context, arg RegisterWarrantyPara
 const registrableLines = `-- name: RegistrableLines :many
 SELECT
     ol.id AS order_line_id,
+    o.order_number,
     ol.product_name,
     ol.variant_label,
     p.slug AS product_slug,
     ol.warranty_months,
     coalesce(ol.warranty_note, '') AS warranty_note,
+    -- sqlc types the lateral date as non-null, so retain its presence separately.
+    (parcel.expires_on IS NOT NULL)::boolean AS has_expiry,
+    coalesce(parcel.expires_on, shop_today())::date AS expires_on,
     greatest(coalesce(delivered.units, 0) - coalesce(returned.units, 0), 0)::integer AS delivered_units,
     coalesce(returned.units, 0)::integer AS returned_units,
     coalesce(registered.units, 0)::integer AS registered_units
@@ -14254,23 +14510,45 @@ LEFT JOIN LATERAL (
     SELECT count(*) AS units
     FROM warranty_registrations w WHERE w.order_line_id = ol.id
 ) registered ON true
-WHERE o.order_number = $1::text
+LEFT JOIN LATERAL (
+    SELECT (shop_day(p.delivered_at) + make_interval(months => ol.warranty_months))::date AS expires_on
+    FROM (
+        SELECT s.delivered_at, sl.quantity,
+               sum(sl.quantity) OVER (ORDER BY s.shipped_at, s.id) - sl.quantity AS units_before
+        FROM order_shipment_lines sl
+        JOIN order_shipments s ON s.id = sl.shipment_id
+        WHERE sl.order_line_id = ol.id
+    ) p
+    WHERE coalesce(registered.units, 0) + 1 > p.units_before
+      AND coalesce(registered.units, 0) + 1 <= p.units_before + p.quantity
+      AND p.delivered_at IS NOT NULL
+      AND coalesce(registered.units, 0) + 1 <= greatest(coalesce(delivered.units, 0) - coalesce(returned.units, 0), 0)
+      AND NOT EXISTS (
+          SELECT 1 FROM warranty_registrations w
+          WHERE w.order_line_id = ol.id
+            AND w.unit_no = coalesce(registered.units, 0) + 1
+      )
+) parcel ON true
+WHERE ($1::text IS NULL OR o.order_number = $1::text)
   AND o.user_id = $2
-ORDER BY ol.position, ol.id
+ORDER BY o.placed_at DESC, o.id, ol.position, ol.id
 `
 
 type RegistrableLinesParams struct {
-	OrderNumber string
+	OrderNumber pgtype.Text
 	UserID      uuid.NullUUID
 }
 
 type RegistrableLinesRow struct {
 	OrderLineID     uuid.UUID
+	OrderNumber     string
 	ProductName     string
 	VariantLabel    pgtype.Text
 	ProductSlug     pgtype.Text
 	WarrantyMonths  pgtype.Int4
 	WarrantyNote    string
+	HasExpiry       bool
+	ExpiresOn       time.Time
 	DeliveredUnits  int32
 	ReturnedUnits   int32
 	RegisteredUnits int32
@@ -14292,11 +14570,14 @@ func (q *Queries) RegistrableLines(ctx context.Context, arg RegistrableLinesPara
 		var i RegistrableLinesRow
 		if err := rows.Scan(
 			&i.OrderLineID,
+			&i.OrderNumber,
 			&i.ProductName,
 			&i.VariantLabel,
 			&i.ProductSlug,
 			&i.WarrantyMonths,
 			&i.WarrantyNote,
+			&i.HasExpiry,
+			&i.ExpiresOn,
 			&i.DeliveredUnits,
 			&i.ReturnedUnits,
 			&i.RegisteredUnits,
@@ -14655,7 +14936,7 @@ WITH removed AS (
     DELETE FROM sessions AS session
     USING removed r
     WHERE session.user_id = r.user_id
-    RETURNING session.token_hash
+    RETURNING session.digest
 )
 SELECT EXISTS (SELECT 1 FROM removed)::boolean AS removed
 FROM (SELECT count(*) FROM ended) AS ended_once
@@ -16201,18 +16482,18 @@ func (q *Queries) SearchProductsCount(ctx context.Context, patterns []string) (i
 const sessionCreatedSince = `-- name: SessionCreatedSince :one
 SELECT s.created_at > now() - $1::interval AS recent
 FROM sessions s
-WHERE s.token_hash = $2 AND s.expires_at > now()
+WHERE s.digest = $2 AND s.expires_at > now()
 `
 
 type SessionCreatedSinceParams struct {
-	MaxAge    pgtype.Interval
-	TokenHash []byte
+	MaxAge pgtype.Interval
+	Digest []byte
 }
 
 // Recency is measured on the database's clock, the one that stamped created_at
 // and that the expiry check above reads. A missing or expired session is not recent.
 func (q *Queries) SessionCreatedSince(ctx context.Context, arg SessionCreatedSinceParams) (bool, error) {
-	row := q.db.QueryRow(ctx, sessionCreatedSince, arg.MaxAge, arg.TokenHash)
+	row := q.db.QueryRow(ctx, sessionCreatedSince, arg.MaxAge, arg.Digest)
 	var recent bool
 	err := row.Scan(&recent)
 	return recent, err
@@ -16221,16 +16502,16 @@ func (q *Queries) SessionCreatedSince(ctx context.Context, arg SessionCreatedSin
 const sessionTOTPVerified = `-- name: SessionTOTPVerified :one
 SELECT (s.totp_verified_at IS NOT NULL
         AND s.totp_verified_at > now() - $2::interval)::boolean AS verified
-FROM sessions s WHERE s.token_hash = $1
+FROM sessions s WHERE s.digest = $1
 `
 
 type SessionTOTPVerifiedParams struct {
-	TokenHash []byte
-	MaxAge    pgtype.Interval
+	Digest []byte
+	MaxAge pgtype.Interval
 }
 
 func (q *Queries) SessionTOTPVerified(ctx context.Context, arg SessionTOTPVerifiedParams) (bool, error) {
-	row := q.db.QueryRow(ctx, sessionTOTPVerified, arg.TokenHash, arg.MaxAge)
+	row := q.db.QueryRow(ctx, sessionTOTPVerified, arg.Digest, arg.MaxAge)
 	var verified bool
 	err := row.Scan(&verified)
 	return verified, err
@@ -16240,7 +16521,7 @@ const sessionUser = `-- name: SessionUser :one
 SELECT u.id, u.email, u.full_name, u.role
 FROM sessions s
 JOIN users u ON u.id = s.user_id
-WHERE s.token_hash = $1 AND s.expires_at > now()
+WHERE s.digest = $1 AND s.expires_at > now()
 `
 
 type SessionUserRow struct {
@@ -16251,8 +16532,8 @@ type SessionUserRow struct {
 }
 
 // The expiry is checked here, so an expired session is dead before anything sweeps it.
-func (q *Queries) SessionUser(ctx context.Context, tokenHash []byte) (SessionUserRow, error) {
-	row := q.db.QueryRow(ctx, sessionUser, tokenHash)
+func (q *Queries) SessionUser(ctx context.Context, digest []byte) (SessionUserRow, error) {
+	row := q.db.QueryRow(ctx, sessionUser, digest)
 	var i SessionUserRow
 	err := row.Scan(
 		&i.ID,
@@ -16404,6 +16685,40 @@ func (q *Queries) SetCategoryImage(ctx context.Context, arg SetCategoryImagePara
 		return 0, err
 	}
 	return result.RowsAffected(), nil
+}
+
+const setCategoryImageText = `-- name: SetCategoryImageText :one
+WITH category AS MATERIALIZED (
+    SELECT id, image_key FROM categories WHERE slug = $1::text FOR UPDATE
+), updated AS (
+    UPDATE categories c
+    SET image_alt = $2::text, image_alt_en = nullif($3::text, '')
+    FROM category
+    WHERE c.id = category.id AND category.image_key IS NOT NULL
+    RETURNING c.id
+)
+SELECT EXISTS (SELECT 1 FROM category)::boolean AS found,
+       EXISTS (SELECT 1 FROM updated)::boolean AS changed
+`
+
+type SetCategoryImageTextParams struct {
+	Slug       string
+	ImageAlt   string
+	ImageAltEn string
+}
+
+type SetCategoryImageTextRow struct {
+	Found   bool
+	Changed bool
+}
+
+// Keep the current image in the same write: an alt-only save must not restore
+// a photograph that another staff member replaced or removed.
+func (q *Queries) SetCategoryImageText(ctx context.Context, arg SetCategoryImageTextParams) (SetCategoryImageTextRow, error) {
+	row := q.db.QueryRow(ctx, setCategoryImageText, arg.Slug, arg.ImageAlt, arg.ImageAltEn)
+	var i SetCategoryImageTextRow
+	err := row.Scan(&i.Found, &i.Changed)
+	return i, err
 }
 
 const setCouponActive = `-- name: SetCouponActive :execrows
@@ -17366,14 +17681,14 @@ func (q *Queries) SpendNewsletterConfirmation(ctx context.Context, digest []byte
 
 const spendPasswordResetToken = `-- name: SpendPasswordResetToken :one
 UPDATE password_reset_tokens SET used_at = now()
-WHERE token_hash = $1 AND used_at IS NULL AND expires_at > now()
+WHERE digest = $1 AND used_at IS NULL AND expires_at > now()
 RETURNING user_id
 `
 
 // used_at IS NULL is in the WHERE, so two requests carrying one token cannot both
 // win, and the caller runs this in the SAME transaction as the password change.
-func (q *Queries) SpendPasswordResetToken(ctx context.Context, tokenHash []byte) (uuid.UUID, error) {
-	row := q.db.QueryRow(ctx, spendPasswordResetToken, tokenHash)
+func (q *Queries) SpendPasswordResetToken(ctx context.Context, digest []byte) (uuid.UUID, error) {
+	row := q.db.QueryRow(ctx, spendPasswordResetToken, digest)
 	var user_id uuid.UUID
 	err := row.Scan(&user_id)
 	return user_id, err
@@ -18731,7 +19046,7 @@ func (q *Queries) VariantForCart(ctx context.Context, id uuid.UUID) (VariantForC
 const variantMovements = `-- name: VariantMovements :many
 SELECT json_build_object('ID', m.id)::text AS page_cursor, m.created_at, m.delta, m.reason, m.source_type,
        coalesce(o.order_number, ro.order_number, rro.order_number, '') AS order_number,
-       coalesce(u.full_name, u.email, '') AS actor,
+       coalesce(u.email, '') AS actor,
        (SELECT sum(e.delta) FROM inventory_movements e
         WHERE e.variant_id = m.variant_id AND e.id <= m.id)::integer AS running_total
 FROM inventory_movements m
@@ -18770,6 +19085,7 @@ type VariantMovementsRow struct {
 
 // Each source discriminator selects its validated parent. A hold names its
 // order; a release names the reservation and a restock names the return.
+// Who moved the stock is named by CURRENT email, never by the editable full_name.
 func (q *Queries) VariantMovements(ctx context.Context, arg VariantMovementsParams) ([]VariantMovementsRow, error) {
 	rows, err := q.db.Query(ctx, variantMovements,
 		arg.SKU,

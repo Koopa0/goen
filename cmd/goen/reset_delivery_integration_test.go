@@ -18,6 +18,7 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 
 	"github.com/koopa0/goen/internal/account"
+	"github.com/koopa0/goen/internal/bearer"
 	"github.com/koopa0/goen/internal/email"
 	"github.com/koopa0/goen/internal/outbox"
 )
@@ -38,7 +39,7 @@ func TestResetMailDeliverySkipsObsoleteTokens(t *testing.T) {
 			case "superseded":
 				live = f.issue(t)
 			case "unknown":
-				if _, err := pool.Exec(t.Context(), `DELETE FROM password_reset_tokens WHERE token_hash=$1`, account.HashToken(first.Payload.Token)); err != nil {
+				if _, err := pool.Exec(t.Context(), `DELETE FROM password_reset_tokens WHERE digest=$1`, bearer.Digest(first.Payload.Token)); err != nil {
 					t.Fatalf("remove reset token: %v", err)
 				}
 			}
@@ -93,7 +94,7 @@ func TestResetMailTokenReadFailureRemainsRetryable(t *testing.T) {
 	fault := &resetReadCancellation{}
 	f := newResetDeliveryFixture(t, fault)
 	mail := f.issue(t)
-	fault.digest = account.HashToken(mail.Payload.Token)
+	fault.digest = bearer.Digest(mail.Payload.Token)
 	fault.enabled.Store(true)
 	f.drain(t)
 	if !fault.triggered.Load() {
@@ -226,7 +227,7 @@ func expireResetMailToken(t *testing.T, m queuedResetMail) {
 	// database age; no wall-clock delay or token-lifetime change is needed.
 	if _, err := pool.Exec(t.Context(), `UPDATE password_reset_tokens
 		SET created_at=now()-interval '2 hours', expires_at=now()-interval '1 hour'
-		WHERE token_hash=$1`, account.HashToken(m.Payload.Token)); err != nil {
+		WHERE digest=$1`, bearer.Digest(m.Payload.Token)); err != nil {
 		t.Fatalf("age reset token: %v", err)
 	}
 }

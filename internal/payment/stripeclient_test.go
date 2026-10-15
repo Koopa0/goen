@@ -177,7 +177,7 @@ func TestEveryStripeClientUsesTheBoundedTransport(t *testing.T) {
 		t.Fatalf("stripeHTTPClient.Transport is %T, want stripeTransport", stripeHTTPClient.Transport)
 	}
 
-	c := NewStripeClient("sk_test_notarealkey")
+	c := newStripeClient("sk_test_notarealkey", &stripe.BackendConfig{})
 	for name, b := range map[string]stripe.Backend{
 		"checkout sessions": c.V1CheckoutSessions.B,
 		"refunds":           c.V1Refunds.B,

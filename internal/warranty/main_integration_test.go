@@ -22,9 +22,9 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 	"golang.org/x/net/html"
 
+	"github.com/koopa0/goen/internal/db"
 	"github.com/koopa0/goen/internal/db/dbtest"
 	"github.com/koopa0/goen/internal/i18n"
-	"github.com/koopa0/goen/internal/pgtx"
 	"github.com/koopa0/goen/internal/user"
 	"github.com/koopa0/goen/internal/warranty"
 )
@@ -77,15 +77,25 @@ func newFixture(t *testing.T, ordered, months int, p parcel) fixture {
 
 func newFixtureForCustomer(t *testing.T, userID uuid.UUID, ordered, months int, p parcel) fixture {
 	t.Helper()
+	return newWarrantyFixture(t, userID, false, ordered, months, p)
+}
+
+func newFixtureForGuest(t *testing.T, ordered, months int, p parcel) fixture {
+	t.Helper()
+	return newWarrantyFixture(t, uuid.Nil, true, ordered, months, p)
+}
+
+func newWarrantyFixture(t *testing.T, userID uuid.UUID, guest bool, ordered, months int, p parcel) fixture {
+	t.Helper()
 	ctx := t.Context()
 
 	tx, err := pool.Begin(ctx)
 	if err != nil {
 		t.Fatalf("begin: %v", err)
 	}
-	defer pgtx.Rollback(ctx, tx)
+	defer db.Rollback(ctx, tx)
 
-	if userID == uuid.Nil {
+	if userID == uuid.Nil && !guest {
 		if err := tx.QueryRow(ctx, `
 		INSERT INTO users (email, role, full_name)
 		VALUES ('w-' || gen_random_uuid() || '@goen.invalid', 'customer', '保固測試')
@@ -132,7 +142,7 @@ func newFixtureForCustomer(t *testing.T, userID uuid.UUID, ordered, months int, 
 		SELECT next_order_number(), $1, v.id, sm.code, v.name, 0
 		FROM shipping_method_versions v JOIN shipping_methods sm ON sm.id = v.method_id
 		ORDER BY v.effective_at LIMIT 1
-		RETURNING id, order_number`, userID).Scan(&orderID, &number); err != nil {
+		RETURNING id, order_number`, uuid.NullUUID{UUID: userID, Valid: !guest}).Scan(&orderID, &number); err != nil {
 		t.Fatalf("create order: %v", err)
 	}
 
@@ -1012,7 +1022,7 @@ func TestWarrantyRegistrationSuccessStillRedirects(t *testing.T) {
 				r.Header.Set("Content-Type", "application/x-www-form-urlencoded")
 				w := httptest.NewRecorder()
 				mux.ServeHTTP(w, r)
-				if w.Code != http.StatusSeeOther || w.Header().Get("Location") != "/account/warranty/"+f.number+"?ok=1" {
+				if w.Code != http.StatusSeeOther || w.Header().Get("Location") != "/account/warranty/"+f.number+"?line="+f.lineID.String()+"&ok=1&unit=1" {
 					t.Fatalf("successful warranty status=%d, location=%q; want 303 to its order", w.Code, w.Header().Get("Location"))
 				}
 				var count int

@@ -15,6 +15,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/koopa0/goen/internal/db"
+	"github.com/koopa0/goen/internal/db/dbtest"
 	"github.com/koopa0/goen/internal/shipping"
 
 	"github.com/google/go-cmp/cmp"
@@ -27,7 +29,6 @@ import (
 	"github.com/koopa0/goen/internal/admin/audit"
 	"github.com/koopa0/goen/internal/admin/orders"
 	"github.com/koopa0/goen/internal/i18n"
-	"github.com/koopa0/goen/internal/pgtx"
 	"github.com/koopa0/goen/internal/ui/pages/admin"
 )
 
@@ -285,8 +286,8 @@ func waitForDeliveryLock(t *testing.T, blockerPID uint32) {
 	t.Helper()
 	deadline := time.Now().Add(5 * time.Second)
 	for time.Now().Before(deadline) {
-		var waiting bool
-		if err := pool.QueryRow(t.Context(), `SELECT EXISTS(SELECT 1 FROM pg_stat_activity WHERE $1=ANY(pg_blocking_pids(pid)) AND query LIKE '%LockOrderDelivery%')`, int64(blockerPID)).Scan(&waiting); err != nil {
+		_, waiting, err := dbtest.Blocked(t.Context(), pool, dbtest.Match{QueryLike: "%LockOrderDelivery%", BlockedBy: []int32{int32(blockerPID)}}) //nolint:gosec // G115: a backend pid is an int4 in pg_backend_pid()
+		if err != nil {
 			t.Fatal(err)
 		}
 		if waiting {
@@ -547,7 +548,7 @@ func TestDeliveryCorrectionStoreFailureDoesNotRefuseAField(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			defer pgtx.Rollback(ctx, lock)
+			defer db.Rollback(ctx, lock)
 			if _, err = lock.Exec(ctx, `SELECT id FROM orders WHERE id=$1 FOR UPDATE`, f.id); err != nil {
 				t.Fatal(err)
 			}

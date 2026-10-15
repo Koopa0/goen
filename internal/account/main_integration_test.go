@@ -28,11 +28,12 @@ import (
 	xhtml "golang.org/x/net/html"
 
 	"github.com/koopa0/goen/internal/account"
+	"github.com/koopa0/goen/internal/bearer"
 	"github.com/koopa0/goen/internal/cart"
 	"github.com/koopa0/goen/internal/db/dbtest"
 	"github.com/koopa0/goen/internal/i18n"
-	"github.com/koopa0/goen/internal/order"
 	"github.com/koopa0/goen/internal/order/access"
+	"github.com/koopa0/goen/internal/order/delivery"
 	"github.com/koopa0/goen/internal/outbox"
 	"github.com/koopa0/goen/internal/ratelimit"
 	"github.com/koopa0/goen/internal/ui/pages/pagestest"
@@ -47,6 +48,8 @@ func checkoutAttemptKey(label string) string {
 }
 
 func TestMain(m *testing.M) {
+	account.LowerPasswordCostForTests()
+
 	p, stop, err := dbtest.Start(context.Background())
 	if err != nil {
 		slog.Error("start database", "error", err)
@@ -135,14 +138,11 @@ func beginReset(t *testing.T, s *account.Store, email string) string {
 // needs two live siblings has to write those rows itself.
 func plantLiveResetToken(t *testing.T, userID string) string {
 	t.Helper()
-	token, err := account.NewToken()
-	if err != nil {
-		t.Fatalf("mint reset token: %v", err)
-	}
+	token := bearer.New()
 	if _, err := pool.Exec(t.Context(), `
-		INSERT INTO password_reset_tokens (token_hash, user_id, expires_at)
+		INSERT INTO password_reset_tokens (digest, user_id, expires_at)
 		VALUES ($1, $2, now() + interval '1 hour')`,
-		account.HashToken(token), uuid.MustParse(userID)); err != nil {
+		bearer.Digest(token), uuid.MustParse(userID)); err != nil {
 		t.Fatalf("plant live reset token: %v", err)
 	}
 	return token
@@ -199,12 +199,7 @@ func waitForAccountLock(t *testing.T, applicationName string, done <-chan error)
 		default:
 		}
 
-		var waiting bool
-		err := pool.QueryRow(t.Context(), `
-			SELECT EXISTS (
-				SELECT 1 FROM pg_stat_activity
-				WHERE application_name = $1 AND wait_event_type = 'Lock'
-			)`, applicationName).Scan(&waiting)
+		_, waiting, err := dbtest.Blocked(t.Context(), pool, dbtest.Match{Application: applicationName})
 		if err == nil && waiting {
 			return
 		}
@@ -239,7 +234,7 @@ func accountCheckoutQuote(
 	if err != nil {
 		t.Fatalf("read account checkout cart: %v", err)
 	}
-	delivery, err := s.QuoteShipping(t.Context(), shippingID, view.SubtotalCents, postalCode)
+	quote, err := s.QuoteShipping(t.Context(), shippingID, view.SubtotalCents, postalCode)
 	if err != nil {
 		t.Fatalf("quote account checkout delivery: %v", err)
 	}
@@ -258,7 +253,7 @@ func accountCheckoutQuote(
 			VariantID: variantID, Quantity: line.Quantity, UnitCents: line.UnitCents,
 		})
 	}
-	shipping, err := delivery.Total()
+	shipping, err := quote.Total()
 	if err != nil {
 		t.Fatalf("total account checkout shipping: %v", err)
 	}
@@ -357,7 +352,7 @@ func TestSessionsAreStoredHashed(t *testing.T) {
 
 	var n int
 	if countErr := pool.QueryRow(t.Context(),
-		`SELECT count(*) FROM sessions WHERE token_hash = $1`, []byte(token)).Scan(&n); countErr != nil {
+		`SELECT count(*) FROM sessions WHERE digest = $1`, []byte(token)).Scan(&n); countErr != nil {
 		t.Fatalf("count: %v", countErr)
 	}
 	if n != 0 {
@@ -398,7 +393,7 @@ func TestUnsafeUserAgentDoesNotRefuseOrDecorateASession(t *testing.T) {
 
 			var stored *string
 			if err := pool.QueryRow(ctx,
-				`SELECT user_agent FROM sessions WHERE token_hash = $1`, account.HashToken(token)).
+				`SELECT user_agent FROM sessions WHERE digest = $1`, bearer.Digest(token)).
 				Scan(&stored); err != nil {
 				t.Fatalf("read persisted user-agent: %v", err)
 			}
@@ -415,7 +410,7 @@ func TestUnsafeUserAgentDoesNotRefuseOrDecorateASession(t *testing.T) {
 	}
 	var stored string
 	if err := pool.QueryRow(ctx,
-		`SELECT user_agent FROM sessions WHERE token_hash = $1`, account.HashToken(token)).
+		`SELECT user_agent FROM sessions WHERE digest = $1`, bearer.Digest(token)).
 		Scan(&stored); err != nil {
 		t.Fatalf("read exact-ceiling user-agent: %v", err)
 	}
@@ -440,12 +435,12 @@ func TestExpiredSessionIsNobody(t *testing.T) {
 		UPDATE sessions
 		SET created_at = now() - interval '2 hours',
 		    expires_at = now() - interval '1 hour'
-		WHERE token_hash = $1`, account.HashToken(token)); err != nil {
+		WHERE digest = $1`, bearer.Digest(token)); err != nil {
 		t.Fatalf("expire: %v", err)
 	}
 	var n int
-	if err := pool.QueryRow(ctx, `SELECT count(*) FROM sessions WHERE token_hash = $1`,
-		account.HashToken(token)).Scan(&n); err != nil {
+	if err := pool.QueryRow(ctx, `SELECT count(*) FROM sessions WHERE digest = $1`,
+		bearer.Digest(token)).Scan(&n); err != nil {
 		t.Fatalf("count: %v", err)
 	}
 	if n != 1 {
@@ -644,8 +639,8 @@ func TestAdoptCartMergesRatherThanReplaces(t *testing.T) {
 
 	var accountCart uuid.UUID
 	if err := pool.QueryRow(ctx,
-		`INSERT INTO carts (token_hash, user_id) VALUES ($1, $2) RETURNING id`,
-		account.HashToken("account-cart-"+u.ID), uid).Scan(&accountCart); err != nil {
+		`INSERT INTO carts (digest, user_id) VALUES ($1, $2) RETURNING id`,
+		bearer.Digest("account-cart-"+u.ID), uid).Scan(&accountCart); err != nil {
 		t.Fatalf("account cart: %v", err)
 	}
 	if _, err := pool.Exec(ctx,
@@ -656,8 +651,8 @@ func TestAdoptCartMergesRatherThanReplaces(t *testing.T) {
 
 	var guestCart uuid.UUID
 	if err := pool.QueryRow(ctx,
-		`INSERT INTO carts (token_hash) VALUES ($1) RETURNING id`,
-		account.HashToken("guest-cart-"+u.ID)).Scan(&guestCart); err != nil {
+		`INSERT INTO carts (digest) VALUES ($1) RETURNING id`,
+		bearer.Digest("guest-cart-"+u.ID)).Scan(&guestCart); err != nil {
 		t.Fatalf("guest cart: %v", err)
 	}
 	if _, err := pool.Exec(ctx, `
@@ -666,7 +661,7 @@ func TestAdoptCartMergesRatherThanReplaces(t *testing.T) {
 		t.Fatalf("guest lines: %v", err)
 	}
 
-	if err := s.AdoptCart(ctx, u.ID, guestCart); err != nil {
+	if err := cart.NewStore(pool).Adopt(ctx, u.ID, guestCart); err != nil {
 		t.Fatalf("adopt: %v", err)
 	}
 
@@ -739,8 +734,8 @@ func TestAdoptCartMergeClampsCombinedQuantity(t *testing.T) {
 
 	var accountCart uuid.UUID
 	if err := pool.QueryRow(ctx,
-		`INSERT INTO carts (token_hash, user_id) VALUES ($1, $2) RETURNING id`,
-		account.HashToken("account-cart-"+u.ID), uid).Scan(&accountCart); err != nil {
+		`INSERT INTO carts (digest, user_id) VALUES ($1, $2) RETURNING id`,
+		bearer.Digest("account-cart-"+u.ID), uid).Scan(&accountCart); err != nil {
 		t.Fatalf("account cart: %v", err)
 	}
 	if _, err := pool.Exec(ctx,
@@ -751,8 +746,8 @@ func TestAdoptCartMergeClampsCombinedQuantity(t *testing.T) {
 
 	var guestCart uuid.UUID
 	if err := pool.QueryRow(ctx,
-		`INSERT INTO carts (token_hash) VALUES ($1) RETURNING id`,
-		account.HashToken("guest-cart-"+u.ID)).Scan(&guestCart); err != nil {
+		`INSERT INTO carts (digest) VALUES ($1) RETURNING id`,
+		bearer.Digest("guest-cart-"+u.ID)).Scan(&guestCart); err != nil {
 		t.Fatalf("guest cart: %v", err)
 	}
 	if _, err := pool.Exec(ctx,
@@ -761,7 +756,7 @@ func TestAdoptCartMergeClampsCombinedQuantity(t *testing.T) {
 		t.Fatalf("guest line: %v", err)
 	}
 
-	if err := s.AdoptCart(ctx, u.ID, guestCart); !errors.Is(err, account.ErrQuantityAdjusted) {
+	if err := cart.NewStore(pool).Adopt(ctx, u.ID, guestCart); !errors.Is(err, cart.ErrQuantityAdjusted) {
 		t.Fatalf("merge over stock returned %v, want ErrQuantityAdjusted", err)
 	}
 
@@ -811,8 +806,8 @@ func TestAdoptUnavailableGuestLinePreservesBothCarts(t *testing.T) {
 
 	var accountCart uuid.UUID
 	if err := pool.QueryRow(ctx,
-		`INSERT INTO carts (token_hash, user_id) VALUES ($1, $2) RETURNING id`,
-		account.HashToken("account-cart-"+u.ID), uid).Scan(&accountCart); err != nil {
+		`INSERT INTO carts (digest, user_id) VALUES ($1, $2) RETURNING id`,
+		bearer.Digest("account-cart-"+u.ID), uid).Scan(&accountCart); err != nil {
 		t.Fatalf("account cart: %v", err)
 	}
 	if _, err := pool.Exec(ctx,
@@ -823,8 +818,8 @@ func TestAdoptUnavailableGuestLinePreservesBothCarts(t *testing.T) {
 
 	var guestCart uuid.UUID
 	if err := pool.QueryRow(ctx,
-		`INSERT INTO carts (token_hash) VALUES ($1) RETURNING id`,
-		account.HashToken("guest-cart-"+u.ID)).Scan(&guestCart); err != nil {
+		`INSERT INTO carts (digest) VALUES ($1) RETURNING id`,
+		bearer.Digest("guest-cart-"+u.ID)).Scan(&guestCart); err != nil {
 		t.Fatalf("guest cart: %v", err)
 	}
 	if _, err := pool.Exec(ctx,
@@ -833,8 +828,8 @@ func TestAdoptUnavailableGuestLinePreservesBothCarts(t *testing.T) {
 		t.Fatalf("guest line: %v", err)
 	}
 
-	if err := s.AdoptCart(ctx, u.ID, guestCart); !errors.Is(err, account.ErrCartMergeRefused) {
-		t.Fatalf("adopt with unavailable guest line returned %v, want ErrCartMergeRefused", err)
+	if err := cart.NewStore(pool).Adopt(ctx, u.ID, guestCart); !errors.Is(err, cart.ErrMergeRefused) {
+		t.Fatalf("adopt with unavailable guest line returned %v, want ErrMergeRefused", err)
 	}
 
 	var guestCount, accountCount int
@@ -909,8 +904,8 @@ func TestAdoptRefusesInactiveLinesWithoutTouchingEitherCart(t *testing.T) {
 				var accountCart uuid.UUID
 				if hasAccountCart {
 					if err := pool.QueryRow(ctx,
-						`INSERT INTO carts (token_hash, user_id) VALUES ($1, $2) RETURNING id`,
-						account.HashToken("account-cart-"+u.ID), uid).Scan(&accountCart); err != nil {
+						`INSERT INTO carts (digest, user_id) VALUES ($1, $2) RETURNING id`,
+						bearer.Digest("account-cart-"+u.ID), uid).Scan(&accountCart); err != nil {
 						t.Fatalf("account cart: %v", err)
 					}
 					if _, err := pool.Exec(ctx,
@@ -921,8 +916,8 @@ func TestAdoptRefusesInactiveLinesWithoutTouchingEitherCart(t *testing.T) {
 				}
 				var guestCart uuid.UUID
 				if err := pool.QueryRow(ctx,
-					`INSERT INTO carts (token_hash) VALUES ($1) RETURNING id`,
-					account.HashToken("guest-cart-"+u.ID)).Scan(&guestCart); err != nil {
+					`INSERT INTO carts (digest) VALUES ($1) RETURNING id`,
+					bearer.Digest("guest-cart-"+u.ID)).Scan(&guestCart); err != nil {
 					t.Fatalf("guest cart: %v", err)
 				}
 				for _, line := range []struct {
@@ -936,8 +931,8 @@ func TestAdoptRefusesInactiveLinesWithoutTouchingEitherCart(t *testing.T) {
 					}
 				}
 
-				if err := s.AdoptCart(ctx, u.ID, guestCart); !errors.Is(err, account.ErrCartMergeRefused) {
-					t.Fatalf("adopt returned %v, want ErrCartMergeRefused", err)
+				if err := cart.NewStore(pool).Adopt(ctx, u.ID, guestCart); !errors.Is(err, cart.ErrMergeRefused) {
+					t.Fatalf("adopt returned %v, want ErrMergeRefused", err)
 				}
 
 				quantities := func(cartID uuid.UUID) map[uuid.UUID]int32 {
@@ -995,21 +990,21 @@ func TestAMergedCartIsVisibleAfterSignInWithTheDeletedGuestCookie(t *testing.T) 
 
 	guestToken := "guest-cart-" + u.ID
 	if _, err := pool.Exec(ctx,
-		`INSERT INTO carts (token_hash, user_id) VALUES ($1, $2)`,
-		account.HashToken("account-cart-"+u.ID), uid); err != nil {
+		`INSERT INTO carts (digest, user_id) VALUES ($1, $2)`,
+		bearer.Digest("account-cart-"+u.ID), uid); err != nil {
 		t.Fatalf("account cart: %v", err)
 	}
 	if _, err := pool.Exec(ctx,
 		`INSERT INTO cart_items (cart_id, variant_id, quantity)
-		 SELECT id, $2, 1 FROM carts WHERE token_hash = $1`,
-		account.HashToken("account-cart-"+u.ID), a); err != nil {
+		 SELECT id, $2, 1 FROM carts WHERE digest = $1`,
+		bearer.Digest("account-cart-"+u.ID), a); err != nil {
 		t.Fatalf("account line: %v", err)
 	}
 
 	var guestCart uuid.UUID
 	if err := pool.QueryRow(ctx,
-		`INSERT INTO carts (token_hash) VALUES ($1) RETURNING id`,
-		account.HashToken(guestToken)).Scan(&guestCart); err != nil {
+		`INSERT INTO carts (digest) VALUES ($1) RETURNING id`,
+		bearer.Digest(guestToken)).Scan(&guestCart); err != nil {
 		t.Fatalf("guest cart: %v", err)
 	}
 	if _, err := pool.Exec(ctx, `
@@ -1100,8 +1095,8 @@ func TestFailedCartAdoptionOnSignInShowsNoticeAndPreservesBothCarts(t *testing.T
 
 	var accountCart uuid.UUID
 	if err := pool.QueryRow(ctx,
-		`INSERT INTO carts (token_hash, user_id) VALUES ($1, $2) RETURNING id`,
-		account.HashToken("account-cart-"+u.ID), uid).Scan(&accountCart); err != nil {
+		`INSERT INTO carts (digest, user_id) VALUES ($1, $2) RETURNING id`,
+		bearer.Digest("account-cart-"+u.ID), uid).Scan(&accountCart); err != nil {
 		t.Fatalf("account cart: %v", err)
 	}
 	if _, err := pool.Exec(ctx,
@@ -1113,8 +1108,8 @@ func TestFailedCartAdoptionOnSignInShowsNoticeAndPreservesBothCarts(t *testing.T
 	guestToken := "guest-cart-" + u.ID
 	var guestCart uuid.UUID
 	if err := pool.QueryRow(ctx,
-		`INSERT INTO carts (token_hash) VALUES ($1) RETURNING id`,
-		account.HashToken(guestToken)).Scan(&guestCart); err != nil {
+		`INSERT INTO carts (digest) VALUES ($1) RETURNING id`,
+		bearer.Digest(guestToken)).Scan(&guestCart); err != nil {
 		t.Fatalf("guest cart: %v", err)
 	}
 	if _, err := pool.Exec(ctx, `
@@ -1222,18 +1217,15 @@ func TestFailedCartAdoptionOnSignInShowsNoticeAndPreservesBothCarts(t *testing.T
 	lookupReq.AddCookie(session)
 	//nolint:gosec // G124: the browser's own cart cookie, read by this handler
 	lookupReq.AddCookie(&http.Cookie{Name: "goen_cart", Value: guestToken})
-	var resolved uuid.UUID
-	var resolvedOK bool
-	var resolvedErr error
-	h.Authenticate(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		resolved, resolvedOK, resolvedErr = carts.IDForRequest(r.Context(), r)
-	})).ServeHTTP(httptest.NewRecorder(), lookupReq)
-	if resolvedErr != nil {
-		t.Fatalf("resolve the merged cart: %v", resolvedErr)
+	lookupRec := httptest.NewRecorder()
+	h.Authenticate(http.HandlerFunc(carts.Page)).ServeHTTP(lookupRec, lookupReq)
+	if lookupRec.Code != http.StatusOK {
+		t.Fatalf("GET /cart after the merge status = %d, want 200", lookupRec.Code)
 	}
-	if !resolvedOK || resolved != accountCart {
-		t.Errorf("guest cookie after merge resolved to %s (ok=%v), want account cart %s",
-			resolved, resolvedOK, accountCart)
+	for _, line := range []uuid.UUID{accountVariant, guestVariant} {
+		if want := `id="line-` + line.String() + `"`; !strings.Contains(lookupRec.Body.String(), want) {
+			t.Errorf("guest cookie after merge did not show the account cart: no %s on /cart", want)
+		}
 	}
 }
 
@@ -1263,8 +1255,8 @@ func TestAdoptCartRefusesGuestCartOwnedByAnotherAccount(t *testing.T) {
 
 	var accountCart uuid.UUID
 	if err := pool.QueryRow(ctx,
-		`INSERT INTO carts (token_hash, user_id) VALUES ($1, $2) RETURNING id`,
-		account.HashToken("refuse-account-"+u.ID), uid).Scan(&accountCart); err != nil {
+		`INSERT INTO carts (digest, user_id) VALUES ($1, $2) RETURNING id`,
+		bearer.Digest("refuse-account-"+u.ID), uid).Scan(&accountCart); err != nil {
 		t.Fatalf("account cart: %v", err)
 	}
 	if _, err := pool.Exec(ctx,
@@ -1276,8 +1268,8 @@ func TestAdoptCartRefusesGuestCartOwnedByAnotherAccount(t *testing.T) {
 	guestToken := "refuse-guest-" + u.ID
 	var guestCart uuid.UUID
 	if err := pool.QueryRow(ctx,
-		`INSERT INTO carts (token_hash, user_id) VALUES ($1, $2) RETURNING id`,
-		account.HashToken(guestToken), otherUID).Scan(&guestCart); err != nil {
+		`INSERT INTO carts (digest, user_id) VALUES ($1, $2) RETURNING id`,
+		bearer.Digest(guestToken), otherUID).Scan(&guestCart); err != nil {
 		t.Fatalf("guest cart: %v", err)
 	}
 	if _, err := pool.Exec(ctx,
@@ -1367,8 +1359,8 @@ func TestAdoptCartNeverTakesAnotherAccountsCart(t *testing.T) {
 			var ownCart uuid.UUID
 			if tt.hasACart {
 				if err := pool.QueryRow(ctx,
-					`INSERT INTO carts (token_hash, user_id) VALUES ($1, $2) RETURNING id`,
-					account.HashToken("adopt-owned-own-"+u.ID), uuid.MustParse(u.ID)).Scan(&ownCart); err != nil {
+					`INSERT INTO carts (digest, user_id) VALUES ($1, $2) RETURNING id`,
+					bearer.Digest("adopt-owned-own-"+u.ID), uuid.MustParse(u.ID)).Scan(&ownCart); err != nil {
 					t.Fatalf("account cart: %v", err)
 				}
 				if _, err := pool.Exec(ctx,
@@ -1379,8 +1371,8 @@ func TestAdoptCartNeverTakesAnotherAccountsCart(t *testing.T) {
 			}
 			var theirCart uuid.UUID
 			if err := pool.QueryRow(ctx,
-				`INSERT INTO carts (token_hash, user_id) VALUES ($1, $2) RETURNING id`,
-				account.HashToken("adopt-owned-theirs-"+u.ID), otherUID).Scan(&theirCart); err != nil {
+				`INSERT INTO carts (digest, user_id) VALUES ($1, $2) RETURNING id`,
+				bearer.Digest("adopt-owned-theirs-"+u.ID), otherUID).Scan(&theirCart); err != nil {
 				t.Fatalf("other account's cart: %v", err)
 			}
 			if _, err := pool.Exec(ctx,
@@ -1389,7 +1381,7 @@ func TestAdoptCartNeverTakesAnotherAccountsCart(t *testing.T) {
 				t.Fatalf("other account's line: %v", err)
 			}
 
-			if err := accounts.AdoptCart(ctx, u.ID, theirCart); !errors.Is(err, account.ErrNotFound) {
+			if err := cart.NewStore(pool).Adopt(ctx, u.ID, theirCart); !errors.Is(err, cart.ErrNotFound) {
 				t.Errorf("adopting another account's cart returned %v, want ErrNotFound", err)
 			}
 
@@ -1441,121 +1433,6 @@ func cartItemQuantity(t *testing.T, cartID, variantID uuid.UUID) int32 {
 	return qty
 }
 
-// TestConcurrentFirstAdoptersKeepBothGuestCarts holds the account row before
-// either sign-in starts. Both calls must wait there, which makes the "no account
-// cart exists" observation deterministic rather than scheduler luck. One cart is
-// then adopted and the other merged into it, both through the store role.
-func TestConcurrentFirstAdoptersKeepBothGuestCarts(t *testing.T) {
-	ctx := t.Context()
-	u := register(t, account.NewStore(pool), "first-adopters-"+uuid.NewString()+"@example.com")
-	userID := uuid.MustParse(u.ID)
-
-	var firstVariant, secondVariant uuid.UUID
-	if err := pool.QueryRow(ctx,
-		`SELECT id FROM product_variants WHERE is_active ORDER BY position, id LIMIT 1`).
-		Scan(&firstVariant); err != nil {
-		t.Fatalf("first variant: %v", err)
-	}
-	if err := pool.QueryRow(ctx, `
-		SELECT id FROM product_variants
-		WHERE is_active AND id <> $1 ORDER BY position, id LIMIT 1`, firstVariant).
-		Scan(&secondVariant); err != nil {
-		t.Fatalf("second variant: %v", err)
-	}
-
-	guest := func(label string, variantID uuid.UUID, quantity int32) uuid.UUID {
-		t.Helper()
-		var cartID uuid.UUID
-		if err := pool.QueryRow(ctx,
-			`INSERT INTO carts (token_hash) VALUES ($1) RETURNING id`,
-			account.HashToken(label+u.ID)).Scan(&cartID); err != nil {
-			t.Fatalf("create %s: %v", label, err)
-		}
-		if _, err := pool.Exec(ctx, `
-			INSERT INTO cart_items (cart_id, variant_id, quantity) VALUES ($1, $2, $3)`,
-			cartID, variantID, quantity); err != nil {
-			t.Fatalf("fill %s: %v", label, err)
-		}
-		return cartID
-	}
-	firstCart := guest("first-adopter-a-", firstVariant, 2)
-	secondCart := guest("first-adopter-b-", secondVariant, 3)
-
-	blocker, beginErr := pool.Begin(ctx)
-	if beginErr != nil {
-		t.Fatalf("begin account blocker: %v", beginErr)
-	}
-	defer func() { _ = blocker.Rollback(context.WithoutCancel(ctx)) }()
-	if _, lockErr := blocker.Exec(ctx, `SELECT 1 FROM users WHERE id = $1 FOR UPDATE`, userID); lockErr != nil {
-		t.Fatalf("lock account: %v", lockErr)
-	}
-
-	suffix := uuid.NewString()[:8]
-	firstName, secondName := "adopt-first-a-"+suffix, "adopt-first-b-"+suffix
-	firstStore := account.NewStore(accountStorePool(t, firstName))
-	secondStore := account.NewStore(accountStorePool(t, secondName))
-	firstDone, secondDone := make(chan error, 1), make(chan error, 1)
-	go func() { firstDone <- firstStore.AdoptCart(ctx, u.ID, firstCart) }()
-	go func() { secondDone <- secondStore.AdoptCart(ctx, u.ID, secondCart) }()
-	waitForAccountLock(t, firstName, firstDone)
-	waitForAccountLock(t, secondName, secondDone)
-
-	if commitErr := blocker.Commit(ctx); commitErr != nil {
-		t.Fatalf("release account: %v", commitErr)
-	}
-	if firstErr := operationResult(t, firstDone); firstErr != nil {
-		t.Errorf("first adoption: %v", firstErr)
-	}
-	if secondErr := operationResult(t, secondDone); secondErr != nil {
-		t.Errorf("second adoption: %v", secondErr)
-	}
-
-	var accountCart uuid.UUID
-	if err := pool.QueryRow(ctx, `SELECT id FROM carts WHERE user_id = $1`, userID).
-		Scan(&accountCart); err != nil {
-		t.Fatalf("read adopted account cart: %v", err)
-	}
-	if accountCart != firstCart && accountCart != secondCart {
-		t.Fatalf("account cart = %s, want one of the two guest carts", accountCart)
-	}
-	var accountCarts, originalCarts int
-	if err := pool.QueryRow(ctx, `SELECT count(*) FROM carts WHERE user_id = $1`, userID).
-		Scan(&accountCarts); err != nil {
-		t.Fatalf("count account carts: %v", err)
-	}
-	if err := pool.QueryRow(ctx,
-		`SELECT count(*) FROM carts WHERE id = ANY($1::uuid[])`, []uuid.UUID{firstCart, secondCart}).
-		Scan(&originalCarts); err != nil {
-		t.Fatalf("count original carts: %v", err)
-	}
-	if accountCarts != 1 || originalCarts != 1 {
-		t.Fatalf("after concurrent adoption account/original carts = %d/%d, want 1/1",
-			accountCarts, originalCarts)
-	}
-
-	rows, err := pool.Query(ctx,
-		`SELECT variant_id, quantity FROM cart_items WHERE cart_id = $1`, accountCart)
-	if err != nil {
-		t.Fatalf("read adopted cart lines: %v", err)
-	}
-	defer rows.Close()
-	got := map[uuid.UUID]int32{}
-	for rows.Next() {
-		var variantID uuid.UUID
-		var quantity int32
-		if err := rows.Scan(&variantID, &quantity); err != nil {
-			t.Fatalf("scan adopted cart line: %v", err)
-		}
-		got[variantID] = quantity
-	}
-	if err := rows.Err(); err != nil {
-		t.Fatalf("iterate adopted cart lines: %v", err)
-	}
-	if got[firstVariant] != 2 || got[secondVariant] != 3 || len(got) != 2 {
-		t.Errorf("adopted cart lines = %v, want both guest facts", got)
-	}
-}
-
 // TestTwoAccountsCannotAdoptTheSameGuestCart holds the shared cart after each
 // transaction has locked its own user, so both make the first-adopter decision
 // before either can update the cart. The winner keeps the cart; the loser must
@@ -1574,8 +1451,8 @@ func TestTwoAccountsCannotAdoptTheSameGuestCart(t *testing.T) {
 		t.Fatalf("variant: %v", err)
 	}
 	if err := pool.QueryRow(ctx,
-		`INSERT INTO carts (token_hash) VALUES ($1) RETURNING id`,
-		account.HashToken("shared-guest-"+uuid.NewString())).Scan(&guestCart); err != nil {
+		`INSERT INTO carts (digest) VALUES ($1) RETURNING id`,
+		bearer.Digest("shared-guest-"+uuid.NewString())).Scan(&guestCart); err != nil {
 		t.Fatalf("create shared guest cart: %v", err)
 	}
 	if _, err := pool.Exec(ctx, `
@@ -1595,11 +1472,11 @@ func TestTwoAccountsCannotAdoptTheSameGuestCart(t *testing.T) {
 
 	suffix := uuid.NewString()[:8]
 	firstName, secondName := "adopt-shared-a-"+suffix, "adopt-shared-b-"+suffix
-	firstStore := account.NewStore(accountStorePool(t, firstName))
-	secondStore := account.NewStore(accountStorePool(t, secondName))
+	firstStore := cart.NewStore(accountStorePool(t, firstName))
+	secondStore := cart.NewStore(accountStorePool(t, secondName))
 	firstDone, secondDone := make(chan error, 1), make(chan error, 1)
-	go func() { firstDone <- firstStore.AdoptCart(ctx, firstUser.ID, guestCart) }()
-	go func() { secondDone <- secondStore.AdoptCart(ctx, secondUser.ID, guestCart) }()
+	go func() { firstDone <- firstStore.Adopt(ctx, firstUser.ID, guestCart) }()
+	go func() { secondDone <- secondStore.Adopt(ctx, secondUser.ID, guestCart) }()
 	waitForAccountLock(t, firstName, firstDone)
 	waitForAccountLock(t, secondName, secondDone)
 
@@ -1607,8 +1484,8 @@ func TestTwoAccountsCannotAdoptTheSameGuestCart(t *testing.T) {
 		t.Fatalf("release shared guest cart: %v", err)
 	}
 	firstErr, secondErr := operationResult(t, firstDone), operationResult(t, secondDone)
-	firstWon := firstErr == nil && errors.Is(secondErr, account.ErrNotFound)
-	secondWon := secondErr == nil && errors.Is(firstErr, account.ErrNotFound)
+	firstWon := firstErr == nil && errors.Is(secondErr, cart.ErrNotFound)
+	secondWon := secondErr == nil && errors.Is(firstErr, cart.ErrNotFound)
 	if !firstWon && !secondWon {
 		t.Fatalf("shared guest adoption results = %v / %v, want one success and one ErrNotFound",
 			firstErr, secondErr)
@@ -1641,114 +1518,6 @@ func TestTwoAccountsCannotAdoptTheSameGuestCart(t *testing.T) {
 	}
 }
 
-// TestCheckoutAndAdoptionShareUserBeforeCartLockOrder pauses checkout after it
-// owns the account cart. Adoption then holds NO KEY UPDATE on the user and waits
-// for that cart. Releasing checkout is safe only because its user KEY SHARE is
-// already held (and compatible); the former cart -> user acquisition deadlocked.
-func TestCheckoutAndAdoptionShareUserBeforeCartLockOrder(t *testing.T) {
-	ctx := t.Context()
-	u := register(t, account.NewStore(pool), "checkout-adopt-"+uuid.NewString()+"@example.com")
-	userID := uuid.MustParse(u.ID)
-	owner := uuid.NullUUID{UUID: userID, Valid: true}
-
-	var checkoutVariant, guestVariant uuid.UUID
-	if err := pool.QueryRow(ctx,
-		`SELECT id FROM product_variants WHERE is_active ORDER BY position, id LIMIT 1`).
-		Scan(&checkoutVariant); err != nil {
-		t.Fatalf("checkout variant: %v", err)
-	}
-	if err := pool.QueryRow(ctx, `
-		SELECT id FROM product_variants
-		WHERE is_active AND id <> $1 ORDER BY position, id LIMIT 1`, checkoutVariant).
-		Scan(&guestVariant); err != nil {
-		t.Fatalf("guest variant: %v", err)
-	}
-
-	var accountCart, guestCart uuid.UUID
-	if err := pool.QueryRow(ctx, `
-		INSERT INTO carts (token_hash, user_id) VALUES ($1, $2) RETURNING id`,
-		account.HashToken("checkout-adopt-account-"+u.ID), userID).Scan(&accountCart); err != nil {
-		t.Fatalf("create account cart: %v", err)
-	}
-	if err := pool.QueryRow(ctx,
-		`INSERT INTO carts (token_hash) VALUES ($1) RETURNING id`,
-		account.HashToken("checkout-adopt-guest-"+u.ID)).Scan(&guestCart); err != nil {
-		t.Fatalf("create guest cart: %v", err)
-	}
-	if _, err := pool.Exec(ctx, `
-		INSERT INTO cart_items (cart_id, variant_id, quantity)
-		VALUES ($1, $2, 1), ($3, $4, 2)`,
-		accountCart, checkoutVariant, guestCart, guestVariant); err != nil {
-		t.Fatalf("fill checkout/adoption carts: %v", err)
-	}
-
-	var shippingID uuid.UUID
-	if err := pool.QueryRow(ctx, `
-		SELECT v.id
-		FROM shipping_method_versions v
-		JOIN shipping_methods m ON m.id = v.method_id
-		WHERE m.code = 'home_delivery'
-		ORDER BY v.effective_at DESC, v.id DESC LIMIT 1`).Scan(&shippingID); err != nil {
-		t.Fatalf("read home-delivery version: %v", err)
-	}
-	addr := &order.Delivery{
-		Email: u.Email, RecipientName: "王小明", Phone: "0912345678",
-		PostalCode: "110", City: "台北市", District: "信義區", Street: "松高路 1 號",
-	}
-	shown := accountCheckoutQuote(t, cart.NewStore(pool), accountCart, owner, shippingID, addr.PostalCode)
-
-	blocker, err := pool.Begin(ctx)
-	if err != nil {
-		t.Fatalf("begin catalogue blocker: %v", err)
-	}
-	defer func() { _ = blocker.Rollback(context.WithoutCancel(ctx)) }()
-	if _, err := blocker.Exec(ctx,
-		`SELECT 1 FROM product_variants WHERE id = $1 FOR UPDATE`, checkoutVariant); err != nil {
-		t.Fatalf("lock checkout variant: %v", err)
-	}
-
-	suffix := uuid.NewString()[:8]
-	checkoutName, adoptionName := "checkout-before-adopt-"+suffix, "adopt-behind-checkout-"+suffix
-	checkoutStore := cart.NewStore(accountStorePool(t, checkoutName))
-	adoptionStore := account.NewStore(accountStorePool(t, adoptionName))
-	checkoutDone, adoptionDone := make(chan error, 1), make(chan error, 1)
-	var orderNumber string
-	go func() {
-		var placeErr error
-		orderNumber, placeErr = checkoutStore.PlaceOrder(
-			ctx, accountCart, owner, shippingID, addr, nil, "", shown,
-			checkoutAttemptKey("checkout-adopt-"+suffix),
-		)
-		checkoutDone <- placeErr
-	}()
-	waitForAccountLock(t, checkoutName, checkoutDone)
-	go func() { adoptionDone <- adoptionStore.AdoptCart(ctx, u.ID, guestCart) }()
-	waitForAccountLock(t, adoptionName, adoptionDone)
-
-	if err := blocker.Commit(ctx); err != nil {
-		t.Fatalf("release checkout catalogue: %v", err)
-	}
-	if err := operationResult(t, checkoutDone); err != nil {
-		t.Errorf("checkout in user/cart lock interleaving: %v", err)
-	}
-	if err := operationResult(t, adoptionDone); err != nil {
-		t.Errorf("adoption in user/cart lock interleaving: %v", err)
-	}
-	if orderNumber == "" {
-		t.Error("checkout produced no order number")
-	}
-
-	var adoptedQuantity int32
-	if err := pool.QueryRow(ctx, `
-		SELECT quantity FROM cart_items WHERE cart_id = $1 AND variant_id = $2`,
-		accountCart, guestVariant).Scan(&adoptedQuantity); err != nil {
-		t.Fatalf("read cart merged after checkout: %v", err)
-	}
-	if adoptedQuantity != 2 {
-		t.Errorf("cart merged after checkout with quantity %d, want 2", adoptedQuantity)
-	}
-}
-
 func TestSessionExpiryUsesTheDatabaseClockAndTTL(t *testing.T) {
 	ctx := t.Context()
 	s := account.NewStore(pool)
@@ -1763,8 +1532,8 @@ func TestSessionExpiryUsesTheDatabaseClockAndTTL(t *testing.T) {
 	if err := pool.QueryRow(ctx, `
 		SELECT expires_at,
 		       expires_at = created_at + ($2 * interval '1 second')
-		FROM sessions WHERE token_hash = $1`,
-		account.HashToken(token), account.SessionTTL).Scan(&expires, &exactTTL); err != nil {
+		FROM sessions WHERE digest = $1`,
+		bearer.Digest(token), account.SessionTTL).Scan(&expires, &exactTTL); err != nil {
 		t.Fatalf("read expiry: %v", err)
 	}
 	if !exactTTL {
@@ -2218,7 +1987,7 @@ func creditFundedOpenReturnForErasure(
 	}
 	if _, err := tx.Exec(ctx, `
 		SELECT post_store_credit($1, 100000, '測試退貨額度', NULL, $2, NULL)`,
-		userID, "erase-return-grant:"+orderID.String()); err != nil {
+		userID, "grant:erase-return-"+orderID.String()); err != nil {
 		t.Fatalf("grant return fixture credit: %v", err)
 	}
 	if _, err := tx.Exec(ctx, `SELECT spend_store_credit($1, -100000)`, orderID); err != nil {
@@ -2398,8 +2167,8 @@ func TestErasureSnapshotsBeforeConcurrentCheckout(t *testing.T) {
 		t.Fatalf("checkout variant: %v", err)
 	}
 	if err := pool.QueryRow(ctx, `
-		INSERT INTO carts (token_hash, user_id) VALUES ($1, $2) RETURNING id`,
-		account.HashToken("erase-checkout-cart-"+u.ID), userID).Scan(&cartID); err != nil {
+		INSERT INTO carts (digest, user_id) VALUES ($1, $2) RETURNING id`,
+		bearer.Digest("erase-checkout-cart-"+u.ID), userID).Scan(&cartID); err != nil {
 		t.Fatalf("create erase-race cart: %v", err)
 	}
 	if _, err := pool.Exec(ctx, `
@@ -2417,7 +2186,7 @@ func TestErasureSnapshotsBeforeConcurrentCheckout(t *testing.T) {
 		ORDER BY v.effective_at DESC, v.id DESC LIMIT 1`).Scan(&shippingID); err != nil {
 		t.Fatalf("read home-delivery version: %v", err)
 	}
-	addr := &order.Delivery{
+	addr := &delivery.Details{
 		Email: u.Email, RecipientName: "王小明", Phone: "0912345678",
 		PostalCode: "110", City: "台北市", District: "信義區", Street: "松高路 1 號",
 	}
@@ -2733,7 +2502,7 @@ func TestResetCompletionAndErasureUseUserBeforeToken(t *testing.T) {
 	if _, err := pool.Exec(ctx, fmt.Sprintf(`
 		CREATE FUNCTION %s() RETURNS trigger LANGUAGE plpgsql AS $body$
 		BEGIN
-			IF OLD.token_hash = decode('%x', 'hex') THEN
+			IF OLD.digest = decode('%x', 'hex') THEN
 				PERFORM pg_advisory_xact_lock(%d);
 			END IF;
 			RETURN NEW;
@@ -2852,7 +2621,7 @@ func TestAnExpiredResetTokenIsRefused(t *testing.T) {
 		`UPDATE password_reset_tokens
 		 SET created_at = now() - interval '2 hours',
 		     expires_at = now() - interval '1 second'
-		 WHERE token_hash = $1`, digest[:])
+		 WHERE digest = $1`, digest[:])
 	if err != nil {
 		t.Fatalf("age the token: %v", err)
 	}
@@ -3123,14 +2892,14 @@ func TestAResetTokenIsStoredHashed(t *testing.T) {
 	var stored []byte
 	digest := sha256.Sum256([]byte(token))
 	if err := pool.QueryRow(ctx,
-		`SELECT token_hash FROM password_reset_tokens WHERE token_hash = $1`,
+		`SELECT digest FROM password_reset_tokens WHERE digest = $1`,
 		digest[:]).Scan(&stored); err != nil {
 		t.Fatalf("the digest is not what is stored: %v", err)
 	}
 	var raw int
 	if err := pool.QueryRow(ctx,
 		`SELECT count(*) FROM password_reset_tokens
-		 WHERE encode(token_hash, 'escape') = $1`, token).Scan(&raw); err != nil {
+		 WHERE encode(digest, 'escape') = $1`, token).Scan(&raw); err != nil {
 		t.Fatalf("scan raw count: %v", err)
 	}
 	if raw != 0 {
@@ -3262,7 +3031,7 @@ func TestExpiredSessionsArePruned(t *testing.T) {
 		UPDATE sessions
 		SET created_at = now() - interval '2 hours',
 		    expires_at = now() - interval '1 second'
-		WHERE token_hash = sha256($1::bytea)`, dead)
+		WHERE digest = sha256($1::bytea)`, dead)
 	if err != nil {
 		t.Fatalf("age the session: %v", err)
 	}
@@ -3426,7 +3195,7 @@ func TestTheSweepDropsDeadResetTokensAndKeepsLiveOnes(t *testing.T) {
 	plant := func(digest string, used bool, expires, created string) {
 		t.Helper()
 		if _, err := pool.Exec(ctx, `
-			INSERT INTO password_reset_tokens (token_hash, user_id, expires_at, used_at, created_at)
+			INSERT INTO password_reset_tokens (digest, user_id, expires_at, used_at, created_at)
 			VALUES (sha256($1::bytea), $2, now() + $3::interval,
 			        CASE WHEN $4 THEN now() ELSE NULL END, now() + $5::interval)`,
 			digest, userID, expires, used, created); err != nil {
@@ -3451,7 +3220,7 @@ func TestTheSweepDropsDeadResetTokensAndKeepsLiveOnes(t *testing.T) {
 		var exists bool
 		if err := pool.QueryRow(ctx, `
 			SELECT EXISTS (SELECT 1 FROM password_reset_tokens
-			               WHERE token_hash = sha256($1::bytea))`, digest).Scan(&exists); err != nil {
+			               WHERE digest = sha256($1::bytea))`, digest).Scan(&exists); err != nil {
 			t.Fatalf("read %s: %v", digest, err)
 		}
 		if exists != want {
@@ -3542,7 +3311,7 @@ func TestChangingEmailInvalidatesResetLinksSentToTheOldMailbox(t *testing.T) {
 	if err := pool.QueryRow(ctx, `
 		SELECT count(*) FROM outbox_messages
 		WHERE topic = $1
-		  AND lower(coalesce(payload ->> 'email', payload ->> 'Email', '')) = lower($2)`,
+		  AND lower(coalesce(payload ->> 'email', '')) = lower($2)`,
 		outbox.TopicPasswordReset.Name(), old).Scan(&oldMailboxMessages); err != nil {
 		t.Fatalf("count old-mailbox reset messages: %v", err)
 	}
@@ -3642,8 +3411,8 @@ func TestErasureMatchesOutboxRecipientsExactly(t *testing.T) {
 	})
 	if _, err := pool.Exec(ctx, `
 		INSERT INTO outbox_messages (topic, dedupe_key, payload) VALUES
-			('test.erase-current-legacy', $1,
-			 jsonb_build_object('Email', $2::text, 'token', 'legacy')),
+			('test.erase-current', $1,
+			 jsonb_build_object('email', $2::text, 'token', 'reset-link')),
 			('test.erase-current-lookalike', $3,
 			 jsonb_build_object('email', $4::text, 'name', $2::text)),
 			('test.erase-pending-lookalike', $5,
@@ -3662,7 +3431,7 @@ func TestErasureMatchesOutboxRecipientsExactly(t *testing.T) {
 	var erasedRecipients int
 	if err := pool.QueryRow(ctx, `
 		SELECT count(*) FROM outbox_messages
-		WHERE lower(coalesce(payload ->> 'email', payload ->> 'Email', '')) =
+		WHERE lower(coalesce(payload ->> 'email', '')) =
 		      ANY(ARRAY[lower($1), lower($2)])`, current, pending).Scan(&erasedRecipients); err != nil {
 		t.Fatalf("count erased recipients: %v", err)
 	}
@@ -3691,7 +3460,7 @@ func TestVerificationAndErasureUseUserBeforeToken(t *testing.T) {
 	u := register(t, s, "verify-race-old-"+uuid.NewString()+"@goen.invalid")
 	next := "verify-race-new-" + uuid.NewString() + "@goen.invalid"
 	token := requestVerification(t, s, u.ID, next)
-	digest := account.HashToken(token)
+	digest := bearer.Digest(token)
 
 	suffix := strings.ReplaceAll(uuid.NewString(), "-", "")
 	functionName := pgx.Identifier{"test_verification_spend_barrier_" + suffix}.Sanitize()
@@ -4319,7 +4088,7 @@ func TestErasureNeedsARecentSignIn(t *testing.T) {
 		UPDATE sessions
 		SET created_at = now() - $2::interval - interval '1 minute',
 		    expires_at = now() + interval '1 day'
-		WHERE token_hash = $1`, account.HashToken(staleToken),
+		WHERE digest = $1`, bearer.Digest(staleToken),
 		account.EraseSignInWindow.String()); err != nil {
 		t.Fatalf("age session: %v", err)
 	}
@@ -4443,7 +4212,7 @@ func TestDeadResetLinksOfferRecovery(t *testing.T) {
 				if state == "expired" {
 					if _, err := pool.Exec(ctx, `UPDATE password_reset_tokens
 					    SET created_at = now() - interval '2 hours', expires_at = now() - interval '1 second'
-					    WHERE token_hash = $1`, account.HashToken(token)); err != nil {
+					    WHERE digest = $1`, bearer.Digest(token)); err != nil {
 						t.Fatal(err)
 					}
 				} else if _, err := s.CompleteReset(ctx, token, "the already completed password"); err != nil {
@@ -4489,7 +4258,7 @@ func accountRecoveryState(t *testing.T, userID string) string {
 	if err := pool.QueryRow(t.Context(), `SELECT jsonb_build_object(
 	    'account', (SELECT to_jsonb(u) FROM users u WHERE id = $1),
 	    'verification', (SELECT jsonb_agg(to_jsonb(v) ORDER BY v.digest) FROM email_verifications v WHERE user_id = $1),
-	    'reset', (SELECT jsonb_agg(to_jsonb(r) ORDER BY r.token_hash) FROM password_reset_tokens r WHERE user_id = $1),
+	    'reset', (SELECT jsonb_agg(to_jsonb(r) ORDER BY r.digest) FROM password_reset_tokens r WHERE user_id = $1),
 	    'mail', (SELECT jsonb_agg(to_jsonb(m) ORDER BY m.id) FROM outbox_messages m WHERE payload->>'user_id' = $1::text OR lower(payload->>'email') = (SELECT lower(email) FROM users WHERE id = $1)))::text`,
 		userID).Scan(&state); err != nil {
 		t.Fatal(err)

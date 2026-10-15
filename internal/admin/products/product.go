@@ -17,7 +17,6 @@ import (
 	"github.com/koopa0/goen/internal/db"
 	"github.com/koopa0/goen/internal/i18n"
 	"github.com/koopa0/goen/internal/invoice"
-	"github.com/koopa0/goen/internal/pgerr"
 	"github.com/koopa0/goen/internal/ui/pages"
 	"github.com/koopa0/goen/internal/ui/pages/admin"
 	"github.com/koopa0/goen/internal/web"
@@ -278,10 +277,10 @@ func (s *Store) Create(ctx context.Context, f *Form) (slug string, fieldErrs map
 			return createErr
 		})
 	if err != nil {
-		if pgerr.IsConstraint(err, "products_slug_key") {
+		if db.IsConstraint(err, "products_slug_key") {
 			return "", map[string]string{"slug": i18n.T(ctx, i18n.KeyFormSlugTakenProduct)}, nil
 		}
-		if pgerr.IsConstraint(err, "products_warranty_months_sane") {
+		if db.IsConstraint(err, "products_warranty_months_sane") {
 			return "", map[string]string{"warranty_months": i18n.T(ctx, i18n.KeyFormWarrantyMonths)}, nil
 		}
 		return "", nil, fmt.Errorf("create product: %w", err)
@@ -320,7 +319,7 @@ func (s *Store) Update(ctx context.Context, f *Form) (map[string]string, error) 
 		return nil
 	})
 	if err != nil {
-		if pgerr.IsConstraint(err, "products_warranty_months_sane") {
+		if db.IsConstraint(err, "products_warranty_months_sane") {
 			return map[string]string{"warranty_months": i18n.T(ctx, i18n.KeyFormWarrantyMonths)}, nil
 		}
 		if errors.Is(err, ErrNotFound) {
@@ -366,7 +365,7 @@ func (s *Store) SetStatus(ctx context.Context, slug, status string) error {
 	// products_active_has_variant is deferred, so publishing a product with
 	// nothing to sell is refused at COMMIT, which audit.Run reports outside the
 	// work; the refusal is read off the whole result.
-	return pgerr.WrapRefusal(err, ErrRefused)
+	return db.WrapRefusal(err, ErrRefused)
 }
 
 func knownStatus(s string) bool {
@@ -442,11 +441,11 @@ func (s *Store) AddSpec(ctx context.Context, slug string, d SpecDraft) (map[stri
 			if errors.Is(err, pgx.ErrNoRows) {
 				return ErrNotFound
 			}
-			return pgerr.WrapRefusal(err, ErrRefused)
+			return db.WrapRefusal(err, ErrRefused)
 		}
 		return nil
 	})
-	if pgerr.IsConstraint(err, "product_specs_label_key") {
+	if db.IsConstraint(err, "product_specs_label_key") {
 		return map[string]string{
 			"spec_label": i18n.T(ctx, i18n.KeyFormSpecLabelDuplicate),
 		}, nil
@@ -470,7 +469,7 @@ func (s *Store) RemoveSpec(ctx context.Context, slug, id string) error {
 			Slug: slug, SpecID: specID,
 		})
 		if err != nil {
-			return fmt.Errorf("remove spec: %w", pgerr.WrapRefusal(err, ErrRefused))
+			return fmt.Errorf("remove spec: %w", db.WrapRefusal(err, ErrRefused))
 		}
 		if rows == 0 {
 			return ErrNotFound
@@ -506,14 +505,14 @@ func (s *Store) AddOption(ctx context.Context, slug string, d OptionDraft) (map[
 			if errors.Is(err, pgx.ErrNoRows) {
 				return ErrNotFound
 			}
-			return pgerr.WrapRefusal(err, ErrRefused)
+			return db.WrapRefusal(err, ErrRefused)
 		}
 		return nil
 	}); err != nil {
-		if pgerr.IsConstraint(err, "product_options_before_variants") {
+		if db.IsConstraint(err, "product_options_before_variants") {
 			return map[string]string{"option": i18n.T(ctx, i18n.KeyFormOptionBeforeVariants)}, nil
 		}
-		if pgerr.IsConstraint(err, "product_options_name_key") {
+		if db.IsConstraint(err, "product_options_name_key") {
 			return map[string]string{"option": i18n.T(ctx, i18n.KeyFormOptionNameTaken)}, nil
 		}
 		if errors.Is(err, ErrNotFound) {
@@ -556,11 +555,11 @@ func (s *Store) AddOptionValue(ctx context.Context, slug string, d OptionDraft) 
 			if errors.Is(err, pgx.ErrNoRows) {
 				return ErrNotFound
 			}
-			return pgerr.WrapRefusal(err, ErrRefused)
+			return db.WrapRefusal(err, ErrRefused)
 		}
 		return nil
 	}); err != nil {
-		if pgerr.IsConstraint(err, "product_option_values_value_key") {
+		if db.IsConstraint(err, "product_option_values_value_key") {
 			return map[string]string{"value": i18n.T(ctx, i18n.KeyFormOptionValueTaken)}, nil
 		}
 		if errors.Is(err, ErrNotFound) {

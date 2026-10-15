@@ -11,6 +11,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/koopa0/goen/internal/db"
+	"github.com/koopa0/goen/internal/db/dbtest"
 	"github.com/koopa0/goen/internal/shipping"
 
 	"github.com/google/uuid"
@@ -21,7 +23,6 @@ import (
 	"github.com/koopa0/goen/internal/admin/refunds"
 	"github.com/koopa0/goen/internal/i18n"
 	"github.com/koopa0/goen/internal/outbox"
-	"github.com/koopa0/goen/internal/pgtx"
 )
 
 // TestADispatchTheOrderMovedPastIsRefused: the dispatch reads the order's status
@@ -65,7 +66,7 @@ func TestADispatchTheOrderMovedPastIsRefused(t *testing.T) {
 					t.Fatalf("issue invoice: %v", err)
 				}
 				_, err := refunds.NewStore(pool, admintest.Refunder{}, nil).RefundBeforeShipment(ctx, number, "")
-				if admintest.ConstraintName(err) != "orders_cancel_invoice_resolved" {
+				if db.ConstraintName(err) != "orders_cancel_invoice_resolved" {
 					t.Fatalf("refund with a live invoice = %v", err)
 				}
 				return number
@@ -114,7 +115,7 @@ func TestADispatchTheOrderMovedPastIsRefused(t *testing.T) {
 			if err != nil {
 				t.Fatalf("begin the moving transaction: %v", err)
 			}
-			defer pgtx.Rollback(ctx, mover)
+			defer db.Rollback(ctx, mover)
 			for _, move := range tc.moves {
 				if _, err = mover.Exec(ctx, move, number); err != nil {
 					t.Fatalf("move %s: %v", number, err)
@@ -172,11 +173,7 @@ func waitForLockWait(t *testing.T, name string, done <-chan struct{}) {
 	tick := time.NewTicker(5 * time.Millisecond)
 	defer tick.Stop()
 	for {
-		var waiting bool
-		if err := pool.QueryRow(t.Context(), `
-			SELECT EXISTS (SELECT 1 FROM pg_stat_activity
-			               WHERE application_name = $1 AND wait_event_type = 'Lock')`, name).
-			Scan(&waiting); err == nil && waiting {
+		if _, waiting, err := dbtest.Blocked(t.Context(), pool, dbtest.Match{Application: name}); err == nil && waiting {
 			return
 		}
 		select {

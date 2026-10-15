@@ -21,10 +21,9 @@ import (
 
 	"github.com/koopa0/goen/internal/admin/admintest"
 	"github.com/koopa0/goen/internal/admin/refunds"
+	"github.com/koopa0/goen/internal/db"
 	"github.com/koopa0/goen/internal/email"
 	"github.com/koopa0/goen/internal/i18n"
-	"github.com/koopa0/goen/internal/pgerr"
-	"github.com/koopa0/goen/internal/pgtx"
 	"github.com/koopa0/goen/internal/refund"
 )
 
@@ -48,7 +47,7 @@ func TestRefundCompletionLockFailureOffersResumeAfterSettlement(t *testing.T) {
 	if err != nil {
 		t.Fatalf("begin finishing barrier: %v", err)
 	}
-	defer pgtx.Rollback(ctx, blocker)
+	defer db.Rollback(ctx, blocker)
 	var sent atomic.Int64
 	wantSettled := refundCompletionFacts{
 		OrderStatus: "picking", ReturnStatus: "approved", CardCents: 900000, CardRows: 1,
@@ -205,7 +204,7 @@ func TestRefundCompletionPreservesTheInvoiceRecoveryCause(t *testing.T) {
 		t.Errorf("live invoice after settlement = %d %q, want 303 with cancelinvoice=1",
 			response.Code, response.Header().Get("Location"))
 	}
-	if !errors.Is(diagnostic.err, refund.ErrIncomplete) || !errors.Is(diagnostic.err, refunds.ErrCancellationIncomplete) || !pgerr.IsConstraint(diagnostic.err, "orders_cancel_invoice_resolved") {
+	if !errors.Is(diagnostic.err, refund.ErrIncomplete) || !errors.Is(diagnostic.err, refunds.ErrCancellationIncomplete) || !db.IsConstraint(diagnostic.err, "orders_cancel_invoice_resolved") {
 		t.Errorf("invoice diagnostic = %v, want incomplete retaining orders_cancel_invoice_resolved", diagnostic.err)
 	}
 	if got := admintest.FulfillmentOf(t, pool, orderID); got != "picking" {

@@ -17,7 +17,7 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 
 	"github.com/koopa0/goen/internal/email"
-	"github.com/koopa0/goen/internal/invoice"
+	"github.com/koopa0/goen/internal/invoice/issuer"
 	"github.com/koopa0/goen/internal/outbox"
 )
 
@@ -165,6 +165,45 @@ func TestStartupRefusesATOTPKeyThatIsNotAKey(t *testing.T) {
 				t.Errorf("parsed key length = %d, want 32", got)
 			} else if !tt.wantKey && cfg.totpKey != nil {
 				t.Errorf("missing key parsed as %x, want nil", cfg.totpKey)
+			}
+		})
+	}
+}
+
+// TestStartupRefusesAPreviousTOTPKeyThatCannotRotate: the previous key is parsed
+// as strictly as the current one, needs a current key beside it, and must differ
+// from it. Each refusal names GOEN_TOTP_KEY_PREVIOUS.
+func TestStartupRefusesAPreviousTOTPKeyThatCannotRotate(t *testing.T) {
+	const otherKey = "1f1e1d1c1b1a191817161514131211100f0e0d0c0b0a09080706050403020100"
+	tests := []struct {
+		name          string
+		key, previous string
+		wantErr       bool
+	}{
+		{name: "rotation", key: validTOTPKey, previous: otherKey},
+		{name: "no previous key", key: validTOTPKey},
+		{name: "previous is not a key", key: validTOTPKey, previous: "a-key-from-the-environment", wantErr: true},
+		{name: "previous without current", previous: otherKey, wantErr: true},
+		{name: "previous equals current", key: validTOTPKey, previous: validTOTPKey, wantErr: true},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			cfg := validPosture()
+			cfg.TOTPKey, cfg.TOTPPreviousKey = tt.key, tt.previous
+			cfg.SecureCookies = false
+			t.Setenv("GOEN_BASE_URL", "https://shop.example")
+			err := cfg.prepareRuntimePosture(slog.New(slog.DiscardHandler))
+			if tt.wantErr {
+				if err == nil || !strings.Contains(err.Error(), "GOEN_TOTP_KEY_PREVIOUS") {
+					t.Fatalf("prepareRuntimePosture error = %v, want GOEN_TOTP_KEY_PREVIOUS refusal", err)
+				}
+				return
+			}
+			if err != nil {
+				t.Fatalf("prepareRuntimePosture: %v", err)
+			}
+			if got := len(cfg.totpPreviousKey); (tt.previous != "") != (got == 32) {
+				t.Errorf("parsed previous key length = %d for %q", got, tt.previous)
 			}
 		})
 	}
@@ -438,8 +477,8 @@ func TestAMalformedSMTPAddressIsFatalAndNeverTheLogSender(t *testing.T) {
 		t.Fatalf("newSender development: %v", err)
 	}
 	logSender, ok := development.(email.LogSender)
-	if !ok || logSender.ShowBody {
-		t.Errorf("development sender = %#v, want body-hiding LogSender", development)
+	if !ok || !logSender.ShowBody {
+		t.Errorf("development sender = %#v, want a LogSender that shows the body", development)
 	}
 	if logBuffer.Len() != 0 {
 		t.Errorf("newNotifier duplicated the posture warning: %s", logBuffer.String())
@@ -532,9 +571,9 @@ func TestAnInvoiceVoidDueReachesTheDatabaseWithoutAProvider(t *testing.T) {
 }
 
 // unconfiguredInvoicing is the gateway a deployment with no 加值中心 runs with.
-func unconfiguredInvoicing(t *testing.T) *invoice.Gateway {
+func unconfiguredInvoicing(t *testing.T) *issuer.Gateway {
 	t.Helper()
-	g, err := invoice.NewGateway("", "", "", "")
+	g, err := issuer.NewGateway("", "", "", "")
 	if err != nil || g.Enabled() {
 		t.Fatalf("an empty 加值中心 configuration = %v, enabled %t; want legal and off", err, g.Enabled())
 	}

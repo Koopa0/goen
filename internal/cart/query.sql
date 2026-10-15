@@ -1,8 +1,8 @@
 -- name: CartByToken :one
-SELECT id, user_id FROM carts WHERE token_hash = $1;
+SELECT id, user_id FROM carts WHERE digest = $1;
 
 -- name: CreateCart :one
-INSERT INTO carts (token_hash, user_id) VALUES ($1, $2) RETURNING id;
+INSERT INTO carts (digest, user_id) VALUES ($1, $2) RETURNING id;
 
 -- Serialize every writer of a cart aggregate before it touches cart_items.
 -- Sorting makes two-cart operations such as account adoption use one lock order.
@@ -18,6 +18,38 @@ FOR UPDATE;
 -- Lock order and privilege: see LockUser in internal/account/query.sql.
 -- name: LockUserForCheckout :one
 SELECT id FROM users WHERE id = @user_id::uuid FOR KEY SHARE;
+
+-- Guest-cart adoption takes the account row before any cart row, so two first
+-- adopters meet here rather than at carts_one_per_user, and checkout's KEY SHARE
+-- on the same row (LockUserForCheckout) never waits for a cart lock held by an
+-- adopter. NO KEY UPDATE is the same strength as LockUser in
+-- internal/account/query.sql, whose comment states the order every path keeps;
+-- this copy exists so cart calls no account query. store's column UPDATE on
+-- users is what PostgreSQL asks for.
+-- name: LockUserForAdoption :one
+SELECT id FROM users WHERE id = @user_id::uuid FOR NO KEY UPDATE;
+
+-- Guest lines for adoption and merge, read after the cart lock is held.
+-- name: CartItemRows :many
+SELECT variant_id, quantity FROM cart_items WHERE cart_id = @cart_id::uuid ORDER BY variant_id;
+
+-- name: CartForUser :one
+SELECT id FROM carts WHERE user_id = $1;
+
+-- Read only after LockCarts has returned. The recheck keeps a second account
+-- carrying the same guest cookie from taking over a cart the first account just
+-- adopted.
+-- name: CartOwner :one
+SELECT user_id FROM carts WHERE id = @cart_id::uuid;
+
+-- The predicate is a final ownership fence in addition to CartOwner. :execrows
+-- makes a lost race distinguishable from a successful adoption.
+-- name: AdoptCart :execrows
+UPDATE carts SET user_id = @user_id::uuid
+WHERE id = @cart_id::uuid AND user_id IS NULL;
+
+-- name: DeleteCart :exec
+DELETE FROM carts WHERE id = $1;
 
 -- Checkout locks catalogue roots in one canonical order before it snapshots
 -- publication, prices and availability. SECURITY DEFINER keeps store's direct
@@ -342,10 +374,6 @@ LEFT JOIN products p ON p.id = pv.product_id
 WHERE o.order_number = $1
 ORDER BY ol.position, ol.id;
 
--- name: OrderLinesByOrder :many
-SELECT sku, product_name, variant_label, unit_price_cents, quantity
-FROM order_lines WHERE order_id = $1 ORDER BY position, id;
-
 -- The customer's order page: each line with its photograph and its warranty promise.
 -- name: OrderPageLines :many
 SELECT ol.id, ol.sku, ol.product_name, ol.variant_label, ol.unit_price_cents, ol.quantity,
@@ -506,29 +534,6 @@ LIMIT $1;
 -- name: ReleaseReservation :exec
 SELECT release_reservation($1);
 
--- The actor is the staff member who cancelled; none for the customer's own
--- cancellation and, with by_system, the sweeper's at the payment deadline. Both
--- are carried structurally because the customer's own order page renders any
--- note in whatever language it was written.
--- name: RecordCancellation :exec
-INSERT INTO order_events (order_id, kind, actor_user_id, by_system)
-VALUES (@order_id, 'cancelled', @actor_user_id, @by_system::boolean);
-
--- What a cancellation notice needs to decide whether money may have reached
--- Stripe for this unpaid order: the status of every payment it has had, and
--- whether any of their provider events ever needed a person.
--- name: OrderPaymentFacts :one
-SELECT ARRAY(
-           SELECT DISTINCT p.status FROM payments p WHERE p.order_id = $1 ORDER BY p.status
-       )::text[] AS statuses,
-       EXISTS (
-           SELECT 1
-           FROM payments p
-           JOIN payment_webhook_events e
-             ON e.provider = p.provider AND e.object_ref = p.provider_ref
-           WHERE p.order_id = $1 AND e.unreconciled IS NOT NULL
-       )::boolean AS provider_flagged;
-
 -- Ordered by variant first so cancellation shares the global stock-root lock
 -- order with checkout and returns; id is the stable tie-breaker.
 -- name: HeldReservationsForOrder :many
@@ -684,38 +689,30 @@ SELECT lock_coupon_for_checkout(@code::text);
 -- name: RedeemCoupon :one
 SELECT redeem_coupon(@coupon_id, @order_id, sqlc.narg(user_id)::uuid, @amount_cents::bigint);
 
--- Enqueue a message in the SAME transaction as the fact it is about. ON CONFLICT
--- DO NOTHING against (topic, dedupe_key), so a retried checkout enqueues once.
--- name: EnqueueMessage :exec
-INSERT INTO outbox_messages (topic, dedupe_key, payload)
-VALUES (@topic::text, @dedupe_key::text, @payload)
-ON CONFLICT (topic, dedupe_key) DO NOTHING;
-
--- Many messages of one topic in ONE statement. A restock or a newsletter fans out
--- to every subscriber, and a statement each holds the caller's transaction, and
--- the row locks it took, open for a round trip per recipient. The payloads are
--- JSON text, paired with their dedupe keys by position. A bulk send passes
--- the priority that lets transactional mail go first.
--- name: EnqueueMessages :exec
-INSERT INTO outbox_messages (topic, dedupe_key, payload, priority)
-SELECT @topic::text, t.dedupe_key, t.payload::jsonb, @priority::smallint
-FROM (SELECT unnest(@dedupe_keys::text[]) AS dedupe_key,
-             unnest(@payloads::text[]) AS payload) t
-ON CONFLICT (topic, dedupe_key) DO NOTHING;
-
 -- Checkout idempotency keys past their replay window. Deleting a row frees its
 -- key to be replayed, which is why the window is weeks rather than hours.
 -- name: DeleteOldCheckoutAttempts :exec
 DELETE FROM checkout_attempts
 WHERE created_at < now() - sqlc.arg(retain)::interval;
 
--- Called in the cancellation's own transaction, beside the stock release: the
--- status change is what makes both legal.
--- name: ReverseOrderCredit :one
-SELECT reverse_order_credit(@order_id)::bigint AS returned_cents;
-
--- name: ReverseOrderPoints :one
-SELECT reverse_order_points(@order_id)::bigint AS points_reversed;
+-- A guest cart nobody has touched for the retention window. Its cookie lives as
+-- long as the window and is set once, when the cart is created, so past it no
+-- browser can name the cart. An account's cart (user_id set) is never listed.
+-- Idle means none of created_at, updated_at (a checkout draft moves it) or a
+-- line's added_at is inside the window. One batch at a time: the delete cascades
+-- to cart_items, and SKIP LOCKED leaves a cart a writer holds for the next pass.
+-- name: DeleteIdleGuestCarts :execrows
+DELETE FROM carts
+WHERE id IN (
+    SELECT c.id FROM carts c
+    WHERE c.user_id IS NULL
+      AND c.updated_at < now() - sqlc.arg(retain)::interval
+      AND NOT EXISTS (
+          SELECT 1 FROM cart_items i
+          WHERE i.cart_id = c.id AND i.added_at >= now() - sqlc.arg(retain)::interval)
+    LIMIT sqlc.arg(batch)::integer
+    FOR UPDATE OF c SKIP LOCKED
+);
 
 -- Does this order number belong to this email address? Both halves in ONE
 -- statement answering a boolean: a caller that got a row back could report WHICH

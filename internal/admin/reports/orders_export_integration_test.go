@@ -19,9 +19,9 @@ import (
 
 	"github.com/koopa0/goen/internal/admin/admintest"
 	"github.com/koopa0/goen/internal/admin/reports"
+	"github.com/koopa0/goen/internal/admin/stock"
 	"github.com/koopa0/goen/internal/db"
 	"github.com/koopa0/goen/internal/i18n"
-	"github.com/koopa0/goen/internal/pgtx"
 	"github.com/koopa0/goen/internal/shoptime"
 )
 
@@ -58,7 +58,7 @@ func TestMonthlyOrdersCSVMatchesRevenueAndKeepsEverySoldOrder(t *testing.T) {
 	}
 	adminPool := admintest.AdminRolePool(t, p)
 	mux := http.NewServeMux()
-	reports.NewHandler(reports.NewStore(adminPool), slog.New(slog.DiscardHandler)).Routes(mux, admintest.BackOffice)
+	reports.NewHandler(reports.NewStore(adminPool, stock.NewStore(adminPool)), slog.New(slog.DiscardHandler)).Routes(mux, admintest.BackOffice)
 	for _, locale := range []i18n.Locale{i18n.ZhHant, i18n.En} {
 		request := httptest.NewRequestWithContext(i18n.WithLocale(ctx, locale), http.MethodGet, "/admin/reports/orders.csv?month=2024-02", nil)
 		w := httptest.NewRecorder()
@@ -152,7 +152,7 @@ func exportOrder(t *testing.T, p *pgxpool.Pool, f exportOrderFixture) (number st
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer pgtx.Rollback(ctx, tx)
+	defer db.Rollback(ctx, tx)
 	var id uuid.UUID
 	if err := tx.QueryRow(ctx, `
   INSERT INTO orders (order_number,user_id,shipping_version_id,shipping_method_code,shipping_method_name,shipping_cents,discount_cents,placed_at,customer_note)

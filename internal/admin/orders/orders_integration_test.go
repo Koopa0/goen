@@ -28,7 +28,7 @@ import (
 	"github.com/koopa0/goen/internal/email"
 	"github.com/koopa0/goen/internal/i18n"
 	"github.com/koopa0/goen/internal/invoice"
-	"github.com/koopa0/goen/internal/ui/pages"
+	"github.com/koopa0/goen/internal/money"
 	"github.com/koopa0/goen/internal/user"
 )
 
@@ -1604,7 +1604,7 @@ func TestAdvanceRefusesTheStatusAnOrderAlreadyHas(t *testing.T) {
 	}
 }
 
-func TestTheStatusMenuOffersOnlyWhatTheDatabaseWillAccept(t *testing.T) {
+func TestTheStatusStepsOfferOnlyWhatTheDatabaseWillAccept(t *testing.T) {
 	ctx, staff := admintest.StaffContext(t, pool)
 	s := admintest.OrderStore(pool, admintest.Refunder{}, nil, nil)
 	actor := uuid.NullUUID{UUID: staff, Valid: true}
@@ -1624,8 +1624,8 @@ func TestTheStatusMenuOffersOnlyWhatTheDatabaseWillAccept(t *testing.T) {
 	if offers(&unpaid, order.FulfillmentPicking) {
 		t.Error("an unpaid order is offered picking, which orders_funded_to_leave_pending refuses")
 	}
-	if !unpaid.NextIsDestructive() {
-		t.Error("an unpaid order's menu preselects cancelling")
+	if len(unpaid.Next) != 1 || unpaid.Next[0].Value != order.FulfillmentCancelled {
+		t.Errorf("unpaid order next steps = %v, want only cancellation", unpaid.Next)
 	}
 
 	number, _, lines, _ := admintest.TwoLineOrderWithStock(t, pool, "menu")
@@ -1729,70 +1729,6 @@ func TestARefusedDispatchKeepsWhatWasTyped(t *testing.T) {
 	}
 }
 
-func TestTheDashboardAndTheQueueTabsSplitPendingTheSameWay(t *testing.T) {
-	ctx := t.Context()
-	s := admintest.OrderStore(pool, admintest.Refunder{}, nil, nil)
-	tab := func(v admin.OrdersView, status admin.QueueFilter) int64 {
-		for _, tb := range v.Tabs {
-			if tb.Value == status {
-				return tb.Count
-			}
-		}
-		t.Fatalf("no %q tab", status)
-		return 0
-	}
-	before, err := s.List(ctx, "", "")
-	if err != nil {
-		t.Fatalf("Orders: %v", err)
-	}
-	dashBefore, err := s.Dashboard(ctx)
-	if err != nil {
-		t.Fatalf("Dashboard: %v", err)
-	}
-
-	unpaid := admintest.PlaceUnpaidOrder(t, pool)
-	funded, _, _ := admintest.PaidUnshippedOrder(t, pool, 500000, 0, false)
-
-	after, err := s.List(ctx, "", "")
-	if err != nil {
-		t.Fatalf("Orders: %v", err)
-	}
-	dashAfter, err := s.Dashboard(ctx)
-	if err != nil {
-		t.Fatalf("Dashboard: %v", err)
-	}
-	if got := tab(after, admin.QueueAwaitingPayment) - tab(before, admin.QueueAwaitingPayment); got != 1 {
-		t.Errorf("the awaiting-payment tab grew by %d, want 1: a funded order is not awaiting payment", got)
-	}
-	if got := tab(after, admin.QueueReady) - tab(before, admin.QueueReady); got != 1 {
-		t.Errorf("the ready tab grew by %d, want 1", got)
-	}
-	if got := dashAfter.PendingOrders - dashBefore.PendingOrders; got != 1 {
-		t.Errorf("the awaiting-payment tile grew by %d, want 1", got)
-	}
-	if got := dashAfter.ReadyOrders - dashBefore.ReadyOrders; got != 1 {
-		t.Errorf("the ready tile grew by %d, want 1", got)
-	}
-
-	for status, want := range map[admin.QueueFilter]struct{ in, out string }{
-		admin.QueueAwaitingPayment: {in: unpaid, out: funded},
-		admin.QueueReady:           {in: funded, out: unpaid},
-	} {
-		view, err := s.List(ctx, status, "")
-		if err != nil {
-			t.Fatalf("Orders(%s): %v", status, err)
-		}
-		var sawIn, sawOut bool
-		for _, o := range view.Orders {
-			sawIn = sawIn || o.Number == want.in
-			sawOut = sawOut || o.Number == want.out
-		}
-		if !sawIn || sawOut {
-			t.Errorf("tab %q lists the expected order = %t and the other = %t, want true and false", status, sawIn, sawOut)
-		}
-	}
-}
-
 func TestTheOrderPageSaysHowItWasPaidAndWhatWasRefunded(t *testing.T) {
 	ctx, staff := admintest.StaffContext(t, pool)
 	s := admintest.OrderStore(pool, admintest.Refunder{}, nil, nil)
@@ -1820,14 +1756,14 @@ func TestTheOrderPageSaysHowItWasPaidAndWhatWasRefunded(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Order: %v", err)
 	}
-	if view.Payment.Card != "Visa •••• 4242" || view.Payment.Captured != pages.TWD(500000) || view.Payment.PaidAt == "" {
+	if view.Payment.Card != "Visa •••• 4242" || view.Payment.Captured != money.TWD(500000) || view.Payment.PaidAt == "" {
 		t.Errorf("payment = %+v, want the card, the captured amount and a time", view.Payment)
 	}
 	if len(view.Refunds) != 1 {
 		t.Fatalf("refunds = %+v, want one", view.Refunds)
 	}
 	r := view.Refunds[0]
-	if r.Amount != pages.TWD(120000) || r.Reason != "顧客改變心意" || r.Staff == "" || r.At == "" {
+	if r.Amount != money.TWD(120000) || r.Reason != "顧客改變心意" || r.Staff == "" || r.At == "" {
 		t.Errorf("refund = %+v, want its amount, time, reason and staff member", r)
 	}
 }

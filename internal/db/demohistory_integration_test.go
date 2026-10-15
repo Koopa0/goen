@@ -202,10 +202,10 @@ func TestDemoHistoryKeepsTheShopsRules(t *testing.T) {
 	t.Run("restored a week later", func(t *testing.T) { assertShiftedToToday(t, shop, ran, ran, 7) })
 }
 
-// The demo holds a few checkouts from before the history; it numbers its own
-// orders of their day after them. The plan can leave a day without orders, so
-// each of the last seven days has one from before.
-func TestDemoHistoryNumbersAfterADaysOrders(t *testing.T) {
+// The demo holds a few checkouts from before the history; the history leaves
+// them as they were and draws its own numbers beside them. The plan can leave a
+// day without orders, so each of the last seven days has one from before.
+func TestDemoHistoryLeavesEarlierOrdersAsTheyWere(t *testing.T) {
 	shop := dbtest.Pool(t)
 	seedCatalogue(t, shop)
 	addAdmin(t, shop)
@@ -222,23 +222,11 @@ func TestDemoHistoryNumbersAfterADaysOrders(t *testing.T) {
 	before := textRows(t, shop, earlier)
 
 	if out, err := runSeed(t, "demo_history.sql", shop.Config().ConnString(), namingItself(shop)...); err != nil {
-		t.Fatalf("seed/demo_history.sql beside GO-<day>-000001 on each of the last seven days: %v\n%s", err, out)
+		t.Fatalf("seed/demo_history.sql beside an earlier order on each of the last seven days: %v\n%s", err, out)
 	}
 
 	if after := textRows(t, shop, earlier); len(before) != 7 || !slices.Equal(after, before) {
 		t.Errorf("the orders placed before the history:\nbefore %v\nafter  %v", before, after)
-	}
-	if off := textRows(t, shop, `
-		SELECT c.business_date::text
-		FROM order_number_counters c
-		WHERE c.last_no <> (SELECT count(*) FROM orders o
-		                    WHERE o.order_number LIKE 'GO-' || to_char(c.business_date, 'YYMMDD') || '-%')`); len(off) > 0 {
-		t.Errorf("days whose counter is not the number of orders numbered on them: %s", strings.Join(off, ", "))
-	}
-	if shared := textRows(t, shop, `
-		SELECT business_date::text FROM order_number_counters
-		WHERE business_date >= shop_today() - 7 AND last_no > 1`); len(shared) == 0 {
-		t.Fatal("no order drawn on any of the last seven days: the history numbered nothing after an earlier order")
 	}
 }
 
@@ -443,9 +431,9 @@ func clerkConnString(t *testing.T, shop *pgxpool.Pool) string {
 	return conn.String()
 }
 
-// orderPaidDaysAgo places the first order of the day that many days ago,
-// numbered through the day's counter as next_order_number() numbered it then,
-// and paid through ref.
+// orderPaidDaysAgo places an order that many days ago, numbered as
+// next_order_number() numbers one (its random suffix, that day's date), and
+// paid through ref.
 func orderPaidDaysAgo(ref string, days int) func(*testing.T, *pgxpool.Pool) {
 	return func(t *testing.T, shop *pgxpool.Pool) {
 		t.Helper()
@@ -457,16 +445,11 @@ func orderPaidDaysAgo(ref string, days int) func(*testing.T, *pgxpool.Pool) {
 		defer func() { _ = tx.Rollback(ctx) }()
 		var order string
 		if err = tx.QueryRow(ctx, `
-			WITH counter AS (
-			    INSERT INTO order_number_counters (business_date, last_no) VALUES (shop_today() - $1::integer, 1)
-			    RETURNING business_date, last_no
-			)
 			INSERT INTO orders (order_number, shipping_version_id, shipping_method_code, shipping_method_name,
 			                    shipping_cents, placed_at)
-			SELECT 'GO-' || to_char(c.business_date, 'YYMMDD') || '-' || to_char(c.last_no, 'FM000000'),
+			SELECT 'GO-' || to_char(shop_today() - $1::integer, 'YYMMDD') || substr(next_order_number(), 10),
 			       sv.id, sm.code, sv.name, sv.fee_cents, now() - make_interval(days => $1::integer)
-			FROM counter c
-			CROSS JOIN shipping_method_versions sv
+			FROM shipping_method_versions sv
 			JOIN shipping_methods sm ON sm.id = sv.method_id
 			WHERE sm.code = 'home_delivery'
 			ORDER BY sv.effective_at DESC

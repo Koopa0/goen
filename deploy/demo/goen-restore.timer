@@ -2,7 +2,9 @@
 Description=Nightly restore of the goen demo catalogue
 
 [Timer]
-OnCalendar=*-*-* 03:00:00 UTC
+# 19:00 UTC is 03:00 in Taipei (UTC+8, no daylight saving time), when the shop is
+# closed; 03:00 UTC would be 11:00 in the shop's business day.
+OnCalendar=*-*-* 19:00:00 UTC
 Persistent=true
 
 [Install]

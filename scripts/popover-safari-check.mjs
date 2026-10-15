@@ -46,8 +46,8 @@ try {
   await command('POST', `/session/${session}/url`, {url: origin + '/c/audio'});
   for (const locale of ['zh-Hant', 'en']) for (const text of [100, 200]) {
     const at = `${locale}-${text}`;
-    // The page script sets the cookie, so the browser stores it for the origin it is on
-    // rather than relying on safaridriver's cookie endpoint, which left the locale at its default.
+    // Native locale POSTs set an HttpOnly cookie, which document.cookie cannot replace.
+    await command('DELETE', `/session/${session}/cookie/goen_locale`);
     await evaluate(`document.cookie = 'goen_locale=${locale}; path=/'; return document.cookie`);
     await command('POST', `/session/${session}/url`, {url: origin + '/c/audio?brand=nimbus'});
     await until("return document.readyState === 'complete' && typeof htmx !== 'undefined'", at + ': listing did not load');

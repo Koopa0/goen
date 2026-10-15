@@ -11,11 +11,6 @@ const SweepInterval = time.Hour
 
 const SweepBatch = 100
 
-// SweepGrace is how long an upload is left alone before it counts as abandoned.
-// The window itself lives in UnreferencedMedia's WHERE clause; changing this
-// constant alone changes nothing.
-const SweepGrace = 24 * time.Hour
-
 // Candidates is the list Sweep works from: uploads nothing points at and that
 // are older than the grace window.
 //
@@ -61,21 +56,23 @@ func (s *Store) Sweep(ctx context.Context, log *slog.Logger) (reclaimed int, err
 	return reclaimed, nil
 }
 
+// SweepForever runs once at startup, so a host redeployed more often than the
+// interval still reclaims unreferenced uploads.
 func (s *Store) SweepForever(ctx context.Context, log *slog.Logger) {
 	ticker := time.NewTicker(SweepInterval)
 	defer ticker.Stop()
 	for {
+		reclaimed, err := s.Sweep(ctx, log)
+		switch {
+		case err != nil && ctx.Err() == nil:
+			log.ErrorContext(ctx, "sweep unreferenced media", "error", err)
+		case reclaimed > 0:
+			log.InfoContext(ctx, "reclaimed unreferenced uploads", "count", reclaimed)
+		}
 		select {
 		case <-ctx.Done():
 			return
 		case <-ticker.C:
-			reclaimed, err := s.Sweep(ctx, log)
-			switch {
-			case err != nil && ctx.Err() == nil:
-				log.ErrorContext(ctx, "sweep unreferenced media", "error", err)
-			case reclaimed > 0:
-				log.InfoContext(ctx, "reclaimed unreferenced uploads", "count", reclaimed)
-			}
 		}
 	}
 }

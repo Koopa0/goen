@@ -404,7 +404,7 @@ func TestUnknownCombinationSaysSo(t *testing.T) {
 	if !strings.Contains(body, "NT$33,900 起") {
 		t.Error("an impossible combination lost the catalogue's starting price")
 	}
-	if !strings.Contains(body, "請選擇款式") || !strings.Contains(body, `type="submit" disabled`) || !strings.Contains(body, `name="variant" value=""`) {
+	if !strings.Contains(body, "請選擇選項") || !strings.Contains(body, `type="submit" disabled`) || !strings.Contains(body, `name="variant" value=""`) {
 		t.Error("an impossible combination must request a choice without offering a purchase variant")
 	}
 }
@@ -414,7 +414,7 @@ func TestPartialSelectionOffersNoButton(t *testing.T) {
 	if code != http.StatusOK {
 		t.Fatalf("status = %d, want 200", code)
 	}
-	if !strings.Contains(body, "請選擇款式") {
+	if !strings.Contains(body, "請選擇選項") {
 		t.Error("a partial selection does not ask for the rest")
 	}
 	if !strings.Contains(body, `type="submit" disabled`) {
@@ -1313,12 +1313,7 @@ func waitForStockRaceLock(t *testing.T, applicationName string, done <-chan erro
 			t.Fatalf("%s returned before reaching the intended database lock: %v",
 				applicationName, err)
 		case <-ticker.C:
-			var waiting bool
-			err := pool.QueryRow(t.Context(), `
-				SELECT EXISTS (
-					SELECT 1 FROM pg_stat_activity
-					WHERE application_name = $1 AND wait_event_type = 'Lock'
-				)`, applicationName).Scan(&waiting)
+			_, waiting, err := dbtest.Blocked(t.Context(), pool, dbtest.Match{Application: applicationName})
 			if err == nil && waiting {
 				return
 			}
@@ -2076,6 +2071,10 @@ func TestASimultaneousSecondReviewIsRefusedByName(t *testing.T) {
 	}
 	defer func() { _ = tx.Rollback(context.WithoutCancel(ctx)) }()
 
+	var holder int32
+	if err := tx.QueryRow(ctx, `SELECT pg_backend_pid()`).Scan(&holder); err != nil {
+		t.Fatalf("read the holder's backend pid: %v", err)
+	}
 	if _, err := tx.Exec(ctx, `
 		INSERT INTO product_reviews (product_id, user_id, rating, body, is_verified_purchase)
 		SELECT p.id, $1, 5, '搶先寫進去的評價內容。', false
@@ -2093,8 +2092,10 @@ func TestASimultaneousSecondReviewIsRefusedByName(t *testing.T) {
 		refused <- addErr
 	}()
 
-	// Give it time to reach the INSERT and block; then release it.
-	time.Sleep(300 * time.Millisecond)
+	// Release T1 only once the second INSERT is waiting on T1's index entry. A
+	// guessed pause lets a slow machine commit first; ReviewStanding then answers
+	// and the INSERT's own refusal, the thing under test, is never reached.
+	waitForInsertBehind(t, holder, "%name: CreateReview%", refused)
 	if err := tx.Commit(ctx); err != nil {
 		t.Fatalf("commit the first review: %v", err)
 	}
@@ -2107,6 +2108,33 @@ func TestASimultaneousSecondReviewIsRefusedByName(t *testing.T) {
 		}
 	case <-time.After(10 * time.Second):
 		t.Fatal("the second review never returned")
+	}
+}
+
+// waitForInsertBehind waits, up to a deadline, until a statement like pattern
+// is waiting on a lock held by the backend holder. It stops the test if the
+// statement's goroutine returns first (on done) or never gets there.
+func waitForInsertBehind(t *testing.T, holder int32, pattern string, done <-chan error) {
+	t.Helper()
+	ticker := time.NewTicker(5 * time.Millisecond)
+	defer ticker.Stop()
+	timer := time.NewTimer(15 * time.Second)
+	defer timer.Stop()
+	for {
+		select {
+		case err := <-done:
+			t.Fatalf("%s returned before it waited on backend %d: %v", pattern, holder, err)
+		case <-ticker.C:
+			_, waiting, err := dbtest.Blocked(t.Context(), pool, dbtest.Match{QueryLike: pattern, BlockedBy: []int32{holder}})
+			if err != nil {
+				t.Fatalf("observe the lock wait: %v", err)
+			}
+			if waiting {
+				return
+			}
+		case <-timer.C:
+			t.Fatalf("%s never waited on backend %d", pattern, holder)
+		}
 	}
 }
 

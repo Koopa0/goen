@@ -18,7 +18,6 @@ import (
 	"github.com/koopa0/goen/internal/admin/audit"
 	"github.com/koopa0/goen/internal/admin/products"
 	"github.com/koopa0/goen/internal/db"
-	"github.com/koopa0/goen/internal/pgtx"
 )
 
 func TestOverlappingSpecAdditionsKeepBothSpecifications(t *testing.T) {
@@ -34,7 +33,7 @@ func TestOverlappingSpecAdditionsKeepBothSpecifications(t *testing.T) {
 	if beginErr != nil {
 		t.Fatal(beginErr)
 	}
-	defer pgtx.Rollback(ctx, first)
+	defer db.Rollback(ctx, first)
 	var pid int32
 	if err := first.QueryRow(ctx, `SELECT pg_backend_pid()`).Scan(&pid); err != nil {
 		t.Fatal(err)

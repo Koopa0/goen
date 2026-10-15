@@ -1,0 +1,186 @@
+package payment
+
+import (
+	"context"
+	"errors"
+	"fmt"
+
+	stripe "github.com/stripe/stripe-go/v86"
+
+	"github.com/koopa0/goen/internal/refund"
+)
+
+// PaymentIntentFor reads the payment intent a Checkout Session paid with. A
+// gateway built without a Stripe key returns ErrDisabled.
+func (g *Gateway) PaymentIntentFor(ctx context.Context, sessionID string) (string, error) {
+	if g.client == nil {
+		return "", ErrDisabled
+	}
+	if !ValidStripeID(sessionID) {
+		return "", errors.New("read checkout session: invalid Stripe session id")
+	}
+	sess, err := g.client.V1CheckoutSessions.Retrieve(ctx, sessionID,
+		&stripe.CheckoutSessionRetrieveParams{
+			Expand: []*string{stripe.String("payment_intent")},
+		})
+	if err != nil {
+		return "", fmt.Errorf("read checkout session %s: %w", sessionID, err)
+	}
+	if sess == nil || !ValidStripeID(sess.ID) || sess.ID != sessionID {
+		return "", fmt.Errorf("checkout session %s returned a different or invalid session id", sessionID)
+	}
+	if sess.PaymentIntent == nil || !ValidStripeID(sess.PaymentIntent.ID) {
+		return "", fmt.Errorf("checkout session %s has no valid payment intent", sessionID)
+	}
+	return sess.PaymentIntent.ID, nil
+}
+
+// refundKeyTag is the metadata key a refund carries its request key under at
+// Stripe. It names stored provider objects: never rename it.
+const refundKeyTag = "goen_request_key"
+
+func (g *Gateway) refundFor(
+	ctx context.Context, paymentIntentID, requestKey string, amountCents int64,
+) (id string, state refund.Status, found bool, err error) {
+	list := g.client.V1Refunds.List(ctx, &stripe.RefundListParams{
+		PaymentIntent: stripe.String(paymentIntentID),
+	})
+	var matchedID string
+	var matchedState refund.Status
+	for ref, listErr := range list.All(ctx) {
+		if listErr != nil {
+			return "", "", false, fmt.Errorf(
+				"list refunds for %s: %w", paymentIntentID, listErr)
+		}
+		if ref == nil || !ValidStripeID(ref.ID) {
+			return "", "", false, fmt.Errorf(
+				"list refunds for %s returned an invalid refund id", paymentIntentID)
+		}
+		if ref.Metadata[refundKeyTag] != requestKey {
+			continue
+		}
+		if factErr := refundMatchesClaim(ref, paymentIntentID, requestKey, amountCents); factErr != nil {
+			return "", "", false, factErr
+		}
+		known, stateErr := refundState(ref.Status)
+		if stateErr != nil {
+			return "", "", false, fmt.Errorf(
+				"refund %s for %s: %w", ref.ID, paymentIntentID, stateErr)
+		}
+		if matchedID != "" {
+			return "", "", false, fmt.Errorf(
+				"multiple refunds for %s carry request key %q", paymentIntentID, requestKey)
+		}
+		matchedID, matchedState = ref.ID, known
+	}
+	return matchedID, matchedState, matchedID != "", nil
+}
+
+// Refund refunds amountCents of paymentIntentID, keyed on requestKey so a
+// retry cannot pay twice, and returns what Stripe says the refund is. A
+// rejection of the create call wraps refund.ErrCreateRejected. A gateway built
+// without a Stripe key returns ErrDisabled.
+func (g *Gateway) Refund(ctx context.Context, paymentIntentID, requestKey string, amountCents int64) (string, refund.Status, error) {
+	if g.client == nil {
+		return "", "", ErrDisabled
+	}
+	if !ValidStripeID(paymentIntentID) {
+		return "", "", errors.New("refund: invalid Stripe payment intent id")
+	}
+	if amountCents <= 0 {
+		return "", "", errors.New("refund: amount must be positive")
+	}
+	// Asked BEFORE creating one: Stripe's idempotency key expires after 24 hours.
+	if existing, state, found, err := g.refundFor(
+		ctx, paymentIntentID, requestKey, amountCents,
+	); err != nil {
+		return "", "", err
+	} else if found {
+		return existing, state, nil
+	}
+
+	params := &stripe.RefundCreateParams{
+		PaymentIntent: stripe.String(paymentIntentID),
+		Amount:        new(amountCents),
+		Metadata:      map[string]string{refundKeyTag: requestKey},
+	}
+	params.SetIdempotencyKey(requestKey)
+	ref, err := g.client.V1Refunds.Create(ctx, params)
+	if err != nil {
+		wrapped := fmt.Errorf("create refund for %s: %w", paymentIntentID, err)
+		if rejectedRefundCreate(err) {
+			return "", "", fmt.Errorf("%w: %w", refund.ErrCreateRejected, wrapped)
+		}
+		return "", "", wrapped
+	}
+	if factErr := refundMatchesClaim(ref, paymentIntentID, requestKey, amountCents); factErr != nil {
+		return "", "", fmt.Errorf("create refund for %s returned mismatched facts: %w",
+			paymentIntentID, factErr)
+	}
+	state, err := refundState(ref.Status)
+	if err != nil {
+		return "", "", fmt.Errorf("refund %s for %s: %w", ref.ID, paymentIntentID, err)
+	}
+	return ref.ID, state, nil
+}
+
+// refundMatchesClaim refuses a provider object that merely shares metadata but
+// does not represent the exact local money claim. A mismatch is ambiguous, not
+// a provider rejection: the durable pending row must stay claimed for recovery.
+func refundMatchesClaim(
+	ref *stripe.Refund, paymentIntentID, requestKey string, amountCents int64,
+) error {
+	if ref == nil || !ValidStripeID(ref.ID) {
+		return errors.New("stripe returned an invalid refund id")
+	}
+	if ref.Amount != amountCents {
+		return fmt.Errorf("refund %s amount is %d, want %d", ref.ID, ref.Amount, amountCents)
+	}
+	if ref.Currency != stripe.Currency(Currency) {
+		return fmt.Errorf("refund %s currency is %q, want %q",
+			ref.ID, ref.Currency, Currency)
+	}
+	if ref.PaymentIntent == nil || !ValidStripeID(ref.PaymentIntent.ID) ||
+		ref.PaymentIntent.ID != paymentIntentID {
+		return fmt.Errorf("refund %s payment intent is not %s", ref.ID, paymentIntentID)
+	}
+	if ref.Metadata[refundKeyTag] != requestKey {
+		return fmt.Errorf("refund %s request key does not match the claim", ref.ID)
+	}
+	return nil
+}
+
+// refundState maps Stripe's status; an unknown one errors rather than panics,
+// because the set belongs to a third party.
+func refundState(status stripe.RefundStatus) (refund.Status, error) {
+	switch status {
+	case stripe.RefundStatusSucceeded:
+		return refund.Succeeded, nil
+	case stripe.RefundStatusPending:
+		return refund.Pending, nil
+	case stripe.RefundStatusRequiresAction:
+		return refund.RequiresAction, nil
+	case stripe.RefundStatusFailed:
+		return refund.Failed, nil
+	case stripe.RefundStatusCanceled:
+		// Stripe spells it "canceled" and this schema spells it "cancelled".
+		return refund.Cancelled, nil
+	default:
+		return "", fmt.Errorf("stripe refund status %q is not one goen records", status)
+	}
+}
+
+// rejectedRefundCreate is called only at the CREATE boundary. The same Stripe
+// error kinds from the preceding LIST do not say whether a refund exists.
+func rejectedRefundCreate(err error) bool {
+	e, ok := errors.AsType[*stripe.Error](err)
+	if !ok {
+		return false
+	}
+	switch e.Type {
+	case stripe.ErrorTypeCard, stripe.ErrorTypeInvalidRequest:
+		return true
+	default:
+		return false
+	}
+}

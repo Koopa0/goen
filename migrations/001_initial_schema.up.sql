@@ -21,6 +21,23 @@
 -- Every index is on a table created above it, and CONCURRENTLY cannot run inside
 -- the transaction golang-migrate wraps this file in.
 
+-- The database's collation is part of the schema: a text index built under one
+-- collation and read under another is silently wrong, and an operating-system
+-- (libc) collation can change under the database with a library upgrade. goen
+-- runs only on PostgreSQL's builtin C.UTF-8 locale: code-point order, Unicode
+-- character classes, nothing from the host.
+DO $$
+BEGIN
+    IF (SELECT d.datlocprovider <> 'b' OR d.datlocale IS DISTINCT FROM 'C.UTF-8'
+        FROM pg_catalog.pg_database d WHERE d.datname = current_database()) THEN
+        RAISE EXCEPTION 'database % must be created with LOCALE_PROVIDER builtin BUILTIN_LOCALE ''C.UTF-8''',
+                current_database()
+            USING ERRCODE = 'object_not_in_prerequisite_state',
+                  HINT = 'createdb --template=template0 --encoding=UTF8 --locale-provider=builtin --builtin-locale=C.UTF-8 <name>; for the development database run PGOPTIONS=''-c goen.catalogue_seed=development'' make db-reset';
+    END IF;
+END
+$$;
+
 SET lock_timeout = '3s';
 SET statement_timeout = '120s';
 
@@ -49,7 +66,7 @@ END
 $$;
 
 CREATE FUNCTION set_updated_at() RETURNS trigger
-LANGUAGE plpgsql AS $$
+LANGUAGE plpgsql SET search_path = pg_catalog, public, pg_temp AS $$
 BEGIN
     NEW.updated_at = now();
     RETURN NEW;
@@ -62,12 +79,19 @@ CREATE FUNCTION forbid_change() RETURNS trigger
 LANGUAGE plpgsql SET search_path = pg_catalog, public, pg_temp AS $$
 DECLARE
     user_column text := coalesce(TG_ARGV[1], 'actor_user_id');
+    derived text[];
 BEGIN
+    -- A stored generated column is computed after the BEFORE triggers have run,
+    -- so NEW carries it as NULL where OLD carries its value. It is derived from
+    -- the other columns, which are compared, and is left out of the comparison.
+    SELECT coalesce(array_agg(a.attname::text), ARRAY[]::text[]) INTO derived
+    FROM pg_attribute a
+    WHERE a.attrelid = TG_RELID AND a.attgenerated <> '' AND NOT a.attisdropped;
     -- The one permitted mutation: the ON DELETE SET NULL that nulls that
     -- column when the user is erased. Everything else must be byte-identical,
     -- so a value becomes unknown and never false.
     IF TG_OP = 'UPDATE'
-       AND (to_jsonb(NEW) - user_column) = (to_jsonb(OLD) - user_column)
+       AND (to_jsonb(NEW) - user_column - derived) = (to_jsonb(OLD) - user_column - derived)
        AND to_jsonb(NEW) ->> user_column IS NULL THEN
         RETURN NEW;
     END IF;
@@ -178,7 +202,7 @@ CREATE TRIGGER categories_set_updated_at
 -- by row. The advisory lock is what makes the ancestor walk correct under
 -- concurrency.
 CREATE FUNCTION categories_reject_cycle() RETURNS trigger
-LANGUAGE plpgsql AS $$
+LANGUAGE plpgsql SET search_path = pg_catalog, public, pg_temp AS $$
 DECLARE
     ancestor uuid;
 BEGIN
@@ -457,7 +481,7 @@ CREATE TRIGGER product_variants_set_updated_at
 -- Option axes and variant creation share the product lock. Otherwise an axis
 -- can pass its empty-catalogue check while another transaction adds a SKU.
 CREATE FUNCTION product_catalogue_lock() RETURNS trigger
-LANGUAGE plpgsql AS $$
+LANGUAGE plpgsql SET search_path = pg_catalog, public, pg_temp AS $$
 BEGIN
     PERFORM 1 FROM products WHERE id = NEW.product_id FOR NO KEY UPDATE;
     IF TG_TABLE_NAME = 'product_options' AND EXISTS (
@@ -482,7 +506,7 @@ CREATE TRIGGER product_variants_lock_catalogue
 -- page has no price and every listing drops it. DEFERRED, because the variants
 -- are inserted after the product row they reference.
 CREATE FUNCTION products_check_sellable() RETURNS trigger
-LANGUAGE plpgsql AS $$
+LANGUAGE plpgsql SET search_path = pg_catalog, public, pg_temp AS $$
 DECLARE
     p products%ROWTYPE;
     sellable integer;
@@ -645,30 +669,35 @@ CREATE UNIQUE INDEX user_identities_user_provider_key
     ON user_identities (user_id, provider);
 
 CREATE TABLE staff_totp_credentials (
-    user_id          uuid PRIMARY KEY REFERENCES users (id) ON DELETE CASCADE,
+    user_id            uuid PRIMARY KEY REFERENCES users (id) ON DELETE CASCADE,
     -- AES-256-GCM, keyed from the environment: a TOTP secret is a
     -- password-equivalent, so a database dump alone must not defeat the factor.
-    secret_encrypted bytea NOT NULL,
+    secret_encrypted   bytea NOT NULL,
     -- NULL until the enrolling person has proved they can generate a code, or
     -- a mistyped secret locks them out of what it protects.
-    confirmed_at     timestamptz,
+    confirmed_at       timestamptz,
     -- The most recent time step accepted. A code is valid for its whole
     -- 30-second step, and 90 seconds with the skew window either side, so
     -- requiring a strictly greater step is what makes each code single-use.
-    last_step        bigint,
+    last_step          bigint,
     -- sha256 of the code mailed to the account's address when enrolment began;
-    -- confirming enrolment also proves the mailbox.
-    mailed_code_hash bytea,
-    created_at       timestamptz NOT NULL DEFAULT now(),
+    -- confirming enrolment also proves the mailbox. Present exactly while the
+    -- credential is unconfirmed: the statement that confirms it spends the code.
+    mailed_code_digest bytea,
+    created_at         timestamptz NOT NULL DEFAULT now(),
 
     CONSTRAINT staff_totp_secret_present CHECK (octet_length(secret_encrypted) > 0),
     CONSTRAINT staff_totp_step_needs_confirmation
-        CHECK (last_step IS NULL OR confirmed_at IS NOT NULL)
+        CHECK (last_step IS NULL OR confirmed_at IS NOT NULL),
+    CONSTRAINT staff_totp_credentials_mailed_code_digest_sha256
+        CHECK (mailed_code_digest IS NULL OR octet_length(mailed_code_digest) = 32),
+    CONSTRAINT staff_totp_credentials_mailed_code_shape
+        CHECK ((confirmed_at IS NULL) = (mailed_code_digest IS NOT NULL))
 );
 
--- Sessions store a hash, never the cookie value.
+-- Sessions store a digest, never the cookie value.
 CREATE TABLE sessions (
-    token_hash bytea PRIMARY KEY,
+    digest     bytea PRIMARY KEY,
     user_id    uuid NOT NULL REFERENCES users (id) ON DELETE CASCADE,
     user_agent text,
     ip         inet,
@@ -678,6 +707,7 @@ CREATE TABLE sessions (
     -- session. The factor guards the BACK OFFICE and not the sign-in, so there is
     -- no half-authenticated state to keep anywhere.
     totp_verified_at timestamptz,
+    CONSTRAINT sessions_digest_sha256 CHECK (octet_length(digest) = 32),
     CONSTRAINT sessions_expiry_after_creation CHECK (expires_at > created_at),
     CONSTRAINT sessions_totp_after_creation
 		CHECK (totp_verified_at IS NULL OR totp_verified_at >= created_at),
@@ -691,18 +721,19 @@ CREATE INDEX sessions_user_id_idx ON sessions (user_id);
 CREATE INDEX sessions_expires_at_idx ON sessions (expires_at);
 
 CREATE TABLE password_reset_tokens (
-    token_hash bytea PRIMARY KEY,
+    digest     bytea PRIMARY KEY,
     user_id    uuid NOT NULL REFERENCES users (id) ON DELETE CASCADE,
     created_at timestamptz NOT NULL DEFAULT now(),
     expires_at timestamptz NOT NULL,
     used_at    timestamptz,
+    CONSTRAINT password_reset_tokens_digest_sha256 CHECK (octet_length(digest) = 32),
     CONSTRAINT password_reset_tokens_expiry_after_creation CHECK (expires_at > created_at)
 );
 
--- The back office's customer search. users already has a UNIQUE index on
--- lower(email), but a btree under the default collation cannot serve a prefix
--- LIKE, so this is a second index rather than a duplicate one.
-CREATE INDEX users_email_prefix_idx ON users (lower(email) text_pattern_ops);
+-- The back office's customer search is a prefix on lower(email) and on
+-- full_name. users already has a UNIQUE index on lower(email), and under the
+-- builtin C.UTF-8 collation that btree serves a prefix LIKE, so email needs no
+-- second index. full_name has no other index, so it keeps this one.
 CREATE INDEX users_name_prefix_idx ON users (full_name text_pattern_ops);
 
 CREATE INDEX password_reset_tokens_user_id_idx ON password_reset_tokens (user_id);
@@ -810,10 +841,24 @@ CREATE TABLE store_credit_entries (
     id             uuid PRIMARY KEY DEFAULT uuidv7(),
     account_id     uuid NOT NULL REFERENCES store_credit_accounts (id) ON DELETE RESTRICT,
     amount_cents   bigint NOT NULL,
-    reason         text NOT NULL,
+    -- What a staff member typed, and only that: NULL for every posting the
+    -- database writes itself. Which kind of posting a row is lives in `kind`,
+    -- never in this text, so a grant worded `points` stays a grant.
+    reason         text,
     -- The caller's name for this posting: a retried checkout submits the same
     -- key and meets the unique index instead of writing a second debit.
     idempotency_key text NOT NULL,
+    -- What kind of posting this is, read off the key prefix that each posting
+    -- function already derives itself. Generated, so it cannot disagree with the
+    -- key and no writer names it; a prefix nobody listed leaves it NULL, which
+    -- store_credit_entries_kind_known refuses.
+    kind           text GENERATED ALWAYS AS (CASE
+                       WHEN starts_with(idempotency_key, 'order:')         THEN 'order_spend'
+                       WHEN starts_with(idempotency_key, 'reverse:')       THEN 'order_cancel_reversal'
+                       WHEN starts_with(idempotency_key, 'return-credit:') THEN 'return_payout'
+                       WHEN starts_with(idempotency_key, 'redeem:')        THEN 'points_redemption'
+                       WHEN starts_with(idempotency_key, 'grant:')         THEN 'staff_grant'
+                   END) STORED,
     -- The order this posting settles, when there is one. The foreign key is
     -- added after `orders` is created, further down.
     order_id       uuid,
@@ -827,9 +872,16 @@ CREATE TABLE store_credit_entries (
     -- overflow bigint instead of raising store_credit_never_negative.
     CONSTRAINT store_credit_entries_amount_in_range
         CHECK (amount_cents BETWEEN -10000000000 AND 10000000000),
+    -- Both bound a staff-typed reason, so a NULL one is simply not checked here;
+    -- store_credit_entries_reason_matches_kind says when NULL is required.
     CONSTRAINT store_credit_entries_reason_present CHECK (reason ~ '[^[:space:]]'),
     CONSTRAINT store_credit_entries_reason_bounded CHECK (char_length(reason) <= 200),
-    CONSTRAINT store_credit_entries_key_present CHECK (idempotency_key ~ '[^[:space:]]')
+    CONSTRAINT store_credit_entries_key_present CHECK (idempotency_key ~ '[^[:space:]]'),
+    CONSTRAINT store_credit_entries_kind_known CHECK (kind IS NOT NULL),
+    -- A staff grant carries its reason and every other kind carries none. When
+    -- kind is NULL the comparison is NULL and passes; kind_known refuses that row.
+    CONSTRAINT store_credit_entries_reason_matches_kind
+        CHECK ((kind = 'staff_grant') = (reason IS NOT NULL))
 );
 
 -- A reversal undoes exactly one entry, once.
@@ -845,7 +897,7 @@ CREATE INDEX store_credit_entries_actor_idx ON store_credit_entries (actor_user_
 -- Locks the account before it sums, so two concurrent debits serialise rather
 -- than both reading a balance that is about to be spent.
 CREATE FUNCTION store_credit_guard() RETURNS trigger
-LANGUAGE plpgsql AS $$
+LANGUAGE plpgsql SET search_path = pg_catalog, public, pg_temp AS $$
 DECLARE
     balance bigint;
     original store_credit_entries%ROWTYPE;
@@ -1009,6 +1061,8 @@ CREATE TRIGGER inventory_movements_append_only
 -- The only writer of stock_quantity. The availability test is in the UPDATE's
 -- own WHERE clause, so the read and the write are one statement on one locked
 -- row and zero rows updated means there was not enough.
+-- SECURITY DEFINER: runs as its owner, so it can write the stock rows that store
+-- cannot update.
 CREATE FUNCTION record_inventory_movement(
     p_variant_id uuid,
     p_delta integer,
@@ -1018,7 +1072,7 @@ CREATE FUNCTION record_inventory_movement(
     p_source_id uuid DEFAULT NULL,
     p_actor uuid DEFAULT NULL
 ) RETURNS integer
-LANGUAGE plpgsql AS $$
+LANGUAGE plpgsql SECURITY DEFINER SET search_path = pg_catalog, public, pg_temp AS $$
 DECLARE
     remaining integer;
 BEGIN
@@ -1091,7 +1145,7 @@ CREATE FUNCTION hold_inventory(
     p_hold_for interval,
     p_idempotency_key text
 ) RETURNS uuid
-LANGUAGE plpgsql SECURITY DEFINER SET search_path = public, pg_temp AS $$
+LANGUAGE plpgsql SECURITY DEFINER SET search_path = pg_catalog, public, pg_temp AS $$
 DECLARE
     reservation_id uuid;
     order_status text;
@@ -1169,7 +1223,7 @@ $$;
 -- when the hold was taken, and posting another would return the item at the
 -- moment it is sold. The conditional UPDATE is the lock.
 CREATE FUNCTION consume_reservation(p_reservation_id uuid) RETURNS void
-LANGUAGE plpgsql SECURITY DEFINER SET search_path = public, pg_temp AS $$
+LANGUAGE plpgsql SECURITY DEFINER SET search_path = pg_catalog, public, pg_temp AS $$
 BEGIN
     UPDATE inventory_reservations
     SET state = 'consumed', settled_at = now()
@@ -1187,7 +1241,7 @@ $$;
 -- created_at and expires_at, which is what keeps expiry_after_creation true.
 CREATE FUNCTION consume_reservation_partial(p_reservation_id uuid, p_quantity integer)
 RETURNS void
-LANGUAGE plpgsql SECURITY DEFINER SET search_path = public, pg_temp AS $$
+LANGUAGE plpgsql SECURITY DEFINER SET search_path = pg_catalog, public, pg_temp AS $$
 DECLARE
     r inventory_reservations%ROWTYPE;
 BEGIN
@@ -1227,7 +1281,7 @@ $$;
 -- order, and separately on one that OWES NOTHING: a store-credited order has no
 -- payment row, so the view cannot see it and the sweeper would take its stock.
 CREATE FUNCTION release_reservation(p_reservation_id uuid) RETURNS void
-LANGUAGE plpgsql SECURITY DEFINER SET search_path = public, pg_temp AS $$
+LANGUAGE plpgsql SECURITY DEFINER SET search_path = pg_catalog, public, pg_temp AS $$
 DECLARE
     r inventory_reservations%ROWTYPE;
     reservation_order_id uuid;
@@ -1308,7 +1362,7 @@ $$;
 CREATE TABLE carts (
     id         uuid PRIMARY KEY DEFAULT uuidv7(),
     user_id    uuid REFERENCES users (id) ON DELETE CASCADE,
-    token_hash bytea NOT NULL,
+    digest     bytea NOT NULL,
     created_at timestamptz NOT NULL DEFAULT now(),
     updated_at timestamptz NOT NULL DEFAULT now(),
     -- What a shopper had typed into the checkout when they left it for the
@@ -1320,6 +1374,7 @@ CREATE TABLE carts (
     -- no SELECT on carts at all, and `admin` cannot write it.
     checkout_draft    jsonb,
     checkout_draft_at timestamptz,
+    CONSTRAINT carts_digest_sha256 CHECK (octet_length(digest) = 32),
     CONSTRAINT carts_checkout_draft_paired
         CHECK ((checkout_draft IS NULL) = (checkout_draft_at IS NULL)),
     CONSTRAINT carts_checkout_draft_bounded
@@ -1327,7 +1382,7 @@ CREATE TABLE carts (
                                           AND octet_length(checkout_draft::text) <= 8192))
 );
 
-CREATE UNIQUE INDEX carts_token_hash_key ON carts (token_hash);
+CREATE UNIQUE INDEX carts_digest_key ON carts (digest);
 -- ClearStaleCheckoutDrafts filters on both columns, so it reads only the carts
 -- that hold a draft.
 CREATE INDEX carts_checkout_draft_at_idx ON carts (checkout_draft_at)
@@ -1489,7 +1544,7 @@ COMMENT ON VIEW visible_reviews IS
 -- than trusted from the writer. Only the moment it is SET is guarded: erasure
 -- nulls user_id, so re-verifying an erased author is impossible.
 CREATE FUNCTION product_reviews_verify_purchase() RETURNS trigger
-LANGUAGE plpgsql AS $$
+LANGUAGE plpgsql SET search_path = pg_catalog, public, pg_temp AS $$
 BEGIN
     IF NOT NEW.is_verified_purchase THEN
         RETURN NEW;
@@ -1764,30 +1819,49 @@ COMMENT ON FUNCTION shop_today() IS
 -- Their GRANTs are far below: admin and reporting do not exist yet here, and
 -- a GRANT naming a role the file has not created fails the migration.
 
--- One row per business day, incremented atomically: a MAX()+1 in application
--- code hands the same number to two concurrent checkouts.
-CREATE TABLE order_number_counters (
-    business_date date PRIMARY KEY,
-    last_no       integer NOT NULL,
-    CONSTRAINT order_number_counters_in_range CHECK (last_no BETWEEN 1 AND 999999)
-);
-
--- Six digits, not four: at four, the 10,000th order of a day cannot be placed.
+-- The number a customer quotes to support, and the key a guest's lookup form
+-- takes with their email. A counter would make every other order of the day
+-- guessable from one, so the suffix is random: 30 bits (six Crockford base32
+-- characters, no I, L, O or U) taken from the first four bytes of
+-- gen_random_uuid(). That is a version 4 uuid, drawn from PostgreSQL's strong
+-- random source; its version nibble is byte 6 and its variant bits are in byte
+-- 8, so bytes 0-3 are all random. uuidv7() is not an option: its leading bits
+-- are a timestamp.
+--
+-- Uniqueness is orders_number_key. The draw is repeated while its candidate is
+-- already an order, at most five times, then fails on that constraint's name.
+-- Callers do not retry: two sessions drawing the same candidate in one
+-- instant (about 2^-30 per pair) fail cleanly on the index.
+--
+-- Not a definer: it writes nothing and only reads orders, which store and
+-- admin may.
 CREATE FUNCTION next_order_number() RETURNS text
-LANGUAGE plpgsql AS $$
+LANGUAGE plpgsql
+VOLATILE
+SET search_path = pg_catalog, public, pg_temp AS $$
 DECLARE
-    today date;
-    seq   integer;
+    alphabet constant text := '0123456789ABCDEFGHJKMNPQRSTVWXYZ';
+    today     constant text := to_char(shop_today(), 'YYMMDD');
+    bytes     bytea;
+    bits      bigint;
+    suffix    text;
+    candidate text;
 BEGIN
-    today := shop_today();
-
-    INSERT INTO order_number_counters (business_date, last_no)
-    VALUES (today, 1)
-    ON CONFLICT (business_date) DO UPDATE
-        SET last_no = order_number_counters.last_no + 1
-    RETURNING last_no INTO seq;
-
-    RETURN 'GO-' || to_char(today, 'YYMMDD') || '-' || to_char(seq, 'FM000000');
+    FOR attempt IN 1..5 LOOP
+        bytes := uuid_send(gen_random_uuid());
+        bits := (get_byte(bytes, 0)::bigint << 22) | (get_byte(bytes, 1)::bigint << 14)
+              | (get_byte(bytes, 2)::bigint << 6) | (get_byte(bytes, 3)::bigint >> 2);
+        suffix := '';
+        FOR i IN REVERSE 5..0 LOOP
+            suffix := suffix || substr(alphabet, ((bits >> (5 * i)) & 31)::integer + 1, 1);
+        END LOOP;
+        candidate := 'GO-' || today || '-' || suffix;
+        IF NOT EXISTS (SELECT 1 FROM orders WHERE order_number = candidate) THEN
+            RETURN candidate;
+        END IF;
+    END LOOP;
+    RAISE EXCEPTION 'no free order number after 5 draws'
+        USING ERRCODE = 'unique_violation', CONSTRAINT = 'orders_number_key';
 END;
 $$;
 
@@ -1825,7 +1899,7 @@ CREATE TABLE orders (
     cancelled_at         timestamptz,
     completed_at         timestamptz,
     updated_at           timestamptz NOT NULL DEFAULT now(),
-    CONSTRAINT orders_number_format CHECK (order_number ~ '^GO-[0-9]{6}-[0-9]{6}$'),
+    CONSTRAINT orders_number_format CHECK (order_number ~ '^GO-[0-9]{6}-[0-9A-HJKMNP-TV-Z]{6}$'),
     CONSTRAINT orders_currency_is_twd CHECK (currency = 'TWD'),
     CONSTRAINT orders_locale_known CHECK (locale IN ('zh-Hant', 'en')),
     CONSTRAINT orders_discount_non_negative CHECK (discount_cents >= 0),
@@ -1886,7 +1960,7 @@ ALTER TABLE checkout_attempts
 
 -- Fulfilment moves forward: un-shipping is a lost fact, not a correction.
 CREATE FUNCTION orders_check_transition() RETURNS trigger
-LANGUAGE plpgsql AS $$
+LANGUAGE plpgsql SET search_path = pg_catalog, public, pg_temp AS $$
 DECLARE
     legal boolean;
     lines integer;
@@ -2039,7 +2113,7 @@ CREATE TRIGGER orders_legal_transition
 -- Inserting straight into 'shipped' would skip every transition guard and every
 -- side effect they carry.
 CREATE FUNCTION orders_check_initial_status() RETURNS trigger
-LANGUAGE plpgsql AS $$
+LANGUAGE plpgsql SET search_path = pg_catalog, public, pg_temp AS $$
 BEGIN
     IF NEW.fulfillment_status <> 'pending' THEN
         RAISE EXCEPTION 'a new order must start pending, not %', NEW.fulfillment_status
@@ -2093,7 +2167,7 @@ CREATE TABLE order_lines (
 -- a valid display snapshot; later catalogue edits must not rewrite the order.
 -- Explicitly mismatched product/variant pairs remain the composite FK's rule.
 CREATE FUNCTION order_lines_bind_product() RETURNS trigger
-LANGUAGE plpgsql AS $$
+LANGUAGE plpgsql SET search_path = pg_catalog, public, pg_temp AS $$
 DECLARE
     v_product_id uuid;
     v_sku text;
@@ -2139,7 +2213,7 @@ CREATE TRIGGER order_lines_bind_product
 -- somebody else's order. Checkout writes the order and every line in one
 -- transaction, and orders_have_lines refuses an order committed without them.
 CREATE FUNCTION order_lines_check_placing() RETURNS trigger
-LANGUAGE plpgsql AS $$
+LANGUAGE plpgsql SET search_path = pg_catalog, public, pg_temp AS $$
 BEGIN
     IF NOT EXISTS (
         SELECT 1 FROM orders o
@@ -2342,7 +2416,7 @@ CREATE INDEX order_shipment_lines_line_idx ON order_shipment_lines (order_line_i
 -- You cannot ship more of a line than was bought, counting every shipment. The
 -- line's order is locked first so two shipments cannot both pass.
 CREATE FUNCTION shipment_lines_within_purchase() RETURNS trigger
-LANGUAGE plpgsql AS $$
+LANGUAGE plpgsql SET search_path = pg_catalog, public, pg_temp AS $$
 DECLARE
     bought integer;
     already integer;
@@ -2374,7 +2448,7 @@ CREATE TRIGGER shipment_within_purchase
 -- trigger never fires and cannot be what refuses this. The admitted set is
 -- exactly fillShippable's: picking, shipped and delivered.
 CREATE FUNCTION order_shipments_order_in_fulfilment() RETURNS trigger
-LANGUAGE plpgsql SET search_path = public, pg_temp AS $$
+LANGUAGE plpgsql SET search_path = pg_catalog, public, pg_temp AS $$
 DECLARE
     o_status text;
 BEGIN
@@ -2435,7 +2509,7 @@ CREATE TRIGGER order_events_append_only
 -- somewhere to go. DEFERRED, because the lines are necessarily inserted after
 -- the order row they reference.
 CREATE FUNCTION orders_check_complete() RETURNS trigger
-LANGUAGE plpgsql AS $$
+LANGUAGE plpgsql SET search_path = pg_catalog, public, pg_temp AS $$
 DECLARE
     lines integer;
     subtotal bigint;
@@ -2511,7 +2585,7 @@ CREATE TRIGGER coupon_redemptions_append_only
 -- The redemption and the order's discount_cents are one fact, so the database
 -- keeps them one.
 CREATE FUNCTION coupon_redemption_matches_order() RETURNS trigger
-LANGUAGE plpgsql AS $$
+LANGUAGE plpgsql SET search_path = pg_catalog, public, pg_temp AS $$
 DECLARE
     order_discount bigint;
 BEGIN
@@ -2541,7 +2615,7 @@ CREATE CONSTRAINT TRIGGER coupon_redemption_matches_order
 -- correcting a price afterwards is a refund, not an UPDATE.
 
 CREATE FUNCTION order_lines_freeze() RETURNS trigger
-LANGUAGE plpgsql AS $$
+LANGUAGE plpgsql SET search_path = pg_catalog, public, pg_temp AS $$
 DECLARE
     target uuid := coalesce(NEW.order_id, OLD.order_id);
 BEGIN
@@ -2572,7 +2646,7 @@ CREATE TRIGGER order_lines_frozen_once_committed
     FOR EACH ROW EXECUTE FUNCTION order_lines_freeze();
 
 CREATE FUNCTION orders_freeze_money() RETURNS trigger
-LANGUAGE plpgsql AS $$
+LANGUAGE plpgsql SET search_path = pg_catalog, public, pg_temp AS $$
 BEGIN
     IF NEW.discount_cents = OLD.discount_cents
        AND NEW.shipping_cents = OLD.shipping_cents
@@ -2600,7 +2674,7 @@ $$;
 -- key only proves the version exists. The NAME is a customer-facing label and may
 -- differ, so only the code is constrained.
 CREATE FUNCTION orders_check_shipping_snapshot() RETURNS trigger
-LANGUAGE plpgsql AS $$
+LANGUAGE plpgsql SET search_path = pg_catalog, public, pg_temp AS $$
 DECLARE
     version_code text;
 BEGIN
@@ -2630,7 +2704,7 @@ CREATE TRIGGER orders_money_frozen_once_committed
 -- only these trips neither the transition guard nor the money freeze, so only a
 -- change to an already-set timestamp is refused.
 CREATE FUNCTION orders_freeze_history() RETURNS trigger
-LANGUAGE plpgsql AS $$
+LANGUAGE plpgsql SET search_path = pg_catalog, public, pg_temp AS $$
 BEGIN
     IF OLD.cancelled_at IS NOT NULL
        AND NEW.cancelled_at IS DISTINCT FROM OLD.cancelled_at THEN
@@ -2659,7 +2733,7 @@ CREATE TRIGGER orders_history_frozen
 -- back. The owner an order is written with is not this trigger's to judge: store
 -- writes it as it places the order, and that is the storefront role's trust.
 CREATE FUNCTION orders_freeze_owner() RETURNS trigger
-LANGUAGE plpgsql AS $$
+LANGUAGE plpgsql SET search_path = pg_catalog, public, pg_temp AS $$
 BEGIN
     IF NEW.user_id IS NULL
        AND NOT EXISTS (SELECT 1 FROM users WHERE id = OLD.user_id) THEN
@@ -2775,6 +2849,31 @@ CREATE UNIQUE INDEX order_events_return_request_key
 CREATE INDEX order_events_return_request_fk_idx
     ON order_events (order_id, return_request_id);
 
+-- A shipped event names its parcel instead of describing it. The note this row
+-- once carried was the carrier's name and the tracking number in the shop's
+-- language, and an append-only row cannot be rewritten: every page in another
+-- language would have shown it for ever. The parcel (order_shipments) states
+-- carrier and tracking, and each page renders them in its reader's language.
+-- The composite foreign key keeps an event from naming another order's parcel;
+-- the unique index is one shipped event per parcel, as there is one notice.
+ALTER TABLE order_events
+    ADD COLUMN shipment_id uuid,
+    ADD CONSTRAINT order_events_shipment_shape CHECK (
+        (kind = 'shipped') = (shipment_id IS NOT NULL)
+    ),
+    ADD CONSTRAINT order_events_shipped_note_absent CHECK (
+        kind <> 'shipped' OR note IS NULL
+    ),
+    ADD CONSTRAINT order_events_shipment_fk
+        FOREIGN KEY (order_id, shipment_id)
+        REFERENCES order_shipments (order_id, id) ON DELETE RESTRICT;
+
+CREATE UNIQUE INDEX order_events_shipment_key
+    ON order_events (shipment_id)
+    WHERE shipment_id IS NOT NULL;
+CREATE INDEX order_events_shipment_fk_idx
+    ON order_events (order_id, shipment_id);
+
 -- order_id is carried for the same reason as on shipment lines: the composite
 -- foreign key makes a cross-order return impossible.
 CREATE TABLE return_request_lines (
@@ -2821,7 +2920,7 @@ CREATE INDEX return_request_lines_line_idx ON return_request_lines (order_line_i
 -- data. Reservation and return sources also identify the SKU being moved;
 -- an order source identifies the order root, independently of its line writes.
 CREATE FUNCTION inventory_movement_source_guard() RETURNS trigger
-LANGUAGE plpgsql AS $$
+LANGUAGE plpgsql SET search_path = pg_catalog, public, pg_temp AS $$
 BEGIN
     IF NEW.source_type = 'order' AND NEW.source_id IS NOT NULL THEN
         PERFORM 1 FROM orders WHERE id = NEW.source_id;
@@ -2857,7 +2956,7 @@ CREATE TRIGGER inventory_movements_source_parent
 -- bounded by what was ORDERED, a customer could open a return — and, since
 -- refunds pay out on approval, be paid — for goods still in the warehouse.
 CREATE FUNCTION return_lines_within_purchase() RETURNS trigger
-LANGUAGE plpgsql AS $$
+LANGUAGE plpgsql SET search_path = pg_catalog, public, pg_temp AS $$
 DECLARE
     shipped integer;
     v_limit integer;
@@ -3282,7 +3381,7 @@ CREATE INDEX warranty_registrations_user_id_idx ON warranty_registrations (user_
 -- they hold for any writer. Erasure's ON DELETE SET NULL is the one change a
 -- registration takes after it is made.
 CREATE FUNCTION warranty_within_purchase() RETURNS trigger
-LANGUAGE plpgsql AS $$
+LANGUAGE plpgsql SET search_path = pg_catalog, public, pg_temp AS $$
 DECLARE
     bought integer;
     placed_by uuid;
@@ -3474,7 +3573,7 @@ CREATE UNIQUE INDEX invoice_documents_request_key
 
 -- Issued documents are filed, not edited.
 CREATE FUNCTION invoice_documents_guard() RETURNS trigger
-LANGUAGE plpgsql AS $$
+LANGUAGE plpgsql SET search_path = pg_catalog, public, pg_temp AS $$
 BEGIN
     IF TG_OP = 'DELETE' THEN
         RAISE EXCEPTION 'invoice documents are filed, not deleted'
@@ -3626,7 +3725,7 @@ CREATE UNIQUE INDEX invoice_operations_one_active_void
 -- notes against it may not total more than it was for. The original is locked so
 -- two cannot both pass.
 CREATE FUNCTION invoice_allowance_valid() RETURNS trigger
-LANGUAGE plpgsql AS $$
+LANGUAGE plpgsql SET search_path = pg_catalog, public, pg_temp AS $$
 DECLARE
     orig invoice_documents%ROWTYPE;
     already numeric;
@@ -3784,7 +3883,7 @@ CREATE TRIGGER payments_set_updated_at
 -- Stripe does not promise webhook ordering, so a late-arriving `created` can
 -- follow `succeeded`. Terminal states do not un-happen.
 CREATE FUNCTION payments_check_transition() RETURNS trigger
-LANGUAGE plpgsql AS $$
+LANGUAGE plpgsql SET search_path = pg_catalog, public, pg_temp AS $$
 BEGIN
     IF OLD.status = NEW.status THEN
         RETURN NEW;
@@ -3810,7 +3909,7 @@ CREATE TRIGGER payments_no_regression
 -- sweeper; this closes both windows at the moment money is taken, holding the
 -- order locked.
 CREATE FUNCTION payments_require_complete_order() RETURNS trigger
-LANGUAGE plpgsql AS $$
+LANGUAGE plpgsql SET search_path = pg_catalog, public, pg_temp AS $$
 DECLARE
     o orders%ROWTYPE;
     lines integer;
@@ -3904,7 +4003,7 @@ CREATE TRIGGER payments_require_complete_order
 -- captured_amount_cents would silently raise the refundable balance, and moving
 -- the payment would detach it from what it paid for.
 CREATE FUNCTION payments_freeze_settled() RETURNS trigger
-LANGUAGE plpgsql AS $$
+LANGUAGE plpgsql SET search_path = pg_catalog, public, pg_temp AS $$
 BEGIN
     IF OLD.status <> 'succeeded' THEN
         RETURN NEW;
@@ -3999,7 +4098,7 @@ CREATE UNIQUE INDEX refunds_one_open_return_attempt
 -- two concurrent refunds of 60 against a capture of 100 cannot both see zero
 -- already refunded.
 CREATE FUNCTION refunds_guard() RETURNS trigger
-LANGUAGE plpgsql AS $$
+LANGUAGE plpgsql SET search_path = pg_catalog, public, pg_temp AS $$
 DECLARE
     captured bigint;
     pay_status text;
@@ -4123,7 +4222,7 @@ CREATE TRIGGER refunds_within_capture
 -- Demoting a succeeded refund to failed would drop it out of the sum above and
 -- free the allowance to be spent again.
 CREATE FUNCTION refunds_check_transition() RETURNS trigger
-LANGUAGE plpgsql AS $$
+LANGUAGE plpgsql SET search_path = pg_catalog, public, pg_temp AS $$
 BEGIN
     IF OLD.status = NEW.status THEN
         RETURN NEW;
@@ -4248,7 +4347,7 @@ CREATE INDEX payment_webhook_events_object_idx ON payment_webhook_events (object
 -- a person back in. It runs on every write of the payload, which is how
 -- erase_user reduces a row that was loaded without passing through it.
 CREATE FUNCTION payment_webhook_events_keep_evidence() RETURNS trigger
-LANGUAGE plpgsql AS $$
+LANGUAGE plpgsql SET search_path = pg_catalog, public, pg_temp AS $$
 DECLARE
     event_part  jsonb := CASE jsonb_typeof(NEW.payload)
                              WHEN 'object' THEN NEW.payload ELSE '{}' END;
@@ -4561,7 +4660,7 @@ CREATE UNIQUE INDEX sale_campaign_products_position_key
 
 -- A featured product that shows no saving is a promise the page cannot keep.
 CREATE FUNCTION sale_campaign_products_guard() RETURNS trigger
-LANGUAGE plpgsql AS $$
+LANGUAGE plpgsql SET search_path = pg_catalog, public, pg_temp AS $$
 BEGIN
     -- Both halves of "a featured product keeps a discount" meet on the product
     -- row, and without this lock each guard misses the other's uncommitted work.
@@ -4589,7 +4688,7 @@ CREATE TRIGGER sale_campaign_needs_discount
 -- pre-statement snapshot, so clearing every discount in one statement passes row
 -- by row, and DELETE of the last discounted variant fires nothing at all.
 CREATE FUNCTION sale_campaign_variant_still_valid() RETURNS trigger
-LANGUAGE plpgsql AS $$
+LANGUAGE plpgsql SET search_path = pg_catalog, public, pg_temp AS $$
 DECLARE
     target uuid := coalesce(NEW.product_id, OLD.product_id);
 BEGIN
@@ -4923,7 +5022,7 @@ BEGIN
     USING password_reset_tokens r
     WHERE r.user_id = p_user_id
       AND m.topic = 'account.password_reset'
-      AND m.dedupe_key = 'reset:' || encode(r.token_hash, 'hex');
+      AND m.dedupe_key = 'reset:' || encode(r.digest, 'hex');
 
     DELETE FROM outbox_messages m
     USING email_verifications v
@@ -4935,7 +5034,7 @@ BEGIN
     USING orders o
     WHERE o.id = ANY (erased_orders)
       AND m.topic IN ('order.placed', 'order.paid', 'order.shipped')
-      AND coalesce(m.payload ->> 'order_number', m.payload ->> 'OrderNumber', '') =
+      AND coalesce(m.payload ->> 'order_number', '') =
           o.order_number;
 
     DELETE FROM outbox_messages m
@@ -4997,10 +5096,10 @@ BEGIN
         -- Match the RECIPIENT value exactly, not payload text: '%' and '_' are
         -- legal in an address but are wildcards in ILIKE, and another field
         -- (for example a customer's name) may happen to contain an address.
-        -- Every current producer writes the explicit lower-case JSON tag; the
-        -- legacy Go field name remains readable for rows queued by older code.
+        -- Every producer writes the explicit lower-case JSON tag, so that is the
+        -- only key read.
         DELETE FROM outbox_messages m
-        WHERE lower(coalesce(m.payload ->> 'email', m.payload ->> 'Email', '')) =
+        WHERE lower(coalesce(m.payload ->> 'email', '')) =
               lower(addr);
 
         -- A payment event no payment row attributes, such as money for a session
@@ -5159,7 +5258,7 @@ GRANT SELECT (id, order_id, requested_by_user_id, status, resolution,
               credit_refund_cents, created_at, decided_at, before_shipment)
     ON return_requests TO reporting;
 GRANT SELECT (id, order_id, kind, actor_user_id, by_system, occurred_at,
-              return_request_id)
+              return_request_id, shipment_id)
     ON order_events TO reporting;
 
 -- Tables whose integrity depends on going through a function; SELECT stays.
@@ -5171,7 +5270,6 @@ REVOKE INSERT, UPDATE, DELETE ON
 REVOKE ALL ON invoice_operations FROM store;
 REVOKE INSERT, UPDATE, DELETE ON product_variants FROM store;
 REVOKE INSERT, UPDATE, DELETE ON payments, refunds FROM store;
-REVOKE INSERT, UPDATE, DELETE ON order_number_counters FROM store;
 REVOKE UPDATE, DELETE, TRUNCATE ON invoice_document_lines FROM store;
 -- UPDATE would repoint a whole balance at another user. DELETE is deleting a
 -- balance: an account whose entries net to zero would go, taking the trail with
@@ -5225,12 +5323,6 @@ REVOKE UPDATE ON warranty_registrations FROM store;
 -- sale originally asked the provider to file.
 REVOKE UPDATE ON invoice_preferences FROM store;
 
-
--- The posting functions run as their owner, so they can write what store cannot.
--- next_order_number joins them so the counter it increments can be write-revoked
--- above.
-ALTER FUNCTION record_inventory_movement(uuid, integer, text, text, text, uuid, uuid) SECURITY DEFINER;
-ALTER FUNCTION next_order_number() SECURITY DEFINER;
 
 -- What "committed" means, as a SET. A view as well as a function because it is
 -- measured: per row over 14,000 orders costs 106 ms — the planner cannot turn two
@@ -5459,12 +5551,12 @@ COMMENT ON FUNCTION return_store_credit_allocation(uuid) IS
     'The immutable store-credit source allocation frozen when a return was approved.';
 
 CREATE FUNCTION order_is_committed(p_order_id uuid) RETURNS boolean
-LANGUAGE sql STABLE AS $$
+LANGUAGE sql STABLE SET search_path = pg_catalog, public, pg_temp AS $$
     SELECT EXISTS (SELECT 1 FROM committed_orders WHERE id = p_order_id);
 $$;
 
 CREATE FUNCTION order_is_settled(p_order_id uuid) RETURNS boolean
-LANGUAGE sql STABLE AS $$
+LANGUAGE sql STABLE SET search_path = pg_catalog, public, pg_temp AS $$
     SELECT EXISTS (SELECT 1 FROM settled_orders WHERE id = p_order_id);
 $$;
 
@@ -5509,14 +5601,31 @@ COMMENT ON VIEW order_refunds IS
     'separately and summed by the caller. The one definition: a 折讓 may not '
     'relieve more than this, and the form that files one offers exactly this.';
 
--- What a customer has spent on committed orders in a rolling window, net of
--- refunds. The floor is PER ORDER: over-compensating one purchase must not
--- erase the genuine spend on another.
+-- The rolling window, in days, over which a customer's spend decides their
+-- tier. Programme policy named once: member_spend reads it, so no page and no
+-- award can judge a tier over a different window than the others. The copy
+-- promises a year ("spent in the last year"); changing this changes that copy.
+CREATE FUNCTION membership_window_days()
+RETURNS integer LANGUAGE sql IMMUTABLE SET search_path = pg_catalog, public, pg_temp AS $$
+    SELECT 365
+$$;
+
+-- How long earned loyalty points last, in days. A separate rule from the tier
+-- window that happens to share its number today; award_loyalty_points reads it
+-- to stamp each lot's expiry. The copy promises a year ("Points expire one year
+-- after you earn them"); changing this changes that copy.
+CREATE FUNCTION points_lifetime_days()
+RETURNS integer LANGUAGE sql IMMUTABLE SET search_path = pg_catalog, public, pg_temp AS $$
+    SELECT 365
+$$;
+
+-- What a customer has spent on committed orders in the rolling
+-- membership_window_days(), net of refunds. The floor is PER ORDER:
+-- over-compensating one purchase must not erase the genuine spend on another.
 -- p_exclude_order is the order being paid for RIGHT NOW: the capture commits it
 -- before points are awarded, so it would otherwise raise its own tier.
-CREATE FUNCTION member_spend(p_user_id uuid, p_days integer,
-                             p_exclude_order uuid DEFAULT NULL)
-RETURNS bigint LANGUAGE sql STABLE AS $$
+CREATE FUNCTION member_spend(p_user_id uuid, p_exclude_order uuid DEFAULT NULL)
+RETURNS bigint LANGUAGE sql STABLE SET search_path = pg_catalog, public, pg_temp AS $$
     SELECT coalesce(sum(greatest(
         (coalesce((SELECT sum(ol.unit_price_cents * ol.quantity)
                    FROM order_lines ol WHERE ol.order_id = o.id), 0)
@@ -5526,17 +5635,16 @@ RETURNS bigint LANGUAGE sql STABLE AS $$
     JOIN committed_orders c ON c.id = o.id
     JOIN order_refunds rf ON rf.order_id = o.id
     WHERE o.user_id = p_user_id
-      AND o.placed_at >= now() - make_interval(days => p_days)
+      AND o.placed_at >= now() - make_interval(days => membership_window_days())
       AND (p_exclude_order IS NULL OR o.id <> p_exclude_order);
 $$;
 
 -- The highest band at or below that spend, or NULL for a customer below every
 -- threshold.
-CREATE FUNCTION member_tier(p_user_id uuid, p_days integer,
-                            p_exclude_order uuid DEFAULT NULL)
-RETURNS uuid LANGUAGE sql STABLE AS $$
+CREATE FUNCTION member_tier(p_user_id uuid, p_exclude_order uuid DEFAULT NULL)
+RETURNS uuid LANGUAGE sql STABLE SET search_path = pg_catalog, public, pg_temp AS $$
     SELECT t.id FROM membership_tiers t
-    WHERE t.min_spend_cents <= member_spend(p_user_id, p_days, p_exclude_order)
+    WHERE t.min_spend_cents <= member_spend(p_user_id, p_exclude_order)
     ORDER BY t.min_spend_cents DESC
     LIMIT 1;
 $$;
@@ -5554,8 +5662,10 @@ GRANT EXECUTE ON FUNCTION order_is_committed(uuid) TO store;
 -- production and nowhere else, because every test connects as the owner.
 GRANT EXECUTE ON FUNCTION order_amount_after_credit(uuid) TO store;
 GRANT EXECUTE ON FUNCTION order_is_settled(uuid) TO store;
-GRANT EXECUTE ON FUNCTION member_spend(uuid, integer, uuid) TO store;
-GRANT EXECUTE ON FUNCTION member_tier(uuid, integer, uuid) TO store;
+GRANT EXECUTE ON FUNCTION member_spend(uuid, uuid) TO store;
+GRANT EXECUTE ON FUNCTION member_tier(uuid, uuid) TO store;
+-- The pages that state the window read it from here, so none keeps a copy.
+GRANT EXECUTE ON FUNCTION membership_window_days() TO store;
 
 -- The back office
 --
@@ -5592,7 +5702,6 @@ REVOKE INSERT, UPDATE, DELETE ON
     FROM admin;
 REVOKE INSERT, UPDATE, DELETE ON invoice_operations FROM admin;
 REVOKE INSERT, UPDATE, DELETE ON payments, refunds FROM admin;
-REVOKE INSERT, UPDATE, DELETE ON order_number_counters FROM admin;
 REVOKE UPDATE, DELETE, TRUNCATE ON invoice_document_lines FROM admin;
 REVOKE UPDATE, DELETE ON store_credit_accounts FROM admin;
 -- The back office issues coupons and still may not write a redemption: that row
@@ -5664,8 +5773,9 @@ GRANT EXECUTE ON FUNCTION order_amount_after_credit(uuid) TO admin;
 GRANT EXECUTE ON FUNCTION return_goods_refundable_amount(uuid) TO admin;
 GRANT EXECUTE ON FUNCTION return_refundable_amount(uuid) TO admin;
 GRANT EXECUTE ON FUNCTION order_is_settled(uuid) TO admin;
-GRANT EXECUTE ON FUNCTION member_spend(uuid, integer, uuid) TO admin;
-GRANT EXECUTE ON FUNCTION member_tier(uuid, integer, uuid) TO admin;
+GRANT EXECUTE ON FUNCTION member_spend(uuid, uuid) TO admin;
+GRANT EXECUTE ON FUNCTION member_tier(uuid, uuid) TO admin;
+GRANT EXECUTE ON FUNCTION membership_window_days() TO admin;
 GRANT EXECUTE ON FUNCTION erase_user(uuid) TO admin;
 GRANT EXECUTE ON FUNCTION upsert_staff(text, text, text) TO admin;
 GRANT EXECUTE ON FUNCTION revoke_staff(uuid) TO admin;
@@ -5891,7 +6001,7 @@ CREATE FUNCTION claim_invoice_issue(
     p_actor_user_id uuid,
     p_request_id text
 ) RETURNS uuid
-LANGUAGE plpgsql SECURITY DEFINER SET search_path = public, pg_temp AS $$
+LANGUAGE plpgsql SECURITY DEFINER SET search_path = pg_catalog, public, pg_temp AS $$
 DECLARE
     v_order orders%ROWTYPE;
     v_existing uuid;
@@ -6019,7 +6129,7 @@ CREATE FUNCTION claim_invoice_allowance(
     p_actor_user_id uuid,
     p_request_id text
 ) RETURNS uuid
-LANGUAGE plpgsql SECURITY DEFINER SET search_path = public, pg_temp AS $$
+LANGUAGE plpgsql SECURITY DEFINER SET search_path = pg_catalog, public, pg_temp AS $$
 DECLARE
     v_original invoice_documents%ROWTYPE;
     v_existing invoice_operations%ROWTYPE;
@@ -6129,7 +6239,7 @@ CREATE FUNCTION claim_invoice_void(
     p_actor_user_id uuid,
     p_request_id text
 ) RETURNS uuid
-LANGUAGE plpgsql SECURITY DEFINER SET search_path = public, pg_temp AS $$
+LANGUAGE plpgsql SECURITY DEFINER SET search_path = pg_catalog, public, pg_temp AS $$
 DECLARE
     v_document invoice_documents%ROWTYPE;
     v_existing uuid;
@@ -6221,7 +6331,7 @@ CREATE FUNCTION lease_invoice_operation(
     p_owner uuid,
     p_lease_for interval
 ) RETURNS uuid
-LANGUAGE plpgsql SECURITY DEFINER SET search_path = public, pg_temp AS $$
+LANGUAGE plpgsql SECURITY DEFINER SET search_path = pg_catalog, public, pg_temp AS $$
 DECLARE
     v_id uuid;
 BEGIN
@@ -6251,7 +6361,7 @@ END;
 $$;
 
 CREATE FUNCTION mark_invoice_operation_sent(p_id uuid, p_owner uuid) RETURNS boolean
-LANGUAGE plpgsql SECURITY DEFINER SET search_path = public, pg_temp AS $$
+LANGUAGE plpgsql SECURITY DEFINER SET search_path = pg_catalog, public, pg_temp AS $$
 BEGIN
     UPDATE invoice_operations
     SET send_attempts = send_attempts + 1, last_send_at = now(), updated_at = now()
@@ -6275,7 +6385,7 @@ CREATE FUNCTION authorize_invoice_allowance_resend(
     p_actor_user_id uuid,
     p_request_id text
 ) RETURNS boolean
-LANGUAGE plpgsql SECURITY DEFINER SET search_path = public, pg_temp AS $$
+LANGUAGE plpgsql SECURITY DEFINER SET search_path = pg_catalog, public, pg_temp AS $$
 DECLARE
     v_before integer;
     v_after integer;
@@ -6335,7 +6445,7 @@ $$;
 CREATE FUNCTION reschedule_invoice_operation(
     p_id uuid, p_owner uuid, p_error text, p_backoff interval
 ) RETURNS boolean
-LANGUAGE plpgsql SECURITY DEFINER SET search_path = public, pg_temp AS $$
+LANGUAGE plpgsql SECURITY DEFINER SET search_path = pg_catalog, public, pg_temp AS $$
 BEGIN
     IF p_backoff IS NULL
        OR p_backoff < interval '0'
@@ -6375,7 +6485,7 @@ CREATE FUNCTION reconcile_invalid_invoice_allowance(
     p_unit_price_cents bigint[],
     p_line_amount_cents bigint[]
 ) RETURNS bigint
-LANGUAGE plpgsql SECURITY DEFINER SET search_path = public, pg_temp AS $$
+LANGUAGE plpgsql SECURITY DEFINER SET search_path = pg_catalog, public, pg_temp AS $$
 DECLARE
     v_operation invoice_operations%ROWTYPE;
     v_original invoice_documents%ROWTYPE;
@@ -6507,7 +6617,7 @@ CREATE FUNCTION record_invalid_invoice_allowance(
     p_unit_price_cents bigint[],
     p_line_amount_cents bigint[]
 ) RETURNS uuid
-LANGUAGE plpgsql SECURITY DEFINER SET search_path = public, pg_temp AS $$
+LANGUAGE plpgsql SECURITY DEFINER SET search_path = pg_catalog, public, pg_temp AS $$
 DECLARE
     v_operation invoice_operations%ROWTYPE;
     v_original invoice_documents%ROWTYPE;
@@ -6591,7 +6701,7 @@ END;
 $$;
 
 CREATE FUNCTION alarm_invoice_operation(p_id uuid, p_owner uuid, p_error text) RETURNS boolean
-LANGUAGE plpgsql SECURITY DEFINER SET search_path = public, pg_temp AS $$
+LANGUAGE plpgsql SECURITY DEFINER SET search_path = pg_catalog, public, pg_temp AS $$
 BEGIN
     UPDATE invoice_operations
     SET status = 'attention', last_error = left(nullif(p_error, ''), 2000),
@@ -6602,7 +6712,7 @@ END;
 $$;
 
 CREATE FUNCTION reject_invoice_operation(p_id uuid, p_owner uuid, p_error text) RETURNS boolean
-LANGUAGE plpgsql SECURITY DEFINER SET search_path = public, pg_temp AS $$
+LANGUAGE plpgsql SECURITY DEFINER SET search_path = pg_catalog, public, pg_temp AS $$
 BEGIN
     UPDATE invoice_operations
     SET status = 'rejected', last_error = left(nullif(p_error, ''), 2000),
@@ -6623,7 +6733,7 @@ CREATE FUNCTION record_invoice_operation_audit(
     p_entity_id uuid,
     p_after jsonb
 ) RETURNS uuid
-LANGUAGE plpgsql SECURITY DEFINER SET search_path = public, pg_temp AS $$
+LANGUAGE plpgsql SECURITY DEFINER SET search_path = pg_catalog, public, pg_temp AS $$
 DECLARE
     v_operation invoice_operations%ROWTYPE;
     v_audit_id uuid;
@@ -6660,7 +6770,7 @@ CREATE FUNCTION settle_invoice_issue(
     p_unit_price_cents bigint[],
     p_amount_cents bigint[]
 ) RETURNS uuid
-LANGUAGE plpgsql SECURITY DEFINER SET search_path = public, pg_temp AS $$
+LANGUAGE plpgsql SECURITY DEFINER SET search_path = pg_catalog, public, pg_temp AS $$
 DECLARE
     v_operation invoice_operations%ROWTYPE;
     v_document_id uuid;
@@ -6724,7 +6834,7 @@ CREATE FUNCTION settle_invoice_allowance(
     p_amount_cents bigint[],
     p_buyer_consent jsonb
 ) RETURNS uuid
-LANGUAGE plpgsql SECURITY DEFINER SET search_path = public, pg_temp AS $$
+LANGUAGE plpgsql SECURITY DEFINER SET search_path = pg_catalog, public, pg_temp AS $$
 DECLARE
     v_operation invoice_operations%ROWTYPE;
     v_document_id uuid;
@@ -6783,7 +6893,7 @@ END;
 $$;
 
 CREATE FUNCTION settle_invoice_void(p_operation_id uuid, p_owner uuid) RETURNS uuid
-LANGUAGE plpgsql SECURITY DEFINER SET search_path = public, pg_temp AS $$
+LANGUAGE plpgsql SECURITY DEFINER SET search_path = pg_catalog, public, pg_temp AS $$
 DECLARE
     v_operation invoice_operations%ROWTYPE;
     v_number text;
@@ -6829,7 +6939,7 @@ $$;
 -- only serialize unrelated references; they cannot weaken the fence.
 CREATE FUNCTION lock_payment_provider_ref(p_provider text, p_provider_ref text)
 RETURNS void
-LANGUAGE sql VOLATILE STRICT AS $$
+LANGUAGE sql VOLATILE STRICT SET search_path = pg_catalog, public, pg_temp AS $$
     SELECT pg_advisory_xact_lock(hashtextextended(
         length(p_provider)::text || ':' || p_provider || ':' || p_provider_ref,
         419583820019120301::bigint
@@ -6847,7 +6957,7 @@ CREATE FUNCTION open_payment(
     p_provider_ref text,
     p_intended_amount_cents bigint
 ) RETURNS uuid
-LANGUAGE plpgsql SECURITY DEFINER SET search_path = public, pg_temp AS $$
+LANGUAGE plpgsql SECURITY DEFINER SET search_path = pg_catalog, public, pg_temp AS $$
 DECLARE
     payment_id uuid;
     order_status text;
@@ -6943,7 +7053,7 @@ CREATE FUNCTION capture_payment(
     p_card_brand text,
     p_card_last4 text
 ) RETURNS uuid
-LANGUAGE plpgsql SECURITY DEFINER SET search_path = public, pg_temp AS $$
+LANGUAGE plpgsql SECURITY DEFINER SET search_path = pg_catalog, public, pg_temp AS $$
 DECLARE
     payment_id uuid;
     payment_order_id uuid;
@@ -7013,7 +7123,7 @@ CREATE FUNCTION record_expired_payment(
     p_provider_ref text,
     p_intended_amount_cents bigint
 ) RETURNS uuid
-LANGUAGE plpgsql SECURITY DEFINER SET search_path = public, pg_temp AS $$
+LANGUAGE plpgsql SECURITY DEFINER SET search_path = pg_catalog, public, pg_temp AS $$
 DECLARE
     payment_id uuid;
     recorded_order_id uuid;
@@ -7063,7 +7173,7 @@ CREATE FUNCTION record_complete_payment(
     p_provider_ref text,
     p_intended_amount_cents bigint
 ) RETURNS uuid
-LANGUAGE plpgsql SECURITY DEFINER SET search_path = public, pg_temp AS $$
+LANGUAGE plpgsql SECURITY DEFINER SET search_path = pg_catalog, public, pg_temp AS $$
 DECLARE
     payment_id uuid;
     recorded_order_id uuid;
@@ -7123,7 +7233,7 @@ $$;
 
 -- 'cancelled', not 'failed': payments_status_known does not admit the latter.
 CREATE FUNCTION cancel_payment(p_provider_ref text) RETURNS void
-LANGUAGE plpgsql SECURITY DEFINER SET search_path = public, pg_temp AS $$
+LANGUAGE plpgsql SECURITY DEFINER SET search_path = pg_catalog, public, pg_temp AS $$
 BEGIN
     UPDATE payments SET status = 'cancelled'
     WHERE provider_ref = p_provider_ref
@@ -7139,7 +7249,7 @@ CREATE FUNCTION mark_payment_event_unreconciled(
     p_event_id text,
     p_reason text
 ) RETURNS boolean
-LANGUAGE plpgsql SECURITY DEFINER SET search_path = public, pg_temp AS $$
+LANGUAGE plpgsql SECURITY DEFINER SET search_path = pg_catalog, public, pg_temp AS $$
 BEGIN
     UPDATE payment_webhook_events
     SET processed_at = now(), unreconciled = p_reason
@@ -7157,7 +7267,7 @@ $$;
 -- integrity triggers while still making publication/retirement linearizable
 -- with checkout. The cart row is already locked, so both sets are stable.
 CREATE FUNCTION lock_cart_catalogue(p_cart_id uuid) RETURNS void
-LANGUAGE plpgsql SECURITY DEFINER SET search_path = public, pg_temp AS $$
+LANGUAGE plpgsql SECURITY DEFINER SET search_path = pg_catalog, public, pg_temp AS $$
 BEGIN
     PERFORM 1
     FROM product_variants pv
@@ -7185,7 +7295,7 @@ $$;
 -- transaction, so cleared money cannot leave a resumable Session after the
 -- alarm leaves /admin/health. A succeeded payment is terminal and untouched.
 CREATE FUNCTION release_payment_event(p_event_id text) RETURNS boolean
-LANGUAGE plpgsql SECURITY DEFINER SET search_path = public, pg_temp AS $$
+LANGUAGE plpgsql SECURITY DEFINER SET search_path = pg_catalog, public, pg_temp AS $$
 DECLARE
     ref text;
     payment_order_id uuid;
@@ -7243,7 +7353,7 @@ $$;
 -- transaction. It never accepts an amount from the form: the payment row is the
 -- only amount Stripe was asked to take.
 CREATE FUNCTION attribute_complete_payment_paid(p_provider_ref text) RETURNS uuid
-LANGUAGE plpgsql SECURITY DEFINER SET search_path = public, pg_temp AS $$
+LANGUAGE plpgsql SECURITY DEFINER SET search_path = pg_catalog, public, pg_temp AS $$
 DECLARE
     target_payment_id uuid;
     target_order_id uuid;
@@ -7294,7 +7404,7 @@ $$;
 -- Keeping it separate from the paid function makes it impossible for one vague
 -- "handled" button to silently choose the money outcome.
 CREATE FUNCTION release_complete_payment(p_provider_ref text) RETURNS boolean
-LANGUAGE plpgsql SECURITY DEFINER SET search_path = public, pg_temp AS $$
+LANGUAGE plpgsql SECURITY DEFINER SET search_path = pg_catalog, public, pg_temp AS $$
 DECLARE
     payment_order_id uuid;
 BEGIN
@@ -7340,7 +7450,7 @@ CREATE FUNCTION post_store_credit(
     p_idempotency_key text,
     p_actor_user_id uuid
 ) RETURNS uuid
-LANGUAGE plpgsql SECURITY DEFINER SET search_path = public, pg_temp AS $$
+LANGUAGE plpgsql SECURITY DEFINER SET search_path = pg_catalog, public, pg_temp AS $$
 DECLARE
     account_id uuid;
     entry_id uuid;
@@ -7362,7 +7472,7 @@ BEGIN
         WHERE e.idempotency_key = p_idempotency_key;
         IF existing.account_id <> account_id
            OR existing.amount_cents <> p_amount_cents
-           OR existing.reason <> p_reason
+           OR existing.reason IS DISTINCT FROM p_reason
            OR existing.order_id IS DISTINCT FROM p_order_id
            OR existing.actor_user_id IS DISTINCT FROM p_actor_user_id
            OR existing.reverses_id IS NOT NULL THEN
@@ -7383,7 +7493,7 @@ CREATE FUNCTION spend_store_credit(
     p_order_id uuid,
     p_amount_cents bigint
 ) RETURNS uuid
-LANGUAGE plpgsql SECURITY DEFINER SET search_path = public, pg_temp AS $$
+LANGUAGE plpgsql SECURITY DEFINER SET search_path = pg_catalog, public, pg_temp AS $$
 DECLARE
     v_owner uuid;
     v_owed bigint;
@@ -7435,7 +7545,7 @@ BEGIN
                   CONSTRAINT = 'invoice_issue_item_count';
     END IF;
 
-    RETURN post_store_credit(v_owner, p_amount_cents, '訂單折抵',
+    RETURN post_store_credit(v_owner, p_amount_cents, NULL,
                              p_order_id, 'order:' || p_order_id::text, NULL);
 END;
 $$;
@@ -7450,7 +7560,7 @@ CREATE FUNCTION grant_store_credit(
     p_actor_user_id uuid,
     p_operation_id uuid
 ) RETURNS uuid
-LANGUAGE plpgsql SECURITY DEFINER SET search_path = public, pg_temp AS $$
+LANGUAGE plpgsql SECURITY DEFINER SET search_path = pg_catalog, public, pg_temp AS $$
 DECLARE
     v_key text;
     v_existing store_credit_entries%ROWTYPE;
@@ -7485,7 +7595,7 @@ BEGIN
 	WHERE e.idempotency_key = v_key;
 	IF FOUND THEN
 		IF v_existing.amount_cents <> p_amount_cents
-		   OR v_existing.reason <> p_reason
+		   OR v_existing.reason IS DISTINCT FROM p_reason
 		   OR v_existing.order_id IS NOT NULL
 		   OR v_existing.actor_user_id IS DISTINCT FROM p_actor_user_id
 		   OR NOT EXISTS (SELECT 1 FROM store_credit_accounts a
@@ -7513,7 +7623,7 @@ CREATE FUNCTION compensate_return_with_credit(
     p_amount_cents bigint,
     p_actor_user_id uuid
 ) RETURNS uuid
-LANGUAGE plpgsql SECURITY DEFINER SET search_path = public, pg_temp AS $$
+LANGUAGE plpgsql SECURITY DEFINER SET search_path = pg_catalog, public, pg_temp AS $$
 DECLARE
     v_expected bigint;
     v_user_id uuid;
@@ -7565,7 +7675,7 @@ BEGIN
             USING ERRCODE = 'check_violation', CONSTRAINT = 'store_credit_return_amount';
     END IF;
 
-    RETURN post_store_credit(v_user_id, v_expected, '退貨退回購物金',
+    RETURN post_store_credit(v_user_id, v_expected, NULL,
         v_order_id, 'return-credit:' || p_return_request_id::text, p_actor_user_id);
 END;
 $$;
@@ -7574,7 +7684,7 @@ $$;
 -- Store can call this narrow door but retains no UPDATE privilege on accounts
 -- and no INSERT privilege on the append-only ledger.
 CREATE FUNCTION lock_store_credit_for_checkout(p_user_id uuid) RETURNS bigint
-LANGUAGE plpgsql SECURITY DEFINER SET search_path = public, pg_temp AS $$
+LANGUAGE plpgsql SECURITY DEFINER SET search_path = pg_catalog, public, pg_temp AS $$
 DECLARE
     locked_account_id uuid;
     balance bigint;
@@ -7598,7 +7708,7 @@ $$;
 -- rather than a reverses_id parameter on post_store_credit, because a reversal
 -- undoes ONE specific entry and a nullable parameter is one passed by accident.
 CREATE FUNCTION reverse_order_credit(p_order_id uuid) RETURNS bigint
-LANGUAGE plpgsql SECURITY DEFINER SET search_path = public, pg_temp AS $$
+LANGUAGE plpgsql SECURITY DEFINER SET search_path = pg_catalog, public, pg_temp AS $$
 DECLARE
     spend  store_credit_entries%ROWTYPE;
     total  bigint := 0;
@@ -7617,8 +7727,8 @@ BEGIN
         );
 
         INSERT INTO store_credit_entries
-            (account_id, amount_cents, reason, reverses_id, idempotency_key)
-        VALUES (spend.account_id, -spend.amount_cents, 'order cancelled',
+            (account_id, amount_cents, reverses_id, idempotency_key)
+        VALUES (spend.account_id, -spend.amount_cents,
                 spend.id, 'reverse:' || spend.id);
         total := total + (-spend.amount_cents);
     END LOOP;
@@ -7670,7 +7780,7 @@ CREATE FUNCTION claim_return_refund_execution(
 	p_actor uuid,
 	p_request_id text
 ) RETURNS uuid
-LANGUAGE plpgsql SECURITY DEFINER SET search_path = public, pg_temp AS $$
+LANGUAGE plpgsql SECURITY DEFINER SET search_path = pg_catalog, public, pg_temp AS $$
 DECLARE
 	v_order_id uuid;
 	v_user_id uuid;
@@ -7848,7 +7958,7 @@ CREATE FUNCTION apply_refund_provider_outcome(
 	p_request_id text,
 	p_api_rejection boolean
 ) RETURNS boolean
-LANGUAGE plpgsql SET search_path = public, pg_temp AS $$
+LANGUAGE plpgsql SET search_path = pg_catalog, public, pg_temp AS $$
 DECLARE
 	v_existing refunds%ROWTYPE;
 	v_payment_id uuid;
@@ -7966,32 +8076,32 @@ END;
 $$;
 
 CREATE FUNCTION record_refund_pending(uuid, text, uuid, text) RETURNS boolean
-LANGUAGE sql SECURITY DEFINER SET search_path = public, pg_temp AS $$
+LANGUAGE sql SECURITY DEFINER SET search_path = pg_catalog, public, pg_temp AS $$
 	SELECT apply_refund_provider_outcome($1, $2, 'pending', $3, $4, false);
 $$;
 
 CREATE FUNCTION record_refund_requires_action(uuid, text, uuid, text) RETURNS boolean
-LANGUAGE sql SECURITY DEFINER SET search_path = public, pg_temp AS $$
+LANGUAGE sql SECURITY DEFINER SET search_path = pg_catalog, public, pg_temp AS $$
 	SELECT apply_refund_provider_outcome($1, $2, 'requires_action', $3, $4, false);
 $$;
 
 CREATE FUNCTION record_refund_succeeded(uuid, text, uuid, text) RETURNS boolean
-LANGUAGE sql SECURITY DEFINER SET search_path = public, pg_temp AS $$
+LANGUAGE sql SECURITY DEFINER SET search_path = pg_catalog, public, pg_temp AS $$
 	SELECT apply_refund_provider_outcome($1, $2, 'succeeded', $3, $4, false);
 $$;
 
 CREATE FUNCTION record_refund_failed(uuid, text, uuid, text) RETURNS boolean
-LANGUAGE sql SECURITY DEFINER SET search_path = public, pg_temp AS $$
+LANGUAGE sql SECURITY DEFINER SET search_path = pg_catalog, public, pg_temp AS $$
 	SELECT apply_refund_provider_outcome($1, $2, 'failed', $3, $4, false);
 $$;
 
 CREATE FUNCTION record_refund_cancelled(uuid, text, uuid, text) RETURNS boolean
-LANGUAGE sql SECURITY DEFINER SET search_path = public, pg_temp AS $$
+LANGUAGE sql SECURITY DEFINER SET search_path = pg_catalog, public, pg_temp AS $$
 	SELECT apply_refund_provider_outcome($1, $2, 'cancelled', $3, $4, false);
 $$;
 
 CREATE FUNCTION record_refund_api_rejection(uuid, uuid, text) RETURNS boolean
-LANGUAGE sql SECURITY DEFINER SET search_path = public, pg_temp AS $$
+LANGUAGE sql SECURITY DEFINER SET search_path = pg_catalog, public, pg_temp AS $$
 	SELECT apply_refund_provider_outcome($1, NULL::text, 'failed', $2, $3, true);
 $$;
 
@@ -8011,7 +8121,7 @@ TO admin;
 -- general product-variant writer merely to close a notice/restock race.
 CREATE FUNCTION lock_stock_notice_variant(p_variant_id uuid, p_slug text)
 RETURNS uuid
-LANGUAGE plpgsql SECURITY DEFINER SET search_path = public, pg_temp AS $$
+LANGUAGE plpgsql SECURITY DEFINER SET search_path = pg_catalog, public, pg_temp AS $$
 DECLARE
     v_variant_id uuid;
 BEGIN
@@ -8035,7 +8145,7 @@ GRANT EXECUTE ON FUNCTION lock_stock_notice_variant(uuid, text) TO store;
 -- Store may already SELECT coupon definitions, but receives no table UPDATE
 -- privilege merely because PostgreSQL requires it for FOR UPDATE.
 CREATE FUNCTION lock_coupon_for_checkout(p_code text) RETURNS void
-LANGUAGE plpgsql SECURITY DEFINER SET search_path = public, pg_temp AS $$
+LANGUAGE plpgsql SECURITY DEFINER SET search_path = pg_catalog, public, pg_temp AS $$
 BEGIN
     PERFORM 1 FROM coupons WHERE upper(code) = upper(p_code) FOR UPDATE;
 END;
@@ -8052,7 +8162,7 @@ CREATE FUNCTION redeem_coupon(
     p_user_id uuid,
     p_amount_cents bigint
 ) RETURNS uuid
-LANGUAGE plpgsql SECURITY DEFINER SET search_path = public, pg_temp AS $$
+LANGUAGE plpgsql SECURITY DEFINER SET search_path = pg_catalog, public, pg_temp AS $$
 DECLARE
     c coupons%ROWTYPE;
     used integer;
@@ -8247,7 +8357,7 @@ COMMENT ON VIEW loyalty_balances IS
 -- from an expired lot; a clawback may be recorded later for audit, but with the
 -- same expired date it cannot alter today's balance.
 CREATE FUNCTION loyalty_lot_guard() RETURNS trigger
-LANGUAGE plpgsql AS $$
+LANGUAGE plpgsql SET search_path = pg_catalog, public, pg_temp AS $$
 DECLARE
     lot loyalty_entries%ROWTYPE;
     taken bigint;
@@ -8326,7 +8436,7 @@ GRANT SELECT ON order_refunds TO store, admin, reporting;
 -- one definition.
 CREATE FUNCTION return_loyalty_points_allocation(p_return_request_id uuid)
 RETURNS bigint
-LANGUAGE sql STABLE AS $$
+LANGUAGE sql STABLE SET search_path = pg_catalog, public, pg_temp AS $$
     WITH target AS (
         SELECT r.id, r.order_id,
                return_refundable_amount(r.id)::numeric AS amount,
@@ -8471,7 +8581,7 @@ CREATE FUNCTION open_refund_before_shipment(
     p_actor uuid,
     p_request_id text
 ) RETURNS uuid
-LANGUAGE plpgsql SECURITY DEFINER SET search_path = public, pg_temp AS $$
+LANGUAGE plpgsql SECURITY DEFINER SET search_path = pg_catalog, public, pg_temp AS $$
 DECLARE
     v_order orders%ROWTYPE;
     v_return return_requests%ROWTYPE;
@@ -8599,7 +8709,7 @@ COMMENT ON TABLE copurchase_refreshes IS
 -- a reader never sees a half-built projection; TRUNCATE would take ACCESS
 -- EXCLUSIVE and block every product page for the duration.
 CREATE FUNCTION refresh_copurchases() RETURNS integer
-LANGUAGE plpgsql SECURITY DEFINER SET search_path = public, pg_temp AS $$
+LANGUAGE plpgsql SECURITY DEFINER SET search_path = pg_catalog, public, pg_temp AS $$
 DECLARE
     written integer;
 BEGIN
@@ -8730,7 +8840,7 @@ CREATE FUNCTION record_audit_event(
     p_after        jsonb DEFAULT NULL,
     p_request_id   text DEFAULT NULL
 ) RETURNS uuid
-LANGUAGE plpgsql SECURITY DEFINER SET search_path = public, pg_temp AS $$
+LANGUAGE plpgsql SECURITY DEFINER SET search_path = pg_catalog, public, pg_temp AS $$
 DECLARE
     v_id uuid;
 BEGIN
@@ -8764,7 +8874,7 @@ GRANT EXECUTE ON FUNCTION record_audit_event(uuid, text, text, uuid, jsonb, json
 -- Award the points a committed order earned. Idempotent on the order, so a
 -- webhook Stripe sent twice awards once; it returns 0 for a repeat.
 CREATE FUNCTION award_loyalty_points(p_order_id uuid) RETURNS bigint
-LANGUAGE plpgsql SECURITY DEFINER SET search_path = public, pg_temp AS $$
+LANGUAGE plpgsql SECURITY DEFINER SET search_path = pg_catalog, public, pg_temp AS $$
 DECLARE
     v_account uuid;
     v_user uuid;
@@ -8773,7 +8883,8 @@ DECLARE
     v_points bigint;
 BEGIN
     -- The order, not the role caller, owns every value carrying economic
-    -- authority.  The fixed 365-day window and expiry are programme policy;
+    -- authority.  The tier window and the points lifetime are programme policy
+    -- and live in membership_window_days() and points_lifetime_days();
     -- changing them is a schema change, not an extra argument on a mint.
     SELECT o.user_id,
            (coalesce((SELECT sum(ol.unit_price_cents * ol.quantity)::bigint
@@ -8803,7 +8914,7 @@ BEGIN
     RETURNING id INTO v_account;
 
     SELECT coalesce((SELECT t.points_multiplier_bp FROM membership_tiers t
-                     WHERE t.id = member_tier(v_user, 365, p_order_id)), 10000)
+                     WHERE t.id = member_tier(v_user, p_order_id)), 10000)
     INTO v_multiplier;
     v_points := floor(floor(greatest(v_total, 0)::numeric / 10000)
                       * v_multiplier::numeric / 10000)::bigint;
@@ -8816,7 +8927,7 @@ BEGIN
     INSERT INTO loyalty_entries (account_id, kind, points, reason, idempotency_key,
                                  order_id, expires_on)
     VALUES (v_account, 'award', v_points, 'order', 'earn:' || p_order_id::text,
-            p_order_id, shop_today() + 365)
+            p_order_id, shop_today() + points_lifetime_days())
     ON CONFLICT (idempotency_key) DO NOTHING;
 
     IF NOT FOUND THEN
@@ -8832,7 +8943,7 @@ $$;
 -- unrelated-return attachment and an inflated clawback unrepresentable at the
 -- SECURITY DEFINER boundary.
 CREATE FUNCTION reverse_return_points(p_return_request_id uuid) RETURNS bigint
-LANGUAGE plpgsql SECURITY DEFINER SET search_path = public, pg_temp AS $$
+LANGUAGE plpgsql SECURITY DEFINER SET search_path = pg_catalog, public, pg_temp AS $$
 DECLARE
     lot record;
 	v_order_id uuid;
@@ -8940,7 +9051,7 @@ $$;
 -- Claw back the award lot behind an order the back office has cancelled. Unlike
 -- reverse_return_points, this keys on the order alone: no return exists.
 CREATE FUNCTION reverse_order_points(p_order_id uuid) RETURNS bigint
-LANGUAGE plpgsql SECURITY DEFINER SET search_path = public, pg_temp AS $$
+LANGUAGE plpgsql SECURITY DEFINER SET search_path = pg_catalog, public, pg_temp AS $$
 DECLARE
     lot record;
     v_status text;
@@ -9018,7 +9129,7 @@ CREATE FUNCTION redeem_loyalty_points(
     p_points     bigint,
     p_operation_id uuid
 ) RETURNS bigint
-LANGUAGE plpgsql SECURITY DEFINER SET search_path = public, pg_temp AS $$
+LANGUAGE plpgsql SECURITY DEFINER SET search_path = pg_catalog, public, pg_temp AS $$
 DECLARE
     lot record;
 	v_operation loyalty_redemption_operations%ROWTYPE;
@@ -9149,8 +9260,8 @@ BEGIN
 
     -- The credit, in the same transaction, with a prefixed key so a redemption
     -- and an award of the same id cannot collide.
-    INSERT INTO store_credit_entries (account_id, amount_cents, reason, idempotency_key)
-	VALUES (v_account_id, v_cents, 'points', 'redeem:' || v_key);
+    INSERT INTO store_credit_entries (account_id, amount_cents, idempotency_key)
+	VALUES (v_account_id, v_cents, 'redeem:' || v_key);
 
 	UPDATE loyalty_redemption_operations
 	SET points = p_points, credit_cents = v_cents, completed_at = now()
@@ -9197,7 +9308,7 @@ REVOKE ALL ON staff_totp_credentials FROM store;
 -- session BORN step-up verified — and that is the back office's whole gate. The
 -- storefront never UPDATEs a session at all.
 REVOKE INSERT, UPDATE ON sessions FROM store;
-GRANT INSERT (token_hash, user_id, user_agent, ip, expires_at) ON sessions TO store;
+GRANT INSERT (digest, user_id, user_agent, ip, expires_at) ON sessions TO store;
 
 -- Merchandising is not something a storefront request does: it reads all of this
 -- and writes none of it. shipping_method_versions keeps SELECT and loses INSERT,
@@ -9419,6 +9530,7 @@ CREATE FUNCTION return_window_ends(delivered_at timestamptz)
 RETURNS date
 LANGUAGE sql
 IMMUTABLE
+SET search_path = pg_catalog, public, pg_temp
 AS $$
     SELECT shop_day(delivered_at) + 7;
 $$;
@@ -9439,6 +9551,7 @@ CREATE FUNCTION return_line_policy_window(requested_at timestamptz, delivered_at
 RETURNS text
 LANGUAGE sql
 STABLE
+SET search_path = pg_catalog, public, pg_temp
 AS $$
     SELECT CASE
         WHEN delivered_at IS NULL THEN 'undelivered'
