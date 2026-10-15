@@ -1043,6 +1043,7 @@ th {
 }
 
 .goen-dept__price {
+  color: var(--price);
   font-size: var(--fs-14);
   font-variant-numeric: tabular-nums;
   font-weight: var(--fw-medium);
@@ -2426,8 +2427,7 @@ th {
   color: var(--tone-mark);
 }
 
-.goen-band .goen-tile__name,
-.goen-band .goen-tile__price {
+.goen-band .goen-tile__name {
   color: var(--tone-text);
 }
 
@@ -2436,6 +2436,12 @@ th {
 .goen-band .goen-tile__was,
 .goen-band .goen-tile__state,
 .goen-band .goen-tile__colours {
+  color: var(--tone-muted);
+}
+
+/* A sold-out price steps back to grey; --n-500 holds 4.5:1 on white but not on
+   a tone's ground, so the band takes the tone's own muted colour. */
+.goen-band .goen-tile--out .goen-tile__price {
   color: var(--tone-muted);
 }
 
@@ -2854,7 +2860,7 @@ th {
 .goen-tile__price {
   align-items: baseline;
   position: relative;
-  color: var(--n-900);
+  color: var(--price);
   display: flex;
   flex-wrap: wrap;
   font-size: var(--fs-16);
@@ -2866,6 +2872,10 @@ th {
 
 .goen-tile__amount {
   overflow-wrap: normal;
+}
+
+.goen-tile--out .goen-tile__price {
+  color: var(--n-500);
 }
 
 .goen-tile__state {
@@ -4607,7 +4617,7 @@ input.goen-check {
 }
 
 .goen-pdp__price {
-  color: var(--n-900);
+  color: var(--price);
   font-size: var(--fs-ed-30);
   font-variant-numeric: tabular-nums;
   font-weight: var(--fw-regular);
@@ -4912,7 +4922,7 @@ input.goen-check {
   }
 
   .goen-buybar__price {
-    color: var(--n-900);
+    color: var(--price);
     flex: none;
     font-size: var(--fs-18);
     font-variant-numeric: tabular-nums;
@@ -5744,6 +5754,11 @@ input.goen-check {
   --tone-text: #ffffff;
   --tone-muted: #a1a1aa;
   --tone-mark: var(--on-ink-accent);
+}
+
+/* The ink blue of a price is 1.5:1 on this ground. */
+.goen-band[data-tone="ink"] {
+  --price: var(--tone-text);
 }
 
 .goen-pagehead[data-tone] {
