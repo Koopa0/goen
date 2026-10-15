@@ -91,29 +91,62 @@ try {
 
   // Under a hovering pointer a department photograph grows a little instead of
   // dimming, a press puts it straight back, and reduced motion keeps it still.
+  // A browser without a hovering pointer (headless Chrome on CI) never applies
+  // those rules, so there the rules are read from the parsed sheet instead.
   {
     const label = 'department zoom';
-    assert.equal(await evaluate(`matchMedia('(hover: hover)').matches`), true,
-      `${label}: the browser reports no hovering pointer, so the zoom cannot be measured`);
-    const photo = () => evaluate(`(() => {
-      const photo = document.querySelector('.goen-cat__photo');
-      getComputedStyle(photo).scale;
-      photo.getAnimations().forEach(animation => animation.finish());
-      const style = getComputedStyle(photo);
-      return { scale: style.scale, opacity: style.opacity };
-    })()`);
-    assert.deepEqual(await photo(), { scale: 'none', opacity: '1' }, `${label}: at rest`);
-    await force('.goen-cat', ['hover']);
-    assert.deepEqual(await photo(), { scale: '1.03', opacity: '1' }, `${label}: on hover`);
-    await force('.goen-cat', ['hover', 'active']);
-    assert.deepEqual(await photo(), { scale: '1', opacity: '1' }, `${label}: pressed`);
-    await force('.goen-cat', []);
-    await media([{ name: 'prefers-reduced-motion', value: 'reduce' }]);
-    await force('.goen-cat', ['hover']);
-    assert.deepEqual(await photo(), { scale: 'none', opacity: '1' }, `${label}: on hover with reduced motion`);
-    await force('.goen-cat', []);
-    await media([]);
-    console.log(`${label}: 1.03 on hover, 1 pressed, none with reduced motion, never dimmed`);
+    const measurable = await evaluate(`matchMedia('(hover: hover)').matches && matchMedia('(prefers-reduced-motion: no-preference)').matches`);
+    if (measurable) {
+      const photo = () => evaluate(`(() => {
+        const photo = document.querySelector('.goen-cat__photo');
+        getComputedStyle(photo).scale;
+        photo.getAnimations().forEach(animation => animation.finish());
+        const style = getComputedStyle(photo);
+        return { scale: style.scale, opacity: style.opacity };
+      })()`);
+      assert.deepEqual(await photo(), { scale: 'none', opacity: '1' }, `${label}: at rest`);
+      await force('.goen-cat', ['hover']);
+      assert.deepEqual(await photo(), { scale: '1.03', opacity: '1' }, `${label}: on hover`);
+      await force('.goen-cat', ['hover', 'active']);
+      assert.deepEqual(await photo(), { scale: '1', opacity: '1' }, `${label}: pressed`);
+      await force('.goen-cat', []);
+      await media([{ name: 'prefers-reduced-motion', value: 'reduce' }]);
+      await force('.goen-cat', ['hover']);
+      assert.deepEqual(await photo(), { scale: 'none', opacity: '1' }, `${label}: on hover with reduced motion`);
+      await force('.goen-cat', []);
+      await media([]);
+      console.log(`${label}: measured in the page: 1.03 on hover, 1 pressed, none with reduced motion, never dimmed`);
+    } else {
+      const sheet = await evaluate(`(() => {
+        const rules = [];
+        const walk = (list, conditions) => {
+          for (const rule of list) {
+            const inner = rule.media?.mediaText;
+            if (rule.cssRules) walk(rule.cssRules, inner === undefined ? conditions : [...conditions, inner]);
+            if (rule.selectorText !== undefined) {
+              rules.push({ selector: rule.selectorText, conditions, scale: rule.style.scale,
+                opacity: rule.style.opacity, transition: rule.style.transition });
+            }
+          }
+        };
+        for (const sheet of document.styleSheets) {
+          try { walk(sheet.cssRules, []); } catch { /* a sheet from another origin cannot be read */ }
+        }
+        return rules;
+      })()`);
+      const gated = rule => rule.conditions.some(text => /\(hover:\s*hover\)/.test(text) && /\(prefers-reduced-motion:\s*no-preference\)/.test(text));
+      const find = selector => sheet.find(rule => rule.selector === selector && gated(rule));
+      const hover = find('.goen-cat:hover .goen-cat__photo');
+      assert.ok(hover, `${label}: no (hover: hover) and (prefers-reduced-motion: no-preference) rule for .goen-cat:hover .goen-cat__photo`);
+      assert.equal(hover.scale, '1.03', `${label}: on hover`);
+      const pressed = find('.goen-cat:active .goen-cat__photo');
+      assert.ok(pressed, `${label}: no (hover: hover) and (prefers-reduced-motion: no-preference) rule for .goen-cat:active .goen-cat__photo`);
+      assert.equal(pressed.scale, '1', `${label}: pressed`);
+      assert.match(pressed.transition, /\bnone\b/, `${label}: pressed still eases back`);
+      const dimming = sheet.filter(rule => rule.opacity !== '' && rule.selector.includes('goen-cat__photo'));
+      assert.deepEqual(dimming, [], `${label}: a rule dims the photograph`);
+      console.log(`${label}: this browser reports no hovering pointer; read the media rules instead: 1.03 on hover, 1 pressed without easing, no opacity on the photograph`);
+    }
   }
 
   // Only the script that moves between slides keeps aria-current true, so the
