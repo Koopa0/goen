@@ -1869,9 +1869,9 @@ func TestStoreCreditCannotRacePastBalance(t *testing.T) {
 		INSERT INTO store_credit_entries (account_id, amount_cents, reason, idempotency_key)
 		VALUES ('`+account+`', 100000, 'grant', 'grant:race');`)
 	t.Cleanup(func() {
-		mustExec(t, `DELETE FROM store_credit_entries WHERE account_id = $1`, account)
-		mustExec(t, `DELETE FROM store_credit_accounts WHERE id = $1`, account)
-		mustExec(t, `DELETE FROM users WHERE id = $1`, user)
+		purge(t, `DELETE FROM store_credit_entries WHERE account_id = $1`, account)
+		purge(t, `DELETE FROM store_credit_accounts WHERE id = $1`, account)
+		purge(t, `DELETE FROM users WHERE id = $1`, user)
 	})
 
 	err1, err2 := raceOutcome(t,
@@ -3015,11 +3015,11 @@ func TestCreditReversalCannotRacePastFulfilment(t *testing.T) {
 	spend := "11110052-0000-4000-8000-000000000001"
 	setup(t, creditedOrder(order, account, spend, 100000))
 	t.Cleanup(func() {
-		mustExec(t, `DELETE FROM store_credit_entries WHERE account_id = $1`, account)
-		mustExec(t, `DELETE FROM store_credit_accounts WHERE id = $1`, account)
-		mustExec(t, `DELETE FROM order_private_data WHERE order_id = $1`, order)
-		mustExec(t, `DELETE FROM order_lines WHERE order_id = $1`, order)
-		mustExec(t, `DELETE FROM orders WHERE id = $1`, order)
+		purge(t, `DELETE FROM store_credit_entries WHERE account_id = $1`, account)
+		purge(t, `DELETE FROM store_credit_accounts WHERE id = $1`, account)
+		purge(t, `DELETE FROM order_private_data WHERE order_id = $1`, order)
+		purge(t, `DELETE FROM order_lines WHERE order_id = $1`, order)
+		purge(t, `DELETE FROM orders WHERE id = $1`, order)
 	})
 
 	err1, err2 := raceOutcome(t,
@@ -3103,11 +3103,46 @@ func mustExec(t *testing.T, stmt string, args ...any) {
 
 func cleanupOversell(t *testing.T, variant string) {
 	t.Helper()
-	mustExec(t, `DELETE FROM inventory_movements WHERE variant_id = $1`, variant)
-	mustExec(t, `DELETE FROM product_variants WHERE id = $1`, variant)
-	mustExec(t, `DELETE FROM products WHERE slug = 'oversell'`)
-	mustExec(t, `DELETE FROM categories WHERE slug = 'oversell'`)
-	mustExec(t, `DELETE FROM brands WHERE slug = 'oversell'`)
+	purge(t, `DELETE FROM inventory_movements WHERE variant_id = $1`, variant)
+	purge(t, `DELETE FROM product_variants WHERE id = $1`, variant)
+	purge(t, `DELETE FROM products WHERE slug = 'oversell'`)
+	purge(t, `DELETE FROM categories WHERE slug = 'oversell'`)
+	purge(t, `DELETE FROM brands WHERE slug = 'oversell'`)
+}
+
+// purge deletes rows a test committed, append-only ones included, so that the
+// test can run again against the same database (-count=2) and leaves nothing for
+// the next one. A plain DELETE cannot do it: store_credit_entries and
+// inventory_movements refuse a delete through forbid_change, so the cleanup
+// stopped at the ledger and every later insert of the same ids collided.
+//
+// It runs under session_replication_role = replica, set for its own transaction
+// only, which skips the triggers that enforce append-only and the foreign keys,
+// so the order of the statements does not matter. Only the test database's
+// superuser may set it. The schema keeps its triggers: the tests that assert
+// them run in ordinary sessions. A statement that fails fails the test, because
+// a leftover row is what makes the next run collide.
+func purge(t *testing.T, stmt string, args ...any) {
+	t.Helper()
+	// Cleanups run after t.Context() is cancelled.
+	ctx := context.WithoutCancel(t.Context())
+	tx, err := schemaPool(t).Begin(ctx)
+	if err != nil {
+		t.Errorf("clean up %q: begin: %v", stmt, err)
+		return
+	}
+	defer func() { _ = tx.Rollback(ctx) }()
+	if _, err := tx.Exec(ctx, `SET LOCAL session_replication_role = replica`); err != nil {
+		t.Errorf("clean up %q: %v", stmt, err)
+		return
+	}
+	if _, err := tx.Exec(ctx, stmt, args...); err != nil {
+		t.Errorf("clean up %q: %v", stmt, err)
+		return
+	}
+	if err := tx.Commit(ctx); err != nil {
+		t.Errorf("clean up %q: commit: %v", stmt, err)
+	}
 }
 
 // TestDeactivatingTheLastVariantIsRefused reaches the same bad state from the variant side, the
