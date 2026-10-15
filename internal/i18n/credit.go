@@ -1,6 +1,9 @@
 package i18n
 
 var (
+	KeyAdminCreditRunningTotal        = key("admin.credit.running_total", Message{ZhHant: "帳列累計", En: "Ledger running total"})
+	KeyAdminCreditLedgerOrder         = key("admin.credit.ledger_order", Message{ZhHant: "依這位顧客的異動記錄時間累加；同時刻以識別碼排序。這個順序不代表交易完成順序。", En: "Totals follow this customer's ledger in recorded-time order, with entry IDs breaking ties. This order does not represent transaction completion order."})
+	KeyAdminCreditAllCustomers        = key("admin.credit.all_customers", Message{ZhHant: "所有顧客的異動", En: "All customers' postings"})
 	KeyAdminCreditReasonOrderSpend    = key("admin.credit.reason.order_spend", Message{ZhHant: "訂單折抵", En: "Applied to an order"})
 	KeyAdminCreditReasonOrderReversed = key("admin.credit.reason.order_reversed", Message{ZhHant: "訂單取消，購物金退回", En: "Order cancelled, credit returned"})
 	KeyAdminCreditReasonReturnPayout  = key("admin.credit.reason.return_payout", Message{ZhHant: "退貨退回購物金", En: "Credit for a return"})

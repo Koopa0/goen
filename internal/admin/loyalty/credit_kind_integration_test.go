@@ -3,26 +3,19 @@
 package loyalty_test
 
 import (
-	"html"
 	"log/slog"
 	"net/http"
 	"net/http/httptest"
-	"regexp"
 	"slices"
 	"strings"
 	"testing"
 
 	"github.com/google/uuid"
+	"golang.org/x/net/html"
 
 	"github.com/koopa0/goen/internal/admin/admintest"
 	"github.com/koopa0/goen/internal/admin/loyalty"
 	"github.com/koopa0/goen/internal/i18n"
-)
-
-var (
-	ledgerRow  = regexp.MustCompile(`(?s)<li class="goen-admin__entry">(.*?)</li>`)
-	ledgerMeta = regexp.MustCompile(`<span class="goen-admin__meta">([^<]*)</span>`)
-	ledgerWho  = regexp.MustCompile(`<span class="goen-admin__entrywho">([^<]*)</span>`)
 )
 
 // TestTheCreditHistoryLabelsAPostingByItsKindAndShowsAGrantsOwnWords posts one
@@ -93,15 +86,11 @@ func TestTheCreditHistoryLabelsAPostingByItsKindAndShowsAGrantsOwnWords(t *testi
 			t.Fatalf("GET /admin/credit answered %d, want 200", w.Code)
 		}
 		var labels []string
-		for _, row := range ledgerRow.FindAllStringSubmatch(w.Body.String(), -1) {
-			if who := ledgerWho.FindStringSubmatch(row[1]); len(who) != 2 || html.UnescapeString(who[1]) != email {
+		for _, cells := range ledgerCells(t, w.Body.String()) {
+			if len(cells) != 5 || cells[1] != email {
 				continue
 			}
-			meta := ledgerMeta.FindAllStringSubmatch(row[1], -1)
-			if len(meta) != 2 {
-				t.Fatalf("a ledger row has %d meta spans, want a label and a time: %s", len(meta), row[1])
-			}
-			labels = append(labels, html.UnescapeString(strings.TrimSpace(meta[0][1])))
+			labels = append(labels, cells[2])
 		}
 		slices.Sort(labels)
 		return labels
@@ -125,4 +114,62 @@ func TestTheCreditHistoryLabelsAPostingByItsKindAndShowsAGrantsOwnWords(t *testi
 			t.Errorf("%s history reads\n  %q\nwant\n  %q", tt.locale, got, want)
 		}
 	}
+}
+
+// ledgerCells is each body row of the page's ledger table as the text of its
+// cells, in the order the columns appear. A cell that links its source is read
+// by the link alone, which is the posting's label; the order number beside it
+// is a second element.
+func ledgerCells(t *testing.T, page string) [][]string {
+	t.Helper()
+	doc, err := html.Parse(strings.NewReader(page))
+	if err != nil {
+		t.Fatalf("parse the credit page: %v", err)
+	}
+	var rows [][]string
+	var walk func(*html.Node, bool)
+	walk = func(n *html.Node, inBody bool) {
+		if n.Type == html.ElementNode && n.Data == "tbody" {
+			inBody = true
+		}
+		if inBody && n.Type == html.ElementNode && n.Data == "tr" {
+			var cells []string
+			for c := n.FirstChild; c != nil; c = c.NextSibling {
+				if c.Type == html.ElementNode && c.Data == "td" {
+					cells = append(cells, cellLabel(c))
+				}
+			}
+			rows = append(rows, cells)
+			return
+		}
+		for c := n.FirstChild; c != nil; c = c.NextSibling {
+			walk(c, inBody)
+		}
+	}
+	walk(doc, false)
+	return rows
+}
+
+func cellLabel(td *html.Node) string {
+	for c := td.FirstChild; c != nil; c = c.NextSibling {
+		if c.Type == html.ElementNode && c.Data == "a" {
+			return nodeText(c)
+		}
+	}
+	return nodeText(td)
+}
+
+func nodeText(n *html.Node) string {
+	var b strings.Builder
+	var walk func(*html.Node)
+	walk = func(n *html.Node) {
+		if n.Type == html.TextNode {
+			b.WriteString(n.Data)
+		}
+		for c := n.FirstChild; c != nil; c = c.NextSibling {
+			walk(c)
+		}
+	}
+	walk(n)
+	return strings.TrimSpace(b.String())
 }

@@ -5,6 +5,8 @@ import (
 	"strings"
 	"testing"
 
+	"golang.org/x/net/html"
+
 	"github.com/koopa0/goen/internal/i18n"
 	"github.com/koopa0/goen/internal/ui/layouts"
 )
@@ -68,8 +70,92 @@ func TestCreditLedgerLabelsEachKindAndKeepsStaffText(t *testing.T) {
 		if err := Credit(layouts.Page{Title: "credit"}, v).Render(ctx, &body); err != nil {
 			t.Fatal(err)
 		}
-		if !strings.Contains(body.String(), ">"+tt.want+"</span>") {
+		if !strings.Contains(body.String(), "<td>"+tt.want+"</td>") {
 			t.Errorf("%s %s %q: ledger does not show %q", tt.locale, tt.kind, tt.reason, tt.want)
+		}
+	}
+}
+
+func TestCreditLinksEachRowToItsSources(t *testing.T) {
+	t.Parallel()
+	view := CreditView{Rows: []CreditEntry{
+		{Email: "ada@example.test", CustomerID: "customer-a", Kind: PostingOrderSpend, OrderNumber: "GO-261009-000001", AmountCents: -10000},
+		{Email: "ada@example.test", CustomerID: "customer-a", Kind: PostingReturnPayout, OrderNumber: "GO-261009-000001", ReturnID: "return-a", AmountCents: 10000},
+		{Email: "ada@example.test", CustomerID: "customer-a", Kind: PostingStaffGrant, Reason: "goodwill", AmountCents: 30000, ActorEmail: "staff@example.test"},
+		{Kind: PostingStaffGrant, Reason: "erased owner", AmountCents: 100},
+	}}
+	for _, locale := range i18n.Locales() {
+		ctx := i18n.WithLocale(t.Context(), locale)
+		body := renderComponent(t, ctx, Credit(layouts.Page{Title: "credit"}, view))
+		for name, want := range map[string]string{
+			"customer link":   `href="/admin/customers/customer-a"`,
+			"order link":      `href="/admin/orders/GO-261009-000001"`,
+			"return link":     `href="/admin/returns?request=return-a"`,
+			"granting staff":  "staff@example.test",
+			"erased owner":    i18n.T(ctx, i18n.KeyAdminErasedShort),
+			"actor column":    i18n.T(ctx, i18n.KeyAdminColActor),
+			"customer column": i18n.T(ctx, i18n.KeyAdminCustColCustomer),
+		} {
+			if !strings.Contains(body, want) {
+				t.Errorf("%s credit desk lacks the %s %q", locale.Tag(), name, want)
+			}
+		}
+		if n := strings.Count(body, `href="/admin/customers/`); n != 3 {
+			t.Errorf("%s credit desk links %d customers, want 3 (the erased owner has none)", locale.Tag(), n)
+		}
+		if strings.Contains(body, i18n.T(ctx, i18n.KeyAdminCreditRunningTotal)) {
+			t.Errorf("%s desk for every customer shows the running total", locale.Tag())
+		}
+	}
+}
+
+func TestCreditRunningTotalNamesItsOrder(t *testing.T) {
+	t.Parallel()
+	view := CreditView{
+		FilterCustomerID: "customer-a", FilterCustomerName: "Ada",
+		Rows: []CreditEntry{{CustomerID: "customer-a", Kind: PostingStaffGrant, Reason: "Grant", RunningTotalCents: 10000}},
+	}
+	for _, locale := range i18n.Locales() {
+		ctx := i18n.WithLocale(t.Context(), locale)
+		doc, err := html.Parse(strings.NewReader(renderComponent(t, ctx, Credit(layouts.Page{}, view))))
+		if err != nil {
+			t.Fatal(err)
+		}
+		var table, heading, description *html.Node
+		for n := range doc.Descendants() {
+			if n.Type != html.ElementNode {
+				continue
+			}
+			switch {
+			case n.Data == "table":
+				table = n
+			case attr(n, "id") == "credit-ledger-heading":
+				heading = n
+			case attr(n, "id") == "credit-ledger-order":
+				description = n
+			}
+		}
+		if table == nil || heading == nil || description == nil || attr(table, "aria-labelledby") != "credit-ledger-heading" || attr(table, "aria-describedby") != "credit-ledger-order" {
+			t.Errorf("%s ledger does not link its visible title and ordering explanation", locale.Tag())
+			continue
+		}
+		if got, want := textOf(description), i18n.T(ctx, i18n.KeyAdminCreditLedgerOrder); got != want {
+			t.Errorf("%s ordering explanation = %q, want %q", locale.Tag(), got, want)
+		}
+		label := i18n.T(ctx, i18n.KeyAdminCreditRunningTotal)
+		if !hasElement(doc, func(n *html.Node) bool { return n.Data == "th" && textOf(n) == label && attr(n, "scope") == "col" }) {
+			t.Errorf("%s ledger lacks a %q column header", locale.Tag(), label)
+		}
+		if hasElement(doc, func(n *html.Node) bool {
+			return n.Data == "th" && textOf(n) == i18n.T(ctx, i18n.KeyAdminCustColCustomer)
+		}) {
+			t.Errorf("%s one customer's ledger repeats the customer column", locale.Tag())
+		}
+		body := renderComponent(t, ctx, Credit(layouts.Page{}, view))
+		for _, want := range []string{`<td class="goen-admin__cellnum">NT$100</td>`, `href="/admin/customers/customer-a">Ada</a>`, `href="/admin/credit">` + html.EscapeString(i18n.T(ctx, i18n.KeyAdminCreditAllCustomers))} {
+			if !strings.Contains(body, want) {
+				t.Errorf("%s one customer's ledger lacks %q", locale.Tag(), want)
+			}
 		}
 	}
 }

@@ -50,7 +50,18 @@ var notices = map[string]web.NoticeEntry{
 }
 
 func (h *Handler) Queue(w http.ResponseWriter, r *http.Request) {
-	queue, err := h.store.Queue(r.Context(), r.URL.Query().Get(web.KeysetParam))
+	var queue Queue
+	var err error
+	if raw := r.URL.Query().Get("request"); raw != "" {
+		request, parseErr := uuid.Parse(raw)
+		if parseErr != nil || request == uuid.Nil {
+			access.NotFound(w, r, h.log)
+			return
+		}
+		queue, err = h.store.RequestQueue(r.Context(), request, r.URL.Query().Get(web.KeysetParam))
+	} else {
+		queue, err = h.store.Queue(r.Context(), r.URL.Query().Get(web.KeysetParam))
+	}
 	if err != nil {
 		h.log.ErrorContext(r.Context(), "read return queue", "error", err)
 		access.ServerError(w, r, h.log)

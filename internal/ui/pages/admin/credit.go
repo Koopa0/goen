@@ -27,6 +27,15 @@ type CreditEntry struct {
 	Kind        PostingKind
 	Reason      string
 	At          string
+	// CustomerID is empty once the account's owner is erased.
+	CustomerID  string
+	OrderNumber string
+	ReturnID    string
+	// ActorEmail is the person who made the posting, empty when none did.
+	ActorEmail string
+	// RunningTotalCents is the account's total through this posting in ledger
+	// order: only the page for one customer shows it.
+	RunningTotalCents int64
 }
 
 // CreditReason is how a posting reads to the person looking at it: the system
@@ -62,6 +71,23 @@ func (e CreditEntry) Amount() string {
 
 func (e CreditEntry) IsSpend() bool { return e.AmountCents < 0 }
 
+func (e CreditEntry) CustomerHref() string { return "/admin/customers/" + e.CustomerID }
+
+// SourceHref is the return a payout settles, else the order a posting belongs
+// to, and empty for a posting with neither.
+func (e CreditEntry) SourceHref() string {
+	switch {
+	case e.ReturnID != "":
+		return web.ScopeURL("/admin/returns", "request", e.ReturnID)
+	case e.OrderNumber != "":
+		return "/admin/orders/" + e.OrderNumber
+	default:
+		return ""
+	}
+}
+
+func (e CreditEntry) RunningTotal() string { return money.TWD(e.RunningTotalCents) }
+
 type CreditView struct {
 	web.Bound
 
@@ -81,7 +107,14 @@ type CreditView struct {
 	CustomerID    string
 	CustomerName  string
 	BalanceCents  int64
+
+	// FilterCustomerID narrows the history to one customer; FilterCustomerName is
+	// how that page names them.
+	FilterCustomerID   string
+	FilterCustomerName string
 }
+
+func (v *CreditView) Filtered() bool { return v.FilterCustomerID != "" }
 
 func (v *CreditView) Empty() bool { return len(v.Rows) == 0 }
 

@@ -154,7 +154,7 @@ var storeMethodsNamingViews = map[string]int{
 	"internal/admin/feedback/review.go":         1,
 	"internal/admin/health/health.go":           5,
 	"internal/admin/invoicing/store.go":         2,
-	"internal/admin/loyalty/credit.go":          2,
+	"internal/admin/loyalty/credit.go":          1,
 	"internal/admin/loyalty/tiers.go":           1,
 	"internal/admin/orders/picking.go":          1,
 	"internal/admin/orders/store.go":            6,
