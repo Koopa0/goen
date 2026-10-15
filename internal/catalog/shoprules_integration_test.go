@@ -10,7 +10,9 @@ import (
 	"testing"
 
 	"github.com/koopa0/goen/internal/catalog"
+	"github.com/koopa0/goen/internal/db"
 	"github.com/koopa0/goen/internal/i18n"
+	"github.com/koopa0/goen/internal/ui/pages"
 )
 
 // Checkout drops store pickup where the store map is not configured, so the
@@ -63,5 +65,35 @@ func TestTheDepartmentPageStatesOnlyTheDeliveryCheckoutOffers(t *testing.T) {
 	}
 	if strings.Contains(render(catalog.NewStore(pool), true), "ui-statline") {
 		t.Error("a filter swap draws the shop rules")
+	}
+}
+
+// The windows the stat line states are the schema's, read as the store role the
+// storefront's pages read through.
+func TestShopRulesStateTheSchemasWindows(t *testing.T) {
+	ctx := t.Context()
+	var want pages.ShopRules
+	if err := pool.QueryRow(ctx, `
+		SELECT rescission_days(), return_goodwill_days(), checkout_hold_minutes(), checkout_pay_start_minutes()`).
+		Scan(&want.RescissionDays, &want.ReturnDays, &want.HoldMinutes, &want.PayStartMinutes); err != nil {
+		t.Fatalf("read the windows: %v", err)
+	}
+	tx, err := pool.Begin(ctx)
+	if err != nil {
+		t.Fatalf("begin: %v", err)
+	}
+	defer db.Rollback(ctx, tx)
+	if _, err = tx.Exec(ctx, `SET LOCAL ROLE store`); err != nil {
+		t.Fatalf("assume store: %v", err)
+	}
+	got, err := catalog.ShopRules(ctx, db.New(tx), true)
+	if err != nil {
+		t.Fatalf("read the shop rules as store: %v", err)
+	}
+	if got.RescissionDays != want.RescissionDays || got.ReturnDays != want.ReturnDays ||
+		got.HoldMinutes != want.HoldMinutes || got.PayStartMinutes != want.PayStartMinutes {
+		t.Errorf("ShopRules states %d/%d days and %d/%d minutes, the schema names %d/%d and %d/%d",
+			got.RescissionDays, got.ReturnDays, got.HoldMinutes, got.PayStartMinutes,
+			want.RescissionDays, want.ReturnDays, want.HoldMinutes, want.PayStartMinutes)
 	}
 }

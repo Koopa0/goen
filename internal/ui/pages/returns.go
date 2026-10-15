@@ -102,7 +102,7 @@ func ReturnsMeta(ctx context.Context, number string) layouts.Page {
 func (v ReturnsView) returnWindow(ctx context.Context, parcel OrderShipment) string {
 	order := OrderView{Pickup: v.Pickup, Now: v.Now}
 	if !parcel.Delivered() {
-		return order.ReturnPending(ctx)
+		return order.ReturnPending(ctx, parcel)
 	}
 	return fmt.Sprintf(i18n.T(ctx, i18n.KeyOrderRescissionEnds), order.RescissionLastDay(ctx, parcel))
 }

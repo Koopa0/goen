@@ -55,7 +55,6 @@ var viewPackageImporters = []string{
 	"internal/home",
 	"internal/product",
 	"internal/returns/buyer",
-	"internal/site",
 }
 
 var dataFilesNamingViews = []string{

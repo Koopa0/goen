@@ -5,7 +5,6 @@ import (
 	"fmt"
 
 	"github.com/koopa0/goen/internal/i18n"
-	"github.com/koopa0/goen/internal/ui/pages"
 )
 
 func policyText(locale i18n.Locale, key i18n.Key) string {
@@ -175,16 +174,9 @@ var policies = map[string]PolicyDoc{
 			{
 				Heading:   "庫存保留",
 				HeadingEn: "We hold the stock while you pay",
-				Body: []string{
-					// Interpolated, never typed: a literal here is a second copy
-					// of an enforced duration that no test binds.
-					fmt.Sprintf(policyText(i18n.ZhHant, i18n.KeyPolicyPaymentHold),
-						pages.HoldMinutesText(), pages.PayStartMinutesText()),
-				},
-				BodyEn: []string{
-					fmt.Sprintf(policyText(i18n.En, i18n.KeyPolicyPaymentHold),
-						pages.HoldMinutesText(), pages.PayStartMinutesText()),
-				},
+				// Stated from the database when the page is read: a literal
+				// here is a second copy of an enforced duration.
+				Windows: i18n.KeyPolicyPaymentHold,
 			},
 		},
 	},

@@ -211,7 +211,9 @@ func viewOf(ctx context.Context, o *Order, draft *returnDraft, refusals []web.Fi
 		Pickup: o.Pickup, Now: o.Now,
 	}
 	for _, p := range o.Shipments {
-		v.Shipments = append(v.Shipments, pages.OrderShipment{DeliveredAt: p.DeliveredAt, RescissionEnds: p.RescissionEnds})
+		v.Shipments = append(v.Shipments, pages.OrderShipment{
+			DeliveredAt: p.DeliveredAt, RescissionEnds: p.RescissionEnds, RescissionDays: p.RescissionDays,
+		})
 	}
 	for i := range o.Lines {
 		l := &o.Lines[i]

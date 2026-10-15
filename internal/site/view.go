@@ -3,6 +3,7 @@ package site
 import (
 	"context"
 	"fmt"
+	"slices"
 	"strconv"
 	"strings"
 
@@ -15,6 +16,9 @@ type PolicySection struct {
 	HeadingEn string
 	BodyEn    []string
 	Pending   bool
+	// Windows is a catalogue message that states the checkout windows; For
+	// formats it after Body, with the windows the database states.
+	Windows i18n.Key
 }
 
 type PolicyDoc struct {
@@ -25,19 +29,44 @@ type PolicyDoc struct {
 	Sections  []PolicySection
 }
 
-func (d PolicyDoc) For(l i18n.Locale) PolicyDoc {
-	if l != i18n.En {
-		return d
+// For is the document in one language, with every Windows message formatted from w.
+func (d PolicyDoc) For(l i18n.Locale, w CheckoutWindows) PolicyDoc {
+	out := PolicyDoc{Title: d.Title, Summary: d.Summary}
+	if l == i18n.En {
+		out.Title, out.Summary = d.TitleEn, d.SummaryEn
 	}
-	out := PolicyDoc{Title: d.TitleEn, Summary: d.SummaryEn}
+	ctx := i18n.WithLocale(context.Background(), l)
 	for _, s := range d.Sections {
-		out.Sections = append(out.Sections, PolicySection{
-			Heading: s.HeadingEn,
-			Body:    s.BodyEn,
-			Pending: s.Pending,
-		})
+		section := PolicySection{Heading: s.Heading, Body: s.Body, Pending: s.Pending}
+		if l == i18n.En {
+			section.Heading, section.Body = s.HeadingEn, s.BodyEn
+		}
+		if s.Windows != "" {
+			section.Body = append(slices.Clip(section.Body), w.State(ctx, s.Windows))
+		}
+		out.Sections = append(out.Sections, section)
 	}
 	return out
+}
+
+// statesWindows reports whether any section states the checkout windows, the
+// one thing For needs the database for.
+func (d PolicyDoc) statesWindows() bool {
+	return slices.ContainsFunc(d.Sections, func(s PolicySection) bool { return s.Windows != "" })
+}
+
+// CheckoutWindows is how long placing an order holds the stock and how long the
+// customer then has to start paying, as the database states them.
+type CheckoutWindows struct {
+	HoldMinutes     int64
+	PayStartMinutes int64
+}
+
+// State formats a message that takes the hold as its first argument and the
+// start window as its second.
+func (w CheckoutWindows) State(ctx context.Context, k i18n.Key) string {
+	return fmt.Sprintf(i18n.T(ctx, k),
+		strconv.FormatInt(w.HoldMinutes, 10), strconv.FormatInt(w.PayStartMinutes, 10))
 }
 
 type FAQItem struct {
@@ -104,6 +133,7 @@ func (m ShippingMethod) FreeOver() string {
 
 type ShippingView struct {
 	Methods []ShippingMethod
+	Windows CheckoutWindows
 }
 
 func (v ShippingView) Empty() bool { return len(v.Methods) == 0 }

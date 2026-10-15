@@ -105,6 +105,10 @@ func TestReturnFormTellsAPickupOrderToCountFromCollection(t *testing.T) {
 		t.Fatal(err)
 	}
 	appPool := returnsApplicationPool(t, "return-pickup")
+	var days int64
+	if err := appPool.QueryRow(ctx, `SELECT rescission_days()`).Scan(&days); err != nil {
+		t.Fatalf("read rescission_days: %v", err)
+	}
 	store := buyer.NewStore(appPool)
 	handler := buyer.NewHandler(store, access.NewStore(appPool, false), slog.New(slog.DiscardHandler))
 	mux := http.NewServeMux()
@@ -122,7 +126,7 @@ func TestReturnFormTellsAPickupOrderToCountFromCollection(t *testing.T) {
 			placedBy(t, request, tc.number)
 			response := httptest.NewRecorder()
 			mux.ServeHTTP(response, request)
-			sentence := i18n.Count(local, tc.key, pages.RescissionDays, pages.RescissionDays)
+			sentence := i18n.Count(local, tc.key, days, days)
 			if response.Code != http.StatusOK || !strings.Contains(html.UnescapeString(response.Body.String()), sentence) {
 				t.Errorf("order %s locale %s status = %d, missing %q", tc.number, locale, response.Code, sentence)
 			}

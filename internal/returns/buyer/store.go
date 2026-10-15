@@ -32,6 +32,8 @@ func NewStore(pool *pgxpool.Pool) *Store {
 type Parcel struct {
 	DeliveredAt    time.Time
 	RescissionEnds time.Time
+	// RescissionDays is how long the right to cancel lasts once the parcel arrives, as the database states it.
+	RescissionDays int64
 }
 
 type Order struct {
@@ -108,7 +110,7 @@ func (s *Store) Order(ctx context.Context, number string) (*Order, error) {
 	o.Now = now
 	for i := range shipments {
 		shipment := &shipments[i]
-		parcel := Parcel{}
+		parcel := Parcel{RescissionDays: shipment.RescissionDays}
 		if shipment.DeliveredAt.Valid {
 			parcel.DeliveredAt = shipment.DeliveredAt.Time
 			parcel.RescissionEnds = shipment.RescissionEnds
