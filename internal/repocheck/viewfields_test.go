@@ -27,7 +27,7 @@ func TestEveryViewModelFieldIsAssigned(t *testing.T) {
 	t.Parallel()
 
 	allowed := map[string]string{
-		goenModule + "/internal/ui/pages/admin.CustomersView.Notice": "REPORTED: neither assigned nor rendered, unlike every other back-office Notice",
+		goenModule + "/internal/admin/customers.CustomersView.Notice": "REPORTED: neither assigned nor rendered, unlike every other back-office Notice",
 	}
 
 	templates := templSources(t)
