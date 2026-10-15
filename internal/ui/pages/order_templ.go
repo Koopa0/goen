@@ -1436,9 +1436,9 @@ func orderParcel(v *OrderView, sh OrderShipment, i int) templ.Component {
 				return templ_7745c5c3_Err
 			}
 			var templ_7745c5c3_Var83 string
-			templ_7745c5c3_Var83, templ_7745c5c3_Err = templ.JoinStringErrs(v.ReturnPending(ctx))
+			templ_7745c5c3_Var83, templ_7745c5c3_Err = templ.JoinStringErrs(v.ReturnPending(ctx, sh))
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `ui/pages/order.templ`, Line: 255, Col: 53}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `ui/pages/order.templ`, Line: 255, Col: 57}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var83))
 			if templ_7745c5c3_Err != nil {

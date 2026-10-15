@@ -1147,6 +1147,33 @@ CREATE INDEX inventory_reservations_expiring_idx
     ON inventory_reservations (expires_at)
     WHERE state = 'held';
 
+-- How long placing an order holds its stock, in minutes. Shop policy named
+-- once: hold_inventory refuses a longer hold, the storefront's pages state it
+-- from here, and the hold the cart asks for (cart.holdTTL) is bound to it by a
+-- test in internal/db. The copy promises the number ("holds the stock for 60
+-- minutes", the FAQ seed included); changing this changes that copy.
+CREATE FUNCTION checkout_hold_minutes()
+RETURNS integer LANGUAGE sql IMMUTABLE SET search_path = pg_catalog, public, pg_temp AS $$
+    SELECT 60
+$$;
+
+-- How long after placing an order the customer may still start paying, in
+-- minutes. The rest of the hold is Stripe's: a Checkout Session must live at
+-- least thirty minutes, plus a minute's margin, and it expires with the hold.
+-- The schema states this window and does not enforce it; the cart
+-- (cart.payWindow) and the payment page (payment.StartBy) do, and the test in
+-- internal/db binds both to this. The copy promises the number ("start the
+-- payment within 29 minutes"); changing this changes that copy.
+CREATE FUNCTION checkout_pay_start_minutes()
+RETURNS integer LANGUAGE sql IMMUTABLE SET search_path = pg_catalog, public, pg_temp AS $$
+    SELECT 29
+$$;
+
+-- The storefront's pages state both windows; hold_inventory reads the hold as
+-- its definer and needs no grant for it.
+GRANT EXECUTE ON FUNCTION checkout_hold_minutes() TO store;
+GRANT EXECUTE ON FUNCTION checkout_pay_start_minutes() TO store;
+
 -- Take a hold: decrement stock through the ledger and record the reservation,
 -- in one transaction.
 CREATE FUNCTION hold_inventory(
@@ -1176,7 +1203,7 @@ BEGIN
     -- The storefront's hold window (cart.holdTTL), which the shop's policy page
     -- states and a Checkout Session's expiry is bound to. Longer is stock off sale
     -- that no payment can be waiting for.
-    IF p_hold_for > interval '60 minutes' THEN
+    IF p_hold_for > make_interval(mins => checkout_hold_minutes()) THEN
         RAISE EXCEPTION 'a hold of % outlasts the checkout hold window', p_hold_for
             USING ERRCODE = 'check_violation',
                   CONSTRAINT = 'inventory_hold_within_checkout_window';
@@ -10241,26 +10268,67 @@ GRANT INSERT (version_id, zone_id, surcharge_cents),
       UPDATE (surcharge_cents)
     ON shipping_version_zones TO admin;
 
--- The last day of the seven-day right of rescission (消保法 §19) for one
--- parcel: the shop's day it was delivered, plus seven. The one place the
--- seven is written; the customer's order page, the delivery mail and
--- return_line_policy_window all read it, so none can drift from the others.
+-- The right of rescission (消保法 §19), in days counted from the day after
+-- delivery. The one place the seven is written: return_window_ends reads it,
+-- and the storefront's pages state it from here. The statute fixes it, and the
+-- copy promises it ("seven days", 七日); changing this changes that copy.
+CREATE FUNCTION rescission_days()
+RETURNS integer LANGUAGE sql IMMUTABLE SET search_path = pg_catalog, public, pg_temp AS $$
+    SELECT 7
+$$;
+
+-- goen's own offer beyond the statute: an unused, complete item is taken back
+-- for this many days counted from the day after delivery. The one place the
+-- fourteen is written: return_goodwill_ends reads it, and the storefront's
+-- pages state it from here. The copy promises it ("within 14 days of
+-- delivery", the returns policy and the returns desk's 8–14); changing this
+-- changes that copy.
+CREATE FUNCTION return_goodwill_days()
+RETURNS integer LANGUAGE sql IMMUTABLE SET search_path = pg_catalog, public, pg_temp AS $$
+    SELECT 14
+$$;
+
+-- The last day of the right of rescission for one parcel: the shop's day it
+-- was delivered, plus rescission_days(). The customer's order page, the
+-- delivery mail and return_line_policy_window all read it, so none can drift
+-- from the others.
 CREATE FUNCTION return_window_ends(delivered_at timestamptz)
 RETURNS date
 LANGUAGE sql
 IMMUTABLE
 SET search_path = pg_catalog, public, pg_temp
 AS $$
-    SELECT shop_day(delivered_at) + 7;
+    SELECT shop_day(delivered_at) + rescission_days();
 $$;
 
 COMMENT ON FUNCTION return_window_ends(timestamptz) IS
     'Last statutory day to return a parcel delivered at this moment, counted '
     'in the shop''s day. NULL until the parcel is delivered.';
 
+-- The last day of the unused-return offer for one parcel, the same way. The
+-- customer's order page draws its grid to this day and
+-- return_line_policy_window stops reading 'goodwill' after it.
+CREATE FUNCTION return_goodwill_ends(delivered_at timestamptz)
+RETURNS date
+LANGUAGE sql
+IMMUTABLE
+SET search_path = pg_catalog, public, pg_temp
+AS $$
+    SELECT shop_day(delivered_at) + return_goodwill_days();
+$$;
+
+COMMENT ON FUNCTION return_goodwill_ends(timestamptz) IS
+    'Last day to return an unused, complete item from a parcel delivered at '
+    'this moment, counted in the shop''s day. NULL until the parcel is delivered.';
+
 -- Granted wherever return_line_policy_window is, because that function calls
--- it with the caller's privileges. store reads it to tell the customer the day.
+-- them with the caller's privileges. store reads them to tell the customer the
+-- days.
+GRANT EXECUTE ON FUNCTION rescission_days() TO store, admin, reporting;
+GRANT EXECUTE ON FUNCTION return_goodwill_days() TO store, admin, reporting;
 GRANT EXECUTE ON FUNCTION return_window_ends(timestamptz)
+    TO store, admin, reporting;
+GRANT EXECUTE ON FUNCTION return_goodwill_ends(timestamptz)
     TO store, admin, reporting;
 
 -- Pre-decision eligibility, separate from receive/restock. Unknown is the
@@ -10275,7 +10343,7 @@ AS $$
     SELECT CASE
         WHEN delivered_at IS NULL THEN 'undelivered'
         WHEN shop_day(requested_at) <= return_window_ends(delivered_at) THEN 'within'
-        WHEN shop_day(requested_at) <= shop_day(delivered_at) + 14 THEN 'goodwill'
+        WHEN shop_day(requested_at) <= return_goodwill_ends(delivered_at) THEN 'goodwill'
         ELSE 'after'
     END;
 $$;

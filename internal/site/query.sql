@@ -36,3 +36,9 @@ FROM shipping_version_zones vz
 JOIN shipping_zones z ON z.id = vz.zone_id
 WHERE vz.version_id = ANY(@version_ids::uuid[])
 ORDER BY z.position, z.name;
+
+-- How long placing an order holds the stock and how long the customer has to
+-- start paying, as the schema names them; the policy pages state both.
+-- name: CheckoutWindows :one
+SELECT checkout_hold_minutes()::bigint AS hold_minutes,
+       checkout_pay_start_minutes()::bigint AS pay_start_minutes;

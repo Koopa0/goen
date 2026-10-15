@@ -6,7 +6,6 @@ import (
 	"testing"
 
 	"github.com/koopa0/goen/internal/i18n"
-	"github.com/koopa0/goen/internal/ui/pages"
 )
 
 // The checkout applies available credit on its own; no copy may promise a choice.
@@ -14,7 +13,7 @@ var creditChoicePhrases = []string{"選擇使用", "選擇是否使用", "choose
 
 func TestPaymentExplainsCreditAndDiscountsSeparately(t *testing.T) {
 	for _, locale := range []i18n.Locale{i18n.ZhHant, i18n.En} {
-		doc := policies["payment"].For(locale)
+		doc := policies["payment"].For(locale, testWindows)
 		want := map[string][]string{"信用卡": {"Stripe", "不會儲存"}, "購物金": {"登入", "可用", "自動", "不足", "信用卡"}, "折扣碼": {"價格折抵", "不是付款方式"}}
 		if locale == i18n.En {
 			want = map[string][]string{"Credit cards": {"Stripe", "never store"}, "Store credit": {"signed in", "available", "automatically", "remaining", "card"}, "Discount codes": {"reduces the price", "not a payment method"}}
@@ -74,8 +73,10 @@ func TestHoldFAQSeedStatesTheDeadline(t *testing.T) {
 	zh := sqlStringAfter(t, string(seed), "('訂購與付款', '下單之後商品會保留嗎？',")
 	en := sqlStringAfter(t, string(seed), "'Is the stock held after I order?',")
 	for answer, words := range map[string][]string{
-		zh: {"保留庫存 " + pages.HoldMinutesText() + " 分鐘", pages.PayStartMinutesText() + " 分鐘內開始付款", "自動取消", "購物金"},
-		en: {"holds the stock for " + pages.HoldMinutesText() + " minutes", "within " + pages.PayStartMinutesText() + " minutes", "cancelled automatically", "store credit"},
+		// The numbers it states are held to the schema by
+		// TestTheCheckoutWindowsAreTheOnesTheStorefrontEnforces in internal/db.
+		zh: {"自動取消", "購物金"},
+		en: {"cancelled automatically", "store credit"},
 	} {
 		for _, word := range words {
 			if !strings.Contains(answer, word) {

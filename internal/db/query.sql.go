@@ -5156,6 +5156,25 @@ func (q *Queries) CheckoutProfile(ctx context.Context, userID uuid.UUID) (Checko
 	return i, err
 }
 
+const checkoutWindows = `-- name: CheckoutWindows :one
+SELECT checkout_hold_minutes()::bigint AS hold_minutes,
+       checkout_pay_start_minutes()::bigint AS pay_start_minutes
+`
+
+type CheckoutWindowsRow struct {
+	HoldMinutes     int64
+	PayStartMinutes int64
+}
+
+// How long placing an order holds the stock and how long the customer has to
+// start paying, as the schema names them; the policy pages state both.
+func (q *Queries) CheckoutWindows(ctx context.Context) (CheckoutWindowsRow, error) {
+	row := q.db.QueryRow(ctx, checkoutWindows)
+	var i CheckoutWindowsRow
+	err := row.Scan(&i.HoldMinutes, &i.PayStartMinutes)
+	return i, err
+}
+
 const childCategories = `-- name: ChildCategories :many
 SELECT parent_id, slug, localized_name(name, name_en, $1::text) AS name
 FROM categories
@@ -12477,7 +12496,8 @@ func (q *Queries) OrderTotalByNumber(ctx context.Context, orderNumber string) (O
 const orderTracking = `-- name: OrderTracking :many
 SELECT id, carrier, tracking_number, shipped_at, delivered_at,
        coalesce(return_window_ends(delivered_at), shop_today())::date AS rescission_ends,
-       coalesce(shop_day(delivered_at) + 14, shop_today())::date AS goodwill_ends
+       coalesce(return_goodwill_ends(delivered_at), shop_today())::date AS goodwill_ends,
+       rescission_days()::bigint AS rescission_days
 FROM order_shipments WHERE order_id = $1 ORDER BY shipped_at, id
 `
 
@@ -12489,12 +12509,13 @@ type OrderTrackingRow struct {
 	DeliveredAt    pgtype.Timestamptz
 	RescissionEnds time.Time
 	GoodwillEnds   time.Time
+	RescissionDays int64
 }
 
 // rescission_ends and goodwill_ends are shop_today() for a parcel not yet delivered: sqlc cannot
 // type a nullable date from an expression, so a reader checks delivered_at, never the dates.
-// goodwill_ends is the day return_line_policy_window stops reading 'goodwill'; TestTheParcelCarriesTheDatabasesLastDays
-// holds the 14 to that function.
+// goodwill_ends is the day return_line_policy_window stops reading 'goodwill'. rescission_days is
+// what a parcel not yet delivered states in place of its dates.
 func (q *Queries) OrderTracking(ctx context.Context, orderID uuid.UUID) ([]OrderTrackingRow, error) {
 	rows, err := q.db.Query(ctx, orderTracking, orderID)
 	if err != nil {
@@ -12512,6 +12533,7 @@ func (q *Queries) OrderTracking(ctx context.Context, orderID uuid.UUID) ([]Order
 			&i.DeliveredAt,
 			&i.RescissionEnds,
 			&i.GoodwillEnds,
+			&i.RescissionDays,
 		); err != nil {
 			return nil, err
 		}
@@ -18235,6 +18257,34 @@ func (q *Queries) StaffTOTPStatus(ctx context.Context) ([]StaffTOTPStatusRow, er
 		return nil, err
 	}
 	return items, nil
+}
+
+const statedWindows = `-- name: StatedWindows :one
+SELECT rescission_days()::bigint AS rescission_days,
+       return_goodwill_days()::bigint AS return_days,
+       checkout_hold_minutes()::bigint AS hold_minutes,
+       checkout_pay_start_minutes()::bigint AS pay_start_minutes
+`
+
+type StatedWindowsRow struct {
+	RescissionDays  int64
+	ReturnDays      int64
+	HoldMinutes     int64
+	PayStartMinutes int64
+}
+
+// The windows the shop states about itself, each read from the function that
+// names it, so no page keeps a copy of the number.
+func (q *Queries) StatedWindows(ctx context.Context) (StatedWindowsRow, error) {
+	row := q.db.QueryRow(ctx, statedWindows)
+	var i StatedWindowsRow
+	err := row.Scan(
+		&i.RescissionDays,
+		&i.ReturnDays,
+		&i.HoldMinutes,
+		&i.PayStartMinutes,
+	)
+	return i, err
 }
 
 const stillSubscribed = `-- name: StillSubscribed :one

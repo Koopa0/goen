@@ -560,7 +560,7 @@ BEGIN
         WHERE pv.id = v_variants[i];
     END LOOP;
     FOR i IN 1..cardinality(v_variants) LOOP
-        PERFORM hold_inventory(v_order, v_variants[i], v_quantities[i], interval '60 minutes',
+        PERFORM hold_inventory(v_order, v_variants[i], v_quantities[i], make_interval(mins => checkout_hold_minutes()),
                                'hold:' || v_order || ':' || v_variants[i]);
     END LOOP;
     INSERT INTO order_events (order_id, kind) VALUES (v_order, 'placed');

@@ -1158,3 +1158,11 @@ SELECT slug, value FROM (
 ) ranked
 WHERE nth <= 2
 ORDER BY slug, nth;
+
+-- The windows the shop states about itself, each read from the function that
+-- names it, so no page keeps a copy of the number.
+-- name: StatedWindows :one
+SELECT rescission_days()::bigint AS rescission_days,
+       return_goodwill_days()::bigint AS return_days,
+       checkout_hold_minutes()::bigint AS hold_minutes,
+       checkout_pay_start_minutes()::bigint AS pay_start_minutes;

@@ -151,7 +151,10 @@ func TestTheReturnWindowMarksOnlyTheGoodwillDays(t *testing.T) {
 
 func TestAParcelNotYetDeliveredStatesTheRuleAndDrawsNoGrid(t *testing.T) {
 	t.Parallel()
-	waiting := OrderShipment{Carrier: shipping.CarrierBlackCat, Tracking: "T9", ShippedAt: orderNow.AddDate(0, 0, -1), Lines: []OrderLine{headphones()}}
+	waiting := OrderShipment{
+		Carrier: shipping.CarrierBlackCat, Tracking: "T9", ShippedAt: orderNow.AddDate(0, 0, -1), RescissionDays: 8,
+		Lines: []OrderLine{headphones()},
+	}
 	html := orderPage(t, &OrderView{
 		Status: order.FulfillmentShipped, ShowWarrantyLink: true,
 		Lines: []OrderLine{headphones()}, Shipments: []OrderShipment{waiting},
@@ -159,7 +162,7 @@ func TestAParcelNotYetDeliveredStatesTheRuleAndDrawsNoGrid(t *testing.T) {
 	if len(periods(html)) != 0 {
 		t.Error("a parcel that has not arrived draws a grid")
 	}
-	if !strings.Contains(html, "猶豫期 7 天，收到次日起算。") {
+	if !strings.Contains(html, "猶豫期 8 天，收到次日起算。") {
 		t.Error("an undelivered parcel does not state the rule")
 	}
 	if !strings.Contains(html, "送達後才能登錄") || strings.Contains(html, "/account/warranty/") {

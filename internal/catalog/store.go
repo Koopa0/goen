@@ -52,7 +52,15 @@ func ShopRules(ctx context.Context, q *db.Queries, withPickup bool) (pages.ShopR
 	if err != nil {
 		return pages.ShopRules{}, fmt.Errorf("read lowest delivery fee: %w", err)
 	}
-	return pages.ShopRules{FreeDeliveryCents: freeOver, LowestFeeCents: lowestFee, PickupOffered: withPickup}, nil
+	windows, err := q.StatedWindows(ctx)
+	if err != nil {
+		return pages.ShopRules{}, fmt.Errorf("read stated windows: %w", err)
+	}
+	return pages.ShopRules{
+		FreeDeliveryCents: freeOver, LowestFeeCents: lowestFee, PickupOffered: withPickup,
+		RescissionDays: windows.RescissionDays, ReturnDays: windows.ReturnDays,
+		HoldMinutes: windows.HoldMinutes, PayStartMinutes: windows.PayStartMinutes,
+	}, nil
 }
 
 // Listing uses one set of descendant ids for the listing, the count and the

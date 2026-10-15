@@ -8,7 +8,11 @@ import (
 	"github.com/koopa0/goen/internal/ui/components"
 )
 
-var testRules = ShopRules{FreeDeliveryCents: 300000, LowestFeeCents: 6000, PickupOffered: true}
+// testRules' windows are not the shop's: a page that printed a number of its own instead of the field's would show.
+var testRules = ShopRules{
+	FreeDeliveryCents: 300000, LowestFeeCents: 6000, PickupOffered: true,
+	RescissionDays: 8, ReturnDays: 15, HoldMinutes: 61, PayStartMinutes: 28,
+}
 
 func capacityOption(sold bool, selected string) ProductOption {
 	opt := ProductOption{Name: "capacity", Label: "容量"}

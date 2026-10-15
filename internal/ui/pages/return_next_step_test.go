@@ -106,7 +106,7 @@ func TestReturnFormUsesTheExistingPendingDeliverySentence(t *testing.T) {
 			t.Run(fmt.Sprintf("%s/pickup=%v", locale, pickup), func(t *testing.T) {
 				t.Parallel()
 				ctx := i18n.WithLocale(t.Context(), locale)
-				view := ReturnsView{Number: "GO-PENDING", Pickup: pickup, Shipments: []OrderShipment{{}}}
+				view := ReturnsView{Number: "GO-PENDING", Pickup: pickup, Shipments: []OrderShipment{{RescissionDays: 8}}}
 				var rendered strings.Builder
 				if err := Returns(ReturnsMeta(ctx, view.Number), view).Render(ctx, &rendered); err != nil {
 					t.Fatal(err)
@@ -115,7 +115,7 @@ func TestReturnFormUsesTheExistingPendingDeliverySentence(t *testing.T) {
 				if pickup {
 					key = i18n.KeyOrderRescissionAwaitsPickup
 				}
-				sentence := i18n.Count(ctx, key, RescissionDays, RescissionDays)
+				sentence := i18n.Count(ctx, key, 8, 8)
 				if !strings.Contains(html.UnescapeString(rendered.String()), sentence) {
 					t.Errorf("undelivered parcel missing its existing order-page sentence %q", sentence)
 				}
