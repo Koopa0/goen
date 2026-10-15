@@ -138,6 +138,12 @@ SMTP 收下郵件後、確認前若程序中止，郵件可能寄出兩次：寄
 
 密碼使用 Argon2id；session token 不透明，並以雜湊保存。secure mode 下，session、購物車、訂單存取與門市選擇的 cookie 使用 `__Host-`；所有 cookie 都是 `HttpOnly`，`Secure` 跟隨 secure mode。員工需要授權與 TOTP 二次驗證，管理員動作另有一道守門；TOTP secret 加密保存，重播的驗證碼會被拒絕；連續輸入錯誤的驗證碼會鎖住第二因素，直到另一位管理員移除，每次錯誤都寫入稽核紀錄並寄信通知帳號本人。見[帳號][account]、[存取][access]與[兩步驟驗證][twofactor]。
 
+只要知道密碼，就能故意把第二因素鎖住。被鎖的人如果是唯一的管理員，就沒有人能在 `/admin/staff` 移除。錯誤的驗證碼若不是本人輸入的，請先透過 `/forgot` 重設密碼。接著由營運者執行下面的指令：它和 `/admin/staff` 一樣移除第二因素並結束它的所有登入，但不會寫入稽核紀錄。本人下次進入 `/admin` 時重新設定即可。
+
+```sh
+psql "$GOEN_DATABASE_URL" -X -v ON_ERROR_STOP=1 -c "WITH removed AS (DELETE FROM staff_totp_credentials WHERE user_id = (SELECT id FROM users WHERE lower(email) = lower('you@example.com')) RETURNING user_id) DELETE FROM sessions USING removed WHERE sessions.user_id = removed.user_id"
+```
+
 [Middleware][middleware] 提供 origin 保護、CSP 與受限的表單目標，只有門市地圖的返回有一個精確的例外。Stripe webhook 以簽章驗證。只有設定過的受信任 proxy 能提供用戶端位址；敏感 handler 在密碼檢查等昂貴操作前先限流。資料庫角色補強而非取代逐一的使用者歸屬檢查。
 
 金額是有界的整數 cents，以新台幣在同一處解析。訂單保存語系；應用程式文案屬於 `i18n`，商品翻譯則是商店內容。`Asia/Taipei`、內嵌的時區資料與 SQL `shop_day` 讓營業日不受主機時區影響。見[金額][money]、[i18n][i18n] 與[商店時間][shoptime]。

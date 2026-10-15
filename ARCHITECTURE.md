@@ -138,6 +138,12 @@ Audit evidence commits with its change, through `audit.Run`, `audit.In`, or the 
 
 Passwords use Argon2id; session tokens are opaque and stored as hashes. In secure mode, session, cart, order-access, and pickup cookies use `__Host-`; every cookie is `HttpOnly`, and `Secure` follows secure mode. Staff need authorization and TOTP step-up, and administrator actions add a further guard; TOTP secrets are encrypted, replayed codes refused, and a run of wrong codes locks the factor until another administrator removes it, with each wrong code audited and the account mailed. See [accounts][account], [access][access], and [two-factor authentication][twofactor].
 
+The password alone is enough to lock a factor on purpose. If the locked person is the only administrator, nobody is left to remove it at `/admin/staff`. If they did not type the wrong codes, they reset the password through `/forgot` first. The operator then runs the statement below, which removes the factor and ends its sessions as `/admin/staff` does, but writes no audit row. The person enrols again on their next visit to `/admin`.
+
+```sh
+psql "$GOEN_DATABASE_URL" -X -v ON_ERROR_STOP=1 -c "WITH removed AS (DELETE FROM staff_totp_credentials WHERE user_id = (SELECT id FROM users WHERE lower(email) = lower('you@example.com')) RETURNING user_id) DELETE FROM sessions USING removed WHERE sessions.user_id = removed.user_id"
+```
+
 [Middleware][middleware] applies origin protection, CSP, and restricted form targets, with one exact exception for the store-map return. Stripe webhooks are authenticated by signature. Only configured trusted proxies may supply client addresses, and sensitive handlers rate-limit before expensive work such as password checks. Database roles complement, not replace, per-user ownership checks.
 
 Amounts are bounded integer cents, parsed in one place as TWD. Orders keep their locale; application wording lives in `i18n`, while product translations are shop content. `Asia/Taipei`, embedded zone data, and SQL `shop_day` keep business dates independent of the host's time zone. See [money][money], [i18n][i18n], and [shop time][shoptime].
