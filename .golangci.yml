@@ -168,7 +168,7 @@ linters:
       settings:
         hugeParam:
           # GOEN: upstream's default of 80 bytes fires on every view model here
-          # — contact.Message is five strings (exactly 80) and pages.ContactForm
+          # — contact.Message is five strings (exactly 80) and contact.ContactForm
           # is 120. Both are built once per HTTP request and read a handful of
           # times, so the copy is invisible next to the request that carries it,
           # and value semantics are the point: Clean() is a pure transform, and

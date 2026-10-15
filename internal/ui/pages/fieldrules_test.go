@@ -5,6 +5,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/koopa0/goen/internal/contact"
 	"github.com/koopa0/goen/internal/fieldrule"
 	"github.com/koopa0/goen/internal/i18n"
 	"github.com/koopa0/goen/internal/ui/layouts"
@@ -30,7 +31,7 @@ func TestSignInKeepsTheEmailRuleWithoutAttributingGoogleFailureToIt(t *testing.T
 func TestARuleWritesItselfIntoTheMarkup(t *testing.T) {
 	t.Parallel()
 	ctx := i18n.WithLocale(t.Context(), i18n.ZhHant)
-	html := renderToString(t, Contact(layouts.Page{Title: "contact"}, ContactForm{}))
+	html := renderToString(t, contact.Contact(layouts.Page{Title: "contact"}, contact.ContactForm{}))
 	rule := fieldrule.Email
 	for _, want := range []string{
 		`data-rule="email"`,

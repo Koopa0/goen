@@ -15,6 +15,7 @@ import (
 
 	"golang.org/x/net/html"
 
+	"github.com/koopa0/goen/internal/contact"
 	"github.com/koopa0/goen/internal/i18n"
 )
 
@@ -343,8 +344,8 @@ func TestControlsThatSwapTheirOwnRegionKeepAStableID(t *testing.T) {
 		}
 	}
 
-	contact := renderToString(t, ContactPanel(ContactForm{}))
-	if !strings.Contains(contact, `id="contact-submit"`) {
+	panel := renderToString(t, contact.ContactPanel(contact.ContactForm{}))
+	if !strings.Contains(panel, `id="contact-submit"`) {
 		t.Error("the contact form's submit button has no id, so a refused submit drops focus to the body")
 	}
 }

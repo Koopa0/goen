@@ -6,6 +6,7 @@ import (
 
 	"golang.org/x/net/html"
 
+	"github.com/koopa0/goen/internal/contact"
 	"github.com/koopa0/goen/internal/i18n"
 	"github.com/koopa0/goen/internal/ui/layouts"
 )
@@ -111,7 +112,7 @@ func TestContactSuccessOffersOnlyTheSignedInReadersOwnOrders(t *testing.T) {
 			t.Run(locale.Tag()+"/"+map[bool]string{false: "guest", true: "member"}[signedIn], func(t *testing.T) {
 				t.Parallel()
 				ctx := i18n.WithLocale(t.Context(), locale)
-				body := renderComponent(t, ctx, ContactPanel(ContactForm{Done: true, SignedIn: signedIn}))
+				body := renderComponent(t, ctx, contact.ContactPanel(contact.ContactForm{Done: true, SignedIn: signedIn}))
 				if !strings.Contains(body, `href="/"`) {
 					t.Error("ContactPanel() success has no shop next step")
 				}

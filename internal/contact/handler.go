@@ -7,7 +7,6 @@ import (
 
 	"github.com/koopa0/goen/internal/i18n"
 	"github.com/koopa0/goen/internal/ratelimit"
-	"github.com/koopa0/goen/internal/ui/pages"
 	"github.com/koopa0/goen/internal/user"
 	"github.com/koopa0/goen/internal/web"
 )
@@ -30,12 +29,12 @@ func NewHandler(store *Store, limit *ratelimit.Limiter, log *slog.Logger) *Handl
 // Page reads a sent flag, which the plain form's redirect carries, so a reload
 // shows the acknowledgement instead of re-submitting.
 func (h *Handler) Page(w http.ResponseWriter, r *http.Request) {
-	form := pages.ContactForm{
+	form := ContactForm{
 		Subjects: subjectChoices(r.Context()),
 		Done:     r.URL.Query().Get("sent") == "1",
 		SignedIn: signedIn(r.Context()),
 	}
-	web.Render(w, r, h.log, http.StatusOK, pages.Contact(pages.ContactMeta(r.Context()), form))
+	web.Render(w, r, h.log, http.StatusOK, Contact(ContactMeta(r.Context()), form))
 }
 
 func (h *Handler) Submit(w http.ResponseWriter, r *http.Request) {
@@ -52,7 +51,7 @@ func (h *Handler) Submit(w http.ResponseWriter, r *http.Request) {
 		Body:     r.PostFormValue("message"),
 	})
 
-	form := pages.ContactForm{
+	form := ContactForm{
 		Name:     msg.Name,
 		Email:    msg.Email,
 		Subject:  string(msg.Subject),
@@ -90,8 +89,8 @@ func (h *Handler) Submit(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if web.IsHTMX(r) {
-		done := pages.ContactForm{Subjects: subjectChoices(r.Context()), Done: true, SignedIn: signedIn(r.Context())}
-		web.Render(w, r, h.log, http.StatusOK, pages.ContactPanel(done))
+		done := ContactForm{Subjects: subjectChoices(r.Context()), Done: true, SignedIn: signedIn(r.Context())}
+		web.Render(w, r, h.log, http.StatusOK, ContactPanel(done))
 		return
 	}
 	http.Redirect(w, r, "/contact?sent=1", http.StatusSeeOther)
@@ -102,19 +101,19 @@ func signedIn(ctx context.Context) bool {
 	return ok
 }
 
-func (h *Handler) respond(w http.ResponseWriter, r *http.Request, status int, form pages.ContactForm) {
+func (h *Handler) respond(w http.ResponseWriter, r *http.Request, status int, form ContactForm) {
 	if web.IsHTMX(r) {
-		web.Render(w, r, h.log, status, pages.ContactPanel(form))
+		web.Render(w, r, h.log, status, ContactPanel(form))
 		return
 	}
-	web.Render(w, r, h.log, status, pages.Contact(pages.ContactMeta(r.Context()), form))
+	web.Render(w, r, h.log, status, Contact(ContactMeta(r.Context()), form))
 }
 
-func subjectChoices(ctx context.Context) []pages.ContactSubject {
+func subjectChoices(ctx context.Context) []ContactSubject {
 	choices := Choices()
-	out := make([]pages.ContactSubject, 0, len(choices))
+	out := make([]ContactSubject, 0, len(choices))
 	for _, choice := range choices {
-		out = append(out, pages.ContactSubject{Value: string(choice.Value), Label: i18n.T(ctx, choice.Key)})
+		out = append(out, ContactSubject{Value: string(choice.Value), Label: i18n.T(ctx, choice.Key)})
 	}
 	return out
 }

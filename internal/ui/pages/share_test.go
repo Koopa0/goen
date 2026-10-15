@@ -5,6 +5,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/koopa0/goen/internal/contact"
 	"github.com/koopa0/goen/internal/i18n"
 	"github.com/koopa0/goen/internal/ui/layouts"
 )
@@ -50,7 +51,7 @@ func TestEveryPageKindSendsItsOwnLinkPreviewTags(t *testing.T) {
 			[]string{`og:title" content="` + i18n.T(ctx, i18n.KeyAboutTitle) + ` · goen"`},
 		},
 		"contact": {
-			ContactMeta(ctx),
+			contact.ContactMeta(ctx),
 			[]string{
 				`og:title" content="` + i18n.T(ctx, i18n.KeyContactTitle) + ` · goen"`,
 				`og:description" content="` + i18n.T(ctx, i18n.KeyContactDescription) + `"`,
@@ -92,7 +93,7 @@ func TestNoPageNamesAnInventedCompanyOrAddress(t *testing.T) {
 		ctx := i18n.WithLocale(t.Context(), locale)
 		for name, html := range map[string]string{
 			"about":   renderComponent(t, ctx, About(AboutMeta(ctx))),
-			"contact": renderComponent(t, ctx, Contact(ContactMeta(ctx), ContactForm{})),
+			"contact": renderComponent(t, ctx, contact.Contact(contact.ContactMeta(ctx), contact.ContactForm{})),
 			"footer":  renderComponent(t, ctx, layouts.Footer(layouts.NewsletterState{})),
 		} {
 			for _, forbidden := range []string{"90123456", "Co., Ltd.", "松高路", "google.com/maps"} {

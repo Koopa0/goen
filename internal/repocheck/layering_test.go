@@ -61,7 +61,6 @@ var viewPackageImporters = []string{
 	"internal/admin/twofactor",
 	"internal/cart",
 	"internal/catalog",
-	"internal/contact",
 	"internal/home",
 	"internal/loyalty",
 	"internal/newsletter",
