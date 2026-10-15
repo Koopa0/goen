@@ -292,34 +292,45 @@ var checkCases = []checkCase{
 		accept:     `INSERT INTO contact_messages (name, email, subject, message) VALUES ('王小明', 'ming@example.com', 'order', '請問出貨時間');`,
 	},
 	{
-		constraint: "faq_entries_category_en_present",
-		reject:     `INSERT INTO faq_entries (id, category, question, answer, category_en, position) VALUES ('1111000e-0000-4000-8000-000000000091', '測試', '問題', '答案', E'\t', 91);`,
-		accept:     `INSERT INTO faq_entries (id, category, question, answer, category_en, position) VALUES ('1111000e-0000-4000-8000-000000000091', '測試', '問題', '答案', 'Testing', 91);`,
+		constraint: "faq_categories_name_present",
+		reject:     `INSERT INTO faq_categories (name, position) VALUES (E'\t', 90);`,
+		accept:     `INSERT INTO faq_categories (name, position) VALUES ('付款', 90);`,
+	},
+	{
+		// The desk's MaxFAQCategoryRunes, counted in characters, not bytes.
+		constraint: "faq_categories_name_bounded",
+		reject:     `INSERT INTO faq_categories (name, position) VALUES (repeat('分', 41), 90);`,
+		accept:     `INSERT INTO faq_categories (name, position) VALUES (repeat('分', 40), 90);`,
+	},
+	{
+		constraint: "faq_categories_name_en_present",
+		reject:     `INSERT INTO faq_categories (name, name_en, position) VALUES ('付款', E'\t', 90);`,
+		accept:     `INSERT INTO faq_categories (name, name_en, position) VALUES ('付款', 'Payment', 90);`,
+	},
+	{
+		constraint: "faq_categories_name_en_bounded",
+		reject:     `INSERT INTO faq_categories (name, name_en, position) VALUES ('付款', repeat('p', 41), 90);`,
+		accept:     `INSERT INTO faq_categories (name, name_en, position) VALUES ('付款', repeat('p', 40), 90);`,
 	},
 	{
 		constraint: "faq_entries_question_en_present",
-		reject:     `INSERT INTO faq_entries (id, category, question, answer, question_en, position) VALUES ('1111000e-0000-4000-8000-000000000092', '測試', '問題', '答案', E'\t', 92);`,
-		accept:     `INSERT INTO faq_entries (id, category, question, answer, question_en, position) VALUES ('1111000e-0000-4000-8000-000000000092', '測試', '問題', '答案', 'A question?', 92);`,
+		reject:     `INSERT INTO faq_entries (id, category_id, question, answer, question_en, position) VALUES ('1111000e-0000-4000-8000-000000000092', 'cccc0001-0000-4000-8000-000000000000', '問題', '答案', E'\t', 92);`,
+		accept:     `INSERT INTO faq_entries (id, category_id, question, answer, question_en, position) VALUES ('1111000e-0000-4000-8000-000000000092', 'cccc0001-0000-4000-8000-000000000000', '問題', '答案', 'A question?', 92);`,
 	},
 	{
 		constraint: "faq_entries_answer_en_present",
-		reject:     `INSERT INTO faq_entries (id, category, question, answer, answer_en, position) VALUES ('1111000e-0000-4000-8000-000000000093', '測試', '問題', '答案', E'\t', 93);`,
-		accept:     `INSERT INTO faq_entries (id, category, question, answer, answer_en, position) VALUES ('1111000e-0000-4000-8000-000000000093', '測試', '問題', '答案', 'An answer.', 93);`,
+		reject:     `INSERT INTO faq_entries (id, category_id, question, answer, answer_en, position) VALUES ('1111000e-0000-4000-8000-000000000093', 'cccc0001-0000-4000-8000-000000000000', '問題', '答案', E'\t', 93);`,
+		accept:     `INSERT INTO faq_entries (id, category_id, question, answer, answer_en, position) VALUES ('1111000e-0000-4000-8000-000000000093', 'cccc0001-0000-4000-8000-000000000000', '問題', '答案', 'An answer.', 93);`,
 	},
 	{
 		constraint: "faq_entries_answer_present",
-		reject:     `INSERT INTO faq_entries (category, question, answer, position) VALUES ('付款', '如何付款?', E'\t', 0);`,
-		accept:     `INSERT INTO faq_entries (category, question, answer, position) VALUES ('付款', '如何付款?', '可用信用卡。', 0);`,
-	},
-	{
-		constraint: "faq_entries_category_present",
-		reject:     `INSERT INTO faq_entries (category, question, answer, position) VALUES (E'\t', '如何付款?', '可用信用卡。', 0);`,
-		accept:     `INSERT INTO faq_entries (category, question, answer, position) VALUES ('付款', '如何付款?', '可用信用卡。', 0);`,
+		reject:     `INSERT INTO faq_entries (category_id, question, answer, position) VALUES ('cccc0001-0000-4000-8000-000000000000', '如何付款?', E'\t', 90);`,
+		accept:     `INSERT INTO faq_entries (category_id, question, answer, position) VALUES ('cccc0001-0000-4000-8000-000000000000', '如何付款?', '可用信用卡。', 90);`,
 	},
 	{
 		constraint: "faq_entries_question_present",
-		reject:     `INSERT INTO faq_entries (category, question, answer, position) VALUES ('付款', E'\t', '可用信用卡。', 0);`,
-		accept:     `INSERT INTO faq_entries (category, question, answer, position) VALUES ('付款', '如何付款?', '可用信用卡。', 0);`,
+		reject:     `INSERT INTO faq_entries (category_id, question, answer, position) VALUES ('cccc0001-0000-4000-8000-000000000000', E'\t', '可用信用卡。', 90);`,
+		accept:     `INSERT INTO faq_entries (category_id, question, answer, position) VALUES ('cccc0001-0000-4000-8000-000000000000', '如何付款?', '可用信用卡。', 90);`,
 	},
 	{
 		constraint: "media_objects_digest_format",
@@ -2441,8 +2452,23 @@ var uniqueCases = []uniqueCase{
 	},
 	{
 		index:  "faq_entries_position_key",
-		reject: `INSERT INTO faq_entries (category, question, answer, position) VALUES ('運送', '能改收件地址嗎?', '出貨前皆可修改。', 0);`,
-		accept: `INSERT INTO faq_entries (category, question, answer, position) VALUES ('運送', '能改收件地址嗎?', '出貨前皆可修改。', 1);`,
+		reject: `INSERT INTO faq_entries (category_id, question, answer, position) VALUES ('cccc0001-0000-4000-8000-000000000000', '能改收件地址嗎?', '出貨前皆可修改。', 0);`,
+		accept: `INSERT INTO faq_entries (category_id, question, answer, position) VALUES ('cccc0001-0000-4000-8000-000000000000', '能改收件地址嗎?', '出貨前皆可修改。', 1);`,
+	},
+	{
+		index:  "faq_categories_name_key",
+		reject: `INSERT INTO faq_categories (name, position) VALUES ('運送', 2);`,
+		accept: `INSERT INTO faq_categories (name, position) VALUES ('付款', 2);`,
+	},
+	{
+		index:  "faq_categories_name_en_key",
+		reject: `INSERT INTO faq_categories (name, name_en, position) VALUES ('付款', 'Delivery', 2);`,
+		accept: `INSERT INTO faq_categories (name, name_en, position) VALUES ('付款', 'Payment', 2);`,
+	},
+	{
+		index:  "faq_categories_position_key",
+		reject: `INSERT INTO faq_categories (name, position) VALUES ('付款', 1);`,
+		accept: `INSERT INTO faq_categories (name, position) VALUES ('付款', 2);`,
 	},
 	{
 		index:  "hero_slides_position_key",

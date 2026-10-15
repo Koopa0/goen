@@ -185,6 +185,39 @@ func TestALiveInvoiceOnACancelledOrderIsWork(t *testing.T) {
 	}
 }
 
+// TestARefundWithNoAllowanceIsWork: money given back with no 折讓 leaves the
+// invoice overstating the sale, so the page reads unhealthy, counts them all,
+// and links each order, whose page files the allowance.
+func TestARefundWithNoAllowanceIsWork(t *testing.T) {
+	t.Parallel()
+	view := &WorkerHealthView{CopurchaseEverBuilt: true, CopurchaseStaleAfter: time.Hour}
+	if !view.AllHealthy() {
+		t.Fatal("the fixture is unhealthy before any refund is listed; the check below would prove nothing")
+	}
+	view.UnrelievedRefundCount = 2
+	view.UnrelievedRefunds = []UnrelievedRefund{{
+		OrderNumber: "GO-261002-000003", Number: "CD12345678", AmountCents: 100000, Since: "2026-10-02 14:05",
+	}}
+	if view.AllHealthy() {
+		t.Error("the page reads healthy with a refund no allowance relieves")
+	}
+	for _, locale := range i18n.Locales() {
+		ctx := i18n.WithLocale(t.Context(), locale)
+		html := renderComponent(t, ctx, Health(layouts.Page{Title: "health"}, view))
+		for _, want := range []string{
+			`id="unrelieved-refunds-heading"`,
+			`href="/admin/orders/GO-261002-000003"`,
+			"CD12345678", "2026-10-02 14:05",
+			i18n.T(ctx, i18n.KeyAdminHPUnrelievedRefundsHeading),
+			i18n.Count(ctx, i18n.KeyAdminHPUnrelievedRefundsHint, 2, int64(2)),
+		} {
+			if !strings.Contains(html, want) {
+				t.Errorf("%s: the health page does not carry %s", locale.Tag(), want)
+			}
+		}
+	}
+}
+
 // TestALapsedAllowanceResendAsksTheBuyerAgain: the resend of an allowance the
 // customer never agreed to is not worded as one ECPay never received.
 func TestALapsedAllowanceResendAsksTheBuyerAgain(t *testing.T) {
@@ -451,13 +484,14 @@ func TestHealthKeepsAllOtherWorkOutsideSystemDetails(t *testing.T) {
 		Uninvoiced:                   []UninvoicedOrder{{OrderNumber: "GO-invoice"}},
 		StrandedClaims:               []StrandedClaim{{Operation: "op_preserved", OrderNumber: "GO-claim", CanAuthorizeResend: true}},
 		CancelledOrderInvoiceCount:   5, CancelledOrderInvoices: []CancelledOrderInvoice{{OrderNumber: "GO-cancelled"}},
+		UnrelievedRefundCount: 7, UnrelievedRefunds: []UnrelievedRefund{{OrderNumber: "GO-unrelieved"}},
 		Disputes:        DisputeState{Configured: true, Items: []OpenDispute{{OrderNumber: "GO-dispute", URL: "https://dashboard.stripe.com/disputes/dp_preserved"}}},
 		OpenRefundCount: 6, OpenRefunds: []OpenRefund{{OrderNumber: "GO-refund", Status: refund.Pending}},
 		Pools: []PoolHealth{{Name: "staff pool"}}, Stuck: []StuckMessage{{Key: "stuck_preserved"}},
 	}
 	html := renderComponent(t, i18n.WithLocale(t.Context(), i18n.En), Health(layouts.Page{}, &view))
 	previous := -1
-	for _, id := range []string{"events-heading", "uninvoiced-heading", "claims-heading", "cancelled-order-invoices-heading", "disputes-heading", "refunds-heading", "system-status", "pools-heading", "stuck-heading"} {
+	for _, id := range []string{"events-heading", "uninvoiced-heading", "claims-heading", "cancelled-order-invoices-heading", "unrelieved-refunds-heading", "disputes-heading", "refunds-heading", "system-status", "pools-heading", "stuck-heading"} {
 		pos := strings.Index(html, `id="`+id+`"`)
 		if pos < previous || pos < 0 {
 			t.Fatalf("section %s disappeared or is out of order", id)
@@ -468,7 +502,7 @@ func TestHealthKeepsAllOtherWorkOutsideSystemDetails(t *testing.T) {
 		"9 tasks need attention", `name="event" value="evt_preserved"`, `name="event_resolution" value="fully_refunded_or_accounted"`,
 		`name="payment" value="cs_preserved"`, `name="resolution" value="paid"`, `name="resolution" value="unpaid_or_refunded"`,
 		`action="/admin/orders/GO-invoice/invoice"`, `name="invoice_operation" value="op_preserved"`, `name="invoice_resolution" value="confirmed_absent" required`,
-		`href="/admin/orders/GO-cancelled"`, `href="https://dashboard.stripe.com/disputes/dp_preserved"`, `href="/admin/orders/GO-refund"`,
+		`href="/admin/orders/GO-cancelled"`, `href="/admin/orders/GO-unrelieved"`, `href="https://dashboard.stripe.com/disputes/dp_preserved"`, `href="/admin/orders/GO-refund"`,
 		"goen does not automatically resume this refund; follow the status and instructions shown in Stripe.",
 	} {
 		if !strings.Contains(html, want) {

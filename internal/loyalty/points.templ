@@ -1,0 +1,118 @@
+package loyalty
+
+import (
+	"fmt"
+
+	"github.com/koopa0/goen/internal/i18n"
+	"github.com/koopa0/goen/internal/ui/components"
+	"github.com/koopa0/goen/internal/ui/layouts"
+)
+
+templ Points(p layouts.Page, v PointsView) {
+	@layouts.Base(p) {
+		<div class="goen-account goen-account--narrow">
+			@components.Breadcrumb(components.BreadcrumbProps{
+				Label: i18n.T(ctx, i18n.KeyBreadcrumb),
+				Crumbs: []components.Crumb{
+					{Label: i18n.T(ctx, i18n.KeyAccountTitle), Href: "/account"},
+					{Label: i18n.T(ctx, i18n.KeyPointsTitle)},
+				},
+			})
+			<div class="goen-pagehead">
+				<h1 class="goen-pagehead__title">{ i18n.T(ctx, i18n.KeyPointsTitle) }</h1>
+				<p class="goen-pagehead__sub">
+					{ fmt.Sprintf(i18n.T(ctx, i18n.KeyPointsSub), v.MemberRate(ctx), v.RateText(ctx)) }
+				</p>
+				<p class="goen-pagehead__sub">{ i18n.T(ctx, i18n.KeyPointsExpiryTerms) }</p>
+			</div>
+			if v.Notice != "" {
+				@components.Notice(components.NoticeProps{Intent: components.IntentAccent, ID: "points-notice", Class: "ui-alert--info"}) {
+					{ v.Notice }
+				}
+			}
+			<ul class="goen-points__figures" role="list">
+				<li class="goen-points__figure">
+					<span class="goen-points__label">{ i18n.T(ctx, i18n.KeyPointsBalance) }</span>
+					<span class="goen-points__value">{ v.BalanceText() }</span>
+				</li>
+				<li class="goen-points__figure">
+					<span class="goen-points__label">{ i18n.T(ctx, i18n.KeyPointsRedeemable) }</span>
+					<span class="goen-points__value">{ v.Credit() }</span>
+					<span class="goen-points__meta">{ i18n.Count(ctx, i18n.KeyPointsUsing, v.Redeemable, v.RedeemableText()) }</span>
+				</li>
+			</ul>
+			if v.Expiring() {
+				@components.Notice(components.NoticeProps{Intent: components.IntentWarn, ID: "points-expiring"}) {
+					{ v.ExpiringText(ctx) }
+				}
+			}
+			if v.ShowRedemptionForm() {
+				<form class="goen-card goen-qa__form" method="post" action="/account/points">
+					<input type="hidden" name="operation_id" value={ v.OperationID }/>
+					<div class="goen-field">
+						@components.Label(components.LabelProps{For: "points"}) {
+							{ i18n.T(ctx, i18n.KeyPointsHowMany) }
+						}
+						@components.Input(components.FieldProps{
+							ID:        "points",
+							Name:      "points",
+							Type:      "number",
+							Value:     v.PointsValue(),
+							Invalid:   v.FieldError != "",
+							Describes: v.PointsDescribedBy(),
+
+							Class: "ui-input goen-points__field",
+							Attrs: v.pointsFieldAttrs(),
+						})
+						<p class="goen-points__rule" id="points-rule">
+							{ i18n.Count(ctx, i18n.KeyPointsRule, v.Minimum, v.MinimumText(), v.StepAmountText(ctx)) }
+						</p>
+						if v.FieldError != "" {
+							<p class="ui-error-text" id="points-error" role="alert">{ v.FieldError }</p>
+						}
+					</div>
+					@components.Button(components.ButtonProps{ButtonStyle: components.ButtonStylePrimary, Class: "ui-btn goen-points__submit"}, "submit") {
+						{ i18n.T(ctx, i18n.KeyPointsRedeem) }
+					}
+				</form>
+			}
+			<section class="goen-points__ledger" aria-labelledby="ledger-heading">
+				<h2 class="goen-points__ledgerhead" id="ledger-heading">{ i18n.T(ctx, i18n.KeyPointsLedger) }</h2>
+				if v.Empty() && !v.PastEnd {
+					<p class="goen-points__meta">{ i18n.T(ctx, i18n.KeyPointsEmpty) }</p>
+				} else if !v.Empty() {
+					<ul class="goen-points" role="list">
+						for _, e := range v.Entries {
+							<li class={ "goen-points__item", templ.KV("is-expired", e.Expired) }>
+								<span class={ "goen-points__amount", templ.KV("is-earned", e.Earned()) }>
+									{ e.Amount() }
+								</span>
+								<span class="goen-points__what">{ e.What(ctx) }</span>
+								<span class="goen-points__meta">
+									if e.Detail(ctx) != "" {
+										{ e.Detail(ctx) }
+										<span aria-hidden="true">{ " · " }</span>
+									}
+									if e.Earned() {
+										{ fmt.Sprintf(i18n.T(ctx, i18n.KeyPointsEarnedOn), e.At) }
+									} else {
+										{ e.At }
+									}
+									if e.ExpiresOn != "" {
+										<span aria-hidden="true">{ " · " }</span>
+										if e.Expired {
+											{ fmt.Sprintf(i18n.T(ctx, i18n.KeyPointsExpired), e.ExpiresOn) }
+										} else {
+											{ fmt.Sprintf(i18n.T(ctx, i18n.KeyPointsExpiresOn), e.ExpiresOn) }
+										}
+									}
+								</span>
+							</li>
+						}
+					</ul>
+				}
+				@components.ListPager(v.Bound)
+			</section>
+		</div>
+	}
+}

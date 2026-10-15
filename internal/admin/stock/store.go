@@ -22,7 +22,6 @@ import (
 	"github.com/koopa0/goen/internal/inventory"
 	"github.com/koopa0/goen/internal/keyset"
 	"github.com/koopa0/goen/internal/shoptime"
-	"github.com/koopa0/goen/internal/ui/pages/admin"
 	"github.com/koopa0/goen/internal/web"
 )
 
@@ -61,7 +60,7 @@ type movementPosition struct {
 	At time.Time
 }
 
-func (s *Store) Variants(ctx context.Context, soldOutOnly bool, term string, after ...string) (admin.VariantsView, error) {
+func (s *Store) Variants(ctx context.Context, soldOutOnly bool, term string, after ...string) (VariantsView, error) {
 	term = web.SearchTerm(term)
 	soldOut := ""
 	if soldOutOnly {
@@ -75,10 +74,10 @@ func (s *Store) Variants(ctx context.Context, soldOutOnly bool, term string, aft
 	})
 	rows, err := s.q.AdminVariants(ctx, db.AdminVariantsParams{Locale: string(i18n.FromContext(ctx)), HasCursor: resumed, AfterNumber: from.Number, AfterName: from.Name, AfterPosition: from.Position, AfterID: from.ID, SoldOutOnly: soldOutOnly, EscapedTerm: db.EscapeLike(term), RowLimit: keyset.PageLimit})
 	if err != nil {
-		return admin.VariantsView{}, fmt.Errorf("read variants: %w", err)
+		return VariantsView{}, fmt.Errorf("read variants: %w", err)
 	}
 	rows, bound := keyset.PageBound(scope, resumed, rows, keyset.PageSize, func(r *db.AdminVariantsRow) string { return r.PageCursor })
-	view := admin.VariantsView{Bound: bound, SoldOutOnly: soldOutOnly, Term: term}
+	view := VariantsView{Bound: bound, SoldOutOnly: soldOutOnly, Term: term}
 	for i := range rows {
 		view.Variants = append(view.Variants, variantRow(&rows[i]))
 	}
@@ -266,8 +265,8 @@ func (s *Store) SetPrice(ctx context.Context, sku string, price, compareAt int64
 		})
 }
 
-func variantRow(r *db.AdminVariantsRow) admin.Variant {
-	return admin.Variant{
+func variantRow(r *db.AdminVariantsRow) Variant {
+	return Variant{
 		SKU: r.SKU, Slug: r.Slug, ProductName: r.ProductName, Brand: r.Brand,
 		ArrivalInput: arrivalInput(r.PreorderReleaseOn),
 		PriceCents:   r.PriceCents, CompareCents: r.CompareAtPriceCents.Int64,
@@ -286,45 +285,45 @@ const MovementPageSize = 50
 
 // Movements reads the variant, a page of its ledger and, on the first page, its
 // days up to now in one snapshot, so the stock it shows is the last day's.
-func (s *Store) Movements(ctx context.Context, sku string, now time.Time, after ...string) (admin.MovementsView, error) {
+func (s *Store) Movements(ctx context.Context, sku string, now time.Time, after ...string) (MovementsView, error) {
 	scope := "/admin/stock/" + url.PathEscape(sku)
 	from, resumed := keyset.Resume(scope, after, func(p movementPosition) bool { return p.ID != uuid.Nil })
 	tx, err := s.pool.BeginTx(ctx, pgx.TxOptions{IsoLevel: pgx.RepeatableRead, AccessMode: pgx.ReadOnly})
 	if err != nil {
-		return admin.MovementsView{}, fmt.Errorf("begin movements snapshot: %w", err)
+		return MovementsView{}, fmt.Errorf("begin movements snapshot: %w", err)
 	}
 	defer db.Rollback(ctx, tx)
 	q := db.New(tx)
 	v, err := q.AdminVariantBySKU(ctx, sku)
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
-			return admin.MovementsView{}, ErrNotFound
+			return MovementsView{}, ErrNotFound
 		}
-		return admin.MovementsView{}, fmt.Errorf("read variant %s: %w", sku, err)
+		return MovementsView{}, fmt.Errorf("read variant %s: %w", sku, err)
 	}
 	rows, err := q.VariantMovements(ctx, db.VariantMovementsParams{HasCursor: resumed, AfterID: from.ID,
 		SKU: sku, RowLimit: MovementPageSize + 1,
 	})
 	if err != nil {
-		return admin.MovementsView{}, fmt.Errorf("read movements of %s: %w", sku, err)
+		return MovementsView{}, fmt.Errorf("read movements of %s: %w", sku, err)
 	}
 
 	rows, bound := keyset.PageBound(scope, resumed, rows, MovementPageSize, func(r *db.VariantMovementsRow) string { return r.PageCursor })
-	view := admin.MovementsView{
+	view := MovementsView{
 		Bound: bound,
 		SKU:   v.SKU, ProductName: v.ProductName, Slug: v.Slug,
 		Stock: v.StockQuantity, Safety: v.SafetyStock,
 		FormID: uuid.NewString(),
-		Rows:   make([]admin.Movement, 0, len(rows)),
+		Rows:   make([]Movement, 0, len(rows)),
 	}
 	if !resumed {
-		if view.Days, err = stockDays(ctx, q, sku, now); err != nil {
-			return admin.MovementsView{}, err
+		if view.Days, err = readStockDays(ctx, q, sku, now); err != nil {
+			return MovementsView{}, err
 		}
 	}
 	for i := range rows {
 		m := &rows[i]
-		view.Rows = append(view.Rows, admin.Movement{
+		view.Rows = append(view.Rows, Movement{
 			At:          shoptime.Minute(m.CreatedAt),
 			Delta:       m.Delta,
 			Reason:      inventory.MovementReason(m.Reason),
@@ -339,8 +338,8 @@ func (s *Store) Movements(ctx context.Context, sku string, now time.Time, after 
 // LineDays is how many shop days the stock line covers, today included.
 const LineDays = 90
 
-// stockDays is the variant's last LineDays shop days up to now.
-func stockDays(ctx context.Context, q *db.Queries, sku string, now time.Time) ([]admin.StockDay, error) {
+// readStockDays is the variant's last LineDays shop days up to now.
+func readStockDays(ctx context.Context, q *db.Queries, sku string, now time.Time) ([]StockDay, error) {
 	first := shoptime.FirstDay(now, LineDays)
 	rows, err := q.VariantStockByDay(ctx, db.VariantStockByDayParams{
 		SKU: sku, FromAt: first, FirstDay: shoptime.QueryDate(first), LastDay: shoptime.QueryDate(now),
@@ -348,9 +347,9 @@ func stockDays(ctx context.Context, q *db.Queries, sku string, now time.Time) ([
 	if err != nil {
 		return nil, fmt.Errorf("read stock by day of %s: %w", sku, err)
 	}
-	days := make([]admin.StockDay, len(rows))
+	days := make([]StockDay, len(rows))
 	for i, r := range rows {
-		days[i] = admin.StockDay{Day: r.Day, Stock: r.Stock, Received: r.Received, Receipts: r.Receipts, Moves: r.Moves}
+		days[i] = StockDay{Day: r.Day, Stock: r.Stock, Received: r.Received, Receipts: r.Receipts, Moves: r.Moves}
 	}
 	return days, nil
 }

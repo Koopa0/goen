@@ -16,7 +16,6 @@ import (
 	"github.com/koopa0/goen/internal/i18n"
 	"github.com/koopa0/goen/internal/keyset"
 	"github.com/koopa0/goen/internal/shoptime"
-	"github.com/koopa0/goen/internal/ui/pages"
 )
 
 const ExpiryWarningDays = 30
@@ -109,16 +108,16 @@ func readHistoryCursor(owner, token string) historyCursor {
 	return c
 }
 
-func (s *Store) History(ctx context.Context, userID, after string) (pages.PointsView, error) {
+func (s *Store) History(ctx context.Context, userID, after string) (PointsView, error) {
 	owner, err := uuid.Parse(userID)
 	if err != nil {
-		return pages.PointsView{}, ErrNoAccount
+		return PointsView{}, ErrNoAccount
 	}
 	id := uuid.NullUUID{UUID: owner, Valid: true}
 
 	_, balance, err := s.Balance(ctx, userID)
 	if err != nil && !errors.Is(err, ErrNoAccount) {
-		return pages.PointsView{}, err
+		return PointsView{}, err
 	}
 
 	cursor := readHistoryCursor(userID, after)
@@ -127,23 +126,23 @@ func (s *Store) History(ctx context.Context, userID, after string) (pages.Points
 		HasCursor: cursor.Valid, AfterAt: cursor.At, AfterID: cursor.ID,
 	})
 	if err != nil {
-		return pages.PointsView{}, fmt.Errorf("read points history: %w", err)
+		return PointsView{}, fmt.Errorf("read points history: %w", err)
 	}
 	soon, err := s.q.PointsExpiringSoon(ctx, db.PointsExpiringSoonParams{
 		UserID: id, WithinDays: ExpiryWarningDays,
 	})
 	if err != nil {
-		return pages.PointsView{}, fmt.Errorf("read expiring points: %w", err)
+		return PointsView{}, fmt.Errorf("read expiring points: %w", err)
 	}
 
 	standing, err := s.q.MemberStanding(ctx, db.MemberStandingParams{
 		UserID: owner, Locale: string(i18n.FromContext(ctx)),
 	})
 	if err != nil {
-		return pages.PointsView{}, fmt.Errorf("read points member standing: %w", err)
+		return PointsView{}, fmt.Errorf("read points member standing: %w", err)
 	}
 
-	view := pages.PointsView{
+	view := PointsView{
 		TierName:       standing.TierName,
 		MultiplierBP:   standing.MultiplierBp,
 		Balance:        balance,
@@ -163,7 +162,7 @@ func (s *Store) History(ctx context.Context, userID, after string) (pages.Points
 		last := rows[len(rows)-1]
 		position, marshalErr := json.Marshal(historyCursor{At: last.CreatedAt, ID: last.GroupID, Owner: userID})
 		if marshalErr != nil {
-			return pages.PointsView{}, fmt.Errorf("encode points position: %w", marshalErr)
+			return PointsView{}, fmt.Errorf("encode points position: %w", marshalErr)
 		}
 		if next, ok := keyset.NextURL(historyScope, string(position)); ok {
 			view.Next = next + "#ledger-heading"
@@ -180,19 +179,19 @@ func (s *Store) History(ctx context.Context, userID, after string) (pages.Points
 	return view, nil
 }
 
-func pointsHistoryEntry(ctx context.Context, r db.PointsHistoryRow, now time.Time) pages.PointsEntry {
-	kind := pages.PointsEntryKind(r.Kind)
-	entry := pages.PointsEntry{
-		Points: r.Points, Kind: kind, Reason: pages.PointsReversalReason(r.Reason), Order: r.OrderNumber,
+func pointsHistoryEntry(ctx context.Context, r db.PointsHistoryRow, now time.Time) PointsEntry {
+	kind := PointsEntryKind(r.Kind)
+	entry := PointsEntry{
+		Points: r.Points, Kind: kind, Reason: PointsReversalReason(r.Reason), Order: r.OrderNumber,
 		At: shoptime.DateText(ctx, shoptime.DateOf(r.CreatedAt, now)), Expired: r.Expired.Bool,
 	}
 	switch kind {
-	case pages.PointsClawedBack:
+	case PointsClawedBack:
 		entry.RequestedPoints = r.RequestedPoints
 		entry.ShortfallPoints = r.RequestedPoints + r.Points
-	case pages.PointsAwarded:
+	case PointsAwarded:
 		entry.ExpiresOn = shoptime.DateText(ctx, shoptime.DateOf(r.ExpiresOn, now))
-	case pages.PointsSpent:
+	case PointsSpent:
 		entry.CreditCents = CreditFor(-r.Points)
 	}
 	return entry

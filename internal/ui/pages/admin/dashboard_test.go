@@ -130,15 +130,16 @@ func TestWorkerHealthTasksFollowTheHealthPredicates(t *testing.T) {
 	}
 	v := &WorkerHealthView{
 		UnreconciledPayments: 1, StrandedClaimCount: 73, UninvoicedCount: 2,
-		CancelledOrderInvoiceCount: 3, OpenRefundCount: 4,
+		CancelledOrderInvoiceCount: 3, UnrelievedRefundCount: 5, OpenRefundCount: 4,
 		StrandedClaimOldestSeconds: 100, UninvoicedOldestSeconds: 200, CancelledOrderInvoiceOldestSeconds: 300,
-		ExpiredHolds: 51, MaxExpiredHolds: 50,
+		UnrelievedRefundOldestSeconds: 400, ExpiredHolds: 51, MaxExpiredHolds: 50,
 	}
 	want := []Task{
 		{Label: i18n.KeyAdminQueueTaskPayments, Count: 1, Href: "/admin/health#events-heading", Alert: true},
 		{Label: i18n.KeyAdminQueueTaskClaims, Count: 73, Href: "/admin/health#claims-heading", Alert: true, HasAge: true, AgeSeconds: 100},
 		{Label: i18n.KeyAdminQueueTaskUninvoiced, Count: 2, Href: "/admin/health#uninvoiced-heading", Alert: true, HasAge: true, AgeSeconds: 200},
 		{Label: i18n.KeyAdminHPCancelledOrderInvoicesHeading, Count: 3, Href: "/admin/health#cancelled-order-invoices-heading", Alert: true, HasAge: true, AgeSeconds: 300},
+		{Label: i18n.KeyAdminHPUnrelievedRefundsHeading, Count: 5, Href: "/admin/health#unrelieved-refunds-heading", Alert: true, HasAge: true, AgeSeconds: 400},
 		{Label: i18n.KeyAdminHPOpenRefundsHeading, Count: 4, Href: "/admin/health#refunds-heading", Alert: true},
 		{Label: i18n.KeyAdminQueueTaskHolds, Count: 51, Href: "/admin/health", Alert: true},
 	}

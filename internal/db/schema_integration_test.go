@@ -77,6 +77,7 @@ var expectedForeignKeys = map[string]bool{
 	"cart_items_variant_id_fkey":                  true,
 	"carts_user_id_fkey":                          true,
 	"categories_parent_id_fkey":                   true,
+	"faq_entries_category_id_fkey":                true,
 	"checkout_attempts_cart_id_fkey":              true,
 	"checkout_attempts_order_fk":                  true,
 	"inventory_movements_actor_user_id_fkey":      true,

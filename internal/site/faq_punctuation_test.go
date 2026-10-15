@@ -51,10 +51,10 @@ func TestTheFAQSeedMatchesLocaleQuestionsAndUsesChinesePunctuationAndNi(t *testi
 		questions[values[i+1]] = false
 	}
 	translated := faqStrings(mapping)
-	if len(translated) != 4*len(questions) {
+	if len(translated) != 3*len(questions) {
 		t.Fatalf("English mapping has %d values for %d questions", len(translated), len(questions))
 	}
-	for i := 0; i < len(translated); i += 4 {
+	for i := 0; i < len(translated); i += 3 {
 		question := translated[i]
 		if seen, exists := questions[question]; !exists || seen {
 			t.Errorf("English question %q has no unique seeded counterpart", question)

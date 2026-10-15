@@ -52,8 +52,6 @@ endif
 .PHONY: build run test test-race test-integration production-build-check integration-build-check \
         image image-push lint fmt fmt-check vet deadcode gen templ-check vuln \
         sqlc sqlc-check squawk db-up db-down migrate-up migrate-down db-seed \
-        db-repair-invoice-faq db-repair-refund-faq db-repair-payment-faq db-repair-shop-rules-faq \
-        db-repair-hold-faq \
         demo-restore-check workflow-check verify verify-all check-layout check-layout-run db-reset clean
 
 build: gen
@@ -183,7 +181,7 @@ check-layout-run:
 	@node --env-file=$(LAYOUT_DIR)/env scripts/filter-feedback-check.mjs
 	@node --env-file=$(LAYOUT_DIR)/env scripts/popover-focus-check.mjs
 	@GOEN_CHROME="$(LAYOUT_CHROME)" go test -tags integration -count=1 -run '^TestProductOptionContrastInTheBrowser$$' ./internal/ui/pages
-	@CDP_PORT=$${CDP_PORT:-9222} go test -count=1 ./internal/ui/pages/admin -run '^TestCampaignEditorReflowsInBothLanguages$$'
+	@CDP_PORT=$${CDP_PORT:-9222} go test -count=1 ./internal/admin/campaigns -run '^TestCampaignEditorReflowsInBothLanguages$$'
 	@GOEN_CHROME="$(LAYOUT_CHROME)" go test -tags integration -count=1 -run '^TestCompetingProductChoicesKeepThePurchaseTogether$$' ./internal/ui/pages
 	@node --env-file=$(LAYOUT_DIR)/env scripts/button-icons-check.mjs
 	@GOEN_CHROME="$(LAYOUT_CHROME)" go test -tags integration -count=1 -run '^TestProductChoiceAgainstAnInFlightPurchase$$' ./internal/ui/pages
@@ -364,39 +362,6 @@ migrate-down:
 db-seed:
 	@test -n "$${GOEN_DATABASE_URL:-}" || { echo 'GOEN_DATABASE_URL is required' >&2; exit 2; }
 	psql "$$GOEN_DATABASE_URL" -v ON_ERROR_STOP=1 -f seed/dev_catalog.sql
-
-# Rewrite the published invoice FAQ on a database that already has one.
-# db-seed cannot: the catalogue INSERT stops on the first kept brand.
-# This file updates that one question and nothing else.
-db-repair-invoice-faq:
-	@test -n "$${GOEN_DATABASE_URL:-}" || { echo 'GOEN_DATABASE_URL is required' >&2; exit 2; }
-	psql "$$GOEN_DATABASE_URL" -v ON_ERROR_STOP=1 -f seed/repair_invoice_faq.sql
-
-# Rewrite the published refund FAQ on a database that already has one.
-# db-seed cannot: the catalogue INSERT stops on the first kept brand.
-# Each locale is matched on its own Stripe-only sentence so a shop-edited
-# answer stays.
-db-repair-refund-faq:
-	@test -n "$${GOEN_DATABASE_URL:-}" || { echo 'GOEN_DATABASE_URL is required' >&2; exit 2; }
-	psql "$$GOEN_DATABASE_URL" -v ON_ERROR_STOP=1 -f seed/repair_refund_faq.sql
-
-# Update only the known card-only payment FAQ on a kept database.
-db-repair-payment-faq:
-	@test -n "$${GOEN_DATABASE_URL:-}" || { echo 'GOEN_DATABASE_URL is required' >&2; exit 2; }
-	psql "$$GOEN_DATABASE_URL" -v ON_ERROR_STOP=1 -f seed/repair_payment_faq.sql
-
-# Update only the known discount, membership and company-invoice FAQ answers on
-# a kept database. Each locale is matched on its previous text so a shop-edited
-# answer stays.
-db-repair-shop-rules-faq:
-	@test -n "$${GOEN_DATABASE_URL:-}" || { echo 'GOEN_DATABASE_URL is required' >&2; exit 2; }
-	psql "$$GOEN_DATABASE_URL" -v ON_ERROR_STOP=1 -f seed/repair_shop_rules_faq.sql
-
-# Update only the known stock-hold FAQ, which promised a lapsed order could be
-# paid again, on a kept database.
-db-repair-hold-faq:
-	@test -n "$${GOEN_DATABASE_URL:-}" || { echo 'GOEN_DATABASE_URL is required' >&2; exit 2; }
-	psql "$$GOEN_DATABASE_URL" -v ON_ERROR_STOP=1 -f seed/repair_hold_faq.sql
 
 # Rebuild the development database from scratch.
 #

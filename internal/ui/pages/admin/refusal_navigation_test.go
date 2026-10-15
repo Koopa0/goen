@@ -25,7 +25,6 @@ func TestDeskRefusalsNameTheirFormAndLinkToTheFirstInvalidControl(t *testing.T) 
 				title                 i18n.Key
 				count                 int
 			}{
-				{"stock", Variants(layouts.Page{}, VariantsView{Variants: []Variant{{SKU: "TEST-SKU", DraftDelta: " +oops ", DeltaError: bad}}}), "/admin/stock/adjust#row-TEST-SKU", "row-TEST-SKU", "adj-TEST-SKU", i18n.KeyAdminRefusalStock, 1},
 				{"details", ProductForm(layouts.Page{}, ProductView{Slug: "test", Name: "", Summary: "kept", Errors: map[string]string{"name": bad, "summary": bad}}), "/admin/products/test#sec-details", "sec-details", "p-name", i18n.KeyAdminProdBasics, 2},
 				{"variant", ProductForm(layouts.Page{}, ProductView{Slug: "test", VariantDraft: VariantDraft{SKU: "", Price: "wrong"}, Errors: map[string]string{"sku": bad, "price": bad}}), "/admin/products/test/variants#sec-variants", "sec-variants", "v-sku", i18n.KeyAdminProdVariantAdd, 2},
 				{"option", ProductForm(layouts.Page{}, ProductView{Slug: "test", Errors: map[string]string{"option": bad}}), "/admin/products/test/options#sec-options", "sec-options", "opt-name", i18n.KeyAdminProdOptionAdd, 1},

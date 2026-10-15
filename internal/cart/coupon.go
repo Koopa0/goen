@@ -23,6 +23,9 @@ var (
 	ErrCouponExpired = errors.New("cart: coupon expired")
 	ErrCouponMinimum = errors.New("cart: order below the coupon minimum")
 	ErrCouponUsedUp  = errors.New("cart: coupon already used")
+	// ErrCouponNotNeeded is a free-delivery code on an order whose base rate is
+	// already nothing: it would take nothing off and still spend a redemption.
+	ErrCouponNotNeeded = errors.New("cart: order already ships free")
 )
 
 // couponCode restates coupons_code_format so a malformed code is a message
@@ -46,8 +49,9 @@ const centsPerYuan = 100
 func NormaliseCode(s string) string { return strings.ToUpper(strings.TrimSpace(s)) }
 
 // Apply caps a discount at the subtotal, never the total, which
-// orders_total_non_negative refuses.
-func (c Coupon) Apply(subtotalCents int64) (discountCents int64, freeShipping bool, err error) {
+// orders_total_non_negative refuses. shipsFree says the order's base delivery
+// rate is already nothing, which is all a free-delivery code would remove.
+func (c Coupon) Apply(subtotalCents int64, shipsFree bool) (discountCents int64, freeShipping bool, err error) {
 	if subtotalCents < c.minimumCents {
 		return 0, false, fmt.Errorf("%w: needs %d", ErrCouponMinimum, c.minimumCents)
 	}
@@ -80,6 +84,9 @@ func (c Coupon) Apply(subtotalCents int64) (discountCents int64, freeShipping bo
 		}
 		return discountCents, false, nil
 	case coupon.FreeShipping:
+		if shipsFree {
+			return 0, false, ErrCouponNotNeeded
+		}
 		return 0, true, nil
 	default:
 		return 0, false, fmt.Errorf("%w: coupon %s has unknown kind %q", ErrNoSuchCoupon, c.code, c.kind)

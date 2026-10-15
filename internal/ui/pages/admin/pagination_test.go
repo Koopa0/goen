@@ -7,6 +7,7 @@ import (
 
 	"github.com/a-h/templ"
 
+	"github.com/koopa0/goen/internal/admin/audit"
 	"github.com/koopa0/goen/internal/i18n"
 	"github.com/koopa0/goen/internal/keyset"
 	"github.com/koopa0/goen/internal/ui/layouts"
@@ -17,15 +18,10 @@ func TestEveryAdminEmptyPageKeepsItsRestartLink(t *testing.T) {
 	b := keyset.Bound{PastEnd: true, First: "/admin/products?q=test"}
 	p := layouts.Page{Title: "Pagination"}
 	cases := map[string]templ.Component{
-		"orders":    Orders(p, OrdersView{Bound: b}),
-		"customers": Customers(p, CustomersView{Bound: b, Searched: true, Term: "test"}),
-		"products":  Products(p, ProductsView{Bound: b}),
-		"stock":     Variants(p, VariantsView{Bound: b}),
-		"movements": Movements(p, &MovementsView{Bound: b}),
-		"returns":   Returns(p, ReturnsView{Bound: b}),
-		"campaigns": Campaigns(p, CampaignsView{Bound: b}),
-		"audit":     Audit(p, AuditView{Bound: b}),
-		"warranty":  Warranties(p, WarrantiesView{Bound: b, Searched: true, Term: "test"}),
+		"orders":   Orders(p, OrdersView{Bound: b}),
+		"products": Products(p, ProductsView{Bound: b}),
+		"returns":  Returns(p, ReturnsView{Bound: b}),
+		"audit":    audit.Audit(p, audit.AuditView{Bound: b}),
 	}
 	for name, c := range cases {
 		t.Run(name, func(t *testing.T) {

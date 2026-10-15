@@ -11,6 +11,7 @@ import (
 
 	"github.com/koopa0/goen/internal/i18n"
 	"github.com/koopa0/goen/internal/keyset"
+	"github.com/koopa0/goen/internal/loyalty"
 	"github.com/koopa0/goen/internal/order"
 	"github.com/koopa0/goen/internal/shoptime"
 	"github.com/koopa0/goen/internal/ui/components"
@@ -130,7 +131,7 @@ type AccountView struct {
 	OrdersBound                keyset.Bound
 	Addresses                  []AccountAddress
 	CreditCents                int64
-	Standing                   MemberStanding
+	Standing                   loyalty.MemberStanding
 	Notice                     string
 	GoogleLinked               bool
 	CanUnlinkGoogle            bool

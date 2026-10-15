@@ -1068,7 +1068,8 @@ func (h *Handler) answerPlacement(
 	case errors.Is(err, ErrNotFound):
 		h.answerMissingShipping(w, r, cartID, addr, view)
 	case errors.Is(err, ErrCouponUsedUp), errors.Is(err, ErrCouponExpired),
-		errors.Is(err, ErrCouponMinimum), errors.Is(err, ErrNoSuchCoupon):
+		errors.Is(err, ErrCouponMinimum), errors.Is(err, ErrCouponNotNeeded),
+		errors.Is(err, ErrNoSuchCoupon):
 		h.answerCouponRefusal(w, r, cartID, addr, view, err)
 	case errors.Is(err, ErrBusy):
 		// Warn: a lock wait that outlived statement_timeout is a busy shop, not
@@ -1191,6 +1192,8 @@ func (h *Handler) answerCouponRefusal(
 		reason = i18n.KeyCouponExpired
 	case errors.Is(refusal, ErrCouponMinimum):
 		reason = i18n.KeyCouponBelowMinimum
+	case errors.Is(refusal, ErrCouponNotNeeded):
+		reason = i18n.KeyCouponNotNeeded
 	case errors.Is(refusal, ErrNoSuchCoupon):
 		reason = i18n.KeyCouponUnknown
 	}
@@ -1284,7 +1287,9 @@ func (h *Handler) applyCoupon(r *http.Request, view *pages.CheckoutView, raw str
 	subtotal := view.Cart.SubtotalCents
 	c, err := h.store.CouponByCode(r.Context(), view.CouponCode)
 	if err == nil {
-		discountCents, freeShipping, applyErr := c.Apply(subtotal)
+		discountCents, freeShipping, applyErr := c.Apply(
+			subtotal, view.HasShipping() && view.BaseShippingCents() == 0,
+		)
 		if applyErr == nil {
 			view.CouponApplied = c.description
 			view.CouponDiscountCents = discountCents
@@ -1298,6 +1303,8 @@ func (h *Handler) applyCoupon(r *http.Request, view *pages.CheckoutView, raw str
 		return i18n.T(r.Context(), i18n.KeyCouponExpired), true
 	case errors.Is(err, ErrCouponMinimum):
 		return i18n.T(r.Context(), i18n.KeyCouponBelowMinimum), true
+	case errors.Is(err, ErrCouponNotNeeded):
+		return i18n.T(r.Context(), i18n.KeyCouponNotNeeded), true
 	case errors.Is(err, ErrNoSuchCoupon):
 		return i18n.T(r.Context(), i18n.KeyCouponUnknown), true
 	default:

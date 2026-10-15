@@ -598,9 +598,13 @@ func assertHealthQuiet(t *testing.T, shop *pgxpool.Pool) {
 	if err != nil {
 		t.Fatalf("CancelledOrderInvoices: %v", err)
 	}
-	if len(events)+len(complete)+len(stranded)+len(uninvoiced)+len(unvoided) > 0 {
-		t.Errorf("health lists %d unreconciled events, %d complete payments, %d stranded claims, %d uninvoiced orders, %d live invoices of cancelled orders; want none",
-			len(events), len(complete), len(stranded), len(uninvoiced), len(unvoided))
+	unrelieved, err := q.UnrelievedRefunds(ctx, immediately)
+	if err != nil {
+		t.Fatalf("UnrelievedRefunds: %v", err)
+	}
+	if len(events)+len(complete)+len(stranded)+len(uninvoiced)+len(unvoided)+len(unrelieved) > 0 {
+		t.Errorf("health lists %d unreconciled events, %d complete payments, %d stranded claims, %d uninvoiced orders, %d live invoices of cancelled orders, %d refunds with no allowance; want none",
+			len(events), len(complete), len(stranded), len(uninvoiced), len(unvoided), len(unrelieved))
 	}
 }
 

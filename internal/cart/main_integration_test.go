@@ -193,7 +193,7 @@ func checkoutQuoteFacts(
 			t.Fatalf("find quoted coupon: %v", findErr)
 		}
 		var free bool
-		discount, free, err = coupon.Apply(view.SubtotalCents)
+		discount, free, err = coupon.Apply(view.SubtotalCents, quote.FeeCents == 0)
 		if err != nil {
 			t.Fatalf("apply coupon to quote: %v", err)
 		}
@@ -5866,7 +5866,7 @@ func TestCouponMinimumIsRecheckedWhenCheckoutIsPlaced(t *testing.T) {
 	if couponErr != nil {
 		t.Fatalf("find coupon for preview: %v", couponErr)
 	}
-	if _, _, err := definition.Apply(preview.SubtotalCents); err != nil {
+	if _, _, err := definition.Apply(preview.SubtotalCents, false); err != nil {
 		t.Fatalf("coupon does not qualify in the preview: %v", err)
 	}
 

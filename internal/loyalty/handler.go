@@ -14,7 +14,6 @@ import (
 	"github.com/koopa0/goen/internal/keyset"
 	"github.com/koopa0/goen/internal/money"
 	"github.com/koopa0/goen/internal/ui/layouts"
-	"github.com/koopa0/goen/internal/ui/pages"
 	"github.com/koopa0/goen/internal/user"
 	"github.com/koopa0/goen/internal/web"
 )
@@ -49,7 +48,7 @@ func (h *Handler) Page(w http.ResponseWriter, r *http.Request) {
 	if view.CanRedeem() {
 		view.OperationID = uuid.NewString()
 	}
-	web.Render(w, r, h.log, http.StatusOK, pages.Points(
+	web.Render(w, r, h.log, http.StatusOK, Points(
 		layouts.Page{Title: i18n.T(r.Context(), i18n.KeyPointsTitle)}, view))
 }
 
@@ -114,7 +113,7 @@ func (h *Handler) renderRefusal(w http.ResponseWriter, r *http.Request, userID s
 	if view.CanRedeem() {
 		view.OperationID = uuid.NewString()
 	}
-	web.Render(w, r, h.log, http.StatusUnprocessableEntity, pages.Points(
+	web.Render(w, r, h.log, http.StatusUnprocessableEntity, Points(
 		layouts.Page{Title: i18n.T(r.Context(), i18n.KeyPointsTitle)}, view))
 }
 
@@ -153,5 +152,5 @@ func (h *Handler) renderFormRefusal(w http.ResponseWriter, r *http.Request, owne
 	} else {
 		view.OperationID = uuid.NewString()
 	}
-	web.Render(w, r, h.log, http.StatusUnprocessableEntity, pages.Points(layouts.Page{Title: i18n.T(r.Context(), i18n.KeyPointsTitle)}, view))
+	web.Render(w, r, h.log, http.StatusUnprocessableEntity, Points(layouts.Page{Title: i18n.T(r.Context(), i18n.KeyPointsTitle)}, view))
 }

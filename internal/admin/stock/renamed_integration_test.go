@@ -12,7 +12,6 @@ import (
 	"github.com/koopa0/goen/internal/admin/admintest"
 	"github.com/koopa0/goen/internal/admin/stock"
 	"github.com/koopa0/goen/internal/ui/layouts"
-	"github.com/koopa0/goen/internal/ui/pages/admin"
 )
 
 // TestARenamedStaffIsNamedByAddressInTheStockLedger: staff A adjusts a
@@ -50,7 +49,7 @@ func TestARenamedStaffIsNamedByAddressInTheStockLedger(t *testing.T) {
 		t.Errorf("no movement is by %q among %d rows", address, len(view.Rows))
 	}
 	var html bytes.Buffer
-	if err := admin.Movements(layouts.Page{}, &view).Render(ctx, &html); err != nil {
+	if err := stock.Movements(layouts.Page{}, &view).Render(ctx, &html); err != nil {
 		t.Fatalf("render the movements page: %v", err)
 	}
 	if !strings.Contains(html.String(), address) {

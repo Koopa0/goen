@@ -172,6 +172,11 @@ var (
 		En:     "The order is below the minimum spend for that code.",
 	})
 
+	KeyCouponNotNeeded = key("coupon.notneeded", Message{
+		ZhHant: "這筆訂單已經免運，用不到這組折扣碼。",
+		En:     "This order already ships free, so that code is not needed.",
+	})
+
 	KeyCouponUnknown = key("coupon.unknown", Message{
 		ZhHant: "找不到這組折扣碼。",
 		En:     "We cannot find that discount code.",
