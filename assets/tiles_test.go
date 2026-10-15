@@ -30,3 +30,18 @@ func TestTheRelatedProductsFollowTheGridsColumnGap(t *testing.T) {
 		t.Errorf("%s still halves a fixed 1rem gap", AppCSS)
 	}
 }
+
+// The comparison button acts on the ticked boxes, which show only on hover: with
+// none ticked it must not be offered.
+func TestTheCompareButtonIsHiddenUntilAProductIsTicked(t *testing.T) {
+	t.Parallel()
+
+	sheet, err := fs.ReadFile(files, AppCSS)
+	if err != nil {
+		t.Fatalf("read %s: %v", AppCSS, err)
+	}
+	rule := `(?s)\.goen-compare-pick:not\(:has\(:checked\)\) > \.goen-compare-pick__go \{\s*display: none;`
+	if !regexp.MustCompile(rule).Match(sheet) {
+		t.Errorf("%s does not hide the compare button until a box is ticked", AppCSS)
+	}
+}
