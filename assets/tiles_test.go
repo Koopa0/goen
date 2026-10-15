@@ -45,3 +45,31 @@ func TestTheCompareButtonIsHiddenUntilAProductIsTicked(t *testing.T) {
 		t.Errorf("%s does not hide the compare button until a box is ticked", AppCSS)
 	}
 }
+
+// The running campaigns are plain links under a heading: no frame around them
+// and no box around each one, and the columns follow the width rather than a
+// fixed count that leaves a track empty when fewer campaigns run.
+func TestTheRunningCampaignsHaveNoFrameAndFollowTheWidth(t *testing.T) {
+	t.Parallel()
+
+	sheet, err := fs.ReadFile(files, AppCSS)
+	if err != nil {
+		t.Fatalf("read %s: %v", AppCSS, err)
+	}
+	for name, rule := range map[string]string{
+		"the columns follow the width":    `(?s)\.goen-campaigns__list \{[^}]*grid-template-columns: repeat\(auto-fill, minmax\(min\(100%, 20rem\), 1fr\)\);`,
+		"the name is underlined on hover": `(?s)\.goen-campaigns__item:hover \.goen-campaigns__title \{\s*text-decoration: underline;`,
+	} {
+		if !regexp.MustCompile(rule).Match(sheet) {
+			t.Errorf("%s: %s lacks the rule", name, AppCSS)
+		}
+	}
+	for _, block := range regexp.MustCompile(`(?s)\.goen-campaigns(?:__item)? \{[^}]*\}`).FindAll(sheet, -1) {
+		if regexp.MustCompile(`background|border|padding`).Match(block) {
+			t.Errorf("%s: %q still draws a frame or a box", AppCSS, block)
+		}
+	}
+	if regexp.MustCompile(`\.goen-campaigns__list \{\s*grid-template-columns: repeat\(\d`).Match(sheet) {
+		t.Errorf("%s still fixes the campaign columns at a count", AppCSS)
+	}
+}

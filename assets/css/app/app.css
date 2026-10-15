@@ -3713,13 +3713,9 @@ input.goen-check {
    destination and a marked-down product is an item; they must not read as the
    same kind of thing stacked together. */
 .goen-campaigns {
-  background: var(--elevated);
-  border: 1px solid var(--border);
-  border-radius: var(--r-lg);
   display: flex;
   flex-direction: column;
   gap: 12px;
-  padding: 16px;
 }
 
 .goen-campaigns__heading {
@@ -3730,29 +3726,25 @@ input.goen-check {
 
 .goen-campaigns__list {
   display: grid;
-  gap: 8px;
+  gap: 8px 24px;
+  grid-template-columns: repeat(auto-fill, minmax(min(100%, 20rem), 1fr));
   list-style: none;
   margin: 0;
   padding: 0;
 }
 
 .goen-campaigns__item {
-  background: var(--bg);
-  border: 1px solid var(--border);
-  border-radius: var(--r-md);
   color: var(--fg);
   display: flex;
   flex-direction: column;
   gap: 4px;
+  justify-content: center;
   min-height: 44px;
-  padding: 12px;
   text-decoration: none;
-  transition: border-color var(--dur-base) var(--ease-standard);
 }
 
-.goen-campaigns__item:hover {
-  border-color: var(--accent);
-  color: var(--fg);
+.goen-campaigns__item:hover .goen-campaigns__title {
+  text-decoration: underline;
 }
 
 .goen-campaigns__title {
@@ -4221,14 +4213,6 @@ input.goen-check {
 }
 
 @media (min-width: 768px) {
-  .goen-campaigns {
-    padding: 24px;
-  }
-
-  .goen-campaigns__list {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-  }
-
   .goen-pager {
     flex-direction: row;
     justify-content: space-between;
@@ -4244,10 +4228,6 @@ input.goen-check {
   .goen-listing {
     gap: 32px;
     padding: 32px var(--page-gutter) 56px;
-  }
-
-  .goen-campaigns__list {
-    grid-template-columns: repeat(3, minmax(0, 1fr));
   }
 
   .goen-compare {
