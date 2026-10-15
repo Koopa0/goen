@@ -60,3 +60,33 @@ func TestOrderRowCarriesTheColourOfItsWord(t *testing.T) {
 		t.Errorf("a paid pending order's row has intent %q, want %q", ready.StatusIntent, components.IntentWarn)
 	}
 }
+
+func TestCreditRefundReasonLabelsEachKindAndKeepsStaffText(t *testing.T) {
+	t.Parallel()
+	for _, tt := range []struct {
+		locale i18n.Locale
+		kind   string
+		reason string
+		want   string
+	}{
+		{i18n.En, "order_cancel_reversal", "", "Order cancelled, credit returned"},
+		{i18n.En, "order_spend", "", "Applied to an order"},
+		{i18n.En, "return_payout", "", "Credit for a return"},
+		{i18n.En, "points_redemption", "", "Points redeemed"},
+		{i18n.ZhHant, "order_spend", "", "訂單折抵"},
+		{i18n.ZhHant, "order_cancel_reversal", "", "訂單取消，購物金退回"},
+		{i18n.ZhHant, "return_payout", "", "退貨退回購物金"},
+		{i18n.ZhHant, "points_redemption", "", "點數兌換"},
+		{i18n.En, "staff_grant", "goodwill for a late parcel", "goodwill for a late parcel"},
+		// Staff text that spells a label shows as typed: kind, not the words, decides.
+		{i18n.En, "staff_grant", "points", "points"},
+		{i18n.ZhHant, "staff_grant", "退貨退回購物金", "退貨退回購物金"},
+		// And a system posting never shows its (absent or misleading) reason.
+		{i18n.En, "points_redemption", "goodwill", "Points redeemed"},
+	} {
+		ctx := i18n.WithLocale(t.Context(), tt.locale)
+		if got := creditRefundReason(ctx, tt.kind, tt.reason); got != tt.want {
+			t.Errorf("%s creditRefundReason(%q, %q) = %q, want %q", tt.locale, tt.kind, tt.reason, got, tt.want)
+		}
+	}
+}
