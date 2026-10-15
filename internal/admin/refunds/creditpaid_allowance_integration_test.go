@@ -71,6 +71,17 @@ func TestACreditPaidOrderCancelledPastTheVoidWindowCanStillBeAllowed(t *testing.
 	if !listedOnHealth(t, number) {
 		t.Fatalf("the live invoice of cancelled %s is not on the health page", number)
 	}
+	// One door for one correction: the credit given back is owed an allowance
+	// too, but a cancelled order's invoice is listed as such and only there.
+	unrelieved, _, err := health.NewStore(pool).UnrelievedRefunds(ctx, 0)
+	if err != nil {
+		t.Fatalf("read the health page's refunds with no allowance: %v", err)
+	}
+	for _, r := range unrelieved {
+		if r.OrderNumber == number {
+			t.Errorf("cancelled %s is also listed as a refund with no allowance", number)
+		}
+	}
 
 	// The staff member's own press, through the same door the form posts to.
 	if err := store.Allow(ctx, number, uuid.New()); err != nil && !errors.Is(err, issuer.ErrAwaitingBuyer) {

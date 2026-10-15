@@ -25,6 +25,10 @@ func TestEveryCreditBalanceReadsTheOneView(t *testing.T) {
 			"a RETRY has to ask: without it a split return reads the credit it just " +
 			"posted as credit already returned and refuses its own resume. The batch " +
 			"projection serves both the visible queue and a single retry",
+		"UnrelievedRefunds": "reads the ledger only for WHEN a return's payout " +
+			"was posted, which no balance can say; the amount owed comes from " +
+			"order_refunds, and the one sum is of the allowances filed against the " +
+			"invoice",
 		"RevenueBetween": "positive credit returned within a report window, which is " +
 			"a flow rather than an account balance. Its predicate must match " +
 			"order_refunds.credit_cents less cancellation reversals; a balance view " +

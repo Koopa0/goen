@@ -18978,6 +18978,83 @@ func (q *Queries) UnreferencedMedia(ctx context.Context, limit int32) ([]string,
 	return items, nil
 }
 
+const unrelievedRefunds = `-- name: UnrelievedRefunds :many
+SELECT o.order_number, d.number, owed.amount_cents, owed.since, count(*) OVER () AS total,
+       coalesce(greatest(extract(epoch FROM now() - min(owed.since) OVER ()), 0), 0)::bigint
+           AS oldest_seconds
+FROM invoice_documents d
+JOIN orders o ON o.id = d.order_id
+JOIN order_refunds r ON r.order_id = d.order_id
+CROSS JOIN LATERAL (
+    SELECT (floor(least(d.amount_cents::numeric, r.card_cents::numeric + r.credit_cents::numeric)
+                  / 100) * 100
+            - coalesce((SELECT sum(a.amount_cents) FROM invoice_documents a
+                        WHERE a.original_id = d.id AND a.status <> 'voided'), 0))::bigint
+               AS amount_cents,
+           greatest(d.issued_at,
+                    (SELECT max(f.succeeded_at) FROM refunds f
+                     JOIN payments p ON p.id = f.payment_id
+                     WHERE p.order_id = d.order_id AND f.status = 'succeeded'),
+                    (SELECT max(e.created_at) FROM store_credit_entries e
+                     WHERE e.order_id = d.order_id AND e.amount_cents > 0))::timestamptz AS since
+) owed
+WHERE d.kind = 'invoice' AND d.status = 'issued'
+  AND o.fulfillment_status <> 'cancelled'
+  AND owed.amount_cents > 0
+  AND owed.since < now() - $1::interval
+  AND NOT EXISTS (SELECT 1 FROM invoice_operations op
+                  WHERE op.order_id = d.order_id AND op.status IN ('pending', 'attention'))
+ORDER BY owed.since DESC, d.id DESC
+LIMIT 50
+`
+
+type UnrelievedRefundsRow struct {
+	OrderNumber   string
+	Number        string
+	AmountCents   int64
+	Since         time.Time
+	Total         int64
+	OldestSeconds int64
+}
+
+// Live invoices of orders that gave money back which no 折讓 relieves and
+// nothing is filing: a return refunded after shipment, whose allowance staff
+// file from the order page, or a refund before shipment or of unsent units
+// whose own filing failed or found no 加值中心. The amount is
+// claim_invoice_allowance's, so the row lists what the order page's button
+// would file: whole dollars of order_refunds capped at the invoice, less every
+// allowance not voided. One with an operation still active is on the
+// stranded-claims list instead, and a cancelled order's on
+// CancelledOrderInvoices. Owed since the later of the invoice and the last
+// money that went back, so a new refund on an order whose earlier ones were
+// relieved gets the whole margin.
+func (q *Queries) UnrelievedRefunds(ctx context.Context, olderThan pgtype.Interval) ([]UnrelievedRefundsRow, error) {
+	rows, err := q.db.Query(ctx, unrelievedRefunds, olderThan)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []UnrelievedRefundsRow{}
+	for rows.Next() {
+		var i UnrelievedRefundsRow
+		if err := rows.Scan(
+			&i.OrderNumber,
+			&i.Number,
+			&i.AmountCents,
+			&i.Since,
+			&i.Total,
+			&i.OldestSeconds,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const unsentRefundFrozen = `-- name: UnsentRefundFrozen :one
 SELECT (coalesce(goods_refund_cents, 0) + coalesce(shipping_refund_cents, 0))::bigint AS refund_cents,
        coalesce(card_refund_cents, 0)::bigint AS card_cents,

@@ -12,7 +12,8 @@
 -- settle_invoice_issue accepts only a number shaped like a real one
 -- (^[A-Z]{2}[0-9]{8}$). A void, an allowance or a refund started from /admin
 -- on a seeded order therefore fails at the provider's sandbox, through goen's
--- usual failure path. Seeded returns carry no 折讓.
+-- usual failure path. Each refunded return carries the 折讓 staff file for it,
+-- numbered on the same made-up track, or /admin/health would list every one.
 --
 -- Run once, as a superuser, while goen is stopped (its sweeper would cancel
 -- the unpaid orders before this script does), on a database built by
@@ -750,17 +751,28 @@ $$;
 
 -- Approval and payout, in admin/returns' and admin/refunds' order: the
 -- decision, the card refund or the credit, the refunded event, the points
--- clawback.
-CREATE PROCEDURE pg_temp.demo_refund(p_n integer)
+-- clawback. Then the 折讓 for what went back, as staff file it from the order
+-- page, which the buyer agrees to online at the step's simulated moment
+-- (p_at): claimed, sent and settled the way the invoice worker settles one.
+CREATE PROCEDURE pg_temp.demo_refund(p_n integer, p_at timestamptz)
 LANGUAGE plpgsql AS $$
 DECLARE
     v_ord pg_temp.demo_order;
     v_staff uuid := (SELECT staff FROM pg_temp.demo_window);
     v_request text := 'demo-history-' || p_n;
+    v_worker uuid := gen_random_uuid();
     v_card bigint;
     v_credit bigint;
     v_refundable bigint;
     v_refund uuid;
+    v_invoice uuid;
+    v_owed numeric;
+    v_allowance uuid;
+    v_email text;
+    v_descriptions text[];
+    v_quantities integer[];
+    v_unit_prices bigint[];
+    v_amounts bigint[];
 BEGIN
     SELECT * INTO v_ord FROM pg_temp.demo_order WHERE n = p_n;
     IF v_ord.return_id IS NULL THEN
@@ -794,6 +806,36 @@ BEGIN
     WHERE rr.id = v_ord.return_id;
     IF v_refundable > 0 THEN
         PERFORM reverse_return_points(v_ord.return_id);
+    END IF;
+    -- claim_invoice_allowance refuses a claim with no whole dollar to relieve.
+    SELECT d.id, floor(least(d.amount_cents::numeric, r.card_cents::numeric + r.credit_cents::numeric) / 100) * 100
+    INTO v_invoice, v_owed
+    FROM invoice_documents d
+    JOIN order_refunds r ON r.order_id = d.order_id
+    WHERE d.order_id = v_ord.order_id AND d.kind = 'invoice' AND d.status = 'issued';
+    IF v_owed > 0 THEN
+        v_allowance := claim_invoice_allowance(v_invoice, uuidv7(), v_staff, v_request || ':allowance');
+        IF lease_invoice_operation(v_allowance, v_worker, interval '5 minutes') <> v_allowance
+           OR NOT mark_invoice_operation_sent(v_allowance, v_worker) THEN
+            RAISE EXCEPTION 'allowance % of % could not be leased and sent', v_allowance, v_ord.order_number;
+        END IF;
+        SELECT op.request_payload ->> 'email',
+               array_agg(t.item ->> 'description' ORDER BY t.pos),
+               array_agg((t.item ->> 'quantity')::integer ORDER BY t.pos),
+               array_agg((t.item ->> 'unit_price_cents')::bigint ORDER BY t.pos),
+               array_agg((t.item ->> 'amount_cents')::bigint ORDER BY t.pos)
+        INTO v_email, v_descriptions, v_quantities, v_unit_prices, v_amounts
+        FROM invoice_operations op
+        CROSS JOIN LATERAL jsonb_array_elements(op.request_payload -> 'lines') WITH ORDINALITY AS t(item, pos)
+        WHERE op.id = v_allowance
+        GROUP BY op.request_payload;
+        IF settle_invoice_allowance(v_allowance, v_worker, lpad(p_n::text, 16, '0'), now(),
+               v_descriptions, v_quantities, v_unit_prices, v_amounts,
+               jsonb_build_object('agreed_at', to_char(p_at AT TIME ZONE 'Asia/Taipei', 'YYYY-MM-DD HH24:MI:SS'),
+                                  'ip', '192.0.2.1', 'email', v_email))
+           = '00000000-0000-0000-0000-000000000000' THEN
+            RAISE EXCEPTION 'allowance % of % was not settled', v_allowance, v_ord.order_number;
+        END IF;
     END IF;
     SET CONSTRAINTS ALL IMMEDIATE;
     RESET ROLE;
@@ -875,7 +917,7 @@ BEGIN
             WHEN 'lapse' THEN CALL pg_temp.demo_lapse(v_event.n);
             WHEN 'shipped' THEN CALL pg_temp.demo_ship(v_event.n);
             WHEN 'return' THEN CALL pg_temp.demo_return(v_event.n);
-            WHEN 'refund' THEN CALL pg_temp.demo_refund(v_event.n);
+            WHEN 'refund' THEN CALL pg_temp.demo_refund(v_event.n, v_event.happens_at);
             WHEN 'receive' THEN CALL pg_temp.demo_receive(v_event.n);
             ELSE CALL pg_temp.demo_advance(v_event.n, v_event.kind);
         END CASE;

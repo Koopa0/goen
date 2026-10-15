@@ -51,7 +51,7 @@ To give your own copy 90 days of past orders, run this once, with goen stopped, 
 psql "$GOEN_DATABASE_URL" -X -v ON_ERROR_STOP=1 -v demo_database=<its name> -f seed/demo_history.sql
 ```
 
-Stripe and ECPay never saw those orders, so refunding one, voiding its invoice or issuing an allowance from the back office fails at their sandbox, like any request they reject. The seeded returns come without an allowance (折讓), and their invoice numbers use a made-up DM track, since goen accepts only numbers shaped like a real 統一發票 number.
+Stripe and ECPay never saw those orders, so refunding one, voiding its invoice or issuing an allowance from the back office fails at their sandbox, like any request they reject. Their invoice numbers use a made-up DM track, since goen accepts only numbers shaped like a real 統一發票 number, and each refunded return carries the allowance (折讓) staff would have filed for it, numbered the same way.
 
 If you keep that database as a snapshot and restore it on a later day, its history no longer ends yesterday. After each restore, before goen starts, move it to today by naming the day the snapshot was taken. That day must be the database's own date, which the script reads from the seed's shipping rates: they take effect from midnight of the day the history ran, and every run moves them along. Any other day is refused, so a second run on the same restore, or on a snapshot taken on a later day than its date, changes nothing:
 
