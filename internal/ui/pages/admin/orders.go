@@ -3,7 +3,6 @@ package admin
 import (
 	"context"
 	"fmt"
-	"slices"
 	"strconv"
 	"time"
 
@@ -60,89 +59,6 @@ type StatusTab struct {
 }
 
 func (t StatusTab) CountText() string { return strconv.FormatInt(t.Count, 10) }
-
-// DashboardView lists the newest orders in Recent whatever their state: filtering it
-// to one state would answer what the tiles above already answer, and hide the order
-// somebody walked over to ask about.
-type DashboardView struct {
-	PendingOrders int64
-	ReadyOrders   int64
-	// ReadyOldestSeconds and the other *OldestSeconds are how long the oldest
-	// waiting item has waited, on the database's clock.
-	ReadyOldestSeconds        int64
-	PickingOrders             int64
-	PickingOldestSeconds      int64
-	SoldOut                   int64
-	OpenMessages              int64
-	OpenMessagesOldestSeconds int64
-	// PendingReturns is the requests nobody has decided, UninspectedReturns the
-	// approved ones whose parcel nobody has opened.
-	PendingReturns                   int64
-	PendingReturnsOldestSeconds      int64
-	UninspectedReturns               int64
-	UninspectedReturnsOldestSeconds  int64
-	UnansweredQuestions              int64
-	UnansweredQuestionsOldestSeconds int64
-	Recent                           []OrderRow
-	// Runway is the first days cover rows of SKUs expected to run out within
-	// the warning line, RunwayCut says more were left off and RunwayBasis what
-	// an empty list can say.
-	Runway      []StockRisk
-	RunwayCut   bool
-	RunwayBasis RunwayBasis
-	// Tasks is the work that waits for a person, in the order it is listed.
-	Tasks []Task
-	// HealthUnavailable is set when the health desk could not be read, so an
-	// absent payment or invoice task is not taken for "nothing to check".
-	HealthUnavailable bool
-	// Week is the last seven days; WeekUnavailable says it could not be read,
-	// which is not the same as a week without orders. Likewise Latest, nil when
-	// no order was ever paid, and LatestUnavailable.
-	Week              Week
-	WeekUnavailable   bool
-	Latest            *LatestPaid
-	LatestUnavailable bool
-}
-
-// Task is one kind of work that waits for a person: what it is, how much of
-// it, and where it is done.
-type Task struct {
-	Label i18n.Key
-	Count int64
-	Href  string
-	// HasAge is false for work with no start time to measure from.
-	HasAge     bool
-	AgeSeconds int64
-	// Alert marks work that is wrong rather than merely waiting.
-	Alert bool
-}
-
-const secondsPerDay = 24 * 60 * 60
-
-// AgeText says how long the oldest item has waited, in whole days.
-func (t Task) AgeText(ctx context.Context) string {
-	days := t.AgeSeconds / secondsPerDay
-	if days < 1 {
-		return i18n.T(ctx, i18n.KeyAdminQueueTaskUnderADay)
-	}
-	return i18n.Count(ctx, i18n.KeyAdminQueueTaskOldestDays, days, days)
-}
-
-// DeskTasks lists what the order desk itself counts, leaving out each kind with
-// nothing waiting.
-func (v *DashboardView) DeskTasks() []Task {
-	all := []Task{
-		{Label: i18n.KeyAdminStatusReadyToPick, Count: v.ReadyOrders, Href: "/admin/orders?status=ready", HasAge: true, AgeSeconds: v.ReadyOldestSeconds},
-		{Label: i18n.KeyAdminStatusPicking, Count: v.PickingOrders, Href: "/admin/orders?status=picking", HasAge: true, AgeSeconds: v.PickingOldestSeconds},
-		{Label: i18n.KeyAdminQueueStatPending, Count: v.PendingOrders, Href: "/admin/orders?status=pending"},
-		{Label: i18n.KeyAdminQueueStatReturns, Count: v.PendingReturns, Href: "/admin/returns", HasAge: true, AgeSeconds: v.PendingReturnsOldestSeconds},
-		{Label: i18n.KeyAdminQueueTaskUninspected, Count: v.UninspectedReturns, Href: "/admin/returns", HasAge: true, AgeSeconds: v.UninspectedReturnsOldestSeconds},
-		{Label: i18n.KeyAdminQueueStatQuestions, Count: v.UnansweredQuestions, Href: "/admin/questions", HasAge: true, AgeSeconds: v.UnansweredQuestionsOldestSeconds},
-		{Label: i18n.KeyAdminQueueStatMessages, Count: v.OpenMessages, Href: "/admin/messages", HasAge: true, AgeSeconds: v.OpenMessagesOldestSeconds},
-		{Label: i18n.KeyAdminQueueStatSoldOut, Count: v.SoldOut, Href: "/admin/reports#stock"},
-	}
-	return slices.DeleteFunc(all, func(t Task) bool { return t.Count == 0 })
-}
 
 type OrdersView struct {
 	keyset.Bound
@@ -575,10 +491,6 @@ func (v *OrderView) HasCustomerNote() bool { return v.CustomerNote != "" }
 func (v *OrderView) MailKeptText(ctx context.Context) string {
 	days := int(v.MailKept.Hours() / 24)
 	return fmt.Sprintf(i18n.T(ctx, i18n.KeyAdminTimelineMailKept), i18n.Count(ctx, i18n.KeyAdminDays, int64(days), days))
-}
-
-func Meta(ctx context.Context) layouts.Page {
-	return layouts.Page{Title: i18n.T(ctx, i18n.KeyAdminPageDashboard)}
 }
 
 func OrdersMeta(ctx context.Context) layouts.Page {
