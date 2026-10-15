@@ -87,6 +87,29 @@ func baseTokens(t *testing.T, decl *regexp.Regexp, prefix string) map[string]str
 	return tokens
 }
 
+// aliasTokens reads the tokens base.css declares as var(--other), by name.
+func aliasTokens(t *testing.T) map[string]string {
+	t.Helper()
+	base, err := fs.ReadFile(files, BaseCSS)
+	if err != nil {
+		t.Fatalf("read %s: %v", BaseCSS, err)
+	}
+	links := make(map[string]string)
+	for _, m := range regexp.MustCompile(`(--[a-z0-9-]+):\s*var\((--[a-z0-9-]+)\);`).FindAllStringSubmatch(string(base), -1) {
+		links[m[1]] = m[2]
+	}
+	return links
+}
+
+// resolve follows name through the aliases to the hex colour it ends at, or
+// returns "" when it ends nowhere.
+func resolve(name string, tokens, links map[string]string) string {
+	for i := 0; tokens[name] == "" && i < len(links); i++ {
+		name = links[name]
+	}
+	return tokens[name]
+}
+
 // TestTextTokensReadOnTheGroundsTheyAreUsedOn holds the contrast of the text
 // colours against the grounds a page paints. A palette is edited a value at a
 // time, and a pale grey that looks fine beside its neighbours fails a reader
@@ -222,6 +245,28 @@ var toneBlock = regexp.MustCompile(`(?ms)^\[data-tone="([a-z]+)"\]\s*\{(.*?)\}`)
 // or a var() naming a token.
 var toneDecl = regexp.MustCompile(`(--tone-[a-z]+):\s*(#[0-9a-fA-F]{6}|var\((--[a-z0-9-]+)\));`)
 
+// toneBlocks reads each tone's declarations from the storefront sheet as hex
+// colours, a var() resolved through tokens.
+func toneBlocks(t *testing.T, sheet string, tokens map[string]string) map[string]map[string]string {
+	t.Helper()
+	blocks := make(map[string]map[string]string)
+	for _, m := range toneBlock.FindAllStringSubmatch(sheet, -1) {
+		if _, dup := blocks[m[1]]; dup {
+			t.Errorf("%s declares data-tone=%q twice", AppCSS, m[1])
+		}
+		decls := make(map[string]string)
+		for _, d := range toneDecl.FindAllStringSubmatch(m[2], -1) {
+			if d[3] != "" {
+				decls[d[1]] = tokens[d[3]]
+			} else {
+				decls[d[1]] = strings.TrimPrefix(d[2], "#")
+			}
+		}
+		blocks[m[1]] = decls
+	}
+	return blocks
+}
+
 // A contrast guarantee is useful only for a colour the stylesheet draws.
 func TestEveryDeclaredToneColourHasAConsumer(t *testing.T) {
 	t.Parallel()
@@ -345,21 +390,7 @@ func TestEveryToneGroundHoldsItsText(t *testing.T) {
 		}
 	}
 
-	blocks := make(map[string]map[string]string)
-	for _, m := range toneBlock.FindAllStringSubmatch(string(sheet), -1) {
-		if _, dup := blocks[m[1]]; dup {
-			t.Errorf("%s declares data-tone=%q twice", AppCSS, m[1])
-		}
-		decls := make(map[string]string)
-		for _, d := range toneDecl.FindAllStringSubmatch(m[2], -1) {
-			if d[3] != "" {
-				decls[d[1]] = tokens[d[3]]
-			} else {
-				decls[d[1]] = strings.TrimPrefix(d[2], "#")
-			}
-		}
-		blocks[m[1]] = decls
-	}
+	blocks := toneBlocks(t, string(sheet), tokens)
 	if len(blocks) != len(toneNames) {
 		t.Errorf("%s has %d data-tone blocks, want the %d of the closed set", AppCSS, len(blocks), len(toneNames))
 	}
@@ -608,15 +639,7 @@ func TestPromoIsDeclaredOnlyForThePromotionStrip(t *testing.T) {
 func TestInvalidAndReadOnlyFieldBoundariesHoldContrast(t *testing.T) {
 	t.Parallel()
 	tokens := hexTokens(t)
-	base, err := fs.ReadFile(files, BaseCSS)
-	if err != nil {
-		t.Fatalf("read %s: %v", BaseCSS, err)
-	}
-	aliases := regexp.MustCompile(`(--[a-z0-9-]+):\s*var\((--[a-z0-9-]+)\);`)
-	links := make(map[string]string)
-	for _, m := range aliases.FindAllStringSubmatch(string(base), -1) {
-		links[m[1]] = m[2]
-	}
+	links := aliasTokens(t)
 	for _, state := range []struct{ sheet, name, rule string }{
 		{AppCSS, "storefront invalid", `(?s)\.goen-input--invalid,\s*\.goen-input\[aria-invalid='true'\]\s*\{[^}]*?(?:border|outline)-color:\s*var\((--[a-z0-9-]+)\)`},
 		{AdminCSS, "admin invalid", `(?s)\.goen-input--invalid,\s*\.goen-input\[aria-invalid='true'\]\s*\{[^}]*?(?:border|outline)-color:\s*var\((--[a-z0-9-]+)\)`},
@@ -630,18 +653,120 @@ func TestInvalidAndReadOnlyFieldBoundariesHoldContrast(t *testing.T) {
 		if match == nil {
 			t.Fatalf("%s has no boundary colour rule", state.name)
 		}
-		name := match[1]
-		for i := 0; tokens[name] == "" && i < len(links); i++ {
-			name = links[name]
-		}
-		if tokens[name] == "" {
+		colour := resolve(match[1], tokens, links)
+		if colour == "" {
 			t.Fatalf("%s: cannot resolve %s to a hex colour", state.name, match[1])
 		}
 		for _, ground := range []string{"--n-0", "--n-50"} {
-			got := contrast(tokens[name], tokens[ground])
+			got := contrast(colour, tokens[ground])
 			if math.IsNaN(got) || got < 3 {
-				t.Errorf("%s %s (#%s) on %s (#%s) = %.2f:1, want at least 3:1", state.name, match[1], tokens[name], ground, tokens[ground], got)
+				t.Errorf("%s %s (#%s) on %s (#%s) = %.2f:1, want at least 3:1", state.name, match[1], colour, ground, tokens[ground], got)
 			}
 		}
+	}
+}
+
+// cssComment is stripped before selectors are read, so a comment above a rule
+// is not taken for part of its selector.
+var cssComment = regexp.MustCompile(`(?s)/\*.*?\*/`)
+
+// A shelf price is one token, --price, an alias of the ink blue, and it is held
+// to 4.5:1 on every ground a shelf price sits on. The ink band is the one
+// ground the blue fails on, so it alone re-points the token to the tone's own
+// text colour, and no other rule may declare it: a bare [data-tone="ink"] would
+// white-out the price on the light grounds that carry the tone as data.
+func TestShelfPricesReadOnTheirGrounds(t *testing.T) {
+	t.Parallel()
+
+	tokens := hexTokens(t)
+	links := aliasTokens(t)
+	price := resolve("--price", tokens, links)
+	if price == "" {
+		t.Fatalf("%s does not declare --price as an alias of a hex colour", BaseCSS)
+	}
+
+	app, err := fs.ReadFile(files, AppCSS)
+	if err != nil {
+		t.Fatalf("read %s: %v", AppCSS, err)
+	}
+	sheet := cssComment.ReplaceAllString(string(app), "")
+	tones := toneBlocks(t, sheet, tokens)
+
+	grounds := map[string]string{}
+	for _, name := range []string{"--n-0", "--n-50", "--wash", "--well"} {
+		grounds[name] = tokens[name]
+	}
+	for _, name := range toneNames {
+		if name != "ink" {
+			grounds["the "+name+" tone"] = tones[name]["--tone-ground"]
+		}
+	}
+	for name, ground := range grounds {
+		if got := contrast(price, ground); math.IsNaN(got) || got < 4.5 {
+			t.Errorf("--price (#%s) on %s (#%s) = %.2f:1, want at least 4.5:1", price, name, ground, got)
+		}
+	}
+
+	// Only the ink band re-points it, to a colour that reads on the ink ground.
+	var declared []string
+	for _, rule := range regexp.MustCompile(`([^{}]*)\{([^{}]*)\}`).FindAllStringSubmatch(sheet, -1) {
+		if regexp.MustCompile(`--price\s*:`).MatchString(rule[2]) {
+			declared = append(declared, strings.TrimSpace(rule[1]))
+		}
+	}
+	const inkBand = `.goen-band[data-tone="ink"]`
+	if len(declared) != 1 || declared[0] != inkBand {
+		t.Fatalf("%s declares --price in %q, want only in %s", AppCSS, declared, inkBand)
+	}
+	override := regexp.MustCompile(`(?s)` + regexp.QuoteMeta(inkBand) + `\s*\{\s*--price:\s*var\((--tone-[a-z]+)\);\s*\}`).FindStringSubmatch(sheet)
+	if override == nil {
+		t.Fatalf("%s: the ink band does not point --price at a tone colour", AppCSS)
+	}
+	ink := tones["ink"]
+	if got := contrast(ink[override[1]], ink["--tone-ground"]); math.IsNaN(got) || got < 4.5 {
+		t.Errorf("--price on the ink band is %s (#%s) on the ink ground (#%s) = %.2f:1, want at least 4.5:1",
+			override[1], ink[override[1]], ink["--tone-ground"], got)
+	}
+
+	for _, sheetName := range []string{BaseCSS, AdminCSS} {
+		body, err := fs.ReadFile(files, sheetName)
+		if err != nil {
+			t.Fatalf("read %s: %v", sheetName, err)
+		}
+		want := 0
+		if sheetName == BaseCSS {
+			want = 1
+		}
+		if got := len(regexp.MustCompile(`(?m)^\s*--price\s*:`).FindAll(body, -1)); got != want {
+			t.Errorf("%s declares --price %d times, want %d", sheetName, got, want)
+		}
+	}
+
+	// The shelf, the product page, the buy bar and the department's picks read
+	// the token, and nothing in the band takes the price back to the tone's text.
+	for _, class := range []string{"goen-tile__price", "goen-pdp__price", "goen-buybar__price", "goen-dept__price"} {
+		if !regexp.MustCompile(`(?s)\.` + class + ` \{[^{}]*\bcolor: var\(--price\);`).MatchString(sheet) {
+			t.Errorf("%s: .%s does not take color: var(--price)", AppCSS, class)
+		}
+	}
+	if regexp.MustCompile(`\.goen-band [^{}]*\.goen-tile__price[^{}]*\{[^{}]*color: var\(--tone-text\)`).MatchString(sheet) {
+		t.Errorf("%s: a band rule sets a tile price to --tone-text, which on a light tone hides the blue", AppCSS)
+	}
+
+	// A sold-out price steps back to grey: --n-500 on white, and on a band the
+	// tone's muted colour, because --n-500 is under 4.5:1 on four of the five
+	// light tones.
+	out := regexp.MustCompile(`(?ms)^\.goen-tile--out \.goen-tile__price \{\s*color: var\((--[a-z0-9-]+)\);`).FindStringSubmatch(sheet)
+	if out == nil {
+		t.Fatalf("%s has no sold-out price rule", AppCSS)
+	}
+	grey := resolve(out[1], tokens, links)
+	for _, name := range []string{"--n-0", "--n-50", "--wash", "--well"} {
+		if got := contrast(grey, tokens[name]); math.IsNaN(got) || got < 4.5 {
+			t.Errorf("a sold-out price %s (#%s) on %s (#%s) = %.2f:1, want at least 4.5:1", out[1], grey, name, tokens[name], got)
+		}
+	}
+	if !regexp.MustCompile(`(?s)\.goen-band \.goen-tile--out \.goen-tile__price \{\s*color: var\(--tone-muted\);`).MatchString(sheet) {
+		t.Errorf("%s: a sold-out price on a band does not take the tone's muted colour", AppCSS)
 	}
 }
