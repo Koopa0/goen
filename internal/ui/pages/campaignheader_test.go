@@ -6,6 +6,7 @@ import (
 
 	"github.com/koopa0/goen/assets"
 	"github.com/koopa0/goen/internal/i18n"
+	"github.com/koopa0/goen/internal/ui/components"
 	"github.com/koopa0/goen/internal/ui/layouts"
 )
 
@@ -16,7 +17,7 @@ func TestCampaignPageShowsItsHeaderOnlyWhenItHasOne(t *testing.T) {
 	ctx := i18n.WithLocale(t.Context(), i18n.En)
 	with := renderComponent(t, ctx, Campaign(layouts.Page{Title: "c"}, CampaignView{
 		Slug: "c", Title: "Sale",
-		Image: Photo{
+		Image: components.Photo{
 			URL: assets.ProductImageURL(seedBanner), Srcset: assets.ProductImageSrcsetAt(seedBanner, 1600),
 			Alt: "Products on sale",
 		},

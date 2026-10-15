@@ -11,6 +11,7 @@ import (
 	"github.com/koopa0/goen/assets"
 	"github.com/koopa0/goen/internal/db"
 	"github.com/koopa0/goen/internal/i18n"
+	"github.com/koopa0/goen/internal/ui/components"
 	"github.com/koopa0/goen/internal/ui/pages"
 )
 
@@ -106,7 +107,7 @@ func (s *Store) colourStory(ctx context.Context, slug string) (*pages.ColourStor
 		r := &rows[i]
 		story.Plates = append(story.Plates, pages.ColourPlate{
 			Colour: r.Colour, Swatch: r.Swatch,
-			Image: pages.Photo{
+			Image: components.Photo{
 				URL:    assets.ProductImageURL(r.ImageKey),
 				Srcset: assets.ProductImageSrcsetAt(r.ImageKey, int(r.ImageWidth)),
 				Alt:    r.ImageAlt,

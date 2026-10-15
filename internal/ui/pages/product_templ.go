@@ -793,7 +793,7 @@ func productBand(v *ProductView) templ.Component {
 				return templ_7745c5c3_Err
 			}
 			if hasPhoto {
-				templ_7745c5c3_Err = bandMedia("goen-band__photo", "", Photo{URL: photo.URL, Srcset: photo.Srcset, Alt: photo.Alt}, true, "(min-width: 1024px) 42vw, 100vw", true).Render(ctx, templ_7745c5c3_Buffer)
+				templ_7745c5c3_Err = bandMedia("goen-band__photo", "", components.Photo{URL: photo.URL, Srcset: photo.Srcset, Alt: photo.Alt}, true, "(min-width: 1024px) 42vw, 100vw", true).Render(ctx, templ_7745c5c3_Buffer)
 				if templ_7745c5c3_Err != nil {
 					return templ_7745c5c3_Err
 				}

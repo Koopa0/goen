@@ -110,7 +110,7 @@ func campaignRow(firstPhotoWidth int32, tiles int) ProductRow {
 	return ProductRow{
 		Title: "秋日選物", Href: "/s/autumn", Tiles: shelf,
 		Campaign: &RowCampaign{
-			Tone: ToneSage, Items: 6,
+			Tone: components.ToneSage, Items: 6,
 			Facts:     []components.Stat{{Label: "商品", Value: components.StatCount(6, "件")}},
 			CardFacts: []components.Stat{{Label: "結束", Value: components.StatCount(3, "天")}},
 			Period:    &components.PeriodSpec{Cells: []components.PeriodCell{{}, {}}, Description: "兩天"},

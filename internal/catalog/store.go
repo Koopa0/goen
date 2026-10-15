@@ -12,6 +12,7 @@ import (
 	"github.com/koopa0/goen/assets"
 	"github.com/koopa0/goen/internal/db"
 	"github.com/koopa0/goen/internal/i18n"
+	"github.com/koopa0/goen/internal/ui/components"
 	"github.com/koopa0/goen/internal/ui/pages"
 )
 
@@ -165,9 +166,9 @@ func (s *Store) listing(ctx context.Context, slug string, f Filters) (pages.List
 		Crumbs: trail,
 		Theme: &pages.Theme{
 			Children:   childCrumbs(children),
-			Tone:       pages.ResolveTone(cat.Tone),
+			Tone:       components.ResolveTone(cat.Tone),
 			Comparable: offers[cat.ID],
-			Photo: pages.Photo{
+			Photo: components.Photo{
 				URL:    assets.ProductImageURL(cat.ImageKey),
 				Srcset: assets.ProductImageSrcsetAt(cat.ImageKey, int(cat.ImageWidth)),
 				Alt:    cat.ImageAlt,

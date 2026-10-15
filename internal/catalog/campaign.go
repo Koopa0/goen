@@ -11,6 +11,7 @@ import (
 
 	"github.com/koopa0/goen/internal/db"
 	"github.com/koopa0/goen/internal/i18n"
+	"github.com/koopa0/goen/internal/ui/components"
 	"github.com/koopa0/goen/internal/ui/pages"
 )
 
@@ -40,12 +41,12 @@ func (s *Store) Campaign(ctx context.Context, slug string) (pages.CampaignView, 
 		Title:    c.Title,
 		Schedule: pages.NewCampaignSchedule(ctx, c.Title, int64(len(rows)), c.StartsAt, c.EndsAt, s.now()),
 		Products: campaignTiles(rows),
-		Image: pages.Photo{
+		Image: components.Photo{
 			URL:    assets.ProductImageURL(c.ImageKey),
 			Srcset: assets.ProductImageSrcsetAt(c.ImageKey, int(c.ImageWidth)),
 			Alt:    c.ImageAlt,
 		},
-		Tone: pages.ResolveTone(c.Tone),
+		Tone: components.ResolveTone(c.Tone),
 	}, nil
 }
 

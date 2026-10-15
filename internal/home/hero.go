@@ -32,7 +32,7 @@ func (s *Store) slides(ctx context.Context, src carouselSources) ([]pages.HeroSl
 			ID:     r.ID.String(),
 			Source: pages.SlideScheduled,
 			Layout: pages.SlidePhoto,
-			Tone:   pages.ToneStone,
+			Tone:   components.ToneStone,
 			Title:  r.Headline,
 			Fact:   r.Body,
 		}
@@ -44,7 +44,7 @@ func (s *Store) slides(ctx context.Context, src carouselSources) ([]pages.HeroSl
 			slide.Tone = src.toneOf(href)
 		}
 		if key := r.ImageKey.String; key != "" {
-			slide.Photo = pages.Photo{
+			slide.Photo = components.Photo{
 				URL:    assets.MediaURL(key),
 				Srcset: assets.ProductImageSrcsetAt(key, int(r.ImageWidth)),
 				Alt:    r.ImageAlt,
@@ -62,7 +62,7 @@ func (s *Store) slides(ctx context.Context, src carouselSources) ([]pages.HeroSl
 		slide := pages.HeroSlide{
 			Source: pages.SlideCampaign,
 			Layout: pages.SlidePhoto,
-			Tone:   pages.ResolveTone(c.Tone),
+			Tone:   components.ResolveTone(c.Tone),
 			Title:  c.Title,
 			Stats:  s.campaignStats(ctx, c),
 			CTA:    pages.CTA{Label: i18n.T(ctx, i18n.KeyHeroCampaignCTA), Href: "/s/" + c.Slug},
@@ -71,7 +71,7 @@ func (s *Store) slides(ctx context.Context, src carouselSources) ([]pages.HeroSl
 			slide.Period = &period
 		}
 		if c.ImageKey != "" {
-			slide.Photo = pages.Photo{
+			slide.Photo = components.Photo{
 				URL:    assets.ProductImageURL(c.ImageKey),
 				Srcset: assets.ProductImageSrcsetAt(c.ImageKey, int(c.ImageWidth)),
 				Alt:    c.ImageAlt,
@@ -96,7 +96,7 @@ func (s *Store) slides(ctx context.Context, src carouselSources) ([]pages.HeroSl
 		out = append(out, pages.HeroSlide{
 			Source:     pages.SlideDepartment,
 			Layout:     pages.SlideSplit,
-			Tone:       pages.ResolveTone(c.Tone),
+			Tone:       components.ResolveTone(c.Tone),
 			Photo:      photo,
 			PhotoWidth: 1600, PhotoHeight: 1200,
 			Title: c.Name,
@@ -119,12 +119,12 @@ func (s *Store) campaignSchedule(ctx context.Context, c *db.ListedCampaignsRow) 
 	return pages.NewCampaignSchedule(ctx, c.Title, c.Products, c.StartsAt, c.EndsAt, s.now())
 }
 
-func departmentPhoto(c *db.RootCategoriesRow) pages.Photo {
+func departmentPhoto(c *db.RootCategoriesRow) components.Photo {
 	url := assets.ProductImageURL(c.ImageKey)
 	if url == "" {
-		return pages.Photo{}
+		return components.Photo{}
 	}
-	return pages.Photo{
+	return components.Photo{
 		URL:    url,
 		Srcset: assets.ProductImageSrcsetAt(c.ImageKey, int(c.ImageWidth)),
 		Alt:    c.ImageAlt,
@@ -133,16 +133,16 @@ func departmentPhoto(c *db.RootCategoriesRow) pages.Photo {
 
 // toneOf is the tone of the campaign or department a link goes to; any other
 // link, and a link to nothing the shop has, is stone.
-func (src carouselSources) toneOf(href string) pages.Tone {
+func (src carouselSources) toneOf(href string) components.Tone {
 	for i := range src.camps {
 		if href == "/s/"+src.camps[i].Slug {
-			return pages.ResolveTone(src.camps[i].Tone)
+			return components.ResolveTone(src.camps[i].Tone)
 		}
 	}
 	for i := range src.cats {
 		if href == "/c/"+src.cats[i].Slug {
-			return pages.ResolveTone(src.cats[i].Tone)
+			return components.ResolveTone(src.cats[i].Tone)
 		}
 	}
-	return pages.ToneStone
+	return components.ToneStone
 }

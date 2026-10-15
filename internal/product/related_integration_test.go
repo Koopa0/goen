@@ -9,7 +9,7 @@ import (
 	"github.com/google/uuid"
 
 	"github.com/koopa0/goen/internal/product"
-	"github.com/koopa0/goen/internal/ui/pages"
+	"github.com/koopa0/goen/internal/ui/components"
 )
 
 const departmentOf = `
@@ -102,7 +102,7 @@ func TestAProductLoadsItsDepartmentsTone(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if view.Tone != pages.ToneMist {
-		t.Errorf("a product under tech/audio loads tone %q, want %q", view.Tone, pages.ToneMist)
+	if view.Tone != components.ToneMist {
+		t.Errorf("a product under tech/audio loads tone %q, want %q", view.Tone, components.ToneMist)
 	}
 }

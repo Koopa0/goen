@@ -125,7 +125,7 @@ func ListingMeta(ctx context.Context, v ListingView) layouts.Page {
 	return layouts.Page{
 		Title: v.Name,
 		Nav:   v.RootSlug(),
-		Share: v.Theme.Image().share(v.Name),
+		Share: shareImage(v.Theme.Image(), v.Name),
 	}
 }
 

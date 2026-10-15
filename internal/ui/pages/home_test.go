@@ -8,6 +8,7 @@ import (
 	"golang.org/x/net/html"
 
 	"github.com/koopa0/goen/internal/i18n"
+	"github.com/koopa0/goen/internal/ui/components"
 )
 
 // A screen reader says the role description of the hero and of each slide aloud
@@ -16,8 +17,8 @@ import (
 func TestTheHeroIsDescribedToAScreenReaderInThePagesLanguage(t *testing.T) {
 	t.Parallel()
 	slides := []HeroSlide{
-		{Layout: SlideSplit, Tone: ToneMist, Title: "One"},
-		{Layout: SlideSplit, Tone: ToneMist, Title: "Two"},
+		{Layout: SlideSplit, Tone: components.ToneMist, Title: "One"},
+		{Layout: SlideSplit, Tone: components.ToneMist, Title: "Two"},
 	}
 	described := map[i18n.Locale]map[string]bool{}
 	for _, locale := range i18n.Locales() {

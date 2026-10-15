@@ -1,11 +1,9 @@
-package pages
+package components
 
 import (
 	"context"
-	"strconv"
 
 	"github.com/koopa0/goen/internal/i18n"
-	"github.com/koopa0/goen/internal/ui/layouts"
 )
 
 // Tone is a closed set that categories.tone and sale_campaigns.tone check, and
@@ -47,55 +45,7 @@ func ResolveTone(s string) Tone {
 	return ToneStone
 }
 
-// Photo has an empty URL when there is no photograph.
-type Photo struct {
-	URL    string
-	Srcset string
-	Alt    string
-}
-
-func (p Photo) Shown() bool { return p.URL != "" }
-
-// The pixel size is not known here, so the tags leave it out.
-func (p Photo) share(fallbackAlt string) layouts.ShareImage {
-	if !p.Shown() {
-		return layouts.ShareImage{}
-	}
-	alt := p.Alt
-	if alt == "" {
-		alt = fallbackAlt
-	}
-	return layouts.ShareImage{Path: p.URL, Alt: alt}
-}
-
 func (t Tone) Attr() string { return string(ResolveTone(string(t))) }
-
-// Theme is what a sub-category page wears: its department's.
-type Theme struct {
-	Tone     Tone
-	Photo    Photo
-	Children []Crumb
-	// Comparable is the department's answer to whether its products are put side by side.
-	Comparable bool
-}
-
-func (t *Theme) ToneAttr() string {
-	if t == nil {
-		return string(ToneStone)
-	}
-	return t.Tone.Attr()
-}
-
-func (t *Theme) ComparableAttr() string {
-	return strconv.FormatBool(t != nil && t.Comparable)
-}
-
-func (t *Theme) Image() Photo {
-	if t == nil {
-		return Photo{}
-	}
-	return t.Photo
-}
 
 func (t Tone) Label(ctx context.Context) string {
 	switch t {
