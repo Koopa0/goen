@@ -5,13 +5,11 @@ import (
 	"testing"
 
 	"github.com/google/go-cmp/cmp"
-
-	"github.com/koopa0/goen/internal/ui/pages"
 )
 
 func TestWarrantyConfirmationSelectsTheRegisteredUnit(t *testing.T) {
 	t.Parallel()
-	rows := []pages.Warranty{
+	rows := []Warranty{
 		{LineID: "line-a", Unit: 1, Name: "Phone", Serial: "SN-FIRST"},
 		{LineID: "line-a", Unit: 2, Name: "Phone", Serial: "SN-SECOND"},
 		{LineID: "line-b", Unit: 2, Name: "Tablet", Serial: "SN-TABLET"},
@@ -19,7 +17,7 @@ func TestWarrantyConfirmationSelectsTheRegisteredUnit(t *testing.T) {
 	}
 	for _, tt := range []struct {
 		name, query string
-		want        *pages.Warranty
+		want        *Warranty
 	}{
 		{name: "no query"},
 		{name: "unbound success", query: "?ok=1"},

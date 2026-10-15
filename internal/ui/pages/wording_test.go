@@ -7,6 +7,7 @@ import (
 	"github.com/koopa0/goen/internal/i18n"
 	"github.com/koopa0/goen/internal/order"
 	"github.com/koopa0/goen/internal/ui/layouts"
+	"github.com/koopa0/goen/internal/warranty"
 )
 
 func TestWarrantyTermsStateThePurchasedDuration(t *testing.T) {
@@ -27,7 +28,7 @@ func TestWarrantyTermsStateThePurchasedDuration(t *testing.T) {
 		if got := (&CompareProduct{WarrantyMonths: tc.months}).Warranty(ctx); got != tc.want {
 			t.Errorf("%v: compare page, %d months = %q, want %q", tc.locale, tc.months, got, tc.want)
 		}
-		if got := (WarrantyLine{HasTerm: true, Months: tc.months}).TermText(ctx); got != tc.registration {
+		if got := (warranty.WarrantyLine{HasTerm: true, Months: tc.months}).TermText(ctx); got != tc.registration {
 			t.Errorf("%v: warranty page, %d months = %q, want %q", tc.locale, tc.months, got, tc.registration)
 		}
 	}

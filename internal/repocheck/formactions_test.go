@@ -11,6 +11,7 @@ import (
 	"github.com/koopa0/goen/internal/ui/layouts"
 	"github.com/koopa0/goen/internal/ui/pages"
 	"github.com/koopa0/goen/internal/ui/pages/admin"
+	"github.com/koopa0/goen/internal/warranty"
 )
 
 // These fixtures bind each method-only expression to its production receiver.
@@ -63,7 +64,7 @@ func methodFormActions(t *testing.T) map[string][]string {
 		"internal/ui/pages/admin/home.templ:templ.SafeURL(slide.ToggleAction())":                        {(admin.HeroSlide{ID: "slide"}).ToggleAction()},
 		"internal/ui/pages/admin/question.templ:templ.SafeURL(q.AnswerAction())":                        {(admin.Question{ID: "question"}).AnswerAction()},
 		"internal/ui/pages/listing.templ:templ.SafeURL(v.FilterAction())":                               {(pages.ListingView{Slug: "category"}).FilterAction()},
-		"internal/ui/pages/warranty.templ:templ.SafeURL(v.Action())":                                    {(pages.WarrantyOrderView{Number: "order"}).Action()},
+		"internal/warranty/page.templ:templ.SafeURL(v.Action())":                                        {(warranty.WarrantyOrderView{Number: "order"}).Action()},
 		"internal/ui/pages/pay.templ:templ.SafeURL(v.Action())":                                         {(&pages.PayView{Number: "order"}).Action()},
 		"internal/ui/pages/returns.templ:templ.SafeURL(v.Action())":                                     {(pages.ReturnsView{Number: "order"}).Action()},
 		"internal/ui/pages/admin/product_invoice_line.templ:templ.URL(v.InvoiceLineAction())":           {product.InvoiceLineAction()},
