@@ -22,14 +22,14 @@ func TestClean(t *testing.T) {
 			in: contact.Message{
 				Name:     "  王小明 ",
 				Email:    "  Me@Example.COM ",
-				Subject:  " 訂單問題 ",
+				Subject:  " order ",
 				OrderRef: " #GO-1024 ",
 				Body:     "\n訂單還沒出貨\n",
 			},
 			want: contact.Message{
 				Name:     "王小明",
 				Email:    "me@example.com",
-				Subject:  "訂單問題",
+				Subject:  "order",
 				OrderRef: "#GO-1024",
 				Body:     "訂單還沒出貨",
 			},
@@ -43,11 +43,11 @@ func TestClean(t *testing.T) {
 			name: "already clean input is unchanged",
 			in: contact.Message{
 				Name: "王小明", Email: "me@example.com",
-				Subject: "退換貨", OrderRef: "", Body: "想退貨",
+				Subject: "returns", OrderRef: "", Body: "想退貨",
 			},
 			want: contact.Message{
 				Name: "王小明", Email: "me@example.com",
-				Subject: "退換貨", OrderRef: "", Body: "想退貨",
+				Subject: "returns", OrderRef: "", Body: "想退貨",
 			},
 		},
 	}
@@ -67,7 +67,7 @@ func valid() contact.Message {
 	return contact.Message{
 		Name:     "王小明",
 		Email:    "me@example.com",
-		Subject:  "訂單問題",
+		Subject:  "order",
 		OrderRef: "#GO-1024",
 		Body:     "訂單 #GO-1024 已經三天沒有出貨,想確認狀況。",
 	}
@@ -159,7 +159,7 @@ func TestValidate(t *testing.T) {
 		},
 		{
 			name:       "rejects a NUL in the subject",
-			mutate:     func(m *contact.Message) { m.Subject = "訂單問題\x00" },
+			mutate:     func(m *contact.Message) { m.Subject = "order\x00" },
 			wantFields: []string{"subject"},
 		},
 		{

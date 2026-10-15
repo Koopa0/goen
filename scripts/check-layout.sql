@@ -75,7 +75,7 @@ INSERT INTO sessions (digest, user_id, expires_at) VALUES
 -- What /admin/messages, /admin/questions and /account/wishlist list; each
 -- renders an empty state that passes for a measured page without them.
 INSERT INTO contact_messages (name, email, subject, message)
-VALUES ('版面檢查', 'layout@goen.invalid', '訂單問題', '想確認一下出貨時間，謝謝。');
+VALUES ('版面檢查', 'layout@goen.invalid', 'order', '想確認一下出貨時間，謝謝。');
 SELECT id AS product_id, slug AS product_slug FROM products
 WHERE status = 'active' ORDER BY slug LIMIT 1 \gset
 SELECT slug AS compare_slug FROM products

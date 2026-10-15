@@ -4878,12 +4878,13 @@ CREATE TABLE contact_messages (
     created_at timestamptz NOT NULL DEFAULT now(),
     CONSTRAINT contact_messages_name_present CHECK (name ~ '[^[:space:]]'),
     CONSTRAINT contact_messages_email_present CHECK (email ~ '[^[:space:]]'),
-    -- The stored value is a durable category, not free text. Keep this aligned
-    -- with the constants in internal/contact: every writer, including
-    -- the store DB role, must be unable to persist a value the application cannot
-    -- render or validate.
+    -- The stored value is a durable category code, not free text and not display
+    -- text: the words a reader sees live in i18n, one per locale, and the page
+    -- renders them in the reader's language. Keep this aligned with the constants
+    -- in internal/contact: every writer, including the store DB role, must be
+    -- unable to persist a value the application cannot render or validate.
     CONSTRAINT contact_messages_subject_known CHECK (subject IN (
-        '訂單問題', '退換貨', '保固維修', '商品諮詢', '合作提案'
+        'order', 'returns', 'warranty', 'product', 'partnership'
     )),
     CONSTRAINT contact_messages_message_present CHECK (message ~ '[^[:space:]]')
 );

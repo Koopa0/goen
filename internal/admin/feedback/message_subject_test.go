@@ -14,11 +14,11 @@ func TestSubjectLabelUsesTheReadersLanguage(t *testing.T) {
 		zh      string
 		en      string
 	}{
-		{"訂單問題", "訂單問題", "An order"},
-		{"退換貨", "退貨", "Returns"},
-		{"保固維修", "保固維修", "Warranty or repair"},
-		{"商品諮詢", "商品諮詢", "A product question"},
-		{"合作提案", "合作提案", "A partnership"},
+		{"order", "訂單問題", "An order"},
+		{"returns", "退貨", "Returns"},
+		{"warranty", "保固維修", "Warranty or repair"},
+		{"product", "商品諮詢", "A product question"},
+		{"partnership", "合作提案", "A partnership"},
 	} {
 		t.Run(string(tc.subject), func(t *testing.T) {
 			t.Parallel()

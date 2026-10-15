@@ -44,11 +44,11 @@ func TestContactSubjectsSurviveWritingAndRenderInBothLanguages(t *testing.T) {
 		zh    string
 		en    string
 	}{
-		{"訂單問題", "訂單問題", "An order"},
-		{"退換貨", "退貨", "Returns"},
-		{"保固維修", "保固維修", "Warranty or repair"},
-		{"商品諮詢", "商品諮詢", "A product question"},
-		{"合作提案", "合作提案", "A partnership"},
+		{"order", "訂單問題", "An order"},
+		{"returns", "退貨", "Returns"},
+		{"warranty", "保固維修", "Warranty or repair"},
+		{"product", "商品諮詢", "A product question"},
+		{"partnership", "合作提案", "A partnership"},
 	}
 	for _, language := range []struct {
 		locale i18n.Locale
@@ -119,28 +119,31 @@ func TestContactSubjectsSurviveWritingAndRenderInBothLanguages(t *testing.T) {
 				})
 			}
 
-			t.Run("unknown subject", func(t *testing.T) {
-				email := "contact-unknown-" + uuid.NewString() + "@example.com"
-				form := url.Values{"name": {"Reader"}, "email": {email}, "subject": {"An order"}, "message": {"An original customer note."}}
-				req := httptest.NewRequestWithContext(ctx, http.MethodPost, "/contact", strings.NewReader(form.Encode()))
-				req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
-				res := httptest.NewRecorder()
-				h.Submit(res, req)
-				if res.Code != http.StatusUnprocessableEntity {
-					t.Errorf("Submit(unknown subject) = %d, want 422", res.Code)
-				}
-				var count int
-				if err := pool.QueryRow(t.Context(), `SELECT count(*) FROM contact_messages WHERE email=$1`, email).Scan(&count); err != nil || count != 0 {
-					t.Errorf("unknown subject stored rows = %d, %v, want 0, nil", count, err)
-				}
-				if err := writer.Create(ctx, contact.Message{
-					Name: "Reader", Email: email, Subject: contact.Subject("An order"), Body: "An original customer note.",
-				}); err == nil {
-					t.Error("Create(unknown subject) = nil, want refusal")
-				} else if _, driverError := errors.AsType[*pgconn.PgError](err); driverError {
-					t.Errorf("Create(unknown subject) reached the database: %v", err)
-				}
-			})
+			// The display text the column used to hold is no longer a value either.
+			for _, unknown := range []string{"An order", "訂單問題"} {
+				t.Run("unknown subject "+unknown, func(t *testing.T) {
+					email := "contact-unknown-" + uuid.NewString() + "@example.com"
+					form := url.Values{"name": {"Reader"}, "email": {email}, "subject": {unknown}, "message": {"An original customer note."}}
+					req := httptest.NewRequestWithContext(ctx, http.MethodPost, "/contact", strings.NewReader(form.Encode()))
+					req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+					res := httptest.NewRecorder()
+					h.Submit(res, req)
+					if res.Code != http.StatusUnprocessableEntity {
+						t.Errorf("Submit(unknown subject) = %d, want 422", res.Code)
+					}
+					var count int
+					if err := pool.QueryRow(t.Context(), `SELECT count(*) FROM contact_messages WHERE email=$1`, email).Scan(&count); err != nil || count != 0 {
+						t.Errorf("unknown subject stored rows = %d, %v, want 0, nil", count, err)
+					}
+					if err := writer.Create(ctx, contact.Message{
+						Name: "Reader", Email: email, Subject: contact.Subject(unknown), Body: "An original customer note.",
+					}); err == nil {
+						t.Error("Create(unknown subject) = nil, want refusal")
+					} else if _, driverError := errors.AsType[*pgconn.PgError](err); driverError {
+						t.Errorf("Create(unknown subject) reached the database: %v", err)
+					}
+				})
+			}
 		})
 	}
 }

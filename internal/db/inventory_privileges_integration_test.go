@@ -162,7 +162,7 @@ var unusedTableVerbs = []struct {
 		`DELETE FROM contact_messages WHERE email = 'Ming@Example.com'`},
 	{"admin", "contact_messages", "INSERT",
 		`INSERT INTO contact_messages (name, email, subject, message)
-		 VALUES ('職員', 'staff@example.com', '訂單問題', '不該由後台新增')`},
+		 VALUES ('職員', 'staff@example.com', 'order', '不該由後台新增')`},
 	{"store", "stock_notifications", "DELETE",
 		`DELETE FROM stock_notifications WHERE email = 'ming.work@example.com'`},
 	{"store", "stock_notifications", "UPDATE",
