@@ -108,17 +108,6 @@ type ShippingView struct {
 
 func (v ShippingView) Empty() bool { return len(v.Methods) == 0 }
 
-// A cart-package test binds HoldMinutesText to this private enforcement constant.
-const holdMinutes = 60
-
-func HoldMinutesText() string { return strconv.Itoa(holdMinutes) }
-
-// A Checkout Session must fit inside the hold. A payment-package test binds this
-// to the hold less the session lifetime the payment page enforces.
-const payStartMinutes = 29
-
-func PayStartMinutesText() string { return strconv.Itoa(payStartMinutes) }
-
 // The privacy policy states how long each kind of personal data is kept. Each
 // number below is the one a sweep enforces in another package, which this one
 // cannot import; a test in that package binds it, named beside the constant.
