@@ -12,6 +12,7 @@ import (
 	"github.com/koopa0/goen/internal/admin/access"
 	"github.com/koopa0/goen/internal/i18n"
 	"github.com/koopa0/goen/internal/order"
+	"github.com/koopa0/goen/internal/refund"
 	"github.com/koopa0/goen/internal/returns"
 	"github.com/koopa0/goen/internal/ui/layouts"
 	"github.com/koopa0/goen/internal/ui/pages/admin"
@@ -125,7 +126,7 @@ func unsentConfirmation(number string, p *UnsentRefund) admin.UnsentRefundConfir
 	}
 }
 
-func unsentLines(units []UnsentUnit) []admin.UnsentLine {
+func unsentLines(units []refund.UnsentUnit) []admin.UnsentLine {
 	lines := make([]admin.UnsentLine, len(units))
 	for i, u := range units {
 		lines[i] = admin.UnsentLine{OrderLineID: u.LineID.String(), Name: u.Name, Label: u.Label, Quantity: u.Quantity}

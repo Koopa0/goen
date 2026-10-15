@@ -29,6 +29,7 @@ import (
 	"github.com/koopa0/goen/internal/order/notice"
 	"github.com/koopa0/goen/internal/outbox"
 	"github.com/koopa0/goen/internal/payment"
+	"github.com/koopa0/goen/internal/refund"
 	"github.com/koopa0/goen/internal/shoptime"
 	"github.com/koopa0/goen/internal/ui/components"
 	"github.com/koopa0/goen/internal/ui/pages"
@@ -36,10 +37,12 @@ import (
 	"github.com/koopa0/goen/internal/web"
 )
 
-// Refunds offers the refund before shipment on the order page and reports
-// whether one was ever opened; the refunds desk implements it.
+// Refunds says what the order page offers of the refund before shipment and
+// whether one was ever opened, and what it offers of the refund of units a
+// partly shipped order will not send, given how many of the order's lines a
+// dispatch still owes; the refunds desk implements it.
 type Refunds interface {
-	FillOrder(ctx context.Context, view *admin.OrderView, number string) (opened bool, err error)
+	Offer(ctx context.Context, number string, owed int) (refund.Offer, error)
 }
 
 type Store struct {
@@ -516,10 +519,15 @@ func eventKindFor(status order.FulfillmentStatus) (string, error) {
 }
 
 func (s *Store) fillRefundBeforeShipment(ctx context.Context, view *admin.OrderView, number string) error {
-	opened, err := s.refunds.FillOrder(ctx, view, number)
+	offer, err := s.refunds.Offer(ctx, number, len(view.Shippable))
 	if err != nil {
 		return err
 	}
+	view.RefundOffered, view.RefundOpen = offer.Offered, offer.Open
+	view.RefundCreditPaid = offer.CreditPaid
+	view.UnsentOffered = offer.UnsentOffered
+	view.UnsentOpen, view.UnsentOpenLines = offer.UnsentOpen, unsentLines(offer.UnsentUnits)
+	opened := offer.Opened
 	if opened {
 		view.CanShip = false
 	}
@@ -539,6 +547,16 @@ func (s *Store) fillRefundBeforeShipment(ctx context.Context, view *admin.OrderV
 		view.Next = append(view.Next, admin.Transition{Value: n, Label: n.Label(ctx)})
 	}
 	return nil
+}
+
+// unsentLines are the units an open refund of unsent units covers, as the
+// order page lists them.
+func unsentLines(units []refund.UnsentUnit) []admin.UnsentLine {
+	lines := make([]admin.UnsentLine, len(units))
+	for i, u := range units {
+		lines[i] = admin.UnsentLine{OrderLineID: u.LineID.String(), Name: u.Name, Label: u.Label, Quantity: u.Quantity}
+	}
+	return lines
 }
 
 func (s *Store) fillPayments(ctx context.Context, view *admin.OrderView, orderID uuid.UUID) error {

@@ -5,12 +5,10 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/google/go-cmp/cmp"
 	"github.com/google/uuid"
 
 	"github.com/koopa0/goen/internal/refund"
 	"github.com/koopa0/goen/internal/returns"
-	"github.com/koopa0/goen/internal/ui/pages/admin"
 )
 
 func TestASplitRefundedEventWaitsUntilEverySourceSettled(t *testing.T) {
@@ -67,12 +65,12 @@ func TestASplitRefundedEventWaitsUntilEverySourceSettled(t *testing.T) {
 			if position.MoneySettled != tt.wantSettled {
 				t.Errorf("MoneySettled = %t, want %t", position.MoneySettled, tt.wantSettled)
 			}
-			item := admin.Return{}
-			if fillErr := fillReturnPayoutState(returns.StatusApproved, tt.facts, &item); fillErr != nil {
-				t.Fatalf("fillReturnPayoutState() = %v", fillErr)
+			p, payoutErr := returnPayout(returns.StatusApproved, tt.facts)
+			if payoutErr != nil || p.Unfit != nil {
+				t.Fatalf("returnPayout() = %+v, %v", p, payoutErr)
 			}
-			if item.PayoutOutstanding != tt.wantOutstanding {
-				t.Errorf("PayoutOutstanding = %t, want %t", item.PayoutOutstanding, tt.wantOutstanding)
+			if p.Owed != tt.wantOutstanding {
+				t.Errorf("Owed = %t, want %t", p.Owed, tt.wantOutstanding)
 			}
 		})
 	}
@@ -120,28 +118,26 @@ func TestReturnPayoutDiagnosticRouting(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
-			item := admin.Return{}
-			err := fillReturnPayoutState(returns.StatusApproved, tt.facts, &item)
-			if got := errors.Is(err, refund.ErrRefused); got != tt.wantErr {
-				t.Fatalf("fillReturnPayoutState() refund.ErrRefused = %t, want %t; error = %v",
-					got, tt.wantErr, err)
+			p, err := returnPayout(returns.StatusApproved, tt.facts)
+			if err != nil {
+				t.Fatalf("returnPayout() error = %v, want an unfit payout reported in the result", err)
+			}
+			if got := errors.Is(p.Unfit, refund.ErrRefused); got != tt.wantErr {
+				t.Fatalf("returnPayout() Unfit is refund.ErrRefused = %t, want %t; Unfit = %v",
+					got, tt.wantErr, p.Unfit)
 			}
 			// A payout that does not fit its record is the mismatch notice, not
 			// the generic refusal: the cause has to stay ErrPayoutUnfit.
-			if got := errors.Is(err, ErrPayoutUnfit); got != tt.wantErr {
-				t.Fatalf("fillReturnPayoutState() ErrPayoutUnfit = %t, want %t; error = %v",
-					got, tt.wantErr, err)
+			if got := errors.Is(p.Unfit, ErrPayoutUnfit); got != tt.wantErr {
+				t.Fatalf("returnPayout() Unfit is ErrPayoutUnfit = %t, want %t; Unfit = %v",
+					got, tt.wantErr, p.Unfit)
 			}
-			wantItem := admin.Return{
-				PayoutOutstanding: true,
-				PayoutBlocked:     tt.wantBlocked,
-			}
-			if diff := cmp.Diff(wantItem, item); diff != "" {
-				t.Errorf("fillReturnPayoutState() item mismatch (-want +got):\n%s", diff)
+			if !p.Owed || (p.Unfit != nil) != tt.wantBlocked {
+				t.Errorf("returnPayout() = Owed %t, Unfit %v; want Owed, blocked %t", p.Owed, p.Unfit, tt.wantBlocked)
 			}
 			for _, figure := range tt.wantFigures {
-				if !strings.Contains(strings.ToLower(err.Error()), figure) {
-					t.Errorf("fillReturnPayoutState() error = %q, want figure %q", err, figure)
+				if !strings.Contains(strings.ToLower(p.Unfit.Error()), figure) {
+					t.Errorf("returnPayout() Unfit = %q, want figure %q", p.Unfit, figure)
 				}
 			}
 		})

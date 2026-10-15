@@ -74,9 +74,7 @@ var dataFilesNamingViews = []string{
 	"internal/admin/products/product.go",
 	"internal/admin/products/product_label.go",
 	"internal/admin/products/standing.go",
-	"internal/admin/refunds/beforeshipment.go",
 	"internal/admin/refunds/handler.go",
-	"internal/admin/refunds/payout.go",
 	"internal/admin/reports/store.go",
 	"internal/admin/returns/store.go",
 	"internal/cart/outbox.go",
@@ -96,8 +94,6 @@ var viewContracts = []string{
 	"internal/account.CartFinder.RecoveryContents",
 	"internal/admin/dashboard.Health.Tasks",
 	"internal/admin/dashboard.Sales.FillWeek",
-	"internal/admin/orders.Refunds.FillOrder",
-	"internal/admin/returns.Payouts.FillPayouts",
 }
 
 var storeMethodsNamingViews = map[string]int{
@@ -114,8 +110,6 @@ var storeMethodsNamingViews = map[string]int{
 	"internal/admin/products/product.go":       4,
 	"internal/admin/products/product_label.go": 1,
 	"internal/admin/products/standing.go":      2,
-	"internal/admin/refunds/beforeshipment.go": 2,
-	"internal/admin/refunds/payout.go":         1,
 	"internal/admin/reports/store.go":          2,
 	"internal/cart/store.go":                   7,
 	"internal/catalog/campaign.go":             2,

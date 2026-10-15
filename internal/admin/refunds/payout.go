@@ -11,7 +11,6 @@ import (
 	"github.com/koopa0/goen/internal/db"
 	"github.com/koopa0/goen/internal/refund"
 	"github.com/koopa0/goen/internal/returns"
-	"github.com/koopa0/goen/internal/ui/pages/admin"
 	"github.com/koopa0/goen/internal/web"
 )
 
@@ -141,65 +140,52 @@ func (s *Store) returnPayoutFact(
 	return facts[id], nil
 }
 
-// FillPayouts puts each return's refund split on its queue row, rows[i] being
-// ids[i]'s, and on an approved one whether its payout is still owed. A payout
-// that no longer fits its sources does not fail the read: its row is marked
-// blocked and its error comes back under its return, for the caller to log.
-func (s *Store) FillPayouts(
-	ctx context.Context, ids []uuid.UUID, rows []admin.Return,
-) (map[uuid.UUID]error, error) {
-	if len(ids) != len(rows) {
-		return nil, fmt.Errorf("fill payouts: %d returns for %d rows", len(ids), len(rows))
+// Payouts says where each return's refund stands, out[i] being ids[i]'s, whose
+// status is statuses[i]. A payout that no longer fits its sources does not
+// fail the read: it comes back Unfit, for the caller to show and log.
+func (s *Store) Payouts(
+	ctx context.Context, ids []uuid.UUID, statuses []returns.Status,
+) ([]refund.Payout, error) {
+	if len(ids) != len(statuses) {
+		return nil, fmt.Errorf("payouts: %d returns for %d statuses", len(ids), len(statuses))
 	}
 	payoutFacts, err := s.returnPayoutFactsByID(ctx, ids)
 	if err != nil {
 		return nil, err
 	}
-	var blocked map[uuid.UUID]error
+	out := make([]refund.Payout, len(ids))
 	for i, id := range ids {
-		item := &rows[i]
-		if facts, ok := payoutFacts[id]; ok {
-			item.CardRefundCents = facts.CardRefundCents
-			item.CreditRefundCents = facts.CreditRefundCents
-		}
-		if payoutErr := fillReturnPayoutState(item.Status, payoutFacts[id], item); payoutErr != nil {
-			if !errors.Is(payoutErr, refund.ErrRefused) {
-				return nil, payoutErr
-			}
-			if blocked == nil {
-				blocked = make(map[uuid.UUID]error)
-			}
-			blocked[id] = payoutErr
+		if out[i], err = returnPayout(statuses[i], payoutFacts[id]); err != nil {
+			return nil, err
 		}
 	}
-	return blocked, nil
+	return out, nil
 }
 
-func fillReturnPayoutState(
-	status returns.Status, facts returnPayoutFacts, item *admin.Return,
-) error {
+// returnPayout is where one return's refund stands. Only an approved return
+// can owe a payout.
+func returnPayout(status returns.Status, facts returnPayoutFacts) (refund.Payout, error) {
+	p := refund.Payout{CardCents: facts.CardRefundCents, CreditCents: facts.CreditRefundCents}
 	if status != returns.StatusApproved {
-		return nil
+		return p, nil
 	}
 	position, err := facts.position()
 	if errors.Is(err, refund.ErrRefused) {
 		// A payout that no longer fits its sources is not a reason to hide
 		// the queue. It is exactly the row a person must investigate.
-		item.PayoutOutstanding = true
-		item.PayoutBlocked = true
-		return err
+		p.Owed, p.Unfit = true, err
+		return p, nil
 	}
 	if err != nil {
-		return err
+		return refund.Payout{}, err
 	}
-	item.PayoutOutstanding = !position.MoneySettled || position.EventOutstanding ||
+	p.Owed = !position.MoneySettled || position.EventOutstanding ||
 		position.PointsOutstanding
 	// A terminal provider generation is known not to have moved money, so the
 	// claim function can safely append its successor. Only a malformed frozen or
-	// settled allocation above is blocked; ordinary failed/cancelled/API-rejected
+	// settled allocation above is Unfit; ordinary failed/cancelled/API-rejected
 	// attempts keep the retry control visible.
-	item.PayoutBlocked = false
-	return nil
+	return p, nil
 }
 
 // PayApproved pays an approved return back in full, from the split its approval

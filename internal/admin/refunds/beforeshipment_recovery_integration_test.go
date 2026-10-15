@@ -96,7 +96,7 @@ func TestRefundCompletionLockFailureOffersResumeAfterSettlement(t *testing.T) {
 	}
 
 	preview, err := store.RefundPreview(ctx, number)
-	if err != nil || !preview.Resume || preview.TotalCents != 1200000 || preview.CardCents != 900000 || preview.CreditCents != 300000 {
+	if err != nil || !preview.Open || preview.TotalCents != 1200000 || preview.CardCents != 900000 || preview.CreditCents != 300000 {
 		t.Fatalf("refund preview = %+v, %v, want Resume for the settled 900000/300000 split", preview, err)
 	}
 	confirmation := postRefundCompletion(ctx, handler, number, false)

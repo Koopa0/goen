@@ -34,11 +34,11 @@ var (
 	ErrInvalid = errors.New("returns: invalid input")
 )
 
-// Payouts pays an approved return back and says where each payout stands. A
-// payout that did not finish wraps refund.ErrIncomplete; one the database
-// refused wraps refund.ErrRefused.
+// Payouts pays an approved return back and says where each payout stands,
+// out[i] being ids[i]'s. A payout that did not finish wraps
+// refund.ErrIncomplete; one the database refused wraps refund.ErrRefused.
 type Payouts interface {
-	FillPayouts(ctx context.Context, ids []uuid.UUID, rows []admin.Return) (map[uuid.UUID]error, error)
+	Payouts(ctx context.Context, ids []uuid.UUID, statuses []returnrules.Status) ([]refund.Payout, error)
 	PayApproved(ctx context.Context, returnID uuid.UUID, actor uuid.NullUUID) error
 	Resume(ctx context.Context, row *db.ReturnForDecisionRow, actor uuid.NullUUID) (bool, error)
 }
@@ -176,19 +176,32 @@ func (s *Store) queue(ctx context.Context, request uuid.NullUUID, after []string
 	}
 
 	view := buildReturnQueue(ctx, rows, byRequest, assessmentByRequest)
-	blocked, err := s.payouts.FillPayouts(ctx, ids, view.Rows)
+	statuses := make([]returnrules.Status, len(view.Rows))
+	for i := range view.Rows {
+		statuses[i] = view.Rows[i].Status
+	}
+	payouts, err := s.payouts.Payouts(ctx, ids, statuses)
 	if err != nil {
 		return Queue{}, err
 	}
-	for _, id := range ids {
-		if payoutErr, ok := blocked[id]; ok {
-			view.payoutIssues = append(view.payoutIssues, returnPayoutIssue{returnID: id, err: payoutErr})
+	for i := range payouts {
+		showPayout(&view.Rows[i], &payouts[i])
+		if payouts[i].Unfit != nil {
+			view.payoutIssues = append(view.payoutIssues, returnPayoutIssue{returnID: ids[i], err: payouts[i].Unfit})
 		}
 	}
 	// Set here rather than in the builder, which is given rows and knows
 	// nothing about the read that produced them.
 	view.Bound = bound
 	return view, nil
+}
+
+// showPayout puts where a return's refund stands on its queue row. An Unfit
+// payout is blocked: a person repairs it before goen retries.
+func showPayout(row *admin.Return, p *refund.Payout) {
+	row.CardRefundCents, row.CreditRefundCents = p.CardCents, p.CreditCents
+	row.PayoutOutstanding = p.Owed
+	row.PayoutBlocked = p.Unfit != nil
 }
 
 func overlayReturnAssessmentFacts(

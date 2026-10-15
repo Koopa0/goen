@@ -19,7 +19,6 @@ import (
 	"github.com/koopa0/goen/internal/order/notice"
 	"github.com/koopa0/goen/internal/refund"
 	"github.com/koopa0/goen/internal/returns"
-	"github.com/koopa0/goen/internal/ui/pages/admin"
 	"github.com/koopa0/goen/internal/web"
 )
 
@@ -81,42 +80,55 @@ func creditPaidPending(r *beforeShipment) bool {
 		order.FulfillmentStatus(r.FulfillmentStatus) == order.FulfillmentPending
 }
 
-// FillOrder puts the refund before shipment on the order page, offered or open
-// for Resume, and reports whether one was ever opened: an order being refunded
-// is neither picked nor shipped. It also puts the refund of units a partly
-// shipped order will not send there, which reads view.Shippable.
-func (s *Store) FillOrder(ctx context.Context, view *admin.OrderView, number string) (opened bool, err error) {
+// Offer is what the order page offers of the refund before shipment, offered
+// or open for Resume, and whether one was ever opened: an order being refunded
+// is neither picked nor shipped. It also says what the page offers of the
+// refund of units a partly shipped order will not send; owed is how many of
+// the order's lines a dispatch still owes.
+func (s *Store) Offer(ctx context.Context, number string, owed int) (refund.Offer, error) {
 	row, err := readBeforeShipment(ctx, s.q, number)
 	if err != nil {
-		return false, fmt.Errorf("read refund before shipment of %s: %w", number, err)
+		return refund.Offer{}, fmt.Errorf("read refund before shipment of %s: %w", number, err)
 	}
-	view.RefundOffered, view.RefundOpen = beforeShipmentRefundState(&row)
-	view.RefundCreditPaid = view.RefundOffered && creditPaidPending(&row)
-	offered, open, err := s.unsentOnOrder(ctx, number, len(view.Shippable))
+	var o refund.Offer
+	o.Offered, o.Open = beforeShipmentRefundState(&row)
+	o.CreditPaid = o.Offered && creditPaidPending(&row)
+	o.Opened = row.ReturnRequestID.Valid
+	offered, open, err := s.unsentOnOrder(ctx, number, owed)
 	if err != nil {
-		return false, err
+		return refund.Offer{}, err
 	}
-	view.UnsentOffered = offered
-	view.UnsentOpen, view.UnsentOpenLines = open != nil, unsentLines(open)
-	return row.ReturnRequestID.Valid, nil
+	o.UnsentOffered = offered
+	o.UnsentOpen, o.UnsentUnits = open != nil, open
+	return o, nil
 }
 
-func (s *Store) RefundPreview(ctx context.Context, number string) (admin.RefundConfirmation, error) {
+// Preview is a refund before shipment as confirming it would pay: the total
+// and its card and store-credit split. Open is a refund already open, its
+// split frozen and its reason recorded; CreditPaid is a pending order store
+// credit alone paid, which confirming cancels at once.
+type Preview struct {
+	TotalCents, CardCents, CreditCents int64
+	Open, CreditPaid                   bool
+}
+
+// RefundPreview is what confirming the refund before shipment of the order
+// would pay, and moves nothing.
+func (s *Store) RefundPreview(ctx context.Context, number string) (Preview, error) {
 	row, err := readBeforeShipment(ctx, s.q, number)
 	if errors.Is(err, pgx.ErrNoRows) {
-		return admin.RefundConfirmation{}, ErrNotFound
+		return Preview{}, ErrNotFound
 	}
 	if err != nil {
-		return admin.RefundConfirmation{}, fmt.Errorf("read refund before shipment of %s: %w", number, err)
+		return Preview{}, fmt.Errorf("read refund before shipment of %s: %w", number, err)
 	}
 	offered, open := beforeShipmentRefundState(&row)
 	if !offered && !open {
-		return admin.RefundConfirmation{}, fmt.Errorf("order %s: %w", number, whyNotRefundable(&row))
+		return Preview{}, fmt.Errorf("order %s: %w", number, whyNotRefundable(&row))
 	}
-	return admin.RefundConfirmation{
-		OrderNumber: number, TotalCents: row.TotalCents,
-		CardCents: row.CardCents, CreditCents: row.CreditCents, Resume: open,
-		CreditPaid: offered && creditPaidPending(&row),
+	return Preview{
+		TotalCents: row.TotalCents, CardCents: row.CardCents, CreditCents: row.CreditCents,
+		Open: open, CreditPaid: offered && creditPaidPending(&row),
 	}, nil
 }
 
