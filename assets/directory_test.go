@@ -49,9 +49,9 @@ func TestTheDepartmentPhotographsAreFourByThreeAndZoomOnHover(t *testing.T) {
 		t.Fatalf("%s zooms the photograph outside (hover: hover) and (prefers-reduced-motion: no-preference)", AppCSS)
 	}
 	for name, rule := range map[string]string{
-		"the photograph eases its scale with the move tokens": `\.goen-cat__photo \{\s*transition: scale var\(--dur-move\) var\(--ease-move\);`,
-		"a hover zooms by three percent":                      `\.goen-cat:hover \.goen-cat__photo \{\s*scale: 1\.03;`,
-		"a press puts it back at once":                        `\.goen-cat:active \.goen-cat__photo \{\s*scale: 1;\s*transition: none;`,
+		"the photograph eases its scale with the shared move timing": `\.goen-cat__photo \{\s*transition: scale var\(--dur-move\) var\(--ease-move\);`,
+		"a hover zooms by three percent":                             `\.goen-cat:hover \.goen-cat__photo \{\s*scale: 1\.03;`,
+		"a press puts it back at once":                               `\.goen-cat:active \.goen-cat__photo \{\s*scale: 1;\s*transition: none;`,
 	} {
 		if !regexp.MustCompile(rule).MatchString(zoom) {
 			t.Errorf("%s: the guarded block lacks the rule", name)
