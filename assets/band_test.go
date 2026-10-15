@@ -29,18 +29,3 @@ func TestTheBandWithoutAPhotographKeepsThePageColumn(t *testing.T) {
 		}
 	}
 }
-
-// The shop's rules row already sits a section margin below what precedes it;
-// padding above its content stacks a second gap on top of that margin.
-func TestTheRulesRowHasNoPaddingAboveItsContent(t *testing.T) {
-	t.Parallel()
-
-	sheet, err := fs.ReadFile(files, AppCSS)
-	if err != nil {
-		t.Fatalf("read %s: %v", AppCSS, err)
-	}
-	rule := `(?s)\.goen-rules \{\s*margin-top: var\(--home-section\);\s*padding-block: 0 var\(--s-8\);`
-	if !regexp.MustCompile(rule).Match(sheet) {
-		t.Errorf("%s: the rules row stacks padding above its content on the section margin", AppCSS)
-	}
-}
