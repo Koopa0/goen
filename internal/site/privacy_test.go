@@ -112,6 +112,7 @@ func TestPrivacyRetentionSectionStatesEachEnforcedPeriod(t *testing.T) {
 			{pages.CheckoutDraftHoursText() + " 小時"},
 			{pages.MailRetainDaysText() + " 天"},
 			{pages.SessionDaysText() + " 天"},
+			{pages.StockAlertRetainDaysText() + " 天"},
 		}},
 		{i18n.En, "How long we keep it", [][]string{
 			{pages.NewsletterConfirmHoursText() + " hours", pages.NewsletterRetainDaysText() + " days"},
@@ -119,6 +120,7 @@ func TestPrivacyRetentionSectionStatesEachEnforcedPeriod(t *testing.T) {
 			{pages.CheckoutDraftHoursText() + " hour"},
 			{pages.MailRetainDaysText() + " days"},
 			{pages.SessionDaysText() + " days"},
+			{pages.StockAlertRetainDaysText() + " days"},
 		}},
 	} {
 		t.Run(string(tc.locale), func(t *testing.T) {

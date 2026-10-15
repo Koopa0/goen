@@ -8786,6 +8786,45 @@ GRANT SELECT ON copurchase_refreshes TO admin;
 -- control.
 GRANT EXECUTE ON FUNCTION refresh_copurchases() TO maintenance;
 
+-- Retention for restock alerts that were already sent. A DEFINER because no
+-- login holds DELETE on stock_notifications: store inserts and reads it, admin
+-- updates notified_at, and the retention sweep is a background job. Only a row
+-- whose notice went out is ever listed; an alert still waiting for stock has
+-- notified_at NULL and is somebody's open request. The period is the caller's
+-- (the Go constant the privacy page states), not a second copy here.
+-- One batch per call, and SKIP LOCKED leaves a row a concurrent erase_user holds
+-- for the next pass.
+CREATE FUNCTION sweep_notified_stock_notifications(p_retain interval, p_batch integer)
+RETURNS bigint
+LANGUAGE plpgsql SECURITY DEFINER SET search_path = pg_catalog, public, pg_temp AS $$
+DECLARE
+    deleted bigint;
+BEGIN
+    IF p_retain IS NULL OR p_retain <= interval '0' OR p_batch IS NULL OR p_batch < 1 THEN
+        RAISE EXCEPTION 'sweep_notified_stock_notifications needs a positive retention and batch'
+            USING ERRCODE = '22023';
+    END IF;
+
+    DELETE FROM stock_notifications
+    WHERE id IN (
+        SELECT n.id FROM stock_notifications n
+        WHERE n.notified_at IS NOT NULL
+          AND n.notified_at < now() - p_retain
+        LIMIT p_batch
+        FOR UPDATE OF n SKIP LOCKED
+    );
+    GET DIAGNOSTICS deleted = ROW_COUNT;
+    RETURN deleted;
+END;
+$$;
+
+COMMENT ON FUNCTION sweep_notified_stock_notifications IS
+    'Deletes up to p_batch restock alerts whose notice was sent more than '
+    'p_retain ago and returns how many. Never touches an alert still waiting for '
+    'stock. Run by the retention sweeper on the maintenance pool.';
+
+GRANT EXECUTE ON FUNCTION sweep_notified_stock_notifications(interval, integer) TO maintenance;
+
 -- Media
 --
 -- Images live in PostgreSQL: goen is one binary plus one PostgreSQL, a filesystem
