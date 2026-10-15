@@ -281,6 +281,22 @@ var (
 
 	KeyAdminHPColIssued = key("admin.hp.col.issued", Message{ZhHant: "開立於", En: "Issued"})
 
+	KeyAdminHPUnrelievedRefundsHeading = key("admin.hp.unrelievedrefunds.heading", Message{
+		ZhHant: "已退款、沒有折讓的統一發票",
+		En:     "Refunded invoices with no allowance",
+	})
+
+	KeyAdminHPUnrelievedRefundsHint = countKey("admin.hp.unrelievedrefunds.hint",
+		"%d 張統一發票的訂單已退款，退回的金額卻沒有開立折讓：發票仍是退款前的金額，營業稅會多繳。請到訂單頁開立折讓。",
+		"%d invoice belongs to an order that gave money back, and no allowance relieves it: the "+
+			"invoice keeps the amount before the refund and the tax on it is overpaid. File the "+
+			"allowance from its order page.",
+		"%d invoices belong to orders that gave money back, and no allowance relieves them: the "+
+			"invoices keep the amounts before the refunds and the tax on them is overpaid. File each "+
+			"allowance from its order page.")
+
+	KeyAdminHPColOwedSince = key("admin.hp.col.owedsince", Message{ZhHant: "應折讓自", En: "Owed since"})
+
 	KeyAdminHPClaimsHeading = key("admin.hp.claims.heading", Message{
 		ZhHant: "待確認的電子發票操作",
 		En:     "E-invoice operations awaiting confirmation",

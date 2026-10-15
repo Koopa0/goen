@@ -17,6 +17,7 @@ func TestEveryRouteRefusesAnOutsider(t *testing.T) {
 		NewHandler(&Store{}, &media.Handler{}, &newsletter.Store{}, slog.New(slog.DiscardHandler)).Routes(mux, ac)
 	},
 		"GET /admin/faq", "POST /admin/faq", "POST /admin/faq/{id}",
+		"POST /admin/faq/categories", "POST /admin/faq/categories/{id}",
 		"GET /admin/newsletter", "POST /admin/newsletter", "POST /admin/newsletter/{id}/send",
 		"GET /admin/home", "POST /admin/home", "POST /admin/home/banner",
 		"POST /admin/home/banner/{id}/active", "POST /admin/home/{id}/active",

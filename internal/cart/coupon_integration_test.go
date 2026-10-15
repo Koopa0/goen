@@ -78,7 +78,7 @@ func TestCouponPricing(t *testing.T) {
 			if err != nil {
 				t.Fatalf("find %s: %v", tt.code, err)
 			}
-			discount, freeShipping, err := c.Apply(tt.subtotal)
+			discount, freeShipping, err := c.Apply(tt.subtotal, false)
 			if err != nil {
 				t.Fatalf("apply %s: %v", tt.code, err)
 			}
@@ -169,11 +169,11 @@ func TestCouponMinimumSpend(t *testing.T) {
 	if err != nil {
 		t.Fatalf("find below-minimum coupon definition: %v", err)
 	}
-	if _, _, err := c.Apply(99999); !errors.Is(err, cart.ErrCouponMinimum) {
+	if _, _, err := c.Apply(99999, false); !errors.Is(err, cart.ErrCouponMinimum) {
 		t.Errorf("below the minimum gave %v, want ErrCouponMinimum", err)
 	}
 	// Exactly the minimum qualifies — the boundary.
-	if _, _, err := c.Apply(100000); err != nil {
+	if _, _, err := c.Apply(100000, false); err != nil {
 		t.Errorf("exactly the minimum was refused: %v", err)
 	}
 }

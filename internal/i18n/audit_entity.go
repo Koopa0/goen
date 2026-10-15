@@ -28,6 +28,8 @@ var (
 
 	KeyAuditEntityCoupons = key("audit.entity.coupons", Message{ZhHant: "優惠碼", En: "Coupon"})
 
+	KeyAuditEntityFaqCategories = key("audit.entity.faq_categories", Message{ZhHant: "常見問題分類", En: "FAQ category"})
+
 	KeyAuditEntityFaqEntries = key("audit.entity.faq_entries", Message{ZhHant: "常見問題", En: "FAQ entry"})
 
 	KeyAuditEntityHeroSlides = key("audit.entity.hero_slides", Message{ZhHant: "首頁輪播", En: "Home slide"})

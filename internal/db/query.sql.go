@@ -1008,14 +1008,53 @@ func (q *Queries) AdminCustomerOrders(ctx context.Context, arg AdminCustomerOrde
 	return items, nil
 }
 
+const adminFAQCategories = `-- name: AdminFAQCategories :many
+SELECT c.id, c.name, coalesce(c.name_en, '') AS name_en,
+       EXISTS (SELECT 1 FROM faq_entries e WHERE e.category_id = c.id) AS in_use
+FROM faq_categories c
+ORDER BY c.position
+`
+
+type AdminFAQCategoriesRow struct {
+	ID     uuid.UUID
+	Name   string
+	NameEn string
+	InUse  bool
+}
+
+func (q *Queries) AdminFAQCategories(ctx context.Context) ([]AdminFAQCategoriesRow, error) {
+	rows, err := q.db.Query(ctx, adminFAQCategories)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []AdminFAQCategoriesRow{}
+	for rows.Next() {
+		var i AdminFAQCategoriesRow
+		if err := rows.Scan(
+			&i.ID,
+			&i.Name,
+			&i.NameEn,
+			&i.InUse,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const adminFAQEntries = `-- name: AdminFAQEntries :many
-SELECT id, category, question, answer,
-       coalesce(category_en, '') AS category_en,
-       coalesce(question_en, '') AS question_en,
-       coalesce(answer_en, '') AS answer_en,
-       position, updated_at
-FROM faq_entries
-ORDER BY category, position, id
+SELECT e.id, c.name AS category, e.question, e.answer,
+       coalesce(e.question_en, '') AS question_en,
+       coalesce(e.answer_en, '') AS answer_en,
+       e.position, e.updated_at
+FROM faq_entries e
+JOIN faq_categories c ON c.id = e.category_id
+ORDER BY c.position, e.position, e.id
 LIMIT $1
 `
 
@@ -1024,7 +1063,6 @@ type AdminFAQEntriesRow struct {
 	Category   string
 	Question   string
 	Answer     string
-	CategoryEn string
 	QuestionEn string
 	AnswerEn   string
 	Position   int32
@@ -1045,7 +1083,6 @@ func (q *Queries) AdminFAQEntries(ctx context.Context, limit int32) ([]AdminFAQE
 			&i.Category,
 			&i.Question,
 			&i.Answer,
-			&i.CategoryEn,
 			&i.QuestionEn,
 			&i.AnswerEn,
 			&i.Position,
@@ -6154,31 +6191,44 @@ func (q *Queries) CreateCoupon(ctx context.Context, arg CreateCouponParams) erro
 	return err
 }
 
+const createFAQCategory = `-- name: CreateFAQCategory :exec
+INSERT INTO faq_categories (name, name_en, position)
+VALUES ($1::text, nullif($2::text, ''),
+        coalesce((SELECT max(c.position) FROM faq_categories c), 0) + 1)
+`
+
+type CreateFAQCategoryParams struct {
+	Name   string
+	NameEn string
+}
+
+func (q *Queries) CreateFAQCategory(ctx context.Context, arg CreateFAQCategoryParams) error {
+	_, err := q.db.Exec(ctx, createFAQCategory, arg.Name, arg.NameEn)
+	return err
+}
+
 const createFAQEntry = `-- name: CreateFAQEntry :exec
-INSERT INTO faq_entries (category, question, answer,
-                         category_en, question_en, answer_en, position)
-VALUES ($1::text, $2::text, $3::text,
+INSERT INTO faq_entries (category_id, question, answer,
+                         question_en, answer_en, position)
+VALUES ($1::uuid, $2::text, $3::text,
         nullif($4::text, ''), nullif($5::text, ''),
-        nullif($6::text, ''),
         coalesce((SELECT max(f.position) FROM faq_entries f
-                  WHERE f.category = $1::text), 0) + 1)
+                  WHERE f.category_id = $1::uuid), 0) + 1)
 `
 
 type CreateFAQEntryParams struct {
-	Category   string
+	CategoryID uuid.UUID
 	Question   string
 	Answer     string
-	CategoryEn string
 	QuestionEn string
 	AnswerEn   string
 }
 
 func (q *Queries) CreateFAQEntry(ctx context.Context, arg CreateFAQEntryParams) error {
 	_, err := q.db.Exec(ctx, createFAQEntry,
-		arg.Category,
+		arg.CategoryID,
 		arg.Question,
 		arg.Answer,
-		arg.CategoryEn,
 		arg.QuestionEn,
 		arg.AnswerEn,
 	)
@@ -7350,6 +7400,19 @@ func (q *Queries) DeleteExpiredSessions(ctx context.Context) error {
 	return err
 }
 
+const deleteFAQCategory = `-- name: DeleteFAQCategory :execrows
+DELETE FROM faq_categories WHERE id = $1
+`
+
+// A category still holding entries is refused by faq_entries_category_id_fkey.
+func (q *Queries) DeleteFAQCategory(ctx context.Context, categoryID uuid.UUID) (int64, error) {
+	result, err := q.db.Exec(ctx, deleteFAQCategory, categoryID)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected(), nil
+}
+
 const deleteFAQEntry = `-- name: DeleteFAQEntry :execrows
 DELETE FROM faq_entries WHERE id = $1
 `
@@ -8170,30 +8233,27 @@ func (q *Queries) ExpiredReservations(ctx context.Context, limit int32) ([]uuid.
 }
 
 const fAQEntries = `-- name: FAQEntries :many
-SELECT category AS canonical_category,
-       -- Translations are optional per entry; the first available one in staff
-       -- order supplies a single label for the whole canonical category.
-       localized_name(category, first_value(category_en) OVER (
-           PARTITION BY category
-           ORDER BY category_en IS NULL, position, id
-       ), $1::text) AS category,
-       localized_name(question, question_en, $1::text) AS question,
-       localized_name(answer, answer_en, $1::text) AS answer
-FROM faq_entries
-ORDER BY faq_entries.category, position, id
+SELECT c.id AS category_id,
+       localized_name(c.name, c.name_en, $1::text) AS category,
+       localized_name(e.question, e.question_en, $1::text) AS question,
+       localized_name(e.answer, e.answer_en, $1::text) AS answer
+FROM faq_entries e
+JOIN faq_categories c ON c.id = e.category_id
+ORDER BY c.position, e.position, e.id
 `
 
 type FAQEntriesRow struct {
-	CanonicalCategory string
-	Category          string
-	Question          string
-	Answer            string
+	CategoryID uuid.UUID
+	Category   string
+	Question   string
+	Answer     string
 }
 
-// The FAQ, grouped by category in the order the back office set.
+// The FAQ, grouped by category in the order the back office set. The handler
+// groups by category_id, never by the name: a name is a label, and two headings
+// may read the same in one language.
 // Category first, because position is unique only within a category and the
-// handler groups by adjacency. On the canonical category, never the localized
-// one, or a half-translated category splits into two headings.
+// handler groups by adjacency.
 func (q *Queries) FAQEntries(ctx context.Context, locale string) ([]FAQEntriesRow, error) {
 	rows, err := q.db.Query(ctx, fAQEntries, locale)
 	if err != nil {
@@ -8204,7 +8264,7 @@ func (q *Queries) FAQEntries(ctx context.Context, locale string) ([]FAQEntriesRo
 	for rows.Next() {
 		var i FAQEntriesRow
 		if err := rows.Scan(
-			&i.CanonicalCategory,
+			&i.CategoryID,
 			&i.Category,
 			&i.Question,
 			&i.Answer,
@@ -9840,13 +9900,25 @@ func (q *Queries) LockCouponForCheckout(ctx context.Context, code string) error 
 
 const lockFAQAppendPosition = `-- name: LockFAQAppendPosition :exec
 SELECT pg_advisory_xact_lock(hashtextextended(
-    'append:faq:' || $1::text, 628471039582915603::bigint))
+    'append:faq:' || ($1::uuid)::text, 628471039582915603::bigint))
 `
 
 // The position is computed WITHIN the category, because faq_entries_position_key
-// is unique on (category, position).
-func (q *Queries) LockFAQAppendPosition(ctx context.Context, category string) error {
-	_, err := q.db.Exec(ctx, lockFAQAppendPosition, category)
+// is unique on (category_id, position).
+func (q *Queries) LockFAQAppendPosition(ctx context.Context, categoryID uuid.UUID) error {
+	_, err := q.db.Exec(ctx, lockFAQAppendPosition, categoryID)
+	return err
+}
+
+const lockFAQCategoryAppendPosition = `-- name: LockFAQCategoryAppendPosition :exec
+SELECT pg_advisory_xact_lock(hashtextextended(
+    'append:faq-category', 628471039582915603::bigint))
+`
+
+// Two staff members adding a heading at the same moment would both read the same
+// max(position); faq_categories_position_key would refuse the second.
+func (q *Queries) LockFAQCategoryAppendPosition(ctx context.Context) error {
+	_, err := q.db.Exec(ctx, lockFAQCategoryAppendPosition)
 	return err
 }
 
@@ -15386,6 +15458,26 @@ func (q *Queries) RenameCategory(ctx context.Context, arg RenameCategoryParams) 
 	return result.RowsAffected(), nil
 }
 
+const renameFAQCategory = `-- name: RenameFAQCategory :execrows
+UPDATE faq_categories
+SET name = $1::text, name_en = nullif($2::text, '')
+WHERE id = $3
+`
+
+type RenameFAQCategoryParams struct {
+	Name       string
+	NameEn     string
+	CategoryID uuid.UUID
+}
+
+func (q *Queries) RenameFAQCategory(ctx context.Context, arg RenameFAQCategoryParams) (int64, error) {
+	result, err := q.db.Exec(ctx, renameFAQCategory, arg.Name, arg.NameEn, arg.CategoryID)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected(), nil
+}
+
 const reopenMessage = `-- name: ReopenMessage :execrows
 UPDATE contact_messages SET handled_at = NULL
 WHERE id = $1 AND handled_at IS NOT NULL
@@ -18886,6 +18978,83 @@ func (q *Queries) UnreferencedMedia(ctx context.Context, limit int32) ([]string,
 	return items, nil
 }
 
+const unrelievedRefunds = `-- name: UnrelievedRefunds :many
+SELECT o.order_number, d.number, owed.amount_cents, owed.since, count(*) OVER () AS total,
+       coalesce(greatest(extract(epoch FROM now() - min(owed.since) OVER ()), 0), 0)::bigint
+           AS oldest_seconds
+FROM invoice_documents d
+JOIN orders o ON o.id = d.order_id
+JOIN order_refunds r ON r.order_id = d.order_id
+CROSS JOIN LATERAL (
+    SELECT (floor(least(d.amount_cents::numeric, r.card_cents::numeric + r.credit_cents::numeric)
+                  / 100) * 100
+            - coalesce((SELECT sum(a.amount_cents) FROM invoice_documents a
+                        WHERE a.original_id = d.id AND a.status <> 'voided'), 0))::bigint
+               AS amount_cents,
+           greatest(d.issued_at,
+                    (SELECT max(f.succeeded_at) FROM refunds f
+                     JOIN payments p ON p.id = f.payment_id
+                     WHERE p.order_id = d.order_id AND f.status = 'succeeded'),
+                    (SELECT max(e.created_at) FROM store_credit_entries e
+                     WHERE e.order_id = d.order_id AND e.amount_cents > 0))::timestamptz AS since
+) owed
+WHERE d.kind = 'invoice' AND d.status = 'issued'
+  AND o.fulfillment_status <> 'cancelled'
+  AND owed.amount_cents > 0
+  AND owed.since < now() - $1::interval
+  AND NOT EXISTS (SELECT 1 FROM invoice_operations op
+                  WHERE op.order_id = d.order_id AND op.status IN ('pending', 'attention'))
+ORDER BY owed.since DESC, d.id DESC
+LIMIT 50
+`
+
+type UnrelievedRefundsRow struct {
+	OrderNumber   string
+	Number        string
+	AmountCents   int64
+	Since         time.Time
+	Total         int64
+	OldestSeconds int64
+}
+
+// Live invoices of orders that gave money back which no 折讓 relieves and
+// nothing is filing: a return refunded after shipment, whose allowance staff
+// file from the order page, or a refund before shipment or of unsent units
+// whose own filing failed or found no 加值中心. The amount is
+// claim_invoice_allowance's, so the row lists what the order page's button
+// would file: whole dollars of order_refunds capped at the invoice, less every
+// allowance not voided. One with an operation still active is on the
+// stranded-claims list instead, and a cancelled order's on
+// CancelledOrderInvoices. Owed since the later of the invoice and the last
+// money that went back, so a new refund on an order whose earlier ones were
+// relieved gets the whole margin.
+func (q *Queries) UnrelievedRefunds(ctx context.Context, olderThan pgtype.Interval) ([]UnrelievedRefundsRow, error) {
+	rows, err := q.db.Query(ctx, unrelievedRefunds, olderThan)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []UnrelievedRefundsRow{}
+	for rows.Next() {
+		var i UnrelievedRefundsRow
+		if err := rows.Scan(
+			&i.OrderNumber,
+			&i.Number,
+			&i.AmountCents,
+			&i.Since,
+			&i.Total,
+			&i.OldestSeconds,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const unsentRefundFrozen = `-- name: UnsentRefundFrozen :one
 SELECT (coalesce(goods_refund_cents, 0) + coalesce(shipping_refund_cents, 0))::bigint AS refund_cents,
        coalesce(card_refund_cents, 0)::bigint AS card_cents,
@@ -19044,9 +19213,8 @@ const updateFAQEntry = `-- name: UpdateFAQEntry :execrows
 UPDATE faq_entries
 SET question = $1::text, answer = $2::text,
     question_en = nullif($3::text, ''),
-    answer_en = nullif($4::text, ''),
-    category_en = nullif($5::text, '')
-WHERE id = $6
+    answer_en = nullif($4::text, '')
+WHERE id = $5
 `
 
 type UpdateFAQEntryParams struct {
@@ -19054,7 +19222,6 @@ type UpdateFAQEntryParams struct {
 	Answer     string
 	QuestionEn string
 	AnswerEn   string
-	CategoryEn string
 	EntryID    uuid.UUID
 }
 
@@ -19067,7 +19234,6 @@ func (q *Queries) UpdateFAQEntry(ctx context.Context, arg UpdateFAQEntryParams) 
 		arg.Answer,
 		arg.QuestionEn,
 		arg.AnswerEn,
-		arg.CategoryEn,
 		arg.EntryID,
 	)
 	if err != nil {

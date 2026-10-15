@@ -13,7 +13,6 @@ import (
 
 	"github.com/koopa0/goen/internal/i18n"
 	"github.com/koopa0/goen/internal/ui/layouts"
-	"github.com/koopa0/goen/internal/ui/pages/admin"
 )
 
 func TestReceiptRefusalKeepsTheCorrectableForm(t *testing.T) {
@@ -37,7 +36,7 @@ func TestReceiptRefusalKeepsTheCorrectableForm(t *testing.T) {
 				if err := req.ParseForm(); err != nil {
 					t.Fatal(err)
 				}
-				view := admin.MovementsView{SKU: "SKU", Slug: "product", FormID: "new-page"}
+				view := MovementsView{SKU: "SKU", Slug: "product", FormID: "new-page"}
 				rec := httptest.NewRecorder()
 				h := Handler{log: slog.New(slog.DiscardHandler)}
 				h.renderReceiptRefusal(rec, req, &view, tt.key)
@@ -69,9 +68,9 @@ func TestReceiptRefusalKeepsTheCorrectableForm(t *testing.T) {
 
 func TestFreshReceiptFormHasItsOwnKeyAndNoRefusal(t *testing.T) {
 	t.Parallel()
-	view := admin.MovementsView{SKU: "SKU", Slug: "product", FormID: "first-page"}
+	view := MovementsView{SKU: "SKU", Slug: "product", FormID: "first-page"}
 	var body bytes.Buffer
-	if err := admin.Movements(layouts.Page{}, &view).Render(t.Context(), &body); err != nil {
+	if err := Movements(layouts.Page{}, &view).Render(t.Context(), &body); err != nil {
 		t.Fatal(err)
 	}
 	if !strings.Contains(body.String(), `name="idempotency" value="rcv:SKU:first-page"`) {

@@ -9,6 +9,7 @@ import (
 
 	"github.com/a-h/templ"
 
+	"github.com/koopa0/goen/internal/admin/audit"
 	"github.com/koopa0/goen/internal/db"
 	"github.com/koopa0/goen/internal/i18n"
 	"github.com/koopa0/goen/internal/keyset"
@@ -54,14 +55,9 @@ func queuePages(b keyset.Bound, ctx func(k i18n.Key) string) map[string]struct {
 		"orders, no filter":  {Orders(p, OrdersView{Bound: b}), ctx(i18n.KeyAdminQueueNoneYet)},
 		"orders, status tab": {Orders(p, OrdersView{Bound: b, Status: "pending"}), ctx(i18n.KeyAdminQueueEmpty)},
 		"orders, search":     {Orders(p, OrdersView{Bound: b, Searched: true, Term: term}), fmt.Sprintf(ctx(i18n.KeyAdminQueueNoneFound), term)},
-		"customers":          {Customers(p, CustomersView{Bound: b, Searched: true, Term: term}), fmt.Sprintf(ctx(i18n.KeyAdminCustNoneFound), term)},
-		"warranty":           {Warranties(p, WarrantiesView{Bound: b, Searched: true, Term: term}), fmt.Sprintf(ctx(i18n.KeyAdminWarrantyNoneFound), term)},
 		"products":           {Products(p, ProductsView{Bound: b}), ctx(i18n.KeyAdminProdEmpty)},
-		"stock":              {Variants(p, VariantsView{Bound: b}), ctx(i18n.KeyAdminQueueNoVariants)},
-		"movements":          {Movements(p, &MovementsView{Bound: b}), ctx(i18n.KeyAdminLedgerEmpty)},
 		"returns":            {Returns(p, ReturnsView{Bound: b}), ctx(i18n.KeyAdminRetEmpty)},
-		"campaigns":          {Campaigns(p, CampaignsView{Bound: b}), ctx(i18n.KeyAdminCampEmpty)},
-		"audit":              {Audit(p, AuditView{Bound: b}), ctx(i18n.KeyAdminAuditEmpty)},
+		"audit":              {audit.Audit(p, audit.AuditView{Bound: b}), ctx(i18n.KeyAdminAuditEmpty)},
 	}
 }
 

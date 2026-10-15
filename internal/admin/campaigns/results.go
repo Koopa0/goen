@@ -8,7 +8,6 @@ import (
 	"github.com/koopa0/goen/internal/db"
 	"github.com/koopa0/goen/internal/shoptime"
 	"github.com/koopa0/goen/internal/ui/chart"
-	"github.com/koopa0/goen/internal/ui/pages/admin"
 )
 
 // maxResultDays is how many of a campaign's first days its results show, and
@@ -58,7 +57,7 @@ func resultWindow(starts, ends, now time.Time) (resultDays, bool) {
 // campaign's list: the days of the campaign so far, up to 14, and as many
 // before it. It is nil when the campaign has not begun, is switched off, or has
 // no products.
-func (s *Store) Results(ctx context.Context, slug string, detail admin.CampaignDetail, products int, now time.Time) (*admin.CampaignResults, error) {
+func (s *Store) Results(ctx context.Context, slug string, detail CampaignDetail, products int, now time.Time) (*CampaignResults, error) {
 	w, ok := resultWindow(detail.Starts, detail.Ends, now)
 	if !ok || products == 0 || !detail.Active {
 		return nil, nil
@@ -73,7 +72,7 @@ func (s *Store) Results(ctx context.Context, slug string, detail admin.CampaignD
 	for _, r := range rows {
 		units.Buckets = append(units.Buckets, chart.Bucket{Day: r.Day, Value: r.Units})
 	}
-	return &admin.CampaignResults{
+	return &CampaignResults{
 		Units: units, Days: w.days, Products: products, Cut: shoptime.Clock(now),
 		Campaign: chart.Span{
 			From:  shoptime.QueryDate(detail.Starts),

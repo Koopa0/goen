@@ -42,20 +42,13 @@ func TestPaymentExplainsCreditAndDiscountsSeparately(t *testing.T) {
 	}
 }
 
-func TestPaymentFAQSeedAndRepairExplainTheSameChoices(t *testing.T) {
+func TestPaymentFAQSeedExplainsTheChoices(t *testing.T) {
 	seed, err := os.ReadFile("../../seed/dev_catalog.sql")
-	if err != nil {
-		t.Fatal(err)
-	}
-	repair, err := os.ReadFile("../../seed/repair_payment_faq.sql")
 	if err != nil {
 		t.Fatal(err)
 	}
 	zh := sqlStringAfter(t, string(seed), "('訂購與付款', '可以用哪些方式付款？',")
 	en := sqlStringAfter(t, string(seed), "'How can I pay?',")
-	if zh != sqlStringAfter(t, string(repair), "SET answer =") || en != sqlStringAfter(t, string(repair), "SET answer_en =") {
-		t.Error("payment FAQ repair differs from fresh seed")
-	}
 	for _, word := range []string{"Stripe", "付款頁面在 Stripe 網域上", "購物金", "自動折抵", "折扣碼", "不是付款方式"} {
 		if !strings.Contains(zh, word) {
 			t.Errorf("payment FAQ omits %q", word)
@@ -73,20 +66,13 @@ func TestPaymentFAQSeedAndRepairExplainTheSameChoices(t *testing.T) {
 	}
 }
 
-func TestHoldFAQSeedAndRepairStateTheSameDeadline(t *testing.T) {
+func TestHoldFAQSeedStatesTheDeadline(t *testing.T) {
 	seed, err := os.ReadFile("../../seed/dev_catalog.sql")
-	if err != nil {
-		t.Fatal(err)
-	}
-	repair, err := os.ReadFile("../../seed/repair_hold_faq.sql")
 	if err != nil {
 		t.Fatal(err)
 	}
 	zh := sqlStringAfter(t, string(seed), "('訂購與付款', '下單之後商品會保留嗎？',")
 	en := sqlStringAfter(t, string(seed), "'Is the stock held after I order?',")
-	if zh != sqlStringAfter(t, string(repair), "SET answer =") || en != sqlStringAfter(t, string(repair), "SET answer_en =") {
-		t.Error("hold FAQ repair differs from fresh seed")
-	}
 	for answer, words := range map[string][]string{
 		zh: {"保留庫存 " + pages.HoldMinutesText() + " 分鐘", pages.PayStartMinutesText() + " 分鐘內開始付款", "自動取消", "購物金"},
 		en: {"holds the stock for " + pages.HoldMinutesText() + " minutes", "within " + pages.PayStartMinutesText() + " minutes", "cancelled automatically", "store credit"},

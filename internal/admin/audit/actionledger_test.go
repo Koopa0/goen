@@ -5,8 +5,8 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/koopa0/goen/internal/admin/audit"
 	"github.com/koopa0/goen/internal/i18n"
-	"github.com/koopa0/goen/internal/ui/pages/admin"
 )
 
 // actionLedger is every action goen has ever written into audit_events.action,
@@ -48,6 +48,9 @@ var actionLedger = []string{
 	"coupon.toggle",
 	"credit.grant",
 	"customer.view",
+	"faq.category.create",
+	"faq.category.delete",
+	"faq.category.rename",
 	"faq.create",
 	"faq.delete",
 	"faq.update",
@@ -172,7 +175,7 @@ func TestEveryLedgerActionHasAPhrase(t *testing.T) {
 			t.Run(action+"/"+string(locale), func(t *testing.T) {
 				t.Parallel()
 				ctx := i18n.WithLocale(t.Context(), locale)
-				if got := (admin.AuditEntry{Action: action}).Label(ctx); got == action {
+				if got := (audit.AuditEntry{Action: action}).Label(ctx); got == action {
 					t.Errorf("Label(%q) in %s is the raw code: the action has no staff-facing phrase (add it to pages.actionLabels)", action, locale)
 				}
 			})

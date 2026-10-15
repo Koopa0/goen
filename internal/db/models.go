@@ -156,12 +156,18 @@ type EmailVerification struct {
 	CreatedAt time.Time
 }
 
+type FaqCategory struct {
+	ID       uuid.UUID
+	Name     string
+	NameEn   pgtype.Text
+	Position int32
+}
+
 type FaqEntry struct {
 	ID         uuid.UUID
-	Category   string
+	CategoryID uuid.UUID
 	Question   string
 	Answer     string
-	CategoryEn pgtype.Text
 	QuestionEn pgtype.Text
 	AnswerEn   pgtype.Text
 	Position   int32

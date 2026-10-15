@@ -23,7 +23,6 @@ import (
 	"github.com/koopa0/goen/internal/order"
 	"github.com/koopa0/goen/internal/shoptime"
 	"github.com/koopa0/goen/internal/ui/components"
-	"github.com/koopa0/goen/internal/ui/pages/admin"
 	"github.com/koopa0/goen/internal/web"
 )
 
@@ -52,11 +51,11 @@ func resume(scope string, after []string) (position, bool) {
 	return keyset.Resume(scope, after, func(p position) bool { return p.ID != uuid.Nil })
 }
 
-func (s *Store) Search(ctx context.Context, term string, after ...string) (admin.CustomersView, error) {
+func (s *Store) Search(ctx context.Context, term string, after ...string) (CustomersView, error) {
 	term = strings.TrimSpace(term)
 	scope := keyset.ScopeURL("/admin/customers", "q", term)
 	from, resumed := resume(scope, after)
-	view := admin.CustomersView{Term: term}
+	view := CustomersView{Term: term}
 	if utf8.RuneCountInString(term) < web.MinSearchRunes {
 		return view, nil
 	}
@@ -66,13 +65,13 @@ func (s *Store) Search(ctx context.Context, term string, after ...string) (admin
 		EscapedTerm: db.EscapeLike(term), RowLimit: keyset.PageLimit,
 	})
 	if err != nil {
-		return admin.CustomersView{}, fmt.Errorf("search customers: %w", err)
+		return CustomersView{}, fmt.Errorf("search customers: %w", err)
 	}
 	rows, bound := keyset.PageBound(scope, resumed, rows, keyset.PageSize, func(r *db.AdminSearchCustomersRow) string { return r.PageCursor })
 	view.Bound = bound
 	for i := range rows {
 		r := &rows[i]
-		view.Rows = append(view.Rows, admin.CustomerRow{
+		view.Rows = append(view.Rows, CustomerRow{
 			ID: r.ID.String(), Email: r.Email, Name: r.FullName,
 			Since:    shoptime.Day(r.CreatedAt),
 			Verified: r.Verified, Orders: r.Orders,
@@ -82,15 +81,15 @@ func (s *Store) Search(ctx context.Context, term string, after ...string) (admin
 }
 
 // Profile reads one customer, whole, and RECORDS that somebody looked.
-func (s *Store) Profile(ctx context.Context, id string) (admin.CustomerView, error) {
+func (s *Store) Profile(ctx context.Context, id string) (CustomerView, error) {
 	uid, err := uuid.Parse(id)
 	if err != nil {
-		return admin.CustomerView{}, ErrNotFound
+		return CustomerView{}, ErrNotFound
 	}
 
 	tx, err := s.pool.Begin(ctx)
 	if err != nil {
-		return admin.CustomerView{}, fmt.Errorf("begin customer read: %w", err)
+		return CustomerView{}, fmt.Errorf("begin customer read: %w", err)
 	}
 	defer db.Rollback(ctx, tx)
 	q := s.q.WithTx(tx)
@@ -98,23 +97,23 @@ func (s *Store) Profile(ctx context.Context, id string) (admin.CustomerView, err
 	row, err := q.AdminCustomer(ctx, uid)
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
-			return admin.CustomerView{}, ErrNotFound
+			return CustomerView{}, ErrNotFound
 		}
-		return admin.CustomerView{}, fmt.Errorf("read customer: %w", err)
+		return CustomerView{}, fmt.Errorf("read customer: %w", err)
 	}
 
 	standing, err := q.MemberStanding(ctx, db.MemberStandingParams{
 		UserID: uid, Locale: string(i18n.FromContext(ctx)),
 	})
 	if err != nil {
-		return admin.CustomerView{}, fmt.Errorf("read customer standing: %w", err)
+		return CustomerView{}, fmt.Errorf("read customer standing: %w", err)
 	}
 
 	orders, err := q.AdminCustomerOrders(ctx, db.AdminCustomerOrdersParams{
 		UserID: uuid.NullUUID{UUID: uid, Valid: true}, Limit: keyset.PageSize,
 	})
 	if err != nil {
-		return admin.CustomerView{}, fmt.Errorf("read customer orders: %w", err)
+		return CustomerView{}, fmt.Errorf("read customer orders: %w", err)
 	}
 
 	ids := make([]uuid.UUID, len(orders))
@@ -123,7 +122,7 @@ func (s *Store) Profile(ctx context.Context, id string) (admin.CustomerView, err
 	}
 	returned, err := q.ReturnedOrders(ctx, ids)
 	if err != nil {
-		return admin.CustomerView{}, fmt.Errorf("read returned customer orders: %w", err)
+		return CustomerView{}, fmt.Errorf("read returned customer orders: %w", err)
 	}
 
 	// WHO was looked at, never what was read: audit_events outlives an erasure.
@@ -131,13 +130,13 @@ func (s *Store) Profile(ctx context.Context, id string) (admin.CustomerView, err
 		Action: audit.ActionViewCustomer, Table: "users", ID: audit.EntityID(uid),
 		Before: nil, After: map[string]any{"user_id": id},
 	}); auditErr != nil {
-		return admin.CustomerView{}, auditErr
+		return CustomerView{}, auditErr
 	}
 	if err := tx.Commit(ctx); err != nil {
-		return admin.CustomerView{}, fmt.Errorf("commit customer read: %w", err)
+		return CustomerView{}, fmt.Errorf("commit customer read: %w", err)
 	}
 
-	view := admin.CustomerView{
+	view := CustomerView{
 		ID: row.ID.String(), Email: row.Email, Name: row.FullName, Phone: row.Phone,
 		Since: shoptime.Day(row.CreatedAt), Verified: row.Verified,
 		Orders: row.Orders, SpentCents: row.Spent,
@@ -151,14 +150,14 @@ func (s *Store) Profile(ctx context.Context, id string) (admin.CustomerView, err
 	return view, nil
 }
 
-func recentOrderRow(ctx context.Context, o *db.AdminCustomerOrdersRow, returned bool) admin.RecentOrder {
+func recentOrderRow(ctx context.Context, o *db.AdminCustomerOrdersRow, returned bool) RecentOrder {
 	fulfillment := order.FulfillmentStatus(o.FulfillmentStatus)
 	text := fulfillment.FundedLabel(ctx, o.Committed, o.OwedCents)
 	intent := components.FundedFulfillmentIntent(fulfillment, o.Committed, o.OwedCents)
 	if returned {
 		text, intent = i18n.T(ctx, i18n.KeyStatusRefunded), components.IntentNeutral
 	}
-	return admin.RecentOrder{
+	return RecentOrder{
 		Number:       o.OrderNumber,
 		Status:       fulfillment,
 		StatusText:   text,
