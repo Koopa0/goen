@@ -61,7 +61,6 @@ var viewPackageImporters = []string{
 	"internal/catalog",
 	"internal/home",
 	"internal/loyalty",
-	"internal/newsletter",
 	"internal/payment",
 	"internal/product",
 	"internal/returns/buyer",

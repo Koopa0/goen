@@ -13,7 +13,6 @@ import (
 	"github.com/koopa0/goen/internal/i18n"
 	"github.com/koopa0/goen/internal/ratelimit"
 	"github.com/koopa0/goen/internal/ui/layouts"
-	"github.com/koopa0/goen/internal/ui/pages"
 	"github.com/koopa0/goen/internal/web"
 )
 
@@ -92,7 +91,7 @@ func (h *Handler) Thanks(w http.ResponseWriter, r *http.Request) {
 		Title:       i18n.T(ctx, i18n.KeyCheckInbox),
 		Description: i18n.T(ctx, i18n.KeyNewsletterSentMeta),
 	}
-	web.Render(w, r, h.log, http.StatusOK, pages.NewsletterSent(meta, email.ReadMasked(r.URL.Query().Get("address"))))
+	web.Render(w, r, h.log, http.StatusOK, NewsletterSent(meta, email.ReadMasked(r.URL.Query().Get("address"))))
 }
 
 // ConfirmPage echoes the token into a form rather than acting on it: a
