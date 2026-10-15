@@ -41,11 +41,14 @@ SELECT '版面檢查用的促銷訊息，長度接近真實的一句文案', '�
        'A layout-check promotion, about as long as a real one', 'Layout promo', 'Look'
 WHERE NOT EXISTS (SELECT 1 FROM promo_banners);
 
-INSERT INTO sale_campaigns (slug, title, title_en, starts_at, ends_at)
-VALUES ('layout-campaign', 'Layout campaign', 'Layout campaign',
-        now() - interval '3 days', now() + interval '1 day')
-ON CONFLICT (slug) DO UPDATE
-SET starts_at = EXCLUDED.starts_at, ends_at = EXCLUDED.ends_at, is_active = true;
+-- Created as the campaign form creates one, then given its window and switched
+-- on as the campaign desk does.
+INSERT INTO sale_campaigns (slug, title, title_en, ends_at)
+VALUES ('layout-campaign', 'Layout campaign', 'Layout campaign', now() + interval '1 day')
+ON CONFLICT (slug) DO NOTHING;
+UPDATE sale_campaigns
+SET starts_at = now() - interval '3 days', ends_at = now() + interval '1 day', is_active = true
+WHERE slug = 'layout-campaign';
 INSERT INTO sale_campaign_products (campaign_id, product_id, position)
 SELECT c.id, p.id, (row_number() OVER (ORDER BY p.discounted DESC, p.slug))::integer - 1
 FROM sale_campaigns c
@@ -62,11 +65,13 @@ ON CONFLICT DO NOTHING;
 
 SET ROLE store;
 
-INSERT INTO users (email, full_name, phone)
-VALUES ('layout-cust@goen.invalid', '版面顧客', '0912345678')
+-- Registration, then the profile form's name and phone.
+INSERT INTO users (email, full_name)
+VALUES ('layout-cust@goen.invalid', '版面顧客')
 ON CONFLICT (lower(email)) DO NOTHING;
 SELECT id AS customer_id FROM users
 WHERE lower(email) = 'layout-cust@goen.invalid' AND role = 'customer' \gset
+UPDATE users SET full_name = '版面顧客', phone = '0912345678' WHERE id = :'customer_id';
 
 INSERT INTO sessions (digest, user_id, expires_at) VALUES
     (sha256(convert_to(:'admin_token', 'UTF8')), :'staff_id', now() + interval '1 hour'),
@@ -90,10 +95,12 @@ RETURNING id AS answered_question_id \gset
 -- What the product editor's sales and reviews card draws: paid orders on nine
 -- shop days, so the weekly columns have axes, and six reviews of three star
 -- values, one of them hidden, so the spread is drawn and the hidden one stays out.
+-- Checkout places an order now; the owner moves each back to its day, as the
+-- days passing would, before it is paid.
 WITH sale_orders AS (
     INSERT INTO orders (user_id, shipping_version_id, shipping_method_code, shipping_method_name,
-                        shipping_cents, placed_at)
-    SELECT :'customer_id', v.id, sm.code, v.name, 0, now() - make_interval(days => 3 * n)
+                        shipping_cents)
+    SELECT :'customer_id', v.id, sm.code, v.name, 0
     FROM generate_series(1, 9) AS n,
          (SELECT v.id, v.name, v.method_id FROM shipping_method_versions v ORDER BY v.effective_at LIMIT 1) v
          JOIN shipping_methods sm ON sm.id = v.method_id
@@ -107,6 +114,12 @@ WITH sale_orders AS (
 INSERT INTO order_private_data (order_id, email, recipient_name, phone, postal_code, city, district, street)
 SELECT order_id, 'layout-cust@goen.invalid', '版面顧客', '0912345678', '110', '台北市', '信義區', '松高路 1 號'
 FROM sale_lines;
+RESET ROLE;
+UPDATE orders o SET placed_at = now() - make_interval(days => 3 * d.n::integer)
+FROM (SELECT ol.order_id, row_number() OVER (ORDER BY ol.order_id) AS n
+      FROM order_lines ol WHERE ol.sku = 'LAYOUT-STANDING') d
+WHERE o.id = d.order_id;
+SET ROLE store;
 SELECT open_payment(o.id, 'layout-sale-' || o.id, ol.unit_price_cents * ol.quantity)
 FROM orders o JOIN order_lines ol ON ol.order_id = o.id WHERE ol.sku = 'LAYOUT-STANDING';
 SELECT capture_payment('layout-sale-' || o.id, ol.unit_price_cents * ol.quantity, NULL, NULL)
@@ -336,17 +349,17 @@ SELECT redeem_coupon(:'capped_coupon_id', :'invoice_id', :'customer_id', 0);
 -- gives the chart's end label seven digits to measure at 320. Each is placed and
 -- paid as the reports tests pay one: a succeeded payment is what puts a pending
 -- order in committed_orders, off the picking queue.
+-- The first placed (uuidv7 ids ascend) is moved back one day, the latest.
 WITH revenue_orders AS (
     INSERT INTO orders (user_id, shipping_version_id, shipping_method_code, shipping_method_name,
-                        shipping_cents, placed_at)
-    SELECT :'customer_id', :'ship_version', :'ship_code', :'ship_name', 0,
-           now() - make_interval(days => day_ago)
+                        shipping_cents)
+    SELECT :'customer_id', :'ship_version', :'ship_code', :'ship_name', 0
     FROM generate_series(1, 7) AS day_ago
-    RETURNING id, placed_at
+    RETURNING id
 ), revenue_lines AS (
     INSERT INTO order_lines (order_id, sku, product_name, unit_price_cents, quantity)
     SELECT r.id, 'LAYOUT-REVENUE', 'Revenue chart fixture',
-           CASE WHEN r.placed_at = (SELECT max(placed_at) FROM revenue_orders) THEN 123456700 ELSE 3000000 END,
+           CASE WHEN r.id = (SELECT id FROM revenue_orders ORDER BY id LIMIT 1) THEN 123456700 ELSE 3000000 END,
            1
     FROM revenue_orders r
     RETURNING order_id
@@ -354,6 +367,12 @@ WITH revenue_orders AS (
 INSERT INTO order_private_data (order_id, email, recipient_name, phone, postal_code, city, district, street)
 SELECT order_id, 'layout-cust@goen.invalid', '版面顧客', '0912345678', '110', '台北市', '信義區', '松高路 1 號'
 FROM revenue_lines;
+RESET ROLE;
+UPDATE orders o SET placed_at = now() - make_interval(days => d.day_ago::integer)
+FROM (SELECT ol.order_id, row_number() OVER (ORDER BY ol.order_id) AS day_ago
+      FROM order_lines ol WHERE ol.sku = 'LAYOUT-REVENUE') d
+WHERE o.id = d.order_id;
+SET ROLE store;
 SELECT open_payment(o.id, 'layout-rev-' || o.id, ol.unit_price_cents)
 FROM orders o JOIN order_lines ol ON ol.order_id = o.id
 WHERE ol.sku = 'LAYOUT-REVENUE';
@@ -368,9 +387,8 @@ WHERE ol.sku = 'LAYOUT-REVENUE';
 -- campaign, four in the four days before it, paid as above.
 WITH campaign_orders AS (
     INSERT INTO orders (user_id, shipping_version_id, shipping_method_code, shipping_method_name,
-                        shipping_cents, placed_at)
-    SELECT :'customer_id', :'ship_version', :'ship_code', :'ship_name', 0,
-           now() - make_interval(days => day_ago)
+                        shipping_cents)
+    SELECT :'customer_id', :'ship_version', :'ship_code', :'ship_name', 0
     FROM generate_series(1, 7) AS day_ago
     RETURNING id
 ), campaign_lines AS (
@@ -385,6 +403,12 @@ WITH campaign_orders AS (
 INSERT INTO order_private_data (order_id, email, recipient_name, phone, postal_code, city, district, street)
 SELECT order_id, 'layout-cust@goen.invalid', '版面顧客', '0912345678', '110', '台北市', '信義區', '松高路 1 號'
 FROM campaign_lines;
+RESET ROLE;
+UPDATE orders o SET placed_at = now() - make_interval(days => d.day_ago::integer)
+FROM (SELECT ol.order_id, row_number() OVER (ORDER BY ol.order_id) AS day_ago
+      FROM order_lines ol WHERE ol.sku = 'LAYOUT-CAMPAIGN') d
+WHERE o.id = d.order_id;
+SET ROLE store;
 SELECT open_payment(o.id, 'layout-camp-' || o.id, ol.unit_price_cents * ol.quantity)
 FROM orders o JOIN order_lines ol ON ol.order_id = o.id
 WHERE ol.sku = 'LAYOUT-CAMPAIGN';

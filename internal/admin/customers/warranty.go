@@ -47,7 +47,7 @@ func (s *Store) Warranties(ctx context.Context, term string, after ...string) (a
 	}
 	for i := range rows {
 		r := &rows[i]
-		status := admin.FulfillmentLabel(ctx, order.FulfillmentStatus(r.FulfillmentStatus))
+		status := order.FulfillmentStatus(r.FulfillmentStatus).Label(ctx)
 		gone := slices.Contains(returned, r.OrderID)
 		if gone {
 			status = i18n.T(ctx, i18n.KeyStatusRefunded)

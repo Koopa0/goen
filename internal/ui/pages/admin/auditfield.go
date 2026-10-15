@@ -207,7 +207,7 @@ func carrierText(ctx context.Context, _ AuditEntry, value string) string {
 }
 
 func fulfillmentText(ctx context.Context, _ AuditEntry, value string) string {
-	return FulfillmentLabel(ctx, order.FulfillmentStatus(value))
+	return order.FulfillmentStatus(value).Label(ctx)
 }
 
 func returnDecisionText(ctx context.Context, _ AuditEntry, value string) string {

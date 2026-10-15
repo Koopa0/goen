@@ -20,17 +20,34 @@ func TestRestockClaimAndOutboxRollBackWithStock(t *testing.T) {
 	var variant uuid.UUID
 	var quantity int32
 	if err := owner.QueryRow(ctx, `
-		SELECT id, stock_quantity FROM product_variants
-		WHERE is_active AND stock_quantity > safety_stock ORDER BY id LIMIT 1`).Scan(&variant, &quantity); err != nil {
+		SELECT v.id, v.stock_quantity FROM product_variants v
+		WHERE v.is_active AND v.stock_quantity > v.safety_stock
+		  AND (SELECT count(*) FROM product_variants sibling
+		       WHERE sibling.product_id = v.product_id AND sibling.is_active) > 1
+		  AND NOT EXISTS (SELECT 1 FROM sale_campaign_products cp WHERE cp.product_id = v.product_id)
+		ORDER BY v.id LIMIT 1`).Scan(&variant, &quantity); err != nil {
 		t.Fatal(err)
 	}
 	subscriptions := admintest.SubscribeAtSafetyStock(t, owner, variant)
+	// Waiting because the variant is switched off rather than short: the back
+	// office's write is switching it on (SetVariantActive), which holds no
+	// privilege on the notices it claims.
+	t.Cleanup(func() {
+		if _, err := owner.Exec(context.WithoutCancel(ctx),
+			`UPDATE product_variants SET is_active = true WHERE id = $1`, variant); err != nil {
+			t.Errorf("switch the variant back on: %v", err)
+		}
+	})
+	if _, err := owner.Exec(ctx, `UPDATE product_variants SET is_active = false, safety_stock = $2 WHERE id = $1`,
+		variant, quantity-1); err != nil {
+		t.Fatal(err)
+	}
 	tx, err := writer.Begin(ctx)
 	if err != nil {
 		t.Fatal(err)
 	}
 	defer func() { _ = tx.Rollback(context.WithoutCancel(ctx)) }()
-	if _, err := tx.Exec(ctx, `UPDATE product_variants SET safety_stock = $2 WHERE id = $1`, variant, quantity-1); err != nil {
+	if _, err := tx.Exec(ctx, `UPDATE product_variants SET is_active = true WHERE id = $1`, variant); err != nil {
 		t.Fatal(err)
 	}
 	var claimed, queued int
@@ -42,18 +59,18 @@ func TestRestockClaimAndOutboxRollBackWithStock(t *testing.T) {
 	if err := tx.Rollback(context.WithoutCancel(ctx)); err != nil {
 		t.Fatal(err)
 	}
-	var safety int32
-	if err := owner.QueryRow(ctx, `SELECT safety_stock,
+	var active bool
+	if err := owner.QueryRow(ctx, `SELECT is_active,
 		(SELECT count(*) FROM stock_notifications WHERE variant_id = $1 AND notified_at IS NOT NULL),
 		(SELECT count(*) FROM outbox_messages WHERE topic = $2)
-		FROM product_variants WHERE id = $1`, variant, outbox.TopicRestocked.Name()).Scan(&safety, &claimed, &queued); err != nil || safety != quantity || claimed != 0 || queued != 0 {
-		t.Fatalf("after rollback safety/claimed/queued = %d/%d/%d, want %d/0/0: %v", safety, claimed, queued, quantity, err)
+		FROM product_variants WHERE id = $1`, variant, outbox.TopicRestocked.Name()).Scan(&active, &claimed, &queued); err != nil || active || claimed != 0 || queued != 0 {
+		t.Fatalf("after rollback active/claimed/queued = %t/%d/%d, want false/0/0: %v", active, claimed, queued, err)
 	}
-	if _, err := writer.Exec(ctx, `UPDATE product_variants SET safety_stock = $2 WHERE id = $1`, variant, quantity-1); err != nil {
+	if _, err := writer.Exec(ctx, `UPDATE product_variants SET is_active = true WHERE id = $1`, variant); err != nil {
 		t.Fatal(err)
 	}
 	admintest.AssertRestockQueued(t, owner, subscriptions)
-	if _, err := writer.Exec(ctx, `UPDATE product_variants SET safety_stock = $2 WHERE id = $1`, variant, quantity-1); err != nil {
+	if _, err := writer.Exec(ctx, `UPDATE product_variants SET is_active = true WHERE id = $1`, variant); err != nil {
 		t.Fatal(err)
 	}
 	admintest.AssertRestockQueued(t, owner, subscriptions)

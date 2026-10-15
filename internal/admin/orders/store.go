@@ -103,7 +103,7 @@ func orderStatus(ctx context.Context, status order.FulfillmentStatus, committed 
 	if returned {
 		return i18n.T(ctx, i18n.KeyStatusRefunded), components.IntentNeutral
 	}
-	return admin.FundedFulfillmentLabel(ctx, status, committed, owedCents), admin.FundedFulfillmentIntent(status, committed, owedCents)
+	return status.FundedLabel(ctx, committed, owedCents), components.FundedFulfillmentIntent(status, committed, owedCents)
 }
 
 // listPosition is a reader's place in the orders queue. The query builds it as
@@ -539,7 +539,7 @@ func (s *Store) fillRefundBeforeShipment(ctx context.Context, view *admin.OrderV
 			(n == order.FulfillmentCompleted && (len(view.Shippable) > 0 || view.UnsentOpen)) {
 			continue
 		}
-		view.Next = append(view.Next, admin.Transition{Value: n, Label: admin.FulfillmentLabel(ctx, n)})
+		view.Next = append(view.Next, admin.Transition{Value: n, Label: n.Label(ctx)})
 	}
 	return nil
 }
@@ -568,7 +568,7 @@ func (s *Store) fillPayments(ctx context.Context, view *admin.OrderView, orderID
 		r := &refundRows[i]
 		channel, reason := i18n.KeyAdminPayRefundCard, r.Reason
 		if r.Channel == "credit" {
-			channel, reason = i18n.KeyAdminPayRefundCredit, admin.CreditReason(ctx, admin.PostingKind(r.Kind), r.Reason)
+			channel, reason = i18n.KeyAdminPayRefundCredit, creditRefundReason(ctx, r.Kind, r.Reason)
 		}
 		view.Refunds = append(view.Refunds, admin.Refund{
 			Channel: i18n.T(ctx, channel), Amount: money.TWD(r.AmountCents),
@@ -576,6 +576,28 @@ func (s *Store) fillPayments(ctx context.Context, view *admin.OrderView, orderID
 		})
 	}
 	return nil
+}
+
+// creditRefundReason is how a store-credit posting reads on the order page: the
+// system kinds in the reader's language, and a staff grant as the text staff
+// typed. kind is store_credit_entries.kind, which the database derives from the
+// posting's idempotency key. It reads kind and never matches reason, so a grant
+// worded "points" stays a grant.
+func creditRefundReason(ctx context.Context, kind, reason string) string {
+	switch kind {
+	case "order_spend":
+		return i18n.T(ctx, i18n.KeyAdminCreditReasonOrderSpend)
+	case "order_cancel_reversal":
+		return i18n.T(ctx, i18n.KeyAdminCreditReasonOrderReversed)
+	case "return_payout":
+		return i18n.T(ctx, i18n.KeyAdminCreditReasonReturnPayout)
+	case "points_redemption":
+		return i18n.T(ctx, i18n.KeyAdminCreditReasonPoints)
+	case "staff_grant":
+		return reason
+	default:
+		panic("orders: no label for store credit kind " + kind)
+	}
 }
 
 // paymentWithoutCard is how an order with no card capture was paid, read from
