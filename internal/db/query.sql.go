@@ -9267,6 +9267,70 @@ func (q *Queries) KnownAllowances(ctx context.Context, originalID uuid.UUID) ([]
 	return items, nil
 }
 
+const lapsedCheckoutSessions = `-- name: LapsedCheckoutSessions :many
+SELECT p.provider_ref, o.order_number, p.intended_amount_cents
+FROM payments p
+JOIN orders o ON o.id = p.order_id
+CROSS JOIN LATERAL (
+    SELECT max(ir.expires_at) AS lapsed_at
+    FROM inventory_reservations ir WHERE ir.order_id = o.id
+) h
+WHERE p.provider = 'stripe'
+  AND p.status IN ('requires_payment', 'requires_action', 'processing')
+  AND o.fulfillment_status = 'pending'
+  AND NOT order_is_committed(o.id)
+  AND h.lapsed_at < now() - $1::interval
+  AND NOT EXISTS (
+      SELECT 1
+      FROM payment_webhook_events e
+      JOIN payments ep
+        ON ep.provider = e.provider AND ep.provider_ref = e.object_ref
+      WHERE ep.order_id = o.id
+        AND e.unreconciled IS NOT NULL AND e.reconciled_at IS NULL
+  )
+ORDER BY h.lapsed_at DESC, p.id
+LIMIT $2
+`
+
+type LapsedCheckoutSessionsParams struct {
+	Grace pgtype.Interval
+	Batch int32
+}
+
+type LapsedCheckoutSessionsRow struct {
+	ProviderRef         string
+	OrderNumber         string
+	IntendedAmountCents int64
+}
+
+// Checkout Sessions goen still records as payable on an unpaid order whose
+// every stock hold ran out more than @grace ago. A session ends before the
+// order's earliest hold, so each has ended at Stripe and only the event saying
+// how is missing; until it comes, LapsedUnpaidOrders keeps the order, its store
+// credit and its coupon. An order with an unresolved provider event already
+// needs a person and is left to them. Newest first, so sessions Stripe cannot
+// answer for do not hold back ones that have just lapsed.
+// WorkerHealth counts the same predicate (lapsed_checkouts).
+func (q *Queries) LapsedCheckoutSessions(ctx context.Context, arg LapsedCheckoutSessionsParams) ([]LapsedCheckoutSessionsRow, error) {
+	rows, err := q.db.Query(ctx, lapsedCheckoutSessions, arg.Grace, arg.Batch)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []LapsedCheckoutSessionsRow{}
+	for rows.Next() {
+		var i LapsedCheckoutSessionsRow
+		if err := rows.Scan(&i.ProviderRef, &i.OrderNumber, &i.IntendedAmountCents); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const lapsedUnpaidOrders = `-- name: LapsedUnpaidOrders :many
 SELECT o.order_number
 FROM orders o
@@ -19882,6 +19946,28 @@ SELECT
                  AND e.unreconciled IS NOT NULL AND e.reconciled_at IS NULL
            )
        )))::bigint AS expired_holds,
+    -- LapsedCheckoutSessions' predicate, aged @lapsed_after rather than its
+    -- grace: a session the payment sweeper has asked Stripe about pass after
+    -- pass and still could not close, so the order keeps its credit and coupon.
+    (SELECT count(*) FROM payments p
+     JOIN orders o ON o.id = p.order_id
+     CROSS JOIN LATERAL (
+         SELECT max(ir.expires_at) AS lapsed_at
+         FROM inventory_reservations ir WHERE ir.order_id = o.id
+     ) h
+     WHERE p.provider = 'stripe'
+       AND p.status IN ('requires_payment', 'requires_action', 'processing')
+       AND o.fulfillment_status = 'pending'
+       AND NOT order_is_committed(o.id)
+       AND h.lapsed_at < now() - $2::interval
+       AND NOT EXISTS (
+           SELECT 1
+           FROM payment_webhook_events e
+           JOIN payments ep
+             ON ep.provider = e.provider AND ep.provider_ref = e.object_ref
+           WHERE ep.order_id = o.id
+             AND e.unreconciled IS NOT NULL AND e.reconciled_at IS NULL
+       ))::bigint AS lapsed_checkouts,
     (SELECT coalesce(extract(epoch FROM now() - max(refreshed_at)), 0)
      FROM copurchase_refreshes)::bigint AS copurchase_age_seconds,
     EXISTS (SELECT 1 FROM copurchase_refreshes) AS copurchase_ever_built,
@@ -19894,11 +19980,17 @@ SELECT
        AND m.created_at < now() - interval '24 hours')::bigint AS unreferenced_media
 `
 
+type WorkerHealthParams struct {
+	MaxAttempts int32
+	LapsedAfter pgtype.Interval
+}
+
 type WorkerHealthRow struct {
 	OutboxPending        int64
 	OutboxOldestSeconds  int64
 	OutboxStuck          int64
 	ExpiredHolds         int64
+	LapsedCheckouts      int64
 	CopurchaseAgeSeconds int64
 	CopurchaseEverBuilt  bool
 	ExpiredSessions      int64
@@ -19911,14 +20003,15 @@ type WorkerHealthRow struct {
 // infers as non-nullable and pgx then refuses to scan: a fresh deployment only.
 // Both read copurchase_refreshes and not product_copurchases: a rebuild that
 // found no pair of products leaves the projection empty and is still a rebuild.
-func (q *Queries) WorkerHealth(ctx context.Context, maxAttempts int32) (WorkerHealthRow, error) {
-	row := q.db.QueryRow(ctx, workerHealth, maxAttempts)
+func (q *Queries) WorkerHealth(ctx context.Context, arg WorkerHealthParams) (WorkerHealthRow, error) {
+	row := q.db.QueryRow(ctx, workerHealth, arg.MaxAttempts, arg.LapsedAfter)
 	var i WorkerHealthRow
 	err := row.Scan(
 		&i.OutboxPending,
 		&i.OutboxOldestSeconds,
 		&i.OutboxStuck,
 		&i.ExpiredHolds,
+		&i.LapsedCheckouts,
 		&i.CopurchaseAgeSeconds,
 		&i.CopurchaseEverBuilt,
 		&i.ExpiredSessions,

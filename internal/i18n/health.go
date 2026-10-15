@@ -111,6 +111,20 @@ var (
 			"in the warehouse and cannot be sold.",
 	})
 
+	KeyAdminHPCheckoutsName = key("admin.hp.checkouts.name", Message{
+		ZhHant: "逾期訂單的結帳",
+		En:     "Lapsed checkouts",
+	})
+
+	KeyAdminHPCheckoutsNote = key("admin.hp.checkouts.note", Message{
+		ZhHant: "過了付款期限，Stripe 的結帳就會結束；goen 得知後取消訂單，退回購物金和優惠券。" +
+			"Stripe 的通知沒來時，goen 會自己去問。這裡有數字代表問了好幾次仍沒結果，購物金和優惠券還被占著。",
+		En: "A checkout ends at Stripe when its order's payment deadline passes; once goen hears, it cancels " +
+			"the order and gives back its store credit and coupon. When Stripe's notice does not come, goen " +
+			"asks Stripe itself. A count here means asking again and again has not settled it, so the credit " +
+			"and coupon are still spent.",
+	})
+
 	KeyAdminHPProjectionName = key("admin.hp.projection.name", Message{
 		ZhHant: "商品推薦",
 		En:     "Product recommendations",
@@ -396,6 +410,16 @@ var (
 		ZhHant: "%d 筆過期的庫存保留還沒釋放",
 		En:     "%d expired stock holds still unreleased",
 	})
+
+	KeyHealthCheckoutsClear = key("health.checkouts.clear", Message{
+		ZhHant: "沒有卡住的逾期結帳",
+		En:     "No lapsed checkout left unsettled",
+	})
+
+	KeyHealthCheckoutsStuck = countKey("health.checkouts.stuck",
+		"%d 筆逾期訂單的結帳還沒結束，購物金和優惠券仍被占著",
+		"%d lapsed order's checkout is still unsettled, so its credit and coupon stay spent",
+		"%d lapsed orders' checkouts are still unsettled, so their credit and coupons stay spent")
 
 	KeyHealthRefundsClear = key("health.refunds.clear", Message{
 		ZhHant: "沒有卡住的退款",
