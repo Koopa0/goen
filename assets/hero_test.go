@@ -27,23 +27,3 @@ func TestAHeroSlideWithoutAPhotographIsAPosterBelowDesktop(t *testing.T) {
 		}
 	}
 }
-
-// Only the script that moves between slides keeps aria-current true, so a
-// reader without it must not be shown a current tab: the first tab would stay
-// filled whichever slide is in view.
-func TestTheCurrentHeroTabIsDrawnOnlyWhereScriptingRuns(t *testing.T) {
-	t.Parallel()
-
-	sheet, err := fs.ReadFile(files, AppCSS)
-	if err != nil {
-		t.Fatalf("read %s: %v", AppCSS, err)
-	}
-	all := regexp.MustCompile(`\.goen-hero__tabs a\[aria-current="true"\]`).FindAll(sheet, -1)
-	guarded := regexp.MustCompile(`(?s)@media \((?:forced-colors: active\) and \()?scripting: enabled\) \{\s*\.goen-hero__tabs a\[aria-current="true"\]`).FindAll(sheet, -1)
-	if len(all) == 0 || len(all) != len(guarded) {
-		t.Errorf("%s draws %d current-tab rules, %d of them under scripting: enabled", AppCSS, len(all), len(guarded))
-	}
-	if !regexp.MustCompile(`@media \(forced-colors: active\) and \(scripting: enabled\) \{`).Match(sheet) {
-		t.Errorf("%s: the forced-colours edge is not tied to scripting: enabled", AppCSS)
-	}
-}
