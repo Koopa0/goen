@@ -15,7 +15,6 @@ import (
 
 	"github.com/koopa0/goen/internal/admin/admintest"
 	"github.com/koopa0/goen/internal/admin/health"
-	"github.com/koopa0/goen/internal/admin/invoicing"
 	"github.com/koopa0/goen/internal/db"
 	"github.com/koopa0/goen/internal/db/dbtest"
 	"github.com/koopa0/goen/internal/i18n"
@@ -106,7 +105,7 @@ func TestARefundWithNoAllowanceFiledNeedsAPerson(t *testing.T) {
 			}
 
 			operationID := uuid.New()
-			err = invoicing.NewStore(owner, invoices, invoices).Allow(ctx, number, operationID)
+			err = admintest.OrderStore(owner, admintest.Refunder{}, invoices, invoices).FileAllowance(ctx, number, operationID)
 			if err != nil && !errors.Is(err, issuer.ErrAwaitingBuyer) {
 				t.Fatalf("file the allowance from the order page: %v", err)
 			}

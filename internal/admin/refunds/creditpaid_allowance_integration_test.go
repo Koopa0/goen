@@ -11,11 +11,9 @@ import (
 
 	"github.com/koopa0/goen/internal/admin/admintest"
 	"github.com/koopa0/goen/internal/admin/health"
-	"github.com/koopa0/goen/internal/admin/invoicing"
 	"github.com/koopa0/goen/internal/admin/refunds"
 	"github.com/koopa0/goen/internal/invoice/issuer"
 	"github.com/koopa0/goen/internal/outbox"
-	"github.com/koopa0/goen/internal/ui/pages/admin"
 )
 
 // TestACreditPaidOrderCancelledPastTheVoidWindowCanStillBeAllowed: store credit
@@ -59,9 +57,9 @@ func TestACreditPaidOrderCancelledPastTheVoidWindowCanStillBeAllowed(t *testing.
 		t.Fatalf("order_refunds reads card %d, credit %d; want the 500000 reversed spend as credit", card, credit)
 	}
 
-	store := invoicing.NewStore(pool, invoices, invoices)
-	var view admin.OrderView
-	if err := store.FillOrder(ctx, &view, number); err != nil {
+	store := admintest.OrderStore(pool, admintest.Refunder{}, invoices, invoices)
+	view, err := store.Order(ctx, number)
+	if err != nil {
 		t.Fatalf("fill the order page: %v", err)
 	}
 	if view.RefundedCents != 500000 || !view.CanAllowInvoice() {
@@ -84,7 +82,7 @@ func TestACreditPaidOrderCancelledPastTheVoidWindowCanStillBeAllowed(t *testing.
 	}
 
 	// The staff member's own press, through the same door the form posts to.
-	if err := store.Allow(ctx, number, uuid.New()); err != nil && !errors.Is(err, issuer.ErrAwaitingBuyer) {
+	if err := store.FileAllowance(ctx, number, uuid.New()); err != nil && !errors.Is(err, issuer.ErrAwaitingBuyer) {
 		t.Fatalf("allow the whole invoice of %s: %v", number, err)
 	}
 	var allowance struct {

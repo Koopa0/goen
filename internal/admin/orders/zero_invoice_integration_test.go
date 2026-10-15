@@ -3,13 +3,11 @@
 package orders_test
 
 import (
-	"log/slog"
 	"net/http"
 	"net/http/httptest"
 	"testing"
 
 	"github.com/koopa0/goen/internal/admin/admintest"
-	"github.com/koopa0/goen/internal/admin/invoicing"
 	"github.com/koopa0/goen/internal/invoice/issuer"
 )
 
@@ -30,9 +28,9 @@ func TestAZeroGrossInvoicePostIsRefusedBeforeTheProviderIsCalled(t *testing.T) {
 	}
 	adminPool := admintest.AdminRolePool(t, pool)
 	writer := issuer.NewStore(adminPool, gateway)
-	store := invoicing.NewStore(adminPool, writer, writer)
+	store := admintest.OrderStore(adminPool, admintest.Refunder{}, writer, writer)
 	mux := http.NewServeMux()
-	invoicing.NewHandler(store, slog.New(slog.DiscardHandler)).Routes(mux, admintest.BackOffice)
+	admintest.OrderDesk(store).Routes(mux, admintest.BackOffice)
 	for range 2 {
 		req := httptest.NewRequestWithContext(ctx, http.MethodPost, "/admin/orders/"+number+"/invoice", nil)
 		res := httptest.NewRecorder()

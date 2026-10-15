@@ -17,12 +17,10 @@ import (
 
 	"github.com/koopa0/goen/internal/admin/admintest"
 	"github.com/koopa0/goen/internal/admin/health"
-	"github.com/koopa0/goen/internal/admin/invoicing"
 	"github.com/koopa0/goen/internal/admin/refunds"
 	"github.com/koopa0/goen/internal/invoice"
 	"github.com/koopa0/goen/internal/invoice/issuer"
 	"github.com/koopa0/goen/internal/outbox"
-	"github.com/koopa0/goen/internal/ui/pages/admin"
 )
 
 func fakeECPay(t *testing.T, issuedAt time.Time) (*issuer.FakeECPay, *issuer.Store) {
@@ -219,8 +217,8 @@ func TestAnAllowanceTheBuyerIgnoresNeedsAPerson(t *testing.T) {
 	if status != "attention" || category != string(invoice.ReasonAllowanceBuyerUnconfirmed) {
 		t.Errorf("lapsed allowance is %s/%s, want attention/%s", status, category, string(invoice.ReasonAllowanceBuyerUnconfirmed))
 	}
-	var view admin.OrderView
-	if err := invoicing.NewStore(pool, invoices, invoices).FillOrder(ctx, &view, number); err != nil {
+	view, err := admintest.OrderStore(pool, admintest.Refunder{}, invoices, invoices).Order(ctx, number)
+	if err != nil {
 		t.Fatalf("fill the order page: %v", err)
 	}
 	if view.AllowanceAttention != string(invoice.ReasonAllowanceBuyerUnconfirmed) || view.AllowanceAwaitingUntil != "" {
@@ -237,8 +235,8 @@ func TestTheOrderPageShowsAnIssuedInvoiceWithoutAProvider(t *testing.T) {
 	number, orderID := capturedOrderOwingAnInvoice(t, ctx, invoices)
 	issueNow(t, ctx, invoices, orderID)
 
-	var view admin.OrderView
-	if err := invoicing.NewStore(pool, invoices, nil).FillOrder(ctx, &view, number); err != nil {
+	view, err := admintest.OrderStore(pool, admintest.Refunder{}, invoices, nil).Order(ctx, number)
+	if err != nil {
 		t.Fatalf("fill the order page: %v", err)
 	}
 	if len(view.InvoiceDocuments) != 1 || view.InvoiceDocuments[0].Number == "" {
@@ -536,8 +534,8 @@ func TestASentAllowanceECPayDidNotAcceptStillCancelsAndIsListed(t *testing.T) {
 				t.Errorf("health lists the allowance with reason %q, want %q", listed, tt.reason)
 			}
 
-			var view admin.OrderView
-			if err := invoicing.NewStore(pool, invoices, invoices).FillOrder(ctx, &view, number); err != nil {
+			view, err := admintest.OrderStore(pool, admintest.Refunder{}, invoices, invoices).Order(ctx, number)
+			if err != nil {
 				t.Fatalf("fill the order page: %v", err)
 			}
 			if tt.status == "pending" && view.AllowanceAwaitingUntil == "" ||

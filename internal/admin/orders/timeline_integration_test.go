@@ -10,7 +10,7 @@ import (
 	"github.com/google/uuid"
 
 	"github.com/koopa0/goen/internal/admin/admintest"
-	"github.com/koopa0/goen/internal/admin/invoicing"
+	"github.com/koopa0/goen/internal/admin/orders"
 	"github.com/koopa0/goen/internal/db"
 	"github.com/koopa0/goen/internal/email"
 	"github.com/koopa0/goen/internal/i18n"
@@ -241,7 +241,7 @@ func TestAnIssueNoProviderWillSendIsNotShownAsInProgress(t *testing.T) {
 
 	for _, tc := range []struct {
 		name   string
-		writer invoicing.Writer
+		writer orders.InvoiceWriter
 		want   i18n.Key
 	}{
 		{"e-invoicing off", nil, i18n.KeyAdminTimelineInvoiceNotSent},

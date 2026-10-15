@@ -17,5 +17,7 @@ func TestEveryRouteRefusesAnOutsider(t *testing.T) {
 		"GET /admin/orders", "GET /admin/orders/{number}",
 		"POST /admin/orders/{number}/status", "POST /admin/orders/{number}/ship",
 		"POST /admin/orders/{number}/note", "POST /admin/orders/{number}/delivery",
-		"POST /admin/orders/{number}/shipments/{shipment}/delivered")
+		"POST /admin/orders/{number}/shipments/{shipment}/delivered",
+		"POST /admin/orders/{number}/invoice", "POST /admin/orders/{number}/invoice/void",
+		"POST /admin/orders/{number}/invoice/allowance")
 }

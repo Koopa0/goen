@@ -1,4 +1,4 @@
-package invoicing
+package orders
 
 import (
 	"context"
@@ -58,9 +58,9 @@ func invoiceNoticeContext(t *testing.T) context.Context {
 	return i18n.WithLocale(ctx, i18n.ZhHant)
 }
 
-func invoiceNoticeHandler(writer Writer) *Handler {
+func invoiceNoticeHandler(writer InvoiceWriter) *Handler {
 	return &Handler{
-		store: &Store{writer: writer},
+		store: &Store{invoiceWriter: writer},
 		log:   slog.New(slog.DiscardHandler),
 	}
 }
@@ -74,7 +74,7 @@ func postVoid(t *testing.T, h *Handler, reason string) *httptest.ResponseRecorde
 	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
 	req.SetPathValue("number", invoiceNoticeOrder)
 	res := httptest.NewRecorder()
-	h.Void(res, req)
+	h.VoidInvoice(res, req)
 	return res
 }
 
@@ -87,7 +87,7 @@ func postAllowance(t *testing.T, h *Handler) *httptest.ResponseRecorder {
 	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
 	req.SetPathValue("number", invoiceNoticeOrder)
 	res := httptest.NewRecorder()
-	h.Allow(res, req)
+	h.FileAllowance(res, req)
 	return res
 }
 
@@ -165,7 +165,7 @@ func TestAnAllowanceSentToTheBuyerSaysSo(t *testing.T) {
 func TestVoidAndAllowanceUnconfiguredIssuerHasItsOwnNotice(t *testing.T) {
 	t.Parallel()
 
-	// Store.Void / Allow return ErrRefused when the writer is gone: a stale POST
+	// Store.VoidInvoice / FileAllowance return ErrInvoiceRefused when the writer is gone: a stale POST
 	// after the issuer was disabled, or a shop that never had one. ECPay is not
 	// called.
 	unconfigured := &Handler{
@@ -193,7 +193,7 @@ func TestVoidAndAllowanceUnconfiguredIssuerHasItsOwnNotice(t *testing.T) {
 		"/admin/orders/"+invoiceNoticeOrder+"/invoice", http.NoBody)
 	issueReq.SetPathValue("number", invoiceNoticeOrder)
 	issueDisabled := httptest.NewRecorder()
-	disabled.Issue(issueDisabled, issueReq)
+	disabled.IssueInvoice(issueDisabled, issueReq)
 	if issueDisabled.Code != http.StatusSeeOther ||
 		!strings.HasSuffix(issueDisabled.Header().Get("Location"), "?invoicingoff=1") {
 		t.Fatalf("Issue disabled issuer = %d %q, want 303 ?invoicingoff=1",
@@ -261,7 +261,7 @@ func TestAllowanceHTTPDoesNotAcceptCallerControlledMoney(t *testing.T) {
 			req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
 			req.SetPathValue("number", number)
 			res := httptest.NewRecorder()
-			handler.Allow(res, req)
+			handler.FileAllowance(res, req)
 			if res.Code != http.StatusSeeOther ||
 				res.Header().Get("Location") != "/admin/orders/"+number+"?allowed=1" {
 				t.Fatalf("Allowance HTTP = %d %q, want success redirect",
@@ -301,7 +301,7 @@ func TestRefusedIssueItemisationIsANoticeAndOtherFailuresRemainErrors(t *testing
 				"/admin/orders/"+invoiceNoticeOrder+"/invoice", nil)
 			req.SetPathValue("number", invoiceNoticeOrder)
 			res := httptest.NewRecorder()
-			h.Issue(res, req)
+			h.IssueInvoice(res, req)
 			if res.Code != tc.wantStatus || res.Header().Get("Location") != tc.wantLocation {
 				t.Errorf("Issue(%s) = %d %q, want %d %q", tc.name, res.Code, res.Header().Get("Location"), tc.wantStatus, tc.wantLocation)
 			}

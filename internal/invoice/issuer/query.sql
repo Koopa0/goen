@@ -42,18 +42,6 @@ JOIN orders o ON o.id = d.order_id
 WHERE o.order_number = @order_number::text
   AND d.kind = 'invoice' AND d.status <> 'voided';
 
--- The order's allowance sent to ECPay and not yet settled: e-mailed to the buyer
--- to agree to, or past the link's life with no agreement.
--- name: OpenAllowance :one
-SELECT op.status, coalesce(op.last_error, '')::text AS last_error,
-       coalesce(op.last_send_at, op.created_at)::timestamptz AS last_send_at
-FROM invoice_operations op
-JOIN orders o ON o.id = op.order_id
-WHERE o.order_number = @order_number::text AND op.kind = 'allowance'
-  AND op.status IN ('pending', 'attention') AND op.send_attempts > 0
-ORDER BY op.created_at DESC
-LIMIT 1;
-
 -- The order's issue not yet settled or rejected; invoice_operations_one_active_issue
 -- keeps it unique.
 -- name: IssueInFlight :one

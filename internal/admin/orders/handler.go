@@ -50,6 +50,9 @@ func (h *Handler) Routes(mux *http.ServeMux, ac *access.Control) {
 	mux.HandleFunc("POST /admin/orders/{number}/shipments/{shipment}/delivered", ac.RequireStaff(h.DeliverShipment))
 	mux.HandleFunc("POST /admin/orders/{number}/note", ac.RequireStaff(h.StaffNote))
 	mux.HandleFunc("POST /admin/orders/{number}/delivery", ac.RequireStaff(h.CorrectDelivery))
+	mux.HandleFunc("POST /admin/orders/{number}/invoice", ac.RequireStaff(h.IssueInvoice))
+	mux.HandleFunc("POST /admin/orders/{number}/invoice/void", ac.RequireStaff(h.VoidInvoice))
+	mux.HandleFunc("POST /admin/orders/{number}/invoice/allowance", ac.RequireStaff(h.FileAllowance))
 }
 
 func (h *Handler) List(w http.ResponseWriter, r *http.Request) {

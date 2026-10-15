@@ -19,7 +19,6 @@ import (
 	"github.com/koopa0/goen/internal/admin/dashboard"
 	"github.com/koopa0/goen/internal/admin/feedback"
 	"github.com/koopa0/goen/internal/admin/health"
-	"github.com/koopa0/goen/internal/admin/invoicing"
 	"github.com/koopa0/goen/internal/admin/loyalty"
 	"github.com/koopa0/goen/internal/admin/orders"
 	"github.com/koopa0/goen/internal/admin/products"
@@ -413,7 +412,7 @@ func backOfficeRoutes(mux *http.ServeMux, cfg *BackOfficeConfig, factorStore *tw
 		invoiceGateway = &issuer.Gateway{}
 	}
 	invoices := issuer.NewStore(adminPool, invoiceGateway)
-	var invoiceWriter invoicing.Writer
+	var invoiceWriter orders.InvoiceWriter
 	if invoices.Enabled() {
 		invoiceWriter = invoices
 	}
@@ -421,9 +420,8 @@ func backOfficeRoutes(mux *http.ServeMux, cfg *BackOfficeConfig, factorStore *tw
 	stockroom := stock.NewStore(adminPool)
 	checkup := health.NewStore(adminPool).WithInvoicing(invoices.Enabled())
 	payouts := refunds.NewStore(adminPool, refunder, invoices)
-	invoicingStore := invoicing.NewStore(adminPool, invoices, invoiceWriter)
 	salesFigures := reports.NewStore(adminPool, stockroom)
-	orderDesk := orders.NewHandler(orders.NewStore(adminPool, payouts, invoicingStore), sessionCloser(gateway), log)
+	orderDesk := orders.NewHandler(orders.NewStore(adminPool, payouts, invoices, invoiceWriter), sessionCloser(gateway), log)
 	landing := dashboard.NewHandler(dashboard.NewStore(adminPool, stockroom, checkup, salesFigures), log)
 	trail := audit.NewHandler(audit.NewStore(adminPool), log)
 	figures := reports.NewHandler(salesFigures, log)
@@ -431,7 +429,6 @@ func backOfficeRoutes(mux *http.ServeMux, cfg *BackOfficeConfig, factorStore *tw
 	catalogueDesk := products.NewHandler(products.NewStore(adminPool), adminImages, log)
 	refundDesk := refunds.NewHandler(payouts, sessionCloser(gateway), log)
 	returnDesk := returndesk.NewHandler(returndesk.NewStore(adminPool, payouts), log)
-	invoiceDesk := invoicing.NewHandler(invoicingStore, log)
 	delivery := shipping.NewHandler(shipping.NewStore(adminPool), cfg.StoreMap.Enabled(), log)
 	brands := taxonomy.NewHandler(taxonomy.NewStore(adminPool), adminImages, log)
 	shopfront := content.NewHandler(content.NewStore(adminPool), adminImages, newsletter.NewStore(adminPool), log)
@@ -465,7 +462,6 @@ func backOfficeRoutes(mux *http.ServeMux, cfg *BackOfficeConfig, factorStore *tw
 	catalogueDesk.Routes(mux, backOffice)
 	refundDesk.Routes(mux, backOffice)
 	returnDesk.Routes(mux, backOffice)
-	invoiceDesk.Routes(mux, backOffice)
 	mux.HandleFunc("GET /admin/verify", backOffice.StaffOnly(factors.Challenge))
 	mux.HandleFunc("POST /admin/verify", backOffice.StaffOnly(factors.Verify))
 	mux.HandleFunc("POST /admin/verify/enrol", backOffice.StaffOnly(factors.Enrol))

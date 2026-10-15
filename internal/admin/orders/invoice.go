@@ -1,6 +1,4 @@
-// Package invoicing files, voids and corrects an order's uniform invoice from the
-// order page, and shows that page what has been filed.
-package invoicing
+package orders
 
 import (
 	"context"
@@ -10,10 +8,8 @@ import (
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgconn"
-	"github.com/jackc/pgx/v5/pgxpool"
 
 	"github.com/koopa0/goen/internal/admin/audit"
-	"github.com/koopa0/goen/internal/db"
 	"github.com/koopa0/goen/internal/invoice"
 	"github.com/koopa0/goen/internal/invoice/issuer"
 	"github.com/koopa0/goen/internal/shoptime"
@@ -21,17 +17,18 @@ import (
 	"github.com/koopa0/goen/internal/web"
 )
 
-// ErrRefused is an invoice write unavailable in the current back-office state.
-var ErrRefused = errors.New("invoicing: refused")
+// ErrInvoiceRefused is an invoice write unavailable in the current back-office state.
+var ErrInvoiceRefused = errors.New("orders: invoice refused")
 
-type Reader interface {
+// InvoiceReader reads what has been filed for an order.
+type InvoiceReader interface {
 	Documents(ctx context.Context, orderNumber string) ([]invoice.Document, error)
 }
 
-// Writer files and changes uniform invoices for the back office. A
+// InvoiceWriter files and changes uniform invoices for the back office. A
 // successful method has durably recorded its audit event in the same local
 // transaction as the invoice transition.
-type Writer interface {
+type InvoiceWriter interface {
 	Issue(ctx context.Context, orderNumber string) (invoice.Document, error)
 	Void(ctx context.Context, orderNumber, reason string) error
 	// FileAllowance relieves the authoritative whole-dollar refunded delta of a live
@@ -41,33 +38,15 @@ type Writer interface {
 }
 
 var (
-	_ Reader = (*issuer.Store)(nil)
-	_ Writer = (*issuer.Store)(nil)
+	_ InvoiceReader = (*issuer.Store)(nil)
+	_ InvoiceWriter = (*issuer.Store)(nil)
 )
 
-type Store struct {
-	q *db.Queries
-	// The writer is nil when no provider is configured; the reader still shows
-	// what was filed.
-	reader Reader
-	writer Writer
-}
-
-func NewStore(pool *pgxpool.Pool, reader Reader, writer Writer) *Store {
-	if pool == nil {
-		panic("invoicing: NewStore requires a pool")
-	}
-	if reader == nil {
-		panic("invoicing: NewStore requires a reader")
-	}
-	return &Store{q: db.New(pool), reader: reader, writer: writer}
-}
-
-// FillOrder puts what has actually been FILED on the order page, which is a
+// fillInvoices puts what has actually been FILED on the order page, which is a
 // different question from the preference the customer asked for at checkout.
-func (s *Store) FillOrder(ctx context.Context, view *admin.OrderView, number string) error {
-	view.InvoicingEnabled = s.writer != nil
-	docs, err := s.reader.Documents(ctx, number)
+func (s *Store) fillInvoices(ctx context.Context, view *admin.OrderView, number string) error {
+	view.InvoicingEnabled = s.invoiceWriter != nil
+	docs, err := s.invoiceReader.Documents(ctx, number)
 	if err != nil {
 		return err
 	}
@@ -109,51 +88,51 @@ func (s *Store) fillOpenAllowance(ctx context.Context, view *admin.OrderView, nu
 	return nil
 }
 
-// Issue files a uniform invoice for an order. The writer owns the local
+// IssueInvoice files a uniform invoice for an order. The writer owns the local
 // persistence transaction, including its audit row; a second no-op audited
 // transaction here would let either half commit without the other.
-func (s *Store) Issue(ctx context.Context, number string) error {
-	if s.writer == nil {
-		return fmt.Errorf("%w: no e-invoice provider is configured", ErrRefused)
+func (s *Store) IssueInvoice(ctx context.Context, number string) error {
+	if s.invoiceWriter == nil {
+		return fmt.Errorf("%w: no e-invoice provider is configured", ErrInvoiceRefused)
 	}
 	filingCtx, err := filingContext(ctx)
 	if err != nil {
 		return err
 	}
-	_, err = s.writer.Issue(filingCtx, number)
+	_, err = s.invoiceWriter.Issue(filingCtx, number)
 	if pgErr, ok := errors.AsType[*pgconn.PgError](err); ok &&
 		pgErr.Code == "23514" && pgErr.ConstraintName == "invoice_issue_itemisation" {
-		return fmt.Errorf("%w: invoice itemisation: %w", ErrRefused, err)
+		return fmt.Errorf("%w: invoice itemisation: %w", ErrInvoiceRefused, err)
 	}
 	return err
 }
 
-// Allow files a 折讓 against an order's live invoice, relieving the part
+// FileAllowance files a 折讓 against an order's live invoice, relieving the part
 // of the sale that was refunded. A void is for an invoice that should not exist;
 // an allowance is for one that should exist for less.
-func (s *Store) Allow(
+func (s *Store) FileAllowance(
 	ctx context.Context, number string, operationID uuid.UUID,
 ) error {
-	if s.writer == nil {
-		return fmt.Errorf("%w: no e-invoice provider is configured", ErrRefused)
+	if s.invoiceWriter == nil {
+		return fmt.Errorf("%w: no e-invoice provider is configured", ErrInvoiceRefused)
 	}
 	filingCtx, err := filingContext(ctx)
 	if err != nil {
 		return err
 	}
-	_, err = s.writer.FileAllowance(filingCtx, number, operationID)
+	_, err = s.invoiceWriter.FileAllowance(filingCtx, number, operationID)
 	return err
 }
 
-func (s *Store) Void(ctx context.Context, number, reason string) error {
-	if s.writer == nil {
-		return fmt.Errorf("%w: no e-invoice provider is configured", ErrRefused)
+func (s *Store) VoidInvoice(ctx context.Context, number, reason string) error {
+	if s.invoiceWriter == nil {
+		return fmt.Errorf("%w: no e-invoice provider is configured", ErrInvoiceRefused)
 	}
 	filingCtx, err := filingContext(ctx)
 	if err != nil {
 		return err
 	}
-	return s.writer.Void(filingCtx, number, reason)
+	return s.invoiceWriter.Void(filingCtx, number, reason)
 }
 
 func filingContext(ctx context.Context) (context.Context, error) {

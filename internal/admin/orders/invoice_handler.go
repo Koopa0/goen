@@ -1,8 +1,7 @@
-package invoicing
+package orders
 
 import (
 	"errors"
-	"log/slog"
 	"net/http"
 	"net/url"
 
@@ -15,31 +14,14 @@ import (
 	"github.com/koopa0/goen/internal/web"
 )
 
-type Handler struct {
-	store *Store
-	log   *slog.Logger
-}
-
-func NewHandler(store *Store, log *slog.Logger) *Handler {
-	if store == nil || log == nil {
-		panic("invoicing: NewHandler requires a store and a logger")
-	}
-	return &Handler{store: store, log: log}
-}
-
-func (h *Handler) Routes(mux *http.ServeMux, ac *access.Control) {
-	mux.HandleFunc("POST /admin/orders/{number}/invoice", ac.RequireStaff(h.Issue))
-	mux.HandleFunc("POST /admin/orders/{number}/invoice/void", ac.RequireStaff(h.Void))
-	mux.HandleFunc("POST /admin/orders/{number}/invoice/allowance", ac.RequireStaff(h.Allow))
-}
-
-func (h *Handler) Issue(w http.ResponseWriter, r *http.Request) {
+// IssueInvoice files the order's uniform invoice.
+func (h *Handler) IssueInvoice(w http.ResponseWriter, r *http.Request) {
 	number := r.PathValue("number")
 	if !order.ValidNumber(number) {
 		http.NotFound(w, r)
 		return
 	}
-	err := h.store.Issue(r.Context(), number)
+	err := h.store.IssueInvoice(r.Context(), number)
 	switch {
 	case err == nil:
 		//nolint:gosec // G710: validated by order.ValidNumber
@@ -50,7 +32,7 @@ func (h *Handler) Issue(w http.ResponseWriter, r *http.Request) {
 	case errors.Is(err, issuer.ErrDisabled):
 		//nolint:gosec // G710: validated by order.ValidNumber
 		http.Redirect(w, r, "/admin/orders/"+number+"?invoicingoff=1", http.StatusSeeOther)
-	case errors.Is(err, ErrRefused):
+	case errors.Is(err, ErrInvoiceRefused):
 		h.log.WarnContext(r.Context(), "invoice refused", "order", number, "error", err)
 		//nolint:gosec // G710: validated by order.ValidNumber
 		http.Redirect(w, r, "/admin/orders/"+number+"?refused=1", http.StatusSeeOther)
@@ -70,9 +52,9 @@ func (h *Handler) Issue(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-// Void voids a wrong invoice so a correct one can be issued in its
+// VoidInvoice voids a wrong invoice so a correct one can be issued in its
 // place: a uniform invoice cannot be edited, which invoice_documents_guard enforces.
-func (h *Handler) Void(w http.ResponseWriter, r *http.Request) {
+func (h *Handler) VoidInvoice(w http.ResponseWriter, r *http.Request) {
 	if err := web.ParseForm(w, r); err != nil {
 		http.Error(w, i18n.T(r.Context(), i18n.KeyAdminBadForm), http.StatusBadRequest)
 		return
@@ -83,7 +65,7 @@ func (h *Handler) Void(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	orderPage := "/admin/orders/" + url.PathEscape(number)
-	err := h.store.Void(r.Context(), number, r.PostFormValue("reason"))
+	err := h.store.VoidInvoice(r.Context(), number, r.PostFormValue("reason"))
 	switch {
 	case err == nil:
 		http.Redirect(w, r, orderPage+"?voided=1", http.StatusSeeOther)
@@ -101,7 +83,7 @@ func (h *Handler) Void(w http.ResponseWriter, r *http.Request) {
 		http.Redirect(w, r, orderPage+"?voidfailed=1", http.StatusSeeOther)
 	case errors.Is(err, issuer.ErrDisabled):
 		http.Redirect(w, r, orderPage+"?invoicingoff=1", http.StatusSeeOther)
-	case errors.Is(err, ErrRefused):
+	case errors.Is(err, ErrInvoiceRefused):
 		h.log.WarnContext(r.Context(), "invoice void refused", "order", number, "error", err)
 		http.Redirect(w, r, orderPage+"?refused=1", http.StatusSeeOther)
 	default:
@@ -110,12 +92,12 @@ func (h *Handler) Void(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-// Allow files an allowance. A refund leaves the 統一發票 recording a sale that partly did not happen, and
+// FileAllowance files an allowance. A refund leaves the 統一發票 recording a sale that partly did not happen, and
 // a 折讓 is the correction the 財政部 accepts for it — a void is for an invoice
 // that should not exist, an allowance for one that should exist for less. The
 // amount is derived from settled refunds and prior filed allowances inside the
 // database claim. The form carries no money for an operator to override.
-func (h *Handler) Allow(w http.ResponseWriter, r *http.Request) {
+func (h *Handler) FileAllowance(w http.ResponseWriter, r *http.Request) {
 	if err := web.ParseForm(w, r); err != nil {
 		http.Error(w, i18n.T(r.Context(), i18n.KeyAdminBadForm), http.StatusBadRequest)
 		return
@@ -132,7 +114,7 @@ func (h *Handler) Allow(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	err := h.store.Allow(r.Context(), number, operationID)
+	err := h.store.FileAllowance(r.Context(), number, operationID)
 	switch {
 	case err == nil:
 		http.Redirect(w, r, orderPage+"?allowed=1", http.StatusSeeOther)
@@ -154,7 +136,7 @@ func (h *Handler) Allow(w http.ResponseWriter, r *http.Request) {
 		http.Redirect(w, r, orderPage+"?allowfailed=1", http.StatusSeeOther)
 	case errors.Is(err, issuer.ErrDisabled):
 		http.Redirect(w, r, orderPage+"?invoicingoff=1", http.StatusSeeOther)
-	case errors.Is(err, ErrRefused):
+	case errors.Is(err, ErrInvoiceRefused):
 		h.log.WarnContext(r.Context(), "invoice allowance refused", "order", number, "error", err)
 		http.Redirect(w, r, orderPage+"?refused=1", http.StatusSeeOther)
 	default:
