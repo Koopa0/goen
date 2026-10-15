@@ -7,6 +7,7 @@ import (
 
 	"github.com/a-h/templ"
 
+	"github.com/koopa0/goen/internal/admin/audit"
 	"github.com/koopa0/goen/internal/i18n"
 	"github.com/koopa0/goen/internal/keyset"
 	"github.com/koopa0/goen/internal/ui/layouts"
@@ -24,7 +25,7 @@ func TestEveryAdminEmptyPageKeepsItsRestartLink(t *testing.T) {
 		"movements": Movements(p, &MovementsView{Bound: b}),
 		"returns":   Returns(p, ReturnsView{Bound: b}),
 		"campaigns": Campaigns(p, CampaignsView{Bound: b}),
-		"audit":     Audit(p, AuditView{Bound: b}),
+		"audit":     audit.Audit(p, audit.AuditView{Bound: b}),
 		"warranty":  Warranties(p, WarrantiesView{Bound: b, Searched: true, Term: "test"}),
 	}
 	for name, c := range cases {

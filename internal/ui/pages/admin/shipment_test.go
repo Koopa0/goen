@@ -4,6 +4,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/koopa0/goen/internal/admin/audit"
 	"github.com/koopa0/goen/internal/shipping"
 
 	"github.com/koopa0/goen/internal/i18n"
@@ -64,15 +65,15 @@ func TestParcelArrivalAuditNamesTheActionInBothLanguages(t *testing.T) {
 		t.Run(tt.locale.Tag(), func(t *testing.T) {
 			t.Parallel()
 			ctx := i18n.WithLocale(t.Context(), tt.locale)
-			entry := AuditEntry{Action: "shipment.delivered", Entity: "order_shipments",
-				Changes: []AuditChange{{Field: "delivered_at", After: "2026-10-12 10:00"}}}
+			entry := audit.AuditEntry{Action: "shipment.delivered", Entity: "order_shipments",
+				Changes: []audit.AuditChange{{Field: "delivered_at", After: "2026-10-12 10:00"}}}
 			if got := entry.Label(ctx); got != tt.want {
 				t.Errorf("arrival audit label = %q, want %q", got, tt.want)
 			}
 			if got := entry.EntityLabel(ctx); got != tt.entity {
 				t.Errorf("arrival audit entity = %q, want %q", got, tt.entity)
 			}
-			page := renderComponent(t, ctx, Audit(layouts.Page{}, AuditView{Rows: []AuditEntry{entry}}))
+			page := renderComponent(t, ctx, audit.Audit(layouts.Page{}, audit.AuditView{Rows: []audit.AuditEntry{entry}}))
 			if !strings.Contains(page, "<dt>"+tt.dateLabel+"</dt>") || !strings.Contains(page, "<dd>2026-10-12 10:00</dd>") {
 				t.Error("arrival audit does not show its labelled delivery time")
 			}

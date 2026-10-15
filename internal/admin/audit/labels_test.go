@@ -12,8 +12,8 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/koopa0/goen/internal/admin/audit"
 	"github.com/koopa0/goen/internal/i18n"
-	"github.com/koopa0/goen/internal/ui/pages/admin"
 )
 
 // TestEveryAuditActionHasALabel reads the vocabulary out of the const block
@@ -45,7 +45,7 @@ func TestEveryAuditActionHasALabel(t *testing.T) {
 	ctx := i18n.WithLocale(t.Context(), i18n.ZhHant)
 	var missing []string
 	for _, action := range actions {
-		entry := admin.AuditEntry{Action: action}
+		entry := audit.AuditEntry{Action: action}
 		if entry.Label(ctx) == action {
 			missing = append(missing, action)
 		}
@@ -65,7 +65,7 @@ func TestNewsletterComposeRendersAPhrase(t *testing.T) {
 	t.Parallel()
 
 	ctx := i18n.WithLocale(t.Context(), i18n.ZhHant)
-	entry := admin.AuditEntry{Action: "newsletter.compose"}
+	entry := audit.AuditEntry{Action: "newsletter.compose"}
 	if got := entry.Label(ctx); got == "newsletter.compose" {
 		t.Errorf("Label() = %q; the compose action has no staff-facing phrase", got)
 	}
@@ -189,7 +189,7 @@ func TestEveryAuditedTableHasAnEntityLabel(t *testing.T) {
 	ctx := i18n.WithLocale(t.Context(), i18n.ZhHant)
 	var missing []string
 	for table := range tables {
-		if (admin.AuditEntry{Entity: table}).EntityLabel(ctx) == table {
+		if (audit.AuditEntry{Entity: table}).EntityLabel(ctx) == table {
 			missing = append(missing, table)
 		}
 	}
