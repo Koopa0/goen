@@ -8,6 +8,7 @@ import (
 	"strconv"
 	"testing"
 
+	"github.com/koopa0/goen/internal/payment"
 	"github.com/koopa0/goen/internal/ui/layouts"
 	"github.com/koopa0/goen/internal/ui/pages"
 	"github.com/koopa0/goen/internal/ui/pages/admin"
@@ -65,7 +66,7 @@ func methodFormActions(t *testing.T) map[string][]string {
 		"internal/ui/pages/admin/question.templ:templ.SafeURL(q.AnswerAction())":                        {(admin.Question{ID: "question"}).AnswerAction()},
 		"internal/ui/pages/listing.templ:templ.SafeURL(v.FilterAction())":                               {(pages.ListingView{Slug: "category"}).FilterAction()},
 		"internal/warranty/page.templ:templ.SafeURL(v.Action())":                                        {(warranty.WarrantyOrderView{Number: "order"}).Action()},
-		"internal/ui/pages/pay.templ:templ.SafeURL(v.Action())":                                         {(&pages.PayView{Number: "order"}).Action()},
+		"internal/payment/pay.templ:templ.SafeURL(v.Action())":                                          {(&payment.PayView{Number: "order"}).Action()},
 		"internal/ui/pages/returns.templ:templ.SafeURL(v.Action())":                                     {(pages.ReturnsView{Number: "order"}).Action()},
 		"internal/ui/pages/admin/product_invoice_line.templ:templ.URL(v.InvoiceLineAction())":           {product.InvoiceLineAction()},
 	}

@@ -18,7 +18,6 @@ import (
 	"github.com/koopa0/goen/internal/order/access"
 	"github.com/koopa0/goen/internal/refund"
 	"github.com/koopa0/goen/internal/ui/layouts"
-	"github.com/koopa0/goen/internal/ui/pages"
 	"github.com/koopa0/goen/internal/web"
 )
 
@@ -114,7 +113,7 @@ func (h *Handler) renderPay(w http.ResponseWriter, r *http.Request, o *Order, ha
 		h.serverError(w, r)
 		return
 	}
-	view := pages.PayView{
+	view := PayView{
 		Number:         o.Number,
 		TotalCents:     o.TotalCents,
 		Email:          o.Email,
@@ -127,30 +126,30 @@ func (h *Handler) renderPay(w http.ResponseWriter, r *http.Request, o *Order, ha
 		DiscountReason: b.DiscountReason,
 		CreditCents:    b.CreditCents,
 	}
-	hold := pages.PayHold{PlacedAt: o.Hold.From, Until: o.Hold.Until}
+	hold := PayHold{PlacedAt: o.Hold.From, Until: o.Hold.Until}
 	switch {
 	case order.FulfillmentStatus(o.Fulfillment) == order.FulfillmentCancelled:
-		view.Closure = pages.PayOrderCancelled
-		hold = pages.PayHold{}
+		view.Closure = PayOrderCancelled
+		hold = PayHold{}
 		if !o.Hold.SweptAt.IsZero() {
-			hold = pages.PayHold{PlacedAt: o.Hold.From, Until: o.Hold.Until, CancelledAt: o.Hold.SweptAt}
+			hold = PayHold{PlacedAt: o.Hold.From, Until: o.Hold.Until, CancelledAt: o.Hold.SweptAt}
 		}
 	case !hasSession && !o.holdCoversSession:
-		view.Closure = pages.PayWindowClosed
+		view.Closure = PayWindowClosed
 	case !hasSession:
 		hold.StartBy = StartBy(o.Hold.Until)
 	}
 	view.Hold = hold
 	for i := range o.Lines {
 		l := &o.Lines[i]
-		view.Lines = append(view.Lines, pages.PayLine{
+		view.Lines = append(view.Lines, PayLine{
 			Name: l.Name, Label: l.Label, UnitCents: l.UnitCents, Quantity: l.Quantity,
 			ImageURL:    assets.ProductImageURL(l.ImageKey),
 			ImageSrcset: assets.ProductImageSrcsetAt(l.ImageKey, int(l.ImageWidth)),
 			ImageAlt:    l.ImageAlt,
 		})
 	}
-	web.Render(w, r, h.log, status, pages.Pay(pages.PayMeta(r.Context(), o.Number), view))
+	web.Render(w, r, h.log, status, Pay(PayMeta(r.Context(), o.Number), view))
 }
 
 // Start creates the Stripe Checkout Session and sends the customer to it with a
@@ -648,7 +647,7 @@ func (h *Handler) payableOrder(w http.ResponseWriter, r *http.Request, number st
 		h.log.ErrorContext(r.Context(), "check order access", "order", number, "error", err)
 	}
 	if !ok {
-		if !web.ReloadSameSite(w, r, h.log, pages.OrderReload) {
+		if !web.ReloadSameSite(w, r, h.log, OrderReload) {
 			h.notFound(w, r)
 		}
 		return nil, false
