@@ -13,6 +13,7 @@ import (
 	"github.com/koopa0/goen/internal/admin/access"
 	"github.com/koopa0/goen/internal/admin/audit"
 	"github.com/koopa0/goen/internal/i18n"
+	"github.com/koopa0/goen/internal/keyset"
 	"github.com/koopa0/goen/internal/refund"
 	returnrules "github.com/koopa0/goen/internal/returns"
 	"github.com/koopa0/goen/internal/ui/layouts"
@@ -58,9 +59,9 @@ func (h *Handler) Queue(w http.ResponseWriter, r *http.Request) {
 			access.NotFound(w, r, h.log)
 			return
 		}
-		queue, err = h.store.RequestQueue(r.Context(), request, r.URL.Query().Get(web.KeysetParam))
+		queue, err = h.store.RequestQueue(r.Context(), request, r.URL.Query().Get(keyset.Param))
 	} else {
-		queue, err = h.store.Queue(r.Context(), r.URL.Query().Get(web.KeysetParam))
+		queue, err = h.store.Queue(r.Context(), r.URL.Query().Get(keyset.Param))
 	}
 	if err != nil {
 		h.log.ErrorContext(r.Context(), "read return queue", "error", err)
@@ -208,7 +209,7 @@ func (h *Handler) renderReturnRefusal(w http.ResponseWriter, r *http.Request, er
 	if !ok {
 		return false
 	}
-	queue, readErr := h.store.Queue(r.Context(), r.URL.Query().Get(web.KeysetParam))
+	queue, readErr := h.store.Queue(r.Context(), r.URL.Query().Get(keyset.Param))
 	if readErr != nil {
 		h.log.ErrorContext(r.Context(), "read return queue after refusal", "error", readErr)
 		access.ServerError(w, r, h.log)
@@ -245,7 +246,7 @@ func (h *Handler) renderReturnRefusal(w http.ResponseWriter, r *http.Request, er
 }
 
 func (h *Handler) renderInspection(w http.ResponseWriter, r *http.Request, key i18n.Key) {
-	queue, readErr := h.store.Queue(r.Context(), r.URL.Query().Get(web.KeysetParam))
+	queue, readErr := h.store.Queue(r.Context(), r.URL.Query().Get(keyset.Param))
 	if readErr != nil {
 		h.log.ErrorContext(r.Context(), "read return queue after refused inspection", "error", readErr)
 		access.ServerError(w, r, h.log)

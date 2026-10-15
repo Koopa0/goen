@@ -39,9 +39,9 @@ import (
 	"github.com/koopa0/goen/internal/admin/returns"
 	"github.com/koopa0/goen/internal/admin/stock"
 	"github.com/koopa0/goen/internal/i18n"
+	"github.com/koopa0/goen/internal/keyset"
 	"github.com/koopa0/goen/internal/refund"
 	"github.com/koopa0/goen/internal/returns/buyer"
-	"github.com/koopa0/goen/internal/web"
 )
 
 type returnQueryCountKey struct{}
@@ -1061,7 +1061,7 @@ func TestAnOldRecoverySurvivesTheBoundedReturnQueue(t *testing.T) {
 			JOIN crowded_private_data p USING (order_id)
 			RETURNING order_id
 		)
-		SELECT order_id FROM crowded_returns`, web.PageSize+5)
+		SELECT order_id FROM crowded_returns`, keyset.PageSize+5)
 	if err != nil {
 		t.Fatalf("create bounded-queue crowd: %v", err)
 	}
@@ -1098,8 +1098,8 @@ func TestAnOldRecoverySurvivesTheBoundedReturnQueue(t *testing.T) {
 	if err != nil {
 		t.Fatalf("read bounded return queue: %v", err)
 	}
-	if len(queue.Rows) != web.PageSize {
-		t.Fatalf("bounded queue has %d rows, want %d", len(queue.Rows), web.PageSize)
+	if len(queue.Rows) != keyset.PageSize {
+		t.Fatalf("bounded queue has %d rows, want %d", len(queue.Rows), keyset.PageSize)
 	}
 	for i := range queue.Rows {
 		if queue.Rows[i].ID != requestID.String() {

@@ -9,10 +9,10 @@ import (
 
 	"github.com/koopa0/goen/internal/coupon"
 	"github.com/koopa0/goen/internal/i18n"
+	"github.com/koopa0/goen/internal/keyset"
 	"github.com/koopa0/goen/internal/money"
 	"github.com/koopa0/goen/internal/ui/chart"
 	"github.com/koopa0/goen/internal/ui/components"
-	"github.com/koopa0/goen/internal/web"
 )
 
 type Coupon struct {
@@ -112,7 +112,7 @@ func (c Coupon) ToggleLabel(ctx context.Context) string {
 }
 
 type CouponsView struct {
-	web.Bound
+	keyset.Bound
 
 	Rows   []Coupon
 	Notice components.Result

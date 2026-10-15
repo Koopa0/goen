@@ -8,8 +8,8 @@ import (
 	"github.com/a-h/templ"
 
 	"github.com/koopa0/goen/internal/i18n"
+	"github.com/koopa0/goen/internal/keyset"
 	"github.com/koopa0/goen/internal/money"
-	"github.com/koopa0/goen/internal/web"
 )
 
 // PointsEntryKind is closed by loyalty_entries_kind_shape. Declared here because
@@ -103,7 +103,7 @@ func (e PointsEntry) Detail(ctx context.Context) string {
 
 type PointsView struct {
 	// Bound pages the ledger; the balance below covers all of it.
-	web.Bound
+	keyset.Bound
 
 	TierName     string
 	MultiplierBP int32

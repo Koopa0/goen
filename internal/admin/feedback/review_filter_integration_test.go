@@ -21,8 +21,8 @@ import (
 	"github.com/koopa0/goen/internal/admin/admintest"
 	"github.com/koopa0/goen/internal/admin/feedback"
 	"github.com/koopa0/goen/internal/i18n"
+	"github.com/koopa0/goen/internal/keyset"
 	"github.com/koopa0/goen/internal/ui/pages/admin"
-	"github.com/koopa0/goen/internal/web"
 )
 
 func TestReviewFilterKeepsTimeOrderHiddenRowsAndKeysetScope(t *testing.T) {
@@ -34,7 +34,7 @@ func TestReviewFilterKeepsTimeOrderHiddenRowsAndKeysetScope(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if !first.ThreeStarsAndBelow || len(first.Rows) != web.PageSize || first.Next == "" {
+	if !first.ThreeStarsAndBelow || len(first.Rows) != keyset.PageSize || first.Next == "" {
 		t.Fatalf("filtered first page: selected=%t rows=%d next=%q", first.ThreeStarsAndBelow, len(first.Rows), first.Next)
 	}
 	next, err := url.Parse(first.Next)
@@ -44,7 +44,7 @@ func TestReviewFilterKeepsTimeOrderHiddenRowsAndKeysetScope(t *testing.T) {
 	if next.Query().Get("rating") != "3" {
 		t.Fatal("next page loses the rating filter")
 	}
-	token := next.Query().Get(web.KeysetParam)
+	token := next.Query().Get(keyset.Param)
 	last, err := store.Reviews(ctx, feedback.ThreeStarsAndBelowReviews, token)
 	if err != nil {
 		t.Fatal(err)
@@ -71,14 +71,14 @@ func TestReviewFilterKeepsTimeOrderHiddenRowsAndKeysetScope(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if all.First != "" || all.ThreeStarsAndBelow || len(all.Rows) != web.PageSize || all.Rows[0].Rating != 5 || all.Rows[1].Rating != 4 {
+	if all.First != "" || all.ThreeStarsAndBelow || len(all.Rows) != keyset.PageSize || all.Rows[0].Rating != 5 || all.Rows[1].Rating != 4 {
 		t.Fatal("clearing the filter did not restart with all reviews in time order")
 	}
 	unfilteredNext, err := url.Parse(all.Next)
 	if err != nil {
 		t.Fatal(err)
 	}
-	restarted, err := store.Reviews(ctx, feedback.ThreeStarsAndBelowReviews, unfilteredNext.Query().Get(web.KeysetParam))
+	restarted, err := store.Reviews(ctx, feedback.ThreeStarsAndBelowReviews, unfilteredNext.Query().Get(keyset.Param))
 	if err != nil {
 		t.Fatal(err)
 	}

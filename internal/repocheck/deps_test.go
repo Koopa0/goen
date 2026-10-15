@@ -36,9 +36,8 @@ type importRule struct {
 // disappear; one whose edge is gone fails, so each task proves its own work.
 var exceptions = map[string]string{
 	"internal/ui/layouts -> internal/web":                  "T31",
-	"internal/ui/pages -> internal/web":                    "T30/T31",
-	"internal/ui/pages/admin -> internal/web":              "T30",
 	"internal/web -> internal/ui/components":               "T31",
+	"internal/admin/content -> internal/home":              "T66",
 	"internal/i18n -> internal/shipping":                   "T27",
 	"internal/admin/admintest -> internal/admin/invoicing": "T48",
 	"internal/admin/admintest -> internal/admin/orders":    "T48",
@@ -74,15 +73,26 @@ var (
 	// uiMayImport is what the view layer may import besides itself.
 	uiMayImport = []string{
 		"assets", "internal/fieldrule", "internal/i18n", "internal/money", "internal/shoptime",
-		"internal/coupon", "internal/inventory", "internal/invoice", "internal/order",
+		"internal/coupon", "internal/inventory", "internal/invoice", "internal/keyset", "internal/order",
 		"internal/postcode", "internal/product/labelling", "internal/refund",
 		"internal/returns", "internal/shipping", "internal/user",
+	}
+	// storefrontPages are the packages that serve storefront pages. The rule
+	// that uses them leaves out, on purpose: internal/newsletter (its issue
+	// half moves to admin/content in T41), internal/contact (admin/feedback
+	// uses its Subject vocabulary), internal/loyalty (programme rules
+	// admin/loyalty configures), and internal/media and internal/payment
+	// (shared infrastructure). It matches exactly, not by prefix:
+	// internal/product/labelling is a vocabulary leaf that admin/products imports.
+	storefrontPages = []string{
+		"internal/account", "internal/cart", "internal/catalog", "internal/home",
+		"internal/product", "internal/site",
 	}
 	// importFreeLeaves import no goen package at all.
 	importFreeLeaves = []string{
 		"internal/order", "internal/returns", "internal/refund", "internal/shipping",
 		"internal/coupon", "internal/inventory", "internal/postcode", "internal/user",
-		"internal/money", "internal/db",
+		"internal/money", "internal/db", "internal/keyset", "internal/bearer",
 	}
 	// i18nOnlyLeaves import nothing from goen except the message catalogue.
 	i18nOnlyLeaves = []string{
@@ -133,9 +143,9 @@ var depsRules = []importRule{
 			"a desk reaches another desk through an interface it declares",
 	},
 	{
-		name: "desks and catalog",
+		name: "desks and storefront pages",
 		forbid: func(from, to string) bool {
-			return isDesk(from) && under(to, "internal/catalog")
+			return isDesk(from) && slices.Contains(storefrontPages, to)
 		},
 		reason: "the back office does not depend on a storefront page package",
 	},

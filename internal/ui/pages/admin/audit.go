@@ -5,7 +5,7 @@ import (
 
 	"github.com/koopa0/goen/assets"
 	"github.com/koopa0/goen/internal/i18n"
-	"github.com/koopa0/goen/internal/web"
+	"github.com/koopa0/goen/internal/keyset"
 )
 
 type AuditEntry struct {
@@ -221,7 +221,7 @@ func (e AuditEntry) ShortRequestID() string {
 }
 
 type AuditView struct {
-	web.Bound
+	keyset.Bound
 
 	Rows []AuditEntry
 }

@@ -13,9 +13,9 @@ import (
 
 	"github.com/koopa0/goen/internal/admin/audit"
 	"github.com/koopa0/goen/internal/db"
+	"github.com/koopa0/goen/internal/keyset"
 	"github.com/koopa0/goen/internal/money"
 	"github.com/koopa0/goen/internal/ui/pages/admin"
-	"github.com/koopa0/goen/internal/web"
 )
 
 func (s *Store) creditRecipient(ctx context.Context, view *admin.CreditView) error {
@@ -124,7 +124,7 @@ type position struct {
 // Ledger is one page of store-credit postings, newest first.
 type Ledger struct {
 	Postings []Posting
-	Bound    web.Bound
+	Bound    keyset.Bound
 	// Customer is who the page is narrowed to; nil on the page for every customer.
 	Customer *Customer
 }
@@ -170,18 +170,18 @@ func (s *Store) Credit(ctx context.Context, customer uuid.NullUUID, after ...str
 	if err != nil {
 		return Ledger{}, fmt.Errorf("read ledger customer: %w", err)
 	}
-	ledger, err := s.customerPostings(ctx, web.ScopeURL(desk, "customer", holder.ID.String()), holder.ID, after)
+	ledger, err := s.customerPostings(ctx, keyset.ScopeURL(desk, "customer", holder.ID.String()), holder.ID, after)
 	ledger.Customer = &Customer{ID: holder.ID, Email: holder.Email, Name: holder.FullName}
 	return ledger, err
 }
 
 func (s *Store) allPostings(ctx context.Context, scope string, after []string) (Ledger, error) {
-	from, resumed := web.ResumeKeyset(scope, after, func(p position) bool { return p.ID != uuid.Nil })
-	rows, err := s.q.RecentCredit(ctx, db.RecentCreditParams{HasCursor: resumed, AfterAt: from.At, AfterID: from.ID, RowLimit: web.PageLimit})
+	from, resumed := keyset.Resume(scope, after, func(p position) bool { return p.ID != uuid.Nil })
+	rows, err := s.q.RecentCredit(ctx, db.RecentCreditParams{HasCursor: resumed, AfterAt: from.At, AfterID: from.ID, RowLimit: keyset.PageLimit})
 	if err != nil {
 		return Ledger{}, fmt.Errorf("read credit ledger: %w", err)
 	}
-	rows, bound := web.PageBound(scope, resumed, rows, web.PageSize, func(r *db.RecentCreditRow) string { return r.PageCursor })
+	rows, bound := keyset.PageBound(scope, resumed, rows, keyset.PageSize, func(r *db.RecentCreditRow) string { return r.PageCursor })
 	ledger := Ledger{Bound: bound}
 	for i := range rows {
 		r := &rows[i]
@@ -195,12 +195,12 @@ func (s *Store) allPostings(ctx context.Context, scope string, after []string) (
 }
 
 func (s *Store) customerPostings(ctx context.Context, scope string, customer uuid.UUID, after []string) (Ledger, error) {
-	from, resumed := web.ResumeKeyset(scope, after, func(p position) bool { return p.ID != uuid.Nil })
-	rows, err := s.q.CustomerCredit(ctx, db.CustomerCreditParams{CustomerID: customer, HasCursor: resumed, AfterAt: from.At, AfterID: from.ID, RowLimit: web.PageLimit})
+	from, resumed := keyset.Resume(scope, after, func(p position) bool { return p.ID != uuid.Nil })
+	rows, err := s.q.CustomerCredit(ctx, db.CustomerCreditParams{CustomerID: customer, HasCursor: resumed, AfterAt: from.At, AfterID: from.ID, RowLimit: keyset.PageLimit})
 	if err != nil {
 		return Ledger{}, fmt.Errorf("read customer credit ledger: %w", err)
 	}
-	rows, bound := web.PageBound(scope, resumed, rows, web.PageSize, func(r *db.CustomerCreditRow) string { return r.PageCursor })
+	rows, bound := keyset.PageBound(scope, resumed, rows, keyset.PageSize, func(r *db.CustomerCreditRow) string { return r.PageCursor })
 	ledger := Ledger{Bound: bound}
 	for i := range rows {
 		r := &rows[i]

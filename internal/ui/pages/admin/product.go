@@ -9,10 +9,10 @@ import (
 
 	"github.com/koopa0/goen/internal/i18n"
 	"github.com/koopa0/goen/internal/invoice"
+	"github.com/koopa0/goen/internal/keyset"
 	"github.com/koopa0/goen/internal/money"
 	"github.com/koopa0/goen/internal/ui/components"
 	"github.com/koopa0/goen/internal/ui/pages"
-	"github.com/koopa0/goen/internal/web"
 )
 
 type Choice struct {
@@ -46,7 +46,7 @@ func (p Product) Href() string { return "/admin/products/" + p.Slug }
 func (p Product) Sellable() bool { return p.Status == pages.ProductActive && p.Variants > 0 }
 
 type ProductsView struct {
-	web.Bound
+	keyset.Bound
 
 	Rows []Product
 	// Published is how many products the shop sells now, over every page of Rows.

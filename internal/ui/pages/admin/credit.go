@@ -4,9 +4,9 @@ import (
 	"context"
 
 	"github.com/koopa0/goen/internal/i18n"
+	"github.com/koopa0/goen/internal/keyset"
 	"github.com/koopa0/goen/internal/money"
 	"github.com/koopa0/goen/internal/ui/components"
-	"github.com/koopa0/goen/internal/web"
 )
 
 // PostingKind is store_credit_entries.kind: what a posting is, derived by the
@@ -78,7 +78,7 @@ func (e CreditEntry) CustomerHref() string { return "/admin/customers/" + e.Cust
 func (e CreditEntry) SourceHref() string {
 	switch {
 	case e.ReturnID != "":
-		return web.ScopeURL("/admin/returns", "request", e.ReturnID)
+		return keyset.ScopeURL("/admin/returns", "request", e.ReturnID)
 	case e.OrderNumber != "":
 		return "/admin/orders/" + e.OrderNumber
 	default:
@@ -89,7 +89,7 @@ func (e CreditEntry) SourceHref() string {
 func (e CreditEntry) RunningTotal() string { return money.TWD(e.RunningTotalCents) }
 
 type CreditView struct {
-	web.Bound
+	keyset.Bound
 
 	Rows   []CreditEntry
 	Notice components.Result

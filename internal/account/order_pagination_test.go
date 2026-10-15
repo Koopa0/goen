@@ -9,7 +9,7 @@ import (
 	"github.com/google/uuid"
 
 	"github.com/koopa0/goen/internal/db"
-	"github.com/koopa0/goen/internal/web"
+	"github.com/koopa0/goen/internal/keyset"
 )
 
 func TestOrderTokenKeepsItsOwnerAndTimestampPrecision(t *testing.T) {
@@ -41,7 +41,7 @@ func TestOrderCursorRefusesUnusableTokens(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		next, ok := web.NextKeysetURL(ordersScope, string(body))
+		next, ok := keyset.NextURL(ordersScope, string(body))
 		if !ok {
 			t.Fatal("scope refused")
 		}
@@ -49,7 +49,7 @@ func TestOrderCursorRefusesUnusableTokens(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		return u.Query().Get(web.KeysetParam)
+		return u.Query().Get(keyset.Param)
 	}
 	for name, token := range map[string]string{
 		"malformed":       "malformed",

@@ -12,6 +12,7 @@ import (
 	"github.com/koopa0/goen/internal/admin/access"
 	"github.com/koopa0/goen/internal/i18n"
 	"github.com/koopa0/goen/internal/inventory"
+	"github.com/koopa0/goen/internal/keyset"
 	"github.com/koopa0/goen/internal/money"
 	"github.com/koopa0/goen/internal/ui/components"
 	"github.com/koopa0/goen/internal/ui/layouts"
@@ -50,13 +51,13 @@ var notices = map[string]web.NoticeEntry{
 }
 
 func (h *Handler) Variants(w http.ResponseWriter, r *http.Request) {
-	view, err := h.store.Variants(r.Context(), r.URL.Query().Get("soldout") == "1", r.URL.Query().Get("q"), r.URL.Query().Get(web.KeysetParam))
+	view, err := h.store.Variants(r.Context(), r.URL.Query().Get("soldout") == "1", r.URL.Query().Get("q"), r.URL.Query().Get(keyset.Param))
 	if err != nil {
 		h.log.ErrorContext(r.Context(), "read variants", "error", err)
 		access.ServerError(w, r, h.log)
 		return
 	}
-	if r.URL.Query().Get(web.KeysetParam) == "" && view.Term == "" && !view.SoldOutOnly {
+	if r.URL.Query().Get(keyset.Param) == "" && view.Term == "" && !view.SoldOutOnly {
 		view.ShowCover = true
 		now := time.Now()
 		listed, more, coverErr := h.store.DaysCover(r.Context(), inventory.CoverWindowDays, now)
@@ -68,7 +69,7 @@ func (h *Handler) Variants(w http.ResponseWriter, r *http.Request) {
 		view.AtRisk, view.MoreSoldOut = admin.StockRisks(listed, now), more
 	}
 	view.Notice = web.Notice(r, notices)
-	view.Return = stockReturn(r.URL.Query().Get("soldout"), view.Term, r.URL.Query().Get(web.KeysetParam), "", "")
+	view.Return = stockReturn(r.URL.Query().Get("soldout"), view.Term, r.URL.Query().Get(keyset.Param), "", "")
 	web.Render(w, r, h.log, http.StatusOK, admin.Variants(admin.VariantsMeta(r.Context()), view))
 }
 
@@ -119,7 +120,7 @@ func (h *Handler) rejectArrival(w http.ResponseWriter, r *http.Request) {
 func (h *Handler) rejectStockForm(w http.ResponseWriter, r *http.Request, key i18n.Key, fill func(*admin.Variant)) {
 	var soldOut, term, after string
 	if u, err := url.Parse(r.PostFormValue("return")); err == nil && u.Path == "/admin/stock" && u.Host == "" {
-		soldOut, term, after = u.Query().Get("soldout"), u.Query().Get("q"), u.Query().Get(web.KeysetParam)
+		soldOut, term, after = u.Query().Get("soldout"), u.Query().Get("q"), u.Query().Get(keyset.Param)
 	}
 	view, err := h.store.Variants(r.Context(), soldOut == "1", term, after)
 	if err != nil {
@@ -255,7 +256,7 @@ func stockReturn(soldOut, term, after, notice, sku string) string {
 		q.Set("q", term)
 	}
 	if after != "" {
-		q.Set(web.KeysetParam, after)
+		q.Set(keyset.Param, after)
 	}
 	if notice != "" {
 		q.Set(notice, "1")
@@ -277,7 +278,7 @@ func stockReturn(soldOut, term, after, notice, sku string) string {
 func stockBack(r *http.Request, notice string) string {
 	var soldOut, term, after string
 	if u, err := url.Parse(r.PostFormValue("return")); err == nil && u.Path == "/admin/stock" && u.Host == "" {
-		soldOut, term, after = u.Query().Get("soldout"), web.SearchTerm(u.Query().Get("q")), u.Query().Get(web.KeysetParam)
+		soldOut, term, after = u.Query().Get("soldout"), web.SearchTerm(u.Query().Get("q")), u.Query().Get(keyset.Param)
 	}
 	return stockReturn(soldOut, term, after, notice, r.PostFormValue("sku"))
 }
@@ -291,7 +292,7 @@ func newKey() string {
 }
 
 func (h *Handler) Movements(w http.ResponseWriter, r *http.Request) {
-	view, err := h.store.Movements(r.Context(), r.PathValue("sku"), time.Now(), r.URL.Query().Get(web.KeysetParam))
+	view, err := h.store.Movements(r.Context(), r.PathValue("sku"), time.Now(), r.URL.Query().Get(keyset.Param))
 	switch {
 	case err == nil:
 		view.Notice = web.Notice(r, notices)

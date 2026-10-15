@@ -20,6 +20,7 @@ import (
 	"github.com/koopa0/goen/internal/db"
 	"github.com/koopa0/goen/internal/i18n"
 	"github.com/koopa0/goen/internal/inventory"
+	"github.com/koopa0/goen/internal/keyset"
 	"github.com/koopa0/goen/internal/shoptime"
 	"github.com/koopa0/goen/internal/ui/pages/admin"
 	"github.com/koopa0/goen/internal/web"
@@ -66,17 +67,17 @@ func (s *Store) Variants(ctx context.Context, soldOutOnly bool, term string, aft
 	if soldOutOnly {
 		soldOut = "1"
 	}
-	scope := web.ScopeURL("/admin/stock", "soldout", soldOut, "q", term)
-	from, resumed := web.ResumeKeyset(scope, after, func(p variantPosition) bool {
+	scope := keyset.ScopeURL("/admin/stock", "soldout", soldOut, "q", term)
+	from, resumed := keyset.Resume(scope, after, func(p variantPosition) bool {
 		// Postgres refuses a NUL in text, so a crafted name would turn a bad link
 		// into a 500 instead of the first page.
 		return p.ID != uuid.Nil && !strings.ContainsRune(p.Name, 0)
 	})
-	rows, err := s.q.AdminVariants(ctx, db.AdminVariantsParams{Locale: string(i18n.FromContext(ctx)), HasCursor: resumed, AfterNumber: from.Number, AfterName: from.Name, AfterPosition: from.Position, AfterID: from.ID, SoldOutOnly: soldOutOnly, EscapedTerm: db.EscapeLike(term), RowLimit: web.PageLimit})
+	rows, err := s.q.AdminVariants(ctx, db.AdminVariantsParams{Locale: string(i18n.FromContext(ctx)), HasCursor: resumed, AfterNumber: from.Number, AfterName: from.Name, AfterPosition: from.Position, AfterID: from.ID, SoldOutOnly: soldOutOnly, EscapedTerm: db.EscapeLike(term), RowLimit: keyset.PageLimit})
 	if err != nil {
 		return admin.VariantsView{}, fmt.Errorf("read variants: %w", err)
 	}
-	rows, bound := web.PageBound(scope, resumed, rows, web.PageSize, func(r *db.AdminVariantsRow) string { return r.PageCursor })
+	rows, bound := keyset.PageBound(scope, resumed, rows, keyset.PageSize, func(r *db.AdminVariantsRow) string { return r.PageCursor })
 	view := admin.VariantsView{Bound: bound, SoldOutOnly: soldOutOnly, Term: term}
 	for i := range rows {
 		view.Variants = append(view.Variants, variantRow(&rows[i]))
@@ -287,7 +288,7 @@ const MovementPageSize = 50
 // days up to now in one snapshot, so the stock it shows is the last day's.
 func (s *Store) Movements(ctx context.Context, sku string, now time.Time, after ...string) (admin.MovementsView, error) {
 	scope := "/admin/stock/" + url.PathEscape(sku)
-	from, resumed := web.ResumeKeyset(scope, after, func(p movementPosition) bool { return p.ID != uuid.Nil })
+	from, resumed := keyset.Resume(scope, after, func(p movementPosition) bool { return p.ID != uuid.Nil })
 	tx, err := s.pool.BeginTx(ctx, pgx.TxOptions{IsoLevel: pgx.RepeatableRead, AccessMode: pgx.ReadOnly})
 	if err != nil {
 		return admin.MovementsView{}, fmt.Errorf("begin movements snapshot: %w", err)
@@ -308,7 +309,7 @@ func (s *Store) Movements(ctx context.Context, sku string, now time.Time, after 
 		return admin.MovementsView{}, fmt.Errorf("read movements of %s: %w", sku, err)
 	}
 
-	rows, bound := web.PageBound(scope, resumed, rows, MovementPageSize, func(r *db.VariantMovementsRow) string { return r.PageCursor })
+	rows, bound := keyset.PageBound(scope, resumed, rows, MovementPageSize, func(r *db.VariantMovementsRow) string { return r.PageCursor })
 	view := admin.MovementsView{
 		Bound: bound,
 		SKU:   v.SKU, ProductName: v.ProductName, Slug: v.Slug,

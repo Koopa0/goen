@@ -8,13 +8,13 @@ import (
 	"github.com/a-h/templ"
 
 	"github.com/koopa0/goen/internal/i18n"
+	"github.com/koopa0/goen/internal/keyset"
 	"github.com/koopa0/goen/internal/ui/layouts"
-	"github.com/koopa0/goen/internal/web"
 )
 
 func TestEveryAdminEmptyPageKeepsItsRestartLink(t *testing.T) {
 	t.Parallel()
-	b := web.Bound{PastEnd: true, First: "/admin/products?q=test"}
+	b := keyset.Bound{PastEnd: true, First: "/admin/products?q=test"}
 	p := layouts.Page{Title: "Pagination"}
 	cases := map[string]templ.Component{
 		"orders":    Orders(p, OrdersView{Bound: b}),

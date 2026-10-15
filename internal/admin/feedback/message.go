@@ -10,19 +10,19 @@ import (
 	"github.com/koopa0/goen/internal/contact"
 	"github.com/koopa0/goen/internal/db"
 	"github.com/koopa0/goen/internal/i18n"
+	"github.com/koopa0/goen/internal/keyset"
 	"github.com/koopa0/goen/internal/shoptime"
 	"github.com/koopa0/goen/internal/ui/pages/admin"
-	"github.com/koopa0/goen/internal/web"
 )
 
 func (s *Store) Messages(ctx context.Context, after ...string) (admin.MessagesView, error) {
 	const scope = "/admin/messages"
-	from, resumed := web.ResumeKeyset(scope, after, func(p messagePosition) bool { return p.ID != uuid.Nil })
-	rows, err := s.q.AdminMessages(ctx, db.AdminMessagesParams{HasCursor: resumed, AfterRank: from.Rank, AfterAt: from.At, AfterID: from.ID, RowLimit: web.PageLimit})
+	from, resumed := keyset.Resume(scope, after, func(p messagePosition) bool { return p.ID != uuid.Nil })
+	rows, err := s.q.AdminMessages(ctx, db.AdminMessagesParams{HasCursor: resumed, AfterRank: from.Rank, AfterAt: from.At, AfterID: from.ID, RowLimit: keyset.PageLimit})
 	if err != nil {
 		return admin.MessagesView{}, fmt.Errorf("read contact messages: %w", err)
 	}
-	rows, bound := web.PageBound(scope, resumed, rows, web.PageSize, func(r *db.AdminMessagesRow) string { return r.PageCursor })
+	rows, bound := keyset.PageBound(scope, resumed, rows, keyset.PageSize, func(r *db.AdminMessagesRow) string { return r.PageCursor })
 	view := admin.MessagesView{
 		Bound: bound,
 		Rows:  make([]admin.Message, 0, len(rows)),

@@ -1,4 +1,7 @@
-package web
+// Package keyset pages a list by position rather than offset: a token that
+// carries the last row's ordering values, bound to the list's own address,
+// and the page bound a pager renders. It imports no goen package.
+package keyset
 
 import (
 	"encoding/base64"
@@ -7,7 +10,7 @@ import (
 	"strings"
 )
 
-const KeysetParam = "after"
+const Param = "after"
 
 // PageSize is the rows a list page shows; a list query asks for PageLimit, the
 // page plus the one row that proves there is another.
@@ -50,25 +53,25 @@ func ScopeURL(path string, pairs ...string) string {
 	return path + "?" + q.Encode()
 }
 
-// NextKeysetURL is the scope with a position token attached. The token is the
+// NextURL is the scope with a position token attached. The token is the
 // position (a JSON object of the ordering values) bound to the scope, so it is
 // worthless anywhere else. ok is false only when the scope is not a URL.
-func NextKeysetURL(scope, position string) (next string, ok bool) {
+func NextURL(scope, position string) (next string, ok bool) {
 	u, err := url.Parse(scope)
 	if err != nil {
 		return "", false
 	}
 	q := u.Query()
-	q.Set(KeysetParam, base64.RawURLEncoding.EncodeToString([]byte(scope+"\n"+position)))
+	q.Set(Param, base64.RawURLEncoding.EncodeToString([]byte(scope+"\n"+position)))
 	u.RawQuery = q.Encode()
 	return u.String(), true
 }
 
-// ReadKeyset decodes a token made by NextKeysetURL into the caller's position
+// Read decodes a token made by NextURL into the caller's position
 // type. ok is false, and the caller starts at the first page, for anything that
 // is not a well-formed token minted for exactly this scope. The caller still
 // checks the decoded values against what its own query can accept.
-func ReadKeyset[T any](scope, token string) (position T, ok bool) {
+func Read[T any](scope, token string) (position T, ok bool) {
 	var zero T
 	if token == "" || len(token) > maxKeysetToken {
 		return zero, false
@@ -87,15 +90,15 @@ func ReadKeyset[T any](scope, token string) (position T, ok bool) {
 	return position, true
 }
 
-// ResumeKeyset is ReadKeyset for the optional position argument of a list read.
+// Resume is Read for the optional position argument of a list read.
 // ok is false for the first page, for a token this list did not mint, and for a
 // position the list's own check refuses: a zero identifier is no row.
-func ResumeKeyset[T any](scope string, after []string, acceptable func(T) bool) (from T, ok bool) {
+func Resume[T any](scope string, after []string, acceptable func(T) bool) (from T, ok bool) {
 	var zero T
 	if len(after) == 0 {
 		return zero, false
 	}
-	p, valid := ReadKeyset[T](scope, after[0])
+	p, valid := Read[T](scope, after[0])
 	if !valid || !acceptable(p) {
 		return zero, false
 	}
@@ -126,7 +129,7 @@ func PageBound[T any](scope string, resumed bool, rows []T, size int, key func(*
 		return rows, b
 	}
 	if more {
-		b.Next, _ = NextKeysetURL(scope, key(&rows[len(rows)-1]))
+		b.Next, _ = NextURL(scope, key(&rows[len(rows)-1]))
 	}
 	return rows, b
 }

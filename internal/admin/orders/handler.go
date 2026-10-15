@@ -17,6 +17,7 @@ import (
 	"github.com/koopa0/goen/internal/admin/access"
 	"github.com/koopa0/goen/internal/admin/audit"
 	"github.com/koopa0/goen/internal/i18n"
+	"github.com/koopa0/goen/internal/keyset"
 	"github.com/koopa0/goen/internal/order"
 	"github.com/koopa0/goen/internal/payment"
 	"github.com/koopa0/goen/internal/ui/components"
@@ -53,7 +54,7 @@ func (h *Handler) Routes(mux *http.ServeMux, ac *access.Control) {
 
 func (h *Handler) List(w http.ResponseWriter, r *http.Request) {
 	view, err := h.store.List(r.Context(),
-		ParseQueueFilter(r.URL.Query().Get("status")), r.URL.Query().Get("q"), r.URL.Query().Get(web.KeysetParam))
+		ParseQueueFilter(r.URL.Query().Get("status")), r.URL.Query().Get("q"), r.URL.Query().Get(keyset.Param))
 	if err != nil {
 		h.log.ErrorContext(r.Context(), "read orders", "error", err)
 		access.ServerError(w, r, h.log)

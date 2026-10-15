@@ -12,6 +12,7 @@ import (
 
 	"github.com/koopa0/goen/internal/admin/access"
 	"github.com/koopa0/goen/internal/i18n"
+	"github.com/koopa0/goen/internal/keyset"
 	"github.com/koopa0/goen/internal/money"
 	"github.com/koopa0/goen/internal/shoptime"
 	"github.com/koopa0/goen/internal/ui/components"
@@ -53,7 +54,7 @@ func (h *Handler) Credit(w http.ResponseWriter, r *http.Request) {
 		access.NotFound(w, r, h.log)
 		return
 	}
-	ledger, err := h.store.Credit(r.Context(), customer, r.URL.Query().Get(web.KeysetParam))
+	ledger, err := h.store.Credit(r.Context(), customer, r.URL.Query().Get(keyset.Param))
 	if errors.Is(err, ErrNotFound) {
 		access.NotFound(w, r, h.log)
 		return

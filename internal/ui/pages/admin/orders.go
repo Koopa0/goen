@@ -13,12 +13,12 @@ import (
 	"github.com/koopa0/goen/internal/i18n"
 	"github.com/koopa0/goen/internal/inventory"
 	"github.com/koopa0/goen/internal/invoice"
+	"github.com/koopa0/goen/internal/keyset"
 	"github.com/koopa0/goen/internal/money"
 	"github.com/koopa0/goen/internal/order"
 	"github.com/koopa0/goen/internal/ui/components"
 	"github.com/koopa0/goen/internal/ui/layouts"
 	"github.com/koopa0/goen/internal/ui/pages"
-	"github.com/koopa0/goen/internal/web"
 )
 
 type Variant struct {
@@ -177,7 +177,7 @@ func (v *DashboardView) DeskTasks() []Task {
 }
 
 type OrdersView struct {
-	web.Bound
+	keyset.Bound
 
 	Term     string
 	Searched bool
@@ -602,7 +602,7 @@ func (v *OrderView) MailKeptText(ctx context.Context) string {
 }
 
 type VariantsView struct {
-	web.Bound
+	keyset.Bound
 
 	Variants    []Variant
 	SoldOutOnly bool
@@ -618,10 +618,10 @@ type VariantsView struct {
 	Return string
 }
 
-func (v VariantsView) AllHref() string { return web.ScopeURL("/admin/stock", "q", v.Term) }
+func (v VariantsView) AllHref() string { return keyset.ScopeURL("/admin/stock", "q", v.Term) }
 
 func (v VariantsView) SoldOutHref() string {
-	return web.ScopeURL("/admin/stock", "soldout", "1", "q", v.Term)
+	return keyset.ScopeURL("/admin/stock", "soldout", "1", "q", v.Term)
 }
 
 func (v VariantsView) Empty() bool { return len(v.Variants) == 0 }
@@ -703,7 +703,7 @@ func (m Movement) ReasonText(ctx context.Context) string {
 }
 
 type MovementsView struct {
-	web.Bound
+	keyset.Bound
 
 	SKU           string
 	ProductName   string

@@ -20,11 +20,11 @@ import (
 
 	"github.com/koopa0/goen/internal/admin/audit"
 	"github.com/koopa0/goen/internal/db"
+	"github.com/koopa0/goen/internal/keyset"
 	"github.com/koopa0/goen/internal/refund"
 	returnrules "github.com/koopa0/goen/internal/returns"
 	"github.com/koopa0/goen/internal/shoptime"
 	"github.com/koopa0/goen/internal/ui/pages/admin"
-	"github.com/koopa0/goen/internal/web"
 )
 
 var (
@@ -93,7 +93,7 @@ func requireExceptionReason(kind returnrules.DecisionKind, resolution string) er
 // Diagnostics stay out of the rendered page but cross the Store boundary so
 // the handler can record quantitative source inconsistencies.
 type Queue struct {
-	Bound        web.Bound
+	Bound        keyset.Bound
 	Rows         []admin.Return
 	payoutIssues []returnPayoutIssue
 }
@@ -123,19 +123,19 @@ func (s *Store) RequestQueue(ctx context.Context, request uuid.UUID, after ...st
 }
 
 func (s *Store) queue(ctx context.Context, request uuid.NullUUID, after []string) (Queue, error) {
-	scope := web.ScopeURL("/admin/returns", "request", request.UUID.String())
+	scope := keyset.ScopeURL("/admin/returns", "request", request.UUID.String())
 	if !request.Valid {
 		scope = "/admin/returns"
 	}
-	from, resumed := web.ResumeKeyset(scope, after, func(p queuePosition) bool { return p.ID != uuid.Nil })
-	rows, err := s.q.ReturnQueue(ctx, db.ReturnQueueParams{HasRequest: request.Valid, RequestID: request.UUID, HasCursor: resumed, AfterRank: from.Rank, AfterPriority: from.Priority, AfterAt: from.At, AfterID: from.ID, RowLimit: web.PageLimit})
+	from, resumed := keyset.Resume(scope, after, func(p queuePosition) bool { return p.ID != uuid.Nil })
+	rows, err := s.q.ReturnQueue(ctx, db.ReturnQueueParams{HasRequest: request.Valid, RequestID: request.UUID, HasCursor: resumed, AfterRank: from.Rank, AfterPriority: from.Priority, AfterAt: from.At, AfterID: from.ID, RowLimit: keyset.PageLimit})
 	if err != nil {
 		return Queue{}, fmt.Errorf("read return queue: %w", err)
 	}
 	// Dropped before ids is built, not after: the extra row exists to be
 	// counted, and reading its lines and payout facts would be work done for a
 	// return nobody is shown.
-	rows, bound := web.PageBound(scope, resumed, rows, web.PageSize, func(r *db.ReturnQueueRow) string { return r.PageCursor })
+	rows, bound := keyset.PageBound(scope, resumed, rows, keyset.PageSize, func(r *db.ReturnQueueRow) string { return r.PageCursor })
 	ids := make([]uuid.UUID, 0, len(rows))
 	for i := range rows {
 		ids = append(ids, rows[i].ID)

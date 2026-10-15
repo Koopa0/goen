@@ -8,9 +8,9 @@ import (
 	"golang.org/x/net/html"
 
 	"github.com/koopa0/goen/internal/i18n"
+	"github.com/koopa0/goen/internal/keyset"
 	"github.com/koopa0/goen/internal/ui/layouts"
 	"github.com/koopa0/goen/internal/ui/pages"
-	"github.com/koopa0/goen/internal/web"
 )
 
 func TestHomeHistoryHasSeparateLabelledNavigationInBothLanguages(t *testing.T) {
@@ -20,8 +20,8 @@ func TestHomeHistoryHasSeparateLabelledNavigationInBothLanguages(t *testing.T) {
 			t.Parallel()
 			ctx := i18n.WithLocale(t.Context(), locale)
 			view := HeroView{
-				Bound:       web.Bound{Next: "/admin/home?queue=slides&after=slide-token#hero-history"},
-				BannerBound: web.Bound{First: "/admin/home?queue=banners#banner-history", Next: "/admin/home?queue=banners&after=banner-token#banner-history"},
+				Bound:       keyset.Bound{Next: "/admin/home?queue=slides&after=slide-token#hero-history"},
+				BannerBound: keyset.Bound{First: "/admin/home?queue=banners#banner-history", Next: "/admin/home?queue=banners&after=banner-token#banner-history"},
 			}
 			body := renderComponent(t, ctx, Home(layouts.Page{}, &view))
 			doc, err := html.Parse(strings.NewReader(body))
@@ -61,7 +61,7 @@ func TestHomeHistoryHasSeparateLabelledNavigationInBothLanguages(t *testing.T) {
 			if diff := cmp.Diff(map[string]string{"hero-history": i18n.T(ctx, i18n.KeyAdminHomeScheduled), "banner-history": i18n.T(ctx, i18n.KeyAdminHomeBannerCurrent)}, labels); diff != "" {
 				t.Errorf("queue headings (-want +got):\n%s", diff)
 			}
-			view.Bound, view.BannerBound = web.Bound{PastEnd: true, First: "/admin/home?queue=slides#hero-history"}, web.Bound{PastEnd: true, First: "/admin/home?queue=banners#banner-history"}
+			view.Bound, view.BannerBound = keyset.Bound{PastEnd: true, First: "/admin/home?queue=slides#hero-history"}, keyset.Bound{PastEnd: true, First: "/admin/home?queue=banners#banner-history"}
 			body = renderComponent(t, ctx, Home(layouts.Page{}, &view))
 			if strings.Count(body, i18n.T(ctx, i18n.KeyPageEmpty)) != 2 {
 				t.Error("both past-end pages must explain the empty page")

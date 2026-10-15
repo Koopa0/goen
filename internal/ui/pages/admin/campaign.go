@@ -8,11 +8,11 @@ import (
 
 	"github.com/koopa0/goen/assets"
 	"github.com/koopa0/goen/internal/i18n"
+	"github.com/koopa0/goen/internal/keyset"
 	"github.com/koopa0/goen/internal/money"
 	"github.com/koopa0/goen/internal/ui/chart"
 	"github.com/koopa0/goen/internal/ui/components"
 	"github.com/koopa0/goen/internal/ui/pages"
-	"github.com/koopa0/goen/internal/web"
 )
 
 type CampaignRow struct {
@@ -94,7 +94,7 @@ func (p CampaignProduct) stockText(ctx context.Context) string {
 }
 
 type CampaignsView struct {
-	web.Bound
+	keyset.Bound
 
 	Rows   []CampaignRow
 	Notice components.Result

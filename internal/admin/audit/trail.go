@@ -15,6 +15,7 @@ import (
 	"github.com/koopa0/goen/internal/admin/access"
 	"github.com/koopa0/goen/internal/db"
 	"github.com/koopa0/goen/internal/i18n"
+	"github.com/koopa0/goen/internal/keyset"
 	"github.com/koopa0/goen/internal/order"
 	"github.com/koopa0/goen/internal/shoptime"
 	"github.com/koopa0/goen/internal/ui/layouts"
@@ -44,7 +45,7 @@ type position struct {
 
 func (s *Store) Events(ctx context.Context, after ...string) (admin.AuditView, error) {
 	const scope = "/admin/audit"
-	from, resumed := web.ResumeKeyset(scope, after, func(p position) bool { return p.ID != uuid.Nil })
+	from, resumed := keyset.Resume(scope, after, func(p position) bool { return p.ID != uuid.Nil })
 	rows, err := s.q.AuditEvents(ctx, db.AuditEventsParams{HasCursor: resumed, AfterAt: from.At, AfterID: from.ID, RowLimit: maxRows + 1})
 	if err != nil {
 		return admin.AuditView{}, fmt.Errorf("read audit events: %w", err)
@@ -52,7 +53,7 @@ func (s *Store) Events(ctx context.Context, after ...string) (admin.AuditView, e
 	// The trail has its own size, and this is the list where silence costs
 	// most: a page that shows 200 of fifty thousand without saying so is a
 	// record somebody may take for the whole record.
-	rows, bound := web.PageBound(scope, resumed, rows, maxRows,
+	rows, bound := keyset.PageBound(scope, resumed, rows, maxRows,
 		func(r *db.AuditEventsRow) string { return r.PageCursor })
 	view := admin.AuditView{Bound: bound}
 	for i := range rows {
@@ -158,7 +159,7 @@ func (h *Handler) Routes(mux *http.ServeMux, ac *access.Control) {
 }
 
 func (h *Handler) Page(w http.ResponseWriter, r *http.Request) {
-	view, err := h.store.Events(r.Context(), r.URL.Query().Get(web.KeysetParam))
+	view, err := h.store.Events(r.Context(), r.URL.Query().Get(keyset.Param))
 	if err != nil {
 		h.log.ErrorContext(r.Context(), "read audit", "error", err)
 		access.ServerError(w, r, h.log)

@@ -15,8 +15,8 @@ import (
 
 	"github.com/koopa0/goen/internal/db"
 	"github.com/koopa0/goen/internal/i18n"
+	"github.com/koopa0/goen/internal/keyset"
 	"github.com/koopa0/goen/internal/user"
-	"github.com/koopa0/goen/internal/web"
 )
 
 func TestARedemptionNeverKeepsTheRemainder(t *testing.T) {
@@ -108,7 +108,7 @@ func TestHistoryTokenRefusesAnotherAccountsPosition(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		next, ok := web.NextKeysetURL(historyScope, string(body))
+		next, ok := keyset.NextURL(historyScope, string(body))
 		if !ok {
 			t.Fatal("scope refused")
 		}
@@ -116,7 +116,7 @@ func TestHistoryTokenRefusesAnotherAccountsPosition(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		return u.Query().Get(web.KeysetParam)
+		return u.Query().Get(keyset.Param)
 	}
 	id := uuid.New()
 	if c := readHistoryCursor("owner", mint(historyCursor{ID: id, Owner: "owner"})); !c.Valid || c.ID != id {

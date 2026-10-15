@@ -25,10 +25,10 @@ import (
 	"github.com/koopa0/goen/internal/admin/feedback"
 	"github.com/koopa0/goen/internal/contact"
 	"github.com/koopa0/goen/internal/i18n"
+	"github.com/koopa0/goen/internal/keyset"
 	"github.com/koopa0/goen/internal/ratelimit"
 	"github.com/koopa0/goen/internal/ui/layouts"
 	"github.com/koopa0/goen/internal/ui/pages/admin"
-	"github.com/koopa0/goen/internal/web"
 )
 
 func TestContactSubjectsSurviveWritingAndRenderInBothLanguages(t *testing.T) {
@@ -186,7 +186,7 @@ func contactSubjectRow(t *testing.T, ctx context.Context, desk *feedback.Store, 
 		if err != nil {
 			t.Fatalf("parse inbox cursor: %v", err)
 		}
-		after = next.Query().Get(web.KeysetParam)
+		after = next.Query().Get(keyset.Param)
 	}
 }
 

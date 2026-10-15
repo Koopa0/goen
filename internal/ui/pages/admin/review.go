@@ -5,12 +5,12 @@ import (
 	"strings"
 
 	"github.com/koopa0/goen/internal/i18n"
+	"github.com/koopa0/goen/internal/keyset"
 	"github.com/koopa0/goen/internal/ui/components"
-	"github.com/koopa0/goen/internal/web"
 )
 
 type ReviewsView struct {
-	web.Bound
+	keyset.Bound
 
 	Rows               []Review
 	Notice             components.Result

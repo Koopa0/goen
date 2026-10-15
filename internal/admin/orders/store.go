@@ -22,6 +22,7 @@ import (
 	"github.com/koopa0/goen/internal/email"
 	"github.com/koopa0/goen/internal/i18n"
 	"github.com/koopa0/goen/internal/invoice"
+	"github.com/koopa0/goen/internal/keyset"
 	"github.com/koopa0/goen/internal/money"
 	"github.com/koopa0/goen/internal/order"
 	"github.com/koopa0/goen/internal/order/cancellation"
@@ -114,8 +115,8 @@ type listPosition struct {
 
 func (s *Store) List(ctx context.Context, status admin.QueueFilter, term string, after ...string) (admin.OrdersView, error) {
 	term = strings.TrimSpace(term)
-	scope := web.ScopeURL("/admin/orders", "q", term, "status", string(status))
-	from, resumed := web.ResumeKeyset(scope, after, func(p listPosition) bool { return p.ID != uuid.Nil })
+	scope := keyset.ScopeURL("/admin/orders", "q", term, "status", string(status))
+	from, resumed := keyset.Resume(scope, after, func(p listPosition) bool { return p.ID != uuid.Nil })
 	searched := utf8.RuneCountInString(term) >= web.MinSearchRunes
 	var rows []db.AdminOrdersRow
 	var err error
@@ -124,7 +125,7 @@ func (s *Store) List(ctx context.Context, status admin.QueueFilter, term string,
 		// order, not that order if it is in the tab they had open.
 		var found []db.AdminSearchOrdersRow
 		if found, err = s.q.AdminSearchOrders(ctx, db.AdminSearchOrdersParams{HasCursor: resumed, AfterAt: from.At, AfterID: from.ID,
-			Term: term, EscapedTerm: db.EscapeLike(term), RowLimit: web.PageLimit,
+			Term: term, EscapedTerm: db.EscapeLike(term), RowLimit: keyset.PageLimit,
 		}); err == nil {
 			rows = make([]db.AdminOrdersRow, 0, len(found))
 			// A conversion, not a field copy: it stops compiling when the two
@@ -142,7 +143,7 @@ func (s *Store) List(ctx context.Context, status admin.QueueFilter, term string,
 			filter, funding = string(order.FulfillmentPending), "funded"
 		default: // a fulfilment status filters by itself
 		}
-		rows, err = s.q.AdminOrders(ctx, db.AdminOrdersParams{HasCursor: resumed, AfterAt: from.At, AfterID: from.ID, Status: filter, Funding: funding, RowLimit: web.PageLimit})
+		rows, err = s.q.AdminOrders(ctx, db.AdminOrdersParams{HasCursor: resumed, AfterAt: from.At, AfterID: from.ID, Status: filter, Funding: funding, RowLimit: keyset.PageLimit})
 	}
 	if err != nil {
 		return admin.OrdersView{}, fmt.Errorf("read orders: %w", err)
@@ -156,7 +157,7 @@ func (s *Store) List(ctx context.Context, status admin.QueueFilter, term string,
 	// here rather than in each of them. The tab counts above come from
 	// AdminOrderCounts and not from len(rows), so the extra row was never in
 	// them to begin with.
-	rows, bound := web.PageBound(scope, resumed, rows, web.PageSize, func(r *db.AdminOrdersRow) string { return r.PageCursor })
+	rows, bound := keyset.PageBound(scope, resumed, rows, keyset.PageSize, func(r *db.AdminOrdersRow) string { return r.PageCursor })
 	view := admin.OrdersView{
 		Bound:  bound,
 		Status: status, Term: term, Searched: searched,

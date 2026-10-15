@@ -6,7 +6,7 @@ import (
 
 	"github.com/google/uuid"
 
-	"github.com/koopa0/goen/internal/web"
+	"github.com/koopa0/goen/internal/keyset"
 )
 
 const (
@@ -34,16 +34,16 @@ func readOrderCursor(owner string, after []string) orderCursor {
 	if len(after) == 0 {
 		return orderCursor{}
 	}
-	pos, ok := web.ReadKeyset[orderPosition](ordersScope, after[0])
+	pos, ok := keyset.Read[orderPosition](ordersScope, after[0])
 	if !ok || pos.ID == uuid.Nil || pos.Owner != owner {
 		return orderCursor{}
 	}
 	return orderCursor{orderPosition: pos, Valid: true}
 }
 
-func orderBound[T any](c orderCursor, owner string, rows []T, key func(*T) (uuid.UUID, time.Time)) (page []T, bound web.Bound) {
-	rows, more := web.PageOf(rows, orderPageSize)
-	var b web.Bound
+func orderBound[T any](c orderCursor, owner string, rows []T, key func(*T) (uuid.UUID, time.Time)) (page []T, bound keyset.Bound) {
+	rows, more := keyset.PageOf(rows, orderPageSize)
+	var b keyset.Bound
 	if c.Valid {
 		b.First = ordersScope + ordersAnchor
 	}
@@ -54,7 +54,7 @@ func orderBound[T any](c orderCursor, owner string, rows []T, key func(*T) (uuid
 	if more {
 		id, at := key(&rows[len(rows)-1])
 		if body, err := json.Marshal(orderPosition{ID: id, At: at, Owner: owner}); err == nil {
-			if next, ok := web.NextKeysetURL(ordersScope, string(body)); ok {
+			if next, ok := keyset.NextURL(ordersScope, string(body)); ok {
 				b.Next = next + ordersAnchor
 			}
 		}

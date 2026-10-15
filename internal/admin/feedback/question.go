@@ -11,9 +11,9 @@ import (
 
 	"github.com/koopa0/goen/internal/admin/audit"
 	"github.com/koopa0/goen/internal/db"
+	"github.com/koopa0/goen/internal/keyset"
 	"github.com/koopa0/goen/internal/shoptime"
 	"github.com/koopa0/goen/internal/ui/pages/admin"
-	"github.com/koopa0/goen/internal/web"
 )
 
 type QuestionQueue uint8
@@ -34,16 +34,16 @@ func (s *Store) Questions(ctx context.Context, queue QuestionQueue, after ...str
 		return admin.QuestionsView{}, ErrInvalid
 	}
 	showHidden := queue == HiddenQuestions
-	scope := web.ScopeURL("/admin/questions", "hidden", "")
+	scope := keyset.ScopeURL("/admin/questions", "hidden", "")
 	if showHidden {
-		scope = web.ScopeURL("/admin/questions", "hidden", "1")
+		scope = keyset.ScopeURL("/admin/questions", "hidden", "1")
 	}
-	from, resumed := web.ResumeKeyset(scope, after, func(p questionPosition) bool { return p.ID != uuid.Nil })
-	rows, err := s.q.AdminQuestions(ctx, db.AdminQuestionsParams{Hidden: showHidden, HasCursor: resumed, AfterRank: from.Rank, AfterAt: from.At, AfterID: from.ID, RowLimit: web.PageLimit})
+	from, resumed := keyset.Resume(scope, after, func(p questionPosition) bool { return p.ID != uuid.Nil })
+	rows, err := s.q.AdminQuestions(ctx, db.AdminQuestionsParams{Hidden: showHidden, HasCursor: resumed, AfterRank: from.Rank, AfterAt: from.At, AfterID: from.ID, RowLimit: keyset.PageLimit})
 	if err != nil {
 		return admin.QuestionsView{}, fmt.Errorf("read questions: %w", err)
 	}
-	rows, bound := web.PageBound(scope, resumed, rows, web.PageSize, func(r *db.AdminQuestionsRow) string { return r.PageCursor })
+	rows, bound := keyset.PageBound(scope, resumed, rows, keyset.PageSize, func(r *db.AdminQuestionsRow) string { return r.PageCursor })
 	view := admin.QuestionsView{Bound: bound, Hidden: showHidden}
 	ids := make([]uuid.UUID, 0, len(rows))
 	index := make(map[uuid.UUID]int, len(rows))

@@ -5,9 +5,9 @@ import (
 
 	"github.com/koopa0/goen/assets"
 	"github.com/koopa0/goen/internal/i18n"
+	"github.com/koopa0/goen/internal/keyset"
 	"github.com/koopa0/goen/internal/ui/components"
 	"github.com/koopa0/goen/internal/ui/pages"
-	"github.com/koopa0/goen/internal/web"
 )
 
 type HeroSlide struct {
@@ -61,21 +61,21 @@ func (s HeroSlide) ToggleLabel(ctx context.Context) string {
 }
 
 type HeroView struct {
-	Bound    web.Bound
+	Bound    keyset.Bound
 	Rows     []HeroSlide
 	Carousel []pages.HeroSlide
 	Notice   components.Result
 	Errors   map[string]string
 	Draft    HeroDraft
 
-	BannerBound web.Bound
+	BannerBound keyset.Bound
 	Banners     []Banner
 	BannerDraft BannerDraft
 }
 
 type BannersView struct {
 	Rows  []Banner
-	Bound web.Bound
+	Bound keyset.Bound
 }
 
 type Banner struct {

@@ -10,9 +10,9 @@ import (
 
 	"github.com/koopa0/goen/internal/admin/audit"
 	"github.com/koopa0/goen/internal/db"
+	"github.com/koopa0/goen/internal/keyset"
 	"github.com/koopa0/goen/internal/shoptime"
 	"github.com/koopa0/goen/internal/ui/pages/admin"
-	"github.com/koopa0/goen/internal/web"
 )
 
 type ReviewFilter uint8
@@ -29,14 +29,14 @@ func (s *Store) Reviews(ctx context.Context, filter ReviewFilter, after ...strin
 	threeStarsAndBelow := filter == ThreeStarsAndBelowReviews
 	scope := "/admin/reviews"
 	if threeStarsAndBelow {
-		scope = web.ScopeURL(scope, "rating", "3")
+		scope = keyset.ScopeURL(scope, "rating", "3")
 	}
-	from, resumed := web.ResumeKeyset(scope, after, func(p position) bool { return p.ID != uuid.Nil })
-	rows, err := s.q.AdminReviews(ctx, db.AdminReviewsParams{ThreeStarsAndBelow: threeStarsAndBelow, HasCursor: resumed, AfterAt: from.At, AfterID: from.ID, RowLimit: web.PageLimit})
+	from, resumed := keyset.Resume(scope, after, func(p position) bool { return p.ID != uuid.Nil })
+	rows, err := s.q.AdminReviews(ctx, db.AdminReviewsParams{ThreeStarsAndBelow: threeStarsAndBelow, HasCursor: resumed, AfterAt: from.At, AfterID: from.ID, RowLimit: keyset.PageLimit})
 	if err != nil {
 		return admin.ReviewsView{}, fmt.Errorf("read reviews: %w", err)
 	}
-	rows, bound := web.PageBound(scope, resumed, rows, web.PageSize, func(r *db.AdminReviewsRow) string { return r.PageCursor })
+	rows, bound := keyset.PageBound(scope, resumed, rows, keyset.PageSize, func(r *db.AdminReviewsRow) string { return r.PageCursor })
 	view := admin.ReviewsView{
 		ThreeStarsAndBelow: threeStarsAndBelow,
 		Bound:              bound,

@@ -11,7 +11,7 @@ import (
 	"github.com/koopa0/goen/internal/admin/admintest"
 	"github.com/koopa0/goen/internal/admin/campaigns"
 	"github.com/koopa0/goen/internal/catalog"
-	"github.com/koopa0/goen/internal/web"
+	"github.com/koopa0/goen/internal/keyset"
 )
 
 // The shop's list, its count and the back office's reason must agree on which
@@ -135,6 +135,6 @@ func listRowSellable(t *testing.T, office *campaigns.Store, slug string) bool {
 		if err != nil || view.Next == "" {
 			t.Fatalf("campaign %s is not in the back-office list (next %q, %v)", slug, view.Next, err)
 		}
-		after = []string{next.Query().Get(web.KeysetParam)}
+		after = []string{next.Query().Get(keyset.Param)}
 	}
 }

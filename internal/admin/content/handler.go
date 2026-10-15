@@ -9,6 +9,7 @@ import (
 	"github.com/koopa0/goen/internal/admin/access"
 	"github.com/koopa0/goen/internal/admin/audit"
 	"github.com/koopa0/goen/internal/i18n"
+	"github.com/koopa0/goen/internal/keyset"
 	"github.com/koopa0/goen/internal/media"
 	"github.com/koopa0/goen/internal/newsletter"
 	"github.com/koopa0/goen/internal/ui/layouts"
@@ -157,9 +158,9 @@ func (h *Handler) Home(w http.ResponseWriter, r *http.Request) {
 	var heroAfter, bannerAfter string
 	switch homeQueue(r.URL.Query().Get("queue")) {
 	case heroQueue:
-		heroAfter = r.URL.Query().Get(web.KeysetParam)
+		heroAfter = r.URL.Query().Get(keyset.Param)
 	case bannerQueue:
-		bannerAfter = r.URL.Query().Get(web.KeysetParam)
+		bannerAfter = r.URL.Query().Get(keyset.Param)
 	}
 	view, err := h.homeView(r.Context(), heroAfter, bannerAfter)
 	if err != nil {

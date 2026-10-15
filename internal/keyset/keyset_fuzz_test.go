@@ -1,4 +1,4 @@
-package web
+package keyset
 
 import (
 	"encoding/json"
@@ -20,21 +20,21 @@ func FuzzReadKeysetOnlyAcceptsItsOwnScope(f *testing.F) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		next, ok := NextKeysetURL(scopeA, string(body))
+		next, ok := NextURL(scopeA, string(body))
 		if !ok {
 			return
 		}
 		u, err := url.Parse(next)
 		if err != nil {
-			t.Fatalf("NextKeysetURL made %q: %v", next, err)
+			t.Fatalf("NextURL made %q: %v", next, err)
 		}
-		token := u.Query().Get(KeysetParam)
+		token := u.Query().Get(Param)
 
-		if _, ok := ReadKeyset[string](scopeA, token); !ok && len(token) <= maxKeysetToken {
+		if _, ok := Read[string](scopeA, token); !ok && len(token) <= maxKeysetToken {
 			t.Fatalf("a token minted for %q is refused under its own scope", scopeA)
 		}
 		if scopeA != scopeB {
-			if _, ok := ReadKeyset[string](scopeB, token); ok {
+			if _, ok := Read[string](scopeB, token); ok {
 				t.Fatalf("a token minted for %q was accepted under %q", scopeA, scopeB)
 			}
 		}

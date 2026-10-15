@@ -27,8 +27,8 @@ import (
 	returndesk "github.com/koopa0/goen/internal/admin/returns"
 	"github.com/koopa0/goen/internal/admin/stock"
 	"github.com/koopa0/goen/internal/i18n"
+	"github.com/koopa0/goen/internal/keyset"
 	"github.com/koopa0/goen/internal/media"
-	"github.com/koopa0/goen/internal/web"
 )
 
 func TestEveryAdminQueueReachesBeyondItsFirstPage(t *testing.T) {
@@ -105,7 +105,7 @@ func TestEveryAdminQueueReachesBeyondItsFirstPage(t *testing.T) {
 		t.Fatal(err)
 	}
 	type result struct {
-		bound web.Bound
+		bound keyset.Bound
 		keys  []string
 	}
 	cases := []struct {
