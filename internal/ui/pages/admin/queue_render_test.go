@@ -60,7 +60,6 @@ func queuePages(b keyset.Bound, ctx func(k i18n.Key) string) map[string]struct {
 		"stock":              {Variants(p, VariantsView{Bound: b}), ctx(i18n.KeyAdminQueueNoVariants)},
 		"movements":          {Movements(p, &MovementsView{Bound: b}), ctx(i18n.KeyAdminLedgerEmpty)},
 		"returns":            {Returns(p, ReturnsView{Bound: b}), ctx(i18n.KeyAdminRetEmpty)},
-		"coupons":            {Coupons(p, CouponsView{Bound: b}), ctx(i18n.KeyAdminCoupEmpty)},
 		"campaigns":          {Campaigns(p, CampaignsView{Bound: b}), ctx(i18n.KeyAdminCampEmpty)},
 		"reviews":            {Reviews(p, ReviewsView{Bound: b}), ctx(i18n.KeyAdminReviewsEmpty)},
 		"messages":           {Messages(p, MessagesView{Bound: b}), ctx(i18n.KeyAdminMessagesEmpty)},

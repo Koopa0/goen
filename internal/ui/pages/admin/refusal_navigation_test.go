@@ -35,8 +35,6 @@ func TestDeskRefusalsNameTheirFormAndLinkToTheFirstInvalidControl(t *testing.T) 
 				{"faq-edit", FAQ(layouts.Page{}, &FAQView{Rows: []FAQEntry{{ID: "faq1", Question: "stored", Answer: "stored"}}, Edit: FAQEntry{ID: "faq1", Question: "", Answer: " kept ", QuestionEn: "bad"}, EditErrors: map[string]string{"question": bad, "question_en": bad}}), "/admin/faq/faq1#faq-faq1", "faq-faq1", "q-faq1", i18n.KeyAdminRefusalFAQ, 2},
 				{"hero", Home(layouts.Page{}, &HeroView{Errors: map[string]string{"headline": bad, "primary": bad}}), "/admin/home#new-hero", "new-hero", "h-headline", i18n.KeyAdminRefusalHero, 2},
 				{"banner", Home(layouts.Page{}, &HeroView{Errors: map[string]string{"message_en": bad, "banner_cta": bad}}), "/admin/home/banner#new-banner", "new-banner", "b-message-en", i18n.KeyAdminRefusalBanner, 2},
-				{"method", Shipping(layouts.Page{}, ShippingView{Errors: map[string]string{"code": bad, "fee": bad}}), "/admin/shipping/method#new-method", "new-method", "m-code", i18n.KeyAdminShipAddMethod, 2},
-				{"zone", Shipping(layouts.Page{}, ShippingView{Errors: map[string]string{"zone_code": bad, "prefixes": bad}}), "/admin/shipping/zone#new-zone", "new-zone", "z-code", i18n.KeyAdminShipAddZone, 2},
 			}
 			for _, tc := range cases {
 				t.Run(tc.name, func(t *testing.T) {

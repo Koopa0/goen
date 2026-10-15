@@ -8,6 +8,7 @@ import (
 	"strconv"
 	"testing"
 
+	"github.com/koopa0/goen/internal/admin/coupons"
 	"github.com/koopa0/goen/internal/payment"
 	"github.com/koopa0/goen/internal/ui/layouts"
 	"github.com/koopa0/goen/internal/ui/pages"
@@ -57,7 +58,7 @@ func methodFormActions(t *testing.T) map[string][]string {
 		"internal/ui/pages/admin/returns.templ:templ.SafeURL(r.CompleteAction())":                       {ret.CompleteAction()},
 		"internal/ui/pages/admin/message.templ:templ.SafeURL(m.Action())":                               {(admin.Message{}).Action(), (admin.Message{Handled: true}).Action()},
 		"internal/ui/pages/admin/review.templ:templ.SafeURL(r.Action())":                                {(admin.Review{}).Action(), (admin.Review{Hidden: true}).Action()},
-		"internal/ui/pages/admin/coupon.templ:templ.SafeURL(c.Action())":                                {(admin.Coupon{Code: "coupon"}).Action()},
+		"internal/admin/coupons/page.templ:templ.SafeURL(c.Action())":                                   {(coupons.Coupon{Code: "coupon"}).Action()},
 		"internal/ui/pages/admin/newsletter.templ:templ.SafeURL(issue.SendAction())":                    {(admin.NewsletterIssue{ID: "issue"}).SendAction()},
 		"internal/ui/pages/admin/campaign.templ:templ.SafeURL(c.ToggleAction())":                        {(admin.CampaignRow{Slug: "campaign"}).ToggleAction()},
 		"internal/ui/pages/admin/campaign.templ:templ.SafeURL(v.FeatureAction())":                       {(&admin.CampaignView{Slug: "campaign"}).FeatureAction()},

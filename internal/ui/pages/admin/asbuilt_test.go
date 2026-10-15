@@ -12,22 +12,6 @@ import (
 	"github.com/koopa0/goen/internal/ui/layouts"
 )
 
-func TestTheCouponFormSaysTheLimitIsPerMemberAccount(t *testing.T) {
-	t.Parallel()
-	for _, loc := range []i18n.Locale{i18n.ZhHant, i18n.En} {
-		ctx := i18n.WithLocale(t.Context(), loc)
-		var b strings.Builder
-		if err := Coupons(layouts.Page{Title: "c"}, CouponsView{}).Render(ctx, &b); err != nil {
-			t.Fatal(err)
-		}
-		for _, k := range []i18n.Key{i18n.KeyAdminCoupPerCustomer, i18n.KeyAdminCoupPerCustomerHint} {
-			if !strings.Contains(b.String(), i18n.T(ctx, k)) {
-				t.Errorf("%v coupon form lacks %q", loc, i18n.T(ctx, k))
-			}
-		}
-	}
-}
-
 func TestOnlyAPickupOrderIsToldToCompleteAfterCollection(t *testing.T) {
 	t.Parallel()
 	next := []Transition{{Value: order.FulfillmentCompleted, Label: "x"}}

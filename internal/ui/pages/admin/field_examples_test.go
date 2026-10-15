@@ -31,12 +31,12 @@ func TestAdminExamplesStayOutsideRefusedInputs(t *testing.T) {
 					return result
 				}
 				prefix := "Example: "
-				title, discount, category := "Summer sale", "Summer sale — NT$200 off everything", "Orders"
+				title, category := "Summer sale", "Orders"
 				headline, message, short, cta := "What goen sells", "Free delivery site-wide over NT$3,000", "Free over 3,000", "Take a look"
 				days, inspection := "0 means no end date.", "For example: box damaged, accessories missing"
 				if locale == i18n.ZhHant {
 					prefix = "例："
-					title, discount, category = "夏季特賣", "夏季全站折 NT$200", "訂單"
+					title, category = "夏季特賣", "訂單"
 					headline, message, short, cta = "goen 販售的商品", "全站滿 NT$3,000 免運", "滿 3,000 免運", "看看"
 					days, inspection = "0 表示不設結束日。", "例如：外盒破損、配件缺少"
 				}
@@ -47,7 +47,6 @@ func TestAdminExamplesStayOutsideRefusedInputs(t *testing.T) {
 					fields    map[string]string
 				}{
 					{"campaign", Campaigns(p, CampaignsView{Draft: CampaignDraft{Title: typed, Slug: typed}, Errors: errors("title", "slug")}), map[string]string{"k-title": prefix + title, "k-slug": prefix + "summer-sale"}},
-					{"coupon", Coupons(p, CouponsView{Draft: CouponDraft{Code: typed, Description: typed, PerCustomer: typed}, Errors: errors("code", "description", "percustomer")}), map[string]string{"c-code": prefix + "SUMMER20", "c-description": prefix + discount, "c-percustomer": prefix + "1"}},
 					{"FAQ category", FAQ(p, &FAQView{Draft: FAQEntry{Category: typed}, Errors: errors("category")}), map[string]string{"faq-category": prefix + category}},
 					{"hero and strip", Home(p, &HeroView{
 						Draft:       HeroDraft{Headline: typed, HeadlineEn: typed, PrimaryHref: typed, SecondHref: typed, Days: typed},

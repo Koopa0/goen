@@ -12,7 +12,6 @@ import (
 
 	"github.com/koopa0/goen/internal/i18n"
 	"github.com/koopa0/goen/internal/money"
-	"github.com/koopa0/goen/internal/ui/pages/admin"
 )
 
 func TestVersionFormKeepsRawFieldsAndRefusesTheOwningAmount(t *testing.T) {
@@ -36,7 +35,7 @@ func TestVersionFormKeepsRawFieldsAndRefusesTheOwningAmount(t *testing.T) {
 			r := httptest.NewRequestWithContext(t.Context(), http.MethodPost, "/admin/shipping/version", strings.NewReader(values.Encode()))
 			r.Header.Set("Content-Type", "application/x-www-form-urlencoded")
 			v, draft, errs := versionFormOf(r)
-			wantDraft := admin.VersionDraft{MethodID: "owned", Name: " Raw name ", NameEn: " Raw name EN ", Carrier: " Raw carrier ", CarrierEn: " Raw carrier EN ", Fee: tt.fee, FreeOver: tt.threshold}
+			wantDraft := VersionDraft{MethodID: "owned", Name: " Raw name ", NameEn: " Raw name EN ", Carrier: " Raw carrier ", CarrierEn: " Raw carrier EN ", Fee: tt.fee, FreeOver: tt.threshold}
 			if diff := cmp.Diff(wantDraft, draft); diff != "" {
 				t.Errorf("raw version draft (-want +got):\n%s", diff)
 			}
