@@ -15,7 +15,6 @@ import (
 	"github.com/koopa0/goen/internal/media"
 	"github.com/koopa0/goen/internal/ui/components"
 	"github.com/koopa0/goen/internal/ui/layouts"
-	"github.com/koopa0/goen/internal/ui/pages/admin"
 	"github.com/koopa0/goen/internal/web"
 )
 
@@ -58,7 +57,7 @@ func (h *Handler) Page(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	view.Notice = components.NoticeFrom(r, notices)
-	web.Render(w, r, h.log, http.StatusOK, admin.Campaigns(
+	web.Render(w, r, h.log, http.StatusOK, Campaigns(
 		layouts.Page{Title: i18n.T(r.Context(), i18n.KeyAdminPageCampaigns)}, view))
 }
 
@@ -86,10 +85,10 @@ func (h *Handler) Create(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		view.Errors = errs
-		view.Draft = admin.CampaignDraft{
+		view.Draft = CampaignDraft{
 			Slug: f.Slug, Title: f.Title, TitleEn: f.TitleEn, Days: r.PostFormValue("days"), Tone: f.Tone,
 		}
-		web.Render(w, r, h.log, http.StatusUnprocessableEntity, admin.Campaigns(
+		web.Render(w, r, h.log, http.StatusUnprocessableEntity, Campaigns(
 			layouts.Page{Title: i18n.T(r.Context(), i18n.KeyAdminPageCampaigns)}, view))
 	default:
 		//nolint:gosec // G710: slug matched slugFormat in Validate
@@ -141,7 +140,7 @@ func (h *Handler) render(w http.ResponseWriter, r *http.Request, status int, not
 	if errs["image"] != "" || errs["alt"] != "" || errs["alt_en"] != "" {
 		altDraft, altEnDraft = r.PostFormValue("alt"), r.PostFormValue("alt_en")
 	}
-	view := admin.CampaignView{
+	view := CampaignView{
 		Slug: slug, CampaignDetail: detail, Term: term, Matches: matches,
 		Products: products, Notice: notice, Image: image, Tone: tone, Errors: errs,
 		ImageAltDraft: altDraft, ImageAltEnDraft: altEnDraft,
@@ -153,7 +152,7 @@ func (h *Handler) render(w http.ResponseWriter, r *http.Request, status int, not
 		h.log.ErrorContext(r.Context(), "read campaign results", "error", err, "slug", slug)
 		view.ResultsUnavailable = true
 	}
-	web.Render(w, r, h.log, status, admin.CampaignForm(layouts.Page{Title: detail.Title}, view))
+	web.Render(w, r, h.log, status, CampaignForm(layouts.Page{Title: detail.Title}, view))
 }
 
 func (h *Handler) SetWindow(w http.ResponseWriter, r *http.Request) {

@@ -1,4 +1,4 @@
-package admin
+package campaigns
 
 import (
 	"os"
@@ -27,7 +27,7 @@ func TestCampaignEditorReflowsInBothLanguages(t *testing.T) {
 			t.Fatal(err)
 		}
 	}
-	root, err := filepath.Abs("../../../..")
+	root, err := filepath.Abs("../../..")
 	if err != nil {
 		t.Fatal(err)
 	}
