@@ -5,7 +5,7 @@ on:
     paths:
       - assets/css/app/admin.css
       - internal/ui/pages/admin/health.templ
-      - internal/ui/pages/twofactor.templ
+      - internal/admin/twofactor/page.templ
       - internal/ui/pages/admin/disclosure_browser_test.go
       - scripts/admin-disclosure-check.mjs
       - .github/workflows/admin-disclosure-interaction.yml

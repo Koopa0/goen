@@ -1,4 +1,4 @@
-package pages
+package twofactor
 
 type TwoFactorView struct {
 	Enabled   bool

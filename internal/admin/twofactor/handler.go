@@ -13,7 +13,6 @@ import (
 	"github.com/koopa0/goen/internal/i18n"
 	"github.com/koopa0/goen/internal/ratelimit"
 	"github.com/koopa0/goen/internal/ui/layouts"
-	"github.com/koopa0/goen/internal/ui/pages"
 	"github.com/koopa0/goen/internal/user"
 	"github.com/koopa0/goen/internal/web"
 )
@@ -69,12 +68,12 @@ func (h *Handler) Challenge(w http.ResponseWriter, r *http.Request) {
 	if errors.Is(err, ErrSecretUnreadable) {
 		notice = i18n.T(r.Context(), i18n.KeyTOTPSecretUnreadable)
 	}
-	view := pages.TwoFactorView{
+	view := TwoFactorView{
 		Enabled:  h.store.Enabled(),
 		Enrolled: enrolled,
 		Notice:   notice,
 	}
-	web.Render(w, r, h.log, http.StatusOK, pages.TwoFactor(
+	web.Render(w, r, h.log, http.StatusOK, TwoFactor(
 		layouts.Page{Title: i18n.T(r.Context(), i18n.KeyAdminPageTwoFactor)}, view))
 }
 
@@ -165,8 +164,8 @@ func (h *Handler) Enrol(w http.ResponseWriter, r *http.Request) {
 		access.Fault(w, r, h.log)
 		return
 	}
-	web.Render(w, r, h.log, http.StatusOK, pages.TwoFactor(
-		layouts.Page{Title: i18n.T(r.Context(), i18n.KeyAdminPageTwoFactor)}, pages.TwoFactorView{
+	web.Render(w, r, h.log, http.StatusOK, TwoFactor(
+		layouts.Page{Title: i18n.T(r.Context(), i18n.KeyAdminPageTwoFactor)}, TwoFactorView{
 			Enabled: true, Enrolling: true,
 			Secret: EncodeSecret(secret), URI: uri,
 			QRCode: "data:image/png;base64," + base64.StdEncoding.EncodeToString(code.PNG()),
