@@ -7,7 +7,6 @@ import (
 	"github.com/koopa0/goen/internal/i18n"
 	"github.com/koopa0/goen/internal/ui/components"
 	"github.com/koopa0/goen/internal/ui/icons"
-	"github.com/koopa0/goen/internal/web"
 )
 
 // ui-navitem and ui-btn are not leftovers: two assertions in backoffice_test.go
@@ -175,7 +174,7 @@ templ departmentPanel(p Page, n NavItem) {
 // whole link is the unit: the accessible name says how many are in there, so swapping
 // the number alone would leave the sentence behind.
 templ cartLink() {
-	{{ count := web.CartCount(ctx) }}
+	{{ count := CartCount(ctx) }}
 	@components.ButtonLink(components.ButtonProps{
 		ButtonStyle: components.ButtonStyleGhost,
 		Icon:        true,

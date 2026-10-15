@@ -1,13 +1,9 @@
 package layouts
 
-import (
-	"context"
-
-	"github.com/koopa0/goen/internal/web"
-)
+import "context"
 
 func returnPath(ctx context.Context) string {
-	if p := web.RequestPath(ctx); p != "" {
+	if p := ReturnPath(ctx); p != "" {
 		return p
 	}
 	return "/"

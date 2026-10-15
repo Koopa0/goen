@@ -39,7 +39,7 @@ func TestPopoverPointerAndFocusInNativeBrowsers(t *testing.T) {
 		if cookie, cookieErr := r.Cookie("goen_locale"); cookieErr == nil {
 			locale = i18n.Parse(cookie.Value)
 		}
-		ctx := web.WithRequestPath(i18n.WithLocale(r.Context(), locale), r.URL.RequestURI())
+		ctx := layouts.WithReturnPath(i18n.WithLocale(r.Context(), locale), r.URL.RequestURI())
 		ctx = layouts.WithTopNav(ctx, []layouts.NavItem{{Slug: "audio", Name: "Audio", Href: "/c/audio"}})
 		if web.IsHTMX(r) {
 			ctx = pages.AsPartial(ctx)

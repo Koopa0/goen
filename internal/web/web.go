@@ -98,40 +98,6 @@ func Render(w http.ResponseWriter, r *http.Request, log *slog.Logger, status int
 	}
 }
 
-type cartCountKey struct{}
-
-// WithCartCount carries the visitor's cart size down to the page chrome, from
-// middleware rather than from each handler's view model.
-func WithCartCount(ctx context.Context, n int) context.Context {
-	return context.WithValue(ctx, cartCountKey{}, n)
-}
-
-// CartCount is how many items the visitor's cart holds, or zero when nothing
-// put a count there.
-func CartCount(ctx context.Context) int {
-	n, ok := ctx.Value(cartCountKey{}).(int)
-	if !ok {
-		return 0
-	}
-	return n
-}
-
-type pathKey struct{}
-
-// WithRequestPath records where a request was for, so a form rendered on the
-// page can send the visitor back to it.
-func WithRequestPath(ctx context.Context, path string) context.Context {
-	return context.WithValue(ctx, pathKey{}, path)
-}
-
-func RequestPath(ctx context.Context) string {
-	p, ok := ctx.Value(pathKey{}).(string)
-	if !ok {
-		return ""
-	}
-	return p
-}
-
 type requestIDKey struct{}
 
 // WithRequestID records the identifier the log lines for this request carry.

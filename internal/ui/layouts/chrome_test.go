@@ -10,7 +10,6 @@ import (
 	"github.com/koopa0/goen/assets"
 	"github.com/koopa0/goen/internal/i18n"
 	"github.com/koopa0/goen/internal/ui/layouts"
-	"github.com/koopa0/goen/internal/web"
 )
 
 func renderChrome(t *testing.T, locale i18n.Locale, items []layouts.NavItem) (header, footer string) {
@@ -267,7 +266,7 @@ func TestTheHeaderMarksTheCurrentDealsPage(t *testing.T) {
 				t.Run(locale.Tag()+"/"+origin+"/"+tt.name, func(t *testing.T) {
 					t.Parallel()
 					ctx := layouts.WithDeals(layouts.WithTopNav(i18n.WithLocale(t.Context(), locale), chromeNav), tt.deals)
-					ctx = web.WithRequestPath(ctx, tt.path)
+					ctx = layouts.WithReturnPath(ctx, tt.path)
 					if origin != "" {
 						ctx = layouts.WithRequestPath(layouts.WithSiteOrigin(ctx, origin), "/")
 					}
@@ -568,7 +567,7 @@ func TestTheCartCountSitsBesideTheBagAndOnlyWhenThereIsSomethingInIt(t *testing.
 		{1, `<span class="ui-badge--count" aria-hidden="true">1</span>`},
 		{12, `<span class="ui-badge--count" aria-hidden="true">12</span>`},
 	} {
-		ctx := web.WithCartCount(i18n.WithLocale(t.Context(), i18n.ZhHant), tc.count)
+		ctx := layouts.WithCartCount(i18n.WithLocale(t.Context(), i18n.ZhHant), tc.count)
 		var b strings.Builder
 		if err := layouts.Header(layouts.Page{}).Render(ctx, &b); err != nil {
 			t.Fatalf("render header: %v", err)

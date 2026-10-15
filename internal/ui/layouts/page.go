@@ -7,7 +7,6 @@ import (
 	"strings"
 
 	"github.com/koopa0/goen/internal/i18n"
-	"github.com/koopa0/goen/internal/web"
 )
 
 // htmxConfig is set from the document because a policy that allows no inline script
@@ -150,6 +149,43 @@ func RequestPath(ctx context.Context) string {
 	return "/"
 }
 
+// returnPathKey is not pathKey: og:url wants the path alone, a form that sends
+// the visitor back wants the query too.
+type returnPathKey struct{}
+
+// WithReturnPath records where a request was for, so a form rendered on the
+// page can send the visitor back to it.
+func WithReturnPath(ctx context.Context, path string) context.Context {
+	return context.WithValue(ctx, returnPathKey{}, path)
+}
+
+// ReturnPath is the path and query WithReturnPath recorded, or "".
+func ReturnPath(ctx context.Context) string {
+	p, ok := ctx.Value(returnPathKey{}).(string)
+	if !ok {
+		return ""
+	}
+	return p
+}
+
+type cartCountKey struct{}
+
+// WithCartCount carries the visitor's cart size down to the page chrome, from
+// middleware rather than from each handler's view model.
+func WithCartCount(ctx context.Context, n int) context.Context {
+	return context.WithValue(ctx, cartCountKey{}, n)
+}
+
+// CartCount is how many items the visitor's cart holds, or zero when nothing
+// put a count there.
+func CartCount(ctx context.Context) int {
+	n, ok := ctx.Value(cartCountKey{}).(int)
+	if !ok {
+		return 0
+	}
+	return n
+}
+
 type staffKey struct{}
 
 // WithStaff is set in middleware: a chrome fact each handler has to remember to fill
@@ -206,7 +242,7 @@ func (p Page) ariaCurrent(item NavItem) string {
 }
 
 func currentPage(ctx context.Context, path string) bool {
-	requestPath, _, _ := strings.Cut(web.RequestPath(ctx), "?")
+	requestPath, _, _ := strings.Cut(ReturnPath(ctx), "?")
 	return requestPath == path
 }
 

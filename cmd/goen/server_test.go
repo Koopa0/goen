@@ -656,7 +656,7 @@ func TestLanguageSwitchComparisonJourney(t *testing.T) {
 	var onContext string
 	var renderedHTML string
 	h := withLocale(http.HandlerFunc(func(_ http.ResponseWriter, r *http.Request) {
-		onContext = web.RequestPath(r.Context())
+		onContext = layouts.ReturnPath(r.Context())
 		var buf bytes.Buffer
 		if err := layouts.Footer(layouts.NewsletterState{}).Render(r.Context(), &buf); err != nil {
 			t.Fatalf("render footer: %v", err)
@@ -668,7 +668,7 @@ func TestLanguageSwitchComparisonJourney(t *testing.T) {
 	h.ServeHTTP(httptest.NewRecorder(), req)
 
 	if onContext != wantReturn {
-		t.Fatalf("web.RequestPath on context = %q, want %q", onContext, wantReturn)
+		t.Fatalf("layouts.ReturnPath on context = %q, want %q", onContext, wantReturn)
 	}
 
 	re := regexp.MustCompile(`<input type="hidden" name="return" value="([^"]*)"`)
@@ -1016,17 +1016,23 @@ func TestTheCatalogueStaysEligibleForSpeculation(t *testing.T) {
 
 func TestSiteOriginReachesTheChromeFromTheConfiguredBaseURL(t *testing.T) {
 	t.Parallel()
-	var got, path string
-	h := withSiteOrigin(http.HandlerFunc(func(_ http.ResponseWriter, r *http.Request) {
+	var got, path, back string
+	// In the server's order, so the og:url path and the language switch's return
+	// path sit on one context and neither overwrites the other.
+	h := withLocale(withSiteOrigin(http.HandlerFunc(func(_ http.ResponseWriter, r *http.Request) {
 		got = layouts.SiteOrigin(r.Context())
 		path = layouts.RequestPath(r.Context())
-	}), "https://shop.example/")
+		back = layouts.ReturnPath(r.Context())
+	}), "https://shop.example/"), false)
 	h.ServeHTTP(httptest.NewRecorder(), httptest.NewRequestWithContext(t.Context(), http.MethodGet, "http://evil.example/c/books?page=2", http.NoBody))
 	if got != "https://shop.example" {
 		t.Errorf("origin = %q, want the configured one and never the request's Host", got)
 	}
 	if path != "/c/books" {
 		t.Errorf("path = %q, want the request's path without its query", path)
+	}
+	if back != "/c/books?page=2" {
+		t.Errorf("return path = %q, want the request's path with its query", back)
 	}
 }
 
