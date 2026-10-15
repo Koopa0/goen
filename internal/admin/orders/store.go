@@ -42,24 +42,21 @@ type Refunds interface {
 	FillOrder(ctx context.Context, view *admin.OrderView, number string) (opened bool, err error)
 }
 
-// Invoices puts what has been filed on the order page; the invoicing desk
-// implements it.
-type Invoices interface {
-	FillOrder(ctx context.Context, view *admin.OrderView, number string) error
-}
-
 type Store struct {
-	pool     *pgxpool.Pool
-	q        *db.Queries
-	refunds  Refunds
-	invoices Invoices
+	pool    *pgxpool.Pool
+	q       *db.Queries
+	refunds Refunds
+	// The invoice writer is nil when no provider is configured; the reader
+	// still shows what was filed.
+	invoiceReader InvoiceReader
+	invoiceWriter InvoiceWriter
 }
 
-func NewStore(pool *pgxpool.Pool, refunds Refunds, invoices Invoices) *Store {
-	if pool == nil || refunds == nil || invoices == nil {
-		panic("orders: NewStore requires a pool, refunds and invoices")
+func NewStore(pool *pgxpool.Pool, refunds Refunds, invoiceReader InvoiceReader, invoiceWriter InvoiceWriter) *Store {
+	if pool == nil || refunds == nil || invoiceReader == nil {
+		panic("orders: NewStore requires a pool, refunds and an invoice reader")
 	}
-	return &Store{pool: pool, q: db.New(pool), refunds: refunds, invoices: invoices}
+	return &Store{pool: pool, q: db.New(pool), refunds: refunds, invoiceReader: invoiceReader, invoiceWriter: invoiceWriter}
 }
 
 // orderRows reads which of the orders are returned in one query, so a page of the queue costs no more than one.
@@ -258,7 +255,7 @@ func (s *Store) Order(ctx context.Context, number string) (admin.OrderView, erro
 		return admin.OrderView{}, shipErr
 	}
 
-	if invErr := s.invoices.FillOrder(ctx, &view, number); invErr != nil {
+	if invErr := s.fillInvoices(ctx, &view, number); invErr != nil {
 		return admin.OrderView{}, invErr
 	}
 	if refundErr := s.fillRefundBeforeShipment(ctx, &view, number); refundErr != nil {

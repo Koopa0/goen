@@ -54,13 +54,13 @@ func TestThePickingDeskDoesNotOfferShipped(t *testing.T) {
 func TestEveryRedirectNoticeHasAMessage(t *testing.T) {
 	t.Parallel()
 
-	// The refund before shipment and the invoice forms answer on the order page,
-	// so their redirects are this table's as well.
+	// The refund before shipment answers on the order page, so its redirects are
+	// this table's as well; the invoice forms are this package's own.
 	names, err := filepath.Glob("*.go")
 	if err != nil {
 		t.Fatalf("list the package: %v", err)
 	}
-	for _, feature := range []string{"refunds", "invoicing"} {
+	for _, feature := range []string{"refunds"} {
 		featureNames, globErr := filepath.Glob(filepath.Join("..", feature, "*.go"))
 		if globErr != nil || len(featureNames) == 0 {
 			t.Fatalf("list the %s package: %d files, %v", feature, len(featureNames), globErr)
@@ -73,7 +73,7 @@ func TestEveryRedirectNoticeHasAMessage(t *testing.T) {
 		if strings.HasSuffix(name, "_test.go") {
 			continue
 		}
-		src, readErr := os.ReadFile(name) //nolint:gosec // G304: this package's and two sibling desks' own source files
+		src, readErr := os.ReadFile(name) //nolint:gosec // G304: this package's and a sibling desk's own source files
 		if readErr != nil {
 			t.Fatalf("read %s: %v", name, readErr)
 		}

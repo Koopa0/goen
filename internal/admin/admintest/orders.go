@@ -12,7 +12,6 @@ import (
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgxpool"
 
-	"github.com/koopa0/goen/internal/admin/invoicing"
 	"github.com/koopa0/goen/internal/admin/orders"
 	"github.com/koopa0/goen/internal/admin/refunds"
 	"github.com/koopa0/goen/internal/db"
@@ -299,13 +298,13 @@ func (DisabledInvoiceWriter) FileAllowance(
 	return invoice.Document{}, issuer.ErrDisabled
 }
 
-// OrderStore builds the order desk's store and the refunds and invoicing stores
-// it reads through, all over p, as cmd/goen does.
-func OrderStore(p *pgxpool.Pool, refunder refunds.Refunder, reader invoicing.Reader, writer invoicing.Writer) *orders.Store {
+// OrderStore builds the order desk's store and the refunds store it reads
+// through, all over p, as cmd/goen does.
+func OrderStore(p *pgxpool.Pool, refunder refunds.Refunder, reader orders.InvoiceReader, writer orders.InvoiceWriter) *orders.Store {
 	if reader == nil {
 		reader = issuer.NewStore(p, &issuer.Gateway{})
 	}
-	return orders.NewStore(p, refunds.NewStore(p, refunder, nil), invoicing.NewStore(p, reader, writer))
+	return orders.NewStore(p, refunds.NewStore(p, refunder, nil), reader, writer)
 }
 
 func OrderDesk(s *orders.Store) *orders.Handler {

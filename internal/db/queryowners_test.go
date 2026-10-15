@@ -45,9 +45,8 @@ var queryOwnerExceptions = map[string]string{
 	"internal/catalog -> LowestDeliveryFee":     "T39",
 	"internal/product -> ComparableCategoryIDs": "T39",
 
-	// Invoicing merges into admin/orders; that change re-keys or resolves them.
-	"internal/admin/invoicing -> OpenAllowance":          "T44",
-	"internal/admin/invoicing -> SettledRefundsForOrder": "T44",
+	// The order page shows what was refunded; the refund engine reads the same sum.
+	"internal/admin/orders -> SettledRefundsForOrder": sharedRead,
 
 	"internal/admin/refunds -> AdvanceOrder":             refundEngine,
 	"internal/admin/refunds -> CompleteReturn":           refundEngine,
