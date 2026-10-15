@@ -57,7 +57,6 @@ var viewPackageImporters = []string{
 	"internal/admin/shipping",
 	"internal/admin/stock",
 	"internal/admin/taxonomy",
-	"internal/admin/twofactor",
 	"internal/cart",
 	"internal/catalog",
 	"internal/home",

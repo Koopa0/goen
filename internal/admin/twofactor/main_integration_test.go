@@ -847,7 +847,7 @@ func TestNoKeyMeansNoEnrolment(t *testing.T) {
 // unconfigured deployment must reach: an empty key disables the factor the way
 // an empty Stripe key disables payment — off and saying so. Enrolled surfaces
 // ErrDisabled, which is not ErrSecretUnreadable, so a handler that takes its
-// generic failure branch answers 500 and never renders pages.TwoFactor's
+// generic failure branch answers 500 and never renders TwoFactor's
 // !Enabled branch, whose whole job is to say the factor is off.
 func TestAnUnkeyedDeploymentSaysSoInsteadOf500(t *testing.T) {
 	userID, email := admintest.AdminUser(t, pool)

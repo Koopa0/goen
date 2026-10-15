@@ -9,9 +9,9 @@ import (
 
 	"github.com/a-h/templ"
 
+	"github.com/koopa0/goen/internal/admin/twofactor"
 	"github.com/koopa0/goen/internal/i18n"
 	"github.com/koopa0/goen/internal/ui/layouts"
-	"github.com/koopa0/goen/internal/ui/pages"
 	"github.com/koopa0/goen/internal/ui/pages/admin"
 	"github.com/koopa0/goen/internal/ui/uitest"
 )
@@ -34,7 +34,7 @@ func TestAdminContentDisclosuresWorkWithTheKeyboard(t *testing.T) {
 		case "/health":
 			component = admin.Health(layouts.Page{}, &admin.WorkerHealthView{})
 		case "/twofactor":
-			component = pages.TwoFactor(layouts.Page{}, pages.TwoFactorView{
+			component = twofactor.TwoFactor(layouts.Page{}, twofactor.TwoFactorView{
 				Enabled: true, Enrolling: true, URI: "otpauth://totp/goen:disclosure-fixture",
 			})
 		default:
