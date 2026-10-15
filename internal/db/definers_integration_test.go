@@ -45,6 +45,7 @@ var definerFunctions = []string{
 	"open_refund_before_shipment(text,text,uuid,text)",
 	"open_unsent_refund(text,uuid[],integer[],text,text,uuid,text)",
 	"post_store_credit(uuid,bigint,text,uuid,text,uuid)",
+	"product_variants_queue_restock()",
 	"reconcile_invalid_invoice_allowance(uuid,uuid,uuid,text,text,timestamp with time zone,bigint,text[],integer[],bigint[],bigint[])",
 	"record_audit_event(uuid,text,text,uuid,jsonb,jsonb,text)",
 	"record_complete_payment(uuid,text,bigint)",
@@ -110,8 +111,8 @@ func TestSecurityDefinerFunctionsAreTheReviewedSet(t *testing.T) {
 
 	want := slices.Clone(definerFunctions)
 	slices.Sort(want)
-	if len(want) != 64 {
-		t.Fatalf("golden list holds %d signatures, want 64; edit the list on purpose, not by accident", len(want))
+	if len(want) != 65 {
+		t.Fatalf("golden list holds %d signatures, want 65; edit the list on purpose, not by accident", len(want))
 	}
 
 	for _, sig := range want {

@@ -500,10 +500,14 @@ BEGIN
         SELECT count(*) INTO v_pool FROM pg_temp.demo_customer;
         IF v_pool < 6 OR (v_pool < 60 AND random() < 0.3) THEN
             v_buyer := pg_temp.demo_person(v_pool + 1);
+            -- As the shop writes a customer: registration, then the profile
+            -- form's name and phone.
             SET ROLE store;
-            INSERT INTO users (email, full_name, phone, email_verified_at)
-            VALUES (v_buyer.email, v_buyer.full_name, v_buyer.phone, now())
+            INSERT INTO users (email, full_name, email_verified_at)
+            VALUES (v_buyer.email, v_buyer.full_name, now())
             RETURNING id INTO v_buyer.user_id;
+            UPDATE users SET full_name = v_buyer.full_name, phone = v_buyer.phone
+            WHERE id = v_buyer.user_id;
             RESET ROLE;
             INSERT INTO pg_temp.demo_customer SELECT (v_buyer).*;
         ELSE

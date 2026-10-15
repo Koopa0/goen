@@ -179,6 +179,8 @@ var unusedTableVerbs = []struct {
 	{"admin", "stock_notifications", "INSERT",
 		`INSERT INTO stock_notifications (variant_id, email)
 		 VALUES ('44444444-4444-4444-8444-444444444444', 'staff-restock@example.com')`},
+	{"admin", "stock_notifications", "UPDATE",
+		`UPDATE stock_notifications SET notified_at = NULL WHERE email = 'ming.work@example.com'`},
 	{"store", "checkout_attempts", "UPDATE",
 		`UPDATE checkout_attempts SET order_id = '66666666-6666-4666-8666-666666666666'`},
 	{"store", "warranty_registrations", "UPDATE",
@@ -193,7 +195,6 @@ var keptTableVerbs = []struct {
 	{"store", "contact_messages", "INSERT"},
 	{"admin", "contact_messages", "UPDATE"},
 	{"store", "stock_notifications", "INSERT"},
-	{"admin", "stock_notifications", "UPDATE"},
 	{"store", "checkout_attempts", "INSERT"},
 	{"store", "checkout_attempts", "DELETE"},
 	{"store", "warranty_registrations", "INSERT"},

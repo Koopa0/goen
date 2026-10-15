@@ -417,24 +417,23 @@ func TestReturningTheRestAfterAnUnsentRefundRefundsDelivery(t *testing.T) {
 		t.Fatalf("settle: %v", err)
 	}
 
-	customer := uuid.New()
+	var customer uuid.UUID
 	ctx := t.Context()
 	tx, err := schemaPool(t).Begin(ctx)
 	if err != nil {
 		t.Fatalf("begin: %v", err)
 	}
 	defer func() { _ = tx.Rollback(context.WithoutCancel(ctx)) }()
-	for _, stmt := range []string{
-		`SET LOCAL ROLE store`,
-		`INSERT INTO return_requests (id, order_id, requested_by_user_id, reason)
-		 VALUES ('` + customer.String() + `', '` + o.id.String() + `', '` + o.user.String() + `', '不需要了')`,
-		`INSERT INTO return_request_lines (order_id, return_request_id, order_line_id, quantity)
-		 VALUES ('` + o.id.String() + `', '` + customer.String() + `', '` + o.lineA.String() + `', 1),
-		        ('` + o.id.String() + `', '` + customer.String() + `', '` + o.lineB.String() + `', 1)`,
-	} {
-		if _, err := tx.Exec(ctx, stmt); err != nil {
-			t.Fatalf("the customer returns what arrived: %v", err)
-		}
+	if _, err := tx.Exec(ctx, `SET LOCAL ROLE store`); err != nil {
+		t.Fatalf("set role store: %v", err)
+	}
+	if err := tx.QueryRow(ctx, `INSERT INTO return_requests (order_id, requested_by_user_id, reason)
+	                            VALUES ($1, $2, '不需要了') RETURNING id`, o.id, o.user).Scan(&customer); err != nil {
+		t.Fatalf("the customer returns what arrived: %v", err)
+	}
+	if _, err := tx.Exec(ctx, `INSERT INTO return_request_lines (order_id, return_request_id, order_line_id, quantity)
+	                           VALUES ($1, $2, $3, 1), ($1, $2, $4, 1)`, o.id, customer, o.lineA, o.lineB); err != nil {
+		t.Fatalf("the customer returns what arrived: %v", err)
 	}
 	if err := tx.Commit(ctx); err != nil {
 		t.Fatalf("commit the customer's return: %v", err)
@@ -552,7 +551,7 @@ func TestTheShippedUnitStaysReturnable(t *testing.T) {
 	customerReturn := func(quantity int) (uuid.UUID, error) {
 		t.Helper()
 		ctx := t.Context()
-		id := uuid.New()
+		var id uuid.UUID
 		tx, err := schemaPool(t).Begin(ctx)
 		if err != nil {
 			t.Fatalf("begin: %v", err)
@@ -561,8 +560,8 @@ func TestTheShippedUnitStaysReturnable(t *testing.T) {
 		if _, err := tx.Exec(ctx, `SET LOCAL ROLE store`); err != nil {
 			t.Fatalf("set role store: %v", err)
 		}
-		if _, err := tx.Exec(ctx, `INSERT INTO return_requests (id, order_id, requested_by_user_id, reason)
-		                           VALUES ($1, $2, $3, '')`, id, o.id, o.user); err != nil {
+		if err := tx.QueryRow(ctx, `INSERT INTO return_requests (order_id, requested_by_user_id, reason)
+		                            VALUES ($1, $2, '') RETURNING id`, o.id, o.user).Scan(&id); err != nil {
 			return id, err
 		}
 		if _, err := tx.Exec(ctx, `INSERT INTO return_request_lines (order_id, return_request_id, order_line_id, quantity)

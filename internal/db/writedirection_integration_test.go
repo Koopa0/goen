@@ -3,13 +3,20 @@
 package db_test
 
 import (
+	"fmt"
+	"go/ast"
+	"go/types"
+	"maps"
 	"os"
 	"path/filepath"
 	"regexp"
 	"slices"
 	"sort"
 	"strings"
+	"sync"
 	"testing"
+
+	"golang.org/x/tools/go/packages"
 )
 
 func writableVerbs(t *testing.T, role string) map[string]map[string]bool {
@@ -190,128 +197,151 @@ func TestNoRoleHoldsAWriteItsQueriesNeverMake(t *testing.T) {
 	}
 }
 
-// TestNoRoleHoldsAColumnWriteItsQueriesNeverMake is the same question one level down: `store`
-// writes `users` legitimately, so only has_column_privilege can see it reaching users.role.
+// TestNoRoleHoldsAColumnWriteItsQueriesNeverMake is the same question one level down, a verb
+// at a time: every INSERT or UPDATE privilege a role holds on a column must be one of the
+// columns its production statements INSERT or UPDATE. `store` writes `users` legitimately,
+// so only has_column_privilege can see it reaching users.role.
+//
+// The verbs are kept apart because a column a role inserts is not one it may rewrite: the
+// order a checkout writes once is not the order the storefront may later re-price or
+// backdate. Every table is in scope, and a column's default excuses nothing: orders.placed_at
+// is defaulted to now(), and UPDATE on it rewrites a committed order's date.
 func TestNoRoleHoldsAColumnWriteItsQueriesNeverMake(t *testing.T) {
 	ctx := t.Context()
 
-	for _, role := range []string{"store", "admin"} {
+	for _, role := range []string{"store", "admin", "maintenance", "reporting"} {
 		t.Run(role, func(t *testing.T) {
 			expected := writableColumns(t, role)
 
-			for _, table := range sortedColumnKeys(expected) {
-				cols := expected[table]
-				if cols == nil {
-					continue // unknown; the table-level guard has it
+			rows, err := pool.Query(ctx, `
+				SELECT c.relname, a.attname, p.priv
+				FROM pg_class c
+				JOIN pg_attribute a ON a.attrelid = c.oid AND a.attnum > 0 AND NOT a.attisdropped
+				CROSS JOIN unnest(ARRAY['INSERT', 'UPDATE']) AS p(priv)
+				WHERE c.relnamespace = 'public'::regnamespace
+				  AND c.relkind IN ('r', 'p')
+				  AND has_column_privilege($1, c.oid, a.attnum, p.priv)
+				ORDER BY c.relname, a.attnum, p.priv`, role)
+			if err != nil {
+				t.Fatalf("read the column privileges of %s: %v", role, err)
+			}
+			defer rows.Close()
+
+			held := 0
+			for rows.Next() {
+				var table, col, priv string
+				if scanErr := rows.Scan(&table, &col, &priv); scanErr != nil {
+					t.Fatalf("scan a column privilege: %v", scanErr)
 				}
-				if !columnNarrowed[table] {
+				held++
+				cols, known := expected[priv][table]
+				if known && cols == nil {
+					continue // some statement names no columns; the table-level guard has it
+				}
+				if cols[col] {
 					continue
 				}
-				// The filter is on the default EXPRESSION, never on its presence: excluding
-				// every column that HAS one would also excuse users.role, defaulted 'customer'.
-				rows, err := pool.Query(ctx, `
-					SELECT c.column_name, p.priv
-					FROM information_schema.columns c
-					CROSS JOIN unnest(ARRAY['INSERT', 'UPDATE']) AS p(priv)
-					WHERE c.table_schema = 'public' AND c.table_name = $2
-					  AND c.is_identity = 'NO'
-					  AND c.is_generated = 'NEVER'
-					  AND (c.column_default IS NULL
-					       OR c.column_default !~* '(uuidv7|gen_random_uuid|now|current_timestamp|nextval)')
-					  AND has_column_privilege($1, c.table_name::regclass, c.column_name, p.priv)
-					ORDER BY c.column_name, p.priv`, role, table)
-				if err != nil {
-					t.Fatalf("read column privileges for %s: %v", table, err)
+				if why, ok := columnExemptions[role+"."+priv+"."+table+"."+col]; ok {
+					t.Logf("%s may %s %s.%s: %s", role, priv, table, col, why)
+					continue
 				}
-				for rows.Next() {
-					var col, priv string
-					if scanErr := rows.Scan(&col, &priv); scanErr != nil {
-						t.Fatalf("scan a column privilege: %v", scanErr)
-					}
-					if cols[col] {
-						continue
-					}
-					if why, ok := columnExemptions[role+"."+table+"."+col]; ok {
-						t.Logf("%s may write %s.%s: %s", role, table, col, why)
-						continue
-					}
-					t.Errorf("%s holds %s on %s.%s, and no query it runs writes that "+
-						"column.\n  This is the level the privilege escalation lived at: "+
-						"`store` writes `users` legitimately, so the whole-table guard "+
-						"cannot see that it also reached users.role — one UPDATE from a "+
-						"storefront request to a back-office account.\n  Either narrow "+
-						"the column grant, or name it in columnExemptions with the reason.",
-						role, priv, table, col)
-				}
-				if err := rows.Err(); err != nil {
-					t.Fatalf("walk column privileges for %s: %v", table, err)
-				}
-				rows.Close()
+				t.Errorf("%s holds %s on %s.%s, and no statement it runs %ss that column.\n"+
+					"  An INSERT does not justify an UPDATE, and a default does not justify "+
+					"either. Narrow the column grant in migrations/001, or name it in "+
+					"columnExemptions with the reason.", role, priv, table, col, strings.ToLower(priv))
 			}
+			if err := rows.Err(); err != nil {
+				t.Fatalf("walk the column privileges of %s: %v", role, err)
+			}
+			t.Logf("%s holds %d column write privileges", role, held)
 		})
 	}
 }
 
-// columnNarrowed is the tables whose column grants are deliberate. It is a scope, not an
-// allowlist: a table absent from it is still covered by the table-level guard.
-var columnNarrowed = map[string]bool{
-	"users":                  true,
-	"sessions":               true,
-	"product_variants":       true,
-	"product_images":         true,
-	"payment_webhook_events": true,
-	"product_reviews":        true,
-	"product_questions":      true,
-	"product_answers":        true,
-	"return_requests":        true,
-	"orders":                 true,
-	"contact_messages":       true,
-	"stock_notifications":    true,
-	"order_private_data":     true,
-	"checkout_attempts":      true,
-	"warranty_registrations": true,
-}
-
-// columnExemptions is a column privilege a role holds that its queries never exercise, keyed
-// role.table.column, with the reason.
-var columnExemptions = map[string]string{
-	"store.users.id":         "supplied by the default; naming no column grant for it would trap the next INSERT",
-	"store.users.created_at": "supplied by the default",
-	"store.users.updated_at": "maintained by set_updated_at",
-	"admin.users.id":         "supplied by the default",
-	"admin.users.created_at": "supplied by the default",
-	"admin.users.updated_at": "maintained by set_updated_at",
-}
-
-func writableColumns(t *testing.T, role string) map[string]map[string]bool {
-	t.Helper()
-	var pkgs []string
-	switch role {
-	case "store":
-		pkgs = storefrontPackages
-	case "admin":
-		pkgs = backOfficePackages
-	default:
-		panic("db: the column guard covers only the two writing roles: " + role)
+// TestRolesCannotWriteTheColumnsTheirStatementsLeaveAlone runs, as each role, a write of
+// columns no statement of that role writes and that other rules read as fixed. PostgreSQL
+// checks column privileges when it plans a statement, so each case is refused for
+// privilege whether or not a row matches.
+func TestRolesCannotWriteTheColumnsTheirStatementsLeaveAlone(t *testing.T) {
+	const order = "'66666666-6666-4666-8666-666666666666'"
+	for _, tc := range []struct{ name, role, stmt string }{
+		{"store UPDATE orders.placed_at", "store",
+			`UPDATE orders SET placed_at = placed_at - interval '800 days' WHERE id = ` + order},
+		{"admin UPDATE orders.placed_at", "admin",
+			`UPDATE orders SET placed_at = placed_at - interval '800 days' WHERE id = ` + order},
+		{"store INSERT orders.placed_at", "store",
+			`INSERT INTO orders (order_number, shipping_version_id, shipping_method_code,
+			                     shipping_method_name, placed_at)
+			 VALUES ('GO-260721-000999', 'ffff0002-0000-4000-8000-000000000000', 'home_delivery',
+			         '宅配到府', now() - interval '800 days')`},
+		{"store UPDATE orders.shipping_cents, discount_cents", "store",
+			`UPDATE orders SET shipping_cents = 0, discount_cents = 0 WHERE id = ` + order},
+		{"store UPDATE orders.order_number", "store",
+			`UPDATE orders SET order_number = 'GO-260721-000999' WHERE id = ` + order},
+		{"store UPDATE orders.locale", "store",
+			`UPDATE orders SET locale = 'en' WHERE id = ` + order},
+		{"store UPDATE product_reviews.product_id, user_id", "store",
+			`UPDATE product_reviews SET product_id = product_id, user_id = user_id`},
+		{"store UPDATE product_reviews.is_verified_purchase", "store",
+			`UPDATE product_reviews SET is_verified_purchase = true`},
+		{"admin UPDATE order_shipments.shipped_at", "admin",
+			`UPDATE order_shipments SET shipped_at = shipped_at - interval '30 days'
+			 WHERE id = '66660002-0000-4000-8000-000000000000'`},
+		{"admin INSERT order_shipments.delivered_at", "admin",
+			`INSERT INTO order_shipments (order_id, carrier, tracking_number, delivered_at)
+			 VALUES (` + order + `, 'black_cat', '903-2214-0000', now() - interval '30 days')`},
+		{"admin UPDATE newsletter_issues.subject, body", "admin",
+			`UPDATE newsletter_issues SET subject = '改寫', body = '改寫'`},
+		{"admin INSERT newsletter_issues.sent_at, recipients", "admin",
+			`INSERT INTO newsletter_issues (subject, body, sent_at, recipients)
+			 VALUES ('主旨', '內容', now(), 1)`},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			assertRoleStatementDenied(t, tc.role, tc.stmt)
+		})
 	}
+}
 
+// columnExemptions is a column privilege a role holds that its statements never exercise,
+// keyed role.VERB.table.column, with the reason.
+var columnExemptions = map[string]string{
+	"admin.UPDATE.shipping_zones.position": "LockShippingZone takes FOR UPDATE on the zone, " +
+		"which PostgreSQL allows only with UPDATE on some column; the back office updates no " +
+		"zone column, and position only orders the zone list",
+}
+
+// TestNoStaleColumnExemption refuses a columnExemptions entry whose privilege is no longer held.
+func TestNoStaleColumnExemption(t *testing.T) {
+	ctx := t.Context()
+	for key, why := range columnExemptions {
+		parts := strings.Split(key, ".")
+		if len(parts) != 4 {
+			t.Errorf("columnExemptions key %q is not role.VERB.table.column", key)
+			continue
+		}
+		var held bool
+		if err := pool.QueryRow(ctx, `SELECT has_column_privilege($1, $2::regclass, $3, $4)`,
+			parts[0], parts[2], parts[3], parts[1]).Scan(&held); err != nil {
+			t.Fatalf("ask whether %s holds %s: %v", parts[0], key, err)
+		}
+		if !held {
+			t.Errorf("columnExemptions has %q (%s), but the privilege is not held. "+
+				"The entry claims a gap that is closed.", key, why)
+		}
+	}
+}
+
+// writableColumns is, per verb, the columns of each table the role's production statements
+// write. A nil column set means UNKNOWN: some statement writes the table without naming them.
+func writableColumns(t *testing.T, role string) map[string]map[string]map[string]bool {
+	t.Helper()
 	byQuery := queryColumnWrites(t)
-	out := map[string]map[string]bool{}
-	for _, pkg := range pkgs {
+	out := map[string]map[string]map[string]bool{"INSERT": {}, "UPDATE": {}}
+	for _, pkg := range packagesOn(role) {
 		for _, method := range calledQueries(t, pkg) {
-			for table, cols := range byQuery[method] {
-				if existing, seen := out[table]; seen && existing == nil {
-					continue
-				}
-				if cols == nil {
-					out[table] = nil
-					continue
-				}
-				if out[table] == nil {
-					out[table] = map[string]bool{}
-				}
-				for c := range cols {
-					out[table][c] = true
+			for verb, tables := range byQuery[method] {
+				for table, cols := range tables {
+					mergeColumns(out[verb], table, cols)
 				}
 			}
 		}
@@ -319,67 +349,147 @@ func writableColumns(t *testing.T, role string) map[string]map[string]bool {
 	return out
 }
 
-func queryColumnWrites(t *testing.T) map[string]map[string]map[string]bool {
+// mergeColumns adds cols to the table's set; nil (unknown) absorbs everything after it.
+func mergeColumns(into map[string]map[string]bool, table string, cols map[string]bool) {
+	if existing, seen := into[table]; seen && existing == nil {
+		return
+	}
+	if cols == nil {
+		into[table] = nil
+		return
+	}
+	if into[table] == nil {
+		into[table] = map[string]bool{}
+	}
+	for c := range cols {
+		into[table][c] = true
+	}
+}
+
+func queryColumnWrites(t *testing.T) map[string]map[string]map[string]map[string]bool {
 	t.Helper()
 	src, err := os.ReadFile("query.sql.go")
 	if err != nil {
 		t.Fatalf("read the generated queries: %v", err)
 	}
-	out := map[string]map[string]map[string]bool{}
+	out := map[string]map[string]map[string]map[string]bool{}
 	for _, m := range generatedQuery.FindAllStringSubmatch(string(src), -1) {
 		out[m[1]] = columnWrites(m[2])
 	}
 	return out
 }
 
-// calledQueries reads the package's whole tree: a feature package below it runs
-// on the same pool, and a flat read would drop its queries from the role's check.
+// calledQueries is the generated queries a pool package's code can run: the calls in its
+// whole tree (a feature package below it runs on the same pool), and those of every module
+// function that code calls, followed through the static call graph. A helper in another
+// package runs on whichever pool's querier it is handed: the back office's picking
+// transition records the paid event through payment.CompleteFunding, so payment's
+// RecordPaidEvent runs on the admin pool too.
 func calledQueries(t *testing.T, pkg string) []string {
 	t.Helper()
-	known := queryWrites(t)
-	dir := filepath.Join("..", "..", "internal", pkg)
-	var out []string
-	err := filepath.WalkDir(dir, func(path string, d os.DirEntry, err error) error {
-		// A test-helper package (admintest, accesstest) is test code, as *_test.go is.
-		if err == nil && d.IsDir() && path != dir && strings.HasSuffix(d.Name(), "test") {
-			return filepath.SkipDir
-		}
-		if err != nil || d.IsDir() || !strings.HasSuffix(path, ".go") || strings.HasSuffix(path, "_test.go") {
-			return err
-		}
-		src, readErr := os.ReadFile(path) //nolint:gosec // G304: a path built from this repository's own tree
-		if readErr != nil {
-			return readErr
-		}
-		for _, m := range methodCall.FindAllStringSubmatch(string(src), -1) {
-			if _, ok := known[m[1]]; ok {
-				out = append(out, m[1])
-			}
-		}
-		return nil
-	})
+	graph, err := loadCallGraph()
 	if err != nil {
-		t.Fatalf("read internal/%s: %v", pkg, err)
+		t.Fatalf("load the module's call graph: %v", err)
 	}
-	return out
+	root := "internal/" + pkg
+	seen := map[*types.Func]bool{}
+	found := map[string]bool{}
+	var visit func(fn *types.Func)
+	visit = func(fn *types.Func) {
+		if seen[fn] {
+			return
+		}
+		seen[fn] = true
+		for _, q := range graph.queries[fn] {
+			found[q] = true
+		}
+		for _, callee := range graph.callees[fn] {
+			visit(callee)
+		}
+	}
+	for fn, path := range graph.pkgOf {
+		rel := strings.TrimPrefix(path, modulePath+"/")
+		if rel != root && !strings.HasPrefix(rel, root+"/") {
+			continue
+		}
+		// A test-helper package (admintest, accesstest) is test code, as *_test.go is.
+		if rel != root && strings.HasSuffix(rel[strings.LastIndexByte(rel, '/')+1:], "test") {
+			continue
+		}
+		visit(fn)
+	}
+	return slices.Sorted(maps.Keys(found))
 }
 
-// sortedColumnKeys is the map's keys in a stable order.
-func sortedColumnKeys(m map[string]map[string]bool) []string {
-	out := make([]string, 0, len(m))
-	for k := range m {
-		out = append(out, k)
-	}
-	sort.Strings(out)
-	return out
+const modulePath = "github.com/koopa0/goen"
+
+// callGraph is the module's static call graph over production code: for each declared
+// function, the module functions it names and the *db.Queries methods it names.
+type callGraph struct {
+	pkgOf   map[*types.Func]string
+	queries map[*types.Func][]string
+	callees map[*types.Func][]*types.Func
 }
+
+// loadCallGraph type-checks the module once per test binary. A call through an interface
+// is not followed; no *db.Queries method is reached that way, and the regexp this replaced
+// (any `.Name(` in the package's files) found the same queries per package.
+var loadCallGraph = sync.OnceValues(func() (*callGraph, error) {
+	cfg := &packages.Config{
+		Dir:  filepath.Join("..", ".."),
+		Mode: packages.NeedName | packages.NeedFiles | packages.NeedSyntax | packages.NeedTypes | packages.NeedTypesInfo,
+	}
+	pkgs, err := packages.Load(cfg, "./internal/...", "./cmd/...")
+	if err != nil {
+		return nil, err
+	}
+	g := &callGraph{pkgOf: map[*types.Func]string{}, queries: map[*types.Func][]string{},
+		callees: map[*types.Func][]*types.Func{}}
+	dbPath := modulePath + "/internal/db"
+	for _, p := range pkgs {
+		if len(p.Errors) > 0 {
+			return nil, fmt.Errorf("load %s: %w", p.PkgPath, p.Errors[0])
+		}
+		for _, f := range p.Syntax {
+			if strings.HasSuffix(p.Fset.File(f.Pos()).Name(), "_test.go") {
+				continue
+			}
+			for _, decl := range f.Decls {
+				fd, ok := decl.(*ast.FuncDecl)
+				if !ok || fd.Body == nil {
+					continue
+				}
+				fn, ok := p.TypesInfo.Defs[fd.Name].(*types.Func)
+				if !ok {
+					continue
+				}
+				g.pkgOf[fn] = p.PkgPath
+				ast.Inspect(fd.Body, func(n ast.Node) bool {
+					id, ok := n.(*ast.Ident)
+					if !ok {
+						return true
+					}
+					used, ok := p.TypesInfo.Uses[id].(*types.Func)
+					if !ok || used.Pkg() == nil || !strings.HasPrefix(used.Pkg().Path(), modulePath+"/") {
+						return true
+					}
+					used = used.Origin()
+					if used.Pkg().Path() == dbPath && used.Signature().Recv() != nil {
+						g.queries[fn] = append(g.queries[fn], used.Name())
+						return true
+					}
+					g.callees[fn] = append(g.callees[fn], used)
+					return true
+				})
+			}
+		}
+	}
+	return g, nil
+})
 
 // writeExemptions is a privilege a role holds that its own queries never exercise, keyed
 // role.table, with the reason.
-var writeExemptions = map[string]string{
-	"store.store_credit_accounts": "created on first use; every other verb is revoked and each spend, grant, compensation, or reversal goes through its operation-specific door",
-	"admin.store_credit_accounts": "created on first use when the back office grants credit to a customer with no account yet",
-}
+var writeExemptions = map[string]string{}
 
 // generatedQuery matches one sqlc-generated query constant and its SQL body. sqlc emits one db
 // package, so the compiler lets any store call any query; queryowners_test.go holds each query to
@@ -404,9 +514,6 @@ func queryWrites(t *testing.T) map[string]map[string]bool {
 	return out
 }
 
-// methodCall matches a call to a db.Queries method on any receiver.
-var methodCall = regexp.MustCompile(`\.([A-Z]\w*)\(`)
-
 // writeTarget matches the table an INSERT, UPDATE or DELETE names.
 var writeTarget = regexp.MustCompile(
 	`(?is)\b(?:INSERT\s+INTO|UPDATE|DELETE\s+FROM)\s+(?:ONLY\s+)?([a-z_][a-z0-9_]*)`)
@@ -428,50 +535,94 @@ var insertColumns = regexp.MustCompile(
 var bareInsert = regexp.MustCompile(
 	`(?is)\bINSERT\s+INTO\s+([a-z_][a-z0-9_]*)\s+(?:VALUES|SELECT|DEFAULT)\b`)
 
-// updateSet matches an UPDATE's target and its SET clause up to the first clause that ends it.
-var updateSet = regexp.MustCompile(
-	`(?is)\bUPDATE\s+(?:ONLY\s+)?([a-z_][a-z0-9_]*)\s+SET\s+(.*?)(?:\bWHERE\b|\bRETURNING\b|\bFROM\b|;|$)`)
+// updateTarget matches an UPDATE's target, with or without an alias, up to its SET.
+var updateTarget = regexp.MustCompile(
+	`(?is)\bUPDATE\s+(?:ONLY\s+)?([a-z_][a-z0-9_]*)\s+(?:(?:AS\s+)?[a-z_][a-z0-9_]*\s+)??SET\s+`)
+
+// upsertTarget matches the SET of an INSERT's ON CONFLICT DO UPDATE, which PostgreSQL checks
+// as UPDATE on the columns it assigns.
+var upsertTarget = regexp.MustCompile(`(?is)\bON\s+CONFLICT\b.*?\bDO\s+UPDATE\s+SET\s+`)
+
+// setEnd matches the clause that ends a flattened SET list.
+var setEnd = regexp.MustCompile(`(?is)\b(?:WHERE|RETURNING|FROM)\b`)
 
 var assignedColumn = regexp.MustCompile(`(?i)(?:^|,)\s*([a-z_][a-z0-9_]*)\s*=`)
 
-// columnWrites is the columns each table's writes name. nil means UNKNOWN — some statement
-// writes the table without naming columns — which degrades it to the table-level check.
-func columnWrites(src string) map[string]map[string]bool {
-	clean := stripSQLComments(src)
-	out := map[string]map[string]bool{}
-
-	note := func(table string, cols []string) {
-		if existing, seen := out[table]; seen && existing == nil {
-			return // already unknown; nothing narrows it back
+// assignedColumns is the columns a SET list starting at s assigns. Everything inside
+// parentheses is blanked first, so a subquery's own FROM or WHERE cannot end the list and a
+// function's commas cannot split it; an UPDATE inside WITH ends at the parenthesis that
+// closes it. A multi-column assignment names nothing here and degrades to unknown.
+func assignedColumns(s string) []string {
+	b := []byte(s)
+	depth, end := 0, len(b)
+	for i, c := range b {
+		if c == '(' {
+			depth++
 		}
-		if cols == nil {
-			out[table] = nil
+		if c == ')' {
+			depth--
+		}
+		if depth < 0 || (depth == 0 && c == ';') {
+			end = i
+			break
+		}
+		if depth > 0 || c == '(' || c == ')' {
+			b[i] = ' '
+		}
+	}
+	flat := string(b[:end])
+	if loc := setEnd.FindStringIndex(flat); loc != nil {
+		flat = flat[:loc[0]]
+	}
+	matches := assignedColumn.FindAllStringSubmatch(flat, -1)
+	cols := make([]string, 0, len(matches))
+	for _, a := range matches {
+		cols = append(cols, a[1])
+	}
+	return cols
+}
+
+// columnWrites is, per verb, the columns each table's writes name. nil means UNKNOWN — some
+// statement writes the table without naming columns — which degrades it to the table-level
+// check.
+func columnWrites(src string) map[string]map[string]map[string]bool {
+	clean := stripSQLComments(src)
+	out := map[string]map[string]map[string]bool{"INSERT": {}, "UPDATE": {}}
+
+	note := func(verb, table string, cols []string) {
+		if len(cols) == 0 {
+			mergeColumns(out[verb], table, nil)
 			return
 		}
-		if out[table] == nil {
-			out[table] = map[string]bool{}
-		}
+		set := map[string]bool{}
 		for _, c := range cols {
-			out[table][strings.ToLower(strings.TrimSpace(c))] = true
+			set[strings.ToLower(strings.TrimSpace(c))] = true
 		}
+		mergeColumns(out[verb], table, set)
 	}
 
 	for _, m := range insertColumns.FindAllStringSubmatch(clean, -1) {
-		note(m[1], strings.Split(m[2], ","))
+		note("INSERT", m[1], strings.Split(m[2], ","))
 	}
 	for _, m := range bareInsert.FindAllStringSubmatch(clean, -1) {
-		note(m[1], nil)
+		note("INSERT", m[1], nil)
 	}
-	for _, m := range updateSet.FindAllStringSubmatch(clean, -1) {
-		var cols []string
-		for _, a := range assignedColumn.FindAllStringSubmatch(m[2], -1) {
-			cols = append(cols, a[1])
+	inserts := insertVerb.FindAllStringSubmatchIndex(clean, -1)
+	for i, match := range inserts {
+		end := len(clean)
+		if i+1 < len(inserts) {
+			end = inserts[i+1][0]
 		}
-		if len(cols) == 0 {
-			note(m[1], nil)
-			continue
+		statement := clean[match[1]:end]
+		if stop := strings.IndexByte(statement, ';'); stop >= 0 {
+			statement = statement[:stop]
 		}
-		note(m[1], cols)
+		if loc := upsertTarget.FindStringIndex(statement); loc != nil {
+			note("UPDATE", clean[match[2]:match[3]], assignedColumns(statement[loc[1]:]))
+		}
+	}
+	for _, m := range updateTarget.FindAllStringSubmatchIndex(clean, -1) {
+		note("UPDATE", clean[m[2]:m[3]], assignedColumns(clean[m[1]:]))
 	}
 	return out
 }
@@ -619,6 +770,42 @@ func TestWriteVerbTargetsCountRowLocks(t *testing.T) {
 		for _, table := range tc.unlocked {
 			if got[table]["UPDATE"] {
 				t.Errorf("%s: %s counted as UPDATE, got %v", tc.sql, table, got)
+			}
+		}
+	}
+}
+
+func TestColumnWritesKeepTheVerbsApart(t *testing.T) {
+	for _, tc := range []struct {
+		sql            string
+		table          string
+		insert, update []string
+	}{
+		{"INSERT INTO carts (user_id, digest) VALUES ($1, $2) ON CONFLICT (digest) DO UPDATE SET user_id = excluded.user_id",
+			"carts", []string{"digest", "user_id"}, []string{"user_id"}},
+		{"UPDATE hero_slides h SET position = coalesce((SELECT min(o.position) FROM hero_slides o WHERE o.id <> h.id), 0) - 1, " +
+			"is_active = true WHERE h.id = $1",
+			"hero_slides", nil, []string{"is_active", "position"}},
+		{"UPDATE order_private_data pd SET email = $1, city = nullif($2::text, '') FROM orders o WHERE pd.order_id = o.id",
+			"order_private_data", nil, []string{"city", "email"}},
+		{"WITH claimed AS (UPDATE stock_notifications SET notified_at = now() WHERE id = $1 RETURNING id) " +
+			"INSERT INTO outbox_messages (topic, dedupe_key, payload) SELECT 't', id::text, '{}' FROM claimed",
+			"stock_notifications", nil, []string{"notified_at"}},
+		{"WITH claimed AS (UPDATE stock_notifications SET notified_at = now() WHERE id = $1 RETURNING id) " +
+			"INSERT INTO outbox_messages (topic, dedupe_key, payload) SELECT 't', id::text, '{}' FROM claimed",
+			"outbox_messages", []string{"dedupe_key", "payload", "topic"}, nil},
+	} {
+		got := columnWrites(tc.sql)
+		for verb, want := range map[string][]string{"INSERT": tc.insert, "UPDATE": tc.update} {
+			cols, named := got[verb][tc.table]
+			if want == nil {
+				if named {
+					t.Errorf("%s: %s counted on %s as %v", tc.sql, verb, tc.table, cols)
+				}
+				continue
+			}
+			if keys := slices.Sorted(maps.Keys(cols)); !slices.Equal(keys, want) {
+				t.Errorf("%s: %s on %s = %v, want %v", tc.sql, verb, tc.table, keys, want)
 			}
 		}
 	}
