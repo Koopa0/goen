@@ -2960,6 +2960,12 @@ input.goen-check {
   gap: 12px;
 }
 
+/* The button offers an action only once there is something to act on. Where
+   :has() is unsupported the rule is dropped and the button stays. */
+.goen-compare-pick:not(:has(:checked)) > .goen-compare-pick__go {
+  display: none;
+}
+
 .goen-compare-pick__note {
   color: var(--fg-muted);
   font-size: var(--fs-14);
