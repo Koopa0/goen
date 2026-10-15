@@ -92,6 +92,22 @@ func renderGlance(t *testing.T, stats []LinkedStat) string {
 	return b.String()
 }
 
+func TestStatLineLabelHref(t *testing.T) {
+	t.Parallel()
+	got := renderStatLine(t, []Stat{
+		{Label: "購物金餘額", Value: StatNumber(3), LabelHref: "/admin/credit?customer=1"},
+		{Label: "訂單數", Value: StatNumber(2)},
+	}, StatLineWide)
+	for _, want := range []string{
+		`<dt><a href="/admin/credit?customer=1">購物金餘額</a></dt><dd>3`,
+		`<dt>訂單數</dt><dd>2`,
+	} {
+		if !strings.Contains(got, want) {
+			t.Errorf("StatLine = %s\nwant it to contain %q", got, want)
+		}
+	}
+}
+
 func TestGlanceStatLineLinksTheLabelNotTheFigure(t *testing.T) {
 	t.Parallel()
 	got := renderGlance(t, []LinkedStat{
