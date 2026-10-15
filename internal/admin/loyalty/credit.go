@@ -14,7 +14,6 @@ import (
 	"github.com/koopa0/goen/internal/admin/audit"
 	"github.com/koopa0/goen/internal/db"
 	"github.com/koopa0/goen/internal/money"
-	"github.com/koopa0/goen/internal/shoptime"
 	"github.com/koopa0/goen/internal/ui/pages/admin"
 	"github.com/koopa0/goen/internal/web"
 )
@@ -122,24 +121,94 @@ type position struct {
 	At time.Time
 }
 
-func (s *Store) Credit(ctx context.Context, after ...string) (admin.CreditView, error) {
-	const scope = "/admin/credit"
+// Ledger is one page of store-credit postings, newest first.
+type Ledger struct {
+	Postings []Posting
+	Bound    web.Bound
+	// Customer is who the page is narrowed to; nil on the page for every customer.
+	Customer *Customer
+}
+
+// Customer is the holder of the account a Ledger is narrowed to.
+type Customer struct {
+	ID    uuid.UUID
+	Email string
+	Name  string
+}
+
+// Posting is one ledger row. Kind is store_credit_entries.kind, and Reason is
+// only what staff typed. CustomerID and Email are empty once the account's
+// owner is erased; ActorEmail is empty for a posting no person made.
+type Posting struct {
+	Kind        string
+	AmountCents int64
+	Reason      string
+	At          time.Time
+	CustomerID  string
+	Email       string
+	OrderNumber string
+	ReturnID    string
+	ActorEmail  string
+	// RunningCents is the account's total through this posting in (created_at, id)
+	// order. Only a Ledger narrowed to one customer carries it.
+	RunningCents int64
+}
+
+// Credit reads one page of the credit ledger: every customer's when customer is
+// not valid, else that customer's alone, with the running total of each posting.
+// A customer who does not exist is ErrNotFound; one who has never held credit
+// has an empty page.
+func (s *Store) Credit(ctx context.Context, customer uuid.NullUUID, after ...string) (Ledger, error) {
+	const desk = "/admin/credit"
+	if !customer.Valid {
+		return s.allPostings(ctx, desk, after)
+	}
+	holder, err := s.q.CreditCustomerByID(ctx, customer.UUID)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return Ledger{}, ErrNotFound
+	}
+	if err != nil {
+		return Ledger{}, fmt.Errorf("read ledger customer: %w", err)
+	}
+	ledger, err := s.customerPostings(ctx, web.ScopeURL(desk, "customer", holder.ID.String()), holder.ID, after)
+	ledger.Customer = &Customer{ID: holder.ID, Email: holder.Email, Name: holder.FullName}
+	return ledger, err
+}
+
+func (s *Store) allPostings(ctx context.Context, scope string, after []string) (Ledger, error) {
 	from, resumed := web.ResumeKeyset(scope, after, func(p position) bool { return p.ID != uuid.Nil })
 	rows, err := s.q.RecentCredit(ctx, db.RecentCreditParams{HasCursor: resumed, AfterAt: from.At, AfterID: from.ID, RowLimit: web.PageLimit})
 	if err != nil {
-		return admin.CreditView{}, fmt.Errorf("read credit ledger: %w", err)
+		return Ledger{}, fmt.Errorf("read credit ledger: %w", err)
 	}
 	rows, bound := web.PageBound(scope, resumed, rows, web.PageSize, func(r *db.RecentCreditRow) string { return r.PageCursor })
-	view := admin.CreditView{Bound: bound}
+	ledger := Ledger{Bound: bound}
 	for i := range rows {
 		r := &rows[i]
-		view.Rows = append(view.Rows, admin.CreditEntry{
-			Email:       r.Email,
-			AmountCents: r.AmountCents,
-			Kind:        admin.PostingKind(r.Kind),
-			Reason:      r.Reason,
-			At:          shoptime.Minute(r.CreatedAt),
+		ledger.Postings = append(ledger.Postings, Posting{
+			Kind: r.Kind, AmountCents: r.AmountCents, Reason: r.Reason, At: r.CreatedAt,
+			CustomerID: r.CustomerID, Email: r.Email, OrderNumber: r.OrderNumber,
+			ReturnID: r.ReturnID, ActorEmail: r.ActorEmail,
 		})
 	}
-	return view, nil
+	return ledger, nil
+}
+
+func (s *Store) customerPostings(ctx context.Context, scope string, customer uuid.UUID, after []string) (Ledger, error) {
+	from, resumed := web.ResumeKeyset(scope, after, func(p position) bool { return p.ID != uuid.Nil })
+	rows, err := s.q.CustomerCredit(ctx, db.CustomerCreditParams{CustomerID: customer, HasCursor: resumed, AfterAt: from.At, AfterID: from.ID, RowLimit: web.PageLimit})
+	if err != nil {
+		return Ledger{}, fmt.Errorf("read customer credit ledger: %w", err)
+	}
+	rows, bound := web.PageBound(scope, resumed, rows, web.PageSize, func(r *db.CustomerCreditRow) string { return r.PageCursor })
+	ledger := Ledger{Bound: bound}
+	for i := range rows {
+		r := &rows[i]
+		ledger.Postings = append(ledger.Postings, Posting{
+			Kind: r.Kind, AmountCents: r.AmountCents, Reason: r.Reason, At: r.CreatedAt,
+			CustomerID: customer.String(), OrderNumber: r.OrderNumber, ReturnID: r.ReturnID,
+			ActorEmail: r.ActorEmail, RunningCents: r.RunningCents,
+		})
+	}
+	return ledger, nil
 }

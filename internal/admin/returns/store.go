@@ -113,9 +113,22 @@ type queuePosition struct {
 }
 
 func (s *Store) Queue(ctx context.Context, after ...string) (Queue, error) {
-	scope := "/admin/returns"
+	return s.queue(ctx, uuid.NullUUID{}, after)
+}
+
+// RequestQueue is the queue narrowed to one request: where a credit posting
+// that settled it leads.
+func (s *Store) RequestQueue(ctx context.Context, request uuid.UUID, after ...string) (Queue, error) {
+	return s.queue(ctx, uuid.NullUUID{UUID: request, Valid: true}, after)
+}
+
+func (s *Store) queue(ctx context.Context, request uuid.NullUUID, after []string) (Queue, error) {
+	scope := web.ScopeURL("/admin/returns", "request", request.UUID.String())
+	if !request.Valid {
+		scope = "/admin/returns"
+	}
 	from, resumed := web.ResumeKeyset(scope, after, func(p queuePosition) bool { return p.ID != uuid.Nil })
-	rows, err := s.q.ReturnQueue(ctx, db.ReturnQueueParams{HasCursor: resumed, AfterRank: from.Rank, AfterPriority: from.Priority, AfterAt: from.At, AfterID: from.ID, RowLimit: web.PageLimit})
+	rows, err := s.q.ReturnQueue(ctx, db.ReturnQueueParams{HasRequest: request.Valid, RequestID: request.UUID, HasCursor: resumed, AfterRank: from.Rank, AfterPriority: from.Priority, AfterAt: from.At, AfterID: from.ID, RowLimit: web.PageLimit})
 	if err != nil {
 		return Queue{}, fmt.Errorf("read return queue: %w", err)
 	}

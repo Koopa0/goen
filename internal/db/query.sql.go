@@ -6873,6 +6873,27 @@ func (q *Queries) CreditBalance(ctx context.Context, userID uuid.NullUUID) (int6
 	return column_1, err
 }
 
+const creditCustomerByID = `-- name: CreditCustomerByID :one
+SELECT id, email, coalesce(full_name, '') AS full_name FROM users
+WHERE id = $1
+`
+
+type CreditCustomerByIDRow struct {
+	ID       uuid.UUID
+	Email    string
+	FullName string
+}
+
+// Any user, whatever their role now: a customer promoted to staff keeps the
+// history they earned, as their profile and the grant form's recipient lookup
+// already allow.
+func (q *Queries) CreditCustomerByID(ctx context.Context, id uuid.UUID) (CreditCustomerByIDRow, error) {
+	row := q.db.QueryRow(ctx, creditCustomerByID, id)
+	var i CreditCustomerByIDRow
+	err := row.Scan(&i.ID, &i.Email, &i.FullName)
+	return i, err
+}
+
 const currentPromoBanner = `-- name: CurrentPromoBanner :one
 SELECT id,
        localized_name(message, message_en, $1::text) AS message,
@@ -6948,6 +6969,96 @@ func (q *Queries) CustomerByEmail(ctx context.Context, email string) (CustomerBy
 	var i CustomerByEmailRow
 	err := row.Scan(&i.ID, &i.Email, &i.FullName)
 	return i, err
+}
+
+const customerCredit = `-- name: CustomerCredit :many
+WITH ledger AS (
+    SELECT e.id, e.account_id, e.amount_cents, e.kind, e.reason, e.order_id,
+           e.actor_user_id, e.idempotency_key, e.created_at,
+           sum(e.amount_cents) OVER (ORDER BY e.created_at, e.id)::bigint AS running_cents
+    FROM store_credit_entries e
+    WHERE e.account_id = (SELECT a.id FROM store_credit_accounts a WHERE a.user_id = $1::uuid)
+), page AS (
+    SELECT l.id, l.account_id, l.amount_cents, l.kind, l.reason, l.order_id, l.actor_user_id, l.idempotency_key, l.created_at, l.running_cents
+    FROM ledger l
+    WHERE (NOT $2::boolean OR (l.created_at < $3::timestamptz)
+           OR (l.created_at = $3::timestamptz AND l.id < $4::uuid))
+    ORDER BY l.created_at DESC, l.id DESC
+    LIMIT $5::integer
+)
+SELECT json_build_object('At', e.created_at, 'ID', e.id)::text AS page_cursor, e.amount_cents,
+       coalesce(e.kind, '')::text AS kind, coalesce(e.reason, '')::text AS reason, e.created_at,
+       e.running_cents,
+       coalesce(o.order_number, '') AS order_number,
+       coalesce(r.id::text, '')::text AS return_id,
+       coalesce(actor.email, '') AS actor_email
+FROM page e
+LEFT JOIN orders o ON o.id = e.order_id
+LEFT JOIN return_requests r ON e.kind = 'return_payout' AND e.idempotency_key = 'return-credit:' || r.id::text
+LEFT JOIN users actor ON actor.id = e.actor_user_id
+ORDER BY e.created_at DESC, e.id DESC
+`
+
+type CustomerCreditParams struct {
+	CustomerID uuid.UUID
+	HasCursor  bool
+	AfterAt    time.Time
+	AfterID    uuid.UUID
+	RowLimit   int32
+}
+
+type CustomerCreditRow struct {
+	PageCursor   string
+	AmountCents  int64
+	Kind         string
+	Reason       string
+	CreatedAt    time.Time
+	RunningCents int64
+	OrderNumber  string
+	ReturnID     string
+	ActorEmail   string
+}
+
+// One customer's postings with the running total each leaves: the sum of that
+// account's entries up to and including the row, in (created_at, id) order. The
+// window reads only this account's entries, through store_credit_entries_account_idx,
+// and the keyset test comes after it, so a later page still starts from the whole
+// history. The desk for every customer has no such column: one window over every
+// account is what that page cannot afford.
+func (q *Queries) CustomerCredit(ctx context.Context, arg CustomerCreditParams) ([]CustomerCreditRow, error) {
+	rows, err := q.db.Query(ctx, customerCredit,
+		arg.CustomerID,
+		arg.HasCursor,
+		arg.AfterAt,
+		arg.AfterID,
+		arg.RowLimit,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []CustomerCreditRow{}
+	for rows.Next() {
+		var i CustomerCreditRow
+		if err := rows.Scan(
+			&i.PageCursor,
+			&i.AmountCents,
+			&i.Kind,
+			&i.Reason,
+			&i.CreatedAt,
+			&i.RunningCents,
+			&i.OrderNumber,
+			&i.ReturnID,
+			&i.ActorEmail,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
 }
 
 const dealProducts = `-- name: DealProducts :many
@@ -13565,16 +13676,29 @@ func (q *Queries) ReceiveStock(ctx context.Context, arg ReceiveStockParams) erro
 }
 
 const recentCredit = `-- name: RecentCredit :many
+WITH page AS (
+    SELECT e.id, e.account_id, e.amount_cents, e.kind, e.reason, e.order_id,
+           e.actor_user_id, e.idempotency_key, e.created_at
+    FROM store_credit_entries e
+    WHERE (NOT $1::boolean OR (e.created_at < $2::timestamptz)
+           OR (e.created_at = $2::timestamptz AND e.id < $3::uuid))
+    ORDER BY e.created_at DESC, e.id DESC
+    LIMIT $4::integer
+)
 SELECT json_build_object('At', e.created_at, 'ID', e.id)::text AS page_cursor, e.amount_cents,
        coalesce(e.kind, '')::text AS kind, coalesce(e.reason, '')::text AS reason, e.created_at,
-       coalesce(u.email, '') AS email
-FROM store_credit_entries e
+       coalesce(u.email, '') AS email,
+       coalesce(u.id::text, '')::text AS customer_id,
+       coalesce(o.order_number, '') AS order_number,
+       coalesce(r.id::text, '')::text AS return_id,
+       coalesce(actor.email, '') AS actor_email
+FROM page e
 JOIN store_credit_accounts a ON a.id = e.account_id
 LEFT JOIN users u ON u.id = a.user_id
-WHERE (NOT $1::boolean OR (e.created_at < $2::timestamptz)
-       OR (e.created_at = $2::timestamptz AND e.id < $3::uuid))
+LEFT JOIN orders o ON o.id = e.order_id
+LEFT JOIN return_requests r ON e.kind = 'return_payout' AND e.idempotency_key = 'return-credit:' || r.id::text
+LEFT JOIN users actor ON actor.id = e.actor_user_id
 ORDER BY e.created_at DESC, e.id DESC
-LIMIT $4::integer
 `
 
 type RecentCreditParams struct {
@@ -13591,10 +13715,16 @@ type RecentCreditRow struct {
 	Reason      string
 	CreatedAt   time.Time
 	Email       string
+	CustomerID  string
+	OrderNumber string
+	ReturnID    string
+	ActorEmail  string
 }
 
 // kind says what the posting is; reason is only what a staff member typed, and
 // is NULL for every other kind. The label comes from kind, never from reason.
+// The page of entries is cut first and the rows around it joined after, so a
+// page reads fifty-one orders and customers and not one per entry in the ledger.
 func (q *Queries) RecentCredit(ctx context.Context, arg RecentCreditParams) ([]RecentCreditRow, error) {
 	rows, err := q.db.Query(ctx, recentCredit,
 		arg.HasCursor,
@@ -13616,6 +13746,10 @@ func (q *Queries) RecentCredit(ctx context.Context, arg RecentCreditParams) ([]R
 			&i.Reason,
 			&i.CreatedAt,
 			&i.Email,
+			&i.CustomerID,
+			&i.OrderNumber,
+			&i.ReturnID,
+			&i.ActorEmail,
 		); err != nil {
 			return nil, err
 		}
@@ -15577,15 +15711,18 @@ SELECT json_build_object('Rank', return_payout_outstanding(r.id), 'Priority', (r
        ), 'undelivered')::text AS rescission_window
 FROM return_requests r
 JOIN orders o ON o.id = r.order_id
-WHERE (NOT $1::boolean OR (return_payout_outstanding(r.id) < $2::boolean)
-       OR (return_payout_outstanding(r.id) = $2::boolean AND (r.status = 'requested') < $3::boolean)
-       OR (return_payout_outstanding(r.id) = $2::boolean AND (r.status = 'requested') = $3::boolean AND r.created_at < $4::timestamptz)
-       OR (return_payout_outstanding(r.id) = $2::boolean AND (r.status = 'requested') = $3::boolean AND r.created_at = $4::timestamptz AND r.id < $5::uuid))
+WHERE (NOT $1::boolean OR r.id = $2::uuid)
+  AND (NOT $3::boolean OR (return_payout_outstanding(r.id) < $4::boolean)
+       OR (return_payout_outstanding(r.id) = $4::boolean AND (r.status = 'requested') < $5::boolean)
+       OR (return_payout_outstanding(r.id) = $4::boolean AND (r.status = 'requested') = $5::boolean AND r.created_at < $6::timestamptz)
+       OR (return_payout_outstanding(r.id) = $4::boolean AND (r.status = 'requested') = $5::boolean AND r.created_at = $6::timestamptz AND r.id < $7::uuid))
 ORDER BY return_payout_outstanding(r.id) DESC, (r.status = 'requested') DESC, r.created_at DESC, r.id DESC
-LIMIT $6::integer
+LIMIT $8::integer
 `
 
 type ReturnQueueParams struct {
+	HasRequest    bool
+	RequestID     uuid.UUID
 	HasCursor     bool
 	AfterRank     bool
 	AfterPriority bool
@@ -15617,6 +15754,8 @@ type ReturnQueueRow struct {
 // disappear from every actionable screen.
 func (q *Queries) ReturnQueue(ctx context.Context, arg ReturnQueueParams) ([]ReturnQueueRow, error) {
 	rows, err := q.db.Query(ctx, returnQueue,
+		arg.HasRequest,
+		arg.RequestID,
 		arg.HasCursor,
 		arg.AfterRank,
 		arg.AfterPriority,

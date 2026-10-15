@@ -1935,29 +1935,11 @@ input.goen-check {
   color: var(--fg);
 }
 
-.goen-admin__ledger {
-  margin: 0;
-  padding: 0;
-  list-style: none;
-  display: flex;
-  flex-direction: column;
-}
-
-.goen-admin__entry {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: baseline;
-  gap: 4px 16px;
-  padding: 10px 0;
-  border-bottom: 1px solid var(--border-faint);
-}
-
 .goen-admin__amount {
   font-variant-numeric: tabular-nums;
   font-size: var(--fs-14);
   font-weight: var(--fw-semibold);
   color: var(--fg);
-  min-width: 96px;
 }
 
 .goen-admin__amount.is-spend {
@@ -2506,13 +2488,6 @@ input.goen-check {
   color: var(--fg);
   font-size: var(--fs-13);
   font-weight: var(--fw-medium);
-  overflow-wrap: anywhere;
-}
-
-/* Who a ledger entry is about, beside the amount rather than under it. */
-.goen-admin__entrywho {
-  color: var(--fg);
-  font-size: var(--fs-13);
   overflow-wrap: anywhere;
 }
 

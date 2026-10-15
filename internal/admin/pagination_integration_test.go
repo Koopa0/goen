@@ -14,6 +14,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/google/uuid"
+
 	"github.com/koopa0/goen/internal/admin/admintest"
 	"github.com/koopa0/goen/internal/admin/audit"
 	"github.com/koopa0/goen/internal/admin/campaigns"
@@ -204,9 +206,9 @@ func TestEveryAdminQueueReachesBeyondItsFirstPage(t *testing.T) {
 			return r, e
 		}},
 		{"credit", "SELECT count(*) FROM store_credit_entries", func(after string) (result, error) {
-			v, e := loyalty.NewStore(p).Credit(ctx, after)
+			v, e := loyalty.NewStore(p).Credit(ctx, uuid.NullUUID{}, after)
 			r := result{bound: v.Bound}
-			for _, x := range v.Rows {
+			for _, x := range v.Postings {
 				r.keys = append(r.keys, x.Reason)
 			}
 			return r, e

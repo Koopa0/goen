@@ -15,6 +15,10 @@ func TestEveryCreditBalanceReadsTheOneView(t *testing.T) {
 	t.Parallel()
 
 	allowed := map[string]string{
+		"CustomerCredit": "the running total each posting of ONE customer leaves, " +
+			"in (created_at, id) order: a position in that account's history, not " +
+			"its balance. The newest row's total is the balance and the " +
+			"integration test holds it equal to store_credit_balances",
 		"ReturnPayoutFacts": "spent and returned on ONE order, split by " +
 			"sign — a position rather than a balance, and the refund split needs both " +
 			"halves. It leaves out one return's own compensation because that is what " +
