@@ -16,7 +16,6 @@ import (
 	"github.com/koopa0/goen/internal/i18n"
 	"github.com/koopa0/goen/internal/ui/components"
 	"github.com/koopa0/goen/internal/ui/icons"
-	"github.com/koopa0/goen/internal/ui/pages/admin"
 	"github.com/koopa0/goen/internal/web"
 )
 
@@ -83,26 +82,26 @@ func (f *Form) Validate(ctx context.Context) map[string]string {
 	return errs
 }
 
-func (s *Store) List(ctx context.Context) (admin.TaxonomyView, error) {
+func (s *Store) List(ctx context.Context) (TaxonomyView, error) {
 	brands, err := s.q.ManagedBrands(ctx)
 	if err != nil {
-		return admin.TaxonomyView{}, fmt.Errorf("read brands: %w", err)
+		return TaxonomyView{}, fmt.Errorf("read brands: %w", err)
 	}
 	cats, err := s.q.ManagedCategories(ctx)
 	if err != nil {
-		return admin.TaxonomyView{}, fmt.Errorf("read categories: %w", err)
+		return TaxonomyView{}, fmt.Errorf("read categories: %w", err)
 	}
 
-	view := admin.TaxonomyView{}
+	view := TaxonomyView{}
 	for i := range brands {
 		b := &brands[i]
-		view.Brands = append(view.Brands, admin.Taxon{
+		view.Brands = append(view.Brands, Taxon{
 			Slug: b.Slug, Name: b.Name, Products: b.Products,
 		})
 	}
 	for i := range cats {
 		c := &cats[i]
-		view.Categories = append(view.Categories, admin.Taxon{
+		view.Categories = append(view.Categories, Taxon{
 			Slug: c.Slug, Name: c.Name, NameEn: c.NameEn, IconKey: c.IconKey, Tone: c.Tone,
 			Comparable: c.Comparable, Products: c.Products,
 			Depth: int(c.Depth), Children: c.Children, Parent: c.ParentName,

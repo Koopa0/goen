@@ -11,6 +11,7 @@ import (
 	"github.com/koopa0/goen/internal/admin/campaigns"
 	"github.com/koopa0/goen/internal/admin/coupons"
 	"github.com/koopa0/goen/internal/admin/feedback"
+	"github.com/koopa0/goen/internal/admin/taxonomy"
 	"github.com/koopa0/goen/internal/payment"
 	"github.com/koopa0/goen/internal/ui/layouts"
 	"github.com/koopa0/goen/internal/ui/pages"
@@ -36,8 +37,8 @@ func methodFormActions(t *testing.T) map[string][]string {
 		"internal/admin/campaigns/page.templ:templ.SafeURL(v.ToneAction())":                             {(&campaigns.CampaignView{Slug: "campaign"}).ToneAction()},
 		"internal/admin/campaigns/page.templ:templ.SafeURL(v.WindowAction())":                           {(&campaigns.CampaignView{Slug: "campaign"}).WindowAction()},
 		"internal/admin/campaigns/page.templ:templ.SafeURL(v.ActiveAction())":                           {(&campaigns.CampaignView{Slug: "campaign"}).ActiveAction()},
-		"internal/ui/pages/admin/category.templ:templ.SafeURL(v.ImageAction())":                         {(admin.CategoryView{Slug: "category"}).ImageAction()},
-		"internal/ui/pages/admin/category.templ:templ.SafeURL(v.ImageRemoveAction())":                   {(admin.CategoryView{Slug: "category"}).ImageRemoveAction()},
+		"internal/admin/taxonomy/category.templ:templ.SafeURL(v.ImageAction())":                         {(taxonomy.CategoryView{Slug: "category"}).ImageAction()},
+		"internal/admin/taxonomy/category.templ:templ.SafeURL(v.ImageRemoveAction())":                   {(taxonomy.CategoryView{Slug: "category"}).ImageRemoveAction()},
 		"internal/admin/campaigns/page.templ:templ.SafeURL(v.ImageAction())":                            {(&campaigns.CampaignView{Slug: "campaign"}).ImageAction()},
 		"internal/admin/campaigns/page.templ:templ.SafeURL(v.ImageRemoveAction())":                      {(&campaigns.CampaignView{Slug: "campaign"}).ImageRemoveAction()},
 		"internal/ui/pages/admin/product.templ:templ.SafeURL(v.ImageAction())":                          {product.ImageAction()},
