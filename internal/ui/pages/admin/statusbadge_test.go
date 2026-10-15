@@ -200,6 +200,7 @@ func TestDashboardAndCustomerRecentOrdersFollowTheirGroup(t *testing.T) {
 	dashboard := renderComponent(t, ctx, Dashboard(Meta(ctx), DashboardView{Recent: []OrderRow{row}}))
 	wantBadge(t, dashboard, "待出貨", "goen-badge goen-badge--warn")
 
-	customer := renderComponent(t, ctx, Customer(Meta(ctx), &CustomerView{Orders: 1, Recent: []OrderRow{row}}))
+	recent := RecentOrder{Number: row.Number, Status: row.Status, StatusText: row.StatusText, StatusIntent: row.StatusIntent}
+	customer := renderComponent(t, ctx, Customer(Meta(ctx), &CustomerView{Orders: 1, Recent: []RecentOrder{recent}}))
 	wantBadge(t, customer, "待出貨", "goen-badge goen-badge--warn")
 }
