@@ -440,16 +440,17 @@ func receiverName(recv *ast.FieldList) string {
 	}
 }
 
-// declaredFields is every exported field on every view model, as Type.Field,
-// with the view model each of those fields holds — which is what resolves a
-// write through a field, `view.Questions[at].Answers = …`.
-func declaredFields(taken map[string]viewModel) (names []string, models map[string]bool, holds map[string]string) {
+// declaredFields is every exported field on every view model, as Type.Field;
+// models maps each view model to those of its fields, which a conversion to it
+// writes; holds maps each field to the view model it holds — which is what
+// resolves a write through a field, `view.Questions[at].Answers = …`.
+func declaredFields(taken map[string]viewModel) (names []string, models map[string][]string, holds map[string]string) {
 	// The type names first: everything downstream is gated on them, or a
 	// `func (v PointsView) Credit() string` contributes `string` as a rival
 	// result type and the ambiguity un-resolves every `view.Notice = …`.
-	models = map[string]bool{}
+	models = map[string][]string{}
 	for key := range taken {
-		models[key] = true
+		models[key] = nil
 	}
 
 	holds = map[string]string{}
@@ -462,6 +463,7 @@ func declaredFields(taken map[string]viewModel) (names []string, models map[stri
 				}
 				fieldKey := key + "." + name.Name
 				names = append(names, fieldKey)
+				models[key] = append(models[key], fieldKey)
 				if held := w.typeName(field.Type); held != "" {
 					holds[fieldKey] = held
 				}
@@ -482,7 +484,7 @@ func isHandWrittenGo(path string) bool {
 }
 
 // assignedFields is every Type.Field the repository writes.
-func assignedFields(files []source, packages []string, models map[string]bool, holds map[string]string) map[string]bool {
+func assignedFields(files []source, packages []string, models map[string][]string, holds map[string]string) map[string]bool {
 	declared := declaredPackageNames(files, packages)
 	returns := resultTypes(files, models, declared)
 	out := map[string]bool{}
@@ -560,7 +562,7 @@ func importPath(dir string) string {
 // resultTypes maps a function or method NAME to the view model each of its
 // results carries. The key is a bare name because typing `h.store` needs the type
 // checker; a name bound to two different view models is dropped, not guessed.
-func resultTypes(files []source, models map[string]bool, declared map[string]string) map[string][]string {
+func resultTypes(files []source, models map[string][]string, declared map[string]string) map[string][]string {
 	candidates := map[string]map[int]map[string]bool{}
 	note := func(key string, i int, name string) {
 		if candidates[key] == nil {
@@ -664,8 +666,8 @@ func packageNames(src source, declared map[string]string) map[string]string {
 
 // writes collects the Type.Field pairs one file assigns.
 type writes struct {
-	names   map[string]string // identifier -> import path; "" is the file's own package
-	models  map[string]bool
+	names   map[string]string   // identifier -> import path; "" is the file's own package
+	models  map[string][]string // view model -> its exported fields
 	pkg     string
 	returns map[string][]string
 	holds   map[string]string
@@ -736,9 +738,44 @@ func (w *writes) function(fn *ast.FuncDecl) {
 			w.declare(identsOf(node.Lhs), node.Rhs, local, bind)
 		case *ast.IncDecStmt:
 			w.record(node.X, local)
+		case *ast.CallExpr:
+			w.conversion(node, local)
 		}
 		return true
 	})
+}
+
+// conversion records `T(x)`, T a view model, as a write of every field of T.
+//
+// A call whose function is a type name is a conversion (the Go spec,
+// "Conversions"), and the name cannot also be a function's: a package block
+// declares an identifier once ("Declarations and scope"). A struct converts to
+// T only from a struct whose underlying type is identical to T's, tags aside
+// ("Conversions"), and identical struct types have the same fields — the same
+// names and types in the same order ("Type identity"). So x carries a value for
+// every field of T, adding a field to T without adding it to x's type does not
+// compile, and no field can be left out the way a key is left out of a literal.
+//
+// Converting a T to T writes nothing a T did not already hold, so it does not
+// count where the walk can type x; where it cannot, the unconvert linter
+// refuses the conversion. A pointer, slice or map type such as `(*T)(p)` does
+// not count either: its elements are written wherever they were built.
+func (w *writes) conversion(call *ast.CallExpr, local map[string]string) {
+	if len(call.Args) != 1 || call.Ellipsis.IsValid() {
+		return
+	}
+	switch call.Fun.(type) {
+	case *ast.Ident, *ast.SelectorExpr:
+	default:
+		return
+	}
+	model := w.typeName(call.Fun)
+	if model == "" || w.valueType(call.Args[0], local) == model {
+		return
+	}
+	for _, field := range w.models[model] {
+		w.out[field] = true
+	}
 }
 
 // declare binds the names on the left of a declaration or assignment to the types
@@ -826,7 +863,7 @@ func (w *writes) typeName(typ ast.Expr) string {
 	case *ast.MapType:
 		return w.typeName(t.Value)
 	case *ast.Ident:
-		if own, ok := w.names[""]; ok && w.models[own+"."+t.Name] {
+		if own, ok := w.names[""]; ok && w.isModel(own+"."+t.Name) {
 			return own + "." + t.Name
 		}
 	case *ast.SelectorExpr:
@@ -834,11 +871,16 @@ func (w *writes) typeName(typ ast.Expr) string {
 		if !ok {
 			return ""
 		}
-		if imported, named := w.names[pkg.Name]; named && w.models[imported+"."+t.Sel.Name] {
+		if imported, named := w.names[pkg.Name]; named && w.isModel(imported+"."+t.Sel.Name) {
 			return imported + "." + t.Sel.Name
 		}
 	}
 	return ""
+}
+
+func (w *writes) isModel(key string) bool {
+	_, ok := w.models[key]
+	return ok
 }
 
 // calleeName is `Orders` for both `Orders(…)` and `h.store.Orders(…)`.

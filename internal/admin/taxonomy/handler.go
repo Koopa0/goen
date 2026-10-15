@@ -92,11 +92,7 @@ func (h *Handler) Create(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		view.Which, view.Errors = kind, errs
-		//nolint:staticcheck // S1016: keyed, because TestEveryViewModelFieldIsAssigned sees assignments, not conversions
-		view.Draft = TaxonDraft{
-			Slug: typed.Slug, Name: typed.Name, NameEn: typed.NameEn, Parent: typed.Parent,
-			IconKey: typed.IconKey, Tone: typed.Tone, Comparable: typed.Comparable,
-		}
+		view.Draft = TaxonDraft(typed)
 		web.Render(w, r, h.log, http.StatusUnprocessableEntity, Taxonomy(
 			layouts.Page{Title: i18n.T(r.Context(), i18n.KeyAdminPageTaxonomy)}, &view))
 	default:
