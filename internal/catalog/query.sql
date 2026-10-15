@@ -191,7 +191,7 @@ SELECT
                       WHERE vov.option_value_id = cv.id AND pv.is_active
                   )
     ), ARRAY[]::text[])::text[] AS colours,
-    coalesce(img.storage_key, '') AS image_key,
+    coalesce(img.media_digest, img.bundled_key, '') AS image_key,
     coalesce(localized_name(img.alt_text, img.alt_text_en, @locale::text), '')::text AS image_alt,
     coalesce(img.width, 0)::integer AS image_width,
     coalesce(img.height, 0)::integer AS image_height
@@ -228,7 +228,7 @@ LEFT JOIN LATERAL (
     FROM visible_reviews WHERE product_id = p.id
 ) rv ON true
 LEFT JOIN LATERAL (
-    SELECT storage_key, alt_text, alt_text_en, width, height
+    SELECT media_digest, bundled_key, alt_text, alt_text_en, width, height
     FROM product_images WHERE product_id = p.id ORDER BY position LIMIT 1
 ) img ON true
 WHERE p.status = 'active'
@@ -368,7 +368,7 @@ SELECT
                       WHERE vov.option_value_id = cv.id AND pv.is_active
                   )
     ), ARRAY[]::text[])::text[] AS colours,
-    coalesce(img.storage_key, '') AS image_key,
+    coalesce(img.media_digest, img.bundled_key, '') AS image_key,
     coalesce(localized_name(img.alt_text, img.alt_text_en, @locale::text), '')::text AS image_alt,
     coalesce(img.width, 0)::integer AS image_width,
     coalesce(img.height, 0)::integer AS image_height
@@ -386,7 +386,7 @@ LEFT JOIN LATERAL (
     FROM visible_reviews WHERE product_id = p.id
 ) rv ON true
 LEFT JOIN LATERAL (
-    SELECT storage_key, alt_text, alt_text_en, width, height
+    SELECT media_digest, bundled_key, alt_text, alt_text_en, width, height
     FROM product_images WHERE product_id = p.id ORDER BY position LIMIT 1
 ) img ON true
 WHERE p.status = 'active'
@@ -525,7 +525,7 @@ SELECT
                       WHERE vov.option_value_id = cv.id AND pv.is_active
                   )
     ), ARRAY[]::text[])::text[] AS colours,
-    coalesce(img.storage_key, '') AS image_key,
+    coalesce(img.media_digest, img.bundled_key, '') AS image_key,
     coalesce(localized_name(img.alt_text, img.alt_text_en, @locale::text), '')::text AS image_alt,
     coalesce(img.width, 0)::integer AS image_width,
     coalesce(img.height, 0)::integer AS image_height
@@ -543,7 +543,7 @@ LEFT JOIN LATERAL (
     FROM visible_reviews WHERE product_id = p.id
 ) rv ON true
 LEFT JOIN LATERAL (
-    SELECT storage_key, alt_text, alt_text_en, width, height
+    SELECT media_digest, bundled_key, alt_text, alt_text_en, width, height
     FROM product_images WHERE product_id = p.id ORDER BY position LIMIT 1
 ) img ON true
 WHERE p.status = 'active'
@@ -659,7 +659,7 @@ SELECT
                       WHERE vov.option_value_id = cv.id AND pv.is_active
                   )
     ), ARRAY[]::text[])::text[] AS colours,
-    coalesce(img.storage_key, '') AS image_key,
+    coalesce(img.media_digest, img.bundled_key, '') AS image_key,
     coalesce(localized_name(img.alt_text, img.alt_text_en, @locale::text), '')::text AS image_alt,
     coalesce(img.width, 0)::integer AS image_width,
     coalesce(img.height, 0)::integer AS image_height
@@ -685,7 +685,7 @@ LEFT JOIN LATERAL (
     FROM visible_reviews WHERE product_id = p.id
 ) rv ON true
 LEFT JOIN LATERAL (
-    SELECT storage_key, alt_text, alt_text_en, width, height
+    SELECT media_digest, bundled_key, alt_text, alt_text_en, width, height
     FROM product_images WHERE product_id = p.id ORDER BY position LIMIT 1
 ) img ON true
 WHERE p.status = 'active'
@@ -830,7 +830,7 @@ SELECT
                       WHERE vov.option_value_id = cv.id AND pv.is_active
                   )
     ), ARRAY[]::text[])::text[] AS colours,
-    coalesce(img.storage_key, '') AS image_key,
+    coalesce(img.media_digest, img.bundled_key, '') AS image_key,
     coalesce(localized_name(img.alt_text, img.alt_text_en, @locale::text), '')::text AS image_alt,
     coalesce(img.width, 0)::integer AS image_width,
     coalesce(img.height, 0)::integer AS image_height
@@ -856,7 +856,7 @@ LEFT JOIN LATERAL (
     FROM visible_reviews WHERE product_id = p.id
 ) rv ON true
 LEFT JOIN LATERAL (
-    SELECT storage_key, alt_text, alt_text_en, width, height
+    SELECT media_digest, bundled_key, alt_text, alt_text_en, width, height
     FROM product_images WHERE product_id = p.id ORDER BY position LIMIT 1
 ) img ON true
 WHERE cp.campaign_id = $1 AND p.status = 'active'
@@ -893,7 +893,7 @@ SELECT
           AND sv.stock_quantity > sv.safety_stock
     ) AS in_stock,
     coalesce(p.warranty_months, 0)::integer AS warranty_months,
-    coalesce(img.storage_key, '') AS image_key,
+    coalesce(img.media_digest, img.bundled_key, '') AS image_key,
     coalesce(localized_name(img.alt_text, img.alt_text_en, @locale::text), '')::text AS image_alt,
     coalesce(img.width, 0)::integer AS image_width,
     coalesce(img.height, 0)::integer AS image_height,
@@ -914,7 +914,7 @@ LEFT JOIN LATERAL (
     FROM visible_reviews WHERE product_id = p.id
 ) rv ON true
 LEFT JOIN LATERAL (
-    SELECT storage_key, alt_text, alt_text_en, width, height
+    SELECT media_digest, bundled_key, alt_text, alt_text_en, width, height
     FROM product_images WHERE product_id = p.id ORDER BY position LIMIT 1
 ) img ON true
 ORDER BY asked.ord;
@@ -982,7 +982,7 @@ SELECT
         SELECT 1 FROM product_variants dv
         WHERE dv.product_id = p.id AND dv.is_active AND dv.price_cents > mv.price_cents
     ) AS price_varies,
-    coalesce(img.storage_key, '') AS image_key,
+    coalesce(img.media_digest, img.bundled_key, '') AS image_key,
     coalesce(localized_name(img.alt_text, img.alt_text_en, @locale::text), '')::text AS image_alt,
     coalesce(img.width, 0)::integer AS image_width,
     coalesce(img.height, 0)::integer AS image_height
@@ -996,7 +996,7 @@ JOIN LATERAL (
     LIMIT 1
 ) mv ON true
 LEFT JOIN LATERAL (
-    SELECT storage_key, alt_text, alt_text_en, width, height
+    SELECT media_digest, bundled_key, alt_text, alt_text_en, width, height
     FROM product_images WHERE product_id = p.id ORDER BY position LIMIT 1
 ) img ON true
 WHERE p.status = 'active'
@@ -1126,7 +1126,7 @@ SELECT
     ) AS in_campaign,
     localized_name(v.value, v.value_en, @locale::text) AS colour,
     v.swatch_hex::text AS swatch,
-    img.storage_key AS image_key,
+    coalesce(img.media_digest, img.bundled_key)::text AS image_key,
     coalesce(localized_name(img.alt_text, img.alt_text_en, @locale::text), '')::text AS image_alt,
     coalesce(img.width, 0)::integer AS image_width
 FROM story s
@@ -1141,7 +1141,7 @@ JOIN LATERAL (
 ) mv ON true
 JOIN product_option_values v ON v.product_id = p.id AND v.swatch_hex IS NOT NULL
 JOIN LATERAL (
-    SELECT storage_key, alt_text, alt_text_en, width
+    SELECT media_digest, bundled_key, alt_text, alt_text_en, width
     FROM product_images WHERE product_id = p.id AND option_value_id = v.id ORDER BY position LIMIT 1
 ) img ON true
 ORDER BY v.position, v.id;

@@ -322,7 +322,7 @@ func TestOneUploadCanBeAttachedToTwoProducts(t *testing.T) {
 
 	var n int
 	if err := pool.QueryRow(ctx,
-		`SELECT count(*) FROM product_images WHERE storage_key = $1`, digest).Scan(&n); err != nil {
+		`SELECT count(*) FROM product_images WHERE media_digest = $1`, digest).Scan(&n); err != nil {
 		t.Fatalf("count: %v", err)
 	}
 	if n != 2 {
@@ -748,7 +748,7 @@ func TestAltTextFollowsThePagesLanguage(t *testing.T) {
 	ctx, _ := admintest.StaffContext(t, pool)
 	s := products.NewStore(pool)
 	slug := admintest.DraftProduct(t, ctx, pool, s)
-	digest := storeMedia(t)
+	digest := storeMedia(t, pool)
 
 	if err := s.AttachImage(ctx, slug, digest, "銀色筆電,螢幕開啟",
 		"Silver laptop, screen open", "", 800, 600); err != nil {
@@ -793,10 +793,10 @@ func TestAltTextFollowsThePagesLanguage(t *testing.T) {
 	}
 }
 
-func storeMedia(t *testing.T) string {
+func storeMedia(t *testing.T, in *pgxpool.Pool) string {
 	t.Helper()
 	digest := fmt.Sprintf("%064x", uuid.New().ID())
-	if _, err := pool.Exec(t.Context(), `
+	if _, err := in.Exec(t.Context(), `
 		-- byte_size must equal length(bytes): media_objects_size_matches refuses a
 		-- row that claims a size its own bytes do not have.
 		INSERT INTO media_objects (digest, content_type, byte_size, width, height, bytes)

@@ -24,11 +24,12 @@ LIMIT $1;
 SELECT digest, content_type, width, height, byte_size
 FROM media_objects WHERE digest = $1;
 
--- Uploads nothing points at. Every referencing column has to appear here: a
--- delete that missed one would break a live image.
+-- Uploads nothing points at. Every referencing column has to appear here: one
+-- missed is offered for deletion on every pass, and only its foreign key keeps
+-- the image.
 -- name: UnreferencedMedia :many
 SELECT digest FROM media_objects m
-WHERE NOT EXISTS (SELECT 1 FROM product_images p WHERE p.storage_key = m.digest)
+WHERE NOT EXISTS (SELECT 1 FROM product_images p WHERE p.media_digest = m.digest)
   AND NOT EXISTS (SELECT 1 FROM hero_slides h WHERE h.media_digest = m.digest)
   AND NOT EXISTS (SELECT 1 FROM sale_campaigns c WHERE c.media_digest = m.digest)
   AND NOT EXISTS (SELECT 1 FROM categories k WHERE k.media_digest = m.digest)
@@ -38,30 +39,26 @@ LIMIT $1;
 
 -- The reference predicate is REPEATED here, not assumed. Selecting candidates
 -- and deleting them are two statements, and an upload attached in between is
--- invisible to the second — the sweeper's own comment said a foreign key caught
--- that, and there is none: product_images.storage_key holds either an embedded
--- filename from the seed or a digest, so it cannot point at media_objects.
--- Asking again inside the DELETE makes a COMMITTED attach win, and :execrows is
--- what lets the caller tell "somebody attached it" from "deleted".
+-- invisible to the second. Asking again inside the DELETE makes a COMMITTED
+-- attach win, and :execrows is what lets the caller tell "somebody attached it"
+-- from "deleted".
 --
--- COMMITTED is the word this comment was missing, and it is not a detail. Under
--- READ COMMITTED the DELETE cannot see an attach that is still in flight, so a
--- transaction that inserts the hero slide, is interrupted, and commits after the
--- sweeper has run leaves a slide pointing at a deleted object. Measured — it is
--- not a theory.
+-- COMMITTED is the word that matters. Under READ COMMITTED the DELETE cannot see
+-- an attach that is still in flight, so without a foreign key a transaction that
+-- attaches, is interrupted, and commits after the sweeper has run leaves a page
+-- pointing at a deleted object. Measured — it is not a theory.
 --
--- Closing it properly is a foreign key. categories.media_digest,
--- hero_slides.media_digest and sale_campaigns.media_digest have one (ON DELETE
--- RESTRICT): the in-flight attach holds a lock this DELETE waits on, and the
--- delete is then refused, which Reclaim reads as "attached".
--- product_images.storage_key is still open, because it holds two kinds of key —
--- an embedded filename from the seed or a digest — and cannot reference
--- media_objects until it is split the same way (#1930). Its window is the
--- milliseconds of one DELETE against an orphan more than 24 hours old.
+-- The foreign keys close it. Every column named here (product_images,
+-- hero_slides, sale_campaigns and categories, each media_digest) references
+-- media_objects ON DELETE RESTRICT: the in-flight attach holds a lock this DELETE
+-- waits on, and the delete is then refused, which Reclaim reads as "attached".
+-- A new image column needs both. Without its foreign key, the in-flight window
+-- is open again; without its line here and in UnreferencedMedia, every upload it
+-- holds stays a candidate that each pass tries, is refused and logs as attached.
 -- name: DeleteMedia :execrows
 DELETE FROM media_objects m
 WHERE m.digest = @digest::text
-  AND NOT EXISTS (SELECT 1 FROM product_images p WHERE p.storage_key = m.digest)
+  AND NOT EXISTS (SELECT 1 FROM product_images p WHERE p.media_digest = m.digest)
   AND NOT EXISTS (SELECT 1 FROM hero_slides h WHERE h.media_digest = m.digest)
   AND NOT EXISTS (SELECT 1 FROM sale_campaigns c WHERE c.media_digest = m.digest)
   AND NOT EXISTS (SELECT 1 FROM categories k WHERE k.media_digest = m.digest);

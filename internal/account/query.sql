@@ -337,7 +337,7 @@ SELECT
         FROM product_variants sv
         WHERE sv.product_id = p.id AND sv.is_active
     ), '00000000-0000-0000-0000-000000000000'::uuid)::uuid AS sole_variant_id,
-    coalesce(img.storage_key, '') AS image_key,
+    coalesce(img.media_digest, img.bundled_key, '') AS image_key,
     coalesce(localized_name(img.alt_text, img.alt_text_en, @locale::text), '')::text AS image_alt,
     coalesce(img.width, 0)::integer AS image_width,
     coalesce(img.height, 0)::integer AS image_height
@@ -356,7 +356,7 @@ LEFT JOIN LATERAL (
     FROM visible_reviews WHERE product_id = p.id
 ) rv ON true
 LEFT JOIN LATERAL (
-    SELECT storage_key, alt_text, alt_text_en, width, height
+    SELECT media_digest, bundled_key, alt_text, alt_text_en, width, height
     FROM product_images WHERE product_id = p.id ORDER BY position LIMIT 1
 ) img ON true
 -- status = 'active' as a LITERAL: a parameter cannot use the partial index.

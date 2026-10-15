@@ -328,7 +328,13 @@ CREATE TRIGGER products_set_updated_at
 CREATE TABLE product_images (
     id          uuid PRIMARY KEY DEFAULT uuidv7(),
     product_id  uuid NOT NULL REFERENCES products (id) ON DELETE CASCADE,
-    storage_key text NOT NULL,
+    -- The photograph: an upload (media_digest, whose foreign key is added after
+    -- media_objects is created) or a file embedded in the binary (bundled_key,
+    -- a name in assets/media/products/), exactly one. Two columns because one
+    -- cannot carry a foreign key while it may hold a filename, as for
+    -- categories.
+    media_digest text,
+    bundled_key  text,
     alt_text    text NOT NULL,
     -- The English alt text, or NULL. A screen reader announces it in the
     -- language <html lang> declares, so the Chinese fallback is mispronounced
@@ -342,7 +348,13 @@ CREATE TABLE product_images (
     -- product_images_option_value_fk, declared below product_option_values.
     option_value_id uuid,
     created_at  timestamptz NOT NULL DEFAULT now(),
-    CONSTRAINT product_images_storage_key_present CHECK (storage_key ~ '[^[:space:]]'),
+    -- = 1, not categories' <= 1: a product image row IS a photograph.
+    CONSTRAINT product_images_one_source
+        CHECK (num_nonnulls(media_digest, bundled_key) = 1),
+    -- As categories_bundled_key_format: a digest never ends in '.webp', so an
+    -- upload cannot be stored here, past the foreign key.
+    CONSTRAINT product_images_bundled_key_format
+        CHECK (bundled_key ~ '^[a-z0-9]+(-[a-z0-9]+)*\.webp$'),
     CONSTRAINT product_images_alt_present CHECK (alt_text ~ '[^[:space:]]'),
     CONSTRAINT product_images_alt_en_present
         CHECK (alt_text_en IS NULL OR alt_text_en ~ '[^[:space:]]'),
@@ -352,11 +364,15 @@ CREATE TABLE product_images (
 );
 
 CREATE UNIQUE INDEX product_images_position_key ON product_images (product_id, position);
--- Per PRODUCT rather than on storage_key alone: content-addressed uploads give
--- one picture one digest, so a generic accessory shot shared by two products
--- would be refused as a duplicate key.
-CREATE UNIQUE INDEX product_images_storage_key_key
-    ON product_images (product_id, storage_key);
+-- Per PRODUCT rather than on the key alone: content-addressed uploads give one
+-- picture one digest, so a generic accessory shot shared by two products would
+-- be refused as a duplicate key. media_digest leads its index so the same index
+-- answers product_images_media_digest_fk's lookup on every media_objects delete
+-- (PostgreSQL docs, 11.3 Multicolumn Indexes).
+CREATE UNIQUE INDEX product_images_media_digest_key
+    ON product_images (media_digest, product_id);
+CREATE UNIQUE INDEX product_images_bundled_key_key
+    ON product_images (product_id, bundled_key);
 
 -- The axes a product varies along.
 CREATE TABLE product_options (
@@ -9417,6 +9433,11 @@ ALTER TABLE sale_campaigns
 
 CREATE INDEX sale_campaigns_media_digest_idx ON sale_campaigns (media_digest);
 
+-- Indexed by product_images_media_digest_key, which media_digest leads.
+ALTER TABLE product_images
+    ADD CONSTRAINT product_images_media_digest_fk
+    FOREIGN KEY (media_digest) REFERENCES media_objects (digest) ON DELETE RESTRICT;
+
 GRANT SELECT ON media_objects TO store;
 GRANT SELECT, DELETE ON media_objects TO admin;
 GRANT INSERT (digest, content_type, bytes, width, height, byte_size)
@@ -9952,8 +9973,9 @@ REVOKE UPDATE ON
     FROM admin;
 -- After the revoke, which takes column grants with it. In place, the back office
 -- only orders a product's images and says which option value each one shows.
+-- An attach is always an upload, so bundled_key is the seed's alone.
 REVOKE INSERT ON product_images FROM admin;
-GRANT INSERT (product_id, storage_key, alt_text, alt_text_en, width, height,
+GRANT INSERT (product_id, media_digest, alt_text, alt_text_en, width, height,
               position, option_value_id)
     ON product_images TO admin;
 GRANT UPDATE (position, option_value_id) ON product_images TO admin;

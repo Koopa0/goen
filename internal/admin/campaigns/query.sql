@@ -80,7 +80,7 @@ ORDER BY d.day;
 -- Archived products are left out: a campaign on one shows nothing.
 -- name: AdminCampaignProductSearch :many
 SELECT p.slug, localized_name(p.name, p.name_en, @locale::text) AS name,
-       coalesce(img.storage_key, '')::text AS image_key,
+       coalesce(img.media_digest, img.bundled_key, '')::text AS image_key,
        coalesce(mv.price_cents, 0)::bigint AS price_cents,
        coalesce(mv.compare_at_price_cents, 0)::bigint AS compare_at_price_cents,
        (mv.price_cents IS NOT NULL)::boolean AS has_variant,
@@ -102,7 +102,7 @@ LEFT JOIN LATERAL (
     LIMIT 1
 ) mv ON true
 LEFT JOIN LATERAL (
-    SELECT storage_key FROM product_images WHERE product_id = p.id ORDER BY position LIMIT 1
+    SELECT media_digest, bundled_key FROM product_images WHERE product_id = p.id ORDER BY position LIMIT 1
 ) img ON true
 WHERE p.status <> 'archived'
   AND (p.name ILIKE '%' || @escaped_term::text || '%'
@@ -147,7 +147,7 @@ WHERE cp.campaign_id = c.id AND cp.product_id = p.id
 
 -- name: AdminCampaignProducts :many
 SELECT p.slug, p.name AS name,
-       coalesce(img.storage_key, '')::text AS image_key,
+       coalesce(img.media_digest, img.bundled_key, '')::text AS image_key,
        coalesce(mv.price_cents, 0)::bigint AS price_cents,
        coalesce(mv.compare_at_price_cents, 0)::bigint AS compare_at_price_cents,
        (mv.price_cents IS NOT NULL)::boolean AS has_variant,
@@ -171,7 +171,7 @@ LEFT JOIN LATERAL (
     LIMIT 1
 ) mv ON true
 LEFT JOIN LATERAL (
-    SELECT storage_key FROM product_images WHERE product_id = p.id ORDER BY position LIMIT 1
+    SELECT media_digest, bundled_key FROM product_images WHERE product_id = p.id ORDER BY position LIMIT 1
 ) img ON true
 WHERE c.slug = @campaign::text
 ORDER BY cp.position, p.id;

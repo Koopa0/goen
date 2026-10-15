@@ -53,7 +53,7 @@ INSERT INTO product_specs (id, product_id, label, value, position) VALUES
     ('cccc0001-0000-4000-8000-000000000000', '33333333-3333-4333-8333-333333333333',
      '螢幕', '6.7" LTPO OLED', 0);
 
-INSERT INTO product_images (id, product_id, storage_key, alt_text, position) VALUES
+INSERT INTO product_images (id, product_id, bundled_key, alt_text, position) VALUES
     ('dddd0001-0000-4000-8000-000000000000', '33333333-3333-4333-8333-333333333333',
      'pxl-9p-front.webp', 'Pixelight 9 Pro 星霧藍正面', 0);
 

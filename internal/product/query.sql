@@ -42,7 +42,7 @@ SELECT trail.slug, trail.name FROM trail ORDER BY trail.depth DESC;
 -- whichever value is chosen, then the other values'. Ordered and never filtered,
 -- so a value nobody photographed still opens on a picture.
 -- name: ProductImages :many
-SELECT pi.storage_key,
+SELECT coalesce(pi.media_digest, pi.bundled_key)::text AS image_key,
        localized_name(pi.alt_text, pi.alt_text_en, @locale::text) AS alt_text,
        coalesce(pi.width, 0)::integer AS width,
        coalesce(pi.height, 0)::integer AS height,
@@ -216,7 +216,7 @@ SELECT
                       WHERE vov.option_value_id = cv.id AND pv.is_active
                   )
     ), ARRAY[]::text[])::text[] AS colours,
-    coalesce(img.storage_key, '') AS image_key,
+    coalesce(img.media_digest, img.bundled_key, '') AS image_key,
     coalesce(localized_name(img.alt_text, img.alt_text_en, @locale::text), '')::text AS image_alt,
     coalesce(img.width, 0)::integer AS image_width,
     coalesce(img.height, 0)::integer AS image_height
@@ -235,7 +235,7 @@ LEFT JOIN LATERAL (
     FROM visible_reviews WHERE product_id = p.id
 ) rv ON true
 LEFT JOIN LATERAL (
-    SELECT storage_key, alt_text, alt_text_en, width, height FROM product_images
+    SELECT media_digest, bundled_key, alt_text, alt_text_en, width, height FROM product_images
     WHERE product_id = p.id ORDER BY position LIMIT 1
 ) img ON true
 WHERE p.status = 'active'
@@ -372,7 +372,7 @@ SELECT
                       WHERE vov.option_value_id = cv.id AND pv.is_active
                   )
     ), ARRAY[]::text[])::text[] AS colours,
-    coalesce(img.storage_key, '') AS image_key,
+    coalesce(img.media_digest, img.bundled_key, '') AS image_key,
     coalesce(localized_name(img.alt_text, img.alt_text_en, @locale::text), '')::text AS image_alt,
     coalesce(img.width, 0)::integer AS image_width,
     coalesce(img.height, 0)::integer AS image_height,
@@ -392,7 +392,7 @@ LEFT JOIN LATERAL (
     FROM visible_reviews WHERE product_id = p.id
 ) rv ON true
 LEFT JOIN LATERAL (
-    SELECT storage_key, alt_text, alt_text_en, width, height
+    SELECT media_digest, bundled_key, alt_text, alt_text_en, width, height
     FROM product_images WHERE product_id = p.id ORDER BY position LIMIT 1
 ) img ON true
 WHERE cp.product_id = @product_id

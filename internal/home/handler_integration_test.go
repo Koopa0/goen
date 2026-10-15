@@ -1216,7 +1216,7 @@ func TestTheLeadTileFollowsTheFirstPhotographsWidth(t *testing.T) {
 			t.Fatalf("clear photograph: %v", err)
 		}
 		if _, err := tx.Exec(ctx, `
-			INSERT INTO product_images (product_id, storage_key, alt_text, width, height, position)
+			INSERT INTO product_images (product_id, bundled_key, alt_text, width, height, position)
 			VALUES ($1, 'lead.webp', '主圖', $2, 1200, 0)`, productIDs[0], tt.width); err != nil {
 			t.Fatalf("%s: insert photograph: %v", tt.name, err)
 		}

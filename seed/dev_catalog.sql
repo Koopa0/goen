@@ -996,7 +996,7 @@ FROM (VALUES
 ) AS m(zh, en)
 WHERE s.value = m.zh;
 
-INSERT INTO product_images (id, product_id, storage_key, alt_text, alt_text_en, width, height, position, option_value_id) VALUES
+INSERT INTO product_images (id, product_id, bundled_key, alt_text, alt_text_en, width, height, position, option_value_id) VALUES
     ('0000001d-0000-4000-8000-00000000001d', '0000000e-0000-4000-8000-00000000000e', 'pixelight-9-pro-01.webp', 'Pixelight 9 Pro 5G 商品照', NULL, 1600, 1200, 0, NULL),
     ('0000002e-0000-4000-8000-00000000002e', '00000020-0000-4000-8000-000000000020', 'pixelight-9-01.webp', 'Pixelight 9 5G 商品照', NULL, 1600, 1200, 0, NULL),
     ('0000003b-0000-4000-8000-00000000003b', '00000030-0000-4000-8000-000000000030', 'aurora-edge-7-01.webp', 'Aurora Edge 7 商品照', NULL, 1600, 1200, 1, NULL),
