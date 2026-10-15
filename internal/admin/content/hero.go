@@ -142,7 +142,7 @@ func (s *Store) CreateHeroSlide(ctx context.Context, f *HeroForm) (map[string]st
 				Eyebrow: f.Eyebrow, Headline: f.Headline, Body: f.Body,
 				PrimaryCtaLabel: f.PrimaryLabel, PrimaryCtaHref: f.PrimaryHref,
 				SecondaryCtaLabel: f.SecondLabel, SecondaryCtaHref: f.SecondHref,
-				ImageKey: f.ImageKey, ImageAlt: f.ImageAlt,
+				MediaDigest: f.ImageKey, ImageAlt: f.ImageAlt,
 				EyebrowEn: f.EyebrowEn, HeadlineEn: f.HeadlineEn, BodyEn: f.BodyEn,
 				PrimaryCtaLabelEn:   f.PrimaryLabelEn,
 				SecondaryCtaLabelEn: f.SecondLabelEn, ImageAltEn: f.ImageAltEn,

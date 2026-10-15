@@ -135,7 +135,7 @@ SELECT h.id, coalesce(localized_name(h.eyebrow, h.eyebrow_en, @locale::text), ''
        h.primary_cta_href,
        coalesce(localized_name(h.secondary_cta_label, h.secondary_cta_label_en,
                                @locale::text), '')::text AS secondary_cta_label,
-       h.secondary_cta_href, h.image_key,
+       h.secondary_cta_href, h.media_digest AS image_key,
        coalesce(localized_name(h.image_alt, h.image_alt_en, @locale::text), '')::text
            AS image_alt,
        -- Dimensions come from media_objects: one row of bytes, one row of size.
@@ -143,7 +143,7 @@ SELECT h.id, coalesce(localized_name(h.eyebrow, h.eyebrow_en, @locale::text), ''
        coalesce(m.width, 0)::integer AS image_width,
        coalesce(m.height, 0)::integer AS image_height
 FROM hero_slides h
-LEFT JOIN media_objects m ON m.digest = h.image_key
+LEFT JOIN media_objects m ON m.digest = h.media_digest
 WHERE h.is_active
   AND (h.starts_at IS NULL OR h.starts_at <= now())
   AND (h.ends_at IS NULL OR h.ends_at > now())

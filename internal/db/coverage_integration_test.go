@@ -744,7 +744,7 @@ func TestReportingCannotReadCredentialsOrPII(t *testing.T) {
 		"faq_categories": {[]string{"name", "name_en"}, published},
 		"faq_entries":    {[]string{"answer", "answer_en", "question", "question_en"}, published},
 		"hero_slides": {[]string{"body", "body_en", "eyebrow", "eyebrow_en", "headline",
-			"headline_en", "image_alt", "image_alt_en", "image_key", "primary_cta_href",
+			"headline_en", "image_alt", "image_alt_en", "media_digest", "primary_cta_href",
 			"primary_cta_label", "primary_cta_label_en", "secondary_cta_href",
 			"secondary_cta_label", "secondary_cta_label_en"}, published},
 		"inventory_movements":    {[]string{"idempotency_key", "reason", "source_type"}, shopWords},

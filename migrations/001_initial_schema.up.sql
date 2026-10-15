@@ -4742,7 +4742,10 @@ CREATE TABLE hero_slides (
     primary_cta_href    text NOT NULL,
     secondary_cta_label text,
     secondary_cta_href  text,
-    image_key           text,
+    -- The slide's photograph, always an upload: its foreign key is added after
+    -- media_objects is created. No bundled file can be a slide's photograph,
+    -- because no writer stores one and no reader resolves one.
+    media_digest        text,
     image_alt           text,
     -- The English hero, each field separately optional. The HREFs are not
     -- translated: a link goes to one page.
@@ -4762,7 +4765,7 @@ CREATE TABLE hero_slides (
     CONSTRAINT hero_slides_primary_cta_present
         CHECK (primary_cta_label ~ '[^[:space:]]' AND primary_cta_href ~ '[^[:space:]]'),
     CONSTRAINT hero_slides_image_has_alt
-        CHECK (image_key IS NULL
+        CHECK (media_digest IS NULL
                OR (image_alt IS NOT NULL AND image_alt ~ '[^[:space:]]')),
     CONSTRAINT hero_slides_secondary_cta_complete
         CHECK ((secondary_cta_label IS NULL) = (secondary_cta_href IS NULL)),
@@ -9392,6 +9395,12 @@ ALTER TABLE categories
 
 CREATE INDEX categories_media_digest_idx ON categories (media_digest);
 
+ALTER TABLE hero_slides
+    ADD CONSTRAINT hero_slides_media_digest_fk
+    FOREIGN KEY (media_digest) REFERENCES media_objects (digest) ON DELETE RESTRICT;
+
+CREATE INDEX hero_slides_media_digest_idx ON hero_slides (media_digest);
+
 GRANT SELECT ON media_objects TO store;
 GRANT SELECT, DELETE ON media_objects TO admin;
 GRANT INSERT (digest, content_type, bytes, width, height, byte_size)
@@ -10249,7 +10258,7 @@ GRANT INSERT (message, message_short, code, cta_label, cta_href, message_en,
 
 REVOKE INSERT, UPDATE ON hero_slides FROM admin;
 GRANT INSERT (eyebrow, headline, body, primary_cta_label, primary_cta_href,
-              secondary_cta_label, secondary_cta_href, image_key, image_alt,
+              secondary_cta_label, secondary_cta_href, media_digest, image_alt,
               eyebrow_en, headline_en, body_en, primary_cta_label_en,
               secondary_cta_label_en, image_alt_en, position, ends_at),
       UPDATE (position, is_active)
