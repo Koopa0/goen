@@ -9,6 +9,7 @@ import (
 
 	"github.com/koopa0/goen/internal/db"
 	"github.com/koopa0/goen/internal/i18n"
+	"github.com/koopa0/goen/internal/invoice"
 	"github.com/koopa0/goen/internal/order"
 	"github.com/koopa0/goen/internal/outbox"
 	"github.com/koopa0/goen/internal/shoptime"
@@ -65,7 +66,7 @@ func timelineEntry(r *db.AdminOrderTimelineRow) admin.TimelineEntry {
 		e.Label = i18n.KeyAdminTimelineProvider
 		return e
 	case timelineInvoice:
-		labels, statuses = admin.InvoiceOperationLabels, admin.InvoiceOperationStatuses
+		labels, statuses = invoice.OperationKindLabels, invoice.OperationStatusLabels
 	case timelineMail:
 		labels, statuses = orderMailLabels, mailStatuses
 	}
