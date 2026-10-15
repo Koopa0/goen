@@ -885,6 +885,17 @@ var ruleCases = []ruleCase{
 		         WHERE id = '88880001-0000-4000-8000-000000000000';`,
 	},
 	{
+		// As the owner, which every door runs as: the approved request's
+		// reason is what it was approved on.
+		rule: "return_requests_claim_frozen",
+		reject: `UPDATE return_requests SET status = 'approved', decided_at = now()
+		         WHERE id = '88880001-0000-4000-8000-000000000000';
+		         UPDATE return_requests SET reason = '改變心意'
+		         WHERE id = '88880001-0000-4000-8000-000000000000';`,
+		accept: `UPDATE return_requests SET reason = '改變心意'
+		         WHERE id = '88880001-0000-4000-8000-000000000000';`,
+	},
+	{
 		rule: "return_requests_sources_cover_refund",
 		reject: `INSERT INTO refunds (
 		             id, payment_id, request_key, amount_cents

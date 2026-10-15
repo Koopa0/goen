@@ -2812,7 +2812,8 @@ CREATE TABLE return_requests (
     -- by what did not ship, and a parcel can no longer carry them. Only
     -- open_unsent_refund sets it: no role's column grant names it. Its reason
     -- is the staff member's code, which settle_unsent_refund reads to decide
-    -- whether the units go back on sale.
+    -- whether the units go back on sale; return_requests_claim_frozen keeps
+    -- that code as the door wrote it.
     unsent             boolean NOT NULL DEFAULT false,
     -- A BLANK reason is legal: Consumer Protection Act §19 I lets a customer
     -- rescind within seven days without giving one, and §19 V voids any agreement
@@ -3086,8 +3087,11 @@ CREATE TRIGGER return_within_shipment
 -- The quantity and purchased identity are inputs to the approved money
 -- snapshot. Inspection may fill received/restocked/note later, but no writer may
 -- rewrite those economic inputs once the request leaves requested.
+-- SECURITY DEFINER for the request-row lock below: FOR UPDATE needs UPDATE
+-- privilege on return_requests, and the storefront, which writes a customer's
+-- lines, holds none there.
 CREATE FUNCTION return_lines_require_open_request() RETURNS trigger
-LANGUAGE plpgsql SET search_path = pg_catalog, public, pg_temp AS $$
+LANGUAGE plpgsql SECURITY DEFINER SET search_path = pg_catalog, public, pg_temp AS $$
 DECLARE
     v_request_id uuid;
     v_status text;
@@ -3439,6 +3443,30 @@ $$;
 CREATE TRIGGER return_requests_start_requested
     BEFORE INSERT ON return_requests
     FOR EACH ROW EXECUTE FUNCTION return_requests_check_initial();
+
+-- A decided request's order and reason are what it was decided on. The money
+-- frozen at approval is that order's, and settle_unsent_refund reads an
+-- unsent refund's reason to write its units off or put them back on sale.
+-- No role's grant names either column for UPDATE, but the doors run as the
+-- owner, so the rule is here as well. An unsent refund's reason is the staff
+-- member's code from the moment the door writes it, so it never changes.
+CREATE FUNCTION return_requests_freeze_claim() RETURNS trigger
+LANGUAGE plpgsql SET search_path = pg_catalog, public, pg_temp AS $$
+BEGIN
+    IF OLD.status <> 'requested' OR NEW.status <> 'requested'
+       OR OLD.unsent OR NEW.unsent THEN
+        RAISE EXCEPTION 'return request %: its order and reason cannot change once it is decided', OLD.id
+            USING ERRCODE = 'check_violation', CONSTRAINT = 'return_requests_claim_frozen';
+    END IF;
+    RETURN NEW;
+END;
+$$;
+
+CREATE TRIGGER return_requests_claim_frozen
+    BEFORE UPDATE OF order_id, reason ON return_requests
+    FOR EACH ROW
+    WHEN (NEW.order_id IS DISTINCT FROM OLD.order_id OR NEW.reason IS DISTINCT FROM OLD.reason)
+    EXECUTE FUNCTION return_requests_freeze_claim();
 
 -- A browser may pass the access check just before the order owner erases their
 -- account. The order FK keeps the row alive, but only a live owner can receive
@@ -8943,7 +8971,8 @@ BEGIN
             USING ERRCODE = 'check_violation', CONSTRAINT = 'return_unsent_request';
     END IF;
 
-    -- The order is immutable on a return, so it can be read before the lock.
+    -- An unsent refund's order never changes (return_requests_claim_frozen),
+    -- so it can be read before the lock.
     SELECT order_id INTO v_order_id FROM return_requests
     WHERE id = p_return_request_id AND unsent;
     IF NOT FOUND THEN
@@ -9829,9 +9858,10 @@ GRANT INSERT (id, product_id, user_id, body, created_at),
 
 REVOKE INSERT, UPDATE, DELETE ON product_answers FROM store;
 
+-- The customer files a request and never edits it: no storefront statement
+-- updates a return.
 REVOKE INSERT, UPDATE ON return_requests FROM store;
-GRANT INSERT (id, order_id, requested_by_user_id, reason, created_at),
-      UPDATE (id, order_id, requested_by_user_id, reason, created_at)
+GRANT INSERT (id, order_id, requested_by_user_id, reason, created_at)
     ON return_requests TO store;
 
 -- Checkout appends the purchased snapshot once. Catalogue identities are
