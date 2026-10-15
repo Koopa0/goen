@@ -11,7 +11,6 @@ import (
 	"github.com/koopa0/goen/internal/i18n"
 	"github.com/koopa0/goen/internal/order"
 	"github.com/koopa0/goen/internal/ui/components"
-	"github.com/koopa0/goen/internal/ui/pages/admin"
 )
 
 func TestRefusedIfNoRowRefusesOnlyAMissingRow(t *testing.T) {
@@ -44,7 +43,7 @@ func TestAnOrderRefundedInFullSaysSoInPlaceOfItsDelivery(t *testing.T) {
 		t.Errorf("orderStatus(delivered, returned) = %q, %q; want %q, %q", text, intent, want, components.IntentNeutral)
 	}
 	text, _ = orderStatus(ctx, order.FulfillmentDelivered, true, 0, false)
-	if want := admin.FundedFulfillmentLabel(ctx, order.FulfillmentDelivered, true, 0); text != want {
+	if want := order.FulfillmentDelivered.FundedLabel(ctx, true, 0); text != want {
 		t.Errorf("orderStatus(delivered, not returned) = %q, want %q", text, want)
 	}
 }

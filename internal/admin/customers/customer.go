@@ -153,8 +153,8 @@ func (s *Store) Profile(ctx context.Context, id string) (admin.CustomerView, err
 
 func recentOrderRow(ctx context.Context, o *db.AdminCustomerOrdersRow, returned bool) admin.OrderRow {
 	fulfillment := order.FulfillmentStatus(o.FulfillmentStatus)
-	text := admin.FundedFulfillmentLabel(ctx, fulfillment, o.Committed, o.OwedCents)
-	intent := admin.FundedFulfillmentIntent(fulfillment, o.Committed, o.OwedCents)
+	text := fulfillment.FundedLabel(ctx, o.Committed, o.OwedCents)
+	intent := components.FundedFulfillmentIntent(fulfillment, o.Committed, o.OwedCents)
 	if returned {
 		text, intent = i18n.T(ctx, i18n.KeyStatusRefunded), components.IntentNeutral
 	}
