@@ -27,7 +27,6 @@ import (
 	"github.com/koopa0/goen/internal/i18n"
 	"github.com/koopa0/goen/internal/ratelimit"
 	"github.com/koopa0/goen/internal/ui/layouts"
-	"github.com/koopa0/goen/internal/ui/pages"
 	"github.com/koopa0/goen/internal/ui/pages/admin"
 	"github.com/koopa0/goen/internal/web"
 )
@@ -59,13 +58,13 @@ func TestContactSubjectsSurviveWritingAndRenderInBothLanguages(t *testing.T) {
 			ctx := i18n.WithLocale(t.Context(), language.locale)
 			page := httptest.NewRecorder()
 			h.Page(page, httptest.NewRequestWithContext(ctx, http.MethodGet, "/contact", nil))
-			wantChoices := make([]pages.ContactSubject, 0, len(tests))
+			wantChoices := make([]contact.ContactSubject, 0, len(tests))
 			for _, tc := range tests {
 				label := tc.zh
 				if language.en {
 					label = tc.en
 				}
-				wantChoices = append(wantChoices, pages.ContactSubject{Value: tc.value, Label: label})
+				wantChoices = append(wantChoices, contact.ContactSubject{Value: tc.value, Label: label})
 			}
 			if diff := cmp.Diff(wantChoices, contactSubjectPicker(t, page.Body.String())); diff != "" {
 				t.Errorf("contact picker (-want +got):\n%s", diff)
@@ -191,20 +190,20 @@ func contactSubjectRow(t *testing.T, ctx context.Context, desk *feedback.Store, 
 	}
 }
 
-func contactSubjectPicker(t *testing.T, markup string) []pages.ContactSubject {
+func contactSubjectPicker(t *testing.T, markup string) []contact.ContactSubject {
 	t.Helper()
 	doc, err := html.Parse(strings.NewReader(markup))
 	if err != nil {
 		t.Fatalf("parse contact picker: %v", err)
 	}
-	var choices []pages.ContactSubject
+	var choices []contact.ContactSubject
 	for node := range doc.Descendants() {
 		if node.Type != html.ElementNode || node.Data != "select" || contactSubjectAttr(node, "name") != "subject" {
 			continue
 		}
 		for option := range node.Descendants() {
 			if option.Type == html.ElementNode && option.Data == "option" && contactSubjectAttr(option, "value") != "" {
-				choices = append(choices, pages.ContactSubject{Value: contactSubjectAttr(option, "value"), Label: contactSubjectText(option)})
+				choices = append(choices, contact.ContactSubject{Value: contactSubjectAttr(option, "value"), Label: contactSubjectText(option)})
 			}
 		}
 	}

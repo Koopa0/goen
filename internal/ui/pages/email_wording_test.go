@@ -6,6 +6,7 @@ import (
 
 	"golang.org/x/net/html"
 
+	"github.com/koopa0/goen/internal/contact"
 	"github.com/koopa0/goen/internal/i18n"
 )
 
@@ -27,8 +28,8 @@ func TestContact_EmailRefusal(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 			localized := i18n.WithLocale(t.Context(), tc.locale)
-			view := ContactForm{Email: "invalid", Errors: map[string]string{"email": i18n.T(localized, tc.key)}}
-			markup := renderComponent(t, localized, Contact(ContactMeta(localized), view))
+			view := contact.ContactForm{Email: "invalid", Errors: map[string]string{"email": i18n.T(localized, tc.key)}}
+			markup := renderComponent(t, localized, contact.Contact(contact.ContactMeta(localized), view))
 			assertEmailRefusal(t, markup, "contact-email", tc.want)
 		})
 	}
