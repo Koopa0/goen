@@ -43,6 +43,7 @@ var definerFunctions = []string{
 	"mark_payment_event_unreconciled(text,text)",
 	"open_payment(uuid,text,bigint)",
 	"open_refund_before_shipment(text,text,uuid,text)",
+	"open_unsent_refund(text,uuid[],integer[],text,text,uuid,text)",
 	"post_store_credit(uuid,bigint,text,uuid,text,uuid)",
 	"reconcile_invalid_invoice_allowance(uuid,uuid,uuid,text,text,timestamp with time zone,bigint,text[],integer[],bigint[],bigint[])",
 	"record_audit_event(uuid,text,text,uuid,jsonb,jsonb,text)",
@@ -75,6 +76,7 @@ var definerFunctions = []string{
 	"settle_invoice_allowance(uuid,uuid,text,timestamp with time zone,text[],integer[],bigint[],bigint[],jsonb)",
 	"settle_invoice_issue(uuid,uuid,text,text,timestamp with time zone,text[],integer[],bigint[],bigint[])",
 	"settle_invoice_void(uuid,uuid)",
+	"settle_unsent_refund(uuid,uuid,text)",
 	"spend_store_credit(uuid,bigint)",
 	"sweep_notified_stock_notifications(interval,integer)",
 	"upsert_staff(text,text,text)",
@@ -107,8 +109,8 @@ func TestSecurityDefinerFunctionsAreTheReviewedSet(t *testing.T) {
 
 	want := slices.Clone(definerFunctions)
 	slices.Sort(want)
-	if len(want) != 61 {
-		t.Fatalf("golden list holds %d signatures, want 61; edit the list on purpose, not by accident", len(want))
+	if len(want) != 63 {
+		t.Fatalf("golden list holds %d signatures, want 63; edit the list on purpose, not by accident", len(want))
 	}
 
 	for _, sig := range want {

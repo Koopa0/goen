@@ -47,6 +47,9 @@ var coveredByNamedTest = map[string]string{
 	// Its violation needs an order a committed checkout placed, which a case run inside the
 	// fixtures' own transaction cannot have.
 	"order_lines_written_while_placing": "TestAPlacedOrderTakesNoLineFromALaterRequest (internal/cart)",
+	// Its violation needs a paid unsent refund over a live hold, which only
+	// the door and a payout can build.
+	"return_unsent_completes_released": "TestAnUnpaidUnsentRefundNeitherSettlesNorCompletes",
 }
 
 // TestEveryRuleTriggerIsExercised requires a case for every rule trigger in the catalog.

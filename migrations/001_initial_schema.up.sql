@@ -2098,6 +2098,10 @@ BEGIN
     -- one screen built to inform a 消保法 §19 decision, in the shop's favour.
     -- That is the cost mistake #17 already recorded, reintroduced from the
     -- other side.
+    --
+    -- The abandonment is open_unsent_refund. Its units are owed no parcel once
+    -- their refund is COMPLETED — settle_unsent_refund completes it only after
+    -- the money has gone back and the hold is released — not merely approved.
     IF NEW.fulfillment_status = 'completed'
        AND OLD.fulfillment_status <> NEW.fulfillment_status THEN
         SELECT count(*) INTO lines
@@ -2105,7 +2109,13 @@ BEGIN
         WHERE ol.order_id = NEW.id
           AND ol.quantity > coalesce((
               SELECT sum(sl.quantity) FROM order_shipment_lines sl
-              WHERE sl.order_line_id = ol.id), 0);
+              WHERE sl.order_line_id = ol.id), 0)
+            + coalesce((
+              SELECT sum(rl.quantity)
+              FROM return_request_lines rl
+              JOIN return_requests rr ON rr.id = rl.return_request_id
+              WHERE rl.order_line_id = ol.id
+                AND rr.unsent AND rr.status = 'completed'), 0);
         IF lines > 0 THEN
             RAISE EXCEPTION 'order % still owes % line(s) a parcel and cannot be %',
                 NEW.order_number, lines, NEW.fulfillment_status
@@ -2426,6 +2436,10 @@ CREATE INDEX order_shipment_lines_line_idx ON order_shipment_lines (order_line_i
 
 -- You cannot ship more of a line than was bought, counting every shipment. The
 -- line's order is locked first so two shipments cannot both pass.
+--
+-- Units refunded as unsent (open_unsent_refund) are no longer bought: the
+-- customer has their money back for them, so no parcel may carry them. The
+-- claim counts from approval, which is the same order lock.
 CREATE FUNCTION shipment_lines_within_purchase() RETURNS trigger
 LANGUAGE plpgsql SET search_path = pg_catalog, public, pg_temp AS $$
 DECLARE
@@ -2435,6 +2449,15 @@ BEGIN
     SELECT ol.quantity INTO bought
     FROM order_lines ol JOIN orders o ON o.id = ol.order_id
     WHERE ol.id = NEW.order_line_id FOR UPDATE OF o;
+
+    -- A separate statement: FOR UPDATE refuses the aggregate, and this read
+    -- must come after the lock.
+    bought := bought - coalesce((
+        SELECT sum(rl.quantity)
+        FROM return_request_lines rl
+        JOIN return_requests r ON r.id = rl.return_request_id
+        WHERE rl.order_line_id = NEW.order_line_id
+          AND r.unsent AND r.status <> 'rejected'), 0);
 
     SELECT coalesce(sum(quantity), 0) INTO already
     FROM order_shipment_lines
@@ -2785,10 +2808,25 @@ CREATE TABLE return_requests (
     -- A full refund of a paid order nothing has shipped from. Only
     -- open_refund_before_shipment sets it: no role's column grant names it.
     before_shipment    boolean NOT NULL DEFAULT false,
+    -- A refund of units a partly shipped order will not send: they are bounded
+    -- by what did not ship, and a parcel can no longer carry them. Only
+    -- open_unsent_refund sets it: no role's column grant names it. Its reason
+    -- is the staff member's code, which settle_unsent_refund reads to decide
+    -- whether the units go back on sale.
+    unsent             boolean NOT NULL DEFAULT false,
     -- A BLANK reason is legal: Consumer Protection Act §19 I lets a customer
     -- rescind within seven days without giving one, and §19 V voids any agreement
     -- otherwise. The column stays NOT NULL; '' is "none given".
     CONSTRAINT return_requests_reason_bounded CHECK (length(reason) <= 500),
+    -- Before shipment nothing has gone out; unsent needs a parcel that has.
+    CONSTRAINT return_requests_unsent_not_before_shipment
+        CHECK (NOT (before_shipment AND unsent)),
+    -- damaged, lost and supplier_failed: the unit does not exist any more, so
+    -- it is written off. customer_withdrew: it does, and goes back on sale.
+    CONSTRAINT return_requests_unsent_reason_known CHECK (
+        NOT unsent
+        OR reason IN ('damaged', 'lost', 'supplier_failed', 'customer_withdrew')
+    ),
     -- This becomes immutable provider-attempt reason and append-only audit
     -- evidence at approval. The browser limit is convenience; this is the
     -- authority for every writer.
@@ -2965,12 +3003,18 @@ CREATE TRIGGER inventory_movements_source_parent
 -- You cannot return what was never sent. The ceiling is the SHIPPED quantity:
 -- bounded by what was ORDERED, a customer could open a return — and, since
 -- refunds pay out on approval, be paid — for goods still in the warehouse.
+--
+-- An unsent refund is the other half of the line: what did NOT ship. The two
+-- halves are counted apart, so a claim on one never uses up the other — the
+-- shipped units stay returnable after their siblings were refunded unsent —
+-- and shipment_lines_within_purchase keeps a parcel out of the unsent half.
 CREATE FUNCTION return_lines_within_purchase() RETURNS trigger
 LANGUAGE plpgsql SET search_path = pg_catalog, public, pg_temp AS $$
 DECLARE
     shipped integer;
     v_limit integer;
     already integer;
+    v_unsent boolean;
 BEGIN
     -- Two statements, because PostgreSQL refuses FOR UPDATE with GROUP BY. The
     -- lock comes first, or two requests each read a total the other will spend.
@@ -3004,13 +3048,28 @@ BEGIN
         SELECT ol.quantity INTO v_limit FROM order_lines ol WHERE ol.id = NEW.order_line_id;
     END IF;
 
+    -- Only open_unsent_refund writes an unsent request, and only after a
+    -- parcel exists, so it never meets the before-shipment branch above.
+    v_unsent := EXISTS (SELECT 1 FROM return_requests r
+                        WHERE r.id = NEW.return_request_id AND r.unsent);
+    IF v_unsent THEN
+        SELECT ol.quantity - shipped INTO v_limit
+        FROM order_lines ol WHERE ol.id = NEW.order_line_id;
+    END IF;
+
     SELECT coalesce(sum(rl.quantity), 0) INTO already
     FROM return_request_lines rl
     JOIN return_requests r ON r.id = rl.return_request_id
     WHERE rl.order_line_id = NEW.order_line_id
       AND r.status <> 'rejected'
+      AND r.unsent = v_unsent
       AND rl.return_request_id <> NEW.return_request_id;
 
+    IF v_unsent AND already + NEW.quantity > v_limit THEN
+        RAISE EXCEPTION 'refunding % unsent of a line that shipped % and has % unsent (already claimed %)',
+            NEW.quantity, shipped, v_limit, already
+            USING ERRCODE = 'check_violation', CONSTRAINT = 'return_within_shipment';
+    END IF;
     IF already + NEW.quantity > v_limit THEN
         RAISE EXCEPTION 'returning % of a line that shipped % (already claimed %)',
             NEW.quantity, shipped, already
@@ -3042,6 +3101,16 @@ BEGIN
         RAISE EXCEPTION 'return % was refunded before shipment; nothing is received', NEW.return_request_id
             USING ERRCODE = 'check_violation',
                   CONSTRAINT = 'return_before_shipment_nothing_received';
+    END IF;
+    -- Nor of an unsent refund: those units never left either. Its hold is
+    -- released or written off by settle_unsent_refund, not restocked here.
+    IF TG_OP <> 'DELETE'
+       AND (coalesce(NEW.received_quantity, 0) <> 0 OR coalesce(NEW.restocked_quantity, 0) <> 0)
+       AND EXISTS (SELECT 1 FROM return_requests r
+                   WHERE r.id = NEW.return_request_id AND r.unsent) THEN
+        RAISE EXCEPTION 'return % refunds units that were not sent; nothing is received', NEW.return_request_id
+            USING ERRCODE = 'check_violation',
+                  CONSTRAINT = 'return_unsent_nothing_received';
     END IF;
     IF TG_OP = 'UPDATE'
        AND NEW.order_id IS NOT DISTINCT FROM OLD.order_id
@@ -3306,6 +3375,49 @@ $$;
 CREATE TRIGGER return_before_shipment_completes_cancelled
     BEFORE UPDATE OF status ON return_requests
     FOR EACH ROW EXECUTE FUNCTION return_before_shipment_completes_cancelled();
+
+-- An unsent refund is closed by settle_unsent_refund, which first takes its
+-- units out of the order's hold. The returns desk closes an ordinary return by
+-- inspecting and completing it, and done to an unsent refund that would let
+-- the order complete (orders_finished_when_shipped owes no parcel for completed
+-- unsent units) with those units still held — and release_reservation refuses
+-- a committed order's hold, so they would be off sale for good. The fact read
+-- here is the hold itself: after this return completes, the order may hold no
+-- more of a variant than its lines still owe a parcel.
+CREATE FUNCTION return_unsent_completes_released() RETURNS trigger
+LANGUAGE plpgsql SET search_path = pg_catalog, public, pg_temp AS $$
+BEGIN
+    IF NEW.unsent AND NEW.status = 'completed' AND OLD.status <> 'completed' THEN
+        -- Holds and parcels change only under this lock.
+        PERFORM 1 FROM orders WHERE id = NEW.order_id FOR UPDATE;
+        IF EXISTS (
+            SELECT 1
+            FROM inventory_reservations ir
+            WHERE ir.order_id = NEW.order_id AND ir.state = 'held'
+              AND ir.quantity > (
+                  SELECT coalesce(sum(ol.quantity
+                      - coalesce((SELECT sum(sl.quantity) FROM order_shipment_lines sl
+                                  WHERE sl.order_line_id = ol.id), 0)
+                      - coalesce((SELECT sum(rl.quantity)
+                                  FROM return_request_lines rl
+                                  JOIN return_requests rr ON rr.id = rl.return_request_id
+                                  WHERE rl.order_line_id = ol.id AND rr.unsent
+                                    AND (rr.status = 'completed' OR rr.id = NEW.id)), 0)), 0)
+                  FROM order_lines ol
+                  WHERE ol.order_id = NEW.order_id AND ol.variant_id = ir.variant_id)
+        ) THEN
+            RAISE EXCEPTION 'return % completes only once the hold behind its units is settled', NEW.id
+                USING ERRCODE = 'check_violation',
+                      CONSTRAINT = 'return_unsent_completes_released';
+        END IF;
+    END IF;
+    RETURN NEW;
+END;
+$$;
+
+CREATE TRIGGER return_unsent_completes_released
+    BEFORE UPDATE OF status ON return_requests
+    FOR EACH ROW EXECUTE FUNCTION return_unsent_completes_released();
 
 -- Inserting straight into 'approved' would skip the transition machine above,
 -- exactly as orders_start_pending guards orders.
@@ -8673,6 +8785,244 @@ END;
 $$;
 
 GRANT EXECUTE ON FUNCTION open_refund_before_shipment(text, text, uuid, text) TO admin;
+
+-- A paid order that has shipped a parcel and still owes units that will not be
+-- sent refunds those units as a return of what did not ship, opened and
+-- approved in one step like the refund before shipment: approval freezes the
+-- money (return_requests_recount: paid price less the discount share, card
+-- first, then credit), the existing return payout pays it, and
+-- settle_unsent_refund closes it. The order is not cancelled; the rest of it
+-- ships as normal. admin cannot write a return's lines or its unsent mark, so
+-- staff name the lines here and the bounds stay return_within_shipment's.
+-- One unsettled unsent refund per order: a second press while one is open
+-- resumes that one, whatever lines it names.
+CREATE FUNCTION open_unsent_refund(
+    p_order_number text,
+    p_line_ids uuid[],
+    p_quantities integer[],
+    p_reason text,
+    p_note text,
+    p_actor uuid,
+    p_request_id text
+) RETURNS uuid
+LANGUAGE plpgsql SECURITY DEFINER SET search_path = pg_catalog, public, pg_temp AS $$
+DECLARE
+    v_order orders%ROWTYPE;
+    v_return return_requests%ROWTYPE;
+BEGIN
+    IF NOT EXISTS (SELECT 1 FROM users
+                   WHERE id = p_actor AND role IN ('staff', 'admin')) THEN
+        RAISE EXCEPTION 'an unsent refund requires a durable staff actor'
+            USING ERRCODE = 'check_violation', CONSTRAINT = 'return_unsent_actor';
+    END IF;
+    IF p_request_id IS NULL
+       OR p_request_id !~ '[^[:space:]]'
+       OR char_length(p_request_id) > 200 THEN
+        RAISE EXCEPTION 'an unsent refund requires a bounded request id'
+            USING ERRCODE = 'check_violation', CONSTRAINT = 'return_unsent_request';
+    END IF;
+    -- The customer reads why their goods are not coming; its length is
+    -- return_requests_resolution_bounded's.
+    IF p_note IS NULL OR p_note !~ '[^[:space:]]' THEN
+        RAISE EXCEPTION 'an unsent refund requires a note'
+            USING ERRCODE = 'check_violation', CONSTRAINT = 'return_unsent_note';
+    END IF;
+
+    -- The same row a parcel's lines lock (shipment_lines_within_purchase), so a
+    -- dispatch and this door cannot both take the same unit.
+    SELECT * INTO v_order FROM orders WHERE order_number = p_order_number FOR UPDATE;
+    IF NOT FOUND THEN
+        RAISE EXCEPTION 'no order %', p_order_number
+            USING ERRCODE = 'check_violation', CONSTRAINT = 'return_unsent_eligible';
+    END IF;
+
+    -- A second press resumes the refund this door opened and has not settled.
+    SELECT * INTO v_return FROM return_requests
+    WHERE order_id = v_order.id AND unsent AND status = 'approved';
+    IF FOUND THEN
+        RETURN v_return.id;
+    END IF;
+
+    -- Nothing shipped is the refund before shipment's door; the two are disjoint.
+    IF NOT order_is_committed(v_order.id)
+       OR v_order.fulfillment_status IN ('cancelled', 'completed')
+       OR NOT EXISTS (SELECT 1 FROM order_shipments WHERE order_id = v_order.id)
+       OR EXISTS (SELECT 1 FROM return_requests
+                  WHERE order_id = v_order.id AND before_shipment) THEN
+        RAISE EXCEPTION 'order % is not a paid order with a parcel shipped and units still owed',
+            p_order_number
+            USING ERRCODE = 'check_violation', CONSTRAINT = 'return_unsent_eligible';
+    END IF;
+    -- return_requests_one_open allows one undecided request per order: the
+    -- customer's is decided first, rather than refused by the index.
+    IF EXISTS (SELECT 1 FROM return_requests
+               WHERE order_id = v_order.id AND status = 'requested') THEN
+        RAISE EXCEPTION 'order % has an undecided return; decide it first', p_order_number
+            USING ERRCODE = 'check_violation', CONSTRAINT = 'return_unsent_undecided_return';
+    END IF;
+
+    IF p_line_ids IS NULL OR p_quantities IS NULL
+       OR cardinality(p_line_ids) = 0
+       OR cardinality(p_line_ids) <> cardinality(p_quantities)
+       OR array_position(p_line_ids, NULL) IS NOT NULL
+       OR array_position(p_quantities, NULL) IS NOT NULL
+       OR (SELECT count(DISTINCT l) FROM unnest(p_line_ids) AS l) <> cardinality(p_line_ids)
+       OR EXISTS (SELECT 1 FROM unnest(p_line_ids) AS l
+                  WHERE NOT EXISTS (SELECT 1 FROM order_lines ol
+                                    WHERE ol.id = l AND ol.order_id = v_order.id)) THEN
+        RAISE EXCEPTION 'an unsent refund names each of order %''s lines once, with a quantity',
+            p_order_number
+            USING ERRCODE = 'check_violation', CONSTRAINT = 'return_unsent_lines';
+    END IF;
+
+    -- The reason is checked by return_requests_unsent_reason_known, the
+    -- quantities by return_request_lines_quantity_positive and
+    -- return_within_shipment.
+    INSERT INTO return_requests (order_id, requested_by_user_id, reason, unsent)
+    VALUES (v_order.id, p_actor, p_reason, true)
+    RETURNING * INTO v_return;
+    INSERT INTO return_request_lines (order_id, return_request_id, order_line_id, quantity)
+    SELECT v_order.id, v_return.id, l.id, l.quantity
+    FROM unnest(p_line_ids, p_quantities) AS l (id, quantity);
+    UPDATE return_requests
+    SET status = 'approved', resolution = p_note, decided_at = now()
+    WHERE id = v_return.id
+    RETURNING * INTO v_return;
+
+    PERFORM record_audit_event(
+        p_actor, 'return.refund_unsent', 'return_requests', v_return.id,
+        NULL,
+        jsonb_build_object(
+            'order_number', v_order.order_number,
+            'reason', p_reason,
+            'resolution', p_note,
+            'card_refund_cents', v_return.card_refund_cents,
+            'credit_refund_cents', v_return.credit_refund_cents
+        ),
+        p_request_id
+    );
+    RETURN v_return.id;
+END;
+$$;
+
+GRANT EXECUTE ON FUNCTION open_unsent_refund(text, uuid[], integer[], text, text, uuid, text)
+    TO admin;
+
+-- Close an unsent refund once its money has gone back. The units leave the
+-- order's hold here and nowhere else (release_reservation refuses a committed
+-- order): a unit the customer withdrew goes back on sale through a release
+-- movement; a damaged, lost or never-supplied one is consumed, because it left
+-- the shelf when the hold was taken and does not come back. Releasing it and
+-- then writing it off would put it on sale for one statement, and
+-- product_variants_restock_notices would mail its waiting customers.
+-- Lock order is release_reservation's: order, then each reservation and its
+-- variant, variants ascending. A press after it completed does nothing.
+CREATE FUNCTION settle_unsent_refund(
+    p_return_request_id uuid,
+    p_actor uuid,
+    p_request_id text
+) RETURNS void
+LANGUAGE plpgsql SECURITY DEFINER SET search_path = pg_catalog, public, pg_temp AS $$
+DECLARE
+    v_order_id uuid;
+    v_return return_requests%ROWTYPE;
+    v_line record;
+    v_hold inventory_reservations%ROWTYPE;
+    v_released uuid;
+BEGIN
+    IF NOT EXISTS (SELECT 1 FROM users
+                   WHERE id = p_actor AND role IN ('staff', 'admin')) THEN
+        RAISE EXCEPTION 'an unsent refund requires a durable staff actor'
+            USING ERRCODE = 'check_violation', CONSTRAINT = 'return_unsent_actor';
+    END IF;
+    IF p_request_id IS NULL
+       OR p_request_id !~ '[^[:space:]]'
+       OR char_length(p_request_id) > 200 THEN
+        RAISE EXCEPTION 'an unsent refund requires a bounded request id'
+            USING ERRCODE = 'check_violation', CONSTRAINT = 'return_unsent_request';
+    END IF;
+
+    -- The order is immutable on a return, so it can be read before the lock.
+    SELECT order_id INTO v_order_id FROM return_requests
+    WHERE id = p_return_request_id AND unsent;
+    IF NOT FOUND THEN
+        RAISE EXCEPTION 'no unsent refund %', p_return_request_id
+            USING ERRCODE = 'check_violation', CONSTRAINT = 'return_unsent_settle_state';
+    END IF;
+    PERFORM 1 FROM orders WHERE id = v_order_id FOR UPDATE;
+    SELECT * INTO v_return FROM return_requests WHERE id = p_return_request_id FOR UPDATE;
+    IF v_return.status = 'completed' THEN
+        RETURN;
+    END IF;
+    -- Completion would refuse an unpaid return too, but only after the hold had
+    -- moved; this says why before anything does.
+    IF return_payout_outstanding(p_return_request_id) THEN
+        RAISE EXCEPTION 'unsent refund % has not been paid back in full', p_return_request_id
+            USING ERRCODE = 'check_violation', CONSTRAINT = 'return_unsent_payout_outstanding';
+    END IF;
+
+    FOR v_line IN
+        SELECT ol.variant_id, sum(rl.quantity)::integer AS quantity
+        FROM return_request_lines rl
+        JOIN order_lines ol ON ol.id = rl.order_line_id
+        WHERE rl.return_request_id = p_return_request_id AND ol.variant_id IS NOT NULL
+        GROUP BY ol.variant_id
+        ORDER BY ol.variant_id
+    LOOP
+        SELECT * INTO v_hold FROM inventory_reservations
+        WHERE order_id = v_order_id AND variant_id = v_line.variant_id AND state = 'held'
+        FOR UPDATE;
+        IF NOT FOUND OR v_hold.quantity < v_line.quantity THEN
+            RAISE EXCEPTION 'order % holds % of variant %, not the % its unsent refund settles',
+                v_order_id, coalesce(v_hold.quantity, 0), v_line.variant_id, v_line.quantity
+                USING ERRCODE = 'check_violation', CONSTRAINT = 'return_unsent_hold_short';
+        END IF;
+        PERFORM 1 FROM product_variants WHERE id = v_line.variant_id FOR UPDATE;
+
+        IF v_return.reason <> 'customer_withdrew' THEN
+            PERFORM consume_reservation_partial(v_hold.id, v_line.quantity);
+            CONTINUE;
+        END IF;
+
+        IF v_hold.quantity = v_line.quantity THEN
+            UPDATE inventory_reservations
+            SET state = 'released', settled_at = now()
+            WHERE id = v_hold.id;
+            v_released := v_hold.id;
+        ELSE
+            -- consume_reservation_partial's split: the settled row keeps the
+            -- original's created_at and expires_at.
+            UPDATE inventory_reservations
+            SET quantity = quantity - v_line.quantity
+            WHERE id = v_hold.id;
+            INSERT INTO inventory_reservations
+                (order_id, variant_id, quantity, state, expires_at, created_at, settled_at)
+            VALUES (v_hold.order_id, v_hold.variant_id, v_line.quantity, 'released',
+                    v_hold.expires_at, v_hold.created_at, now())
+            RETURNING id INTO v_released;
+        END IF;
+        PERFORM record_inventory_movement(
+            v_line.variant_id, v_line.quantity, 'release',
+            'release:' || v_released, 'reservation', v_released, p_actor);
+    END LOOP;
+
+    -- Nothing came back and nothing is restocked: the hold settled above.
+    UPDATE return_request_lines
+    SET received_quantity = 0, restocked_quantity = 0
+    WHERE return_request_id = p_return_request_id;
+    UPDATE return_requests SET status = 'completed'
+    WHERE id = p_return_request_id;
+
+    PERFORM record_audit_event(
+        p_actor, 'return.complete', 'return_requests', p_return_request_id,
+        NULL,
+        jsonb_build_object('resolution', v_return.resolution),
+        p_request_id
+    );
+END;
+$$;
+
+GRANT EXECUTE ON FUNCTION settle_unsent_refund(uuid, uuid, text) TO admin;
 
 -- Co-purchase projection
 --

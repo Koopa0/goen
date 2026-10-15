@@ -1801,6 +1801,25 @@ VALUES ('66666666-6666-4666-8666-666666666666', '44444444-4444-4444-8444-4444444
 		accept:     `INSERT INTO return_requests (id, order_id, reason) VALUES ('11110001-0000-4000-8000-000000000002', '6666aaaa-6666-4666-8666-666666666666', '');`,
 	},
 	{
+		constraint: "return_requests_unsent_not_before_shipment",
+		reject: `INSERT INTO return_requests (id, order_id, reason, before_shipment, unsent)
+		         VALUES ('11110090-0000-4000-8000-000000000001',
+		                 '6666aaaa-6666-4666-8666-666666666666', 'damaged', true, true);`,
+		accept: `INSERT INTO return_requests (id, order_id, reason, before_shipment, unsent)
+		         VALUES ('11110090-0000-4000-8000-000000000001',
+		                 '6666aaaa-6666-4666-8666-666666666666', 'damaged', false, true);`,
+	},
+	{
+		// The accept is the one code that puts the unit back on sale.
+		constraint: "return_requests_unsent_reason_known",
+		reject: `INSERT INTO return_requests (id, order_id, reason, unsent)
+		         VALUES ('11110091-0000-4000-8000-000000000001',
+		                 '6666aaaa-6666-4666-8666-666666666666', '', true);`,
+		accept: `INSERT INTO return_requests (id, order_id, reason, unsent)
+		         VALUES ('11110091-0000-4000-8000-000000000001',
+		                 '6666aaaa-6666-4666-8666-666666666666', 'customer_withdrew', true);`,
+	},
+	{
 		constraint: "return_requests_resolution_bounded",
 		reject: `INSERT INTO return_requests (id, order_id, reason, resolution)
 		         VALUES ('11110040-0000-4000-8000-000000000001',

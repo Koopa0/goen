@@ -63,3 +63,31 @@ func TestOnlyTheDoorOpensARefundBeforeShipment(t *testing.T) {
 		}
 	}
 }
+
+// TestOnlyTheDoorsOpenAndSettleAnUnsentRefund holds the two grants the unsent
+// refund added: admin executes both doors, no other role executes either, and
+// no role can mark a return as unsent by writing the column itself.
+func TestOnlyTheDoorsOpenAndSettleAnUnsentRefund(t *testing.T) {
+	for _, door := range []string{
+		"open_unsent_refund(text,uuid[],integer[],text,text,uuid,text)",
+		"settle_unsent_refund(uuid,uuid,text)",
+	} {
+		assertFunctionPrivilege(t, "admin", door, true)
+		for _, role := range []string{"store", "reporting", "maintenance"} {
+			assertFunctionPrivilege(t, role, door, false)
+		}
+	}
+	for _, role := range []string{"store", "admin", "reporting", "maintenance"} {
+		for _, privilege := range []string{"INSERT", "UPDATE"} {
+			var got bool
+			if err := schemaPool(t).QueryRow(t.Context(),
+				`SELECT has_column_privilege($1, 'return_requests', 'unsent', $2)`,
+				role, privilege).Scan(&got); err != nil {
+				t.Fatalf("read %s %s on unsent: %v", role, privilege, err)
+			}
+			if got {
+				t.Errorf("%s can %s return_requests.unsent", role, privilege)
+			}
+		}
+	}
+}

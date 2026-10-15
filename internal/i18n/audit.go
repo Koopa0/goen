@@ -164,6 +164,8 @@ var (
 
 	KeyAuditReturnRefundBeforeShipment = key("audit.return.refund_before_shipment", Message{ZhHant: "出貨前退款", En: "Refund before shipment"})
 
+	KeyAuditReturnRefundUnsent = key("audit.return.refund_unsent", Message{ZhHant: "出貨後未寄出商品退款", En: "Refund of unsent items"})
+
 	KeyAuditOrderDelivery = key("audit.order.delivery", Message{ZhHant: "更正配送資料", En: "Correct delivery details"})
 
 	KeyAuditPaymentReconciled = key("audit.payment.reconciled", Message{ZhHant: "款項對帳", En: "Reconcile payment"})
