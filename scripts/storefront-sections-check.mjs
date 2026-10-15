@@ -12,8 +12,14 @@ try {
   await new Promise((resolve, reject) => { socket.onopen = resolve; socket.onerror = reject; });
   let id = 0;
   const pending = new Map();
+  const listeners = new Map();
   socket.onmessage = ({ data }) => {
-    const message = JSON.parse(data), request = pending.get(message.id);
+    const message = JSON.parse(data);
+    if (message.method) {
+      for (const listener of listeners.get(message.method) ?? []) listener(message.params);
+      return;
+    }
+    const request = pending.get(message.id);
     if (!request) return;
     pending.delete(message.id);
     clearTimeout(request.timer);
@@ -25,6 +31,13 @@ try {
     const timer = setTimeout(() => { pending.delete(current); reject(new Error(`${method} timed out: ${JSON.stringify(params)}`)); }, 20000);
     pending.set(current, { resolve, reject, timer });
     socket.send(JSON.stringify({ id: current, method, params }));
+  });
+  const nextEvent = method => new Promise((resolve, reject) => {
+    const set = listeners.get(method) ?? new Set();
+    listeners.set(method, set);
+    const timer = setTimeout(() => { set.delete(listener); reject(new Error(`${method} did not arrive`)); }, 20000);
+    const listener = params => { clearTimeout(timer); set.delete(listener); resolve(params); };
+    set.add(listener);
   });
   const evaluate = async expression => {
     const got = await send('Runtime.evaluate', { expression, awaitPromise: true, returnByValue: true });
@@ -44,6 +57,24 @@ try {
     await send('Page.navigate', { url });
     await waitFor(`location.href === ${JSON.stringify(url)} && document.readyState === 'complete'`, `${path} at ${width}px`);
     await evaluate('document.fonts.ready.then(() => new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve))))');
+  };
+  // With scripting disabled Runtime.evaluate cannot settle a page promise, so
+  // that page is opened and read through the DOM and CSS domains alone.
+  const openWithoutScripts = async (path, width) => {
+    await send('Emulation.setDeviceMetricsOverride', { width, height: 900, deviceScaleFactor: 1, mobile: false });
+    const loaded = nextEvent('Page.loadEventFired');
+    const [navigated] = await Promise.all([send('Page.navigate', { url: origin + path }), loaded]);
+    assert.equal(navigated.errorText, undefined, `${path} at ${width}px: ${navigated.errorText}`);
+  };
+  const queryNodes = async selectors => {
+    for (let attempt = 0; attempt < 100; attempt++) {
+      const { root } = await send('DOM.getDocument', { depth: 0 });
+      const ids = [];
+      for (const selector of selectors) ids.push((await send('DOM.querySelector', { nodeId: root.nodeId, selector })).nodeId);
+      if (ids.every(Boolean)) return ids;
+      await new Promise(resolve => setTimeout(resolve, 50));
+    }
+    return null;
   };
   // :hover and :active are forced through DevTools, the way the inspector
   // does, so no pointer has to land on a link that would navigate away.
@@ -151,7 +182,7 @@ try {
 
   // Only the script that moves between slides keeps aria-current true, so the
   // current tab is drawn only where scripting runs, in forced colours as well.
-  const tabs = () => evaluate(`(() => {
+  const tabsEvaluated = () => evaluate(`(() => {
     const current = document.querySelector('.goen-hero__tabs a[aria-current="true"]');
     const other = document.querySelector('.goen-hero__tabs a:not([aria-current="true"])');
     if (!current || !other) return null;
@@ -161,22 +192,38 @@ try {
     };
     return { scripting: matchMedia('(scripting: enabled)').matches, current: look(current), other: look(other) };
   })()`);
+  // Whether (scripting: none) holds cannot be read without running script, so
+  // the page is asserted by what it draws: a current tab drawn apart means the
+  // media feature did not turn off.
+  const tabsRead = async () => {
+    const ids = await queryNodes(['.goen-hero__tabs a[aria-current="true"]', '.goen-hero__tabs a:not([aria-current="true"])']);
+    if (!ids) return null;
+    const look = async nodeId => {
+      const { computedStyle } = await send('CSS.getComputedStyleForNode', { nodeId });
+      const value = name => computedStyle.find(property => property.name === name)?.value;
+      return { background: value('background-color'), weight: value('font-weight'), outline: value('outline-style') };
+    };
+    return { current: await look(ids[0]), other: await look(ids[1]) };
+  };
   for (const scriptingOff of [false, true]) {
     const label = `hero tabs scripting ${scriptingOff ? 'off' : 'on'}`;
+    const tabs = scriptingOff ? tabsRead : tabsEvaluated;
     await send('Emulation.setScriptExecutionDisabled', { value: scriptingOff });
-    await open('/home', 1440);
+    if (scriptingOff) await openWithoutScripts('/home', 1440);
+    else await open('/home', 1440);
     const drawn = await tabs();
     assert.ok(drawn, `${label}: no current and other tab`);
-    assert.equal(drawn.scripting, !scriptingOff, `${label}: the page does not report scripting ${scriptingOff ? 'off' : 'on'}`);
     if (scriptingOff) {
       assert.deepEqual(drawn.current, drawn.other, `${label}: the current tab is drawn apart`);
     } else {
+      assert.equal(drawn.scripting, true, `${label}: the page does not report scripting on`);
       assert.notEqual(drawn.current.background, drawn.other.background, `${label}: the current tab has no fill`);
       assert.notEqual(drawn.current.weight, drawn.other.weight, `${label}: the current tab has no weight`);
     }
     await media([{ name: 'forced-colors', value: 'active' }]);
     const forced = await tabs();
     await media([]);
+    assert.ok(forced, `${label}: no current and other tab in forced colours`);
     assert.equal(forced.current.outline === 'solid', !scriptingOff, `${label}: forced colours ${scriptingOff ? 'draw' : 'do not draw'} the current tab's edge`);
     console.log(`${label}: current tab ${scriptingOff ? 'not drawn' : 'drawn'}, forced-colours edge ${forced.current.outline}`);
   }

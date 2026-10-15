@@ -2,7 +2,6 @@ package site
 
 import (
 	"errors"
-	"fmt"
 	"maps"
 	"os"
 	"path/filepath"
@@ -18,7 +17,6 @@ import (
 	"github.com/koopa0/goen/internal/invoice/issuer"
 	"github.com/koopa0/goen/internal/order/access"
 	"github.com/koopa0/goen/internal/ui/layouts"
-	"github.com/koopa0/goen/internal/ui/pages"
 )
 
 // TestHomeRefundTimingDoesNotOutrunReturns holds the home trust strip to the
@@ -164,29 +162,6 @@ func TestRefundCopyNamesBothPayoutChannels(t *testing.T) {
 	}
 }
 
-// TestTheStatedHoldMatchesTheEnforcedOne proves every customer-facing policy
-// states the one presentation-layer hold duration and start window.
-func TestTheStatedHoldMatchesTheEnforcedOne(t *testing.T) {
-	enforced, start := pages.HoldMinutesText(), pages.PayStartMinutesText()
-
-	// The FAQ makes the same promise, from a seeded row.
-	seed, err := os.ReadFile(filepath.Join("..", "..", "seed", "dev_catalog.sql"))
-	if err != nil {
-		t.Fatalf("read the seed: %v", err)
-	}
-	for _, want := range []string{
-		fmt.Sprintf("保留庫存 %s 分鐘", enforced),
-		fmt.Sprintf("holds the stock for %s minutes", enforced),
-		start + " 分鐘內開始付款",
-		"start the payment within " + start + " minutes",
-	} {
-		if !strings.Contains(string(seed), want) {
-			t.Errorf("no FAQ row states %q, so the answer a customer reads and the "+
-				"window the sweeper enforces are two different numbers", want)
-		}
-	}
-}
-
 // TestNoPolicyPromisesALapsedOrderCanBePaid holds /payment and /shipping to
 // what the hold sweeper does: an order still unpaid when its hold ends is
 // cancelled, and nothing re-reserves its stock.
@@ -194,7 +169,7 @@ func TestNoPolicyPromisesALapsedOrderCanBePaid(t *testing.T) {
 	t.Parallel()
 	for _, locale := range []i18n.Locale{i18n.ZhHant, i18n.En} {
 		parts := []string{i18n.T(i18n.WithLocale(t.Context(), locale), i18n.KeyShippingHoldBody)}
-		for _, section := range policies["payment"].For(locale).Sections {
+		for _, section := range policies["payment"].For(locale, testWindows).Sections {
 			parts = append(parts, section.Body...)
 		}
 		body := strings.Join(parts, " ")
@@ -388,7 +363,8 @@ func hostCookieNames(t *testing.T) []string {
 
 // TestPolicyDocumentsAreComplete proves no policy renders as an empty page.
 func TestPolicyDocumentsAreComplete(t *testing.T) {
-	for path, doc := range policies {
+	for path, stored := range policies {
+		doc := stored.For(i18n.ZhHant, testWindows)
 		t.Run(path, func(t *testing.T) {
 			if strings.TrimSpace(doc.Title) == "" {
 				t.Error("no title")
@@ -512,7 +488,7 @@ func returnsHowToAsk(t *testing.T, locale i18n.Locale) howToAskCopy {
 	if !ok {
 		t.Fatal("no /returns policy")
 	}
-	localized := doc.For(locale)
+	localized := doc.For(locale, testWindows)
 	want := "怎麼申請"
 	if locale == i18n.En {
 		want = "How to ask"
@@ -538,7 +514,7 @@ func renderReturnsPolicy(t *testing.T, locale i18n.Locale) string {
 	if !ok {
 		t.Fatal("no /returns policy")
 	}
-	doc = doc.For(locale)
+	doc = doc.For(locale, testWindows)
 	var b strings.Builder
 	if err := Policy(
 		layouts.Page{Title: doc.Title, Description: doc.Summary},
@@ -589,8 +565,8 @@ func TestEveryPolicyClauseIsTranslated(t *testing.T) {
 		return false
 	}
 
-	for path, doc := range policies {
-		en := doc.For(i18n.En)
+	for path, stored := range policies {
+		en, doc := stored.For(i18n.En, testWindows), stored.For(i18n.ZhHant, testWindows)
 		if en.Title == "" || en.Summary == "" {
 			t.Errorf("/%s has no English title or summary", path)
 		}

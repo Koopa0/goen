@@ -55,7 +55,13 @@ func (h *Handler) Shipping(w http.ResponseWriter, r *http.Request) {
 		h.serverError(w, r)
 		return
 	}
-	view := ShippingView{Methods: methods}
+	windows, err := h.content.CheckoutWindows(r.Context())
+	if err != nil {
+		h.log.ErrorContext(r.Context(), "read checkout windows", "error", err)
+		h.serverError(w, r)
+		return
+	}
+	view := ShippingView{Methods: methods, Windows: windows}
 	web.Render(w, r, h.log, http.StatusOK, Shipping(
 		layouts.Page{
 			Title:       i18n.T(r.Context(), i18n.KeyShippingTitle),
@@ -69,7 +75,16 @@ func (h *Handler) Policy(w http.ResponseWriter, r *http.Request) {
 		h.NotFound(w, r)
 		return
 	}
-	doc = doc.For(i18n.FromContext(r.Context()))
+	var windows CheckoutWindows
+	if doc.statesWindows() {
+		var err error
+		if windows, err = h.content.CheckoutWindows(r.Context()); err != nil {
+			h.log.ErrorContext(r.Context(), "read checkout windows", "error", err)
+			h.serverError(w, r)
+			return
+		}
+	}
+	doc = doc.For(i18n.FromContext(r.Context()), windows)
 	web.Render(w, r, h.log, http.StatusOK, Policy(
 		layouts.Page{Title: doc.Title, Description: doc.Summary}, doc))
 }

@@ -4,7 +4,6 @@ import (
 	"errors"
 	"math"
 	"slices"
-	"strconv"
 	"strings"
 	"testing"
 	"time"
@@ -237,11 +236,10 @@ func TestCheckoutMoneyRejectsEveryOverflowBoundary(t *testing.T) {
 	}
 }
 
+// The pay window and the hold are policy, and TestTheCheckoutWindowsAreTheOnesTheStorefrontEnforces in
+// internal/db binds them to the schema; Stripe's floor and the margin are not the shop's to choose.
 func TestHoldTTLIncludesTheWholePaymentSafetyBudget(t *testing.T) {
 	t.Parallel()
-	if payWindow != 29*time.Minute {
-		t.Errorf("payWindow = %s, want 29m", payWindow)
-	}
 	if stripeSessionFloor != 30*time.Minute {
 		t.Errorf("stripeSessionFloor = %s, want 30m", stripeSessionFloor)
 	}
@@ -250,13 +248,6 @@ func TestHoldTTLIncludesTheWholePaymentSafetyBudget(t *testing.T) {
 	}
 	if holdTTL != payWindow+stripeSessionFloor+stripeSessionStartMargin {
 		t.Errorf("holdTTL = %s, want pay window + Stripe floor + start margin", holdTTL)
-	}
-	stated, err := strconv.Atoi(pages.HoldMinutesText())
-	if err != nil {
-		t.Fatalf("parse customer hold duration: %v", err)
-	}
-	if got := int(holdTTL.Minutes()); got != stated {
-		t.Errorf("holdTTL = %d minutes, customer policy says %d", got, stated)
 	}
 }
 

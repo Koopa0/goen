@@ -111,11 +111,11 @@ func (v *OrderView) ReturnGrid(ctx context.Context, s OrderShipment) (components
 }
 
 // ReturnPending is what a parcel that has not arrived says in place of dates.
-func (v *OrderView) ReturnPending(ctx context.Context) string {
+func (v *OrderView) ReturnPending(ctx context.Context, s OrderShipment) string {
 	if v.Pickup {
-		return i18n.Count(ctx, i18n.KeyOrderRescissionAwaitsPickup, RescissionDays, RescissionDays)
+		return i18n.Count(ctx, i18n.KeyOrderRescissionAwaitsPickup, s.RescissionDays, s.RescissionDays)
 	}
-	return i18n.Count(ctx, i18n.KeyOrderRescissionAwaits, RescissionDays, RescissionDays)
+	return i18n.Count(ctx, i18n.KeyOrderRescissionAwaits, s.RescissionDays, s.RescissionDays)
 }
 
 // PickupCounted explains where the days start, for an order collected from a store.

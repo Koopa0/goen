@@ -314,7 +314,7 @@ JOIN products p ON p.id = pv.product_id;
 
 -- Checkout's whole hold window (cart.holdTTL): a shorter one renders the pay
 -- page's window-closed state, which carries the same marker.
-SELECT hold_inventory(order_id, variant_id, quantity, interval '60 minutes',
+SELECT hold_inventory(order_id, variant_id, quantity, make_interval(mins => checkout_hold_minutes()),
                       'hold:' || order_id || ':' || variant_id)
 FROM order_lines WHERE order_id IN (:'placed_id', :'invoice_id', :'form_id', :'picking_a_id', :'picking_b_id', :'unsent_id');
 INSERT INTO order_events (order_id, kind)
@@ -515,7 +515,7 @@ SELECT o.id, p.id, pv.id, pv.sku, p.name, p.warranty_note, p.warranty_months, pv
 FROM unnest(:'estimate_orders'::uuid[]) AS o (id)
 JOIN product_variants pv ON pv.id = :'estimate_variant_id'
 JOIN products p ON p.id = pv.product_id;
-SELECT hold_inventory(order_id, variant_id, quantity, interval '60 minutes',
+SELECT hold_inventory(order_id, variant_id, quantity, make_interval(mins => checkout_hold_minutes()),
                       'hold:' || order_id || ':' || variant_id)
 FROM order_lines WHERE order_id = ANY (:'estimate_orders'::uuid[]);
 INSERT INTO order_events (order_id, kind) SELECT id, 'placed' FROM unnest(:'estimate_orders'::uuid[]) AS o (id);

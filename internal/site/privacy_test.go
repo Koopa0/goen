@@ -12,7 +12,7 @@ import (
 func TestPrivacyDisclosuresRenderOnce(t *testing.T) {
 	for _, locale := range []i18n.Locale{i18n.ZhHant, i18n.En} {
 		t.Run(string(locale), func(t *testing.T) {
-			doc := policies["privacy"].For(locale)
+			doc := policies["privacy"].For(locale, testWindows)
 			var out strings.Builder
 			if err := Policy(layouts.Page{}, doc).Render(i18n.WithLocale(t.Context(), locale), &out); err != nil {
 				t.Fatal(err)
@@ -37,7 +37,7 @@ func TestPrivacyDisclosuresRenderOnce(t *testing.T) {
 func TestPrivacyDisclosesCollectedAndRetainedData(t *testing.T) {
 	for _, locale := range []i18n.Locale{i18n.ZhHant, i18n.En} {
 		t.Run(string(locale), func(t *testing.T) {
-			doc := policies["privacy"].For(locale)
+			doc := policies["privacy"].For(locale, testWindows)
 			var out strings.Builder
 			if err := Policy(layouts.Page{}, doc).Render(i18n.WithLocale(t.Context(), locale), &out); err != nil {
 				t.Fatal(err)
@@ -77,7 +77,7 @@ func TestPrivacyThirdPartySectionDisclosesGoogleSignIn(t *testing.T) {
 	} {
 		t.Run(string(tc.locale), func(t *testing.T) {
 			var found int
-			for _, section := range policies["privacy"].For(tc.locale).Sections {
+			for _, section := range policies["privacy"].For(tc.locale, testWindows).Sections {
 				if section.Heading != tc.heading {
 					continue
 				}
@@ -125,7 +125,7 @@ func TestPrivacyRetentionSectionStatesEachEnforcedPeriod(t *testing.T) {
 		t.Run(string(tc.locale), func(t *testing.T) {
 			var body []string
 			var found int
-			for _, section := range policies["privacy"].For(tc.locale).Sections {
+			for _, section := range policies["privacy"].For(tc.locale, testWindows).Sections {
 				if section.Heading == tc.heading {
 					found++
 					body = section.Body

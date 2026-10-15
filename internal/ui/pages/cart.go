@@ -95,6 +95,11 @@ type CartView struct {
 
 	FreeDelivery FreeDelivery
 	NoDelivery   bool
+
+	// HoldMinutes is how long placing the order holds the stock, and PayStartMinutes how long the customer then has
+	// to start paying: the windows the cart enforces.
+	HoldMinutes     int64
+	PayStartMinutes int64
 }
 
 type FreeDeliveryKind string
@@ -170,6 +175,11 @@ func (v CartView) HasSoldOut() bool {
 }
 
 func (v CartView) HasNotice() bool { return v.Notice != "" }
+
+// HoldNote is the line under the checkout button that says how long placing the order holds the stock.
+func (v CartView) HoldNote(ctx context.Context) string {
+	return i18n.Count(ctx, i18n.KeyCartHold, v.HoldMinutes, strconv.FormatInt(v.HoldMinutes, 10))
+}
 
 func (v CartView) FromReorder() bool { return v.ReorderAdded > 0 || v.ReorderSkipped > 0 }
 
@@ -551,7 +561,7 @@ func (v *CheckoutView) PlaceOrderKey() i18n.Key {
 
 func (v *CheckoutView) PlacementNote(ctx context.Context) string {
 	if v.TotalCents() > 0 {
-		return fmt.Sprintf(i18n.T(ctx, i18n.KeyCheckoutSubmitNote), PayStartMinutesText())
+		return fmt.Sprintf(i18n.T(ctx, i18n.KeyCheckoutSubmitNote), strconv.FormatInt(v.Cart.PayStartMinutes, 10))
 	}
 	if v.UsesCredit() {
 		return i18n.T(ctx, i18n.KeyCheckoutCreditSubmitNote)

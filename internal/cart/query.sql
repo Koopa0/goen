@@ -504,12 +504,13 @@ FROM invoice_preferences WHERE order_id = $1;
 
 -- rescission_ends and goodwill_ends are shop_today() for a parcel not yet delivered: sqlc cannot
 -- type a nullable date from an expression, so a reader checks delivered_at, never the dates.
--- goodwill_ends is the day return_line_policy_window stops reading 'goodwill'; TestTheParcelCarriesTheDatabasesLastDays
--- holds the 14 to that function.
+-- goodwill_ends is the day return_line_policy_window stops reading 'goodwill'. rescission_days is
+-- what a parcel not yet delivered states in place of its dates.
 -- name: OrderTracking :many
 SELECT id, carrier, tracking_number, shipped_at, delivered_at,
        coalesce(return_window_ends(delivered_at), shop_today())::date AS rescission_ends,
-       coalesce(shop_day(delivered_at) + 14, shop_today())::date AS goodwill_ends
+       coalesce(return_goodwill_ends(delivered_at), shop_today())::date AS goodwill_ends,
+       rescission_days()::bigint AS rescission_days
 FROM order_shipments WHERE order_id = $1 ORDER BY shipped_at, id;
 
 -- Reservations whose hold has run out and whose order never got funded.

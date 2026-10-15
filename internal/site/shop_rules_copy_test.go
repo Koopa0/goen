@@ -10,7 +10,7 @@ import (
 
 func policyBody(t *testing.T, page string, locale i18n.Locale, heading string) string {
 	t.Helper()
-	for _, s := range policies[page].For(locale).Sections {
+	for _, s := range policies[page].For(locale, testWindows).Sections {
 		if s.Heading == heading {
 			return strings.Join(s.Body, " ")
 		}

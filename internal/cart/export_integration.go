@@ -41,3 +41,11 @@ func (s *Store) PlaceOrder(
 }
 
 var FreeDeliveryFor = freeDeliveryFor
+
+// HoldTTL and PayWindow expose the windows the cart enforces, so a test in
+// internal/db can hold them to the schema's checkout_hold_minutes() and
+// checkout_pay_start_minutes().
+const (
+	HoldTTL   = holdTTL
+	PayWindow = payWindow
+)

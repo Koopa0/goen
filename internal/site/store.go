@@ -75,3 +75,11 @@ func (s *Store) ShippingPolicy(ctx context.Context) ([]ShippingMethod, error) {
 	}
 	return out, nil
 }
+
+func (s *Store) CheckoutWindows(ctx context.Context) (CheckoutWindows, error) {
+	row, err := s.q.CheckoutWindows(ctx)
+	if err != nil {
+		return CheckoutWindows{}, fmt.Errorf("read checkout windows: %w", err)
+	}
+	return CheckoutWindows{HoldMinutes: row.HoldMinutes, PayStartMinutes: row.PayStartMinutes}, nil
+}
