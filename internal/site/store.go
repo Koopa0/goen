@@ -9,7 +9,6 @@ import (
 
 	"github.com/koopa0/goen/internal/db"
 	"github.com/koopa0/goen/internal/i18n"
-	"github.com/koopa0/goen/internal/ui/pages"
 )
 
 type Store struct {
@@ -40,7 +39,7 @@ func (s *Store) FAQEntries(ctx context.Context) ([]db.FAQEntriesRow, error) {
 	return rows, nil
 }
 
-func (s *Store) ShippingPolicy(ctx context.Context) ([]pages.ShippingMethod, error) {
+func (s *Store) ShippingPolicy(ctx context.Context) ([]ShippingMethod, error) {
 	rows, err := s.q.ShippingPolicy(ctx, db.ShippingPolicyParams{
 		Locale: string(i18n.FromContext(ctx)), WithPickup: !s.noPickup,
 	})
@@ -58,17 +57,17 @@ func (s *Store) ShippingPolicy(ctx context.Context) ([]pages.ShippingMethod, err
 	if err != nil {
 		return nil, fmt.Errorf("read shipping zone surcharges: %w", err)
 	}
-	byVersion := map[uuid.UUID][]pages.ZoneSurcharge{}
+	byVersion := map[uuid.UUID][]ZoneSurcharge{}
 	for i := range zones {
 		z := &zones[i]
 		byVersion[z.VersionID] = append(byVersion[z.VersionID],
-			pages.ZoneSurcharge{Name: z.Name, Cents: z.SurchargeCents})
+			ZoneSurcharge{Name: z.Name, Cents: z.SurchargeCents})
 	}
 
-	out := make([]pages.ShippingMethod, 0, len(rows))
+	out := make([]ShippingMethod, 0, len(rows))
 	for i := range rows {
 		m := &rows[i]
-		out = append(out, pages.ShippingMethod{
+		out = append(out, ShippingMethod{
 			Name: m.Name, Carrier: m.Carrier,
 			FeeCents: m.FeeCents, FreeOverCents: m.FreeOverCents.Int64,
 			Surcharges: byVersion[m.VersionID],

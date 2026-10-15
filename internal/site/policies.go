@@ -15,13 +15,13 @@ func policyText(locale i18n.Locale, key i18n.Key) string {
 // policies is the static policy documents, keyed by their path segment. A
 // section marked Pending renders as a visible gap, and a term the law already
 // fixes is never the shop's to leave Pending.
-var policies = map[string]pages.PolicyDoc{
+var policies = map[string]PolicyDoc{
 	"returns": {
 		Title:     "退貨政策",
 		TitleEn:   "Returns",
 		Summary:   "goen 的退貨條件、流程與退款方式。",
 		SummaryEn: "What can be returned, how to ask, and how you get your money back.",
-		Sections: []pages.PolicySection{
+		Sections: []PolicySection{
 			{
 				Heading:   "可以退什麼",
 				HeadingEn: "What can be returned",
@@ -134,7 +134,7 @@ var policies = map[string]pages.PolicyDoc{
 		TitleEn:   "Paying for your order",
 		Summary:   "goen 接受的付款方式與安全性說明。",
 		SummaryEn: "What we accept, and what happens to your card details.",
-		Sections: []pages.PolicySection{
+		Sections: []PolicySection{
 			{
 				Heading:   "信用卡",
 				HeadingEn: "Credit cards",
@@ -193,7 +193,7 @@ var policies = map[string]pages.PolicyDoc{
 		TitleEn:   "Warranty",
 		Summary:   "goen 販售商品的保固方式。",
 		SummaryEn: "How the goods we sell are covered.",
-		Sections: []pages.PolicySection{
+		Sections: []PolicySection{
 			{
 				Heading:   "保固範圍",
 				HeadingEn: "What is covered",
@@ -237,7 +237,7 @@ var policies = map[string]pages.PolicyDoc{
 		TitleEn:   "Privacy",
 		Summary:   "goen 蒐集哪些資料、為什麼蒐集，以及你可以怎麼處理它。",
 		SummaryEn: "What we collect, why, and what you can do about it.",
-		Sections: []pages.PolicySection{
+		Sections: []PolicySection{
 			{
 				Heading:   "我們蒐集什麼",
 				HeadingEn: "What we collect",
@@ -269,25 +269,25 @@ var policies = map[string]pages.PolicyDoc{
 				HeadingEn: "How long we keep it",
 				Body: []string{
 					fmt.Sprintf("電子報訂閱確認信的連結 %s 小時內有效；沒有完成確認的訂閱申請，會在最後一次申請的 %s 天後刪除。",
-						pages.NewsletterConfirmHoursText(), pages.NewsletterRetainDaysText()),
-					fmt.Sprintf("未登入時建立的購物車，連續 %s 天沒有變動就會刪除。", pages.GuestCartRetainDaysText()),
+						NewsletterConfirmHoursText(), NewsletterRetainDaysText()),
+					fmt.Sprintf("未登入時建立的購物車，連續 %s 天沒有變動就會刪除。", GuestCartRetainDaysText()),
 					fmt.Sprintf("前往超商門市地圖時暫存的結帳資料（姓名、電話、地址、電子郵件與發票資料），會在 %s 小時後或訂單送出時清除。",
-						pages.CheckoutDraftHoursText()),
-					fmt.Sprintf("寄給你的電子郵件紀錄，在寄出 %[1]s 天後刪除；無法寄出的郵件在建立 %[1]s 天後刪除。", pages.MailRetainDaysText()),
-					fmt.Sprintf("登入狀態最長維持 %s 天，到期後即刪除。", pages.SessionDaysText()),
-					fmt.Sprintf("補貨通知申請會保留到我們寄出通知為止，寄出後 %s 天刪除。", pages.StockAlertRetainDaysText()),
+						CheckoutDraftHoursText()),
+					fmt.Sprintf("寄給你的電子郵件紀錄，在寄出 %[1]s 天後刪除；無法寄出的郵件在建立 %[1]s 天後刪除。", MailRetainDaysText()),
+					fmt.Sprintf("登入狀態最長維持 %s 天，到期後即刪除。", SessionDaysText()),
+					fmt.Sprintf("補貨通知申請會保留到我們寄出通知為止，寄出後 %s 天刪除。", StockAlertRetainDaysText()),
 					"透過聯絡表單送出的訊息目前不會自動刪除；刪除帳號時，若該電子郵件已驗證，會一併刪除。",
 					"訂單財務紀錄與發票資料目前沒有設定刪除期限；訂單上的收件資料會保留到你刪除帳號為止。",
 				},
 				BodyEn: []string{
 					fmt.Sprintf("A newsletter confirmation link works for %s hours; a sign-up nobody confirmed is deleted %s days after the latest request.",
-						pages.NewsletterConfirmHoursText(), pages.NewsletterRetainDaysText()),
-					fmt.Sprintf("A cart made while signed out is deleted after %s days without a change.", pages.GuestCartRetainDaysText()),
+						NewsletterConfirmHoursText(), NewsletterRetainDaysText()),
+					fmt.Sprintf("A cart made while signed out is deleted after %s days without a change.", GuestCartRetainDaysText()),
 					fmt.Sprintf("Checkout details held while you pick a convenience store (name, phone, address, email and invoice details) are cleared after %s hour, or when you place the order.",
-						pages.CheckoutDraftHoursText()),
-					fmt.Sprintf("Records of mail we send you are deleted %[1]s days after delivery; mail that could not be delivered is deleted %[1]s days after it was created.", pages.MailRetainDaysText()),
-					fmt.Sprintf("A sign-in lasts at most %s days and is deleted when it expires.", pages.SessionDaysText()),
-					fmt.Sprintf("A restock alert is kept until we send the notice, and deleted %s days after that.", pages.StockAlertRetainDaysText()),
+						CheckoutDraftHoursText()),
+					fmt.Sprintf("Records of mail we send you are deleted %[1]s days after delivery; mail that could not be delivered is deleted %[1]s days after it was created.", MailRetainDaysText()),
+					fmt.Sprintf("A sign-in lasts at most %s days and is deleted when it expires.", SessionDaysText()),
+					fmt.Sprintf("A restock alert is kept until we send the notice, and deleted %s days after that.", StockAlertRetainDaysText()),
 					"Messages sent through the contact form are not deleted automatically; deleting your account deletes them too if that email address is verified.",
 					"Order financial records and invoice data have no set deletion date; the delivery details on an order are kept until you delete your account.",
 				},
@@ -342,7 +342,7 @@ var policies = map[string]pages.PolicyDoc{
 		TitleEn:   "Terms of service",
 		Summary:   "使用 goen 的基本約定。",
 		SummaryEn: "The basic agreement for using goen.",
-		Sections: []pages.PolicySection{
+		Sections: []PolicySection{
 			{
 				Heading:   "訂單成立",
 				HeadingEn: "When an order is formed",

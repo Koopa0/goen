@@ -24,7 +24,7 @@ func TestPolicyPaymentDeadlines(t *testing.T) {
 			t.Parallel()
 			ctx := i18n.WithLocale(t.Context(), tc.locale)
 			var out strings.Builder
-			if err := pages.Policy(layouts.Page{}, policies["payment"].For(tc.locale)).Render(ctx, &out); err != nil {
+			if err := Policy(layouts.Page{}, policies["payment"].For(tc.locale)).Render(ctx, &out); err != nil {
 				t.Fatal(err)
 			}
 			want := fmt.Sprintf(tc.want, pages.HoldMinutesText(), pages.PayStartMinutesText())
@@ -47,12 +47,12 @@ func TestShippingPolicyDeadlinesAndSurcharge(t *testing.T) {
 		t.Run(string(tc.locale), func(t *testing.T) {
 			t.Parallel()
 			ctx := i18n.WithLocale(t.Context(), tc.locale)
-			method := pages.ShippingMethod{
+			method := ShippingMethod{
 				Name: "Delivery", FeeCents: 6000, FreeOverCents: 100000,
-				Surcharges: []pages.ZoneSurcharge{{Name: "Outlying islands", Cents: 10000}},
+				Surcharges: []ZoneSurcharge{{Name: "Outlying islands", Cents: 10000}},
 			}
 			var out strings.Builder
-			if err := pages.Shipping(layouts.Page{}, pages.ShippingView{Methods: []pages.ShippingMethod{method}}).Render(ctx, &out); err != nil {
+			if err := Shipping(layouts.Page{}, ShippingView{Methods: []ShippingMethod{method}}).Render(ctx, &out); err != nil {
 				t.Fatal(err)
 			}
 			for _, want := range []string{
@@ -80,7 +80,7 @@ func TestWarrantyRegistrationNamesTheOrderPage(t *testing.T) {
 			t.Parallel()
 			ctx := i18n.WithLocale(t.Context(), tc.locale)
 			var out strings.Builder
-			if err := pages.Policy(layouts.Page{}, policies["warranty"].For(tc.locale)).Render(ctx, &out); err != nil {
+			if err := Policy(layouts.Page{}, policies["warranty"].For(tc.locale)).Render(ctx, &out); err != nil {
 				t.Fatal(err)
 			}
 			if !strings.Contains(html.UnescapeString(out.String()), tc.want) {
