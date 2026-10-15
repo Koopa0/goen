@@ -13,22 +13,21 @@ import (
 	"github.com/koopa0/goen/internal/admin/audit"
 	"github.com/koopa0/goen/internal/db"
 	"github.com/koopa0/goen/internal/ui/components"
-	"github.com/koopa0/goen/internal/ui/pages/admin"
 )
 
 const MaxAltRunes = 200
 
 var ErrImageRequired = errors.New("taxonomy: category image required")
 
-func (s *Store) CategoryHeader(ctx context.Context, slug string) (admin.CategoryView, error) {
+func (s *Store) CategoryHeader(ctx context.Context, slug string) (CategoryView, error) {
 	row, err := s.q.AdminCategoryImage(ctx, slug)
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
-			return admin.CategoryView{}, ErrNotFound
+			return CategoryView{}, ErrNotFound
 		}
-		return admin.CategoryView{}, fmt.Errorf("read category header: %w", err)
+		return CategoryView{}, fmt.Errorf("read category header: %w", err)
 	}
-	return admin.CategoryView{
+	return CategoryView{
 		Slug: slug, Name: row.Name, Tone: row.Tone,
 		Image: components.HeaderImage{Key: row.ImageKey, Alt: row.ImageAlt, AltEn: row.ImageAltEn, Width: row.ImageWidth},
 	}, nil

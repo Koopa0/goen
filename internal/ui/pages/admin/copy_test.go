@@ -28,35 +28,11 @@ func TestTheNewProductSectionIsNotNamedLikeItsFirstField(t *testing.T) {
 	}
 }
 
-func TestATaxonomyRowSavesWhatItShows(t *testing.T) {
-	t.Parallel()
-	for _, tt := range []struct {
-		locale i18n.Locale
-		want   string
-	}{{i18n.ZhHant, "儲存"}, {i18n.En, "Save"}} {
-		t.Run(tt.locale.Tag(), func(t *testing.T) {
-			t.Parallel()
-			ctx := i18n.WithLocale(t.Context(), tt.locale)
-			view := &TaxonomyView{Brands: []Taxon{{Slug: "saelo", Name: "沙羅"}}}
-			body := renderComponent(t, ctx, Taxonomy(layouts.Page{Title: "Brands"}, view))
-			i := strings.Index(body, `value="rename"`)
-			if i < 0 {
-				t.Fatal("no row save button")
-			}
-			end := strings.Index(body[i:], "</button>")
-			if got := body[i : i+end]; !strings.HasSuffix(strings.TrimSpace(got), tt.want) {
-				t.Errorf("row button reads %q, want it to end with %q", got, tt.want)
-			}
-		})
-	}
-}
-
 func TestAnExampleIsItsOwnHintLine(t *testing.T) {
 	t.Parallel()
 	ctx := i18n.WithLocale(t.Context(), i18n.ZhHant)
 	pages := map[string]string{
-		"product":  renderComponent(t, ctx, ProductForm(layouts.Page{Title: "Product"}, ProductView{IsNew: true})),
-		"taxonomy": renderComponent(t, ctx, Taxonomy(layouts.Page{Title: "Brands"}, &TaxonomyView{})),
+		"product": renderComponent(t, ctx, ProductForm(layouts.Page{Title: "Product"}, ProductView{IsNew: true})),
 	}
 	for name, body := range pages {
 		if strings.Contains(body, "。 ") {
@@ -84,9 +60,8 @@ func TestEveryExampleHintReadsInFull(t *testing.T) {
 				body     string
 				examples []string
 			}{
-				"product":  {renderComponent(t, ctx, ProductForm(layouts.Page{Title: "Product"}, ProductView{IsNew: true})), []string{"ceramic-mug"}},
-				"taxonomy": {renderComponent(t, ctx, Taxonomy(layouts.Page{Title: "Brands"}, &TaxonomyView{})), []string{"north-light", "cookware"}},
-				"faq":      {renderComponent(t, ctx, FAQ(layouts.Page{Title: "FAQ"}, &FAQView{})), []string{"Orders"}},
+				"product": {renderComponent(t, ctx, ProductForm(layouts.Page{Title: "Product"}, ProductView{IsNew: true})), []string{"ceramic-mug"}},
+				"faq":     {renderComponent(t, ctx, FAQ(layouts.Page{Title: "FAQ"}, &FAQView{})), []string{"Orders"}},
 			} {
 				for _, e := range c.examples {
 					if want := tt.sentence(e); !strings.Contains(c.body, want) {

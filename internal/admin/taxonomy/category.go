@@ -1,4 +1,4 @@
-package admin
+package taxonomy
 
 import "github.com/koopa0/goen/internal/ui/components"
 
