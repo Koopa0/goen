@@ -2153,14 +2153,18 @@ th {
 }
 
 /* The current tab is told apart by its weight and its fill, so colour is not
-   the only cue; forced colours drop the fill and draw the edge instead. */
-.goen-hero__tabs a[aria-current="true"] {
-  background: var(--accent-faint);
-  color: var(--accent-deep);
-  font-weight: var(--fw-medium);
+   the only cue; forced colours drop the fill and draw the edge instead. Only
+   the script that moves between slides keeps the mark true, so without it no
+   tab is drawn as current. */
+@media (scripting: enabled) {
+  .goen-hero__tabs a[aria-current="true"] {
+    background: var(--accent-faint);
+    color: var(--accent-deep);
+    font-weight: var(--fw-medium);
+  }
 }
 
-@media (forced-colors: active) {
+@media (forced-colors: active) and (scripting: enabled) {
   .goen-hero__tabs a[aria-current="true"]:not(:focus-visible) {
     outline: 2px solid Highlight;
     outline-offset: -2px;
