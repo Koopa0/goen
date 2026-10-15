@@ -112,7 +112,7 @@ var auditFields = map[string]auditField{
 	"provider_status":                  {i18n.KeyAuditFieldProviderStatus, nil, nil},
 	"question":                         {i18n.KeyAdminFaqpQuestion, nil, nil},
 	"question_id":                      {i18n.KeyAuditFieldQuestionID, nil, nil},
-	"reason":                           {i18n.KeyAdminColReason, nil, nil},
+	"reason":                           {i18n.KeyAdminColReason, reasonText, nil},
 	"received":                         {i18n.KeyAuditFieldReceivedQuantity, nil, nil},
 	"recipients":                       {i18n.KeyAuditFieldNewsletterRecipients, nil, nil},
 	"replacement_operation":            {i18n.KeyAuditFieldReplacementOperation, nil, nil},
@@ -220,6 +220,18 @@ func returnDecisionText(ctx context.Context, _ AuditEntry, value string) string 
 		return i18n.T(ctx, i18n.KeyAdminReturnRejected)
 	case returns.StatusCompleted:
 		return i18n.T(ctx, i18n.KeyAdminReturnCompleted)
+	}
+	return value
+}
+
+// reasonText words the code a refund of unsent units records as its reason;
+// every other reason is someone's own words, printed as stored.
+func reasonText(ctx context.Context, e AuditEntry, value string) string {
+	if e.Action != "return.refund_unsent" {
+		return value
+	}
+	if r, ok := returns.ParseUnsentReason(value); ok {
+		return UnsentReasonLabel(ctx, r)
 	}
 	return value
 }

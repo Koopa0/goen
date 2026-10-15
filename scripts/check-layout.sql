@@ -224,6 +224,13 @@ SELECT grant_store_credit(:'customer_id', :seller_line_cents, 'Best-seller fixtu
        record_audit_event(:'staff_id', 'credit.grant', 'store_credit_entries', :'customer_id', NULL,
            jsonb_build_object('amount_cents', :seller_line_cents, 'reason', 'Best-seller fixture'))
 FROM generate_series(1, 2);
+-- UNSENT_ORDER's phone, its two best-seller units and its delivery.
+SELECT (SELECT price_cents FROM product_variants WHERE id = :'variant_id')
+       + 2 * (SELECT price_cents FROM product_variants WHERE id = :'seller_variant_id')
+       + :ship_cents AS unsent_cents \gset
+SELECT grant_store_credit(:'customer_id', :unsent_cents, 'Unsent refund fixture', :'staff_id', gen_random_uuid()),
+       record_audit_event(:'staff_id', 'credit.grant', 'store_credit_entries', :'customer_id', NULL,
+           jsonb_build_object('amount_cents', :unsent_cents, 'reason', 'Unsent refund fixture'));
 
 SET ROLE store;
 

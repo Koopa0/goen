@@ -1,0 +1,174 @@
+[
+  {
+    "file": "search-sort-http500-zh-Hant-375.png",
+    "sha256": "98d433d8d1885f84979d92c6f5d2bceedb890d92b8159720c4cd2be408d6f2ae",
+    "dimensions": {
+      "width": 375,
+      "height": 900
+    },
+    "requestedViewport": {
+      "width": 375,
+      "height": 900
+    },
+    "locale": "zh-Hant",
+    "lang": "zh-Hant",
+    "finalPath": "/search?q=pixelight&sort=price_asc",
+    "viewportWidth": 360,
+    "viewportHeight": 900,
+    "rootFontSize": "16px",
+    "devicePixelRatio": 1,
+    "scrollX": 0,
+    "scrollY": 0,
+    "heading": "搜尋「pixelight」",
+    "selectedSort": "",
+    "alert": "商品列表暫時無法顯示，請稍後再試。",
+    "alertHidden": false,
+    "alertRole": "alert",
+    "fault": {
+      "requestURL": "http://127.0.0.1:9700/search?q=pixelight&sort=",
+      "originalStatus": 200,
+      "controlledStatus": 500,
+      "pushURL": "/search?q=pixelight"
+    },
+    "acceptedURL": "http://127.0.0.1:9700/search?q=pixelight&sort=price_asc",
+    "observedURL": "http://127.0.0.1:9700/search?q=pixelight&sort=price_asc",
+    "sameResultsNode": true,
+    "sameResultsTextAndLinks": true,
+    "acceptedLinks": [
+      "/p/pixelight-9-pro-case",
+      "/p/pixelight-9",
+      "/p/pixelight-9-pro"
+    ],
+    "visibleAlert": true,
+    "focused": true
+  },
+  {
+    "file": "search-sort-http500-zh-Hant-1440.png",
+    "sha256": "1898f7639ecd918738fc0ef8684ce309f6bc33f86712a30ce6ff6e004ffbdebe",
+    "dimensions": {
+      "width": 1440,
+      "height": 900
+    },
+    "requestedViewport": {
+      "width": 1440,
+      "height": 900
+    },
+    "locale": "zh-Hant",
+    "lang": "zh-Hant",
+    "finalPath": "/search?q=pixelight&sort=price_asc",
+    "viewportWidth": 1425,
+    "viewportHeight": 900,
+    "rootFontSize": "16px",
+    "devicePixelRatio": 1,
+    "scrollX": 0,
+    "scrollY": 0,
+    "heading": "搜尋「pixelight」",
+    "selectedSort": "",
+    "alert": "商品列表暫時無法顯示，請稍後再試。",
+    "alertHidden": false,
+    "alertRole": "alert",
+    "fault": {
+      "requestURL": "http://127.0.0.1:9700/search?q=pixelight&sort=",
+      "originalStatus": 200,
+      "controlledStatus": 500,
+      "pushURL": "/search?q=pixelight"
+    },
+    "acceptedURL": "http://127.0.0.1:9700/search?q=pixelight&sort=price_asc",
+    "observedURL": "http://127.0.0.1:9700/search?q=pixelight&sort=price_asc",
+    "sameResultsNode": true,
+    "sameResultsTextAndLinks": true,
+    "acceptedLinks": [
+      "/p/pixelight-9-pro-case",
+      "/p/pixelight-9",
+      "/p/pixelight-9-pro"
+    ],
+    "visibleAlert": true,
+    "focused": true
+  },
+  {
+    "file": "search-sort-http500-en-375.png",
+    "sha256": "b5c26f2bba16a4597f13cfb1b239a355009061d509100389c5f673a76fc2201a",
+    "dimensions": {
+      "width": 375,
+      "height": 900
+    },
+    "requestedViewport": {
+      "width": 375,
+      "height": 900
+    },
+    "locale": "en",
+    "lang": "en",
+    "finalPath": "/search?q=pixelight&sort=price_asc",
+    "viewportWidth": 360,
+    "viewportHeight": 900,
+    "rootFontSize": "16px",
+    "devicePixelRatio": 1,
+    "scrollX": 0,
+    "scrollY": 0,
+    "heading": "Search for “pixelight”",
+    "selectedSort": "",
+    "alert": "We cannot show the product list right now. Please try again shortly.",
+    "alertHidden": false,
+    "alertRole": "alert",
+    "fault": {
+      "requestURL": "http://127.0.0.1:9700/search?q=pixelight&sort=",
+      "originalStatus": 200,
+      "controlledStatus": 500,
+      "pushURL": "/search?q=pixelight"
+    },
+    "acceptedURL": "http://127.0.0.1:9700/search?q=pixelight&sort=price_asc",
+    "observedURL": "http://127.0.0.1:9700/search?q=pixelight&sort=price_asc",
+    "sameResultsNode": true,
+    "sameResultsTextAndLinks": true,
+    "acceptedLinks": [
+      "/p/pixelight-9-pro-case",
+      "/p/pixelight-9",
+      "/p/pixelight-9-pro"
+    ],
+    "visibleAlert": true,
+    "focused": true
+  },
+  {
+    "file": "search-sort-http500-en-1440.png",
+    "sha256": "c9a4a7ada5858b7bdb9b093b9e6ffc1e70ba4f113579e9ca58e7c69cfeeee9a0",
+    "dimensions": {
+      "width": 1440,
+      "height": 900
+    },
+    "requestedViewport": {
+      "width": 1440,
+      "height": 900
+    },
+    "locale": "en",
+    "lang": "en",
+    "finalPath": "/search?q=pixelight&sort=price_asc",
+    "viewportWidth": 1425,
+    "viewportHeight": 900,
+    "rootFontSize": "16px",
+    "devicePixelRatio": 1,
+    "scrollX": 0,
+    "scrollY": 0,
+    "heading": "Search for “pixelight”",
+    "selectedSort": "",
+    "alert": "We cannot show the product list right now. Please try again shortly.",
+    "alertHidden": false,
+    "alertRole": "alert",
+    "fault": {
+      "requestURL": "http://127.0.0.1:9700/search?q=pixelight&sort=",
+      "originalStatus": 200,
+      "controlledStatus": 500,
+      "pushURL": "/search?q=pixelight"
+    },
+    "acceptedURL": "http://127.0.0.1:9700/search?q=pixelight&sort=price_asc",
+    "observedURL": "http://127.0.0.1:9700/search?q=pixelight&sort=price_asc",
+    "sameResultsNode": true,
+    "sameResultsTextAndLinks": true,
+    "acceptedLinks": [
+      "/p/pixelight-9-pro-case",
+      "/p/pixelight-9",
+      "/p/pixelight-9-pro"
+    ],
+    "visibleAlert": true,
+    "focused": true
+  }
+]
