@@ -12,28 +12,27 @@ import (
 	"github.com/koopa0/goen/internal/i18n"
 	"github.com/koopa0/goen/internal/keyset"
 	"github.com/koopa0/goen/internal/shoptime"
-	"github.com/koopa0/goen/internal/ui/pages/admin"
 )
 
-func (s *Store) Messages(ctx context.Context, after ...string) (admin.MessagesView, error) {
+func (s *Store) Messages(ctx context.Context, after ...string) (MessagesView, error) {
 	const scope = "/admin/messages"
 	from, resumed := keyset.Resume(scope, after, func(p messagePosition) bool { return p.ID != uuid.Nil })
 	rows, err := s.q.AdminMessages(ctx, db.AdminMessagesParams{HasCursor: resumed, AfterRank: from.Rank, AfterAt: from.At, AfterID: from.ID, RowLimit: keyset.PageLimit})
 	if err != nil {
-		return admin.MessagesView{}, fmt.Errorf("read contact messages: %w", err)
+		return MessagesView{}, fmt.Errorf("read contact messages: %w", err)
 	}
 	rows, bound := keyset.PageBound(scope, resumed, rows, keyset.PageSize, func(r *db.AdminMessagesRow) string { return r.PageCursor })
-	view := admin.MessagesView{
+	view := MessagesView{
 		Bound: bound,
-		Rows:  make([]admin.Message, 0, len(rows)),
+		Rows:  make([]Message, 0, len(rows)),
 	}
 	for i := range rows {
 		m := &rows[i]
 		label, labelErr := subjectLabel(ctx, contact.Subject(m.Subject))
 		if labelErr != nil {
-			return admin.MessagesView{}, fmt.Errorf("read contact messages: %w", labelErr)
+			return MessagesView{}, fmt.Errorf("read contact messages: %w", labelErr)
 		}
-		view.Rows = append(view.Rows, admin.Message{
+		view.Rows = append(view.Rows, Message{
 			ID: m.ID.String(), Name: m.Name, Email: m.Email, SubjectLabel: label,
 			OrderRef: m.OrderRef, Message: m.Message,
 			Handled: m.HandledAt.Valid,

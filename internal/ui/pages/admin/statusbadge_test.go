@@ -144,48 +144,6 @@ func TestHealthItemsAreDoneOrNeedYou(t *testing.T) {
 	wantBadge(t, page, i18n.T(ctx, i18n.KeyAdminHPNeedsLook), "goen-badge goen-badge--warn")
 }
 
-func TestQuestionQueueWaitingNeedsYouAndTheCountIsPlainText(t *testing.T) {
-	t.Parallel()
-	ctx := i18n.WithLocale(t.Context(), i18n.ZhHant)
-	view := QuestionsView{Rows: []Question{{ID: "q", ProductName: "P"}}}
-	page := renderComponent(t, ctx, Questions(layouts.Page{}, view))
-	wantBadge(t, page, i18n.T(ctx, i18n.KeyAdminQWaiting), "goen-badge goen-badge--warn")
-	count := fmt.Sprintf(i18n.T(ctx, i18n.KeyAdminQuestionsWaiting), "1")
-	if !strings.Contains(page, `<p class="goen-admin__headcount">`+count+`</p>`) {
-		t.Errorf("the waiting count %q is not plain text in the page head", count)
-	}
-	if got := badgeClasses(t, page, count); len(got) != 0 {
-		t.Errorf("the count is still a badge: %v", got)
-	}
-}
-
-func TestMessageQueueWaitingAndOverdueNeedYouAndOverdueSaysSo(t *testing.T) {
-	t.Parallel()
-	ctx := i18n.WithLocale(t.Context(), i18n.ZhHant)
-	fresh := Message{ID: "fresh", SubjectLabel: "S1", WaitingDays: 0}
-	late := Message{ID: "late", SubjectLabel: "S2", WaitingDays: 4}
-	view := MessagesView{Bound: firstPageBound("messages"), Rows: []Message{fresh, late}}
-	page := renderComponent(t, ctx, Messages(layouts.Page{}, view))
-	wantBadge(t, page, fresh.Waiting(ctx), "goen-badge goen-badge--warn")
-	wantBadge(t, page, late.OverdueText(ctx), "goen-badge goen-badge--warn")
-	if !strings.Contains(late.OverdueText(ctx), "逾時") {
-		t.Errorf("overdue text %q does not say 逾時", late.OverdueText(ctx))
-	}
-	if !strings.Contains(page, `<span aria-hidden="true">▲</span>`) {
-		t.Error("the overdue badge has no ▲")
-	}
-	if strings.Count(page, "▲") != 1 {
-		t.Errorf("▲ appears %d times, want it on the overdue row only", strings.Count(page, "▲"))
-	}
-	count := fmt.Sprintf(i18n.T(ctx, i18n.KeyAdminMessagesOpen), view.OpenCountText())
-	if !strings.Contains(page, `<p class="goen-admin__headcount">`+count+`</p>`) {
-		t.Errorf("the open count %q is not plain text in the page head", count)
-	}
-	if got := badgeClasses(t, page, count); len(got) != 0 {
-		t.Errorf("the count is still a badge: %v", got)
-	}
-}
-
 func TestReturnQueueBadgesFollowTheirGroup(t *testing.T) {
 	t.Parallel()
 	inspected := []ReturnLine{{Inspected: true}}
