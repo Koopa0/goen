@@ -886,6 +886,7 @@ func newOutboxStore(d workerDeps) *outbox.Store {
 	outboxStore.HandleJSON(outbox.TopicOrderPaid, d.notifier.SendOrderPaid)
 	outboxStore.HandleJSON(outbox.TopicOrderShipped, d.notifier.SendOrderShipped)
 	outboxStore.HandleJSON(outbox.TopicOrderTerminal, terminalOrderHandler(notice.NewRecipients(d.pool), d.notifier))
+	outboxStore.HandleJSON(outbox.TopicOrderPartRefunded, partRefundHandler(notice.NewRecipients(d.pool), d.notifier))
 	outboxStore.HandleJSON(outbox.TopicNewsletterConfirm, d.notifier.SendNewsletterConfirm)
 	outboxStore.HandleJSON(outbox.TopicNewsletterWelcome, d.notifier.SendNewsletterWelcome)
 	outboxStore.HandleJSON(outbox.TopicEmailVerify, addressVerifyHandler(account.NewStore(d.pool), d.notifier))
@@ -982,5 +983,20 @@ func terminalOrderHandler(recipients notice.Recipients, notifier email.Notifier)
 			return nil
 		}
 		return notifier.SendOrderTerminal(ctx, p, email.TerminalRecipient(to))
+	}
+}
+
+// partRefundHandler reads the letter at delivery, on the store pool: `store`
+// reads orders and returns already, and delivery writes nothing.
+func partRefundHandler(recipients notice.Recipients, notifier email.Notifier) func(context.Context, *email.OrderPartRefunded) error {
+	return func(ctx context.Context, p *email.OrderPartRefunded) error {
+		letter, ok, err := recipients.PartRefund(ctx, p)
+		if err != nil {
+			return err
+		}
+		if !ok {
+			return nil
+		}
+		return notifier.SendOrderPartRefunded(ctx, p, &letter)
 	}
 }

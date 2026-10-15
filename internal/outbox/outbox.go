@@ -64,6 +64,9 @@ var (
 	// Its handler claims the void on the admin pool; the invoice reconciler
 	// sends it.
 	TopicInvoiceVoidDue = topic[InvoiceVoidDue]("invoice.void_due")
+	// TopicOrderPartRefunded is units of a partly shipped order that will not
+	// be sent, whose refund has settled.
+	TopicOrderPartRefunded = topic[email.OrderPartRefunded]("order.part_refunded")
 )
 
 // BulkPriority is where a send that can wait goes in the queue. Transactional

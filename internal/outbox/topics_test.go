@@ -165,6 +165,7 @@ var frozenTopics = []string{
 	"account.registration",
 	"invoice.due",
 	"invoice.void_due",
+	"order.part_refunded",
 }
 
 // A queued row carries its topic name as text, so the names are stored data:

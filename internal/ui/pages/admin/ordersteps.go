@@ -12,6 +12,8 @@ func (v *OrderView) nextStepSummary(ctx context.Context) string {
 	switch {
 	case v.RefundOpen:
 		return i18n.T(ctx, i18n.KeyAdminOrderNextRefund)
+	case v.UnsentOpen:
+		return i18n.T(ctx, i18n.KeyAdminOrderNextUnsent)
 	case v.AllowanceAttention != "":
 		return i18n.T(ctx, i18n.KeyAdminOrderNextAllowanceAttention)
 	case v.AllowanceAwaitingUntil != "":

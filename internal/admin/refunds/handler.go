@@ -36,6 +36,7 @@ func NewHandler(store *Store, sessions payment.SessionCloser, log *slog.Logger) 
 
 func (h *Handler) Routes(mux *http.ServeMux, ac *access.Control) {
 	mux.HandleFunc("POST /admin/orders/{number}/refund", ac.RequireStaff(h.RefundBeforeShipment))
+	mux.HandleFunc("POST /admin/orders/{number}/refund-unsent", ac.RequireStaff(h.RefundUnsent))
 }
 
 // RefundBeforeShipment serves POST /admin/orders/{number}/refund. The first

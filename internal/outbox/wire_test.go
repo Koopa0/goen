@@ -77,6 +77,9 @@ func TestStoredRowsDecodeUnderTheirTopicsType(t *testing.T) {
 	decodesTo(t, TopicOrderTerminal,
 		`{"order_id":"6666aaaa-6666-4666-8666-666666666666","kind":"cancelled_by_staff","refunded":true}`,
 		email.OrderTerminal{OrderID: order, Kind: email.TerminalCancelledByStaff, Refunded: true})
+	decodesTo(t, TopicOrderPartRefunded,
+		`{"order_id":"6666aaaa-6666-4666-8666-666666666666","return_request_id":"6666aaaa-6666-4666-8666-666666666666"}`,
+		email.OrderPartRefunded{OrderID: order, ReturnRequestID: order})
 	decodesTo(t, TopicRestocked,
 		`{"locale":"en","email":"a@example.com","product_name":"Mug","slug":"mug","sku":"MUG-1"}`,
 		email.RestockNotice{Locale: "en", Email: "a@example.com", ProductName: "Mug", Slug: "mug", SKU: "MUG-1"})

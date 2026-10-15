@@ -23,11 +23,15 @@ func statusLabel(ctx context.Context, s returnrules.Status) string {
 }
 
 // statusText is a return's status as the queue shows it. A refund before
-// shipment that has finished is a cancellation: nothing came back, so
-// "completed" would read as a return that did.
-func statusText(ctx context.Context, s returnrules.Status, beforeShipment bool) string {
-	if beforeShipment && s == returnrules.StatusCompleted {
+// shipment that has finished is a cancellation, and a finished refund of units
+// that were never sent is just that: nothing came back, so "completed" would
+// read as a return that did.
+func statusText(ctx context.Context, s returnrules.Status, beforeShipment, unsent bool) string {
+	switch {
+	case beforeShipment && s == returnrules.StatusCompleted:
 		return i18n.T(ctx, i18n.KeyAdminReturnCancelledRefunded)
+	case unsent && s == returnrules.StatusCompleted:
+		return i18n.T(ctx, i18n.KeyAdminReturnUnsentRefunded)
 	}
 	return statusLabel(ctx, s)
 }

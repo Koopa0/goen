@@ -18,6 +18,8 @@ const (
 	redeemCouponSig              = "redeem_coupon(uuid,uuid,uuid,bigint)"
 	holdInventorySig             = "hold_inventory(uuid,uuid,integer,interval,text)"
 	releaseReservationSig        = "release_reservation(uuid)"
+	openUnsentRefundSig          = "open_unsent_refund(text,uuid[],integer[],text,text,uuid,text)"
+	settleUnsentRefundSig        = "settle_unsent_refund(uuid,uuid,text)"
 )
 
 // unusedFunctionDoors is the production role × EXECUTE pairs with no caller in
@@ -81,6 +83,8 @@ func TestProductionQueriesOwnTheFunctionExecuteMatrix(t *testing.T) {
 		"redeem_coupon",
 		"hold_inventory",
 		"release_reservation",
+		"open_unsent_refund",
+		"settle_unsent_refund",
 	}
 	signatures := map[string]string{
 		"record_inventory_movement":   recordInventoryMovementSig,
@@ -89,6 +93,8 @@ func TestProductionQueriesOwnTheFunctionExecuteMatrix(t *testing.T) {
 		"redeem_coupon":               redeemCouponSig,
 		"hold_inventory":              holdInventorySig,
 		"release_reservation":         releaseReservationSig,
+		"open_unsent_refund":          openUnsentRefundSig,
+		"settle_unsent_refund":        settleUnsentRefundSig,
 	}
 
 	for _, role := range []string{"store", "admin"} {

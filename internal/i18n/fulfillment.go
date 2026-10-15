@@ -138,6 +138,11 @@ var (
 		En:     "Cancellation, delivery or collection e-mail",
 	})
 
+	KeyAdminTimelineMailPartRefunded = key("admin.timeline.mail.partrefunded", Message{
+		ZhHant: "未寄出商品退款通知信",
+		En:     "Refund e-mail for unsent items",
+	})
+
 	KeyAdminTimelineMailSent = key("admin.timeline.mail.sent", Message{ZhHant: "已寄出", En: "Sent"})
 
 	KeyAdminTimelineMailQueued = key("admin.timeline.mail.queued", Message{ZhHant: "尚未寄出", En: "Not sent yet"})

@@ -7,6 +7,7 @@ import (
 	"github.com/koopa0/goen/internal/i18n"
 	"github.com/koopa0/goen/internal/inventory"
 	"github.com/koopa0/goen/internal/order"
+	"github.com/koopa0/goen/internal/returns"
 	"github.com/koopa0/goen/internal/ui/components"
 	"github.com/koopa0/goen/internal/ui/layouts"
 )
@@ -692,6 +693,56 @@ templ Order(p layouts.Page, v *OrderView) {
 								} else {
 									<p class="goen-admin__hint">{ i18n.T(ctx, i18n.KeyAdminRefundHint) }</p>
 								}
+							}
+						</form>
+					}
+				}
+				if v.UnsentOpen || v.UnsentOffered {
+					@components.Card(components.CardProps{Class: "goen-admin__op", Attrs: templ.Attributes{"aria-labelledby": "unsent-heading"}}) {
+						<h2 class="goen-admin__optitle" id="unsent-heading">{ i18n.T(ctx, i18n.KeyAdminUnsentTitle) }</h2>
+						<form class="goen-admin__form" method="post" action={ templ.SafeURL("/admin/orders/" + v.Number + "/refund-unsent") }>
+							if v.UnsentOpen {
+								<p class="goen-admin__hint">{ v.UnsentOpenText(ctx) }</p>
+								// The same units as the open refund: the door refuses a press that names others.
+								for _, l := range v.UnsentOpenLines {
+									<input type="hidden" name={ l.Field() } value={ l.QuantityText() }/>
+								}
+								@components.Button(components.ButtonProps{ButtonStyle: components.ButtonStylePrimary, Block: true}, "submit") {
+									{ i18n.T(ctx, i18n.KeyAdminRefundResume) }
+								}
+							} else {
+								for _, l := range v.Shippable {
+									<div class="ui-field">
+										<label class="ui-label" for={ "unsent-qty-" + l.OrderLineID }>
+											{ fmt.Sprintf(i18n.T(ctx, i18n.KeyAdminUnsentQty), l.Line(), l.RemainingText()) }
+										</label>
+										<input
+											class="ui-input"
+											id={ "unsent-qty-" + l.OrderLineID }
+											type="number"
+											name={ "qty_" + l.OrderLineID }
+											value="0"
+											min="0"
+											max={ l.RemainingText() }
+										/>
+									</div>
+								}
+								<div class="ui-field">
+									<label class="ui-label" for="unsent-reason">
+										{ i18n.T(ctx, i18n.KeyAdminUnsentReason) }
+										@components.RequiredMark()
+									</label>
+									<select class="ui-select" id="unsent-reason" name="reason" required>
+										<option value="" selected disabled>{ i18n.T(ctx, i18n.KeyAdminUnsentReasonChoose) }</option>
+										for _, reason := range returns.UnsentReasons {
+											<option value={ string(reason) }>{ UnsentReasonLabel(ctx, reason) }</option>
+										}
+									</select>
+								</div>
+								@components.Button(components.ButtonProps{ButtonStyle: components.ButtonStyleDanger, Block: true}, "submit") {
+									{ i18n.T(ctx, i18n.KeyAdminUnsentTitle) }
+								}
+								<p class="goen-admin__hint">{ i18n.T(ctx, i18n.KeyAdminUnsentHint) }</p>
 							}
 						</form>
 					}

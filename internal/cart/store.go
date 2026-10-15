@@ -1029,7 +1029,7 @@ func (s *Store) Order(ctx context.Context, number string) (pages.OrderView, erro
 	for _, e := range events {
 		view.Timeline = append(view.Timeline, pages.OrderEvent{
 			Kind: order.EventKind(e.Kind), Note: e.Note,
-			At: e.OccurredAt,
+			At: e.OccurredAt, Unsent: e.Unsent,
 		})
 	}
 
@@ -1063,17 +1063,25 @@ func (s *Store) orderParcels(
 	if err != nil {
 		return nil, nil, fmt.Errorf("read order warranties: %w", err)
 	}
-	parcels, unshipped = cutParcels(shipments, parcelLines, registrations, ids, byID)
+	unsent, err := s.q.OrderUnsentUnits(ctx, orderID)
+	if err != nil {
+		return nil, nil, fmt.Errorf("read order units refunded unsent: %w", err)
+	}
+	refunded := make(map[uuid.UUID]int32, len(unsent))
+	for _, u := range unsent {
+		refunded[u.OrderLineID] = u.Quantity
+	}
+	parcels, unshipped = cutParcels(shipments, parcelLines, registrations, refunded, ids, byID)
 	return parcels, unshipped, nil
 }
 
-// cutParcels hands each parcel the units of the lines that went in it, and returns what no parcel carries yet. A
-// line's units are numbered across its parcels in shipment order, as RegisterWarranty numbers them, so a
-// registration belongs to the parcel its unit went in. A parcel not yet delivered carries no day: the database
-// reads shop_today() there.
+// cutParcels hands each parcel the units of the lines that went in it, and returns what no parcel carries yet and
+// no unsent refund took back (refunded, by line). A line's units are numbered across its parcels in shipment order,
+// as RegisterWarranty numbers them, so a registration belongs to the parcel its unit went in. A parcel not yet
+// delivered carries no day: the database reads shop_today() there.
 func cutParcels(
 	shipments []db.OrderTrackingRow, parcelLines []db.OrderParcelLinesRow, registrations []db.OrderWarrantyRegistrationsRow,
-	ids []uuid.UUID, byID map[uuid.UUID]pages.OrderLine,
+	refunded map[uuid.UUID]int32, ids []uuid.UUID, byID map[uuid.UUID]pages.OrderLine,
 ) (parcels []pages.OrderShipment, unshipped []pages.OrderLine) {
 	registered := make(map[uuid.UUID][]db.OrderWarrantyRegistrationsRow)
 	for _, r := range registrations {
@@ -1107,7 +1115,7 @@ func cutParcels(
 		parcels = append(parcels, parcel)
 	}
 	for _, id := range ids {
-		if left := byID[id].Quantity - shipped[id]; left > 0 {
+		if left := byID[id].Quantity - shipped[id] - refunded[id]; left > 0 {
 			rest := byID[id]
 			rest.Quantity = left
 			unshipped = append(unshipped, rest)

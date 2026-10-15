@@ -287,6 +287,14 @@ type OrderView struct {
 	// RefundCreditPaid is an offered one store credit alone paid, which the
 	// refund cancels at once.
 	RefundCreditPaid bool
+
+	// UnsentOffered is a paid order that has sent a parcel and still owes the
+	// units in Shippable: those that will not be sent can be refunded.
+	UnsentOffered bool
+	// UnsentOpen is one whose refund of unsent units Resume finishes;
+	// UnsentOpenLines are the units it covers.
+	UnsentOpen      bool
+	UnsentOpenLines []UnsentLine
 }
 
 type Delivery struct {

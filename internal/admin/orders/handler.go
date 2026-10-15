@@ -307,6 +307,15 @@ var notices = map[string]components.NoticeEntry{
 	"voidreason":      components.NoticeRefused(i18n.KeyAdminNoticeVoidReason),
 	"voidfailed":      components.NoticeFailed(i18n.KeyAdminNoticeVoidFailed),
 	"allowfailed":     components.NoticeFailed(i18n.KeyAdminNoticeAllowFailed),
+
+	"unsentrefunded":   components.NoticeDone(i18n.KeyAdminNoticeUnsentRefunded),
+	"unsentallowance":  components.NoticeFailed(i18n.KeyAdminNoticeUnsentAllowance),
+	"unsentdiffers":    components.NoticeRefused(i18n.KeyAdminNoticeUnsentDiffers),
+	"unsentbounds":     components.NoticeRefused(i18n.KeyAdminNoticeUnsentBounds),
+	"unsentreason":     components.NoticeRefused(i18n.KeyAdminNoticeUnsentReason),
+	"unsentineligible": components.NoticeRefused(i18n.KeyAdminNoticeUnsentIneligible),
+	"unsentundecided":  components.NoticeRefused(i18n.KeyAdminNoticeUnsentUndecided),
+	"unsenthold":       components.NoticeFailed(i18n.KeyAdminNoticeUnsentHold),
 }
 
 func (h *Handler) CorrectDelivery(w http.ResponseWriter, r *http.Request) {

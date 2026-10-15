@@ -11224,6 +11224,42 @@ func (q *Queries) OpenSessionsForOrder(ctx context.Context, orderNumber string) 
 	return items, nil
 }
 
+const openUnsentRefund = `-- name: OpenUnsentRefund :one
+SELECT open_unsent_refund(
+    $1::text, $2::uuid[], $3::integer[],
+    $4::text, $5::text, $6::uuid, $7::text
+)::uuid AS return_request_id
+`
+
+type OpenUnsentRefundParams struct {
+	OrderNumber string
+	LineIds     []uuid.UUID
+	Quantities  []int32
+	Reason      string
+	Note        string
+	ActorUserID uuid.UUID
+	RequestID   string
+}
+
+// One auto-committed statement: the door opens and approves a refund of the
+// named units a partly shipped order will not send, or returns the one it
+// opened before and has not settled, whatever lines this press names. The
+// caller compares them (UnsentRefundLines) before paying anything.
+func (q *Queries) OpenUnsentRefund(ctx context.Context, arg OpenUnsentRefundParams) (uuid.UUID, error) {
+	row := q.db.QueryRow(ctx, openUnsentRefund,
+		arg.OrderNumber,
+		arg.LineIds,
+		arg.Quantities,
+		arg.Reason,
+		arg.Note,
+		arg.ActorUserID,
+		arg.RequestID,
+	)
+	var return_request_id uuid.UUID
+	err := row.Scan(&return_request_id)
+	return return_request_id, err
+}
+
 const orderAccessibleWith = `-- name: OrderAccessibleWith :one
 SELECT EXISTS (
     SELECT 1 FROM order_access_grants g
@@ -12221,21 +12257,26 @@ func (q *Queries) OrderSummaryByNumber(ctx context.Context, arg OrderSummaryByNu
 }
 
 const orderTimeline = `-- name: OrderTimeline :many
-SELECT kind,
-       (CASE WHEN kind = 'refunded' THEN '' ELSE coalesce(note, '') END)::text AS note,
-       occurred_at
-FROM order_events WHERE order_id = $1 ORDER BY occurred_at, id
+SELECT e.kind,
+       (CASE WHEN e.kind = 'refunded' THEN '' ELSE coalesce(e.note, '') END)::text AS note,
+       e.occurred_at,
+       EXISTS (SELECT 1 FROM return_requests r
+               WHERE r.id = e.return_request_id AND r.unsent)::boolean AS unsent
+FROM order_events e WHERE e.order_id = $1 ORDER BY e.occurred_at, e.id
 `
 
 type OrderTimelineRow struct {
 	Kind       string
 	Note       string
 	OccurredAt time.Time
+	Unsent     bool
 }
 
 // The customer sees WHAT happened, never WHO did it; the back office reads the
 // same table with the actor joined. A refund's note is the provider's refund
-// id, which the back office needs and the shopper has no use for.
+// id, which the back office needs and the shopper has no use for. unsent marks
+// the refund of units the shop could not send (open_unsent_refund), which the
+// page names as such.
 func (q *Queries) OrderTimeline(ctx context.Context, orderID uuid.UUID) ([]OrderTimelineRow, error) {
 	rows, err := q.db.Query(ctx, orderTimeline, orderID)
 	if err != nil {
@@ -12245,7 +12286,12 @@ func (q *Queries) OrderTimeline(ctx context.Context, orderID uuid.UUID) ([]Order
 	items := []OrderTimelineRow{}
 	for rows.Next() {
 		var i OrderTimelineRow
-		if err := rows.Scan(&i.Kind, &i.Note, &i.OccurredAt); err != nil {
+		if err := rows.Scan(
+			&i.Kind,
+			&i.Note,
+			&i.OccurredAt,
+			&i.Unsent,
+		); err != nil {
 			return nil, err
 		}
 		items = append(items, i)
@@ -12331,6 +12377,41 @@ func (q *Queries) OrderTracking(ctx context.Context, orderID uuid.UUID) ([]Order
 			&i.RescissionEnds,
 			&i.GoodwillEnds,
 		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const orderUnsentUnits = `-- name: OrderUnsentUnits :many
+SELECT rl.order_line_id, sum(rl.quantity)::integer AS quantity
+FROM return_request_lines rl
+JOIN return_requests r ON r.id = rl.return_request_id
+WHERE r.order_id = $1 AND r.unsent AND r.status <> 'rejected'
+GROUP BY rl.order_line_id
+`
+
+type OrderUnsentUnitsRow struct {
+	OrderLineID uuid.UUID
+	Quantity    int32
+}
+
+// How many units of each line an unsent refund claims. They will not be sent, so they are no longer waiting for a
+// parcel; shipment_lines_within_purchase refuses one that carries them.
+func (q *Queries) OrderUnsentUnits(ctx context.Context, orderID uuid.UUID) ([]OrderUnsentUnitsRow, error) {
+	rows, err := q.db.Query(ctx, orderUnsentUnits, orderID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []OrderUnsentUnitsRow{}
+	for rows.Next() {
+		var i OrderUnsentUnitsRow
+		if err := rows.Scan(&i.OrderLineID, &i.Quantity); err != nil {
 			return nil, err
 		}
 		items = append(items, i)
@@ -12493,6 +12574,63 @@ func (q *Queries) ParkProductImages(ctx context.Context, slug string) error {
 	return err
 }
 
+const partRefundLines = `-- name: PartRefundLines :many
+SELECT ol.product_name, coalesce(ol.variant_label, '')::text AS variant_label, rl.quantity,
+       (r.goods_refund_cents + r.shipping_refund_cents)::bigint AS refund_cents,
+       coalesce(r.card_refund_cents, 0)::bigint AS card_cents,
+       coalesce(r.credit_refund_cents, 0)::bigint AS credit_cents
+FROM return_requests r
+JOIN return_request_lines rl ON rl.return_request_id = r.id
+JOIN order_lines ol ON ol.id = rl.order_line_id
+WHERE r.id = $1 AND r.order_id = $2
+  AND r.unsent AND r.status = 'completed'
+ORDER BY ol.position, ol.id
+`
+
+type PartRefundLinesParams struct {
+	ReturnRequestID uuid.UUID
+	OrderID         uuid.UUID
+}
+
+type PartRefundLinesRow struct {
+	ProductName  string
+	VariantLabel string
+	Quantity     int32
+	RefundCents  int64
+	CardCents    int64
+	CreditCents  int64
+}
+
+// What an order.part_refunded letter says, read at delivery: the units of one
+// settled unsent refund and the split its approval froze. Nothing here is a
+// copy kept in the outbox, so an erasure meanwhile leaves nothing to send.
+func (q *Queries) PartRefundLines(ctx context.Context, arg PartRefundLinesParams) ([]PartRefundLinesRow, error) {
+	rows, err := q.db.Query(ctx, partRefundLines, arg.ReturnRequestID, arg.OrderID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []PartRefundLinesRow{}
+	for rows.Next() {
+		var i PartRefundLinesRow
+		if err := rows.Scan(
+			&i.ProductName,
+			&i.VariantLabel,
+			&i.Quantity,
+			&i.RefundCents,
+			&i.CardCents,
+			&i.CreditCents,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const passwordResetToken = `-- name: PasswordResetToken :one
 SELECT user_id FROM password_reset_tokens
 WHERE digest = $1 AND used_at IS NULL AND expires_at > now()
@@ -12568,14 +12706,22 @@ func (q *Queries) PaymentAttemptForOrder(ctx context.Context, arg PaymentAttempt
 }
 
 const pickingSlipLines = `-- name: PickingSlipLines :many
-SELECT ol.order_id, ol.sku, ol.product_name, ol.variant_label, ol.unit_price_cents,
-       (ol.quantity - coalesce((SELECT sum(sl.quantity) FROM order_shipment_lines sl
-                                WHERE sl.order_line_id = ol.id), 0))::integer AS remaining
-FROM order_lines ol
-WHERE ol.order_id = ANY($1::uuid[])
-  AND ol.quantity > coalesce((SELECT sum(sl.quantity) FROM order_shipment_lines sl
-                              WHERE sl.order_line_id = ol.id), 0)
-ORDER BY ol.order_id, ol.position, ol.id
+SELECT l.order_id, l.sku, l.product_name, l.variant_label, l.unit_price_cents, l.remaining
+FROM (
+    SELECT ol.order_id, ol.id, ol.position, ol.sku, ol.product_name, ol.variant_label,
+           ol.unit_price_cents,
+           (ol.quantity
+            - coalesce((SELECT sum(sl.quantity) FROM order_shipment_lines sl
+                        WHERE sl.order_line_id = ol.id), 0)
+            - coalesce((SELECT sum(rl.quantity) FROM return_request_lines rl
+                        JOIN return_requests r ON r.id = rl.return_request_id
+                        WHERE rl.order_line_id = ol.id AND r.unsent AND r.status <> 'rejected'), 0)
+           )::integer AS remaining
+    FROM order_lines ol
+    WHERE ol.order_id = ANY($1::uuid[])
+) l
+WHERE l.remaining > 0
+ORDER BY l.order_id, l.position, l.id
 `
 
 type PickingSlipLinesRow struct {
@@ -12587,8 +12733,9 @@ type PickingSlipLinesRow struct {
 	Remaining      int32
 }
 
-// ShippableLines uses the same purchased-minus-dispatched quantity. Read the
-// line snapshot even if its catalogue variant has since been removed.
+// ShippableLines uses the same quantity: purchased less dispatched less what
+// an unsent refund claims. Read the line snapshot even if its catalogue
+// variant has since been removed.
 func (q *Queries) PickingSlipLines(ctx context.Context, orderIds []uuid.UUID) ([]PickingSlipLinesRow, error) {
 	rows, err := q.db.Query(ctx, pickingSlipLines, orderIds)
 	if err != nil {
@@ -12644,7 +12791,11 @@ WHERE o.fulfillment_status IN ('picking', 'shipped', 'delivered')
   AND NOT EXISTS (SELECT 1 FROM return_requests r WHERE r.order_id = o.id AND r.before_shipment)
   AND EXISTS (SELECT 1 FROM order_lines ol WHERE ol.order_id = o.id
               AND ol.quantity > coalesce((SELECT sum(sl.quantity) FROM order_shipment_lines sl
-                                          WHERE sl.order_line_id = ol.id), 0))
+                                          WHERE sl.order_line_id = ol.id), 0)
+                              + coalesce((SELECT sum(rl.quantity) FROM return_request_lines rl
+                                          JOIN return_requests r ON r.id = rl.return_request_id
+                                          WHERE rl.order_line_id = ol.id
+                                            AND r.unsent AND r.status <> 'rejected'), 0))
   AND (NOT $2::boolean OR o.placed_at > $3::timestamptz
        OR (o.placed_at = $3::timestamptz AND o.id > $4::uuid))
 ORDER BY o.placed_at, o.id
@@ -12734,12 +12885,20 @@ SELECT ol.sku,
        (array_agg(ol.product_name ORDER BY o.placed_at DESC, o.id DESC, ol.id DESC))[1]::text AS product_name,
        coalesce((array_agg(ol.variant_label ORDER BY o.placed_at DESC, o.id DESC, ol.id DESC))[1], '')::text AS variant_label,
        sum(ol.quantity - coalesce((SELECT sum(sl.quantity) FROM order_shipment_lines sl
-                                  WHERE sl.order_line_id = ol.id), 0))::bigint AS remaining
+                                  WHERE sl.order_line_id = ol.id), 0)
+                       - coalesce((SELECT sum(rl.quantity) FROM return_request_lines rl
+                                   JOIN return_requests r ON r.id = rl.return_request_id
+                                   WHERE rl.order_line_id = ol.id
+                                     AND r.unsent AND r.status <> 'rejected'), 0))::bigint AS remaining
 FROM orders o JOIN order_lines ol ON ol.order_id = o.id
 WHERE o.fulfillment_status IN ('picking', 'shipped', 'delivered')
   AND NOT EXISTS (SELECT 1 FROM return_requests r WHERE r.order_id = o.id AND r.before_shipment)
   AND ol.quantity > coalesce((SELECT sum(sl.quantity) FROM order_shipment_lines sl
                               WHERE sl.order_line_id = ol.id), 0)
+                  + coalesce((SELECT sum(rl.quantity) FROM return_request_lines rl
+                              JOIN return_requests r ON r.id = rl.return_request_id
+                              WHERE rl.order_line_id = ol.id
+                                AND r.unsent AND r.status <> 'rejected'), 0)
 GROUP BY ol.sku
 ORDER BY ol.sku
 `
@@ -15434,6 +15593,7 @@ SELECT r.id, r.status, r.reason, r.order_id,
                    WHERE osl.order_line_id = rl.order_line_id
                      AND s.order_id = r.order_id
                      AND s.delivered_at IS NOT NULL
+                     AND NOT r.unsent
                    ORDER BY s.delivered_at DESC
                    LIMIT 1
                ) sh ON true
@@ -15506,6 +15666,7 @@ LEFT JOIN LATERAL (
     WHERE osl.order_line_id = rl.order_line_id
       AND s.order_id = r.order_id
       AND s.delivered_at IS NOT NULL
+      AND NOT r.unsent
     ORDER BY s.delivered_at DESC
     LIMIT 1
 ) sh ON true
@@ -15535,6 +15696,7 @@ type ReturnLinesRow struct {
 // and "looked at, nothing arrived" are different facts. restockable is false for
 // a line whose variant was deleted, so the form cannot offer a refused control.
 // policy_window is THIS line's shipment, never a later parcel on the order.
+// An unsent refund's line has none: its units never left.
 func (q *Queries) ReturnLines(ctx context.Context, requestIds []uuid.UUID) ([]ReturnLinesRow, error) {
 	rows, err := q.db.Query(ctx, returnLines, requestIds)
 	if err != nil {
@@ -15669,7 +15831,7 @@ func (q *Queries) ReturnPayoutFacts(ctx context.Context, requestIds []uuid.UUID)
 }
 
 const returnQueue = `-- name: ReturnQueue :many
-SELECT json_build_object('Rank', return_payout_outstanding(r.id), 'Priority', (r.status = 'requested'), 'At', r.created_at, 'ID', r.id)::text AS page_cursor, r.id, r.status, r.reason, r.created_at, r.decided_at, r.before_shipment,
+SELECT json_build_object('Rank', return_payout_outstanding(r.id), 'Priority', (r.status = 'requested'), 'At', r.created_at, 'ID', r.id)::text AS page_cursor, r.id, r.status, r.reason, r.created_at, r.decided_at, r.before_shipment, r.unsent,
        o.order_number,
        (SELECT coalesce(sum(rl.quantity), 0) FROM return_request_lines rl
         WHERE rl.return_request_id = r.id)::integer AS units,
@@ -15692,6 +15854,7 @@ SELECT json_build_object('Rank', return_payout_outstanding(r.id), 'Priority', (r
                    WHERE osl.order_line_id = rl.order_line_id
                      AND s.order_id = r.order_id
                      AND s.delivered_at IS NOT NULL
+                     AND NOT r.unsent
                    ORDER BY s.delivered_at DESC
                    LIMIT 1
                ) sh ON true
@@ -15728,6 +15891,7 @@ type ReturnQueueRow struct {
 	CreatedAt        time.Time
 	DecidedAt        pgtype.Timestamptz
 	BeforeShipment   bool
+	Unsent           bool
 	OrderNumber      string
 	Units            int32
 	RefundableCents  int64
@@ -15738,6 +15902,8 @@ type ReturnQueueRow struct {
 // line's own shipment. A later unrelated parcel on the same order must not
 // reopen a window that line already closed. now() would move a filed request
 // into a later window the day the staff member opens it.
+// An unsent refund's units never left, so no parcel delivered them: the
+// sibling units of the same line that did ship are not its window.
 // Recovery is the only retry door. Rank it before the intake queue and before
 // LIMIT, or fifty newer requests can make an older approved-but-unpaid customer
 // disappear from every actionable screen.
@@ -15767,6 +15933,7 @@ func (q *Queries) ReturnQueue(ctx context.Context, arg ReturnQueueParams) ([]Ret
 			&i.CreatedAt,
 			&i.DecidedAt,
 			&i.BeforeShipment,
+			&i.Unsent,
 			&i.OrderNumber,
 			&i.Units,
 			&i.RefundableCents,
@@ -15834,7 +16001,8 @@ SELECT ol.id,
                   WHERE sl.order_line_id = ol.id), 0)
         - coalesce((SELECT sum(rl.quantity) FROM return_request_lines rl
                     JOIN return_requests r ON r.id = rl.return_request_id
-                    WHERE rl.order_line_id = ol.id AND r.status <> 'rejected'), 0)
+                    WHERE rl.order_line_id = ol.id AND r.status <> 'rejected'
+                      AND NOT r.unsent), 0)
        )::integer AS returnable
 FROM order_lines ol
 WHERE ol.order_id = $1
@@ -15852,6 +16020,8 @@ type ReturnableLinesRow struct {
 
 // What an order's customer may ask to return: what SHIPPED, minus what an
 // unrejected request already claims. return_within_shipment enforces the same.
+// An unsent refund claims units that never shipped, so it does not use up the
+// ones that did: return_within_shipment counts each kind against its own.
 func (q *Queries) ReturnableLines(ctx context.Context, orderID uuid.UUID) ([]ReturnableLinesRow, error) {
 	rows, err := q.db.Query(ctx, returnableLines, orderID)
 	if err != nil {
@@ -16002,7 +16172,7 @@ func (q *Queries) ReturnedProductsBetween(ctx context.Context, arg ReturnedProdu
 
 const returnsForOrder = `-- name: ReturnsForOrder :many
 SELECT r.id, r.status, r.reason, r.resolution, r.created_at, r.decided_at
-FROM return_requests r WHERE r.order_id = $1 AND NOT r.before_shipment
+FROM return_requests r WHERE r.order_id = $1 AND NOT r.before_shipment AND NOT r.unsent
 ORDER BY r.created_at DESC, r.id
 `
 
@@ -16017,8 +16187,9 @@ type ReturnsForOrderRow struct {
 
 // An order's return requests, for the customer's own page. No actor: the page is
 // reachable by anyone holding the number, so it must not name staff. A refund
-// before shipment is not a request the customer made; the order page's
-// refunded entry already tells them the money is back.
+// before shipment and a refund of units that were never sent are not requests
+// the customer made; the order page's refunded entry already tells them the
+// money is back.
 func (q *Queries) ReturnsForOrder(ctx context.Context, orderID uuid.UUID) ([]ReturnsForOrderRow, error) {
 	rows, err := q.db.Query(ctx, returnsForOrder, orderID)
 	if err != nil {
@@ -17273,6 +17444,25 @@ func (q *Queries) SettleInvoiceVoid(ctx context.Context, arg SettleInvoiceVoidPa
 	return document_id, err
 }
 
+const settleUnsentRefund = `-- name: SettleUnsentRefund :exec
+SELECT settle_unsent_refund(
+    $1::uuid, $2::uuid, $3::text
+)
+`
+
+type SettleUnsentRefundParams struct {
+	ReturnRequestID uuid.UUID
+	ActorUserID     uuid.UUID
+	RequestID       string
+}
+
+// Releases or writes off the refunded units' hold and completes the refund,
+// once its money has gone back; a second press does nothing.
+func (q *Queries) SettleUnsentRefund(ctx context.Context, arg SettleUnsentRefundParams) error {
+	_, err := q.db.Exec(ctx, settleUnsentRefund, arg.ReturnRequestID, arg.ActorUserID, arg.RequestID)
+	return err
+}
+
 const settledRefundsForOrder = `-- name: SettledRefundsForOrder :one
 SELECT (card_cents + credit_cents)::bigint AS refunded_cents
 FROM order_refunds
@@ -17328,25 +17518,28 @@ func (q *Queries) ShipmentRecipient(ctx context.Context, id uuid.UUID) (Shipment
 }
 
 const shippableLines = `-- name: ShippableLines :many
-SELECT ol.id AS order_line_id,
-       ol.sku,
-       ol.product_name,
-       ol.variant_label,
-       (ol.quantity - coalesce((
-           SELECT sum(sl.quantity) FROM order_shipment_lines sl
-           WHERE sl.order_line_id = ol.id), 0))::integer AS remaining,
+SELECT l.order_line_id, l.sku, l.product_name, l.variant_label, l.remaining,
        ir.id AS reservation_id,
        coalesce(ir.quantity, 0)::integer AS held
-FROM order_lines ol
+FROM (
+    SELECT ol.id AS order_line_id, ol.order_id, ol.variant_id, ol.position,
+           ol.sku, ol.product_name, ol.variant_label,
+           (ol.quantity
+            - coalesce((SELECT sum(sl.quantity) FROM order_shipment_lines sl
+                        WHERE sl.order_line_id = ol.id), 0)
+            - coalesce((SELECT sum(rl.quantity) FROM return_request_lines rl
+                        JOIN return_requests r ON r.id = rl.return_request_id
+                        WHERE rl.order_line_id = ol.id AND r.unsent AND r.status <> 'rejected'), 0)
+           )::integer AS remaining
+    FROM order_lines ol
+    WHERE ol.order_id = $1
+) l
 LEFT JOIN inventory_reservations ir
-       ON ir.order_id = ol.order_id
-      AND ir.variant_id = ol.variant_id
+       ON ir.order_id = l.order_id
+      AND ir.variant_id = l.variant_id
       AND ir.state = 'held'
-WHERE ol.order_id = $1
-  AND ol.quantity > coalesce((
-      SELECT sum(sl.quantity) FROM order_shipment_lines sl
-      WHERE sl.order_line_id = ol.id), 0)
-ORDER BY ol.position, ol.id
+WHERE l.remaining > 0
+ORDER BY l.position, l.order_line_id
 `
 
 type ShippableLinesRow struct {
@@ -17363,6 +17556,9 @@ type ShippableLinesRow struct {
 // no hold, and dropping the row here would ship it without moving stock. The
 // caller refuses instead. ReleaseReservation and HeldReservationsForOrder live
 // in internal/cart/query.sql — sqlc generates ONE db package for the module.
+// What is still owed a parcel is bought less dispatched less what an unsent
+// refund claims (open_unsent_refund): shipment_lines_within_purchase refuses
+// a parcel carrying those units, so the form must not offer them.
 func (q *Queries) ShippableLines(ctx context.Context, orderID uuid.UUID) ([]ShippableLinesRow, error) {
 	rows, err := q.db.Query(ctx, shippableLines, orderID)
 	if err != nil {
@@ -18624,6 +18820,100 @@ func (q *Queries) UnreferencedMedia(ctx context.Context, limit int32) ([]string,
 		return nil, err
 	}
 	return items, nil
+}
+
+const unsentRefundFrozen = `-- name: UnsentRefundFrozen :one
+SELECT (coalesce(goods_refund_cents, 0) + coalesce(shipping_refund_cents, 0))::bigint AS refund_cents,
+       coalesce(card_refund_cents, 0)::bigint AS card_cents,
+       coalesce(credit_refund_cents, 0)::bigint AS credit_cents,
+       reason
+FROM return_requests WHERE id = $1 AND unsent
+`
+
+type UnsentRefundFrozenRow struct {
+	RefundCents int64
+	CardCents   int64
+	CreditCents int64
+	Reason      string
+}
+
+// The money an unsent refund's approval froze: the return arithmetic's, card
+// first and then credit. The preview reads it inside a transaction it rolls
+// back, so what it shows is what confirming freezes.
+func (q *Queries) UnsentRefundFrozen(ctx context.Context, returnRequestID uuid.UUID) (UnsentRefundFrozenRow, error) {
+	row := q.db.QueryRow(ctx, unsentRefundFrozen, returnRequestID)
+	var i UnsentRefundFrozenRow
+	err := row.Scan(
+		&i.RefundCents,
+		&i.CardCents,
+		&i.CreditCents,
+		&i.Reason,
+	)
+	return i, err
+}
+
+const unsentRefundLines = `-- name: UnsentRefundLines :many
+SELECT rl.order_line_id, rl.quantity, ol.product_name,
+       coalesce(ol.variant_label, '')::text AS variant_label
+FROM return_request_lines rl
+JOIN order_lines ol ON ol.id = rl.order_line_id
+WHERE rl.return_request_id = $1
+ORDER BY ol.position, ol.id
+`
+
+type UnsentRefundLinesRow struct {
+	OrderLineID  uuid.UUID
+	Quantity     int32
+	ProductName  string
+	VariantLabel string
+}
+
+// The lines of one unsent refund, as its door named them.
+func (q *Queries) UnsentRefundLines(ctx context.Context, returnRequestID uuid.UUID) ([]UnsentRefundLinesRow, error) {
+	rows, err := q.db.Query(ctx, unsentRefundLines, returnRequestID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []UnsentRefundLinesRow{}
+	for rows.Next() {
+		var i UnsentRefundLinesRow
+		if err := rows.Scan(
+			&i.OrderLineID,
+			&i.Quantity,
+			&i.ProductName,
+			&i.VariantLabel,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const unsentRefundState = `-- name: UnsentRefundState :one
+SELECT o.fulfillment_status, u.id AS return_request_id
+FROM orders o
+LEFT JOIN return_requests u ON u.order_id = o.id AND u.unsent AND u.status = 'approved'
+WHERE o.order_number = $1::text
+`
+
+type UnsentRefundStateRow struct {
+	FulfillmentStatus string
+	ReturnRequestID   uuid.NullUUID
+}
+
+// What the order page reads to offer the refund of units that will not be
+// sent, and the one Resume finishes. open_unsent_refund re-derives every fact
+// under the order lock; this only decides whether to show the door.
+func (q *Queries) UnsentRefundState(ctx context.Context, orderNumber string) (UnsentRefundStateRow, error) {
+	row := q.db.QueryRow(ctx, unsentRefundState, orderNumber)
+	var i UnsentRefundStateRow
+	err := row.Scan(&i.FulfillmentStatus, &i.ReturnRequestID)
+	return i, err
 }
 
 const unsubscribeNewsletter = `-- name: UnsubscribeNewsletter :one

@@ -45,6 +45,7 @@ var mailedContract = map[string][]string{
 	},
 	"SendNewsletterWelcome":                           {"GET /newsletter/unsubscribe?token", "GET /static/?v"},
 	"SendOrderPaid":                                   {"GET /orders/{number}", "GET /static/?v"},
+	"SendOrderPartRefunded":                           {"GET /orders/{number}", "GET /static/?v"},
 	"SendOrderPlaced":                                 {"GET /orders/{number}", "GET /static/?v"},
 	"SendOrderShipped/delivery":                       {"GET /orders/{number}", "GET /static/?v"},
 	"SendOrderShipped/pickup":                         {"GET /orders/{number}", "GET /static/?v"},
@@ -182,6 +183,14 @@ func TestEveryMailedLinkReachesARoute(t *testing.T) {
 			return n.SendOrderPaid(ctx, &email.OrderPaid{
 				Locale: "en", OrderNumber: number, Email: address, Name: "Alex", AmountCents: 128000, Card: "4242",
 			})
+		}},
+		{"SendOrderPartRefunded", func(ctx context.Context, n email.Notifier) error {
+			return n.SendOrderPartRefunded(ctx, &email.OrderPartRefunded{OrderID: uuid.New(), ReturnRequestID: uuid.New()},
+				&email.PartRefundLetter{
+					Address: address, Name: "Alex", Locale: "en", OrderNumber: number,
+					Items:       []email.PartRefundItem{{Name: "Dot-grid notebook", Quantity: 2}},
+					RefundCents: 92600, CardCents: 92600,
+				})
 		}},
 		{"SendOrderPlaced", func(ctx context.Context, n email.Notifier) error {
 			return n.SendOrderPlaced(ctx, &email.OrderPlaced{

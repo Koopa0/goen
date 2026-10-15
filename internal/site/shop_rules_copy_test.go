@@ -61,6 +61,20 @@ func TestReturnsRefundTakesOffTheDiscountShareInBothLanguages(t *testing.T) {
 	}
 }
 
+// open_unsent_refund refunds what a partly shipped order cannot send by the
+// same arithmetic, without a fee, and the rest still ships (#1965).
+func TestReturnsRefundCoversWhatCannotBeSentInBothLanguages(t *testing.T) {
+	t.Parallel()
+	zh := policyBody(t, "returns", i18n.ZhHant, "退款")
+	en := policyBody(t, "returns", i18n.En, "Refunds")
+	if !strings.Contains(zh, "已付款的商品若無法寄出，我們會依原付款方式全額退還該商品的款項，不收任何費用；其他商品照常出貨。") {
+		t.Errorf("returns policy (zh) does not say what happens to what cannot be sent: %s", zh)
+	}
+	if !strings.Contains(en, "If something you paid for cannot be sent, we refund it in full the way you paid, with no charge, and the rest of the order ships as normal.") {
+		t.Errorf("returns policy (en) does not say what happens to what cannot be sent: %s", en)
+	}
+}
+
 func TestWarrantyCollectionDependsOnHowTheOrderWasDelivered(t *testing.T) {
 	t.Parallel()
 	zh := policyBody(t, "warranty", i18n.ZhHant, "怎麼送修")

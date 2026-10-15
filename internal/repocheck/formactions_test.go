@@ -53,6 +53,7 @@ func methodFormActions(t *testing.T) map[string][]string {
 		"internal/ui/pages/admin/returns.templ:templ.SafeURL(r.Action())":                               {ret.Action()},
 		"internal/ui/pages/admin/returnconfirm.templ:templ.SafeURL(v.Action())":                         {(admin.ReturnConfirmation{ID: "return"}).Action()},
 		"internal/ui/pages/admin/refundconfirm.templ:templ.SafeURL(v.Action())":                         {(admin.RefundConfirmation{OrderNumber: "order"}).Action()},
+		"internal/ui/pages/admin/unsentconfirm.templ:templ.SafeURL(v.Action())":                         {(admin.UnsentRefundConfirmation{OrderNumber: "order"}).Action()},
 		"internal/ui/pages/admin/returns.templ:templ.SafeURL(r.AssessAction())":                         {ret.AssessAction()},
 		"internal/ui/pages/admin/returns.templ:templ.SafeURL(r.InspectAction() + \"#inspect-\" + r.ID)": {ret.InspectAction() + "#inspect-" + ret.ID},
 		"internal/ui/pages/admin/returns.templ:templ.SafeURL(r.CompleteAction())":                       {ret.CompleteAction()},

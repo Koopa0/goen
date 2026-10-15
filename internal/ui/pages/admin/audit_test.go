@@ -172,6 +172,16 @@ func TestAuditEntryReadsEachRecordedKindAsWords(t *testing.T) {
 			wantKey: i18n.KeyAdminReturnWindowGoodwill, wantNot: "<dd>goodwill</dd>",
 		},
 		{
+			name: "an unsent refund's reason code is a word", locale: i18n.ZhHant,
+			entry: AuditEntry{Action: "return.refund_unsent", Entity: "return_requests", Changes: []AuditChange{{Field: "reason", After: "supplier_failed"}}},
+			want:  "<dd>供應商無法供貨</dd>", wantNot: "supplier_failed",
+		},
+		{
+			name: "a customer's reason stays as they wrote it", locale: i18n.ZhHant,
+			entry: AuditEntry{Action: "return.request", Entity: "return_requests", Changes: []AuditChange{{Field: "reason", After: "lost"}}},
+			want:  "<dd>lost</dd>", wantNot: "商品遺失",
+		},
+		{
 			name: "percent coupon", locale: i18n.En,
 			entry: AuditEntry{Entity: "coupons", Changes: []AuditChange{{Field: "kind", After: "percent"}, {Field: "value", After: "20"}}},
 			want:  "<dd>20%</dd>", wantNot: "NT$",

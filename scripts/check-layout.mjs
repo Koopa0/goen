@@ -308,6 +308,11 @@ const ADMIN = [
   // health alarm on /admin/health; the form here needs the refunded room.
   { label: 'admin order 375', width: 375, height: 812, path: '/admin/orders/INVOICE_ORDER', marker: '.goen-admin__form' },
   { label: 'admin order 1440', width: 1440, height: 900, path: '/admin/orders/INVOICE_ORDER', marker: '.goen-admin__form' },
+  // UNSENT_ORDER sent its first parcel and still owes two units: the order
+  // page's refund of what will not be sent (#1965), its quantity fields,
+  // reason select and button.
+  { label: 'admin unsent 375', width: 375, height: 812, path: '/admin/orders/UNSENT_ORDER', marker: '#unsent-heading' },
+  { label: 'admin unsent 1440', width: 1440, height: 900, path: '/admin/orders/UNSENT_ORDER', marker: '#unsent-heading' },
   // The three notices a void or 折讓 can land on. The order page without a
   // query flag never renders them, so the rows above measure the form and
   // miss the copy.
@@ -3168,6 +3173,7 @@ if (process.env.ADMIN_TOKEN) {
     const target = ORIGIN + want.path
       .replace('PLACED_ORDER', process.env.PLACED_ORDER || '')
       .replace('INVOICE_ORDER', process.env.INVOICE_ORDER || '')
+      .replace('UNSENT_ORDER', process.env.UNSENT_ORDER || '')
       .replace('CUSTOMER_ID', process.env.CUSTOMER_ID || '')
       .replace('LAYOUT_SERIAL', process.env.LAYOUT_SERIAL || '')
       .replace('PRODUCT_SLUG', process.env.PRODUCT_SLUG || '');

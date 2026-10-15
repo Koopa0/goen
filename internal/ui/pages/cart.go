@@ -641,6 +641,8 @@ type OrderEvent struct {
 	Kind order.EventKind
 	Note string
 	At   time.Time
+	// Unsent marks the refunded event of units the shop could not send.
+	Unsent bool
 }
 
 // ShowsNote reports whether the note belongs on the customer's history. A shipped event's note is the
@@ -668,6 +670,9 @@ func (e OrderEvent) LabelKey() i18n.Key {
 	case order.EventCancelled:
 		return i18n.KeyEventCancelled
 	case order.EventRefunded:
+		if e.Unsent {
+			return i18n.KeyEventRefundedUnsent
+		}
 		return i18n.KeyStatusRefunded
 	default:
 		panic("pages: no label for order event kind " + string(e.Kind))

@@ -164,26 +164,32 @@ SELECT consume_reservation_partial(@reservation_id, @quantity::integer);
 -- no hold, and dropping the row here would ship it without moving stock. The
 -- caller refuses instead. ReleaseReservation and HeldReservationsForOrder live
 -- in internal/cart/query.sql — sqlc generates ONE db package for the module.
+-- What is still owed a parcel is bought less dispatched less what an unsent
+-- refund claims (open_unsent_refund): shipment_lines_within_purchase refuses
+-- a parcel carrying those units, so the form must not offer them.
 -- name: ShippableLines :many
-SELECT ol.id AS order_line_id,
-       ol.sku,
-       ol.product_name,
-       ol.variant_label,
-       (ol.quantity - coalesce((
-           SELECT sum(sl.quantity) FROM order_shipment_lines sl
-           WHERE sl.order_line_id = ol.id), 0))::integer AS remaining,
+SELECT l.order_line_id, l.sku, l.product_name, l.variant_label, l.remaining,
        ir.id AS reservation_id,
        coalesce(ir.quantity, 0)::integer AS held
-FROM order_lines ol
+FROM (
+    SELECT ol.id AS order_line_id, ol.order_id, ol.variant_id, ol.position,
+           ol.sku, ol.product_name, ol.variant_label,
+           (ol.quantity
+            - coalesce((SELECT sum(sl.quantity) FROM order_shipment_lines sl
+                        WHERE sl.order_line_id = ol.id), 0)
+            - coalesce((SELECT sum(rl.quantity) FROM return_request_lines rl
+                        JOIN return_requests r ON r.id = rl.return_request_id
+                        WHERE rl.order_line_id = ol.id AND r.unsent AND r.status <> 'rejected'), 0)
+           )::integer AS remaining
+    FROM order_lines ol
+    WHERE ol.order_id = @order_id
+) l
 LEFT JOIN inventory_reservations ir
-       ON ir.order_id = ol.order_id
-      AND ir.variant_id = ol.variant_id
+       ON ir.order_id = l.order_id
+      AND ir.variant_id = l.variant_id
       AND ir.state = 'held'
-WHERE ol.order_id = @order_id
-  AND ol.quantity > coalesce((
-      SELECT sum(sl.quantity) FROM order_shipment_lines sl
-      WHERE sl.order_line_id = ol.id), 0)
-ORDER BY ol.position, ol.id;
+WHERE l.remaining > 0
+ORDER BY l.position, l.order_line_id;
 
 -- order_events is append-only three ways — a forbid_change trigger, REVOKE
 -- UPDATE and REVOKE DELETE — so this is the only thing that may touch it.
@@ -418,23 +424,36 @@ WHERE o.fulfillment_status IN ('picking', 'shipped', 'delivered')
   AND NOT EXISTS (SELECT 1 FROM return_requests r WHERE r.order_id = o.id AND r.before_shipment)
   AND EXISTS (SELECT 1 FROM order_lines ol WHERE ol.order_id = o.id
               AND ol.quantity > coalesce((SELECT sum(sl.quantity) FROM order_shipment_lines sl
-                                          WHERE sl.order_line_id = ol.id), 0))
+                                          WHERE sl.order_line_id = ol.id), 0)
+                              + coalesce((SELECT sum(rl.quantity) FROM return_request_lines rl
+                                          JOIN return_requests r ON r.id = rl.return_request_id
+                                          WHERE rl.order_line_id = ol.id
+                                            AND r.unsent AND r.status <> 'rejected'), 0))
   AND (NOT @has_cursor::boolean OR o.placed_at > @after_at::timestamptz
        OR (o.placed_at = @after_at::timestamptz AND o.id > @after_id::uuid))
 ORDER BY o.placed_at, o.id
 LIMIT @row_limit::integer;
 
--- ShippableLines uses the same purchased-minus-dispatched quantity. Read the
--- line snapshot even if its catalogue variant has since been removed.
+-- ShippableLines uses the same quantity: purchased less dispatched less what
+-- an unsent refund claims. Read the line snapshot even if its catalogue
+-- variant has since been removed.
 -- name: PickingSlipLines :many
-SELECT ol.order_id, ol.sku, ol.product_name, ol.variant_label, ol.unit_price_cents,
-       (ol.quantity - coalesce((SELECT sum(sl.quantity) FROM order_shipment_lines sl
-                                WHERE sl.order_line_id = ol.id), 0))::integer AS remaining
-FROM order_lines ol
-WHERE ol.order_id = ANY(@order_ids::uuid[])
-  AND ol.quantity > coalesce((SELECT sum(sl.quantity) FROM order_shipment_lines sl
-                              WHERE sl.order_line_id = ol.id), 0)
-ORDER BY ol.order_id, ol.position, ol.id;
+SELECT l.order_id, l.sku, l.product_name, l.variant_label, l.unit_price_cents, l.remaining
+FROM (
+    SELECT ol.order_id, ol.id, ol.position, ol.sku, ol.product_name, ol.variant_label,
+           ol.unit_price_cents,
+           (ol.quantity
+            - coalesce((SELECT sum(sl.quantity) FROM order_shipment_lines sl
+                        WHERE sl.order_line_id = ol.id), 0)
+            - coalesce((SELECT sum(rl.quantity) FROM return_request_lines rl
+                        JOIN return_requests r ON r.id = rl.return_request_id
+                        WHERE rl.order_line_id = ol.id AND r.unsent AND r.status <> 'rejected'), 0)
+           )::integer AS remaining
+    FROM order_lines ol
+    WHERE ol.order_id = ANY(@order_ids::uuid[])
+) l
+WHERE l.remaining > 0
+ORDER BY l.order_id, l.position, l.id;
 
 -- Totals span the entire queue, regardless of the slip page. A SKU whose
 -- snapshots have different labels keeps its most recent order's wording.
@@ -443,12 +462,20 @@ SELECT ol.sku,
        (array_agg(ol.product_name ORDER BY o.placed_at DESC, o.id DESC, ol.id DESC))[1]::text AS product_name,
        coalesce((array_agg(ol.variant_label ORDER BY o.placed_at DESC, o.id DESC, ol.id DESC))[1], '')::text AS variant_label,
        sum(ol.quantity - coalesce((SELECT sum(sl.quantity) FROM order_shipment_lines sl
-                                  WHERE sl.order_line_id = ol.id), 0))::bigint AS remaining
+                                  WHERE sl.order_line_id = ol.id), 0)
+                       - coalesce((SELECT sum(rl.quantity) FROM return_request_lines rl
+                                   JOIN return_requests r ON r.id = rl.return_request_id
+                                   WHERE rl.order_line_id = ol.id
+                                     AND r.unsent AND r.status <> 'rejected'), 0))::bigint AS remaining
 FROM orders o JOIN order_lines ol ON ol.order_id = o.id
 WHERE o.fulfillment_status IN ('picking', 'shipped', 'delivered')
   AND NOT EXISTS (SELECT 1 FROM return_requests r WHERE r.order_id = o.id AND r.before_shipment)
   AND ol.quantity > coalesce((SELECT sum(sl.quantity) FROM order_shipment_lines sl
                               WHERE sl.order_line_id = ol.id), 0)
+                  + coalesce((SELECT sum(rl.quantity) FROM return_request_lines rl
+                              JOIN return_requests r ON r.id = rl.return_request_id
+                              WHERE rl.order_line_id = ol.id
+                                AND r.unsent AND r.status <> 'rejected'), 0)
 GROUP BY ol.sku
 ORDER BY ol.sku;
 

@@ -103,6 +103,14 @@ func variants(text string) map[string]func(context.Context, Notifier) error {
 			})
 		},
 	}
+	for name, split := range map[string][2]int64{"card": {100000, 0}, "credit": {0, 100000}, "nothing paid": {0, 0}} {
+		out["SendOrderPartRefunded "+name] = func(ctx context.Context, n Notifier) error {
+			return n.SendOrderPartRefunded(ctx, &OrderPartRefunded{OrderID: uuid.New(), ReturnRequestID: uuid.New()},
+				&PartRefundLetter{Address: to, Name: text, OrderNumber: number,
+					Items:       []PartRefundItem{{Name: text, Quantity: 1}, {Name: text, Label: text, Quantity: 2}},
+					RefundCents: split[0] + split[1], CardCents: split[0], CreditCents: split[1]})
+		}
+	}
 	for _, m := range []OrderTerminal{
 		{Kind: TerminalCancelledByCustomer},
 		{Kind: TerminalCancelledByCustomer, Refunded: true},

@@ -77,8 +77,8 @@ templ Returns(p layouts.Page, v ReturnsView) {
 											if l.Inspected {
 												<span class="goen-admin__meta">
 													{ fmt.Sprintf(i18n.T(ctx, i18n.KeyAdminRetReceivedRestocked), l.ReceivedText(), l.RestockedText()) }
-													// Nothing shipped on a refund before shipment, so nothing can be short.
-													if l.Shortfall() && !r.BeforeShipment {
+													// Nothing shipped on a refund before shipment or of unsent units, so nothing can be short.
+													if l.Shortfall() && !r.BeforeShipment && !r.Unsent {
 														<strong>{ i18n.T(ctx, i18n.KeyAdminRetShortfall) }</strong>
 													}
 													if l.Scrapped() {
@@ -98,6 +98,10 @@ templ Returns(p layouts.Page, v ReturnsView) {
 							// Its payout, cancellation and invoice correction resume
 							// together on the order page, never one at a time here.
 							<p class="goen-admin__hint"><a href={ templ.SafeURL(r.OrderAction()) }>{ i18n.T(ctx, i18n.KeyAdminRefundTitle) }</a></p>
+						} else if r.Unsent {
+							// Its payout and the units' stock settle together on the
+							// order page; nothing comes back to inspect here.
+							<p class="goen-admin__hint"><a href={ templ.SafeURL(r.OrderAction()) }>{ i18n.T(ctx, i18n.KeyAdminUnsentTitle) }</a></p>
 						} else if !r.Decided {
 							if (r.Goodwill() || r.Mixed()) && !r.mixedStatutoryApproval() {
 								<form class="goen-admin__decide" method="post" action={ templ.SafeURL(r.AssessAction()) }>

@@ -41,7 +41,7 @@ func TestCutParcelsCountsEachParcelFromItsOwnDelivery(t *testing.T) {
 		{OrderLineID: buds, UnitNo: 3, ExpiresOn: time.Date(2027, 10, 12, 0, 0, 0, 0, time.UTC)},
 	}
 
-	parcels, unshipped := cutParcels(shipments, parcelLines, registrations, []uuid.UUID{phone, buds, stand}, byID)
+	parcels, unshipped := cutParcels(shipments, parcelLines, registrations, nil, []uuid.UUID{phone, buds, stand}, byID)
 
 	if len(parcels) != 2 {
 		t.Fatalf("cutParcels returned %d parcels, want 2", len(parcels))
@@ -61,5 +61,47 @@ func TestCutParcelsCountsEachParcelFromItsOwnDelivery(t *testing.T) {
 	}
 	if len(unshipped) != 1 || unshipped[0].Name != "case" || unshipped[0].Quantity != 2 {
 		t.Errorf("unshipped = %+v, want the two cases", unshipped)
+	}
+}
+
+// A unit an unsent refund took back is not waiting for a parcel: the page must not tell the customer it is still to
+// come after the money for it went back.
+func TestCutParcelsLeavesOutUnitsRefundedUnsent(t *testing.T) {
+	t.Parallel()
+	pen, notebook := uuid.New(), uuid.New()
+	parcel := uuid.New()
+	byID := map[uuid.UUID]pages.OrderLine{
+		pen:      {Name: "pen", Quantity: 1},
+		notebook: {Name: "notebook", Quantity: 3},
+	}
+	shipments := []db.OrderTrackingRow{{ID: parcel, Carrier: "black_cat", TrackingNumber: "A"}}
+	parcelLines := []db.OrderParcelLinesRow{
+		{ShipmentID: parcel, OrderLineID: pen, Quantity: 1},
+		{ShipmentID: parcel, OrderLineID: notebook, Quantity: 1},
+	}
+	for _, tc := range []struct {
+		name    string
+		unsent  int32
+		waiting int32
+	}{
+		{name: "nothing refunded", unsent: 0, waiting: 2},
+		{name: "one of the two refunded", unsent: 1, waiting: 1},
+		{name: "both refunded", unsent: 2, waiting: 0},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			refunded := map[uuid.UUID]int32{notebook: tc.unsent}
+			_, unshipped := cutParcels(shipments, parcelLines, nil, refunded, []uuid.UUID{pen, notebook}, byID)
+			var waiting int32
+			for _, l := range unshipped {
+				if l.Name != "notebook" {
+					t.Errorf("unshipped lists %q, which went in the parcel", l.Name)
+				}
+				waiting += l.Quantity
+			}
+			if waiting != tc.waiting {
+				t.Errorf("unshipped notebooks = %d, want %d", waiting, tc.waiting)
+			}
+		})
 	}
 }

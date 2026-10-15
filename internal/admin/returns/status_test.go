@@ -45,15 +45,30 @@ func TestAFinishedRefundBeforeShipmentIsNotCalledCompleted(t *testing.T) {
 	t.Parallel()
 	for _, locale := range []i18n.Locale{i18n.ZhHant, i18n.En} {
 		ctx := i18n.WithLocale(t.Context(), locale)
-		cancelled := statusText(ctx, returnrules.StatusCompleted, true)
+		cancelled := statusText(ctx, returnrules.StatusCompleted, true, false)
 		if cancelled != i18n.T(ctx, i18n.KeyAdminReturnCancelledRefunded) {
 			t.Errorf("%s: a finished refund before shipment reads %q", locale, cancelled)
 		}
-		if returned := statusText(ctx, returnrules.StatusCompleted, false); returned != i18n.T(ctx, i18n.KeyAdminReturnCompleted) {
+		if returned := statusText(ctx, returnrules.StatusCompleted, false, false); returned != i18n.T(ctx, i18n.KeyAdminReturnCompleted) {
 			t.Errorf("%s: a completed return reads %q", locale, returned)
 		}
-		if open := statusText(ctx, returnrules.StatusApproved, true); open != i18n.T(ctx, i18n.KeyAdminReturnApproved) {
+		if open := statusText(ctx, returnrules.StatusApproved, true, false); open != i18n.T(ctx, i18n.KeyAdminReturnApproved) {
 			t.Errorf("%s: a refund still being paid reads %q, want its own status", locale, open)
+		}
+	}
+}
+
+// A finished refund of units that were never sent is not a return that came
+// back either.
+func TestAFinishedUnsentRefundIsNotCalledCompleted(t *testing.T) {
+	t.Parallel()
+	for _, locale := range []i18n.Locale{i18n.ZhHant, i18n.En} {
+		ctx := i18n.WithLocale(t.Context(), locale)
+		if got := statusText(ctx, returnrules.StatusCompleted, false, true); got != i18n.T(ctx, i18n.KeyAdminReturnUnsentRefunded) {
+			t.Errorf("%s: a finished unsent refund reads %q", locale, got)
+		}
+		if open := statusText(ctx, returnrules.StatusApproved, false, true); open != i18n.T(ctx, i18n.KeyAdminReturnApproved) {
+			t.Errorf("%s: an unsent refund still being paid reads %q, want its own status", locale, open)
 		}
 	}
 }
