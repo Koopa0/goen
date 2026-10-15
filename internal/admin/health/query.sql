@@ -105,7 +105,7 @@ SELECT
     (SELECT count(*) FROM sessions WHERE expires_at <= now())::bigint AS expired_sessions,
     (SELECT count(*) FROM media_objects m
      WHERE NOT EXISTS (SELECT 1 FROM product_images p WHERE p.storage_key = m.digest)
-       AND NOT EXISTS (SELECT 1 FROM hero_slides h WHERE h.image_key = m.digest)
+       AND NOT EXISTS (SELECT 1 FROM hero_slides h WHERE h.media_digest = m.digest)
        AND NOT EXISTS (SELECT 1 FROM sale_campaigns c WHERE c.image_key = m.digest)
        AND NOT EXISTS (SELECT 1 FROM categories k WHERE k.media_digest = m.digest)
        AND m.created_at < now() - interval '24 hours')::bigint AS unreferenced_media;

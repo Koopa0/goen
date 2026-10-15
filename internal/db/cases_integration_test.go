@@ -488,8 +488,8 @@ var checkCases = []checkCase{
 	},
 	{
 		constraint: "hero_slides_image_has_alt",
-		reject:     `INSERT INTO hero_slides (headline, primary_cta_label, primary_cta_href, image_key, image_alt, position) VALUES ('夏季新機', '立即選購', '/c/phones', 'hero.webp', E'\t', 5);`,
-		accept:     `INSERT INTO hero_slides (headline, primary_cta_label, primary_cta_href, image_key, image_alt, position) VALUES ('夏季新機', '立即選購', '/c/phones', 'hero.webp', '首頁主視覺', 5);`,
+		reject:     `INSERT INTO media_objects (digest, content_type, bytes, width, height, byte_size) VALUES (repeat('d', 64), 'image/png', '\x00', 1, 1, 1); INSERT INTO hero_slides (headline, primary_cta_label, primary_cta_href, media_digest, image_alt, position) VALUES ('夏季新機', '立即選購', '/c/phones', repeat('d', 64), E'\t', 5);`,
+		accept:     `INSERT INTO media_objects (digest, content_type, bytes, width, height, byte_size) VALUES (repeat('d', 64), 'image/png', '\x00', 1, 1, 1); INSERT INTO hero_slides (headline, primary_cta_label, primary_cta_href, media_digest, image_alt, position) VALUES ('夏季新機', '立即選購', '/c/phones', repeat('d', 64), '首頁主視覺', 5);`,
 	},
 	{
 		constraint: "hero_slides_primary_cta_present",

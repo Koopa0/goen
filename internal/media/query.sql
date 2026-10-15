@@ -29,7 +29,7 @@ FROM media_objects WHERE digest = $1;
 -- name: UnreferencedMedia :many
 SELECT digest FROM media_objects m
 WHERE NOT EXISTS (SELECT 1 FROM product_images p WHERE p.storage_key = m.digest)
-  AND NOT EXISTS (SELECT 1 FROM hero_slides h WHERE h.image_key = m.digest)
+  AND NOT EXISTS (SELECT 1 FROM hero_slides h WHERE h.media_digest = m.digest)
   AND NOT EXISTS (SELECT 1 FROM sale_campaigns c WHERE c.image_key = m.digest)
   AND NOT EXISTS (SELECT 1 FROM categories k WHERE k.media_digest = m.digest)
   AND m.created_at < now() - interval '24 hours'
@@ -50,18 +50,18 @@ LIMIT $1;
 -- sweeper has run leaves a slide pointing at a deleted object. Measured — it is
 -- not a theory.
 --
--- Closing it properly is a foreign key. categories.media_digest has one
--- (categories_media_digest_fk, ON DELETE RESTRICT): the in-flight attach holds
--- a lock this DELETE waits on, and the delete is then refused, which Reclaim
--- reads as "attached". The other three columns are still open, because each
--- holds two kinds of key — an embedded filename from the seed or a digest — and
--- cannot reference media_objects until it is split the same way (#1930). Their
--- window is the milliseconds of one DELETE against an orphan more than 24 hours
--- old.
+-- Closing it properly is a foreign key. categories.media_digest and
+-- hero_slides.media_digest have one (ON DELETE RESTRICT): the in-flight attach
+-- holds a lock this DELETE waits on, and the delete is then refused, which
+-- Reclaim reads as "attached". The other two columns are still open, because
+-- each holds two kinds of key — an embedded filename from the seed or a digest —
+-- and cannot reference media_objects until it is split the same way (#1930).
+-- Their window is the milliseconds of one DELETE against an orphan more than 24
+-- hours old.
 -- name: DeleteMedia :execrows
 DELETE FROM media_objects m
 WHERE m.digest = @digest::text
   AND NOT EXISTS (SELECT 1 FROM product_images p WHERE p.storage_key = m.digest)
-  AND NOT EXISTS (SELECT 1 FROM hero_slides h WHERE h.image_key = m.digest)
+  AND NOT EXISTS (SELECT 1 FROM hero_slides h WHERE h.media_digest = m.digest)
   AND NOT EXISTS (SELECT 1 FROM sale_campaigns c WHERE c.image_key = m.digest)
   AND NOT EXISTS (SELECT 1 FROM categories k WHERE k.media_digest = m.digest);

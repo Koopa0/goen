@@ -315,7 +315,7 @@ func TestTheHeroImageCarriesItsRealWidth(t *testing.T) {
 		t.Fatalf("seed media: %v", err)
 	}
 	if _, err := pool.Exec(ctx, `INSERT INTO hero_slides
-		(headline, primary_cta_label, primary_cta_href, position, image_key, image_alt)
+		(headline, primary_cta_label, primary_cta_href, position, media_digest, image_alt)
 		VALUES ('有圖', '看', '/deals', 0, $1, '主視覺')`, digest); err != nil {
 		t.Fatalf("insert: %v", err)
 	}

@@ -185,7 +185,7 @@ type HeroSlide struct {
 	PrimaryCtaHref      string
 	SecondaryCtaLabel   pgtype.Text
 	SecondaryCtaHref    pgtype.Text
-	ImageKey            pgtype.Text
+	MediaDigest         pgtype.Text
 	ImageAlt            pgtype.Text
 	EyebrowEn           pgtype.Text
 	HeadlineEn          pgtype.Text

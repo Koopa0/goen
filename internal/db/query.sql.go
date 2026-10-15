@@ -1100,7 +1100,7 @@ func (q *Queries) AdminFAQEntries(ctx context.Context, limit int32) ([]AdminFAQE
 
 const adminHeroSlides = `-- name: AdminHeroSlides :many
 SELECT h.id, h.eyebrow, h.headline, h.primary_cta_label, h.primary_cta_href,
-       h.image_key, h.position, h.is_active, h.starts_at, h.ends_at,
+       h.media_digest AS image_key, h.position, h.is_active, h.starts_at, h.ends_at,
        (h.is_active
         AND (h.starts_at IS NULL OR h.starts_at <= now())
         AND (h.ends_at IS NULL OR h.ends_at > now()))::boolean AS in_window,
@@ -6298,7 +6298,7 @@ func (q *Queries) CreateFAQEntry(ctx context.Context, arg CreateFAQEntryParams) 
 const createHeroSlide = `-- name: CreateHeroSlide :exec
 INSERT INTO hero_slides (
     eyebrow, headline, body, primary_cta_label, primary_cta_href,
-    secondary_cta_label, secondary_cta_href, image_key, image_alt,
+    secondary_cta_label, secondary_cta_href, media_digest, image_alt,
     eyebrow_en, headline_en, body_en, primary_cta_label_en,
     secondary_cta_label_en, image_alt_en,
     position, ends_at
@@ -6323,7 +6323,7 @@ type CreateHeroSlideParams struct {
 	PrimaryCtaHref      string
 	SecondaryCtaLabel   string
 	SecondaryCtaHref    string
-	ImageKey            string
+	MediaDigest         string
 	ImageAlt            string
 	EyebrowEn           string
 	HeadlineEn          string
@@ -6343,7 +6343,7 @@ func (q *Queries) CreateHeroSlide(ctx context.Context, arg CreateHeroSlideParams
 		arg.PrimaryCtaHref,
 		arg.SecondaryCtaLabel,
 		arg.SecondaryCtaHref,
-		arg.ImageKey,
+		arg.MediaDigest,
 		arg.ImageAlt,
 		arg.EyebrowEn,
 		arg.HeadlineEn,
@@ -7522,7 +7522,7 @@ const deleteMedia = `-- name: DeleteMedia :execrows
 DELETE FROM media_objects m
 WHERE m.digest = $1::text
   AND NOT EXISTS (SELECT 1 FROM product_images p WHERE p.storage_key = m.digest)
-  AND NOT EXISTS (SELECT 1 FROM hero_slides h WHERE h.image_key = m.digest)
+  AND NOT EXISTS (SELECT 1 FROM hero_slides h WHERE h.media_digest = m.digest)
   AND NOT EXISTS (SELECT 1 FROM sale_campaigns c WHERE c.image_key = m.digest)
   AND NOT EXISTS (SELECT 1 FROM categories k WHERE k.media_digest = m.digest)
 `
@@ -7541,14 +7541,14 @@ WHERE m.digest = $1::text
 // sweeper has run leaves a slide pointing at a deleted object. Measured — it is
 // not a theory.
 //
-// Closing it properly is a foreign key. categories.media_digest has one
-// (categories_media_digest_fk, ON DELETE RESTRICT): the in-flight attach holds
-// a lock this DELETE waits on, and the delete is then refused, which Reclaim
-// reads as "attached". The other three columns are still open, because each
-// holds two kinds of key — an embedded filename from the seed or a digest — and
-// cannot reference media_objects until it is split the same way (#1930). Their
-// window is the milliseconds of one DELETE against an orphan more than 24 hours
-// old.
+// Closing it properly is a foreign key. categories.media_digest and
+// hero_slides.media_digest have one (ON DELETE RESTRICT): the in-flight attach
+// holds a lock this DELETE waits on, and the delete is then refused, which
+// Reclaim reads as "attached". The other two columns are still open, because
+// each holds two kinds of key — an embedded filename from the seed or a digest —
+// and cannot reference media_objects until it is split the same way (#1930).
+// Their window is the milliseconds of one DELETE against an orphan more than 24
+// hours old.
 func (q *Queries) DeleteMedia(ctx context.Context, digest string) (int64, error) {
 	result, err := q.db.Exec(ctx, deleteMedia, digest)
 	if err != nil {
@@ -8530,7 +8530,7 @@ SELECT h.id, coalesce(localized_name(h.eyebrow, h.eyebrow_en, $1::text), '')::te
        h.primary_cta_href,
        coalesce(localized_name(h.secondary_cta_label, h.secondary_cta_label_en,
                                $1::text), '')::text AS secondary_cta_label,
-       h.secondary_cta_href, h.image_key,
+       h.secondary_cta_href, h.media_digest AS image_key,
        coalesce(localized_name(h.image_alt, h.image_alt_en, $1::text), '')::text
            AS image_alt,
        -- Dimensions come from media_objects: one row of bytes, one row of size.
@@ -8538,7 +8538,7 @@ SELECT h.id, coalesce(localized_name(h.eyebrow, h.eyebrow_en, $1::text), '')::te
        coalesce(m.width, 0)::integer AS image_width,
        coalesce(m.height, 0)::integer AS image_height
 FROM hero_slides h
-LEFT JOIN media_objects m ON m.digest = h.image_key
+LEFT JOIN media_objects m ON m.digest = h.media_digest
 WHERE h.is_active
   AND (h.starts_at IS NULL OR h.starts_at <= now())
   AND (h.ends_at IS NULL OR h.ends_at > now())
@@ -19047,7 +19047,7 @@ func (q *Queries) UnreconciledPayments(ctx context.Context) ([]UnreconciledPayme
 const unreferencedMedia = `-- name: UnreferencedMedia :many
 SELECT digest FROM media_objects m
 WHERE NOT EXISTS (SELECT 1 FROM product_images p WHERE p.storage_key = m.digest)
-  AND NOT EXISTS (SELECT 1 FROM hero_slides h WHERE h.image_key = m.digest)
+  AND NOT EXISTS (SELECT 1 FROM hero_slides h WHERE h.media_digest = m.digest)
   AND NOT EXISTS (SELECT 1 FROM sale_campaigns c WHERE c.image_key = m.digest)
   AND NOT EXISTS (SELECT 1 FROM categories k WHERE k.media_digest = m.digest)
   AND m.created_at < now() - interval '24 hours'
@@ -20239,7 +20239,7 @@ SELECT
     (SELECT count(*) FROM sessions WHERE expires_at <= now())::bigint AS expired_sessions,
     (SELECT count(*) FROM media_objects m
      WHERE NOT EXISTS (SELECT 1 FROM product_images p WHERE p.storage_key = m.digest)
-       AND NOT EXISTS (SELECT 1 FROM hero_slides h WHERE h.image_key = m.digest)
+       AND NOT EXISTS (SELECT 1 FROM hero_slides h WHERE h.media_digest = m.digest)
        AND NOT EXISTS (SELECT 1 FROM sale_campaigns c WHERE c.image_key = m.digest)
        AND NOT EXISTS (SELECT 1 FROM categories k WHERE k.media_digest = m.digest)
        AND m.created_at < now() - interval '24 hours')::bigint AS unreferenced_media

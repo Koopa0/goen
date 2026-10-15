@@ -257,7 +257,7 @@ func TestHeroWithoutASelectedImageStillUsesBuiltInArtwork(t *testing.T) {
 		t.Fatalf("optional image = %d to %q, want 303 to ?ok=1", res.Code, res.Header().Get("Location"))
 	}
 	var imageKey string
-	if err := pool.QueryRow(ctx, `SELECT coalesce(image_key, '') FROM hero_slides WHERE headline = $1`, headline).Scan(&imageKey); err != nil {
+	if err := pool.QueryRow(ctx, `SELECT coalesce(media_digest, '') FROM hero_slides WHERE headline = $1`, headline).Scan(&imageKey); err != nil {
 		t.Fatal(err)
 	}
 	if imageKey != "" {
@@ -511,7 +511,7 @@ func TestHeroUploadsKeepStorageFailuresSeparateFromRefusals(t *testing.T) {
 			t.Fatalf("recovered PutMedia = %d/%q/live=%t parent=%v, want the second actual successful write", witness.seen, witness.code, witness.live, ctx.Err())
 		}
 		var alt, altEn, imageKey string
-		if err := owner.QueryRow(ctx, `SELECT image_alt, image_alt_en, image_key FROM hero_slides WHERE headline=$1`,
+		if err := owner.QueryRow(ctx, `SELECT image_alt, image_alt_en, media_digest FROM hero_slides WHERE headline=$1`,
 			strings.TrimSpace(fields["headline"])).Scan(&alt, &altEn, &imageKey); err != nil {
 			t.Fatal(err)
 		}

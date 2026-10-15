@@ -79,6 +79,7 @@ var expectedForeignKeys = map[string]bool{
 	"categories_media_digest_fk":                  true,
 	"categories_parent_id_fkey":                   true,
 	"faq_entries_category_id_fkey":                true,
+	"hero_slides_media_digest_fk":                 true,
 	"checkout_attempts_cart_id_fkey":              true,
 	"checkout_attempts_order_fk":                  true,
 	"inventory_movements_actor_user_id_fkey":      true,

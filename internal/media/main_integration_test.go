@@ -270,13 +270,15 @@ func TestAHeroSlidesImageIsNotReclaimed(t *testing.T) {
 	if err != nil {
 		t.Fatalf("upload: %v", err)
 	}
+	// Aged first: ageUploads re-inserts the row, which the foreign key refuses
+	// once a slide points at it.
+	ageUploads(t, hero.Digest)
 	if _, err := pool.Exec(ctx, `
 		INSERT INTO hero_slides (headline, primary_cta_label, primary_cta_href,
-		                         image_key, image_alt, position)
+		                         media_digest, image_alt, position)
 		VALUES ('版面檢查', '看看', '/deals', $1, '測試圖片', 99)`, hero.Digest); err != nil {
 		t.Fatalf("attach to a hero slide: %v", err)
 	}
-	ageUploads(t, hero.Digest)
 
 	if _, err := s.Sweep(ctx, slog.New(slog.DiscardHandler)); err != nil {
 		t.Fatalf("sweep: %v", err)
@@ -454,7 +456,7 @@ func TestAnUploadAttachedMidSweepSurvivesIt(t *testing.T) {
 	}
 	if _, err := pool.Exec(ctx, `
 		INSERT INTO hero_slides (headline, primary_cta_label, primary_cta_href,
-		                         image_key, image_alt, position)
+		                         media_digest, image_alt, position)
 		VALUES ('搶在清掃前掛上', '看看', '/deals', $1, '測試圖片', 98)`,
 		hero.Digest); err != nil {
 		t.Fatalf("attach a hero: %v", err)
@@ -473,7 +475,7 @@ func TestAnUploadAttachedMidSweepSurvivesIt(t *testing.T) {
 // the repeated predicate cannot: an attach still IN FLIGHT when the sweeper's
 // DELETE runs, which that DELETE's snapshot cannot see. categories_media_digest_fk
 // closes it — the attach holds a lock the DELETE waits on, and the delete is
-// refused once the attach commits. Reclaim runs as admin, the sweeper's role.
+// refused once the attach commits.
 func TestADepartmentPhotographAttachedDuringTheDeleteSurvivesIt(t *testing.T) {
 	ctx := t.Context()
 	photo, err := media.NewStore(pool).Put(ctx, bytes.NewReader(samplePNG(t, 78, 58)))
@@ -492,8 +494,64 @@ func TestADepartmentPhotographAttachedDuringTheDeleteSurvivesIt(t *testing.T) {
 			`DELETE FROM categories WHERE slug = 'in-flight-photo'`); cleanErr != nil {
 			t.Errorf("remove category: %v", cleanErr)
 		}
+		forgetUpload(t, photo.Digest)
 	})
 
+	gone, err := reclaimDuringAttach(t, photo.Digest, `
+		UPDATE categories SET media_digest = $1, image_alt = '測試圖片'
+		WHERE slug = 'in-flight-photo'`)
+	if err != nil || gone || !exists(t, photo.Digest) {
+		t.Errorf("Reclaim during an in-flight attach = %v, %v, kept=%v; want false, nil and the "+
+			"upload kept — the department page's photograph is now a 404",
+			gone, err, exists(t, photo.Digest))
+	}
+}
+
+// TestAHeroImageAttachedDuringTheDeleteSurvivesIt is the same window for the
+// slide CreateHeroSlide inserts, closed by hero_slides_media_digest_fk.
+func TestAHeroImageAttachedDuringTheDeleteSurvivesIt(t *testing.T) {
+	ctx := t.Context()
+	hero, err := media.NewStore(pool).Put(ctx, bytes.NewReader(samplePNG(t, 79, 59)))
+	if err != nil {
+		t.Fatalf("upload: %v", err)
+	}
+	ageUploads(t, hero.Digest)
+	t.Cleanup(func() {
+		if _, cleanErr := pool.Exec(context.WithoutCancel(ctx),
+			`DELETE FROM hero_slides WHERE headline = '清掃中掛上'`); cleanErr != nil {
+			t.Errorf("remove hero slide: %v", cleanErr)
+		}
+		forgetUpload(t, hero.Digest)
+	})
+
+	gone, err := reclaimDuringAttach(t, hero.Digest, `
+		INSERT INTO hero_slides (headline, primary_cta_label, primary_cta_href,
+		                         media_digest, image_alt, position)
+		SELECT '清掃中掛上', '看看', '/deals', $1, '測試圖片', coalesce(max(position), 0) + 1
+		FROM hero_slides`)
+	if err != nil || gone || !exists(t, hero.Digest) {
+		t.Errorf("Reclaim during an in-flight attach = %v, %v, kept=%v; want false, nil and the "+
+			"upload kept — the home page's largest picture is now a 404",
+			gone, err, exists(t, hero.Digest))
+	}
+}
+
+// forgetUpload deletes an aged upload a test detached again: left behind, it is
+// a candidate the next test's first Sweep reclaims "inside the grace window".
+func forgetUpload(t *testing.T, digest string) {
+	t.Helper()
+	if _, err := pool.Exec(context.WithoutCancel(t.Context()),
+		`DELETE FROM media_objects WHERE digest = $1`, digest); err != nil {
+		t.Errorf("remove upload %s: %v", digest, err)
+	}
+}
+
+// reclaimDuringAttach runs attach ($1 is digest) in an open transaction, starts
+// Reclaim as admin, the sweeper's role, and commits the attach only once the
+// DELETE waits on it: the interleaving is driven, not hoped for.
+func reclaimDuringAttach(t *testing.T, digest, attachSQL string) (bool, error) {
+	t.Helper()
+	ctx := t.Context()
 	config := pool.Config().Copy()
 	config.AfterConnect = func(ctx context.Context, conn *pgx.Conn) error {
 		_, roleErr := conn.Exec(ctx, `SET ROLE admin`)
@@ -510,9 +568,7 @@ func TestADepartmentPhotographAttachedDuringTheDeleteSurvivesIt(t *testing.T) {
 		t.Fatalf("begin attach: %v", err)
 	}
 	defer func() { _ = attach.Rollback(context.WithoutCancel(ctx)) }()
-	if _, err = attach.Exec(ctx, `
-		UPDATE categories SET media_digest = $1, image_alt = '測試圖片'
-		WHERE slug = 'in-flight-photo'`, photo.Digest); err != nil {
+	if _, err = attach.Exec(ctx, attachSQL, digest); err != nil {
 		t.Fatalf("attach: %v", err)
 	}
 	var attacher int32
@@ -526,12 +582,10 @@ func TestADepartmentPhotographAttachedDuringTheDeleteSurvivesIt(t *testing.T) {
 	}
 	done := make(chan reclaimed, 1)
 	go func() {
-		gone, reclaimErr := media.NewStore(admin).Reclaim(ctx, photo.Digest)
+		gone, reclaimErr := media.NewStore(admin).Reclaim(ctx, digest)
 		done <- reclaimed{gone, reclaimErr}
 	}()
 
-	// The interleaving is driven, not hoped for: commit only once the DELETE
-	// is waiting on the attach's lock.
 	var early *reclaimed
 	for deadline := time.Now().Add(10 * time.Second); early == nil; {
 		select {
@@ -561,12 +615,7 @@ func TestADepartmentPhotographAttachedDuringTheDeleteSurvivesIt(t *testing.T) {
 		r := <-done
 		got = &r
 	}
-
-	if got.err != nil || got.gone || !exists(t, photo.Digest) {
-		t.Errorf("Reclaim during an in-flight attach = %v, %v, kept=%v; want false, nil and the "+
-			"upload kept — the department page's photograph is now a 404",
-			got.gone, got.err, exists(t, photo.Digest))
-	}
+	return got.gone, got.err
 }
 
 func TestOriginalImagePoolWaitEndsBeforeTheWriteDeadline(t *testing.T) {
