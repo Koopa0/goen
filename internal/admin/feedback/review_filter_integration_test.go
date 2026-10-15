@@ -22,7 +22,6 @@ import (
 	"github.com/koopa0/goen/internal/admin/feedback"
 	"github.com/koopa0/goen/internal/i18n"
 	"github.com/koopa0/goen/internal/keyset"
-	"github.com/koopa0/goen/internal/ui/pages/admin"
 )
 
 func TestReviewFilterKeepsTimeOrderHiddenRowsAndKeysetScope(t *testing.T) {
@@ -117,7 +116,7 @@ func seedFilteredReviews(ctx context.Context, t *testing.T, owner *pgxpool.Pool)
 	return want
 }
 
-func checkReviewFilterGET(ctx context.Context, t *testing.T, store *feedback.Store, first admin.ReviewsView) {
+func checkReviewFilterGET(ctx context.Context, t *testing.T, store *feedback.Store, first feedback.ReviewsView) {
 	t.Helper()
 	handler := feedback.NewHandler(store, slog.New(slog.DiscardHandler))
 	for _, locale := range []i18n.Locale{i18n.ZhHant, i18n.En} {

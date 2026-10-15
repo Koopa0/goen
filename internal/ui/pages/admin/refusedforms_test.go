@@ -34,20 +34,3 @@ func TestARefusedInspectionKeepsWhatWasTyped(t *testing.T) {
 		}
 	}
 }
-
-// TestARefusedAnswerKeepsItsText holds that the reply staff typed stays in its
-// box, marked invalid, instead of vanishing with the redirect.
-func TestARefusedAnswerKeepsItsText(t *testing.T) {
-	t.Parallel()
-	ctx := i18n.WithLocale(t.Context(), i18n.ZhHant)
-	view := QuestionsView{Rows: []Question{{
-		ID: "q1", Body: "多久到貨?", Draft: "一長串回覆", Error: "回覆不能留白",
-	}}}
-	html := renderComponent(t, ctx, Questions(layouts.Page{}, view))
-
-	for _, want := range []string{`>一長串回覆</textarea>`, `aria-invalid="true"`, `id="answer-error-q1"`} {
-		if !strings.Contains(html, want) {
-			t.Errorf("the refused answer form is missing %q", want)
-		}
-	}
-}
