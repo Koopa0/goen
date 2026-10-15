@@ -17,7 +17,6 @@ import (
 	"github.com/koopa0/goen/internal/shoptime"
 	"github.com/koopa0/goen/internal/ui/components"
 	"github.com/koopa0/goen/internal/ui/layouts"
-	"github.com/koopa0/goen/internal/ui/pages/admin"
 	"github.com/koopa0/goen/internal/web"
 )
 
@@ -71,7 +70,7 @@ func (h *Handler) Credit(w http.ResponseWriter, r *http.Request) {
 	}
 	view.OperationID = uuid.NewString()
 	view.Notice = creditNotice(r)
-	web.Render(w, r, h.log, http.StatusOK, admin.Credit(
+	web.Render(w, r, h.log, http.StatusOK, Credit(
 		layouts.Page{Title: i18n.T(r.Context(), i18n.KeyAdminPageCredit)}, view))
 }
 
@@ -89,8 +88,8 @@ func creditFilter(raw string) (customer uuid.NullUUID, ok bool) {
 }
 
 // creditView puts a ledger page in the words the page renders.
-func creditView(ledger Ledger) admin.CreditView {
-	view := admin.CreditView{Bound: ledger.Bound}
+func creditView(ledger Ledger) CreditView {
+	view := CreditView{Bound: ledger.Bound}
 	if ledger.Customer != nil {
 		view.FilterCustomerID = ledger.Customer.ID.String()
 		view.FilterCustomerName = ledger.Customer.Name
@@ -100,8 +99,8 @@ func creditView(ledger Ledger) admin.CreditView {
 	}
 	for i := range ledger.Postings {
 		p := &ledger.Postings[i]
-		view.Rows = append(view.Rows, admin.CreditEntry{
-			Email: p.Email, AmountCents: p.AmountCents, Kind: admin.PostingKind(p.Kind), Reason: p.Reason,
+		view.Rows = append(view.Rows, CreditEntry{
+			Email: p.Email, AmountCents: p.AmountCents, Kind: PostingKind(p.Kind), Reason: p.Reason,
 			At: shoptime.Minute(p.At), CustomerID: p.CustomerID, OrderNumber: p.OrderNumber,
 			ReturnID: p.ReturnID, ActorEmail: p.ActorEmail, RunningTotalCents: p.RunningCents,
 		})
@@ -132,7 +131,7 @@ func (h *Handler) GrantCredit(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, i18n.T(r.Context(), i18n.KeyAdminBadForm), http.StatusBadRequest)
 		return
 	}
-	view := admin.CreditView{Email: r.PostFormValue("email"), Amount: r.PostFormValue("amount"), Reason: r.PostFormValue("reason"), OperationID: r.PostFormValue("operation_id"), FilterCustomerID: r.PostFormValue("filter_customer")}
+	view := CreditView{Email: r.PostFormValue("email"), Amount: r.PostFormValue("amount"), Reason: r.PostFormValue("reason"), OperationID: r.PostFormValue("operation_id"), FilterCustomerID: r.PostFormValue("filter_customer")}
 	operationID, valid := validateCreditGrant(&view)
 	if !valid {
 		h.renderCreditForm(w, r, &view, http.StatusUnprocessableEntity, "")
@@ -195,7 +194,7 @@ func (h *Handler) Tiers(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	view.Notice = components.NoticeFrom(r, notices)
-	web.Render(w, r, h.log, http.StatusOK, admin.Tiers(
+	web.Render(w, r, h.log, http.StatusOK, Tiers(
 		layouts.Page{Title: i18n.T(r.Context(), i18n.KeyAdminPageTiers)}, view))
 }
 
@@ -238,7 +237,7 @@ func (h *Handler) redirectTiers(w http.ResponseWriter, r *http.Request, err erro
 	}
 }
 
-func (h *Handler) renderCreditForm(w http.ResponseWriter, r *http.Request, view *admin.CreditView, status int, notice i18n.Key) {
+func (h *Handler) renderCreditForm(w http.ResponseWriter, r *http.Request, view *CreditView, status int, notice i18n.Key) {
 	customer, ok := creditFilter(view.FilterCustomerID)
 	if !ok {
 		access.NotFound(w, r, h.log)
@@ -260,5 +259,5 @@ func (h *Handler) renderCreditForm(w http.ResponseWriter, r *http.Request, view 
 	if notice != "" {
 		view.Notice = components.Result{Outcome: components.OutcomeRefused, Text: i18n.T(r.Context(), notice)}
 	}
-	web.Render(w, r, h.log, status, admin.Credit(layouts.Page{Title: i18n.T(r.Context(), i18n.KeyAdminPageCredit)}, *view))
+	web.Render(w, r, h.log, status, Credit(layouts.Page{Title: i18n.T(r.Context(), i18n.KeyAdminPageCredit)}, *view))
 }

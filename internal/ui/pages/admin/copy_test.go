@@ -57,7 +57,6 @@ func TestAnExampleIsItsOwnHintLine(t *testing.T) {
 	pages := map[string]string{
 		"product":  renderComponent(t, ctx, ProductForm(layouts.Page{Title: "Product"}, ProductView{IsNew: true})),
 		"taxonomy": renderComponent(t, ctx, Taxonomy(layouts.Page{Title: "Brands"}, &TaxonomyView{})),
-		"tiers":    renderComponent(t, ctx, Tiers(layouts.Page{Title: "Tiers"}, TiersView{})),
 	}
 	for name, body := range pages {
 		if strings.Contains(body, "。 ") {
@@ -87,7 +86,6 @@ func TestEveryExampleHintReadsInFull(t *testing.T) {
 			}{
 				"product":  {renderComponent(t, ctx, ProductForm(layouts.Page{Title: "Product"}, ProductView{IsNew: true})), []string{"ceramic-mug"}},
 				"taxonomy": {renderComponent(t, ctx, Taxonomy(layouts.Page{Title: "Brands"}, &TaxonomyView{})), []string{"north-light", "cookware"}},
-				"tiers":    {renderComponent(t, ctx, Tiers(layouts.Page{Title: "Tiers"}, TiersView{})), []string{"Silver"}},
 				"faq":      {renderComponent(t, ctx, FAQ(layouts.Page{Title: "FAQ"}, &FAQView{})), []string{"Orders"}},
 			} {
 				for _, e := range c.examples {

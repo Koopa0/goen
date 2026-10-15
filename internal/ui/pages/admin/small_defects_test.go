@@ -31,17 +31,6 @@ func TestPickingTotalsHeadAlignsWithItsNumbers(t *testing.T) {
 	}
 }
 
-func TestTiersMultiplierColumnIsNumeric(t *testing.T) {
-	t.Parallel()
-	body := render(t, Tiers(layouts.Page{Title: "Tiers"}, TiersView{Rows: []Tier{{ID: "1", Code: "gold", Name: "Gold", MinSpend: 10000, MultiplierBP: 11000, Members: 4}}}))
-	if !strings.Contains(body, `<td class="goen-admin__cellnum">1.1`) {
-		t.Errorf("tiers multiplier cell is not numeric:\n%s", body)
-	}
-	if !strings.Contains(body, `<th class="goen-admin__cellnum" scope="col">Points rate`) {
-		t.Errorf("tiers multiplier head is not numeric:\n%s", body)
-	}
-}
-
 func TestEmptyLedgerSaysNoMovementOnce(t *testing.T) {
 	t.Parallel()
 	v := &MovementsView{SKU: "A-1", Days: []StockDay{{Day: time.Date(2026, 10, 1, 0, 0, 0, 0, time.UTC)}}}
