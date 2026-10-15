@@ -36,11 +36,11 @@ type AccountOrder struct {
 // delivery, so the row names one only when the whole order has the same.
 func (o AccountOrder) Facts(ctx context.Context) []components.Stat {
 	facts := []components.Stat{
-		dateStat(ctx, i18n.T(ctx, i18n.KeyOrderFactPlaced), o.PlacedAt, ""),
+		components.DateStat(ctx, i18n.T(ctx, i18n.KeyOrderFactPlaced), o.PlacedAt, ""),
 		{Label: i18n.T(ctx, i18n.KeyOrderGrandTotal), Value: components.StatMoney(o.TotalCents)},
 	}
 	if o.OneLastDay {
-		facts = append(facts, dateStat(ctx, i18n.T(ctx, i18n.KeyOrderLastDay), o.LastDay, ""))
+		facts = append(facts, components.DateStat(ctx, i18n.T(ctx, i18n.KeyOrderLastDay), o.LastDay, ""))
 	}
 	return facts
 }

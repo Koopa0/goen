@@ -40,7 +40,7 @@ func (v *OrderView) SeveralParcels() bool { return len(v.Shipments) > 1 }
 // Facts are what the page opens with. A cancelled order has no delivery, so it states the cancellation instead.
 func (v *OrderView) Facts(ctx context.Context) []components.Stat {
 	now := v.now()
-	placed := dateStat(ctx, i18n.T(ctx, i18n.KeyOrderFactPlaced), shoptime.DateOf(v.PlacedAt, now), shoptime.ClockText(v.PlacedAt))
+	placed := components.DateStat(ctx, i18n.T(ctx, i18n.KeyOrderFactPlaced), shoptime.DateOf(v.PlacedAt, now), shoptime.ClockText(v.PlacedAt))
 	if v.IsCancelled() {
 		facts := []components.Stat{placed, timeStat(ctx, i18n.T(ctx, i18n.KeyOrderFactCancelled), v.cancelledAt(), now)}
 		if v.PaymentState() == PaymentRefunded {
@@ -65,7 +65,7 @@ func (v *OrderView) Facts(ctx context.Context) []components.Stat {
 func (v *OrderView) ReturnedFacts(ctx context.Context) []components.Stat {
 	now := v.now()
 	return []components.Stat{
-		dateStat(ctx, i18n.T(ctx, i18n.KeyOrderFactRefundDate), shoptime.DateOf(v.Returned.At, now), ""),
+		components.DateStat(ctx, i18n.T(ctx, i18n.KeyOrderFactRefundDate), shoptime.DateOf(v.Returned.At, now), ""),
 		{Label: i18n.T(ctx, i18n.KeyOrderFactRefund), Value: components.StatMoney(v.Returned.RefundCents)},
 	}
 }
@@ -96,9 +96,9 @@ func (v *OrderView) ReturnFacts(ctx context.Context, s OrderShipment) []componen
 		left = -1
 	}
 	return []components.Stat{
-		dateStat(ctx, i18n.T(ctx, i18n.KeyOrderLastDay), last, ""),
+		components.DateStat(ctx, i18n.T(ctx, i18n.KeyOrderLastDay), last, ""),
 		{Label: i18n.T(ctx, i18n.KeyOrderDaysLeft), Value: components.StatCount(left, i18n.T(ctx, i18n.KeyFactUnitDays))},
-		dateStat(ctx, i18n.T(ctx, i18n.KeyOrderUnusedUntil), end, ""),
+		components.DateStat(ctx, i18n.T(ctx, i18n.KeyOrderUnusedUntil), end, ""),
 	}
 }
 
@@ -147,7 +147,7 @@ func (v *OrderView) WarrantyFacts(ctx context.Context, l OrderLine, delivered bo
 		Note:  note,
 	}}
 	if l.Registered > 0 {
-		facts = append(facts, dateStat(ctx, i18n.T(ctx, i18n.KeyOrderWarrantyUntil), shoptime.DateOf(l.WarrantyUntil, v.now()), ""))
+		facts = append(facts, components.DateStat(ctx, i18n.T(ctx, i18n.KeyOrderWarrantyUntil), shoptime.DateOf(l.WarrantyUntil, v.now()), ""))
 	}
 	return facts
 }
@@ -162,15 +162,6 @@ func (e OrderEvent) Stamp(ctx context.Context) string { return shoptime.StampTex
 
 func (e OrderEvent) Datetime() string { return shoptime.ISOStamp(e.At) }
 
-// dateStat is a day as a stat, with an optional note under it.
-func dateStat(ctx context.Context, label string, d shoptime.Date, note string) components.Stat {
-	return components.Stat{
-		Label: label,
-		Value: components.StatDate(shoptime.DateText(ctx, d), "").WithDatetime(d.ISO()),
-		Note:  note,
-	}
-}
-
 // timeStat is a moment as a stat: its day, with the clock and any further notes beneath.
 func timeStat(ctx context.Context, label string, t, now time.Time, notes ...string) components.Stat {
 	if t.IsZero() {
@@ -180,7 +171,7 @@ func timeStat(ctx context.Context, label string, t, now time.Time, notes ...stri
 	for _, n := range notes {
 		note = fmt.Sprintf(i18n.T(ctx, i18n.KeyOrderFactNote), note, n)
 	}
-	return dateStat(ctx, label, shoptime.DateOf(t, now), note)
+	return components.DateStat(ctx, label, shoptime.DateOf(t, now), note)
 }
 
 func (s OrderShipment) DeliveredStamp(ctx context.Context) string {
