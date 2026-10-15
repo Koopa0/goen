@@ -3,7 +3,6 @@ package admin
 import (
 	"context"
 
-	"github.com/koopa0/goen/assets"
 	"github.com/koopa0/goen/internal/i18n"
 	"github.com/koopa0/goen/internal/keyset"
 )
@@ -228,19 +227,3 @@ type AuditView struct {
 }
 
 func (v AuditView) Empty() bool { return len(v.Rows) == 0 }
-
-type Image struct {
-	Key    string
-	Alt    string
-	Width  int32
-	Height int32
-	// OptionValueID is the option value this photograph shows, empty when it
-	// shows the product whichever value is chosen.
-	OptionValueID string
-}
-
-func (i Image) URL() string { return assets.ProductImageURL(i.Key) }
-
-// Srcset offers the 400px rendition, which is what the back office's 80 and 120
-// pixel tiles need; the original is a multi-megabyte download for either.
-func (i Image) Srcset() string { return assets.ProductImageSrcsetAt(i.Key, int(i.Width)) }

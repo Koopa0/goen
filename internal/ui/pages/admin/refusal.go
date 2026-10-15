@@ -27,13 +27,3 @@ func (v ReturnsView) InspectionRefusals() []layouts.Refusal {
 	}
 	return out
 }
-
-func (v *ProductView) VariantRefusal() layouts.Refusal {
-	fields := make([]layouts.RefusalField, 0, 7+len(v.Options))
-	fields = append(fields, layouts.RefusalField{Key: "sku", ID: "v-sku"}, layouts.RefusalField{Key: "price", ID: "v-price"}, layouts.RefusalField{Key: "compare", ID: "v-compare"})
-	if len(v.Options) > 0 {
-		fields = append(fields, layouts.RefusalField{Key: "options", ID: "v-opt-" + v.Options[0].ID})
-	}
-	fields = append(fields, layouts.RefusalField{Key: "safety", ID: "v-safety"}, layouts.RefusalField{Key: "parcel_longest", ID: "v-longest"}, layouts.RefusalField{Key: "parcel_sum", ID: "v-sum"}, layouts.RefusalField{Key: "parcel_weight", ID: "v-weight"})
-	return layouts.SummarizeRefusal(i18n.KeyAdminProdVariantAdd, v.Errors, fields...)
-}
