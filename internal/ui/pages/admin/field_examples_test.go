@@ -47,7 +47,7 @@ func TestAdminExamplesStayOutsideRefusedInputs(t *testing.T) {
 					fields    map[string]string
 				}{
 					{"campaign", Campaigns(p, CampaignsView{Draft: CampaignDraft{Title: typed, Slug: typed}, Errors: errors("title", "slug")}), map[string]string{"k-title": prefix + title, "k-slug": prefix + "summer-sale"}},
-					{"FAQ category", FAQ(p, &FAQView{Draft: FAQEntry{Category: typed}, Errors: errors("category")}), map[string]string{"faq-category": prefix + category}},
+					{"FAQ category", FAQ(p, &FAQView{CategoryDraft: FAQCategory{Name: typed}, CategoryErrors: errors("name")}), map[string]string{"faq-new-category-name": prefix + category}},
 					{"hero and strip", Home(p, &HeroView{
 						Draft:       HeroDraft{Headline: typed, HeadlineEn: typed, PrimaryHref: typed, SecondHref: typed, Days: typed},
 						BannerDraft: BannerDraft{Message: typed, Short: typed, CTALabel: typed, MessageEn: typed, CTALabelEn: typed, CTAHref: typed, Code: typed, Days: typed},

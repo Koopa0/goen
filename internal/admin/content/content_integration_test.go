@@ -113,11 +113,12 @@ func TestSupportCanAnswerAQuestionWithoutADeploy(t *testing.T) {
 	ctx, _ := admintest.StaffContext(t, pool)
 	s := content.NewStore(pool)
 	category := "測試分類-" + uuid.NewString()[:8]
+	categoryID := newFAQCategory(t, ctx, s, category, "Testing "+category)
 
 	if errs, err := s.CreateFAQEntry(ctx, &content.FAQForm{
-		Category: category, Question: "可以貨到付款嗎?", Answer: "目前只支援信用卡。",
-		CategoryEn: "Testing", QuestionEn: "Can I pay on delivery?",
-		AnswerEn: "Card only for now.",
+		CategoryID: categoryID, Question: "可以貨到付款嗎?", Answer: "目前只支援信用卡。",
+		QuestionEn: "Can I pay on delivery?",
+		AnswerEn:   "Card only for now.",
 	}); err != nil || len(errs) > 0 {
 		t.Fatalf("CreateFAQEntry: %v %v", err, errs)
 	}
@@ -166,7 +167,7 @@ func TestSupportCanAnswerAQuestionWithoutADeploy(t *testing.T) {
 	}
 
 	if errs, updErr := s.UpdateFAQEntry(ctx, &content.FAQForm{
-		ID: made.ID, Category: category,
+		ID:       made.ID,
 		Question: made.Question, Answer: "現在也支援超商取貨付款。",
 		QuestionEn: made.QuestionEn, AnswerEn: "Store pickup payment works now.",
 	}); updErr != nil || len(errs) > 0 {
@@ -191,7 +192,7 @@ func TestSupportCanAnswerAQuestionWithoutADeploy(t *testing.T) {
 	}
 	var rows2 int
 	if err := pool.QueryRow(ctx,
-		`SELECT count(*) FROM faq_entries WHERE category = $1`, category).Scan(&rows2); err != nil {
+		`SELECT count(*) FROM faq_entries WHERE category_id = $1`, categoryID).Scan(&rows2); err != nil {
 		t.Fatalf("count: %v", err)
 	}
 	if rows2 != 0 {
@@ -202,11 +203,11 @@ func TestSupportCanAnswerAQuestionWithoutADeploy(t *testing.T) {
 func TestTwoFAQEntriesInOneCategoryDoNotCollide(t *testing.T) {
 	ctx, _ := admintest.StaffContext(t, pool)
 	s := content.NewStore(pool)
-	category := "順序分類-" + uuid.NewString()[:8]
+	category := newFAQCategory(t, ctx, s, "順序分類-"+uuid.NewString()[:8], "")
 
 	for _, q := range []string{"第一個問題", "第二個問題", "第三個問題"} {
 		if errs, err := s.CreateFAQEntry(ctx, &content.FAQForm{
-			Category: category, Question: q, Answer: "答案",
+			CategoryID: category, Question: q, Answer: "答案",
 		}); err != nil || len(errs) > 0 {
 			t.Fatalf("CreateFAQEntry(%s): %v %v", q, err, errs)
 		}
@@ -214,7 +215,7 @@ func TestTwoFAQEntriesInOneCategoryDoNotCollide(t *testing.T) {
 
 	var positions []int32
 	rows, err := pool.Query(ctx,
-		`SELECT position FROM faq_entries WHERE category = $1 ORDER BY position`, category)
+		`SELECT position FROM faq_entries WHERE category_id = $1 ORDER BY position`, category)
 	if err != nil {
 		t.Fatalf("read positions: %v", err)
 	}
@@ -239,11 +240,11 @@ func TestTwoFAQEntriesInOneCategoryDoNotCollide(t *testing.T) {
 // both read the same max(position) and faq_entries_position_key refuses one.
 func TestTwoConcurrentFAQEntriesInOneCategoryTakeDistinctPositions(t *testing.T) {
 	ctx, _ := admintest.StaffContext(t, pool)
-	category := "併發分類-" + uuid.NewString()[:8]
+	category := newFAQCategory(t, ctx, content.NewStore(pool), "併發分類-"+uuid.NewString()[:8], "")
 	t.Cleanup(func() {
 		//nolint:usetesting // t.Context is already cancelled in Cleanup
 		_, _ = pool.Exec(context.Background(),
-			`DELETE FROM faq_entries WHERE category = $1`, category)
+			`DELETE FROM faq_entries WHERE category_id = $1`, category)
 	})
 	poolA := admintest.NamedPool(t, pool, "faq-append-a-"+uuid.NewString()[:8])
 	poolB := admintest.NamedPool(t, pool, "faq-append-b-"+uuid.NewString()[:8])
@@ -259,14 +260,14 @@ func TestTwoConcurrentFAQEntriesInOneCategoryTakeDistinctPositions(t *testing.T)
 	go func() {
 		<-start
 		errs, err := storeA.CreateFAQEntry(ctx, &content.FAQForm{
-			Category: category, Question: "問題甲", Answer: "答案",
+			CategoryID: category, Question: "問題甲", Answer: "答案",
 		})
 		done <- result{errs: errs, err: err}
 	}()
 	go func() {
 		<-start
 		errs, err := storeB.CreateFAQEntry(ctx, &content.FAQForm{
-			Category: category, Question: "問題乙", Answer: "答案",
+			CategoryID: category, Question: "問題乙", Answer: "答案",
 		})
 		done <- result{errs: errs, err: err}
 	}()
@@ -281,7 +282,7 @@ func TestTwoConcurrentFAQEntriesInOneCategoryTakeDistinctPositions(t *testing.T)
 
 	var positions []int32
 	rows, err := pool.Query(ctx,
-		`SELECT position FROM faq_entries WHERE category = $1 ORDER BY position`, category)
+		`SELECT position FROM faq_entries WHERE category_id = $1 ORDER BY position`, category)
 	if err != nil {
 		t.Fatalf("read positions: %v", err)
 	}
@@ -371,4 +372,13 @@ func TestTwoConcurrentHeroSlidesTakeDistinctPositions(t *testing.T) {
 			"the statement, so two concurrent inserts collided on max(position)+1",
 			positions)
 	}
+}
+
+// newFAQCategory adds a FAQ category through the desk's store and returns its id.
+func newFAQCategory(t *testing.T, ctx context.Context, s *content.Store, name, nameEn string) string {
+	t.Helper()
+	if errs, err := s.CreateFAQCategory(ctx, &content.FAQCategoryForm{Name: name, NameEn: nameEn}); err != nil || len(errs) > 0 {
+		t.Fatalf("CreateFAQCategory(%q): %v %v", name, err, errs)
+	}
+	return categoryID(t, ctx, s, name)
 }
