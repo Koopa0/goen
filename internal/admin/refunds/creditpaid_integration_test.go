@@ -218,8 +218,8 @@ func TestACreditPaidCancellationLosesToWhoeverMovedTheOrderFirst(t *testing.T) {
 			changed: true,
 			moves: []string{
 				`SET LOCAL session_replication_role = replica`,
-				`INSERT INTO store_credit_entries (account_id, amount_cents, reverses_id, idempotency_key)
-				 SELECT account_id, -amount_cents, id, 'reverse:' || id
+				`INSERT INTO store_credit_entries (account_id, amount_cents, order_id, reverses_id, idempotency_key)
+				 SELECT account_id, -amount_cents, order_id, id, 'reverse:' || id
 				 FROM store_credit_entries WHERE order_id = $1 AND amount_cents < 0`,
 			},
 			status: "pending", reversals: 1, held: 1,

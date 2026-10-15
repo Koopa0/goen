@@ -12,12 +12,13 @@ SELECT
     -- What went back, counted by when each source moved: succeeded_at for a card
     -- refund (created_at can be days earlier while Stripe still says pending),
     -- created_at for the synchronous credit post.
-    -- The positive-credit predicate matches order_refunds, where a change of that
-    -- definition belongs, so the 折讓 form and the invoice bound move with it. An
-    -- order refunded before shipment is left out of both figures: it is no sale,
-    -- and counting its refund would take it off the net a second time. Not
-    -- through sold_orders, which would also drop money that went back on an
-    -- order no longer committed.
+    -- The positive-credit predicate is order_refunds' less the reversal of a
+    -- spend on a cancelled order (owner ruling on #80): that order was never a
+    -- sale here, so counting its credit going back would take it off the net a
+    -- second time. order_refunds keeps the reversal, because an allowance may
+    -- relieve it. An order refunded before shipment is left out of both figures
+    -- for the same reason: it is no sale. Not through sold_orders, which would
+    -- also drop money that went back on an order no longer committed.
     (coalesce((SELECT sum(r.amount_cents) FROM refunds r
                JOIN payments p ON p.id = r.payment_id
                WHERE r.status = 'succeeded'
@@ -26,6 +27,7 @@ SELECT
                                  WHERE b.order_id = p.order_id AND b.before_shipment)), 0)::bigint
      + coalesce((SELECT sum(e.amount_cents) FROM store_credit_entries e
                  WHERE e.order_id IS NOT NULL AND e.amount_cents > 0
+                   AND e.kind <> 'order_cancel_reversal'
                    AND e.created_at >= @from_at::timestamptz AND e.created_at < @to_at::timestamptz
                    AND NOT EXISTS (SELECT 1 FROM return_requests b
                                    WHERE b.order_id = e.order_id AND b.before_shipment)), 0)::bigint

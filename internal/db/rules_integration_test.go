@@ -1343,17 +1343,37 @@ var ruleCases = []ruleCase{
 		// The credit half went back through the return; reversing the spend on the
 		// order that refund then cancelled pays it a second time.
 		reject: creditRefundedBeforeShipment + `
-		         INSERT INTO store_credit_entries (account_id, amount_cents, idempotency_key, reverses_id)
+		         INSERT INTO store_credit_entries (account_id, amount_cents, idempotency_key, reverses_id, order_id)
 		         VALUES ('a0000001-0000-4000-8000-000000000000', 50000, 'reverse:rule-bs-reverse',
-		                 '6666e002-0000-4000-8000-000000000000');`,
+		                 '6666e002-0000-4000-8000-000000000000', '6666eeee-6666-4666-8666-666666666666');`,
 		// An unpaid checkout cancelled with no return reverses its spend as before.
 		accept: creditedOrder("11110060-0000-4000-8000-000000000001", "11110061-0000-4000-8000-000000000001",
 			"11110062-0000-4000-8000-000000000001", 50000) + `
 		         UPDATE orders SET fulfillment_status = 'cancelled', cancelled_at = now()
 		         WHERE id = '11110060-0000-4000-8000-000000000001';
-		         INSERT INTO store_credit_entries (account_id, amount_cents, idempotency_key, reverses_id)
+		         INSERT INTO store_credit_entries (account_id, amount_cents, idempotency_key, reverses_id, order_id)
 		         VALUES ('11110061-0000-4000-8000-000000000001', 50000, 'reverse:rule-bs-reverse',
-		                 '11110062-0000-4000-8000-000000000001');`,
+		                 '11110062-0000-4000-8000-000000000001', '11110060-0000-4000-8000-000000000001');`,
+	},
+	{
+		rule: "store_credit_reversal_order",
+		// A reversal written without the order of the spend it undoes would leave
+		// order_refunds, and so the allowance of the cancelled order's invoice,
+		// blind to the money that went back; the ledger is append-only.
+		reject: creditedOrder("11110080-0000-4000-8000-000000000001", "11110081-0000-4000-8000-000000000001",
+			"11110082-0000-4000-8000-000000000001", 50000) + `
+		         UPDATE orders SET fulfillment_status = 'cancelled', cancelled_at = now()
+		         WHERE id = '11110080-0000-4000-8000-000000000001';
+		         INSERT INTO store_credit_entries (account_id, amount_cents, idempotency_key, reverses_id)
+		         VALUES ('11110081-0000-4000-8000-000000000001', 50000, 'reverse:rule-reversal-order',
+		                 '11110082-0000-4000-8000-000000000001');`,
+		accept: creditedOrder("11110080-0000-4000-8000-000000000001", "11110081-0000-4000-8000-000000000001",
+			"11110082-0000-4000-8000-000000000001", 50000) + `
+		         UPDATE orders SET fulfillment_status = 'cancelled', cancelled_at = now()
+		         WHERE id = '11110080-0000-4000-8000-000000000001';
+		         INSERT INTO store_credit_entries (account_id, amount_cents, idempotency_key, reverses_id, order_id)
+		         VALUES ('11110081-0000-4000-8000-000000000001', 50000, 'reverse:rule-reversal-order',
+		                 '11110082-0000-4000-8000-000000000001', '11110080-0000-4000-8000-000000000001');`,
 	},
 	{
 		rule: "return_before_shipment_full_total",
@@ -2938,8 +2958,8 @@ func TestCreditCannotBeReversedWhileCheckoutIsOpen(t *testing.T) {
 	account := "11110041-0000-4000-8000-000000000001"
 	spend := "11110042-0000-4000-8000-000000000001"
 	err := run(t, creditedOrder(order, account, spend, 100000)+`
-		INSERT INTO store_credit_entries (account_id, amount_cents, idempotency_key, reverses_id)
-		VALUES ('`+account+`',100000,'reverse:`+spend+`','`+spend+`');`)
+		INSERT INTO store_credit_entries (account_id, amount_cents, idempotency_key, reverses_id, order_id)
+		VALUES ('`+account+`',100000,'reverse:`+spend+`','`+spend+`','`+order+`');`)
 	if err == nil {
 		t.Fatal("store credit was reversed while its checkout was still open")
 	}
@@ -2958,8 +2978,8 @@ func TestCreditPostingRespectsOrderState(t *testing.T) {
 	// spend afterwards would un-fund a picked order.
 	err := run(t, creditedOrder(order, account, spend, 100000)+`
 		UPDATE orders SET fulfillment_status='picking' WHERE id='`+order+`';
-		INSERT INTO store_credit_entries (account_id, amount_cents, idempotency_key, reverses_id)
-		VALUES ('`+account+`',100000,'reverse:`+spend+`','`+spend+`');`)
+		INSERT INTO store_credit_entries (account_id, amount_cents, idempotency_key, reverses_id, order_id)
+		VALUES ('`+account+`',100000,'reverse:`+spend+`','`+spend+`','`+order+`');`)
 	if err == nil {
 		t.Fatal("store credit funding a picked order was reversed, un-funding it")
 	}
@@ -2985,13 +3005,14 @@ func TestCreditReversalCannotRacePastFulfilment(t *testing.T) {
 
 	err1, err2 := raceOutcome(t,
 		`UPDATE orders SET fulfillment_status='picking' WHERE id='`+order+`'`,
-		`INSERT INTO store_credit_entries (account_id, amount_cents, idempotency_key, reverses_id)
-		 VALUES ('`+account+`',100000,'reverse:`+spend+`','`+spend+`')`)
+		`INSERT INTO store_credit_entries (account_id, amount_cents, idempotency_key, reverses_id, order_id)
+		 VALUES ('`+account+`',100000,'reverse:`+spend+`','`+spend+`','`+order+`')`)
 	requireExactlyOne(t, "a picked order whose funding credit was reversed", err1, err2)
 }
 
 // TestReversalCannotBeReversed keeps reversals one layer deep: reversing a reversal nets back to
-// the spend while escaping the order-state rules, since a reversal carries no order_id.
+// the spend while escaping the order-state rules, which judge the spend a reversal undoes and find
+// none behind a reversal of a reversal.
 func TestReversalCannotBeReversed(t *testing.T) {
 	account := "11110055-0000-4000-8000-000000000001"
 	spend := "11110056-0000-4000-8000-000000000001"

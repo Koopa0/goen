@@ -27,7 +27,8 @@ func TestEveryCreditBalanceReadsTheOneView(t *testing.T) {
 			"projection serves both the visible queue and a single retry",
 		"RevenueBetween": "positive credit returned within a report window, which is " +
 			"a flow rather than an account balance. Its predicate must match " +
-			"order_refunds.credit_cents; a balance view cannot express when money moved",
+			"order_refunds.credit_cents less cancellation reversals; a balance view " +
+			"cannot express when money moved",
 	}
 
 	used := map[string]bool{}
