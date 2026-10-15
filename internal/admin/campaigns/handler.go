@@ -11,6 +11,7 @@ import (
 	"github.com/koopa0/goen/internal/admin/access"
 	"github.com/koopa0/goen/internal/db"
 	"github.com/koopa0/goen/internal/i18n"
+	"github.com/koopa0/goen/internal/keyset"
 	"github.com/koopa0/goen/internal/media"
 	"github.com/koopa0/goen/internal/ui/components"
 	"github.com/koopa0/goen/internal/ui/layouts"
@@ -50,7 +51,7 @@ var notices = map[string]web.NoticeEntry{
 }
 
 func (h *Handler) Page(w http.ResponseWriter, r *http.Request) {
-	view, err := h.store.List(r.Context(), r.URL.Query().Get(web.KeysetParam))
+	view, err := h.store.List(r.Context(), r.URL.Query().Get(keyset.Param))
 	if err != nil {
 		h.log.ErrorContext(r.Context(), "read campaigns", "error", err)
 		access.ServerError(w, r, h.log)
@@ -79,7 +80,7 @@ func (h *Handler) Create(w http.ResponseWriter, r *http.Request) {
 		h.log.ErrorContext(r.Context(), "create campaign", "error", err)
 		access.ServerError(w, r, h.log)
 	case len(errs) > 0:
-		view, readErr := h.store.List(r.Context(), r.URL.Query().Get(web.KeysetParam))
+		view, readErr := h.store.List(r.Context(), r.URL.Query().Get(keyset.Param))
 		if readErr != nil {
 			access.ServerError(w, r, h.log)
 			return

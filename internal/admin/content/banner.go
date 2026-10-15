@@ -12,6 +12,7 @@ import (
 	"github.com/koopa0/goen/internal/admin/audit"
 	"github.com/koopa0/goen/internal/db"
 	"github.com/koopa0/goen/internal/i18n"
+	"github.com/koopa0/goen/internal/keyset"
 	"github.com/koopa0/goen/internal/shoptime"
 	"github.com/koopa0/goen/internal/ui/pages/admin"
 	"github.com/koopa0/goen/internal/web"
@@ -82,14 +83,14 @@ type bannerPosition struct {
 }
 
 func (s *Store) Banners(ctx context.Context, after ...string) (admin.BannersView, error) {
-	from, resumed := web.ResumeKeyset(bannerScope, after, func(p bannerPosition) bool { return p.ID != uuid.Nil && !p.At.IsZero() })
+	from, resumed := keyset.Resume(bannerScope, after, func(p bannerPosition) bool { return p.ID != uuid.Nil && !p.At.IsZero() })
 	rows, err := s.q.ManagedBanners(ctx, db.ManagedBannersParams{
 		HasCursor: resumed, AfterActive: from.Active, AfterAt: from.At, AfterID: from.ID, RowLimit: MaxBanners + 1,
 	})
 	if err != nil {
 		return admin.BannersView{}, fmt.Errorf("read promo banners: %w", err)
 	}
-	rows, bound := web.PageBound(bannerScope, resumed, rows, MaxBanners, func(r *db.ManagedBannersRow) string { return r.PageCursor })
+	rows, bound := keyset.PageBound(bannerScope, resumed, rows, MaxBanners, func(r *db.ManagedBannersRow) string { return r.PageCursor })
 	out := admin.BannersView{Rows: make([]admin.Banner, 0, len(rows)), Bound: bound}
 	for i := range rows {
 		r := &rows[i]

@@ -21,8 +21,8 @@ import (
 	"github.com/koopa0/goen/internal/admin/orders"
 	"github.com/koopa0/goen/internal/db"
 	"github.com/koopa0/goen/internal/i18n"
+	"github.com/koopa0/goen/internal/keyset"
 	"github.com/koopa0/goen/internal/user"
-	"github.com/koopa0/goen/internal/web"
 )
 
 func TestPickingTotalsSpanEveryPageAndSubtractRecordedShipments(t *testing.T) {
@@ -124,7 +124,7 @@ func TestPickingTotalsSpanEveryPageAndSubtractRecordedShipments(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	next, err := s.Picking(ctx, u.Query().Get(web.KeysetParam))
+	next, err := s.Picking(ctx, u.Query().Get(keyset.Param))
 	if err != nil {
 		t.Fatal(err)
 	}

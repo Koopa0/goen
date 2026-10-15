@@ -7,6 +7,7 @@ import (
 
 	"github.com/koopa0/goen/internal/admin/access"
 	"github.com/koopa0/goen/internal/i18n"
+	"github.com/koopa0/goen/internal/keyset"
 	"github.com/koopa0/goen/internal/ui/layouts"
 	"github.com/koopa0/goen/internal/ui/pages/admin"
 	"github.com/koopa0/goen/internal/user"
@@ -47,7 +48,7 @@ func (h *Handler) Questions(w http.ResponseWriter, r *http.Request) {
 	if r.URL.Query().Get("hidden") == "1" {
 		queue = HiddenQuestions
 	}
-	view, err := h.store.Questions(r.Context(), queue, r.URL.Query().Get(web.KeysetParam))
+	view, err := h.store.Questions(r.Context(), queue, r.URL.Query().Get(keyset.Param))
 	if err != nil {
 		h.log.ErrorContext(r.Context(), "read questions", "error", err)
 		access.ServerError(w, r, h.log)
@@ -119,7 +120,7 @@ func (h *Handler) Reviews(w http.ResponseWriter, r *http.Request) {
 	if r.URL.Query().Get("rating") == "3" {
 		filter = ThreeStarsAndBelowReviews
 	}
-	view, err := h.store.Reviews(r.Context(), filter, r.URL.Query().Get(web.KeysetParam))
+	view, err := h.store.Reviews(r.Context(), filter, r.URL.Query().Get(keyset.Param))
 	if err != nil {
 		h.log.ErrorContext(r.Context(), "read reviews", "error", err)
 		access.ServerError(w, r, h.log)
@@ -155,7 +156,7 @@ func (h *Handler) setReviewHidden(w http.ResponseWriter, r *http.Request, hidden
 }
 
 func (h *Handler) Messages(w http.ResponseWriter, r *http.Request) {
-	view, err := h.store.Messages(r.Context(), r.URL.Query().Get(web.KeysetParam))
+	view, err := h.store.Messages(r.Context(), r.URL.Query().Get(keyset.Param))
 	if err != nil {
 		h.log.ErrorContext(r.Context(), "read contact messages", "error", err)
 		access.ServerError(w, r, h.log)

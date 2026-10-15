@@ -7,6 +7,7 @@ import (
 
 	"github.com/koopa0/goen/internal/admin/access"
 	"github.com/koopa0/goen/internal/i18n"
+	"github.com/koopa0/goen/internal/keyset"
 	"github.com/koopa0/goen/internal/ui/layouts"
 	"github.com/koopa0/goen/internal/ui/pages/admin"
 	"github.com/koopa0/goen/internal/web"
@@ -31,7 +32,7 @@ func (h *Handler) Routes(mux *http.ServeMux, ac *access.Control) {
 }
 
 func (h *Handler) Search(w http.ResponseWriter, r *http.Request) {
-	view, err := h.store.Search(r.Context(), r.URL.Query().Get("q"), r.URL.Query().Get(web.KeysetParam))
+	view, err := h.store.Search(r.Context(), r.URL.Query().Get("q"), r.URL.Query().Get(keyset.Param))
 	if err != nil {
 		h.log.ErrorContext(r.Context(), "search customers", "error", err)
 		access.ServerError(w, r, h.log)
@@ -42,7 +43,7 @@ func (h *Handler) Search(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *Handler) Warranties(w http.ResponseWriter, r *http.Request) {
-	view, err := h.store.Warranties(r.Context(), r.URL.Query().Get("q"), r.URL.Query().Get(web.KeysetParam))
+	view, err := h.store.Warranties(r.Context(), r.URL.Query().Get("q"), r.URL.Query().Get(keyset.Param))
 	if err != nil {
 		h.log.ErrorContext(r.Context(), "search warranties", "error", err)
 		access.ServerError(w, r, h.log)

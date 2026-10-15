@@ -10,11 +10,11 @@ import (
 	"github.com/a-h/templ"
 
 	"github.com/koopa0/goen/internal/i18n"
+	"github.com/koopa0/goen/internal/keyset"
 	"github.com/koopa0/goen/internal/order"
 	"github.com/koopa0/goen/internal/shoptime"
 	"github.com/koopa0/goen/internal/ui/components"
 	"github.com/koopa0/goen/internal/ui/layouts"
-	"github.com/koopa0/goen/internal/web"
 )
 
 type AccountOrder struct {
@@ -134,7 +134,7 @@ type AccountView struct {
 	Name                       string
 	Phone                      string
 	Orders                     []AccountOrder
-	OrdersBound                web.Bound
+	OrdersBound                keyset.Bound
 	Addresses                  []AccountAddress
 	CreditCents                int64
 	Standing                   MemberStanding

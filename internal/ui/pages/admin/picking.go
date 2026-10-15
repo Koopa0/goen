@@ -6,11 +6,11 @@ import (
 	"strconv"
 
 	"github.com/koopa0/goen/internal/i18n"
-	"github.com/koopa0/goen/internal/web"
+	"github.com/koopa0/goen/internal/keyset"
 )
 
 type PickingView struct {
-	web.Bound
+	keyset.Bound
 
 	Totals []PickingLine
 	Slips  []*OrderView
@@ -28,5 +28,5 @@ func (l PickingLine) RemainingText() string {
 }
 
 func (v PickingView) ScopeText(ctx context.Context) string {
-	return fmt.Sprintf(i18n.T(ctx, i18n.KeyAdminPickingScope), web.PageSize)
+	return fmt.Sprintf(i18n.T(ctx, i18n.KeyAdminPickingScope), keyset.PageSize)
 }

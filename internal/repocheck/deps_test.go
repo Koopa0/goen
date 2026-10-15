@@ -36,8 +36,6 @@ type importRule struct {
 // disappear; one whose edge is gone fails, so each task proves its own work.
 var exceptions = map[string]string{
 	"internal/ui/layouts -> internal/web":                  "T31",
-	"internal/ui/pages -> internal/web":                    "T30/T31",
-	"internal/ui/pages/admin -> internal/web":              "T30",
 	"internal/web -> internal/ui/components":               "T31",
 	"internal/i18n -> internal/shipping":                   "T27",
 	"internal/admin/admintest -> internal/admin/invoicing": "T48",
@@ -74,7 +72,7 @@ var (
 	// uiMayImport is what the view layer may import besides itself.
 	uiMayImport = []string{
 		"assets", "internal/fieldrule", "internal/i18n", "internal/money", "internal/shoptime",
-		"internal/coupon", "internal/inventory", "internal/invoice", "internal/order",
+		"internal/coupon", "internal/inventory", "internal/invoice", "internal/keyset", "internal/order",
 		"internal/postcode", "internal/product/labelling", "internal/refund",
 		"internal/returns", "internal/shipping", "internal/user",
 	}
@@ -82,7 +80,7 @@ var (
 	importFreeLeaves = []string{
 		"internal/order", "internal/returns", "internal/refund", "internal/shipping",
 		"internal/coupon", "internal/inventory", "internal/postcode", "internal/user",
-		"internal/money", "internal/db",
+		"internal/money", "internal/db", "internal/keyset", "internal/bearer",
 	}
 	// i18nOnlyLeaves import nothing from goen except the message catalogue.
 	i18nOnlyLeaves = []string{

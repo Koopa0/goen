@@ -10,6 +10,7 @@ import (
 	"github.com/koopa0/goen/internal/admin/access"
 	"github.com/koopa0/goen/internal/coupon"
 	"github.com/koopa0/goen/internal/i18n"
+	"github.com/koopa0/goen/internal/keyset"
 	"github.com/koopa0/goen/internal/money"
 	"github.com/koopa0/goen/internal/ui/layouts"
 	"github.com/koopa0/goen/internal/ui/pages/admin"
@@ -40,7 +41,7 @@ var notices = map[string]web.NoticeEntry{
 }
 
 func (h *Handler) Page(w http.ResponseWriter, r *http.Request) {
-	view, err := h.store.Coupons(r.Context(), r.URL.Query().Get(web.KeysetParam))
+	view, err := h.store.Coupons(r.Context(), r.URL.Query().Get(keyset.Param))
 	if err != nil {
 		h.log.ErrorContext(r.Context(), "read coupons", "error", err)
 		access.ServerError(w, r, h.log)
@@ -64,7 +65,7 @@ func (h *Handler) Create(w http.ResponseWriter, r *http.Request) {
 		h.log.ErrorContext(r.Context(), "create coupon", "error", err)
 		access.ServerError(w, r, h.log)
 	case len(errs) > 0:
-		view, readErr := h.store.Coupons(r.Context(), r.URL.Query().Get(web.KeysetParam))
+		view, readErr := h.store.Coupons(r.Context(), r.URL.Query().Get(keyset.Param))
 		if readErr != nil {
 			access.ServerError(w, r, h.log)
 			return

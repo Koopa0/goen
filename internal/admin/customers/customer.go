@@ -19,6 +19,7 @@ import (
 	"github.com/koopa0/goen/internal/admin/audit"
 	"github.com/koopa0/goen/internal/db"
 	"github.com/koopa0/goen/internal/i18n"
+	"github.com/koopa0/goen/internal/keyset"
 	"github.com/koopa0/goen/internal/order"
 	"github.com/koopa0/goen/internal/shoptime"
 	"github.com/koopa0/goen/internal/ui/components"
@@ -48,12 +49,12 @@ type position struct {
 }
 
 func resume(scope string, after []string) (position, bool) {
-	return web.ResumeKeyset(scope, after, func(p position) bool { return p.ID != uuid.Nil })
+	return keyset.Resume(scope, after, func(p position) bool { return p.ID != uuid.Nil })
 }
 
 func (s *Store) Search(ctx context.Context, term string, after ...string) (admin.CustomersView, error) {
 	term = strings.TrimSpace(term)
-	scope := web.ScopeURL("/admin/customers", "q", term)
+	scope := keyset.ScopeURL("/admin/customers", "q", term)
 	from, resumed := resume(scope, after)
 	view := admin.CustomersView{Term: term}
 	if utf8.RuneCountInString(term) < web.MinSearchRunes {
@@ -62,12 +63,12 @@ func (s *Store) Search(ctx context.Context, term string, after ...string) (admin
 	view.Searched = true
 
 	rows, err := s.q.AdminSearchCustomers(ctx, db.AdminSearchCustomersParams{HasCursor: resumed, AfterAt: from.At, AfterID: from.ID,
-		EscapedTerm: db.EscapeLike(term), RowLimit: web.PageLimit,
+		EscapedTerm: db.EscapeLike(term), RowLimit: keyset.PageLimit,
 	})
 	if err != nil {
 		return admin.CustomersView{}, fmt.Errorf("search customers: %w", err)
 	}
-	rows, bound := web.PageBound(scope, resumed, rows, web.PageSize, func(r *db.AdminSearchCustomersRow) string { return r.PageCursor })
+	rows, bound := keyset.PageBound(scope, resumed, rows, keyset.PageSize, func(r *db.AdminSearchCustomersRow) string { return r.PageCursor })
 	view.Bound = bound
 	for i := range rows {
 		r := &rows[i]
@@ -110,7 +111,7 @@ func (s *Store) Profile(ctx context.Context, id string) (admin.CustomerView, err
 	}
 
 	orders, err := q.AdminCustomerOrders(ctx, db.AdminCustomerOrdersParams{
-		UserID: uuid.NullUUID{UUID: uid, Valid: true}, Limit: web.PageSize,
+		UserID: uuid.NullUUID{UUID: uid, Valid: true}, Limit: keyset.PageSize,
 	})
 	if err != nil {
 		return admin.CustomerView{}, fmt.Errorf("read customer orders: %w", err)

@@ -11,21 +11,21 @@ import (
 
 	"github.com/koopa0/goen/internal/db"
 	"github.com/koopa0/goen/internal/i18n"
+	"github.com/koopa0/goen/internal/keyset"
 	"github.com/koopa0/goen/internal/ui/layouts"
-	"github.com/koopa0/goen/internal/web"
 )
 
 // firstPageBound is the bound the stores build for the first page of a
 // queue that has no rows, exactly as production builds it.
-func firstPageBound(scope string) web.Bound {
-	_, b := web.PageBound(scope, false, []db.Order{}, web.PageSize, func(*db.Order) string { return "" })
+func firstPageBound(scope string) keyset.Bound {
+	_, b := keyset.PageBound(scope, false, []db.Order{}, keyset.PageSize, func(*db.Order) string { return "" })
 	return b
 }
 
 // fullPageBound is the first page of a queue with more rows behind it.
-func fullPageBound(scope string) web.Bound {
-	rows := make([]db.Order, web.PageLimit)
-	_, b := web.PageBound(scope, false, rows, web.PageSize,
+func fullPageBound(scope string) keyset.Bound {
+	rows := make([]db.Order, keyset.PageLimit)
+	_, b := keyset.PageBound(scope, false, rows, keyset.PageSize,
 		func(*db.Order) string { return `{"ID":"12345678-1234-1234-1234-123456789abc"}` })
 	return b
 }
@@ -40,7 +40,7 @@ func render(t *testing.T, c templ.Component) string {
 }
 
 // queuePages builds each queue's page around one bound, with no rows.
-func queuePages(b web.Bound, ctx func(k i18n.Key) string) map[string]struct {
+func queuePages(b keyset.Bound, ctx func(k i18n.Key) string) map[string]struct {
 	page templ.Component
 	want string
 } {

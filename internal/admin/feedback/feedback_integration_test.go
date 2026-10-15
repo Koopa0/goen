@@ -20,8 +20,8 @@ import (
 	"github.com/koopa0/goen/internal/admin/audit"
 	"github.com/koopa0/goen/internal/admin/feedback"
 	"github.com/koopa0/goen/internal/i18n"
+	"github.com/koopa0/goen/internal/keyset"
 	"github.com/koopa0/goen/internal/product"
-	"github.com/koopa0/goen/internal/web"
 )
 
 func TestTheQueuePutsWhatTheShopOwesFirst(t *testing.T) {
@@ -427,7 +427,7 @@ func TestABoundedListSaysSoAtTheBoundary(t *testing.T) {
 	if err := pool.QueryRow(ctx, `SELECT count(*)::int FROM contact_messages`).Scan(&existing); err != nil {
 		t.Fatalf("count the inbox: %v", err)
 	}
-	if existing > web.PageSize {
+	if existing > keyset.PageSize {
 		t.Skipf("the inbox already holds %d messages, more than a page; "+
 			"this test needs to own the boundary", existing)
 	}
@@ -445,13 +445,13 @@ func TestABoundedListSaysSoAtTheBoundary(t *testing.T) {
 		}
 	}
 
-	write(web.PageSize - existing)
+	write(keyset.PageSize - existing)
 	full, err := s.Messages(ctx)
 	if err != nil {
 		t.Fatalf("read the inbox at exactly a page: %v", err)
 	}
-	if len(full.Rows) != web.PageSize {
-		t.Fatalf("a full page holds %d rows, want %d", len(full.Rows), web.PageSize)
+	if len(full.Rows) != keyset.PageSize {
+		t.Fatalf("a full page holds %d rows, want %d", len(full.Rows), keyset.PageSize)
 	}
 	if full.Next != "" {
 		t.Error("a list holding exactly a page offers a next page; the link " +
@@ -463,9 +463,9 @@ func TestABoundedListSaysSoAtTheBoundary(t *testing.T) {
 	if err != nil {
 		t.Fatalf("read the inbox one past a page: %v", err)
 	}
-	if len(over.Rows) != web.PageSize {
+	if len(over.Rows) != keyset.PageSize {
 		t.Errorf("one row past a page renders %d rows, want %d — the extra row is "+
-			"there to be counted, not shown", len(over.Rows), web.PageSize)
+			"there to be counted, not shown", len(over.Rows), keyset.PageSize)
 	}
 	if over.Next == "" {
 		t.Error("a list with more than a page offers no next page; a staff member " +

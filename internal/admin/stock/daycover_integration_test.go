@@ -10,7 +10,7 @@ import (
 
 	"github.com/koopa0/goen/internal/admin/admintest"
 	"github.com/koopa0/goen/internal/admin/stock"
-	"github.com/koopa0/goen/internal/web"
+	"github.com/koopa0/goen/internal/keyset"
 )
 
 // The days cover rows sit where the desk opens: not on a search, the sold out
@@ -30,7 +30,7 @@ func TestStockDeskListsDaysCoverOnlyWhereItOpens(t *testing.T) {
 	if first := get("/admin/stock"); !strings.Contains(first, "goen-admin__cover") {
 		t.Error("the first page has no days cover section")
 	}
-	for _, target := range []string{"/admin/stock?q=x", "/admin/stock?soldout=1", "/admin/stock?" + web.KeysetParam + "=x"} {
+	for _, target := range []string{"/admin/stock?q=x", "/admin/stock?soldout=1", "/admin/stock?" + keyset.Param + "=x"} {
 		if page := get(target); strings.Contains(page, "goen-admin__cover") {
 			t.Errorf("%s lists the days cover rows", target)
 		}

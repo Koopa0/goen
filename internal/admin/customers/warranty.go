@@ -11,6 +11,7 @@ import (
 
 	"github.com/koopa0/goen/internal/db"
 	"github.com/koopa0/goen/internal/i18n"
+	"github.com/koopa0/goen/internal/keyset"
 	"github.com/koopa0/goen/internal/order"
 	"github.com/koopa0/goen/internal/shoptime"
 	"github.com/koopa0/goen/internal/ui/pages/admin"
@@ -20,7 +21,7 @@ import (
 func (s *Store) Warranties(ctx context.Context, term string, after ...string) (admin.WarrantiesView, error) {
 	// Uppercased: a serial is typed off a label and a shift key is not a failed lookup.
 	term = strings.ToUpper(strings.TrimSpace(term))
-	scope := web.ScopeURL("/admin/warranty", "q", term)
+	scope := keyset.ScopeURL("/admin/warranty", "q", term)
 	from, resumed := resume(scope, after)
 	view := admin.WarrantiesView{Term: term}
 	if utf8.RuneCountInString(term) < web.MinSearchRunes {
@@ -29,12 +30,12 @@ func (s *Store) Warranties(ctx context.Context, term string, after ...string) (a
 	view.Searched = true
 
 	rows, err := s.q.AdminSearchWarranties(ctx, db.AdminSearchWarrantiesParams{HasCursor: resumed, AfterAt: from.At, AfterID: from.ID,
-		Term: term, RowLimit: web.PageLimit,
+		Term: term, RowLimit: keyset.PageLimit,
 	})
 	if err != nil {
 		return admin.WarrantiesView{}, fmt.Errorf("search warranties: %w", err)
 	}
-	rows, bound := web.PageBound(scope, resumed, rows, web.PageSize, func(r *db.AdminSearchWarrantiesRow) string { return r.PageCursor })
+	rows, bound := keyset.PageBound(scope, resumed, rows, keyset.PageSize, func(r *db.AdminSearchWarrantiesRow) string { return r.PageCursor })
 	view.Bound = bound
 	ids := make([]uuid.UUID, len(rows))
 	for i := range rows {

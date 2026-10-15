@@ -14,9 +14,9 @@ import (
 
 	"github.com/koopa0/goen/internal/db"
 	"github.com/koopa0/goen/internal/i18n"
+	"github.com/koopa0/goen/internal/keyset"
 	"github.com/koopa0/goen/internal/shoptime"
 	"github.com/koopa0/goen/internal/ui/pages"
-	"github.com/koopa0/goen/internal/web"
 )
 
 const ExpiryWarningDays = 30
@@ -101,7 +101,7 @@ type historyCursor struct {
 }
 
 func readHistoryCursor(owner, token string) historyCursor {
-	c, ok := web.ReadKeyset[historyCursor](historyScope, token)
+	c, ok := keyset.Read[historyCursor](historyScope, token)
 	if !ok || c.ID == uuid.Nil || c.Owner != owner {
 		return historyCursor{}
 	}
@@ -154,7 +154,7 @@ func (s *Store) History(ctx context.Context, userID, after string) (pages.Points
 		PerCredit:      PointsPerCredit,
 		Minimum:        MinRedemption,
 	}
-	rows, more := web.PageOf(rows, MaxHistoryRows)
+	rows, more := keyset.PageOf(rows, MaxHistoryRows)
 	if cursor.Valid {
 		view.First = historyScope + "#ledger-heading"
 		view.PastEnd = len(rows) == 0
@@ -165,7 +165,7 @@ func (s *Store) History(ctx context.Context, userID, after string) (pages.Points
 		if marshalErr != nil {
 			return pages.PointsView{}, fmt.Errorf("encode points position: %w", marshalErr)
 		}
-		if next, ok := web.NextKeysetURL(historyScope, string(position)); ok {
+		if next, ok := keyset.NextURL(historyScope, string(position)); ok {
 			view.Next = next + "#ledger-heading"
 		}
 	}

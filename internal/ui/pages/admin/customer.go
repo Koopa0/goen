@@ -6,14 +6,14 @@ import (
 	"strconv"
 
 	"github.com/koopa0/goen/internal/i18n"
+	"github.com/koopa0/goen/internal/keyset"
 	"github.com/koopa0/goen/internal/money"
 	"github.com/koopa0/goen/internal/ui/chart"
 	"github.com/koopa0/goen/internal/ui/components"
-	"github.com/koopa0/goen/internal/web"
 )
 
 type CustomersView struct {
-	web.Bound
+	keyset.Bound
 
 	Term     string
 	Searched bool
@@ -91,7 +91,7 @@ func (v CustomerView) TierSentence(ctx context.Context) string {
 func (v CustomerView) HasOrders() bool { return len(v.Recent) > 0 }
 
 // CreditHref is the credit desk narrowed to this customer.
-func (v CustomerView) CreditHref() string { return web.ScopeURL("/admin/credit", "customer", v.ID) }
+func (v CustomerView) CreditHref() string { return keyset.ScopeURL("/admin/credit", "customer", v.ID) }
 
 // GrantCreditHref opens the same view at the grant form, where the customer's email is already filled in.
 func (v CustomerView) GrantCreditHref() string { return v.CreditHref() + "#credit-email" }

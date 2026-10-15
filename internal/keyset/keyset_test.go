@@ -1,4 +1,4 @@
-package web
+package keyset
 
 import (
 	"encoding/base64"
@@ -15,7 +15,7 @@ type testPosition struct {
 func TestKeysetTokenKeepsItsScopeAndPrecision(t *testing.T) {
 	t.Parallel()
 	scope := ScopeURL("/admin/orders", "q", "two words & more", "status", "pending")
-	next, ok := NextKeysetURL(scope, `{"ID":"a","At":"2026-09-22T01:02:03.123456Z"}`)
+	next, ok := NextURL(scope, `{"ID":"a","At":"2026-09-22T01:02:03.123456Z"}`)
 	if !ok {
 		t.Fatal("scope refused")
 	}
@@ -26,12 +26,12 @@ func TestKeysetTokenKeepsItsScopeAndPrecision(t *testing.T) {
 	if u.Query().Get("q") != "two words & more" || u.Query().Get("status") != "pending" {
 		t.Fatal("next link dropped the filters")
 	}
-	token := u.Query().Get(KeysetParam)
-	p, ok := ReadKeyset[testPosition](scope, token)
+	token := u.Query().Get(Param)
+	p, ok := Read[testPosition](scope, token)
 	if !ok || p.ID != "a" || p.At.Nanosecond() != 123456000 {
 		t.Fatalf("token lost its position or the database timestamp precision: %+v %v", p, ok)
 	}
-	if _, ok := ReadKeyset[testPosition]("/admin/orders?q=changed", token); ok {
+	if _, ok := Read[testPosition]("/admin/orders?q=changed", token); ok {
 		t.Fatal("token escaped its filter scope")
 	}
 }
@@ -49,7 +49,7 @@ func TestReadKeysetRefusesMalformedTokens(t *testing.T) {
 		"wrong json type": enc(scope + "\n[1]"),
 		"oversize":        enc(scope + "\n{\"ID\":\"" + string(make([]byte, 4096)) + "\"}"),
 	} {
-		if _, ok := ReadKeyset[testPosition](scope, bad); ok {
+		if _, ok := Read[testPosition](scope, bad); ok {
 			t.Errorf("%s: malformed token accepted", name)
 		}
 	}
@@ -135,16 +135,16 @@ func TestResumeKeysetRefusesWhatTheListCannotAccept(t *testing.T) {
 	t.Parallel()
 	const scope = "/admin/x"
 	accept := func(p testPosition) bool { return p.ID != "" }
-	good, _ := NextKeysetURL(scope, `{"ID":"a"}`)
+	good, _ := NextURL(scope, `{"ID":"a"}`)
 	token := func(u string) []string { return []string{u[len(scope)+len("?after="):]} }
-	if p, ok := ResumeKeyset(scope, token(good), accept); !ok || p.ID != "a" {
+	if p, ok := Resume(scope, token(good), accept); !ok || p.ID != "a" {
 		t.Errorf("a minted position was refused: %v %v", p, ok)
 	}
-	empty, _ := NextKeysetURL(scope, `{"ID":""}`)
-	if _, ok := ResumeKeyset(scope, token(empty), accept); ok {
+	empty, _ := NextURL(scope, `{"ID":""}`)
+	if _, ok := Resume(scope, token(empty), accept); ok {
 		t.Error("a position the list refuses was accepted")
 	}
-	if _, ok := ResumeKeyset(scope, nil, accept); ok {
+	if _, ok := Resume(scope, nil, accept); ok {
 		t.Error("no position resumed")
 	}
 }

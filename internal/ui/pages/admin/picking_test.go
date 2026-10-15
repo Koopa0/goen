@@ -7,9 +7,9 @@ import (
 	"golang.org/x/net/html"
 
 	"github.com/koopa0/goen/internal/i18n"
+	"github.com/koopa0/goen/internal/keyset"
 	"github.com/koopa0/goen/internal/ui/layouts"
 	"github.com/koopa0/goen/internal/ui/pages"
-	"github.com/koopa0/goen/internal/web"
 )
 
 func TestPickingRendersSeparateReadOnlySlipsWithOutstandingQuantities(t *testing.T) {
@@ -17,7 +17,7 @@ func TestPickingRendersSeparateReadOnlySlipsWithOutstandingQuantities(t *testing
 	for _, locale := range []i18n.Locale{i18n.ZhHant, i18n.En} {
 		ctx := i18n.WithLocale(t.Context(), locale)
 		v := &PickingView{
-			Bound:  web.Bound{Next: "/admin/orders/picking/slips?after=next"},
+			Bound:  keyset.Bound{Next: "/admin/orders/picking/slips?after=next"},
 			Totals: []PickingLine{{SKU: "SKU-A", Name: "商品 <A>", Label: "容量 256 GB", Remaining: 7}},
 			Slips: []*OrderView{
 				{OutstandingQuantities: true, Number: "GO-ONE", CustomerNote: "Gift <note>: no price inside", Recipient: "顧客 <一>", Address: "臺北市 1 號", Phone: "0912345678", Lines: []pages.OrderLine{{SKU: "SKU-A", Name: "商品 <A>", Quantity: 2, UnitCents: 100}}},

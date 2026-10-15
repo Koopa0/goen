@@ -5,8 +5,8 @@ import (
 	"strconv"
 
 	"github.com/koopa0/goen/internal/i18n"
+	"github.com/koopa0/goen/internal/keyset"
 	"github.com/koopa0/goen/internal/ui/components"
-	"github.com/koopa0/goen/internal/web"
 )
 
 type Question struct {
@@ -54,7 +54,7 @@ func (q Question) ProductHref() string { return "/p/" + q.ProductSlug }
 func (q Question) AnswerAction() string { return "/admin/questions/" + q.ID }
 
 type QuestionsView struct {
-	web.Bound
+	keyset.Bound
 
 	Hidden bool
 	Rows   []Question

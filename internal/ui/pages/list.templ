@@ -2,11 +2,11 @@ package pages
 
 import (
 	"github.com/koopa0/goen/internal/i18n"
+	"github.com/koopa0/goen/internal/keyset"
 	"github.com/koopa0/goen/internal/ui/components"
-	"github.com/koopa0/goen/internal/web"
 )
 
-templ ListPager(b web.Bound, headingID ...string) {
+templ ListPager(b keyset.Bound, headingID ...string) {
 	if b.PastEnd {
 		<p class="goen-pager__note">{ i18n.T(ctx, i18n.KeyPageEmpty) }</p>
 	}

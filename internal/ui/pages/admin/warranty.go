@@ -5,11 +5,11 @@ import (
 	"strconv"
 
 	"github.com/koopa0/goen/internal/i18n"
-	"github.com/koopa0/goen/internal/web"
+	"github.com/koopa0/goen/internal/keyset"
 )
 
 type WarrantiesView struct {
-	web.Bound
+	keyset.Bound
 
 	Term     string
 	Searched bool

@@ -6,10 +6,10 @@ import (
 	"strconv"
 
 	"github.com/koopa0/goen/internal/i18n"
+	"github.com/koopa0/goen/internal/keyset"
 	"github.com/koopa0/goen/internal/money"
 	"github.com/koopa0/goen/internal/returns"
 	"github.com/koopa0/goen/internal/ui/components"
-	"github.com/koopa0/goen/internal/web"
 )
 
 type Return struct {
@@ -242,7 +242,7 @@ func (r *Return) InspectAction() string { return "/admin/returns/" + r.ID + "/in
 func (r *Return) CompleteAction() string { return "/admin/returns/" + r.ID + "/complete" }
 
 type ReturnsView struct {
-	web.Bound
+	keyset.Bound
 
 	Rows   []Return
 	Notice components.Result

@@ -21,7 +21,7 @@ import (
 	"github.com/koopa0/goen/internal/admin/admintest"
 	"github.com/koopa0/goen/internal/admin/audit"
 	"github.com/koopa0/goen/internal/admin/feedback"
-	"github.com/koopa0/goen/internal/web"
+	"github.com/koopa0/goen/internal/keyset"
 )
 
 func TestAdminReadsAnswersAndRestoresQuestionsWithExistingPrivileges(t *testing.T) {
@@ -167,7 +167,7 @@ func TestAnswerWithdrawalIsQuestionBoundAndAuditedUnderTheAdminRole(t *testing.T
 func TestHiddenQuestionQueuePagesEveryQuestionNewestFirst(t *testing.T) {
 	p := admintest.Pool(t)
 	ctx := t.Context()
-	const total = web.PageSize + 3
+	const total = keyset.PageSize + 3
 	if _, err := p.Exec(ctx, `INSERT INTO product_questions(id, product_id, body, hidden_at)
  SELECT ('99990000-0000-4000-8000-' || lpad(to_hex(n), 12, '0'))::uuid,
         (SELECT id FROM products ORDER BY id LIMIT 1), 'Hidden fixture ' || n,
@@ -183,15 +183,15 @@ func TestHiddenQuestionQueuePagesEveryQuestionNewestFirst(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		wantSize := web.PageSize
+		wantSize := keyset.PageSize
 		if page == 1 {
-			wantSize = total - web.PageSize
+			wantSize = total - keyset.PageSize
 		}
 		if len(view.Rows) != wantSize {
 			t.Fatalf("hidden page %d rows = %d, want %d", page, len(view.Rows), wantSize)
 		}
 		for i, row := range view.Rows {
-			want := "Hidden fixture " + strconv.Itoa(total-page*web.PageSize-i)
+			want := "Hidden fixture " + strconv.Itoa(total-page*keyset.PageSize-i)
 			if row.Body != want || !row.Hidden || seen[row.ID] {
 				t.Errorf("hidden page %d row %d = %+v, want unique %q", page, i, row, want)
 			}
@@ -204,10 +204,10 @@ func TestHiddenQuestionQueuePagesEveryQuestionNewestFirst(t *testing.T) {
 			break
 		}
 		next, err := url.Parse(view.Next)
-		if err != nil || next == nil || next.Query().Get("hidden") != "1" || next.Query().Get(web.KeysetParam) == "" {
+		if err != nil || next == nil || next.Query().Get("hidden") != "1" || next.Query().Get(keyset.Param) == "" {
 			t.Fatalf("hidden next URL = %q, %v", view.Next, err)
 		}
-		after = next.Query().Get(web.KeysetParam)
+		after = next.Query().Get(keyset.Param)
 		visible, err := s.Questions(ctx, feedback.VisibleQuestions, after)
 		if err != nil || len(visible.Rows) != 0 || visible.PastEnd {
 			t.Fatalf("hidden cursor escaped its queue: %+v, %v", visible, err)

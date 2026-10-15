@@ -11,6 +11,7 @@ import (
 	"github.com/google/uuid"
 
 	"github.com/koopa0/goen/internal/i18n"
+	"github.com/koopa0/goen/internal/keyset"
 	"github.com/koopa0/goen/internal/money"
 	"github.com/koopa0/goen/internal/ui/layouts"
 	"github.com/koopa0/goen/internal/ui/pages"
@@ -38,7 +39,7 @@ func (h *Handler) Page(w http.ResponseWriter, r *http.Request) {
 		http.Redirect(w, r, "/signin?next=/account/points", http.StatusSeeOther)
 		return
 	}
-	view, err := h.store.History(r.Context(), u.ID, r.URL.Query().Get(web.KeysetParam))
+	view, err := h.store.History(r.Context(), u.ID, r.URL.Query().Get(keyset.Param))
 	if err != nil && !errors.Is(err, ErrNoAccount) {
 		h.log.ErrorContext(r.Context(), "read points", "error", err)
 		h.serverError(w, r)

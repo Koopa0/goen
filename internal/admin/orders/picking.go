@@ -14,6 +14,7 @@ import (
 	"github.com/koopa0/goen/internal/db"
 	"github.com/koopa0/goen/internal/i18n"
 	"github.com/koopa0/goen/internal/invoice"
+	"github.com/koopa0/goen/internal/keyset"
 	"github.com/koopa0/goen/internal/shoptime"
 	"github.com/koopa0/goen/internal/ui/layouts"
 	"github.com/koopa0/goen/internal/ui/pages"
@@ -42,15 +43,15 @@ func (s *Store) Picking(ctx context.Context, after ...string) (admin.PickingView
 
 func pickingSnapshot(ctx context.Context, q *db.Queries, after []string) (admin.PickingView, error) {
 	const scope = "/admin/orders/picking/slips"
-	from, resumed := web.ResumeKeyset(scope, after, func(p listPosition) bool { return p.ID != uuid.Nil })
+	from, resumed := keyset.Resume(scope, after, func(p listPosition) bool { return p.ID != uuid.Nil })
 	rows, err := q.PickingSlips(ctx, db.PickingSlipsParams{
-		HasCursor: resumed, AfterAt: from.At, AfterID: from.ID, RowLimit: web.PageLimit,
+		HasCursor: resumed, AfterAt: from.At, AfterID: from.ID, RowLimit: keyset.PageLimit,
 		Locale: i18n.FromContext(ctx).Tag(),
 	})
 	if err != nil {
 		return admin.PickingView{}, fmt.Errorf("read picking slips: %w", err)
 	}
-	rows, bound := web.PageBound(scope, resumed, rows, web.PageSize, func(r *db.PickingSlipsRow) string { return r.PageCursor })
+	rows, bound := keyset.PageBound(scope, resumed, rows, keyset.PageSize, func(r *db.PickingSlipsRow) string { return r.PageCursor })
 	view := admin.PickingView{Bound: bound, Slips: make([]*admin.OrderView, 0, len(rows))}
 	ids := make([]uuid.UUID, 0, len(rows))
 	byOrder := make(map[uuid.UUID]*admin.OrderView, len(rows))
@@ -102,7 +103,7 @@ func pickingSlip(r *db.PickingSlipsRow) *admin.OrderView {
 }
 
 func (h *Handler) PickingSlips(w http.ResponseWriter, r *http.Request) {
-	view, err := h.store.Picking(r.Context(), r.URL.Query().Get(web.KeysetParam))
+	view, err := h.store.Picking(r.Context(), r.URL.Query().Get(keyset.Param))
 	if err != nil {
 		h.log.ErrorContext(r.Context(), "read picking slips", "error", err)
 		access.ServerError(w, r, h.log)
