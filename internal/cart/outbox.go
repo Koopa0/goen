@@ -37,7 +37,7 @@ func enqueueOrderPlaced(ctx context.Context, q *db.Queries, number string, addr 
 	// finishOrder persists this same delivery after the confirmation is queued.
 	snapshot := &email.PlacedSnapshot{
 		SubtotalCents: summary.SubtotalCents, ShippingCents: summary.ShippingCents,
-		DiscountCents: summary.DiscountCents, DiscountReason: summary.DiscountReason, TaxCents: summary.TaxCents,
+		DiscountCents: summary.DiscountCents, DiscountReason: summary.DiscountReason,
 		CreditCents: summary.CreditCents, ShippingName: summary.ShippingMethodName,
 		Phone: addr.Phone, DeliveryNote: addr.Note, HoldUntil: hold.HeldUntil, StartBy: payment.StartBy(hold.HeldUntil),
 		DeliveryTo: pages.Delivery{

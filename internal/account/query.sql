@@ -179,7 +179,6 @@ SELECT
     o.placed_at,
     o.shipping_cents,
     o.discount_cents,
-    o.tax_cents,
     coalesce((SELECT sum(ol.unit_price_cents * ol.quantity) FROM order_lines ol
               WHERE ol.order_id = o.id), 0)::bigint AS subtotal_cents,
     (SELECT count(*) FROM order_lines ol WHERE ol.order_id = o.id)::bigint AS line_count,

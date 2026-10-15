@@ -165,7 +165,6 @@ func TestTheIssueButtonFollowsTheMoney(t *testing.T) {
 		{name: "zero gross, pending", view: OrderView{Status: order.FulfillmentPending, SubtotalCents: 100000, DiscountCents: 100000}, want: false},
 		{name: "zero gross, committed", view: OrderView{Status: order.FulfillmentPicking, Committed: true, SubtotalCents: 100000, DiscountCents: 100000}, want: false},
 		{name: "shipping remains after goods discount", view: OrderView{Status: order.FulfillmentPicking, Committed: true, SubtotalCents: 100000, DiscountCents: 100000, ShippingCents: 8000}, want: true},
-		{name: "tax remains after goods discount", view: OrderView{Status: order.FulfillmentPicking, Committed: true, SubtotalCents: 100000, DiscountCents: 100000, TaxCents: 5000}, want: true},
 		{name: "still owing", view: OrderView{Status: order.FulfillmentPending, Unpaid: true}, want: false},
 		{name: "cancelled", view: OrderView{Status: order.FulfillmentCancelled}, want: false},
 	} {

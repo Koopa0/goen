@@ -25,7 +25,7 @@ SELECT u.id, u.email, coalesce(u.full_name, '') AS full_name,
        coalesce((SELECT sum(greatest(
                             coalesce((SELECT sum(ol.unit_price_cents * ol.quantity)
                                       FROM order_lines ol WHERE ol.order_id = o.id), 0)
-                            + o.shipping_cents + o.tax_cents - o.discount_cents
+                            + o.shipping_cents - o.discount_cents
                             - (rf.card_cents + rf.credit_cents), 0))
                  FROM orders o
                  JOIN committed_orders c ON c.id = o.id
@@ -41,7 +41,7 @@ WHERE u.id = $1;
 
 -- name: AdminCustomerOrders :many
 SELECT o.id, o.order_number, o.fulfillment_status, o.placed_at,
-       o.shipping_cents, o.discount_cents, o.tax_cents,
+       o.shipping_cents, o.discount_cents,
        order_is_committed(o.id) AS committed,
        order_amount_after_credit(o.id) AS owed_cents,
        coalesce((SELECT sum(ol.unit_price_cents * ol.quantity) FROM order_lines ol

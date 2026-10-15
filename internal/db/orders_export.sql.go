@@ -28,7 +28,7 @@ JOIN sold_orders s ON s.id = o.id
 CROSS JOIN LATERAL (
     SELECT (coalesce((SELECT sum(ol.unit_price_cents * ol.quantity)
                       FROM order_lines ol WHERE ol.order_id = o.id), 0)
-            - o.discount_cents + o.shipping_cents + o.tax_cents)::bigint AS total_cents
+            - o.discount_cents + o.shipping_cents)::bigint AS total_cents
 ) t
 WHERE o.placed_at >= $1::timestamptz AND o.placed_at < $2::timestamptz
 ORDER BY o.placed_at, o.id

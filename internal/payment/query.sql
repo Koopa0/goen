@@ -187,7 +187,7 @@ SELECT award_loyalty_points(@order_id);
 SELECT (
     coalesce((SELECT sum(ol.unit_price_cents * ol.quantity)
               FROM order_lines ol WHERE ol.order_id = o.id), 0)
-    - o.discount_cents + o.shipping_cents + o.tax_cents
+    - o.discount_cents + o.shipping_cents
 )::bigint
 FROM orders o WHERE o.id = $1;
 

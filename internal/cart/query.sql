@@ -285,11 +285,11 @@ WHERE v.id = $1 AND sm.is_active AND v.effective_at <= now();
 -- name: CreateOrder :one
 INSERT INTO orders (
     order_number, user_id, shipping_version_id, shipping_method_code,
-    shipping_method_name, shipping_cents, discount_cents, tax_cents, customer_note,
+    shipping_method_name, shipping_cents, discount_cents, customer_note,
     locale
 ) VALUES (
     next_order_number(), @user_id, @shipping_version_id, @shipping_method_code,
-    @shipping_method_name, @shipping_cents, @discount_cents, 0, @customer_note,
+    @shipping_method_name, @shipping_cents, @discount_cents, @customer_note,
     @locale
 )
 RETURNING id, order_number;
@@ -321,7 +321,7 @@ INSERT INTO order_private_data (
 
 -- name: OrderSummaryByNumber :one
 SELECT o.id, o.order_number, o.fulfillment_status,
-       o.shipping_cents, o.discount_cents, o.tax_cents,
+       o.shipping_cents, o.discount_cents,
        -- WHICH discount, joined rather than snapshotted: coupons.code is never
        -- updated and the FK is ON DELETE RESTRICT, so one join always reaches it.
        coalesce((SELECT c.code || ' · ' || c.description
@@ -339,7 +339,7 @@ SELECT o.id, o.order_number, o.fulfillment_status,
        -- refuses a page that re-derives it.
        (coalesce((SELECT sum(ol.unit_price_cents * ol.quantity) FROM order_lines ol
                   WHERE ol.order_id = o.id), 0)
-        - o.discount_cents + o.shipping_cents + o.tax_cents
+        - o.discount_cents + o.shipping_cents
         - order_amount_after_credit(o.id))::bigint AS credit_cents,
        coalesce(pd.email, '') AS email,
        coalesce(pd.postal_code, '') AS postal_code,

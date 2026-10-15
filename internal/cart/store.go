@@ -1000,7 +1000,6 @@ func (s *Store) Order(ctx context.Context, number string) (pages.OrderView, erro
 		ShippingCents: o.ShippingCents,
 		DiscountCents: o.DiscountCents, DiscountReason: o.DiscountReason,
 		CreditCents: o.CreditCents,
-		TaxCents:    o.TaxCents,
 		PlacedAt:    o.PlacedAt,
 		Now:         now,
 		HoldUntil:   hold.HeldUntil,
