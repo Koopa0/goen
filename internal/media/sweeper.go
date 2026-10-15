@@ -2,9 +2,12 @@ package media
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"log/slog"
 	"time"
+
+	"github.com/jackc/pgx/v5/pgconn"
 )
 
 const SweepInterval = time.Hour
@@ -21,13 +24,23 @@ func (s *Store) Candidates(ctx context.Context, limit int32) ([]string, error) {
 
 // Reclaim deletes one candidate, and reports whether it went. Zero means
 // something points at it now — the DELETE asks again — so the upload is live.
+// So does a restrict_violation: a reference the DELETE could not see, an
+// attach that committed while it waited, is refused by the ON DELETE RESTRICT
+// foreign key instead.
 func (s *Store) Reclaim(ctx context.Context, digest string) (bool, error) {
 	gone, err := s.q.DeleteMedia(ctx, digest)
+	if pgErr, ok := errors.AsType[*pgconn.PgError](err); ok && pgErr.Code == restrictViolation {
+		return false, nil
+	}
 	if err != nil {
 		return false, fmt.Errorf("reclaim %s: %w", digest, err)
 	}
 	return gone > 0, nil
 }
+
+// restrictViolation is SQLSTATE 23001 (PostgreSQL docs, Appendix A). A DELETE
+// from media_objects can violate only a foreign key that references it.
+const restrictViolation = "23001"
 
 func (s *Store) Sweep(ctx context.Context, log *slog.Logger) (reclaimed int, err error) {
 	digests, err := s.Candidates(ctx, SweepBatch)

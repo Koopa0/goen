@@ -75,7 +75,7 @@ func TestNavigationFollowsConfiguredDepartmentPhotographs(t *testing.T) {
 			listing := catalog.NewStore(tx)
 			for _, slug := range []string{"photo-department", "books-stationery"} {
 				if n, setErr := q.SetCategoryImage(ctx, db.SetCategoryImageParams{
-					Slug: slug, ImageKey: obj.Digest, ImageAlt: "Department photograph",
+					Slug: slug, MediaDigest: obj.Digest, ImageAlt: "Department photograph",
 				}); setErr != nil || n != 1 {
 					t.Fatalf("set %s photograph: rows=%d err=%v", slug, n, setErr)
 				}

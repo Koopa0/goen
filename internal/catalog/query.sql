@@ -7,7 +7,7 @@
 WITH RECURSIVE trail AS (
     SELECT c.id, c.parent_id, c.slug,
            localized_name(c.name, c.name_en, @locale::text) AS name,
-           c.tone, c.image_key,
+           c.tone, c.media_digest, c.bundled_key,
            localized_name(c.image_alt, c.image_alt_en, @locale::text) AS image_alt,
            0 AS depth
     FROM categories c
@@ -15,7 +15,7 @@ WITH RECURSIVE trail AS (
     UNION ALL
     SELECT c.id, c.parent_id, c.slug,
            localized_name(c.name, c.name_en, @locale::text),
-           c.tone, c.image_key,
+           c.tone, c.media_digest, c.bundled_key,
            localized_name(c.image_alt, c.image_alt_en, @locale::text),
            t.depth + 1
     FROM categories c
@@ -37,15 +37,15 @@ SELECT
         (SELECT a.tone FROM trail a WHERE a.tone IS NOT NULL ORDER BY a.depth LIMIT 1),
         'stone'
     )::text AS tone,
-    coalesce(photo.image_key, '')::text AS image_key,
+    coalesce(photo.media_digest, photo.bundled_key, '')::text AS image_key,
     coalesce(photo.image_alt, '')::text AS image_alt,
     coalesce(m.width, 0)::integer AS image_width
 FROM trail self
 LEFT JOIN LATERAL (
-    SELECT a.image_key, a.image_alt FROM trail a
-    WHERE a.image_key IS NOT NULL ORDER BY a.depth LIMIT 1
+    SELECT a.media_digest, a.bundled_key, a.image_alt FROM trail a
+    WHERE num_nonnulls(a.media_digest, a.bundled_key) = 1 ORDER BY a.depth LIMIT 1
 ) photo ON true
-LEFT JOIN media_objects m ON m.digest = photo.image_key
+LEFT JOIN media_objects m ON m.digest = photo.media_digest
 WHERE self.depth = 0;
 
 -- The direct children of the category with slug $1, in shelf order: the chips

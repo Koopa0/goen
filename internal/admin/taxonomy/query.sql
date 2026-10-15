@@ -67,27 +67,30 @@ UPDATE categories SET name = @name::text, name_en = nullif(@name_en::text, ''),
                      comparable = CASE WHEN parent_id IS NULL THEN @comparable::boolean END
 WHERE slug = @slug::text;
 
+-- An upload replaces an embedded photograph too: categories_image_one_source
+-- allows one of the two.
 -- name: SetCategoryImage :execrows
 UPDATE categories
-SET image_key = @image_key::text, image_alt = @image_alt::text,
+SET media_digest = @media_digest::text, bundled_key = NULL, image_alt = @image_alt::text,
     image_alt_en = nullif(@image_alt_en::text, '')
 WHERE slug = @slug::text;
 
 -- name: ClearCategoryImage :execrows
 UPDATE categories
-SET image_key = NULL, image_alt = NULL, image_alt_en = NULL
+SET media_digest = NULL, bundled_key = NULL, image_alt = NULL, image_alt_en = NULL
 WHERE slug = @slug::text;
 
 -- Keep the current image in the same write: an alt-only save must not restore
 -- a photograph that another staff member replaced or removed.
 -- name: SetCategoryImageText :one
 WITH category AS MATERIALIZED (
-    SELECT id, image_key FROM categories WHERE slug = @slug::text FOR UPDATE
+    SELECT id, num_nonnulls(media_digest, bundled_key) = 1 AS has_image
+    FROM categories WHERE slug = @slug::text FOR UPDATE
 ), updated AS (
     UPDATE categories c
     SET image_alt = @image_alt::text, image_alt_en = nullif(@image_alt_en::text, '')
     FROM category
-    WHERE c.id = category.id AND category.image_key IS NOT NULL
+    WHERE c.id = category.id AND category.has_image
     RETURNING c.id
 )
 SELECT EXISTS (SELECT 1 FROM category)::boolean AS found,
@@ -98,12 +101,12 @@ SELECT EXISTS (SELECT 1 FROM category)::boolean AS found,
 -- name: AdminCategoryImage :one
 SELECT c.name,
        coalesce(c.tone, '')::text AS tone,
-       coalesce(c.image_key, '')::text AS image_key,
+       coalesce(c.media_digest, c.bundled_key, '')::text AS image_key,
        coalesce(c.image_alt, '')::text AS image_alt,
        coalesce(c.image_alt_en, '')::text AS image_alt_en,
        coalesce(m.width, 0)::integer AS image_width
 FROM categories c
-LEFT JOIN media_objects m ON m.digest = c.image_key
+LEFT JOIN media_objects m ON m.digest = c.media_digest
 WHERE c.slug = @slug::text;
 
 -- name: DeleteCategory :execrows

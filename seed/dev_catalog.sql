@@ -63,9 +63,9 @@ INSERT INTO categories (id, parent_id, slug, name, name_en, icon_key, position) 
 UPDATE categories SET comparable = true WHERE slug = 'tech';
 
 -- Each department's ground tone and header photograph; its sub-categories inherit both.
--- The key names a file in assets/media/products/, where image keys resolve.
+-- Each photograph is a file in assets/media/products/, embedded in the binary.
 UPDATE categories c
-SET tone = d.tone, image_key = d.image_key, image_alt = d.image_alt, image_alt_en = d.image_alt_en
+SET tone = d.tone, bundled_key = d.bundled_key, image_alt = d.image_alt, image_alt_en = d.image_alt_en
 FROM (VALUES
     ('books-stationery', 'paper', 'department-books-stationery.webp', '疊起的書、筆記本與一支筆', 'Stacked books, a notebook and a pen'),
     ('home-living', 'stone', 'department-home-living.webp', '馬克杯、香氛蠟燭與亞麻布巾', 'Mugs, a scented candle and a linen cloth'),
@@ -73,7 +73,7 @@ FROM (VALUES
     ('fashion', 'stone', 'department-fashion.webp', '帆布托特包、白 T 恤與漁夫帽', 'A canvas tote, a white t-shirt and a bucket hat'),
     ('food-drink', 'sage', 'department-food-drink.webp', '茶罐、茶碗、掛耳咖啡與茶匙', 'A tea tin, a tea bowl, a drip coffee bag and a spoon'),
     ('tech', 'mist', 'department-tech.webp', '筆電、耳罩式耳機、手機與充電線', 'A laptop, over-ear headphones, a phone and a cable')
-) AS d(slug, tone, image_key, image_alt, image_alt_en)
+) AS d(slug, tone, bundled_key, image_alt, image_alt_en)
 WHERE c.slug = d.slug;
 
 INSERT INTO products (id, brand_id, category_id, slug, name, summary, status, published_at) VALUES

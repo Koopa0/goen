@@ -73,20 +73,21 @@ type CartItem struct {
 }
 
 type Category struct {
-	ID         uuid.UUID
-	ParentID   uuid.NullUUID
-	Slug       string
-	Name       string
-	NameEn     pgtype.Text
-	IconKey    pgtype.Text
-	Tone       pgtype.Text
-	Comparable pgtype.Bool
-	ImageKey   pgtype.Text
-	ImageAlt   pgtype.Text
-	ImageAltEn pgtype.Text
-	Position   int32
-	CreatedAt  time.Time
-	UpdatedAt  time.Time
+	ID          uuid.UUID
+	ParentID    uuid.NullUUID
+	Slug        string
+	Name        string
+	NameEn      pgtype.Text
+	IconKey     pgtype.Text
+	Tone        pgtype.Text
+	Comparable  pgtype.Bool
+	MediaDigest pgtype.Text
+	BundledKey  pgtype.Text
+	ImageAlt    pgtype.Text
+	ImageAltEn  pgtype.Text
+	Position    int32
+	CreatedAt   time.Time
+	UpdatedAt   time.Time
 }
 
 type CheckoutAttempt struct {
