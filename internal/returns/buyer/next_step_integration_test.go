@@ -13,6 +13,7 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/jackc/pgx/v5"
 
 	"github.com/koopa0/goen/internal/i18n"
 	"github.com/koopa0/goen/internal/order/access"
@@ -20,13 +21,27 @@ import (
 	"github.com/koopa0/goen/internal/ui/pages"
 )
 
+// moveParcels sets a parcel's dispatch and arrival to the dates a case needs, as time
+// would, past order_shipments_moments_frozen, which holds every writer.
+func moveParcels(t *testing.T, stmt string, args ...any) {
+	t.Helper()
+	ctx := t.Context()
+	if err := pgx.BeginFunc(ctx, pool, func(tx pgx.Tx) error {
+		if _, err := tx.Exec(ctx, `SET LOCAL session_replication_role = replica`); err != nil {
+			return err
+		}
+		_, err := tx.Exec(ctx, stmt, args...)
+		return err
+	}); err != nil {
+		t.Fatal(err)
+	}
+}
+
 func TestReturnFormReadsTheDeliveredParcelsDatabaseDeadlineAndOnlyTheOpenNotice(t *testing.T) {
 	ctx := t.Context()
 	number, lineID := shippedOrder(t, 2, 2)
 	delivered := time.Date(2026, time.October, 1, 16, 30, 0, 0, time.UTC)
-	if _, err := pool.Exec(ctx, `UPDATE order_shipments SET shipped_at=$2::timestamptz-interval '1 day', delivered_at=$2 WHERE order_id=(SELECT id FROM orders WHERE order_number=$1)`, number, delivered); err != nil {
-		t.Fatal(err)
-	}
+	moveParcels(t, `UPDATE order_shipments SET shipped_at=$2::timestamptz-interval '1 day', delivered_at=$2 WHERE order_id=(SELECT id FROM orders WHERE order_number=$1)`, number, delivered)
 	var expected time.Time
 	if err := pool.QueryRow(ctx, `SELECT return_window_ends($1::timestamptz)::date`, delivered).Scan(&expected); err != nil {
 		t.Fatal(err)
@@ -57,9 +72,7 @@ func TestReturnFormReadsTheDeliveredParcelsDatabaseDeadlineAndOnlyTheOpenNotice(
 			t.Errorf("return lead locale %s status = %d, missing deadline or next step", locale, response.Code)
 		}
 	}
-	if _, err := pool.Exec(ctx, `UPDATE order_shipments SET delivered_at=now() WHERE order_id=(SELECT id FROM orders WHERE order_number=$1)`, number); err != nil {
-		t.Fatal(err)
-	}
+	moveParcels(t, `UPDATE order_shipments SET delivered_at=now() WHERE order_id=(SELECT id FROM orders WHERE order_number=$1)`, number)
 	if err := store.Open(ctx, number, uuid.NullUUID{}, &buyer.Request{Lines: map[string]int32{lineID.String(): 2}}); err != nil {
 		t.Fatal(err)
 	}

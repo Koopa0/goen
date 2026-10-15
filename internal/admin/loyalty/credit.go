@@ -15,10 +15,9 @@ import (
 	"github.com/koopa0/goen/internal/db"
 	"github.com/koopa0/goen/internal/keyset"
 	"github.com/koopa0/goen/internal/money"
-	"github.com/koopa0/goen/internal/ui/pages/admin"
 )
 
-func (s *Store) creditRecipient(ctx context.Context, view *admin.CreditView) error {
+func (s *Store) creditRecipient(ctx context.Context, view *CreditView) error {
 	user, err := s.q.CustomerByEmail(ctx, strings.TrimSpace(view.Email))
 	if errors.Is(err, pgx.ErrNoRows) {
 		return ErrNotFound
@@ -34,7 +33,7 @@ func (s *Store) creditRecipient(ctx context.Context, view *admin.CreditView) err
 	return nil
 }
 
-func validateCreditGrant(view *admin.CreditView) (uuid.UUID, bool) {
+func validateCreditGrant(view *CreditView) (uuid.UUID, bool) {
 	cents, amountOK := money.ParsePositiveDollars(view.Amount, MaxCreditGrant)
 	view.GrantCents = cents
 	view.AmountInvalid = !amountOK

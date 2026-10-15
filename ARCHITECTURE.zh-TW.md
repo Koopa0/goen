@@ -69,6 +69,8 @@ webhook 先驗證原始 body 的簽章，再於同一筆交易中領取事件、
 
 資料庫失敗時，領取與其效果一起回滾並回應 `500`，讓 Stripe 重試。已驗證卻無法安全套用的事件會提交一則警示並回應 `200`，留下持久的例外交由人員處理。見 [webhook 套用][payment-store]。
 
+Stripe 只送出端點有訂閱的事件，[.env.example](.env.example) 列出這些事件。逾期訂單的 `checkout.session.expired` 一直沒來時，背景工作會向 Stripe 查詢該結帳，並以付款路由的方式記錄結果；之後逾期清除工作取消訂單，退回購物金與優惠券。見[逾期結帳][payment-lapsed]。
+
 ### 完成的 Session 如何恢復
 
 完成的 Session 可能讓付款停在 `requires_reconciliation`，而該 reference 沒有 webhook 警示。人員到 Stripe 查證後使用 `ReconcileCompletePayment`：
@@ -278,6 +280,7 @@ CI 執行格式、vet、lint、無用程式碼與生成碼檢查、migration lin
 [orderaccess]: internal/order/access
 [payment-store]: internal/payment/store.go
 [payment-handler]: internal/payment/handler.go
+[payment-lapsed]: internal/payment/lapsed.go
 [stripe]: internal/payment/stripe.go
 [order]: internal/order
 [orders]: internal/admin/orders

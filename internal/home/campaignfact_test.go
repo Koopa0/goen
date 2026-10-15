@@ -10,7 +10,6 @@ import (
 	"github.com/koopa0/goen/internal/db"
 	"github.com/koopa0/goen/internal/i18n"
 	"github.com/koopa0/goen/internal/ui/components"
-	"github.com/koopa0/goen/internal/ui/pages"
 )
 
 // The campaign card says what is left before when it ends, and leaves the count
@@ -87,8 +86,8 @@ func TestAScheduledSlideTakesTheToneOfWhatItLinksTo(t *testing.T) {
 		camps: []db.ListedCampaignsRow{{Slug: "autumn", Tone: "sage"}},
 		cats:  []db.RootCategoriesRow{{Slug: "tech", Tone: "mist"}},
 	}
-	for href, want := range map[string]pages.Tone{
-		"/s/autumn": pages.ToneSage, "/c/tech": pages.ToneMist, "/about": pages.ToneStone, "/s/gone": pages.ToneStone,
+	for href, want := range map[string]components.Tone{
+		"/s/autumn": components.ToneSage, "/c/tech": components.ToneMist, "/about": components.ToneStone, "/s/gone": components.ToneStone,
 	} {
 		if got := src.toneOf(href); got != want {
 			t.Errorf("toneOf(%q) = %q, want %q", href, got, want)

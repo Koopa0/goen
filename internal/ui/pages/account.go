@@ -47,15 +47,8 @@ func (o AccountOrder) Facts(ctx context.Context) []components.Stat {
 
 func (o AccountOrder) LineCountText() string { return strconv.FormatInt(o.LineCount, 10) }
 
-// awaitingPayment is the one definition of an order that still needs paying.
-// 'pending' alone misses an order paid wholly from store credit or zeroed by a
-// coupon: it has no payment row and owes nothing.
-func awaitingPayment(status order.FulfillmentStatus, committed bool, owedCents int64) bool {
-	return status == order.FulfillmentPending && !committed && owedCents > 0
-}
-
 func (o AccountOrder) AwaitingPayment() bool {
-	return awaitingPayment(o.Status, o.Committed, o.OwedCents)
+	return order.AwaitingPayment(o.Status, o.Committed, o.OwedCents)
 }
 
 func (o AccountOrder) StatusText(ctx context.Context) string {
@@ -64,7 +57,7 @@ func (o AccountOrder) StatusText(ctx context.Context) string {
 	}
 	switch o.Status {
 	case order.FulfillmentPending:
-		if awaitingPayment(o.Status, o.Committed, o.OwedCents) {
+		if order.AwaitingPayment(o.Status, o.Committed, o.OwedCents) {
 			return i18n.T(ctx, i18n.KeyStatusAwaitingPayment)
 		}
 		return i18n.T(ctx, i18n.KeyStatusPaid)
@@ -90,7 +83,7 @@ func (o AccountOrder) BadgeIntent() components.Intent {
 	switch {
 	case o.Status == order.FulfillmentCancelled:
 		return components.IntentDanger
-	case awaitingPayment(o.Status, o.Committed, o.OwedCents):
+	case order.AwaitingPayment(o.Status, o.Committed, o.OwedCents):
 		return components.IntentWarn
 	default:
 		return components.IntentNeutral
@@ -347,32 +340,6 @@ func (v AuthView) HasErr(field string) bool { return v.Errors[field] != "" }
 func (v AuthView) AnyErrors() bool { return len(v.Errors) > 0 }
 
 func (v AuthView) HasNotice() bool { return v.Notice != "" }
-
-type MemberStanding struct {
-	SpendCents     int64
-	TierName       string
-	MultiplierBP   int32
-	NextName       string
-	NextNeedsCents int64
-}
-
-func (m MemberStanding) HasTier() bool { return m.TierName != "" }
-
-func (m MemberStanding) Spend() string { return twd(m.SpendCents) }
-
-func (m MemberStanding) Multiplier(ctx context.Context) string {
-	whole := m.MultiplierBP / 10000
-	frac := m.MultiplierBP % 10000
-	n := strconv.FormatInt(int64(whole), 10)
-	if frac != 0 {
-		n += "." + strings.TrimRight(fmt.Sprintf("%04d", frac), "0")
-	}
-	return fmt.Sprintf(i18n.T(ctx, i18n.KeyMultiplierTimes), n)
-}
-
-func (m MemberStanding) HasNext() bool { return m.NextName != "" }
-
-func (m MemberStanding) NextNeeds() string { return twd(m.NextNeedsCents) }
 
 type CartRecoveryView struct {
 	Welcome  bool

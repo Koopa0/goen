@@ -133,7 +133,7 @@ func (s *Store) Load(ctx context.Context) (pages.HomeView, error) {
 		view.Categories = append(view.Categories, pages.HomeCategory{
 			Slug:  c.Slug,
 			Name:  c.Name,
-			Tone:  pages.ResolveTone(c.Tone),
+			Tone:  components.ResolveTone(c.Tone),
 			Photo: departmentPhoto(c),
 		})
 	}
@@ -162,7 +162,7 @@ func (s *Store) campaignRow(ctx context.Context, c *db.ListedCampaignsRow) (row 
 	}
 	schedule := s.campaignSchedule(ctx, c)
 	campaign := &pages.RowCampaign{
-		Tone:      pages.ResolveTone(c.Tone),
+		Tone:      components.ResolveTone(c.Tone),
 		Items:     c.Products,
 		Facts:     schedule.Facts,
 		CardFacts: schedule.CardFacts(),
@@ -207,7 +207,7 @@ func (s *Store) departmentBand(ctx context.Context, src carouselSources, row []p
 			Items: held[c.ID],
 			Fact:  subCategoryLine(subs[c.ID]),
 			Href:  "/c/" + c.Slug,
-			Tone:  pages.ResolveTone(c.Tone),
+			Tone:  components.ResolveTone(c.Tone),
 			Tiles: tiles[:bandTiles],
 		}, nil
 	}

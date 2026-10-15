@@ -384,6 +384,7 @@ templ Health(p layouts.Page, v *WorkerHealthView) {
 				<ul class="goen-health" role="list">
 					@healthItem(v.OutboxHealthy(), i18n.T(ctx, i18n.KeyAdminHPOutboxName), v.OutboxText(ctx), i18n.T(ctx, i18n.KeyAdminHPOutboxNote))
 					@healthItem(v.SweeperHealthy(), i18n.T(ctx, i18n.KeyAdminHPHoldsName), v.SweeperText(ctx), i18n.T(ctx, i18n.KeyAdminHPHoldsNote))
+					@healthItem(v.CheckoutsSettled(), i18n.T(ctx, i18n.KeyAdminHPCheckoutsName), v.CheckoutsText(ctx), i18n.T(ctx, i18n.KeyAdminHPCheckoutsNote))
 					@healthItem(v.RecommendHealthy(), i18n.T(ctx, i18n.KeyAdminHPProjectionName), v.RecommendText(ctx), i18n.T(ctx, i18n.KeyAdminHPProjectionNote))
 					@healthItem(v.RefundsHealthy(), i18n.T(ctx, i18n.KeyAdminHPRefundsName), v.RefundsText(ctx), i18n.T(ctx, i18n.KeyAdminHPRefundsNote))
 					if v.Disputes.Configured {

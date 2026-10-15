@@ -15,7 +15,6 @@ import (
 	"github.com/koopa0/goen/internal/admin/audit"
 	"github.com/koopa0/goen/internal/db"
 	"github.com/koopa0/goen/internal/money"
-	"github.com/koopa0/goen/internal/ui/pages/admin"
 )
 
 var (
@@ -40,15 +39,15 @@ func NewStore(pool *pgxpool.Pool) *Store {
 
 const MaxTierMultiplierBP = 30000
 
-func (s *Store) Tiers(ctx context.Context) (admin.TiersView, error) {
+func (s *Store) Tiers(ctx context.Context) (TiersView, error) {
 	rows, err := s.q.AdminMembershipTiers(ctx)
 	if err != nil {
-		return admin.TiersView{}, fmt.Errorf("read membership tiers: %w", err)
+		return TiersView{}, fmt.Errorf("read membership tiers: %w", err)
 	}
-	view := admin.TiersView{Rows: make([]admin.Tier, 0, len(rows))}
+	view := TiersView{Rows: make([]Tier, 0, len(rows))}
 	for i := range rows {
 		t := &rows[i]
-		view.Rows = append(view.Rows, admin.Tier{
+		view.Rows = append(view.Rows, Tier{
 			ID: t.ID.String(), Code: t.Code, Name: t.Name, NameEn: t.NameEn,
 			MinSpend: t.MinSpendCents, MultiplierBP: t.PointsMultiplierBp,
 			Members: t.Members,

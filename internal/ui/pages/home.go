@@ -2,8 +2,6 @@ package pages
 
 import (
 	"context"
-	"fmt"
-	"strings"
 	"unicode/utf8"
 
 	"github.com/koopa0/goen/internal/i18n"
@@ -15,41 +13,11 @@ func HomeMeta(ctx context.Context) layouts.Page {
 	return layouts.Page{Description: describeDepartments(ctx, i18n.KeyHomeDescription)}
 }
 
-// departments reads the header's category row, the same rows the home tiles
-// show, so a sentence naming them cannot drift from the catalogue.
-func departments(ctx context.Context) string {
-	items := layouts.TopNavFrom(ctx)
-	names := make([]string, 0, len(items))
-	for i := range items {
-		names = append(names, items[i].Name)
-	}
-	return joinList(ctx, names)
-}
-
-// A description left out is better than one naming nothing.
-func describeDepartments(ctx context.Context, k i18n.Key) string {
-	list := departments(ctx)
-	if list == "" {
-		return ""
-	}
-	return fmt.Sprintf(i18n.T(ctx, k), list)
-}
-
-// English puts "and" before the last; Chinese uses 、 throughout.
-func joinList(ctx context.Context, names []string) string {
-	if len(names) < 2 {
-		return strings.Join(names, "")
-	}
-	last := len(names) - 1
-	return strings.Join(names[:last], i18n.T(ctx, i18n.KeyListSeparator)) +
-		i18n.T(ctx, i18n.KeyListLastSeparator) + names[last]
-}
-
 type HomeCategory struct {
 	Slug  string
 	Name  string
-	Tone  Tone
-	Photo Photo
+	Tone  components.Tone
+	Photo components.Photo
 }
 
 // Initial is the first character of the name, which a department without a
@@ -73,7 +41,7 @@ type ProductRow struct {
 
 // RowCampaign is what a campaign's row says about the campaign.
 type RowCampaign struct {
-	Tone  Tone
+	Tone  components.Tone
 	Items int64
 	// Facts stand under the heading when the row has no campaign card.
 	Facts []components.Stat
@@ -110,7 +78,7 @@ type DepartmentBand struct {
 	Items int64
 	Fact  string
 	Href  string
-	Tone  Tone
+	Tone  components.Tone
 	Tiles []ProductTile
 }
 

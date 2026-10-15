@@ -30,8 +30,8 @@ import (
 	"github.com/koopa0/goen/internal/db"
 	"github.com/koopa0/goen/internal/i18n"
 	"github.com/koopa0/goen/internal/media"
+	"github.com/koopa0/goen/internal/ui/components"
 	"github.com/koopa0/goen/internal/ui/icons"
-	"github.com/koopa0/goen/internal/ui/pages"
 )
 
 func TestANamedParentThatDoesNotExistIsRefused(t *testing.T) {
@@ -425,7 +425,7 @@ func TestEveryToneOfTheClosedSetIsStorable(t *testing.T) {
 	if err != nil || len(errs) > 0 {
 		t.Fatalf("create the campaign: %v %v", errs, err)
 	}
-	for _, tone := range pages.Tones() {
+	for _, tone := range components.Tones() {
 		if err = campaigns.NewStore(pool).SetTone(ctx, camp, string(tone)); err != nil {
 			t.Errorf("SetTone(%q): %v", tone, err)
 		}
@@ -437,7 +437,7 @@ func TestEveryToneOfTheClosedSetIsStorable(t *testing.T) {
 		t.Error("a campaign accepted a tone outside the set")
 	}
 	cv, err := catalog.NewStore(pool).Campaign(ctx, camp)
-	if err != nil || cv.Tone != pages.ToneInk {
+	if err != nil || cv.Tone != components.ToneInk {
 		t.Fatalf("campaign tone = %q (err %v), want the last one set, ink", cv.Tone, err)
 	}
 }

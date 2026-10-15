@@ -14,8 +14,8 @@ import (
 	"github.com/koopa0/goen/internal/admin/audit"
 	"github.com/koopa0/goen/internal/db"
 	"github.com/koopa0/goen/internal/i18n"
+	"github.com/koopa0/goen/internal/ui/components"
 	"github.com/koopa0/goen/internal/ui/icons"
-	"github.com/koopa0/goen/internal/ui/pages"
 	"github.com/koopa0/goen/internal/ui/pages/admin"
 	"github.com/koopa0/goen/internal/web"
 )
@@ -77,7 +77,7 @@ func (f *Form) Validate(ctx context.Context) map[string]string {
 		errs["icon_key"] = i18n.T(ctx, i18n.KeyFormIconUnknown)
 	}
 	f.Tone = strings.TrimSpace(f.Tone)
-	if _, ok := pages.ParseTone(f.Tone); f.Tone != "" && !ok {
+	if _, ok := components.ParseTone(f.Tone); f.Tone != "" && !ok {
 		errs["tone"] = i18n.T(ctx, i18n.KeyFormToneUnknown)
 	}
 	return errs
@@ -187,7 +187,7 @@ func (s *Store) Rename(ctx context.Context, kind, slug, name, nameEn, iconKey, t
 	if iconKey != "" && !icons.KnownCategory(iconKey) {
 		return ErrInvalid
 	}
-	if _, ok := pages.ParseTone(tone); tone != "" && !ok {
+	if _, ok := components.ParseTone(tone); tone != "" && !ok {
 		return ErrInvalid
 	}
 	action, table := audit.ActionRenameBrand, "brands"

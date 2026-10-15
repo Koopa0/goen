@@ -34,8 +34,8 @@ type HeroSlide struct {
 	ID     string
 	Source SlideSource
 	Layout SlideLayout
-	Tone   Tone
-	Photo  Photo
+	Tone   components.Tone
+	Photo  components.Photo
 	// A width on its own reserves no space, so both are rendered together.
 	PhotoWidth, PhotoHeight int
 	Title                   string

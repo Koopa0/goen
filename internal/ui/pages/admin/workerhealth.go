@@ -17,9 +17,12 @@ import (
 type WorkerHealthView struct {
 	OutboxPending int64
 	// OutboxOldest is how long the most overdue message has been due, not old.
-	OutboxOldest        time.Duration
-	OutboxStuck         int64
-	ExpiredHolds        int64
+	OutboxOldest time.Duration
+	OutboxStuck  int64
+	ExpiredHolds int64
+	// LapsedCheckouts is unpaid orders past their deadline whose checkout the
+	// payment sweeper has asked Stripe about for many passes without settling.
+	LapsedCheckouts     int64
 	CopurchaseAge       time.Duration
 	CopurchaseEverBuilt bool
 
@@ -73,6 +76,17 @@ func (v *WorkerHealthView) OutboxHealthy() bool {
 
 func (v *WorkerHealthView) SweeperHealthy() bool { return v.ExpiredHolds <= v.MaxExpiredHolds }
 
+// CheckoutsSettled reports whether every lapsed checkout was closed. Each one
+// left keeps its order's store credit and coupon spent.
+func (v *WorkerHealthView) CheckoutsSettled() bool { return v.LapsedCheckouts == 0 }
+
+func (v *WorkerHealthView) CheckoutsText(ctx context.Context) string {
+	if v.LapsedCheckouts == 0 {
+		return i18n.T(ctx, i18n.KeyHealthCheckoutsClear)
+	}
+	return i18n.Count(ctx, i18n.KeyHealthCheckoutsStuck, v.LapsedCheckouts, v.LapsedCheckouts)
+}
+
 func (v *WorkerHealthView) RecommendHealthy() bool {
 	return v.CopurchaseEverBuilt && v.CopurchaseAge < v.CopurchaseStaleAfter
 }
@@ -98,7 +112,7 @@ func (v *WorkerHealthView) RefundsHealthy() bool { return v.OpenRefundCount == 0
 func (v *WorkerHealthView) PaymentsReconciled() bool { return v.UnreconciledPayments == 0 }
 
 func (v *WorkerHealthView) AllHealthy() bool {
-	return v.OutboxHealthy() && v.SweeperHealthy() &&
+	return v.OutboxHealthy() && v.SweeperHealthy() && v.CheckoutsSettled() &&
 		v.RecommendHealthy() && v.HousekeepingHealthy() && v.RefundsHealthy() &&
 		v.PaymentsReconciled() && v.ClaimsSettled() && v.PaidOrdersInvoiced() &&
 		v.CancelledOrderInvoicesResolved() && v.Disputes.Healthy()
@@ -483,6 +497,7 @@ func (v *WorkerHealthView) Tasks() []Task {
 	add(v.CancelledOrderInvoicesResolved(), i18n.KeyAdminHPCancelledOrderInvoicesHeading, v.CancelledOrderInvoiceCount, "/admin/health#cancelled-order-invoices-heading", true, v.CancelledOrderInvoiceOldestSeconds)
 	add(v.RefundsHealthy(), i18n.KeyAdminHPOpenRefundsHeading, v.OpenRefundCount, "/admin/health#refunds-heading", false, 0)
 	add(v.SweeperHealthy(), i18n.KeyAdminQueueTaskHolds, v.ExpiredHolds, "/admin/health", false, 0)
+	add(v.CheckoutsSettled(), i18n.KeyAdminQueueTaskCheckouts, v.LapsedCheckouts, "/admin/health", false, 0)
 	return tasks
 }
 

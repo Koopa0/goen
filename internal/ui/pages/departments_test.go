@@ -122,12 +122,12 @@ func TestHeroCarouselDrawsItsSlides(t *testing.T) {
 		ctx := i18n.WithLocale(t.Context(), locale)
 		see := i18n.T(ctx, i18n.KeyHeroCampaignCTA)
 		campaign := HeroSlide{
-			Layout: SlidePhoto, Tone: ToneSage, Title: "Autumn desk sale",
+			Layout: SlidePhoto, Tone: components.ToneSage, Title: "Autumn desk sale",
 			Stats: []components.Stat{{Label: "Items", Value: components.StatCount(4, "items")}},
 			CTA:   CTA{Label: see, Href: "/s/autumn-desk"},
-			Photo: Photo{URL: "/static/a.webp", Alt: "a desk"}, PhotoWidth: 1600, PhotoHeight: 600,
+			Photo: components.Photo{URL: "/static/a.webp", Alt: "a desk"}, PhotoWidth: 1600, PhotoHeight: 600,
 		}
-		department := HeroSlide{Layout: SlideSplit, Tone: ToneMist, Title: "Tech", CTA: CTA{Label: see, Href: "/c/tech"}}
+		department := HeroSlide{Layout: SlideSplit, Tone: components.ToneMist, Title: "Tech", CTA: CTA{Label: see, Href: "/c/tech"}}
 
 		many := renderComponent(t, ctx, Home(HomeMeta(ctx), HomeView{Slides: []HeroSlide{campaign, department}}))
 		for _, want := range []string{
@@ -193,8 +193,8 @@ func TestATileSaysSaleByItsPriceAndNotByAChip(t *testing.T) {
 func TestHeroCarouselHasNoAutoplay(t *testing.T) {
 	t.Parallel()
 	slides := []HeroSlide{
-		{Layout: SlideSplit, Tone: ToneMist, Title: "Tech"},
-		{Layout: SlideSplit, Tone: ToneSage, Title: "Food"},
+		{Layout: SlideSplit, Tone: components.ToneMist, Title: "Tech"},
+		{Layout: SlideSplit, Tone: components.ToneSage, Title: "Food"},
 	}
 	for _, locale := range []i18n.Locale{i18n.ZhHant, i18n.En} {
 		ctx := i18n.WithLocale(t.Context(), locale)
@@ -218,7 +218,7 @@ func TestACampaignSlideDrawsItsStatsAndItsDayGrid(t *testing.T) {
 	ctx := i18n.WithLocale(t.Context(), i18n.ZhHant)
 	spec := components.PeriodSpec{Description: "秋日選物：10 月 1 日至 10 月 30 日，共 30 天", TodayLabel: "今天", Cells: []components.PeriodCell{{State: components.CellToday, Label: "10/9"}, {Label: "10/10"}}}
 	slide := HeroSlide{
-		Layout: SlidePhoto, Tone: ToneSage, Title: "年終感謝祭全館滿額再折",
+		Layout: SlidePhoto, Tone: components.ToneSage, Title: "年終感謝祭全館滿額再折",
 		Stats:  []components.Stat{{Label: "結束", Value: components.StatDate("10\u00a0月 30\u00a0日", ""), Note: "明天結束"}},
 		Period: &spec,
 	}

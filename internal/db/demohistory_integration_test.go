@@ -552,12 +552,14 @@ func assertHealthQuiet(t *testing.T, shop *pgxpool.Pool) {
 	ctx := t.Context()
 	q := db.New(shop)
 
-	worker, err := q.WorkerHealth(ctx, 1)
+	worker, err := q.WorkerHealth(ctx, db.WorkerHealthParams{
+		MaxAttempts: 1, LapsedAfter: pgtype.Interval{Valid: true},
+	})
 	if err != nil {
 		t.Fatalf("WorkerHealth: %v", err)
 	}
 	if worker.OutboxPending != 0 || worker.OutboxStuck != 0 || worker.ExpiredHolds != 0 ||
-		worker.ExpiredSessions != 0 || worker.UnreferencedMedia != 0 ||
+		worker.LapsedCheckouts != 0 || worker.ExpiredSessions != 0 || worker.UnreferencedMedia != 0 ||
 		!worker.CopurchaseEverBuilt || worker.CopurchaseAgeSeconds > 600 {
 		t.Errorf("WorkerHealth = %+v, want every count 0 and co-purchases just rebuilt", worker)
 	}

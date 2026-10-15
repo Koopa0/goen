@@ -1552,11 +1552,19 @@ COMMENT ON VIEW visible_reviews IS
     'reads this, so hiding one moves the score as well as the list.';
 
 -- The verified-purchase claim is checked against a real committed order rather
--- than trusted from the writer. Only the moment it is SET is guarded: erasure
--- nulls user_id, so re-verifying an erased author is impossible.
+-- than trusted from the writer, when it is SET. A review's product and author
+-- are fixed once it is written, so the claim stays about the purchase it was
+-- checked against; erasure may still clear the author (ON DELETE SET NULL),
+-- which is why an erased author's review is never re-verified.
 CREATE FUNCTION product_reviews_verify_purchase() RETURNS trigger
 LANGUAGE plpgsql SET search_path = pg_catalog, public, pg_temp AS $$
 BEGIN
+    IF TG_OP = 'UPDATE'
+       AND (NEW.product_id <> OLD.product_id
+            OR (NEW.user_id IS DISTINCT FROM OLD.user_id AND NEW.user_id IS NOT NULL)) THEN
+        RAISE EXCEPTION 'review %: its product and author cannot change', OLD.id
+            USING ERRCODE = 'check_violation', CONSTRAINT = 'product_reviews_subject_frozen';
+    END IF;
     IF NOT NEW.is_verified_purchase THEN
         RETURN NEW;
     END IF;
@@ -1995,6 +2003,22 @@ BEGIN
             USING ERRCODE = 'check_violation', CONSTRAINT = 'orders_legal_transition';
     END IF;
 
+    -- The storefront moves an order one way only: a pending order is cancelled,
+    -- by its customer or by the lapsed-order sweep. Picking, shipping and
+    -- delivering are the back office's, which records the parcel with the
+    -- status, or a door's, which runs as the owner. The role is asked by
+    -- privilege, not by name, so a login that inherits store's grants without
+    -- SET ROLE is held to the same rule; whoever holds the table owner's
+    -- privileges (the owner, a superuser) is not the storefront.
+    IF NOT (OLD.fulfillment_status = 'pending' AND NEW.fulfillment_status = 'cancelled')
+       AND pg_has_role(current_user, 'store', 'USAGE')
+       AND NOT pg_has_role(current_user,
+                           (SELECT c.relowner FROM pg_class c WHERE c.oid = TG_RELID), 'USAGE') THEN
+        RAISE EXCEPTION 'the storefront cannot move order % from % to %',
+            NEW.order_number, OLD.fulfillment_status, NEW.fulfillment_status
+            USING ERRCODE = 'check_violation', CONSTRAINT = 'orders_storefront_cancels_only';
+    END IF;
+
     -- Once a paid order is refunded before shipment, cancelled is its only way on.
     IF NEW.fulfillment_status <> 'cancelled' AND EXISTS (
         SELECT 1 FROM return_requests r
@@ -2405,6 +2429,25 @@ CREATE TABLE order_shipments (
 );
 
 CREATE UNIQUE INDEX order_shipments_tracking_key ON order_shipments (carrier, tracking_number);
+
+-- When a parcel left is written once, at dispatch, and when it arrived is
+-- written once, by the stamp that finds it NULL. return_window_ends, warranty
+-- cover and the return form all count from these two moments.
+CREATE FUNCTION order_shipments_freeze_moments() RETURNS trigger
+LANGUAGE plpgsql SET search_path = pg_catalog, public, pg_temp AS $$
+BEGIN
+    IF NEW.shipped_at IS DISTINCT FROM OLD.shipped_at
+       OR (OLD.delivered_at IS NOT NULL AND NEW.delivered_at IS DISTINCT FROM OLD.delivered_at) THEN
+        RAISE EXCEPTION 'shipment %: when it shipped, and once recorded when it arrived, cannot change', OLD.id
+            USING ERRCODE = 'check_violation', CONSTRAINT = 'order_shipments_moments_frozen';
+    END IF;
+    RETURN NEW;
+END;
+$$;
+
+CREATE TRIGGER order_shipments_moments_frozen
+    BEFORE UPDATE OF shipped_at, delivered_at ON order_shipments
+    FOR EACH ROW EXECUTE FUNCTION order_shipments_freeze_moments();
 -- Referenced by the composite foreign key that ties a shipment line to a
 -- shipment of the same order.
 CREATE UNIQUE INDEX order_shipments_order_key ON order_shipments (order_id, id);
@@ -2695,8 +2738,14 @@ BEGIN
     END IF;
 
     PERFORM 1 FROM orders WHERE id = NEW.id FOR UPDATE;
-    IF order_is_settled(NEW.id) THEN
-        RAISE EXCEPTION 'order % is settled; its totals and shipping cannot change', NEW.order_number
+    -- Settled covers committed and cancelled. A pending order that store credit
+    -- pays in full is neither, because it carries no payment, yet
+    -- claim_invoice_issue files its amount from these columns before it is
+    -- picked: from that claim the amount is the invoice's too.
+    IF order_is_settled(NEW.id)
+       OR EXISTS (SELECT 1 FROM invoice_operations
+                  WHERE order_id = NEW.id AND kind = 'issue') THEN
+        RAISE EXCEPTION 'order % is settled or invoiced; its totals and shipping cannot change', NEW.order_number
             USING ERRCODE = 'check_violation', CONSTRAINT = 'orders_money_frozen_once_committed';
     END IF;
     RETURN NEW;
@@ -5020,10 +5069,17 @@ CREATE TRIGGER newsletter_issues_set_updated_at
     FOR EACH ROW EXECUTE FUNCTION set_updated_at();
 
 -- A sent issue is frozen: ten thousand copies are in ten thousand mailboxes, and
--- there is no way to correct them.
+-- there is no way to correct them. Sent stays sent, with the count it was sent
+-- to, or clearing sent_at would lift the freeze and let the issue go out again.
+-- sent_by is left to its foreign key, which erasure sets NULL.
 CREATE FUNCTION newsletter_issues_check_frozen() RETURNS trigger
 LANGUAGE plpgsql SET search_path = pg_catalog, public, pg_temp AS $$
 BEGIN
+    IF OLD.sent_at IS NOT NULL
+       AND (NEW.sent_at IS DISTINCT FROM OLD.sent_at OR NEW.recipients <> OLD.recipients) THEN
+        RAISE EXCEPTION 'newsletter issue % has been sent; when and to how many cannot change', OLD.id
+            USING ERRCODE = 'check_violation', CONSTRAINT = 'newsletter_issues_sent_stays_sent';
+    END IF;
     IF OLD.sent_at IS NOT NULL
        AND (NEW.subject <> OLD.subject OR NEW.body <> OLD.body) THEN
         RAISE EXCEPTION 'newsletter issue % has been sent; its text cannot change', OLD.id
@@ -5034,7 +5090,7 @@ END;
 $$;
 
 CREATE TRIGGER newsletter_issues_frozen_once_sent
-    BEFORE UPDATE OF subject, body ON newsletter_issues
+    BEFORE UPDATE OF subject, body, sent_at, recipients ON newsletter_issues
     FOR EACH ROW EXECUTE FUNCTION newsletter_issues_check_frozen();
 
 -- Every path that can remove an administrator takes this transaction lock

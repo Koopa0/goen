@@ -7,6 +7,7 @@ import (
 	"testing"
 
 	"github.com/koopa0/goen/internal/i18n"
+	"github.com/koopa0/goen/internal/ui/components"
 	"github.com/koopa0/goen/internal/ui/layouts"
 )
 
@@ -55,12 +56,12 @@ func TestTheHomePageLoadsItsFirstScreenPhotographsAtOnceAndReservesEveryBox(t *t
 	t.Parallel()
 	view := HomeView{
 		Slides: []HeroSlide{
-			{Layout: SlidePhoto, Photo: Photo{URL: "/img/hero.webp", Alt: "hero"}, PhotoWidth: 1600, PhotoHeight: 600, Title: "A"},
-			{Layout: SlidePhoto, Photo: Photo{URL: "/img/hero2.webp", Alt: "hero"}, PhotoWidth: 1600, PhotoHeight: 600, Title: "B"},
+			{Layout: SlidePhoto, Photo: components.Photo{URL: "/img/hero.webp", Alt: "hero"}, PhotoWidth: 1600, PhotoHeight: 600, Title: "A"},
+			{Layout: SlidePhoto, Photo: components.Photo{URL: "/img/hero2.webp", Alt: "hero"}, PhotoWidth: 1600, PhotoHeight: 600, Title: "B"},
 		},
 		Categories: []HomeCategory{
-			{Slug: "a", Name: "A", Photo: Photo{URL: "/img/a.webp"}},
-			{Slug: "b", Name: "B", Photo: Photo{URL: "/img/b.webp"}},
+			{Slug: "a", Name: "A", Photo: components.Photo{URL: "/img/a.webp"}},
+			{Slug: "b", Name: "B", Photo: components.Photo{URL: "/img/b.webp"}},
 		},
 		Row: ProductRow{Title: "Row", Href: "/s/row", Tiles: tiledShelf(10)},
 	}
@@ -92,7 +93,7 @@ func TestADepartmentPageDoesNotLazyLoadItsFirstScreen(t *testing.T) {
 	ctx := i18n.WithLocale(t.Context(), i18n.ZhHant)
 	view := ListingView{
 		Slug: "tech", Name: "Tech", Products: tiledShelf(16), Total: 30, Page: 1, PageSize: 24,
-		Theme: &Theme{Photo: Photo{URL: "/img/tech.webp", Alt: "tech"}},
+		Theme: &Theme{Photo: components.Photo{URL: "/img/tech.webp", Alt: "tech"}},
 	}
 	page := renderToString(t, Listing(ListingMeta(ctx, view), view, nil, nil))
 

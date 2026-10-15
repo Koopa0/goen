@@ -1,4 +1,4 @@
-package admin
+package loyalty
 
 import (
 	"regexp"

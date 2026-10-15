@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"strconv"
+	"strings"
 
 	"github.com/a-h/templ"
 
@@ -193,3 +194,29 @@ func (v *PointsView) MemberRate(ctx context.Context) string {
 	}
 	return rate
 }
+
+type MemberStanding struct {
+	SpendCents     int64
+	TierName       string
+	MultiplierBP   int32
+	NextName       string
+	NextNeedsCents int64
+}
+
+func (m MemberStanding) HasTier() bool { return m.TierName != "" }
+
+func (m MemberStanding) Spend() string { return twd(m.SpendCents) }
+
+func (m MemberStanding) Multiplier(ctx context.Context) string {
+	whole := m.MultiplierBP / 10000
+	frac := m.MultiplierBP % 10000
+	n := strconv.FormatInt(int64(whole), 10)
+	if frac != 0 {
+		n += "." + strings.TrimRight(fmt.Sprintf("%04d", frac), "0")
+	}
+	return fmt.Sprintf(i18n.T(ctx, i18n.KeyMultiplierTimes), n)
+}
+
+func (m MemberStanding) HasNext() bool { return m.NextName != "" }
+
+func (m MemberStanding) NextNeeds() string { return twd(m.NextNeedsCents) }

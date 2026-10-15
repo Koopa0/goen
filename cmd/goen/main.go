@@ -622,7 +622,7 @@ func run() error {
 	var background sync.WaitGroup
 	startWorkers(ctx, workerDeps{
 		pool: pool, admin: adminPool, maintenance: maintenancePool,
-		log: log, notifier: notifier, invoices: invoices, run: background.Go,
+		log: log, notifier: notifier, invoices: invoices, payments: gateway, run: background.Go,
 	})
 	defer background.Wait()
 
@@ -845,6 +845,7 @@ type workerDeps struct {
 	log         *slog.Logger
 	notifier    email.Notifier
 	invoices    *issuer.Gateway
+	payments    *payment.Gateway
 	run         func(func())
 }
 
@@ -857,6 +858,14 @@ func startWorkers(ctx context.Context, d workerDeps) {
 	d.run(func() { holds.SweepForever(ctx, d.log) })
 	d.run(func() { holds.SweepAttemptsForever(ctx, d.log) })
 	d.run(func() { access.NewStore(d.pool, false).SweepForever(ctx, d.log) })
+	// Before the hold sweeper can cancel a lapsed order, its checkout must be
+	// closed: by Stripe's event, or by this sweeper asking Stripe when the event
+	// never came. With no Stripe key no checkout was ever opened.
+	if d.payments != nil && d.payments.Enabled() {
+		d.run(func() {
+			payment.NewSessionSweeper(payment.NewStore(d.pool), d.payments).SweepForever(ctx, d.log)
+		})
+	}
 	d.run(func() { holds.SweepDraftsForever(ctx, d.log) })
 	d.run(func() { holds.SweepGuestCartsForever(ctx, d.log) })
 	d.run(func() { newsletter.NewStore(d.pool).SweepConfirmationsForever(ctx, d.log) })
