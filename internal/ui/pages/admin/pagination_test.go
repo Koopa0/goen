@@ -19,12 +19,10 @@ func TestEveryAdminEmptyPageKeepsItsRestartLink(t *testing.T) {
 	p := layouts.Page{Title: "Pagination"}
 	cases := map[string]templ.Component{
 		"orders":    Orders(p, OrdersView{Bound: b}),
-		"customers": Customers(p, CustomersView{Bound: b, Searched: true, Term: "test"}),
 		"products":  Products(p, ProductsView{Bound: b}),
 		"returns":   Returns(p, ReturnsView{Bound: b}),
 		"campaigns": Campaigns(p, CampaignsView{Bound: b}),
 		"audit":     audit.Audit(p, audit.AuditView{Bound: b}),
-		"warranty":  Warranties(p, WarrantiesView{Bound: b, Searched: true, Term: "test"}),
 	}
 	for name, c := range cases {
 		t.Run(name, func(t *testing.T) {

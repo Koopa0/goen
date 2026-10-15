@@ -14,16 +14,15 @@ import (
 	"github.com/koopa0/goen/internal/keyset"
 	"github.com/koopa0/goen/internal/order"
 	"github.com/koopa0/goen/internal/shoptime"
-	"github.com/koopa0/goen/internal/ui/pages/admin"
 	"github.com/koopa0/goen/internal/web"
 )
 
-func (s *Store) Warranties(ctx context.Context, term string, after ...string) (admin.WarrantiesView, error) {
+func (s *Store) Warranties(ctx context.Context, term string, after ...string) (WarrantiesView, error) {
 	// Uppercased: a serial is typed off a label and a shift key is not a failed lookup.
 	term = strings.ToUpper(strings.TrimSpace(term))
 	scope := keyset.ScopeURL("/admin/warranty", "q", term)
 	from, resumed := resume(scope, after)
-	view := admin.WarrantiesView{Term: term}
+	view := WarrantiesView{Term: term}
 	if utf8.RuneCountInString(term) < web.MinSearchRunes {
 		return view, nil
 	}
@@ -33,7 +32,7 @@ func (s *Store) Warranties(ctx context.Context, term string, after ...string) (a
 		Term: term, RowLimit: keyset.PageLimit,
 	})
 	if err != nil {
-		return admin.WarrantiesView{}, fmt.Errorf("search warranties: %w", err)
+		return WarrantiesView{}, fmt.Errorf("search warranties: %w", err)
 	}
 	rows, bound := keyset.PageBound(scope, resumed, rows, keyset.PageSize, func(r *db.AdminSearchWarrantiesRow) string { return r.PageCursor })
 	view.Bound = bound
@@ -43,7 +42,7 @@ func (s *Store) Warranties(ctx context.Context, term string, after ...string) (a
 	}
 	returned, err := s.q.ReturnedOrders(ctx, ids)
 	if err != nil {
-		return admin.WarrantiesView{}, fmt.Errorf("read returned warranty orders: %w", err)
+		return WarrantiesView{}, fmt.Errorf("read returned warranty orders: %w", err)
 	}
 	for i := range rows {
 		r := &rows[i]
@@ -52,7 +51,7 @@ func (s *Store) Warranties(ctx context.Context, term string, after ...string) (a
 		if gone {
 			status = i18n.T(ctx, i18n.KeyStatusRefunded)
 		}
-		view.Rows = append(view.Rows, admin.WarrantyRow{
+		view.Rows = append(view.Rows, WarrantyRow{
 			Serial: r.SerialNumber, Product: r.ProductName, Label: r.VariantLabel,
 			Unit: int(r.UnitNo), Order: r.OrderNumber,
 			OrderStatus:   status,
