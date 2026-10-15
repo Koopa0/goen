@@ -13,7 +13,6 @@ import (
 	"github.com/koopa0/goen/internal/db"
 	"github.com/koopa0/goen/internal/keyset"
 	"github.com/koopa0/goen/internal/shoptime"
-	"github.com/koopa0/goen/internal/ui/pages/admin"
 )
 
 type QuestionQueue uint8
@@ -29,9 +28,9 @@ type questionPosition struct {
 	At   time.Time
 }
 
-func (s *Store) Questions(ctx context.Context, queue QuestionQueue, after ...string) (admin.QuestionsView, error) {
+func (s *Store) Questions(ctx context.Context, queue QuestionQueue, after ...string) (QuestionsView, error) {
 	if queue != VisibleQuestions && queue != HiddenQuestions {
-		return admin.QuestionsView{}, ErrInvalid
+		return QuestionsView{}, ErrInvalid
 	}
 	showHidden := queue == HiddenQuestions
 	scope := keyset.ScopeURL("/admin/questions", "hidden", "")
@@ -41,17 +40,17 @@ func (s *Store) Questions(ctx context.Context, queue QuestionQueue, after ...str
 	from, resumed := keyset.Resume(scope, after, func(p questionPosition) bool { return p.ID != uuid.Nil })
 	rows, err := s.q.AdminQuestions(ctx, db.AdminQuestionsParams{Hidden: showHidden, HasCursor: resumed, AfterRank: from.Rank, AfterAt: from.At, AfterID: from.ID, RowLimit: keyset.PageLimit})
 	if err != nil {
-		return admin.QuestionsView{}, fmt.Errorf("read questions: %w", err)
+		return QuestionsView{}, fmt.Errorf("read questions: %w", err)
 	}
 	rows, bound := keyset.PageBound(scope, resumed, rows, keyset.PageSize, func(r *db.AdminQuestionsRow) string { return r.PageCursor })
-	view := admin.QuestionsView{Bound: bound, Hidden: showHidden}
+	view := QuestionsView{Bound: bound, Hidden: showHidden}
 	ids := make([]uuid.UUID, 0, len(rows))
 	index := make(map[uuid.UUID]int, len(rows))
 	for i := range rows {
 		r := &rows[i]
 		ids = append(ids, r.ID)
 		index[r.ID] = i
-		view.Rows = append(view.Rows, admin.Question{
+		view.Rows = append(view.Rows, Question{
 			ID: r.ID.String(), Body: r.Body, Asker: r.Asker,
 			ProductSlug: r.ProductSlug, ProductName: r.ProductName,
 			Asked:       shoptime.Minute(r.CreatedAt),
@@ -63,12 +62,12 @@ func (s *Store) Questions(ctx context.Context, queue QuestionQueue, after ...str
 	}
 	answers, err := s.q.AdminQuestionAnswers(ctx, ids)
 	if err != nil {
-		return admin.QuestionsView{}, fmt.Errorf("read question answers: %w", err)
+		return QuestionsView{}, fmt.Errorf("read question answers: %w", err)
 	}
 	for i := range answers {
 		a := &answers[i]
 		row := &view.Rows[index[a.QuestionID]]
-		row.Answers = append(row.Answers, admin.Answer{ID: a.ID.String(), Body: a.Body, Author: a.Author, At: shoptime.Minute(a.CreatedAt), IsStaff: a.IsStaff, Hidden: a.HiddenAt.Valid})
+		row.Answers = append(row.Answers, Answer{ID: a.ID.String(), Body: a.Body, Author: a.Author, At: shoptime.Minute(a.CreatedAt), IsStaff: a.IsStaff, Hidden: a.HiddenAt.Valid})
 	}
 	return view, nil
 }

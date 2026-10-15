@@ -9,6 +9,7 @@ import (
 	"testing"
 
 	"github.com/koopa0/goen/internal/admin/coupons"
+	"github.com/koopa0/goen/internal/admin/feedback"
 	"github.com/koopa0/goen/internal/payment"
 	"github.com/koopa0/goen/internal/ui/layouts"
 	"github.com/koopa0/goen/internal/ui/pages"
@@ -57,15 +58,15 @@ func methodFormActions(t *testing.T) map[string][]string {
 		"internal/ui/pages/admin/returns.templ:templ.SafeURL(r.AssessAction())":                         {ret.AssessAction()},
 		"internal/ui/pages/admin/returns.templ:templ.SafeURL(r.InspectAction() + \"#inspect-\" + r.ID)": {ret.InspectAction() + "#inspect-" + ret.ID},
 		"internal/ui/pages/admin/returns.templ:templ.SafeURL(r.CompleteAction())":                       {ret.CompleteAction()},
-		"internal/ui/pages/admin/message.templ:templ.SafeURL(m.Action())":                               {(admin.Message{}).Action(), (admin.Message{Handled: true}).Action()},
-		"internal/ui/pages/admin/review.templ:templ.SafeURL(r.Action())":                                {(admin.Review{}).Action(), (admin.Review{Hidden: true}).Action()},
+		"internal/admin/feedback/message_page.templ:templ.SafeURL(m.Action())":                          {(feedback.Message{}).Action(), (feedback.Message{Handled: true}).Action()},
+		"internal/admin/feedback/review_page.templ:templ.SafeURL(r.Action())":                           {(feedback.Review{}).Action(), (feedback.Review{Hidden: true}).Action()},
 		"internal/admin/coupons/page.templ:templ.SafeURL(c.Action())":                                   {(coupons.Coupon{Code: "coupon"}).Action()},
 		"internal/ui/pages/admin/newsletter.templ:templ.SafeURL(issue.SendAction())":                    {(admin.NewsletterIssue{ID: "issue"}).SendAction()},
 		"internal/ui/pages/admin/campaign.templ:templ.SafeURL(c.ToggleAction())":                        {(admin.CampaignRow{Slug: "campaign"}).ToggleAction()},
 		"internal/ui/pages/admin/campaign.templ:templ.SafeURL(v.FeatureAction())":                       {(&admin.CampaignView{Slug: "campaign"}).FeatureAction()},
 		"internal/ui/pages/admin/home.templ:templ.SafeURL(slide.PromoteAction())":                       {(admin.HeroSlide{ID: "slide"}).PromoteAction()},
 		"internal/ui/pages/admin/home.templ:templ.SafeURL(slide.ToggleAction())":                        {(admin.HeroSlide{ID: "slide"}).ToggleAction()},
-		"internal/ui/pages/admin/question.templ:templ.SafeURL(q.AnswerAction())":                        {(admin.Question{ID: "question"}).AnswerAction()},
+		"internal/admin/feedback/question_page.templ:templ.SafeURL(q.AnswerAction())":                   {(feedback.Question{ID: "question"}).AnswerAction()},
 		"internal/ui/pages/listing.templ:templ.SafeURL(v.FilterAction())":                               {(pages.ListingView{Slug: "category"}).FilterAction()},
 		"internal/warranty/page.templ:templ.SafeURL(v.Action())":                                        {(warranty.WarrantyOrderView{Number: "order"}).Action()},
 		"internal/payment/pay.templ:templ.SafeURL(v.Action())":                                          {(&payment.PayView{Number: "order"}).Action()},

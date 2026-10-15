@@ -12,7 +12,6 @@ import (
 	"github.com/koopa0/goen/internal/db"
 	"github.com/koopa0/goen/internal/keyset"
 	"github.com/koopa0/goen/internal/shoptime"
-	"github.com/koopa0/goen/internal/ui/pages/admin"
 )
 
 type ReviewFilter uint8
@@ -22,9 +21,9 @@ const (
 	ThreeStarsAndBelowReviews
 )
 
-func (s *Store) Reviews(ctx context.Context, filter ReviewFilter, after ...string) (admin.ReviewsView, error) {
+func (s *Store) Reviews(ctx context.Context, filter ReviewFilter, after ...string) (ReviewsView, error) {
 	if filter != AllReviews && filter != ThreeStarsAndBelowReviews {
-		return admin.ReviewsView{}, ErrInvalid
+		return ReviewsView{}, ErrInvalid
 	}
 	threeStarsAndBelow := filter == ThreeStarsAndBelowReviews
 	scope := "/admin/reviews"
@@ -34,17 +33,17 @@ func (s *Store) Reviews(ctx context.Context, filter ReviewFilter, after ...strin
 	from, resumed := keyset.Resume(scope, after, func(p position) bool { return p.ID != uuid.Nil })
 	rows, err := s.q.AdminReviews(ctx, db.AdminReviewsParams{ThreeStarsAndBelow: threeStarsAndBelow, HasCursor: resumed, AfterAt: from.At, AfterID: from.ID, RowLimit: keyset.PageLimit})
 	if err != nil {
-		return admin.ReviewsView{}, fmt.Errorf("read reviews: %w", err)
+		return ReviewsView{}, fmt.Errorf("read reviews: %w", err)
 	}
 	rows, bound := keyset.PageBound(scope, resumed, rows, keyset.PageSize, func(r *db.AdminReviewsRow) string { return r.PageCursor })
-	view := admin.ReviewsView{
+	view := ReviewsView{
 		ThreeStarsAndBelow: threeStarsAndBelow,
 		Bound:              bound,
-		Rows:               make([]admin.Review, 0, len(rows)),
+		Rows:               make([]Review, 0, len(rows)),
 	}
 	for i := range rows {
 		r := &rows[i]
-		view.Rows = append(view.Rows, admin.Review{
+		view.Rows = append(view.Rows, Review{
 			ID: r.ID.String(), Rating: int(r.Rating), Title: r.Title, Body: r.Body,
 			Verified: r.IsVerifiedPurchase, Hidden: r.HiddenAt.Valid,
 			At:   shoptime.Minute(r.CreatedAt),
