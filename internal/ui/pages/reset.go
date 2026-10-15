@@ -4,6 +4,8 @@ import (
 	"context"
 	"fmt"
 
+	"github.com/a-h/templ"
+
 	"github.com/koopa0/goen/internal/i18n"
 )
 
@@ -22,14 +24,32 @@ func (v ForgotView) SentMessage(ctx context.Context) string {
 }
 
 type ResetView struct {
-	Token   string
-	Error   string
-	Expired bool
+	Token      string
+	Error      string
+	ErrorField string
+	Expired    bool
 }
 
 func (v ResetView) Usable() bool { return !v.Expired && v.Token != "" }
 
 func (v ResetView) HasError() bool { return v.Error != "" }
+
+func (v ResetView) Invalid(field string) bool {
+	if !v.HasError() {
+		return false
+	}
+	if v.ErrorField == "" {
+		return field == "password"
+	}
+	return v.ErrorField == field
+}
+
+func (v ResetView) PasswordAttrs(attrs templ.Attributes) templ.Attributes {
+	if !v.Invalid("password") {
+		attrs["aria-describedby"] = "password-hint"
+	}
+	return attrs
+}
 
 func (v ResetView) RecoveryView(ctx context.Context) EmailLinkView {
 	view := EmailLinkView{

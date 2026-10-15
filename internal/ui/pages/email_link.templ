@@ -53,9 +53,7 @@ templ EmailLinkPage(p layouts.Page, v EmailLinkView) {
 				}
 			}
 			<div class="notice__actions">
-				@components.ButtonLink(components.ButtonProps{ButtonStyle: components.ButtonStyleOutline, Size: components.SizeLarge, Class: "notice__back"}, "/") {
-					{ i18n.T(ctx, i18n.KeyBackToShop) }
-				}
+				<a class="notice__back" href="/">{ i18n.T(ctx, i18n.KeyBackToShop) }</a>
 			</div>
 		</div>
 	}

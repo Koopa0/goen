@@ -333,6 +333,13 @@ func RegisterMeta(ctx context.Context) layouts.Page {
 	return layouts.Page{Title: i18n.T(ctx, i18n.KeyRegister)}
 }
 
+func (v AuthView) PasswordAttrs(attrs templ.Attributes) templ.Attributes {
+	if !v.HasErr("password") {
+		attrs["aria-describedby"] = "password-hint"
+	}
+	return attrs
+}
+
 func (v AuthView) Err(field string) string { return v.Errors[field] }
 
 func (v AuthView) HasErr(field string) bool { return v.Errors[field] != "" }

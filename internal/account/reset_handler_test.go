@@ -19,9 +19,9 @@ func TestResetPasswordRefusalsDoNotLeakFormattingDiagnostics(t *testing.T) {
 	for _, tt := range []struct {
 		name, password, zh, en string
 	}{
-		{name: "required", zh: "請設定密碼", en: "Choose a password"},
-		{name: "short", password: "short", zh: "密碼至少需要 10 個字元", en: "A password needs at least 10 characters"},
-		{name: "long", password: strings.Repeat("a", MaxPasswordBytes+1), zh: "密碼過長", en: "That password is too long"},
+		{name: "required", zh: "請設定密碼。", en: "Choose a password."},
+		{name: "short", password: "short", zh: "密碼至少需要 10 個字元。", en: "A password needs at least 10 characters."},
+		{name: "long", password: strings.Repeat("a", MaxPasswordBytes+1), zh: "密碼過長。", en: "That password is too long."},
 	} {
 		for _, locale := range i18n.Locales() {
 			t.Run(locale.Tag()+"/"+tt.name, func(t *testing.T) {
