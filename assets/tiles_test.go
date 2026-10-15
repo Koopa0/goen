@@ -31,6 +31,21 @@ func TestTheRelatedProductsFollowTheGridsColumnGap(t *testing.T) {
 	}
 }
 
+// The comparison button acts on the ticked boxes, which show only on hover: with
+// none ticked it must not be offered.
+func TestTheCompareButtonIsHiddenUntilAProductIsTicked(t *testing.T) {
+	t.Parallel()
+
+	sheet, err := fs.ReadFile(files, AppCSS)
+	if err != nil {
+		t.Fatalf("read %s: %v", AppCSS, err)
+	}
+	rule := `(?s)\.goen-compare-pick:not\(:has\(:checked\)\) > \.goen-compare-pick__go \{\s*display: none;`
+	if !regexp.MustCompile(rule).Match(sheet) {
+		t.Errorf("%s does not hide the compare button until a box is ticked", AppCSS)
+	}
+}
+
 // The running campaigns are plain links under a heading: no frame around them
 // and no box around each one, and the columns follow the width rather than a
 // fixed count that leaves a track empty when fewer campaigns run.

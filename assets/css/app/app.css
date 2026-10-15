@@ -2153,14 +2153,18 @@ th {
 }
 
 /* The current tab is told apart by its weight and its fill, so colour is not
-   the only cue; forced colours drop the fill and draw the edge instead. */
-.goen-hero__tabs a[aria-current="true"] {
-  background: var(--accent-faint);
-  color: var(--accent-deep);
-  font-weight: var(--fw-medium);
+   the only cue; forced colours drop the fill and draw the edge instead. Only
+   the script that moves between slides keeps the mark true, so without it no
+   tab is drawn as current. */
+@media (scripting: enabled) {
+  .goen-hero__tabs a[aria-current="true"] {
+    background: var(--accent-faint);
+    color: var(--accent-deep);
+    font-weight: var(--fw-medium);
+  }
 }
 
-@media (forced-colors: active) {
+@media (forced-colors: active) and (scripting: enabled) {
   .goen-hero__tabs a[aria-current="true"]:not(:focus-visible) {
     outline: 2px solid Highlight;
     outline-offset: -2px;
@@ -2451,7 +2455,7 @@ th {
 
 .goen-rules {
   margin-top: var(--home-section);
-  padding-block: var(--s-7) var(--s-8);
+  padding-block: 0 var(--s-8);
 }
 
 @media (min-width: 40rem) {
@@ -2954,6 +2958,12 @@ input.goen-check {
   display: flex;
   flex-wrap: wrap;
   gap: 12px;
+}
+
+/* The button offers an action only once there is something to act on. Where
+   :has() is unsupported the rule is dropped and the button stays. */
+.goen-compare-pick:not(:has(:checked)) > .goen-compare-pick__go {
+  display: none;
 }
 
 .goen-compare-pick__note {
