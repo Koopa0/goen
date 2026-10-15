@@ -859,8 +859,10 @@ CREATE TABLE store_credit_entries (
                        WHEN starts_with(idempotency_key, 'redeem:')        THEN 'points_redemption'
                        WHEN starts_with(idempotency_key, 'grant:')         THEN 'staff_grant'
                    END) STORED,
-    -- The order this posting settles, when there is one. The foreign key is
-    -- added after `orders` is created, further down.
+    -- The order this posting settles, when there is one: a spend, a return's
+    -- payout, and a reversal, which carries the order of the spend it undoes
+    -- (store_credit_guard). The foreign key is added after `orders` is created,
+    -- further down.
     order_id       uuid,
     reverses_id    uuid REFERENCES store_credit_entries (id) ON DELETE RESTRICT,
     -- Who posted this, when a person did. NULL for a checkout spending credit
@@ -913,18 +915,27 @@ BEGIN
             RAISE EXCEPTION 'a reversal must negate one entry of the same account'
                 USING ERRCODE = 'check_violation', CONSTRAINT = 'store_credit_never_negative';
         END IF;
-        -- A reversal cannot itself be reversed: it carries no order_id, so the
-        -- order-state rules below would not see the chain at all.
+        -- A reversal cannot itself be reversed: the order-state rules below
+        -- judge the spend it undoes, and a chain of reversals has none.
         IF original.reverses_id IS NOT NULL THEN
             RAISE EXCEPTION 'a reversal cannot itself be reversed; post a new entry to correct'
                 USING ERRCODE = 'check_violation', CONSTRAINT = 'store_credit_reversal_single_layer';
+        END IF;
+        -- A reversal belongs to the order of the spend it undoes. order_refunds
+        -- counts the credit that went back on an order by the entry's own
+        -- order_id, and the ledger is append-only: a reversal written without it
+        -- would leave a cancelled order's invoice with no refunded room for its
+        -- allowance for good.
+        IF NEW.order_id IS DISTINCT FROM original.order_id THEN
+            RAISE EXCEPTION 'a reversal must carry the order of the entry it negates'
+                USING ERRCODE = 'check_violation', CONSTRAINT = 'store_credit_reversal_order';
         END IF;
     END IF;
 
     -- Lock the ORDER first. A posting attributed to one takes part in its
     -- funding, so it has to serialise against the fulfilment transition, which
     -- locks the same row.
-    o_id := CASE WHEN NEW.reverses_id IS NOT NULL THEN original.order_id ELSE NEW.order_id END;
+    o_id := NEW.order_id;
     IF o_id IS NOT NULL THEN
         SELECT fulfillment_status,
                EXISTS (SELECT 1 FROM payments WHERE order_id = o_id AND status = 'succeeded')
@@ -5588,7 +5599,9 @@ CREATE VIEW order_refunds AS
                      WHERE p.order_id = o.id AND r.status = 'succeeded'), 0)::bigint
                AS card_cents,
            -- POSITIVE entries only: a negative one is credit SPENT on this
-           -- order, which is the customer paying rather than being paid.
+           -- order, which is the customer paying rather than being paid. A
+           -- positive one is a return's payout or the reversal of a spend on
+           -- a cancelled order, and both are money an allowance may relieve.
            coalesce((SELECT sum(e.amount_cents)
                      FROM store_credit_entries e
                      WHERE e.order_id = o.id AND e.amount_cents > 0), 0)::bigint
@@ -7724,9 +7737,11 @@ BEGIN
             SELECT 1 FROM store_credit_entries r WHERE r.reverses_id = spend.id
         );
 
+        -- With its order: what went back on a cancelled order is part of what an
+        -- allowance may relieve (order_refunds), and the ledger is append-only.
         INSERT INTO store_credit_entries
-            (account_id, amount_cents, reverses_id, idempotency_key)
-        VALUES (spend.account_id, -spend.amount_cents,
+            (account_id, amount_cents, order_id, reverses_id, idempotency_key)
+        VALUES (spend.account_id, -spend.amount_cents, spend.order_id,
                 spend.id, 'reverse:' || spend.id);
         total := total + (-spend.amount_cents);
     END LOOP;

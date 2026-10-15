@@ -102,7 +102,7 @@ A card refund stores its attempt identity and actor before calling Stripe, and s
 
 A before-shipment staff refund stores the approval, attempts invoice correction, pays outstanding sources, and then cancels the order and releases stock under guards. A failed correction does not stop the payout, but can hold back the cancellation; pressing the action again resumes from the first unfinished step. Eligible invoices are voided; otherwise an allowance may need the buyer's online consent, and a sent allowance stays distinct from a settled document.
 
-A pending order paid wholly by store credit is cancelled in one transaction, by the customer or by staff through the same before-shipment action: credit reversal, stock release, and `invoice.void_due` commit together, with no return request. An invoice that can no longer be voided becomes staff work; neither path starts the allowance workflow. See [staff refund][before-shipment], [customer cancellation][cart-cancel], and [invoice correction][invoice-cancellation].
+A pending order paid wholly by store credit is cancelled in one transaction, by the customer or by staff through the same before-shipment action: credit reversal, stock release, and `invoice.void_due` commit together, with no return request. An invoice that can no longer be voided becomes staff work; neither path starts the allowance workflow. The reversal carries the order of the spend it undoes, so the credit given back counts as refunded (`order_refunds`) and staff can file the allowance for it from the order page; the sales report leaves that reversal out, as the order was never a sale. See [staff refund][before-shipment], [customer cancellation][cart-cancel], and [invoice correction][invoice-cancellation].
 
 ## 6. Durable background work
 

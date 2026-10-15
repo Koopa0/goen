@@ -29,8 +29,10 @@ func TestEveryRefundTotalReadsTheOneView(t *testing.T) {
 			"The same batch projection serves every visible return and a single retry",
 		"RevenueBetween": "a time window rather than a per-order total; its succeeded " +
 			"card and positive order-credit predicates must remain identical to " +
-			"order_refunds before the two sources are windowed, and it leaves out " +
-			"orders refunded before shipment exactly as its revenue does",
+			"order_refunds before the two sources are windowed, except that it leaves " +
+			"out the reversal of a spend on a cancelled order (the owner's ruling on " +
+			"#80: that order was never revenue), and it leaves out orders refunded " +
+			"before shipment exactly as its revenue does",
 	}
 
 	used := map[string]bool{}
