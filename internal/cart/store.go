@@ -834,7 +834,7 @@ func priceOrder(
 	// eligibility can have changed since the form was rendered.
 	if coupon != nil {
 		var freeShipping bool
-		discountCents, freeShipping, err = coupon.Apply(subtotal)
+		discountCents, freeShipping, err = coupon.Apply(subtotal, quote.FeeCents == 0)
 		if err != nil {
 			return 0, 0, err
 		}

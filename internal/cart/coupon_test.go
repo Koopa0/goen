@@ -19,7 +19,7 @@ func TestPercentCouponDoesNotOverflowAnInRangeSubtotal(t *testing.T) {
 	t.Parallel()
 
 	coupon := Coupon{kind: "percent", percentBP: 10000}
-	discount, freeShipping, err := coupon.Apply(math.MaxInt64)
+	discount, freeShipping, err := coupon.Apply(math.MaxInt64, false)
 	if err != nil {
 		t.Fatalf("Apply(MaxInt64): %v", err)
 	}
@@ -56,7 +56,7 @@ func TestPercentCouponDiscountIsAWholeYuanRoundedInTheCustomersFavour(t *testing
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
-			got, _, err := tc.coupon.Apply(tc.subtotal)
+			got, _, err := tc.coupon.Apply(tc.subtotal, false)
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -119,7 +119,7 @@ func TestAWrongCouponIsChargedToAWholeIPv6Slash64(t *testing.T) {
 func TestApplyRefusesAnUnknownKind(t *testing.T) {
 	t.Parallel()
 
-	_, _, err := Coupon{code: "ODD", kind: "bogo"}.Apply(1000)
+	_, _, err := Coupon{code: "ODD", kind: "bogo"}.Apply(1000, false)
 	if !errors.Is(err, ErrNoSuchCoupon) {
 		t.Fatalf("Apply with kind bogo: err = %v, want ErrNoSuchCoupon", err)
 	}
