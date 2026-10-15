@@ -9,21 +9,22 @@ import (
 	"github.com/koopa0/goen/internal/i18n"
 )
 
-func TestRefusedEmailFormsAttachCompleteFieldMessages(t *testing.T) {
+// TestContact_EmailRefusal wants the refusal under the contact email field to
+// be a complete sentence, full stop included, in both languages.
+func TestContact_EmailRefusal(t *testing.T) {
 	t.Parallel()
-	ctx := i18n.WithLocale(t.Context(), i18n.ZhHant)
 	for _, tc := range []struct {
 		name   string
 		locale i18n.Locale
 		key    i18n.Key
 		want   string
 	}{
-		{name: "required Chinese", locale: i18n.ZhHant, key: i18n.KeyEmailRequired, want: "請填寫電子郵件。"},
-		{name: "malformed Chinese", locale: i18n.ZhHant, key: i18n.KeyEmailMalformed, want: "電子郵件格式看起來不正確。"},
-		{name: "required English", locale: i18n.En, key: i18n.KeyEmailRequired, want: "Enter an email address."},
-		{name: "malformed English", locale: i18n.En, key: i18n.KeyEmailMalformed, want: "That does not look like an email address."},
+		{name: "required_zh", locale: i18n.ZhHant, key: i18n.KeyEmailRequired, want: "請填寫電子郵件。"},
+		{name: "malformed_zh", locale: i18n.ZhHant, key: i18n.KeyEmailMalformed, want: "電子郵件格式看起來不正確。"},
+		{name: "required_en", locale: i18n.En, key: i18n.KeyEmailRequired, want: "Enter an email address."},
+		{name: "malformed_en", locale: i18n.En, key: i18n.KeyEmailMalformed, want: "That does not look like an email address."},
 	} {
-		t.Run("contact/"+tc.name, func(t *testing.T) {
+		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 			localized := i18n.WithLocale(t.Context(), tc.locale)
 			view := ContactForm{Email: "invalid", Errors: map[string]string{"email": i18n.T(localized, tc.key)}}
@@ -31,11 +32,15 @@ func TestRefusedEmailFormsAttachCompleteFieldMessages(t *testing.T) {
 			assertEmailRefusal(t, markup, "contact-email", tc.want)
 		})
 	}
-	t.Run("restock", func(t *testing.T) {
-		view := ProductView{Slug: "sold-out", VariantID: "v1", SelectionOK: true, Exact: true, NotifyOutcome: NotifyBadAddress, NotifyEmail: "invalid"}
-		markup := renderComponent(t, ctx, productNotifyForm(&view))
-		assertEmailRefusal(t, markup, "notify-email", "請填寫正確的電子郵件。")
-	})
+}
+
+// TestProductNotifyForm_EmailRefusal wants the same of the restock form.
+func TestProductNotifyForm_EmailRefusal(t *testing.T) {
+	t.Parallel()
+	ctx := i18n.WithLocale(t.Context(), i18n.ZhHant)
+	view := ProductView{Slug: "sold-out", VariantID: "v1", SelectionOK: true, Exact: true, NotifyOutcome: NotifyBadAddress, NotifyEmail: "invalid"}
+	markup := renderComponent(t, ctx, productNotifyForm(&view))
+	assertEmailRefusal(t, markup, "notify-email", "請填寫正確的電子郵件。")
 }
 
 func assertEmailRefusal(t *testing.T, markup, inputID, sentence string) {

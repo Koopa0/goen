@@ -3,6 +3,7 @@
 package account_test
 
 import (
+	"html"
 	"log/slog"
 	"net/http"
 	"net/http/httptest"
@@ -16,7 +17,10 @@ import (
 	"github.com/koopa0/goen/internal/i18n"
 )
 
-func TestResentVerificationAcknowledgesTheSameSignInAddress(t *testing.T) {
+// TestHandler_ResendVerification follows a resend to the account's own
+// address through its confirmation link: the acknowledgement is the generic one
+// and the address stays as it was.
+func TestHandler_ResendVerification(t *testing.T) {
 	for _, locale := range i18n.Locales() {
 		t.Run(locale.Tag(), func(t *testing.T) {
 			ctx := i18n.WithLocale(t.Context(), locale)
@@ -36,10 +40,7 @@ func TestResentVerificationAcknowledgesTheSameSignInAddress(t *testing.T) {
 				t.Fatalf("same-address verification status/location=%d/%q, want 303 safe acknowledgement", confirmed.Code, confirmed.Header().Get("Location"))
 			}
 			page := browser.serve(browser.h.VerifyPage, httptest.NewRequestWithContext(ctx, http.MethodGet, confirmed.Header().Get("Location"), nil), nil)
-			want := "Your email address is confirmed. Use this address to sign in; notices go there too."
-			if locale == i18n.ZhHant {
-				want = "\u96fb\u5b50\u90f5\u4ef6\u5df2\u78ba\u8a8d\uff0c\u4e4b\u5f8c\u8acb\u7528\u9019\u500b\u4fe1\u7bb1\u767b\u5165\uff0c\u901a\u77e5\u4fe1\u4e5f\u6703\u5bc4\u5230\u9019\u88e1\u3002"
-			}
+			want := html.EscapeString(i18n.T(ctx, i18n.KeyVerifyDoneBody))
 			if page.Code != http.StatusOK || !strings.Contains(page.Body.String(), want) {
 				t.Errorf("same-address acknowledgement status=%d, want 200 with %q", page.Code, want)
 			}

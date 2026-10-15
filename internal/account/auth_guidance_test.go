@@ -1,4 +1,4 @@
-package account
+package account_test
 
 import (
 	"html"
@@ -11,103 +11,173 @@ import (
 
 	xhtml "golang.org/x/net/html"
 
+	"github.com/koopa0/goen/internal/account"
 	"github.com/koopa0/goen/internal/i18n"
 )
 
-func TestRegistrationAndResetGiveGuidanceBesideTheForm(t *testing.T) {
-	t.Parallel()
+// authGuidanceRun runs fn once per locale, in parallel, with a handler that
+// never reaches its store: these pages render, or refuse a form, before any read.
+func authGuidanceRun(t *testing.T, fn func(c *authGuidanceCase)) {
+	t.Helper()
 	for _, locale := range i18n.Locales() {
 		t.Run(locale.Tag(), func(t *testing.T) {
 			t.Parallel()
-			ctx := i18n.WithLocale(t.Context(), locale)
-			h := NewHandler(&Store{}, nil, slog.New(slog.DiscardHandler), false, nil)
-			res := httptest.NewRecorder()
-			h.RegisterPage(res, httptest.NewRequestWithContext(ctx, http.MethodGet, "/register", http.NoBody))
-			root := authGuidanceDOM(t, res.Body.String())
-			for _, destination := range []string{"/terms", "/privacy"} {
-				found := false
-				for n := range root.Descendants() {
-					if n.Data == "a" && authGuidanceAttr(n, "href") == destination {
-						for p := n.Parent; p != nil; p = p.Parent {
-							found = found || p.Data == "form"
-						}
-					}
-				}
-				if !found {
-					t.Errorf("register form lacks policy link %s", destination)
-				}
-			}
-			if !strings.Contains(res.Body.String(), i18n.T(ctx, i18n.KeyRegisterEmailFollows)) {
-				t.Error("register form omits the confirmation-email notice")
-			}
-			authGuidanceWantHint(t, "register", root)
-			res = httptest.NewRecorder()
-			h.ResetPage(res, httptest.NewRequestWithContext(ctx, http.MethodGet, "/reset?token=unchecked", http.NoBody))
-			if !strings.Contains(res.Body.String(), i18n.T(ctx, i18n.KeyPasswordHint)) {
-				t.Error("reset form omits the password rule")
-			}
-			authGuidanceWantHint(t, "reset", authGuidanceDOM(t, res.Body.String()))
-			authGuidanceWantFocus(t, "reset", authGuidanceDOM(t, res.Body.String()), "password")
-
-			res = httptest.NewRecorder()
-			h.CompleteRegistrationPage(res, httptest.NewRequestWithContext(ctx, http.MethodGet, "/register/complete?token=unchecked", http.NoBody))
-			body := res.Body.String()
-			if !strings.Contains(body, html.EscapeString(i18n.T(ctx, i18n.KeyRegisterCompleteWhy))) ||
-				!strings.Contains(body, html.EscapeString(i18n.T(ctx, i18n.KeyRegisterCompleteNotYou))) ||
-				!strings.Contains(body, html.EscapeString(i18n.T(ctx, i18n.KeyResetPasswordLink))) {
-				t.Error("register-complete page omits its reason or reset link copy")
-			}
-
-			res = httptest.NewRecorder()
-			h.ResetPage(res, httptest.NewRequestWithContext(ctx, http.MethodGet, "/reset", http.NoBody))
-			back := false
-			for n := range authGuidanceDOM(t, res.Body.String()).Descendants() {
-				if n.Data == "a" && authGuidanceAttr(n, "href") == "/" && authGuidanceAttr(n, "class") == "notice__back" {
-					back = strings.TrimSpace(n.FirstChild.Data) == i18n.T(ctx, i18n.KeyBackToShop)
-				}
-			}
-			if !back {
-				t.Error("email-link page lacks the plain back-to-shop link")
-			}
-			for _, path := range []string{"/register", "/reset"} {
-				form := url.Values{"email": {"ada@example.com"}, "password": {"long-password"}, "confirm": {"other-password"}, "token": {"unchecked"}}
-				req := httptest.NewRequestWithContext(ctx, http.MethodPost, path, strings.NewReader(form.Encode()))
-				req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
-				res = httptest.NewRecorder()
-				if path == "/register" {
-					h.Register(res, req)
-				} else {
-					h.Reset(res, req)
-				}
-				if res.Code != http.StatusUnprocessableEntity {
-					t.Fatalf("%s mismatch = %d, want 422", path, res.Code)
-				}
-				root = authGuidanceDOM(t, res.Body.String())
-				if path == "/reset" {
-					authGuidanceWantFocus(t, "reset mismatch", root, "confirm")
-				}
-				var confirm, refusal *xhtml.Node
-				for n := range root.Descendants() {
-					if n.Data == "input" && authGuidanceAttr(n, "name") == "password" && authGuidanceAttr(n, "aria-invalid") == "true" {
-						t.Errorf("%s mismatch marks the first password", path)
-					}
-					if n.Data == "input" && authGuidanceAttr(n, "name") == "confirm" {
-						confirm = n
-					}
-					if authGuidanceAttr(n, "id") == "confirm-error" || authGuidanceAttr(n, "id") == "reset-error" {
-						refusal = n
-					}
-				}
-				if confirm == nil || refusal == nil || confirm.Parent != refusal.Parent || authGuidanceAttr(confirm, "aria-invalid") != "true" || !strings.Contains(authGuidanceAttr(confirm, "aria-describedby"), authGuidanceAttr(refusal, "id")) {
-					t.Errorf("%s mismatch is not associated with the confirm field alone", path)
-				}
-			}
+			fn(&authGuidanceCase{
+				t:      t,
+				locale: locale,
+				h:      account.NewHandler(&account.Store{}, nil, slog.New(slog.DiscardHandler), false, nil),
+			})
 		})
 	}
 }
 
+// authGuidanceCase is one locale's subtest, handler and requests.
+type authGuidanceCase struct {
+	t      *testing.T
+	locale i18n.Locale
+	h      *account.Handler
+}
+
+func (c *authGuidanceCase) text(key i18n.Key) string {
+	return i18n.T(i18n.WithLocale(c.t.Context(), c.locale), key)
+}
+
+func (c *authGuidanceCase) get(serve http.HandlerFunc, target string) *httptest.ResponseRecorder {
+	ctx := i18n.WithLocale(c.t.Context(), c.locale)
+	res := httptest.NewRecorder()
+	serve(res, httptest.NewRequestWithContext(ctx, http.MethodGet, target, http.NoBody))
+	return res
+}
+
+// mismatch posts two different passwords to serve and wants the 422 refusal.
+func (c *authGuidanceCase) mismatch(serve http.HandlerFunc, target string) *xhtml.Node {
+	ctx := i18n.WithLocale(c.t.Context(), c.locale)
+	form := url.Values{"email": {"ada@example.com"}, "password": {"long-password"}, "confirm": {"other-password"}, "token": {"unchecked"}}
+	req := httptest.NewRequestWithContext(ctx, http.MethodPost, target, strings.NewReader(form.Encode()))
+	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+	res := httptest.NewRecorder()
+	serve(res, req)
+	if res.Code != http.StatusUnprocessableEntity {
+		c.t.Fatalf("POST %s with mismatched passwords = %d, want 422", target, res.Code)
+	}
+	return authGuidanceDOM(c.t, res.Body.String())
+}
+
+func TestHandler_RegisterPage(t *testing.T) {
+	t.Parallel()
+	authGuidanceRun(t, func(c *authGuidanceCase) {
+		res := c.get(c.h.RegisterPage, "/register")
+		root := authGuidanceDOM(c.t, res.Body.String())
+		for _, destination := range []string{"/terms", "/privacy"} {
+			if !authGuidanceInForm(root, "a", "href", destination) {
+				c.t.Errorf("register form lacks policy link %s", destination)
+			}
+		}
+		if want := html.EscapeString(c.text(i18n.KeyRegisterEmailFollows)); !strings.Contains(res.Body.String(), want) {
+			c.t.Errorf("register form omits the confirmation-email notice %q", want)
+		}
+		authGuidanceWantHint(c.t, root)
+	})
+}
+
+func TestHandler_ResetPage(t *testing.T) {
+	t.Parallel()
+	authGuidanceRun(t, func(c *authGuidanceCase) {
+		res := c.get(c.h.ResetPage, "/reset?token=unchecked")
+		if want := html.EscapeString(c.text(i18n.KeyPasswordHint)); !strings.Contains(res.Body.String(), want) {
+			c.t.Errorf("reset form omits the password rule %q", want)
+		}
+		root := authGuidanceDOM(c.t, res.Body.String())
+		authGuidanceWantHint(c.t, root)
+		authGuidanceWantFocus(c.t, root, "password")
+	})
+}
+
+func TestHandler_ResetPageNoToken(t *testing.T) {
+	t.Parallel()
+	authGuidanceRun(t, func(c *authGuidanceCase) {
+		root := authGuidanceDOM(c.t, c.get(c.h.ResetPage, "/reset").Body.String())
+		want := c.text(i18n.KeyBackToShop)
+		for n := range root.Descendants() {
+			if n.Data == "a" && authGuidanceAttr(n, "href") == "/" && authGuidanceAttr(n, "class") == "notice__back" {
+				if got := strings.TrimSpace(n.FirstChild.Data); got != want {
+					c.t.Errorf("back link text = %q, want %q", got, want)
+				}
+				return
+			}
+		}
+		c.t.Error("email-link page lacks the plain back-to-shop link")
+	})
+}
+
+func TestHandler_CompleteRegistrationPage(t *testing.T) {
+	t.Parallel()
+	authGuidanceRun(t, func(c *authGuidanceCase) {
+		body := c.get(c.h.CompleteRegistrationPage, "/register/complete?token=unchecked").Body.String()
+		for _, key := range []i18n.Key{i18n.KeyRegisterCompleteWhy, i18n.KeyRegisterCompleteNotYou, i18n.KeyResetPasswordLink} {
+			if want := html.EscapeString(c.text(key)); !strings.Contains(body, want) {
+				c.t.Errorf("register-complete page omits %q", want)
+			}
+		}
+	})
+}
+
+func TestHandler_RegisterMismatch(t *testing.T) {
+	t.Parallel()
+	authGuidanceRun(t, func(c *authGuidanceCase) {
+		authGuidanceWantConfirmRefusal(c.t, c.mismatch(c.h.Register, "/register"))
+	})
+}
+
+func TestHandler_ResetMismatch(t *testing.T) {
+	t.Parallel()
+	authGuidanceRun(t, func(c *authGuidanceCase) {
+		root := c.mismatch(c.h.Reset, "/reset")
+		authGuidanceWantFocus(c.t, root, "confirm")
+		authGuidanceWantConfirmRefusal(c.t, root)
+	})
+}
+
+// authGuidanceWantConfirmRefusal wants the mismatch refusal attached to the
+// confirm field alone: the first password is not marked invalid.
+func authGuidanceWantConfirmRefusal(t *testing.T, root *xhtml.Node) {
+	t.Helper()
+	var confirm, refusal *xhtml.Node
+	for n := range root.Descendants() {
+		if n.Data == "input" && authGuidanceAttr(n, "name") == "password" && authGuidanceAttr(n, "aria-invalid") == "true" {
+			t.Error("mismatch marks the first password invalid")
+		}
+		if n.Data == "input" && authGuidanceAttr(n, "name") == "confirm" {
+			confirm = n
+		}
+		if id := authGuidanceAttr(n, "id"); id == "confirm-error" || id == "reset-error" {
+			refusal = n
+		}
+	}
+	if confirm == nil || refusal == nil || confirm.Parent != refusal.Parent ||
+		authGuidanceAttr(confirm, "aria-invalid") != "true" ||
+		!strings.Contains(authGuidanceAttr(confirm, "aria-describedby"), authGuidanceAttr(refusal, "id")) {
+		t.Error("mismatch is not associated with the confirm field alone")
+	}
+}
+
+// authGuidanceInForm reports whether a tag with the attribute value sits inside a form.
+func authGuidanceInForm(root *xhtml.Node, tag, attr, value string) bool {
+	for n := range root.Descendants() {
+		if n.Data != tag || authGuidanceAttr(n, attr) != value {
+			continue
+		}
+		for p := n.Parent; p != nil; p = p.Parent {
+			if p.Data == "form" {
+				return true
+			}
+		}
+	}
+	return false
+}
+
 // authGuidanceWantHint wants the password input to point at a hint element that exists.
-func authGuidanceWantHint(t *testing.T, page string, root *xhtml.Node) {
+func authGuidanceWantHint(t *testing.T, root *xhtml.Node) {
 	t.Helper()
 	var describedby string
 	ids := map[string]bool{}
@@ -120,12 +190,12 @@ func authGuidanceWantHint(t *testing.T, page string, root *xhtml.Node) {
 		}
 	}
 	if describedby != "password-hint" || !ids["password-hint"] {
-		t.Errorf("%s password aria-describedby = %q, hint element present = %v", page, describedby, ids["password-hint"])
+		t.Errorf("password aria-describedby = %q, hint element present = %v, want password-hint present", describedby, ids["password-hint"])
 	}
 }
 
 // authGuidanceWantFocus wants autofocus on the named input and on no other.
-func authGuidanceWantFocus(t *testing.T, page string, root *xhtml.Node, want string) {
+func authGuidanceWantFocus(t *testing.T, root *xhtml.Node, want string) {
 	t.Helper()
 	var focused []string
 	for n := range root.Descendants() {
@@ -138,7 +208,7 @@ func authGuidanceWantFocus(t *testing.T, page string, root *xhtml.Node, want str
 		}
 	}
 	if len(focused) != 1 || focused[0] != want {
-		t.Errorf("%s autofocus on %v, want only %s", page, focused, want)
+		t.Errorf("autofocus on %v, want only %s", focused, want)
 	}
 }
 
