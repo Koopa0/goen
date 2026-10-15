@@ -21,6 +21,7 @@ import (
 	"github.com/koopa0/goen/internal/bearer"
 	"github.com/koopa0/goen/internal/db"
 	mailmsg "github.com/koopa0/goen/internal/email"
+	"github.com/koopa0/goen/internal/loyalty"
 	"github.com/koopa0/goen/internal/order"
 	"github.com/koopa0/goen/internal/outbox"
 	"github.com/koopa0/goen/internal/shoptime"
@@ -366,7 +367,7 @@ func (s *Store) Overview(ctx context.Context, u user.User, after ...string) (pag
 	if err != nil {
 		return pages.AccountView{}, fmt.Errorf("read member standing: %w", err)
 	}
-	view.Standing = pages.MemberStanding{
+	view.Standing = loyalty.MemberStanding{
 		SpendCents: standing.SpendCents, TierName: standing.TierName,
 		MultiplierBP: standing.MultiplierBp,
 		NextName:     standing.NextName, NextNeedsCents: standing.NextNeedsCents,

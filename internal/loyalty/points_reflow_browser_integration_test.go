@@ -1,6 +1,6 @@
 //go:build integration
 
-package pages
+package loyalty
 
 import (
 	"bytes"
@@ -31,7 +31,7 @@ func TestPointsRedemptionButtonReflowsAtDoubleText(t *testing.T) {
 		t.Fatal(err)
 	}
 	command := exec.CommandContext(t.Context(), "node", "scripts/points-reflow-check.mjs")
-	command.Dir = filepath.Join("..", "..", "..")
+	command.Dir = filepath.Join("..", "..")
 	command.Env = append(command.Environ(), "CHROME="+chrome)
 	command.Stdin = bytes.NewReader(input)
 	output, err := command.CombinedOutput()
