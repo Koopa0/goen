@@ -14,6 +14,7 @@ import (
 	"github.com/koopa0/goen/internal/db"
 	"github.com/koopa0/goen/internal/email"
 	"github.com/koopa0/goen/internal/i18n"
+	"github.com/koopa0/goen/internal/invoice"
 	"github.com/koopa0/goen/internal/invoice/issuer"
 	"github.com/koopa0/goen/internal/order"
 	"github.com/koopa0/goen/internal/order/notice"
@@ -312,7 +313,7 @@ func TestTheOrderTimelineShowsOnlyRefusedInvoiceProviderCodes(t *testing.T) {
 			}
 			var found bool
 			for _, entry := range view.Timeline {
-				if entry.Label != admin.InvoiceOperationLabels[tc.kind] {
+				if entry.Label != invoice.OperationKindLabels[tc.kind] {
 					continue
 				}
 				found = true

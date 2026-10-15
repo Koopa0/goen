@@ -173,7 +173,6 @@ var viewValueReads = map[string]int{
 	"internal/admin/dashboard/handler.go":  1,
 	"internal/admin/orders/orders.go":      8,
 	"internal/admin/orders/store.go":       5,
-	"internal/admin/orders/timeline.go":    2,
 	"internal/admin/reports/store.go":      2,
 	"internal/admin/stock/store.go":        1,
 	"internal/cart/handler.go":             11,
