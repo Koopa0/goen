@@ -1259,33 +1259,44 @@ VALUES ('66666666-6666-4666-8666-666666666666', '44444444-4444-4444-8444-4444444
 	},
 	{
 		constraint: "product_images_alt_en_present",
-		reject:     `INSERT INTO product_images (id, product_id, storage_key, alt_text, alt_text_en, position) VALUES ('11110008-0000-4000-8000-000000000091', '33333333-3333-4333-8333-333333333333', 'x.png', '有效值', E'\t', 91);`,
-		accept:     `INSERT INTO product_images (id, product_id, storage_key, alt_text, alt_text_en, position) VALUES ('11110008-0000-4000-8000-000000000091', '33333333-3333-4333-8333-333333333333', 'x.png', '有效值', 'A valid alt', 91);`,
+		reject:     `INSERT INTO product_images (id, product_id, bundled_key, alt_text, alt_text_en, position) VALUES ('11110008-0000-4000-8000-000000000091', '33333333-3333-4333-8333-333333333333', 'x.webp', '有效值', E'\t', 91);`,
+		accept:     `INSERT INTO product_images (id, product_id, bundled_key, alt_text, alt_text_en, position) VALUES ('11110008-0000-4000-8000-000000000091', '33333333-3333-4333-8333-333333333333', 'x.webp', '有效值', 'A valid alt', 91);`,
 	},
 	{
 		constraint: "product_images_alt_present",
-		reject:     `INSERT INTO product_images (id, product_id, storage_key, alt_text, position) VALUES ('11110005-0000-4000-8000-000000000001', '33333333-3333-4333-8333-333333333333', 'alt-case.webp', E'	', 1);`,
-		accept:     `INSERT INTO product_images (id, product_id, storage_key, alt_text, position) VALUES ('11110005-0000-4000-8000-000000000001', '33333333-3333-4333-8333-333333333333', 'alt-case.webp', '正面圖', 1);`,
+		reject:     `INSERT INTO product_images (id, product_id, bundled_key, alt_text, position) VALUES ('11110005-0000-4000-8000-000000000001', '33333333-3333-4333-8333-333333333333', 'alt-case.webp', E'	', 1);`,
+		accept:     `INSERT INTO product_images (id, product_id, bundled_key, alt_text, position) VALUES ('11110005-0000-4000-8000-000000000001', '33333333-3333-4333-8333-333333333333', 'alt-case.webp', '正面圖', 1);`,
 	},
 	{
 		constraint: "product_images_height_positive",
-		reject:     `INSERT INTO product_images (id, product_id, storage_key, alt_text, height, position) VALUES ('11110005-0000-4000-8000-000000000001', '33333333-3333-4333-8333-333333333333', 'height-case.webp', '高度測試', 0, 1);`,
-		accept:     `INSERT INTO product_images (id, product_id, storage_key, alt_text, height, position) VALUES ('11110005-0000-4000-8000-000000000001', '33333333-3333-4333-8333-333333333333', 'height-case.webp', '高度測試', 1, 1);`,
+		reject:     `INSERT INTO product_images (id, product_id, bundled_key, alt_text, height, position) VALUES ('11110005-0000-4000-8000-000000000001', '33333333-3333-4333-8333-333333333333', 'height-case.webp', '高度測試', 0, 1);`,
+		accept:     `INSERT INTO product_images (id, product_id, bundled_key, alt_text, height, position) VALUES ('11110005-0000-4000-8000-000000000001', '33333333-3333-4333-8333-333333333333', 'height-case.webp', '高度測試', 1, 1);`,
 	},
 	{
 		constraint: "product_images_position_non_negative",
-		reject:     `INSERT INTO products (id, brand_id, category_id, slug, name, status) VALUES ('11110003-0000-4000-8000-000000000001','11111111-1111-4111-8111-111111111111','22222222-2222-4222-8222-222222222222','helper-prod','輔助商品','draft'); INSERT INTO product_images (id, product_id, storage_key, alt_text, position) VALUES ('11110004-0000-4000-8000-000000000001','11110003-0000-4000-8000-000000000001','pos-case.webp','位置測試', -1);`,
-		accept:     `INSERT INTO products (id, brand_id, category_id, slug, name, status) VALUES ('11110003-0000-4000-8000-000000000001','11111111-1111-4111-8111-111111111111','22222222-2222-4222-8222-222222222222','helper-prod','輔助商品','draft'); INSERT INTO product_images (id, product_id, storage_key, alt_text, position) VALUES ('11110004-0000-4000-8000-000000000001','11110003-0000-4000-8000-000000000001','pos-case.webp','位置測試', 0);`,
+		reject:     `INSERT INTO products (id, brand_id, category_id, slug, name, status) VALUES ('11110003-0000-4000-8000-000000000001','11111111-1111-4111-8111-111111111111','22222222-2222-4222-8222-222222222222','helper-prod','輔助商品','draft'); INSERT INTO product_images (id, product_id, bundled_key, alt_text, position) VALUES ('11110004-0000-4000-8000-000000000001','11110003-0000-4000-8000-000000000001','pos-case.webp','位置測試', -1);`,
+		accept:     `INSERT INTO products (id, brand_id, category_id, slug, name, status) VALUES ('11110003-0000-4000-8000-000000000001','11111111-1111-4111-8111-111111111111','22222222-2222-4222-8222-222222222222','helper-prod','輔助商品','draft'); INSERT INTO product_images (id, product_id, bundled_key, alt_text, position) VALUES ('11110004-0000-4000-8000-000000000001','11110003-0000-4000-8000-000000000001','pos-case.webp','位置測試', 0);`,
 	},
 	{
-		constraint: "product_images_storage_key_present",
-		reject:     `INSERT INTO product_images (id, product_id, storage_key, alt_text, position) VALUES ('11110005-0000-4000-8000-000000000001', '33333333-3333-4333-8333-333333333333', E'	', '儲存鍵測試', 1);`,
-		accept:     `INSERT INTO product_images (id, product_id, storage_key, alt_text, position) VALUES ('11110005-0000-4000-8000-000000000001', '33333333-3333-4333-8333-333333333333', 'clean-key.webp', '儲存鍵測試', 1);`,
+		constraint: "product_images_one_source",
+		reject:     `INSERT INTO media_objects (digest, content_type, bytes, width, height, byte_size) VALUES (repeat('e', 64), 'image/png', '\x00', 1, 1, 1); INSERT INTO product_images (id, product_id, media_digest, bundled_key, alt_text, position) VALUES ('11110005-0000-4000-8000-000000000001', '33333333-3333-4333-8333-333333333333', repeat('e', 64), 'two-sources.webp', '兩個來源', 1);`,
+		accept:     `INSERT INTO media_objects (digest, content_type, bytes, width, height, byte_size) VALUES (repeat('e', 64), 'image/png', '\x00', 1, 1, 1); INSERT INTO product_images (id, product_id, media_digest, alt_text, position) VALUES ('11110005-0000-4000-8000-000000000001', '33333333-3333-4333-8333-333333333333', repeat('e', 64), '一個來源', 1);`,
+	},
+	{
+		// The other half of = 1: a row with no photograph at all.
+		constraint: "product_images_one_source",
+		reject:     `INSERT INTO product_images (id, product_id, alt_text, position) VALUES ('11110005-0000-4000-8000-000000000001', '33333333-3333-4333-8333-333333333333', '沒有來源', 1);`,
+		accept:     `INSERT INTO product_images (id, product_id, bundled_key, alt_text, position) VALUES ('11110005-0000-4000-8000-000000000001', '33333333-3333-4333-8333-333333333333', 'one-source.webp', '一個來源', 1);`,
+	},
+	{
+		constraint: "product_images_bundled_key_format",
+		reject:     `INSERT INTO product_images (id, product_id, bundled_key, alt_text, position) VALUES ('11110005-0000-4000-8000-000000000001', '33333333-3333-4333-8333-333333333333', repeat('e', 64), '摘要當檔名', 1);`,
+		accept:     `INSERT INTO product_images (id, product_id, bundled_key, alt_text, position) VALUES ('11110005-0000-4000-8000-000000000001', '33333333-3333-4333-8333-333333333333', 'named-file.webp', '檔名', 1);`,
 	},
 	{
 		constraint: "product_images_width_positive",
-		reject:     `INSERT INTO product_images (id, product_id, storage_key, alt_text, width, position) VALUES ('11110005-0000-4000-8000-000000000001', '33333333-3333-4333-8333-333333333333', 'width-case.webp', '寬度測試', 0, 1);`,
-		accept:     `INSERT INTO product_images (id, product_id, storage_key, alt_text, width, position) VALUES ('11110005-0000-4000-8000-000000000001', '33333333-3333-4333-8333-333333333333', 'width-case.webp', '寬度測試', 1, 1);`,
+		reject:     `INSERT INTO product_images (id, product_id, bundled_key, alt_text, width, position) VALUES ('11110005-0000-4000-8000-000000000001', '33333333-3333-4333-8333-333333333333', 'width-case.webp', '寬度測試', 0, 1);`,
+		accept:     `INSERT INTO product_images (id, product_id, bundled_key, alt_text, width, position) VALUES ('11110005-0000-4000-8000-000000000001', '33333333-3333-4333-8333-333333333333', 'width-case.webp', '寬度測試', 1, 1);`,
 	},
 	{
 		constraint: "product_option_values_value_en_present",
@@ -2657,13 +2668,19 @@ VALUES ('66666666-6666-4666-8666-666666666666', '4444aaaa-4444-4444-8444-4444444
 	},
 	{
 		index:  "product_images_position_key",
-		reject: `INSERT INTO product_images (id, product_id, storage_key, alt_text, position) VALUES ('11110005-0000-4000-8000-000000000001', '33333333-3333-4333-8333-333333333333', 'dup-pos.webp', '重複位置', 0);`,
-		accept: `INSERT INTO product_images (id, product_id, storage_key, alt_text, position) VALUES ('11110005-0000-4000-8000-000000000001', '33333333-3333-4333-8333-333333333333', 'dup-pos.webp', '重複位置', 1);`,
+		reject: `INSERT INTO product_images (id, product_id, bundled_key, alt_text, position) VALUES ('11110005-0000-4000-8000-000000000001', '33333333-3333-4333-8333-333333333333', 'dup-pos.webp', '重複位置', 0);`,
+		accept: `INSERT INTO product_images (id, product_id, bundled_key, alt_text, position) VALUES ('11110005-0000-4000-8000-000000000001', '33333333-3333-4333-8333-333333333333', 'dup-pos.webp', '重複位置', 1);`,
 	},
 	{
-		index:  "product_images_storage_key_key",
-		reject: `INSERT INTO product_images (id, product_id, storage_key, alt_text, position) VALUES ('11110005-0000-4000-8000-000000000001', '33333333-3333-4333-8333-333333333333', 'pxl-9p-front.webp', '重複儲存鍵', 1);`,
-		accept: `INSERT INTO product_images (id, product_id, storage_key, alt_text, position) VALUES ('11110005-0000-4000-8000-000000000001', '33333333-3333-4333-8333-333333333333', 'unique-key.webp', '重複儲存鍵', 1);`,
+		index:  "product_images_bundled_key_key",
+		reject: `INSERT INTO product_images (id, product_id, bundled_key, alt_text, position) VALUES ('11110005-0000-4000-8000-000000000001', '33333333-3333-4333-8333-333333333333', 'pxl-9p-front.webp', '重複檔名', 1);`,
+		accept: `INSERT INTO product_images (id, product_id, bundled_key, alt_text, position) VALUES ('11110005-0000-4000-8000-000000000001', '33333333-3333-4333-8333-333333333333', 'unique-key.webp', '重複檔名', 1);`,
+	},
+	{
+		// Per product: the neighbour is the same upload on a second product.
+		index:  "product_images_media_digest_key",
+		reject: `INSERT INTO media_objects (digest, content_type, bytes, width, height, byte_size) VALUES (repeat('e', 64), 'image/png', '\x00', 1, 1, 1); INSERT INTO product_images (product_id, media_digest, alt_text, position) VALUES ('33333333-3333-4333-8333-333333333333', repeat('e', 64), '同一張', 1), ('33333333-3333-4333-8333-333333333333', repeat('e', 64), '同一張', 2);`,
+		accept: `INSERT INTO media_objects (digest, content_type, bytes, width, height, byte_size) VALUES (repeat('e', 64), 'image/png', '\x00', 1, 1, 1); INSERT INTO products (id, brand_id, category_id, slug, name, status) VALUES ('11110003-0000-4000-8000-000000000001','11111111-1111-4111-8111-111111111111','22222222-2222-4222-8222-222222222222','shared-shot','共用照片','draft'); INSERT INTO product_images (product_id, media_digest, alt_text, position) VALUES ('33333333-3333-4333-8333-333333333333', repeat('e', 64), '共用', 1), ('11110003-0000-4000-8000-000000000001', repeat('e', 64), '共用', 0);`,
 	},
 	{
 		index:  "product_option_values_value_key",

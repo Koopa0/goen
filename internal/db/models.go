@@ -573,7 +573,8 @@ type ProductCopurchase struct {
 type ProductImage struct {
 	ID            uuid.UUID
 	ProductID     uuid.UUID
-	StorageKey    string
+	MediaDigest   pgtype.Text
+	BundledKey    pgtype.Text
 	AltText       string
 	AltTextEn     pgtype.Text
 	Width         pgtype.Int4

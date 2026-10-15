@@ -481,12 +481,12 @@ ORDER BY ol.sku;
 
 -- name: OrderLinesByOrder :many
 SELECT ol.sku, ol.product_name, ol.variant_label, ol.unit_price_cents, ol.quantity,
-       coalesce(img.storage_key, '') AS image_key,
+       coalesce(img.media_digest, img.bundled_key, '') AS image_key,
        coalesce(localized_name(img.alt_text, img.alt_text_en, @locale::text), '')::text AS image_alt,
        coalesce(img.width, 0)::integer AS image_width
 FROM order_lines ol
 LEFT JOIN LATERAL (
-    SELECT i.storage_key, i.alt_text, i.alt_text_en, i.width FROM product_images i
+    SELECT i.media_digest, i.bundled_key, i.alt_text, i.alt_text_en, i.width FROM product_images i
     WHERE i.product_id = ol.product_id
     ORDER BY EXISTS (
                  SELECT 1 FROM variant_option_values vov

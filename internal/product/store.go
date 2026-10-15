@@ -264,13 +264,13 @@ func (s *Store) loadPresentation(ctx context.Context, p *db.ProductBySlugRow, vi
 		return fmt.Errorf("read images of %q: %w", p.Slug, err)
 	}
 	for _, img := range images {
-		u := assets.ProductImageURL(img.StorageKey)
+		u := assets.ProductImageURL(img.ImageKey)
 		if u == "" {
 			continue
 		}
 		view.Images = append(view.Images, pages.ProductImage{
 			URL:         u,
-			Srcset:      assets.ProductImageSrcsetAt(img.StorageKey, int(img.Width)),
+			Srcset:      assets.ProductImageSrcsetAt(img.ImageKey, int(img.Width)),
 			Alt:         img.AltText,
 			Width:       img.Width,
 			Height:      img.Height,

@@ -42,7 +42,7 @@ func TestProductEditorRefusalsKeepTheirDraftAndImageControls(t *testing.T) {
 	p := admintest.AdminRolePool(t, pool)
 	s := products.NewStore(p)
 	slug := admintest.DraftProduct(t, staffCtx, pool, s)
-	attached, library := storeMedia(t), storeMedia(t)
+	attached, library := storeMedia(t, pool), storeMedia(t, pool)
 	if err := s.AttachImage(staffCtx, slug, attached, "Editor photograph", "Editor photograph", "", 800, 600); err != nil {
 		t.Fatal(err)
 	}
@@ -201,7 +201,7 @@ func TestProductImageRefusalsKeepDescriptionsAndSelection(t *testing.T) {
 	admintest.ProductDesk(p, s).Routes(mux, admintest.BackOffice)
 	slug, options := productWithColours(t, staffCtx, s, "Blue", "Black")
 	_, foreignOptions := productWithColours(t, staffCtx, s, "Red", "White")
-	attached, library := storeMedia(t), storeMedia(t)
+	attached, library := storeMedia(t, pool), storeMedia(t, pool)
 	if err := s.AttachImage(staffCtx, slug, attached, "Saved picture", "Saved English picture", "", 800, 600); err != nil {
 		t.Fatal(err)
 	}

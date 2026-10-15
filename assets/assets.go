@@ -203,10 +203,12 @@ func Has(name string) bool {
 	return ok
 }
 
-// ProductImageURL maps a product_images.storage_key to its public embedded
-// asset URL, or "" when there is nothing to serve.
+// ProductImageURL maps an image key to its public URL, or "" when there is
+// nothing to serve. The key is a product image's, a campaign header's or a
+// department photograph's media_digest or bundled_key, whichever is set; the
+// readers select coalesce(media_digest, bundled_key).
 //
-// Storage keys are filenames, not paths: that boundary is enforced here so
+// Bundled keys are filenames, not paths: that boundary is enforced here so
 // catalogue data cannot escape the products directory or select another
 // embedded asset. A key naming a file that is not embedded also yields "" —
 // the catalogue can declare its imagery before the artwork exists, and a
@@ -230,7 +232,7 @@ func ProductImageURL(storageKey string) string {
 var uploadedDigest = regexp.MustCompile(`^[0-9a-f]{64}$`)
 
 // ProductImageSrcset returns the 400, 800 and 1600 pixel-wide renditions for a
-// valid embedded product image. The original storage key remains the 1600px
+// valid embedded product image. The bundled file itself remains the 1600px
 // source; the two derived filenames are an asset-pipeline detail.
 func ProductImageSrcset(storageKey string) string {
 	// An uploaded image's candidates need the original's width, which only

@@ -461,7 +461,7 @@ func (q *Queries) AdminCampaignImage(ctx context.Context, slug string) (AdminCam
 
 const adminCampaignProductSearch = `-- name: AdminCampaignProductSearch :many
 SELECT p.slug, localized_name(p.name, p.name_en, $1::text) AS name,
-       coalesce(img.storage_key, '')::text AS image_key,
+       coalesce(img.media_digest, img.bundled_key, '')::text AS image_key,
        coalesce(mv.price_cents, 0)::bigint AS price_cents,
        coalesce(mv.compare_at_price_cents, 0)::bigint AS compare_at_price_cents,
        (mv.price_cents IS NOT NULL)::boolean AS has_variant,
@@ -483,7 +483,7 @@ LEFT JOIN LATERAL (
     LIMIT 1
 ) mv ON true
 LEFT JOIN LATERAL (
-    SELECT storage_key FROM product_images WHERE product_id = p.id ORDER BY position LIMIT 1
+    SELECT media_digest, bundled_key FROM product_images WHERE product_id = p.id ORDER BY position LIMIT 1
 ) img ON true
 WHERE p.status <> 'archived'
   AND (p.name ILIKE '%' || $2::text || '%'
@@ -554,7 +554,7 @@ func (q *Queries) AdminCampaignProductSearch(ctx context.Context, arg AdminCampa
 
 const adminCampaignProducts = `-- name: AdminCampaignProducts :many
 SELECT p.slug, p.name AS name,
-       coalesce(img.storage_key, '')::text AS image_key,
+       coalesce(img.media_digest, img.bundled_key, '')::text AS image_key,
        coalesce(mv.price_cents, 0)::bigint AS price_cents,
        coalesce(mv.compare_at_price_cents, 0)::bigint AS compare_at_price_cents,
        (mv.price_cents IS NOT NULL)::boolean AS has_variant,
@@ -578,7 +578,7 @@ LEFT JOIN LATERAL (
     LIMIT 1
 ) mv ON true
 LEFT JOIN LATERAL (
-    SELECT storage_key FROM product_images WHERE product_id = p.id ORDER BY position LIMIT 1
+    SELECT media_digest, bundled_key FROM product_images WHERE product_id = p.id ORDER BY position LIMIT 1
 ) img ON true
 WHERE c.slug = $1::text
 ORDER BY cp.position, p.id
@@ -1731,7 +1731,8 @@ func (q *Queries) AdminProduct(ctx context.Context, slug string) (AdminProductRo
 }
 
 const adminProductImages = `-- name: AdminProductImages :many
-SELECT pi.storage_key, pi.alt_text, pi.width, pi.height, pi.option_value_id
+SELECT coalesce(pi.media_digest, pi.bundled_key)::text AS image_key,
+       pi.alt_text, pi.width, pi.height, pi.option_value_id
 FROM product_images pi
 JOIN products p ON p.id = pi.product_id
 WHERE p.slug = $1::text
@@ -1739,7 +1740,7 @@ ORDER BY pi.position, pi.id
 `
 
 type AdminProductImagesRow struct {
-	StorageKey    string
+	ImageKey      string
 	AltText       string
 	Width         pgtype.Int4
 	Height        pgtype.Int4
@@ -1756,7 +1757,7 @@ func (q *Queries) AdminProductImages(ctx context.Context, slug string) ([]AdminP
 	for rows.Next() {
 		var i AdminProductImagesRow
 		if err := rows.Scan(
-			&i.StorageKey,
+			&i.ImageKey,
 			&i.AltText,
 			&i.Width,
 			&i.Height,
@@ -3098,7 +3099,7 @@ func (q *Queries) AssignZonePrefix(ctx context.Context, arg AssignZonePrefixPara
 }
 
 const attachProductImage = `-- name: AttachProductImage :exec
-INSERT INTO product_images (product_id, storage_key, alt_text, alt_text_en,
+INSERT INTO product_images (product_id, media_digest, alt_text, alt_text_en,
                             width, height, position, option_value_id)
 SELECT p.id, $1::text, $2::text, nullif($3::text, ''),
        $4::integer, $5::integer,
@@ -3109,7 +3110,7 @@ WHERE p.slug = $7::text
 `
 
 type AttachProductImageParams struct {
-	StorageKey    string
+	MediaDigest   string
 	AltText       string
 	AltTextEn     string
 	Width         int32
@@ -3118,12 +3119,10 @@ type AttachProductImageParams struct {
 	Slug          string
 }
 
-// No foreign key on storage_key: product_images predates media_objects and still
-// holds embedded-asset names from the seed, so the column carries two kinds of
-// key.
+// An attach is always an upload; bundled_key is written only by the seed.
 func (q *Queries) AttachProductImage(ctx context.Context, arg AttachProductImageParams) error {
 	_, err := q.db.Exec(ctx, attachProductImage,
-		arg.StorageKey,
+		arg.MediaDigest,
 		arg.AltText,
 		arg.AltTextEn,
 		arg.Width,
@@ -3522,7 +3521,7 @@ SELECT
                       WHERE vov.option_value_id = cv.id AND pv.is_active
                   )
     ), ARRAY[]::text[])::text[] AS colours,
-    coalesce(img.storage_key, '') AS image_key,
+    coalesce(img.media_digest, img.bundled_key, '') AS image_key,
     coalesce(localized_name(img.alt_text, img.alt_text_en, $1::text), '')::text AS image_alt,
     coalesce(img.width, 0)::integer AS image_width,
     coalesce(img.height, 0)::integer AS image_height,
@@ -3542,7 +3541,7 @@ LEFT JOIN LATERAL (
     FROM visible_reviews WHERE product_id = p.id
 ) rv ON true
 LEFT JOIN LATERAL (
-    SELECT storage_key, alt_text, alt_text_en, width, height
+    SELECT media_digest, bundled_key, alt_text, alt_text_en, width, height
     FROM product_images WHERE product_id = p.id ORDER BY position LIMIT 1
 ) img ON true
 WHERE cp.product_id = $2
@@ -3794,7 +3793,7 @@ SELECT
                       WHERE vov.option_value_id = cv.id AND pv.is_active
                   )
     ), ARRAY[]::text[])::text[] AS colours,
-    coalesce(img.storage_key, '') AS image_key,
+    coalesce(img.media_digest, img.bundled_key, '') AS image_key,
     coalesce(localized_name(img.alt_text, img.alt_text_en, $2::text), '')::text AS image_alt,
     coalesce(img.width, 0)::integer AS image_width,
     coalesce(img.height, 0)::integer AS image_height
@@ -3820,7 +3819,7 @@ LEFT JOIN LATERAL (
     FROM visible_reviews WHERE product_id = p.id
 ) rv ON true
 LEFT JOIN LATERAL (
-    SELECT storage_key, alt_text, alt_text_en, width, height
+    SELECT media_digest, bundled_key, alt_text, alt_text_en, width, height
     FROM product_images WHERE product_id = p.id ORDER BY position LIMIT 1
 ) img ON true
 WHERE cp.campaign_id = $1 AND p.status = 'active'
@@ -4278,7 +4277,7 @@ SELECT
          WHERE vov.variant_id = pv.id),
         ARRAY[]::text[]
     )::text[] AS option_values,
-    coalesce(img.storage_key, '') AS image_key,
+    coalesce(img.media_digest, img.bundled_key, '') AS image_key,
     coalesce(localized_name(img.alt_text, img.alt_text_en, $2::text), '')::text AS image_alt,
     coalesce(img.width, 0)::integer AS image_width
 FROM cart_items ci
@@ -4288,7 +4287,7 @@ LEFT JOIN brands b ON b.id = p.brand_id
 LEFT JOIN LATERAL (
     -- The line's own photograph when one shows its option value, else the
     -- product's first.
-    SELECT i.storage_key, i.alt_text, i.alt_text_en, i.width FROM product_images i
+    SELECT i.media_digest, i.bundled_key, i.alt_text, i.alt_text_en, i.width FROM product_images i
     WHERE i.product_id = p.id
     ORDER BY EXISTS (
                  SELECT 1 FROM variant_option_values vov
@@ -4756,7 +4755,7 @@ SELECT
                       WHERE vov.option_value_id = cv.id AND pv.is_active
                   )
     ), ARRAY[]::text[])::text[] AS colours,
-    coalesce(img.storage_key, '') AS image_key,
+    coalesce(img.media_digest, img.bundled_key, '') AS image_key,
     coalesce(localized_name(img.alt_text, img.alt_text_en, $1::text), '')::text AS image_alt,
     coalesce(img.width, 0)::integer AS image_width,
     coalesce(img.height, 0)::integer AS image_height
@@ -4793,7 +4792,7 @@ LEFT JOIN LATERAL (
     FROM visible_reviews WHERE product_id = p.id
 ) rv ON true
 LEFT JOIN LATERAL (
-    SELECT storage_key, alt_text, alt_text_en, width, height
+    SELECT media_digest, bundled_key, alt_text, alt_text_en, width, height
     FROM product_images WHERE product_id = p.id ORDER BY position LIMIT 1
 ) img ON true
 WHERE p.status = 'active'
@@ -5613,7 +5612,7 @@ SELECT
           AND sv.stock_quantity > sv.safety_stock
     ) AS in_stock,
     coalesce(p.warranty_months, 0)::integer AS warranty_months,
-    coalesce(img.storage_key, '') AS image_key,
+    coalesce(img.media_digest, img.bundled_key, '') AS image_key,
     coalesce(localized_name(img.alt_text, img.alt_text_en, $1::text), '')::text AS image_alt,
     coalesce(img.width, 0)::integer AS image_width,
     coalesce(img.height, 0)::integer AS image_height,
@@ -5634,7 +5633,7 @@ LEFT JOIN LATERAL (
     FROM visible_reviews WHERE product_id = p.id
 ) rv ON true
 LEFT JOIN LATERAL (
-    SELECT storage_key, alt_text, alt_text_en, width, height
+    SELECT media_digest, bundled_key, alt_text, alt_text_en, width, height
     FROM product_images WHERE product_id = p.id ORDER BY position LIMIT 1
 ) img ON true
 ORDER BY asked.ord
@@ -5782,7 +5781,7 @@ SELECT
         SELECT 1 FROM product_variants dv
         WHERE dv.product_id = p.id AND dv.is_active AND dv.price_cents > mv.price_cents
     ) AS price_varies,
-    coalesce(img.storage_key, '') AS image_key,
+    coalesce(img.media_digest, img.bundled_key, '') AS image_key,
     coalesce(localized_name(img.alt_text, img.alt_text_en, $1::text), '')::text AS image_alt,
     coalesce(img.width, 0)::integer AS image_width,
     coalesce(img.height, 0)::integer AS image_height
@@ -5796,7 +5795,7 @@ JOIN LATERAL (
     LIMIT 1
 ) mv ON true
 LEFT JOIN LATERAL (
-    SELECT storage_key, alt_text, alt_text_en, width, height
+    SELECT media_digest, bundled_key, alt_text, alt_text_en, width, height
     FROM product_images WHERE product_id = p.id ORDER BY position LIMIT 1
 ) img ON true
 WHERE p.status = 'active'
@@ -7229,7 +7228,7 @@ SELECT
                       WHERE vov.option_value_id = cv.id AND pv.is_active
                   )
     ), ARRAY[]::text[])::text[] AS colours,
-    coalesce(img.storage_key, '') AS image_key,
+    coalesce(img.media_digest, img.bundled_key, '') AS image_key,
     coalesce(localized_name(img.alt_text, img.alt_text_en, $1::text), '')::text AS image_alt,
     coalesce(img.width, 0)::integer AS image_width,
     coalesce(img.height, 0)::integer AS image_height
@@ -7251,7 +7250,7 @@ LEFT JOIN LATERAL (
     FROM visible_reviews WHERE product_id = p.id
 ) rv ON true
 LEFT JOIN LATERAL (
-    SELECT storage_key, alt_text, alt_text_en, width, height
+    SELECT media_digest, bundled_key, alt_text, alt_text_en, width, height
     FROM product_images WHERE product_id = p.id ORDER BY position LIMIT 1
 ) img ON true
 WHERE p.status = 'active'
@@ -7520,7 +7519,7 @@ func (q *Queries) DeleteIdleGuestCarts(ctx context.Context, arg DeleteIdleGuestC
 const deleteMedia = `-- name: DeleteMedia :execrows
 DELETE FROM media_objects m
 WHERE m.digest = $1::text
-  AND NOT EXISTS (SELECT 1 FROM product_images p WHERE p.storage_key = m.digest)
+  AND NOT EXISTS (SELECT 1 FROM product_images p WHERE p.media_digest = m.digest)
   AND NOT EXISTS (SELECT 1 FROM hero_slides h WHERE h.media_digest = m.digest)
   AND NOT EXISTS (SELECT 1 FROM sale_campaigns c WHERE c.media_digest = m.digest)
   AND NOT EXISTS (SELECT 1 FROM categories k WHERE k.media_digest = m.digest)
@@ -7528,26 +7527,22 @@ WHERE m.digest = $1::text
 
 // The reference predicate is REPEATED here, not assumed. Selecting candidates
 // and deleting them are two statements, and an upload attached in between is
-// invisible to the second — the sweeper's own comment said a foreign key caught
-// that, and there is none: product_images.storage_key holds either an embedded
-// filename from the seed or a digest, so it cannot point at media_objects.
-// Asking again inside the DELETE makes a COMMITTED attach win, and :execrows is
-// what lets the caller tell "somebody attached it" from "deleted".
+// invisible to the second. Asking again inside the DELETE makes a COMMITTED
+// attach win, and :execrows is what lets the caller tell "somebody attached it"
+// from "deleted".
 //
-// COMMITTED is the word this comment was missing, and it is not a detail. Under
-// READ COMMITTED the DELETE cannot see an attach that is still in flight, so a
-// transaction that inserts the hero slide, is interrupted, and commits after the
-// sweeper has run leaves a slide pointing at a deleted object. Measured — it is
-// not a theory.
+// COMMITTED is the word that matters. Under READ COMMITTED the DELETE cannot see
+// an attach that is still in flight, so without a foreign key a transaction that
+// attaches, is interrupted, and commits after the sweeper has run leaves a page
+// pointing at a deleted object. Measured — it is not a theory.
 //
-// Closing it properly is a foreign key. categories.media_digest,
-// hero_slides.media_digest and sale_campaigns.media_digest have one (ON DELETE
-// RESTRICT): the in-flight attach holds a lock this DELETE waits on, and the
-// delete is then refused, which Reclaim reads as "attached".
-// product_images.storage_key is still open, because it holds two kinds of key —
-// an embedded filename from the seed or a digest — and cannot reference
-// media_objects until it is split the same way (#1930). Its window is the
-// milliseconds of one DELETE against an orphan more than 24 hours old.
+// The foreign keys close it. Every column named here (product_images,
+// hero_slides, sale_campaigns and categories, each media_digest) references
+// media_objects ON DELETE RESTRICT: the in-flight attach holds a lock this DELETE
+// waits on, and the delete is then refused, which Reclaim reads as "attached".
+// A new image column needs both. Without its foreign key, the in-flight window
+// is open again; without its line here and in UnreferencedMedia, every upload it
+// holds stays a candidate that each pass tries, is refused and logs as attached.
 func (q *Queries) DeleteMedia(ctx context.Context, digest string) (int64, error) {
 	result, err := q.db.Exec(ctx, deleteMedia, digest)
 	if err != nil {
@@ -7805,7 +7800,7 @@ SELECT
     ) AS in_campaign,
     localized_name(v.value, v.value_en, $1::text) AS colour,
     v.swatch_hex::text AS swatch,
-    img.storage_key AS image_key,
+    coalesce(img.media_digest, img.bundled_key)::text AS image_key,
     coalesce(localized_name(img.alt_text, img.alt_text_en, $1::text), '')::text AS image_alt,
     coalesce(img.width, 0)::integer AS image_width
 FROM story s
@@ -7820,7 +7815,7 @@ JOIN LATERAL (
 ) mv ON true
 JOIN product_option_values v ON v.product_id = p.id AND v.swatch_hex IS NOT NULL
 JOIN LATERAL (
-    SELECT storage_key, alt_text, alt_text_en, width
+    SELECT media_digest, bundled_key, alt_text, alt_text_en, width
     FROM product_images WHERE product_id = p.id AND option_value_id = v.id ORDER BY position LIMIT 1
 ) img ON true
 ORDER BY v.position, v.id
@@ -7991,16 +7986,17 @@ func (q *Queries) DepartmentSalesBetween(ctx context.Context, arg DepartmentSale
 const detachProductImage = `-- name: DetachProductImage :execrows
 DELETE FROM product_images pi
 USING products p
-WHERE pi.product_id = p.id AND p.slug = $1::text AND pi.storage_key = $2::text
+WHERE pi.product_id = p.id AND p.slug = $1::text
+  AND $2::text IN (pi.media_digest, pi.bundled_key)
 `
 
 type DetachProductImageParams struct {
-	Slug       string
-	StorageKey string
+	Slug     string
+	ImageKey string
 }
 
 func (q *Queries) DetachProductImage(ctx context.Context, arg DetachProductImageParams) (int64, error) {
-	result, err := q.db.Exec(ctx, detachProductImage, arg.Slug, arg.StorageKey)
+	result, err := q.db.Exec(ctx, detachProductImage, arg.Slug, arg.ImageKey)
 	if err != nil {
 		return 0, err
 	}
@@ -8785,7 +8781,7 @@ SELECT
     coalesce(rv.n, 0)::bigint AS rating_count,
     -- A product with no image yields NULL, which sqlc types as a non-null string
     -- and pgx cannot scan.
-    coalesce(img.storage_key, '') AS image_key,
+    coalesce(img.media_digest, img.bundled_key, '') AS image_key,
     coalesce(localized_name(img.alt_text, img.alt_text_en, $1::text), '')::text AS image_alt,
     coalesce(img.width, 0)::integer AS image_width,
     coalesce(img.height, 0)::integer AS image_height,
@@ -8850,7 +8846,7 @@ LEFT JOIN LATERAL (
     WHERE product_id = p.id
 ) rv ON true
 LEFT JOIN LATERAL (
-    SELECT storage_key, alt_text, alt_text_en, width, height
+    SELECT media_digest, bundled_key, alt_text, alt_text_en, width, height
     FROM product_images
     WHERE product_id = p.id
     ORDER BY position
@@ -10913,7 +10909,7 @@ SELECT r.root AS root_id,
            SELECT 1 FROM product_variants dv
            WHERE dv.product_id = r.id AND dv.is_active AND dv.price_cents > mv.price_cents
        ) AS price_varies,
-       coalesce(img.storage_key, '') AS image_key,
+       coalesce(img.media_digest, img.bundled_key, '') AS image_key,
        coalesce(img.width, 0)::integer AS image_width
 FROM recent r
 JOIN LATERAL (
@@ -10924,7 +10920,7 @@ JOIN LATERAL (
     LIMIT 1
 ) mv ON true
 LEFT JOIN LATERAL (
-    SELECT storage_key, width
+    SELECT media_digest, bundled_key, width
     FROM product_images
     WHERE product_id = r.id
     ORDER BY position
@@ -11039,7 +11035,7 @@ SELECT
                       WHERE vov.option_value_id = cv.id AND pv.is_active
                   )
     ), ARRAY[]::text[])::text[] AS colours,
-    coalesce(img.storage_key, '') AS image_key,
+    coalesce(img.media_digest, img.bundled_key, '') AS image_key,
     coalesce(localized_name(img.alt_text, img.alt_text_en, $1::text), '')::text AS image_alt,
     coalesce(img.width, 0)::integer AS image_width,
     coalesce(img.height, 0)::integer AS image_height
@@ -11057,7 +11053,7 @@ LEFT JOIN LATERAL (
     FROM visible_reviews WHERE product_id = p.id
 ) rv ON true
 LEFT JOIN LATERAL (
-    SELECT storage_key, alt_text, alt_text_en, width, height
+    SELECT media_digest, bundled_key, alt_text, alt_text_en, width, height
     FROM product_images WHERE product_id = p.id ORDER BY position LIMIT 1
 ) img ON true
 WHERE p.status = 'active'
@@ -11827,12 +11823,12 @@ func (q *Queries) OrderIsPaid(ctx context.Context, orderID uuid.UUID) (bool, err
 
 const orderLinesByOrder = `-- name: OrderLinesByOrder :many
 SELECT ol.sku, ol.product_name, ol.variant_label, ol.unit_price_cents, ol.quantity,
-       coalesce(img.storage_key, '') AS image_key,
+       coalesce(img.media_digest, img.bundled_key, '') AS image_key,
        coalesce(localized_name(img.alt_text, img.alt_text_en, $1::text), '')::text AS image_alt,
        coalesce(img.width, 0)::integer AS image_width
 FROM order_lines ol
 LEFT JOIN LATERAL (
-    SELECT i.storage_key, i.alt_text, i.alt_text_en, i.width FROM product_images i
+    SELECT i.media_digest, i.bundled_key, i.alt_text, i.alt_text_en, i.width FROM product_images i
     WHERE i.product_id = ol.product_id
     ORDER BY EXISTS (
                  SELECT 1 FROM variant_option_values vov
@@ -11891,12 +11887,12 @@ func (q *Queries) OrderLinesByOrder(ctx context.Context, arg OrderLinesByOrderPa
 
 const orderLinesForPayment = `-- name: OrderLinesForPayment :many
 SELECT ol.product_name, ol.variant_label, ol.unit_price_cents, ol.quantity,
-       coalesce(img.storage_key, '') AS image_key,
+       coalesce(img.media_digest, img.bundled_key, '') AS image_key,
        coalesce(localized_name(img.alt_text, img.alt_text_en, $1::text), '')::text AS image_alt,
        coalesce(img.width, 0)::integer AS image_width
 FROM order_lines ol
 LEFT JOIN LATERAL (
-    SELECT i.storage_key, i.alt_text, i.alt_text_en, i.width FROM product_images i
+    SELECT i.media_digest, i.bundled_key, i.alt_text, i.alt_text_en, i.width FROM product_images i
     WHERE i.product_id = ol.product_id
     ORDER BY EXISTS (
                  SELECT 1 FROM variant_option_values vov
@@ -12001,13 +11997,13 @@ func (q *Queries) OrderNumbersByProviderRef(ctx context.Context, providerRefs []
 const orderPageLines = `-- name: OrderPageLines :many
 SELECT ol.id, ol.sku, ol.product_name, ol.variant_label, ol.unit_price_cents, ol.quantity,
        ol.warranty_months,
-       coalesce(img.storage_key, '') AS image_key,
+       coalesce(img.media_digest, img.bundled_key, '') AS image_key,
        coalesce(localized_name(img.alt_text, img.alt_text_en, $1::text), '')::text AS image_alt,
        coalesce(img.width, 0)::integer AS image_width
 FROM order_lines ol
 LEFT JOIN LATERAL (
     -- The photograph that shows the line's own option value, else the product's first.
-    SELECT i.storage_key, i.alt_text, i.alt_text_en, i.width FROM product_images i
+    SELECT i.media_digest, i.bundled_key, i.alt_text, i.alt_text_en, i.width FROM product_images i
     WHERE i.product_id = ol.product_id
     ORDER BY EXISTS (
                  SELECT 1 FROM variant_option_values vov
@@ -13408,7 +13404,7 @@ func (q *Queries) ProductBySlug(ctx context.Context, arg ProductBySlugParams) (P
 }
 
 const productImageOrder = `-- name: ProductImageOrder :many
-SELECT pi.id, pi.storage_key
+SELECT pi.id, coalesce(pi.media_digest, pi.bundled_key)::text AS image_key
 FROM product_images pi
 JOIN products p ON p.id = pi.product_id
 WHERE p.slug = $1::text
@@ -13416,8 +13412,8 @@ ORDER BY pi.position, pi.id
 `
 
 type ProductImageOrderRow struct {
-	ID         uuid.UUID
-	StorageKey string
+	ID       uuid.UUID
+	ImageKey string
 }
 
 // One product's images in display order. Read after LockProductCatalogue, as its
@@ -13432,7 +13428,7 @@ func (q *Queries) ProductImageOrder(ctx context.Context, slug string) ([]Product
 	items := []ProductImageOrderRow{}
 	for rows.Next() {
 		var i ProductImageOrderRow
-		if err := rows.Scan(&i.ID, &i.StorageKey); err != nil {
+		if err := rows.Scan(&i.ID, &i.ImageKey); err != nil {
 			return nil, err
 		}
 		items = append(items, i)
@@ -13444,7 +13440,7 @@ func (q *Queries) ProductImageOrder(ctx context.Context, slug string) ([]Product
 }
 
 const productImages = `-- name: ProductImages :many
-SELECT pi.storage_key,
+SELECT coalesce(pi.media_digest, pi.bundled_key)::text AS image_key,
        localized_name(pi.alt_text, pi.alt_text_en, $1::text) AS alt_text,
        coalesce(pi.width, 0)::integer AS width,
        coalesce(pi.height, 0)::integer AS height,
@@ -13467,7 +13463,7 @@ type ProductImagesParams struct {
 }
 
 type ProductImagesRow struct {
-	StorageKey  string
+	ImageKey    string
 	AltText     string
 	Width       int32
 	Height      int32
@@ -13487,7 +13483,7 @@ func (q *Queries) ProductImages(ctx context.Context, arg ProductImagesParams) ([
 	for rows.Next() {
 		var i ProductImagesRow
 		if err := rows.Scan(
-			&i.StorageKey,
+			&i.ImageKey,
 			&i.AltText,
 			&i.Width,
 			&i.Height,
@@ -15207,7 +15203,7 @@ SELECT
                       WHERE vov.option_value_id = cv.id AND pv.is_active
                   )
     ), ARRAY[]::text[])::text[] AS colours,
-    coalesce(img.storage_key, '') AS image_key,
+    coalesce(img.media_digest, img.bundled_key, '') AS image_key,
     coalesce(localized_name(img.alt_text, img.alt_text_en, $1::text), '')::text AS image_alt,
     coalesce(img.width, 0)::integer AS image_width,
     coalesce(img.height, 0)::integer AS image_height
@@ -15226,7 +15222,7 @@ LEFT JOIN LATERAL (
     FROM visible_reviews WHERE product_id = p.id
 ) rv ON true
 LEFT JOIN LATERAL (
-    SELECT storage_key, alt_text, alt_text_en, width, height FROM product_images
+    SELECT media_digest, bundled_key, alt_text, alt_text_en, width, height FROM product_images
     WHERE product_id = p.id ORDER BY position LIMIT 1
 ) img ON true
 WHERE p.status = 'active'
@@ -16772,7 +16768,7 @@ SELECT
                       WHERE vov.option_value_id = cv.id AND pv.is_active
                   )
     ), ARRAY[]::text[])::text[] AS colours,
-    coalesce(img.storage_key, '') AS image_key,
+    coalesce(img.media_digest, img.bundled_key, '') AS image_key,
     coalesce(localized_name(img.alt_text, img.alt_text_en, $1::text), '')::text AS image_alt,
     coalesce(img.width, 0)::integer AS image_width,
     coalesce(img.height, 0)::integer AS image_height
@@ -16790,7 +16786,7 @@ LEFT JOIN LATERAL (
     FROM visible_reviews WHERE product_id = p.id
 ) rv ON true
 LEFT JOIN LATERAL (
-    SELECT storage_key, alt_text, alt_text_en, width, height
+    SELECT media_digest, bundled_key, alt_text, alt_text_en, width, height
     FROM product_images WHERE product_id = p.id ORDER BY position LIMIT 1
 ) img ON true
 WHERE p.status = 'active'
@@ -17323,17 +17319,19 @@ UPDATE product_images
 SET option_value_id = $1::uuid
 FROM products p
 WHERE product_images.product_id = p.id AND p.slug = $2::text
-  AND product_images.storage_key = $3::text
+  AND $3::text IN (product_images.media_digest, product_images.bundled_key)
 `
 
 type SetProductImageOptionValueParams struct {
 	OptionValueID uuid.NullUUID
 	Slug          string
-	StorageKey    string
+	ImageKey      string
 }
 
+// The editor names an image by its one key, a digest or a bundled file. The two
+// cannot collide (product_images_bundled_key_format), so either column matches.
 func (q *Queries) SetProductImageOptionValue(ctx context.Context, arg SetProductImageOptionValueParams) (int64, error) {
-	result, err := q.db.Exec(ctx, setProductImageOptionValue, arg.OptionValueID, arg.Slug, arg.StorageKey)
+	result, err := q.db.Exec(ctx, setProductImageOptionValue, arg.OptionValueID, arg.Slug, arg.ImageKey)
 	if err != nil {
 		return 0, err
 	}
@@ -19047,7 +19045,7 @@ func (q *Queries) UnreconciledPayments(ctx context.Context) ([]UnreconciledPayme
 
 const unreferencedMedia = `-- name: UnreferencedMedia :many
 SELECT digest FROM media_objects m
-WHERE NOT EXISTS (SELECT 1 FROM product_images p WHERE p.storage_key = m.digest)
+WHERE NOT EXISTS (SELECT 1 FROM product_images p WHERE p.media_digest = m.digest)
   AND NOT EXISTS (SELECT 1 FROM hero_slides h WHERE h.media_digest = m.digest)
   AND NOT EXISTS (SELECT 1 FROM sale_campaigns c WHERE c.media_digest = m.digest)
   AND NOT EXISTS (SELECT 1 FROM categories k WHERE k.media_digest = m.digest)
@@ -19056,8 +19054,9 @@ ORDER BY m.created_at
 LIMIT $1
 `
 
-// Uploads nothing points at. Every referencing column has to appear here: a
-// delete that missed one would break a live image.
+// Uploads nothing points at. Every referencing column has to appear here: one
+// missed is offered for deletion on every pass, and only its foreign key keeps
+// the image.
 func (q *Queries) UnreferencedMedia(ctx context.Context, limit int32) ([]string, error) {
 	rows, err := q.db.Query(ctx, unreferencedMedia, limit)
 	if err != nil {
@@ -20085,7 +20084,7 @@ SELECT
         FROM product_variants sv
         WHERE sv.product_id = p.id AND sv.is_active
     ), '00000000-0000-0000-0000-000000000000'::uuid)::uuid AS sole_variant_id,
-    coalesce(img.storage_key, '') AS image_key,
+    coalesce(img.media_digest, img.bundled_key, '') AS image_key,
     coalesce(localized_name(img.alt_text, img.alt_text_en, $2::text), '')::text AS image_alt,
     coalesce(img.width, 0)::integer AS image_width,
     coalesce(img.height, 0)::integer AS image_height
@@ -20104,7 +20103,7 @@ LEFT JOIN LATERAL (
     FROM visible_reviews WHERE product_id = p.id
 ) rv ON true
 LEFT JOIN LATERAL (
-    SELECT storage_key, alt_text, alt_text_en, width, height
+    SELECT media_digest, bundled_key, alt_text, alt_text_en, width, height
     FROM product_images WHERE product_id = p.id ORDER BY position LIMIT 1
 ) img ON true
 WHERE w.user_id = $1 AND p.status = 'active'
@@ -20239,7 +20238,7 @@ SELECT
     EXISTS (SELECT 1 FROM copurchase_refreshes) AS copurchase_ever_built,
     (SELECT count(*) FROM sessions WHERE expires_at <= now())::bigint AS expired_sessions,
     (SELECT count(*) FROM media_objects m
-     WHERE NOT EXISTS (SELECT 1 FROM product_images p WHERE p.storage_key = m.digest)
+     WHERE NOT EXISTS (SELECT 1 FROM product_images p WHERE p.media_digest = m.digest)
        AND NOT EXISTS (SELECT 1 FROM hero_slides h WHERE h.media_digest = m.digest)
        AND NOT EXISTS (SELECT 1 FROM sale_campaigns c WHERE c.media_digest = m.digest)
        AND NOT EXISTS (SELECT 1 FROM categories k WHERE k.media_digest = m.digest)

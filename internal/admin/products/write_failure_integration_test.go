@@ -44,7 +44,7 @@ func TestProductWritesReportOnlyCommittedSuccess(t *testing.T) {
 			t.Run(locale.Tag()+"/"+scenario, func(t *testing.T) {
 				ctx := i18n.WithLocale(staff, locale)
 				slug := admintest.DraftProduct(t, ctx, pool, s)
-				digest := storeMedia(t)
+				digest := storeMedia(t, pool)
 				if err := s.AttachImage(ctx, slug, digest, "Write result photograph", "", "", 800, 600); err != nil {
 					t.Fatal(err)
 				}
@@ -211,7 +211,7 @@ func TestProductWritesKeepDatabaseRuleRefusalsDistinct(t *testing.T) {
 	app := admintest.AdminRolePool(t, owner)
 	s := products.NewStore(app)
 	slug := admintest.DraftProduct(t, staff, owner, s)
-	const digest = "rule-refusal-image"
+	digest := storeMedia(t, owner)
 	if err := s.AttachImage(staff, slug, digest, "Rule refusal photograph", "", "", 800, 600); err != nil {
 		t.Fatal(err)
 	}
@@ -236,7 +236,7 @@ func TestProductWritesKeepDatabaseRuleRefusalsDistinct(t *testing.T) {
 	`); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := owner.Exec(t.Context(), `INSERT INTO product_write_references (image_id, spec_id) SELECT i.id, $2 FROM product_images i JOIN products p ON p.id=i.product_id WHERE p.slug=$1 AND i.storage_key=$3`, slug, view.Specs[0].ID, digest); err != nil {
+	if _, err := owner.Exec(t.Context(), `INSERT INTO product_write_references (image_id, spec_id) SELECT i.id, $2 FROM product_images i JOIN products p ON p.id=i.product_id WHERE p.slug=$1 AND i.media_digest=$3`, slug, view.Specs[0].ID, digest); err != nil {
 		t.Fatal(err)
 	}
 	want := productWriteRows(t, staff, owner, slug)
@@ -390,7 +390,7 @@ func assertRecoveredProductWrite(t *testing.T, ctx context.Context, owner *pgxpo
 	t.Helper()
 	if path == "/images/option" {
 		var shows string
-		if err := owner.QueryRow(ctx, `SELECT i.option_value_id::text FROM product_images i JOIN products p ON p.id=i.product_id WHERE p.slug=$1 AND i.storage_key=$2`, slug, digest).Scan(&shows); err != nil {
+		if err := owner.QueryRow(ctx, `SELECT i.option_value_id::text FROM product_images i JOIN products p ON p.id=i.product_id WHERE p.slug=$1 AND i.media_digest=$2`, slug, digest).Scan(&shows); err != nil {
 			t.Fatal(err)
 		}
 		if shows != valueID {
@@ -573,7 +573,7 @@ func seedProductWriteOutcome(t *testing.T, ctx context.Context, owner, adminPool
 	t.Helper()
 	s := products.NewStore(adminPool)
 	slug = admintest.DraftProduct(t, ctx, owner, s)
-	digest = "write-outcome-" + uuid.NewString()
+	digest = storeMedia(t, owner)
 	if err := s.AttachImage(ctx, slug, digest, "Outcome photograph", "", "", 800, 600); err != nil {
 		t.Fatal(err)
 	}

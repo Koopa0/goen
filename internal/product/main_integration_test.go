@@ -182,7 +182,7 @@ func TestTheChosenValuesPhotographsLeadTheGallery(t *testing.T) {
 	// blue one borrows another product's embedded file, because a key naming no
 	// embedded file is dropped from the gallery before it is rendered.
 	if _, err := tx.Exec(ctx, `
-		INSERT INTO product_images (product_id, storage_key, alt_text, position, option_value_id)
+		INSERT INTO product_images (product_id, bundled_key, alt_text, position, option_value_id)
 		SELECT p.id, m.key, m.value, m.position, v.id
 		FROM products p
 		JOIN product_option_values v ON v.product_id = p.id
@@ -194,7 +194,7 @@ func TestTheChosenValuesPhotographsLeadTheGallery(t *testing.T) {
 	// An untagged photograph placed AFTER both colours', so position alone would
 	// put the other colour's photograph ahead of it.
 	if _, err := tx.Exec(ctx, `
-		INSERT INTO product_images (product_id, storage_key, alt_text, position)
+		INSERT INTO product_images (product_id, bundled_key, alt_text, position)
 		SELECT id, 'nimbus-buds-pro-01.webp', '不分顏色', 3 FROM products
 		WHERE slug = 'pixelight-9-pro'`); err != nil {
 		t.Fatalf("add a late untagged photograph: %v", err)

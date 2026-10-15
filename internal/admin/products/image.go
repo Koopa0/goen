@@ -50,7 +50,7 @@ func (s *Store) AttachImage(
 				return fmt.Errorf("lock product %s: %w", slug, err)
 			}
 			if err := q.AttachProductImage(ctx, db.AttachProductImageParams{
-				Slug: slug, StorageKey: digest, AltText: alt, AltTextEn: altEn,
+				Slug: slug, MediaDigest: digest, AltText: alt, AltTextEn: altEn,
 				Width: width, Height: height, OptionValueID: shows,
 			}); err != nil {
 				return imageOptionRefusal(err)
@@ -70,7 +70,7 @@ func (s *Store) SetImageOption(ctx context.Context, slug, key, optionValue strin
 	},
 		func(ctx context.Context, q *db.Queries) error {
 			n, err := q.SetProductImageOptionValue(ctx, db.SetProductImageOptionValueParams{
-				Slug: slug, StorageKey: key, OptionValueID: shows,
+				Slug: slug, ImageKey: key, OptionValueID: shows,
 			})
 			if err != nil {
 				return imageOptionRefusal(err)
@@ -111,7 +111,7 @@ func (s *Store) DetachImage(ctx context.Context, slug, digest string) error {
 	},
 		func(ctx context.Context, q *db.Queries) error {
 			n, err := q.DetachProductImage(ctx, db.DetachProductImageParams{
-				Slug: slug, StorageKey: digest,
+				Slug: slug, ImageKey: digest,
 			})
 			if err != nil {
 				return db.WrapRefusal(err, ErrRefused)
@@ -158,7 +158,7 @@ func (s *Store) MoveImage(ctx context.Context, slug, digest string, move ImageMo
 			}
 			at := -1
 			for i := range rows {
-				if rows[i].StorageKey == digest {
+				if rows[i].ImageKey == digest {
 					at = i
 				}
 			}
@@ -170,7 +170,7 @@ func (s *Store) MoveImage(ctx context.Context, slug, digest string, move ImageMo
 			ids := make([]uuid.UUID, len(rows))
 			for i := range rows {
 				ids[i] = rows[i].ID
-				order = append(order, rows[i].StorageKey)
+				order = append(order, rows[i].ImageKey)
 			}
 			if err := q.ParkProductImages(ctx, slug); err != nil {
 				return db.WrapRefusal(err, ErrRefused)
@@ -209,7 +209,7 @@ func (s *Store) Images(ctx context.Context, slug string) ([]admin.Image, error) 
 	for i := range rows {
 		r := &rows[i]
 		img := admin.Image{
-			Key: r.StorageKey, Alt: r.AltText,
+			Key: r.ImageKey, Alt: r.AltText,
 			Width: r.Width.Int32, Height: r.Height.Int32,
 		}
 		if r.OptionValueID.Valid {

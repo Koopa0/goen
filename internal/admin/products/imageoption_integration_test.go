@@ -90,7 +90,7 @@ func TestAnImageCannotShowAnotherProductsOptionValue(t *testing.T) {
 	first, _ := productWithColours(t, ctx, s, "星霧藍")
 	_, others := productWithColours(t, ctx, s, "曜石黑")
 	borrowed := others[0]
-	digest := storeMedia(t)
+	digest := storeMedia(t, pool)
 
 	err := s.AttachImage(ctx, first, digest, "借來的顏色", "", borrowed, 800, 600)
 	if !errors.Is(err, products.ErrNotThisProductsOption) {
@@ -157,7 +157,7 @@ func theOnlyImageOf(t *testing.T, slug string) (key, shows string) {
 	t.Helper()
 	var value uuid.NullUUID
 	if err := pool.QueryRow(t.Context(), `
-		SELECT i.storage_key, i.option_value_id
+		SELECT coalesce(i.media_digest, i.bundled_key), i.option_value_id
 		FROM product_images i JOIN products p ON p.id = i.product_id
 		WHERE p.slug = $1`, slug).Scan(&key, &value); err != nil {
 		t.Fatalf("read the image: %v", err)

@@ -56,7 +56,7 @@ func TestOrderPhotosStayLiveAndUseTheSameOptionPickOnEveryPage(t *testing.T) {
 		{products[1], "pixelight-9-pro-01.webp", "第二項第一張", "Second line first photo", 0, uuid.NullUUID{}},
 		{products[1], "pixelight-9-pro-02.webp", "第二項另一張", "Second line other photo", 1, uuid.NullUUID{}},
 	} {
-		if _, err := pool.Exec(ctx, `INSERT INTO product_images (product_id, storage_key, alt_text, alt_text_en, width, height, position, option_value_id) VALUES ($1, $2, $3, $4, 1600, 1200, $5, $6)`, image.product, image.key, image.zh, image.en, image.position, image.optionValue); err != nil {
+		if _, err := pool.Exec(ctx, `INSERT INTO product_images (product_id, bundled_key, alt_text, alt_text_en, width, height, position, option_value_id) VALUES ($1, $2, $3, $4, 1600, 1200, $5, $6)`, image.product, image.key, image.zh, image.en, image.position, image.optionValue); err != nil {
 			t.Fatal(err)
 		}
 	}
@@ -158,11 +158,11 @@ func TestOrderPhotosStayLiveAndUseTheSameOptionPickOnEveryPage(t *testing.T) {
 	if _, err := pool.Exec(ctx, `UPDATE product_images SET position = position + 2 WHERE product_id = $1`, products[1]); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := pool.Exec(ctx, `UPDATE product_images SET position = 0 WHERE product_id = $1 AND storage_key = 'pixelight-9-pro-02.webp'`, products[1]); err != nil {
+	if _, err := pool.Exec(ctx, `UPDATE product_images SET position = 0 WHERE product_id = $1 AND bundled_key = 'pixelight-9-pro-02.webp'`, products[1]); err != nil {
 		t.Fatal(err)
 	}
 	check([2]string{"pixelight-9-pro-02.webp", "pixelight-9-pro-02.webp"}, [2]string{"藍色照片", "第二項另一張"}, [2]string{"Blue photo", "Second line other photo"})
-	if _, err := pool.Exec(ctx, `DELETE FROM product_images WHERE product_id = $1 AND storage_key = 'pixelight-9-pro-02.webp'`, products[0]); err != nil {
+	if _, err := pool.Exec(ctx, `DELETE FROM product_images WHERE product_id = $1 AND bundled_key = 'pixelight-9-pro-02.webp'`, products[0]); err != nil {
 		t.Fatal(err)
 	}
 	check([2]string{"pixelight-9-pro-01.webp", "pixelight-9-pro-02.webp"}, [2]string{"商品第一張", "第二項另一張"}, [2]string{"First product photo", "Second line other photo"})

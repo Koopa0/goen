@@ -40,7 +40,12 @@ func imageOrderProduct(t *testing.T, n int) (slug, token string, keys []string) 
 	for i := range n {
 		key := strings.Repeat(fmt.Sprintf("%x", i+1), 64)[:64]
 		keys = append(keys, key)
-		if _, err := pool.Exec(ctx, `INSERT INTO product_images (product_id, storage_key, alt_text, width, height, position) VALUES ($1, $2, '圖', 800, 800, $3)`, id, key, i*3); err != nil {
+		// The upload product_images_media_digest_fk requires. Shared by every
+		// product this makes, so it is kept rather than cleaned up.
+		if _, err := pool.Exec(ctx, `INSERT INTO media_objects (digest, content_type, bytes, width, height, byte_size) VALUES ($1, 'image/png', '\x00', 800, 800, 1) ON CONFLICT (digest) DO NOTHING`, key); err != nil {
+			t.Fatal(err)
+		}
+		if _, err := pool.Exec(ctx, `INSERT INTO product_images (product_id, media_digest, alt_text, width, height, position) VALUES ($1, $2, '圖', 800, 800, $3)`, id, key, i*3); err != nil {
 			t.Fatal(err)
 		}
 	}
@@ -55,7 +60,7 @@ func imageOrderProduct(t *testing.T, n int) (slug, token string, keys []string) 
 
 func imageOrder(t *testing.T, slug string) []string {
 	t.Helper()
-	rows, err := pool.Query(t.Context(), `SELECT pi.storage_key FROM product_images pi JOIN products p ON p.id = pi.product_id WHERE p.slug = $1 ORDER BY pi.position`, slug)
+	rows, err := pool.Query(t.Context(), `SELECT coalesce(pi.media_digest, pi.bundled_key) FROM product_images pi JOIN products p ON p.id = pi.product_id WHERE p.slug = $1 ORDER BY pi.position`, slug)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -72,6 +77,39 @@ func imageOrder(t *testing.T, slug string) []string {
 		t.Fatal(err)
 	}
 	return out
+}
+
+// TestABundledPhotographIsEditedByItsFileName: a seeded photograph lives in
+// bundled_key, not media_digest, and the editor still names it by its one key.
+// Run as the admin role, so the column grants are the ones production has.
+func TestABundledPhotographIsEditedByItsFileName(t *testing.T) {
+	ctx, _ := admintest.StaffContext(t, pool)
+	s := products.NewStore(admintest.AdminRolePool(t, pool))
+	slug, _, _ := imageOrderProduct(t, 0)
+	const front, back = "pixelight-9-pro-01.webp", "pixelight-9-pro-02.webp"
+	if _, err := pool.Exec(ctx, `
+		INSERT INTO product_images (product_id, bundled_key, alt_text, width, height, position)
+		SELECT p.id, k.key, '隨附照片', 1600, 1200, k.position
+		FROM products p, (VALUES ($2::text, 0), ($3::text, 1)) AS k(key, position)
+		WHERE p.slug = $1`, slug, front, back); err != nil {
+		t.Fatal(err)
+	}
+
+	if err := s.MoveImage(ctx, slug, back, products.MoveToCover); err != nil {
+		t.Fatalf("move a bundled photograph: %v", err)
+	}
+	if got := imageOrder(t, slug); strings.Join(got, ",") != back+","+front {
+		t.Fatalf("after set-cover the order is %v, want %s first", got, back)
+	}
+	if err := s.SetImageOption(ctx, slug, back, ""); err != nil {
+		t.Fatalf("tag a bundled photograph: %v", err)
+	}
+	if err := s.DetachImage(ctx, slug, front); err != nil {
+		t.Fatalf("remove a bundled photograph: %v", err)
+	}
+	if got := imageOrder(t, slug); strings.Join(got, ",") != back {
+		t.Fatalf("after removing %s the images are %v", front, got)
+	}
 }
 
 // With no photograph tagged, the first image is the cover on the product page and
@@ -214,9 +252,9 @@ func TestConcurrentAttachAndReorderNeverCollideOnPosition(t *testing.T) {
 	errs := make(chan error, 32)
 	for i := range 8 {
 		wg.Add(2)
+		digest := storeMedia(t, pool)
 		go func() {
 			defer wg.Done()
-			digest := fmt.Sprintf("%064x", 0xd1500+i)
 			if err := s.AttachImage(ctx, slug, digest, "新圖", "", "", 800, 800); err != nil {
 				errs <- fmt.Errorf("attach: %w", err)
 			}

@@ -110,33 +110,35 @@ SELECT p.id, @sku::text, @price_cents::bigint,
        nullif(@parcel_weight_g::integer, 0)
 FROM products p WHERE p.slug = @slug::text;
 
--- No foreign key on storage_key: product_images predates media_objects and still
--- holds embedded-asset names from the seed, so the column carries two kinds of
--- key.
+-- An attach is always an upload; bundled_key is written only by the seed.
 -- name: AttachProductImage :exec
-INSERT INTO product_images (product_id, storage_key, alt_text, alt_text_en,
+INSERT INTO product_images (product_id, media_digest, alt_text, alt_text_en,
                             width, height, position, option_value_id)
-SELECT p.id, @storage_key::text, @alt_text::text, nullif(@alt_text_en::text, ''),
+SELECT p.id, @media_digest::text, @alt_text::text, nullif(@alt_text_en::text, ''),
        @width::integer, @height::integer,
        coalesce((SELECT max(position) + 1 FROM product_images x WHERE x.product_id = p.id), 0),
        sqlc.narg('option_value_id')::uuid
 FROM products p
 WHERE p.slug = @slug::text;
 
+-- The editor names an image by its one key, a digest or a bundled file. The two
+-- cannot collide (product_images_bundled_key_format), so either column matches.
 -- name: SetProductImageOptionValue :execrows
 UPDATE product_images
 SET option_value_id = sqlc.narg('option_value_id')::uuid
 FROM products p
 WHERE product_images.product_id = p.id AND p.slug = @slug::text
-  AND product_images.storage_key = @storage_key::text;
+  AND @image_key::text IN (product_images.media_digest, product_images.bundled_key);
 
 -- name: DetachProductImage :execrows
 DELETE FROM product_images pi
 USING products p
-WHERE pi.product_id = p.id AND p.slug = @slug::text AND pi.storage_key = @storage_key::text;
+WHERE pi.product_id = p.id AND p.slug = @slug::text
+  AND @image_key::text IN (pi.media_digest, pi.bundled_key);
 
 -- name: AdminProductImages :many
-SELECT pi.storage_key, pi.alt_text, pi.width, pi.height, pi.option_value_id
+SELECT coalesce(pi.media_digest, pi.bundled_key)::text AS image_key,
+       pi.alt_text, pi.width, pi.height, pi.option_value_id
 FROM product_images pi
 JOIN products p ON p.id = pi.product_id
 WHERE p.slug = @slug::text
@@ -146,7 +148,7 @@ ORDER BY pi.position, pi.id;
 -- own statement: in the same statement the read would use a snapshot taken
 -- before that lock was won.
 -- name: ProductImageOrder :many
-SELECT pi.id, pi.storage_key
+SELECT pi.id, coalesce(pi.media_digest, pi.bundled_key)::text AS image_key
 FROM product_images pi
 JOIN products p ON p.id = pi.product_id
 WHERE p.slug = @slug::text

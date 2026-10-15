@@ -38,7 +38,7 @@ SELECT
     coalesce(rv.n, 0)::bigint AS rating_count,
     -- A product with no image yields NULL, which sqlc types as a non-null string
     -- and pgx cannot scan.
-    coalesce(img.storage_key, '') AS image_key,
+    coalesce(img.media_digest, img.bundled_key, '') AS image_key,
     coalesce(localized_name(img.alt_text, img.alt_text_en, @locale::text), '')::text AS image_alt,
     coalesce(img.width, 0)::integer AS image_width,
     coalesce(img.height, 0)::integer AS image_height,
@@ -103,7 +103,7 @@ LEFT JOIN LATERAL (
     WHERE product_id = p.id
 ) rv ON true
 LEFT JOIN LATERAL (
-    SELECT storage_key, alt_text, alt_text_en, width, height
+    SELECT media_digest, bundled_key, alt_text, alt_text_en, width, height
     FROM product_images
     WHERE product_id = p.id
     ORDER BY position
@@ -258,7 +258,7 @@ SELECT r.root AS root_id,
            SELECT 1 FROM product_variants dv
            WHERE dv.product_id = r.id AND dv.is_active AND dv.price_cents > mv.price_cents
        ) AS price_varies,
-       coalesce(img.storage_key, '') AS image_key,
+       coalesce(img.media_digest, img.bundled_key, '') AS image_key,
        coalesce(img.width, 0)::integer AS image_width
 FROM recent r
 JOIN LATERAL (
@@ -269,7 +269,7 @@ JOIN LATERAL (
     LIMIT 1
 ) mv ON true
 LEFT JOIN LATERAL (
-    SELECT storage_key, width
+    SELECT media_digest, bundled_key, width
     FROM product_images
     WHERE product_id = r.id
     ORDER BY position

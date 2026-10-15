@@ -104,7 +104,7 @@ SELECT
     EXISTS (SELECT 1 FROM copurchase_refreshes) AS copurchase_ever_built,
     (SELECT count(*) FROM sessions WHERE expires_at <= now())::bigint AS expired_sessions,
     (SELECT count(*) FROM media_objects m
-     WHERE NOT EXISTS (SELECT 1 FROM product_images p WHERE p.storage_key = m.digest)
+     WHERE NOT EXISTS (SELECT 1 FROM product_images p WHERE p.media_digest = m.digest)
        AND NOT EXISTS (SELECT 1 FROM hero_slides h WHERE h.media_digest = m.digest)
        AND NOT EXISTS (SELECT 1 FROM sale_campaigns c WHERE c.media_digest = m.digest)
        AND NOT EXISTS (SELECT 1 FROM categories k WHERE k.media_digest = m.digest)

@@ -215,6 +215,9 @@ func TestAbandonedUploadsAreReclaimed(t *testing.T) {
 	if err != nil {
 		t.Fatalf("upload the attached one: %v", err)
 	}
+	// Aged first: ageUploads re-inserts the row, which the foreign key refuses
+	// once a product points at it.
+	ageUploads(t, attached.Digest)
 	// Attached to a product, which is what makes it off limits. The product is
 	// created here rather than found: this suite loads the schema and no
 	// catalogue, so selecting one matches nothing and attaches nothing.
@@ -223,7 +226,7 @@ func TestAbandonedUploadsAreReclaimed(t *testing.T) {
 		     c AS (INSERT INTO categories (slug, name, position) SELECT 'sweep-cat', '測試分類', coalesce(max(position) + 1, 0) FROM categories WHERE parent_id IS NULL RETURNING id),
 		     p AS (INSERT INTO products (brand_id, category_id, slug, name)
 		           SELECT b.id, c.id, 'sweep-product', '測試商品' FROM b, c RETURNING id)
-		INSERT INTO product_images (product_id, storage_key, alt_text, position)
+		INSERT INTO product_images (product_id, media_digest, alt_text, position)
 		SELECT p.id, $1, '測試圖片', 0 FROM p`, attached.Digest)
 	if err != nil {
 		t.Fatalf("attach: %v", err)
@@ -233,7 +236,7 @@ func TestAbandonedUploadsAreReclaimed(t *testing.T) {
 			tag.RowsAffected())
 	}
 
-	// Inside the grace window, both are left alone.
+	// Inside the grace window, the abandoned one is left alone.
 	early, err := s.Sweep(ctx, log)
 	if err != nil {
 		t.Fatalf("sweep: %v", err)
@@ -242,7 +245,7 @@ func TestAbandonedUploadsAreReclaimed(t *testing.T) {
 		t.Fatalf("the sweeper reclaimed %d uploads inside the grace window", early)
 	}
 
-	ageUploads(t, abandoned.Digest, attached.Digest)
+	ageUploads(t, abandoned.Digest)
 
 	reclaimed, err := s.Sweep(ctx, log)
 	if err != nil {
@@ -257,6 +260,15 @@ func TestAbandonedUploadsAreReclaimed(t *testing.T) {
 	}
 	if !exists(t, attached.Digest) {
 		t.Error("an attached upload was reclaimed — a live image is now broken")
+	}
+	// The foreign key would keep it even if UnreferencedMedia forgot
+	// product_images, so the list is asked on its own.
+	candidates, err := s.Candidates(ctx, 200)
+	if err != nil {
+		t.Fatalf("read the candidate list: %v", err)
+	}
+	if slices.Contains(candidates, attached.Digest) {
+		t.Error("the candidate list offers a product's photograph for reclaiming")
 	}
 }
 
@@ -386,11 +398,11 @@ func ageUploads(t *testing.T, digests ...string) {
 // TestAnUploadAttachedMidSweepSurvivesIt holds the window between the two
 // statements the sweep is made of.
 //
-// There is no foreign key to lean on: product_images.storage_key holds either an
-// embedded filename from the seed or a digest, so it cannot point at
-// media_objects. The reference predicate is repeated inside the DELETE instead,
-// and the interleaving is DRIVEN rather than hoped for: the candidate list is
-// taken first, the attach commits, and only then is the delete asked for.
+// The attach has COMMITTED before the delete runs, so the reference predicate
+// repeated inside the DELETE is what answers; the foreign keys are the backstop,
+// and the attach still in flight is the ...AttachedDuringTheDeleteSurvivesIt
+// tests' window. The interleaving is DRIVEN rather than hoped for: the candidate
+// list is taken first, the attach commits, and only then is the delete asked for.
 func TestAnUploadAttachedMidSweepSurvivesIt(t *testing.T) {
 	ctx := t.Context()
 	s := media.NewStore(pool)
@@ -418,7 +430,7 @@ func TestAnUploadAttachedMidSweepSurvivesIt(t *testing.T) {
 		     c AS (INSERT INTO categories (slug, name, position) SELECT 'midsweep-cat', '測試分類', coalesce(max(position) + 1, 0) FROM categories WHERE parent_id IS NULL RETURNING id),
 		     p AS (INSERT INTO products (brand_id, category_id, slug, name)
 		           SELECT b.id, c.id, 'midsweep-product', '測試商品' FROM b, c RETURNING id)
-		INSERT INTO product_images (product_id, storage_key, alt_text, position)
+		INSERT INTO product_images (product_id, media_digest, alt_text, position)
 		SELECT p.id, $1, '測試圖片', 0 FROM p`, candidate)
 	if attachErr != nil {
 		t.Fatalf("attach: %v", attachErr)
@@ -567,6 +579,45 @@ func TestACampaignHeaderAttachedDuringTheDeleteSurvivesIt(t *testing.T) {
 		t.Errorf("Reclaim during an in-flight attach = %v, %v, kept=%v; want false, nil and the "+
 			"upload kept — the campaign page's header is now a 404",
 			gone, err, exists(t, header.Digest))
+	}
+}
+
+// TestAProductImageAttachedDuringTheDeleteSurvivesIt is the same window for the
+// photograph AttachProductImage inserts, closed by product_images_media_digest_fk.
+func TestAProductImageAttachedDuringTheDeleteSurvivesIt(t *testing.T) {
+	ctx := t.Context()
+	photo, err := media.NewStore(pool).Put(ctx, bytes.NewReader(samplePNG(t, 81, 61)))
+	if err != nil {
+		t.Fatalf("upload: %v", err)
+	}
+	ageUploads(t, photo.Digest)
+	if _, err = pool.Exec(ctx, `
+		WITH b AS (INSERT INTO brands (slug, name) VALUES ('in-flight-brand', '測試品牌') RETURNING id),
+		     c AS (INSERT INTO categories (slug, name, position) SELECT 'in-flight-cat', '測試分類', coalesce(max(position) + 1, 0) FROM categories WHERE parent_id IS NULL RETURNING id)
+		INSERT INTO products (brand_id, category_id, slug, name)
+		SELECT b.id, c.id, 'in-flight-product', '測試商品' FROM b, c`); err != nil {
+		t.Fatalf("create product: %v", err)
+	}
+	t.Cleanup(func() {
+		for _, remove := range []string{
+			`DELETE FROM products WHERE slug = 'in-flight-product'`,
+			`DELETE FROM brands WHERE slug = 'in-flight-brand'`,
+			`DELETE FROM categories WHERE slug = 'in-flight-cat'`,
+		} {
+			if _, cleanErr := pool.Exec(context.WithoutCancel(ctx), remove); cleanErr != nil {
+				t.Errorf("%s: %v", remove, cleanErr)
+			}
+		}
+		forgetUpload(t, photo.Digest)
+	})
+
+	gone, err := reclaimDuringAttach(t, photo.Digest, `
+		INSERT INTO product_images (product_id, media_digest, alt_text, position)
+		SELECT id, $1, '測試圖片', 0 FROM products WHERE slug = 'in-flight-product'`)
+	if err != nil || gone || !exists(t, photo.Digest) {
+		t.Errorf("Reclaim during an in-flight attach = %v, %v, kept=%v; want false, nil and the "+
+			"upload kept — the product page's photograph is now a 404",
+			gone, err, exists(t, photo.Digest))
 	}
 }
 
