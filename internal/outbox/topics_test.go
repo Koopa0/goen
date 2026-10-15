@@ -161,6 +161,7 @@ var frozenTopics = []string{
 	"account.email_verify",
 	"staff.invitation",
 	"staff.enrolment",
+	"staff.factor_failure",
 	"account.password_reset_request",
 	"account.registration",
 	"invoice.due",

@@ -78,6 +78,12 @@ func letters(text string) map[string]func(context.Context, Notifier) error {
 		"SendStaffEnrolment": func(ctx context.Context, n Notifier) error {
 			return n.SendStaffEnrolment(ctx, &StaffEnrolment{Email: to, Code: "01234567"})
 		},
+		"SendStaffFactorFailure": func(ctx context.Context, n Notifier) error {
+			return n.SendStaffFactorFailure(ctx, &StaffFactorFailure{Email: to, Limit: 10})
+		},
+		"SendStaffFactorFailure locked": func(ctx context.Context, n Notifier) error {
+			return n.SendStaffFactorFailure(ctx, &StaffFactorFailure{Email: to, Locked: true, Limit: 10})
+		},
 		"SendNewsletterConfirm": func(ctx context.Context, n Notifier) error {
 			return n.SendNewsletterConfirm(ctx, &NewsletterConfirm{Email: to, Token: "tok"})
 		},

@@ -901,6 +901,7 @@ func newOutboxStore(d workerDeps) *outbox.Store {
 	outboxStore.HandleJSON(outbox.TopicEmailVerify, addressVerifyHandler(account.NewStore(d.pool), d.notifier))
 	outboxStore.HandleJSON(outbox.TopicStaffInvitation, staffInvitationHandler(staff.NewStore(d.pool), d.notifier))
 	outboxStore.HandleJSON(outbox.TopicStaffEnrolment, d.notifier.SendStaffEnrolment)
+	outboxStore.HandleJSON(outbox.TopicStaffFactorFailure, d.notifier.SendStaffFactorFailure)
 	outboxStore.HandleJSON(outbox.TopicNewsletterIssue,
 		newsletterIssueHandler(newsletter.NewStore(d.pool), d.notifier))
 	outboxStore.HandleJSON(outbox.TopicRestocked, d.notifier.SendRestockNotice)

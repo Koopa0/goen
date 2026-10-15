@@ -3,6 +3,7 @@ package twofactor
 import (
 	"encoding/base64"
 	"errors"
+	"fmt"
 	"log/slog"
 	"net/http"
 	"time"
@@ -102,8 +103,12 @@ func (h *Handler) Verify(w http.ResponseWriter, r *http.Request) {
 		case errors.Is(err, ErrDisabled):
 			http.Redirect(w, r, "/admin/verify?disabled=1", http.StatusSeeOther)
 			return
+		case errors.Is(err, ErrLocked):
+			h.log.WarnContext(r.Context(), "totp verify", "user", u.ID, "error", err)
+			http.Redirect(w, r, "/admin/verify?locked=1", http.StatusSeeOther)
+			return
 		case errors.Is(err, ErrBadCode), errors.Is(err, ErrNotEnrolled):
-			h.log.WarnContext(r.Context(), "totp verify", "error", err)
+			h.log.WarnContext(r.Context(), "totp verify", "user", u.ID, "error", err)
 			http.Redirect(w, r, "/admin/verify?bad=1", http.StatusSeeOther)
 			return
 		default:
@@ -220,7 +225,9 @@ func noticeFor(r *http.Request) string {
 	case r.URL.Query().Get("stale") == "1":
 		return i18n.T(r.Context(), i18n.KeyTOTPSecretUnreadable)
 	case r.URL.Query().Get("bad") == "1":
-		return i18n.T(r.Context(), i18n.KeyTOTPWrongCode)
+		return fmt.Sprintf(i18n.T(r.Context(), i18n.KeyTOTPWrongCode), MaxFailures)
+	case r.URL.Query().Get("locked") == "1":
+		return i18n.T(r.Context(), i18n.KeyTOTPLocked)
 	case r.URL.Query().Get("badenrol") == "1":
 		return i18n.T(r.Context(), i18n.KeyTOTPWrongSecret)
 	case r.URL.Query().Get("disabled") == "1":

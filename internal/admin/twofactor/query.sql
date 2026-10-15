@@ -30,13 +30,31 @@ WHERE user_id = @user_id
   AND created_at > now() - @mailed_code_ttl::interval
   AND (last_step IS NULL OR last_step < @step::bigint);
 
--- Record an accepted code. The step guard is in the statement: two requests
--- replaying one code both pass a check made in Go, and only one can win here.
--- A secret the current key did not open arrives re-sealed under it and is
--- written by the same statement that accepts the code; NULL leaves it alone.
+-- Charge one attempt against a confirmed credential before its code is
+-- checked, and read the credential the code is checked against. The cap is in
+-- the WHERE clause, so concurrent attempts cannot all pass a count read
+-- separately: this UPDATE holds the row until the attempt's transaction ends,
+-- and no row comes back once failed_attempts has reached the cap. users is
+-- joined for the address a warning about the attempt goes to.
+-- name: ChargeTOTPAttempt :one
+UPDATE staff_totp_credentials AS c
+SET failed_attempts = c.failed_attempts + 1
+FROM users AS u
+WHERE c.user_id = @user_id
+  AND u.id = c.user_id
+  AND c.confirmed_at IS NOT NULL
+  AND c.failed_attempts < @max_failures::integer
+RETURNING c.secret_encrypted, c.last_step, c.failed_attempts, u.email;
+
+-- Record an accepted code and clear the attempts charged since the last one.
+-- The step guard is in the statement: two requests replaying one code both
+-- pass a check made in Go, and only one can win here. A secret the current key
+-- did not open arrives re-sealed under it and is written by the same statement
+-- that accepts the code; NULL leaves it alone.
 -- name: RecordTOTPStep :execrows
 UPDATE staff_totp_credentials
 SET last_step = @step::bigint,
+    failed_attempts = 0,
     secret_encrypted = coalesce(sqlc.narg(resealed)::bytea, secret_encrypted)
 WHERE user_id = @user_id
   AND confirmed_at IS NOT NULL

@@ -684,9 +684,15 @@ CREATE TABLE staff_totp_credentials (
     -- confirming enrolment also proves the mailbox. Present exactly while the
     -- credential is unconfirmed: the statement that confirms it spends the code.
     mailed_code_digest bytea,
+    -- Wrong codes since the last accepted one. Kept here rather than in the
+    -- process, so a restart does not refill it: at twofactor.MaxFailures the
+    -- factor stops accepting codes until another admin removes it and its
+    -- holder enrols again (NIST SP 800-63B-4 §3.2.2).
+    failed_attempts    integer NOT NULL DEFAULT 0,
     created_at         timestamptz NOT NULL DEFAULT now(),
 
     CONSTRAINT staff_totp_secret_present CHECK (octet_length(secret_encrypted) > 0),
+    CONSTRAINT staff_totp_failed_attempts_non_negative CHECK (failed_attempts >= 0),
     CONSTRAINT staff_totp_step_needs_confirmation
         CHECK (last_step IS NULL OR confirmed_at IS NOT NULL),
     CONSTRAINT staff_totp_credentials_mailed_code_digest_sha256
@@ -10154,7 +10160,7 @@ GRANT INSERT (subject, body),
 REVOKE INSERT, UPDATE ON staff_totp_credentials FROM admin;
 GRANT INSERT (user_id, secret_encrypted, mailed_code_digest),
       UPDATE (secret_encrypted, confirmed_at, last_step, mailed_code_digest,
-              created_at)
+              failed_attempts, created_at)
     ON staff_totp_credentials TO admin;
 
 -- The catalogue and the shop's pages. A row's identity (id, slug, code) is fixed

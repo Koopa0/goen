@@ -57,6 +57,8 @@ var mailedContract = map[string][]string{
 	"SendPasswordReset":                               {"GET /reset?token", "GET /static/?v"},
 	"SendRestockNotice":                               {"GET /p/{slug}", "GET /static/?v"},
 	"SendStaffEnrolment":                              {"GET /forgot", "GET /static/?v"},
+	"SendStaffFactorFailure/wrong":                    {"GET /forgot", "GET /static/?v"},
+	"SendStaffFactorFailure/locked":                   {"GET /forgot", "GET /static/?v"},
 	"SendStaffInvitation":                             {"GET /forgot", "GET /static/?v"},
 }
 
@@ -217,6 +219,12 @@ func TestEveryMailedLinkReachesARoute(t *testing.T) {
 		}},
 		{"SendStaffEnrolment", func(ctx context.Context, n email.Notifier) error {
 			return n.SendStaffEnrolment(ctx, &email.StaffEnrolment{Locale: "en", Email: address, Code: "482913"})
+		}},
+		{"SendStaffFactorFailure/wrong", func(ctx context.Context, n email.Notifier) error {
+			return n.SendStaffFactorFailure(ctx, &email.StaffFactorFailure{Locale: "en", Email: address, Limit: 10})
+		}},
+		{"SendStaffFactorFailure/locked", func(ctx context.Context, n email.Notifier) error {
+			return n.SendStaffFactorFailure(ctx, &email.StaffFactorFailure{Locale: "en", Email: address, Locked: true, Limit: 10})
 		}},
 		{"SendStaffInvitation", func(ctx context.Context, n email.Notifier) error {
 			return n.SendStaffInvitation(ctx, &email.StaffInvitation{UserID: uuid.NewString(), Locale: "en"}, address, "Alex")

@@ -195,6 +195,8 @@ var actionLabels = map[string]i18n.Key{
 	"staff.grant":                         i18n.KeyAuditStaffGrant,
 	"staff.revoke":                        i18n.KeyAuditStaffRevoke,
 	"staff.factor.remove":                 i18n.KeyAuditStaffFactorRemove,
+	"staff.factor.fail":                   i18n.KeyAuditStaffFactorFail,
+	"staff.factor.lock":                   i18n.KeyAuditStaffFactorLock,
 }
 
 func (e AuditEntry) ActorText(ctx context.Context) string {

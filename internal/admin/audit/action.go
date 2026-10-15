@@ -90,4 +90,9 @@ const (
 	ActionGrantStaff               Action = "staff.grant"
 	ActionRevokeStaff              Action = "staff.revoke"
 	ActionRemoveStaffFactor        Action = "staff.factor.remove"
+	// ActionFailStaffFactor is a wrong second-factor code, and
+	// ActionLockStaffFactor the one that locked the factor. The actor is the
+	// account whose password was used, not necessarily the person typing.
+	ActionFailStaffFactor Action = "staff.factor.fail"
+	ActionLockStaffFactor Action = "staff.factor.lock"
 )

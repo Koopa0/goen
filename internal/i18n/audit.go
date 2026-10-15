@@ -213,6 +213,10 @@ var (
 	KeyAuditStaffRevoke = key("audit.staff.revoke", Message{ZhHant: "撤銷後台權限", En: "Revoke staff access"})
 
 	KeyAuditStaffFactorRemove = key("audit.staff.factor.remove", Message{ZhHant: "移除第二因素", En: "Remove second factor"})
+
+	KeyAuditStaffFactorFail = key("audit.staff.factor.fail", Message{ZhHant: "輸入錯誤的第二因素驗證碼", En: "Wrong second-factor code"})
+
+	KeyAuditStaffFactorLock = key("audit.staff.factor.lock", Message{ZhHant: "第二因素因連續輸入錯誤而鎖住", En: "Second factor locked after wrong codes"})
 )
 
 var (
