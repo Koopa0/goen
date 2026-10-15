@@ -126,6 +126,6 @@ templ Reset(p layouts.Page, v ResetView) {
 			</div>
 		}
 	} else {
-		@EmailLinkPage(p, v.RecoveryView(ctx))
+		@layouts.EmailLinkPage(p, v.RecoveryView(ctx))
 	}
 }

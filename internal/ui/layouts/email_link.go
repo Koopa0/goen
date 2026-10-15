@@ -1,10 +1,9 @@
-package pages
+package layouts
 
 import (
 	"context"
 
 	"github.com/koopa0/goen/internal/i18n"
-	"github.com/koopa0/goen/internal/ui/layouts"
 )
 
 type EmailLinkRecovery uint8
@@ -20,7 +19,7 @@ const (
 func (r EmailLinkRecovery) URL() string {
 	switch r {
 	case EmailLinkContact:
-		return "mailto:" + layouts.ContactEmail
+		return "mailto:" + ContactEmail
 	case EmailLinkVerify:
 		return "/account#email-heading"
 	case EmailLinkReset:
@@ -33,7 +32,7 @@ func (r EmailLinkRecovery) URL() string {
 func (r EmailLinkRecovery) Label(ctx context.Context) string {
 	switch r {
 	case EmailLinkContact:
-		return layouts.ContactEmail
+		return ContactEmail
 	case EmailLinkVerify:
 		return i18n.T(ctx, i18n.KeyEmailSection)
 	case EmailLinkReset:
@@ -52,6 +51,6 @@ type EmailLinkView struct {
 	Recovery EmailLinkRecovery
 }
 
-func EmailLinkMeta(title string) layouts.Page {
-	return layouts.Page{Title: title}
+func EmailLinkMeta(title string) Page {
+	return Page{Title: title}
 }

@@ -809,7 +809,7 @@ func cartRecoveryLanding(continuation string) string {
 }
 
 func (h *Handler) serverError(w http.ResponseWriter, r *http.Request) {
-	web.Render(w, r, h.log, http.StatusInternalServerError, pages.Notice(
+	web.Render(w, r, h.log, http.StatusInternalServerError, layouts.Notice(
 		layouts.Page{Title: i18n.T(r.Context(), i18n.KeyBusyTitle)}, "",
 		i18n.T(r.Context(), i18n.KeyBusyTitle),
 		i18n.T(r.Context(), i18n.KeyBusyBody)))
@@ -941,10 +941,10 @@ func (h *Handler) refuseAddressEdit(w http.ResponseWriter, r *http.Request, id s
 }
 
 func (h *Handler) addressNotFound(w http.ResponseWriter, r *http.Request) {
-	web.Render(w, r, h.log, http.StatusNotFound, pages.Notice(
+	web.Render(w, r, h.log, http.StatusNotFound, layouts.Notice(
 		layouts.Page{Title: i18n.T(r.Context(), i18n.KeyPageNotFoundTitle)}, "404",
 		i18n.T(r.Context(), i18n.KeyPageNotFound), i18n.T(r.Context(), i18n.KeyPageNotFoundBody),
-		pages.NoticeActions{Primary: pages.NoticeLink{Href: "/account#addresses-heading", Label: i18n.KeyAddresses}}))
+		layouts.NoticeActions{Primary: layouts.NoticeLink{Href: "/account#addresses-heading", Label: i18n.KeyAddresses}}))
 }
 
 func (h *Handler) MakeDefaultAddress(w http.ResponseWriter, r *http.Request) {
@@ -1200,9 +1200,9 @@ func (h *Handler) VerifyPage(w http.ResponseWriter, r *http.Request) {
 	web.NoCompress(w)
 	ctx := r.Context()
 	if r.URL.Query().Get("done") == "1" {
-		web.Render(w, r, h.log, http.StatusOK, pages.EmailLinkPage(
-			pages.EmailLinkMeta(i18n.T(ctx, i18n.KeyVerifyDone)),
-			pages.EmailLinkView{
+		web.Render(w, r, h.log, http.StatusOK, layouts.EmailLinkPage(
+			layouts.EmailLinkMeta(i18n.T(ctx, i18n.KeyVerifyDone)),
+			layouts.EmailLinkView{
 				Heading: i18n.T(ctx, i18n.KeyVerifyDone),
 				Body:    i18n.T(ctx, i18n.KeyVerifyDoneBody),
 			}))
@@ -1210,18 +1210,18 @@ func (h *Handler) VerifyPage(w http.ResponseWriter, r *http.Request) {
 	}
 	token := r.URL.Query().Get("token")
 	if token == "" {
-		web.Render(w, r, h.log, http.StatusOK, pages.EmailLinkPage(
-			pages.EmailLinkMeta(i18n.T(ctx, i18n.KeyVerifyTitle)),
-			pages.EmailLinkView{
+		web.Render(w, r, h.log, http.StatusOK, layouts.EmailLinkPage(
+			layouts.EmailLinkMeta(i18n.T(ctx, i18n.KeyVerifyTitle)),
+			layouts.EmailLinkView{
 				Heading:  i18n.T(ctx, i18n.KeyVerifyTitle),
 				Body:     i18n.T(ctx, i18n.KeyEmailLinkIncomplete),
-				Recovery: pages.EmailLinkVerify,
+				Recovery: layouts.EmailLinkVerify,
 			}))
 		return
 	}
-	web.Render(w, r, h.log, http.StatusOK, pages.EmailLinkPage(
-		pages.EmailLinkMeta(i18n.T(ctx, i18n.KeyVerifyTitle)),
-		pages.EmailLinkView{
+	web.Render(w, r, h.log, http.StatusOK, layouts.EmailLinkPage(
+		layouts.EmailLinkMeta(i18n.T(ctx, i18n.KeyVerifyTitle)),
+		layouts.EmailLinkView{
 			Heading: i18n.T(ctx, i18n.KeyVerifyTitle),
 			Body:    i18n.T(ctx, i18n.KeyVerifyBody),
 			Action:  "/verify",
@@ -1261,12 +1261,12 @@ func (h *Handler) Verify(w http.ResponseWriter, r *http.Request) {
 		h.verifyFailed(w, r, i18n.T(ctx, i18n.KeyVerifyDeadTitle), i18n.T(ctx, i18n.KeyEmailStaffFixed))
 	case errors.Is(err, ErrVerifyInvalid):
 		heading := i18n.T(ctx, i18n.KeyEmailLinkDeadTitle)
-		web.Render(w, r, h.log, http.StatusUnprocessableEntity, pages.EmailLinkPage(
-			pages.EmailLinkMeta(heading),
-			pages.EmailLinkView{
+		web.Render(w, r, h.log, http.StatusUnprocessableEntity, layouts.EmailLinkPage(
+			layouts.EmailLinkMeta(heading),
+			layouts.EmailLinkView{
 				Heading:  heading,
 				Body:     i18n.T(ctx, i18n.KeyVerifyDeadBody),
-				Recovery: pages.EmailLinkVerify,
+				Recovery: layouts.EmailLinkVerify,
 			}))
 	default:
 		h.log.ErrorContext(ctx, "confirm email verification", "error", err)
@@ -1351,9 +1351,9 @@ func (h *Handler) registrationDead(w http.ResponseWriter, r *http.Request, next 
 }
 
 func (h *Handler) verifyFailed(w http.ResponseWriter, r *http.Request, heading, body string) {
-	web.Render(w, r, h.log, http.StatusUnprocessableEntity, pages.EmailLinkPage(
-		pages.EmailLinkMeta(heading),
-		pages.EmailLinkView{Heading: heading, Body: body}))
+	web.Render(w, r, h.log, http.StatusUnprocessableEntity, layouts.EmailLinkPage(
+		layouts.EmailLinkMeta(heading),
+		layouts.EmailLinkView{Heading: heading, Body: body}))
 }
 
 func oauthOutcome(ctx context.Context, outcome string) map[string]string {
@@ -1459,10 +1459,10 @@ func (h *Handler) GoogleCallback(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *Handler) googleUnavailable(w http.ResponseWriter, r *http.Request) {
-	web.Render(w, r, h.log, http.StatusNotFound, pages.Notice(
+	web.Render(w, r, h.log, http.StatusNotFound, layouts.Notice(
 		layouts.Page{Title: i18n.T(r.Context(), i18n.KeySignIn)}, "404",
 		i18n.T(r.Context(), i18n.KeySignIn), i18n.T(r.Context(), i18n.KeyGoogleUnavailable),
-		pages.NoticeActions{Primary: pages.NoticeLink{Href: "/signin", Label: i18n.KeySignIn}}))
+		layouts.NoticeActions{Primary: layouts.NoticeLink{Href: "/signin", Label: i18n.KeySignIn}}))
 }
 
 func (h *Handler) UnlinkGoogle(w http.ResponseWriter, r *http.Request) {

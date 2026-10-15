@@ -151,7 +151,7 @@ func (h *Handler) respondToOpen(
 		h.reject(w, r, o, draft, []web.FieldRefusal{{MessageKey: i18n.KeyReturnInvalid}})
 	default:
 		h.log.ErrorContext(r.Context(), "open return request", "order", o.Number, "error", err)
-		web.Render(w, r, h.log, http.StatusInternalServerError, pages.Notice(
+		web.Render(w, r, h.log, http.StatusInternalServerError, layouts.Notice(
 			layouts.Page{Title: i18n.T(r.Context(), i18n.KeyTryAgainTitle)}, "",
 			i18n.T(r.Context(), i18n.KeyTryAgainTitle),
 			i18n.T(r.Context(), i18n.KeyLoggedTryAgain)))
@@ -162,7 +162,7 @@ func (h *Handler) reject(w http.ResponseWriter, r *http.Request, o *Order, draft
 	fresh, err := h.store.Order(r.Context(), o.Number)
 	if err != nil {
 		h.log.ErrorContext(r.Context(), "refresh order after return refusal", "order", o.Number, "error", err)
-		web.Render(w, r, h.log, http.StatusInternalServerError, pages.Notice(
+		web.Render(w, r, h.log, http.StatusInternalServerError, layouts.Notice(
 			layouts.Page{Title: i18n.T(r.Context(), i18n.KeyTryAgainTitle)}, "",
 			i18n.T(r.Context(), i18n.KeyTryAgainTitle),
 			i18n.T(r.Context(), i18n.KeyLoggedTryAgain)))
@@ -191,7 +191,7 @@ func (h *Handler) ownOrder(w http.ResponseWriter, r *http.Request) (*Order, bool
 			return nil, false
 		}
 		h.log.ErrorContext(r.Context(), "read order for return", "order", number, "error", err)
-		web.Render(w, r, h.log, http.StatusInternalServerError, pages.Notice(
+		web.Render(w, r, h.log, http.StatusInternalServerError, layouts.Notice(
 			layouts.Page{Title: i18n.T(r.Context(), i18n.KeyTryAgainTitle)}, "",
 			i18n.T(r.Context(), i18n.KeyTryAgainTitle),
 			i18n.T(r.Context(), i18n.KeyLoggedTryAgain)))
@@ -201,7 +201,7 @@ func (h *Handler) ownOrder(w http.ResponseWriter, r *http.Request) (*Order, bool
 }
 
 func (h *Handler) notFound(w http.ResponseWriter, r *http.Request) {
-	web.Render(w, r, h.log, http.StatusNotFound, pages.OrderNotFound(
+	web.Render(w, r, h.log, http.StatusNotFound, layouts.OrderNotFound(
 		layouts.Page{Title: i18n.T(r.Context(), i18n.KeyOrderNotFound)}))
 }
 

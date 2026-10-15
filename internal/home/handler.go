@@ -27,7 +27,7 @@ func (h *Handler) Index(w http.ResponseWriter, r *http.Request) {
 	view, err := h.store.Load(r.Context())
 	if err != nil {
 		h.log.Error("load home page", "error", err)
-		web.Render(w, r, h.log, http.StatusInternalServerError, pages.Notice(
+		web.Render(w, r, h.log, http.StatusInternalServerError, layouts.Notice(
 			layouts.Page{Title: i18n.T(r.Context(), i18n.KeyHome)}, "",
 			i18n.T(r.Context(), i18n.KeyCannotLoad),
 			i18n.T(r.Context(), i18n.KeyCannotLoadHome)))

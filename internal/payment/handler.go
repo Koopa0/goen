@@ -676,15 +676,15 @@ func (h *Handler) payableOrder(w http.ResponseWriter, r *http.Request, number st
 }
 
 func (h *Handler) notFound(w http.ResponseWriter, r *http.Request) {
-	web.Render(w, r, h.log, http.StatusNotFound, pages.OrderNotFound(
+	web.Render(w, r, h.log, http.StatusNotFound, layouts.OrderNotFound(
 		layouts.Page{Title: i18n.T(r.Context(), i18n.KeyOrderNotFound)}))
 }
 
 func (h *Handler) notice(w http.ResponseWriter, r *http.Request, status int, title, heading, body string) {
-	web.Render(w, r, h.log, status, pages.Notice(
-		layouts.Page{Title: title}, "", heading, body, pages.NoticeActions{
-			Primary:   pages.NoticeLink{Href: "/orders/" + url.PathEscape(r.PathValue("number")), Label: i18n.KeyBackToOrder},
-			Secondary: pages.NoticeLink{Href: "/contact", Label: i18n.KeyContact},
+	web.Render(w, r, h.log, status, layouts.Notice(
+		layouts.Page{Title: title}, "", heading, body, layouts.NoticeActions{
+			Primary:   layouts.NoticeLink{Href: "/orders/" + url.PathEscape(r.PathValue("number")), Label: i18n.KeyBackToOrder},
+			Secondary: layouts.NoticeLink{Href: "/contact", Label: i18n.KeyContact},
 		}))
 }
 

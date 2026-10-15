@@ -1,5 +1,5 @@
 // Package uitest is shared support for tests of rendered pages: the one way
-// a browser test learns it may run, and (later) helpers that read rendered
+// a browser test learns it may run, and helpers that read rendered
 // HTML. Only test files import it.
 package uitest
 

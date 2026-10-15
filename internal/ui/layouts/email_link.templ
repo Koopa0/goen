@@ -1,15 +1,14 @@
-package pages
+package layouts
 
 import (
 	"github.com/koopa0/goen/internal/fieldrule"
 	"github.com/koopa0/goen/internal/i18n"
 	"github.com/koopa0/goen/internal/ui/components"
 	"github.com/koopa0/goen/internal/ui/icons"
-	"github.com/koopa0/goen/internal/ui/layouts"
 )
 
-templ EmailLinkPage(p layouts.Page, v EmailLinkView) {
-	@layouts.Base(p) {
+templ EmailLinkPage(p Page, v EmailLinkView) {
+	@Base(p) {
 		<div class="notice">
 			if v.Recovery == EmailLinkNoRecovery {
 				<span class="goen-medallion" aria-hidden="true">

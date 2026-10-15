@@ -1468,14 +1468,14 @@ func (h *Handler) OrderPage(w http.ResponseWriter, r *http.Request) {
 		if web.ReloadSameSite(w, r, h.log, pages.OrderReload) {
 			return
 		}
-		web.Render(w, r, h.log, http.StatusNotFound, pages.OrderNotFound(h.notFoundPage(r)))
+		web.Render(w, r, h.log, http.StatusNotFound, layouts.OrderNotFound(h.notFoundPage(r)))
 		return
 	}
 
 	view, err := h.store.Order(r.Context(), number)
 	if err != nil {
 		if errors.Is(err, ErrNotFound) {
-			web.Render(w, r, h.log, http.StatusNotFound, pages.Notice(
+			web.Render(w, r, h.log, http.StatusNotFound, layouts.Notice(
 				h.notFoundPage(r), "404", i18n.T(r.Context(), i18n.KeyOrderNotFound),
 				i18n.T(r.Context(), i18n.KeyOrderGone)))
 			return
@@ -1532,7 +1532,7 @@ func paymentReturnRefresh(r *http.Request, view *pages.OrderView) string {
 func (h *Handler) ReorderItems(w http.ResponseWriter, r *http.Request) {
 	number := r.PathValue("number")
 	if !h.allows(r, number) {
-		web.Render(w, r, h.log, http.StatusNotFound, pages.OrderNotFound(h.notFoundPage(r)))
+		web.Render(w, r, h.log, http.StatusNotFound, layouts.OrderNotFound(h.notFoundPage(r)))
 		return
 	}
 
@@ -1569,7 +1569,7 @@ func (h *Handler) ReorderItems(w http.ResponseWriter, r *http.Request) {
 func (h *Handler) CancelOrder(w http.ResponseWriter, r *http.Request) {
 	number := r.PathValue("number")
 	if !h.allows(r, number) {
-		web.Render(w, r, h.log, http.StatusNotFound, pages.OrderNotFound(h.notFoundPage(r)))
+		web.Render(w, r, h.log, http.StatusNotFound, layouts.OrderNotFound(h.notFoundPage(r)))
 		return
 	}
 
@@ -1579,12 +1579,12 @@ func (h *Handler) CancelOrder(w http.ResponseWriter, r *http.Request) {
 		http.Redirect(w, r, "/orders/"+url.PathEscape(number)+"?cancelled=1", http.StatusSeeOther)
 	case errors.Is(err, ErrNotCancellable):
 		// 422, not a redirect: nothing was written.
-		web.Render(w, r, h.log, http.StatusUnprocessableEntity, pages.Notice(
+		web.Render(w, r, h.log, http.StatusUnprocessableEntity, layouts.Notice(
 			layouts.Page{Title: i18n.T(r.Context(), i18n.KeyCancelRefusedTitle)}, "",
 			i18n.T(r.Context(), i18n.KeyCancelRefusedTitle),
-			i18n.T(r.Context(), i18n.KeyCancelRefusedBody), pages.NoticeActions{
-				Primary:   pages.NoticeLink{Href: "/orders/" + url.PathEscape(number), Label: i18n.KeyBackToOrder},
-				Secondary: pages.NoticeLink{Href: "/contact", Label: i18n.KeyContact},
+			i18n.T(r.Context(), i18n.KeyCancelRefusedBody), layouts.NoticeActions{
+				Primary:   layouts.NoticeLink{Href: "/orders/" + url.PathEscape(number), Label: i18n.KeyBackToOrder},
+				Secondary: layouts.NoticeLink{Href: "/contact", Label: i18n.KeyContact},
 			}))
 	default:
 		h.log.ErrorContext(r.Context(), "cancel order", "error", err)
@@ -1842,7 +1842,7 @@ func isSlug(s string) bool {
 }
 
 func (h *Handler) serverError(w http.ResponseWriter, r *http.Request) {
-	web.Render(w, r, h.log, http.StatusInternalServerError, pages.Notice(
+	web.Render(w, r, h.log, http.StatusInternalServerError, layouts.Notice(
 		layouts.Page{Title: i18n.T(r.Context(), i18n.KeyTryAgainTitle)}, "",
 		i18n.T(r.Context(), i18n.KeyTryAgainTitle),
 		i18n.T(r.Context(), i18n.KeyCartUnavailable)))
