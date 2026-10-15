@@ -5092,6 +5092,47 @@ func (q *Queries) CategoryTone(ctx context.Context, id uuid.UUID) (string, error
 	return tone, err
 }
 
+const chargeTOTPAttempt = `-- name: ChargeTOTPAttempt :one
+UPDATE staff_totp_credentials AS c
+SET failed_attempts = c.failed_attempts + 1
+FROM users AS u
+WHERE c.user_id = $1
+  AND u.id = c.user_id
+  AND c.confirmed_at IS NOT NULL
+  AND c.failed_attempts < $2::integer
+RETURNING c.secret_encrypted, c.last_step, c.failed_attempts, u.email
+`
+
+type ChargeTOTPAttemptParams struct {
+	UserID      uuid.UUID
+	MaxFailures int32
+}
+
+type ChargeTOTPAttemptRow struct {
+	SecretEncrypted []byte
+	LastStep        pgtype.Int8
+	FailedAttempts  int32
+	Email           string
+}
+
+// Charge one attempt against a confirmed credential before its code is
+// checked, and read the credential the code is checked against. The cap is in
+// the WHERE clause, so concurrent attempts cannot all pass a count read
+// separately: this UPDATE holds the row until the attempt's transaction ends,
+// and no row comes back once failed_attempts has reached the cap. users is
+// joined for the address a warning about the attempt goes to.
+func (q *Queries) ChargeTOTPAttempt(ctx context.Context, arg ChargeTOTPAttemptParams) (ChargeTOTPAttemptRow, error) {
+	row := q.db.QueryRow(ctx, chargeTOTPAttempt, arg.UserID, arg.MaxFailures)
+	var i ChargeTOTPAttemptRow
+	err := row.Scan(
+		&i.SecretEncrypted,
+		&i.LastStep,
+		&i.FailedAttempts,
+		&i.Email,
+	)
+	return i, err
+}
+
 const checkoutAttempt = `-- name: CheckoutAttempt :one
 SELECT cart_id, order_id FROM checkout_attempts WHERE idempotency_key = $1
 `
@@ -14681,6 +14722,7 @@ func (q *Queries) RecordReturnRefundedEvent(ctx context.Context, arg RecordRetur
 const recordTOTPStep = `-- name: RecordTOTPStep :execrows
 UPDATE staff_totp_credentials
 SET last_step = $1::bigint,
+    failed_attempts = 0,
     secret_encrypted = coalesce($2::bytea, secret_encrypted)
 WHERE user_id = $3
   AND confirmed_at IS NOT NULL
@@ -14693,10 +14735,11 @@ type RecordTOTPStepParams struct {
 	UserID   uuid.UUID
 }
 
-// Record an accepted code. The step guard is in the statement: two requests
-// replaying one code both pass a check made in Go, and only one can win here.
-// A secret the current key did not open arrives re-sealed under it and is
-// written by the same statement that accepts the code; NULL leaves it alone.
+// Record an accepted code and clear the attempts charged since the last one.
+// The step guard is in the statement: two requests replaying one code both
+// pass a check made in Go, and only one can win here. A secret the current key
+// did not open arrives re-sealed under it and is written by the same statement
+// that accepts the code; NULL leaves it alone.
 func (q *Queries) RecordTOTPStep(ctx context.Context, arg RecordTOTPStepParams) (int64, error) {
 	result, err := q.db.Exec(ctx, recordTOTPStep, arg.Step, arg.Resealed, arg.UserID)
 	if err != nil {

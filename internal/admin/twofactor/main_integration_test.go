@@ -166,8 +166,8 @@ func TestACodeIsAcceptedExactlyOnceEvenConcurrently(t *testing.T) {
 			"simultaneous requests", wins, racers, step)
 	}
 
-	if err := s.Verify(ctx, userID, twofactor.Code(secret, step)); err == nil {
-		t.Error("the code for a spent step was accepted")
+	if err := s.Verify(asActor(ctx, userID), userID, twofactor.Code(secret, step)); !errors.Is(err, twofactor.ErrBadCode) {
+		t.Errorf("the code for a spent step = %v, want ErrBadCode", err)
 	}
 }
 

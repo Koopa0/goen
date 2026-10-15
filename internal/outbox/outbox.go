@@ -49,6 +49,8 @@ var (
 	TopicEmailVerify     = topic[email.AddressVerify]("account.email_verify")
 	TopicStaffInvitation = topic[email.StaffInvitation]("staff.invitation")
 	TopicStaffEnrolment  = topic[email.StaffEnrolment]("staff.enrolment")
+	// TopicStaffFactorFailure warns a staff account of wrong second-factor codes.
+	TopicStaffFactorFailure = topic[email.StaffFactorFailure]("staff.factor_failure")
 	// TopicPasswordResetRequest is a forgotten-password request, queued the
 	// same way whether or not the address has an account. Its handler issues
 	// the token and queues the TopicPasswordReset message.

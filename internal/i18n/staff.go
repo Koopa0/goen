@@ -90,4 +90,21 @@ var (
 		En: "Someone signed in to your goen back-office account and is setting up two-factor. Enter this code on the setup page. It works for 15 minutes:\n%s\n\n" +
 			"If this was not you, someone else knows your password. Reset it here, which signs out every session, and tell an administrator:\n%s",
 	})
+	// Both take the number of wrong codes that lock the factor, then the
+	// password-reset link.
+	KeyMailStaffFactorFailureSubject = key("mail.staff.factor_failure.subject", Message{ZhHant: "goen 後台：有人輸入了錯誤的兩階段驗證碼", En: "A wrong two-factor code was entered for your goen account"})
+	KeyMailStaffFactorFailureBody    = key("mail.staff.factor_failure.body", Message{
+		ZhHant: "有人用你的密碼登入 goen 後台，接著輸入了錯誤的兩階段驗證碼。連續錯 %d 次，兩階段驗證就會鎖住，要由另一位管理員移除後重新設定。\n\n如果是你自己打錯，可以不用理會這封信。如果不是你，代表別人知道你的密碼。請用下面的連結重設密碼（所有登入都會結束），並通知管理員：\n%s",
+		En: "Someone signed in to your goen back-office account with your password, then entered a wrong two-factor code. " +
+			"After %d wrong codes in a row the second factor locks, and another administrator has to remove it before it can be set up again.\n\n" +
+			"If that was you mistyping, you can ignore this email. If it was not you, someone else knows your password. " +
+			"Reset it here, which signs out every session, and tell an administrator:\n%s",
+	})
+	KeyMailStaffFactorLockedSubject = key("mail.staff.factor_locked.subject", Message{ZhHant: "你的 goen 後台兩階段驗證已鎖住", En: "Two-factor on your goen account is locked"})
+	KeyMailStaffFactorLockedBody    = key("mail.staff.factor_locked.body", Message{
+		ZhHant: "你的 goen 後台帳號連續輸入了 %d 次錯誤的兩階段驗證碼，所以兩階段驗證已鎖住，暫時無法進入後台。請另一位管理員在後台的人員頁面移除你的兩階段驗證，再重新設定。\n\n如果這些驗證碼不是你輸入的，代表別人知道你的密碼。請先用下面的連結重設密碼（所有登入都會結束）：\n%s",
+		En: "%d wrong two-factor codes in a row were entered for your goen back-office account, so its second factor is locked and the back office cannot be entered. " +
+			"Ask another administrator to remove your second factor on the back office's staff page, then set it up again.\n\n" +
+			"If you did not enter those codes, someone else knows your password. Reset it first here, which signs out every session:\n%s",
+	})
 )

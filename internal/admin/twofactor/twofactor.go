@@ -30,6 +30,15 @@ const MailedCodeTTL = 15 * time.Minute
 
 const Issuer = "goen"
 
+// MaxFailures is how many wrong codes in a row lock a confirmed factor until
+// another admin removes it and its holder enrols again. NIST SP 800-63B-4
+// §3.2.2 sets 100 as the most a verifier may allow and requires a rebind once
+// it is reached. Ten is the per-minute throttle's burst, which a restart
+// refills and this does not, and the chance of guessing before the lock is 10
+// guesses × 3 accepted codes (the skew window) in a million. An accepted code
+// clears the count.
+const MaxFailures = 10
+
 var (
 	ErrDisabled = errors.New("twofactor: no encryption key is configured")
 	// ErrBadCode covers a wrong code, a replayed one and a malformed one — one
@@ -42,6 +51,9 @@ var (
 	// Another admin must remove the factor.
 	ErrSecretUnreadable = errors.New("twofactor: the stored secret does not open under the configured key")
 	ErrNotEnrolled      = errors.New("twofactor: not enrolled")
+	// ErrLocked is a factor that has refused [MaxFailures] codes in a row. It
+	// accepts none, right or wrong, until another admin removes it.
+	ErrLocked = errors.New("twofactor: locked after too many wrong codes")
 	// ErrEnrolled is a user whose factor is already proved, asking to enrol
 	// again. Refused: this route is reached with a password alone.
 	ErrEnrolled = errors.New("twofactor: already enrolled")

@@ -458,6 +458,11 @@ var checkCases = []checkCase{
 		accept:     `INSERT INTO staff_totp_credentials (user_id, secret_encrypted, confirmed_at, last_step, mailed_code_digest) SELECT id, '\x0102'::bytea, now(), 12345, NULL FROM users LIMIT 1;`,
 	},
 	{
+		constraint: "staff_totp_failed_attempts_non_negative",
+		reject:     `INSERT INTO staff_totp_credentials (user_id, secret_encrypted, confirmed_at, last_step, failed_attempts) SELECT id, '\x0102'::bytea, now(), 12345, -1 FROM users LIMIT 1;`,
+		accept:     `INSERT INTO staff_totp_credentials (user_id, secret_encrypted, confirmed_at, last_step, failed_attempts) SELECT id, '\x0102'::bytea, now(), 12345, 0 FROM users LIMIT 1;`,
+	},
+	{
 		constraint: "sessions_totp_after_creation",
 		reject: `INSERT INTO sessions (digest, user_id, expires_at, created_at, totp_verified_at)
 		         SELECT sha256('totp-check-a'::bytea), id, now() + interval '1 day',

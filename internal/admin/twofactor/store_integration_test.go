@@ -73,7 +73,7 @@ func TestAVerifyRefusedForABadCodeDoesNotReseal(t *testing.T) {
 	enrol(t, twofactor.NewStore(pool, testKey, nil), userID, email)
 	before := storedSecret(t, userID)
 
-	err := twofactor.NewStore(pool, differentKey, testKey).Verify(t.Context(), userID, "000000")
+	err := twofactor.NewStore(pool, differentKey, testKey).Verify(asActor(t.Context(), userID), userID, "000000")
 	if !errors.Is(err, twofactor.ErrBadCode) {
 		t.Fatalf("Verify with a wrong code = %v, want ErrBadCode", err)
 	}

@@ -111,6 +111,8 @@ var actionLedger = []string{
 	"shipping.zone.prefixes",
 	"spec.add",
 	"spec.remove",
+	"staff.factor.fail",
+	"staff.factor.lock",
 	"staff.factor.remove",
 	"staff.grant",
 	"staff.revoke",

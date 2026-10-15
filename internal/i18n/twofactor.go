@@ -3,10 +3,17 @@ package i18n
 var (
 	KeyAdminPageTwoFactor = key("admin.page.twofactor", Message{ZhHant: "兩階段驗證", En: "Two-factor"})
 
+	// Takes the number of wrong codes in a row that lock the factor.
 	KeyTOTPWrongCode = key("twofactor.wrongcode", Message{
-		ZhHant: "驗證碼不正確，或是已經用過了。請看驗證器上目前的那一組。",
+		ZhHant: "驗證碼不正確，或是已經用過了。請看驗證器上目前的那一組。連續錯 %d 次會鎖住，要請另一位管理員解除。",
 		En: "That code is wrong, or it has already been used. " +
-			"Use the one your authenticator is showing now.",
+			"Use the one your authenticator is showing now. %d wrong codes in a row lock it until another administrator removes it.",
+	})
+
+	KeyTOTPLocked = key("twofactor.locked", Message{
+		ZhHant: "連續輸入錯誤太多次，兩階段驗證已鎖住，不再接受任何驗證碼。請另一位管理員在 /admin/staff 移除後重新設定。",
+		En: "Too many wrong codes in a row, so this second factor is locked and accepts no code. " +
+			"Ask another administrator to remove it at /admin/staff, then set it up again.",
 	})
 
 	KeyTOTPWrongSecret = key("twofactor.wrongsecret", Message{

@@ -831,6 +831,7 @@ type StaffTotpCredential struct {
 	ConfirmedAt      pgtype.Timestamptz
 	LastStep         pgtype.Int8
 	MailedCodeDigest []byte
+	FailedAttempts   int32
 	CreatedAt        time.Time
 }
 

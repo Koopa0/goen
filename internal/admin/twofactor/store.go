@@ -15,6 +15,7 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/jackc/pgx/v5/pgxpool"
 
+	"github.com/koopa0/goen/internal/admin/audit"
 	"github.com/koopa0/goen/internal/db"
 	"github.com/koopa0/goen/internal/email"
 	"github.com/koopa0/goen/internal/i18n"
@@ -126,30 +127,126 @@ func (s *Store) Confirm(ctx context.Context, userID, code, mailedCode string) er
 // A secret the current key did not open is sealed again under the current key
 // in that same statement, so a key rotation finishes as staff sign in. Only an
 // accepted code re-seals: a refused one proves nothing about who is asking.
+//
+// Every attempt is charged before its code is checked, by the statement that
+// reads the credential and holds its row until the attempt ends, and an
+// accepted code clears the charges: the consecutive-failure limit of NIST SP
+// 800-63B-4 §3.2.2, kept in the database so that neither concurrent requests
+// nor a restart get past it. The [MaxFailures]th wrong code in a row locks the
+// factor ([ErrLocked]). Each wrong code is an audit row naming the staff member
+// ctx carries. The first after an accepted code, and the one that locks the
+// factor, mail the account's address: a wrong code after the right password
+// may be someone else holding the password, and the mailbox's owner is who can
+// change it (OWASP Multifactor Authentication Cheat Sheet, "Failed Login
+// Attempts"). The charge, the row and the letter commit together.
 func (s *Store) Verify(ctx context.Context, userID, code string) error {
-	cred, err := s.load(ctx, userID, true)
+	if !s.Enabled() {
+		return ErrDisabled
+	}
+	id, err := uuid.Parse(userID)
+	if err != nil {
+		return ErrNotEnrolled
+	}
+
+	tx, err := s.pool.Begin(ctx)
+	if err != nil {
+		return fmt.Errorf("begin totp attempt: %w", err)
+	}
+	defer db.Rollback(ctx, tx)
+	q := s.q.WithTx(tx)
+
+	cred, err := q.ChargeTOTPAttempt(ctx, db.ChargeTOTPAttemptParams{UserID: id, MaxFailures: MaxFailures})
+	if errors.Is(err, pgx.ErrNoRows) {
+		return s.uncharged(ctx, id)
+	}
+	if err != nil {
+		return fmt.Errorf("charge totp attempt: %w", err)
+	}
+	accepted, err := s.judge(ctx, q, id, cred, code)
 	if err != nil {
 		return err
 	}
-	step, err := Verify(cred.secret, code, cred.lastStep, time.Now())
-	if err != nil {
+	if accepted {
+		if err := tx.Commit(ctx); err != nil {
+			return fmt.Errorf("commit totp step: %w", err)
+		}
+		return nil
+	}
+	locked := cred.FailedAttempts >= MaxFailures
+	if err := refuse(ctx, q, id, cred, locked); err != nil {
 		return err
+	}
+	if err := tx.Commit(ctx); err != nil {
+		return fmt.Errorf("commit totp failure: %w", err)
+	}
+	if locked {
+		return ErrLocked
+	}
+	return ErrBadCode
+}
+
+// judge checks code against the charged credential and, if it matches,
+// records its step. The charge holds the row, so the step read with it is
+// still the latest and the write lands; one that does not is refused like any
+// other wrong code. A secret that does not open is an error, and rolls the
+// charge back: no code was judged.
+func (s *Store) judge(ctx context.Context, q *db.Queries, id uuid.UUID, cred db.ChargeTOTPAttemptRow, code string) (bool, error) {
+	secret, current, err := s.cipher.open(cred.SecretEncrypted, id)
+	if err != nil {
+		return false, fmt.Errorf("%w: %w", ErrSecretUnreadable, err)
+	}
+	step, err := Verify(secret, code, cred.LastStep.Int64, time.Now())
+	if err != nil {
+		// A wrong code is the answer, not a failure to reach one.
+		return false, nil
 	}
 	var resealed []byte
-	if !cred.current {
-		resealed, err = s.cipher.seal(cred.secret, cred.id)
-		if err != nil {
-			return fmt.Errorf("reseal totp secret: %w", err)
+	if !current {
+		if resealed, err = s.cipher.seal(secret, id); err != nil {
+			return false, fmt.Errorf("reseal totp secret: %w", err)
 		}
 	}
-	n, err := s.q.RecordTOTPStep(ctx, db.RecordTOTPStepParams{UserID: cred.id, Step: step, Resealed: resealed})
+	n, err := q.RecordTOTPStep(ctx, db.RecordTOTPStepParams{UserID: id, Step: step, Resealed: resealed})
 	if err != nil {
-		return fmt.Errorf("record totp step: %w", err)
+		return false, fmt.Errorf("record totp step: %w", err)
 	}
-	if n == 0 {
-		return ErrBadCode
+	return n == 1, nil
+}
+
+// refuse records a wrong code in the attempt's transaction: an audit row for
+// each, and a letter to the account for the first since an accepted code and
+// for the one that locked the factor.
+func refuse(ctx context.Context, q *db.Queries, id uuid.UUID, cred db.ChargeTOTPAttemptRow, locked bool) error {
+	action := audit.ActionFailStaffFactor
+	if locked {
+		action = audit.ActionLockStaffFactor
 	}
-	return nil
+	// No payload: what was typed is a guess at a live secret.
+	if err := audit.In(ctx, q, audit.Event{Action: action, Table: "users", ID: audit.EntityID(id)}); err != nil {
+		return err
+	}
+	if cred.FailedAttempts != 1 && !locked {
+		return nil
+	}
+	return outbox.Enqueue(ctx, q, outbox.TopicStaffFactorFailure, "staff-factor-failure:"+uuid.NewString(), &email.StaffFactorFailure{
+		Locale: i18n.FromContext(ctx).Tag(), Email: cred.Email, Locked: locked, Limit: MaxFailures,
+	})
+}
+
+// uncharged says why [Store.Verify] could not charge an attempt: there is no
+// confirmed credential, or it is locked.
+func (s *Store) uncharged(ctx context.Context, id uuid.UUID) error {
+	row, err := s.q.TOTPCredential(ctx, id)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return ErrNotEnrolled
+	}
+	if err != nil {
+		return fmt.Errorf("read totp credential: %w", err)
+	}
+	if !row.ConfirmedAt.Valid {
+		return ErrNotEnrolled
+	}
+	return ErrLocked
 }
 
 func (s *Store) Enrolled(ctx context.Context, userID string) (bool, error) {
