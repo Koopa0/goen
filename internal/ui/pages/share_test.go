@@ -47,10 +47,6 @@ func TestEveryPageKindSendsItsOwnLinkPreviewTags(t *testing.T) {
 				`og:image" content="https://goen.test/static/media/campaigns/autumn.webp?v=1"`,
 			},
 		},
-		"about": {
-			AboutMeta(ctx),
-			[]string{`og:title" content="` + i18n.T(ctx, i18n.KeyAboutTitle) + ` · goen"`},
-		},
 		"contact": {
 			contact.ContactMeta(ctx),
 			[]string{
@@ -93,7 +89,6 @@ func TestNoPageNamesAnInventedCompanyOrAddress(t *testing.T) {
 	for _, locale := range []i18n.Locale{i18n.ZhHant, i18n.En} {
 		ctx := i18n.WithLocale(t.Context(), locale)
 		for name, html := range map[string]string{
-			"about":   renderComponent(t, ctx, About(AboutMeta(ctx))),
 			"contact": renderComponent(t, ctx, contact.Contact(contact.ContactMeta(ctx), contact.ContactForm{})),
 			"footer":  renderComponent(t, ctx, layouts.Footer(layouts.NewsletterState{})),
 		} {

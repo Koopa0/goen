@@ -6,7 +6,6 @@ import (
 	"github.com/google/go-cmp/cmp"
 
 	"github.com/koopa0/goen/internal/db"
-	"github.com/koopa0/goen/internal/ui/pages"
 )
 
 func TestFAQGroupsUseCanonicalCategories(t *testing.T) {
@@ -14,7 +13,7 @@ func TestFAQGroupsUseCanonicalCategories(t *testing.T) {
 	for _, tt := range []struct {
 		name string
 		rows []db.FAQEntriesRow
-		want pages.FAQView
+		want FAQView
 	}{
 		{name: "empty"},
 		{
@@ -23,8 +22,8 @@ func TestFAQGroupsUseCanonicalCategories(t *testing.T) {
 				{CanonicalCategory: "Orders", Category: "Orders", Question: "First?", Answer: "First."},
 				{CanonicalCategory: "Orders", Category: "Translated orders", Question: "Second?", Answer: "Second."},
 			},
-			want: pages.FAQView{Groups: []pages.FAQGroup{
-				{Category: "Orders", Items: []pages.FAQItem{
+			want: FAQView{Groups: []FAQGroup{
+				{Category: "Orders", Items: []FAQItem{
 					{Question: "First?", Answer: "First."},
 					{Question: "Second?", Answer: "Second."},
 				}},
@@ -36,9 +35,9 @@ func TestFAQGroupsUseCanonicalCategories(t *testing.T) {
 				{CanonicalCategory: "Orders", Category: "Help", Question: "Order?", Answer: "Order answer."},
 				{CanonicalCategory: "Shipping", Category: "Help", Question: "Shipping?", Answer: "Shipping answer."},
 			},
-			want: pages.FAQView{Groups: []pages.FAQGroup{
-				{Category: "Help", Items: []pages.FAQItem{{Question: "Order?", Answer: "Order answer."}}},
-				{Category: "Help", Items: []pages.FAQItem{{Question: "Shipping?", Answer: "Shipping answer."}}},
+			want: FAQView{Groups: []FAQGroup{
+				{Category: "Help", Items: []FAQItem{{Question: "Order?", Answer: "Order answer."}}},
+				{Category: "Help", Items: []FAQItem{{Question: "Shipping?", Answer: "Shipping answer."}}},
 			}},
 		},
 	} {

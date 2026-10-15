@@ -108,9 +108,6 @@ var dataFilesNamingViews = []string{
 	"internal/product/question.go",
 	"internal/product/review.go",
 	"internal/product/store.go",
-	"internal/site/handler.go",
-	"internal/site/policy.go",
-	"internal/site/store.go",
 }
 
 var viewContracts = []string{
@@ -158,7 +155,6 @@ var storeMethodsNamingViews = map[string]int{
 	"internal/product/question.go":              1,
 	"internal/product/review.go":                1,
 	"internal/product/store.go":                 8,
-	"internal/site/store.go":                    1,
 }
 
 var viewValueReads = map[string]int{

@@ -13,7 +13,6 @@ import (
 
 	"github.com/koopa0/goen/internal/db/dbtest"
 	"github.com/koopa0/goen/internal/i18n"
-	"github.com/koopa0/goen/internal/ui/pages"
 )
 
 func TestFAQTranslationsKeepCanonicalGroupsAndStaffOrder(t *testing.T) {
@@ -44,17 +43,17 @@ func TestFAQTranslationsKeepCanonicalGroupsAndStaffOrder(t *testing.T) {
 			if locale == i18n.En {
 				labels[0], labels[1] = "Shared", "Shared"
 			}
-			want := pages.FAQView{Groups: []pages.FAQGroup{
-				{Category: labels[0], Items: []pages.FAQItem{
+			want := FAQView{Groups: []FAQGroup{
+				{Category: labels[0], Items: []FAQItem{
 					{Question: "A first?", Answer: "A first."},
 					{Question: "A second?", Answer: "A second."},
 					{Question: "A third?", Answer: "A third."},
 				}},
-				{Category: labels[1], Items: []pages.FAQItem{
+				{Category: labels[1], Items: []FAQItem{
 					{Question: "B first?", Answer: "B first."},
 					{Question: "B second?", Answer: "B second."},
 				}},
-				{Category: labels[2], Items: []pages.FAQItem{
+				{Category: labels[2], Items: []FAQItem{
 					{Question: "C first?", Answer: "C first."},
 					{Question: "C second?", Answer: "C second."},
 				}},
