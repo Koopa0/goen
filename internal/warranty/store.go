@@ -16,7 +16,6 @@ import (
 
 	"github.com/koopa0/goen/internal/db"
 	"github.com/koopa0/goen/internal/shoptime"
-	"github.com/koopa0/goen/internal/ui/pages"
 )
 
 type Store struct {
@@ -30,25 +29,25 @@ func NewStore(pool *pgxpool.Pool) *Store {
 	return &Store{q: db.New(pool)}
 }
 
-func (s *Store) Registrable(ctx context.Context, orderNumber, userID string) (pages.WarrantyOrderView, error) {
+func (s *Store) Registrable(ctx context.Context, orderNumber, userID string) (WarrantyOrderView, error) {
 	owner, err := uuid.Parse(userID)
 	if err != nil {
-		return pages.WarrantyOrderView{}, ErrNotFound
+		return WarrantyOrderView{}, ErrNotFound
 	}
 	rows, err := s.q.RegistrableLines(ctx, db.RegistrableLinesParams{
 		OrderNumber: pgtype.Text{String: orderNumber, Valid: true}, UserID: uuid.NullUUID{UUID: owner, Valid: true},
 	})
 	if err != nil {
-		return pages.WarrantyOrderView{}, fmt.Errorf("read registrable lines: %w", err)
+		return WarrantyOrderView{}, fmt.Errorf("read registrable lines: %w", err)
 	}
 	if len(rows) == 0 {
-		return pages.WarrantyOrderView{}, ErrNotFound
+		return WarrantyOrderView{}, ErrNotFound
 	}
 
-	view := pages.WarrantyOrderView{Number: orderNumber}
+	view := WarrantyOrderView{Number: orderNumber}
 	for i := range rows {
 		r := &rows[i]
-		view.Lines = append(view.Lines, pages.WarrantyLine{
+		view.Lines = append(view.Lines, WarrantyLine{
 			ID: r.OrderLineID.String(), Name: r.ProductName,
 			Label: r.VariantLabel.String, Slug: r.ProductSlug.String,
 			Note: r.WarrantyNote, Months: int(r.WarrantyMonths.Int32),
@@ -60,7 +59,7 @@ func (s *Store) Registrable(ctx context.Context, orderNumber, userID string) (pa
 	}
 	registered, err := s.Mine(ctx, userID)
 	if err != nil {
-		return pages.WarrantyOrderView{}, err
+		return WarrantyOrderView{}, err
 	}
 	lastUnits := make(map[string]int)
 	for i := range registered {
@@ -80,8 +79,8 @@ func (s *Store) Registrable(ctx context.Context, orderNumber, userID string) (pa
 	return view, nil
 }
 
-func warrantyLine(r *db.RegistrableLinesRow) pages.WarrantyLine {
-	line := pages.WarrantyLine{
+func warrantyLine(r *db.RegistrableLinesRow) WarrantyLine {
+	line := WarrantyLine{
 		ID: r.OrderLineID.String(), Name: r.ProductName,
 		Label: r.VariantLabel.String, Slug: r.ProductSlug.String,
 		Note: r.WarrantyNote, Months: int(r.WarrantyMonths.Int32),
@@ -101,7 +100,7 @@ func warrantyCoverEnd(date time.Time, hasExpiry bool) *shoptime.Date {
 	return &day
 }
 
-func (s *Store) Ready(ctx context.Context, userID string) ([]pages.WarrantyReady, error) {
+func (s *Store) Ready(ctx context.Context, userID string) ([]WarrantyReady, error) {
 	owner, err := uuid.Parse(userID)
 	if err != nil {
 		return nil, ErrNotFound
@@ -112,12 +111,12 @@ func (s *Store) Ready(ctx context.Context, userID string) ([]pages.WarrantyReady
 	if err != nil {
 		return nil, err
 	}
-	ready := make([]pages.WarrantyReady, 0, len(rows))
+	ready := make([]WarrantyReady, 0, len(rows))
 	for i := range rows {
 		row := &rows[i]
 		line := warrantyLine(row)
 		if line.Registrable() && line.CoverEnds != nil {
-			ready = append(ready, pages.WarrantyReady{Number: row.OrderNumber, Line: line})
+			ready = append(ready, WarrantyReady{Number: row.OrderNumber, Line: line})
 		}
 	}
 	return ready, nil
@@ -170,7 +169,7 @@ func (s *Store) Register(ctx context.Context, orderNumber, lineID, userID, seria
 	return nil
 }
 
-func (s *Store) Mine(ctx context.Context, userID string) ([]pages.Warranty, error) {
+func (s *Store) Mine(ctx context.Context, userID string) ([]Warranty, error) {
 	owner, err := uuid.Parse(userID)
 	if err != nil {
 		return nil, nil //nolint:nilerr // an unparseable id has registered nothing
@@ -188,11 +187,11 @@ func (s *Store) Mine(ctx context.Context, userID string) ([]pages.Warranty, erro
 		return nil, fmt.Errorf("read returned orders: %w", err)
 	}
 	now := time.Now()
-	out := make([]pages.Warranty, 0, len(rows))
+	out := make([]Warranty, 0, len(rows))
 	for i := range rows {
 		r := &rows[i]
 		gone := slices.Contains(returned, r.OrderID)
-		out = append(out, pages.Warranty{
+		out = append(out, Warranty{
 			LineID: r.OrderLineID.String(),
 			Name:   r.ProductName, Label: r.VariantLabel.String,
 			Slug: r.ProductSlug, Order: r.OrderNumber,

@@ -65,7 +65,6 @@ var viewPackageImporters = []string{
 	"internal/product",
 	"internal/returns/buyer",
 	"internal/site",
-	"internal/warranty",
 }
 
 var dataFilesNamingViews = []string{
@@ -124,7 +123,6 @@ var dataFilesNamingViews = []string{
 	"internal/site/handler.go",
 	"internal/site/policy.go",
 	"internal/site/store.go",
-	"internal/warranty/store.go",
 }
 
 var viewContracts = []string{
@@ -180,7 +178,6 @@ var storeMethodsNamingViews = map[string]int{
 	"internal/product/review.go":                1,
 	"internal/product/store.go":                 8,
 	"internal/site/store.go":                    1,
-	"internal/warranty/store.go":                3,
 }
 
 var viewValueReads = map[string]int{
