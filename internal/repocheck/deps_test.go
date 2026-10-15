@@ -37,6 +37,7 @@ type importRule struct {
 var exceptions = map[string]string{
 	"internal/ui/layouts -> internal/web":                  "T31",
 	"internal/web -> internal/ui/components":               "T31",
+	"internal/admin/content -> internal/home":              "T66",
 	"internal/i18n -> internal/shipping":                   "T27",
 	"internal/admin/admintest -> internal/admin/invoicing": "T48",
 	"internal/admin/admintest -> internal/admin/orders":    "T48",
@@ -75,6 +76,17 @@ var (
 		"internal/coupon", "internal/inventory", "internal/invoice", "internal/keyset", "internal/order",
 		"internal/postcode", "internal/product/labelling", "internal/refund",
 		"internal/returns", "internal/shipping", "internal/user",
+	}
+	// storefrontPages are the packages that serve storefront pages. The rule
+	// that uses them leaves out, on purpose: internal/newsletter (its issue
+	// half moves to admin/content in T41), internal/contact (admin/feedback
+	// uses its Subject vocabulary), internal/loyalty (programme rules
+	// admin/loyalty configures), and internal/media and internal/payment
+	// (shared infrastructure). It matches exactly, not by prefix:
+	// internal/product/labelling is a vocabulary leaf that admin/products imports.
+	storefrontPages = []string{
+		"internal/account", "internal/cart", "internal/catalog", "internal/home",
+		"internal/product", "internal/site",
 	}
 	// importFreeLeaves import no goen package at all.
 	importFreeLeaves = []string{
@@ -131,9 +143,9 @@ var depsRules = []importRule{
 			"a desk reaches another desk through an interface it declares",
 	},
 	{
-		name: "desks and catalog",
+		name: "desks and storefront pages",
 		forbid: func(from, to string) bool {
-			return isDesk(from) && under(to, "internal/catalog")
+			return isDesk(from) && slices.Contains(storefrontPages, to)
 		},
 		reason: "the back office does not depend on a storefront page package",
 	},
