@@ -12,6 +12,7 @@ import (
 
 	"github.com/koopa0/goen/internal/i18n"
 	"github.com/koopa0/goen/internal/order"
+	"github.com/koopa0/goen/internal/refund"
 	"github.com/koopa0/goen/internal/ui/pages/admin"
 )
 
@@ -31,7 +32,7 @@ func TestAdvanceKindAcceptsOnlyAMoveTheDeskMakes(t *testing.T) {
 
 type noRefund struct{}
 
-func (noRefund) FillOrder(context.Context, *admin.OrderView, string) (bool, error) { return false, nil }
+func (noRefund) Offer(context.Context, string, int) (refund.Offer, error) { return refund.Offer{}, nil }
 
 func TestThePickingDeskDoesNotOfferShipped(t *testing.T) {
 	t.Parallel()

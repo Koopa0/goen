@@ -123,7 +123,7 @@ func refundNotice(err error) (refundOutcome, bool) {
 }
 
 func (h *Handler) confirmRefundBeforeShipment(w http.ResponseWriter, r *http.Request, number string) bool {
-	view, err := h.store.RefundPreview(r.Context(), number)
+	preview, err := h.store.RefundPreview(r.Context(), number)
 	switch {
 	case errors.Is(err, ErrNotFound):
 		access.NotFound(w, r, h.log)
@@ -138,6 +138,7 @@ func (h *Handler) confirmRefundBeforeShipment(w http.ResponseWriter, r *http.Req
 		access.ServerError(w, r, h.log)
 		return true
 	}
+	view := refundConfirmation(number, &preview)
 	view.Reason = r.PostFormValue("reason")
 	status := http.StatusOK
 	switch {
@@ -153,4 +154,12 @@ func (h *Handler) confirmRefundBeforeShipment(w http.ResponseWriter, r *http.Req
 	}
 	web.Render(w, r, h.log, status, admin.ConfirmRefund(layouts.Page{Title: i18n.T(r.Context(), i18n.KeyAdminRefundTitle)}, view))
 	return true
+}
+
+func refundConfirmation(number string, p *Preview) admin.RefundConfirmation {
+	return admin.RefundConfirmation{
+		OrderNumber: number, TotalCents: p.TotalCents,
+		CardCents: p.CardCents, CreditCents: p.CreditCents,
+		Resume: p.Open, CreditPaid: p.CreditPaid,
+	}
 }

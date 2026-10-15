@@ -37,17 +37,10 @@ var (
 	ErrUnsentAllowance = errors.New("refunds: the unsent refund settled and its allowance was not filed")
 )
 
-// UnsentUnit is one line of a refund of units an order will not send.
-type UnsentUnit struct {
-	LineID      uuid.UUID
-	Name, Label string
-	Quantity    int32
-}
-
 // UnsentRefund is a refund of unsent units as its approval freezes it: open
 // already, or what confirming a press would open.
 type UnsentRefund struct {
-	Units                               []UnsentUnit
+	Units                               []refund.UnsentUnit
 	Reason                              returns.UnsentReason
 	RefundCents, CardCents, CreditCents int64
 	Open                                bool
@@ -110,7 +103,7 @@ func unsentOffered(status order.FulfillmentStatus, owed int) bool {
 // unsentOnOrder is the refund of unsent units as the order page offers it:
 // offered while owed units remain, or open for Resume with the units it
 // covers.
-func (s *Store) unsentOnOrder(ctx context.Context, number string, owed int) (offered bool, open []UnsentUnit, err error) {
+func (s *Store) unsentOnOrder(ctx context.Context, number string, owed int) (offered bool, open []refund.UnsentUnit, err error) {
 	st, err := s.q.UnsentRefundState(ctx, number)
 	if err != nil {
 		return false, nil, fmt.Errorf("read the unsent refund of %s: %w", number, err)
@@ -122,20 +115,20 @@ func (s *Store) unsentOnOrder(ctx context.Context, number string, owed int) (off
 	return false, open, err
 }
 
-func unsentUnits(ctx context.Context, q *db.Queries, returnID uuid.UUID) ([]UnsentUnit, error) {
+func unsentUnits(ctx context.Context, q *db.Queries, returnID uuid.UUID) ([]refund.UnsentUnit, error) {
 	rows, err := q.UnsentRefundLines(ctx, returnID)
 	if err != nil {
 		return nil, fmt.Errorf("read the lines of unsent refund %s: %w", returnID, err)
 	}
-	units := make([]UnsentUnit, len(rows))
+	units := make([]refund.UnsentUnit, len(rows))
 	for i, r := range rows {
-		units[i] = UnsentUnit{LineID: r.OrderLineID, Name: r.ProductName, Label: r.VariantLabel, Quantity: r.Quantity}
+		units[i] = refund.UnsentUnit{LineID: r.OrderLineID, Name: r.ProductName, Label: r.VariantLabel, Quantity: r.Quantity}
 	}
 	return units, nil
 }
 
 // sameUnits reports whether the request names exactly the units of a refund.
-func sameUnits(units []UnsentUnit, req *UnsentRequest) bool {
+func sameUnits(units []refund.UnsentUnit, req *UnsentRequest) bool {
 	named := req.named()
 	if len(named) != len(units) {
 		return false
