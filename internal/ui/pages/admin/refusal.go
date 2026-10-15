@@ -5,15 +5,6 @@ import (
 	"github.com/koopa0/goen/internal/ui/layouts"
 )
 
-func (v VariantsView) Refusals() []layouts.Refusal {
-	out := make([]layouts.Refusal, 0, len(v.Variants))
-	for i := range v.Variants {
-		row := &v.Variants[i]
-		out = append(out, layouts.SummarizeRefusal(i18n.KeyAdminRefusalStock, map[string]string{"delta": row.DeltaError}, layouts.RefusalField{Key: "delta", ID: "adj-" + row.SKU}))
-	}
-	return out
-}
-
 func (v ReturnsView) InspectionRefusals() []layouts.Refusal {
 	out := make([]layouts.Refusal, 0, len(v.Rows))
 	for i := range v.Rows {
