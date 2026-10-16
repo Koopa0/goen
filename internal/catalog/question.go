@@ -1,4 +1,4 @@
-package product
+package catalog
 
 import (
 	"context"
@@ -19,7 +19,7 @@ const (
 	MaxQuestions     = 10
 )
 
-var ErrQuestionInvalid = errors.New("product: the question or answer is not usable")
+var ErrQuestionInvalid = errors.New("catalog: the question or answer is not usable")
 
 // ErrQuestionTooLong is a question over MaxQuestionRunes, kept apart from an
 // empty one so the refusal can name the limit instead of asking for a question

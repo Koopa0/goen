@@ -5,7 +5,6 @@ import (
 	"errors"
 	"log/slog"
 	"net/http"
-	"regexp"
 	"runtime/debug"
 	"strings"
 	"time"
@@ -14,6 +13,7 @@ import (
 
 	"github.com/koopa0/goen/assets"
 	"github.com/koopa0/goen/internal/cart"
+	"github.com/koopa0/goen/internal/catalog"
 	"github.com/koopa0/goen/internal/i18n"
 	"github.com/koopa0/goen/internal/ui/layouts"
 	"github.com/koopa0/goen/internal/user"
@@ -312,29 +312,12 @@ func (s *statusRecorder) statusCode() int {
 	return s.status
 }
 
-var slugFormat = regexp.MustCompile(`^[a-z0-9]+(-[a-z0-9]+)*$`)
-
-// productFormSlug is the product a refused review or question form re-rendered
-// under: those POST-only addresses have no page of their own to return to.
-func productFormSlug(path string) (string, bool) {
-	rest, ok := strings.CutPrefix(path, "/p/")
-	if !ok {
-		return "", false
-	}
-	for _, form := range []string{"/reviews", "/questions"} {
-		if slug, ok := strings.CutSuffix(rest, form); ok && slugFormat.MatchString(slug) {
-			return slug, true
-		}
-	}
-	return "", false
-}
-
 // localeReturnPath is where a language switch sends the visitor back: the page
 // they are on, query string included, so a search term, a filter or a chosen
 // option survives the switch. The switch's handler still refuses anything but a
 // same-site path.
 func localeReturnPath(r *http.Request) string {
-	if slug, ok := productFormSlug(r.URL.Path); ok {
+	if slug, ok := catalog.ProductFormSlug(r.URL.Path); ok {
 		return "/p/" + slug
 	}
 	return r.URL.RequestURI()

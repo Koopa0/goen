@@ -1,16 +1,12 @@
-// Package product renders goen's product detail page.
-package product
+package catalog
 
 import (
-	"errors"
 	"maps"
 	"net/url"
 	"strings"
 	"time"
 	"unicode/utf8"
 )
-
-var ErrNotFound = errors.New("product: not found")
 
 const RelatedCount = 4
 

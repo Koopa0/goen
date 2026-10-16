@@ -3,6 +3,7 @@
 package campaigns_test
 
 import (
+	"log/slog"
 	"net/url"
 	"testing"
 
@@ -18,7 +19,7 @@ import (
 // campaign has something to buy.
 func TestTheShopListCountAndBackOfficeAgreeOnWhatIsBuyable(t *testing.T) {
 	ctx, _ := admintest.StaffContext(t, pool)
-	shop := catalog.NewStore(pool)
+	shop := catalog.NewStore(pool, slog.New(slog.DiscardHandler))
 	office := campaigns.NewStore(pool)
 
 	tests := []struct {

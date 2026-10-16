@@ -16,7 +16,7 @@ import (
 )
 
 func TestMissingCampaignOffersCurrentDeals(t *testing.T) {
-	h := catalog.NewHandler(catalog.NewStore(pool), slog.New(slog.DiscardHandler))
+	h := catalog.NewHandler(catalog.NewStore(pool, slog.New(slog.DiscardHandler)), slog.New(slog.DiscardHandler), "https://goen.example")
 	for _, locale := range i18n.Locales() {
 		r := httptest.NewRequestWithContext(i18n.WithLocale(t.Context(), locale), http.MethodGet, "/s/missing", http.NoBody)
 		r.SetPathValue("slug", "missing-"+uuid.NewString())

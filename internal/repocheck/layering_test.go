@@ -49,7 +49,6 @@ var viewPackageImporters = []string{
 	"internal/catalog",
 	"internal/home",
 	"internal/order/buyer",
-	"internal/product",
 }
 
 var dataFilesNamingViews = []string{
@@ -70,13 +69,13 @@ var dataFilesNamingViews = []string{
 	"internal/catalog/campaign.go",
 	"internal/catalog/compare.go",
 	"internal/catalog/department.go",
+	"internal/catalog/product_store.go",
+	"internal/catalog/question.go",
+	"internal/catalog/review.go",
 	"internal/catalog/store.go",
 	"internal/home/hero.go",
 	"internal/home/store.go",
 	"internal/order/buyer/order.go",
-	"internal/product/question.go",
-	"internal/product/review.go",
-	"internal/product/store.go",
 }
 
 var viewContracts = []string{
@@ -93,25 +92,25 @@ var storeMethodsNamingViews = map[string]int{
 	"internal/catalog/campaign.go":             2,
 	"internal/catalog/compare.go":              3,
 	"internal/catalog/department.go":           5,
+	"internal/catalog/product_store.go":        8,
+	"internal/catalog/question.go":             1,
+	"internal/catalog/review.go":               1,
 	"internal/catalog/store.go":                7,
 	"internal/home/hero.go":                    1,
 	"internal/home/store.go":                   5,
 	"internal/order/buyer/order.go":            4,
-	"internal/product/question.go":             1,
-	"internal/product/review.go":               1,
-	"internal/product/store.go":                8,
 }
 
 var viewValueReads = map[string]int{
-	"cmd/goen/server.go":             2,
-	"internal/auth/handler.go":       2,
-	"internal/cart/handler.go":       11,
-	"internal/cart/store.go":         3,
-	"internal/catalog/compare.go":    3,
-	"internal/catalog/department.go": 2,
-	"internal/catalog/store.go":      2,
-	"internal/product/handler.go":    8,
-	"internal/product/review.go":     12,
+	"cmd/goen/server.go":                  2,
+	"internal/auth/handler.go":            2,
+	"internal/cart/handler.go":            11,
+	"internal/cart/store.go":              3,
+	"internal/catalog/compare.go":         3,
+	"internal/catalog/department.go":      2,
+	"internal/catalog/product_handler.go": 8,
+	"internal/catalog/review.go":          12,
+	"internal/catalog/store.go":           2,
 }
 
 const (

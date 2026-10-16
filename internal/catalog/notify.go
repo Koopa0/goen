@@ -1,4 +1,4 @@
-package product
+package catalog
 
 import (
 	"context"
@@ -12,7 +12,7 @@ import (
 	"github.com/koopa0/goen/internal/i18n"
 )
 
-var ErrNotifyInvalid = errors.New("product: invalid restock request")
+var ErrNotifyInvalid = errors.New("catalog: invalid restock request")
 
 func (s *Store) RequestRestockNotice(ctx context.Context, slug, variantID, addr, userID string) error {
 	vid, err := uuid.Parse(variantID)

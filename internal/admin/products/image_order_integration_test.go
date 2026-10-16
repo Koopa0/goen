@@ -20,7 +20,6 @@ import (
 	"github.com/koopa0/goen/internal/admin/products"
 	"github.com/koopa0/goen/internal/catalog"
 	"github.com/koopa0/goen/internal/i18n"
-	"github.com/koopa0/goen/internal/product"
 )
 
 // imageOrderProduct is an active, buyable product with n images, oldest first.
@@ -120,11 +119,11 @@ func TestSettingTheCoverAndReorderingChangesTheFirstImageEverywhere(t *testing.T
 	slug, token, keys := imageOrderProduct(t, 3)
 	firstEverywhere := func(want string) {
 		t.Helper()
-		view, err := product.NewStore(pool, slog.New(slog.DiscardHandler)).Load(ctx, slug, product.Selection{})
+		view, err := catalog.NewStore(pool, slog.New(slog.DiscardHandler)).Product(ctx, slug, catalog.Selection{})
 		if err != nil || len(view.Images) == 0 || !strings.Contains(view.Images[0].URL, want) {
 			t.Fatalf("product page first image = %+v (err %v), want %s", view.Images, err, want)
 		}
-		found, err := catalog.NewStore(pool).Search(ctx, catalog.SearchPattern(token), catalog.SortRelevance, 1)
+		found, err := catalog.NewStore(pool, slog.New(slog.DiscardHandler)).Search(ctx, catalog.SearchPattern(token), catalog.SortRelevance, 1)
 		if err != nil || len(found.Products) != 1 || !strings.Contains(found.Products[0].ImageURL, want) {
 			t.Fatalf("card image = %+v (err %v), want %s", found.Products, err, want)
 		}

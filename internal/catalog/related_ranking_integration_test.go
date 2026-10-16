@@ -1,6 +1,6 @@
 //go:build integration
 
-package product_test
+package catalog_test
 
 import (
 	"fmt"
@@ -13,10 +13,10 @@ import (
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
 
+	"github.com/koopa0/goen/internal/catalog"
 	"github.com/koopa0/goen/internal/db"
 	"github.com/koopa0/goen/internal/i18n"
 	"github.com/koopa0/goen/internal/money"
-	"github.com/koopa0/goen/internal/product"
 	"github.com/koopa0/goen/internal/shoptime"
 )
 
@@ -185,7 +185,7 @@ func TestRelatedProductsRankContentBeforeRecency(t *testing.T) {
 			}
 			q := db.New(tx)
 			for _, locale := range []i18n.Locale{i18n.ZhHant, i18n.En} {
-				for _, limit := range []int32{1, product.RelatedCount} {
+				for _, limit := range []int32{1, catalog.RelatedCount} {
 					rows, err := q.RelatedProducts(ctx, db.RelatedProductsParams{
 						Locale: string(locale), CategoryID: categoryID, ExcludeID: referenceID, RowLimit: limit,
 					})

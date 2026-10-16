@@ -1,4 +1,4 @@
-package product
+package catalog
 
 import (
 	"bytes"
@@ -47,7 +47,7 @@ func TestDetailOfAnAbandonedRequestLogsNothing(t *testing.T) {
 	r.SetPathValue("slug", "nimbus-band-2")
 	w := httptest.NewRecorder()
 
-	h.Detail(w, r)
+	h.Product(w, r)
 
 	if logs.Len() != 0 {
 		t.Errorf("an abandoned request logged %q", logs.String())
@@ -70,7 +70,7 @@ func TestDetailStillLogsALoadThatFailsForGoensReason(t *testing.T) {
 	r := httptest.NewRequestWithContext(ctx, http.MethodGet, "/p/nimbus-band-2", http.NoBody)
 	r.SetPathValue("slug", "nimbus-band-2")
 
-	h.Detail(httptest.NewRecorder(), r)
+	h.Product(httptest.NewRecorder(), r)
 
 	if !strings.Contains(logs.String(), "load product") {
 		t.Errorf("a deadline was not logged as a load failure: %q", logs.String())
