@@ -23,6 +23,11 @@ type User struct {
 	Role  Role
 }
 
+// MaxNameRunes bounds users.full_name, which registration, Google sign-in and
+// the profile form all write. The server owns the bound because a raw HTTP
+// client never sees the forms' maxlength hints.
+const MaxNameRunes = 60
+
 func (u User) IsStaff() bool { return u.Role == RoleStaff || u.Role == RoleAdmin }
 
 func (u User) IsAdmin() bool { return u.Role == RoleAdmin }

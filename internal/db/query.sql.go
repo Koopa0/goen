@@ -7059,7 +7059,7 @@ type CustomerByEmailRow struct {
 	FullName string
 }
 
-// internal/account already defines UserByEmail for sign-in and sqlc generates
+// internal/auth already defines UserByEmail for sign-in and sqlc generates
 // one db package, so this one is named for what it is FOR. It also selects less:
 // the back office has no business reading a password hash.
 func (q *Queries) CustomerByEmail(ctx context.Context, email string) (CustomerByEmailRow, error) {

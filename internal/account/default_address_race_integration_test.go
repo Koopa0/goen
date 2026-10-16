@@ -49,7 +49,7 @@ func runDefaultAddressRace(t *testing.T, firstKind, secondKind addressWrite) {
 	ctx, cancel := context.WithTimeout(t.Context(), 20*time.Second)
 	defer cancel()
 	ownerStore := account.NewStore(pool)
-	u := register(t, ownerStore, "default-race-"+uuid.NewString()+"@goen.invalid")
+	u := register(t, "default-race-"+uuid.NewString()+"@goen.invalid")
 	t.Cleanup(func() {
 		cleanupCtx, cleanupCancel := context.WithTimeout(context.WithoutCancel(t.Context()), 5*time.Second)
 		defer cleanupCancel()
@@ -98,8 +98,8 @@ func runDefaultAddressRace(t *testing.T, firstKind, secondKind addressWrite) {
 	}
 	var workers sync.WaitGroup
 	t.Cleanup(func() { cancel(); workers.Wait() })
-	firstHandler := account.NewHandler(account.NewStore(firstPool), nil, slog.New(slog.DiscardHandler), false, nil)
-	secondHandler := account.NewHandler(account.NewStore(secondPool), nil, slog.New(slog.DiscardHandler), false, nil)
+	firstHandler := account.NewHandler(account.NewStore(firstPool), slog.New(slog.DiscardHandler), false, false)
+	secondHandler := account.NewHandler(account.NewStore(secondPool), slog.New(slog.DiscardHandler), false, false)
 	firstDone := startDefaultAddressRequest(ctx, &workers, firstHandler, u, firstKind, firstID, "first added")
 	// A selection holds the account lock before its address UPDATE; an addition
 	// waits at the held account row before clearing any default.

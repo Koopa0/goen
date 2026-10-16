@@ -15,7 +15,7 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 	"golang.org/x/net/html"
 
-	"github.com/koopa0/goen/internal/account"
+	"github.com/koopa0/goen/internal/auth"
 	"github.com/koopa0/goen/internal/i18n"
 	"github.com/koopa0/goen/internal/loyalty"
 )
@@ -40,7 +40,7 @@ func pointsStorePool(t *testing.T) *pgxpool.Pool {
 
 func pointsRoutes(application *pgxpool.Pool, points *loyalty.Handler) http.Handler {
 	log := slog.New(slog.DiscardHandler)
-	customers := account.NewHandler(account.NewStore(application), nil, log, false, nil)
+	customers := auth.NewHandler(auth.NewStore(application), nil, nil, log, false, nil)
 	mux := http.NewServeMux()
 	// Both customer routes use the one rewards handler, as in server.go.
 	mux.HandleFunc("GET /account/points", customers.RequireUser(points.Page))
@@ -50,12 +50,12 @@ func pointsRoutes(application *pgxpool.Pool, points *loyalty.Handler) http.Handl
 
 func newPointsJourney(t *testing.T, owner string, application *pgxpool.Pool, points *loyalty.Handler) pointsJourney {
 	t.Helper()
-	token, err := account.NewStore(application).StartSession(t.Context(), owner, "points feedback", "127.0.0.1")
+	token, err := auth.NewStore(application).StartSession(t.Context(), owner, "points feedback", "127.0.0.1")
 	if err != nil {
 		t.Fatal(err)
 	}
 	cookies := httptest.NewRecorder()
-	account.SetSessionCookie(cookies, token, false)
+	auth.SetSessionCookie(cookies, token, false)
 	return pointsJourney{t: t, router: pointsRoutes(application, points), cookie: cookies.Result().Cookies()[0]}
 }
 
