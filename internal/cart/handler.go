@@ -1573,32 +1573,6 @@ func (h *Handler) ReorderItems(w http.ResponseWriter, r *http.Request) {
 	http.Redirect(w, r, "/cart?"+outcome.Encode(), http.StatusSeeOther)
 }
 
-func (h *Handler) CancelOrder(w http.ResponseWriter, r *http.Request) {
-	number := r.PathValue("number")
-	if !h.allows(r, number) {
-		web.Render(w, r, h.log, http.StatusNotFound, layouts.OrderNotFound(h.notFoundPage(r)))
-		return
-	}
-
-	err := h.store.CancelOrder(r.Context(), number)
-	switch {
-	case err == nil:
-		http.Redirect(w, r, "/orders/"+url.PathEscape(number)+"?cancelled=1", http.StatusSeeOther)
-	case errors.Is(err, ErrNotCancellable):
-		// 422, not a redirect: nothing was written.
-		web.Render(w, r, h.log, http.StatusUnprocessableEntity, layouts.Notice(
-			layouts.Page{Title: i18n.T(r.Context(), i18n.KeyCancelRefusedTitle)}, "",
-			i18n.T(r.Context(), i18n.KeyCancelRefusedTitle),
-			i18n.T(r.Context(), i18n.KeyCancelRefusedBody), layouts.NoticeActions{
-				Primary:   layouts.NoticeLink{Href: "/orders/" + url.PathEscape(number), Label: i18n.KeyBackToOrder},
-				Secondary: layouts.NoticeLink{Href: "/contact", Label: i18n.KeyContact},
-			}))
-	default:
-		h.log.ErrorContext(r.Context(), "cancel order", "error", err)
-		h.serverError(w, r)
-	}
-}
-
 func (h *Handler) allows(r *http.Request, number string) bool {
 	ok, err := h.access.Allows(r, number)
 	if err != nil {

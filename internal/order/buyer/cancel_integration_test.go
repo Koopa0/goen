@@ -1,6 +1,6 @@
 //go:build integration
 
-package cart_test
+package buyer_test
 
 import (
 	"context"
@@ -13,16 +13,15 @@ import (
 	"time"
 
 	"github.com/google/uuid"
-	"github.com/jackc/pgx/v5/pgconn"
 
-	"github.com/koopa0/goen/internal/cart"
+	"github.com/koopa0/goen/internal/i18n"
 	"github.com/koopa0/goen/internal/order/access"
-	"github.com/koopa0/goen/internal/ratelimit"
+	"github.com/koopa0/goen/internal/order/buyer"
 )
 
 func TestCancellingAnOrderPutsTheStockBack(t *testing.T) {
 	ctx := t.Context()
-	s := cart.NewStore(pool)
+	s := buyer.NewStore(pool)
 	vid := freshVariant(t, "stockfix-8")
 
 	orderID := heldOrder(t, vid, -time.Hour, false) // held, not yet expired, unpaid
@@ -92,7 +91,7 @@ func TestExpiryWinningTheOrderLockDoesNotPoisonCancellation(t *testing.T) {
 	cancelPool := applicationPool(t, "cancel-behind-sweep")
 	cancelDone := make(chan error, 1)
 	go func() {
-		cancelErr := cart.NewStore(cancelPool).CancelOrder(ctx, number)
+		cancelErr := buyer.NewStore(cancelPool).CancelOrder(ctx, number)
 		cancelDone <- cancelErr
 	}()
 	waitForApplicationLock(t, "cancel-behind-sweep", cancelDone)
@@ -134,14 +133,14 @@ func TestExpiryWinningTheOrderLockDoesNotPoisonCancellation(t *testing.T) {
 
 func TestAFundedOrderCannotBeCancelledByItsCustomer(t *testing.T) {
 	ctx := t.Context()
-	s := cart.NewStore(pool)
+	s := buyer.NewStore(pool)
 	vid := freshVariant(t, "stockfix-9")
 
 	orderID := heldOrder(t, vid, -time.Hour, true) // paid
 	number := numberOf(t, orderID)
 	before := stockOf(t, vid)
 
-	if err := s.CancelOrder(ctx, number); !errors.Is(err, cart.ErrNotCancellable) {
+	if err := s.CancelOrder(ctx, number); !errors.Is(err, buyer.ErrNotCancellable) {
 		t.Fatalf("a paid order was cancellable: %v", err)
 	}
 	if got := stockOf(t, vid); got != before {
@@ -159,7 +158,7 @@ func TestAFundedOrderCannotBeCancelledByItsCustomer(t *testing.T) {
 
 func TestCancellingTwiceIsRefusedTheSecondTime(t *testing.T) {
 	ctx := t.Context()
-	s := cart.NewStore(pool)
+	s := buyer.NewStore(pool)
 	vid := freshVariant(t, "stockfix-10")
 
 	number := numberOf(t, heldOrder(t, vid, -time.Hour, false))
@@ -168,7 +167,7 @@ func TestCancellingTwiceIsRefusedTheSecondTime(t *testing.T) {
 	}
 	after := stockOf(t, vid)
 
-	if err := s.CancelOrder(ctx, number); !errors.Is(err, cart.ErrNotCancellable) {
+	if err := s.CancelOrder(ctx, number); !errors.Is(err, buyer.ErrNotCancellable) {
 		t.Errorf("the second cancellation was accepted: %v", err)
 	}
 	if got := stockOf(t, vid); got != after {
@@ -178,7 +177,7 @@ func TestCancellingTwiceIsRefusedTheSecondTime(t *testing.T) {
 
 func TestCancellingAnOrderThatIsBeingPickedIsRefused(t *testing.T) {
 	ctx := t.Context()
-	s := cart.NewStore(pool)
+	s := buyer.NewStore(pool)
 	vid := freshVariant(t, "stockfix-11")
 
 	orderID := heldOrder(t, vid, -time.Hour, true) // funded, so it may leave pending
@@ -188,14 +187,14 @@ func TestCancellingAnOrderThatIsBeingPickedIsRefused(t *testing.T) {
 		t.Fatalf("move to picking: %v", err)
 	}
 
-	if err := s.CancelOrder(ctx, number); !errors.Is(err, cart.ErrNotCancellable) {
+	if err := s.CancelOrder(ctx, number); !errors.Is(err, buyer.ErrNotCancellable) {
 		t.Errorf("an order being picked was cancellable: %v", err)
 	}
 }
 
 func TestCancellingAnOrderThatDoesNotExistIsTheSameRefusal(t *testing.T) {
-	s := cart.NewStore(pool)
-	if err := s.CancelOrder(t.Context(), "GO-990101-999999"); !errors.Is(err, cart.ErrNotCancellable) {
+	s := buyer.NewStore(pool)
+	if err := s.CancelOrder(t.Context(), "GO-990101-999999"); !errors.Is(err, buyer.ErrNotCancellable) {
 		t.Errorf("an unknown order answered %v, want ErrNotCancellable", err)
 	}
 }
@@ -205,7 +204,7 @@ func TestCancellingAnOrderThatDoesNotExistIsTheSameRefusal(t *testing.T) {
 // held the release refuses first, and only the WHERE clause is left here.
 func TestAFundedOrderWithNoHeldStockIsStillRefused(t *testing.T) {
 	ctx := t.Context()
-	s := cart.NewStore(pool)
+	s := buyer.NewStore(pool)
 	vid := freshVariant(t, "stockfix-12")
 
 	orderID := heldOrder(t, vid, -time.Hour, true) // funded
@@ -219,7 +218,7 @@ func TestAFundedOrderWithNoHeldStockIsStillRefused(t *testing.T) {
 		t.Fatalf("consume: %v", err)
 	}
 
-	if err := s.CancelOrder(ctx, number); !errors.Is(err, cart.ErrNotCancellable) {
+	if err := s.CancelOrder(ctx, number); !errors.Is(err, buyer.ErrNotCancellable) {
 		t.Fatalf("a paid order with no held stock was cancellable: %v", err)
 	}
 	var status string
@@ -234,13 +233,13 @@ func TestAFundedOrderWithNoHeldStockIsStillRefused(t *testing.T) {
 
 func TestAStrangerCannotCancelSomebodyElsesOrder(t *testing.T) {
 	ctx := t.Context()
-	s := cart.NewStore(pool)
+	s := buyer.NewStore(pool)
 	vid := freshVariant(t, "stockfix-13")
 	orderID := heldOrder(t, vid, -time.Hour, false)
 	number := numberOf(t, orderID)
 	before := stockOf(t, vid)
 
-	h := cart.NewHandler(s, access.NewStore(pool, false), slog.New(slog.DiscardHandler), false, ratelimit.New(ratelimit.Config{Every: time.Millisecond, Burst: 1000, TTL: time.Hour, MaxKeys: 1000}), nil, nil)
+	h := buyer.NewHandler(s, access.NewStore(pool, false), slog.New(slog.DiscardHandler))
 
 	stranger := httptest.NewRequestWithContext(ctx, http.MethodPost, "/orders/"+number+"/cancel", http.NoBody)
 	stranger.SetPathValue("number", number)
@@ -264,7 +263,7 @@ func TestAStrangerCannotCancelSomebodyElsesOrder(t *testing.T) {
 
 	placer := httptest.NewRequestWithContext(ctx, http.MethodPost, "/orders/"+number+"/cancel", http.NoBody)
 	placer.SetPathValue("number", number)
-	placer.AddCookie(placedCookie(t, number))
+	placedBy(t, placer, number)
 	ok := httptest.NewRecorder()
 	h.CancelOrder(ok, placer)
 
@@ -276,150 +275,46 @@ func TestAStrangerCannotCancelSomebodyElsesOrder(t *testing.T) {
 	}
 }
 
-// TestACancelledOrdersStockComesBackByEveryDoor. Cancelled is SETTLED and not
-// committed: reading any non-pending status as committed puts a cancelled order
-// on the wrong side of both doors, and its units come back by no route at all.
-func TestACancelledOrdersStockComesBackByEveryDoor(t *testing.T) {
-	ctx := t.Context()
-	s := cart.NewStore(pool)
-	vid := freshVariant(t, "stockfix-14")
-
-	orderID := heldOrder(t, vid, time.Hour, true) // expired hold, paid
-	refundAndCancel(t, orderID)
-
-	var before int32
-	if err := pool.QueryRow(ctx,
-		`SELECT stock_quantity FROM product_variants WHERE id = $1`, vid).Scan(&before); err != nil {
-		t.Fatalf("read stock: %v", err)
+func TestRefusedCancellationLinksBackToTheOrderAndContact(t *testing.T) {
+	vid := freshVariant(t, "cancel-recovery")
+	orderID := heldOrder(t, vid, -time.Hour, true)
+	number := numberOf(t, orderID)
+	appPool := storeRolePool(t)
+	h := buyer.NewHandler(buyer.NewStore(appPool), access.NewStore(appPool, false), slog.New(slog.DiscardHandler))
+	before := stockOf(t, vid)
+	for _, locale := range i18n.Locales() {
+		r := httptest.NewRequestWithContext(i18n.WithLocale(t.Context(), locale), http.MethodPost, "/orders/"+number+"/cancel", http.NoBody)
+		r.SetPathValue("number", number)
+		placedBy(t, r, number)
+		w := httptest.NewRecorder()
+		h.CancelOrder(w, r)
+		if w.Code != http.StatusUnprocessableEntity {
+			t.Fatalf("refused cancellation status=%d, want 422", w.Code)
+		}
+		actions := orderRecoveryActions(t, w.Body.String(), "/orders/"+number)
+		if !strings.Contains(actions, `href="/contact"`) || strings.Contains(actions, "/contact?") {
+			t.Error("refused cancellation has no contact link without prefilling")
+		}
+		if !strings.Contains(actions, i18n.T(r.Context(), i18n.KeyBackToOrder)) {
+			t.Error("refused cancellation has no back-to-order label")
+		}
 	}
-
-	released, _, err := s.Sweep(ctx, slog.New(slog.DiscardHandler))
-	if err != nil {
-		t.Fatalf("sweep: %v", err)
-	}
-	if released == 0 {
-		t.Fatal("the sweeper released nothing — a cancelled order's hold is still unreachable")
-	}
-
-	var after int32
-	var state string
-	if err := pool.QueryRow(ctx, `
-		SELECT pv.stock_quantity,
-		       (SELECT r.state FROM inventory_reservations r WHERE r.order_id = $2 LIMIT 1)
-		FROM product_variants pv WHERE pv.id = $1`, vid, orderID).Scan(&after, &state); err != nil {
-		t.Fatalf("read stock after: %v", err)
-	}
-	if after != before+1 {
-		t.Errorf("stock is %d after the sweep, want %d", after, before+1)
-	}
-	if state != "released" {
-		t.Errorf("the hold is %s, want released", state)
+	if got := stockOf(t, vid); got != before {
+		t.Errorf("refused cancellation changed stock from %d to %d", before, got)
 	}
 }
 
-// refundAndCancel cancels a paid order the one way the schema admits: a full
-// refund before shipment whose card refund has settled.
-func refundAndCancel(t *testing.T, orderID uuid.UUID) {
+func orderRecoveryActions(t *testing.T, body, primary string) string {
 	t.Helper()
-	ctx := t.Context()
-	var staff, returnID uuid.UUID
-	if err := pool.QueryRow(ctx, `
-		INSERT INTO users (email, role)
-		VALUES ('refund-' || gen_random_uuid() || '@goen.invalid', 'staff') RETURNING id`).Scan(&staff); err != nil {
-		t.Fatalf("create staff: %v", err)
+	_, actions, ok := strings.Cut(body, `class="notice__actions"`)
+	if !ok {
+		t.Fatal("missing order recovery actions")
 	}
-	if err := pool.QueryRow(ctx, `
-		SELECT open_refund_before_shipment(order_number, 'test', $2, 'test')
-		FROM orders WHERE id = $1`, orderID, staff).Scan(&returnID); err != nil {
-		t.Fatalf("refund before shipment: %v", err)
+	actions, _, _ = strings.Cut(actions, "</div>")
+	_, href, _ := strings.Cut(actions, `href="`)
+	href, _, _ = strings.Cut(href, `"`)
+	if href != primary {
+		t.Errorf("primary recovery href=%q, want %q", href, primary)
 	}
-	for _, stmt := range []string{
-		`INSERT INTO refunds (payment_id, return_request_id, request_key, status, amount_cents,
-		                      reason, provider_ref, succeeded_at)
-		 SELECT p.id, r.id, 'return:' || r.id, 'succeeded', r.card_refund_cents,
-		        r.resolution, 're_' || r.id, now()
-		 FROM return_requests r JOIN payments p ON p.order_id = r.order_id AND p.status = 'succeeded'
-		 WHERE r.id = $1`,
-		`INSERT INTO order_events (order_id, kind, note, return_request_id)
-		 SELECT order_id, 'refunded', 're_' || id, id FROM return_requests WHERE id = $1`,
-		`UPDATE orders SET fulfillment_status = 'cancelled', cancelled_at = now()
-		 WHERE id = (SELECT order_id FROM return_requests WHERE id = $1)`,
-	} {
-		if _, err := pool.Exec(ctx, stmt, returnID); err != nil {
-			t.Fatalf("settle the refund and cancel: %v", err)
-		}
-	}
-}
-
-func TestTheShoppersTimelineNeverShowsTheProvidersRefundID(t *testing.T) {
-	ctx := t.Context()
-	vid := freshVariant(t, "refundid-1")
-	orderID := heldOrderFor(t, uuid.NullUUID{}, vid, -time.Hour, true)
-	refundAndCancel(t, orderID)
-
-	var number, staffNote string
-	if err := pool.QueryRow(ctx, `
-		SELECT o.order_number, e.note FROM orders o
-		JOIN order_events e ON e.order_id = o.id AND e.kind = 'refunded'
-		WHERE o.id = $1`, orderID).Scan(&number, &staffNote); err != nil || !strings.HasPrefix(staffNote, "re_") {
-		t.Fatalf("the fixture must keep the refund id on the event: %q, %v", staffNote, err)
-	}
-	view, err := cart.NewStore(pool).Order(ctx, number)
-	if err != nil {
-		t.Fatalf("order: %v", err)
-	}
-	var sawRefund bool
-	for _, e := range view.Timeline {
-		if e.Kind == "refunded" {
-			sawRefund = true
-		}
-		if strings.Contains(e.Note, "re_") {
-			t.Errorf("%s event shows the provider refund id %q", e.Kind, e.Note)
-		}
-	}
-	if !sawRefund {
-		t.Error("the refunded event is missing from the shopper's timeline")
-	}
-}
-
-func TestACancelledOrderIsNotAVerifiedPurchase(t *testing.T) {
-	ctx := t.Context()
-	vid := freshVariant(t, "stockfix-15")
-
-	var userID uuid.UUID
-	if err := pool.QueryRow(ctx,
-		`INSERT INTO users (email) VALUES ('cancelbadge@example.com') RETURNING id`).Scan(&userID); err != nil {
-		t.Fatalf("create user: %v", err)
-	}
-	orderID := heldOrderFor(t, uuid.NullUUID{UUID: userID, Valid: true}, vid, -time.Hour, true) // funded
-
-	var productID uuid.UUID
-	if err := pool.QueryRow(ctx,
-		`SELECT product_id FROM product_variants WHERE id = $1`, vid).Scan(&productID); err != nil {
-		t.Fatalf("read product: %v", err)
-	}
-	review := func() error {
-		_, err := pool.Exec(ctx, `
-			INSERT INTO product_reviews (product_id, user_id, rating, body, is_verified_purchase)
-			VALUES ($1, $2, 5, '測試評價', true)
-			ON CONFLICT (product_id, user_id) DO UPDATE SET is_verified_purchase = true`,
-			productID, userID)
-		return err
-	}
-
-	if err := review(); err != nil {
-		t.Fatalf("a real purchase could not claim 已購買: %v", err)
-	}
-	if _, err := pool.Exec(ctx,
-		`DELETE FROM product_reviews WHERE product_id = $1 AND user_id = $2`,
-		productID, userID); err != nil {
-		t.Fatalf("clear review: %v", err)
-	}
-
-	refundAndCancel(t, orderID)
-	err := review()
-	pgErr, ok := errors.AsType[*pgconn.PgError](err)
-	if !ok || pgErr.ConstraintName != "product_reviews_verified_is_real" {
-		t.Errorf("a cancelled order still earned 已購買: %v", err)
-	}
+	return actions
 }

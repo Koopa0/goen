@@ -32,6 +32,32 @@ func NewHandler(s *Store, grants *access.Store, log *slog.Logger) *Handler {
 	return &Handler{store: s, access: grants, log: log}
 }
 
+func (h *Handler) CancelOrder(w http.ResponseWriter, r *http.Request) {
+	number := r.PathValue("number")
+	if !h.allows(r, number) {
+		h.notFound(w, r)
+		return
+	}
+
+	err := h.store.CancelOrder(r.Context(), number)
+	switch {
+	case err == nil:
+		http.Redirect(w, r, "/orders/"+url.PathEscape(number)+"?cancelled=1", http.StatusSeeOther)
+	case errors.Is(err, ErrNotCancellable):
+		// 422, not a redirect: nothing was written.
+		web.Render(w, r, h.log, http.StatusUnprocessableEntity, layouts.Notice(
+			layouts.Page{Title: i18n.T(r.Context(), i18n.KeyCancelRefusedTitle)}, "",
+			i18n.T(r.Context(), i18n.KeyCancelRefusedTitle),
+			i18n.T(r.Context(), i18n.KeyCancelRefusedBody), layouts.NoticeActions{
+				Primary:   layouts.NoticeLink{Href: "/orders/" + url.PathEscape(number), Label: i18n.KeyBackToOrder},
+				Secondary: layouts.NoticeLink{Href: "/contact", Label: i18n.KeyContact},
+			}))
+	default:
+		h.log.ErrorContext(r.Context(), "cancel order", "error", err)
+		h.cartUnavailable(w, r)
+	}
+}
+
 func (h *Handler) ReturnPage(w http.ResponseWriter, r *http.Request) {
 	o, ok := h.ownOrder(w, r)
 	if !ok {
@@ -176,11 +202,7 @@ func (h *Handler) reject(w http.ResponseWriter, r *http.Request, o *ReturnOrder,
 // authorisation; a stranger gets the 404 an absent order gets.
 func (h *Handler) ownOrder(w http.ResponseWriter, r *http.Request) (*ReturnOrder, bool) {
 	number := r.PathValue("number")
-	ok, err := h.access.Allows(r, number)
-	if err != nil {
-		h.log.ErrorContext(r.Context(), "check order access", "order", number, "error", err)
-	}
-	if !ok {
+	if !h.allows(r, number) {
 		h.notFound(w, r)
 		return nil, false
 	}
@@ -200,9 +222,25 @@ func (h *Handler) ownOrder(w http.ResponseWriter, r *http.Request) (*ReturnOrder
 	return o, true
 }
 
+func (h *Handler) allows(r *http.Request, number string) bool {
+	ok, err := h.access.Allows(r, number)
+	if err != nil {
+		h.log.ErrorContext(r.Context(), "check order access", "order", number, "error", err)
+	}
+	return ok
+}
+
 func (h *Handler) notFound(w http.ResponseWriter, r *http.Request) {
 	web.Render(w, r, h.log, http.StatusNotFound, layouts.OrderNotFound(
 		layouts.Page{Title: i18n.T(r.Context(), i18n.KeyOrderNotFound)}))
+}
+
+// cartUnavailable is the failure page cancelling shares with the cart's routes.
+func (h *Handler) cartUnavailable(w http.ResponseWriter, r *http.Request) {
+	web.Render(w, r, h.log, http.StatusInternalServerError, layouts.Notice(
+		layouts.Page{Title: i18n.T(r.Context(), i18n.KeyTryAgainTitle)}, "",
+		i18n.T(r.Context(), i18n.KeyTryAgainTitle),
+		i18n.T(r.Context(), i18n.KeyCartUnavailable)))
 }
 
 func viewOf(ctx context.Context, o *ReturnOrder, draft *returnDraft, refusals []web.FieldRefusal) pages.ReturnsView {

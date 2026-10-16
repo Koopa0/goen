@@ -20,10 +20,10 @@ import (
 	"github.com/koopa0/goen/internal/admin/health"
 	"github.com/koopa0/goen/internal/admin/reports"
 	"github.com/koopa0/goen/internal/admin/stock"
-	"github.com/koopa0/goen/internal/cart"
 	"github.com/koopa0/goen/internal/db"
 	"github.com/koopa0/goen/internal/i18n"
 	"github.com/koopa0/goen/internal/inventory"
+	"github.com/koopa0/goen/internal/order/buyer"
 	"github.com/koopa0/goen/internal/user"
 )
 
@@ -583,7 +583,7 @@ func TestRetiringTheLastDiscountedVariantIsRefused(t *testing.T) {
 // the order through the reservation: a HOLD stays green with that join deleted.
 func TestAReleaseInTheLedgerNamesItsOrder(t *testing.T) {
 	ctx, _ := admintest.StaffContext(t, pool)
-	basket := cart.NewStore(pool)
+	customer := buyer.NewStore(pool)
 
 	var vid uuid.UUID
 	var sku string
@@ -597,7 +597,7 @@ func TestAReleaseInTheLedgerNamesItsOrder(t *testing.T) {
 	}
 	number := admintest.PlaceHeldOrder(t, pool, vid)
 
-	if err := basket.CancelOrder(ctx, number); err != nil {
+	if err := customer.CancelOrder(ctx, number); err != nil {
 		t.Fatalf("cancel: %v", err)
 	}
 

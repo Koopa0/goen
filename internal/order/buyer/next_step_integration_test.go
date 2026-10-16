@@ -46,7 +46,7 @@ func TestReturnFormReadsTheDeliveredParcelsDatabaseDeadlineAndOnlyTheOpenNotice(
 	if err := pool.QueryRow(ctx, `SELECT return_window_ends($1::timestamptz)::date`, delivered).Scan(&expected); err != nil {
 		t.Fatal(err)
 	}
-	appPool := returnsApplicationPool(t, "return-next-step")
+	appPool := storeApplicationPool(t, "return-next-step")
 	store := buyer.NewStore(appPool)
 	order, err := store.ReturnOrder(ctx, number)
 	if err != nil {
@@ -104,7 +104,7 @@ func TestReturnFormTellsAPickupOrderToCountFromCollection(t *testing.T) {
 		WHERE order_id = (SELECT id FROM orders WHERE order_number = $1)`, pickup); err != nil {
 		t.Fatal(err)
 	}
-	appPool := returnsApplicationPool(t, "return-pickup")
+	appPool := storeApplicationPool(t, "return-pickup")
 	var days int64
 	if err := appPool.QueryRow(ctx, `SELECT rescission_days()`).Scan(&days); err != nil {
 		t.Fatalf("read rescission_days: %v", err)

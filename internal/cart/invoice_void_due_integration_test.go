@@ -14,6 +14,7 @@ import (
 	"github.com/koopa0/goen/internal/admin/health"
 	"github.com/koopa0/goen/internal/cart"
 	"github.com/koopa0/goen/internal/invoice/issuer"
+	"github.com/koopa0/goen/internal/order/buyer"
 	"github.com/koopa0/goen/internal/order/delivery"
 	"github.com/koopa0/goen/internal/outbox"
 )
@@ -78,7 +79,7 @@ func invoiceOperation(t *testing.T, number, kind string) uuid.UUID {
 // cancellation queued.
 func cancelAsCustomer(t *testing.T, number string) outbox.InvoiceVoidDue {
 	t.Helper()
-	if err := cart.NewStore(storeRolePool(t)).CancelOrder(t.Context(), number); err != nil {
+	if err := buyer.NewStore(storeRolePool(t)).CancelOrder(t.Context(), number); err != nil {
 		t.Fatalf("cancel %s: %v", number, err)
 	}
 	dues := queuedVoidDues(t, number)
@@ -294,7 +295,7 @@ func listed(t *testing.T, number string) bool {
 // invoice to void.
 func TestOnlyACreditPaidOrdersCancelQueuesAVoid(t *testing.T) {
 	number := numberOf(t, heldOrder(t, freshVariant(t, "void-due-unpaid"), -time.Hour, false))
-	if err := cart.NewStore(storeRolePool(t)).CancelOrder(t.Context(), number); err != nil {
+	if err := buyer.NewStore(storeRolePool(t)).CancelOrder(t.Context(), number); err != nil {
 		t.Fatalf("cancel: %v", err)
 	}
 	if got := queuedVoidDues(t, number); len(got) != 0 {
