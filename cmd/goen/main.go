@@ -22,10 +22,10 @@ import (
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 
-	"github.com/koopa0/goen/internal/account"
 	"github.com/koopa0/goen/internal/admin/refunds"
 	"github.com/koopa0/goen/internal/admin/staff"
 	"github.com/koopa0/goen/internal/admin/twofactor"
+	"github.com/koopa0/goen/internal/auth"
 	"github.com/koopa0/goen/internal/cart"
 	"github.com/koopa0/goen/internal/invoice/issuer"
 	"github.com/koopa0/goen/internal/letter"
@@ -317,7 +317,7 @@ func newServer(cfg *config, routes *RouterConfig, proxies *ratelimit.Proxies, lo
 
 // servingPool opens the storefront pool, proves it answers, and puts the demo
 // account right before anything is served from it.
-func servingPool(ctx context.Context, url string, demo account.DemoAccount, secureCookies bool, log *slog.Logger) (*pgxpool.Pool, error) {
+func servingPool(ctx context.Context, url string, demo auth.DemoAccount, secureCookies bool, log *slog.Logger) (*pgxpool.Pool, error) {
 	pool, err := openPool(ctx, url, log)
 	if err != nil {
 		return nil, fmt.Errorf("open database pool: %w", redactURL(err, url))
@@ -326,7 +326,7 @@ func servingPool(ctx context.Context, url string, demo account.DemoAccount, secu
 		pool.Close()
 		return nil, err
 	}
-	if err := account.NewStore(pool).EnsureDemoAccount(ctx, demo); err != nil {
+	if err := auth.NewStore(pool).EnsureDemoAccount(ctx, demo); err != nil {
 		pool.Close()
 		return nil, fmt.Errorf("GOEN_DEMO_ACCOUNT_EMAIL: %w", err)
 	}
@@ -494,7 +494,7 @@ var _ refunds.Refunder = (*payment.Gateway)(nil)
 // absent. Each refuses to start on HALF a configuration.
 func openProviders(cfg *config, log *slog.Logger) (
 	payments *payment.Gateway, invoices *issuer.Gateway,
-	googleSignIn *account.Google, storeMap *cart.StoreMap, err error,
+	googleSignIn *auth.Google, storeMap *cart.StoreMap, err error,
 ) {
 	if payments, err = payment.NewGateway(cfg.StripeAPIKey, cfg.StripeWebhookSecret, cfg.BaseURL); err != nil {
 		return nil, nil, nil, nil, err
@@ -530,10 +530,10 @@ func warnSellerUnset(cfg *config, log *slog.Logger) {
 
 // demoAccount reads the account a public demonstration shares with every
 // visitor, and says when there is one: its password is on the sign-in page.
-func (cfg *config) demoAccount(log *slog.Logger) (account.DemoAccount, error) {
-	d, err := account.NewDemoAccount(cfg.DemoAccountEmail, cfg.DemoAccountPassword)
+func (cfg *config) demoAccount(log *slog.Logger) (auth.DemoAccount, error) {
+	d, err := auth.NewDemoAccount(cfg.DemoAccountEmail, cfg.DemoAccountPassword)
 	if err != nil {
-		return account.DemoAccount{}, fmt.Errorf("GOEN_DEMO_ACCOUNT_EMAIL and GOEN_DEMO_ACCOUNT_PASSWORD: %w", err)
+		return auth.DemoAccount{}, fmt.Errorf("GOEN_DEMO_ACCOUNT_EMAIL and GOEN_DEMO_ACCOUNT_PASSWORD: %w", err)
 	}
 	if d.Enabled() {
 		log.Info("a shared demo account is offered on the sign-in page, with its password",
@@ -542,8 +542,8 @@ func (cfg *config) demoAccount(log *slog.Logger) (account.DemoAccount, error) {
 	return d, nil
 }
 
-func openGoogleSignIn(cfg *config, log *slog.Logger) (*account.Google, error) {
-	g, err := account.NewGoogle(cfg.GoogleClientID, cfg.GoogleClientSecret, cfg.BaseURL)
+func openGoogleSignIn(cfg *config, log *slog.Logger) (*auth.Google, error) {
+	g, err := auth.NewGoogle(cfg.GoogleClientID, cfg.GoogleClientSecret, cfg.BaseURL)
 	if err != nil {
 		return nil, err
 	}
@@ -870,7 +870,7 @@ func startWorkers(ctx context.Context, d workerDeps) {
 	d.run(func() { holds.SweepGuestCartsForever(ctx, d.log) })
 	d.run(func() { newsletter.NewStore(d.pool).SweepConfirmationsForever(ctx, d.log) })
 
-	d.run(func() { account.NewStore(d.pool).SweepSessionsForever(ctx, d.log) })
+	d.run(func() { auth.NewStore(d.pool).SweepSessionsForever(ctx, d.log) })
 	// The media sweeper runs on the ADMIN pool: `store` holds SELECT on
 	// media_objects and nothing else, so from there the DELETE is refused every
 	// hour, quietly, and nothing is ever reclaimed.
@@ -889,16 +889,16 @@ func startWorkers(ctx context.Context, d workerDeps) {
 func newOutboxStore(d workerDeps) *outbox.Store {
 	outboxStore := outbox.NewStore(d.pool, d.log)
 	outboxStore.HandleJSON(outbox.TopicOrderPlaced, d.notifier.SendOrderPlaced)
-	outboxStore.HandleJSON(outbox.TopicPasswordReset, passwordResetHandler(account.NewStore(d.pool), d.notifier))
-	outboxStore.HandleJSON(outbox.TopicPasswordResetRequest, account.NewStore(d.pool).IssueReset)
-	outboxStore.HandleJSON(outbox.TopicRegistration, registrationHandler(account.NewStore(d.pool), d.notifier))
+	outboxStore.HandleJSON(outbox.TopicPasswordReset, passwordResetHandler(auth.NewStore(d.pool), d.notifier))
+	outboxStore.HandleJSON(outbox.TopicPasswordResetRequest, auth.NewStore(d.pool).IssueReset)
+	outboxStore.HandleJSON(outbox.TopicRegistration, registrationHandler(auth.NewStore(d.pool), d.notifier))
 	outboxStore.HandleJSON(outbox.TopicOrderPaid, d.notifier.SendOrderPaid)
 	outboxStore.HandleJSON(outbox.TopicOrderShipped, d.notifier.SendOrderShipped)
 	outboxStore.HandleJSON(outbox.TopicOrderTerminal, terminalOrderHandler(notice.NewRecipients(d.pool), d.notifier))
 	outboxStore.HandleJSON(outbox.TopicOrderPartRefunded, partRefundHandler(notice.NewRecipients(d.pool), d.notifier))
 	outboxStore.HandleJSON(outbox.TopicNewsletterConfirm, d.notifier.SendNewsletterConfirm)
 	outboxStore.HandleJSON(outbox.TopicNewsletterWelcome, d.notifier.SendNewsletterWelcome)
-	outboxStore.HandleJSON(outbox.TopicEmailVerify, addressVerifyHandler(account.NewStore(d.pool), d.notifier))
+	outboxStore.HandleJSON(outbox.TopicEmailVerify, addressVerifyHandler(auth.NewStore(d.pool), d.notifier))
 	outboxStore.HandleJSON(outbox.TopicStaffInvitation, staffInvitationHandler(staff.NewStore(d.pool), d.notifier))
 	outboxStore.HandleJSON(outbox.TopicStaffEnrolment, d.notifier.SendStaffEnrolment)
 	outboxStore.HandleJSON(outbox.TopicStaffFactorFailure, d.notifier.SendStaffFactorFailure)
@@ -947,22 +947,22 @@ func newsletterIssueHandler(
 // registrationHandler follows a registration up on the store pool, which is the
 // one that wrote it: a new account's link is queued there, and an address that
 // already had an account is told so by mail.
-func registrationHandler(accounts *account.Store, notifier letter.Notifier) func(context.Context, *outbox.AccountRegistration) error {
+func registrationHandler(accounts *auth.Store, notifier letter.Notifier) func(context.Context, *outbox.AccountRegistration) error {
 	return func(ctx context.Context, r *outbox.AccountRegistration) error {
 		return accounts.FollowUpRegistration(ctx, r, tellAddressTaken(notifier))
 	}
 }
 
 // tellAddressTaken sends the letter to the owner of an address somebody tried
-// to take. account resolves the owner in its own type, which has the letter's
+// to take. auth resolves the owner in its own type, which has the letter's
 // shape, so this conversion stops compiling once the two differ.
-func tellAddressTaken(notifier letter.Notifier) func(context.Context, *account.AddressTaken) error {
-	return func(ctx context.Context, p *account.AddressTaken) error {
+func tellAddressTaken(notifier letter.Notifier) func(context.Context, *auth.AddressTaken) error {
+	return func(ctx context.Context, p *auth.AddressTaken) error {
 		return notifier.SendAccountExists(ctx, (*letter.AccountExists)(p))
 	}
 }
 
-func passwordResetHandler(accounts *account.Store, notifier letter.Notifier) func(context.Context, *outbox.PasswordReset) error {
+func passwordResetHandler(accounts *auth.Store, notifier letter.Notifier) func(context.Context, *outbox.PasswordReset) error {
 	return func(ctx context.Context, p *outbox.PasswordReset) error {
 		return accounts.DeliverPasswordReset(ctx, p, notifier.SendPasswordReset)
 	}
@@ -971,7 +971,7 @@ func passwordResetHandler(accounts *account.Store, notifier letter.Notifier) fun
 // addressVerifyHandler delivers a link to prove an address on the store pool,
 // which is the one that wrote it: the link goes out, or, when the address is
 // by now another account's, that account is told instead.
-func addressVerifyHandler(accounts *account.Store, notifier letter.Notifier) func(context.Context, *outbox.AddressVerify) error {
+func addressVerifyHandler(accounts *auth.Store, notifier letter.Notifier) func(context.Context, *outbox.AddressVerify) error {
 	return func(ctx context.Context, p *outbox.AddressVerify) error {
 		return accounts.DeliverAddressVerify(ctx, p, notifier.SendAddressVerify, tellAddressTaken(notifier))
 	}

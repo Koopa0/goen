@@ -21,7 +21,7 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 	"golang.org/x/net/html"
 
-	"github.com/koopa0/goen/internal/account"
+	"github.com/koopa0/goen/internal/auth"
 	"github.com/koopa0/goen/internal/db"
 	"github.com/koopa0/goen/internal/db/dbtest"
 	"github.com/koopa0/goen/internal/i18n"
@@ -281,7 +281,7 @@ func fundedShippedOrderForReturnErasure(
 	}
 	ctx := t.Context()
 	addr := "return-erasure-" + uuid.NewString() + "@example.com"
-	if err := account.NewStore(pool).Register(ctx, &account.Credentials{
+	if err := auth.NewStore(pool).Register(ctx, &auth.Credentials{
 		Email:    addr,
 		Password: "a sufficiently long password",
 		Name:     "退貨競態測試",
@@ -987,7 +987,7 @@ func TestReturnCreditRequiresLiveAccountSerializesGuestReturnAndErasure(t *testi
 		eraseFinished := make(chan struct{})
 		go func() {
 			defer close(eraseFinished)
-			eraseResult <- account.NewStore(erasePool).Erase(
+			eraseResult <- auth.NewStore(erasePool).Erase(
 				context.WithoutCancel(ctx), fixture.userID.String())
 		}()
 		waitForReturnsLock(t, erasePID, eraseFinished)
@@ -995,7 +995,7 @@ func TestReturnCreditRequiresLiveAccountSerializesGuestReturnAndErasure(t *testi
 		if err := returnTx.Commit(ctx); err != nil {
 			t.Fatalf("commit winning return: %v", err)
 		}
-		if err := returnsOperationResult(t, eraseResult); !errors.Is(err, account.ErrOpenReturn) {
+		if err := returnsOperationResult(t, eraseResult); !errors.Is(err, auth.ErrOpenReturn) {
 			t.Fatalf("erasure behind committed credit return = %v, want ErrOpenReturn", err)
 		}
 		assertReturnRowCounts(t, fixture.orderID, 1, 1)
@@ -1037,7 +1037,7 @@ func TestReturnCreditRequiresLiveAccountSerializesGuestReturnAndErasure(t *testi
 		eraseFinished := make(chan struct{})
 		go func() {
 			defer close(eraseFinished)
-			eraseResult <- account.NewStore(erasePool).Erase(
+			eraseResult <- auth.NewStore(erasePool).Erase(
 				context.WithoutCancel(ctx), fixture.userID.String())
 		}()
 		waitForReturnsLock(t, erasePID, eraseFinished)
@@ -1116,7 +1116,7 @@ func TestReturnCreditRequiresLiveAccountSerializesGuestReturnAndErasure(t *testi
 		if exposure != 100000 {
 			t.Fatalf("aggregate credit exposure = %d, want 100000", exposure)
 		}
-		if err := account.NewStore(storePool).Erase(ctx, fixture.userID.String()); !errors.Is(err, account.ErrOpenReturn) {
+		if err := auth.NewStore(storePool).Erase(ctx, fixture.userID.String()); !errors.Is(err, auth.ErrOpenReturn) {
 			t.Fatalf("erase across two unresolved partial returns = %v, want ErrOpenReturn", err)
 		}
 		assertReturnRowCounts(t, fixture.orderID, 2, 2)
@@ -1135,7 +1135,7 @@ func TestReturnCreditRequiresLiveAccountSerializesGuestReturnAndErasure(t *testi
 			t.Fatalf("approve card-only first return: %v", err)
 		}
 
-		if err := account.NewStore(storePool).Erase(ctx, fixture.userID.String()); err != nil {
+		if err := auth.NewStore(storePool).Erase(ctx, fixture.userID.String()); err != nil {
 			t.Fatalf("erase while the one approved return still fits the card: %v", err)
 		}
 		err := s.OpenReturn(ctx, fixture.number, uuid.NullUUID{}, &buyer.ReturnRequest{

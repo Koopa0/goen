@@ -7059,7 +7059,7 @@ type CustomerByEmailRow struct {
 	FullName string
 }
 
-// internal/account already defines UserByEmail for sign-in and sqlc generates
+// internal/auth already defines UserByEmail for sign-in and sqlc generates
 // one db package, so this one is named for what it is FOR. It also selects less:
 // the back office has no business reading a password hash.
 func (q *Queries) CustomerByEmail(ctx context.Context, email string) (CustomerByEmailRow, error) {
@@ -7986,6 +7986,48 @@ func (q *Queries) DepartmentSalesBetween(ctx context.Context, arg DepartmentSale
 	return items, nil
 }
 
+const departmentStock = `-- name: DepartmentStock :many
+WITH RECURSIVE tree AS (
+    SELECT id, id AS root FROM categories WHERE parent_id IS NULL
+    UNION ALL
+    SELECT k.id, t.root FROM categories k JOIN tree t ON k.parent_id = t.id
+)
+SELECT t.root AS id, count(p.id)::bigint AS products
+FROM tree t
+JOIN products p ON p.category_id = t.id AND p.status = 'active'
+GROUP BY t.root
+`
+
+type DepartmentStockRow struct {
+	ID       uuid.UUID
+	Products int64
+}
+
+// How many active products each root holds across its whole subtree: a
+// department with fewer than three has no band to show, and the header prints
+// it beside each department in the phone menu, so it runs on every page with a
+// header. Unlike the header's other reads it counts the catalogue, not the
+// categories, and its plan has not been measured.
+func (q *Queries) DepartmentStock(ctx context.Context) ([]DepartmentStockRow, error) {
+	rows, err := q.db.Query(ctx, departmentStock)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []DepartmentStockRow{}
+	for rows.Next() {
+		var i DepartmentStockRow
+		if err := rows.Scan(&i.ID, &i.Products); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const detachProductImage = `-- name: DetachProductImage :execrows
 DELETE FROM product_images pi
 USING products p
@@ -8671,48 +8713,6 @@ func (q *Queries) HoldForOrder(ctx context.Context, arg HoldForOrderParams) (uui
 	var hold_inventory uuid.UUID
 	err := row.Scan(&hold_inventory)
 	return hold_inventory, err
-}
-
-const homeDepartmentStock = `-- name: HomeDepartmentStock :many
-WITH RECURSIVE tree AS (
-    SELECT id, id AS root FROM categories WHERE parent_id IS NULL
-    UNION ALL
-    SELECT k.id, t.root FROM categories k JOIN tree t ON k.parent_id = t.id
-)
-SELECT t.root AS id, count(p.id)::bigint AS products
-FROM tree t
-JOIN products p ON p.category_id = t.id AND p.status = 'active'
-GROUP BY t.root
-`
-
-type HomeDepartmentStockRow struct {
-	ID       uuid.UUID
-	Products int64
-}
-
-// How many active products each root holds across its whole subtree: a
-// department with fewer than three has no band to show, and the header prints
-// it beside each department in the phone menu, so it runs on every page with a
-// header. Unlike the header's other reads it counts the catalogue, not the
-// categories, and its plan has not been measured.
-func (q *Queries) HomeDepartmentStock(ctx context.Context) ([]HomeDepartmentStockRow, error) {
-	rows, err := q.db.Query(ctx, homeDepartmentStock)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-	items := []HomeDepartmentStockRow{}
-	for rows.Next() {
-		var i HomeDepartmentStockRow
-		if err := rows.Scan(&i.ID, &i.Products); err != nil {
-			return nil, err
-		}
-		items = append(items, i)
-	}
-	if err := rows.Err(); err != nil {
-		return nil, err
-	}
-	return items, nil
 }
 
 const homeSubcategories = `-- name: HomeSubcategories :many
@@ -16626,8 +16626,9 @@ type RootCategoriesRow struct {
 // The header's row AND the home page's tiles: the same six rows in the same
 // order, because two queries answering "in what order are the categories" gave
 // two answers the moment CreateCategory's max(position)+1 handed out a
-// duplicate. Nothing stops it: there is no unique index on (parent_id,
-// position), so two staff creating a category at once both read the same max.
+// duplicate. categories_position_key now refuses two roots at one position,
+// and the home page reads these rows through Store.Departments, so the header
+// and the tiles are this one query either way.
 // A root's tone is its own, or 'stone'. The photograph is the department's own.
 func (q *Queries) RootCategories(ctx context.Context, locale string) ([]RootCategoriesRow, error) {
 	rows, err := q.db.Query(ctx, rootCategories, locale)

@@ -67,7 +67,7 @@ ORDER BY e.created_at DESC, e.id DESC;
 SELECT id, email, coalesce(full_name, '') AS full_name FROM users
 WHERE id = $1;
 
--- internal/account already defines UserByEmail for sign-in and sqlc generates
+-- internal/auth already defines UserByEmail for sign-in and sqlc generates
 -- one db package, so this one is named for what it is FOR. It also selects less:
 -- the back office has no business reading a password hash.
 -- name: CustomerByEmail :one

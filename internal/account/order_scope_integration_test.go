@@ -19,8 +19,8 @@ import (
 func TestOrdersAreScopedToTheirOwner(t *testing.T) {
 	ctx := t.Context()
 	s := account.NewStore(pool)
-	mine := register(t, s, "mine@example.com")
-	theirs := register(t, s, "theirs@example.com")
+	mine := register(t, "mine@example.com")
+	theirs := register(t, "theirs@example.com")
 
 	number := placeOrderFor(t, theirs.ID)
 

@@ -17,11 +17,12 @@ import (
 
 	"github.com/jackc/pgx/v5/pgxpool"
 
-	"github.com/koopa0/goen/internal/account"
+	"github.com/koopa0/goen/internal/auth"
 	"github.com/koopa0/goen/internal/cart"
-	"github.com/koopa0/goen/internal/home"
+	"github.com/koopa0/goen/internal/catalog"
 	"github.com/koopa0/goen/internal/i18n"
 	"github.com/koopa0/goen/internal/order/access"
+	"github.com/koopa0/goen/internal/site"
 )
 
 // cookiePin is one cookie goen sets, written out by value. A browser matches a
@@ -86,7 +87,7 @@ func goenCookies(pool *pgxpool.Pool) map[string]cookiePin {
 			probe: func(t *testing.T, secure bool) *http.Cookie {
 				t.Helper()
 				rec := httptest.NewRecorder()
-				account.SetSessionCookie(rec, "token", secure)
+				auth.SetSessionCookie(rec, "token", secure)
 				return onlyCookie(t, rec)
 			},
 		},
@@ -118,8 +119,12 @@ func goenCookies(pool *pgxpool.Pool) map[string]cookiePin {
 			path: "/", maxAge: cookieYear, sameSite: http.SameSiteLaxMode,
 			probe: func(t *testing.T, secure bool) *http.Cookie {
 				t.Helper()
+				h := site.NewHandler(slog.New(slog.DiscardHandler), "", catalog.NewStore(pool), site.NewStore(pool), secure)
 				rec := httptest.NewRecorder()
-				home.WriteDismissal(rec, "banner", secure)
+				req := httptest.NewRequestWithContext(t.Context(), http.MethodPost, "/promo/dismiss",
+					strings.NewReader("banner=banner&return=/"))
+				req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+				h.DismissBanner(rec, req)
 				return onlyCookie(t, rec)
 			},
 		},
@@ -129,11 +134,11 @@ func goenCookies(pool *pgxpool.Pool) map[string]cookiePin {
 			path: "/", maxAge: 10 * 60, sameSite: http.SameSiteLaxMode,
 			probe: func(t *testing.T, secure bool) *http.Cookie {
 				t.Helper()
-				google, err := account.NewGoogle("client", "secret", "https://goen.test")
+				google, err := auth.NewGoogle("client", "secret", "https://goen.test")
 				if err != nil {
 					t.Fatalf("build the Google client: %v", err)
 				}
-				h := account.NewHandler(account.NewStore(pool), nil, slog.New(slog.DiscardHandler), secure, google)
+				h := auth.NewHandler(auth.NewStore(pool), nil, nil, slog.New(slog.DiscardHandler), secure, google)
 				rec := httptest.NewRecorder()
 				h.GoogleSignIn(rec, httptest.NewRequestWithContext(t.Context(), http.MethodGet, "/signin/google", nil))
 				return onlyCookie(t, rec)

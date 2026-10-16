@@ -20,6 +20,7 @@ import (
 	"github.com/koopa0/goen/internal/home"
 	"github.com/koopa0/goen/internal/i18n"
 	"github.com/koopa0/goen/internal/media"
+	"github.com/koopa0/goen/internal/site"
 	"github.com/koopa0/goen/internal/ui/components"
 )
 
@@ -65,7 +66,7 @@ func TestEveryHomepageEntryRemainsManageableBeyondExpiredHistory(t *testing.T) {
 	h := content.NewHandler(s, media.NewHandler(media.NewStore(adminPool), log), log)
 	mux := http.NewServeMux()
 	h.Routes(mux, admintest.BackOffice)
-	shop := home.NewStore(adminPool)
+	shop, chrome := home.NewStore(adminPool), site.NewStore(adminPool)
 	live, err := shop.Carousel(ctx)
 	if err != nil {
 		t.Fatal(err)
@@ -73,7 +74,7 @@ func TestEveryHomepageEntryRemainsManageableBeyondExpiredHistory(t *testing.T) {
 	if len(live) != 3 || live[0].ID != heroes[20] || live[2].ID != heroes[22] {
 		t.Fatalf("fixture carousel=%+v", live)
 	}
-	strip, err := shop.Banner(ctx, "")
+	strip, err := chrome.Banner(ctx, "")
 	if err != nil || strip.Message != "Strip 20" {
 		t.Fatalf("fixture banner=%+v/%v", strip, err)
 	}
@@ -177,7 +178,7 @@ func TestEveryHomepageEntryRemainsManageableBeyondExpiredHistory(t *testing.T) {
 		}
 	}
 	post(get(ctx, bannerNext), "/admin/home/banner/"+banners[20]+"/active", "0")
-	strip, err = shop.Banner(ctx, "")
+	strip, err = chrome.Banner(ctx, "")
 	if err != nil || strip.Message != "" {
 		t.Fatalf("later-page banner control did not clear the storefront: %+v/%v", strip, err)
 	}

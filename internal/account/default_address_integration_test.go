@@ -12,7 +12,7 @@ import (
 func TestTheDefaultAddressCanBeMoved(t *testing.T) {
 	ctx := t.Context()
 	s := account.NewStore(pool)
-	u := register(t, s, "movedefault@example.com")
+	u := register(t, "movedefault@example.com")
 
 	home := addAddress(t, s, u.ID, "家", true)
 	work := addAddress(t, s, u.ID, "公司", false)
@@ -44,8 +44,8 @@ func TestMovingTheDefaultToSomebodyElsesAddressChangesNothing(t *testing.T) {
 	ctx := t.Context()
 	s := account.NewStore(pool)
 
-	mine := register(t, s, "mineaddr@example.com")
-	theirs := register(t, s, "theirsaddr@example.com")
+	mine := register(t, "mineaddr@example.com")
+	theirs := register(t, "theirsaddr@example.com")
 	myHome := addAddress(t, s, mine.ID, "家", true)
 	theirHome := addAddress(t, s, theirs.ID, "他家", true)
 

@@ -80,8 +80,13 @@ var (
 	// (shared infrastructure). It matches exactly, not by prefix:
 	// internal/product/labelling is a vocabulary leaf that admin/products imports.
 	storefrontPages = []string{
-		"internal/account", "internal/cart", "internal/catalog", "internal/home",
+		"internal/account", "internal/auth", "internal/cart", "internal/catalog", "internal/home",
 		"internal/newsletter", "internal/product", "internal/site",
+	}
+	// siteMayImport is what internal/site may import besides itself and the
+	// leaves: the foundation every storefront page is built on.
+	siteMayImport = []string{
+		"assets", "internal/i18n", "internal/web", "internal/ui/layouts",
 	}
 	// importFreeLeaves import no goen package at all.
 	importFreeLeaves = []string{
@@ -131,6 +136,17 @@ var depsRules = []importRule{
 		reason: "a vocabulary package can be imported by anything without a cycle",
 	},
 	{
+		name: "site",
+		hard: true,
+		forbid: func(from, to string) bool {
+			return under(from, "internal/site") && !under(to, "internal/site") &&
+				!slices.Contains(siteMayImport, to) &&
+				!slices.Contains(importFreeLeaves, to) && !slices.Contains(i18nOnlyLeaves, to)
+		},
+		reason: "every storefront page wears site's chrome, so site imports no feature; " +
+			"it reaches one through an interface it declares, as Catalogue reaches the catalogue",
+	},
+	{
 		name: "desks",
 		forbid: func(from, to string) bool {
 			root := deskRoot(to)
@@ -157,17 +173,26 @@ var depsRules = []importRule{
 	{
 		name: "cart and account",
 		forbid: func(from, to string) bool {
-			return under(from, "internal/cart") && under(to, "internal/account")
+			return under(from, "internal/cart") && (under(to, "internal/account") || under(to, "internal/auth"))
 		},
-		reason: "the cart does not depend on the account feature",
+		reason: "the cart does not depend on the account feature or on sign-in",
 	},
 	{
 		name: "back office and account",
 		hard: true,
 		forbid: func(from, to string) bool {
-			return under(from, "internal/admin") && under(to, "internal/account")
+			return under(from, "internal/admin") && (under(to, "internal/account") || under(to, "internal/auth"))
 		},
-		reason: "the back office does not depend on the storefront's account feature",
+		reason: "the back office does not depend on the storefront's account feature or on its sign-in",
+	},
+	{
+		name: "auth and account",
+		hard: true,
+		forbid: func(from, to string) bool {
+			return under(from, "internal/auth") && under(to, "internal/account")
+		},
+		reason: "how a customer proves who they are does not depend on the customer's pages; " +
+			"account imports auth, never the other way round",
 	},
 	{
 		name: "foundation",
