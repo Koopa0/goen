@@ -13,9 +13,9 @@ import (
 	"strings"
 )
 
-// Max is the longest address permitted, from the SMTP forward-path limit in
-// RFC 5321 §4.5.3.1.3.
-const Max = 254
+// MaxBytes is the longest address permitted, in bytes, from the SMTP
+// forward-path limit in RFC 5321 §4.5.3.1.3.
+const MaxBytes = 254
 
 // Clean trims surrounding whitespace and folds the address to lower case,
 // which is the form goen stores and compares.
@@ -31,7 +31,7 @@ func Clean(s string) string {
 // is legal and this refuses it, because a shop posting to the public internet
 // cannot reach a dotless domain.
 func Valid(s string) bool {
-	if s == "" || len(s) > Max {
+	if s == "" || len(s) > MaxBytes {
 		return false
 	}
 	addr, err := mail.ParseAddress(s)

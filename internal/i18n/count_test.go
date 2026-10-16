@@ -48,7 +48,7 @@ var pluralOnlyOnPurpose = map[Key]string{
 	"valid.contact.orderref":      "contact.maxOrderRef is fixed at 32 characters",
 	"valid.contact.message.short": "contact.minMessage is fixed at 5 characters",
 	"valid.contact.message.long":  "contact.maxMessage is fixed at 2000 characters",
-	"field.email.toolong":         "email.Max is fixed at 254 characters",
+	"field.email.toolong":         "email.MaxBytes is fixed at 254 bytes",
 	"valid.password.short":        "account.MinPasswordRunes is fixed at 10 characters",
 	"pdp.reviews.bodyhint":        "product.MinReviewBodyRunes and MaxReviewBodyRunes are fixed at 5 and 2000 characters",
 	"warranty.serial.toolong":     "warranty.MaxSerialRunes is fixed at 60 characters",

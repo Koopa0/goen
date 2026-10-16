@@ -231,9 +231,9 @@ func (h *Handler) SignIn(w http.ResponseWriter, r *http.Request) {
 	password := r.PostFormValue("password")
 	next := web.SitePathOr(r.PostFormValue("next"), "/account")
 	normalised := email.Clean(addr)
-	// email.Max is the application's address policy; the column is text, so the
-	// handler must bound the value before it becomes a long-lived limiter key.
-	if len(normalised) > email.Max {
+	// email.MaxBytes is the application's address policy; the column is text, so
+	// the handler must bound the value before it becomes a long-lived limiter key.
+	if len(normalised) > email.MaxBytes {
 		h.signInFailed(w, r, addr, next)
 		return
 	}
@@ -305,7 +305,7 @@ func (h *Handler) signInContextCookie() string {
 // This cookie carries a short-lived input suggestion, never sign-in authority.
 func (h *Handler) writeSignInContext(w http.ResponseWriter, purpose signInPurpose, address string) {
 	address = email.Clean(address)
-	if len(address) > email.Max || !email.Valid(address) {
+	if len(address) > email.MaxBytes || !email.Valid(address) {
 		return
 	}
 	http.SetCookie(w, &http.Cookie{ //nolint:gosec // G124: development-only secure opt-out follows the session cookie.
@@ -332,7 +332,7 @@ func (h *Handler) takeSignInContext(w http.ResponseWriter, r *http.Request) (pur
 		return "", ""
 	}
 	decoded, err := base64.RawURLEncoding.DecodeString(encoded)
-	if err != nil || len(decoded) > email.Max || !email.Valid(string(decoded)) {
+	if err != nil || len(decoded) > email.MaxBytes || !email.Valid(string(decoded)) {
 		return "", ""
 	}
 	return purpose, string(decoded)
