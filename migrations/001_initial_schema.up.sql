@@ -10833,7 +10833,7 @@ GRANT INSERT (assessment_id, order_id, return_request_id, order_line_id,
 CREATE FUNCTION schema_version(OUT digest text, OUT version bigint, OUT dirty boolean)
 LANGUAGE plpgsql STABLE SECURITY DEFINER SET search_path = pg_catalog, public, pg_temp AS $$
 BEGIN
-    digest := 'b181409bc720f02178ccc1a19003aece5a2b07a58f7e6834b4a7d5053bf60a77';
+    digest := '1c0ed8ef36c213c437ca57890cdcfa8671402ccf8aa2dfd0d880394475ece40b';
     -- NULL when the database was not built by golang-migrate, which the
     -- binary refuses as it refuses any other unknown schema.
     IF to_regclass('public.schema_migrations') IS NOT NULL THEN
