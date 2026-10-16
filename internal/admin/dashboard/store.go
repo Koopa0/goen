@@ -117,9 +117,8 @@ func (s *Store) RecentSales(ctx context.Context, days int, now time.Time) (sales
 const recentRows = 8
 
 // orderRow is one order as the landing page lists it. It reads the same word,
-// colour and total as the orders queue's row for the same order: the total is
-// assembled here rather than in the query because the storefront's own order
-// view computes it the same way from the same four columns.
+// colour and total as the orders queue's row for the same order; the total is
+// read from order_totals, as on every page that states one.
 func orderRow(ctx context.Context, o *db.RecentOrdersRow) admin.OrderRow {
 	fulfillment := order.FulfillmentStatus(o.FulfillmentStatus)
 	text, intent := orderStatus(ctx, fulfillment, o)
@@ -130,7 +129,7 @@ func orderRow(ctx context.Context, o *db.RecentOrdersRow) admin.OrderRow {
 		StatusIntent: intent,
 		PlacedAt:     shoptime.Minute(o.PlacedAt),
 		Recipient:    o.Recipient,
-		TotalCents:   o.SubtotalCents - o.DiscountCents + o.ShippingCents,
+		TotalCents:   o.TotalCents,
 	}
 }
 

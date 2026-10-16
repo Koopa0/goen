@@ -76,9 +76,7 @@ func showWeek(view *admin.DashboardView, recent sales.Recent, err error) {
 	current, previous := &recent.Current, &recent.Previous
 	view.Week = admin.Week{
 		Orders: current.Orders, RevenueCents: current.RevenueCents, RevenueSquares: current.RevenueSquares,
-		Previous: admin.PreviousFigures{
-			Orders: previous.Orders, RevenueCents: previous.RevenueCents, RevenueSquares: previous.RevenueSquares,
-		},
+		Previous:    recent.Previous,
 		RevenueDays: chart.SparklineProps{Previous: daySeries(previous, dayRevenue), Current: daySeries(current, dayRevenue)},
 		OrderDays:   chart.SparklineProps{Previous: daySeries(previous, dayOrders), Current: daySeries(current, dayOrders)},
 	}

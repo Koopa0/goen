@@ -331,16 +331,12 @@ SELECT o.id, o.order_number, o.fulfillment_status,
        -- English name is read without rewriting what the order chose.
        localized_name(sv.name, sv.name_en, @locale::text) AS shipping_method_name,
        o.placed_at,
-       coalesce((SELECT sum(ol.unit_price_cents * ol.quantity) FROM order_lines ol
-                 WHERE ol.order_id = o.id), 0)::bigint AS subtotal_cents,
+       t.subtotal_cents, t.total_cents,
        -- What store credit paid, as the difference between the total and what is
        -- still owed rather than a second sum over the ledger: order_amount_after_credit
        -- is the one definition of that arithmetic, and TestEveryCreditBalanceReadsTheOneView
        -- refuses a page that re-derives it.
-       (coalesce((SELECT sum(ol.unit_price_cents * ol.quantity) FROM order_lines ol
-                  WHERE ol.order_id = o.id), 0)
-        - o.discount_cents + o.shipping_cents
-        - order_amount_after_credit(o.id))::bigint AS credit_cents,
+       (t.total_cents - order_amount_after_credit(o.id))::bigint AS credit_cents,
        coalesce(pd.email, '') AS email,
        coalesce(pd.postal_code, '') AS postal_code,
        coalesce(pd.city, '') AS city,
@@ -356,6 +352,7 @@ SELECT o.id, o.order_number, o.fulfillment_status,
        -- payment row and stays 'pending' while the customer owes nothing.
        order_amount_after_credit(o.id)::bigint AS owed_cents
 FROM orders o
+JOIN order_totals t ON t.order_id = o.id
 JOIN shipping_method_versions sv ON sv.id = o.shipping_version_id
 LEFT JOIN order_private_data pd ON pd.order_id = o.id
 WHERE o.order_number = @number;

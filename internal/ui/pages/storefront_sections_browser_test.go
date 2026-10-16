@@ -19,7 +19,8 @@ import (
 // The home page's hero tabs, hero arrows, departments and rules row, the deals
 // page's running campaigns, the search page's compare button, the cart's
 // stepper and filled button, a department's filter chip, the corners every
-// pressable control shares, and a product's photograph, measured as drawn.
+// pressable control shares, a product's photograph, and the header's search
+// pill with the rule under the header, measured as drawn.
 func TestStorefrontSectionsAsDrawn(t *testing.T) {
 	_, port := uitest.Browser(t, "CDP_PORT")
 	root, err := filepath.Abs("../../..")

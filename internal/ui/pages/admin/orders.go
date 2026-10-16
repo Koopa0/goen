@@ -108,6 +108,7 @@ type OrderView struct {
 	ShippingCents         int64
 	DiscountCents         int64
 	DiscountReason        string
+	TotalCents            int64
 	Email                 string
 	Recipient             string
 	Phone                 string
@@ -308,9 +309,9 @@ func (v *OrderView) Subtotal() string { return money.TWD(v.SubtotalCents) }
 
 func (v *OrderView) Shipping() string { return money.TWD(v.ShippingCents) }
 
-func (v *OrderView) Total() string {
-	return money.TWD(v.SubtotalCents - v.DiscountCents + v.ShippingCents)
-}
+// Total states the database's order_totals figure rather than re-adding the
+// subtotal, discount and delivery, so no page can sum them differently.
+func (v *OrderView) Total() string { return money.TWD(v.TotalCents) }
 
 func (v *OrderView) UsedCredit() bool { return v.CreditCents > 0 }
 
@@ -402,7 +403,7 @@ func (d InvoiceDocument) Voided() bool { return d.Status == invoice.DocumentVoid
 // invoice is owed all the same.
 func (v *OrderView) CanIssueInvoice() bool {
 	funded := v.Committed || (v.Status == order.FulfillmentPending && !v.Unpaid)
-	if !v.InvoicingEnabled || !funded || v.SubtotalCents-v.DiscountCents+v.ShippingCents <= 0 {
+	if !v.InvoicingEnabled || !funded || v.TotalCents <= 0 {
 		return false
 	}
 	for _, d := range v.InvoiceDocuments {

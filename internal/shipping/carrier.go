@@ -1,9 +1,12 @@
 package shipping
 
 import (
+	"context"
 	"net/url"
 	"slices"
 	"strings"
+
+	"github.com/koopa0/goen/internal/i18n"
 )
 
 // The largest parcel the schema accepts, mirroring the parcel CHECKs on
@@ -80,6 +83,28 @@ func CarriersFor(chain Chain, to Destination) (valid []Carrier, implied Carrier)
 
 // Known reports whether c is one of the carrier codes.
 func (c Carrier) Known() bool { return slices.Contains(all[:], c) }
+
+// names is each carrier's name in the message catalogue.
+var names = map[Carrier]i18n.Key{
+	CarrierBlackCat:     i18n.KeyCarrierBlackCat,
+	CarrierHCT:          i18n.KeyCarrierHCT,
+	CarrierChunghwaPost: i18n.KeyCarrierChunghwaPost,
+	CarrierKerryTJ:      i18n.KeyCarrierKerryTJ,
+	CarrierSevenEleven:  i18n.KeyCarrierSevenEleven,
+	CarrierFamilyMart:   i18n.KeyCarrierFamilyMart,
+	CarrierHiLife:       i18n.KeyCarrierHiLife,
+	CarrierOKMart:       i18n.KeyCarrierOKMart,
+}
+
+// Name is the carrier's name in the language ctx carries. A value outside the
+// closed set, such as a notice queued before it was closed, is returned as
+// stored rather than hidden.
+func (c Carrier) Name(ctx context.Context) string {
+	if k, ok := names[c]; ok {
+		return i18n.T(ctx, k)
+	}
+	return string(c)
+}
 
 // blackCatTrace is the one public GET link that carries a tracking number.
 const blackCatTrace = "https://www.t-cat.com.tw/Inquire/TraceDetail.aspx?BillID="

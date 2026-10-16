@@ -50,8 +50,8 @@ var viewPackageImporters = []string{
 	"internal/cart",
 	"internal/catalog",
 	"internal/home",
+	"internal/order/buyer",
 	"internal/product",
-	"internal/returns/buyer",
 }
 
 var dataFilesNamingViews = []string{
@@ -72,7 +72,6 @@ var dataFilesNamingViews = []string{
 	"internal/admin/products/product.go",
 	"internal/admin/products/product_label.go",
 	"internal/admin/products/standing.go",
-	"internal/admin/refunds/handler.go",
 	"internal/admin/reports/store.go",
 	"internal/admin/returns/store.go",
 	"internal/cart/outbox.go",

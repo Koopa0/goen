@@ -203,7 +203,7 @@ func centsText(_ context.Context, _ AuditEntry, value string) string {
 }
 
 func carrierText(ctx context.Context, _ AuditEntry, value string) string {
-	return i18n.CarrierName(ctx, shipping.Carrier(value))
+	return shipping.Carrier(value).Name(ctx)
 }
 
 func fulfillmentText(ctx context.Context, _ AuditEntry, value string) string {

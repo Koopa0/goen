@@ -114,12 +114,12 @@ func (h *Handler) confirmRefundUnsent(w http.ResponseWriter, r *http.Request, nu
 	default:
 		return false
 	}
-	web.Render(w, r, h.log, status, admin.ConfirmUnsentRefund(layouts.Page{Title: i18n.T(r.Context(), i18n.KeyAdminUnsentTitle)}, view))
+	web.Render(w, r, h.log, status, ConfirmUnsentRefund(layouts.Page{Title: i18n.T(r.Context(), i18n.KeyAdminUnsentTitle)}, view))
 	return true
 }
 
-func unsentConfirmation(number string, p *UnsentRefund) admin.UnsentRefundConfirmation {
-	return admin.UnsentRefundConfirmation{
+func unsentConfirmation(number string, p *UnsentRefund) UnsentRefundConfirmation {
+	return UnsentRefundConfirmation{
 		OrderNumber: number, Lines: unsentLines(p.Units), Reason: p.Reason,
 		RefundCents: p.RefundCents, CardCents: p.CardCents, CreditCents: p.CreditCents,
 		Resume: p.Open,
