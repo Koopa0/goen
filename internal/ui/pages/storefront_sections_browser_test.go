@@ -30,8 +30,13 @@ func TestStorefrontSectionsAsDrawn(t *testing.T) {
 	mux.Handle(assets.Prefix, assets.Handler(slog.New(slog.DiscardHandler)))
 	mux.HandleFunc("GET /home", func(w http.ResponseWriter, r *http.Request) {
 		view := HomeView{Rules: ShopRules{FreeDeliveryCents: 99900, LowestFeeCents: 6000, PickupOffered: true}}
-		for _, title := range []string{"Technology", "Everyday essentials", "Books & stationery"} {
-			view.Slides = append(view.Slides, HeroSlide{Title: title, Layout: SlideSplit, Tone: components.ToneStone})
+		photo := components.Photo{URL: assets.Image{BundledKey: "nimbus-band-2-01.webp"}.URL(), Alt: "Headphones on a desk"}
+		view.Slides = []HeroSlide{
+			{Title: "Technology", Layout: SlideSplit, Tone: components.ToneStone, Photo: photo},
+			{Title: "Everyday essentials", Layout: SlideSplit, Tone: components.ToneInk, Photo: photo, CTA: CTA{Label: "Shop now", Href: "/c/audio"}},
+			{Title: "Books & stationery", Layout: SlidePhoto, Tone: components.ToneSage, Photo: photo},
+			{Title: "Slow mornings", Layout: SlideSplit, Tone: components.ToneSage, CTA: CTA{Label: "See the range", Href: "/c/coffee"}},
+			{Title: "After dark", Layout: SlideSplit, Tone: components.ToneInk},
 		}
 		for _, c := range []struct{ slug, name, photo string }{
 			{"audio", "Audio", "nimbus-band-2-01.webp"},
