@@ -84,8 +84,14 @@ func TestMaintenancePoolIsReachedAndRoleCheckedAtStartup(t *testing.T) {
 	}
 	t.Cleanup(func() {
 		//nolint:usetesting // t.Context is cancelled before Cleanup runs.
-		_, _ = pool.Exec(context.Background(), "DROP ROLE "+pgx.Identifier{role}.Sanitize())
+		_, _ = pool.Exec(context.Background(), "DROP OWNED BY "+pgx.Identifier{role}.Sanitize()+"; DROP ROLE "+pgx.Identifier{role}.Sanitize())
 	})
+	// CONNECT, so the refusal under test is SET ROLE maintenance and not the
+	// database turning the login away first.
+	grantConnect := "GRANT CONNECT ON DATABASE " + pgx.Identifier{pool.Config().ConnConfig.Database}.Sanitize() + " TO " + pgx.Identifier{role}.Sanitize()
+	if _, grantErr := pool.Exec(ctx, grantConnect); grantErr != nil {
+		t.Fatalf("grant the maintenance probe CONNECT: %v", grantErr)
+	}
 
 	probeDSN, err := url.Parse(pool.Config().ConnString())
 	if err != nil {
@@ -97,8 +103,8 @@ func TestMaintenancePoolIsReachedAndRoleCheckedAtStartup(t *testing.T) {
 	if rejected != nil {
 		rejected.Close()
 	}
-	if err == nil || !strings.Contains(err.Error(), "maintenance") {
-		t.Fatalf("openMaintenancePool with a login outside maintenance = %v, want startup refusal", err)
+	if err == nil || !strings.Contains(err.Error(), "assume maintenance role") {
+		t.Fatalf("openMaintenancePool with a login outside maintenance = %v, want the SET ROLE maintenance refusal", err)
 	}
 	if strings.Contains(err.Error(), password) || strings.Contains(err.Error(), probeURL) {
 		t.Errorf("maintenance startup error leaked its DSN credential: %v", err)

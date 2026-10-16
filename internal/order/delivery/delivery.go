@@ -54,11 +54,31 @@ const (
 
 func (a *Details) Validate() []web.FieldRefusal {
 	var errs []web.FieldRefusal
-	add := func(f string, k i18n.Key) { errs = append(errs, web.FieldRefusal{Field: f, MessageKey: k}) }
-
 	if k := emailError(a.Email); k != "" {
-		add("email", k)
+		errs = append(errs, web.FieldRefusal{Field: "email", MessageKey: k})
 	}
+
+	errs = append(errs, a.recipientErrors()...)
+
+	if utf8.RuneCountInString(a.Note) > maxNoteRunes {
+		errs = append(errs, web.FieldRefusal{Field: "note", MessageKey: i18n.KeyNoteTooLong})
+	}
+
+	fields := append([]field{{"email", a.Email}}, a.recipientFields()...)
+	fields = append(fields, field{"note", a.Note})
+	return append(errs, controlCharErrors(fields)...)
+}
+
+// ValidateRecipient checks who the parcel goes to and where: everything Validate
+// checks but the order's own email and note. The account's address book saves
+// only what passes it, so a saved address cannot fail at checkout.
+func (a *Details) ValidateRecipient() []web.FieldRefusal {
+	return append(a.recipientErrors(), controlCharErrors(a.recipientFields())...)
+}
+
+func (a *Details) recipientErrors() []web.FieldRefusal {
+	var errs []web.FieldRefusal
+	add := func(f string, k i18n.Key) { errs = append(errs, web.FieldRefusal{Field: f, MessageKey: k}) }
 
 	if strings.TrimSpace(a.RecipientName) == "" {
 		add("name", i18n.KeyNameRequired)
@@ -73,13 +93,7 @@ func (a *Details) Validate() []web.FieldRefusal {
 		add("phone", i18n.KeyPhoneMalformed)
 	}
 
-	errs = append(errs, a.destinationErrors()...)
-
-	if utf8.RuneCountInString(a.Note) > maxNoteRunes {
-		add("note", i18n.KeyNoteTooLong)
-	}
-
-	return append(errs, a.controlCharErrors()...)
+	return append(errs, a.destinationErrors()...)
 }
 
 func (a *Details) destinationErrors() []web.FieldRefusal {
@@ -158,17 +172,24 @@ func (a *Details) DropOtherDestination() {
 	}
 }
 
-// controlCharErrors: a newline in a name is how a shipping label gets a line it
-// was never given.
-func (a *Details) controlCharErrors() []web.FieldRefusal {
-	var errs []web.FieldRefusal
-	for _, f := range []struct{ name, value string }{
-		{"email", a.Email}, {"name", a.RecipientName}, {"phone", a.Phone},
+type field struct{ name, value string }
+
+// recipientFields are the fields ValidateRecipient checks, in form order.
+func (a *Details) recipientFields() []field {
+	return []field{
+		{"name", a.RecipientName}, {"phone", a.Phone},
 		{"postal_code", a.PostalCode}, {"city", a.City},
 		{"district", a.District}, {"street", a.Street},
 		{"pickup_chain", string(a.PickupChain)}, {"pickup_store_code", a.PickupStoreCode},
-		{"pickup_store_name", a.PickupStoreName}, {"note", a.Note},
-	} {
+		{"pickup_store_name", a.PickupStoreName},
+	}
+}
+
+// controlCharErrors: a newline in a name is how a shipping label gets a line it
+// was never given.
+func controlCharErrors(fields []field) []web.FieldRefusal {
+	var errs []web.FieldRefusal
+	for _, f := range fields {
 		if web.HasControlChars(f.value) {
 			errs = append(errs, web.FieldRefusal{Field: f.name, MessageKey: i18n.KeyFieldHasControlChars})
 		}
