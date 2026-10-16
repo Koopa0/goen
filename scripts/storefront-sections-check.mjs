@@ -188,7 +188,7 @@ try {
     if (!current || !other) return null;
     const look = tab => {
       const style = getComputedStyle(tab);
-      return { background: style.backgroundColor, weight: style.fontWeight, outline: style.outlineStyle };
+      return { background: style.backgroundColor, weight: style.fontWeight, outline: style.outlineStyle, shadow: style.boxShadow };
     };
     return { scripting: matchMedia('(scripting: enabled)').matches, current: look(current), other: look(other) };
   })()`);
@@ -201,7 +201,7 @@ try {
     const look = async nodeId => {
       const { computedStyle } = await send('CSS.getComputedStyleForNode', { nodeId });
       const value = name => computedStyle.find(property => property.name === name)?.value;
-      return { background: value('background-color'), weight: value('font-weight'), outline: value('outline-style') };
+      return { background: value('background-color'), weight: value('font-weight'), outline: value('outline-style'), shadow: value('box-shadow') };
     };
     return { current: await look(ids[0]), other: await look(ids[1]) };
   };
@@ -344,6 +344,195 @@ try {
     assert.equal(corner['200%'], corner['100%'] * 2, `${label}: ${corner['100%']}px at 100% text is ${corner['200%']}px at 200%, not double`);
     console.log(`${label}: ${corner['100%']}px at 100% text, ${corner['200%']}px at 200%; heart and hero arrows round, footer button 4px inside its field`);
   }
+
+  // The home hero is two rounded panels inside the page column, the copy on its
+  // tone and the photograph, with a seam of page white between them: side by
+  // side from 64rem, the photograph above the copy below it, one layout at
+  // every width. Boxes are read relative to their own slide, so a slide the
+  // track has not scrolled to needs no scrolling.
+  {
+    const corner = '24px';
+    const seam = 8;
+    const near = (got, want, tolerance = 0.5) => Math.abs(got - want) <= tolerance;
+    for (const width of [375, 800, 1024, 1440]) {
+      const label = `hero panels ${width}px`;
+      await open('/home', width);
+      const hero = await evaluate(`(() => {
+        const number = value => parseFloat(value);
+        const box = element => {
+          const r = element.getBoundingClientRect();
+          return { left: r.left, right: r.right, top: r.top, bottom: r.bottom, width: r.width, height: r.height };
+        };
+        const corners = style => [style.borderTopLeftRadius, style.borderTopRightRadius, style.borderBottomRightRadius, style.borderBottomLeftRadius];
+        const home = document.querySelector('.goen-home');
+        const homeStyle = getComputedStyle(home);
+        const homeBox = box(home);
+        const slides = [...document.querySelectorAll('.goen-hero__slide')].map(slide => {
+          const slideStyle = getComputedStyle(slide);
+          const body = slide.querySelector('.goen-hero__body');
+          const media = slide.querySelector('.goen-hero__media');
+          const bodyStyle = getComputedStyle(body);
+          const got = {
+            tone: slide.dataset.tone,
+            slide: box(slide),
+            background: slideStyle.backgroundColor,
+            padding: slideStyle.padding,
+            body: box(body),
+            bodyCorners: corners(bodyStyle),
+            bodyBackground: bodyStyle.backgroundColor,
+            bodyShadow: bodyStyle.boxShadow,
+            bodyPadding: [bodyStyle.paddingTop, bodyStyle.paddingRight, bodyStyle.paddingBottom, bodyStyle.paddingLeft].map(number),
+            focusableOutsideBody: [...slide.querySelectorAll('a, button, input, select, textarea, [tabindex]')].filter(element => !body.contains(element)).length,
+            media: null,
+          };
+          if (media) {
+            const mediaStyle = getComputedStyle(media);
+            got.media = {
+              box: box(media),
+              img: box(media.querySelector('img')),
+              corners: corners(mediaStyle),
+              background: mediaStyle.backgroundColor,
+              shadow: mediaStyle.boxShadow,
+              overflow: mediaStyle.overflow,
+              border: [mediaStyle.borderTopWidth, mediaStyle.borderRightWidth, mediaStyle.borderBottomWidth, mediaStyle.borderLeftWidth].join(' '),
+              pseudo: ['::before', '::after'].map(pseudo => getComputedStyle(media, pseudo).content),
+            };
+          }
+          return got;
+        });
+        const ground = [...document.querySelectorAll('.goen-hero__slide')].map(slide => {
+          const probe = document.createElement('i');
+          probe.style.position = 'absolute';
+          probe.style.backgroundColor = 'var(--tone-ground)';
+          slide.append(probe);
+          const color = getComputedStyle(probe).backgroundColor;
+          probe.remove();
+          return color;
+        });
+        return {
+          viewport: innerWidth,
+          column: { left: homeBox.left + number(homeStyle.paddingLeft), right: homeBox.right - number(homeStyle.paddingRight) },
+          track: box(document.querySelector('.goen-hero__track')),
+          slides, ground,
+        };
+      })()`);
+      assert.equal(hero.slides.length, 5, `${label}: five slides drawn`);
+      assert.deepEqual(hero.slides.map(slide => slide.tone), ['stone', 'ink', 'sage', 'sage', 'ink'], `${label}: tones of the slides`);
+      assert.equal(hero.slides.filter(slide => slide.media).length, 3, `${label}: three slides carry a photograph`);
+
+      // Inside the page column, the slides one track wide and touching.
+      assert.ok(near(hero.track.left, hero.column.left) && near(hero.track.right, hero.column.right),
+        `${label}: the track is ${hero.track.left}-${hero.track.right}, the page column ${hero.column.left}-${hero.column.right}`);
+      hero.slides.forEach((slide, index) => {
+        assert.ok(near(slide.slide.width, hero.track.width), `${label}: slide ${index + 1} is ${slide.slide.width}px in a ${hero.track.width}px track`);
+        if (index > 0) {
+          const gap = slide.slide.left - hero.slides[index - 1].slide.right;
+          assert.ok(near(gap, 0), `${label}: ${gap}px between slides ${index} and ${index + 1}`);
+        }
+      });
+
+      const wide = width >= 1024;
+      const rgb = /^rgb\((\d+), (\d+), (\d+)\)$/;
+      hero.slides.forEach((slide, index) => {
+        const name = `${label}: slide ${index + 1} (${slide.tone}${slide.media ? '' : ', no photograph'})`;
+        const ground = hero.ground[index];
+        const [, red, green, blue] = rgb.exec(ground) ?? [];
+        assert.ok(red !== undefined, `${name}: tone ground ${ground}`);
+        const sum = Number(red) + Number(green) + Number(blue);
+        if (slide.tone === 'ink') assert.ok(sum < 150, `${name}: ink ground is ${ground}`);
+        else assert.ok(sum > 500 && sum < 765, `${name}: ground is ${ground}, not a light tone`);
+
+        // The seam is page white: the slide itself has no ground, padding or ring.
+        assert.equal(slide.background, 'rgba(0, 0, 0, 0)', `${name}: the slide has a ground of ${slide.background}`);
+        assert.equal(slide.padding, '0px', `${name}: the slide has padding ${slide.padding}`);
+        assert.deepEqual(slide.bodyCorners, [corner, corner, corner, corner], `${name}: body corners`);
+        assert.equal(slide.bodyBackground, ground, `${name}: body is ${slide.bodyBackground}, the tone ground is ${ground}`);
+        assert.equal(slide.bodyShadow, 'none', `${name}: body has a ring: ${slide.bodyShadow}`);
+        assert.equal(slide.focusableOutsideBody, 0, `${name}: something focusable lies outside the body, off the tone`);
+        const inline = wide ? Math.min(56, Math.max(32, hero.viewport * 0.04)) : 24;
+        const block = wide ? 48 : 24;
+        assert.ok(near(slide.bodyPadding[1], inline) && near(slide.bodyPadding[3], inline) && near(slide.bodyPadding[0], block),
+          `${name}: body padding ${slide.bodyPadding.join(' ')}, want ${block} ${inline} ${slide.bodyPadding[2]} ${inline}`);
+
+        if (!slide.media) {
+          assert.ok(near(slide.body.left, slide.slide.left) && near(slide.body.right, slide.slide.right), `${name}: the body does not fill the slide`);
+          return;
+        }
+        const { media } = slide;
+        assert.deepEqual(media.corners, [corner, corner, corner, corner], `${name}: photograph corners`);
+        assert.equal(media.background, ground, `${name}: photograph panel is ${media.background}, the tone ground is ${ground}`);
+        assert.equal(media.shadow, 'none', `${name}: photograph panel has a ring: ${media.shadow}`);
+        assert.equal(media.overflow, 'hidden', `${name}: photograph panel overflow is ${media.overflow}, so its corners do not clip the photograph`);
+        assert.equal(media.border, '0px 0px 0px 0px', `${name}: photograph panel has a border: ${media.border}`);
+        assert.ok(media.pseudo.every(content => content === 'none' || content === 'normal'), `${name}: photograph panel draws a pseudo-element: ${media.pseudo}`);
+        for (const edge of ['left', 'right', 'top', 'bottom']) {
+          assert.ok(near(media.img[edge], media.box[edge], 1), `${name}: the photograph's ${edge} is ${media.img[edge]}, its panel's ${media.box[edge]}`);
+        }
+        if (wide) {
+          assert.ok(media.box.left > slide.body.left, `${name}: the photograph is not to the right of the copy`);
+          assert.ok(near(slide.body.top, media.box.top, 1) && near(slide.body.bottom, media.box.bottom, 1), `${name}: the two panels are not the same height`);
+          assert.ok(near(media.box.left - slide.body.right, seam), `${name}: ${media.box.left - slide.body.right}px between the panels, want ${seam}px`);
+          assert.ok(near(slide.body.left, slide.slide.left) && near(media.box.right, slide.slide.right), `${name}: the panels do not span the slide`);
+          assert.ok(near(slide.body.width, (slide.slide.width - seam) * 5 / 12, 1), `${name}: copy is ${slide.body.width}px of ${slide.slide.width}px, not 5 of 12`);
+        } else {
+          assert.ok(media.box.top < slide.body.top, `${name}: the photograph is not above the copy`);
+          assert.ok(near(slide.body.top - media.box.bottom, seam), `${name}: ${slide.body.top - media.box.bottom}px between the panels, want ${seam}px`);
+          for (const panel of [slide.body, media.box]) {
+            assert.ok(near(panel.left, slide.slide.left) && near(panel.right, slide.slide.right), `${name}: a panel does not span the slide`);
+          }
+        }
+      });
+
+      // A focus ring pushed 2px off a tab needs 4px of the scrolling row above
+      // and below it, or the row clips it; the words stay where they were.
+      const tabs = await evaluate(`(() => {
+        const box = element => { const r = element.getBoundingClientRect(); return { left: r.left, top: r.top, bottom: r.bottom }; };
+        const probe = document.createElement('i');
+        probe.style.color = 'var(--accent)';
+        document.body.append(probe);
+        const accent = getComputedStyle(probe).color;
+        probe.remove();
+        const row = document.querySelector('.goen-hero__tabs');
+        const rowStyle = getComputedStyle(row);
+        const current = row.querySelector('a[aria-current="true"]');
+        const other = row.querySelector('a:not([aria-current="true"])');
+        return { accent, row: box(row), current: box(current), words: box(current).left + parseFloat(getComputedStyle(current).paddingLeft),
+          padding: [rowStyle.paddingTop, rowStyle.paddingBottom],
+          currentShadow: getComputedStyle(current).boxShadow, otherShadow: getComputedStyle(other).boxShadow };
+      })()`);
+      // From 48rem the first tab hangs 16px into the gutter so its words sit on the column edge.
+      const hang = width >= 768 ? 0 : 16;
+      assert.ok(near(tabs.words, hero.column.left + hang), `${label}: the first tab's words start at ${tabs.words}, want ${hero.column.left + hang}`);
+      assert.deepEqual(tabs.padding, ['4px', '4px'], `${label}: the tab row's padding above and below`);
+      assert.ok(tabs.current.top - tabs.row.top >= 4 - 0.5 && tabs.row.bottom - tabs.current.bottom >= 4 - 0.5,
+        `${label}: the current tab sits closer than 4px to the row's top or bottom, which would clip its focus ring`);
+      assert.equal(tabs.currentShadow, `${tabs.accent} 0px 0px 0px 1px inset`, `${label}: the current tab's edge`);
+      assert.equal(tabs.otherShadow, 'none', `${label}: another tab has an edge: ${tabs.otherShadow}`);
+      await force('.goen-hero__tabs a[aria-current="true"]', ['focus', 'focus-visible']);
+      assert.equal(await evaluate(`getComputedStyle(document.querySelector('.goen-hero__tabs a[aria-current="true"]')).outlineOffset`), '2px', `${label}: the focused tab's ring offset`);
+      await force('.goen-hero__tabs a[aria-current="true"]', []);
+
+      // The white ring of an ink slide is drawn on its body, which is ink, and
+      // never on the white around it: the call to action sits, ring and all,
+      // inside the body.
+      const ctaSelector = '.goen-hero__slide[data-tone="ink"] .goen-hero__actions a';
+      await force(ctaSelector, ['focus', 'focus-visible']);
+      const cta = await evaluate(`(() => {
+        const link = document.querySelector(${JSON.stringify(ctaSelector)});
+        const style = getComputedStyle(link);
+        const r = link.getBoundingClientRect();
+        const body = link.closest('.goen-hero__body').getBoundingClientRect();
+        const reach = parseFloat(style.outlineWidth) + Math.max(0, parseFloat(style.outlineOffset));
+        return { colour: style.outlineColor, style: style.outlineStyle,
+          room: Math.min(r.left - reach - body.left, body.right - (r.right + reach), r.top - reach - body.top, body.bottom - (r.bottom + reach)) };
+      })()`);
+      await force(ctaSelector, []);
+      assert.deepEqual([cta.style, cta.colour], ['solid', 'rgb(255, 255, 255)'], `${label}: the ink slide's focus ring`);
+      assert.ok(cta.room >= 0, `${label}: the ink slide's ring leaves the body by ${-cta.room}px, onto the page white`);
+      console.log(`${label}: ${hero.slides.length} slides, ${wide ? 'side by side' : 'stacked'}, panels ${corner} apart by ${seam}px`);
+    }
+  }
+
   // A product's main photograph sits on one rounded well in the photograph's
   // own ground, whatever the department's tone: no tone frame around it, no
   // white edge on the picture, and a placeholder whose words can be read.

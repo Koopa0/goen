@@ -50,3 +50,28 @@ ORDER BY r.created_at DESC, r.id;
 SELECT EXISTS (
     SELECT 1 FROM return_requests WHERE order_id = $1 AND status = 'requested'
 );
+
+-- Pending refuses a second cancellation; committed and unresolved payment
+-- facts protect stock when money has arrived or may still arrive. Run it after
+-- LockOrderByNumber: a capture holds the order lock without updating the row,
+-- so an UPDATE that waited for it would judge payment by the snapshot taken
+-- before the wait and reach the transition trigger, which store may not run.
+-- name: CancelOrderByCustomer :execrows
+UPDATE orders SET fulfillment_status = 'cancelled', cancelled_at = now()
+WHERE orders.id = $1
+  AND orders.fulfillment_status = 'pending'
+  AND NOT order_is_committed(orders.id)
+  AND NOT EXISTS (
+      SELECT 1 FROM payments p
+      WHERE p.order_id = orders.id
+        AND p.status IN ('requires_payment', 'requires_action', 'processing',
+                         'requires_reconciliation')
+  )
+  AND NOT EXISTS (
+      SELECT 1
+      FROM payment_webhook_events e
+      JOIN payments p
+        ON p.provider = e.provider AND p.provider_ref = e.object_ref
+      WHERE p.order_id = orders.id
+        AND e.unreconciled IS NOT NULL AND e.reconciled_at IS NULL
+  );

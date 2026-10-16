@@ -1,4 +1,4 @@
-package cart
+package buyer
 
 import (
 	"context"
@@ -14,7 +14,7 @@ import (
 
 // ErrNotCancellable covers every reason, so a guessable order number cannot be
 // probed for its state.
-var ErrNotCancellable = errors.New("cart: this order cannot be cancelled")
+var ErrNotCancellable = errors.New("buyer: this order cannot be cancelled")
 
 // CancelOrder refuses an order with an unresolved payment, so no Checkout
 // Session is left for the caller to close.

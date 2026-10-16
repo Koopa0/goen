@@ -1,4 +1,4 @@
-package admin
+package returns
 
 import (
 	"github.com/koopa0/goen/internal/i18n"

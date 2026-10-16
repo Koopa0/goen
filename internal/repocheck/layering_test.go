@@ -73,7 +73,6 @@ var dataFilesNamingViews = []string{
 	"internal/admin/products/product_label.go",
 	"internal/admin/products/standing.go",
 	"internal/admin/reports/store.go",
-	"internal/admin/returns/store.go",
 	"internal/cart/outbox.go",
 	"internal/cart/store.go",
 	"internal/catalog/campaign.go",

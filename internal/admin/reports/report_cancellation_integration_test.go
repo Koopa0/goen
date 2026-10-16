@@ -9,7 +9,7 @@ import (
 	"github.com/koopa0/goen/internal/admin/admintest"
 	"github.com/koopa0/goen/internal/admin/reports"
 	"github.com/koopa0/goen/internal/admin/stock"
-	"github.com/koopa0/goen/internal/cart"
+	"github.com/koopa0/goen/internal/order/buyer"
 )
 
 // TestCancellingACreditPaidOrderMovesNoReportFigure holds the owner's ruling on
@@ -26,7 +26,7 @@ func TestCancellingACreditPaidOrderMovesNoReportFigure(t *testing.T) {
 		t.Fatalf("report before: %v", err)
 	}
 
-	if err = cart.NewStore(pool).CancelOrder(ctx, number); err != nil {
+	if err = buyer.NewStore(pool).CancelOrder(ctx, number); err != nil {
 		t.Fatalf("cancel %s: %v", number, err)
 	}
 
