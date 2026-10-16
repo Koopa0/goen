@@ -2157,6 +2157,7 @@ body:has(.goen-hero) .goen-header {
 .goen-hero__tabs {
   display: flex;
   gap: var(--s-1);
+  isolation: isolate;
   margin-inline-start: calc(var(--s-4) * -1 - 4px);
   mask-image: linear-gradient(to right, #000 calc(100% - 1.5rem), transparent);
   min-width: 0;
@@ -2168,6 +2169,8 @@ body:has(.goen-hero) .goen-header {
   padding-inline-end: 1.5rem;
   /* The same 4px on the leading side, so the ring of the first tab is not cut. */
   padding-inline-start: 4px;
+  /* The pill is positioned in the row's own content, so it scrolls with the tabs. */
+  position: relative;
   scrollbar-width: none;
 }
 
@@ -2199,17 +2202,44 @@ body:has(.goen-hero) .goen-header {
   }
 }
 
-/* The current tab is told apart by its weight, its fill and a 1px edge in the
-   accent (6.3:1 on the fill), so colour is not the only cue; forced colours
-   drop the fill and the edge and draw an outline instead. Only the script that
-   moves between slides keeps the mark true, so without it no tab is drawn as
-   current. */
-@media (scripting: enabled) {
-  .goen-hero__tabs a[aria-current="true"] {
-    background: var(--accent-faint);
-    box-shadow: inset 0 0 0 1px var(--accent);
-    color: var(--accent-deep);
-    font-weight: var(--fw-medium);
+/* The current tab is told apart by one pill that goen.js sets under it and
+   slides to the next tab: a fill, a 1px edge in the accent (6.3:1 on the fill)
+   and the text colour, never the weight, so colour is not the only cue. The
+   pill is as tall as the tabs, so a focused tab's ring lies outside its edge.
+   Only the script that moves between slides keeps the mark true, so without it
+   (no data-pill) no tab is drawn as current. The global reduced-motion rule
+   makes the pill jump. */
+.goen-hero__tabs[data-pill]::before {
+  background: var(--accent-faint);
+  border: 1px solid var(--accent);
+  border-radius: var(--r-full);
+  box-sizing: border-box;
+  content: "";
+  inset-block: 4px;
+  inset-inline-start: 0;
+  pointer-events: none;
+  position: absolute;
+  transition:
+    translate var(--dur-move) var(--ease-move),
+    width var(--dur-move) var(--ease-move);
+  translate: var(--pill-x, 0px) 0;
+  width: var(--pill-w, 0px);
+  z-index: -1;
+}
+
+.goen-hero__tabs[data-pill] a {
+  font-weight: var(--fw-medium);
+  transition: color var(--dur-move) var(--ease-move);
+}
+
+.goen-hero__tabs[data-pill] a[aria-current="true"] {
+  color: var(--accent-deep);
+}
+
+/* Forced colours drop the fill and the edge: the current tab gets an outline. */
+@media (forced-colors: active) {
+  .goen-hero__tabs[data-pill]::before {
+    display: none;
   }
 }
 

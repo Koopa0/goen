@@ -34,33 +34,54 @@
       const next = (index + slides.length) % slides.length;
       track.scrollTo({ left: next * track.clientWidth });
     };
+    // The attribute goes first: it also sets the tabs' weight, so they are
+    // measured at the width they keep.
+    const placePill = () => {
+      if (!tabRow) return;
+      tabRow.dataset.pill = "";
+      const row = tabRow.getBoundingClientRect();
+      const box = tabs[current].getBoundingClientRect();
+      tabRow.style.setProperty("--pill-x", `${box.left - row.left + tabRow.scrollLeft}px`);
+      tabRow.style.setProperty("--pill-w", `${box.width}px`);
+    };
+    const select = (next) => {
+      current = next;
+      tabs.forEach((tab, index) => {
+        if (index === current) tab.setAttribute("aria-current", "true");
+        else tab.removeAttribute("aria-current");
+      });
+      if (tabRow && tabRow.scrollWidth > tabRow.clientWidth) {
+        const tab = tabs[current];
+        const at = tab.getBoundingClientRect().left - tabRow.getBoundingClientRect().left + tabRow.scrollLeft;
+        // The row's end padding reserves the room under its fade mask.
+        const visible = tabRow.clientWidth - parseFloat(getComputedStyle(tabRow).paddingInlineEnd);
+        // The row's start padding is room for the ring, so the first tab rests at 0.
+        const lead = at - parseFloat(getComputedStyle(tabRow).paddingInlineStart);
+        if (tab.offsetWidth > visible || lead < tabRow.scrollLeft) tabRow.scrollLeft = lead;
+        else if (at + tab.offsetWidth > tabRow.scrollLeft + visible)
+          tabRow.scrollLeft = at + tab.offsetWidth - visible;
+      }
+      placePill();
+      if (count) count.textContent = `${current + 1} / ${slides.length}`;
+    };
     const seen = new IntersectionObserver((entries) => {
       for (const entry of entries) {
         if (!entry.isIntersecting || entry.intersectionRatio < 0.6) continue;
         // The first report is the slide already shown; the live region speaks
         // only once the visitor has moved the carousel.
         const index = slides.indexOf(entry.target);
-        if (index === current) continue;
-        current = index;
-        tabs.forEach((tab, index) => {
-          if (index === current) tab.setAttribute("aria-current", "true");
-          else tab.removeAttribute("aria-current");
-        });
-        if (tabRow && tabRow.scrollWidth > tabRow.clientWidth) {
-          const tab = tabs[current];
-          const at = tab.getBoundingClientRect().left - tabRow.getBoundingClientRect().left + tabRow.scrollLeft;
-          // The row's end padding reserves the room under its fade mask.
-          const visible = tabRow.clientWidth - parseFloat(getComputedStyle(tabRow).paddingInlineEnd);
-          // The row's start padding is room for the ring, so the first tab rests at 0.
-          const lead = at - parseFloat(getComputedStyle(tabRow).paddingInlineStart);
-          if (tab.offsetWidth > visible || lead < tabRow.scrollLeft) tabRow.scrollLeft = lead;
-          else if (at + tab.offsetWidth > tabRow.scrollLeft + visible)
-            tabRow.scrollLeft = at + tab.offsetWidth - visible;
-        }
-        if (count) count.textContent = `${current + 1} / ${slides.length}`;
+        if (index !== current) select(index);
       }
     }, { root: track, threshold: 0.6 });
     slides.forEach((slide) => seen.observe(slide));
+
+    // A font swap, a larger text size or a zoom changes the tabs' widths.
+    if (tabRow) {
+      placePill();
+      const resized = new ResizeObserver(placePill);
+      resized.observe(tabRow);
+      tabs.forEach((tab) => resized.observe(tab));
+    }
 
     tabs.forEach((tab, index) => tab.addEventListener("click", (event) => {
       event.preventDefault();

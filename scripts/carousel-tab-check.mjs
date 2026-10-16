@@ -50,9 +50,11 @@ try {
       tab.focus({ preventScroll: true, focusVisible: true });
       const style = getComputedStyle(tab), box = tab.getBoundingClientRect();
       const reach = parseFloat(style.outlineWidth) + parseFloat(style.outlineOffset);
+      const pill = getComputedStyle(row, '::before');
       const result = { focused: document.activeElement === tab, visible: tab.matches(':focus-visible'),
         style: style.outlineStyle, ringLeft: box.left - reach, rowLeft: row.getBoundingClientRect().left,
-        scrollLeft: row.scrollLeft };
+        scrollLeft: row.scrollLeft, ringInner: box.left - parseFloat(style.outlineOffset),
+        pillLeft: row.getBoundingClientRect().left + parseFloat(pill.translate) - row.scrollLeft };
       tab.blur();
       return result;
     })()`);
@@ -60,6 +62,27 @@ try {
     assert.notEqual(ring.style, 'none', `${label}: first tab draws a focus ring`);
     assert.ok(ring.ringLeft >= ring.rowLeft - 0.01,
       `${label}: first tab's focus ring is cut at the row's start: ${JSON.stringify(ring)}`);
+    // The ring lies outside the pill's edge, not on it.
+    assert.ok(ring.ringInner <= ring.pillLeft - 1,
+      `${label}: first tab's focus ring overlaps the pill's edge: ${JSON.stringify(ring)}`);
+  };
+  // The pill is drawn on the row's ::before from --pill-x and --pill-w; once its
+  // transitions have finished it must sit on the current tab's box.
+  const pillFollows = async label => {
+    const got = await evaluate(`(async () => {
+      await new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)));
+      const row = document.querySelector('.goen-hero__tabs'), tab = row.querySelector('a[aria-current="true"]');
+      await Promise.all(row.getAnimations({ subtree: true }).map(animation => animation.finished.catch(() => {})));
+      const pill = getComputedStyle(row, '::before'), box = row.getBoundingClientRect(), current = tab.getBoundingClientRect();
+      return { marked: row.hasAttribute('data-pill'), href: tab.getAttribute('href'),
+        pill: { left: box.left + parseFloat(pill.translate) - row.scrollLeft, width: parseFloat(pill.width),
+          top: box.top + parseFloat(pill.top), height: parseFloat(pill.height) },
+        tab: { left: current.left, width: current.width, top: current.top, height: current.height } };
+    })()`);
+    assert.equal(got.marked, true, `${label}: the row is not marked for the pill`);
+    for (const side of ['left', 'width', 'top', 'height'])
+      assert.ok(Math.abs(got.pill[side] - got.tab[side]) <= 0.5,
+        `${label}: the pill's ${side} is not the current tab's: ${JSON.stringify(got)}`);
   };
   await send('Page.enable');
   for (const locale of ['zh-Hant', 'en']) for (const width of [375, 390, 1440]) {
@@ -144,9 +167,36 @@ try {
         if (index === 2) assert.ok(got.left > 0, `${label}: third tab must scroll horizontally`);
         else if (index === 0) assert.equal(got.left, 0, `${label}: first tab returns to the start`);
       } else assert.equal(got.left, 0, `${label}: fitting desktop tabs stay still`);
+      await pillFollows(`${label} after swipe ${index}`);
       if (index === 0) await firstTabRing(`${label} back on slide 1`);
       console.log(`${label}: ${JSON.stringify(got)}`);
     }
+    // A tab is a link the script turns into a scroll to its slide.
+    for (const index of [2, 1, 0, 2]) {
+      await evaluate(`document.querySelectorAll('.goen-hero__tabs a')[${index}].click()`);
+      await waitFor(`(() => {
+        const track = document.querySelector('.goen-hero__track');
+        return document.querySelector('.goen-hero__tabs a[aria-current="true"]')?.getAttribute('href') === '#hero-${index + 1}' &&
+          Math.abs(track.scrollLeft - ${index} * track.clientWidth) <= 1;
+      })()`, `${label} click ${index}`);
+      await pillFollows(`${label} after click ${index}`);
+    }
+    // Larger text widens every tab, and a narrower window changes the row.
+    await evaluate(`document.documentElement.style.fontSize = '200%'`);
+    await pillFollows(`${label} at 200% text`);
+    await evaluate(`document.documentElement.style.fontSize = ''`);
+    await pillFollows(`${label} back at normal text`);
+    await send('Emulation.setDeviceMetricsOverride', { width: width - 40, height: 1000, deviceScaleFactor: 1, mobile: width < 768 });
+    await pillFollows(`${label} resized to ${width - 40}px`);
+    await send('Emulation.setDeviceMetricsOverride', { width, height: 1000, deviceScaleFactor: 1, mobile: width < 768 });
+    await pillFollows(`${label} resized back`);
+    const duration = () => evaluate(`getComputedStyle(document.querySelector('.goen-hero__tabs'), '::before').transitionDuration`);
+    const milliseconds = value => value.split(',').map(part => Math.round(parseFloat(part) * (part.trim().endsWith('ms') ? 1 : 1000) * 1e6) / 1e6);
+    assert.ok(milliseconds(await duration()).includes(280), `${label}: the pill does not move in 280ms: ${await duration()}`);
+    await send('Emulation.setEmulatedMedia', { features: [{ name: 'prefers-reduced-motion', value: 'reduce' }] });
+    const reduced = milliseconds(await duration());
+    await send('Emulation.setEmulatedMedia', { features: [] });
+    assert.ok(reduced.every(value => value <= 0.01), `${label}: the pill still moves with reduced motion: ${reduced}`);
   }
 } finally {
   socket.close();
