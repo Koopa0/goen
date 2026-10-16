@@ -8,6 +8,7 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/koopa0/goen/assets"
 	"github.com/koopa0/goen/internal/i18n"
@@ -19,9 +20,10 @@ import (
 // The home page's hero tabs, hero arrows, departments and rules row, the deals
 // page's running campaigns, the search page's compare button, the cart's
 // stepper and filled button, a department's filter chip, the corners every
-// pressable control shares, a product's photograph, and the header's search
-// pill with the rule under the header, and the one way a chosen option, a
-// chosen delivery card and a refused field are marked, measured as drawn.
+// pressable control shares, a product's photograph, the header's search pill
+// with the rule under the header, a department's head and the home page's shelf
+// as panels in the page column, and the one way a chosen option, a chosen
+// delivery card and a refused field are marked, measured as drawn.
 func TestStorefrontSectionsAsDrawn(t *testing.T) {
 	_, port := uitest.Browser(t, "CDP_PORT")
 	root, err := filepath.Abs("../../..")
@@ -30,6 +32,7 @@ func TestStorefrontSectionsAsDrawn(t *testing.T) {
 	}
 	mux := http.NewServeMux()
 	mux.Handle(assets.Prefix, assets.Handler(slog.New(slog.DiscardHandler)))
+	tones := map[string]components.Tone{"ink": components.ToneInk, "sage": components.ToneSage}
 	mux.HandleFunc("GET /home", func(w http.ResponseWriter, r *http.Request) {
 		view := HomeView{Rules: ShopRules{FreeDeliveryCents: 99900, LowestFeeCents: 6000, PickupOffered: true}}
 		photo := components.Photo{URL: assets.Image{BundledKey: "nimbus-band-2-01.webp"}.URL(), Alt: "Headphones on a desk"}
@@ -49,6 +52,12 @@ func TestStorefrontSectionsAsDrawn(t *testing.T) {
 				Slug: c.slug, Name: c.name, Tone: components.ToneStone,
 				Photo: components.Photo{URL: assets.Image{BundledKey: c.photo}.URL()},
 			})
+		}
+		if tone, ok := tones[r.URL.Query().Get("band")]; ok {
+			view.Band = &DepartmentBand{Name: "Technology", Items: 12, Fact: "Audio · Phones", Href: "/c/tech", Tone: tone}
+			for _, name := range []string{"Canvas tote", "City tote", "Weekend tote", "Market tote"} {
+				view.Band.Tiles = append(view.Band.Tiles, ProductTile{Slug: strings.ToLower(strings.ReplaceAll(name, " ", "-")), Name: name, PriceCents: 89000, InStock: true})
+			}
 		}
 		w.Header().Set("Content-Type", "text/html; charset=utf-8")
 		if renderErr := Home(layouts.Page{}, view).Render(i18n.WithLocale(r.Context(), i18n.En), w); renderErr != nil {
@@ -92,8 +101,33 @@ func TestStorefrontSectionsAsDrawn(t *testing.T) {
 			t.Errorf("render listing fixture: %v", renderErr)
 		}
 	})
+	mux.HandleFunc("GET /department", func(w http.ResponseWriter, r *http.Request) {
+		query := r.URL.Query()
+		locale, names := i18n.En, []string{"Phones", "Laptops", "Tablets", "Audio", "Wearables", "Accessories"}
+		if query.Get("zh") == "1" {
+			locale, names = i18n.ZhHant, []string{"手機", "筆電", "平板", "耳機與音響", "穿戴裝置", "周邊配件"}
+		}
+		theme := &Theme{Tone: tones[query.Get("tone")], Children: []Crumb{
+			{Slug: "phones", Name: names[0]}, {Slug: "laptops", Name: names[1]}, {Slug: "tablets", Name: names[2]},
+			{Slug: "audio", Name: names[3]}, {Slug: "wearables", Name: names[4]}, {Slug: "accessories", Name: names[5]},
+		}}
+		if query.Get("photo") == "1" {
+			theme.Photo = components.Photo{URL: assets.Image{BundledKey: "nimbus-band-2-01.webp"}.URL(), Alt: "Headphones on a desk"}
+		}
+		var head *DepartmentHead
+		if query.Get("notice") == "1" {
+			now := time.Date(2026, 10, 9, 4, 0, 0, 0, time.UTC)
+			head = &DepartmentHead{Notice: &DepartmentNotice{
+				Title: "Autumn audio", Href: "/s/autumn", End: NewCampaignEnd(time.Date(2026, 10, 30, 16, 0, 0, 0, time.UTC), now),
+			}}
+		}
+		view := ListingView{Slug: "phones", Name: names[0], Theme: theme}
+		w.Header().Set("Content-Type", "text/html; charset=utf-8")
+		if renderErr := Listing(layouts.Page{}, view, nil, head).Render(i18n.WithLocale(r.Context(), locale), w); renderErr != nil {
+			t.Errorf("render department fixture: %v", renderErr)
+		}
+	})
 	mux.HandleFunc("GET /product", func(w http.ResponseWriter, r *http.Request) {
-		tones := map[string]components.Tone{"ink": components.ToneInk, "sage": components.ToneSage}
 		view := &ProductView{
 			Name: "Restwood Mug", Brand: "Restwood", Slug: "restwood-mug", Description: "A stoneware mug.",
 			SelectionOK: true, Exact: true, Sellable: true, AnySellable: true, PriceCents: 43200,
