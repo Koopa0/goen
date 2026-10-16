@@ -229,7 +229,7 @@ func TestBestSellersLeaveOutAnOrderRefundedBeforeShipment(t *testing.T) {
 		if err != nil {
 			t.Fatalf("ReportAt: %v", err)
 		}
-		return slices.ContainsFunc(view.Sellers, func(r admin.Seller) bool { return r.Slug == slug })
+		return slices.ContainsFunc(view.Sellers, func(r reports.Seller) bool { return r.Slug == slug })
 	}
 	if !listed() {
 		t.Fatal("the paid order's product is not a best seller before any refund")
@@ -582,7 +582,7 @@ func TestStockTimeAndSoldOutComeFromTheLedger(t *testing.T) {
 	}
 }
 
-func indexOf(view *admin.ReportView, sku string) (int, bool) {
+func indexOf(view *reports.ReportView, sku string) (int, bool) {
 	for i := range view.AtRisk {
 		if view.AtRisk[i].SKU == sku {
 			return i, true
@@ -591,7 +591,7 @@ func indexOf(view *admin.ReportView, sku string) (int, bool) {
 	return 0, false
 }
 
-func stockRow(view *admin.ReportView, sku string) (admin.StockRisk, bool) {
+func stockRow(view *reports.ReportView, sku string) (admin.StockRisk, bool) {
 	i, ok := indexOf(view, sku)
 	if !ok {
 		return admin.StockRisk{}, false
@@ -922,7 +922,7 @@ func TestReturnedProductsCountOnlyDecidedUnitsOfOrdersPlacedInThePeriod(t *testi
 	if view.ReturnedErr != nil {
 		t.Fatalf("returned products: %v", view.ReturnedErr)
 	}
-	var got *admin.ReturnedProduct
+	var got *reports.ReturnedProduct
 	for i, p := range view.Returned {
 		switch p.Slug {
 		case productSlug(t, undecided):
@@ -1231,7 +1231,7 @@ func TestDepartmentsAddUpToTheRevenueFigure(t *testing.T) {
 		t.Fatalf("report: %v", err)
 	}
 
-	byName := func(v admin.ReportView) (map[string]int64, int64) {
+	byName := func(v reports.ReportView) (map[string]int64, int64) {
 		got := map[string]int64{}
 		var sum int64
 		for _, d := range v.Departments {
