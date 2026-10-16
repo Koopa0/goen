@@ -1,8 +1,10 @@
 // Package sales is what the shop sold over a run of shop days, as the reports
 // desk reads it for another desk to show: each period's paid orders and
-// revenue, day by day, and the newest paid order. The desks reach one another
+// revenue, day by day, and the newest paid order, and how a figure of one
+// period is set against the period before it. The desks reach one another
 // only through interfaces the consumer declares, so the values and the error
-// those interfaces promise live here, where no desk has to import another.
+// those interfaces promise, and the comparison the report and the dashboard
+// both write, live here, where no desk has to import another.
 package sales
 
 import (

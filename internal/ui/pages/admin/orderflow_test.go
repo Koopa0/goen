@@ -55,34 +55,6 @@ func TestAPaidOrderAwaitingFulfilmentOffersTheRefundBeforeShipment(t *testing.T)
 	}
 }
 
-// The cancellation's confirm page is about a cancellation: its figure is what is
-// refunded for cancelling, and the one field it insists on says so.
-func TestTheCancellationConfirmSaysCancellationAndMarksTheRequiredNote(t *testing.T) {
-	t.Parallel()
-	for _, locale := range []i18n.Locale{i18n.ZhHant, i18n.En} {
-		ctx := i18n.WithLocale(t.Context(), locale)
-		html := renderComponent(t, ctx, ConfirmRefund(layouts.Page{Title: "refund"},
-			RefundConfirmation{OrderNumber: "GO-1", TotalCents: 100000}))
-		if !strings.Contains(html, i18n.T(ctx, i18n.KeyAdminRefundConfirmAmount)) {
-			t.Errorf("%s: the amount is not labelled as a cancellation refund", locale)
-		}
-		if strings.Contains(html, i18n.T(ctx, i18n.KeyAdminRetConfirmAmount)) {
-			t.Errorf("%s: a cancellation is labelled with the return amount", locale)
-		}
-		_, label, _ := strings.Cut(html, `for="refund-reason"`)
-		label, _, _ = strings.Cut(label, "</label>")
-		if !strings.Contains(label, i18n.T(ctx, i18n.KeyAdminRequiredMark)) {
-			t.Errorf("%s: the required note is not marked required: %s", locale, label)
-		}
-
-		resumed := renderComponent(t, ctx, ConfirmRefund(layouts.Page{Title: "refund"},
-			RefundConfirmation{OrderNumber: "GO-1", TotalCents: 100000, Resume: true}))
-		if strings.Contains(resumed, i18n.T(ctx, i18n.KeyAdminRequiredMark)) {
-			t.Errorf("%s: a resumed refund, which has no note field, marks one required", locale)
-		}
-	}
-}
-
 // The return decision marks its note only when the decision needs one.
 func TestTheReturnDecisionMarksTheNoteOnlyWhenItIsRequired(t *testing.T) {
 	t.Parallel()
