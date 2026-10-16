@@ -16,7 +16,7 @@ import (
 )
 
 func TestHomeConfirmsOnlyTheAccountErasureFlag(t *testing.T) {
-	h := home.NewHandler(home.NewStore(pool), slog.New(slog.DiscardHandler), false)
+	h := home.NewHandler(home.NewStore(pool), slog.New(slog.DiscardHandler))
 	for _, locale := range i18n.Locales() {
 		for _, query := range []string{"", "?erased=0", "?erased=unknown", "?erased=1"} {
 			t.Run(locale.Tag()+query, func(t *testing.T) {
