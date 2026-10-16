@@ -129,13 +129,16 @@ func TestTheDeliveryFeeIsNeverDiscounted(t *testing.T) {
 	})
 }
 
+// The largest line the schema stores (order_lines' price and quantity
+// ceilings) under the largest discount it stores (orders_discount_in_range):
+// allocating 1e10 across 9.99e12 multiplies past bigint.
 func TestDiscountAllocationDoesNotOverflowAtSchemaLimits(t *testing.T) {
 	assertCanonicalInvoiceVector(t, invoiceArithmeticVector{
 		items:    []invoiceArithmeticItem{{name: "schema-limit", price: 10000000000, quantity: 999}},
-		discount: 9980000000000, wantTotal: 10000000000,
+		discount: 10000000000, wantTotal: 9980000000000,
 		want: []canonicalInvoiceRow{
-			{Description: "schema-limit", Quantity: 999, UnitPriceCents: 10010000, AmountCents: 9999990000, TaxType: "taxable", Unit: "個", Position: 0},
-			{Description: "折扣尾數調整", Quantity: 1, UnitPriceCents: 10000, AmountCents: 10000, TaxType: "taxable", Unit: "個", Position: 1},
+			{Description: "schema-limit", Quantity: 999, UnitPriceCents: 9989989900, AmountCents: 9979999910100, TaxType: "taxable", Unit: "個", Position: 0},
+			{Description: "折扣尾數調整", Quantity: 1, UnitPriceCents: 89900, AmountCents: 89900, TaxType: "taxable", Unit: "個", Position: 1},
 		},
 	})
 }

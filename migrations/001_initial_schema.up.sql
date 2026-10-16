@@ -511,7 +511,10 @@ CREATE TABLE product_variants (
     CONSTRAINT product_variants_stock_non_negative CHECK (stock_quantity >= 0),
     CONSTRAINT product_variants_safety_stock_non_negative CHECK (safety_stock >= 0),
     CONSTRAINT product_variants_compare_at_is_higher
-        CHECK (compare_at_price_cents IS NULL OR compare_at_price_cents > price_cents)
+        CHECK (compare_at_price_cents IS NULL OR compare_at_price_cents > price_cents),
+    -- price_cents' ceiling, which the desk's money.ParseDollars already holds.
+    CONSTRAINT product_variants_compare_at_in_range
+        CHECK (compare_at_price_cents <= 10000000000)
 );
 
 CREATE UNIQUE INDEX product_variants_sku_key ON product_variants (sku);
@@ -2059,6 +2062,12 @@ CREATE TABLE orders (
     CONSTRAINT orders_locale_known CHECK (locale IN ('zh-Hant', 'en')),
     CONSTRAINT orders_discount_non_negative CHECK (discount_cents >= 0),
     CONSTRAINT orders_shipping_non_negative CHECK (shipping_cents >= 0),
+    -- money.MaxCents, the ceiling every money column carries. These two are
+    -- written by the store role straight from the checkout quote, and nothing
+    -- else bounds them: without it a fee no checkout could quote commits, and
+    -- one past bigint's range breaks order_totals for every list that reads it.
+    CONSTRAINT orders_discount_in_range CHECK (discount_cents <= 10000000000),
+    CONSTRAINT orders_shipping_in_range CHECK (shipping_cents <= 10000000000),
     CONSTRAINT orders_shipping_code_present CHECK (shipping_method_code ~ '[^[:space:]]'),
     CONSTRAINT orders_shipping_name_present CHECK (shipping_method_name ~ '[^[:space:]]'),
     CONSTRAINT orders_customer_note_bounded CHECK (char_length(customer_note) <= 500),
@@ -3881,6 +3890,8 @@ CREATE TABLE invoice_documents (
     CONSTRAINT invoice_documents_number_present
         CHECK (number ~ '[^[:space:]]'),
     CONSTRAINT invoice_documents_amount_positive CHECK (amount_cents > 0),
+    -- As invoice_document_lines_amount_in_range, payments and refunds.
+    CONSTRAINT invoice_documents_amount_in_range CHECK (amount_cents <= 10000000000),
     CONSTRAINT invoice_documents_voided_has_time
         CHECK ((status = 'voided') = (voided_at IS NOT NULL)),
     CONSTRAINT invoice_documents_allowance_has_original
@@ -4001,6 +4012,7 @@ CREATE TABLE invoice_operations (
     CONSTRAINT invoice_operations_issue_provider_key_safe
         CHECK (kind <> 'issue' OR provider_key ~ '^[A-Za-z0-9]{1,30}$'),
     CONSTRAINT invoice_operations_amount_positive CHECK (amount_cents > 0),
+    CONSTRAINT invoice_operations_amount_in_range CHECK (amount_cents <= 10000000000),
     CONSTRAINT invoice_operations_payload_object
         CHECK (jsonb_typeof(request_payload) = 'object'),
     CONSTRAINT invoice_operations_request_present
@@ -8777,7 +8789,10 @@ CREATE TABLE loyalty_redemption_operations (
 	CONSTRAINT loyalty_redemption_operation_completed_together CHECK (
 		(points IS NULL AND credit_cents IS NULL AND completed_at IS NULL)
 		OR (points > 0 AND credit_cents > 0 AND completed_at IS NOT NULL)
-	)
+	),
+	-- money.MaxCents, which the redemption confirmation already checks.
+	CONSTRAINT loyalty_redemption_operations_credit_in_range
+		CHECK (credit_cents <= 10000000000)
 );
 
 CREATE INDEX loyalty_redemption_operations_user_idx

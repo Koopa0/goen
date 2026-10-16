@@ -2620,6 +2620,42 @@ VALUES ('a0000001-0000-4000-8000-000000000000', 1, repeat('購', 200), 'grant:sc
 		reject:     `INSERT INTO hero_slides (headline, primary_cta_label, primary_cta_href, secondary_cta_label, secondary_cta_href, secondary_cta_label_en, position) VALUES ('夏季新機', '立即選購', '/c/phones', '關於', '/about', E'\t', 5);`,
 		accept:     `INSERT INTO hero_slides (headline, primary_cta_label, primary_cta_href, secondary_cta_label, secondary_cta_href, secondary_cta_label_en, position) VALUES ('夏季新機', '立即選購', '/c/phones', '關於', '/about', 'About', 5);`,
 	},
+	{
+		// money.MaxCents, as the store role that writes it at checkout.
+		constraint: "orders_discount_in_range",
+		reject:     `SET LOCAL ROLE store; INSERT INTO orders (order_number, discount_cents, shipping_version_id, shipping_method_code, shipping_method_name) VALUES (next_order_number(), 10000000001, 'ffff0002-0000-4000-8000-000000000000', 'home_delivery', '宅配到府');`,
+		accept:     `SET LOCAL ROLE store; INSERT INTO orders (order_number, discount_cents, shipping_version_id, shipping_method_code, shipping_method_name) VALUES (next_order_number(), 10000000000, 'ffff0002-0000-4000-8000-000000000000', 'home_delivery', '宅配到府');`,
+	},
+	{
+		// money.MaxCents, as the store role that writes it at checkout.
+		constraint: "orders_shipping_in_range",
+		reject:     `SET LOCAL ROLE store; INSERT INTO orders (order_number, shipping_cents, shipping_version_id, shipping_method_code, shipping_method_name) VALUES (next_order_number(), 10000000001, 'ffff0002-0000-4000-8000-000000000000', 'home_delivery', '宅配到府');`,
+		accept:     `SET LOCAL ROLE store; INSERT INTO orders (order_number, shipping_cents, shipping_version_id, shipping_method_code, shipping_method_name) VALUES (next_order_number(), 10000000000, 'ffff0002-0000-4000-8000-000000000000', 'home_delivery', '宅配到府');`,
+	},
+	{
+		// money.MaxCents, as the admin role that prices a variant.
+		constraint: "product_variants_compare_at_in_range",
+		reject:     `SET LOCAL ROLE admin; INSERT INTO product_variants (product_id, sku, price_cents, compare_at_price_cents, position) VALUES ('33333333-3333-4333-8333-333333333333', 'PXL-9P-TEST', 3390000, 10000000001, 2);`,
+		accept:     `SET LOCAL ROLE admin; INSERT INTO product_variants (product_id, sku, price_cents, compare_at_price_cents, position) VALUES ('33333333-3333-4333-8333-333333333333', 'PXL-9P-TEST', 3390000, 10000000000, 2);`,
+	},
+	{
+		// money.MaxCents; only 001's SECURITY DEFINER issuer writes it, as the owner here.
+		constraint: "invoice_documents_amount_in_range",
+		reject:     `INSERT INTO invoice_documents (id, order_id, kind, number, amount_cents) VALUES ('11110001-0000-4000-8000-000000000002', '6666aaaa-6666-4666-8666-666666666666', 'invoice', 'GD-90000002', 10000000001);`,
+		accept:     `INSERT INTO invoice_documents (id, order_id, kind, number, amount_cents) VALUES ('11110001-0000-4000-8000-000000000002', '6666aaaa-6666-4666-8666-666666666666', 'invoice', 'GD-90000002', 10000000000);`,
+	},
+	{
+		// money.MaxCents; only 001's SECURITY DEFINER issuer writes it, as the owner here.
+		constraint: "invoice_operations_amount_in_range",
+		reject:     `INSERT INTO invoice_operations (id, order_id, kind, provider_key, amount_cents, request_payload, actor_user_id, actor_id_snapshot, request_id) VALUES ('11110006-0000-4000-8000-000000000008', '6666aaaa-6666-4666-8666-666666666666', 'issue', 'opamount', 10000000001, '{}', '55555555-5555-4555-8555-555555555555', '55555555-5555-4555-8555-555555555555', 'opamount');`,
+		accept:     `INSERT INTO invoice_operations (id, order_id, kind, provider_key, amount_cents, request_payload, actor_user_id, actor_id_snapshot, request_id) VALUES ('11110006-0000-4000-8000-000000000008', '6666aaaa-6666-4666-8666-666666666666', 'issue', 'opamount', 10000000000, '{}', '55555555-5555-4555-8555-555555555555', '55555555-5555-4555-8555-555555555555', 'opamount');`,
+	},
+	{
+		// money.MaxCents; only redeem_loyalty_points writes it, as the owner here.
+		constraint: "loyalty_redemption_operations_credit_in_range",
+		reject:     `INSERT INTO loyalty_redemption_operations (id, user_id, points, credit_cents, completed_at) VALUES ('a2000001-0000-4000-8000-000000000001', '55555555-5555-4555-8555-555555555555', 100, 10000000001, now());`,
+		accept:     `INSERT INTO loyalty_redemption_operations (id, user_id, points, credit_cents, completed_at) VALUES ('a2000001-0000-4000-8000-000000000001', '55555555-5555-4555-8555-555555555555', 100, 10000000000, now());`,
+	},
 }
 
 var uniqueCases = []uniqueCase{
