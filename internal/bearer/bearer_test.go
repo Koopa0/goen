@@ -10,8 +10,9 @@ import (
 	"github.com/koopa0/goen/internal/bearer"
 )
 
-// TestDigestGoldenVector pins the stored encoding: sessions, carts, reset and
-// verification links, order-access grants and newsletter confirmations all
+// TestDigestGoldenVector pins the stored encoding: sessions, remembered
+// browsers, carts, reset and verification links, order-access grants and
+// newsletter confirmations all
 // store digests made this way, so a change here orphans every one of them.
 func TestDigestGoldenVector(t *testing.T) {
 	t.Parallel()

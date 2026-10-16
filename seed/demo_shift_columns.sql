@@ -3,9 +3,9 @@
 -- in public, read from the catalogue so that a column added later moves too.
 --
 -- Left out are the tables whose times bound a credential or a retention sweep
--- (sessions, the password-reset, email and newsletter links, carts, checkout
--- attempts, guest order access), so that nothing which expired comes back to
--- life.
+-- (sessions, remembered browsers, the password-reset, email and newsletter
+-- links, carts, checkout attempts, guest order access), so that nothing which
+-- expired comes back to life.
 -- internal/db/demoshift_integration_test.go holds the file to that.
 --
 -- Each table moves in one UPDATE, and PostgreSQL checks a unique index row by
@@ -20,5 +20,5 @@ JOIN pg_attribute a ON a.attrelid = c.oid
 WHERE c.relnamespace = 'public'::regnamespace AND c.relkind = 'r'
   AND a.attnum > 0 AND NOT a.attisdropped AND a.attgenerated = ''
   AND a.atttypid IN ('timestamptz'::regtype, 'timestamp'::regtype, 'date'::regtype)
-  AND c.relname NOT IN ('sessions', 'password_reset_tokens', 'email_verifications', 'newsletter_confirmations',
+  AND c.relname NOT IN ('sessions', 'known_devices', 'password_reset_tokens', 'email_verifications', 'newsletter_confirmations',
                         'carts', 'cart_items', 'checkout_attempts', 'order_access_grants');

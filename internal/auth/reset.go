@@ -112,60 +112,75 @@ func (s *Store) DeliverPasswordReset(ctx context.Context, p *outbox.PasswordRese
 	return send(ctx, p)
 }
 
-func (s *Store) CompleteReset(ctx context.Context, token, password string) (string, error) {
+// CompletedReset is what a completed reset hands the browser that completed
+// it: the address to suggest at sign-in, and the token of the one browser the
+// account still remembers, this one. A reset is the owner proving the mailbox,
+// so it is also how a browser the account has never seen gets past a stranger
+// holding the account's guess budget (OWASP's lockout recovery for device
+// cookies).
+type CompletedReset struct {
+	Address string
+	Device  string
+}
+
+func (s *Store) CompleteReset(ctx context.Context, token, password string) (CompletedReset, error) {
 	if why := PasswordError(password); why != "" {
-		return "", fmt.Errorf("%w: %s", ErrInvalidPassword, why)
+		return CompletedReset{}, fmt.Errorf("%w: %s", ErrInvalidPassword, why)
 	}
 	digest := bearer.Digest(token)
 
 	userID, err := s.q.PasswordResetToken(ctx, digest)
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
-			return "", ErrResetInvalid
+			return CompletedReset{}, ErrResetInvalid
 		}
-		return "", fmt.Errorf("read reset token: %w", err)
+		return CompletedReset{}, fmt.Errorf("read reset token: %w", err)
 	}
 
 	hash, err := HashPassword(password)
 	if err != nil {
-		return "", fmt.Errorf("hash password: %w", err)
+		return CompletedReset{}, fmt.Errorf("hash password: %w", err)
 	}
 
 	tx, err := s.pool.Begin(ctx)
 	if err != nil {
-		return "", fmt.Errorf("begin reset: %w", err)
+		return CompletedReset{}, fmt.Errorf("begin reset: %w", err)
 	}
 	defer db.Rollback(ctx, tx)
 	q := s.q.WithTx(tx)
 
 	if _, lockErr := q.LockUserForPasswordReset(ctx, userID); lockErr != nil {
 		if errors.Is(lockErr, pgx.ErrNoRows) {
-			return "", ErrResetInvalid
+			return CompletedReset{}, ErrResetInvalid
 		}
-		return "", fmt.Errorf("lock reset account: %w", lockErr)
+		return CompletedReset{}, fmt.Errorf("lock reset account: %w", lockErr)
 	}
 	resetAccount, err := q.UserByID(ctx, userID)
 	if err != nil {
-		return "", fmt.Errorf("read reset account: %w", err)
+		return CompletedReset{}, fmt.Errorf("read reset account: %w", err)
 	}
 	spentUserID, err := q.SpendPasswordResetToken(ctx, digest)
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
-			return "", ErrResetInvalid
+			return CompletedReset{}, ErrResetInvalid
 		}
-		return "", fmt.Errorf("spend reset token: %w", err)
+		return CompletedReset{}, fmt.Errorf("spend reset token: %w", err)
 	}
 	if spentUserID != userID {
-		return "", errors.New("auth: reset token changed owner")
+		return CompletedReset{}, errors.New("auth: reset token changed owner")
 	}
 
 	if err := applyReset(ctx, q, userID, hash); err != nil {
-		return "", err
+		return CompletedReset{}, err
+	}
+	device, err := issueDevice(ctx, q, userID)
+	if err != nil {
+		return CompletedReset{}, err
 	}
 	if err := tx.Commit(ctx); err != nil {
-		return "", fmt.Errorf("commit reset: %w", err)
+		return CompletedReset{}, fmt.Errorf("commit reset: %w", err)
 	}
-	return resetAccount.Email, nil
+	return CompletedReset{Address: resetAccount.Email, Device: device}, nil
 }
 
 func applyReset(ctx context.Context, q *db.Queries, userID uuid.UUID, hash string) error {
@@ -182,6 +197,11 @@ func applyReset(ctx context.Context, q *db.Queries, userID uuid.UUID, hash strin
 	}
 	if err := q.DeleteUserSessions(ctx, userID); err != nil {
 		return fmt.Errorf("end sessions: %w", err)
+	}
+	// Every browser the account remembered was vouched for by the password
+	// this replaces.
+	if err := q.DeleteUserKnownDevices(ctx, userID); err != nil {
+		return fmt.Errorf("forget devices: %w", err)
 	}
 	return nil
 }

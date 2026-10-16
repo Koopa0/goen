@@ -163,6 +163,12 @@ const mailRetainDays = 30
 // auth.SessionTTL.
 const sessionDays = 14
 
+// auth.DeviceTTL.
+const knownDeviceDays = 90
+
+// auth.DevicesPerAccount.
+const knownDevicesPerAccount = 10
+
 func NewsletterConfirmHoursText() string { return strconv.Itoa(newsletterConfirmHours) }
 func NewsletterRetainDaysText() string   { return strconv.Itoa(newsletterRetainDays) }
 func GuestCartRetainDaysText() string    { return strconv.Itoa(guestCartRetainDays) }
@@ -170,3 +176,5 @@ func StockAlertRetainDaysText() string   { return strconv.Itoa(stockAlertRetainD
 func CheckoutDraftHoursText() string     { return strconv.Itoa(checkoutDraftHours) }
 func MailRetainDaysText() string         { return strconv.Itoa(mailRetainDays) }
 func SessionDaysText() string            { return strconv.Itoa(sessionDays) }
+func KnownDeviceDaysText() string        { return strconv.Itoa(knownDeviceDays) }
+func KnownDevicesPerAccountText() string { return strconv.Itoa(knownDevicesPerAccount) }

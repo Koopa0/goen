@@ -1911,6 +1911,21 @@ VALUES ('66666666-6666-4666-8666-666666666666', '44444444-4444-4444-8444-4444444
 		accept:     `INSERT INTO sessions (digest, user_id, created_at, expires_at) VALUES (sha256('session-expiry-b'::bytea), '55555555-5555-4555-8555-555555555555', '2026-01-01 00:00:00+00', '2026-01-01 00:00:00.000001+00');`,
 	},
 	{
+		constraint: "known_devices_digest_sha256",
+		reject:     `INSERT INTO known_devices (digest, user_id, expires_at) VALUES ('\xdead'::bytea, '55555555-5555-4555-8555-555555555555', now() + interval '1 day');`,
+		accept:     `INSERT INTO known_devices (digest, user_id, expires_at) VALUES (sha256('device-digest'::bytea), '55555555-5555-4555-8555-555555555555', now() + interval '1 day');`,
+	},
+	{
+		constraint: "known_devices_misses_non_negative",
+		reject:     `INSERT INTO known_devices (digest, user_id, misses, expires_at) VALUES (sha256('device-misses-a'::bytea), '55555555-5555-4555-8555-555555555555', -1, now() + interval '1 day');`,
+		accept:     `INSERT INTO known_devices (digest, user_id, misses, expires_at) VALUES (sha256('device-misses-b'::bytea), '55555555-5555-4555-8555-555555555555', 0, now() + interval '1 day');`,
+	},
+	{
+		constraint: "known_devices_expiry_after_creation",
+		reject:     `INSERT INTO known_devices (digest, user_id, created_at, expires_at) VALUES (sha256('device-expiry-a'::bytea), '55555555-5555-4555-8555-555555555555', '2026-01-01 00:00:00+00', '2026-01-01 00:00:00+00');`,
+		accept:     `INSERT INTO known_devices (digest, user_id, created_at, expires_at) VALUES (sha256('device-expiry-b'::bytea), '55555555-5555-4555-8555-555555555555', '2026-01-01 00:00:00+00', '2026-01-01 00:00:00.000001+00');`,
+	},
+	{
 		constraint: "sessions_user_agent_bounded",
 		reject:     `INSERT INTO sessions (digest, user_id, user_agent, expires_at) VALUES (sha256('session-agent-bounded-a'::bytea), '55555555-5555-4555-8555-555555555555', repeat('瀏', 513), now() + interval '1 day');`,
 		accept:     `INSERT INTO sessions (digest, user_id, user_agent, expires_at) VALUES (sha256('session-agent-bounded-b'::bytea), '55555555-5555-4555-8555-555555555555', repeat('瀏', 512), now() + interval '1 day');`,

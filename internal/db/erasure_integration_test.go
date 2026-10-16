@@ -458,6 +458,8 @@ func TestAnAccountEveryForeignKeyNamesCanBeErased(t *testing.T) {
 		 VALUES ('33333333-3333-4333-8333-333333333333', '` + account + `', 5, '好用')`,
 		`INSERT INTO sessions (digest, user_id, expires_at)
 		 VALUES (sha256('every-fk-session'::bytea), '` + account + `', now() + interval '1 day')`,
+		`INSERT INTO known_devices (digest, user_id, expires_at)
+		 VALUES (sha256('every-fk-device'::bytea), '` + account + `', now() + interval '1 day')`,
 		`INSERT INTO password_reset_tokens (digest, user_id, expires_at)
 		 VALUES (sha256('every-fk-reset'::bytea), '` + account + `', now() + interval '1 hour')`,
 		`INSERT INTO email_verifications (user_id, email, digest, expires_at)

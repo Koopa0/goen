@@ -262,14 +262,34 @@ func (s *Store) EndSession(ctx context.Context, token string) error {
 	return nil
 }
 
-func (s *Store) endOtherSessions(ctx context.Context, userID, currentToken string) error {
+// endOtherSessions ends every session of the account but this browser's, and
+// forgets every browser but this one: a device signed out is no longer the
+// owner's to vouch for. Both in one transaction, so neither half survives alone.
+func (s *Store) endOtherSessions(ctx context.Context, userID, currentToken, currentDevice string) error {
 	id, err := uuid.Parse(userID)
 	if err != nil {
 		return err
 	}
-	return s.q.DeleteOtherUserSessions(ctx, db.DeleteOtherUserSessionsParams{
+	tx, err := s.pool.Begin(ctx)
+	if err != nil {
+		return fmt.Errorf("begin ending other sessions: %w", err)
+	}
+	defer db.Rollback(ctx, tx)
+	q := s.q.WithTx(tx)
+	if err := q.DeleteOtherUserSessions(ctx, db.DeleteOtherUserSessionsParams{
 		UserID: id, CurrentDigest: bearer.Digest(currentToken),
-	})
+	}); err != nil {
+		return fmt.Errorf("end other sessions: %w", err)
+	}
+	if err := q.DeleteOtherUserKnownDevices(ctx, db.DeleteOtherUserKnownDevicesParams{
+		UserID: id, CurrentDigest: bearer.Digest(currentDevice),
+	}); err != nil {
+		return fmt.Errorf("forget other devices: %w", err)
+	}
+	if err := tx.Commit(ctx); err != nil {
+		return fmt.Errorf("commit ending other sessions: %w", err)
+	}
+	return nil
 }
 
 func (s *Store) ChangePassword(ctx context.Context, userID, password string) error {
@@ -300,6 +320,9 @@ func (s *Store) ChangePassword(ctx context.Context, userID, password string) err
 	if err := q.DeleteUserSessions(ctx, id); err != nil {
 		return fmt.Errorf("end sessions: %w", err)
 	}
+	if err := q.DeleteUserKnownDevices(ctx, id); err != nil {
+		return fmt.Errorf("forget devices: %w", err)
+	}
 	if err := tx.Commit(ctx); err != nil {
 		return fmt.Errorf("commit password change: %w", err)
 	}
@@ -321,6 +344,9 @@ func (s *Store) SweepSessions(ctx context.Context) error {
 	if err := s.q.DeleteExpiredSessions(ctx); err != nil {
 		return fmt.Errorf("delete expired sessions: %w", err)
 	}
+	if err := s.q.DeleteExpiredKnownDevices(ctx); err != nil {
+		return fmt.Errorf("delete expired known devices: %w", err)
+	}
 	if err := s.q.DeleteDeadResetTokens(ctx, pgtype.Interval{
 		Microseconds: int64(ResetTokenGrace / time.Microsecond), Valid: true,
 	}); err != nil {
@@ -330,7 +356,8 @@ func (s *Store) SweepSessions(ctx context.Context) error {
 }
 
 // SweepSessionsForever runs once at startup, so a host redeployed more often
-// than the interval still clears expired sessions and dead reset tokens.
+// than the interval still clears expired sessions, lapsed remembered browsers
+// and dead reset tokens.
 func (s *Store) SweepSessionsForever(ctx context.Context, log *slog.Logger) {
 	ticker := time.NewTicker(SessionSweepInterval)
 	defer ticker.Stop()
