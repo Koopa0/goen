@@ -19,15 +19,15 @@ import (
 	"github.com/koopa0/goen/internal/admin/admintest"
 	"github.com/koopa0/goen/internal/admin/audit"
 	"github.com/koopa0/goen/internal/admin/feedback"
+	"github.com/koopa0/goen/internal/catalog"
 	"github.com/koopa0/goen/internal/i18n"
 	"github.com/koopa0/goen/internal/keyset"
-	"github.com/koopa0/goen/internal/product"
 )
 
 func TestTheQueuePutsWhatTheShopOwesFirst(t *testing.T) {
 	ctx, _ := admintest.StaffContext(t, pool)
 	s := feedback.NewStore(pool)
-	ps := product.NewStore(pool, slog.New(slog.DiscardHandler))
+	ps := catalog.NewStore(pool, slog.New(slog.DiscardHandler))
 	asker := newAskingCustomer(t)
 	slug := anyActiveProductSlug(t)
 
@@ -66,7 +66,7 @@ func TestTheQueuePutsWhatTheShopOwesFirst(t *testing.T) {
 func TestHidingAQuestionIsRecordedAndCannotBeRepeated(t *testing.T) {
 	ctx, _ := admintest.StaffContext(t, pool)
 	s := feedback.NewStore(pool)
-	ps := product.NewStore(pool, slog.New(slog.DiscardHandler))
+	ps := catalog.NewStore(pool, slog.New(slog.DiscardHandler))
 	asker := newAskingCustomer(t)
 	id := ask(t, ps, anyActiveProductSlug(t), asker, "會被隱藏的", 0)
 
@@ -88,7 +88,7 @@ func TestHidingAQuestionIsRecordedAndCannotBeRepeated(t *testing.T) {
 func TestAnEmptyOfficialAnswerIsRefused(t *testing.T) {
 	ctx, _ := admintest.StaffContext(t, pool)
 	s := feedback.NewStore(pool)
-	ps := product.NewStore(pool, slog.New(slog.DiscardHandler))
+	ps := catalog.NewStore(pool, slog.New(slog.DiscardHandler))
 	asker := newAskingCustomer(t)
 	id := ask(t, ps, anyActiveProductSlug(t), asker, "等一個回答", 0)
 
@@ -473,7 +473,7 @@ func TestABoundedListSaysSoAtTheBoundary(t *testing.T) {
 	}
 }
 
-func ask(t *testing.T, s *product.Store, slug, userID, body string, days int) string {
+func ask(t *testing.T, s *catalog.Store, slug, userID, body string, days int) string {
 	t.Helper()
 	ctx := t.Context()
 	if err := s.Ask(ctx, slug, userID, body); err != nil {

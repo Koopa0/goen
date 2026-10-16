@@ -35,7 +35,7 @@ func TestTheDepartmentPageStatesOnlyTheDeliveryCheckoutOffers(t *testing.T) {
 	}
 
 	render := func(store *catalog.Store, htmx bool) string {
-		h := catalog.NewHandler(store, slog.New(slog.DiscardHandler))
+		h := catalog.NewHandler(store, slog.New(slog.DiscardHandler), "https://goen.example")
 		req := httptest.NewRequestWithContext(ctx, http.MethodGet, "/c/phones", http.NoBody)
 		req.SetPathValue("slug", "phones")
 		if htmx {
@@ -49,21 +49,21 @@ func TestTheDepartmentPageStatesOnlyTheDeliveryCheckoutOffers(t *testing.T) {
 		return res.Body.String()
 	}
 
-	with := render(catalog.NewStore(pool), false)
+	with := render(catalog.NewStore(pool, slog.New(slog.DiscardHandler)), false)
 	if !strings.Contains(with, `class="ui-statline ui-statline--wide"`) {
 		t.Fatal("the department page does not end with the shop rules")
 	}
 	if !strings.Contains(with, "宅配與超商取貨") || !strings.Contains(with, "未達門檻運費 NT$60 起") {
 		t.Error("a shop that offers pickup does not state pickup and its NT$60 floor")
 	}
-	without := render(catalog.NewStore(pool).WithoutPickup(), false)
+	without := render(catalog.NewStore(pool, slog.New(slog.DiscardHandler)).WithoutPickup(), false)
 	if strings.Contains(without, "宅配與超商取貨") {
 		t.Error("the department page promises pickup where checkout does not offer it")
 	}
 	if !strings.Contains(without, "未達門檻運費 NT$80 起") {
 		t.Error("the floor is not the home delivery fee")
 	}
-	if strings.Contains(render(catalog.NewStore(pool), true), "ui-statline") {
+	if strings.Contains(render(catalog.NewStore(pool, slog.New(slog.DiscardHandler)), true), "ui-statline") {
 		t.Error("a filter swap draws the shop rules")
 	}
 }

@@ -4,6 +4,7 @@ package catalog_test
 
 import (
 	"context"
+	"log/slog"
 	"testing"
 
 	"github.com/google/uuid"
@@ -44,7 +45,7 @@ func TestADepartmentNamesACampaignOnlyWhileItHasAFeaturedProductToBuy(t *testing
 				t.Fatalf("begin: %v", err)
 			}
 			t.Cleanup(func() { _ = tx.Rollback(context.WithoutCancel(ctx)) })
-			s := catalog.NewStore(tx)
+			s := catalog.NewStore(tx, slog.New(slog.DiscardHandler))
 			slug := "dept-" + uuid.NewString()[:8]
 			if _, err = tx.Exec(ctx, `
 				INSERT INTO sale_campaigns (slug, title, ends_at)
@@ -73,7 +74,7 @@ func TestADepartmentNamesACampaignOnlyWhileItHasAFeaturedProductToBuy(t *testing
 
 // A head read without slots carries no notice and no editorial.
 func TestADepartmentHeadWithoutSlotsIsBare(t *testing.T) {
-	s := catalog.NewStore(pool)
+	s := catalog.NewStore(pool, slog.New(slog.DiscardHandler))
 	head, err := s.DepartmentHead(t.Context(), departmentOf(t, plainSlug(t)), false, false, nil)
 	if err != nil {
 		t.Fatalf("DepartmentHead: %v", err)
@@ -86,7 +87,7 @@ func TestADepartmentHeadWithoutSlotsIsBare(t *testing.T) {
 // A department that compares lists its products with two specifications each.
 func TestAComparableShelfGivesEachTileItsSpecHighlights(t *testing.T) {
 	ctx := t.Context()
-	s := catalog.NewStore(pool)
+	s := catalog.NewStore(pool, slog.New(slog.DiscardHandler))
 	slug, _ := twoProductsWithSpecs(t)
 	dept := departmentOf(t, slug)
 	if _, err := pool.Exec(ctx, `UPDATE categories SET comparable = true WHERE slug = $1`, dept); err != nil {

@@ -1,10 +1,9 @@
-package product
+package catalog
 
 import (
 	"context"
 	"errors"
 	"fmt"
-	"log/slog"
 	"slices"
 	"time"
 
@@ -12,7 +11,6 @@ import (
 	"github.com/jackc/pgx/v5"
 
 	"github.com/koopa0/goen/assets"
-	"github.com/koopa0/goen/internal/catalog"
 	"github.com/koopa0/goen/internal/db"
 	"github.com/koopa0/goen/internal/i18n"
 	"github.com/koopa0/goen/internal/product/labelling"
@@ -22,30 +20,7 @@ import (
 	"github.com/koopa0/goen/internal/user"
 )
 
-type Store struct {
-	dbtx     db.DBTX
-	q        *db.Queries
-	log      *slog.Logger
-	noPickup bool
-	now      func() time.Time
-}
-
-func NewStore(dbtx db.DBTX, log *slog.Logger) *Store {
-	if dbtx == nil || log == nil {
-		panic("product: NewStore requires a database handle and a logger")
-	}
-	return &Store{dbtx: dbtx, q: db.New(dbtx), log: log, now: time.Now}
-}
-
-// WithoutPickup is for a deployment whose store map is not configured: checkout
-// offers no pickup there, so what this store describes must not either.
-func (s *Store) WithoutPickup() *Store {
-	c := *s
-	c.noPickup = true
-	return &c
-}
-
-func (s *Store) Load(ctx context.Context, slug string, sel Selection) (pages.ProductView, error) {
+func (s *Store) Product(ctx context.Context, slug string, sel Selection) (pages.ProductView, error) {
 	p, err := s.q.ProductBySlug(ctx, db.ProductBySlugParams{
 		Slug: slug, Locale: string(i18n.FromContext(ctx)),
 	})
@@ -75,7 +50,7 @@ func (s *Store) Load(ctx context.Context, slug string, sel Selection) (pages.Pro
 
 	chosen, exact := Resolve(variants, sel)
 
-	rules, err := catalog.ShopRules(ctx, s.q, !s.noPickup)
+	rules, err := ShopRules(ctx, s.q, !s.noPickup)
 	if err != nil {
 		return pages.ProductView{}, err
 	}

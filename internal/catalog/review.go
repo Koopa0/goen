@@ -1,4 +1,4 @@
-package product
+package catalog
 
 import (
 	"context"
@@ -19,9 +19,9 @@ import (
 )
 
 var (
-	ErrAlreadyReviewed = errors.New("product: already reviewed")
-	ErrNotDelivered    = errors.New("product: no delivered order for this product")
-	ErrReviewInvalid   = errors.New("product: invalid review")
+	ErrAlreadyReviewed = errors.New("catalog: already reviewed")
+	ErrNotDelivered    = errors.New("catalog: no delivered order for this product")
+	ErrReviewInvalid   = errors.New("catalog: invalid review")
 )
 
 const (

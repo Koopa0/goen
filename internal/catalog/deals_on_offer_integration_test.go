@@ -4,6 +4,7 @@ package catalog_test
 
 import (
 	"context"
+	"log/slog"
 	"testing"
 
 	"github.com/google/uuid"
@@ -82,7 +83,7 @@ func TestDealsOnOfferNeedsARunningCampaignWithSomethingToBuy(t *testing.T) {
 					t.Fatalf("create campaign: %v", err)
 				}
 			}
-			got, err := catalog.NewStore(tx).DealsOnOffer(ctx)
+			got, err := catalog.NewStore(tx, slog.New(slog.DiscardHandler)).DealsOnOffer(ctx)
 			if err != nil {
 				t.Fatal(err)
 			}

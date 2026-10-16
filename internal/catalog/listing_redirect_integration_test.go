@@ -17,7 +17,7 @@ import (
 )
 
 func TestListingAndSearchRedirectPastLastPage(t *testing.T) {
-	store := catalog.NewStore(pool)
+	store := catalog.NewStore(pool, slog.New(slog.DiscardHandler))
 	ctx := i18n.WithLocale(t.Context(), i18n.En)
 	listing, err := store.Listing(ctx, "phones", catalog.Filters{Page: 1})
 	if err != nil {
@@ -58,7 +58,7 @@ func TestListingAndSearchRedirectPastLastPage(t *testing.T) {
 }
 
 func TestListingDropsUnknownFiltersButRetainsRealEmptyCombinations(t *testing.T) {
-	store := catalog.NewStore(pool)
+	store := catalog.NewStore(pool, slog.New(slog.DiscardHandler))
 	view, err := store.Listing(t.Context(), "phones", catalog.Filters{Page: 1})
 	if err != nil {
 		t.Fatal(err)
@@ -98,7 +98,7 @@ func catalogueRequest(t *testing.T, store *catalog.Store, target string) *httpte
 	t.Helper()
 	r := httptest.NewRequestWithContext(i18n.WithLocale(t.Context(), i18n.En), http.MethodGet, target, http.NoBody)
 	w := httptest.NewRecorder()
-	handler := catalog.NewHandler(store, slog.New(slog.DiscardHandler))
+	handler := catalog.NewHandler(store, slog.New(slog.DiscardHandler), "https://goen.example")
 	if strings.HasPrefix(r.URL.Path, "/c/") {
 		r.SetPathValue("slug", strings.TrimPrefix(r.URL.Path, "/c/"))
 		handler.Listing(w, r)

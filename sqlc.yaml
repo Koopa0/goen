@@ -7,7 +7,6 @@ sql:
       - "internal/newsletter/query.sql"
       - "internal/home/query.sql"
       - "internal/catalog/query.sql"
-      - "internal/product/query.sql"
       - "internal/cart/query.sql"
       - "internal/order/access/query.sql"
       - "internal/payment/query.sql"

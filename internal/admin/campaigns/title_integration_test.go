@@ -3,6 +3,7 @@
 package campaigns_test
 
 import (
+	"log/slog"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
@@ -35,7 +36,7 @@ func TestCampaignEnglishTitleReachesStorefront(t *testing.T) {
 		if err := store.SetActive(ctx, slug, true); err != nil {
 			t.Fatal(err)
 		}
-		view, err := catalog.NewStore(pool).Campaign(i18n.WithLocale(ctx, i18n.En), slug)
+		view, err := catalog.NewStore(pool, slog.New(slog.DiscardHandler)).Campaign(i18n.WithLocale(ctx, i18n.En), slug)
 		if err != nil {
 			t.Fatal(err)
 		}

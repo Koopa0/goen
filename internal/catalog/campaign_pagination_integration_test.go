@@ -34,7 +34,7 @@ func TestListedCampaignsExposeTheSeventhCampaign(t *testing.T) {
 		}
 		featureNewProduct(t, tx, slugs[i], 5, "active")
 	}
-	store := catalog.NewStore(tx)
+	store := catalog.NewStore(tx, slog.New(slog.DiscardHandler))
 	first, err := store.ListedCampaigns(ctx, 1)
 	if err != nil {
 		t.Fatal(err)
@@ -51,7 +51,7 @@ func TestListedCampaignsExposeTheSeventhCampaign(t *testing.T) {
 	}
 	r := httptest.NewRequestWithContext(ctx, http.MethodGet, "/deals?campaign_page=2", http.NoBody)
 	w := httptest.NewRecorder()
-	catalog.NewHandler(store, slog.New(slog.DiscardHandler)).Deals(w, r)
+	catalog.NewHandler(store, slog.New(slog.DiscardHandler), "https://goen.example").Deals(w, r)
 	if w.Code != http.StatusOK || !strings.Contains(w.Body.String(), `href="/s/`+slugs[6]+`"`) || strings.Contains(w.Body.String(), `href="/s/`+slugs[0]+`"`) {
 		t.Fatalf("HTTP campaign page two omitted the seventh campaign or repeated page one: status=%d", w.Code)
 	}

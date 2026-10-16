@@ -82,7 +82,7 @@ func TestSearchSKUsRankAndPaginateWithoutDuplicateProducts(t *testing.T) {
 	brandSlug, summarySlug, specSlug := slugs[len(slugs)-3], slugs[len(slugs)-2], slugs[len(slugs)-1]
 	want = append(want, brandSlug, summarySlug, specSlug)
 
-	store := catalog.NewStore(tx)
+	store := catalog.NewStore(tx, slog.New(slog.DiscardHandler))
 	first, err := store.Search(ctx, catalog.SearchPattern(token), catalog.SortRelevance, 1)
 	if err != nil {
 		t.Fatal(err)
@@ -112,7 +112,7 @@ func TestSearchSKUsRankAndPaginateWithoutDuplicateProducts(t *testing.T) {
 	}
 	request := httptest.NewRequestWithContext(ctx, http.MethodGet, "/search?q="+strings.ToLower(token), http.NoBody)
 	response := httptest.NewRecorder()
-	catalog.NewHandler(store, slog.New(slog.DiscardHandler)).Search(response, request)
+	catalog.NewHandler(store, slog.New(slog.DiscardHandler), "https://goen.example").Search(response, request)
 	if response.Code != http.StatusOK || !strings.Contains(response.Body.String(), "/p/"+slugs[0]) {
 		t.Fatalf("receipt SKU HTTP lookup status=%d omits exact product", response.Code)
 	}
@@ -173,7 +173,7 @@ func TestRetiredVariantsNeverLiftARankedSKUMatch(t *testing.T) {
 	retiredExact := insertSKUFixture(ctx, t, tx, skuFixture{name: generic, summary: token, skus: []string{"CURRENT-" + strings.ToUpper(uuid.NewString())}, retiredSKUs: []string{token}}, 1, "active")
 	retiredPartial := insertSKUFixture(ctx, t, tx, skuFixture{name: generic, summary: token, skus: []string{"CURRENT-" + strings.ToUpper(uuid.NewString())}, retiredSKUs: []string{token + "-OLD"}}, 2, "active")
 	brand := insertSKUFixture(ctx, t, tx, skuFixture{name: generic, brand: token, skus: []string{"CURRENT-" + strings.ToUpper(uuid.NewString())}}, 3, "active")
-	view, err := catalog.NewStore(tx).Search(ctx, catalog.SearchPattern(token), catalog.SortRelevance, 1)
+	view, err := catalog.NewStore(tx, slog.New(slog.DiscardHandler)).Search(ctx, catalog.SearchPattern(token), catalog.SortRelevance, 1)
 	if err != nil {
 		t.Fatal(err)
 	}

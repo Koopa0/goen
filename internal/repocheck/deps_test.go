@@ -80,7 +80,7 @@ var (
 	// internal/product/labelling is a vocabulary leaf that admin/products imports.
 	storefrontPages = []string{
 		"internal/account", "internal/auth", "internal/cart", "internal/catalog", "internal/home",
-		"internal/newsletter", "internal/product", "internal/site",
+		"internal/newsletter", "internal/site",
 	}
 	// siteMayImport is what internal/site may import besides itself and the
 	// leaves: the foundation every storefront page is built on.

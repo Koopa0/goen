@@ -729,7 +729,7 @@ type Crumb struct {
 }
 
 // The class is the design system's spelling, not a goen- one: a test locates the
-// product page's trail by it (internal/product/integration_test.go), and a selector a
+// product page's trail by it (internal/catalog/breadcrumb_integration_test.go), and a selector a
 // test reads keeps its spelling while app.css changes its declarations.
 func Breadcrumb(p BreadcrumbProps) templ.Component {
 	return templruntime.GeneratedTemplate(func(templ_7745c5c3_Input templruntime.GeneratedComponentInput) (templ_7745c5c3_Err error) {

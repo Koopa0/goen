@@ -1,29 +1,29 @@
 //go:build integration
 
-package product_test
+package catalog_test
 
 import (
 	"log/slog"
 	"strings"
 	"testing"
 
-	"github.com/koopa0/goen/internal/product"
+	"github.com/koopa0/goen/internal/catalog"
 )
 
 func TestUnknownCombinationKeepsTheCataloguePriceAndRecoverableChoices(t *testing.T) {
-	store := product.NewStore(pool, slog.New(slog.DiscardHandler))
-	base, err := store.Load(t.Context(), "pixelight-9-pro", nil)
+	store := catalog.NewStore(pool, slog.New(slog.DiscardHandler))
+	base, err := store.Product(t.Context(), "pixelight-9-pro", nil)
 	if err != nil {
 		t.Fatal(err)
 	}
-	view, err := store.Load(t.Context(), "pixelight-9-pro", product.Selection{"顏色": "unknown-colour", "容量": "unknown-capacity"})
+	view, err := store.Product(t.Context(), "pixelight-9-pro", catalog.Selection{"顏色": "unknown-colour", "容量": "unknown-capacity"})
 	if err != nil {
 		t.Fatal(err)
 	}
 	if view.SelectionOK || view.CanBuy() || view.VariantID != "" {
 		t.Error("an unknown combination must not name a purchasable variant")
 	}
-	status, markup := get(t, "pixelight-9-pro", sel("顏色", "unknown-colour", "容量", "unknown-capacity"))
+	status, markup := getProduct(t, "pixelight-9-pro", sel("顏色", "unknown-colour", "容量", "unknown-capacity"))
 	if status != 200 || !strings.Contains(markup, `class="goen-pdp__price"`) || !strings.Contains(markup, base.Price()) {
 		t.Error("an unknown combination lost the catalogue price")
 	}
@@ -40,22 +40,22 @@ func TestUnknownCombinationKeepsTheCataloguePriceAndRecoverableChoices(t *testin
 }
 
 func TestUnpickedProductPhotoMatchesItsFirstColour(t *testing.T) {
-	store := product.NewStore(pool, slog.New(slog.DiscardHandler))
-	base, err := store.Load(t.Context(), "pixelight-9-pro", nil)
+	store := catalog.NewStore(pool, slog.New(slog.DiscardHandler))
+	base, err := store.Product(t.Context(), "pixelight-9-pro", nil)
 	if err != nil {
 		t.Fatal(err)
 	}
-	var first product.Selection
+	var first catalog.Selection
 	for _, option := range base.Options {
 		if len(option.Values) > 1 && option.Values[0].SwatchHex != "" {
-			first = product.Selection{option.Name: option.Values[0].Value}
+			first = catalog.Selection{option.Name: option.Values[0].Value}
 			break
 		}
 	}
 	if first == nil {
 		t.Fatal("fixture has no colour choices")
 	}
-	chosen, err := store.Load(t.Context(), base.Slug, first)
+	chosen, err := store.Product(t.Context(), base.Slug, first)
 	if err != nil {
 		t.Fatal(err)
 	}
