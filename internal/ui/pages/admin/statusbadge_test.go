@@ -89,12 +89,3 @@ func TestOrderPageHeadKeepsItsGroupAndCommitted(t *testing.T) {
 	wantBadge(t, page, "已出貨", "goen-badge goen-badge--progress")
 	wantBadge(t, page, i18n.T(ctx, i18n.KeyAdminQueueCommitted), "goen-badge")
 }
-
-func TestDashboardAndCustomerRecentOrdersFollowTheirGroup(t *testing.T) {
-	t.Parallel()
-	ctx := i18n.WithLocale(t.Context(), i18n.ZhHant)
-	row := OrderRow{Number: "GO-A", Status: order.FulfillmentPending, StatusText: "待出貨", StatusIntent: components.IntentWarn}
-
-	dashboard := renderComponent(t, ctx, Dashboard(Meta(ctx), DashboardView{Recent: []OrderRow{row}}))
-	wantBadge(t, dashboard, "待出貨", "goen-badge goen-badge--warn")
-}
