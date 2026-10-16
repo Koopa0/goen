@@ -8,7 +8,7 @@ import (
 
 	"github.com/koopa0/goen/internal/admin/admintest"
 	"github.com/koopa0/goen/internal/admin/reports"
-	stockdesk "github.com/koopa0/goen/internal/admin/stock"
+	"github.com/koopa0/goen/internal/admin/stock"
 	"github.com/koopa0/goen/internal/cart"
 )
 
@@ -19,7 +19,7 @@ import (
 // refund figure must not move when the cancellation writes the reversal.
 func TestCancellingACreditPaidOrderMovesNoReportFigure(t *testing.T) {
 	ctx := t.Context()
-	s := reports.NewStore(pool, stockdesk.NewStore(pool))
+	s := reports.NewStore(pool, stock.NewStore(pool))
 	number, orderID, _ := admintest.PaidUnshippedOrder(t, pool, 0, 500000, false)
 	before, err := s.ReportAt(ctx, 7, time.Now())
 	if err != nil {
