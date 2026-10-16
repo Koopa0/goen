@@ -18,6 +18,8 @@ import (
 	"github.com/koopa0/goen/internal/db"
 	"github.com/koopa0/goen/internal/loyalty"
 	"github.com/koopa0/goen/internal/order"
+	"github.com/koopa0/goen/internal/order/delivery"
+	"github.com/koopa0/goen/internal/shipping"
 	"github.com/koopa0/goen/internal/shoptime"
 	"github.com/koopa0/goen/internal/ui/pages"
 	"github.com/koopa0/goen/internal/web"
@@ -339,98 +341,37 @@ type Address struct {
 	Default    bool
 }
 
+// Validate holds the address to the checkout's own rule for who a parcel goes to
+// and where, so an address the book keeps cannot fail at checkout, and then
+// checks the label, which only the book has.
 func (a *Address) Validate() []web.FieldRefusal {
-	var errs []web.FieldRefusal
-	appendAddressFieldRefusal(&errs, "name", a.Name, user.MaxNameRunes,
-		i18n.KeyNameRequired, i18n.KeyNameTooLong)
-	switch {
-	case strings.TrimSpace(a.Phone) == "":
-		errs = append(errs, web.FieldRefusal{Field: "phone", MessageKey: i18n.KeyPhoneRequired})
-	case !looksLikeDeliveryPhone(a.Phone):
-		errs = append(errs, web.FieldRefusal{Field: "phone", MessageKey: i18n.KeyPhoneMalformed})
-	}
-	switch {
-	case strings.TrimSpace(a.PostalCode) == "":
-		errs = append(errs, web.FieldRefusal{Field: "postal_code", MessageKey: i18n.KeyPostalCodeRequired})
-	case !isHomePostalCode(a.PostalCode):
-		errs = append(errs, web.FieldRefusal{Field: "postal_code", MessageKey: i18n.KeyPostalCodeMalformed})
-	}
-	appendAddressFieldRefusal(&errs, "city", a.City, maxCityRunes,
-		i18n.KeyCityRequired, i18n.KeyAddressIncomplete)
-	appendAddressFieldRefusal(&errs, "district", a.District, maxDistrictRunes,
-		i18n.KeyDistrictRequired, i18n.KeyAddressIncomplete)
-	appendAddressFieldRefusal(&errs, "street", a.Street, maxStreetRunes,
-		i18n.KeyStreetRequired, i18n.KeyStreetTooLong)
+	d := a.details()
+	errs := d.ValidateRecipient()
 	if utf8.RuneCountInString(a.Label) > maxAddressLabelRunes {
 		errs = append(errs, web.FieldRefusal{Field: "label", MessageKey: i18n.KeyAddressIncomplete})
 	}
-	for _, f := range []struct{ name, value string }{
-		{"label", a.Label}, {"name", a.Name}, {"phone", a.Phone},
-		{"postal_code", a.PostalCode}, {"city", a.City},
-		{"district", a.District}, {"street", a.Street},
-	} {
-		if web.HasControlChars(f.value) {
-			errs = append(errs, web.FieldRefusal{Field: f.name, MessageKey: i18n.KeyFieldHasControlChars})
-		}
+	if web.HasControlChars(a.Label) {
+		errs = append(errs, web.FieldRefusal{Field: "label", MessageKey: i18n.KeyFieldHasControlChars})
 	}
 	return errs
 }
 
-// looksLikeDeliveryPhone is deliberately the contract checkout applies, so a
-// saved address cannot fail at checkout.
-func looksLikeDeliveryPhone(s string) bool {
-	if utf8.RuneCountInString(s) > maxPhoneRunes {
-		return false
-	}
-	digits := 0
-	for _, r := range s {
-		switch {
-		case r >= '0' && r <= '9':
-			digits++
-		case r == '-' || r == ' ' || r == '(' || r == ')' || r == '+':
-		default:
-			return false
-		}
-	}
-	return digits >= 8 && digits <= 15
-}
-
-// isHomePostalCode accepts Taiwan's legacy three-digit and current longer
-// numeric forms without guessing a city from the prefix.
-func isHomePostalCode(s string) bool {
-	if len(s) < 3 || len(s) > maxPostalCodeRunes {
-		return false
-	}
-	for _, r := range s {
-		if r < '0' || r > '9' {
-			return false
-		}
-	}
-	return true
-}
-
-func appendAddressFieldRefusal(
-	errs *[]web.FieldRefusal,
-	field, value string,
-	maxRunes int,
-	required, tooLong i18n.Key,
-) {
-	switch {
-	case strings.TrimSpace(value) == "":
-		*errs = append(*errs, web.FieldRefusal{Field: field, MessageKey: required})
-	case utf8.RuneCountInString(value) > maxRunes:
-		*errs = append(*errs, web.FieldRefusal{Field: field, MessageKey: tooLong})
-	}
-}
-
+// Trim normalises the address the way the checkout normalises what it is sent.
 func (a *Address) Trim() {
+	d := a.details()
+	d.Trim()
 	a.Label = strings.TrimSpace(a.Label)
-	a.Name = strings.TrimSpace(a.Name)
-	a.Phone = strings.TrimSpace(web.FoldWidth(a.Phone))
-	a.PostalCode = strings.TrimSpace(web.FoldWidth(a.PostalCode))
-	a.City = strings.TrimSpace(a.City)
-	a.District = strings.TrimSpace(a.District)
-	a.Street = strings.TrimSpace(a.Street)
+	a.Name, a.Phone, a.PostalCode = d.RecipientName, d.Phone, d.PostalCode
+	a.City, a.District, a.Street = d.City, d.District, d.Street
+}
+
+// details is the address as the checkout receives it from the book: a parcel
+// to a street address.
+func (a *Address) details() delivery.Details {
+	return delivery.Details{
+		To: shipping.DestinationAddress, RecipientName: a.Name, Phone: a.Phone,
+		PostalCode: a.PostalCode, City: a.City, District: a.District, Street: a.Street,
+	}
 }
 
 func (s *Store) Wishlist(ctx context.Context, userID string) ([]pages.WishlistItem, error) {

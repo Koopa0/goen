@@ -280,8 +280,8 @@ store before anything else.
 Open an issue before touching any of these; each one is a place where a small
 edit becomes a payment, a privilege or a legal term:
 
-- a `SECURITY DEFINER` function's privilege, a role's grant, and the `DO` block
-  that ends `migrations/001`;
+- a `SECURITY DEFINER` function's privilege, a role's grant, and
+  `harden_schema()`, the procedure that ends `migrations/001`;
 - the Stripe session's `payment_method_types` pin, its `ExpiresAt` bound to the
   stock hold, and webhook attribution from goen's own payment row;
 - the statutory terms in `internal/site/policies.go` (消保法 §19);

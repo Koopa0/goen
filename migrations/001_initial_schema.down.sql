@@ -26,7 +26,8 @@ BEGIN
               WHERE d.objid = p.oid AND d.deptype = 'e'
           )
     LOOP
-        EXECUTE 'DROP FUNCTION IF EXISTS ' || obj.signature || ' CASCADE';
+        -- ROUTINE: DROP FUNCTION refuses a procedure, and harden_schema is one.
+        EXECUTE 'DROP ROUTINE IF EXISTS ' || obj.signature || ' CASCADE';
     END LOOP;
 
     FOR obj IN
@@ -41,3 +42,8 @@ BEGIN
     END LOOP;
 END
 $$;
+
+-- Back to PostgreSQL's built-in default for the owner's new functions. The
+-- database's own privileges (CONNECT, TEMPORARY) belong to the database, not to
+-- the schema, and stay as harden_schema() left them.
+ALTER DEFAULT PRIVILEGES GRANT EXECUTE ON FUNCTIONS TO PUBLIC;
