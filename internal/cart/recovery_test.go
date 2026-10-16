@@ -36,8 +36,8 @@ func TestCartRecoveryDoesNotReadSavedBasketsForASignedOutRequest(t *testing.T) {
 	t.Parallel()
 	carts := &Handler{}
 	req := httptest.NewRequestWithContext(t.Context(), http.MethodGet, "/account/cart-recovery", http.NoBody)
-	contents, err := carts.RecoveryContents(t.Context(), req)
-	if !errors.Is(err, ErrNotFound) || len(contents.Account) != 0 || len(contents.BeforeSignIn) != 0 {
-		t.Errorf("signed-out recovery = %+v, %v; want no baskets and ErrNotFound", contents, err)
+	beforeSignIn, account, err := carts.RecoveryContents(t.Context(), req)
+	if !errors.Is(err, ErrNotFound) || len(account) != 0 || len(beforeSignIn) != 0 {
+		t.Errorf("signed-out recovery = %+v, %+v, %v; want no baskets and ErrNotFound", beforeSignIn, account, err)
 	}
 }
