@@ -32,7 +32,6 @@ import (
 	"github.com/koopa0/goen/internal/shoptime"
 	"github.com/koopa0/goen/internal/ui/components"
 	"github.com/koopa0/goen/internal/ui/pages"
-	"github.com/koopa0/goen/internal/ui/pages/admin"
 	"github.com/koopa0/goen/internal/web"
 )
 
@@ -62,7 +61,7 @@ func NewStore(pool *pgxpool.Pool, refunds Refunds, invoiceReader InvoiceReader, 
 }
 
 // orderRows reads which of the orders are returned in one query, so a page of the queue costs no more than one.
-func (s *Store) orderRows(ctx context.Context, rows []db.AdminOrdersRow) ([]admin.OrderRow, error) {
+func (s *Store) orderRows(ctx context.Context, rows []db.AdminOrdersRow) ([]OrderRow, error) {
 	ids := make([]uuid.UUID, len(rows))
 	for i := range rows {
 		ids[i] = rows[i].ID
@@ -71,7 +70,7 @@ func (s *Store) orderRows(ctx context.Context, rows []db.AdminOrdersRow) ([]admi
 	if err != nil {
 		return nil, fmt.Errorf("read returned orders: %w", err)
 	}
-	out := make([]admin.OrderRow, len(rows))
+	out := make([]OrderRow, len(rows))
 	for i := range rows {
 		out[i] = orderRow(ctx, &rows[i], slices.Contains(returned, rows[i].ID))
 	}
@@ -81,10 +80,10 @@ func (s *Store) orderRows(ctx context.Context, rows []db.AdminOrdersRow) ([]admi
 // orderRow is one order as the queue renders it; admin/dashboard's landing page
 // reads the same word, colour and total for its newest orders. The total is
 // read from order_totals, as on every page that states one.
-func orderRow(ctx context.Context, o *db.AdminOrdersRow, returned bool) admin.OrderRow {
+func orderRow(ctx context.Context, o *db.AdminOrdersRow, returned bool) OrderRow {
 	fulfillment := order.FulfillmentStatus(o.FulfillmentStatus)
 	text, intent := orderStatus(ctx, fulfillment, o.Committed, o.OwedCents, returned)
-	return admin.OrderRow{
+	return OrderRow{
 		Number:       o.OrderNumber,
 		Status:       fulfillment,
 		StatusText:   text,
@@ -111,7 +110,7 @@ type listPosition struct {
 	ID uuid.UUID
 }
 
-func (s *Store) List(ctx context.Context, status admin.QueueFilter, term string, after ...string) (admin.OrdersView, error) {
+func (s *Store) List(ctx context.Context, status QueueFilter, term string, after ...string) (OrdersView, error) {
 	term = strings.TrimSpace(term)
 	scope := keyset.ScopeURL("/admin/orders", "q", term, "status", string(status))
 	from, resumed := keyset.Resume(scope, after, func(p listPosition) bool { return p.ID != uuid.Nil })
@@ -135,20 +134,20 @@ func (s *Store) List(ctx context.Context, status admin.QueueFilter, term string,
 	} else {
 		filter, funding := string(status), ""
 		switch status {
-		case admin.QueueAwaitingPayment:
+		case QueueAwaitingPayment:
 			filter, funding = string(order.FulfillmentPending), "unpaid"
-		case admin.QueueReady:
+		case QueueReady:
 			filter, funding = string(order.FulfillmentPending), "funded"
 		default: // a fulfilment status filters by itself
 		}
 		rows, err = s.q.AdminOrders(ctx, db.AdminOrdersParams{HasCursor: resumed, AfterAt: from.At, AfterID: from.ID, Status: filter, Funding: funding, RowLimit: keyset.PageLimit})
 	}
 	if err != nil {
-		return admin.OrdersView{}, fmt.Errorf("read orders: %w", err)
+		return OrdersView{}, fmt.Errorf("read orders: %w", err)
 	}
 	counts, err := s.q.AdminOrderCounts(ctx)
 	if err != nil {
-		return admin.OrdersView{}, fmt.Errorf("read order counts: %w", err)
+		return OrdersView{}, fmt.Errorf("read order counts: %w", err)
 	}
 
 	// Both branches asked for one row more than the page shows, so the drop is
@@ -156,61 +155,61 @@ func (s *Store) List(ctx context.Context, status admin.QueueFilter, term string,
 	// AdminOrderCounts and not from len(rows), so the extra row was never in
 	// them to begin with.
 	rows, bound := keyset.PageBound(scope, resumed, rows, keyset.PageSize, func(r *db.AdminOrdersRow) string { return r.PageCursor })
-	view := admin.OrdersView{
+	view := OrdersView{
 		Bound:  bound,
 		Status: status, Term: term, Searched: searched,
 	}
-	countsByFilter := make(map[admin.QueueFilter]int64, len(counts))
+	countsByFilter := make(map[QueueFilter]int64, len(counts))
 	var total int64
 	for _, c := range counts {
-		key := admin.QueueFilter(c.FulfillmentStatus)
+		key := QueueFilter(c.FulfillmentStatus)
 		switch {
 		case c.FulfillmentStatus == string(order.FulfillmentPending) && c.Funded:
-			key = admin.QueueReady
+			key = QueueReady
 		case c.FulfillmentStatus == string(order.FulfillmentPending):
-			key = admin.QueueAwaitingPayment
+			key = QueueAwaitingPayment
 		}
 		countsByFilter[key] += c.N
 		total += c.N
 	}
-	view.Tabs = make([]admin.StatusTab, 0, len(queueTabs)+1)
-	view.Tabs = append(view.Tabs, admin.StatusTab{
-		Label: i18n.T(ctx, i18n.KeyAdminTabAll), Count: total, Selected: status == admin.QueueAll,
+	view.Tabs = make([]StatusTab, 0, len(queueTabs)+1)
+	view.Tabs = append(view.Tabs, StatusTab{
+		Label: i18n.T(ctx, i18n.KeyAdminTabAll), Count: total, Selected: status == QueueAll,
 	})
 	for _, tab := range queueTabs {
-		view.Tabs = append(view.Tabs, admin.StatusTab{
+		view.Tabs = append(view.Tabs, StatusTab{
 			Value: tab.filter, Label: i18n.T(ctx, tab.label),
 			Count: countsByFilter[tab.filter], Selected: tab.filter == status,
 		})
 	}
 	if view.Orders, err = s.orderRows(ctx, rows); err != nil {
-		return admin.OrdersView{}, err
+		return OrdersView{}, err
 	}
 	return view, nil
 }
 
-func (s *Store) Order(ctx context.Context, number string) (admin.OrderView, error) {
+func (s *Store) Order(ctx context.Context, number string) (OrderView, error) {
 	o, err := s.q.AdminOrderByNumber(ctx, db.AdminOrderByNumberParams{
 		OrderNumber: number, Locale: i18n.FromContext(ctx).Tag(),
 	})
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
-			return admin.OrderView{}, ErrNotFound
+			return OrderView{}, ErrNotFound
 		}
-		return admin.OrderView{}, fmt.Errorf("read order: %w", err)
+		return OrderView{}, fmt.Errorf("read order: %w", err)
 	}
 	lines, err := s.q.OrderLinesByOrder(ctx, db.OrderLinesByOrderParams{OrderID: o.ID, Locale: i18n.FromContext(ctx).Tag()})
 	if err != nil {
-		return admin.OrderView{}, fmt.Errorf("read order lines: %w", err)
+		return OrderView{}, fmt.Errorf("read order lines: %w", err)
 	}
 
 	returned, err := s.q.ReturnedOrders(ctx, []uuid.UUID{o.ID})
 	if err != nil {
-		return admin.OrderView{}, fmt.Errorf("read returned order: %w", err)
+		return OrderView{}, fmt.Errorf("read returned order: %w", err)
 	}
 	fulfillment := order.FulfillmentStatus(o.FulfillmentStatus)
 	statusText, statusIntent := orderStatus(ctx, fulfillment, o.Committed, o.OwedCents, len(returned) > 0)
-	view := admin.OrderView{
+	view := OrderView{
 		Number: o.OrderNumber, Status: fulfillment,
 		StatusText:    statusText,
 		StatusIntent:  statusIntent,
@@ -225,7 +224,7 @@ func (s *Store) Order(ctx context.Context, number string) (admin.OrderView, erro
 			PickupChain: shipping.Chain(o.PickupChain), PickupStoreCode: o.PickupStoreCode,
 			PickupStoreName: o.PickupStoreName,
 		}.Line(),
-		Delivery: admin.Delivery{
+		Delivery: Delivery{
 			Email: o.Email, Recipient: o.RecipientName, Phone: o.Phone,
 			PostalCode: o.PostalCode, City: o.City,
 			District: o.District, Street: o.Street,
@@ -254,17 +253,17 @@ func (s *Store) Order(ctx context.Context, number string) (admin.OrderView, erro
 	view.ShipCarriers, view.ShipCarrier = carriers, string(implied)
 
 	if shipErr := s.fillShippable(ctx, &view, o.ID, fulfillment); shipErr != nil {
-		return admin.OrderView{}, shipErr
+		return OrderView{}, shipErr
 	}
 
 	if invErr := s.fillInvoices(ctx, &view, number); invErr != nil {
-		return admin.OrderView{}, invErr
+		return OrderView{}, invErr
 	}
 	if refundErr := s.fillRefundBeforeShipment(ctx, &view, number); refundErr != nil {
-		return admin.OrderView{}, refundErr
+		return OrderView{}, refundErr
 	}
 	if payErr := s.fillPayments(ctx, &view, o.ID); payErr != nil {
-		return admin.OrderView{}, payErr
+		return OrderView{}, payErr
 	}
 	for i := range lines {
 		l := &lines[i]
@@ -282,7 +281,7 @@ func (s *Store) Order(ctx context.Context, number string) (admin.OrderView, erro
 		OrderID: o.ID, MailTopics: orderMailTopics, InvoicingEnabled: view.InvoicingEnabled,
 	})
 	if err != nil {
-		return admin.OrderView{}, fmt.Errorf("read order timeline: %w", err)
+		return OrderView{}, fmt.Errorf("read order timeline: %w", err)
 	}
 	for i := range timeline {
 		view.Timeline = append(view.Timeline, timelineEntry(&timeline[i]))
@@ -291,11 +290,11 @@ func (s *Store) Order(ctx context.Context, number string) (admin.OrderView, erro
 
 	shipments, err := s.q.OrderShipments(ctx, o.ID)
 	if err != nil {
-		return admin.OrderView{}, fmt.Errorf("read order shipments: %w", err)
+		return OrderView{}, fmt.Errorf("read order shipments: %w", err)
 	}
 	for i := range shipments {
 		sh := &shipments[i]
-		view.Shipments = append(view.Shipments, admin.Shipment{
+		view.Shipments = append(view.Shipments, Shipment{
 			ID: sh.ID.String(), Carrier: shipping.Carrier(sh.Carrier), Tracking: sh.TrackingNumber,
 			ShippedAt:   shoptime.Minute(sh.ShippedAt),
 			DeliveredAt: nullableStamp(sh.DeliveredAt),
@@ -519,7 +518,7 @@ func eventKindFor(status order.FulfillmentStatus) (string, error) {
 	}
 }
 
-func (s *Store) fillRefundBeforeShipment(ctx context.Context, view *admin.OrderView, number string) error {
+func (s *Store) fillRefundBeforeShipment(ctx context.Context, view *OrderView, number string) error {
 	offer, err := s.refunds.Offer(ctx, number, len(view.Shippable))
 	if err != nil {
 		return err
@@ -545,26 +544,26 @@ func (s *Store) fillRefundBeforeShipment(ctx context.Context, view *admin.OrderV
 			(n == order.FulfillmentCompleted && (len(view.Shippable) > 0 || view.UnsentOpen)) {
 			continue
 		}
-		view.Next = append(view.Next, admin.Transition{Value: n, Label: n.Label(ctx)})
+		view.Next = append(view.Next, Transition{Value: n, Label: n.Label(ctx)})
 	}
 	return nil
 }
 
 // unsentLines are the units an open refund of unsent units covers, as the
 // order page lists them.
-func unsentLines(units []refund.UnsentUnit) []admin.UnsentLine {
-	lines := make([]admin.UnsentLine, len(units))
+func unsentLines(units []refund.UnsentUnit) []UnsentLine {
+	lines := make([]UnsentLine, len(units))
 	for i, u := range units {
-		lines[i] = admin.UnsentLine{OrderLineID: u.LineID.String(), Name: u.Name, Label: u.Label, Quantity: u.Quantity}
+		lines[i] = UnsentLine{OrderLineID: u.LineID.String(), Name: u.Name, Label: u.Label, Quantity: u.Quantity}
 	}
 	return lines
 }
 
-func (s *Store) fillPayments(ctx context.Context, view *admin.OrderView, orderID uuid.UUID) error {
+func (s *Store) fillPayments(ctx context.Context, view *OrderView, orderID uuid.UUID) error {
 	paid, err := s.q.OrderCapturedPayment(ctx, orderID)
 	switch {
 	case err == nil:
-		view.Payment = admin.Payment{
+		view.Payment = Payment{
 			Method:   i18n.T(ctx, i18n.KeyAdminPayMethodCard),
 			Card:     payment.CardLabel(paid.CardBrand, paid.CardLast4),
 			Captured: money.TWD(paid.CapturedCents),
@@ -586,7 +585,7 @@ func (s *Store) fillPayments(ctx context.Context, view *admin.OrderView, orderID
 		if r.Channel == "credit" {
 			channel, reason = i18n.KeyAdminPayRefundCredit, creditRefundReason(ctx, r.Kind, r.Reason)
 		}
-		view.Refunds = append(view.Refunds, admin.Refund{
+		view.Refunds = append(view.Refunds, Refund{
 			Channel: i18n.T(ctx, channel), Amount: money.TWD(r.AmountCents),
 			At: nullableStamp(r.At), Reason: reason, Staff: r.Staff,
 		})
@@ -619,14 +618,14 @@ func creditRefundReason(ctx context.Context, kind, reason string) string {
 // paymentWithoutCard is how an order with no card capture was paid, read from
 // what it still owes: store credit paid it, or nothing was due. An order that
 // still owes has no payment.
-func paymentWithoutCard(ctx context.Context, owedCents, creditCents int64) admin.Payment {
+func paymentWithoutCard(ctx context.Context, owedCents, creditCents int64) Payment {
 	switch {
 	case owedCents > 0:
-		return admin.Payment{}
+		return Payment{}
 	case creditCents > 0:
-		return admin.Payment{Method: i18n.T(ctx, i18n.KeyAdminPayMethodCredit)}
+		return Payment{Method: i18n.T(ctx, i18n.KeyAdminPayMethodCredit)}
 	default:
-		return admin.Payment{Method: i18n.T(ctx, i18n.KeyAdminPayMethodFree)}
+		return Payment{Method: i18n.T(ctx, i18n.KeyAdminPayMethodFree)}
 	}
 }
 
@@ -634,7 +633,7 @@ func paymentWithoutCard(ctx context.Context, owedCents, creditCents int64) admin
 // follows from what is OUTSTANDING and not from the status, which is what makes
 // a second parcel possible.
 func (s *Store) fillShippable(
-	ctx context.Context, view *admin.OrderView, orderID uuid.UUID, status order.FulfillmentStatus,
+	ctx context.Context, view *OrderView, orderID uuid.UUID, status order.FulfillmentStatus,
 ) error {
 	// DELIVERED must stay in this set. orders_legal_transition permits
 	// shipped -> delivered while a line is still outstanding, deliberately:
@@ -652,7 +651,7 @@ func (s *Store) fillShippable(
 	}
 	for i := range rows {
 		l := &rows[i]
-		view.Shippable = append(view.Shippable, admin.ShippableLine{
+		view.Shippable = append(view.Shippable, ShippableLine{
 			OrderLineID: l.OrderLineID.String(),
 			SKU:         l.SKU,
 			Name:        l.ProductName,

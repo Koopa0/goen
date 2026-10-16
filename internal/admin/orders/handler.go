@@ -22,7 +22,6 @@ import (
 	"github.com/koopa0/goen/internal/payment"
 	"github.com/koopa0/goen/internal/ui/components"
 	"github.com/koopa0/goen/internal/ui/layouts"
-	"github.com/koopa0/goen/internal/ui/pages/admin"
 	"github.com/koopa0/goen/internal/web"
 )
 
@@ -64,7 +63,7 @@ func (h *Handler) List(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	view.Notice = components.NoticeFrom(r, notices)
-	web.Render(w, r, h.log, http.StatusOK, admin.Orders(admin.OrdersMeta(r.Context()), view))
+	web.Render(w, r, h.log, http.StatusOK, Orders(OrdersMeta(r.Context()), view))
 }
 
 func (h *Handler) Order(w http.ResponseWriter, r *http.Request) {
@@ -84,7 +83,7 @@ func (h *Handler) Order(w http.ResponseWriter, r *http.Request) {
 	view.Notice = components.NoticeFrom(r, notices)
 	view.AllowanceOperationID = uuid.NewString()
 	web.Render(w, r, h.log, http.StatusOK,
-		admin.Order(layouts.Page{Title: fmt.Sprintf(i18n.T(r.Context(), i18n.KeyAdminPageOrder), view.Number)}, &view))
+		Order(layouts.Page{Title: fmt.Sprintf(i18n.T(r.Context(), i18n.KeyAdminPageOrder), view.Number)}, &view))
 }
 
 func (h *Handler) Advance(w http.ResponseWriter, r *http.Request) {
@@ -215,7 +214,7 @@ func (h *Handler) rejectShip(w http.ResponseWriter, r *http.Request, refusal *sh
 	}
 	view.AllowanceOperationID = uuid.NewString()
 	web.Render(w, r, h.log, http.StatusUnprocessableEntity,
-		admin.Order(layouts.Page{Title: fmt.Sprintf(i18n.T(r.Context(), i18n.KeyAdminPageOrder), view.Number)}, &view))
+		Order(layouts.Page{Title: fmt.Sprintf(i18n.T(r.Context(), i18n.KeyAdminPageOrder), view.Number)}, &view))
 }
 
 // parcelLines reads the `qty_<order_line_id>` fields; a nil map means everything
@@ -371,11 +370,11 @@ func (h *Handler) rejectDelivery(w http.ResponseWriter, r *http.Request, d *Deli
 	applyDeliveryRefusals(r.Context(), &view, d, refusals)
 	view.AllowanceOperationID = uuid.NewString()
 	web.Render(w, r, h.log, http.StatusUnprocessableEntity,
-		admin.Order(layouts.Page{Title: fmt.Sprintf(i18n.T(r.Context(), i18n.KeyAdminPageOrder), view.Number)}, &view))
+		Order(layouts.Page{Title: fmt.Sprintf(i18n.T(r.Context(), i18n.KeyAdminPageOrder), view.Number)}, &view))
 }
 
-func applyDeliveryRefusals(ctx context.Context, view *admin.OrderView, d *DeliveryCorrection, refusals []web.FieldRefusal) {
-	view.Delivery = admin.Delivery(*d)
+func applyDeliveryRefusals(ctx context.Context, view *OrderView, d *DeliveryCorrection, refusals []web.FieldRefusal) {
+	view.Delivery = Delivery(*d)
 	view.DeliveryErrors = make(map[string]string, len(refusals))
 	for _, refusal := range refusals {
 		field := refusal.Field

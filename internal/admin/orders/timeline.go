@@ -14,7 +14,6 @@ import (
 	"github.com/koopa0/goen/internal/outbox"
 	"github.com/koopa0/goen/internal/shoptime"
 	"github.com/koopa0/goen/internal/ui/pages"
-	"github.com/koopa0/goen/internal/ui/pages/admin"
 )
 
 // timelineSource is the table AdminOrderTimeline read an entry from.
@@ -48,10 +47,10 @@ var (
 // timelineEntry labels one row. A row this build cannot label is shown as such
 // rather than failing the page: the actions below the timeline read their own
 // facts.
-func timelineEntry(r *db.AdminOrderTimelineRow) admin.TimelineEntry {
-	e := admin.TimelineEntry{
+func timelineEntry(r *db.AdminOrderTimelineRow) TimelineEntry {
+	e := TimelineEntry{
 		At: shoptime.Minute(r.At), Note: r.Note,
-		ActorKind: admin.ActorKind(r.ActorKind), Actor: r.ActorName,
+		ActorKind: ActorKind(r.ActorKind), Actor: r.ActorName,
 	}
 	var labels, statuses map[string]i18n.Key
 	switch timelineSource(r.Source) {
@@ -80,7 +79,7 @@ func timelineEntry(r *db.AdminOrderTimelineRow) admin.TimelineEntry {
 	return e
 }
 
-func logUnrecognized(ctx context.Context, log *slog.Logger, number string, timeline []admin.TimelineEntry) {
+func logUnrecognized(ctx context.Context, log *slog.Logger, number string, timeline []TimelineEntry) {
 	for i := range timeline {
 		if e := &timeline[i]; e.Unrecognized != "" {
 			log.WarnContext(ctx, "unrecognised order timeline entry",
@@ -89,7 +88,7 @@ func logUnrecognized(ctx context.Context, log *slog.Logger, number string, timel
 	}
 }
 
-func unrecognizedEntry(e admin.TimelineEntry, r *db.AdminOrderTimelineRow) admin.TimelineEntry {
+func unrecognizedEntry(e TimelineEntry, r *db.AdminOrderTimelineRow) TimelineEntry {
 	e.Label = i18n.KeyAdminTimelineUnrecognized
 	e.Unrecognized = strings.Join(slices.DeleteFunc([]string{r.Source, r.Kind, r.Status},
 		func(s string) bool { return s == "" }), " / ")

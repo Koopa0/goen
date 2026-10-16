@@ -10,7 +10,6 @@ import (
 	"github.com/koopa0/goen/internal/money"
 	returnrules "github.com/koopa0/goen/internal/returns"
 	"github.com/koopa0/goen/internal/ui/components"
-	"github.com/koopa0/goen/internal/ui/pages/admin"
 )
 
 type Return struct {
@@ -197,7 +196,7 @@ func (r *Return) Amount() string { return money.TWD(r.AmountCents) }
 // PayoutChannel names the frozen refund sources. Empty until approval, because
 // the allocation does not exist until then.
 func (r *Return) PayoutChannel(ctx context.Context) string {
-	return admin.PayoutChannel(ctx, r.CardRefundCents, r.CreditRefundCents)
+	return components.PayoutChannel(ctx, r.CardRefundCents, r.CreditRefundCents)
 }
 
 func (r *Return) UnitsText() string { return strconv.FormatInt(int64(r.Units), 10) }
