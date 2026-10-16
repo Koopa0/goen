@@ -65,6 +65,12 @@ BEGIN
 END
 $$;
 
+-- PostgreSQL gives PUBLIC EXECUTE on every new function, so one created after
+-- harden_schema() last ran would be callable by every role, reporting included.
+-- This makes the migrating owner's functions start with no PUBLIC grant. It has
+-- to be the global default: a per-schema default only adds to the global one.
+ALTER DEFAULT PRIVILEGES REVOKE EXECUTE ON FUNCTIONS FROM PUBLIC;
+
 CREATE FUNCTION set_updated_at() RETURNS trigger
 LANGUAGE plpgsql SET search_path = pg_catalog, public, pg_temp AS $$
 BEGIN
@@ -10698,16 +10704,42 @@ GRANT INSERT (assessment_id, order_id, return_request_id, order_line_id,
               requested_at, delivered_at, policy_window)
     ON return_eligibility_facts TO admin;
 
--- pg_temp is searched FIRST for relations even when it is not listed, so a role
--- that may create temp tables could plant a decoy an unpinned trigger guard would
--- read. Listing pg_temp LAST is what fixes it; omitting it does NOT.
-DO $$
+-- The privilege posture every migration ends on. 001 calls it last, and a
+-- later migration calls it again once it has created what it creates, so
+-- nothing it adds keeps PostgreSQL's defaults. It runs as the migrating owner,
+-- whose objects it alters, and no other role may call it.
+CREATE PROCEDURE harden_schema()
+LANGUAGE plpgsql SET search_path = pg_catalog, public, pg_temp AS $$
 DECLARE
-    fn record;
+    obj record;
+    unsafe text;
 BEGIN
-    -- Every language, not just plpgsql: a LANGUAGE sql function resolves its
-    -- unqualified relations exactly the same way.
-    FOR fn IN
+    -- The roles are created only IF NOT EXISTS, so one that already exists on
+    -- the cluster is reused as it is. The binary assumes it with SET ROLE, which
+    -- takes its attributes and every role it is a member of: a superuser store
+    -- makes each REVOKE in this file decorative, and membership in the owner or
+    -- in pg_write_all_data hands store their privileges. A reused role must be
+    -- the role this file would have created.
+    SELECT string_agg(r.rolname, ', ' ORDER BY r.rolname) INTO unsafe
+    FROM pg_roles r
+    WHERE r.rolname IN ('store', 'admin', 'maintenance', 'reporting')
+      AND (r.rolsuper OR r.rolcanlogin OR r.rolcreaterole OR r.rolcreatedb
+           OR r.rolreplication OR r.rolbypassrls
+           OR EXISTS (SELECT 1 FROM pg_auth_members m WHERE m.member = r.oid));
+    IF unsafe IS NOT NULL THEN
+        RAISE EXCEPTION 'role % must be NOLOGIN NOSUPERUSER NOCREATEDB NOCREATEROLE NOREPLICATION NOBYPASSRLS and a member of no other role',
+                unsafe
+            USING ERRCODE = 'object_not_in_prerequisite_state',
+                  HINT = 'roles belong to the cluster, not to a database: run goen in a cluster of its own, or ALTER ROLE and REVOKE until the role is as migrations/001 creates it';
+    END IF;
+
+    -- pg_temp is searched FIRST for relations even when it is not listed, so a
+    -- role that may create temp tables could plant a decoy an unpinned trigger
+    -- guard would read. Listing pg_temp LAST is what fixes it; omitting it does
+    -- NOT. Every language, not just plpgsql: a LANGUAGE sql function resolves
+    -- its unqualified relations exactly the same way. ROUTINE, because ALTER
+    -- FUNCTION refuses a procedure, and this procedure is one.
+    FOR obj IN
         SELECT p.oid::regprocedure AS sig
         FROM pg_proc p
         WHERE p.pronamespace = 'public'::regnamespace
@@ -10717,23 +10749,29 @@ BEGIN
               WHERE d.objid = p.oid AND d.deptype = 'e'
           )
     LOOP
-        EXECUTE format('ALTER FUNCTION %s SET search_path = pg_catalog, public, pg_temp', fn.sig);
-        EXECUTE format('REVOKE EXECUTE ON FUNCTION %s FROM PUBLIC', fn.sig);
+        EXECUTE format('ALTER ROUTINE %s SET search_path = pg_catalog, public, pg_temp', obj.sig);
+        EXECUTE format('REVOKE EXECUTE ON ROUTINE %s FROM PUBLIC', obj.sig);
     END LOOP;
 
-    -- store's TEMP privilege arrives via PUBLIC, so revoking it from PUBLIC is
-    -- what takes it away.
-    EXECUTE format('REVOKE TEMPORARY ON DATABASE %I FROM PUBLIC', current_database());
+    -- PUBLIC holds TEMPORARY and CONNECT on every new database. store's TEMP
+    -- arrives through PUBLIC, so revoking it from PUBLIC is what takes it away.
+    -- CONNECT lets any login on the cluster in to read the catalogue, every
+    -- function's source included. The groups get CONNECT back, so a login
+    -- reaches the database through the group it inherits from, as the _svc
+    -- logins this file creates do, and through nothing else.
+    EXECUTE format('REVOKE TEMPORARY, CONNECT ON DATABASE %I FROM PUBLIC', current_database());
+    EXECUTE format('GRANT CONNECT ON DATABASE %I TO store, admin, maintenance, reporting',
+                   current_database());
 
     -- No role writes through a VIEW: a simple view is auto-updatable and checked
     -- against the base table as the VIEW'S OWNER, so `DELETE FROM
     -- committed_orders` as admin is accepted. Derived from pg_views.
-    FOR fn IN SELECT format('%I.%I', schemaname, viewname) AS sig
+    FOR obj IN SELECT format('%I.%I', schemaname, viewname) AS sig
               FROM pg_views WHERE schemaname = 'public'
     LOOP
         EXECUTE format(
             'REVOKE INSERT, UPDATE, DELETE, TRUNCATE ON %s FROM store, admin, reporting',
-            fn.sig);
+            obj.sig);
     END LOOP;
 
     -- golang-migrate creates public.schema_migrations before this migration runs,
@@ -10742,5 +10780,7 @@ BEGIN
                AND relnamespace = 'public'::regnamespace) THEN
         EXECUTE 'REVOKE ALL ON schema_migrations FROM store, reporting';
     END IF;
-END
+END;
 $$;
+
+CALL harden_schema();

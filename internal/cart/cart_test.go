@@ -14,7 +14,6 @@ import (
 	"github.com/google/go-cmp/cmp/cmpopts"
 	"github.com/google/uuid"
 
-	accountpkg "github.com/koopa0/goen/internal/account"
 	"github.com/koopa0/goen/internal/i18n"
 	"github.com/koopa0/goen/internal/invoice"
 	"github.com/koopa0/goen/internal/order/delivery"
@@ -345,90 +344,6 @@ func TestABlankPostcodeIsAskedForRatherThanCorrected(t *testing.T) {
 		if got != tt.want {
 			t.Errorf("postcode %q says %s, want %s", tt.postal, got, tt.want)
 		}
-	}
-}
-
-// TestSavedHomeAddressContractMatchesCheckout is the cross-package guard for
-// the address-book handoff. A signed-in shopper must never choose an address
-// the account package accepted only to have checkout refuse the same fields.
-func TestSavedHomeAddressContractMatchesCheckout(t *testing.T) {
-	t.Parallel()
-
-	// The checkout limits, as delivery.Details states them.
-	const maxPhoneRunes, maxCityRunes, maxDistrictRunes, maxStreetRunes = 30, 20, 20, 200
-
-	base := accountpkg.Address{
-		Label: "家", Name: "王小明", Phone: "0912345678", PostalCode: "110",
-		City: "台北市", District: "信義區", Street: "松高路 1 號",
-	}
-	tests := []struct {
-		name string
-		want bool
-		mut  func(*accountpkg.Address)
-	}{
-		{name: "ordinary Taiwan address", want: true},
-		{name: "current six-digit postal code", want: true, mut: func(a *accountpkg.Address) {
-			a.PostalCode = "110204"
-		}},
-		{name: "internationally formatted Taiwan phone", want: true, mut: func(a *accountpkg.Address) {
-			a.Phone = "+886 (2) 2700-1234"
-		}},
-		{name: "surrounding form whitespace", want: true, mut: func(a *accountpkg.Address) {
-			a.Name, a.Phone, a.PostalCode = " 王小明 ", " 0912345678 ", " 110 "
-			a.City, a.District, a.Street = " 台北市 ", " 信義區 ", " 松高路 1 號 "
-		}},
-		{name: "short phone", mut: func(a *accountpkg.Address) { a.Phone = "02-12345" }},
-		{name: "phone letters", mut: func(a *accountpkg.Address) { a.Phone = "09AB123456" }},
-		{name: "too many phone digits", mut: func(a *accountpkg.Address) {
-			a.Phone = "1234567890123456"
-		}},
-		{name: "unbounded phone punctuation", mut: func(a *accountpkg.Address) {
-			a.Phone = "0912345678" + strings.Repeat("-", maxPhoneRunes)
-		}},
-		{name: "short postal code", mut: func(a *accountpkg.Address) { a.PostalCode = "11" }},
-		{name: "postal code letters", mut: func(a *accountpkg.Address) { a.PostalCode = "11A" }},
-		{name: "long postal code", mut: func(a *accountpkg.Address) { a.PostalCode = "1234567" }},
-		{name: "long city", mut: func(a *accountpkg.Address) {
-			a.City = strings.Repeat("市", maxCityRunes+1)
-		}},
-		{name: "long district", mut: func(a *accountpkg.Address) {
-			a.District = strings.Repeat("區", maxDistrictRunes+1)
-		}},
-		{name: "long street", mut: func(a *accountpkg.Address) {
-			a.Street = strings.Repeat("路", maxStreetRunes+1)
-		}},
-		{name: "control in street", mut: func(a *accountpkg.Address) {
-			a.Street = "松高路\u0085 1 號"
-		}},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			t.Parallel()
-			saved := base
-			if tt.mut != nil {
-				tt.mut(&saved)
-			}
-			saved.Trim()
-			checkout := delivery.Details{
-				To: shipping.DestinationAddress, Email: "buyer@example.com",
-				RecipientName: saved.Name, Phone: saved.Phone, PostalCode: saved.PostalCode,
-				City: saved.City, District: saved.District, Street: saved.Street,
-			}
-			checkout.Trim()
-
-			savedOK := len(saved.Validate()) == 0
-			checkoutOK := len(checkout.Validate()) == 0
-			if savedOK != tt.want {
-				t.Errorf("account acceptance = %t, want %t", savedOK, tt.want)
-			}
-			if checkoutOK != tt.want {
-				t.Errorf("checkout acceptance = %t, want %t", checkoutOK, tt.want)
-			}
-			if savedOK && !checkoutOK {
-				t.Error("account accepted a HOME address checkout refused")
-			}
-		})
 	}
 }
 

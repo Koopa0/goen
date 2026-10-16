@@ -421,18 +421,25 @@ func addAdmin(t *testing.T, shop *pgxpool.Pool) {
 // clerkConnString creates a role that may log in but is not a superuser and
 // returns the connection string that logs in as it. A role belongs to the
 // server, which every database of this test binary shares, so each test gets
-// a clerk of its own and drops it again.
+// a clerk of its own and drops it again. The schema takes CONNECT from PUBLIC,
+// so the clerk is granted it on the shop's database: what the seed refuses
+// must be the clerk, not the connection.
 func clerkConnString(t *testing.T, shop *pgxpool.Pool) string {
 	t.Helper()
 	clerk := "clerk_" + strings.ToLower(rand.Text()[:12])
+	database := pgx.Identifier{shop.Config().ConnConfig.Database}.Sanitize()
 	if _, err := shop.Exec(t.Context(), `CREATE ROLE `+clerk+` LOGIN PASSWORD 'clerk'`); err != nil {
 		t.Fatalf("create role %s: %v", clerk, err)
 	}
 	t.Cleanup(func() {
-		if _, err := shop.Exec(context.WithoutCancel(t.Context()), `DROP ROLE `+clerk); err != nil {
+		// DROP OWNED revokes the CONNECT grant, which DROP ROLE refuses to leave behind.
+		if _, err := shop.Exec(context.WithoutCancel(t.Context()), `DROP OWNED BY `+clerk+`; DROP ROLE `+clerk); err != nil {
 			t.Errorf("drop role %s: %v", clerk, err)
 		}
 	})
+	if _, err := shop.Exec(t.Context(), `GRANT CONNECT ON DATABASE `+database+` TO `+clerk); err != nil {
+		t.Fatalf("grant %s CONNECT: %v", clerk, err)
+	}
 	conn, err := url.Parse(shop.Config().ConnString())
 	if err != nil {
 		t.Fatalf("parse %s: %v", shop.Config().ConnString(), err)
