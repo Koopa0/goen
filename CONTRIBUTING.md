@@ -62,9 +62,13 @@ Skip the catalogue seed to run an empty shop. The seed accepts only an explicit
 development marker; it does not infer the deployment environment.
 
 `migrations/001` is amended in place while nothing is deployed, so after pulling
-a change to it run `PGOPTIONS='-c goen.catalogue_seed=development' make db-reset`, which rebuilds and re-seeds. The symptom of
-not doing so is a back-office page answering 500 for a column that exists in
-the file and not in your database.
+a change to it run `PGOPTIONS='-c goen.catalogue_seed=development' make db-reset`, which rebuilds and re-seeds. Without it
+`/readyz` answers 503 and goen warns at startup that the database is not the
+schema it was built with (outside development it refuses to start).
+
+001 records its own digest in `schema_version()`. After editing it, run
+`go test ./migrations -update` to rewrite that line; `go test ./...` fails until
+you do.
 
 `make run` runs `make schema-drift` first and refuses to start against a
 database that no longer matches `migrations/`.

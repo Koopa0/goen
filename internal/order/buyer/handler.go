@@ -20,7 +20,6 @@ import (
 	"github.com/koopa0/goen/internal/ratelimit"
 	"github.com/koopa0/goen/internal/returns"
 	"github.com/koopa0/goen/internal/ui/layouts"
-	"github.com/koopa0/goen/internal/ui/pages"
 	"github.com/koopa0/goen/internal/user"
 	"github.com/koopa0/goen/internal/web"
 )
@@ -56,8 +55,8 @@ func NewHandler(s *Store, grants *access.Store, log *slog.Logger, findLimit *rat
 }
 
 func (h *Handler) FindOrderPage(w http.ResponseWriter, r *http.Request) {
-	web.Render(w, r, h.log, http.StatusOK, pages.FindOrder(
-		pages.FindOrderMeta(r.Context()), pages.FindOrderView{}))
+	web.Render(w, r, h.log, http.StatusOK, FindOrder(
+		FindOrderMeta(r.Context()), FindOrderView{}))
 }
 
 // FindOrder writes the SAME cookie placing an order writes, and answers
@@ -95,8 +94,8 @@ func (h *Handler) FindOrder(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if !found {
-		web.Render(w, r, h.log, http.StatusUnprocessableEntity, pages.FindOrder(
-			pages.FindOrderMeta(r.Context()), pages.FindOrderView{
+		web.Render(w, r, h.log, http.StatusUnprocessableEntity, FindOrder(
+			FindOrderMeta(r.Context()), FindOrderView{
 				Number: typed, Email: addr,
 				Error: i18n.T(r.Context(), i18n.KeyFindOrderRefused),
 			}))
@@ -111,7 +110,7 @@ func (h *Handler) FindOrder(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *Handler) findOrderGrantFailed(w http.ResponseWriter, r *http.Request) {
-	web.Render(w, r, h.log, http.StatusInternalServerError, pages.FindOrderGrantFailed(
+	web.Render(w, r, h.log, http.StatusInternalServerError, FindOrderGrantFailed(
 		layouts.Page{Title: i18n.T(r.Context(), i18n.KeyFindOrderGrantFailedTitle)}))
 }
 
@@ -157,7 +156,7 @@ func (h *Handler) OrderPage(w http.ResponseWriter, r *http.Request) {
 	}
 	view.ShowWarrantyLink = h.ownedBySignedInUser(r, number)
 	view.PaymentsEnabled = h.takesPayment
-	web.Render(w, r, h.log, http.StatusOK, pages.Order(pages.OrderMeta(r.Context(), view.Number), &view))
+	web.Render(w, r, h.log, http.StatusOK, Order(OrderMeta(r.Context(), view.Number), &view))
 }
 
 const (
@@ -167,7 +166,7 @@ const (
 
 // A browser return is not payment evidence. Keep that hint when bounded checks
 // end so a delayed webhook cannot turn it into an invitation to pay again.
-func paymentReturnRefresh(r *http.Request, view *pages.OrderView) string {
+func paymentReturnRefresh(r *http.Request, view *OrderView) string {
 	view.PaymentReturnHint = r.URL.Query().Get("paid") == "1"
 	if !view.AwaitingPayment() || !view.PaymentReturnHint {
 		return ""
@@ -234,8 +233,8 @@ func (h *Handler) ReturnPage(w http.ResponseWriter, r *http.Request) {
 	}
 	view := viewOf(r.Context(), o, nil, nil)
 	view.Filed = r.URL.Query().Get("filed") == "1"
-	web.Render(w, r, h.log, http.StatusOK, pages.Returns(
-		pages.ReturnsMeta(r.Context(), o.Number), view))
+	web.Render(w, r, h.log, http.StatusOK, Returns(
+		ReturnsMeta(r.Context(), o.Number), view))
 }
 
 func (h *Handler) SubmitReturn(w http.ResponseWriter, r *http.Request) {
@@ -363,8 +362,8 @@ func (h *Handler) reject(w http.ResponseWriter, r *http.Request, o *ReturnOrder,
 			i18n.T(r.Context(), i18n.KeyLoggedTryAgain)))
 		return
 	}
-	web.Render(w, r, h.log, http.StatusUnprocessableEntity, pages.Returns(
-		pages.ReturnsMeta(r.Context(), fresh.Number), viewOf(r.Context(), fresh, draft, returnRefusals(fresh, draft, refusals))))
+	web.Render(w, r, h.log, http.StatusUnprocessableEntity, Returns(
+		ReturnsMeta(r.Context(), fresh.Number), viewOf(r.Context(), fresh, draft, returnRefusals(fresh, draft, refusals))))
 }
 
 // ownOrder: an order number is a per-day counter, so knowing one is not
@@ -416,19 +415,19 @@ func (h *Handler) cartUnavailable(w http.ResponseWriter, r *http.Request) {
 		i18n.T(r.Context(), i18n.KeyCartUnavailable)))
 }
 
-func viewOf(ctx context.Context, o *ReturnOrder, draft *returnDraft, refusals []web.FieldRefusal) pages.ReturnsView {
-	v := pages.ReturnsView{
+func viewOf(ctx context.Context, o *ReturnOrder, draft *returnDraft, refusals []web.FieldRefusal) ReturnsView {
+	v := ReturnsView{
 		Number: o.Number, HasOpen: o.HasOpen, HasDraft: draft != nil,
 		Pickup: o.Pickup, Now: o.Now,
 	}
 	for _, p := range o.Shipments {
-		v.Shipments = append(v.Shipments, pages.OrderShipment{
+		v.Shipments = append(v.Shipments, OrderShipment{
 			DeliveredAt: p.DeliveredAt, RescissionEnds: p.RescissionEnds, RescissionDays: p.RescissionDays,
 		})
 	}
 	for i := range o.Lines {
 		l := &o.Lines[i]
-		line := pages.ReturnsLine{
+		line := ReturnsLine{
 			ID: l.ID, SKU: l.SKU, Name: l.Name, Label: l.Label,
 			UnitCents: l.UnitCents, Returnable: l.Returnable,
 		}
@@ -455,7 +454,7 @@ func viewOf(ctx context.Context, o *ReturnOrder, draft *returnDraft, refusals []
 	}
 	for i := range o.Existing {
 		e := &o.Existing[i]
-		v.Existing = append(v.Existing, pages.ReturnsExisting{
+		v.Existing = append(v.Existing, ReturnsExisting{
 			Status: returns.Status(e.Status), Reason: e.Reason,
 			Resolution: e.Resolution, CreatedAt: e.CreatedAt, DecidedAt: e.DecidedAt,
 		})

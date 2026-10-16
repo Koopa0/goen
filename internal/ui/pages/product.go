@@ -580,7 +580,7 @@ func (v *ProductView) BuyFacts(ctx context.Context) []components.Stat {
 	if v.HasWarranty() {
 		stats = append(stats, components.Stat{
 			Label: i18n.T(ctx, i18n.KeySectionWarranty),
-			Value: components.StatCount(int64(v.WarrantyMonths), countUnit(ctx, i18n.KeyUnitMonths, int64(v.WarrantyMonths))),
+			Value: components.StatCount(int64(v.WarrantyMonths), components.CountUnit(ctx, i18n.KeyUnitMonths, int64(v.WarrantyMonths))),
 		})
 	}
 	stats = append(stats, v.Rules.rescissionStat(ctx))

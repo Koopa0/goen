@@ -19,6 +19,16 @@ if [[ "$1" == --list ]]; then
     echo inspect >> "$RESTORE_TEST_TRACE"
     exit "${INSPECT_FAIL:-0}"
 fi
+# What the snapshot says its schema is: schema_version()'s digest line, and
+# golang-migrate's row.
+if [[ " $* " == *" -P schema_version() "* ]]; then
+    printf "    digest := '%s';\n" "$SNAPSHOT_DIGEST"
+    exit 0
+fi
+if [[ " $* " == *" -t schema_migrations "* ]]; then
+    printf 'COPY public.schema_migrations (version, dirty) FROM stdin;\n%s\t%s\n\\.\n' "${SNAPSHOT_VERSION:-1}" "${SNAPSHOT_DIRTY:-f}"
+    exit 0
+fi
 [[ " $* " == *' --single-transaction '* ]] || exit 8
 [[ " $* " == *' --role=goen '* ]] || exit 10
 [[ " $* " != *' --no-owner '* ]] || exit 11
@@ -35,6 +45,9 @@ SYSTEMCTL
 chmod +x "$tmp/bin/psql" "$tmp/bin/pg_restore" "$tmp/bin/systemctl"
 script="$root/deploy/demo/restore-demo-db.sh"
 export GOEN_RESTORE_DATABASE_URL=postgres://restore_operator@localhost/goen
+SNAPSHOT_DIGEST=$(sed -n "s/^    digest := '\([0-9a-f]\{64\}\)';\$/\1/p" "$root/migrations/001_initial_schema.up.sql")
+[[ ${#SNAPSHOT_DIGEST} == 64 ]] || { echo 'migrations/001 records no digest' >&2; exit 1; }
+export SNAPSHOT_DIGEST
 run() {
     local expected=$1 status=0
     shift
@@ -51,6 +64,13 @@ run 4 env CONNECT_FAIL=1 "$script"
 [[ $(cat "$RESTORE_TEST_TRACE") == connect ]]
 run 5 env INSPECT_FAIL=5 "$script"
 ! grep -q '^stop$' "$RESTORE_TEST_TRACE"
+# A snapshot of another schema is refused before the service stops.
+for other in "SNAPSHOT_DIGEST=$(printf '%064d' 0)" SNAPSHOT_DIGEST= SNAPSHOT_DIRTY=t SNAPSHOT_VERSION=0; do
+    run 3 env "$other" "$script"
+    printf 'connect\ninspect\n' > "$tmp/expected"
+    cmp "$tmp/expected" "$RESTORE_TEST_TRACE" || { echo "$other: the service was touched" >&2; exit 1; }
+    grep -q 'rebuild the snapshot' "$tmp/output" || { cat "$tmp/output" >&2; exit 1; }
+done
 run 6 env RESTORE_FAIL=6 "$script"
 printf 'connect\ninspect\nstop\nrestore\nstart\n' > "$tmp/expected"
 cmp "$tmp/expected" "$RESTORE_TEST_TRACE"
@@ -83,7 +103,10 @@ for _ in $(seq 60); do
 done
 sql() { docker exec -i "$c" psql -X -qAt -v ON_ERROR_STOP=1 -U goen -d goen "$@"; }
 sql -c "CREATE ROLE restore_operator LOGIN NOSUPERUSER IN ROLE goen"
+# As golang-migrate leaves a database: its table first, its row after.
+sql -c "CREATE TABLE schema_migrations (version bigint NOT NULL PRIMARY KEY, dirty boolean NOT NULL)"
 sql -1 < "$root/migrations/001_initial_schema.up.sql" >/dev/null
+sql -c "INSERT INTO schema_migrations VALUES (1, false)"
 sql -c "INSERT INTO brands (slug, name) VALUES ('restore-fixture', 'snapshot')"
 owners() {
     sql -c "SELECT 'rel', n.nspname, c.relname, pg_get_userbyid(c.relowner)
@@ -120,6 +143,9 @@ if docker exec "$c" sh -c 'pg_restore -f /dev/null /tmp/corrupt.dump' >/dev/null
     exit 1
 fi
 docker cp "$script" "$c:/tmp/restore-demo-db.sh"
+docker cp "$root/migrations" "$c:/tmp/migrations"
+# The same migrations with another 001 digest: a checkout the snapshot was not built from.
+docker exec "$c" sh -c "cp -r /tmp/migrations /tmp/migrations-next && sed -i \"s/^    digest := '[0-9a-f]*';\$/    digest := '$(printf '%064d' 0)';/\" /tmp/migrations-next/001_initial_schema.up.sql"
 docker exec -i "$c" sh -c 'mkdir -p /tmp/bin; cat > /tmp/bin/systemctl; chmod +x /tmp/bin/systemctl' <<'STUB'
 #!/bin/sh
 echo "$1" >> /tmp/service-events
@@ -128,6 +154,7 @@ real_restore() {
     docker exec "$c" sh -c ': > /tmp/service-events'
     docker exec -e PATH=/tmp/bin:/usr/local/bin:/usr/bin:/bin \
         -e GOEN_RESTORE_DATABASE_URL='postgresql:///goen?user=restore_operator' \
+        -e "GOEN_RESTORE_MIGRATIONS=${2:-/tmp/migrations}" \
         -e "GOEN_RESTORE_SNAPSHOT=/tmp/$1" "$c" bash /tmp/restore-demo-db.sh >"$tmp/output" 2>&1
 }
 brand() { sql -c "SELECT name FROM brands WHERE slug = 'restore-fixture'"; }
@@ -142,9 +169,14 @@ real_restore good.dump || { cat "$tmp/output" >&2; echo 'restore of a good snaps
 same_owners 'after restore'
 
 sql -c "UPDATE brands SET name = 'live' WHERE slug = 'restore-fixture'"
+if real_restore good.dump /tmp/migrations-next; then echo 'a snapshot of another 001 restored' >&2; exit 1; fi
+grep -q 'rebuild the snapshot' "$tmp/output" || { cat "$tmp/output" >&2; echo 'snapshot of another 001 not refused for its schema' >&2; exit 1; }
+[[ -z $(docker exec "$c" cat /tmp/service-events) ]] || { echo 'refused snapshot touched the service' >&2; exit 1; }
+[[ $(brand) == live ]] || { echo 'refused snapshot changed the data' >&2; exit 1; }
+
 if real_restore corrupt.dump; then echo 'corrupt snapshot restored without error' >&2; exit 1; fi
 grep -q 'restarting goen.service on the previous data' "$tmp/output" || { cat "$tmp/output" >&2; echo 'corrupt snapshot did not fail after the service stopped' >&2; exit 1; }
 [[ $(docker exec "$c" cat /tmp/service-events) == $'stop\nstart' ]] || { echo 'failed restore did not restart the service' >&2; exit 1; }
 [[ $(brand) == live ]] || { echo 'failed restore changed the previous data' >&2; exit 1; }
 same_owners 'after failed restore'
-echo "demo restore ownership: PASS ($tables tables, $definers SECURITY DEFINER functions keep owner goen; failed restore restarted on old data)"
+echo "demo restore ownership: PASS ($tables tables, $definers SECURITY DEFINER functions keep owner goen; a snapshot of another 001 refused before the stop; failed restore restarted on old data)"
