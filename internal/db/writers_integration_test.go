@@ -12,7 +12,9 @@ import (
 
 // TestEveryTableHasAWriter refuses a table the application never writes: a feature with no door.
 func TestEveryTableHasAWriter(t *testing.T) {
-	allowed := map[string]string{}
+	allowed := map[string]string{
+		"schema_migrations": "golang-migrate's own bookkeeping; the migration runner writes it, never the application",
+	}
 
 	ctx := t.Context()
 	rows, err := pool.Query(ctx, `
