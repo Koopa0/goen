@@ -382,3 +382,38 @@ func newFAQCategory(t *testing.T, ctx context.Context, s *content.Store, name, n
 	}
 	return categoryID(t, ctx, s, name)
 }
+
+// TestABlankHeroTranslationFallsBackToTheChinese proves the desk and the
+// hero_slides *_en_present CHECKs agree: English copy typed as spaces is
+// stored as NULL, which localized_name reads as "not translated", rather
+// than refused by the database or stored as an empty line.
+func TestABlankHeroTranslationFallsBackToTheChinese(t *testing.T) {
+	ctx, _ := admintest.StaffContext(t, pool)
+	const headline = "譯文留白的主視覺"
+	t.Cleanup(func() {
+		//nolint:usetesting // t.Context is already cancelled in Cleanup
+		_, _ = pool.Exec(context.Background(), `DELETE FROM hero_slides WHERE headline = $1`, headline)
+	})
+
+	errs, err := newStore(pool).CreateHeroSlide(ctx, &content.HeroForm{
+		Eyebrow: "夏季", Headline: headline, Body: "內文",
+		PrimaryLabel: "立即選購", PrimaryHref: "/deals",
+		SecondLabel: "關於", SecondHref: "/about",
+		EyebrowEn: " ", HeadlineEn: "\t", BodyEn: "  ",
+		PrimaryLabelEn: " ", SecondLabelEn: "　", ImageAltEn: " ",
+	})
+	if err != nil || len(errs) > 0 {
+		t.Fatalf("CreateHeroSlide with blank English copy: %v %v", err, errs)
+	}
+
+	var translated int
+	if err := pool.QueryRow(ctx, `
+		SELECT num_nonnulls(eyebrow_en, headline_en, body_en, primary_cta_label_en,
+		                    secondary_cta_label_en, image_alt_en)
+		FROM hero_slides WHERE headline = $1`, headline).Scan(&translated); err != nil {
+		t.Fatalf("read the slide: %v", err)
+	}
+	if translated != 0 {
+		t.Errorf("%d blank English fields were stored as text, want all 6 NULL so the Chinese shows", translated)
+	}
+}
