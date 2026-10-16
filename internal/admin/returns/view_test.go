@@ -22,7 +22,6 @@ import (
 // still live in internal/ui/pages/admin, as in #2081, #2082 and #2114: each
 // half moved here with the page it renders and the other views stay behind.
 
-// From statusbadge_test.go, which keeps the order and dashboard tests.
 // badgeClasses returns the class attribute of every badge whose text contains word.
 func badgeClasses(t *testing.T, page, word string) []string {
 	t.Helper()
