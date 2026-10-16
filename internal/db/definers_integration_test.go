@@ -74,6 +74,7 @@ var definerFunctions = []string{
 	"reverse_order_points(uuid)",
 	"reverse_return_points(uuid)",
 	"revoke_staff(uuid)",
+	"schema_version()",
 	"secure_promoted_account(uuid)",
 	"settle_invoice_allowance(uuid,uuid,text,timestamp with time zone,text[],integer[],bigint[],bigint[],jsonb)",
 	"settle_invoice_issue(uuid,uuid,text,text,timestamp with time zone,text[],integer[],bigint[],bigint[])",

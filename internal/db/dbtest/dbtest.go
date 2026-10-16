@@ -16,6 +16,7 @@ import (
 	"net/url"
 	"path/filepath"
 	"runtime"
+	"strconv"
 	"strings"
 	"sync/atomic"
 	"testing"
@@ -313,7 +314,14 @@ func migrate(ctx context.Context, pool *pgxpool.Pool) error {
 	if len(files) == 0 {
 		return errNoMigrations
 	}
+	// The table golang-migrate keeps, as its postgres driver creates it, before
+	// the first migration as it does: 001 revokes store's access to it, and the
+	// binary refuses a database without its row.
+	if _, err := pool.Exec(ctx, `CREATE TABLE IF NOT EXISTS schema_migrations (version bigint NOT NULL PRIMARY KEY, dirty boolean NOT NULL)`); err != nil {
+		return fmt.Errorf("create schema_migrations: %w", err)
+	}
 	// Glob returns sorted names; the numeric prefix is the applied order.
+	var version int64
 	for _, file := range files {
 		sql, err := readFile(file)
 		if err != nil {
@@ -322,6 +330,13 @@ func migrate(ctx context.Context, pool *pgxpool.Pool) error {
 		if _, err := pool.Exec(ctx, sql); err != nil {
 			return migrationError{file: filepath.Base(file), err: err}
 		}
+		prefix, _, _ := strings.Cut(filepath.Base(file), "_")
+		if version, err = strconv.ParseInt(prefix, 10, 64); err != nil {
+			return migrationError{file: filepath.Base(file), err: err}
+		}
+	}
+	if _, err := pool.Exec(ctx, `INSERT INTO schema_migrations (version, dirty) VALUES ($1, false)`, version); err != nil {
+		return fmt.Errorf("record migration %d: %w", version, err)
 	}
 	return nil
 }

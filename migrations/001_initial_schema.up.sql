@@ -10704,6 +10704,30 @@ GRANT INSERT (assessment_id, order_id, return_request_id, order_line_id,
               requested_at, delivered_at, policy_window)
     ON return_eligibility_facts TO admin;
 
+-- Which schema this database was built from, for the binary to compare with the
+-- one it was built with: /readyz and secure-mode startup refuse a difference.
+-- digest is the SHA-256 of this file as it was applied, computed with the
+-- 64 hex digits below set to zeros, since a file cannot contain its own hash
+-- (the convention of RFC 791's header checksum). package migrations computes
+-- it, and its test fails until `go test ./migrations -update` rewrites the
+-- line. 001 is amended in place until it is frozen, so the version alone
+-- cannot tell two of its editions apart. version and dirty are what
+-- golang-migrate records; store may not read its table, hence a definer.
+CREATE FUNCTION schema_version(OUT digest text, OUT version bigint, OUT dirty boolean)
+LANGUAGE plpgsql STABLE SECURITY DEFINER SET search_path = pg_catalog, public, pg_temp AS $$
+BEGIN
+    digest := 'b181409bc720f02178ccc1a19003aece5a2b07a58f7e6834b4a7d5053bf60a77';
+    -- NULL when the database was not built by golang-migrate, which the
+    -- binary refuses as it refuses any other unknown schema.
+    IF to_regclass('public.schema_migrations') IS NOT NULL THEN
+        SELECT m.version, m.dirty INTO version, dirty
+        FROM public.schema_migrations m;
+    END IF;
+END;
+$$;
+
+GRANT EXECUTE ON FUNCTION schema_version() TO store, admin, maintenance;
+
 -- The privilege posture every migration ends on. 001 calls it last, and a
 -- later migration calls it again once it has created what it creates, so
 -- nothing it adds keeps PostgreSQL's defaults. It runs as the migrating owner,

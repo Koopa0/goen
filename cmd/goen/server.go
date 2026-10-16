@@ -152,7 +152,7 @@ func newRouter(cfg *RouterConfig, log *slog.Logger) http.Handler {
 	mux.Handle("GET "+assets.Prefix, staticAssetHandler(assets.Handler(log)))
 	mux.HandleFunc("GET /favicon.ico", staticAssetHandler(assets.Alias(log, assets.FaviconICO)).ServeHTTP)
 
-	probes := probe.NewHandler(log, pool)
+	probes := probe.NewHandler(log, pool, schemaCheck(pool))
 	mux.HandleFunc("GET /healthz", probes.Live)
 	mux.HandleFunc("GET /readyz", probes.Ready)
 

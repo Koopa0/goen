@@ -4,6 +4,8 @@ set -euo pipefail
 
 : "${GOEN_RESTORE_DATABASE_URL:?GOEN_RESTORE_DATABASE_URL is required; never use storefront credentials}"
 SNAPSHOT=${GOEN_RESTORE_SNAPSHOT:-/var/lib/goen/snapshots/catalog.dump}
+# The checkout goen was built from; its migrations say which schema goen runs on.
+MIGRATIONS=${GOEN_RESTORE_MIGRATIONS:-$(dirname "$0")/../../migrations}
 SERVICE=goen.service
 stopped=false
 restored=false
@@ -37,6 +39,25 @@ case "$identity" in
         ;;
 esac
 pg_restore --list "$SNAPSHOT" >/dev/null
+
+# goen refuses to start on a schema other than the one it was built with, and
+# by then the old data would be gone, so a snapshot made from another
+# migrations/001, or behind the latest migration, is refused here instead.
+digest_of() { sed -n "s/^    digest := '\([0-9a-f]\{64\}\)';\$/\1/p"; }
+want_digest=$(digest_of < "$MIGRATIONS/001_initial_schema.up.sql")
+want_version=$(find "$MIGRATIONS" -name '[0-9]*_*.up.sql' -exec basename {} \; | sed 's/_.*//' | sort -n | tail -n 1)
+have_digest=$(pg_restore -f - -P 'schema_version()' "$SNAPSHOT" | digest_of)
+read -r have_version have_dirty < <(pg_restore -f - -a -t schema_migrations "$SNAPSHOT" \
+    | sed -n '/^COPY /,/^\\\.$/{/^COPY /d;/^\\\.$/d;p;}') || true
+if [[ -z "$want_digest" || -z "$want_version" ]]; then
+    echo "no migrations/001 digest or version under $MIGRATIONS; set GOEN_RESTORE_MIGRATIONS" >&2
+    exit 3
+fi
+if [[ "$have_digest" != "$want_digest" || "${have_dirty:-}" != f ]] \
+    || (( 10#${have_version:-0} < 10#$want_version )); then
+    echo "snapshot schema (001 digest ${have_digest:-none}, migration ${have_version:-none}, dirty ${have_dirty:-none}) is not this checkout's (digest $want_digest, migration $want_version); rebuild the snapshot from it" >&2
+    exit 3
+fi
 
 systemctl stop "$SERVICE"
 stopped=true
