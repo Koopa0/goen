@@ -7,8 +7,8 @@ A reference for restoring a fixed demo snapshot under systemd:
 sanitised application configuration template, not an attestation of the live host.
 
 The timer runs at 19:00 UTC (03:00 in Taipei, outside shop hours) and also catches
-a missed run when activated. The script checks the restore identity and archive
-before stopping `goen.service`, restores the snapshot, then starts the service. It
+a missed run when activated. The script checks the restore identity, the archive
+and its schema before stopping `goen.service`, restores the snapshot, then starts the service. It
 does not create demo history,
 run `seed/demo_shift.sql`, or refresh the snapshot's anchor day. Each run restores
 the same saved dates; it does not make the history end yesterday.
@@ -47,6 +47,15 @@ gives it: a login, a superuser or other role attribute, or membership in any
 other role. It also takes `CONNECT` and `TEMPORARY` on the database from
 `PUBLIC` and gives `CONNECT` back to those four roles, so a login connects
 only as an `INHERIT` member of one of them, or as the owner.
+
+goen starts only on the schema it was built with. `schema_version()` reports the
+digest of the `migrations/001` a database was built from and golang-migrate's
+version; in secure mode goen refuses to start on any other, and `/readyz` answers
+503. A snapshot is therefore tied to the checkout it was built from: rebuild it
+whenever `migrations/` changes. `restore-demo-db.sh` reads the snapshot's digest
+and version before it stops `goen.service` and refuses (exit 3) one that is not
+the schema of `GOEN_RESTORE_MIGRATIONS`, by default this checkout's
+`migrations/`, which must be the checkout goen was built from.
 
 A restore does not change those database privileges either: `pg_dump` carries
 the schema's grants but not the database's own. A demo database created before

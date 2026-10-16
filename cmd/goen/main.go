@@ -39,6 +39,7 @@ import (
 	"github.com/koopa0/goen/internal/recommend"
 	"github.com/koopa0/goen/internal/restock"
 	"github.com/koopa0/goen/internal/web"
+	"github.com/koopa0/goen/migrations"
 )
 
 func main() {
@@ -401,7 +402,39 @@ func reachDatabase(ctx context.Context, pool *pgxpool.Pool, url string, role dat
 	`).Scan(&provider, &locale); localeErr != nil {
 		return fmt.Errorf("check %s database locale: %w", role, redactURL(localeErr, url))
 	}
-	return checkDatabaseLocale(role, provider, locale, secureCookies, log)
+	if err := checkDatabaseLocale(role, provider, locale, secureCookies, log); err != nil {
+		return err
+	}
+	return checkDatabaseSchema(pingCtx, pool, role, secureCookies, log)
+}
+
+// schemaCheck reports whether the database q reaches was built from the
+// migrations this binary embeds.
+func schemaCheck(q migrations.Querier) func(context.Context) error {
+	return func(ctx context.Context) error {
+		built, err := migrations.Built()
+		if err != nil {
+			return fmt.Errorf("read the embedded migrations: %w", err)
+		}
+		return built.Check(ctx, q)
+	}
+}
+
+// checkDatabaseSchema refuses, or in development warns about, a database that
+// was not built from the migrations this binary embeds: it starts and then
+// answers 500 wherever a query names a column the database does not have.
+func checkDatabaseSchema(ctx context.Context, pool *pgxpool.Pool, role databaseRole, secureCookies bool, log *slog.Logger) error {
+	err := schemaCheck(pool)(ctx)
+	if err == nil {
+		return nil
+	}
+	message := fmt.Sprintf("the database %s reaches through %s is not the schema this binary was built with: %v; rebuild it from this build's migrations/ or restore a snapshot made from them",
+		role, role.urlVariable(), err)
+	if secureCookies {
+		return fmt.Errorf("refusing to start: %s", message)
+	}
+	log.Warn(message)
+	return nil
 }
 
 // checkDatabaseLocale refuses, or in development warns about, a database that
