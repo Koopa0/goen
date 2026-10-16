@@ -39,7 +39,7 @@ func (v RefundConfirmation) CreditCancellation(ctx context.Context) string {
 }
 
 func (v RefundConfirmation) Channel(ctx context.Context) string {
-	return (&admin.Return{CardRefundCents: v.CardCents, CreditRefundCents: v.CreditCents}).PayoutChannel(ctx)
+	return admin.PayoutChannel(ctx, v.CardCents, v.CreditCents)
 }
 
 func (v RefundConfirmation) Action() string { return "/admin/orders/" + v.OrderNumber + "/refund" }

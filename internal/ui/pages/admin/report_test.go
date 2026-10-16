@@ -662,3 +662,22 @@ func TestNoDepartmentsShowNoDepartmentSection(t *testing.T) {
 		t.Error("report shows a department heading with no departments")
 	}
 }
+
+func TestSellerFactsCountUnitsInBothLanguages(t *testing.T) {
+	t.Parallel()
+	for _, locale := range []i18n.Locale{i18n.En, i18n.ZhHant} {
+		for _, count := range []int64{0, 1, 2, 1000} {
+			want := fmt.Sprintf("%d units sold", count)
+			if count == 1 {
+				want = "1 unit sold"
+			}
+			if locale == i18n.ZhHant {
+				want = fmt.Sprintf("售出 %d 件", count)
+			}
+			got := (Seller{Units: count}).Facts(i18n.WithLocale(t.Context(), locale))
+			if !strings.Contains(got, want) {
+				t.Errorf("Facts(%s, %d) = %q, want %q", locale, count, got, want)
+			}
+		}
+	}
+}

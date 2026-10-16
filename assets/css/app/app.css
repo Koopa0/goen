@@ -65,6 +65,11 @@ a:hover {
   /* The corner of anything that can be pressed, in rem so it grows with the
      text. base.css's --r-* stay as they are: the back office uses them. */
   --r-press: 1.625rem;
+  /* The outer corner of the hero and of a page head built the same way, in px
+     so it stays 24 at any text size. The copy panel's padding is wider than
+     the corner and the photograph panel's is 0, so neither draws an inner
+     corner. */
+  --r-hero: 24px;
 }
 
 .goen-shell {
@@ -1958,10 +1963,15 @@ body:has(.goen-hero) .goen-header {
 
 /* ----- Carousel: native scroll-snap does the moving (swipe, trackpad, keyboard,
    the named tabs); nothing moves on its own, and goen.js only wires the arrows
-   and the count. A slide is copy on its tone and the photograph in its own
-   column, a white seam of --col-gap between them. ----- */
+   and the count. It sits inside the page column, and a slide is two rounded
+   panels, the copy on its tone and the photograph, with a seam of page white
+   between them. The slides touch end to end, since goen.js scrolls by whole
+   track widths. ----- */
 
 .goen-hero {
+  margin-inline: auto;
+  max-width: var(--page-width);
+  padding: var(--s-2) var(--page-gutter) 0;
   position: relative;
 }
 
@@ -1984,11 +1994,11 @@ body:has(.goen-hero) .goen-header {
 }
 
 .goen-hero__slide {
-  background: var(--tone-ground);
   box-sizing: border-box;
   display: flex;
   flex: 0 0 100%;
   flex-direction: column;
+  gap: var(--s-2);
   min-width: 0;
   scroll-snap-align: start;
   scroll-snap-stop: always;
@@ -1996,7 +2006,9 @@ body:has(.goen-hero) .goen-header {
 
 .goen-hero__media {
   aspect-ratio: 4 / 3;
-  background: var(--n-0);
+  background: var(--tone-ground);
+  border-radius: var(--r-hero);
+  order: -1;
   overflow: hidden;
   position: relative;
 }
@@ -2009,8 +2021,10 @@ body:has(.goen-hero) .goen-header {
 }
 
 .goen-hero__body {
+  background: var(--tone-ground);
+  border-radius: var(--r-hero);
   flex: 1;
-  padding: 1.5rem var(--page-gutter) 2rem;
+  padding: var(--s-5) var(--s-5) var(--s-6);
 }
 
 .goen-hero__inner {
@@ -2111,9 +2125,7 @@ body:has(.goen-hero) .goen-header {
   align-items: center;
   display: flex;
   gap: var(--s-5);
-  margin-inline: auto;
-  max-width: var(--page-box);
-  padding: var(--s-3) var(--page-gutter) 0;
+  padding-top: var(--s-3);
 }
 
 .goen-hero__tabs {
@@ -2123,6 +2135,9 @@ body:has(.goen-hero) .goen-header {
   mask-image: linear-gradient(to right, #000 calc(100% - 1.5rem), transparent);
   min-width: 0;
   overflow-x: auto;
+  /* A scrolling row clips its children, so the 2px ring pushed 2px off a tab
+     needs 4px above and below it. */
+  padding-block: 4px;
   /* The fade lands on this room, not on the last tab's words, when the tabs fit. */
   padding-inline-end: 1.5rem;
   scrollbar-width: none;
@@ -2130,10 +2145,6 @@ body:has(.goen-hero) .goen-header {
 
 .goen-hero__tabs::-webkit-scrollbar {
   display: none;
-}
-
-.goen-hero__tabs a:focus-visible {
-  outline-offset: -2px;
 }
 
 .goen-hero__tabs a {
@@ -2160,13 +2171,15 @@ body:has(.goen-hero) .goen-header {
   }
 }
 
-/* The current tab is told apart by its weight and its fill, so colour is not
-   the only cue; forced colours drop the fill and draw the edge instead. Only
-   the script that moves between slides keeps the mark true, so without it no
-   tab is drawn as current. */
+/* The current tab is told apart by its weight, its fill and a 1px edge in the
+   accent (6.3:1 on the fill), so colour is not the only cue; forced colours
+   drop the fill and the edge and draw an outline instead. Only the script that
+   moves between slides keeps the mark true, so without it no tab is drawn as
+   current. */
 @media (scripting: enabled) {
   .goen-hero__tabs a[aria-current="true"] {
     background: var(--accent-faint);
+    box-shadow: inset 0 0 0 1px var(--accent);
     color: var(--accent-deep);
     font-weight: var(--fw-medium);
   }
@@ -2176,6 +2189,15 @@ body:has(.goen-hero) .goen-header {
   .goen-hero__tabs a[aria-current="true"]:not(:focus-visible) {
     outline: 2px solid Highlight;
     outline-offset: -2px;
+  }
+}
+
+/* Forced colours drop the tone, so each panel keeps an edge of its own. */
+@media (forced-colors: active) {
+  .goen-hero__body,
+  .goen-hero__media {
+    outline: 1px solid CanvasText;
+    outline-offset: -1px;
   }
 }
 
@@ -2207,11 +2229,6 @@ body:has(.goen-hero) .goen-header {
   width: 1.25rem;
 }
 
-/* A slide with no photograph is colour and type. */
-.goen-hero__slide--text .goen-hero__body {
-  padding-block: 2rem 2.5rem;
-}
-
 /* Beside photo slides the track makes it as tall as they are, so under 1024px
    it is a poster: the name at the top, the facts and the button at the foot,
    instead of the copy in the corner of a tall field of tone. */
@@ -2237,23 +2254,6 @@ body:has(.goen-hero) .goen-header {
 
   .goen-hero__slide--text .goen-hero__title--long {
     font-size: var(--fs-ed-38);
-  }
-}
-
-@media (max-width: 50rem) {
-  /* The card is the tone; the photograph sits inside an 8px page-white ring
-     with 12px of tone around it, so it never touches the tone. */
-  .goen-hero__slide {
-    padding: var(--s-3) var(--s-3) 0;
-  }
-
-  .goen-hero__media {
-    border: var(--s-2) solid var(--n-0);
-    order: -1;
-  }
-
-  .goen-hero__body {
-    padding: var(--s-5) var(--s-2) var(--s-6);
   }
 }
 
@@ -2486,10 +2486,6 @@ body:has(.goen-hero) .goen-header {
   .goen-hero__media {
     aspect-ratio: 16 / 9;
   }
-
-  .goen-hero__body {
-    padding-block: 2rem 2.5rem;
-  }
 }
 
 @media (min-width: 48rem) {
@@ -2499,10 +2495,9 @@ body:has(.goen-hero) .goen-header {
 }
 
 @media (min-width: 64rem) {
-  /* Copy on the tone and the photograph in its own column. The body is a
-     full-height cell, so its top is the photograph's top, which is how the gate
-     reads a side-by-side hero. The photograph is inset by --col-gap, so a
-     white seam always lies between it and the tone. */
+  /* Copy on the tone and the photograph in its own column. Both are
+     full-height cells, so the body's top is the photograph's top, which is how
+     the gate reads a side-by-side hero; the slide's gap is the white seam. */
   .goen-hero__slide {
     display: grid;
     grid-template-columns: minmax(0, 5fr) minmax(0, 7fr);
@@ -2516,24 +2511,21 @@ body:has(.goen-hero) .goen-header {
 
   .goen-hero__media {
     aspect-ratio: auto;
+    order: 0;
   }
 
   .goen-hero__media img {
     height: 100%;
-    inset: 0 0 0 var(--col-gap);
+    inset: 0;
     object-position: 72% 50%;
     position: absolute;
-    width: calc(100% - var(--col-gap));
+    width: 100%;
   }
 
   .goen-hero__body {
     align-items: center;
     display: flex;
-    padding: var(--s-7) 2rem var(--s-7) max(var(--page-gutter), calc((100% - var(--page-width)) / 2));
-  }
-
-  .goen-hero__slide--text .goen-hero__body {
-    padding-right: var(--page-gutter);
+    padding: var(--s-7) clamp(2rem, 4vw, 3.5rem);
   }
 
   .goen-hero__title {
@@ -5699,9 +5691,11 @@ input.goen-check {
 /* Department and campaign tone. data-tone is one of the closed set pages.Tone
    names, on the page head; a custom property is never set inline because
    style-src has no 'unsafe-inline'. Only these properties vary: accent, type,
-   radii and buttons do not. A tone never touches a photograph: wherever the two
-   meet, a seam of goen's white (--n-0) lies between them, which is why a tone
-   can be a flat colour and not the ground its photographs were shot on.
+   radii and buttons do not. A tone never touches a photograph's edge: wherever
+   the two sit side by side, a seam of goen's white (--n-0) lies between them,
+   which is why a tone can be a flat colour and not the ground its photographs
+   were shot on. A hero photograph's panel is the tone only until the image has
+   loaded.
    assets/contrast_test.go holds the text and mark colours to their
    ratios on every ground. */
 [data-tone="paper"] {
