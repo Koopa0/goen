@@ -616,3 +616,229 @@ func TestAPaidCheckoutRecordsTheCardStripeReports(t *testing.T) {
 		t.Errorf("card = %q %q, paid note = %q; want visa 4242 and \"Visa •••• 4242\"", brand, last4, note)
 	}
 }
+
+// TestTheWebhookRoutesEachEventToItsEffect is the HTTP-level lock on the routing
+// switch in handler.go.
+func TestTheWebhookRoutesEachEventToItsEffect(t *testing.T) {
+	ctx := t.Context()
+	s := payment.NewStore(pool)
+	h := payment.NewHandler(s, enabledGateway(t), access.NewStore(pool, false),
+		slog.New(slog.DiscardHandler))
+
+	tests := []struct {
+		name             string
+		eventType        string
+		payStatus        string
+		apiVersion       string
+		wantStatus       string
+		wantPaid         bool
+		wantUnreconciled string
+	}{
+		{
+			name:      "an older-version paid checkout captures from its payload shape",
+			eventType: "checkout.session.completed", payStatus: "paid",
+			apiVersion: legacyWebhookAPIVersion, wantStatus: "succeeded", wantPaid: true,
+		},
+		{
+			name:      "a delayed method that cleared captures too",
+			eventType: "checkout.session.async_payment_succeeded",
+			payStatus: "paid", wantStatus: "succeeded", wantPaid: true,
+		},
+		{
+			// Money is in flight: the row stays open and the event is the alarm.
+			name:             "a delayed method still in flight does neither",
+			eventType:        "checkout.session.completed",
+			payStatus:        "unpaid",
+			wantStatus:       "requires_payment",
+			wantUnreconciled: "unsettled_session: ",
+		},
+		{
+			name:      "an expired session closes the payment row",
+			eventType: "checkout.session.expired",
+			payStatus: "unpaid", wantStatus: "cancelled",
+		},
+		{
+			name:      "a delayed method that failed closes it too",
+			eventType: "checkout.session.async_payment_failed",
+			payStatus: "unpaid", wantStatus: "cancelled",
+		},
+		{
+			name:      "an event goen records and does not act on",
+			eventType: "payment_intent.processing",
+			payStatus: "unpaid", wantStatus: "requires_payment",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			number, _ := order(t, 199900)
+			session := "cs_route_" + uuid.NewString()[:12]
+			if err := s.OpenPayment(ctx, number, session, 199900); err != nil {
+				t.Fatalf("open: %v", err)
+			}
+
+			eventID := "evt_" + uuid.NewString()[:12]
+			ev := typed(sessionEvent(eventID, session, tt.payStatus, 199900), tt.eventType)
+			if tt.apiVersion != "" {
+				ev["api_version"] = tt.apiVersion
+			}
+			body, header := signed(t, ev)
+			req := httptest.NewRequestWithContext(ctx, http.MethodPost, "/webhooks/stripe", bytes.NewReader(body))
+			req.Header.Set("Stripe-Signature", header)
+			w := httptest.NewRecorder()
+			h.Webhook(w, req)
+
+			// 200 for every one of them: a 5xx gets the endpoint disabled.
+			if w.Code != http.StatusOK {
+				t.Fatalf("Webhook() status = %d, want 200", w.Code)
+			}
+
+			var status string
+			if err := pool.QueryRow(ctx,
+				`SELECT status FROM payments WHERE provider_ref = $1`, session).Scan(&status); err != nil {
+				t.Fatalf("read payment: %v", err)
+			}
+			if status != tt.wantStatus {
+				t.Errorf("after %s the payment is %q, want %q", tt.eventType, status, tt.wantStatus)
+			}
+
+			var fulfilment string
+			if err := pool.QueryRow(ctx,
+				`SELECT fulfillment_status FROM orders WHERE order_number = $1`,
+				number).Scan(&fulfilment); err != nil {
+				t.Fatalf("read order: %v", err)
+			}
+			paid := status == "succeeded"
+			if paid != tt.wantPaid {
+				t.Errorf("after %s the order reads paid=%v, want %v — the switch sent "+
+					"this event to the wrong branch, or to none", tt.eventType, paid, tt.wantPaid)
+			}
+
+			// Recorded whatever branch it took: that row is the idempotency.
+			// Unsettled completion is understood and still needs a person; the
+			// other understood or ignored rows must not look unreadable.
+			var seen int
+			var reason *string
+			if err := pool.QueryRow(ctx,
+				`SELECT count(*), max(unreconciled) FROM payment_webhook_events WHERE event_id = $1`,
+				eventID).Scan(&seen, &reason); err != nil {
+				t.Fatalf("read event: %v", err)
+			}
+			if seen != 1 {
+				t.Errorf("the event was recorded %d times, want once", seen)
+			}
+			switch {
+			case tt.wantUnreconciled == "" && reason != nil:
+				t.Errorf("the understood/ignored event was marked unreconciled as %q", *reason)
+			case tt.wantUnreconciled != "" && (reason == nil || !strings.HasPrefix(*reason, tt.wantUnreconciled)):
+				t.Errorf("unreconciled = %v, want prefix %q", reason, tt.wantUnreconciled)
+			}
+		})
+	}
+}
+
+// TestAPaymentEventIsKeptWithoutTheCustomersDetails holds the stored copy of a
+// verified event to evidence: which event it was and what it said about the
+// money, never who paid. The capture, its attribution and the redelivery are
+// asserted as well, because a reduction that broke any of them would cost more
+// than the copy it saves.
+func TestAPaymentEventIsKeptWithoutTheCustomersDetails(t *testing.T) {
+	ctx := t.Context()
+	s := payment.NewStore(pool)
+	h := payment.NewHandler(s, enabledGateway(t), access.NewStore(pool, false),
+		slog.New(slog.DiscardHandler))
+
+	number, _ := order(t, 45600)
+	session := "cs_evidence_" + uuid.NewString()[:12]
+	if err := s.OpenPayment(ctx, number, session, 45600); err != nil {
+		t.Fatalf("open the payment: %v", err)
+	}
+
+	const (
+		buyerEmail  = "evidence.buyer@example.com"
+		buyerPhone  = "+886912000111"
+		buyerName   = "Evidence Buyer"
+		buyerStreet = "100 Songren Road"
+	)
+	eventID := "evt_" + uuid.NewString()[:12]
+	ev := sessionEvent(eventID, session, "paid", 45600)
+	ev = sessionField(ev, "client_reference_id", number)
+	ev = sessionField(ev, "customer_email", buyerEmail)
+	ev = sessionField(ev, "customer_details", map[string]any{
+		"email": buyerEmail, "phone": buyerPhone, "name": buyerName,
+		"address": map[string]any{"line1": buyerStreet, "country": "TW"},
+	})
+	ev = sessionField(ev, "shipping_details", map[string]any{
+		"name": buyerName, "address": map[string]any{"line1": buyerStreet},
+	})
+	ev = sessionField(ev, "metadata", map[string]any{"note": buyerPhone})
+	body, header := signed(t, ev)
+	post := func() int {
+		t.Helper()
+		req := httptest.NewRequestWithContext(ctx, http.MethodPost,
+			"/webhooks/stripe", bytes.NewReader(body))
+		req.Header.Set("Stripe-Signature", header)
+		w := httptest.NewRecorder()
+		h.Webhook(w, req)
+		return w.Code
+	}
+	if code := post(); code != http.StatusOK {
+		t.Fatalf("Webhook() status = %d, want 200", code)
+	}
+
+	var stored []byte
+	if err := pool.QueryRow(ctx, `
+		SELECT payload FROM payment_webhook_events
+		WHERE provider = 'stripe' AND event_id = $1`, eventID).Scan(&stored); err != nil {
+		t.Fatalf("read the stored event: %v", err)
+	}
+	for _, personal := range []string{buyerEmail, buyerPhone, buyerName, buyerStreet} {
+		if strings.Contains(string(stored), personal) {
+			t.Errorf("the stored event still carries %q, which outlives the customer's "+
+				"account; it keeps: %s", personal, stored)
+		}
+	}
+
+	var kept struct {
+		ID   string `json:"id"`
+		Type string `json:"type"`
+		Data struct {
+			Object struct {
+				ID                string `json:"id"`
+				PaymentStatus     string `json:"payment_status"`
+				AmountTotal       int64  `json:"amount_total"`
+				ClientReferenceID string `json:"client_reference_id"`
+			} `json:"object"`
+		} `json:"data"`
+	}
+	if err := json.Unmarshal(stored, &kept); err != nil {
+		t.Fatalf("decode the stored event: %v", err)
+	}
+	o := kept.Data.Object
+	if kept.ID != eventID || kept.Type != "checkout.session.completed" || o.ID != session ||
+		o.PaymentStatus != "paid" || o.AmountTotal != 45600 || o.ClientReferenceID != number {
+		t.Errorf("the stored event lost its evidence: %s", stored)
+	}
+
+	var status string
+	if err := pool.QueryRow(ctx,
+		`SELECT status FROM payments WHERE provider_ref = $1`, session).Scan(&status); err != nil {
+		t.Fatalf("read the payment: %v", err)
+	}
+	if status != "succeeded" {
+		t.Errorf("the payment is %q after its paid event, want succeeded", status)
+	}
+
+	if code := post(); code != http.StatusOK {
+		t.Fatalf("redelivered Webhook() status = %d, want 200", code)
+	}
+	var rows int
+	if err := pool.QueryRow(ctx,
+		`SELECT count(*) FROM payment_webhook_events WHERE event_id = $1`, eventID).
+		Scan(&rows); err != nil {
+		t.Fatalf("count the event: %v", err)
+	}
+	if rows != 1 {
+		t.Errorf("the redelivered event is recorded %d times, want once", rows)
+	}
+}
