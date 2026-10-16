@@ -2575,11 +2575,13 @@ body:has(.goen-hero) .goen-header {
 /* The home page's band is the department's shelf: one rounded panel in the
    page column, with no photograph because the tile above shows it. The sideways
    scroller of products bleeds by the panel's padding, so it is cut at a
-   straight edge and never at a corner. The container is the panel, so the
-   queries below read its width and not the window's: from 60rem it has six
-   columns with the tiles' 1.5rem gap, the name in two and the four products
-   under 3 to 6. The department page's head is built from .goen-band too and
-   takes none of this. */
+   straight edge and never at a corner. The container is the panel, narrower
+   than the window by two gutters, so its queries are 44.7rem and 55.9rem where
+   the window's were 48rem and 60rem: the panel is that wide when the window is
+   768px and 960px, and the layout switches at the same windows as before. From
+   55.9rem it has six columns with the tiles' 1.5rem gap, the name in two and the
+   four products under 3 to 6. The department page's head is built from
+   .goen-band too and takes none of this. */
 .goen-band--shelf {
   --shelf-inset: clamp(24px, 4vw, 48px);
   background: var(--tone-ground);
@@ -2644,7 +2646,7 @@ body:has(.goen-hero) .goen-header {
   scroll-padding-inline: var(--shelf-inset);
 }
 
-@container band (width >= 48rem) {
+@container band (width >= 44.7rem) {
   .goen-band--shelf .goen-band__tiles {
     gap: var(--col-gap);
     grid-auto-flow: row;
@@ -2655,7 +2657,7 @@ body:has(.goen-hero) .goen-header {
   }
 }
 
-@container band (width >= 60rem) {
+@container band (width >= 55.9rem) {
   .goen-band--shelf .goen-band__body {
     column-gap: 1.5rem;
     grid-template-columns: repeat(6, minmax(0, 1fr));
@@ -3695,7 +3697,10 @@ input.goen-check {
    target on hover; the current one is a white pill with a 2px edge inside it.
    A phone's row bleeds by the panel's padding, so it scrolls to the panel's
    straight edge and never onto the page white, and keeps 4px above and below
-   the chips for a focus ring that the scrolling row would otherwise cut. They
+   the chips for a focus ring that the scrolling row would otherwise cut. A
+   desktop's row reaches 4px short of the panel's edge on the right, so six
+   Chinese names fit one line at 1400px and wider. The pill's white stops at the
+   chip's transparent border, so the 2px edge is the pill's outer edge. They
    do not scroll as a boxed button row: the empty search's shortcuts above keep
    the box. */
 .goen-listing__head .goen-pagehead__chips {
@@ -3709,7 +3714,7 @@ input.goen-check {
 @media (min-width: 48rem) {
   .goen-listing__head .goen-pagehead__chips {
     flex-wrap: wrap;
-    margin-inline: calc(var(--s-4) * -1);
+    margin-inline: calc(var(--s-4) * -1) calc(var(--head-inset) * -1 + 4px);
     overflow: visible;
     padding-inline: 0;
   }
@@ -3717,6 +3722,7 @@ input.goen-check {
 
 .goen-listing__head .goen-pagehead__chip {
   background: transparent;
+  background-clip: padding-box;
   border: 1px solid transparent;
   border-radius: var(--r-full);
   color: var(--ink-2);

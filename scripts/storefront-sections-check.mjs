@@ -912,6 +912,18 @@ try {
     }
   }
 
+  // Six Chinese sub-category names stay on one line beside the photograph at
+  // 1400px and 1440px, so the last one is never left alone on a second line.
+  // Narrower windows, where the row wraps as it did before, are not asserted.
+  for (const width of [1400, 1440]) {
+    const label = `department head sub-categories ${width}px`;
+    await open('/department?tone=sage&photo=1&zh=1', width);
+    const tops = await evaluate(`[...document.querySelectorAll('.goen-listing__head .goen-pagehead__chip')].map(chip => chip.getBoundingClientRect().top)`);
+    assert.equal(tops.length, 6, `${label}: six sub-categories drawn`);
+    assert.ok(tops.every(top => Math.abs(top - tops[0]) < 1), `${label}: the sub-categories are on more than one line: ${tops}`);
+    console.log(`${label}: six names on one line`);
+  }
+
   // The home page's shelf is one rounded panel on the department's tone inside
   // the page column, and its sideways scroller of products is cut at the
   // panel's straight edge.
@@ -946,6 +958,7 @@ try {
             background: style.backgroundColor, ground,
             padding: [bodyStyle.paddingTop, bodyStyle.paddingRight, bodyStyle.paddingBottom, bodyStyle.paddingLeft].map(parseFloat),
             tiles: { box: box(tiles), overflowX: getComputedStyle(tiles).overflowX },
+            columns: bodyStyle.gridTemplateColumns.trim().split(' ').length,
           };
         })()`);
         assert.ok(near(shelf.panel.left, shelf.column.left) && near(shelf.panel.right, shelf.column.right),
@@ -956,6 +969,9 @@ try {
         const inline = Math.min(48, Math.max(24, shelf.viewport * 0.04));
         assert.ok(shelf.padding[0] >= 24 && shelf.padding[2] >= 24, `${label}: padding above and below ${shelf.padding}, less than the corner`);
         assert.ok(near(shelf.padding[1], inline) && near(shelf.padding[3], inline), `${label}: padding beside ${shelf.padding}, want ${inline}px`);
+        // The layout switches at the window widths it did before the shelf had a panel: a row of four from 768px, six columns from 960px.
+        assert.equal(shelf.tiles.overflowX === 'auto', width < 768, `${label}: the products ${shelf.tiles.overflowX === 'auto' ? 'scroll' : 'are a grid'}`);
+        assert.equal(shelf.columns, width >= 960 ? 6 : 1, `${label}: ${shelf.columns} columns`);
         if (shelf.tiles.overflowX === 'auto') {
           assert.ok(near(shelf.tiles.box.left, shelf.panel.left) && near(shelf.tiles.box.right, shelf.panel.right),
             `${label}: the scroller is ${shelf.tiles.box.left}-${shelf.tiles.box.right}, the shelf ${shelf.panel.left}-${shelf.panel.right}`);

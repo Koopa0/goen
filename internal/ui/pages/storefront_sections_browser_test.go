@@ -102,9 +102,13 @@ func TestStorefrontSectionsAsDrawn(t *testing.T) {
 	})
 	mux.HandleFunc("GET /department", func(w http.ResponseWriter, r *http.Request) {
 		query := r.URL.Query()
+		locale, names := i18n.En, []string{"Phones", "Laptops", "Tablets", "Audio", "Wearables", "Accessories"}
+		if query.Get("zh") == "1" {
+			locale, names = i18n.ZhHant, []string{"手機", "筆電", "平板", "耳機與音響", "穿戴裝置", "周邊配件"}
+		}
 		theme := &Theme{Tone: tones[query.Get("tone")], Children: []Crumb{
-			{Slug: "phones", Name: "Phones"}, {Slug: "laptops", Name: "Laptops"}, {Slug: "tablets", Name: "Tablets"},
-			{Slug: "audio", Name: "Audio"}, {Slug: "wearables", Name: "Wearables"}, {Slug: "accessories", Name: "Accessories"},
+			{Slug: "phones", Name: names[0]}, {Slug: "laptops", Name: names[1]}, {Slug: "tablets", Name: names[2]},
+			{Slug: "audio", Name: names[3]}, {Slug: "wearables", Name: names[4]}, {Slug: "accessories", Name: names[5]},
 		}}
 		if query.Get("photo") == "1" {
 			theme.Photo = components.Photo{URL: assets.Image{BundledKey: "nimbus-band-2-01.webp"}.URL(), Alt: "Headphones on a desk"}
@@ -116,9 +120,9 @@ func TestStorefrontSectionsAsDrawn(t *testing.T) {
 				Title: "Autumn audio", Href: "/s/autumn", End: NewCampaignEnd(time.Date(2026, 10, 30, 16, 0, 0, 0, time.UTC), now),
 			}}
 		}
-		view := ListingView{Slug: "phones", Name: "Phones", Theme: theme}
+		view := ListingView{Slug: "phones", Name: names[0], Theme: theme}
 		w.Header().Set("Content-Type", "text/html; charset=utf-8")
-		if renderErr := Listing(layouts.Page{}, view, nil, head).Render(i18n.WithLocale(r.Context(), i18n.En), w); renderErr != nil {
+		if renderErr := Listing(layouts.Page{}, view, nil, head).Render(i18n.WithLocale(r.Context(), locale), w); renderErr != nil {
 			t.Errorf("render department fixture: %v", renderErr)
 		}
 	})
