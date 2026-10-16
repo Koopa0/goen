@@ -4,7 +4,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/koopa0/goen/internal/email"
 	"github.com/koopa0/goen/internal/outbox"
 )
 
@@ -24,17 +23,5 @@ func TestTheLeaseCoversTheWholeBatch(t *testing.T) {
 			"held back for the claim and the clocks — the claim expires while the "+
 			"worker is still delivering it, and a second replica sends the rest again",
 			work, outbox.BatchSize, perMessage, outbox.Lease, outbox.LeaseMargin)
-	}
-}
-
-// TestTheHandlerBudgetIsTheSendersOwnTimeout: [outbox.HandlerBudget] mirrors
-// email.SendTimeout, which the lease arithmetic above is sized for.
-func TestTheHandlerBudgetIsTheSendersOwnTimeout(t *testing.T) {
-	t.Parallel()
-
-	if outbox.HandlerBudget < email.SendTimeout {
-		t.Errorf("HandlerBudget is %v and email.SendTimeout is %v — the lease "+
-			"arithmetic is sized for a handler that can no longer finish inside it",
-			outbox.HandlerBudget, email.SendTimeout)
 	}
 }

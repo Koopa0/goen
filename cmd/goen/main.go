@@ -27,8 +27,8 @@ import (
 	"github.com/koopa0/goen/internal/admin/staff"
 	"github.com/koopa0/goen/internal/admin/twofactor"
 	"github.com/koopa0/goen/internal/cart"
-	"github.com/koopa0/goen/internal/email"
 	"github.com/koopa0/goen/internal/invoice/issuer"
+	"github.com/koopa0/goen/internal/letter"
 	"github.com/koopa0/goen/internal/media"
 	"github.com/koopa0/goen/internal/newsletter"
 	"github.com/koopa0/goen/internal/order/access"
@@ -200,7 +200,7 @@ func (cfg *config) prepareRuntimePosture(log *slog.Logger) error {
 			"set", "GOEN_TOTP_KEY")
 	}
 
-	// An empty address leaves newNotifier on email.LogSender, which returns nil —
+	// An empty address leaves newNotifier on letter.LogSender, which returns nil —
 	// and nil is what the outbox reads as delivered. Password resets, receipts
 	// and dispatch notices would therefore be stamped sent and go nowhere,
 	// invisible to /admin/health because it asks only about undelivered rows.
@@ -811,12 +811,12 @@ func redactURL(err error, url string) error {
 // sender accepts a loopback server without STARTTLS, a local capture relay.
 // Outside development neither exists: no mailed token reaches a log, and mail
 // is sent only over a verified STARTTLS connection.
-func newSender(cfg *config, log *slog.Logger) (email.Sender, error) {
+func newSender(cfg *config, log *slog.Logger) (letter.Sender, error) {
 	development := !cfg.SecureCookies
 	if cfg.SMTPAddr == "" {
-		return email.LogSender{Log: log, ShowBody: development}, nil
+		return letter.LogSender{Log: log, ShowBody: development}, nil
 	}
-	s := email.SMTPSender{Addr: cfg.SMTPAddr, From: cfg.SMTPFrom, AllowLoopbackPlaintext: development}
+	s := letter.SMTPSender{Addr: cfg.SMTPAddr, From: cfg.SMTPFrom, AllowLoopbackPlaintext: development}
 	if cfg.SMTPUser != "" {
 		host, _, err := net.SplitHostPort(cfg.SMTPAddr)
 		if err != nil {
@@ -830,12 +830,12 @@ func newSender(cfg *config, log *slog.Logger) (email.Sender, error) {
 
 // newNotifier prepares mail delivery after prepareRuntimePosture has admitted
 // the development-only log sender.
-func newNotifier(cfg *config, log *slog.Logger) (email.Notifier, error) {
+func newNotifier(cfg *config, log *slog.Logger) (letter.Notifier, error) {
 	sender, err := newSender(cfg, log)
 	if err != nil {
-		return email.Notifier{}, err
+		return letter.Notifier{}, err
 	}
-	return email.New(sender, cfg.BaseURL, cfg.Seller, cfg.SellerContact), nil
+	return letter.New(sender, cfg.BaseURL, cfg.Seller, cfg.SellerContact), nil
 }
 
 type workerDeps struct {
@@ -843,7 +843,7 @@ type workerDeps struct {
 	admin       *pgxpool.Pool
 	maintenance *pgxpool.Pool
 	log         *slog.Logger
-	notifier    email.Notifier
+	notifier    letter.Notifier
 	invoices    *issuer.Gateway
 	payments    *payment.Gateway
 	run         func(func())
@@ -928,9 +928,9 @@ func invoiceVoidDueHandler(adminPool *pgxpool.Pool, gateway *issuer.Gateway) fun
 // anywhere in that window has to be read here rather than at the send.
 func newsletterIssueHandler(
 	subscribers *newsletter.Store,
-	notifier email.Notifier,
-) func(context.Context, *email.NewsletterIssue) error {
-	return func(ctx context.Context, p *email.NewsletterIssue) error {
+	notifier letter.Notifier,
+) func(context.Context, *outbox.NewsletterIssue) error {
+	return func(ctx context.Context, p *outbox.NewsletterIssue) error {
 		wanted, err := subscribers.StillSubscribed(ctx, p.Email)
 		if err != nil {
 			return err
@@ -947,14 +947,23 @@ func newsletterIssueHandler(
 // registrationHandler follows a registration up on the store pool, which is the
 // one that wrote it: a new account's link is queued there, and an address that
 // already had an account is told so by mail.
-func registrationHandler(accounts *account.Store, notifier email.Notifier) func(context.Context, *outbox.AccountRegistration) error {
+func registrationHandler(accounts *account.Store, notifier letter.Notifier) func(context.Context, *outbox.AccountRegistration) error {
 	return func(ctx context.Context, r *outbox.AccountRegistration) error {
-		return accounts.FollowUpRegistration(ctx, r, notifier.SendAccountExists)
+		return accounts.FollowUpRegistration(ctx, r, tellAddressTaken(notifier))
 	}
 }
 
-func passwordResetHandler(accounts *account.Store, notifier email.Notifier) func(context.Context, *email.PasswordReset) error {
-	return func(ctx context.Context, p *email.PasswordReset) error {
+// tellAddressTaken sends the letter to the owner of an address somebody tried
+// to take. account resolves the owner in its own type, which has the letter's
+// shape, so this conversion stops compiling once the two differ.
+func tellAddressTaken(notifier letter.Notifier) func(context.Context, *account.AddressTaken) error {
+	return func(ctx context.Context, p *account.AddressTaken) error {
+		return notifier.SendAccountExists(ctx, (*letter.AccountExists)(p))
+	}
+}
+
+func passwordResetHandler(accounts *account.Store, notifier letter.Notifier) func(context.Context, *outbox.PasswordReset) error {
+	return func(ctx context.Context, p *outbox.PasswordReset) error {
 		return accounts.DeliverPasswordReset(ctx, p, notifier.SendPasswordReset)
 	}
 }
@@ -962,16 +971,16 @@ func passwordResetHandler(accounts *account.Store, notifier email.Notifier) func
 // addressVerifyHandler delivers a link to prove an address on the store pool,
 // which is the one that wrote it: the link goes out, or, when the address is
 // by now another account's, that account is told instead.
-func addressVerifyHandler(accounts *account.Store, notifier email.Notifier) func(context.Context, *email.AddressVerify) error {
-	return func(ctx context.Context, p *email.AddressVerify) error {
-		return accounts.DeliverAddressVerify(ctx, p, notifier.SendAddressVerify, notifier.SendAccountExists)
+func addressVerifyHandler(accounts *account.Store, notifier letter.Notifier) func(context.Context, *outbox.AddressVerify) error {
+	return func(ctx context.Context, p *outbox.AddressVerify) error {
+		return accounts.DeliverAddressVerify(ctx, p, notifier.SendAddressVerify, tellAddressTaken(notifier))
 	}
 }
 
 // staffInvitationHandler reads the recipient on the store pool: `store` already
 // holds SELECT on users, and delivery writes nothing.
-func staffInvitationHandler(roster *staff.Store, notifier email.Notifier) func(context.Context, *email.StaffInvitation) error {
-	return func(ctx context.Context, p *email.StaffInvitation) error {
+func staffInvitationHandler(roster *staff.Store, notifier letter.Notifier) func(context.Context, *outbox.StaffInvitation) error {
+	return func(ctx context.Context, p *outbox.StaffInvitation) error {
 		address, name, err := roster.InvitationRecipient(ctx, p.UserID)
 		if err != nil {
 			return err
@@ -983,8 +992,8 @@ func staffInvitationHandler(roster *staff.Store, notifier email.Notifier) func(c
 	}
 }
 
-func terminalOrderHandler(recipients notice.Recipients, notifier email.Notifier) func(context.Context, *email.OrderTerminal) error {
-	return func(ctx context.Context, p *email.OrderTerminal) error {
+func terminalOrderHandler(recipients notice.Recipients, notifier letter.Notifier) func(context.Context, *outbox.OrderTerminal) error {
+	return func(ctx context.Context, p *outbox.OrderTerminal) error {
 		to, ok, err := recipients.Of(ctx, p.OrderID)
 		if err != nil {
 			return err
@@ -992,21 +1001,21 @@ func terminalOrderHandler(recipients notice.Recipients, notifier email.Notifier)
 		if !ok {
 			return nil
 		}
-		return notifier.SendOrderTerminal(ctx, p, email.TerminalRecipient(to))
+		return notifier.SendOrderTerminal(ctx, p, to)
 	}
 }
 
 // partRefundHandler reads the letter at delivery, on the store pool: `store`
 // reads orders and returns already, and delivery writes nothing.
-func partRefundHandler(recipients notice.Recipients, notifier email.Notifier) func(context.Context, *email.OrderPartRefunded) error {
-	return func(ctx context.Context, p *email.OrderPartRefunded) error {
-		letter, ok, err := recipients.PartRefund(ctx, p)
+func partRefundHandler(recipients notice.Recipients, notifier letter.Notifier) func(context.Context, *outbox.OrderPartRefunded) error {
+	return func(ctx context.Context, p *outbox.OrderPartRefunded) error {
+		refund, ok, err := recipients.PartRefund(ctx, p)
 		if err != nil {
 			return err
 		}
 		if !ok {
 			return nil
 		}
-		return notifier.SendOrderPartRefunded(ctx, p, &letter)
+		return notifier.SendOrderPartRefunded(ctx, p, &refund)
 	}
 }

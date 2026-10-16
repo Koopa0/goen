@@ -1,4 +1,4 @@
-package email
+package letter
 
 import (
 	"bufio"
@@ -179,6 +179,8 @@ func (c remoteConn) RemoteAddr() net.Addr { return c.remote }
 // that is not a loopback address gets nothing without STARTTLS, whatever name
 // the address was configured under.
 func TestThePlaintextExceptionIsLoopbackOnly(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name    string
 		remote  net.Addr
@@ -192,26 +194,19 @@ func TestThePlaintextExceptionIsLoopbackOnly(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 			sink := newSMTPSink(t, false)
-
-			smtpConnMu.Lock()
-			orig := smtpConn
-			smtpConn = func(ctx context.Context, addr string) (net.Conn, error) {
-				c, err := orig(ctx, addr)
-				if err != nil {
-					return nil, err
-				}
-				return remoteConn{Conn: c, remote: tt.remote}, nil
-			}
-			smtpConnMu.Unlock()
-			t.Cleanup(func() {
-				smtpConnMu.Lock()
-				smtpConn = orig
-				smtpConnMu.Unlock()
-			})
 
 			err := SMTPSender{
 				Addr: sink.addr, From: "goen@example.com", AllowLoopbackPlaintext: true,
+				dial: func(ctx context.Context, network, addr string) (net.Conn, error) {
+					var d net.Dialer
+					c, err := d.DialContext(ctx, network, addr)
+					if err != nil {
+						return nil, err
+					}
+					return remoteConn{Conn: c, remote: tt.remote}, nil
+				},
 			}.Send(t.Context(), mailWithLink)
 			if tt.wantErr {
 				if err == nil || !strings.Contains(err.Error(), "does not offer STARTTLS") {

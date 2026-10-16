@@ -12,7 +12,6 @@ import (
 	"github.com/koopa0/goen/internal/admin/admintest"
 	"github.com/koopa0/goen/internal/admin/orders"
 	"github.com/koopa0/goen/internal/db"
-	"github.com/koopa0/goen/internal/email"
 	"github.com/koopa0/goen/internal/i18n"
 	"github.com/koopa0/goen/internal/invoice"
 	"github.com/koopa0/goen/internal/invoice/issuer"
@@ -53,7 +52,7 @@ func TestTheOrderTimelineMergesEverySource(t *testing.T) {
 		t.Fatalf("record placed: %v", err)
 	}
 	if err := outbox.Enqueue(ctx, q.WithTx(tx), outbox.TopicOrderPlaced, number,
-		&email.OrderPlaced{OrderNumber: number, Email: "x@example.com"}); err != nil {
+		&outbox.OrderPlaced{OrderNumber: number, Email: "x@example.com"}); err != nil {
 		t.Fatalf("queue the order confirmation: %v", err)
 	}
 	if err := tx.Commit(ctx); err != nil {
@@ -65,7 +64,7 @@ func TestTheOrderTimelineMergesEverySource(t *testing.T) {
 	}
 	other := admintest.PlaceUnpaidOrder(t, pool)
 	if err := outbox.Enqueue(ctx, q, outbox.TopicOrderPlaced, other,
-		&email.OrderPlaced{OrderNumber: other, Email: "x@example.com"}); err != nil {
+		&outbox.OrderPlaced{OrderNumber: other, Email: "x@example.com"}); err != nil {
 		t.Fatalf("queue another order's confirmation: %v", err)
 	}
 
@@ -112,10 +111,10 @@ func TestTheOrderTimelineMergesEverySource(t *testing.T) {
 	}
 
 	if err := outbox.Enqueue(ctx, q, outbox.TopicOrderShipped, "tcat:"+number,
-		&email.OrderShipped{OrderNumber: number, Email: "x@example.com"}); err != nil {
+		&outbox.OrderShipped{OrderNumber: number, Email: "x@example.com"}); err != nil {
 		t.Fatalf("queue the dispatch mail: %v", err)
 	}
-	if err := notice.Enqueue(ctx, q, &email.OrderTerminal{OrderID: orderID, Kind: email.TerminalDelivered}); err != nil {
+	if err := notice.Enqueue(ctx, q, &outbox.OrderTerminal{OrderID: orderID, Kind: outbox.TerminalDelivered}); err != nil {
 		t.Fatalf("queue the delivery notice: %v", err)
 	}
 
@@ -173,7 +172,7 @@ func TestTheOrderTimelineCarriesWhenAMailWasDeliveredAndAnOperationCompleted(t *
 	s := admintest.OrderStore(pool, admintest.Refunder{}, nil, nil)
 	number := admintest.PlaceUnpaidOrder(t, pool)
 	if err := outbox.Enqueue(ctx, db.New(pool), outbox.TopicOrderPaid, number,
-		&email.OrderPaid{OrderNumber: number, Email: "x@example.com"}); err != nil {
+		&outbox.OrderPaid{OrderNumber: number, Email: "x@example.com"}); err != nil {
 		t.Fatalf("queue the payment mail: %v", err)
 	}
 	if _, err := pool.Exec(ctx, `

@@ -16,6 +16,7 @@ import (
 
 	"github.com/koopa0/goen/internal/order"
 	"github.com/koopa0/goen/internal/order/buyer"
+	"github.com/koopa0/goen/internal/outbox"
 	"github.com/koopa0/goen/internal/ui/pages/admin"
 
 	"github.com/google/go-cmp/cmp"
@@ -26,7 +27,6 @@ import (
 	"github.com/koopa0/goen/internal/admin/audit"
 	"github.com/koopa0/goen/internal/admin/orders"
 	"github.com/koopa0/goen/internal/cart"
-	"github.com/koopa0/goen/internal/email"
 	"github.com/koopa0/goen/internal/i18n"
 	"github.com/koopa0/goen/internal/invoice"
 	"github.com/koopa0/goen/internal/money"
@@ -521,11 +521,11 @@ func TestShippingEnqueuesTheDispatchNotice(t *testing.T) {
 		"903-2214-0001").Scan(&payload); err != nil {
 		t.Fatalf("no dispatch notice was enqueued for %s: %v", number, err)
 	}
-	var got email.OrderShipped
+	var got outbox.OrderShipped
 	if err := json.Unmarshal(payload, &got); err != nil {
 		t.Fatalf("decode notice: %v", err)
 	}
-	want := email.OrderShipped{
+	want := outbox.OrderShipped{
 		OrderNumber: number, Email: "ship@example.com", Name: "收件人",
 		Carrier: "black_cat", Tracking: "903-2214-0001",
 		Locale: "en",

@@ -22,7 +22,6 @@ import (
 	"github.com/koopa0/goen/internal/account"
 	"github.com/koopa0/goen/internal/bearer"
 	"github.com/koopa0/goen/internal/cart"
-	"github.com/koopa0/goen/internal/email"
 	"github.com/koopa0/goen/internal/i18n"
 	"github.com/koopa0/goen/internal/order/access"
 	"github.com/koopa0/goen/internal/outbox"
@@ -36,7 +35,7 @@ func followUpRegistrations(
 	t *testing.T,
 	s *account.Store,
 	addr string,
-	tell func(context.Context, *email.AccountExists) error,
+	tell func(context.Context, *account.AddressTaken) error,
 ) int {
 	t.Helper()
 	rows, err := pool.Query(t.Context(), `
@@ -122,9 +121,9 @@ func registrationForm(ctx context.Context, addr, password, next string) *http.Re
 	})
 }
 
-func neverTold(t *testing.T) func(context.Context, *email.AccountExists) error {
+func neverTold(t *testing.T) func(context.Context, *account.AddressTaken) error {
 	t.Helper()
-	return func(_ context.Context, p *email.AccountExists) error {
+	return func(_ context.Context, p *account.AddressTaken) error {
 		t.Errorf("%s was told it already has an account", p.Email)
 		return nil
 	}
@@ -541,7 +540,7 @@ func TestRegisteringATakenAddressTellsItsOwnerAndChangesNothing(t *testing.T) {
 	}
 
 	var told []string
-	n := followUpRegistrations(t, s, addr, func(_ context.Context, p *email.AccountExists) error {
+	n := followUpRegistrations(t, s, addr, func(_ context.Context, p *account.AddressTaken) error {
 		told = append(told, p.Email+"|"+p.Name)
 		return nil
 	})

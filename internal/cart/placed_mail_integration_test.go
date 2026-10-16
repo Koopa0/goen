@@ -10,12 +10,13 @@ import (
 	"testing"
 	"time"
 
+	"github.com/koopa0/goen/internal/letter"
+	"github.com/koopa0/goen/internal/outbox"
 	"github.com/koopa0/goen/internal/shipping"
 
 	"github.com/google/uuid"
 
 	"github.com/koopa0/goen/internal/cart"
-	"github.com/koopa0/goen/internal/email"
 	"github.com/koopa0/goen/internal/i18n"
 	"github.com/koopa0/goen/internal/order/delivery"
 	"github.com/koopa0/goen/internal/shoptime"
@@ -97,7 +98,7 @@ func TestCheckoutQueuesTheCompletePlacedConfirmation(t *testing.T) {
 					if err := pool.QueryRow(ctx, `SELECT o.placed_at, min(ir.expires_at) FROM orders o JOIN inventory_reservations ir ON ir.order_id=o.id WHERE o.order_number=$1 GROUP BY o.placed_at`, number).Scan(&placed, &heldUntil); err != nil {
 						t.Fatalf("read actual reservation: %v", err)
 					}
-					want := email.PlacedSnapshot{Lines: []email.PlacedLine{{SKU: sku, Name: name, UnitCents: 100000, Quantity: 2}}, SubtotalCents: 200000, ShippingCents: funding.shipping, DiscountCents: funding.discount, DiscountReason: couponCode + " · 測試折扣", CreditCents: funding.credit, ShippingName: shippingName, DeliveryTo: deliveryTo, Phone: "0912345678", DeliveryNote: "Recorded delivery note", HoldUntil: heldUntil, StartBy: heldUntil.Add(-31 * time.Minute)}
+					want := outbox.PlacedSnapshot{Lines: []outbox.PlacedLine{{SKU: sku, Name: name, UnitCents: 100000, Quantity: 2}}, SubtotalCents: 200000, ShippingCents: funding.shipping, DiscountCents: funding.discount, DiscountReason: couponCode + " · 測試折扣", CreditCents: funding.credit, ShippingName: shippingName, DeliveryTo: deliveryTo, Phone: "0912345678", DeliveryNote: "Recorded delivery note", HoldUntil: heldUntil, StartBy: heldUntil.Add(-31 * time.Minute)}
 					got := *payload.Snapshot
 					if !got.HoldUntil.Equal(want.HoldUntil) || !got.StartBy.Equal(want.StartBy) {
 						t.Errorf("queued deadlines = %s/%s, want actual hold %s and existing start %s", got.HoldUntil, got.StartBy, want.HoldUntil, want.StartBy)
@@ -143,7 +144,7 @@ func TestCheckoutQueuesTheCompletePlacedConfirmation(t *testing.T) {
 						}
 					}
 					sink := &placedConfirmationSink{}
-					notifier := email.New(sink, "https://goen.test", "", "")
+					notifier := letter.New(sink, "https://goen.test", "", "")
 					if err := notifier.SendOrderPlaced(t.Context(), &queued); err != nil {
 						t.Fatalf("send queued confirmation: %v", err)
 					}
@@ -174,9 +175,9 @@ func TestCheckoutQueuesTheCompletePlacedConfirmation(t *testing.T) {
 	}
 }
 
-type placedConfirmationSink struct{ message *email.Message }
+type placedConfirmationSink struct{ message *letter.Message }
 
-func (s *placedConfirmationSink) Send(_ context.Context, m *email.Message) error {
+func (s *placedConfirmationSink) Send(_ context.Context, m *letter.Message) error {
 	s.message = m
 	return nil
 }
@@ -247,7 +248,7 @@ func TestCheckoutWritesWhatThePlacedLetterStillOwes(t *testing.T) {
 	})
 }
 
-func placedOrderPayload(t *testing.T, number string) (payload email.OrderPlaced, total, owed int64) {
+func placedOrderPayload(t *testing.T, number string) (payload outbox.OrderPlaced, total, owed int64) {
 	t.Helper()
 	var raw []byte
 	if err := pool.QueryRow(t.Context(), `

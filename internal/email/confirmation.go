@@ -26,7 +26,7 @@ func Mask(address string) string {
 // form produced by Mask may survive a confirmation-page redirect.
 func ReadMasked(address string) string {
 	address = Clean(address)
-	if len(address) > Max+3 {
+	if len(address) > MaxBytes+3 {
 		return ""
 	}
 	at := strings.LastIndexByte(address, '@')

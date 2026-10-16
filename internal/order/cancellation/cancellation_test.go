@@ -5,12 +5,14 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/koopa0/goen/internal/email"
+	"github.com/koopa0/goen/internal/letter"
+	"github.com/koopa0/goen/internal/order/notice"
+	"github.com/koopa0/goen/internal/outbox"
 )
 
 type lastMail struct{ body string }
 
-func (m *lastMail) Send(_ context.Context, msg *email.Message) error {
+func (m *lastMail) Send(_ context.Context, msg *letter.Message) error {
 	m.body = msg.Body
 	return nil
 }
@@ -38,9 +40,9 @@ func TestTheCancellationMailSaysNothingWasChargedOnlyWhenNoPaymentCouldHave(t *t
 		{"released after a refused capture", []string{"cancelled"}, true, true},
 	} {
 		sent := &lastMail{}
-		n := email.New(sent, "https://goen.test", "", "")
-		m := &email.OrderTerminal{Kind: email.TerminalCancelledByCustomer, Refunded: mayHaveTakenMoney(tc.statuses, tc.flagged)}
-		if err := n.SendOrderTerminal(t.Context(), m, email.TerminalRecipient{Address: "reader@example.com", Name: "Reader", Locale: "en", OrderNumber: "GO-260101-000001"}); err != nil {
+		n := letter.New(sent, "https://goen.test", "", "")
+		m := &outbox.OrderTerminal{Kind: outbox.TerminalCancelledByCustomer, Refunded: mayHaveTakenMoney(tc.statuses, tc.flagged)}
+		if err := n.SendOrderTerminal(t.Context(), m, notice.Recipient{Address: "reader@example.com", Name: "Reader", Locale: "en", OrderNumber: "GO-260101-000001"}); err != nil {
 			t.Fatal(err)
 		}
 		if says := strings.Contains(sent.body, "It was not charged"); says == tc.charged {

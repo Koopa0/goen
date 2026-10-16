@@ -1,4 +1,4 @@
-package email
+package letter
 
 import (
 	"context"
@@ -14,10 +14,11 @@ import (
 	"net/smtp"
 	"net/url"
 	"strings"
-	"sync"
 	"time"
 
 	"github.com/google/uuid"
+
+	"github.com/koopa0/goen/internal/email"
 )
 
 type Message struct {
@@ -94,23 +95,20 @@ type SMTPSender struct {
 	// switch alone, because outside development a mailed token must never
 	// cross a connection that is not encrypted.
 	AllowLoopbackPlaintext bool
+
+	// dial opens the connection to Addr; nil dials TCP. A test sets it to wrap
+	// the connection, as http.Transport's DialContext lets a caller do.
+	dial func(ctx context.Context, network, addr string) (net.Conn, error)
 }
 
 const SendTimeout = 30 * time.Second
 
-var (
-	smtpConnMu sync.Mutex
-	smtpConn   = func(ctx context.Context, addr string) (net.Conn, error) {
-		var d net.Dialer
-		return d.DialContext(ctx, "tcp", addr)
+func (s SMTPSender) dialContext(ctx context.Context) (net.Conn, error) {
+	if s.dial != nil {
+		return s.dial(ctx, "tcp", s.Addr)
 	}
-)
-
-func dialSMTPConn(ctx context.Context, addr string) (net.Conn, error) {
-	smtpConnMu.Lock()
-	dial := smtpConn
-	smtpConnMu.Unlock()
-	return dial(ctx, addr)
+	var d net.Dialer
+	return d.DialContext(ctx, "tcp", s.Addr)
 }
 
 // Send delivers m. STARTTLS is required, not attempted, unless
@@ -119,7 +117,7 @@ func (s SMTPSender) Send(ctx context.Context, m *Message) error {
 	if s.Addr == "" {
 		return errors.New("email: no SMTP address configured")
 	}
-	if !Valid(m.To) {
+	if !email.Valid(m.To) {
 		return errors.New("email: refusing to send to an address that is not valid")
 	}
 	if err := m.OneClickUnsubscribe.validate(); err != nil {
@@ -134,7 +132,7 @@ func (s SMTPSender) Send(ctx context.Context, m *Message) error {
 	ctx, cancel := context.WithTimeout(ctx, SendTimeout)
 	defer cancel()
 
-	conn, err := dialSMTPConn(ctx, s.Addr)
+	conn, err := s.dialContext(ctx)
 	if err != nil {
 		return fmt.Errorf("dial smtp: %w", err)
 	}
@@ -197,7 +195,7 @@ func envelopeFrom(from string) (string, error) {
 	if err != nil {
 		return "", fmt.Errorf("email: From %q is not an address: %w", from, err)
 	}
-	if !Valid(addr.Address) {
+	if !email.Valid(addr.Address) {
 		return "", fmt.Errorf("email: From %q carries no sendable address", from)
 	}
 	return addr.Address, nil

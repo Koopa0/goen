@@ -41,7 +41,7 @@ func (h *Handler) Forgot(w http.ResponseWriter, r *http.Request) {
 	}
 	// The success redirect is also the refusal: an address outside the policy
 	// cannot name an account and must not become a key.
-	if len(normalised) > email.Max {
+	if len(normalised) > email.MaxBytes {
 		http.Redirect(w, r, "/forgot?sent=1", http.StatusSeeOther)
 		return
 	}

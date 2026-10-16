@@ -66,7 +66,7 @@ func (s *Store) Request(ctx context.Context, addr string) (Outcome, error) {
 	}
 
 	if err := outbox.Enqueue(ctx, q, outbox.TopicNewsletterConfirm, "newsletter-confirm:"+dedupeOf(token),
-		&email.NewsletterConfirm{Email: addr, Token: token, Locale: i18n.FromContext(ctx).Tag()}); err != nil {
+		&outbox.NewsletterConfirm{Email: addr, Token: token, Locale: i18n.FromContext(ctx).Tag()}); err != nil {
 		return AlreadyActive, err
 	}
 
@@ -109,7 +109,7 @@ func (s *Store) Confirm(ctx context.Context, token string) (string, error) {
 	}
 
 	if err := outbox.Enqueue(ctx, q, outbox.TopicNewsletterWelcome, "newsletter-welcome:"+dedupeOf(leave),
-		&email.NewsletterWelcome{Email: addr, UnsubscribeToken: leave, Locale: i18n.FromContext(ctx).Tag()}); err != nil {
+		&outbox.NewsletterWelcome{Email: addr, UnsubscribeToken: leave, Locale: i18n.FromContext(ctx).Tag()}); err != nil {
 		return "", err
 	}
 
