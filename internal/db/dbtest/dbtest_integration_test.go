@@ -61,16 +61,22 @@ func readDatabaseRow(t *testing.T, pool *pgxpool.Pool, name string) databaseRow 
 
 // TestPoolCopiesDatabasePrivileges: the database a test gets must match the
 // one the migrations ran on. CREATE DATABASE ... TEMPLATE copies the schema but
-// not the privileges on the database itself, and the schema revokes one of
-// those: TEMPORARY from PUBLIC, so that store cannot plant a pg_temp table that
-// shadows a guard's.
+// not the privileges on the database itself, and the schema changes those: it
+// takes TEMPORARY from PUBLIC, so that store cannot plant a pg_temp table that
+// shadows a guard's, and CONNECT, which it gives back to its own roles.
 func TestPoolCopiesDatabasePrivileges(t *testing.T) {
 	pool := dbtest.Pool(t)
 	copied := pool.Config().ConnConfig.Database
 
 	template := readDatabaseRow(t, pool, dbtest.TemplateName)
-	if slices.Contains(template.ACL, "goen>PUBLIC:TEMPORARY") {
-		t.Fatalf("template %s ACL = %v, want PUBLIC without TEMPORARY: a copy with the default would then match it and the comparison prove nothing",
+	for _, entry := range []string{"goen>PUBLIC:TEMPORARY", "goen>PUBLIC:CONNECT"} {
+		if slices.Contains(template.ACL, entry) {
+			t.Fatalf("template %s ACL = %v, want it without %s: a copy with the default would then match it and the comparison prove nothing",
+				dbtest.TemplateName, template.ACL, entry)
+		}
+	}
+	if !slices.Contains(template.ACL, "goen>store:CONNECT") {
+		t.Fatalf("template %s ACL = %v, want goen>store:CONNECT: without a grant to replay, a copy that drops grants would match it",
 			dbtest.TemplateName, template.ACL)
 	}
 	if diff := cmp.Diff(template, readDatabaseRow(t, pool, copied)); diff != "" {

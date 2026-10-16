@@ -90,10 +90,19 @@ func databaseLoginURL(t *testing.T, memberships, inherit string) string {
 	}
 	t.Cleanup(func() {
 		//nolint:usetesting // t.Context is cancelled before Cleanup runs.
-		if _, err := pool.Exec(context.Background(), "DROP ROLE "+pgx.Identifier{role}.Sanitize()); err != nil {
+		if _, err := pool.Exec(context.Background(), "DROP OWNED BY "+pgx.Identifier{role}.Sanitize()+"; DROP ROLE "+pgx.Identifier{role}.Sanitize()); err != nil {
 			t.Error(err)
 		}
 	})
+	// The schema grants CONNECT to its roles and not to PUBLIC, and a NOINHERIT
+	// login does not inherit it from them, so it is granted the way an operator
+	// would; the check under test is what the login can do once connected.
+	if inherit == "NOINHERIT" {
+		grant := "GRANT CONNECT ON DATABASE " + pgx.Identifier{pool.Config().ConnConfig.Database}.Sanitize() + " TO " + pgx.Identifier{role}.Sanitize()
+		if _, err := pool.Exec(t.Context(), grant); err != nil {
+			t.Fatal(err)
+		}
+	}
 	dsn, err := url.Parse(pool.Config().ConnString())
 	if err != nil {
 		t.Fatal(err)
