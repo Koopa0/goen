@@ -42,6 +42,25 @@ try {
     })()`);
     throw new Error(`${label} did not settle: ${JSON.stringify(state)}`);
   };
+  // The ring is drawn outside the tab by its width and offset; a scrolling row
+  // clips it at the row's edge, so the first tab's ring must start inside the row.
+  const firstTabRing = async label => {
+    const ring = await evaluate(`(() => {
+      const row = document.querySelector('.goen-hero__tabs'), tab = row.querySelector('a');
+      tab.focus({ preventScroll: true, focusVisible: true });
+      const style = getComputedStyle(tab), box = tab.getBoundingClientRect();
+      const reach = parseFloat(style.outlineWidth) + parseFloat(style.outlineOffset);
+      const result = { focused: document.activeElement === tab, visible: tab.matches(':focus-visible'),
+        style: style.outlineStyle, ringLeft: box.left - reach, rowLeft: row.getBoundingClientRect().left,
+        scrollLeft: row.scrollLeft };
+      tab.blur();
+      return result;
+    })()`);
+    assert.equal(ring.focused && ring.visible, true, `${label}: first tab must take the keyboard focus ring: ${JSON.stringify(ring)}`);
+    assert.notEqual(ring.style, 'none', `${label}: first tab draws a focus ring`);
+    assert.ok(ring.ringLeft >= ring.rowLeft - 0.01,
+      `${label}: first tab's focus ring is cut at the row's start: ${JSON.stringify(ring)}`);
+  };
   await send('Page.enable');
   for (const locale of ['zh-Hant', 'en']) for (const width of [375, 390, 1440]) {
     const label = `carousel ${locale} ${width}px`;
@@ -63,6 +82,7 @@ try {
         distance: track.width * 0.75 };
     })()`);
     assert.equal(before.y, 64, `${label}: nonzero reading position`);
+    await firstTabRing(`${label} at load`);
     // One native gesture per slide: scroll-snap-stop prevents skipping a snap point.
     for (const [index, direction] of [[1, -1], [2, -1], [1, 1], [0, 1]]) {
       const x = before.left + before.width * (direction < 0 ? 0.875 : 0.125);
@@ -124,6 +144,7 @@ try {
         if (index === 2) assert.ok(got.left > 0, `${label}: third tab must scroll horizontally`);
         else if (index === 0) assert.equal(got.left, 0, `${label}: first tab returns to the start`);
       } else assert.equal(got.left, 0, `${label}: fitting desktop tabs stay still`);
+      if (index === 0) await firstTabRing(`${label} back on slide 1`);
       console.log(`${label}: ${JSON.stringify(got)}`);
     }
   }
