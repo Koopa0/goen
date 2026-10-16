@@ -492,6 +492,16 @@ CREATE UNIQUE INDEX product_variants_sku_key ON product_variants (sku);
 CREATE UNIQUE INDEX product_variants_position_key ON product_variants (product_id, position);
 CREATE UNIQUE INDEX product_variants_product_key ON product_variants (product_id, id);
 
+-- Every row lock taken on a variant is FOR NO KEY UPDATE. Its key columns are
+-- the ones these unique indexes cover, and no role or function updates them or
+-- deletes a variant: admin may update price, compare-at, preorder date and
+-- is_active, and record_inventory_movement only stock_quantity. NO KEY UPDATE
+-- still excludes every one of those writers, but not the FOR KEY SHARE that an
+-- INSERT into cart_items or stock_notifications takes on the variant it names
+-- (PostgreSQL, "Explicit Locking", row-level lock modes). FOR UPDATE made a
+-- shopper's add-to-cart wait for every checkout, release or settlement that
+-- held the same SKU.
+
 CREATE INDEX product_variants_sellable_price_idx
     ON product_variants (product_id, price_cents, id)
     WHERE is_active AND stock_quantity > safety_stock;
@@ -1404,7 +1414,8 @@ BEGIN
     END IF;
 
     -- Multi-reservation callers enumerate variant UUIDs in ascending order.
-    PERFORM 1 FROM product_variants WHERE id = r.variant_id FOR UPDATE;
+    -- NO KEY UPDATE, like every variant lock (see product_variants).
+    PERFORM 1 FROM product_variants WHERE id = r.variant_id FOR NO KEY UPDATE;
     -- COMMITTED, not settled: a cancelled order's stock must come back.
     IF order_is_committed(r.order_id) THEN
         RAISE EXCEPTION 'reservation % is on a committed order; consume it, do not release', p_reservation_id
@@ -7599,11 +7610,13 @@ END;
 $$;
 
 -- Lock the catalogue roots a checkout will use without granting the storefront
--- UPDATE merely to satisfy PostgreSQL's FOR UPDATE privilege rule. Variants
+-- UPDATE merely to satisfy PostgreSQL's row-lock privilege rule. Variants
 -- come first in UUID order for cross-cart stock safety; products follow in UUID
 -- order. That matches the existing variant -> product order of catalogue
 -- integrity triggers while still making publication/retirement linearizable
--- with checkout. The cart row is already locked, so both sets are stable.
+-- with checkout. The cart row is already locked, so both sets are stable. The
+-- variants are held NO KEY UPDATE (see product_variants): another checkout or
+-- a stock, price or availability change waits, another shopper's cart does not.
 CREATE FUNCTION lock_cart_catalogue(p_cart_id uuid) RETURNS void
 LANGUAGE plpgsql SECURITY DEFINER SET search_path = pg_catalog, public, pg_temp AS $$
 BEGIN
@@ -7612,7 +7625,7 @@ BEGIN
     JOIN cart_items ci ON ci.variant_id = pv.id
     WHERE ci.cart_id = p_cart_id
     ORDER BY pv.id
-    FOR UPDATE OF pv;
+    FOR NO KEY UPDATE OF pv;
 
     PERFORM 1
     FROM products p
@@ -8455,10 +8468,12 @@ GRANT EXECUTE ON FUNCTION record_refund_pending(uuid, text, uuid, text),
 TO admin;
 
 
--- Decide and hold the variant behind one restock request. SELECT ... FOR UPDATE
--- requires table UPDATE privilege even though no column changes; keeping the
--- lock in this narrow SECURITY DEFINER door avoids granting the storefront a
--- general product-variant writer merely to close a notice/restock race.
+-- Decide and hold the variant behind one restock request, NO KEY UPDATE like
+-- every variant lock (see product_variants): a restock's stock movement waits
+-- for it. A row lock requires table UPDATE privilege even though no column
+-- changes; keeping the lock in this narrow SECURITY DEFINER door avoids
+-- granting the storefront a general product-variant writer merely to close a
+-- notice/restock race.
 CREATE FUNCTION lock_stock_notice_variant(p_variant_id uuid, p_slug text)
 RETURNS uuid
 LANGUAGE plpgsql SECURITY DEFINER SET search_path = pg_catalog, public, pg_temp AS $$
@@ -8473,7 +8488,7 @@ BEGIN
       AND p.status = 'active'
       AND pv.is_active
       AND pv.stock_quantity <= pv.safety_stock
-    FOR UPDATE OF pv;
+    FOR NO KEY UPDATE OF pv;
     RETURN v_variant_id;
 END;
 $$;
@@ -9187,7 +9202,8 @@ BEGIN
                 v_order_id, coalesce(v_hold.quantity, 0), v_line.variant_id, v_line.quantity
                 USING ERRCODE = 'check_violation', CONSTRAINT = 'return_unsent_hold_short';
         END IF;
-        PERFORM 1 FROM product_variants WHERE id = v_line.variant_id FOR UPDATE;
+        -- NO KEY UPDATE, like every variant lock (see product_variants).
+        PERFORM 1 FROM product_variants WHERE id = v_line.variant_id FOR NO KEY UPDATE;
 
         IF v_return.reason <> 'customer_withdrew' THEN
             PERFORM consume_reservation_partial(v_hold.id, v_line.quantity);
