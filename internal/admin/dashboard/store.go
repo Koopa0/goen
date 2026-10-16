@@ -84,7 +84,7 @@ func (s *Store) Dashboard(ctx context.Context) (DashboardView, error) {
 	if err != nil {
 		return DashboardView{}, fmt.Errorf("read recent orders: %w", err)
 	}
-	rows := make([]admin.OrderRow, len(recent))
+	rows := make([]OrderRow, len(recent))
 	for i := range recent {
 		rows[i] = orderRow(ctx, &recent[i])
 	}
@@ -119,10 +119,10 @@ const recentRows = 8
 // orderRow is one order as the landing page lists it. It reads the same word,
 // colour and total as the orders queue's row for the same order; the total is
 // read from order_totals, as on every page that states one.
-func orderRow(ctx context.Context, o *db.RecentOrdersRow) admin.OrderRow {
+func orderRow(ctx context.Context, o *db.RecentOrdersRow) OrderRow {
 	fulfillment := order.FulfillmentStatus(o.FulfillmentStatus)
 	text, intent := orderStatus(ctx, fulfillment, o)
-	return admin.OrderRow{
+	return OrderRow{
 		Number:       o.OrderNumber,
 		Status:       fulfillment,
 		StatusText:   text,

@@ -27,7 +27,7 @@ func TestTheDashboardOpensEveryOrderItLists(t *testing.T) {
 	t.Run("a listed order is a link to itself", func(t *testing.T) {
 		t.Parallel()
 		html := renderToString(t, Dashboard(Meta(ctx), DashboardView{
-			Recent: []admin.OrderRow{{
+			Recent: []OrderRow{{
 				Number:     "GO-260918-000001",
 				Status:     order.FulfillmentShipped,
 				StatusText: "已出貨",

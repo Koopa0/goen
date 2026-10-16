@@ -9,7 +9,6 @@ import (
 	"github.com/koopa0/goen/internal/i18n"
 	"github.com/koopa0/goen/internal/ui/components"
 	"github.com/koopa0/goen/internal/ui/layouts"
-	"github.com/koopa0/goen/internal/ui/pages/admin"
 )
 
 func TestARedirectedNoticeIsShownAsItsOwnOutcome(t *testing.T) {
@@ -78,8 +77,8 @@ func TestARedirectedNoticeIsShownAsItsOwnOutcome(t *testing.T) {
 		ctx := i18n.WithLocale(t.Context(), i18n.ZhHant)
 		req := httptest.NewRequestWithContext(ctx, http.MethodGet, "/admin/orders?"+tc.name+"=1", http.NoBody)
 		var page strings.Builder
-		view := admin.OrdersView{Notice: components.NoticeFrom(req, notices)}
-		if err := admin.Orders(layouts.Page{Title: "orders"}, view).Render(ctx, &page); err != nil {
+		view := OrdersView{Notice: components.NoticeFrom(req, notices)}
+		if err := Orders(layouts.Page{Title: "orders"}, view).Render(ctx, &page); err != nil {
 			t.Fatal(err)
 		}
 		got := page.String()
@@ -109,8 +108,8 @@ func TestInvoicingOffHasItsOwnSentence(t *testing.T) {
 	}{{"invoicingoff", true}, {"refused", false}} {
 		req := httptest.NewRequestWithContext(ctx, http.MethodGet, "/admin/orders/G1?"+tc.query+"=1", http.NoBody)
 		var page strings.Builder
-		view := admin.OrderView{Notice: components.NoticeFrom(req, notices)}
-		if err := admin.Order(layouts.Page{Title: "order"}, &view).Render(ctx, &page); err != nil {
+		view := OrderView{Notice: components.NoticeFrom(req, notices)}
+		if err := Order(layouts.Page{Title: "order"}, &view).Render(ctx, &page); err != nil {
 			t.Fatal(err)
 		}
 		if got := strings.Contains(page.String(), off); got != tc.shown {

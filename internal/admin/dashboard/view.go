@@ -6,6 +6,9 @@ import (
 
 	"github.com/koopa0/goen/internal/i18n"
 	"github.com/koopa0/goen/internal/inventory"
+	"github.com/koopa0/goen/internal/money"
+	"github.com/koopa0/goen/internal/order"
+	"github.com/koopa0/goen/internal/ui/components"
 	"github.com/koopa0/goen/internal/ui/layouts"
 	"github.com/koopa0/goen/internal/ui/pages/admin"
 )
@@ -32,7 +35,7 @@ type DashboardView struct {
 	UninspectedReturnsOldestSeconds  int64
 	UnansweredQuestions              int64
 	UnansweredQuestionsOldestSeconds int64
-	Recent                           []admin.OrderRow
+	Recent                           []OrderRow
 	// Runway is the first days cover rows of SKUs expected to run out within
 	// the warning line, RunwayCut says more were left off and RunwayBasis what
 	// an empty list can say.
@@ -51,6 +54,29 @@ type DashboardView struct {
 	WeekUnavailable   bool
 	Latest            *LatestPaid
 	LatestUnavailable bool
+}
+
+// OrderRow is one of the newest orders as the dashboard lists it. It is a copy
+// of the orders queue's row (orders.OrderRow): the two pages show the same
+// order the same way. TestStore_RecentOrdersMatchTheQueue converts one into
+// the other, so their fields cannot drift apart.
+type OrderRow struct {
+	Number       string
+	Status       order.FulfillmentStatus
+	StatusText   string
+	StatusIntent components.Intent
+	PlacedAt     string
+	Recipient    string
+	TotalCents   int64
+}
+
+func (o OrderRow) Total() string { return money.TWD(o.TotalCents) }
+
+func (o OrderRow) RecipientText(ctx context.Context) string {
+	if o.Recipient == "" {
+		return i18n.T(ctx, i18n.KeyAdminErasedRecipient)
+	}
+	return o.Recipient
 }
 
 // Task is one kind of work that waits for a person: what it is, how much of

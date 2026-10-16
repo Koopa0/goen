@@ -12,7 +12,6 @@ import (
 	"github.com/koopa0/goen/internal/i18n"
 	"github.com/koopa0/goen/internal/ui/layouts"
 	"github.com/koopa0/goen/internal/ui/pages"
-	"github.com/koopa0/goen/internal/ui/pages/admin"
 	"github.com/koopa0/goen/internal/web"
 )
 
@@ -41,7 +40,7 @@ func TestDeliveryRefusalShowsAnAbsentControlsReason(t *testing.T) {
 					PickupChain: shipping.ChainSevenEleven, PickupStoreCode: " a123 ", PickupStoreName: " Proposed <store> ",
 				}
 				before := draft
-				view := admin.OrderView{
+				view := OrderView{
 					Number: "GO-REFUSAL", Correctable: true, PickupDestination: tc.pickup,
 					PickupChains: pages.KnownPickupChainChoices(), Recipient: "Saved recipient",
 				}
@@ -50,7 +49,7 @@ func TestDeliveryRefusalShowsAnAbsentControlsReason(t *testing.T) {
 					{Field: tc.field, MessageKey: i18n.KeyFieldHasControlChars},
 				})
 				var rendered strings.Builder
-				if err := admin.Order(layouts.Page{Title: view.Number}, &view).Render(ctx, &rendered); err != nil {
+				if err := Order(layouts.Page{Title: view.Number}, &view).Render(ctx, &rendered); err != nil {
 					t.Fatal(err)
 				}
 				body := rendered.String()
@@ -84,13 +83,13 @@ func TestDeliveryRefusalKeepsVisibleErrorsBesideTheirControls(t *testing.T) {
 			t.Run(string(locale)+"/"+map[bool]string{false: "address", true: "pickup"}[pickupDestination], func(t *testing.T) {
 				t.Parallel()
 				ctx := i18n.WithLocale(t.Context(), locale)
-				view := admin.OrderView{Number: "GO-REFUSAL", Correctable: true, PickupDestination: pickupDestination}
+				view := OrderView{Number: "GO-REFUSAL", Correctable: true, PickupDestination: pickupDestination}
 				applyDeliveryRefusals(ctx, &view, &DeliveryCorrection{}, []web.FieldRefusal{
 					{Field: "name", MessageKey: i18n.KeyNameRequired},
 					{Field: "phone", MessageKey: i18n.KeyPhoneRequired},
 				})
 				var rendered strings.Builder
-				if err := admin.Order(layouts.Page{}, &view).Render(ctx, &rendered); err != nil {
+				if err := Order(layouts.Page{}, &view).Render(ctx, &rendered); err != nil {
 					t.Fatal(err)
 				}
 				body := rendered.String()

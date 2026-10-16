@@ -42,9 +42,7 @@ var viewPackageImporters = []string{
 	"internal/admin/dashboard",
 	"internal/admin/orders",
 	"internal/admin/products",
-	"internal/admin/refunds",
 	"internal/admin/reports",
-	"internal/admin/returns",
 	"internal/admin/stock",
 	"internal/cart",
 	"internal/catalog",
@@ -57,10 +55,7 @@ var dataFilesNamingViews = []string{
 	"cmd/goen/server.go",
 	"internal/account/store.go",
 	"internal/admin/dashboard/store.go",
-	"internal/admin/orders/handler.go",
-	"internal/admin/orders/invoice.go",
 	"internal/admin/orders/picking.go",
-	"internal/admin/orders/shipment.go",
 	"internal/admin/orders/store.go",
 	"internal/admin/orders/timeline.go",
 	"internal/admin/products/image.go",
@@ -89,9 +84,6 @@ var viewContracts = []string{
 
 var storeMethodsNamingViews = map[string]int{
 	"internal/account/store.go":                3,
-	"internal/admin/orders/invoice.go":         2,
-	"internal/admin/orders/picking.go":         1,
-	"internal/admin/orders/store.go":           6,
 	"internal/admin/products/image.go":         1,
 	"internal/admin/products/product.go":       4,
 	"internal/admin/products/product_label.go": 1,
@@ -110,17 +102,15 @@ var storeMethodsNamingViews = map[string]int{
 }
 
 var viewValueReads = map[string]int{
-	"cmd/goen/server.go":              2,
-	"internal/account/handler.go":     2,
-	"internal/admin/orders/orders.go": 8,
-	"internal/admin/orders/store.go":  5,
-	"internal/cart/handler.go":        11,
-	"internal/cart/store.go":          3,
-	"internal/catalog/compare.go":     3,
-	"internal/catalog/department.go":  2,
-	"internal/catalog/store.go":       2,
-	"internal/product/handler.go":     8,
-	"internal/product/review.go":      12,
+	"cmd/goen/server.go":             2,
+	"internal/account/handler.go":    2,
+	"internal/cart/handler.go":       11,
+	"internal/cart/store.go":         3,
+	"internal/catalog/compare.go":    3,
+	"internal/catalog/department.go": 2,
+	"internal/catalog/store.go":      2,
+	"internal/product/handler.go":    8,
+	"internal/product/review.go":     12,
 }
 
 const (

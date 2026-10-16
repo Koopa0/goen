@@ -13,7 +13,6 @@ import (
 	"github.com/koopa0/goen/internal/i18n"
 	"github.com/koopa0/goen/internal/order"
 	"github.com/koopa0/goen/internal/refund"
-	"github.com/koopa0/goen/internal/ui/pages/admin"
 )
 
 func TestAdvanceKindAcceptsOnlyAMoveTheDeskMakes(t *testing.T) {
@@ -37,7 +36,7 @@ func (noRefund) Offer(context.Context, string, int) (refund.Offer, error) { retu
 func TestThePickingDeskDoesNotOfferShipped(t *testing.T) {
 	t.Parallel()
 	s := &Store{refunds: noRefund{}}
-	view := admin.OrderView{Status: order.FulfillmentPicking}
+	view := OrderView{Status: order.FulfillmentPicking}
 	if err := s.fillRefundBeforeShipment(t.Context(), &view, "GO-260929-000001"); err != nil {
 		t.Fatal(err)
 	}
@@ -134,7 +133,7 @@ func TestTheQueueFiltersAreTheirOwnClosedSet(t *testing.T) {
 		}
 	}
 	for _, in := range []string{"", "all", "PENDING", " ready ", "paid"} {
-		if got := ParseQueueFilter(in); got != admin.QueueAll {
+		if got := ParseQueueFilter(in); got != QueueAll {
 			t.Errorf("ParseQueueFilter(%q) = %q, want every order", in, got)
 		}
 	}

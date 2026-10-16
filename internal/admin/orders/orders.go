@@ -8,7 +8,6 @@ import (
 	"errors"
 
 	"github.com/koopa0/goen/internal/i18n"
-	"github.com/koopa0/goen/internal/ui/pages/admin"
 )
 
 var (
@@ -32,25 +31,25 @@ var (
 // them. Pending is two queues because FundedStatusLabel reads it as two: money
 // still owed, and funded and waiting to be picked.
 var queueTabs = [...]struct {
-	filter admin.QueueFilter
+	filter QueueFilter
 	label  i18n.Key
 }{
-	{admin.QueueAwaitingPayment, i18n.KeyAdminStatusPending},
-	{admin.QueueReady, i18n.KeyAdminStatusReadyToPick},
-	{admin.QueuePicking, i18n.KeyAdminStatusPicking},
-	{admin.QueueShipped, i18n.KeyAdminStatusShipped},
-	{admin.QueueDelivered, i18n.KeyAdminStatusDelivered},
-	{admin.QueueCompleted, i18n.KeyAdminStatusCompleted},
-	{admin.QueueCancelled, i18n.KeyAdminStatusCancelled},
+	{QueueAwaitingPayment, i18n.KeyAdminStatusPending},
+	{QueueReady, i18n.KeyAdminStatusReadyToPick},
+	{QueuePicking, i18n.KeyAdminStatusPicking},
+	{QueueShipped, i18n.KeyAdminStatusShipped},
+	{QueueDelivered, i18n.KeyAdminStatusDelivered},
+	{QueueCompleted, i18n.KeyAdminStatusCompleted},
+	{QueueCancelled, i18n.KeyAdminStatusCancelled},
 }
 
-func ParseQueueFilter(s string) admin.QueueFilter {
+func ParseQueueFilter(s string) QueueFilter {
 	for _, tab := range queueTabs {
 		if string(tab.filter) == s {
 			return tab.filter
 		}
 	}
-	return admin.QueueAll
+	return QueueAll
 }
 
 // funded reports that money is behind the order: a card capture or its fulfilment
