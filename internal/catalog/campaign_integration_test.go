@@ -1,6 +1,6 @@
 //go:build integration
 
-package product_test
+package catalog_test
 
 import (
 	"log/slog"
@@ -8,7 +8,7 @@ import (
 
 	"github.com/google/uuid"
 
-	"github.com/koopa0/goen/internal/product"
+	"github.com/koopa0/goen/internal/catalog"
 )
 
 func TestAProductPageNamesTheCampaignOnlyWhileItRuns(t *testing.T) {
@@ -27,9 +27,9 @@ func TestAProductPageNamesTheCampaignOnlyWhileItRuns(t *testing.T) {
 		SELECT p.id, upper(replace($1, '-', '')), 1000, 2000, 5, 0, 0 FROM p`, slug); err != nil {
 		t.Fatalf("create product: %v", err)
 	}
-	store := product.NewStore(pool, slog.New(slog.DiscardHandler))
+	store := catalog.NewStore(pool, slog.New(slog.DiscardHandler))
 
-	view, err := store.Load(ctx, slug, nil)
+	view, err := store.Product(ctx, slug, nil)
 	if err != nil {
 		t.Fatalf("load: %v", err)
 	}
@@ -46,7 +46,7 @@ func TestAProductPageNamesTheCampaignOnlyWhileItRuns(t *testing.T) {
 		SELECT c.id, p.id FROM sale_campaigns c, products p WHERE c.slug = $1 AND p.slug = $2`, campaign, slug); err != nil {
 		t.Fatalf("feature: %v", err)
 	}
-	view, err = store.Load(ctx, slug, nil)
+	view, err = store.Product(ctx, slug, nil)
 	if err != nil {
 		t.Fatalf("load: %v", err)
 	}
@@ -71,7 +71,7 @@ func TestAProductPageNamesTheCampaignOnlyWhileItRuns(t *testing.T) {
 		if _, err = pool.Exec(ctx, tt.setup, campaign); err != nil {
 			t.Fatalf("%s: %v", tt.name, err)
 		}
-		view, err = store.Load(ctx, slug, nil)
+		view, err = store.Product(ctx, slug, nil)
 		if err != nil {
 			t.Fatalf("load: %v", err)
 		}

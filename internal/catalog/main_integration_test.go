@@ -60,7 +60,7 @@ func get(t *testing.T, target string) (status int, body string) {
 
 func getInLocale(t *testing.T, locale i18n.Locale, target string) (status int, body string) {
 	t.Helper()
-	h := catalog.NewHandler(catalog.NewStore(pool), slog.New(slog.DiscardHandler))
+	h := catalog.NewHandler(catalog.NewStore(pool, slog.New(slog.DiscardHandler)), slog.New(slog.DiscardHandler), "https://goen.example")
 	req := httptest.NewRequestWithContext(
 		i18n.WithLocale(t.Context(), locale),
 		http.MethodGet, target, http.NoBody)
@@ -142,7 +142,7 @@ func TestDepartmentListingReachesEveryLevel(t *testing.T) {
 func TestTheHeadOffersTheDepartmentsChildrenFromEveryPageUnderIt(t *testing.T) {
 	// Tech is the department; accessories sits under it and chargers under that.
 	for _, slug := range []string{"tech", "accessories", "chargers"} {
-		view, err := catalog.NewStore(pool).Listing(i18n.WithLocale(t.Context(), i18n.ZhHant), slug, catalog.Filters{})
+		view, err := catalog.NewStore(pool, slog.New(slog.DiscardHandler)).Listing(i18n.WithLocale(t.Context(), i18n.ZhHant), slug, catalog.Filters{})
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -160,7 +160,7 @@ func TestTheHeadOffersTheDepartmentsChildrenFromEveryPageUnderIt(t *testing.T) {
 // A department holds no product itself, so the sitemap must judge it by the
 // products below it.
 func TestSitemapNamesADepartmentThatHoldsNoProductItself(t *testing.T) {
-	rows, err := catalog.NewStore(pool).SitemapCategories(t.Context(), 100)
+	rows, err := catalog.NewStore(pool, slog.New(slog.DiscardHandler)).SitemapCategories(t.Context(), 100)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -208,7 +208,7 @@ func TestFacetsMatchOneVariant(t *testing.T) {
 		t.Fatalf("fixture: %v", err)
 	}
 
-	store := catalog.NewStore(tx)
+	store := catalog.NewStore(tx, slog.New(slog.DiscardHandler))
 
 	// In stock AND at most NT$1,000: only the sold-out variant is that cheap.
 	trapped, trapErr := store.Listing(ctx, "phones", catalog.Filters{
@@ -268,7 +268,7 @@ func TestInStockMeansSellable(t *testing.T) {
 		t.Fatalf("fixture: %v", err)
 	}
 
-	view, listErr := catalog.NewStore(tx).Listing(ctx, "phones", catalog.Filters{InStockOnly: true, Page: 1})
+	view, listErr := catalog.NewStore(tx, slog.New(slog.DiscardHandler)).Listing(ctx, "phones", catalog.Filters{InStockOnly: true, Page: 1})
 	if listErr != nil {
 		t.Fatalf("listing: %v", listErr)
 	}
@@ -279,7 +279,7 @@ func TestInStockMeansSellable(t *testing.T) {
 		}
 	}
 
-	all, allErr := catalog.NewStore(tx).Listing(ctx, "phones", catalog.Filters{Page: 1})
+	all, allErr := catalog.NewStore(tx, slog.New(slog.DiscardHandler)).Listing(ctx, "phones", catalog.Filters{Page: 1})
 	if allErr != nil {
 		t.Fatalf("listing: %v", allErr)
 	}
@@ -396,7 +396,7 @@ func TestListingPriceIsBuyable(t *testing.T) {
 		t.Fatalf("fixture: %v", err)
 	}
 
-	view, listErr := catalog.NewStore(tx).Listing(ctx, "phones", catalog.Filters{Page: 1})
+	view, listErr := catalog.NewStore(tx, slog.New(slog.DiscardHandler)).Listing(ctx, "phones", catalog.Filters{Page: 1})
 	if listErr != nil {
 		t.Fatalf("listing: %v", listErr)
 	}
@@ -432,7 +432,7 @@ func dealSlugs(t *testing.T, s *catalog.Store) (slugs []string, total int64) {
 }
 
 func TestDealsListsOnlyWhatARunningCampaignFeatures(t *testing.T) {
-	s := catalog.NewStore(pool)
+	s := catalog.NewStore(pool, slog.New(slog.DiscardHandler))
 	_, before := dealSlugs(t, s)
 
 	product := discountedProduct(t)
@@ -468,7 +468,7 @@ func TestDealsListsOnlyWhatARunningCampaignFeatures(t *testing.T) {
 // come first, and depth orders each group.
 func TestDealsAreOrderedByHowDeepTheCutIs(t *testing.T) {
 	ctx := t.Context()
-	s := catalog.NewStore(pool)
+	s := catalog.NewStore(pool, slog.New(slog.DiscardHandler))
 
 	view, err := s.Deals(ctx, 1)
 	if err != nil {
@@ -578,7 +578,7 @@ func listedSlugs(t *testing.T, s *catalog.Store) []string {
 // stock; the same predicate serves the deals page and the home carousel. The campaign page itself stays reachable by direct link.
 func TestACampaignIsListedOnlyWhileItHasSomethingToBuy(t *testing.T) {
 	ctx := t.Context()
-	s := catalog.NewStore(pool)
+	s := catalog.NewStore(pool, slog.New(slog.DiscardHandler))
 	tests := []struct {
 		name   string
 		stock  int
@@ -660,7 +660,7 @@ func TestAFixtureCampaignRunsWhateverTheHostClockReads(t *testing.T) {
 
 func TestACampaignOutsideItsWindowIsShownAsNotStartedOrEnded(t *testing.T) {
 	ctx := t.Context()
-	s := catalog.NewStore(pool)
+	s := catalog.NewStore(pool, slog.New(slog.DiscardHandler))
 
 	suffix := "-" + uuid.NewString()
 
@@ -723,7 +723,7 @@ func TestSellableProductsComeBeforeSoldOutOnes(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer db.Rollback(ctx, tx)
-	s := catalog.NewStore(tx)
+	s := catalog.NewStore(tx, slog.New(slog.DiscardHandler))
 
 	deep := newDeal(t, tx, 100, 0)
 	shallow := newDeal(t, tx, 950, 5)
@@ -828,7 +828,7 @@ func TestOnlyDiscountedProductsCanBeFeatured(t *testing.T) {
 
 func TestACampaignShowsOnlyActiveProducts(t *testing.T) {
 	ctx := t.Context()
-	s := catalog.NewStore(pool)
+	s := catalog.NewStore(pool, slog.New(slog.DiscardHandler))
 	slug := campaign(t, "active-only")
 	product := discountedSlug(t)
 	if err := feature(t, slug, product); err != nil {
@@ -873,7 +873,7 @@ func constraintName(err error) (code, name string) {
 
 func TestComparisonIsBoundedDeduplicatedAndForgiving(t *testing.T) {
 	ctx := t.Context()
-	s := catalog.NewStore(pool)
+	s := catalog.NewStore(pool, slog.New(slog.DiscardHandler))
 	// One past pages.MaxCompare, so the ceiling cases follow the constant.
 	slugs := activeSlugs(t, pages.MaxCompare+1)
 
@@ -933,7 +933,7 @@ func TestTwoSpecsThatShareATranslationStayTwoRows(t *testing.T) {
 		t.Fatalf("fixture: %v", err)
 	}
 
-	store := catalog.NewStore(tx)
+	store := catalog.NewStore(tx, slog.New(slog.DiscardHandler))
 	for _, tt := range []struct {
 		name   string
 		locale i18n.Locale
@@ -965,7 +965,7 @@ func TestTwoSpecsThatShareATranslationStayTwoRows(t *testing.T) {
 
 func TestTheColumnsKeepTheOrderTheURLNamed(t *testing.T) {
 	ctx := t.Context()
-	s := catalog.NewStore(pool)
+	s := catalog.NewStore(pool, slog.New(slog.DiscardHandler))
 	slugs := activeSlugs(t, 3)
 
 	forward, err := s.Compare(ctx, slugs)
@@ -991,7 +991,7 @@ func TestTheColumnsKeepTheOrderTheURLNamed(t *testing.T) {
 
 func TestSharedSpecsComeFirstAndGapsAreVisible(t *testing.T) {
 	ctx := t.Context()
-	s := catalog.NewStore(pool)
+	s := catalog.NewStore(pool, slog.New(slog.DiscardHandler))
 	a, b := twoProductsWithSpecs(t)
 
 	view, err := s.Compare(ctx, []string{a, b})
@@ -1108,7 +1108,7 @@ func twoProductsWithSpecs(t *testing.T) (first, second string) {
 // Matching only the localized column would make the catalogue searchable in one
 // language at a time.
 func TestSearchFindsAProductByItsEnglishName(t *testing.T) {
-	s := catalog.NewStore(pool)
+	s := catalog.NewStore(pool, slog.New(slog.DiscardHandler))
 	ctx := t.Context()
 
 	view, err := s.Search(ctx, "%case%", catalog.SortRelevance, 1)
@@ -1155,7 +1155,7 @@ func TestSearchFindsAProductByItsSpecification(t *testing.T) {
 // this fixture puts it on the DEARER one.
 func TestPromotionalTilesArePricedOnTheDiscountedVariant(t *testing.T) {
 	ctx := t.Context()
-	s := catalog.NewStore(pool)
+	s := catalog.NewStore(pool, slog.New(slog.DiscardHandler))
 
 	var slug string
 	if err := pool.QueryRow(ctx, `
@@ -1293,7 +1293,7 @@ func TestListingTileShowsAVariantThePriceFiltersAccept(t *testing.T) {
 		{"max price shows the sold-out variant that qualifies it", catalog.Filters{MaxPrice: 400000}, 300000, false, 0, "the dearer in-stock variant's price, above the maximum"},
 		{"in stock and max price excludes dearer variants from the from flag", catalog.Filters{InStockOnly: true, MaxPrice: 600000}, 500000, false, 0, "a from flag for a variant above the maximum"},
 	}
-	store := catalog.NewStore(tx)
+	store := catalog.NewStore(tx, slog.New(slog.DiscardHandler))
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			tt.filters.Page = 1
@@ -1320,7 +1320,7 @@ func TestListingTileShowsAVariantThePriceFiltersAccept(t *testing.T) {
 // inherit it; books sit one level down under a department that does not.
 func TestOnlyTheDepartmentsThatCompareCarryTheBox(t *testing.T) {
 	ctx := t.Context()
-	s := catalog.NewStore(pool)
+	s := catalog.NewStore(pool, slog.New(slog.DiscardHandler))
 	for slug, want := range map[string]bool{"phones": true, "accessories": true, "books-stationery": false, "books": false} {
 		view, err := s.Listing(ctx, slug, catalog.Filters{Page: 1})
 		if err != nil {
@@ -1377,7 +1377,7 @@ func TestComparisonFollowsTheDepartmentDownItsTrail(t *testing.T) {
 		UPDATE categories SET comparable = true WHERE slug = 'books-stationery';`); err != nil {
 		t.Fatalf("fixture: %v", err)
 	}
-	s := catalog.NewStore(tx)
+	s := catalog.NewStore(tx, slog.New(slog.DiscardHandler))
 	for slug, want := range map[string]bool{"phones": false, "chargers": false, "books": true, "stationery": true} {
 		view, listErr := s.Listing(ctx, slug, catalog.Filters{Page: 1})
 		if listErr != nil {
@@ -1408,7 +1408,7 @@ func TestAnEmptyComparisonPointsAtADepartmentThatOffersIt(t *testing.T) {
 		UPDATE categories SET comparable = true WHERE slug = 'books-stationery';`); err != nil {
 		t.Fatalf("fixture: %v", err)
 	}
-	s := catalog.NewStore(tx)
+	s := catalog.NewStore(tx, slog.New(slog.DiscardHandler))
 	view, err := s.Compare(ctx, nil)
 	if err != nil {
 		t.Fatalf("Compare: %v", err)
@@ -1451,7 +1451,7 @@ func TestAComparisonOfOneSuggestsItsShelfNearestPriceFirst(t *testing.T) {
 		FROM products p WHERE p.slug LIKE 'near-%' AND p.slug <> 'near-9';`); err != nil {
 		t.Fatalf("fixture: %v", err)
 	}
-	s := catalog.NewStore(tx)
+	s := catalog.NewStore(tx, slog.New(slog.DiscardHandler))
 
 	view, err := s.Compare(ctx, []string{"pixelight-9-pro"})
 	if err != nil {
@@ -1527,7 +1527,7 @@ func discountedProduct(t *testing.T) string {
 
 func TestACardIsInACampaignOnlyWhileOneRunsWithSomethingToBuy(t *testing.T) {
 	ctx := t.Context()
-	s := catalog.NewStore(pool)
+	s := catalog.NewStore(pool, slog.New(slog.DiscardHandler))
 
 	tests := []struct {
 		name  string
@@ -1595,7 +1595,7 @@ func TestACardIsInACampaignOnlyWhileOneRunsWithSomethingToBuy(t *testing.T) {
 // unstruck on /deals and on its campaign page, and /deals does not list it.
 func TestACardNeverStrikesAPriceOfASoldOutVariant(t *testing.T) {
 	ctx := t.Context()
-	s := catalog.NewStore(pool)
+	s := catalog.NewStore(pool, slog.New(slog.DiscardHandler))
 
 	slug := "split-" + uuid.NewString()
 	if _, err := pool.Exec(ctx, `

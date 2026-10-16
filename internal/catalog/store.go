@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"log/slog"
 	"time"
 
 	"github.com/google/uuid"
@@ -17,16 +18,18 @@ import (
 )
 
 type Store struct {
+	dbtx     db.DBTX
 	q        *db.Queries
+	log      *slog.Logger
 	now      func() time.Time
 	noPickup bool
 }
 
-func NewStore(dbtx db.DBTX) *Store {
-	if dbtx == nil {
-		panic("catalog: NewStore requires a database handle")
+func NewStore(dbtx db.DBTX, log *slog.Logger) *Store {
+	if dbtx == nil || log == nil {
+		panic("catalog: NewStore requires a database handle and a logger")
 	}
-	return &Store{q: db.New(dbtx), now: time.Now}
+	return &Store{dbtx: dbtx, q: db.New(dbtx), log: log, now: time.Now}
 }
 
 // WithoutPickup is for a deployment whose store map is not configured: checkout

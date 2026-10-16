@@ -4,6 +4,7 @@ package catalog_test
 
 import (
 	"context"
+	"log/slog"
 	"strconv"
 	"strings"
 	"testing"
@@ -80,7 +81,7 @@ func TestOptionFacetsRequireOneVariantForEverySelectedAxisStockAndPrice(t *testi
 	if _, err = tx.Exec(ctx, `UPDATE products SET status='active',published_at=now() WHERE id=$1`, productID); err != nil {
 		t.Fatal(err)
 	}
-	store := catalog.NewStore(tx)
+	store := catalog.NewStore(tx, slog.New(slog.DiscardHandler))
 	f := catalog.Filters{Page: 1, InStockOnly: true, MaxPrice: 50000, OptionValues: []catalog.OptionFilter{{Name: "容量", Value: "256GB"}, {Name: "顏色", Value: "曜石黑"}}}
 	local := i18n.WithLocale(ctx, i18n.En)
 	view, err := store.Listing(local, category, f)

@@ -24,7 +24,6 @@ import (
 	"github.com/koopa0/goen/internal/catalog"
 	"github.com/koopa0/goen/internal/db"
 	"github.com/koopa0/goen/internal/order/buyer"
-	"github.com/koopa0/goen/internal/product"
 	"github.com/koopa0/goen/internal/user"
 )
 
@@ -64,7 +63,7 @@ func TestTheShopCanPublishAnUnbrandedProduct(t *testing.T) {
 	if err != nil || view.BrandID != "" {
 		t.Fatalf("admin unbranded read = brand %q, %v", view.BrandID, err)
 	}
-	listing, err := catalog.NewStore(p).Listing(ctx, categorySlug, catalog.Filters{Page: 1})
+	listing, err := catalog.NewStore(p, slog.New(slog.DiscardHandler)).Listing(ctx, categorySlug, catalog.Filters{Page: 1})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -80,11 +79,11 @@ func TestTheShopCanPublishAnUnbrandedProduct(t *testing.T) {
 	if !found {
 		t.Error("category listing dropped the unbranded product")
 	}
-	search, err := catalog.NewStore(p).Search(ctx, catalog.SearchPattern(form.Name), catalog.SortRelevance, 1)
+	search, err := catalog.NewStore(p, slog.New(slog.DiscardHandler)).Search(ctx, catalog.SearchPattern(form.Name), catalog.SortRelevance, 1)
 	if err != nil || search.Total != 1 || len(search.Products) != 1 || search.Products[0].Slug != slug || search.Products[0].Brand != "" {
 		t.Errorf("unbranded search: total = %d, products = %+v, error = %v; want total 1, one product %q with no brand and nil error", search.Total, search.Products, err, slug)
 	}
-	pdp, err := product.NewStore(p, slog.New(slog.DiscardHandler)).Load(ctx, slug, nil)
+	pdp, err := catalog.NewStore(p, slog.New(slog.DiscardHandler)).Product(ctx, slug, nil)
 	if err != nil || pdp.Brand != "" || pdp.Slug != slug {
 		t.Errorf("unbranded PDP = slug %q brand %q, %v", pdp.Slug, pdp.Brand, err)
 	}
@@ -151,7 +150,7 @@ func TestTheShopCanPublishAnUnbrandedProduct(t *testing.T) {
 	if err != nil || len(history.Orders) != 1 || history.Orders[0].Number != number {
 		t.Errorf("unbranded order history = %+v, %v", history.Orders, err)
 	}
-	comparison, err := catalog.NewStore(p).Compare(ctx, []string{slug})
+	comparison, err := catalog.NewStore(p, slog.New(slog.DiscardHandler)).Compare(ctx, []string{slug})
 	if err != nil || len(comparison.Products) != 1 || comparison.Products[0].Brand != "" {
 		t.Errorf("unbranded comparison = %+v, %v", comparison.Products, err)
 	}
@@ -262,7 +261,7 @@ func assertUnbrandedCatalogueReads(t *testing.T, ctx context.Context, p *pgxpool
 	if _, err := p.Exec(ctx, `INSERT INTO sale_campaign_products (campaign_id, product_id) VALUES ($1, $2)`, campaignID, productID); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := p.Exec(ctx, `INSERT INTO product_copurchases (product_id, other_product_id, orders) VALUES ($1, $2, $3)`, anchorID, productID, product.MinCoPurchases); err != nil {
+	if _, err := p.Exec(ctx, `INSERT INTO product_copurchases (product_id, other_product_id, orders) VALUES ($1, $2, $3)`, anchorID, productID, catalog.MinCoPurchases); err != nil {
 		t.Fatal(err)
 	}
 	var rowLimit int32
@@ -313,7 +312,7 @@ func assertUnbrandedCatalogueReads(t *testing.T, ctx context.Context, p *pgxpool
 		row := &related[i]
 		observe("RelatedProducts", row.Slug, row.Brand)
 	}
-	also, err := q.BoughtTogether(ctx, db.BoughtTogetherParams{Locale: "en", ProductID: anchorID, MinOrders: product.MinCoPurchases, LimitTo: rowLimit})
+	also, err := q.BoughtTogether(ctx, db.BoughtTogetherParams{Locale: "en", ProductID: anchorID, MinOrders: catalog.MinCoPurchases, LimitTo: rowLimit})
 	check("BoughtTogether", err)
 	for i := range also {
 		row := &also[i]

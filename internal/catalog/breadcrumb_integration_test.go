@@ -1,6 +1,6 @@
 //go:build integration
 
-package product_test
+package catalog_test
 
 import (
 	"encoding/json"
@@ -12,8 +12,8 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/koopa0/goen/internal/catalog"
 	"github.com/koopa0/goen/internal/i18n"
-	"github.com/koopa0/goen/internal/product"
 )
 
 func TestProductBreadcrumbNamesEveryVisibleCategory(t *testing.T) {
@@ -29,11 +29,11 @@ func TestProductBreadcrumbNamesEveryVisibleCategory(t *testing.T) {
 			t.Run(string(locale)+"/"+tt.slug, func(t *testing.T) {
 				t.Parallel()
 				ctx := i18n.WithLocale(t.Context(), locale)
-				h := product.NewHandler(product.NewStore(pool, slog.New(slog.DiscardHandler)), slog.New(slog.DiscardHandler), "https://goen.example/")
+				h := catalog.NewHandler(catalog.NewStore(pool, slog.New(slog.DiscardHandler)), slog.New(slog.DiscardHandler), "https://goen.example/")
 				r := httptest.NewRequestWithContext(ctx, http.MethodGet, "/p/"+tt.slug, http.NoBody)
 				r.SetPathValue("slug", tt.slug)
 				w := httptest.NewRecorder()
-				h.Detail(w, r)
+				h.Product(w, r)
 				if w.Code != http.StatusOK {
 					t.Fatalf("product returned %d", w.Code)
 				}

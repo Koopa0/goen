@@ -1,6 +1,6 @@
 //go:build integration
 
-package product_test
+package catalog_test
 
 import (
 	"log/slog"
@@ -8,11 +8,11 @@ import (
 
 	"github.com/google/uuid"
 
-	"github.com/koopa0/goen/internal/product"
+	"github.com/koopa0/goen/internal/catalog"
 	"github.com/koopa0/goen/internal/ui/components"
 )
 
-const departmentOf = `
+const rootDepartmentOf = `
 	WITH RECURSIVE up AS (
 		SELECT c.id, c.parent_id, c.slug FROM categories c WHERE c.id = $1
 		UNION ALL
@@ -44,20 +44,20 @@ func TestRelatedProductsStayInTheDepartmentAndLeadWithTheirSubCategory(t *testin
 
 	department := func(slug string) string {
 		var root string
-		if scanErr := pool.QueryRow(t.Context(), departmentOf, categoryOf[slug]).Scan(&root); scanErr != nil {
+		if scanErr := pool.QueryRow(t.Context(), rootDepartmentOf, categoryOf[slug]).Scan(&root); scanErr != nil {
 			t.Fatal(scanErr)
 		}
 		return root
 	}
 
-	store := product.NewStore(pool, slog.New(slog.DiscardHandler))
+	store := catalog.NewStore(pool, slog.New(slog.DiscardHandler))
 	for _, slug := range slugs {
-		view, loadErr := store.Load(t.Context(), slug, product.Selection{})
+		view, loadErr := store.Product(t.Context(), slug, catalog.Selection{})
 		if loadErr != nil {
 			t.Fatalf("load %s: %v", slug, loadErr)
 		}
-		if len(view.Related) > product.RelatedCount {
-			t.Errorf("%s shows %d related products, want at most %d", slug, len(view.Related), product.RelatedCount)
+		if len(view.Related) > catalog.RelatedCount {
+			t.Errorf("%s shows %d related products, want at most %d", slug, len(view.Related), catalog.RelatedCount)
 		}
 		prev := -1
 		shown := map[string]bool{}
@@ -98,7 +98,7 @@ func TestRelatedProductsStayInTheDepartmentAndLeadWithTheirSubCategory(t *testin
 
 func TestAProductLoadsItsDepartmentsTone(t *testing.T) {
 	t.Parallel()
-	view, err := product.NewStore(pool, slog.New(slog.DiscardHandler)).Load(t.Context(), "nimbus-buds-pro", product.Selection{})
+	view, err := catalog.NewStore(pool, slog.New(slog.DiscardHandler)).Product(t.Context(), "nimbus-buds-pro", catalog.Selection{})
 	if err != nil {
 		t.Fatal(err)
 	}

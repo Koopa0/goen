@@ -1,6 +1,6 @@
 //go:build integration
 
-package product_test
+package catalog_test
 
 import (
 	"context"
@@ -17,8 +17,8 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 	"golang.org/x/net/html"
 
+	"github.com/koopa0/goen/internal/catalog"
 	"github.com/koopa0/goen/internal/i18n"
-	"github.com/koopa0/goen/internal/product"
 	"github.com/koopa0/goen/internal/user"
 )
 
@@ -37,7 +37,7 @@ func TestUndeliveredReviewPOSTKeepsTheRawDraftAndExplainsTheRefusal(t *testing.T
 					buy(t, who, slug)
 				}
 				app := opinionStorePool(t)
-				h := product.NewHandler(product.NewStore(app, slog.New(slog.DiscardHandler)), slog.New(slog.DiscardHandler), "https://goen.example")
+				h := catalog.NewHandler(catalog.NewStore(app, slog.New(slog.DiscardHandler)), slog.New(slog.DiscardHandler), "https://goen.example")
 				title, draft := "  My <& title  ", "  My <& review stays here  \n"
 				form := url.Values{"rating": {"4"}, "title": {title}, "body": {draft}}
 				req := httptest.NewRequestWithContext(user.NewContext(ctx, user.User{ID: who.String()}), http.MethodPost, "/p/"+slug+"/reviews", strings.NewReader(form.Encode()))
@@ -82,8 +82,8 @@ func TestReviewOwnershipTagUsesTheSignedInIdentityEvenWhenNamesMatch(t *testing.
 		t.Run(locale.Tag(), func(t *testing.T) {
 			ctx := i18n.WithLocale(t.Context(), locale)
 			app := opinionStorePool(t)
-			s := product.NewStore(app, slog.New(slog.DiscardHandler))
-			h := product.NewHandler(s, slog.New(slog.DiscardHandler), "https://goen.example")
+			s := catalog.NewStore(app, slog.New(slog.DiscardHandler))
+			h := catalog.NewHandler(s, slog.New(slog.DiscardHandler), "https://goen.example")
 			first, second, outsider := reviewer(t, "own-review"), reviewer(t, "other-review"), reviewer(t, "outsider-review")
 			firstBody, secondBody := "First review "+uuid.NewString(), "Second review "+uuid.NewString()
 			for _, writer := range []struct {
@@ -113,7 +113,7 @@ func TestReviewOwnershipTagUsesTheSignedInIdentityEvenWhenNamesMatch(t *testing.
 					if reader.id != uuid.Nil {
 						readCtx = user.NewContext(ctx, user.User{ID: reader.id.String()})
 					}
-					view, err := s.Load(readCtx, slug, product.Selection{})
+					view, err := s.Product(readCtx, slug, catalog.Selection{})
 					if err != nil {
 						t.Fatal(err)
 					}
@@ -139,7 +139,7 @@ func TestReviewOwnershipTagUsesTheSignedInIdentityEvenWhenNamesMatch(t *testing.
 					req := httptest.NewRequestWithContext(readCtx, http.MethodGet, "/p/"+slug+"?reviewed=1", http.NoBody)
 					req.SetPathValue("slug", slug)
 					res := httptest.NewRecorder()
-					h.Detail(res, req)
+					h.Product(res, req)
 					if res.Code != http.StatusOK {
 						t.Fatalf("review GET = %d, want 200", res.Code)
 					}
@@ -162,7 +162,7 @@ func TestQuestionRefusalPOSTKeepsTheDraftAndReturnsToItsSection(t *testing.T) {
 		t.Run(locale.Tag(), func(t *testing.T) {
 			ctx := i18n.WithLocale(t.Context(), locale)
 			who := reviewer(t, "empty-question")
-			h := product.NewHandler(product.NewStore(opinionStorePool(t), slog.New(slog.DiscardHandler)), slog.New(slog.DiscardHandler), "https://goen.example")
+			h := catalog.NewHandler(catalog.NewStore(opinionStorePool(t), slog.New(slog.DiscardHandler)), slog.New(slog.DiscardHandler), "https://goen.example")
 			draft := " \n "
 			form := url.Values{"body": {draft}}
 			req := httptest.NewRequestWithContext(user.NewContext(ctx, user.User{ID: who.String()}), http.MethodPost, "/p/"+slug+"/questions", strings.NewReader(form.Encode()))
@@ -210,8 +210,8 @@ func TestOverLimitQuestionPOSTNamesTheLimitAndKeepsTheDraft(t *testing.T) {
 		t.Run(locale.Tag(), func(t *testing.T) {
 			ctx := i18n.WithLocale(t.Context(), locale)
 			who := reviewer(t, "long-question")
-			h := product.NewHandler(product.NewStore(opinionStorePool(t), slog.New(slog.DiscardHandler)), slog.New(slog.DiscardHandler), "https://goen.example")
-			draft := strings.Repeat("問", product.MaxQuestionRunes+1)
+			h := catalog.NewHandler(catalog.NewStore(opinionStorePool(t), slog.New(slog.DiscardHandler)), slog.New(slog.DiscardHandler), "https://goen.example")
+			draft := strings.Repeat("問", catalog.MaxQuestionRunes+1)
 			form := url.Values{"body": {draft}}
 			req := httptest.NewRequestWithContext(user.NewContext(ctx, user.User{ID: who.String()}), http.MethodPost, "/p/"+slug+"/questions", strings.NewReader(form.Encode()))
 			req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
@@ -227,8 +227,8 @@ func TestOverLimitQuestionPOSTNamesTheLimitAndKeepsTheDraft(t *testing.T) {
 				t.Fatal("over-limit refusal loses the draft or field refusal")
 			}
 			reason := i18n.T(ctx, i18n.KeyQuestionTooLong)
-			if !strings.Contains(reason, strconv.Itoa(product.MaxQuestionRunes)) {
-				t.Fatalf("too-long message %q does not name the limit %d", reason, product.MaxQuestionRunes)
+			if !strings.Contains(reason, strconv.Itoa(catalog.MaxQuestionRunes)) {
+				t.Fatalf("too-long message %q does not name the limit %d", reason, catalog.MaxQuestionRunes)
 			}
 			errorText := feedbackElement(doc, "ask-body-error")
 			if errorText == nil || feedbackText(errorText) != reason {

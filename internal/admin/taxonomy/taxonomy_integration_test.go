@@ -318,7 +318,7 @@ func TestACategoryTakesItsDepartmentsToneAndPhotographUntilItSetsItsOwn(t *testi
 	if errs, err := s.CreateCategory(ctx, &taxonomy.Form{Slug: child, Name: "子分類", Parent: root}); err != nil || len(errs) > 0 {
 		t.Fatalf("create the sub-category: %v %v", errs, err)
 	}
-	store := catalog.NewStore(pool)
+	store := catalog.NewStore(pool, slog.New(slog.DiscardHandler))
 
 	view, err := store.Listing(ctx, child, catalog.Filters{})
 	if err != nil || view.Theme.ToneAttr() != "sage" || view.Theme.Image().Shown() {
@@ -415,7 +415,7 @@ func TestEveryToneOfTheClosedSetIsStorable(t *testing.T) {
 	if errs, err := taxonomy.NewStore(pool).CreateCategory(ctx, &taxonomy.Form{Slug: slug, Name: "無色調"}); err != nil || len(errs) > 0 {
 		t.Fatalf("create: %v %v", errs, err)
 	}
-	view, err := catalog.NewStore(pool).Listing(ctx, slug, catalog.Filters{})
+	view, err := catalog.NewStore(pool, slog.New(slog.DiscardHandler)).Listing(ctx, slug, catalog.Filters{})
 	if err != nil || view.Theme.ToneAttr() != "stone" {
 		t.Fatalf("a root with no tone = %q (err %v), want stone", view.Theme.ToneAttr(), err)
 	}
@@ -436,7 +436,7 @@ func TestEveryToneOfTheClosedSetIsStorable(t *testing.T) {
 	if err = campaigns.NewStore(pool).SetTone(ctx, camp, "neon"); err == nil {
 		t.Error("a campaign accepted a tone outside the set")
 	}
-	cv, err := catalog.NewStore(pool).Campaign(ctx, camp)
+	cv, err := catalog.NewStore(pool, slog.New(slog.DiscardHandler)).Campaign(ctx, camp)
 	if err != nil || cv.Tone != components.ToneInk {
 		t.Fatalf("campaign tone = %q (err %v), want the last one set, ink", cv.Tone, err)
 	}

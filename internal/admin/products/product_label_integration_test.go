@@ -22,9 +22,9 @@ import (
 	"github.com/koopa0/goen/internal/admin/admintest"
 	"github.com/koopa0/goen/internal/admin/audit"
 	"github.com/koopa0/goen/internal/admin/products"
+	"github.com/koopa0/goen/internal/catalog"
 	"github.com/koopa0/goen/internal/db"
 	"github.com/koopa0/goen/internal/i18n"
-	"github.com/koopa0/goen/internal/product"
 	"github.com/koopa0/goen/internal/product/labelling"
 	"github.com/koopa0/goen/internal/ui/pages/admin"
 	"github.com/koopa0/goen/internal/user"
@@ -74,7 +74,7 @@ func TestProductLabelRoundTripUsesAdminRoleAndAuditsAtomically(t *testing.T) {
 		t.Errorf("stored facts=%+v, want trimmed origin, quantity 1.2 and age 0", view.LabelInput)
 	}
 	for _, locale := range []i18n.Locale{i18n.ZhHant, i18n.En} {
-		pdp, readErr := product.NewStore(reader, slog.New(slog.DiscardHandler)).Load(i18n.WithLocale(ctx, locale), slug, product.Selection{})
+		pdp, readErr := catalog.NewStore(reader, slog.New(slog.DiscardHandler)).Product(i18n.WithLocale(ctx, locale), slug, catalog.Selection{})
 		if readErr != nil {
 			t.Fatal(readErr)
 		}
@@ -106,7 +106,7 @@ func TestProductLabelRoundTripUsesAdminRoleAndAuditsAtomically(t *testing.T) {
 	if err = s.SetProductLabel(ctx, slug, &admin.LabelInput{}); err != nil {
 		t.Fatal(err)
 	}
-	pdp, err := product.NewStore(reader, slog.New(slog.DiscardHandler)).Load(ctx, slug, product.Selection{})
+	pdp, err := catalog.NewStore(reader, slog.New(slog.DiscardHandler)).Product(ctx, slug, catalog.Selection{})
 	if err != nil || len(pdp.LabelRows(ctx)) != 0 {
 		t.Fatalf("cleared public facts=%+v: %v", pdp.LabelFacts, err)
 	}
@@ -117,7 +117,7 @@ func TestProductLabelRoundTripUsesAdminRoleAndAuditsAtomically(t *testing.T) {
 	if err = s.SetProductLabel(ctx, slug, &admin.LabelInput{OriginEn: "Taiwan"}); err != nil {
 		t.Fatal(err)
 	}
-	pdp, err = product.NewStore(reader, slog.New(slog.DiscardHandler)).Load(i18n.WithLocale(ctx, i18n.ZhHant), slug, product.Selection{})
+	pdp, err = catalog.NewStore(reader, slog.New(slog.DiscardHandler)).Product(i18n.WithLocale(ctx, i18n.ZhHant), slug, catalog.Selection{})
 	if err != nil || pdp.LabelFacts.Origin != "Taiwan" {
 		t.Fatalf("English-only origin hidden=%+v: %v", pdp.LabelFacts, err)
 	}

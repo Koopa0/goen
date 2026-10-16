@@ -1,15 +1,13 @@
-package product
+package catalog
 
 import (
 	"context"
 	"errors"
-	"log/slog"
 	"net/http"
 	"net/url"
 	"slices"
 	"strconv"
 	"strings"
-	"time"
 
 	"github.com/google/uuid"
 
@@ -22,39 +20,14 @@ import (
 	"github.com/koopa0/goen/internal/web"
 )
 
-type Handler struct {
-	askLimit    *ratelimit.Limiter
-	notifyLimit *ratelimit.Limiter
-	baseURL     string
-	store       *Store
-	log         *slog.Logger
-}
-
-func NewHandler(store *Store, log *slog.Logger, baseURL string) *Handler {
-	if store == nil || log == nil {
-		panic("product: NewHandler requires a store and a logger")
-	}
-	return &Handler{
-		store: store, log: log, baseURL: baseURL,
-		askLimit: ratelimit.New(ratelimit.Config{
-			Every: 6 * time.Second, Burst: 10, TTL: time.Hour, MaxKeys: 8_192,
-		}),
-		// Same budget as /contact: the form is anonymous, the mailbox is free
-		// text, and the variant id is on the public page.
-		notifyLimit: ratelimit.New(ratelimit.Config{
-			Every: 5 * time.Minute, Burst: 5, TTL: time.Hour, MaxKeys: 8_192,
-		}),
-	}
-}
-
-func (h *Handler) Detail(w http.ResponseWriter, r *http.Request) {
+func (h *Handler) Product(w http.ResponseWriter, r *http.Request) {
 	slug := r.PathValue("slug")
 	sel := ParseSelection(r.URL.Query())
 
-	view, err := h.store.Load(r.Context(), slug, sel)
+	view, err := h.store.Product(r.Context(), slug, sel)
 	if err != nil {
 		if errors.Is(err, ErrNotFound) {
-			h.notFound(w, r)
+			h.productNotFound(w, r)
 			return
 		}
 		if errors.Is(err, context.Canceled) {
@@ -87,11 +60,26 @@ func (h *Handler) Detail(w http.ResponseWriter, r *http.Request) {
 	web.Render(w, r, h.log, http.StatusOK, pages.Product(meta, &view))
 }
 
-func (h *Handler) notFound(w http.ResponseWriter, r *http.Request) {
+func (h *Handler) productNotFound(w http.ResponseWriter, r *http.Request) {
 	web.Render(w, r, h.log, http.StatusNotFound, layouts.Notice(
 		layouts.Page{Title: i18n.T(r.Context(), i18n.KeyProductNotFound)}, "404",
 		i18n.T(r.Context(), i18n.KeyProductNotFound),
 		i18n.T(r.Context(), i18n.KeyProductNotFoundBody)))
+}
+
+// ProductFormSlug is the product a refused review or question form re-rendered
+// under: those POST-only addresses have no page of their own to return to.
+func ProductFormSlug(path string) (string, bool) {
+	rest, ok := strings.CutPrefix(path, "/p/")
+	if !ok {
+		return "", false
+	}
+	for _, form := range []string{"/reviews", "/questions"} {
+		if slug, ok := strings.CutSuffix(rest, form); ok && web.ValidSlug(slug) {
+			return slug, true
+		}
+	}
+	return "", false
 }
 
 func (h *Handler) Review(w http.ResponseWriter, r *http.Request) {
@@ -121,7 +109,7 @@ func (h *Handler) Review(w http.ResponseWriter, r *http.Request) {
 	case errors.Is(err, ErrNotDelivered):
 		h.rejectReview(w, r, slug, &draft, map[string]i18n.Key{"body": i18n.KeyReviewNotDelivered})
 	case errors.Is(err, ErrNotFound):
-		h.notFound(w, r)
+		h.productNotFound(w, r)
 	case len(errs) > 0:
 		h.rejectReview(w, r, slug, &draft, errs)
 	default:
@@ -196,10 +184,10 @@ func (h *Handler) redirectNotified(w http.ResponseWriter, r *http.Request, slug 
 }
 
 func (h *Handler) rejectNotify(w http.ResponseWriter, r *http.Request, slug, addr string, outcome pages.NotifyOutcome) {
-	view, err := h.store.Load(r.Context(), slug, ParseSelection(r.URL.Query()))
+	view, err := h.store.Product(r.Context(), slug, ParseSelection(r.URL.Query()))
 	if err != nil {
 		if errors.Is(err, ErrNotFound) {
-			h.notFound(w, r)
+			h.productNotFound(w, r)
 			return
 		}
 		h.log.ErrorContext(r.Context(), "reload product", "error", err, "slug", slug)
@@ -217,7 +205,7 @@ func (h *Handler) rejectNotify(w http.ResponseWriter, r *http.Request, slug, add
 }
 
 func (h *Handler) rejectReview(w http.ResponseWriter, r *http.Request, slug string, review *Review, errs map[string]i18n.Key) {
-	view, err := h.store.Load(r.Context(), slug, ParseSelection(r.URL.Query()))
+	view, err := h.store.Product(r.Context(), slug, ParseSelection(r.URL.Query()))
 	if err != nil {
 		h.log.ErrorContext(r.Context(), "reload product", "error", err, "slug", slug)
 		web.Render(w, r, h.log, http.StatusInternalServerError, layouts.Notice(
@@ -287,7 +275,7 @@ func (h *Handler) Ask(w http.ResponseWriter, r *http.Request) {
 		http.Redirect(w, r, "/p/"+url.PathEscape(slug)+"?ask=1#questions",
 			http.StatusSeeOther)
 	case errors.Is(err, ErrNotFound):
-		h.notFound(w, r)
+		h.productNotFound(w, r)
 	case errors.Is(err, ErrQuestionTooLong):
 		h.rejectAsk(w, r, slug, body, "long")
 	case errors.Is(err, ErrQuestionInvalid):
@@ -302,7 +290,7 @@ func (h *Handler) Ask(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *Handler) rejectAsk(w http.ResponseWriter, r *http.Request, slug, body, outcome string) {
-	view, err := h.store.Load(r.Context(), slug, ParseSelection(r.URL.Query()))
+	view, err := h.store.Product(r.Context(), slug, ParseSelection(r.URL.Query()))
 	if err != nil {
 		h.log.ErrorContext(r.Context(), "reload product", "error", err, "slug", slug)
 		web.Render(w, r, h.log, http.StatusInternalServerError, layouts.Notice(

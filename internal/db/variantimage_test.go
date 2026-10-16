@@ -55,7 +55,7 @@ func TestEveryLinePhotographReadsTheOneView(t *testing.T) {
 		src := maskCalendarSQL(sources[path], true)
 		view := variantPrimaryImageView.FindStringIndex(src)
 		var gallery []int
-		if filepath.ToSlash(path) == "../../internal/product/query.sql" {
+		if filepath.ToSlash(path) == "../../internal/catalog/query.sql" {
 			gallery = productGallery.FindStringIndex(sources[path])
 		}
 		for _, at := range matchesAPhotographToAVariant.FindAllStringIndex(src, -1) {
@@ -77,7 +77,7 @@ func TestEveryLinePhotographReadsTheOneView(t *testing.T) {
 			"the view is gone or no longer applies it, so this test guards nothing", inView)
 	}
 	if inGallery != 1 {
-		t.Errorf("found the rule %d times in product.ProductImages, want 1", inGallery)
+		t.Errorf("found the rule %d times in catalog.ProductImages, want 1", inGallery)
 	}
 }
 
