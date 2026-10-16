@@ -61,7 +61,6 @@ func TestEveryExampleHintReadsInFull(t *testing.T) {
 				examples []string
 			}{
 				"product": {renderComponent(t, ctx, ProductForm(layouts.Page{Title: "Product"}, ProductView{IsNew: true})), []string{"ceramic-mug"}},
-				"faq":     {renderComponent(t, ctx, FAQ(layouts.Page{Title: "FAQ"}, &FAQView{})), []string{"Orders"}},
 			} {
 				for _, e := range c.examples {
 					if want := tt.sentence(e); !strings.Contains(c.body, want) {

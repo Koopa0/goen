@@ -13,7 +13,6 @@ import (
 	"github.com/koopa0/goen/internal/i18n"
 	"github.com/koopa0/goen/internal/keyset"
 	"github.com/koopa0/goen/internal/shoptime"
-	"github.com/koopa0/goen/internal/ui/pages/admin"
 	"github.com/koopa0/goen/internal/web"
 )
 
@@ -96,23 +95,23 @@ type heroPosition struct {
 	ID       uuid.UUID
 }
 
-func (s *Store) HeroSlides(ctx context.Context, after ...string) (admin.HeroView, error) {
+func (s *Store) HeroSlides(ctx context.Context, after ...string) (HeroView, error) {
 	from, resumed := keyset.Resume(heroScope, after, func(p heroPosition) bool { return p.ID != uuid.Nil })
 	rows, err := s.q.AdminHeroSlides(ctx, db.AdminHeroSlidesParams{
 		HasCursor: resumed, AfterPosition: from.Position, AfterID: from.ID, RowLimit: MaxSlides + 1,
 	})
 	if err != nil {
-		return admin.HeroView{}, fmt.Errorf("read hero slides: %w", err)
+		return HeroView{}, fmt.Errorf("read hero slides: %w", err)
 	}
 	live, err := s.storefront.Carousel(ctx)
 	if err != nil {
-		return admin.HeroView{}, fmt.Errorf("read carousel: %w", err)
+		return HeroView{}, fmt.Errorf("read carousel: %w", err)
 	}
 	rows, bound := keyset.PageBound(heroScope, resumed, rows, MaxSlides, func(r *db.AdminHeroSlidesRow) string { return r.PageCursor })
-	view := admin.HeroView{Carousel: live, Bound: bound}
+	view := HeroView{Carousel: live, Bound: bound}
 	for i := range rows {
 		r := &rows[i]
-		view.Rows = append(view.Rows, admin.HeroSlide{
+		view.Rows = append(view.Rows, HeroSlide{
 			ID: r.ID.String(), Eyebrow: r.Eyebrow.String, Headline: r.Headline,
 			CTALabel: r.PrimaryCtaLabel, CTAHref: r.PrimaryCtaHref,
 			ImageDigest: r.MediaDigest.String, Active: r.IsActive,

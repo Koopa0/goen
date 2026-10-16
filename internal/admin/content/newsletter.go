@@ -28,16 +28,6 @@ const (
 
 var ErrAlreadySent = errors.New("content: that newsletter issue has already been sent")
 
-type NewsletterIssue struct {
-	ID         string
-	Subject    string
-	Body       string
-	Sent       bool
-	SentAt     string
-	Recipients int32
-	SentBy     string
-}
-
 func validateNewsletter(subject, body string) map[string]i18n.Key {
 	errs := map[string]i18n.Key{}
 	switch n := utf8.RuneCountInString(strings.TrimSpace(subject)); {
