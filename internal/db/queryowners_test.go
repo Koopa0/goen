@@ -45,10 +45,6 @@ var queryOwnerExceptions = map[string]string{
 	"internal/cart -> OrderPageLines":       "unassigned: the order-placed email reads the order page's lines",
 	"internal/cart -> OrderSummaryByNumber": "unassigned: the order-placed email reads the order page's figures",
 
-	// ShopRules moves to site with its queries.
-	"internal/catalog -> FreeDeliveryThreshold": "T39",
-	"internal/catalog -> LowestDeliveryFee":     "T39",
-
 	// The order page shows what was refunded; the refund engine reads the same sum.
 	"internal/admin/orders -> SettledRefundsForOrder": sharedRead,
 

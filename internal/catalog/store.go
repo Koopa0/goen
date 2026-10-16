@@ -13,57 +13,37 @@ import (
 	"github.com/koopa0/goen/assets"
 	"github.com/koopa0/goen/internal/db"
 	"github.com/koopa0/goen/internal/i18n"
+	"github.com/koopa0/goen/internal/site"
 	"github.com/koopa0/goen/internal/ui/components"
 	"github.com/koopa0/goen/internal/ui/pages"
 )
 
 type Store struct {
-	dbtx     db.DBTX
-	q        *db.Queries
-	log      *slog.Logger
-	now      func() time.Time
-	noPickup bool
+	dbtx db.DBTX
+	q    *db.Queries
+	// site reads the shop rules the department and product pages show.
+	site *site.Store
+	log  *slog.Logger
+	now  func() time.Time
 }
 
 func NewStore(dbtx db.DBTX, log *slog.Logger) *Store {
 	if dbtx == nil || log == nil {
 		panic("catalog: NewStore requires a database handle and a logger")
 	}
-	return &Store{dbtx: dbtx, q: db.New(dbtx), log: log, now: time.Now}
+	return &Store{dbtx: dbtx, q: db.New(dbtx), site: site.NewStore(dbtx), log: log, now: time.Now}
 }
 
 // WithoutPickup is for a deployment whose store map is not configured: checkout
 // offers no pickup there, so what this store describes must not either.
 func (s *Store) WithoutPickup() *Store {
 	c := *s
-	c.noPickup = true
+	c.site = s.site.WithoutPickup()
 	return &c
 }
 
-func (s *Store) ShopRules(ctx context.Context) (pages.ShopRules, error) {
-	return ShopRules(ctx, s.q, !s.noPickup)
-}
-
-// ShopRules reads the rules the shop states about itself. withPickup is false where
-// checkout offers no pickup, so a threshold or floor must not count it.
-func ShopRules(ctx context.Context, q *db.Queries, withPickup bool) (pages.ShopRules, error) {
-	freeOver, err := q.FreeDeliveryThreshold(ctx, withPickup)
-	if err != nil {
-		return pages.ShopRules{}, fmt.Errorf("read free delivery threshold: %w", err)
-	}
-	lowestFee, err := q.LowestDeliveryFee(ctx, withPickup)
-	if err != nil {
-		return pages.ShopRules{}, fmt.Errorf("read lowest delivery fee: %w", err)
-	}
-	windows, err := q.StatedWindows(ctx)
-	if err != nil {
-		return pages.ShopRules{}, fmt.Errorf("read stated windows: %w", err)
-	}
-	return pages.ShopRules{
-		FreeDeliveryCents: freeOver, LowestFeeCents: lowestFee, PickupOffered: withPickup,
-		RescissionDays: windows.RescissionDays, ReturnDays: windows.ReturnDays,
-		HoldMinutes: windows.HoldMinutes, PayStartMinutes: windows.PayStartMinutes,
-	}, nil
+func (s *Store) ShopRules(ctx context.Context) (site.ShopRules, error) {
+	return s.site.ShopRules(ctx)
 }
 
 // Listing uses one set of descendant ids for the listing, the count and the
