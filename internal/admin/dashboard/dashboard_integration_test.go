@@ -21,7 +21,6 @@ import (
 	"github.com/koopa0/goen/internal/i18n"
 	"github.com/koopa0/goen/internal/sales"
 	"github.com/koopa0/goen/internal/shoptime"
-	"github.com/koopa0/goen/internal/ui/pages/admin"
 	"github.com/koopa0/goen/internal/worklist"
 )
 
@@ -31,7 +30,7 @@ import (
 func TestTheDashboardListsAnUninspectedReturnAndAStrandedClaim(t *testing.T) {
 	isolated := admintest.Pool(t)
 	s := storeOver(isolated, health.NewStore(isolated))
-	count := func(tasks []admin.Task, label i18n.Key) int64 {
+	count := func(tasks []dashboard.Task, label i18n.Key) int64 {
 		for _, task := range tasks {
 			if task.Label == label {
 				return task.Count
@@ -210,7 +209,7 @@ func TestTheDashboardAgesAReadyOrderFromWhenItWasFunded(t *testing.T) {
 	s := storeOver(isolated, health.NewStore(isolated))
 	desk := health.NewStore(isolated)
 
-	readyAge := func() (admin.Task, bool) {
+	readyAge := func() (dashboard.Task, bool) {
 		t.Helper()
 		v, err := s.Dashboard(t.Context())
 		if err != nil {
@@ -221,7 +220,7 @@ func TestTheDashboardAgesAReadyOrderFromWhenItWasFunded(t *testing.T) {
 				return task, true
 			}
 		}
-		return admin.Task{}, false
+		return dashboard.Task{}, false
 	}
 	fundedAtOnHealthDesk := func(number string) string {
 		t.Helper()
@@ -268,7 +267,7 @@ func TestTheDashboardAgesAReadyOrderFromWhenItWasFunded(t *testing.T) {
 
 	// The latest paid order is funded when the ready-orders age says: it is the
 	// only committed order, so the two read one funded_at through two queries.
-	recent, err := s.RecentSales(t.Context(), admin.WeekDays, admintest.DatabaseNow(t, isolated))
+	recent, err := s.RecentSales(t.Context(), dashboard.WeekDays, admintest.DatabaseNow(t, isolated))
 	if err != nil {
 		t.Fatalf("RecentSales: %v", err)
 	}
@@ -364,7 +363,7 @@ func TestTheDashboardWeekCountsPaidOrdersAndNamesTheLatest(t *testing.T) {
 	s := storeOver(isolated, health.NewStore(isolated))
 	read := func() sales.Recent {
 		t.Helper()
-		recent, err := s.RecentSales(t.Context(), admin.WeekDays, admintest.DatabaseNow(t, isolated))
+		recent, err := s.RecentSales(t.Context(), dashboard.WeekDays, admintest.DatabaseNow(t, isolated))
 		if err != nil {
 			t.Fatalf("RecentSales: %v", err)
 		}
@@ -408,7 +407,7 @@ func TestTheLatestPaidOrderFollowsWhenMoneyCameInAndSkipsBeforeShipmentRefunds(t
 	s := storeOver(isolated, health.NewStore(isolated))
 	latest := func(store *dashboard.Store) *sales.PaidOrder {
 		t.Helper()
-		recent, err := store.RecentSales(t.Context(), admin.WeekDays, admintest.DatabaseNow(t, isolated))
+		recent, err := store.RecentSales(t.Context(), dashboard.WeekDays, admintest.DatabaseNow(t, isolated))
 		if err != nil {
 			t.Fatalf("RecentSales: %v", err)
 		}
