@@ -81,7 +81,7 @@ func (h *Handler) FindOrder(w http.ResponseWriter, r *http.Request) {
 	// Keyed on the address as the lookup reads it, so case or spacing changes
 	// are the same address; one longer than the policy names no order and is
 	// not kept as a key.
-	if key := email.Clean(addr); key != "" && len(key) <= email.Max {
+	if key := email.Clean(addr); key != "" && len(key) <= email.MaxBytes {
 		if retryAfter, ok := h.findPerAddress.Allow("findorder:" + key); !ok {
 			ratelimit.Refuse(r.Context(), w, retryAfter)
 			return

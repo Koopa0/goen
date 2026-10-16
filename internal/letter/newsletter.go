@@ -1,4 +1,4 @@
-package email
+package letter
 
 import (
 	"context"
@@ -7,17 +7,13 @@ import (
 	"net/url"
 	"strings"
 
+	"github.com/koopa0/goen/internal/email"
 	"github.com/koopa0/goen/internal/i18n"
+	"github.com/koopa0/goen/internal/outbox"
 )
 
-type NewsletterConfirm struct {
-	Locale string `json:"locale"`
-	Email  string `json:"email"`
-	Token  string `json:"token"`
-}
-
-func (n Notifier) SendNewsletterConfirm(ctx context.Context, p *NewsletterConfirm) error {
-	if !Valid(p.Email) {
+func (n Notifier) SendNewsletterConfirm(ctx context.Context, p *outbox.NewsletterConfirm) error {
+	if !email.Valid(p.Email) {
 		return errors.New("a newsletter confirmation has no usable email address")
 	}
 
@@ -30,17 +26,8 @@ func (n Notifier) SendNewsletterConfirm(ctx context.Context, p *NewsletterConfir
 	})
 }
 
-// NewsletterWelcome is what a newsletter.welcome message carries. Its
-// unsubscribe token never expires, because an email sent a year ago still has to
-// take somebody off the list.
-type NewsletterWelcome struct {
-	Locale           string `json:"locale"`
-	Email            string `json:"email"`
-	UnsubscribeToken string `json:"unsubscribe_token"`
-}
-
-func (n Notifier) SendNewsletterWelcome(ctx context.Context, p *NewsletterWelcome) error {
-	if !Valid(p.Email) {
+func (n Notifier) SendNewsletterWelcome(ctx context.Context, p *outbox.NewsletterWelcome) error {
+	if !email.Valid(p.Email) {
 		return errors.New("a newsletter welcome has no usable email address")
 	}
 
@@ -54,21 +41,10 @@ func (n Notifier) SendNewsletterWelcome(ctx context.Context, p *NewsletterWelcom
 	})
 }
 
-// NewsletterIssue is one copy of one newsletter, addressed to one person. The
-// subject and body are the shop's own words and go out as written; only the
-// unsubscribe footer is translated.
-type NewsletterIssue struct {
-	Locale           string `json:"locale"`
-	Email            string `json:"email"`
-	Subject          string `json:"subject"`
-	Body             string `json:"body"`
-	UnsubscribeToken string `json:"unsubscribe_token"`
-}
-
 // SendNewsletterIssue delivers one copy. The unsubscribe link is appended here
 // rather than left to whoever wrote the issue.
-func (n Notifier) SendNewsletterIssue(ctx context.Context, p *NewsletterIssue) error {
-	if !Valid(p.Email) {
+func (n Notifier) SendNewsletterIssue(ctx context.Context, p *outbox.NewsletterIssue) error {
+	if !email.Valid(p.Email) {
 		return errors.New("a newsletter issue has no usable email address")
 	}
 	if p.UnsubscribeToken == "" {
@@ -90,24 +66,8 @@ func (n Notifier) SendNewsletterIssue(ctx context.Context, p *NewsletterIssue) e
 	})
 }
 
-// AddressVerify is what an account.email_verify message carries. The address is
-// in the payload as well as being the recipient, because a CHANGE sends to the
-// new address while the account still holds the old one.
-type AddressVerify struct {
-	Locale string `json:"locale"`
-	Email  string `json:"email"`
-	Token  string `json:"token"`
-	// Registration is a link that completes a registration. It lands on a page
-	// that asks for the password chosen at registration, because the mailbox
-	// alone does not say who chose it.
-	Registration bool `json:"registration,omitempty"`
-	// Next is the same-site path a registration was headed for. The link
-	// carries it and the page it lands on checks it again.
-	Next string `json:"next,omitempty"`
-}
-
-func (n Notifier) SendAddressVerify(ctx context.Context, p *AddressVerify) error {
-	if !Valid(p.Email) {
+func (n Notifier) SendAddressVerify(ctx context.Context, p *outbox.AddressVerify) error {
+	if !email.Valid(p.Email) {
 		return errors.New("an email verification has no usable address")
 	}
 

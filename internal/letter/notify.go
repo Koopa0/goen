@@ -1,4 +1,10 @@
-package email
+// Package letter composes goen's transactional letters, in the language each
+// was asked for, and delivers them over SMTP or, in development, to the log.
+//
+// It reads each letter from the payload its outbox topic stored, or from what
+// was resolved at delivery, and only cmd/goen imports it: a feature queues a
+// payload in internal/outbox and never composes mail itself.
+package letter
 
 import (
 	"context"
@@ -8,8 +14,10 @@ import (
 	"strings"
 	"time"
 
+	"github.com/koopa0/goen/internal/email"
 	"github.com/koopa0/goen/internal/i18n"
 	"github.com/koopa0/goen/internal/money"
+	"github.com/koopa0/goen/internal/outbox"
 )
 
 type Notifier struct {
@@ -28,7 +36,7 @@ type Notifier struct {
 // disclosure rather than naming nobody.
 func New(sender Sender, baseURL, seller, sellerContact string) Notifier {
 	if sender == nil || baseURL == "" {
-		panic("email: New requires a sender and a base URL")
+		panic("letter: New requires a sender and a base URL")
 	}
 	return Notifier{
 		sender: sender, baseURL: baseURL, seller: seller, sellerContact: sellerContact,
@@ -67,21 +75,8 @@ func (n Notifier) orderURL(number string) string {
 	return strings.TrimRight(n.baseURL, "/") + "/orders/" + number
 }
 
-type OrderPlaced struct {
-	Locale      string `json:"locale"`
-	OrderNumber string `json:"order_number"`
-	Email       string `json:"email"`
-	Name        string `json:"name"`
-	TotalCents  int64  `json:"total_cents"`
-	// OwedCents is what is still payable after store credit. Zero is a value,
-	// not an absence: a fully funded order writes 0 and gets the letter with
-	// nothing to pay, so the field is never omitted.
-	OwedCents int64           `json:"owed_cents"`
-	Snapshot  *PlacedSnapshot `json:"snapshot,omitempty"`
-}
-
-func (n Notifier) SendOrderPlaced(ctx context.Context, p *OrderPlaced) error {
-	if !Valid(p.Email) {
+func (n Notifier) SendOrderPlaced(ctx context.Context, p *outbox.OrderPlaced) error {
+	if !email.Valid(p.Email) {
 		// Still an error though no retry can fix it: the outbox reschedules and
 		// Stuck() shows it to a human.
 		return fmt.Errorf("order %s has no usable email address", p.OrderNumber)
@@ -112,19 +107,8 @@ func placedLetterBody(ctx context.Context, number string, owedCents int64, order
 // the page it links to cannot disagree about a figure.
 func twd(cents int64) string { return money.TWD(cents) }
 
-// PasswordReset is what a reset message needs. The token travels in the payload
-// and lives in outbox_messages until the row is swept.
-type PasswordReset struct {
-	Locale string `json:"locale"`
-	// Tagged, like every other payload here: erase_user matches the exact
-	// recipient field, so a row that names the address under another key is
-	// not erased.
-	Email string `json:"email"`
-	Token string `json:"token"`
-}
-
-func (n Notifier) SendPasswordReset(ctx context.Context, p *PasswordReset) error {
-	if !Valid(p.Email) {
+func (n Notifier) SendPasswordReset(ctx context.Context, p *outbox.PasswordReset) error {
+	if !email.Valid(p.Email) {
 		return errors.New("a password reset has no usable email address")
 	}
 
@@ -155,7 +139,7 @@ type AccountExists struct {
 // have an account" is given, and it goes to the mailbox rather than to whoever
 // asked.
 func (n Notifier) SendAccountExists(ctx context.Context, p *AccountExists) error {
-	if !Valid(p.Email) {
+	if !email.Valid(p.Email) {
 		return errors.New("an account-exists notice has no usable recipient")
 	}
 	ctx = n.locale(ctx, p.Locale)

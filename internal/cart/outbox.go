@@ -5,7 +5,6 @@ import (
 	"fmt"
 
 	"github.com/koopa0/goen/internal/db"
-	"github.com/koopa0/goen/internal/email"
 	"github.com/koopa0/goen/internal/i18n"
 	"github.com/koopa0/goen/internal/order/delivery"
 	"github.com/koopa0/goen/internal/outbox"
@@ -35,7 +34,7 @@ func enqueueOrderPlaced(ctx context.Context, q *db.Queries, number string, addr 
 		return fmt.Errorf("read stock hold for order.placed: %w", err)
 	}
 	// finishOrder persists this same delivery after the confirmation is queued.
-	snapshot := &email.PlacedSnapshot{
+	snapshot := &outbox.PlacedSnapshot{
 		SubtotalCents: summary.SubtotalCents, ShippingCents: summary.ShippingCents,
 		DiscountCents: summary.DiscountCents, DiscountReason: summary.DiscountReason,
 		CreditCents: summary.CreditCents, ShippingName: summary.ShippingMethodName,
@@ -45,16 +44,16 @@ func enqueueOrderPlaced(ctx context.Context, q *db.Queries, number string, addr 
 			Street: addr.Street, PickupChain: addr.PickupChain,
 			PickupStoreCode: addr.PickupStoreCode, PickupStoreName: addr.PickupStoreName,
 		}.Line(),
-		Lines: make([]email.PlacedLine, 0, len(lines)),
+		Lines: make([]outbox.PlacedLine, 0, len(lines)),
 	}
 	for i := range lines {
 		line := &lines[i]
-		snapshot.Lines = append(snapshot.Lines, email.PlacedLine{
+		snapshot.Lines = append(snapshot.Lines, outbox.PlacedLine{
 			SKU: line.SKU, Name: line.ProductName, Label: line.VariantLabel.String,
 			UnitCents: line.UnitPriceCents, Quantity: line.Quantity,
 		})
 	}
-	return outbox.Enqueue(ctx, q, outbox.TopicOrderPlaced, number, &email.OrderPlaced{
+	return outbox.Enqueue(ctx, q, outbox.TopicOrderPlaced, number, &outbox.OrderPlaced{
 		OrderNumber: number, Email: addr.Email, Name: addr.RecipientName, TotalCents: totalCents,
 		OwedCents: summary.OwedCents, Snapshot: snapshot, Locale: i18n.FromContext(ctx).Tag(),
 	})

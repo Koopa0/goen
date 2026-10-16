@@ -18,7 +18,7 @@ func TestConfirmationMaskDoesNotRevealTheLocalPartOrItsLength(t *testing.T) {
 		{address: "not-an-address", want: ""},
 		{address: "Ada <ada@example.com>", want: ""},
 		{address: "a@example.com\r\nBcc: hidden@example.com", want: ""},
-		{address: strings.Repeat("a", email.Max) + "@example.com", want: ""},
+		{address: strings.Repeat("a", email.MaxBytes) + "@example.com", want: ""},
 	} {
 		t.Run(tt.address, func(t *testing.T) {
 			t.Parallel()
@@ -43,7 +43,7 @@ func TestConfirmationQueryAcceptsOnlyAMaskedAddress(t *testing.T) {
 		{value: "a***@example.com\x00"},
 		{value: "a***@example.com\r\nBcc: x@example.com"},
 		{value: `<script>***@example.com`},
-		{value: strings.Repeat("a", email.Max+4)},
+		{value: strings.Repeat("a", email.MaxBytes+4)},
 	} {
 		t.Run(tt.value, func(t *testing.T) {
 			t.Parallel()
@@ -63,7 +63,7 @@ func FuzzConfirmationDisplay(f *testing.F) {
 		if masked != "" && email.ReadMasked(masked) != masked {
 			t.Errorf("masked address %q did not survive its confirmation redirect", masked)
 		}
-		if got := email.ReadMasked(address); got != "" && len(got) > email.Max+3 {
+		if got := email.ReadMasked(address); got != "" && len(got) > email.MaxBytes+3 {
 			t.Errorf("display address length = %d, want bounded", len(got))
 		}
 	})

@@ -55,10 +55,10 @@ func (s *Store) EmailVerification(ctx context.Context, userID string) (Verificat
 // the caller can answer both the same; the outbox worker decides what the
 // mailbox is sent, in [Store.DeliverAddressVerify].
 func (s *Store) requestVerification(ctx context.Context, userID, addr string) error {
-	return s.queueVerification(ctx, userID, addr, email.AddressVerify{})
+	return s.queueVerification(ctx, userID, addr, outbox.AddressVerify{})
 }
 
-func (s *Store) queueVerification(ctx context.Context, userID, addr string, link email.AddressVerify) error {
+func (s *Store) queueVerification(ctx context.Context, userID, addr string, link outbox.AddressVerify) error {
 	id, parseErr := uuid.Parse(userID)
 	if parseErr != nil {
 		return fmt.Errorf("parse user id: %w", parseErr)
@@ -112,9 +112,9 @@ func (s *Store) queueVerification(ctx context.Context, userID, addr string, link
 // send.
 func (s *Store) DeliverAddressVerify(
 	ctx context.Context,
-	p *email.AddressVerify,
-	send func(context.Context, *email.AddressVerify) error,
-	tell func(context.Context, *email.AccountExists) error,
+	p *outbox.AddressVerify,
+	send func(context.Context, *outbox.AddressVerify) error,
+	tell func(context.Context, *AddressTaken) error,
 ) error {
 	verification, err := usableVerification(ctx, s.q, bearer.Digest(p.Token))
 	if errors.Is(err, ErrVerifyInvalid) {
@@ -132,7 +132,7 @@ func (s *Store) DeliverAddressVerify(
 	if err != nil {
 		return fmt.Errorf("read the account at the address: %w", err)
 	}
-	return tell(ctx, &email.AccountExists{
+	return tell(ctx, &AddressTaken{
 		Locale: p.Locale, Email: holder.Email, Name: holder.FullName.String, Change: true,
 	})
 }

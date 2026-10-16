@@ -7,7 +7,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/koopa0/goen/internal/email"
+	"github.com/koopa0/goen/internal/letter"
 )
 
 // resetLink stands for the credential every reset and verification mail
@@ -57,14 +57,14 @@ func TestMailConveniencesExistOnlyInDevelopment(t *testing.T) {
 					t.Fatalf("newSender: %v", err)
 				}
 				switch s := sender.(type) {
-				case email.LogSender:
+				case letter.LogSender:
 					if smtpAddr != "" {
 						t.Fatalf("a configured relay produced %T", sender)
 					}
 					if s.ShowBody != tt.development {
 						t.Errorf("LogSender.ShowBody = %v, want %v", s.ShowBody, tt.development)
 					}
-					if err := s.Send(t.Context(), &email.Message{
+					if err := s.Send(t.Context(), &letter.Message{
 						To: "owner@example.com", Subject: "reset", Body: "Open " + resetLink + " now.\n",
 					}); err != nil {
 						t.Fatalf("Send: %v", err)
@@ -72,7 +72,7 @@ func TestMailConveniencesExistOnlyInDevelopment(t *testing.T) {
 					if got := strings.Contains(logged.String(), resetLink); got != tt.development {
 						t.Errorf("the reset link is in the log = %v, want %v:\n%s", got, tt.development, logged.String())
 					}
-				case email.SMTPSender:
+				case letter.SMTPSender:
 					if smtpAddr == "" {
 						t.Fatalf("no relay produced %T", sender)
 					}

@@ -58,8 +58,8 @@ func Validate(ctx context.Context, m Message) map[string]string {
 	switch {
 	case m.Email == "":
 		errs.set("email", i18n.T(ctx, i18n.KeyEmailRequired))
-	case len(m.Email) > email.Max:
-		errs.set("email", fmt.Sprintf(i18n.T(ctx, i18n.KeyEmailTooLong), email.Max))
+	case len(m.Email) > email.MaxBytes:
+		errs.set("email", fmt.Sprintf(i18n.T(ctx, i18n.KeyEmailTooLong), email.MaxBytes))
 	case !email.Valid(m.Email):
 		errs.set("email", i18n.T(ctx, i18n.KeyEmailMalformed))
 	}

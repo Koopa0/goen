@@ -1,4 +1,4 @@
-package email
+package letter
 
 import (
 	"bytes"
@@ -12,6 +12,9 @@ import (
 	"sync"
 	"testing"
 	"time"
+
+	"github.com/koopa0/goen/internal/email"
+	"github.com/koopa0/goen/internal/outbox"
 )
 
 // TestTheEnvelopeSenderIsABareAddress asserts on envelopeFrom, because the only
@@ -59,7 +62,7 @@ func TestTheEnvelopeSenderIsABareAddress(t *testing.T) {
 			if got != tt.want {
 				t.Errorf("envelopeFrom(%q) = %q, want %q", tt.from, got, tt.want)
 			}
-			if !Valid(got) {
+			if !email.Valid(got) {
 				t.Errorf("envelopeFrom(%q) = %q, which Valid refuses — that is the "+
 					"exact shape smtp.Client.Mail cannot be given", tt.from, got)
 			}
@@ -215,6 +218,8 @@ func (c *stallFirstSetDeadlineConn) SetDeadline(t time.Time) error {
 // deadline. A hook registered before SetDeadline lets the main goroutine
 // replace the interrupt with the future timeout.
 func TestAuditSMTPCancellationDuringSocketSetup(t *testing.T) {
+	t.Parallel()
+
 	ln := listener(t)
 	accepted := make(chan net.Conn, 1)
 	go func() {
@@ -227,28 +232,22 @@ func TestAuditSMTPCancellationDuringSocketSetup(t *testing.T) {
 	ctx, cancel := context.WithCancel(t.Context())
 	defer cancel()
 
-	smtpConnMu.Lock()
-	origDial := smtpConn
-	smtpConn = func(dialCtx context.Context, addr string) (net.Conn, error) {
-		c, err := origDial(dialCtx, addr)
-		if err != nil {
-			return nil, err
-		}
-		return &stallFirstSetDeadlineConn{
-			Conn: c,
-			onFirst: func() {
-				cancel()
-			},
-		}, nil
+	s := SMTPSender{
+		Addr: ln.Addr().String(), From: "no-reply@goen.example", Auth: nil, TLSName: "",
+		dial: func(dialCtx context.Context, network, addr string) (net.Conn, error) {
+			var d net.Dialer
+			c, err := d.DialContext(dialCtx, network, addr)
+			if err != nil {
+				return nil, err
+			}
+			return &stallFirstSetDeadlineConn{
+				Conn: c,
+				onFirst: func() {
+					cancel()
+				},
+			}, nil
+		},
 	}
-	smtpConnMu.Unlock()
-	t.Cleanup(func() {
-		smtpConnMu.Lock()
-		smtpConn = origDial
-		smtpConnMu.Unlock()
-	})
-
-	s := SMTPSender{Addr: ln.Addr().String(), From: "no-reply@goen.example", Auth: nil, TLSName: ""}
 	done := make(chan error, 1)
 	go func() {
 		done <- s.Send(ctx, &Message{To: "a@b.co", Subject: "s", Body: "b"})
@@ -555,5 +554,17 @@ func TestRefusalToSendDoesNotCarryTheAddress(t *testing.T) {
 		if strings.Contains(err.Error(), secret) {
 			t.Errorf("error %q carries %q", err, secret)
 		}
+	}
+}
+
+// TestTheHandlerBudgetIsTheSendersOwnTimeout: [outbox.HandlerBudget] mirrors
+// SendTimeout, and the outbox's lease arithmetic is sized for that budget.
+func TestTheHandlerBudgetIsTheSendersOwnTimeout(t *testing.T) {
+	t.Parallel()
+
+	if outbox.HandlerBudget < SendTimeout {
+		t.Errorf("outbox.HandlerBudget is %v and SendTimeout is %v — the lease "+
+			"arithmetic is sized for a handler that can no longer finish inside it",
+			outbox.HandlerBudget, SendTimeout)
 	}
 }

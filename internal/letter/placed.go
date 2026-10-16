@@ -1,4 +1,4 @@
-package email
+package letter
 
 import (
 	"context"
@@ -8,35 +8,11 @@ import (
 	"time"
 
 	"github.com/koopa0/goen/internal/i18n"
+	"github.com/koopa0/goen/internal/outbox"
 	"github.com/koopa0/goen/internal/shoptime"
 )
 
-// PlacedSnapshot records the terms when checkout commits, rather than reading
-// a changed order or catalogue when the outbox finally sends its confirmation.
-type PlacedSnapshot struct {
-	Lines          []PlacedLine `json:"lines"`
-	SubtotalCents  int64        `json:"subtotal_cents"`
-	ShippingCents  int64        `json:"shipping_cents"`
-	DiscountCents  int64        `json:"discount_cents"`
-	DiscountReason string       `json:"discount_reason"`
-	CreditCents    int64        `json:"credit_cents"`
-	ShippingName   string       `json:"shipping_name"`
-	DeliveryTo     string       `json:"delivery_to"`
-	Phone          string       `json:"phone"`
-	DeliveryNote   string       `json:"delivery_note"`
-	HoldUntil      time.Time    `json:"hold_until"`
-	StartBy        time.Time    `json:"start_by"`
-}
-
-type PlacedLine struct {
-	SKU       string `json:"sku"`
-	Name      string `json:"name"`
-	Label     string `json:"label"`
-	UnitCents int64  `json:"unit_cents"`
-	Quantity  int32  `json:"quantity"`
-}
-
-func (n Notifier) placedConfirmation(ctx context.Context, p *OrderPlaced, owed int64, now time.Time) string {
+func (n Notifier) placedConfirmation(ctx context.Context, p *outbox.OrderPlaced, owed int64, now time.Time) string {
 	s := p.Snapshot
 	blocks := []string{fmt.Sprintf(i18n.T(ctx, i18n.KeyMailPlacedReceived), p.OrderNumber)}
 	lines := make([]string, 1, 1+2*len(s.Lines))

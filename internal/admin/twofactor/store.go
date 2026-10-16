@@ -17,7 +17,6 @@ import (
 
 	"github.com/koopa0/goen/internal/admin/audit"
 	"github.com/koopa0/goen/internal/db"
-	"github.com/koopa0/goen/internal/email"
 	"github.com/koopa0/goen/internal/i18n"
 	"github.com/koopa0/goen/internal/outbox"
 )
@@ -81,7 +80,7 @@ func (s *Store) Begin(ctx context.Context, userID, address string) (secret []byt
 	if n == 0 {
 		return nil, "", ErrEnrolled
 	}
-	if err := outbox.Enqueue(ctx, q, outbox.TopicStaffEnrolment, "staff-enrolment:"+uuid.NewString(), &email.StaffEnrolment{
+	if err := outbox.Enqueue(ctx, q, outbox.TopicStaffEnrolment, "staff-enrolment:"+uuid.NewString(), &outbox.StaffEnrolment{
 		Locale: i18n.FromContext(ctx).Tag(), Email: address, Code: mailed,
 	}); err != nil {
 		return nil, "", err
@@ -228,7 +227,7 @@ func refuse(ctx context.Context, q *db.Queries, id uuid.UUID, cred db.ChargeTOTP
 	if cred.FailedAttempts != 1 && !locked {
 		return nil
 	}
-	return outbox.Enqueue(ctx, q, outbox.TopicStaffFactorFailure, "staff-factor-failure:"+uuid.NewString(), &email.StaffFactorFailure{
+	return outbox.Enqueue(ctx, q, outbox.TopicStaffFactorFailure, "staff-factor-failure:"+uuid.NewString(), &outbox.StaffFactorFailure{
 		Locale: i18n.FromContext(ctx).Tag(), Email: cred.Email, Locked: locked, Limit: MaxFailures,
 	})
 }
