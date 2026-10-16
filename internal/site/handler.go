@@ -2,7 +2,8 @@
 // page, and the chrome every storefront page wears: the promotion strip and the
 // header's department row. Middleware puts the chrome on the request's context,
 // so no page handler has to remember to read it; which paths carry it is the
-// route table's decision, in cmd/goen.
+// route table's decision, in cmd/goen. It also reads the rules the shop states
+// about itself, which the home, department and product pages show.
 package site
 
 import (

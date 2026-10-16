@@ -50,13 +50,13 @@ func (s *Store) Product(ctx context.Context, slug string, sel Selection) (pages.
 
 	chosen, exact := Resolve(variants, sel)
 
-	rules, err := ShopRules(ctx, s.q, !s.noPickup)
+	rules, err := s.site.ShopRules(ctx)
 	if err != nil {
 		return pages.ProductView{}, err
 	}
 
 	view := pages.ProductView{
-		Rules:                   rules,
+		Rules:                   pages.ShopRules(rules),
 		Slug:                    p.Slug,
 		Name:                    p.Name,
 		Summary:                 p.Summary,
