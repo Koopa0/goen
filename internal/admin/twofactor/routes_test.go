@@ -1,0 +1,50 @@
+package twofactor
+
+import (
+	"log/slog"
+	"net/http"
+	"net/http/httptest"
+	"testing"
+
+	"github.com/google/uuid"
+
+	"github.com/koopa0/goen/internal/admin/access"
+	"github.com/koopa0/goen/internal/admin/access/accesstest"
+	"github.com/koopa0/goen/internal/user"
+)
+
+func TestEveryRouteRefusesAnOutsider(t *testing.T) {
+	t.Parallel()
+	h := keylessHandler(t)
+	accesstest.RefuseOutsiders(t, func(mux *http.ServeMux, ac *access.Control) {
+		h.Routes(mux, ac)
+	}, "GET /admin/verify", "POST /admin/verify", "POST /admin/verify/enrol", "POST /admin/verify/confirm")
+}
+
+// These pages are where every other back-office route sends staff who have not
+// passed the second factor, so they must open to them: behind the step-up they
+// would send the same staff member back to themselves forever.
+func TestEveryRouteOpensBeforeTheSecondFactor(t *testing.T) {
+	t.Parallel()
+	mux := http.NewServeMux()
+	notVerified := func(*http.Request) (bool, error) { return false, nil }
+	keylessHandler(t).Routes(mux, access.New(slog.New(slog.DiscardHandler), notVerified))
+	for _, tt := range []struct {
+		method, path string
+		code         int
+		location     string
+	}{
+		{http.MethodGet, "/admin/verify", http.StatusOK, ""},
+		{http.MethodPost, "/admin/verify", http.StatusSeeOther, "/admin/verify?disabled=1"},
+		{http.MethodPost, "/admin/verify/enrol", http.StatusSeeOther, "/admin/verify?disabled=1"},
+		{http.MethodPost, "/admin/verify/confirm", http.StatusSeeOther, "/admin/verify?disabled=1"},
+	} {
+		ctx := user.NewContext(t.Context(), user.User{ID: uuid.NewString(), Role: user.RoleStaff})
+		rec := httptest.NewRecorder()
+		mux.ServeHTTP(rec, httptest.NewRequestWithContext(ctx, tt.method, tt.path, http.NoBody))
+		if rec.Code != tt.code || rec.Header().Get("Location") != tt.location {
+			t.Errorf("%s %s before the second factor = %d to %q, want %d to %q from the page itself",
+				tt.method, tt.path, rec.Code, rec.Header().Get("Location"), tt.code, tt.location)
+		}
+	}
+}

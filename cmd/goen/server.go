@@ -15,16 +15,16 @@ import (
 	"github.com/koopa0/goen/internal/admin/campaigns"
 	"github.com/koopa0/goen/internal/admin/content"
 	"github.com/koopa0/goen/internal/admin/coupons"
-	customerdesk "github.com/koopa0/goen/internal/admin/customers"
+	"github.com/koopa0/goen/internal/admin/customers"
 	"github.com/koopa0/goen/internal/admin/dashboard"
 	"github.com/koopa0/goen/internal/admin/feedback"
 	"github.com/koopa0/goen/internal/admin/health"
-	"github.com/koopa0/goen/internal/admin/loyalty"
+	adminloyalty "github.com/koopa0/goen/internal/admin/loyalty"
 	"github.com/koopa0/goen/internal/admin/orders"
 	"github.com/koopa0/goen/internal/admin/products"
 	"github.com/koopa0/goen/internal/admin/refunds"
 	"github.com/koopa0/goen/internal/admin/reports"
-	returndesk "github.com/koopa0/goen/internal/admin/returns"
+	"github.com/koopa0/goen/internal/admin/returns"
 	"github.com/koopa0/goen/internal/admin/shipping"
 	"github.com/koopa0/goen/internal/admin/staff"
 	"github.com/koopa0/goen/internal/admin/stock"
@@ -35,7 +35,7 @@ import (
 	"github.com/koopa0/goen/internal/contact"
 	"github.com/koopa0/goen/internal/home"
 	"github.com/koopa0/goen/internal/invoice/issuer"
-	rewards "github.com/koopa0/goen/internal/loyalty"
+	"github.com/koopa0/goen/internal/loyalty"
 	"github.com/koopa0/goen/internal/media"
 	"github.com/koopa0/goen/internal/newsletter"
 	"github.com/koopa0/goen/internal/order/access"
@@ -174,13 +174,13 @@ func newRouter(cfg *RouterConfig, log *slog.Logger) http.Handler {
 	basketStore := cart.NewStore(pool)
 	basket := cart.NewHandler(basketStore, orderAccess, log, secureCookies, findLimit,
 		sessionCloser(front.Payments), front.StoreMap, barcodeChecker)
-	customers := account.NewHandler(account.NewStore(pool), basket, log, secureCookies, front.Google)
-	customers.OfferDemoAccount(front.DemoAccount)
+	accounts := account.NewHandler(account.NewStore(pool), basket, log, secureCookies, front.Google)
+	accounts.OfferDemoAccount(front.DemoAccount)
 	// One store decides whether this deployment has a second factor at all, so
 	// /admin and the storefront's account doors cannot disagree about it.
 	factorStore := twofactor.NewStore(adminPool, cfg.BackOffice.TOTPKey, cfg.BackOffice.TOTPPreviousKey)
-	customers.RequireStepUpFromStaff(storefrontStepUp(factorStore, pool, log))
-	storefrontRoutes(mux, front, log, catalogue, sitePages, basket, customers, orderAccess, findLimit)
+	accounts.RequireStepUpFromStaff(storefrontStepUp(factorStore, pool, log))
+	storefrontRoutes(mux, front, log, catalogue, sitePages, basket, accounts, orderAccess, findLimit)
 	backOfficeRoutes(mux, &cfg.BackOffice, factorStore, log, poolsOnHealthPage(pool, adminPool, cfg.BackOffice.MaintenancePool))
 	mux.HandleFunc("GET /", sitePages.NotFound)
 
@@ -197,7 +197,7 @@ func newRouter(cfg *RouterConfig, log *slog.Logger) http.Handler {
 		return withLocale(next, secureCookies)
 	}, handler)
 	handler = onlyVisitorPaths(basket.WithCount, handler)
-	handler = onlyVisitorPaths(customers.Authenticate, handler)
+	handler = onlyVisitorPaths(accounts.Authenticate, handler)
 	handler = withRequestBudget(handler)
 	handler = crossOriginProtection(handler, front.StoreMap.Enabled())
 	// Before routing and before every middleware that reads the request, so no
@@ -213,7 +213,7 @@ func newRouter(cfg *RouterConfig, log *slog.Logger) http.Handler {
 // chain and the catch-all read them too.
 func storefrontRoutes(mux *http.ServeMux, cfg *StorefrontConfig, log *slog.Logger,
 	catalogue *catalog.Store, sitePages *site.Handler, basket *cart.Handler,
-	customers *account.Handler, orderAccess *access.Store, findLimit *ratelimit.Limiter) {
+	accounts *account.Handler, orderAccess *access.Store, findLimit *ratelimit.Limiter) {
 	pool, gateway := cfg.StorePool, cfg.Payments
 	baseURL, secureCookies := cfg.BaseURL, cfg.SecureCookies
 	authLimit := ratelimit.New(ratelimit.Config{
@@ -247,7 +247,7 @@ func storefrontRoutes(mux *http.ServeMux, cfg *StorefrontConfig, log *slog.Logge
 	// so the back office gets its own store on the admin pool below.
 	signups := newsletter.NewHandler(newsletter.NewStore(pool), signupLimit, log)
 	cover := warranty.NewHandler(warranty.NewStore(pool), log)
-	points := rewards.NewHandler(rewards.NewStore(pool), log)
+	points := loyalty.NewHandler(loyalty.NewStore(pool), log)
 	items := product.NewHandler(productStore, log, baseURL)
 	// Every checkout submission looks up the coupon it carries, and a chooser
 	// change is a submission too, so a whole checkout is a dozen posts at most.
@@ -329,67 +329,67 @@ func storefrontRoutes(mux *http.ServeMux, cfg *StorefrontConfig, log *slog.Logge
 	// the Stripe-Signature header the handler verifies.
 	mux.HandleFunc("POST /webhooks/stripe", till.Webhook)
 
-	mux.HandleFunc("GET /signin", customers.SignInPage)
+	mux.HandleFunc("GET /signin", accounts.SignInPage)
 	// GET on both: the callback is a redirect from Google whose method goen does
 	// not choose, and nothing about an account changes until the callback has
 	// matched the state it issued.
-	mux.HandleFunc("GET /auth/google", customers.GoogleSignIn)
-	mux.HandleFunc("GET /auth/google/callback", customers.GoogleCallback)
+	mux.HandleFunc("GET /auth/google", accounts.GoogleSignIn)
+	mux.HandleFunc("GET /auth/google/callback", accounts.GoogleCallback)
 	// The limiter runs before argon2 does: at 64 MiB a hash, an unbounded
 	// endpoint is a memory exhaustion anybody can trigger. One limiter across
 	// them all, so moving between them earns no fresh allowance.
-	mux.HandleFunc("POST /signin", clearSpeculations(ratelimit.Guard(authLimit, log, customers.SignIn)))
-	mux.HandleFunc("GET /forgot", customers.ForgotPage)
-	mux.HandleFunc("POST /forgot", ratelimit.Guard(authLimit, log, customers.Forgot))
+	mux.HandleFunc("POST /signin", clearSpeculations(ratelimit.Guard(authLimit, log, accounts.SignIn)))
+	mux.HandleFunc("GET /forgot", accounts.ForgotPage)
+	mux.HandleFunc("POST /forgot", ratelimit.Guard(authLimit, log, accounts.Forgot))
 	// RequireUser's sign-in return URL would issue GET to this POST-only action.
 	mux.HandleFunc("POST /account/password/setup",
-		ratelimit.Guard(authLimit, log, customers.RequestPasswordSetup))
-	mux.HandleFunc("GET /reset", customers.ResetPage)
-	mux.HandleFunc("POST /reset", ratelimit.Guard(authLimit, log, customers.Reset))
+		ratelimit.Guard(authLimit, log, accounts.RequestPasswordSetup))
+	mux.HandleFunc("GET /reset", accounts.ResetPage)
+	mux.HandleFunc("POST /reset", ratelimit.Guard(authLimit, log, accounts.Reset))
 	// Open to a signed-out visitor, who is sent on rather than refused: a
 	// registration link to the page that asks for its password, and a new
 	// address's link to sign in first. The token proves only the mailbox, and
 	// the address goes to the account that asked for it.
-	mux.HandleFunc("GET /verify", customers.VerifyPage)
-	mux.HandleFunc("POST /verify", ratelimit.Guard(authLimit, log, customers.Verify))
-	mux.HandleFunc("GET /register", customers.RegisterPage)
-	mux.HandleFunc("POST /register", clearSpeculations(ratelimit.Guard(authLimit, log, customers.Register)))
-	mux.HandleFunc("POST /register/resend", ratelimit.Guard(authLimit, log, customers.ResendRegistration))
+	mux.HandleFunc("GET /verify", accounts.VerifyPage)
+	mux.HandleFunc("POST /verify", ratelimit.Guard(authLimit, log, accounts.Verify))
+	mux.HandleFunc("GET /register", accounts.RegisterPage)
+	mux.HandleFunc("POST /register", clearSpeculations(ratelimit.Guard(authLimit, log, accounts.Register)))
+	mux.HandleFunc("POST /register/resend", ratelimit.Guard(authLimit, log, accounts.ResendRegistration))
 	// Open to a signed-out visitor: the link and the password chosen at
 	// registration are the proof. Under authLimit because it runs
 	// argon2, and it signs in, so it clears speculations.
-	mux.HandleFunc("GET /register/complete", customers.CompleteRegistrationPage)
-	mux.HandleFunc("POST /register/complete", clearSpeculations(ratelimit.Guard(authLimit, log, customers.CompleteRegistration)))
-	mux.HandleFunc("POST /signout", clearSpeculations(clearCache(customers.SignOut)))
-	mux.HandleFunc("GET /account", customers.RequireUser(customers.Overview))
-	mux.HandleFunc("GET /account/cart-recovery", customers.RequireUser(customers.CartRecoveryPage))
-	mux.HandleFunc("POST /account/cart/retry", customers.RequireUser(customers.RetryCartAdoption))
-	mux.HandleFunc("GET /account/points", customers.RequireUser(points.Page))
-	mux.HandleFunc("POST /account/points", customers.RequireUser(points.Redeem))
-	mux.HandleFunc("GET /account/warranty", customers.RequireUser(cover.List))
-	mux.HandleFunc("GET /account/warranty/{number}", customers.RequireUser(cover.Order))
-	mux.HandleFunc("POST /account/warranty/{number}", customers.RequireUser(cover.Register))
-	mux.HandleFunc("GET /account/wishlist", customers.RequireUser(customers.Wishlist))
-	mux.HandleFunc("POST /account/wishlist", customers.RequireUser(customers.SaveWishlist))
-	mux.HandleFunc("GET /account/orders/{number}", customers.RequireUser(customers.OrderPage))
-	mux.HandleFunc("POST /account/profile", customers.RequireUser(customers.UpdateProfile))
-	mux.HandleFunc("POST /account/addresses", customers.RequireUser(customers.AddAddress))
-	mux.HandleFunc("GET /account/addresses/{address}/edit", customers.RequireUser(customers.EditAddress))
+	mux.HandleFunc("GET /register/complete", accounts.CompleteRegistrationPage)
+	mux.HandleFunc("POST /register/complete", clearSpeculations(ratelimit.Guard(authLimit, log, accounts.CompleteRegistration)))
+	mux.HandleFunc("POST /signout", clearSpeculations(clearCache(accounts.SignOut)))
+	mux.HandleFunc("GET /account", accounts.RequireUser(accounts.Overview))
+	mux.HandleFunc("GET /account/cart-recovery", accounts.RequireUser(accounts.CartRecoveryPage))
+	mux.HandleFunc("POST /account/cart/retry", accounts.RequireUser(accounts.RetryCartAdoption))
+	mux.HandleFunc("GET /account/points", accounts.RequireUser(points.Page))
+	mux.HandleFunc("POST /account/points", accounts.RequireUser(points.Redeem))
+	mux.HandleFunc("GET /account/warranty", accounts.RequireUser(cover.List))
+	mux.HandleFunc("GET /account/warranty/{number}", accounts.RequireUser(cover.Order))
+	mux.HandleFunc("POST /account/warranty/{number}", accounts.RequireUser(cover.Register))
+	mux.HandleFunc("GET /account/wishlist", accounts.RequireUser(accounts.Wishlist))
+	mux.HandleFunc("POST /account/wishlist", accounts.RequireUser(accounts.SaveWishlist))
+	mux.HandleFunc("GET /account/orders/{number}", accounts.RequireUser(accounts.OrderPage))
+	mux.HandleFunc("POST /account/profile", accounts.RequireUser(accounts.UpdateProfile))
+	mux.HandleFunc("POST /account/addresses", accounts.RequireUser(accounts.AddAddress))
+	mux.HandleFunc("GET /account/addresses/{address}/edit", accounts.RequireUser(accounts.EditAddress))
 	// The handler redirects an expired session without returning sign-in to a POST-only URL.
-	mux.HandleFunc("POST /account/addresses/update", customers.UpdateAddress)
-	mux.HandleFunc("POST /account/addresses/default", customers.RequireUser(customers.MakeDefaultAddress))
-	mux.HandleFunc("POST /account/addresses/delete", customers.RequireUser(customers.DeleteAddress))
-	mux.HandleFunc("POST /account/sessions/others/end", customers.RequireUser(customers.SignOutOtherDevices))
+	mux.HandleFunc("POST /account/addresses/update", accounts.UpdateAddress)
+	mux.HandleFunc("POST /account/addresses/default", accounts.RequireUser(accounts.MakeDefaultAddress))
+	mux.HandleFunc("POST /account/addresses/delete", accounts.RequireUser(accounts.DeleteAddress))
+	mux.HandleFunc("POST /account/sessions/others/end", accounts.RequireUser(accounts.SignOutOtherDevices))
 	// Also guarded: these verify a password with argon2, so a signed-in session
 	// is otherwise an unbounded supply of 64 MiB hashes.
 	mux.HandleFunc("POST /account/email",
-		ratelimit.Guard(authLimit, log, customers.RequireUser(customers.ChangeEmail)))
+		ratelimit.Guard(authLimit, log, accounts.RequireUser(accounts.ChangeEmail)))
 	mux.HandleFunc("POST /account/email/resend",
-		ratelimit.Guard(authLimit, log, customers.RequireUser(customers.ResendVerification)))
+		ratelimit.Guard(authLimit, log, accounts.RequireUser(accounts.ResendVerification)))
 	mux.HandleFunc("POST /account/password",
-		ratelimit.Guard(authLimit, log, customers.RequireUser(customers.ChangePassword)))
-	mux.HandleFunc("POST /account/erase", customers.RequireUser(customers.Erase))
-	mux.HandleFunc("POST /account/google/unlink", customers.RequireUser(customers.UnlinkGoogle))
+		ratelimit.Guard(authLimit, log, accounts.RequireUser(accounts.ChangePassword)))
+	mux.HandleFunc("POST /account/erase", accounts.RequireUser(accounts.Erase))
+	mux.HandleFunc("POST /account/google/unlink", accounts.RequireUser(accounts.UnlinkGoogle))
 }
 
 // backOfficeRoutes registers /admin, every desk on the `admin` pool. The store
@@ -428,16 +428,16 @@ func backOfficeRoutes(mux *http.ServeMux, cfg *BackOfficeConfig, factorStore *tw
 	warehouse := stock.NewHandler(stockroom, log)
 	catalogueDesk := products.NewHandler(products.NewStore(adminPool), adminImages, log)
 	refundDesk := refunds.NewHandler(payouts, sessionCloser(gateway), log)
-	returnDesk := returndesk.NewHandler(returndesk.NewStore(adminPool, payouts), log)
+	returnDesk := returns.NewHandler(returns.NewStore(adminPool, payouts), log)
 	delivery := shipping.NewHandler(shipping.NewStore(adminPool), cfg.StoreMap.Enabled(), log)
 	brands := taxonomy.NewHandler(taxonomy.NewStore(adminPool), adminImages, log)
 	shopfront := content.NewHandler(content.NewStore(adminPool, home.NewStore(adminPool)), adminImages, newsletter.NewStore(adminPool), log)
 	sales := campaigns.NewHandler(campaigns.NewStore(adminPool), adminImages, log)
 	inbox := feedback.NewHandler(feedback.NewStore(adminPool), log)
 	roster := staff.NewHandler(staff.NewStore(adminPool), log, factorStore.Enabled())
-	lookup := customerdesk.NewHandler(customerdesk.NewStore(adminPool), log)
+	lookup := customers.NewHandler(customers.NewStore(adminPool), log)
 	promotions := coupons.NewHandler(coupons.NewStore(adminPool), log)
-	programme := loyalty.NewHandler(loyalty.NewStore(adminPool), log)
+	programme := adminloyalty.NewHandler(adminloyalty.NewStore(adminPool), log)
 	workers := health.NewHandler(checkup, outbox.NewStore(adminPool, log),
 		healthPools, disputeSource(gateway), log)
 
@@ -462,10 +462,7 @@ func backOfficeRoutes(mux *http.ServeMux, cfg *BackOfficeConfig, factorStore *tw
 	catalogueDesk.Routes(mux, backOffice)
 	refundDesk.Routes(mux, backOffice)
 	returnDesk.Routes(mux, backOffice)
-	mux.HandleFunc("GET /admin/verify", backOffice.StaffOnly(factors.Challenge))
-	mux.HandleFunc("POST /admin/verify", backOffice.StaffOnly(factors.Verify))
-	mux.HandleFunc("POST /admin/verify/enrol", backOffice.StaffOnly(factors.Enrol))
-	mux.HandleFunc("POST /admin/verify/confirm", backOffice.StaffOnly(factors.Confirm))
+	factors.Routes(mux, backOffice)
 }
 
 // storefrontStepUp is the back office's own question, "did this session pass

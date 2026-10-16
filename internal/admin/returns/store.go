@@ -22,7 +22,7 @@ import (
 	"github.com/koopa0/goen/internal/db"
 	"github.com/koopa0/goen/internal/keyset"
 	"github.com/koopa0/goen/internal/refund"
-	returnrules "github.com/koopa0/goen/internal/returns"
+	"github.com/koopa0/goen/internal/returns"
 	"github.com/koopa0/goen/internal/shoptime"
 	"github.com/koopa0/goen/internal/ui/pages/admin"
 )
@@ -38,7 +38,7 @@ var (
 // out[i] being ids[i]'s. A payout that did not finish wraps
 // refund.ErrIncomplete; one the database refused wraps refund.ErrRefused.
 type Payouts interface {
-	Payouts(ctx context.Context, ids []uuid.UUID, statuses []returnrules.Status) ([]refund.Payout, error)
+	Payouts(ctx context.Context, ids []uuid.UUID, statuses []returns.Status) ([]refund.Payout, error)
 	PayApproved(ctx context.Context, returnID uuid.UUID, actor uuid.NullUUID) error
 	Resume(ctx context.Context, row *db.ReturnForDecisionRow, actor uuid.NullUUID) (bool, error)
 }
@@ -60,7 +60,7 @@ const maxAssessmentBasisRunes = 500
 
 type FormRefusalError struct {
 	Field string
-	Kind  returnrules.RefusalKind
+	Kind  returns.RefusalKind
 }
 
 func (e *FormRefusalError) Error() string {
@@ -72,21 +72,21 @@ func (e *FormRefusalError) Error() string {
 
 func (e *FormRefusalError) Unwrap() error { return ErrRefused }
 
-func formRefuse(field string, kind returnrules.RefusalKind) error {
+func formRefuse(field string, kind returns.RefusalKind) error {
 	return &FormRefusalError{Field: field, Kind: kind}
 }
 
 // A first exception is the shop paying outside an advertised right.
 // Without a recorded reason the audit cannot say why the money moved.
 // Retries never call this: they resume an already-decided claim.
-func requireExceptionReason(kind returnrules.DecisionKind, resolution string) error {
-	if kind != returnrules.DecisionException {
+func requireExceptionReason(kind returns.DecisionKind, resolution string) error {
+	if kind != returns.DecisionException {
 		return nil
 	}
 	if strings.TrimSpace(resolution) != "" {
 		return nil
 	}
-	return formRefuse("resolution", returnrules.RefuseExceptionReason)
+	return formRefuse("resolution", returns.RefuseExceptionReason)
 }
 
 // Queue is the back-office return view plus operator-only diagnostics.
@@ -158,7 +158,7 @@ func (s *Store) queue(ctx context.Context, request uuid.NullUUID, after []string
 			Restocked:   l.RestockedQuantity.Int32,
 			Note:        l.InspectionNote,
 			Restockable: l.Restockable,
-			Window:      returnrules.PolicyWindow(l.PolicyWindow),
+			Window:      returns.PolicyWindow(l.PolicyWindow),
 		})
 	}
 	assessments, err := s.q.LatestEligibilityAssessments(ctx, ids)
@@ -176,7 +176,7 @@ func (s *Store) queue(ctx context.Context, request uuid.NullUUID, after []string
 	}
 
 	view := buildReturnQueue(ctx, rows, byRequest, assessmentByRequest)
-	statuses := make([]returnrules.Status, len(view.Rows))
+	statuses := make([]returns.Status, len(view.Rows))
 	for i := range view.Rows {
 		statuses[i] = view.Rows[i].Status
 	}
@@ -227,7 +227,7 @@ func overlayReturnAssessmentFacts(
 			lines[j].Unused = f.Unused
 			lines[j].Packaging = f.PackagingComplete
 			lines[j].Accessories = f.AccessoriesComplete
-			lines[j].Window = returnrules.PolicyWindow(f.PolicyWindow)
+			lines[j].Window = returns.PolicyWindow(f.PolicyWindow)
 		}
 		byRequest[f.ReturnRequestID] = lines
 	}
@@ -246,15 +246,15 @@ func buildReturnQueue(
 		item := admin.Return{
 			ID:          r.ID.String(),
 			OrderNumber: r.OrderNumber,
-			Status:      returnrules.Status(r.Status),
-			StatusText:  statusText(ctx, returnrules.Status(r.Status), r.BeforeShipment, r.Unsent),
+			Status:      returns.Status(r.Status),
+			StatusText:  statusText(ctx, returns.Status(r.Status), r.BeforeShipment, r.Unsent),
 			Reason:      r.Reason,
 			Units:       r.Units,
 			AmountCents: r.RefundableCents,
 			CreatedAt:   shoptime.Minute(r.CreatedAt),
-			Decided:     returnrules.Status(r.Status) != returnrules.StatusRequested,
+			Decided:     returns.Status(r.Status) != returns.StatusRequested,
 			Lines:       byRequest[r.ID],
-			Window:      returnrules.PolicyWindow(r.RescissionWindow),
+			Window:      returns.PolicyWindow(r.RescissionWindow),
 
 			BeforeShipment: r.BeforeShipment,
 			Unsent:         r.Unsent,
@@ -262,7 +262,7 @@ func buildReturnQueue(
 		// An unsent refund's reason is the staff member's code, not the
 		// customer's words.
 		if r.Unsent {
-			item.Reason = returnrules.UnsentReason(r.Reason).Label(ctx)
+			item.Reason = returns.UnsentReason(r.Reason).Label(ctx)
 		}
 		if a, ok := assessmentByRequest[r.ID]; ok {
 			item.AssessmentVersion = a.Version
@@ -282,9 +282,9 @@ func buildReturnQueue(
 func (s *Store) Decide(
 	ctx context.Context, id, decision, resolution, assessmentVersion string,
 ) error {
-	if !returnrules.ValidResolution(resolution) {
+	if !returns.ValidResolution(resolution) {
 		return fmt.Errorf("%w: return resolution exceeds %d characters",
-			ErrInvalid, returnrules.MaxResolutionRunes)
+			ErrInvalid, returns.MaxResolutionRunes)
 	}
 	actorID, ok := audit.Actor(ctx)
 	if !ok {
@@ -294,7 +294,7 @@ func (s *Store) Decide(
 	// store-credit posting attributed to the same person.
 	actor := uuid.NullUUID{UUID: actorID, Valid: true}
 
-	kind, ok := returnrules.ParseDecisionKind(decision)
+	kind, ok := returns.ParseDecisionKind(decision)
 	if !ok {
 		return ErrRefused
 	}
@@ -332,7 +332,7 @@ func (s *Store) retryDecideReturn(
 func (s *Store) decideReturnFirst(
 	ctx context.Context,
 	row *db.ReturnForDecisionRow,
-	kind returnrules.DecisionKind,
+	kind returns.DecisionKind,
 	resolution string,
 	version int32,
 	actor uuid.NullUUID,
@@ -347,7 +347,7 @@ func (s *Store) decideReturnFirst(
 	if closeErr := s.closeReturn(ctx, row.ID, kind, resolution, version); closeErr != nil {
 		return closeErr
 	}
-	if kind == returnrules.DecisionReject {
+	if kind == returns.DecisionReject {
 		return nil
 	}
 	err := s.payouts.PayApproved(ctx, row.ID, actor)
@@ -377,7 +377,7 @@ func refusedIfNoRow(err error, doing string) error {
 // reuses its durable key; a known failed/cancelled attempt gets a DB-derived
 // successor generation so Stripe may execute new work without losing lineage.
 func (s *Store) returnUnderDecision(
-	ctx context.Context, id string, kind returnrules.DecisionKind,
+	ctx context.Context, id string, kind returns.DecisionKind,
 ) (db.ReturnForDecisionRow, bool, error) {
 	requestID, err := uuid.Parse(id)
 	if err != nil {
@@ -387,9 +387,9 @@ func (s *Store) returnUnderDecision(
 	if err != nil {
 		return db.ReturnForDecisionRow{}, false, refusedIfNoRow(err, "read return "+id)
 	}
-	status := returnrules.Status(row.Status)
-	retry := status == returnrules.StatusApproved && kind == returnrules.DecisionApprove
-	if status != returnrules.StatusRequested && !retry {
+	status := returns.Status(row.Status)
+	retry := status == returns.StatusApproved && kind == returns.DecisionApprove
+	if status != returns.StatusRequested && !retry {
 		return db.ReturnForDecisionRow{}, false,
 			fmt.Errorf("%w: return %s is already %s", ErrRefused, id, row.Status)
 	}
@@ -403,14 +403,14 @@ func parseAssessmentVersion(raw string) (int32, error) {
 	}
 	n, err := strconv.ParseInt(raw, 10, 32)
 	if err != nil || n < 0 {
-		return 0, formRefuse("decision", returnrules.RefuseIncomplete)
+		return 0, formRefuse("decision", returns.RefuseIncomplete)
 	}
 	return int32(n), nil
 }
 
 func returnDecisionAudit(
-	status returnrules.Status, resolution string,
-	window returnrules.PolicyWindow, entitlement returnrules.Entitlement,
+	status returns.Status, resolution string,
+	window returns.PolicyWindow, entitlement returns.Entitlement,
 	assessmentVersion int32,
 ) map[string]any {
 	after := map[string]any{
@@ -443,14 +443,14 @@ func validAssessmentBasis(s string) bool {
 func lineEligibilityByID(facts []LineEligibility) (map[uuid.UUID]LineEligibility, error) {
 	byLine := make(map[uuid.UUID]LineEligibility, len(facts))
 	for _, fact := range facts {
-		if _, ok := returnrules.ParseFact(fact.Unused); !ok {
-			return nil, formRefuse("unused-"+fact.OrderLineID.String(), returnrules.RefuseIncomplete)
+		if _, ok := returns.ParseFact(fact.Unused); !ok {
+			return nil, formRefuse("unused-"+fact.OrderLineID.String(), returns.RefuseIncomplete)
 		}
-		if _, ok := returnrules.ParseFact(fact.Packaging); !ok {
-			return nil, formRefuse("packaging-"+fact.OrderLineID.String(), returnrules.RefuseIncomplete)
+		if _, ok := returns.ParseFact(fact.Packaging); !ok {
+			return nil, formRefuse("packaging-"+fact.OrderLineID.String(), returns.RefuseIncomplete)
 		}
-		if _, ok := returnrules.ParseFact(fact.Accessories); !ok {
-			return nil, formRefuse("accessories-"+fact.OrderLineID.String(), returnrules.RefuseIncomplete)
+		if _, ok := returns.ParseFact(fact.Accessories); !ok {
+			return nil, formRefuse("accessories-"+fact.OrderLineID.String(), returns.RefuseIncomplete)
 		}
 		byLine[fact.OrderLineID] = fact
 	}
@@ -495,7 +495,7 @@ func insertEligibilityFacts(
 func (s *Store) Assess(ctx context.Context, id, basis string, facts []LineEligibility) error {
 	basis = strings.TrimSpace(basis)
 	if !validAssessmentBasis(basis) {
-		return formRefuse("basis", returnrules.RefuseIncomplete)
+		return formRefuse("basis", returns.RefuseIncomplete)
 	}
 	actorID, ok := audit.Actor(ctx)
 	if !ok {
@@ -523,7 +523,7 @@ func (s *Store) Assess(ctx context.Context, id, basis string, facts []LineEligib
 	if err != nil {
 		return refusedIfNoRow(err, "read return "+id)
 	}
-	if returnrules.Status(row.Status) != returnrules.StatusRequested {
+	if returns.Status(row.Status) != returns.StatusRequested {
 		return fmt.Errorf("%w: return %s is already %s", ErrRefused, id, row.Status)
 	}
 	lines, err := q.ReturnLines(ctx, []uuid.UUID{requestID})
@@ -559,12 +559,12 @@ func (s *Store) Assess(ctx context.Context, id, basis string, facts []LineEligib
 func (s *Store) closeReturn(
 	ctx context.Context,
 	requestID uuid.UUID,
-	kind returnrules.DecisionKind,
+	kind returns.DecisionKind,
 	resolution string,
 	assessmentVersion int32,
 ) error {
-	if kind == returnrules.DecisionReject && strings.TrimSpace(resolution) == "" {
-		return formRefuse("resolution", returnrules.RefuseRejectionReason)
+	if kind == returns.DecisionReject && strings.TrimSpace(resolution) == "" {
+		return formRefuse("resolution", returns.RefuseRejectionReason)
 	}
 	if err := requireExceptionReason(kind, resolution); err != nil {
 		return err
@@ -620,20 +620,20 @@ func assessedLinesAtVersion(
 	requestID uuid.UUID,
 	lines []db.ReturnLinesRow,
 	assessmentVersion int32,
-) ([]returnrules.LineAssessment, error) {
+) ([]returns.LineAssessment, error) {
 	assessed := lineAssessmentsFromRows(lines)
 	if assessmentVersion == 0 {
 		return assessed, nil
 	}
 	latest, err := q.LatestEligibilityAssessment(ctx, requestID)
 	if errors.Is(err, pgx.ErrNoRows) {
-		return nil, formRefuse("decision", returnrules.RefuseStale)
+		return nil, formRefuse("decision", returns.RefuseStale)
 	}
 	if err != nil {
 		return nil, fmt.Errorf("lock eligibility assessment: %w", err)
 	}
 	if latest.Version != assessmentVersion {
-		return nil, formRefuse("decision", returnrules.RefuseStale)
+		return nil, formRefuse("decision", returns.RefuseStale)
 	}
 	facts, factErr := q.EligibilityFacts(ctx, latest.ID)
 	if factErr != nil {
@@ -647,44 +647,44 @@ func decisionClaim(
 	q *db.Queries,
 	requestID uuid.UUID,
 	lines []db.ReturnLinesRow,
-	kind returnrules.DecisionKind,
+	kind returns.DecisionKind,
 	assessmentVersion int32,
-) ([]returnrules.LineAssessment, returnrules.Claim, error) {
+) ([]returns.LineAssessment, returns.Claim, error) {
 	assessed, err := assessedLinesAtVersion(ctx, q, requestID, lines, assessmentVersion)
 	if err != nil {
-		return nil, returnrules.Claim{}, err
+		return nil, returns.Claim{}, err
 	}
-	claim, err := returnrules.Evaluate(assessed, kind)
+	claim, err := returns.Evaluate(assessed, kind)
 	if err != nil {
-		if refused, ok := errors.AsType[*returnrules.RefusalError](err); ok {
-			return nil, returnrules.Claim{}, formRefuse("decision", refused.Kind)
+		if refused, ok := errors.AsType[*returns.RefusalError](err); ok {
+			return nil, returns.Claim{}, formRefuse("decision", refused.Kind)
 		}
-		return nil, returnrules.Claim{}, fmt.Errorf("%w: %w", ErrRefused, err)
+		return nil, returns.Claim{}, fmt.Errorf("%w: %w", ErrRefused, err)
 	}
 	return assessed, claim, nil
 }
 
-func lineAssessmentsFromRows(lines []db.ReturnLinesRow) []returnrules.LineAssessment {
-	out := make([]returnrules.LineAssessment, 0, len(lines))
+func lineAssessmentsFromRows(lines []db.ReturnLinesRow) []returns.LineAssessment {
+	out := make([]returns.LineAssessment, 0, len(lines))
 	for i := range lines {
-		window, ok := returnrules.ParsePolicyWindow(lines[i].PolicyWindow)
-		if !ok || window == returnrules.WindowMixed {
-			window = returnrules.WindowUndelivered
+		window, ok := returns.ParsePolicyWindow(lines[i].PolicyWindow)
+		if !ok || window == returns.WindowMixed {
+			window = returns.WindowUndelivered
 		}
-		out = append(out, returnrules.LineAssessment{
+		out = append(out, returns.LineAssessment{
 			OrderLineID: lines[i].OrderLineID.String(),
 			Window:      window,
-			Unused:      returnrules.FactUnknown,
-			Packaging:   returnrules.FactUnknown,
-			Accessories: returnrules.FactUnknown,
+			Unused:      returns.FactUnknown,
+			Packaging:   returns.FactUnknown,
+			Accessories: returns.FactUnknown,
 		})
 	}
 	return out
 }
 
 func overlayEligibilityFacts(
-	lines []returnrules.LineAssessment, facts []db.ReturnEligibilityFact,
-) []returnrules.LineAssessment {
+	lines []returns.LineAssessment, facts []db.ReturnEligibilityFact,
+) []returns.LineAssessment {
 	byLine := make(map[string]db.ReturnEligibilityFact, len(facts))
 	for i := range facts {
 		byLine[facts[i].OrderLineID.String()] = facts[i]
@@ -694,16 +694,16 @@ func overlayEligibilityFacts(
 		if !ok {
 			continue
 		}
-		if window, ok := returnrules.ParsePolicyWindow(f.PolicyWindow); ok && window != returnrules.WindowMixed {
+		if window, ok := returns.ParsePolicyWindow(f.PolicyWindow); ok && window != returns.WindowMixed {
 			lines[i].Window = window
 		}
-		if unused, ok := returnrules.ParseFact(f.Unused); ok {
+		if unused, ok := returns.ParseFact(f.Unused); ok {
 			lines[i].Unused = unused
 		}
-		if packaging, ok := returnrules.ParseFact(f.PackagingComplete); ok {
+		if packaging, ok := returns.ParseFact(f.PackagingComplete); ok {
 			lines[i].Packaging = packaging
 		}
-		if accessories, ok := returnrules.ParseFact(f.AccessoriesComplete); ok {
+		if accessories, ok := returns.ParseFact(f.AccessoriesComplete); ok {
 			lines[i].Accessories = accessories
 		}
 	}
@@ -812,9 +812,9 @@ func (s *Store) Inspect(
 // was posted with the INSPECTION, which is when the goods went back on the
 // shelf.
 func (s *Store) Complete(ctx context.Context, id, resolution string) error {
-	if !returnrules.ValidResolution(resolution) {
+	if !returns.ValidResolution(resolution) {
 		return fmt.Errorf("%w: return resolution exceeds %d characters",
-			ErrInvalid, returnrules.MaxResolutionRunes)
+			ErrInvalid, returns.MaxResolutionRunes)
 	}
 	requestID, err := uuid.Parse(id)
 	if err != nil {
