@@ -812,6 +812,20 @@ try {
       assert.equal(got.content, '""', `${where}: no icon before the sentence (content ${got.content})`);
       assert.ok(got.display === 'inline-block' && got.width > 0, `${where}: the icon is ${got.display} and ${got.width}px wide`);
       assert.match(got.image, /^url\("data:image\/svg\+xml,/, `${where}: the icon is not a data: image: ${got.image}`);
+      // The icon is an image, so it cannot read --error: its stroke is decoded
+      // from the image itself and must paint as the error colour.
+      const drawn = /^url\("?data:image\/svg\+xml,(.*?)"?\)$/.exec(got.image);
+      const stroke = drawn && /stroke=['"]([^'"]+)['"]/.exec(decodeURIComponent(drawn[1]));
+      assert.ok(stroke, `${where}: the icon has no stroke colour to read: ${got.image}`);
+      const strokeColour = await evaluate(`(() => {
+        const probe = document.createElement('div');
+        probe.style.backgroundColor = ${JSON.stringify(stroke[1])};
+        document.body.append(probe);
+        const colour = getComputedStyle(probe).backgroundColor;
+        probe.remove();
+        return colour;
+      })()`);
+      assert.equal(strokeColour, t['--error'], `${where}: the icon is drawn in ${stroke[1]} (${strokeColour}), not the error colour ${t['--error']}`);
       assert.equal(got.ground, t['--n-50'], `${where}: the group the field sits in is ${got.ground}`);
       for (const [what, colour] of [['name', got.refused], ['sentence', got.sentence]]) {
         assert.ok(ratio(colour, got.ground) >= 4.5, `${where}: the refused ${what} ${colour} on ${got.ground} is ${ratio(colour, got.ground).toFixed(2)}:1, under 4.5:1`);
@@ -986,7 +1000,20 @@ try {
           assert.ok(card.nameWidth >= 2.5 * card.em, `${where}: the ${what} card leaves its name ${card.nameWidth}px, under two and a half letters of ${card.em}px`);
           assert.ok(card.inside, `${where}: the ${what} card is cut by the edge of the screen`);
         }
-        console.log(`${where}: tint, 2px accent edge, radio drawn, name ${chosen.nameWidth.toFixed(0)}px wide`);
+        // Every choice on the page shares the card: the invoice and pickup ones
+        // have no fee to drop, but the same two layers of padding.
+        const choices = await evaluate(`[...document.querySelectorAll('.goen-checkout__ship')]
+          .filter(card => card.getClientRects().length > 0)
+          .map(card => {
+            const name = card.querySelector('.goen-checkout__shipname');
+            return { text: name.textContent.trim().slice(0, 24), width: name.getBoundingClientRect().width,
+              em: parseFloat(getComputedStyle(name).fontSize) };
+          })`);
+        assert.ok(choices.length > 2, `${where}: only ${choices.length} choice cards are on the page`);
+        for (const card of choices) {
+          assert.ok(card.width >= 2.5 * card.em, `${where}: the card "${card.text}" leaves its name ${card.width}px, under two and a half letters of ${card.em}px`);
+        }
+        console.log(`${where}: tint, 2px accent edge, radio drawn, name ${chosen.nameWidth.toFixed(0)}px wide, narrowest of ${choices.length} cards ${Math.min(...choices.map(card => card.width)).toFixed(0)}px`);
       }
     }
     // Forced colours replace the fills, so the chosen card is the 2px edge
@@ -1012,25 +1039,29 @@ try {
     console.log(`${label}: forced colours keep the 2px edge, the check and the radio`);
 
     // Keyboard focus shows one ring, on the card; the radio inside it draws
-    // none. Where this browser does not report :focus-visible on a radio focused
-    // from script, the ring cannot be measured here.
+    // none. A real Tab key moves focus to the chosen radio, so :focus-visible is
+    // what a keyboard user gets, and a ring that cannot be measured fails.
     await open('/checkout', 1440);
     await send('Emulation.setFocusEmulationEnabled', { enabled: true });
     try {
+      await evaluate(`(() => {
+        const heading = document.getElementById('shipping-heading');
+        heading.tabIndex = -1;
+        heading.focus();
+      })()`);
+      await send('Input.dispatchKeyEvent', { type: 'keyDown', key: 'Tab', code: 'Tab', windowsVirtualKeyCode: 9 });
+      await send('Input.dispatchKeyEvent', { type: 'keyUp', key: 'Tab', code: 'Tab', windowsVirtualKeyCode: 9 });
       const ring = await evaluate(`(() => {
-        const radio = document.getElementById('shipping-store');
-        radio.focus();
-        const card = getComputedStyle(radio.closest('.goen-checkout__ship'));
-        return { visible: radio.matches(':focus-visible'), radio: getComputedStyle(radio).outlineStyle,
+        const radio = document.activeElement;
+        const card = getComputedStyle(radio.closest('.goen-checkout__ship') ?? radio);
+        return { id: radio.id, visible: radio.matches(':focus-visible'), radio: getComputedStyle(radio).outlineStyle,
           card: card.outlineStyle, width: card.outlineWidth };
       })()`);
-      if (ring.visible) {
-        assert.equal(ring.radio, 'none', `${label}: focus: the radio draws its own ring inside the card's`);
-        assert.deepEqual([ring.card, ring.width], ['solid', '2px'], `${label}: focus: the card's ring is ${ring.width} ${ring.card}`);
-        console.log(`${label}: focus: one 2px ring, on the card`);
-      } else {
-        console.log(`${label}: focus: this browser reports no :focus-visible on a radio focused from script; the ring is left to a real-browser check`);
-      }
+      assert.equal(ring.id, 'shipping-home', `${label}: focus: Tab from the heading reached ${ring.id || 'nothing'}, not the chosen radio`);
+      assert.equal(ring.visible, true, `${label}: focus: the radio reached by Tab is not :focus-visible`);
+      assert.equal(ring.radio, 'none', `${label}: focus: the radio draws its own ring inside the card's`);
+      assert.deepEqual([ring.card, ring.width], ['solid', '2px'], `${label}: focus: the card's ring is ${ring.width} ${ring.card}`);
+      console.log(`${label}: focus: Tab reaches the chosen radio, one 2px ring, on the card`);
     } finally {
       await send('Emulation.setFocusEmulationEnabled', { enabled: false });
     }
@@ -1054,7 +1085,12 @@ try {
           const element = document.querySelector(selector);
           if (!element) return null;
           const style = getComputedStyle(element);
-          return { layers: painted(element), background: style.backgroundColor,
+          const shadows = [];
+          for (let node = element; node; node = node.parentElement) {
+            const shadow = getComputedStyle(node).boxShadow;
+            if (shadow !== 'none') shadows.push((node.className || node.tagName) + ': ' + shadow);
+          }
+          return { layers: painted(element), shadows, background: style.backgroundColor,
             corners: ${JSON.stringify(corners)}.map(corner => style['border' + corner + 'Radius']),
             edges: ${JSON.stringify(sides)}.map(side => style['border' + side + 'Width'] + ' ' + style['border' + side + 'Style'] + ' ' + style['border' + side + 'Color']) };
         };
@@ -1071,6 +1107,7 @@ try {
         assert.equal(panel.background, t['--n-50'], `${where}: panel ${index} is ${panel.background}, not ${t['--n-50']}`);
         assert.deepEqual(panel.layers, [t['--n-50'], t['--n-0']], `${where}: panel ${index} sits on ${panel.layers}, not a white page and its own ${t['--n-50']}`);
         assert.deepEqual(panel.corners, Array(4).fill('16px'), `${where}: panel ${index} has corners ${panel.corners}`);
+        assert.deepEqual(panel.shadows, [], `${where}: panel ${index} or what holds it draws a shadow, so the page is not white: ${panel.shadows}`);
         assert.deepEqual(panel.edges, Array(4).fill('1px solid rgba(0, 0, 0, 0)'), `${where}: panel ${index} has edges ${panel.edges}`);
       }
       // A field is white on the group, so its edge is read against the group.

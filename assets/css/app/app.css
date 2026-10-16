@@ -6325,7 +6325,8 @@ input.goen-check {
 /* The page is white and each group of the form, like the summary beside it, is
    one panel on it, in .goen-card's n-50 ground: two layers, not a ground, a
    block and a group. The transparent border is what forced colours draws as the
-   panel's edge. */
+   panel's edge. The inline padding is in px: at 200% text two layers of it in
+   rem, this and the card's, would leave a delivery name 69px at 320. */
 .goen-checkout__main {
   gap: 1rem;
 }
@@ -6333,7 +6334,7 @@ input.goen-check {
 .goen-checkout__section {
   border: 1px solid transparent;
   border-radius: 16px;
-  padding: 1.5rem 1.25rem;
+  padding: 1.5rem 20px;
 }
 
 /* One option in a chooser. The card is the tap target, so the height minimum
@@ -6341,7 +6342,8 @@ input.goen-check {
    in every scheme: it is what tells an unchosen card from a chosen one without
    the fill. Where the card is too narrow for the name and the fee side by side
    (a phone, or text at 200%, which a viewport query cannot see) the fee drops
-   under the name, so the name is never left a letter a line. */
+   under the name, so the name is never left a letter a line. Its inline
+   padding is in px, like the section's, so only the text grows with the size. */
 .goen-checkout__ship {
   align-items: flex-start;
   background: var(--n-0);
@@ -6356,7 +6358,7 @@ input.goen-check {
   gap: 0.75rem;
   justify-content: space-between;
   min-height: 44px;
-  padding: 1rem;
+  padding: 1rem 16px;
   text-decoration: none;
   transition:
     background-color var(--dur-base) var(--ease-standard),
@@ -6387,7 +6389,7 @@ input.goen-check {
   background: var(--accent-faint);
   border-color: var(--accent);
   border-width: 2px;
-  padding: calc(1rem - 1px);
+  padding: calc(1rem - 1px) 15px;
 }
 
 /* The card shows the focus its radio has, in one ring: the radio's own would
