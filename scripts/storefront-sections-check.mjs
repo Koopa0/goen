@@ -181,29 +181,43 @@ try {
   }
 
   // Only the script that moves between slides keeps aria-current true, so the
-  // current tab is drawn only where scripting runs, in forced colours as well.
+  // current tab is marked by a pill only where scripting runs: the script sets
+  // data-pill on the row and the stylesheet draws the pill on its ::before.
   const tabsEvaluated = () => evaluate(`(() => {
-    const current = document.querySelector('.goen-hero__tabs a[aria-current="true"]');
-    const other = document.querySelector('.goen-hero__tabs a:not([aria-current="true"])');
+    const row = document.querySelector('.goen-hero__tabs');
+    const current = row?.querySelector('a[aria-current="true"]');
+    const other = row?.querySelector('a:not([aria-current="true"])');
     if (!current || !other) return null;
     const look = tab => {
       const style = getComputedStyle(tab);
-      return { background: style.backgroundColor, weight: style.fontWeight, outline: style.outlineStyle, shadow: style.boxShadow };
+      return { background: style.backgroundColor, weight: style.fontWeight, outline: style.outlineStyle, shadow: style.boxShadow, color: style.color };
     };
-    return { scripting: matchMedia('(scripting: enabled)').matches, current: look(current), other: look(other) };
+    const colour = value => {
+      const probe = document.createElement('span');
+      probe.style.color = value;
+      document.body.append(probe);
+      const resolved = getComputedStyle(probe).color;
+      probe.remove();
+      return resolved;
+    };
+    const pill = getComputedStyle(row, '::before');
+    return { scripting: matchMedia('(scripting: enabled)').matches, current: look(current), other: look(other),
+      marked: row.hasAttribute('data-pill'), accent: colour('var(--accent)'), deep: colour('var(--accent-deep)'), muted: colour('var(--fg-muted)'), faint: colour('var(--accent-faint)'),
+      pill: { display: pill.display, background: pill.backgroundColor, width: pill.borderTopWidth, style: pill.borderTopStyle, colour: pill.borderTopColor } };
   })()`);
   // Whether (scripting: none) holds cannot be read without running script, so
-  // the page is asserted by what it draws: a current tab drawn apart means the
-  // media feature did not turn off.
+  // the page is asserted by what it draws: a current tab drawn apart, or a row
+  // marked for the pill, means the media feature did not turn off.
   const tabsRead = async () => {
-    const ids = await queryNodes(['.goen-hero__tabs a[aria-current="true"]', '.goen-hero__tabs a:not([aria-current="true"])']);
+    const ids = await queryNodes(['.goen-hero__tabs', '.goen-hero__tabs a[aria-current="true"]', '.goen-hero__tabs a:not([aria-current="true"])']);
     if (!ids) return null;
     const look = async nodeId => {
       const { computedStyle } = await send('CSS.getComputedStyleForNode', { nodeId });
       const value = name => computedStyle.find(property => property.name === name)?.value;
       return { background: value('background-color'), weight: value('font-weight'), outline: value('outline-style'), shadow: value('box-shadow') };
     };
-    return { current: await look(ids[0]), other: await look(ids[1]) };
+    const { attributes } = await send('DOM.getAttributes', { nodeId: ids[0] });
+    return { marked: attributes.includes('data-pill'), current: await look(ids[1]), other: await look(ids[2]) };
   };
   for (const scriptingOff of [false, true]) {
     const label = `hero tabs scripting ${scriptingOff ? 'off' : 'on'}`;
@@ -214,18 +228,24 @@ try {
     const drawn = await tabs();
     assert.ok(drawn, `${label}: no current and other tab`);
     if (scriptingOff) {
+      assert.equal(drawn.marked, false, `${label}: the row is marked for a pill`);
       assert.deepEqual(drawn.current, drawn.other, `${label}: the current tab is drawn apart`);
     } else {
       assert.equal(drawn.scripting, true, `${label}: the page does not report scripting on`);
-      assert.notEqual(drawn.current.background, drawn.other.background, `${label}: the current tab has no fill`);
-      assert.notEqual(drawn.current.weight, drawn.other.weight, `${label}: the current tab has no weight`);
+      assert.equal(drawn.marked, true, `${label}: the script did not mark the row for the pill`);
+      assert.equal(drawn.pill.background, drawn.faint, `${label}: the pill has no fill`);
+      assert.deepEqual([drawn.pill.width, drawn.pill.style, drawn.pill.colour], ['1px', 'solid', drawn.accent], `${label}: the pill has no 1px accent edge`);
+      assert.deepEqual([drawn.current.weight, drawn.other.weight], ['500', '500'], `${label}: the tabs' weight`);
+      assert.equal(drawn.current.color, drawn.deep, `${label}: the current tab's text is not --accent-deep`);
+      assert.equal(drawn.other.color, drawn.muted, `${label}: another tab's text is not --fg-muted`);
     }
     await media([{ name: 'forced-colors', value: 'active' }]);
     const forced = await tabs();
     await media([]);
     assert.ok(forced, `${label}: no current and other tab in forced colours`);
     assert.equal(forced.current.outline === 'solid', !scriptingOff, `${label}: forced colours ${scriptingOff ? 'draw' : 'do not draw'} the current tab's edge`);
-    console.log(`${label}: current tab ${scriptingOff ? 'not drawn' : 'drawn'}, forced-colours edge ${forced.current.outline}`);
+    if (!scriptingOff) assert.equal(forced.pill.display, 'none', `${label}: forced colours draw the pill`);
+    console.log(`${label}: ${scriptingOff ? 'no pill' : 'pill drawn'}, forced-colours edge ${forced.current.outline}${scriptingOff ? '' : `, pill ${forced.pill.display}`}`);
   }
   await send('Emulation.setScriptExecutionDisabled', { value: false });
 
@@ -496,7 +516,8 @@ try {
         const rowStyle = getComputedStyle(row);
         const current = row.querySelector('a[aria-current="true"]');
         const other = row.querySelector('a:not([aria-current="true"])');
-        return { accent, row: box(row), current: box(current), words: box(current).left + parseFloat(getComputedStyle(current).paddingLeft),
+        const pill = getComputedStyle(row, '::before');
+        return { accent, pill: [pill.borderTopWidth, pill.borderTopStyle, pill.borderTopColor], row: box(row), current: box(current), words: box(current).left + parseFloat(getComputedStyle(current).paddingLeft),
           padding: [rowStyle.paddingTop, rowStyle.paddingBottom],
           currentShadow: getComputedStyle(current).boxShadow, otherShadow: getComputedStyle(other).boxShadow };
       })()`);
@@ -506,7 +527,8 @@ try {
       assert.deepEqual(tabs.padding, ['4px', '4px'], `${label}: the tab row's padding above and below`);
       assert.ok(tabs.current.top - tabs.row.top >= 4 - 0.5 && tabs.row.bottom - tabs.current.bottom >= 4 - 0.5,
         `${label}: the current tab sits closer than 4px to the row's top or bottom, which would clip its focus ring`);
-      assert.equal(tabs.currentShadow, `${tabs.accent} 0px 0px 0px 1px inset`, `${label}: the current tab's edge`);
+      assert.equal(tabs.currentShadow, 'none', `${label}: the current tab draws its own edge: ${tabs.currentShadow}`);
+      assert.deepEqual(tabs.pill, ['1px', 'solid', tabs.accent], `${label}: the pill's edge`);
       assert.equal(tabs.otherShadow, 'none', `${label}: another tab has an edge: ${tabs.otherShadow}`);
       await force('.goen-hero__tabs a[aria-current="true"]', ['focus', 'focus-visible']);
       assert.equal(await evaluate(`getComputedStyle(document.querySelector('.goen-hero__tabs a[aria-current="true"]')).outlineOffset`), '2px', `${label}: the focused tab's ring offset`);
