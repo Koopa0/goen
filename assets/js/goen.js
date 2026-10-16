@@ -34,15 +34,22 @@
       const next = (index + slides.length) % slides.length;
       track.scrollTo({ left: next * track.clientWidth });
     };
-    // The pill is drawn only once the properties it reads are written, so it
-    // appears where it belongs and does not travel there.
-    const placePill = () => {
+    // Only a chosen slide moves the pill. Any other placement (first, or after
+    // the tabs changed size) is applied with data-still, flushed, and lifted,
+    // so the pill is never seen to travel. The pill is drawn only once the
+    // properties it reads are written.
+    const placePill = (animate) => {
       if (!tabRow) return;
+      if (!animate) tabRow.dataset.still = "";
       const row = tabRow.getBoundingClientRect();
       const box = tabs[current].getBoundingClientRect();
       tabRow.style.setProperty("--pill-x", `${box.left - row.left + tabRow.scrollLeft}px`);
       tabRow.style.setProperty("--pill-w", `${box.width}px`);
       tabRow.dataset.pill = "";
+      if (!animate) {
+        tabRow.getBoundingClientRect();
+        delete tabRow.dataset.still;
+      }
     };
     const select = (next) => {
       current = next;
@@ -61,7 +68,7 @@
         else if (at + tab.offsetWidth > tabRow.scrollLeft + visible)
           tabRow.scrollLeft = at + tab.offsetWidth - visible;
       }
-      placePill();
+      placePill(true);
       if (count) count.textContent = `${current + 1} / ${slides.length}`;
     };
     const seen = new IntersectionObserver((entries) => {
@@ -77,8 +84,8 @@
 
     // A font swap, a larger text size or a zoom changes the tabs' widths.
     if (tabRow) {
-      placePill();
-      const resized = new ResizeObserver(placePill);
+      placePill(false);
+      const resized = new ResizeObserver(() => placePill(false));
       resized.observe(tabRow);
       tabs.forEach((tab) => resized.observe(tab));
     }

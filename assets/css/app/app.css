@@ -2221,12 +2221,17 @@ body:has(.goen-hero) .goen-header {
   inset-inline-start: 0;
   pointer-events: none;
   position: absolute;
-  transition:
-    translate var(--dur-move) var(--ease-move),
-    width var(--dur-move) var(--ease-move);
   translate: var(--pill-x, 0px) 0;
   width: var(--pill-w, 0px);
   z-index: -1;
+}
+
+/* goen.js sets data-still for the moment it places the pill without the visitor
+   having chosen a slide (first paint, a font swap, zoom, resize). */
+.goen-hero__tabs[data-pill]:not([data-still])::before {
+  transition:
+    translate var(--dur-move) var(--ease-move),
+    width var(--dur-move) var(--ease-move);
 }
 
 .goen-hero__tabs[data-pill] a {

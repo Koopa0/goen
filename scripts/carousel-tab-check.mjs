@@ -188,6 +188,7 @@ try {
     }
     // A tab is a link the script turns into a scroll to its slide.
     for (const index of [2, 1, 0, 2]) {
+      const runs = (await evaluate('pillRuns')).length;
       await evaluate(`document.querySelectorAll('.goen-hero__tabs a')[${index}].click()`);
       await waitFor(`(() => {
         const track = document.querySelector('.goen-hero__track');
@@ -195,8 +196,10 @@ try {
           Math.abs(track.scrollLeft - ${index} * track.clientWidth) <= 1;
       })()`, `${label} click ${index}`);
       await pillFollows(`${label} after click ${index}`);
+      assert.ok((await evaluate('pillRuns')).length > runs, `${label}: the pill did not move with the click on tab ${index}`);
     }
     // Larger text widens every tab, and a narrower window changes the row.
+    const settled = (await evaluate('pillRuns')).length;
     await evaluate(`document.documentElement.style.fontSize = '200%'`);
     await pillFollows(`${label} at 200% text`);
     await evaluate(`document.documentElement.style.fontSize = ''`);
@@ -205,6 +208,7 @@ try {
     await pillFollows(`${label} resized to ${width - 40}px`);
     await send('Emulation.setDeviceMetricsOverride', { width, height: 1000, deviceScaleFactor: 1, mobile: width < 768 });
     await pillFollows(`${label} resized back`);
+    assert.equal((await evaluate('pillRuns')).length, settled, `${label}: the pill moved without a chosen slide (text size or resize)`);
     const duration = () => evaluate(`getComputedStyle(document.querySelector('.goen-hero__tabs'), '::before').transitionDuration`);
     const milliseconds = value => value.split(',').map(part => Math.round(parseFloat(part) * (part.trim().endsWith('ms') ? 1 : 1000) * 1e6) / 1e6);
     const moving = await evaluate(`(() => { const style = getComputedStyle(document.querySelector('.goen-hero__tabs'), '::before'); return [style.transitionProperty, style.transitionDuration]; })()`);
