@@ -1,6 +1,7 @@
 package pages
 
 import (
+	"context"
 	"strconv"
 	"strings"
 	"time"
@@ -8,6 +9,7 @@ import (
 	"github.com/koopa0/goen/internal/i18n"
 	"github.com/koopa0/goen/internal/order"
 	"github.com/koopa0/goen/internal/shipping"
+	"github.com/koopa0/goen/internal/shoptime"
 )
 
 type PickupChainChoice struct {
@@ -111,6 +113,11 @@ type OrderEvent struct {
 // carrier's name and tracking number written in the shop's language, which the parcel already states in the
 // reader's own.
 func (e OrderEvent) ShowsNote() bool { return e.Note != "" && e.Kind != order.EventShipped }
+
+// Stamp is the short date and time of an event, with the form a time element reads.
+func (e OrderEvent) Stamp(ctx context.Context) string { return shoptime.StampText(ctx, e.At) }
+
+func (e OrderEvent) Datetime() string { return shoptime.ISOStamp(e.At) }
 
 // LabelKey is the short word the order's own history uses for the event.
 func (e OrderEvent) LabelKey() i18n.Key {

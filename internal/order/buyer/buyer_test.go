@@ -13,7 +13,6 @@ import (
 	"golang.org/x/net/html"
 
 	"github.com/koopa0/goen/internal/i18n"
-	"github.com/koopa0/goen/internal/ui/pages"
 	"github.com/koopa0/goen/internal/web"
 
 	"github.com/google/uuid"
@@ -76,7 +75,7 @@ func TestReturnQuantityRefusalsKeepCompleteDrafts(t *testing.T) {
 			draft := returnDraftFromForm(r, order)
 			_, refusals := draft.request(order)
 			var body bytes.Buffer
-			if err := pages.Returns(pages.ReturnsMeta(ctx, order.Number), viewOf(ctx, order, draft, refusals)).Render(ctx, &body); err != nil {
+			if err := Returns(ReturnsMeta(ctx, order.Number), viewOf(ctx, order, draft, refusals)).Render(ctx, &body); err != nil {
 				t.Fatal(err)
 			}
 			doc, err := html.Parse(strings.NewReader(body.String()))
@@ -150,7 +149,7 @@ func assertReturnReasonRendering(t *testing.T, locale i18n.Locale, quantity, raw
 	draft := returnDraftFromForm(r, order)
 	_, refusals := draft.request(order)
 	var body bytes.Buffer
-	if err := pages.Returns(pages.ReturnsMeta(ctx, order.Number), viewOf(ctx, order, draft, refusals)).Render(ctx, &body); err != nil {
+	if err := Returns(ReturnsMeta(ctx, order.Number), viewOf(ctx, order, draft, refusals)).Render(ctx, &body); err != nil {
 		t.Fatal(err)
 	}
 	doc, err := html.Parse(strings.NewReader(body.String()))
@@ -339,7 +338,7 @@ func TestReturnDraftRemainsVisibleAfterAvailabilityIsLost(t *testing.T) {
 			fresh := &ReturnOrder{Number: "GO-RETURN", HasOpen: tt.open, Lines: []ReturnLine{{ID: "first"}, {ID: "later"}}}
 			refusals := returnRefusals(fresh, draft, []web.FieldRefusal{{MessageKey: tt.refusal}})
 			var body bytes.Buffer
-			if err := pages.Returns(pages.ReturnsMeta(ctx, fresh.Number), viewOf(ctx, fresh, draft, refusals)).Render(ctx, &body); err != nil {
+			if err := Returns(ReturnsMeta(ctx, fresh.Number), viewOf(ctx, fresh, draft, refusals)).Render(ctx, &body); err != nil {
 				t.Fatal(err)
 			}
 			doc, err := html.Parse(strings.NewReader(body.String()))

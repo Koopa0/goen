@@ -4,7 +4,6 @@ import (
 	"context"
 	"fmt"
 	"strconv"
-	"strings"
 
 	"github.com/koopa0/goen/internal/i18n"
 	"github.com/koopa0/goen/internal/ui/components"
@@ -39,11 +38,6 @@ func (r ShopRules) Stats(ctx context.Context) []components.Stat {
 		},
 		r.freeDeliveryStat(ctx),
 	}
-}
-
-// countUnit is the words of a counted message after its number, so a stat can set the figure and the unit apart.
-func countUnit(ctx context.Context, k i18n.Key, n int64) string {
-	return strings.TrimSpace(strings.TrimLeft(i18n.Count(ctx, k, n, n), "0123456789"))
 }
 
 func (r ShopRules) holdStat(ctx context.Context) components.Stat {
