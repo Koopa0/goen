@@ -258,7 +258,7 @@ h3 {
 
 .goen-badge--progress {
   background: var(--accent-faint);
-  color: var(--accent);
+  color: var(--accent-deep);
 }
 
 .goen-badge--done {
