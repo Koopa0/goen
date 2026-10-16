@@ -154,15 +154,11 @@ JOIN product_variants pv ON pv.id = ci.variant_id
 JOIN products p ON p.id = pv.product_id
 LEFT JOIN brands b ON b.id = p.brand_id
 LEFT JOIN LATERAL (
-    -- The line's own photograph when one shows its option value, else the
-    -- product's first.
-    SELECT i.media_digest, i.bundled_key, i.alt_text, i.alt_text_en, i.width FROM product_images i
-    WHERE i.product_id = p.id
-    ORDER BY EXISTS (
-                 SELECT 1 FROM variant_option_values vov
-                 WHERE vov.variant_id = pv.id AND vov.option_value_id = i.option_value_id
-             ) DESC,
-             i.position
+    -- The line's photograph, as the product page shows that variant. LIMIT 1
+    -- keeps the subquery unflattened, so the view is read for this line only.
+    SELECT v.media_digest, v.bundled_key, v.alt_text, v.alt_text_en, v.width
+    FROM variant_primary_image v
+    WHERE v.product_id = p.id AND v.variant_id = pv.id
     LIMIT 1
 ) img ON true
 WHERE ci.cart_id = $1
