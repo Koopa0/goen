@@ -186,6 +186,8 @@ type ProductView struct {
 	ExpectedArrival     time.Time
 	ExpectedArrivalText string
 	Available           int32
+	// OnSale strikes CompareCents beside the price and names the campaign, as catalog.OnSale decides.
+	OnSale bool
 
 	Rating         float64
 	RatingCount    int64
@@ -289,10 +291,6 @@ func (v *ProductView) Price() string { return twd(v.PriceCents) }
 func (v *ProductView) PriceFrom() bool { return v.PriceVaries && !v.Exact }
 
 func (v *ProductView) Compare() string { return twd(v.CompareCents) }
-
-func (v *ProductView) OnSale() bool {
-	return v.Campaign.Running() && v.Sellable && v.CompareCents > v.PriceCents
-}
 
 func (v *ProductView) CanBuy() bool { return v.SelectionOK && v.Exact && v.Sellable }
 
