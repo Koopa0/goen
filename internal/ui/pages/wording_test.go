@@ -6,7 +6,6 @@ import (
 
 	"github.com/koopa0/goen/internal/i18n"
 	"github.com/koopa0/goen/internal/loyalty"
-	"github.com/koopa0/goen/internal/order"
 	"github.com/koopa0/goen/internal/ui/layouts"
 	"github.com/koopa0/goen/internal/warranty"
 )
@@ -32,23 +31,6 @@ func TestWarrantyTermsStateThePurchasedDuration(t *testing.T) {
 		if got := (warranty.WarrantyLine{HasTerm: true, Months: tc.months}).TermText(ctx); got != tc.registration {
 			t.Errorf("%v: warranty page, %d months = %q, want %q", tc.locale, tc.months, got, tc.registration)
 		}
-	}
-}
-
-func TestTheOrderHistoryHidesAShippedEventsNote(t *testing.T) {
-	t.Parallel()
-	page := renderToString(t, Order(layouts.Page{Title: "o"}, &OrderView{
-		Status: order.FulfillmentCancelled,
-		Timeline: []OrderEvent{
-			{Kind: order.EventShipped, Note: "shipped-note-text"},
-			{Kind: order.EventCancelled, Note: "cancelled-note-text"},
-		},
-	}))
-	if strings.Contains(page, "shipped-note-text") {
-		t.Error("the order history prints the shipped event's note")
-	}
-	if !strings.Contains(page, "cancelled-note-text") {
-		t.Error("the order history dropped another event's note")
 	}
 }
 

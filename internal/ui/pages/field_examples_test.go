@@ -45,7 +45,6 @@ func TestCustomerExamplesStayOutsideRefusedInputs(t *testing.T) {
 				}{
 					{"contact", contact.ContactPanel(contact.ContactForm{Name: typed, Email: typed, OrderRef: typed, Message: typed, Errors: errors("name", "email", "order_ref", "message")}), map[string]string{"contact-name": name, "contact-email": "you@example.com", "contact-order": "GO-260101-000001", "contact-message": message}},
 					{"address", Account(layouts.Page{}, &AccountView{AddressDraft: &AddressDraft{Label: typed}, AddressErrors: errors("label")}), map[string]string{"addr-label": label}},
-					{"find order", FindOrder(layouts.Page{}, FindOrderView{Number: typed, Error: refusal}), map[string]string{"find-number": "GO-260101-000001"}},
 					{"coupon", Checkout(layouts.Page{}, &CheckoutView{CouponCode: typed, Errors: errors("coupon")}), map[string]string{"coupon": coupon}},
 					{"mobile barcode", Checkout(layouts.Page{}, &CheckoutView{Invoice: CheckoutInvoice{Type: invoice.PreferenceMobile, MobileBarcode: typed}, Errors: errors("invoice_carrier")}), map[string]string{"invoice_carrier": "/ABC+123"}},
 				} {

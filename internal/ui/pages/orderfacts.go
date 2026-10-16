@@ -143,7 +143,7 @@ func (v *OrderView) WarrantyFacts(ctx context.Context, l OrderLine, delivered bo
 	}
 	facts := []components.Stat{{
 		Label: i18n.T(ctx, i18n.KeyOrderWarranty),
-		Value: components.StatCount(int64(l.WarrantyMonths), countUnit(ctx, i18n.KeyUnitMonths, int64(l.WarrantyMonths))),
+		Value: components.StatCount(int64(l.WarrantyMonths), components.CountUnit(ctx, i18n.KeyUnitMonths, int64(l.WarrantyMonths))),
 		Note:  note,
 	}}
 	if l.Registered > 0 {
@@ -156,11 +156,6 @@ func (v *OrderView) WarrantyFacts(ctx context.Context, l OrderLine, delivered bo
 func (v *OrderView) CanRegister(l OrderLine, delivered bool) bool {
 	return v.ShowWarrantyLink && delivered && l.Registered < int(l.Quantity)
 }
-
-// Stamp is the short date and time of an event, with the form a time element reads.
-func (e OrderEvent) Stamp(ctx context.Context) string { return shoptime.StampText(ctx, e.At) }
-
-func (e OrderEvent) Datetime() string { return shoptime.ISOStamp(e.At) }
 
 // timeStat is a moment as a stat: its day, with the clock and any further notes beneath.
 func timeStat(ctx context.Context, label string, t, now time.Time, notes ...string) components.Stat {
