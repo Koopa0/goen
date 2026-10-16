@@ -75,7 +75,7 @@ func (h *Handler) Listing(w http.ResponseWriter, r *http.Request) {
 			h.serverError(w, r)
 			return
 		}
-		rules = &loaded
+		rules = new(pages.ShopRules(loaded))
 	}
 	web.Render(w, r, h.log, http.StatusOK, pages.Listing(pages.ListingMeta(r.Context(), view), view, rules, head))
 }

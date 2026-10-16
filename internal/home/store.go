@@ -23,9 +23,9 @@ import (
 
 type Store struct {
 	q *db.Queries
-	// site reads the departments, which the header lists in the same order.
-	site     *site.Store
-	noPickup bool
+	// site reads the departments, which the header lists in the same order, and
+	// the shop rules the page shows.
+	site *site.Store
 	// now decides the department of the day.
 	now func() time.Time
 }
@@ -41,7 +41,7 @@ func NewStore(dbtx db.DBTX) *Store {
 // offers no pickup there, so what this store describes must not either.
 func (s *Store) WithoutPickup() *Store {
 	c := *s
-	c.noPickup = true
+	c.site = s.site.WithoutPickup()
 	return &c
 }
 
@@ -109,7 +109,7 @@ func (s *Store) Load(ctx context.Context) (pages.HomeView, error) {
 		return pages.HomeView{}, err
 	}
 
-	rules, err := catalog.ShopRules(ctx, s.q, !s.noPickup)
+	rules, err := s.site.ShopRules(ctx)
 	if err != nil {
 		return pages.HomeView{}, err
 	}
@@ -119,7 +119,7 @@ func (s *Store) Load(ctx context.Context) (pages.HomeView, error) {
 		Categories: make([]pages.HomeCategory, 0, len(src.cats)),
 		Row:        row,
 		Band:       band,
-		Rules:      rules,
+		Rules:      pages.ShopRules(rules),
 	}
 	for i := range src.cats {
 		c := &src.cats[i]
