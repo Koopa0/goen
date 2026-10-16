@@ -20,7 +20,8 @@ import (
 // page's running campaigns, the search page's compare button, the cart's
 // stepper and filled button, a department's filter chip, the corners every
 // pressable control shares, a product's photograph, and the header's search
-// pill with the rule under the header, measured as drawn.
+// pill with the rule under the header, and the one way a chosen option, a
+// chosen delivery card and a refused field are marked, measured as drawn.
 func TestStorefrontSectionsAsDrawn(t *testing.T) {
 	_, port := uitest.Browser(t, "CDP_PORT")
 	root, err := filepath.Abs("../../..")
@@ -93,6 +94,13 @@ func TestStorefrontSectionsAsDrawn(t *testing.T) {
 			SelectionOK: true, Exact: true, Sellable: true, AnySellable: true, PriceCents: 43200,
 			Tone: tones[r.URL.Query().Get("tone")],
 		}
+		if chosen := r.URL.Query().Get("options"); chosen != "" {
+			view.Options = []ProductOption{{Name: "storage", Label: "Storage", Values: []ProductOptionValue{
+				{Value: "64", Label: "64 GB", Available: true, Href: "/product?options=" + chosen},
+				{Value: "128", Label: "128 GB", Selected: true, Available: chosen == "in", Href: "/product?options=" + chosen},
+				{Value: "256", Label: "256 GB", Href: "/product?options=" + chosen},
+			}}}
+		}
 		if r.URL.Query().Get("photo") == "1" {
 			view.Images = []ProductImage{{
 				URL: assets.Image{BundledKey: "nimbus-band-2-01.webp"}.URL(), Alt: "A mug", Width: 1600, Height: 1200,
@@ -101,6 +109,23 @@ func TestStorefrontSectionsAsDrawn(t *testing.T) {
 		w.Header().Set("Content-Type", "text/html; charset=utf-8")
 		if renderErr := Product(ProductMeta(view), view).Render(i18n.WithLocale(r.Context(), i18n.En), w); renderErr != nil {
 			t.Errorf("render product fixture: %v", renderErr)
+		}
+	})
+	mux.HandleFunc("GET /checkout", func(w http.ResponseWriter, r *http.Request) {
+		view := CheckoutView{
+			Cart:     CartView{ItemCount: 1, SubtotalCents: 89000, Lines: []CartLine{{VariantID: "tote-natural", Slug: "canvas-tote", Name: "Canvas tote", Quantity: 1, UnitCents: 89000}}},
+			Shipping: []ShippingChoice{{VersionID: "home", Name: "Home delivery", Carrier: "Courier", FeeCents: 8000}, {VersionID: "store", Name: "Convenience store", FeeCents: 6000}},
+			Chosen:   "home",
+			SavedAddresses: []SavedAddress{
+				{ID: "home-address", Label: "Home", Name: "Mei Lin", Phone: "0912345678", PostalCode: "106", City: "Taipei", District: "Da'an", Street: "1 Example Road"},
+			},
+			ChosenAddress: "home-address",
+			Errors:        map[string]string{"email": "Enter an email address like name@example.com."},
+		}
+		w.Header().Set("Content-Type", "text/html; charset=utf-8")
+		ctx := i18n.WithLocale(r.Context(), i18n.En)
+		if renderErr := Checkout(CheckoutMeta(ctx), &view).Render(ctx, w); renderErr != nil {
+			t.Errorf("render checkout fixture: %v", renderErr)
 		}
 	})
 	server := httptest.NewServer(mux)

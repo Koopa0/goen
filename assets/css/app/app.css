@@ -65,6 +65,8 @@ a:hover {
   /* The corner of anything that can be pressed, in rem so it grows with the
      text. base.css's --r-* stay as they are: the back office uses them. */
   --r-press: 1.625rem;
+  /* The corner of a field a shopper types or chooses in. */
+  --r-field: 12px;
 }
 
 .goen-shell {
@@ -621,7 +623,7 @@ th {
 .goen-input {
   background: var(--n-0);
   border: 1px solid var(--control-boundary);
-  border-radius: var(--r-sm);
+  border-radius: var(--r-field);
   box-sizing: border-box;
   color: var(--fg);
   font-family: inherit;
@@ -664,6 +666,30 @@ th {
 .goen-input--invalid,
 .goen-input[aria-invalid='true'] {
   border-color: var(--error);
+}
+
+/* The name of a refused field turns the error colour too, and the sentence
+   that says why leads with an icon, so the refusal is found without the
+   border. base.css's .ui-error-text is the back office's as well and stays
+   as it is. The icon is a background image, as --chevron is, because the
+   policy admits data: images; its stroke is --error written out, since a
+   custom property cannot reach into a data: URI. */
+.goen-field:has([aria-invalid='true']) .goen-label {
+  color: var(--error);
+}
+
+.ui-error-text::before {
+  background: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23b91c1c' stroke-width='2' stroke-linecap='round'%3E%3Ccircle cx='12' cy='12' r='9'/%3E%3Cpath d='M12 7.5v5.5M12 16.5h.01'/%3E%3C/svg%3E") no-repeat center / contain;
+  content: '';
+  display: inline-block;
+  height: 1.15em;
+  margin-inline-end: 0.35em;
+  vertical-align: -0.2em;
+  width: 1.15em;
+}
+
+.ui-error-text:empty::before {
+  content: none;
 }
 
 @media (min-width: 640px) {
@@ -3357,7 +3383,7 @@ input.goen-check {
 .goen-filters .ui-input {
   background: var(--bg);
   border: 0;
-  border-radius: var(--r-md);
+  border-radius: var(--r-field);
   box-sizing: border-box;
   color: var(--fg);
   font-family: inherit;
@@ -3377,7 +3403,7 @@ input.goen-check {
   appearance: none;
   background: transparent var(--chevron) no-repeat right 0.25rem center / 1.15em;
   border: 1px solid transparent;
-  border-radius: var(--r-md);
+  border-radius: var(--r-field);
   color: var(--fg);
   cursor: pointer;
   field-sizing: content;
@@ -4695,7 +4721,7 @@ input.goen-check {
   align-items: center;
   background: var(--n-0);
   border: 1px solid var(--control-boundary);
-  border-radius: var(--r-md);
+  border-radius: var(--r-press);
   box-sizing: border-box;
   color: var(--n-900);
   display: inline-flex;
@@ -4726,13 +4752,37 @@ input.goen-check {
   outline-offset: 1px;
 }
 
-/* A text option is chosen in the accent, drawn inside its own edge: an outline
-   would read as focus. Colour discs keep the ink ring, which a blue ring would
-   blur into a blue disc. */
-.goen-swatch--on:not(.goen-swatch--dot) {
+/* A text option is chosen as a tinted fill, a 2px accent edge and a check. The
+   edge is the border itself, not an outline, which would read as focus, so the
+   padding gives back the extra pixel and the text does not move; the check
+   takes room beside the text that the unchosen options do not need. A sold-out
+   option keeps its dashed edge, and is chosen the same way. Colour discs keep
+   the ink ring, which a blue ring would blur into a blue disc. */
+.goen-swatch--on:not(.goen-swatch--dot),
+.goen-swatch--on:not(.goen-swatch--dot):hover {
+  background: var(--accent-faint);
   border-color: var(--accent);
-  box-shadow: inset 0 0 0 1px var(--accent);
+  border-width: 2px;
+  color: var(--accent-deep);
   outline: none;
+  padding: calc(0.25rem - 1px) calc(1.5rem - 1px);
+  position: relative;
+}
+
+/* The check is two borders of a turned box, so it is the text colour in every
+   scheme, forced colours included, and needs no image the policy would have to
+   admit. */
+.goen-swatch--on:not(.goen-swatch--dot)::before {
+  border: solid currentcolor;
+  border-width: 0 2px 2px 0;
+  box-sizing: border-box;
+  content: '';
+  height: 0.6em;
+  inset-block-start: 50%;
+  inset-inline-start: 0.625rem;
+  position: absolute;
+  transform: translateY(-65%) rotate(45deg);
+  width: 0.3em;
 }
 
 .goen-swatch--on:not(.goen-swatch--dot):focus-visible {
@@ -4752,13 +4802,6 @@ input.goen-check {
 .goen-swatch--out {
   border-style: dashed;
   color: var(--n-500);
-}
-
-.goen-swatch--on.goen-swatch--out:not(.goen-swatch--dot) {
-  background: var(--n-50);
-  border-color: var(--n-900);
-  box-shadow: inset 0 0 0 1px var(--n-900);
-  color: var(--n-900);
 }
 
 /* A colour swatch: a 2rem disc inside a 44px target, so a thumb has the room a
@@ -6086,11 +6129,10 @@ input.goen-check {
   min-width: 0;
 }
 
-/* The checkout's summary is a white face on the grey page, as the form beside
-   it is. The transparent border is what forced colours draws as its edge. */
+/* The checkout's summary is a panel like the form's groups beside it. */
 .goen-checkout__summary {
-  background: var(--n-0);
   border: 1px solid transparent;
+  border-radius: 16px;
 }
 
 .goen-checkout__summary .goen-summary {
@@ -6281,41 +6323,31 @@ input.goen-check {
   min-width: 0;
 }
 
-/* The grey page the checkout sits on. Painted past the column on both sides
-   and clipped top and bottom, so the header and footer keep their own
-   grounds and no shadow reaches the scroll width. */
-.goen-checkout {
-  background: var(--n-50);
-  box-shadow: 0 0 0 100vmax var(--n-50);
-  clip-path: inset(0 -100vmax);
-}
-
 /* A choice adds the new form before removing the old one; anchoring would follow the old one down. */
 #checkout-region {
   overflow-anchor: none;
 }
 
-/* The sections are one white block, parted by the space between them rather
-   than boxed or ruled one by one. */
+/* The page is white and each group of the form, like the summary beside it, is
+   one panel on it, in .goen-card's n-50 ground: two layers, not a ground, a
+   block and a group. The transparent border is what forced colours draws as the
+   panel's edge. */
 .goen-checkout__main {
-  background: var(--n-0);
-  border-radius: var(--r-lg);
-  gap: 0;
-}
-
-.goen-checkout__main > .ui-alert {
-  margin: 1.5rem 1.25rem 0;
+  gap: 1rem;
 }
 
 .goen-checkout__section {
-  background: transparent;
-  border-radius: 0;
+  border: 1px solid transparent;
+  border-radius: 16px;
   padding: 1.5rem 1.25rem;
 }
 
-/* One option in a chooser. The card is the tap target — the radio inside it is
-   one pixel and reachable only by keyboard — so the height minimum lives here
-   and check-layout measures this element by name. */
+/* One option in a chooser. The card is the tap target, so the height minimum
+   lives here and check-layout measures this element by name. The radio is drawn
+   in every scheme: it is what tells an unchosen card from a chosen one without
+   the fill. Where the card is too narrow for the name and the fee side by side
+   (a phone, or text at 200%, which a viewport query cannot see) the fee drops
+   under the name, so the name is never left a letter a line. */
 .goen-checkout__ship {
   align-items: flex-start;
   background: var(--n-0);
@@ -6323,8 +6355,10 @@ input.goen-check {
   border-radius: var(--r-lg);
   box-sizing: border-box;
   color: inherit;
+  container: ship / inline-size;
   cursor: pointer;
   display: flex;
+  flex-wrap: wrap;
   gap: 0.75rem;
   justify-content: space-between;
   min-height: 44px;
@@ -6336,18 +6370,38 @@ input.goen-check {
 }
 
 .goen-checkout__ship:hover {
-  background: var(--n-50);
+  background: var(--n-100);
 }
 
-/* The one source for "this is the chosen one": the accent, where a shopper chooses.
-   The extra pixel makes the outline two without moving the content. */
+.goen-checkout__ship > input[type=radio] {
+  accent-color: var(--accent);
+  align-self: center;
+  clip-path: none;
+  flex: none;
+  height: 1rem;
+  margin: 0;
+  overflow: visible;
+  position: static;
+  width: 1rem;
+}
+
+/* The one source for "this is the chosen one": a tinted fill and a 2px edge in
+   the accent, where a shopper chooses. The edge is the border itself, so the
+   padding gives back the extra pixel and the content does not move. The radio
+   inside it is the check. */
 .goen-checkout__ship:has(input:checked) {
+  background: var(--accent-faint);
   border-color: var(--accent);
-  box-shadow: 0 0 0 1px var(--accent);
+  border-width: 2px;
+  padding: calc(1rem - 1px);
 }
 
-/* The card shows the focus its hidden radio has, or a keyboard user moving
-   through the group would see nothing move. */
+/* The card shows the focus its radio has, in one ring: the radio's own would
+   be a second one inside it. */
+.goen-checkout__ship > input:focus-visible {
+  outline: none;
+}
+
 .goen-checkout__ship:has(input:focus-visible) {
   outline: 2px solid var(--ring);
   outline-offset: 2px;
@@ -6356,6 +6410,7 @@ input.goen-check {
 .goen-checkout__shipname {
   color: var(--fg);
   display: flex;
+  flex: 1 1 0;
   flex-direction: column;
   font-size: var(--fs-14);
   font-weight: var(--fw-medium);
@@ -6374,6 +6429,13 @@ input.goen-check {
   flex: none;
   font-size: var(--fs-14);
   font-variant-numeric: tabular-nums;
+}
+
+@container ship (max-width: 14rem) {
+  .goen-checkout__shipfee {
+    flex-basis: 100%;
+    text-align: end;
+  }
 }
 
 /* The row the 更新 button sits in. Right-aligned and quiet: it is a step inside
@@ -6498,7 +6560,7 @@ input.goen-check {
   appearance: none;
   background: var(--n-0) var(--chevron) no-repeat right 0.75rem center;
   border: 1px solid var(--control-boundary);
-  border-radius: var(--r-sm);
+  border-radius: var(--r-field);
   box-sizing: border-box;
   color: var(--fg);
   font-family: inherit;
@@ -6817,10 +6879,6 @@ input.goen-check {
 
   .goen-checkout__section {
     padding: 1.5rem;
-  }
-
-  .goen-checkout__main > .ui-alert {
-    margin: 1.5rem 1.5rem 0;
   }
 }
 
@@ -9081,24 +9139,7 @@ form[data-request-pending] [aria-disabled="true"] {
   }
 }
 
-/* Forced colours remove the chosen card's shadow and equalise its border.
-   The native radio keeps the checked mark the user's colour scheme supplies. */
 @media (forced-colors: active) {
-  .goen-checkout__ship > input[type=radio] {
-    align-self: center;
-    clip-path: none;
-    flex: none;
-    height: 1rem;
-    margin: 0;
-    overflow: visible;
-    position: static;
-    width: 1rem;
-  }
-
-  .goen-checkout__shipname {
-    flex: 1;
-  }
-
   /* Weight and underline keep the chosen label distinct from ordinary links. */
   .goen-swatch--on:not(.goen-swatch--dot),
   .goen-swatch--on:not(.goen-swatch--dot):hover {
