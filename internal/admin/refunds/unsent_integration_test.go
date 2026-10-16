@@ -25,7 +25,6 @@ import (
 	"github.com/koopa0/goen/internal/admin/refunds"
 	returndesk "github.com/koopa0/goen/internal/admin/returns"
 	"github.com/koopa0/goen/internal/db"
-	"github.com/koopa0/goen/internal/email"
 	"github.com/koopa0/goen/internal/i18n"
 	"github.com/koopa0/goen/internal/money"
 	"github.com/koopa0/goen/internal/order"
@@ -207,7 +206,7 @@ func TestAnUnsentRefundPaysBackWhatDidNotShip(t *testing.T) {
 	}
 
 	// What the worker sends, read at delivery.
-	var m email.OrderPartRefunded
+	var m outbox.OrderPartRefunded
 	if err := json.Unmarshal(f.payload, &m); err != nil || m.OrderID != o.ID || m.ReturnRequestID != f.id {
 		t.Fatalf("payload %+v, %v", m, err)
 	}

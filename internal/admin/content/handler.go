@@ -13,7 +13,6 @@ import (
 	"github.com/koopa0/goen/internal/media"
 	"github.com/koopa0/goen/internal/ui/components"
 	"github.com/koopa0/goen/internal/ui/layouts"
-	"github.com/koopa0/goen/internal/ui/pages/admin"
 	"github.com/koopa0/goen/internal/web"
 )
 
@@ -64,7 +63,7 @@ func (h *Handler) FAQ(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	view.Notice = components.NoticeFrom(r, notices)
-	web.Render(w, r, h.log, http.StatusOK, admin.FAQ(
+	web.Render(w, r, h.log, http.StatusOK, FAQ(
 		layouts.Page{Title: i18n.T(r.Context(), i18n.KeyAdminPageFAQ)}, &view))
 }
 
@@ -131,7 +130,7 @@ func (h *Handler) rejectFAQ(
 		access.ServerError(w, r, h.log)
 		return
 	}
-	typed := admin.FAQEntry{
+	typed := FAQEntry{
 		ID: f.ID, CategoryID: r.PostFormValue("category_id"),
 		Question: r.PostFormValue("question"), Answer: r.PostFormValue("answer"),
 		QuestionEn: r.PostFormValue("question_en"), AnswerEn: r.PostFormValue("answer_en"),
@@ -144,7 +143,7 @@ func (h *Handler) rejectFAQ(
 	} else {
 		view.Draft, view.Errors = typed, errs
 	}
-	web.Render(w, r, h.log, http.StatusUnprocessableEntity, admin.FAQ(
+	web.Render(w, r, h.log, http.StatusUnprocessableEntity, FAQ(
 		layouts.Page{Title: i18n.T(r.Context(), i18n.KeyAdminPageFAQ)}, &view))
 }
 
@@ -212,11 +211,11 @@ func (h *Handler) rejectFAQCategory(
 		access.ServerError(w, r, h.log)
 		return
 	}
-	view.CategoryDraft = admin.FAQCategory{
+	view.CategoryDraft = FAQCategory{
 		ID: f.ID, Name: r.PostFormValue("name"), NameEn: r.PostFormValue("name_en"),
 	}
 	view.CategoryErrors = errs
-	web.Render(w, r, h.log, http.StatusUnprocessableEntity, admin.FAQ(
+	web.Render(w, r, h.log, http.StatusUnprocessableEntity, FAQ(
 		layouts.Page{Title: i18n.T(r.Context(), i18n.KeyAdminPageFAQ)}, &view))
 }
 
@@ -242,18 +241,18 @@ func (h *Handler) Home(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	view.Notice = components.NoticeFrom(r, notices)
-	web.Render(w, r, h.log, http.StatusOK, admin.Home(
+	web.Render(w, r, h.log, http.StatusOK, Home(
 		layouts.Page{Title: i18n.T(r.Context(), i18n.KeyAdminPageHero)}, &view))
 }
 
-func (h *Handler) homeView(ctx context.Context, heroAfter, bannerAfter string) (admin.HeroView, error) {
+func (h *Handler) homeView(ctx context.Context, heroAfter, bannerAfter string) (HeroView, error) {
 	view, err := h.store.HeroSlides(ctx, heroAfter)
 	if err != nil {
-		return admin.HeroView{}, err
+		return HeroView{}, err
 	}
 	banners, err := h.store.Banners(ctx, bannerAfter)
 	if err != nil {
-		return admin.HeroView{}, err
+		return HeroView{}, err
 	}
 	view.Banners, view.BannerBound = banners.Rows, banners.Bound
 	return view, nil
@@ -322,12 +321,12 @@ func (h *Handler) rejectBanner(
 		return
 	}
 	view.Errors = errs
-	view.BannerDraft = admin.BannerDraft{
+	view.BannerDraft = BannerDraft{
 		Message: r.PostFormValue("message"), Short: r.PostFormValue("short"), Code: r.PostFormValue("code"),
 		CTALabel: r.PostFormValue("cta_label"), CTAHref: r.PostFormValue("cta_href"), Days: r.PostFormValue("days"),
 		MessageEn: r.PostFormValue("message_en"), ShortEn: r.PostFormValue("short_en"), CTALabelEn: r.PostFormValue("cta_label_en"),
 	}
-	web.Render(w, r, h.log, http.StatusUnprocessableEntity, admin.Home(
+	web.Render(w, r, h.log, http.StatusUnprocessableEntity, Home(
 		layouts.Page{Title: i18n.T(r.Context(), i18n.KeyAdminPageHero)}, &view))
 }
 
@@ -412,7 +411,7 @@ func (h *Handler) rejectHeroSlide(
 		return
 	}
 	view.Errors = errs
-	view.Draft = admin.HeroDraft{
+	view.Draft = HeroDraft{
 		Eyebrow: r.PostFormValue("eyebrow"), Headline: r.PostFormValue("headline"), Body: r.PostFormValue("body"),
 		PrimaryLabel: r.PostFormValue("primary_label"), PrimaryHref: r.PostFormValue("primary_href"),
 		SecondLabel: r.PostFormValue("second_label"), SecondHref: r.PostFormValue("second_href"),
@@ -421,7 +420,7 @@ func (h *Handler) rejectHeroSlide(
 		PrimaryLabelEn: r.PostFormValue("primary_label_en"), SecondLabelEn: r.PostFormValue("second_label_en"),
 		ImageAltEn: r.PostFormValue("alt_en"),
 	}
-	web.Render(w, r, h.log, http.StatusUnprocessableEntity, admin.Home(
+	web.Render(w, r, h.log, http.StatusUnprocessableEntity, Home(
 		layouts.Page{Title: i18n.T(r.Context(), i18n.KeyAdminPageHero)}, &view))
 }
 
@@ -452,7 +451,7 @@ func (h *Handler) Newsletter(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	view.Notice = components.NoticeFrom(r, notices)
-	web.Render(w, r, h.log, http.StatusOK, admin.Newsletter(
+	web.Render(w, r, h.log, http.StatusOK, Newsletter(
 		layouts.Page{Title: i18n.T(r.Context(), i18n.KeyAdminPageNewsletter)}, view))
 }
 
@@ -471,12 +470,12 @@ func (h *Handler) ComposeNewsletter(w http.ResponseWriter, r *http.Request) {
 			access.ServerError(w, r, h.log)
 			return
 		}
-		view.Draft = admin.NewsletterDraft{Subject: subject, Body: body}
+		view.Draft = NewsletterDraft{Subject: subject, Body: body}
 		view.Errors = make(map[string]string, len(keys))
 		for field, k := range keys {
 			view.Errors[field] = i18n.T(r.Context(), k)
 		}
-		web.Render(w, r, h.log, http.StatusUnprocessableEntity, admin.Newsletter(
+		web.Render(w, r, h.log, http.StatusUnprocessableEntity, Newsletter(
 			layouts.Page{Title: i18n.T(r.Context(), i18n.KeyAdminPageNewsletter)}, view))
 		return
 	}
@@ -505,26 +504,18 @@ func (h *Handler) SendNewsletter(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-func (h *Handler) newsletterView(r *http.Request) (admin.NewsletterView, error) {
+func (h *Handler) newsletterView(r *http.Request) (NewsletterView, error) {
 	counts, err := h.store.SubscriberCounts(r.Context())
 	if err != nil {
-		return admin.NewsletterView{}, err
+		return NewsletterView{}, err
 	}
 	issues, err := h.store.NewsletterIssues(r.Context(), NewsletterIssueLimit)
 	if err != nil {
-		return admin.NewsletterView{}, err
+		return NewsletterView{}, err
 	}
-	view := admin.NewsletterView{
+	return NewsletterView{
 		Active: counts.Active, Unsubscribed: counts.Unsubscribed, Awaiting: counts.Awaiting,
 		EnglishActive: counts.EnglishActive,
-		Issues:        make([]admin.NewsletterIssue, 0, len(issues)),
-	}
-	for i := range issues {
-		it := &issues[i]
-		view.Issues = append(view.Issues, admin.NewsletterIssue{
-			ID: it.ID, Subject: it.Subject, Body: it.Body, Sent: it.Sent,
-			SentAt: it.SentAt, Recipients: it.Recipients, SentBy: it.SentBy,
-		})
-	}
-	return view, nil
+		Issues:        issues,
+	}, nil
 }

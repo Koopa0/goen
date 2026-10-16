@@ -4,6 +4,9 @@
 // It guarantees AT LEAST once, never exactly once: a worker can die after the
 // provider accepted a message and before the row is stamped, so every handler
 // must tolerate being run twice.
+//
+// It also declares the payload every topic carries, because that payload is
+// stored: a row queued today is decoded by whichever binary delivers it.
 package outbox
 
 import (
@@ -21,7 +24,6 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 
 	"github.com/koopa0/goen/internal/db"
-	"github.com/koopa0/goen/internal/email"
 )
 
 // Topic names one kind of message and the payload type every message on it
@@ -36,21 +38,21 @@ func (t Topic[T]) Name() string { return t.name }
 // Topics goen publishes. A topic that fans out carries one message per
 // RECIPIENT, so a send that fails for one mailbox is retried for that alone.
 var (
-	TopicOrderPlaced       = topic[email.OrderPlaced]("order.placed")
-	TopicPasswordReset     = topic[email.PasswordReset]("account.password_reset")
-	TopicOrderPaid         = topic[email.OrderPaid]("order.paid")
-	TopicOrderShipped      = topic[email.OrderShipped]("order.shipped")
-	TopicOrderTerminal     = topic[email.OrderTerminal]("order.terminal")
-	TopicRestocked         = topic[email.RestockNotice]("catalogue.restocked")
-	TopicNewsletterConfirm = topic[email.NewsletterConfirm]("newsletter.confirm")
-	TopicNewsletterWelcome = topic[email.NewsletterWelcome]("newsletter.welcome")
+	TopicOrderPlaced       = topic[OrderPlaced]("order.placed")
+	TopicPasswordReset     = topic[PasswordReset]("account.password_reset")
+	TopicOrderPaid         = topic[OrderPaid]("order.paid")
+	TopicOrderShipped      = topic[OrderShipped]("order.shipped")
+	TopicOrderTerminal     = topic[OrderTerminal]("order.terminal")
+	TopicRestocked         = topic[RestockNotice]("catalogue.restocked")
+	TopicNewsletterConfirm = topic[NewsletterConfirm]("newsletter.confirm")
+	TopicNewsletterWelcome = topic[NewsletterWelcome]("newsletter.welcome")
 	// TopicNewsletterIssue is enqueued at [BulkPriority].
-	TopicNewsletterIssue = topic[email.NewsletterIssue]("newsletter.issue")
-	TopicEmailVerify     = topic[email.AddressVerify]("account.email_verify")
-	TopicStaffInvitation = topic[email.StaffInvitation]("staff.invitation")
-	TopicStaffEnrolment  = topic[email.StaffEnrolment]("staff.enrolment")
+	TopicNewsletterIssue = topic[NewsletterIssue]("newsletter.issue")
+	TopicEmailVerify     = topic[AddressVerify]("account.email_verify")
+	TopicStaffInvitation = topic[StaffInvitation]("staff.invitation")
+	TopicStaffEnrolment  = topic[StaffEnrolment]("staff.enrolment")
 	// TopicStaffFactorFailure warns a staff account of wrong second-factor codes.
-	TopicStaffFactorFailure = topic[email.StaffFactorFailure]("staff.factor_failure")
+	TopicStaffFactorFailure = topic[StaffFactorFailure]("staff.factor_failure")
 	// TopicPasswordResetRequest is a forgotten-password request, queued the
 	// same way whether or not the address has an account. Its handler issues
 	// the token and queues the TopicPasswordReset message.
@@ -68,7 +70,7 @@ var (
 	TopicInvoiceVoidDue = topic[InvoiceVoidDue]("invoice.void_due")
 	// TopicOrderPartRefunded is units of a partly shipped order that will not
 	// be sent, whose refund has settled.
-	TopicOrderPartRefunded = topic[email.OrderPartRefunded]("order.part_refunded")
+	TopicOrderPartRefunded = topic[OrderPartRefunded]("order.part_refunded")
 )
 
 // BulkPriority is where a send that can wait goes in the queue. Transactional
@@ -79,7 +81,7 @@ const BulkPriority = 100
 const PollInterval = 5 * time.Second
 
 // HandlerBudget is the longest one message's handler may take. It mirrors
-// email.SendTimeout rather than importing it.
+// letter.SendTimeout rather than importing it.
 const HandlerBudget = 30 * time.Second
 
 // SettleBudget bounds the single-row write that records a message's outcome.

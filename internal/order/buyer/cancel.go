@@ -8,8 +8,8 @@ import (
 	"github.com/jackc/pgx/v5"
 
 	"github.com/koopa0/goen/internal/db"
-	"github.com/koopa0/goen/internal/email"
 	"github.com/koopa0/goen/internal/order/cancellation"
+	"github.com/koopa0/goen/internal/outbox"
 )
 
 // ErrNotCancellable covers every reason, so a guessable order number cannot be
@@ -44,7 +44,7 @@ func (s *Store) CancelOrder(ctx context.Context, number string) error {
 		return ErrNotCancellable
 	}
 	if _, err := cancellation.Settle(ctx, q, &cancellation.Order{
-		ID: orderID, Number: number, Kind: email.TerminalCancelledByCustomer, VoidTrigger: "cancel:" + number,
+		ID: orderID, Number: number, Kind: outbox.TerminalCancelledByCustomer, VoidTrigger: "cancel:" + number,
 	}); err != nil {
 		return err
 	}

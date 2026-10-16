@@ -228,8 +228,8 @@ func TestRefusedAddressesRenderTheirMessage(t *testing.T) {
 				{name: "empty", want: i18n.T(ctx, i18n.KeyEmailRequired)},
 				{name: "malformed", addr: "bad@x", want: i18n.T(ctx, i18n.KeyEmailMalformed)},
 				{name: "consecutive dots", addr: "a..b@example.com", want: i18n.T(ctx, i18n.KeyEmailMalformed)},
-				{name: "too long", addr: strings.Repeat("a", email.Max) + "@example.com",
-					want: fmt.Sprintf(i18n.T(ctx, i18n.KeyEmailTooLong), email.Max)},
+				{name: "too long", addr: strings.Repeat("a", email.MaxBytes) + "@example.com",
+					want: fmt.Sprintf(i18n.T(ctx, i18n.KeyEmailTooLong), email.MaxBytes)},
 			}
 			for _, tt := range tests {
 				for _, htmx := range []bool{true, false} {

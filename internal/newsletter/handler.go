@@ -56,7 +56,7 @@ func (h *Handler) Submit(w http.ResponseWriter, r *http.Request) {
 		if k == i18n.KeyEmailTooLong {
 			// Only this message carries a verb; Sprintf appends %!(EXTRA ...)
 			// to one that has none.
-			msg = fmt.Sprintf(msg, email.Max)
+			msg = fmt.Sprintf(msg, email.MaxBytes)
 		}
 		h.fail(w, r, http.StatusUnprocessableEntity, addr, msg)
 		return

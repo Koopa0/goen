@@ -15,7 +15,6 @@ import (
 	"github.com/koopa0/goen/internal/admin/audit"
 	"github.com/koopa0/goen/internal/bearer"
 	"github.com/koopa0/goen/internal/db"
-	"github.com/koopa0/goen/internal/email"
 	"github.com/koopa0/goen/internal/i18n"
 	"github.com/koopa0/goen/internal/outbox"
 	"github.com/koopa0/goen/internal/shoptime"
@@ -27,16 +26,6 @@ const (
 )
 
 var ErrAlreadySent = errors.New("content: that newsletter issue has already been sent")
-
-type NewsletterIssue struct {
-	ID         string
-	Subject    string
-	Body       string
-	Sent       bool
-	SentAt     string
-	Recipients int32
-	SentBy     string
-}
 
 func validateNewsletter(subject, body string) map[string]i18n.Key {
 	errs := map[string]i18n.Key{}
@@ -134,10 +123,10 @@ func (s *Store) SendNewsletter(ctx context.Context, issueID string, actor uuid.N
 	}
 
 	keys := make([]string, 0, len(subscribers))
-	payloads := make([]email.NewsletterIssue, 0, len(subscribers))
+	payloads := make([]outbox.NewsletterIssue, 0, len(subscribers))
 	for i := range subscribers {
 		to := &subscribers[i]
-		payloads = append(payloads, email.NewsletterIssue{
+		payloads = append(payloads, outbox.NewsletterIssue{
 			Locale: to.Locale, Email: to.Email,
 			Subject: issue.Subject, Body: issue.Body,
 			// The token the subscriber already holds, so every link ever mailed

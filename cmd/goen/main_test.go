@@ -16,8 +16,8 @@ import (
 
 	"github.com/jackc/pgx/v5/pgxpool"
 
-	"github.com/koopa0/goen/internal/email"
 	"github.com/koopa0/goen/internal/invoice/issuer"
+	"github.com/koopa0/goen/internal/letter"
 	"github.com/koopa0/goen/internal/outbox"
 )
 
@@ -448,8 +448,8 @@ func TestAMalformedSMTPAddressIsFatalAndNeverTheLogSender(t *testing.T) {
 	if err == nil || !strings.Contains(err.Error(), "GOEN_SMTP_ADDR") {
 		t.Errorf("newSender malformed error = %v, want GOEN_SMTP_ADDR", err)
 	}
-	if _, silent := bad.(email.LogSender); silent {
-		t.Error("a configured malformed relay degraded to email.LogSender")
+	if _, silent := bad.(letter.LogSender); silent {
+		t.Error("a configured malformed relay degraded to letter.LogSender")
 	}
 	if bad != nil {
 		t.Errorf("newSender malformed returned %T, want nil sender", bad)
@@ -467,7 +467,7 @@ func TestAMalformedSMTPAddressIsFatalAndNeverTheLogSender(t *testing.T) {
 	if err != nil {
 		t.Fatalf("newSender configured: %v", err)
 	}
-	smtpSender, ok := configured.(email.SMTPSender)
+	smtpSender, ok := configured.(letter.SMTPSender)
 	if !ok || smtpSender.TLSName != "smtp.example" {
 		t.Errorf("configured sender = %#v, want SMTPSender with TLSName smtp.example", configured)
 	}
@@ -476,7 +476,7 @@ func TestAMalformedSMTPAddressIsFatalAndNeverTheLogSender(t *testing.T) {
 	if err != nil {
 		t.Fatalf("newSender development: %v", err)
 	}
-	logSender, ok := development.(email.LogSender)
+	logSender, ok := development.(letter.LogSender)
 	if !ok || !logSender.ShowBody {
 		t.Errorf("development sender = %#v, want a LogSender that shows the body", development)
 	}
@@ -491,7 +491,7 @@ func TestAMalformedSMTPAddressIsFatalAndNeverTheLogSender(t *testing.T) {
 	if err != nil {
 		t.Fatalf("unauthenticated sender was rejected early: %v", err)
 	}
-	if _, ok := unauthenticated.(email.SMTPSender); !ok {
+	if _, ok := unauthenticated.(letter.SMTPSender); !ok {
 		t.Errorf("unauthenticated sender = %T, want SMTPSender", unauthenticated)
 	}
 }

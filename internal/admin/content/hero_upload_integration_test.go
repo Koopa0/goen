@@ -512,7 +512,7 @@ func TestHeroUploadsKeepStorageFailuresSeparateFromRefusals(t *testing.T) {
 			strings.TrimSpace(fields["headline"])).Scan(&alt, &altEn, &imageKey); err != nil {
 			t.Fatal(err)
 		}
-		if alt != "Draft picture" || altEn != fields["alt_en"] || imageKey == "" || heroUploadAuditCount(t, owner) != beforeAudit+1 {
+		if alt != "Draft picture" || altEn != "English picture" || imageKey == "" || heroUploadAuditCount(t, owner) != beforeAudit+1 {
 			t.Errorf("recovered hero = %q/%q/image=%q, want saved descriptions, image and exactly one new audit", alt, altEn, imageKey)
 		}
 		var imageExists bool

@@ -13,7 +13,6 @@ import (
 	"github.com/koopa0/goen/internal/i18n"
 	"github.com/koopa0/goen/internal/keyset"
 	"github.com/koopa0/goen/internal/shoptime"
-	"github.com/koopa0/goen/internal/ui/pages/admin"
 	"github.com/koopa0/goen/internal/web"
 )
 
@@ -49,10 +48,20 @@ type HeroForm struct {
 }
 
 func (f *HeroForm) Validate(ctx context.Context) map[string]string {
+	f.Eyebrow = strings.TrimSpace(f.Eyebrow)
 	f.Headline = strings.TrimSpace(f.Headline)
+	f.Body = strings.TrimSpace(f.Body)
 	f.PrimaryLabel = strings.TrimSpace(f.PrimaryLabel)
 	f.SecondLabel = strings.TrimSpace(f.SecondLabel)
 	f.ImageAlt = strings.TrimSpace(f.ImageAlt)
+	// Trimmed so that a translation left as spaces is stored as NULL, which
+	// falls back to the Chinese, rather than refused by the *_en_present CHECKs.
+	f.EyebrowEn = strings.TrimSpace(f.EyebrowEn)
+	f.HeadlineEn = strings.TrimSpace(f.HeadlineEn)
+	f.BodyEn = strings.TrimSpace(f.BodyEn)
+	f.PrimaryLabelEn = strings.TrimSpace(f.PrimaryLabelEn)
+	f.SecondLabelEn = strings.TrimSpace(f.SecondLabelEn)
+	f.ImageAltEn = strings.TrimSpace(f.ImageAltEn)
 
 	errs := map[string]string{}
 	if f.Headline == "" || utf8.RuneCountInString(f.Headline) > MaxHeadlineRunes {
@@ -96,23 +105,23 @@ type heroPosition struct {
 	ID       uuid.UUID
 }
 
-func (s *Store) HeroSlides(ctx context.Context, after ...string) (admin.HeroView, error) {
+func (s *Store) HeroSlides(ctx context.Context, after ...string) (HeroView, error) {
 	from, resumed := keyset.Resume(heroScope, after, func(p heroPosition) bool { return p.ID != uuid.Nil })
 	rows, err := s.q.AdminHeroSlides(ctx, db.AdminHeroSlidesParams{
 		HasCursor: resumed, AfterPosition: from.Position, AfterID: from.ID, RowLimit: MaxSlides + 1,
 	})
 	if err != nil {
-		return admin.HeroView{}, fmt.Errorf("read hero slides: %w", err)
+		return HeroView{}, fmt.Errorf("read hero slides: %w", err)
 	}
 	live, err := s.storefront.Carousel(ctx)
 	if err != nil {
-		return admin.HeroView{}, fmt.Errorf("read carousel: %w", err)
+		return HeroView{}, fmt.Errorf("read carousel: %w", err)
 	}
 	rows, bound := keyset.PageBound(heroScope, resumed, rows, MaxSlides, func(r *db.AdminHeroSlidesRow) string { return r.PageCursor })
-	view := admin.HeroView{Carousel: live, Bound: bound}
+	view := HeroView{Carousel: live, Bound: bound}
 	for i := range rows {
 		r := &rows[i]
-		view.Rows = append(view.Rows, admin.HeroSlide{
+		view.Rows = append(view.Rows, HeroSlide{
 			ID: r.ID.String(), Eyebrow: r.Eyebrow.String, Headline: r.Headline,
 			CTALabel: r.PrimaryCtaLabel, CTAHref: r.PrimaryCtaHref,
 			ImageDigest: r.MediaDigest.String, Active: r.IsActive,

@@ -107,7 +107,12 @@ CREATE TABLE brands (
     created_at timestamptz NOT NULL DEFAULT now(),
     updated_at timestamptz NOT NULL DEFAULT now(),
     CONSTRAINT brands_slug_format CHECK (slug ~ '^[a-z0-9]+(-[a-z0-9]+)*$'),
-    CONSTRAINT brands_name_present CHECK (name ~ '[^[:space:]]')
+    CONSTRAINT brands_name_present CHECK (name ~ '[^[:space:]]'),
+    -- A _bounded CHECK on a column people type into states the limit of the
+    -- Go validator in front of it, counted the way that validator counts:
+    -- char_length for runes, octet_length for bytes.
+    -- TestTextBoundsMirrorTheirValidators holds each pair together.
+    CONSTRAINT brands_name_bounded CHECK (char_length(name) <= 60)
 );
 
 CREATE UNIQUE INDEX brands_slug_key ON brands (slug);
@@ -148,8 +153,10 @@ CREATE TABLE categories (
     updated_at timestamptz NOT NULL DEFAULT now(),
     CONSTRAINT categories_slug_format CHECK (slug ~ '^[a-z0-9]+(-[a-z0-9]+)*$'),
     CONSTRAINT categories_name_present CHECK (name ~ '[^[:space:]]'),
+    CONSTRAINT categories_name_bounded CHECK (char_length(name) <= 60),
     CONSTRAINT categories_name_en_present
         CHECK (name_en IS NULL OR name_en ~ '[^[:space:]]'),
+    CONSTRAINT categories_name_en_bounded CHECK (char_length(name_en) <= 60),
     CONSTRAINT categories_icon_key_known CHECK (
         icon_key IS NULL OR icon_key IN (
             'phone', 'laptop', 'tablet', 'headphones', 'watch', 'plug', 'shield',
@@ -170,6 +177,10 @@ CREATE TABLE categories (
     CONSTRAINT categories_image_has_alt
         CHECK (num_nonnulls(media_digest, bundled_key) = 0
                OR (image_alt IS NOT NULL AND image_alt ~ '[^[:space:]]')),
+    CONSTRAINT categories_image_alt_bounded CHECK (char_length(image_alt) <= 200),
+    CONSTRAINT categories_image_alt_en_present
+        CHECK (image_alt_en IS NULL OR image_alt_en ~ '[^[:space:]]'),
+    CONSTRAINT categories_image_alt_en_bounded CHECK (char_length(image_alt_en) <= 200),
     CONSTRAINT categories_not_own_parent CHECK (parent_id IS DISTINCT FROM id)
 );
 
@@ -294,13 +305,21 @@ CREATE TABLE products (
     CONSTRAINT products_warranty_months_sane
         CHECK (warranty_months IS NULL OR (warranty_months > 0 AND warranty_months <= 120)),
     CONSTRAINT products_slug_format CHECK (slug ~ '^[a-z0-9]+(-[a-z0-9]+)*$'),
+    CONSTRAINT products_slug_bounded CHECK (char_length(slug) <= 120),
     CONSTRAINT products_name_present CHECK (name ~ '[^[:space:]]'),
+    CONSTRAINT products_name_bounded CHECK (char_length(name) <= 200),
     CONSTRAINT products_name_en_present
         CHECK (name_en IS NULL OR name_en ~ '[^[:space:]]'),
+    CONSTRAINT products_name_en_bounded CHECK (char_length(name_en) <= 200),
+    CONSTRAINT products_summary_bounded CHECK (char_length(summary) <= 500),
     CONSTRAINT products_summary_en_present
         CHECK (summary_en IS NULL OR summary_en ~ '[^[:space:]]'),
+    CONSTRAINT products_summary_en_bounded CHECK (char_length(summary_en) <= 500),
+    CONSTRAINT products_description_bounded CHECK (char_length(description) <= 20000),
     CONSTRAINT products_description_en_present
         CHECK (description_en IS NULL OR description_en ~ '[^[:space:]]'),
+    CONSTRAINT products_description_en_bounded
+        CHECK (char_length(description_en) <= 20000),
     CONSTRAINT products_status_known CHECK (status IN ('draft', 'active', 'archived')),
     CONSTRAINT products_active_is_published
         CHECK (status <> 'active' OR published_at IS NOT NULL)
@@ -356,8 +375,10 @@ CREATE TABLE product_images (
     CONSTRAINT product_images_bundled_key_format
         CHECK (bundled_key ~ '^[a-z0-9]+(-[a-z0-9]+)*\.webp$'),
     CONSTRAINT product_images_alt_present CHECK (alt_text ~ '[^[:space:]]'),
+    CONSTRAINT product_images_alt_bounded CHECK (char_length(alt_text) <= 200),
     CONSTRAINT product_images_alt_en_present
         CHECK (alt_text_en IS NULL OR alt_text_en ~ '[^[:space:]]'),
+    CONSTRAINT product_images_alt_en_bounded CHECK (char_length(alt_text_en) <= 200),
     CONSTRAINT product_images_width_positive CHECK (width IS NULL OR width > 0),
     CONSTRAINT product_images_height_positive CHECK (height IS NULL OR height > 0),
     CONSTRAINT product_images_position_non_negative CHECK (position >= 0)
@@ -385,8 +406,10 @@ CREATE TABLE product_options (
     name_en    text,
     position   integer NOT NULL DEFAULT 0,
     CONSTRAINT product_options_name_present CHECK (name ~ '[^[:space:]]'),
+    CONSTRAINT product_options_name_bounded CHECK (char_length(name) <= 40),
     CONSTRAINT product_options_name_en_present
-        CHECK (name_en IS NULL OR name_en ~ '[^[:space:]]')
+        CHECK (name_en IS NULL OR name_en ~ '[^[:space:]]'),
+    CONSTRAINT product_options_name_en_bounded CHECK (char_length(name_en) <= 40)
 );
 
 CREATE UNIQUE INDEX product_options_name_key ON product_options (product_id, name);
@@ -417,8 +440,10 @@ CREATE TABLE product_option_values (
     swatch_hex text,
     position   integer NOT NULL DEFAULT 0,
     CONSTRAINT product_option_values_value_present CHECK (value ~ '[^[:space:]]'),
+    CONSTRAINT product_option_values_value_bounded CHECK (char_length(value) <= 40),
     CONSTRAINT product_option_values_value_en_present
         CHECK (value_en IS NULL OR value_en ~ '[^[:space:]]'),
+    CONSTRAINT product_option_values_value_en_bounded CHECK (char_length(value_en) <= 40),
     CONSTRAINT product_option_values_swatch_hex_shape
         CHECK (swatch_hex IS NULL OR swatch_hex ~ '^#[0-9a-f]{6}$'),
     CONSTRAINT product_option_values_option_fk
@@ -468,6 +493,7 @@ CREATE TABLE product_variants (
     created_at             timestamptz NOT NULL DEFAULT now(),
     updated_at             timestamptz NOT NULL DEFAULT now(),
     CONSTRAINT product_variants_sku_format CHECK (sku ~ '^[A-Z0-9]+(-[A-Z0-9]+)*$'),
+    CONSTRAINT product_variants_sku_bounded CHECK (char_length(sku) <= 60),
     -- The ceilings are deliberately loose: these refuse a typo, not a decision.
     CONSTRAINT product_variants_parcel_longest_sane
         CHECK (parcel_longest_mm IS NULL OR (parcel_longest_mm > 0 AND parcel_longest_mm <= 5000)),
@@ -616,6 +642,37 @@ CREATE INDEX variant_option_values_product_variant_idx
     ON variant_option_values (product_id, variant_id);
 CREATE INDEX variant_option_values_product_option_idx
     ON variant_option_values (product_id, option_id, option_value_id);
+
+-- The one photograph that stands for a choice: a cart line, an order line on
+-- the order, pay and back-office pages. The product page's own order, written
+-- once: a photograph of one of the variant's option values, else one that
+-- shows the product whichever value is chosen, else the first. Never a
+-- photograph of another value while an untagged one exists: the line copies
+-- once skipped that step and showed the silver watch for the black one (#2141).
+-- A row with variant_id NULL is the product with nothing chosen, for a line
+-- that names no variant. Read it through a LATERAL with LIMIT 1 on product_id
+-- and variant_id: the limit keeps PostgreSQL from flattening the subquery, so
+-- the condition reaches the DISTINCT ON and the view is computed for that one
+-- choice rather than the whole catalogue. security_invoker, so a role reads
+-- through it only what its own grants on the three tables allow.
+CREATE VIEW variant_primary_image WITH (security_invoker = true) AS
+    SELECT DISTINCT ON (c.product_id, c.variant_id)
+           c.product_id, c.variant_id,
+           i.media_digest, i.bundled_key, i.alt_text, i.alt_text_en, i.width, i.height
+    FROM (SELECT pv.product_id, pv.id AS variant_id FROM product_variants pv
+          UNION ALL
+          SELECT p.id, NULL::uuid FROM products p) c
+    JOIN product_images i ON i.product_id = c.product_id
+    ORDER BY c.product_id, c.variant_id,
+             EXISTS (SELECT 1 FROM variant_option_values vov
+                     WHERE vov.variant_id = c.variant_id
+                       AND vov.option_value_id = i.option_value_id) DESC,
+             (i.option_value_id IS NULL) DESC,
+             i.position, i.id;
+
+COMMENT ON VIEW variant_primary_image IS
+    'The photograph a cart or order line shows for its variant (variant_id NULL: '
+    'the product with nothing chosen), in the product page gallery''s order.';
 
 CREATE TABLE product_specs (
     id         uuid PRIMARY KEY DEFAULT uuidv7(),
@@ -798,6 +855,7 @@ CREATE TABLE email_verifications (
     created_at timestamptz NOT NULL DEFAULT now(),
     CONSTRAINT email_verifications_email_present CHECK (email ~ '[^[:space:]]'),
     CONSTRAINT email_verifications_email_trimmed CHECK (email !~ '^[[:space:]]|[[:space:]]$'),
+    CONSTRAINT email_verifications_email_bounded CHECK (octet_length(email) <= 254),
     CONSTRAINT email_verifications_digest_sha256 CHECK (octet_length(digest) = 32),
     CONSTRAINT email_verifications_expires_after_created CHECK (expires_at > created_at)
 );
@@ -820,6 +878,7 @@ CREATE TABLE addresses (
     is_default     boolean NOT NULL DEFAULT false,
     created_at     timestamptz NOT NULL DEFAULT now(),
     updated_at     timestamptz NOT NULL DEFAULT now(),
+    CONSTRAINT addresses_label_bounded CHECK (char_length(label) <= 30),
     CONSTRAINT addresses_recipient_present CHECK (recipient_name ~ '[^[:space:]]'),
     CONSTRAINT addresses_phone_present CHECK (phone ~ '[^[:space:]]'),
     CONSTRAINT addresses_postal_code_present CHECK (postal_code ~ '[^[:space:]]'),
@@ -1542,6 +1601,7 @@ CREATE TABLE stock_notifications (
     created_at  timestamptz NOT NULL DEFAULT now(),
     notified_at timestamptz,
     CONSTRAINT stock_notifications_email_present CHECK (email ~ '[^[:space:]]'),
+    CONSTRAINT stock_notifications_email_bounded CHECK (octet_length(email) <= 254),
     CONSTRAINT stock_notifications_locale_known CHECK (locale IN ('zh-Hant', 'en'))
 );
 
@@ -1565,7 +1625,7 @@ CREATE TABLE product_questions (
     hidden_at  timestamptz,
     created_at timestamptz NOT NULL DEFAULT now(),
     CONSTRAINT product_questions_body_present CHECK (body ~ '[^[:space:]]'),
-    CONSTRAINT product_questions_body_bounded CHECK (length(body) <= 1000)
+    CONSTRAINT product_questions_body_bounded CHECK (length(body) <= 300)
 );
 
 CREATE INDEX product_questions_product_idx
@@ -1584,7 +1644,7 @@ CREATE TABLE product_answers (
     hidden_at   timestamptz,
     created_at  timestamptz NOT NULL DEFAULT now(),
     CONSTRAINT product_answers_body_present CHECK (body ~ '[^[:space:]]'),
-    CONSTRAINT product_answers_body_bounded CHECK (length(body) <= 2000)
+    CONSTRAINT product_answers_body_bounded CHECK (length(body) <= 1000)
 );
 
 CREATE INDEX product_answers_question_idx
@@ -1607,7 +1667,9 @@ CREATE TABLE product_reviews (
     hidden_at            timestamptz,
     created_at           timestamptz NOT NULL DEFAULT now(),
     CONSTRAINT product_reviews_rating_range CHECK (rating BETWEEN 1 AND 5),
-    CONSTRAINT product_reviews_body_present CHECK (body ~ '[^[:space:]]')
+    CONSTRAINT product_reviews_title_bounded CHECK (char_length(title) <= 80),
+    CONSTRAINT product_reviews_body_present CHECK (body ~ '[^[:space:]]'),
+    CONSTRAINT product_reviews_body_bounded CHECK (char_length(body) <= 2000)
 );
 
 -- The reviews the shop shows, which is what every rating is computed from. Two
@@ -1697,6 +1759,7 @@ CREATE TABLE coupons (
 
     CONSTRAINT coupons_code_format CHECK (code ~ '^[A-Za-z0-9][A-Za-z0-9-]{1,31}$'),
     CONSTRAINT coupons_description_present CHECK (description ~ '[^[:space:]]'),
+    CONSTRAINT coupons_description_bounded CHECK (char_length(description) <= 60),
     CONSTRAINT coupons_kind_known CHECK (kind IN ('amount', 'percent', 'free_shipping')),
     -- An equivalence per kind, because "amount IS NOT NULL OR percent IS NOT
     -- NULL" would admit both at once and leave the handler to pick.
@@ -1998,6 +2061,7 @@ CREATE TABLE orders (
     CONSTRAINT orders_shipping_non_negative CHECK (shipping_cents >= 0),
     CONSTRAINT orders_shipping_code_present CHECK (shipping_method_code ~ '[^[:space:]]'),
     CONSTRAINT orders_shipping_name_present CHECK (shipping_method_name ~ '[^[:space:]]'),
+    CONSTRAINT orders_customer_note_bounded CHECK (char_length(customer_note) <= 500),
     CONSTRAINT orders_fulfillment_status_known CHECK (fulfillment_status IN (
         'pending',    -- 待付款
         'picking',    -- 撿貨中
@@ -2477,7 +2541,10 @@ CREATE TABLE order_private_data (
     -- characters and 149 of its 1,350 stores lead with a letter.
     CONSTRAINT order_private_data_pickup_store_code_format CHECK (
         pickup_store_code IS NULL OR pickup_store_code ~ '^[0-9A-Z]{1,10}$'
-    )
+    ),
+    CONSTRAINT order_private_data_pickup_store_name_bounded
+        CHECK (char_length(pickup_store_name) <= 40),
+    CONSTRAINT order_private_data_email_bounded CHECK (octet_length(email) <= 254)
 );
 
 CREATE TABLE order_shipments (
@@ -4790,6 +4857,21 @@ CREATE TABLE hero_slides (
     created_at          timestamptz NOT NULL DEFAULT now(),
     updated_at          timestamptz NOT NULL DEFAULT now(),
     CONSTRAINT hero_slides_headline_present CHECK (headline ~ '[^[:space:]]'),
+    CONSTRAINT hero_slides_headline_bounded CHECK (char_length(headline) <= 40),
+    -- A blank translation would render an empty line where localized_name
+    -- falls back to the Chinese for NULL, as on every other *_en column.
+    CONSTRAINT hero_slides_eyebrow_en_present
+        CHECK (eyebrow_en IS NULL OR eyebrow_en ~ '[^[:space:]]'),
+    CONSTRAINT hero_slides_headline_en_present
+        CHECK (headline_en IS NULL OR headline_en ~ '[^[:space:]]'),
+    CONSTRAINT hero_slides_body_en_present
+        CHECK (body_en IS NULL OR body_en ~ '[^[:space:]]'),
+    CONSTRAINT hero_slides_primary_cta_label_en_present
+        CHECK (primary_cta_label_en IS NULL OR primary_cta_label_en ~ '[^[:space:]]'),
+    CONSTRAINT hero_slides_secondary_cta_label_en_present
+        CHECK (secondary_cta_label_en IS NULL OR secondary_cta_label_en ~ '[^[:space:]]'),
+    CONSTRAINT hero_slides_image_alt_en_present
+        CHECK (image_alt_en IS NULL OR image_alt_en ~ '[^[:space:]]'),
     CONSTRAINT hero_slides_primary_cta_present
         CHECK (primary_cta_label ~ '[^[:space:]]' AND primary_cta_href ~ '[^[:space:]]'),
     CONSTRAINT hero_slides_image_has_alt
@@ -4865,6 +4947,11 @@ CREATE TABLE promo_banners (
     created_at    timestamptz NOT NULL DEFAULT now(),
     updated_at    timestamptz NOT NULL DEFAULT now(),
     CONSTRAINT promo_banners_message_present CHECK (message ~ '[^[:space:]]'),
+    CONSTRAINT promo_banners_message_bounded CHECK (char_length(message) <= 60),
+    CONSTRAINT promo_banners_message_short_bounded CHECK (char_length(message_short) <= 60),
+    CONSTRAINT promo_banners_message_en_bounded CHECK (char_length(message_en) <= 60),
+    CONSTRAINT promo_banners_message_short_en_bounded
+        CHECK (char_length(message_short_en) <= 60),
     CONSTRAINT promo_banners_message_en_present
         CHECK (message_en IS NULL OR message_en ~ '[^[:space:]]'),
     CONSTRAINT promo_banners_message_short_en_present
@@ -4909,6 +4996,12 @@ CREATE TABLE sale_campaigns (
     updated_at timestamptz NOT NULL DEFAULT now(),
     CONSTRAINT sale_campaigns_slug_format CHECK (slug ~ '^[a-z0-9]+(-[a-z0-9]+)*$'),
     CONSTRAINT sale_campaigns_title_present CHECK (title ~ '[^[:space:]]'),
+    CONSTRAINT sale_campaigns_title_bounded CHECK (char_length(title) <= 60),
+    CONSTRAINT sale_campaigns_title_en_bounded CHECK (char_length(title_en) <= 60),
+    CONSTRAINT sale_campaigns_image_alt_bounded CHECK (char_length(image_alt) <= 200),
+    CONSTRAINT sale_campaigns_image_alt_en_present
+        CHECK (image_alt_en IS NULL OR image_alt_en ~ '[^[:space:]]'),
+    CONSTRAINT sale_campaigns_image_alt_en_bounded CHECK (char_length(image_alt_en) <= 200),
     CONSTRAINT sale_campaigns_title_en_present
         CHECK (title_en IS NULL OR title_en ~ '[^[:space:]]'),
     CONSTRAINT sale_campaigns_image_one_source
@@ -5041,7 +5134,11 @@ CREATE TABLE faq_entries (
     created_at  timestamptz NOT NULL DEFAULT now(),
     updated_at  timestamptz NOT NULL DEFAULT now(),
     CONSTRAINT faq_entries_question_present CHECK (question ~ '[^[:space:]]'),
+    CONSTRAINT faq_entries_question_bounded CHECK (char_length(question) <= 200),
+    CONSTRAINT faq_entries_question_en_bounded CHECK (char_length(question_en) <= 200),
     CONSTRAINT faq_entries_answer_present CHECK (answer ~ '[^[:space:]]'),
+    CONSTRAINT faq_entries_answer_bounded CHECK (char_length(answer) <= 2000),
+    CONSTRAINT faq_entries_answer_en_bounded CHECK (char_length(answer_en) <= 2000),
     CONSTRAINT faq_entries_question_en_present
         CHECK (question_en IS NULL OR question_en ~ '[^[:space:]]'),
     CONSTRAINT faq_entries_answer_en_present
@@ -5065,7 +5162,10 @@ CREATE TABLE contact_messages (
     handled_at timestamptz,
     created_at timestamptz NOT NULL DEFAULT now(),
     CONSTRAINT contact_messages_name_present CHECK (name ~ '[^[:space:]]'),
+    CONSTRAINT contact_messages_name_bounded CHECK (char_length(name) <= 80),
     CONSTRAINT contact_messages_email_present CHECK (email ~ '[^[:space:]]'),
+    CONSTRAINT contact_messages_email_bounded CHECK (octet_length(email) <= 254),
+    CONSTRAINT contact_messages_order_ref_bounded CHECK (char_length(order_ref) <= 32),
     -- The stored value is a durable category code, not free text and not display
     -- text: the words a reader sees live in i18n, one per locale, and the page
     -- renders them in the reader's language. Keep this aligned with the constants
@@ -5074,7 +5174,8 @@ CREATE TABLE contact_messages (
     CONSTRAINT contact_messages_subject_known CHECK (subject IN (
         'order', 'returns', 'warranty', 'product', 'partnership'
     )),
-    CONSTRAINT contact_messages_message_present CHECK (message ~ '[^[:space:]]')
+    CONSTRAINT contact_messages_message_present CHECK (message ~ '[^[:space:]]'),
+    CONSTRAINT contact_messages_message_bounded CHECK (char_length(message) <= 2000)
 );
 
 CREATE INDEX contact_messages_unhandled_idx ON contact_messages (created_at)
@@ -5102,6 +5203,7 @@ CREATE TABLE newsletter_subscribers (
     updated_at         timestamptz NOT NULL DEFAULT now(),
     CONSTRAINT newsletter_subscribers_email_present CHECK (email ~ '[^[:space:]]'),
     CONSTRAINT newsletter_subscribers_email_trimmed CHECK (email !~ '^[[:space:]]|[[:space:]]$'),
+    CONSTRAINT newsletter_subscribers_email_bounded CHECK (octet_length(email) <= 254),
     CONSTRAINT newsletter_subscribers_unsubscribe_token_present
         CHECK (length(unsubscribe_token) >= 32),
     CONSTRAINT newsletter_subscribers_unsubscribed_after_confirmed
@@ -5136,6 +5238,7 @@ CREATE TABLE newsletter_confirmations (
     created_at timestamptz NOT NULL DEFAULT now(),
     CONSTRAINT newsletter_confirmations_email_present CHECK (email ~ '[^[:space:]]'),
     CONSTRAINT newsletter_confirmations_email_trimmed CHECK (email !~ '^[[:space:]]|[[:space:]]$'),
+    CONSTRAINT newsletter_confirmations_email_bounded CHECK (octet_length(email) <= 254),
     CONSTRAINT newsletter_confirmations_digest_sha256 CHECK (octet_length(digest) = 32),
     CONSTRAINT newsletter_confirmations_expires_after_created CHECK (expires_at > created_at)
 );
@@ -5163,7 +5266,9 @@ CREATE TABLE newsletter_issues (
     created_at timestamptz NOT NULL DEFAULT now(),
     updated_at timestamptz NOT NULL DEFAULT now(),
     CONSTRAINT newsletter_issues_subject_present CHECK (subject ~ '[^[:space:]]'),
+    CONSTRAINT newsletter_issues_subject_bounded CHECK (char_length(subject) <= 120),
     CONSTRAINT newsletter_issues_body_present CHECK (body ~ '[^[:space:]]'),
+    CONSTRAINT newsletter_issues_body_bounded CHECK (char_length(body) <= 20000),
     CONSTRAINT newsletter_issues_recipients_non_negative CHECK (recipients >= 0),
     CONSTRAINT newsletter_issues_unsent_has_no_recipients
         CHECK (sent_at IS NOT NULL OR recipients = 0)

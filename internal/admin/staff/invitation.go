@@ -9,14 +9,13 @@ import (
 	"github.com/jackc/pgx/v5"
 
 	"github.com/koopa0/goen/internal/db"
-	"github.com/koopa0/goen/internal/email"
 	"github.com/koopa0/goen/internal/i18n"
 	"github.com/koopa0/goen/internal/outbox"
 )
 
 func enqueueStaffInvitation(ctx context.Context, q *db.Queries, userID uuid.UUID) error {
 	// A retained delivery belongs to one grant; a later re-grant needs its own notice.
-	return outbox.Enqueue(ctx, q, outbox.TopicStaffInvitation, "staff-invite:"+uuid.NewString(), &email.StaffInvitation{
+	return outbox.Enqueue(ctx, q, outbox.TopicStaffInvitation, "staff-invite:"+uuid.NewString(), &outbox.StaffInvitation{
 		// The admin's locale, because users stores none for the invitee.
 		UserID: userID.String(), Locale: i18n.FromContext(ctx).Tag(),
 	})

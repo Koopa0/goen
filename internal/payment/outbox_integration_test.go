@@ -8,7 +8,7 @@ import (
 
 	"github.com/google/go-cmp/cmp"
 
-	"github.com/koopa0/goen/internal/email"
+	"github.com/koopa0/goen/internal/outbox"
 	"github.com/koopa0/goen/internal/payment"
 )
 
@@ -42,13 +42,13 @@ func TestACaptureEnqueuesTheReceipt(t *testing.T) {
 		number).Scan(&payload); err != nil {
 		t.Fatalf("no receipt was enqueued for %s: %v", number, err)
 	}
-	var got email.OrderPaid
+	var got outbox.OrderPaid
 	if err := json.Unmarshal(payload, &got); err != nil {
 		t.Fatalf("decode receipt: %v", err)
 	}
 	// Carried in the payload rather than read at delivery: erase_user blanks
 	// order_private_data.
-	want := email.OrderPaid{
+	want := outbox.OrderPaid{
 		OrderNumber: number, Email: "pay@example.com", Name: "收件",
 		AmountCents: 149900, Card: "Visa •••• 4242",
 		Locale: "en",

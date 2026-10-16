@@ -1,0 +1,350 @@
+package content
+
+import (
+	"fmt"
+
+	"github.com/koopa0/goen/internal/i18n"
+	"github.com/koopa0/goen/internal/ui/components"
+	"github.com/koopa0/goen/internal/ui/icons"
+	"github.com/koopa0/goen/internal/ui/layouts"
+)
+
+// Two cards down the column rather than a form beside a list: a 320px side column
+// made the editor and the entries narrower than the sentences they hold.
+// The list keeps the class the layout gate finds the page by
+// (scripts/check-layout.mjs): it marks the page on the LIST, so a run that rendered
+// only the form cannot report the page as covered.
+templ FAQ(p layouts.Page, v *FAQView) {
+	@layouts.Admin(p, "faq") {
+		<div class="ui-page-head">
+			<div>
+				<p class="ui-page-head__eyebrow">{ i18n.T(ctx, i18n.KeyAdminEyebrow) }</p>
+				<h1 class="ui-page-head__title">{ i18n.T(ctx, i18n.KeyAdminPageFAQ) }</h1>
+				<p class="ui-page-head__sub">
+					{ i18n.T(ctx, i18n.KeyAdminFaqpLead) }
+				</p>
+			</div>
+		</div>
+		@layouts.Announce(v.Notice)
+		@layouts.RefusalSummary(layouts.SummarizeRefusal(i18n.KeyAdminFaqpAdd, v.Errors, layouts.RefusalField{Key: "category", ID: "faq-category"}, layouts.RefusalField{Key: "question", ID: "faq-question"}, layouts.RefusalField{Key: "answer", ID: "faq-answer"}, layouts.RefusalField{Key: "question_en", ID: "faq-question-en"}, layouts.RefusalField{Key: "answer_en", ID: "faq-answer-en"}))
+		@layouts.RefusalSummary(layouts.SummarizeRefusal(v.categoryRefusalForm(), v.CategoryErrors, layouts.RefusalField{Key: "name", ID: v.categoryFieldID("name")}, layouts.RefusalField{Key: "name_en", ID: v.categoryFieldID("name_en")}))
+		@layouts.RefusalSummary(layouts.SummarizeRefusal(i18n.KeyAdminRefusalFAQ, v.EditErrors, layouts.RefusalField{Key: "question", ID: "q-" + v.Edit.ID}, layouts.RefusalField{Key: "answer", ID: "a-" + v.Edit.ID}, layouts.RefusalField{Key: "question_en", ID: "qe-" + v.Edit.ID}, layouts.RefusalField{Key: "answer_en", ID: "ae-" + v.Edit.ID}))
+		if v.Untranslated() > 0 {
+			@components.Notice(components.NoticeProps{Intent: components.IntentWarn}) {
+				{ fmt.Sprintf(i18n.T(ctx, i18n.KeyAdminFaqpNoEnglish), untranslatedText(v)) }
+			}
+		}
+		@components.Card(components.CardProps{Class: "goen-admin__add"}) {
+			<h2 class="goen-admin__heading">{ i18n.T(ctx, i18n.KeyAdminFaqpAdd) }</h2>
+			<form class="goen-admin__form" id="new-faq" method="post" action="/admin/faq#new-faq">
+				<div class="goen-admin__field">
+					@components.Label(components.LabelProps{For: "faq-category"}) {
+						{ i18n.T(ctx, i18n.KeyAdminColCategory) }
+					}
+					// A select, not a name: the entry joins a category row, so a
+					// second spelling cannot start a second heading.
+					<select
+						class="goen-input"
+						id="faq-category"
+						name="category_id"
+						required
+						if v.HasErr("category") {
+							aria-invalid="true"
+							aria-describedby="faq-category-error"
+						}
+					>
+						<option value="">{ i18n.T(ctx, i18n.KeyAdminFaqpPickCategory) }</option>
+						for _, c := range v.Categories {
+							<option value={ c.ID } selected?={ v.Draft.CategoryID == c.ID }>{ c.Name }</option>
+						}
+					</select>
+					if v.HasErr("category") {
+						<p class="ui-error-text" id="faq-category-error" role="alert">{ v.Err("category") }</p>
+					}
+					if len(v.Categories) == 0 {
+						<p class="goen-admin__hint"><a href="#faq-categories">{ i18n.T(ctx, i18n.KeyAdminFaqpNoCategories) }</a></p>
+					}
+					<p class="goen-admin__hint">{ i18n.T(ctx, i18n.KeyAdminFaqpCategoryHint) }</p>
+				</div>
+				<div class="goen-admin__field">
+					@components.Label(components.LabelProps{For: "faq-question"}) {
+						{ i18n.T(ctx, i18n.KeyAdminFaqpQuestion) }
+					}
+					@components.Input(components.FieldProps{
+						ID:        "faq-question",
+						Name:      "question",
+						Value:     v.Draft.Question,
+						Invalid:   v.HasErr("question"),
+						Describes: "faq-question-error",
+						Attrs: templ.Attributes{
+							"maxlength": "200",
+							"required":  true,
+						},
+					})
+					if v.HasErr("question") {
+						<p class="ui-error-text" id="faq-question-error" role="alert">{ v.Err("question") }</p>
+					}
+				</div>
+				<div class="goen-admin__field">
+					@components.Label(components.LabelProps{For: "faq-answer"}) {
+						{ i18n.T(ctx, i18n.KeyAdminFaqpAnswer) }
+					}
+					@components.Textarea(components.FieldProps{
+						ID:        "faq-answer",
+						Name:      "answer",
+						Invalid:   v.HasErr("answer"),
+						Describes: "faq-answer-error",
+						Attrs: templ.Attributes{
+							"maxlength": "2000",
+							"required":  true,
+							"rows":      "5",
+						},
+					}) {
+						{ v.Draft.Answer }
+					}
+					if v.HasErr("answer") {
+						<p class="ui-error-text" id="faq-answer-error" role="alert">{ v.Err("answer") }</p>
+					}
+				</div>
+				<div class="goen-admin__field">
+					@components.Label(components.LabelProps{For: "faq-question-en"}) {
+						{ i18n.T(ctx, i18n.KeyAdminFaqpQuestionEn) }
+					}
+					@components.Input(components.FieldProps{
+						ID:        "faq-question-en",
+						Name:      "question_en",
+						Value:     v.Draft.QuestionEn,
+						Invalid:   v.HasErr("question_en"),
+						Describes: "faq-question-en-error",
+						Attrs:     templ.Attributes{"maxlength": "200"},
+					})
+					if v.HasErr("question_en") {
+						<p class="ui-error-text" id="faq-question-en-error" role="alert">{ v.Err("question_en") }</p>
+					}
+				</div>
+				<div class="goen-admin__field">
+					@components.Label(components.LabelProps{For: "faq-answer-en"}) {
+						{ i18n.T(ctx, i18n.KeyAdminFaqpAnswerEn) }
+					}
+					@components.Textarea(components.FieldProps{
+						ID:        "faq-answer-en",
+						Name:      "answer_en",
+						Invalid:   v.HasErr("answer_en"),
+						Describes: "faq-answer-en-error",
+						Attrs:     templ.Attributes{"maxlength": "2000", "rows": "5"},
+					}) {
+						{ v.Draft.AnswerEn }
+					}
+					if v.HasErr("answer_en") {
+						<p class="ui-error-text" id="faq-answer-en-error" role="alert">{ v.Err("answer_en") }</p>
+					}
+					<p class="goen-admin__hint">{ i18n.T(ctx, i18n.KeyAdminFaqpEnHint) }</p>
+				</div>
+				@components.Button(components.ButtonProps{
+					ButtonStyle: components.ButtonStylePrimary,
+					Class:       "goen-admin__submit",
+				}, "submit") {
+					{ i18n.T(ctx, i18n.KeyAdminAddButton) }
+				}
+			</form>
+		}
+		@components.Card(components.CardProps{Class: "goen-admin__add"}) {
+			<h2 class="goen-admin__heading">{ i18n.T(ctx, i18n.KeyAdminFaqpCurrent) }</h2>
+			if v.Empty() {
+				<div class="goen-admin__empty">
+					<span class="goen-modqueue__emptyicon">
+						@icons.Chat()
+					</span>
+					<p class="goen-admin__emptytitle">{ i18n.T(ctx, i18n.KeyAdminFaqpEmpty) }</p>
+				</div>
+			} else {
+				<ul class="goen-admin__coupons" role="list">
+					for i := range v.Rows {
+						{{ e := v.Listed(&v.Rows[i]) }}
+						{{ stored := &v.Rows[i] }}
+						<li class="goen-modqueue__item">
+							<div class="goen-modqueue__head">
+								<p class="goen-modqueue__title">{ e.Category }</p>
+								if !e.Translated() {
+									@components.Badge(components.BadgeProps{Intent: components.IntentWarn}) {
+										{ i18n.T(ctx, i18n.KeyAdminUntranslated) }
+									}
+								}
+								<span class="goen-admin__meta">{ fmt.Sprintf(i18n.T(ctx, i18n.KeyAdminFaqpUpdated), e.UpdatedAt) }</span>
+							</div>
+							<form id={ "faq-" + e.ID } class="goen-admin__form" method="post" action={ templ.SafeURL("/admin/faq/" + e.ID + "#faq-" + e.ID) }>
+								<div class="goen-admin__field">
+									@components.Label(components.LabelProps{For: "q-" + e.ID, Class: "goen-sr-only"}) {
+										{ i18n.T(ctx, i18n.KeyAdminFaqpQuestion) }
+									}
+									@components.Input(components.FieldProps{
+										ID:        "q-" + e.ID,
+										Name:      "question",
+										Value:     e.Question,
+										Invalid:   v.RowErr(stored, "question"),
+										Describes: "faq-err-question-" + e.ID,
+										Attrs:     templ.Attributes{"maxlength": "200", "required": true},
+									})
+									if v.RowErr(stored,"question") {
+										<p class="ui-error-text" id={ "faq-err-question-" + e.ID }>{ v.EditErrors["question"] }</p>
+									}
+								</div>
+								<div class="goen-admin__field">
+									@components.Label(components.LabelProps{For: "a-" + e.ID, Class: "goen-sr-only"}) {
+										{ i18n.T(ctx, i18n.KeyAdminFaqpAnswer) }
+									}
+									@components.Textarea(components.FieldProps{
+										ID:        "a-" + e.ID,
+										Name:      "answer",
+										Invalid:   v.RowErr(stored, "answer"),
+										Describes: "faq-err-answer-" + e.ID,
+										Attrs:     templ.Attributes{"maxlength": "2000", "required": true, "rows": "3"},
+									}) {
+										{ e.Answer }
+									}
+									if v.RowErr(stored,"answer") {
+										<p class="ui-error-text" id={ "faq-err-answer-" + e.ID }>{ v.EditErrors["answer"] }</p>
+									}
+								</div>
+								<div class="goen-admin__field">
+									@components.Label(components.LabelProps{For: "qe-" + e.ID}) {
+										{ i18n.T(ctx, i18n.KeyAdminFaqpQuestionEn) }
+									}
+									@components.Input(components.FieldProps{
+										ID:        "qe-" + e.ID,
+										Name:      "question_en",
+										Value:     e.QuestionEn,
+										Invalid:   v.RowErr(stored, "question_en"),
+										Describes: "faq-err-question_en-" + e.ID,
+										Attrs:     templ.Attributes{"maxlength": "200"},
+									})
+									if v.RowErr(stored,"question_en") {
+										<p class="ui-error-text" id={ "faq-err-question_en-" + e.ID }>{ v.EditErrors["question_en"] }</p>
+									}
+								</div>
+								<div class="goen-admin__field">
+									@components.Label(components.LabelProps{For: "ae-" + e.ID}) {
+										{ i18n.T(ctx, i18n.KeyAdminFaqpAnswerEn) }
+									}
+									@components.Textarea(components.FieldProps{
+										ID:        "ae-" + e.ID,
+										Name:      "answer_en",
+										Invalid:   v.RowErr(stored, "answer_en"),
+										Describes: "faq-err-answer_en-" + e.ID,
+										Attrs:     templ.Attributes{"maxlength": "2000", "rows": "3"},
+									}) {
+										{ e.AnswerEn }
+									}
+									if v.RowErr(stored,"answer_en") {
+										<p class="ui-error-text" id={ "faq-err-answer_en-" + e.ID }>{ v.EditErrors["answer_en"] }</p>
+									}
+								</div>
+								<div class="goen-modqueue__actions">
+									@components.Button(components.ButtonProps{
+										ButtonStyle: components.ButtonStyleOutline,
+										Size:        components.SizeSmall,
+										Attrs:       templ.Attributes{"name": "action", "value": "save"},
+									}, "submit") {
+										{ i18n.T(ctx, i18n.KeyAdminFaqpSave) }
+									}
+									@components.Button(components.ButtonProps{
+										ButtonStyle: components.ButtonStyleGhost,
+										Size:        components.SizeSmall,
+										Attrs:       templ.Attributes{"name": "action", "value": "delete"},
+									}, "submit") {
+										{ i18n.T(ctx, i18n.KeyAdminDelete) }
+									}
+								</div>
+							</form>
+						</li>
+					}
+				</ul>
+			}
+		}
+		@FAQCategories(v)
+	}
+}
+
+// FAQCategories is the headings /faq groups its entries under. Each is one row:
+// a rename here moves every entry in it.
+templ FAQCategories(v *FAQView) {
+	@components.Card(components.CardProps{Class: "goen-admin__add"}) {
+		<h2 class="goen-admin__heading" id="faq-categories">{ i18n.T(ctx, i18n.KeyAdminFaqpCategories) }</h2>
+		<p class="goen-admin__hint">{ i18n.T(ctx, i18n.KeyAdminFaqpCategoriesLead) }</p>
+		if len(v.Categories) > 0 {
+			<ul class="goen-admin__coupons" role="list">
+				for i := range v.Categories {
+					{{ c := v.ListedCategory(&v.Categories[i]) }}
+					<li class="goen-modqueue__item">
+						<form id={ "faq-category-" + c.ID } class="goen-admin__form" method="post" action={ templ.SafeURL("/admin/faq/categories/" + c.ID + "#faq-category-" + c.ID) }>
+							<div class="goen-admin__fields">
+								@faqCategoryField(v, c.ID, "name", "fc-name-"+c.ID, c.Name, i18n.KeyAdminColCategory, "", "", true)
+								@faqCategoryField(v, c.ID, "name_en", "fc-name-en-"+c.ID, c.NameEn, i18n.KeyAdminFaqpCategoryEn, "", "", false)
+							</div>
+							<div class="goen-modqueue__actions">
+								@components.Button(components.ButtonProps{
+									ButtonStyle: components.ButtonStyleOutline,
+									Size:        components.SizeSmall,
+									Attrs:       templ.Attributes{"name": "action", "value": "save"},
+								}, "submit") {
+									{ i18n.T(ctx, i18n.KeyAdminFaqpSave) }
+								}
+								if !c.InUse {
+									@components.Button(components.ButtonProps{
+										ButtonStyle: components.ButtonStyleGhost,
+										Size:        components.SizeSmall,
+										Attrs:       templ.Attributes{"name": "action", "value": "delete"},
+									}, "submit") {
+										{ i18n.T(ctx, i18n.KeyAdminDelete) }
+									}
+								}
+							</div>
+						</form>
+					</li>
+				}
+			</ul>
+		}
+		{{ draft := v.newCategoryDraft() }}
+		<form class="goen-admin__form" id="new-faq-category" method="post" action="/admin/faq/categories#new-faq-category">
+			<div class="goen-admin__fields">
+				@faqCategoryField(v, "", "name", "faq-new-category-name", draft.Name, i18n.KeyAdminColCategory, fmt.Sprintf(i18n.T(ctx, i18n.KeyFieldExample), i18n.T(ctx, i18n.KeyAdminFaqpCategoryExample)), "", true)
+				@faqCategoryField(v, "", "name_en", "faq-new-category-name-en", draft.NameEn, i18n.KeyAdminFaqpCategoryEn, "", fmt.Sprintf(i18n.T(ctx, i18n.KeyAdminExample), "Orders"), false)
+			</div>
+			@components.Button(components.ButtonProps{
+				ButtonStyle: components.ButtonStylePrimary,
+				Class:       "goen-admin__submit",
+			}, "submit") {
+				{ i18n.T(ctx, i18n.KeyAdminFaqpCategoryAdd) }
+			}
+		</form>
+	}
+}
+
+// faqCategoryField is one name of a category form (form "" is the add form).
+// A non-empty example is linked to the input whether or not it was refused; a
+// hint is shown beside it unlinked, as the add form's English hints are.
+templ faqCategoryField(v *FAQView, form, field, id, value string, label i18n.Key, example, hint string, required bool) {
+	{{ msg, refused := v.CategoryErr(form, field) }}
+	<div class="goen-admin__field">
+		@components.Label(components.LabelProps{For: id}) {
+			{ i18n.T(ctx, label) }
+		}
+		@components.Input(components.FieldProps{
+			ID:        id,
+			Name:      field,
+			Value:     value,
+			Invalid:   refused,
+			Describes: v.categoryDescribedBy(form, field, exampleID(id, example)),
+			Attrs:     categoryAttrs(refused, required, exampleID(id, example)),
+		})
+		if example != "" {
+			<p class="goen-admin__hint" id={ exampleID(id, example) }>{ example }</p>
+		}
+		if refused {
+			<p class="ui-error-text" id={ categoryErrID(form, field) } role="alert">{ msg }</p>
+		}
+		if hint != "" {
+			<p class="goen-admin__hint">{ hint }</p>
+		}
+	</div>
+}
