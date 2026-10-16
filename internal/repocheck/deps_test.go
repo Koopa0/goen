@@ -71,7 +71,7 @@ var (
 		"assets", "internal/fieldrule", "internal/i18n", "internal/money", "internal/shoptime",
 		"internal/coupon", "internal/inventory", "internal/invoice", "internal/keyset", "internal/order",
 		"internal/postcode", "internal/product/labelling", "internal/refund",
-		"internal/returns", "internal/shipping", "internal/user",
+		"internal/returns", "internal/sales", "internal/shipping", "internal/user",
 	}
 	// storefrontPages are the packages that serve storefront pages. The rule
 	// that uses them leaves out, on purpose: internal/newsletter (its issue
@@ -88,12 +88,12 @@ var (
 	importFreeLeaves = []string{
 		"internal/refund",
 		"internal/coupon", "internal/inventory", "internal/postcode", "internal/user",
-		"internal/money", "internal/db", "internal/keyset", "internal/bearer", "internal/sales",
+		"internal/money", "internal/db", "internal/keyset", "internal/bearer",
 	}
 	// i18nOnlyLeaves import nothing from goen except the message catalogue.
 	i18nOnlyLeaves = []string{
 		"internal/invoice", "internal/order", "internal/product/labelling", "internal/returns", "internal/shoptime", "internal/fieldrule",
-		"internal/worklist", "internal/shipping",
+		"internal/sales", "internal/worklist", "internal/shipping",
 	}
 )
 

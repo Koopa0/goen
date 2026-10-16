@@ -8,6 +8,7 @@ import (
 
 	"github.com/koopa0/goen/internal/i18n"
 	"github.com/koopa0/goen/internal/money"
+	"github.com/koopa0/goen/internal/sales"
 	"github.com/koopa0/goen/internal/ui/chart"
 	"github.com/koopa0/goen/internal/ui/components"
 )
@@ -21,7 +22,7 @@ type Week struct {
 	Orders         int64
 	RevenueCents   int64
 	RevenueSquares float64
-	Previous       PreviousFigures
+	Previous       sales.Period
 	RevenueDays    chart.SparklineProps
 	OrderDays      chart.SparklineProps
 }
@@ -34,21 +35,21 @@ type LatestPaid struct {
 }
 
 func (w *Week) revenueAgainst(ctx context.Context) string {
-	return against(ctx, WeekDays, comparison{
-		Orders: w.Orders, PreviousOrders: w.Previous.Orders,
+	return sales.Comparison{
+		Days: WeekDays, Orders: w.Orders, PreviousOrders: w.Previous.Orders,
 		Current: w.RevenueCents, Previous: w.Previous.RevenueCents,
 		Noise:        w.RevenueSquares + w.Previous.RevenueSquares,
 		PreviousText: money.TWD(w.Previous.RevenueCents),
-	})
+	}.Sentence(ctx)
 }
 
 func (w *Week) ordersAgainst(ctx context.Context) string {
-	return against(ctx, WeekDays, comparison{
-		Orders: w.Orders, PreviousOrders: w.Previous.Orders,
+	return sales.Comparison{
+		Days: WeekDays, Orders: w.Orders, PreviousOrders: w.Previous.Orders,
 		Current: w.Orders, Previous: w.Previous.Orders,
 		Noise:        float64(w.Orders + w.Previous.Orders),
 		PreviousText: strconv.FormatInt(w.Previous.Orders, 10),
-	})
+	}.Sentence(ctx)
 }
 
 // sparklines labels the keys under the two small charts.
