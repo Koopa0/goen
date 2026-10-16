@@ -14,10 +14,13 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgconn"
+	"github.com/jackc/pgx/v5/pgxpool"
 
 	"github.com/koopa0/goen/internal/bearer"
 	"github.com/koopa0/goen/internal/cart"
+	"github.com/koopa0/goen/internal/db"
 	"github.com/koopa0/goen/internal/i18n"
 	"github.com/koopa0/goen/internal/money"
 	"github.com/koopa0/goen/internal/order/access"
@@ -228,6 +231,111 @@ func TestCheckoutQuoteGateLinearizesAfterTheCatalogueLock(t *testing.T) {
 	view, err := baseStore.View(ctx, cartID)
 	if err != nil || len(view.Lines) != 1 {
 		t.Fatalf("stale quote changed its cart: lines=%d err=%v", len(view.Lines), err)
+	}
+}
+
+// TestCheckoutWaitsForAZoneRateEditInFlight: a surcharge is read from rows the
+// back office edits in place, and orders_have_lines prices the order again
+// from them at COMMIT. Checkout holds the zone lock shared from its quote to
+// its COMMIT, and the edit holds it exclusively, so a checkout that meets an
+// edit in flight waits, is then told the price changed, and places at the new
+// one. Without the wait it would price from one surcharge and commit under
+// another, and the storefront's order would be refused.
+func TestCheckoutWaitsForAZoneRateEditInFlight(t *testing.T) {
+	ctx := t.Context()
+	var methodID, versionID uuid.UUID
+	if err := pool.QueryRow(ctx, `
+		INSERT INTO shipping_methods (code, destination_kind, position)
+		VALUES ($1, 'address', 99) RETURNING id`,
+		"zone_lock_"+uuid.NewString()[:8]).Scan(&methodID); err != nil {
+		t.Fatalf("create method: %v", err)
+	}
+	t.Cleanup(func() {
+		if _, err := pool.Exec(context.WithoutCancel(ctx),
+			`UPDATE shipping_methods SET is_active = false WHERE id = $1`, methodID); err != nil {
+			t.Errorf("withdraw method: %v", err)
+		}
+	})
+	if err := pool.QueryRow(ctx, `
+		INSERT INTO shipping_method_versions (method_id, name, fee_cents, effective_at)
+		VALUES ($1, '離島費率', 8000, now() - interval '1 minute') RETURNING id`,
+		methodID).Scan(&versionID); err != nil {
+		t.Fatalf("create version: %v", err)
+	}
+	if _, err := pool.Exec(ctx, `
+		INSERT INTO shipping_version_zones (version_id, zone_id, surcharge_cents)
+		SELECT $1, z.id, 20000 FROM shipping_zones z WHERE z.code = 'offshore'`, versionID); err != nil {
+		t.Fatalf("create surcharge: %v", err)
+	}
+
+	appName := "checkout-zone-rate-" + uuid.NewString()
+	cfg, err := pgxpool.ParseConfig(pool.Config().ConnString())
+	if err != nil {
+		t.Fatalf("parse store-role pool config: %v", err)
+	}
+	cfg.MaxConns = 2
+	cfg.ConnConfig.RuntimeParams["application_name"] = appName
+	cfg.AfterConnect = func(ctx context.Context, conn *pgx.Conn) error {
+		_, execErr := conn.Exec(ctx, `SET ROLE store`)
+		return execErr
+	}
+	asStore, err := pgxpool.NewWithConfig(ctx, cfg)
+	if err != nil {
+		t.Fatalf("open store-role pool: %v", err)
+	}
+	t.Cleanup(asStore.Close)
+	checkoutStore := cart.NewStore(asStore)
+	cartID := newCart(t, checkoutStore)
+	if addErr := checkoutStore.Add(ctx, cartID, freshVariant(t, "zone-rate-race"), 1); addErr != nil {
+		t.Fatalf("add: %v", addErr)
+	}
+	addr := &delivery.Details{
+		Email: "zone-race@example.com", RecipientName: "王小明", Phone: "0912345678",
+		PostalCode: "890", City: "金門縣", District: "金城鎮", Street: "民生路 1 號",
+	}
+	shown := checkoutQuote(t, checkoutStore, cartID, uuid.NullUUID{}, versionID, addr, "")
+
+	edit, err := pool.Begin(ctx)
+	if err != nil {
+		t.Fatalf("begin rate edit: %v", err)
+	}
+	defer func() { _ = edit.Rollback(context.WithoutCancel(ctx)) }()
+	// The back office's own lock, so a checkout taking another key fails here.
+	if lockErr := db.New(edit).LockZoneRates(ctx); lockErr != nil {
+		t.Fatalf("lock zone rates: %v", lockErr)
+	}
+	if _, updateErr := edit.Exec(ctx,
+		`UPDATE shipping_version_zones SET surcharge_cents = 25000 WHERE version_id = $1`,
+		versionID); updateErr != nil {
+		t.Fatalf("edit surcharge: %v", updateErr)
+	}
+
+	done := make(chan error, 1)
+	go func() {
+		_, placeErr := checkoutStore.PlaceOrder(ctx, cartID, uuid.NullUUID{}, versionID, addr, nil, "",
+			shown, checkoutAttemptKey("zone-rate-"+uuid.NewString()))
+		done <- placeErr
+	}()
+	waitForApplicationLock(t, appName, done)
+	if commitErr := edit.Commit(ctx); commitErr != nil {
+		t.Fatalf("commit rate edit: %v", commitErr)
+	}
+	if placeErr := <-done; !errors.Is(placeErr, cart.ErrCheckoutChanged) {
+		t.Fatalf("a checkout priced before the edit returned %v, want ErrCheckoutChanged", placeErr)
+	}
+
+	number, err := placeOrder(t, checkoutStore, ctx, cartID, uuid.NullUUID{}, versionID, addr, "",
+		"zone-rate-again-"+uuid.NewString())
+	if err != nil {
+		t.Fatalf("place at the new rate: %v", err)
+	}
+	var charged int64
+	if err := pool.QueryRow(ctx,
+		`SELECT shipping_cents FROM orders WHERE order_number = $1`, number).Scan(&charged); err != nil {
+		t.Fatalf("read the order: %v", err)
+	}
+	if charged != 33000 {
+		t.Errorf("the order was charged %d for delivery, want the new 33000", charged)
 	}
 }
 

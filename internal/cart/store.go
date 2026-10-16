@@ -585,14 +585,9 @@ func lockCheckoutTerms(
 		return nil, ErrTooManyItems
 	}
 
-	ship, err := q.ShippingVersion(ctx, db.ShippingVersionParams{
-		ID: shippingVersionID, Locale: string(i18n.FromContext(ctx)),
-	})
-	if errors.Is(err, pgx.ErrNoRows) {
-		return nil, ErrNotFound
-	}
+	ship, err := lockedShippingVersion(ctx, q, shippingVersionID)
 	if err != nil {
-		return nil, fmt.Errorf("read shipping version: %w", err)
+		return nil, err
 	}
 
 	// The destination is re-derived from the method just read and the address
@@ -655,6 +650,26 @@ func lockCheckoutTerms(
 		shippingFee: shippingFee, discount: discount,
 		gross: gross, creditCents: creditCents,
 	}, nil
+}
+
+// lockedShippingVersion reads the version checkout prices delivery from. Its fee
+// is append-only, but the zone surcharges and prefixes are edited in place, and
+// orders_have_lines reads them again at COMMIT; the zone lock, held shared to
+// the end of the transaction, keeps them as they were quoted.
+func lockedShippingVersion(ctx context.Context, q *db.Queries, id uuid.UUID) (db.ShippingVersionRow, error) {
+	if err := q.LockZoneRatesForCheckout(ctx); err != nil {
+		return db.ShippingVersionRow{}, fmt.Errorf("lock zone rates: %w", err)
+	}
+	ship, err := q.ShippingVersion(ctx, db.ShippingVersionParams{
+		ID: id, Locale: string(i18n.FromContext(ctx)),
+	})
+	if errors.Is(err, pgx.ErrNoRows) {
+		return db.ShippingVersionRow{}, ErrNotFound
+	}
+	if err != nil {
+		return db.ShippingVersionRow{}, fmt.Errorf("read shipping version: %w", err)
+	}
+	return ship, nil
 }
 
 func checkoutQuoteLines(lines []db.CartLinesRow) []checkoutQuoteLine {

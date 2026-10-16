@@ -10367,15 +10367,33 @@ func (q *Queries) LockVariantForChange(ctx context.Context, id uuid.UUID) (LockV
 	return i, err
 }
 
-const lockZonePrefixAssignments = `-- name: LockZonePrefixAssignments :exec
+const lockZoneRates = `-- name: LockZoneRates :exec
 SELECT pg_advisory_xact_lock(hashtextextended(
     'zone_prefixes', 628471039582915603::bigint))
 `
 
-// Held before any prefix row is touched. Two zones that trade prefixes would
-// otherwise each lock one row and wait for the other's.
-func (q *Queries) LockZonePrefixAssignments(ctx context.Context) error {
-	_, err := q.db.Exec(ctx, lockZonePrefixAssignments)
+// Held before any prefix row or surcharge is touched: together they are what a
+// postcode is charged. Two zones that trade prefixes would otherwise each lock
+// one row and wait for the other's, and checkout holds this lock SHARED from
+// its quote to its COMMIT (LockZoneRatesForCheckout), where orders_have_lines
+// prices the order again from these same rows.
+func (q *Queries) LockZoneRates(ctx context.Context) error {
+	_, err := q.db.Exec(ctx, lockZoneRates)
+	return err
+}
+
+const lockZoneRatesForCheckout = `-- name: LockZoneRatesForCheckout :exec
+SELECT pg_advisory_xact_lock_shared(hashtextextended(
+    'zone_prefixes', 628471039582915603::bigint))
+`
+
+// Shared, so checkouts never wait for each other: what it waits for is an edit
+// to the zone surcharges or prefixes (LockZoneRates in internal/admin/shipping
+// takes the same key exclusively). Held from the quote to the COMMIT, where
+// orders_have_lines prices the order again from those rows; without it an edit
+// committed in between would make the two disagree and refuse the order.
+func (q *Queries) LockZoneRatesForCheckout(ctx context.Context) error {
+	_, err := q.db.Exec(ctx, lockZoneRatesForCheckout)
 	return err
 }
 
