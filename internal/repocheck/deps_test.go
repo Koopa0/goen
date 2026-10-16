@@ -35,7 +35,6 @@ type importRule struct {
 // key "from -> to", value the task that removes the edge. An entry may only
 // disappear; one whose edge is gone fails, so each task proves its own work.
 var exceptions = map[string]string{
-	"internal/admin/content -> internal/home":             "T66",
 	"internal/ui/pages -> internal/loyalty":               "S11",
 	"internal/admin/admintest -> internal/admin/orders":   "T48",
 	"internal/admin/admintest -> internal/admin/products": "T48",

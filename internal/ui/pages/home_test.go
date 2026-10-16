@@ -16,9 +16,9 @@ import (
 // English on the Chinese page.
 func TestTheHeroIsDescribedToAScreenReaderInThePagesLanguage(t *testing.T) {
 	t.Parallel()
-	slides := []HeroSlide{
-		{Layout: SlideSplit, Tone: components.ToneMist, Title: "One"},
-		{Layout: SlideSplit, Tone: components.ToneMist, Title: "Two"},
+	slides := []components.HeroSlide{
+		{Layout: components.SlideSplit, Tone: components.ToneMist, Title: "One"},
+		{Layout: components.SlideSplit, Tone: components.ToneMist, Title: "Two"},
 	}
 	described := map[i18n.Locale]map[string]bool{}
 	for _, locale := range i18n.Locales() {

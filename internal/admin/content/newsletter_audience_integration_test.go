@@ -48,7 +48,7 @@ func TestNewsletterAudienceUsesOnlyActiveSubscribers(t *testing.T) {
 		t.Fatalf("newsletter counts (-want +got):\n%s", diff)
 	}
 	log := slog.New(slog.DiscardHandler)
-	handler := content.NewHandler(content.NewStore(admin), media.NewHandler(media.NewStore(admin), log), letters, log)
+	handler := content.NewHandler(newStore(admin), media.NewHandler(media.NewStore(admin), log), letters, log)
 	mux := http.NewServeMux()
 	handler.Routes(mux, admintest.BackOffice)
 	for _, locale := range []struct {

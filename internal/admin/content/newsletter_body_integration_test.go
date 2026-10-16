@@ -33,7 +33,7 @@ func TestNewsletterCompositionAcceptsItsFullTextLimits(t *testing.T) {
 			ctx, _ := admintest.StaffContext(t, pool)
 			p := admintest.AdminRolePool(t, pool)
 			log := slog.New(slog.DiscardHandler)
-			h := content.NewHandler(content.NewStore(p), media.NewHandler(media.NewStore(p), log), newsletter.NewStore(p), log)
+			h := content.NewHandler(newStore(p), media.NewHandler(media.NewStore(p), log), newsletter.NewStore(p), log)
 			mux := http.NewServeMux()
 			h.Routes(mux, admintest.BackOffice)
 			subject := uuid.NewString()[:8] + strings.Repeat(tt.text, 112)
