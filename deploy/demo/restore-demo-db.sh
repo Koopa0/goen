@@ -53,8 +53,9 @@ if [[ -z "$want_digest" || -z "$want_version" ]]; then
     echo "no migrations/001 digest or version under $MIGRATIONS; set GOEN_RESTORE_MIGRATIONS" >&2
     exit 3
 fi
+want_version=$((10#$want_version))
 if [[ "$have_digest" != "$want_digest" || "${have_dirty:-}" != f ]] \
-    || (( 10#${have_version:-0} < 10#$want_version )); then
+    || (( 10#${have_version:-0} < want_version )); then
     echo "snapshot schema (001 digest ${have_digest:-none}, migration ${have_version:-none}, dirty ${have_dirty:-none}) is not this checkout's (digest $want_digest, migration $want_version); rebuild the snapshot from it" >&2
     exit 3
 fi
