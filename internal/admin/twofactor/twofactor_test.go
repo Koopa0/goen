@@ -533,15 +533,21 @@ func TestTheProvisioningURIIsWhatAnAppExpects(t *testing.T) {
 	}
 }
 
-func TestEnrolIsThrottledPerAccount(t *testing.T) {
-	t.Parallel()
+// keylessHandler is a handler over a store with no key, whose every method
+// answers ErrDisabled before it reaches the database the pool never connects to.
+func keylessHandler(t *testing.T) *Handler {
+	t.Helper()
 	idle, err := pgxpool.New(t.Context(), "postgres://unused:unused@127.0.0.1:1/unused?sslmode=disable")
 	if err != nil {
 		t.Fatalf("open an unused pool: %v", err)
 	}
 	t.Cleanup(idle.Close)
-	// No key: Begin answers ErrDisabled before it reaches the database.
-	h := NewHandler(NewStore(idle, nil, nil), slog.New(slog.DiscardHandler))
+	return NewHandler(NewStore(idle, nil, nil), slog.New(slog.DiscardHandler))
+}
+
+func TestEnrolIsThrottledPerAccount(t *testing.T) {
+	t.Parallel()
+	h := keylessHandler(t)
 	enrol := func(id string) int {
 		r := httptest.NewRequestWithContext(user.NewContext(t.Context(), user.User{ID: id, Role: user.RoleStaff}),
 			http.MethodPost, "/admin/verify/enrol", strings.NewReader(""))
