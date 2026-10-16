@@ -1,4 +1,4 @@
-package pages
+package account
 
 import (
 	"strings"

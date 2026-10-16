@@ -8,6 +8,7 @@ import (
 	"strconv"
 	"testing"
 
+	"github.com/koopa0/goen/internal/account"
 	"github.com/koopa0/goen/internal/admin/campaigns"
 	"github.com/koopa0/goen/internal/admin/content"
 	"github.com/koopa0/goen/internal/admin/coupons"
@@ -33,7 +34,7 @@ func methodFormActions(t *testing.T) map[string][]string {
 	pdp := &pages.ProductView{Slug: "product"}
 	ret := &returns.Return{ID: "return"}
 	return map[string][]string{
-		"internal/ui/pages/account.templ:v.AddressAction()":                                             {(&pages.AccountView{}).AddressAction(), (&pages.AccountView{AddressDraft: &pages.AddressDraft{ID: "address"}}).AddressAction()},
+		"internal/account/page.templ:v.AddressAction()":                                                 {(&account.AccountView{}).AddressAction(), (&account.AccountView{AddressDraft: &account.AddressDraft{ID: "address"}}).AddressAction()},
 		"internal/ui/pages/admin/product_label.templ:templ.URL(v.LabelAction())":                        {product.LabelAction()},
 		"internal/ui/layouts/banner.templ:templ.SafeURL(b.DismissAction())":                             {(layouts.Banner{}).DismissAction()},
 		"internal/ui/layouts/email_link.templ:templ.SafeURL(v.Action)":                                  newsletterFormActions(t),

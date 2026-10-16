@@ -47,6 +47,8 @@ var coveredByNamedTest = map[string]string{
 	// Its violation needs an order a committed checkout placed, which a case run inside the
 	// fixtures' own transaction cannot have.
 	"order_lines_written_while_placing": "TestAPlacedOrderTakesNoLineFromALaterRequest (internal/cart)",
+	// The same, for the coupon redemption.
+	"coupon_redemptions_written_while_placing": "TestAPlacedOrderTakesNoLineFromALaterRequest (internal/cart)",
 	// Its violation needs a paid unsent refund over a live hold, which only
 	// the door and a payout can build.
 	"return_unsent_completes_released": "TestAnUnpaidUnsentRefundNeitherSettlesNorCompletes",
@@ -348,6 +350,24 @@ var ruleCases = []ruleCase{
 		         VALUES ('cccc000c-0000-4000-8000-00000000000c',
 		                 'cccc0009-0000-4000-8000-000000000009',
 		                 '6666aaaa-6666-4666-8666-666666666666', 0);`,
+	},
+	// orders_have_lines prices the money of an order the storefront places:
+	// NT$1,000 of goods by home delivery, whose fixture version charges NT$80
+	// and nothing from NT$3,000, and FIXTURECODE takes NT$200 off.
+	{
+		rule:   "orders_discount_redeemed",
+		reject: storePlacedOrder(20000, 8000, false),
+		accept: storePlacedOrder(0, 8000, false),
+	},
+	{
+		rule:   "orders_discount_matches_coupon",
+		reject: storePlacedOrder(30000, 8000, true),
+		accept: storePlacedOrder(20000, 8000, true),
+	},
+	{
+		rule:   "orders_shipping_matches_quote",
+		reject: storePlacedOrder(0, 0, false),
+		accept: storePlacedOrder(0, 8000, false),
 	},
 	{
 		rule: "products_active_has_variant",
@@ -1680,6 +1700,29 @@ func creditEntry(amount int, key string) string {
 	return fmt.Sprintf(
 		`INSERT INTO store_credit_entries (account_id, amount_cents, idempotency_key)
 		 VALUES ('a0000001-0000-4000-8000-000000000000', %d, '%s');`, amount, key)
+}
+
+// storePlacedOrder places an order as checkout does, as store, redeeming
+// FIXTURECODE for the discount when redeem is set, and runs orders_have_lines
+// on it.
+func storePlacedOrder(discount, shipping int, redeem bool) string {
+	redemption := ""
+	if redeem {
+		redemption = fmt.Sprintf(`SELECT redeem_coupon('cccc0009-0000-4000-8000-000000000009',
+		     (SELECT id FROM orders WHERE order_number = 'GO-260721-000998'), NULL, %d);`, discount)
+	}
+	return fmt.Sprintf(`SET LOCAL ROLE store;
+		 INSERT INTO orders (order_number, shipping_version_id, shipping_method_code, shipping_method_name,
+		                     discount_cents, shipping_cents)
+		 VALUES ('GO-260721-000998', 'ffff0002-0000-4000-8000-000000000000', 'home_delivery', '宅配',
+		         %d, %d);
+		 INSERT INTO order_lines (order_id, sku, product_name, unit_price_cents, quantity)
+		 SELECT id, 'SKU-X', '商品', 100000, 1 FROM orders WHERE order_number = 'GO-260721-000998';
+		 INSERT INTO order_private_data (order_id, email, recipient_name, phone, postal_code, city, district, street)
+		 SELECT id, 'x@example.com', '王小明', '0912345678', '110', '台北市', '信義區', '松高路 1 號'
+		 FROM orders WHERE order_number = 'GO-260721-000998';
+		 %s
+		 SET CONSTRAINTS orders_have_lines IMMEDIATE;`, discount, shipping, redemption)
 }
 
 func refund(key string, amount int) string {

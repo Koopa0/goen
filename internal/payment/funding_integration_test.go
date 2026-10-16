@@ -3,12 +3,12 @@
 package payment_test
 
 import (
-	"context"
 	"encoding/json"
 	"strings"
 	"testing"
 
 	"github.com/google/uuid"
+	"github.com/jackc/pgx/v5"
 
 	"github.com/koopa0/goen/internal/admin/admintest"
 	"github.com/koopa0/goen/internal/db"
@@ -113,8 +113,8 @@ func TestFundingCompleteSideEffectsOnce(t *testing.T) {
 			run: func(t *testing.T) (string, uuid.UUID, func()) {
 				t.Helper()
 				userID := newCustomer(t)
-				number, orderID := ownedOrder(t, userID, cents)
-				redeemCouponCovering(t, orderID, userID, cents)
+				number, orderID := ownedOrderPlacing(t, userID, cents, 0,
+					redeemCouponCovering(t, userID, cents))
 				advanceToPicking(t, number)
 				return number, orderID, func() {
 					replayCompleteFunding(t, orderID, number)
@@ -183,7 +183,9 @@ func captureOwned(t *testing.T, s *payment.Store, number, session string, cents 
 	}
 }
 
-func redeemCouponCovering(t *testing.T, orderID, userID uuid.UUID, cents int64) {
+// redeemCouponCovering redeems a new coupon for the whole of an order's goods,
+// inside the transaction placing it, as checkout redeems.
+func redeemCouponCovering(t *testing.T, userID uuid.UUID, cents int64) func(pgx.Tx, uuid.UUID) {
 	t.Helper()
 	ctx := t.Context()
 	code := "Z" + strings.ToUpper(strings.ReplaceAll(uuid.NewString(), "-", "")[:12])
@@ -194,21 +196,15 @@ func redeemCouponCovering(t *testing.T, orderID, userID uuid.UUID, cents int64) 
 		RETURNING id`, code, cents).Scan(&couponID); err != nil {
 		t.Fatalf("create coupon: %v", err)
 	}
-	tx, err := pool.Begin(ctx)
-	if err != nil {
-		t.Fatalf("begin coupon redeem: %v", err)
-	}
-	defer func() { _ = tx.Rollback(context.WithoutCancel(ctx)) }()
-	if _, err := tx.Exec(ctx,
-		`UPDATE orders SET discount_cents = $1 WHERE id = $2`, cents, orderID); err != nil {
-		t.Fatalf("set the discount: %v", err)
-	}
-	if _, err := tx.Exec(ctx,
-		`SELECT redeem_coupon($1, $2, $3, $4)`, couponID, orderID, userID, cents); err != nil {
-		t.Fatalf("redeem: %v", err)
-	}
-	if err := tx.Commit(ctx); err != nil {
-		t.Fatalf("commit coupon redeem: %v", err)
+	return func(tx pgx.Tx, orderID uuid.UUID) {
+		if _, err := tx.Exec(ctx,
+			`UPDATE orders SET discount_cents = $1 WHERE id = $2`, cents, orderID); err != nil {
+			t.Fatalf("set the discount: %v", err)
+		}
+		if _, err := tx.Exec(ctx,
+			`SELECT redeem_coupon($1, $2, $3, $4)`, couponID, orderID, userID, cents); err != nil {
+			t.Fatalf("redeem: %v", err)
+		}
 	}
 }
 

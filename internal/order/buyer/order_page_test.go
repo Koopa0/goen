@@ -384,9 +384,10 @@ func TestTheOrderHistoryHidesAShippedEventsNote(t *testing.T) {
 	}
 }
 
-// From TestAPaidOrderIsNotBadgedAwaitingPaymentInTheAccount: the detail page's
-// notice, the half of that fact the order page states.
-func TestAPaidOrderIsNotToldItIsUnpaidOnItsPage(t *testing.T) {
+// TestAPaidOrderIsNotBadgedAwaitingPaymentInTheAccount holds the same fact on
+// both signed-in surfaces: the history badge and the detail page's notice. The
+// history badge's half is internal/account's TestAccountOrderPaidIsNotAwaitingPayment.
+func TestAPaidOrderIsNotBadgedAwaitingPaymentInTheAccount(t *testing.T) {
 	view := &OrderView{
 		Number: "GO-260101-000010", Status: order.FulfillmentPending,
 		SubtotalCents: 100000, ShippingCents: 6000, ShippingName: "宅配",

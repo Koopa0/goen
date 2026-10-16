@@ -18,7 +18,8 @@ var (
 // rendered forms, then requires an explicit autofill decision for each one.
 // This deliberately lives in Go rather than scripts/check-layout.mjs: the
 // browser sweep only renders accepted GETs and one claim must not have two
-// independently drifting homes.
+// independently drifting homes. The address book's rows are internal/account's
+// TestAccountAddressFieldsNameTheirAutofill.
 func TestEveryCheckoutFieldTellsTheBrowserWhatItIs(t *testing.T) {
 	t.Parallel()
 
@@ -31,12 +32,6 @@ func TestEveryCheckoutFieldTellsTheBrowserWhatItIs(t *testing.T) {
 		"district":             "address-level2",
 		"street":               "street-address",
 		"invoice_company_name": "organization",
-		"addr-name":            "name",
-		"addr-phone":           "tel",
-		"addr-postal":          "postal-code",
-		"addr-city":            "address-level1",
-		"addr-district":        "address-level2",
-		"addr-street":          "street-address",
 	}
 	offBecause := map[string]string{
 		"coupon":                "a promotion code is not the customer's own data; a browser offering the last one is offering somebody else's",
@@ -44,7 +39,6 @@ func TestEveryCheckoutFieldTellsTheBrowserWhatItIs(t *testing.T) {
 		"invoice_tax_id":        "no WHATWG token names a Taiwan tax ID",
 		"invoice_donation_code": "a recipient's donation code is not an autofill category",
 		"note":                  "a free-text delivery note; filling a stored address here would be wrong",
-		"addr-label":            "the customer's own nickname for the row",
 	}
 
 	controls := renderedAutofillControls(t)
@@ -91,7 +85,6 @@ func renderedAutofillControls(t *testing.T) map[string]map[string]string {
 		{name: "mobile carrier", component: Checkout(CheckoutMeta(ctx), &CheckoutView{Invoice: CheckoutInvoice{Type: "mobile_carrier"}}), action: "/checkout", checkout: true},
 		{name: "donation invoice", component: Checkout(CheckoutMeta(ctx), &CheckoutView{Invoice: CheckoutInvoice{Type: "donation"}}), action: "/checkout", checkout: true},
 		{name: "company invoice", component: Checkout(CheckoutMeta(ctx), &CheckoutView{Invoice: CheckoutInvoice{Type: "company"}}), action: "/checkout", checkout: true},
-		{name: "address book", component: Account(AccountMeta(ctx), &AccountView{}), action: "/account/addresses"},
 	}
 
 	controls := map[string]map[string]string{}
@@ -192,7 +185,7 @@ func assertAutocompleteOff(t *testing.T, controls map[string]map[string]string, 
 
 func assertCheckoutKeyboards(t *testing.T, controls map[string]map[string]string) {
 	t.Helper()
-	for _, id := range []string{"postal_code", "addr-postal"} {
+	for _, id := range []string{"postal_code"} {
 		if got := controls[id]["inputmode"]; got != "numeric" {
 			t.Errorf("%s inputmode = %q, want numeric", id, got)
 		}

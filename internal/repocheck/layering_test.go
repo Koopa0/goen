@@ -84,7 +84,7 @@ var viewContracts = []string{
 }
 
 var storeMethodsNamingViews = map[string]int{
-	"internal/account/store.go":                3,
+	"internal/account/store.go":                1,
 	"internal/admin/products/image.go":         1,
 	"internal/admin/products/product.go":       4,
 	"internal/admin/products/product_label.go": 1,

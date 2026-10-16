@@ -9,6 +9,7 @@ import (
 	"testing"
 
 	"github.com/google/uuid"
+	"github.com/jackc/pgx/v5/pgtype"
 
 	"github.com/koopa0/goen/internal/cart"
 	"github.com/koopa0/goen/internal/order/delivery"
@@ -40,7 +41,10 @@ func coupon(t *testing.T, code, kind string, amount, percent, cap_, minSpend int
 	return code
 }
 
-// TestCouponPricing is the arithmetic, every case a hand-computed literal.
+// TestCouponPricing is the arithmetic, every case a hand-computed literal. The
+// schema restates it as coupon_discount, which orders_have_lines refuses an
+// order by, so each case is asked of both: two copies that drift apart refuse
+// the orders checkout prices.
 func TestCouponPricing(t *testing.T) {
 	ctx := t.Context()
 	s := cart.NewStore(pool)
@@ -50,6 +54,7 @@ func TestCouponPricing(t *testing.T) {
 	coupon(t, "PCT20CAP", "percent", 0, 2000, 50000, 0, 0)
 	coupon(t, "SHIP", "free_shipping", 0, 0, 0, 0, 0)
 	coupon(t, "BIG", "amount", 900000, 0, 0, 0, 0)
+	coupon(t, "PCT15CAP", "percent", 0, 1500, 14950, 0, 0)
 
 	tests := []struct {
 		name             string
@@ -71,6 +76,9 @@ func TestCouponPricing(t *testing.T) {
 		{"sub-cent remainder truncates", "PCT20", 1001, 200, false},
 		// 20% of 5005 cents is 1001, which rounds up to the next whole NT$.
 		{"discount rounds up to a whole NT$", "PCT20", 5005, 1100, false},
+		// 15% of 99900 is 14985, rounded up to 15000; the cap of 14950 is
+		// floored to 14900, and binds after the rounding.
+		{"the cap binds after rounding", "PCT15CAP", 99900, 14900, false},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -87,6 +95,15 @@ func TestCouponPricing(t *testing.T) {
 			}
 			if freeShipping != tt.wantFreeShipping {
 				t.Errorf("free shipping is %v, want %v", freeShipping, tt.wantFreeShipping)
+			}
+			var schema pgtype.Int8
+			if err := pool.QueryRow(ctx, `
+				SELECT coupon_discount(id, $2) FROM coupons WHERE upper(code) = $1`,
+				tt.code, tt.subtotal).Scan(&schema); err != nil {
+				t.Fatalf("coupon_discount %s: %v", tt.code, err)
+			}
+			if !schema.Valid || schema.Int64 != tt.wantDiscount {
+				t.Errorf("coupon_discount on %d is %+v, want %d", tt.subtotal, schema, tt.wantDiscount)
 			}
 		})
 	}
@@ -175,6 +192,16 @@ func TestCouponMinimumSpend(t *testing.T) {
 	// Exactly the minimum qualifies — the boundary.
 	if _, _, err := c.Apply(100000, false); err != nil {
 		t.Errorf("exactly the minimum was refused: %v", err)
+	}
+	// The schema's copy says the same: nothing below, the amount at it.
+	var below, at pgtype.Int8
+	if err := pool.QueryRow(ctx, `
+		SELECT coupon_discount(id, 99999), coupon_discount(id, 100000)
+		FROM coupons WHERE code = 'MIN1000'`).Scan(&below, &at); err != nil {
+		t.Fatalf("coupon_discount at the minimum: %v", err)
+	}
+	if below.Valid || !at.Valid || at.Int64 != 20000 {
+		t.Errorf("coupon_discount is %+v below the minimum and %+v at it, want NULL and 20000", below, at)
 	}
 }
 
@@ -373,8 +400,12 @@ func TestCancellingAnOrderGivesItsCouponSlotBack(t *testing.T) {
 		t.Fatalf("create coupon: %v", err)
 	}
 
-	// ONE transaction: orders_has_lines is deferred.
-	place := func(t *testing.T) uuid.UUID {
+	var placed []uuid.UUID
+	// ONE transaction, as checkout places an order and redeems on it:
+	// orders_have_lines is deferred, and coupon_redemptions_written_while_placing
+	// takes no redemption from a later one. The redemption's refusal is
+	// returned, and refuses the order with it.
+	place := func(t *testing.T) error {
 		t.Helper()
 		tx, err := pool.Begin(ctx)
 		if err != nil {
@@ -404,22 +435,24 @@ func TestCancellingAnOrderGivesItsCouponSlotBack(t *testing.T) {
 			orderID); err != nil {
 			t.Fatalf("create private data: %v", err)
 		}
+		if _, err := tx.Exec(ctx, `SELECT redeem_coupon($1, $2, NULL, 20000)`,
+			couponID, orderID); err != nil {
+			return err
+		}
 		if err := tx.Commit(ctx); err != nil {
 			t.Fatalf("commit: %v", err)
 		}
-		return orderID
+		placed = append(placed, orderID)
+		return nil
 	}
 
-	first := place(t)
-	if _, err := pool.Exec(ctx, `SELECT redeem_coupon($1, $2, NULL, 20000)`,
-		couponID, first); err != nil {
+	if err := place(t); err != nil {
 		t.Fatalf("first redemption: %v", err)
 	}
+	first := placed[0]
 
 	// While it is still pending, the slot is taken.
-	second := place(t)
-	if _, err := pool.Exec(ctx, `SELECT redeem_coupon($1, $2, NULL, 20000)`,
-		couponID, second); err == nil {
+	if err := place(t); err == nil {
 		t.Fatal("a pending order's redemption did not hold the last slot — two " +
 			"concurrent checkouts would both be allowed past it")
 	}
@@ -430,8 +463,7 @@ func TestCancellingAnOrderGivesItsCouponSlotBack(t *testing.T) {
 		first); err != nil {
 		t.Fatalf("cancel: %v", err)
 	}
-	if _, err := pool.Exec(ctx, `SELECT redeem_coupon($1, $2, NULL, 20000)`,
-		couponID, second); err != nil {
+	if err := place(t); err != nil {
 		t.Errorf("the slot is still consumed after the order was cancelled: %v — "+
 			"coupon_redemptions is append-only and no role may delete one, so this "+
 			"is the only door there is", err)

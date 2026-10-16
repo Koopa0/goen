@@ -52,8 +52,8 @@ func (s *Store) CreateZone(ctx context.Context, z *NewZone) (map[string]string, 
 			"code": z.Code, "name": z.Name, "prefixes": len(prefixes),
 		},
 	}, func(ctx context.Context, q *db.Queries) error {
-		if lockErr := q.LockZonePrefixAssignments(ctx); lockErr != nil {
-			return fmt.Errorf("lock zone prefix assignments: %w", lockErr)
+		if lockErr := q.LockZoneRates(ctx); lockErr != nil {
+			return fmt.Errorf("lock zone rates: %w", lockErr)
 		}
 		zoneID, insErr := q.CreateShippingZone(ctx, db.CreateShippingZoneParams{
 			Code: z.Code, Name: z.Name, NameEn: z.NameEn,
@@ -98,8 +98,8 @@ func (s *Store) SetZonePrefixes(ctx context.Context, id, list string) (map[strin
 		ID:    audit.EntityID(zoneID),
 		After: map[string]any{"prefixes": len(prefixes)},
 	}, func(ctx context.Context, q *db.Queries) error {
-		if lockErr := q.LockZonePrefixAssignments(ctx); lockErr != nil {
-			return fmt.Errorf("lock zone prefix assignments: %w", lockErr)
+		if lockErr := q.LockZoneRates(ctx); lockErr != nil {
+			return fmt.Errorf("lock zone rates: %w", lockErr)
 		}
 		if _, lockErr := q.LockShippingZone(ctx, zoneID); lockErr != nil {
 			if errors.Is(lockErr, pgx.ErrNoRows) {
@@ -138,8 +138,8 @@ func (s *Store) DeleteZone(ctx context.Context, id string) error {
 		Action: audit.ActionDeleteShippingZone, Table: "shipping_zones",
 		ID: audit.EntityID(zoneID),
 	}, func(ctx context.Context, q *db.Queries) error {
-		if lockErr := q.LockZonePrefixAssignments(ctx); lockErr != nil {
-			return fmt.Errorf("lock zone prefix assignments: %w", lockErr)
+		if lockErr := q.LockZoneRates(ctx); lockErr != nil {
+			return fmt.Errorf("lock zone rates: %w", lockErr)
 		}
 		if _, lockErr := q.LockShippingZone(ctx, zoneID); lockErr != nil {
 			if errors.Is(lockErr, pgx.ErrNoRows) {
