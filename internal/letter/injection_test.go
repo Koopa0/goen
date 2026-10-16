@@ -1,4 +1,4 @@
-package email
+package letter
 
 import (
 	"context"
@@ -10,6 +10,9 @@ import (
 	"testing"
 
 	"github.com/google/uuid"
+
+	"github.com/koopa0/goen/internal/order/notice"
+	"github.com/koopa0/goen/internal/outbox"
 )
 
 // recorded keeps every message a test sent.
@@ -28,43 +31,43 @@ func letters(text string) map[string]func(context.Context, Notifier) error {
 	const to = "someone@example.com"
 	return map[string]func(context.Context, Notifier) error{
 		"SendOrderPlaced": func(ctx context.Context, n Notifier) error {
-			return n.SendOrderPlaced(ctx, &OrderPlaced{
+			return n.SendOrderPlaced(ctx, &outbox.OrderPlaced{
 				Email: to, Name: text, OrderNumber: "GO-260101-000001", TotalCents: 123400, OwedCents: 123400,
 			})
 		},
 		"SendOrderPaid": func(ctx context.Context, n Notifier) error {
-			return n.SendOrderPaid(ctx, &OrderPaid{
+			return n.SendOrderPaid(ctx, &outbox.OrderPaid{
 				Email: to, Name: text, OrderNumber: "GO-260101-000001", AmountCents: 123400, Card: text,
 			})
 		},
 		"SendOrderShipped": func(ctx context.Context, n Notifier) error {
-			return n.SendOrderShipped(ctx, &OrderShipped{
+			return n.SendOrderShipped(ctx, &outbox.OrderShipped{
 				Email: to, Name: text, OrderNumber: "GO-260101-000001", Carrier: text, Tracking: text,
 			})
 		},
 		"SendOrderTerminal": func(ctx context.Context, n Notifier) error {
-			return n.SendOrderTerminal(ctx, &OrderTerminal{OrderID: uuid.New(), Kind: TerminalDelivered},
-				TerminalRecipient{Address: to, Name: text, OrderNumber: "GO-260101-000001"})
+			return n.SendOrderTerminal(ctx, &outbox.OrderTerminal{OrderID: uuid.New(), Kind: outbox.TerminalDelivered},
+				notice.Recipient{Address: to, Name: text, OrderNumber: "GO-260101-000001"})
 		},
 		"SendOrderPartRefunded": func(ctx context.Context, n Notifier) error {
-			return n.SendOrderPartRefunded(ctx, &OrderPartRefunded{OrderID: uuid.New(), ReturnRequestID: uuid.New()},
-				&PartRefundLetter{Address: to, Name: text, OrderNumber: "GO-260101-000001",
-					Items:       []PartRefundItem{{Name: text, Label: text, Quantity: 2}},
+			return n.SendOrderPartRefunded(ctx, &outbox.OrderPartRefunded{OrderID: uuid.New(), ReturnRequestID: uuid.New()},
+				&notice.PartRefund{Address: to, Name: text, OrderNumber: "GO-260101-000001",
+					Items:       []notice.PartRefundItem{{Name: text, Label: text, Quantity: 2}},
 					RefundCents: 150000, CardCents: 100000, CreditCents: 50000})
 		},
 		"SendRestockNotice": func(ctx context.Context, n Notifier) error {
-			return n.SendRestockNotice(ctx, &RestockNotice{
+			return n.SendRestockNotice(ctx, &outbox.RestockNotice{
 				Email: to, ProductName: text, Slug: "koto-pad", SKU: "KP-1",
 			})
 		},
 		"SendPasswordReset": func(ctx context.Context, n Notifier) error {
-			return n.SendPasswordReset(ctx, &PasswordReset{Email: to, Token: "tok"})
+			return n.SendPasswordReset(ctx, &outbox.PasswordReset{Email: to, Token: "tok"})
 		},
 		"SendAddressVerify": func(ctx context.Context, n Notifier) error {
-			return n.SendAddressVerify(ctx, &AddressVerify{Email: to, Token: "tok"})
+			return n.SendAddressVerify(ctx, &outbox.AddressVerify{Email: to, Token: "tok"})
 		},
 		"SendAddressVerify registration": func(ctx context.Context, n Notifier) error {
-			return n.SendAddressVerify(ctx, &AddressVerify{Email: to, Token: "tok", Registration: true, Next: text})
+			return n.SendAddressVerify(ctx, &outbox.AddressVerify{Email: to, Token: "tok", Registration: true, Next: text})
 		},
 		"SendAccountExists": func(ctx context.Context, n Notifier) error {
 			return n.SendAccountExists(ctx, &AccountExists{Email: to, Name: text})
@@ -73,25 +76,25 @@ func letters(text string) map[string]func(context.Context, Notifier) error {
 			return n.SendAccountExists(ctx, &AccountExists{Email: to, Name: text, Change: true})
 		},
 		"SendStaffInvitation": func(ctx context.Context, n Notifier) error {
-			return n.SendStaffInvitation(ctx, &StaffInvitation{UserID: uuid.NewString()}, to, text)
+			return n.SendStaffInvitation(ctx, &outbox.StaffInvitation{UserID: uuid.NewString()}, to, text)
 		},
 		"SendStaffEnrolment": func(ctx context.Context, n Notifier) error {
-			return n.SendStaffEnrolment(ctx, &StaffEnrolment{Email: to, Code: "01234567"})
+			return n.SendStaffEnrolment(ctx, &outbox.StaffEnrolment{Email: to, Code: "01234567"})
 		},
 		"SendStaffFactorFailure": func(ctx context.Context, n Notifier) error {
-			return n.SendStaffFactorFailure(ctx, &StaffFactorFailure{Email: to, Limit: 10})
+			return n.SendStaffFactorFailure(ctx, &outbox.StaffFactorFailure{Email: to, Limit: 10})
 		},
 		"SendStaffFactorFailure locked": func(ctx context.Context, n Notifier) error {
-			return n.SendStaffFactorFailure(ctx, &StaffFactorFailure{Email: to, Locked: true, Limit: 10})
+			return n.SendStaffFactorFailure(ctx, &outbox.StaffFactorFailure{Email: to, Locked: true, Limit: 10})
 		},
 		"SendNewsletterConfirm": func(ctx context.Context, n Notifier) error {
-			return n.SendNewsletterConfirm(ctx, &NewsletterConfirm{Email: to, Token: "tok"})
+			return n.SendNewsletterConfirm(ctx, &outbox.NewsletterConfirm{Email: to, Token: "tok"})
 		},
 		"SendNewsletterWelcome": func(ctx context.Context, n Notifier) error {
-			return n.SendNewsletterWelcome(ctx, &NewsletterWelcome{Email: to, UnsubscribeToken: "tok"})
+			return n.SendNewsletterWelcome(ctx, &outbox.NewsletterWelcome{Email: to, UnsubscribeToken: "tok"})
 		},
 		"SendNewsletterIssue": func(ctx context.Context, n Notifier) error {
-			return n.SendNewsletterIssue(ctx, &NewsletterIssue{
+			return n.SendNewsletterIssue(ctx, &outbox.NewsletterIssue{
 				Email: to, Subject: text, Body: "本期內容", UnsubscribeToken: "tok",
 			})
 		},
@@ -195,7 +198,7 @@ func TestNoTextInALetterCanAddAMailHeader(t *testing.T) {
 	} {
 		sink := &recorded{}
 		n := New(sink, "https://goen.test", "", "")
-		if err := n.SendOrderPlaced(t.Context(), &OrderPlaced{
+		if err := n.SendOrderPlaced(t.Context(), &outbox.OrderPlaced{
 			Email: to, OrderNumber: "GO-260101-000001", TotalCents: 100, OwedCents: 100,
 		}); err == nil || len(sink.msgs) != 0 {
 			t.Errorf("SendOrderPlaced to %q = %v and sent %d messages, want a refusal", to, err, len(sink.msgs))

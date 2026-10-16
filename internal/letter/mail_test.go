@@ -1,10 +1,12 @@
-package email
+package letter
 
 import (
 	"context"
 	"strings"
 	"testing"
 	"unicode"
+
+	"github.com/koopa0/goen/internal/outbox"
 )
 
 // captured is the last message a test sent.
@@ -40,41 +42,41 @@ func TestEveryMessageIsSentInThePayloadsLanguage(t *testing.T) {
 
 	send := map[string]func(Notifier, context.Context, string) error{
 		"order.placed": func(n Notifier, ctx context.Context, l string) error {
-			return n.SendOrderPlaced(ctx, &OrderPlaced{
+			return n.SendOrderPlaced(ctx, &outbox.OrderPlaced{
 				Locale: l, Email: "a@b.co", Name: "Alex", OrderNumber: "GO-260101-000001",
 				TotalCents: 123400, OwedCents: 123400,
 			})
 		},
 		"order.paid": func(n Notifier, ctx context.Context, l string) error {
-			return n.SendOrderPaid(ctx, &OrderPaid{
+			return n.SendOrderPaid(ctx, &outbox.OrderPaid{
 				Locale: l, Email: "a@b.co", Name: "Alex", OrderNumber: "GO-260101-000001",
 				AmountCents: 123400, Card: "visa 4242",
 			})
 		},
 		"order.shipped": func(n Notifier, ctx context.Context, l string) error {
-			return n.SendOrderShipped(ctx, &OrderShipped{
+			return n.SendOrderShipped(ctx, &outbox.OrderShipped{
 				Locale: l, Email: "a@b.co", Name: "Alex", OrderNumber: "GO-260101-000001",
 				Carrier: "Black Cat", Tracking: "TW123",
 			})
 		},
 		"catalogue.restocked": func(n Notifier, ctx context.Context, l string) error {
-			return n.SendRestockNotice(ctx, &RestockNotice{
+			return n.SendRestockNotice(ctx, &outbox.RestockNotice{
 				Locale: l, Email: "a@b.co", ProductName: "Koto Pad", Slug: "koto-pad", SKU: "KP-1",
 			})
 		},
 		"account.password_reset": func(n Notifier, ctx context.Context, l string) error {
-			return n.SendPasswordReset(ctx, &PasswordReset{Locale: l, Email: "a@b.co", Token: "tok"})
+			return n.SendPasswordReset(ctx, &outbox.PasswordReset{Locale: l, Email: "a@b.co", Token: "tok"})
 		},
 		"account.registration": func(n Notifier, ctx context.Context, l string) error {
 			return n.SendAccountExists(ctx, &AccountExists{Locale: l, Email: "a@b.co"})
 		},
 		"newsletter.confirm": func(n Notifier, ctx context.Context, l string) error {
-			return n.SendNewsletterConfirm(ctx, &NewsletterConfirm{
+			return n.SendNewsletterConfirm(ctx, &outbox.NewsletterConfirm{
 				Locale: l, Email: "a@b.co", Token: "tok",
 			})
 		},
 		"newsletter.welcome": func(n Notifier, ctx context.Context, l string) error {
-			return n.SendNewsletterWelcome(ctx, &NewsletterWelcome{
+			return n.SendNewsletterWelcome(ctx, &outbox.NewsletterWelcome{
 				Locale: l, Email: "a@b.co", UnsubscribeToken: "tok",
 			})
 		},
@@ -123,7 +125,7 @@ func TestAnUnknownLocaleFallsBackRatherThanFailing(t *testing.T) {
 
 	for _, tag := range []string{"", "kling-on"} {
 		n, sink := notifier(t)
-		if err := n.SendOrderPlaced(t.Context(), &OrderPlaced{
+		if err := n.SendOrderPlaced(t.Context(), &outbox.OrderPlaced{
 			Locale: tag, Email: "a@b.co", Name: "王小明", OrderNumber: "GO-260101-000001",
 			TotalCents: 123400, OwedCents: 123400,
 		}); err != nil {
@@ -142,7 +144,7 @@ func TestARestockNoticeIdentifiesTheQueuedVariant(t *testing.T) {
 	t.Parallel()
 
 	n, sink := notifier(t)
-	first := &RestockNotice{
+	first := &outbox.RestockNotice{
 		Locale: "en", Email: "a@b.co",
 		ProductName: "Koto Pad", Slug: "koto-pad", SKU: "KP-BLUE",
 	}
@@ -202,7 +204,7 @@ func TestAPlacedLetterNamesWhatIsStillOwed(t *testing.T) {
 		t.Parallel()
 
 		n, sink := notifier(t)
-		if err := n.SendOrderPlaced(t.Context(), &OrderPlaced{
+		if err := n.SendOrderPlaced(t.Context(), &outbox.OrderPlaced{
 			Locale: "zh-Hant", Email: "a@b.co", Name: "王小明",
 			OrderNumber: number, TotalCents: total, OwedCents: 0,
 		}); err != nil {
@@ -223,7 +225,7 @@ func TestAPlacedLetterNamesWhatIsStillOwed(t *testing.T) {
 		}
 
 		n, sink = notifier(t)
-		if err := n.SendOrderPlaced(t.Context(), &OrderPlaced{
+		if err := n.SendOrderPlaced(t.Context(), &outbox.OrderPlaced{
 			Locale: "en", Email: "a@b.co", Name: "Alex",
 			OrderNumber: number, TotalCents: total, OwedCents: 0,
 		}); err != nil {
@@ -245,7 +247,7 @@ func TestAPlacedLetterNamesWhatIsStillOwed(t *testing.T) {
 		t.Parallel()
 
 		n, sink := notifier(t)
-		if err := n.SendOrderPlaced(t.Context(), &OrderPlaced{
+		if err := n.SendOrderPlaced(t.Context(), &outbox.OrderPlaced{
 			Locale: "zh-Hant", Email: "a@b.co", Name: "王小明",
 			OrderNumber: number, TotalCents: total, OwedCents: owed,
 		}); err != nil {
@@ -263,7 +265,7 @@ func TestAPlacedLetterNamesWhatIsStillOwed(t *testing.T) {
 		}
 
 		n, sink = notifier(t)
-		if err := n.SendOrderPlaced(t.Context(), &OrderPlaced{
+		if err := n.SendOrderPlaced(t.Context(), &outbox.OrderPlaced{
 			Locale: "en", Email: "a@b.co", Name: "Alex",
 			OrderNumber: number, TotalCents: total, OwedCents: owed,
 		}); err != nil {
@@ -286,7 +288,7 @@ func TestTheGreetingDropsAnEmptyName(t *testing.T) {
 	t.Parallel()
 
 	n, sink := notifier(t)
-	if err := n.SendPasswordReset(t.Context(), &PasswordReset{
+	if err := n.SendPasswordReset(t.Context(), &outbox.PasswordReset{
 		Locale: "en", Email: "a@b.co", Token: "tok",
 	}); err != nil {
 		t.Fatalf("send: %v", err)
@@ -305,7 +307,7 @@ func TestTheGreetingDropsAnEmptyName(t *testing.T) {
 func TestTheConfirmationCarriesTheStatutoryDisclosure(t *testing.T) {
 	t.Parallel()
 
-	placed := &OrderPlaced{
+	placed := &outbox.OrderPlaced{
 		Locale: "zh-Hant", OrderNumber: "GO-260806-000001",
 		Email: "who@example.test", Name: "王小明", TotalCents: 199900, OwedCents: 199900,
 	}
@@ -407,7 +409,7 @@ func TestThePaidLetterNamesTheCardBeforeTheSignOff(t *testing.T) {
 	t.Parallel()
 	for locale, line := range map[string]string{"en": "Paid with: Visa •••• 4242", "zh-Hant": "付款方式：Visa •••• 4242"} {
 		n, sink := notifier(t)
-		if err := n.SendOrderPaid(t.Context(), &OrderPaid{
+		if err := n.SendOrderPaid(t.Context(), &outbox.OrderPaid{
 			Locale: locale, Email: "a@b.co", Name: "Alex", OrderNumber: "GO-260101-000001",
 			AmountCents: 123400, Card: "Visa •••• 4242",
 		}); err != nil {
@@ -427,7 +429,7 @@ func TestTheDisclosureDividerIsNotGluedToTheLinkAboveIt(t *testing.T) {
 	for _, locale := range []string{"en", "zh-Hant"} {
 		sink := &captured{}
 		n := New(sink, "https://goen.test", "goen", "contact@goen.test")
-		if err := n.SendOrderPlaced(t.Context(), &OrderPlaced{
+		if err := n.SendOrderPlaced(t.Context(), &outbox.OrderPlaced{
 			Locale: locale, Email: "a@b.co", OrderNumber: "GO-260101-000001", TotalCents: 100, OwedCents: 100,
 		}); err != nil {
 			t.Fatal(err)
@@ -446,7 +448,7 @@ func TestAPlacedLetterSaysTheItemsAreHeldOnlyWhenPaymentIsDue(t *testing.T) {
 	for _, owed := range []int64{99900, 0} {
 		for _, locale := range []string{"en", "zh-Hant"} {
 			n, sink := notifier(t)
-			if err := n.SendOrderPlaced(t.Context(), &OrderPlaced{
+			if err := n.SendOrderPlaced(t.Context(), &outbox.OrderPlaced{
 				Locale: locale, Email: "a@b.co", Name: "Alex",
 				OrderNumber: "GO-260101-000001", TotalCents: 199900, OwedCents: owed,
 			}); err != nil {

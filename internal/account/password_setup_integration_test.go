@@ -15,7 +15,6 @@ import (
 	"github.com/google/uuid"
 
 	"github.com/koopa0/goen/internal/account"
-	"github.com/koopa0/goen/internal/email"
 	"github.com/koopa0/goen/internal/i18n"
 	"github.com/koopa0/goen/internal/outbox"
 )
@@ -114,7 +113,7 @@ func TestGoogleOnlyPasswordSetupUsesTheCurrentMailboxAndExistingReset(t *testing
 			if payloadErr := pool.QueryRow(ctx, `SELECT payload FROM outbox_messages WHERE topic = $1 AND payload->>'email' = $2`, outbox.TopicPasswordReset.Name(), u.Email).Scan(&payload); payloadErr != nil {
 				t.Fatal(payloadErr)
 			}
-			var mail email.PasswordReset
+			var mail outbox.PasswordReset
 			if decodeErr := json.Unmarshal(payload, &mail); decodeErr != nil {
 				t.Fatal(decodeErr)
 			}

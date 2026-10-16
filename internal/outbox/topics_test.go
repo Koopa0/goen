@@ -4,6 +4,7 @@ import (
 	"go/ast"
 	"go/parser"
 	"go/token"
+	"go/types"
 	"os"
 	"path/filepath"
 	"regexp"
@@ -266,5 +267,41 @@ func TestSQLTopicLiteralsAreRegistered(t *testing.T) {
 		if !registered[u.topic] {
 			t.Errorf("%s names topic %q, which outbox.go does not declare", u.path, u.topic)
 		}
+	}
+}
+
+// A payload is the stored JSON of its topic, so it is declared here, beside the
+// queue that stores it, and not in a producer or in the letter composer: its
+// tags are a contract with every row already queued, which this package's wire
+// tests hold.
+func TestEveryPayloadIsDeclaredInOutbox(t *testing.T) {
+	t.Parallel()
+
+	file, err := parser.ParseFile(token.NewFileSet(), "outbox.go", nil, 0)
+	if err != nil {
+		t.Fatalf("parse outbox.go: %v", err)
+	}
+	topics := 0
+	ast.Inspect(file, func(n ast.Node) bool {
+		call, ok := n.(*ast.CallExpr)
+		if !ok {
+			return true
+		}
+		index, ok := call.Fun.(*ast.IndexExpr)
+		if !ok {
+			return true
+		}
+		if fn, ok := index.X.(*ast.Ident); !ok || fn.Name != "topic" {
+			return true
+		}
+		topics++
+		if _, local := index.Index.(*ast.Ident); !local {
+			t.Errorf("topic %s carries %s, a type declared outside package outbox; declare the payload in messages.go",
+				types.ExprString(call.Args[0]), types.ExprString(index.Index))
+		}
+		return true
+	})
+	if topics < len(frozenTopics) {
+		t.Fatalf("found %d topic[T](name) declarations, want at least %d: the parser stopped matching", topics, len(frozenTopics))
 	}
 }

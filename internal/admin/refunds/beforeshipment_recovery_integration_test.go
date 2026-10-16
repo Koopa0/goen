@@ -22,8 +22,8 @@ import (
 	"github.com/koopa0/goen/internal/admin/admintest"
 	"github.com/koopa0/goen/internal/admin/refunds"
 	"github.com/koopa0/goen/internal/db"
-	"github.com/koopa0/goen/internal/email"
 	"github.com/koopa0/goen/internal/i18n"
+	"github.com/koopa0/goen/internal/outbox"
 	"github.com/koopa0/goen/internal/refund"
 )
 
@@ -115,7 +115,7 @@ func TestRefundCompletionLockFailureOffersResumeAfterSettlement(t *testing.T) {
 	if diff := cmp.Diff(wantFinished, readRefundCompletionFacts(t, orderID, variantID)); diff != "" {
 		t.Fatalf("Resume result (-want +got):\n%s", diff)
 	}
-	admintest.AssertTerminalNotice(t, pool, orderID, email.TerminalCancelledByStaff, true)
+	admintest.AssertTerminalNotice(t, pool, orderID, outbox.TerminalCancelledByStaff, true)
 
 	terminal := postRefundCompletion(ctx, handler, number, true)
 	if terminal.Code != http.StatusSeeOther || terminal.Header().Get("Location") != "/admin/orders/"+number+"?refundcancelled=1" {

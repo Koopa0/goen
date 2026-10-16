@@ -162,14 +162,17 @@ func TestTextTokensReadOnTheGroundsTheyAreUsedOn(t *testing.T) {
 		}
 	}
 
-	// A bar is a graphical object, held to 3:1 (WCAG 1.4.11).
-	if tokens["--chart-hue"] == "" {
-		t.Fatalf("no stylesheet declares a hex value for --chart-hue")
-	}
-	for _, ground := range []string{"--n-0", "--n-50", "--n-100"} {
-		if got := contrast(tokens["--chart-hue"], tokens[ground]); got < 3 {
-			t.Errorf("--chart-hue (#%s) on %s (#%s) = %.2f:1, want at least 3:1",
-				tokens["--chart-hue"], ground, tokens[ground], got)
+	// A bar, and the line of the period it is compared with, are graphical
+	// objects, held to 3:1 (WCAG 1.4.11).
+	for _, ink := range []string{"--chart-hue", "--chart-previous"} {
+		if tokens[ink] == "" {
+			t.Fatalf("no stylesheet declares a hex value for %s", ink)
+		}
+		for _, ground := range []string{"--n-0", "--n-50", "--n-100"} {
+			if got := contrast(tokens[ink], tokens[ground]); got < 3 {
+				t.Errorf("%s (#%s) on %s (#%s) = %.2f:1, want at least 3:1",
+					ink, tokens[ink], ground, tokens[ground], got)
+			}
 		}
 	}
 

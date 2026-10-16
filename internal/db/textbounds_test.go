@@ -25,13 +25,13 @@ type textBound struct {
 
 var textBounds = []textBound{
 	// Storefront and account writers: the store role, behind these validators.
-	{constraint: "users_email_bounded", bytes: true, file: "internal/email/email.go", name: "Max"},
-	{constraint: "email_verifications_email_bounded", bytes: true, file: "internal/email/email.go", name: "Max"},
-	{constraint: "stock_notifications_email_bounded", bytes: true, file: "internal/email/email.go", name: "Max"},
-	{constraint: "order_private_data_email_bounded", bytes: true, file: "internal/email/email.go", name: "Max"},
-	{constraint: "contact_messages_email_bounded", bytes: true, file: "internal/email/email.go", name: "Max"},
-	{constraint: "newsletter_subscribers_email_bounded", bytes: true, file: "internal/email/email.go", name: "Max"},
-	{constraint: "newsletter_confirmations_email_bounded", bytes: true, file: "internal/email/email.go", name: "Max"},
+	{constraint: "users_email_bounded", bytes: true, file: "internal/email/email.go", name: "MaxBytes"},
+	{constraint: "email_verifications_email_bounded", bytes: true, file: "internal/email/email.go", name: "MaxBytes"},
+	{constraint: "stock_notifications_email_bounded", bytes: true, file: "internal/email/email.go", name: "MaxBytes"},
+	{constraint: "order_private_data_email_bounded", bytes: true, file: "internal/email/email.go", name: "MaxBytes"},
+	{constraint: "contact_messages_email_bounded", bytes: true, file: "internal/email/email.go", name: "MaxBytes"},
+	{constraint: "newsletter_subscribers_email_bounded", bytes: true, file: "internal/email/email.go", name: "MaxBytes"},
+	{constraint: "newsletter_confirmations_email_bounded", bytes: true, file: "internal/email/email.go", name: "MaxBytes"},
 	{constraint: "users_full_name_bounded", file: "internal/account/account.go", name: "maxNameRunes"},
 	{constraint: "users_phone_bounded", file: "internal/account/account.go", name: "maxPhoneRunes"},
 	{constraint: "user_identities_subject_bounded", file: "internal/account/account.go", name: "maxOAuthSubjectRunes"},

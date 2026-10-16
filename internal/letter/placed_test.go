@@ -1,4 +1,4 @@
-package email
+package letter
 
 import (
 	"strings"
@@ -8,6 +8,7 @@ import (
 	"github.com/google/go-cmp/cmp"
 
 	"github.com/koopa0/goen/internal/i18n"
+	"github.com/koopa0/goen/internal/outbox"
 )
 
 func TestPlacedConfirmationKeepsTheRecordedOrderTerms(t *testing.T) {
@@ -222,9 +223,9 @@ func placedAmountRows(t *testing.T, body string) []string {
 	return nil
 }
 
-func recordedPlacedOrder(locale string) *OrderPlaced {
-	return &OrderPlaced{Locale: locale, OrderNumber: "GO-990101-000001", Email: "alex@example.com", Name: "Alex", TotalCents: 246000, OwedCents: 246000, Snapshot: &PlacedSnapshot{
-		Lines:         []PlacedLine{{SKU: "TEA-2", Name: "Tea <box>", Label: "Large", UnitCents: 125000, Quantity: 2}},
+func recordedPlacedOrder(locale string) *outbox.OrderPlaced {
+	return &outbox.OrderPlaced{Locale: locale, OrderNumber: "GO-990101-000001", Email: "alex@example.com", Name: "Alex", TotalCents: 246000, OwedCents: 246000, Snapshot: &outbox.PlacedSnapshot{
+		Lines:         []outbox.PlacedLine{{SKU: "TEA-2", Name: "Tea <box>", Label: "Large", UnitCents: 125000, Quantity: 2}},
 		SubtotalCents: 250000, ShippingCents: 6000, DiscountCents: 10000, ShippingName: "Home delivery", DeliveryTo: "110 Taipei Road 1", Phone: "0912345678", DeliveryNote: "Leave <inside>",
 		HoldUntil: time.Date(2099, 1, 1, 1, 0, 0, 0, time.UTC), StartBy: time.Date(2099, 1, 1, 0, 29, 0, 0, time.UTC),
 	}}

@@ -19,7 +19,6 @@ import (
 	"github.com/koopa0/goen/assets"
 	"github.com/koopa0/goen/internal/admin/audit"
 	"github.com/koopa0/goen/internal/db"
-	"github.com/koopa0/goen/internal/email"
 	"github.com/koopa0/goen/internal/i18n"
 	"github.com/koopa0/goen/internal/invoice"
 	"github.com/koopa0/goen/internal/keyset"
@@ -449,7 +448,7 @@ func applyStatusEffects(ctx context.Context, q *db.Queries, e statusEffect) erro
 		}
 	case order.FulfillmentCancelled:
 		_, err := cancellation.Settle(ctx, q, &cancellation.Order{
-			ID: e.orderID, Number: e.number, Actor: e.actor, Kind: email.TerminalCancelledByStaff,
+			ID: e.orderID, Number: e.number, Actor: e.actor, Kind: outbox.TerminalCancelledByStaff,
 			VoidTrigger: web.RequestID(ctx),
 		})
 		if err != nil {
@@ -483,17 +482,17 @@ func enqueueStatusNotice(ctx context.Context, q *db.Queries, e statusEffect) err
 			return fmt.Errorf("order %s ships by a method with an unknown destination %q",
 				e.number, row.DestinationKind)
 		}
-		kind := email.TerminalDelivered
+		kind := outbox.TerminalDelivered
 		if to == shipping.DestinationPickupPoint {
 			if e.status != order.FulfillmentCompleted {
 				return nil
 			}
-			kind = email.TerminalCollected
+			kind = outbox.TerminalCollected
 		} else if e.previous == order.FulfillmentDelivered {
 			// Completion adds no new arrival, even after outbox retention.
 			return nil
 		}
-		return notice.Enqueue(ctx, q, &email.OrderTerminal{OrderID: e.orderID, Kind: kind})
+		return notice.Enqueue(ctx, q, &outbox.OrderTerminal{OrderID: e.orderID, Kind: kind})
 	default:
 		return nil
 	}
@@ -730,7 +729,7 @@ func (s *Store) Ship(ctx context.Context, number string, d Dispatch, actor uuid.
 	// One notice per PARCEL: the dedupe key is carrier and tracking together,
 	// which is what order_shipments is unique on, not the order. An order in two
 	// parcels is still two notices.
-	if err := enqueueOrderShipped(ctx, q, row.ID, &email.OrderShipped{
+	if err := enqueueOrderShipped(ctx, q, row.ID, &outbox.OrderShipped{
 		OrderNumber: number, Carrier: string(carrierCode), Tracking: tracking,
 	}); err != nil {
 		return err

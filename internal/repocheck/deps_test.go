@@ -88,6 +88,7 @@ var (
 		"internal/refund",
 		"internal/coupon", "internal/inventory", "internal/postcode", "internal/user",
 		"internal/money", "internal/db", "internal/keyset", "internal/bearer",
+		"internal/email",
 	}
 	// i18nOnlyLeaves import nothing from goen except the message catalogue.
 	i18nOnlyLeaves = []string{
@@ -144,6 +145,14 @@ var depsRules = []importRule{
 			return isDesk(from) && slices.Contains(storefrontPages, to)
 		},
 		reason: "the back office does not depend on a storefront page package",
+	},
+	{
+		name: "letter",
+		hard: true,
+		forbid: func(from, to string) bool {
+			return to == "internal/letter" && from != "cmd/goen"
+		},
+		reason: "only cmd/goen composes and sends mail; a feature enqueues an outbox payload instead",
 	},
 	{
 		name: "cart and account",

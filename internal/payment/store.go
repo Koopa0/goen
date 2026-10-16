@@ -17,7 +17,6 @@ import (
 
 	"github.com/koopa0/goen/assets"
 	"github.com/koopa0/goen/internal/db"
-	"github.com/koopa0/goen/internal/email"
 	"github.com/koopa0/goen/internal/i18n"
 	"github.com/koopa0/goen/internal/invoice/issuer"
 	"github.com/koopa0/goen/internal/outbox"
@@ -488,7 +487,7 @@ func CompleteFunding(
 	if err != nil {
 		return fmt.Errorf("read receipt amount of order %s: %w", orderNumber, err)
 	}
-	return enqueueOrderPaid(ctx, q, orderID, &email.OrderPaid{
+	return enqueueOrderPaid(ctx, q, orderID, &outbox.OrderPaid{
 		OrderNumber: orderNumber, AmountCents: amount, Card: cardLabel(c),
 	})
 }
