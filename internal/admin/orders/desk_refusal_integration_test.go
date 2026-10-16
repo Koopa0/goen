@@ -26,7 +26,6 @@ import (
 	"github.com/koopa0/goen/internal/home"
 	"github.com/koopa0/goen/internal/i18n"
 	"github.com/koopa0/goen/internal/media"
-	"github.com/koopa0/goen/internal/newsletter"
 )
 
 // Actual plain POST refusals, across the desks that share the navigation
@@ -41,7 +40,7 @@ func TestDeskRefusalPOSTsKeepDraftsAndLocateTheirForm(t *testing.T) {
 	admintest.ProductDesk(pool, productStore).Routes(mux, ac)
 	stock.NewHandler(stock.NewStore(pool), log).Routes(mux, ac)
 	contentStore := content.NewStore(pool, home.NewStore(pool))
-	content.NewHandler(contentStore, images, newsletter.NewStore(pool), log).Routes(mux, ac)
+	content.NewHandler(contentStore, images, log).Routes(mux, ac)
 	taxonomy.NewHandler(taxonomy.NewStore(pool), images, log).Routes(mux, ac)
 	shipping.NewHandler(shipping.NewStore(pool), false, log).Routes(mux, ac)
 	returns.NewHandler(admintest.ReturnDesk(pool, admintest.Refunder{}), log).Routes(mux, ac)
