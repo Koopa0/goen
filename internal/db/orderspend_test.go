@@ -33,7 +33,7 @@ var (
 // one placing of a spend in a band, and refuses a per-row call of member_tier
 // or member_spend over a set. The spend was written out in member_spend and
 // again for the customer page's lifetime figure, and the membership page asked
-// member_tier once per account: 0.75 s at ten thousand accounts against 6 ms
+// member_tier once per account: 0.37 s at ten thousand accounts against 4 ms
 // from the view (#1934).
 func TestEveryMemberSpendReadsTheOneView(t *testing.T) {
 	t.Parallel()
