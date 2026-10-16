@@ -39,6 +39,16 @@ func NewHandler(store *Store, log *slog.Logger) *Handler {
 	}
 }
 
+// Routes registers the second-factor pages behind [access.Control.StaffOnly],
+// not RequireStaff: RequireStaff sends a staff member who has not passed the
+// second factor here, so these pages behind it would redirect to themselves.
+func (h *Handler) Routes(mux *http.ServeMux, ac *access.Control) {
+	mux.HandleFunc("GET /admin/verify", ac.StaffOnly(h.Challenge))
+	mux.HandleFunc("POST /admin/verify", ac.StaffOnly(h.Verify))
+	mux.HandleFunc("POST /admin/verify/enrol", ac.StaffOnly(h.Enrol))
+	mux.HandleFunc("POST /admin/verify/confirm", ac.StaffOnly(h.Confirm))
+}
+
 func (h *Handler) Challenge(w http.ResponseWriter, r *http.Request) {
 	u, ok := user.FromContext(r.Context())
 	if !ok {
