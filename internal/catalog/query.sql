@@ -37,7 +37,8 @@ SELECT
         (SELECT a.tone FROM trail a WHERE a.tone IS NOT NULL ORDER BY a.depth LIMIT 1),
         'stone'
     )::text AS tone,
-    coalesce(photo.media_digest, photo.bundled_key, '')::text AS image_key,
+    coalesce(photo.media_digest, '')::text AS image_digest,
+    coalesce(photo.bundled_key, '')::text AS image_bundled_key,
     coalesce(photo.image_alt, '')::text AS image_alt,
     coalesce(m.width, 0)::integer AS image_width
 FROM trail self
@@ -191,7 +192,8 @@ SELECT
                       WHERE vov.option_value_id = cv.id AND pv.is_active
                   )
     ), ARRAY[]::text[])::text[] AS colours,
-    coalesce(img.media_digest, img.bundled_key, '') AS image_key,
+    coalesce(img.media_digest, '') AS image_digest,
+    coalesce(img.bundled_key, '') AS image_bundled_key,
     coalesce(localized_name(img.alt_text, img.alt_text_en, @locale::text), '')::text AS image_alt,
     coalesce(img.width, 0)::integer AS image_width,
     coalesce(img.height, 0)::integer AS image_height
@@ -368,7 +370,8 @@ SELECT
                       WHERE vov.option_value_id = cv.id AND pv.is_active
                   )
     ), ARRAY[]::text[])::text[] AS colours,
-    coalesce(img.media_digest, img.bundled_key, '') AS image_key,
+    coalesce(img.media_digest, '') AS image_digest,
+    coalesce(img.bundled_key, '') AS image_bundled_key,
     coalesce(localized_name(img.alt_text, img.alt_text_en, @locale::text), '')::text AS image_alt,
     coalesce(img.width, 0)::integer AS image_width,
     coalesce(img.height, 0)::integer AS image_height
@@ -525,7 +528,8 @@ SELECT
                       WHERE vov.option_value_id = cv.id AND pv.is_active
                   )
     ), ARRAY[]::text[])::text[] AS colours,
-    coalesce(img.media_digest, img.bundled_key, '') AS image_key,
+    coalesce(img.media_digest, '') AS image_digest,
+    coalesce(img.bundled_key, '') AS image_bundled_key,
     coalesce(localized_name(img.alt_text, img.alt_text_en, @locale::text), '')::text AS image_alt,
     coalesce(img.width, 0)::integer AS image_width,
     coalesce(img.height, 0)::integer AS image_height
@@ -659,7 +663,8 @@ SELECT
                       WHERE vov.option_value_id = cv.id AND pv.is_active
                   )
     ), ARRAY[]::text[])::text[] AS colours,
-    coalesce(img.media_digest, img.bundled_key, '') AS image_key,
+    coalesce(img.media_digest, '') AS image_digest,
+    coalesce(img.bundled_key, '') AS image_bundled_key,
     coalesce(localized_name(img.alt_text, img.alt_text_en, @locale::text), '')::text AS image_alt,
     coalesce(img.width, 0)::integer AS image_width,
     coalesce(img.height, 0)::integer AS image_height
@@ -736,7 +741,8 @@ LIMIT $1;
 SELECT c.id, c.slug, localized_name(c.title, c.title_en, @locale::text) AS title,
        c.starts_at, c.ends_at,
        c.tone,
-       coalesce(c.media_digest, c.bundled_key, '')::text AS image_key,
+       coalesce(c.media_digest, '')::text AS image_digest,
+       coalesce(c.bundled_key, '')::text AS image_bundled_key,
        coalesce(localized_name(c.image_alt, c.image_alt_en, @locale::text), '')::text AS image_alt,
        coalesce(m.width, 0)::integer AS image_width
 FROM sale_campaigns c
@@ -748,7 +754,8 @@ WHERE c.slug = @slug::text AND c.is_active;
 -- name: ListedCampaigns :many
 SELECT c.id, c.slug, localized_name(c.title, c.title_en, @locale::text) AS title,
        c.starts_at, c.ends_at, c.tone,
-       coalesce(c.media_digest, c.bundled_key, '')::text AS image_key,
+       coalesce(c.media_digest, '')::text AS image_digest,
+       coalesce(c.bundled_key, '')::text AS image_bundled_key,
        coalesce(localized_name(c.image_alt, c.image_alt_en, @locale::text), '')::text AS image_alt,
        coalesce(m.width, 0)::integer AS image_width,
        (SELECT count(*) FROM sale_campaign_products cp
@@ -830,7 +837,8 @@ SELECT
                       WHERE vov.option_value_id = cv.id AND pv.is_active
                   )
     ), ARRAY[]::text[])::text[] AS colours,
-    coalesce(img.media_digest, img.bundled_key, '') AS image_key,
+    coalesce(img.media_digest, '') AS image_digest,
+    coalesce(img.bundled_key, '') AS image_bundled_key,
     coalesce(localized_name(img.alt_text, img.alt_text_en, @locale::text), '')::text AS image_alt,
     coalesce(img.width, 0)::integer AS image_width,
     coalesce(img.height, 0)::integer AS image_height
@@ -893,7 +901,8 @@ SELECT
           AND sv.stock_quantity > sv.safety_stock
     ) AS in_stock,
     coalesce(p.warranty_months, 0)::integer AS warranty_months,
-    coalesce(img.media_digest, img.bundled_key, '') AS image_key,
+    coalesce(img.media_digest, '') AS image_digest,
+    coalesce(img.bundled_key, '') AS image_bundled_key,
     coalesce(localized_name(img.alt_text, img.alt_text_en, @locale::text), '')::text AS image_alt,
     coalesce(img.width, 0)::integer AS image_width,
     coalesce(img.height, 0)::integer AS image_height,
@@ -982,7 +991,8 @@ SELECT
         SELECT 1 FROM product_variants dv
         WHERE dv.product_id = p.id AND dv.is_active AND dv.price_cents > mv.price_cents
     ) AS price_varies,
-    coalesce(img.media_digest, img.bundled_key, '') AS image_key,
+    coalesce(img.media_digest, '') AS image_digest,
+    coalesce(img.bundled_key, '') AS image_bundled_key,
     coalesce(localized_name(img.alt_text, img.alt_text_en, @locale::text), '')::text AS image_alt,
     coalesce(img.width, 0)::integer AS image_width,
     coalesce(img.height, 0)::integer AS image_height
@@ -1126,7 +1136,8 @@ SELECT
     ) AS in_campaign,
     localized_name(v.value, v.value_en, @locale::text) AS colour,
     v.swatch_hex::text AS swatch,
-    coalesce(img.media_digest, img.bundled_key)::text AS image_key,
+    coalesce(img.media_digest, '')::text AS image_digest,
+    coalesce(img.bundled_key, '')::text AS image_bundled_key,
     coalesce(localized_name(img.alt_text, img.alt_text_en, @locale::text), '')::text AS image_alt,
     coalesce(img.width, 0)::integer AS image_width
 FROM story s

@@ -61,7 +61,7 @@ func (c CampaignRow) ToggleLabel(ctx context.Context) string {
 type CampaignProduct struct {
 	Slug          string
 	Name          string
-	ImageKey      string
+	Image         assets.Image
 	PriceCents    int64
 	CompareCents  int64
 	SellableUnits int64
@@ -71,7 +71,7 @@ type CampaignProduct struct {
 	Draft                bool
 }
 
-func (p CampaignProduct) imageURL() string { return assets.ProductImageURL(p.ImageKey) }
+func (p CampaignProduct) imageURL() string { return p.Image.URL() }
 
 func (p CampaignProduct) hasMarkdown() bool {
 	return p.HasVariant && p.CompareCents > p.PriceCents

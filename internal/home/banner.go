@@ -164,6 +164,7 @@ func (s *Store) navPicks(ctx context.Context, locale string) (map[uuid.UUID][]la
 	out := make(map[uuid.UUID][]layouts.NavPick)
 	for i := range rows {
 		r := &rows[i]
+		photo := assets.Image{Digest: r.ImageDigest, BundledKey: r.ImageBundledKey, Width: int(r.ImageWidth)}
 		price := money.TWD(r.PriceCents)
 		if r.PriceVaries {
 			price = fmt.Sprintf(i18n.T(ctx, i18n.KeyFromPrice), price)
@@ -172,8 +173,8 @@ func (s *Store) navPicks(ctx context.Context, locale string) (map[uuid.UUID][]la
 			Slug:        r.Slug,
 			Name:        r.Name,
 			Price:       price,
-			ImageURL:    assets.ProductImageURL(r.ImageKey),
-			ImageSrcset: assets.ProductImageSrcsetAt(r.ImageKey, int(r.ImageWidth)),
+			ImageURL:    photo.URL(),
+			ImageSrcset: photo.Srcset(),
 		})
 	}
 	return out, nil

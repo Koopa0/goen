@@ -43,10 +43,11 @@ func (s *Store) slides(ctx context.Context, src carouselSources) ([]pages.HeroSl
 			slide.CTA = pages.CTA{Label: r.PrimaryCtaLabel, Href: href}
 			slide.Tone = src.toneOf(href)
 		}
-		if key := r.ImageKey.String; key != "" {
+		if digest := r.MediaDigest.String; digest != "" {
+			photo := assets.Image{Digest: digest, Width: int(r.ImageWidth)}
 			slide.Photo = components.Photo{
-				URL:    assets.MediaURL(key),
-				Srcset: assets.ProductImageSrcsetAt(key, int(r.ImageWidth)),
+				URL:    photo.URL(),
+				Srcset: photo.Srcset(),
 				Alt:    r.ImageAlt,
 			}
 			slide.PhotoWidth, slide.PhotoHeight = int(r.ImageWidth), int(r.ImageHeight)
@@ -70,12 +71,8 @@ func (s *Store) slides(ctx context.Context, src carouselSources) ([]pages.HeroSl
 		if period, ok := components.DayPeriod(ctx, c.Title, c.StartsAt, c.EndsAt, s.now()); ok {
 			slide.Period = &period
 		}
-		if c.ImageKey != "" {
-			slide.Photo = components.Photo{
-				URL:    assets.ProductImageURL(c.ImageKey),
-				Srcset: assets.ProductImageSrcsetAt(c.ImageKey, int(c.ImageWidth)),
-				Alt:    c.ImageAlt,
-			}
+		if photo, ok := campaignPhoto(c); ok {
+			slide.Photo = photo
 			slide.PhotoWidth, slide.PhotoHeight = 1600, 600
 		}
 		out = append(out, slide)
@@ -119,14 +116,24 @@ func (s *Store) campaignSchedule(ctx context.Context, c *db.ListedCampaignsRow) 
 	return pages.NewCampaignSchedule(ctx, c.Title, c.Products, c.StartsAt, c.EndsAt, s.now())
 }
 
+// campaignPhoto is a campaign's header photograph, and false when it has none.
+func campaignPhoto(c *db.ListedCampaignsRow) (components.Photo, bool) {
+	if c.ImageDigest == "" && c.ImageBundledKey == "" {
+		return components.Photo{}, false
+	}
+	photo := assets.Image{Digest: c.ImageDigest, BundledKey: c.ImageBundledKey, Width: int(c.ImageWidth)}
+	return components.Photo{URL: photo.URL(), Srcset: photo.Srcset(), Alt: c.ImageAlt}, true
+}
+
 func departmentPhoto(c *db.RootCategoriesRow) components.Photo {
-	url := assets.ProductImageURL(c.ImageKey)
+	photo := assets.Image{Digest: c.ImageDigest, BundledKey: c.ImageBundledKey, Width: int(c.ImageWidth)}
+	url := photo.URL()
 	if url == "" {
 		return components.Photo{}
 	}
 	return components.Photo{
 		URL:    url,
-		Srcset: assets.ProductImageSrcsetAt(c.ImageKey, int(c.ImageWidth)),
+		Srcset: photo.Srcset(),
 		Alt:    c.ImageAlt,
 	}
 }

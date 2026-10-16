@@ -14,6 +14,7 @@ import (
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 
+	"github.com/koopa0/goen/assets"
 	"github.com/koopa0/goen/internal/admin/audit"
 	"github.com/koopa0/goen/internal/db"
 	"github.com/koopa0/goen/internal/i18n"
@@ -124,7 +125,8 @@ func (s *Store) Image(ctx context.Context, slug string) (components.HeaderImage,
 		return components.HeaderImage{}, "", fmt.Errorf("read campaign image: %w", err)
 	}
 	return components.HeaderImage{
-		Key: row.ImageKey, Alt: row.ImageAlt, AltEn: row.ImageAltEn, Width: row.ImageWidth,
+		Image: assets.Image{Digest: row.ImageDigest, BundledKey: row.ImageBundledKey, Width: int(row.ImageWidth)},
+		Alt:   row.ImageAlt, AltEn: row.ImageAltEn,
 	}, row.Tone, nil
 }
 
@@ -196,7 +198,7 @@ func (s *Store) SearchProducts(ctx context.Context, slug, term string) ([]Campai
 	out := make([]CampaignProduct, 0, len(rows))
 	for i := range rows {
 		out = append(out, CampaignProduct{
-			Slug: rows[i].Slug, Name: rows[i].Name, ImageKey: rows[i].ImageKey,
+			Slug: rows[i].Slug, Name: rows[i].Name, Image: assets.Image{Digest: rows[i].ImageDigest, BundledKey: rows[i].ImageBundledKey},
 			PriceCents: rows[i].PriceCents, CompareCents: rows[i].CompareAtPriceCents,
 			SellableUnits: rows[i].SellableUnits, HasVariant: rows[i].HasVariant, HasDiscountedVariant: rows[i].HasDiscountedVariant, Draft: rows[i].IsDraft,
 		})
@@ -356,7 +358,7 @@ func (s *Store) Products(ctx context.Context, slug string) ([]CampaignProduct, e
 	out := make([]CampaignProduct, 0, len(rows))
 	for i := range rows {
 		out = append(out, CampaignProduct{
-			Slug: rows[i].Slug, Name: rows[i].Name, ImageKey: rows[i].ImageKey,
+			Slug: rows[i].Slug, Name: rows[i].Name, Image: assets.Image{Digest: rows[i].ImageDigest, BundledKey: rows[i].ImageBundledKey},
 			PriceCents: rows[i].PriceCents, CompareCents: rows[i].CompareAtPriceCents,
 			SellableUnits: rows[i].SellableUnits, HasVariant: rows[i].HasVariant, HasDiscountedVariant: rows[i].HasDiscountedVariant, Draft: rows[i].IsDraft,
 		})

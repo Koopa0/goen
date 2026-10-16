@@ -427,7 +427,8 @@ func (q *Queries) AdminCampaign(ctx context.Context, arg AdminCampaignParams) (A
 }
 
 const adminCampaignImage = `-- name: AdminCampaignImage :one
-SELECT coalesce(c.media_digest, c.bundled_key, '')::text AS image_key,
+SELECT coalesce(c.media_digest, '')::text AS image_digest,
+       coalesce(c.bundled_key, '')::text AS image_bundled_key,
        coalesce(c.image_alt, '')::text AS image_alt,
        coalesce(c.image_alt_en, '')::text AS image_alt_en,
        c.tone,
@@ -438,11 +439,12 @@ WHERE c.slug = $1::text
 `
 
 type AdminCampaignImageRow struct {
-	ImageKey   string
-	ImageAlt   string
-	ImageAltEn string
-	Tone       string
-	ImageWidth int32
+	ImageDigest     string
+	ImageBundledKey string
+	ImageAlt        string
+	ImageAltEn      string
+	Tone            string
+	ImageWidth      int32
 }
 
 // The stored width comes from media_objects, and is 0 for an embedded file.
@@ -450,7 +452,8 @@ func (q *Queries) AdminCampaignImage(ctx context.Context, slug string) (AdminCam
 	row := q.db.QueryRow(ctx, adminCampaignImage, slug)
 	var i AdminCampaignImageRow
 	err := row.Scan(
-		&i.ImageKey,
+		&i.ImageDigest,
+		&i.ImageBundledKey,
 		&i.ImageAlt,
 		&i.ImageAltEn,
 		&i.Tone,
@@ -461,7 +464,8 @@ func (q *Queries) AdminCampaignImage(ctx context.Context, slug string) (AdminCam
 
 const adminCampaignProductSearch = `-- name: AdminCampaignProductSearch :many
 SELECT p.slug, localized_name(p.name, p.name_en, $1::text) AS name,
-       coalesce(img.media_digest, img.bundled_key, '')::text AS image_key,
+       coalesce(img.media_digest, '')::text AS image_digest,
+       coalesce(img.bundled_key, '')::text AS image_bundled_key,
        coalesce(mv.price_cents, 0)::bigint AS price_cents,
        coalesce(mv.compare_at_price_cents, 0)::bigint AS compare_at_price_cents,
        (mv.price_cents IS NOT NULL)::boolean AS has_variant,
@@ -507,7 +511,8 @@ type AdminCampaignProductSearchParams struct {
 type AdminCampaignProductSearchRow struct {
 	Slug                 string
 	Name                 string
-	ImageKey             string
+	ImageDigest          string
+	ImageBundledKey      string
 	PriceCents           int64
 	CompareAtPriceCents  int64
 	HasVariant           bool
@@ -534,7 +539,8 @@ func (q *Queries) AdminCampaignProductSearch(ctx context.Context, arg AdminCampa
 		if err := rows.Scan(
 			&i.Slug,
 			&i.Name,
-			&i.ImageKey,
+			&i.ImageDigest,
+			&i.ImageBundledKey,
 			&i.PriceCents,
 			&i.CompareAtPriceCents,
 			&i.HasVariant,
@@ -554,7 +560,8 @@ func (q *Queries) AdminCampaignProductSearch(ctx context.Context, arg AdminCampa
 
 const adminCampaignProducts = `-- name: AdminCampaignProducts :many
 SELECT p.slug, p.name AS name,
-       coalesce(img.media_digest, img.bundled_key, '')::text AS image_key,
+       coalesce(img.media_digest, '')::text AS image_digest,
+       coalesce(img.bundled_key, '')::text AS image_bundled_key,
        coalesce(mv.price_cents, 0)::bigint AS price_cents,
        coalesce(mv.compare_at_price_cents, 0)::bigint AS compare_at_price_cents,
        (mv.price_cents IS NOT NULL)::boolean AS has_variant,
@@ -587,7 +594,8 @@ ORDER BY cp.position, p.id
 type AdminCampaignProductsRow struct {
 	Slug                 string
 	Name                 string
-	ImageKey             string
+	ImageDigest          string
+	ImageBundledKey      string
 	PriceCents           int64
 	CompareAtPriceCents  int64
 	HasVariant           bool
@@ -609,7 +617,8 @@ func (q *Queries) AdminCampaignProducts(ctx context.Context, campaign string) ([
 		if err := rows.Scan(
 			&i.Slug,
 			&i.Name,
-			&i.ImageKey,
+			&i.ImageDigest,
+			&i.ImageBundledKey,
 			&i.PriceCents,
 			&i.CompareAtPriceCents,
 			&i.HasVariant,
@@ -764,7 +773,8 @@ func (q *Queries) AdminCategories(ctx context.Context) ([]AdminCategoriesRow, er
 const adminCategoryImage = `-- name: AdminCategoryImage :one
 SELECT c.name,
        coalesce(c.tone, '')::text AS tone,
-       coalesce(c.media_digest, c.bundled_key, '')::text AS image_key,
+       coalesce(c.media_digest, '')::text AS image_digest,
+       coalesce(c.bundled_key, '')::text AS image_bundled_key,
        coalesce(c.image_alt, '')::text AS image_alt,
        coalesce(c.image_alt_en, '')::text AS image_alt_en,
        coalesce(m.width, 0)::integer AS image_width
@@ -774,12 +784,13 @@ WHERE c.slug = $1::text
 `
 
 type AdminCategoryImageRow struct {
-	Name       string
-	Tone       string
-	ImageKey   string
-	ImageAlt   string
-	ImageAltEn string
-	ImageWidth int32
+	Name            string
+	Tone            string
+	ImageDigest     string
+	ImageBundledKey string
+	ImageAlt        string
+	ImageAltEn      string
+	ImageWidth      int32
 }
 
 // The stored width comes from media_objects, and is 0 for a key that is not an
@@ -790,7 +801,8 @@ func (q *Queries) AdminCategoryImage(ctx context.Context, slug string) (AdminCat
 	err := row.Scan(
 		&i.Name,
 		&i.Tone,
-		&i.ImageKey,
+		&i.ImageDigest,
+		&i.ImageBundledKey,
 		&i.ImageAlt,
 		&i.ImageAltEn,
 		&i.ImageWidth,
@@ -1099,7 +1111,7 @@ func (q *Queries) AdminFAQEntries(ctx context.Context, limit int32) ([]AdminFAQE
 
 const adminHeroSlides = `-- name: AdminHeroSlides :many
 SELECT h.id, h.eyebrow, h.headline, h.primary_cta_label, h.primary_cta_href,
-       h.media_digest AS image_key, h.position, h.is_active, h.starts_at, h.ends_at,
+       h.media_digest, h.position, h.is_active, h.starts_at, h.ends_at,
        (h.is_active
         AND (h.starts_at IS NULL OR h.starts_at <= now())
         AND (h.ends_at IS NULL OR h.ends_at > now()))::boolean AS in_window,
@@ -1124,7 +1136,7 @@ type AdminHeroSlidesRow struct {
 	Headline        string
 	PrimaryCtaLabel string
 	PrimaryCtaHref  string
-	ImageKey        pgtype.Text
+	MediaDigest     pgtype.Text
 	Position        int32
 	IsActive        bool
 	StartsAt        pgtype.Timestamptz
@@ -1153,7 +1165,7 @@ func (q *Queries) AdminHeroSlides(ctx context.Context, arg AdminHeroSlidesParams
 			&i.Headline,
 			&i.PrimaryCtaLabel,
 			&i.PrimaryCtaHref,
-			&i.ImageKey,
+			&i.MediaDigest,
 			&i.Position,
 			&i.IsActive,
 			&i.StartsAt,
@@ -1731,8 +1743,9 @@ func (q *Queries) AdminProduct(ctx context.Context, slug string) (AdminProductRo
 }
 
 const adminProductImages = `-- name: AdminProductImages :many
-SELECT coalesce(pi.media_digest, pi.bundled_key)::text AS image_key,
-       pi.alt_text, pi.width, pi.height, pi.option_value_id
+SELECT coalesce(pi.media_digest, '')::text AS image_digest,
+       coalesce(pi.bundled_key, '')::text AS image_bundled_key,
+       pi.alt_text, pi.width, pi.option_value_id
 FROM product_images pi
 JOIN products p ON p.id = pi.product_id
 WHERE p.slug = $1::text
@@ -1740,11 +1753,11 @@ ORDER BY pi.position, pi.id
 `
 
 type AdminProductImagesRow struct {
-	ImageKey      string
-	AltText       string
-	Width         pgtype.Int4
-	Height        pgtype.Int4
-	OptionValueID uuid.NullUUID
+	ImageDigest     string
+	ImageBundledKey string
+	AltText         string
+	Width           pgtype.Int4
+	OptionValueID   uuid.NullUUID
 }
 
 func (q *Queries) AdminProductImages(ctx context.Context, slug string) ([]AdminProductImagesRow, error) {
@@ -1757,10 +1770,10 @@ func (q *Queries) AdminProductImages(ctx context.Context, slug string) ([]AdminP
 	for rows.Next() {
 		var i AdminProductImagesRow
 		if err := rows.Scan(
-			&i.ImageKey,
+			&i.ImageDigest,
+			&i.ImageBundledKey,
 			&i.AltText,
 			&i.Width,
-			&i.Height,
 			&i.OptionValueID,
 		); err != nil {
 			return nil, err
@@ -3521,7 +3534,8 @@ SELECT
                       WHERE vov.option_value_id = cv.id AND pv.is_active
                   )
     ), ARRAY[]::text[])::text[] AS colours,
-    coalesce(img.media_digest, img.bundled_key, '') AS image_key,
+    coalesce(img.media_digest, '') AS image_digest,
+    coalesce(img.bundled_key, '') AS image_bundled_key,
     coalesce(localized_name(img.alt_text, img.alt_text_en, $1::text), '')::text AS image_alt,
     coalesce(img.width, 0)::integer AS image_width,
     coalesce(img.height, 0)::integer AS image_height,
@@ -3572,7 +3586,8 @@ type BoughtTogetherRow struct {
 	RatingCount         int64
 	InStock             bool
 	Colours             []string
-	ImageKey            string
+	ImageDigest         string
+	ImageBundledKey     string
 	ImageAlt            string
 	ImageWidth          int32
 	ImageHeight         int32
@@ -3606,7 +3621,8 @@ func (q *Queries) BoughtTogether(ctx context.Context, arg BoughtTogetherParams) 
 			&i.RatingCount,
 			&i.InStock,
 			&i.Colours,
-			&i.ImageKey,
+			&i.ImageDigest,
+			&i.ImageBundledKey,
 			&i.ImageAlt,
 			&i.ImageWidth,
 			&i.ImageHeight,
@@ -3626,7 +3642,8 @@ const campaignBySlug = `-- name: CampaignBySlug :one
 SELECT c.id, c.slug, localized_name(c.title, c.title_en, $1::text) AS title,
        c.starts_at, c.ends_at,
        c.tone,
-       coalesce(c.media_digest, c.bundled_key, '')::text AS image_key,
+       coalesce(c.media_digest, '')::text AS image_digest,
+       coalesce(c.bundled_key, '')::text AS image_bundled_key,
        coalesce(localized_name(c.image_alt, c.image_alt_en, $1::text), '')::text AS image_alt,
        coalesce(m.width, 0)::integer AS image_width
 FROM sale_campaigns c
@@ -3640,15 +3657,16 @@ type CampaignBySlugParams struct {
 }
 
 type CampaignBySlugRow struct {
-	ID         uuid.UUID
-	Slug       string
-	Title      string
-	StartsAt   time.Time
-	EndsAt     time.Time
-	Tone       string
-	ImageKey   string
-	ImageAlt   string
-	ImageWidth int32
+	ID              uuid.UUID
+	Slug            string
+	Title           string
+	StartsAt        time.Time
+	EndsAt          time.Time
+	Tone            string
+	ImageDigest     string
+	ImageBundledKey string
+	ImageAlt        string
+	ImageWidth      int32
 }
 
 // Any active campaign by its slug, inside its window or not: the page says
@@ -3663,7 +3681,8 @@ func (q *Queries) CampaignBySlug(ctx context.Context, arg CampaignBySlugParams) 
 		&i.StartsAt,
 		&i.EndsAt,
 		&i.Tone,
-		&i.ImageKey,
+		&i.ImageDigest,
+		&i.ImageBundledKey,
 		&i.ImageAlt,
 		&i.ImageWidth,
 	)
@@ -3793,7 +3812,8 @@ SELECT
                       WHERE vov.option_value_id = cv.id AND pv.is_active
                   )
     ), ARRAY[]::text[])::text[] AS colours,
-    coalesce(img.media_digest, img.bundled_key, '') AS image_key,
+    coalesce(img.media_digest, '') AS image_digest,
+    coalesce(img.bundled_key, '') AS image_bundled_key,
     coalesce(localized_name(img.alt_text, img.alt_text_en, $2::text), '')::text AS image_alt,
     coalesce(img.width, 0)::integer AS image_width,
     coalesce(img.height, 0)::integer AS image_height
@@ -3844,7 +3864,8 @@ type CampaignProductsRow struct {
 	RatingCount         int64
 	InStock             bool
 	Colours             []string
-	ImageKey            string
+	ImageDigest         string
+	ImageBundledKey     string
 	ImageAlt            string
 	ImageWidth          int32
 	ImageHeight         int32
@@ -3874,7 +3895,8 @@ func (q *Queries) CampaignProducts(ctx context.Context, arg CampaignProductsPara
 			&i.RatingCount,
 			&i.InStock,
 			&i.Colours,
-			&i.ImageKey,
+			&i.ImageDigest,
+			&i.ImageBundledKey,
 			&i.ImageAlt,
 			&i.ImageWidth,
 			&i.ImageHeight,
@@ -4277,7 +4299,8 @@ SELECT
          WHERE vov.variant_id = pv.id),
         ARRAY[]::text[]
     )::text[] AS option_values,
-    coalesce(img.media_digest, img.bundled_key, '') AS image_key,
+    coalesce(img.media_digest, '') AS image_digest,
+    coalesce(img.bundled_key, '') AS image_bundled_key,
     coalesce(localized_name(img.alt_text, img.alt_text_en, $2::text), '')::text AS image_alt,
     coalesce(img.width, 0)::integer AS image_width
 FROM cart_items ci
@@ -4323,7 +4346,8 @@ type CartLinesRow struct {
 	Brand               string
 	OptionNames         []string
 	OptionValues        []string
-	ImageKey            string
+	ImageDigest         string
+	ImageBundledKey     string
 	ImageAlt            string
 	ImageWidth          int32
 }
@@ -4357,7 +4381,8 @@ func (q *Queries) CartLines(ctx context.Context, arg CartLinesParams) ([]CartLin
 			&i.Brand,
 			&i.OptionNames,
 			&i.OptionValues,
-			&i.ImageKey,
+			&i.ImageDigest,
+			&i.ImageBundledKey,
 			&i.ImageAlt,
 			&i.ImageWidth,
 		); err != nil {
@@ -4550,7 +4575,8 @@ SELECT
         (SELECT a.tone FROM trail a WHERE a.tone IS NOT NULL ORDER BY a.depth LIMIT 1),
         'stone'
     )::text AS tone,
-    coalesce(photo.media_digest, photo.bundled_key, '')::text AS image_key,
+    coalesce(photo.media_digest, '')::text AS image_digest,
+    coalesce(photo.bundled_key, '')::text AS image_bundled_key,
     coalesce(photo.image_alt, '')::text AS image_alt,
     coalesce(m.width, 0)::integer AS image_width
 FROM trail self
@@ -4568,14 +4594,15 @@ type CategoryBySlugParams struct {
 }
 
 type CategoryBySlugRow struct {
-	ID            uuid.UUID
-	Name          string
-	AncestorSlugs []string
-	AncestorNames []string
-	Tone          string
-	ImageKey      string
-	ImageAlt      string
-	ImageWidth    int32
+	ID              uuid.UUID
+	Name            string
+	AncestorSlugs   []string
+	AncestorNames   []string
+	Tone            string
+	ImageDigest     string
+	ImageBundledKey string
+	ImageAlt        string
+	ImageWidth      int32
 }
 
 // categories_acyclic is what guarantees the upward walk terminates.
@@ -4592,7 +4619,8 @@ func (q *Queries) CategoryBySlug(ctx context.Context, arg CategoryBySlugParams) 
 		&i.AncestorSlugs,
 		&i.AncestorNames,
 		&i.Tone,
-		&i.ImageKey,
+		&i.ImageDigest,
+		&i.ImageBundledKey,
 		&i.ImageAlt,
 		&i.ImageWidth,
 	)
@@ -4755,7 +4783,8 @@ SELECT
                       WHERE vov.option_value_id = cv.id AND pv.is_active
                   )
     ), ARRAY[]::text[])::text[] AS colours,
-    coalesce(img.media_digest, img.bundled_key, '') AS image_key,
+    coalesce(img.media_digest, '') AS image_digest,
+    coalesce(img.bundled_key, '') AS image_bundled_key,
     coalesce(localized_name(img.alt_text, img.alt_text_en, $1::text), '')::text AS image_alt,
     coalesce(img.width, 0)::integer AS image_width,
     coalesce(img.height, 0)::integer AS image_height
@@ -4859,7 +4888,8 @@ type CategoryListingRow struct {
 	RatingCount         int64
 	InStock             bool
 	Colours             []string
-	ImageKey            string
+	ImageDigest         string
+	ImageBundledKey     string
 	ImageAlt            string
 	ImageWidth          int32
 	ImageHeight         int32
@@ -4904,7 +4934,8 @@ func (q *Queries) CategoryListing(ctx context.Context, arg CategoryListingParams
 			&i.RatingCount,
 			&i.InStock,
 			&i.Colours,
-			&i.ImageKey,
+			&i.ImageDigest,
+			&i.ImageBundledKey,
 			&i.ImageAlt,
 			&i.ImageWidth,
 			&i.ImageHeight,
@@ -5612,7 +5643,8 @@ SELECT
           AND sv.stock_quantity > sv.safety_stock
     ) AS in_stock,
     coalesce(p.warranty_months, 0)::integer AS warranty_months,
-    coalesce(img.media_digest, img.bundled_key, '') AS image_key,
+    coalesce(img.media_digest, '') AS image_digest,
+    coalesce(img.bundled_key, '') AS image_bundled_key,
     coalesce(localized_name(img.alt_text, img.alt_text_en, $1::text), '')::text AS image_alt,
     coalesce(img.width, 0)::integer AS image_width,
     coalesce(img.height, 0)::integer AS image_height,
@@ -5659,7 +5691,8 @@ type CompareProductsRow struct {
 	RatingCount         int64
 	InStock             bool
 	WarrantyMonths      int32
-	ImageKey            string
+	ImageDigest         string
+	ImageBundledKey     string
 	ImageAlt            string
 	ImageWidth          int32
 	ImageHeight         int32
@@ -5691,7 +5724,8 @@ func (q *Queries) CompareProducts(ctx context.Context, arg CompareProductsParams
 			&i.RatingCount,
 			&i.InStock,
 			&i.WarrantyMonths,
-			&i.ImageKey,
+			&i.ImageDigest,
+			&i.ImageBundledKey,
 			&i.ImageAlt,
 			&i.ImageWidth,
 			&i.ImageHeight,
@@ -5781,7 +5815,8 @@ SELECT
         SELECT 1 FROM product_variants dv
         WHERE dv.product_id = p.id AND dv.is_active AND dv.price_cents > mv.price_cents
     ) AS price_varies,
-    coalesce(img.media_digest, img.bundled_key, '') AS image_key,
+    coalesce(img.media_digest, '') AS image_digest,
+    coalesce(img.bundled_key, '') AS image_bundled_key,
     coalesce(localized_name(img.alt_text, img.alt_text_en, $1::text), '')::text AS image_alt,
     coalesce(img.width, 0)::integer AS image_width,
     coalesce(img.height, 0)::integer AS image_height
@@ -5814,15 +5849,16 @@ type CompareSuggestionsParams struct {
 }
 
 type CompareSuggestionsRow struct {
-	Slug          string
-	Name          string
-	Brand         string
-	MinPriceCents int64
-	PriceVaries   bool
-	ImageKey      string
-	ImageAlt      string
-	ImageWidth    int32
-	ImageHeight   int32
+	Slug            string
+	Name            string
+	Brand           string
+	MinPriceCents   int64
+	PriceVaries     bool
+	ImageDigest     string
+	ImageBundledKey string
+	ImageAlt        string
+	ImageWidth      int32
+	ImageHeight     int32
 }
 
 // What to compare a product with: the other active products on its own shelf,
@@ -5849,7 +5885,8 @@ func (q *Queries) CompareSuggestions(ctx context.Context, arg CompareSuggestions
 			&i.Brand,
 			&i.MinPriceCents,
 			&i.PriceVaries,
-			&i.ImageKey,
+			&i.ImageDigest,
+			&i.ImageBundledKey,
 			&i.ImageAlt,
 			&i.ImageWidth,
 			&i.ImageHeight,
@@ -7228,7 +7265,8 @@ SELECT
                       WHERE vov.option_value_id = cv.id AND pv.is_active
                   )
     ), ARRAY[]::text[])::text[] AS colours,
-    coalesce(img.media_digest, img.bundled_key, '') AS image_key,
+    coalesce(img.media_digest, '') AS image_digest,
+    coalesce(img.bundled_key, '') AS image_bundled_key,
     coalesce(localized_name(img.alt_text, img.alt_text_en, $1::text), '')::text AS image_alt,
     coalesce(img.width, 0)::integer AS image_width,
     coalesce(img.height, 0)::integer AS image_height
@@ -7282,7 +7320,8 @@ type DealProductsRow struct {
 	RatingCount         int64
 	InStock             bool
 	Colours             []string
-	ImageKey            string
+	ImageDigest         string
+	ImageBundledKey     string
 	ImageAlt            string
 	ImageWidth          int32
 	ImageHeight         int32
@@ -7314,7 +7353,8 @@ func (q *Queries) DealProducts(ctx context.Context, arg DealProductsParams) ([]D
 			&i.RatingCount,
 			&i.InStock,
 			&i.Colours,
-			&i.ImageKey,
+			&i.ImageDigest,
+			&i.ImageBundledKey,
 			&i.ImageAlt,
 			&i.ImageWidth,
 			&i.ImageHeight,
@@ -7800,7 +7840,8 @@ SELECT
     ) AS in_campaign,
     localized_name(v.value, v.value_en, $1::text) AS colour,
     v.swatch_hex::text AS swatch,
-    coalesce(img.media_digest, img.bundled_key)::text AS image_key,
+    coalesce(img.media_digest, '')::text AS image_digest,
+    coalesce(img.bundled_key, '')::text AS image_bundled_key,
     coalesce(localized_name(img.alt_text, img.alt_text_en, $1::text), '')::text AS image_alt,
     coalesce(img.width, 0)::integer AS image_width
 FROM story s
@@ -7837,7 +7878,8 @@ type DepartmentColourStoryRow struct {
 	InCampaign          bool
 	Colour              string
 	Swatch              string
-	ImageKey            string
+	ImageDigest         string
+	ImageBundledKey     string
 	ImageAlt            string
 	ImageWidth          int32
 }
@@ -7866,7 +7908,8 @@ func (q *Queries) DepartmentColourStory(ctx context.Context, arg DepartmentColou
 			&i.InCampaign,
 			&i.Colour,
 			&i.Swatch,
-			&i.ImageKey,
+			&i.ImageDigest,
+			&i.ImageBundledKey,
 			&i.ImageAlt,
 			&i.ImageWidth,
 		); err != nil {
@@ -8525,7 +8568,7 @@ SELECT h.id, coalesce(localized_name(h.eyebrow, h.eyebrow_en, $1::text), '')::te
        h.primary_cta_href,
        coalesce(localized_name(h.secondary_cta_label, h.secondary_cta_label_en,
                                $1::text), '')::text AS secondary_cta_label,
-       h.secondary_cta_href, h.media_digest AS image_key,
+       h.secondary_cta_href, h.media_digest,
        coalesce(localized_name(h.image_alt, h.image_alt_en, $1::text), '')::text
            AS image_alt,
        -- Dimensions come from media_objects: one row of bytes, one row of size.
@@ -8555,7 +8598,7 @@ type HeroSlidesRow struct {
 	PrimaryCtaHref    string
 	SecondaryCtaLabel string
 	SecondaryCtaHref  pgtype.Text
-	ImageKey          pgtype.Text
+	MediaDigest       pgtype.Text
 	ImageAlt          string
 	ImageWidth        int32
 	ImageHeight       int32
@@ -8584,7 +8627,7 @@ func (q *Queries) HeroSlides(ctx context.Context, arg HeroSlidesParams) ([]HeroS
 			&i.PrimaryCtaHref,
 			&i.SecondaryCtaLabel,
 			&i.SecondaryCtaHref,
-			&i.ImageKey,
+			&i.MediaDigest,
 			&i.ImageAlt,
 			&i.ImageWidth,
 			&i.ImageHeight,
@@ -8781,7 +8824,8 @@ SELECT
     coalesce(rv.n, 0)::bigint AS rating_count,
     -- A product with no image yields NULL, which sqlc types as a non-null string
     -- and pgx cannot scan.
-    coalesce(img.media_digest, img.bundled_key, '') AS image_key,
+    coalesce(img.media_digest, '') AS image_digest,
+    coalesce(img.bundled_key, '') AS image_bundled_key,
     coalesce(localized_name(img.alt_text, img.alt_text_en, $1::text), '')::text AS image_alt,
     coalesce(img.width, 0)::integer AS image_width,
     coalesce(img.height, 0)::integer AS image_height,
@@ -8882,7 +8926,8 @@ type HomeTilesRow struct {
 	InCampaign          bool
 	Rating              float64
 	RatingCount         int64
-	ImageKey            string
+	ImageDigest         string
+	ImageBundledKey     string
 	ImageAlt            string
 	ImageWidth          int32
 	ImageHeight         int32
@@ -8920,7 +8965,8 @@ func (q *Queries) HomeTiles(ctx context.Context, arg HomeTilesParams) ([]HomeTil
 			&i.InCampaign,
 			&i.Rating,
 			&i.RatingCount,
-			&i.ImageKey,
+			&i.ImageDigest,
+			&i.ImageBundledKey,
 			&i.ImageAlt,
 			&i.ImageWidth,
 			&i.ImageHeight,
@@ -9707,7 +9753,8 @@ func (q *Queries) ListedCampaignOfProduct(ctx context.Context, arg ListedCampaig
 const listedCampaigns = `-- name: ListedCampaigns :many
 SELECT c.id, c.slug, localized_name(c.title, c.title_en, $1::text) AS title,
        c.starts_at, c.ends_at, c.tone,
-       coalesce(c.media_digest, c.bundled_key, '')::text AS image_key,
+       coalesce(c.media_digest, '')::text AS image_digest,
+       coalesce(c.bundled_key, '')::text AS image_bundled_key,
        coalesce(localized_name(c.image_alt, c.image_alt_en, $1::text), '')::text AS image_alt,
        coalesce(m.width, 0)::integer AS image_width,
        (SELECT count(*) FROM sale_campaign_products cp
@@ -9727,16 +9774,17 @@ type ListedCampaignsParams struct {
 }
 
 type ListedCampaignsRow struct {
-	ID         uuid.UUID
-	Slug       string
-	Title      string
-	StartsAt   time.Time
-	EndsAt     time.Time
-	Tone       string
-	ImageKey   string
-	ImageAlt   string
-	ImageWidth int32
-	Products   int64
+	ID              uuid.UUID
+	Slug            string
+	Title           string
+	StartsAt        time.Time
+	EndsAt          time.Time
+	Tone            string
+	ImageDigest     string
+	ImageBundledKey string
+	ImageAlt        string
+	ImageWidth      int32
+	Products        int64
 }
 
 // A campaign left out keeps its page at /s/{slug} (CampaignBySlug), reachable by
@@ -9757,7 +9805,8 @@ func (q *Queries) ListedCampaigns(ctx context.Context, arg ListedCampaignsParams
 			&i.StartsAt,
 			&i.EndsAt,
 			&i.Tone,
-			&i.ImageKey,
+			&i.ImageDigest,
+			&i.ImageBundledKey,
 			&i.ImageAlt,
 			&i.ImageWidth,
 			&i.Products,
@@ -10909,7 +10958,8 @@ SELECT r.root AS root_id,
            SELECT 1 FROM product_variants dv
            WHERE dv.product_id = r.id AND dv.is_active AND dv.price_cents > mv.price_cents
        ) AS price_varies,
-       coalesce(img.media_digest, img.bundled_key, '') AS image_key,
+       coalesce(img.media_digest, '') AS image_digest,
+       coalesce(img.bundled_key, '') AS image_bundled_key,
        coalesce(img.width, 0)::integer AS image_width
 FROM recent r
 JOIN LATERAL (
@@ -10931,13 +10981,14 @@ ORDER BY r.root, r.published_at DESC, r.id DESC
 `
 
 type NavPicksRow struct {
-	RootID      uuid.UUID
-	Slug        string
-	Name        string
-	PriceCents  int64
-	PriceVaries bool
-	ImageKey    string
-	ImageWidth  int32
+	RootID          uuid.UUID
+	Slug            string
+	Name            string
+	PriceCents      int64
+	PriceVaries     bool
+	ImageDigest     string
+	ImageBundledKey string
+	ImageWidth      int32
 }
 
 // Each department's three newest products that can be bought, for its header
@@ -10964,7 +11015,8 @@ func (q *Queries) NavPicks(ctx context.Context, locale string) ([]NavPicksRow, e
 			&i.Name,
 			&i.PriceCents,
 			&i.PriceVaries,
-			&i.ImageKey,
+			&i.ImageDigest,
+			&i.ImageBundledKey,
 			&i.ImageWidth,
 		); err != nil {
 			return nil, err
@@ -11035,7 +11087,8 @@ SELECT
                       WHERE vov.option_value_id = cv.id AND pv.is_active
                   )
     ), ARRAY[]::text[])::text[] AS colours,
-    coalesce(img.media_digest, img.bundled_key, '') AS image_key,
+    coalesce(img.media_digest, '') AS image_digest,
+    coalesce(img.bundled_key, '') AS image_bundled_key,
     coalesce(localized_name(img.alt_text, img.alt_text_en, $1::text), '')::text AS image_alt,
     coalesce(img.width, 0)::integer AS image_width,
     coalesce(img.height, 0)::integer AS image_height
@@ -11080,7 +11133,8 @@ type NewestProductsRow struct {
 	RatingCount         int64
 	InStock             bool
 	Colours             []string
-	ImageKey            string
+	ImageDigest         string
+	ImageBundledKey     string
 	ImageAlt            string
 	ImageWidth          int32
 	ImageHeight         int32
@@ -11110,7 +11164,8 @@ func (q *Queries) NewestProducts(ctx context.Context, arg NewestProductsParams) 
 			&i.RatingCount,
 			&i.InStock,
 			&i.Colours,
-			&i.ImageKey,
+			&i.ImageDigest,
+			&i.ImageBundledKey,
 			&i.ImageAlt,
 			&i.ImageWidth,
 			&i.ImageHeight,
@@ -11823,7 +11878,8 @@ func (q *Queries) OrderIsPaid(ctx context.Context, orderID uuid.UUID) (bool, err
 
 const orderLinesByOrder = `-- name: OrderLinesByOrder :many
 SELECT ol.sku, ol.product_name, ol.variant_label, ol.unit_price_cents, ol.quantity,
-       coalesce(img.media_digest, img.bundled_key, '') AS image_key,
+       coalesce(img.media_digest, '') AS image_digest,
+       coalesce(img.bundled_key, '') AS image_bundled_key,
        coalesce(localized_name(img.alt_text, img.alt_text_en, $1::text), '')::text AS image_alt,
        coalesce(img.width, 0)::integer AS image_width
 FROM order_lines ol
@@ -11846,14 +11902,15 @@ type OrderLinesByOrderParams struct {
 }
 
 type OrderLinesByOrderRow struct {
-	SKU            string
-	ProductName    string
-	VariantLabel   pgtype.Text
-	UnitPriceCents int64
-	Quantity       int32
-	ImageKey       string
-	ImageAlt       string
-	ImageWidth     int32
+	SKU             string
+	ProductName     string
+	VariantLabel    pgtype.Text
+	UnitPriceCents  int64
+	Quantity        int32
+	ImageDigest     string
+	ImageBundledKey string
+	ImageAlt        string
+	ImageWidth      int32
 }
 
 func (q *Queries) OrderLinesByOrder(ctx context.Context, arg OrderLinesByOrderParams) ([]OrderLinesByOrderRow, error) {
@@ -11871,7 +11928,8 @@ func (q *Queries) OrderLinesByOrder(ctx context.Context, arg OrderLinesByOrderPa
 			&i.VariantLabel,
 			&i.UnitPriceCents,
 			&i.Quantity,
-			&i.ImageKey,
+			&i.ImageDigest,
+			&i.ImageBundledKey,
 			&i.ImageAlt,
 			&i.ImageWidth,
 		); err != nil {
@@ -11887,7 +11945,8 @@ func (q *Queries) OrderLinesByOrder(ctx context.Context, arg OrderLinesByOrderPa
 
 const orderLinesForPayment = `-- name: OrderLinesForPayment :many
 SELECT ol.product_name, ol.variant_label, ol.unit_price_cents, ol.quantity,
-       coalesce(img.media_digest, img.bundled_key, '') AS image_key,
+       coalesce(img.media_digest, '') AS image_digest,
+       coalesce(img.bundled_key, '') AS image_bundled_key,
        coalesce(localized_name(img.alt_text, img.alt_text_en, $1::text), '')::text AS image_alt,
        coalesce(img.width, 0)::integer AS image_width
 FROM order_lines ol
@@ -11910,13 +11969,14 @@ type OrderLinesForPaymentParams struct {
 }
 
 type OrderLinesForPaymentRow struct {
-	ProductName    string
-	VariantLabel   pgtype.Text
-	UnitPriceCents int64
-	Quantity       int32
-	ImageKey       string
-	ImageAlt       string
-	ImageWidth     int32
+	ProductName     string
+	VariantLabel    pgtype.Text
+	UnitPriceCents  int64
+	Quantity        int32
+	ImageDigest     string
+	ImageBundledKey string
+	ImageAlt        string
+	ImageWidth      int32
 }
 
 // Named from the order rather than the catalogue: a renamed or repriced product
@@ -11935,7 +11995,8 @@ func (q *Queries) OrderLinesForPayment(ctx context.Context, arg OrderLinesForPay
 			&i.VariantLabel,
 			&i.UnitPriceCents,
 			&i.Quantity,
-			&i.ImageKey,
+			&i.ImageDigest,
+			&i.ImageBundledKey,
 			&i.ImageAlt,
 			&i.ImageWidth,
 		); err != nil {
@@ -11997,7 +12058,8 @@ func (q *Queries) OrderNumbersByProviderRef(ctx context.Context, providerRefs []
 const orderPageLines = `-- name: OrderPageLines :many
 SELECT ol.id, ol.sku, ol.product_name, ol.variant_label, ol.unit_price_cents, ol.quantity,
        ol.warranty_months,
-       coalesce(img.media_digest, img.bundled_key, '') AS image_key,
+       coalesce(img.media_digest, '') AS image_digest,
+       coalesce(img.bundled_key, '') AS image_bundled_key,
        coalesce(localized_name(img.alt_text, img.alt_text_en, $1::text), '')::text AS image_alt,
        coalesce(img.width, 0)::integer AS image_width
 FROM order_lines ol
@@ -12021,16 +12083,17 @@ type OrderPageLinesParams struct {
 }
 
 type OrderPageLinesRow struct {
-	ID             uuid.UUID
-	SKU            string
-	ProductName    string
-	VariantLabel   pgtype.Text
-	UnitPriceCents int64
-	Quantity       int32
-	WarrantyMonths pgtype.Int4
-	ImageKey       string
-	ImageAlt       string
-	ImageWidth     int32
+	ID              uuid.UUID
+	SKU             string
+	ProductName     string
+	VariantLabel    pgtype.Text
+	UnitPriceCents  int64
+	Quantity        int32
+	WarrantyMonths  pgtype.Int4
+	ImageDigest     string
+	ImageBundledKey string
+	ImageAlt        string
+	ImageWidth      int32
 }
 
 // The customer's order page: each line with its photograph and its warranty promise.
@@ -12051,7 +12114,8 @@ func (q *Queries) OrderPageLines(ctx context.Context, arg OrderPageLinesParams) 
 			&i.UnitPriceCents,
 			&i.Quantity,
 			&i.WarrantyMonths,
-			&i.ImageKey,
+			&i.ImageDigest,
+			&i.ImageBundledKey,
 			&i.ImageAlt,
 			&i.ImageWidth,
 		); err != nil {
@@ -13440,7 +13504,8 @@ func (q *Queries) ProductImageOrder(ctx context.Context, slug string) ([]Product
 }
 
 const productImages = `-- name: ProductImages :many
-SELECT coalesce(pi.media_digest, pi.bundled_key)::text AS image_key,
+SELECT coalesce(pi.media_digest, '')::text AS image_digest,
+       coalesce(pi.bundled_key, '')::text AS image_bundled_key,
        localized_name(pi.alt_text, pi.alt_text_en, $1::text) AS alt_text,
        coalesce(pi.width, 0)::integer AS width,
        coalesce(pi.height, 0)::integer AS height,
@@ -13463,11 +13528,12 @@ type ProductImagesParams struct {
 }
 
 type ProductImagesRow struct {
-	ImageKey    string
-	AltText     string
-	Width       int32
-	Height      int32
-	ShowsOption bool
+	ImageDigest     string
+	ImageBundledKey string
+	AltText         string
+	Width           int32
+	Height          int32
+	ShowsOption     bool
 }
 
 // The photographs of the variant on show lead, then those showing the product
@@ -13483,7 +13549,8 @@ func (q *Queries) ProductImages(ctx context.Context, arg ProductImagesParams) ([
 	for rows.Next() {
 		var i ProductImagesRow
 		if err := rows.Scan(
-			&i.ImageKey,
+			&i.ImageDigest,
+			&i.ImageBundledKey,
 			&i.AltText,
 			&i.Width,
 			&i.Height,
@@ -15203,7 +15270,8 @@ SELECT
                       WHERE vov.option_value_id = cv.id AND pv.is_active
                   )
     ), ARRAY[]::text[])::text[] AS colours,
-    coalesce(img.media_digest, img.bundled_key, '') AS image_key,
+    coalesce(img.media_digest, '') AS image_digest,
+    coalesce(img.bundled_key, '') AS image_bundled_key,
     coalesce(localized_name(img.alt_text, img.alt_text_en, $1::text), '')::text AS image_alt,
     coalesce(img.width, 0)::integer AS image_width,
     coalesce(img.height, 0)::integer AS image_height
@@ -15271,7 +15339,8 @@ type RelatedProductsRow struct {
 	RatingCount         int64
 	InStock             bool
 	Colours             []string
-	ImageKey            string
+	ImageDigest         string
+	ImageBundledKey     string
 	ImageAlt            string
 	ImageWidth          int32
 	ImageHeight         int32
@@ -15306,7 +15375,8 @@ func (q *Queries) RelatedProducts(ctx context.Context, arg RelatedProductsParams
 			&i.RatingCount,
 			&i.InStock,
 			&i.Colours,
-			&i.ImageKey,
+			&i.ImageDigest,
+			&i.ImageBundledKey,
 			&i.ImageAlt,
 			&i.ImageWidth,
 			&i.ImageHeight,
@@ -16579,7 +16649,8 @@ func (q *Queries) RevokeStaff(ctx context.Context, pUserID uuid.UUID) (bool, err
 const rootCategories = `-- name: RootCategories :many
 SELECT c.id, c.slug, localized_name(c.name, c.name_en, $1::text) AS name, c.icon_key,
        coalesce(c.tone, 'stone')::text AS tone,
-       coalesce(c.media_digest, c.bundled_key, '')::text AS image_key,
+       coalesce(c.media_digest, '')::text AS image_digest,
+       coalesce(c.bundled_key, '')::text AS image_bundled_key,
        coalesce(localized_name(c.image_alt, c.image_alt_en, $1::text), '')::text AS image_alt,
        coalesce(m.width, 0)::integer AS image_width
 FROM categories c
@@ -16589,14 +16660,15 @@ ORDER BY c.position, c.name, c.id
 `
 
 type RootCategoriesRow struct {
-	ID         uuid.UUID
-	Slug       string
-	Name       string
-	IconKey    pgtype.Text
-	Tone       string
-	ImageKey   string
-	ImageAlt   string
-	ImageWidth int32
+	ID              uuid.UUID
+	Slug            string
+	Name            string
+	IconKey         pgtype.Text
+	Tone            string
+	ImageDigest     string
+	ImageBundledKey string
+	ImageAlt        string
+	ImageWidth      int32
 }
 
 // A query rather than a list in Go: a category has one name and one place it is
@@ -16622,7 +16694,8 @@ func (q *Queries) RootCategories(ctx context.Context, locale string) ([]RootCate
 			&i.Name,
 			&i.IconKey,
 			&i.Tone,
-			&i.ImageKey,
+			&i.ImageDigest,
+			&i.ImageBundledKey,
 			&i.ImageAlt,
 			&i.ImageWidth,
 		); err != nil {
@@ -16768,7 +16841,8 @@ SELECT
                       WHERE vov.option_value_id = cv.id AND pv.is_active
                   )
     ), ARRAY[]::text[])::text[] AS colours,
-    coalesce(img.media_digest, img.bundled_key, '') AS image_key,
+    coalesce(img.media_digest, '') AS image_digest,
+    coalesce(img.bundled_key, '') AS image_bundled_key,
     coalesce(localized_name(img.alt_text, img.alt_text_en, $1::text), '')::text AS image_alt,
     coalesce(img.width, 0)::integer AS image_width,
     coalesce(img.height, 0)::integer AS image_height
@@ -16890,7 +16964,8 @@ type SearchProductsRow struct {
 	RatingCount         int64
 	InStock             bool
 	Colours             []string
-	ImageKey            string
+	ImageDigest         string
+	ImageBundledKey     string
 	ImageAlt            string
 	ImageWidth          int32
 	ImageHeight         int32
@@ -16933,7 +17008,8 @@ func (q *Queries) SearchProducts(ctx context.Context, arg SearchProductsParams) 
 			&i.RatingCount,
 			&i.InStock,
 			&i.Colours,
-			&i.ImageKey,
+			&i.ImageDigest,
+			&i.ImageBundledKey,
 			&i.ImageAlt,
 			&i.ImageWidth,
 			&i.ImageHeight,
@@ -20084,7 +20160,8 @@ SELECT
         FROM product_variants sv
         WHERE sv.product_id = p.id AND sv.is_active
     ), '00000000-0000-0000-0000-000000000000'::uuid)::uuid AS sole_variant_id,
-    coalesce(img.media_digest, img.bundled_key, '') AS image_key,
+    coalesce(img.media_digest, '') AS image_digest,
+    coalesce(img.bundled_key, '') AS image_bundled_key,
     coalesce(localized_name(img.alt_text, img.alt_text_en, $2::text), '')::text AS image_alt,
     coalesce(img.width, 0)::integer AS image_width,
     coalesce(img.height, 0)::integer AS image_height
@@ -20129,7 +20206,8 @@ type WishlistItemsRow struct {
 	InStock             bool
 	Colours             []string
 	SoleVariantID       uuid.UUID
-	ImageKey            string
+	ImageDigest         string
+	ImageBundledKey     string
 	ImageAlt            string
 	ImageWidth          int32
 	ImageHeight         int32
@@ -20160,7 +20238,8 @@ func (q *Queries) WishlistItems(ctx context.Context, arg WishlistItemsParams) ([
 			&i.InStock,
 			&i.Colours,
 			&i.SoleVariantID,
-			&i.ImageKey,
+			&i.ImageDigest,
+			&i.ImageBundledKey,
 			&i.ImageAlt,
 			&i.ImageWidth,
 			&i.ImageHeight,

@@ -3,16 +3,15 @@ package components
 import "github.com/koopa0/goen/assets"
 
 // HeaderImage is the picture a campaign or a category wears at the head of its page, and the
-// descriptions staff wrote for it in each language. Key is empty when there is none.
+// descriptions staff wrote for it in each language. Image is the zero Image when there is none.
 type HeaderImage struct {
-	Key   string
+	Image assets.Image
 	Alt   string
 	AltEn string
-	Width int32
 }
 
-func (i HeaderImage) Has() bool { return i.Key != "" }
+func (i HeaderImage) Has() bool { return i.Image.Digest != "" || i.Image.BundledKey != "" }
 
-func (i HeaderImage) URL() string { return assets.ProductImageURL(i.Key) }
+func (i HeaderImage) URL() string { return i.Image.URL() }
 
-func (i HeaderImage) Srcset() string { return assets.ProductImageSrcsetAt(i.Key, int(i.Width)) }
+func (i HeaderImage) Srcset() string { return i.Image.Srcset() }

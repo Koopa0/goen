@@ -168,6 +168,7 @@ func (s *Store) listing(ctx context.Context, slug string, f Filters) (pages.List
 		return pages.ListingView{}, nil, err
 	}
 
+	photo := assets.Image{Digest: cat.ImageDigest, BundledKey: cat.ImageBundledKey, Width: int(cat.ImageWidth)}
 	view := pages.ListingView{
 		Slug:   slug,
 		Name:   cat.Name,
@@ -177,8 +178,8 @@ func (s *Store) listing(ctx context.Context, slug string, f Filters) (pages.List
 			Tone:       components.ResolveTone(cat.Tone),
 			Comparable: offers[cat.ID],
 			Photo: components.Photo{
-				URL:    assets.ProductImageURL(cat.ImageKey),
-				Srcset: assets.ProductImageSrcsetAt(cat.ImageKey, int(cat.ImageWidth)),
+				URL:    photo.URL(),
+				Srcset: photo.Srcset(),
 				Alt:    cat.ImageAlt,
 			},
 		},
@@ -310,6 +311,7 @@ func tiles(rows []db.CategoryListingRow, offers map[uuid.UUID]bool) []pages.Prod
 	out := make([]pages.ProductTile, 0, len(rows))
 	for i := range rows {
 		r := &rows[i]
+		photo := assets.Image{Digest: r.ImageDigest, BundledKey: r.ImageBundledKey, Width: int(r.ImageWidth)}
 		out = append(out, pages.ProductTile{
 			Slug:         r.Slug,
 			Name:         r.Name,
@@ -323,8 +325,8 @@ func tiles(rows []db.CategoryListingRow, offers map[uuid.UUID]bool) []pages.Prod
 			RatingCount:  r.RatingCount,
 			InStock:      r.InStock,
 			Colours:      r.Colours,
-			ImageURL:     assets.ProductImageURL(r.ImageKey),
-			ImageSrcset:  assets.ProductImageSrcsetAt(r.ImageKey, int(r.ImageWidth)),
+			ImageURL:     photo.URL(),
+			ImageSrcset:  photo.Srcset(),
 			ImageAlt:     r.ImageAlt,
 			ImageWidth:   r.ImageWidth,
 			ImageHeight:  r.ImageHeight,
@@ -338,6 +340,7 @@ func searchTiles(rows []db.SearchProductsRow, offers map[uuid.UUID]bool) []pages
 	out := make([]pages.ProductTile, 0, len(rows))
 	for i := range rows {
 		r := &rows[i]
+		photo := assets.Image{Digest: r.ImageDigest, BundledKey: r.ImageBundledKey, Width: int(r.ImageWidth)}
 		out = append(out, pages.ProductTile{
 			Slug:         r.Slug,
 			Name:         r.Name,
@@ -351,8 +354,8 @@ func searchTiles(rows []db.SearchProductsRow, offers map[uuid.UUID]bool) []pages
 			RatingCount:  r.RatingCount,
 			InStock:      r.InStock,
 			Colours:      r.Colours,
-			ImageURL:     assets.ProductImageURL(r.ImageKey),
-			ImageSrcset:  assets.ProductImageSrcsetAt(r.ImageKey, int(r.ImageWidth)),
+			ImageURL:     photo.URL(),
+			ImageSrcset:  photo.Srcset(),
 			ImageAlt:     r.ImageAlt,
 			ImageWidth:   r.ImageWidth,
 			ImageHeight:  r.ImageHeight,
@@ -390,6 +393,7 @@ func dealTiles(rows []db.DealProductsRow) []pages.ProductTile {
 	out := make([]pages.ProductTile, 0, len(rows))
 	for i := range rows {
 		r := &rows[i]
+		photo := assets.Image{Digest: r.ImageDigest, BundledKey: r.ImageBundledKey, Width: int(r.ImageWidth)}
 		out = append(out, pages.ProductTile{
 			Slug:         r.Slug,
 			Name:         r.Name,
@@ -403,8 +407,8 @@ func dealTiles(rows []db.DealProductsRow) []pages.ProductTile {
 			RatingCount:  r.RatingCount,
 			InStock:      r.InStock,
 			Colours:      r.Colours,
-			ImageURL:     assets.ProductImageURL(r.ImageKey),
-			ImageSrcset:  assets.ProductImageSrcsetAt(r.ImageKey, int(r.ImageWidth)),
+			ImageURL:     photo.URL(),
+			ImageSrcset:  photo.Srcset(),
 			ImageAlt:     r.ImageAlt,
 			ImageWidth:   r.ImageWidth,
 			ImageHeight:  r.ImageHeight,

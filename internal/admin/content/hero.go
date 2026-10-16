@@ -117,7 +117,7 @@ func (s *Store) HeroSlides(ctx context.Context, after ...string) (admin.HeroView
 		view.Rows = append(view.Rows, admin.HeroSlide{
 			ID: r.ID.String(), Eyebrow: r.Eyebrow.String, Headline: r.Headline,
 			CTALabel: r.PrimaryCtaLabel, CTAHref: r.PrimaryCtaHref,
-			ImageKey: r.ImageKey.String, Active: r.IsActive,
+			ImageDigest: r.MediaDigest.String, Active: r.IsActive,
 			InWindow: r.InWindow, Position: r.Position,
 			EndsAt: shoptime.DayIf(r.EndsAt.Time, r.EndsAt.Valid),
 		})

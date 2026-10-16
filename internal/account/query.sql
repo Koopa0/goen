@@ -337,7 +337,8 @@ SELECT
         FROM product_variants sv
         WHERE sv.product_id = p.id AND sv.is_active
     ), '00000000-0000-0000-0000-000000000000'::uuid)::uuid AS sole_variant_id,
-    coalesce(img.media_digest, img.bundled_key, '') AS image_key,
+    coalesce(img.media_digest, '') AS image_digest,
+    coalesce(img.bundled_key, '') AS image_bundled_key,
     coalesce(localized_name(img.alt_text, img.alt_text_en, @locale::text), '')::text AS image_alt,
     coalesce(img.width, 0)::integer AS image_width,
     coalesce(img.height, 0)::integer AS image_height

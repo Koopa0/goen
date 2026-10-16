@@ -105,11 +105,12 @@ func (s *Store) colourStory(ctx context.Context, slug string) (*pages.ColourStor
 	}
 	for i := range rows {
 		r := &rows[i]
+		photo := assets.Image{Digest: r.ImageDigest, BundledKey: r.ImageBundledKey, Width: int(r.ImageWidth)}
 		story.Plates = append(story.Plates, pages.ColourPlate{
 			Colour: r.Colour, Swatch: r.Swatch,
 			Image: components.Photo{
-				URL:    assets.ProductImageURL(r.ImageKey),
-				Srcset: assets.ProductImageSrcsetAt(r.ImageKey, int(r.ImageWidth)),
+				URL:    photo.URL(),
+				Srcset: photo.Srcset(),
 				Alt:    r.ImageAlt,
 			},
 		})

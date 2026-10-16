@@ -82,7 +82,7 @@ func TestOrderPhotosStayLiveAndUseTheSameOptionPickOnEveryPage(t *testing.T) {
 			}
 			want := make([]photo, 2)
 			for i, key := range keys {
-				want[i] = photo{URL: assets.ProductImageURL(key), Srcset: assets.ProductImageSrcsetAt(key, 1600), Alt: alt[i]}
+				want[i] = photo{URL: assets.Image{BundledKey: key}.URL(), Srcset: assets.Image{BundledKey: key}.Srcset(), Alt: alt[i]}
 			}
 			customerLines, err := db.New(storefrontPool).OrderPageLines(localeCtx, db.OrderPageLinesParams{OrderID: orderID, Locale: locale.Tag()})
 			if err != nil {
@@ -100,13 +100,14 @@ func TestOrderPhotosStayLiveAndUseTheSameOptionPickOnEveryPage(t *testing.T) {
 			admin := make([]photo, 0, len(adminView.Lines))
 			paymentPage := make([]photo, 0, len(payOrder.Lines))
 			for _, line := range customerLines {
-				customer = append(customer, photo{URL: assets.ProductImageURL(line.ImageKey), Srcset: assets.ProductImageSrcsetAt(line.ImageKey, int(line.ImageWidth)), Alt: line.ImageAlt})
+				image := assets.Image{Digest: line.ImageDigest, BundledKey: line.ImageBundledKey, Width: int(line.ImageWidth)}
+				customer = append(customer, photo{URL: image.URL(), Srcset: image.Srcset(), Alt: line.ImageAlt})
 			}
 			for _, line := range adminView.Lines {
 				admin = append(admin, photo{URL: line.ImageURL, Srcset: line.ImageSrcset, Alt: line.ImageAlt})
 			}
 			for _, line := range payOrder.Lines {
-				paymentPage = append(paymentPage, photo{URL: assets.ProductImageURL(line.ImageKey), Srcset: assets.ProductImageSrcsetAt(line.ImageKey, int(line.ImageWidth)), Alt: line.ImageAlt})
+				paymentPage = append(paymentPage, photo{URL: line.Image.URL(), Srcset: line.Image.Srcset(), Alt: line.ImageAlt})
 			}
 			request := httptest.NewRequestWithContext(localeCtx, http.MethodGet, "/orders/"+payNumber+"/pay", nil)
 			request.SetPathValue("number", payNumber)

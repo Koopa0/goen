@@ -36,14 +36,15 @@ func (s *Store) Campaign(ctx context.Context, slug string) (pages.CampaignView, 
 	if err != nil {
 		return pages.CampaignView{}, fmt.Errorf("read campaign products: %w", err)
 	}
+	photo := assets.Image{Digest: c.ImageDigest, BundledKey: c.ImageBundledKey, Width: int(c.ImageWidth)}
 	return pages.CampaignView{
 		Slug:     c.Slug,
 		Title:    c.Title,
 		Schedule: pages.NewCampaignSchedule(ctx, c.Title, int64(len(rows)), c.StartsAt, c.EndsAt, s.now()),
 		Products: campaignTiles(rows),
 		Image: components.Photo{
-			URL:    assets.ProductImageURL(c.ImageKey),
-			Srcset: assets.ProductImageSrcsetAt(c.ImageKey, int(c.ImageWidth)),
+			URL:    photo.URL(),
+			Srcset: photo.Srcset(),
 			Alt:    c.ImageAlt,
 		},
 		Tone: components.ResolveTone(c.Tone),
@@ -86,6 +87,7 @@ func campaignTiles(rows []db.CampaignProductsRow) []pages.ProductTile {
 	out := make([]pages.ProductTile, 0, len(rows))
 	for i := range rows {
 		r := &rows[i]
+		photo := assets.Image{Digest: r.ImageDigest, BundledKey: r.ImageBundledKey, Width: int(r.ImageWidth)}
 		out = append(out, pages.ProductTile{
 			Slug:         r.Slug,
 			Name:         r.Name,
@@ -99,8 +101,8 @@ func campaignTiles(rows []db.CampaignProductsRow) []pages.ProductTile {
 			RatingCount:  r.RatingCount,
 			InStock:      r.InStock,
 			Colours:      r.Colours,
-			ImageURL:     assets.ProductImageURL(r.ImageKey),
-			ImageSrcset:  assets.ProductImageSrcsetAt(r.ImageKey, int(r.ImageWidth)),
+			ImageURL:     photo.URL(),
+			ImageSrcset:  photo.Srcset(),
 			ImageAlt:     r.ImageAlt,
 			ImageWidth:   r.ImageWidth,
 			ImageHeight:  r.ImageHeight,

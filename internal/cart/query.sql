@@ -146,7 +146,8 @@ SELECT
          WHERE vov.variant_id = pv.id),
         ARRAY[]::text[]
     )::text[] AS option_values,
-    coalesce(img.media_digest, img.bundled_key, '') AS image_key,
+    coalesce(img.media_digest, '') AS image_digest,
+    coalesce(img.bundled_key, '') AS image_bundled_key,
     coalesce(localized_name(img.alt_text, img.alt_text_en, @locale::text), '')::text AS image_alt,
     coalesce(img.width, 0)::integer AS image_width
 FROM cart_items ci
@@ -378,7 +379,8 @@ ORDER BY ol.position, ol.id;
 -- name: OrderPageLines :many
 SELECT ol.id, ol.sku, ol.product_name, ol.variant_label, ol.unit_price_cents, ol.quantity,
        ol.warranty_months,
-       coalesce(img.media_digest, img.bundled_key, '') AS image_key,
+       coalesce(img.media_digest, '') AS image_digest,
+       coalesce(img.bundled_key, '') AS image_bundled_key,
        coalesce(localized_name(img.alt_text, img.alt_text_en, @locale::text), '')::text AS image_alt,
        coalesce(img.width, 0)::integer AS image_width
 FROM order_lines ol

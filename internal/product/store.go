@@ -264,13 +264,14 @@ func (s *Store) loadPresentation(ctx context.Context, p *db.ProductBySlugRow, vi
 		return fmt.Errorf("read images of %q: %w", p.Slug, err)
 	}
 	for _, img := range images {
-		u := assets.ProductImageURL(img.ImageKey)
+		photo := assets.Image{Digest: img.ImageDigest, BundledKey: img.ImageBundledKey, Width: int(img.Width)}
+		u := photo.URL()
 		if u == "" {
 			continue
 		}
 		view.Images = append(view.Images, pages.ProductImage{
 			URL:         u,
-			Srcset:      assets.ProductImageSrcsetAt(img.ImageKey, int(img.Width)),
+			Srcset:      photo.Srcset(),
 			Alt:         img.AltText,
 			Width:       img.Width,
 			Height:      img.Height,
@@ -341,14 +342,15 @@ func (s *Store) loadOpinion(ctx context.Context, p *db.ProductBySlugRow, view *p
 	}
 	for i := range related {
 		r := &related[i]
+		photo := assets.Image{Digest: r.ImageDigest, BundledKey: r.ImageBundledKey, Width: int(r.ImageWidth)}
 		view.Related = append(view.Related, pages.ProductTile{
 			Slug: r.Slug, Name: r.Name, Brand: r.Brand,
 			PriceCents: r.MinPriceCents, PriceVaries: r.PriceVaries,
 			CompareCents: r.CompareAtPriceCents.Int64,
 			InCampaign:   r.InCampaign,
 			Rating:       r.Rating, RatingCount: r.RatingCount, InStock: r.InStock, Colours: r.Colours,
-			ImageURL:    assets.ProductImageURL(r.ImageKey),
-			ImageSrcset: assets.ProductImageSrcsetAt(r.ImageKey, int(r.ImageWidth)),
+			ImageURL:    photo.URL(),
+			ImageSrcset: photo.Srcset(),
 			ImageAlt:    r.ImageAlt, ImageWidth: r.ImageWidth, ImageHeight: r.ImageHeight,
 		})
 	}
@@ -379,6 +381,7 @@ func (s *Store) boughtTogether(ctx context.Context, productID uuid.UUID) ([]page
 	out := make([]pages.ProductTile, 0, len(rows))
 	for i := range rows {
 		r := &rows[i]
+		photo := assets.Image{Digest: r.ImageDigest, BundledKey: r.ImageBundledKey, Width: int(r.ImageWidth)}
 		out = append(out, pages.ProductTile{
 			Slug:         r.Slug,
 			Name:         r.Name,
@@ -392,8 +395,8 @@ func (s *Store) boughtTogether(ctx context.Context, productID uuid.UUID) ([]page
 			RatingCount:  r.RatingCount,
 			InStock:      r.InStock,
 			Colours:      r.Colours,
-			ImageURL:     assets.ProductImageURL(r.ImageKey),
-			ImageSrcset:  assets.ProductImageSrcsetAt(r.ImageKey, int(r.ImageWidth)),
+			ImageURL:     photo.URL(),
+			ImageSrcset:  photo.Srcset(),
 			ImageAlt:     r.ImageAlt,
 			ImageWidth:   r.ImageWidth,
 			ImageHeight:  r.ImageHeight,

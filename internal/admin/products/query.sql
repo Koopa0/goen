@@ -137,8 +137,9 @@ WHERE pi.product_id = p.id AND p.slug = @slug::text
   AND @image_key::text IN (pi.media_digest, pi.bundled_key);
 
 -- name: AdminProductImages :many
-SELECT coalesce(pi.media_digest, pi.bundled_key)::text AS image_key,
-       pi.alt_text, pi.width, pi.height, pi.option_value_id
+SELECT coalesce(pi.media_digest, '')::text AS image_digest,
+       coalesce(pi.bundled_key, '')::text AS image_bundled_key,
+       pi.alt_text, pi.width, pi.option_value_id
 FROM product_images pi
 JOIN products p ON p.id = pi.product_id
 WHERE p.slug = @slug::text

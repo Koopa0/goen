@@ -10,6 +10,7 @@ import (
 	"strings"
 	"unicode/utf8"
 
+	"github.com/koopa0/goen/assets"
 	"github.com/koopa0/goen/internal/shipping"
 
 	"github.com/koopa0/goen/internal/admin/access"
@@ -143,7 +144,7 @@ func (h *Handler) productView(ctx context.Context, slug string) (admin.ProductVi
 	} else {
 		for _, obj := range recent {
 			view.Library = append(view.Library, admin.Image{
-				Key: obj.Digest, Width: obj.Width, Height: obj.Height,
+				Photo: assets.Image{Digest: obj.Digest, Width: int(obj.Width)},
 			})
 		}
 	}
