@@ -16608,9 +16608,9 @@ type RootCategoriesRow struct {
 // The header's row AND the home page's tiles: the same six rows in the same
 // order, because two queries answering "in what order are the categories" gave
 // two answers the moment CreateCategory's max(position)+1 handed out a
-// duplicate. Nothing stops it: there is no unique index on (parent_id,
-// position), so two staff creating a category at once both read the same max.
-// The home page reads them through Store.Departments, so both are this query.
+// duplicate. categories_position_key now refuses two roots at one position,
+// and the home page reads these rows through Store.Departments, so the header
+// and the tiles are this one query either way.
 // A root's tone is its own, or 'stone'. The photograph is the department's own.
 func (q *Queries) RootCategories(ctx context.Context, locale string) ([]RootCategoriesRow, error) {
 	rows, err := q.db.Query(ctx, rootCategories, locale)
