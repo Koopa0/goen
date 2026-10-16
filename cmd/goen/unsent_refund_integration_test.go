@@ -50,7 +50,7 @@ func TestThePartRefundWorkerReadsTheLetterAtDelivery(t *testing.T) {
 		outbox.TopicOrderPartRefunded.Name()).Scan(&payload); err != nil {
 		t.Fatalf("read the queued letter: %v", err)
 	}
-	var m email.OrderPartRefunded
+	var m outbox.OrderPartRefunded
 	if err := json.Unmarshal(payload, &m); err != nil {
 		t.Fatal(err)
 	}

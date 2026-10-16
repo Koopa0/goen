@@ -3,6 +3,8 @@ package email
 import (
 	"strings"
 	"testing"
+
+	"github.com/koopa0/goen/internal/outbox"
 )
 
 // The owner's wording for a unit that cannot be sent (#1965), with the
@@ -48,7 +50,7 @@ func TestThePartRefundLetterSaysWhatCameBackAndHow(t *testing.T) {
 		t.Run(tc.name+" "+tc.locale, func(t *testing.T) {
 			t.Parallel()
 			n, sink := notifier(t)
-			if err := n.SendOrderPartRefunded(t.Context(), &OrderPartRefunded{}, &PartRefundLetter{
+			if err := n.SendOrderPartRefunded(t.Context(), &outbox.OrderPartRefunded{}, &PartRefundLetter{
 				Address: "reader@example.com", Name: "Reader", Locale: tc.locale, OrderNumber: "GO-260101-000001",
 				Items: tc.items, RefundCents: tc.card + tc.credit, CardCents: tc.card, CreditCents: tc.credit,
 			}); err != nil {
@@ -79,7 +81,7 @@ func TestThePartRefundLetterNeedsARecipientAndItems(t *testing.T) {
 		"no address": {OrderNumber: "GO-260101-000001", Items: []PartRefundItem{{Name: "pen", Quantity: 1}}},
 		"no items":   {Address: "reader@example.com", OrderNumber: "GO-260101-000001"},
 	} {
-		if err := n.SendOrderPartRefunded(t.Context(), &OrderPartRefunded{}, l); err == nil {
+		if err := n.SendOrderPartRefunded(t.Context(), &outbox.OrderPartRefunded{}, l); err == nil {
 			t.Errorf("%s: sent %+v", name, sink.msg)
 		}
 	}

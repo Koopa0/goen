@@ -312,12 +312,12 @@ func TestOnlyTheMailboxLearnsThatAnAddressHasAnAccount(t *testing.T) {
 			ORDER BY id DESC LIMIT 1`, outbox.TopicEmailVerify.Name(), addr).Scan(&payload); err != nil {
 			t.Fatalf("read the queued link for %s: %v", addr, err)
 		}
-		var p email.AddressVerify
+		var p outbox.AddressVerify
 		if err := json.Unmarshal(payload, &p); err != nil {
 			t.Fatalf("decode the queued link: %v", err)
 		}
 		if err := s.DeliverAddressVerify(ctx, &p,
-			func(_ context.Context, p *email.AddressVerify) error {
+			func(_ context.Context, p *outbox.AddressVerify) error {
 				sent = append(sent, p.Email)
 				return nil
 			},
@@ -364,12 +364,12 @@ func TestAnAddressIsAnotherAccountsWhateverItsCaseButNeverTheAskersOwn(t *testin
 			ORDER BY id DESC LIMIT 1`, outbox.TopicEmailVerify.Name(), addr).Scan(&payload); err != nil {
 			t.Fatalf("read the queued link for %s: %v", addr, err)
 		}
-		var p email.AddressVerify
+		var p outbox.AddressVerify
 		if err := json.Unmarshal(payload, &p); err != nil {
 			t.Fatalf("decode the queued link: %v", err)
 		}
 		if err := s.DeliverAddressVerify(ctx, &p,
-			func(_ context.Context, p *email.AddressVerify) error {
+			func(_ context.Context, p *outbox.AddressVerify) error {
 				sent = append(sent, p.Email)
 				return nil
 			},
@@ -427,13 +427,13 @@ func TestAnAddressIsMailedABoundedNumberOfTimesWhoeverAsks(t *testing.T) {
 			RETURNING m.payload`, outbox.TopicEmailVerify.Name(), uuid.MustParse(askerID)).Scan(&payload); err != nil {
 			t.Fatalf("take the queued message: %v", err)
 		}
-		var p email.AddressVerify
+		var p outbox.AddressVerify
 		if err := json.Unmarshal(payload, &p); err != nil {
 			t.Fatalf("decode the queued message: %v", err)
 		}
 		told := false
 		if err := s.DeliverAddressVerify(ctx, &p,
-			func(context.Context, *email.AddressVerify) error { return nil },
+			func(context.Context, *outbox.AddressVerify) error { return nil },
 			func(_ context.Context, e *email.AccountExists) error {
 				told = told || e.Email == owner.Email
 				return nil
@@ -566,18 +566,18 @@ func TestRegistrationAndAnAddressChangeShareOneBudgetPerAddress(t *testing.T) {
 // left to expire. Mailed, it would only be a letter that fails when followed, so
 // nothing is sent and nobody is told.
 func TestALinkThatCanNoLongerBeFollowedIsNeverMailed(t *testing.T) {
-	for name, kill := range map[string]func(t *testing.T, s *account.Store, asker user.User, p *email.AddressVerify){
-		"replaced by a later request": func(t *testing.T, s *account.Store, asker user.User, _ *email.AddressVerify) {
+	for name, kill := range map[string]func(t *testing.T, s *account.Store, asker user.User, p *outbox.AddressVerify){
+		"replaced by a later request": func(t *testing.T, s *account.Store, asker user.User, _ *outbox.AddressVerify) {
 			t.Helper()
 			requestVerification(t, s, asker.ID, "dead-link-later-"+uuid.NewString()+"@example.com")
 		},
-		"spent": func(t *testing.T, s *account.Store, asker user.User, p *email.AddressVerify) {
+		"spent": func(t *testing.T, s *account.Store, asker user.User, p *outbox.AddressVerify) {
 			t.Helper()
 			if _, err := s.ConfirmVerification(t.Context(), p.Token, asker.ID); err != nil {
 				t.Fatalf("spend the link: %v", err)
 			}
 		},
-		"expired": func(t *testing.T, _ *account.Store, asker user.User, _ *email.AddressVerify) {
+		"expired": func(t *testing.T, _ *account.Store, asker user.User, _ *outbox.AddressVerify) {
 			t.Helper()
 			if _, err := pool.Exec(t.Context(), `
 				UPDATE email_verifications
@@ -600,7 +600,7 @@ func TestALinkThatCanNoLongerBeFollowedIsNeverMailed(t *testing.T) {
 				ORDER BY id DESC LIMIT 1`, outbox.TopicEmailVerify.Name(), free).Scan(&payload); err != nil {
 				t.Fatalf("read the queued link for %s: %v", free, err)
 			}
-			var p email.AddressVerify
+			var p outbox.AddressVerify
 			if err := json.Unmarshal(payload, &p); err != nil {
 				t.Fatalf("decode the queued link: %v", err)
 			}
@@ -609,7 +609,7 @@ func TestALinkThatCanNoLongerBeFollowedIsNeverMailed(t *testing.T) {
 			var sent []string
 			var told []email.AccountExists
 			if err := s.DeliverAddressVerify(ctx, &p,
-				func(_ context.Context, p *email.AddressVerify) error {
+				func(_ context.Context, p *outbox.AddressVerify) error {
 					sent = append(sent, p.Email)
 					return nil
 				},

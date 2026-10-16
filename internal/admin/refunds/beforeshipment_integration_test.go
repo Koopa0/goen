@@ -22,8 +22,8 @@ import (
 	"github.com/koopa0/goen/internal/admin/refunds"
 	"github.com/koopa0/goen/internal/db"
 	"github.com/koopa0/goen/internal/db/dbtest"
-	"github.com/koopa0/goen/internal/email"
 	"github.com/koopa0/goen/internal/money"
+	"github.com/koopa0/goen/internal/outbox"
 )
 
 func TestRefundBeforeShipmentPaysEveryLegAndCancels(t *testing.T) {
@@ -51,7 +51,7 @@ func TestRefundBeforeShipmentPaysEveryLegAndCancels(t *testing.T) {
 		}
 	}
 	admintest.AssertRestockQueued(t, pool, subscriptions)
-	admintest.AssertTerminalNotice(t, pool, orderID, email.TerminalCancelledByStaff, true)
+	admintest.AssertTerminalNotice(t, pool, orderID, outbox.TerminalCancelledByStaff, true)
 
 	var returnID uuid.UUID
 	var returnStatus string

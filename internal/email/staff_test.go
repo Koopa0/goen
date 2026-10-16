@@ -5,6 +5,7 @@ import (
 	"testing"
 
 	"github.com/koopa0/goen/internal/i18n"
+	"github.com/koopa0/goen/internal/outbox"
 )
 
 // TestTheAccountExistsLetterCarriesNoCapability: a second registration of an
@@ -59,7 +60,7 @@ func TestARegistrationLetterLeadsToThePasswordNotStraightIn(t *testing.T) {
 	t.Parallel()
 	for _, locale := range []string{"en", "zh-TW"} {
 		n, sink := notifier(t)
-		if err := n.SendAddressVerify(t.Context(), &AddressVerify{
+		if err := n.SendAddressVerify(t.Context(), &outbox.AddressVerify{
 			Locale: locale, Email: "new@example.com", Token: "tok", Registration: true, Next: "/cart",
 		}); err != nil {
 			t.Fatal(err)
@@ -84,7 +85,7 @@ func TestStaffInvitationPointsToMailboxProofWithoutACapability(t *testing.T) {
 	t.Parallel()
 	for _, locale := range []string{"en", "zh-TW"} {
 		n, sink := notifier(t)
-		if err := n.SendStaffInvitation(t.Context(), &StaffInvitation{UserID: "account-id", Locale: locale}, "colleague@example.com", "Colleague"); err != nil {
+		if err := n.SendStaffInvitation(t.Context(), &outbox.StaffInvitation{UserID: "account-id", Locale: locale}, "colleague@example.com", "Colleague"); err != nil {
 			t.Fatal(err)
 		}
 		if sink.msg == nil || sink.msg.To != "colleague@example.com" || !strings.Contains(sink.msg.Body, "https://goen.test/forgot") || strings.Contains(sink.msg.Body, "token=") {
@@ -113,7 +114,7 @@ func TestTheStaffEnrolmentLetterCarriesTheCodeToTheAccount(t *testing.T) {
 	t.Parallel()
 	for _, locale := range []string{"en", "zh-TW"} {
 		n, sink := notifier(t)
-		if err := n.SendStaffEnrolment(t.Context(), &StaffEnrolment{
+		if err := n.SendStaffEnrolment(t.Context(), &outbox.StaffEnrolment{
 			Locale: locale, Email: "colleague@example.com", Code: "01234567",
 		}); err != nil {
 			t.Fatal(err)
@@ -126,7 +127,7 @@ func TestTheStaffEnrolmentLetterCarriesTheCodeToTheAccount(t *testing.T) {
 		}
 	}
 	n, _ := notifier(t)
-	if err := n.SendStaffEnrolment(t.Context(), &StaffEnrolment{Code: "01234567"}); err == nil {
+	if err := n.SendStaffEnrolment(t.Context(), &outbox.StaffEnrolment{Code: "01234567"}); err == nil {
 		t.Error("a code with no recipient was sent")
 	}
 }

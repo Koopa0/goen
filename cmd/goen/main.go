@@ -929,8 +929,8 @@ func invoiceVoidDueHandler(adminPool *pgxpool.Pool, gateway *issuer.Gateway) fun
 func newsletterIssueHandler(
 	subscribers *newsletter.Store,
 	notifier email.Notifier,
-) func(context.Context, *email.NewsletterIssue) error {
-	return func(ctx context.Context, p *email.NewsletterIssue) error {
+) func(context.Context, *outbox.NewsletterIssue) error {
+	return func(ctx context.Context, p *outbox.NewsletterIssue) error {
 		wanted, err := subscribers.StillSubscribed(ctx, p.Email)
 		if err != nil {
 			return err
@@ -953,8 +953,8 @@ func registrationHandler(accounts *account.Store, notifier email.Notifier) func(
 	}
 }
 
-func passwordResetHandler(accounts *account.Store, notifier email.Notifier) func(context.Context, *email.PasswordReset) error {
-	return func(ctx context.Context, p *email.PasswordReset) error {
+func passwordResetHandler(accounts *account.Store, notifier email.Notifier) func(context.Context, *outbox.PasswordReset) error {
+	return func(ctx context.Context, p *outbox.PasswordReset) error {
 		return accounts.DeliverPasswordReset(ctx, p, notifier.SendPasswordReset)
 	}
 }
@@ -962,16 +962,16 @@ func passwordResetHandler(accounts *account.Store, notifier email.Notifier) func
 // addressVerifyHandler delivers a link to prove an address on the store pool,
 // which is the one that wrote it: the link goes out, or, when the address is
 // by now another account's, that account is told instead.
-func addressVerifyHandler(accounts *account.Store, notifier email.Notifier) func(context.Context, *email.AddressVerify) error {
-	return func(ctx context.Context, p *email.AddressVerify) error {
+func addressVerifyHandler(accounts *account.Store, notifier email.Notifier) func(context.Context, *outbox.AddressVerify) error {
+	return func(ctx context.Context, p *outbox.AddressVerify) error {
 		return accounts.DeliverAddressVerify(ctx, p, notifier.SendAddressVerify, notifier.SendAccountExists)
 	}
 }
 
 // staffInvitationHandler reads the recipient on the store pool: `store` already
 // holds SELECT on users, and delivery writes nothing.
-func staffInvitationHandler(roster *staff.Store, notifier email.Notifier) func(context.Context, *email.StaffInvitation) error {
-	return func(ctx context.Context, p *email.StaffInvitation) error {
+func staffInvitationHandler(roster *staff.Store, notifier email.Notifier) func(context.Context, *outbox.StaffInvitation) error {
+	return func(ctx context.Context, p *outbox.StaffInvitation) error {
 		address, name, err := roster.InvitationRecipient(ctx, p.UserID)
 		if err != nil {
 			return err
@@ -983,8 +983,8 @@ func staffInvitationHandler(roster *staff.Store, notifier email.Notifier) func(c
 	}
 }
 
-func terminalOrderHandler(recipients notice.Recipients, notifier email.Notifier) func(context.Context, *email.OrderTerminal) error {
-	return func(ctx context.Context, p *email.OrderTerminal) error {
+func terminalOrderHandler(recipients notice.Recipients, notifier email.Notifier) func(context.Context, *outbox.OrderTerminal) error {
+	return func(ctx context.Context, p *outbox.OrderTerminal) error {
 		to, ok, err := recipients.Of(ctx, p.OrderID)
 		if err != nil {
 			return err
@@ -998,8 +998,8 @@ func terminalOrderHandler(recipients notice.Recipients, notifier email.Notifier)
 
 // partRefundHandler reads the letter at delivery, on the store pool: `store`
 // reads orders and returns already, and delivery writes nothing.
-func partRefundHandler(recipients notice.Recipients, notifier email.Notifier) func(context.Context, *email.OrderPartRefunded) error {
-	return func(ctx context.Context, p *email.OrderPartRefunded) error {
+func partRefundHandler(recipients notice.Recipients, notifier email.Notifier) func(context.Context, *outbox.OrderPartRefunded) error {
+	return func(ctx context.Context, p *outbox.OrderPartRefunded) error {
 		letter, ok, err := recipients.PartRefund(ctx, p)
 		if err != nil {
 			return err

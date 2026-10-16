@@ -9,6 +9,7 @@ import (
 	"testing"
 
 	"github.com/koopa0/goen/internal/i18n"
+	"github.com/koopa0/goen/internal/outbox"
 )
 
 func TestNewsletterIssuesCarryOneClickHeaders(t *testing.T) {
@@ -19,7 +20,7 @@ func TestNewsletterIssuesCarryOneClickHeaders(t *testing.T) {
 			const token = "token+/\r\nBcc: unwanted@example.net" //nolint:gosec // Synthetic header-injection fixture.
 			sink := &recorded{}
 			n := New(sink, "https://goen.test/", "", "")
-			if err := n.SendNewsletterIssue(t.Context(), &NewsletterIssue{
+			if err := n.SendNewsletterIssue(t.Context(), &outbox.NewsletterIssue{
 				Locale: string(locale), Email: "reader@example.com", Subject: "issue", Body: "issue body", UnsubscribeToken: token,
 			}); err != nil {
 				t.Fatal(err)
@@ -54,7 +55,7 @@ func TestNewsletterOneClickRequiresAnHTTPSOrigin(t *testing.T) {
 	t.Parallel()
 	for _, base := range []string{"http://goen.test", "https://goen.test\r\nBcc: unwanted@example.net", "https://goen.test>"} {
 		sender := SMTPSender{Addr: "smtp.goen.invalid:587", From: "sender@goen.test"}
-		err := New(sender, base, "", "").SendNewsletterIssue(t.Context(), &NewsletterIssue{
+		err := New(sender, base, "", "").SendNewsletterIssue(t.Context(), &outbox.NewsletterIssue{
 			Email: "reader@example.com", Subject: "issue", Body: "body", UnsubscribeToken: "token",
 		})
 		if err == nil || err.Error() != "email: invalid HTTPS one-click unsubscribe URL" {
@@ -67,7 +68,7 @@ func TestHTTPNewsletterIsLoggedForLocalDevelopment(t *testing.T) {
 	t.Parallel()
 	var logs bytes.Buffer
 	sender := LogSender{Log: slog.New(slog.NewJSONHandler(&logs, nil))}
-	if err := New(sender, "http://127.0.0.1:9700", "", "").SendNewsletterIssue(t.Context(), &NewsletterIssue{
+	if err := New(sender, "http://127.0.0.1:9700", "", "").SendNewsletterIssue(t.Context(), &outbox.NewsletterIssue{
 		Email: "reader@example.com", Subject: "issue", Body: "body", UnsubscribeToken: "token",
 	}); err != nil {
 		t.Fatal(err)

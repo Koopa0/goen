@@ -20,6 +20,7 @@ import (
 	"github.com/google/uuid"
 
 	"github.com/koopa0/goen/assets"
+	"github.com/koopa0/goen/internal/outbox"
 )
 
 // parts reads a rendered letter back the way a mail client does and returns
@@ -90,35 +91,35 @@ func variants(text string) map[string]func(context.Context, Notifier) error {
 	const to, number = "someone@example.com", "GO-260101-000001"
 	out := map[string]func(context.Context, Notifier) error{
 		"SendOrderPlaced funded": func(ctx context.Context, n Notifier) error {
-			return n.SendOrderPlaced(ctx, &OrderPlaced{
+			return n.SendOrderPlaced(ctx, &outbox.OrderPlaced{
 				Email: to, Name: text, OrderNumber: number, TotalCents: 123400, OwedCents: 0,
 			})
 		},
 		"SendOrderPaid no card": func(ctx context.Context, n Notifier) error {
-			return n.SendOrderPaid(ctx, &OrderPaid{Email: to, Name: text, OrderNumber: number, AmountCents: 123400})
+			return n.SendOrderPaid(ctx, &outbox.OrderPaid{Email: to, Name: text, OrderNumber: number, AmountCents: 123400})
 		},
 		"SendOrderShipped pickup": func(ctx context.Context, n Notifier) error {
-			return n.SendOrderShipped(ctx, &OrderShipped{
+			return n.SendOrderShipped(ctx, &outbox.OrderShipped{
 				Email: to, Name: text, OrderNumber: number, Carrier: text, Tracking: text, Pickup: true,
 			})
 		},
 	}
 	for name, split := range map[string][2]int64{"card": {100000, 0}, "credit": {0, 100000}, "nothing paid": {0, 0}} {
 		out["SendOrderPartRefunded "+name] = func(ctx context.Context, n Notifier) error {
-			return n.SendOrderPartRefunded(ctx, &OrderPartRefunded{OrderID: uuid.New(), ReturnRequestID: uuid.New()},
+			return n.SendOrderPartRefunded(ctx, &outbox.OrderPartRefunded{OrderID: uuid.New(), ReturnRequestID: uuid.New()},
 				&PartRefundLetter{Address: to, Name: text, OrderNumber: number,
 					Items:       []PartRefundItem{{Name: text, Quantity: 1}, {Name: text, Label: text, Quantity: 2}},
 					RefundCents: split[0] + split[1], CardCents: split[0], CreditCents: split[1]})
 		}
 	}
-	for _, m := range []OrderTerminal{
-		{Kind: TerminalCancelledByCustomer},
-		{Kind: TerminalCancelledByCustomer, Refunded: true},
-		{Kind: TerminalCancelledByStaff},
-		{Kind: TerminalCancelledByStaff, Refunded: true},
-		{Kind: TerminalCancelledByPaymentDeadline},
-		{Kind: TerminalCancelledByPaymentDeadline, Refunded: true},
-		{Kind: TerminalCollected},
+	for _, m := range []outbox.OrderTerminal{
+		{Kind: outbox.TerminalCancelledByCustomer},
+		{Kind: outbox.TerminalCancelledByCustomer, Refunded: true},
+		{Kind: outbox.TerminalCancelledByStaff},
+		{Kind: outbox.TerminalCancelledByStaff, Refunded: true},
+		{Kind: outbox.TerminalCancelledByPaymentDeadline},
+		{Kind: outbox.TerminalCancelledByPaymentDeadline, Refunded: true},
+		{Kind: outbox.TerminalCollected},
 	} {
 		out["SendOrderTerminal "+string(m.Kind)+" refunded="+strconv.FormatBool(m.Refunded)] =
 			func(ctx context.Context, n Notifier) error {
@@ -223,7 +224,7 @@ func TestTheHTMLPartIsInTheLettersLanguage(t *testing.T) {
 	t.Parallel()
 	for locale, want := range map[string]string{"en": `<html lang="en">`, "zh-Hant": `<html lang="zh-Hant">`} {
 		n, sink := notifier(t)
-		if err := n.SendPasswordReset(t.Context(), &PasswordReset{Locale: locale, Email: "a@b.co", Token: "tok"}); err != nil {
+		if err := n.SendPasswordReset(t.Context(), &outbox.PasswordReset{Locale: locale, Email: "a@b.co", Token: "tok"}); err != nil {
 			t.Fatalf("send: %v", err)
 		}
 		if !strings.Contains(sink.msg.HTML, want) {

@@ -6,6 +6,7 @@ import (
 	"testing"
 
 	"github.com/koopa0/goen/internal/email"
+	"github.com/koopa0/goen/internal/outbox"
 )
 
 type lastMail struct{ body string }
@@ -39,7 +40,7 @@ func TestTheCancellationMailSaysNothingWasChargedOnlyWhenNoPaymentCouldHave(t *t
 	} {
 		sent := &lastMail{}
 		n := email.New(sent, "https://goen.test", "", "")
-		m := &email.OrderTerminal{Kind: email.TerminalCancelledByCustomer, Refunded: mayHaveTakenMoney(tc.statuses, tc.flagged)}
+		m := &outbox.OrderTerminal{Kind: outbox.TerminalCancelledByCustomer, Refunded: mayHaveTakenMoney(tc.statuses, tc.flagged)}
 		if err := n.SendOrderTerminal(t.Context(), m, email.TerminalRecipient{Address: "reader@example.com", Name: "Reader", Locale: "en", OrderNumber: "GO-260101-000001"}); err != nil {
 			t.Fatal(err)
 		}

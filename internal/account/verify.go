@@ -55,10 +55,10 @@ func (s *Store) EmailVerification(ctx context.Context, userID string) (Verificat
 // the caller can answer both the same; the outbox worker decides what the
 // mailbox is sent, in [Store.DeliverAddressVerify].
 func (s *Store) requestVerification(ctx context.Context, userID, addr string) error {
-	return s.queueVerification(ctx, userID, addr, email.AddressVerify{})
+	return s.queueVerification(ctx, userID, addr, outbox.AddressVerify{})
 }
 
-func (s *Store) queueVerification(ctx context.Context, userID, addr string, link email.AddressVerify) error {
+func (s *Store) queueVerification(ctx context.Context, userID, addr string, link outbox.AddressVerify) error {
 	id, parseErr := uuid.Parse(userID)
 	if parseErr != nil {
 		return fmt.Errorf("parse user id: %w", parseErr)
@@ -112,8 +112,8 @@ func (s *Store) queueVerification(ctx context.Context, userID, addr string, link
 // send.
 func (s *Store) DeliverAddressVerify(
 	ctx context.Context,
-	p *email.AddressVerify,
-	send func(context.Context, *email.AddressVerify) error,
+	p *outbox.AddressVerify,
+	send func(context.Context, *outbox.AddressVerify) error,
 	tell func(context.Context, *email.AccountExists) error,
 ) error {
 	verification, err := usableVerification(ctx, s.q, bearer.Digest(p.Token))

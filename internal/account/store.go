@@ -124,7 +124,7 @@ func (s *Store) FollowUpRegistration(
 		return nil
 	}
 	ctx = i18n.WithLocale(ctx, i18n.Parse(r.Locale))
-	return s.queueVerification(ctx, r.UserID, row.Email, mailmsg.AddressVerify{
+	return s.queueVerification(ctx, r.UserID, row.Email, outbox.AddressVerify{
 		Registration: true, Next: r.Next,
 	})
 }

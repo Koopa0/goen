@@ -11,7 +11,6 @@ import (
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 
-	"github.com/koopa0/goen/internal/email"
 	"github.com/koopa0/goen/internal/i18n"
 	"github.com/koopa0/goen/internal/outbox"
 )
@@ -93,7 +92,7 @@ func AssertRestockQueued(t *testing.T, p *pgxpool.Pool, subscriptions []uuid.UUI
 	seen := make(map[string]bool)
 	for rows.Next() {
 		var payload []byte
-		var want, got email.RestockNotice
+		var want, got outbox.RestockNotice
 		if err := rows.Scan(&payload, &want.Email, &want.Locale, &want.ProductName, &want.Slug, &want.SKU); err != nil {
 			t.Fatal(err)
 		}

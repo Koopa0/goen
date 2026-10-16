@@ -28,7 +28,6 @@ import (
 	"github.com/koopa0/goen/internal/admin/audit"
 	"github.com/koopa0/goen/internal/db"
 	"github.com/koopa0/goen/internal/db/dbtest"
-	"github.com/koopa0/goen/internal/email"
 	"github.com/koopa0/goen/internal/outbox"
 	"github.com/koopa0/goen/internal/refund"
 	"github.com/koopa0/goen/internal/user"
@@ -459,7 +458,7 @@ func FulfillmentOf(t *testing.T, pool *pgxpool.Pool, orderID uuid.UUID) string {
 	return status
 }
 
-func AssertTerminalNotice(t *testing.T, pool *pgxpool.Pool, id uuid.UUID, want email.TerminalKind, wantRefunded bool) {
+func AssertTerminalNotice(t *testing.T, pool *pgxpool.Pool, id uuid.UUID, want outbox.TerminalKind, wantRefunded bool) {
 	t.Helper()
 	var payload []byte
 	if err := pool.QueryRow(t.Context(), `SELECT payload FROM outbox_messages WHERE topic=$1 AND dedupe_key=$2`, outbox.TopicOrderTerminal.Name(), id.String()+":"+string(want)).Scan(&payload); err != nil {

@@ -16,7 +16,7 @@ import (
 )
 
 // Enqueue must use the caller's order transaction so failed transitions send nothing.
-func Enqueue(ctx context.Context, q *db.Queries, m *email.OrderTerminal) error {
+func Enqueue(ctx context.Context, q *db.Queries, m *outbox.OrderTerminal) error {
 	return outbox.Enqueue(ctx, q, outbox.TopicOrderTerminal, m.OrderID.String()+":"+string(m.Kind), m)
 }
 
@@ -51,13 +51,13 @@ func (r Recipients) Of(ctx context.Context, orderID uuid.UUID) (Recipient, bool,
 
 // EnqueuePartRefunded must use the transaction that settles the refund, so the
 // letter is written exactly when the units are given up.
-func EnqueuePartRefunded(ctx context.Context, q *db.Queries, m *email.OrderPartRefunded) error {
+func EnqueuePartRefunded(ctx context.Context, q *db.Queries, m *outbox.OrderPartRefunded) error {
 	return outbox.Enqueue(ctx, q, outbox.TopicOrderPartRefunded, m.ReturnRequestID.String(), m)
 }
 
 // PartRefund is the letter for a settled unsent refund, read at delivery, and
 // false when the order has no recipient any more.
-func (r Recipients) PartRefund(ctx context.Context, m *email.OrderPartRefunded) (email.PartRefundLetter, bool, error) {
+func (r Recipients) PartRefund(ctx context.Context, m *outbox.OrderPartRefunded) (email.PartRefundLetter, bool, error) {
 	to, ok, err := r.Of(ctx, m.OrderID)
 	if err != nil || !ok {
 		return email.PartRefundLetter{}, false, err

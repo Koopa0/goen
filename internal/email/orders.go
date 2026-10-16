@@ -6,24 +6,13 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/koopa0/goen/internal/outbox"
 	"github.com/koopa0/goen/internal/shipping"
 
 	"github.com/koopa0/goen/internal/i18n"
 )
 
-type OrderPaid struct {
-	Locale      string `json:"locale"`
-	OrderNumber string `json:"order_number"`
-	Email       string `json:"email"`
-	Name        string `json:"name"`
-	AmountCents int64  `json:"amount_cents"`
-	// Card is "Visa •••• 4242" or empty. It is empty when Stripe could not be
-	// asked for the charge; the mail then says nothing about the card rather
-	// than inventing one.
-	Card string `json:"card"`
-}
-
-func (n Notifier) SendOrderPaid(ctx context.Context, p *OrderPaid) error {
+func (n Notifier) SendOrderPaid(ctx context.Context, p *outbox.OrderPaid) error {
 	if !Valid(p.Email) {
 		return errors.New("an order.paid message has no usable email address")
 	}
@@ -43,18 +32,7 @@ func (n Notifier) SendOrderPaid(ctx context.Context, p *OrderPaid) error {
 	})
 }
 
-type OrderShipped struct {
-	Locale      string `json:"locale"`
-	OrderNumber string `json:"order_number"`
-	Email       string `json:"email"`
-	Name        string `json:"name"`
-	Carrier     string `json:"carrier"`
-	Tracking    string `json:"tracking"`
-	// Pickup is a convenience-store order, whose parcel goes to a store.
-	Pickup bool `json:"pickup"`
-}
-
-func (n Notifier) SendOrderShipped(ctx context.Context, p *OrderShipped) error {
+func (n Notifier) SendOrderShipped(ctx context.Context, p *outbox.OrderShipped) error {
 	if !Valid(p.Email) {
 		return errors.New("an order.shipped message has no usable email address")
 	}
@@ -79,17 +57,9 @@ func (n Notifier) SendOrderShipped(ctx context.Context, p *OrderShipped) error {
 	})
 }
 
-type RestockNotice struct {
-	Locale      string `json:"locale"`
-	Email       string `json:"email"`
-	ProductName string `json:"product_name"`
-	Slug        string `json:"slug"`
-	SKU         string `json:"sku"`
-}
-
 // SendRestockNotice tells somebody the thing they wanted is back. It reserves
 // nothing and the copy does not pretend otherwise.
-func (n Notifier) SendRestockNotice(ctx context.Context, p *RestockNotice) error {
+func (n Notifier) SendRestockNotice(ctx context.Context, p *outbox.RestockNotice) error {
 	if !Valid(p.Email) {
 		return errors.New("a restock notice has no usable email address")
 	}

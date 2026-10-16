@@ -18,6 +18,7 @@ import (
 	"golang.org/x/net/html"
 
 	"github.com/koopa0/goen/internal/email"
+	"github.com/koopa0/goen/internal/outbox"
 	"github.com/koopa0/goen/internal/payment"
 )
 
@@ -162,32 +163,32 @@ func TestEveryMailedLinkReachesARoute(t *testing.T) {
 			return n.SendAccountExists(ctx, &email.AccountExists{Locale: "en", Email: address, Name: "Alex", Change: true})
 		}},
 		{"SendAddressVerify/address", func(ctx context.Context, n email.Notifier) error {
-			return n.SendAddressVerify(ctx, &email.AddressVerify{Locale: "en", Email: address, Token: token()})
+			return n.SendAddressVerify(ctx, &outbox.AddressVerify{Locale: "en", Email: address, Token: token()})
 		}},
 		{"SendAddressVerify/registration", func(ctx context.Context, n email.Notifier) error {
-			return n.SendAddressVerify(ctx, &email.AddressVerify{
+			return n.SendAddressVerify(ctx, &outbox.AddressVerify{
 				Locale: "en", Email: address, Token: token(), Registration: true, Next: "/cart",
 			})
 		}},
 		{"SendNewsletterConfirm", func(ctx context.Context, n email.Notifier) error {
-			return n.SendNewsletterConfirm(ctx, &email.NewsletterConfirm{Locale: "en", Email: address, Token: token()})
+			return n.SendNewsletterConfirm(ctx, &outbox.NewsletterConfirm{Locale: "en", Email: address, Token: token()})
 		}},
 		{"SendNewsletterIssue", func(ctx context.Context, n email.Notifier) error {
-			return n.SendNewsletterIssue(ctx, &email.NewsletterIssue{
+			return n.SendNewsletterIssue(ctx, &outbox.NewsletterIssue{
 				Locale: "en", Email: address, Subject: "Autumn notes", Body: "New paper arrives on Friday.",
 				UnsubscribeToken: token(),
 			})
 		}},
 		{"SendNewsletterWelcome", func(ctx context.Context, n email.Notifier) error {
-			return n.SendNewsletterWelcome(ctx, &email.NewsletterWelcome{Locale: "en", Email: address, UnsubscribeToken: token()})
+			return n.SendNewsletterWelcome(ctx, &outbox.NewsletterWelcome{Locale: "en", Email: address, UnsubscribeToken: token()})
 		}},
 		{"SendOrderPaid", func(ctx context.Context, n email.Notifier) error {
-			return n.SendOrderPaid(ctx, &email.OrderPaid{
+			return n.SendOrderPaid(ctx, &outbox.OrderPaid{
 				Locale: "en", OrderNumber: number, Email: address, Name: "Alex", AmountCents: 128000, Card: "4242",
 			})
 		}},
 		{"SendOrderPartRefunded", func(ctx context.Context, n email.Notifier) error {
-			return n.SendOrderPartRefunded(ctx, &email.OrderPartRefunded{OrderID: uuid.New(), ReturnRequestID: uuid.New()},
+			return n.SendOrderPartRefunded(ctx, &outbox.OrderPartRefunded{OrderID: uuid.New(), ReturnRequestID: uuid.New()},
 				&email.PartRefundLetter{
 					Address: address, Name: "Alex", Locale: "en", OrderNumber: number,
 					Items:       []email.PartRefundItem{{Name: "Dot-grid notebook", Quantity: 2}},
@@ -195,49 +196,49 @@ func TestEveryMailedLinkReachesARoute(t *testing.T) {
 				})
 		}},
 		{"SendOrderPlaced", func(ctx context.Context, n email.Notifier) error {
-			return n.SendOrderPlaced(ctx, &email.OrderPlaced{
+			return n.SendOrderPlaced(ctx, &outbox.OrderPlaced{
 				Locale: "en", OrderNumber: number, Email: address, Name: "Alex", TotalCents: 128000, OwedCents: 128000,
 			})
 		}},
 		{"SendOrderShipped/delivery", func(ctx context.Context, n email.Notifier) error {
-			return n.SendOrderShipped(ctx, &email.OrderShipped{
+			return n.SendOrderShipped(ctx, &outbox.OrderShipped{
 				Locale: "en", OrderNumber: number, Email: address, Name: "Alex", Carrier: "Post", Tracking: "TW" + token(),
 			})
 		}},
 		{"SendOrderShipped/pickup", func(ctx context.Context, n email.Notifier) error {
-			return n.SendOrderShipped(ctx, &email.OrderShipped{
+			return n.SendOrderShipped(ctx, &outbox.OrderShipped{
 				Locale: "en", OrderNumber: number, Email: address, Name: "Alex", Pickup: true,
 			})
 		}},
 		{"SendPasswordReset", func(ctx context.Context, n email.Notifier) error {
-			return n.SendPasswordReset(ctx, &email.PasswordReset{Locale: "en", Email: address, Token: token()})
+			return n.SendPasswordReset(ctx, &outbox.PasswordReset{Locale: "en", Email: address, Token: token()})
 		}},
 		{"SendRestockNotice", func(ctx context.Context, n email.Notifier) error {
-			return n.SendRestockNotice(ctx, &email.RestockNotice{
+			return n.SendRestockNotice(ctx, &outbox.RestockNotice{
 				Locale: "en", Email: address, ProductName: "Aurora Slate", Slug: "aurora-slate", SKU: "AS-1",
 			})
 		}},
 		{"SendStaffEnrolment", func(ctx context.Context, n email.Notifier) error {
-			return n.SendStaffEnrolment(ctx, &email.StaffEnrolment{Locale: "en", Email: address, Code: "482913"})
+			return n.SendStaffEnrolment(ctx, &outbox.StaffEnrolment{Locale: "en", Email: address, Code: "482913"})
 		}},
 		{"SendStaffFactorFailure/wrong", func(ctx context.Context, n email.Notifier) error {
-			return n.SendStaffFactorFailure(ctx, &email.StaffFactorFailure{Locale: "en", Email: address, Limit: 10})
+			return n.SendStaffFactorFailure(ctx, &outbox.StaffFactorFailure{Locale: "en", Email: address, Limit: 10})
 		}},
 		{"SendStaffFactorFailure/locked", func(ctx context.Context, n email.Notifier) error {
-			return n.SendStaffFactorFailure(ctx, &email.StaffFactorFailure{Locale: "en", Email: address, Locked: true, Limit: 10})
+			return n.SendStaffFactorFailure(ctx, &outbox.StaffFactorFailure{Locale: "en", Email: address, Locked: true, Limit: 10})
 		}},
 		{"SendStaffInvitation", func(ctx context.Context, n email.Notifier) error {
-			return n.SendStaffInvitation(ctx, &email.StaffInvitation{UserID: uuid.NewString(), Locale: "en"}, address, "Alex")
+			return n.SendStaffInvitation(ctx, &outbox.StaffInvitation{UserID: uuid.NewString(), Locale: "en"}, address, "Alex")
 		}},
 	}
-	kinds := []email.TerminalKind{
-		email.TerminalCancelledByCustomer, email.TerminalCancelledByStaff, email.TerminalCancelledByPaymentDeadline,
-		email.TerminalDelivered, email.TerminalCollected,
+	kinds := []outbox.TerminalKind{
+		outbox.TerminalCancelledByCustomer, outbox.TerminalCancelledByStaff, outbox.TerminalCancelledByPaymentDeadline,
+		outbox.TerminalDelivered, outbox.TerminalCollected,
 	}
 	terminal := make([]mailedLetter, 0, len(kinds))
 	for _, kind := range kinds {
 		terminal = append(terminal, mailedLetter{"SendOrderTerminal/" + string(kind), func(ctx context.Context, n email.Notifier) error {
-			return n.SendOrderTerminal(ctx, &email.OrderTerminal{OrderID: uuid.New(), Kind: kind},
+			return n.SendOrderTerminal(ctx, &outbox.OrderTerminal{OrderID: uuid.New(), Kind: kind},
 				email.TerminalRecipient{Address: address, Name: "Alex", Locale: "en", OrderNumber: number})
 		}})
 	}

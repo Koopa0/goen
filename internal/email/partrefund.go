@@ -7,18 +7,9 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/google/uuid"
-
 	"github.com/koopa0/goen/internal/i18n"
+	"github.com/koopa0/goen/internal/outbox"
 )
-
-// OrderPartRefunded is what an order.part_refunded message carries: the order
-// and the refund of the units it could not send, never an address, a name or
-// an amount. Everything the letter says is read at delivery.
-type OrderPartRefunded struct {
-	OrderID         uuid.UUID `json:"order_id"`
-	ReturnRequestID uuid.UUID `json:"return_request_id"`
-}
 
 // PartRefundLetter is what the letter says, as the order and its settled
 // refund hold it at delivery.
@@ -37,7 +28,7 @@ type PartRefundItem struct {
 
 // SendOrderPartRefunded tells the customer which units will not come and how
 // their money went back.
-func (n Notifier) SendOrderPartRefunded(ctx context.Context, _ *OrderPartRefunded, l *PartRefundLetter) error {
+func (n Notifier) SendOrderPartRefunded(ctx context.Context, _ *outbox.OrderPartRefunded, l *PartRefundLetter) error {
 	if !Valid(l.Address) {
 		return errors.New("an order.part_refunded message has no usable recipient")
 	}

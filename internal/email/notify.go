@@ -10,6 +10,7 @@ import (
 
 	"github.com/koopa0/goen/internal/i18n"
 	"github.com/koopa0/goen/internal/money"
+	"github.com/koopa0/goen/internal/outbox"
 )
 
 type Notifier struct {
@@ -67,20 +68,7 @@ func (n Notifier) orderURL(number string) string {
 	return strings.TrimRight(n.baseURL, "/") + "/orders/" + number
 }
 
-type OrderPlaced struct {
-	Locale      string `json:"locale"`
-	OrderNumber string `json:"order_number"`
-	Email       string `json:"email"`
-	Name        string `json:"name"`
-	TotalCents  int64  `json:"total_cents"`
-	// OwedCents is what is still payable after store credit. Zero is a value,
-	// not an absence: a fully funded order writes 0 and gets the letter with
-	// nothing to pay, so the field is never omitted.
-	OwedCents int64           `json:"owed_cents"`
-	Snapshot  *PlacedSnapshot `json:"snapshot,omitempty"`
-}
-
-func (n Notifier) SendOrderPlaced(ctx context.Context, p *OrderPlaced) error {
+func (n Notifier) SendOrderPlaced(ctx context.Context, p *outbox.OrderPlaced) error {
 	if !Valid(p.Email) {
 		// Still an error though no retry can fix it: the outbox reschedules and
 		// Stuck() shows it to a human.
@@ -112,18 +100,7 @@ func placedLetterBody(ctx context.Context, number string, owedCents int64, order
 // the page it links to cannot disagree about a figure.
 func twd(cents int64) string { return money.TWD(cents) }
 
-// PasswordReset is what a reset message needs. The token travels in the payload
-// and lives in outbox_messages until the row is swept.
-type PasswordReset struct {
-	Locale string `json:"locale"`
-	// Tagged, like every other payload here: erase_user matches the exact
-	// recipient field, so a row that names the address under another key is
-	// not erased.
-	Email string `json:"email"`
-	Token string `json:"token"`
-}
-
-func (n Notifier) SendPasswordReset(ctx context.Context, p *PasswordReset) error {
+func (n Notifier) SendPasswordReset(ctx context.Context, p *outbox.PasswordReset) error {
 	if !Valid(p.Email) {
 		return errors.New("a password reset has no usable email address")
 	}

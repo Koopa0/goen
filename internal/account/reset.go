@@ -12,7 +12,7 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 
 	"github.com/koopa0/goen/internal/bearer"
-	mailmsg "github.com/koopa0/goen/internal/email"
+	"github.com/koopa0/goen/internal/email"
 	"github.com/koopa0/goen/internal/i18n"
 	"github.com/koopa0/goen/internal/outbox"
 
@@ -34,7 +34,7 @@ func (s *Store) requestReset(ctx context.Context, addr string) error {
 }
 
 func (s *Store) queueResetRequest(ctx context.Context, addr, dedupeKey string) error {
-	addr = mailmsg.Clean(addr)
+	addr = email.Clean(addr)
 	if EmailError(addr) != "" {
 		return nil
 	}
@@ -90,7 +90,7 @@ func (s *Store) IssueReset(ctx context.Context, req *outbox.PasswordResetRequest
 		return fmt.Errorf("create reset token: %w", err)
 	}
 	if err := outbox.Enqueue(ctx, q, outbox.TopicPasswordReset, "reset:"+hex.EncodeToString(digest),
-		&mailmsg.PasswordReset{Email: row.Email, Token: token, Locale: req.Locale}); err != nil {
+		&outbox.PasswordReset{Email: row.Email, Token: token, Locale: req.Locale}); err != nil {
 		return err
 	}
 	if err := tx.Commit(ctx); err != nil {
@@ -102,7 +102,7 @@ func (s *Store) IssueReset(ctx context.Context, req *outbox.PasswordResetRequest
 // DeliverPasswordReset checks at delivery because the queue can outlive a
 // token's expiry or the request that replaced it. Obsolete mail completes
 // without sending; read and delivery failures remain retryable.
-func (s *Store) DeliverPasswordReset(ctx context.Context, p *mailmsg.PasswordReset, send func(context.Context, *mailmsg.PasswordReset) error) error {
+func (s *Store) DeliverPasswordReset(ctx context.Context, p *outbox.PasswordReset, send func(context.Context, *outbox.PasswordReset) error) error {
 	if _, err := s.q.PasswordResetToken(ctx, bearer.Digest(p.Token)); err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
 			return nil

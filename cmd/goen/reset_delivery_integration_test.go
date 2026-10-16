@@ -193,7 +193,7 @@ func newResetDeliveryFixture(t *testing.T, tracer pgx.QueryTracer) *resetDeliver
 
 type queuedResetMail struct {
 	ID      uuid.UUID
-	Payload email.PasswordReset
+	Payload outbox.PasswordReset
 }
 
 func (f *resetDeliveryFixture) issue(t *testing.T) queuedResetMail {

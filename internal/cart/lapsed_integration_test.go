@@ -17,7 +17,6 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 
 	"github.com/koopa0/goen/internal/cart"
-	"github.com/koopa0/goen/internal/email"
 	"github.com/koopa0/goen/internal/order/buyer"
 	"github.com/koopa0/goen/internal/order/delivery"
 	"github.com/koopa0/goen/internal/outbox"
@@ -155,8 +154,8 @@ func factsOf(t *testing.T, number string, couponID uuid.UUID) cancellationFacts 
 		         WHERE cr.coupon_id = $5 AND co.fulfillment_status <> 'cancelled'),
 		       (SELECT count(*) FROM inventory_reservations r WHERE r.order_id = o.id AND r.state = 'held')
 		FROM orders o WHERE o.order_number = $1`,
-		number, outbox.TopicOrderTerminal.Name(), string(email.TerminalCancelledByPaymentDeadline),
-		string(email.TerminalCancelledByCustomer), couponID).Scan(
+		number, outbox.TopicOrderTerminal.Name(), string(outbox.TerminalCancelledByPaymentDeadline),
+		string(outbox.TerminalCancelledByCustomer), couponID).Scan(
 		&f.status, &f.events, &f.notices, &f.deadlineNotices, &f.customerNotice,
 		&f.reversals, &f.couponSlotsHeld, &f.heldHolds); err != nil {
 		t.Fatalf("read cancellation facts of %s: %v", number, err)

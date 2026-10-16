@@ -3,6 +3,8 @@ package email
 import (
 	"strings"
 	"testing"
+
+	"github.com/koopa0/goen/internal/outbox"
 )
 
 func TestAPickupDispatchNoticeSaysStorePickup(t *testing.T) {
@@ -10,7 +12,7 @@ func TestAPickupDispatchNoticeSaysStorePickup(t *testing.T) {
 	for locale, store := range map[string]string{"en": "convenience store", "zh-TW": "超商"} {
 		n, sink := notifier(t)
 		send := func(pickup bool) string {
-			if err := n.SendOrderShipped(t.Context(), &OrderShipped{
+			if err := n.SendOrderShipped(t.Context(), &outbox.OrderShipped{
 				Locale: locale, Email: "a@b.co", Name: "Alex", OrderNumber: "GO-1",
 				Carrier: "C", Tracking: "T", Pickup: pickup,
 			}); err != nil {
@@ -41,7 +43,7 @@ func TestADispatchNoticeLinksTheCarriersTrackingPage(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 			n, sink := notifier(t)
-			if err := n.SendOrderShipped(t.Context(), &OrderShipped{
+			if err := n.SendOrderShipped(t.Context(), &outbox.OrderShipped{
 				Locale: "zh-TW", Email: "a@b.co", Name: "Alex", OrderNumber: "GO-1",
 				Carrier: tt.carrier, Tracking: "TW123",
 			}); err != nil {

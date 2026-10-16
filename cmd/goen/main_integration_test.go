@@ -33,6 +33,7 @@ import (
 	"github.com/koopa0/goen/internal/email"
 	"github.com/koopa0/goen/internal/i18n"
 	"github.com/koopa0/goen/internal/newsletter"
+	"github.com/koopa0/goen/internal/outbox"
 	"github.com/koopa0/goen/internal/payment"
 )
 
@@ -361,7 +362,7 @@ func TestAnUnsubscribeDuringTheDrainStopsTheCopy(t *testing.T) {
 		t.Fatalf("subscribe: %v", err)
 	}
 
-	payload := &email.NewsletterIssue{
+	payload := &outbox.NewsletterIssue{
 		Email: address, UnsubscribeToken: token,
 		Subject: "本週選品", Body: "內容", Locale: "zh-Hant",
 	}
