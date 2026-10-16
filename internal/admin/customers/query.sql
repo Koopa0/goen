@@ -22,12 +22,9 @@ SELECT u.id, u.email, coalesce(u.full_name, '') AS full_name,
        coalesce(u.phone, '') AS phone, u.created_at,
        (u.email_verified_at IS NOT NULL)::boolean AS verified,
        (SELECT count(*) FROM orders o WHERE o.user_id = u.id)::bigint AS orders,
-       coalesce((SELECT sum(greatest(
-                            coalesce((SELECT sum(ol.unit_price_cents * ol.quantity)
-                                      FROM order_lines ol WHERE ol.order_id = o.id), 0)
-                            + o.shipping_cents - o.discount_cents
-                            - (rf.card_cents + rf.credit_cents), 0))
+       coalesce((SELECT sum(greatest(t.total_cents - (rf.card_cents + rf.credit_cents), 0))
                  FROM orders o
+                 JOIN order_totals t ON t.order_id = o.id
                  JOIN committed_orders c ON c.id = o.id
                  JOIN order_refunds rf ON rf.order_id = o.id
                  WHERE o.user_id = u.id), 0)::bigint AS spent,
@@ -40,13 +37,11 @@ FROM users u
 WHERE u.id = $1;
 
 -- name: AdminCustomerOrders :many
-SELECT o.id, o.order_number, o.fulfillment_status, o.placed_at,
-       o.shipping_cents, o.discount_cents,
+SELECT o.id, o.order_number, o.fulfillment_status, o.placed_at, t.total_cents,
        order_is_committed(o.id) AS committed,
-       order_amount_after_credit(o.id) AS owed_cents,
-       coalesce((SELECT sum(ol.unit_price_cents * ol.quantity) FROM order_lines ol
-                 WHERE ol.order_id = o.id), 0)::bigint AS subtotal_cents
+       order_amount_after_credit(o.id) AS owed_cents
 FROM orders o
+JOIN order_totals t ON t.order_id = o.id
 WHERE o.user_id = $1
 ORDER BY o.placed_at DESC
 LIMIT $2;

@@ -217,12 +217,7 @@ SELECT award_loyalty_points(@order_id);
 -- closes a credit-funded order with no provider amount, and a coupon-to-zero
 -- order is honestly 0.
 -- name: OrderReceiptAmount :one
-SELECT (
-    coalesce((SELECT sum(ol.unit_price_cents * ol.quantity)
-              FROM order_lines ol WHERE ol.order_id = o.id), 0)
-    - o.discount_cents + o.shipping_cents
-)::bigint
-FROM orders o WHERE o.id = $1;
+SELECT t.total_cents FROM order_totals t WHERE t.order_id = $1;
 
 -- Carried in the message rather than read at delivery: erase_user blanks
 -- order_private_data, so a later delivery would have nowhere to go.
