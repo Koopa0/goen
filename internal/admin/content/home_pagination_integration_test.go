@@ -21,7 +21,7 @@ import (
 	"github.com/koopa0/goen/internal/i18n"
 	"github.com/koopa0/goen/internal/media"
 	"github.com/koopa0/goen/internal/newsletter"
-	"github.com/koopa0/goen/internal/ui/pages"
+	"github.com/koopa0/goen/internal/ui/components"
 )
 
 func TestEveryHomepageEntryRemainsManageableBeyondExpiredHistory(t *testing.T) {
@@ -61,7 +61,7 @@ func TestEveryHomepageEntryRemainsManageableBeyondExpiredHistory(t *testing.T) {
 		bannerOrder = append(bannerOrder, banners[i])
 	}
 	adminPool := admintest.AdminRolePool(t, p)
-	s := content.NewStore(adminPool)
+	s := newStore(adminPool)
 	log := slog.New(slog.DiscardHandler)
 	h := content.NewHandler(s, media.NewHandler(media.NewStore(adminPool), log), newsletter.NewStore(adminPool), log)
 	mux := http.NewServeMux()
@@ -169,7 +169,7 @@ func TestEveryHomepageEntryRemainsManageableBeyondExpiredHistory(t *testing.T) {
 	post(second, "/admin/home/"+heroes[20]+"/active", "false")
 	post(second, "/admin/home/"+heroes[24]+"/promote", "")
 	live, err = shop.Carousel(ctx)
-	if err != nil || len(live) == 0 || live[0].Source != pages.SlideScheduled || live[0].ID != heroes[24] {
+	if err != nil || len(live) == 0 || live[0].Source != components.SlideScheduled || live[0].ID != heroes[24] {
 		t.Fatalf("later-page controls did not change the real carousel: %+v/%v", live, err)
 	}
 	for _, slide := range live {

@@ -32,7 +32,7 @@ func TestStorefrontSectionsAsDrawn(t *testing.T) {
 	mux.HandleFunc("GET /home", func(w http.ResponseWriter, r *http.Request) {
 		view := HomeView{Rules: ShopRules{FreeDeliveryCents: 99900, LowestFeeCents: 6000, PickupOffered: true}}
 		for _, title := range []string{"Technology", "Everyday essentials", "Books & stationery"} {
-			view.Slides = append(view.Slides, HeroSlide{Title: title, Layout: SlideSplit, Tone: components.ToneStone})
+			view.Slides = append(view.Slides, components.HeroSlide{Title: title, Layout: components.SlideSplit, Tone: components.ToneStone})
 		}
 		for _, c := range []struct{ slug, name, photo string }{
 			{"audio", "Audio", "nimbus-band-2-01.webp"},

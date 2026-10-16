@@ -10,7 +10,6 @@ import (
 
 	"github.com/koopa0/goen/internal/admin/audit"
 	"github.com/koopa0/goen/internal/db"
-	"github.com/koopa0/goen/internal/home"
 	"github.com/koopa0/goen/internal/i18n"
 	"github.com/koopa0/goen/internal/keyset"
 	"github.com/koopa0/goen/internal/shoptime"
@@ -105,8 +104,7 @@ func (s *Store) HeroSlides(ctx context.Context, after ...string) (admin.HeroView
 	if err != nil {
 		return admin.HeroView{}, fmt.Errorf("read hero slides: %w", err)
 	}
-	// The storefront's builder, not a copy of its rules: two copies drift.
-	live, err := home.NewStore(s.pool).Carousel(ctx)
+	live, err := s.storefront.Carousel(ctx)
 	if err != nil {
 		return admin.HeroView{}, fmt.Errorf("read carousel: %w", err)
 	}

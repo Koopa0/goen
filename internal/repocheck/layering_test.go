@@ -109,8 +109,8 @@ var storeMethodsNamingViews = map[string]int{
 	"internal/catalog/compare.go":              3,
 	"internal/catalog/department.go":           5,
 	"internal/catalog/store.go":                7,
-	"internal/home/hero.go":                    2,
-	"internal/home/store.go":                   6,
+	"internal/home/hero.go":                    1,
+	"internal/home/store.go":                   5,
 	"internal/product/question.go":             1,
 	"internal/product/review.go":               1,
 	"internal/product/store.go":                8,
@@ -127,7 +127,6 @@ var viewValueReads = map[string]int{
 	"internal/catalog/compare.go":         3,
 	"internal/catalog/department.go":      2,
 	"internal/catalog/store.go":           2,
-	"internal/home/hero.go":               6,
 	"internal/product/handler.go":         8,
 	"internal/product/review.go":          12,
 }

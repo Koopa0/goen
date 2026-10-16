@@ -431,7 +431,7 @@ func backOfficeRoutes(mux *http.ServeMux, cfg *BackOfficeConfig, factorStore *tw
 	returnDesk := returndesk.NewHandler(returndesk.NewStore(adminPool, payouts), log)
 	delivery := shipping.NewHandler(shipping.NewStore(adminPool), cfg.StoreMap.Enabled(), log)
 	brands := taxonomy.NewHandler(taxonomy.NewStore(adminPool), adminImages, log)
-	shopfront := content.NewHandler(content.NewStore(adminPool), adminImages, newsletter.NewStore(adminPool), log)
+	shopfront := content.NewHandler(content.NewStore(adminPool, home.NewStore(adminPool)), adminImages, newsletter.NewStore(adminPool), log)
 	sales := campaigns.NewHandler(campaigns.NewStore(adminPool), adminImages, log)
 	inbox := feedback.NewHandler(feedback.NewStore(adminPool), log)
 	roster := staff.NewHandler(staff.NewStore(adminPool), log, factorStore.Enabled())
