@@ -327,8 +327,8 @@ func migrate(ctx context.Context, pool *pgxpool.Pool) error {
 		if err != nil {
 			return err
 		}
-		if _, err := pool.Exec(ctx, sql); err != nil {
-			return migrationError{file: filepath.Base(file), err: err}
+		if _, execErr := pool.Exec(ctx, sql); execErr != nil {
+			return migrationError{file: filepath.Base(file), err: execErr}
 		}
 		prefix, _, _ := strings.Cut(filepath.Base(file), "_")
 		if version, err = strconv.ParseInt(prefix, 10, 64); err != nil {

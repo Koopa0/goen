@@ -103,7 +103,7 @@ func TestStartupAndReadinessRefuseAnotherSchema(t *testing.T) {
 }
 
 // readiness asks the router's /readyz with the store pool on db's database.
-func readiness(t *testing.T, db *pgxpool.Pool) (int, string) {
+func readiness(t *testing.T, db *pgxpool.Pool) (status int, body string) {
 	t.Helper()
 	store, err := openPool(t.Context(), db.Config().ConnString(), quietLog)
 	if err != nil {

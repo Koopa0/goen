@@ -34,7 +34,7 @@ const initial = "001_initial_schema.up.sql"
 // digestLine is the line of initial that records its digest. The digest is
 // computed with those 64 hex digits set to zeros, since a file cannot hold its
 // own hash, as an RFC 791 header checksum is computed with its own field zero.
-var digestLine = regexp.MustCompile(`(?m)^    digest := '([0-9a-f]{64})';$`)
+var digestLine = regexp.MustCompile(`(?m)^ {4}digest := '([0-9a-f]{64})';$`)
 
 // Schema is what schema_version() reports for a database built from these
 // migrations.
