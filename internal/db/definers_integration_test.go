@@ -74,6 +74,7 @@ var definerFunctions = []string{
 	"reverse_order_points(uuid)",
 	"reverse_return_points(uuid)",
 	"revoke_staff(uuid)",
+	"schema_version()",
 	"secure_promoted_account(uuid)",
 	"settle_invoice_allowance(uuid,uuid,text,timestamp with time zone,text[],integer[],bigint[],bigint[],jsonb)",
 	"settle_invoice_issue(uuid,uuid,text,text,timestamp with time zone,text[],integer[],bigint[],bigint[])",
@@ -111,8 +112,8 @@ func TestSecurityDefinerFunctionsAreTheReviewedSet(t *testing.T) {
 
 	want := slices.Clone(definerFunctions)
 	slices.Sort(want)
-	if len(want) != 65 {
-		t.Fatalf("golden list holds %d signatures, want 65; edit the list on purpose, not by accident", len(want))
+	if len(want) != 66 {
+		t.Fatalf("golden list holds %d signatures, want 66; edit the list on purpose, not by accident", len(want))
 	}
 
 	for _, sig := range want {

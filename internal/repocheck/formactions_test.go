@@ -16,6 +16,7 @@ import (
 	"github.com/koopa0/goen/internal/admin/refunds"
 	"github.com/koopa0/goen/internal/admin/returns"
 	"github.com/koopa0/goen/internal/admin/taxonomy"
+	"github.com/koopa0/goen/internal/order/buyer"
 	"github.com/koopa0/goen/internal/payment"
 	"github.com/koopa0/goen/internal/ui/layouts"
 	"github.com/koopa0/goen/internal/ui/pages"
@@ -76,7 +77,7 @@ func methodFormActions(t *testing.T) map[string][]string {
 		"internal/ui/pages/listing.templ:templ.SafeURL(v.FilterAction())":                               {(pages.ListingView{Slug: "category"}).FilterAction()},
 		"internal/warranty/page.templ:templ.SafeURL(v.Action())":                                        {(warranty.WarrantyOrderView{Number: "order"}).Action()},
 		"internal/payment/pay.templ:templ.SafeURL(v.Action())":                                          {(&payment.PayView{Number: "order"}).Action()},
-		"internal/ui/pages/returns.templ:templ.SafeURL(v.Action())":                                     {(pages.ReturnsView{Number: "order"}).Action()},
+		"internal/order/buyer/returns.templ:templ.SafeURL(v.Action())":                                  {(buyer.ReturnsView{Number: "order"}).Action()},
 		"internal/ui/pages/admin/product_invoice_line.templ:templ.URL(v.InvoiceLineAction())":           {product.InvoiceLineAction()},
 	}
 }

@@ -534,7 +534,7 @@ func renderReturnsPolicy(t *testing.T, locale i18n.Locale) string {
 func returnReasonFieldIsRequired(t *testing.T) bool {
 	t.Helper()
 
-	src, err := os.ReadFile(filepath.Join("..", "ui", "pages", "returns.templ"))
+	src, err := os.ReadFile(filepath.Join("..", "order", "buyer", "returns.templ"))
 	if err != nil {
 		t.Fatalf("read returns.templ: %v", err)
 	}

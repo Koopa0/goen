@@ -38,6 +38,7 @@ var sha256Users = map[string]string{
 	"internal/ui/pages/facets.go#CountID":              "HTML id",
 	"internal/ui/pages/facets.go#SelectedID":           "HTML id",
 	"assets/assets.go#index":                           "asset fingerprint",
+	"migrations/migrations.go#Digest":                  "digest of migrations/001 a database records",
 }
 
 // TestNoBearerTokenIsMadeOrDigestedOutsideTheBearerPackage refuses a second

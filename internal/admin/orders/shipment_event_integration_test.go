@@ -21,7 +21,6 @@ import (
 	"github.com/koopa0/goen/internal/i18n"
 	"github.com/koopa0/goen/internal/order/buyer"
 	"github.com/koopa0/goen/internal/shipping"
-	"github.com/koopa0/goen/internal/ui/pages"
 )
 
 type shippedEvent struct {
@@ -116,7 +115,7 @@ func TestAShippedEventNamesItsParcelAndCarriesNoNote(t *testing.T) {
 			t.Fatalf("read the customer's order: %v", err)
 		}
 		var page bytes.Buffer
-		if err := pages.Order(pages.OrderMeta(ctx, number), &view).Render(ctx, &page); err != nil {
+		if err := buyer.Order(buyer.OrderMeta(ctx, number), &view).Render(ctx, &page); err != nil {
 			t.Fatalf("render the customer's order: %v", err)
 		}
 		assertEnglishTimeline(t, page.String(), `goen-order__history`, `</section>`)

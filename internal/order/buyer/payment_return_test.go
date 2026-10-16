@@ -7,11 +7,10 @@ import (
 	"time"
 
 	"github.com/koopa0/goen/internal/order"
-	"github.com/koopa0/goen/internal/ui/pages"
 )
 
 func TestPaymentReturnNeverOverridesTerminalOrFundedState(t *testing.T) {
-	for _, view := range []pages.OrderView{
+	for _, view := range []OrderView{
 		{Number: "ORD-1", Status: order.FulfillmentCancelled, OwedCents: 100},
 		{Number: "ORD-1", Status: order.FulfillmentPending, Committed: true, OwedCents: 100},
 		{Number: "ORD-1", Status: order.FulfillmentPending, OwedCents: 0},
@@ -33,7 +32,7 @@ func TestPaymentReturnChecksKeepTheReturnMarkerWhenTheyEnd(t *testing.T) {
 		"/orders/ORD-1?paid=1&confirmation=done",
 		"",
 	} {
-		view := pages.OrderView{Number: "ORD-1", Status: order.FulfillmentPending, OwedCents: 100}
+		view := OrderView{Number: "ORD-1", Status: order.FulfillmentPending, OwedCents: 100}
 		r := httptest.NewRequestWithContext(t.Context(), http.MethodGet, path, http.NoBody)
 		got := paymentReturnRefresh(r, &view)
 		if got != want {
@@ -48,7 +47,7 @@ func TestPaymentReturnChecksKeepTheReturnMarkerWhenTheyEnd(t *testing.T) {
 
 func TestPaymentReturnEndingNeverOverridesTerminalOrFundedState(t *testing.T) {
 	t.Parallel()
-	for _, view := range []pages.OrderView{
+	for _, view := range []OrderView{
 		{Number: "ORD-1", Status: order.FulfillmentCancelled, OwedCents: 100},
 		{Number: "ORD-1", Status: order.FulfillmentPending, Committed: true, OwedCents: 100},
 		{Number: "ORD-1", Status: order.FulfillmentPending, OwedCents: 0},
@@ -90,7 +89,7 @@ func TestPaymentReturnCancellationIsIndependentOfTheCheckCounter(t *testing.T) {
 	} {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
-			view := pages.OrderView{Number: "ORD-1", Status: order.FulfillmentPending, OwedCents: 100, Now: now, HoldUntil: tt.until}
+			view := OrderView{Number: "ORD-1", Status: order.FulfillmentPending, OwedCents: 100, Now: now, HoldUntil: tt.until}
 			r := httptest.NewRequestWithContext(t.Context(), http.MethodGet, "/orders/ORD-1"+tt.query, http.NoBody)
 			view.PaymentRefreshURL = paymentReturnRefresh(r, &view)
 			if got := view.PaymentRefreshURL; got != tt.refresh {

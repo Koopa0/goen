@@ -17,15 +17,19 @@ type Pinger interface {
 }
 
 type Handler struct {
-	pool Pinger
-	log  *slog.Logger
+	pool   Pinger
+	schema func(context.Context) error
+	log    *slog.Logger
 }
 
-func NewHandler(log *slog.Logger, pool Pinger) *Handler {
-	if log == nil || pool == nil {
-		panic("probe: NewHandler requires a logger and the storefront pool")
+// NewHandler answers for the storefront pool. schema reports whether the
+// database is the schema this binary was built with: a process on another
+// schema would answer 500 for whatever the two disagree on, so it is not ready.
+func NewHandler(log *slog.Logger, pool Pinger, schema func(context.Context) error) *Handler {
+	if log == nil || pool == nil || schema == nil {
+		panic("probe: NewHandler requires a logger, the storefront pool and its schema check")
 	}
-	return &Handler{pool: pool, log: log}
+	return &Handler{pool: pool, schema: schema, log: log}
 }
 
 // Live serves GET /healthz. It checks nothing: a liveness probe that tested the
@@ -43,6 +47,11 @@ func (h *Handler) Ready(w http.ResponseWriter, r *http.Request) {
 	if err := h.pool.Ping(ctx); err != nil {
 		h.log.WarnContext(ctx, "readiness probe failed", "pool", "storefront", "error", err)
 		writePlain(w, http.StatusServiceUnavailable, "storefront database unreachable")
+		return
+	}
+	if err := h.schema(ctx); err != nil {
+		h.log.WarnContext(ctx, "readiness probe failed", "pool", "storefront", "error", err)
+		writePlain(w, http.StatusServiceUnavailable, "database schema is not this binary's")
 		return
 	}
 	writePlain(w, http.StatusOK, "ready")
