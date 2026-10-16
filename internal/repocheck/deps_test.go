@@ -69,7 +69,7 @@ var (
 	uiMayImport = []string{
 		"assets", "internal/fieldrule", "internal/i18n", "internal/money", "internal/shoptime",
 		"internal/coupon", "internal/inventory", "internal/invoice", "internal/keyset", "internal/order",
-		"internal/postcode", "internal/product/labelling", "internal/refund",
+		"internal/postcode", "internal/product", "internal/product/labelling", "internal/refund",
 		"internal/returns", "internal/sales", "internal/shipping", "internal/user",
 	}
 	// storefrontPages are the packages that serve storefront pages. The rule
@@ -77,7 +77,7 @@ var (
 	// uses its Subject vocabulary), internal/loyalty (programme rules
 	// admin/loyalty configures), and internal/media and internal/payment
 	// (shared infrastructure). It matches exactly, not by prefix:
-	// internal/product/labelling is a vocabulary leaf that admin/products imports.
+	// internal/cart/item is a vocabulary leaf, not a page.
 	storefrontPages = []string{
 		"internal/account", "internal/auth", "internal/cart", "internal/catalog", "internal/home",
 		"internal/newsletter", "internal/site",
@@ -92,7 +92,7 @@ var (
 		"internal/refund",
 		"internal/coupon", "internal/inventory", "internal/postcode", "internal/user",
 		"internal/money", "internal/db", "internal/keyset", "internal/bearer",
-		"internal/email", "internal/cart/item",
+		"internal/email", "internal/cart/item", "internal/product",
 	}
 	// i18nOnlyLeaves import nothing from goen except the message catalogue.
 	i18nOnlyLeaves = []string{

@@ -18,7 +18,7 @@ import (
 	"github.com/koopa0/goen/internal/i18n"
 	"github.com/koopa0/goen/internal/invoice"
 	"github.com/koopa0/goen/internal/keyset"
-	"github.com/koopa0/goen/internal/ui/pages"
+	"github.com/koopa0/goen/internal/product"
 	"github.com/koopa0/goen/internal/ui/pages/admin"
 	"github.com/koopa0/goen/internal/web"
 )
@@ -114,8 +114,8 @@ func (s *Store) List(ctx context.Context, after ...string) (admin.ProductsView, 
 	for i := range rows {
 		r := &rows[i]
 		view.Rows = append(view.Rows, admin.Product{
-			Slug: r.Slug, Name: r.Name, Status: pages.ProductStatus(r.Status),
-			StatusText: statusLabel(ctx, r.Status),
+			Slug: r.Slug, Name: r.Name, Status: product.Status(r.Status),
+			StatusText: statusLabel(ctx, product.Status(r.Status)),
 			Brand:      r.Brand, Category: r.Category,
 			Variants: r.Variants, FromCents: r.FromCents,
 			Translated: r.Translated,
@@ -136,7 +136,7 @@ func (s *Store) Product(ctx context.Context, slug string) (admin.ProductView, er
 		Description:  p.Description, WarrantyNote: p.WarrantyNote,
 		NameEn: p.NameEn, SummaryEn: p.SummaryEn, DescriptionEn: p.DescriptionEn,
 		WarrantyMonths: p.WarrantyMonths,
-		Status:         pages.ProductStatus(p.Status), StatusText: statusLabel(ctx, p.Status),
+		Status:         product.Status(p.Status), StatusText: statusLabel(ctx, product.Status(p.Status)),
 		BrandID: brandFormValue(p.BrandID), CategoryID: p.CategoryID.String(),
 	}
 	variants, err := s.q.AdminProductVariants(ctx, p.ID)
@@ -335,15 +335,15 @@ func (s *Store) Update(ctx context.Context, f *Form) (map[string]string, error) 
 // is the authority; value and label stay together so a fourth state cannot be
 // admitted by the write and left unlabelled on the page.
 var statuses = [...]struct {
-	value string
+	value product.Status
 	label i18n.Key
 }{
-	{"draft", i18n.KeyAdminProductDraft},
-	{"active", i18n.KeyAdminProductActive},
-	{"archived", i18n.KeyAdminProductArchived},
+	{product.StatusDraft, i18n.KeyAdminProductDraft},
+	{product.StatusActive, i18n.KeyAdminProductActive},
+	{product.StatusArchived, i18n.KeyAdminProductArchived},
 }
 
-func (s *Store) SetStatus(ctx context.Context, slug, status string) error {
+func (s *Store) SetStatus(ctx context.Context, slug string, status product.Status) error {
 	if !knownStatus(status) {
 		return ErrRefused
 	}
@@ -353,7 +353,7 @@ func (s *Store) SetStatus(ctx context.Context, slug, status string) error {
 	},
 		func(ctx context.Context, q *db.Queries) error {
 			n, err := q.SetProductStatus(ctx, db.SetProductStatusParams{
-				Slug: slug, Status: status,
+				Slug: slug, Status: string(status),
 			})
 			if err != nil {
 				return fmt.Errorf("set status of %s: %w", slug, err)
@@ -369,7 +369,7 @@ func (s *Store) SetStatus(ctx context.Context, slug, status string) error {
 	return db.WrapRefusal(err, ErrRefused)
 }
 
-func knownStatus(s string) bool {
+func knownStatus(s product.Status) bool {
 	for _, status := range statuses {
 		if status.value == s {
 			return true
@@ -378,7 +378,7 @@ func knownStatus(s string) bool {
 	return false
 }
 
-func statusLabel(ctx context.Context, s string) string {
+func statusLabel(ctx context.Context, s product.Status) string {
 	for _, status := range statuses {
 		if status.value == s {
 			return i18n.T(ctx, status.label)
@@ -386,7 +386,7 @@ func statusLabel(ctx context.Context, s string) string {
 	}
 	// Every writer goes through knownStatus, so this is a schema the
 	// binary was not built for rather than anything a request can produce.
-	panic("admin: no label for product status " + s)
+	panic("admin: no label for product status " + string(s))
 }
 
 // SpecLabelRunes and SpecValueRunes mirror the product_specs CHECKs, in RUNES.
