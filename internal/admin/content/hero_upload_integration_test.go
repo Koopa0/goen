@@ -38,7 +38,7 @@ import (
 // absences before it are about the refusal and not about the probe.
 func TestARefusedHeroSlideStoresNoImage(t *testing.T) {
 	ctx, _ := admintest.StaffContext(t, pool)
-	h := handlerOver(content.NewStore(pool))
+	h := handlerOver(newStore(pool))
 	headline := "主視覺" + uuid.NewString()[:8]
 	t.Cleanup(func() {
 		//nolint:usetesting // t.Context is already cancelled in Cleanup
@@ -133,7 +133,7 @@ func TestARefusedHeroSlideStoresNoImage(t *testing.T) {
 func TestHeroImageRefusalsKeepTheCompleteDraft(t *testing.T) {
 	staffCtx, _ := admintest.StaffContext(t, pool)
 	p := admintest.AdminRolePool(t, pool)
-	s := content.NewStore(p)
+	s := newStore(p)
 	log := slog.New(slog.DiscardHandler)
 	mux := http.NewServeMux()
 	content.NewHandler(s, media.NewHandler(media.NewStore(p), log), newsletter.NewStore(p), log).Routes(mux, admintest.BackOffice)
@@ -229,7 +229,7 @@ func TestHeroImageRefusalsKeepTheCompleteDraft(t *testing.T) {
 func TestHeroWithoutASelectedImageStillUsesBuiltInArtwork(t *testing.T) {
 	ctx, _ := admintest.StaffContext(t, pool)
 	p := admintest.AdminRolePool(t, pool)
-	s := content.NewStore(p)
+	s := newStore(p)
 	log := slog.New(slog.DiscardHandler)
 	mux := http.NewServeMux()
 	content.NewHandler(s, media.NewHandler(media.NewStore(p), log), newsletter.NewStore(p), log).Routes(mux, admintest.BackOffice)
@@ -284,7 +284,7 @@ func TestRefusedHomeFormsKeepBothEditorQueues(t *testing.T) {
 	adminPool := admintest.AdminRolePool(t, p)
 	log := slog.New(slog.DiscardHandler)
 	mux := http.NewServeMux()
-	content.NewHandler(content.NewStore(adminPool), media.NewHandler(media.NewStore(adminPool), log),
+	content.NewHandler(newStore(adminPool), media.NewHandler(media.NewStore(adminPool), log),
 		newsletter.NewStore(adminPool), log).Routes(mux, admintest.BackOffice)
 	for _, locale := range i18n.Locales() {
 		ctx := i18n.WithLocale(staffCtx, locale)
@@ -469,7 +469,7 @@ func TestHeroUploadsKeepStorageFailuresSeparateFromRefusals(t *testing.T) {
 		witness := &heroUploadWriteTrace{}
 		mediaPool := heroUploadWritePool(t, adminPool, witness)
 		mux := http.NewServeMux()
-		content.NewHandler(content.NewStore(adminPool), media.NewHandler(media.NewStore(mediaPool), logger),
+		content.NewHandler(newStore(adminPool), media.NewHandler(media.NewStore(mediaPool), logger),
 			newsletter.NewStore(adminPool), logger).Routes(mux, admintest.BackOffice)
 		for _, tt := range []struct {
 			name   string

@@ -33,7 +33,7 @@ func TestCarouselCurrentTabStaysVisibleWithoutMovingThePage(t *testing.T) {
 		}
 		view := HomeView{}
 		for _, title := range titles {
-			view.Slides = append(view.Slides, HeroSlide{Title: title, Layout: SlideSplit, Tone: components.ToneStone})
+			view.Slides = append(view.Slides, components.HeroSlide{Title: title, Layout: components.SlideSplit, Tone: components.ToneStone})
 		}
 		w.Header().Set("Content-Type", "text/html; charset=utf-8")
 		if renderErr := Home(layouts.Page{}, view).Render(i18n.WithLocale(r.Context(), locale), w); renderErr != nil {
