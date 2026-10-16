@@ -23,60 +23,6 @@ var backOfficeEntrances = map[string]string{
 	"the account page's nav": `<a class="goen-account__navitem" href="/admin">`,
 }
 
-// TestOnlyAStaffMemberIsOfferedTheBackOffice holds both halves of the entrance.
-// The back office had no link from anywhere on the site and the only way in was
-// typing the URL; the fix must not become the opposite defect, which is a
-// customer being offered a door that answers 404 — RequireStaff does not
-// disclose that /admin exists, so following it is a dead end that also says the
-// shop has something to hide.
-func TestOnlyAStaffMemberIsOfferedTheBackOffice(t *testing.T) {
-	t.Parallel()
-
-	for _, locale := range []i18n.Locale{i18n.ZhHant, i18n.En} {
-		t.Run(locale.Tag(), func(t *testing.T) {
-			t.Parallel()
-			base := i18n.WithLocale(t.Context(), locale)
-			staff := renderAccountPage(t, layouts.WithStaff(base, true))
-
-			for where, markup := range backOfficeEntrances {
-				if !strings.Contains(staff, markup) {
-					t.Errorf("a staff member is offered no back office in %s: no %s in the page",
-						where, markup)
-				}
-			}
-
-			// The label comes off the catalogue, so a staff member reading in
-			// English does not meet the one Chinese item on an English page.
-			label := i18n.T(base, i18n.KeyBackOffice)
-			if !strings.Contains(staff, ">"+label+"<") {
-				t.Errorf("the back-office entrance does not render %q in %s", label, locale.Tag())
-			}
-			if !strings.Contains(staff, i18n.T(base, i18n.KeyBackOfficeHint)) {
-				t.Errorf("the account page's back-office entrance renders no hint in %s", locale.Tag())
-			}
-
-			// Both shapes of "not staff": the middleware never ran, and it ran
-			// and said no. Only the second survives a refactor that starts
-			// setting the flag unconditionally.
-			for name, ctx := range map[string]context.Context{
-				"no middleware": base,
-				"not staff":     layouts.WithStaff(base, false),
-			} {
-				customer := renderAccountPage(t, ctx)
-				// Without this the assertion below passes on an empty render,
-				// which is the false green a page that failed to build gives.
-				if !strings.Contains(customer, `href="/account/warranty"`) {
-					t.Fatalf("%s: the account page did not render its own nav; the "+
-						"assertion below would pass on anything", name)
-				}
-				if strings.Contains(customer, "/admin") {
-					t.Errorf("%s: a customer's page links into the back office", name)
-				}
-			}
-		})
-	}
-}
-
 // TestTheBackOfficeEntranceIsSiteWideChrome holds where the entrance LIVES. It
 // is the header, so it reaches a staff member on whatever page they are on —
 // putting it only on /account would make the shop's own catalogue the long way
@@ -122,14 +68,6 @@ func TestTheDesktopHeaderOffersTheBackOffice(t *testing.T) {
 	if strings.Contains(customer, `href="/admin"`) {
 		t.Error("the bar offers a customer the back office")
 	}
-}
-
-func renderAccountPage(t *testing.T, ctx context.Context) string {
-	t.Helper()
-	return renderComponent(t, ctx, Account(
-		AccountMeta(ctx),
-		&AccountView{Email: "somebody@example.com"},
-	))
 }
 
 func renderComponent(t *testing.T, ctx context.Context, c templ.Component) string {

@@ -38,24 +38,24 @@ func NewStore(pool *pgxpool.Pool) *Store {
 	return &Store{pool: pool, q: db.New(pool)}
 }
 
-func (s *Store) Overview(ctx context.Context, u user.User, after ...string) (pages.AccountView, error) {
+func (s *Store) Overview(ctx context.Context, u user.User, after ...string) (AccountView, error) {
 	id, err := uuid.Parse(u.ID)
 	if err != nil {
-		return pages.AccountView{}, fmt.Errorf("parse user id: %w", err)
+		return AccountView{}, fmt.Errorf("parse user id: %w", err)
 	}
 
-	view := pages.AccountView{Email: u.Email, Name: u.Name}
+	view := AccountView{Email: u.Email, Name: u.Name}
 
 	profile, err := s.q.UserByID(ctx, id)
 	if err != nil {
-		return pages.AccountView{}, fmt.Errorf("read profile: %w", err)
+		return AccountView{}, fmt.Errorf("read profile: %w", err)
 	}
 	view.Phone = profile.Phone.String
 	view.HasPassword = profile.HasPassword
 
 	identities, err := s.q.IdentitiesForUser(ctx, id)
 	if err != nil {
-		return pages.AccountView{}, fmt.Errorf("read linked identities: %w", err)
+		return AccountView{}, fmt.Errorf("read linked identities: %w", err)
 	}
 	view.GoogleLinked = len(identities) > 0
 	view.CanUnlinkGoogle = view.GoogleLinked && profile.HasPassword
@@ -66,7 +66,7 @@ func (s *Store) Overview(ctx context.Context, u user.User, after ...string) (pag
 		HasCursor: cursor.Valid, AfterAt: cursor.At, AfterID: cursor.ID,
 	})
 	if err != nil {
-		return pages.AccountView{}, fmt.Errorf("read orders: %w", err)
+		return AccountView{}, fmt.Errorf("read orders: %w", err)
 	}
 	orders, view.OrdersBound = orderBound(cursor, u.ID, orders,
 		func(o *db.UserOrdersRow) (uuid.UUID, time.Time) { return o.ID, o.PlacedAt })
@@ -77,13 +77,13 @@ func (s *Store) Overview(ctx context.Context, u user.User, after ...string) (pag
 	}
 	returned, err := s.q.ReturnedOrders(ctx, orderIDs)
 	if err != nil {
-		return pages.AccountView{}, fmt.Errorf("read returned orders: %w", err)
+		return AccountView{}, fmt.Errorf("read returned orders: %w", err)
 	}
 
 	now := time.Now()
 	for i := range orders {
 		o := &orders[i]
-		view.Orders = append(view.Orders, pages.AccountOrder{
+		view.Orders = append(view.Orders, AccountOrder{
 			Number:     o.OrderNumber,
 			Status:     order.FulfillmentStatus(o.FulfillmentStatus),
 			PlacedAt:   shoptime.DateOf(o.PlacedAt, now),
@@ -102,7 +102,7 @@ func (s *Store) Overview(ctx context.Context, u user.User, after ...string) (pag
 		UserID: id,
 	})
 	if err != nil {
-		return pages.AccountView{}, fmt.Errorf("read member standing: %w", err)
+		return AccountView{}, fmt.Errorf("read member standing: %w", err)
 	}
 	view.Standing = loyalty.MemberStanding{
 		SpendCents: standing.SpendCents, TierName: standing.TierName,
@@ -112,17 +112,17 @@ func (s *Store) Overview(ctx context.Context, u user.User, after ...string) (pag
 
 	balance, err := s.q.StoreCreditBalance(ctx, uuid.NullUUID{UUID: id, Valid: true})
 	if err != nil {
-		return pages.AccountView{}, fmt.Errorf("read store credit: %w", err)
+		return AccountView{}, fmt.Errorf("read store credit: %w", err)
 	}
 	view.CreditCents = balance
 
 	addrs, err := s.q.AddressesForUser(ctx, id)
 	if err != nil {
-		return pages.AccountView{}, fmt.Errorf("read addresses: %w", err)
+		return AccountView{}, fmt.Errorf("read addresses: %w", err)
 	}
 	for i := range addrs {
 		a := &addrs[i]
-		view.Addresses = append(view.Addresses, pages.AccountAddress{
+		view.Addresses = append(view.Addresses, AccountAddress{
 			ID: a.ID.String(), Label: a.Label.String, Name: a.RecipientName, Phone: a.Phone,
 			PostalCode: a.PostalCode, City: a.City, District: a.District,
 			Street: a.Street, Default: a.IsDefault,
@@ -218,23 +218,23 @@ func (s *Store) AddAddress(ctx context.Context, userID string, a *Address) error
 	return nil
 }
 
-func (s *Store) addressForUser(ctx context.Context, userID, addressID string) (pages.AccountAddress, error) {
+func (s *Store) addressForUser(ctx context.Context, userID, addressID string) (AccountAddress, error) {
 	uid, err := uuid.Parse(userID)
 	if err != nil {
-		return pages.AccountAddress{}, err
+		return AccountAddress{}, err
 	}
 	aid, err := uuid.Parse(addressID)
 	if err != nil {
-		return pages.AccountAddress{}, ErrNotFound
+		return AccountAddress{}, ErrNotFound
 	}
 	row, err := s.q.AddressForUser(ctx, db.AddressForUserParams{UserID: uid, AddressID: aid})
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
-			return pages.AccountAddress{}, ErrNotFound
+			return AccountAddress{}, ErrNotFound
 		}
-		return pages.AccountAddress{}, err
+		return AccountAddress{}, err
 	}
-	return pages.AccountAddress{
+	return AccountAddress{
 		ID: row.ID.String(), Label: row.Label.String, Name: row.RecipientName,
 		Phone: row.Phone, PostalCode: row.PostalCode, City: row.City,
 		District: row.District, Street: row.Street, Default: row.IsDefault,

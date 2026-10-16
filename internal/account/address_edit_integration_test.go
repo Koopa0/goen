@@ -17,7 +17,6 @@ import (
 	"github.com/koopa0/goen/internal/account"
 	"github.com/koopa0/goen/internal/auth"
 	"github.com/koopa0/goen/internal/i18n"
-	"github.com/koopa0/goen/internal/ui/pages"
 )
 
 func TestSavedAddressEditsKeepOwnershipDraftsAndDefaultSelection(t *testing.T) {
@@ -81,7 +80,7 @@ func TestSavedAddressEditsKeepOwnershipDraftsAndDefaultSelection(t *testing.T) {
 			if updated.Code != http.StatusSeeOther || updated.Header().Get("Location") != "/account?saved=1#addresses-heading" {
 				t.Fatalf("valid edit = %d to %q, want the address-section 303", updated.Code, updated.Header().Get("Location"))
 			}
-			want := pages.AccountAddress{ID: first, Label: "Edited home", Name: "New recipient", Phone: "0987654321", PostalCode: "110", City: "Taipei", District: "Xinyi", Street: "2 Test Road", Default: true}
+			want := account.AccountAddress{ID: first, Label: "Edited home", Name: "New recipient", Phone: "0987654321", PostalCode: "110", City: "Taipei", District: "Xinyi", Street: "2 Test Road", Default: true}
 			if diff := cmp.Diff(want, savedAddress(t, first)); diff != "" {
 				t.Errorf("saved edit differs (-want +got):\n%s", diff)
 			}
@@ -122,9 +121,9 @@ func TestSavedAddressEditsKeepOwnershipDraftsAndDefaultSelection(t *testing.T) {
 	}
 }
 
-func savedAddress(t *testing.T, id string) pages.AccountAddress {
+func savedAddress(t *testing.T, id string) account.AccountAddress {
 	t.Helper()
-	var a pages.AccountAddress
+	var a account.AccountAddress
 	err := pool.QueryRow(t.Context(), `SELECT id::text, coalesce(label, ''), recipient_name, phone, postal_code, city, district, street, is_default FROM addresses WHERE id = $1`, id).
 		Scan(&a.ID, &a.Label, &a.Name, &a.Phone, &a.PostalCode, &a.City, &a.District, &a.Street, &a.Default)
 	if err != nil {
