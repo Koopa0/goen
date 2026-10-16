@@ -28,7 +28,6 @@ import (
 	"github.com/koopa0/goen/internal/db"
 	"github.com/koopa0/goen/internal/i18n"
 	"github.com/koopa0/goen/internal/media"
-	"github.com/koopa0/goen/internal/newsletter"
 )
 
 // TestARefusedHeroSlideStoresNoImage holds the order of the hero form: its copy
@@ -136,7 +135,7 @@ func TestHeroImageRefusalsKeepTheCompleteDraft(t *testing.T) {
 	s := newStore(p)
 	log := slog.New(slog.DiscardHandler)
 	mux := http.NewServeMux()
-	content.NewHandler(s, media.NewHandler(media.NewStore(p), log), newsletter.NewStore(p), log).Routes(mux, admintest.BackOffice)
+	content.NewHandler(s, media.NewHandler(media.NewStore(p), log), log).Routes(mux, admintest.BackOffice)
 	baseline, err := s.HeroSlides(staffCtx)
 	if err != nil {
 		t.Fatal(err)
@@ -232,7 +231,7 @@ func TestHeroWithoutASelectedImageStillUsesBuiltInArtwork(t *testing.T) {
 	s := newStore(p)
 	log := slog.New(slog.DiscardHandler)
 	mux := http.NewServeMux()
-	content.NewHandler(s, media.NewHandler(media.NewStore(p), log), newsletter.NewStore(p), log).Routes(mux, admintest.BackOffice)
+	content.NewHandler(s, media.NewHandler(media.NewStore(p), log), log).Routes(mux, admintest.BackOffice)
 	headline := "optional-image-" + uuid.NewString()[:8]
 	t.Cleanup(func() {
 		if _, err := pool.Exec(context.WithoutCancel(t.Context()), `DELETE FROM hero_slides WHERE headline = $1`, headline); err != nil {
@@ -284,8 +283,7 @@ func TestRefusedHomeFormsKeepBothEditorQueues(t *testing.T) {
 	adminPool := admintest.AdminRolePool(t, p)
 	log := slog.New(slog.DiscardHandler)
 	mux := http.NewServeMux()
-	content.NewHandler(newStore(adminPool), media.NewHandler(media.NewStore(adminPool), log),
-		newsletter.NewStore(adminPool), log).Routes(mux, admintest.BackOffice)
+	content.NewHandler(newStore(adminPool), media.NewHandler(media.NewStore(adminPool), log), log).Routes(mux, admintest.BackOffice)
 	for _, locale := range i18n.Locales() {
 		ctx := i18n.WithLocale(staffCtx, locale)
 		t.Run(locale.Tag(), func(t *testing.T) {
@@ -469,8 +467,7 @@ func TestHeroUploadsKeepStorageFailuresSeparateFromRefusals(t *testing.T) {
 		witness := &heroUploadWriteTrace{}
 		mediaPool := heroUploadWritePool(t, adminPool, witness)
 		mux := http.NewServeMux()
-		content.NewHandler(newStore(adminPool), media.NewHandler(media.NewStore(mediaPool), logger),
-			newsletter.NewStore(adminPool), logger).Routes(mux, admintest.BackOffice)
+		content.NewHandler(newStore(adminPool), media.NewHandler(media.NewStore(mediaPool), logger), logger).Routes(mux, admintest.BackOffice)
 		for _, tt := range []struct {
 			name   string
 			alt    string

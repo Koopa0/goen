@@ -18,7 +18,6 @@ import (
 	"github.com/koopa0/goen/internal/admin/content"
 	"github.com/koopa0/goen/internal/i18n"
 	"github.com/koopa0/goen/internal/media"
-	"github.com/koopa0/goen/internal/newsletter"
 )
 
 func TestNewsletterCompositionAcceptsItsFullTextLimits(t *testing.T) {
@@ -33,7 +32,7 @@ func TestNewsletterCompositionAcceptsItsFullTextLimits(t *testing.T) {
 			ctx, _ := admintest.StaffContext(t, pool)
 			p := admintest.AdminRolePool(t, pool)
 			log := slog.New(slog.DiscardHandler)
-			h := content.NewHandler(newStore(p), media.NewHandler(media.NewStore(p), log), newsletter.NewStore(p), log)
+			h := content.NewHandler(newStore(p), media.NewHandler(media.NewStore(p), log), log)
 			mux := http.NewServeMux()
 			h.Routes(mux, admintest.BackOffice)
 			subject := uuid.NewString()[:8] + strings.Repeat(tt.text, 112)
