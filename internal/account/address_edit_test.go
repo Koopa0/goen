@@ -32,7 +32,7 @@ func TestAddressEditsDoNotReportSuccessWhenTheSavedAddressCannotBeRead(t *testin
 		t.Fatal(err)
 	}
 	dbPool.Close()
-	h := NewHandler(NewStore(dbPool), nil, slog.New(slog.DiscardHandler), false, nil)
+	h := NewHandler(NewStore(dbPool), slog.New(slog.DiscardHandler), false, false)
 	ctx := user.NewContext(t.Context(), user.User{ID: "11111111-1111-4111-8111-111111111111"})
 	for _, addressID := range []string{"22222222-2222-4222-8222-222222222222", "invalid-id"} {
 		for _, handler := range []http.HandlerFunc{h.EditAddress, h.UpdateAddress} {

@@ -136,7 +136,7 @@ Application roles change protected payment, refund, invoice, audit, inventory, a
 
 Audit evidence commits with its change, through `audit.Run`, `audit.In`, or the privileged function itself; history is append-only, with explicit handling for account erasure. The `reporting` role has no runtime pool and cannot read credentials, sessions, personal or delivery data, free text, webhook evidence, or the outbox and invoice-operation tables; order and return tables expose listed business columns only. The schema owner runs migrations.
 
-Passwords use Argon2id; session tokens are opaque and stored as hashes. In secure mode, session, cart, order-access, and pickup cookies use `__Host-`; every cookie is `HttpOnly`, and `Secure` follows secure mode. Staff need authorization and TOTP step-up, and administrator actions add a further guard; TOTP secrets are encrypted, replayed codes refused, and a run of wrong codes locks the factor until another administrator removes it, with each wrong code audited and the account mailed. See [accounts][account], [access][access], and [two-factor authentication][twofactor].
+Passwords use Argon2id; session tokens are opaque and stored as hashes. In secure mode, session, cart, order-access, and pickup cookies use `__Host-`; every cookie is `HttpOnly`, and `Secure` follows secure mode. Staff need authorization and TOTP step-up, and administrator actions add a further guard; TOTP secrets are encrypted, replayed codes refused, and a run of wrong codes locks the factor until another administrator removes it, with each wrong code audited and the account mailed. See [sign-in][auth], [access][access], and [two-factor authentication][twofactor].
 
 The password alone is enough to lock a factor on purpose. If the locked person is the only administrator, nobody is left to remove it at `/admin/staff`. If they did not type the wrong codes, they reset the password through `/forgot` first. The operator then runs the statement below, which removes the factor and ends its sessions as `/admin/staff` does, but writes no audit row. The person enrols again on their next visit to `/admin`.
 
@@ -271,7 +271,7 @@ CI runs formatting, vet, lint, dead-code and generated-code checks, migration li
 | Browsing and derived data | [`internal/catalog`][catalog-store], [`internal/home`][home-banner], [`internal/recommend`][recommend], [reports][reports] |
 | Language, money, time | [`internal/i18n`][i18n], [`internal/money`][money], [`internal/shoptime`][shoptime] |
 | Assets and media | [`assets`][assets], [`internal/media`][media-render] |
-| Identity and browser security | [`internal/account`][account], [`internal/bearer`][bearer], [staff access][access], [`internal/admin/twofactor`][twofactor], [`internal/ratelimit`][ratelimit] |
+| Identity and browser security | [`internal/auth`][auth], [`internal/bearer`][bearer], [staff access][access], [`internal/admin/twofactor`][twofactor], [`internal/ratelimit`][ratelimit] |
 | Operations | [Health queries][health-sql], [probes][probe], [slow-query tracer][slowquery], [Makefile][makefile], [CI][workflows] |
 
 [contributing]: CONTRIBUTING.md
@@ -306,7 +306,7 @@ CI runs formatting, vet, lint, dead-code and generated-code checks, migration li
 [conformance]: internal/db/coverage_integration_test.go
 [dbtest]: internal/db/dbtest
 [audit]: internal/admin/audit/audit.go
-[account]: internal/account
+[auth]: internal/auth
 [bearer]: internal/bearer
 [access]: internal/admin/access/access.go
 [twofactor]: internal/admin/twofactor

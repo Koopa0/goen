@@ -160,7 +160,7 @@ const stockAlertRetainDays = 30
 // outbox.Retain, for delivered and for undelivered mail alike.
 const mailRetainDays = 30
 
-// account.SessionTTL.
+// auth.SessionTTL.
 const sessionDays = 14
 
 func NewsletterConfirmHoursText() string { return strconv.Itoa(newsletterConfirmHours) }

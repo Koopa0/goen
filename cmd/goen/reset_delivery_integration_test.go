@@ -17,7 +17,7 @@ import (
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 
-	"github.com/koopa0/goen/internal/account"
+	"github.com/koopa0/goen/internal/auth"
 	"github.com/koopa0/goen/internal/bearer"
 	"github.com/koopa0/goen/internal/letter"
 	"github.com/koopa0/goen/internal/outbox"
@@ -148,7 +148,7 @@ func (s *resetMailSender) Send(ctx context.Context, m *letter.Message) error {
 }
 
 type resetDeliveryFixture struct {
-	accounts *account.Store
+	accounts *auth.Store
 	worker   *outbox.Store
 	sender   *resetMailSender
 	userID   uuid.UUID
@@ -179,7 +179,7 @@ func newResetDeliveryFixture(t *testing.T, tracer pgx.QueryTracer) *resetDeliver
 	}
 	address := "reset-delivery-" + uuid.NewString() + "@example.com"
 	f := &resetDeliveryFixture{
-		accounts: account.NewStore(storePool), sender: &resetMailSender{recipient: address}, address: address,
+		accounts: auth.NewStore(storePool), sender: &resetMailSender{recipient: address}, address: address,
 	}
 	if err := pool.QueryRow(ctx, `INSERT INTO users(email,email_verified_at) VALUES($1,now()) RETURNING id`, f.address).Scan(&f.userID); err != nil {
 		t.Fatalf("create reset account: %v", err)

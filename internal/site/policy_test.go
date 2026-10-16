@@ -10,7 +10,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/koopa0/goen/internal/account"
+	"github.com/koopa0/goen/internal/auth"
 	"github.com/koopa0/goen/internal/cart"
 	"github.com/koopa0/goen/internal/home"
 	"github.com/koopa0/goen/internal/i18n"
@@ -292,7 +292,7 @@ func TestEveryPolicyRouteHasADocument(t *testing.T) {
 func TestThePrivacyPolicyNamesEveryCookie(t *testing.T) {
 	described := map[string]struct{ zh, en string }{
 		cart.CookieName:              {zh: "購物車", en: "your cart"},
-		account.SessionCookieName:    {zh: "登入狀態", en: "your sign-in"},
+		auth.SessionCookieName:       {zh: "登入狀態", en: "your sign-in"},
 		access.CookieName:            {zh: "訂單瀏覽權限", en: "permission to view an order"},
 		cart.PickupCookieName:        {zh: "挑選超商取貨門市", en: "picking a convenience store"},
 		i18n.CookieName:              {zh: "你選擇的語言", en: "the language you chose"},

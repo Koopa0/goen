@@ -14,7 +14,7 @@ import (
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 
-	"github.com/koopa0/goen/internal/account"
+	"github.com/koopa0/goen/internal/auth"
 )
 
 func TestEachStartupPoolChecksItsSessionLogin(t *testing.T) {
@@ -34,7 +34,7 @@ func TestEachStartupPoolChecksItsSessionLogin(t *testing.T) {
 		open     func(context.Context, string, bool, *slog.Logger) (*pgxpool.Pool, error)
 	}{
 		{storeRole, "GOEN_DATABASE_URL", func(ctx context.Context, dsn string, secure bool, log *slog.Logger) (*pgxpool.Pool, error) {
-			return servingPool(ctx, dsn, account.DemoAccount{}, secure, log)
+			return servingPool(ctx, dsn, auth.DemoAccount{}, secure, log)
 		}},
 		{adminRole, "GOEN_ADMIN_DATABASE_URL", reachableAdminPool},
 		{maintenanceRole, "GOEN_MAINTENANCE_DATABASE_URL", openMaintenancePool},

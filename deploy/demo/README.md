@@ -83,4 +83,4 @@ on the sign-in page. Use an address dedicated to the demonstration: a staff
 account is refused. The account cannot change its own shared credentials. The
 pair is refused beside a live Stripe key; this reference uses Stripe's sandbox.
 See [.env.example](../../.env.example) and
-[the account implementation](../../internal/account/demo.go) for the contract.
+[the sign-in implementation](../../internal/auth/demo.go) for the contract.

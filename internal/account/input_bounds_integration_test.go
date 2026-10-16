@@ -22,8 +22,8 @@ import (
 func TestRawAndDirectAccountWritesRespectRenderedBounds(t *testing.T) {
 	ctx := t.Context()
 	s := account.NewStore(pool)
-	h := account.NewHandler(s, nil, slog.New(slog.DiscardHandler), false, nil)
-	u := register(t, s, "bounded-account-"+uuid.NewString()+"@example.com")
+	h := account.NewHandler(s, slog.New(slog.DiscardHandler), false, false)
+	u := register(t, "bounded-account-"+uuid.NewString()+"@example.com")
 
 	post := func(target string, values url.Values, handle http.HandlerFunc) *httptest.ResponseRecorder {
 		t.Helper()

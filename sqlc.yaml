@@ -22,6 +22,7 @@ sql:
       - "internal/recommend/query.sql"
       - "internal/restock/query.sql"
       - "internal/warranty/query.sql"
+      - "internal/auth/query.sql"
       - "internal/account/query.sql"
       - "internal/admin/audit/query.sql"
       - "internal/admin/campaigns/query.sql"
