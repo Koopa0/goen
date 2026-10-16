@@ -25,6 +25,7 @@ import (
 	"github.com/koopa0/goen/internal/coupon"
 	"github.com/koopa0/goen/internal/i18n"
 	"github.com/koopa0/goen/internal/order"
+	"github.com/koopa0/goen/internal/order/buyer"
 	"github.com/koopa0/goen/internal/order/delivery"
 )
 
@@ -32,7 +33,8 @@ func TestCouponUsageReleasesCancelledOrdersAndRetainsTheirHistory(t *testing.T) 
 	owner := admintest.Pool(t)
 	ctx, _ := admintest.StaffContext(t, owner)
 	desk := coupons.NewStore(admintest.AdminRolePool(t, owner))
-	checkout := cart.NewStore(checkoutPool(t, owner))
+	storefront := checkoutPool(t, owner)
+	checkout, customer := cart.NewStore(storefront), buyer.NewStore(storefront)
 	code := "USAGE-" + strings.ToUpper(uuid.NewString()[:8])
 	errs, err := desk.CreateCoupon(ctx, &coupons.Form{
 		Code: code, Description: "One current checkout", Kind: coupon.Amount,
@@ -79,7 +81,7 @@ func TestCouponUsageReleasesCancelledOrdersAndRetainsTheirHistory(t *testing.T) 
 			assertCouponUsage(t, ctx, desk, mux, code, 1, 10000)
 			assertRedemptionHistory(t, owner, code, ledger)
 			if n < 3 {
-				if err := checkout.CancelOrder(t.Context(), number); err != nil {
+				if err := customer.CancelOrder(t.Context(), number); err != nil {
 					t.Fatalf("CancelOrder: %v", err)
 				}
 				if err := owner.QueryRow(ctx, `SELECT fulfillment_status FROM orders WHERE id=$1`, id).Scan(&state); err != nil {

@@ -317,7 +317,7 @@ func storefrontRoutes(mux *http.ServeMux, cfg *StorefrontConfig, log *slog.Logge
 	mux.HandleFunc("GET /orders/find", basket.FindOrderPage)
 	mux.HandleFunc("POST /orders/find", ratelimit.Guard(findLimit, log, basket.FindOrder))
 	mux.HandleFunc("GET /orders/{number}", basket.OrderPage)
-	mux.HandleFunc("POST /orders/{number}/cancel", basket.CancelOrder)
+	mux.HandleFunc("POST /orders/{number}/cancel", buyerOrders.CancelOrder)
 	mux.HandleFunc("POST /orders/{number}/reorder", clearSpeculations(basket.ReorderItems))
 	mux.HandleFunc("GET /orders/{number}/pay", till.Page)
 	mux.HandleFunc("POST /orders/{number}/pay", till.Start)

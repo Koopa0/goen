@@ -27,6 +27,7 @@ import (
 	"github.com/koopa0/goen/internal/i18n"
 	"github.com/koopa0/goen/internal/order/access"
 	"github.com/koopa0/goen/internal/order/buyer"
+	"github.com/koopa0/goen/internal/outbox"
 )
 
 var pool *pgxpool.Pool
@@ -206,7 +207,7 @@ func shippedTwoLineOrder(
 	return orderID, number, lines
 }
 
-func returnsApplicationPool(t *testing.T, name string) *pgxpool.Pool {
+func storeApplicationPool(t *testing.T, name string) *pgxpool.Pool {
 	t.Helper()
 	cfg, err := pgxpool.ParseConfig(pool.Config().ConnString())
 	if err != nil {
@@ -425,6 +426,220 @@ func placedBy(t *testing.T, req *http.Request, number string) {
 	}
 }
 
+func applicationPool(t *testing.T, name string) *pgxpool.Pool {
+	t.Helper()
+	cfg, err := pgxpool.ParseConfig(pool.Config().ConnString())
+	if err != nil {
+		t.Fatalf("parse application pool config: %v", err)
+	}
+	cfg.MaxConns = 2
+	cfg.ConnConfig.RuntimeParams["application_name"] = name
+	p, err := pgxpool.NewWithConfig(t.Context(), cfg)
+	if err != nil {
+		t.Fatalf("open application pool: %v", err)
+	}
+	var actual string
+	if err := p.QueryRow(t.Context(), `SHOW application_name`).Scan(&actual); err != nil {
+		p.Close()
+		t.Fatalf("read application name: %v", err)
+	}
+	if actual != name {
+		p.Close()
+		t.Fatalf("application name = %q, want %q", actual, name)
+	}
+	t.Cleanup(p.Close)
+	return p
+}
+
+func storeRolePool(t *testing.T) *pgxpool.Pool {
+	t.Helper()
+	cfg, err := pgxpool.ParseConfig(pool.Config().ConnString())
+	if err != nil {
+		t.Fatalf("parse store-role pool config: %v", err)
+	}
+	cfg.MaxConns = 2
+	cfg.AfterConnect = func(ctx context.Context, conn *pgx.Conn) error {
+		_, execErr := conn.Exec(ctx, `SET ROLE store`)
+		return execErr
+	}
+	p, err := pgxpool.NewWithConfig(t.Context(), cfg)
+	if err != nil {
+		t.Fatalf("open store-role pool: %v", err)
+	}
+	t.Cleanup(p.Close)
+	return p
+}
+
+func waitForApplicationLock(t *testing.T, name string, done <-chan error) {
+	t.Helper()
+	deadline := time.Now().Add(15 * time.Second)
+	for {
+		select {
+		case err := <-done:
+			t.Fatalf("%s returned before reaching the intended database lock: %v", name, err)
+		default:
+		}
+		_, waiting, err := dbtest.Blocked(t.Context(), pool, dbtest.Match{Application: name})
+		if err == nil && waiting {
+			return
+		}
+		if time.Now().After(deadline) {
+			t.Fatalf("%s never blocked on the intended database lock: %v", name, err)
+		}
+		time.Sleep(5 * time.Millisecond)
+	}
+}
+
+// heldOrder writes a guest's order holding one unit of vid whose hold expired
+// `ago` in the past. paid decides whether it is funded.
+func heldOrder(t *testing.T, vid uuid.UUID, ago time.Duration, paid bool) (orderID uuid.UUID) {
+	t.Helper()
+	ctx := t.Context()
+
+	tx, err := pool.Begin(ctx)
+	if err != nil {
+		t.Fatalf("begin: %v", err)
+	}
+	defer func() { _ = tx.Rollback(ctx) }()
+
+	var number string
+	if err := tx.QueryRow(ctx, `
+		INSERT INTO orders (order_number, user_id, shipping_version_id, shipping_method_code,
+		                    shipping_method_name, shipping_cents)
+		SELECT next_order_number(), $1, v.id, sm.code, v.name, 0
+		FROM shipping_method_versions v JOIN shipping_methods sm ON sm.id = v.method_id
+		ORDER BY v.effective_at LIMIT 1
+		RETURNING id, order_number`, uuid.NullUUID{}).Scan(&orderID, &number); err != nil {
+		t.Fatalf("create order: %v", err)
+	}
+	if _, err := tx.Exec(ctx, `
+		INSERT INTO order_lines (order_id, variant_id, sku, product_name, unit_price_cents, quantity)
+		SELECT $1, pv.id, pv.sku, p.name, 100000, 1 FROM product_variants pv JOIN products p ON p.id = pv.product_id WHERE pv.id = $2`, orderID, vid); err != nil {
+		t.Fatalf("create line: %v", err)
+	}
+	if _, err := tx.Exec(ctx, `
+		INSERT INTO order_private_data (order_id, email, recipient_name, phone,
+		                                postal_code, city, district, street)
+		VALUES ($1, 'w@example.com', '收件', '0912345678', '110', '台北市', '信義區', '路 1 號')`,
+		orderID); err != nil {
+		t.Fatalf("create private data: %v", err)
+	}
+	// Held normally, then aged — BOTH timestamps move, because expires_at >
+	// created_at is a CHECK and a hold that expired an hour ago was taken before it.
+	if _, err := tx.Exec(ctx,
+		`SELECT hold_inventory($1, $2, 1, interval '30 minutes', $3)`,
+		orderID, vid, "sweep:"+number); err != nil {
+		t.Fatalf("hold: %v", err)
+	}
+	if _, err := tx.Exec(ctx, `
+		UPDATE inventory_reservations
+		SET created_at = now() - $2::interval - interval '30 minutes',
+		    expires_at = now() - $2::interval
+		WHERE order_id = $1`, orderID, ago.String()); err != nil {
+		t.Fatalf("age the hold: %v", err)
+	}
+	if paid {
+		if _, err := tx.Exec(ctx, `SELECT open_payment($1, $2, 100000)`,
+			orderID, "cs_sweep_"+number); err != nil {
+			t.Fatalf("open payment: %v", err)
+		}
+		if _, err := tx.Exec(ctx, `SELECT capture_payment($1, 100000, NULL, NULL)`,
+			"cs_sweep_"+number); err != nil {
+			t.Fatalf("capture: %v", err)
+		}
+	}
+	if err := tx.Commit(ctx); err != nil {
+		t.Fatalf("commit: %v", err)
+	}
+	return orderID
+}
+
+// freshVariant creates a product of this test's own with one sellable variant.
+// Tests that hold or release stock must not share one: test-integration
+// shuffles, so a shared variant fails whenever the order changes.
+func freshVariant(t *testing.T, name string) uuid.UUID {
+	t.Helper()
+	ctx := t.Context()
+
+	slug := name + "-" + uuid.NewString()[:8]
+	var productID, vid uuid.UUID
+	if err := pool.QueryRow(ctx, `
+		INSERT INTO products (brand_id, category_id, slug, name, status, published_at)
+		SELECT b.id, c.id, $1, $1, 'draft', NULL
+		FROM brands b, categories c
+		ORDER BY b.id, c.id LIMIT 1
+		RETURNING id`, slug).Scan(&productID); err != nil {
+		t.Fatalf("create product %s: %v", slug, err)
+	}
+	if err := pool.QueryRow(ctx, `
+		INSERT INTO product_variants (product_id, sku, price_cents, is_active, position)
+		VALUES ($1, $2, 199900, true, 0) RETURNING id`,
+		// product_variants_sku_format wants upper case and hyphens.
+		productID, strings.ToUpper(slug)+"-0").Scan(&vid); err != nil {
+		t.Fatalf("create variant: %v", err)
+	}
+	if _, err := pool.Exec(ctx,
+		`SELECT record_inventory_movement($1, 10, 'adjustment', $2, 'admin', NULL, NULL)`,
+		vid, "fixture:"+vid.String()); err != nil {
+		t.Fatalf("stock the variant: %v", err)
+	}
+	// Published only now: products_active_has_variant is DEFERRED and fires from
+	// both sides.
+	if _, err := pool.Exec(ctx,
+		`UPDATE products SET status = 'active', published_at = now() WHERE id = $1`,
+		productID); err != nil {
+		t.Fatalf("publish %s: %v", slug, err)
+	}
+	return vid
+}
+
+// numberOf is an order's customer-facing number.
+func numberOf(t *testing.T, orderID uuid.UUID) string {
+	t.Helper()
+	var number string
+	if err := pool.QueryRow(t.Context(),
+		`SELECT order_number FROM orders WHERE id = $1`, orderID).Scan(&number); err != nil {
+		t.Fatalf("read order number: %v", err)
+	}
+	return number
+}
+
+// stockOf is a variant's shelf quantity.
+func stockOf(t *testing.T, vid uuid.UUID) int32 {
+	t.Helper()
+	var n int32
+	if err := pool.QueryRow(t.Context(),
+		`SELECT stock_quantity FROM product_variants WHERE id = $1`, vid).Scan(&n); err != nil {
+		t.Fatalf("read stock: %v", err)
+	}
+	return n
+}
+
+// cancellationFacts is what a cancellation wrote, or must not have written.
+type cancellationFacts struct {
+	status                                string
+	events, notices, reversals, heldHolds int
+}
+
+func factsOf(t *testing.T, number string) cancellationFacts {
+	t.Helper()
+	var f cancellationFacts
+	if err := pool.QueryRow(t.Context(), `
+		SELECT o.fulfillment_status,
+		       (SELECT count(*) FROM order_events e WHERE e.order_id = o.id AND e.kind = 'cancelled'),
+		       (SELECT count(*) FROM outbox_messages m WHERE m.topic = $2 AND m.payload->>'order_id' = o.id::text),
+		       (SELECT count(*) FROM store_credit_entries r
+		          JOIN store_credit_entries spend ON spend.id = r.reverses_id
+		         WHERE spend.order_id = o.id),
+		       (SELECT count(*) FROM inventory_reservations r WHERE r.order_id = o.id AND r.state = 'held')
+		FROM orders o WHERE o.order_number = $1`,
+		number, outbox.TopicOrderTerminal.Name()).Scan(
+		&f.status, &f.events, &f.notices, &f.reversals, &f.heldHolds); err != nil {
+		t.Fatalf("read cancellation facts of %s: %v", number, err)
+	}
+	return f
+}
+
 func TestAReturnFormRefusesABrowserWithoutAGrant(t *testing.T) {
 	ctx := t.Context()
 	number, _ := shippedOrder(t, 2, 2)
@@ -573,7 +788,7 @@ func TestReturnRefundableAmountAllocatesShippingOnceAcrossPartialReturns(t *test
 // callable and must admit it at the deferred commit.
 func TestStoreRoleGuestCardReturnCommitsThroughDeferredOwnerGuard(t *testing.T) {
 	number, lineID := shippedOrder(t, 1, 1)
-	app := returnsApplicationPool(t, "guest-card-return-"+uuid.NewString()[:8])
+	app := storeApplicationPool(t, "guest-card-return-"+uuid.NewString()[:8])
 	if err := buyer.NewStore(app).OpenReturn(t.Context(), number, uuid.NullUUID{}, &buyer.ReturnRequest{
 		Reason: "card funded guest return",
 		Lines:  map[string]int32{lineID.String(): 1},
@@ -666,7 +881,7 @@ func TestAConcurrentReturnRendersTheFreshQuantity(t *testing.T) {
 			}
 
 			app := "wave0-return-" + uuid.NewString()
-			appPool := returnsApplicationPool(t, app)
+			appPool := storeApplicationPool(t, app)
 			var pid int
 			if err := appPool.QueryRow(ctx, `SELECT pg_backend_pid()`).Scan(&pid); err != nil {
 				t.Fatalf("read return backend pid: %v", err)
@@ -756,7 +971,7 @@ func TestReturnCreditRequiresLiveAccountSerializesGuestReturnAndErasure(t *testi
 			t.Fatalf("create winning return line: %v", err)
 		}
 
-		erasePool := returnsApplicationPool(t, "erase-behind-return-"+uuid.NewString()[:8])
+		erasePool := storeApplicationPool(t, "erase-behind-return-"+uuid.NewString()[:8])
 		var erasePID int
 		if err := erasePool.QueryRow(ctx, `SELECT pg_backend_pid()`).Scan(&erasePID); err != nil {
 			t.Fatalf("read erase backend pid: %v", err)
@@ -806,7 +1021,7 @@ func TestReturnCreditRequiresLiveAccountSerializesGuestReturnAndErasure(t *testi
 			t.Fatalf("hold private-data row: %v", err)
 		}
 
-		erasePool := returnsApplicationPool(t, "erase-before-return-"+uuid.NewString()[:8])
+		erasePool := storeApplicationPool(t, "erase-before-return-"+uuid.NewString()[:8])
 		var erasePID int
 		if err := erasePool.QueryRow(ctx, `SELECT pg_backend_pid()`).Scan(&erasePID); err != nil {
 			t.Fatalf("read erase backend pid: %v", err)
@@ -820,7 +1035,7 @@ func TestReturnCreditRequiresLiveAccountSerializesGuestReturnAndErasure(t *testi
 		}()
 		waitForReturnsLock(t, erasePID, eraseFinished)
 
-		openPool := returnsApplicationPool(t, "return-behind-erase-"+uuid.NewString()[:8])
+		openPool := storeApplicationPool(t, "return-behind-erase-"+uuid.NewString()[:8])
 		var openPID int
 		if err := openPool.QueryRow(ctx, `SELECT pg_backend_pid()`).Scan(&openPID); err != nil {
 			t.Fatalf("read return backend pid: %v", err)
@@ -875,7 +1090,7 @@ func TestReturnCreditRequiresLiveAccountSerializesGuestReturnAndErasure(t *testi
 	t.Run("aggregate partial returns keep credit owner alive", func(t *testing.T) {
 		ctx := t.Context()
 		fixture := fundedShippedOrderForReturnErasure(t, 2, 100000)
-		storePool := returnsApplicationPool(t, "aggregate-return-"+uuid.NewString()[:8])
+		storePool := storeApplicationPool(t, "aggregate-return-"+uuid.NewString()[:8])
 		s := buyer.NewStore(storePool)
 		firstID := openReturnUnits(t, s, fixture, 1, "aggregate first")
 		if _, err := pool.Exec(ctx, `
@@ -903,7 +1118,7 @@ func TestReturnCreditRequiresLiveAccountSerializesGuestReturnAndErasure(t *testi
 	t.Run("post-erasure second partial return is refused", func(t *testing.T) {
 		ctx := t.Context()
 		fixture := fundedShippedOrderForReturnErasure(t, 2, 100000)
-		storePool := returnsApplicationPool(t, "post-erase-return-"+uuid.NewString()[:8])
+		storePool := storeApplicationPool(t, "post-erase-return-"+uuid.NewString()[:8])
 		s := buyer.NewStore(storePool)
 		firstID := openReturnUnits(t, s, fixture, 1, "card-only first")
 		if _, err := pool.Exec(ctx, `
@@ -1192,7 +1407,7 @@ func TestReturnQuantityRefusalsPreserveTheWholeForm(t *testing.T) {
 			req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
 			req.SetPathValue("number", number)
 			placedBy(t, req, number)
-			appPool := returnsApplicationPool(t, "return-form-"+uuid.NewString())
+			appPool := storeApplicationPool(t, "return-form-"+uuid.NewString())
 			h := buyer.NewHandler(buyer.NewStore(appPool), access.NewStore(pool, false), slog.New(slog.DiscardHandler))
 			res := httptest.NewRecorder()
 			h.SubmitReturn(res, req)
@@ -1333,7 +1548,7 @@ func postReasonThroughRoute(t *testing.T, ctx context.Context, number string, li
 	req := httptest.NewRequestWithContext(ctx, http.MethodPost, "/orders/"+number+"/return", strings.NewReader(form.Encode()))
 	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
 	placedBy(t, req, number)
-	appPool := returnsApplicationPool(t, "reason-refusal-"+uuid.NewString())
+	appPool := storeApplicationPool(t, "reason-refusal-"+uuid.NewString())
 	h := buyer.NewHandler(buyer.NewStore(appPool), access.NewStore(pool, false), slog.New(slog.DiscardHandler))
 	mux := http.NewServeMux()
 	mux.HandleFunc("POST /orders/{number}/return", h.SubmitReturn)
