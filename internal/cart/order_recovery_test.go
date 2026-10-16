@@ -20,7 +20,6 @@ func TestInaccessibleOrderActionsOfferLookupAndSignIn(t *testing.T) {
 			method  string
 			handler http.HandlerFunc
 		}{
-			{"", http.MethodGet, h.OrderPage},
 			{"/reorder", http.MethodPost, h.ReorderItems},
 		} {
 			r := httptest.NewRequestWithContext(i18n.WithLocale(t.Context(), locale), route.method, "/orders/GO-260101-000001"+route.path, http.NoBody)

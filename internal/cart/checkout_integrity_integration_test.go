@@ -10,7 +10,6 @@ import (
 	"strconv"
 	"strings"
 	"testing"
-	"time"
 
 	"github.com/google/uuid"
 
@@ -18,7 +17,6 @@ import (
 	"github.com/koopa0/goen/internal/cart"
 	"github.com/koopa0/goen/internal/order/access"
 	"github.com/koopa0/goen/internal/order/delivery"
-	"github.com/koopa0/goen/internal/ratelimit"
 	"github.com/koopa0/goen/internal/user"
 )
 
@@ -51,10 +49,8 @@ func newIntegrityCheckout(t *testing.T) *integrityCheckout {
 		t.Fatalf("add: %v", err)
 	}
 	return &integrityCheckout{
-		s: s,
-		h: cart.NewHandler(s, access.NewStore(pool, false), slog.New(slog.DiscardHandler), false, ratelimit.New(ratelimit.Config{
-			Every: time.Millisecond, Burst: 1000, TTL: time.Hour, MaxKeys: 1000,
-		}), nil, nil),
+		s:      s,
+		h:      cart.NewHandler(s, access.NewStore(pool, false), slog.New(slog.DiscardHandler), false, nil, nil),
 		userID: userID, cartID: cartID, token: token, variant: variant,
 		shipID: shipVersionFor(t, "home_delivery"),
 		coupon: coupon(t, "INTEGRITY"+strings.ToUpper(uuid.NewString()[:8]), "amount", 10000, 0, 0, 0, 0),
@@ -265,9 +261,7 @@ func TestCheckoutPlacesNothingOnAQuoteItDidNotRender(t *testing.T) {
 func TestNoPostedQuantityReachesACartOutsideItsBounds(t *testing.T) {
 	ctx := t.Context()
 	s := cart.NewStore(pool)
-	h := cart.NewHandler(s, access.NewStore(pool, false), slog.New(slog.DiscardHandler), false, ratelimit.New(ratelimit.Config{
-		Every: time.Millisecond, Burst: 1000, TTL: time.Hour, MaxKeys: 1000,
-	}), nil, nil)
+	h := cart.NewHandler(s, access.NewStore(pool, false), slog.New(slog.DiscardHandler), false, nil, nil)
 
 	for _, quantity := range []string{
 		"", "0", "-1", "-2147483648", "2147483647", "2147483648",

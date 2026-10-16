@@ -63,7 +63,7 @@ func checkoutAs(
 // default, from the account's own name, phone and email.
 func TestAMemberCheckoutIsFilledFromTheAccount(t *testing.T) {
 	s := cart.NewStore(pool)
-	h := cart.NewHandler(s, access.NewStore(pool, false), slog.New(slog.DiscardHandler), false, testLimiter(), nil, nil)
+	h := cart.NewHandler(s, access.NewStore(pool, false), slog.New(slog.DiscardHandler), false, nil, nil)
 	token, u := aMember(t, s, "recipient-member")
 
 	page := checkoutAs(t, h, token, &u, "")
@@ -82,7 +82,7 @@ func TestAMemberCheckoutIsFilledFromTheAccount(t *testing.T) {
 
 func TestAGuestCheckoutHasNeitherControlAndNoPrefill(t *testing.T) {
 	s := cart.NewStore(pool)
-	h := cart.NewHandler(s, access.NewStore(pool, false), slog.New(slog.DiscardHandler), false, testLimiter(), nil, nil)
+	h := cart.NewHandler(s, access.NewStore(pool, false), slog.New(slog.DiscardHandler), false, nil, nil)
 	// A cart nobody owns: a signed-out request for a member's cart is turned away.
 	token := bearer.New()
 	cartID, err := s.Create(t.Context(), token, uuid.NullUUID{})
@@ -109,7 +109,7 @@ func TestAGuestCheckoutHasNeitherControlAndNoPrefill(t *testing.T) {
 // carries what was there so unticking can put it back.
 func TestTheRecipientBoxAppliedByTheServerTicksAndRestores(t *testing.T) {
 	s := cart.NewStore(pool)
-	h := cart.NewHandler(s, access.NewStore(pool, false), slog.New(slog.DiscardHandler), false, testLimiter(), nil, nil)
+	h := cart.NewHandler(s, access.NewStore(pool, false), slog.New(slog.DiscardHandler), false, nil, nil)
 	token, u := aMember(t, s, "recipient-typed")
 
 	apply := func(fields url.Values) string {
@@ -159,7 +159,7 @@ func TestTheRecipientBoxAppliedByTheServerTicksAndRestores(t *testing.T) {
 // the map stands, and the box reports that it is not the account's.
 func TestARestoredDraftIsNotOverwrittenByTheAccount(t *testing.T) {
 	s := cart.NewStore(pool)
-	h := cart.NewHandler(s, access.NewStore(pool, false), slog.New(slog.DiscardHandler), false, testLimiter(), nil, configuredMap(t))
+	h := cart.NewHandler(s, access.NewStore(pool, false), slog.New(slog.DiscardHandler), false, nil, configuredMap(t))
 	token, u := aMember(t, s, "recipient-draft")
 
 	shipping := shipVersionFor(t, "store_pickup")

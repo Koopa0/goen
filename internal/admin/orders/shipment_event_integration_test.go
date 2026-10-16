@@ -18,8 +18,8 @@ import (
 
 	"github.com/koopa0/goen/internal/admin/admintest"
 	"github.com/koopa0/goen/internal/admin/orders"
-	"github.com/koopa0/goen/internal/cart"
 	"github.com/koopa0/goen/internal/i18n"
+	"github.com/koopa0/goen/internal/order/buyer"
 	"github.com/koopa0/goen/internal/shipping"
 	"github.com/koopa0/goen/internal/ui/pages"
 )
@@ -111,7 +111,7 @@ func TestAShippedEventNamesItsParcelAndCarriesNoNote(t *testing.T) {
 	}
 
 	t.Run("the customer's page", func(t *testing.T) {
-		view, err := cart.NewStore(pool).Order(ctx, number)
+		view, err := buyer.NewStore(pool).Order(ctx, number)
 		if err != nil {
 			t.Fatalf("read the customer's order: %v", err)
 		}

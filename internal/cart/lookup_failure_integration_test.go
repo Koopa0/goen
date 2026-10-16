@@ -81,7 +81,7 @@ func TestCartLookupFailuresDoNotReplaceOrHideTheBasket(t *testing.T) {
 				before := cartLookupRows(t, owner, id, variant)
 				var diagnostics bytes.Buffer
 				logger := slog.New(slog.NewJSONHandler(&diagnostics, nil))
-				h := cart.NewHandler(s, access.NewStore(app, false), logger, false, testLimiter(), nil, nil)
+				h := cart.NewHandler(s, access.NewStore(app, false), logger, false, nil, nil)
 				accounts := account.NewHandler(account.NewStore(app), h, logger, false, nil)
 				method, path, handler := http.MethodGet, "/cart", http.HandlerFunc(h.Page)
 				form := url.Values{"variant": {variant.String()}, "quantity": {"1"}, "remove": {"1"}}
@@ -189,7 +189,7 @@ func TestCartLookupFailuresDoNotReplaceOrHideTheBasket(t *testing.T) {
 			before := cartLookupRows(t, owner, id, variant)
 			var diagnostics bytes.Buffer
 			logger := slog.New(slog.NewJSONHandler(&diagnostics, nil))
-			h := cart.NewHandler(s, access.NewStore(app, false), logger, false, testLimiter(), nil, nil)
+			h := cart.NewHandler(s, access.NewStore(app, false), logger, false, nil, nil)
 			var continued bool
 			route := h.WithCount(http.HandlerFunc(func(http.ResponseWriter, *http.Request) { continued = true }))
 			if tt.handler != nil {
@@ -236,7 +236,7 @@ func TestCartLookupFailuresDoNotReplaceOrHideTheBasket(t *testing.T) {
 				before := cartLookupRows(t, owner, id, variant)
 				var diagnostics bytes.Buffer
 				logger := slog.New(slog.NewJSONHandler(&diagnostics, nil))
-				h := cart.NewHandler(s, access.NewStore(app, false), logger, false, testLimiter(), nil, nil)
+				h := cart.NewHandler(s, access.NewStore(app, false), logger, false, nil, nil)
 				requestCtx, cancel := context.WithCancel(ctx)
 				defer cancel()
 				trace.set("")

@@ -72,7 +72,7 @@ func TestReleasingTheLastHoldQueuesRestockNotices(t *testing.T) {
 					}
 				}
 			} else {
-				h := buyer.NewHandler(buyer.NewStore(appPool), access.NewStore(appPool, false), log)
+				h := buyer.NewHandler(buyer.NewStore(appPool), access.NewStore(appPool, false), log, testLimiter(), false)
 				req := httptest.NewRequestWithContext(ctx, http.MethodPost, "/orders/"+number+"/cancel", http.NoBody)
 				req.SetPathValue("number", number)
 				req.AddCookie(placedCookie(t, number))

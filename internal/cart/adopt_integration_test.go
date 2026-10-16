@@ -381,7 +381,7 @@ func TestAdoptRequestCartMergesWithinTheLineCap(t *testing.T) {
 	}
 
 	h := cart.NewHandler(cart.NewStore(adoptionPool(t, "adopt-line-cap")), access.NewStore(pool, false),
-		slog.New(slog.DiscardHandler), false, testLimiter(), nil, nil)
+		slog.New(slog.DiscardHandler), false, nil, nil)
 	req := httptest.NewRequestWithContext(ctx, http.MethodPost, "/signin", http.NoBody)
 	req.AddCookie(&http.Cookie{Name: "goen_cart", Value: token}) //nolint:gosec // G124: dev cookie under test
 	adjusted, err := h.AdoptRequestCart(ctx, req, u.ID)

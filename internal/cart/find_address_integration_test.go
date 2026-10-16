@@ -16,6 +16,7 @@ import (
 
 	"github.com/koopa0/goen/internal/cart"
 	"github.com/koopa0/goen/internal/order/access"
+	"github.com/koopa0/goen/internal/order/buyer"
 	"github.com/koopa0/goen/internal/ratelimit"
 )
 
@@ -31,9 +32,9 @@ func TestAnOrderLookupIsBoundedPerAddressFromAnyClient(t *testing.T) {
 	victim := "find-bound-" + uuid.NewString() + "@example.com"
 	number := placeUnpaidOrderFor(t, s, victim)
 	// A per-client bound too loose to be what refuses anything below.
-	h := cart.NewHandler(s, access.NewStore(pool, false), slog.New(slog.DiscardHandler), false,
+	h := buyer.NewHandler(buyer.NewStore(pool), access.NewStore(pool, false), slog.New(slog.DiscardHandler),
 		ratelimit.New(ratelimit.Config{Every: time.Millisecond, Burst: 1000, TTL: time.Hour, MaxKeys: 1000}),
-		nil, nil)
+		false)
 
 	client := 0
 	find := func(orderNumber, addr string) *httptest.ResponseRecorder {
@@ -109,9 +110,9 @@ func TestTheDaysFirstNumberNoLongerFindsAnOrderAndATypedNumberStillDoes(t *testi
 	if _, err := pool.Exec(ctx, `UPDATE orders SET order_number = $1 WHERE order_number = $2`, number, placed); err != nil {
 		t.Fatalf("give the order a number with a 0 and a 1: %v", err)
 	}
-	h := cart.NewHandler(s, access.NewStore(pool, false), slog.New(slog.DiscardHandler), false,
+	h := buyer.NewHandler(buyer.NewStore(pool), access.NewStore(pool, false), slog.New(slog.DiscardHandler),
 		ratelimit.New(ratelimit.Config{Every: time.Millisecond, Burst: 1000, TTL: time.Hour, MaxKeys: 1000}),
-		nil, nil)
+		false)
 	find := func(orderNumber string) *httptest.ResponseRecorder {
 		req := httptest.NewRequestWithContext(ctx, http.MethodPost, "/orders/find",
 			strings.NewReader(url.Values{"number": {orderNumber}, "email": {victim}}.Encode()))

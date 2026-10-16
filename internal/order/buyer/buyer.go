@@ -1,7 +1,8 @@
-// Package buyer is the buyer's side of a placed order: cancelling it while it
-// is pending, /orders/{number}/cancel, and the form for sending something back,
-// /orders/{number}/return. What may be returned is bounded by what SHIPPED, a
-// rule the database holds in return_within_shipment.
+// Package buyer is the buyer's side of a placed order: finding it by number and
+// email address, /orders/find; its page, /orders/{number}; cancelling it while
+// it is pending, /orders/{number}/cancel; and the form for sending something
+// back, /orders/{number}/return. What may be returned is bounded by what
+// SHIPPED, a rule the database holds in return_within_shipment.
 package buyer
 
 import (

@@ -7,12 +7,10 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"testing"
-	"time"
 
 	"github.com/google/uuid"
 
 	"github.com/koopa0/goen/internal/order/access"
-	"github.com/koopa0/goen/internal/ratelimit"
 )
 
 func TestPercentCouponDoesNotOverflowAnInRangeSubtotal(t *testing.T) {
@@ -75,9 +73,7 @@ func TestPercentCouponDiscountIsAWholeYuanRoundedInTheCustomersFavour(t *testing
 // the whole address would buy a fresh allowance with every rotation.
 func TestAWrongCouponIsChargedToAWholeIPv6Slash64(t *testing.T) {
 	t.Parallel()
-	h := NewHandler(&Store{}, &access.Store{}, slog.New(slog.DiscardHandler), true, ratelimit.New(ratelimit.Config{
-		Every: time.Hour, Burst: 1, TTL: time.Hour, MaxKeys: 8,
-	}), nil, nil)
+	h := NewHandler(&Store{}, &access.Store{}, slog.New(slog.DiscardHandler), true, nil, nil)
 	// Each ask brings a new cart, so only the client's own key can be spent.
 	keys := func(remoteAddr string) [2]string {
 		t.Helper()

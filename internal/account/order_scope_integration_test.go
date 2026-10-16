@@ -10,8 +10,8 @@ import (
 	"time"
 
 	"github.com/koopa0/goen/internal/account"
-	"github.com/koopa0/goen/internal/cart"
 	"github.com/koopa0/goen/internal/order/access"
+	"github.com/koopa0/goen/internal/order/buyer"
 	"github.com/koopa0/goen/internal/ratelimit"
 	"github.com/koopa0/goen/internal/user"
 )
@@ -24,8 +24,7 @@ func TestOrdersAreScopedToTheirOwner(t *testing.T) {
 
 	number := placeOrderFor(t, theirs.ID)
 
-	cartStore := cart.NewStore(pool)
-	h := cart.NewHandler(cartStore, access.NewStore(pool, false), slog.New(slog.DiscardHandler), false, ratelimit.New(ratelimit.Config{Every: time.Millisecond, Burst: 1000, TTL: time.Hour, MaxKeys: 1000}), nil, nil)
+	h := buyer.NewHandler(buyer.NewStore(pool), access.NewStore(pool, false), slog.New(slog.DiscardHandler), ratelimit.New(ratelimit.Config{Every: time.Millisecond, Burst: 1000, TTL: time.Hour, MaxKeys: 1000}), false)
 
 	owner := httptest.NewRequestWithContext(user.NewContext(ctx, theirs), http.MethodGet,
 		"/orders/"+number, http.NoBody)

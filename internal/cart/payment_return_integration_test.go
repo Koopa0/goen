@@ -3,7 +3,6 @@
 package cart_test
 
 import (
-	"context"
 	"log/slog"
 	"net/http"
 	"net/http/httptest"
@@ -14,13 +13,8 @@ import (
 	"github.com/koopa0/goen/internal/cart"
 	"github.com/koopa0/goen/internal/i18n"
 	"github.com/koopa0/goen/internal/order/access"
+	"github.com/koopa0/goen/internal/order/buyer"
 )
-
-// paymentsOn makes the handler a shop that takes payment, which is what shows
-// the pay link; it closes nothing.
-type paymentsOn struct{}
-
-func (paymentsOn) ExpireSession(context.Context, string) error { return nil }
 
 func TestPaymentReturnChecksEndWithoutInvitingAnotherPayment(t *testing.T) {
 	for _, locale := range []i18n.Locale{i18n.ZhHant, i18n.En} {
@@ -32,7 +26,9 @@ func TestPaymentReturnChecksEndWithoutInvitingAnotherPayment(t *testing.T) {
 				t.Fatalf("return handler role = %q, want store: %v", role, err)
 			}
 			s := cart.NewStore(asStore)
-			h := cart.NewHandler(s, access.NewStore(asStore, false), slog.New(slog.DiscardHandler), false, testLimiter(), paymentsOn{}, nil)
+			orders := buyer.NewStore(asStore)
+			// A shop that takes payment, which is what shows the pay link.
+			h := buyer.NewHandler(orders, access.NewStore(asStore, false), slog.New(slog.DiscardHandler), testLimiter(), true)
 			number := placeUnpaidOrderFor(t, s, "return@example.com")
 			cookie := placedCookie(t, number)
 			path := "/orders/" + number
@@ -130,7 +126,7 @@ func TestPaymentReturnChecksEndWithoutInvitingAnotherPayment(t *testing.T) {
 					}
 				}
 			}
-			view, err := s.Order(ctx, number)
+			view, err := orders.Order(ctx, number)
 			if err != nil || !view.AwaitingPayment() || !view.CanCancel() {
 				t.Fatalf("return hint changed order: %+v, %v", view, err)
 			}
@@ -169,7 +165,7 @@ func TestPaymentReturnChecksEndWithoutInvitingAnotherPayment(t *testing.T) {
 			cookie = placedCookie(t, number)
 			path = "/orders/" + number
 			expireHolds(t, number)
-			expired, err := s.Order(ctx, number)
+			expired, err := orders.Order(ctx, number)
 			if err != nil || !expired.AwaitingPayment() || !expired.CanCancel() || !expired.HoldUntil.Before(expired.Now) {
 				t.Fatalf("expired but unswept order lost its factual cancellation eligibility: %+v, %v", expired, err)
 			}
@@ -197,7 +193,7 @@ func TestPaymentReturnChecksEndWithoutInvitingAnotherPayment(t *testing.T) {
 			if err != nil || deleted.RowsAffected() == 0 {
 				t.Fatalf("remove fixture hold rows: %v, rows=%d", err, deleted.RowsAffected())
 			}
-			withoutHold, err := s.Order(ctx, number)
+			withoutHold, err := orders.Order(ctx, number)
 			if err != nil || !withoutHold.HoldUntil.IsZero() || !withoutHold.CanCancel() {
 				t.Fatalf("order with no hold rows = %+v, %v", withoutHold, err)
 			}
@@ -224,7 +220,7 @@ func TestPaymentReturnChecksEndWithoutInvitingAnotherPayment(t *testing.T) {
 			}
 			cookie = placedCookie(t, number)
 			path = "/orders/" + number
-			funded, err := s.Order(ctx, number)
+			funded, err := orders.Order(ctx, number)
 			if err != nil || funded.OwedCents != 0 || funded.AwaitingPayment() || !funded.HoldUntil.After(funded.Now) {
 				t.Fatalf("fully credited order funding/hold facts = %+v, %v", funded, err)
 			}

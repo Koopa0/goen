@@ -41,7 +41,7 @@ func TestReorderReportsAdjustedQuantities(t *testing.T) {
 				if err := s.Add(ctx, basket, live, scenario.existing); err != nil {
 					t.Fatal(err)
 				}
-				h := cart.NewHandler(s, access.NewStore(pool, false), slog.New(slog.DiscardHandler), false, testLimiter(), nil, nil)
+				h := cart.NewHandler(s, access.NewStore(pool, false), slog.New(slog.DiscardHandler), false, nil, nil)
 				request := httptest.NewRequestWithContext(ctx, http.MethodPost, "/orders/"+number+"/reorder", http.NoBody)
 				request.SetPathValue("number", number)
 				request.AddCookie(placedCookie(t, number))
