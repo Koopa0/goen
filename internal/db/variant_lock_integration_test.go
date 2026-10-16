@@ -33,6 +33,7 @@ func TestAStockLockHoldsBackStockWritersButNotCarts(t *testing.T) {
 		hold func(t *testing.T) (uuid.UUID, func(ctx context.Context, q *db.Queries) error)
 	}{
 		{"checkout", "store", func(t *testing.T) (uuid.UUID, func(context.Context, *db.Queries) error) {
+			t.Helper()
 			variant, _ := stockLockSKU(t, 5, 0)
 			var cart uuid.UUID
 			if err := schemaPool(t).QueryRow(t.Context(), `
@@ -46,6 +47,7 @@ func TestAStockLockHoldsBackStockWritersButNotCarts(t *testing.T) {
 			}
 		}},
 		{"hold release", "store", func(t *testing.T) (uuid.UUID, func(context.Context, *db.Queries) error) {
+			t.Helper()
 			variant, _ := stockLockSKU(t, 5, 0)
 			reservation := stockLockHeldOrder(t, variant)
 			return variant, func(ctx context.Context, q *db.Queries) error {
@@ -53,6 +55,7 @@ func TestAStockLockHoldsBackStockWritersButNotCarts(t *testing.T) {
 			}
 		}},
 		{"stock alert request", "store", func(t *testing.T) (uuid.UUID, func(context.Context, *db.Queries) error) {
+			t.Helper()
 			variant, slug := stockLockSKU(t, 0, 0)
 			return variant, func(ctx context.Context, q *db.Queries) error {
 				eligible, err := q.RequestStockNotice(ctx, db.RequestStockNoticeParams{
@@ -68,6 +71,7 @@ func TestAStockLockHoldsBackStockWritersButNotCarts(t *testing.T) {
 		// A written-off unit is consumed, not restocked, so the explicit lock is
 		// the only one settlement takes on the variant.
 		{"unsent refund settlement", "admin", func(t *testing.T) (uuid.UUID, func(context.Context, *db.Queries) error) {
+			t.Helper()
 			o := newUnsentOrder(t, unsentOrderTotal)
 			returnID := o.mustOpen(t, "damaged", unsentClaim{o.lineB, 2})
 			o.pay(t, returnID, "succeeded")
@@ -94,20 +98,20 @@ func TestAStockLockHoldsBackStockWritersButNotCarts(t *testing.T) {
 			if err != nil {
 				t.Fatalf("create the other shopper's cart: %v", err)
 			}
-			if _, err := q.LockCarts(ctx, []uuid.UUID{cart}); err != nil {
-				t.Fatalf("lock the other shopper's cart: %v", err)
+			if _, lockErr := q.LockCarts(ctx, []uuid.UUID{cart}); lockErr != nil {
+				t.Fatalf("lock the other shopper's cart: %v", lockErr)
 			}
 			added := make(chan error, 1)
 			go func() {
 				added <- q.AddCartItem(ctx, db.AddCartItemParams{CartID: cart, VariantID: variant, Quantity: 1})
 			}()
-			if waited, err := stockLockWait(t, holderPID, shopperPID, added); waited {
+			if waited, addErr := stockLockWait(t, holderPID, shopperPID, added); waited {
 				db.Rollback(ctx, holder)
 				<-added
 				t.Fatalf("another shopper's add-to-cart waited for the %s's variant lock; "+
 					"a variant lock stronger than FOR NO KEY UPDATE conflicts with the cart's FOR KEY SHARE", tc.name)
-			} else if err != nil {
-				t.Fatalf("add the SKU to another cart: %v", err)
+			} else if addErr != nil {
+				t.Fatalf("add the SKU to another cart: %v", addErr)
 			}
 
 			desk, deskPID := stockLockTx(t, "admin")
@@ -159,7 +163,7 @@ func stockLockWait(t *testing.T, holder, waiter int32, done <-chan error) (bool,
 
 // stockLockTx begins a transaction as role and returns it with its backend.
 // It is rolled back when the test ends.
-func stockLockTx(t *testing.T, role string) (pgx.Tx, int32) {
+func stockLockTx(t *testing.T, role string) (tx pgx.Tx, pid int32) {
 	t.Helper()
 	ctx := t.Context()
 	tx, err := schemaPool(t).Begin(ctx)
@@ -170,7 +174,6 @@ func stockLockTx(t *testing.T, role string) (pgx.Tx, int32) {
 	if _, err := tx.Exec(ctx, "SET LOCAL ROLE "+pgx.Identifier{role}.Sanitize()); err != nil {
 		t.Fatalf("set role %s: %v", role, err)
 	}
-	var pid int32
 	if err := tx.QueryRow(ctx, `SELECT pg_backend_pid()`).Scan(&pid); err != nil {
 		t.Fatalf("read the %s backend: %v", role, err)
 	}
@@ -191,16 +194,15 @@ func stockLockStaff(t *testing.T) uuid.UUID {
 
 // stockLockSKU commits an active product with one variant holding stock units
 // above a floor of safety, and returns the variant and the product's slug.
-func stockLockSKU(t *testing.T, stock, safety int) (uuid.UUID, string) {
+func stockLockSKU(t *testing.T, stock, safety int) (variant uuid.UUID, slug string) {
 	t.Helper()
 	ctx := t.Context()
-	slug := "stock-lock-" + uuid.NewString()[:8]
+	slug = "stock-lock-" + uuid.NewString()[:8]
 	tx, err := schemaPool(t).Begin(ctx)
 	if err != nil {
 		t.Fatalf("begin: %v", err)
 	}
 	defer db.Rollback(context.WithoutCancel(ctx), tx)
-	var variant uuid.UUID
 	if err := tx.QueryRow(ctx, `
 		WITH c AS (
 			INSERT INTO categories (slug, name, position)
