@@ -8,8 +8,6 @@ import (
 	"time"
 
 	"github.com/google/uuid"
-
-	"github.com/koopa0/goen/internal/email"
 )
 
 // decodesTo feeds raw, as a stored row carries it, through the handler path of
@@ -39,10 +37,10 @@ func TestStoredRowsDecodeUnderTheirTopicsType(t *testing.T) {
 
 	decodesTo(t, TopicOrderPlaced,
 		`{"locale":"en","order_number":"GO-1","email":"a@example.com","name":"A","total_cents":1000,"owed_cents":900}`,
-		email.OrderPlaced{Locale: "en", OrderNumber: "GO-1", Email: "a@example.com", Name: "A", TotalCents: 1000, OwedCents: 900})
+		OrderPlaced{Locale: "en", OrderNumber: "GO-1", Email: "a@example.com", Name: "A", TotalCents: 1000, OwedCents: 900})
 	decodesTo(t, TopicOrderPlaced,
 		`{"locale":"zh-Hant","order_number":"GO-1","email":"a@example.com","name":"A","total_cents":1000,"owed_cents":0}`,
-		email.OrderPlaced{Locale: "zh-Hant", OrderNumber: "GO-1", Email: "a@example.com", Name: "A", TotalCents: 1000, OwedCents: 0})
+		OrderPlaced{Locale: "zh-Hant", OrderNumber: "GO-1", Email: "a@example.com", Name: "A", TotalCents: 1000, OwedCents: 0})
 	// This row was queued while snapshots still carried "tax_cents" (always 0
 	// in practice, 43 here to prove the value is dropped, not read). The field
 	// is gone from the Go type, and encoding/json ignores the unknown key, so a
@@ -53,9 +51,9 @@ func TestStoredRowsDecodeUnderTheirTopicsType(t *testing.T) {
 			`"subtotal_cents":900,"shipping_cents":60,"discount_cents":30,"discount_reason":"spring","tax_cents":43,`+
 			`"credit_cents":100,"shipping_name":"A Buyer","delivery_to":"7-11 Taipei","phone":"0912345678",`+
 			`"delivery_note":"leave at door","hold_until":"2026-08-10T12:00:00Z","start_by":"2026-08-07T15:22:00Z"}}`,
-		email.OrderPlaced{Locale: "en", OrderNumber: "GO-1", Email: "a@example.com", Name: "A", TotalCents: 1000, OwedCents: 900,
-			Snapshot: &email.PlacedSnapshot{
-				Lines:          []email.PlacedLine{{SKU: "MUG-1", Name: "Mug", Label: "Blue", UnitCents: 450, Quantity: 2}},
+		OrderPlaced{Locale: "en", OrderNumber: "GO-1", Email: "a@example.com", Name: "A", TotalCents: 1000, OwedCents: 900,
+			Snapshot: &PlacedSnapshot{
+				Lines:          []PlacedLine{{SKU: "MUG-1", Name: "Mug", Label: "Blue", UnitCents: 450, Quantity: 2}},
 				SubtotalCents:  900,
 				ShippingCents:  60,
 				DiscountCents:  30,
@@ -70,43 +68,43 @@ func TestStoredRowsDecodeUnderTheirTopicsType(t *testing.T) {
 			}})
 	decodesTo(t, TopicOrderPaid,
 		`{"locale":"en","order_number":"GO-1","email":"a@example.com","name":"A","amount_cents":1000,"card":"Visa •••• 4242"}`,
-		email.OrderPaid{Locale: "en", OrderNumber: "GO-1", Email: "a@example.com", Name: "A", AmountCents: 1000, Card: "Visa •••• 4242"})
+		OrderPaid{Locale: "en", OrderNumber: "GO-1", Email: "a@example.com", Name: "A", AmountCents: 1000, Card: "Visa •••• 4242"})
 	decodesTo(t, TopicOrderShipped,
 		`{"locale":"en","order_number":"GO-1","email":"a@example.com","name":"A","carrier":"black_cat","tracking":"T1","pickup":true}`,
-		email.OrderShipped{Locale: "en", OrderNumber: "GO-1", Email: "a@example.com", Name: "A", Carrier: "black_cat", Tracking: "T1", Pickup: true})
+		OrderShipped{Locale: "en", OrderNumber: "GO-1", Email: "a@example.com", Name: "A", Carrier: "black_cat", Tracking: "T1", Pickup: true})
 	decodesTo(t, TopicOrderTerminal,
 		`{"order_id":"6666aaaa-6666-4666-8666-666666666666","kind":"cancelled_by_staff","refunded":true}`,
-		email.OrderTerminal{OrderID: order, Kind: email.TerminalCancelledByStaff, Refunded: true})
+		OrderTerminal{OrderID: order, Kind: TerminalCancelledByStaff, Refunded: true})
 	decodesTo(t, TopicOrderPartRefunded,
 		`{"order_id":"6666aaaa-6666-4666-8666-666666666666","return_request_id":"6666aaaa-6666-4666-8666-666666666666"}`,
-		email.OrderPartRefunded{OrderID: order, ReturnRequestID: order})
+		OrderPartRefunded{OrderID: order, ReturnRequestID: order})
 	decodesTo(t, TopicRestocked,
 		`{"locale":"en","email":"a@example.com","product_name":"Mug","slug":"mug","sku":"MUG-1"}`,
-		email.RestockNotice{Locale: "en", Email: "a@example.com", ProductName: "Mug", Slug: "mug", SKU: "MUG-1"})
+		RestockNotice{Locale: "en", Email: "a@example.com", ProductName: "Mug", Slug: "mug", SKU: "MUG-1"})
 	decodesTo(t, TopicPasswordReset,
 		`{"locale":"en","email":"a@example.com","token":"tok"}`,
-		email.PasswordReset{Locale: "en", Email: "a@example.com", Token: "tok"})
+		PasswordReset{Locale: "en", Email: "a@example.com", Token: "tok"})
 	decodesTo(t, TopicNewsletterConfirm,
 		`{"locale":"en","email":"a@example.com","token":"tok"}`,
-		email.NewsletterConfirm{Locale: "en", Email: "a@example.com", Token: "tok"})
+		NewsletterConfirm{Locale: "en", Email: "a@example.com", Token: "tok"})
 	decodesTo(t, TopicNewsletterWelcome,
 		`{"locale":"en","email":"a@example.com","unsubscribe_token":"leave"}`,
-		email.NewsletterWelcome{Locale: "en", Email: "a@example.com", UnsubscribeToken: "leave"})
+		NewsletterWelcome{Locale: "en", Email: "a@example.com", UnsubscribeToken: "leave"})
 	decodesTo(t, TopicNewsletterIssue,
 		`{"locale":"en","email":"a@example.com","subject":"S","body":"B","unsubscribe_token":"leave"}`,
-		email.NewsletterIssue{Locale: "en", Email: "a@example.com", Subject: "S", Body: "B", UnsubscribeToken: "leave"})
+		NewsletterIssue{Locale: "en", Email: "a@example.com", Subject: "S", Body: "B", UnsubscribeToken: "leave"})
 	decodesTo(t, TopicEmailVerify,
 		`{"locale":"en","email":"a@example.com","token":"tok","registration":true,"next":"/account"}`,
-		email.AddressVerify{Locale: "en", Email: "a@example.com", Token: "tok", Registration: true, Next: "/account"})
+		AddressVerify{Locale: "en", Email: "a@example.com", Token: "tok", Registration: true, Next: "/account"})
 	decodesTo(t, TopicStaffInvitation,
 		`{"user_id":"u1","locale":"en"}`,
-		email.StaffInvitation{UserID: "u1", Locale: "en"})
+		StaffInvitation{UserID: "u1", Locale: "en"})
 	decodesTo(t, TopicStaffEnrolment,
 		`{"locale":"en","email":"a@example.com","code":"01234567"}`,
-		email.StaffEnrolment{Locale: "en", Email: "a@example.com", Code: "01234567"})
+		StaffEnrolment{Locale: "en", Email: "a@example.com", Code: "01234567"})
 	decodesTo(t, TopicStaffFactorFailure,
 		`{"locale":"en","email":"a@example.com","locked":true,"limit":10}`,
-		email.StaffFactorFailure{Locale: "en", Email: "a@example.com", Locked: true, Limit: 10})
+		StaffFactorFailure{Locale: "en", Email: "a@example.com", Locked: true, Limit: 10})
 	decodesTo(t, TopicPasswordResetRequest,
 		`{"user_id":"u1","locale":"en"}`,
 		PasswordResetRequest{UserID: "u1", Locale: "en"})
@@ -128,7 +126,7 @@ func TestStoredRowsDecodeUnderTheirTopicsType(t *testing.T) {
 func TestAFundedOrderWritesZeroOwed(t *testing.T) {
 	t.Parallel()
 
-	got, err := json.Marshal(email.OrderPlaced{
+	got, err := json.Marshal(OrderPlaced{
 		Locale: "en", OrderNumber: "GO-1", Email: "a@example.com", Name: "A", TotalCents: 1000, OwedCents: 0,
 	})
 	if err != nil {
@@ -146,8 +144,8 @@ func TestAFundedOrderWritesZeroOwed(t *testing.T) {
 func TestAPlacedSnapshotIsStoredWithoutTax(t *testing.T) {
 	t.Parallel()
 
-	got, err := json.Marshal(email.PlacedSnapshot{
-		Lines:          []email.PlacedLine{{SKU: "MUG-1", Name: "Mug", Label: "Blue", UnitCents: 450, Quantity: 2}},
+	got, err := json.Marshal(PlacedSnapshot{
+		Lines:          []PlacedLine{{SKU: "MUG-1", Name: "Mug", Label: "Blue", UnitCents: 450, Quantity: 2}},
 		SubtotalCents:  900,
 		ShippingCents:  60,
 		DiscountCents:  30,

@@ -9,11 +9,10 @@ import (
 	"github.com/google/uuid"
 
 	"github.com/koopa0/goen/internal/db"
-	"github.com/koopa0/goen/internal/email"
 	"github.com/koopa0/goen/internal/outbox"
 )
 
-func enqueueOrderShipped(ctx context.Context, q *db.Queries, orderID uuid.UUID, m *email.OrderShipped) error {
+func enqueueOrderShipped(ctx context.Context, q *db.Queries, orderID uuid.UUID, m *outbox.OrderShipped) error {
 	to, err := q.ShipmentRecipient(ctx, orderID)
 	if err != nil {
 		return fmt.Errorf("read recipient of order %s: %w", m.OrderNumber, err)

@@ -6,7 +6,7 @@ import (
 
 	"github.com/google/uuid"
 
-	"github.com/koopa0/goen/internal/email"
+	"github.com/koopa0/goen/internal/outbox"
 )
 
 // The error of a refused verification request is logged by the handler. It names
@@ -16,7 +16,7 @@ func TestVerificationRefusalCarriesTheUserNotTheAddress(t *testing.T) {
 	const typed = "jane.doe.private@@example.test"
 	user := uuid.New()
 	// A zero Store is enough: the address is judged before the database is.
-	err := (&Store{}).queueVerification(t.Context(), user.String(), typed, email.AddressVerify{})
+	err := (&Store{}).queueVerification(t.Context(), user.String(), typed, outbox.AddressVerify{})
 	if err == nil {
 		t.Fatal("queueVerification: nil error for an unusable address")
 	}

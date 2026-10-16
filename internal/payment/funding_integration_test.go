@@ -12,7 +12,7 @@ import (
 
 	"github.com/koopa0/goen/internal/admin/admintest"
 	"github.com/koopa0/goen/internal/db"
-	"github.com/koopa0/goen/internal/email"
+	"github.com/koopa0/goen/internal/outbox"
 	"github.com/koopa0/goen/internal/payment"
 )
 
@@ -264,7 +264,7 @@ func assertFundingComplete(t *testing.T, orderID uuid.UUID, number string, wantP
 		number).Scan(&payload); err != nil {
 		t.Fatalf("read receipt: %v", err)
 	}
-	var got email.OrderPaid
+	var got outbox.OrderPaid
 	if err := json.Unmarshal(payload, &got); err != nil {
 		t.Fatalf("decode receipt: %v", err)
 	}

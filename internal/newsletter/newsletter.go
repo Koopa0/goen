@@ -41,7 +41,7 @@ func Validate(addr string) i18n.Key {
 	switch {
 	case addr == "":
 		return i18n.KeyEmailRequired
-	case len(addr) > email.Max:
+	case len(addr) > email.MaxBytes:
 		return i18n.KeyEmailTooLong
 	case !email.Valid(addr):
 		return i18n.KeyEmailMalformed

@@ -21,7 +21,7 @@ func TestPasswordSetupSharesTheForgotPasswordClientBudget(t *testing.T) {
 			router := storeMapRouter(t, false)
 			post := func(path, remote string) *httptest.ResponseRecorder {
 				// An overlong address bypasses the mailbox budget and database queue.
-				request := httptest.NewRequestWithContext(t.Context(), http.MethodPost, path, strings.NewReader("email="+strings.Repeat("x", email.Max+1)))
+				request := httptest.NewRequestWithContext(t.Context(), http.MethodPost, path, strings.NewReader("email="+strings.Repeat("x", email.MaxBytes+1)))
 				request.Header.Set("Content-Type", "application/x-www-form-urlencoded")
 				request.RemoteAddr = remote
 				response := httptest.NewRecorder()

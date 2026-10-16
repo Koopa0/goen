@@ -15,17 +15,17 @@ import (
 	"github.com/google/uuid"
 
 	"github.com/koopa0/goen/internal/account"
-	"github.com/koopa0/goen/internal/email"
 	"github.com/koopa0/goen/internal/i18n"
+	"github.com/koopa0/goen/internal/letter"
 )
 
 // recordingSender keeps every message the worker would have sent.
 type recordingSender struct {
 	mu   sync.Mutex
-	msgs []email.Message
+	msgs []letter.Message
 }
 
-func (s *recordingSender) Send(_ context.Context, m *email.Message) error {
+func (s *recordingSender) Send(_ context.Context, m *letter.Message) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	s.msgs = append(s.msgs, *m)
@@ -34,10 +34,10 @@ func (s *recordingSender) Send(_ context.Context, m *email.Message) error {
 
 // to is every message sent to addr. The outbox is shared with the rest of the
 // suite, so a drain also delivers messages this test never wrote.
-func (s *recordingSender) to(addr string) []email.Message {
+func (s *recordingSender) to(addr string) []letter.Message {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	var out []email.Message
+	var out []letter.Message
 	for _, m := range s.msgs {
 		if strings.EqualFold(m.To, addr) {
 			out = append(out, m)
@@ -47,7 +47,7 @@ func (s *recordingSender) to(addr string) []email.Message {
 }
 
 // subjectIs reports whether m carries key's subject in either language.
-func subjectIs(m email.Message, key i18n.Key) bool {
+func subjectIs(m letter.Message, key i18n.Key) bool {
 	for _, locale := range []string{"zh-TW", "en"} {
 		if m.Subject == i18n.T(i18n.WithLocale(context.Background(), i18n.Parse(locale)), key) {
 			return true
@@ -73,7 +73,7 @@ func TestTheWorkerMailsWhatEachAccountMessageMeans(t *testing.T) {
 	log := slog.New(slog.DiscardHandler)
 	outboxStore := newOutboxStore(workerDeps{
 		pool: storePool, admin: storePool, maintenance: storePool, log: log,
-		notifier: email.New(sender, "https://goen.test", "", ""),
+		notifier: letter.New(sender, "https://goen.test", "", ""),
 		invoices: unconfiguredInvoicing(t),
 	})
 	drain := func() {

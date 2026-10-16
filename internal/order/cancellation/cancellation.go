@@ -9,7 +9,6 @@ import (
 	"github.com/google/uuid"
 
 	"github.com/koopa0/goen/internal/db"
-	"github.com/koopa0/goen/internal/email"
 	"github.com/koopa0/goen/internal/invoice/issuer"
 	"github.com/koopa0/goen/internal/order/notice"
 	"github.com/koopa0/goen/internal/outbox"
@@ -22,7 +21,7 @@ type Order struct {
 	ID          uuid.UUID
 	Number      string
 	Actor       uuid.NullUUID
-	Kind        email.TerminalKind
+	Kind        outbox.TerminalKind
 	VoidTrigger string
 }
 
@@ -53,7 +52,7 @@ func Settle(ctx context.Context, q *db.Queries, o *Order) (creditReturnedCents i
 	}
 
 	err = q.RecordCancellation(ctx, db.RecordCancellationParams{
-		OrderID: o.ID, ActorUserID: o.Actor, BySystem: o.Kind == email.TerminalCancelledByPaymentDeadline,
+		OrderID: o.ID, ActorUserID: o.Actor, BySystem: o.Kind == outbox.TerminalCancelledByPaymentDeadline,
 	})
 	if err != nil {
 		return 0, fmt.Errorf("record cancellation of %s: %w", o.Number, err)
@@ -63,7 +62,7 @@ func Settle(ctx context.Context, q *db.Queries, o *Order) (creditReturnedCents i
 	if err != nil {
 		return 0, fmt.Errorf("read payments of %s: %w", o.Number, err)
 	}
-	err = notice.Enqueue(ctx, q, &email.OrderTerminal{
+	err = notice.Enqueue(ctx, q, &outbox.OrderTerminal{
 		OrderID: o.ID, Kind: o.Kind, Refunded: mayHaveTakenMoney(facts.Statuses, facts.ProviderFlagged),
 	})
 	if err != nil {

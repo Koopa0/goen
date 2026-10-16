@@ -13,10 +13,10 @@ import (
 
 	"github.com/koopa0/goen/internal/admin/audit"
 	"github.com/koopa0/goen/internal/db"
-	"github.com/koopa0/goen/internal/email"
 	"github.com/koopa0/goen/internal/invoice/issuer"
 	"github.com/koopa0/goen/internal/order"
 	"github.com/koopa0/goen/internal/order/notice"
+	"github.com/koopa0/goen/internal/outbox"
 	"github.com/koopa0/goen/internal/refund"
 	"github.com/koopa0/goen/internal/returns"
 	"github.com/koopa0/goen/internal/web"
@@ -330,7 +330,7 @@ func (s *Store) settleUnsent(ctx context.Context, orderID, returnID, actorID uui
 	}); err != nil {
 		return db.WrapRefusal(fmt.Errorf("settle unsent refund %s: %w", returnID, err), refund.ErrRefused)
 	}
-	if err := notice.EnqueuePartRefunded(ctx, q, &email.OrderPartRefunded{
+	if err := notice.EnqueuePartRefunded(ctx, q, &outbox.OrderPartRefunded{
 		OrderID: orderID, ReturnRequestID: returnID,
 	}); err != nil {
 		return err

@@ -21,7 +21,6 @@ import (
 	"github.com/koopa0/goen/internal/admin/refunds"
 	"github.com/koopa0/goen/internal/db"
 	"github.com/koopa0/goen/internal/db/dbtest"
-	"github.com/koopa0/goen/internal/email"
 	"github.com/koopa0/goen/internal/i18n"
 	"github.com/koopa0/goen/internal/money"
 	"github.com/koopa0/goen/internal/outbox"
@@ -163,7 +162,7 @@ func TestRefundBeforeShipmentCancelsACreditPaidPendingOrder(t *testing.T) {
 		}
 	}
 	check(t, "after the cancellation")
-	admintest.AssertTerminalNotice(t, pool, orderID, email.TerminalCancelledByStaff, false)
+	admintest.AssertTerminalNotice(t, pool, orderID, outbox.TerminalCancelledByStaff, false)
 
 	if replay := post(confirm); replay.Code != http.StatusSeeOther ||
 		replay.Header().Get("Location") != "/admin/orders/"+number+"?refundcancelled=1" {
