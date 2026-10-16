@@ -254,29 +254,9 @@ func (h *Handler) SignIn(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Before Authenticate: argon2 at 64 MiB is the cost this limit protects.
-	// The demo account's password is printed on this page, so a per-account
-	// bound would guard nothing and let one visitor's mistakes shut out every
-	// other; the per-client bound still holds the cost.
-	var guess passwordGuess
-	var device []byte
-	if !h.demo.holds(normalised) {
-		var err error
-		if device, err = h.store.knownDevice(r.Context(), readDeviceCookie(r, h.secure), normalised); err != nil {
-			// Not knowing the browser costs it only the stranger's budgets.
-			h.log.ErrorContext(r.Context(), "read known device", "error", err)
-		}
-		var retryAfter time.Duration
-		var ok bool
-		if guess, retryAfter, ok = h.reservePasswordGuess(r, normalised, device); !ok {
-			if device != nil {
-				h.log.WarnContext(r.Context(), "sign-in throttled by device")
-			} else {
-				h.log.WarnContext(r.Context(), "sign-in throttled by account")
-			}
-			ratelimit.Refuse(r.Context(), w, retryAfter)
-			return
-		}
+	guess, device, ok := h.reserveSignIn(w, r, normalised)
+	if !ok {
+		return
 	}
 	defer guess.settle(false)
 
@@ -288,11 +268,7 @@ func (h *Handler) SignIn(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		guess.settle(true)
-		if device != nil {
-			if err := h.store.countDeviceMiss(r.Context(), device); err != nil {
-				h.log.ErrorContext(r.Context(), "count known device miss", "error", err)
-			}
-		}
+		h.countDeviceMiss(r, device)
 		h.signInFailed(w, r, addr, next)
 		return
 	}
@@ -303,6 +279,47 @@ func (h *Handler) SignIn(w http.ResponseWriter, r *http.Request) {
 	}
 	next = cartAdoptionLanding(next, adoption)
 	http.Redirect(w, r, next, http.StatusSeeOther) //nolint:gosec // G710: bounded by web.SitePathOr
+}
+
+// reserveSignIn sets aside one password guess for address before the hash,
+// and answers 429 itself when there is none to set aside. argon2 at 64 MiB is
+// the cost this protects. A browser remembered for the account is charged to
+// its own budget (device, the row's digest); every other browser to the
+// network's and the account's. The demo account's password is printed on the
+// sign-in page, so a per-account bound would guard nothing and let one
+// visitor's mistakes shut out every other; the per-client bound still holds
+// the cost.
+func (h *Handler) reserveSignIn(w http.ResponseWriter, r *http.Request, address string) (passwordGuess, []byte, bool) {
+	if h.demo.holds(address) {
+		return nil, nil, true
+	}
+	device, err := h.store.knownDevice(r.Context(), readDeviceCookie(r, h.secure), address)
+	if err != nil {
+		// Not knowing the browser costs it only the stranger's budgets.
+		h.log.ErrorContext(r.Context(), "read known device", "error", err)
+	}
+	guess, retryAfter, ok := h.reservePasswordGuess(r, address, device)
+	if !ok {
+		by := "account"
+		if device != nil {
+			by = "device"
+		}
+		h.log.WarnContext(r.Context(), "sign-in throttled by "+by)
+		ratelimit.Refuse(r.Context(), w, retryAfter)
+		return nil, nil, false
+	}
+	return guess, device, true
+}
+
+// countDeviceMiss records a wrong password sent by a remembered browser. A
+// failure is logged: the miss was already charged to the browser's budget.
+func (h *Handler) countDeviceMiss(r *http.Request, device []byte) {
+	if device == nil {
+		return
+	}
+	if err := h.store.countDeviceMiss(r.Context(), device); err != nil {
+		h.log.ErrorContext(r.Context(), "count known device miss", "error", err)
+	}
 }
 
 // signInFailed is one response for an unusable address, an unknown account and

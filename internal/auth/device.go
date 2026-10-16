@@ -118,7 +118,7 @@ func (s *Store) rememberDevice(ctx context.Context, userID, presented string) (s
 	defer db.Rollback(ctx, tx)
 	q := s.q.WithTx(tx)
 	if presented != "" {
-		if err := q.DeleteKnownDevice(ctx, bearer.Digest(presented)); err != nil {
+		if err = q.DeleteKnownDevice(ctx, bearer.Digest(presented)); err != nil {
 			return "", fmt.Errorf("retire the presented device: %w", err)
 		}
 	}

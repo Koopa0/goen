@@ -170,8 +170,8 @@ func (s *Store) CompleteReset(ctx context.Context, token, password string) (Comp
 		return CompletedReset{}, errors.New("auth: reset token changed owner")
 	}
 
-	if err := applyReset(ctx, q, userID, hash); err != nil {
-		return CompletedReset{}, err
+	if applyErr := applyReset(ctx, q, userID, hash); applyErr != nil {
+		return CompletedReset{}, applyErr
 	}
 	device, err := issueDevice(ctx, q, userID)
 	if err != nil {
