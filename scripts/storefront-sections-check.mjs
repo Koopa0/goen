@@ -714,6 +714,409 @@ try {
       await send('Emulation.setFocusEmulationEnabled', { enabled: false });
     }
   }
+
+  // A chosen option, a chosen delivery card and a refused field are marked in
+  // one language: a tinted fill, a 2px edge and a check for what is chosen; a
+  // white face and a 1px edge for what is not; the error colour and an icon for
+  // what was refused. Fields share one 12px corner, and the checkout is two
+  // layers, a white page and the groups on it.
+  {
+    const label = 'selected state';
+    const rgb = text => {
+      const got = /^rgba?\((\d+),\s*(\d+),\s*(\d+)(?:,\s*([\d.]+))?\)$/.exec(text);
+      assert.ok(got, `${label}: ${text} is not an rgb colour`);
+      assert.equal(got[4] ?? '1', '1', `${label}: ${text} is not opaque`);
+      return [got[1], got[2], got[3]].map(Number);
+    };
+    // WCAG 2.2 relative luminance: each sRGB channel c/255 becomes c/12.92 when
+    // at most 0.04045 and ((c + 0.055) / 1.055) ** 2.4 above it, then
+    // L = 0.2126 R + 0.7152 G + 0.0722 B. The ratio is (lighter + 0.05) / (darker + 0.05).
+    const luminance = channels => {
+      const [r, g, b] = channels.map(value => {
+        const c = value / 255;
+        return c <= 0.04045 ? c / 12.92 : ((c + 0.055) / 1.055) ** 2.4;
+      });
+      return 0.2126 * r + 0.7152 * g + 0.0722 * b;
+    };
+    const ratio = (a, b) => {
+      const [light, dark] = [luminance(rgb(a)), luminance(rgb(b))].sort((x, y) => y - x);
+      return (light + 0.05) / (dark + 0.05);
+    };
+    // A probe turns a custom property, written as any colour syntax, into the
+    // rgb() text the browser paints it as, so no expected colour is typed here.
+    const tokens = names => evaluate(`Object.fromEntries(${JSON.stringify(names)}.map(name => {
+      const probe = document.createElement('div');
+      probe.style.position = 'absolute';
+      probe.style.visibility = 'hidden';
+      probe.style.backgroundColor = 'var(' + name + ')';
+      document.body.append(probe);
+      const colour = getComputedStyle(probe).backgroundColor;
+      probe.remove();
+      return [name, colour];
+    }))`);
+    const sides = ['Top', 'Right', 'Bottom', 'Left'];
+    const corners = ['TopLeft', 'TopRight', 'BottomRight', 'BottomLeft'];
+    const rootSize = size => evaluate(`document.documentElement.style.fontSize = ${JSON.stringify(size)}`);
+    const names = ['--n-0', '--n-50', '--n-500', '--accent', '--accent-faint', '--accent-deep', '--control-boundary', '--error', '--fg'];
+
+    // Fields share one corner, in px: a corner in rem would grow with the text
+    // and turn a tall textarea into a pill.
+    for (const size of ['', '200%']) {
+      const where = `field corners at ${size || '100%'}`;
+      const measure = selectors => evaluate(`Object.fromEntries(${JSON.stringify(selectors)}.map(selector => {
+        const element = document.querySelector(selector);
+        if (!element) return [selector, null];
+        const style = getComputedStyle(element);
+        return [selector, ${JSON.stringify(corners)}.map(corner => style['border' + corner + 'Radius'])];
+      }))`);
+      const expectCorners = (got, page) => {
+        for (const [selector, radii] of Object.entries(got)) {
+          assert.ok(radii, `${where}: ${selector} is not on ${page}`);
+          assert.deepEqual(radii, Array(4).fill('12px'), `${where}: ${selector} on ${page} has corners ${radii}, not 12px`);
+        }
+      };
+      await open('/checkout', 1440);
+      await rootSize(size);
+      expectCorners(await measure(['#name', '#note', '#address-book']), '/checkout');
+      await open('/search', 1440);
+      await rootSize(size);
+      expectCorners(await measure(['#sort']), '/search');
+      await open('/c/audio', 1440);
+      await rootSize(size);
+      expectCorners(await measure(['#min-price']), '/c/audio');
+    }
+    console.log(`${label}: inputs, textarea, selects and the filter and sort controls have 12px corners at 100% and 200% text`);
+
+    // A refused field: its name takes the error colour, the sentence that says
+    // why leads with an icon, and a field nobody refused is left alone.
+    for (const width of [375, 1440]) {
+      const where = `refused field ${width}px`;
+      await open('/checkout', width);
+      const t = await tokens(names);
+      const got = await evaluate(`(() => {
+        const colour = selector => getComputedStyle(document.querySelector(selector)).color;
+        const sentence = document.querySelector('#email-error');
+        const icon = getComputedStyle(sentence, '::before');
+        const group = document.querySelector('#address');
+        return { refused: colour('label[for="email"]'), other: colour('label[for="name"]'),
+          sentence: colour('#email-error'), text: sentence.textContent.trim(),
+          invalid: document.querySelector('#email').getAttribute('aria-invalid'),
+          content: icon.content, display: icon.display, image: icon.backgroundImage, width: parseFloat(icon.width),
+          ground: getComputedStyle(group).backgroundColor };
+      })()`);
+      assert.equal(got.invalid, 'true', `${where}: the email field is not marked refused`);
+      assert.ok(got.text.length > 0, `${where}: the refusal has no sentence`);
+      assert.equal(got.refused, t['--error'], `${where}: the refused field's name is ${got.refused}, not the error colour ${t['--error']}`);
+      assert.equal(got.other, t['--fg'], `${where}: a field nobody refused has the name colour ${got.other}, not ${t['--fg']}`);
+      assert.equal(got.sentence, t['--error'], `${where}: the sentence is ${got.sentence}, not the error colour`);
+      assert.equal(got.content, '""', `${where}: no icon before the sentence (content ${got.content})`);
+      assert.ok(got.display === 'inline-block' && got.width > 0, `${where}: the icon is ${got.display} and ${got.width}px wide`);
+      assert.match(got.image, /^url\("data:image\/svg\+xml,/, `${where}: the icon is not a data: image: ${got.image}`);
+      // The icon is an image, so it cannot read --error: its stroke is decoded
+      // from the image itself and must paint as the error colour.
+      const drawn = /^url\("?data:image\/svg\+xml,(.*?)"?\)$/.exec(got.image);
+      const stroke = drawn && /stroke=['"]([^'"]+)['"]/.exec(decodeURIComponent(drawn[1]));
+      assert.ok(stroke, `${where}: the icon has no stroke colour to read: ${got.image}`);
+      const strokeColour = await evaluate(`(() => {
+        const probe = document.createElement('div');
+        probe.style.backgroundColor = ${JSON.stringify(stroke[1])};
+        document.body.append(probe);
+        const colour = getComputedStyle(probe).backgroundColor;
+        probe.remove();
+        return colour;
+      })()`);
+      assert.equal(strokeColour, t['--error'], `${where}: the icon is drawn in ${stroke[1]} (${strokeColour}), not the error colour ${t['--error']}`);
+      assert.equal(got.ground, t['--n-50'], `${where}: the group the field sits in is ${got.ground}`);
+      for (const [what, colour] of [['name', got.refused], ['sentence', got.sentence]]) {
+        assert.ok(ratio(colour, got.ground) >= 4.5, `${where}: the refused ${what} ${colour} on ${got.ground} is ${ratio(colour, got.ground).toFixed(2)}:1, under 4.5:1`);
+      }
+      console.log(`${where}: name and sentence ${ratio(got.refused, got.ground).toFixed(2)}:1 in the error colour on the group, icon drawn`);
+    }
+
+    // The text option: white with a 1px edge, or tinted with a 2px edge and a
+    // check. Choosing one does not move the text or change the height.
+    const swatches = ids => evaluate(`${JSON.stringify(ids)}.map(id => {
+      const element = document.getElementById(id);
+      if (!element) return null;
+      const style = getComputedStyle(element);
+      const before = getComputedStyle(element, '::before');
+      const box = element.getBoundingClientRect();
+      const words = element.querySelector('s') ?? (() => {
+        const node = [...element.childNodes].find(child => child.nodeType === 3 && child.textContent.trim());
+        const range = document.createRange();
+        range.selectNodeContents(node);
+        return range;
+      })();
+      const text = words.getBoundingClientRect();
+      const note = element.querySelector('.goen-swatch__note');
+      let parent = element.parentElement, ground = 'rgba(0, 0, 0, 0)';
+      for (; parent && /, 0\\)$/.test(ground); parent = parent.parentElement) ground = getComputedStyle(parent).backgroundColor;
+      const tick = ['none', 'normal'].includes(before.content) ? null : {
+        content: before.content, position: before.position,
+        widths: ['Right', 'Bottom', 'Top', 'Left'].map(side => before['border' + side + 'Width']),
+        colour: before.borderBottomColor };
+      return { id, current: element.getAttribute('aria-current'), height: box.height, left: box.left,
+        background: style.backgroundColor, color: style.color, shadow: style.boxShadow, outline: style.outlineStyle,
+        radius: style.borderTopLeftRadius, borderStyle: style.borderTopStyle,
+        widths: ${JSON.stringify(sides)}.map(side => style['border' + side + 'Width']),
+        colours: ${JSON.stringify(sides)}.map(side => style['border' + side + 'Color']),
+        tick, textLeft: text.left, textRight: text.right, noteColour: note && getComputedStyle(note).color,
+        ground, inside: box.left >= -0.5 && box.right <= innerWidth + 0.5 };
+    })`);
+    for (const size of ['', '200%']) {
+      for (const width of [320, 375, 1440]) {
+        const where = `text option ${width}px at ${size || '100%'}`;
+        await open('/product?options=in', width);
+        await rootSize(size);
+        const t = await tokens(names);
+        const press = await evaluate(`(() => {
+          const probe = document.createElement('div');
+          probe.style.borderTopLeftRadius = 'var(--r-press)';
+          document.body.append(probe);
+          const got = getComputedStyle(probe).borderTopLeftRadius;
+          probe.remove();
+          return got;
+        })()`);
+        const [plain, chosen, soldOut] = await swatches(['swatch-0-0', 'swatch-0-1', 'swatch-0-2']);
+        for (const [name, got] of [['plain', plain], ['chosen', chosen], ['sold out', soldOut]]) assert.ok(got, `${where}: no ${name} option`);
+        assert.equal(chosen.current, 'true', `${where}: the second option is not the current one`);
+        assert.equal(plain.background, t['--n-0'], `${where}: an unchosen option is ${plain.background}, not white`);
+        assert.deepEqual(plain.widths, Array(4).fill('1px'), `${where}: an unchosen edge is ${plain.widths}`);
+        assert.deepEqual(plain.colours, Array(4).fill(t['--control-boundary']), `${where}: an unchosen edge is ${plain.colours}, not the control edge ${t['--control-boundary']}`);
+        assert.equal(plain.radius, press, `${where}: an unchosen option has corner ${plain.radius}, not --r-press ${press}`);
+        assert.equal(plain.tick, null, `${where}: an unchosen option is ticked`);
+        assert.equal(chosen.background, t['--accent-faint'], `${where}: the chosen option is ${chosen.background}, not the tint ${t['--accent-faint']}`);
+        assert.deepEqual(chosen.widths, Array(4).fill('2px'), `${where}: the chosen edge is ${chosen.widths}`);
+        assert.deepEqual(chosen.colours, Array(4).fill(t['--accent']), `${where}: the chosen edge is ${chosen.colours}, not the accent ${t['--accent']}`);
+        assert.equal(chosen.color, t['--accent-deep'], `${where}: the chosen text is ${chosen.color}, not ${t['--accent-deep']}`);
+        assert.equal(chosen.shadow, 'none', `${where}: the chosen option draws its edge with a shadow: ${chosen.shadow}`);
+        assert.equal(chosen.radius, press, `${where}: the chosen option has corner ${chosen.radius}, not --r-press ${press}`);
+        assert.ok(Math.abs(chosen.height - plain.height) < 0.5, `${where}: choosing resizes the option from ${plain.height}px to ${chosen.height}px`);
+        assert.ok(chosen.tick, `${where}: the chosen option has no check`);
+        assert.deepEqual([chosen.tick.content, chosen.tick.position, chosen.tick.widths.slice(0, 2)], ['""', 'absolute', ['2px', '2px']], `${where}: the check is ${JSON.stringify(chosen.tick)}`);
+        assert.equal(chosen.tick.colour, chosen.color, `${where}: the check is ${chosen.tick.colour}, not the text colour ${chosen.color}`);
+        assert.ok(chosen.inside && plain.inside, `${where}: an option is cut by the edge of the screen`);
+        // Contrast, by the formula above: the edge against the page it sits
+        // on (1.4.11, at least 3:1), the text against the tint (1.4.3, at
+        // least 4.5:1) and the edge against the tint it encloses.
+        const edge = ratio(chosen.colours[0], chosen.ground), text = ratio(chosen.color, chosen.background), inner = ratio(chosen.colours[0], chosen.background);
+        assert.ok(edge >= 3, `${where}: the chosen edge on the page is ${edge.toFixed(2)}:1, under 3:1`);
+        assert.ok(text >= 4.5, `${where}: the chosen text on the tint is ${text.toFixed(2)}:1, under 4.5:1`);
+        assert.ok(inner >= 3, `${where}: the chosen edge on the tint is ${inner.toFixed(2)}:1, under 3:1`);
+        // The check is a box drawn after the turn: its left stays inside the
+        // option and its right stays clear of the words.
+        const tick = await evaluate(`(() => {
+          const element = document.getElementById('swatch-0-1');
+          const box = element.getBoundingClientRect();
+          const tick = getComputedStyle(element, '::before');
+          const inset = parseFloat(tick.left), width = parseFloat(tick.width), height = parseFloat(tick.height);
+          const left = box.left + parseFloat(getComputedStyle(element).borderLeftWidth) + inset;
+          const turned = (width + height) * Math.SQRT1_2;
+          return { left: left + width / 2 - turned / 2, right: left + width / 2 + turned / 2, box: box.left };
+        })()`);
+        assert.ok(tick.left >= tick.box, `${where}: the check starts ${tick.box - tick.left}px outside the option`);
+        assert.ok(tick.right <= chosen.textLeft - 2, `${where}: the check reaches ${tick.right}px, over the words that start at ${chosen.textLeft}px`);
+        console.log(`${where}: chosen edge ${edge.toFixed(2)}:1, text ${text.toFixed(2)}:1, edge on tint ${inner.toFixed(2)}:1, check clear of the words by ${(chosen.textLeft - tick.right).toFixed(1)}px`);
+      }
+    }
+    {
+      await open('/product?options=in', 1440);
+      const t = await tokens(names);
+      const hovered = id => evaluate(`getComputedStyle(document.getElementById(${JSON.stringify(id)})).backgroundColor`);
+      await force('#swatch-0-1', ['hover']);
+      assert.equal(await hovered('swatch-0-1'), t['--accent-faint'], `${label}: the chosen option loses its tint under the pointer`);
+      await force('#swatch-0-1', []);
+      console.log(`${label}: the chosen option keeps its tint under the pointer`);
+    }
+
+    // A chosen option that is sold out is chosen the same way, still dashed,
+    // and holds what product-options-check measures: a light fill, an edge of
+    // at least 3:1 and words of at least 4.5:1.
+    for (const size of ['', '200%']) {
+      for (const width of [320, 1440]) {
+        const where = `sold-out chosen option ${width}px at ${size || '100%'}`;
+        await open('/product?options=out', width);
+        await rootSize(size);
+        const t = await tokens(names);
+        const [got] = await swatches(['swatch-0-1']);
+        assert.ok(got, `${where}: no chosen option`);
+        assert.equal(got.current, 'true', `${where}: not the current option`);
+        assert.equal(got.background, t['--accent-faint'], `${where}: the fill is ${got.background}, not the tint`);
+        assert.ok(rgb(got.background).every(channel => channel > 200), `${where}: the fill ${got.background} is not light`);
+        assert.deepEqual(got.widths, Array(4).fill('2px'), `${where}: the edge is ${got.widths}`);
+        assert.deepEqual(got.colours, Array(4).fill(t['--accent']), `${where}: the edge is ${got.colours}, not the accent`);
+        assert.equal(got.borderStyle, 'dashed', `${where}: the edge is ${got.borderStyle}, so a sold-out option no longer looks sold out`);
+        assert.equal(got.shadow, 'none', `${where}: a shadow draws the edge: ${got.shadow}`);
+        const edge = ratio(got.colours[0], got.ground), text = ratio(got.color, got.background), note = ratio(got.noteColour, got.background);
+        assert.ok(edge >= 3, `${where}: the edge on the page is ${edge.toFixed(2)}:1, under 3:1`);
+        assert.ok(text >= 4.5, `${where}: the words on the fill are ${text.toFixed(2)}:1, under 4.5:1`);
+        assert.ok(note >= 4.5, `${where}: the sold-out note on the fill is ${note.toFixed(2)}:1, under 4.5:1`);
+        assert.ok(got.inside, `${where}: the option is cut by the edge of the screen`);
+        console.log(`${where}: dashed accent edge ${edge.toFixed(2)}:1, words ${text.toFixed(2)}:1, note ${note.toFixed(2)}:1 on the tint`);
+      }
+    }
+
+    // The delivery card: the same language, with its radio drawn in every
+    // scheme, and a name that keeps room for words at any text size.
+    const cards = ids => evaluate(`${JSON.stringify(ids)}.map(id => {
+      const radio = document.getElementById(id);
+      const card = radio?.closest('.goen-checkout__ship');
+      if (!card) return null;
+      const style = getComputedStyle(card);
+      const box = card.getBoundingClientRect();
+      const name = card.querySelector('.goen-checkout__shipname');
+      const nameBox = name.getBoundingClientRect();
+      const dot = radio.getBoundingClientRect();
+      const radioStyle = getComputedStyle(radio);
+      return { checked: radio.checked, background: style.backgroundColor, shadow: style.boxShadow,
+        widths: ${JSON.stringify(sides)}.map(side => style['border' + side + 'Width']),
+        colours: ${JSON.stringify(sides)}.map(side => style['border' + side + 'Color']),
+        nameLeft: nameBox.left - box.left, nameTop: nameBox.top - box.top, nameWidth: nameBox.width,
+        em: parseFloat(getComputedStyle(name).fontSize),
+        radioDrawn: dot.width >= 8 && dot.height >= 8 && radioStyle.clipPath === 'none' &&
+          radioStyle.visibility === 'visible' && Number(radioStyle.opacity) === 1,
+        forced: matchMedia('(forced-colors: active)').matches,
+        inside: box.left >= -0.5 && box.right <= innerWidth + 0.5 };
+    })`);
+    for (const size of ['', '200%']) {
+      for (const width of [320, 375, 1440]) {
+        const where = `delivery card ${width}px at ${size || '100%'}`;
+        await open('/checkout', width);
+        await rootSize(size);
+        const t = await tokens(names);
+        const [chosen, plain] = await cards(['shipping-home', 'shipping-store']);
+        assert.ok(chosen && plain, `${where}: the two cards are not on the page`);
+        assert.equal(chosen.checked, true, `${where}: the first card is not the chosen one`);
+        assert.equal(chosen.forced, false, `${where}: forced colours are on, so this does not measure the ordinary look`);
+        assert.equal(chosen.background, t['--accent-faint'], `${where}: the chosen card is ${chosen.background}, not the tint`);
+        assert.deepEqual(chosen.widths, Array(4).fill('2px'), `${where}: the chosen edge is ${chosen.widths}`);
+        assert.deepEqual(chosen.colours, Array(4).fill(t['--accent']), `${where}: the chosen edge is ${chosen.colours}, not the accent`);
+        assert.equal(chosen.shadow, 'none', `${where}: a shadow draws the chosen edge: ${chosen.shadow}`);
+        assert.equal(plain.background, t['--n-0'], `${where}: an unchosen card is ${plain.background}, not white`);
+        assert.deepEqual(plain.widths, Array(4).fill('1px'), `${where}: an unchosen edge is ${plain.widths}`);
+        assert.equal(chosen.radioDrawn && plain.radioDrawn, true, `${where}: a radio is not drawn: chosen ${chosen.radioDrawn}, unchosen ${plain.radioDrawn}`);
+        assert.ok(Math.abs(chosen.nameLeft - plain.nameLeft) < 0.5, `${where}: choosing moves the name from ${plain.nameLeft}px to ${chosen.nameLeft}px`);
+        for (const [what, card] of [['chosen', chosen], ['unchosen', plain]]) {
+          assert.ok(card.nameWidth >= 2.5 * card.em, `${where}: the ${what} card leaves its name ${card.nameWidth}px, under two and a half letters of ${card.em}px`);
+          assert.ok(card.inside, `${where}: the ${what} card is cut by the edge of the screen`);
+        }
+        // Every choice card this page renders shares the padding: the two
+        // delivery cards here, and the invoice and pickup ones where a fixture
+        // shows them.
+        const choices = await evaluate(`[...document.querySelectorAll('.goen-checkout__ship')]
+          .filter(card => card.getClientRects().length > 0)
+          .map(card => {
+            const name = card.querySelector('.goen-checkout__shipname');
+            return { text: name.textContent.trim().slice(0, 24), width: name.getBoundingClientRect().width,
+              em: parseFloat(getComputedStyle(name).fontSize) };
+          })`);
+        assert.ok(choices.length >= 2, `${where}: ${choices.length} choice cards are on the page, not at least the two delivery ones`);
+        for (const card of choices) {
+          assert.ok(card.width >= 2.5 * card.em, `${where}: the card "${card.text}" leaves its name ${card.width}px, under two and a half letters of ${card.em}px`);
+        }
+        console.log(`${where}: tint, 2px accent edge, radio drawn, name ${chosen.nameWidth.toFixed(0)}px wide, narrowest of ${choices.length} cards ${Math.min(...choices.map(card => card.width)).toFixed(0)}px`);
+      }
+    }
+    // Forced colours replace the fills, so the chosen card is the 2px edge
+    // among 1px ones and the radio, which the page draws in every scheme.
+    await open('/checkout', 1440);
+    await media([{ name: 'forced-colors', value: 'active' }]);
+    {
+      const [chosen, plain] = await cards(['shipping-home', 'shipping-store']);
+      assert.equal(chosen.forced, true, `${label}: forced colours did not activate`);
+      assert.equal(chosen.radioDrawn && plain.radioDrawn, true, `${label}: forced colours: a radio is not drawn`);
+      assert.deepEqual([chosen.widths[0], plain.widths[0]], ['2px', '1px'], `${label}: forced colours: edges ${chosen.widths[0]} and ${plain.widths[0]}`);
+    }
+    await open('/product?options=in', 1440);
+    await media([{ name: 'forced-colors', value: 'active' }]);
+    {
+      const [plain, chosen] = await swatches(['swatch-0-0', 'swatch-0-1']);
+      assert.ok(chosen.tick, `${label}: forced colours: the chosen option has no check`);
+      assert.notEqual(chosen.tick.colour, 'rgba(0, 0, 0, 0)', `${label}: forced colours: the check is transparent`);
+      assert.deepEqual(chosen.tick.widths.slice(0, 2), ['2px', '2px'], `${label}: forced colours: the check is ${chosen.tick.widths}`);
+      assert.deepEqual([chosen.widths[0], plain.widths[0]], ['2px', '1px'], `${label}: forced colours: option edges ${chosen.widths[0]} and ${plain.widths[0]}`);
+    }
+    await media([]);
+    console.log(`${label}: forced colours keep the 2px edge, the check and the radio`);
+
+    // Keyboard focus shows one ring, on the card; the radio inside it draws
+    // none. A real Tab key moves focus to the chosen radio, so :focus-visible is
+    // what a keyboard user gets, and a ring that cannot be measured fails.
+    await open('/checkout', 1440);
+    await send('Emulation.setFocusEmulationEnabled', { enabled: true });
+    try {
+      await evaluate(`(() => {
+        const heading = document.getElementById('shipping-heading');
+        heading.tabIndex = -1;
+        heading.focus();
+      })()`);
+      await send('Input.dispatchKeyEvent', { type: 'keyDown', key: 'Tab', code: 'Tab', windowsVirtualKeyCode: 9 });
+      await send('Input.dispatchKeyEvent', { type: 'keyUp', key: 'Tab', code: 'Tab', windowsVirtualKeyCode: 9 });
+      const ring = await evaluate(`(() => {
+        const radio = document.activeElement;
+        const card = getComputedStyle(radio.closest('.goen-checkout__ship') ?? radio);
+        return { id: radio.id, visible: radio.matches(':focus-visible'), radio: getComputedStyle(radio).outlineStyle,
+          card: card.outlineStyle, width: card.outlineWidth };
+      })()`);
+      assert.equal(ring.id, 'shipping-home', `${label}: focus: Tab from the heading reached ${ring.id || 'nothing'}, not the chosen radio`);
+      assert.equal(ring.visible, true, `${label}: focus: the radio reached by Tab is not :focus-visible`);
+      assert.equal(ring.radio, 'none', `${label}: focus: the radio draws its own ring inside the card's`);
+      assert.deepEqual([ring.card, ring.width], ['solid', '2px'], `${label}: focus: the card's ring is ${ring.width} ${ring.card}`);
+      console.log(`${label}: focus: Tab reaches the chosen radio, one 2px ring, on the card`);
+    } finally {
+      await send('Emulation.setFocusEmulationEnabled', { enabled: false });
+    }
+
+    // The checkout is two layers: a white page, and the form's groups and the
+    // summary on it as panels with a 16px corner and an edge forced colours draw.
+    for (const width of [375, 1440]) {
+      const where = `checkout layers ${width}px`;
+      await open('/checkout', width);
+      const t = await tokens(names);
+      const got = await evaluate(`(() => {
+        const painted = element => {
+          const layers = [];
+          for (let node = element; node; node = node.parentElement) {
+            const colour = getComputedStyle(node).backgroundColor;
+            if (!/, 0\\)$/.test(colour) && !layers.includes(colour)) layers.push(colour);
+          }
+          return layers;
+        };
+        const panel = selector => {
+          const element = document.querySelector(selector);
+          if (!element) return null;
+          const style = getComputedStyle(element);
+          const shadows = [];
+          for (let node = element; node; node = node.parentElement) {
+            const shadow = getComputedStyle(node).boxShadow;
+            if (shadow !== 'none') shadows.push((node.className || node.tagName) + ': ' + shadow);
+          }
+          return { layers: painted(element), shadows, background: style.backgroundColor,
+            corners: ${JSON.stringify(corners)}.map(corner => style['border' + corner + 'Radius']),
+            edges: ${JSON.stringify(sides)}.map(side => style['border' + side + 'Width'] + ' ' + style['border' + side + 'Style'] + ' ' + style['border' + side + 'Color']) };
+        };
+        const bare = selector => getComputedStyle(document.querySelector(selector)).backgroundColor;
+        const field = getComputedStyle(document.querySelector('#name'));
+        return { page: bare('.goen-checkout'), main: bare('.goen-checkout__main'),
+          groups: ['#shipping', '#address', '#invoice'].map(panel), summary: panel('#summary'),
+          field: field.borderTopColor };
+      })()`);
+      assert.equal(got.page, 'rgba(0, 0, 0, 0)', `${where}: the checkout paints its own page: ${got.page}`);
+      assert.equal(got.main, 'rgba(0, 0, 0, 0)', `${where}: the form is a block of ${got.main}`);
+      for (const [index, panel] of [...got.groups, got.summary].entries()) {
+        assert.ok(panel, `${where}: panel ${index} is not on the page`);
+        assert.equal(panel.background, t['--n-50'], `${where}: panel ${index} is ${panel.background}, not ${t['--n-50']}`);
+        assert.deepEqual(panel.layers, [t['--n-50'], t['--n-0']], `${where}: panel ${index} sits on ${panel.layers}, not a white page and its own ${t['--n-50']}`);
+        assert.deepEqual(panel.corners, Array(4).fill('16px'), `${where}: panel ${index} has corners ${panel.corners}`);
+        assert.deepEqual(panel.shadows, [], `${where}: panel ${index} or what holds it draws a shadow, so the page is not white: ${panel.shadows}`);
+        assert.deepEqual(panel.edges, Array(4).fill('1px solid rgba(0, 0, 0, 0)'), `${where}: panel ${index} has edges ${panel.edges}`);
+      }
+      // A field is white on the group, so its edge is read against the group.
+      const edge = ratio(got.field, t['--n-50']);
+      assert.ok(edge >= 3, `${where}: a field's edge on the group is ${edge.toFixed(2)}:1, under 3:1`);
+      console.log(`${where}: white page, ${got.groups.length} groups and the summary on ${t['--n-50']}, 16px corners, field edge ${edge.toFixed(2)}:1`);
+    }
+  }
 } finally {
   socket.close();
   await fetch(`${debugging}/json/close/${target.id}`);
