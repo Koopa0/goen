@@ -88,16 +88,28 @@ SELECT grant_store_credit(
     @actor_user_id::uuid, @operation_id::uuid
 )::uuid AS entry_id;
 
--- Each customer's tier is derived once and the customers counted per band, not
--- one member_tier call per customer and band.
+-- Every customer's spend in one pass over member_order_spend, the customers
+-- counted per spend, and each distinct spend given its band once. Calling
+-- member_tier per account cost a spend aggregate per account, most of them for
+-- accounts that have never ordered (#1934).
 -- name: AdminMembershipTiers :many
+WITH spend AS (
+    SELECT u.id, coalesce(sum(s.spend_cents), 0)::bigint AS cents
+    FROM users u
+    LEFT JOIN member_order_spend s ON s.user_id = u.id
+    GROUP BY u.id
+), per_spend AS (
+    SELECT cents, count(*) AS members FROM spend GROUP BY cents
+), per_tier AS (
+    SELECT membership_tier_for(cents) AS tier_id, sum(members) AS members
+    FROM per_spend
+    GROUP BY 1
+)
 SELECT t.id, t.code, t.name, coalesce(t.name_en, '') AS name_en,
        t.min_spend_cents, t.points_multiplier_bp, t.position,
        coalesce(m.members, 0)::bigint AS members
 FROM membership_tiers t
-LEFT JOIN (SELECT member_tier(u.id, NULL) AS tier_id, count(*) AS members
-           FROM users u
-           GROUP BY 1) m ON m.tier_id = t.id
+LEFT JOIN per_tier m ON m.tier_id = t.id
 ORDER BY t.min_spend_cents;
 
 -- name: CreateMembershipTier :exec
