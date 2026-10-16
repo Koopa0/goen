@@ -202,7 +202,7 @@ func (h *Handler) rejectShip(w http.ResponseWriter, r *http.Request, refusal *sh
 	if refusal.notice != "" {
 		text := say(refusal.notice)
 		if refusal.notice == i18n.KeyAdminDispatchRefused {
-			text = fmt.Sprintf(text, i18n.CarrierName(r.Context(), shipping.Carrier(view.ShipCarrier)), view.ShipTracking)
+			text = fmt.Sprintf(text, shipping.Carrier(view.ShipCarrier).Name(r.Context()), view.ShipTracking)
 		}
 		view.Notice = components.Result{Outcome: components.OutcomeRefused, Text: text}
 	}
