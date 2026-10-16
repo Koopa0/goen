@@ -192,7 +192,7 @@ func (h *Handler) Authenticate(next http.Handler) http.Handler {
 func (h *Handler) RequireUser(next http.HandlerFunc) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		if _, ok := user.FromContext(r.Context()); !ok {
-			http.Redirect(w, r, SignInPath(r.URL.Path), http.StatusSeeOther)
+			http.Redirect(w, r, "/signin?next="+urlQueryEscape(r.URL.Path), http.StatusSeeOther)
 			return
 		}
 		next(w, r)

@@ -4,8 +4,6 @@ package account_test
 
 import (
 	"context"
-	"crypto/sha256"
-	"encoding/base64"
 	"log/slog"
 	"net/http"
 	"net/http/httptest"
@@ -13,27 +11,19 @@ import (
 	"os"
 	"strings"
 	"testing"
-	"time"
 
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
-	xhtml "golang.org/x/net/html"
 
 	"github.com/koopa0/goen/internal/account"
 	"github.com/koopa0/goen/internal/auth"
-	"github.com/koopa0/goen/internal/cart"
 	"github.com/koopa0/goen/internal/db/dbtest"
 	"github.com/koopa0/goen/internal/outbox"
 	"github.com/koopa0/goen/internal/user"
 )
 
 var pool *pgxpool.Pool
-
-func checkoutAttemptKey(label string) string {
-	digest := sha256.Sum256([]byte(label))
-	return base64.RawURLEncoding.EncodeToString(digest[:16])
-}
 
 func TestMain(m *testing.M) {
 	p, stop, err := dbtest.Start(context.Background())
@@ -120,86 +110,6 @@ func accountStorePool(t *testing.T, applicationName string) *pgxpool.Pool {
 	return p
 }
 
-func waitForAccountLock(t *testing.T, applicationName string, done <-chan error) {
-	t.Helper()
-	deadline := time.Now().Add(15 * time.Second)
-	for {
-		select {
-		case err := <-done:
-			t.Fatalf("%s returned before reaching the intended database lock: %v",
-				applicationName, err)
-		default:
-		}
-
-		_, waiting, err := dbtest.Blocked(t.Context(), pool, dbtest.Match{Application: applicationName})
-		if err == nil && waiting {
-			return
-		}
-		if time.Now().After(deadline) {
-			t.Fatalf("%s never blocked on the intended database lock: %v", applicationName, err)
-		}
-		time.Sleep(5 * time.Millisecond)
-	}
-}
-
-func operationResult(t *testing.T, done <-chan error) error {
-	t.Helper()
-	select {
-	case err := <-done:
-		return err
-	case <-time.After(15 * time.Second):
-		t.Fatal("operation did not finish after its database lock was released")
-		return nil
-	}
-}
-
-func accountCheckoutQuote(
-	t *testing.T,
-	s *cart.Store,
-	cartID uuid.UUID,
-	owner uuid.NullUUID,
-	shippingID uuid.UUID,
-	postalCode string,
-) cart.CheckoutQuoteID {
-	t.Helper()
-	view, err := s.View(t.Context(), cartID)
-	if err != nil {
-		t.Fatalf("read account checkout cart: %v", err)
-	}
-	quote, err := s.QuoteShipping(t.Context(), shippingID, view.SubtotalCents, postalCode)
-	if err != nil {
-		t.Fatalf("quote account checkout delivery: %v", err)
-	}
-	balance, err := s.AvailableCredit(t.Context(), owner)
-	if err != nil {
-		t.Fatalf("read account checkout credit: %v", err)
-	}
-	lines := make([]cart.CheckoutQuoteLine, 0, len(view.Lines))
-	for i := range view.Lines {
-		line := &view.Lines[i]
-		variantID, parseErr := uuid.Parse(line.VariantID)
-		if parseErr != nil {
-			t.Fatalf("parse account checkout variant: %v", parseErr)
-		}
-		lines = append(lines, cart.CheckoutQuoteLine{
-			VariantID: variantID, Quantity: line.Quantity, UnitCents: line.UnitCents,
-		})
-	}
-	shipping, err := quote.Total()
-	if err != nil {
-		t.Fatalf("total account checkout shipping: %v", err)
-	}
-	id, err := (cart.CheckoutQuote{
-		CartID: cartID, Lines: lines,
-		ShippingVersionID: shippingID, ShippingCents: shipping,
-		CreditCents: min(balance, view.SubtotalCents+shipping),
-	}).ID()
-	if err != nil {
-		t.Fatalf("build account checkout quote: %v", err)
-	}
-	return id
-}
-
 // placeOrderFor writes a minimal order owned by userID and returns its number.
 func placeOrderFor(t *testing.T, userID string) string {
 	t.Helper()
@@ -251,55 +161,6 @@ func placeOrderFor(t *testing.T, userID string) string {
 	return number
 }
 
-func sellableVariant(t *testing.T, ctx context.Context) uuid.UUID {
-	t.Helper()
-	var id uuid.UUID
-	if err := pool.QueryRow(ctx, `
-		SELECT pv.id FROM product_variants pv
-		JOIN products p ON p.id = pv.product_id
-		WHERE pv.is_active AND p.status = 'active'
-		  AND (pv.stock_quantity - pv.safety_stock) > 0
-		ORDER BY pv.position, pv.id LIMIT 1`).Scan(&id); err != nil {
-		t.Fatalf("sellable variant: %v", err)
-	}
-	return id
-}
-
-func anotherSellableVariant(t *testing.T, ctx context.Context, not uuid.UUID) uuid.UUID {
-	t.Helper()
-	var id uuid.UUID
-	if err := pool.QueryRow(ctx, `
-		SELECT pv.id FROM product_variants pv
-		JOIN products p ON p.id = pv.product_id
-		WHERE pv.is_active AND p.status = 'active'
-		  AND (pv.stock_quantity - pv.safety_stock) > 0
-		  AND pv.id <> $1
-		ORDER BY pv.position, pv.id LIMIT 1`, not).Scan(&id); err != nil {
-		t.Fatalf("second sellable variant: %v", err)
-	}
-	return id
-}
-
-func cartLineQuantity(body string, variant uuid.UUID) string {
-	marker := `id="qty-` + variant.String() + `"`
-	start := strings.Index(body, marker)
-	if start < 0 {
-		return ""
-	}
-	rest := body[start:]
-	value := `value="`
-	at := strings.Index(rest, value)
-	if at < 0 {
-		return ""
-	}
-	rest = rest[at+len(value):]
-	end := strings.IndexByte(rest, '"')
-	if end < 0 {
-		return ""
-	}
-	return rest[:end]
-}
-
 func sessionCookie(t *testing.T, rec *httptest.ResponseRecorder) *http.Cookie {
 	t.Helper()
 	for _, c := range rec.Result().Cookies() {
@@ -309,23 +170,6 @@ func sessionCookie(t *testing.T, rec *httptest.ResponseRecorder) *http.Cookie {
 	}
 	t.Fatal("session cookie was not set")
 	return nil
-}
-
-func cartItemQuantity(t *testing.T, cartID, variantID uuid.UUID) int32 {
-	t.Helper()
-	var qty int32
-	if err := pool.QueryRow(t.Context(), `
-		SELECT quantity FROM cart_items WHERE cart_id = $1 AND variant_id = $2`,
-		cartID, variantID).Scan(&qty); err != nil {
-		t.Fatalf("read cart line quantity: %v", err)
-	}
-	return qty
-}
-
-type roundTripFunc func(*http.Request) (*http.Response, error)
-
-func (f roundTripFunc) RoundTrip(r *http.Request) (*http.Response, error) {
-	return f(r)
 }
 
 func addAddress(t *testing.T, s *account.Store, userID, label string, isDefault bool) string {
@@ -365,59 +209,6 @@ func countDefaults(t *testing.T, userID string) int {
 		t.Fatalf("count defaults: %v", err)
 	}
 	return n
-}
-
-func emailOf(t *testing.T, userID string) string {
-	t.Helper()
-	var addr string
-	if err := pool.QueryRow(t.Context(),
-		`SELECT email FROM users WHERE id = $1`, userID).Scan(&addr); err != nil {
-		t.Fatalf("read email: %v", err)
-	}
-	return addr
-}
-
-func assertSignInPrefill(t *testing.T, body, address string, erasure bool) {
-	t.Helper()
-	doc, err := xhtml.Parse(strings.NewReader(body))
-	if err != nil {
-		t.Fatal(err)
-	}
-	var emailValue string
-	var emailFocus, passwordFocus, registerLink bool
-	for node := range doc.Descendants() {
-		attrs := map[string]string{}
-		for _, attr := range node.Attr {
-			attrs[attr.Key] = attr.Val
-		}
-		switch {
-		case node.Data == "input" && attrs["id"] == "email":
-			emailValue = attrs["value"]
-			_, emailFocus = attrs["autofocus"]
-		case node.Data == "input" && attrs["id"] == "password":
-			_, passwordFocus = attrs["autofocus"]
-		case node.Data == "a" && attrs["href"] == "/register":
-			registerLink = true
-		}
-	}
-	if emailValue != address || emailFocus || !passwordFocus || registerLink == erasure {
-		t.Errorf("returned sign-in form: email=%q email focus=%t password focus=%t register=%t; want email=%q password focus and register=%t",
-			emailValue, emailFocus, passwordFocus, registerLink, address, !erasure)
-	}
-}
-
-func accountRecoveryState(t *testing.T, userID string) string {
-	t.Helper()
-	var state string
-	if err := pool.QueryRow(t.Context(), `SELECT jsonb_build_object(
-	    'account', (SELECT to_jsonb(u) FROM users u WHERE id = $1),
-	    'verification', (SELECT jsonb_agg(to_jsonb(v) ORDER BY v.digest) FROM email_verifications v WHERE user_id = $1),
-	    'reset', (SELECT jsonb_agg(to_jsonb(r) ORDER BY r.digest) FROM password_reset_tokens r WHERE user_id = $1),
-	    'mail', (SELECT jsonb_agg(to_jsonb(m) ORDER BY m.id) FROM outbox_messages m WHERE payload->>'user_id' = $1::text OR lower(payload->>'email') = (SELECT lower(email) FROM users WHERE id = $1)))::text`,
-		userID).Scan(&state); err != nil {
-		t.Fatal(err)
-	}
-	return state
 }
 
 // postForm is a browser's form POST to target.
