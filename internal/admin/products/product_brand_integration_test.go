@@ -19,6 +19,7 @@ import (
 	"github.com/koopa0/goen/internal/admin/admintest"
 	"github.com/koopa0/goen/internal/admin/audit"
 	"github.com/koopa0/goen/internal/admin/products"
+	"github.com/koopa0/goen/internal/admin/products/productstest"
 	"github.com/koopa0/goen/internal/admin/stock"
 	"github.com/koopa0/goen/internal/cart"
 	"github.com/koopa0/goen/internal/catalog"
@@ -173,7 +174,7 @@ func TestClearingAProductBrandSurvivesARefusedEdit(t *testing.T) {
 	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
 	req.SetPathValue("slug", slug)
 	res := httptest.NewRecorder()
-	admintest.ProductDesk(p, store).Update(res, req)
+	productstest.NewHandler(p, store).Update(res, req)
 	if res.Code != http.StatusUnprocessableEntity {
 		t.Fatalf("refused edit status = %d, want 422", res.Code)
 	}

@@ -19,6 +19,7 @@ import (
 	"github.com/koopa0/goen/internal/admin/admintest"
 	"github.com/koopa0/goen/internal/admin/content"
 	"github.com/koopa0/goen/internal/admin/products"
+	"github.com/koopa0/goen/internal/admin/products/productstest"
 	"github.com/koopa0/goen/internal/admin/returns"
 	"github.com/koopa0/goen/internal/admin/shipping"
 	"github.com/koopa0/goen/internal/admin/stock"
@@ -37,7 +38,7 @@ func TestDeskRefusalPOSTsKeepDraftsAndLocateTheirForm(t *testing.T) {
 	mux := http.NewServeMux()
 	ac := access.New(log, func(*http.Request) (bool, error) { return true, nil })
 	productStore := products.NewStore(pool)
-	admintest.ProductDesk(pool, productStore).Routes(mux, ac)
+	productstest.NewHandler(pool, productStore).Routes(mux, ac)
 	stock.NewHandler(stock.NewStore(pool), log).Routes(mux, ac)
 	contentStore := content.NewStore(pool, home.NewStore(pool))
 	content.NewHandler(contentStore, images, log).Routes(mux, ac)
@@ -45,7 +46,7 @@ func TestDeskRefusalPOSTsKeepDraftsAndLocateTheirForm(t *testing.T) {
 	shipping.NewHandler(shipping.NewStore(pool), false, log).Routes(mux, ac)
 	returns.NewHandler(admintest.ReturnDesk(pool, admintest.Refunder{}), log).Routes(mux, ac)
 
-	slug := admintest.DraftProduct(t, ctx, pool, productStore)
+	slug := productstest.Draft(t, ctx, pool, productStore)
 	var sku, category string
 	if err := pool.QueryRow(ctx, `SELECT sku FROM product_variants WHERE is_active LIMIT 1`).Scan(&sku); err != nil {
 		t.Fatal(err)

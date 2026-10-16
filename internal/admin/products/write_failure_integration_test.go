@@ -24,6 +24,7 @@ import (
 	"github.com/koopa0/goen/internal/admin/admintest"
 	"github.com/koopa0/goen/internal/admin/audit"
 	"github.com/koopa0/goen/internal/admin/products"
+	"github.com/koopa0/goen/internal/admin/products/productstest"
 	"github.com/koopa0/goen/internal/db"
 	"github.com/koopa0/goen/internal/i18n"
 	"github.com/koopa0/goen/internal/media"
@@ -43,7 +44,7 @@ func TestProductWritesReportOnlyCommittedSuccess(t *testing.T) {
 		} {
 			t.Run(locale.Tag()+"/"+scenario, func(t *testing.T) {
 				ctx := i18n.WithLocale(staff, locale)
-				slug := admintest.DraftProduct(t, ctx, pool, s)
+				slug := productstest.Draft(t, ctx, pool, s)
 				digest := storeMedia(t, pool)
 				if err := s.AttachImage(ctx, slug, digest, "Write result photograph", "", "", 800, 600); err != nil {
 					t.Fatal(err)
@@ -210,7 +211,7 @@ func TestProductWritesKeepDatabaseRuleRefusalsDistinct(t *testing.T) {
 	staff, _ := admintest.StaffContext(t, owner)
 	app := admintest.AdminRolePool(t, owner)
 	s := products.NewStore(app)
-	slug := admintest.DraftProduct(t, staff, owner, s)
+	slug := productstest.Draft(t, staff, owner, s)
 	digest := storeMedia(t, owner)
 	if err := s.AttachImage(staff, slug, digest, "Rule refusal photograph", "", "", 800, 600); err != nil {
 		t.Fatal(err)
@@ -572,7 +573,7 @@ func TestRefusedSpecificationKeepsDraftWhenRatingsAreUnavailable(t *testing.T) {
 func seedProductWriteOutcome(t *testing.T, ctx context.Context, owner, adminPool *pgxpool.Pool) (slug, digest, valueID string) {
 	t.Helper()
 	s := products.NewStore(adminPool)
-	slug = admintest.DraftProduct(t, ctx, owner, s)
+	slug = productstest.Draft(t, ctx, owner, s)
 	digest = storeMedia(t, owner)
 	if err := s.AttachImage(ctx, slug, digest, "Outcome photograph", "", "", 800, 600); err != nil {
 		t.Fatal(err)

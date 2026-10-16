@@ -23,6 +23,7 @@ import (
 	"github.com/koopa0/goen/internal/admin/campaigns"
 	"github.com/koopa0/goen/internal/admin/loyalty"
 	"github.com/koopa0/goen/internal/admin/products"
+	"github.com/koopa0/goen/internal/admin/products/productstest"
 	"github.com/koopa0/goen/internal/admin/shipping"
 	"github.com/koopa0/goen/internal/admin/staff"
 	"github.com/koopa0/goen/internal/admin/stock"
@@ -234,8 +235,8 @@ func TestParseProtectedWritesDoNotCallInfrastructureARefusal(t *testing.T) {
 func TestAMistypedParcelDimensionDoesNotBecomeUnmeasured(t *testing.T) {
 	ctx, actor := admintest.StaffContext(t, pool)
 	s := products.NewStore(pool)
-	h := admintest.ProductDesk(pool, s)
-	slug := admintest.DraftProduct(t, ctx, pool, s)
+	h := productstest.NewHandler(pool, s)
+	slug := productstest.Draft(t, ctx, pool, s)
 	defer func() {
 		if err := s.SetStatus(context.WithoutCancel(ctx), slug, "archived"); err != nil {
 			t.Errorf("archive parcel fixture: %v", err)
@@ -266,7 +267,7 @@ func TestAMistypedParcelDimensionDoesNotBecomeUnmeasured(t *testing.T) {
 				"parcel_weight":  {"500"},
 			}
 			form.Set(tt.field, tt.raw)
-			res := admintest.PostVariantForm(t, h, ctx, slug, form)
+			res := productstest.PostVariantForm(t, h, ctx, slug, form)
 			if res.Code != http.StatusUnprocessableEntity {
 				t.Errorf("AddVariant(%s=%q) status = %d, want 422", tt.field, tt.raw, res.Code)
 			} else {
@@ -301,7 +302,7 @@ func TestAMistypedParcelDimensionDoesNotBecomeUnmeasured(t *testing.T) {
 		"sku": {measuredSKU}, "price": {"1000"}, "safety": {"0"},
 		"parcel_longest": {"450"}, "parcel_sum": {"1050"}, "parcel_weight": {"15000"},
 	}
-	if res := admintest.PostVariantForm(t, h, ctx, slug, measured); res.Code != http.StatusSeeOther {
+	if res := productstest.PostVariantForm(t, h, ctx, slug, measured); res.Code != http.StatusSeeOther {
 		t.Fatalf("add measured variant status = %d, want 303", res.Code)
 	}
 	unmeasuredSKU := "UNMEASURED-" + strings.ToUpper(uuid.NewString()[:8])
@@ -309,7 +310,7 @@ func TestAMistypedParcelDimensionDoesNotBecomeUnmeasured(t *testing.T) {
 		"sku": {unmeasuredSKU}, "price": {"1000"}, "safety": {"0"},
 		"parcel_longest": {""}, "parcel_sum": {""}, "parcel_weight": {""},
 	}
-	if res := admintest.PostVariantForm(t, h, ctx, slug, unmeasured); res.Code != http.StatusSeeOther {
+	if res := productstest.PostVariantForm(t, h, ctx, slug, unmeasured); res.Code != http.StatusSeeOther {
 		t.Fatalf("add unmeasured variant status = %d, want 303", res.Code)
 	}
 

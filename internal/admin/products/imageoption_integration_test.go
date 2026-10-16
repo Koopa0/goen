@@ -20,6 +20,7 @@ import (
 
 	"github.com/koopa0/goen/internal/admin/admintest"
 	"github.com/koopa0/goen/internal/admin/products"
+	"github.com/koopa0/goen/internal/admin/products/productstest"
 )
 
 // TestAnUploadedImageCanShowOneOfItsProductsOptionValues walks the two forms
@@ -28,7 +29,7 @@ import (
 func TestAnUploadedImageCanShowOneOfItsProductsOptionValues(t *testing.T) {
 	ctx, _ := admintest.StaffContext(t, pool)
 	s := products.NewStore(pool)
-	h := admintest.ProductDesk(pool, s)
+	h := productstest.NewHandler(pool, s)
 	slug, values := productWithColours(t, ctx, s, "星霧藍", "曜石黑")
 	blue, black := values[0], values[1]
 
@@ -86,7 +87,7 @@ func TestAnUploadedImageCanShowOneOfItsProductsOptionValues(t *testing.T) {
 func TestAnImageCannotShowAnotherProductsOptionValue(t *testing.T) {
 	ctx, _ := admintest.StaffContext(t, pool)
 	s := products.NewStore(pool)
-	h := admintest.ProductDesk(pool, s)
+	h := productstest.NewHandler(pool, s)
 	first, _ := productWithColours(t, ctx, s, "星霧藍")
 	_, others := productWithColours(t, ctx, s, "曜石黑")
 	borrowed := others[0]
@@ -124,7 +125,7 @@ func productWithColours(
 	t *testing.T, ctx context.Context, s *products.Store, values ...string,
 ) (slug string, ids []string) {
 	t.Helper()
-	slug = admintest.DraftProduct(t, ctx, pool, s)
+	slug = productstest.Draft(t, ctx, pool, s)
 	if errs, err := s.AddOption(ctx, slug, products.OptionDraft{Name: "顏色"}); err != nil || len(errs) > 0 {
 		t.Fatalf("AddOption: %v %v", err, errs)
 	}

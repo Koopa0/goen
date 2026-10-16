@@ -8,6 +8,7 @@ import (
 	"github.com/koopa0/goen/internal/admin/admintest"
 	"github.com/koopa0/goen/internal/admin/campaigns"
 	"github.com/koopa0/goen/internal/admin/products"
+	"github.com/koopa0/goen/internal/admin/products/productstest"
 )
 
 func TestTheCampaignProductSearchOffersWhatIsNotFeaturedYet(t *testing.T) {
@@ -21,7 +22,7 @@ func TestTheCampaignProductSearchOffersWhatIsNotFeaturedYet(t *testing.T) {
 	if err := campaigns.NewStore(pool).FeatureProduct(ctx, slug, featured); err != nil {
 		t.Fatal(err)
 	}
-	fresh := admintest.DraftProduct(t, ctx, pool, s)
+	fresh := productstest.Draft(t, ctx, pool, s)
 
 	got, err := campaigns.NewStore(pool).SearchProducts(ctx, slug, fresh)
 	if err != nil || len(got) != 1 || got[0].Slug != fresh {
@@ -54,7 +55,7 @@ func TestTheCampaignProductSearchOffersWhatIsNotFeaturedYet(t *testing.T) {
 
 func TestCampaignProductListsUseTheStorefrontVariantAndSellableStock(t *testing.T) {
 	ctx, _ := admintest.StaffContext(t, pool)
-	slug := admintest.DraftProduct(t, ctx, pool, products.NewStore(pool))
+	slug := productstest.Draft(t, ctx, pool, products.NewStore(pool))
 	for position, variant := range []struct {
 		price, original int64
 		stock, safety   int
