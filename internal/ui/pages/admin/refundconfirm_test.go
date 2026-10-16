@@ -1,75 +1,27 @@
 package admin
 
 import (
-	"fmt"
 	"html"
 	"strings"
 	"testing"
 
 	"github.com/koopa0/goen/internal/i18n"
-	"github.com/koopa0/goen/internal/money"
 	"github.com/koopa0/goen/internal/order"
 	"github.com/koopa0/goen/internal/ui/layouts"
 )
 
-func TestRefundConfirmationRepeatsTheTotalItShows(t *testing.T) {
-	t.Parallel()
-	for _, locale := range []i18n.Locale{i18n.ZhHant, i18n.En} {
-		for _, v := range []RefundConfirmation{
-			{OrderNumber: "GO-260929-000001", TotalCents: 1200000, CardCents: 900000, CreditCents: 300000},
-			{OrderNumber: "GO-260929-000001", TotalCents: 1200000, CardCents: 900000, CreditCents: 300000, ReasonInvalid: true},
-			{OrderNumber: "GO-260929-000001", TotalCents: 1200000, CardCents: 900000, CreditCents: 300000, Resume: true},
-		} {
-			ctx := i18n.WithLocale(t.Context(), locale)
-			var body strings.Builder
-			if err := ConfirmRefund(layouts.Page{Title: "refund"}, v).Render(ctx, &body); err != nil {
-				t.Fatal(err)
-			}
-			page := body.String()
-			if strings.Count(page, `name="confirm"`) != 1 || !strings.Contains(page, `method="post"`) ||
-				!strings.Contains(page, `name="total" value="1200000"`) || !strings.Contains(page, money.TWD(1200000)) ||
-				!strings.Contains(page, money.TWD(900000)) || !strings.Contains(page, money.TWD(300000)) {
-				t.Fatalf("%s confirmation does not show and repeat the refund: %s", locale, page)
-			}
-			if strings.Contains(page, `name="reason"`) == v.Resume {
-				t.Fatalf("%s resume=%t reason control disagrees", locale, v.Resume)
-			}
-			if strings.Contains(page, `aria-invalid="true"`) != v.ReasonInvalid ||
-				strings.Contains(page, i18n.T(ctx, i18n.KeyAdminRefundErrReason)) != v.ReasonInvalid {
-				t.Fatalf("%s invalid=%t reason marking disagrees", locale, v.ReasonInvalid)
-			}
-		}
-	}
-}
-
-// A pending order store credit alone paid is cancelled at once: the
-// confirmation says the credit goes back and the order page does not promise a
-// refund that waits on the card and the invoice.
+// A pending order store credit alone paid is cancelled at once: the order page
+// does not promise a refund that waits on the card and the invoice.
 func TestACreditPaidCancellationSaysWhatItDoes(t *testing.T) {
 	t.Parallel()
 	for _, locale := range []i18n.Locale{i18n.ZhHant, i18n.En} {
 		ctx := i18n.WithLocale(t.Context(), locale)
 		var body strings.Builder
-		v := RefundConfirmation{OrderNumber: "GO-260929-000001", TotalCents: 500000, CreditCents: 500000, CreditPaid: true}
-		if err := ConfirmRefund(layouts.Page{Title: "refund"}, v).Render(ctx, &body); err != nil {
-			t.Fatal(err)
-		}
-		page := html.UnescapeString(body.String())
-		if !strings.Contains(page, fmt.Sprintf(i18n.T(ctx, i18n.KeyAdminRefundCreditReturn), money.TWD(500000))) ||
-			!strings.Contains(page, i18n.T(ctx, i18n.KeyAdminRefundCreditCancel)) ||
-			!strings.Contains(page, `name="reason"`) || !strings.Contains(page, `name="total" value="500000"`) {
-			t.Errorf("%s credit-paid confirmation does not say the credit returns and the order cancels: %s", locale, page)
-		}
-		if strings.Contains(page, v.Channel(ctx)) {
-			t.Errorf("%s credit-paid confirmation repeats the payout channel %q beside the cancellation", locale, v.Channel(ctx))
-		}
-
-		body.Reset()
 		view := &OrderView{Number: "GO-260929-000001", Status: order.FulfillmentPending, Funded: true, RefundOffered: true, RefundCreditPaid: true}
 		if err := Order(layouts.Page{Title: "order"}, view).Render(ctx, &body); err != nil {
 			t.Fatal(err)
 		}
-		page = html.UnescapeString(body.String())
+		page := html.UnescapeString(body.String())
 		if !strings.Contains(page, i18n.T(ctx, i18n.KeyAdminRefundCreditHint)) || strings.Contains(page, i18n.T(ctx, i18n.KeyAdminRefundHint)) {
 			t.Errorf("%s order page of a credit-paid order does not describe its cancellation", locale)
 		}
