@@ -206,7 +206,7 @@ func (h *Handler) SignInPage(w http.ResponseWriter, r *http.Request) {
 	}
 	// next can be a live link back to /verify; never compress it.
 	web.NoCompress(w)
-	view := h.signInView(pages.AuthView{
+	view := h.signInView(AuthView{
 		Next:          web.SitePathOr(r.URL.Query().Get("next"), "/account"),
 		ReturnMessage: signInReturnMessage(r.Context(), r.URL.Query().Get("next")),
 		GoogleSignIn:  h.google.Enabled(),
@@ -223,9 +223,9 @@ func (h *Handler) SignInPage(w http.ResponseWriter, r *http.Request) {
 		view.Errors = oauthOutcome(r.Context(), r.URL.Query().Get("oauth"))
 		switch r.URL.Query().Get("oauth") {
 		case "collision":
-			view.Recovery = pages.SignInResetPassword
+			view.Recovery = SignInResetPassword
 		case "unverified":
-			view.Recovery = pages.SignInRegister
+			view.Recovery = SignInRegister
 		}
 	}
 	purpose, address := h.takeSignInContext(w, r)
@@ -234,7 +234,7 @@ func (h *Handler) SignInPage(w http.ResponseWriter, r *http.Request) {
 		view.Email = address
 		view.PasswordFocus = view.Email != ""
 	}
-	web.Render(w, r, h.log, http.StatusOK, pages.SignIn(pages.SignInMeta(r.Context()), view))
+	web.Render(w, r, h.log, http.StatusOK, SignIn(SignInMeta(r.Context()), view))
 }
 
 func (h *Handler) SignIn(w http.ResponseWriter, r *http.Request) {
@@ -295,7 +295,7 @@ func (h *Handler) SignIn(w http.ResponseWriter, r *http.Request) {
 func (h *Handler) signInFailed(w http.ResponseWriter, r *http.Request, addr, next string) {
 	web.NoCompress(w)
 	web.Render(w, r, h.log, http.StatusUnprocessableEntity,
-		pages.SignIn(pages.SignInMeta(r.Context()), h.signInView(pages.AuthView{
+		SignIn(SignInMeta(r.Context()), h.signInView(AuthView{
 			Email: addr, Next: next, ReturnMessage: signInReturnMessage(r.Context(), r.PostFormValue("next")),
 			HideRegister: r.PostFormValue("reauth") == "erase", PasswordFocus: true,
 			GoogleSignIn: h.google.Enabled(),
@@ -381,7 +381,7 @@ func signInReturnMessage(ctx context.Context, next string) string {
 	return i18n.T(ctx, key)
 }
 
-func (h *Handler) signInView(v pages.AuthView) pages.AuthView {
+func (h *Handler) signInView(v AuthView) AuthView {
 	v.DemoEmail, v.DemoPassword = h.demo.email, h.demo.password
 	return v
 }
@@ -392,7 +392,7 @@ func (h *Handler) RegisterPage(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	q := r.URL.Query()
-	view := pages.AuthView{Next: web.SitePathOr(q.Get("next"), "/account")}
+	view := AuthView{Next: web.SitePathOr(q.Get("next"), "/account")}
 	view.OffersResend = q.Get("resend") == "1" || q.Get("sent") == "1"
 	if q.Get("sent") == "1" {
 		view.Notice = i18n.T(r.Context(), i18n.KeyRegisterSent)
@@ -405,7 +405,7 @@ func (h *Handler) RegisterPage(w http.ResponseWriter, r *http.Request) {
 			view.Notice = i18n.T(r.Context(), i18n.KeyRegisterResent)
 		}
 	}
-	web.Render(w, r, h.log, http.StatusOK, pages.Register(pages.RegisterMeta(r.Context()), view))
+	web.Render(w, r, h.log, http.StatusOK, Register(RegisterMeta(r.Context()), view))
 }
 
 // ResendRegistration gives every usable address the same answer, so the form
@@ -492,11 +492,11 @@ func (h *Handler) Register(w http.ResponseWriter, r *http.Request) {
 	c.Trim()
 	next := web.SitePathOr(r.PostFormValue("next"), "/account")
 
-	view := pages.AuthView{Email: c.Email, Name: c.Name, Next: next}
+	view := AuthView{Email: c.Email, Name: c.Name, Next: next}
 	if errs := web.FieldMessages(r.Context(), c.ValidateRegistration()); len(errs) > 0 {
 		view.Errors = errs
 		web.Render(w, r, h.log, http.StatusUnprocessableEntity,
-			pages.Register(pages.RegisterMeta(r.Context()), view))
+			Register(RegisterMeta(r.Context()), view))
 		return
 	}
 
@@ -1011,8 +1011,8 @@ func (h *Handler) Verify(w http.ResponseWriter, r *http.Request) {
 func (h *Handler) CompleteRegistrationPage(w http.ResponseWriter, r *http.Request) {
 	// The page carries a live registration token; keep it out of BREACH's reach.
 	web.NoCompress(w)
-	web.Render(w, r, h.log, http.StatusOK, pages.RegisterComplete(
-		pages.RegisterCompleteMeta(r.Context()), pages.RegisterCompleteView{
+	web.Render(w, r, h.log, http.StatusOK, RegisterComplete(
+		RegisterCompleteMeta(r.Context()), RegisterCompleteView{
 			Token: r.URL.Query().Get("token"),
 			Next:  web.SitePathOr(r.URL.Query().Get("next"), "/account"),
 		}))
@@ -1063,8 +1063,8 @@ func (h *Handler) CompleteRegistration(w http.ResponseWriter, r *http.Request) {
 		clearPendingRegistration(w, h.secure)
 		http.Redirect(w, r, registrationLanding(next, adoption), http.StatusSeeOther)
 	case errors.Is(err, ErrBadCredentials):
-		web.Render(w, r, h.log, http.StatusUnprocessableEntity, pages.RegisterComplete(
-			pages.RegisterCompleteMeta(ctx), pages.RegisterCompleteView{
+		web.Render(w, r, h.log, http.StatusUnprocessableEntity, RegisterComplete(
+			RegisterCompleteMeta(ctx), RegisterCompleteView{
 				Token: token, Next: next, Error: i18n.T(ctx, i18n.KeyBadCredentials),
 			}))
 	case errors.Is(err, ErrEmailTaken):
@@ -1078,7 +1078,7 @@ func (h *Handler) CompleteRegistration(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *Handler) registrationDead(w http.ResponseWriter, r *http.Request, next string) {
-	web.Render(w, r, h.log, http.StatusUnprocessableEntity, pages.RegistrationDead(
+	web.Render(w, r, h.log, http.StatusUnprocessableEntity, RegistrationDead(
 		layouts.Page{Title: i18n.T(r.Context(), i18n.KeyVerifyDeadTitle)}, next))
 }
 
