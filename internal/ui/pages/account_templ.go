@@ -506,9 +506,9 @@ func authDoor() templ.Component {
 			return templ_7745c5c3_Err
 		}
 		var templ_7745c5c3_Var27 string
-		templ_7745c5c3_Var27, templ_7745c5c3_Err = templ.ResolveAttributeValue(assets.ProductImageURL("department-books-stationery.webp"))
+		templ_7745c5c3_Var27, templ_7745c5c3_Err = templ.ResolveAttributeValue(assets.Image{BundledKey: "department-books-stationery.webp"}.URL())
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `ui/pages/account.templ`, Line: 112, Col: 67}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `ui/pages/account.templ`, Line: 112, Col: 75}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var27)
 		if templ_7745c5c3_Err != nil {
@@ -519,9 +519,9 @@ func authDoor() templ.Component {
 			return templ_7745c5c3_Err
 		}
 		var templ_7745c5c3_Var28 string
-		templ_7745c5c3_Var28, templ_7745c5c3_Err = templ.ResolveAttributeValue(assets.ProductImageSrcset("department-books-stationery.webp"))
+		templ_7745c5c3_Var28, templ_7745c5c3_Err = templ.ResolveAttributeValue(assets.Image{BundledKey: "department-books-stationery.webp"}.Srcset())
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `ui/pages/account.templ`, Line: 113, Col: 73}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `ui/pages/account.templ`, Line: 113, Col: 81}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var28)
 		if templ_7745c5c3_Err != nil {

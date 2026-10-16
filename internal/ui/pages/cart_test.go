@@ -1346,7 +1346,7 @@ func TestCartLineLoadsTheSmallPhoto(t *testing.T) {
 	const key = "nimbus-buds-pro-01.webp"
 	line := CartLine{
 		Slug: "buds", Name: "Buds", Quantity: 1, UnitCents: 100,
-		ImageURL: assets.ProductImageURL(key), ImageSrcset: assets.ProductImageSrcsetAt(key, 1600), ImageAlt: "Buds",
+		ImageURL: assets.Image{BundledKey: key}.URL(), ImageSrcset: assets.Image{BundledKey: key}.Srcset(), ImageAlt: "Buds",
 	}
 	html := renderToString(t, cartLine(line))
 	small := assets.URL("media/products/nimbus-buds-pro-01-400.webp")

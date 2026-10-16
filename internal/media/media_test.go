@@ -310,7 +310,7 @@ func TestSrcsetNeverMisleadsTheBrowser(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			got := assets.ProductImageSrcsetAt(d, tt.width)
+			got := assets.Image{Digest: d, Width: tt.width}.Srcset()
 			if got != tt.want {
 				t.Errorf("Srcset = %q\n            want %q", got, tt.want)
 			}

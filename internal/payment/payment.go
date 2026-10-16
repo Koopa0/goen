@@ -11,6 +11,8 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+
+	"github.com/koopa0/goen/assets"
 )
 
 var (
@@ -104,13 +106,12 @@ type HoldSpan struct {
 
 // Line keeps the recorded names and prices; only its photo follows the current catalogue.
 type Line struct {
-	ImageKey   string
-	ImageWidth int32
-	ImageAlt   string
-	Name       string
-	Label      string
-	UnitCents  int64
-	Quantity   int32
+	Image     assets.Image
+	ImageAlt  string
+	Name      string
+	Label     string
+	UnitCents int64
+	Quantity  int32
 }
 
 // Capture is what a verified webhook says Stripe took.

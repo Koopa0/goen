@@ -2030,17 +2030,17 @@ func productImages(v ProductView) templ.Component {
 						return templ_7745c5c3_Err
 					}
 					if i > 0 {
-						templ_7745c5c3_Err = imageMoveForm(v, img.Key, "cover", i18n.KeyAdminImageCover).Render(ctx, templ_7745c5c3_Buffer)
+						templ_7745c5c3_Err = imageMoveForm(v, img.Key(), "cover", i18n.KeyAdminImageCover).Render(ctx, templ_7745c5c3_Buffer)
 						if templ_7745c5c3_Err != nil {
 							return templ_7745c5c3_Err
 						}
-						templ_7745c5c3_Err = imageMoveForm(v, img.Key, "up", i18n.KeyAdminImageUp).Render(ctx, templ_7745c5c3_Buffer)
+						templ_7745c5c3_Err = imageMoveForm(v, img.Key(), "up", i18n.KeyAdminImageUp).Render(ctx, templ_7745c5c3_Buffer)
 						if templ_7745c5c3_Err != nil {
 							return templ_7745c5c3_Err
 						}
 					}
 					if i < len(v.Images)-1 {
-						templ_7745c5c3_Err = imageMoveForm(v, img.Key, "down", i18n.KeyAdminImageDown).Render(ctx, templ_7745c5c3_Buffer)
+						templ_7745c5c3_Err = imageMoveForm(v, img.Key(), "down", i18n.KeyAdminImageDown).Render(ctx, templ_7745c5c3_Buffer)
 						if templ_7745c5c3_Err != nil {
 							return templ_7745c5c3_Err
 						}
@@ -2064,9 +2064,9 @@ func productImages(v ProductView) templ.Component {
 							return templ_7745c5c3_Err
 						}
 						var templ_7745c5c3_Var112 string
-						templ_7745c5c3_Var112, templ_7745c5c3_Err = templ.ResolveAttributeValue(img.Key)
+						templ_7745c5c3_Var112, templ_7745c5c3_Err = templ.ResolveAttributeValue(img.Key())
 						if templ_7745c5c3_Err != nil {
-							return templ.Error{Err: templ_7745c5c3_Err, FileName: `ui/pages/admin/product.templ`, Line: 407, Col: 58}
+							return templ.Error{Err: templ_7745c5c3_Err, FileName: `ui/pages/admin/product.templ`, Line: 407, Col: 60}
 						}
 						_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var112)
 						if templ_7745c5c3_Err != nil {
@@ -2077,9 +2077,9 @@ func productImages(v ProductView) templ.Component {
 							return templ_7745c5c3_Err
 						}
 						var templ_7745c5c3_Var113 string
-						templ_7745c5c3_Var113, templ_7745c5c3_Err = templ.ResolveAttributeValue("image-option-" + img.Key)
+						templ_7745c5c3_Var113, templ_7745c5c3_Err = templ.ResolveAttributeValue("image-option-" + img.Key())
 						if templ_7745c5c3_Err != nil {
-							return templ.Error{Err: templ_7745c5c3_Err, FileName: `ui/pages/admin/product.templ`, Line: 408, Col: 67}
+							return templ.Error{Err: templ_7745c5c3_Err, FileName: `ui/pages/admin/product.templ`, Line: 408, Col: 69}
 						}
 						_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var113)
 						if templ_7745c5c3_Err != nil {
@@ -2092,7 +2092,7 @@ func productImages(v ProductView) templ.Component {
 						var templ_7745c5c3_Var114 string
 						templ_7745c5c3_Var114, templ_7745c5c3_Err = templ.JoinStringErrs(i18n.T(ctx, i18n.KeyAdminProdImageOption))
 						if templ_7745c5c3_Err != nil {
-							return templ.Error{Err: templ_7745c5c3_Err, FileName: `ui/pages/admin/product.templ`, Line: 408, Col: 113}
+							return templ.Error{Err: templ_7745c5c3_Err, FileName: `ui/pages/admin/product.templ`, Line: 408, Col: 115}
 						}
 						_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var114))
 						if templ_7745c5c3_Err != nil {
@@ -2103,9 +2103,9 @@ func productImages(v ProductView) templ.Component {
 							return templ_7745c5c3_Err
 						}
 						var templ_7745c5c3_Var115 string
-						templ_7745c5c3_Var115, templ_7745c5c3_Err = templ.ResolveAttributeValue("image-option-" + img.Key)
+						templ_7745c5c3_Var115, templ_7745c5c3_Err = templ.ResolveAttributeValue("image-option-" + img.Key())
 						if templ_7745c5c3_Err != nil {
-							return templ.Error{Err: templ_7745c5c3_Err, FileName: `ui/pages/admin/product.templ`, Line: 409, Col: 65}
+							return templ.Error{Err: templ_7745c5c3_Err, FileName: `ui/pages/admin/product.templ`, Line: 409, Col: 67}
 						}
 						_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var115)
 						if templ_7745c5c3_Err != nil {
@@ -2176,9 +2176,9 @@ func productImages(v ProductView) templ.Component {
 						return templ_7745c5c3_Err
 					}
 					var templ_7745c5c3_Var119 string
-					templ_7745c5c3_Var119, templ_7745c5c3_Err = templ.ResolveAttributeValue(img.Key)
+					templ_7745c5c3_Var119, templ_7745c5c3_Err = templ.ResolveAttributeValue(img.Key())
 					if templ_7745c5c3_Err != nil {
-						return templ.Error{Err: templ_7745c5c3_Err, FileName: `ui/pages/admin/product.templ`, Line: 421, Col: 57}
+						return templ.Error{Err: templ_7745c5c3_Err, FileName: `ui/pages/admin/product.templ`, Line: 421, Col: 59}
 					}
 					_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var119)
 					if templ_7745c5c3_Err != nil {
@@ -2225,9 +2225,9 @@ func productImages(v ProductView) templ.Component {
 							}
 						} else {
 							var templ_7745c5c3_Var123 string
-							templ_7745c5c3_Var123, templ_7745c5c3_Err = templ.JoinStringErrs(" " + img.Key)
+							templ_7745c5c3_Var123, templ_7745c5c3_Err = templ.JoinStringErrs(" " + img.Key())
 							if templ_7745c5c3_Err != nil {
-								return templ.Error{Err: templ_7745c5c3_Err, FileName: `ui/pages/admin/product.templ`, Line: 431, Col: 25}
+								return templ.Error{Err: templ_7745c5c3_Err, FileName: `ui/pages/admin/product.templ`, Line: 431, Col: 27}
 							}
 							_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var123))
 							if templ_7745c5c3_Err != nil {
@@ -2733,9 +2733,9 @@ func productImages(v ProductView) templ.Component {
 						return templ_7745c5c3_Err
 					}
 					var templ_7745c5c3_Var149 string
-					templ_7745c5c3_Var149, templ_7745c5c3_Err = templ.ResolveAttributeValue(img.Key)
+					templ_7745c5c3_Var149, templ_7745c5c3_Err = templ.ResolveAttributeValue(img.Key())
 					if templ_7745c5c3_Err != nil {
-						return templ.Error{Err: templ_7745c5c3_Err, FileName: `ui/pages/admin/product.templ`, Line: 555, Col: 56}
+						return templ.Error{Err: templ_7745c5c3_Err, FileName: `ui/pages/admin/product.templ`, Line: 555, Col: 58}
 					}
 					_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var149)
 					if templ_7745c5c3_Err != nil {
@@ -2772,9 +2772,9 @@ func productImages(v ProductView) templ.Component {
 						return templ_7745c5c3_Err
 					}
 					var templ_7745c5c3_Var152 string
-					templ_7745c5c3_Var152, templ_7745c5c3_Err = templ.ResolveAttributeValue("reuse-alt-" + img.Key)
+					templ_7745c5c3_Var152, templ_7745c5c3_Err = templ.ResolveAttributeValue("reuse-alt-" + img.Key())
 					if templ_7745c5c3_Err != nil {
-						return templ.Error{Err: templ_7745c5c3_Err, FileName: `ui/pages/admin/product.templ`, Line: 557, Col: 62}
+						return templ.Error{Err: templ_7745c5c3_Err, FileName: `ui/pages/admin/product.templ`, Line: 557, Col: 64}
 					}
 					_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var152)
 					if templ_7745c5c3_Err != nil {
@@ -2787,7 +2787,7 @@ func productImages(v ProductView) templ.Component {
 					var templ_7745c5c3_Var153 string
 					templ_7745c5c3_Var153, templ_7745c5c3_Err = templ.JoinStringErrs(i18n.T(ctx, i18n.KeyAdminAltText))
 					if templ_7745c5c3_Err != nil {
-						return templ.Error{Err: templ_7745c5c3_Err, FileName: `ui/pages/admin/product.templ`, Line: 557, Col: 100}
+						return templ.Error{Err: templ_7745c5c3_Err, FileName: `ui/pages/admin/product.templ`, Line: 557, Col: 102}
 					}
 					_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var153))
 					if templ_7745c5c3_Err != nil {
@@ -2798,9 +2798,9 @@ func productImages(v ProductView) templ.Component {
 						return templ_7745c5c3_Err
 					}
 					var templ_7745c5c3_Var154 string
-					templ_7745c5c3_Var154, templ_7745c5c3_Err = templ.ResolveAttributeValue("reuse-alt-" + img.Key)
+					templ_7745c5c3_Var154, templ_7745c5c3_Err = templ.ResolveAttributeValue("reuse-alt-" + img.Key())
 					if templ_7745c5c3_Err != nil {
-						return templ.Error{Err: templ_7745c5c3_Err, FileName: `ui/pages/admin/product.templ`, Line: 560, Col: 34}
+						return templ.Error{Err: templ_7745c5c3_Err, FileName: `ui/pages/admin/product.templ`, Line: 560, Col: 36}
 					}
 					_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var154)
 					if templ_7745c5c3_Err != nil {
@@ -2810,7 +2810,7 @@ func productImages(v ProductView) templ.Component {
 					if templ_7745c5c3_Err != nil {
 						return templ_7745c5c3_Err
 					}
-					if v.ImageReuseDraft.Digest == img.Key {
+					if v.ImageReuseDraft.Digest == img.Key() {
 						templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 218, " value=\"")
 						if templ_7745c5c3_Err != nil {
 							return templ_7745c5c3_Err
@@ -2834,9 +2834,9 @@ func productImages(v ProductView) templ.Component {
 								return templ_7745c5c3_Err
 							}
 							var templ_7745c5c3_Var156 string
-							templ_7745c5c3_Var156, templ_7745c5c3_Err = templ.ResolveAttributeValue("reuse-alt-" + img.Key + "-error")
+							templ_7745c5c3_Var156, templ_7745c5c3_Err = templ.ResolveAttributeValue("reuse-alt-" + img.Key() + "-error")
 							if templ_7745c5c3_Err != nil {
-								return templ.Error{Err: templ_7745c5c3_Err, FileName: `ui/pages/admin/product.templ`, Line: 566, Col: 61}
+								return templ.Error{Err: templ_7745c5c3_Err, FileName: `ui/pages/admin/product.templ`, Line: 566, Col: 63}
 							}
 							_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var156)
 							if templ_7745c5c3_Err != nil {
@@ -2865,15 +2865,15 @@ func productImages(v ProductView) templ.Component {
 					if templ_7745c5c3_Err != nil {
 						return templ_7745c5c3_Err
 					}
-					if v.ImageReuseDraft.Digest == img.Key && v.HasErr("reuse_alt") {
+					if v.ImageReuseDraft.Digest == img.Key() && v.HasErr("reuse_alt") {
 						templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 224, "<p class=\"ui-error-text\" id=\"")
 						if templ_7745c5c3_Err != nil {
 							return templ_7745c5c3_Err
 						}
 						var templ_7745c5c3_Var158 string
-						templ_7745c5c3_Var158, templ_7745c5c3_Err = templ.ResolveAttributeValue("reuse-alt-" + img.Key + "-error")
+						templ_7745c5c3_Var158, templ_7745c5c3_Err = templ.ResolveAttributeValue("reuse-alt-" + img.Key() + "-error")
 						if templ_7745c5c3_Err != nil {
-							return templ.Error{Err: templ_7745c5c3_Err, FileName: `ui/pages/admin/product.templ`, Line: 574, Col: 70}
+							return templ.Error{Err: templ_7745c5c3_Err, FileName: `ui/pages/admin/product.templ`, Line: 574, Col: 72}
 						}
 						_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var158)
 						if templ_7745c5c3_Err != nil {
@@ -2886,7 +2886,7 @@ func productImages(v ProductView) templ.Component {
 						var templ_7745c5c3_Var159 string
 						templ_7745c5c3_Var159, templ_7745c5c3_Err = templ.JoinStringErrs(v.Err("reuse_alt"))
 						if templ_7745c5c3_Err != nil {
-							return templ.Error{Err: templ_7745c5c3_Err, FileName: `ui/pages/admin/product.templ`, Line: 574, Col: 106}
+							return templ.Error{Err: templ_7745c5c3_Err, FileName: `ui/pages/admin/product.templ`, Line: 574, Col: 108}
 						}
 						_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var159))
 						if templ_7745c5c3_Err != nil {
@@ -2902,9 +2902,9 @@ func productImages(v ProductView) templ.Component {
 						return templ_7745c5c3_Err
 					}
 					var templ_7745c5c3_Var160 string
-					templ_7745c5c3_Var160, templ_7745c5c3_Err = templ.ResolveAttributeValue("reuse-alt-en-" + img.Key)
+					templ_7745c5c3_Var160, templ_7745c5c3_Err = templ.ResolveAttributeValue("reuse-alt-en-" + img.Key())
 					if templ_7745c5c3_Err != nil {
-						return templ.Error{Err: templ_7745c5c3_Err, FileName: `ui/pages/admin/product.templ`, Line: 576, Col: 65}
+						return templ.Error{Err: templ_7745c5c3_Err, FileName: `ui/pages/admin/product.templ`, Line: 576, Col: 67}
 					}
 					_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var160)
 					if templ_7745c5c3_Err != nil {
@@ -2917,7 +2917,7 @@ func productImages(v ProductView) templ.Component {
 					var templ_7745c5c3_Var161 string
 					templ_7745c5c3_Var161, templ_7745c5c3_Err = templ.JoinStringErrs(i18n.T(ctx, i18n.KeyAdminProdAltEn))
 					if templ_7745c5c3_Err != nil {
-						return templ.Error{Err: templ_7745c5c3_Err, FileName: `ui/pages/admin/product.templ`, Line: 576, Col: 105}
+						return templ.Error{Err: templ_7745c5c3_Err, FileName: `ui/pages/admin/product.templ`, Line: 576, Col: 107}
 					}
 					_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var161))
 					if templ_7745c5c3_Err != nil {
@@ -2928,9 +2928,9 @@ func productImages(v ProductView) templ.Component {
 						return templ_7745c5c3_Err
 					}
 					var templ_7745c5c3_Var162 string
-					templ_7745c5c3_Var162, templ_7745c5c3_Err = templ.ResolveAttributeValue("reuse-alt-en-" + img.Key)
+					templ_7745c5c3_Var162, templ_7745c5c3_Err = templ.ResolveAttributeValue("reuse-alt-en-" + img.Key())
 					if templ_7745c5c3_Err != nil {
-						return templ.Error{Err: templ_7745c5c3_Err, FileName: `ui/pages/admin/product.templ`, Line: 579, Col: 37}
+						return templ.Error{Err: templ_7745c5c3_Err, FileName: `ui/pages/admin/product.templ`, Line: 579, Col: 39}
 					}
 					_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var162)
 					if templ_7745c5c3_Err != nil {
@@ -2940,7 +2940,7 @@ func productImages(v ProductView) templ.Component {
 					if templ_7745c5c3_Err != nil {
 						return templ_7745c5c3_Err
 					}
-					if v.ImageReuseDraft.Digest == img.Key {
+					if v.ImageReuseDraft.Digest == img.Key() {
 						templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 231, " value=\"")
 						if templ_7745c5c3_Err != nil {
 							return templ_7745c5c3_Err
@@ -2964,9 +2964,9 @@ func productImages(v ProductView) templ.Component {
 								return templ_7745c5c3_Err
 							}
 							var templ_7745c5c3_Var164 string
-							templ_7745c5c3_Var164, templ_7745c5c3_Err = templ.ResolveAttributeValue("reuse-alt-en-" + img.Key + "-error")
+							templ_7745c5c3_Var164, templ_7745c5c3_Err = templ.ResolveAttributeValue("reuse-alt-en-" + img.Key() + "-error")
 							if templ_7745c5c3_Err != nil {
-								return templ.Error{Err: templ_7745c5c3_Err, FileName: `ui/pages/admin/product.templ`, Line: 587, Col: 64}
+								return templ.Error{Err: templ_7745c5c3_Err, FileName: `ui/pages/admin/product.templ`, Line: 587, Col: 66}
 							}
 							_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var164)
 							if templ_7745c5c3_Err != nil {
@@ -2982,15 +2982,15 @@ func productImages(v ProductView) templ.Component {
 					if templ_7745c5c3_Err != nil {
 						return templ_7745c5c3_Err
 					}
-					if v.ImageReuseDraft.Digest == img.Key && v.HasErr("reuse_alt_en") {
+					if v.ImageReuseDraft.Digest == img.Key() && v.HasErr("reuse_alt_en") {
 						templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 236, "<p class=\"ui-error-text\" id=\"")
 						if templ_7745c5c3_Err != nil {
 							return templ_7745c5c3_Err
 						}
 						var templ_7745c5c3_Var165 string
-						templ_7745c5c3_Var165, templ_7745c5c3_Err = templ.ResolveAttributeValue("reuse-alt-en-" + img.Key + "-error")
+						templ_7745c5c3_Var165, templ_7745c5c3_Err = templ.ResolveAttributeValue("reuse-alt-en-" + img.Key() + "-error")
 						if templ_7745c5c3_Err != nil {
-							return templ.Error{Err: templ_7745c5c3_Err, FileName: `ui/pages/admin/product.templ`, Line: 592, Col: 73}
+							return templ.Error{Err: templ_7745c5c3_Err, FileName: `ui/pages/admin/product.templ`, Line: 592, Col: 75}
 						}
 						_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var165)
 						if templ_7745c5c3_Err != nil {
@@ -3003,7 +3003,7 @@ func productImages(v ProductView) templ.Component {
 						var templ_7745c5c3_Var166 string
 						templ_7745c5c3_Var166, templ_7745c5c3_Err = templ.JoinStringErrs(v.Err("reuse_alt_en"))
 						if templ_7745c5c3_Err != nil {
-							return templ.Error{Err: templ_7745c5c3_Err, FileName: `ui/pages/admin/product.templ`, Line: 592, Col: 112}
+							return templ.Error{Err: templ_7745c5c3_Err, FileName: `ui/pages/admin/product.templ`, Line: 592, Col: 114}
 						}
 						_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var166))
 						if templ_7745c5c3_Err != nil {
@@ -3014,18 +3014,18 @@ func productImages(v ProductView) templ.Component {
 							return templ_7745c5c3_Err
 						}
 					}
-					reuseAttrs := templ.Attributes{"id": "reuse-image-" + img.Key}
-					if v.ImageReuseDraft.Digest == img.Key && v.HasErr("reuse_image") {
+					reuseAttrs := templ.Attributes{"id": "reuse-image-" + img.Key()}
+					if v.ImageReuseDraft.Digest == img.Key() && v.HasErr("reuse_image") {
 						reuseAttrs["aria-invalid"] = "true"
-						reuseAttrs["aria-describedby"] = "reuse-image-" + img.Key + "-error"
+						reuseAttrs["aria-describedby"] = "reuse-image-" + img.Key() + "-error"
 						templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 239, "<p class=\"ui-error-text\" id=\"")
 						if templ_7745c5c3_Err != nil {
 							return templ_7745c5c3_Err
 						}
 						var templ_7745c5c3_Var167 string
-						templ_7745c5c3_Var167, templ_7745c5c3_Err = templ.ResolveAttributeValue("reuse-image-" + img.Key + "-error")
+						templ_7745c5c3_Var167, templ_7745c5c3_Err = templ.ResolveAttributeValue("reuse-image-" + img.Key() + "-error")
 						if templ_7745c5c3_Err != nil {
-							return templ.Error{Err: templ_7745c5c3_Err, FileName: `ui/pages/admin/product.templ`, Line: 598, Col: 72}
+							return templ.Error{Err: templ_7745c5c3_Err, FileName: `ui/pages/admin/product.templ`, Line: 598, Col: 74}
 						}
 						_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var167)
 						if templ_7745c5c3_Err != nil {
@@ -3038,7 +3038,7 @@ func productImages(v ProductView) templ.Component {
 						var templ_7745c5c3_Var168 string
 						templ_7745c5c3_Var168, templ_7745c5c3_Err = templ.JoinStringErrs(v.Err("reuse_image"))
 						if templ_7745c5c3_Err != nil {
-							return templ.Error{Err: templ_7745c5c3_Err, FileName: `ui/pages/admin/product.templ`, Line: 598, Col: 110}
+							return templ.Error{Err: templ_7745c5c3_Err, FileName: `ui/pages/admin/product.templ`, Line: 598, Col: 112}
 						}
 						_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var168))
 						if templ_7745c5c3_Err != nil {

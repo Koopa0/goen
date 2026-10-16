@@ -172,7 +172,8 @@ WHERE o.order_number = $1;
 -- must not move at payment.
 -- name: OrderLinesForPayment :many
 SELECT ol.product_name, ol.variant_label, ol.unit_price_cents, ol.quantity,
-       coalesce(img.media_digest, img.bundled_key, '') AS image_key,
+       coalesce(img.media_digest, '') AS image_digest,
+       coalesce(img.bundled_key, '') AS image_bundled_key,
        coalesce(localized_name(img.alt_text, img.alt_text_en, @locale::text), '')::text AS image_alt,
        coalesce(img.width, 0)::integer AS image_width
 FROM order_lines ol

@@ -9,6 +9,7 @@ import (
 	"github.com/google/go-cmp/cmp"
 	"golang.org/x/net/html"
 
+	"github.com/koopa0/goen/assets"
 	"github.com/koopa0/goen/internal/i18n"
 	"github.com/koopa0/goen/internal/ui/components"
 	"github.com/koopa0/goen/internal/ui/layouts"
@@ -102,7 +103,7 @@ func TestCategoryImageRefusalRendersDraftsApartFromSavedImages(t *testing.T) {
 			want      map[string]string
 			errorID   string
 		}{
-			{name: "category", component: CategoryForm(layouts.Page{}, CategoryView{Slug: "c", Image: components.HeaderImage{Key: saved, Alt: "Saved description"}, ImageAltDraft: alt, ImageAltEnDraft: altEn, Errors: map[string]string{"image": "Replace the image"}}), want: map[string]string{"cat-alt": alt, "cat-alt-en": altEn}, errorID: "cat-image"},
+			{name: "category", component: CategoryForm(layouts.Page{}, CategoryView{Slug: "c", Image: components.HeaderImage{Image: assets.Image{Digest: saved}, Alt: "Saved description"}, ImageAltDraft: alt, ImageAltEnDraft: altEn, Errors: map[string]string{"image": "Replace the image"}}), want: map[string]string{"cat-alt": alt, "cat-alt-en": altEn}, errorID: "cat-image"},
 		} {
 			t.Run(locale.Tag()+"/"+tt.name, func(t *testing.T) {
 				t.Parallel()

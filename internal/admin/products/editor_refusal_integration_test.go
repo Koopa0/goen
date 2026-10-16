@@ -594,7 +594,7 @@ func TestProductImageAttachmentFailuresAnswer500AndRecover(t *testing.T) {
 				if err != nil {
 					t.Fatal(err)
 				}
-				if len(attached) != 1 || attached[0].Key != obj.Digest || auditRows() != beforeAudits+1 {
+				if len(attached) != 1 || attached[0].Key() != obj.Digest || auditRows() != beforeAudits+1 {
 					t.Errorf("unlocked attachment = %+v, audits = %d; want one image and one audit", attached, auditRows())
 				}
 			})

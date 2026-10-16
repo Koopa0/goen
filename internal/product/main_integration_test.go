@@ -200,10 +200,10 @@ func TestTheChosenValuesPhotographsLeadTheGallery(t *testing.T) {
 		t.Fatalf("add a late untagged photograph: %v", err)
 	}
 
-	first := assets.ProductImageURL("pixelight-9-pro-01.webp")
-	late := assets.ProductImageURL("nimbus-buds-pro-01.webp")
-	black := assets.ProductImageURL("pixelight-9-pro-02.webp")
-	blue := assets.ProductImageURL("aurora-edge-7-01.webp")
+	first := assets.Image{BundledKey: "pixelight-9-pro-01.webp"}.URL()
+	late := assets.Image{BundledKey: "nimbus-buds-pro-01.webp"}.URL()
+	black := assets.Image{BundledKey: "pixelight-9-pro-02.webp"}.URL()
+	blue := assets.Image{BundledKey: "aurora-edge-7-01.webp"}.URL()
 	for _, tc := range []struct {
 		name string
 		sel  product.Selection

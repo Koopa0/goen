@@ -396,17 +396,17 @@ templ productImages(v ProductView) {
 						<img src={ img.URL() } srcset={ img.Srcset() } sizes="120px" alt={ img.Alt } loading="lazy" width="120" height="120"/>
 						<span class="goen-admin__meta">{ img.Alt }</span>
 						if i > 0 {
-							@imageMoveForm(v, img.Key, "cover", i18n.KeyAdminImageCover)
-							@imageMoveForm(v, img.Key, "up", i18n.KeyAdminImageUp)
+							@imageMoveForm(v, img.Key(), "cover", i18n.KeyAdminImageCover)
+							@imageMoveForm(v, img.Key(), "up", i18n.KeyAdminImageUp)
 						}
 						if i < len(v.Images)-1 {
-							@imageMoveForm(v, img.Key, "down", i18n.KeyAdminImageDown)
+							@imageMoveForm(v, img.Key(), "down", i18n.KeyAdminImageDown)
 						}
 						if v.HasOptions() {
 							<form method="post" action={ templ.SafeURL(v.ImageOptionAction()) }>
-								<input type="hidden" name="digest" value={ img.Key }/>
-								<label class="goen-sr-only" for={ "image-option-" + img.Key }>{ i18n.T(ctx, i18n.KeyAdminProdImageOption) }</label>
-								<select class="goen-input" id={ "image-option-" + img.Key } name="option_value">
+								<input type="hidden" name="digest" value={ img.Key() }/>
+								<label class="goen-sr-only" for={ "image-option-" + img.Key() }>{ i18n.T(ctx, i18n.KeyAdminProdImageOption) }</label>
+								<select class="goen-input" id={ "image-option-" + img.Key() } name="option_value">
 									@imageOptionChoices(v, img.OptionValueID)
 								</select>
 								@components.Button(components.ButtonProps{
@@ -418,7 +418,7 @@ templ productImages(v ProductView) {
 							</form>
 						}
 						<form method="post" action={ templ.SafeURL(v.ImageRemoveAction()) }>
-							<input type="hidden" name="digest" value={ img.Key }/>
+							<input type="hidden" name="digest" value={ img.Key() }/>
 							@components.Button(components.ButtonProps{
 								ButtonStyle: components.ButtonStyleOutline,
 								Size:        components.SizeSmall,
@@ -428,7 +428,7 @@ templ productImages(v ProductView) {
 									if img.Alt != "" {
 										{ " " + img.Alt }
 									} else {
-										{ " " + img.Key }
+										{ " " + img.Key() }
 									}
 								</span>
 							}
@@ -552,50 +552,50 @@ templ productImages(v ProductView) {
 			<div class="goen-admin__library">
 				for _, img := range v.Library {
 					<form class="goen-admin__libraryitem" method="post" action={ templ.SafeURL(v.ReuseAction()) }>
-						<input type="hidden" name="digest" value={ img.Key }/>
+						<input type="hidden" name="digest" value={ img.Key() }/>
 						<img src={ img.URL() } srcset={ img.Srcset() } sizes="80px" alt="" width="80" height="80" loading="lazy" decoding="async"/>
-						<label class="goen-sr-only" for={ "reuse-alt-" + img.Key }>{ i18n.T(ctx, i18n.KeyAdminAltText) }</label>
+						<label class="goen-sr-only" for={ "reuse-alt-" + img.Key() }>{ i18n.T(ctx, i18n.KeyAdminAltText) }</label>
 						<input
 							class="goen-input"
-							id={ "reuse-alt-" + img.Key }
+							id={ "reuse-alt-" + img.Key() }
 							name="alt"
-							if v.ImageReuseDraft.Digest == img.Key {
+							if v.ImageReuseDraft.Digest == img.Key() {
 								value={ v.ImageReuseDraft.Alt }
 								if v.HasErr("reuse_alt") {
 									aria-invalid="true"
-									aria-describedby={ "reuse-alt-" + img.Key + "-error" }
+									aria-describedby={ "reuse-alt-" + img.Key() + "-error" }
 								}
 							}
 							required
 							maxlength="200"
 							placeholder={ i18n.T(ctx, i18n.KeyAdminAltText) }
 						/>
-						if v.ImageReuseDraft.Digest == img.Key && v.HasErr("reuse_alt") {
-							<p class="ui-error-text" id={ "reuse-alt-" + img.Key + "-error" } role="alert">{ v.Err("reuse_alt") }</p>
+						if v.ImageReuseDraft.Digest == img.Key() && v.HasErr("reuse_alt") {
+							<p class="ui-error-text" id={ "reuse-alt-" + img.Key() + "-error" } role="alert">{ v.Err("reuse_alt") }</p>
 						}
-						<label class="goen-sr-only" for={ "reuse-alt-en-" + img.Key }>{ i18n.T(ctx, i18n.KeyAdminProdAltEn) }</label>
+						<label class="goen-sr-only" for={ "reuse-alt-en-" + img.Key() }>{ i18n.T(ctx, i18n.KeyAdminProdAltEn) }</label>
 						<input
 							class="goen-input"
-							id={ "reuse-alt-en-" + img.Key }
+							id={ "reuse-alt-en-" + img.Key() }
 							name="alt_en"
 							maxlength="200"
 							placeholder="English alt text"
-							if v.ImageReuseDraft.Digest == img.Key {
+							if v.ImageReuseDraft.Digest == img.Key() {
 								value={ v.ImageReuseDraft.AltEn }
 								if v.HasErr("reuse_alt_en") {
 									aria-invalid="true"
-									aria-describedby={ "reuse-alt-en-" + img.Key + "-error" }
+									aria-describedby={ "reuse-alt-en-" + img.Key() + "-error" }
 								}
 							}
 						/>
-						if v.ImageReuseDraft.Digest == img.Key && v.HasErr("reuse_alt_en") {
-							<p class="ui-error-text" id={ "reuse-alt-en-" + img.Key + "-error" } role="alert">{ v.Err("reuse_alt_en") }</p>
+						if v.ImageReuseDraft.Digest == img.Key() && v.HasErr("reuse_alt_en") {
+							<p class="ui-error-text" id={ "reuse-alt-en-" + img.Key() + "-error" } role="alert">{ v.Err("reuse_alt_en") }</p>
 						}
-						{{ reuseAttrs := templ.Attributes{"id": "reuse-image-" + img.Key} }}
-						if v.ImageReuseDraft.Digest == img.Key && v.HasErr("reuse_image") {
+						{{ reuseAttrs := templ.Attributes{"id": "reuse-image-" + img.Key()} }}
+						if v.ImageReuseDraft.Digest == img.Key() && v.HasErr("reuse_image") {
 							{{ reuseAttrs["aria-invalid"] = "true" }}
-							{{ reuseAttrs["aria-describedby"] = "reuse-image-" + img.Key + "-error" }}
-							<p class="ui-error-text" id={ "reuse-image-" + img.Key + "-error" } role="alert">{ v.Err("reuse_image") }</p>
+							{{ reuseAttrs["aria-describedby"] = "reuse-image-" + img.Key() + "-error" }}
+							<p class="ui-error-text" id={ "reuse-image-" + img.Key() + "-error" } role="alert">{ v.Err("reuse_image") }</p>
 						}
 						@components.Button(components.ButtonProps{
 							ButtonStyle: components.ButtonStyleOutline,

@@ -240,6 +240,7 @@ func (s *Store) tiles(ctx context.Context, campaign, department uuid.NullUUID, l
 	out := make([]pages.ProductTile, 0, len(rows))
 	for i := range rows {
 		t := &rows[i]
+		photo := assets.Image{Digest: t.ImageDigest, BundledKey: t.ImageBundledKey, Width: int(t.ImageWidth)}
 		out = append(out, pages.ProductTile{
 			Slug:         t.Slug,
 			Name:         t.Name,
@@ -253,8 +254,8 @@ func (s *Store) tiles(ctx context.Context, campaign, department uuid.NullUUID, l
 			RatingCount:  t.RatingCount,
 			InStock:      t.InStock,
 			Colours:      t.Colours,
-			ImageURL:     assets.ProductImageURL(t.ImageKey),
-			ImageSrcset:  assets.ProductImageSrcsetAt(t.ImageKey, int(t.ImageWidth)),
+			ImageURL:     photo.URL(),
+			ImageSrcset:  photo.Srcset(),
 			ImageAlt:     t.ImageAlt,
 			ImageWidth:   t.ImageWidth,
 			ImageHeight:  t.ImageHeight,

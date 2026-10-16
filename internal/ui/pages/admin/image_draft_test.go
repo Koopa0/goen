@@ -9,6 +9,7 @@ import (
 	"github.com/google/go-cmp/cmp"
 	"golang.org/x/net/html"
 
+	"github.com/koopa0/goen/assets"
 	"github.com/koopa0/goen/internal/i18n"
 	"github.com/koopa0/goen/internal/ui/layouts"
 )
@@ -26,8 +27,8 @@ func TestImageRefusalRendersDraftsApartFromSavedImages(t *testing.T) {
 			want      map[string]string
 			errorID   string
 		}{
-			{name: "product upload", component: productImages(ProductView{Slug: "p", Images: []Image{{Key: saved, Alt: "Saved description"}}, Options: []Option{{Name: "Style", Values: []OptionValue{{ID: "chosen", Value: "Chosen"}}}}, ImageUploadDraft: ProductImageUploadDraft{Alt: alt, AltEn: altEn, OptionValue: "chosen"}, Errors: map[string]string{"image": "Replace the image"}}), want: map[string]string{"p-alt": alt, "p-alt-en": altEn, "p-image-option": "chosen"}, errorID: "p-image"},
-			{name: "product reuse", component: productImages(ProductView{Slug: "p", Images: []Image{{Key: saved, Alt: "Saved description"}}, Library: []Image{{Key: "library"}, {Key: "other"}}, ImageReuseDraft: ProductImageReuseDraft{Digest: "library", Alt: alt, AltEn: altEn}, Errors: map[string]string{"reuse_alt": "Correct the description"}}), want: map[string]string{"reuse-alt-library": alt, "reuse-alt-en-library": altEn, "reuse-alt-other": "", "reuse-alt-en-other": "", "p-alt": "", "p-alt-en": ""}, errorID: "reuse-alt-library"},
+			{name: "product upload", component: productImages(ProductView{Slug: "p", Images: []Image{{Photo: assets.Image{Digest: saved}, Alt: "Saved description"}}, Options: []Option{{Name: "Style", Values: []OptionValue{{ID: "chosen", Value: "Chosen"}}}}, ImageUploadDraft: ProductImageUploadDraft{Alt: alt, AltEn: altEn, OptionValue: "chosen"}, Errors: map[string]string{"image": "Replace the image"}}), want: map[string]string{"p-alt": alt, "p-alt-en": altEn, "p-image-option": "chosen"}, errorID: "p-image"},
+			{name: "product reuse", component: productImages(ProductView{Slug: "p", Images: []Image{{Photo: assets.Image{Digest: saved}, Alt: "Saved description"}}, Library: []Image{{Photo: assets.Image{Digest: "library"}}, {Photo: assets.Image{Digest: "other"}}}, ImageReuseDraft: ProductImageReuseDraft{Digest: "library", Alt: alt, AltEn: altEn}, Errors: map[string]string{"reuse_alt": "Correct the description"}}), want: map[string]string{"reuse-alt-library": alt, "reuse-alt-en-library": altEn, "reuse-alt-other": "", "reuse-alt-en-other": "", "p-alt": "", "p-alt-en": ""}, errorID: "reuse-alt-library"},
 		} {
 			t.Run(locale.Tag()+"/"+tt.name, func(t *testing.T) {
 				t.Parallel()
@@ -136,7 +137,7 @@ func TestProductImageRefusalMarksTheSubmittedControl(t *testing.T) {
 		} {
 			t.Run(locale.Tag()+"/"+tt.field, func(t *testing.T) {
 				t.Parallel()
-				v := ProductView{Slug: "p", Images: []Image{{Key: "saved", Alt: "Saved picture"}}, Library: []Image{{Key: "library"}, {Key: "other"}}, Options: []Option{{Name: "Style", Values: []OptionValue{{ID: "chosen", Value: "Chosen"}}}}, Errors: map[string]string{tt.field: "Correct this control"}}
+				v := ProductView{Slug: "p", Images: []Image{{Photo: assets.Image{Digest: "saved"}, Alt: "Saved picture"}}, Library: []Image{{Photo: assets.Image{Digest: "library"}}, {Photo: assets.Image{Digest: "other"}}}, Options: []Option{{Name: "Style", Values: []OptionValue{{ID: "chosen", Value: "Chosen"}}}}, Errors: map[string]string{tt.field: "Correct this control"}}
 				if tt.noOptions {
 					v.Options = nil
 				}

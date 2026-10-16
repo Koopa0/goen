@@ -30,7 +30,8 @@ WHERE slug = @slug::text;
 
 -- The stored width comes from media_objects, and is 0 for an embedded file.
 -- name: AdminCampaignImage :one
-SELECT coalesce(c.media_digest, c.bundled_key, '')::text AS image_key,
+SELECT coalesce(c.media_digest, '')::text AS image_digest,
+       coalesce(c.bundled_key, '')::text AS image_bundled_key,
        coalesce(c.image_alt, '')::text AS image_alt,
        coalesce(c.image_alt_en, '')::text AS image_alt_en,
        c.tone,
@@ -80,7 +81,8 @@ ORDER BY d.day;
 -- Archived products are left out: a campaign on one shows nothing.
 -- name: AdminCampaignProductSearch :many
 SELECT p.slug, localized_name(p.name, p.name_en, @locale::text) AS name,
-       coalesce(img.media_digest, img.bundled_key, '')::text AS image_key,
+       coalesce(img.media_digest, '')::text AS image_digest,
+       coalesce(img.bundled_key, '')::text AS image_bundled_key,
        coalesce(mv.price_cents, 0)::bigint AS price_cents,
        coalesce(mv.compare_at_price_cents, 0)::bigint AS compare_at_price_cents,
        (mv.price_cents IS NOT NULL)::boolean AS has_variant,
@@ -147,7 +149,8 @@ WHERE cp.campaign_id = c.id AND cp.product_id = p.id
 
 -- name: AdminCampaignProducts :many
 SELECT p.slug, p.name AS name,
-       coalesce(img.media_digest, img.bundled_key, '')::text AS image_key,
+       coalesce(img.media_digest, '')::text AS image_digest,
+       coalesce(img.bundled_key, '')::text AS image_bundled_key,
        coalesce(mv.price_cents, 0)::bigint AS price_cents,
        coalesce(mv.compare_at_price_cents, 0)::bigint AS compare_at_price_cents,
        (mv.price_cents IS NOT NULL)::boolean AS has_variant,

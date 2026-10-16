@@ -40,7 +40,7 @@ func TestStorefrontSectionsAsDrawn(t *testing.T) {
 		} {
 			view.Categories = append(view.Categories, HomeCategory{
 				Slug: c.slug, Name: c.name, Tone: components.ToneStone,
-				Photo: components.Photo{URL: assets.ProductImageURL(c.photo)},
+				Photo: components.Photo{URL: assets.Image{BundledKey: c.photo}.URL()},
 			})
 		}
 		w.Header().Set("Content-Type", "text/html; charset=utf-8")

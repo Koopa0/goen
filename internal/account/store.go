@@ -750,6 +750,7 @@ func (s *Store) Wishlist(ctx context.Context, userID string) ([]pages.WishlistIt
 	out := make([]pages.WishlistItem, 0, len(rows))
 	for i := range rows {
 		r := &rows[i]
+		photo := assets.Image{Digest: r.ImageDigest, BundledKey: r.ImageBundledKey, Width: int(r.ImageWidth)}
 		var soleVariant string
 		if r.SoleVariantID != uuid.Nil {
 			soleVariant = r.SoleVariantID.String()
@@ -769,8 +770,8 @@ func (s *Store) Wishlist(ctx context.Context, userID string) ([]pages.WishlistIt
 				RatingCount:  r.RatingCount,
 				InStock:      r.InStock,
 				Colours:      r.Colours,
-				ImageURL:     assets.ProductImageURL(r.ImageKey),
-				ImageSrcset:  assets.ProductImageSrcsetAt(r.ImageKey, int(r.ImageWidth)),
+				ImageURL:     photo.URL(),
+				ImageSrcset:  photo.Srcset(),
 				ImageAlt:     r.ImageAlt,
 				ImageWidth:   r.ImageWidth,
 				ImageHeight:  r.ImageHeight,

@@ -16,11 +16,12 @@ type HeroSlide struct {
 	Headline string
 	CTALabel string
 	CTAHref  string
-	ImageKey string
-	Active   bool
-	InWindow bool
-	Position int32
-	EndsAt   string
+	// ImageDigest is the slide's upload, empty when it has no photograph.
+	ImageDigest string
+	Active      bool
+	InWindow    bool
+	Position    int32
+	EndsAt      string
 }
 
 func (s HeroSlide) State(ctx context.Context) string {
@@ -35,15 +36,15 @@ func (s HeroSlide) State(ctx context.Context) string {
 }
 
 func (s HeroSlide) ImageURL() string {
-	if s.ImageKey == "" {
+	if s.ImageDigest == "" {
 		return ""
 	}
-	return "/media/" + s.ImageKey
+	return assets.MediaURL(s.ImageDigest)
 }
 
 // Srcset offers the 400px rendition to the back office's 160px tile; the
 // original upload is a multi-megabyte download for it.
-func (s HeroSlide) Srcset() string { return assets.UploadedRenditionSrcset(s.ImageKey, 400) }
+func (s HeroSlide) Srcset() string { return assets.UploadedRenditionSrcset(s.ImageDigest, 400) }
 
 func (s HeroSlide) ToggleAction() string { return "/admin/home/" + s.ID + "/active" }
 

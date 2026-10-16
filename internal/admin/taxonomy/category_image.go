@@ -10,6 +10,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
 
+	"github.com/koopa0/goen/assets"
 	"github.com/koopa0/goen/internal/admin/audit"
 	"github.com/koopa0/goen/internal/db"
 	"github.com/koopa0/goen/internal/ui/components"
@@ -29,7 +30,10 @@ func (s *Store) CategoryHeader(ctx context.Context, slug string) (CategoryView, 
 	}
 	return CategoryView{
 		Slug: slug, Name: row.Name, Tone: row.Tone,
-		Image: components.HeaderImage{Key: row.ImageKey, Alt: row.ImageAlt, AltEn: row.ImageAltEn, Width: row.ImageWidth},
+		Image: components.HeaderImage{
+			Image: assets.Image{Digest: row.ImageDigest, BundledKey: row.ImageBundledKey, Width: int(row.ImageWidth)},
+			Alt:   row.ImageAlt, AltEn: row.ImageAltEn,
+		},
 	}, nil
 }
 

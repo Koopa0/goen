@@ -15,7 +15,6 @@ import (
 	"log/slog"
 	"net/http"
 	"net/url"
-	"regexp"
 	"slices"
 	"strconv"
 	"strings"
@@ -88,7 +87,7 @@ const productMediaPrefix = "media/products/"
 // requiredMedia is the photography the storefront names by file: the six
 // department photographs (1600px, each with a -800 and a -400 rendition) and
 // the campaign headers. The headers sit under media/products/ because a
-// campaign's bundled_key is resolved by the product-image function.
+// campaign's bundled_key is resolved as a product photograph's is, by Image.
 var requiredMedia = append(departmentMedia(
 	"books-stationery", "home-living", "beauty", "fashion", "food-drink", "tech",
 ),
@@ -203,53 +202,67 @@ func Has(name string) bool {
 	return ok
 }
 
-// ProductImageURL maps an image key to its public URL, or "" when there is
-// nothing to serve. The key is a product image's, a campaign header's or a
-// department photograph's media_digest or bundled_key, whichever is set; the
-// readers select coalesce(media_digest, bundled_key).
+// An Image names a picture the shop shows, as the image columns store it: an
+// upload internal/media serves, by its digest (a media_digest column), or a
+// photograph embedded under media/products, by its file name (a bundled_key
+// column). The schema lets a row hold at most one of the two, so a reader
+// copies both columns and never tells them apart by their shape. The zero
+// Image is no picture.
+type Image struct {
+	// Digest is an upload's media_objects digest. When both it and BundledKey
+	// are set, as no row can be, Digest is the picture, as coalesce(media_digest,
+	// bundled_key) would choose.
+	Digest string
+	// BundledKey is the name of a file in assets/media/products/.
+	BundledKey string
+	// Width is an upload's stored width in pixels, which its candidate set
+	// needs. A bundled photograph's renditions are pre-built, so it is not
+	// consulted for one.
+	Width int
+}
+
+// URL is the image's public URL, or "" when there is nothing to serve.
 //
-// Bundled keys are filenames, not paths: that boundary is enforced here so
+// A bundled key is a file name, not a path: that boundary is enforced here so
 // catalogue data cannot escape the products directory or select another
 // embedded asset. A key naming a file that is not embedded also yields "" —
 // the catalogue can declare its imagery before the artwork exists, and a
 // broken image is worse than the tile's placeholder.
-func ProductImageURL(storageKey string) string {
-	// An uploaded image is a 64-character sha256 served by internal/media, not
-	// from here. Checked first: a digest cannot collide with an embedded
-	// filename, so it must not depend on the embedded set to fail first.
-	if uploadedDigest.MatchString(storageKey) {
-		return "/media/" + storageKey
+func (i Image) URL() string {
+	if i.Digest != "" {
+		return MediaURL(i.Digest)
 	}
-	name := productImageName(storageKey)
+	name := productImageName(i.BundledKey)
 	if !Has(name) {
 		return ""
 	}
 	return URL(name)
 }
 
-// uploadedDigest is the shape internal/media gives a stored image. Spelled out
-// here rather than imported: assets must not depend on a feature package.
-var uploadedDigest = regexp.MustCompile(`^[0-9a-f]{64}$`)
+// Srcset is the image's candidate set, or "" when there is none to offer: an
+// upload's renditions narrower than its stored width, or a bundled
+// photograph's pre-built 400, 800 and 1600 pixel-wide files.
+func (i Image) Srcset() string {
+	if i.Digest != "" {
+		return mediaSrcset(i.Digest, i.Width)
+	}
+	return bundledSrcset(i.BundledKey)
+}
 
-// ProductImageSrcset returns the 400, 800 and 1600 pixel-wide renditions for a
+// bundledSrcset returns the 400, 800 and 1600 pixel-wide renditions for a
 // valid embedded product image. The bundled file itself remains the 1600px
 // source; the two derived filenames are an asset-pipeline detail.
-func ProductImageSrcset(storageKey string) string {
-	// An uploaded image's candidates need the original's width, which only
-	// ProductImageSrcsetAt is given; guessing one misleads the browser.
-	if uploadedDigest.MatchString(storageKey) {
-		return ""
-	}
-	fullName := productImageName(storageKey)
+func bundledSrcset(key string) string {
+	fullName := productImageName(key)
 	if !Has(fullName) {
 		return ""
 	}
 
-	dot := strings.LastIndexByte(storageKey, '.')
+	dot := strings.LastIndexByte(key, '.')
 	if dot <= 0 {
 		return URL(fullName) + " 1600w"
 	}
-	stem, ext := storageKey[:dot], storageKey[dot:]
+	stem, ext := key[:dot], key[dot:]
 	smallName := productMediaPrefix + stem + "-400" + ext
 	mediumName := productMediaPrefix + stem + "-800" + ext
 	if !Has(smallName) || !Has(mediumName) {
@@ -260,14 +273,14 @@ func ProductImageSrcset(storageKey string) string {
 		URL(fullName) + " 1600w"
 }
 
-func productImageName(storageKey string) string {
-	if storageKey == "" ||
-		storageKey == "." ||
-		storageKey == ".." ||
-		strings.ContainsAny(storageKey, `/\?#`) {
+func productImageName(key string) string {
+	if key == "" ||
+		key == "." ||
+		key == ".." ||
+		strings.ContainsAny(key, `/\?#`) {
 		return ""
 	}
-	return productMediaPrefix + storageKey
+	return productMediaPrefix + key
 }
 
 // Handler serves the embedded assets. It answers only files: a directory path
@@ -375,13 +388,13 @@ func MediaRenditionURL(digest string, width int) string {
 }
 
 // UploadedRenditionSrcset is the single candidate for a small tile whose source
-// width is not stored: the given width's rendition of an uploaded image, and ""
-// for a key that is not an uploaded digest.
-func UploadedRenditionSrcset(storageKey string, width int) string {
-	if !uploadedDigest.MatchString(storageKey) {
+// width is not stored: the given width's rendition of the upload with this
+// digest, and "" when there is none.
+func UploadedRenditionSrcset(digest string, width int) string {
+	if digest == "" {
 		return ""
 	}
-	return MediaRenditionURL(storageKey, width) + " " + strconv.Itoa(width) + "w"
+	return MediaRenditionURL(digest, width) + " " + strconv.Itoa(width) + "w"
 }
 
 // mediaSrcset is the candidate set for an uploaded image, derived from the
@@ -416,15 +429,4 @@ func mediaSrcset(digest string, originalWidth int) string {
 	b.WriteString(strconv.Itoa(originalWidth))
 	b.WriteString("w")
 	return b.String()
-}
-
-// ProductImageSrcsetAt is the candidate set for a product image whose width is
-// known. Two kinds of key reach it: an uploaded image is a sha256 digest served
-// by internal/media, a seeded one an embedded filename with pre-built
-// renditions.
-func ProductImageSrcsetAt(storageKey string, originalWidth int) string {
-	if uploadedDigest.MatchString(storageKey) {
-		return mediaSrcset(storageKey, originalWidth)
-	}
-	return ProductImageSrcset(storageKey)
 }

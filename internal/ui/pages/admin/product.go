@@ -308,20 +308,28 @@ func (v *ProductView) invoiceTerms() invoice.LineTerms {
 }
 
 type Image struct {
-	Key    string
-	Alt    string
-	Width  int32
-	Height int32
+	Photo assets.Image
+	Alt   string
 	// OptionValueID is the option value this photograph shows, empty when it
 	// shows the product whichever value is chosen.
 	OptionValueID string
 }
 
-func (i Image) URL() string { return assets.ProductImageURL(i.Key) }
+// Key is the name the editor's forms post back for the photograph: an upload's
+// digest or a bundled file's name. product_images_bundled_key_format keeps the
+// two from colliding, so the store matches it against either column.
+func (i Image) Key() string {
+	if i.Photo.Digest != "" {
+		return i.Photo.Digest
+	}
+	return i.Photo.BundledKey
+}
+
+func (i Image) URL() string { return i.Photo.URL() }
 
 // Srcset offers the 400px rendition, which is what the back office's 80 and 120
 // pixel tiles need; the original is a multi-megabyte download for either.
-func (i Image) Srcset() string { return assets.ProductImageSrcsetAt(i.Key, int(i.Width)) }
+func (i Image) Srcset() string { return i.Photo.Srcset() }
 
 func (v *ProductView) VariantRefusal() layouts.Refusal {
 	fields := make([]layouts.RefusalField, 0, 7+len(v.Options))

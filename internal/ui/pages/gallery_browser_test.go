@@ -46,7 +46,7 @@ func TestGalleryThumbnailsWrapAndKeepNativeSelection(t *testing.T) {
 		view := &ProductView{Slug: "gallery-fixture", Name: "Gallery fixture"}
 		for i := range count {
 			view.Images = append(view.Images, ProductImage{
-				URL: assets.ProductImageURL(images[i]), Alt: fmt.Sprintf("Photo %d", i+1),
+				URL: assets.Image{BundledKey: images[i]}.URL(), Alt: fmt.Sprintf("Photo %d", i+1),
 			})
 		}
 		w.Header().Set("Content-Type", "text/html; charset=utf-8")

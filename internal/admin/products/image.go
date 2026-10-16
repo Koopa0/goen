@@ -11,6 +11,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
 
+	"github.com/koopa0/goen/assets"
 	"github.com/koopa0/goen/internal/admin/audit"
 	"github.com/koopa0/goen/internal/db"
 	"github.com/koopa0/goen/internal/ui/pages/admin"
@@ -209,8 +210,8 @@ func (s *Store) Images(ctx context.Context, slug string) ([]admin.Image, error) 
 	for i := range rows {
 		r := &rows[i]
 		img := admin.Image{
-			Key: r.ImageKey, Alt: r.AltText,
-			Width: r.Width.Int32, Height: r.Height.Int32,
+			Photo: assets.Image{Digest: r.ImageDigest, BundledKey: r.ImageBundledKey, Width: int(r.Width.Int32)},
+			Alt:   r.AltText,
 		}
 		if r.OptionValueID.Valid {
 			img.OptionValueID = r.OptionValueID.UUID.String()

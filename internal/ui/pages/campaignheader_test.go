@@ -18,12 +18,12 @@ func TestCampaignPageShowsItsHeaderOnlyWhenItHasOne(t *testing.T) {
 	with := renderComponent(t, ctx, Campaign(layouts.Page{Title: "c"}, CampaignView{
 		Slug: "c", Title: "Sale",
 		Image: components.Photo{
-			URL: assets.ProductImageURL(seedBanner), Srcset: assets.ProductImageSrcsetAt(seedBanner, 1600),
+			URL: assets.Image{BundledKey: seedBanner}.URL(), Srcset: assets.Image{BundledKey: seedBanner}.Srcset(),
 			Alt: "Products on sale",
 		},
 	}))
 	for _, want := range []string{
-		`class="goen-campaign__header"`, `src="` + assets.ProductImageURL(seedBanner) + `"`,
+		`class="goen-campaign__header"`, `src="` + assets.Image{BundledKey: seedBanner}.URL() + `"`,
 		`alt="Products on sale"`, "-400.webp", " 400w", ` width="1600"`,
 	} {
 		if !strings.Contains(with, want) {
@@ -38,11 +38,11 @@ func TestCampaignPageShowsItsHeaderOnlyWhenItHasOne(t *testing.T) {
 
 func TestCampaignHeaderKeyResolvesLikeAProductImage(t *testing.T) {
 	t.Parallel()
-	if assets.ProductImageURL(seedBanner) == "" || !strings.Contains(assets.ProductImageSrcsetAt(seedBanner, 1600), "-800.webp") {
+	if banner := (assets.Image{BundledKey: seedBanner}); banner.URL() == "" || !strings.Contains(banner.Srcset(), "-800.webp") {
 		t.Fatal("the embedded banner does not resolve through the product image resolver")
 	}
 	digest := strings.Repeat("ef", 32)
-	if got := assets.ProductImageURL(digest); got != "/media/"+digest {
+	if got := (assets.Image{Digest: digest}).URL(); got != "/media/"+digest {
 		t.Fatalf("an uploaded header resolves to %q", got)
 	}
 }

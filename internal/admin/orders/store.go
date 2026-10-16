@@ -267,12 +267,14 @@ func (s *Store) Order(ctx context.Context, number string) (admin.OrderView, erro
 	if payErr := s.fillPayments(ctx, &view, o.ID); payErr != nil {
 		return admin.OrderView{}, payErr
 	}
-	for _, l := range lines {
+	for i := range lines {
+		l := &lines[i]
+		photo := assets.Image{Digest: l.ImageDigest, BundledKey: l.ImageBundledKey, Width: int(l.ImageWidth)}
 		view.Lines = append(view.Lines, pages.OrderLine{
 			SKU: l.SKU, Name: l.ProductName, Label: l.VariantLabel.String,
 			UnitCents: l.UnitPriceCents, Quantity: l.Quantity,
-			ImageURL:    assets.ProductImageURL(l.ImageKey),
-			ImageSrcset: assets.ProductImageSrcsetAt(l.ImageKey, int(l.ImageWidth)),
+			ImageURL:    photo.URL(),
+			ImageSrcset: photo.Srcset(),
 			ImageAlt:    l.ImageAlt,
 		})
 	}

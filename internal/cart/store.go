@@ -273,6 +273,7 @@ func (s *Store) View(ctx context.Context, cartID uuid.UUID) (pages.CartView, err
 	}
 	for i := range rows {
 		r := &rows[i]
+		photo := assets.Image{Digest: r.ImageDigest, BundledKey: r.ImageBundledKey, Width: int(r.ImageWidth)}
 		if r.TaxType != rows[0].TaxType {
 			view.MixedTaxTypes = true
 		}
@@ -287,8 +288,8 @@ func (s *Store) View(ctx context.Context, cartID uuid.UUID) (pages.CartView, err
 			UnitCents:    r.PriceCents,
 			Quantity:     r.Quantity,
 			Available:    r.SellableQuantity,
-			ImageURL:     assets.ProductImageURL(r.ImageKey),
-			ImageSrcset:  assets.ProductImageSrcsetAt(r.ImageKey, int(r.ImageWidth)),
+			ImageURL:     photo.URL(),
+			ImageSrcset:  photo.Srcset(),
 			ImageAlt:     r.ImageAlt,
 			CompareCents: r.CompareAtPriceCents.Int64,
 			Unavailable:  pages.ProductStatus(r.ProductStatus) != pages.ProductActive || !r.IsActive || r.SellableQuantity <= 0,
@@ -1012,11 +1013,12 @@ func (s *Store) Order(ctx context.Context, number string) (pages.OrderView, erro
 	byID := make(map[uuid.UUID]pages.OrderLine, len(lines))
 	for i := range lines {
 		l := &lines[i]
+		photo := assets.Image{Digest: l.ImageDigest, BundledKey: l.ImageBundledKey, Width: int(l.ImageWidth)}
 		line := pages.OrderLine{
 			SKU: l.SKU, Name: l.ProductName, Label: l.VariantLabel.String,
 			UnitCents: l.UnitPriceCents, Quantity: l.Quantity,
-			ImageURL:       assets.ProductImageURL(l.ImageKey),
-			ImageSrcset:    assets.ProductImageSrcsetAt(l.ImageKey, int(l.ImageWidth)),
+			ImageURL:       photo.URL(),
+			ImageSrcset:    photo.Srcset(),
 			ImageAlt:       l.ImageAlt,
 			WarrantyMonths: int(l.WarrantyMonths.Int32),
 		}

@@ -101,7 +101,8 @@ SELECT EXISTS (SELECT 1 FROM category)::boolean AS found,
 -- name: AdminCategoryImage :one
 SELECT c.name,
        coalesce(c.tone, '')::text AS tone,
-       coalesce(c.media_digest, c.bundled_key, '')::text AS image_key,
+       coalesce(c.media_digest, '')::text AS image_digest,
+       coalesce(c.bundled_key, '')::text AS image_bundled_key,
        coalesce(c.image_alt, '')::text AS image_alt,
        coalesce(c.image_alt_en, '')::text AS image_alt_en,
        coalesce(m.width, 0)::integer AS image_width

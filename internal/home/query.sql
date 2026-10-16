@@ -38,7 +38,8 @@ SELECT
     coalesce(rv.n, 0)::bigint AS rating_count,
     -- A product with no image yields NULL, which sqlc types as a non-null string
     -- and pgx cannot scan.
-    coalesce(img.media_digest, img.bundled_key, '') AS image_key,
+    coalesce(img.media_digest, '') AS image_digest,
+    coalesce(img.bundled_key, '') AS image_bundled_key,
     coalesce(localized_name(img.alt_text, img.alt_text_en, @locale::text), '')::text AS image_alt,
     coalesce(img.width, 0)::integer AS image_width,
     coalesce(img.height, 0)::integer AS image_height,
@@ -135,7 +136,7 @@ SELECT h.id, coalesce(localized_name(h.eyebrow, h.eyebrow_en, @locale::text), ''
        h.primary_cta_href,
        coalesce(localized_name(h.secondary_cta_label, h.secondary_cta_label_en,
                                @locale::text), '')::text AS secondary_cta_label,
-       h.secondary_cta_href, h.media_digest AS image_key,
+       h.secondary_cta_href, h.media_digest,
        coalesce(localized_name(h.image_alt, h.image_alt_en, @locale::text), '')::text
            AS image_alt,
        -- Dimensions come from media_objects: one row of bytes, one row of size.
@@ -178,7 +179,8 @@ LIMIT 1;
 -- name: RootCategories :many
 SELECT c.id, c.slug, localized_name(c.name, c.name_en, @locale::text) AS name, c.icon_key,
        coalesce(c.tone, 'stone')::text AS tone,
-       coalesce(c.media_digest, c.bundled_key, '')::text AS image_key,
+       coalesce(c.media_digest, '')::text AS image_digest,
+       coalesce(c.bundled_key, '')::text AS image_bundled_key,
        coalesce(localized_name(c.image_alt, c.image_alt_en, @locale::text), '')::text AS image_alt,
        coalesce(m.width, 0)::integer AS image_width
 FROM categories c
@@ -258,7 +260,8 @@ SELECT r.root AS root_id,
            SELECT 1 FROM product_variants dv
            WHERE dv.product_id = r.id AND dv.is_active AND dv.price_cents > mv.price_cents
        ) AS price_varies,
-       coalesce(img.media_digest, img.bundled_key, '') AS image_key,
+       coalesce(img.media_digest, '') AS image_digest,
+       coalesce(img.bundled_key, '') AS image_bundled_key,
        coalesce(img.width, 0)::integer AS image_width
 FROM recent r
 JOIN LATERAL (

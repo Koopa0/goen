@@ -1321,8 +1321,8 @@ func TestACartLineShowsItsOwnColoursPhotograph(t *testing.T) {
 		t.Fatalf("cart holds %d lines, want 2", len(view.Lines))
 	}
 	want := map[string]string{
-		"PXL-9P-2-1": assets.ProductImageURL("pixelight-9-pro-02.webp"), // 曜石黑, tagged by the seed
-		"PXL-9P-1-1": assets.ProductImageURL("pixelight-9-pro-01.webp"), // 星霧藍, the product's first
+		"PXL-9P-2-1": assets.Image{BundledKey: "pixelight-9-pro-02.webp"}.URL(), // 曜石黑, tagged by the seed
+		"PXL-9P-1-1": assets.Image{BundledKey: "pixelight-9-pro-01.webp"}.URL(), // 星霧藍, the product's first
 	}
 	for _, line := range view.Lines {
 		if line.ImageURL != want[line.SKU] {

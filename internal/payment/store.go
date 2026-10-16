@@ -15,6 +15,7 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/jackc/pgx/v5/pgxpool"
 
+	"github.com/koopa0/goen/assets"
 	"github.com/koopa0/goen/internal/db"
 	"github.com/koopa0/goen/internal/email"
 	"github.com/koopa0/goen/internal/i18n"
@@ -102,7 +103,8 @@ func (s *Store) Order(ctx context.Context, number string) (*Order, error) {
 	for i := range lines {
 		l := &lines[i]
 		o.Lines = append(o.Lines, Line{
-			ImageKey: l.ImageKey, ImageWidth: l.ImageWidth, ImageAlt: l.ImageAlt,
+			Image:     assets.Image{Digest: l.ImageDigest, BundledKey: l.ImageBundledKey, Width: int(l.ImageWidth)},
+			ImageAlt:  l.ImageAlt,
 			Name:      l.ProductName,
 			Label:     l.VariantLabel.String,
 			UnitCents: l.UnitPriceCents,

@@ -24,8 +24,8 @@ func TestAdminOrderLineShowsItsPhotoOrTheEmptyWell(t *testing.T) {
 					alt = "The blue product, front view"
 				}
 				if present {
-					line.ImageURL = assets.ProductImageURL("pixelight-9-pro-02.webp")
-					line.ImageSrcset = assets.ProductImageSrcsetAt("pixelight-9-pro-02.webp", 1600)
+					line.ImageURL = assets.Image{BundledKey: "pixelight-9-pro-02.webp"}.URL()
+					line.ImageSrcset = assets.Image{BundledKey: "pixelight-9-pro-02.webp"}.Srcset()
 					line.ImageAlt = alt
 				}
 				doc, err := html.Parse(strings.NewReader(renderOrder(t, locale, &OrderView{Number: "GO-1", Lines: []pages.OrderLine{line}})))

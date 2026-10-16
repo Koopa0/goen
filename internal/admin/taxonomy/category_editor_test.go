@@ -8,6 +8,7 @@ import (
 	"github.com/google/go-cmp/cmp"
 	"golang.org/x/net/html"
 
+	"github.com/koopa0/goen/assets"
 	"github.com/koopa0/goen/internal/i18n"
 	"github.com/koopa0/goen/internal/ui/components"
 	"github.com/koopa0/goen/internal/ui/layouts"
@@ -93,7 +94,7 @@ func TestCategoryImageDescriptionsCanBeSavedWithoutReplacingThePhotograph(t *tes
 				t.Parallel()
 				view := CategoryView{Slug: "books"}
 				if hasImage {
-					view.Image = components.HeaderImage{Key: strings.Repeat("a", 64)}
+					view.Image = components.HeaderImage{Image: assets.Image{Digest: strings.Repeat("a", 64)}}
 				}
 				doc, err := html.Parse(strings.NewReader(renderComponent(t, i18n.WithLocale(t.Context(), tt.locale), CategoryForm(layouts.Page{}, view))))
 				if err != nil {

@@ -42,7 +42,8 @@ SELECT trail.slug, trail.name FROM trail ORDER BY trail.depth DESC;
 -- whichever value is chosen, then the other values'. Ordered and never filtered,
 -- so a value nobody photographed still opens on a picture.
 -- name: ProductImages :many
-SELECT coalesce(pi.media_digest, pi.bundled_key)::text AS image_key,
+SELECT coalesce(pi.media_digest, '')::text AS image_digest,
+       coalesce(pi.bundled_key, '')::text AS image_bundled_key,
        localized_name(pi.alt_text, pi.alt_text_en, @locale::text) AS alt_text,
        coalesce(pi.width, 0)::integer AS width,
        coalesce(pi.height, 0)::integer AS height,
@@ -216,7 +217,8 @@ SELECT
                       WHERE vov.option_value_id = cv.id AND pv.is_active
                   )
     ), ARRAY[]::text[])::text[] AS colours,
-    coalesce(img.media_digest, img.bundled_key, '') AS image_key,
+    coalesce(img.media_digest, '') AS image_digest,
+    coalesce(img.bundled_key, '') AS image_bundled_key,
     coalesce(localized_name(img.alt_text, img.alt_text_en, @locale::text), '')::text AS image_alt,
     coalesce(img.width, 0)::integer AS image_width,
     coalesce(img.height, 0)::integer AS image_height
@@ -372,7 +374,8 @@ SELECT
                       WHERE vov.option_value_id = cv.id AND pv.is_active
                   )
     ), ARRAY[]::text[])::text[] AS colours,
-    coalesce(img.media_digest, img.bundled_key, '') AS image_key,
+    coalesce(img.media_digest, '') AS image_digest,
+    coalesce(img.bundled_key, '') AS image_bundled_key,
     coalesce(localized_name(img.alt_text, img.alt_text_en, @locale::text), '')::text AS image_alt,
     coalesce(img.width, 0)::integer AS image_width,
     coalesce(img.height, 0)::integer AS image_height,

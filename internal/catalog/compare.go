@@ -34,6 +34,7 @@ func (s *Store) Compare(ctx context.Context, slugs []string) (pages.CompareView,
 	at := make(map[string]int, len(rows))
 	for i := range rows {
 		r := &rows[i]
+		photo := assets.Image{Digest: r.ImageDigest, BundledKey: r.ImageBundledKey, Width: int(r.ImageWidth)}
 		at[r.Slug] = i
 		view.Products = append(view.Products, pages.CompareProduct{
 			Slug: r.Slug, Name: r.Name, Summary: r.Summary,
@@ -41,8 +42,8 @@ func (s *Store) Compare(ctx context.Context, slugs []string) (pages.CompareView,
 			PriceCents: r.MinPriceCents, PriceVaries: r.PriceVaries, CompareCents: r.CompareAtPriceCents.Int64, InCampaign: r.InCampaign,
 			Rating: r.Rating, RatingCount: r.RatingCount, InStock: r.InStock,
 			WarrantyMonths: int(r.WarrantyMonths),
-			ImageURL:       assets.ProductImageURL(r.ImageKey),
-			ImageSrcset:    assets.ProductImageSrcsetAt(r.ImageKey, int(r.ImageWidth)),
+			ImageURL:       photo.URL(),
+			ImageSrcset:    photo.Srcset(),
 			ImageAlt:       r.ImageAlt,
 		})
 	}
@@ -128,11 +129,12 @@ func suggestionTiles(rows []db.CompareSuggestionsRow) []pages.ProductTile {
 	out := make([]pages.ProductTile, 0, len(rows))
 	for i := range rows {
 		r := &rows[i]
+		photo := assets.Image{Digest: r.ImageDigest, BundledKey: r.ImageBundledKey, Width: int(r.ImageWidth)}
 		out = append(out, pages.ProductTile{
 			Slug: r.Slug, Name: r.Name, Brand: r.Brand,
 			PriceCents: r.MinPriceCents, PriceVaries: r.PriceVaries,
-			ImageURL:    assets.ProductImageURL(r.ImageKey),
-			ImageSrcset: assets.ProductImageSrcsetAt(r.ImageKey, int(r.ImageWidth)),
+			ImageURL:    photo.URL(),
+			ImageSrcset: photo.Srcset(),
 			ImageAlt:    r.ImageAlt, ImageWidth: r.ImageWidth, ImageHeight: r.ImageHeight,
 		})
 	}

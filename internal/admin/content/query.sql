@@ -1,6 +1,6 @@
 -- name: AdminHeroSlides :many
 SELECT h.id, h.eyebrow, h.headline, h.primary_cta_label, h.primary_cta_href,
-       h.media_digest AS image_key, h.position, h.is_active, h.starts_at, h.ends_at,
+       h.media_digest, h.position, h.is_active, h.starts_at, h.ends_at,
        (h.is_active
         AND (h.starts_at IS NULL OR h.starts_at <= now())
         AND (h.ends_at IS NULL OR h.ends_at > now()))::boolean AS in_window,

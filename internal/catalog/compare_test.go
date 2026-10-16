@@ -57,7 +57,7 @@ func TestATileCarriesTheBoxOnlyForACategoryThatOffersComparison(t *testing.T) {
 func TestASuggestionIsDrawnAsAProductTile(t *testing.T) {
 	t.Parallel()
 	got := suggestionTiles([]db.CompareSuggestionsRow{
-		{Slug: "b", Name: "Bee", Brand: "B", MinPriceCents: 1234, PriceVaries: true, ImageKey: "pixelight-9-pro-01.webp", ImageAlt: "alt"},
+		{Slug: "b", Name: "Bee", Brand: "B", MinPriceCents: 1234, PriceVaries: true, ImageBundledKey: "pixelight-9-pro-01.webp", ImageAlt: "alt"},
 	})
 	if len(got) != 1 || got[0].Slug != "b" || got[0].Name != "Bee" || got[0].Brand != "B" ||
 		got[0].PriceCents != 1234 || !got[0].PriceVaries || got[0].ImageURL == "" || got[0].ImageAlt != "alt" {
