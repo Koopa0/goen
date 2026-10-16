@@ -34,15 +34,15 @@
       const next = (index + slides.length) % slides.length;
       track.scrollTo({ left: next * track.clientWidth });
     };
-    // The attribute goes first: it also sets the tabs' weight, so they are
-    // measured at the width they keep.
+    // The pill is drawn only once the properties it reads are written, so it
+    // appears where it belongs and does not travel there.
     const placePill = () => {
       if (!tabRow) return;
-      tabRow.dataset.pill = "";
       const row = tabRow.getBoundingClientRect();
       const box = tabs[current].getBoundingClientRect();
       tabRow.style.setProperty("--pill-x", `${box.left - row.left + tabRow.scrollLeft}px`);
       tabRow.style.setProperty("--pill-w", `${box.width}px`);
+      tabRow.dataset.pill = "";
     };
     const select = (next) => {
       current = next;

@@ -2157,7 +2157,6 @@ body:has(.goen-hero) .goen-header {
 .goen-hero__tabs {
   display: flex;
   gap: var(--s-1);
-  isolation: isolate;
   margin-inline-start: calc(var(--s-4) * -1 - 4px);
   mask-image: linear-gradient(to right, #000 calc(100% - 1.5rem), transparent);
   min-width: 0;
@@ -2169,7 +2168,9 @@ body:has(.goen-hero) .goen-header {
   padding-inline-end: 1.5rem;
   /* The same 4px on the leading side, so the ring of the first tab is not cut. */
   padding-inline-start: 4px;
-  /* The pill is positioned in the row's own content, so it scrolls with the tabs. */
+  /* The pill is positioned in the row's own content, so it scrolls with the tabs.
+     The mask makes the row a stacking context, so the pill's z-index of -1
+     puts it under the tabs and not behind the page. */
   position: relative;
   scrollbar-width: none;
 }
@@ -2184,6 +2185,7 @@ body:has(.goen-hero) .goen-header {
   color: var(--fg-muted);
   flex: none;
   font-size: var(--t-14);
+  font-weight: var(--fw-medium);
   line-height: 1.5rem;
   max-width: 14em;
   overflow: hidden;
@@ -2228,12 +2230,15 @@ body:has(.goen-hero) .goen-header {
 }
 
 .goen-hero__tabs[data-pill] a {
-  font-weight: var(--fw-medium);
   transition: color var(--dur-move) var(--ease-move);
 }
 
-.goen-hero__tabs[data-pill] a[aria-current="true"] {
-  color: var(--accent-deep);
+/* Not under data-pill: the colour is there from the first paint, so setting the
+   attribute starts no transition on its own. */
+@media (scripting: enabled) {
+  .goen-hero__tabs a[aria-current="true"] {
+    color: var(--accent-deep);
+  }
 }
 
 /* Forced colours drop the fill and the edge: the current tab gets an outline. */
