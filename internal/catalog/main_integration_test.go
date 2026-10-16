@@ -1020,7 +1020,7 @@ func TestSharedSpecsComeFirstAndGapsAreVisible(t *testing.T) {
 		}
 	}
 
-	var lone *pages.CompareRow
+	var lone *catalog.CompareRow
 	for i := range view.Rows {
 		if view.Rows[i].SharedBy == 1 {
 			lone = &view.Rows[i]

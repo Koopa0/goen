@@ -78,7 +78,6 @@ var dataFilesNamingViews = []string{
 	"internal/catalog/question.go",
 	"internal/catalog/review.go",
 	"internal/catalog/store.go",
-	"internal/home/hero.go",
 	"internal/home/store.go",
 	"internal/order/buyer/order.go",
 }
@@ -90,26 +89,28 @@ var storeMethodsNamingViews = map[string]int{
 	"internal/admin/products/product_label.go": 1,
 	"internal/admin/products/standing.go":      2,
 	"internal/cart/store.go":                   3,
-	"internal/catalog/campaign.go":             2,
-	"internal/catalog/compare.go":              3,
-	"internal/catalog/department.go":           5,
+	"internal/catalog/compare.go":              1,
+	"internal/catalog/department.go":           1,
 	"internal/catalog/product_store.go":        8,
 	"internal/catalog/question.go":             1,
 	"internal/catalog/review.go":               1,
-	"internal/catalog/store.go":                6,
-	"internal/home/hero.go":                    1,
+	"internal/catalog/store.go":                1,
 	"internal/home/store.go":                   5,
 	"internal/order/buyer/order.go":            1,
 }
 
 var viewValueReads = map[string]int{
-	"cmd/goen/server.go":                  2,
-	"internal/cart/handler.go":            11,
-	"internal/catalog/compare.go":         3,
-	"internal/catalog/department.go":      2,
-	"internal/catalog/product_handler.go": 8,
-	"internal/catalog/review.go":          12,
-	"internal/catalog/store.go":           2,
+	"cmd/goen/server.go":          2,
+	"internal/cart/handler.go":    11,
+	"internal/catalog/compare.go": 3,
+	// The compare views moved in S8a read MinCompare and MaxCompare, which stay
+	// in ui/pages while the product page there reads them too. S8b moves
+	// comparecap.go into catalog with the product page and deletes these three.
+	"internal/catalog/compare_page_templ.go": 4,
+	"internal/catalog/compare_view.go":       2,
+	"internal/catalog/compareform_templ.go":  1,
+	"internal/catalog/product_handler.go":    8,
+	"internal/catalog/review.go":             12,
 }
 
 const (

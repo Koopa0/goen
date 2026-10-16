@@ -1,4 +1,4 @@
-package pages
+package pages_test
 
 import (
 	"log/slog"
@@ -11,9 +11,11 @@ import (
 	"time"
 
 	"github.com/koopa0/goen/assets"
+	"github.com/koopa0/goen/internal/catalog"
 	"github.com/koopa0/goen/internal/i18n"
 	"github.com/koopa0/goen/internal/ui/components"
 	"github.com/koopa0/goen/internal/ui/layouts"
+	"github.com/koopa0/goen/internal/ui/pages"
 	"github.com/koopa0/goen/internal/ui/uitest"
 )
 
@@ -34,7 +36,7 @@ func TestStorefrontSectionsAsDrawn(t *testing.T) {
 	mux.Handle(assets.Prefix, assets.Handler(slog.New(slog.DiscardHandler)))
 	tones := map[string]components.Tone{"ink": components.ToneInk, "sage": components.ToneSage}
 	mux.HandleFunc("GET /home", func(w http.ResponseWriter, r *http.Request) {
-		view := HomeView{Rules: ShopRules{FreeDeliveryCents: 99900, LowestFeeCents: 6000, PickupOffered: true}}
+		view := pages.HomeView{Rules: pages.ShopRules{FreeDeliveryCents: 99900, LowestFeeCents: 6000, PickupOffered: true}}
 		photo := components.Photo{URL: assets.Image{BundledKey: "nimbus-band-2-01.webp"}.URL(), Alt: "Headphones on a desk"}
 		view.Slides = []components.HeroSlide{
 			{Title: "Technology", Layout: components.SlideSplit, Tone: components.ToneStone, Photo: photo},
@@ -48,56 +50,56 @@ func TestStorefrontSectionsAsDrawn(t *testing.T) {
 			{"bags", "Bags", "orili-canvas-tote-02.webp"},
 			{"coffee", "Coffee", "dawnroast-drip-coffee-01.webp"},
 		} {
-			view.Categories = append(view.Categories, HomeCategory{
+			view.Categories = append(view.Categories, pages.HomeCategory{
 				Slug: c.slug, Name: c.name, Tone: components.ToneStone,
 				Photo: components.Photo{URL: assets.Image{BundledKey: c.photo}.URL()},
 			})
 		}
 		if tone, ok := tones[r.URL.Query().Get("band")]; ok {
-			view.Band = &DepartmentBand{Name: "Technology", Items: 12, Fact: "Audio · Phones", Href: "/c/tech", Tone: tone}
+			view.Band = &pages.DepartmentBand{Name: "Technology", Items: 12, Fact: "Audio · Phones", Href: "/c/tech", Tone: tone}
 			for _, name := range []string{"Canvas tote", "City tote", "Weekend tote", "Market tote"} {
-				view.Band.Tiles = append(view.Band.Tiles, ProductTile{Slug: strings.ToLower(strings.ReplaceAll(name, " ", "-")), Name: name, PriceCents: 89000, InStock: true})
+				view.Band.Tiles = append(view.Band.Tiles, pages.ProductTile{Slug: strings.ToLower(strings.ReplaceAll(name, " ", "-")), Name: name, PriceCents: 89000, InStock: true})
 			}
 		}
 		w.Header().Set("Content-Type", "text/html; charset=utf-8")
-		if renderErr := Home(layouts.Page{}, view).Render(i18n.WithLocale(r.Context(), i18n.En), w); renderErr != nil {
+		if renderErr := pages.Home(layouts.Page{}, view).Render(i18n.WithLocale(r.Context(), i18n.En), w); renderErr != nil {
 			t.Errorf("render home fixture: %v", renderErr)
 		}
 	})
 	mux.HandleFunc("GET /deals", func(w http.ResponseWriter, r *http.Request) {
-		view := SearchView{Campaigns: CampaignPage{Page: 1, Total: 2, PageSize: 12, Rows: []CampaignSummary{
+		view := catalog.SearchView{Campaigns: catalog.CampaignPage{Page: 1, Total: 2, PageSize: 12, Rows: []catalog.CampaignSummary{
 			{Slug: "autumn", Title: "Autumn audio", Products: 4, EndsOn: "31 Oct"},
 			{Slug: "desk", Title: "Desk week", Products: 6},
 		}}}
 		w.Header().Set("Content-Type", "text/html; charset=utf-8")
-		if renderErr := Deals(layouts.Page{}, view).Render(i18n.WithLocale(r.Context(), i18n.En), w); renderErr != nil {
+		if renderErr := catalog.Deals(layouts.Page{}, view).Render(i18n.WithLocale(r.Context(), i18n.En), w); renderErr != nil {
 			t.Errorf("render deals fixture: %v", renderErr)
 		}
 	})
 	mux.HandleFunc("GET /search", func(w http.ResponseWriter, r *http.Request) {
-		view := SearchView{Query: "tote", Total: 2, Page: 1, PageSize: 20, Products: []ProductTile{
+		view := catalog.SearchView{Query: "tote", Total: 2, Page: 1, PageSize: 20, Products: []pages.ProductTile{
 			{Slug: "canvas-tote", Name: "Canvas tote", PriceCents: 89000, InStock: true, Comparable: true},
 			{Slug: "city-tote", Name: "City tote", PriceCents: 129000, InStock: true, Comparable: true},
 		}}
 		w.Header().Set("Content-Type", "text/html; charset=utf-8")
-		if renderErr := Search(layouts.Page{}, view).Render(i18n.WithLocale(r.Context(), i18n.En), w); renderErr != nil {
+		if renderErr := catalog.Search(layouts.Page{}, view).Render(i18n.WithLocale(r.Context(), i18n.En), w); renderErr != nil {
 			t.Errorf("render search fixture: %v", renderErr)
 		}
 	})
 	mux.HandleFunc("GET /cart", func(w http.ResponseWriter, r *http.Request) {
-		view := CartView{ItemCount: 1, SubtotalCents: 89000, Lines: []CartLine{
+		view := pages.CartView{ItemCount: 1, SubtotalCents: 89000, Lines: []pages.CartLine{
 			{VariantID: "tote-natural", Slug: "canvas-tote", Name: "Canvas tote", Quantity: 1, Available: 5, UnitCents: 89000},
 		}}
 		ctx := layouts.WithStaff(i18n.WithLocale(r.Context(), i18n.En), true)
 		w.Header().Set("Content-Type", "text/html; charset=utf-8")
-		if renderErr := Cart(layouts.Page{}, view).Render(ctx, w); renderErr != nil {
+		if renderErr := pages.Cart(layouts.Page{}, view).Render(ctx, w); renderErr != nil {
 			t.Errorf("render cart fixture: %v", renderErr)
 		}
 	})
 	mux.HandleFunc("GET /c/audio", func(w http.ResponseWriter, r *http.Request) {
-		view := ListingView{Slug: "audio", Name: "Audio", Filtered: true, InStockOnly: true, Query: "in_stock=1"}
+		view := catalog.ListingView{Slug: "audio", Name: "Audio", Filtered: true, InStockOnly: true, Query: "in_stock=1"}
 		w.Header().Set("Content-Type", "text/html; charset=utf-8")
-		if renderErr := Listing(layouts.Page{}, view, nil, nil).Render(i18n.WithLocale(r.Context(), i18n.En), w); renderErr != nil {
+		if renderErr := catalog.Listing(layouts.Page{}, view, nil, nil).Render(i18n.WithLocale(r.Context(), i18n.En), w); renderErr != nil {
 			t.Errorf("render listing fixture: %v", renderErr)
 		}
 	})
@@ -107,55 +109,55 @@ func TestStorefrontSectionsAsDrawn(t *testing.T) {
 		if query.Get("zh") == "1" {
 			locale, names = i18n.ZhHant, []string{"手機", "筆電", "平板", "耳機與音響", "穿戴裝置", "周邊配件"}
 		}
-		theme := &Theme{Tone: tones[query.Get("tone")], Children: []Crumb{
+		theme := &catalog.Theme{Tone: tones[query.Get("tone")], Children: []pages.Crumb{
 			{Slug: "phones", Name: names[0]}, {Slug: "laptops", Name: names[1]}, {Slug: "tablets", Name: names[2]},
 			{Slug: "audio", Name: names[3]}, {Slug: "wearables", Name: names[4]}, {Slug: "accessories", Name: names[5]},
 		}}
 		if query.Get("photo") == "1" {
 			theme.Photo = components.Photo{URL: assets.Image{BundledKey: "nimbus-band-2-01.webp"}.URL(), Alt: "Headphones on a desk"}
 		}
-		var head *DepartmentHead
+		var head *catalog.DepartmentHead
 		if query.Get("notice") == "1" {
 			now := time.Date(2026, 10, 9, 4, 0, 0, 0, time.UTC)
-			head = &DepartmentHead{Notice: &DepartmentNotice{
-				Title: "Autumn audio", Href: "/s/autumn", End: NewCampaignEnd(time.Date(2026, 10, 30, 16, 0, 0, 0, time.UTC), now),
+			head = &catalog.DepartmentHead{Notice: &catalog.DepartmentNotice{
+				Title: "Autumn audio", Href: "/s/autumn", End: pages.NewCampaignEnd(time.Date(2026, 10, 30, 16, 0, 0, 0, time.UTC), now),
 			}}
 		}
-		view := ListingView{Slug: "phones", Name: names[0], Theme: theme}
+		view := catalog.ListingView{Slug: "phones", Name: names[0], Theme: theme}
 		w.Header().Set("Content-Type", "text/html; charset=utf-8")
-		if renderErr := Listing(layouts.Page{}, view, nil, head).Render(i18n.WithLocale(r.Context(), locale), w); renderErr != nil {
+		if renderErr := catalog.Listing(layouts.Page{}, view, nil, head).Render(i18n.WithLocale(r.Context(), locale), w); renderErr != nil {
 			t.Errorf("render department fixture: %v", renderErr)
 		}
 	})
 	mux.HandleFunc("GET /product", func(w http.ResponseWriter, r *http.Request) {
-		view := &ProductView{
+		view := &pages.ProductView{
 			Name: "Restwood Mug", Brand: "Restwood", Slug: "restwood-mug", Description: "A stoneware mug.",
 			SelectionOK: true, Exact: true, Sellable: true, AnySellable: true, PriceCents: 43200,
 			Tone: tones[r.URL.Query().Get("tone")],
 		}
 		if chosen := r.URL.Query().Get("options"); chosen != "" {
-			view.Options = []ProductOption{{Name: "storage", Label: "Storage", Values: []ProductOptionValue{
+			view.Options = []pages.ProductOption{{Name: "storage", Label: "Storage", Values: []pages.ProductOptionValue{
 				{Value: "64", Label: "64 GB", Available: true, Href: "/product?options=" + chosen},
 				{Value: "128", Label: "128 GB", Selected: true, Available: chosen == "in", Href: "/product?options=" + chosen},
 				{Value: "256", Label: "256 GB", Href: "/product?options=" + chosen},
 			}}}
 		}
 		if r.URL.Query().Get("photo") == "1" {
-			view.Images = []ProductImage{{
+			view.Images = []pages.ProductImage{{
 				URL: assets.Image{BundledKey: "nimbus-band-2-01.webp"}.URL(), Alt: "A mug", Width: 1600, Height: 1200,
 			}}
 		}
 		w.Header().Set("Content-Type", "text/html; charset=utf-8")
-		if renderErr := Product(ProductMeta(view), view).Render(i18n.WithLocale(r.Context(), i18n.En), w); renderErr != nil {
+		if renderErr := pages.Product(pages.ProductMeta(view), view).Render(i18n.WithLocale(r.Context(), i18n.En), w); renderErr != nil {
 			t.Errorf("render product fixture: %v", renderErr)
 		}
 	})
 	mux.HandleFunc("GET /checkout", func(w http.ResponseWriter, r *http.Request) {
-		view := CheckoutView{
-			Cart:     CartView{ItemCount: 1, SubtotalCents: 89000, Lines: []CartLine{{VariantID: "tote-natural", Slug: "canvas-tote", Name: "Canvas tote", Quantity: 1, UnitCents: 89000}}},
-			Shipping: []ShippingChoice{{VersionID: "home", Name: "Home delivery", Carrier: "Courier", FeeCents: 8000}, {VersionID: "store", Name: "Convenience store", FeeCents: 6000}},
+		view := pages.CheckoutView{
+			Cart:     pages.CartView{ItemCount: 1, SubtotalCents: 89000, Lines: []pages.CartLine{{VariantID: "tote-natural", Slug: "canvas-tote", Name: "Canvas tote", Quantity: 1, UnitCents: 89000}}},
+			Shipping: []pages.ShippingChoice{{VersionID: "home", Name: "Home delivery", Carrier: "Courier", FeeCents: 8000}, {VersionID: "store", Name: "Convenience store", FeeCents: 6000}},
 			Chosen:   "home",
-			SavedAddresses: []SavedAddress{
+			SavedAddresses: []pages.SavedAddress{
 				{ID: "home-address", Label: "Home", Name: "Mei Lin", Phone: "0912345678", PostalCode: "106", City: "Taipei", District: "Da'an", Street: "1 Example Road"},
 			},
 			ChosenAddress: "home-address",
@@ -163,7 +165,7 @@ func TestStorefrontSectionsAsDrawn(t *testing.T) {
 		}
 		w.Header().Set("Content-Type", "text/html; charset=utf-8")
 		ctx := i18n.WithLocale(r.Context(), i18n.En)
-		if renderErr := Checkout(CheckoutMeta(ctx), &view).Render(ctx, w); renderErr != nil {
+		if renderErr := pages.Checkout(pages.CheckoutMeta(ctx), &view).Render(ctx, w); renderErr != nil {
 			t.Errorf("render checkout fixture: %v", renderErr)
 		}
 	})
