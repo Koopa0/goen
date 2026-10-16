@@ -39,7 +39,6 @@ import (
 var viewPackageImporters = []string{
 	"cmd/goen",
 	"internal/account",
-	"internal/admin/content",
 	"internal/admin/dashboard",
 	"internal/admin/orders",
 	"internal/admin/products",
@@ -57,9 +56,6 @@ var viewPackageImporters = []string{
 var dataFilesNamingViews = []string{
 	"cmd/goen/server.go",
 	"internal/account/store.go",
-	"internal/admin/content/banner.go",
-	"internal/admin/content/faq.go",
-	"internal/admin/content/hero.go",
 	"internal/admin/dashboard/store.go",
 	"internal/admin/orders/handler.go",
 	"internal/admin/orders/invoice.go",
@@ -93,9 +89,6 @@ var viewContracts = []string{
 
 var storeMethodsNamingViews = map[string]int{
 	"internal/account/store.go":                3,
-	"internal/admin/content/banner.go":         1,
-	"internal/admin/content/faq.go":            1,
-	"internal/admin/content/hero.go":           1,
 	"internal/admin/orders/invoice.go":         2,
 	"internal/admin/orders/picking.go":         1,
 	"internal/admin/orders/store.go":           6,

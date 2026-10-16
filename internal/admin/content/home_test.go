@@ -1,4 +1,4 @@
-package admin
+package content
 
 import (
 	"go/ast"
@@ -218,7 +218,7 @@ func TestEverySlideSourceHasItsOwnLabelAndAnUnknownOneIsNotAPanic(t *testing.T) 
 // constant added without a label fails the label test instead of falling back.
 func declaredSlideSources(t *testing.T) []components.SlideSource {
 	t.Helper()
-	file, err := parser.ParseFile(token.NewFileSet(), "../../components/hero.go", nil, 0)
+	file, err := parser.ParseFile(token.NewFileSet(), "../../ui/components/hero.go", nil, 0)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -246,7 +246,7 @@ func declaredSlideSources(t *testing.T) []components.SlideSource {
 		}
 	}
 	if len(sources) == 0 {
-		t.Fatal("no SlideSource constants found in ../../components/hero.go")
+		t.Fatal("no SlideSource constants found in ../../ui/components/hero.go")
 	}
 	return sources
 }

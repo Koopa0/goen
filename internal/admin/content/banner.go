@@ -14,7 +14,6 @@ import (
 	"github.com/koopa0/goen/internal/i18n"
 	"github.com/koopa0/goen/internal/keyset"
 	"github.com/koopa0/goen/internal/shoptime"
-	"github.com/koopa0/goen/internal/ui/pages/admin"
 	"github.com/koopa0/goen/internal/web"
 )
 
@@ -82,19 +81,19 @@ type bannerPosition struct {
 	ID     uuid.UUID
 }
 
-func (s *Store) Banners(ctx context.Context, after ...string) (admin.BannersView, error) {
+func (s *Store) Banners(ctx context.Context, after ...string) (BannersView, error) {
 	from, resumed := keyset.Resume(bannerScope, after, func(p bannerPosition) bool { return p.ID != uuid.Nil && !p.At.IsZero() })
 	rows, err := s.q.ManagedBanners(ctx, db.ManagedBannersParams{
 		HasCursor: resumed, AfterActive: from.Active, AfterAt: from.At, AfterID: from.ID, RowLimit: MaxBanners + 1,
 	})
 	if err != nil {
-		return admin.BannersView{}, fmt.Errorf("read promo banners: %w", err)
+		return BannersView{}, fmt.Errorf("read promo banners: %w", err)
 	}
 	rows, bound := keyset.PageBound(bannerScope, resumed, rows, MaxBanners, func(r *db.ManagedBannersRow) string { return r.PageCursor })
-	out := admin.BannersView{Rows: make([]admin.Banner, 0, len(rows)), Bound: bound}
+	out := BannersView{Rows: make([]Banner, 0, len(rows)), Bound: bound}
 	for i := range rows {
 		r := &rows[i]
-		out.Rows = append(out.Rows, admin.Banner{
+		out.Rows = append(out.Rows, Banner{
 			ID: r.ID.String(), Message: r.Message, Short: r.MessageShort,
 			Code: r.Code, CTALabel: r.CtaLabel, CTAHref: r.CtaHref,
 			MessageEn: r.MessageEn, ShortEn: r.MessageShortEn,

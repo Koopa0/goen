@@ -29,9 +29,6 @@ func TestDeskRefusalsNameTheirFormAndLinkToTheFirstInvalidControl(t *testing.T) 
 				{"variant", ProductForm(layouts.Page{}, ProductView{Slug: "test", VariantDraft: VariantDraft{SKU: "", Price: "wrong"}, Errors: map[string]string{"sku": bad, "price": bad}}), "/admin/products/test/variants#sec-variants", "sec-variants", "v-sku", i18n.KeyAdminProdVariantAdd, 2},
 				{"option", ProductForm(layouts.Page{}, ProductView{Slug: "test", Errors: map[string]string{"option": bad}}), "/admin/products/test/options#sec-options", "sec-options", "opt-name", i18n.KeyAdminProdOptionAdd, 1},
 				{"spec", ProductForm(layouts.Page{}, ProductView{Slug: "test", Errors: map[string]string{"spec_label": bad, "spec_value": bad}}), "/admin/products/test/specs#sec-specs", "sec-specs", "spec-label", i18n.KeyAdminProdSpecs, 2},
-				{"faq-edit", FAQ(layouts.Page{}, &FAQView{Rows: []FAQEntry{{ID: "faq1", Question: "stored", Answer: "stored"}}, Edit: FAQEntry{ID: "faq1", Question: "", Answer: " kept ", QuestionEn: "bad"}, EditErrors: map[string]string{"question": bad, "question_en": bad}}), "/admin/faq/faq1#faq-faq1", "faq-faq1", "q-faq1", i18n.KeyAdminRefusalFAQ, 2},
-				{"hero", Home(layouts.Page{}, &HeroView{Errors: map[string]string{"headline": bad, "primary": bad}}), "/admin/home#new-hero", "new-hero", "h-headline", i18n.KeyAdminRefusalHero, 2},
-				{"banner", Home(layouts.Page{}, &HeroView{Errors: map[string]string{"message_en": bad, "banner_cta": bad}}), "/admin/home/banner#new-banner", "new-banner", "b-message-en", i18n.KeyAdminRefusalBanner, 2},
 			}
 			for _, tc := range cases {
 				t.Run(tc.name, func(t *testing.T) {
