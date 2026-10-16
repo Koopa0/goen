@@ -38,3 +38,20 @@ func (s *Store) InvitationRecipient(ctx context.Context, userID string) (address
 	}
 	return row.Email, row.FullName, nil
 }
+
+// DeliverInvitation sends the invitation to the account it names while that
+// account still has staff access, read now rather than when the grant queued
+// it. A grant revoked or an account erased in between completes without
+// sending: there is nobody left to invite. A failed read or send stays
+// retryable.
+func (s *Store) DeliverInvitation(ctx context.Context, p *outbox.StaffInvitation,
+	send func(ctx context.Context, p *outbox.StaffInvitation, address, name string) error) error {
+	address, name, err := s.InvitationRecipient(ctx, p.UserID)
+	if err != nil {
+		return err
+	}
+	if address == "" {
+		return nil
+	}
+	return send(ctx, p, address, name)
+}

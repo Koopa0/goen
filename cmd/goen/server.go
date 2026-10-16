@@ -137,6 +137,15 @@ type BackOfficeConfig struct {
 }
 
 func newRouter(cfg *RouterConfig, log *slog.Logger) http.Handler {
+	handler, _ := routing(cfg, log)
+	return handler
+}
+
+// routing is newRouter's handler together with the mux inside it. The mux is
+// what picks a request's route, and [http.ServeMux.Handler] names the pattern
+// it picks, so a test can ask production's own routing where a URL lands
+// rather than a list of patterns read from the source.
+func routing(cfg *RouterConfig, log *slog.Logger) (http.Handler, *http.ServeMux) {
 	// As struct fields the two pools can be omitted silently, and they sit
 	// beside Payments, Invoices, Google and TOTPKey, which may legitimately be nil.
 	if cfg == nil || cfg.Storefront.StorePool == nil || cfg.BackOffice.AdminPool == nil || log == nil {
@@ -201,7 +210,7 @@ func newRouter(cfg *RouterConfig, log *slog.Logger) http.Handler {
 	handler = web.RefuseUnstorableText(handler, secureCookies, http.HandlerFunc(sitePages.BadRequest))
 	handler = securityHeaders(handler, policyWith(front.StoreMap.Origin()), secureCookies)
 	handler = web.Compress(handler)
-	return withRequestTracing(handler, log)
+	return withRequestTracing(handler, log), mux
 }
 
 // storefrontRoutes registers the shop and the customer account, every handler
