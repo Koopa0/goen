@@ -77,6 +77,8 @@ const (
 	ActionCreateHeroSlide          Action = "hero.create"
 	ActionToggleHeroSlide          Action = "hero.toggle"
 	ActionPromoteHeroSlide         Action = "hero.promote"
+	ActionComposeNewsletter        Action = "newsletter.compose"
+	ActionSendNewsletter           Action = "newsletter.send"
 	ActionCreateBrand              Action = "brand.create"
 	ActionRenameBrand              Action = "brand.rename"
 	ActionDeleteBrand              Action = "brand.delete"
