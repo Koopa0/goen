@@ -80,7 +80,7 @@ func TestOnSaleNeedsACampaignStockAndAHigherComparePrice(t *testing.T) {
 func renderCampaign(t *testing.T, startsAt, endsAt time.Time) string {
 	t.Helper()
 	ctx := i18n.WithLocale(t.Context(), i18n.ZhHant)
-	return renderComponent(t, ctx, pages.Campaign(layouts.Page{Title: "c"}, pages.CampaignView{
+	return renderComponent(t, ctx, catalog.Campaign(layouts.Page{Title: "c"}, catalog.CampaignView{
 		Slug: "c", Title: "秋日選物", Products: []pages.ProductTile{{Slug: "p", Name: "茶壺", PriceCents: 80000, InStock: true}},
 		Schedule: catalog.NewCampaignSchedule(ctx, "秋日選物", 1, startsAt, endsAt, scheduleNow),
 	}))
