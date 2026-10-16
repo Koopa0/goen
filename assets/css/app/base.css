@@ -496,7 +496,7 @@ body {
 :root {
   --chart-hue: #2a56a0;
   --chart-hue-track: #d4ddec;
-  --chart-previous: #8e8e96;
+  --chart-previous: #85858c;
   --chart-grid: var(--n-200);
   --chart-annotation: var(--fg);
   --chart-label: var(--fg-muted);

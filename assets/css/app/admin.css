@@ -922,9 +922,11 @@ input.goen-check {
 }
 
 /* The screen being read, stated by the ARIA attribute the markup already
-   carries. A state class beside it would be a second place to disagree. */
+   carries. A state class beside it would be a second place to disagree. The
+   edge is inset so the focus ring, which is drawn outside, never covers it. */
 .goen-admin__nav [aria-current='page'] {
   background: var(--accent-faint);
+  box-shadow: inset 0 0 0 2px var(--accent);
   color: var(--accent);
   font-weight: var(--fw-medium);
 }
@@ -2279,6 +2281,12 @@ input.goen-check {
     top: 0;
     z-index: 5;
   }
+
+  /* The row covers the top 69px of the viewport, so a link that scrolls to a
+     section and a field that Tab scrolls into view both stop below it. */
+  html:has(.goen-admin__sectionnav) {
+    scroll-padding-top: 5rem;
+  }
 }
 
 /* The products a search found, each with the one button that adds it. */
@@ -2337,12 +2345,13 @@ input.goen-check {
 .goen-admin__tabs [aria-current] {
   background: var(--accent-faint);
   border-color: transparent;
+  box-shadow: inset 0 0 0 2px var(--accent);
   color: var(--accent);
   font-weight: var(--fw-medium);
 }
 
-/* Forced colours drop the tint and the blue, so the current item draws its edge
-   in Highlight; the focus ring still wins while it is focused. */
+/* Forced colours drop the tint, the blue and the shadow, so the current item
+   draws its edge in Highlight; the focus ring still wins while it is focused. */
 @media (forced-colors: active) {
   .goen-admin__nav [aria-current='page']:not(:focus-visible),
   .goen-admin__tabs [aria-current]:not(:focus-visible) {
@@ -2890,8 +2899,6 @@ input.goen-check {
   flex-direction: column;
   gap: 16px;
   min-width: 0;
-  /* Clears the sticky section row when a link scrolls here. */
-  scroll-margin-top: 72px;
 }
 
 /* The rating spread of a product: a star, then its bar and count. The table is
