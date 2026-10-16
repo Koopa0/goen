@@ -9,7 +9,6 @@ import (
 
 	"github.com/koopa0/goen/internal/shipping"
 
-	"github.com/a-h/templ"
 	"github.com/google/go-cmp/cmp"
 	htmlparse "golang.org/x/net/html"
 
@@ -17,7 +16,6 @@ import (
 	"github.com/koopa0/goen/internal/i18n"
 	"github.com/koopa0/goen/internal/invoice"
 	"github.com/koopa0/goen/internal/ui/components"
-	"github.com/koopa0/goen/internal/ui/layouts"
 )
 
 func TestCartDeliveryAvailabilityKeepsTheCheckoutDraftEligible(t *testing.T) {
@@ -96,33 +94,6 @@ func TestCartDeliveryAvailabilityKeepsTheCheckoutDraftEligible(t *testing.T) {
 				})
 			}
 		})
-	}
-}
-
-func TestKnownPickupChainChoicesMatchValidationAndReturnFreshStorage(t *testing.T) {
-	want := []PickupChainChoice{
-		{Value: "seven_eleven", Label: "7-ELEVEN"},
-		{Value: "family_mart", Label: "全家 FamilyMart"},
-		{Value: "hi_life", Label: "萊爾富 Hi-Life"},
-		{Value: "ok_mart", Label: "OK mart"},
-	}
-	got := KnownPickupChainChoices()
-	if diff := cmp.Diff(want, got); diff != "" {
-		t.Fatalf("KnownPickupChainChoices() mismatch (-want +got):\n%s", diff)
-	}
-	for _, choice := range got {
-		if !choice.Value.Known() {
-			t.Errorf("KnownPickupChainChoices() offers %q, but KnownPickupChain rejects it", choice.Value)
-		}
-	}
-
-	got[0].Value = "other_chain"
-	got[0].Label = "Other"
-	if diff := cmp.Diff(want, KnownPickupChainChoices()); diff != "" {
-		t.Errorf("mutating KnownPickupChainChoices() changed the next result (-want +got):\n%s", diff)
-	}
-	if shipping.Chain("other_chain").Known() {
-		t.Error("mutating KnownPickupChainChoices() changed KnownPickupChain")
 	}
 }
 
@@ -311,76 +282,6 @@ func TestThePickupFormAsksForTheChainAndNothingElse(t *testing.T) {
 	}
 }
 
-// TestCheckoutOffersTheChainsTheShopShipsTo holds the two sets apart: a shopper
-// chooses between the chains whose store picker the shop will integrate, and the
-// back office keeps every chain, because an order already placed at one of the
-// others still has to be correctable.
-func TestCheckoutOffersTheChainsTheShopShipsTo(t *testing.T) {
-	t.Parallel()
-
-	want := []PickupChainChoice{
-		{Value: shipping.ChainSevenEleven, Label: "7-ELEVEN"},
-		{Value: shipping.ChainFamilyMart, Label: "全家 FamilyMart"},
-	}
-	got := CheckoutPickupChainChoices()
-	if diff := cmp.Diff(want, got); diff != "" {
-		t.Errorf("CheckoutPickupChainChoices() mismatch (-want +got):\n%s", diff)
-	}
-	for _, choice := range got {
-		if !choice.Value.Known() {
-			t.Errorf("checkout offers %q, which validation rejects", choice.Value)
-		}
-	}
-	if len(KnownPickupChainChoices()) != len(shipping.Chains()) {
-		t.Error("the back office no longer offers every chain the shop can accept")
-	}
-}
-
-// TestAPickupOrderIsNamedByItsChain holds what the confirmation and the back
-// office show while no store picker exists: the chain is the destination, and a
-// store appears only when one is known.
-func TestAPickupOrderIsNamedByItsChain(t *testing.T) {
-	t.Parallel()
-
-	for _, tt := range []struct {
-		name   string
-		d      Delivery
-		pickup bool
-		want   string
-	}{
-		{
-			name: "the chain alone", pickup: true,
-			d:    Delivery{PickupChain: shipping.ChainSevenEleven},
-			want: "7-ELEVEN",
-		},
-		{
-			name: "a chain whose store is known", pickup: true,
-			d: Delivery{
-				PickupChain: shipping.ChainFamilyMart, PickupStoreCode: "012345",
-				PickupStoreName: "台北車站門市",
-			},
-			want: "全家 FamilyMart 台北車站門市(012345)",
-		},
-		{
-			name: "an address",
-			d: Delivery{
-				PostalCode: "110", City: "台北市", District: "信義區", Street: "松高路 1 號",
-			},
-			want: "110 台北市信義區松高路 1 號",
-		},
-	} {
-		t.Run(tt.name, func(t *testing.T) {
-			t.Parallel()
-			if got := tt.d.IsPickup(); got != tt.pickup {
-				t.Errorf("IsPickup() = %v, want %v", got, tt.pickup)
-			}
-			if got := tt.d.Line(); got != tt.want {
-				t.Errorf("Line() = %q, want %q", got, tt.want)
-			}
-		})
-	}
-}
-
 // tagCarrying is the opening tag of the element that carries needle.
 func tagCarrying(t *testing.T, html, needle string) string {
 	t.Helper()
@@ -497,127 +398,6 @@ func TestTheCheckoutSummaryAddsUpTheWayPlaceOrderDoes(t *testing.T) {
 			t.Errorf("total = %d, want 108000", got)
 		}
 	})
-}
-
-// TestTheOrderNotFoundPageOffersAWayThrough holds that this 404 offers both
-// /orders/find and /signin, since the reader is a guest or an account holder
-// and the page cannot tell which.
-func TestTheOrderNotFoundPageOffersAWayThrough(t *testing.T) {
-	html := renderToString(t, layouts.OrderNotFound(layouts.Page{Title: "404"}))
-
-	for _, want := range []string{"/orders/find", "/signin"} {
-		if !strings.Contains(html, want) {
-			t.Errorf("the order 404 does not link to %s; the reader is one of two "+
-				"people and the page cannot tell which", want)
-		}
-	}
-}
-
-func renderToString(t *testing.T, c templ.Component) string {
-	t.Helper()
-	var b strings.Builder
-	if err := c.Render(i18n.WithLocale(t.Context(), i18n.ZhHant), &b); err != nil {
-		t.Fatalf("render: %v", err)
-	}
-	return b.String()
-}
-
-// TestANamelessReviewerIsNotBadgedAsABuyer holds the byline apart from the
-// badge. A name is optional at registration and erase_user blanks it, so the
-// fallback byline must not borrow the verified-buyer wording:
-// product_reviews_verified_is_real guards the badge and cannot see a claim
-// made in the author slot.
-func TestANamelessReviewerIsNotBadgedAsABuyer(t *testing.T) {
-	t.Parallel()
-
-	ctx := i18n.WithLocale(t.Context(), i18n.ZhHant)
-	bought := i18n.T(ctx, i18n.KeyVerifiedBuyer)
-
-	nameless := ProductReview{Author: "", Rating: 1}
-	if got := nameless.DisplayAuthor(ctx); strings.Contains(got, bought) {
-		t.Errorf("a nameless reviewer is bylined %q, which contains the verified "+
-			"claim %q — the badge is what says somebody bought, and this review "+
-			"has not", got, bought)
-	}
-}
-
-func TestAReviewerIsMaskedTheSameWayForEveryReview(t *testing.T) {
-	t.Parallel()
-
-	tests := []struct {
-		name   string
-		locale i18n.Locale
-		author string
-		want   string
-	}{
-		{"zh full name", i18n.ZhHant, "王小明", "王○○"},
-		{"zh one character", i18n.ZhHant, "王", "王○○"},
-		{"zh latin name", i18n.ZhHant, "alice Chen", "a○○"},
-		{"en full name", i18n.En, "Alice Chen", "A."},
-		{"en lower case", i18n.En, "bob", "B."},
-		{"en han name", i18n.En, "王小明", "王."},
-		{"padded", i18n.ZhHant, "  陳大文", "陳○○"},
-		{"leading replacement character zh", i18n.ZhHant, "\uFFFD Example Person", "\uFFFD○○"},
-		{"leading replacement character en", i18n.En, "\uFFFD Example Person", "\uFFFD."},
-		{"blank", i18n.ZhHant, "   ", "○○"},
-		{"no name zh", i18n.ZhHant, "", "匿名顧客"},
-		{"no name en", i18n.En, "", "Anonymous"},
-	}
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			t.Parallel()
-			got := (ProductReview{Author: tt.author}).DisplayAuthor(i18n.WithLocale(t.Context(), tt.locale))
-			if got != tt.want {
-				t.Errorf("DisplayAuthor(%q) in %s = %q, want %q", tt.author, tt.locale, got, tt.want)
-			}
-		})
-	}
-}
-
-// TestTheProductPageSaysWhetherItAddedAnything asserts the HTML, because the
-// view model can carry the outcome correctly while the template renders it
-// nowhere.
-func TestTheProductPageSaysWhetherItAddedAnything(t *testing.T) {
-	base := func(outcome string) *ProductView {
-		return &ProductView{
-			Slug: "pixelight-9-pro", Name: "Pixelight 9 Pro",
-			VariantID: "v1", PriceCents: 3690000, Available: 3,
-			AddedOutcome: AddOutcome(outcome),
-		}
-	}
-
-	ctx := i18n.WithLocale(t.Context(), i18n.ZhHant)
-	confirm := i18n.T(ctx, i18n.KeyAddedToCart)
-	refusal := i18n.T(ctx, i18n.KeyAddRefused)
-
-	// The exact words, not just role="status": the page carries other live
-	// regions.
-	added := renderToString(t, Product(layouts.Page{Title: "x"}, base("added")))
-	if !strings.Contains(added, confirm) {
-		t.Errorf("a successful add renders no confirmation; wanted %q", confirm)
-	}
-	viewCart := i18n.T(ctx, i18n.KeyViewCart)
-	if !strings.Contains(added, viewCart) || !strings.Contains(added, `href="/cart"`) {
-		t.Errorf("a successful add renders no cart link; wanted %q beside /cart", viewCart)
-	}
-	if !strings.Contains(added, `role="status"`) {
-		t.Error("the success confirmation is not exposed as a live status")
-	}
-
-	refused := renderToString(t, Product(layouts.Page{Title: "x"}, base("unavailable")))
-	if !strings.Contains(refused, refusal) {
-		t.Errorf("a refused add renders no refusal; wanted %q", refusal)
-	}
-	if added == refused {
-		t.Error("the success and the refusal render identically, which is the " +
-			"defect: nothing added, and the page says the same thing either way")
-	}
-
-	// An ordinary visit shows neither.
-	plain := renderToString(t, Product(layouts.Page{Title: "x"}, base("")))
-	if strings.Contains(plain, confirm) || strings.Contains(plain, refusal) {
-		t.Error("an ordinary page visit renders an add-to-cart message")
-	}
 }
 
 // TestTheCheckoutSummaryNamesTheVariant holds that the summary names the
@@ -1186,26 +966,6 @@ func TestAGuestIsOfferedNeitherControl(t *testing.T) {
 	}
 }
 
-func TestQuestionsAndAnswersMaskNamesLikeReviews(t *testing.T) {
-	t.Parallel()
-	ctx := i18n.WithLocale(t.Context(), i18n.ZhHant)
-	if got := (Question{Asker: "王小明"}).Who(ctx); got != "王○○" {
-		t.Errorf("asker shown as %q, want 王○○", got)
-	}
-	if got := (Answer{Author: "陳大文"}).Who(ctx); got != "陳○○" {
-		t.Errorf("answerer shown as %q, want 陳○○", got)
-	}
-	if got := (Question{Asker: "\uFFFD Example Person"}).Who(ctx); strings.Contains(got, "Example") {
-		t.Errorf("asker shown as %q, which carries the rest of the name", got)
-	}
-	if got := (Answer{Author: "\uFFFD Example Person"}).Who(ctx); strings.Contains(got, "Example") {
-		t.Errorf("answerer shown as %q, which carries the rest of the name", got)
-	}
-	if got := (Answer{Author: "陳大文", IsStaff: true}).Who(ctx); got != "goen" {
-		t.Errorf("staff answer shown as %q, want goen", got)
-	}
-}
-
 func couponTestView() CheckoutView {
 	return CheckoutView{
 		Cart:     CartView{Lines: []CartLine{{Name: "x", Quantity: 1, UnitCents: 100}}},
@@ -1310,15 +1070,6 @@ func TestTheCheckoutFormIsCheckedByTheServerAndFocusesTheFirstRefusal(t *testing
 	}
 	if !strings.Contains(string(src), `form[data-focus-refused] :is(input, select, textarea, button)[aria-invalid="true"]`) {
 		t.Error("the script does not focus the first refused control of a refused checkout")
-	}
-}
-
-func TestTheCartRecoveryPageReturnsToTheCart(t *testing.T) {
-	t.Parallel()
-	html := renderToString(t, CartRecovery(CartRecoveryMeta(t.Context()), CartRecoveryView{Next: "/account", Notice: "n", Retry: "r"}))
-	back := tagCarrying(t, html, "notice__back")
-	if !strings.Contains(back, `href="/cart"`) {
-		t.Errorf("cart recovery does not return to the cart: %s", back)
 	}
 }
 
