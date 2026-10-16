@@ -13,7 +13,6 @@ import (
 	"github.com/koopa0/goen/internal/admin/access"
 	"github.com/koopa0/goen/internal/i18n"
 	"github.com/koopa0/goen/internal/ui/layouts"
-	"github.com/koopa0/goen/internal/ui/pages/admin"
 	"github.com/koopa0/goen/internal/web"
 )
 
@@ -54,6 +53,6 @@ func (h *Handler) Page(w http.ResponseWriter, r *http.Request) {
 	if view.ReturnedErr != nil && !errors.Is(view.ReturnedErr, context.Canceled) {
 		h.log.ErrorContext(r.Context(), "read returned products", "error", view.ReturnedErr)
 	}
-	web.Render(w, r, h.log, http.StatusOK, admin.Report(
+	web.Render(w, r, h.log, http.StatusOK, Report(
 		layouts.Page{Title: i18n.T(r.Context(), i18n.KeyAdminPageReports)}, &view))
 }

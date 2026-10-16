@@ -1,4 +1,4 @@
-package admin
+package reports
 
 import (
 	"context"
@@ -12,6 +12,7 @@ import (
 	"github.com/koopa0/goen/internal/shoptime"
 	"github.com/koopa0/goen/internal/ui/chart"
 	"github.com/koopa0/goen/internal/ui/components"
+	"github.com/koopa0/goen/internal/ui/pages/admin"
 )
 
 type Seller struct {
@@ -65,7 +66,7 @@ type ReportView struct {
 	RevenueSquares float64
 	Sellers        []Seller
 	Departments    []Department
-	AtRisk         []StockRisk
+	AtRisk         []admin.StockRisk
 	// StockDays is how many shop days back the stock rows look.
 	StockDays int
 	// MoreSoldOut counts the sold out SKUs the list leaves off.
