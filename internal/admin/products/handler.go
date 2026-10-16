@@ -21,7 +21,6 @@ import (
 	"github.com/koopa0/goen/internal/product"
 	"github.com/koopa0/goen/internal/ui/components"
 	"github.com/koopa0/goen/internal/ui/layouts"
-	"github.com/koopa0/goen/internal/ui/pages/admin"
 	"github.com/koopa0/goen/internal/web"
 )
 
@@ -75,7 +74,7 @@ func (h *Handler) List(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	view.Notice = components.NoticeFrom(r, notices)
-	web.Render(w, r, h.log, http.StatusOK, admin.Products(
+	web.Render(w, r, h.log, http.StatusOK, Products(
 		layouts.Page{Title: i18n.T(r.Context(), i18n.KeyAdminPageProducts)}, view))
 }
 
@@ -86,7 +85,7 @@ func (h *Handler) New(w http.ResponseWriter, r *http.Request) {
 		access.ServerError(w, r, h.log)
 		return
 	}
-	web.Render(w, r, h.log, http.StatusOK, admin.ProductForm(
+	web.Render(w, r, h.log, http.StatusOK, ProductForm(
 		layouts.Page{Title: i18n.T(r.Context(), i18n.KeyAdminPageNewProduct)}, view))
 }
 
@@ -120,7 +119,7 @@ func (h *Handler) Edit(w http.ResponseWriter, r *http.Request) {
 
 // product reads the editor's product; a failure to read its sales or reviews is
 // logged, and the view says what is missing.
-func (h *Handler) product(ctx context.Context, slug string) (admin.ProductView, error) {
+func (h *Handler) product(ctx context.Context, slug string) (ProductView, error) {
 	view, err := h.store.Product(ctx, slug)
 	if errors.Is(err, ErrStanding) {
 		h.log.ErrorContext(ctx, "read product sales and reviews", "error", err)
@@ -129,7 +128,7 @@ func (h *Handler) product(ctx context.Context, slug string) (admin.ProductView, 
 	return view, err
 }
 
-func (h *Handler) productView(ctx context.Context, slug string) (admin.ProductView, error) {
+func (h *Handler) productView(ctx context.Context, slug string) (ProductView, error) {
 	view, err := h.product(ctx, slug)
 	if err != nil {
 		return view, err
@@ -144,7 +143,7 @@ func (h *Handler) productView(ctx context.Context, slug string) (admin.ProductVi
 		h.log.ErrorContext(ctx, "read recent uploads", "error", recentErr)
 	} else {
 		for _, obj := range recent {
-			view.Library = append(view.Library, admin.Image{
+			view.Library = append(view.Library, Image{
 				Photo: assets.Image{Digest: obj.Digest, Width: int(obj.Width)},
 			})
 		}
@@ -167,7 +166,7 @@ func (h *Handler) renderProduct(w http.ResponseWriter, r *http.Request, status i
 	}
 	view.Notice = notice
 
-	web.Render(w, r, h.log, status, admin.ProductForm(
+	web.Render(w, r, h.log, status, ProductForm(
 		layouts.Page{Title: view.Name}, view))
 }
 
@@ -247,8 +246,8 @@ func (h *Handler) AddVariant(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-func variantFormOf(r *http.Request) (*VariantForm, admin.VariantDraft, map[string]string) {
-	draft := admin.VariantDraft{
+func variantFormOf(r *http.Request) (*VariantForm, VariantDraft, map[string]string) {
+	draft := VariantDraft{
 		SKU: r.PostFormValue("sku"), Price: r.PostFormValue("price"),
 		Compare: r.PostFormValue("compare"), Safety: r.PostFormValue("safety"),
 		ParcelLongest:  r.PostFormValue("parcel_longest"),
@@ -325,7 +324,7 @@ func productFormOf(r *http.Request) (form *Form, errs map[string]string) {
 }
 
 func (h *Handler) rejectProduct(w http.ResponseWriter, r *http.Request, f *Form, errs map[string]string, isNew bool) {
-	var view admin.ProductView
+	var view ProductView
 	var err error
 	if isNew {
 		view, err = h.store.NewForm(r.Context())
@@ -348,7 +347,7 @@ func (h *Handler) rejectProduct(w http.ResponseWriter, r *http.Request, f *Form,
 	view.DescriptionEn = r.PostFormValue("description_en")
 	view.BrandID, view.CategoryID = r.PostFormValue("brand"), r.PostFormValue("category")
 	view.Errors = errs
-	web.Render(w, r, h.log, http.StatusUnprocessableEntity, admin.ProductForm(
+	web.Render(w, r, h.log, http.StatusUnprocessableEntity, ProductForm(
 		layouts.Page{Title: view.Title(r.Context())}, view))
 }
 
@@ -415,13 +414,13 @@ func (h *Handler) ReuseImage(w http.ResponseWriter, r *http.Request) {
 
 func (h *Handler) rejectImageUpload(w http.ResponseWriter, r *http.Request, field string, key i18n.Key) {
 	h.editProductWithErrors(w, r, r.PathValue("slug"), map[string]string{field: i18n.T(r.Context(), key)}, &productDrafts{
-		upload: admin.ProductImageUploadDraft{Alt: r.PostFormValue("alt"), AltEn: r.PostFormValue("alt_en"), OptionValue: r.PostFormValue("option_value")},
+		upload: ProductImageUploadDraft{Alt: r.PostFormValue("alt"), AltEn: r.PostFormValue("alt_en"), OptionValue: r.PostFormValue("option_value")},
 	})
 }
 
 func (h *Handler) rejectImageReuse(w http.ResponseWriter, r *http.Request, field string, key i18n.Key) {
 	h.editProductWithErrors(w, r, r.PathValue("slug"), map[string]string{"reuse_" + field: i18n.T(r.Context(), key)}, &productDrafts{
-		reuse: admin.ProductImageReuseDraft{Digest: r.PostFormValue("digest"), Alt: r.PostFormValue("alt"), AltEn: r.PostFormValue("alt_en")},
+		reuse: ProductImageReuseDraft{Digest: r.PostFormValue("digest"), Alt: r.PostFormValue("alt"), AltEn: r.PostFormValue("alt_en")},
 	})
 }
 
@@ -530,7 +529,7 @@ func (h *Handler) optionWrite(
 		return
 	}
 	slug := r.PathValue("slug")
-	draft := admin.VariantDraft{
+	draft := VariantDraft{
 		OptionName: r.PostFormValue("name"), OptionNameEn: r.PostFormValue("name_en"),
 		ValueOption: r.PostFormValue("option"), Value: r.PostFormValue("value"),
 		ValueEn: r.PostFormValue("value_en"), Swatch: r.PostFormValue("swatch_hex"),
@@ -589,7 +588,7 @@ func (h *Handler) AddSpec(w http.ResponseWriter, r *http.Request) {
 		h.log.ErrorContext(r.Context(), "add spec", "error", err, "slug", slug)
 		access.ServerError(w, r, h.log)
 	case len(errs) > 0:
-		h.editProductWithErrors(w, r, slug, errs, &productDrafts{spec: admin.SpecDraft{Label: draft.Label, Value: draft.Value, LabelEn: draft.LabelEn, ValueEn: draft.ValueEn}})
+		h.editProductWithErrors(w, r, slug, errs, &productDrafts{spec: draft})
 	default:
 		//nolint:gosec // G710: slug is the route's own path value
 		http.Redirect(w, r, "/admin/products/"+slug+"?ok=1", http.StatusSeeOther)
@@ -622,10 +621,10 @@ func (h *Handler) RemoveSpec(w http.ResponseWriter, r *http.Request) {
 }
 
 type productDrafts struct {
-	variant admin.VariantDraft
-	spec    admin.SpecDraft
-	upload  admin.ProductImageUploadDraft
-	reuse   admin.ProductImageReuseDraft
+	variant VariantDraft
+	spec    SpecDraft
+	upload  ProductImageUploadDraft
+	reuse   ProductImageReuseDraft
 }
 
 func (h *Handler) editProductWithErrors(
@@ -644,7 +643,7 @@ func (h *Handler) editProductWithErrors(
 	view.Errors = errs
 	view.VariantDraft, view.SpecDraft = draft.variant, draft.spec
 	view.ImageUploadDraft, view.ImageReuseDraft = draft.upload, draft.reuse
-	web.Render(w, r, h.log, http.StatusUnprocessableEntity, admin.ProductForm(
+	web.Render(w, r, h.log, http.StatusUnprocessableEntity, ProductForm(
 		layouts.Page{Title: view.Title(r.Context())}, view))
 }
 

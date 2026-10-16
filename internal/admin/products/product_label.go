@@ -21,7 +21,6 @@ import (
 	"github.com/koopa0/goen/internal/i18n"
 	"github.com/koopa0/goen/internal/product/labelling"
 	"github.com/koopa0/goen/internal/ui/layouts"
-	"github.com/koopa0/goen/internal/ui/pages/admin"
 	"github.com/koopa0/goen/internal/web"
 )
 
@@ -37,7 +36,7 @@ type productLabelState struct {
 	MinAgeMonths         pgtype.Int2    `json:"min_age_months"`
 }
 
-func (s *Store) SetProductLabel(ctx context.Context, slug string, input *admin.LabelInput) error {
+func (s *Store) SetProductLabel(ctx context.Context, slug string, input *LabelInput) error {
 	if len(validateLabel(ctx, input)) != 0 {
 		return ErrInvalid
 	}
@@ -83,7 +82,7 @@ func optionalText(s string) pgtype.Text {
 	return pgtype.Text{String: s, Valid: s != ""}
 }
 
-func productLabelParams(id uuid.UUID, input *admin.LabelInput) db.SetProductLabelParams {
+func productLabelParams(id uuid.UUID, input *LabelInput) db.SetProductLabelParams {
 	p := db.SetProductLabelParams{
 		ID: id, Origin: strings.TrimSpace(input.Origin), OriginEn: strings.TrimSpace(input.OriginEn),
 		DomesticPartyName: strings.TrimSpace(input.DomesticPartyName), DomesticPartyPhone: strings.TrimSpace(input.DomesticPartyPhone), DomesticPartyAddress: strings.TrimSpace(input.DomesticPartyAddress),
@@ -99,8 +98,8 @@ func productLabelParams(id uuid.UUID, input *admin.LabelInput) db.SetProductLabe
 	return p
 }
 
-func productLabelInput(r *db.AdminProductRow) *admin.LabelInput {
-	f := &admin.LabelInput{
+func productLabelInput(r *db.AdminProductRow) *LabelInput {
+	f := &LabelInput{
 		Origin: r.Origin, OriginEn: r.OriginEn, DomesticPartyName: r.DomesticPartyName, DomesticPartyPhone: r.DomesticPartyPhone, DomesticPartyAddress: r.DomesticPartyAddress,
 		NetQuantity: r.NetQuantity, NetUnit: labelling.NetUnit(r.NetUnit),
 	}
@@ -115,7 +114,7 @@ func (h *Handler) ProductLabel(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, i18n.T(r.Context(), i18n.KeyAdminBadForm), http.StatusBadRequest)
 		return
 	}
-	input := &admin.LabelInput{
+	input := &LabelInput{
 		Origin: r.PostFormValue("origin"), OriginEn: r.PostFormValue("origin_en"),
 		DomesticPartyName: r.PostFormValue("domestic_party_name"), DomesticPartyPhone: r.PostFormValue("domestic_party_phone"), DomesticPartyAddress: r.PostFormValue("domestic_party_address"),
 		NetQuantity: r.PostFormValue("net_quantity"), NetUnit: labelling.NetUnit(r.PostFormValue("net_unit")), MinAgeMonths: r.PostFormValue("min_age_months"),
@@ -172,7 +171,7 @@ func productLabelRefusal(ctx context.Context, err error) map[string]string {
 	return map[string]string{"label": i18n.T(ctx, i18n.KeyProductLabelRefused)}
 }
 
-func (h *Handler) rejectProductLabel(w http.ResponseWriter, r *http.Request, input *admin.LabelInput, errs map[string]string) {
+func (h *Handler) rejectProductLabel(w http.ResponseWriter, r *http.Request, input *LabelInput, errs map[string]string) {
 	view, err := h.product(r.Context(), r.PathValue("slug"))
 	if errors.Is(err, ErrNotFound) {
 		access.NotFound(w, r, h.log)
@@ -185,13 +184,13 @@ func (h *Handler) rejectProductLabel(w http.ResponseWriter, r *http.Request, inp
 	}
 	view.LabelInput = input
 	view.Errors = errs
-	web.Render(w, r, h.log, http.StatusUnprocessableEntity, admin.ProductForm(layouts.Page{Title: view.Name}, view))
+	web.Render(w, r, h.log, http.StatusUnprocessableEntity, ProductForm(layouts.Page{Title: view.Name}, view))
 }
 
 // validateLabel reports each field of the labelling form that the store would
-// refuse, keyed by form name. Free text is bounded by admin.LabelInput.TextFields,
+// refuse, keyed by form name. Free text is bounded by LabelInput.TextFields,
 // the same list the form draws its length hints from.
-func validateLabel(ctx context.Context, f *admin.LabelInput) map[string]string {
+func validateLabel(ctx context.Context, f *LabelInput) map[string]string {
 	errs := make(map[string]string)
 	for _, field := range f.TextFields() {
 		if !utf8.ValidString(field.Value) || utf8.RuneCountInString(strings.TrimSpace(field.Value)) > field.Limit || strings.ContainsFunc(field.Value, unicode.IsControl) {

@@ -34,7 +34,6 @@ import (
 	"github.com/koopa0/goen/internal/home"
 	"github.com/koopa0/goen/internal/i18n"
 	"github.com/koopa0/goen/internal/media"
-	"github.com/koopa0/goen/internal/ui/pages/admin"
 )
 
 func TestProductEditorRefusalsKeepTheirDraftAndImageControls(t *testing.T) {
@@ -137,7 +136,7 @@ func TestProductEditorRefusalsKeepTheirDraftAndImageControls(t *testing.T) {
 					t.Fatal(err)
 				}
 				// Cut is recomputed from the read's clock, not saved editor state.
-				if diff := cmp.Diff(baseline, persisted, cmpopts.IgnoreFields(admin.ProductSales{}, "Cut")); diff != "" {
+				if diff := cmp.Diff(baseline, persisted, cmpopts.IgnoreFields(products.ProductSales{}, "Cut")); diff != "" {
 					t.Errorf("refusal changed persisted editor state (-want +got):\n%s", diff)
 				}
 			})

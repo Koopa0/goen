@@ -102,6 +102,14 @@ type CommittedOrder struct {
 	ID uuid.UUID
 }
 
+// Each committed order of a customer, with what it counts as spent: the single definition behind a customer's lifetime spend and, windowed by member_order_spend, the spend a tier is judged by.
+type CommittedOrderSpend struct {
+	UserID     uuid.NullUUID
+	OrderID    uuid.UUID
+	PlacedAt   time.Time
+	SpendCents int64
+}
+
 type ContactMessage struct {
 	ID        uuid.UUID
 	Name      string
@@ -340,6 +348,13 @@ type MediaObject struct {
 	Height      int32
 	ByteSize    int32
 	CreatedAt   time.Time
+}
+
+// committed_order_spend inside the membership window: the single definition behind member_spend and the membership page's counts.
+type MemberOrderSpend struct {
+	UserID     uuid.NullUUID
+	OrderID    uuid.UUID
+	SpendCents int64
 }
 
 // Spend bands and what they earn. A customer's tier is derived from committed orders in a rolling window, never stored on the user.
