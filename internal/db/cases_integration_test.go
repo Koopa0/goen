@@ -2550,7 +2550,7 @@ VALUES ('a0000001-0000-4000-8000-000000000000', 1, repeat('購', 200), 'grant:sc
 		accept:     `INSERT INTO newsletter_issues (subject, body) VALUES ('主旨', repeat('內', 20000));`,
 	},
 	{
-		// email.Max, counted in bytes: 255 bytes in 134 characters is refused, 254 bytes accepted.
+		// email.MaxBytes, counted in bytes: 255 bytes in 134 characters is refused, 254 bytes accepted.
 		constraint: "email_verifications_email_bounded",
 		reject:     `INSERT INTO email_verifications (user_id, email, digest, expires_at) VALUES ((SELECT id FROM users LIMIT 1), repeat('é', 121) || 'a@example.com', sha256('v1'::bytea), now() + interval '1 day');`,
 		accept:     `INSERT INTO email_verifications (user_id, email, digest, expires_at) VALUES ((SELECT id FROM users LIMIT 1), repeat('a', 242) || '@example.com', sha256('v1'::bytea), now() + interval '1 day');`,
