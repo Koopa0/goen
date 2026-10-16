@@ -12,6 +12,7 @@ import (
 	"github.com/google/uuid"
 
 	"github.com/koopa0/goen/assets"
+	"github.com/koopa0/goen/internal/catalog"
 	"github.com/koopa0/goen/internal/db"
 	"github.com/koopa0/goen/internal/i18n"
 	"github.com/koopa0/goen/internal/shoptime"
@@ -244,7 +245,7 @@ func (s *Store) tiles(ctx context.Context, campaign, department uuid.NullUUID, l
 			PriceCents:   t.TilePriceCents,
 			PriceVaries:  t.PriceVaries,
 			CompareCents: t.CompareAtPriceCents.Int64, // 0 when NULL
-			InCampaign:   t.InCampaign,
+			OnSale:       catalog.OnSale(t.InCampaign, t.InStock, t.TilePriceCents, t.CompareAtPriceCents.Int64),
 			Rating:       t.Rating,
 			RatingCount:  t.RatingCount,
 			InStock:      t.InStock,

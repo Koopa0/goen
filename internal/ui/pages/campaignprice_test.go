@@ -22,25 +22,27 @@ func titleIn(locale i18n.Locale) string {
 	return "秋日選物"
 }
 
-func TestAProductPageStrikesItsPriceOnlyWhileACampaignRuns(t *testing.T) {
+// Whether a price is on sale is catalog.OnSale's to decide; the page strikes
+// the price and names the campaign only when it is.
+func TestAProductPageStrikesItsPriceOnlyOnSale(t *testing.T) {
 	t.Parallel()
 
 	for _, locale := range []i18n.Locale{i18n.ZhHant, i18n.En} {
 		base := ProductView{
 			Name: "Mug", SelectionOK: true, Exact: true, Sellable: true,
-			PriceCents: 43200, CompareCents: 48000,
+			PriceCents: 43200, CompareCents: 48000, Campaign: runningCampaign(t, locale),
 		}
 		withCampaign := base
-		withCampaign.Campaign = runningCampaign(t, locale)
+		withCampaign.OnSale = true
 
 		without := buyBox(t, locale, &base)
 		if strings.Contains(without, `class="goen-pdp__was"`) || strings.Contains(without, `goen-pdp__source`) {
-			t.Errorf("%s: a product outside any campaign draws a struck price or a source line:\n%s", locale, without)
+			t.Errorf("%s: a product not on sale draws a struck price or a source line:\n%s", locale, without)
 		}
 
 		with := buyBox(t, locale, &withCampaign)
 		if !strings.Contains(with, `<s class="goen-pdp__was">NT$480</s>`) {
-			t.Errorf("%s: a product in a running campaign lost its struck price", locale)
+			t.Errorf("%s: a product on sale lost its struck price", locale)
 		}
 		if strings.Contains(with, `class="ui-period"`) {
 			t.Errorf("%s: the buy box draws its campaign's period; the source line says it in words", locale)
@@ -88,7 +90,7 @@ func TestTheSourceLineNamesTheCampaignWhatIsLeftAndItsLastDay(t *testing.T) {
 	} {
 		v := ProductView{
 			Name: "Mug", SelectionOK: true, Exact: true, Sellable: true,
-			PriceCents: 43200, CompareCents: 48000, Campaign: NewProductCampaign("autumn-picks", titleIn(tt.locale), tt.ends, now),
+			PriceCents: 43200, CompareCents: 48000, OnSale: true, Campaign: NewProductCampaign("autumn-picks", titleIn(tt.locale), tt.ends, now),
 		}
 		if got := buyBox(t, tt.locale, &v); !strings.Contains(got, `<p class="goen-pdp__source">`+tt.want) {
 			t.Errorf("%s, %s: want the source line %q in\n%s", tt.name, tt.locale, tt.want, got)
@@ -96,19 +98,19 @@ func TestTheSourceLineNamesTheCampaignWhatIsLeftAndItsLastDay(t *testing.T) {
 	}
 }
 
-func TestACardStrikesItsPriceOnlyForACampaignProduct(t *testing.T) {
+func TestACardStrikesItsPriceOnlyOnSale(t *testing.T) {
 	t.Parallel()
 
 	ctx := i18n.WithLocale(t.Context(), i18n.ZhHant)
 	for _, tt := range []struct {
 		name       string
-		inCampaign bool
+		onSale     bool
 		wantStruck bool
 	}{
-		{"in a running campaign", true, true},
-		{"no running campaign", false, false},
+		{"on sale", true, true},
+		{"not on sale", false, false},
 	} {
-		tile := ProductTile{Slug: "a", Name: "A", Brand: "B", PriceCents: 80000, CompareCents: 100000, InStock: true, InCampaign: tt.inCampaign}
+		tile := ProductTile{Slug: "a", Name: "A", Brand: "B", PriceCents: 80000, CompareCents: 100000, InStock: true, OnSale: tt.onSale}
 		page := renderComponent(t, ctx, Tile(tile))
 		if got := strings.Contains(page, `class="goen-tile__was"`); got != tt.wantStruck {
 			t.Errorf("Tile %s: struck price drawn = %v, want %v", tt.name, got, tt.wantStruck)
@@ -118,28 +120,6 @@ func TestACardStrikesItsPriceOnlyForACampaignProduct(t *testing.T) {
 		}
 		if strings.Contains(page, "goen-tile__source") {
 			t.Errorf("Tile %s: a card has no room for a source line", tt.name)
-		}
-	}
-}
-
-func TestThePickedVariantMustBeReducedForTheSourceLine(t *testing.T) {
-	t.Parallel()
-
-	for _, tt := range []struct {
-		name     string
-		compare  int64
-		sellable bool
-	}{
-		{"full price", 0, true},
-		{"sold out", 48000, false},
-	} {
-		v := ProductView{
-			Name: "Mug", SelectionOK: true, Exact: true, Sellable: tt.sellable,
-			PriceCents: 43200, CompareCents: tt.compare, Campaign: runningCampaign(t, i18n.ZhHant),
-		}
-		got := buyBox(t, i18n.ZhHant, &v)
-		if strings.Contains(got, "活動價") || strings.Contains(got, "goen-pdp__source") {
-			t.Errorf("%s variant in a running campaign is called a campaign price", tt.name)
 		}
 	}
 }

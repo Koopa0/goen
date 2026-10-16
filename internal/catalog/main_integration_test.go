@@ -651,7 +651,7 @@ func TestAFixtureCampaignRunsWhateverTheHostClockReads(t *testing.T) {
 	}
 	for _, behind := range []time.Duration{0, 2 * time.Millisecond, time.Second} {
 		hostNow := createdAt.Add(-behind)
-		if got := pages.CampaignStateAt(startsAt, endsAt, hostNow); got != pages.CampaignRunning {
+		if got := catalog.CampaignStateAt(startsAt, endsAt, hostNow); got != catalog.CampaignRunning {
 			t.Errorf("a campaign created at %v, judged by a host clock %v behind, is %q, want running",
 				createdAt, behind, got)
 		}
@@ -668,21 +668,24 @@ func TestACampaignOutsideItsWindowIsShownAsNotStartedOrEnded(t *testing.T) {
 	if err := feature(t, running, discountedSlug(t)); err != nil {
 		t.Fatalf("feature: %v", err)
 	}
-	if view, err := s.Campaign(ctx, running); err != nil || view.Schedule.State != pages.CampaignRunning {
-		t.Fatalf("a running campaign = state %q, %v", view.Schedule.State, err)
+	// What the fact line leads with, and what it notes on the end, says which
+	// state catalog.NewCampaignSchedule laid the page out for.
+	if view, err := s.Campaign(ctx, running); err != nil || view.Schedule.Facts[0].Label != i18n.T(ctx, i18n.KeySlideItems) {
+		t.Fatalf("a running campaign = facts %+v, %v; want its item count first", view.Schedule.Facts, err)
 	}
 
 	tests := []struct {
 		name string
 		// Spelled out: sale_campaigns_slug_format allows no spaces.
-		slug  string
-		setup string
-		want  pages.CampaignState
+		slug      string
+		setup     string
+		wantFirst i18n.Key
+		wantNote  string
 	}{
 		{"already ended", "window-ended" + suffix, `UPDATE sale_campaigns SET starts_at = now() - interval '30 days',
-			ends_at = now() - interval '1 day' WHERE slug = $1`, pages.CampaignEnded},
+			ends_at = now() - interval '1 day' WHERE slug = $1`, i18n.KeySlideEnds, i18n.T(ctx, i18n.KeyCampaignEnded)},
 		{"not started yet", "window-future" + suffix, `UPDATE sale_campaigns SET starts_at = now() + interval '1 day',
-			ends_at = now() + interval '30 days' WHERE slug = $1`, pages.CampaignNotStarted},
+			ends_at = now() + interval '30 days' WHERE slug = $1`, i18n.KeyCampaignStarts, ""},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -697,8 +700,9 @@ func TestACampaignOutsideItsWindowIsShownAsNotStartedOrEnded(t *testing.T) {
 			if err != nil {
 				t.Fatalf("Campaign(%s) = %v, want the page", slug, err)
 			}
-			if view.Schedule.State != tt.want {
-				t.Errorf("Campaign(%s) state = %q, want %q", slug, view.Schedule.State, tt.want)
+			if first := view.Schedule.Facts[0].Label; first != i18n.T(ctx, tt.wantFirst) || view.Schedule.Ends.Note != tt.wantNote {
+				t.Errorf("Campaign(%s) leads with %q and notes the end %q, want %q and %q",
+					slug, first, view.Schedule.Ends.Note, i18n.T(ctx, tt.wantFirst), tt.wantNote)
 			}
 		})
 	}
@@ -1210,7 +1214,7 @@ func TestPromotionalTilesArePricedOnTheDiscountedVariant(t *testing.T) {
 			"variant carries no discount, and this page is about discounts",
 			tile.PriceCents)
 	}
-	if !tile.OnSale() {
+	if !tile.OnSale {
 		t.Error("a product on the sale page shows no sale badge, because the variant " +
 			"it was priced on is not the one that is marked down")
 	}
@@ -1247,9 +1251,9 @@ func TestPromotionalTilesArePricedOnTheDiscountedVariant(t *testing.T) {
 		t.Fatalf("campaign has %d products, want 1", len(campaign.Products))
 	}
 	campaignTile := campaign.Products[0]
-	if campaignTile.PriceCents != 150000 || !campaignTile.OnSale() {
+	if campaignTile.PriceCents != 150000 || !campaignTile.OnSale {
 		t.Errorf("campaign tile = price %d/on-sale %t, want 150000/true; the regular "+
-			"variant must not hide the discount", campaignTile.PriceCents, campaignTile.OnSale())
+			"variant must not hide the discount", campaignTile.PriceCents, campaignTile.OnSale)
 	}
 	if campaignTile.PriceVaries {
 		t.Error("campaign tile says its discounted price is the bottom of a range, but a cheaper variant exists")
@@ -1525,24 +1529,30 @@ func discountedProduct(t *testing.T) string {
 	return slug
 }
 
-func TestACardIsInACampaignOnlyWhileOneRunsWithSomethingToBuy(t *testing.T) {
+func TestACardIsOnSaleOnlyWhileACampaignRunsWithSomethingToBuy(t *testing.T) {
 	ctx := t.Context()
 	s := catalog.NewStore(pool, slog.New(slog.DiscardHandler))
 
 	tests := []struct {
-		name  string
-		setup string
-		want  bool
+		name         string
+		setup        string
+		want         bool
+		anotherAfter bool // feature another product, in stock, once setup has run
 	}{
-		{"running", ``, true},
+		{"running", ``, true, false},
 		{"already ended", `UPDATE sale_campaigns SET starts_at = now() - interval '30 days',
-			ends_at = now() - interval '1 day' WHERE slug = $1`, false},
+			ends_at = now() - interval '1 day' WHERE slug = $1`, false, false},
 		{"not started yet", `UPDATE sale_campaigns SET starts_at = now() + interval '1 day',
-			ends_at = now() + interval '30 days' WHERE slug = $1`, false},
-		{"switched off", `UPDATE sale_campaigns SET is_active = false WHERE slug = $1`, false},
+			ends_at = now() + interval '30 days' WHERE slug = $1`, false, false},
+		{"switched off", `UPDATE sale_campaigns SET is_active = false WHERE slug = $1`, false, false},
 		{"nothing left to buy", `UPDATE product_variants SET stock_quantity = 0
 			WHERE product_id IN (SELECT cp.product_id FROM sale_campaign_products cp
-			                     JOIN sale_campaigns c ON c.id = cp.campaign_id WHERE c.slug = $1)`, false},
+			                     JOIN sale_campaigns c ON c.id = cp.campaign_id WHERE c.slug = $1)`, false, false},
+		// Another deal keeps the campaign listed, so the sold-out card is in
+		// it, and its price is still not struck.
+		{"sold out while another deal runs", `UPDATE product_variants SET stock_quantity = 0
+			WHERE product_id IN (SELECT cp.product_id FROM sale_campaign_products cp
+			                     JOIN sale_campaigns c ON c.id = cp.campaign_id WHERE c.slug = $1)`, false, true},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -1556,14 +1566,22 @@ func TestACardIsInACampaignOnlyWhileOneRunsWithSomethingToBuy(t *testing.T) {
 					t.Fatalf("setup: %v", err)
 				}
 			}
+			if tt.anotherAfter {
+				if _, err := pool.Exec(ctx, `
+					INSERT INTO sale_campaign_products (campaign_id, product_id, position)
+					SELECT c.id, p.id, 1 FROM sale_campaigns c, products p WHERE c.slug = $1 AND p.slug = $2`,
+					slug, discountedProduct(t)); err != nil {
+					t.Fatalf("feature another: %v", err)
+				}
+			}
 			tiles, err := s.NewestProducts(ctx, 50)
 			if err != nil {
 				t.Fatalf("newest products: %v", err)
 			}
 			for i := range tiles {
 				if tile := &tiles[i]; tile.Slug == product {
-					if tile.InCampaign != tt.want {
-						t.Errorf("%s: InCampaign = %v, want %v", tt.name, tile.InCampaign, tt.want)
+					if tile.OnSale != tt.want {
+						t.Errorf("%s: OnSale = %v, want %v", tt.name, tile.OnSale, tt.want)
 					}
 					return
 				}
@@ -1580,8 +1598,8 @@ func TestACardIsInACampaignOnlyWhileOneRunsWithSomethingToBuy(t *testing.T) {
 		}
 		for i := range tiles {
 			if tile := &tiles[i]; tile.Slug == product {
-				if tile.InCampaign || tile.CompareCents == 0 {
-					t.Errorf("a discounted product in no campaign: InCampaign = %v, CompareCents = %d, want false and its standing compare price", tile.InCampaign, tile.CompareCents)
+				if tile.OnSale || tile.CompareCents == 0 {
+					t.Errorf("a discounted product in no campaign: OnSale = %v, CompareCents = %d, want false and its standing compare price", tile.OnSale, tile.CompareCents)
 				}
 				return
 			}
@@ -1660,14 +1678,14 @@ func TestACardNeverStrikesAPriceOfASoldOutVariant(t *testing.T) {
 		switch tile := &view.Products[i]; tile.Slug {
 		case slug:
 			sawSoldOut = true
-			if tile.PriceCents != 150000 || tile.OnSale() {
-				t.Errorf("campaign card: price %d, on sale %v; want the buyable NT$1,500 unstruck", tile.PriceCents, tile.OnSale())
+			if tile.PriceCents != 150000 || tile.OnSale {
+				t.Errorf("campaign card: price %d, on sale %v; want the buyable NT$1,500 unstruck", tile.PriceCents, tile.OnSale)
 			}
 		case mixed:
 			sawMixed = true
-			if tile.PriceCents != 150000 || !tile.OnSale() || tile.CompareCents != 300000 {
+			if tile.PriceCents != 150000 || !tile.OnSale || tile.CompareCents != 300000 {
 				t.Errorf("campaign card of a product with a plain and a discounted variant in stock: price %d, was %d, on sale %v; want NT$1,500 struck from NT$3,000",
-					tile.PriceCents, tile.CompareCents, tile.OnSale())
+					tile.PriceCents, tile.CompareCents, tile.OnSale)
 			}
 		}
 	}
@@ -1684,8 +1702,8 @@ func TestACardNeverStrikesAPriceOfASoldOutVariant(t *testing.T) {
 		}
 		for i := range deals.Products {
 			if tile := &deals.Products[i]; tile.Slug == mixed {
-				if tile.PriceCents != 150000 || !tile.OnSale() {
-					t.Errorf("deals card of a product with a plain and a discounted variant in stock: price %d, on sale %v; want NT$1,500 struck", tile.PriceCents, tile.OnSale())
+				if tile.PriceCents != 150000 || !tile.OnSale {
+					t.Errorf("deals card of a product with a plain and a discounted variant in stock: price %d, on sale %v; want NT$1,500 struck", tile.PriceCents, tile.OnSale)
 				}
 				return
 			}

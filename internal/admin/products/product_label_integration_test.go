@@ -26,7 +26,6 @@ import (
 	"github.com/koopa0/goen/internal/db"
 	"github.com/koopa0/goen/internal/i18n"
 	"github.com/koopa0/goen/internal/product/labelling"
-	"github.com/koopa0/goen/internal/ui/pages/admin"
 	"github.com/koopa0/goen/internal/user"
 )
 
@@ -62,7 +61,7 @@ func TestProductLabelRoundTripUsesAdminRoleAndAuditsAtomically(t *testing.T) {
 		}
 	}
 	s := products.NewStore(writer)
-	input := &admin.LabelInput{Origin: " 台灣 ", OriginEn: "Taiwan", DomesticPartyName: "Maker", DomesticPartyPhone: "0912345678", DomesticPartyAddress: "Address", NetQuantity: "1.2", NetUnit: labelling.Piece, MinAgeMonths: "0"}
+	input := &products.LabelInput{Origin: " 台灣 ", OriginEn: "Taiwan", DomesticPartyName: "Maker", DomesticPartyPhone: "0912345678", DomesticPartyAddress: "Address", NetQuantity: "1.2", NetUnit: labelling.Piece, MinAgeMonths: "0"}
 	if err = s.SetProductLabel(ctx, slug, input); err != nil {
 		t.Fatal(err)
 	}
@@ -90,7 +89,7 @@ func TestProductLabelRoundTripUsesAdminRoleAndAuditsAtomically(t *testing.T) {
 	if err = owner.QueryRow(ctx, `SELECT count(*) FROM audit_events WHERE action='product.label.set' AND entity_id=$1 AND actor_user_id=$2 AND before->'origin'='null'::jsonb AND after->>'origin'='台灣' AND after->>'net_quantity'='1.20' AND after->>'min_age_months'='0'`, id, actor).Scan(&audits); err != nil || audits != 1 {
 		t.Fatalf("matching audit rows=%d: %v", audits, err)
 	}
-	if err = s.SetProductLabel(t.Context(), slug, &admin.LabelInput{Origin: "unaudited"}); !errors.Is(err, audit.ErrNoActor) {
+	if err = s.SetProductLabel(t.Context(), slug, &products.LabelInput{Origin: "unaudited"}); !errors.Is(err, audit.ErrNoActor) {
 		t.Fatalf("missing actor=%v", err)
 	}
 	view, err = s.Product(ctx, slug)
@@ -100,10 +99,10 @@ func TestProductLabelRoundTripUsesAdminRoleAndAuditsAtomically(t *testing.T) {
 	if err = s.SetProductLabel(ctx, "missing-label-product", input); !errors.Is(err, products.ErrNotFound) {
 		t.Fatalf("missing product=%v", err)
 	}
-	if err = s.SetProductLabel(ctx, slug, &admin.LabelInput{MinAgeMonths: "217"}); !errors.Is(err, products.ErrInvalid) {
+	if err = s.SetProductLabel(ctx, slug, &products.LabelInput{MinAgeMonths: "217"}); !errors.Is(err, products.ErrInvalid) {
 		t.Fatalf("invalid input=%v", err)
 	}
-	if err = s.SetProductLabel(ctx, slug, &admin.LabelInput{}); err != nil {
+	if err = s.SetProductLabel(ctx, slug, &products.LabelInput{}); err != nil {
 		t.Fatal(err)
 	}
 	pdp, err := catalog.NewStore(reader, slog.New(slog.DiscardHandler)).Product(ctx, slug, catalog.Selection{})
@@ -114,7 +113,7 @@ func TestProductLabelRoundTripUsesAdminRoleAndAuditsAtomically(t *testing.T) {
 	if err = owner.QueryRow(ctx, `SELECT origin IS NULL AND origin_en IS NULL AND domestic_party_name IS NULL AND domestic_party_phone IS NULL AND domestic_party_address IS NULL AND net_quantity IS NULL AND net_unit IS NULL AND min_age_months IS NULL FROM products WHERE id=$1`, id).Scan(&allNull); err != nil || !allNull {
 		t.Fatalf("clear fields all null=%v: %v", allNull, err)
 	}
-	if err = s.SetProductLabel(ctx, slug, &admin.LabelInput{OriginEn: "Taiwan"}); err != nil {
+	if err = s.SetProductLabel(ctx, slug, &products.LabelInput{OriginEn: "Taiwan"}); err != nil {
 		t.Fatal(err)
 	}
 	pdp, err = catalog.NewStore(reader, slog.New(slog.DiscardHandler)).Product(i18n.WithLocale(ctx, i18n.ZhHant), slug, catalog.Selection{})

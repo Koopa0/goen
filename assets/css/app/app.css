@@ -8959,6 +8959,20 @@ html:active-view-transition-type(page)::view-transition-group(*.photo) {
   object-fit: cover;
 }
 
+/* The photo is named, not the well that clips it, so the snapshot has no
+   corner of its own. The pair is clipped at the corner the photo lands on. */
+::view-transition-image-pair(*.photo) {
+  overflow: clip;
+}
+
+::view-transition-image-pair(product-photo) {
+  border-radius: 16px;
+}
+
+::view-transition-image-pair(department-photo) {
+  border-radius: var(--r-hero);
+}
+
 ::view-transition-old(*.photo) {
   animation: none;
 }

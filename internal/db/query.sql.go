@@ -907,12 +907,8 @@ SELECT u.id, u.email, coalesce(u.full_name, '') AS full_name,
        coalesce(u.phone, '') AS phone, u.created_at,
        (u.email_verified_at IS NOT NULL)::boolean AS verified,
        (SELECT count(*) FROM orders o WHERE o.user_id = u.id)::bigint AS orders,
-       coalesce((SELECT sum(greatest(t.total_cents - (rf.card_cents + rf.credit_cents), 0))
-                 FROM orders o
-                 JOIN order_totals t ON t.order_id = o.id
-                 JOIN committed_orders c ON c.id = o.id
-                 JOIN order_refunds rf ON rf.order_id = o.id
-                 WHERE o.user_id = u.id), 0)::bigint AS spent,
+       coalesce((SELECT sum(s.spend_cents) FROM committed_order_spend s
+                 WHERE s.user_id = u.id), 0)::bigint AS spent,
        coalesce((SELECT b.balance_cents FROM store_credit_balances b
                  WHERE b.user_id = u.id), 0)::bigint AS credit_cents,
        coalesce((SELECT lb.points FROM loyalty_balances lb
@@ -935,9 +931,9 @@ type AdminCustomerRow struct {
 	Points      int64
 }
 
-// Spend counts COMMITTED orders only, and both balances come from the VIEWS that
-// define them. No role predicate, deliberately: /admin/staff promotes an
-// existing customer, whose order history must stay reachable from this page.
+// Lifetime spend and both balances come from the VIEWS that define them. No
+// role predicate, deliberately: /admin/staff promotes an existing customer,
+// whose order history must stay reachable from this page.
 func (q *Queries) AdminCustomer(ctx context.Context, id uuid.UUID) (AdminCustomerRow, error) {
 	row := q.db.QueryRow(ctx, adminCustomer, id)
 	var i AdminCustomerRow
@@ -1175,13 +1171,23 @@ func (q *Queries) AdminHeroSlides(ctx context.Context, arg AdminHeroSlidesParams
 }
 
 const adminMembershipTiers = `-- name: AdminMembershipTiers :many
+WITH spend AS (
+    SELECT u.id, coalesce(sum(s.spend_cents), 0)::bigint AS cents
+    FROM users u
+    LEFT JOIN member_order_spend s ON s.user_id = u.id
+    GROUP BY u.id
+), per_spend AS (
+    SELECT cents, count(*) AS members FROM spend GROUP BY cents
+), per_tier AS (
+    SELECT membership_tier_for(cents) AS tier_id, sum(members) AS members
+    FROM per_spend
+    GROUP BY 1
+)
 SELECT t.id, t.code, t.name, coalesce(t.name_en, '') AS name_en,
        t.min_spend_cents, t.points_multiplier_bp, t.position,
        coalesce(m.members, 0)::bigint AS members
 FROM membership_tiers t
-LEFT JOIN (SELECT member_tier(u.id, NULL) AS tier_id, count(*) AS members
-           FROM users u
-           GROUP BY 1) m ON m.tier_id = t.id
+LEFT JOIN per_tier m ON m.tier_id = t.id
 ORDER BY t.min_spend_cents
 `
 
@@ -1196,8 +1202,10 @@ type AdminMembershipTiersRow struct {
 	Members            int64
 }
 
-// Each customer's tier is derived once and the customers counted per band, not
-// one member_tier call per customer and band.
+// Every customer's spend in one pass over member_order_spend, the customers
+// counted per spend, and each distinct spend given its band once. Calling
+// member_tier per account cost a spend aggregate per account, most of them for
+// accounts that have never ordered (#1934).
 func (q *Queries) AdminMembershipTiers(ctx context.Context) ([]AdminMembershipTiersRow, error) {
 	rows, err := q.db.Query(ctx, adminMembershipTiers)
 	if err != nil {
