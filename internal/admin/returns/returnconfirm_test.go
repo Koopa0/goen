@@ -1,4 +1,4 @@
-package admin
+package returns
 
 import (
 	"strings"
@@ -30,6 +30,20 @@ func TestReturnConfirmationOffersOnlyTheSelectedDecision(t *testing.T) {
 					t.Fatalf("%s confirmation also submits %s", decision, other)
 				}
 			}
+		}
+	}
+}
+
+// From orderflow_test.go, moved whole.
+// The return decision marks its note only when the decision needs one.
+func TestTheReturnDecisionMarksTheNoteOnlyWhenItIsRequired(t *testing.T) {
+	t.Parallel()
+	ctx := i18n.WithLocale(t.Context(), i18n.ZhHant)
+	for _, required := range []bool{true, false} {
+		html := renderComponent(t, ctx, ConfirmReturn(layouts.Page{Title: "r"},
+			ReturnConfirmation{ID: "id", OrderNumber: "GO-1", Decision: "rejected", Required: required}))
+		if got := strings.Contains(html, i18n.T(ctx, i18n.KeyAdminRequiredMark)); got != required {
+			t.Errorf("required=%t but the mark is shown=%t", required, got)
 		}
 	}
 }

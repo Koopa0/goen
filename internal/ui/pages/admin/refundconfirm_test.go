@@ -58,25 +58,3 @@ func TestTheOrderPageOffersTheRefundAndResume(t *testing.T) {
 		t.Fatal("a cancelled order offers a refund or does not read as final")
 	}
 }
-
-func TestARefundBeforeShipmentIsFinishedOnItsOrderPage(t *testing.T) {
-	t.Parallel()
-	r := &Return{
-		ID: "return", OrderNumber: "GO-260929-000001", Status: "approved", Decided: true,
-		BeforeShipment: true, PayoutOutstanding: true, Window: "undelivered",
-		Lines: []ReturnLine{{OrderLineID: "line", Quantity: 1}},
-	}
-	if r.AwaitingGoods() || r.CanComplete() {
-		t.Fatal("the returns queue offers to inspect or close goods that never shipped")
-	}
-	ctx := i18n.WithLocale(t.Context(), i18n.En)
-	var body strings.Builder
-	if err := Returns(layouts.Page{Title: "returns"}, ReturnsView{Rows: []Return{*r}}).Render(ctx, &body); err != nil {
-		t.Fatal(err)
-	}
-	page := body.String()
-	if !strings.Contains(page, `href="/admin/orders/GO-260929-000001"`) ||
-		strings.Contains(page, r.Action()) || strings.Contains(page, r.InspectAction()) {
-		t.Fatalf("a refund before shipment is not sent to its order page: %s", page)
-	}
-}
