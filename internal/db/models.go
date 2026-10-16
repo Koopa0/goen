@@ -909,6 +909,18 @@ type VariantOptionValue struct {
 	OptionValueID uuid.UUID
 }
 
+// The photograph a cart or order line shows for its variant (variant_id NULL: the product with nothing chosen), in the product page gallery's order.
+type VariantPrimaryImage struct {
+	ProductID   uuid.UUID
+	VariantID   uuid.UUID
+	MediaDigest pgtype.Text
+	BundledKey  pgtype.Text
+	AltText     string
+	AltTextEn   pgtype.Text
+	Width       pgtype.Int4
+	Height      pgtype.Int4
+}
+
 // Reviews that count: not hidden by staff. Every rating and review count reads this, so hiding one moves the score as well as the list.
 type VisibleReview struct {
 	ID                 uuid.UUID

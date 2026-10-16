@@ -178,13 +178,10 @@ SELECT ol.product_name, ol.variant_label, ol.unit_price_cents, ol.quantity,
        coalesce(img.width, 0)::integer AS image_width
 FROM order_lines ol
 LEFT JOIN LATERAL (
-    SELECT i.media_digest, i.bundled_key, i.alt_text, i.alt_text_en, i.width FROM product_images i
-    WHERE i.product_id = ol.product_id
-    ORDER BY EXISTS (
-                 SELECT 1 FROM variant_option_values vov
-                 WHERE vov.variant_id = ol.variant_id AND vov.option_value_id = i.option_value_id
-             ) DESC,
-             i.position
+    -- LIMIT 1 keeps the subquery unflattened, so the view is read for this line only.
+    SELECT v.media_digest, v.bundled_key, v.alt_text, v.alt_text_en, v.width
+    FROM variant_primary_image v
+    WHERE v.product_id = ol.product_id AND v.variant_id IS NOT DISTINCT FROM ol.variant_id
     LIMIT 1
 ) img ON true
 WHERE ol.order_id = @order_id ORDER BY ol.position, ol.id;
