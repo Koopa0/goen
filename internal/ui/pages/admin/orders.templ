@@ -367,7 +367,7 @@ templ Order(p layouts.Page, v *OrderView) {
 						<ul class="goen-admin__timeline" role="list">
 							for _, sh := range v.Shipments {
 								<li class="goen-admin__event">
-									<span class="goen-admin__eventhead">{ i18n.CarrierName(ctx, sh.Carrier) } · { sh.Tracking }</span>
+									<span class="goen-admin__eventhead">{ sh.Carrier.Name(ctx) } · { sh.Tracking }</span>
 									if sh.Delivered() {
 										<span class="goen-admin__meta">{ fmt.Sprintf(i18n.T(ctx, i18n.KeyAdminQueueDelivered), sh.DeliveredAt) }</span>
 									} else {
@@ -501,7 +501,7 @@ templ Order(p layouts.Page, v *OrderView) {
 								>
 									<option value="" selected?={ v.ShipCarrier == "" } disabled>{ i18n.T(ctx, i18n.KeyAdminCarrierChoose) }</option>
 									for _, c := range v.ShipCarriers {
-										<option value={ string(c) } selected?={ string(c) == v.ShipCarrier }>{ i18n.CarrierName(ctx, c) }</option>
+										<option value={ string(c) } selected?={ string(c) == v.ShipCarrier }>{ c.Name(ctx) }</option>
 									}
 								</select>
 								if v.ShipCarrierError != "" {
