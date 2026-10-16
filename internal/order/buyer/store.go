@@ -36,19 +36,19 @@ type Parcel struct {
 	RescissionDays int64
 }
 
-type Order struct {
+type ReturnOrder struct {
 	ID          uuid.UUID
 	Number      string
 	Fulfillment string
 	Pickup      bool
 	Shipments   []Parcel
 	Now         time.Time
-	Lines       []Line
+	Lines       []ReturnLine
 	HasOpen     bool
-	Existing    []Existing
+	Existing    []FiledReturn
 }
 
-type Existing struct {
+type FiledReturn struct {
 	Status     string
 	Reason     string
 	Resolution string
@@ -56,7 +56,7 @@ type Existing struct {
 	DecidedAt  string
 }
 
-func (o *Order) Returnable() bool {
+func (o *ReturnOrder) Returnable() bool {
 	for i := range o.Lines {
 		if o.Lines[i].Returnable > 0 {
 			return true
@@ -65,7 +65,7 @@ func (o *Order) Returnable() bool {
 	return false
 }
 
-func (s *Store) Order(ctx context.Context, number string) (*Order, error) {
+func (s *Store) ReturnOrder(ctx context.Context, number string) (*ReturnOrder, error) {
 	row, err := s.q.OrderForReturn(ctx, number)
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
@@ -92,15 +92,15 @@ func (s *Store) Order(ctx context.Context, number string) (*Order, error) {
 		return nil, fmt.Errorf("read return windows of %s: %w", number, err)
 	}
 
-	o := &Order{
+	o := &ReturnOrder{
 		ID: row.ID, Number: row.OrderNumber, Fulfillment: row.FulfillmentStatus,
 		Pickup:  row.Pickup,
 		HasOpen: open,
-		Lines:   make([]Line, 0, len(lines)),
+		Lines:   make([]ReturnLine, 0, len(lines)),
 	}
 	for i := range lines {
 		l := &lines[i]
-		o.Lines = append(o.Lines, Line{
+		o.Lines = append(o.Lines, ReturnLine{
 			ID: l.ID.String(), SKU: l.SKU, Name: l.ProductName,
 			Label: l.VariantLabel.String, UnitCents: l.UnitPriceCents,
 			Returnable: l.Returnable,
@@ -119,7 +119,7 @@ func (s *Store) Order(ctx context.Context, number string) (*Order, error) {
 	}
 	for i := range existing {
 		e := &existing[i]
-		o.Existing = append(o.Existing, Existing{
+		o.Existing = append(o.Existing, FiledReturn{
 			Status: e.Status, Reason: e.Reason, Resolution: e.Resolution.String,
 			CreatedAt: shoptime.DateTimeText(ctx, e.CreatedAt, now),
 			DecidedAt: nullableTime(ctx, e.DecidedAt, now),
@@ -128,19 +128,20 @@ func (s *Store) Order(ctx context.Context, number string) (*Order, error) {
 	return o, nil
 }
 
-// Open files the header and its lines in one transaction: every quantity guard
-// lives on the lines, so a header committed alone has passed no check at all.
-func (s *Store) Open(ctx context.Context, number string, userID uuid.NullUUID, req *Request) error {
+// OpenReturn files the header and its lines in one transaction: every quantity
+// guard lives on the lines, so a header committed alone has passed no check at
+// all.
+func (s *Store) OpenReturn(ctx context.Context, number string, userID uuid.NullUUID, req *ReturnRequest) error {
 	if err := req.Validate(); err != nil {
 		return err
 	}
 
-	o, err := s.Order(ctx, number)
+	o, err := s.ReturnOrder(ctx, number)
 	if err != nil {
 		return err
 	}
 	if o.HasOpen {
-		return ErrAlreadyOpen
+		return ErrReturnOpen
 	}
 	if !o.Returnable() {
 		return ErrNotReturnable
@@ -164,7 +165,7 @@ func (s *Store) Open(ctx context.Context, number string, userID uuid.NullUUID, r
 	if err != nil {
 		if pgErr, ok := errors.AsType[*pgconn.PgError](err); ok &&
 			pgErr.ConstraintName == "return_requests_one_open" {
-			return ErrAlreadyOpen
+			return ErrReturnOpen
 		}
 		return fmt.Errorf("create return request for %s: %w", number, err)
 	}
@@ -179,14 +180,14 @@ func (s *Store) Open(ctx context.Context, number string, userID uuid.NullUUID, r
 	if err := tx.Commit(ctx); err != nil {
 		if pgErr, ok := errors.AsType[*pgconn.PgError](err); ok &&
 			pgErr.ConstraintName == "return_credit_requires_live_account" {
-			return ErrAccountErased
+			return ErrReturnAccountErased
 		}
 		return fmt.Errorf("commit return request: %w", err)
 	}
 	return nil
 }
 
-func wantedLines(submitted map[string]int32, lines []Line) (map[uuid.UUID]int32, error) {
+func wantedLines(submitted map[string]int32, lines []ReturnLine) (map[uuid.UUID]int32, error) {
 	allowed := make(map[string]int32, len(lines))
 	for i := range lines {
 		allowed[lines[i].ID] = lines[i].Returnable
@@ -203,7 +204,7 @@ func wantedLines(submitted map[string]int32, lines []Line) (map[uuid.UUID]int32,
 		wanted[lineID] = qty
 	}
 	if len(wanted) == 0 {
-		return nil, ErrInvalid
+		return nil, ErrReturnInvalid
 	}
 	return wanted, nil
 }
@@ -211,7 +212,7 @@ func wantedLines(submitted map[string]int32, lines []Line) (map[uuid.UUID]int32,
 func returnLineError(lineID uuid.UUID, err error) error {
 	if pgErr, ok := errors.AsType[*pgconn.PgError](err); ok &&
 		pgErr.ConstraintName == "return_within_shipment" {
-		return ErrTooMany
+		return ErrReturnTooMany
 	}
 	return fmt.Errorf("add return line for order line %s: %w", lineID, err)
 }
@@ -227,14 +228,14 @@ func nullableTime(ctx context.Context, t pgtype.Timestamptz, now time.Time) stri
 func parseWanted(id string, qty int32, allowed map[string]int32) (uuid.UUID, error) {
 	ceiling, ok := allowed[id]
 	if !ok {
-		return uuid.UUID{}, ErrInvalid
+		return uuid.UUID{}, ErrReturnInvalid
 	}
 	if qty > ceiling {
-		return uuid.UUID{}, ErrTooMany
+		return uuid.UUID{}, ErrReturnTooMany
 	}
 	lineID, err := uuid.Parse(id)
 	if err != nil {
-		return uuid.UUID{}, ErrInvalid
+		return uuid.UUID{}, ErrReturnInvalid
 	}
 	return lineID, nil
 }

@@ -17,7 +17,7 @@ import (
 
 	"github.com/koopa0/goen/internal/i18n"
 	"github.com/koopa0/goen/internal/order/access"
-	"github.com/koopa0/goen/internal/returns/buyer"
+	"github.com/koopa0/goen/internal/order/buyer"
 	"github.com/koopa0/goen/internal/ui/pages"
 )
 
@@ -48,7 +48,7 @@ func TestReturnFormReadsTheDeliveredParcelsDatabaseDeadlineAndOnlyTheOpenNotice(
 	}
 	appPool := returnsApplicationPool(t, "return-next-step")
 	store := buyer.NewStore(appPool)
-	order, err := store.Order(ctx, number)
+	order, err := store.ReturnOrder(ctx, number)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -57,8 +57,8 @@ func TestReturnFormReadsTheDeliveredParcelsDatabaseDeadlineAndOnlyTheOpenNotice(
 	}
 	handler := buyer.NewHandler(store, access.NewStore(appPool, false), slog.New(slog.DiscardHandler))
 	mux := http.NewServeMux()
-	mux.HandleFunc("GET /orders/{number}/return", handler.Page)
-	mux.HandleFunc("POST /orders/{number}/return", handler.Submit)
+	mux.HandleFunc("GET /orders/{number}/return", handler.ReturnPage)
+	mux.HandleFunc("POST /orders/{number}/return", handler.SubmitReturn)
 	for _, locale := range []i18n.Locale{i18n.ZhHant, i18n.En} {
 		local := i18n.WithLocale(ctx, locale)
 		request := httptest.NewRequestWithContext(local, http.MethodGet, "/orders/"+number+"/return", http.NoBody)
@@ -73,7 +73,7 @@ func TestReturnFormReadsTheDeliveredParcelsDatabaseDeadlineAndOnlyTheOpenNotice(
 		}
 	}
 	moveParcels(t, `UPDATE order_shipments SET delivered_at=now() WHERE order_id=(SELECT id FROM orders WHERE order_number=$1)`, number)
-	if err := store.Open(ctx, number, uuid.NullUUID{}, &buyer.Request{Lines: map[string]int32{lineID.String(): 2}}); err != nil {
+	if err := store.OpenReturn(ctx, number, uuid.NullUUID{}, &buyer.ReturnRequest{Lines: map[string]int32{lineID.String(): 2}}); err != nil {
 		t.Fatal(err)
 	}
 	for _, locale := range []i18n.Locale{i18n.ZhHant, i18n.En} {
@@ -112,7 +112,7 @@ func TestReturnFormTellsAPickupOrderToCountFromCollection(t *testing.T) {
 	store := buyer.NewStore(appPool)
 	handler := buyer.NewHandler(store, access.NewStore(appPool, false), slog.New(slog.DiscardHandler))
 	mux := http.NewServeMux()
-	mux.HandleFunc("GET /orders/{number}/return", handler.Page)
+	mux.HandleFunc("GET /orders/{number}/return", handler.ReturnPage)
 	for _, tc := range []struct {
 		number string
 		key    i18n.Key

@@ -28,11 +28,11 @@ import (
 	"github.com/koopa0/goen/internal/i18n"
 	"github.com/koopa0/goen/internal/money"
 	"github.com/koopa0/goen/internal/order"
+	"github.com/koopa0/goen/internal/order/buyer"
 	"github.com/koopa0/goen/internal/order/notice"
 	"github.com/koopa0/goen/internal/outbox"
 	"github.com/koopa0/goen/internal/refund"
 	"github.com/koopa0/goen/internal/returns"
-	"github.com/koopa0/goen/internal/returns/buyer"
 	"github.com/koopa0/goen/internal/ui/components"
 	"github.com/koopa0/goen/internal/ui/layouts"
 	"github.com/koopa0/goen/internal/ui/pages/admin"
@@ -323,9 +323,9 @@ func TestAnUnsentRefundIsBoundedByWhatDidNotShip(t *testing.T) {
 		if err := s.RefundUnsent(ctx, o.Number, unsentRequest(returns.UnsentDamaged, unsentB(&o))); err != nil {
 			t.Fatalf("refund: %v", err)
 		}
-		if err := buyer.NewStore(admintest.StoreRolePool(t, pool)).Open(ctx, o.Number,
+		if err := buyer.NewStore(admintest.StoreRolePool(t, pool)).OpenReturn(ctx, o.Number,
 			uuid.NullUUID{UUID: o.User, Valid: true},
-			&buyer.Request{Lines: map[string]int32{o.LineB.String(): 1}}); err != nil {
+			&buyer.ReturnRequest{Lines: map[string]int32{o.LineB.String(): 1}}); err != nil {
 			t.Fatalf("the customer returns the shipped unit of B: %v", err)
 		}
 	})
@@ -394,9 +394,9 @@ func TestReturningTheRestAfterAnUnsentRefundRefundsDelivery(t *testing.T) {
 	if f := readUnsent(t, &o); f.delivery != 0 {
 		t.Fatalf("the unsent refund froze %d of delivery, want none", f.delivery)
 	}
-	if err := buyer.NewStore(admintest.StoreRolePool(t, pool)).Open(ctx, o.Number,
+	if err := buyer.NewStore(admintest.StoreRolePool(t, pool)).OpenReturn(ctx, o.Number,
 		uuid.NullUUID{UUID: o.User, Valid: true},
-		&buyer.Request{Lines: map[string]int32{o.LineA.String(): 1, o.LineB.String(): 1}}); err != nil {
+		&buyer.ReturnRequest{Lines: map[string]int32{o.LineA.String(): 1, o.LineB.String(): 1}}); err != nil {
 		t.Fatalf("return the rest: %v", err)
 	}
 	var returnID uuid.UUID
