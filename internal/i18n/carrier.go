@@ -1,20 +1,16 @@
 package i18n
 
-import (
-	"context"
-
-	"github.com/koopa0/goen/internal/shipping"
-)
-
 var (
-	keyCarrierBlackCat     = key("carrier.black_cat", Message{ZhHant: "黑貓宅急便", En: "T-CAT (Black Cat)"})
-	keyCarrierHCT          = key("carrier.hct", Message{ZhHant: "新竹物流", En: "HCT Logistics"})
-	keyCarrierChunghwaPost = key("carrier.chunghwa_post", Message{ZhHant: "中華郵政", En: "Chunghwa Post"})
-	keyCarrierKerryTJ      = key("carrier.kerry_tj", Message{ZhHant: "嘉里大榮", En: "Kerry TJ Logistics"})
-	keyCarrierSevenEleven  = key("carrier.seven_eleven", Message{ZhHant: "7-ELEVEN 交貨便", En: "7-ELEVEN pickup"})
-	keyCarrierFamilyMart   = key("carrier.family_mart", Message{ZhHant: "全家店到店", En: "FamilyMart store pickup"})
-	keyCarrierHiLife       = key("carrier.hi_life", Message{ZhHant: "萊爾富", En: "Hi-Life"})
-	keyCarrierOKMart       = key("carrier.ok_mart", Message{ZhHant: "OK 超商", En: "OK mart"})
+	// The carriers' names, one for each code in shipping's closed set;
+	// shipping.Carrier.Name picks the one to show.
+	KeyCarrierBlackCat     = key("carrier.black_cat", Message{ZhHant: "黑貓宅急便", En: "T-CAT (Black Cat)"})
+	KeyCarrierHCT          = key("carrier.hct", Message{ZhHant: "新竹物流", En: "HCT Logistics"})
+	KeyCarrierChunghwaPost = key("carrier.chunghwa_post", Message{ZhHant: "中華郵政", En: "Chunghwa Post"})
+	KeyCarrierKerryTJ      = key("carrier.kerry_tj", Message{ZhHant: "嘉里大榮", En: "Kerry TJ Logistics"})
+	KeyCarrierSevenEleven  = key("carrier.seven_eleven", Message{ZhHant: "7-ELEVEN 交貨便", En: "7-ELEVEN pickup"})
+	KeyCarrierFamilyMart   = key("carrier.family_mart", Message{ZhHant: "全家店到店", En: "FamilyMart store pickup"})
+	KeyCarrierHiLife       = key("carrier.hi_life", Message{ZhHant: "萊爾富", En: "Hi-Life"})
+	KeyCarrierOKMart       = key("carrier.ok_mart", Message{ZhHant: "OK 超商", En: "OK mart"})
 
 	// KeyOrderTrackLink is the link to a carrier's tracking page, shown beside a
 	// tracking number the carrier's address cannot take.
@@ -36,29 +32,3 @@ var (
 		En:     "Track the parcel:\n%s",
 	})
 )
-
-// CarrierName is a carrier's name in this request's language. A value outside
-// the closed set, such as a notice queued before it was closed, is returned as
-// stored rather than hidden.
-func CarrierName(ctx context.Context, c shipping.Carrier) string {
-	switch c {
-	case shipping.CarrierBlackCat:
-		return T(ctx, keyCarrierBlackCat)
-	case shipping.CarrierHCT:
-		return T(ctx, keyCarrierHCT)
-	case shipping.CarrierChunghwaPost:
-		return T(ctx, keyCarrierChunghwaPost)
-	case shipping.CarrierKerryTJ:
-		return T(ctx, keyCarrierKerryTJ)
-	case shipping.CarrierSevenEleven:
-		return T(ctx, keyCarrierSevenEleven)
-	case shipping.CarrierFamilyMart:
-		return T(ctx, keyCarrierFamilyMart)
-	case shipping.CarrierHiLife:
-		return T(ctx, keyCarrierHiLife)
-	case shipping.CarrierOKMart:
-		return T(ctx, keyCarrierOKMart)
-	default:
-		return string(c)
-	}
-}

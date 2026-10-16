@@ -13,17 +13,13 @@ import (
 
 func TestBlockedSeesOnlyTheCurrentDatabase(t *testing.T) {
 	ctx := t.Context()
+	// Two copies of the template on one server, as two tests of a binary have.
 	pool := dbtest.Pool(t)
-
-	if _, err := pool.Exec(ctx, `CREATE DATABASE probe_other`); err != nil {
-		t.Fatalf("create database: %v", err)
-	}
-	cfg := pool.Config()
-	cfg.ConnConfig.Database = "probe_other"
+	cfg := dbtest.Pool(t).Config()
 	cfg.ConnConfig.RuntimeParams["application_name"] = "probe-waiter"
 	other, openErr := pgxpool.NewWithConfig(ctx, cfg)
 	if openErr != nil {
-		t.Fatalf("open pool on probe_other: %v", openErr)
+		t.Fatalf("open pool on the other database: %v", openErr)
 	}
 	t.Cleanup(other.Close)
 	if _, tableErr := other.Exec(ctx, `CREATE TABLE t (id integer PRIMARY KEY); INSERT INTO t VALUES (1)`); tableErr != nil {
@@ -45,7 +41,7 @@ func TestBlockedSeesOnlyTheCurrentDatabase(t *testing.T) {
 		done <- updateErr
 	}()
 
-	// Positive control: from inside probe_other the helper sees the waiter,
+	// Positive control: from inside the other database the helper sees the waiter,
 	// with and without a blocker filter, so Match{} with a nil BlockedBy
 	// matches too.
 	var waiter dbtest.Backend
@@ -53,14 +49,14 @@ func TestBlockedSeesOnlyTheCurrentDatabase(t *testing.T) {
 	for {
 		got, ok, err := dbtest.Blocked(ctx, other, dbtest.Match{Application: "probe-waiter"})
 		if err != nil {
-			t.Fatalf("Blocked in probe_other: %v", err)
+			t.Fatalf("Blocked in the other database: %v", err)
 		}
 		if ok {
 			waiter = got
 			break
 		}
 		if time.Now().After(deadline) {
-			t.Fatal("the waiter never blocked in probe_other, so the filter test proves nothing")
+			t.Fatal("the waiter never blocked in the other database, so the filter test proves nothing")
 		}
 		time.Sleep(20 * time.Millisecond)
 	}
@@ -69,21 +65,21 @@ func TestBlockedSeesOnlyTheCurrentDatabase(t *testing.T) {
 	}
 	all, err := dbtest.Backends(ctx, other, dbtest.Match{})
 	if err != nil {
-		t.Fatalf("Backends{} in probe_other: %v", err)
+		t.Fatalf("Backends{} in the other database: %v", err)
 	}
 	if len(all) == 0 {
-		t.Fatal("Match{} with an empty BlockedBy selected no backend in probe_other")
+		t.Fatal("Match{} with an empty BlockedBy selected no backend in the other database")
 	}
 	viaBlocker, ok, err := dbtest.Blocked(ctx, other, dbtest.Match{Application: "probe-waiter", BlockedBy: waiter.BlockedBy})
 	if err != nil || !ok || viaBlocker.PID != waiter.PID {
 		t.Fatalf("Blocked by %v = %+v, %v, %v; want pid %d", waiter.BlockedBy, viaBlocker, ok, err, waiter.PID)
 	}
 
-	// The filter: the same question from goen_test must find nothing.
+	// The filter: the same question from this test's first database must find nothing.
 	if got, ok, err := dbtest.Blocked(ctx, pool, dbtest.Match{Application: "probe-waiter"}); err != nil {
-		t.Fatalf("Blocked in goen_test: %v", err)
+		t.Fatalf("Blocked in the first database: %v", err)
 	} else if ok {
-		t.Fatalf("Blocked reported pid %d, a waiter of database probe_other, to a caller in goen_test: the probe is not filtered by database", got.PID)
+		t.Fatalf("Blocked reported pid %d, a waiter of the other database, to a caller in the first: the probe is not filtered by database", got.PID)
 	}
 
 	if err := holder.Rollback(ctx); err != nil {

@@ -263,6 +263,11 @@ store before anything else.
   (`handler_integration_test.go`) keep theirs beside the tests it serves.
 - Put a helper shared by several packages in the area's helper package, such
   as `admintest` or `dbtest`.
+- A test that needs a database of its own calls `dbtest.Pool`: a copy of the
+  migrated template on the package's one server, made in milliseconds.
+  `dbtest.Database` adds a pool per application role, assumed with `SET ROLE`
+  as `cmd/goen` does. Roles belong to the server and so to every test of the
+  package: a test that creates one gives it a unique name and drops it.
 - A test that drives a real browser has the `_browser_test.go` suffix
   (`_browser_integration_test.go` when it also needs the `integration` tag),
   learns that it may run only through `internal/ui/uitest` (`Browser`,

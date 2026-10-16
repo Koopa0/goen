@@ -39,12 +39,12 @@ import (
 	"github.com/koopa0/goen/internal/media"
 	"github.com/koopa0/goen/internal/newsletter"
 	"github.com/koopa0/goen/internal/order/access"
+	"github.com/koopa0/goen/internal/order/buyer"
 	"github.com/koopa0/goen/internal/outbox"
 	"github.com/koopa0/goen/internal/payment"
 	"github.com/koopa0/goen/internal/probe"
 	"github.com/koopa0/goen/internal/product"
 	"github.com/koopa0/goen/internal/ratelimit"
-	"github.com/koopa0/goen/internal/returns/buyer"
 	"github.com/koopa0/goen/internal/site"
 	"github.com/koopa0/goen/internal/ui/pages"
 	"github.com/koopa0/goen/internal/warranty"
@@ -256,7 +256,7 @@ func storefrontRoutes(mux *http.ServeMux, cfg *StorefrontConfig, log *slog.Logge
 		Every: 2 * time.Second, Burst: 30, TTL: time.Hour, MaxKeys: 65_536,
 	})
 	till := payment.NewHandler(payment.NewStore(pool), gateway, orderAccess, log)
-	sendbacks := buyer.NewHandler(buyer.NewStore(pool), orderAccess, log)
+	buyerOrders := buyer.NewHandler(buyer.NewStore(pool), orderAccess, log)
 
 	mux.HandleFunc("GET /{$}", homePage.Index)
 	// The digest in the path is the only authorisation an image has, and it is
@@ -321,8 +321,8 @@ func storefrontRoutes(mux *http.ServeMux, cfg *StorefrontConfig, log *slog.Logge
 	mux.HandleFunc("POST /orders/{number}/reorder", clearSpeculations(basket.ReorderItems))
 	mux.HandleFunc("GET /orders/{number}/pay", till.Page)
 	mux.HandleFunc("POST /orders/{number}/pay", till.Start)
-	mux.HandleFunc("GET /orders/{number}/return", sendbacks.Page)
-	mux.HandleFunc("POST /orders/{number}/return", sendbacks.Submit)
+	mux.HandleFunc("GET /orders/{number}/return", buyerOrders.ReturnPage)
+	mux.HandleFunc("POST /orders/{number}/return", buyerOrders.SubmitReturn)
 
 	// Stripe posts server-to-server with no Origin, so the cross-origin
 	// middleware has nothing to check and lets it through; its authentication is

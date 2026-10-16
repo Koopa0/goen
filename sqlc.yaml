@@ -11,7 +11,7 @@ sql:
       - "internal/cart/query.sql"
       - "internal/order/access/query.sql"
       - "internal/payment/query.sql"
-      - "internal/returns/buyer/query.sql"
+      - "internal/order/buyer/query.sql"
       - "internal/outbox/query.sql"
       - "internal/order/notice/query.sql"
       - "internal/order/cancellation/query.sql"

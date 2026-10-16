@@ -3,6 +3,8 @@
 package db_test
 
 import (
+	"context"
+	"crypto/rand"
 	"errors"
 	"fmt"
 	"net/url"
@@ -417,17 +419,25 @@ func addAdmin(t *testing.T, shop *pgxpool.Pool) {
 }
 
 // clerkConnString creates a role that may log in but is not a superuser and
-// returns the connection string that logs in as it.
+// returns the connection string that logs in as it. A role belongs to the
+// server, which every database of this test binary shares, so each test gets
+// a clerk of its own and drops it again.
 func clerkConnString(t *testing.T, shop *pgxpool.Pool) string {
 	t.Helper()
-	if _, err := shop.Exec(t.Context(), `CREATE ROLE clerk LOGIN PASSWORD 'clerk'`); err != nil {
-		t.Fatalf("create role clerk: %v", err)
+	clerk := "clerk_" + strings.ToLower(rand.Text()[:12])
+	if _, err := shop.Exec(t.Context(), `CREATE ROLE `+clerk+` LOGIN PASSWORD 'clerk'`); err != nil {
+		t.Fatalf("create role %s: %v", clerk, err)
 	}
+	t.Cleanup(func() {
+		if _, err := shop.Exec(context.WithoutCancel(t.Context()), `DROP ROLE `+clerk); err != nil {
+			t.Errorf("drop role %s: %v", clerk, err)
+		}
+	})
 	conn, err := url.Parse(shop.Config().ConnString())
 	if err != nil {
 		t.Fatalf("parse %s: %v", shop.Config().ConnString(), err)
 	}
-	conn.User = url.UserPassword("clerk", "clerk")
+	conn.User = url.UserPassword(clerk, "clerk")
 	return conn.String()
 }
 

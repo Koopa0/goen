@@ -18,7 +18,7 @@ func TestInaccessibleReturnOffersOrderLookup(t *testing.T) {
 		r := httptest.NewRequestWithContext(i18n.WithLocale(t.Context(), locale), http.MethodGet, "/orders/GO-260101-000001/return", http.NoBody)
 		r.SetPathValue("number", "GO-260101-000001")
 		w := httptest.NewRecorder()
-		h.Page(w, r)
+		h.ReturnPage(w, r)
 		_, actions, ok := strings.Cut(w.Body.String(), `class="notice__actions"`)
 		if w.Code != http.StatusNotFound || !ok {
 			t.Fatalf("inaccessible return: status=%d, actions present=%t", w.Code, ok)
