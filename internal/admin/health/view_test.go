@@ -9,7 +9,7 @@ import (
 
 	"github.com/koopa0/goen/internal/i18n"
 	"github.com/koopa0/goen/internal/ui/layouts"
-	"github.com/koopa0/goen/internal/ui/pages/admin"
+	"github.com/koopa0/goen/internal/worklist"
 )
 
 func TestWorkerHealthTasksFollowTheHealthPredicates(t *testing.T) {
@@ -23,7 +23,7 @@ func TestWorkerHealthTasksFollowTheHealthPredicates(t *testing.T) {
 		StrandedClaimOldestSeconds: 100, UninvoicedOldestSeconds: 200, CancelledOrderInvoiceOldestSeconds: 300,
 		UnrelievedRefundOldestSeconds: 400, ExpiredHolds: 51, MaxExpiredHolds: 50,
 	}
-	want := []admin.Task{
+	want := []worklist.Task{
 		{Label: i18n.KeyAdminQueueTaskPayments, Count: 1, Href: "/admin/health#events-heading", Alert: true},
 		{Label: i18n.KeyAdminQueueTaskClaims, Count: 73, Href: "/admin/health#claims-heading", Alert: true, HasAge: true, AgeSeconds: 100},
 		{Label: i18n.KeyAdminQueueTaskUninvoiced, Count: 2, Href: "/admin/health#uninvoiced-heading", Alert: true, HasAge: true, AgeSeconds: 200},

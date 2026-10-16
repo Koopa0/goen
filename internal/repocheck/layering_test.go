@@ -41,7 +41,6 @@ var viewPackageImporters = []string{
 	"internal/account",
 	"internal/admin/content",
 	"internal/admin/dashboard",
-	"internal/admin/health",
 	"internal/admin/orders",
 	"internal/admin/products",
 	"internal/admin/refunds",
@@ -62,7 +61,6 @@ var dataFilesNamingViews = []string{
 	"internal/admin/content/faq.go",
 	"internal/admin/content/hero.go",
 	"internal/admin/dashboard/store.go",
-	"internal/admin/health/health.go",
 	"internal/admin/orders/handler.go",
 	"internal/admin/orders/invoice.go",
 	"internal/admin/orders/picking.go",
@@ -92,8 +90,6 @@ var dataFilesNamingViews = []string{
 
 var viewContracts = []string{
 	"internal/account.CartFinder.RecoveryContents",
-	"internal/admin/dashboard.Health.Tasks",
-	"internal/admin/dashboard.Sales.FillWeek",
 }
 
 var storeMethodsNamingViews = map[string]int{
@@ -101,8 +97,7 @@ var storeMethodsNamingViews = map[string]int{
 	"internal/admin/content/banner.go":         1,
 	"internal/admin/content/faq.go":            1,
 	"internal/admin/content/hero.go":           1,
-	"internal/admin/dashboard/store.go":        3,
-	"internal/admin/health/health.go":          1,
+	"internal/admin/dashboard/store.go":        1,
 	"internal/admin/orders/invoice.go":         2,
 	"internal/admin/orders/picking.go":         1,
 	"internal/admin/orders/store.go":           6,
@@ -110,7 +105,7 @@ var storeMethodsNamingViews = map[string]int{
 	"internal/admin/products/product.go":       4,
 	"internal/admin/products/product_label.go": 1,
 	"internal/admin/products/standing.go":      2,
-	"internal/admin/reports/store.go":          2,
+	"internal/admin/reports/store.go":          1,
 	"internal/cart/store.go":                   7,
 	"internal/catalog/campaign.go":             2,
 	"internal/catalog/compare.go":              3,
@@ -129,7 +124,6 @@ var viewValueReads = map[string]int{
 	"internal/admin/dashboard/handler.go": 1,
 	"internal/admin/orders/orders.go":     8,
 	"internal/admin/orders/store.go":      5,
-	"internal/admin/reports/store.go":     2,
 	"internal/cart/handler.go":            11,
 	"internal/cart/store.go":              3,
 	"internal/catalog/compare.go":         3,

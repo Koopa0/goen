@@ -7,8 +7,11 @@ import (
 	"time"
 
 	"github.com/koopa0/goen/internal/admin/access"
+	"github.com/koopa0/goen/internal/sales"
+	"github.com/koopa0/goen/internal/ui/chart"
 	"github.com/koopa0/goen/internal/ui/pages/admin"
 	"github.com/koopa0/goen/internal/web"
+	"github.com/koopa0/goen/internal/worklist"
 )
 
 type Handler struct {
@@ -34,15 +37,66 @@ func (h *Handler) Dashboard(w http.ResponseWriter, r *http.Request) {
 		access.ServerError(w, r, h.log)
 		return
 	}
-	if health, err := h.store.HealthTasks(r.Context()); err != nil {
+	health, err := h.store.HealthTasks(r.Context())
+	if err != nil {
 		h.log.ErrorContext(r.Context(), "read health tasks for the dashboard", "error", err)
 		view.HealthUnavailable = true
 	} else {
-		view.Tasks = append(view.Tasks, health...)
+		view.Tasks = append(view.Tasks, healthTasks(health)...)
 	}
-	if err := h.store.FillWeek(r.Context(), &view, time.Now()); err != nil {
+	recent, err := h.store.RecentSales(r.Context(), admin.WeekDays, time.Now())
+	if err != nil {
 		h.log.ErrorContext(r.Context(), "read the last seven days for the dashboard", "error", err)
-		view.WeekUnavailable = !errors.Is(err, admin.ErrLatestPaid)
 	}
+	showWeek(&view, recent, err)
 	web.Render(w, r, h.log, http.StatusOK, admin.Dashboard(admin.Meta(r.Context()), view))
 }
+
+// healthTasks lists the health desk's tasks as the dashboard shows them.
+func healthTasks(tasks []worklist.Task) []admin.Task {
+	shown := make([]admin.Task, len(tasks))
+	for i, t := range tasks {
+		shown[i] = admin.Task{
+			Label: t.Label, Count: t.Count, Href: t.Href,
+			HasAge: t.HasAge, AgeSeconds: t.AgeSeconds, Alert: t.Alert,
+		}
+	}
+	return shown
+}
+
+// showWeek places the reports desk's figures, read with err, on the dashboard.
+// A latest paid order that could not be read leaves the week standing and says
+// so; any other error leaves the week out, which is not the same as a week
+// without orders.
+func showWeek(view *admin.DashboardView, recent sales.Recent, err error) {
+	if err != nil && !errors.Is(err, sales.ErrLatestPaid) {
+		view.WeekUnavailable = true
+		return
+	}
+	current, previous := &recent.Current, &recent.Previous
+	view.Week = admin.Week{
+		Orders: current.Orders, RevenueCents: current.RevenueCents, RevenueSquares: current.RevenueSquares,
+		Previous: admin.PreviousFigures{
+			Orders: previous.Orders, RevenueCents: previous.RevenueCents, RevenueSquares: previous.RevenueSquares,
+		},
+		RevenueDays: chart.SparklineProps{Previous: daySeries(previous, dayRevenue), Current: daySeries(current, dayRevenue)},
+		OrderDays:   chart.SparklineProps{Previous: daySeries(previous, dayOrders), Current: daySeries(current, dayOrders)},
+	}
+	if l := recent.Latest; l != nil {
+		view.Latest = &admin.LatestPaid{Number: l.Number, TotalCents: l.TotalCents, Elapsed: l.Elapsed}
+	}
+	view.LatestUnavailable = err != nil
+}
+
+// daySeries draws one figure of each of the period's days.
+func daySeries(p *sales.Period, figure func(sales.Day) int64) chart.Series {
+	s := chart.Series{Partial: p.Partial, Buckets: make([]chart.Bucket, 0, len(p.Days))}
+	for _, d := range p.Days {
+		s.Buckets = append(s.Buckets, chart.Bucket{Day: d.Day, Value: figure(d)})
+	}
+	return s
+}
+
+func dayRevenue(d sales.Day) int64 { return d.RevenueCents }
+
+func dayOrders(d sales.Day) int64 { return d.Orders }

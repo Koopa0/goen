@@ -19,8 +19,10 @@ import (
 	"github.com/koopa0/goen/internal/admin/health"
 	"github.com/koopa0/goen/internal/db"
 	"github.com/koopa0/goen/internal/i18n"
+	"github.com/koopa0/goen/internal/sales"
 	"github.com/koopa0/goen/internal/shoptime"
 	"github.com/koopa0/goen/internal/ui/pages/admin"
+	"github.com/koopa0/goen/internal/worklist"
 )
 
 // The dashboard lists work that waits for a person: a return approved and not
@@ -37,6 +39,14 @@ func TestTheDashboardListsAnUninspectedReturnAndAStrandedClaim(t *testing.T) {
 		}
 		return 0
 	}
+	healthCount := func(tasks []worklist.Task, label i18n.Key) int64 {
+		for _, task := range tasks {
+			if task.Label == label {
+				return task.Count
+			}
+		}
+		return 0
+	}
 
 	before, err := s.Dashboard(t.Context())
 	if err != nil {
@@ -46,7 +56,7 @@ func TestTheDashboardListsAnUninspectedReturnAndAStrandedClaim(t *testing.T) {
 	if err != nil {
 		t.Fatalf("HealthTasks: %v", err)
 	}
-	if got := count(before.Tasks, i18n.KeyAdminQueueTaskUninspected) + count(healthTasksBefore, i18n.KeyAdminQueueTaskClaims); got != 0 {
+	if got := count(before.Tasks, i18n.KeyAdminQueueTaskUninspected) + healthCount(healthTasksBefore, i18n.KeyAdminQueueTaskClaims); got != 0 {
 		t.Fatalf("a shop with no return or claim lists %d of them", got)
 	}
 
@@ -73,7 +83,7 @@ func TestTheDashboardListsAnUninspectedReturnAndAStrandedClaim(t *testing.T) {
 	if err != nil {
 		t.Fatalf("HealthTasks: %v", err)
 	}
-	if got := count(healthTasks, i18n.KeyAdminQueueTaskClaims); got != 1 {
+	if got := healthCount(healthTasks, i18n.KeyAdminQueueTaskClaims); got != 1 {
 		t.Errorf("stranded invoice claims = %d, want 1", got)
 	}
 }
@@ -159,11 +169,11 @@ func TestTheDashboardSaysWhenTheHealthDeskCannotBeRead(t *testing.T) {
 }
 
 type healthDesk struct {
-	tasks []admin.Task
+	tasks []worklist.Task
 	err   error
 }
 
-func (d healthDesk) Tasks(context.Context) ([]admin.Task, error) { return d.tasks, d.err }
+func (d healthDesk) Tasks(context.Context) ([]worklist.Task, error) { return d.tasks, d.err }
 
 // The first row is the one customers wait on: what the order desk counts is
 // listed before what the health desk reports.
@@ -174,7 +184,7 @@ func TestTheDashboardListsDeskTasksBeforeHealthTasks(t *testing.T) {
 		VALUES ((SELECT id FROM products ORDER BY id LIMIT 1), 'Does it fit?')`); err != nil {
 		t.Fatalf("ask: %v", err)
 	}
-	desk := healthDesk{tasks: []admin.Task{{
+	desk := healthDesk{tasks: []worklist.Task{{
 		Label: i18n.KeyAdminQueueTaskPayments, Count: 1, Href: "/admin/health#events-heading", Alert: true,
 	}}}
 	h := handlerOver(storeOver(pool, desk))
@@ -258,15 +268,15 @@ func TestTheDashboardAgesAReadyOrderFromWhenItWasFunded(t *testing.T) {
 
 	// The latest paid order is funded when the ready-orders age says: it is the
 	// only committed order, so the two read one funded_at through two queries.
-	var view admin.DashboardView
-	if err := s.FillWeek(t.Context(), &view, admintest.DatabaseNow(t, isolated)); err != nil {
-		t.Fatalf("FillWeek: %v", err)
+	recent, err := s.RecentSales(t.Context(), admin.WeekDays, admintest.DatabaseNow(t, isolated))
+	if err != nil {
+		t.Fatalf("RecentSales: %v", err)
 	}
 	task, _ := readyAge()
-	if view.Latest == nil || view.Latest.Number != cardNumber {
-		t.Fatalf("Latest = %+v, want %s", view.Latest, cardNumber)
+	if recent.Latest == nil || recent.Latest.Number != cardNumber {
+		t.Fatalf("Latest = %+v, want %s", recent.Latest, cardNumber)
 	}
-	if got, want := int64(view.Latest.Elapsed.Seconds()), task.AgeSeconds; got < want-60 || got > want+60 {
+	if got, want := int64(recent.Latest.Elapsed.Seconds()), task.AgeSeconds; got < want-60 || got > want+60 {
 		t.Errorf("the latest paid order was funded %d s ago, the ready-orders age says %d s", got, want)
 	}
 }
@@ -347,43 +357,47 @@ func captureCardPaidAgo(t *testing.T, pool *pgxpool.Pool, ago time.Duration) (nu
 }
 
 // The last week is the report's figures: a paid order counts on its day and is
-// the latest; an order still awaiting payment is neither, though it is newer.
+// the latest, and not in the week before; an order still awaiting payment is
+// neither, though it is newer.
 func TestTheDashboardWeekCountsPaidOrdersAndNamesTheLatest(t *testing.T) {
 	isolated := admintest.Pool(t)
 	s := storeOver(isolated, health.NewStore(isolated))
-	read := func() admin.DashboardView {
+	read := func() sales.Recent {
 		t.Helper()
-		var view admin.DashboardView
-		if err := s.FillWeek(t.Context(), &view, admintest.DatabaseNow(t, isolated)); err != nil {
-			t.Fatalf("FillWeek: %v", err)
+		recent, err := s.RecentSales(t.Context(), admin.WeekDays, admintest.DatabaseNow(t, isolated))
+		if err != nil {
+			t.Fatalf("RecentSales: %v", err)
 		}
-		return view
+		return recent
 	}
 
 	empty := read()
-	if empty.Latest != nil || empty.LatestUnavailable || empty.Week.Orders != 0 {
-		t.Fatalf("a shop with no order: Latest = %v, orders = %d, want none", empty.Latest, empty.Week.Orders)
+	if empty.Latest != nil || empty.Current.Orders != 0 {
+		t.Fatalf("a shop with no order: Latest = %v, orders = %d, want none", empty.Latest, empty.Current.Orders)
 	}
-	if got := len(empty.Week.OrderDays.Current.Buckets) + len(empty.Week.OrderDays.Previous.Buckets); got != 14 {
+	if got := len(empty.Current.Days) + len(empty.Previous.Days); got != 14 {
 		t.Errorf("days drawn = %d, want 14, a day without orders included", got)
 	}
 
 	number, _ := admintest.PaidPickingOrderForUser(t, isolated, admintest.Customer(t, isolated), 100000)
 	admintest.PlaceUnpaidOrder(t, isolated)
 
-	view := read()
-	if view.Week.Orders != 1 || view.Week.RevenueCents != 100000 {
-		t.Errorf("week = %d orders, %d cents, want 1 and 100000: the unpaid order is not a sale", view.Week.Orders, view.Week.RevenueCents)
+	recent := read()
+	if recent.Current.Orders != 1 || recent.Current.RevenueCents != 100000 {
+		t.Errorf("week = %d orders, %d cents, want 1 and 100000: the unpaid order is not a sale", recent.Current.Orders, recent.Current.RevenueCents)
 	}
-	today := view.Week.RevenueDays.Current.Buckets
-	if got := today[len(today)-1].Value; got != 100000 {
+	if recent.Previous.Orders != 0 || recent.Previous.RevenueCents != 0 {
+		t.Errorf("the week before = %d orders, %d cents, want none: today's sale is not in it", recent.Previous.Orders, recent.Previous.RevenueCents)
+	}
+	today := recent.Current.Days
+	if got := today[len(today)-1].RevenueCents; got != 100000 {
 		t.Errorf("today's revenue = %d, want 100000", got)
 	}
-	if view.Latest == nil || view.Latest.Number != number || view.Latest.TotalCents != 100000 {
-		t.Fatalf("Latest = %+v, want %s for 100000, not the newer unpaid order", view.Latest, number)
+	if recent.Latest == nil || recent.Latest.Number != number || recent.Latest.TotalCents != 100000 {
+		t.Fatalf("Latest = %+v, want %s for 100000, not the newer unpaid order", recent.Latest, number)
 	}
-	if view.Latest.Elapsed < 0 || view.Latest.Elapsed > time.Minute {
-		t.Errorf("Elapsed = %v, want under a minute", view.Latest.Elapsed)
+	if recent.Latest.Elapsed < 0 || recent.Latest.Elapsed > time.Minute {
+		t.Errorf("Elapsed = %v, want under a minute", recent.Latest.Elapsed)
 	}
 }
 
@@ -392,13 +406,13 @@ func TestTheDashboardWeekCountsPaidOrdersAndNamesTheLatest(t *testing.T) {
 func TestTheLatestPaidOrderFollowsWhenMoneyCameInAndSkipsBeforeShipmentRefunds(t *testing.T) {
 	isolated := admintest.Pool(t)
 	s := storeOver(isolated, health.NewStore(isolated))
-	latest := func(store *dashboard.Store) *admin.LatestPaid {
+	latest := func(store *dashboard.Store) *sales.PaidOrder {
 		t.Helper()
-		var view admin.DashboardView
-		if err := store.FillWeek(t.Context(), &view, admintest.DatabaseNow(t, isolated)); err != nil {
-			t.Fatalf("FillWeek: %v", err)
+		recent, err := store.RecentSales(t.Context(), admin.WeekDays, admintest.DatabaseNow(t, isolated))
+		if err != nil {
+			t.Fatalf("RecentSales: %v", err)
 		}
-		return view.Latest
+		return recent.Latest
 	}
 	place := func(pool *pgxpool.Pool, number string, ago time.Duration) {
 		t.Helper()

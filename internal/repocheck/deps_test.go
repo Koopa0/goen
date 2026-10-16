@@ -90,11 +90,12 @@ var (
 	importFreeLeaves = []string{
 		"internal/refund", "internal/shipping",
 		"internal/coupon", "internal/inventory", "internal/postcode", "internal/user",
-		"internal/money", "internal/db", "internal/keyset", "internal/bearer",
+		"internal/money", "internal/db", "internal/keyset", "internal/bearer", "internal/sales",
 	}
 	// i18nOnlyLeaves import nothing from goen except the message catalogue.
 	i18nOnlyLeaves = []string{
 		"internal/invoice", "internal/order", "internal/product/labelling", "internal/returns", "internal/shoptime", "internal/fieldrule",
+		"internal/worklist",
 	}
 )
 

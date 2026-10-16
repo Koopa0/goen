@@ -12,7 +12,7 @@ import (
 	"github.com/koopa0/goen/internal/money"
 	"github.com/koopa0/goen/internal/refund"
 	"github.com/koopa0/goen/internal/ui/components"
-	"github.com/koopa0/goen/internal/ui/pages/admin"
+	"github.com/koopa0/goen/internal/worklist"
 )
 
 type WorkerHealthView struct {
@@ -507,11 +507,11 @@ func (v *WorkerHealthView) ClaimsSettled() bool { return v.StrandedClaimCount ==
 // Tasks is every check on this page that needs a person, as the dashboard lists
 // it, so the two cannot disagree about whether something is wrong. Each links
 // to its own table, and carries an age where the query behind it lists items.
-func (v *WorkerHealthView) Tasks() []admin.Task {
-	var tasks []admin.Task
+func (v *WorkerHealthView) Tasks() []worklist.Task {
+	var tasks []worklist.Task
 	add := func(healthy bool, label i18n.Key, count int64, href string, hasAge bool, ageSeconds int64) {
 		if !healthy {
-			tasks = append(tasks, admin.Task{Label: label, Count: count, Href: href, Alert: true, HasAge: hasAge, AgeSeconds: ageSeconds})
+			tasks = append(tasks, worklist.Task{Label: label, Count: count, Href: href, Alert: true, HasAge: hasAge, AgeSeconds: ageSeconds})
 		}
 	}
 	add(v.PaymentsReconciled(), i18n.KeyAdminQueueTaskPayments, v.UnreconciledPayments, "/admin/health#events-heading", false, 0)
