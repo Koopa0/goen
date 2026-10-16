@@ -13,6 +13,7 @@ import (
 	"github.com/koopa0/goen/internal/admin/admintest"
 	"github.com/koopa0/goen/internal/admin/shipping"
 	"github.com/koopa0/goen/internal/db"
+	"github.com/koopa0/goen/internal/db/dbtest"
 )
 
 func TestZonesTradingPrefixesSaveOneAfterTheOther(t *testing.T) {
@@ -92,11 +93,15 @@ func waitForAdvisoryWaiters(t *testing.T, ctx context.Context, want int) {
 	t.Helper()
 	deadline := time.Now().Add(10 * time.Second)
 	for {
-		var waiting int
-		if err := pool.QueryRow(ctx,
-			`SELECT count(*) FROM pg_locks WHERE locktype = 'advisory' AND NOT granted`).
-			Scan(&waiting); err != nil {
+		backends, err := dbtest.Backends(ctx, pool, dbtest.Match{})
+		if err != nil {
 			t.Fatalf("count advisory waiters: %v", err)
+		}
+		var waiting int
+		for _, b := range backends {
+			if b.WaitType == "Lock" && b.WaitEvent == "advisory" {
+				waiting++
+			}
 		}
 		if waiting >= want {
 			return
