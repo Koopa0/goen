@@ -43,7 +43,8 @@ var (
 	ErrTooManyItems  = errors.New("cart: too many invoice items")
 	ErrMixedTaxTypes = errors.New("cart: taxable and exempt items need separate orders")
 	// ErrQuantityAdjusted means the write succeeded but kept less than
-	// requested, because stock fell short.
+	// requested: stock fell short or the line reached MaxLineQuantity, or, in
+	// adoption, a guest line found no room for another distinct product.
 	ErrQuantityAdjusted = errors.New("cart: quantity adjusted to available stock")
 	// ErrMergeRefused means a guest line cannot be adopted because the catalogue
 	// no longer honours it; the transaction rolls back with both carts unchanged.

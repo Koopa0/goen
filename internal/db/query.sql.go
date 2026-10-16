@@ -4188,7 +4188,8 @@ func (q *Queries) CartItemCount(ctx context.Context, cartID uuid.UUID) (int64, e
 }
 
 const cartItemRows = `-- name: CartItemRows :many
-SELECT variant_id, quantity FROM cart_items WHERE cart_id = $1::uuid ORDER BY variant_id
+SELECT variant_id, quantity FROM cart_items WHERE cart_id = $1::uuid
+ORDER BY added_at, variant_id
 `
 
 type CartItemRowsRow struct {
@@ -4196,7 +4197,8 @@ type CartItemRowsRow struct {
 	Quantity  int32
 }
 
-// Guest lines for adoption and merge, read after the cart lock is held.
+// Guest lines for adoption and merge, read after the cart lock is held, in the
+// order the guest added them: a merge that meets the line cap keeps the earliest.
 func (q *Queries) CartItemRows(ctx context.Context, cartID uuid.UUID) ([]CartItemRowsRow, error) {
 	rows, err := q.db.Query(ctx, cartItemRows, cartID)
 	if err != nil {
@@ -4245,22 +4247,6 @@ func (q *Queries) CartLineCapacity(ctx context.Context, arg CartLineCapacityPara
 	var i CartLineCapacityRow
 	err := row.Scan(&i.LineCount, &i.AlreadyPresent, &i.ExistingQuantity)
 	return i, err
-}
-
-const cartLineQuantity = `-- name: CartLineQuantity :one
-SELECT quantity FROM cart_items WHERE cart_id = $1 AND variant_id = $2
-`
-
-type CartLineQuantityParams struct {
-	CartID    uuid.UUID
-	VariantID uuid.UUID
-}
-
-func (q *Queries) CartLineQuantity(ctx context.Context, arg CartLineQuantityParams) (int32, error) {
-	row := q.db.QueryRow(ctx, cartLineQuantity, arg.CartID, arg.VariantID)
-	var quantity int32
-	err := row.Scan(&quantity)
-	return quantity, err
 }
 
 const cartLines = `-- name: CartLines :many

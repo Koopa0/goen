@@ -27,7 +27,8 @@ import (
 // payment, which decides whether an unpaid order offers 付款.
 type CartFinder interface {
 	// AdoptRequestCart reports whether a line came out smaller than the guest had
-	// it. An error means the cart was not carried over and has been logged.
+	// it or was left out. An error means the cart was not carried over and has
+	// been logged.
 	AdoptRequestCart(ctx context.Context, r *http.Request, userID string) (adjusted bool, err error)
 	RecoveryContents(ctx context.Context, r *http.Request) (pages.CartRecoveryContents, error)
 	ForgetCart(w http.ResponseWriter, r *http.Request)

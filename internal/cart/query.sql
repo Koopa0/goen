@@ -29,9 +29,11 @@ SELECT id FROM users WHERE id = @user_id::uuid FOR KEY SHARE;
 -- name: LockUserForAdoption :one
 SELECT id FROM users WHERE id = @user_id::uuid FOR NO KEY UPDATE;
 
--- Guest lines for adoption and merge, read after the cart lock is held.
+-- Guest lines for adoption and merge, read after the cart lock is held, in the
+-- order the guest added them: a merge that meets the line cap keeps the earliest.
 -- name: CartItemRows :many
-SELECT variant_id, quantity FROM cart_items WHERE cart_id = @cart_id::uuid ORDER BY variant_id;
+SELECT variant_id, quantity FROM cart_items WHERE cart_id = @cart_id::uuid
+ORDER BY added_at, variant_id;
 
 -- name: CartForUser :one
 SELECT id FROM carts WHERE user_id = $1;
@@ -75,9 +77,6 @@ WHERE cart_id = $1 AND variant_id = $2;
 
 -- name: RemoveCartItem :exec
 DELETE FROM cart_items WHERE cart_id = $1 AND variant_id = $2;
-
--- name: CartLineQuantity :one
-SELECT quantity FROM cart_items WHERE cart_id = $1 AND variant_id = $2;
 
 -- The name and phone a signed-in customer keeps on their account, for the
 -- checkout's 「收件人同會員資料」. Blank is as good as none.
