@@ -3,6 +3,8 @@ package shipping
 import (
 	"slices"
 	"testing"
+
+	"github.com/koopa0/goen/internal/i18n"
 )
 
 func TestTheDeliveryChoicesAreTheKnownClosedSet(t *testing.T) {
@@ -23,6 +25,22 @@ func TestTheDeliveryChoicesAreTheKnownClosedSet(t *testing.T) {
 		if typed.Known() {
 			t.Errorf("%q is Known: only the codes are", typed)
 		}
+	}
+}
+
+func TestEveryCarrierHasANameInBothLanguages(t *testing.T) {
+	t.Parallel()
+
+	for _, loc := range i18n.Locales() {
+		ctx := i18n.WithLocale(t.Context(), loc)
+		for _, c := range all {
+			if name := c.Name(ctx); name == "" || name == string(c) {
+				t.Errorf("%s: carrier %q has no name", loc, c)
+			}
+		}
+	}
+	if got := Carrier("terminal").Name(i18n.WithLocale(t.Context(), i18n.En)); got != "terminal" {
+		t.Errorf("an unknown carrier = %q, want the stored value", got)
 	}
 }
 

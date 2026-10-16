@@ -797,6 +797,11 @@ th {
   z-index: var(--z-dropdown);
 }
 
+/* A page that opens with the hero meets it without a rule between. */
+body:has(.goen-hero) .goen-header {
+  border-bottom-width: 0;
+}
+
 .goen-header__bar {
   align-items: center;
   column-gap: 12px;
@@ -1142,7 +1147,7 @@ th {
   bottom: 0;
   color: var(--ink-2);
   display: flex;
-  left: 0;
+  left: 1rem;
   pointer-events: none;
   position: absolute;
   top: 0;
@@ -1153,22 +1158,21 @@ th {
   width: 1rem;
 }
 
-/* Page chrome, not a form: the field is its line. The line is the control's
-   boundary (1.4.11, 3.66:1) and focus draws the shared ring around the whole
-   field on top of it. */
+/* A white pill. Its 1px edge is the control's boundary (1.4.11, 3.66:1 on
+   white) and focus draws the shared ring outside it. */
 .goen-header .goen-header__field {
-  background: none;
-  border-radius: 0;
-  border-width: 0 0 1px;
-  padding-left: 1.75rem;
+  background: var(--n-0);
+  border-radius: var(--r-press);
+  border-width: 1px;
+  padding-left: 2.5rem;
 }
 
 .goen-header .goen-header__field:hover {
-  border-bottom-color: var(--ink-2);
+  border-color: var(--ink-2);
 }
 
 .goen-header .goen-header__field:focus-visible {
-  outline-offset: 4px;
+  outline-offset: 2px;
 }
 
 .goen-header__actions {

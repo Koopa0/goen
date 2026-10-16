@@ -66,7 +66,7 @@ func (n Notifier) SendOrderShipped(ctx context.Context, p *OrderShipped) error {
 	}
 	code := shipping.Carrier(p.Carrier)
 	letterBody := fmt.Sprintf(i18n.T(ctx, body),
-		p.OrderNumber, i18n.CarrierName(ctx, code), p.Tracking, n.orderURL(p.OrderNumber))
+		p.OrderNumber, code.Name(ctx), p.Tracking, n.orderURL(p.OrderNumber))
 	// A carrier outside the closed set, from a notice queued before it was
 	// closed, has no page to name.
 	if track := code.TrackingURL(p.Tracking); track != "" {

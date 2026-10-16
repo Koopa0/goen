@@ -36,7 +36,6 @@ type importRule struct {
 // disappear; one whose edge is gone fails, so each task proves its own work.
 var exceptions = map[string]string{
 	"internal/admin/content -> internal/home":             "T66",
-	"internal/i18n -> internal/shipping":                  "T27",
 	"internal/ui/pages -> internal/loyalty":               "S11",
 	"internal/admin/admintest -> internal/admin/orders":   "T48",
 	"internal/admin/admintest -> internal/admin/products": "T48",
@@ -88,14 +87,14 @@ var (
 	}
 	// importFreeLeaves import no goen package at all.
 	importFreeLeaves = []string{
-		"internal/refund", "internal/shipping",
+		"internal/refund",
 		"internal/coupon", "internal/inventory", "internal/postcode", "internal/user",
 		"internal/money", "internal/db", "internal/keyset", "internal/bearer", "internal/sales",
 	}
 	// i18nOnlyLeaves import nothing from goen except the message catalogue.
 	i18nOnlyLeaves = []string{
 		"internal/invoice", "internal/order", "internal/product/labelling", "internal/returns", "internal/shoptime", "internal/fieldrule",
-		"internal/worklist",
+		"internal/worklist", "internal/shipping",
 	}
 )
 
