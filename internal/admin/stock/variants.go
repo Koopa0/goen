@@ -22,7 +22,6 @@ type Variant struct {
 	Stock                      int32
 	Safety                     int32
 	Active                     bool
-	ProductStatus              string
 	Options                    []string
 	FormID                     string
 	DraftDelta, DeltaError     string

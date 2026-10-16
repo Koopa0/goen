@@ -18,6 +18,7 @@ import (
 	"github.com/koopa0/goen/internal/keyset"
 	"github.com/koopa0/goen/internal/media"
 	"github.com/koopa0/goen/internal/money"
+	"github.com/koopa0/goen/internal/product"
 	"github.com/koopa0/goen/internal/ui/components"
 	"github.com/koopa0/goen/internal/ui/layouts"
 	"github.com/koopa0/goen/internal/ui/pages/admin"
@@ -204,7 +205,7 @@ func (h *Handler) Publish(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	slug := r.PathValue("slug")
-	switch err := h.store.SetStatus(r.Context(), slug, r.PostFormValue("status")); {
+	switch err := h.store.SetStatus(r.Context(), slug, product.Status(r.PostFormValue("status"))); {
 	case err == nil:
 		//nolint:gosec // G710: validated by the route's own slug
 		http.Redirect(w, r, "/admin/products/"+slug+"?ok=1", http.StatusSeeOther)

@@ -12,9 +12,9 @@ import (
 	"github.com/koopa0/goen/internal/invoice"
 	"github.com/koopa0/goen/internal/keyset"
 	"github.com/koopa0/goen/internal/money"
+	"github.com/koopa0/goen/internal/product"
 	"github.com/koopa0/goen/internal/ui/components"
 	"github.com/koopa0/goen/internal/ui/layouts"
-	"github.com/koopa0/goen/internal/ui/pages"
 )
 
 type Choice struct {
@@ -25,7 +25,7 @@ type Choice struct {
 type Product struct {
 	Slug       string
 	Name       string
-	Status     pages.ProductStatus
+	Status     product.Status
 	StatusText string
 	Brand      string
 	Category   string
@@ -45,7 +45,7 @@ func (p Product) VariantsText() string { return strconv.FormatInt(int64(p.Varian
 
 func (p Product) Href() string { return "/admin/products/" + p.Slug }
 
-func (p Product) Sellable() bool { return p.Status == pages.ProductActive && p.Variants > 0 }
+func (p Product) Sellable() bool { return p.Status == product.StatusActive && p.Variants > 0 }
 
 type ProductsView struct {
 	keyset.Bound
@@ -98,7 +98,7 @@ type ProductView struct {
 	WarrantyNote      string
 	WarrantyMonthsRaw string
 	WarrantyMonths    int32
-	Status            pages.ProductStatus
+	Status            product.Status
 	StatusText        string
 	BrandID           string
 	CategoryID        string
@@ -217,7 +217,7 @@ func (v *ProductView) Selected(kind, value string) bool {
 }
 
 func (v *ProductView) CanPublish() bool {
-	return !v.IsNew && v.Status != pages.ProductActive && len(v.Variants) > 0
+	return !v.IsNew && v.Status != product.StatusActive && len(v.Variants) > 0
 }
 
 func (v *ProductView) NeedsVariant() bool { return !v.IsNew && len(v.Variants) == 0 }
