@@ -1,4 +1,4 @@
-package pages
+package buyer
 
 import (
 	"strings"
@@ -12,6 +12,7 @@ import (
 	"github.com/koopa0/goen/internal/payment"
 	"github.com/koopa0/goen/internal/shipping"
 	"github.com/koopa0/goen/internal/ui/layouts"
+	"github.com/koopa0/goen/internal/ui/pages"
 )
 
 // TestCanCancelIsAboutFundingNotJustStatus holds that a captured order still at
@@ -157,7 +158,7 @@ func TestADeliveredOrderOffersReturnAndShowsCredit(t *testing.T) {
 // TestADeliveredOrderLinksToItsWarrantyForm holds that a line links to the registration form from the day its
 // parcel arrives, because cover starts when the goods reach somebody, and not before.
 func TestADeliveredOrderLinksToItsWarrantyForm(t *testing.T) {
-	line := OrderLine{SKU: "S1", Name: "耳機", UnitCents: 100000, Quantity: 1, WarrantyMonths: 12}
+	line := pages.OrderLine{SKU: "S1", Name: "耳機", UnitCents: 100000, Quantity: 1, WarrantyMonths: 12}
 	tests := []struct {
 		name      string
 		status    order.FulfillmentStatus
@@ -177,10 +178,10 @@ func TestADeliveredOrderLinksToItsWarrantyForm(t *testing.T) {
 			v := &OrderView{
 				Number: "GO-260101-000012", Status: tt.status,
 				SubtotalCents: 100000, ShippingCents: 6000, ShippingName: "宅配",
-				Committed: true, ShowWarrantyLink: true, Lines: []OrderLine{line},
+				Committed: true, ShowWarrantyLink: true, Lines: []pages.OrderLine{line},
 			}
 			if tt.status != "pending" && tt.status != "picking" {
-				parcel := OrderShipment{Carrier: shipping.CarrierBlackCat, Tracking: "T1", ShippedAt: orderNow.AddDate(0, 0, -4), Lines: []OrderLine{line}}
+				parcel := OrderShipment{Carrier: shipping.CarrierBlackCat, Tracking: "T1", ShippedAt: orderNow.AddDate(0, 0, -4), Lines: []pages.OrderLine{line}}
 				if tt.delivered {
 					parcel.DeliveredAt, parcel.RescissionEnds, parcel.GoodwillEnds = orderNow.AddDate(0, 0, -3), orderDay(13), orderDay(20)
 				}
@@ -200,14 +201,14 @@ func TestADeliveredOrderLinksToItsWarrantyForm(t *testing.T) {
 // TestGuestTokenViewerDoesNotSeeWarrantyLink holds that a delivered order read
 // through a guest access token must not expose the account-only registration door.
 func TestGuestTokenViewerDoesNotSeeWarrantyLink(t *testing.T) {
-	line := OrderLine{SKU: "S1", Name: "耳機", UnitCents: 100000, Quantity: 1, WarrantyMonths: 12}
+	line := pages.OrderLine{SKU: "S1", Name: "耳機", UnitCents: 100000, Quantity: 1, WarrantyMonths: 12}
 	v := &OrderView{
 		Number: "GO-260101-000012", Status: order.FulfillmentDelivered,
 		SubtotalCents: 100000, ShippingCents: 6000, ShippingName: "宅配",
-		ShowWarrantyLink: false, Now: orderNow, Lines: []OrderLine{line},
+		ShowWarrantyLink: false, Now: orderNow, Lines: []pages.OrderLine{line},
 		Shipments: []OrderShipment{{
 			Carrier: shipping.CarrierBlackCat, Tracking: "T1", ShippedAt: orderNow.AddDate(0, 0, -4), DeliveredAt: orderNow.AddDate(0, 0, -3),
-			RescissionEnds: orderDay(13), GoodwillEnds: orderDay(20), Lines: []OrderLine{line},
+			RescissionEnds: orderDay(13), GoodwillEnds: orderDay(20), Lines: []pages.OrderLine{line},
 		}},
 	}
 	html := renderToString(t, Order(layouts.Page{Title: "訂單"}, v))
@@ -303,13 +304,13 @@ func TestTheOrderPageStatesItsOwnState(t *testing.T) {
 		{"funded by credit", OrderView{Status: order.FulfillmentPending}, PaymentPaid},
 		{"cancelled before paying", OrderView{Status: order.FulfillmentCancelled, OwedCents: 100}, PaymentNone},
 		{"cancelled and refunded", OrderView{
-			Status: order.FulfillmentCancelled, Timeline: []OrderEvent{{Kind: "cancelled"}, {Kind: "refunded"}},
+			Status: order.FulfillmentCancelled, Timeline: []pages.OrderEvent{{Kind: "cancelled"}, {Kind: "refunded"}},
 		}, PaymentRefunded},
 		{"delivered and returned in full", OrderView{
 			Status: order.FulfillmentDelivered, Committed: true, Returned: &OrderReturned{RefundCents: 100},
 		}, PaymentRefunded},
 		{"delivered with a partial refund", OrderView{
-			Status: order.FulfillmentDelivered, Committed: true, Timeline: []OrderEvent{{Kind: "refunded"}},
+			Status: order.FulfillmentDelivered, Committed: true, Timeline: []pages.OrderEvent{{Kind: "refunded"}},
 		}, PaymentPaid},
 	} {
 		if got := tt.view.PaymentState(); got != tt.want {
@@ -370,7 +371,7 @@ func TestTheOrderHistoryHidesAShippedEventsNote(t *testing.T) {
 	t.Parallel()
 	page := renderToString(t, Order(layouts.Page{Title: "o"}, &OrderView{
 		Status: order.FulfillmentCancelled,
-		Timeline: []OrderEvent{
+		Timeline: []pages.OrderEvent{
 			{Kind: order.EventShipped, Note: "shipped-note-text"},
 			{Kind: order.EventCancelled, Note: "cancelled-note-text"},
 		},

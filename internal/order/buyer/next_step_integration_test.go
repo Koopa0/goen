@@ -18,7 +18,6 @@ import (
 	"github.com/koopa0/goen/internal/i18n"
 	"github.com/koopa0/goen/internal/order/access"
 	"github.com/koopa0/goen/internal/order/buyer"
-	"github.com/koopa0/goen/internal/ui/pages"
 )
 
 // moveParcels sets a parcel's dispatch and arrival to the dates a case needs, as time
@@ -65,8 +64,8 @@ func TestReturnFormReadsTheDeliveredParcelsDatabaseDeadlineAndOnlyTheOpenNotice(
 		placedBy(t, request, number)
 		response := httptest.NewRecorder()
 		mux.ServeHTTP(response, request)
-		orderPage := pages.OrderView{Now: order.Now}
-		date := orderPage.RescissionLastDay(local, pages.OrderShipment{RescissionEnds: order.Shipments[0].RescissionEnds})
+		orderPage := buyer.OrderView{Now: order.Now}
+		date := orderPage.RescissionLastDay(local, buyer.OrderShipment{RescissionEnds: order.Shipments[0].RescissionEnds})
 		body := html.UnescapeString(response.Body.String())
 		if response.Code != http.StatusOK || !strings.Contains(body, date) || !strings.Contains(body, i18n.T(local, i18n.KeyReturnSub)) {
 			t.Errorf("return lead locale %s status = %d, missing deadline or next step", locale, response.Code)

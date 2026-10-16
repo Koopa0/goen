@@ -19,28 +19,28 @@ import (
 	"github.com/koopa0/goen/internal/ui/pages"
 )
 
-func (s *Store) Order(ctx context.Context, number string) (pages.OrderView, error) {
+func (s *Store) Order(ctx context.Context, number string) (OrderView, error) {
 	o, err := s.q.OrderSummaryByNumber(ctx, db.OrderSummaryByNumberParams{
 		Number: number, Locale: i18n.FromContext(ctx).Tag(),
 	})
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
-			return pages.OrderView{}, ErrNotFound
+			return OrderView{}, ErrNotFound
 		}
-		return pages.OrderView{}, fmt.Errorf("read order: %w", err)
+		return OrderView{}, fmt.Errorf("read order: %w", err)
 	}
 	lines, err := s.q.OrderPageLines(ctx, db.OrderPageLinesParams{OrderID: o.ID, Locale: i18n.FromContext(ctx).Tag()})
 	if err != nil {
-		return pages.OrderView{}, fmt.Errorf("read order lines: %w", err)
+		return OrderView{}, fmt.Errorf("read order lines: %w", err)
 	}
 
 	hold, err := s.q.OrderHoldSpan(ctx, o.ID)
 	if err != nil && !errors.Is(err, pgx.ErrNoRows) {
-		return pages.OrderView{}, fmt.Errorf("read order stock hold: %w", err)
+		return OrderView{}, fmt.Errorf("read order stock hold: %w", err)
 	}
 
 	now := time.Now()
-	view := pages.OrderView{
+	view := OrderView{
 		Number:       o.OrderNumber,
 		Status:       order.FulfillmentStatus(o.FulfillmentStatus),
 		Email:        o.Email,
@@ -82,7 +82,7 @@ func (s *Store) Order(ctx context.Context, number string) (pages.OrderView, erro
 
 	events, err := s.q.OrderTimeline(ctx, o.ID)
 	if err != nil {
-		return pages.OrderView{}, fmt.Errorf("read order timeline: %w", err)
+		return OrderView{}, fmt.Errorf("read order timeline: %w", err)
 	}
 	for _, e := range events {
 		view.Timeline = append(view.Timeline, pages.OrderEvent{
@@ -92,20 +92,20 @@ func (s *Store) Order(ctx context.Context, number string) (pages.OrderView, erro
 	}
 
 	if view.Invoice, err = s.orderInvoice(ctx, o.ID); err != nil {
-		return pages.OrderView{}, err
+		return OrderView{}, err
 	}
 	if view.Shipments, view.Unshipped, err = s.orderParcels(ctx, o.ID, ids, byID); err != nil {
-		return pages.OrderView{}, err
+		return OrderView{}, err
 	}
 	if view.Returned, err = s.orderReturned(ctx, o.ID); err != nil {
-		return pages.OrderView{}, err
+		return OrderView{}, err
 	}
 	return view, nil
 }
 
 func (s *Store) orderParcels(
 	ctx context.Context, orderID uuid.UUID, ids []uuid.UUID, byID map[uuid.UUID]pages.OrderLine,
-) (parcels []pages.OrderShipment, unshipped []pages.OrderLine, err error) {
+) (parcels []OrderShipment, unshipped []pages.OrderLine, err error) {
 	shipments, err := s.q.OrderTracking(ctx, orderID)
 	if err != nil {
 		return nil, nil, fmt.Errorf("read order tracking: %w", err)
@@ -140,7 +140,7 @@ func (s *Store) orderParcels(
 func cutParcels(
 	shipments []db.OrderTrackingRow, parcelLines []db.OrderParcelLinesRow, registrations []db.OrderWarrantyRegistrationsRow,
 	refunded map[uuid.UUID]int32, ids []uuid.UUID, byID map[uuid.UUID]pages.OrderLine,
-) (parcels []pages.OrderShipment, unshipped []pages.OrderLine) {
+) (parcels []OrderShipment, unshipped []pages.OrderLine) {
 	registered := make(map[uuid.UUID][]db.OrderWarrantyRegistrationsRow)
 	for _, r := range registrations {
 		registered[r.OrderLineID] = append(registered[r.OrderLineID], r)
@@ -148,7 +148,7 @@ func cutParcels(
 	shipped := make(map[uuid.UUID]int32, len(byID))
 	for i := range shipments {
 		sh := &shipments[i]
-		parcel := pages.OrderShipment{
+		parcel := OrderShipment{
 			Carrier: shipping.Carrier(sh.Carrier), Tracking: sh.TrackingNumber, ShippedAt: sh.ShippedAt,
 			RescissionDays: sh.RescissionDays,
 		}
@@ -184,7 +184,7 @@ func cutParcels(
 }
 
 // orderReturned is nil until every unit the order sold is in a return whose refund has settled.
-func (s *Store) orderReturned(ctx context.Context, orderID uuid.UUID) (*pages.OrderReturned, error) {
+func (s *Store) orderReturned(ctx context.Context, orderID uuid.UUID) (*OrderReturned, error) {
 	returned, err := s.q.ReturnedOrders(ctx, []uuid.UUID{orderID})
 	if err != nil {
 		return nil, fmt.Errorf("read returned order: %w", err)
@@ -196,7 +196,7 @@ func (s *Store) orderReturned(ctx context.Context, orderID uuid.UUID) (*pages.Or
 	if err != nil {
 		return nil, fmt.Errorf("read order returns: %w", err)
 	}
-	out := &pages.OrderReturned{}
+	out := &OrderReturned{}
 	for _, r := range returns {
 		out.At = r.RefundedAt
 		out.RefundCents += r.RefundCents
@@ -204,7 +204,7 @@ func (s *Store) orderReturned(ctx context.Context, orderID uuid.UUID) (*pages.Or
 	return out, nil
 }
 
-func (s *Store) orderInvoice(ctx context.Context, orderID uuid.UUID) (*pages.OrderInvoice, error) {
+func (s *Store) orderInvoice(ctx context.Context, orderID uuid.UUID) (*OrderInvoice, error) {
 	docs, err := s.q.OrderInvoiceDocuments(ctx, orderID)
 	if err != nil {
 		return nil, fmt.Errorf("read order invoice: %w", err)
@@ -216,13 +216,13 @@ func (s *Store) orderInvoice(ctx context.Context, orderID uuid.UUID) (*pages.Ord
 	if err != nil {
 		return nil, fmt.Errorf("read order invoice preference: %w", err)
 	}
-	out := &pages.OrderInvoice{
+	out := &OrderInvoice{
 		Type: invoicepkg.Preference(pref.InvoiceType), MobileBarcode: pref.CarrierCode,
 		DonationCode: pref.DonationCode, TaxID: pref.TaxID,
 	}
 	for i := range docs {
 		d := &docs[i]
-		out.Documents = append(out.Documents, pages.OrderInvoiceDocument{
+		out.Documents = append(out.Documents, OrderInvoiceDocument{
 			Allowance: invoicepkg.DocumentKind(d.Kind) == invoicepkg.DocumentAllowance, Number: d.Number, RandomCode: d.ProviderRef,
 			AmountCents: d.AmountCents, Voided: invoicepkg.DocumentStatus(d.Status) == invoicepkg.DocumentVoided,
 			IssuedOn: shoptime.Day(d.IssuedAt),

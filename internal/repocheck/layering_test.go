@@ -96,7 +96,7 @@ var storeMethodsNamingViews = map[string]int{
 	"internal/catalog/store.go":                7,
 	"internal/home/hero.go":                    1,
 	"internal/home/store.go":                   5,
-	"internal/order/buyer/order.go":            4,
+	"internal/order/buyer/order.go":            1,
 	"internal/product/question.go":             1,
 	"internal/product/review.go":               1,
 	"internal/product/store.go":                8,

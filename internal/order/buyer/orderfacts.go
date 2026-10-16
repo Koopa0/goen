@@ -1,4 +1,4 @@
-package pages
+package buyer
 
 import (
 	"context"
@@ -9,6 +9,7 @@ import (
 	"github.com/koopa0/goen/internal/order"
 	"github.com/koopa0/goen/internal/shoptime"
 	"github.com/koopa0/goen/internal/ui/components"
+	"github.com/koopa0/goen/internal/ui/pages"
 )
 
 func (v *OrderView) now() time.Time {
@@ -128,7 +129,7 @@ func (v *OrderView) PickupCounted(ctx context.Context) string {
 
 // WarrantyFacts are a line's warranty counted from the parcel that carries it; delivered says whether that
 // parcel has arrived. Before registration only the months are stated, and the cover's end once a unit is registered.
-func (v *OrderView) WarrantyFacts(ctx context.Context, l OrderLine, delivered bool) []components.Stat {
+func (v *OrderView) WarrantyFacts(ctx context.Context, l pages.OrderLine, delivered bool) []components.Stat {
 	counted, later := i18n.KeyOrderWarrantyFromDelivery, i18n.KeyOrderWarrantyAfterDelivery
 	if v.Pickup {
 		counted, later = i18n.KeyOrderWarrantyFromCollection, i18n.KeyOrderWarrantyAfterCollection
@@ -153,7 +154,7 @@ func (v *OrderView) WarrantyFacts(ctx context.Context, l OrderLine, delivered bo
 }
 
 // CanRegister is offered from delivery on, to the account that owns the order, while a unit of the share is unregistered.
-func (v *OrderView) CanRegister(l OrderLine, delivered bool) bool {
+func (v *OrderView) CanRegister(l pages.OrderLine, delivered bool) bool {
 	return v.ShowWarrantyLink && delivered && l.Registered < int(l.Quantity)
 }
 

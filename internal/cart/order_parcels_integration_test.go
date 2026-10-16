@@ -11,7 +11,6 @@ import (
 	"github.com/koopa0/goen/internal/db"
 	"github.com/koopa0/goen/internal/i18n"
 	"github.com/koopa0/goen/internal/order/buyer"
-	"github.com/koopa0/goen/internal/ui/pages"
 )
 
 // TestTheParcelCarriesTheDatabasesLastDays holds that the grid's two ends are the ones the return decision
@@ -247,8 +246,8 @@ func TestAnOrderReadsRefundedOnlyOnceItsReturnsRefundHasSettled(t *testing.T) {
 				if got := view.StateKey(); got == i18n.KeyStatusRefunded {
 					t.Errorf("StateKey = %q, want the order's own state", got)
 				}
-				if got := view.PaymentState(); got != pages.PaymentPaid {
-					t.Errorf("PaymentState = %q, want %q", got, pages.PaymentPaid)
+				if got := view.PaymentState(); got != buyer.PaymentPaid {
+					t.Errorf("PaymentState = %q, want %q", got, buyer.PaymentPaid)
 				}
 				return
 			}
@@ -258,8 +257,8 @@ func TestAnOrderReadsRefundedOnlyOnceItsReturnsRefundHasSettled(t *testing.T) {
 			if got, want := view.StateKey(), i18n.KeyStatusRefunded; got != want {
 				t.Errorf("StateKey = %q, want %q", got, want)
 			}
-			if got := view.PaymentState(); got != pages.PaymentRefunded {
-				t.Errorf("PaymentState = %q, want %q", got, pages.PaymentRefunded)
+			if got := view.PaymentState(); got != buyer.PaymentRefunded {
+				t.Errorf("PaymentState = %q, want %q", got, buyer.PaymentRefunded)
 			}
 			if view.CanRequestReturn() {
 				t.Error("an order refunded in full still offers a return")
@@ -319,8 +318,8 @@ func TestASecondReturnsUnsettledRefundKeepsTheOrderFromReadingRefunded(t *testin
 	if got := view.StateKey(); got == i18n.KeyStatusRefunded {
 		t.Errorf("with the second refund failed: StateKey = %q, want the order's own state", got)
 	}
-	if got := view.PaymentState(); got != pages.PaymentPaid {
-		t.Errorf("with the second refund failed: PaymentState = %q, want %q", got, pages.PaymentPaid)
+	if got := view.PaymentState(); got != buyer.PaymentPaid {
+		t.Errorf("with the second refund failed: PaymentState = %q, want %q", got, buyer.PaymentPaid)
 	}
 
 	settled := refundedEventOf(t, second, "12 hours")
@@ -337,8 +336,8 @@ func TestASecondReturnsUnsettledRefundKeepsTheOrderFromReadingRefunded(t *testin
 	if view.Returned == nil {
 		t.Fatal("with both refunds settled: Returned = nil, want one")
 	}
-	if got := view.PaymentState(); got != pages.PaymentRefunded {
-		t.Errorf("with both refunds settled: PaymentState = %q, want %q", got, pages.PaymentRefunded)
+	if got := view.PaymentState(); got != buyer.PaymentRefunded {
+		t.Errorf("with both refunds settled: PaymentState = %q, want %q", got, buyer.PaymentRefunded)
 	}
 	if !view.Returned.At.Equal(settled) {
 		t.Errorf("Returned.At = %v, want the second refund's day %v", view.Returned.At, settled)

@@ -1,4 +1,4 @@
-package pages
+package buyer
 
 import (
 	"strings"
