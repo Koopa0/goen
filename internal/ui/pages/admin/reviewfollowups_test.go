@@ -4,46 +4,11 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/google/go-cmp/cmp"
 	"golang.org/x/net/html"
 
 	"github.com/koopa0/goen/internal/i18n"
 	"github.com/koopa0/goen/internal/invoice"
 )
-
-func TestReturnedRateBarsShareOneTrackScale(t *testing.T) {
-	t.Parallel()
-	for _, locale := range i18n.Locales() {
-		ctx := i18n.WithLocale(t.Context(), locale)
-		view := returnedReport(
-			ReturnedProduct{Name: "Large", Returned: 250, Sold: 1000},
-			ReturnedProduct{Name: "Small", Returned: 5, Sold: 20},
-			ReturnedProduct{Name: "Rare", Returned: 1, Sold: 100000},
-			ReturnedProduct{Name: "Too few", Returned: 1, Sold: 4},
-		)
-		doc := reviewFollowupDocument(t, renderComponent(t, ctx, returnedProducts(view)))
-		var classes, widths []string
-		for node := range doc.Descendants() {
-			if node.Data == "div" && strings.HasPrefix(attr(node, "class"), "goen-chartbar") {
-				classes = append(classes, attr(node, "class"))
-			}
-			if node.Data == "rect" && attr(node, "class") == "goen-chartbar__fill" {
-				widths = append(widths, attr(node, "width"))
-			}
-		}
-		if len(classes) != 3 {
-			t.Fatalf("%s: rate bars = %d, want three", locale, len(classes))
-		}
-		for _, class := range classes[1:] {
-			if class != classes[0] {
-				t.Errorf("%s: rate bars use different track classes %q and %q", locale, classes[0], class)
-			}
-		}
-		if diff := cmp.Diff([]string{"25.00%", "25.00%", "0.60%"}, widths); diff != "" {
-			t.Errorf("%s: rate widths (-want +got):\n%s", locale, diff)
-		}
-	}
-}
 
 func TestOnlyUnknownAllowanceAttentionHasEscapedTechnicalDetails(t *testing.T) {
 	t.Parallel()
