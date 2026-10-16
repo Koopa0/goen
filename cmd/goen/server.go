@@ -186,8 +186,8 @@ func newRouter(cfg *RouterConfig, log *slog.Logger) http.Handler {
 	// this order. The chrome middleware fills what every page shows, and the
 	// locale is on the context before any handler or template reads it.
 	var handler http.Handler = mux
-	handler = withBanner(handler, home.NewStore(pool), log, secureCookies)
-	handler = withTopNav(handler, home.NewStore(pool), catalogue, log)
+	handler = withBanner(handler, sitePages.WithBanner)
+	handler = withTopNav(handler, sitePages.WithTopNav)
 	handler = withStaffEntrance(handler)
 	handler = withSiteOrigin(handler, baseURL)
 	handler = withNoStore(handler)
@@ -213,7 +213,7 @@ func storefrontRoutes(mux *http.ServeMux, cfg *StorefrontConfig, log *slog.Logge
 	catalogue *catalog.Store, sitePages *site.Handler, basket *cart.Handler,
 	authn *auth.Handler, accounts *account.Handler, orderAccess *access.Store) {
 	pool, gateway := cfg.StorePool, cfg.Payments
-	baseURL, secureCookies := cfg.BaseURL, cfg.SecureCookies
+	baseURL := cfg.BaseURL
 	authLimit := ratelimit.New(ratelimit.Config{
 		Every: 3 * time.Second, Burst: 20, TTL: time.Hour, MaxKeys: 65_536,
 	})
@@ -224,7 +224,7 @@ func storefrontRoutes(mux *http.ServeMux, cfg *StorefrontConfig, log *slog.Logge
 		homeStore, productStore = homeStore.WithoutPickup(), productStore.WithoutPickup()
 	}
 	browse := catalog.NewHandler(catalogue, log)
-	homePage := home.NewHandler(homeStore, log, secureCookies)
+	homePage := home.NewHandler(homeStore, log)
 	images := media.NewHandler(media.NewStore(pool), log)
 	contactLimit := ratelimit.New(ratelimit.Config{
 		Every: 5 * time.Minute, Burst: 5, TTL: time.Hour, MaxKeys: 65_536,
@@ -268,7 +268,7 @@ func storefrontRoutes(mux *http.ServeMux, cfg *StorefrontConfig, log *slog.Logge
 	mux.HandleFunc("GET /media/{digest}/{width}", images.Serve)
 	mux.HandleFunc("GET /sitemap.xml", sitePages.Sitemap)
 	mux.HandleFunc("GET /robots.txt", sitePages.Robots)
-	mux.HandleFunc("POST /promo/dismiss", homePage.Dismiss)
+	mux.HandleFunc("POST /promo/dismiss", sitePages.DismissBanner)
 	mux.HandleFunc("POST /locale", sitePages.SetLocale)
 	mux.HandleFunc("GET /faq", sitePages.FAQ)
 	mux.HandleFunc("GET /shipping", sitePages.Shipping)
