@@ -22,10 +22,6 @@ var (
 const (
 	maxPhoneRunes        = 30
 	maxAddressLabelRunes = 30
-	maxPostalCodeRunes   = 6
-	maxCityRunes         = 20
-	maxDistrictRunes     = 20
-	maxStreetRunes       = 200
 )
 
 func profileInputValid(name, phone string) bool {
