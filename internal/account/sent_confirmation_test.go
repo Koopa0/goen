@@ -9,10 +9,9 @@ import (
 	"github.com/koopa0/goen/internal/i18n"
 )
 
-// From internal/ui/pages/sent_confirmation_test.go: the account page's half of
-// TestEmailReentryOpensTheAccountFormAndRegistrationSentChangesHeading, which
-// keeps the registration page's, with copies of sentAttribute and sentHasAttribute.
-func TestAccountEmailReentryOpensTheForm(t *testing.T) {
+// From internal/ui/pages/sent_confirmation_test.go, moved whole with
+// sentAttribute and sentHasAttribute.
+func TestAccountEmailReentry(t *testing.T) {
 	t.Parallel()
 	for _, locale := range i18n.Locales() {
 		t.Run(locale.Tag(), func(t *testing.T) {
