@@ -247,7 +247,7 @@ const ADMIN = [
   // its 規格表 table: PRODUCT_SLUG comes from the seed and has three specs, so a
   // row without it would measure the empty state.
   { label: 'admin product 375', width: 375, height: 812, path: '/admin/products/PRODUCT_SLUG', marker: '.ui-table' },
-  { label: 'admin product 1440', width: 1440, height: 900, path: '/admin/products/PRODUCT_SLUG', marker: '.ui-table' },
+  { label: 'admin product 1440', width: 1440, height: 900, path: '/admin/products/PRODUCT_SLUG', marker: '.ui-table', sectionnav: true },
   // The sales and reviews card in its drawn state: scripts/check-layout.sql gives
   // PRODUCT_SLUG paid orders on nine shop days and five visible reviews, so a row
   // missing either drawing fails.
@@ -3212,6 +3212,34 @@ if (process.env.ADMIN_TOKEN) {
     }
     console.log(`${at.padEnd(16)} scrollW=${got.scrollWidth}/${got.viewportWidth} ` +
       `controls=${got.controls} tap=${got.minTap}`);
+
+    // WCAG 2.4.11: the section row is sticky from 1024px, so a field that Tab
+    // reaches while it sits under that row must be scrolled out from beneath it.
+    if (want.sectionnav) {
+      const sticky = await evalPage(`(async () => {
+        const nav = document.querySelector('.goen-admin__sectionnav');
+        const field = document.querySelector(
+          '#sec-specs form input:not([type=hidden]):not([type=checkbox]):not([type=radio])');
+        if (!nav || !field || !field.offsetParent) return { missing: true };
+        scrollBy(0, field.getBoundingClientRect().top - 20);
+        const before = field.getBoundingClientRect().top;
+        field.focus();
+        await new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve)));
+        return { position: getComputedStyle(nav).position, before,
+          fieldTop: field.getBoundingClientRect().top, navBottom: nav.getBoundingClientRect().bottom,
+          focused: document.activeElement === field };
+      })()`);
+      if (sticky.threw || sticky.missing) {
+        fail(at, sticky.why || 'the section row or a specs field is missing, so the focus check proved nothing');
+      } else if (sticky.position !== 'sticky' || !sticky.focused || sticky.before >= sticky.navBottom) {
+        fail(at, `section row is ${sticky.position}, focused=${sticky.focused}, field at y=${sticky.before}: ` +
+          'the field never sat under the row, so the focus check proved nothing');
+      } else if (sticky.fieldTop < sticky.navBottom) {
+        fail(at, `a focused field sits at y=${sticky.fieldTop}, under the sticky section row that ends at y=${sticky.navBottom} (WCAG 2.4.11)`);
+      } else {
+        console.log(`${at.padEnd(16)} focus scrolled from y=${sticky.before} to y=${sticky.fieldTop}, row ends at y=${sticky.navBottom} ok`);
+      }
+    }
   }
 
   // The charts' hover readout: pointing at a day writes that row of the chart's

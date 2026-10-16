@@ -2279,6 +2279,12 @@ input.goen-check {
     top: 0;
     z-index: 5;
   }
+
+  /* The row covers the top 69px of the viewport, so a link that scrolls to a
+     section and a field that Tab scrolls into view both stop below it. */
+  html:has(.goen-admin__sectionnav) {
+    scroll-padding-top: 5rem;
+  }
 }
 
 /* The products a search found, each with the one button that adds it. */
@@ -2890,8 +2896,6 @@ input.goen-check {
   flex-direction: column;
   gap: 16px;
   min-width: 0;
-  /* Clears the sticky section row when a link scrolls here. */
-  scroll-margin-top: 72px;
 }
 
 /* The rating spread of a product: a star, then its bar and count. The table is
