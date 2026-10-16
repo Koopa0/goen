@@ -869,7 +869,7 @@ func TestAnUnkeyedDeploymentSaysSoInsteadOf500(t *testing.T) {
 	}
 }
 
-// sessionHash is what account.Authenticate puts on the request for a session
+// sessionHash is what auth.Authenticate puts on the request for a session
 // cookie carrying token: sessions.digest.
 func sessionHash(token string) []byte {
 	sum := sha256.Sum256([]byte(token))

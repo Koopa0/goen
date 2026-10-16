@@ -1798,15 +1798,6 @@ func (h *Handler) ForgetCart(w http.ResponseWriter, r *http.Request) {
 	expireCookie(w, cookieName(h.secure), h.secure)
 }
 
-// ForgetOrders revokes the grants as well as the cookie, because a client can
-// ignore an expiry. A failure to revoke is logged rather than stopping the
-// session's end.
-func (h *Handler) ForgetOrders(w http.ResponseWriter, r *http.Request) {
-	if err := h.access.Revoke(w, r); err != nil {
-		h.log.ErrorContext(r.Context(), "forget this browser's orders", "error", err)
-	}
-}
-
 // WithCount resolves the cart on every visitor request, so it is also where a
 // cookie naming another account's cart is expired; a handler that opens a new
 // cart sets its own cookie after this one.

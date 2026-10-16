@@ -9,6 +9,7 @@ import (
 	"log/slog"
 	"net/http"
 	"net/http/httptest"
+	"net/url"
 	"os"
 	"strings"
 	"testing"
@@ -20,6 +21,7 @@ import (
 	xhtml "golang.org/x/net/html"
 
 	"github.com/koopa0/goen/internal/account"
+	"github.com/koopa0/goen/internal/auth"
 	"github.com/koopa0/goen/internal/cart"
 	"github.com/koopa0/goen/internal/db/dbtest"
 	"github.com/koopa0/goen/internal/outbox"
@@ -34,8 +36,6 @@ func checkoutAttemptKey(label string) string {
 }
 
 func TestMain(m *testing.M) {
-	account.LowerPasswordCostForTests()
-
 	p, stop, err := dbtest.Start(context.Background())
 	if err != nil {
 		slog.Error("start database", "error", err)
@@ -61,10 +61,11 @@ func TestMain(m *testing.M) {
 // register makes an account the way the registration form does, up to the
 // mailed link: the account exists and holds the password, and its address is
 // unproved. The queued follow-up is marked delivered, because a fixture has no
-// worker to send it.
-func register(t *testing.T, s *account.Store, email string) user.User {
+// worker to send it. The password is hashed at the cost production spends:
+// only auth's own test binary may lower it, and these pages never read it.
+func register(t *testing.T, email string) user.User {
 	t.Helper()
-	if err := s.Register(t.Context(), &account.Credentials{
+	if err := auth.NewStore(pool).Register(t.Context(), &auth.Credentials{
 		Email: email, Password: "a sufficiently long password", Name: "測試",
 	}, "/account"); err != nil {
 		t.Fatalf("register %s: %v", email, err)
@@ -89,54 +90,14 @@ func register(t *testing.T, s *account.Store, email string) user.User {
 
 // registerProved is a completed registration: register, then what following
 // the mailed link does to the account. A password signs into nothing less.
-func registerProved(t *testing.T, s *account.Store, email string) user.User {
+func registerProved(t *testing.T, email string) user.User {
 	t.Helper()
-	u := register(t, s, email)
+	u := register(t, email)
 	if _, err := pool.Exec(t.Context(),
 		`UPDATE users SET email_verified_at = now() WHERE id = $1`, uuid.MustParse(u.ID)); err != nil {
 		t.Fatalf("prove the address of %s: %v", email, err)
 	}
 	return u
-}
-
-func beginReset(t *testing.T, s *account.Store, email string) string {
-	t.Helper()
-	if err := account.BeginReset(t.Context(), s, email); err != nil {
-		t.Fatalf("begin reset for %s: %v", email, err)
-	}
-	var token string
-	if err := pool.QueryRow(t.Context(), `
-		SELECT payload->>'token'
-		FROM outbox_messages
-		WHERE topic = $1 AND lower(payload->>'email') = lower($2)
-		ORDER BY id DESC
-		LIMIT 1`, outbox.TopicPasswordReset.Name(), email).Scan(&token); err != nil {
-		t.Fatalf("read reset token from its queued message: %v", err)
-	}
-	if token == "" {
-		t.Fatal("queued reset message has no token")
-	}
-	return token
-}
-
-func requestVerification(t *testing.T, s *account.Store, userID, email string) string {
-	t.Helper()
-	if err := account.RequestVerification(t.Context(), s, userID, email); err != nil {
-		t.Fatalf("request verification for %s: %v", email, err)
-	}
-	var token string
-	if err := pool.QueryRow(t.Context(), `
-		SELECT payload->>'token'
-		FROM outbox_messages
-		WHERE topic = $1 AND lower(payload->>'email') = lower($2)
-		ORDER BY id DESC
-		LIMIT 1`, outbox.TopicEmailVerify.Name(), email).Scan(&token); err != nil {
-		t.Fatalf("read verification token from its queued message: %v", err)
-	}
-	if token == "" {
-		t.Fatal("queued verification message has no token")
-	}
-	return token
 }
 
 func accountStorePool(t *testing.T, applicationName string) *pgxpool.Pool {
@@ -457,4 +418,47 @@ func accountRecoveryState(t *testing.T, userID string) string {
 		t.Fatal(err)
 	}
 	return state
+}
+
+// postForm is a browser's form POST to target.
+func postForm(ctx context.Context, target string, form url.Values) *http.Request {
+	req := httptest.NewRequestWithContext(ctx, http.MethodPost, target, strings.NewReader(form.Encode()))
+	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+	return req
+}
+
+// ownVariant is a published product of the calling test's own with one variant
+// in stock. The suite shuffles, and orders held on a shared variant take the
+// stock other tests count on.
+func ownVariant(t *testing.T, name string) uuid.UUID {
+	t.Helper()
+	ctx := t.Context()
+	slug := name + "-" + uuid.NewString()[:8]
+	var productID, variantID uuid.UUID
+	if err := pool.QueryRow(ctx, `
+		INSERT INTO products (brand_id, category_id, slug, name, status, published_at)
+		SELECT b.id, c.id, $1, $1, 'draft', NULL
+		FROM brands b, categories c
+		ORDER BY b.id, c.id LIMIT 1
+		RETURNING id`, slug).Scan(&productID); err != nil {
+		t.Fatalf("create product %s: %v", slug, err)
+	}
+	if err := pool.QueryRow(ctx, `
+		INSERT INTO product_variants (product_id, sku, price_cents, is_active, position)
+		VALUES ($1, $2, 199900, true, 0) RETURNING id`,
+		productID, strings.ToUpper(slug)).Scan(&variantID); err != nil {
+		t.Fatalf("create variant: %v", err)
+	}
+	if _, err := pool.Exec(ctx,
+		`SELECT record_inventory_movement($1, 10, 'adjustment', $2, 'admin', NULL, NULL)`,
+		variantID, "fixture:"+variantID.String()); err != nil {
+		t.Fatalf("stock the variant: %v", err)
+	}
+	// Published only now: products_active_has_variant is deferred and fires from
+	// both sides.
+	if _, err := pool.Exec(ctx,
+		`UPDATE products SET status = 'active', published_at = now() WHERE id = $1`, productID); err != nil {
+		t.Fatalf("publish %s: %v", slug, err)
+	}
+	return variantID
 }

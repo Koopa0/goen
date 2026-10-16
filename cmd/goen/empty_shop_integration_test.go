@@ -10,8 +10,8 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/koopa0/goen/internal/account"
 	"github.com/koopa0/goen/internal/admin/twofactor"
+	"github.com/koopa0/goen/internal/auth"
 	"github.com/koopa0/goen/internal/bearer"
 	"github.com/koopa0/goen/internal/db/dbtest"
 	"github.com/koopa0/goen/internal/payment"
@@ -50,7 +50,7 @@ func TestSchemaOnlyShopRendersStorefrontAndBackOffice(t *testing.T) {
 	if readErr := owner.QueryRow(ctx, `SELECT id FROM users WHERE email = 'you@example.com'`).Scan(&userID); readErr != nil {
 		t.Fatalf("read first owner: %v", readErr)
 	}
-	token, err := account.NewStore(storePool).StartSession(ctx, userID, "test", "127.0.0.1")
+	token, err := auth.NewStore(storePool).StartSession(ctx, userID, "test", "127.0.0.1")
 	if err != nil {
 		t.Fatalf("start owner session: %v", err)
 	}
