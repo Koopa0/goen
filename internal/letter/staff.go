@@ -1,4 +1,4 @@
-package email
+package letter
 
 import (
 	"context"
@@ -6,13 +6,14 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/koopa0/goen/internal/email"
 	"github.com/koopa0/goen/internal/i18n"
 	"github.com/koopa0/goen/internal/outbox"
 )
 
 // SendStaffInvitation uses an address resolved at delivery, never a queued copy.
 func (n Notifier) SendStaffInvitation(ctx context.Context, p *outbox.StaffInvitation, address, name string) error {
-	if !Valid(address) {
+	if !email.Valid(address) {
 		return errors.New("staff invitation has no usable recipient")
 	}
 	ctx = n.locale(ctx, p.Locale)
@@ -21,7 +22,7 @@ func (n Notifier) SendStaffInvitation(ctx context.Context, p *outbox.StaffInvita
 }
 
 func (n Notifier) SendStaffEnrolment(ctx context.Context, p *outbox.StaffEnrolment) error {
-	if !Valid(p.Email) {
+	if !email.Valid(p.Email) {
 		return errors.New("a staff enrolment code has no usable recipient")
 	}
 	ctx = n.locale(ctx, p.Locale)
@@ -34,7 +35,7 @@ func (n Notifier) SendStaffEnrolment(ctx context.Context, p *outbox.StaffEnrolme
 }
 
 func (n Notifier) SendStaffFactorFailure(ctx context.Context, p *outbox.StaffFactorFailure) error {
-	if !Valid(p.Email) {
+	if !email.Valid(p.Email) {
 		return errors.New("a staff second-factor warning has no usable recipient")
 	}
 	ctx = n.locale(ctx, p.Locale)

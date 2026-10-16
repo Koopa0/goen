@@ -1,4 +1,4 @@
-package email
+package letter
 
 import (
 	"bytes"
@@ -20,6 +20,7 @@ import (
 	"github.com/google/uuid"
 
 	"github.com/koopa0/goen/assets"
+	"github.com/koopa0/goen/internal/order/notice"
 	"github.com/koopa0/goen/internal/outbox"
 )
 
@@ -107,8 +108,8 @@ func variants(text string) map[string]func(context.Context, Notifier) error {
 	for name, split := range map[string][2]int64{"card": {100000, 0}, "credit": {0, 100000}, "nothing paid": {0, 0}} {
 		out["SendOrderPartRefunded "+name] = func(ctx context.Context, n Notifier) error {
 			return n.SendOrderPartRefunded(ctx, &outbox.OrderPartRefunded{OrderID: uuid.New(), ReturnRequestID: uuid.New()},
-				&PartRefundLetter{Address: to, Name: text, OrderNumber: number,
-					Items:       []PartRefundItem{{Name: text, Quantity: 1}, {Name: text, Label: text, Quantity: 2}},
+				&notice.PartRefund{Address: to, Name: text, OrderNumber: number,
+					Items:       []notice.PartRefundItem{{Name: text, Quantity: 1}, {Name: text, Label: text, Quantity: 2}},
 					RefundCents: split[0] + split[1], CardCents: split[0], CreditCents: split[1]})
 		}
 	}
@@ -124,7 +125,7 @@ func variants(text string) map[string]func(context.Context, Notifier) error {
 		out["SendOrderTerminal "+string(m.Kind)+" refunded="+strconv.FormatBool(m.Refunded)] =
 			func(ctx context.Context, n Notifier) error {
 				m.OrderID = uuid.New()
-				return n.SendOrderTerminal(ctx, &m, TerminalRecipient{Address: to, Name: text, OrderNumber: number})
+				return n.SendOrderTerminal(ctx, &m, notice.Recipient{Address: to, Name: text, OrderNumber: number})
 			}
 	}
 	return out

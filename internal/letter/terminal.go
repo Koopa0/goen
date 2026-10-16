@@ -1,4 +1,4 @@
-package email
+package letter
 
 import (
 	"context"
@@ -6,23 +6,17 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/koopa0/goen/internal/email"
 	"github.com/koopa0/goen/internal/i18n"
+	"github.com/koopa0/goen/internal/order/notice"
 	"github.com/koopa0/goen/internal/outbox"
 	"github.com/koopa0/goen/internal/shoptime"
 )
 
-// TerminalRecipient is resolved at delivery, never retained in the outbox.
-type TerminalRecipient struct {
-	Address, Name, Locale, OrderNumber string
-	// RescissionEnds is the last day to return the goods; the zero time before
-	// any delivery.
-	RescissionEnds time.Time
-}
-
 // SendOrderTerminal reports an order fact without promising a new delivery. A
 // cancellation names a refund only when money may have reached the provider.
-func (n Notifier) SendOrderTerminal(ctx context.Context, m *outbox.OrderTerminal, to TerminalRecipient) error {
-	if !Valid(to.Address) {
+func (n Notifier) SendOrderTerminal(ctx context.Context, m *outbox.OrderTerminal, to notice.Recipient) error {
+	if !email.Valid(to.Address) {
 		return errors.New("terminal order notice has no usable recipient")
 	}
 	ctx = n.locale(ctx, to.Locale)

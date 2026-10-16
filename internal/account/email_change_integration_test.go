@@ -23,7 +23,6 @@ import (
 
 	"github.com/koopa0/goen/internal/account"
 	"github.com/koopa0/goen/internal/bearer"
-	"github.com/koopa0/goen/internal/email"
 	"github.com/koopa0/goen/internal/i18n"
 	"github.com/koopa0/goen/internal/outbox"
 	"github.com/koopa0/goen/internal/ratelimit"
@@ -302,7 +301,7 @@ func TestOnlyTheMailboxLearnsThatAnAddressHasAnAccount(t *testing.T) {
 	owner := registerProved(t, s, "change-mail-owner-"+uuid.NewString()+"@example.com")
 	free := "change-mail-free-" + uuid.NewString() + "@example.com"
 
-	deliver := func(addr string) (sent []string, told []email.AccountExists) {
+	deliver := func(addr string) (sent []string, told []account.AddressTaken) {
 		t.Helper()
 		requestVerification(t, s, asker.ID, addr)
 		var payload []byte
@@ -321,7 +320,7 @@ func TestOnlyTheMailboxLearnsThatAnAddressHasAnAccount(t *testing.T) {
 				sent = append(sent, p.Email)
 				return nil
 			},
-			func(_ context.Context, p *email.AccountExists) error {
+			func(_ context.Context, p *account.AddressTaken) error {
 				told = append(told, *p)
 				return nil
 			}); err != nil {
@@ -334,8 +333,8 @@ func TestOnlyTheMailboxLearnsThatAnAddressHasAnAccount(t *testing.T) {
 	if len(sent) != 0 {
 		t.Errorf("the link to move an account to %s went to %v; it is another account's address", owner.Email, sent)
 	}
-	want := []email.AccountExists{{Email: owner.Email, Name: owner.Name, Change: true}}
-	if diff := cmp.Diff(want, told, cmpopts.IgnoreFields(email.AccountExists{}, "Locale")); diff != "" {
+	want := []account.AddressTaken{{Email: owner.Email, Name: owner.Name, Change: true}}
+	if diff := cmp.Diff(want, told, cmpopts.IgnoreFields(account.AddressTaken{}, "Locale")); diff != "" {
 		t.Errorf("the address's owner was told (-want +got):\n%s", diff)
 	}
 
@@ -354,7 +353,7 @@ func TestAnAddressIsAnotherAccountsWhateverItsCaseButNeverTheAskersOwn(t *testin
 	asker := registerProved(t, s, "Case-Asker-"+uuid.NewString()+"@Example.com")
 	owner := registerProved(t, s, "Case-Owner-"+uuid.NewString()+"@Example.com")
 
-	deliver := func(addr string) (sent []string, told []email.AccountExists) {
+	deliver := func(addr string) (sent []string, told []account.AddressTaken) {
 		t.Helper()
 		requestVerification(t, s, asker.ID, addr)
 		var payload []byte
@@ -373,7 +372,7 @@ func TestAnAddressIsAnotherAccountsWhateverItsCaseButNeverTheAskersOwn(t *testin
 				sent = append(sent, p.Email)
 				return nil
 			},
-			func(_ context.Context, p *email.AccountExists) error {
+			func(_ context.Context, p *account.AddressTaken) error {
 				told = append(told, *p)
 				return nil
 			}); err != nil {
@@ -434,7 +433,7 @@ func TestAnAddressIsMailedABoundedNumberOfTimesWhoeverAsks(t *testing.T) {
 		told := false
 		if err := s.DeliverAddressVerify(ctx, &p,
 			func(context.Context, *outbox.AddressVerify) error { return nil },
-			func(_ context.Context, e *email.AccountExists) error {
+			func(_ context.Context, e *account.AddressTaken) error {
 				told = told || e.Email == owner.Email
 				return nil
 			}); err != nil {
@@ -607,13 +606,13 @@ func TestALinkThatCanNoLongerBeFollowedIsNeverMailed(t *testing.T) {
 			kill(t, s, asker, &p)
 
 			var sent []string
-			var told []email.AccountExists
+			var told []account.AddressTaken
 			if err := s.DeliverAddressVerify(ctx, &p,
 				func(_ context.Context, p *outbox.AddressVerify) error {
 					sent = append(sent, p.Email)
 					return nil
 				},
-				func(_ context.Context, p *email.AccountExists) error {
+				func(_ context.Context, p *account.AddressTaken) error {
 					told = append(told, *p)
 					return nil
 				}); err != nil {

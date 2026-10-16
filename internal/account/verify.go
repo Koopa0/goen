@@ -114,7 +114,7 @@ func (s *Store) DeliverAddressVerify(
 	ctx context.Context,
 	p *outbox.AddressVerify,
 	send func(context.Context, *outbox.AddressVerify) error,
-	tell func(context.Context, *email.AccountExists) error,
+	tell func(context.Context, *AddressTaken) error,
 ) error {
 	verification, err := usableVerification(ctx, s.q, bearer.Digest(p.Token))
 	if errors.Is(err, ErrVerifyInvalid) {
@@ -132,7 +132,7 @@ func (s *Store) DeliverAddressVerify(
 	if err != nil {
 		return fmt.Errorf("read the account at the address: %w", err)
 	}
-	return tell(ctx, &email.AccountExists{
+	return tell(ctx, &AddressTaken{
 		Locale: p.Locale, Email: holder.Email, Name: holder.FullName.String, Change: true,
 	})
 }

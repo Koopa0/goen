@@ -16,7 +16,7 @@ import (
 	"github.com/koopa0/goen/internal/admin/admintest"
 	"github.com/koopa0/goen/internal/admin/refunds"
 	"github.com/koopa0/goen/internal/cart"
-	"github.com/koopa0/goen/internal/email"
+	"github.com/koopa0/goen/internal/letter"
 	"github.com/koopa0/goen/internal/order/notice"
 	"github.com/koopa0/goen/internal/outbox"
 	"github.com/koopa0/goen/internal/payment"
@@ -24,9 +24,9 @@ import (
 )
 
 // capturingSender keeps the letters a worker sends.
-type capturingSender struct{ sent []*email.Message }
+type capturingSender struct{ sent []*letter.Message }
 
-func (c *capturingSender) Send(_ context.Context, m *email.Message) error {
+func (c *capturingSender) Send(_ context.Context, m *letter.Message) error {
 	c.sent = append(c.sent, m)
 	return nil
 }
@@ -61,7 +61,7 @@ func TestThePartRefundWorkerReadsTheLetterAtDelivery(t *testing.T) {
 	}
 	defer storePool.Close()
 	sender := &capturingSender{}
-	deliver := partRefundHandler(notice.NewRecipients(storePool), email.New(sender, "https://goen.test", "", ""))
+	deliver := partRefundHandler(notice.NewRecipients(storePool), letter.New(sender, "https://goen.test", "", ""))
 	if err := deliver(ctx, &m); err != nil {
 		t.Fatalf("deliver: %v", err)
 	}

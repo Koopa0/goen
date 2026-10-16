@@ -11,7 +11,6 @@ import (
 	"github.com/jackc/pgx/v5"
 
 	"github.com/koopa0/goen/internal/db"
-	"github.com/koopa0/goen/internal/email"
 	"github.com/koopa0/goen/internal/outbox"
 )
 
@@ -55,33 +54,48 @@ func EnqueuePartRefunded(ctx context.Context, q *db.Queries, m *outbox.OrderPart
 	return outbox.Enqueue(ctx, q, outbox.TopicOrderPartRefunded, m.ReturnRequestID.String(), m)
 }
 
-// PartRefund is the letter for a settled unsent refund, read at delivery, and
+// PartRefund is what the letter for a settled unsent refund says, as the order
+// and its refund hold it at delivery.
+type PartRefund struct {
+	Address, Name, Locale, OrderNumber string
+	Items                              []PartRefundItem
+	// RefundCents is CardCents + CreditCents: the refund's frozen split.
+	RefundCents, CardCents, CreditCents int64
+}
+
+// PartRefundItem is one line of the refund: the snapshot the order bought.
+type PartRefundItem struct {
+	Name, Label string
+	Quantity    int32
+}
+
+// PartRefund reads the letter for a settled unsent refund at delivery, and
 // false when the order has no recipient any more.
-func (r Recipients) PartRefund(ctx context.Context, m *outbox.OrderPartRefunded) (email.PartRefundLetter, bool, error) {
+func (r Recipients) PartRefund(ctx context.Context, m *outbox.OrderPartRefunded) (PartRefund, bool, error) {
 	to, ok, err := r.Of(ctx, m.OrderID)
 	if err != nil || !ok {
-		return email.PartRefundLetter{}, false, err
+		return PartRefund{}, false, err
 	}
 	rows, err := r.q.PartRefundLines(ctx, db.PartRefundLinesParams{
 		ReturnRequestID: m.ReturnRequestID, OrderID: m.OrderID,
 	})
 	if err != nil {
-		return email.PartRefundLetter{}, false, fmt.Errorf("read unsent refund %s: %w", m.ReturnRequestID, err)
+		return PartRefund{}, false, fmt.Errorf("read unsent refund %s: %w", m.ReturnRequestID, err)
 	}
 	// Enqueued by the transaction that completed it, so a refund with no
 	// lines here is one the letter must not describe: Stuck() shows it.
 	if len(rows) == 0 {
-		return email.PartRefundLetter{}, false, fmt.Errorf("no settled unsent refund %s on order %s",
+		return PartRefund{}, false, fmt.Errorf("no settled unsent refund %s on order %s",
 			m.ReturnRequestID, m.OrderID)
 	}
-	letter := email.PartRefundLetter{
+	refund := PartRefund{
 		Address: to.Address, Name: to.Name, Locale: to.Locale, OrderNumber: to.OrderNumber,
 		RefundCents: rows[0].RefundCents, CardCents: rows[0].CardCents, CreditCents: rows[0].CreditCents,
 	}
 	for _, row := range rows {
-		letter.Items = append(letter.Items, email.PartRefundItem{
+		refund.Items = append(refund.Items, PartRefundItem{
 			Name: row.ProductName, Label: row.VariantLabel, Quantity: row.Quantity,
 		})
 	}
-	return letter, true, nil
+	return refund, true, nil
 }

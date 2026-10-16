@@ -10,7 +10,7 @@ import (
 	"github.com/google/uuid"
 
 	"github.com/koopa0/goen/internal/admin/staff"
-	"github.com/koopa0/goen/internal/email"
+	"github.com/koopa0/goen/internal/letter"
 	"github.com/koopa0/goen/internal/outbox"
 	"github.com/koopa0/goen/internal/user"
 )
@@ -55,7 +55,7 @@ func TestStaffInvitationRegrantSurvivesRetainedDelivery(t *testing.T) {
 			}
 			sender := &countingSender{}
 			worker := outbox.NewStore(storePool, slog.Default())
-			worker.HandleJSON[outbox.StaffInvitation](outbox.TopicStaffInvitation, staffInvitationHandler(roster, email.New(sender, "https://goen.test", "", "")))
+			worker.HandleJSON[outbox.StaffInvitation](outbox.TopicStaffInvitation, staffInvitationHandler(roster, letter.New(sender, "https://goen.test", "", "")))
 			drain := func() {
 				t.Helper()
 				if _, _, err := worker.DrainAll(ctx); err != nil {

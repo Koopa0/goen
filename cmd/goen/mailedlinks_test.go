@@ -17,16 +17,17 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 	"golang.org/x/net/html"
 
-	"github.com/koopa0/goen/internal/email"
+	"github.com/koopa0/goen/internal/letter"
+	"github.com/koopa0/goen/internal/order/notice"
 	"github.com/koopa0/goen/internal/outbox"
 	"github.com/koopa0/goen/internal/payment"
 )
 
 // capturedMail is the sender of TestEveryMailedLinkReachesARoute: it keeps every
 // message the composer hands over.
-type capturedMail struct{ sent []*email.Message }
+type capturedMail struct{ sent []*letter.Message }
 
-func (c *capturedMail) Send(_ context.Context, m *email.Message) error {
+func (c *capturedMail) Send(_ context.Context, m *letter.Message) error {
 	c.sent = append(c.sent, m)
 	return nil
 }
@@ -67,7 +68,7 @@ var mailedContract = map[string][]string{
 // the Notifier method, or "<method>/<variant>".
 type mailedLetter struct {
 	name string
-	send func(context.Context, email.Notifier) error
+	send func(context.Context, letter.Notifier) error
 }
 
 // mailedLink is one link found in a letter, the way a mail client would use it.
@@ -112,13 +113,13 @@ func mailedHTMLLinks(t *testing.T, part string) []string {
 }
 
 // TestEveryMailedLinkReachesARoute connects the two halves of every mailed
-// link: the composer in internal/email, which builds each URL by string
+// link: the composer in internal/letter, which builds each URL by string
 // concatenation, and the routes cmd/goen registers. A link in a letter is
 // permanent once the letter is sent, so a route renamed in server.go, or a path
 // mistyped in the composer, must fail here and not in somebody's inbox years
 // later.
 //
-// It drives all 13 Send methods of email.Notifier (found by reflection, so a
+// It drives all 13 Send methods of letter.Notifier (found by reflection, so a
 // new letter fails until it has a case here) through a capturing sender with
 // base URL https://goen.test. From each message it extracts every link: the
 // absolute URLs of Message.Body, the a@href and img@src of Message.HTML, and
@@ -140,11 +141,6 @@ func mailedHTMLLinks(t *testing.T, part string) []string {
 //
 // It reads no source file itself; storefrontPatterns reads the non-test .go
 // files of cmd/goen and internal, minus internal/admin.
-//
-// The composer will move to internal/letter. This test names it only through
-// email.New, email.Notifier, email.Message, email.Sender and the payload types,
-// so that move changes its imports and qualifiers and nothing else. Keep the
-// test; do not delete it with the old package.
 func TestEveryMailedLinkReachesARoute(t *testing.T) {
 	t.Parallel()
 
@@ -156,78 +152,78 @@ func TestEveryMailedLinkReachesARoute(t *testing.T) {
 	address := "reader-" + uuid.NewString() + "@example.com"
 
 	listed := []mailedLetter{
-		{"SendAccountExists/register", func(ctx context.Context, n email.Notifier) error {
-			return n.SendAccountExists(ctx, &email.AccountExists{Locale: "en", Email: address, Name: "Alex"})
+		{"SendAccountExists/register", func(ctx context.Context, n letter.Notifier) error {
+			return n.SendAccountExists(ctx, &letter.AccountExists{Locale: "en", Email: address, Name: "Alex"})
 		}},
-		{"SendAccountExists/change", func(ctx context.Context, n email.Notifier) error {
-			return n.SendAccountExists(ctx, &email.AccountExists{Locale: "en", Email: address, Name: "Alex", Change: true})
+		{"SendAccountExists/change", func(ctx context.Context, n letter.Notifier) error {
+			return n.SendAccountExists(ctx, &letter.AccountExists{Locale: "en", Email: address, Name: "Alex", Change: true})
 		}},
-		{"SendAddressVerify/address", func(ctx context.Context, n email.Notifier) error {
+		{"SendAddressVerify/address", func(ctx context.Context, n letter.Notifier) error {
 			return n.SendAddressVerify(ctx, &outbox.AddressVerify{Locale: "en", Email: address, Token: token()})
 		}},
-		{"SendAddressVerify/registration", func(ctx context.Context, n email.Notifier) error {
+		{"SendAddressVerify/registration", func(ctx context.Context, n letter.Notifier) error {
 			return n.SendAddressVerify(ctx, &outbox.AddressVerify{
 				Locale: "en", Email: address, Token: token(), Registration: true, Next: "/cart",
 			})
 		}},
-		{"SendNewsletterConfirm", func(ctx context.Context, n email.Notifier) error {
+		{"SendNewsletterConfirm", func(ctx context.Context, n letter.Notifier) error {
 			return n.SendNewsletterConfirm(ctx, &outbox.NewsletterConfirm{Locale: "en", Email: address, Token: token()})
 		}},
-		{"SendNewsletterIssue", func(ctx context.Context, n email.Notifier) error {
+		{"SendNewsletterIssue", func(ctx context.Context, n letter.Notifier) error {
 			return n.SendNewsletterIssue(ctx, &outbox.NewsletterIssue{
 				Locale: "en", Email: address, Subject: "Autumn notes", Body: "New paper arrives on Friday.",
 				UnsubscribeToken: token(),
 			})
 		}},
-		{"SendNewsletterWelcome", func(ctx context.Context, n email.Notifier) error {
+		{"SendNewsletterWelcome", func(ctx context.Context, n letter.Notifier) error {
 			return n.SendNewsletterWelcome(ctx, &outbox.NewsletterWelcome{Locale: "en", Email: address, UnsubscribeToken: token()})
 		}},
-		{"SendOrderPaid", func(ctx context.Context, n email.Notifier) error {
+		{"SendOrderPaid", func(ctx context.Context, n letter.Notifier) error {
 			return n.SendOrderPaid(ctx, &outbox.OrderPaid{
 				Locale: "en", OrderNumber: number, Email: address, Name: "Alex", AmountCents: 128000, Card: "4242",
 			})
 		}},
-		{"SendOrderPartRefunded", func(ctx context.Context, n email.Notifier) error {
+		{"SendOrderPartRefunded", func(ctx context.Context, n letter.Notifier) error {
 			return n.SendOrderPartRefunded(ctx, &outbox.OrderPartRefunded{OrderID: uuid.New(), ReturnRequestID: uuid.New()},
-				&email.PartRefundLetter{
+				&notice.PartRefund{
 					Address: address, Name: "Alex", Locale: "en", OrderNumber: number,
-					Items:       []email.PartRefundItem{{Name: "Dot-grid notebook", Quantity: 2}},
+					Items:       []notice.PartRefundItem{{Name: "Dot-grid notebook", Quantity: 2}},
 					RefundCents: 92600, CardCents: 92600,
 				})
 		}},
-		{"SendOrderPlaced", func(ctx context.Context, n email.Notifier) error {
+		{"SendOrderPlaced", func(ctx context.Context, n letter.Notifier) error {
 			return n.SendOrderPlaced(ctx, &outbox.OrderPlaced{
 				Locale: "en", OrderNumber: number, Email: address, Name: "Alex", TotalCents: 128000, OwedCents: 128000,
 			})
 		}},
-		{"SendOrderShipped/delivery", func(ctx context.Context, n email.Notifier) error {
+		{"SendOrderShipped/delivery", func(ctx context.Context, n letter.Notifier) error {
 			return n.SendOrderShipped(ctx, &outbox.OrderShipped{
 				Locale: "en", OrderNumber: number, Email: address, Name: "Alex", Carrier: "Post", Tracking: "TW" + token(),
 			})
 		}},
-		{"SendOrderShipped/pickup", func(ctx context.Context, n email.Notifier) error {
+		{"SendOrderShipped/pickup", func(ctx context.Context, n letter.Notifier) error {
 			return n.SendOrderShipped(ctx, &outbox.OrderShipped{
 				Locale: "en", OrderNumber: number, Email: address, Name: "Alex", Pickup: true,
 			})
 		}},
-		{"SendPasswordReset", func(ctx context.Context, n email.Notifier) error {
+		{"SendPasswordReset", func(ctx context.Context, n letter.Notifier) error {
 			return n.SendPasswordReset(ctx, &outbox.PasswordReset{Locale: "en", Email: address, Token: token()})
 		}},
-		{"SendRestockNotice", func(ctx context.Context, n email.Notifier) error {
+		{"SendRestockNotice", func(ctx context.Context, n letter.Notifier) error {
 			return n.SendRestockNotice(ctx, &outbox.RestockNotice{
 				Locale: "en", Email: address, ProductName: "Aurora Slate", Slug: "aurora-slate", SKU: "AS-1",
 			})
 		}},
-		{"SendStaffEnrolment", func(ctx context.Context, n email.Notifier) error {
+		{"SendStaffEnrolment", func(ctx context.Context, n letter.Notifier) error {
 			return n.SendStaffEnrolment(ctx, &outbox.StaffEnrolment{Locale: "en", Email: address, Code: "482913"})
 		}},
-		{"SendStaffFactorFailure/wrong", func(ctx context.Context, n email.Notifier) error {
+		{"SendStaffFactorFailure/wrong", func(ctx context.Context, n letter.Notifier) error {
 			return n.SendStaffFactorFailure(ctx, &outbox.StaffFactorFailure{Locale: "en", Email: address, Limit: 10})
 		}},
-		{"SendStaffFactorFailure/locked", func(ctx context.Context, n email.Notifier) error {
+		{"SendStaffFactorFailure/locked", func(ctx context.Context, n letter.Notifier) error {
 			return n.SendStaffFactorFailure(ctx, &outbox.StaffFactorFailure{Locale: "en", Email: address, Locked: true, Limit: 10})
 		}},
-		{"SendStaffInvitation", func(ctx context.Context, n email.Notifier) error {
+		{"SendStaffInvitation", func(ctx context.Context, n letter.Notifier) error {
 			return n.SendStaffInvitation(ctx, &outbox.StaffInvitation{UserID: uuid.NewString(), Locale: "en"}, address, "Alex")
 		}},
 	}
@@ -237,9 +233,9 @@ func TestEveryMailedLinkReachesARoute(t *testing.T) {
 	}
 	terminal := make([]mailedLetter, 0, len(kinds))
 	for _, kind := range kinds {
-		terminal = append(terminal, mailedLetter{"SendOrderTerminal/" + string(kind), func(ctx context.Context, n email.Notifier) error {
+		terminal = append(terminal, mailedLetter{"SendOrderTerminal/" + string(kind), func(ctx context.Context, n letter.Notifier) error {
 			return n.SendOrderTerminal(ctx, &outbox.OrderTerminal{OrderID: uuid.New(), Kind: kind},
-				email.TerminalRecipient{Address: address, Name: "Alex", Locale: "en", OrderNumber: number})
+				notice.Recipient{Address: address, Name: "Alex", Locale: "en", OrderNumber: number})
 		}})
 	}
 	letters := slices.Concat(listed, terminal)
@@ -247,7 +243,7 @@ func TestEveryMailedLinkReachesARoute(t *testing.T) {
 	// No letter can be skipped: every exported Send method has a case, and every
 	// case names a method that exists.
 	methods := map[string]bool{}
-	notifier := reflect.TypeFor[email.Notifier]()
+	notifier := reflect.TypeFor[letter.Notifier]()
 	for i := range notifier.NumMethod() {
 		if name := notifier.Method(i).Name; strings.HasPrefix(name, "Send") {
 			methods[name] = true
@@ -258,7 +254,7 @@ func TestEveryMailedLinkReachesARoute(t *testing.T) {
 		method, _, _ := strings.Cut(l.name, "/")
 		cased[method] = true
 		if !methods[method] {
-			t.Errorf("case %q names %s, which email.Notifier no longer has: remove the case, and mind that its links are still in inboxes", l.name, method)
+			t.Errorf("case %q names %s, which letter.Notifier no longer has: remove the case, and mind that its links are still in inboxes", l.name, method)
 		}
 	}
 	for method := range methods {
@@ -277,7 +273,7 @@ func TestEveryMailedLinkReachesARoute(t *testing.T) {
 	assets := map[string]bool{}
 	for _, l := range letters {
 		sender := &capturedMail{}
-		if err := l.send(t.Context(), email.New(sender, base, "goen", "service@goen.test")); err != nil {
+		if err := l.send(t.Context(), letter.New(sender, base, "goen", "service@goen.test")); err != nil {
 			t.Fatalf("%s: %v", l.name, err)
 		}
 		if len(sender.sent) == 0 {

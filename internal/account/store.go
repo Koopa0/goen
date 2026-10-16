@@ -20,7 +20,6 @@ import (
 	"github.com/koopa0/goen/assets"
 	"github.com/koopa0/goen/internal/bearer"
 	"github.com/koopa0/goen/internal/db"
-	mailmsg "github.com/koopa0/goen/internal/email"
 	"github.com/koopa0/goen/internal/loyalty"
 	"github.com/koopa0/goen/internal/order"
 	"github.com/koopa0/goen/internal/outbox"
@@ -95,13 +94,25 @@ func (s *Store) ResendRegistration(ctx context.Context, addr, next string) error
 	return nil
 }
 
+// AddressTaken is the account to tell that somebody tried to take its address:
+// its address and name as they are when the letter is sent, and the locale the
+// attempt was made in. It is read at delivery and never queued.
+type AddressTaken struct {
+	Locale string
+	Email  string
+	Name   string
+	// Change is an attempt to move another account to the address, rather
+	// than to register it again.
+	Change bool
+}
+
 // FollowUpRegistration reads the account here rather than carrying it in the
 // message, so one erased in between, or completed some other way, is nothing to
 // do.
 func (s *Store) FollowUpRegistration(
 	ctx context.Context,
 	r *outbox.AccountRegistration,
-	tell func(context.Context, *mailmsg.AccountExists) error,
+	tell func(context.Context, *AddressTaken) error,
 ) error {
 	if r.UserID == "" {
 		return nil
@@ -118,7 +129,7 @@ func (s *Store) FollowUpRegistration(
 		return fmt.Errorf("read registered account: %w", err)
 	}
 	if !r.Created {
-		return tell(ctx, &mailmsg.AccountExists{Locale: r.Locale, Email: row.Email, Name: row.FullName.String})
+		return tell(ctx, &AddressTaken{Locale: r.Locale, Email: row.Email, Name: row.FullName.String})
 	}
 	if row.Verified {
 		return nil

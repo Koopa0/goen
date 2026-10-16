@@ -74,8 +74,8 @@ func TestDeliveryValidateRejects(t *testing.T) {
 // TestTheCheckoutRefusesWhatTheSenderWillRefuse holds one definition of an
 // email address across the collection point and the delivery point.
 //
-// internal/email is that definition — it is what SMTPSender.Send tests before
-// it will send anything. A checkout that accepts more than the sender does
+// internal/email is that definition — it is what letter.SMTPSender.Send tests
+// before it will send anything. A checkout that accepts more than the sender does
 // takes the order, writes the confirmation into the outbox in the order's own
 // transaction, and then fails to deliver it on every one of StuckAfterAttempts before
 // parking it on /admin/health. The customer is charged and never hears from the

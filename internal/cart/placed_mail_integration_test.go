@@ -10,13 +10,13 @@ import (
 	"testing"
 	"time"
 
+	"github.com/koopa0/goen/internal/letter"
 	"github.com/koopa0/goen/internal/outbox"
 	"github.com/koopa0/goen/internal/shipping"
 
 	"github.com/google/uuid"
 
 	"github.com/koopa0/goen/internal/cart"
-	"github.com/koopa0/goen/internal/email"
 	"github.com/koopa0/goen/internal/i18n"
 	"github.com/koopa0/goen/internal/order/delivery"
 	"github.com/koopa0/goen/internal/shoptime"
@@ -144,7 +144,7 @@ func TestCheckoutQueuesTheCompletePlacedConfirmation(t *testing.T) {
 						}
 					}
 					sink := &placedConfirmationSink{}
-					notifier := email.New(sink, "https://goen.test", "", "")
+					notifier := letter.New(sink, "https://goen.test", "", "")
 					if err := notifier.SendOrderPlaced(t.Context(), &queued); err != nil {
 						t.Fatalf("send queued confirmation: %v", err)
 					}
@@ -175,9 +175,9 @@ func TestCheckoutQueuesTheCompletePlacedConfirmation(t *testing.T) {
 	}
 }
 
-type placedConfirmationSink struct{ message *email.Message }
+type placedConfirmationSink struct{ message *letter.Message }
 
-func (s *placedConfirmationSink) Send(_ context.Context, m *email.Message) error {
+func (s *placedConfirmationSink) Send(_ context.Context, m *letter.Message) error {
 	s.message = m
 	return nil
 }

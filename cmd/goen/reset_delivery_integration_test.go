@@ -19,7 +19,7 @@ import (
 
 	"github.com/koopa0/goen/internal/account"
 	"github.com/koopa0/goen/internal/bearer"
-	"github.com/koopa0/goen/internal/email"
+	"github.com/koopa0/goen/internal/letter"
 	"github.com/koopa0/goen/internal/outbox"
 )
 
@@ -140,7 +140,7 @@ type resetMailSender struct {
 	failing   atomic.Bool
 }
 
-func (s *resetMailSender) Send(ctx context.Context, m *email.Message) error {
+func (s *resetMailSender) Send(ctx context.Context, m *letter.Message) error {
 	if s.failing.Load() && strings.EqualFold(m.To, s.recipient) {
 		return errors.New("smtp unavailable")
 	}
@@ -186,7 +186,7 @@ func newResetDeliveryFixture(t *testing.T, tracer pgx.QueryTracer) *resetDeliver
 	}
 	f.worker = newOutboxStore(workerDeps{
 		pool: storePool, admin: storePool, maintenance: storePool, log: slog.New(slog.DiscardHandler),
-		notifier: email.New(f.sender, "https://goen.test", "", ""), invoices: unconfiguredInvoicing(t),
+		notifier: letter.New(f.sender, "https://goen.test", "", ""), invoices: unconfiguredInvoicing(t),
 	})
 	return f
 }
@@ -260,7 +260,7 @@ func assertResetMailState(t *testing.T, id uuid.UUID, want resetMailState) {
 
 func assertNoResetMail(t *testing.T, f *resetDeliveryFixture) {
 	t.Helper()
-	if diff := cmp.Diff([]email.Message(nil), f.sender.messages.to(f.address)); diff != "" {
+	if diff := cmp.Diff([]letter.Message(nil), f.sender.messages.to(f.address)); diff != "" {
 		t.Errorf("reset mail (-want +got):\n%s", diff)
 	}
 }

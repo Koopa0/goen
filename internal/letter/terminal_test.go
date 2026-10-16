@@ -1,10 +1,11 @@
-package email
+package letter
 
 import (
 	"strings"
 	"testing"
 	"time"
 
+	"github.com/koopa0/goen/internal/order/notice"
 	"github.com/koopa0/goen/internal/outbox"
 )
 
@@ -23,7 +24,7 @@ func TestTerminalNoticesDistinguishActorAndReceiptInBothLanguages(t *testing.T) 
 	for _, tc := range cases {
 		for _, locale := range []string{"en", "zh-Hant"} {
 			n, sink := notifier(t)
-			if err := n.SendOrderTerminal(t.Context(), &outbox.OrderTerminal{Kind: tc.kind}, TerminalRecipient{Address: "reader@example.com", Name: "Reader", Locale: locale, OrderNumber: "GO-260101-000001"}); err != nil {
+			if err := n.SendOrderTerminal(t.Context(), &outbox.OrderTerminal{Kind: tc.kind}, notice.Recipient{Address: "reader@example.com", Name: "Reader", Locale: locale, OrderNumber: "GO-260101-000001"}); err != nil {
 				t.Fatal(err)
 			}
 			want := tc.en
@@ -55,7 +56,7 @@ func TestACancellationSaysNothingWasChargedOnlyWhenNoMoneyArrived(t *testing.T) 
 		for _, refunded := range []bool{false, true} {
 			for _, locale := range []string{"en", "zh-Hant"} {
 				n, sink := notifier(t)
-				if err := n.SendOrderTerminal(t.Context(), &outbox.OrderTerminal{Kind: kind, Refunded: refunded}, TerminalRecipient{Address: "reader@example.com", Name: "Reader", Locale: locale, OrderNumber: "GO-260101-000001"}); err != nil {
+				if err := n.SendOrderTerminal(t.Context(), &outbox.OrderTerminal{Kind: kind, Refunded: refunded}, notice.Recipient{Address: "reader@example.com", Name: "Reader", Locale: locale, OrderNumber: "GO-260101-000001"}); err != nil {
 					t.Fatal(err)
 				}
 				body := sink.msg.Body
@@ -85,7 +86,7 @@ func TestTheArrivalMailStatesTheLastDayToReturn(t *testing.T) {
 		for _, locale := range []string{"en", "zh-Hant"} {
 			for _, delivered := range []bool{true, false} {
 				n, sink := notifier(t)
-				to := TerminalRecipient{
+				to := notice.Recipient{
 					Address: "reader@example.com", Name: "Reader", Locale: locale,
 					OrderNumber: "GO-260101-000001",
 				}
@@ -112,7 +113,7 @@ func TestACancellationMailSaysNothingOfTheRightToReturn(t *testing.T) {
 	t.Parallel()
 	for _, locale := range []string{"en", "zh-Hant"} {
 		n, sink := notifier(t)
-		to := TerminalRecipient{
+		to := notice.Recipient{
 			Address: "reader@example.com", Name: "Reader", Locale: locale,
 			OrderNumber: "GO-260101-000001", RescissionEnds: time.Date(2099, 10, 9, 4, 0, 0, 0, time.UTC),
 		}
@@ -140,7 +141,7 @@ func TestTheArrivalSubjectSaysWhatHappened(t *testing.T) {
 		{outbox.TerminalCollected, "zh-Hant", "訂單 GO-260101-000001 已取貨"},
 	} {
 		n, sink := notifier(t)
-		to := TerminalRecipient{Address: "reader@example.com", Locale: tt.locale, OrderNumber: "GO-260101-000001"}
+		to := notice.Recipient{Address: "reader@example.com", Locale: tt.locale, OrderNumber: "GO-260101-000001"}
 		if err := n.SendOrderTerminal(t.Context(), &outbox.OrderTerminal{Kind: tt.kind}, to); err != nil {
 			t.Fatal(err)
 		}
@@ -158,7 +159,7 @@ func TestACancellationMentionsStoreCreditOnlyAsAConditional(t *testing.T) {
 		for _, refunded := range []bool{false, true} {
 			for _, locale := range []string{"en", "zh-Hant"} {
 				n, sink := notifier(t)
-				if err := n.SendOrderTerminal(t.Context(), &outbox.OrderTerminal{Kind: kind, Refunded: refunded}, TerminalRecipient{Address: "reader@example.com", Locale: locale, OrderNumber: "GO-260101-000001"}); err != nil {
+				if err := n.SendOrderTerminal(t.Context(), &outbox.OrderTerminal{Kind: kind, Refunded: refunded}, notice.Recipient{Address: "reader@example.com", Locale: locale, OrderNumber: "GO-260101-000001"}); err != nil {
 					t.Fatal(err)
 				}
 				body := sink.msg.Body
@@ -184,7 +185,7 @@ func TestAShopCancellationNamesTheRefundOnlyWhenOneWasMade(t *testing.T) {
 	for _, refunded := range []bool{false, true} {
 		for _, locale := range []string{"en", "zh-Hant"} {
 			n, sink := notifier(t)
-			if err := n.SendOrderTerminal(t.Context(), &outbox.OrderTerminal{Kind: outbox.TerminalCancelledByStaff, Refunded: refunded}, TerminalRecipient{Address: "reader@example.com", Locale: locale, OrderNumber: "GO-260101-000001"}); err != nil {
+			if err := n.SendOrderTerminal(t.Context(), &outbox.OrderTerminal{Kind: outbox.TerminalCancelledByStaff, Refunded: refunded}, notice.Recipient{Address: "reader@example.com", Locale: locale, OrderNumber: "GO-260101-000001"}); err != nil {
 				t.Fatal(err)
 			}
 			body := sink.msg.Body

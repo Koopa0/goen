@@ -1,4 +1,4 @@
-package email
+package letter
 
 import (
 	"context"
@@ -10,6 +10,8 @@ import (
 	"testing"
 
 	"github.com/google/uuid"
+
+	"github.com/koopa0/goen/internal/order/notice"
 	"github.com/koopa0/goen/internal/outbox"
 )
 
@@ -45,12 +47,12 @@ func letters(text string) map[string]func(context.Context, Notifier) error {
 		},
 		"SendOrderTerminal": func(ctx context.Context, n Notifier) error {
 			return n.SendOrderTerminal(ctx, &outbox.OrderTerminal{OrderID: uuid.New(), Kind: outbox.TerminalDelivered},
-				TerminalRecipient{Address: to, Name: text, OrderNumber: "GO-260101-000001"})
+				notice.Recipient{Address: to, Name: text, OrderNumber: "GO-260101-000001"})
 		},
 		"SendOrderPartRefunded": func(ctx context.Context, n Notifier) error {
 			return n.SendOrderPartRefunded(ctx, &outbox.OrderPartRefunded{OrderID: uuid.New(), ReturnRequestID: uuid.New()},
-				&PartRefundLetter{Address: to, Name: text, OrderNumber: "GO-260101-000001",
-					Items:       []PartRefundItem{{Name: text, Label: text, Quantity: 2}},
+				&notice.PartRefund{Address: to, Name: text, OrderNumber: "GO-260101-000001",
+					Items:       []notice.PartRefundItem{{Name: text, Label: text, Quantity: 2}},
 					RefundCents: 150000, CardCents: 100000, CreditCents: 50000})
 		},
 		"SendRestockNotice": func(ctx context.Context, n Notifier) error {

@@ -81,7 +81,7 @@ const BulkPriority = 100
 const PollInterval = 5 * time.Second
 
 // HandlerBudget is the longest one message's handler may take. It mirrors
-// email.SendTimeout rather than importing it.
+// letter.SendTimeout rather than importing it.
 const HandlerBudget = 30 * time.Second
 
 // SettleBudget bounds the single-row write that records a message's outcome.

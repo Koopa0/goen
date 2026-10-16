@@ -1,10 +1,11 @@
-// Package email composes goen's transactional letters and delivers them over
-// SMTP.
+// Package email holds the shop's policy for an address: how one is normalised
+// before it is stored, the length goen accepts, the rule that a field
+// collecting an address rejects a display name, and the masked form a page may
+// show. Every feature that collects an address and every send checks it. The
+// parsing is net/mail's.
 //
-// It also holds the shop's policy for an address — how one is normalised before
-// it is stored, the length goen accepts, and the rule that a field collecting an
-// address rejects a display name — because every send checks it and seven
-// features collect one. The parsing is net/mail's.
+// It imports no other goen package. The letters goen mails are composed and
+// sent by internal/letter.
 package email
 
 import (

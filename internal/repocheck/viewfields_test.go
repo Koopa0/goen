@@ -132,7 +132,7 @@ var templatePackagesWithoutViewModels = []string{
 	goenModule + "/internal/ui/components",
 	goenModule + "/internal/ui/chart",
 	goenModule + "/internal/ui/icons",
-	goenModule + "/internal/email",
+	goenModule + "/internal/letter",
 }
 
 // templatePackages is the import path of every directory that holds a template.

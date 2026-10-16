@@ -1,4 +1,4 @@
-package email
+package letter
 
 import (
 	"context"
@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/koopa0/goen/internal/email"
 	"github.com/koopa0/goen/internal/outbox"
 	"github.com/koopa0/goen/internal/shipping"
 
@@ -13,7 +14,7 @@ import (
 )
 
 func (n Notifier) SendOrderPaid(ctx context.Context, p *outbox.OrderPaid) error {
-	if !Valid(p.Email) {
+	if !email.Valid(p.Email) {
 		return errors.New("an order.paid message has no usable email address")
 	}
 
@@ -33,7 +34,7 @@ func (n Notifier) SendOrderPaid(ctx context.Context, p *outbox.OrderPaid) error 
 }
 
 func (n Notifier) SendOrderShipped(ctx context.Context, p *outbox.OrderShipped) error {
-	if !Valid(p.Email) {
+	if !email.Valid(p.Email) {
 		return errors.New("an order.shipped message has no usable email address")
 	}
 
@@ -60,7 +61,7 @@ func (n Notifier) SendOrderShipped(ctx context.Context, p *outbox.OrderShipped) 
 // SendRestockNotice tells somebody the thing they wanted is back. It reserves
 // nothing and the copy does not pretend otherwise.
 func (n Notifier) SendRestockNotice(ctx context.Context, p *outbox.RestockNotice) error {
-	if !Valid(p.Email) {
+	if !email.Valid(p.Email) {
 		return errors.New("a restock notice has no usable email address")
 	}
 

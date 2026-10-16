@@ -1,4 +1,4 @@
-package email
+package letter
 
 import (
 	"context"
@@ -7,29 +7,16 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/koopa0/goen/internal/email"
 	"github.com/koopa0/goen/internal/i18n"
+	"github.com/koopa0/goen/internal/order/notice"
 	"github.com/koopa0/goen/internal/outbox"
 )
 
-// PartRefundLetter is what the letter says, as the order and its settled
-// refund hold it at delivery.
-type PartRefundLetter struct {
-	Address, Name, Locale, OrderNumber string
-	Items                              []PartRefundItem
-	// RefundCents is CardCents + CreditCents: the refund's frozen split.
-	RefundCents, CardCents, CreditCents int64
-}
-
-// PartRefundItem is one line of the refund: the snapshot the order bought.
-type PartRefundItem struct {
-	Name, Label string
-	Quantity    int32
-}
-
 // SendOrderPartRefunded tells the customer which units will not come and how
 // their money went back.
-func (n Notifier) SendOrderPartRefunded(ctx context.Context, _ *outbox.OrderPartRefunded, l *PartRefundLetter) error {
-	if !Valid(l.Address) {
+func (n Notifier) SendOrderPartRefunded(ctx context.Context, _ *outbox.OrderPartRefunded, l *notice.PartRefund) error {
+	if !email.Valid(l.Address) {
 		return errors.New("an order.part_refunded message has no usable recipient")
 	}
 	if len(l.Items) == 0 {

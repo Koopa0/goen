@@ -1,9 +1,10 @@
-package email
+package letter
 
 import (
 	"strings"
 	"testing"
 
+	"github.com/koopa0/goen/internal/order/notice"
 	"github.com/koopa0/goen/internal/outbox"
 )
 
@@ -11,11 +12,11 @@ import (
 // letter's values in place. A refund paid from one source names only that one.
 func TestThePartRefundLetterSaysWhatCameBackAndHow(t *testing.T) {
 	t.Parallel()
-	notebook := []PartRefundItem{{Name: "點線筆記本", Label: "A5", Quantity: 2}}
+	notebook := []notice.PartRefundItem{{Name: "點線筆記本", Label: "A5", Quantity: 2}}
 	for _, tc := range []struct {
 		name, locale  string
 		card, credit  int64
-		items         []PartRefundItem
+		items         []notice.PartRefundItem
 		want, without []string
 	}{
 		{
@@ -43,14 +44,14 @@ func TestThePartRefundLetterSaysWhatCameBackAndHow(t *testing.T) {
 		},
 		{
 			name: "two lines", locale: "zh-Hant", card: 50000,
-			items: []PartRefundItem{{Name: "鋼筆", Quantity: 1}, {Name: "點線筆記本", Label: "A5", Quantity: 2}},
+			items: []notice.PartRefundItem{{Name: "鋼筆", Quantity: 1}, {Name: "點線筆記本", Label: "A5", Quantity: 2}},
 			want:  []string{"中的 鋼筆 × 1、點線筆記本 · A5 × 2 無法寄出。"},
 		},
 	} {
 		t.Run(tc.name+" "+tc.locale, func(t *testing.T) {
 			t.Parallel()
 			n, sink := notifier(t)
-			if err := n.SendOrderPartRefunded(t.Context(), &outbox.OrderPartRefunded{}, &PartRefundLetter{
+			if err := n.SendOrderPartRefunded(t.Context(), &outbox.OrderPartRefunded{}, &notice.PartRefund{
 				Address: "reader@example.com", Name: "Reader", Locale: tc.locale, OrderNumber: "GO-260101-000001",
 				Items: tc.items, RefundCents: tc.card + tc.credit, CardCents: tc.card, CreditCents: tc.credit,
 			}); err != nil {
@@ -77,8 +78,8 @@ func TestThePartRefundLetterSaysWhatCameBackAndHow(t *testing.T) {
 func TestThePartRefundLetterNeedsARecipientAndItems(t *testing.T) {
 	t.Parallel()
 	n, sink := notifier(t)
-	for name, l := range map[string]*PartRefundLetter{
-		"no address": {OrderNumber: "GO-260101-000001", Items: []PartRefundItem{{Name: "pen", Quantity: 1}}},
+	for name, l := range map[string]*notice.PartRefund{
+		"no address": {OrderNumber: "GO-260101-000001", Items: []notice.PartRefundItem{{Name: "pen", Quantity: 1}}},
 		"no items":   {Address: "reader@example.com", OrderNumber: "GO-260101-000001"},
 	} {
 		if err := n.SendOrderPartRefunded(t.Context(), &outbox.OrderPartRefunded{}, l); err == nil {

@@ -1,4 +1,4 @@
-package email
+package letter
 
 import (
 	"context"
@@ -7,12 +7,13 @@ import (
 	"net/url"
 	"strings"
 
+	"github.com/koopa0/goen/internal/email"
 	"github.com/koopa0/goen/internal/i18n"
 	"github.com/koopa0/goen/internal/outbox"
 )
 
 func (n Notifier) SendNewsletterConfirm(ctx context.Context, p *outbox.NewsletterConfirm) error {
-	if !Valid(p.Email) {
+	if !email.Valid(p.Email) {
 		return errors.New("a newsletter confirmation has no usable email address")
 	}
 
@@ -26,7 +27,7 @@ func (n Notifier) SendNewsletterConfirm(ctx context.Context, p *outbox.Newslette
 }
 
 func (n Notifier) SendNewsletterWelcome(ctx context.Context, p *outbox.NewsletterWelcome) error {
-	if !Valid(p.Email) {
+	if !email.Valid(p.Email) {
 		return errors.New("a newsletter welcome has no usable email address")
 	}
 
@@ -43,7 +44,7 @@ func (n Notifier) SendNewsletterWelcome(ctx context.Context, p *outbox.Newslette
 // SendNewsletterIssue delivers one copy. The unsubscribe link is appended here
 // rather than left to whoever wrote the issue.
 func (n Notifier) SendNewsletterIssue(ctx context.Context, p *outbox.NewsletterIssue) error {
-	if !Valid(p.Email) {
+	if !email.Valid(p.Email) {
 		return errors.New("a newsletter issue has no usable email address")
 	}
 	if p.UnsubscribeToken == "" {
@@ -66,7 +67,7 @@ func (n Notifier) SendNewsletterIssue(ctx context.Context, p *outbox.NewsletterI
 }
 
 func (n Notifier) SendAddressVerify(ctx context.Context, p *outbox.AddressVerify) error {
-	if !Valid(p.Email) {
+	if !email.Valid(p.Email) {
 		return errors.New("an email verification has no usable address")
 	}
 

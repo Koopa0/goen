@@ -30,8 +30,8 @@ import (
 	"github.com/koopa0/goen/internal/bearer"
 	"github.com/koopa0/goen/internal/cart"
 	"github.com/koopa0/goen/internal/db/dbtest"
-	"github.com/koopa0/goen/internal/email"
 	"github.com/koopa0/goen/internal/i18n"
+	"github.com/koopa0/goen/internal/letter"
 	"github.com/koopa0/goen/internal/newsletter"
 	"github.com/koopa0/goen/internal/outbox"
 	"github.com/koopa0/goen/internal/payment"
@@ -338,7 +338,7 @@ func integrationHeaderToken(h http.Header, name, want string) bool {
 // countingSender records what would have gone out.
 type countingSender struct{ sent int }
 
-func (s *countingSender) Send(context.Context, *email.Message) error {
+func (s *countingSender) Send(context.Context, *letter.Message) error {
 	s.sent++
 	return nil
 }
@@ -352,7 +352,7 @@ func TestAnUnsubscribeDuringTheDrainStopsTheCopy(t *testing.T) {
 	subscribers := newsletter.NewStore(pool)
 	sender := &countingSender{}
 	deliver := newsletterIssueHandler(subscribers,
-		email.New(sender, "https://goen.test", "", ""))
+		letter.New(sender, "https://goen.test", "", ""))
 
 	address := "drain-" + uuid.NewString()[:12] + "@goen.invalid"
 	token := uuid.NewString()
