@@ -412,8 +412,8 @@ var checkCases = []checkCase{
 	},
 	{
 		constraint: "product_questions_body_bounded",
-		reject:     `INSERT INTO product_questions (product_id, body) SELECT id, repeat('問', 1001) FROM products LIMIT 1;`,
-		accept:     `INSERT INTO product_questions (product_id, body) SELECT id, repeat('問', 1000) FROM products LIMIT 1;`,
+		reject:     `INSERT INTO product_questions (product_id, body) SELECT id, repeat('問', 301) FROM products LIMIT 1;`,
+		accept:     `INSERT INTO product_questions (product_id, body) SELECT id, repeat('問', 300) FROM products LIMIT 1;`,
 	},
 	{
 		constraint: "product_answers_body_present",
@@ -422,8 +422,8 @@ var checkCases = []checkCase{
 	},
 	{
 		constraint: "product_answers_body_bounded",
-		reject:     `INSERT INTO product_questions (product_id, body) SELECT id, '一個問題' FROM products LIMIT 1;INSERT INTO product_answers (question_id, body) SELECT q.id, repeat('答', 2001) FROM product_questions q LIMIT 1;`,
-		accept:     `INSERT INTO product_questions (product_id, body) SELECT id, '一個問題' FROM products LIMIT 1;INSERT INTO product_answers (question_id, body) SELECT q.id, repeat('答', 2000) FROM product_questions q LIMIT 1;`,
+		reject:     `INSERT INTO product_questions (product_id, body) SELECT id, '一個問題' FROM products LIMIT 1;INSERT INTO product_answers (question_id, body) SELECT q.id, repeat('答', 1001) FROM product_questions q LIMIT 1;`,
+		accept:     `INSERT INTO product_questions (product_id, body) SELECT id, '一個問題' FROM products LIMIT 1;INSERT INTO product_answers (question_id, body) SELECT q.id, repeat('答', 1000) FROM product_questions q LIMIT 1;`,
 	},
 	{
 		constraint: "product_copurchases_not_self",
@@ -2305,6 +2305,320 @@ VALUES ('a0000001-0000-4000-8000-000000000000', 1, repeat('購', 200), 'grant:sc
 		constraint: "invoice_operations_target_shape",
 		reject:     `INSERT INTO invoice_operations (id, order_id, kind, target_document_id, provider_key, amount_cents, request_payload, actor_user_id, actor_id_snapshot, request_id) VALUES ('11110006-0000-4000-8000-000000000011', '66666666-6666-4666-8666-666666666666', 'issue', '99990001-0000-4000-8000-000000000000', 'optarget', 100, '{}', '55555555-5555-4555-8555-555555555555', '55555555-5555-4555-8555-555555555555', 'optarget');`,
 		accept:     `INSERT INTO invoice_operations (id, order_id, kind, provider_key, amount_cents, request_payload, actor_user_id, actor_id_snapshot, request_id) VALUES ('11110006-0000-4000-8000-000000000011', '66666666-6666-4666-8666-666666666666', 'issue', 'optarget', 100, '{}', '55555555-5555-4555-8555-555555555555', '55555555-5555-4555-8555-555555555555', 'optarget');`,
+	},
+	{
+		// taxonomy.MaxNameRunes, counted in characters, not bytes.
+		constraint: "brands_name_bounded",
+		reject:     `INSERT INTO brands (id, slug, name) VALUES ('11110001-0000-4000-8000-000000000001', 'acme', repeat('牌', 61));`,
+		accept:     `INSERT INTO brands (id, slug, name) VALUES ('11110001-0000-4000-8000-000000000001', 'acme', repeat('牌', 60));`,
+	},
+	{
+		// taxonomy.MaxNameRunes, counted in characters, not bytes.
+		constraint: "categories_name_bounded",
+		reject:     `INSERT INTO categories (id, slug, name, position) VALUES ('00000091-0000-4000-8000-000000000091', 'long-name', repeat('館', 61), 12);`,
+		accept:     `INSERT INTO categories (id, slug, name, position) VALUES ('00000091-0000-4000-8000-000000000091', 'long-name', repeat('館', 60), 12);`,
+	},
+	{
+		constraint: "categories_name_en_bounded",
+		reject:     `INSERT INTO categories (id, slug, name, name_en, position) VALUES ('00000091-0000-4000-8000-000000000091', 'long-name', '館別', repeat('館', 61), 12);`,
+		accept:     `INSERT INTO categories (id, slug, name, name_en, position) VALUES ('00000091-0000-4000-8000-000000000091', 'long-name', '館別', repeat('館', 60), 12);`,
+	},
+	{
+		// taxonomy.MaxAltRunes, counted in characters, not bytes.
+		constraint: "categories_image_alt_bounded",
+		reject:     `INSERT INTO categories (id, slug, name, bundled_key, image_alt, position) VALUES ('00000094-0000-4000-8000-000000000094', 'photo-long-alt', '有圖館別', 'campaign-banner-01.webp', repeat('圖', 201), 41);`,
+		accept:     `INSERT INTO categories (id, slug, name, bundled_key, image_alt, position) VALUES ('00000094-0000-4000-8000-000000000094', 'photo-long-alt', '有圖館別', 'campaign-banner-01.webp', repeat('圖', 200), 41);`,
+	},
+	{
+		constraint: "categories_image_alt_en_bounded",
+		reject:     `INSERT INTO categories (id, slug, name, bundled_key, image_alt, image_alt_en, position) VALUES ('00000094-0000-4000-8000-000000000094', 'photo-long-alt', '有圖館別', 'campaign-banner-01.webp', '館別照片', repeat('圖', 201), 41);`,
+		accept:     `INSERT INTO categories (id, slug, name, bundled_key, image_alt, image_alt_en, position) VALUES ('00000094-0000-4000-8000-000000000094', 'photo-long-alt', '有圖館別', 'campaign-banner-01.webp', '館別照片', repeat('圖', 200), 41);`,
+	},
+	{
+		// products.maxSlugRunes; the slug grammar is ASCII, so the bound is shown in ASCII.
+		constraint: "products_slug_bounded",
+		reject:     `INSERT INTO products (id, brand_id, category_id, slug, name, status) VALUES ('11110006-0000-4000-8000-000000000001', '11111111-1111-4111-8111-111111111111', '22222222-2222-4222-8222-222222222222', repeat('s', 121), '新商品', 'draft');`,
+		accept:     `INSERT INTO products (id, brand_id, category_id, slug, name, status) VALUES ('11110006-0000-4000-8000-000000000001', '11111111-1111-4111-8111-111111111111', '22222222-2222-4222-8222-222222222222', repeat('s', 120), '新商品', 'draft');`,
+	},
+	{
+		// products.maxNameRunes, counted in characters, not bytes.
+		constraint: "products_name_bounded",
+		reject:     `INSERT INTO products (id, brand_id, category_id, slug, name, status) VALUES ('11110006-0000-4000-8000-000000000001', '11111111-1111-4111-8111-111111111111', '22222222-2222-4222-8222-222222222222', 'new-prod', repeat('品', 201), 'draft');`,
+		accept:     `INSERT INTO products (id, brand_id, category_id, slug, name, status) VALUES ('11110006-0000-4000-8000-000000000001', '11111111-1111-4111-8111-111111111111', '22222222-2222-4222-8222-222222222222', 'new-prod', repeat('品', 200), 'draft');`,
+	},
+	{
+		constraint: "products_name_en_bounded",
+		reject:     `INSERT INTO products (id, brand_id, category_id, slug, name, name_en, status) VALUES ('11110006-0000-4000-8000-000000000001', '11111111-1111-4111-8111-111111111111', '22222222-2222-4222-8222-222222222222', 'new-prod', '新商品', repeat('品', 201), 'draft');`,
+		accept:     `INSERT INTO products (id, brand_id, category_id, slug, name, name_en, status) VALUES ('11110006-0000-4000-8000-000000000001', '11111111-1111-4111-8111-111111111111', '22222222-2222-4222-8222-222222222222', 'new-prod', '新商品', repeat('品', 200), 'draft');`,
+	},
+	{
+		// products.maxSummaryRunes, counted in characters, not bytes.
+		constraint: "products_summary_bounded",
+		reject:     `INSERT INTO products (id, brand_id, category_id, slug, name, summary, status) VALUES ('11110006-0000-4000-8000-000000000001', '11111111-1111-4111-8111-111111111111', '22222222-2222-4222-8222-222222222222', 'new-prod', '新商品', repeat('述', 501), 'draft');`,
+		accept:     `INSERT INTO products (id, brand_id, category_id, slug, name, summary, status) VALUES ('11110006-0000-4000-8000-000000000001', '11111111-1111-4111-8111-111111111111', '22222222-2222-4222-8222-222222222222', 'new-prod', '新商品', repeat('述', 500), 'draft');`,
+	},
+	{
+		constraint: "products_summary_en_bounded",
+		reject:     `INSERT INTO products (id, brand_id, category_id, slug, name, summary_en, status) VALUES ('11110006-0000-4000-8000-000000000001', '11111111-1111-4111-8111-111111111111', '22222222-2222-4222-8222-222222222222', 'new-prod', '新商品', repeat('述', 501), 'draft');`,
+		accept:     `INSERT INTO products (id, brand_id, category_id, slug, name, summary_en, status) VALUES ('11110006-0000-4000-8000-000000000001', '11111111-1111-4111-8111-111111111111', '22222222-2222-4222-8222-222222222222', 'new-prod', '新商品', repeat('述', 500), 'draft');`,
+	},
+	{
+		// products.maxDescriptionRunes, counted in characters, not bytes.
+		constraint: "products_description_bounded",
+		reject:     `INSERT INTO products (id, brand_id, category_id, slug, name, description, status) VALUES ('11110006-0000-4000-8000-000000000001', '11111111-1111-4111-8111-111111111111', '22222222-2222-4222-8222-222222222222', 'new-prod', '新商品', repeat('文', 20001), 'draft');`,
+		accept:     `INSERT INTO products (id, brand_id, category_id, slug, name, description, status) VALUES ('11110006-0000-4000-8000-000000000001', '11111111-1111-4111-8111-111111111111', '22222222-2222-4222-8222-222222222222', 'new-prod', '新商品', repeat('文', 20000), 'draft');`,
+	},
+	{
+		constraint: "products_description_en_bounded",
+		reject:     `INSERT INTO products (id, brand_id, category_id, slug, name, description_en, status) VALUES ('11110006-0000-4000-8000-000000000001', '11111111-1111-4111-8111-111111111111', '22222222-2222-4222-8222-222222222222', 'new-prod', '新商品', repeat('文', 20001), 'draft');`,
+		accept:     `INSERT INTO products (id, brand_id, category_id, slug, name, description_en, status) VALUES ('11110006-0000-4000-8000-000000000001', '11111111-1111-4111-8111-111111111111', '22222222-2222-4222-8222-222222222222', 'new-prod', '新商品', repeat('文', 20000), 'draft');`,
+	},
+	{
+		// products.MaxAltRunes, counted in characters, not bytes.
+		constraint: "product_images_alt_bounded",
+		reject:     `INSERT INTO product_images (id, product_id, bundled_key, alt_text, position) VALUES ('11110008-0000-4000-8000-000000000091', '33333333-3333-4333-8333-333333333333', 'x.webp', repeat('圖', 201), 91);`,
+		accept:     `INSERT INTO product_images (id, product_id, bundled_key, alt_text, position) VALUES ('11110008-0000-4000-8000-000000000091', '33333333-3333-4333-8333-333333333333', 'x.webp', repeat('圖', 200), 91);`,
+	},
+	{
+		constraint: "product_images_alt_en_bounded",
+		reject:     `INSERT INTO product_images (id, product_id, bundled_key, alt_text, alt_text_en, position) VALUES ('11110008-0000-4000-8000-000000000091', '33333333-3333-4333-8333-333333333333', 'x.webp', '有效值', repeat('圖', 201), 91);`,
+		accept:     `INSERT INTO product_images (id, product_id, bundled_key, alt_text, alt_text_en, position) VALUES ('11110008-0000-4000-8000-000000000091', '33333333-3333-4333-8333-333333333333', 'x.webp', '有效值', repeat('圖', 200), 91);`,
+	},
+	{
+		// products.MaxOptionNameRunes, counted in characters, not bytes.
+		constraint: "product_options_name_bounded",
+		reject:     `INSERT INTO product_options (id, product_id, name, position) VALUES ('11110005-0000-4000-8000-000000000091', '3333aaaa-3333-4333-8333-333333333333', repeat('軸', 41), 91);`,
+		accept:     `INSERT INTO product_options (id, product_id, name, position) VALUES ('11110005-0000-4000-8000-000000000091', '3333aaaa-3333-4333-8333-333333333333', repeat('軸', 40), 91);`,
+	},
+	{
+		constraint: "product_options_name_en_bounded",
+		reject:     `INSERT INTO product_options (id, product_id, name, name_en, position) VALUES ('11110005-0000-4000-8000-000000000091', '3333aaaa-3333-4333-8333-333333333333', '測試軸', repeat('軸', 41), 91);`,
+		accept:     `INSERT INTO product_options (id, product_id, name, name_en, position) VALUES ('11110005-0000-4000-8000-000000000091', '3333aaaa-3333-4333-8333-333333333333', '測試軸', repeat('軸', 40), 91);`,
+	},
+	{
+		// products.MaxOptionNameRunes, which the desk applies to values too, counted in characters, not bytes.
+		constraint: "product_option_values_value_bounded",
+		reject:     `INSERT INTO product_option_values (id, product_id, option_id, value) VALUES ('11110006-0000-4000-8000-000000000092', '33333333-3333-4333-8333-333333333333', 'aaaa0001-0000-4000-8000-000000000000', repeat('值', 41));`,
+		accept:     `INSERT INTO product_option_values (id, product_id, option_id, value) VALUES ('11110006-0000-4000-8000-000000000092', '33333333-3333-4333-8333-333333333333', 'aaaa0001-0000-4000-8000-000000000000', repeat('值', 40));`,
+	},
+	{
+		constraint: "product_option_values_value_en_bounded",
+		reject:     `INSERT INTO product_option_values (id, product_id, option_id, value, value_en) VALUES ('11110006-0000-4000-8000-000000000092', '33333333-3333-4333-8333-333333333333', 'aaaa0001-0000-4000-8000-000000000000', '測試值', repeat('值', 41));`,
+		accept:     `INSERT INTO product_option_values (id, product_id, option_id, value, value_en) VALUES ('11110006-0000-4000-8000-000000000092', '33333333-3333-4333-8333-333333333333', 'aaaa0001-0000-4000-8000-000000000000', '測試值', repeat('值', 40));`,
+	},
+	{
+		// products.maxSKURunes; the SKU grammar is ASCII, so the bound is shown in ASCII.
+		constraint: "product_variants_sku_bounded",
+		reject:     `INSERT INTO product_variants (id, product_id, sku, price_cents, position) VALUES ('11110009-0000-4000-8000-000000000001', '33333333-3333-4333-8333-333333333333', repeat('S', 61), 3390000, 2);`,
+		accept:     `INSERT INTO product_variants (id, product_id, sku, price_cents, position) VALUES ('11110009-0000-4000-8000-000000000001', '33333333-3333-4333-8333-333333333333', repeat('S', 60), 3390000, 2);`,
+	},
+	{
+		// account.maxAddressLabelRunes, counted in characters, not bytes.
+		constraint: "addresses_label_bounded",
+		reject:     `INSERT INTO addresses (id, user_id, label, recipient_name, phone, postal_code, city, district, street, is_default) VALUES ('11110001-0000-4000-8000-000000000001', '55555555-5555-4555-8555-555555555555', repeat('家', 31), '王小明', '0912345678', '110', '台北市', '信義區', '松高路 68 號', false);`,
+		accept:     `INSERT INTO addresses (id, user_id, label, recipient_name, phone, postal_code, city, district, street, is_default) VALUES ('11110001-0000-4000-8000-000000000001', '55555555-5555-4555-8555-555555555555', repeat('家', 30), '王小明', '0912345678', '110', '台北市', '信義區', '松高路 68 號', false);`,
+	},
+	{
+		// product.MaxReviewTitleRunes, counted in characters, not bytes.
+		constraint: "product_reviews_title_bounded",
+		reject:     `INSERT INTO product_reviews (product_id, user_id, rating, title, body) VALUES ('33333333-3333-4333-8333-333333333333', '55555555-5555-4555-8555-555555555555', 5, repeat('評', 81), '螢幕很棒,值得推薦');`,
+		accept:     `INSERT INTO product_reviews (product_id, user_id, rating, title, body) VALUES ('33333333-3333-4333-8333-333333333333', '55555555-5555-4555-8555-555555555555', 5, repeat('評', 80), '螢幕很棒,值得推薦');`,
+	},
+	{
+		// product.MaxReviewBodyRunes, counted in characters, not bytes.
+		constraint: "product_reviews_body_bounded",
+		reject:     `INSERT INTO product_reviews (product_id, user_id, rating, body) VALUES ('33333333-3333-4333-8333-333333333333', '55555555-5555-4555-8555-555555555555', 5, repeat('評', 2001));`,
+		accept:     `INSERT INTO product_reviews (product_id, user_id, rating, body) VALUES ('33333333-3333-4333-8333-333333333333', '55555555-5555-4555-8555-555555555555', 5, repeat('評', 2000));`,
+	},
+	{
+		// coupons.maxDescriptionRunes, counted in characters, not bytes.
+		constraint: "coupons_description_bounded",
+		reject:     `INSERT INTO coupons (id, code, description, kind, amount_cents, percent_bp, max_discount_cents, min_subtotal_cents, max_redemptions, per_customer_limit, starts_at, ends_at) VALUES ('cccc0001-0000-4000-8000-000000000001', 'TESTCODE', repeat('惠', 61), 'amount', 20000, NULL, NULL, 0, NULL, 1, now(), NULL);`,
+		accept:     `INSERT INTO coupons (id, code, description, kind, amount_cents, percent_bp, max_discount_cents, min_subtotal_cents, max_redemptions, per_customer_limit, starts_at, ends_at) VALUES ('cccc0001-0000-4000-8000-000000000001', 'TESTCODE', repeat('惠', 60), 'amount', 20000, NULL, NULL, 0, NULL, 1, now(), NULL);`,
+	},
+	{
+		// delivery.maxNoteRunes, counted in characters, not bytes.
+		constraint: "orders_customer_note_bounded",
+		reject:     `INSERT INTO orders (id, shipping_version_id, shipping_method_code, shipping_method_name, customer_note) VALUES ('11110001-0000-4000-8000-000000000001', 'ffff0002-0000-4000-8000-000000000000', 'home_delivery', '宅配到府', repeat('備', 501));`,
+		accept:     `INSERT INTO orders (id, shipping_version_id, shipping_method_code, shipping_method_name, customer_note) VALUES ('11110001-0000-4000-8000-000000000001', 'ffff0002-0000-4000-8000-000000000000', 'home_delivery', '宅配到府', repeat('備', 500));`,
+	},
+	{
+		// delivery.maxStoreNameRunes, counted in characters, not bytes.
+		constraint: "order_private_data_pickup_store_name_bounded",
+		reject:     `DELETE FROM order_private_data WHERE order_id = '6666aaaa-6666-4666-8666-666666666666'; INSERT INTO order_private_data (order_id, email, recipient_name, phone, pickup_chain, pickup_store_code, pickup_store_name) VALUES ('6666aaaa-6666-4666-8666-666666666666', 'test@example.com', '測試', '0912000000', 'hi_life', 'S884', repeat('店', 41));`,
+		accept:     `DELETE FROM order_private_data WHERE order_id = '6666aaaa-6666-4666-8666-666666666666'; INSERT INTO order_private_data (order_id, email, recipient_name, phone, pickup_chain, pickup_store_code, pickup_store_name) VALUES ('6666aaaa-6666-4666-8666-666666666666', 'test@example.com', '測試', '0912000000', 'hi_life', 'S884', repeat('店', 40));`,
+	},
+	{
+		// content.MaxHeadlineRunes, counted in characters, not bytes.
+		constraint: "hero_slides_headline_bounded",
+		reject:     `INSERT INTO hero_slides (headline, primary_cta_label, primary_cta_href, position) VALUES (repeat('夏', 41), '立即選購', '/c/phones', 5);`,
+		accept:     `INSERT INTO hero_slides (headline, primary_cta_label, primary_cta_href, position) VALUES (repeat('夏', 40), '立即選購', '/c/phones', 5);`,
+	},
+	{
+		// content.MaxBannerRunes, counted in characters, not bytes.
+		constraint: "promo_banners_message_bounded",
+		reject:     `INSERT INTO promo_banners (id, message) VALUES ('11110009-0000-4000-8000-000000000092', repeat('訊', 61));`,
+		accept:     `INSERT INTO promo_banners (id, message) VALUES ('11110009-0000-4000-8000-000000000092', repeat('訊', 60));`,
+	},
+	{
+		constraint: "promo_banners_message_short_bounded",
+		reject:     `INSERT INTO promo_banners (id, message, message_short) VALUES ('11110009-0000-4000-8000-000000000092', '有效訊息', repeat('訊', 61));`,
+		accept:     `INSERT INTO promo_banners (id, message, message_short) VALUES ('11110009-0000-4000-8000-000000000092', '有效訊息', repeat('訊', 60));`,
+	},
+	{
+		constraint: "promo_banners_message_en_bounded",
+		reject:     `INSERT INTO promo_banners (id, message, message_en) VALUES ('11110009-0000-4000-8000-000000000092', '有效訊息', repeat('訊', 61));`,
+		accept:     `INSERT INTO promo_banners (id, message, message_en) VALUES ('11110009-0000-4000-8000-000000000092', '有效訊息', repeat('訊', 60));`,
+	},
+	{
+		constraint: "promo_banners_message_short_en_bounded",
+		reject:     `INSERT INTO promo_banners (id, message, message_short_en) VALUES ('11110009-0000-4000-8000-000000000092', '有效訊息', repeat('訊', 61));`,
+		accept:     `INSERT INTO promo_banners (id, message, message_short_en) VALUES ('11110009-0000-4000-8000-000000000092', '有效訊息', repeat('訊', 60));`,
+	},
+	{
+		// campaigns.MaxTitleRunes, counted in characters, not bytes.
+		constraint: "sale_campaigns_title_bounded",
+		reject:     `INSERT INTO sale_campaigns (id, slug, title, ends_at) VALUES ('1111000a-0000-4000-8000-000000000091', 'long-title', repeat('標', 61), now() + interval '1 day');`,
+		accept:     `INSERT INTO sale_campaigns (id, slug, title, ends_at) VALUES ('1111000a-0000-4000-8000-000000000091', 'long-title', repeat('標', 60), now() + interval '1 day');`,
+	},
+	{
+		constraint: "sale_campaigns_title_en_bounded",
+		reject:     `INSERT INTO sale_campaigns (id, slug, title, title_en, ends_at) VALUES ('1111000a-0000-4000-8000-000000000091', 'long-title', '有效標題', repeat('標', 61), now() + interval '1 day');`,
+		accept:     `INSERT INTO sale_campaigns (id, slug, title, title_en, ends_at) VALUES ('1111000a-0000-4000-8000-000000000091', 'long-title', '有效標題', repeat('標', 60), now() + interval '1 day');`,
+	},
+	{
+		// campaigns.MaxAltRunes, counted in characters, not bytes.
+		constraint: "sale_campaigns_image_alt_bounded",
+		reject:     `INSERT INTO sale_campaigns (slug, title, ends_at, bundled_key, image_alt) VALUES ('header-long-alt', '有圖活動', now() + interval '7 days', 'campaign-banner-01.webp', repeat('圖', 201));`,
+		accept:     `INSERT INTO sale_campaigns (slug, title, ends_at, bundled_key, image_alt) VALUES ('header-long-alt', '有圖活動', now() + interval '7 days', 'campaign-banner-01.webp', repeat('圖', 200));`,
+	},
+	{
+		constraint: "sale_campaigns_image_alt_en_bounded",
+		reject:     `INSERT INTO sale_campaigns (slug, title, ends_at, bundled_key, image_alt, image_alt_en) VALUES ('header-long-alt', '有圖活動', now() + interval '7 days', 'campaign-banner-01.webp', '限時優惠商品', repeat('圖', 201));`,
+		accept:     `INSERT INTO sale_campaigns (slug, title, ends_at, bundled_key, image_alt, image_alt_en) VALUES ('header-long-alt', '有圖活動', now() + interval '7 days', 'campaign-banner-01.webp', '限時優惠商品', repeat('圖', 200));`,
+	},
+	{
+		// content.MaxFAQQuestionRunes, counted in characters, not bytes.
+		constraint: "faq_entries_question_bounded",
+		reject:     `INSERT INTO faq_entries (id, category_id, question, answer, position) VALUES ('1111000e-0000-4000-8000-000000000093', 'cccc0001-0000-4000-8000-000000000000', repeat('問', 201), '答案', 93);`,
+		accept:     `INSERT INTO faq_entries (id, category_id, question, answer, position) VALUES ('1111000e-0000-4000-8000-000000000093', 'cccc0001-0000-4000-8000-000000000000', repeat('問', 200), '答案', 93);`,
+	},
+	{
+		constraint: "faq_entries_question_en_bounded",
+		reject:     `INSERT INTO faq_entries (id, category_id, question, answer, question_en, position) VALUES ('1111000e-0000-4000-8000-000000000093', 'cccc0001-0000-4000-8000-000000000000', '問題', '答案', repeat('問', 201), 93);`,
+		accept:     `INSERT INTO faq_entries (id, category_id, question, answer, question_en, position) VALUES ('1111000e-0000-4000-8000-000000000093', 'cccc0001-0000-4000-8000-000000000000', '問題', '答案', repeat('問', 200), 93);`,
+	},
+	{
+		// content.MaxFAQAnswerRunes, counted in characters, not bytes.
+		constraint: "faq_entries_answer_bounded",
+		reject:     `INSERT INTO faq_entries (id, category_id, question, answer, position) VALUES ('1111000e-0000-4000-8000-000000000093', 'cccc0001-0000-4000-8000-000000000000', '問題', repeat('答', 2001), 93);`,
+		accept:     `INSERT INTO faq_entries (id, category_id, question, answer, position) VALUES ('1111000e-0000-4000-8000-000000000093', 'cccc0001-0000-4000-8000-000000000000', '問題', repeat('答', 2000), 93);`,
+	},
+	{
+		constraint: "faq_entries_answer_en_bounded",
+		reject:     `INSERT INTO faq_entries (id, category_id, question, answer, answer_en, position) VALUES ('1111000e-0000-4000-8000-000000000093', 'cccc0001-0000-4000-8000-000000000000', '問題', '答案', repeat('答', 2001), 93);`,
+		accept:     `INSERT INTO faq_entries (id, category_id, question, answer, answer_en, position) VALUES ('1111000e-0000-4000-8000-000000000093', 'cccc0001-0000-4000-8000-000000000000', '問題', '答案', repeat('答', 2000), 93);`,
+	},
+	{
+		// contact.maxName, counted in characters, not bytes.
+		constraint: "contact_messages_name_bounded",
+		reject:     `INSERT INTO contact_messages (name, email, subject, message) VALUES (repeat('名', 81), 'ming@example.com', 'order', '請問出貨時間');`,
+		accept:     `INSERT INTO contact_messages (name, email, subject, message) VALUES (repeat('名', 80), 'ming@example.com', 'order', '請問出貨時間');`,
+	},
+	{
+		// contact.maxOrderRef, counted in characters, not bytes.
+		constraint: "contact_messages_order_ref_bounded",
+		reject:     `INSERT INTO contact_messages (name, email, subject, order_ref, message) VALUES ('王小明', 'ming@example.com', 'order', repeat('單', 33), '請問出貨時間');`,
+		accept:     `INSERT INTO contact_messages (name, email, subject, order_ref, message) VALUES ('王小明', 'ming@example.com', 'order', repeat('單', 32), '請問出貨時間');`,
+	},
+	{
+		// contact.maxMessage, counted in characters, not bytes.
+		constraint: "contact_messages_message_bounded",
+		reject:     `INSERT INTO contact_messages (name, email, subject, message) VALUES ('王小明', 'ming@example.com', 'order', repeat('詢', 2001));`,
+		accept:     `INSERT INTO contact_messages (name, email, subject, message) VALUES ('王小明', 'ming@example.com', 'order', repeat('詢', 2000));`,
+	},
+	{
+		// content.MaxNewsletterSubjectRunes, counted in characters, not bytes.
+		constraint: "newsletter_issues_subject_bounded",
+		reject:     `INSERT INTO newsletter_issues (subject, body) VALUES (repeat('主', 121), '內容');`,
+		accept:     `INSERT INTO newsletter_issues (subject, body) VALUES (repeat('主', 120), '內容');`,
+	},
+	{
+		// content.MaxNewsletterBodyRunes, counted in characters, not bytes.
+		constraint: "newsletter_issues_body_bounded",
+		reject:     `INSERT INTO newsletter_issues (subject, body) VALUES ('主旨', repeat('內', 20001));`,
+		accept:     `INSERT INTO newsletter_issues (subject, body) VALUES ('主旨', repeat('內', 20000));`,
+	},
+	{
+		// email.Max, counted in bytes: 255 bytes in 134 characters is refused, 254 bytes accepted.
+		constraint: "email_verifications_email_bounded",
+		reject:     `INSERT INTO email_verifications (user_id, email, digest, expires_at) VALUES ((SELECT id FROM users LIMIT 1), repeat('é', 121) || 'a@example.com', sha256('v1'::bytea), now() + interval '1 day');`,
+		accept:     `INSERT INTO email_verifications (user_id, email, digest, expires_at) VALUES ((SELECT id FROM users LIMIT 1), repeat('a', 242) || '@example.com', sha256('v1'::bytea), now() + interval '1 day');`,
+	},
+	{
+		constraint: "stock_notifications_email_bounded",
+		reject:     `INSERT INTO stock_notifications (variant_id, email) VALUES ('44444444-4444-4444-8444-444444444444', repeat('é', 121) || 'a@example.com');`,
+		accept:     `INSERT INTO stock_notifications (variant_id, email) VALUES ('44444444-4444-4444-8444-444444444444', repeat('a', 242) || '@example.com');`,
+	},
+	{
+		constraint: "order_private_data_email_bounded",
+		reject:     `DELETE FROM order_private_data WHERE order_id = '6666aaaa-6666-4666-8666-666666666666'; INSERT INTO order_private_data (order_id, email, recipient_name, phone, pickup_chain, pickup_store_code, pickup_store_name) VALUES ('6666aaaa-6666-4666-8666-666666666666', repeat('é', 121) || 'a@example.com', '測試', '0912000000', 'hi_life', 'S884', '後庄門市');`,
+		accept:     `DELETE FROM order_private_data WHERE order_id = '6666aaaa-6666-4666-8666-666666666666'; INSERT INTO order_private_data (order_id, email, recipient_name, phone, pickup_chain, pickup_store_code, pickup_store_name) VALUES ('6666aaaa-6666-4666-8666-666666666666', repeat('a', 242) || '@example.com', '測試', '0912000000', 'hi_life', 'S884', '後庄門市');`,
+	},
+	{
+		constraint: "contact_messages_email_bounded",
+		reject:     `INSERT INTO contact_messages (name, email, subject, message) VALUES ('王小明', repeat('é', 121) || 'a@example.com', 'order', '請問出貨時間');`,
+		accept:     `INSERT INTO contact_messages (name, email, subject, message) VALUES ('王小明', repeat('a', 242) || '@example.com', 'order', '請問出貨時間');`,
+	},
+	{
+		constraint: "newsletter_subscribers_email_bounded",
+		reject:     `INSERT INTO newsletter_subscribers (email, unsubscribe_token) VALUES (repeat('é', 121) || 'a@example.com', 'a-token-of-at-least-thirty-two-chars');`,
+		accept:     `INSERT INTO newsletter_subscribers (email, unsubscribe_token) VALUES (repeat('a', 242) || '@example.com', 'a-token-of-at-least-thirty-two-chars');`,
+	},
+	{
+		constraint: "newsletter_confirmations_email_bounded",
+		reject:     `INSERT INTO newsletter_confirmations (email, digest, expires_at) VALUES (repeat('é', 121) || 'a@example.com', sha256('c1'::bytea), now() + interval '1 day');`,
+		accept:     `INSERT INTO newsletter_confirmations (email, digest, expires_at) VALUES (repeat('a', 242) || '@example.com', sha256('c1'::bytea), now() + interval '1 day');`,
+	},
+	{
+		constraint: "categories_image_alt_en_present",
+		reject:     `INSERT INTO categories (id, slug, name, bundled_key, image_alt, image_alt_en, position) VALUES ('00000094-0000-4000-8000-000000000094', 'photo-blank-en', '有圖館別', 'campaign-banner-01.webp', '館別照片', E'\t', 41);`,
+		accept:     `INSERT INTO categories (id, slug, name, bundled_key, image_alt, image_alt_en, position) VALUES ('00000094-0000-4000-8000-000000000094', 'photo-blank-en', '有圖館別', 'campaign-banner-01.webp', '館別照片', 'Department photo', 41);`,
+	},
+	{
+		constraint: "sale_campaigns_image_alt_en_present",
+		reject:     `INSERT INTO sale_campaigns (slug, title, ends_at, bundled_key, image_alt, image_alt_en) VALUES ('header-blank-en', '有圖活動', now() + interval '7 days', 'campaign-banner-01.webp', '限時優惠商品', E'\t');`,
+		accept:     `INSERT INTO sale_campaigns (slug, title, ends_at, bundled_key, image_alt, image_alt_en) VALUES ('header-blank-en', '有圖活動', now() + interval '7 days', 'campaign-banner-01.webp', '限時優惠商品', 'Sale picks');`,
+	},
+	{
+		constraint: "hero_slides_eyebrow_en_present",
+		reject:     `INSERT INTO hero_slides (headline, primary_cta_label, primary_cta_href, position, eyebrow_en) VALUES ('夏季新機', '立即選購', '/c/phones', 5, E'\t');`,
+		accept:     `INSERT INTO hero_slides (headline, primary_cta_label, primary_cta_href, position, eyebrow_en) VALUES ('夏季新機', '立即選購', '/c/phones', 5, 'Summer');`,
+	},
+	{
+		constraint: "hero_slides_headline_en_present",
+		reject:     `INSERT INTO hero_slides (headline, primary_cta_label, primary_cta_href, position, headline_en) VALUES ('夏季新機', '立即選購', '/c/phones', 5, E'\t');`,
+		accept:     `INSERT INTO hero_slides (headline, primary_cta_label, primary_cta_href, position, headline_en) VALUES ('夏季新機', '立即選購', '/c/phones', 5, 'New phones');`,
+	},
+	{
+		constraint: "hero_slides_body_en_present",
+		reject:     `INSERT INTO hero_slides (headline, primary_cta_label, primary_cta_href, position, body_en) VALUES ('夏季新機', '立即選購', '/c/phones', 5, E'\t');`,
+		accept:     `INSERT INTO hero_slides (headline, primary_cta_label, primary_cta_href, position, body_en) VALUES ('夏季新機', '立即選購', '/c/phones', 5, 'In stock now');`,
+	},
+	{
+		constraint: "hero_slides_primary_cta_label_en_present",
+		reject:     `INSERT INTO hero_slides (headline, primary_cta_label, primary_cta_href, position, primary_cta_label_en) VALUES ('夏季新機', '立即選購', '/c/phones', 5, E'\t');`,
+		accept:     `INSERT INTO hero_slides (headline, primary_cta_label, primary_cta_href, position, primary_cta_label_en) VALUES ('夏季新機', '立即選購', '/c/phones', 5, 'Shop now');`,
+	},
+	{
+		constraint: "hero_slides_image_alt_en_present",
+		reject:     `INSERT INTO hero_slides (headline, primary_cta_label, primary_cta_href, position, image_alt_en) VALUES ('夏季新機', '立即選購', '/c/phones', 5, E'\t');`,
+		accept:     `INSERT INTO hero_slides (headline, primary_cta_label, primary_cta_href, position, image_alt_en) VALUES ('夏季新機', '立即選購', '/c/phones', 5, 'A phone on a desk');`,
+	},
+	{
+		constraint: "hero_slides_secondary_cta_label_en_present",
+		reject:     `INSERT INTO hero_slides (headline, primary_cta_label, primary_cta_href, secondary_cta_label, secondary_cta_href, secondary_cta_label_en, position) VALUES ('夏季新機', '立即選購', '/c/phones', '關於', '/about', E'\t', 5);`,
+		accept:     `INSERT INTO hero_slides (headline, primary_cta_label, primary_cta_href, secondary_cta_label, secondary_cta_href, secondary_cta_label_en, position) VALUES ('夏季新機', '立即選購', '/c/phones', '關於', '/about', 'About', 5);`,
 	},
 }
 
