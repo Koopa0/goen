@@ -344,6 +344,96 @@ try {
     assert.equal(corner['200%'], corner['100%'] * 2, `${label}: ${corner['100%']}px at 100% text is ${corner['200%']}px at 200%, not double`);
     console.log(`${label}: ${corner['100%']}px at 100% text, ${corner['200%']}px at 200%; heart and hero arrows round, footer button 4px inside its field`);
   }
+  // A product's main photograph sits on one rounded well in the photograph's
+  // own ground, whatever the department's tone: no tone frame around it, no
+  // white edge on the picture, and a placeholder whose words can be read.
+  {
+    const channels = text => {
+      const got = /^rgba?\((\d+),\s*(\d+),\s*(\d+)(?:,\s*([\d.]+))?\)$/.exec(text);
+      assert.ok(got, `product photograph: ${text} is not an rgb colour`);
+      assert.equal(got[4] ?? '1', '1', `product photograph: ${text} is not opaque`);
+      return [got[1], got[2], got[3]].map(Number);
+    };
+    // WCAG 2.2 relative luminance: each sRGB channel c/255 becomes c/12.92 when
+    // at most 0.04045 and ((c + 0.055) / 1.055) ** 2.4 above it, then
+    // L = 0.2126 R + 0.7152 G + 0.0722 B. The ratio is (lighter + 0.05) / (darker + 0.05).
+    const luminance = rgb => {
+      const [r, g, b] = rgb.map(value => {
+        const c = value / 255;
+        return c <= 0.04045 ? c / 12.92 : ((c + 0.055) / 1.055) ** 2.4;
+      });
+      return 0.2126 * r + 0.7152 * g + 0.0722 * b;
+    };
+    const ratio = (a, b) => {
+      const [light, dark] = [luminance(a), luminance(b)].sort((x, y) => y - x);
+      return (light + 0.05) / (dark + 0.05);
+    };
+    const measure = () => evaluate(`(() => {
+      const gallery = document.querySelector('#gallery');
+      const shot = gallery?.querySelector('.goen-pdp__shot');
+      if (!shot) return null;
+      // A probe turns the custom properties, which may be written as any colour
+      // syntax, into the rgb() text the shot's own background computes to.
+      const probe = document.createElement('div');
+      document.body.append(probe);
+      const resolve = name => {
+        probe.style.backgroundColor = '';
+        probe.style.backgroundColor = getComputedStyle(gallery).getPropertyValue(name);
+        return getComputedStyle(probe).backgroundColor;
+      };
+      const style = getComputedStyle(shot);
+      const corners = ['TopLeft', 'TopRight', 'BottomRight', 'BottomLeft'].map(corner => style['border' + corner + 'Radius']);
+      const sides = ['Top', 'Right', 'Bottom', 'Left'];
+      const image = shot.querySelector('.goen-pdp__shotimg');
+      const placeholder = shot.querySelector('.goen-ph');
+      const result = {
+        tone: gallery.dataset.tone,
+        photo: resolve('--photo'), toneGround: resolve('--tone-ground'),
+        background: style.backgroundColor, corners,
+        padding: sides.map(side => style['padding' + side]),
+        shotBorder: sides.map(side => style['border' + side + 'Width']),
+      };
+      if (image) {
+        const picture = getComputedStyle(image);
+        const outer = shot.getBoundingClientRect(), inner = image.getBoundingClientRect();
+        Object.assign(result, {
+          imageBorder: sides.map(side => picture['border' + side + 'Width']),
+          imageClip: picture.backgroundClip,
+          inset: [inner.left - outer.left, inner.top - outer.top, outer.right - inner.right, outer.bottom - inner.bottom],
+        });
+      }
+      if (placeholder) result.textColor = getComputedStyle(placeholder).color;
+      probe.remove();
+      return result;
+    })()`);
+    for (const tone of ['ink', 'sage']) {
+      for (const photo of [true, false]) {
+        for (const width of [375, 1440]) {
+          const label = `product photograph ${tone} ${photo ? 'with' : 'without'} a photograph ${width}px`;
+          await open(`/product?tone=${tone}&photo=${photo ? 1 : 0}`, width);
+          const drawn = await measure();
+          assert.ok(drawn, `${label}: no photograph well on the page`);
+          assert.equal(drawn.tone, tone, `${label}: the gallery carries tone ${drawn.tone}`);
+          assert.notEqual(drawn.toneGround, drawn.photo, `${label}: the tone's ground equals the photograph ground, so this proves nothing`);
+          assert.equal(drawn.background, drawn.photo, `${label}: the well is ${drawn.background}, not the photograph ground ${drawn.photo}`);
+          assert.notEqual(drawn.background, drawn.toneGround, `${label}: the well wears the tone ${drawn.toneGround}`);
+          assert.deepEqual(drawn.padding, Array(4).fill('0px'), `${label}: the well has padding ${drawn.padding}`);
+          assert.deepEqual(drawn.shotBorder, Array(4).fill('0px'), `${label}: the well has a border ${drawn.shotBorder}`);
+          assert.deepEqual(drawn.corners, Array(4).fill('16px'), `${label}: corners ${drawn.corners}, not 16px`);
+          if (photo) {
+            assert.deepEqual(drawn.imageBorder, Array(4).fill('0px'), `${label}: the picture has an edge ${drawn.imageBorder}`);
+            assert.equal(drawn.imageClip, 'border-box', `${label}: the picture's background is clipped to ${drawn.imageClip}`);
+            for (const gap of drawn.inset) assert.ok(Math.abs(gap) < 0.5, `${label}: the picture sits ${drawn.inset} inside the well`);
+            console.log(`${label}: ${drawn.background} well, 16px corners, picture edge to edge`);
+          } else {
+            const contrast = ratio(channels(drawn.textColor), channels(drawn.background));
+            assert.ok(contrast >= 4.5, `${label}: placeholder ${drawn.textColor} on ${drawn.background} is ${contrast.toFixed(2)}:1`);
+            console.log(`${label}: ${drawn.background} well, 16px corners, placeholder text ${contrast.toFixed(2)}:1`);
+          }
+        }
+      }
+    }
+  }
 } finally {
   socket.close();
   await fetch(`${debugging}/json/close/${target.id}`);
