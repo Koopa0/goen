@@ -1004,6 +1004,7 @@ func (s *Store) Order(ctx context.Context, number string) (pages.OrderView, erro
 		SubtotalCents: o.SubtotalCents,
 		ShippingCents: o.ShippingCents,
 		DiscountCents: o.DiscountCents, DiscountReason: o.DiscountReason,
+		TotalCents:  o.TotalCents,
 		CreditCents: o.CreditCents,
 		PlacedAt:    o.PlacedAt,
 		Now:         now,
