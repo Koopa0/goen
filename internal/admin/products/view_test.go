@@ -1,0 +1,97 @@
+package products
+
+import (
+	"bytes"
+	"html"
+	"strings"
+	"testing"
+
+	"github.com/a-h/templ"
+
+	"github.com/koopa0/goen/internal/i18n"
+	"github.com/koopa0/goen/internal/keyset"
+	"github.com/koopa0/goen/internal/ui/layouts"
+)
+
+// The tests in this file are the products halves of cross-feature tests that
+// still live in internal/ui/pages/admin, as in #2081, #2082, #2129 and #2154:
+// each half moved here with the page it renders and the other views stay
+// behind.
+
+// From TestEveryAdminEmptyPageKeepsItsRestartLink.
+func TestProductsEmptyPageKeepsItsRestartLink(t *testing.T) {
+	t.Parallel()
+	b := keyset.Bound{PastEnd: true, First: "/admin/products?q=test"}
+	p := layouts.Page{Title: "Pagination"}
+	cases := map[string]templ.Component{
+		"products": Products(p, ProductsView{Bound: b}),
+	}
+	for name, c := range cases {
+		t.Run(name, func(t *testing.T) {
+			t.Parallel()
+			var out bytes.Buffer
+			if err := c.Render(i18n.WithLocale(t.Context(), i18n.En), &out); err != nil {
+				t.Fatal(err)
+			}
+			body := out.String()
+			if !strings.Contains(body, `href="/admin/products?q=test"`) || !strings.Contains(body, "First page") {
+				t.Fatal("empty page lost its plain restart link")
+			}
+			if strings.Count(body, "There are no entries on this page.") != 1 {
+				t.Fatal("empty page lost its shared empty state")
+			}
+		})
+	}
+}
+
+// queuePages builds the products list's page around one bound, with no rows.
+func queuePages(b keyset.Bound, ctx func(k i18n.Key) string) map[string]struct {
+	page templ.Component
+	want string
+} {
+	p := layouts.Page{Title: "Queue"}
+	type c = struct {
+		page templ.Component
+		want string
+	}
+	return map[string]c{
+		"products": {Products(p, ProductsView{Bound: b}), ctx(i18n.KeyAdminProdEmpty)},
+	}
+}
+
+// From TestEveryQueueKeepsItsOwnFirstPageEmptyState.
+func TestProductsQueueKeepsItsOwnFirstPageEmptyState(t *testing.T) {
+	t.Parallel()
+	ctx := func(k i18n.Key) string { return i18n.T(i18n.WithLocale(t.Context(), i18n.En), k) }
+	generic := ctx(i18n.KeyPageEmpty)
+	for name, c := range queuePages(firstPageBound("/admin/queue"), ctx) {
+		t.Run(name, func(t *testing.T) {
+			t.Parallel()
+			body := render(t, c.page)
+			if !strings.Contains(body, html.EscapeString(c.want)) {
+				t.Errorf("the queue's own empty text %q is missing", c.want)
+			}
+			if strings.Contains(body, generic) {
+				t.Error("an empty first page shows the later-page sentence")
+			}
+		})
+	}
+}
+
+// From TestEveryQueueWithMoreRowsOffersNext.
+func TestProductsQueueWithMoreRowsOffersNext(t *testing.T) {
+	t.Parallel()
+	ctx := func(k i18n.Key) string { return i18n.T(i18n.WithLocale(t.Context(), i18n.En), k) }
+	for name, c := range queuePages(fullPageBound("/admin/queue"), ctx) {
+		t.Run(name, func(t *testing.T) {
+			t.Parallel()
+			body := render(t, c.page)
+			if !strings.Contains(body, `rel="next"`) {
+				t.Error("a first page with more rows has no Next link")
+			}
+			if strings.Contains(body, ctx(i18n.KeyPageEmpty)) {
+				t.Error("a first page with more rows says it is empty")
+			}
+		})
+	}
+}
