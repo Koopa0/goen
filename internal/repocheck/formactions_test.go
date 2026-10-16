@@ -9,6 +9,7 @@ import (
 	"testing"
 
 	"github.com/koopa0/goen/internal/admin/campaigns"
+	"github.com/koopa0/goen/internal/admin/content"
 	"github.com/koopa0/goen/internal/admin/coupons"
 	"github.com/koopa0/goen/internal/admin/feedback"
 	"github.com/koopa0/goen/internal/admin/refunds"
@@ -65,11 +66,11 @@ func methodFormActions(t *testing.T) map[string][]string {
 		"internal/admin/feedback/message_page.templ:templ.SafeURL(m.Action())":                          {(feedback.Message{}).Action(), (feedback.Message{Handled: true}).Action()},
 		"internal/admin/feedback/review_page.templ:templ.SafeURL(r.Action())":                           {(feedback.Review{}).Action(), (feedback.Review{Hidden: true}).Action()},
 		"internal/admin/coupons/page.templ:templ.SafeURL(c.Action())":                                   {(coupons.Coupon{Code: "coupon"}).Action()},
-		"internal/ui/pages/admin/newsletter.templ:templ.SafeURL(issue.SendAction())":                    {(admin.NewsletterIssue{ID: "issue"}).SendAction()},
+		"internal/admin/content/newsletter_page.templ:templ.SafeURL(issue.SendAction())":                {(content.NewsletterIssue{ID: "issue"}).SendAction()},
 		"internal/admin/campaigns/page.templ:templ.SafeURL(c.ToggleAction())":                           {(campaigns.CampaignRow{Slug: "campaign"}).ToggleAction()},
 		"internal/admin/campaigns/page.templ:templ.SafeURL(v.FeatureAction())":                          {(&campaigns.CampaignView{Slug: "campaign"}).FeatureAction()},
-		"internal/ui/pages/admin/home.templ:templ.SafeURL(slide.PromoteAction())":                       {(admin.HeroSlide{ID: "slide"}).PromoteAction()},
-		"internal/ui/pages/admin/home.templ:templ.SafeURL(slide.ToggleAction())":                        {(admin.HeroSlide{ID: "slide"}).ToggleAction()},
+		"internal/admin/content/home_page.templ:templ.SafeURL(slide.PromoteAction())":                   {(content.HeroSlide{ID: "slide"}).PromoteAction()},
+		"internal/admin/content/home_page.templ:templ.SafeURL(slide.ToggleAction())":                    {(content.HeroSlide{ID: "slide"}).ToggleAction()},
 		"internal/admin/feedback/question_page.templ:templ.SafeURL(q.AnswerAction())":                   {(feedback.Question{ID: "question"}).AnswerAction()},
 		"internal/ui/pages/listing.templ:templ.SafeURL(v.FilterAction())":                               {(pages.ListingView{Slug: "category"}).FilterAction()},
 		"internal/warranty/page.templ:templ.SafeURL(v.Action())":                                        {(warranty.WarrantyOrderView{Number: "order"}).Action()},

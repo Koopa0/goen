@@ -11,7 +11,6 @@ import (
 
 	"github.com/koopa0/goen/assets"
 	"github.com/koopa0/goen/internal/i18n"
-	"github.com/koopa0/goen/internal/ui/layouts"
 )
 
 func TestImageRefusalRendersDraftsApartFromSavedImages(t *testing.T) {
@@ -39,18 +38,6 @@ func TestImageRefusalRendersDraftsApartFromSavedImages(t *testing.T) {
 				}
 			})
 		}
-	}
-}
-
-func TestHeroImageRefusalRendersTheCompleteDraft(t *testing.T) {
-	t.Parallel()
-	v := HeroView{Draft: HeroDraft{Eyebrow: " 原始副標 ", Headline: " 原始標題 ", Body: " 原始內文 ", PrimaryLabel: " 主按鈕 ", PrimaryHref: "/deals?q=1&sort=price", SecondLabel: " 次按鈕 ", SecondHref: "/about", ImageAlt: " 原始圖片 ", Days: "007", EyebrowEn: " Raw kicker ", HeadlineEn: " Raw title ", BodyEn: " Raw body ", PrimaryLabelEn: " Primary ", SecondLabelEn: " Secondary ", ImageAltEn: " Raw picture "}, Errors: map[string]string{"image": "Replace the image"}}
-	want := map[string]string{"h-eyebrow": " 原始副標 ", "h-headline": " 原始標題 ", "h-body": " 原始內文 ", "h-plabel": " 主按鈕 ", "h-phref": "/deals?q=1&sort=price", "h-slabel": " 次按鈕 ", "h-shref": "/about", "h-alt": " 原始圖片 ", "h-days": "007", "h-eyebrow-en": " Raw kicker ", "h-headline-en": " Raw title ", "h-body-en": " Raw body ", "h-plabel-en": " Primary ", "h-slabel-en": " Secondary ", "h-alt-en": " Raw picture "}
-	for _, locale := range i18n.Locales() {
-		t.Run(locale.Tag(), func(t *testing.T) {
-			t.Parallel()
-			assertImageDraftControls(t, renderComponent(t, i18n.WithLocale(t.Context(), locale), Home(layouts.Page{}, &v)), want, "h-image")
-		})
 	}
 }
 

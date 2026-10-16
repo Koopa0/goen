@@ -13,7 +13,6 @@ import (
 	"github.com/koopa0/goen/internal/db"
 	"github.com/koopa0/goen/internal/i18n"
 	"github.com/koopa0/goen/internal/shoptime"
-	"github.com/koopa0/goen/internal/ui/pages/admin"
 )
 
 const MaxFAQEntries = 200
@@ -92,22 +91,22 @@ func (f *FAQCategoryForm) Validate(ctx context.Context) map[string]string {
 	return errs
 }
 
-func (s *Store) FAQ(ctx context.Context) (admin.FAQView, error) {
+func (s *Store) FAQ(ctx context.Context) (FAQView, error) {
 	rows, err := s.q.AdminFAQEntries(ctx, MaxFAQEntries)
 	if err != nil {
-		return admin.FAQView{}, fmt.Errorf("read faq entries: %w", err)
+		return FAQView{}, fmt.Errorf("read faq entries: %w", err)
 	}
 	cats, err := s.q.AdminFAQCategories(ctx)
 	if err != nil {
-		return admin.FAQView{}, fmt.Errorf("read faq categories: %w", err)
+		return FAQView{}, fmt.Errorf("read faq categories: %w", err)
 	}
-	view := admin.FAQView{
-		Rows:       make([]admin.FAQEntry, 0, len(rows)),
-		Categories: make([]admin.FAQCategory, 0, len(cats)),
+	view := FAQView{
+		Rows:       make([]FAQEntry, 0, len(rows)),
+		Categories: make([]FAQCategory, 0, len(cats)),
 	}
 	for i := range rows {
 		r := &rows[i]
-		view.Rows = append(view.Rows, admin.FAQEntry{
+		view.Rows = append(view.Rows, FAQEntry{
 			ID: r.ID.String(), Category: r.Category, Question: r.Question,
 			Answer: r.Answer, QuestionEn: r.QuestionEn,
 			AnswerEn: r.AnswerEn, UpdatedAt: shoptime.Day(r.UpdatedAt),
@@ -115,7 +114,7 @@ func (s *Store) FAQ(ctx context.Context) (admin.FAQView, error) {
 	}
 	for i := range cats {
 		c := &cats[i]
-		view.Categories = append(view.Categories, admin.FAQCategory{
+		view.Categories = append(view.Categories, FAQCategory{
 			ID: c.ID.String(), Name: c.Name, NameEn: c.NameEn, InUse: c.InUse,
 		})
 	}
