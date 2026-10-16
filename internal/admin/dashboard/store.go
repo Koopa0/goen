@@ -16,9 +16,11 @@ import (
 	"github.com/koopa0/goen/internal/i18n"
 	"github.com/koopa0/goen/internal/inventory"
 	"github.com/koopa0/goen/internal/order"
+	"github.com/koopa0/goen/internal/sales"
 	"github.com/koopa0/goen/internal/shoptime"
 	"github.com/koopa0/goen/internal/ui/components"
 	"github.com/koopa0/goen/internal/ui/pages/admin"
+	"github.com/koopa0/goen/internal/worklist"
 )
 
 // Stock ranks the SKUs by days cover; the stock desk implements it.
@@ -26,16 +28,17 @@ type Stock interface {
 	DaysCover(ctx context.Context, days int, now time.Time) (listed []inventory.Risk, moreSoldOut int, err error)
 }
 
-// Health lists what the health desk judges to need a person, as dashboard
-// tasks; the health desk implements it.
+// Health lists what the health desk judges to need a person; the health desk
+// implements it.
 type Health interface {
-	Tasks(ctx context.Context) ([]admin.Task, error)
+	Tasks(ctx context.Context) ([]worklist.Task, error)
 }
 
-// Sales reads the dashboard's last seven days and its latest paid order; the
-// reports desk implements it.
+// Sales reads paid orders and revenue over a window of shop days up to now and
+// over the window before it, and the latest paid order; the reports desk
+// implements it.
 type Sales interface {
-	FillWeek(ctx context.Context, view *admin.DashboardView, now time.Time) error
+	Recent(ctx context.Context, days int, now time.Time) (sales.Recent, error)
 }
 
 type Store struct {
@@ -45,11 +48,11 @@ type Store struct {
 	sales  Sales
 }
 
-func NewStore(pool *pgxpool.Pool, stock Stock, health Health, sales Sales) *Store {
-	if pool == nil || stock == nil || health == nil || sales == nil {
+func NewStore(pool *pgxpool.Pool, stock Stock, health Health, sold Sales) *Store {
+	if pool == nil || stock == nil || health == nil || sold == nil {
 		panic("dashboard: NewStore requires a pool, stock, health and sales")
 	}
-	return &Store{q: db.New(pool), stock: stock, health: health, sales: sales}
+	return &Store{q: db.New(pool), stock: stock, health: health, sales: sold}
 }
 
 func (s *Store) Dashboard(ctx context.Context) (admin.DashboardView, error) {
@@ -99,14 +102,15 @@ func (s *Store) Dashboard(ctx context.Context) (admin.DashboardView, error) {
 
 // HealthTasks is what the health desk says needs a person. The dashboard is
 // still worth opening without it, so the caller decides what an error costs.
-func (s *Store) HealthTasks(ctx context.Context) ([]admin.Task, error) {
+func (s *Store) HealthTasks(ctx context.Context) ([]worklist.Task, error) {
 	return s.health.Tasks(ctx)
 }
 
-// FillWeek is the last seven days of the shop's sales. The dashboard is still
-// worth opening without it, so the caller decides what an error costs.
-func (s *Store) FillWeek(ctx context.Context, view *admin.DashboardView, now time.Time) error {
-	return s.sales.FillWeek(ctx, view, now)
+// RecentSales is the shop's sales over a window of days shop days up to now and
+// the window before it. The dashboard is still worth opening without them, so
+// the caller decides what an error costs.
+func (s *Store) RecentSales(ctx context.Context, days int, now time.Time) (sales.Recent, error) {
+	return s.sales.Recent(ctx, days, now)
 }
 
 // recentRows is how many of the newest orders the landing page lists.

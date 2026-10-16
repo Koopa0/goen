@@ -20,7 +20,7 @@ import (
 	"github.com/koopa0/goen/internal/i18n"
 	"github.com/koopa0/goen/internal/invoice/issuer"
 	"github.com/koopa0/goen/internal/outbox"
-	"github.com/koopa0/goen/internal/ui/pages/admin"
+	"github.com/koopa0/goen/internal/worklist"
 )
 
 // TestARefundWithNoAllowanceFiledNeedsAPerson: a return paid back to the card
@@ -221,13 +221,13 @@ func withoutSince(r health.UnrelievedInvoice) health.UnrelievedInvoice {
 
 // taskFor is the dashboard's entry for this row, read through Tasks as the
 // dashboard reads it.
-func taskFor(t *testing.T, ctx context.Context, store *health.Store) []admin.Task {
+func taskFor(t *testing.T, ctx context.Context, store *health.Store) []worklist.Task {
 	t.Helper()
 	tasks, err := store.Tasks(ctx)
 	if err != nil {
 		t.Fatalf("tasks: %v", err)
 	}
-	return slices.DeleteFunc(tasks, func(task admin.Task) bool {
+	return slices.DeleteFunc(tasks, func(task worklist.Task) bool {
 		return task.Label != i18n.KeyAdminHPUnrelievedRefundsHeading
 	})
 }

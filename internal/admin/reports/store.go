@@ -13,6 +13,7 @@ import (
 	"github.com/koopa0/goen/internal/db"
 	"github.com/koopa0/goen/internal/i18n"
 	"github.com/koopa0/goen/internal/inventory"
+	"github.com/koopa0/goen/internal/sales"
 	"github.com/koopa0/goen/internal/shoptime"
 	"github.com/koopa0/goen/internal/ui/chart"
 	"github.com/koopa0/goen/internal/ui/pages/admin"
@@ -74,7 +75,7 @@ func (s *Store) ReportAt(ctx context.Context, days int32, now time.Time) (admin.
 	}
 	view.AtRisk, view.MoreSoldOut = admin.StockRisks(atRisk, now), moreSoldOut
 	current, _ := periods(now, int(window(days)))
-	view.Returned, view.ReturnedErr = returnedProducts(ctx, tx, current)
+	view.Returned, view.ReturnedErr = readReturnedProducts(ctx, tx, current)
 	// The daily charts are figures of the page: failing to read them must not take
 	// the tiles with them. It is read last, because a failed statement ends the snapshot.
 	daily, paid, err := dailyFigures(ctx, q, days, now)
@@ -86,54 +87,38 @@ func (s *Store) ReportAt(ctx context.Context, days int32, now time.Time) (admin.
 	return view, nil
 }
 
-// FillWeek reads the last seven shop days of paid orders and revenue, and the
-// seven before them, into the dashboard, in one snapshot so the days add up to
-// the totals. The latest paid order is read last: failing to read it leaves the
-// rest standing, marked LatestUnavailable and returned as ErrLatestPaid.
-func (s *Store) FillWeek(ctx context.Context, view *admin.DashboardView, now time.Time) error {
+// Recent reads paid orders and revenue over a window of days shop days up to
+// now and over the window before it, cut at the same time of day, in one
+// snapshot so the days add up to the totals. The latest paid order is read
+// last: failing to read it leaves the windows standing, returned with
+// sales.ErrLatestPaid.
+func (s *Store) Recent(ctx context.Context, days int, now time.Time) (sales.Recent, error) {
 	tx, err := s.pool.BeginTx(ctx, pgx.TxOptions{IsoLevel: pgx.RepeatableRead, AccessMode: pgx.ReadOnly})
 	if err != nil {
-		return fmt.Errorf("begin week snapshot: %w", err)
+		return sales.Recent{}, fmt.Errorf("begin week snapshot: %w", err)
 	}
 	defer db.Rollback(ctx, tx)
 	q := db.New(tx)
 
-	current, before := periods(now, admin.WeekDays)
-	week := admin.Week{}
-	var days [2]paidDays
-	for i, p := range []period{current, before} {
-		var revenue db.RevenueBetweenRow
-		if revenue, err = q.RevenueBetween(ctx, db.RevenueBetweenParams{FromAt: p.from, ToAt: p.to}); err != nil {
-			return fmt.Errorf("read the week's revenue: %w", err)
-		}
-		if days[i], err = readPaidDays(ctx, q, p); err != nil {
-			return err
-		}
-		if i == 0 {
-			week.Orders, week.RevenueCents, week.RevenueSquares = revenue.Orders, revenue.RevenueCents, revenue.SumOfSquares
-			continue
-		}
-		week.Previous = admin.PreviousFigures{
-			Orders: revenue.Orders, RevenueCents: revenue.RevenueCents, RevenueSquares: revenue.SumOfSquares,
-		}
+	current, before := periods(now, days)
+	var recent sales.Recent
+	if recent.Current, err = readPeriod(ctx, q, current); err != nil {
+		return sales.Recent{}, err
 	}
-	week.RevenueDays = chart.SparklineProps{Previous: days[1].revenue, Current: days[0].revenue}
-	week.OrderDays = chart.SparklineProps{Previous: days[1].orders, Current: days[0].orders}
-	view.Week = week
+	if recent.Previous, err = readPeriod(ctx, q, before); err != nil {
+		return sales.Recent{}, err
+	}
 
 	latest, err := latestPaidOrder(ctx, q, before.from)
 	switch {
-	case errors.Is(err, pgx.ErrNoRows):
-		view.Latest = nil
-	case err != nil:
-		view.LatestUnavailable = true
-		return fmt.Errorf("%w: %w", admin.ErrLatestPaid, err)
-	default:
-		view.Latest = &admin.LatestPaid{
+	case err == nil:
+		recent.Latest = &sales.PaidOrder{
 			Number: latest.OrderNumber, TotalCents: latest.TotalCents, Elapsed: time.Duration(latest.ElapsedSeconds) * time.Second,
 		}
+	case !errors.Is(err, pgx.ErrNoRows):
+		return recent, fmt.Errorf("%w: %w", sales.ErrLatestPaid, err)
 	}
-	return nil
+	return recent, nil
 }
 
 // latestPaidOrder looks among the orders placed since the earlier of the two
@@ -146,27 +131,28 @@ func latestPaidOrder(ctx context.Context, q *db.Queries, since time.Time) (db.La
 	return latest, err
 }
 
-// paidDays is one period's days, as revenue and as order counts.
-type paidDays struct{ revenue, orders chart.Series }
-
-func readPaidDays(ctx context.Context, q *db.Queries, p period) (paidDays, error) {
+// readPeriod is the period's paid orders and revenue, in total and for each
+// shop day.
+func readPeriod(ctx context.Context, q *db.Queries, p period) (sales.Period, error) {
+	revenue, err := q.RevenueBetween(ctx, db.RevenueBetweenParams{FromAt: p.from, ToAt: p.to})
+	if err != nil {
+		return sales.Period{}, fmt.Errorf("read the week's revenue: %w", err)
+	}
 	rows, err := q.PaidByShopDay(ctx, db.PaidByShopDayParams{
 		FirstDay: shoptime.QueryDate(p.from), LastDay: shoptime.QueryDate(p.to.Add(-time.Nanosecond)),
 		FromAt: p.from, ToAt: p.to,
 	})
 	if err != nil {
-		return paidDays{}, fmt.Errorf("read the week's paid orders by day: %w", err)
+		return sales.Period{}, fmt.Errorf("read the week's paid orders by day: %w", err)
 	}
-	partial := endsMidDay(p)
-	d := paidDays{
-		revenue: chart.Series{Partial: partial, Buckets: make([]chart.Bucket, 0, len(rows))},
-		orders:  chart.Series{Partial: partial, Buckets: make([]chart.Bucket, 0, len(rows))},
-	}
+	days := make([]sales.Day, 0, len(rows))
 	for _, r := range rows {
-		d.revenue.Buckets = append(d.revenue.Buckets, chart.Bucket{Day: r.Day, Value: r.RevenueCents})
-		d.orders.Buckets = append(d.orders.Buckets, chart.Bucket{Day: r.Day, Value: r.Orders})
+		days = append(days, sales.Day{Day: r.Day, Orders: r.Orders, RevenueCents: r.RevenueCents})
 	}
-	return d, nil
+	return sales.Period{
+		Orders: revenue.Orders, RevenueCents: revenue.RevenueCents, RevenueSquares: revenue.SumOfSquares,
+		Days: days, Partial: endsMidDay(p),
+	}, nil
 }
 
 func reportAt(ctx context.Context, q *db.Queries, days int32, now time.Time) (admin.ReportView, error) {
@@ -239,9 +225,9 @@ func reportAt(ctx context.Context, q *db.Queries, days int32, now time.Time) (ad
 	return view, nil
 }
 
-// returnedProducts reads inside a savepoint, so that a failure ends only the
-// savepoint and not the snapshot the chart is still to be read from.
-func returnedProducts(ctx context.Context, tx pgx.Tx, p period) ([]admin.ReturnedProduct, error) {
+// readReturnedProducts reads inside a savepoint, so that a failure ends only
+// the savepoint and not the snapshot the chart is still to be read from.
+func readReturnedProducts(ctx context.Context, tx pgx.Tx, p period) ([]admin.ReturnedProduct, error) {
 	sp, err := tx.Begin(ctx)
 	if err != nil {
 		return nil, fmt.Errorf("begin returned products savepoint: %w", err)

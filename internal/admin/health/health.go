@@ -19,8 +19,8 @@ import (
 	"github.com/koopa0/goen/internal/payment"
 	"github.com/koopa0/goen/internal/refund"
 	"github.com/koopa0/goen/internal/shoptime"
-	"github.com/koopa0/goen/internal/ui/pages/admin"
 	"github.com/koopa0/goen/internal/web"
+	"github.com/koopa0/goen/internal/worklist"
 )
 
 var (
@@ -215,7 +215,7 @@ func (s *Store) staffTaskCounts(ctx context.Context) (WorkerHealthView, error) {
 
 // Tasks is what /admin/health judges to need a person, read through the same
 // queries and thresholds as the page and none of the lists it names them in.
-func (s *Store) Tasks(ctx context.Context) ([]admin.Task, error) {
+func (s *Store) Tasks(ctx context.Context) ([]worklist.Task, error) {
 	row, err := s.workerHealth(ctx)
 	if err != nil {
 		return nil, err
