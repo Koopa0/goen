@@ -9,7 +9,6 @@ import (
 	"github.com/koopa0/goen/internal/admin/access"
 	"github.com/koopa0/goen/internal/sales"
 	"github.com/koopa0/goen/internal/ui/chart"
-	"github.com/koopa0/goen/internal/ui/pages/admin"
 	"github.com/koopa0/goen/internal/web"
 	"github.com/koopa0/goen/internal/worklist"
 )
@@ -44,19 +43,19 @@ func (h *Handler) Dashboard(w http.ResponseWriter, r *http.Request) {
 	} else {
 		view.Tasks = append(view.Tasks, healthTasks(health)...)
 	}
-	recent, err := h.store.RecentSales(r.Context(), admin.WeekDays, time.Now())
+	recent, err := h.store.RecentSales(r.Context(), WeekDays, time.Now())
 	if err != nil {
 		h.log.ErrorContext(r.Context(), "read the last seven days for the dashboard", "error", err)
 	}
 	showWeek(&view, recent, err)
-	web.Render(w, r, h.log, http.StatusOK, admin.Dashboard(admin.Meta(r.Context()), view))
+	web.Render(w, r, h.log, http.StatusOK, Dashboard(Meta(r.Context()), view))
 }
 
 // healthTasks lists the health desk's tasks as the dashboard shows them.
-func healthTasks(tasks []worklist.Task) []admin.Task {
-	shown := make([]admin.Task, len(tasks))
+func healthTasks(tasks []worklist.Task) []Task {
+	shown := make([]Task, len(tasks))
 	for i, t := range tasks {
-		shown[i] = admin.Task{
+		shown[i] = Task{
 			Label: t.Label, Count: t.Count, Href: t.Href,
 			HasAge: t.HasAge, AgeSeconds: t.AgeSeconds, Alert: t.Alert,
 		}
@@ -68,20 +67,20 @@ func healthTasks(tasks []worklist.Task) []admin.Task {
 // A latest paid order that could not be read leaves the week standing and says
 // so; any other error leaves the week out, which is not the same as a week
 // without orders.
-func showWeek(view *admin.DashboardView, recent sales.Recent, err error) {
+func showWeek(view *DashboardView, recent sales.Recent, err error) {
 	if err != nil && !errors.Is(err, sales.ErrLatestPaid) {
 		view.WeekUnavailable = true
 		return
 	}
 	current, previous := &recent.Current, &recent.Previous
-	view.Week = admin.Week{
+	view.Week = Week{
 		Orders: current.Orders, RevenueCents: current.RevenueCents, RevenueSquares: current.RevenueSquares,
 		Previous:    recent.Previous,
 		RevenueDays: chart.SparklineProps{Previous: daySeries(previous, dayRevenue), Current: daySeries(current, dayRevenue)},
 		OrderDays:   chart.SparklineProps{Previous: daySeries(previous, dayOrders), Current: daySeries(current, dayOrders)},
 	}
 	if l := recent.Latest; l != nil {
-		view.Latest = &admin.LatestPaid{Number: l.Number, TotalCents: l.TotalCents, Elapsed: l.Elapsed}
+		view.Latest = &LatestPaid{Number: l.Number, TotalCents: l.TotalCents, Elapsed: l.Elapsed}
 	}
 	view.LatestUnavailable = err != nil
 }

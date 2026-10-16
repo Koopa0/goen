@@ -10,7 +10,6 @@ import (
 
 	"github.com/koopa0/goen/internal/sales"
 	"github.com/koopa0/goen/internal/ui/chart"
-	"github.com/koopa0/goen/internal/ui/pages/admin"
 )
 
 // A latest paid order that could not be read leaves the week on the page and
@@ -30,7 +29,7 @@ func TestShowWeekKeepsTheWeekWhenOnlyLatestFails(t *testing.T) {
 			Days: []sales.Day{{Day: monday.AddDate(0, 0, -7), Orders: 1, RevenueCents: 10000}},
 		},
 	}
-	week := admin.Week{
+	week := Week{
 		Orders: 3, RevenueCents: 90000, RevenueSquares: 2.7e9,
 		Previous: recent.Previous,
 		RevenueDays: chart.SparklineProps{
@@ -50,21 +49,21 @@ func TestShowWeekKeepsTheWeekWhenOnlyLatestFails(t *testing.T) {
 		name   string
 		recent sales.Recent
 		err    error
-		want   admin.DashboardView
+		want   DashboardView
 	}{
-		{"read", paid, nil, admin.DashboardView{
-			Week: week, Latest: &admin.LatestPaid{Number: "GO-261013-ABCDEF", TotalCents: 30000, Elapsed: 90 * time.Minute},
+		{"read", paid, nil, DashboardView{
+			Week: week, Latest: &LatestPaid{Number: "GO-261013-ABCDEF", TotalCents: 30000, Elapsed: 90 * time.Minute},
 		}},
-		{"never paid", recent, nil, admin.DashboardView{Week: week}},
-		{"latest unreadable", recent, fmt.Errorf("%w: %w", sales.ErrLatestPaid, down), admin.DashboardView{
+		{"never paid", recent, nil, DashboardView{Week: week}},
+		{"latest unreadable", recent, fmt.Errorf("%w: %w", sales.ErrLatestPaid, down), DashboardView{
 			Week: week, LatestUnavailable: true,
 		}},
-		{"unreadable", sales.Recent{}, fmt.Errorf("read the week's revenue: %w", down), admin.DashboardView{WeekUnavailable: true}},
+		{"unreadable", sales.Recent{}, fmt.Errorf("read the week's revenue: %w", down), DashboardView{WeekUnavailable: true}},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
-			var got admin.DashboardView
+			var got DashboardView
 			showWeek(&got, tt.recent, tt.err)
 			if diff := cmp.Diff(tt.want, got); diff != "" {
 				t.Errorf("showWeek mismatch (-want +got):\n%s", diff)

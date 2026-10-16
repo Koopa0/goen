@@ -1,4 +1,4 @@
-package admin
+package dashboard
 
 import (
 	"context"
@@ -7,6 +7,7 @@ import (
 	"github.com/koopa0/goen/internal/i18n"
 	"github.com/koopa0/goen/internal/inventory"
 	"github.com/koopa0/goen/internal/ui/layouts"
+	"github.com/koopa0/goen/internal/ui/pages/admin"
 )
 
 // DashboardView lists the newest orders in Recent whatever their state: filtering it
@@ -31,11 +32,11 @@ type DashboardView struct {
 	UninspectedReturnsOldestSeconds  int64
 	UnansweredQuestions              int64
 	UnansweredQuestionsOldestSeconds int64
-	Recent                           []OrderRow
+	Recent                           []admin.OrderRow
 	// Runway is the first days cover rows of SKUs expected to run out within
 	// the warning line, RunwayCut says more were left off and RunwayBasis what
 	// an empty list can say.
-	Runway      []StockRisk
+	Runway      []admin.StockRisk
 	RunwayCut   bool
 	RunwayBasis RunwayBasis
 	// Tasks is the work that waits for a person, in the order it is listed.
@@ -117,7 +118,7 @@ const (
 // section's title promises. cut reports that rows were left off; basis tells an
 // empty list apart: nothing is running out, nothing can be estimated yet, or
 // nothing that sold in the window is left in stock.
-func DashboardRunway(listed []StockRisk) (kept []StockRisk, cut bool, basis RunwayBasis) {
+func DashboardRunway(listed []admin.StockRisk) (kept []admin.StockRisk, cut bool, basis RunwayBasis) {
 	inStock := false
 	for i := range listed {
 		cover := listed[i].Estimate()
