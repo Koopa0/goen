@@ -23,10 +23,10 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 
 	"github.com/koopa0/goen/assets"
-	"github.com/koopa0/goen/internal/account"
 	"github.com/koopa0/goen/internal/admin/admintest"
 	"github.com/koopa0/goen/internal/admin/health"
 	"github.com/koopa0/goen/internal/admin/twofactor"
+	"github.com/koopa0/goen/internal/auth"
 	"github.com/koopa0/goen/internal/bearer"
 	"github.com/koopa0/goen/internal/cart"
 	"github.com/koopa0/goen/internal/db/dbtest"
@@ -270,7 +270,7 @@ func TestTheRouterKeepsNoSignedInPageInAnyCache(t *testing.T) {
 		"nostore-"+uuid.NewString()+"@example.com").Scan(&staffID); insertErr != nil {
 		t.Fatalf("create staff: %v", insertErr)
 	}
-	token, err := account.NewStore(pool).StartSession(ctx, staffID, "test", "127.0.0.1")
+	token, err := auth.NewStore(pool).StartSession(ctx, staffID, "test", "127.0.0.1")
 	if err != nil {
 		t.Fatalf("start session: %v", err)
 	}
@@ -535,7 +535,7 @@ func TestTheRouterReadsHealthCountOnlyForVerifiedStaffAndSurvivesItsFailure(t *t
 			"health-count-"+uuid.NewString()+"@example.com", role).Scan(&id); createErr != nil {
 			t.Fatalf("create %s: %v", role, createErr)
 		}
-		token, sessionErr := account.NewStore(pool).StartSession(ctx, id, "test", "127.0.0.1")
+		token, sessionErr := auth.NewStore(pool).StartSession(ctx, id, "test", "127.0.0.1")
 		if sessionErr != nil {
 			t.Fatalf("start %s session: %v", role, sessionErr)
 		}

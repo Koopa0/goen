@@ -16,9 +16,9 @@ import (
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgconn"
 
-	"github.com/koopa0/goen/internal/account"
 	"github.com/koopa0/goen/internal/admin/admintest"
 	"github.com/koopa0/goen/internal/admin/staff"
+	"github.com/koopa0/goen/internal/auth"
 	"github.com/koopa0/goen/internal/user"
 	"github.com/koopa0/goen/internal/web"
 )
@@ -547,7 +547,7 @@ func TestErasureAndRevocationShareTheRosterGuard(t *testing.T) {
 
 	suffix := uuid.NewString()[:8]
 	eraseName, revokeName := "erase-revoke-erase-"+suffix, "erase-revoke-role-"+suffix
-	eraser := account.NewStore(rolePool(t, eraseName, "store"))
+	eraser := auth.NewStore(rolePool(t, eraseName, "store"))
 	staffStore := staff.NewStore(rolePool(t, revokeName, "admin"))
 	eraseDone, revokeDone := make(chan error, 1), make(chan error, 1)
 	go func() { eraseDone <- eraser.Erase(context.WithoutCancel(ctx), a) }()

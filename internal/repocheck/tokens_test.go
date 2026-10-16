@@ -15,7 +15,7 @@ import (
 // randReaders lists every crypto/rand.Read call outside internal/bearer, keyed
 // "<slash path>#<enclosing func>", with why it is not a bearer token.
 var randReaders = map[string]string{ //nolint:gosec // G101: the key names the function NewSecret, no credential is held
-	"internal/account/account.go#HashPassword":     "argon2 salt",
+	"internal/auth/auth.go#HashPassword":           "argon2 salt",
 	"internal/admin/twofactor/totp.go#NewSecret":   "TOTP shared secret",
 	"internal/admin/twofactor/crypt.go#seal":       "AES-GCM nonce",
 	"internal/admin/stock/handler.go#newKey":       "form idempotency key, never digested",
@@ -28,7 +28,7 @@ var randReaders = map[string]string{ //nolint:gosec // G101: the key names the f
 // internal/bearer, keyed like randReaders, with why it does not digest a bearer
 // token.
 var sha256Users = map[string]string{
-	"internal/account/google.go#AuthorizeURL":          "PKCE S256 code challenge (RFC 7636 section 4.2)",
+	"internal/auth/google.go#AuthorizeURL":             "PKCE S256 code challenge (RFC 7636 section 4.2)",
 	"internal/admin/twofactor/crypt.go#newKeyedAEAD":   "key identifier written into a stored TOTP secret's header",
 	"internal/admin/twofactor/store.go#mailedCodeHash": "digest of a mailed one-time code",
 	"internal/cart/cart.go#ID":                         "checkout quote identity",

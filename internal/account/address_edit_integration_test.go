@@ -15,6 +15,7 @@ import (
 	"golang.org/x/net/html"
 
 	"github.com/koopa0/goen/internal/account"
+	"github.com/koopa0/goen/internal/auth"
 	"github.com/koopa0/goen/internal/i18n"
 	"github.com/koopa0/goen/internal/ui/pages"
 )
@@ -23,26 +24,29 @@ func TestSavedAddressEditsKeepOwnershipDraftsAndDefaultSelection(t *testing.T) {
 	for _, locale := range i18n.Locales() {
 		t.Run(locale.Tag(), func(t *testing.T) {
 			ctx := i18n.WithLocale(t.Context(), locale)
-			store := account.NewStore(accountStorePool(t, "address-edit-"+uuid.NewString()))
-			owner := registerProved(t, store, "address-edit-"+uuid.NewString()+"@example.com")
-			other := registerProved(t, store, "other-address-"+uuid.NewString()+"@example.com")
+			app := accountStorePool(t, "address-edit-"+uuid.NewString())
+			store := account.NewStore(app)
+			authStore := auth.NewStore(app)
+			owner := registerProved(t, "address-edit-"+uuid.NewString()+"@example.com")
+			other := registerProved(t, "other-address-"+uuid.NewString()+"@example.com")
 			first := addAddress(t, store, owner.ID, "Home", true)
 			second := addAddress(t, store, owner.ID, "Work", false)
 			foreign := addAddress(t, store, other.ID, "Foreign private address", true)
 			foreignBefore := savedAddress(t, foreign)
-			token, err := store.StartSession(ctx, owner.ID, "address edit", "127.0.0.1")
+			token, err := authStore.StartSession(ctx, owner.ID, "address edit", "127.0.0.1")
 			if err != nil {
 				t.Fatal(err)
 			}
 			cookieResponse := httptest.NewRecorder()
-			account.SetSessionCookie(cookieResponse, token, false)
+			auth.SetSessionCookie(cookieResponse, token, false)
 			cookie := sessionCookie(t, cookieResponse)
-			h := account.NewHandler(store, nil, slog.New(slog.DiscardHandler), false, nil)
+			h := account.NewHandler(store, slog.New(slog.DiscardHandler), false, false)
+			authn := auth.NewHandler(authStore, nil, nil, slog.New(slog.DiscardHandler), false, nil)
 			mux := http.NewServeMux()
-			mux.HandleFunc("GET /account/addresses/{address}/edit", h.RequireUser(h.EditAddress))
+			mux.HandleFunc("GET /account/addresses/{address}/edit", authn.RequireUser(h.EditAddress))
 			mux.HandleFunc("POST /account/addresses/update", h.UpdateAddress)
-			mux.HandleFunc("POST /account/addresses/delete", h.RequireUser(h.DeleteAddress))
-			serve := h.Authenticate(mux)
+			mux.HandleFunc("POST /account/addresses/delete", authn.RequireUser(h.DeleteAddress))
+			serve := authn.Authenticate(mux)
 			get := httptest.NewRequestWithContext(ctx, http.MethodGet, "/account/addresses/"+first+"/edit", http.NoBody)
 			get.AddCookie(cookie)
 			prefilled := httptest.NewRecorder()
@@ -56,7 +60,7 @@ func TestSavedAddressEditsKeepOwnershipDraftsAndDefaultSelection(t *testing.T) {
 				"postal_code": {initial.PostalCode}, "city": {initial.City}, "district": {initial.District}, "street": {initial.Street},
 			})
 			post := func(values url.Values) *httptest.ResponseRecorder {
-				req := cartForm(ctx, "/account/addresses/update", values)
+				req := postForm(ctx, "/account/addresses/update", values)
 				req.AddCookie(cookie)
 				res := httptest.NewRecorder()
 				serve.ServeHTTP(res, req)
@@ -103,7 +107,7 @@ func TestSavedAddressEditsKeepOwnershipDraftsAndDefaultSelection(t *testing.T) {
 			if diff := cmp.Diff(foreignBefore, savedAddress(t, foreign)); diff != "" {
 				t.Errorf("foreign address changed (-before +after):\n%s", diff)
 			}
-			deleteRequest := cartForm(ctx, "/account/addresses/delete", url.Values{"address": {second}})
+			deleteRequest := postForm(ctx, "/account/addresses/delete", url.Values{"address": {second}})
 			deleteRequest.AddCookie(cookie)
 			deleted := httptest.NewRecorder()
 			serve.ServeHTTP(deleted, deleteRequest)

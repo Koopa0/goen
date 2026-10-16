@@ -14,8 +14,8 @@ import (
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgxpool"
 
-	"github.com/koopa0/goen/internal/account"
 	"github.com/koopa0/goen/internal/admin/twofactor"
+	"github.com/koopa0/goen/internal/auth"
 	"github.com/koopa0/goen/internal/db/dbtest"
 	"github.com/koopa0/goen/internal/outbox"
 	"github.com/koopa0/goen/internal/payment"
@@ -35,7 +35,7 @@ var doorTOTPKey = bytes.Repeat([]byte{9}, 32)
 // doorWorld is one router over the store and admin roles of an owner pool.
 type doorWorld struct {
 	owner  *pgxpool.Pool
-	store  *account.Store
+	store  *auth.Store
 	admin  *twofactor.Store
 	router http.Handler
 }
@@ -58,7 +58,7 @@ func newDoorWorld(t *testing.T, owner *pgxpool.Pool, totpKey []byte) *doorWorld 
 		t.Fatalf("disabled payment gateway: %v", err)
 	}
 	return &doorWorld{
-		owner: owner, store: account.NewStore(storePool),
+		owner: owner, store: auth.NewStore(storePool),
 		admin: twofactor.NewStore(adminPool, doorTOTPKey, nil),
 		router: newRouter(&RouterConfig{
 			Storefront: StorefrontConfig{StorePool: storePool, Payments: gateway, BaseURL: "http://127.0.0.1"},
@@ -78,7 +78,7 @@ type doorUser struct {
 func (w *doorWorld) newUser(t *testing.T, role string) doorUser {
 	t.Helper()
 	ctx := t.Context()
-	hash, hashErr := account.HashPassword(doorPassword)
+	hash, hashErr := auth.HashPassword(doorPassword)
 	if hashErr != nil {
 		t.Fatalf("hash password: %v", hashErr)
 	}

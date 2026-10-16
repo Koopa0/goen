@@ -69,6 +69,9 @@ var queryOwnerExceptions = map[string]string{
 	"internal/order/cancellation -> PaidByCreditAlone":        sharedWithRefunds,
 	"internal/order/cancellation -> ReleaseReservation":       sharedWithRefunds,
 
+	// The account page shows the profile and whether a password is set from
+	// the users row sign-in reads.
+	"internal/account -> UserByID":               sharedRead,
 	"internal/account -> ReturnedOrders":         sharedRead,
 	"internal/admin/customers -> ReturnedOrders": sharedRead,
 	"internal/admin/orders -> ReturnedOrders":    sharedRead,

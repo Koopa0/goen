@@ -22,7 +22,7 @@ import (
 func TestAWishlistRowOffersTheCartOnlyForAProductWithOneVariant(t *testing.T) {
 	ctx := t.Context()
 	s := account.NewStore(pool)
-	u := register(t, s, "wish-"+uuid.NewString()+"@example.com")
+	u := register(t, "wish-"+uuid.NewString()+"@example.com")
 
 	variant := ownVariant(t, "wish")
 	var slug string
@@ -75,7 +75,7 @@ func TestAWishlistRowOffersTheCartOnlyForAProductWithOneVariant(t *testing.T) {
 func TestAMemberSavesAProductToTheWishlistAndReturnsWhereTheyWere(t *testing.T) {
 	ctx := t.Context()
 	s := account.NewStore(pool)
-	u := register(t, s, "wish-post-"+uuid.NewString()+"@example.com")
+	u := register(t, "wish-post-"+uuid.NewString()+"@example.com")
 	variant := ownVariant(t, "wishpost")
 	var slug string
 	if err := pool.QueryRow(ctx,
@@ -83,7 +83,7 @@ func TestAMemberSavesAProductToTheWishlistAndReturnsWhereTheyWere(t *testing.T) 
 		variant).Scan(&slug); err != nil {
 		t.Fatalf("read the fixture product: %v", err)
 	}
-	h := account.NewHandler(s, nil, slog.New(slog.DiscardHandler), false, nil)
+	h := account.NewHandler(s, slog.New(slog.DiscardHandler), false, false)
 
 	form := url.Values{"slug": {slug}, "return": {"/p/" + slug}}
 	req := httptest.NewRequestWithContext(user.NewContext(ctx, u), http.MethodPost,

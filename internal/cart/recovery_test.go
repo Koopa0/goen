@@ -10,7 +10,7 @@ import (
 
 	"github.com/jackc/pgx/v5/pgxpool"
 
-	"github.com/koopa0/goen/internal/account"
+	"github.com/koopa0/goen/internal/auth"
 	"github.com/koopa0/goen/internal/user"
 )
 
@@ -22,7 +22,7 @@ func TestCartRecoveryDoesNotPretendAReadFailureIsAnEmptyBasket(t *testing.T) {
 	}
 	dbPool.Close()
 	carts := &Handler{store: NewStore(dbPool), log: slog.New(slog.DiscardHandler)}
-	accounts := account.NewHandler(account.NewStore(dbPool), carts, slog.New(slog.DiscardHandler), false, nil)
+	accounts := auth.NewHandler(auth.NewStore(dbPool), carts, nil, slog.New(slog.DiscardHandler), false, nil)
 	ctx := user.NewContext(t.Context(), user.User{ID: "11111111-1111-4111-8111-111111111111"})
 	req := httptest.NewRequestWithContext(ctx, http.MethodGet, "/account/cart-recovery", http.NoBody)
 	res := httptest.NewRecorder()
