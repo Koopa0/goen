@@ -17,6 +17,7 @@ import (
 	"github.com/google/uuid"
 
 	"github.com/koopa0/goen/internal/bearer"
+	"github.com/koopa0/goen/internal/cart/item"
 
 	"github.com/koopa0/goen/internal/i18n"
 	invoicepkg "github.com/koopa0/goen/internal/invoice"
@@ -1746,36 +1747,38 @@ func (h *Handler) notFoundPage(r *http.Request) layouts.Page {
 	return layouts.Page{Title: i18n.T(r.Context(), i18n.KeyOrderNotFound)}
 }
 
-func (h *Handler) RecoveryContents(ctx context.Context, r *http.Request) (pages.CartRecoveryContents, error) {
+// RecoveryContents reads the two carts a failed adoption leaves for the
+// signed-in customer to compare: the one the request's cookie names, which no
+// account owns, and the account's own. A cookie that names another account's
+// cart reads as none. Without a signed-in customer it reads nothing and
+// returns ErrNotFound; after any other error it reports neither cart.
+func (h *Handler) RecoveryContents(ctx context.Context, r *http.Request) (beforeSignIn, account []item.Item, err error) {
 	u, ok := user.FromContext(ctx)
 	if !ok {
-		return pages.CartRecoveryContents{}, ErrNotFound
+		return nil, nil, ErrNotFound
 	}
-	var contents pages.CartRecoveryContents
 	accountID, err := h.store.ForUser(ctx, u.ID)
 	if err != nil && !errors.Is(err, ErrNotFound) {
-		return contents, err
+		return nil, nil, err
 	}
 	if err == nil {
-		view, viewErr := h.store.View(ctx, accountID)
-		if viewErr != nil {
-			return contents, viewErr
+		account, err = h.store.Items(ctx, accountID)
+		if err != nil {
+			return nil, nil, err
 		}
-		contents.Account = view.Lines
 	}
 	guestID, err := h.store.ByToken(ctx, ReadCookie(r, h.secure), uuid.NullUUID{})
 	if errors.Is(err, ErrNotFound) || errors.Is(err, ErrNotYourCart) {
-		return contents, nil
+		return nil, account, nil
 	}
 	if err != nil {
-		return contents, err
+		return nil, nil, err
 	}
-	view, err := h.store.View(ctx, guestID)
+	beforeSignIn, err = h.store.Items(ctx, guestID)
 	if err != nil {
-		return contents, err
+		return nil, nil, err
 	}
-	contents.BeforeSignIn = view.Lines
-	return contents, nil
+	return beforeSignIn, account, nil
 }
 
 // ForgetCart keeps the cookie only for a guest cart no account owns: an
