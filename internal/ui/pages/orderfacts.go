@@ -55,7 +55,7 @@ func (v *OrderView) Facts(ctx context.Context) []components.Stat {
 		if v.Pickup {
 			label = i18n.T(ctx, i18n.KeyOrderFactCollected)
 		}
-		facts = append(facts, timeStat(ctx, label, s.DeliveredAt, now, i18n.CarrierName(ctx, s.Carrier)))
+		facts = append(facts, timeStat(ctx, label, s.DeliveredAt, now, s.Carrier.Name(ctx)))
 	}
 	return facts
 }

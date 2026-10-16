@@ -120,8 +120,8 @@ func TestAShippedEventNamesItsParcelAndCarriesNoNote(t *testing.T) {
 			t.Fatalf("render the customer's order: %v", err)
 		}
 		assertEnglishTimeline(t, page.String(), `goen-order__history`, `</section>`)
-		if !strings.Contains(page.String(), i18n.CarrierName(ctx, shipping.CarrierBlackCat)) {
-			t.Errorf("the parcel list does not name the carrier %q", i18n.CarrierName(ctx, shipping.CarrierBlackCat))
+		if !strings.Contains(page.String(), shipping.CarrierBlackCat.Name(ctx)) {
+			t.Errorf("the parcel list does not name the carrier %q", shipping.CarrierBlackCat.Name(ctx))
 		}
 	})
 
@@ -135,8 +135,8 @@ func TestAShippedEventNamesItsParcelAndCarriesNoNote(t *testing.T) {
 		}
 		page := rec.Body.String()
 		assertEnglishTimeline(t, page, i18n.T(ctx, i18n.KeyAdminQueueTimeline), `</ul>`)
-		if !strings.Contains(page, i18n.CarrierName(ctx, shipping.CarrierBlackCat)+" · FIRST-"+number) {
-			t.Errorf("the parcel list does not read %q", i18n.CarrierName(ctx, shipping.CarrierBlackCat)+" · FIRST-"+number)
+		if !strings.Contains(page, shipping.CarrierBlackCat.Name(ctx)+" · FIRST-"+number) {
+			t.Errorf("the parcel list does not read %q", shipping.CarrierBlackCat.Name(ctx)+" · FIRST-"+number)
 		}
 	})
 

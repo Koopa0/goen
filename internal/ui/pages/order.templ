@@ -227,7 +227,7 @@ templ orderParcel(v *OrderView, sh OrderShipment, i int) {
 	<section class="goen-order__parcel" aria-labelledby={ fmt.Sprintf("parcel-%d-heading", i) }>
 		<h2 id={ fmt.Sprintf("parcel-%d-heading", i) } class="goen-order__subhead">{ v.ParcelTitle(ctx, i) }</h2>
 		<p class="goen-order__meta">
-			{ i18n.CarrierName(ctx, sh.Carrier) }
+			{ sh.Carrier.Name(ctx) }
 			if sh.Carrier.DeepLinks() {
 				· <a href={ templ.SafeURL(sh.TrackURL()) } rel="noopener noreferrer" target="_blank">{ fmt.Sprintf(i18n.T(ctx, i18n.KeyOrderTrackingNo), sh.Tracking) }</a>
 			} else {

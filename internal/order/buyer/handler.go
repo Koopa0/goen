@@ -32,7 +32,7 @@ func NewHandler(s *Store, grants *access.Store, log *slog.Logger) *Handler {
 	return &Handler{store: s, access: grants, log: log}
 }
 
-func (h *Handler) Page(w http.ResponseWriter, r *http.Request) {
+func (h *Handler) ReturnPage(w http.ResponseWriter, r *http.Request) {
 	o, ok := h.ownOrder(w, r)
 	if !ok {
 		return
@@ -43,7 +43,7 @@ func (h *Handler) Page(w http.ResponseWriter, r *http.Request) {
 		pages.ReturnsMeta(r.Context(), o.Number), view))
 }
 
-func (h *Handler) Submit(w http.ResponseWriter, r *http.Request) {
+func (h *Handler) SubmitReturn(w http.ResponseWriter, r *http.Request) {
 	if err := web.ParseForm(w, r); err != nil {
 		http.Error(w, "400 "+i18n.T(r.Context(), i18n.KeyFormUnreadable), http.StatusBadRequest)
 		return
@@ -59,7 +59,7 @@ func (h *Handler) Submit(w http.ResponseWriter, r *http.Request) {
 		h.reject(w, r, o, draft, refusals)
 		return
 	}
-	err := h.store.Open(r.Context(), o.Number, returnRequester(r.Context()), req)
+	err := h.store.OpenReturn(r.Context(), o.Number, returnRequester(r.Context()), req)
 	h.respondToOpen(w, r, o, draft, err)
 }
 
@@ -68,7 +68,7 @@ type returnDraft struct {
 	Quantities map[string]string
 }
 
-func returnDraftFromForm(r *http.Request, o *Order) *returnDraft {
+func returnDraftFromForm(r *http.Request, o *ReturnOrder) *returnDraft {
 	draft := &returnDraft{Reason: r.PostFormValue("reason"), Quantities: make(map[string]string, len(o.Lines))}
 	for _, line := range o.Lines {
 		draft.Quantities[line.ID] = r.PostFormValue("qty_" + line.ID)
@@ -76,8 +76,8 @@ func returnDraftFromForm(r *http.Request, o *Order) *returnDraft {
 	return draft
 }
 
-func (d *returnDraft) request(o *Order) (*Request, []web.FieldRefusal) {
-	req := &Request{Reason: d.Reason, Lines: make(map[string]int32, len(o.Lines))}
+func (d *returnDraft) request(o *ReturnOrder) (*ReturnRequest, []web.FieldRefusal) {
+	req := &ReturnRequest{Reason: d.Reason, Lines: make(map[string]int32, len(o.Lines))}
 	var refusals []web.FieldRefusal
 	chosen := false
 	quantityRefused := false
@@ -134,20 +134,20 @@ func returnRequester(ctx context.Context) uuid.NullUUID {
 }
 
 func (h *Handler) respondToOpen(
-	w http.ResponseWriter, r *http.Request, o *Order, draft *returnDraft, err error,
+	w http.ResponseWriter, r *http.Request, o *ReturnOrder, draft *returnDraft, err error,
 ) {
 	switch {
 	case err == nil:
 		http.Redirect(w, r, "/orders/"+url.PathEscape(o.Number)+"/return?filed=1", http.StatusSeeOther)
-	case errors.Is(err, ErrAlreadyOpen):
+	case errors.Is(err, ErrReturnOpen):
 		h.reject(w, r, o, draft, []web.FieldRefusal{{MessageKey: i18n.KeyReturnAlreadyOpen}})
 	case errors.Is(err, ErrNotReturnable):
 		h.reject(w, r, o, draft, []web.FieldRefusal{{MessageKey: i18n.KeyReturnNothingShort}})
-	case errors.Is(err, ErrTooMany):
+	case errors.Is(err, ErrReturnTooMany):
 		h.reject(w, r, o, draft, []web.FieldRefusal{{MessageKey: i18n.KeyReturnTooMany}})
-	case errors.Is(err, ErrAccountErased):
+	case errors.Is(err, ErrReturnAccountErased):
 		h.reject(w, r, o, draft, []web.FieldRefusal{{MessageKey: i18n.KeyReturnAccountErased}})
-	case errors.Is(err, ErrInvalid):
+	case errors.Is(err, ErrReturnInvalid):
 		h.reject(w, r, o, draft, []web.FieldRefusal{{MessageKey: i18n.KeyReturnInvalid}})
 	default:
 		h.log.ErrorContext(r.Context(), "open return request", "order", o.Number, "error", err)
@@ -158,8 +158,8 @@ func (h *Handler) respondToOpen(
 	}
 }
 
-func (h *Handler) reject(w http.ResponseWriter, r *http.Request, o *Order, draft *returnDraft, refusals []web.FieldRefusal) {
-	fresh, err := h.store.Order(r.Context(), o.Number)
+func (h *Handler) reject(w http.ResponseWriter, r *http.Request, o *ReturnOrder, draft *returnDraft, refusals []web.FieldRefusal) {
+	fresh, err := h.store.ReturnOrder(r.Context(), o.Number)
 	if err != nil {
 		h.log.ErrorContext(r.Context(), "refresh order after return refusal", "order", o.Number, "error", err)
 		web.Render(w, r, h.log, http.StatusInternalServerError, layouts.Notice(
@@ -174,7 +174,7 @@ func (h *Handler) reject(w http.ResponseWriter, r *http.Request, o *Order, draft
 
 // ownOrder: an order number is a per-day counter, so knowing one is not
 // authorisation; a stranger gets the 404 an absent order gets.
-func (h *Handler) ownOrder(w http.ResponseWriter, r *http.Request) (*Order, bool) {
+func (h *Handler) ownOrder(w http.ResponseWriter, r *http.Request) (*ReturnOrder, bool) {
 	number := r.PathValue("number")
 	ok, err := h.access.Allows(r, number)
 	if err != nil {
@@ -184,7 +184,7 @@ func (h *Handler) ownOrder(w http.ResponseWriter, r *http.Request) (*Order, bool
 		h.notFound(w, r)
 		return nil, false
 	}
-	o, err := h.store.Order(r.Context(), number)
+	o, err := h.store.ReturnOrder(r.Context(), number)
 	if err != nil {
 		if errors.Is(err, ErrNotFound) {
 			h.notFound(w, r)
@@ -205,7 +205,7 @@ func (h *Handler) notFound(w http.ResponseWriter, r *http.Request) {
 		layouts.Page{Title: i18n.T(r.Context(), i18n.KeyOrderNotFound)}))
 }
 
-func viewOf(ctx context.Context, o *Order, draft *returnDraft, refusals []web.FieldRefusal) pages.ReturnsView {
+func viewOf(ctx context.Context, o *ReturnOrder, draft *returnDraft, refusals []web.FieldRefusal) pages.ReturnsView {
 	v := pages.ReturnsView{
 		Number: o.Number, HasOpen: o.HasOpen, HasDraft: draft != nil,
 		Pickup: o.Pickup, Now: o.Now,
@@ -252,7 +252,7 @@ func viewOf(ctx context.Context, o *Order, draft *returnDraft, refusals []web.Fi
 	return v
 }
 
-func returnRefusals(o *Order, draft *returnDraft, refusals []web.FieldRefusal) []web.FieldRefusal {
+func returnRefusals(o *ReturnOrder, draft *returnDraft, refusals []web.FieldRefusal) []web.FieldRefusal {
 	if o.HasOpen {
 		return nil
 	}

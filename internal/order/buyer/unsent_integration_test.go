@@ -9,8 +9,8 @@ import (
 
 	"github.com/koopa0/goen/internal/admin/admintest"
 	"github.com/koopa0/goen/internal/admin/refunds"
+	"github.com/koopa0/goen/internal/order/buyer"
 	"github.com/koopa0/goen/internal/returns"
-	"github.com/koopa0/goen/internal/returns/buyer"
 )
 
 // The units the shop refunded because it could not send them never reached
@@ -23,7 +23,7 @@ func TestAnUnsentRefundLeavesTheShippedUnitsReturnable(t *testing.T) {
 		&refunds.UnsentRequest{Units: map[uuid.UUID]int32{o.LineB: 2}, Reason: string(returns.UnsentDamaged), Note: "外盒破損"}); err != nil {
 		t.Fatalf("refund the unsent units: %v", err)
 	}
-	got, err := buyer.NewStore(admintest.StoreRolePool(t, pool)).Order(ctx, o.Number)
+	got, err := buyer.NewStore(admintest.StoreRolePool(t, pool)).ReturnOrder(ctx, o.Number)
 	if err != nil {
 		t.Fatalf("read the return form: %v", err)
 	}
