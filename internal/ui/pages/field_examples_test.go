@@ -13,6 +13,8 @@ import (
 	"github.com/koopa0/goen/internal/ui/layouts"
 )
 
+// The address book's row of this test is internal/account's
+// TestAccountExamplesStayOutsideRefusedInputs.
 func TestCustomerExamplesStayOutsideRefusedInputs(t *testing.T) {
 	t.Parallel()
 	for _, locale := range i18n.Locales() {
@@ -31,11 +33,11 @@ func TestCustomerExamplesStayOutsideRefusedInputs(t *testing.T) {
 					}
 					return result
 				}
-				name, label := "Alex Chen", "Home, work"
+				name := "Alex Chen"
 				message, coupon := "Tell us what happened…", "Have a discount code?"
 				prefix := "Example: "
 				if locale == i18n.ZhHant {
-					name, label, prefix = "王小明", "家、公司", "例："
+					name, prefix = "王小明", "例："
 					message, coupon = "請描述你遇到的狀況…", "有折扣碼嗎？"
 				}
 				for _, page := range []struct {
@@ -44,7 +46,6 @@ func TestCustomerExamplesStayOutsideRefusedInputs(t *testing.T) {
 					fields    map[string]string
 				}{
 					{"contact", contact.ContactPanel(contact.ContactForm{Name: typed, Email: typed, OrderRef: typed, Message: typed, Errors: errors("name", "email", "order_ref", "message")}), map[string]string{"contact-name": name, "contact-email": "you@example.com", "contact-order": "GO-260101-000001", "contact-message": message}},
-					{"address", Account(layouts.Page{}, &AccountView{AddressDraft: &AddressDraft{Label: typed}, AddressErrors: errors("label")}), map[string]string{"addr-label": label}},
 					{"find order", FindOrder(layouts.Page{}, FindOrderView{Number: typed, Error: refusal}), map[string]string{"find-number": "GO-260101-000001"}},
 					{"coupon", Checkout(layouts.Page{}, &CheckoutView{CouponCode: typed, Errors: errors("coupon")}), map[string]string{"coupon": coupon}},
 					{"mobile barcode", Checkout(layouts.Page{}, &CheckoutView{Invoice: CheckoutInvoice{Type: invoice.PreferenceMobile, MobileBarcode: typed}, Errors: errors("invoice_carrier")}), map[string]string{"invoice_carrier": "/ABC+123"}},

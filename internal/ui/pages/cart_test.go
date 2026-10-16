@@ -19,7 +19,6 @@ import (
 	"github.com/koopa0/goen/internal/invoice"
 	"github.com/koopa0/goen/internal/order"
 	"github.com/koopa0/goen/internal/payment"
-	"github.com/koopa0/goen/internal/shoptime"
 	"github.com/koopa0/goen/internal/ui/components"
 	"github.com/koopa0/goen/internal/ui/layouts"
 )
@@ -622,52 +621,10 @@ func TestOnlyAnOrderThatOwesMoneyIsOfferedPayment(t *testing.T) {
 	}
 }
 
-// TestAccountOrderHistoryLinksToCanonicalOrderPage holds that the account
-// overview sends readers to /orders/{number}, not a second detail template.
-func TestAccountOrderHistoryLinksToCanonicalOrderPage(t *testing.T) {
-	ctx := i18n.WithLocale(t.Context(), i18n.ZhHant)
-	view := &AccountView{
-		Orders: []AccountOrder{{
-			Number: "GO-260101-000012", Status: order.FulfillmentDelivered,
-			PlacedAt: shoptime.Date{Year: 2026, Month: time.January, Day: 1}, TotalCents: 106000, LineCount: 1,
-		}},
-	}
-	html := renderToString(t, Account(AccountMeta(ctx), view))
-	if !strings.Contains(html, `href="/orders/GO-260101-000012"`) {
-		t.Error("the order history does not link to the canonical order page")
-	}
-	if strings.Contains(html, "/account/orders/") {
-		t.Error("the order history still links to the retired account order page")
-	}
-}
-
-func TestAnOrderReturnedInFullIsBadgedRefundedInTheAccount(t *testing.T) {
-	ctx := i18n.WithLocale(t.Context(), i18n.ZhHant)
-	row := AccountOrder{Status: order.FulfillmentDelivered, Committed: true, Returned: true}
-	if got := row.StatusText(ctx); got != "已退款" {
-		t.Errorf("AccountOrder{delivered, Returned}.StatusText = %q, want 已退款", got)
-	}
-}
-
 // TestAPaidOrderIsNotBadgedAwaitingPaymentInTheAccount holds the same fact on
-// both signed-in surfaces: the history badge and the detail page's notice.
+// both signed-in surfaces: the history badge and the detail page's notice. The
+// history badge's half is internal/account's TestAccountOrderPaidIsNotAwaitingPayment.
 func TestAPaidOrderIsNotBadgedAwaitingPaymentInTheAccount(t *testing.T) {
-	paid := AccountOrder{
-		Number: "GO-260101-000010", Status: "pending", PlacedAt: shoptime.Date{Year: 2026, Month: time.January, Day: 1},
-		TotalCents: 106000, LineCount: 1, Committed: true, OwedCents: 106000,
-	}
-	unpaid := AccountOrder{
-		Number: "GO-260101-000011", Status: "pending", PlacedAt: shoptime.Date{Year: 2026, Month: time.January, Day: 1},
-		TotalCents: 106000, LineCount: 1, Committed: false, OwedCents: 106000,
-	}
-	ctx := i18n.WithLocale(t.Context(), i18n.ZhHant)
-	if got := paid.StatusText(ctx); got != "付款完成" {
-		t.Errorf("a captured order is badged %q in the history, want 付款完成", got)
-	}
-	if got := unpaid.StatusText(ctx); got != "待付款" {
-		t.Errorf("an unpaid order is badged %q, want 待付款", got)
-	}
-
 	view := &OrderView{
 		Number: "GO-260101-000010", Status: order.FulfillmentPending,
 		SubtotalCents: 100000, ShippingCents: 6000, ShippingName: "宅配",
@@ -1687,31 +1644,6 @@ func TestTheOrderPageStatesItsOwnState(t *testing.T) {
 	}
 	if !strings.Contains(credited[due:], "NT$0") {
 		t.Error("a fully credited order does not say NT$0 is due")
-	}
-}
-
-// TestTheAccountListOffersToPayAnUnpaidOrderWhereThatCanBeDone holds the 付款
-// action: only for an order that owes, only where payment is possible.
-func TestTheAccountListOffersToPayAnUnpaidOrderWhereThatCanBeDone(t *testing.T) {
-	t.Parallel()
-	view := func(enabled bool) *AccountView {
-		return &AccountView{
-			PaymentsEnabled: enabled,
-			Orders: []AccountOrder{
-				{Number: "GO-260101-000011", Status: order.FulfillmentPending, OwedCents: 100},
-				{Number: "GO-260101-000010", Status: order.FulfillmentPending, Committed: true, OwedCents: 100},
-			},
-		}
-	}
-	on := renderToString(t, Account(AccountMeta(t.Context()), view(true)))
-	if !strings.Contains(on, `href="/orders/GO-260101-000011/pay"`) {
-		t.Error("an unpaid order has no 付款 action")
-	}
-	if strings.Contains(on, `href="/orders/GO-260101-000010/pay"`) {
-		t.Error("a paid order is offered payment")
-	}
-	if off := renderToString(t, Account(AccountMeta(t.Context()), view(false))); strings.Contains(off, "/orders/GO-260101-000011/pay") {
-		t.Error("an order is offered payment where the shop takes none")
 	}
 }
 
