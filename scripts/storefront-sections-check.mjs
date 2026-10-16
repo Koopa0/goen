@@ -714,6 +714,265 @@ try {
       await send('Emulation.setFocusEmulationEnabled', { enabled: false });
     }
   }
+
+  // A department's head lays out as the hero does, inside the page column: the
+  // photograph and the copy are two rounded panels with a seam of page white
+  // between them, side by side from 48rem and the photograph above the copy
+  // below it, and a running campaign's notice is a third panel under the two.
+  // The tone is the copy's own panel and nothing behind the photograph, so no
+  // white L runs along the photograph's edge. The sub-categories mark the
+  // current one as a white pill with a 2px edge inside it, and its focus ring
+  // is a separate 2px ring outside that edge.
+  {
+    const corner = '24px';
+    const seam = 8;
+    const near = (got, want, tolerance = 0.5) => Math.abs(got - want) <= tolerance;
+    const rgb = /^rgb\((\d+), (\d+), (\d+)\)$/;
+    const measure = () => evaluate(`(() => {
+      const box = element => {
+        const r = element.getBoundingClientRect();
+        return { left: r.left, right: r.right, top: r.top, bottom: r.bottom, width: r.width, height: r.height };
+      };
+      const corners = style => [style.borderTopLeftRadius, style.borderTopRightRadius, style.borderBottomRightRadius, style.borderBottomLeftRadius];
+      const colour = value => {
+        const probe = document.createElement('i');
+        probe.style.color = value;
+        document.body.append(probe);
+        const got = getComputedStyle(probe).color;
+        probe.remove();
+        return got;
+      };
+      const panel = element => {
+        const style = getComputedStyle(element);
+        return { box: box(element), corners: corners(style), background: style.backgroundColor, shadow: style.boxShadow,
+          padding: [style.paddingTop, style.paddingRight, style.paddingBottom, style.paddingLeft].map(parseFloat),
+          overflow: style.overflow, border: [style.borderTopWidth, style.borderRightWidth, style.borderBottomWidth, style.borderLeftWidth].join(' ') };
+      };
+      const page = document.querySelector('.goen-listing');
+      const pageStyle = getComputedStyle(page);
+      const pageBox = box(page);
+      const wrapper = document.querySelector('.goen-listing__head');
+      const wrapperStyle = getComputedStyle(wrapper);
+      const wrapperBox = box(wrapper);
+      const pagehead = wrapper.querySelector('.goen-pagehead');
+      const band = pagehead.querySelector('.goen-band');
+      const bandStyle = getComputedStyle(band);
+      const media = band.querySelector('.goen-band__media');
+      const body = band.querySelector('.goen-band__body');
+      const notice = band.querySelector('.goen-deptnotice');
+      const probe = document.createElement('i');
+      probe.style.backgroundColor = 'var(--tone-ground)';
+      probe.style.position = 'absolute';
+      pagehead.append(probe);
+      const ground = getComputedStyle(probe).backgroundColor;
+      probe.remove();
+      const row = body.querySelector('.goen-pagehead__chips');
+      const current = row.querySelector('a[aria-current="page"]');
+      const other = row.querySelector('a:not([aria-current])');
+      const chip = element => {
+        const style = getComputedStyle(element);
+        return { background: style.backgroundColor, shadow: style.boxShadow, box: box(element) };
+      };
+      const rowStyle = getComputedStyle(row);
+      const got = {
+        viewport: innerWidth,
+        column: { left: pageBox.left + parseFloat(pageStyle.paddingLeft), right: pageBox.right - parseFloat(pageStyle.paddingRight) },
+        wrapper: { left: wrapperBox.left + parseFloat(wrapperStyle.paddingLeft), right: wrapperBox.right - parseFloat(wrapperStyle.paddingRight) },
+        band: { background: bandStyle.backgroundColor, image: bandStyle.backgroundImage },
+        ground, accent: colour('var(--accent)'), onInk: colour('var(--on-ink-accent)'),
+        body: panel(body), media: media ? { ...panel(media), img: box(media.querySelector('img')) } : null,
+        notice: notice ? panel(notice) : null,
+        row: { box: box(row), overflowX: rowStyle.overflowX }, current: chip(current), other: chip(other),
+      };
+      return got;
+    })()`);
+    const ringOf = async selector => {
+      await force(selector, ['focus', 'focus-visible']);
+      const got = await evaluate(`(() => {
+        const element = document.querySelector(${JSON.stringify(selector)});
+        const style = getComputedStyle(element);
+        const r = element.getBoundingClientRect();
+        return { style: style.outlineStyle, width: style.outlineWidth, offset: style.outlineOffset, colour: style.outlineColor,
+          box: { left: r.left, right: r.right, top: r.top, bottom: r.bottom } };
+      })()`);
+      await force(selector, []);
+      return got;
+    };
+    // How far a ring leaves a panel: negative when the ring stays inside it.
+    const overhang = (ring, within) => {
+      const reach = parseFloat(ring.width) + Math.max(0, parseFloat(ring.offset));
+      return Math.max(within.left - (ring.box.left - reach), ring.box.right + reach - within.right,
+        within.top - (ring.box.top - reach), ring.box.bottom + reach - within.bottom);
+    };
+    const cases = [
+      { tone: 'ink', photo: 1, notice: 1 },
+      { tone: 'sage', photo: 1, notice: 0 },
+      { tone: 'sage', photo: 0, notice: 0 },
+    ];
+    for (const width of [375, 800, 1024, 1440]) {
+      for (const c of cases) {
+        const label = `department head ${c.tone}${c.photo ? '' : ' without a photograph'}${c.notice ? ' with a notice' : ''} ${width}px`;
+        await open(`/department?tone=${c.tone}&photo=${c.photo}&notice=${c.notice}`, width);
+        const head = await measure();
+        const [, red, green, blue] = rgb.exec(head.ground) ?? [];
+        assert.ok(red !== undefined, `${label}: tone ground ${head.ground}`);
+        const sum = Number(red) + Number(green) + Number(blue);
+        if (c.tone === 'ink') assert.ok(sum < 150, `${label}: ink ground is ${head.ground}`);
+        else assert.ok(sum > 500 && sum < 765, `${label}: ground is ${head.ground}, not a light tone`);
+
+        // Inside the page column, the panels spanning it, and nothing behind them.
+        assert.ok(near(head.wrapper.left, head.column.left) && near(head.wrapper.right, head.column.right),
+          `${label}: the head is ${head.wrapper.left}-${head.wrapper.right}, the page column ${head.column.left}-${head.column.right}`);
+        assert.equal(head.band.background, 'rgba(0, 0, 0, 0)', `${label}: the band has a ground of ${head.band.background}`);
+        assert.equal(head.band.image, 'none', `${label}: the band paints ${head.band.image} behind its panels`);
+        const panels = [head.body, head.media, head.notice].filter(Boolean);
+        assert.ok(near(Math.min(...panels.map(p => p.box.left)), head.column.left) && near(Math.max(...panels.map(p => p.box.right)), head.column.right),
+          `${label}: the panels do not span the page column`);
+        for (const p of panels) {
+          assert.deepEqual(p.corners, [corner, corner, corner, corner], `${label}: panel corners ${p.corners}`);
+          assert.equal(p.border, '0px 0px 0px 0px', `${label}: a panel has a border: ${p.border}`);
+        }
+
+        // The copy is the tone; a corner is never larger than the padding inside it.
+        assert.equal(head.body.background, head.ground, `${label}: the copy is ${head.body.background}, the tone ground is ${head.ground}`);
+        assert.equal(head.body.shadow, 'none', `${label}: the copy has a ring: ${head.body.shadow}`);
+        const inline = Math.min(48, Math.max(24, head.viewport * 0.035));
+        assert.ok(near(head.body.padding[0], 24) && near(head.body.padding[2], 24), `${label}: copy padding above and below ${head.body.padding}`);
+        assert.ok(near(head.body.padding[1], inline) && near(head.body.padding[3], inline), `${label}: copy padding beside ${head.body.padding}, want ${inline}px`);
+        if (c.notice) {
+          assert.equal(head.notice.background, head.ground, `${label}: the notice is ${head.notice.background}, the tone ground is ${head.ground}`);
+          const above = Math.max(head.body.box.bottom, head.media?.box.bottom ?? 0);
+          assert.ok(near(head.notice.box.top - above, seam), `${label}: ${head.notice.box.top - above}px between the notice and the panels above, want ${seam}px`);
+        }
+
+        if (!c.photo) {
+          assert.equal(head.media, null, `${label}: a photograph is drawn`);
+          assert.ok(near(head.body.box.left, head.column.left) && near(head.body.box.right, head.column.right), `${label}: the copy does not fill the column`);
+        } else {
+          const { media: photo } = head;
+          assert.equal(photo.overflow, 'hidden', `${label}: the photograph's panel overflow is ${photo.overflow}, so its corners do not clip the picture`);
+          assert.deepEqual(photo.padding, [0, 0, 0, 0], `${label}: the photograph's panel has padding ${photo.padding}`);
+          for (const edge of ['left', 'right', 'top', 'bottom']) {
+            assert.ok(near(photo.img[edge], photo.box[edge], 1), `${label}: the picture's ${edge} is ${photo.img[edge]}, its panel's ${photo.box[edge]}`);
+          }
+          if (width >= 768) {
+            assert.ok(photo.box.left < head.body.box.left, `${label}: the photograph is not to the left of the copy`);
+            assert.ok(near(head.body.box.left - photo.box.right, seam), `${label}: ${head.body.box.left - photo.box.right}px between the panels, want ${seam}px`);
+            assert.ok(near(photo.box.top, head.body.box.top, 1) && near(photo.box.bottom, head.body.box.bottom, 1), `${label}: the two panels are not the same height`);
+            const whole = head.column.right - head.column.left - seam;
+            assert.ok(near(photo.box.width, whole * 7 / 12, 1) && near(head.body.box.width, whole * 5 / 12, 1),
+              `${label}: photograph ${photo.box.width}px and copy ${head.body.box.width}px, not 7 and 5 of ${whole}px`);
+          } else {
+            assert.ok(photo.box.top < head.body.box.top, `${label}: the photograph is not above the copy`);
+            assert.ok(near(head.body.box.top - photo.box.bottom, seam), `${label}: ${head.body.box.top - photo.box.bottom}px between the panels, want ${seam}px`);
+            for (const p of [photo, head.body]) assert.ok(near(p.box.left, head.column.left) && near(p.box.right, head.column.right), `${label}: a panel does not span the column`);
+          }
+        }
+
+        // The current sub-category: a white pill (a clear one on ink) with a 2px edge inside it; the others have neither.
+        const edge = c.tone === 'ink' ? head.onInk : head.accent;
+        assert.equal(head.current.shadow, `${edge} 0px 0px 0px 2px inset`, `${label}: the current sub-category's edge`);
+        assert.equal(head.current.background, c.tone === 'ink' ? 'rgba(255, 255, 255, 0.1)' : 'rgb(255, 255, 255)', `${label}: the current sub-category's ground`);
+        assert.equal(head.other.shadow, 'none', `${label}: another sub-category has an edge: ${head.other.shadow}`);
+        assert.equal(head.other.background, 'rgba(0, 0, 0, 0)', `${label}: another sub-category is filled: ${head.other.background}`);
+
+        // Its focus ring is the shared 2px ring, drawn outside the edge with the
+        // ground between them, and the scrolling row leaves it room to be seen.
+        const chipRing = await ringOf('.goen-pagehead__chip[aria-current="page"]');
+        assert.deepEqual([chipRing.style, chipRing.width, chipRing.offset], ['solid', '2px', '2px'], `${label}: the focused sub-category's ring`);
+        if (c.tone === 'ink') assert.notEqual(chipRing.colour, head.onInk, `${label}: the ring is the edge's own colour`);
+        if (head.row.overflowX !== 'visible') {
+          const room = Math.min(head.current.box.top - head.row.box.top, head.row.box.bottom - head.current.box.bottom, head.current.box.left - head.row.box.left);
+          assert.ok(room >= 4 - 0.5, `${label}: the scrolling row leaves ${room}px round the first sub-category, which would clip its ring`);
+        }
+        // The white ring of an ink head sits on the ink: the sub-categories' and the notice's stay inside their panels.
+        if (c.tone === 'ink') {
+          assert.equal(chipRing.colour, 'rgb(255, 255, 255)', `${label}: the ink head's ring is ${chipRing.colour}`);
+          assert.ok(overhang(chipRing, head.body.box) <= 0, `${label}: the ring leaves the copy by ${overhang(chipRing, head.body.box)}px, onto the page white`);
+          if (c.notice) {
+            const noticeRing = await ringOf('.goen-deptnotice__name');
+            assert.equal(noticeRing.colour, 'rgb(255, 255, 255)', `${label}: the notice's ring is ${noticeRing.colour}`);
+            assert.ok(overhang(noticeRing, head.notice.box) <= 0, `${label}: the notice's ring leaves its panel by ${overhang(noticeRing, head.notice.box)}px, onto the page white`);
+          }
+        }
+
+        // Forced colours drop the tone, so each panel draws an edge of its own.
+        await media([{ name: 'forced-colors', value: 'active' }]);
+        const edges = await evaluate(`['.goen-pagehead .goen-band__media', '.goen-pagehead .goen-band__body', '.goen-pagehead .goen-band > .goen-deptnotice']
+          .map(selector => document.querySelector(selector)).filter(Boolean).map(element => {
+            const style = getComputedStyle(element);
+            return [style.outlineStyle, style.outlineWidth, style.outlineOffset].join(' ');
+          })`);
+        await media([]);
+        assert.equal(edges.length, 1 + c.photo + c.notice, `${label}: panels drawn in forced colours`);
+        for (const edgeOf of edges) assert.equal(edgeOf, 'solid 1px -1px', `${label}: a panel's edge in forced colours is ${edgeOf}`);
+        console.log(`${label}: ${panels.length} panels ${corner} in the column, ${c.photo ? (width >= 768 ? 'side by side' : 'stacked') : 'copy only'}, seam ${seam}px, edge 2px`);
+      }
+    }
+  }
+
+  // The home page's shelf is one rounded panel on the department's tone inside
+  // the page column, and its sideways scroller of products is cut at the
+  // panel's straight edge.
+  {
+    const corner = '24px';
+    const near = (got, want, tolerance = 0.5) => Math.abs(got - want) <= tolerance;
+    for (const width of [375, 800, 1024, 1440]) {
+      for (const tone of ['ink', 'sage']) {
+        const label = `home shelf ${tone} ${width}px`;
+        await open(`/home?band=${tone}`, width);
+        const shelf = await evaluate(`(() => {
+          const box = element => { const r = element.getBoundingClientRect(); return { left: r.left, right: r.right, top: r.top }; };
+          const home = document.querySelector('.goen-home');
+          const homeStyle = getComputedStyle(home);
+          const homeBox = box(home);
+          const panel = document.querySelector('.goen-band--shelf');
+          const style = getComputedStyle(panel);
+          const body = panel.querySelector('.goen-band__body');
+          const bodyStyle = getComputedStyle(body);
+          const tiles = panel.querySelector('.goen-band__tiles');
+          const probe = document.createElement('i');
+          probe.style.backgroundColor = 'var(--tone-ground)';
+          probe.style.position = 'absolute';
+          panel.append(probe);
+          const ground = getComputedStyle(probe).backgroundColor;
+          probe.remove();
+          return {
+            viewport: innerWidth,
+            column: { left: homeBox.left + parseFloat(homeStyle.paddingLeft), right: homeBox.right - parseFloat(homeStyle.paddingRight) },
+            panel: box(panel), width: panel.getBoundingClientRect().width,
+            corners: [style.borderTopLeftRadius, style.borderTopRightRadius, style.borderBottomRightRadius, style.borderBottomLeftRadius],
+            background: style.backgroundColor, ground,
+            padding: [bodyStyle.paddingTop, bodyStyle.paddingRight, bodyStyle.paddingBottom, bodyStyle.paddingLeft].map(parseFloat),
+            tiles: { box: box(tiles), overflowX: getComputedStyle(tiles).overflowX },
+          };
+        })()`);
+        assert.ok(near(shelf.panel.left, shelf.column.left) && near(shelf.panel.right, shelf.column.right),
+          `${label}: the shelf is ${shelf.panel.left}-${shelf.panel.right}, the page column ${shelf.column.left}-${shelf.column.right}`);
+        assert.ok(shelf.panel.left > 0 && shelf.panel.right < shelf.viewport, `${label}: the shelf runs edge to edge`);
+        assert.deepEqual(shelf.corners, [corner, corner, corner, corner], `${label}: corners ${shelf.corners}`);
+        assert.equal(shelf.background, shelf.ground, `${label}: the shelf is ${shelf.background}, the tone ground is ${shelf.ground}`);
+        const inline = Math.min(48, Math.max(24, shelf.viewport * 0.04));
+        assert.ok(shelf.padding[0] >= 24 && shelf.padding[2] >= 24, `${label}: padding above and below ${shelf.padding}, less than the corner`);
+        assert.ok(near(shelf.padding[1], inline) && near(shelf.padding[3], inline), `${label}: padding beside ${shelf.padding}, want ${inline}px`);
+        if (shelf.tiles.overflowX === 'auto') {
+          assert.ok(near(shelf.tiles.box.left, shelf.panel.left) && near(shelf.tiles.box.right, shelf.panel.right),
+            `${label}: the scroller is ${shelf.tiles.box.left}-${shelf.tiles.box.right}, the shelf ${shelf.panel.left}-${shelf.panel.right}`);
+        } else {
+          assert.ok(shelf.tiles.box.left >= shelf.panel.left + inline - 0.5 && shelf.tiles.box.right <= shelf.panel.right - inline + 0.5,
+            `${label}: the products reach the shelf's padding`);
+        }
+        await media([{ name: 'forced-colors', value: 'active' }]);
+        const edge = await evaluate(`(() => {
+          const style = getComputedStyle(document.querySelector('.goen-band--shelf'));
+          return [style.outlineStyle, style.outlineWidth, style.outlineOffset, style.borderTopWidth, style.borderBottomWidth].join(' ');
+        })()`);
+        await media([]);
+        assert.equal(edge, 'solid 1px -1px 0px 0px', `${label}: the shelf's edge in forced colours is ${edge}`);
+        console.log(`${label}: panel ${corner} in the page column, ${shelf.tiles.overflowX === 'auto' ? 'products scroll to its edge' : 'products in a grid'}`);
+      }
+    }
+  }
 } finally {
   socket.close();
   await fetch(`${debugging}/json/close/${target.id}`);
