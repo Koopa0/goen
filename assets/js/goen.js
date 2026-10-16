@@ -51,7 +51,9 @@
           const at = tab.getBoundingClientRect().left - tabRow.getBoundingClientRect().left + tabRow.scrollLeft;
           // The row's end padding reserves the room under its fade mask.
           const visible = tabRow.clientWidth - parseFloat(getComputedStyle(tabRow).paddingInlineEnd);
-          if (tab.offsetWidth > visible || at < tabRow.scrollLeft) tabRow.scrollLeft = at;
+          // The row's start padding is room for the ring, so the first tab rests at 0.
+          const lead = at - parseFloat(getComputedStyle(tabRow).paddingInlineStart);
+          if (tab.offsetWidth > visible || lead < tabRow.scrollLeft) tabRow.scrollLeft = lead;
           else if (at + tab.offsetWidth > tabRow.scrollLeft + visible)
             tabRow.scrollLeft = at + tab.offsetWidth - visible;
         }
