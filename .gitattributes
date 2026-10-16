@@ -14,3 +14,7 @@ assets/js/vendor/** linguist-vendored
 # largest piece of CSS in the repository.
 assets/fonts/** linguist-vendored
 assets/css/app/fonts.css linguist-generated
+
+# 001 records a sha256 of its own text, and readiness compares a database's
+# digest with it. A checkout that rewrote line endings would change those bytes.
+migrations/*.sql text eol=lf
