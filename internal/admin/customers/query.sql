@@ -14,20 +14,16 @@ AND (NOT @has_cursor::boolean OR (u.created_at < @after_at::timestamptz)
 ORDER BY u.created_at DESC, u.id DESC
 LIMIT @row_limit::integer;
 
--- Spend counts COMMITTED orders only, and both balances come from the VIEWS that
--- define them. No role predicate, deliberately: /admin/staff promotes an
--- existing customer, whose order history must stay reachable from this page.
+-- Lifetime spend and both balances come from the VIEWS that define them. No
+-- role predicate, deliberately: /admin/staff promotes an existing customer,
+-- whose order history must stay reachable from this page.
 -- name: AdminCustomer :one
 SELECT u.id, u.email, coalesce(u.full_name, '') AS full_name,
        coalesce(u.phone, '') AS phone, u.created_at,
        (u.email_verified_at IS NOT NULL)::boolean AS verified,
        (SELECT count(*) FROM orders o WHERE o.user_id = u.id)::bigint AS orders,
-       coalesce((SELECT sum(greatest(t.total_cents - (rf.card_cents + rf.credit_cents), 0))
-                 FROM orders o
-                 JOIN order_totals t ON t.order_id = o.id
-                 JOIN committed_orders c ON c.id = o.id
-                 JOIN order_refunds rf ON rf.order_id = o.id
-                 WHERE o.user_id = u.id), 0)::bigint AS spent,
+       coalesce((SELECT sum(s.spend_cents) FROM committed_order_spend s
+                 WHERE s.user_id = u.id), 0)::bigint AS spent,
        coalesce((SELECT b.balance_cents FROM store_credit_balances b
                  WHERE b.user_id = u.id), 0)::bigint AS credit_cents,
        coalesce((SELECT lb.points FROM loyalty_balances lb
