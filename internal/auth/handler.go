@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"github.com/koopa0/goen/internal/bearer"
+	"github.com/koopa0/goen/internal/cart/item"
 	"github.com/koopa0/goen/internal/email"
 	"github.com/koopa0/goen/internal/i18n"
 	"github.com/koopa0/goen/internal/ratelimit"
@@ -29,7 +30,7 @@ type Carts interface {
 	// it or was left out. An error means the cart was not carried over and has
 	// been logged.
 	AdoptRequestCart(ctx context.Context, r *http.Request, userID string) (adjusted bool, err error)
-	RecoveryContents(ctx context.Context, r *http.Request) (pages.CartRecoveryContents, error)
+	RecoveryContents(ctx context.Context, r *http.Request) (beforeSignIn, account []item.Item, err error)
 	ForgetCart(w http.ResponseWriter, r *http.Request)
 }
 
@@ -611,10 +612,10 @@ func (h *Handler) CartRecoveryPage(w http.ResponseWriter, r *http.Request) {
 		http.Redirect(w, r, "/signin", http.StatusSeeOther)
 		return
 	}
-	var contents pages.CartRecoveryContents
+	var beforeSignIn, account []item.Item
 	if h.carts != nil {
 		var err error
-		contents, err = h.carts.RecoveryContents(r.Context(), r)
+		beforeSignIn, account, err = h.carts.RecoveryContents(r.Context(), r)
 		if err != nil {
 			h.log.ErrorContext(r.Context(), "read carts for recovery", "error", err)
 			h.serverError(w, r)
@@ -624,12 +625,32 @@ func (h *Handler) CartRecoveryPage(w http.ResponseWriter, r *http.Request) {
 	next := web.SitePathOr(r.URL.Query().Get("next"), "/account")
 	web.Render(w, r, h.log, http.StatusOK, pages.CartRecovery(
 		pages.CartRecoveryMeta(r.Context()), pages.CartRecoveryView{
-			Next:     next,
-			Welcome:  r.URL.Query().Get("welcome") == "1",
-			Notice:   i18n.T(r.Context(), i18n.KeyCartMergeFailed),
-			Retry:    i18n.T(r.Context(), i18n.KeyCartMergeRetry),
-			Contents: contents,
+			Next:    next,
+			Welcome: r.URL.Query().Get("welcome") == "1",
+			Notice:  i18n.T(r.Context(), i18n.KeyCartMergeFailed),
+			Retry:   i18n.T(r.Context(), i18n.KeyCartMergeRetry),
+			Contents: pages.CartRecoveryContents{
+				BeforeSignIn: recoveryLines(beforeSignIn),
+				Account:      recoveryLines(account),
+			},
 		}))
+}
+
+// recoveryLines places a cart's items on the recovery page, which lists what
+// each line is and how many, not what it costs.
+func recoveryLines(items []item.Item) []pages.CartLine {
+	lines := make([]pages.CartLine, 0, len(items))
+	for _, it := range items {
+		lines = append(lines, pages.CartLine{
+			Name:        it.Name,
+			Label:       it.Label,
+			Quantity:    it.Quantity,
+			ImageURL:    it.ImageURL,
+			ImageSrcset: it.ImageSrcset,
+			ImageAlt:    it.ImageAlt,
+		})
+	}
+	return lines
 }
 
 func (h *Handler) RetryCartAdoption(w http.ResponseWriter, r *http.Request) {

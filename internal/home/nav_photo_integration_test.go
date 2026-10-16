@@ -7,6 +7,7 @@ import (
 	"context"
 	"image"
 	"image/png"
+	"log/slog"
 	"regexp"
 	"strings"
 	"testing"
@@ -73,7 +74,7 @@ func TestNavigationFollowsConfiguredDepartmentPhotographs(t *testing.T) {
 			}
 
 			store, nav := home.NewStore(tx), site.NewStore(tx)
-			listing := catalog.NewStore(tx)
+			listing := catalog.NewStore(tx, slog.New(slog.DiscardHandler))
 			for _, slug := range []string{"photo-department", "books-stationery"} {
 				if n, setErr := q.SetCategoryImage(ctx, db.SetCategoryImageParams{
 					Slug: slug, MediaDigest: obj.Digest, ImageAlt: "Department photograph",

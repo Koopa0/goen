@@ -44,7 +44,6 @@ import (
 	"github.com/koopa0/goen/internal/outbox"
 	"github.com/koopa0/goen/internal/payment"
 	"github.com/koopa0/goen/internal/probe"
-	"github.com/koopa0/goen/internal/product"
 	"github.com/koopa0/goen/internal/ratelimit"
 	"github.com/koopa0/goen/internal/site"
 	"github.com/koopa0/goen/internal/ui/pages"
@@ -156,7 +155,7 @@ func newRouter(cfg *RouterConfig, log *slog.Logger) http.Handler {
 	mux.HandleFunc("GET /healthz", probes.Live)
 	mux.HandleFunc("GET /readyz", probes.Ready)
 
-	catalogue := catalog.NewStore(pool)
+	catalogue := catalog.NewStore(pool, log)
 	siteStore := site.NewStore(pool)
 	if !front.StoreMap.Enabled() {
 		catalogue, siteStore = catalogue.WithoutPickup(), siteStore.WithoutPickup()
@@ -219,11 +218,11 @@ func storefrontRoutes(mux *http.ServeMux, cfg *StorefrontConfig, log *slog.Logge
 	})
 	// Everything that describes shipping reads what checkout offers: pickup needs
 	// the store map, so without it nothing may promise pickup or its price.
-	homeStore, productStore := home.NewStore(pool), product.NewStore(pool, log)
+	homeStore := home.NewStore(pool)
 	if !cfg.StoreMap.Enabled() {
-		homeStore, productStore = homeStore.WithoutPickup(), productStore.WithoutPickup()
+		homeStore = homeStore.WithoutPickup()
 	}
-	browse := catalog.NewHandler(catalogue, log)
+	browse := catalog.NewHandler(catalogue, log, baseURL)
 	homePage := home.NewHandler(homeStore, log)
 	images := media.NewHandler(media.NewStore(pool), log)
 	contactLimit := ratelimit.New(ratelimit.Config{
@@ -246,7 +245,6 @@ func storefrontRoutes(mux *http.ServeMux, cfg *StorefrontConfig, log *slog.Logge
 	signups := newsletter.NewHandler(newsletter.NewStore(pool), signupLimit, log)
 	cover := warranty.NewHandler(warranty.NewStore(pool), log)
 	points := loyalty.NewHandler(loyalty.NewStore(pool), log)
-	items := product.NewHandler(productStore, log, baseURL)
 	// Every checkout submission looks up the coupon it carries, and a chooser
 	// change is a submission too, so a whole checkout is a dozen posts at most.
 	// cart.Handler bounds the wrong codes themselves; this bounds the rest.
@@ -296,10 +294,10 @@ func storefrontRoutes(mux *http.ServeMux, cfg *StorefrontConfig, log *slog.Logge
 	mux.HandleFunc("GET /compare", browse.Compare)
 	mux.HandleFunc("GET /deals", browse.Deals)
 	mux.HandleFunc("GET /s/{slug}", browse.Campaign)
-	mux.HandleFunc("GET /p/{slug}", items.Detail)
-	mux.HandleFunc("POST /p/{slug}/reviews", items.Review)
-	mux.HandleFunc("POST /p/{slug}/notify", ratelimit.Guard(notifyLimit, log, items.Notify))
-	mux.HandleFunc("POST /p/{slug}/questions", items.Ask)
+	mux.HandleFunc("GET /p/{slug}", browse.Product)
+	mux.HandleFunc("POST /p/{slug}/reviews", browse.Review)
+	mux.HandleFunc("POST /p/{slug}/notify", ratelimit.Guard(notifyLimit, log, browse.Notify))
+	mux.HandleFunc("POST /p/{slug}/questions", browse.Ask)
 	mux.HandleFunc("GET /cart", basket.Page)
 	mux.HandleFunc("POST /cart/items", clearSpeculations(basket.AddItem))
 	mux.HandleFunc("POST /cart/items/update", clearSpeculations(basket.UpdateItem))

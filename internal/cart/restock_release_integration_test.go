@@ -12,10 +12,10 @@ import (
 	"time"
 
 	"github.com/koopa0/goen/internal/cart"
+	"github.com/koopa0/goen/internal/catalog"
 	"github.com/koopa0/goen/internal/i18n"
 	"github.com/koopa0/goen/internal/order/access"
 	"github.com/koopa0/goen/internal/order/buyer"
-	"github.com/koopa0/goen/internal/product"
 )
 
 func TestReleasingTheLastHoldQueuesRestockNotices(t *testing.T) {
@@ -51,7 +51,7 @@ func TestReleasingTheLastHoldQueuesRestockNotices(t *testing.T) {
 				t.Fatalf("application role = %q, %v", role, err)
 			}
 			log := slog.New(slog.DiscardHandler)
-			notices := product.NewHandler(product.NewStore(appPool, log), log, "https://goen.example")
+			notices := catalog.NewHandler(catalog.NewStore(appPool, log), log, "https://goen.example")
 			for _, locale := range i18n.Locales() {
 				form := url.Values{"variant": {variant.String()}, "email": {locale.Tag() + "-waiting@example.com"}}
 				req := httptest.NewRequestWithContext(i18n.WithLocale(ctx, locale), http.MethodPost,

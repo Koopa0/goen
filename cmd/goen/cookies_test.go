@@ -119,7 +119,7 @@ func goenCookies(pool *pgxpool.Pool) map[string]cookiePin {
 			path: "/", maxAge: cookieYear, sameSite: http.SameSiteLaxMode,
 			probe: func(t *testing.T, secure bool) *http.Cookie {
 				t.Helper()
-				h := site.NewHandler(slog.New(slog.DiscardHandler), "", catalog.NewStore(pool), site.NewStore(pool), secure)
+				h := site.NewHandler(slog.New(slog.DiscardHandler), "", catalog.NewStore(pool, slog.New(slog.DiscardHandler)), site.NewStore(pool), secure)
 				rec := httptest.NewRecorder()
 				req := httptest.NewRequestWithContext(t.Context(), http.MethodPost, "/promo/dismiss",
 					strings.NewReader("banner=banner&return=/"))

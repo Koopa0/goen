@@ -4,6 +4,7 @@ package catalog_test
 
 import (
 	"context"
+	"log/slog"
 	"strings"
 	"testing"
 
@@ -54,7 +55,7 @@ func TestBrandCountsFollowTheOtherFiltersAndNotTheBrandFilter(t *testing.T) {
 		}
 	}
 
-	store := catalog.NewStore(tx)
+	store := catalog.NewStore(tx, slog.New(slog.DiscardHandler))
 	counts := func(f catalog.Filters) map[string]int64 {
 		t.Helper()
 		view, listErr := store.Listing(ctx, category, f)

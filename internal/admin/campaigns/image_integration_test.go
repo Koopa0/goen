@@ -70,7 +70,7 @@ func TestACampaignHeaderIsUploadedShownAndRemoved(t *testing.T) {
 		!strings.Contains(refused.Body.String(), `aria-describedby="c-alt-error"`) {
 		t.Fatalf("no alt answered %d, want 422 with the alt field flagged", refused.Code)
 	}
-	view, err := catalog.NewStore(pool).Campaign(ctx, slug)
+	view, err := catalog.NewStore(pool, slog.New(slog.DiscardHandler)).Campaign(ctx, slug)
 	if err != nil || view.Image.Shown() {
 		t.Fatalf("a refused upload left a header: %+v (err %v)", view.Image, err)
 	}
@@ -80,7 +80,7 @@ func TestACampaignHeaderIsUploadedShownAndRemoved(t *testing.T) {
 	if ok.Code != http.StatusSeeOther || ok.Header().Get("Location") != "/admin/campaigns/"+slug+"?ok=1" {
 		t.Fatalf("upload answered %d to %q, want 303 to ?ok=1", ok.Code, ok.Header().Get("Location"))
 	}
-	view, err = catalog.NewStore(pool).Campaign(ctx, slug)
+	view, err = catalog.NewStore(pool, slog.New(slog.DiscardHandler)).Campaign(ctx, slug)
 	if err != nil || !view.Image.Shown() || !strings.HasPrefix(view.Image.URL, "/media/") || view.Image.Alt != "限時優惠商品" {
 		t.Fatalf("the campaign page header = %+v (err %v)", view.Image, err)
 	}
@@ -97,7 +97,7 @@ func TestACampaignHeaderIsUploadedShownAndRemoved(t *testing.T) {
 	if gone.Code != http.StatusSeeOther {
 		t.Fatalf("remove answered %d, want 303", gone.Code)
 	}
-	view, err = catalog.NewStore(pool).Campaign(ctx, slug)
+	view, err = catalog.NewStore(pool, slog.New(slog.DiscardHandler)).Campaign(ctx, slug)
 	if err != nil || view.Image.Shown() {
 		t.Fatalf("after removal the header is %+v (err %v)", view.Image, err)
 	}

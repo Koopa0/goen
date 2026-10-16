@@ -23,9 +23,9 @@ import (
 	"github.com/koopa0/goen/internal/admin/admintest"
 	"github.com/koopa0/goen/internal/admin/audit"
 	"github.com/koopa0/goen/internal/admin/stock"
+	"github.com/koopa0/goen/internal/catalog"
 	"github.com/koopa0/goen/internal/db"
 	"github.com/koopa0/goen/internal/i18n"
-	"github.com/koopa0/goen/internal/product"
 	"github.com/koopa0/goen/internal/shoptime"
 	"github.com/koopa0/goen/internal/user"
 )
@@ -58,7 +58,7 @@ func TestExpectedArrivalIsAuditedAndShownOnlyForTheSelectedSoldOutVariant(t *tes
 	if err != nil {
 		t.Fatal(err)
 	}
-	selection := product.Selection{}
+	selection := catalog.Selection{}
 	for i := range rows {
 		if rows[i].ID != id {
 			continue
@@ -79,7 +79,7 @@ func TestExpectedArrivalIsAuditedAndShownOnlyForTheSelectedSoldOutVariant(t *tes
 		if err = s.SetArrival(ctx, sku, arrivalDay(t, tc.raw)); err != nil {
 			t.Fatal(err)
 		}
-		view, loadErr := product.NewStore(owner, slog.New(slog.DiscardHandler)).Load(ctx, slug, selection)
+		view, loadErr := catalog.NewStore(owner, slog.New(slog.DiscardHandler)).Product(ctx, slug, selection)
 		if loadErr != nil {
 			t.Fatal(loadErr)
 		}
@@ -117,7 +117,7 @@ func TestExpectedArrivalIsAuditedAndShownOnlyForTheSelectedSoldOutVariant(t *tes
 		if err = s.SetArrival(ctx, rows[i].SKU, arrivalDay(t, tomorrow)); err != nil {
 			t.Fatal(err)
 		}
-		view, loadErr := product.NewStore(owner, slog.New(slog.DiscardHandler)).Load(ctx, slug, selection)
+		view, loadErr := catalog.NewStore(owner, slog.New(slog.DiscardHandler)).Product(ctx, slug, selection)
 		if loadErr != nil {
 			t.Fatal(loadErr)
 		}
@@ -189,7 +189,7 @@ func TestExpectedArrivalIsAuditedAndShownOnlyForTheSelectedSoldOutVariant(t *tes
 	if !cleared {
 		t.Error("received variant retains its expected arrival date")
 	}
-	view, err := product.NewStore(owner, slog.New(slog.DiscardHandler)).Load(ctx, slug, selection)
+	view, err := catalog.NewStore(owner, slog.New(slog.DiscardHandler)).Product(ctx, slug, selection)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -199,7 +199,7 @@ func TestExpectedArrivalIsAuditedAndShownOnlyForTheSelectedSoldOutVariant(t *tes
 	if _, err = owner.Exec(ctx, `SELECT record_inventory_movement($1, $2, 'adjustment', $3, 'admin', NULL, $4)`, id, -received, uuid.NewString(), actor); err != nil {
 		t.Fatal(err)
 	}
-	view, err = product.NewStore(owner, slog.New(slog.DiscardHandler)).Load(ctx, slug, selection)
+	view, err = catalog.NewStore(owner, slog.New(slog.DiscardHandler)).Product(ctx, slug, selection)
 	if err != nil {
 		t.Fatal(err)
 	}

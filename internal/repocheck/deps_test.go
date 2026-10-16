@@ -35,7 +35,6 @@ type importRule struct {
 // key "from -> to", value the task that removes the edge. An entry may only
 // disappear; one whose edge is gone fails, so each task proves its own work.
 var exceptions = map[string]string{
-	"internal/ui/pages -> internal/loyalty":               "S11",
 	"internal/admin/admintest -> internal/admin/orders":   "T48",
 	"internal/admin/admintest -> internal/admin/products": "T48",
 	"internal/admin/admintest -> internal/admin/refunds":  "T48",
@@ -81,7 +80,7 @@ var (
 	// internal/product/labelling is a vocabulary leaf that admin/products imports.
 	storefrontPages = []string{
 		"internal/account", "internal/auth", "internal/cart", "internal/catalog", "internal/home",
-		"internal/newsletter", "internal/product", "internal/site",
+		"internal/newsletter", "internal/site",
 	}
 	// siteMayImport is what internal/site may import besides itself and the
 	// leaves: the foundation every storefront page is built on.
@@ -93,7 +92,7 @@ var (
 		"internal/refund",
 		"internal/coupon", "internal/inventory", "internal/postcode", "internal/user",
 		"internal/money", "internal/db", "internal/keyset", "internal/bearer",
-		"internal/email",
+		"internal/email", "internal/cart/item",
 	}
 	// i18nOnlyLeaves import nothing from goen except the message catalogue.
 	i18nOnlyLeaves = []string{

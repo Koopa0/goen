@@ -7,6 +7,7 @@ import (
 	"go/token"
 	"io/fs"
 	"maps"
+	"os"
 	"path/filepath"
 	"slices"
 	"strconv"
@@ -23,8 +24,6 @@ import (
 //     file that imports internal/ui/pages or internal/ui/pages/admin.
 //   - dataFilesNamingViews: a non-test file outside internal/ui that imports
 //     internal/db or pgx and also selects an identifier from a view import.
-//   - viewContracts: an interface method outside internal/ui whose signature selects
-//     from a view import, keyed dir.Interface.Method.
 //   - storeMethodsNamingViews: a method on a type named *Store whose signature
 //     selects from a view import, counted per file.
 //   - viewValueReads: a selector x.Name where x is a view import and Name is an
@@ -36,6 +35,12 @@ import (
 // Each list may only shrink. A new entry is a regression: return a domain value
 // and map it to the view in the package that renders it. A missing entry is
 // progress: delete it (or lower its count) in the same PR.
+//
+// One measure has reached zero and is a hard rule instead: no interface outside
+// internal/ui has a method whose signature selects from a view import (a view
+// contract, keyed dir.Interface.Method, or file:line for an unnamed interface).
+// A consumer declares the values it needs from a leaf, and the package that
+// renders a view fills it from them (T46, T47).
 var viewPackageImporters = []string{
 	"cmd/goen",
 	"internal/account",
@@ -49,7 +54,6 @@ var viewPackageImporters = []string{
 	"internal/catalog",
 	"internal/home",
 	"internal/order/buyer",
-	"internal/product",
 }
 
 var dataFilesNamingViews = []string{
@@ -70,21 +74,17 @@ var dataFilesNamingViews = []string{
 	"internal/catalog/campaign.go",
 	"internal/catalog/compare.go",
 	"internal/catalog/department.go",
+	"internal/catalog/product_store.go",
+	"internal/catalog/question.go",
+	"internal/catalog/review.go",
 	"internal/catalog/store.go",
 	"internal/home/hero.go",
 	"internal/home/store.go",
 	"internal/order/buyer/order.go",
-	"internal/product/question.go",
-	"internal/product/review.go",
-	"internal/product/store.go",
-}
-
-var viewContracts = []string{
-	"internal/auth.Carts.RecoveryContents",
 }
 
 var storeMethodsNamingViews = map[string]int{
-	"internal/account/store.go":                3,
+	"internal/account/store.go":                1,
 	"internal/admin/products/image.go":         1,
 	"internal/admin/products/product.go":       4,
 	"internal/admin/products/product_label.go": 1,
@@ -93,24 +93,24 @@ var storeMethodsNamingViews = map[string]int{
 	"internal/catalog/campaign.go":             2,
 	"internal/catalog/compare.go":              3,
 	"internal/catalog/department.go":           5,
+	"internal/catalog/product_store.go":        8,
+	"internal/catalog/question.go":             1,
+	"internal/catalog/review.go":               1,
 	"internal/catalog/store.go":                7,
 	"internal/home/hero.go":                    1,
 	"internal/home/store.go":                   5,
 	"internal/order/buyer/order.go":            4,
-	"internal/product/question.go":             1,
-	"internal/product/review.go":               1,
-	"internal/product/store.go":                8,
 }
 
 var viewValueReads = map[string]int{
-	"cmd/goen/server.go":             2,
-	"internal/cart/handler.go":       11,
-	"internal/cart/store.go":         3,
-	"internal/catalog/compare.go":    3,
-	"internal/catalog/department.go": 2,
-	"internal/catalog/store.go":      2,
-	"internal/product/handler.go":    8,
-	"internal/product/review.go":     12,
+	"cmd/goen/server.go":                  2,
+	"internal/cart/handler.go":            11,
+	"internal/cart/store.go":              3,
+	"internal/catalog/compare.go":         3,
+	"internal/catalog/department.go":      2,
+	"internal/catalog/product_handler.go": 8,
+	"internal/catalog/review.go":          12,
+	"internal/catalog/store.go":           2,
 }
 
 const (
@@ -358,7 +358,8 @@ func checkLayeringCounts(t *testing.T, measure string, got, want map[string]int)
 }
 
 // TestLayeringRatchet holds the view layer where it is: every leak of internal/ui/pages
-// into data code is listed by identity, and the lists may only shrink.
+// into data code is listed by identity, and the lists may only shrink. A view
+// contract is refused outright.
 func TestLayeringRatchet(t *testing.T) {
 	t.Parallel()
 
@@ -381,7 +382,9 @@ func TestLayeringRatchet(t *testing.T) {
 	})
 	t.Run("viewContracts", func(t *testing.T) {
 		t.Parallel()
-		checkLayeringList(t, "viewContracts", m.contracts, viewContracts)
+		for _, c := range slices.Sorted(maps.Keys(m.contracts)) {
+			t.Errorf("%s names a view type: an interface promises domain values from a leaf, and the package that renders the view maps them onto it", c)
+		}
 	})
 	t.Run("storeMethodsNamingViews", func(t *testing.T) {
 		t.Parallel()
@@ -391,4 +394,58 @@ func TestLayeringRatchet(t *testing.T) {
 		t.Parallel()
 		checkLayeringCounts(t, "viewValueReads", m.valueReads, viewValueReads)
 	})
+}
+
+// TestMeasureLayeringFindsViewContracts keeps the hard rule from passing because
+// the walk stopped seeing contracts: an empty set on the repository proves
+// nothing unless the same walk finds them in a tree that has them.
+func TestMeasureLayeringFindsViewContracts(t *testing.T) {
+	t.Parallel()
+
+	root := t.TempDir()
+	files := map[string]string{
+		"internal/desk/desk.go": `package desk
+
+import (
+	"context"
+
+	"github.com/koopa0/goen/internal/ui/pages"
+	admin "github.com/koopa0/goen/internal/ui/pages/admin"
+)
+
+type Refunds interface {
+	FillOrder(ctx context.Context, view *admin.OrderView, number string) error
+	Offer(ctx context.Context, number string) (int, error)
+}
+
+type Carts interface {
+	RecoveryContents(ctx context.Context) (pages.CartRecoveryContents, error)
+}
+
+func Count(lines interface{ Lines() []pages.CartLine }) int { return len(lines.Lines()) }
+
+type Store struct{}
+
+func (s *Store) View() pages.CartView { return pages.CartView{} }
+`,
+	}
+	for rel, body := range files {
+		path := filepath.Join(root, filepath.FromSlash(rel))
+		if err := os.MkdirAll(filepath.Dir(path), 0o750); err != nil {
+			t.Fatal(err)
+		}
+		if err := os.WriteFile(path, []byte(body), 0o600); err != nil {
+			t.Fatal(err)
+		}
+	}
+
+	got := slices.Sorted(maps.Keys(measureLayering(t, root).contracts))
+	want := []string{
+		"internal/desk.Carts.RecoveryContents",
+		"internal/desk.Refunds.FillOrder",
+		"internal/desk/desk.go:19.Lines",
+	}
+	if !slices.Equal(got, want) {
+		t.Errorf("view contracts = %q, want %q", got, want)
+	}
 }
