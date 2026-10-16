@@ -2417,8 +2417,19 @@ const TRANSITION_RECORDER = `(() => {
       const running = document.getAnimations().filter((a) => pseudo(a).startsWith('::view-transition'));
       const moving = running.filter((a) => a.effect.getKeyframes().some((k) =>
         ['transform', 'translate', 'scale', 'rotate', 'width', 'height', 'inlineSize', 'blockSize', 'top', 'left'].some((p) => p in k)));
+      // The corner the photo lands on is its nearest clipping ancestor's; the
+      // image pair must already wear it.
+      const corners = (s) => [s.borderTopLeftRadius, s.borderTopRightRadius, s.borderBottomRightRadius, s.borderBottomLeftRadius];
+      const pairs = named().map((n) => {
+        const el = [...document.querySelectorAll('*')].find((e) => e.style.viewTransitionName === n);
+        let clip = el && el.parentElement;
+        while (clip && (getComputedStyle(clip).overflowX === 'visible' || parseFloat(getComputedStyle(clip).borderTopLeftRadius) === 0)) clip = clip.parentElement;
+        const s = getComputedStyle(document.documentElement, '::view-transition-image-pair(' + n + ')');
+        return { name: n, overflowX: s.overflowX, overflowY: s.overflowY, radius: corners(s), landing: clip ? corners(getComputedStyle(clip)) : null };
+      });
       rec({
         ready: 'resolved',
+        pairs,
         newNames: named(),
         groups: running.map(pseudo).filter((p) => p.startsWith('::view-transition-group(')),
         durations: Object.fromEntries(running.map((a) => [pseudo(a), a.effect.getTiming().duration])),
@@ -2483,6 +2494,11 @@ const proveMorph = async (label, { from, link, name, viewport, reduce = false, b
     if (JSON.stringify(got.oldNames || []) !== want) fail(label, `the clicked page named ${JSON.stringify(got.oldNames)}, want only ${want}`);
     if (JSON.stringify(got.newNames || []) !== want) fail(label, `the arriving page named ${JSON.stringify(got.newNames)}, want only ${want}`);
     if (!photoGroups.length) fail(label, `no ::view-transition-group(${name}) animated: ` + JSON.stringify(got.groups));
+    const pair = (got.pairs || []).find((p) => p.name === name);
+    if (!pair) fail(label, `no image pair was read for ${name}: ` + JSON.stringify(got.pairs));
+    else if (pair.overflowX !== 'clip' || pair.overflowY !== 'clip') fail(label, `::view-transition-image-pair(${name}) overflows ${pair.overflowX}/${pair.overflowY}, want clip`);
+    else if (!pair.landing) fail(label, `${name} lands in no clipping, rounded ancestor to compare with`);
+    else if (pair.radius.some((r) => parseFloat(r) === 0) || JSON.stringify(pair.radius) !== JSON.stringify(pair.landing)) fail(label, `::view-transition-image-pair(${name}) has corners ${pair.radius}, the photo lands on ${pair.landing}`);
   }
   let persisted;
   await new Promise((r) => setTimeout(r, 400));
