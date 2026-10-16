@@ -8,7 +8,6 @@ import (
 
 	"github.com/koopa0/goen/internal/shipping"
 
-	"github.com/koopa0/goen/internal/account"
 	"github.com/koopa0/goen/internal/cart"
 	"github.com/koopa0/goen/internal/email"
 	"github.com/koopa0/goen/internal/fieldrule"
@@ -45,39 +44,21 @@ func checkoutAddress() delivery.Details {
 	}
 }
 
-func accountAddress() account.Address {
-	return account.Address{
-		Name: "王小明", Phone: "0912345678", PostalCode: "110",
-		City: "台北市", District: "信義區", Street: "松高路 1 號",
-	}
-}
-
 // server is what each rule's real validator says, through the normalisation the
 // handler applies first.
 var server = map[string]func(string) bool{
 	"email": func(s string) bool { return email.Valid(strings.TrimSpace(s)) },
 	"phone": func(s string) bool {
-		a, b := checkoutAddress(), accountAddress()
-		a.Phone, b.Phone = s, s
+		a := checkoutAddress()
+		a.Phone = s
 		a.Trim()
-		b.Trim()
-		// One contract, two forms: they must agree with each other as well.
-		checkout := !hasField(a.Validate(), "phone")
-		if saved := !hasField(b.Validate(), "phone"); saved != checkout {
-			panic("checkout and the account address book disagree about phone " + s)
-		}
-		return checkout
+		return !hasField(a.Validate(), "phone")
 	},
 	"postal_code": func(s string) bool {
-		a, b := checkoutAddress(), accountAddress()
-		a.PostalCode, b.PostalCode = s, s
+		a := checkoutAddress()
+		a.PostalCode = s
 		a.Trim()
-		b.Trim()
-		checkout := !hasField(a.Validate(), "postal_code")
-		if saved := !hasField(b.Validate(), "postal_code"); saved != checkout {
-			panic("checkout and the account address book disagree about postal code " + s)
-		}
-		return checkout
+		return !hasField(a.Validate(), "postal_code")
 	},
 	"invoice_carrier": func(s string) bool {
 		i := cart.Invoice{Type: invoice.PreferenceMobile, MobileBarcode: s}

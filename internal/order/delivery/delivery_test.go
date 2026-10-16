@@ -5,6 +5,9 @@ import (
 	"testing"
 
 	"github.com/koopa0/goen/internal/shipping"
+
+	"github.com/koopa0/goen/internal/i18n"
+	"github.com/koopa0/goen/internal/web"
 )
 
 // TestDeliveryValidateRejects covers what the server must catch even though the
@@ -69,6 +72,98 @@ func TestDeliveryValidateRejects(t *testing.T) {
 			}
 		})
 	}
+}
+
+// TestValidateRecipient is the one rule for who a parcel goes to and where,
+// which the checkout and the account's address book both apply. Each input goes
+// through Trim first, as both handlers do, and the want is the message the form
+// shows beside the field ("" for accepted). Validate must say the same, since a
+// saved address is offered at checkout as it was saved.
+func TestValidateRecipient(t *testing.T) {
+	t.Parallel()
+
+	valid := Details{
+		To: shipping.DestinationAddress, RecipientName: "王小明", Phone: "0912345678",
+		PostalCode: "110", City: "台北市", District: "信義區", Street: "松高路 1 號",
+	}
+	postal := func(s string) func(*Details) { return func(d *Details) { d.PostalCode = s } }
+
+	for _, tt := range []struct {
+		name  string
+		mut   func(*Details)
+		field string
+		want  i18n.Key
+	}{
+		// Chunghwa Post's codes: three digits, the older 3+2 and the current 3+3.
+		{"three-digit postal code", postal("100"), "postal_code", ""},
+		{"3+2 postal code", postal("10617"), "postal_code", ""},
+		{"3+3 postal code", postal("106409"), "postal_code", ""},
+		// The shape is all this rule knows; a prefix no district uses is the
+		// shipping zones' question (#2160).
+		{"postal code no district uses", postal("000"), "postal_code", ""},
+		{"full-width postal code", postal("１１０"), "postal_code", ""},
+		{"full-width 3+3 postal code", postal("１０６４０９"), "postal_code", ""},
+		{"mixed-width postal code", postal("１1０"), "postal_code", ""},
+		{"postal code in spaces", postal(" 110 "), "postal_code", ""},
+		{"postal code in a tab and a newline", postal("\t110\n"), "postal_code", ""},
+		{"postal code in ideographic spaces", postal("　110　"), "postal_code", ""},
+		{"blank postal code", postal(""), "postal_code", i18n.KeyPostalCodeRequired},
+		{"spaces for a postal code", postal("   "), "postal_code", i18n.KeyPostalCodeRequired},
+		{"an ideographic space for a postal code", postal("　"), "postal_code", i18n.KeyPostalCodeRequired},
+		{"one digit", postal("1"), "postal_code", i18n.KeyPostalCodeMalformed},
+		{"two digits", postal("11"), "postal_code", i18n.KeyPostalCodeMalformed},
+		{"seven digits", postal("1234567"), "postal_code", i18n.KeyPostalCodeMalformed},
+		{"seven full-width digits", postal("１２３４５６７"), "postal_code", i18n.KeyPostalCodeMalformed},
+		{"a letter", postal("11A"), "postal_code", i18n.KeyPostalCodeMalformed},
+		{"a full-width letter", postal("１１Ａ"), "postal_code", i18n.KeyPostalCodeMalformed},
+		{"a space inside", postal("11 0"), "postal_code", i18n.KeyPostalCodeMalformed},
+		{"a hyphen inside", postal("106-409"), "postal_code", i18n.KeyPostalCodeMalformed},
+		{"a plus sign", postal("+110"), "postal_code", i18n.KeyPostalCodeMalformed},
+		{"Arabic-Indic digits", postal("١١٠"), "postal_code", i18n.KeyPostalCodeMalformed},
+		{"a NUL", postal("110\x00"), "postal_code", i18n.KeyPostalCodeMalformed},
+
+		{"name at its limit", func(d *Details) { d.RecipientName = strings.Repeat("名", maxNameRunes) }, "name", ""},
+		{"name past its limit", func(d *Details) { d.RecipientName = strings.Repeat("名", maxNameRunes+1) }, "name", i18n.KeyNameTooLong},
+		{"phone at its limit", func(d *Details) { d.Phone = "0912345678" + strings.Repeat("-", maxPhoneRunes-10) }, "phone", ""},
+		{"full-width phone", func(d *Details) { d.Phone = "０９１２３４５６７８" }, "phone", ""},
+		{"city at its limit", func(d *Details) { d.City = strings.Repeat("市", maxCityRunes) }, "city", ""},
+		{"district at its limit", func(d *Details) { d.District = strings.Repeat("區", maxDistrictRunes) }, "district", ""},
+		{"street at its limit", func(d *Details) { d.Street = strings.Repeat("路", maxStreetRunes) }, "street", ""},
+		{"control in the city", func(d *Details) { d.City = "台北\u0085市" }, "city", i18n.KeyFieldHasControlChars},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			d := valid
+			tt.mut(&d)
+			d.Trim()
+			got := firstOn(d.ValidateRecipient(), tt.field)
+			if got != tt.want {
+				t.Errorf("ValidateRecipient says %q on %s, want %q", got, tt.field, tt.want)
+			}
+			d.Email = "a@example.com"
+			if atCheckout := firstOn(d.Validate(), tt.field); atCheckout != got {
+				t.Errorf("Validate says %q on %s, ValidateRecipient %q", atCheckout, tt.field, got)
+			}
+		})
+	}
+
+	// The order's own fields are Validate's alone: an address book has neither.
+	d := valid
+	d.Note = strings.Repeat("註", maxNoteRunes+1)
+	if errs := d.ValidateRecipient(); len(errs) != 0 {
+		t.Errorf("ValidateRecipient refused an address for its missing email or long note: %+v", errs)
+	}
+}
+
+// firstOn is the message a form shows beside field: the first refusal naming it.
+func firstOn(errs []web.FieldRefusal, field string) i18n.Key {
+	for _, e := range errs {
+		if e.Field == field {
+			return e.MessageKey
+		}
+	}
+	return ""
 }
 
 // TestTheCheckoutRefusesWhatTheSenderWillRefuse holds one definition of an

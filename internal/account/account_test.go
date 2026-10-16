@@ -50,12 +50,15 @@ func TestProfileAndSavedAddressBoundsMatchTheRenderedForms(t *testing.T) {
 		mut   func(*Address)
 	}{
 		{"label", "label", func(a *Address) { a.Label = strings.Repeat("標", maxAddressLabelRunes+1) }},
+		{"control in the label", "label", func(a *Address) { a.Label = "家\n" }},
 		{"name", "name", func(a *Address) { a.Name = strings.Repeat("名", user.MaxNameRunes+1) }},
 		{"phone", "phone", func(a *Address) { a.Phone = strings.Repeat("1", maxPhoneRunes+1) }},
-		{"postal code", "postal_code", func(a *Address) { a.PostalCode = strings.Repeat("1", maxPostalCodeRunes+1) }},
-		{"city", "city", func(a *Address) { a.City = strings.Repeat("市", maxCityRunes+1) }},
-		{"district", "district", func(a *Address) { a.District = strings.Repeat("區", maxDistrictRunes+1) }},
-		{"street", "street", func(a *Address) { a.Street = strings.Repeat("路", maxStreetRunes+1) }},
+		// The rest of the delivery fields' limits are delivery's; a blank field
+		// is enough to show each one reaches its own refusal.
+		{"no postal code", "postal_code", func(a *Address) { a.PostalCode = "" }},
+		{"no city", "city", func(a *Address) { a.City = "" }},
+		{"no district", "district", func(a *Address) { a.District = "" }},
+		{"no street", "street", func(a *Address) { a.Street = "" }},
 		{"phone letters", "phone", func(a *Address) { a.Phone = "09AB123456" }},
 		{"phone too few digits", "phone", func(a *Address) { a.Phone = "02-12345" }},
 		{"phone too many digits", "phone", func(a *Address) { a.Phone = "1234567890123456" }},
@@ -76,7 +79,7 @@ func TestProfileAndSavedAddressBoundsMatchTheRenderedForms(t *testing.T) {
 					return
 				}
 			}
-			t.Errorf("overlong %s was accepted: %+v", tt.field, errs)
+			t.Errorf("%s: nothing refused %s: %+v", tt.name, tt.field, errs)
 		})
 	}
 }
