@@ -8,12 +8,12 @@ import (
 
 	"github.com/google/uuid"
 
-	"github.com/koopa0/goen/internal/cart"
+	"github.com/koopa0/goen/internal/order/buyer"
 )
 
 func TestAnOrderSaysWhyItWasDiscounted(t *testing.T) {
 	ctx := t.Context()
-	s := cart.NewStore(pool)
+	s := buyer.NewStore(pool)
 
 	code := "SAVE" + strings.ToUpper(uuid.NewString()[:6])
 	if _, err := pool.Exec(ctx, `
@@ -41,7 +41,7 @@ func TestAnOrderSaysWhyItWasDiscounted(t *testing.T) {
 
 func TestAnOrderWithNoCouponHasNoReason(t *testing.T) {
 	ctx := t.Context()
-	s := cart.NewStore(pool)
+	s := buyer.NewStore(pool)
 	number := orderOfVariants(t, map[uuid.UUID]int32{freshVariant(t, "no-coupon"): 1})
 
 	view, err := s.Order(ctx, number)

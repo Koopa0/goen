@@ -37,11 +37,13 @@ const (
 // "unassigned: <reason>" while nobody owns it yet. The list may only shrink: a
 // violation not named here fails, and an entry whose call is gone fails.
 var queryOwnerExceptions = map[string]string{
-	// order/buyer takes cart's order pages and their queries.
-	"internal/order/buyer -> OrderTracking": "T36b",
 	// The customer's cancel takes the order lock cart's lapse sweeper takes
 	// before it cancels; the lock is declared beside the sweeper's query.
 	"internal/order/buyer -> LockOrderByNumber": "unassigned: one order lock, shared by every path that cancels an order",
+	// The order-placed email is written from the order page's own reads, in the
+	// transaction that places the order.
+	"internal/cart -> OrderPageLines":       "unassigned: the order-placed email reads the order page's lines",
+	"internal/cart -> OrderSummaryByNumber": "unassigned: the order-placed email reads the order page's figures",
 
 	// ShopRules moves to site with its queries; the product page folds into catalog.
 	"internal/catalog -> FreeDeliveryThreshold": "T39",
@@ -77,6 +79,7 @@ var queryOwnerExceptions = map[string]string{
 	"internal/admin/staff -> UserByID":           sharedRead,
 	"internal/admin/products -> ProductRating":   sharedRead,
 	"internal/cart -> OrderHoldSpan":             sharedRead,
+	"internal/order/buyer -> OrderHoldSpan":      sharedRead,
 	"internal/home -> ListedCampaigns":           sharedRead,
 	"internal/payment -> OrderSummaryByNumber":   sharedRead,
 	"internal/product -> WishlistHas":            sharedRead,

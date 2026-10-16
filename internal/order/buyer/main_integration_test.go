@@ -28,6 +28,7 @@ import (
 	"github.com/koopa0/goen/internal/order/access"
 	"github.com/koopa0/goen/internal/order/buyer"
 	"github.com/koopa0/goen/internal/outbox"
+	"github.com/koopa0/goen/internal/ratelimit"
 )
 
 var pool *pgxpool.Pool
@@ -413,6 +414,12 @@ func openReturnUnits(
 	return requestID
 }
 
+// testLimiter is generous on purpose: these cases are about an ANSWER, and a
+// limiter that refused mid-suite would be testing the limiter.
+func testLimiter() *ratelimit.Limiter {
+	return ratelimit.New(ratelimit.Config{Every: time.Millisecond, Burst: 1000, TTL: time.Hour, MaxKeys: 1000})
+}
+
 // placedBy gives req the grant the browser that placed the order holds.
 func placedBy(t *testing.T, req *http.Request, number string) {
 	t.Helper()
@@ -644,7 +651,7 @@ func TestAReturnFormRefusesABrowserWithoutAGrant(t *testing.T) {
 	ctx := t.Context()
 	number, _ := shippedOrder(t, 2, 2)
 	h := buyer.NewHandler(buyer.NewStore(pool), access.NewStore(pool, false),
-		slog.New(slog.DiscardHandler))
+		slog.New(slog.DiscardHandler), testLimiter(), false)
 	for _, method := range []string{http.MethodGet, http.MethodPost} {
 		req := httptest.NewRequestWithContext(ctx, method, "/orders/"+number+"/return", http.NoBody)
 		req.SetPathValue("number", number)
@@ -887,7 +894,7 @@ func TestAConcurrentReturnRendersTheFreshQuantity(t *testing.T) {
 				t.Fatalf("read return backend pid: %v", err)
 			}
 			s := buyer.NewStore(appPool)
-			h := buyer.NewHandler(s, access.NewStore(pool, false), slog.New(slog.DiscardHandler))
+			h := buyer.NewHandler(s, access.NewStore(pool, false), slog.New(slog.DiscardHandler), testLimiter(), false)
 			res := httptest.NewRecorder()
 			done := make(chan struct{})
 			go func() {
@@ -1065,7 +1072,7 @@ func TestReturnCreditRequiresLiveAccountSerializesGuestReturnAndErasure(t *testi
 		assertReturnRowCounts(t, fixture.orderID, 0, 0)
 
 		h := buyer.NewHandler(buyer.NewStore(openPool), access.NewStore(pool, false),
-			slog.New(slog.DiscardHandler))
+			slog.New(slog.DiscardHandler), testLimiter(), false)
 		form := url.Values{
 			"qty_" + fixture.lineID.String(): {"1"},
 			"reason":                         {"account was concurrently erased"},
@@ -1285,7 +1292,7 @@ func TestBlankReasonIsNotBlamedWhenNoItemWasChosen(t *testing.T) {
 	ctx := t.Context()
 	number, _ := shippedOrder(t, 2, 2)
 	h := buyer.NewHandler(buyer.NewStore(pool), access.NewStore(pool, false),
-		slog.New(slog.DiscardHandler))
+		slog.New(slog.DiscardHandler), testLimiter(), false)
 	form := url.Values{"reason": {""}}
 	req := httptest.NewRequestWithContext(ctx, http.MethodPost,
 		"/orders/"+number+"/return", strings.NewReader(form.Encode()))
@@ -1408,7 +1415,7 @@ func TestReturnQuantityRefusalsPreserveTheWholeForm(t *testing.T) {
 			req.SetPathValue("number", number)
 			placedBy(t, req, number)
 			appPool := storeApplicationPool(t, "return-form-"+uuid.NewString())
-			h := buyer.NewHandler(buyer.NewStore(appPool), access.NewStore(pool, false), slog.New(slog.DiscardHandler))
+			h := buyer.NewHandler(buyer.NewStore(appPool), access.NewStore(pool, false), slog.New(slog.DiscardHandler), testLimiter(), false)
 			res := httptest.NewRecorder()
 			h.SubmitReturn(res, req)
 			if res.Code != tt.status {
@@ -1549,7 +1556,7 @@ func postReasonThroughRoute(t *testing.T, ctx context.Context, number string, li
 	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
 	placedBy(t, req, number)
 	appPool := storeApplicationPool(t, "reason-refusal-"+uuid.NewString())
-	h := buyer.NewHandler(buyer.NewStore(appPool), access.NewStore(pool, false), slog.New(slog.DiscardHandler))
+	h := buyer.NewHandler(buyer.NewStore(appPool), access.NewStore(pool, false), slog.New(slog.DiscardHandler), testLimiter(), false)
 	mux := http.NewServeMux()
 	mux.HandleFunc("POST /orders/{number}/return", h.SubmitReturn)
 	res := httptest.NewRecorder()

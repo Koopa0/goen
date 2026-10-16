@@ -9,6 +9,7 @@ import (
 	"github.com/google/uuid"
 
 	"github.com/koopa0/goen/internal/cart"
+	"github.com/koopa0/goen/internal/order/buyer"
 	"github.com/koopa0/goen/internal/order/delivery"
 	"github.com/koopa0/goen/internal/shipping"
 )
@@ -75,7 +76,7 @@ func TestAPickupOrderIsPlacedWithTheChainAlone(t *testing.T) {
 		t.Errorf("the order carries more than the chain: %q/%q/%q", street, code, name)
 	}
 
-	view, err := s.Order(ctx, number)
+	view, err := buyer.NewStore(pool).Order(ctx, number)
 	if err != nil {
 		t.Fatalf("read the order back: %v", err)
 	}
@@ -130,7 +131,7 @@ func TestBothPagesShowWhereAPickupOrderGoes(t *testing.T) {
 		t.Fatalf("place: %v", err)
 	}
 
-	view, err := s.Order(ctx, number)
+	view, err := buyer.NewStore(pool).Order(ctx, number)
 	if err != nil {
 		t.Fatalf("read order view: %v", err)
 	}

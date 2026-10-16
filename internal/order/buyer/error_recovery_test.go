@@ -20,6 +20,7 @@ func TestInaccessibleOrderActionsOfferLookupAndSignIn(t *testing.T) {
 			method  string
 			handler http.HandlerFunc
 		}{
+			{"", http.MethodGet, h.OrderPage},
 			{"/return", http.MethodGet, h.ReturnPage},
 			{"/cancel", http.MethodPost, h.CancelOrder},
 		} {

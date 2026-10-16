@@ -13,6 +13,7 @@ import (
 	"github.com/jackc/pgx/v5/pgconn"
 
 	"github.com/koopa0/goen/internal/cart"
+	"github.com/koopa0/goen/internal/order/buyer"
 )
 
 // TestACancelledOrdersStockComesBackByEveryDoor. Cancelled is SETTLED and not
@@ -103,7 +104,7 @@ func TestTheShoppersTimelineNeverShowsTheProvidersRefundID(t *testing.T) {
 		WHERE o.id = $1`, orderID).Scan(&number, &staffNote); err != nil || !strings.HasPrefix(staffNote, "re_") {
 		t.Fatalf("the fixture must keep the refund id on the event: %q, %v", staffNote, err)
 	}
-	view, err := cart.NewStore(pool).Order(ctx, number)
+	view, err := buyer.NewStore(pool).Order(ctx, number)
 	if err != nil {
 		t.Fatalf("order: %v", err)
 	}

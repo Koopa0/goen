@@ -12,7 +12,6 @@ import (
 	"slices"
 	"strings"
 	"testing"
-	"time"
 
 	"github.com/google/uuid"
 
@@ -20,7 +19,6 @@ import (
 	"github.com/koopa0/goen/internal/bearer"
 	"github.com/koopa0/goen/internal/cart"
 	"github.com/koopa0/goen/internal/order/access"
-	"github.com/koopa0/goen/internal/ratelimit"
 )
 
 // TestAnAccountCartAnswersOnlyToItsAccount is the shared computer: A adopts a
@@ -31,7 +29,6 @@ func TestAnAccountCartAnswersOnlyToItsAccount(t *testing.T) {
 	ctx := t.Context()
 	appPool := accountStorePool(t, "account-cart-owner")
 	carts := cart.NewHandler(cart.NewStore(appPool), access.NewStore(appPool, false), slog.New(slog.DiscardHandler), false,
-		ratelimit.New(ratelimit.Config{Every: time.Millisecond, Burst: 1000, TTL: time.Hour, MaxKeys: 1000}),
 		nil, nil)
 	h := account.NewHandler(account.NewStore(appPool), carts, slog.New(slog.DiscardHandler), false, nil)
 	// The storefront's order: the session, then the cart badge, then the route.
@@ -189,7 +186,6 @@ func TestSignOutLeavesAGuestCartWithTheBrowser(t *testing.T) {
 	ctx := t.Context()
 	appPool := accountStorePool(t, "account-guest-cart-kept")
 	carts := cart.NewHandler(cart.NewStore(appPool), access.NewStore(appPool, false), slog.New(slog.DiscardHandler), false,
-		ratelimit.New(ratelimit.Config{Every: time.Millisecond, Burst: 1000, TTL: time.Hour, MaxKeys: 1000}),
 		nil, nil)
 	h := account.NewHandler(account.NewStore(appPool), carts, slog.New(slog.DiscardHandler), false, nil)
 	serve := func(route http.HandlerFunc, req *http.Request) *httptest.ResponseRecorder {

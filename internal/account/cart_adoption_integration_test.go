@@ -20,7 +20,6 @@ import (
 	"github.com/koopa0/goen/internal/cart"
 	"github.com/koopa0/goen/internal/i18n"
 	"github.com/koopa0/goen/internal/order/access"
-	"github.com/koopa0/goen/internal/ratelimit"
 )
 
 func TestAdoptCartMergesRatherThanReplaces(t *testing.T) {
@@ -408,7 +407,7 @@ func TestAMergedCartIsVisibleAfterSignInWithTheDeletedGuestCookie(t *testing.T) 
 		t.Fatalf("guest lines: %v", err)
 	}
 
-	carts := cart.NewHandler(cart.NewStore(pool), access.NewStore(pool, false), slog.New(slog.DiscardHandler), false, ratelimit.New(ratelimit.Config{Every: time.Millisecond, Burst: 1000, TTL: time.Hour, MaxKeys: 1000}), nil, nil)
+	carts := cart.NewHandler(cart.NewStore(pool), access.NewStore(pool, false), slog.New(slog.DiscardHandler), false, nil, nil)
 
 	h := account.NewHandler(accounts, carts, slog.New(slog.DiscardHandler), false, nil)
 
@@ -502,7 +501,7 @@ func TestFailedCartAdoptionOnSignInShowsNoticeAndPreservesBothCarts(t *testing.T
 		t.Fatalf("lock guest cart: %v", err)
 	}
 
-	carts := cart.NewHandler(cart.NewStore(pool), access.NewStore(pool, false), slog.New(slog.DiscardHandler), false, ratelimit.New(ratelimit.Config{Every: time.Millisecond, Burst: 1000, TTL: time.Hour, MaxKeys: 1000}), nil, nil)
+	carts := cart.NewHandler(cart.NewStore(pool), access.NewStore(pool, false), slog.New(slog.DiscardHandler), false, nil, nil)
 
 	h := account.NewHandler(accounts, carts, slog.New(slog.DiscardHandler), false, nil)
 
@@ -653,7 +652,7 @@ func TestAdoptCartRefusesGuestCartOwnedByAnotherAccount(t *testing.T) {
 		t.Fatalf("guest line: %v", err)
 	}
 
-	carts := cart.NewHandler(cart.NewStore(pool), access.NewStore(pool, false), slog.New(slog.DiscardHandler), false, ratelimit.New(ratelimit.Config{Every: time.Millisecond, Burst: 1000, TTL: time.Hour, MaxKeys: 1000}), nil, nil)
+	carts := cart.NewHandler(cart.NewStore(pool), access.NewStore(pool, false), slog.New(slog.DiscardHandler), false, nil, nil)
 
 	h := account.NewHandler(accounts, carts, slog.New(slog.DiscardHandler), false, nil)
 

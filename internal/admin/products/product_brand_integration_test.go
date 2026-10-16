@@ -23,6 +23,7 @@ import (
 	"github.com/koopa0/goen/internal/cart"
 	"github.com/koopa0/goen/internal/catalog"
 	"github.com/koopa0/goen/internal/db"
+	"github.com/koopa0/goen/internal/order/buyer"
 	"github.com/koopa0/goen/internal/product"
 	"github.com/koopa0/goen/internal/user"
 )
@@ -142,7 +143,7 @@ func TestTheShopCanPublishAnUnbrandedProduct(t *testing.T) {
 	if commitErr := tx.Commit(ctx); commitErr != nil {
 		t.Fatal(commitErr)
 	}
-	order, err := carts.Order(ctx, number)
+	order, err := buyer.NewStore(p).Order(ctx, number)
 	if err != nil || len(order.Lines) != 1 || order.Lines[0].SKU != sku {
 		t.Errorf("unbranded order = %+v, %v", order.Lines, err)
 	}

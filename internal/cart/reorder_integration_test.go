@@ -20,7 +20,6 @@ import (
 	"github.com/koopa0/goen/internal/cart"
 	"github.com/koopa0/goen/internal/order/access"
 	"github.com/koopa0/goen/internal/order/delivery"
-	"github.com/koopa0/goen/internal/ratelimit"
 )
 
 func TestReorderPutsBackWhatCanStillBeBought(t *testing.T) {
@@ -402,7 +401,7 @@ func TestAStrangerCannotFillTheirCartFromSomebodyElsesOrder(t *testing.T) {
 	own, _, _ := threeVariants(t, "reorder-access-fixture")
 	number := orderOfVariants(t, map[uuid.UUID]int32{own: 1})
 
-	h := cart.NewHandler(s, access.NewStore(pool, false), slog.New(slog.DiscardHandler), false, ratelimit.New(ratelimit.Config{Every: time.Millisecond, Burst: 1000, TTL: time.Hour, MaxKeys: 1000}), nil, nil)
+	h := cart.NewHandler(s, access.NewStore(pool, false), slog.New(slog.DiscardHandler), false, nil, nil)
 
 	stranger := httptest.NewRequestWithContext(ctx, http.MethodPost,
 		"/orders/"+number+"/reorder", http.NoBody)

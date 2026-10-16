@@ -22,7 +22,6 @@ import (
 	"github.com/koopa0/goen/internal/money"
 	"github.com/koopa0/goen/internal/order/access"
 	"github.com/koopa0/goen/internal/order/delivery"
-	"github.com/koopa0/goen/internal/ratelimit"
 	"github.com/koopa0/goen/internal/user"
 )
 
@@ -110,7 +109,7 @@ func TestAChangedCreditBalanceReRendersCheckoutWithTheFreshFigure(t *testing.T) 
 		t.Fatalf("post competing debit: %v", err)
 	}
 
-	h := cart.NewHandler(s, access.NewStore(appPool, false), slog.New(slog.DiscardHandler), false, ratelimit.New(ratelimit.Config{Every: time.Millisecond, Burst: 1000, TTL: time.Hour, MaxKeys: 1000}), nil, nil)
+	h := cart.NewHandler(s, access.NewStore(appPool, false), slog.New(slog.DiscardHandler), false, nil, nil)
 
 	res := httptest.NewRecorder()
 	done := make(chan error, 1)
@@ -327,9 +326,7 @@ func TestCheckoutRejectsMissingOrMalformedQuoteWithoutWrites(t *testing.T) {
 			req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
 			//nolint:gosec // G124: the browser's own cart cookie
 			req.AddCookie(&http.Cookie{Name: "goen_cart", Value: token})
-			h := cart.NewHandler(s, access.NewStore(pool, false), slog.New(slog.DiscardHandler), false, ratelimit.New(ratelimit.Config{
-				Every: time.Millisecond, Burst: 1000, TTL: time.Hour, MaxKeys: 1000,
-			}), nil, nil)
+			h := cart.NewHandler(s, access.NewStore(pool, false), slog.New(slog.DiscardHandler), false, nil, nil)
 
 			res := httptest.NewRecorder()
 			h.PlaceOrder(res, req)
@@ -609,7 +606,7 @@ func TestCouponMinimumIsRecheckedWhenCheckoutIsPlaced(t *testing.T) {
 	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
 	req.AddCookie(&http.Cookie{Name: "goen_cart", Value: token}) //nolint:gosec // G124: dev cart cookie under test
 
-	h := cart.NewHandler(s, access.NewStore(pool, false), slog.New(slog.DiscardHandler), false, ratelimit.New(ratelimit.Config{Every: time.Millisecond, Burst: 1000, TTL: time.Hour, MaxKeys: 1000}), nil, nil)
+	h := cart.NewHandler(s, access.NewStore(pool, false), slog.New(slog.DiscardHandler), false, nil, nil)
 
 	res := httptest.NewRecorder()
 	served := make(chan error, 1)

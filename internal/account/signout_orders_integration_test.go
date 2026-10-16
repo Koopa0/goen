@@ -17,6 +17,7 @@ import (
 	"github.com/koopa0/goen/internal/bearer"
 	"github.com/koopa0/goen/internal/cart"
 	"github.com/koopa0/goen/internal/order/access"
+	"github.com/koopa0/goen/internal/order/buyer"
 	"github.com/koopa0/goen/internal/order/delivery"
 	"github.com/koopa0/goen/internal/ratelimit"
 	"github.com/koopa0/goen/internal/user"
@@ -34,8 +35,9 @@ func TestSigningOutEndsTheBrowsersAccessToItsOrders(t *testing.T) {
 	appPool := accountStorePool(t, "signout-orders")
 	shop := cart.NewStore(appPool)
 	carts := cart.NewHandler(shop, access.NewStore(appPool, false), slog.New(slog.DiscardHandler), false,
-		ratelimit.New(ratelimit.Config{Every: time.Millisecond, Burst: 1000, TTL: time.Hour, MaxKeys: 1000}),
 		nil, nil)
+	orders := buyer.NewHandler(buyer.NewStore(appPool), access.NewStore(appPool, false), slog.New(slog.DiscardHandler),
+		ratelimit.New(ratelimit.Config{Every: time.Millisecond, Burst: 1000, TTL: time.Hour, MaxKeys: 1000}), false)
 	accounts := account.NewStore(appPool)
 	h := account.NewHandler(accounts, carts, slog.New(slog.DiscardHandler), false, nil)
 	serve := func(route http.HandlerFunc, req *http.Request) *httptest.ResponseRecorder {
@@ -94,7 +96,7 @@ func TestSigningOutEndsTheBrowsersAccessToItsOrders(t *testing.T) {
 		for _, c := range cookies {
 			req.AddCookie(c)
 		}
-		return serve(carts.OrderPage, req).Code
+		return serve(orders.OrderPage, req).Code
 	}
 	for _, number := range []string{guestOrder, accountOrder} {
 		if code := opens(number, placed); code != http.StatusOK {
@@ -122,7 +124,7 @@ func TestSigningOutEndsTheBrowsersAccessToItsOrders(t *testing.T) {
 		}
 	}
 
-	found := serve(carts.FindOrder, cartForm(ctx, "/orders/find", url.Values{
+	found := serve(orders.FindOrder, cartForm(ctx, "/orders/find", url.Values{
 		"number": {guestOrder}, "email": {addr},
 	}))
 	if found.Code != http.StatusSeeOther {
@@ -137,13 +139,14 @@ func TestSigningOutEndsTheBrowsersAccessToItsOrders(t *testing.T) {
 // and to an order it placed signed in as u, served by the router's own
 // Authenticate and cart middleware.
 type placedOrders struct {
-	t        *testing.T
-	h        *account.Handler
-	carts    *cart.Handler
-	accounts *account.Store
-	u        user.User
-	orders   []string
-	placed   *http.Cookie
+	t          *testing.T
+	h          *account.Handler
+	carts      *cart.Handler
+	orderPages *buyer.Handler
+	accounts   *account.Store
+	u          user.User
+	orders     []string
+	placed     *http.Cookie
 }
 
 func newPlacedOrders(t *testing.T, name string) *placedOrders {
@@ -153,8 +156,9 @@ func newPlacedOrders(t *testing.T, name string) *placedOrders {
 	shop := cart.NewStore(appPool)
 	p := &placedOrders{t: t, accounts: account.NewStore(appPool)}
 	p.carts = cart.NewHandler(shop, access.NewStore(appPool, false), slog.New(slog.DiscardHandler), false,
-		ratelimit.New(ratelimit.Config{Every: time.Millisecond, Burst: 1000, TTL: time.Hour, MaxKeys: 1000}),
 		nil, nil)
+	p.orderPages = buyer.NewHandler(buyer.NewStore(appPool), access.NewStore(appPool, false), slog.New(slog.DiscardHandler),
+		ratelimit.New(ratelimit.Config{Every: time.Millisecond, Burst: 1000, TTL: time.Hour, MaxKeys: 1000}), false)
 	p.h = account.NewHandler(p.accounts, p.carts, slog.New(slog.DiscardHandler), false, nil)
 	addr := name + "-" + uuid.NewString() + "@example.com"
 	p.u = registerProved(t, p.accounts, addr)
@@ -252,7 +256,7 @@ func (p *placedOrders) opens(number string, cookies ...*http.Cookie) int {
 	for _, c := range cookies {
 		req.AddCookie(c)
 	}
-	return p.serve(p.carts.OrderPage, req).Code
+	return p.serve(p.orderPages.OrderPage, req).Code
 }
 
 // signIn starts a session for p.u and returns the cookie a browser holds for it.

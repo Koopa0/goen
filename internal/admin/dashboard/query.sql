@@ -80,9 +80,10 @@ FROM
 -- The newest orders whatever state they are in, as the landing page lists them.
 -- The columns are the ones admin/orders' AdminOrders returns for a queue row,
 -- plus returned: whether every unit is in a return whose refund has settled.
--- returned repeats the predicate of ReturnedOrders in internal/cart/query.sql,
--- so that this package reads no other package's query; the test that reads an
--- order through both desks holds the two to the same answer.
+-- returned repeats the predicate of ReturnedOrders in
+-- internal/order/buyer/query.sql, so that this package reads no other package's
+-- query; the test that reads an order through both desks holds the two to the
+-- same answer.
 -- name: RecentOrders :many
 SELECT o.order_number,
     o.fulfillment_status,
