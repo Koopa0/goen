@@ -19,11 +19,11 @@ import (
 // id order.
 //
 // ErrQuantityAdjusted means the adoption committed but a line was capped to what
-// the shelf can supply. ErrMergeRefused means a guest line is no longer sold and
-// nothing changed. ErrNotFound means the account, the guest cart or its
-// ownership is not what the request named, which includes a cart another
-// account adopted first. A merge caps each line's quantity, not how many lines
-// the cart holds.
+// the shelf can supply, or a guest line was left out because the account cart
+// had no room for another distinct product. ErrMergeRefused means a guest line
+// is no longer sold and nothing changed. ErrNotFound means the account, the
+// guest cart or its ownership is not what the request named, which includes a
+// cart another account adopted first.
 func (s *Store) Adopt(ctx context.Context, userID string, guestCartID uuid.UUID) error {
 	id, err := uuid.Parse(userID)
 	if err != nil {
@@ -62,9 +62,9 @@ func (s *Store) Adopt(ctx context.Context, userID string, guestCartID uuid.UUID)
 
 // AdoptRequestCart carries the cart the request's cookie names to the account
 // that just signed in, and says whether a line came out smaller than the guest
-// had it. An error means the guest cart was not carried over; this method has
-// logged why, a cart that was never the account's to take at Warn and anything
-// else at Error, so the caller must not log it again.
+// had it or was left out. An error means the guest cart was not carried over;
+// this method has logged why, a cart that was never the account's to take at
+// Warn and anything else at Error, so the caller must not log it again.
 func (h *Handler) AdoptRequestCart(ctx context.Context, r *http.Request, userID string) (adjusted bool, err error) {
 	cartID, ok, _, err := h.lookupCart(ctx, r)
 	if err != nil {
@@ -126,8 +126,12 @@ func adoptGuestCart(ctx context.Context, q *db.Queries, userID, guestCartID uuid
 	}
 }
 
-// mergeGuestIntoAccount adds each guest line to the account's, capped at what
-// the shelf can supply and at the line ceiling, then deletes the guest cart.
+// mergeGuestIntoAccount adds each guest line to the account's cart by the rule
+// Add keeps, in the order the guest added them, then deletes the guest cart. A
+// line the account already has always merges, capped at what the shelf can
+// supply and at the line ceiling; a line it lacks is left out once the cart
+// holds issuer.MaxIssueProductLines distinct products, the add Add would refuse
+// with ErrTooManyItems. Either reports adjusted.
 func mergeGuestIntoAccount(ctx context.Context, q *db.Queries, guestID, accountID uuid.UUID) (bool, error) {
 	guestLines, err := q.CartItemRows(ctx, guestID)
 	if err != nil {
@@ -136,35 +140,16 @@ func mergeGuestIntoAccount(ctx context.Context, q *db.Queries, guestID, accountI
 	adjusted := false
 	for i := range guestLines {
 		line := &guestLines[i]
-		supply, err := adoptableSupply(ctx, q, line.VariantID)
-		if err != nil {
-			return false, err
-		}
-		existing := int32(0)
-		qty, err := q.CartLineQuantity(ctx, db.CartLineQuantityParams{
-			CartID: accountID, VariantID: line.VariantID,
-		})
+		lineAdjusted, err := addCartItem(ctx, q, accountID, line.VariantID, line.Quantity)
 		switch {
 		case err == nil:
-			existing = qty
-		case !errors.Is(err, pgx.ErrNoRows):
-			return false, fmt.Errorf("read account cart line: %w", err)
-		}
-		wanted := existing + line.Quantity
-		merged := min(wanted, supply, MaxLineQuantity)
-		adjusted = adjusted || merged < wanted
-		if existing > 0 {
-			if err := q.SetCartItemQuantity(ctx, db.SetCartItemQuantityParams{
-				CartID: accountID, VariantID: line.VariantID, Quantity: merged,
-			}); err != nil {
-				return false, fmt.Errorf("merge cart line: %w", err)
-			}
-			continue
-		}
-		if err := q.AddCartItem(ctx, db.AddCartItemParams{
-			CartID: accountID, VariantID: line.VariantID, Quantity: merged,
-		}); err != nil {
-			return false, fmt.Errorf("merge guest-only line: %w", err)
+			adjusted = adjusted || lineAdjusted
+		case errors.Is(err, ErrTooManyItems):
+			adjusted = true
+		case errors.Is(err, ErrNotFound), errors.Is(err, ErrUnavailable):
+			return false, ErrMergeRefused
+		default:
+			return false, fmt.Errorf("merge guest cart line: %w", err)
 		}
 	}
 	if err := q.DeleteCart(ctx, guestID); err != nil {

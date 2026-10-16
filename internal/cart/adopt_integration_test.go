@@ -5,6 +5,9 @@ package cart_test
 import (
 	"context"
 	"errors"
+	"log/slog"
+	"net/http"
+	"net/http/httptest"
 	"testing"
 	"time"
 
@@ -15,6 +18,8 @@ import (
 
 	"github.com/koopa0/goen/internal/bearer"
 	"github.com/koopa0/goen/internal/cart"
+	"github.com/koopa0/goen/internal/invoice/issuer"
+	"github.com/koopa0/goen/internal/order/access"
 	"github.com/koopa0/goen/internal/order/delivery"
 	"github.com/koopa0/goen/internal/user"
 )
@@ -283,5 +288,146 @@ func TestCheckoutAndAdoptionShareUserBeforeCartLockOrder(t *testing.T) {
 	}
 	if adoptedQuantity != 2 {
 		t.Errorf("cart merged after checkout with quantity %d, want 2", adoptedQuantity)
+	}
+}
+
+// sellableVariants creates one product with n sellable variants and returns
+// their ids in ascending order.
+func sellableVariants(t *testing.T, name string, n int) []uuid.UUID {
+	t.Helper()
+	ctx := t.Context()
+	slug := name + "-" + uuid.NewString()[:8]
+	var productID uuid.UUID
+	if err := pool.QueryRow(ctx, `
+		INSERT INTO products (brand_id, category_id, slug, name, status, published_at)
+		SELECT b.id, c.id, $1, $1, 'draft', NULL
+		FROM brands b, categories c
+		ORDER BY b.id, c.id LIMIT 1
+		RETURNING id`, slug).Scan(&productID); err != nil {
+		t.Fatalf("create product %s: %v", slug, err)
+	}
+	if _, err := pool.Exec(ctx, `
+		INSERT INTO product_variants (product_id, sku, price_cents, is_active, position)
+		SELECT $1, upper($2) || '-' || i, 100000, true, i
+		FROM generate_series(0, $3::integer - 1) AS i`, productID, slug, n); err != nil {
+		t.Fatalf("create %d variants: %v", n, err)
+	}
+	if _, err := pool.Exec(ctx, `
+		SELECT record_inventory_movement(id, 10, 'adjustment', 'fixture:' || id, 'admin', NULL, NULL)
+		FROM product_variants WHERE product_id = $1`, productID); err != nil {
+		t.Fatalf("stock %d variants: %v", n, err)
+	}
+	if _, err := pool.Exec(ctx,
+		`UPDATE products SET status = 'active', published_at = now() WHERE id = $1`,
+		productID); err != nil {
+		t.Fatalf("publish %s: %v", slug, err)
+	}
+	rows, err := pool.Query(ctx,
+		`SELECT id FROM product_variants WHERE product_id = $1 ORDER BY id`, productID)
+	if err != nil {
+		t.Fatalf("read variants: %v", err)
+	}
+	ids, err := pgx.CollectRows(rows, pgx.RowTo[uuid.UUID])
+	if err != nil {
+		t.Fatalf("collect variants: %v", err)
+	}
+	return ids
+}
+
+// TestAdoptRequestCartMergesWithinTheLineCap fills the account cart one line
+// short of issuer.MaxIssueProductLines and signs in with a guest cart holding
+// three products the account lacks and one it has. The merge follows Add: the
+// product the guest added first takes the last free line, the two added after
+// it are left out, the line the account already has still merges, and the
+// caller is told the cart was adjusted. The product kept has the highest id of
+// the three, so a merge in id order would keep another.
+func TestAdoptRequestCartMergesWithinTheLineCap(t *testing.T) {
+	ctx := t.Context()
+	u := adopter(t, "adopt-line-cap-"+uuid.NewString()+"@example.com")
+	userID := uuid.MustParse(u.ID)
+
+	variants := sellableVariants(t, "adopt-line-cap", issuer.MaxIssueProductLines+2)
+	held := variants[:issuer.MaxIssueProductLines-1]
+	shared := held[0]
+	guestOnly := variants[issuer.MaxIssueProductLines-1:]
+	kept, leftOut := guestOnly[2], guestOnly[:2]
+
+	var accountCart uuid.UUID
+	if err := pool.QueryRow(ctx,
+		`INSERT INTO carts (digest, user_id) VALUES ($1, $2) RETURNING id`,
+		bearer.Digest("adopt-line-cap-account-"+u.ID), userID).Scan(&accountCart); err != nil {
+		t.Fatalf("create account cart: %v", err)
+	}
+	if _, err := pool.Exec(ctx, `
+		INSERT INTO cart_items (cart_id, variant_id, quantity)
+		SELECT $1, v, 1 FROM unnest($2::uuid[]) AS v`, accountCart, held); err != nil {
+		t.Fatalf("fill account cart: %v", err)
+	}
+
+	token := "adopt-line-cap-guest-" + uuid.NewString()
+	var guestCart uuid.UUID
+	if err := pool.QueryRow(ctx, `INSERT INTO carts (digest) VALUES ($1) RETURNING id`,
+		bearer.Digest(token)).Scan(&guestCart); err != nil {
+		t.Fatalf("create guest cart: %v", err)
+	}
+	if _, err := pool.Exec(ctx, `
+		INSERT INTO cart_items (cart_id, variant_id, quantity, added_at) VALUES
+			($1, $2, 1, now() - interval '4 minutes'),
+			($1, $3, 1, now() - interval '3 minutes'),
+			($1, $4, 1, now() - interval '2 minutes'),
+			($1, $5, 2, now() - interval '1 minute')`,
+		guestCart, kept, leftOut[0], leftOut[1], shared); err != nil {
+		t.Fatalf("fill guest cart: %v", err)
+	}
+
+	h := cart.NewHandler(cart.NewStore(adoptionPool(t, "adopt-line-cap")), access.NewStore(pool, false),
+		slog.New(slog.DiscardHandler), false, testLimiter(), nil, nil)
+	req := httptest.NewRequestWithContext(ctx, http.MethodPost, "/signin", http.NoBody)
+	req.AddCookie(&http.Cookie{Name: "goen_cart", Value: token}) //nolint:gosec // G124: dev cookie under test
+	adjusted, err := h.AdoptRequestCart(ctx, req, u.ID)
+	if err != nil {
+		t.Fatalf("AdoptRequestCart: %v", err)
+	}
+	if !adjusted {
+		t.Error("AdoptRequestCart adjusted = false, want true: the sign-in shows no quantity-adjusted notice")
+	}
+
+	rows, err := pool.Query(ctx,
+		`SELECT variant_id, quantity FROM cart_items WHERE cart_id = $1`, accountCart)
+	if err != nil {
+		t.Fatalf("read account cart: %v", err)
+	}
+	type line struct {
+		VariantID uuid.UUID
+		Quantity  int32
+	}
+	lines, err := pgx.CollectRows(rows, pgx.RowToStructByPos[line])
+	if err != nil {
+		t.Fatalf("collect account cart: %v", err)
+	}
+	got := make(map[uuid.UUID]int32, len(lines))
+	for _, l := range lines {
+		got[l.VariantID] = l.Quantity
+	}
+	if len(got) != issuer.MaxIssueProductLines {
+		t.Errorf("account cart holds %d lines, want %d", len(got), issuer.MaxIssueProductLines)
+	}
+	if got[kept] != 1 {
+		t.Errorf("first-added guest line quantity = %d, want 1", got[kept])
+	}
+	for _, v := range leftOut {
+		if q, ok := got[v]; ok {
+			t.Errorf("guest line added after the cart filled is in the account cart with quantity %d", q)
+		}
+	}
+	if got[shared] != 3 {
+		t.Errorf("line both carts hold has quantity %d, want 3 (1 + 2)", got[shared])
+	}
+	var guests int
+	if err := pool.QueryRow(ctx, `SELECT count(*) FROM carts WHERE id = $1`, guestCart).Scan(&guests); err != nil {
+		t.Fatalf("count guest carts: %v", err)
+	}
+	if guests != 0 {
+		t.Error("guest cart survived its merge")
 	}
 }
