@@ -39,6 +39,9 @@ const (
 var queryOwnerExceptions = map[string]string{
 	// order/buyer takes cart's order pages and their queries.
 	"internal/order/buyer -> OrderTracking": "T36b",
+	// The customer's cancel takes the order lock cart's lapse sweeper takes
+	// before it cancels; the lock is declared beside the sweeper's query.
+	"internal/order/buyer -> LockOrderByNumber": "unassigned: one order lock, shared by every path that cancels an order",
 
 	// ShopRules moves to site with its queries; the product page folds into catalog.
 	"internal/catalog -> FreeDeliveryThreshold": "T39",

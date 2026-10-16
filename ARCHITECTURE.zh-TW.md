@@ -104,7 +104,7 @@ Stripe 只送出端點有訂閱的事件，[.env.example](.env.example) 列出�
 
 出貨前由人員退款時，依序保存核准、嘗試更正發票、退回尚欠款項，最後在守門下取消訂單並釋放庫存。發票更正失敗不會阻止退款，但可能讓取消停下來；再按一次會從第一個未完成的步驟續作。可作廢的發票直接作廢，否則可能需要買方線上同意折讓；已送出的折讓與已結案的文件分開記錄。
 
-全額以購物金支付、尚未備貨的訂單，由顧客或人員（透過同一個出貨前退款動作）在一筆交易中取消：退回購物金、釋放庫存與排入 `invoice.void_due` 一起提交，不建立退貨單。已無法作廢的發票交由人員處理；兩條路徑都不會啟動折讓流程。見[出貨前退款][before-shipment]、[顧客取消][cart-cancel]與[發票更正][invoice-cancellation]。
+全額以購物金支付、尚未備貨的訂單，由顧客或人員（透過同一個出貨前退款動作）在一筆交易中取消：退回購物金、釋放庫存與排入 `invoice.void_due` 一起提交，不建立退貨單。已無法作廢的發票交由人員處理；兩條路徑都不會啟動折讓流程。見[出貨前退款][before-shipment]、[顧客取消][customer-cancel]與[發票更正][invoice-cancellation]。
 
 ## 6. 持久背景工作
 
@@ -282,7 +282,7 @@ CI 執行格式、vet、lint、無用程式碼與生成碼檢查、migration lin
 [slowquery]: cmd/goen/slowquery.go
 [checkout]: internal/cart/store.go
 [cart-sweeper]: internal/cart/sweeper.go
-[cart-cancel]: internal/cart/cancel.go
+[customer-cancel]: internal/order/buyer/cancel.go
 [orderaccess]: internal/order/access
 [payment-store]: internal/payment/store.go
 [payment-handler]: internal/payment/handler.go
