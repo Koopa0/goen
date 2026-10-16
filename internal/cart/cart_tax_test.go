@@ -1,4 +1,4 @@
-package pages
+package cart
 
 import (
 	"strings"
@@ -8,6 +8,7 @@ import (
 
 	"github.com/koopa0/goen/internal/i18n"
 	"github.com/koopa0/goen/internal/ui/layouts"
+	"github.com/koopa0/goen/internal/ui/pages"
 )
 
 func TestCartMarksOnlyExemptLines(t *testing.T) {
@@ -23,13 +24,13 @@ func TestCartMarksOnlyExemptLines(t *testing.T) {
 			t.Parallel()
 			for _, mixed := range []bool{true, false} {
 				ctx := i18n.WithLocale(t.Context(), locale.locale)
-				cart := CartView{MixedTaxTypes: mixed, Lines: []CartLine{
+				cart := CartView{MixedTaxTypes: mixed, Lines: []pages.CartLine{
 					{VariantID: "exempt", Name: "Exempt item", TaxExempt: true, Quantity: 1, Available: 1},
 					{VariantID: "exempt-short", Name: "Short item", TaxExempt: true, Quantity: 2, Available: 1, Short: true},
 					{VariantID: "exempt-unavailable", Name: "Unavailable item", TaxExempt: true, Quantity: 1, Unavailable: true},
 				}}
 				if mixed {
-					cart.Lines = append(cart.Lines, CartLine{VariantID: "taxable", Name: "Taxable item", Quantity: 1, Available: 1})
+					cart.Lines = append(cart.Lines, pages.CartLine{VariantID: "taxable", Name: "Taxable item", Quantity: 1, Available: 1})
 				}
 				rendered := renderComponent(t, ctx, Cart(CartMeta(ctx), cart))
 				doc, err := htmlparse.Parse(strings.NewReader(rendered))
@@ -78,7 +79,7 @@ func TestMixedTaxCartExplainsWhyCheckoutIsUnavailable(t *testing.T) {
 	for _, locale := range []i18n.Locale{i18n.ZhHant, i18n.En} {
 		t.Run(string(locale), func(t *testing.T) {
 			ctx := i18n.WithLocale(t.Context(), locale)
-			cart := CartView{Lines: []CartLine{{Name: "Item", Quantity: 1, Available: 1, UnitCents: 100}}, MixedTaxTypes: true}
+			cart := CartView{Lines: []pages.CartLine{{Name: "Item", Quantity: 1, Available: 1, UnitCents: 100}}, MixedTaxTypes: true}
 			if cart.CanCheckout() {
 				t.Error("mixed taxable and exempt cart can check out")
 			}

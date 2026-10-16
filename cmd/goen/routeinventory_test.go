@@ -15,7 +15,6 @@ import (
 
 	"github.com/koopa0/goen/assets"
 	"github.com/koopa0/goen/internal/cart"
-	"github.com/koopa0/goen/internal/ui/pages"
 )
 
 // routeConstants resolves the named constants a route pattern is built from.
@@ -23,10 +22,10 @@ import (
 // a constant added to a pattern must be added here, and storefrontPatterns
 // says so when it meets one it cannot resolve.
 var routeConstants = map[string]string{
-	"assets.Prefix":           assets.Prefix,
-	"cart.PickupReturnPath":   cart.PickupReturnPath,
-	"pages.PickupStartAction": pages.PickupStartAction,
-	"pages.PickupMapPath":     pages.PickupMapPath,
+	"assets.Prefix":          assets.Prefix,
+	"cart.PickupReturnPath":  cart.PickupReturnPath,
+	"cart.PickupStartAction": cart.PickupStartAction,
+	"cart.PickupMapPath":     cart.PickupMapPath,
 }
 
 // routeInventoryFloor is the fewest non-test files storefrontPatterns must have

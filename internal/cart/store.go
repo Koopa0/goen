@@ -260,15 +260,15 @@ func lockCart(ctx context.Context, q *db.Queries, cartID uuid.UUID) error {
 
 // View reads prices and availability fresh every time: a cart line is not a
 // promise.
-func (s *Store) View(ctx context.Context, cartID uuid.UUID) (pages.CartView, error) {
+func (s *Store) View(ctx context.Context, cartID uuid.UUID) (CartView, error) {
 	rows, err := s.q.CartLines(ctx, db.CartLinesParams{
 		CartID: cartID, Locale: string(i18n.FromContext(ctx)),
 	})
 	if err != nil {
-		return pages.CartView{}, fmt.Errorf("read cart lines: %w", err)
+		return CartView{}, fmt.Errorf("read cart lines: %w", err)
 	}
 
-	view := pages.CartView{
+	view := CartView{
 		Lines:       make([]pages.CartLine, 0, len(rows)),
 		HoldMinutes: int64(holdTTL / time.Minute), PayStartMinutes: int64(payWindow / time.Minute),
 	}
@@ -382,15 +382,15 @@ func optionLabel(names, values []string) string {
 
 // SavedAddresses gives a guest none because the QUERY scopes to the owner,
 // never a short-circuit here.
-func (s *Store) SavedAddresses(ctx context.Context, owner uuid.NullUUID) ([]pages.SavedAddress, error) {
+func (s *Store) SavedAddresses(ctx context.Context, owner uuid.NullUUID) ([]SavedAddress, error) {
 	rows, err := s.q.SavedAddresses(ctx, owner.UUID)
 	if err != nil {
 		return nil, fmt.Errorf("read saved addresses: %w", err)
 	}
-	out := make([]pages.SavedAddress, 0, len(rows))
+	out := make([]SavedAddress, 0, len(rows))
 	for i := range rows {
 		r := &rows[i]
-		out = append(out, pages.SavedAddress{
+		out = append(out, SavedAddress{
 			ID: r.ID.String(), Label: r.Label.String, Name: r.RecipientName,
 			Phone: r.Phone, PostalCode: r.PostalCode, City: r.City,
 			District: r.District, Street: r.Street, Default: r.IsDefault,
@@ -437,7 +437,7 @@ func quoteFor(
 
 // ShippingChoices is per cart: a method whose carrier refuses a 27-inch monitor
 // is not a choice for a basket with one in it.
-func (s *Store) ShippingChoices(ctx context.Context, cartID uuid.UUID, subtotalCents int64) ([]pages.ShippingChoice, error) {
+func (s *Store) ShippingChoices(ctx context.Context, cartID uuid.UUID, subtotalCents int64) ([]ShippingChoice, error) {
 	rows, err := s.q.ShippingChoices(ctx, db.ShippingChoicesParams{
 		Locale: string(i18n.FromContext(ctx)),
 		CartID: cartID,
@@ -445,7 +445,7 @@ func (s *Store) ShippingChoices(ctx context.Context, cartID uuid.UUID, subtotalC
 	if err != nil {
 		return nil, fmt.Errorf("read shipping choices: %w", err)
 	}
-	out := make([]pages.ShippingChoice, 0, len(rows))
+	out := make([]ShippingChoice, 0, len(rows))
 	for i := range rows {
 		r := &rows[i]
 		fee := ShippingFee(r.FeeCents, r.FreeOverCents.Int64, subtotalCents)
@@ -454,7 +454,7 @@ func (s *Store) ShippingChoices(ctx context.Context, cartID uuid.UUID, subtotalC
 		if r.FeeCents <= 0 {
 			threshold = 0
 		}
-		out = append(out, pages.ShippingChoice{
+		out = append(out, ShippingChoice{
 			VersionID:       r.VersionID.String(),
 			Code:            r.Code,
 			DestinationKind: r.DestinationKind,

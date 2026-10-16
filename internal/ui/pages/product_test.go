@@ -17,6 +17,7 @@ import (
 
 	"github.com/koopa0/goen/internal/contact"
 	"github.com/koopa0/goen/internal/i18n"
+	"github.com/koopa0/goen/internal/ui/layouts"
 )
 
 func TestSoldOutGuidanceMatchesAvailableOptionPickers(t *testing.T) {
@@ -675,5 +676,123 @@ func TestChoosingOptionsIsSaidOnce(t *testing.T) {
 	got := renderProduct(t, &view, i18n.En)
 	if n := strings.Count(strings.ToLower(got), "choose"); n != 1 {
 		t.Errorf("the page asks the visitor to choose %d times, want once", n)
+	}
+}
+
+// TestANamelessReviewerIsNotBadgedAsABuyer holds the byline apart from the
+// badge. A name is optional at registration and erase_user blanks it, so the
+// fallback byline must not borrow the verified-buyer wording:
+// product_reviews_verified_is_real guards the badge and cannot see a claim
+// made in the author slot.
+func TestANamelessReviewerIsNotBadgedAsABuyer(t *testing.T) {
+	t.Parallel()
+
+	ctx := i18n.WithLocale(t.Context(), i18n.ZhHant)
+	bought := i18n.T(ctx, i18n.KeyVerifiedBuyer)
+
+	nameless := ProductReview{Author: "", Rating: 1}
+	if got := nameless.DisplayAuthor(ctx); strings.Contains(got, bought) {
+		t.Errorf("a nameless reviewer is bylined %q, which contains the verified "+
+			"claim %q — the badge is what says somebody bought, and this review "+
+			"has not", got, bought)
+	}
+}
+
+func TestAReviewerIsMaskedTheSameWayForEveryReview(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name   string
+		locale i18n.Locale
+		author string
+		want   string
+	}{
+		{"zh full name", i18n.ZhHant, "王小明", "王○○"},
+		{"zh one character", i18n.ZhHant, "王", "王○○"},
+		{"zh latin name", i18n.ZhHant, "alice Chen", "a○○"},
+		{"en full name", i18n.En, "Alice Chen", "A."},
+		{"en lower case", i18n.En, "bob", "B."},
+		{"en han name", i18n.En, "王小明", "王."},
+		{"padded", i18n.ZhHant, "  陳大文", "陳○○"},
+		{"leading replacement character zh", i18n.ZhHant, "\uFFFD Example Person", "\uFFFD○○"},
+		{"leading replacement character en", i18n.En, "\uFFFD Example Person", "\uFFFD."},
+		{"blank", i18n.ZhHant, "   ", "○○"},
+		{"no name zh", i18n.ZhHant, "", "匿名顧客"},
+		{"no name en", i18n.En, "", "Anonymous"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			got := (ProductReview{Author: tt.author}).DisplayAuthor(i18n.WithLocale(t.Context(), tt.locale))
+			if got != tt.want {
+				t.Errorf("DisplayAuthor(%q) in %s = %q, want %q", tt.author, tt.locale, got, tt.want)
+			}
+		})
+	}
+}
+
+// TestTheProductPageSaysWhetherItAddedAnything asserts the HTML, because the
+// view model can carry the outcome correctly while the template renders it
+// nowhere.
+func TestTheProductPageSaysWhetherItAddedAnything(t *testing.T) {
+	base := func(outcome string) *ProductView {
+		return &ProductView{
+			Slug: "pixelight-9-pro", Name: "Pixelight 9 Pro",
+			VariantID: "v1", PriceCents: 3690000, Available: 3,
+			AddedOutcome: AddOutcome(outcome),
+		}
+	}
+
+	ctx := i18n.WithLocale(t.Context(), i18n.ZhHant)
+	confirm := i18n.T(ctx, i18n.KeyAddedToCart)
+	refusal := i18n.T(ctx, i18n.KeyAddRefused)
+
+	// The exact words, not just role="status": the page carries other live
+	// regions.
+	added := renderToString(t, Product(layouts.Page{Title: "x"}, base("added")))
+	if !strings.Contains(added, confirm) {
+		t.Errorf("a successful add renders no confirmation; wanted %q", confirm)
+	}
+	viewCart := i18n.T(ctx, i18n.KeyViewCart)
+	if !strings.Contains(added, viewCart) || !strings.Contains(added, `href="/cart"`) {
+		t.Errorf("a successful add renders no cart link; wanted %q beside /cart", viewCart)
+	}
+	if !strings.Contains(added, `role="status"`) {
+		t.Error("the success confirmation is not exposed as a live status")
+	}
+
+	refused := renderToString(t, Product(layouts.Page{Title: "x"}, base("unavailable")))
+	if !strings.Contains(refused, refusal) {
+		t.Errorf("a refused add renders no refusal; wanted %q", refusal)
+	}
+	if added == refused {
+		t.Error("the success and the refusal render identically, which is the " +
+			"defect: nothing added, and the page says the same thing either way")
+	}
+
+	// An ordinary visit shows neither.
+	plain := renderToString(t, Product(layouts.Page{Title: "x"}, base("")))
+	if strings.Contains(plain, confirm) || strings.Contains(plain, refusal) {
+		t.Error("an ordinary page visit renders an add-to-cart message")
+	}
+}
+
+func TestQuestionsAndAnswersMaskNamesLikeReviews(t *testing.T) {
+	t.Parallel()
+	ctx := i18n.WithLocale(t.Context(), i18n.ZhHant)
+	if got := (Question{Asker: "王小明"}).Who(ctx); got != "王○○" {
+		t.Errorf("asker shown as %q, want 王○○", got)
+	}
+	if got := (Answer{Author: "陳大文"}).Who(ctx); got != "陳○○" {
+		t.Errorf("answerer shown as %q, want 陳○○", got)
+	}
+	if got := (Question{Asker: "\uFFFD Example Person"}).Who(ctx); strings.Contains(got, "Example") {
+		t.Errorf("asker shown as %q, which carries the rest of the name", got)
+	}
+	if got := (Answer{Author: "\uFFFD Example Person"}).Who(ctx); strings.Contains(got, "Example") {
+		t.Errorf("answerer shown as %q, which carries the rest of the name", got)
+	}
+	if got := (Answer{Author: "陳大文", IsStaff: true}).Who(ctx); got != "goen" {
+		t.Errorf("staff answer shown as %q, want goen", got)
 	}
 }

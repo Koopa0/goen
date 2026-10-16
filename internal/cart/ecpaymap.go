@@ -14,7 +14,6 @@ import (
 
 	"github.com/koopa0/goen/internal/shipping"
 
-	"github.com/koopa0/goen/internal/ui/pages"
 	"github.com/koopa0/goen/internal/web"
 )
 
@@ -147,12 +146,12 @@ func (m *StoreMap) ChainFor(subtype string) (shipping.Chain, bool) {
 // checkout's name, phone, e-mail and address must never ride to a third party.
 // tradeNo is fresh per render; the nonce travels in ExtraData, which ECPay
 // echoes back unchanged.
-func (m *StoreMap) Request(chain shipping.Chain, tradeNo, nonce string, mobile bool) (pages.CheckoutMapForm, bool) {
+func (m *StoreMap) Request(chain shipping.Chain, tradeNo, nonce string, mobile bool) (CheckoutMapForm, bool) {
 	subtype, ok := m.Subtype(chain)
 	if !ok {
-		return pages.CheckoutMapForm{}, false
+		return CheckoutMapForm{}, false
 	}
-	f := pages.CheckoutMapForm{
+	f := CheckoutMapForm{
 		Action:           m.action,
 		MerchantID:       m.merchantID,
 		MerchantTradeNo:  tradeNo,

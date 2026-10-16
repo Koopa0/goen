@@ -43,7 +43,7 @@ var unreferencedExports = map[string]string{
 	"github.com/koopa0/goen/internal/ui/components.SizeMedium": "the default step: class() has no case for it and renders the empty class, " +
 		"so a caller that leaves Size empty and one that names SizeMedium get the same button; the name is the " +
 		"third member of the Size set beside SizeSmall and SizeLarge",
-	"github.com/koopa0/goen/internal/ui/pages.FreeDeliveryUnstated": "the zero value of FreeDeliveryKind, named because silence is a " +
+	"github.com/koopa0/goen/internal/cart.FreeDeliveryUnstated": "the zero value of FreeDeliveryKind, named because silence is a " +
 		"decision (the methods on offer disagree); every switch on Kind falls through to it",
 	"github.com/koopa0/goen/internal/loyalty.ReversedForReturn": "the 'return' reason that reverse_return_points writes into " +
 		"loyalty_entries.reason; pointsHistoryEntry converts the stored text with " +

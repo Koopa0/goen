@@ -18,7 +18,6 @@ import (
 	"github.com/koopa0/goen/internal/cart"
 	"github.com/koopa0/goen/internal/i18n"
 	"github.com/koopa0/goen/internal/order/access"
-	"github.com/koopa0/goen/internal/ui/pages"
 	"github.com/koopa0/goen/internal/user"
 )
 
@@ -140,7 +139,7 @@ func startPickupAs(
 	t *testing.T, h *cart.Handler, token string, who *user.User, fields url.Values, cookies ...*http.Cookie,
 ) (body string, pickupCookie *http.Cookie, status int) {
 	t.Helper()
-	req := httptest.NewRequestWithContext(t.Context(), http.MethodPost, pages.PickupStartAction,
+	req := httptest.NewRequestWithContext(t.Context(), http.MethodPost, cart.PickupStartAction,
 		strings.NewReader(fields.Encode()))
 	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
 	//nolint:gosec // G124: the browser's own cart cookie
@@ -154,11 +153,11 @@ func startPickupAs(
 	res := httptest.NewRecorder()
 	h.PickupStart(res, req)
 	pickupCookie = pickupCookieOf(res)
-	if res.Code != http.StatusSeeOther || res.Header().Get("Location") != pages.PickupMapPath {
+	if res.Code != http.StatusSeeOther || res.Header().Get("Location") != cart.PickupMapPath {
 		return res.Body.String(), pickupCookie, res.Code
 	}
 
-	next := httptest.NewRequestWithContext(t.Context(), http.MethodGet, pages.PickupMapPath, http.NoBody)
+	next := httptest.NewRequestWithContext(t.Context(), http.MethodGet, cart.PickupMapPath, http.NoBody)
 	//nolint:gosec // G124: the browser's own cart cookie
 	next.AddCookie(&http.Cookie{Name: "goen_cart", Value: token})
 	if pickupCookie != nil {

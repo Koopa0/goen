@@ -8,8 +8,8 @@ import (
 	"github.com/koopa0/goen/internal/ui/layouts"
 )
 
-// From TestEmptyStatesShowTheirIllustrationAsDecoration, which keeps the cart's row.
-func TestCatalogEmptyStatesShowTheirIllustrationAsDecoration(t *testing.T) {
+// The cart's row of this test is internal/cart's TestCartEmptyStateShowsItsIllustration.
+func TestEmptyStatesShowTheirIllustrationAsDecoration(t *testing.T) {
 	t.Parallel()
 	for name, tt := range map[string]struct {
 		page  string

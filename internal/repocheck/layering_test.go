@@ -42,7 +42,6 @@ import (
 // A consumer declares the values it needs from a leaf, and the package that
 // renders a view fills it from them (T46, T47).
 var viewPackageImporters = []string{
-	"cmd/goen",
 	"internal/account",
 	"internal/admin/dashboard",
 	"internal/admin/orders",
@@ -56,7 +55,6 @@ var viewPackageImporters = []string{
 }
 
 var dataFilesNamingViews = []string{
-	"cmd/goen/server.go",
 	"internal/account/store.go",
 	"internal/admin/dashboard/store.go",
 	"internal/admin/orders/picking.go",
@@ -78,7 +76,6 @@ var dataFilesNamingViews = []string{
 
 var storeMethodsNamingViews = map[string]int{
 	"internal/account/store.go":         1,
-	"internal/cart/store.go":            3,
 	"internal/catalog/compare.go":       1,
 	"internal/catalog/department.go":    1,
 	"internal/catalog/product_store.go": 8,
@@ -90,8 +87,7 @@ var storeMethodsNamingViews = map[string]int{
 }
 
 var viewValueReads = map[string]int{
-	"cmd/goen/server.go":          2,
-	"internal/cart/handler.go":    11,
+	"internal/cart/handler.go":    5,
 	"internal/catalog/compare.go": 3,
 	// The compare views moved in S8a read MinCompare and MaxCompare, which stay
 	// in ui/pages while the product page there reads them too. S8b moves

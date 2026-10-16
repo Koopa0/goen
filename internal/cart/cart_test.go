@@ -17,7 +17,6 @@ import (
 	"github.com/koopa0/goen/internal/i18n"
 	"github.com/koopa0/goen/internal/invoice"
 	"github.com/koopa0/goen/internal/order/delivery"
-	"github.com/koopa0/goen/internal/ui/pages"
 )
 
 func TestCheckoutQuoteIdentityNamesEveryCommercialFact(t *testing.T) {
@@ -723,7 +722,7 @@ func TestDestinationForRefusesWhatItDoesNotKnow(t *testing.T) {
 func TestFillFromBookPrefersTheNamedAddressAndFallsBackToTheDefault(t *testing.T) {
 	t.Parallel()
 
-	book := []pages.SavedAddress{
+	book := []SavedAddress{
 		{ID: "first", Label: "家", Name: "王小明", Phone: "0911111111",
 			PostalCode: "106", City: "台北市", District: "大安區", Street: "和平東路 1 號", Default: true},
 		{ID: "second", Label: "公司", Name: "王小明", Phone: "0222222222",
@@ -737,7 +736,7 @@ func TestFillFromBookPrefersTheNamedAddressAndFallsBackToTheDefault(t *testing.T
 	} {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
-			view := pages.CheckoutView{SavedAddresses: book}
+			view := CheckoutView{SavedAddresses: book}
 			var addr delivery.Details
 			fillFromBook(&view, &addr, tt.wanted)
 			if addr.Street != tt.street {
@@ -753,7 +752,7 @@ func TestFillFromBookPrefersTheNamedAddressAndFallsBackToTheDefault(t *testing.T
 // TestFillFromBookLeavesAnEmptyBookAlone — a guest gets the form they always got.
 func TestFillFromBookLeavesAnEmptyBookAlone(t *testing.T) {
 	t.Parallel()
-	view := pages.CheckoutView{}
+	view := CheckoutView{}
 	addr := delivery.Details{Street: "typed by hand"}
 	fillFromBook(&view, &addr, "anything")
 	if addr.Street != "typed by hand" || view.ChosenAddress != "" {
@@ -848,16 +847,16 @@ func TestFullWidthDigitsAreFoldedBeforeTheCheckoutFieldsAreChecked(t *testing.T)
 // of the saved ones, so the book fills nothing and the choice is remembered.
 func TestFillFromBookLeavesTheFormToTheShopperForAnotherAddress(t *testing.T) {
 	t.Parallel()
-	view := pages.CheckoutView{SavedAddresses: []pages.SavedAddress{
+	view := CheckoutView{SavedAddresses: []SavedAddress{
 		{ID: "first", Name: "王小明", Street: "和平東路 1 號", Default: true},
 	}}
 	addr := delivery.Details{Street: "typed by hand"}
-	fillFromBook(&view, &addr, pages.OtherAddress)
+	fillFromBook(&view, &addr, OtherAddress)
 	if addr.Street != "typed by hand" || addr.RecipientName != "" {
 		t.Errorf("another address filled the form from the book: %+v", addr)
 	}
-	if view.ChosenAddress != pages.OtherAddress {
-		t.Errorf("the choice was %q, want %q", view.ChosenAddress, pages.OtherAddress)
+	if view.ChosenAddress != OtherAddress {
+		t.Errorf("the choice was %q, want %q", view.ChosenAddress, OtherAddress)
 	}
 }
 
@@ -867,7 +866,7 @@ func TestFillFromBookLeavesTheFormToTheShopperForAnotherAddress(t *testing.T) {
 // back into a field that still holds the account's value.
 func TestTheRecipientBoxIsAnExplicitRequestAndUntickingRestores(t *testing.T) {
 	t.Parallel()
-	profile := pages.CheckoutProfile{Email: "me@example.com", Name: "王小明", Phone: "0912345678"}
+	profile := CheckoutProfile{Email: "me@example.com", Name: "王小明", Phone: "0912345678"}
 
 	type fields struct{ name, phone string }
 	for _, tt := range []struct {
@@ -899,7 +898,7 @@ func TestTheRecipientBoxIsAnExplicitRequestAndUntickingRestores(t *testing.T) {
 	} {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
-			view := pages.CheckoutView{
+			view := CheckoutView{
 				Profile: profile, RecipientMe: tt.checked,
 				RecipientPrevName: tt.prev.name, RecipientPrevPhone: tt.prev.phone,
 			}
@@ -922,8 +921,8 @@ func TestTheRecipientBoxIsAnExplicitRequestAndUntickingRestores(t *testing.T) {
 // fills the name and leaves the phone alone, and still counts as the member.
 func TestAProfileWithoutAPhoneNeverWipesOne(t *testing.T) {
 	t.Parallel()
-	view := pages.CheckoutView{
-		Profile:     pages.CheckoutProfile{Email: "me@example.com", Name: "王小明"},
+	view := CheckoutView{
+		Profile:     CheckoutProfile{Email: "me@example.com", Name: "王小明"},
 		RecipientMe: true,
 	}
 	addr := delivery.Details{RecipientName: "林小美", Phone: "0987654321"}
@@ -935,10 +934,10 @@ func TestAProfileWithoutAPhoneNeverWipesOne(t *testing.T) {
 
 func TestPrefillRecipientNeverOverwritesAndReportsWhetherItIsTheMember(t *testing.T) {
 	t.Parallel()
-	profile := pages.CheckoutProfile{Email: "me@example.com", Name: "王小明", Phone: "0912345678"}
+	profile := CheckoutProfile{Email: "me@example.com", Name: "王小明", Phone: "0912345678"}
 
 	empty := delivery.Details{}
-	view := pages.CheckoutView{Profile: profile}
+	view := CheckoutView{Profile: profile}
 	prefillRecipient(&view, &empty)
 	if empty.RecipientName != "王小明" || empty.Phone != "0912345678" || !view.RecipientMe {
 		t.Errorf("an empty form was not filled from the account: %+v me=%v", empty, view.RecipientMe)
@@ -946,7 +945,7 @@ func TestPrefillRecipientNeverOverwritesAndReportsWhetherItIsTheMember(t *testin
 
 	// A saved address for somebody else keeps its own recipient.
 	gift := delivery.Details{RecipientName: "林小美", Phone: "0987654321"}
-	view = pages.CheckoutView{Profile: profile}
+	view = CheckoutView{Profile: profile}
 	prefillRecipient(&view, &gift)
 	if gift.RecipientName != "林小美" || gift.Phone != "0987654321" || view.RecipientMe {
 		t.Errorf("the account overwrote another recipient: %+v me=%v", gift, view.RecipientMe)
@@ -954,7 +953,7 @@ func TestPrefillRecipientNeverOverwritesAndReportsWhetherItIsTheMember(t *testin
 
 	// A guest has no profile, so nothing is filled and no box is checked.
 	guest := delivery.Details{}
-	view = pages.CheckoutView{}
+	view = CheckoutView{}
 	prefillRecipient(&view, &guest)
 	if guest.RecipientName != "" || view.RecipientMe {
 		t.Errorf("a guest was prefilled: %+v me=%v", guest, view.RecipientMe)
@@ -985,34 +984,34 @@ func TestABlankCityIsAskedToBeFilledIn(t *testing.T) {
 func TestTheCartSpeaksOfFreeDeliveryOnlyWhereItIsTrueForEveryMethod(t *testing.T) {
 	t.Parallel()
 
-	home := pages.ShippingChoice{FeeCents: 100, FreeOverCents: 300000}
-	pickupPoint := pages.ShippingChoice{FeeCents: 60, FreeOverCents: 150000}
-	never := pages.ShippingChoice{FeeCents: 100}
-	free := func(c pages.ShippingChoice) pages.ShippingChoice { c.FeeCents, c.Free = 0, true; return c }
+	home := ShippingChoice{FeeCents: 100, FreeOverCents: 300000}
+	pickupPoint := ShippingChoice{FeeCents: 60, FreeOverCents: 150000}
+	never := ShippingChoice{FeeCents: 100}
+	free := func(c ShippingChoice) ShippingChoice { c.FeeCents, c.Free = 0, true; return c }
 
-	islands := func(c pages.ShippingChoice) pages.ShippingChoice { c.SurchargeZones = []string{"離島"}; return c }
+	islands := func(c ShippingChoice) ShippingChoice { c.SurchargeZones = []string{"離島"}; return c }
 
 	for _, tt := range []struct {
 		name     string
-		choices  []pages.ShippingChoice
+		choices  []ShippingChoice
 		subtotal int64
-		want     pages.FreeDelivery
+		want     FreeDelivery
 	}{
-		{"nothing offered", nil, 0, pages.FreeDelivery{}},
-		{"one method, short", []pages.ShippingChoice{home}, 100000,
-			pages.FreeDelivery{Kind: pages.FreeDeliveryShort, ShortfallCents: 200000, ThresholdCents: 300000}},
+		{"nothing offered", nil, 0, FreeDelivery{}},
+		{"one method, short", []ShippingChoice{home}, 100000,
+			FreeDelivery{Kind: FreeDeliveryShort, ShortfallCents: 200000, ThresholdCents: 300000}},
 		{"two thresholds, the higher one is the one that is true for both",
-			[]pages.ShippingChoice{home, pickupPoint}, 100000,
-			pages.FreeDelivery{Kind: pages.FreeDeliveryShort, ShortfallCents: 200000, ThresholdCents: 300000}},
+			[]ShippingChoice{home, pickupPoint}, 100000,
+			FreeDelivery{Kind: FreeDeliveryShort, ShortfallCents: 200000, ThresholdCents: 300000}},
 		{"one method is already free, the other is not",
-			[]pages.ShippingChoice{home, free(pickupPoint)}, 200000,
-			pages.FreeDelivery{Kind: pages.FreeDeliveryShort, ShortfallCents: 100000, ThresholdCents: 300000}},
-		{"a method that is never free says nothing", []pages.ShippingChoice{home, never}, 100000, pages.FreeDelivery{}},
-		{"every method free", []pages.ShippingChoice{free(home), free(pickupPoint)}, 300000,
-			pages.FreeDelivery{Kind: pages.FreeDeliveryReached, ThresholdCents: 300000}},
+			[]ShippingChoice{home, free(pickupPoint)}, 200000,
+			FreeDelivery{Kind: FreeDeliveryShort, ShortfallCents: 100000, ThresholdCents: 300000}},
+		{"a method that is never free says nothing", []ShippingChoice{home, never}, 100000, FreeDelivery{}},
+		{"every method free", []ShippingChoice{free(home), free(pickupPoint)}, 300000,
+			FreeDelivery{Kind: FreeDeliveryReached, ThresholdCents: 300000}},
 		{"every method free, two of them charging the same zone extra",
-			[]pages.ShippingChoice{islands(free(home)), islands(free(pickupPoint)), free(pickupPoint)}, 300000,
-			pages.FreeDelivery{Kind: pages.FreeDeliveryReached, ThresholdCents: 300000, SurchargeZones: []string{"離島"}}},
+			[]ShippingChoice{islands(free(home)), islands(free(pickupPoint)), free(pickupPoint)}, 300000,
+			FreeDelivery{Kind: FreeDeliveryReached, ThresholdCents: 300000, SurchargeZones: []string{"離島"}}},
 	} {
 		if got := freeDeliveryFor(tt.choices, tt.subtotal); !cmp.Equal(got, tt.want) {
 			t.Errorf("%s: got %+v, want %+v", tt.name, got, tt.want)
