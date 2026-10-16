@@ -86,7 +86,7 @@ var (
 	// siteMayImport is what internal/site may import besides itself and the
 	// leaves: the foundation every storefront page is built on.
 	siteMayImport = []string{
-		"assets", "internal/i18n", "internal/web", "internal/ui/components", "internal/ui/layouts",
+		"assets", "internal/i18n", "internal/web", "internal/ui/layouts",
 	}
 	// importFreeLeaves import no goen package at all.
 	importFreeLeaves = []string{
