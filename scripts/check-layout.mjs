@@ -237,7 +237,7 @@ const ADMIN = [
   { label: 'admin 375', width: 375, height: 812, path: '/admin', marker: '.goen-spark' },
   { label: 'admin 1440', width: 1440, height: 900, path: '/admin', marker: '.goen-spark' },
   { label: 'admin stock 375', width: 375, height: 812, path: '/admin/stock' },
-  { label: 'admin orders 375', width: 375, height: 812, path: '/admin/orders' },
+  { label: 'admin orders 375', width: 375, height: 812, path: '/admin/orders', currentItem: true },
   { label: 'admin picking 375', width: 375, height: 812, path: '/admin/orders/picking/slips', marker: '.goen-admin__slip' },
   { label: 'admin picking 1440', width: 1440, height: 900, path: '/admin/orders/picking/slips', marker: '.goen-admin__slip' },
   // The back-office pages with the widest tables.
@@ -3199,6 +3199,38 @@ if (process.env.ADMIN_TOKEN) {
     // of its own, so measuring it would report the wrong page's problems as this
     // page's.
     checkAccessibility(at, got);
+    // The current nav item and tab carry an edge that is not a colour, in forced
+    // colours too, where the shadow is dropped and the Highlight outline stays.
+    if (want.currentItem) {
+      const edges = `(() => ['.goen-admin__nav [aria-current="page"]', '.goen-admin__tabs [aria-current]'].map((selector) => {
+        const element = document.querySelector(selector);
+        if (!element) return { selector, missing: true };
+        const style = getComputedStyle(element);
+        return { selector, shadow: style.boxShadow, outlineStyle: style.outlineStyle, outlineWidth: parseFloat(style.outlineWidth) };
+      }))()`;
+      const plain = await evalPage(edges);
+      await send(ws, 'Emulation.setEmulatedMedia', { features: [{ name: 'forced-colors', value: 'active' }] });
+      let forced;
+      try {
+        forced = await evalPage(edges);
+      } finally {
+        await send(ws, 'Emulation.setEmulatedMedia', { features: [] });
+      }
+      for (const [mode, rows] of [['colours', plain], ['forced colours', forced]]) {
+        if (!Array.isArray(rows)) {
+          fail(at, `current item edge (${mode}): the probe did not run — ${rows.why || ''}`);
+          continue;
+        }
+        for (const row of rows) {
+          if (row.missing) {
+            fail(at, `current item edge (${mode}): ${row.selector} is absent, so the check proved nothing`);
+          } else if (mode === 'colours' ? !/inset/.test(row.shadow) || !/\b2px\b/.test(row.shadow)
+            : row.outlineStyle === 'none' || !(row.outlineWidth > 0)) {
+            fail(at, `current item edge (${mode}): ${row.selector} has shadow "${row.shadow}", outline ${row.outlineStyle} ${row.outlineWidth}px`);
+          }
+        }
+      }
+    }
     if (got.scrollWidth > got.viewportWidth) {
       fail(at, `page scrolls horizontally (${got.scrollWidth} > ${got.viewportWidth})` +
         (got.overflowing.length ? ` — widest: ${got.overflowing.join(', ')}` : ''));
