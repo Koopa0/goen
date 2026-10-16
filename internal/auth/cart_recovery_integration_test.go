@@ -71,19 +71,19 @@ func TestCartRecoveryReadsBothBasketsWithoutChangingOrExposingAnotherAccount(t *
 					if browser.token != "" {
 						req.AddCookie(browserCart(browser.token))
 					}
-					contents, readErr := carts.RecoveryContents(req.Context(), req)
+					beforeSignIn, account, readErr := carts.RecoveryContents(req.Context(), req)
 					if readErr != nil {
 						t.Fatal(readErr)
 					}
-					if len(contents.Account) != 1 || contents.Account[0].VariantID != accountVariant.String() || contents.Account[0].Quantity != 3 {
-						t.Fatalf("account recovery lines = %+v, want only the current account's three units", contents.Account)
+					if len(account) != 1 || account[0].VariantID != accountVariant || account[0].Quantity != 3 {
+						t.Fatalf("account recovery items = %+v, want only the current account's three units", account)
 					}
 					if browser.guest {
-						if len(contents.BeforeSignIn) != 1 || contents.BeforeSignIn[0].VariantID != guestVariant.String() || contents.BeforeSignIn[0].Quantity != 2 {
-							t.Fatalf("before-sign-in lines = %+v, want the guest basket's two units", contents.BeforeSignIn)
+						if len(beforeSignIn) != 1 || beforeSignIn[0].VariantID != guestVariant || beforeSignIn[0].Quantity != 2 {
+							t.Fatalf("before-sign-in items = %+v, want the guest basket's two units", beforeSignIn)
 						}
-					} else if len(contents.BeforeSignIn) != 0 {
-						t.Errorf("an absent or owned cookie exposed a before-sign-in basket: %+v", contents.BeforeSignIn)
+					} else if len(beforeSignIn) != 0 {
+						t.Errorf("an absent or owned cookie exposed a before-sign-in basket: %+v", beforeSignIn)
 					}
 					req = req.WithContext(ctx)
 					req.AddCookie(session)
@@ -93,7 +93,7 @@ func TestCartRecoveryReadsBothBasketsWithoutChangingOrExposingAnotherAccount(t *
 						t.Fatalf("recovery GET = %d with cookies %v, want 200 with no cookie writes", res.Code, res.Header().Values("Set-Cookie"))
 					}
 					body := res.Body.String()
-					if !strings.Contains(html.UnescapeString(body), contents.Account[0].Name) || !strings.Contains(body, `value="/checkout"`) {
+					if !strings.Contains(html.UnescapeString(body), account[0].Name) || !strings.Contains(body, `value="/checkout"`) {
 						t.Error("rendered recovery lost the account item or retry destination")
 					}
 					for _, fixture := range []struct {
