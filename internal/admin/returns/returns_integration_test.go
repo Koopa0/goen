@@ -33,10 +33,10 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/stripe/stripe-go/v86"
 
-	"github.com/koopa0/goen/internal/account"
 	"github.com/koopa0/goen/internal/admin/reports"
 	"github.com/koopa0/goen/internal/admin/returns"
 	"github.com/koopa0/goen/internal/admin/stock"
+	"github.com/koopa0/goen/internal/auth"
 	"github.com/koopa0/goen/internal/i18n"
 	"github.com/koopa0/goen/internal/keyset"
 	"github.com/koopa0/goen/internal/order/buyer"
@@ -360,7 +360,7 @@ func TestASettledReturnCanClawPointsBackAfterOwnerErasure(t *testing.T) {
 		t.Fatalf("record timeline before erasure: %v", err)
 	}
 
-	if err := account.NewStore(pool).Erase(ctx, userID.String()); err != nil {
+	if err := auth.NewStore(pool).Erase(ctx, userID.String()); err != nil {
 		t.Fatalf("erase owner after money settled: %v", err)
 	}
 	var detached bool
@@ -2588,7 +2588,7 @@ func TestATerminalCardRetrySurvivesErasureAfterCreditLanded(t *testing.T) {
 		`SELECT user_id FROM orders WHERE order_number = $1`, orderNumber).Scan(&customerID); err != nil {
 		t.Fatalf("read return owner: %v", err)
 	}
-	if err := account.NewStore(pool).Erase(ctx, customerID.String()); err != nil {
+	if err := auth.NewStore(pool).Erase(ctx, customerID.String()); err != nil {
 		t.Fatalf("erase after exact credit posting: %v", err)
 	}
 	var detached bool

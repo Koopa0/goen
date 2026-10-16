@@ -136,7 +136,7 @@ SMTP 收下郵件後、確認前若程序中止，郵件可能寄出兩次：寄
 
 稽核證據與它描述的變更一起提交，透過 `audit.Run`、`audit.In` 或特權函式本身寫入；紀錄只能新增，帳號刪除另有明確處理。`reporting` 角色沒有執行期連線池，讀不到憑證、session、個人與收件資料、自由文字、webhook 證據，以及 outbox 與發票操作表；訂單與退貨表只開放列出的業務欄位。migration 由 schema owner 執行。
 
-密碼使用 Argon2id；session token 不透明，並以雜湊保存。secure mode 下，session、購物車、訂單存取與門市選擇的 cookie 使用 `__Host-`；所有 cookie 都是 `HttpOnly`，`Secure` 跟隨 secure mode。員工需要授權與 TOTP 二次驗證，管理員動作另有一道守門；TOTP secret 加密保存，重播的驗證碼會被拒絕；連續輸入錯誤的驗證碼會鎖住第二因素，直到另一位管理員移除，每次錯誤都寫入稽核紀錄並寄信通知帳號本人。見[帳號][account]、[存取][access]與[兩步驟驗證][twofactor]。
+密碼使用 Argon2id；session token 不透明，並以雜湊保存。secure mode 下，session、購物車、訂單存取與門市選擇的 cookie 使用 `__Host-`；所有 cookie 都是 `HttpOnly`，`Secure` 跟隨 secure mode。員工需要授權與 TOTP 二次驗證，管理員動作另有一道守門；TOTP secret 加密保存，重播的驗證碼會被拒絕；連續輸入錯誤的驗證碼會鎖住第二因素，直到另一位管理員移除，每次錯誤都寫入稽核紀錄並寄信通知帳號本人。見[登入][auth]、[存取][access]與[兩步驟驗證][twofactor]。
 
 只要知道密碼，就能故意把第二因素鎖住。被鎖的人如果是唯一的管理員，就沒有人能在 `/admin/staff` 移除。錯誤的驗證碼若不是本人輸入的，請先透過 `/forgot` 重設密碼。接著由營運者執行下面的指令：它和 `/admin/staff` 一樣移除第二因素並結束它的所有登入，但不會寫入稽核紀錄。本人下次進入 `/admin` 時重新設定即可。
 
@@ -271,7 +271,7 @@ CI 執行格式、vet、lint、無用程式碼與生成碼檢查、migration lin
 | 瀏覽與衍生資料 | [`internal/catalog`][catalog-store]、[`internal/home`][home-banner]、[`internal/recommend`][recommend]、[報表][reports] |
 | 語言、金額與時間 | [`internal/i18n`][i18n]、[`internal/money`][money]、[`internal/shoptime`][shoptime] |
 | 資產與媒體 | [`assets`][assets]、[`internal/media`][media-render] |
-| 身分與瀏覽器安全 | [`internal/account`][account]、[`internal/bearer`][bearer]、[員工存取][access]、[`internal/admin/twofactor`][twofactor]、[`internal/ratelimit`][ratelimit] |
+| 身分與瀏覽器安全 | [`internal/auth`][auth]、[`internal/bearer`][bearer]、[員工存取][access]、[`internal/admin/twofactor`][twofactor]、[`internal/ratelimit`][ratelimit] |
 | 維運 | [健康查詢][health-sql]、[探針][probe]、[慢查詢紀錄][slowquery]、[Makefile][makefile]、[CI][workflows] |
 
 [contributing]: CONTRIBUTING.md
@@ -306,7 +306,7 @@ CI 執行格式、vet、lint、無用程式碼與生成碼檢查、migration lin
 [conformance]: internal/db/coverage_integration_test.go
 [dbtest]: internal/db/dbtest
 [audit]: internal/admin/audit/audit.go
-[account]: internal/account
+[auth]: internal/auth
 [bearer]: internal/bearer
 [access]: internal/admin/access/access.go
 [twofactor]: internal/admin/twofactor

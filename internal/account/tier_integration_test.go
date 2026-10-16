@@ -15,7 +15,7 @@ import (
 func TestATierIsDerivedFromSpendAndNotStored(t *testing.T) {
 	ctx := t.Context()
 	s := account.NewStore(pool)
-	u := register(t, s, "tiered-account@example.com")
+	u := register(t, "tiered-account@example.com")
 
 	before, err := s.Overview(ctx, u)
 	if err != nil {

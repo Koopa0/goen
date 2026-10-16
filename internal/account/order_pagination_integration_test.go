@@ -20,8 +20,8 @@ import (
 
 func TestAccountOrdersReachEveryOlderOrderWithoutJavaScript(t *testing.T) {
 	s := account.NewStore(pool)
-	owner := register(t, s, "paged-"+uuid.NewString()+"@example.invalid")
-	other := register(t, s, "other-paged-"+uuid.NewString()+"@example.invalid")
+	owner := register(t, "paged-"+uuid.NewString()+"@example.invalid")
+	other := register(t, "other-paged-"+uuid.NewString()+"@example.invalid")
 	ctx := user.NewContext(i18n.WithLocale(t.Context(), i18n.En), owner)
 	if _, err := pool.Exec(ctx, `
  WITH inserted AS (
@@ -37,7 +37,7 @@ func TestAccountOrdersReachEveryOlderOrderWithoutJavaScript(t *testing.T) {
  SELECT id,'paging@example.invalid','Paging recipient','0912345678','110','Taipei','District','Street' FROM inserted`, owner.ID); err != nil {
 		t.Fatal(err)
 	}
-	h := account.NewHandler(s, nil, slog.New(slog.DiscardHandler), false, nil)
+	h := account.NewHandler(s, slog.New(slog.DiscardHandler), false, false)
 	seen := map[string]bool{}
 	target := "/account"
 	for page := range 3 {

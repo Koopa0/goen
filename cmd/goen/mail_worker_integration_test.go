@@ -14,7 +14,7 @@ import (
 
 	"github.com/google/uuid"
 
-	"github.com/koopa0/goen/internal/account"
+	"github.com/koopa0/goen/internal/auth"
 	"github.com/koopa0/goen/internal/i18n"
 	"github.com/koopa0/goen/internal/letter"
 )
@@ -86,11 +86,11 @@ func TestTheWorkerMailsWhatEachAccountMessageMeans(t *testing.T) {
 		}
 	}
 
-	accounts := account.NewStore(storePool)
+	accounts := auth.NewStore(storePool)
 	const password = "a sufficiently long password"
 	register := func(addr, pw string) {
 		t.Helper()
-		if err := accounts.Register(ctx, &account.Credentials{Email: addr, Password: pw, Name: "工作"}, "/account"); err != nil {
+		if err := accounts.Register(ctx, &auth.Credentials{Email: addr, Password: pw, Name: "工作"}, "/account"); err != nil {
 			t.Fatalf("register %s: %v", addr, err)
 		}
 	}
@@ -113,7 +113,7 @@ func TestTheWorkerMailsWhatEachAccountMessageMeans(t *testing.T) {
 
 	register(newcomer, password)
 	register(owner, "somebody else's long password")
-	h := account.NewHandler(accounts, nil, log, false, nil)
+	h := auth.NewHandler(accounts, nil, nil, log, false, nil)
 	forgot := httptest.NewRecorder()
 	h.Forgot(forgot, formRequest(ctx, "/forgot", url.Values{"email": {forgetful}}))
 	if forgot.Code != http.StatusSeeOther {

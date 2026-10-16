@@ -20,7 +20,7 @@ import (
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 
-	"github.com/koopa0/goen/internal/account"
+	"github.com/koopa0/goen/internal/auth"
 	"github.com/koopa0/goen/internal/cart"
 	"github.com/koopa0/goen/internal/db/dbtest"
 	"github.com/koopa0/goen/internal/i18n"
@@ -39,7 +39,7 @@ func TestCartLookupFailuresDoNotReplaceOrHideTheBasket(t *testing.T) {
 		t.Fatal(seedErr)
 	}
 	password := "a sufficiently long password"
-	hash, err := account.HashPassword(password)
+	hash, err := auth.HashPassword(password)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -82,7 +82,7 @@ func TestCartLookupFailuresDoNotReplaceOrHideTheBasket(t *testing.T) {
 				var diagnostics bytes.Buffer
 				logger := slog.New(slog.NewJSONHandler(&diagnostics, nil))
 				h := cart.NewHandler(s, access.NewStore(app, false), logger, false, nil, nil)
-				accounts := account.NewHandler(account.NewStore(app), h, logger, false, nil)
+				accounts := auth.NewHandler(auth.NewStore(app), h, access.NewStore(app, false), logger, false, nil)
 				method, path, handler := http.MethodGet, "/cart", http.HandlerFunc(h.Page)
 				form := url.Values{"variant": {variant.String()}, "quantity": {"1"}, "remove": {"1"}}
 				query := "CartByToken"
@@ -153,7 +153,7 @@ func TestCartLookupFailuresDoNotReplaceOrHideTheBasket(t *testing.T) {
 					for _, cookie := range res.Result().Cookies() {
 						follow.AddCookie(cookie)
 					}
-					u, sessionErr := account.NewStore(app).SessionUser(ctx, account.ReadSessionCookie(follow, false))
+					u, sessionErr := auth.NewStore(app).SessionUser(ctx, auth.ReadSessionCookie(follow, false))
 					if sessionErr != nil || u.ID != customer.String() {
 						t.Errorf("sign-in session = %q, error %v, want authenticated customer %s", u.ID, sessionErr, customer)
 					}
