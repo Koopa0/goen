@@ -1000,8 +1000,9 @@ try {
           assert.ok(card.nameWidth >= 2.5 * card.em, `${where}: the ${what} card leaves its name ${card.nameWidth}px, under two and a half letters of ${card.em}px`);
           assert.ok(card.inside, `${where}: the ${what} card is cut by the edge of the screen`);
         }
-        // Every choice on the page shares the card: the invoice and pickup ones
-        // have no fee to drop, but the same two layers of padding.
+        // Every choice card this page renders shares the padding: the two
+        // delivery cards here, and the invoice and pickup ones where a fixture
+        // shows them.
         const choices = await evaluate(`[...document.querySelectorAll('.goen-checkout__ship')]
           .filter(card => card.getClientRects().length > 0)
           .map(card => {
@@ -1009,7 +1010,7 @@ try {
             return { text: name.textContent.trim().slice(0, 24), width: name.getBoundingClientRect().width,
               em: parseFloat(getComputedStyle(name).fontSize) };
           })`);
-        assert.ok(choices.length > 2, `${where}: only ${choices.length} choice cards are on the page`);
+        assert.ok(choices.length >= 2, `${where}: ${choices.length} choice cards are on the page, not at least the two delivery ones`);
         for (const card of choices) {
           assert.ok(card.width >= 2.5 * card.em, `${where}: the card "${card.text}" leaves its name ${card.width}px, under two and a half letters of ${card.em}px`);
         }
