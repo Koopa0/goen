@@ -11,16 +11,15 @@ import (
 )
 
 type Handler struct {
-	store  *Store
-	log    *slog.Logger
-	secure bool
+	store *Store
+	log   *slog.Logger
 }
 
-func NewHandler(store *Store, log *slog.Logger, secure bool) *Handler {
+func NewHandler(store *Store, log *slog.Logger) *Handler {
 	if store == nil || log == nil {
 		panic("home: NewHandler requires a store and a logger")
 	}
-	return &Handler{store: store, log: log, secure: secure}
+	return &Handler{store: store, log: log}
 }
 
 func (h *Handler) Index(w http.ResponseWriter, r *http.Request) {
