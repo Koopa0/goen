@@ -49,10 +49,20 @@ type HeroForm struct {
 }
 
 func (f *HeroForm) Validate(ctx context.Context) map[string]string {
+	f.Eyebrow = strings.TrimSpace(f.Eyebrow)
 	f.Headline = strings.TrimSpace(f.Headline)
+	f.Body = strings.TrimSpace(f.Body)
 	f.PrimaryLabel = strings.TrimSpace(f.PrimaryLabel)
 	f.SecondLabel = strings.TrimSpace(f.SecondLabel)
 	f.ImageAlt = strings.TrimSpace(f.ImageAlt)
+	// Trimmed so that a translation left as spaces is stored as NULL, which
+	// falls back to the Chinese, rather than refused by the *_en_present CHECKs.
+	f.EyebrowEn = strings.TrimSpace(f.EyebrowEn)
+	f.HeadlineEn = strings.TrimSpace(f.HeadlineEn)
+	f.BodyEn = strings.TrimSpace(f.BodyEn)
+	f.PrimaryLabelEn = strings.TrimSpace(f.PrimaryLabelEn)
+	f.SecondLabelEn = strings.TrimSpace(f.SecondLabelEn)
+	f.ImageAltEn = strings.TrimSpace(f.ImageAltEn)
 
 	errs := map[string]string{}
 	if f.Headline == "" || utf8.RuneCountInString(f.Headline) > MaxHeadlineRunes {
