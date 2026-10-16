@@ -1,4 +1,4 @@
-package admin
+package content
 
 import (
 	"strings"
@@ -9,6 +9,10 @@ import (
 	"github.com/koopa0/goen/internal/i18n"
 	"github.com/koopa0/goen/internal/ui/layouts"
 )
+
+// From internal/ui/pages/admin/frame_test.go, moved whole: newsletter was its last
+// screen. It sits apart from view_test.go because its local html would shadow
+// the x/net/html import there, as #2129 did for the returns confirmation test.
 
 // TestEveryAdminScreenPutsItsWorkInTheContentColumn holds the frame at the one
 // place that can hold it. The rail is a column beside the work from 1024 up,
