@@ -5,7 +5,6 @@ import (
 	"testing"
 
 	"github.com/koopa0/goen/internal/product/labelling"
-	"github.com/koopa0/goen/internal/ui/pages/admin"
 )
 
 func TestNetQuantityAndUnitAreOptionalTogether(t *testing.T) {
@@ -20,7 +19,7 @@ func TestNetQuantityAndUnitAreOptionalTogether(t *testing.T) {
 		{"0", labelling.Gram, false}, {"-1", labelling.Gram, false}, {"1e2", labelling.Gram, false},
 		{"1.001", labelling.Gram, false}, {"100000000", labelling.Gram, false}, {"1", "oz", false},
 	} {
-		input := admin.LabelInput{NetQuantity: tc.quantity, NetUnit: tc.unit}
+		input := LabelInput{NetQuantity: tc.quantity, NetUnit: tc.unit}
 		got := len(validateLabel(t.Context(), &input)) == 0
 		if got != tc.valid {
 			t.Errorf("quantity %q, unit %q: valid=%v, want %v", tc.quantity, tc.unit, got, tc.valid)
@@ -35,9 +34,9 @@ func TestNetQuantityAndUnitAreOptionalTogether(t *testing.T) {
 
 func TestLabelTextAndAgeBounds(t *testing.T) {
 	t.Parallel()
-	for _, field := range (&admin.LabelInput{}).TextFields() {
+	for _, field := range (&LabelInput{}).TextFields() {
 		for _, raw := range []string{strings.Repeat("界", field.Limit+1), "a\n", string([]byte{0xff})} {
-			input := admin.LabelInput{}
+			input := LabelInput{}
 			switch field.Name {
 			case "origin":
 				input.Origin = raw
@@ -61,7 +60,7 @@ func TestLabelTextAndAgeBounds(t *testing.T) {
 		}
 	}
 	for _, raw := range []string{"217", "-1", "1.5", "1e2", "32768"} {
-		input := admin.LabelInput{MinAgeMonths: raw}
+		input := LabelInput{MinAgeMonths: raw}
 		if validateLabel(t.Context(), &input)["min_age_months"] == "" {
 			t.Errorf("accepted age %q", raw)
 		}
@@ -70,7 +69,7 @@ func TestLabelTextAndAgeBounds(t *testing.T) {
 
 func TestLabelTextLimitsCountTheStoredTrimmedValue(t *testing.T) {
 	t.Parallel()
-	input := admin.LabelInput{
+	input := LabelInput{
 		Origin:               " " + strings.Repeat("界", 100) + " ",
 		OriginEn:             " " + strings.Repeat("a", 100) + " ",
 		DomesticPartyName:    " " + strings.Repeat("界", 200) + " ",

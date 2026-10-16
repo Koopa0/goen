@@ -13,6 +13,7 @@ import (
 	"github.com/koopa0/goen/internal/admin/content"
 	"github.com/koopa0/goen/internal/admin/coupons"
 	"github.com/koopa0/goen/internal/admin/feedback"
+	"github.com/koopa0/goen/internal/admin/products"
 	"github.com/koopa0/goen/internal/admin/refunds"
 	"github.com/koopa0/goen/internal/admin/returns"
 	"github.com/koopa0/goen/internal/admin/taxonomy"
@@ -21,7 +22,6 @@ import (
 	"github.com/koopa0/goen/internal/payment"
 	"github.com/koopa0/goen/internal/ui/layouts"
 	"github.com/koopa0/goen/internal/ui/pages"
-	"github.com/koopa0/goen/internal/ui/pages/admin"
 	"github.com/koopa0/goen/internal/warranty"
 )
 
@@ -30,56 +30,56 @@ import (
 // leave a broken method invisible to the route gate.
 func methodFormActions(t *testing.T) map[string][]string {
 	t.Helper()
-	product := &admin.ProductView{Slug: "product"}
-	newProduct := &admin.ProductView{IsNew: true}
+	product := &products.ProductView{Slug: "product"}
+	newProduct := &products.ProductView{IsNew: true}
 	pdp := &pages.ProductView{Slug: "product"}
 	ret := &returns.Return{ID: "return"}
 	return map[string][]string{
-		"internal/account/page.templ:v.AddressAction()":                                                 {(&account.AccountView{}).AddressAction(), (&account.AccountView{AddressDraft: &account.AddressDraft{ID: "address"}}).AddressAction()},
-		"internal/ui/pages/admin/product_label.templ:templ.URL(v.LabelAction())":                        {product.LabelAction()},
-		"internal/ui/layouts/banner.templ:templ.SafeURL(b.DismissAction())":                             {(layouts.Banner{}).DismissAction()},
-		"internal/ui/layouts/email_link.templ:templ.SafeURL(v.Action)":                                  newsletterFormActions(t),
-		"internal/ui/pages/admin/product.templ:templ.SafeURL(v.Action() + \"#sec-details\")":            {product.Action() + "#sec-details", newProduct.Action() + "#sec-details"},
-		"internal/admin/campaigns/page.templ:templ.SafeURL(v.ToneAction())":                             {(&campaigns.CampaignView{Slug: "campaign"}).ToneAction()},
-		"internal/admin/campaigns/page.templ:templ.SafeURL(v.WindowAction())":                           {(&campaigns.CampaignView{Slug: "campaign"}).WindowAction()},
-		"internal/admin/campaigns/page.templ:templ.SafeURL(v.ActiveAction())":                           {(&campaigns.CampaignView{Slug: "campaign"}).ActiveAction()},
-		"internal/admin/taxonomy/category.templ:templ.SafeURL(v.ImageAction())":                         {(taxonomy.CategoryView{Slug: "category"}).ImageAction()},
-		"internal/admin/taxonomy/category.templ:templ.SafeURL(v.ImageRemoveAction())":                   {(taxonomy.CategoryView{Slug: "category"}).ImageRemoveAction()},
-		"internal/admin/campaigns/page.templ:templ.SafeURL(v.ImageAction())":                            {(&campaigns.CampaignView{Slug: "campaign"}).ImageAction()},
-		"internal/admin/campaigns/page.templ:templ.SafeURL(v.ImageRemoveAction())":                      {(&campaigns.CampaignView{Slug: "campaign"}).ImageRemoveAction()},
-		"internal/ui/pages/admin/product.templ:templ.SafeURL(v.ImageAction())":                          {product.ImageAction()},
-		"internal/ui/pages/admin/product.templ:templ.SafeURL(v.ImageRemoveAction())":                    {product.ImageRemoveAction()},
-		"internal/ui/pages/admin/product.templ:templ.SafeURL(v.ImageOptionAction())":                    {product.ImageOptionAction()},
-		"internal/ui/pages/admin/product.templ:templ.SafeURL(v.ImageMoveAction())":                      {product.ImageMoveAction()},
-		"internal/ui/pages/admin/product.templ:templ.SafeURL(v.ReuseAction())":                          {product.ReuseAction()},
-		"internal/ui/pages/admin/product.templ:templ.SafeURL(v.OptionAction() + \"#sec-options\")":      {product.OptionAction() + "#sec-options"},
-		"internal/ui/pages/admin/product.templ:templ.SafeURL(v.OptionValueAction() + \"#sec-options\")": {product.OptionValueAction() + "#sec-options"},
-		"internal/ui/pages/admin/product.templ:templ.SafeURL(v.SpecAction() + \"#sec-specs\")":          {product.SpecAction() + "#sec-specs"},
-		"internal/ui/pages/admin/product.templ:templ.SafeURL(v.SpecRemoveAction())":                     {product.SpecRemoveAction()},
-		"internal/ui/pages/product.templ:templ.SafeURL(v.NotifyAction())":                               {pdp.NotifyAction()},
-		"internal/ui/pages/product.templ:templ.SafeURL(v.AskAction())":                                  {pdp.AskAction()},
-		"internal/ui/pages/product.templ:templ.SafeURL(v.ReviewAction())":                               {pdp.ReviewAction()},
-		"internal/admin/returns/page.templ:templ.SafeURL(r.Action())":                                   {ret.Action()},
-		"internal/admin/returns/returnconfirm.templ:templ.SafeURL(v.Action())":                          {(returns.ReturnConfirmation{ID: "return"}).Action()},
-		"internal/admin/refunds/refundconfirm.templ:templ.SafeURL(v.Action())":                          {(refunds.RefundConfirmation{OrderNumber: "order"}).Action()},
-		"internal/admin/refunds/unsentconfirm.templ:templ.SafeURL(v.Action())":                          {(refunds.UnsentRefundConfirmation{OrderNumber: "order"}).Action()},
-		"internal/admin/returns/page.templ:templ.SafeURL(r.AssessAction())":                             {ret.AssessAction()},
-		"internal/admin/returns/page.templ:templ.SafeURL(r.InspectAction() + \"#inspect-\" + r.ID)":     {ret.InspectAction() + "#inspect-" + ret.ID},
-		"internal/admin/returns/page.templ:templ.SafeURL(r.CompleteAction())":                           {ret.CompleteAction()},
-		"internal/admin/feedback/message_page.templ:templ.SafeURL(m.Action())":                          {(feedback.Message{}).Action(), (feedback.Message{Handled: true}).Action()},
-		"internal/admin/feedback/review_page.templ:templ.SafeURL(r.Action())":                           {(feedback.Review{}).Action(), (feedback.Review{Hidden: true}).Action()},
-		"internal/admin/coupons/page.templ:templ.SafeURL(c.Action())":                                   {(coupons.Coupon{Code: "coupon"}).Action()},
-		"internal/admin/content/newsletter_page.templ:templ.SafeURL(issue.SendAction())":                {(content.NewsletterIssue{ID: "issue"}).SendAction()},
-		"internal/admin/campaigns/page.templ:templ.SafeURL(c.ToggleAction())":                           {(campaigns.CampaignRow{Slug: "campaign"}).ToggleAction()},
-		"internal/admin/campaigns/page.templ:templ.SafeURL(v.FeatureAction())":                          {(&campaigns.CampaignView{Slug: "campaign"}).FeatureAction()},
-		"internal/admin/content/home_page.templ:templ.SafeURL(slide.PromoteAction())":                   {(content.HeroSlide{ID: "slide"}).PromoteAction()},
-		"internal/admin/content/home_page.templ:templ.SafeURL(slide.ToggleAction())":                    {(content.HeroSlide{ID: "slide"}).ToggleAction()},
-		"internal/admin/feedback/question_page.templ:templ.SafeURL(q.AnswerAction())":                   {(feedback.Question{ID: "question"}).AnswerAction()},
-		"internal/catalog/listing.templ:templ.SafeURL(v.FilterAction())":                                {(catalog.ListingView{Slug: "category"}).FilterAction()},
-		"internal/warranty/page.templ:templ.SafeURL(v.Action())":                                        {(warranty.WarrantyOrderView{Number: "order"}).Action()},
-		"internal/payment/pay.templ:templ.SafeURL(v.Action())":                                          {(&payment.PayView{Number: "order"}).Action()},
-		"internal/order/buyer/returns.templ:templ.SafeURL(v.Action())":                                  {(buyer.ReturnsView{Number: "order"}).Action()},
-		"internal/ui/pages/admin/product_invoice_line.templ:templ.URL(v.InvoiceLineAction())":           {product.InvoiceLineAction()},
+		"internal/account/page.templ:v.AddressAction()":                                                      {(&account.AccountView{}).AddressAction(), (&account.AccountView{AddressDraft: &account.AddressDraft{ID: "address"}}).AddressAction()},
+		"internal/admin/products/product_label_page.templ:templ.URL(v.LabelAction())":                        {product.LabelAction()},
+		"internal/ui/layouts/banner.templ:templ.SafeURL(b.DismissAction())":                                  {(layouts.Banner{}).DismissAction()},
+		"internal/ui/layouts/email_link.templ:templ.SafeURL(v.Action)":                                       newsletterFormActions(t),
+		"internal/admin/products/product_page.templ:templ.SafeURL(v.Action() + \"#sec-details\")":            {product.Action() + "#sec-details", newProduct.Action() + "#sec-details"},
+		"internal/admin/campaigns/page.templ:templ.SafeURL(v.ToneAction())":                                  {(&campaigns.CampaignView{Slug: "campaign"}).ToneAction()},
+		"internal/admin/campaigns/page.templ:templ.SafeURL(v.WindowAction())":                                {(&campaigns.CampaignView{Slug: "campaign"}).WindowAction()},
+		"internal/admin/campaigns/page.templ:templ.SafeURL(v.ActiveAction())":                                {(&campaigns.CampaignView{Slug: "campaign"}).ActiveAction()},
+		"internal/admin/taxonomy/category.templ:templ.SafeURL(v.ImageAction())":                              {(taxonomy.CategoryView{Slug: "category"}).ImageAction()},
+		"internal/admin/taxonomy/category.templ:templ.SafeURL(v.ImageRemoveAction())":                        {(taxonomy.CategoryView{Slug: "category"}).ImageRemoveAction()},
+		"internal/admin/campaigns/page.templ:templ.SafeURL(v.ImageAction())":                                 {(&campaigns.CampaignView{Slug: "campaign"}).ImageAction()},
+		"internal/admin/campaigns/page.templ:templ.SafeURL(v.ImageRemoveAction())":                           {(&campaigns.CampaignView{Slug: "campaign"}).ImageRemoveAction()},
+		"internal/admin/products/product_page.templ:templ.SafeURL(v.ImageAction())":                          {product.ImageAction()},
+		"internal/admin/products/product_page.templ:templ.SafeURL(v.ImageRemoveAction())":                    {product.ImageRemoveAction()},
+		"internal/admin/products/product_page.templ:templ.SafeURL(v.ImageOptionAction())":                    {product.ImageOptionAction()},
+		"internal/admin/products/product_page.templ:templ.SafeURL(v.ImageMoveAction())":                      {product.ImageMoveAction()},
+		"internal/admin/products/product_page.templ:templ.SafeURL(v.ReuseAction())":                          {product.ReuseAction()},
+		"internal/admin/products/product_page.templ:templ.SafeURL(v.OptionAction() + \"#sec-options\")":      {product.OptionAction() + "#sec-options"},
+		"internal/admin/products/product_page.templ:templ.SafeURL(v.OptionValueAction() + \"#sec-options\")": {product.OptionValueAction() + "#sec-options"},
+		"internal/admin/products/product_page.templ:templ.SafeURL(v.SpecAction() + \"#sec-specs\")":          {product.SpecAction() + "#sec-specs"},
+		"internal/admin/products/product_page.templ:templ.SafeURL(v.SpecRemoveAction())":                     {product.SpecRemoveAction()},
+		"internal/ui/pages/product.templ:templ.SafeURL(v.NotifyAction())":                                    {pdp.NotifyAction()},
+		"internal/ui/pages/product.templ:templ.SafeURL(v.AskAction())":                                       {pdp.AskAction()},
+		"internal/ui/pages/product.templ:templ.SafeURL(v.ReviewAction())":                                    {pdp.ReviewAction()},
+		"internal/admin/returns/page.templ:templ.SafeURL(r.Action())":                                        {ret.Action()},
+		"internal/admin/returns/returnconfirm.templ:templ.SafeURL(v.Action())":                               {(returns.ReturnConfirmation{ID: "return"}).Action()},
+		"internal/admin/refunds/refundconfirm.templ:templ.SafeURL(v.Action())":                               {(refunds.RefundConfirmation{OrderNumber: "order"}).Action()},
+		"internal/admin/refunds/unsentconfirm.templ:templ.SafeURL(v.Action())":                               {(refunds.UnsentRefundConfirmation{OrderNumber: "order"}).Action()},
+		"internal/admin/returns/page.templ:templ.SafeURL(r.AssessAction())":                                  {ret.AssessAction()},
+		"internal/admin/returns/page.templ:templ.SafeURL(r.InspectAction() + \"#inspect-\" + r.ID)":          {ret.InspectAction() + "#inspect-" + ret.ID},
+		"internal/admin/returns/page.templ:templ.SafeURL(r.CompleteAction())":                                {ret.CompleteAction()},
+		"internal/admin/feedback/message_page.templ:templ.SafeURL(m.Action())":                               {(feedback.Message{}).Action(), (feedback.Message{Handled: true}).Action()},
+		"internal/admin/feedback/review_page.templ:templ.SafeURL(r.Action())":                                {(feedback.Review{}).Action(), (feedback.Review{Hidden: true}).Action()},
+		"internal/admin/coupons/page.templ:templ.SafeURL(c.Action())":                                        {(coupons.Coupon{Code: "coupon"}).Action()},
+		"internal/admin/content/newsletter_page.templ:templ.SafeURL(issue.SendAction())":                     {(content.NewsletterIssue{ID: "issue"}).SendAction()},
+		"internal/admin/campaigns/page.templ:templ.SafeURL(c.ToggleAction())":                                {(campaigns.CampaignRow{Slug: "campaign"}).ToggleAction()},
+		"internal/admin/campaigns/page.templ:templ.SafeURL(v.FeatureAction())":                               {(&campaigns.CampaignView{Slug: "campaign"}).FeatureAction()},
+		"internal/admin/content/home_page.templ:templ.SafeURL(slide.PromoteAction())":                        {(content.HeroSlide{ID: "slide"}).PromoteAction()},
+		"internal/admin/content/home_page.templ:templ.SafeURL(slide.ToggleAction())":                         {(content.HeroSlide{ID: "slide"}).ToggleAction()},
+		"internal/admin/feedback/question_page.templ:templ.SafeURL(q.AnswerAction())":                        {(feedback.Question{ID: "question"}).AnswerAction()},
+		"internal/catalog/listing.templ:templ.SafeURL(v.FilterAction())":                                     {(catalog.ListingView{Slug: "category"}).FilterAction()},
+		"internal/warranty/page.templ:templ.SafeURL(v.Action())":                                             {(warranty.WarrantyOrderView{Number: "order"}).Action()},
+		"internal/payment/pay.templ:templ.SafeURL(v.Action())":                                               {(&payment.PayView{Number: "order"}).Action()},
+		"internal/order/buyer/returns.templ:templ.SafeURL(v.Action())":                                       {(buyer.ReturnsView{Number: "order"}).Action()},
+		"internal/admin/products/product_invoice_line.templ:templ.URL(v.InvoiceLineAction())":                {product.InvoiceLineAction()},
 	}
 }
 

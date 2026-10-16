@@ -6204,32 +6204,66 @@ RETURNS integer LANGUAGE sql IMMUTABLE SET search_path = pg_catalog, public, pg_
     SELECT 365
 $$;
 
--- What a customer has spent on committed orders in the rolling
--- membership_window_days(), net of refunds. The floor is PER ORDER:
--- over-compensating one purchase must not erase the genuine spend on another.
--- p_exclude_order is the order being paid for RIGHT NOW: the capture commits it
--- before points are awarded, so it would otherwise raise its own tier.
-CREATE FUNCTION member_spend(p_user_id uuid, p_exclude_order uuid DEFAULT NULL)
-RETURNS bigint LANGUAGE sql STABLE SET search_path = pg_catalog, public, pg_temp AS $$
-    SELECT coalesce(sum(greatest(
-        t.total_cents - (rf.card_cents + rf.credit_cents), 0)), 0)::bigint
+-- What each committed order of a customer counts as spent: its total net of
+-- refunds. The floor is PER ORDER: over-compensating one purchase must not
+-- erase the genuine spend on another. A set, so a page about every customer
+-- sums it once rather than asking per account, which grew with accounts
+-- rather than orders (#1934). security_invoker, so a role reads through it
+-- only what its own grants allow.
+CREATE VIEW committed_order_spend WITH (security_invoker = true) AS
+    SELECT o.user_id,
+           o.id AS order_id,
+           o.placed_at,
+           greatest(t.total_cents - (rf.card_cents + rf.credit_cents), 0)::bigint AS spend_cents
     FROM orders o
     JOIN order_totals t ON t.order_id = o.id
     JOIN committed_orders c ON c.id = o.id
     JOIN order_refunds rf ON rf.order_id = o.id
-    WHERE o.user_id = p_user_id
-      AND o.placed_at >= now() - make_interval(days => membership_window_days())
-      AND (p_exclude_order IS NULL OR o.id <> p_exclude_order);
+    WHERE o.user_id IS NOT NULL;
+
+COMMENT ON VIEW committed_order_spend IS
+    'Each committed order of a customer, with what it counts as spent: the '
+    'single definition behind a customer''s lifetime spend and, windowed by '
+    'member_order_spend, the spend a tier is judged by.';
+
+-- The orders inside the rolling membership_window_days(): the spend a tier is
+-- judged by. member_spend sums it for one customer and the membership page for
+-- every customer at once.
+CREATE VIEW member_order_spend WITH (security_invoker = true) AS
+    SELECT s.user_id, s.order_id, s.spend_cents
+    FROM committed_order_spend s
+    WHERE s.placed_at >= now() - make_interval(days => membership_window_days());
+
+COMMENT ON VIEW member_order_spend IS
+    'committed_order_spend inside the membership window: the single definition '
+    'behind member_spend and the membership page''s counts.';
+
+-- What a customer has spent: their orders in member_order_spend.
+-- p_exclude_order is the order being paid for RIGHT NOW: the capture commits it
+-- before points are awarded, so it would otherwise raise its own tier.
+CREATE FUNCTION member_spend(p_user_id uuid, p_exclude_order uuid DEFAULT NULL)
+RETURNS bigint LANGUAGE sql STABLE SET search_path = pg_catalog, public, pg_temp AS $$
+    SELECT coalesce(sum(s.spend_cents), 0)::bigint
+    FROM member_order_spend s
+    WHERE s.user_id = p_user_id
+      AND (p_exclude_order IS NULL OR s.order_id <> p_exclude_order);
 $$;
 
--- The highest band at or below that spend, or NULL for a customer below every
--- threshold.
-CREATE FUNCTION member_tier(p_user_id uuid, p_exclude_order uuid DEFAULT NULL)
+-- The highest band at or below a spend, or NULL below every threshold. A
+-- function of the spend rather than of the customer, so the membership page
+-- asks it once per distinct spend instead of once per account.
+CREATE FUNCTION membership_tier_for(p_spend_cents bigint)
 RETURNS uuid LANGUAGE sql STABLE SET search_path = pg_catalog, public, pg_temp AS $$
     SELECT t.id FROM membership_tiers t
-    WHERE t.min_spend_cents <= member_spend(p_user_id, p_exclude_order)
+    WHERE t.min_spend_cents <= p_spend_cents
     ORDER BY t.min_spend_cents DESC
     LIMIT 1;
+$$;
+
+-- One customer's band.
+CREATE FUNCTION member_tier(p_user_id uuid, p_exclude_order uuid DEFAULT NULL)
+RETURNS uuid LANGUAGE sql STABLE SET search_path = pg_catalog, public, pg_temp AS $$
+    SELECT membership_tier_for(member_spend(p_user_id, p_exclude_order));
 $$;
 
 GRANT EXECUTE ON FUNCTION hold_inventory(uuid, uuid, integer, interval, text) TO store;
@@ -6245,7 +6279,11 @@ GRANT EXECUTE ON FUNCTION order_is_committed(uuid) TO store;
 -- production and nowhere else, because every test connects as the owner.
 GRANT EXECUTE ON FUNCTION order_amount_after_credit(uuid) TO store;
 GRANT EXECUTE ON FUNCTION order_is_settled(uuid) TO store;
+-- The blanket table grant ran above, so the view starts with none; member_spend
+-- is SECURITY INVOKER and reads it as store.
+GRANT SELECT ON committed_order_spend, member_order_spend TO store;
 GRANT EXECUTE ON FUNCTION member_spend(uuid, uuid) TO store;
+GRANT EXECUTE ON FUNCTION membership_tier_for(bigint) TO store;
 GRANT EXECUTE ON FUNCTION member_tier(uuid, uuid) TO store;
 -- The pages that state the window read it from here, so none keeps a copy.
 GRANT EXECUTE ON FUNCTION membership_window_days() TO store;
@@ -6356,7 +6394,9 @@ GRANT EXECUTE ON FUNCTION order_amount_after_credit(uuid) TO admin;
 GRANT EXECUTE ON FUNCTION return_goods_refundable_amount(uuid) TO admin;
 GRANT EXECUTE ON FUNCTION return_refundable_amount(uuid) TO admin;
 GRANT EXECUTE ON FUNCTION order_is_settled(uuid) TO admin;
+GRANT SELECT ON committed_order_spend, member_order_spend TO admin;
 GRANT EXECUTE ON FUNCTION member_spend(uuid, uuid) TO admin;
+GRANT EXECUTE ON FUNCTION membership_tier_for(bigint) TO admin;
 GRANT EXECUTE ON FUNCTION member_tier(uuid, uuid) TO admin;
 GRANT EXECUTE ON FUNCTION membership_window_days() TO admin;
 GRANT EXECUTE ON FUNCTION erase_user(uuid) TO admin;
@@ -10833,7 +10873,7 @@ GRANT INSERT (assessment_id, order_id, return_request_id, order_line_id,
 CREATE FUNCTION schema_version(OUT digest text, OUT version bigint, OUT dirty boolean)
 LANGUAGE plpgsql STABLE SECURITY DEFINER SET search_path = pg_catalog, public, pg_temp AS $$
 BEGIN
-    digest := '1c0ed8ef36c213c437ca57890cdcfa8671402ccf8aa2dfd0d880394475ece40b';
+    digest := '002d399e28a8048351225aee13f7a251681b640c230c4e4e6f5838df6480f7d1';
     -- NULL when the database was not built by golang-migrate, which the
     -- binary refuses as it refuses any other unknown schema.
     IF to_regclass('public.schema_migrations') IS NOT NULL THEN

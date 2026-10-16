@@ -29,7 +29,7 @@ goen 是以 Go 打造的全端電商應用。前台、後台與背景工作在�
 
 `net/http` handler 輸出具型別的 `templ` 頁面。每個寫入都能以不需 JavaScript 的一般 `POST` 表單完成：成功後重新導向，驗證失敗則保留輸入。htmx 增強回傳的 HTML。CSS、字型與 script 嵌入執行檔，網址帶內容版本。
 
-套件依功能劃分，各自包含 handler、store、SQL 與測試。頁面本體正從 `internal/ui/pages` 移入負責渲染它們的功能套件；`internal/repocheck` 負責套件匯入政策。store 呼叫 sqlc 產生的 `db.Queries`；`cmd/goen` 組合路由、資料存取、外部客戶端與背景工作。見[組合][server]、[資產][assets]與 [sqlc 設定][sqlc]。
+套件依功能劃分，各自包含 handler、store、SQL 與測試。判斷套件看的是名稱，不是大小：呼叫端必須一起使用的部分，包括功能的 view model 與 templ 模板，都留在同一個套件；只有呼叫端能單獨使用的概念才拆成獨立套件，並以該概念命名，而不是以分層命名。見[套件規則][packages]。頁面本體正從 `internal/ui/pages` 移入負責渲染它們的功能套件；`internal/repocheck` 負責套件匯入政策。store 呼叫 sqlc 產生的 `db.Queries`；`cmd/goen` 組合路由、資料存取、外部客戶端與背景工作。見[組合][server]、[資產][assets]與 [sqlc 設定][sqlc]。
 
 ### 外部服務
 
@@ -275,6 +275,7 @@ CI 執行格式、vet、lint、無用程式碼與生成碼檢查、migration lin
 | 維運 | [健康查詢][health-sql]、[探針][probe]、[慢查詢紀錄][slowquery]、[Makefile][makefile]、[CI][workflows] |
 
 [contributing]: CONTRIBUTING.md
+[packages]: CONTRIBUTING.md#packages
 [main]: cmd/goen/main.go
 [server]: cmd/goen/server.go
 [middleware]: cmd/goen/middleware.go
