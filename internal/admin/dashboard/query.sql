@@ -87,11 +87,8 @@ FROM
 SELECT o.order_number,
     o.fulfillment_status,
     o.placed_at,
-    o.shipping_cents,
-    o.discount_cents,
+    t.total_cents,
     coalesce(pd.recipient_name, '') AS recipient,
-    coalesce((SELECT sum(ol.unit_price_cents * ol.quantity) FROM order_lines ol
-              WHERE ol.order_id = o.id), 0)::bigint AS subtotal_cents,
     order_is_committed(o.id) AS committed,
     order_amount_after_credit(o.id) AS owed_cents,
     (EXISTS (SELECT 1 FROM order_lines ol WHERE ol.order_id = o.id)
@@ -109,6 +106,7 @@ SELECT o.order_number,
                                                                   WHERE e.return_request_id = rr.id
                                                                     AND e.kind = 'refunded'))))), 0)))::boolean AS returned
 FROM orders o
+JOIN order_totals t ON t.order_id = o.id
 LEFT JOIN order_private_data pd ON pd.order_id = o.id
 ORDER BY o.placed_at DESC, o.id DESC
 LIMIT @row_limit::integer;

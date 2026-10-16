@@ -71,7 +71,7 @@ func TestAllowanceNoticesRemainVisibleWithoutInvoicingActions(t *testing.T) {
 					ctx := i18n.WithLocale(t.Context(), language.locale)
 					view := OrderView{
 						Number: "GO-ALLOWANCE", Status: order.FulfillmentCompleted,
-						Committed: true, SubtotalCents: 100000, InvoiceType: invoice.PreferenceMember,
+						Committed: true, SubtotalCents: 100000, TotalCents: 100000, InvoiceType: invoice.PreferenceMember,
 						InvoicingEnabled: provider.enabled, RefundedCents: 84900,
 						AllowanceOperationID:   "new-credit-note",
 						AllowanceAwaitingUntil: tt.awaiting, AllowanceAttention: tt.attention,

@@ -44,11 +44,11 @@ func (v *OrderView) Facts(ctx context.Context) []components.Stat {
 	if v.IsCancelled() {
 		facts := []components.Stat{placed, timeStat(ctx, i18n.T(ctx, i18n.KeyOrderFactCancelled), v.cancelledAt(), now)}
 		if v.PaymentState() == PaymentRefunded {
-			facts = append(facts, components.Stat{Label: i18n.T(ctx, i18n.KeyOrderFactRefund), Value: components.StatMoney(v.TotalCents())})
+			facts = append(facts, components.Stat{Label: i18n.T(ctx, i18n.KeyOrderFactRefund), Value: components.StatMoney(v.TotalCents)})
 		}
 		return facts
 	}
-	facts := []components.Stat{placed, {Label: i18n.T(ctx, i18n.KeyOrderGrandTotal), Value: components.StatMoney(v.TotalCents())}}
+	facts := []components.Stat{placed, {Label: i18n.T(ctx, i18n.KeyOrderGrandTotal), Value: components.StatMoney(v.TotalCents)}}
 	if len(v.Shipments) == 1 && v.Shipments[0].Delivered() {
 		s := v.Shipments[0]
 		label := i18n.T(ctx, i18n.KeyOrderFactDelivered)

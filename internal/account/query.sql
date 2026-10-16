@@ -177,10 +177,7 @@ SELECT
     o.order_number,
     o.fulfillment_status,
     o.placed_at,
-    o.shipping_cents,
-    o.discount_cents,
-    coalesce((SELECT sum(ol.unit_price_cents * ol.quantity) FROM order_lines ol
-              WHERE ol.order_id = o.id), 0)::bigint AS subtotal_cents,
+    t.total_cents,
     (SELECT count(*) FROM order_lines ol WHERE ol.order_id = o.id)::bigint AS line_count,
     -- Both columns: a captured card leaves the order committed and still owing,
     -- a fully store-credited one owes nothing and is not committed until it
@@ -196,6 +193,7 @@ SELECT
                                                  WHERE sl.order_line_id = ol.id), 0)))::boolean AS one_last_day,
     coalesce(p.last_day, shop_today())::date AS rescission_ends
 FROM orders o
+JOIN order_totals t ON t.order_id = o.id
 LEFT JOIN LATERAL (
     SELECT count(*) AS parcels, count(s.delivered_at) AS arrived,
            count(DISTINCT return_window_ends(s.delivered_at)) AS last_days,

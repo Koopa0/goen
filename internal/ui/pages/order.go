@@ -55,6 +55,7 @@ type OrderView struct {
 	ShippingCents  int64
 	DiscountCents  int64
 	DiscountReason string
+	TotalCents     int64
 	CreditCents    int64
 	Timeline       []OrderEvent
 	Shipments      []OrderShipment
@@ -180,11 +181,9 @@ func (v *OrderView) Discounted() bool { return v.DiscountCents > 0 }
 
 func (v *OrderView) Discount() string { return "-" + twd(v.DiscountCents) }
 
-func (v *OrderView) Total() string { return twd(v.TotalCents()) }
-
-func (v *OrderView) TotalCents() int64 {
-	return v.SubtotalCents - v.DiscountCents + v.ShippingCents
-}
+// Total states the database's order_totals figure rather than re-adding the
+// subtotal, discount and delivery, so no page can sum them differently.
+func (v *OrderView) Total() string { return twd(v.TotalCents) }
 
 // UsedCredit gates the credit row: without it the summary and the payment page
 // state different figures, since the credit is debited in the order's own transaction.

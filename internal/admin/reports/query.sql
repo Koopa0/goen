@@ -33,10 +33,9 @@ SELECT
                                    WHERE b.order_id = e.order_id AND b.before_shipment)), 0)::bigint
     )::bigint AS refunded_cents
 FROM (
-    SELECT (coalesce((SELECT sum(ol.unit_price_cents * ol.quantity)
-                      FROM order_lines ol WHERE ol.order_id = o.id), 0)
-            - o.discount_cents + o.shipping_cents)::bigint AS total
+    SELECT ot.total_cents AS total
     FROM orders o
+    JOIN order_totals ot ON ot.order_id = o.id
     JOIN sold_orders s ON s.id = o.id
     WHERE o.placed_at >= @from_at::timestamptz AND o.placed_at < @to_at::timestamptz
 ) t;
@@ -51,11 +50,9 @@ SELECT
     coalesce(sum(t.total), 0)::bigint AS revenue_cents
 FROM generate_series(@first_day::date, @last_day::date, interval '1 day') AS d(day)
 LEFT JOIN (
-    SELECT shop_day(o.placed_at) AS day,
-           (coalesce((SELECT sum(ol.unit_price_cents * ol.quantity)
-                      FROM order_lines ol WHERE ol.order_id = o.id), 0)
-            - o.discount_cents + o.shipping_cents)::bigint AS total
+    SELECT shop_day(o.placed_at) AS day, ot.total_cents AS total
     FROM orders o
+    JOIN order_totals ot ON ot.order_id = o.id
     JOIN sold_orders s ON s.id = o.id
     WHERE o.placed_at >= @from_at::timestamptz AND o.placed_at < @to_at::timestamptz
 ) t ON t.day = d.day::date
@@ -68,9 +65,10 @@ ORDER BY d.day;
 -- Only orders placed since @since are looked at, so the dashboard does not read
 -- the whole history; the caller asks again with no bound when none qualifies.
 -- name: LatestPaidOrder :one
-SELECT o.order_number, f.total_cents,
+SELECT o.order_number, t.total_cents,
        coalesce(greatest(extract(epoch FROM now() - f.funded_at), 0), 0)::bigint AS elapsed_seconds
 FROM orders o
+JOIN order_totals t ON t.order_id = o.id
 JOIN sold_orders s ON s.id = o.id
 CROSS JOIN LATERAL (
     SELECT coalesce(
@@ -78,10 +76,7 @@ CROSS JOIN LATERAL (
                 WHERE e.order_id = o.id AND e.kind = 'paid'),
                (SELECT max(p.paid_at) FROM payments p
                 WHERE p.order_id = o.id AND p.status = 'succeeded'),
-               o.placed_at)::timestamptz AS funded_at,
-           (coalesce((SELECT sum(ol.unit_price_cents * ol.quantity)
-                      FROM order_lines ol WHERE ol.order_id = o.id), 0)
-            - o.discount_cents + o.shipping_cents)::bigint AS total_cents
+               o.placed_at)::timestamptz AS funded_at
 ) f
 WHERE o.placed_at >= @since::timestamptz
 ORDER BY f.funded_at DESC, o.id DESC
