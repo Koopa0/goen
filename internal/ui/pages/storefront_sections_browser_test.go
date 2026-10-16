@@ -19,8 +19,8 @@ import (
 // The home page's hero tabs, hero arrows, departments and rules row, the deals
 // page's running campaigns, the search page's compare button, the cart's
 // stepper and filled button, a department's filter chip, the corners every
-// pressable control shares, and the header's search pill with the rule under
-// the header, measured as drawn.
+// pressable control shares, a product's photograph, and the header's search
+// pill with the rule under the header, measured as drawn.
 func TestStorefrontSectionsAsDrawn(t *testing.T) {
 	_, port := uitest.Browser(t, "CDP_PORT")
 	root, err := filepath.Abs("../../..")
@@ -84,6 +84,23 @@ func TestStorefrontSectionsAsDrawn(t *testing.T) {
 		w.Header().Set("Content-Type", "text/html; charset=utf-8")
 		if renderErr := Listing(layouts.Page{}, view, nil, nil).Render(i18n.WithLocale(r.Context(), i18n.En), w); renderErr != nil {
 			t.Errorf("render listing fixture: %v", renderErr)
+		}
+	})
+	mux.HandleFunc("GET /product", func(w http.ResponseWriter, r *http.Request) {
+		tones := map[string]components.Tone{"ink": components.ToneInk, "sage": components.ToneSage}
+		view := &ProductView{
+			Name: "Restwood Mug", Brand: "Restwood", Slug: "restwood-mug", Description: "A stoneware mug.",
+			SelectionOK: true, Exact: true, Sellable: true, AnySellable: true, PriceCents: 43200,
+			Tone: tones[r.URL.Query().Get("tone")],
+		}
+		if r.URL.Query().Get("photo") == "1" {
+			view.Images = []ProductImage{{
+				URL: assets.Image{BundledKey: "nimbus-band-2-01.webp"}.URL(), Alt: "A mug", Width: 1600, Height: 1200,
+			}}
+		}
+		w.Header().Set("Content-Type", "text/html; charset=utf-8")
+		if renderErr := Product(ProductMeta(view), view).Render(i18n.WithLocale(r.Context(), i18n.En), w); renderErr != nil {
+			t.Errorf("render product fixture: %v", renderErr)
 		}
 	})
 	server := httptest.NewServer(mux)
