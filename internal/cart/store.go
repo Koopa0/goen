@@ -25,6 +25,7 @@ import (
 	"github.com/koopa0/goen/internal/invoice/issuer"
 	"github.com/koopa0/goen/internal/order/delivery"
 	"github.com/koopa0/goen/internal/outbox"
+	"github.com/koopa0/goen/internal/product"
 	"github.com/koopa0/goen/internal/ui/pages"
 )
 
@@ -117,7 +118,7 @@ func (s *Store) Add(ctx context.Context, cartID, variantID uuid.UUID, quantity i
 // sellable is the one test of whether a variant may be put in a cart: listed,
 // active and with stock the shelf can supply.
 func sellable(v *db.VariantForCartRow) bool {
-	return v.IsActive && pages.ProductStatus(v.Status) == pages.ProductActive && v.SellableQuantity > 0
+	return v.IsActive && product.Status(v.Status) == product.StatusActive && v.SellableQuantity > 0
 }
 
 // addCartItem runs through the caller's queries, which may be pool-backed or
@@ -292,7 +293,7 @@ func (s *Store) View(ctx context.Context, cartID uuid.UUID) (pages.CartView, err
 			ImageSrcset:  photo.Srcset(),
 			ImageAlt:     r.ImageAlt,
 			CompareCents: r.CompareAtPriceCents.Int64,
-			Unavailable:  pages.ProductStatus(r.ProductStatus) != pages.ProductActive || !r.IsActive || r.SellableQuantity <= 0,
+			Unavailable:  product.Status(r.ProductStatus) != product.StatusActive || !r.IsActive || r.SellableQuantity <= 0,
 		}
 		line.Short = !line.Unavailable && r.Quantity > r.SellableQuantity
 
@@ -1047,7 +1048,7 @@ func subtotalOf(lines []db.CartLinesRow) (int64, error) {
 	var subtotal int64
 	for i := range lines {
 		l := &lines[i]
-		if pages.ProductStatus(l.ProductStatus) != pages.ProductActive || !l.IsActive || l.Quantity > l.SellableQuantity {
+		if product.Status(l.ProductStatus) != product.StatusActive || !l.IsActive || l.Quantity > l.SellableQuantity {
 			return 0, ErrUnavailable
 		}
 		var err error

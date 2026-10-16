@@ -10,7 +10,6 @@ SELECT json_build_object('Number', (pv.stock_quantity - pv.safety_stock), 'Name'
     pv.preorder_release_on,
     p.slug,
     p.name AS product_name,
-    p.status AS product_status,
     coalesce(b.name, '') AS brand,
     ARRAY(SELECT localized_name(v.value, v.value_en, @locale::text)
           FROM variant_option_values vov
