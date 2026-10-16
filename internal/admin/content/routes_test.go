@@ -8,13 +8,12 @@ import (
 	"github.com/koopa0/goen/internal/admin/access"
 	"github.com/koopa0/goen/internal/admin/access/accesstest"
 	"github.com/koopa0/goen/internal/media"
-	"github.com/koopa0/goen/internal/newsletter"
 )
 
 func TestEveryRouteRefusesAnOutsider(t *testing.T) {
 	t.Parallel()
 	accesstest.RefuseOutsiders(t, func(mux *http.ServeMux, ac *access.Control) {
-		NewHandler(&Store{}, &media.Handler{}, &newsletter.Store{}, slog.New(slog.DiscardHandler)).Routes(mux, ac)
+		NewHandler(&Store{}, &media.Handler{}, slog.New(slog.DiscardHandler)).Routes(mux, ac)
 	},
 		"GET /admin/faq", "POST /admin/faq", "POST /admin/faq/{id}",
 		"POST /admin/faq/categories", "POST /admin/faq/categories/{id}",

@@ -25,7 +25,6 @@ import (
 	"github.com/koopa0/goen/internal/db"
 	"github.com/koopa0/goen/internal/i18n"
 	"github.com/koopa0/goen/internal/media"
-	"github.com/koopa0/goen/internal/newsletter"
 )
 
 // TestContentRowWritesAnswerAFailureAsAServerError: a database that cannot be
@@ -96,8 +95,7 @@ func TestHomeEditorReadFailuresAnswerAsServerErrors(t *testing.T) {
 					var logged bytes.Buffer
 					log := slog.New(slog.NewTextHandler(&logged, nil))
 					mux := http.NewServeMux()
-					content.NewHandler(newStore(reading), media.NewHandler(media.NewStore(reading), log),
-						newsletter.NewStore(reading), log).Routes(mux, admintest.BackOffice)
+					content.NewHandler(newStore(reading), media.NewHandler(media.NewStore(reading), log), log).Routes(mux, admintest.BackOffice)
 					request := func() *http.Request {
 						if page.status == http.StatusOK {
 							return httptest.NewRequestWithContext(ctx, http.MethodGet, page.path, nil)

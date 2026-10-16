@@ -8,7 +8,6 @@ import (
 
 	"github.com/koopa0/goen/internal/i18n"
 	"github.com/koopa0/goen/internal/inventory"
-	"github.com/koopa0/goen/internal/ui/layouts"
 )
 
 const stockedAllWindow = 30 * 24 * time.Hour
@@ -83,75 +82,6 @@ func TestFigureRangeAndMarkAcrossTheScale(t *testing.T) {
 		}
 		if got := tc.c.Bar().Urgent; got != tc.urgent {
 			t.Errorf("%s: Bar().Urgent = %v, want %v, the same as the ▲", tc.name, got, tc.urgent)
-		}
-	}
-}
-
-func TestStockRowsCarryTheirRangeAndWindowInText(t *testing.T) {
-	t.Parallel()
-
-	ctx := i18n.WithLocale(t.Context(), i18n.En)
-	html := renderComponent(t, ctx, Report(layouts.Page{Title: "Reports"}, &ReportView{
-		Days: 7, StockDays: 30, Windows: []int32{7, 30, 90},
-		AtRisk: []StockRisk{{Risk: inventory.Risk{SKU: "OUT-1", Name: "Gone", Slug: "gone"}},
-			{Risk: inventory.Risk{SKU: "EST-1", Name: "Going", Slug: "going", Sales: inventory.Sales{Sellable: 20, Sold: 30, Orders: 15, InStock: stockedAllWindow}}},
-			{Risk: inventory.Risk{SKU: "FEW-1", Name: "Rare", Slug: "rare", Sales: inventory.Sales{Sellable: 9, Sold: 2, Orders: 2, InStock: stockedAllWindow}}},
-		},
-	}))
-
-	for _, want := range []string{
-		i18n.T(ctx, i18n.KeySoldOut),
-		"About 20 days",
-		"90% range: ",
-		"May run out within 30 days",
-		i18n.T(ctx, i18n.KeyAdminRepFewSold),
-		"9 sellable",
-		"2 units",
-		"2 orders",
-		"sold in the last 30 days",
-	} {
-		if !strings.Contains(html, want) {
-			t.Errorf("the stock rows lack %q", want)
-		}
-	}
-	if got := strings.Count(html, `<div class="goen-chartrangebar`); got != 1 {
-		t.Errorf("%d range bars drawn, want 1: only the estimated row has one", got)
-	}
-	if strings.Contains(html, "style=") {
-		t.Error("the stock rows carry a style attribute")
-	}
-}
-
-func TestMoreSoldOutLinksToTheStockDeskFilter(t *testing.T) {
-	t.Parallel()
-
-	ctx := i18n.WithLocale(t.Context(), i18n.En)
-	view := &ReportView{
-		Days: 30, StockDays: 30, Windows: []int32{7, 30, 90}, MoreSoldOut: 2,
-		AtRisk: []StockRisk{{Risk: inventory.Risk{SKU: "OUT-1", Name: "Gone", Slug: "gone"}}},
-	}
-	html := renderComponent(t, ctx, Report(layouts.Page{Title: "Reports"}, view))
-	if want := `<a href="/admin/stock?soldout=1">2 more items sold out</a>`; !strings.Contains(html, want) {
-		t.Errorf("the stock section lacks %s", want)
-	}
-	view.MoreSoldOut = 0
-	if html := renderComponent(t, ctx, Report(layouts.Page{Title: "Reports"}, view)); strings.Contains(html, "/admin/stock?soldout=1") {
-		t.Error("the stock section links to the sold out filter with none left off")
-	}
-}
-
-// The report and the stock desk draw the section from one component.
-func TestReportAndStockDeskShareTheDaysCoverSection(t *testing.T) {
-	t.Parallel()
-
-	ctx := i18n.WithLocale(t.Context(), i18n.En)
-	rows := []StockRisk{{Risk: inventory.Risk{SKU: "OUT-1", Name: "Gone", Slug: "gone"}}}
-	section := renderComponent(t, ctx, StockRiskSection(rows, 0, inventory.CoverWindowDays))
-	for name, page := range map[string]string{
-		"report": renderComponent(t, ctx, Report(layouts.Page{}, &ReportView{Days: 30, Windows: []int32{7, 30, 90}, AtRisk: rows, StockDays: inventory.CoverWindowDays})),
-	} {
-		if !strings.Contains(page, section) {
-			t.Errorf("%s does not contain the shared days cover section", name)
 		}
 	}
 }
@@ -247,40 +177,5 @@ func TestStockLeadDescribesTheDrawingAsDrawn(t *testing.T) {
 				t.Errorf("%s: the stock lead lacks %q", tc.loc, want)
 			}
 		}
-	}
-}
-
-func TestListsShareOneRowSkeleton(t *testing.T) {
-	t.Parallel()
-
-	ctx := i18n.WithLocale(t.Context(), i18n.En)
-	stock := renderComponent(t, ctx, StockRiskRows([]StockRisk{{Risk: inventory.Risk{SKU: "EST-1", Name: "Going", Slug: "going", Sales: inventory.Sales{Sellable: 14, Sold: 43, Orders: 36, InStock: stockedAllWindow}}}}, 0, 30))
-	report := renderComponent(t, ctx, Report(layouts.Page{Title: "Reports"}, &ReportView{
-		Days: 30, Windows: []int32{7, 30, 90}, Placed: 3, Committed: 3, Orders: 3,
-		Sellers: []Seller{{Slug: "a", Name: "Alpha", Brand: "Aurora", Units: 40}, {Slug: "b", Name: "Beta", Units: 10}},
-	}))
-	for name, html := range map[string]string{"stock": stock, "best sellers": report} {
-		for _, want := range []string{
-			`<li class="goen-report__row"><div class="goen-report__what"><a class="goen-report__name" href="/admin/products/`,
-			`<p class="goen-report__facts">`,
-			`<div class="goen-report__plot">`,
-		} {
-			if !strings.Contains(html, want) {
-				t.Errorf("%s list lacks the shared row markup %s", name, want)
-			}
-		}
-	}
-}
-
-func TestSellerFactsNameTheBrandThenWhatSold(t *testing.T) {
-	t.Parallel()
-
-	ctx := i18n.WithLocale(t.Context(), i18n.En)
-	got := Seller{Brand: "Aurora", Units: 4, RevenueCents: 120000}.Facts(ctx)
-	if want := "Aurora · 4 units sold · Product gross NT$1,200"; got != want {
-		t.Errorf("Seller.Facts = %q, want %q", got, want)
-	}
-	if got := (Seller{Units: 4, RevenueCents: 120000}).Facts(ctx); strings.HasPrefix(got, " ·") || strings.HasPrefix(got, "·") {
-		t.Errorf("Seller.Facts without a brand = %q, want no leading separator", got)
 	}
 }

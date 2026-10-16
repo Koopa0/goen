@@ -20,7 +20,6 @@ import (
 	"github.com/koopa0/goen/internal/home"
 	"github.com/koopa0/goen/internal/i18n"
 	"github.com/koopa0/goen/internal/media"
-	"github.com/koopa0/goen/internal/newsletter"
 	"github.com/koopa0/goen/internal/ui/components"
 )
 
@@ -63,7 +62,7 @@ func TestEveryHomepageEntryRemainsManageableBeyondExpiredHistory(t *testing.T) {
 	adminPool := admintest.AdminRolePool(t, p)
 	s := newStore(adminPool)
 	log := slog.New(slog.DiscardHandler)
-	h := content.NewHandler(s, media.NewHandler(media.NewStore(adminPool), log), newsletter.NewStore(adminPool), log)
+	h := content.NewHandler(s, media.NewHandler(media.NewStore(adminPool), log), log)
 	mux := http.NewServeMux()
 	h.Routes(mux, admintest.BackOffice)
 	shop := home.NewStore(adminPool)
