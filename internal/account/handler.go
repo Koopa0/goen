@@ -39,7 +39,7 @@ func NewHandler(store *Store, log *slog.Logger, secure, takesPayment bool) *Hand
 // request made from the page is refused on the page. auth's credential changes
 // answer this way through [auth.Handler.RefuseOnAccountPage].
 func (h *Handler) Refuse(w http.ResponseWriter, r *http.Request, notice string) {
-	h.overview(w, r, http.StatusUnprocessableEntity, func(v *pages.AccountView) {
+	h.overview(w, r, http.StatusUnprocessableEntity, func(v *AccountView) {
 		v.Notice = notice
 	})
 }
@@ -48,7 +48,7 @@ func (h *Handler) Overview(w http.ResponseWriter, r *http.Request) {
 	h.overview(w, r, http.StatusOK, nil)
 }
 
-func (h *Handler) overview(w http.ResponseWriter, r *http.Request, status int, refused func(*pages.AccountView)) {
+func (h *Handler) overview(w http.ResponseWriter, r *http.Request, status int, refused func(*AccountView)) {
 	u, ok := user.FromContext(r.Context())
 	if !ok {
 		http.Redirect(w, r, "/signin", http.StatusSeeOther)
@@ -81,7 +81,7 @@ func (h *Handler) overview(w http.ResponseWriter, r *http.Request, status int, r
 	if refused != nil {
 		refused(&view)
 	}
-	web.Render(w, r, h.log, status, pages.Account(pages.AccountMeta(r.Context()), &view))
+	web.Render(w, r, h.log, status, Account(AccountMeta(r.Context()), &view))
 }
 
 func accountNotice(r *http.Request) string {
@@ -171,8 +171,8 @@ func (h *Handler) AddAddress(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *Handler) refuseAddress(w http.ResponseWriter, r *http.Request, a *Address, errs map[string]string, notice string) {
-	h.overview(w, r, http.StatusUnprocessableEntity, func(v *pages.AccountView) {
-		v.AddressDraft = &pages.AddressDraft{
+	h.overview(w, r, http.StatusUnprocessableEntity, func(v *AccountView) {
+		v.AddressDraft = &AddressDraft{
 			Label: a.Label, Name: a.Name, Phone: a.Phone, PostalCode: a.PostalCode,
 			City: a.City, District: a.District, Street: a.Street, Default: a.Default,
 		}
@@ -199,8 +199,8 @@ func (h *Handler) EditAddress(w http.ResponseWriter, r *http.Request) {
 		h.serverError(w, r)
 		return
 	}
-	h.overview(w, r, http.StatusOK, func(v *pages.AccountView) {
-		v.AddressDraft = &pages.AddressDraft{
+	h.overview(w, r, http.StatusOK, func(v *AccountView) {
+		v.AddressDraft = &AddressDraft{
 			ID: a.ID, Label: a.Label, Name: a.Name, Phone: a.Phone,
 			PostalCode: a.PostalCode, City: a.City, District: a.District, Street: a.Street, Default: a.Default,
 		}
@@ -253,8 +253,8 @@ func (h *Handler) UpdateAddress(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *Handler) refuseAddressEdit(w http.ResponseWriter, r *http.Request, id string, a *Address, errs map[string]string) {
-	h.overview(w, r, http.StatusUnprocessableEntity, func(v *pages.AccountView) {
-		v.AddressDraft = &pages.AddressDraft{
+	h.overview(w, r, http.StatusUnprocessableEntity, func(v *AccountView) {
+		v.AddressDraft = &AddressDraft{
 			ID: id, Label: a.Label, Name: a.Name, Phone: a.Phone, PostalCode: a.PostalCode,
 			City: a.City, District: a.District, Street: a.Street, Default: a.Default,
 		}

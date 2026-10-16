@@ -18,6 +18,7 @@ import (
 
 	"github.com/koopa0/goen/assets"
 	"github.com/koopa0/goen/internal/bearer"
+	"github.com/koopa0/goen/internal/cart/item"
 	"github.com/koopa0/goen/internal/db"
 	"github.com/koopa0/goen/internal/i18n"
 	invoicepkg "github.com/koopa0/goen/internal/invoice"
@@ -308,6 +309,32 @@ func (s *Store) View(ctx context.Context, cartID uuid.UUID) (pages.CartView, err
 	return view, nil
 }
 
+// Items reads what the cart holds, every line the cart page lists and in its
+// order, sellable or not.
+func (s *Store) Items(ctx context.Context, cartID uuid.UUID) ([]item.Item, error) {
+	rows, err := s.q.CartLines(ctx, db.CartLinesParams{
+		CartID: cartID, Locale: string(i18n.FromContext(ctx)),
+	})
+	if err != nil {
+		return nil, fmt.Errorf("read cart lines: %w", err)
+	}
+	items := make([]item.Item, 0, len(rows))
+	for i := range rows {
+		r := &rows[i]
+		photo := assets.Image{Digest: r.ImageDigest, BundledKey: r.ImageBundledKey, Width: int(r.ImageWidth)}
+		items = append(items, item.Item{
+			VariantID:   r.VariantID,
+			Name:        r.Name,
+			Label:       optionLabel(r.OptionNames, r.OptionValues),
+			Quantity:    r.Quantity,
+			ImageURL:    photo.URL(),
+			ImageSrcset: photo.Srcset(),
+			ImageAlt:    r.ImageAlt,
+		})
+	}
+	return items, nil
+}
+
 // productReturnURL rebuilds the selection query from the variant row the server
 // accepted; only added= comes from the handler outcome.
 //
@@ -585,14 +612,9 @@ func lockCheckoutTerms(
 		return nil, ErrTooManyItems
 	}
 
-	ship, err := q.ShippingVersion(ctx, db.ShippingVersionParams{
-		ID: shippingVersionID, Locale: string(i18n.FromContext(ctx)),
-	})
-	if errors.Is(err, pgx.ErrNoRows) {
-		return nil, ErrNotFound
-	}
+	ship, err := lockedShippingVersion(ctx, q, shippingVersionID)
 	if err != nil {
-		return nil, fmt.Errorf("read shipping version: %w", err)
+		return nil, err
 	}
 
 	// The destination is re-derived from the method just read and the address
@@ -655,6 +677,26 @@ func lockCheckoutTerms(
 		shippingFee: shippingFee, discount: discount,
 		gross: gross, creditCents: creditCents,
 	}, nil
+}
+
+// lockedShippingVersion reads the version checkout prices delivery from. Its fee
+// is append-only, but the zone surcharges and prefixes are edited in place, and
+// orders_have_lines reads them again at COMMIT; the zone lock, held shared to
+// the end of the transaction, keeps them as they were quoted.
+func lockedShippingVersion(ctx context.Context, q *db.Queries, id uuid.UUID) (db.ShippingVersionRow, error) {
+	if err := q.LockZoneRatesForCheckout(ctx); err != nil {
+		return db.ShippingVersionRow{}, fmt.Errorf("lock zone rates: %w", err)
+	}
+	ship, err := q.ShippingVersion(ctx, db.ShippingVersionParams{
+		ID: id, Locale: string(i18n.FromContext(ctx)),
+	})
+	if errors.Is(err, pgx.ErrNoRows) {
+		return db.ShippingVersionRow{}, ErrNotFound
+	}
+	if err != nil {
+		return db.ShippingVersionRow{}, fmt.Errorf("read shipping version: %w", err)
+	}
+	return ship, nil
 }
 
 func checkoutQuoteLines(lines []db.CartLinesRow) []checkoutQuoteLine {

@@ -501,6 +501,15 @@ SELECT id, code, description, kind, amount_cents, percent_bp,
        (starts_at <= now() AND (ends_at IS NULL OR ends_at > now()))::boolean AS is_current
 FROM coupons WHERE upper(code) = upper(@code::text);
 
+-- Shared, so checkouts never wait for each other: what it waits for is an edit
+-- to the zone surcharges or prefixes (LockZoneRates in internal/admin/shipping
+-- takes the same key exclusively). Held from the quote to the COMMIT, where
+-- orders_have_lines prices the order again from those rows; without it an edit
+-- committed in between would make the two disagree and refuse the order.
+-- name: LockZoneRatesForCheckout :exec
+SELECT pg_advisory_xact_lock_shared(hashtextextended(
+    'zone_prefixes', 628471039582915603::bigint));
+
 -- name: LockCouponForCheckout :exec
 SELECT lock_coupon_for_checkout(@code::text);
 

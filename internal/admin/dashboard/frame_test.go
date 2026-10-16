@@ -4,9 +4,9 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/koopa0/goen/internal/account"
 	"github.com/koopa0/goen/internal/i18n"
 	"github.com/koopa0/goen/internal/ui/layouts"
-	"github.com/koopa0/goen/internal/ui/pages"
 )
 
 // From internal/ui/pages/admin/frame_test.go, moved whole: the back office's
@@ -52,7 +52,7 @@ func TestTheBackOfficeRendersNoStorefrontChrome(t *testing.T) {
 			"chrome it replaced took the only one with it")
 	}
 
-	shop := renderComponent(t, ctx, pages.Account(pages.AccountMeta(ctx), &pages.AccountView{Email: "somebody@example.com"}))
+	shop := renderComponent(t, ctx, account.Account(account.AccountMeta(ctx), &account.AccountView{Email: "somebody@example.com"}))
 	for where, markup := range storefrontChrome {
 		if !strings.Contains(shop, markup) {
 			t.Errorf("the storefront lost %s: no %s in the page", where, markup)

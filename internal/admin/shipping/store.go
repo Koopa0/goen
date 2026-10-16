@@ -227,20 +227,8 @@ func (s *Store) SetZoneSurcharge(ctx context.Context, versionID, zoneID string, 
 		},
 	},
 		func(ctx context.Context, q *db.Queries) error {
-			methodID, err := q.LockShippingMethodForVersion(ctx, vid)
-			if errors.Is(err, pgx.ErrNoRows) {
-				return fmt.Errorf("%w: shipping version is missing", ErrRefused)
-			}
-			if err != nil {
-				return fmt.Errorf("lock surcharge method: %w", err)
-			}
-			// A publisher may have committed while the method lock was held elsewhere.
-			currentID, err := q.CurrentShippingVersion(ctx, methodID)
-			if err != nil {
-				return fmt.Errorf("read current shipping version: %w", err)
-			}
-			if currentID != vid {
-				return &VersionChangedError{MethodID: methodID}
+			if err := lockCurrentVersion(ctx, q, vid); err != nil {
+				return err
 			}
 			if dollars == 0 {
 				if _, delErr := q.ClearZoneSurcharge(ctx, db.ClearZoneSurchargeParams{
@@ -257,6 +245,32 @@ func (s *Store) SetZoneSurcharge(ctx context.Context, versionID, zoneID string, 
 			}
 			return nil
 		})
+}
+
+// lockCurrentVersion takes what a surcharge edit holds, in order, and refuses a
+// version a publication has superseded. The zone lock comes first, as the
+// prefix edits take it: a checkout pricing a zone holds it shared until it
+// commits, where orders_have_lines prices the order again from these rows.
+func lockCurrentVersion(ctx context.Context, q *db.Queries, vid uuid.UUID) error {
+	if err := q.LockZoneRates(ctx); err != nil {
+		return fmt.Errorf("lock zone rates: %w", err)
+	}
+	methodID, err := q.LockShippingMethodForVersion(ctx, vid)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return fmt.Errorf("%w: shipping version is missing", ErrRefused)
+	}
+	if err != nil {
+		return fmt.Errorf("lock surcharge method: %w", err)
+	}
+	// A publisher may have committed while the method lock was held elsewhere.
+	currentID, err := q.CurrentShippingVersion(ctx, methodID)
+	if err != nil {
+		return fmt.Errorf("read current shipping version: %w", err)
+	}
+	if currentID != vid {
+		return &VersionChangedError{MethodID: methodID}
+	}
+	return nil
 }
 
 type NewMethod struct {
