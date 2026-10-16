@@ -55,23 +55,23 @@ var ErrDailyRevenue = errors.New("read daily revenue")
 // ReportAt reads the last days shop days up to now, and the same number before
 // them, cut at the same time of day. The tiles and the daily chart are read in
 // one snapshot, so the days add up to the revenue even while orders are paid.
-func (s *Store) ReportAt(ctx context.Context, days int32, now time.Time) (admin.ReportView, error) {
+func (s *Store) ReportAt(ctx context.Context, days int32, now time.Time) (ReportView, error) {
 	// The stock and its ledger are read in their own snapshot, before this one
 	// opens, so one report holds one connection at a time.
 	atRisk, moreSoldOut, err := s.cover.DaysCover(ctx, int(window(days)), now)
 	if err != nil {
-		return admin.ReportView{}, err
+		return ReportView{}, err
 	}
 	tx, err := s.pool.BeginTx(ctx, pgx.TxOptions{IsoLevel: pgx.RepeatableRead, AccessMode: pgx.ReadOnly})
 	if err != nil {
-		return admin.ReportView{}, fmt.Errorf("begin report snapshot: %w", err)
+		return ReportView{}, fmt.Errorf("begin report snapshot: %w", err)
 	}
 	defer db.Rollback(ctx, tx)
 	q := db.New(tx)
 
 	view, err := reportAt(ctx, q, days, now)
 	if err != nil {
-		return admin.ReportView{}, err
+		return ReportView{}, err
 	}
 	view.AtRisk, view.MoreSoldOut = admin.StockRisks(atRisk, now), moreSoldOut
 	current, _ := periods(now, int(window(days)))
@@ -155,46 +155,46 @@ func readPeriod(ctx context.Context, q *db.Queries, p period) (sales.Period, err
 	}, nil
 }
 
-func reportAt(ctx context.Context, q *db.Queries, days int32, now time.Time) (admin.ReportView, error) {
+func reportAt(ctx context.Context, q *db.Queries, days int32, now time.Time) (ReportView, error) {
 	days = window(days)
 	current, before := periods(now, int(days))
 
 	revenue, err := q.RevenueBetween(ctx, db.RevenueBetweenParams{FromAt: current.from, ToAt: current.to})
 	if err != nil {
-		return admin.ReportView{}, fmt.Errorf("read revenue: %w", err)
+		return ReportView{}, fmt.Errorf("read revenue: %w", err)
 	}
 	completion, err := q.CheckoutCompletionBetween(ctx, db.CheckoutCompletionBetweenParams{
 		FromAt: current.from, ToAt: current.to,
 	})
 	if err != nil {
-		return admin.ReportView{}, fmt.Errorf("read completion: %w", err)
+		return ReportView{}, fmt.Errorf("read completion: %w", err)
 	}
 	prevRevenue, err := q.RevenueBetween(ctx, db.RevenueBetweenParams{FromAt: before.from, ToAt: before.to})
 	if err != nil {
-		return admin.ReportView{}, fmt.Errorf("read previous revenue: %w", err)
+		return ReportView{}, fmt.Errorf("read previous revenue: %w", err)
 	}
 	prevCompletion, err := q.CheckoutCompletionBetween(ctx, db.CheckoutCompletionBetweenParams{
 		FromAt: before.from, ToAt: before.to,
 	})
 	if err != nil {
-		return admin.ReportView{}, fmt.Errorf("read previous completion: %w", err)
+		return ReportView{}, fmt.Errorf("read previous completion: %w", err)
 	}
 	sellers, err := q.BestSellersBetween(ctx, db.BestSellersBetweenParams{
 		FromAt: current.from, ToAt: current.to, LimitTo: maxRows,
 	})
 	if err != nil {
-		return admin.ReportView{}, fmt.Errorf("read best sellers: %w", err)
+		return ReportView{}, fmt.Errorf("read best sellers: %w", err)
 	}
 	departments, err := q.DepartmentSalesBetween(ctx, db.DepartmentSalesBetweenParams{
 		Locale: string(i18n.FromContext(ctx)), FromAt: current.from, ToAt: current.to,
 	})
 	if err != nil {
-		return admin.ReportView{}, fmt.Errorf("read department sales: %w", err)
+		return ReportView{}, fmt.Errorf("read department sales: %w", err)
 	}
 
 	windows := make([]int32, len(reportWindows))
 	copy(windows, reportWindows[:])
-	view := admin.ReportView{
+	view := ReportView{
 		Days:         int(days),
 		Orders:       revenue.Orders,
 		RevenueCents: revenue.RevenueCents, RefundedCents: revenue.RefundedCents,
@@ -204,7 +204,7 @@ func reportAt(ctx context.Context, q *db.Queries, days int32, now time.Time) (ad
 		Windows:   windows,
 		StockDays: max(int(days), inventory.CoverWindowDays),
 		From:      shoptime.DateOf(current.from, now), To: shoptime.DateOf(current.to, now),
-		Previous: admin.PreviousFigures{
+		Previous: PreviousFigures{
 			From: shoptime.DateOf(before.from, now), To: shoptime.DateOf(before.to, now),
 			Orders: prevRevenue.Orders, RevenueCents: prevRevenue.RevenueCents,
 			RevenueSquares: prevRevenue.SumOfSquares, RefundedCents: prevRevenue.RefundedCents,
@@ -214,20 +214,20 @@ func reportAt(ctx context.Context, q *db.Queries, days int32, now time.Time) (ad
 	}
 	for i := range sellers {
 		r := &sellers[i]
-		view.Sellers = append(view.Sellers, admin.Seller{
+		view.Sellers = append(view.Sellers, Seller{
 			Slug: r.Slug, Name: r.Name, Brand: r.Brand,
 			Units: r.Units, RevenueCents: r.RevenueCents,
 		})
 	}
 	for _, d := range departments {
-		view.Departments = append(view.Departments, admin.Department{Name: d.Name, SalesCents: d.SalesCents})
+		view.Departments = append(view.Departments, Department{Name: d.Name, SalesCents: d.SalesCents})
 	}
 	return view, nil
 }
 
 // readReturnedProducts reads inside a savepoint, so that a failure ends only
 // the savepoint and not the snapshot the chart is still to be read from.
-func readReturnedProducts(ctx context.Context, tx pgx.Tx, p period) ([]admin.ReturnedProduct, error) {
+func readReturnedProducts(ctx context.Context, tx pgx.Tx, p period) ([]ReturnedProduct, error) {
 	sp, err := tx.Begin(ctx)
 	if err != nil {
 		return nil, fmt.Errorf("begin returned products savepoint: %w", err)
@@ -239,10 +239,10 @@ func readReturnedProducts(ctx context.Context, tx pgx.Tx, p period) ([]admin.Ret
 	if err != nil {
 		return nil, fmt.Errorf("read returned products: %w", err)
 	}
-	returned := make([]admin.ReturnedProduct, 0, len(rows))
+	returned := make([]ReturnedProduct, 0, len(rows))
 	for i := range rows {
 		r := &rows[i]
-		returned = append(returned, admin.ReturnedProduct{
+		returned = append(returned, ReturnedProduct{
 			Slug: r.Slug, Name: r.Name, Brand: r.Brand,
 			Returned: r.ReturnedUnits, Sold: r.SoldUnits,
 		})
@@ -253,22 +253,22 @@ func readReturnedProducts(ctx context.Context, tx pgx.Tx, p period) ([]admin.Ret
 // dailyFigures reads each shop day's paid revenue over the same two periods
 // reportAt reads, so the days add up to its revenue, and the paid orders of the
 // current period's days with what was on during them.
-func dailyFigures(ctx context.Context, q *db.Queries, days int32, now time.Time) (admin.DailyRevenue, admin.PaidDays, error) {
+func dailyFigures(ctx context.Context, q *db.Queries, days int32, now time.Time) (DailyRevenue, PaidDays, error) {
 	current, before := periods(now, int(window(days)))
 	thisPeriod, orders, err := dailySeries(ctx, q, current)
 	if err != nil {
-		return admin.DailyRevenue{}, admin.PaidDays{}, err
+		return DailyRevenue{}, PaidDays{}, err
 	}
 	previous, _, err := dailySeries(ctx, q, before)
 	if err != nil {
-		return admin.DailyRevenue{}, admin.PaidDays{}, err
+		return DailyRevenue{}, PaidDays{}, err
 	}
-	paid := admin.PaidDays{Days: orders}
+	paid := PaidDays{Days: orders}
 	campaigns, err := q.CampaignsBetween(ctx, db.CampaignsBetweenParams{
 		Locale: string(i18n.FromContext(ctx)), FromAt: current.from, ToAt: current.to,
 	})
 	if err != nil {
-		return admin.DailyRevenue{}, admin.PaidDays{}, fmt.Errorf("read campaigns: %w", err)
+		return DailyRevenue{}, PaidDays{}, fmt.Errorf("read campaigns: %w", err)
 	}
 	for _, c := range campaigns {
 		paid.Campaigns = append(paid.Campaigns, chart.Span{From: c.FirstDay, To: c.LastDay, Label: c.Title})
@@ -282,10 +282,10 @@ func dailyFigures(ctx context.Context, q *db.Queries, days int32, now time.Time)
 			day := shoptime.DateOf(latest, now)
 			paid.Latest = &day
 		case !errors.Is(err, pgx.ErrNoRows):
-			return admin.DailyRevenue{}, admin.PaidDays{}, fmt.Errorf("read latest paid day: %w", err)
+			return DailyRevenue{}, PaidDays{}, fmt.Errorf("read latest paid day: %w", err)
 		}
 	}
-	return admin.DailyRevenue{Current: thisPeriod, Previous: previous, Cut: shoptime.Clock(now)}, paid, nil
+	return DailyRevenue{Current: thisPeriod, Previous: previous, Cut: shoptime.Clock(now)}, paid, nil
 }
 
 // dailySeries is the period's paid revenue and its paid orders, a bucket for
