@@ -9,7 +9,10 @@ import (
 	"github.com/koopa0/goen/internal/ui/components"
 )
 
-// ShopRules is what the shop states about itself, from where each rule is stored.
+// ShopRules is the view of the rules the shop states about itself, as the home,
+// department and product pages show them. Its fields are site.ShopRules's, in
+// the same order, so each page's package converts the value site reads and the
+// compiler refuses the conversion the day the two differ.
 type ShopRules struct {
 	// FreeDeliveryCents is zero where some delivery method never turns free.
 	FreeDeliveryCents int64
