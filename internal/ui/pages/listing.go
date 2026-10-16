@@ -26,11 +26,6 @@ func isPartial(ctx context.Context) bool {
 
 func queryEscape(s string) string { return url.QueryEscape(s) }
 
-type Crumb struct {
-	Slug string
-	Name string
-}
-
 type FacetOption struct {
 	Value    string
 	Label    string

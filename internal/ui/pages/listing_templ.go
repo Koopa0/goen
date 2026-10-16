@@ -41,7 +41,7 @@ func Listing(p layouts.Page, v ListingView, rules *ShopRules, head *DepartmentHe
 		}
 		ctx = templ.ClearChildren(ctx)
 		photo, onWell := bandPhoto(v.Theme.Image(), v.Products)
-		p = awaitingIf(p, photo.Shown(), layouts.AwaitPageheadPhoto)
+		p = AwaitingIf(p, photo.Shown(), layouts.AwaitPageheadPhoto)
 		templ_7745c5c3_Var2 := templruntime.GeneratedTemplate(func(templ_7745c5c3_Input templruntime.GeneratedComponentInput) (templ_7745c5c3_Err error) {
 			templ_7745c5c3_W, ctx := templ_7745c5c3_Input.Writer, templ_7745c5c3_Input.Context
 			templ_7745c5c3_Buffer, templ_7745c5c3_IsBuffer := templruntime.GetBuffer(templ_7745c5c3_W)
@@ -72,7 +72,7 @@ func Listing(p layouts.Page, v ListingView, rules *ShopRules, head *DepartmentHe
 				return templ_7745c5c3_Err
 			}
 			if photo.Shown() {
-				templ_7745c5c3_Err = bandMedia("goen-pagehead__photo", "pagehead-photo", photo, onWell, "(min-width: 48rem) 57vw, 100vw", false).Render(ctx, templ_7745c5c3_Buffer)
+				templ_7745c5c3_Err = BandMedia("goen-pagehead__photo", "pagehead-photo", photo, onWell, "(min-width: 48rem) 57vw, 100vw", false).Render(ctx, templ_7745c5c3_Buffer)
 				if templ_7745c5c3_Err != nil {
 					return templ_7745c5c3_Err
 				}
@@ -279,7 +279,7 @@ func Listing(p layouts.Page, v ListingView, rules *ShopRules, head *DepartmentHe
 				if templ_7745c5c3_Err != nil {
 					return templ_7745c5c3_Err
 				}
-				templ_7745c5c3_Err = emptyArt(assets.EmptySearchImage).Render(ctx, templ_7745c5c3_Buffer)
+				templ_7745c5c3_Err = components.EmptyArt(assets.EmptySearchImage).Render(ctx, templ_7745c5c3_Buffer)
 				if templ_7745c5c3_Err != nil {
 					return templ_7745c5c3_Err
 				}
@@ -399,7 +399,7 @@ func Listing(p layouts.Page, v ListingView, rules *ShopRules, head *DepartmentHe
 				return templ_7745c5c3_Err
 			}
 			if rules != nil && !isPartial(ctx) {
-				templ_7745c5c3_Err = shopRules(*rules).Render(ctx, templ_7745c5c3_Buffer)
+				templ_7745c5c3_Err = ShopRulesSection(*rules).Render(ctx, templ_7745c5c3_Buffer)
 				if templ_7745c5c3_Err != nil {
 					return templ_7745c5c3_Err
 				}
@@ -1674,7 +1674,7 @@ func Search(p layouts.Page, v SearchView) templ.Component {
 				if templ_7745c5c3_Err != nil {
 					return templ_7745c5c3_Err
 				}
-				templ_7745c5c3_Err = emptyArt(assets.EmptySearchImage).Render(ctx, templ_7745c5c3_Buffer)
+				templ_7745c5c3_Err = components.EmptyArt(assets.EmptySearchImage).Render(ctx, templ_7745c5c3_Buffer)
 				if templ_7745c5c3_Err != nil {
 					return templ_7745c5c3_Err
 				}
@@ -1713,7 +1713,7 @@ func Search(p layouts.Page, v SearchView) templ.Component {
 				if templ_7745c5c3_Err != nil {
 					return templ_7745c5c3_Err
 				}
-				templ_7745c5c3_Err = emptyArt(assets.EmptySearchImage).Render(ctx, templ_7745c5c3_Buffer)
+				templ_7745c5c3_Err = components.EmptyArt(assets.EmptySearchImage).Render(ctx, templ_7745c5c3_Buffer)
 				if templ_7745c5c3_Err != nil {
 					return templ_7745c5c3_Err
 				}

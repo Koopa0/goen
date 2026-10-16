@@ -13,14 +13,14 @@ import (
 // rules and head are nil where the page has none to state.
 templ Listing(p layouts.Page, v ListingView, rules *ShopRules, head *DepartmentHead) {
 	{{ photo, onWell := bandPhoto(v.Theme.Image(), v.Products) }}
-	{{ p = awaitingIf(p, photo.Shown(), layouts.AwaitPageheadPhoto) }}
+	{{ p = AwaitingIf(p, photo.Shown(), layouts.AwaitPageheadPhoto) }}
 	@layouts.Base(p) {
 		<div class="goen-listing__head">
 			<div class="goen-pagehead" data-tone={ v.Theme.ToneAttr() }>
 				<div class="goen-band">
 					<div class="goen-band__grid">
 						if photo.Shown() {
-							@bandMedia("goen-pagehead__photo", "pagehead-photo", photo, onWell, "(min-width: 48rem) 57vw, 100vw", false)
+							@BandMedia("goen-pagehead__photo", "pagehead-photo", photo, onWell, "(min-width: 48rem) 57vw, 100vw", false)
 						}
 						<div class="goen-band__body goen-pagehead__text">
 							@components.Breadcrumb(components.BreadcrumbProps{
@@ -63,7 +63,7 @@ templ Listing(p layouts.Page, v ListingView, rules *ShopRules, head *DepartmentH
 					>
 						if v.Empty() {
 							<div class="ui-empty">
-								@emptyArt(assets.EmptySearchImage)
+								@components.EmptyArt(assets.EmptySearchImage)
 								<p class="goen-empty__title">{ i18n.T(ctx, i18n.KeyListingEmpty) }</p>
 								<p class="goen-empty__text">
 									{ i18n.T(ctx, i18n.KeyListingEmptyHint) }
@@ -85,7 +85,7 @@ templ Listing(p layouts.Page, v ListingView, rules *ShopRules, head *DepartmentH
 				</div>
 			</div>
 			if rules != nil && !isPartial(ctx) {
-				@shopRules(*rules)
+				@ShopRulesSection(*rules)
 			}
 			if isPartial(ctx) {
 				// The rail is not swapped, or the box the shopper just used would lose focus;
@@ -329,13 +329,13 @@ templ Search(p layouts.Page, v SearchView) {
 			</div>
 			if !v.Searched() {
 				<div class="ui-empty">
-					@emptyArt(assets.EmptySearchImage)
+					@components.EmptyArt(assets.EmptySearchImage)
 					<p class="goen-empty__title">{ i18n.T(ctx, i18n.KeySearchPrompt) }</p>
 					<p class="goen-empty__text">{ i18n.T(ctx, i18n.KeySearchPromptHint) }</p>
 				</div>
 			} else if v.Empty() {
 				<div class="ui-empty">
-					@emptyArt(assets.EmptySearchImage)
+					@components.EmptyArt(assets.EmptySearchImage)
 					<p class="goen-empty__title">{ fmt.Sprintf(i18n.T(ctx, i18n.KeySearchNoResults), v.Query) }</p>
 					<p class="goen-empty__text">{ i18n.T(ctx, i18n.KeySearchNoResultsHint) }</p>
 					if len(layouts.TopNavFrom(ctx)) > 0 {

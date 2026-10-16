@@ -245,15 +245,6 @@ func TestAComparableDepartmentSaysSoOnItsPage(t *testing.T) {
 	}
 }
 
-func TestAComparableTileDrawsItsSpecHighlights(t *testing.T) {
-	t.Parallel()
-	ctx := i18n.WithLocale(t.Context(), i18n.En)
-	got := renderComponent(t, ctx, Tile(ProductTile{Slug: "a", Name: "A", Comparable: true, Highlights: []string{"14″", "2.8K OLED"}}))
-	if want := `<span class="goen-tile__specs">14″ · 2.8K OLED</span>`; !strings.Contains(got, want) {
-		t.Errorf("tile omits %s", want)
-	}
-}
-
 func TestTheDepartmentFrontIsTheUnfilteredFirstPage(t *testing.T) {
 	t.Parallel()
 	for _, tt := range []struct {
@@ -268,19 +259,6 @@ func TestTheDepartmentFrontIsTheUnfilteredFirstPage(t *testing.T) {
 	} {
 		if got := tt.view.IsFront(); got != tt.want {
 			t.Errorf("%s: IsFront = %v, want %v", tt.name, got, tt.want)
-		}
-	}
-}
-
-func TestTheCampaignEndStatNamesItsLastDayAndTheLastTwoDays(t *testing.T) {
-	t.Parallel()
-	ctx := i18n.WithLocale(t.Context(), i18n.ZhHant)
-	now := time.Date(2026, 10, 9, 4, 0, 0, 0, time.UTC)
-	ends := time.Date(2026, 10, 10, 16, 0, 0, 0, time.UTC)
-	got := renderComponent(t, ctx, components.StatLine([]components.Stat{CampaignEndStat(ctx, ends, now)}, components.StatLinePlain))
-	for _, want := range []string{`datetime="2026-10-10"`, "明天結束"} {
-		if !strings.Contains(got, want) {
-			t.Errorf("end stat omits %s:\n%s", want, got)
 		}
 	}
 }

@@ -172,7 +172,7 @@ templ compareTable(v CompareView, preview bool) {
 								}
 								if preview {
 									<span class="goen-compare__price">
-										@tilePrice(item.PriceTile())
+										@TilePrice(item.PriceTile())
 									</span>
 								} else {
 									// A link, not a form button: the comparison set is the URL, so removing writes nothing.
@@ -191,7 +191,7 @@ templ compareTable(v CompareView, preview bool) {
 						<th scope="row">{ i18n.T(ctx, i18n.KeyCompareRowPrice) }</th>
 						for _, item := range v.Products {
 							<td class="goen-compare__price">
-								@tilePrice(item.PriceTile())
+								@TilePrice(item.PriceTile())
 							</td>
 						}
 					</tr>

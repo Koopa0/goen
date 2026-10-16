@@ -55,7 +55,7 @@ templ colourStory(s *ColourStory) {
 				<p class="goen-story__deck">{ s.Summary }</p>
 			}
 			<p class="goen-story__buy">
-				@tilePrice(s.Price)
+				@TilePrice(s.Price)
 			</p>
 			<a class="goen-story__link" href={ templ.URL("/p/" + s.Slug) }>{ s.Name } <span aria-hidden="true">&rarr;</span></a>
 		</div>

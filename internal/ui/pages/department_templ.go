@@ -412,7 +412,7 @@ func colourStory(s *ColourStory) templ.Component {
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
-		templ_7745c5c3_Err = tilePrice(s.Price).Render(ctx, templ_7745c5c3_Buffer)
+		templ_7745c5c3_Err = TilePrice(s.Price).Render(ctx, templ_7745c5c3_Buffer)
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}

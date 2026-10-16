@@ -8,13 +8,6 @@ import (
 	"github.com/koopa0/goen/internal/i18n"
 )
 
-// MinCompare and MaxCompare bound a comparison. The comparison is the URL, so
-// these are the only place either number is written.
-const (
-	MinCompare = 2
-	MaxCompare = 5
-)
-
 type CompareCandidate struct {
 	Slug  string
 	Name  string

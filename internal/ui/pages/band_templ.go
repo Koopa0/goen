@@ -10,9 +10,9 @@ import templruntime "github.com/a-h/templ/runtime"
 
 import "github.com/koopa0/goen/internal/ui/components"
 
-// bandMedia is the band's first grid item: the photograph on goen's white,
+// BandMedia is the band's first grid item: the photograph on goen's white,
 // never on the tone. A first-screen photograph is eager; the others are lazy.
-func bandMedia(imgClass, id string, p components.Photo, onWell bool, sizes string, lazy bool) templ.Component {
+func BandMedia(imgClass, id string, p components.Photo, onWell bool, sizes string, lazy bool) templ.Component {
 	return templruntime.GeneratedTemplate(func(templ_7745c5c3_Input templruntime.GeneratedComponentInput) (templ_7745c5c3_Err error) {
 		templ_7745c5c3_W, ctx := templ_7745c5c3_Input.Writer, templ_7745c5c3_Input.Context
 		if templ_7745c5c3_CtxErr := ctx.Err(); templ_7745c5c3_CtxErr != nil {

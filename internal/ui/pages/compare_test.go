@@ -6,6 +6,7 @@ import (
 
 	"github.com/koopa0/goen/internal/i18n"
 	"github.com/koopa0/goen/internal/ui/layouts"
+	"github.com/koopa0/goen/internal/warranty"
 )
 
 // TestCompareShowsTheTableOnlyWhenThereAreTwoProducts holds Enough() and the
@@ -119,26 +120,6 @@ func TestAFullComparisonSaysSoAndOffersNoPicker(t *testing.T) {
 	}
 }
 
-// TestTheProductPageAddsToTheComparisonInTheAddress: the control extends the
-// comparison the reader arrived with, and says so when there is no room.
-func TestTheProductPageAddsToTheComparisonInTheAddress(t *testing.T) {
-	t.Parallel()
-	v := &ProductView{Slug: "c", Comparing: []string{"a", "b"}}
-	if got, want := v.CompareHref(), "/compare?p=a&p=b&p=c"; got != want {
-		t.Errorf("CompareHref = %q, want %q", got, want)
-	}
-	if v.ComparingFull() {
-		t.Error("two products already reads as full")
-	}
-	full := &ProductView{Slug: "z"}
-	for i := range MaxCompare {
-		full.Comparing = append(full.Comparing, string(rune('a'+i)))
-	}
-	if !full.ComparingFull() {
-		t.Errorf("%d products do not read as full", MaxCompare)
-	}
-}
-
 // TestOneProductInTheComparisonInvitesTheNextNotTheDeadEnd: a product page's
 // add link lands here with one product, and the page must let the reader add
 // another rather than tell them to go and find one.
@@ -153,64 +134,6 @@ func TestOneProductInTheComparisonInvitesTheNextNotTheDeadEnd(t *testing.T) {
 	}
 	if !strings.Contains(html, "已在比較中") {
 		t.Error("one product does not say it is already in the comparison")
-	}
-}
-
-// TestTheProductPageSaysWhenTheComparisonIsFull: the add control disappears at
-// the maximum, so the page has to say why.
-func TestTheProductPageSaysWhenTheComparisonIsFull(t *testing.T) {
-	t.Parallel()
-	v := &ProductView{Slug: "z", Comparable: true}
-	for i := range MaxCompare {
-		v.Comparing = append(v.Comparing, string(rune('a'+i)))
-	}
-	html := renderToString(t, Product(ProductMeta(v), v))
-	if !strings.Contains(html, "比較已滿") {
-		t.Error("a full comparison hides the add control without saying why")
-	}
-}
-
-// TestTheProductPageOffersComparisonOnlyWhereTheDepartmentDoes: the control is
-// the department's to give. Where it is given it sits with the specs and not in
-// the buy box; where it is not, nothing on the page leads to /compare.
-func TestTheProductPageOffersComparisonOnlyWhereTheDepartmentDoes(t *testing.T) {
-	t.Parallel()
-	view := func(comparable bool) *ProductView {
-		return &ProductView{
-			Name: "Pixelight 9 Pro", Slug: "pixelight-9-pro", Comparable: comparable,
-			SelectionOK: true, Sellable: true, AnySellable: true, PriceCents: 100,
-			Specs: []ProductSpec{{Label: "重量", Value: "199 g"}},
-		}
-	}
-
-	on := renderToString(t, Product(ProductMeta(view(true)), view(true)))
-	link := `href="/compare?p=pixelight-9-pro"`
-	at := strings.Index(on, link)
-	if at < 0 {
-		t.Fatalf("a comparable department's product page has no %s", link)
-	}
-	if !strings.Contains(on, "與同類商品比較") {
-		t.Error("the control does not say what it compares with")
-	}
-	if buyEnd := strings.Index(on, `id="specs-heading"`); at < buyEnd {
-		t.Error("the control is before the specs, in the buy box")
-	}
-
-	off := renderToString(t, Product(ProductMeta(view(false)), view(false)))
-	for _, bad := range []string{"/compare", "goen-pdp__compare", "與同類商品比較"} {
-		if strings.Contains(off, bad) {
-			t.Errorf("a department that does not compare shows %q", bad)
-		}
-	}
-}
-
-// TestTheComparisonControlFallsBackWhenThereAreNoSpecs: it must not vanish with
-// the specs accordion it normally sits in.
-func TestTheComparisonControlFallsBackWhenThereAreNoSpecs(t *testing.T) {
-	t.Parallel()
-	v := &ProductView{Name: "N", Slug: "n", Comparable: true, SelectionOK: true}
-	if html := renderToString(t, Product(ProductMeta(v), v)); !strings.Contains(html, `href="/compare?p=n"`) {
-		t.Error("a comparable product with no specs has no way into a comparison")
 	}
 }
 
@@ -365,5 +288,40 @@ func TestComparisonSaysSoldOutOncePerSoldOutColumn(t *testing.T) {
 	}))
 	if n := strings.Count(got, i18n.T(ctx, i18n.KeySoldOut)); n != 1 {
 		t.Errorf("Compare with one sold-out product says sold out %d times, want 1", n)
+	}
+}
+
+// The header search and the comparison picker are both search landmarks on
+// /compare, and two landmarks of one kind need names that tell them apart.
+func TestTheComparePickerIsANamedSearchLandmark(t *testing.T) {
+	t.Parallel()
+
+	out := renderComponent(t, i18n.WithLocale(t.Context(), i18n.En), comparePicker(CompareView{}))
+	if !strings.Contains(out, `role="search" aria-label="`) {
+		t.Errorf("the comparison picker is an unnamed search landmark: %s", out)
+	}
+}
+
+func TestWarrantyTermsStateThePurchasedDuration(t *testing.T) {
+	t.Parallel()
+	for _, tc := range []struct {
+		locale       i18n.Locale
+		months       int
+		want         string
+		registration string
+	}{
+		{locale: i18n.ZhHant, months: 12, want: "12 個月", registration: "1 年"},
+		{locale: i18n.ZhHant, months: 1, want: "1 個月", registration: "1 個月"},
+		{locale: i18n.En, months: 12, want: "12 months", registration: "1-year"},
+		{locale: i18n.En, months: 24, want: "24 months", registration: "2-year"},
+		{locale: i18n.En, months: 1, want: "1 month", registration: "1-month"},
+	} {
+		ctx := i18n.WithLocale(t.Context(), tc.locale)
+		if got := (&CompareProduct{WarrantyMonths: tc.months}).Warranty(ctx); got != tc.want {
+			t.Errorf("%v: compare page, %d months = %q, want %q", tc.locale, tc.months, got, tc.want)
+		}
+		if got := (warranty.WarrantyLine{HasTerm: true, Months: tc.months}).TermText(ctx); got != tc.registration {
+			t.Errorf("%v: warranty page, %d months = %q, want %q", tc.locale, tc.months, got, tc.registration)
+		}
 	}
 }

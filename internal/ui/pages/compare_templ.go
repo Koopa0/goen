@@ -983,7 +983,7 @@ func compareTable(v CompareView, preview bool) templ.Component {
 				if templ_7745c5c3_Err != nil {
 					return templ_7745c5c3_Err
 				}
-				templ_7745c5c3_Err = tilePrice(item.PriceTile()).Render(ctx, templ_7745c5c3_Buffer)
+				templ_7745c5c3_Err = TilePrice(item.PriceTile()).Render(ctx, templ_7745c5c3_Buffer)
 				if templ_7745c5c3_Err != nil {
 					return templ_7745c5c3_Err
 				}
@@ -1055,7 +1055,7 @@ func compareTable(v CompareView, preview bool) templ.Component {
 				if templ_7745c5c3_Err != nil {
 					return templ_7745c5c3_Err
 				}
-				templ_7745c5c3_Err = tilePrice(item.PriceTile()).Render(ctx, templ_7745c5c3_Buffer)
+				templ_7745c5c3_Err = TilePrice(item.PriceTile()).Render(ctx, templ_7745c5c3_Buffer)
 				if templ_7745c5c3_Err != nil {
 					return templ_7745c5c3_Err
 				}

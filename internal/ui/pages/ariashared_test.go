@@ -33,14 +33,3 @@ func TestReviewStarsAreHiddenFromAssistiveTechnology(t *testing.T) {
 		t.Error("the review's score is no longer said in words")
 	}
 }
-
-// The header search and the comparison picker are both search landmarks on
-// /compare, and two landmarks of one kind need names that tell them apart.
-func TestTheComparePickerIsANamedSearchLandmark(t *testing.T) {
-	t.Parallel()
-
-	out := renderComponent(t, i18n.WithLocale(t.Context(), i18n.En), comparePicker(CompareView{}))
-	if !strings.Contains(out, `role="search" aria-label="`) {
-		t.Errorf("the comparison picker is an unnamed search landmark: %s", out)
-	}
-}

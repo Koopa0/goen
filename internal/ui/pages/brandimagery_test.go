@@ -38,17 +38,15 @@ func TestHomeDepartmentCardsWearTheirToneAndPhotograph(t *testing.T) {
 	}
 }
 
+// The campaign, category and search rows are catalog's
+// TestCatalogEmptyStatesShowTheirIllustrationAsDecoration.
 func TestEmptyStatesShowTheirIllustrationAsDecoration(t *testing.T) {
 	t.Parallel()
 	for name, tt := range map[string]struct {
 		page  string
 		asset string
 	}{
-		"cart":            {renderIn(t, i18n.ZhHant, Cart(layouts.Page{}, CartView{})), assets.EmptyCartImage},
-		"campaign":        {renderIn(t, i18n.ZhHant, Campaign(layouts.Page{}, CampaignView{Title: "x"})), assets.EmptyCampaignImage},
-		"category":        {renderIn(t, i18n.ZhHant, Listing(layouts.Page{}, ListingView{Slug: "phones"}, nil, nil)), assets.EmptySearchImage},
-		"search prompt":   {renderIn(t, i18n.ZhHant, Search(layouts.Page{}, SearchView{})), assets.EmptySearchImage},
-		"search no match": {renderIn(t, i18n.ZhHant, Search(layouts.Page{}, SearchView{Query: "zzz"})), assets.EmptySearchImage},
+		"cart": {renderIn(t, i18n.ZhHant, Cart(layouts.Page{}, CartView{})), assets.EmptyCartImage},
 	} {
 		want := `<img class="goen-empty__art" src="` + assets.URL(tt.asset) + `" alt="" width="128" height="96"`
 		if !strings.Contains(tt.page, want) {
