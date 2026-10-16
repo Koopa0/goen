@@ -38,6 +38,22 @@ builtin BUILTIN_LOCALE 'C.UTF-8'`.
 so a demo database created before this requirement must be recreated once with
 the builtin provider; the restore does not change a database's locale.
 
+Run one goen database per PostgreSQL cluster. Roles belong to the cluster, not
+to a database, so a second goen database on the same cluster shares
+`store_svc` and the other logins with the first. `migrations/001` ends by
+calling `harden_schema()`, which refuses to run if `store`, `admin`,
+`maintenance` or `reporting` already exists with more than `migrations/001`
+gives it: a login, a superuser or other role attribute, or membership in any
+other role. It also takes `CONNECT` and `TEMPORARY` on the database from
+`PUBLIC` and gives `CONNECT` back to those four roles, so a login connects
+only as an `INHERIT` member of one of them, or as the owner.
+
+A restore does not change those database privileges either: `pg_dump` carries
+the schema's grants but not the database's own. A demo database created before
+`harden_schema()` existed is brought to them once, after restoring a snapshot
+built from the current `migrations/001`, by running `CALL harden_schema();`
+as the owner.
+
 ## History and calendar dates
 
 [Try the demo](../../README.md#try-the-demo) describes creating 90 days of history
