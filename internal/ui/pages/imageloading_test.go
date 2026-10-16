@@ -55,9 +55,9 @@ func tileImages(page string) []string {
 func TestTheHomePageLoadsItsFirstScreenPhotographsAtOnceAndReservesEveryBox(t *testing.T) {
 	t.Parallel()
 	view := HomeView{
-		Slides: []HeroSlide{
-			{Layout: SlidePhoto, Photo: components.Photo{URL: "/img/hero.webp", Alt: "hero"}, PhotoWidth: 1600, PhotoHeight: 600, Title: "A"},
-			{Layout: SlidePhoto, Photo: components.Photo{URL: "/img/hero2.webp", Alt: "hero"}, PhotoWidth: 1600, PhotoHeight: 600, Title: "B"},
+		Slides: []components.HeroSlide{
+			{Layout: components.SlidePhoto, Photo: components.Photo{URL: "/img/hero.webp", Alt: "hero"}, PhotoWidth: 1600, PhotoHeight: 600, Title: "A"},
+			{Layout: components.SlidePhoto, Photo: components.Photo{URL: "/img/hero2.webp", Alt: "hero"}, PhotoWidth: 1600, PhotoHeight: 600, Title: "B"},
 		},
 		Categories: []HomeCategory{
 			{Slug: "a", Name: "A", Photo: components.Photo{URL: "/img/a.webp"}},

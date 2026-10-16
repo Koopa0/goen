@@ -273,7 +273,7 @@ func seeAll(label, href string) templ.Component {
 // The carousel moves only when the visitor asks: the named tabs are links to
 // the slides, and the arrows and the count are drawn by goen.js. With one slide
 // there is nothing to move between, so none of them are drawn.
-func heroCarousel(slides []HeroSlide) templ.Component {
+func heroCarousel(slides []components.HeroSlide) templ.Component {
 	return templruntime.GeneratedTemplate(func(templ_7745c5c3_Input templruntime.GeneratedComponentInput) (templ_7745c5c3_Err error) {
 		templ_7745c5c3_W, ctx := templ_7745c5c3_Input.Writer, templ_7745c5c3_Input.Context
 		if templ_7745c5c3_CtxErr := ctx.Err(); templ_7745c5c3_CtxErr != nil {
