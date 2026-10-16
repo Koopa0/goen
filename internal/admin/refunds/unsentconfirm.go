@@ -1,4 +1,4 @@
-package admin
+package refunds
 
 import (
 	"context"
@@ -7,6 +7,7 @@ import (
 	"github.com/koopa0/goen/internal/i18n"
 	"github.com/koopa0/goen/internal/money"
 	"github.com/koopa0/goen/internal/returns"
+	"github.com/koopa0/goen/internal/ui/pages/admin"
 )
 
 // UnsentRefundConfirmation is what pressing the refund of unsent units will
@@ -14,7 +15,7 @@ import (
 // freezes.
 type UnsentRefundConfirmation struct {
 	OrderNumber string
-	Lines       []UnsentLine
+	Lines       []admin.UnsentLine
 	Reason      returns.UnsentReason
 	RefundCents int64
 	CardCents   int64
@@ -32,11 +33,11 @@ func (v UnsentRefundConfirmation) Amount() string { return money.TWD(v.RefundCen
 func (v UnsentRefundConfirmation) Total() string { return strconv.FormatInt(v.RefundCents, 10) }
 
 func (v UnsentRefundConfirmation) Channel(ctx context.Context) string {
-	return (&Return{CardRefundCents: v.CardCents, CreditRefundCents: v.CreditCents}).PayoutChannel(ctx)
+	return (&admin.Return{CardRefundCents: v.CardCents, CreditRefundCents: v.CreditCents}).PayoutChannel(ctx)
 }
 
 func (v UnsentRefundConfirmation) ItemsText(ctx context.Context) string {
-	return unsentLinesText(ctx, v.Lines)
+	return admin.UnsentLinesText(ctx, v.Lines)
 }
 
 func (v UnsentRefundConfirmation) ReasonText(ctx context.Context) string {
