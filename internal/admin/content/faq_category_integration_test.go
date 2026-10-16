@@ -25,7 +25,7 @@ import (
 // one of them in both languages, and a category with entries is not deleted.
 func TestTheDeskKeepsAFAQCategoryAsOneRow(t *testing.T) {
 	staffCtx, _ := admintest.StaffContext(t, pool)
-	desk := content.NewStore(admintest.AdminRolePool(t, pool))
+	desk := newStore(admintest.AdminRolePool(t, pool))
 	h := handlerOver(desk)
 	storefront := site.NewStore(admintest.StoreRolePool(t, pool))
 	suffix := uuid.NewString()[:8]

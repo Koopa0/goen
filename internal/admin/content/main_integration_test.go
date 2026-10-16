@@ -13,6 +13,7 @@ import (
 	"github.com/koopa0/goen/internal/admin/admintest"
 	"github.com/koopa0/goen/internal/admin/content"
 	"github.com/koopa0/goen/internal/db/dbtest"
+	"github.com/koopa0/goen/internal/home"
 	"github.com/koopa0/goen/internal/media"
 	"github.com/koopa0/goen/internal/newsletter"
 )
@@ -34,6 +35,12 @@ func TestMain(m *testing.M) {
 	code := m.Run()
 	stop()
 	os.Exit(code)
+}
+
+// newStore is the desk as cmd/goen wires it: the carousel it lists is the
+// storefront's own, read on the same pool.
+func newStore(p *pgxpool.Pool) *content.Store {
+	return content.NewStore(p, home.NewStore(p))
 }
 
 func handlerOver(s *content.Store) *content.Handler {

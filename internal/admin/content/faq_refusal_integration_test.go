@@ -20,7 +20,7 @@ import (
 // copy and left the original unedited.
 func TestARefusedFAQEditAnswersOnTheEntryItself(t *testing.T) {
 	ctx, _ := admintest.StaffContext(t, pool)
-	s := content.NewStore(pool)
+	s := newStore(pool)
 	category := "編輯分類-" + uuid.NewString()[:8]
 	if errs, err := s.CreateFAQEntry(ctx, &content.FAQForm{
 		CategoryID: newFAQCategory(t, ctx, s, category, ""), Question: "原本的問題", Answer: "原本的答案",

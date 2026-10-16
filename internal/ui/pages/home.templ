@@ -51,7 +51,7 @@ templ seeAll(label, href string) {
 // The carousel moves only when the visitor asks: the named tabs are links to
 // the slides, and the arrows and the count are drawn by goen.js. With one slide
 // there is nothing to move between, so none of them are drawn.
-templ heroCarousel(slides []HeroSlide) {
+templ heroCarousel(slides []components.HeroSlide) {
 	<section
 		class="goen-hero"
 		aria-label={ i18n.T(ctx, i18n.KeyHomeFeatured) }

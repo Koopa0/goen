@@ -84,7 +84,7 @@ type DepartmentBand struct {
 
 type HomeView struct {
 	AccountErased bool
-	Slides        []HeroSlide
+	Slides        []components.HeroSlide
 	Categories    []HomeCategory
 	Row           ProductRow
 	Band          *DepartmentBand

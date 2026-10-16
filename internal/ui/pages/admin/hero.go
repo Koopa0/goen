@@ -7,7 +7,6 @@ import (
 	"github.com/koopa0/goen/internal/i18n"
 	"github.com/koopa0/goen/internal/keyset"
 	"github.com/koopa0/goen/internal/ui/components"
-	"github.com/koopa0/goen/internal/ui/pages"
 )
 
 type HeroSlide struct {
@@ -64,7 +63,7 @@ func (s HeroSlide) ToggleLabel(ctx context.Context) string {
 type HeroView struct {
 	Bound    keyset.Bound
 	Rows     []HeroSlide
-	Carousel []pages.HeroSlide
+	Carousel []components.HeroSlide
 	Notice   components.Result
 	Errors   map[string]string
 	Draft    HeroDraft
@@ -137,7 +136,7 @@ func (v *HeroView) IsShowing(s HeroSlide) bool {
 	}
 	for i := range v.Carousel {
 		shown := &v.Carousel[i]
-		if shown.Source == pages.SlideScheduled && shown.ID == s.ID {
+		if shown.Source == components.SlideScheduled && shown.ID == s.ID {
 			return true
 		}
 	}
@@ -146,13 +145,13 @@ func (v *HeroView) IsShowing(s HeroSlide) bool {
 
 func (v *HeroView) NoSlides() bool { return len(v.Carousel) == 0 }
 
-func SourceLabel(ctx context.Context, src pages.SlideSource) string {
+func SourceLabel(ctx context.Context, src components.SlideSource) string {
 	switch src {
-	case pages.SlideScheduled:
+	case components.SlideScheduled:
 		return i18n.T(ctx, i18n.KeyAdminHomeSourceScheduled)
-	case pages.SlideCampaign:
+	case components.SlideCampaign:
 		return i18n.T(ctx, i18n.KeyAdminHomeSourceCampaign)
-	case pages.SlideDepartment:
+	case components.SlideDepartment:
 		return i18n.T(ctx, i18n.KeyAdminHomeSourceDepartment)
 	}
 	return i18n.T(ctx, i18n.KeyAdminHomeSourceOther)

@@ -11,7 +11,7 @@ import (
 	"strings"
 	"unicode/utf8"
 
-	shippingrules "github.com/koopa0/goen/internal/shipping"
+	"github.com/koopa0/goen/internal/shipping"
 
 	"github.com/koopa0/goen/internal/admin/access"
 	"github.com/koopa0/goen/internal/i18n"
@@ -106,9 +106,9 @@ func methodFormOf(r *http.Request) (*NewMethod, MethodDraft, map[string]string) 
 	return &NewMethod{
 		Code:               r.PostFormValue("code"),
 		Destination:        r.PostFormValue("destination"),
-		MaxParcelLongestMM: parse(draft.MaxLongest, shippingrules.MaxParcelLongestMM, "max_parcel_longest"),
-		MaxParcelSumMM:     parse(draft.MaxSum, shippingrules.MaxParcelSumMM, "max_parcel_sum"),
-		MaxParcelWeightG:   parse(draft.MaxWeight, shippingrules.MaxParcelWeightG, "max_parcel_weight"),
+		MaxParcelLongestMM: parse(draft.MaxLongest, shipping.MaxParcelLongestMM, "max_parcel_longest"),
+		MaxParcelSumMM:     parse(draft.MaxSum, shipping.MaxParcelSumMM, "max_parcel_sum"),
+		MaxParcelWeightG:   parse(draft.MaxWeight, shipping.MaxParcelWeightG, "max_parcel_weight"),
 		Name:               r.PostFormValue("name"),
 		NameEn:             r.PostFormValue("name_en"),
 		Carrier:            r.PostFormValue("carrier"),
@@ -279,7 +279,7 @@ func (h *Handler) shippingView(ctx context.Context) (ShippingView, error) {
 	}
 	for i := range view.Methods {
 		m := &view.Methods[i]
-		m.PickupUnavailable = m.Destination == shippingrules.DestinationPickupPoint && !h.pickupOffered
+		m.PickupUnavailable = m.Destination == shipping.DestinationPickupPoint && !h.pickupOffered
 	}
 	return view, nil
 }
