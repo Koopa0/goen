@@ -1,11 +1,10 @@
-package pages
+package components
 
 import (
 	"strconv"
 	"unicode/utf8"
 
 	"github.com/koopa0/goen/internal/i18n"
-	"github.com/koopa0/goen/internal/ui/components"
 )
 
 type CTA struct {
@@ -30,20 +29,22 @@ const (
 	SlideDepartment SlideSource = "department"
 )
 
+// HeroSlide is one slide of the storefront home page's carousel. The content
+// desk lists the same slides, so the type sits with the parts both render.
 type HeroSlide struct {
 	ID     string
 	Source SlideSource
 	Layout SlideLayout
-	Tone   components.Tone
-	Photo  components.Photo
+	Tone   Tone
+	Photo  Photo
 	// A width on its own reserves no space, so both are rendered together.
 	PhotoWidth, PhotoHeight int
 	Title                   string
 	// Fact is the sentence an editor wrote under a scheduled slide's title.
 	Fact string
 	// Stats are the figures a campaign or department slide states about itself.
-	Stats  []components.Stat
-	Period *components.PeriodSpec
+	Stats  []Stat
+	Period *PeriodSpec
 	CTA    CTA
 }
 

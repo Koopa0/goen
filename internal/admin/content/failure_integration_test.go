@@ -34,7 +34,7 @@ func TestContentRowWritesAnswerAFailureAsAServerError(t *testing.T) {
 	ctx, _ := admintest.StaffContext(t, pool)
 	closed := admintest.NamedPool(t, pool, "content_closed_"+uuid.NewString()[:8])
 	closed.Close()
-	h := handlerOver(content.NewStore(closed))
+	h := handlerOver(newStore(closed))
 	for _, tt := range []struct {
 		name  string
 		form  url.Values
@@ -96,7 +96,7 @@ func TestHomeEditorReadFailuresAnswerAsServerErrors(t *testing.T) {
 					var logged bytes.Buffer
 					log := slog.New(slog.NewTextHandler(&logged, nil))
 					mux := http.NewServeMux()
-					content.NewHandler(content.NewStore(reading), media.NewHandler(media.NewStore(reading), log),
+					content.NewHandler(newStore(reading), media.NewHandler(media.NewStore(reading), log),
 						newsletter.NewStore(reading), log).Routes(mux, admintest.BackOffice)
 					request := func() *http.Request {
 						if page.status == http.StatusOK {

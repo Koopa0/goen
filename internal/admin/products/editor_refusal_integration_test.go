@@ -31,6 +31,7 @@ import (
 	"github.com/koopa0/goen/internal/admin/content"
 	"github.com/koopa0/goen/internal/admin/products"
 	"github.com/koopa0/goen/internal/db"
+	"github.com/koopa0/goen/internal/home"
 	"github.com/koopa0/goen/internal/i18n"
 	"github.com/koopa0/goen/internal/media"
 	"github.com/koopa0/goen/internal/newsletter"
@@ -338,7 +339,7 @@ func TestALosslessWebPUploadIsRefusedWithItsOwnNotice(t *testing.T) {
 	p := admintest.AdminRolePool(t, pool)
 	s := products.NewStore(p)
 	slug := admintest.DraftProduct(t, staffCtx, pool, s)
-	heroes := content.NewStore(p)
+	heroes := content.NewStore(p, home.NewStore(p))
 	beforeImages, err := s.Images(staffCtx, slug)
 	if err != nil {
 		t.Fatal(err)

@@ -19,7 +19,7 @@ import (
 
 func TestTheShopCanRunAPromotion(t *testing.T) {
 	ctx, _ := admintest.StaffContext(t, pool)
-	s := content.NewStore(pool)
+	s := newStore(pool)
 
 	if errs, err := s.CreateBanner(ctx, &content.BannerForm{
 		Message: "全站滿 NT$3,000 免運", Short: "滿 3,000 免運",
@@ -82,7 +82,7 @@ func TestTheShopCanRunAPromotion(t *testing.T) {
 
 func TestAPromotionsButtonMustStayOnThisSite(t *testing.T) {
 	ctx, _ := admintest.StaffContext(t, pool)
-	s := content.NewStore(pool)
+	s := newStore(pool)
 
 	for _, href := range []string{
 		"https://evil.example/deals",
@@ -111,7 +111,7 @@ func TestAPromotionsButtonMustStayOnThisSite(t *testing.T) {
 
 func TestSupportCanAnswerAQuestionWithoutADeploy(t *testing.T) {
 	ctx, _ := admintest.StaffContext(t, pool)
-	s := content.NewStore(pool)
+	s := newStore(pool)
 	category := "測試分類-" + uuid.NewString()[:8]
 	categoryID := newFAQCategory(t, ctx, s, category, "Testing "+category)
 
@@ -202,7 +202,7 @@ func TestSupportCanAnswerAQuestionWithoutADeploy(t *testing.T) {
 
 func TestTwoFAQEntriesInOneCategoryDoNotCollide(t *testing.T) {
 	ctx, _ := admintest.StaffContext(t, pool)
-	s := content.NewStore(pool)
+	s := newStore(pool)
 	category := newFAQCategory(t, ctx, s, "順序分類-"+uuid.NewString()[:8], "")
 
 	for _, q := range []string{"第一個問題", "第二個問題", "第三個問題"} {
@@ -240,7 +240,7 @@ func TestTwoFAQEntriesInOneCategoryDoNotCollide(t *testing.T) {
 // both read the same max(position) and faq_entries_position_key refuses one.
 func TestTwoConcurrentFAQEntriesInOneCategoryTakeDistinctPositions(t *testing.T) {
 	ctx, _ := admintest.StaffContext(t, pool)
-	category := newFAQCategory(t, ctx, content.NewStore(pool), "併發分類-"+uuid.NewString()[:8], "")
+	category := newFAQCategory(t, ctx, newStore(pool), "併發分類-"+uuid.NewString()[:8], "")
 	t.Cleanup(func() {
 		//nolint:usetesting // t.Context is already cancelled in Cleanup
 		_, _ = pool.Exec(context.Background(),
@@ -248,8 +248,8 @@ func TestTwoConcurrentFAQEntriesInOneCategoryTakeDistinctPositions(t *testing.T)
 	})
 	poolA := admintest.NamedPool(t, pool, "faq-append-a-"+uuid.NewString()[:8])
 	poolB := admintest.NamedPool(t, pool, "faq-append-b-"+uuid.NewString()[:8])
-	storeA := content.NewStore(poolA)
-	storeB := content.NewStore(poolB)
+	storeA := newStore(poolA)
+	storeB := newStore(poolB)
 
 	start := make(chan struct{})
 	type result struct {
@@ -315,8 +315,8 @@ func TestTwoConcurrentHeroSlidesTakeDistinctPositions(t *testing.T) {
 	})
 	poolA := admintest.NamedPool(t, pool, "hero-append-a-"+uuid.NewString()[:8])
 	poolB := admintest.NamedPool(t, pool, "hero-append-b-"+uuid.NewString()[:8])
-	storeA := content.NewStore(poolA)
-	storeB := content.NewStore(poolB)
+	storeA := newStore(poolA)
+	storeB := newStore(poolB)
 	form := func(headline string) *content.HeroForm {
 		return &content.HeroForm{
 			Headline: headline, PrimaryLabel: "立即選購", PrimaryHref: "/deals",

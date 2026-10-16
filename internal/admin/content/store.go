@@ -3,11 +3,13 @@
 package content
 
 import (
+	"context"
 	"errors"
 
 	"github.com/jackc/pgx/v5/pgxpool"
 
 	"github.com/koopa0/goen/internal/db"
+	"github.com/koopa0/goen/internal/ui/components"
 )
 
 var (
@@ -17,14 +19,22 @@ var (
 	ErrRefused = errors.New("content: refused")
 )
 
-type Store struct {
-	pool *pgxpool.Pool
-	q    *db.Queries
+// Storefront builds the home page's carousel as shoppers see it now; the
+// storefront's home store implements it. The desk lists those slides beside its
+// schedule instead of keeping a copy of the rules that choose them.
+type Storefront interface {
+	Carousel(ctx context.Context) ([]components.HeroSlide, error)
 }
 
-func NewStore(pool *pgxpool.Pool) *Store {
-	if pool == nil {
-		panic("content: NewStore requires a pool")
+type Store struct {
+	pool       *pgxpool.Pool
+	q          *db.Queries
+	storefront Storefront
+}
+
+func NewStore(pool *pgxpool.Pool, storefront Storefront) *Store {
+	if pool == nil || storefront == nil {
+		panic("content: NewStore requires a pool and a storefront")
 	}
-	return &Store{pool: pool, q: db.New(pool)}
+	return &Store{pool: pool, q: db.New(pool), storefront: storefront}
 }

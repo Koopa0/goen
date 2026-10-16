@@ -24,7 +24,7 @@ import (
 	"github.com/koopa0/goen/internal/db/dbtest"
 	"github.com/koopa0/goen/internal/home"
 	"github.com/koopa0/goen/internal/i18n"
-	"github.com/koopa0/goen/internal/ui/pages"
+	"github.com/koopa0/goen/internal/ui/components"
 )
 
 var pool *pgxpool.Pool
@@ -194,7 +194,7 @@ func TestAnEmptyHeroTableIsAWorkingHomePage(t *testing.T) {
 		t.Fatalf("an empty table produced %d slides, want 1 to 3 departments", len(slides))
 	}
 	for _, slide := range slides {
-		if slide.Layout != pages.SlideSplit || !slide.Photo.Shown() || !slide.CTA.Shown() {
+		if slide.Layout != components.SlideSplit || !slide.Photo.Shown() || !slide.CTA.Shown() {
 			t.Errorf("a department slide is %+v, want a photograph and a button", slide)
 		}
 		if want := i18n.T(ctx, i18n.KeyHeroCampaignCTA); slide.CTA.Label != want {
@@ -207,7 +207,7 @@ func TestAnEmptyHeroTableIsAWorkingHomePage(t *testing.T) {
 }
 
 // slidesOf is the carousel the home page would draw.
-func slidesOf(t *testing.T, ctx context.Context) []pages.HeroSlide {
+func slidesOf(t *testing.T, ctx context.Context) []components.HeroSlide {
 	t.Helper()
 	view, err := home.NewStore(pool).Load(ctx)
 	if err != nil {
@@ -216,7 +216,7 @@ func slidesOf(t *testing.T, ctx context.Context) []pages.HeroSlide {
 	return view.Slides
 }
 
-func firstSlide(t *testing.T, ctx context.Context) pages.HeroSlide {
+func firstSlide(t *testing.T, ctx context.Context) components.HeroSlide {
 	t.Helper()
 	slides := slidesOf(t, ctx)
 	if len(slides) == 0 {
@@ -261,7 +261,7 @@ func TestTheScheduledSlideIsTheOneShown(t *testing.T) {
 			}
 			slide := firstSlide(t, ctx)
 			if tt.want == "" {
-				if slide.Layout != pages.SlideSplit {
+				if slide.Layout != components.SlideSplit {
 					t.Errorf("the first slide is %q, want a department", slide.Title)
 				}
 				return
