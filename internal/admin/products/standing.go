@@ -11,7 +11,6 @@ import (
 	"github.com/koopa0/goen/internal/db"
 	"github.com/koopa0/goen/internal/shoptime"
 	"github.com/koopa0/goen/internal/ui/chart"
-	"github.com/koopa0/goen/internal/ui/pages/admin"
 )
 
 // salesWeeks is how many whole weeks of sales the editor shows, the last of
@@ -24,7 +23,7 @@ var ErrStanding = errors.New("read sales and reviews")
 
 // standing reads what the product sold and what its reviewers said, each
 // failing alone: the page is the product's editor first.
-func (s *Store) standing(ctx context.Context, id uuid.UUID, now time.Time, view *admin.ProductView) error {
+func (s *Store) standing(ctx context.Context, id uuid.UUID, now time.Time, view *ProductView) error {
 	sales, salesErr := s.sales(ctx, id, now)
 	view.Sales = sales
 	view.Sales.Unavailable = salesErr != nil
@@ -33,7 +32,7 @@ func (s *Store) standing(ctx context.Context, id uuid.UUID, now time.Time, view 
 	// pages cannot disagree about which reviews are visible.
 	rating, ratingErr := s.q.ProductRating(ctx, id)
 	if ratingErr == nil {
-		view.Ratings = admin.ProductRatings{
+		view.Ratings = ProductRatings{
 			Count: rating.RatingCount, Average: rating.Rating,
 			Stars: [5]int64{rating.Five, rating.Four, rating.Three, rating.Two, rating.One},
 		}
@@ -48,17 +47,17 @@ func (s *Store) standing(ctx context.Context, id uuid.UUID, now time.Time, view 
 
 // sales is a bucket for each shop day of the last salesWeeks weeks, counted up
 // to now.
-func (s *Store) sales(ctx context.Context, id uuid.UUID, now time.Time) (admin.ProductSales, error) {
+func (s *Store) sales(ctx context.Context, id uuid.UUID, now time.Time) (ProductSales, error) {
 	from := shoptime.FirstDay(now, salesWeeks*7)
 	rows, err := s.q.ProductUnitsByShopDay(ctx, db.ProductUnitsByShopDayParams{
 		ProductID: id, FromAt: from, ToAt: now,
 	})
 	if err != nil {
-		return admin.ProductSales{}, fmt.Errorf("read units by day: %w", err)
+		return ProductSales{}, fmt.Errorf("read units by day: %w", err)
 	}
 	days := chart.Series{Partial: true, Buckets: make([]chart.Bucket, 0, len(rows))}
 	for _, r := range rows {
 		days.Buckets = append(days.Buckets, chart.Bucket{Day: r.Day, Value: r.Units})
 	}
-	return admin.ProductSales{Days: days, Cut: shoptime.Clock(now)}, nil
+	return ProductSales{Days: days, Cut: shoptime.Clock(now)}, nil
 }

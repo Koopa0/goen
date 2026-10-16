@@ -1,4 +1,4 @@
-package admin
+package products
 
 import (
 	"context"
@@ -125,13 +125,6 @@ type ProductImageUploadDraft struct {
 
 type ProductImageReuseDraft struct {
 	Digest, Alt, AltEn string
-}
-
-type SpecDraft struct {
-	Label   string
-	Value   string
-	LabelEn string
-	ValueEn string
 }
 
 // VariantDraft carries a refused form's exact input back: the variant

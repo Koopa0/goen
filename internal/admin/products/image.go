@@ -14,7 +14,6 @@ import (
 	"github.com/koopa0/goen/assets"
 	"github.com/koopa0/goen/internal/admin/audit"
 	"github.com/koopa0/goen/internal/db"
-	"github.com/koopa0/goen/internal/ui/pages/admin"
 )
 
 const MaxAltRunes = 200
@@ -201,15 +200,15 @@ func placeImage[T any](items []T, at int, move ImageMove) ([]T, bool) {
 	return out, true
 }
 
-func (s *Store) Images(ctx context.Context, slug string) ([]admin.Image, error) {
+func (s *Store) Images(ctx context.Context, slug string) ([]Image, error) {
 	rows, err := s.q.AdminProductImages(ctx, slug)
 	if err != nil {
 		return nil, fmt.Errorf("read product images: %w", err)
 	}
-	out := make([]admin.Image, 0, len(rows))
+	out := make([]Image, 0, len(rows))
 	for i := range rows {
 		r := &rows[i]
-		img := admin.Image{
+		img := Image{
 			Photo: assets.Image{Digest: r.ImageDigest, BundledKey: r.ImageBundledKey, Width: int(r.Width.Int32)},
 			Alt:   r.AltText,
 		}
