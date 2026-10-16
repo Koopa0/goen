@@ -24,7 +24,6 @@ import (
 	"github.com/koopa0/goen/internal/refund"
 	returnrules "github.com/koopa0/goen/internal/returns"
 	"github.com/koopa0/goen/internal/shoptime"
-	"github.com/koopa0/goen/internal/ui/pages/admin"
 )
 
 var (
@@ -94,7 +93,7 @@ func requireExceptionReason(kind returnrules.DecisionKind, resolution string) er
 // the handler can record quantitative source inconsistencies.
 type Queue struct {
 	Bound        keyset.Bound
-	Rows         []admin.Return
+	Rows         []Return
 	payoutIssues []returnPayoutIssue
 }
 
@@ -144,10 +143,10 @@ func (s *Store) queue(ctx context.Context, request uuid.NullUUID, after []string
 	if err != nil {
 		return Queue{}, fmt.Errorf("read return lines: %w", err)
 	}
-	byRequest := make(map[uuid.UUID][]admin.ReturnLine, len(rows))
+	byRequest := make(map[uuid.UUID][]ReturnLine, len(rows))
 	for i := range lines {
 		l := &lines[i]
-		byRequest[l.ReturnRequestID] = append(byRequest[l.ReturnRequestID], admin.ReturnLine{
+		byRequest[l.ReturnRequestID] = append(byRequest[l.ReturnRequestID], ReturnLine{
 			SKU: l.SKU, Name: l.ProductName, Label: l.VariantLabel.String,
 			UnitCents: l.UnitPriceCents, Quantity: l.Quantity,
 			OrderLineID: l.OrderLineID.String(),
@@ -198,7 +197,7 @@ func (s *Store) queue(ctx context.Context, request uuid.NullUUID, after []string
 
 // showPayout puts where a return's refund stands on its queue row. An Unfit
 // payout is blocked: a person repairs it before goen retries.
-func showPayout(row *admin.Return, p *refund.Payout) {
+func showPayout(row *Return, p *refund.Payout) {
 	row.CardRefundCents, row.CreditRefundCents = p.CardCents, p.CreditCents
 	row.PayoutOutstanding = p.Owed
 	row.PayoutBlocked = p.Unfit != nil
@@ -207,7 +206,7 @@ func showPayout(row *admin.Return, p *refund.Payout) {
 func overlayReturnAssessmentFacts(
 	ctx context.Context,
 	q *db.Queries,
-	byRequest map[uuid.UUID][]admin.ReturnLine,
+	byRequest map[uuid.UUID][]ReturnLine,
 	assessmentIDs []uuid.UUID,
 ) error {
 	if len(assessmentIDs) == 0 {
@@ -237,13 +236,13 @@ func overlayReturnAssessmentFacts(
 func buildReturnQueue(
 	ctx context.Context,
 	rows []db.ReturnQueueRow,
-	byRequest map[uuid.UUID][]admin.ReturnLine,
+	byRequest map[uuid.UUID][]ReturnLine,
 	assessmentByRequest map[uuid.UUID]db.ReturnEligibilityAssessment,
 ) Queue {
 	view := Queue{}
 	for i := range rows {
 		r := &rows[i]
-		item := admin.Return{
+		item := Return{
 			ID:          r.ID.String(),
 			OrderNumber: r.OrderNumber,
 			Status:      returnrules.Status(r.Status),

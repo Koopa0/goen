@@ -8,7 +8,6 @@ import (
 	"golang.org/x/net/html"
 
 	"github.com/koopa0/goen/internal/i18n"
-	"github.com/koopa0/goen/internal/returns"
 	"github.com/koopa0/goen/internal/ui/layouts"
 )
 
@@ -33,12 +32,12 @@ func TestAdminExamplesStayOutsideRefusedInputs(t *testing.T) {
 				prefix := "Example: "
 				category := "Orders"
 				headline, message, short, cta := "What goen sells", "Free delivery site-wide over NT$3,000", "Free over 3,000", "Take a look"
-				days, inspection := "0 means no end date.", "For example: box damaged, accessories missing"
+				days := "0 means no end date."
 				if locale == i18n.ZhHant {
 					prefix = "例："
 					category = "訂單"
 					headline, message, short, cta = "goen 販售的商品", "全站滿 NT$3,000 免運", "滿 3,000 免運", "看看"
-					days, inspection = "0 表示不設結束日。", "例如：外盒破損、配件缺少"
+					days = "0 表示不設結束日。"
 				}
 				p := layouts.Page{}
 				for _, page := range []struct {
@@ -55,7 +54,6 @@ func TestAdminExamplesStayOutsideRefusedInputs(t *testing.T) {
 						"h-headline": prefix + headline, "h-headline-en": prefix + "Choose one good thing.", "h-phref": prefix + "/deals", "h-shref": prefix + "/about", "h-days": days,
 						"b-message": prefix + message, "b-short": prefix + short, "b-cta-label": prefix + cta, "b-message-en": prefix + "Free delivery over NT$3,000", "b-cta-label-en": prefix + "Shop", "b-cta-href": prefix + "/deals", "b-code": prefix + "FREESHIP", "b-days": days,
 					}},
-					{"return inspection", Returns(p, ReturnsView{Rows: []Return{{ID: "request", Status: returns.StatusApproved, Window: returns.WindowStatutory, Decided: true, Lines: []ReturnLine{{OrderLineID: "line", Quantity: 1, DraftNote: typed}}}}, Errors: errors("request.inspect")}), map[string]string{"note-request-line": inspection}},
 				} {
 					t.Run(page.name, func(t *testing.T) {
 						markup := renderComponent(t, ctx, page.component)

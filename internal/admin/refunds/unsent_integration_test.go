@@ -23,6 +23,7 @@ import (
 	"github.com/koopa0/goen/internal/admin/admintest"
 	"github.com/koopa0/goen/internal/admin/orders"
 	"github.com/koopa0/goen/internal/admin/refunds"
+	returndesk "github.com/koopa0/goen/internal/admin/returns"
 	"github.com/koopa0/goen/internal/db"
 	"github.com/koopa0/goen/internal/email"
 	"github.com/koopa0/goen/internal/i18n"
@@ -538,7 +539,7 @@ func TestTheReturnsQueueSendsAnUnsentRefundToItsOrder(t *testing.T) {
 	}
 	f := readUnsent(t, &o)
 	desk := admintest.ReturnDesk(adminPool, admintest.Refunder{})
-	queueRow := func(t *testing.T) admin.Return {
+	queueRow := func(t *testing.T) returndesk.Return {
 		t.Helper()
 		queue, err := desk.RequestQueue(ctx, f.id)
 		if err != nil {
@@ -550,7 +551,7 @@ func TestTheReturnsQueueSendsAnUnsentRefundToItsOrder(t *testing.T) {
 			}
 		}
 		t.Fatalf("the queue does not list unsent refund %s", f.id)
-		return admin.Return{}
+		return returndesk.Return{}
 	}
 	row := queueRow(t)
 	if !row.Unsent || row.AwaitingGoods() || row.Window != returns.WindowUndelivered ||
@@ -574,7 +575,7 @@ func TestTheReturnsQueueSendsAnUnsentRefundToItsOrder(t *testing.T) {
 	}
 	var page strings.Builder
 	zh := i18n.WithLocale(ctx, i18n.ZhHant)
-	if err := admin.Returns(layouts.Page{Title: "returns"}, admin.ReturnsView{Rows: []admin.Return{row}}).Render(zh, &page); err != nil {
+	if err := returndesk.Returns(layouts.Page{Title: "returns"}, returndesk.ReturnsView{Rows: []returndesk.Return{row}}).Render(zh, &page); err != nil {
 		t.Fatalf("render the queue: %v", err)
 	}
 	door := `<a href="/admin/orders/` + o.Number + `">` + i18n.T(zh, i18n.KeyAdminUnsentTitle) + `</a>`

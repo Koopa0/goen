@@ -33,7 +33,7 @@ func (v UnsentRefundConfirmation) Amount() string { return money.TWD(v.RefundCen
 func (v UnsentRefundConfirmation) Total() string { return strconv.FormatInt(v.RefundCents, 10) }
 
 func (v UnsentRefundConfirmation) Channel(ctx context.Context) string {
-	return (&admin.Return{CardRefundCents: v.CardCents, CreditRefundCents: v.CreditCents}).PayoutChannel(ctx)
+	return admin.PayoutChannel(ctx, v.CardCents, v.CreditCents)
 }
 
 func (v UnsentRefundConfirmation) ItemsText(ctx context.Context) string {

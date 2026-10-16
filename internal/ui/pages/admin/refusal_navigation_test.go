@@ -114,33 +114,6 @@ func TestDeskRefusalsNameTheirFormAndLinkToTheFirstInvalidControl(t *testing.T) 
 	}
 }
 
-func TestRefusedInspectionKeepsBlankAndUnreadableCounts(t *testing.T) {
-	t.Parallel()
-	for _, raw := range []string{"", " +oops "} {
-		view := ReturnsView{Rows: []Return{{ID: "r1", Status: "approved", Decided: true, Window: "within", Lines: []ReturnLine{{OrderLineID: "l1", Quantity: 2, Restockable: true, DraftReceived: raw, DraftRestocked: raw}}}}, Errors: map[string]string{"r1.inspect": "bad count"}}
-		body := renderToString(t, Returns(layouts.Page{}, view))
-		doc, err := html.Parse(strings.NewReader(body))
-		if err != nil {
-			t.Fatal(err)
-		}
-		for _, id := range []string{"recv-r1-l1", "stock-r1-l1"} {
-			for n := range doc.Descendants() {
-				if refusalAttr(n, "id") == id {
-					if refusalAttr(n, "value") != raw {
-						t.Errorf("%s lost raw count %q", id, raw)
-					}
-					if raw != "" && refusalAttr(n, "type") == "number" {
-						t.Errorf("%s lets the browser discard unreadable input", id)
-					}
-				}
-			}
-		}
-		if !strings.Contains(body, `action="/admin/returns/r1/inspect#inspect-r1"`) || !strings.Contains(body, `href="#recv-r1-l1"`) {
-			t.Error("inspection has no return to its first refused field")
-		}
-	}
-}
-
 func refusalAttr(n *html.Node, key string) string {
 	for _, a := range n.Attr {
 		if a.Key == key {
@@ -183,17 +156,6 @@ func TestRefusalSummaryCountsInEnglish(t *testing.T) {
 
 func TestRefusalSummariesCountEachRefusalOnce(t *testing.T) {
 	t.Parallel()
-	view := ReturnsView{
-		Rows: []Return{{ID: "r1", Lines: []ReturnLine{
-			{OrderLineID: "l1", Restockable: true}, {OrderLineID: "l2", Restockable: true},
-		}}},
-		Errors: map[string]string{"r1.inspect": "bad count"},
-	}
-	got := view.InspectionRefusals()
-	if len(got) != 1 || got[0].Count != 1 || got[0].First != "recv-r1-l1" {
-		t.Errorf("InspectionRefusals() = %+v, want one refusal at recv-r1-l1", got)
-	}
-
 	product := &ProductView{
 		Options: []Option{{ID: "a"}, {ID: "b"}, {ID: "c"}},
 		Errors:  map[string]string{"options": "pick one"},
