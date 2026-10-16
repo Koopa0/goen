@@ -1,6 +1,6 @@
 //go:build integration
 
-package cart_test
+package buyer_test
 
 import (
 	"context"
@@ -14,10 +14,9 @@ import (
 
 	"github.com/google/uuid"
 
-	"github.com/koopa0/goen/internal/cart"
 	"github.com/koopa0/goen/internal/i18n"
 	"github.com/koopa0/goen/internal/order/access"
-	"github.com/koopa0/goen/internal/ratelimit"
+	"github.com/koopa0/goen/internal/order/buyer"
 )
 
 func TestCustomerCancellationKeepsOrdersThatMayStillTakeMoney(t *testing.T) {
@@ -52,21 +51,20 @@ func TestCustomerCancellationKeepsOrdersThatMayStillTakeMoney(t *testing.T) {
 				}
 			}
 			appPool := storeRolePool(t)
-			h := cart.NewHandler(cart.NewStore(appPool), access.NewStore(appPool, false), slog.New(slog.DiscardHandler), false,
-				ratelimit.New(ratelimit.Config{Every: time.Millisecond, Burst: 1000, TTL: time.Hour, MaxKeys: 1000}), nil, nil)
+			h := buyer.NewHandler(buyer.NewStore(appPool), access.NewStore(appPool, false), slog.New(slog.DiscardHandler))
 			before := stockOf(t, variant)
 			for _, locale := range i18n.Locales() {
 				localized := i18n.WithLocale(ctx, locale)
 				req := httptest.NewRequestWithContext(localized, http.MethodPost, "/orders/"+number+"/cancel", http.NoBody)
 				req.SetPathValue("number", number)
-				req.AddCookie(placedCookie(t, number))
+				placedBy(t, req, number)
 				res := httptest.NewRecorder()
 				h.CancelOrder(res, req)
 				if res.Code != http.StatusUnprocessableEntity || res.Header().Get("Location") != "" || !strings.Contains(res.Body.String(), i18n.T(localized, i18n.KeyCancelRefusedBody)) {
 					t.Errorf("%s cancellation = %d %s, want 422 with existing refusal", locale.Tag(), res.Code, res.Header().Get("Location"))
 				}
 			}
-			if f := factsOf(t, number, uuid.Nil); f.status != "pending" || f.heldHolds != 1 || f.events != 0 || f.notices != 0 || f.reversals != 0 {
+			if f := factsOf(t, number); f.status != "pending" || f.heldHolds != 1 || f.events != 0 || f.notices != 0 || f.reversals != 0 {
 				t.Errorf("refused cancellation changed order or effects: %+v", f)
 			}
 			if got := stockOf(t, variant); got != before {
@@ -88,7 +86,7 @@ func TestCustomerCancellationRereadsPaymentAfterTakingOrderLock(t *testing.T) {
 	if _, err := opener.Exec(ctx, `SELECT open_payment($1, $2, 100000)`, orderID, "cs_cancel_lock_"+uuid.NewString()); err != nil {
 		t.Fatal(err)
 	}
-	customer := cart.NewStore(storeApplicationPool(t, "customer-cancel-behind-open"))
+	customer := buyer.NewStore(storeApplicationPool(t, "customer-cancel-behind-open"))
 	done := make(chan error, 1)
 	go func() {
 		cancelErr := customer.CancelOrder(ctx, number)
@@ -98,10 +96,10 @@ func TestCustomerCancellationRereadsPaymentAfterTakingOrderLock(t *testing.T) {
 	if err := opener.Commit(ctx); err != nil {
 		t.Fatal(err)
 	}
-	if err := <-done; !errors.Is(err, cart.ErrNotCancellable) {
+	if err := <-done; !errors.Is(err, buyer.ErrNotCancellable) {
 		t.Errorf("cancellation behind payment open = %v, want ErrNotCancellable", err)
 	}
-	if f := factsOf(t, number, uuid.Nil); f.status != "pending" || f.heldHolds != 1 || f.events != 0 || f.notices != 0 {
+	if f := factsOf(t, number); f.status != "pending" || f.heldHolds != 1 || f.events != 0 || f.notices != 0 {
 		t.Errorf("payment committed during wait did not protect order: %+v", f)
 	}
 }
@@ -123,13 +121,53 @@ func TestCustomerCancellationAfterSessionExpiryReleasesStock(t *testing.T) {
 	}
 	before := stockOf(t, variant)
 	number := numberOf(t, orderID)
-	if err := cart.NewStore(storeRolePool(t)).CancelOrder(ctx, number); err != nil {
+	if err := buyer.NewStore(storeRolePool(t)).CancelOrder(ctx, number); err != nil {
 		t.Fatalf("cancel after session expiry: %v", err)
 	}
-	if f := factsOf(t, number, uuid.Nil); f.status != "cancelled" || f.heldHolds != 0 || f.events != 1 || f.notices != 1 {
+	if f := factsOf(t, number); f.status != "cancelled" || f.heldHolds != 0 || f.events != 1 || f.notices != 1 {
 		t.Errorf("expired-session cancellation effects: %+v", f)
 	}
 	if got := stockOf(t, variant); got != before+1 {
 		t.Errorf("stock after cancellation = %d, want %d", got, before+1)
+	}
+}
+
+// TestACancelBehindACaptureIsRefusedNotFailed: capture_payment holds the order
+// lock without updating the row. The customer's cancel waits for it, and must
+// then see the payment and answer ErrNotCancellable rather than reach the
+// transition trigger, whose helper the store role may not execute.
+func TestACancelBehindACaptureIsRefusedNotFailed(t *testing.T) {
+	ctx := t.Context()
+	orderID := heldOrder(t, freshVariant(t, "cancel-capture"), time.Hour, false)
+	number := numberOf(t, orderID)
+	session := "cs_cancel_capture_" + strings.ReplaceAll(uuid.NewString(), "-", "")[:12]
+	if _, err := pool.Exec(ctx, `SELECT open_payment($1, $2, 100000)`, orderID, session); err != nil {
+		t.Fatalf("open payment: %v", err)
+	}
+
+	capturer, err := pool.Begin(ctx)
+	if err != nil {
+		t.Fatalf("begin capture: %v", err)
+	}
+	defer func() { _ = capturer.Rollback(context.WithoutCancel(ctx)) }()
+	if _, err := capturer.Exec(ctx, `SELECT capture_payment($1, 100000, NULL, NULL)`, session); err != nil {
+		t.Fatalf("capture: %v", err)
+	}
+
+	customer := buyer.NewStore(storeApplicationPool(t, "cancel-behind-capture"))
+	done := make(chan error, 1)
+	go func() {
+		cancelErr := customer.CancelOrder(ctx, number)
+		done <- cancelErr
+	}()
+	waitForApplicationLock(t, "cancel-behind-capture", done)
+	if err := capturer.Commit(ctx); err != nil {
+		t.Fatalf("commit capture: %v", err)
+	}
+	if err := <-done; !errors.Is(err, buyer.ErrNotCancellable) {
+		t.Errorf("cancel behind a capture = %v; want ErrNotCancellable", err)
+	}
+	if f := factsOf(t, number); f.status == "cancelled" {
+		t.Error("a paid order was cancelled")
 	}
 }

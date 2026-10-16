@@ -26,7 +26,7 @@ func TestReturnLandingConfirmsOnlyTheFiledFlagAfterTheNativePOST(t *testing.T) {
 			if posted.Code != http.StatusSeeOther || posted.Header().Get("Location") != "/orders/"+number+"/return?filed=1" {
 				t.Fatalf("native return POST = %d to %q, want its filed landing", posted.Code, posted.Header().Get("Location"))
 			}
-			app := returnsApplicationPool(t, "filed-landing-"+uuid.NewString())
+			app := storeApplicationPool(t, "filed-landing-"+uuid.NewString())
 			h := buyer.NewHandler(buyer.NewStore(app), access.NewStore(app, false), slog.New(slog.DiscardHandler))
 			mux := http.NewServeMux()
 			mux.HandleFunc("GET /orders/{number}/return", h.ReturnPage)

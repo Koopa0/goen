@@ -7,13 +7,13 @@ import (
 	"errors"
 	"testing"
 
+	"github.com/koopa0/goen/internal/order/buyer"
 	"github.com/koopa0/goen/internal/outbox"
 
 	"github.com/google/uuid"
 
 	"github.com/koopa0/goen/internal/admin/admintest"
 	"github.com/koopa0/goen/internal/admin/orders"
-	"github.com/koopa0/goen/internal/cart"
 	"github.com/koopa0/goen/internal/email"
 	"github.com/koopa0/goen/internal/user"
 	"github.com/koopa0/goen/internal/web"
@@ -32,11 +32,11 @@ func TestTerminalCancellationNoticesFollowCommittedActor(t *testing.T) {
 	}
 	terminalNotice(t, id, email.TerminalCancelledByStaff)
 	number, id, _ = admintest.PendingOrderHoldingStock(t, pool)
-	if err := cart.NewStore(pool).CancelOrder(t.Context(), number); err != nil {
+	if err := buyer.NewStore(pool).CancelOrder(t.Context(), number); err != nil {
 		t.Fatal(err)
 	}
 	terminalNotice(t, id, email.TerminalCancelledByCustomer)
-	if err := cart.NewStore(pool).CancelOrder(t.Context(), number); !errors.Is(err, cart.ErrNotCancellable) {
+	if err := buyer.NewStore(pool).CancelOrder(t.Context(), number); !errors.Is(err, buyer.ErrNotCancellable) {
 		t.Fatalf("repeat cancellation=%v", err)
 	}
 }

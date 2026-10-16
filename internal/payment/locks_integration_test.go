@@ -12,7 +12,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgconn"
 
-	"github.com/koopa0/goen/internal/cart"
+	"github.com/koopa0/goen/internal/order/buyer"
 	"github.com/koopa0/goen/internal/payment"
 )
 
@@ -325,7 +325,7 @@ func TestCancellationAndPaymentOpeningShareTheOrderLock(t *testing.T) {
 		done := make(chan cancelResult, 1)
 		go func() {
 			defer close(returned)
-			done <- cancelResult{err: cart.NewStore(pool).CancelOrder(ctx, number)}
+			done <- cancelResult{err: buyer.NewStore(pool).CancelOrder(ctx, number)}
 		}()
 		waitForSQLLock(t, ctx, returned,
 			"%FROM orders WHERE order_number = $1 FOR UPDATE%")
@@ -339,7 +339,7 @@ func TestCancellationAndPaymentOpeningShareTheOrderLock(t *testing.T) {
 		case <-time.After(2 * time.Second):
 			t.Fatal("Cancel stayed blocked after open_payment committed")
 		}
-		if !errors.Is(result.err, cart.ErrNotCancellable) {
+		if !errors.Is(result.err, buyer.ErrNotCancellable) {
 			t.Fatalf("Cancel = %v; want ErrNotCancellable", result.err)
 		}
 		var fulfillment, paymentStatus string
