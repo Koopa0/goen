@@ -2650,7 +2650,7 @@ CREATE FUNCTION orders_check_complete() RETURNS trigger
 LANGUAGE plpgsql SET search_path = pg_catalog, public, pg_temp AS $$
 DECLARE
     lines integer;
-    subtotal bigint;
+    total bigint;
     tax_types integer;
     o orders%ROWTYPE;
 BEGIN
@@ -2659,9 +2659,10 @@ BEGIN
         RETURN NULL;  -- deleted within the same transaction
     END IF;
 
-    SELECT count(*), coalesce(sum(unit_price_cents * quantity), 0), count(DISTINCT tax_type)
-    INTO lines, subtotal, tax_types
+    SELECT count(*), count(DISTINCT tax_type)
+    INTO lines, tax_types
     FROM order_lines WHERE order_id = o.id;
+    SELECT total_cents INTO total FROM order_totals WHERE order_id = o.id;
 
     IF lines = 0 THEN
         RAISE EXCEPTION 'order % has no lines', o.order_number
@@ -2678,7 +2679,7 @@ BEGIN
             USING ERRCODE = 'check_violation', CONSTRAINT = 'orders_have_delivery';
     END IF;
 
-    IF subtotal - o.discount_cents + o.shipping_cents < 0 THEN
+    IF total < 0 THEN
         RAISE EXCEPTION 'order % totals below zero', o.order_number
             USING ERRCODE = 'check_violation', CONSTRAINT = 'orders_total_non_negative';
     END IF;
@@ -4173,7 +4174,7 @@ LANGUAGE plpgsql SET search_path = pg_catalog, public, pg_temp AS $$
 DECLARE
     o orders%ROWTYPE;
     lines integer;
-    subtotal bigint;
+    total bigint;
     owed           bigint;
 BEGIN
     IF NEW.status <> 'succeeded' THEN
@@ -4185,8 +4186,8 @@ BEGIN
 
     SELECT * INTO o FROM orders WHERE id = NEW.order_id FOR UPDATE;
 
-    SELECT count(*), coalesce(sum(unit_price_cents * quantity), 0)
-    INTO lines, subtotal FROM order_lines WHERE order_id = o.id;
+    SELECT count(*) INTO lines FROM order_lines WHERE order_id = o.id;
+    SELECT total_cents INTO total FROM order_totals WHERE order_id = o.id;
 
     -- A LIVE, filled-in row: order_private_data_all_or_erased permits an
     -- all-NULL erased shape, and a live row could carry blanks. The DESTINATION
@@ -4202,7 +4203,7 @@ BEGIN
              AND ((postal_code ~ '[^[:space:]]' AND city ~ '[^[:space:]]'
                    AND district ~ '[^[:space:]]' AND street ~ '[^[:space:]]')
                   OR pickup_chain ~ '[^[:space:]]'))
-       OR subtotal - o.discount_cents + o.shipping_cents < 0 THEN
+       OR total < 0 THEN
         RAISE EXCEPTION 'order % is not complete enough to be paid', o.order_number
             USING ERRCODE = 'check_violation', CONSTRAINT = 'payments_require_complete_order';
     END IF;
@@ -5676,6 +5677,38 @@ CREATE VIEW sold_orders WITH (security_invoker = true) AS
 COMMENT ON VIEW sold_orders IS
     'The single definition of a sold order: committed, and not refunded before shipment.';
 
+-- What an order costs: its lines, less the discount, plus delivery. Every
+-- function, guard and query that needs the figure reads it here, and
+-- TestEveryOrderTotalReadsTheOneView refuses a copy: copies drift, and the
+-- health page's whole-NT$ amount once divided a numeric sum, so it never
+-- rounded as the invoice issuer it predicts does. bigint, so
+-- `total_cents / 100 * 100` is the whole-dollar floor it reads as.
+-- The lines are summed in a LATERAL subquery rather than grouped, so a query
+-- that joins this to orders keeps the plan of the per-order subquery it
+-- replaces: PostgreSQL 18's self-join elimination drops the second scan of
+-- orders. security_invoker, so a role reads through it only the columns its
+-- own grants allow.
+CREATE VIEW order_totals WITH (security_invoker = true) AS
+    SELECT o.id AS order_id,
+           l.subtotal_cents,
+           -- Already bigint; the cast is for sqlc, which types arithmetic int4.
+           (l.subtotal_cents - o.discount_cents + o.shipping_cents)::bigint AS total_cents
+    FROM orders o
+    CROSS JOIN LATERAL (
+        SELECT coalesce(sum(ol.unit_price_cents * ol.quantity), 0)::bigint AS subtotal_cents
+        FROM order_lines ol
+        WHERE ol.order_id = o.id
+    ) l;
+
+COMMENT ON VIEW order_totals IS
+    'The single definition of an order''s subtotal (its lines) and total (lines '
+    'less discount plus delivery), before store credit; order_amount_after_credit '
+    'subtracts that.';
+
+-- store and reporting explicitly: the blanket grant ran above. admin's is
+-- beside its role.
+GRANT SELECT ON order_totals TO store, reporting;
+
 -- An order's total less the store credit spent on it, NET OF
 -- REVERSALS — summing only `amount_cents < 0` counts the ghost of a reversed
 -- spend and lets an unfunded order ship.
@@ -5685,16 +5718,12 @@ STABLE
 PARALLEL SAFE
 SET search_path = pg_catalog, public, pg_temp
 AS $$
-    SELECT (
-        coalesce((SELECT sum(ol.unit_price_cents * ol.quantity)
-                  FROM order_lines ol WHERE ol.order_id = o.id), 0)
-        - o.discount_cents + o.shipping_cents
-    ) + coalesce((
+    SELECT t.total_cents + coalesce((
         SELECT sum(s.amount_cents + coalesce(r.amount_cents, 0))
         FROM store_credit_entries s
         LEFT JOIN store_credit_entries r ON r.reverses_id = s.id
-        WHERE s.order_id = o.id AND s.amount_cents < 0), 0)
-    FROM orders o WHERE o.id = p_order_id;
+        WHERE s.order_id = t.order_id AND s.amount_cents < 0), 0)
+    FROM order_totals t WHERE t.order_id = p_order_id;
 $$;
 
 COMMENT ON FUNCTION order_amount_after_credit(uuid) IS
@@ -5937,11 +5966,9 @@ $$;
 CREATE FUNCTION member_spend(p_user_id uuid, p_exclude_order uuid DEFAULT NULL)
 RETURNS bigint LANGUAGE sql STABLE SET search_path = pg_catalog, public, pg_temp AS $$
     SELECT coalesce(sum(greatest(
-        (coalesce((SELECT sum(ol.unit_price_cents * ol.quantity)
-                   FROM order_lines ol WHERE ol.order_id = o.id), 0)
-         - o.discount_cents + o.shipping_cents)
-        - (rf.card_cents + rf.credit_cents), 0)), 0)::bigint
+        t.total_cents - (rf.card_cents + rf.credit_cents), 0)), 0)::bigint
     FROM orders o
+    JOIN order_totals t ON t.order_id = o.id
     JOIN committed_orders c ON c.id = o.id
     JOIN order_refunds rf ON rf.order_id = o.id
     WHERE o.user_id = p_user_id
@@ -5997,10 +6024,10 @@ $$;
 
 GRANT USAGE ON SCHEMA public TO admin;
 
--- Granted here because the view is created before this role exists, and it is not
+-- Granted here because the views are created before this role exists, and it is not
 -- redundant: admin is NOT a member of store — pg_auth_members holds no such edge
 -- — and that independence is what makes the column revokes below work.
-GRANT SELECT ON committed_orders, settled_orders TO admin;
+GRANT SELECT ON committed_orders, settled_orders, order_totals TO admin;
 GRANT SELECT ON ALL TABLES IN SCHEMA public TO admin;
 GRANT INSERT, UPDATE, DELETE ON ALL TABLES IN SCHEMA public TO admin;
 
@@ -6168,14 +6195,13 @@ SET search_path = pg_catalog, public, pg_temp AS $$
     WITH header AS (
         SELECT o.discount_cents::numeric AS discount,
                o.shipping_cents::numeric AS shipping,
-               (coalesce(sum(ol.unit_price_cents::numeric * ol.quantity), 0)
-                - o.discount_cents + o.shipping_cents)::numeric AS total,
-               coalesce(sum(ol.unit_price_cents::numeric * ol.quantity), 0) AS subtotal,
-               min(ol.tax_type) AS tax_type
+               t.total_cents::numeric AS total,
+               t.subtotal_cents::numeric AS subtotal,
+               (SELECT min(ol.tax_type) FROM order_lines ol
+                WHERE ol.order_id = o.id) AS tax_type
         FROM orders o
-        LEFT JOIN order_lines ol ON ol.order_id = o.id
+        JOIN order_totals t ON t.order_id = o.id
         WHERE o.id = p_order_id
-        GROUP BY o.id
     ), base AS (
         SELECT (row_number() OVER (ORDER BY ol.position, ol.id) - 1)::integer AS pos,
                left(ol.product_name || CASE
@@ -6375,9 +6401,12 @@ BEGIN
                   CONSTRAINT = 'invoice_issue_relate_number';
     END IF;
 
-    SELECT (floor(((coalesce(sum(ol.unit_price_cents::numeric * ol.quantity), 0)
-                  - v_order.discount_cents + v_order.shipping_cents) / 100)) * 100)::bigint
-    INTO v_amount FROM order_lines ol WHERE ol.order_id = v_order.id;
+    -- ECPay files whole NT$. bigint division truncates, which is the floor of
+    -- a total orders_total_non_negative let commit; a negative one would still
+    -- come out <= 0 and be refused below. admin/health's UninvoicedOrders
+    -- predicts this amount with the same expression.
+    SELECT t.total_cents / 100 * 100
+    INTO v_amount FROM order_totals t WHERE t.order_id = v_order.id;
     SELECT jsonb_agg(jsonb_build_object(
                'description', l.description, 'quantity', l.quantity,
                'unit_price_cents', l.unit_price_cents,
@@ -8767,12 +8796,8 @@ LANGUAGE sql STABLE SET search_path = pg_catalog, public, pg_temp AS $$
         ORDER BY e.created_at, e.id
         LIMIT 1
     ), order_total AS (
-        SELECT greatest(
-            coalesce(sum(ol.unit_price_cents::numeric * ol.quantity), 0)
-            - o.discount_cents + o.shipping_cents, 0) AS amount
-        FROM orders o JOIN target t ON t.order_id = o.id
-        LEFT JOIN order_lines ol ON ol.order_id = o.id
-        GROUP BY o.id
+        SELECT greatest(ot.total_cents, 0)::numeric AS amount
+        FROM order_totals ot JOIN target t ON t.order_id = ot.order_id
     ), return_money AS (
         SELECT r.id,
                return_refundable_amount(r.id)::numeric AS amount,
@@ -8945,10 +8970,8 @@ BEGIN
     WHERE id = v_return.id
     RETURNING * INTO v_return;
 
-    SELECT coalesce(sum(ol.unit_price_cents * ol.quantity), 0)
-           - v_order.discount_cents + v_order.shipping_cents
-    INTO v_total
-    FROM order_lines ol WHERE ol.order_id = v_order.id;
+    SELECT t.total_cents INTO v_total
+    FROM order_totals t WHERE t.order_id = v_order.id;
     IF v_return.goods_refund_cents + v_return.shipping_refund_cents <> v_total THEN
         RAISE EXCEPTION 'order % would refund % of its %',
             p_order_number, v_return.goods_refund_cents + v_return.shipping_refund_cents, v_total
@@ -9506,9 +9529,7 @@ BEGIN
     -- and live in membership_window_days() and points_lifetime_days();
     -- changing them is a schema change, not an extra argument on a mint.
     SELECT o.user_id,
-           (coalesce((SELECT sum(ol.unit_price_cents * ol.quantity)::bigint
-                      FROM order_lines ol WHERE ol.order_id = o.id), 0)
-            - o.discount_cents + o.shipping_cents)::bigint
+           (SELECT t.total_cents FROM order_totals t WHERE t.order_id = o.id)
     INTO v_user, v_total
     FROM orders o
     WHERE o.id = p_order_id AND order_is_committed(o.id)

@@ -163,6 +163,6 @@ func recentOrderRow(ctx context.Context, o *db.AdminCustomerOrdersRow, returned 
 		StatusText:   text,
 		StatusIntent: intent,
 		PlacedAt:     shoptime.Minute(o.PlacedAt),
-		TotalCents:   o.SubtotalCents - o.DiscountCents + o.ShippingCents,
+		TotalCents:   o.TotalCents,
 	}
 }

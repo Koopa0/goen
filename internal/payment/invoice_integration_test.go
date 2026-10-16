@@ -90,6 +90,56 @@ func TestPickingACreditFundedOrderQueuesNoInvoice(t *testing.T) {
 	}
 }
 
+// TestTheHealthPageStatesTheAmountTheIssuerFiles: the amount /admin/health
+// lists for an uninvoiced order is the whole NT$ the issue claim then files.
+// Nothing in the shop writes a total with cents today, but the schema allows
+// one, and on it the health query once stated the raw sum while the issuer
+// floored it (#1933).
+func TestTheHealthPageStatesTheAmountTheIssuerFiles(t *testing.T) {
+	ctx := t.Context()
+	s := payment.NewStore(pool)
+	const total, filed = int64(159950), int64(159900)
+	number, id := order(t, total)
+	preferMemberInvoice(t, id)
+	session := "cs_fraction_" + number
+	if err := s.OpenPayment(ctx, number, session, total); err != nil {
+		t.Fatalf("open: %v", err)
+	}
+	if _, err := captureThroughWebhook(t, s, payment.Capture{SessionID: session, AmountRecv: total}); err != nil {
+		t.Fatalf("capture: %v", err)
+	}
+	if tag, err := pool.Exec(ctx,
+		`DELETE FROM outbox_messages WHERE topic = $1 AND dedupe_key = $2`,
+		outbox.TopicInvoiceDue.Name(), number); err != nil || tag.RowsAffected() != 1 {
+		t.Fatalf("delete the queued invoice.due of %s: %d rows, %v", number, tag.RowsAffected(), err)
+	}
+
+	orders, _, err := health.NewStore(adminRolePool(t)).UninvoicedOrders(ctx, 0)
+	if err != nil {
+		t.Fatalf("read paid orders with no invoice operation: %v", err)
+	}
+	listed := int64(-1)
+	for _, o := range orders {
+		if o.OrderNumber == number {
+			listed = o.AmountCents
+		}
+	}
+	if listed != filed {
+		t.Errorf("/admin/health lists %s at %d cents, want the %d the issuer files", number, listed, filed)
+	}
+
+	claimDue(t, outbox.InvoiceDue{OrderNumber: number, Trigger: "evt_fraction_" + number})
+	var claimed int64
+	if err := pool.QueryRow(ctx,
+		`SELECT amount_cents FROM invoice_operations WHERE order_id = $1 AND kind = 'issue'`,
+		id).Scan(&claimed); err != nil {
+		t.Fatalf("read the issue claim of %s: %v", number, err)
+	}
+	if claimed != filed {
+		t.Errorf("the issue claim of %s files %d cents, want %d", number, claimed, filed)
+	}
+}
+
 // TestAPaidOrderWhoseInvoiceDueWasLostIsOnTheHealthPage: /admin/health reads
 // the orders, not the outbox that should have claimed their invoices, so a
 // paid order whose invoice.due is gone is listed until an issue exists. Paid
