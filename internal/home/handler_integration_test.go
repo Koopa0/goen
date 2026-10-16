@@ -24,6 +24,7 @@ import (
 	"github.com/koopa0/goen/internal/db/dbtest"
 	"github.com/koopa0/goen/internal/home"
 	"github.com/koopa0/goen/internal/i18n"
+	"github.com/koopa0/goen/internal/site"
 	"github.com/koopa0/goen/internal/ui/components"
 )
 
@@ -57,7 +58,7 @@ func TestHomeShowsCategoriesAndProducts(t *testing.T) {
 	emptyHeroSlides(t)
 	stopCampaigns(t)
 
-	h := home.NewHandler(home.NewStore(pool), slog.New(slog.DiscardHandler), false)
+	h := home.NewHandler(home.NewStore(pool), slog.New(slog.DiscardHandler))
 	req := httptest.NewRequestWithContext(t.Context(), http.MethodGet, "/", http.NoBody)
 	res := httptest.NewRecorder()
 	h.Index(res, req)
@@ -335,149 +336,6 @@ func TestTheHeroImageCarriesItsRealWidth(t *testing.T) {
 	}
 }
 
-func TestDismissingOneBannerDoesNotSilenceTheNext(t *testing.T) {
-	ctx := t.Context()
-	s := home.NewStore(pool)
-
-	if _, err := pool.Exec(ctx, `DELETE FROM promo_banners`); err != nil {
-		t.Fatalf("clear: %v", err)
-	}
-	first := seedBanner(t, "第一檔")
-
-	shown, err := s.Banner(ctx, "")
-	if err != nil {
-		t.Fatalf("banner: %v", err)
-	}
-	if !shown.Shown() || shown.Message != "第一檔" {
-		t.Fatalf("the running banner did not show: %+v", shown)
-	}
-
-	dismissed := home.DismissDigest(first)
-	hidden, hiddenErr := s.Banner(ctx, dismissed)
-	if hiddenErr != nil {
-		t.Fatalf("banner: %v", hiddenErr)
-	}
-	if hidden.Shown() {
-		t.Error("a dismissed banner is still showing")
-	}
-
-	if _, err := pool.Exec(ctx, `UPDATE promo_banners SET is_active = false`); err != nil {
-		t.Fatalf("retire: %v", err)
-	}
-	seedBanner(t, "第二檔")
-
-	next, nextErr := s.Banner(ctx, dismissed)
-	if nextErr != nil {
-		t.Fatalf("banner: %v", nextErr)
-	}
-	if !next.Shown() {
-		t.Error("the NEXT promotion is hidden by a dismissal of the previous one")
-	}
-	if next.Message != "第二檔" {
-		t.Errorf("showing %q, want 第二檔", next.Message)
-	}
-}
-
-func TestTheCookieCarriesADigestNotTheID(t *testing.T) {
-	const id = "019fa72c-dd04-7383-acc5-4c32f889c790"
-	digest := home.DismissDigest(id)
-
-	if strings.Contains(digest, id) || digest == id {
-		t.Errorf("the cookie value %q contains the banner id", digest)
-	}
-	if len(digest) > 32 {
-		t.Errorf("the cookie value is %d characters; it travels on every request",
-			len(digest))
-	}
-	if again := home.DismissDigest(id); again != digest {
-		t.Error("the digest is not stable")
-	}
-	if other := home.DismissDigest("019fa72c-dd04-7383-acc5-4c32f889c791"); other == digest {
-		t.Error("two banners share a digest")
-	}
-}
-
-func TestABannerOutsideItsWindowDoesNotShow(t *testing.T) {
-	ctx := t.Context()
-	s := home.NewStore(pool)
-
-	tests := []struct {
-		name  string
-		setup string
-		want  bool
-	}{
-		{"running", `UPDATE promo_banners SET is_active = true, starts_at = NULL, ends_at = NULL`, true},
-		{"switched off", `UPDATE promo_banners SET is_active = false`, false},
-		{"ended", `UPDATE promo_banners SET is_active = true,
-			starts_at = now() - interval '30 days', ends_at = now() - interval '1 day'`, false},
-		{"not started", `UPDATE promo_banners SET is_active = true,
-			starts_at = now() + interval '1 day', ends_at = NULL`, false},
-	}
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			if _, err := pool.Exec(ctx, `DELETE FROM promo_banners`); err != nil {
-				t.Fatalf("clear: %v", err)
-			}
-			seedBanner(t, "檔期測試")
-			if _, err := pool.Exec(ctx, tt.setup); err != nil {
-				t.Fatalf("setup: %v", err)
-			}
-			banner, err := s.Banner(ctx, "")
-			if err != nil {
-				t.Fatalf("banner: %v", err)
-			}
-			if banner.Shown() != tt.want {
-				t.Errorf("shown=%v, want %v", banner.Shown(), tt.want)
-			}
-		})
-	}
-}
-
-func TestAnOffSiteCTAIsDroppedNotRendered(t *testing.T) {
-	ctx := t.Context()
-	s := home.NewStore(pool)
-
-	for _, href := range []string{
-		"https://evil.example", "//evil.example/x", "///evil.example/x",
-		"javascript:alert(1)", `/\evil.example`,
-	} {
-		if _, err := pool.Exec(ctx, `DELETE FROM promo_banners`); err != nil {
-			t.Fatalf("clear: %v", err)
-		}
-		if _, err := pool.Exec(ctx, `
-			INSERT INTO promo_banners (message, cta_label, cta_href)
-			VALUES ('測試', '點我', $1)`, href); err != nil {
-			t.Fatalf("insert %q: %v", href, err)
-		}
-		banner, err := s.Banner(ctx, "")
-		if err != nil {
-			t.Fatalf("banner: %v", err)
-		}
-		if banner.HasCTA() {
-			t.Errorf("an off-site CTA %q was rendered as %q", href, banner.CTAHref)
-		}
-		if !banner.Shown() {
-			t.Errorf("a bad CTA hid the whole banner")
-		}
-	}
-
-	if _, err := pool.Exec(ctx, `DELETE FROM promo_banners`); err != nil {
-		t.Fatalf("clear: %v", err)
-	}
-	if _, err := pool.Exec(ctx, `
-		INSERT INTO promo_banners (message, cta_label, cta_href)
-		VALUES ('測試', '看優惠', '/deals')`); err != nil {
-		t.Fatalf("insert: %v", err)
-	}
-	banner, err := s.Banner(ctx, "")
-	if err != nil {
-		t.Fatalf("banner: %v", err)
-	}
-	if !banner.HasCTA() || banner.CTAHref != "/deals" {
-		t.Errorf("a same-site CTA came back as %q", banner.CTAHref)
-	}
-}
-
 // The admin form validates these paths too, but direct SQL and old rows still
 // reach the storefront reader.
 func TestAnOffSiteHeroCTAIsDroppedAtReadTime(t *testing.T) {
@@ -500,17 +358,6 @@ func TestAnOffSiteHeroCTAIsDroppedAtReadTime(t *testing.T) {
 	if slide.CTA.Shown() {
 		t.Errorf("a poisoned primary CTA survived as %+v", slide.CTA)
 	}
-}
-
-func seedBanner(t *testing.T, message string) string {
-	t.Helper()
-	var id uuid.UUID
-	if err := pool.QueryRow(t.Context(), `
-		INSERT INTO promo_banners (message, message_short)
-		VALUES ($1, $1) RETURNING id`, message).Scan(&id); err != nil {
-		t.Fatalf("seed banner: %v", err)
-	}
-	return id.String()
 }
 
 // stopCampaigns switches every campaign off for the test: a running one takes a
@@ -834,7 +681,7 @@ func TestTheFreeDeliveryNoteStatesTheLowestCurrentFee(t *testing.T) {
 		t.Fatalf("publish a new fee: %v", err)
 	}
 
-	h := home.NewHandler(home.NewStore(pool), slog.New(slog.DiscardHandler), false)
+	h := home.NewHandler(home.NewStore(pool), slog.New(slog.DiscardHandler))
 	req := httptest.NewRequestWithContext(i18n.WithLocale(ctx, i18n.ZhHant), http.MethodGet, "/", http.NoBody)
 	res := httptest.NewRecorder()
 	h.Index(res, req)
@@ -885,7 +732,7 @@ func TestTheHeaderAndTheTilesAgreeOnOrder(t *testing.T) {
 	locale := i18n.WithLocale(ctx, i18n.ZhHant)
 	store := home.NewStore(pool)
 
-	nav, err := store.Nav(locale)
+	nav, err := site.NewStore(pool).Nav(locale)
 	if err != nil {
 		t.Fatalf("read the header: %v", err)
 	}
@@ -937,7 +784,7 @@ func TestTheFreeDeliveryNoteDescribesOnlyTheMethodsCheckoutOffers(t *testing.T) 
 	}
 
 	render := func(s *home.Store) string {
-		h := home.NewHandler(s, slog.New(slog.DiscardHandler), false)
+		h := home.NewHandler(s, slog.New(slog.DiscardHandler))
 		res := httptest.NewRecorder()
 		h.Index(res, httptest.NewRequestWithContext(ctx, http.MethodGet, "/", http.NoBody))
 		if res.Code != http.StatusOK {
@@ -993,171 +840,6 @@ func TestTheLowestFeeSkipsAMethodThatIsAlwaysFree(t *testing.T) {
 	if view.Rules.LowestFeeCents != 8000 {
 		t.Errorf("Rules.LowestFeeCents = %d, want 8000: an always-free pickup method is not the fee below the threshold",
 			view.Rules.LowestFeeCents)
-	}
-}
-
-// A department's header panel shows at most three of its own products, newest
-// first, and only ones that can be bought: the header is on every page, and a
-// sold-out product there is a click that ends at a disabled button. The newest
-// product of the department is sold out for the length of the test, so the rule
-// is exercised by a row it actually removes.
-func TestADepartmentPanelShowsItsNewestBuyableProducts(t *testing.T) {
-	ctx := i18n.WithLocale(t.Context(), i18n.ZhHant)
-
-	const dept = "tech"
-	var newest string
-	if err := pool.QueryRow(ctx, `
-		WITH RECURSIVE tree AS (
-		    SELECT id FROM categories WHERE slug = $1
-		    UNION ALL
-		    SELECT k.id FROM categories k JOIN tree t ON k.parent_id = t.id
-		)
-		SELECT p.slug FROM products p
-		WHERE p.category_id IN (SELECT id FROM tree) AND p.status = 'active'
-		ORDER BY p.published_at DESC, p.id DESC LIMIT 1`, dept).Scan(&newest); err != nil {
-		t.Fatalf("fixture: the newest %s product: %v", dept, err)
-	}
-	// Remembered in Go rather than a temporary table: a pool hands each
-	// statement whichever connection is free, and a temp table lives on one.
-	var ids []uuid.UUID
-	var stock []int32
-	if err := pool.QueryRow(ctx, `
-		SELECT array_agg(v.id), array_agg(v.stock_quantity) FROM product_variants v
-		JOIN products p ON p.id = v.product_id WHERE p.slug = $1`, newest).Scan(&ids, &stock); err != nil {
-		t.Fatalf("fixture: remember the stock: %v", err)
-	}
-	t.Cleanup(func() {
-		if _, err := pool.Exec(context.WithoutCancel(ctx), `
-			UPDATE product_variants v SET stock_quantity = s.stock
-			FROM unnest($1::uuid[], $2::integer[]) AS s(id, stock) WHERE s.id = v.id`, ids, stock); err != nil {
-			t.Errorf("restore the stock: %v", err)
-		}
-	})
-	if _, err := pool.Exec(ctx, `
-		UPDATE product_variants SET stock_quantity = safety_stock WHERE id = ANY($1::uuid[])`, ids); err != nil {
-		t.Fatalf("fixture: sell out %s: %v", newest, err)
-	}
-
-	nav, err := home.NewStore(pool).Nav(ctx)
-	if err != nil {
-		t.Fatalf("read the header: %v", err)
-	}
-	shown := 0
-	for i := range nav {
-		d := &nav[i]
-		rows, err := pool.Query(ctx, `
-			WITH RECURSIVE tree AS (
-			    SELECT id FROM categories WHERE slug = $1
-			    UNION ALL
-			    SELECT k.id FROM categories k JOIN tree t ON k.parent_id = t.id
-			)
-			SELECT p.slug FROM products p
-			WHERE p.category_id IN (SELECT id FROM tree) AND p.status = 'active'
-			  AND EXISTS (
-			      SELECT 1 FROM product_variants v
-			      WHERE v.product_id = p.id AND v.is_active AND v.stock_quantity > v.safety_stock)
-			ORDER BY p.published_at DESC, p.id DESC LIMIT 3`, d.Slug)
-		if err != nil {
-			t.Fatalf("read %s's products: %v", d.Slug, err)
-		}
-		want, err := pgx.CollectRows(rows, pgx.RowTo[string])
-		if err != nil {
-			t.Fatalf("read %s's products: %v", d.Slug, err)
-		}
-		got := make([]string, 0, len(d.Picks))
-		for _, p := range d.Picks {
-			got = append(got, p.Slug)
-			if p.Slug == newest {
-				t.Errorf("%s's panel offers %s, which is sold out", d.Slug, newest)
-			}
-			if !strings.HasPrefix(p.Price, "NT$") {
-				t.Errorf("%s's panel prices %s as %q", d.Slug, p.Slug, p.Price)
-			}
-		}
-		if strings.Join(got, ",") != strings.Join(want, ",") {
-			t.Errorf("%s's panel shows %v, want %v", d.Slug, got, want)
-		}
-		shown += len(got)
-	}
-	if shown == 0 {
-		t.Fatal("no department showed a product, so this compared nothing")
-	}
-}
-
-func TestTheNavCountsEachDepartmentsActiveProducts(t *testing.T) {
-	ctx := t.Context()
-	var big, small, sub uuid.UUID
-	for _, c := range []struct {
-		id     *uuid.UUID
-		slug   string
-		parent *uuid.UUID
-	}{
-		{&big, "navcount-big", nil},
-		{&small, "navcount-small", nil},
-		{&sub, "navcount-big-sub", &big},
-	} {
-		var parent any
-		if c.parent != nil {
-			parent = *c.parent
-		}
-		if err := pool.QueryRow(ctx, `
-			INSERT INTO categories (slug, name, parent_id, position)
-			VALUES ($1, $1, $2, (SELECT coalesce(max(position), -1) + 1 FROM categories WHERE parent_id IS NOT DISTINCT FROM $2))
-			RETURNING id`, c.slug, parent).Scan(c.id); err != nil {
-			t.Fatalf("insert category %s: %v", c.slug, err)
-		}
-	}
-	slugs := []string{"navcount-a", "navcount-b", "navcount-c", "navcount-d"}
-	t.Cleanup(func() {
-		clean, cancel := context.WithTimeout(context.WithoutCancel(ctx), 5*time.Second)
-		defer cancel()
-		// Archived first: an active product may not lose its last variant.
-		for _, q := range []string{
-			`UPDATE products SET status = 'archived' WHERE slug = ANY($1)`,
-			`DELETE FROM product_variants WHERE product_id IN (SELECT id FROM products WHERE slug = ANY($1))`,
-			`DELETE FROM products WHERE slug = ANY($1)`,
-		} {
-			if _, err := pool.Exec(clean, q, slugs); err != nil {
-				t.Errorf("clean up: %v", err)
-			}
-		}
-		if _, err := pool.Exec(clean, `DELETE FROM categories WHERE id IN ($1, $2, $3)`, sub, big, small); err != nil {
-			t.Errorf("clean up categories: %v", err)
-		}
-	})
-	for _, p := range []struct {
-		slug, status string
-		category     uuid.UUID
-	}{
-		{slugs[0], "active", big},
-		{slugs[1], "active", sub},
-		{slugs[2], "draft", big},
-		{slugs[3], "active", small},
-	} {
-		if _, err := pool.Exec(ctx, `
-			WITH p AS (
-			    INSERT INTO products (category_id, slug, name, status, published_at)
-			    VALUES ($1, $2, $2, $3, now())
-			    RETURNING id
-			)
-			INSERT INTO product_variants (product_id, sku, price_cents, stock_quantity, safety_stock, position)
-			SELECT p.id, upper($2), 1000, 5, 0, 0 FROM p`,
-			p.category, p.slug, p.status); err != nil {
-			t.Fatalf("insert product %s: %v", p.slug, err)
-		}
-	}
-
-	items, err := home.NewStore(pool).Nav(i18n.WithLocale(ctx, i18n.ZhHant))
-	if err != nil {
-		t.Fatalf("nav: %v", err)
-	}
-	got := map[string]int{}
-	for _, n := range items {
-		got[n.Slug] = n.ProductCount
-	}
-	if got["navcount-big"] != 2 || got["navcount-small"] != 1 {
-		t.Errorf("department counts = big %d, small %d; want 2 (one in a sub-category, the draft left out) and 1",
-			got["navcount-big"], got["navcount-small"])
 	}
 }
 

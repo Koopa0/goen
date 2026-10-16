@@ -15,6 +15,8 @@ import (
 )
 
 type boundedSitemapCatalogue struct {
+	Catalogue // nil: the sitemap reads only the two methods below
+
 	categories     int
 	products       int
 	ignoreLimit    bool

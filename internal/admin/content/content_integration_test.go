@@ -11,7 +11,6 @@ import (
 
 	"github.com/koopa0/goen/internal/admin/admintest"
 	"github.com/koopa0/goen/internal/admin/content"
-	"github.com/koopa0/goen/internal/home"
 	"github.com/koopa0/goen/internal/i18n"
 	"github.com/koopa0/goen/internal/site"
 )
@@ -45,7 +44,7 @@ func TestTheShopCanRunAPromotion(t *testing.T) {
 		t.Errorf("the promotion reads as %+v", *made)
 	}
 
-	shop := home.NewStore(pool)
+	shop := site.NewStore(pool)
 	for _, tt := range []struct {
 		name   string
 		locale i18n.Locale

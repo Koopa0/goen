@@ -5,7 +5,6 @@ import (
 	"fmt"
 
 	"github.com/google/uuid"
-	"github.com/jackc/pgx/v5/pgxpool"
 
 	"github.com/koopa0/goen/internal/db"
 	"github.com/koopa0/goen/internal/i18n"
@@ -16,11 +15,11 @@ type Store struct {
 	noPickup bool
 }
 
-func NewStore(pool *pgxpool.Pool) *Store {
-	if pool == nil {
-		panic("site: NewStore requires a pool")
+func NewStore(dbtx db.DBTX) *Store {
+	if dbtx == nil {
+		panic("site: NewStore requires a database handle")
 	}
-	return &Store{q: db.New(pool)}
+	return &Store{q: db.New(dbtx)}
 }
 
 // WithoutPickup is for a deployment whose store map is not configured: checkout

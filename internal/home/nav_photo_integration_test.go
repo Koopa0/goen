@@ -18,6 +18,7 @@ import (
 	"github.com/koopa0/goen/internal/home"
 	"github.com/koopa0/goen/internal/i18n"
 	"github.com/koopa0/goen/internal/media"
+	"github.com/koopa0/goen/internal/site"
 	"github.com/koopa0/goen/internal/ui/layouts"
 )
 
@@ -71,7 +72,7 @@ func TestNavigationFollowsConfiguredDepartmentPhotographs(t *testing.T) {
 				t.Fatalf("store upload: %v", err)
 			}
 
-			store := home.NewStore(tx)
+			store, nav := home.NewStore(tx), site.NewStore(tx)
 			listing := catalog.NewStore(tx)
 			for _, slug := range []string{"photo-department", "books-stationery"} {
 				if n, setErr := q.SetCategoryImage(ctx, db.SetCategoryImageParams{
@@ -81,19 +82,19 @@ func TestNavigationFollowsConfiguredDepartmentPhotographs(t *testing.T) {
 				}
 				url := "/media/" + obj.Digest
 				srcset := url + "/400 400w, " + url + " 600w"
-				assertDepartmentPhotograph(t, ctx, store, listing, slug, url, srcset)
+				assertDepartmentPhotograph(t, ctx, store, nav, listing, slug, url, srcset)
 				if n, clearErr := q.ClearCategoryImage(ctx, slug); clearErr != nil || n != 1 {
 					t.Fatalf("clear %s photograph: rows=%d err=%v", slug, n, clearErr)
 				}
-				assertDepartmentPhotograph(t, ctx, store, listing, slug, "", "")
+				assertDepartmentPhotograph(t, ctx, store, nav, listing, slug, "", "")
 			}
 		})
 	}
 }
 
-func assertDepartmentPhotograph(t *testing.T, ctx context.Context, store *home.Store, listing *catalog.Store, slug, url, srcset string) {
+func assertDepartmentPhotograph(t *testing.T, ctx context.Context, store *home.Store, chrome *site.Store, listing *catalog.Store, slug, url, srcset string) {
 	t.Helper()
-	nav, err := store.Nav(ctx)
+	nav, err := chrome.Nav(ctx)
 	if err != nil {
 		t.Fatalf("Nav(): %v", err)
 	}
