@@ -114,69 +114,15 @@ func (c CampaignSummary) Href() string { return "/s/" + c.Slug }
 
 func (c CampaignSummary) ProductsText() string { return strconv.FormatInt(c.Products, 10) }
 
-// CampaignState is where a campaign's window lies against the present; the zero value is running.
-type CampaignState string
-
-const (
-	CampaignRunning    CampaignState = ""
-	CampaignNotStarted CampaignState = "not-started"
-	CampaignEnded      CampaignState = "ended"
-)
-
-// CampaignStateAt judges the window [startsAt, endsAt) at now.
-func CampaignStateAt(startsAt, endsAt, now time.Time) CampaignState {
-	switch {
-	case now.Before(startsAt):
-		return CampaignNotStarted
-	case !now.Before(endsAt):
-		return CampaignEnded
-	}
-	return CampaignRunning
-}
-
 // CampaignSchedule is what a campaign page says about its window: the fact line
-// and, when the span fits one, the period's track.
+// and, when the span fits one, the period's track. catalog.NewCampaignSchedule
+// lays it out for the state the campaign is in.
 type CampaignSchedule struct {
-	State CampaignState
 	Facts []components.Stat
 	// Ends and DaysLeft are Facts' own stats; DaysLeft has no value in the last two days and outside the window.
 	Ends, DaysLeft components.Stat
 	Period         components.PeriodSpec
 	HasPeriod      bool
-}
-
-// NewCampaignSchedule states a campaign of items products running from startsAt
-// to endsAt, which is exclusive.
-func NewCampaignSchedule(ctx context.Context, title string, items int64, startsAt, endsAt, now time.Time) CampaignSchedule {
-	state := CampaignStateAt(startsAt, endsAt, now)
-	count := components.Stat{Label: i18n.T(ctx, i18n.KeySlideItems), Value: components.StatCount(items, i18n.T(ctx, i18n.KeyFactUnitItems))}
-	ends := CampaignEndStat(ctx, endsAt, now)
-	schedule := CampaignSchedule{State: state, Ends: ends}
-
-	switch state {
-	case CampaignNotStarted:
-		first := shoptime.DateOf(startsAt, now)
-		starts := components.Stat{
-			Label: i18n.T(ctx, i18n.KeyCampaignStarts),
-			Value: components.StatDate(shoptime.DateText(ctx, first), "").WithDatetime(first.ISO()),
-		}
-		schedule.Ends.Note = ""
-		schedule.Facts = []components.Stat{starts, schedule.Ends, count}
-	case CampaignEnded:
-		schedule.Ends.Note = i18n.T(ctx, i18n.KeyCampaignEnded)
-		schedule.Facts = []components.Stat{schedule.Ends, count}
-	default:
-		// The last two days say so in the end's note instead.
-		if left := shoptime.DaysLeft(now, endsAt); left > 1 {
-			schedule.DaysLeft = components.Stat{Label: i18n.T(ctx, i18n.KeySlideDaysLeft), Value: components.StatCount(int64(left), i18n.T(ctx, i18n.KeyFactUnitDays))}
-		}
-		schedule.Facts = []components.Stat{count, schedule.Ends}
-		if schedule.DaysLeft.Label != "" {
-			schedule.Facts = append(schedule.Facts, schedule.DaysLeft)
-		}
-	}
-	schedule.Period, schedule.HasPeriod = components.DayPeriod(ctx, title, startsAt, endsAt, now)
-	return schedule
 }
 
 // CardFacts are what is left, when it is shown, and then when it ends: the

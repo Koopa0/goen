@@ -269,7 +269,7 @@ templ productBuy(v *ProductView) {
 						{ v.Price() }
 					}
 				</span>
-				if v.OnSale() {
+				if v.OnSale {
 					<span class="goen-sr-only">{ i18n.T(ctx, i18n.KeyWasPrice) }</span>
 					<s class="goen-pdp__was">{ v.Compare() }</s>
 					@components.Badge(components.BadgeProps{}) {
@@ -277,7 +277,7 @@ templ productBuy(v *ProductView) {
 					}
 				}
 			</div>
-			if v.OnSale() {
+			if v.OnSale {
 				{{ before, middle, after := v.Campaign.Source(ctx) }}
 				<p class="goen-pdp__source">{ before }<a href={ templ.SafeURL(v.Campaign.Href()) }>{ v.Campaign.Title }</a>{ middle }<span class="goen-pdp__left">{ v.Campaign.End.Left(ctx) }</span>{ after }</p>
 			}

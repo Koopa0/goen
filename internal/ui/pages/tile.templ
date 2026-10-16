@@ -97,7 +97,7 @@ templ tilePrice(t ProductTile) {
 				{ t.Price() }
 			}
 		</span>
-		if t.OnSale() {
+		if t.OnSale {
 			<span class="goen-sr-only">{ i18n.T(ctx, i18n.KeyWasPrice) }</span>
 			<s class="goen-tile__was">{ t.Compare() }</s>
 		}
