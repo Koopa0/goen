@@ -67,10 +67,10 @@ a:hover {
   --r-press: 1.625rem;
   /* The corner of a field a shopper types or chooses in. */
   --r-field: 12px;
-  /* The outer corner of the hero and of a page head built the same way, in px
-     so it stays 24 at any text size. The copy panel's padding is wider than
-     the corner and the photograph panel's is 0, so neither draws an inner
-     corner. */
+  /* The outer corner of the hero, of a department's head and of the home
+     page's shelf, in px so it stays 24 at any text size. A panel's copy sits
+     at least one corner in from its edge and a photograph is clipped by its
+     panel, so neither draws an inner corner. */
   --r-hero: 24px;
 }
 
@@ -2600,20 +2600,31 @@ body:has(.goen-hero) .goen-header {
   --lift: 0px;
 }
 
-/* The home page's band is the department's shelf: no photograph, because the
-   tile above shows it. From 60rem it shares the tiles' six columns and their
-   1.5rem gap, the name in two and the four products under tiles 3 to 6. The
-   department page's head is built from .goen-band too and takes none of this. */
+/* The home page's band is the department's shelf: one rounded panel in the
+   page column, with no photograph because the tile above shows it. The sideways
+   scroller of products bleeds by the panel's padding, so it is cut at a
+   straight edge and never at a corner. The container is the panel, narrower
+   than the window by two gutters, so its queries are 44.7rem and 55.9rem where
+   the window's were 48rem and 60rem: the panel is that wide when the window is
+   768px and 960px, and the layout switches at the same windows as before. From
+   55.9rem it has six columns with the tiles' 1.5rem gap, the name in two and the
+   four products under 3 to 6. The department page's head is built from
+   .goen-band too and takes none of this. */
 .goen-band--shelf {
+  --shelf-inset: clamp(24px, 4vw, 48px);
   background: var(--tone-ground);
+  border-radius: var(--r-hero);
   container: band / inline-size;
+  margin-inline: auto;
+  max-width: var(--page-width);
+  width: calc(100% - 2 * var(--page-gutter));
 }
 
 .goen-band--shelf .goen-band__body {
   display: grid;
   gap: var(--s-5) var(--col-gap);
   grid-template-columns: minmax(0, 1fr);
-  padding: var(--s-6) var(--page-edge) var(--s-7);
+  padding: var(--s-6) var(--shelf-inset) var(--s-7);
 }
 
 .goen-band--shelf .goen-band__head {
@@ -2658,9 +2669,12 @@ body:has(.goen-hero) .goen-header {
 
 .goen-band--shelf .goen-band__tiles {
   grid-auto-columns: max(42%, 8rem);
+  margin-inline: calc(var(--shelf-inset) * -1);
+  padding-inline: var(--shelf-inset);
+  scroll-padding-inline: var(--shelf-inset);
 }
 
-@container band (width >= 48rem) {
+@container band (width >= 44.7rem) {
   .goen-band--shelf .goen-band__tiles {
     gap: var(--col-gap);
     grid-auto-flow: row;
@@ -2671,7 +2685,7 @@ body:has(.goen-hero) .goen-header {
   }
 }
 
-@container band (width >= 60rem) {
+@container band (width >= 55.9rem) {
   .goen-band--shelf .goen-band__body {
     column-gap: 1.5rem;
     grid-template-columns: repeat(6, minmax(0, 1fr));
@@ -2691,28 +2705,52 @@ body:has(.goen-hero) .goen-header {
 
 @media (forced-colors: active) {
   .goen-band--shelf {
-    border-block: 1px solid CanvasText;
+    outline: 1px solid CanvasText;
+    outline-offset: -1px;
   }
 }
 
-/* The head is a listing's first screen. The copy sets its height and the
-   photograph fills it, seven parts to the copy's five, at least 9:4: the floor
-   is a pseudo-element's padding because a grid item with an aspect-ratio that is
-   stretched taller widens with it. The room a short copy leaves goes between the
-   crumbs and the name, not under the sub-categories. */
+/* The head is a listing's first screen, laid out as the hero is: the
+   photograph and the copy are two rounded panels in the page column with a
+   seam of page white between them, side by side from 48rem (seven parts to
+   five, at least 9:4) and the photograph above the copy below it. The copy
+   sets the head's height and the photograph fills it; the floor is a
+   pseudo-element's padding because a grid item with an aspect-ratio that is
+   stretched taller widens with it. The room a short copy leaves goes between
+   the crumbs and the name, not under the sub-categories. */
+.goen-listing__head {
+  --head-inset: clamp(24px, 3.5vw, 48px);
+  margin-inline: auto;
+  max-width: var(--page-width);
+  padding: var(--s-2) var(--page-gutter) 0;
+}
+
+.goen-pagehead .goen-band__grid {
+  gap: var(--s-2);
+}
+
+.goen-pagehead .goen-band__media {
+  border-radius: var(--r-hero);
+  margin: 0;
+  overflow: hidden;
+  padding: 0;
+  position: relative;
+}
+
+.goen-pagehead .goen-band__body {
+  background: var(--tone-ground);
+  border-radius: var(--r-hero);
+  padding: var(--s-5) var(--head-inset);
+}
+
 @media (min-width: 48rem) {
   .goen-pagehead .goen-band {
-    --lift: 2rem;
+    background: none;
   }
 
   .goen-pagehead .goen-band__grid {
     align-items: stretch;
     grid-template-columns: minmax(0, 7fr) minmax(0, 5fr);
-  }
-
-  .goen-pagehead .goen-band__media {
-    margin: 0 0 var(--lift);
-    position: relative;
   }
 
   .goen-pagehead .goen-band__media::before {
@@ -2723,11 +2761,11 @@ body:has(.goen-hero) .goen-header {
 
   .goen-pagehead .goen-band__media img {
     aspect-ratio: auto;
-    height: calc(100% - var(--col-gap));
-    inset: 0 auto auto 0;
+    height: 100%;
+    inset: 0;
     object-fit: cover;
     position: absolute;
-    width: calc(100% - var(--col-gap));
+    width: 100%;
   }
 
   .goen-pagehead .goen-band__media--well img {
@@ -2737,20 +2775,14 @@ body:has(.goen-hero) .goen-header {
   .goen-pagehead .goen-band__body {
     gap: var(--s-3);
     justify-content: flex-end;
-    padding: calc(var(--lift) + var(--s-5)) var(--page-edge) var(--s-5) clamp(1.5rem, 4vw, 4rem);
   }
 
   .goen-pagehead .goen-band__body > .ui-crumbs {
     margin-bottom: auto;
   }
 
-  .goen-pagehead .goen-band:has(> .goen-deptnotice) .goen-band__media {
-    margin-bottom: 0;
-  }
-
   .goen-pagehead .goen-band__body:first-child {
     grid-column: 1 / -1;
-    padding-left: var(--page-edge);
   }
 }
 
@@ -3690,18 +3722,27 @@ input.goen-check {
 }
 
 /* The department head's sub-categories are words on the tone, each a pill-sized
-   target on hover; only the current one is filled. They do not scroll as a
-   boxed button row: the empty search's shortcuts above keep the box. */
+   target on hover; the current one is a white pill with a 2px edge inside it.
+   A phone's row bleeds by the panel's padding, so it scrolls to the panel's
+   straight edge and never onto the page white, and keeps 4px above and below
+   the chips for a focus ring that the scrolling row would otherwise cut. A
+   desktop's row reaches 4px short of the panel's edge on the right, so six
+   Chinese names fit one line at 1400px and wider. The pill's white stops at the
+   chip's transparent border, so the 2px edge is the pill's outer edge. They
+   do not scroll as a boxed button row: the empty search's shortcuts above keep
+   the box. */
 .goen-listing__head .goen-pagehead__chips {
   gap: 0;
-  margin-top: var(--s-2);
-  padding-inline-start: var(--page-gutter);
+  margin-block: calc(var(--s-2) - 4px) -4px;
+  margin-inline: calc(var(--head-inset) * -1);
+  padding: 4px var(--head-inset);
+  scroll-padding-inline: var(--head-inset);
 }
 
 @media (min-width: 48rem) {
   .goen-listing__head .goen-pagehead__chips {
     flex-wrap: wrap;
-    margin-inline: calc(var(--s-4) * -1) 0;
+    margin-inline: calc(var(--s-4) * -1) calc(var(--head-inset) * -1 + 4px);
     overflow: visible;
     padding-inline: 0;
   }
@@ -3709,6 +3750,7 @@ input.goen-check {
 
 .goen-listing__head .goen-pagehead__chip {
   background: transparent;
+  background-clip: padding-box;
   border: 1px solid transparent;
   border-radius: var(--r-full);
   color: var(--ink-2);
@@ -3724,8 +3766,8 @@ input.goen-check {
 }
 
 .goen-listing__head .goen-pagehead__chip[aria-current='page'] {
-  background: var(--accent-faint);
-  border-color: var(--accent);
+  background: var(--n-0);
+  box-shadow: inset 0 0 0 2px var(--accent);
   color: var(--accent-deep);
   font-weight: var(--fw-medium);
 }
@@ -3740,7 +3782,7 @@ input.goen-check {
 
 .goen-listing__head [data-tone='ink'] .goen-pagehead__chip[aria-current='page'] {
   background: rgb(255 255 255 / 0.1);
-  border-color: var(--tone-text);
+  box-shadow: inset 0 0 0 2px var(--on-ink-accent);
   color: var(--on-ink-accent);
 }
 
@@ -3926,9 +3968,13 @@ input.goen-check {
   color: var(--tone-muted);
 }
 
-/* The band's last row, on the tone and with no wash of its own. */
+/* The band's last row: one more panel on the tone, under the head's two and
+   the same seam apart. */
 .goen-band > .goen-deptnotice {
-  padding: var(--s-3) var(--page-edge) var(--s-4);
+  background: var(--tone-ground);
+  border-radius: var(--r-hero);
+  margin-top: var(--s-2);
+  padding: var(--s-5) var(--head-inset);
 }
 
 /* The whole line is the link, read as words: the campaign's name and the arrow
@@ -5785,7 +5831,9 @@ input.goen-check {
 
 .goen-promo,
 .goen-tiles__grid--lead[data-tone="ink"] > .goen-rowcard,
-.goen-pagehead[data-tone="ink"],
+.goen-campaign__band .goen-pagehead[data-tone="ink"],
+.goen-listing__head .goen-pagehead[data-tone="ink"] .goen-band__body,
+.goen-listing__head .goen-pagehead[data-tone="ink"] .goen-deptnotice,
 .goen-hero__slide[data-tone="ink"],
 .goen-band[data-tone="ink"] {
   --ring: var(--n-0);
@@ -5827,22 +5875,12 @@ input.goen-check {
   padding: 0;
 }
 
-/* A phone's photograph is a 5:2 strip above the copy, goen's white between it and
-   the tone; the head's first row of products still starts inside the first
-   screen. A crumb whose only step is home repeats the logo. */
+/* A phone's photograph is a 5:2 strip above the copy, a seam of page white
+   between the two panels; the head's first row of products still starts
+   inside the first screen. A crumb whose only step is home repeats the logo. */
 @media (max-width: 47.99rem) {
   .goen-pagehead .goen-band {
     background: none;
-  }
-
-  .goen-pagehead .goen-band__media {
-    margin: 0;
-    padding: 0 0 var(--col-gap);
-  }
-
-  .goen-pagehead .goen-band__body,
-  .goen-pagehead .goen-band > .goen-deptnotice {
-    background: var(--tone-ground);
   }
 
   .goen-pagehead .goen-band__media img {
@@ -5851,7 +5889,6 @@ input.goen-check {
 
   .goen-pagehead .goen-band__body {
     gap: var(--s-2);
-    padding-block: var(--s-4);
   }
 
   .goen-listing__head .ui-crumbs:not(:has(.ui-crumbs__link ~ .ui-crumbs__link)) {
@@ -8966,24 +9003,24 @@ form[data-request-pending] [aria-disabled="true"] {
   }
 }
 
-/* A sub-category chip takes the current fill the moment it is pressed, and the
+/* A sub-category chip takes the current look the moment it is pressed, and the
    one it replaces lets go of it, as a segmented control would. */
 .goen-listing__head .goen-pagehead__chip[data-navigation-pending] {
-  background: var(--accent-faint);
-  border-color: var(--accent);
+  background: var(--n-0);
+  box-shadow: inset 0 0 0 2px var(--accent);
   color: var(--accent-deep);
   font-weight: var(--fw-medium);
 }
 
 .goen-listing__head [data-tone='ink'] .goen-pagehead__chip[data-navigation-pending] {
   background: rgb(255 255 255 / 0.1);
-  border-color: var(--tone-text);
+  box-shadow: inset 0 0 0 2px var(--on-ink-accent);
   color: var(--on-ink-accent);
 }
 
 .goen-listing__head .goen-pagehead__chips:has([data-navigation-pending]) [aria-current='page']:not([data-navigation-pending]) {
   background: transparent;
-  border-color: transparent;
+  box-shadow: none;
   color: var(--ink-2);
   font-weight: var(--fw-regular);
 }
@@ -9160,5 +9197,14 @@ form[data-request-pending] [aria-disabled="true"] {
   .goen-cat__well,
   .goen-campaign__header {
     outline: 1px solid CanvasText;
+  }
+
+  /* The tone is dropped, so each of the head's panels keeps an edge of its own;
+     the photograph's panel clips the outline of its picture. */
+  .goen-pagehead .goen-band__media,
+  .goen-pagehead .goen-band__body,
+  .goen-pagehead .goen-band > .goen-deptnotice {
+    outline: 1px solid CanvasText;
+    outline-offset: -1px;
   }
 }
