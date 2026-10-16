@@ -188,7 +188,7 @@ try {
     if (!current || !other) return null;
     const look = tab => {
       const style = getComputedStyle(tab);
-      return { background: style.backgroundColor, weight: style.fontWeight, outline: style.outlineStyle };
+      return { background: style.backgroundColor, weight: style.fontWeight, outline: style.outlineStyle, shadow: style.boxShadow };
     };
     return { scripting: matchMedia('(scripting: enabled)').matches, current: look(current), other: look(other) };
   })()`);
@@ -201,7 +201,7 @@ try {
     const look = async nodeId => {
       const { computedStyle } = await send('CSS.getComputedStyleForNode', { nodeId });
       const value = name => computedStyle.find(property => property.name === name)?.value;
-      return { background: value('background-color'), weight: value('font-weight'), outline: value('outline-style') };
+      return { background: value('background-color'), weight: value('font-weight'), outline: value('outline-style'), shadow: value('box-shadow') };
     };
     return { current: await look(ids[0]), other: await look(ids[1]) };
   };
@@ -393,6 +393,7 @@ try {
               corners: corners(mediaStyle),
               background: mediaStyle.backgroundColor,
               shadow: mediaStyle.boxShadow,
+              overflow: mediaStyle.overflow,
               border: [mediaStyle.borderTopWidth, mediaStyle.borderRightWidth, mediaStyle.borderBottomWidth, mediaStyle.borderLeftWidth].join(' '),
               pseudo: ['::before', '::after'].map(pseudo => getComputedStyle(media, pseudo).content),
             };
@@ -461,6 +462,7 @@ try {
         assert.deepEqual(media.corners, [corner, corner, corner, corner], `${name}: photograph corners`);
         assert.equal(media.background, ground, `${name}: photograph panel is ${media.background}, the tone ground is ${ground}`);
         assert.equal(media.shadow, 'none', `${name}: photograph panel has a ring: ${media.shadow}`);
+        assert.equal(media.overflow, 'hidden', `${name}: photograph panel overflow is ${media.overflow}, so its corners do not clip the photograph`);
         assert.equal(media.border, '0px 0px 0px 0px', `${name}: photograph panel has a border: ${media.border}`);
         assert.ok(media.pseudo.every(content => content === 'none' || content === 'normal'), `${name}: photograph panel draws a pseudo-element: ${media.pseudo}`);
         for (const edge of ['left', 'right', 'top', 'bottom']) {

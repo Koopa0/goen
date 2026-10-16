@@ -65,9 +65,11 @@ a:hover {
   /* The corner of anything that can be pressed, in rem so it grows with the
      text. base.css's --r-* stay as they are: the back office uses them. */
   --r-press: 1.625rem;
-  /* The corner of a panel of tone or photograph, in px so it stays 24 at any
-     text size; a panel's padding is never less than its corner. */
-  --r-panel: 24px;
+  /* The outer corner of the hero and of a page head built the same way, in px
+     so it stays 24 at any text size. The copy panel's padding is wider than
+     the corner and the photograph panel's is 0, so neither draws an inner
+     corner. */
+  --r-hero: 24px;
 }
 
 .goen-shell {
@@ -2005,7 +2007,7 @@ body:has(.goen-hero) .goen-header {
 .goen-hero__media {
   aspect-ratio: 4 / 3;
   background: var(--tone-ground);
-  border-radius: var(--r-panel);
+  border-radius: var(--r-hero);
   order: -1;
   overflow: hidden;
   position: relative;
@@ -2020,7 +2022,7 @@ body:has(.goen-hero) .goen-header {
 
 .goen-hero__body {
   background: var(--tone-ground);
-  border-radius: var(--r-panel);
+  border-radius: var(--r-hero);
   flex: 1;
   padding: var(--s-5) var(--s-5) var(--s-6);
 }
@@ -2143,10 +2145,6 @@ body:has(.goen-hero) .goen-header {
 
 .goen-hero__tabs::-webkit-scrollbar {
   display: none;
-}
-
-.goen-hero__tabs a:focus-visible {
-  outline-offset: 2px;
 }
 
 .goen-hero__tabs a {
