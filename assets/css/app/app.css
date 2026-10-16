@@ -4414,13 +4414,13 @@ input.goen-check {
 }
 
 .goen-pdp__shot {
-  background: var(--tone-ground);
-  border-radius: var(--r-lg);
+  background: var(--photo);
+  border-radius: 16px;
   grid-column: 1 / -1;
   grid-row: 1;
   margin: 0;
   overflow: hidden;
-  padding: clamp(0.75rem, 2.2vw, 2rem);
+  padding: 0;
 }
 
 .goen-pdp__pick:not(:checked) ~ .goen-pdp__shot {
@@ -4430,9 +4430,6 @@ input.goen-check {
 .goen-pdp__shotimg {
   aspect-ratio: 4 / 3;
   background: var(--photo);
-  background-clip: content-box;
-  border: var(--col-gap) solid var(--n-0);
-  box-sizing: border-box;
   display: block;
   height: auto;
   object-fit: contain;
@@ -4442,7 +4439,7 @@ input.goen-check {
 .goen-pdp__shot--empty {
   align-items: center;
   aspect-ratio: 4 / 3;
-  color: var(--tone-muted);
+  color: var(--n-500);
   display: flex;
   font-size: var(--fs-14);
   justify-content: center;

@@ -473,6 +473,13 @@ type OrderShipmentLine struct {
 	Quantity    int32
 }
 
+// The single definition of an order's subtotal (its lines) and total (lines less discount plus delivery), before store credit; order_amount_after_credit subtracts that.
+type OrderTotal struct {
+	OrderID       uuid.UUID
+	SubtotalCents int64
+	TotalCents    int64
+}
+
 type OutboxMessage struct {
 	ID          uuid.UUID
 	Topic       string

@@ -98,13 +98,13 @@ SELECT open_refund_before_shipment(
 WITH target AS (
     SELECT o.id, o.fulfillment_status,
            order_is_committed(o.id) AS committed,
-           (coalesce((SELECT sum(ol.unit_price_cents * ol.quantity) FROM order_lines ol
-                      WHERE ol.order_id = o.id), 0)
-            - o.discount_cents + o.shipping_cents)::bigint AS total_cents,
+           ot.total_cents,
            coalesce((SELECT sum(p.captured_amount_cents) FROM payments p
                      WHERE p.order_id = o.id AND p.status = 'succeeded'), 0)::bigint
                AS card_capacity_cents
-    FROM orders o WHERE o.order_number = @order_number::text
+    FROM orders o
+    JOIN order_totals ot ON ot.order_id = o.id
+    WHERE o.order_number = @order_number::text
 )
 SELECT t.id AS order_id, t.fulfillment_status, t.committed, t.total_cents,
        EXISTS (SELECT 1 FROM order_shipments s WHERE s.order_id = t.id)::boolean AS shipped,

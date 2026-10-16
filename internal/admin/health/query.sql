@@ -213,13 +213,17 @@ LIMIT 50;
 -- or squat it. Money received is a committed order, or a pending one store
 -- credit paid in full at checkout, whose placed_at is then when it was paid. A
 -- sale with nothing to file, and one with a live invoice filed before
--- operations existed, owe no claim. Newest first, so the order that just went
--- wrong is on top; the total says how many more there are.
+-- operations existed, owe no claim. The amount is the whole NT$ the issuer
+-- (claim_invoice_issue) would file, by the same expression over the same bigint
+-- total, so an order under NT$1 is not listed as owing a claim it would refuse.
+-- Newest first, so the order that just went wrong is on top; the total says
+-- how many more there are.
 -- name: UninvoicedOrders :many
 SELECT o.order_number, f.funded_at, f.amount_cents, count(*) OVER () AS total,
        coalesce(greatest(extract(epoch FROM now() - min(f.funded_at) OVER ()), 0), 0)::bigint
            AS oldest_seconds
 FROM orders o
+JOIN order_totals t ON t.order_id = o.id
 CROSS JOIN LATERAL (
     SELECT coalesce(
                (SELECT min(e.occurred_at) FROM order_events e
@@ -227,10 +231,7 @@ CROSS JOIN LATERAL (
                (SELECT max(p.paid_at) FROM payments p
                 WHERE p.order_id = o.id AND p.status = 'succeeded'),
                o.placed_at)::timestamptz AS funded_at,
-           ((coalesce((SELECT sum(ol.unit_price_cents * ol.quantity)
-                       FROM order_lines ol WHERE ol.order_id = o.id), 0)
-             - o.discount_cents + o.shipping_cents) / 100 * 100)::bigint
-               AS amount_cents
+           (t.total_cents / 100 * 100)::bigint AS amount_cents
 ) f
 WHERE (order_is_committed(o.id)
        OR (o.fulfillment_status = 'pending' AND order_amount_after_credit(o.id) = 0))

@@ -81,8 +81,7 @@ func (s *Store) orderRows(ctx context.Context, rows []db.AdminOrdersRow) ([]admi
 
 // orderRow is one order as the queue renders it; admin/dashboard's landing page
 // reads the same word, colour and total for its newest orders. The total is
-// assembled here rather than in the query because the storefront's own order
-// view computes it the same way from the same four columns.
+// read from order_totals, as on every page that states one.
 func orderRow(ctx context.Context, o *db.AdminOrdersRow, returned bool) admin.OrderRow {
 	fulfillment := order.FulfillmentStatus(o.FulfillmentStatus)
 	text, intent := orderStatus(ctx, fulfillment, o.Committed, o.OwedCents, returned)
@@ -93,7 +92,7 @@ func orderRow(ctx context.Context, o *db.AdminOrdersRow, returned bool) admin.Or
 		StatusIntent: intent,
 		PlacedAt:     shoptime.Minute(o.PlacedAt),
 		Recipient:    o.Recipient,
-		TotalCents:   o.SubtotalCents - o.DiscountCents + o.ShippingCents,
+		TotalCents:   o.TotalCents,
 	}
 }
 
@@ -220,7 +219,8 @@ func (s *Store) Order(ctx context.Context, number string) (admin.OrderView, erro
 		ShippingName:  o.ShippingMethodName,
 		SubtotalCents: o.SubtotalCents, ShippingCents: o.ShippingCents,
 		DiscountCents: o.DiscountCents, DiscountReason: o.DiscountReason,
-		Email: o.Email, Recipient: o.RecipientName, Phone: o.Phone,
+		TotalCents: o.TotalCents,
+		Email:      o.Email, Recipient: o.RecipientName, Phone: o.Phone,
 		Address: pages.Delivery{
 			PostalCode: o.PostalCode, City: o.City, District: o.District, Street: o.Street,
 			PickupChain: shipping.Chain(o.PickupChain), PickupStoreCode: o.PickupStoreCode,

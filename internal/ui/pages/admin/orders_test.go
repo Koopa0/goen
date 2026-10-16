@@ -160,11 +160,11 @@ func TestTheIssueButtonFollowsTheMoney(t *testing.T) {
 		view OrderView
 		want bool
 	}{
-		{name: "committed", view: OrderView{Status: order.FulfillmentPicking, Committed: true, SubtotalCents: 100000}, want: true},
-		{name: "credit paid in full, pending", view: OrderView{Status: order.FulfillmentPending, SubtotalCents: 100000, CreditCents: 100000}, want: true},
-		{name: "zero gross, pending", view: OrderView{Status: order.FulfillmentPending, SubtotalCents: 100000, DiscountCents: 100000}, want: false},
-		{name: "zero gross, committed", view: OrderView{Status: order.FulfillmentPicking, Committed: true, SubtotalCents: 100000, DiscountCents: 100000}, want: false},
-		{name: "shipping remains after goods discount", view: OrderView{Status: order.FulfillmentPicking, Committed: true, SubtotalCents: 100000, DiscountCents: 100000, ShippingCents: 8000}, want: true},
+		{name: "committed", view: OrderView{Status: order.FulfillmentPicking, Committed: true, TotalCents: 100000}, want: true},
+		{name: "credit paid in full, pending", view: OrderView{Status: order.FulfillmentPending, TotalCents: 100000, CreditCents: 100000}, want: true},
+		{name: "zero gross, pending", view: OrderView{Status: order.FulfillmentPending, TotalCents: 0}, want: false},
+		{name: "zero gross, committed", view: OrderView{Status: order.FulfillmentPicking, Committed: true, TotalCents: 0}, want: false},
+		{name: "shipping remains after goods discount", view: OrderView{Status: order.FulfillmentPicking, Committed: true, TotalCents: 8000}, want: true},
 		{name: "still owing", view: OrderView{Status: order.FulfillmentPending, Unpaid: true}, want: false},
 		{name: "cancelled", view: OrderView{Status: order.FulfillmentCancelled}, want: false},
 	} {
