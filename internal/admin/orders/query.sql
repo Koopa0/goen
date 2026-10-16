@@ -4,14 +4,12 @@ SELECT json_build_object('At', o.placed_at, 'ID', o.id)::text AS page_cursor,
     o.order_number,
     o.fulfillment_status,
     o.placed_at,
-    o.shipping_cents,
-    o.discount_cents,
+    t.total_cents,
     coalesce(pd.recipient_name, '') AS recipient,
-    coalesce((SELECT sum(ol.unit_price_cents * ol.quantity) FROM order_lines ol
-              WHERE ol.order_id = o.id), 0)::bigint AS subtotal_cents,
     order_is_committed(o.id) AS committed,
     order_amount_after_credit(o.id) AS owed_cents
 FROM orders o
+JOIN order_totals t ON t.order_id = o.id
 LEFT JOIN order_private_data pd ON pd.order_id = o.id
 WHERE (@status::text = '' OR o.fulfillment_status = @status::text)
 -- Pending is two queues: money still owed, and funded and waiting to be picked.
@@ -43,15 +41,13 @@ SELECT json_build_object('At', o.placed_at, 'ID', o.id)::text AS page_cursor,
     o.order_number,
     o.fulfillment_status,
     o.placed_at,
-    o.shipping_cents,
-    o.discount_cents,
+    t.total_cents,
     coalesce(pd.recipient_name, '') AS recipient,
-    coalesce((SELECT sum(ol.unit_price_cents * ol.quantity) FROM order_lines ol
-              WHERE ol.order_id = o.id), 0)::bigint AS subtotal_cents,
     order_is_committed(o.id) AS committed,
     order_amount_after_credit(o.id) AS owed_cents
 FROM orders o
 JOIN hits h ON h.id = o.id
+JOIN order_totals t ON t.order_id = o.id
 LEFT JOIN order_private_data pd ON pd.order_id = o.id
 WHERE (NOT @has_cursor::boolean OR (o.placed_at < @after_at::timestamptz)
        OR (o.placed_at = @after_at::timestamptz AND o.id < @after_id::uuid))
@@ -77,8 +73,7 @@ SELECT
                  FROM coupon_redemptions cr JOIN coupons c ON c.id = cr.coupon_id
                  WHERE cr.order_id = o.id), '')::text AS discount_reason,
     o.customer_note, o.staff_note,
-    coalesce((SELECT sum(ol.unit_price_cents * ol.quantity) FROM order_lines ol
-              WHERE ol.order_id = o.id), 0)::bigint AS subtotal_cents,
+    t.subtotal_cents, t.total_cents,
     coalesce(pd.email, '') AS email,
     coalesce(pd.recipient_name, '') AS recipient_name,
     coalesce(pd.phone, '') AS phone,
@@ -97,14 +92,12 @@ SELECT
     order_amount_after_credit(o.id) AS owed_cents,
     -- What store credit paid, read as total less what is still owed so
     -- order_amount_after_credit stays the one definition of that arithmetic.
-    (coalesce((SELECT sum(ol.unit_price_cents * ol.quantity) FROM order_lines ol
-               WHERE ol.order_id = o.id), 0)
-     - o.discount_cents + o.shipping_cents
-     - order_amount_after_credit(o.id))::bigint AS credit_cents,
+    (t.total_cents - order_amount_after_credit(o.id))::bigint AS credit_cents,
     (SELECT sm.destination_kind FROM shipping_method_versions v
      JOIN shipping_methods sm ON sm.id = v.method_id
      WHERE v.id = o.shipping_version_id)::text AS destination_kind
 FROM orders o
+JOIN order_totals t ON t.order_id = o.id
 LEFT JOIN shipping_method_versions sv ON sv.id = o.shipping_version_id
 LEFT JOIN order_private_data pd ON pd.order_id = o.id
 LEFT JOIN invoice_preferences ip ON ip.order_id = o.id
@@ -129,9 +122,7 @@ RETURNING delivered_at;
 -- name: LockOrderForAdvance :one
 SELECT o.id, o.fulfillment_status, order_is_committed(o.id) AS committed,
        order_amount_after_credit(o.id) AS owed_cents,
-       (coalesce((SELECT sum(ol.unit_price_cents * ol.quantity) FROM order_lines ol
-                  WHERE ol.order_id = o.id), 0)
-        - o.discount_cents + o.shipping_cents
+       ((SELECT t.total_cents FROM order_totals t WHERE t.order_id = o.id)
         - order_amount_after_credit(o.id))::bigint AS credit_cents
 FROM orders o WHERE o.order_number = $1 FOR UPDATE OF o;
 
