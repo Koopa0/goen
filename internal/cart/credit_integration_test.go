@@ -10,6 +10,7 @@ import (
 	"github.com/jackc/pgx/v5/pgconn"
 
 	"github.com/koopa0/goen/internal/cart"
+	"github.com/koopa0/goen/internal/order/buyer"
 	"github.com/koopa0/goen/internal/order/delivery"
 )
 
@@ -211,7 +212,7 @@ func TestAGuestSpendsNoCredit(t *testing.T) {
 
 func TestCancellingReturnsSpentStoreCredit(t *testing.T) {
 	ctx := t.Context()
-	s := cart.NewStore(pool)
+	s := buyer.NewStore(pool)
 	userID, accountID := creditedAccount(t, 50000)
 
 	number := pendingOrderSpendingCredit(t, userID, 20000)

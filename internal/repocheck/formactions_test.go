@@ -12,6 +12,7 @@ import (
 	"github.com/koopa0/goen/internal/admin/coupons"
 	"github.com/koopa0/goen/internal/admin/feedback"
 	"github.com/koopa0/goen/internal/admin/refunds"
+	"github.com/koopa0/goen/internal/admin/returns"
 	"github.com/koopa0/goen/internal/admin/taxonomy"
 	"github.com/koopa0/goen/internal/payment"
 	"github.com/koopa0/goen/internal/ui/layouts"
@@ -28,7 +29,7 @@ func methodFormActions(t *testing.T) map[string][]string {
 	product := &admin.ProductView{Slug: "product"}
 	newProduct := &admin.ProductView{IsNew: true}
 	pdp := &pages.ProductView{Slug: "product"}
-	ret := &admin.Return{ID: "return"}
+	ret := &returns.Return{ID: "return"}
 	return map[string][]string{
 		"internal/ui/pages/account.templ:v.AddressAction()":                                             {(&pages.AccountView{}).AddressAction(), (&pages.AccountView{AddressDraft: &pages.AddressDraft{ID: "address"}}).AddressAction()},
 		"internal/ui/pages/admin/product_label.templ:templ.URL(v.LabelAction())":                        {product.LabelAction()},
@@ -54,13 +55,13 @@ func methodFormActions(t *testing.T) map[string][]string {
 		"internal/ui/pages/product.templ:templ.SafeURL(v.NotifyAction())":                               {pdp.NotifyAction()},
 		"internal/ui/pages/product.templ:templ.SafeURL(v.AskAction())":                                  {pdp.AskAction()},
 		"internal/ui/pages/product.templ:templ.SafeURL(v.ReviewAction())":                               {pdp.ReviewAction()},
-		"internal/ui/pages/admin/returns.templ:templ.SafeURL(r.Action())":                               {ret.Action()},
-		"internal/ui/pages/admin/returnconfirm.templ:templ.SafeURL(v.Action())":                         {(admin.ReturnConfirmation{ID: "return"}).Action()},
+		"internal/admin/returns/page.templ:templ.SafeURL(r.Action())":                                   {ret.Action()},
+		"internal/admin/returns/returnconfirm.templ:templ.SafeURL(v.Action())":                          {(returns.ReturnConfirmation{ID: "return"}).Action()},
 		"internal/admin/refunds/refundconfirm.templ:templ.SafeURL(v.Action())":                          {(refunds.RefundConfirmation{OrderNumber: "order"}).Action()},
 		"internal/admin/refunds/unsentconfirm.templ:templ.SafeURL(v.Action())":                          {(refunds.UnsentRefundConfirmation{OrderNumber: "order"}).Action()},
-		"internal/ui/pages/admin/returns.templ:templ.SafeURL(r.AssessAction())":                         {ret.AssessAction()},
-		"internal/ui/pages/admin/returns.templ:templ.SafeURL(r.InspectAction() + \"#inspect-\" + r.ID)": {ret.InspectAction() + "#inspect-" + ret.ID},
-		"internal/ui/pages/admin/returns.templ:templ.SafeURL(r.CompleteAction())":                       {ret.CompleteAction()},
+		"internal/admin/returns/page.templ:templ.SafeURL(r.AssessAction())":                             {ret.AssessAction()},
+		"internal/admin/returns/page.templ:templ.SafeURL(r.InspectAction() + \"#inspect-\" + r.ID)":     {ret.InspectAction() + "#inspect-" + ret.ID},
+		"internal/admin/returns/page.templ:templ.SafeURL(r.CompleteAction())":                           {ret.CompleteAction()},
 		"internal/admin/feedback/message_page.templ:templ.SafeURL(m.Action())":                          {(feedback.Message{}).Action(), (feedback.Message{Handled: true}).Action()},
 		"internal/admin/feedback/review_page.templ:templ.SafeURL(r.Action())":                           {(feedback.Review{}).Action(), (feedback.Review{Hidden: true}).Action()},
 		"internal/admin/coupons/page.templ:templ.SafeURL(c.Action())":                                   {(coupons.Coupon{Code: "coupon"}).Action()},

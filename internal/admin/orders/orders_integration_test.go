@@ -15,6 +15,7 @@ import (
 	"time"
 
 	"github.com/koopa0/goen/internal/order"
+	"github.com/koopa0/goen/internal/order/buyer"
 	"github.com/koopa0/goen/internal/ui/pages/admin"
 
 	"github.com/google/go-cmp/cmp"
@@ -963,11 +964,11 @@ func TestTheBackOfficeSeesTheSystemCancelAtThePaymentDeadline(t *testing.T) {
 
 func TestTheBackOfficeSeesWhoCancelled(t *testing.T) {
 	ctx, _ := admintest.StaffContext(t, pool)
-	basket := cart.NewStore(pool)
+	customer := buyer.NewStore(pool)
 	s := admintest.OrderStore(pool, admintest.Refunder{}, nil, nil)
 	number := admintest.PlaceUnpaidOrder(t, pool)
 
-	if err := basket.CancelOrder(ctx, number); err != nil {
+	if err := customer.CancelOrder(ctx, number); err != nil {
 		t.Fatalf("the customer cancels: %v", err)
 	}
 

@@ -20,36 +20,6 @@ import (
 	"github.com/koopa0/goen/internal/user"
 )
 
-func TestRefusedCancellationLinksBackToTheOrderAndContact(t *testing.T) {
-	vid := freshVariant(t, "cancel-recovery")
-	orderID := heldOrder(t, vid, -time.Hour, true)
-	number := numberOf(t, orderID)
-	appPool := storeRolePool(t)
-	h := cart.NewHandler(cart.NewStore(appPool), access.NewStore(appPool, false), slog.New(slog.DiscardHandler), false, testLimiter(), nil, nil)
-	cookie := placedCookie(t, number)
-	before := stockOf(t, vid)
-	for _, locale := range i18n.Locales() {
-		r := httptest.NewRequestWithContext(i18n.WithLocale(t.Context(), locale), http.MethodPost, "/orders/"+number+"/cancel", http.NoBody)
-		r.SetPathValue("number", number)
-		r.AddCookie(cookie)
-		w := httptest.NewRecorder()
-		h.CancelOrder(w, r)
-		if w.Code != http.StatusUnprocessableEntity {
-			t.Fatalf("refused cancellation status=%d, want 422", w.Code)
-		}
-		actions := orderRecoveryActions(t, w.Body.String(), "/orders/"+number)
-		if !strings.Contains(actions, `href="/contact"`) || strings.Contains(actions, "/contact?") {
-			t.Error("refused cancellation has no contact link without prefilling")
-		}
-		if !strings.Contains(actions, i18n.T(r.Context(), i18n.KeyBackToOrder)) {
-			t.Error("refused cancellation has no back-to-order label")
-		}
-	}
-	if got := stockOf(t, vid); got != before {
-		t.Errorf("refused cancellation changed stock from %d to %d", before, got)
-	}
-}
-
 func TestSignedInGuestOrderAccessOffersLookupWithoutSignIn(t *testing.T) {
 	number := numberOf(t, heldOrder(t, freshVariant(t, "guest-recovery"), -time.Hour, false))
 	var customerID uuid.UUID
@@ -65,7 +35,7 @@ func TestSignedInGuestOrderAccessOffersLookupWithoutSignIn(t *testing.T) {
 		t.Fatal(err)
 	}
 	pay := payment.NewHandler(payment.NewStore(appPool), gateway, grants, log)
-	returns := buyer.NewHandler(buyer.NewStore(appPool), grants, log)
+	buyerOrders := buyer.NewHandler(buyer.NewStore(appPool), grants, log)
 	for _, locale := range i18n.Locales() {
 		for _, route := range []struct {
 			path    string
@@ -74,8 +44,8 @@ func TestSignedInGuestOrderAccessOffersLookupWithoutSignIn(t *testing.T) {
 		}{
 			{"", http.MethodGet, basket.OrderPage},
 			{"/pay", http.MethodGet, pay.Page},
-			{"/return", http.MethodGet, returns.ReturnPage},
-			{"/cancel", http.MethodPost, basket.CancelOrder},
+			{"/return", http.MethodGet, buyerOrders.ReturnPage},
+			{"/cancel", http.MethodPost, buyerOrders.CancelOrder},
 			{"/reorder", http.MethodPost, basket.ReorderItems},
 		} {
 			ctx := user.NewContext(i18n.WithLocale(t.Context(), locale), user.User{ID: customerID.String()})

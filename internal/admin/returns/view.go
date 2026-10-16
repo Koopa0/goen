@@ -1,4 +1,4 @@
-package admin
+package returns
 
 import (
 	"context"
@@ -8,15 +8,16 @@ import (
 	"github.com/koopa0/goen/internal/i18n"
 	"github.com/koopa0/goen/internal/keyset"
 	"github.com/koopa0/goen/internal/money"
-	"github.com/koopa0/goen/internal/returns"
+	returnrules "github.com/koopa0/goen/internal/returns"
 	"github.com/koopa0/goen/internal/ui/components"
+	"github.com/koopa0/goen/internal/ui/pages/admin"
 )
 
 type Return struct {
 	Lines       []ReturnLine
 	ID          string
 	OrderNumber string
-	Status      returns.Status
+	Status      returnrules.Status
 	StatusText  string
 	Reason      string
 	Units       int32
@@ -28,7 +29,7 @@ type Return struct {
 	CreditRefundCents int64
 	CreatedAt         string
 	// Window is counted from the request clock against each line.
-	Window            returns.PolicyWindow
+	Window            returnrules.PolicyWindow
 	AssessmentVersion int32
 	AssessmentBasis   string
 	AssessedAt        string
@@ -65,7 +66,7 @@ func (r *Return) PayoutStranded() bool {
 }
 
 func (r *Return) AwaitingGoods() bool {
-	if r.Status != returns.StatusApproved || r.BeforeShipment || r.Unsent {
+	if r.Status != returnrules.StatusApproved || r.BeforeShipment || r.Unsent {
 		return false
 	}
 	for i := range r.Lines {
@@ -84,9 +85,9 @@ func (r *Return) AwaitingGoods() bool {
 // cancellation, grey like a cancelled order.
 func (r *Return) standing() (i18n.Key, components.Intent) {
 	switch r.Status {
-	case returns.StatusRequested:
+	case returnrules.StatusRequested:
 		return "", components.IntentWarn
-	case returns.StatusApproved:
+	case returnrules.StatusApproved:
 		switch {
 		case r.PayoutStranded():
 			return i18n.KeyAdminReturnRefundFailed, components.IntentDanger
@@ -97,7 +98,7 @@ func (r *Return) standing() (i18n.Key, components.Intent) {
 		default:
 			return i18n.KeyAdminReturnOnItsWay, components.IntentProgress
 		}
-	case returns.StatusCompleted:
+	case returnrules.StatusCompleted:
 		if r.BeforeShipment || r.Unsent {
 			return "", components.IntentNeutral
 		}
@@ -120,7 +121,7 @@ func (r *Return) StatusLabel(ctx context.Context) string {
 }
 
 func (r *Return) CanComplete() bool {
-	if r.Status != returns.StatusApproved || len(r.Lines) == 0 || r.BeforeShipment {
+	if r.Status != returnrules.StatusApproved || len(r.Lines) == 0 || r.BeforeShipment {
 		return false
 	}
 	for i := range r.Lines {
@@ -141,16 +142,16 @@ func (r *Return) RestockedUnits() int32 {
 
 func (r *Return) RestockedUnitsText() string { return strconv.FormatInt(int64(r.RestockedUnits()), 10) }
 
-func (r *Return) Rescission() bool { return r.Window == returns.WindowStatutory }
+func (r *Return) Rescission() bool { return r.Window == returnrules.WindowStatutory }
 
 // CanReject excludes requests whose undelivered lines have no recorded start
 // for the statutory clock, including requests with other line windows.
 func (r *Return) CanReject() bool {
-	if r.Rescission() || r.Window == returns.WindowUndelivered {
+	if r.Rescission() || r.Window == returnrules.WindowUndelivered {
 		return false
 	}
 	for i := range r.Lines {
-		if r.Lines[i].Window == returns.WindowUndelivered {
+		if r.Lines[i].Window == returnrules.WindowUndelivered {
 			return false
 		}
 	}
@@ -159,11 +160,11 @@ func (r *Return) CanReject() bool {
 
 // Goodwill reports whether this request is inside the shop's advertised
 // days 8–14. Entitlement still depends on unused-and-complete facts.
-func (r *Return) Goodwill() bool { return r.Window == returns.WindowGoodwill }
+func (r *Return) Goodwill() bool { return r.Window == returnrules.WindowGoodwill }
 
-func (r *Return) Late() bool { return r.Window == returns.WindowLate }
+func (r *Return) Late() bool { return r.Window == returnrules.WindowLate }
 
-func (r *Return) Mixed() bool { return r.Window == returns.WindowMixed }
+func (r *Return) Mixed() bool { return r.Window == returnrules.WindowMixed }
 
 func (r *Return) mixedStatutoryApproval() bool {
 	if !r.Mixed() || len(r.Lines) == 0 {
@@ -171,7 +172,7 @@ func (r *Return) mixedStatutoryApproval() bool {
 	}
 	for i := range r.Lines {
 		switch r.Lines[i].Window {
-		case returns.WindowStatutory, returns.WindowUndelivered:
+		case returnrules.WindowStatutory, returnrules.WindowUndelivered:
 		default:
 			return false
 		}
@@ -196,17 +197,7 @@ func (r *Return) Amount() string { return money.TWD(r.AmountCents) }
 // PayoutChannel names the frozen refund sources. Empty until approval, because
 // the allocation does not exist until then.
 func (r *Return) PayoutChannel(ctx context.Context) string {
-	switch {
-	case r.CardRefundCents > 0 && r.CreditRefundCents > 0:
-		return fmt.Sprintf(i18n.T(ctx, i18n.KeyAdminRetPayoutSplit),
-			money.TWD(r.CardRefundCents), money.TWD(r.CreditRefundCents))
-	case r.CreditRefundCents > 0:
-		return fmt.Sprintf(i18n.T(ctx, i18n.KeyAdminRetPayoutCredit), money.TWD(r.CreditRefundCents))
-	case r.CardRefundCents > 0:
-		return fmt.Sprintf(i18n.T(ctx, i18n.KeyAdminRetPayoutCard), money.TWD(r.CardRefundCents))
-	default:
-		return ""
-	}
+	return admin.PayoutChannel(ctx, r.CardRefundCents, r.CreditRefundCents)
 }
 
 func (r *Return) UnitsText() string { return strconv.FormatInt(int64(r.Units), 10) }
@@ -258,7 +249,7 @@ type ReturnLine struct {
 	Restocked   int32
 	Note        string
 	Restockable bool
-	Window      returns.PolicyWindow
+	Window      returnrules.PolicyWindow
 	Unused      string
 	Packaging   string
 	Accessories string
