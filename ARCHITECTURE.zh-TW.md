@@ -166,7 +166,7 @@ psql "$GOEN_DATABASE_URL" -X -v ON_ERROR_STOP=1 -c "WITH removed AS (DELETE FROM
 
 ### 讀取成本
 
-分類頁依頁面各部分各發一次查詢（列表與篩選、導覽、橫幅），而不是每個商品一次；已登入且有購物車時會再多幾個。圖片請求與 SQL 函式內部的查詢不計入。見[列表][catalog-store]與[導覽][home-banner]。
+分類頁依頁面各部分各發一次查詢（列表與篩選、導覽、橫幅），而不是每個商品一次；已登入且有購物車時會再多幾個。圖片請求與 SQL 函式內部的查詢不計入。見[列表][catalog-store]與[導覽][site-chrome]。
 
 搜尋以跳脫且限長的 `ILIKE` 比對商品、SKU、品牌、規格與分類；資料成長時要觀察掃描、排序與篩選的成本。橫幅即時反映變更，導覽推薦也帶價格，所以快取之前要先定義新鮮度：匿名 HTML 仍可能因語系或購物車而不同，帶內容版本的資產則可以共用。見[商品查詢][catalog-query]。
 
@@ -268,7 +268,7 @@ CI 執行格式、vet、lint、無用程式碼與生成碼檢查、migration lin
 | 出貨、退貨與退款 | [`internal/order`][order]、[`internal/admin/orders`][orders]、[`internal/admin/dashboard`][dashboard]、[`internal/returns`][returns-rules]、[`internal/admin/returns`][returns]、[`internal/admin/refunds`][refund-payout] |
 | 發票與延後寄送 | [`internal/invoice/issuer`][invoice-store]、[`internal/admin/orders`][orders]、[`internal/outbox`][outbox]、[`internal/letter`][letter] |
 | 資料庫權限 | [schema][schema]、[sqlc 設定][sqlc]、[一致性測試][conformance]、[`internal/admin/audit`][audit]、[`internal/db/dbtest`][dbtest] |
-| 瀏覽與衍生資料 | [`internal/catalog`][catalog-store]、[`internal/home`][home-banner]、[`internal/recommend`][recommend]、[報表][reports] |
+| 瀏覽與衍生資料 | [`internal/catalog`][catalog-store]、[`internal/home`][home-store]、[`internal/recommend`][recommend]、[報表][reports] |
 | 語言、金額與時間 | [`internal/i18n`][i18n]、[`internal/money`][money]、[`internal/shoptime`][shoptime] |
 | 資產與媒體 | [`assets`][assets]、[`internal/media`][media-render] |
 | 身分與瀏覽器安全 | [`internal/account`][account]、[`internal/bearer`][bearer]、[員工存取][access]、[`internal/admin/twofactor`][twofactor]、[`internal/ratelimit`][ratelimit] |
@@ -316,7 +316,8 @@ CI 執行格式、vet、lint、無用程式碼與生成碼檢查、migration lin
 [shoptime]: internal/shoptime
 [catalog-store]: internal/catalog/store.go
 [catalog-query]: internal/catalog/query.sql
-[home-banner]: internal/home/banner.go
+[home-store]: internal/home/store.go
+[site-chrome]: internal/site/chrome.go
 [recommend]: internal/recommend/store.go
 [reports]: internal/admin/reports/store.go
 [assets]: assets/assets.go

@@ -83,6 +83,11 @@ var (
 		"internal/account", "internal/cart", "internal/catalog", "internal/home",
 		"internal/newsletter", "internal/product", "internal/site",
 	}
+	// siteMayImport is what internal/site may import besides itself and the
+	// leaves: the foundation every storefront page is built on.
+	siteMayImport = []string{
+		"assets", "internal/i18n", "internal/web", "internal/ui/components", "internal/ui/layouts",
+	}
 	// importFreeLeaves import no goen package at all.
 	importFreeLeaves = []string{
 		"internal/refund",
@@ -129,6 +134,17 @@ var depsRules = []importRule{
 				(slices.Contains(i18nOnlyLeaves, from) && to != "internal/i18n")
 		},
 		reason: "a vocabulary package can be imported by anything without a cycle",
+	},
+	{
+		name: "site",
+		hard: true,
+		forbid: func(from, to string) bool {
+			return under(from, "internal/site") && !under(to, "internal/site") &&
+				!slices.Contains(siteMayImport, to) &&
+				!slices.Contains(importFreeLeaves, to) && !slices.Contains(i18nOnlyLeaves, to)
+		},
+		reason: "every storefront page wears site's chrome, so site imports no feature; " +
+			"it reaches one through an interface it declares, as Catalogue reaches the catalogue",
 	},
 	{
 		name: "desks",

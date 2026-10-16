@@ -1,4 +1,8 @@
-// Package site serves goen's standing informational pages and the not-found page.
+// Package site serves goen's standing informational pages and the not-found
+// page, and the chrome every storefront page wears: the promotion strip and the
+// header's department row. Middleware puts the chrome on the request's context,
+// so no page handler has to remember to read it; which paths carry it is the
+// route table's decision, in cmd/goen.
 package site
 
 import (
@@ -20,9 +24,13 @@ type Handler struct {
 	secure    bool
 }
 
+// Catalogue is what site reads from the catalogue: the sitemap's rows, and
+// whether a running campaign has something to buy, which decides whether the
+// header links to /deals.
 type Catalogue interface {
 	SitemapProducts(ctx context.Context, limit int32) ([]db.SitemapProductsRow, error)
 	SitemapCategories(ctx context.Context, limit int32) ([]db.SitemapCategoriesRow, error)
+	DealsOnOffer(ctx context.Context) (bool, error)
 }
 
 func NewHandler(log *slog.Logger, baseURL string, catalogue Catalogue, content *Store, secure bool) *Handler {

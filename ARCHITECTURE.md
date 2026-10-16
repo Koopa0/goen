@@ -166,7 +166,7 @@ Dynamic requests, the back office included, get a 25-second context. Static asse
 
 ### Read cost
 
-A category listing issues one query per part of the page (the listing and its facets, navigation, the banner) rather than one per product; a signed-in visitor with a cart adds a few. Images and SQL inside functions are not counted. See the [listing][catalog-store] and [navigation][home-banner].
+A category listing issues one query per part of the page (the listing and its facets, navigation, the banner) rather than one per product; a signed-in visitor with a cart adds a few. Images and SQL inside functions are not counted. See the [listing][catalog-store] and [navigation][site-chrome].
 
 Search matches products, SKUs, brands, specs, and categories with escaped, length-bounded `ILIKE`; watch scans, sorting, and facets as data grows. Banners reflect changes immediately and navigation picks carry prices, so caching needs a freshness contract first: anonymous HTML can still vary by locale or cart, while content-versioned assets can be shared. See [catalog SQL][catalog-query].
 
@@ -268,7 +268,7 @@ CI runs formatting, vet, lint, dead-code and generated-code checks, migration li
 | Fulfillment, returns, refunds | [`internal/order`][order], [`internal/admin/orders`][orders], [`internal/admin/dashboard`][dashboard], [`internal/returns`][returns-rules], [`internal/admin/returns`][returns], [`internal/admin/refunds`][refund-payout] |
 | Invoices and deferred delivery | [`internal/invoice/issuer`][invoice-store], [`internal/admin/orders`][orders], [`internal/outbox`][outbox], [`internal/letter`][letter] |
 | Database authority | [Schema][schema], [sqlc configuration][sqlc], [conformance tests][conformance], [`internal/admin/audit`][audit], [`internal/db/dbtest`][dbtest] |
-| Browsing and derived data | [`internal/catalog`][catalog-store], [`internal/home`][home-banner], [`internal/recommend`][recommend], [reports][reports] |
+| Browsing and derived data | [`internal/catalog`][catalog-store], [`internal/home`][home-store], [`internal/recommend`][recommend], [reports][reports] |
 | Language, money, time | [`internal/i18n`][i18n], [`internal/money`][money], [`internal/shoptime`][shoptime] |
 | Assets and media | [`assets`][assets], [`internal/media`][media-render] |
 | Identity and browser security | [`internal/account`][account], [`internal/bearer`][bearer], [staff access][access], [`internal/admin/twofactor`][twofactor], [`internal/ratelimit`][ratelimit] |
@@ -316,7 +316,8 @@ CI runs formatting, vet, lint, dead-code and generated-code checks, migration li
 [shoptime]: internal/shoptime
 [catalog-store]: internal/catalog/store.go
 [catalog-query]: internal/catalog/query.sql
-[home-banner]: internal/home/banner.go
+[home-store]: internal/home/store.go
+[site-chrome]: internal/site/chrome.go
 [recommend]: internal/recommend/store.go
 [reports]: internal/admin/reports/store.go
 [assets]: assets/assets.go
