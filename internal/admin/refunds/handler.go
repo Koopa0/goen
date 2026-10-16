@@ -15,7 +15,6 @@ import (
 	"github.com/koopa0/goen/internal/refund"
 	"github.com/koopa0/goen/internal/returns"
 	"github.com/koopa0/goen/internal/ui/layouts"
-	"github.com/koopa0/goen/internal/ui/pages/admin"
 	"github.com/koopa0/goen/internal/web"
 )
 
@@ -152,12 +151,12 @@ func (h *Handler) confirmRefundBeforeShipment(w http.ResponseWriter, r *http.Req
 	default:
 		return false
 	}
-	web.Render(w, r, h.log, status, admin.ConfirmRefund(layouts.Page{Title: i18n.T(r.Context(), i18n.KeyAdminRefundTitle)}, view))
+	web.Render(w, r, h.log, status, ConfirmRefund(layouts.Page{Title: i18n.T(r.Context(), i18n.KeyAdminRefundTitle)}, view))
 	return true
 }
 
-func refundConfirmation(number string, p *Preview) admin.RefundConfirmation {
-	return admin.RefundConfirmation{
+func refundConfirmation(number string, p *Preview) RefundConfirmation {
+	return RefundConfirmation{
 		OrderNumber: number, TotalCents: p.TotalCents,
 		CardCents: p.CardCents, CreditCents: p.CreditCents,
 		Resume: p.Open, CreditPaid: p.CreditPaid,
