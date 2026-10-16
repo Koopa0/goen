@@ -3,12 +3,12 @@ package admin
 import (
 	"context"
 	"fmt"
-	"math"
 	"strconv"
 	"strings"
 
 	"github.com/koopa0/goen/internal/i18n"
 	"github.com/koopa0/goen/internal/money"
+	"github.com/koopa0/goen/internal/sales"
 	"github.com/koopa0/goen/internal/shoptime"
 	"github.com/koopa0/goen/internal/ui/chart"
 	"github.com/koopa0/goen/internal/ui/components"
@@ -153,43 +153,10 @@ func (v *ReportView) CompletionAgainst(ctx context.Context) string {
 }
 
 func (v *ReportView) against(ctx context.Context, cur, prev int64, noise float64, prevText string) string {
-	return against(ctx, v.Days, comparison{
-		Orders: v.Orders, PreviousOrders: v.Previous.Orders, Noise: noise,
+	return sales.Comparison{
+		Days: v.Days, Orders: v.Orders, PreviousOrders: v.Previous.Orders, Noise: noise,
 		Current: cur, Previous: prev, PreviousText: prevText,
-	})
-}
-
-// comparison is a figure over a period set against the same figure over the
-// period of as many days before it.
-type comparison struct {
-	Orders, PreviousOrders int64
-	Current, Previous      int64
-	// Noise is the variance of Current - Previous.
-	Noise float64
-	// PreviousText is the previous figure as it is written when no percentage is.
-	PreviousText string
-}
-
-// against says by what percentage the figure differs from the previous period's
-// only when both periods have orders enough for a percentage and the difference
-// is at least two standard errors; otherwise it states the previous figure.
-func against(ctx context.Context, days int, c comparison) string {
-	if c.PreviousOrders == 0 {
-		return noPreviousSentence(ctx, days)
-	}
-	diff := c.Current - c.Previous
-	if c.Previous == 0 || c.Orders < minOrdersForRate || c.PreviousOrders < minOrdersForRate ||
-		math.Abs(float64(diff)) < 2*math.Sqrt(c.Noise) {
-		return previousSentence(ctx, days, c.PreviousText)
-	}
-	percent := (abs(diff)*200 + c.Previous) / (c.Previous * 2)
-	switch {
-	case percent == 0:
-		return i18n.Count(ctx, i18n.KeyAdminRepSame, int64(days), days)
-	case diff > 0:
-		return i18n.Count(ctx, i18n.KeyAdminRepMore, int64(days), days, percent)
-	}
-	return i18n.Count(ctx, i18n.KeyAdminRepLess, int64(days), days, percent)
+	}.Sentence(ctx)
 }
 
 // ShowsRunningTotal reports whether this period has days with orders enough to
@@ -314,24 +281,11 @@ func longDayText(ctx context.Context, d shoptime.Date) string {
 }
 
 func (v *ReportView) previous(ctx context.Context, figure string) string {
-	return previousSentence(ctx, v.Days, figure)
+	return i18n.Count(ctx, i18n.KeyAdminRepPrevious, int64(v.Days), v.Days, figure)
 }
 
-func (v *ReportView) noPrevious(ctx context.Context) string { return noPreviousSentence(ctx, v.Days) }
-
-func previousSentence(ctx context.Context, days int, figure string) string {
-	return i18n.Count(ctx, i18n.KeyAdminRepPrevious, int64(days), days, figure)
-}
-
-func noPreviousSentence(ctx context.Context, days int) string {
-	return i18n.Count(ctx, i18n.KeyAdminRepNoPrevious, int64(days), days)
-}
-
-func abs(n int64) int64 {
-	if n < 0 {
-		return -n
-	}
-	return n
+func (v *ReportView) noPrevious(ctx context.Context) string {
+	return i18n.Count(ctx, i18n.KeyAdminRepNoPrevious, int64(v.Days), v.Days)
 }
 
 func (v *ReportView) Revenue() string { return money.TWD(v.RevenueCents) }
@@ -341,12 +295,6 @@ func (v *ReportView) Refunded() string { return money.TWD(v.RefundedCents) }
 func (v *ReportView) Average() string { return money.TWD(v.AverageCents) }
 
 func (v *ReportView) OrdersText() string { return strconv.FormatInt(v.Orders, 10) }
-
-// minOrdersForRate is the fewest orders a period needs before its figures are
-// set against another's as a percentage: below it, one order moves the
-// completion rate by more than five points and the paid-order and revenue
-// comparisons are noise.
-const minOrdersForRate = 20
 
 // Completion is the completion rate rounded half up, or the bare count when
 // too few orders were placed for a percentage to mean anything. The rounded
@@ -371,7 +319,7 @@ func (v *ReportView) Counts(ctx context.Context) string {
 }
 
 // ShowsCount reports whether Completion already states the counts.
-func (v *ReportView) ShowsCount() bool { return v.Placed < minOrdersForRate }
+func (v *ReportView) ShowsCount() bool { return v.Placed < sales.MinOrdersForRate }
 
 func (v *ReportView) PlacedText() string { return strconv.FormatInt(v.Placed, 10) }
 

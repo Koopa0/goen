@@ -32,7 +32,7 @@ func TestShowWeekKeepsTheWeekWhenOnlyLatestFails(t *testing.T) {
 	}
 	week := admin.Week{
 		Orders: 3, RevenueCents: 90000, RevenueSquares: 2.7e9,
-		Previous: admin.PreviousFigures{Orders: 1, RevenueCents: 10000, RevenueSquares: 1e8},
+		Previous: recent.Previous,
 		RevenueDays: chart.SparklineProps{
 			Previous: chart.Series{Buckets: []chart.Bucket{{Day: monday.AddDate(0, 0, -7), Value: 10000}}},
 			Current:  chart.Series{Partial: true, Buckets: []chart.Bucket{{Day: monday, Value: 30000}, {Day: tuesday, Value: 60000}}},

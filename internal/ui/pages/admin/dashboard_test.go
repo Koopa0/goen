@@ -10,6 +10,7 @@ import (
 	"github.com/koopa0/goen/internal/i18n"
 	"github.com/koopa0/goen/internal/inventory"
 	"github.com/koopa0/goen/internal/order"
+	"github.com/koopa0/goen/internal/sales"
 	"github.com/koopa0/goen/internal/ui/chart"
 	"github.com/koopa0/goen/internal/ui/components"
 )
@@ -186,7 +187,7 @@ func busyWeek() Week {
 	}
 	return Week{
 		Orders: 44, RevenueCents: 5900600, RevenueSquares: 1,
-		Previous:    PreviousFigures{Orders: 31, RevenueCents: 4165000, RevenueSquares: 1},
+		Previous:    sales.Period{Orders: 31, RevenueCents: 4165000, RevenueSquares: 1},
 		RevenueDays: chart.SparklineProps{Previous: days(1, 2, 3, 4, 5, 6, 7), Current: days(1, 2, 3, 4, 5, 6, 7)},
 		OrderDays:   chart.SparklineProps{Previous: days(1, 2, 3, 4, 5, 6, 7), Current: days(1, 2, 3, 4, 5, 6, 7)},
 	}
@@ -198,7 +199,7 @@ func TestTheDashboardDrawsTheWeekOnlyWhenItHasDaysWithOrders(t *testing.T) {
 	if html := renderToString(t, Dashboard(Meta(ctx), DashboardView{Week: busyWeek()})); strings.Count(html, "goen-spark__bar ") != 28 {
 		t.Errorf("a busy week draws %d bars, want 28: two figures of 14 days", strings.Count(html, "goen-spark__bar "))
 	}
-	sparse := Week{Orders: 2, RevenueCents: 20000, RevenueSquares: 1, Previous: PreviousFigures{Orders: 1, RevenueCents: 10000}}
+	sparse := Week{Orders: 2, RevenueCents: 20000, RevenueSquares: 1, Previous: sales.Period{Orders: 1, RevenueCents: 10000}}
 	sparse.OrderDays.Current.Buckets = []chart.Bucket{{Value: 1}, {Value: 1}}
 	if html := renderToString(t, Dashboard(Meta(ctx), DashboardView{Week: sparse})); strings.Contains(html, "goen-spark") {
 		t.Error("a week with orders on two days draws a sparkline")
@@ -273,11 +274,11 @@ func TestTheWeekIsComparedAsTheReportCompares(t *testing.T) {
 	if got, want := busy.ordersAgainst(ctx), i18n.Count(ctx, i18n.KeyAdminRepPrevious, 7, 7, "31"); got != want {
 		t.Errorf("ordersAgainst inside the noise = %q, want %q", got, want)
 	}
-	big := Week{Orders: 300, RevenueCents: 3000000, RevenueSquares: 1, Previous: PreviousFigures{Orders: 100, RevenueCents: 1000000, RevenueSquares: 1}}
+	big := Week{Orders: 300, RevenueCents: 3000000, RevenueSquares: 1, Previous: sales.Period{Orders: 100, RevenueCents: 1000000, RevenueSquares: 1}}
 	if got, want := big.revenueAgainst(ctx), i18n.Count(ctx, i18n.KeyAdminRepMore, 7, 7, 200); got != want {
 		t.Errorf("revenueAgainst of a tripled week = %q, want %q", got, want)
 	}
-	noisy := Week{Orders: 30, RevenueCents: 3100000, RevenueSquares: 1e18, Previous: PreviousFigures{Orders: 30, RevenueCents: 3000000, RevenueSquares: 1e18}}
+	noisy := Week{Orders: 30, RevenueCents: 3100000, RevenueSquares: 1e18, Previous: sales.Period{Orders: 30, RevenueCents: 3000000, RevenueSquares: 1e18}}
 	if got, want := noisy.revenueAgainst(ctx), i18n.Count(ctx, i18n.KeyAdminRepPrevious, 7, 7, "NT$30,000"); got != want {
 		t.Errorf("revenueAgainst inside the noise = %q, want %q", got, want)
 	}

@@ -224,6 +224,9 @@ func TestReportSetsEachFigureAgainstThePreviousPeriod(t *testing.T) {
 			Previous: PreviousFigures{Orders: prevOrders, RevenueCents: prevRevenue, RevenueSquares: prevSquares},
 		}
 	}
+	// The sentence names the report's own window.
+	week := view(150, 100)
+	week.Days = 7
 	tests := []struct {
 		name                string
 		v                   ReportView
@@ -245,6 +248,8 @@ func TestReportSetsEachFigureAgainstThePreviousPeriod(t *testing.T) {
 			"33% less than the previous 30 days", "33% less than the previous 30 days"},
 		{"too small to round to a percent", view(1_000_000, 1_002_900),
 			"About the same as the previous 30 days", "About the same as the previous 30 days"},
+		{"clearly more over seven days", week,
+			"50% more than the previous 7 days", "50% more than the previous 7 days"},
 	}
 	ctx := i18n.WithLocale(t.Context(), i18n.En)
 	for _, tt := range tests {
