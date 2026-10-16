@@ -2787,7 +2787,6 @@ SELECT json_build_object('Number', (pv.stock_quantity - pv.safety_stock), 'Name'
     pv.preorder_release_on,
     p.slug,
     p.name AS product_name,
-    p.status AS product_status,
     coalesce(b.name, '') AS brand,
     ARRAY(SELECT localized_name(v.value, v.value_en, $1::text)
           FROM variant_option_values vov
@@ -2835,7 +2834,6 @@ type AdminVariantsRow struct {
 	PreorderReleaseOn   pgtype.Date
 	Slug                string
 	ProductName         string
-	ProductStatus       string
 	Brand               string
 	OptionValues        []string
 }
@@ -2871,7 +2869,6 @@ func (q *Queries) AdminVariants(ctx context.Context, arg AdminVariantsParams) ([
 			&i.PreorderReleaseOn,
 			&i.Slug,
 			&i.ProductName,
-			&i.ProductStatus,
 			&i.Brand,
 			&i.OptionValues,
 		); err != nil {

@@ -12,9 +12,9 @@ import (
 	"fmt"
 
 	"github.com/koopa0/goen/internal/i18n"
+	"github.com/koopa0/goen/internal/product"
 	"github.com/koopa0/goen/internal/ui/components"
 	"github.com/koopa0/goen/internal/ui/layouts"
-	"github.com/koopa0/goen/internal/ui/pages"
 )
 
 // A table rather than a list of blocks: what a staff member opens this page to do is
@@ -5983,13 +5983,13 @@ func productPublishing(v ProductView) templ.Component {
 				})
 				templ_7745c5c3_Err = components.Button(components.ButtonProps{
 					ButtonStyle: components.ButtonStyleOutline,
-					Attrs:       templ.Attributes{"name": "status", "value": string(pages.ProductActive)},
+					Attrs:       templ.Attributes{"name": "status", "value": string(product.StatusActive)},
 				}, "submit").Render(templ.WithChildren(ctx, templ_7745c5c3_Var325), templ_7745c5c3_Buffer)
 				if templ_7745c5c3_Err != nil {
 					return templ_7745c5c3_Err
 				}
 			}
-			if v.Status == pages.ProductActive {
+			if v.Status == product.StatusActive {
 				templ_7745c5c3_Var327 := templruntime.GeneratedTemplate(func(templ_7745c5c3_Input templruntime.GeneratedComponentInput) (templ_7745c5c3_Err error) {
 					templ_7745c5c3_W, ctx := templ_7745c5c3_Input.Writer, templ_7745c5c3_Input.Context
 					templ_7745c5c3_Buffer, templ_7745c5c3_IsBuffer := templruntime.GetBuffer(templ_7745c5c3_W)
@@ -6015,13 +6015,13 @@ func productPublishing(v ProductView) templ.Component {
 				})
 				templ_7745c5c3_Err = components.Button(components.ButtonProps{
 					ButtonStyle: components.ButtonStyleOutline,
-					Attrs:       templ.Attributes{"name": "status", "value": string(pages.ProductDraft)},
+					Attrs:       templ.Attributes{"name": "status", "value": string(product.StatusDraft)},
 				}, "submit").Render(templ.WithChildren(ctx, templ_7745c5c3_Var327), templ_7745c5c3_Buffer)
 				if templ_7745c5c3_Err != nil {
 					return templ_7745c5c3_Err
 				}
 			}
-			if v.Status != pages.ProductArchived {
+			if v.Status != product.StatusArchived {
 				templ_7745c5c3_Var329 := templruntime.GeneratedTemplate(func(templ_7745c5c3_Input templruntime.GeneratedComponentInput) (templ_7745c5c3_Err error) {
 					templ_7745c5c3_W, ctx := templ_7745c5c3_Input.Writer, templ_7745c5c3_Input.Context
 					templ_7745c5c3_Buffer, templ_7745c5c3_IsBuffer := templruntime.GetBuffer(templ_7745c5c3_W)
@@ -6047,7 +6047,7 @@ func productPublishing(v ProductView) templ.Component {
 				})
 				templ_7745c5c3_Err = components.Button(components.ButtonProps{
 					ButtonStyle: components.ButtonStyleGhost,
-					Attrs:       templ.Attributes{"name": "status", "value": string(pages.ProductArchived)},
+					Attrs:       templ.Attributes{"name": "status", "value": string(product.StatusArchived)},
 				}, "submit").Render(templ.WithChildren(ctx, templ_7745c5c3_Var329), templ_7745c5c3_Buffer)
 				if templ_7745c5c3_Err != nil {
 					return templ_7745c5c3_Err

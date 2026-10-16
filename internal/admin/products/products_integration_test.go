@@ -23,6 +23,7 @@ import (
 	"github.com/koopa0/goen/internal/admin/admintest"
 	"github.com/koopa0/goen/internal/admin/audit"
 	"github.com/koopa0/goen/internal/admin/products"
+	"github.com/koopa0/goen/internal/product"
 	"github.com/koopa0/goen/internal/user"
 	"github.com/koopa0/goen/internal/web"
 )
@@ -261,9 +262,9 @@ func TestAnActionWithNoActorIsRefused(t *testing.T) {
 		`SELECT status FROM products WHERE slug = $1`, slug).Scan(&before); scanErr != nil {
 		t.Fatalf("read product: %v", scanErr)
 	}
-	target := "draft"
-	if before == "draft" {
-		target = "archived"
+	target := product.StatusDraft
+	if product.Status(before) == product.StatusDraft {
+		target = product.StatusArchived
 	}
 
 	err := s.SetStatus(t.Context(), slug, target)

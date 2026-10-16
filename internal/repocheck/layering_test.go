@@ -105,7 +105,6 @@ var storeMethodsNamingViews = map[string]int{
 var viewValueReads = map[string]int{
 	"cmd/goen/server.go":                  2,
 	"internal/cart/handler.go":            11,
-	"internal/cart/store.go":              3,
 	"internal/catalog/compare.go":         3,
 	"internal/catalog/department.go":      2,
 	"internal/catalog/product_handler.go": 8,
