@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/koopa0/goen/assets"
+	"github.com/koopa0/goen/internal/cart"
 	"github.com/koopa0/goen/internal/i18n"
 	"github.com/koopa0/goen/internal/ui/components"
 	"github.com/koopa0/goen/internal/ui/layouts"
@@ -86,12 +87,12 @@ func TestStorefrontSectionsAsDrawn(t *testing.T) {
 		}
 	})
 	mux.HandleFunc("GET /cart", func(w http.ResponseWriter, r *http.Request) {
-		view := pages.CartView{ItemCount: 1, SubtotalCents: 89000, Lines: []pages.CartLine{
+		view := cart.CartView{ItemCount: 1, SubtotalCents: 89000, Lines: []pages.CartLine{
 			{VariantID: "tote-natural", Slug: "canvas-tote", Name: "Canvas tote", Quantity: 1, Available: 5, UnitCents: 89000},
 		}}
 		ctx := layouts.WithStaff(i18n.WithLocale(r.Context(), i18n.En), true)
 		w.Header().Set("Content-Type", "text/html; charset=utf-8")
-		if renderErr := pages.Cart(layouts.Page{}, view).Render(ctx, w); renderErr != nil {
+		if renderErr := cart.Cart(layouts.Page{}, view).Render(ctx, w); renderErr != nil {
 			t.Errorf("render cart fixture: %v", renderErr)
 		}
 	})
@@ -152,11 +153,11 @@ func TestStorefrontSectionsAsDrawn(t *testing.T) {
 		}
 	})
 	mux.HandleFunc("GET /checkout", func(w http.ResponseWriter, r *http.Request) {
-		view := pages.CheckoutView{
-			Cart:     pages.CartView{ItemCount: 1, SubtotalCents: 89000, Lines: []pages.CartLine{{VariantID: "tote-natural", Slug: "canvas-tote", Name: "Canvas tote", Quantity: 1, UnitCents: 89000}}},
-			Shipping: []pages.ShippingChoice{{VersionID: "home", Name: "Home delivery", Carrier: "Courier", FeeCents: 8000}, {VersionID: "store", Name: "Convenience store", FeeCents: 6000}},
+		view := cart.CheckoutView{
+			Cart:     cart.CartView{ItemCount: 1, SubtotalCents: 89000, Lines: []pages.CartLine{{VariantID: "tote-natural", Slug: "canvas-tote", Name: "Canvas tote", Quantity: 1, UnitCents: 89000}}},
+			Shipping: []cart.ShippingChoice{{VersionID: "home", Name: "Home delivery", Carrier: "Courier", FeeCents: 8000}, {VersionID: "store", Name: "Convenience store", FeeCents: 6000}},
 			Chosen:   "home",
-			SavedAddresses: []pages.SavedAddress{
+			SavedAddresses: []cart.SavedAddress{
 				{ID: "home-address", Label: "Home", Name: "Mei Lin", Phone: "0912345678", PostalCode: "106", City: "Taipei", District: "Da'an", Street: "1 Example Road"},
 			},
 			ChosenAddress: "home-address",
@@ -164,7 +165,7 @@ func TestStorefrontSectionsAsDrawn(t *testing.T) {
 		}
 		w.Header().Set("Content-Type", "text/html; charset=utf-8")
 		ctx := i18n.WithLocale(r.Context(), i18n.En)
-		if renderErr := pages.Checkout(pages.CheckoutMeta(ctx), &view).Render(ctx, w); renderErr != nil {
+		if renderErr := cart.Checkout(cart.CheckoutMeta(ctx), &view).Render(ctx, w); renderErr != nil {
 			t.Errorf("render checkout fixture: %v", renderErr)
 		}
 	})

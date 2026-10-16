@@ -1,4 +1,4 @@
-package pages
+package cart
 
 import (
 	"html"
@@ -7,6 +7,7 @@ import (
 
 	"github.com/koopa0/goen/internal/i18n"
 	invoicepkg "github.com/koopa0/goen/internal/invoice"
+	"github.com/koopa0/goen/internal/ui/pages"
 )
 
 func TestCompanyInvoiceChoiceSaysWhereTheInvoiceIsStored(t *testing.T) {
@@ -15,7 +16,7 @@ func TestCompanyInvoiceChoiceSaysWhereTheInvoiceIsStored(t *testing.T) {
 		ctx := i18n.WithLocale(t.Context(), loc)
 		view := func(typ string) string {
 			v := CheckoutView{
-				Cart:           CartView{Lines: []CartLine{{Name: "x", Quantity: 1, UnitCents: 100}}},
+				Cart:           CartView{Lines: []pages.CartLine{{Name: "x", Quantity: 1, UnitCents: 100}}},
 				Shipping:       []ShippingChoice{{VersionID: "ship-1", Code: "home", Name: "home"}},
 				Chosen:         "ship-1",
 				Invoice:        CheckoutInvoice{Type: invoicepkg.Preference(typ)},

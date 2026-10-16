@@ -1,4 +1,4 @@
-package pages
+package cart
 
 import (
 	"context"
@@ -16,10 +16,11 @@ import (
 	"github.com/koopa0/goen/internal/invoice"
 	"github.com/koopa0/goen/internal/ui/components"
 	"github.com/koopa0/goen/internal/ui/layouts"
+	"github.com/koopa0/goen/internal/ui/pages"
 )
 
 type CartView struct {
-	Lines         []CartLine
+	Lines         []pages.CartLine
 	SubtotalCents int64
 	ItemCount     int64
 	MixedTaxTypes bool
@@ -108,7 +109,7 @@ func (v CartView) StockNotice(ctx context.Context) string {
 }
 
 func (v CartView) HasSoldOut() bool {
-	return slices.ContainsFunc(v.Lines, func(l CartLine) bool { return l.Unavailable })
+	return slices.ContainsFunc(v.Lines, func(l pages.CartLine) bool { return l.Unavailable })
 }
 
 func (v CartView) HasNotice() bool { return v.Notice != "" }
@@ -188,7 +189,7 @@ type CheckoutView struct {
 	Errors         map[string]string
 	Invoice        CheckoutInvoice
 	InvoiceChoices []InvoiceChoice
-	PickupChains   []PickupChainChoice
+	PickupChains   []pages.PickupChainChoice
 	SavedAddresses []SavedAddress
 	ChosenAddress  string
 	Profile        CheckoutProfile

@@ -26,9 +26,9 @@ var divTag = regexp.MustCompile(`</?div\b[^>]*>`)
 // all, for the store button to have anything to submit after an in-place
 // choice.
 //
-// Deliberately div-only, unlike the pages package's own elementByID: this
+// Deliberately div-only, unlike checkoutmap_test.go's elementByID: this
 // file always looks up the literal "checkout-region" id, which is only ever
-// a <div> in cart.templ, rather than an id read off a live hx-select
+// a <div> in cart_page.templ, rather than an id read off a live hx-select
 // attribute that could name any element.
 func checkoutRegionElement(t *testing.T, html string) string {
 	t.Helper()
@@ -76,13 +76,13 @@ func TestSwitchingTheChainInPlaceKeepsTheStoreButton(t *testing.T) {
 
 	// What checkoutSubmission would have built from this POST: everything
 	// typed is echoed, and the chain just switched to 全家.
-	view := pages.CheckoutView{
-		Cart:         pages.CartView{Lines: []pages.CartLine{{Name: "x", Quantity: 1, UnitCents: 100}}},
-		Shipping:     []pages.ShippingChoice{{VersionID: "ship-1", Code: "pickup", Name: "超商取貨"}},
+	view := CheckoutView{
+		Cart:         CartView{Lines: []pages.CartLine{{Name: "x", Quantity: 1, UnitCents: 100}}},
+		Shipping:     []ShippingChoice{{VersionID: "ship-1", Code: "pickup", Name: "超商取貨"}},
 		Chosen:       "ship-1",
 		Destination:  "pickup_point",
 		PickupChains: pages.CheckoutPickupChainChoices(),
-		Address: pages.CheckoutAddress{
+		Address: CheckoutAddress{
 			Email: "someone@goen.test", Name: "王小明", Phone: "0912345678",
 			PickupChain: shipping.ChainFamilyMart,
 		},
@@ -97,7 +97,7 @@ func TestSwitchingTheChainInPlaceKeepsTheStoreButton(t *testing.T) {
 	h.renderCheckout(rec, req, http.StatusOK, &view)
 
 	region := checkoutRegionElement(t, rec.Body.String())
-	if !strings.Contains(region, `formaction="`+pages.PickupStartAction+`"`) {
+	if !strings.Contains(region, `formaction="`+PickupStartAction+`"`) {
 		t.Fatal("the swap region carries no button that submits the form to the store-map start route")
 	}
 	if strings.Contains(region, `id="pickup-map-form"`) || strings.Contains(region, "ecpay") {

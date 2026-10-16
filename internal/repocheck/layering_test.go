@@ -42,7 +42,6 @@ import (
 // A consumer declares the values it needs from a leaf, and the package that
 // renders a view fills it from them (T46, T47).
 var viewPackageImporters = []string{
-	"cmd/goen",
 	"internal/account",
 	"internal/admin/dashboard",
 	"internal/admin/orders",
@@ -57,7 +56,6 @@ var viewPackageImporters = []string{
 }
 
 var dataFilesNamingViews = []string{
-	"cmd/goen/server.go",
 	"internal/account/store.go",
 	"internal/admin/dashboard/store.go",
 	"internal/admin/orders/picking.go",
@@ -89,7 +87,6 @@ var storeMethodsNamingViews = map[string]int{
 	"internal/admin/products/product.go":       4,
 	"internal/admin/products/product_label.go": 1,
 	"internal/admin/products/standing.go":      2,
-	"internal/cart/store.go":                   3,
 	"internal/catalog/campaign.go":             2,
 	"internal/catalog/compare.go":              3,
 	"internal/catalog/department.go":           5,
@@ -103,8 +100,7 @@ var storeMethodsNamingViews = map[string]int{
 }
 
 var viewValueReads = map[string]int{
-	"cmd/goen/server.go":                  2,
-	"internal/cart/handler.go":            11,
+	"internal/cart/handler.go":            5,
 	"internal/catalog/compare.go":         3,
 	"internal/catalog/department.go":      2,
 	"internal/catalog/product_handler.go": 8,
