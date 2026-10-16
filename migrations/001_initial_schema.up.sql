@@ -1809,6 +1809,35 @@ COMMENT ON COLUMN coupons.percent_bp IS
 COMMENT ON COLUMN coupons.per_customer_limit IS
     'How many times ONE customer may redeem it. Guests are counted by order, so the limit binds per account only.';
 
+-- What a coupon takes off a subtotal of goods: cart.Coupon.Apply's arithmetic,
+-- restated so orders_have_lines can refuse an order discounted by anything
+-- else. A percentage is a whole NT$ rounded up, then bound by the cap and the
+-- subtotal, each floored to a whole NT$. A free-delivery code takes nothing off
+-- the goods; what it removes is the base delivery fee, which the same check
+-- prices. NULL under the coupon's minimum spend, where checkout refuses the
+-- code outright. TestCouponPricing (internal/cart) holds the two to each other.
+CREATE FUNCTION coupon_discount(p_coupon_id uuid, p_subtotal_cents bigint) RETURNS bigint
+LANGUAGE sql STABLE SET search_path = pg_catalog, public, pg_temp AS $$
+    SELECT CASE
+        WHEN p_subtotal_cents < c.min_subtotal_cents THEN NULL
+        WHEN c.kind = 'amount' THEN least(c.amount_cents, p_subtotal_cents)
+        WHEN c.kind = 'percent' THEN (
+            -- Quotient and remainder apart, as Apply splits them: the product
+            -- of the whole subtotal and the rate can leave bigint's range.
+            SELECT CASE WHEN p.raw >= p.cap THEN p.cap
+                        WHEN p.raw % 100 = 0 THEN p.raw
+                        ELSE p.raw + 100 - p.raw % 100
+                   END
+            FROM (SELECT p_subtotal_cents / 10000 * c.percent_bp
+                         + p_subtotal_cents % 10000 * c.percent_bp / 10000 AS raw,
+                         least(p_subtotal_cents, coalesce(c.max_discount_cents, p_subtotal_cents))
+                         / 100 * 100 AS cap) p)
+        ELSE 0
+    END
+    FROM coupons c
+    WHERE c.id = p_coupon_id;
+$$;
+
 -- Shipping
 --
 -- Methods are versioned because a fee is a promise made at a moment: changing it
@@ -2408,7 +2437,9 @@ CREATE TRIGGER order_lines_bind_product
 -- an order already placed would let a later request take stock off sale against
 -- somebody else's order. Checkout writes the order and every line in one
 -- transaction, and orders_have_lines refuses an order committed without them.
-CREATE FUNCTION order_lines_check_placing() RETURNS trigger
+-- The coupon redemption is held to the same transaction below, for the reason
+-- orders_have_lines gives. The trigger's argument is the constraint it names.
+CREATE FUNCTION order_part_check_placing() RETURNS trigger
 LANGUAGE plpgsql SET search_path = pg_catalog, public, pg_temp AS $$
 BEGIN
     IF NOT EXISTS (
@@ -2417,9 +2448,9 @@ BEGIN
           AND o.placed_in_xact = pg_current_xact_id()::text::bigint
           AND o.placed_in_xact_began = transaction_timestamp()
     ) THEN
-        RAISE EXCEPTION 'order % was placed by another transaction and takes no more lines',
-            NEW.order_id
-            USING ERRCODE = 'check_violation', CONSTRAINT = 'order_lines_written_while_placing';
+        RAISE EXCEPTION 'order % was placed by another transaction and takes no more %',
+            NEW.order_id, TG_TABLE_NAME
+            USING ERRCODE = 'check_violation', CONSTRAINT = TG_ARGV[0];
     END IF;
     RETURN NEW;
 END;
@@ -2427,7 +2458,7 @@ $$;
 
 CREATE TRIGGER order_lines_written_while_placing
     BEFORE INSERT ON order_lines
-    FOR EACH ROW EXECUTE FUNCTION order_lines_check_placing();
+    FOR EACH ROW EXECUTE FUNCTION order_part_check_placing('order_lines_written_while_placing');
 
 CREATE UNIQUE INDEX order_lines_position_key ON order_lines (order_id, position);
 -- Supports the composite FK's referencing side; its leading column also serves
@@ -2737,14 +2768,23 @@ CREATE TRIGGER order_events_append_only
     FOR EACH ROW EXECUTE FUNCTION forbid_change('order_events_append_only');
 
 -- An order is not a valid thing to have until it has something in it and
--- somewhere to go. DEFERRED, because the lines are necessarily inserted after
--- the order row they reference.
+-- somewhere to go, and until its money is what the shop quotes for that.
+-- DEFERRED, because the lines, the delivery details and the redemption are
+-- necessarily inserted after the order row they reference; at COMMIT the
+-- transaction that placed the order has written all of them, and nothing
+-- written later can change the answer (order_lines_written_while_placing,
+-- coupon_redemptions_written_while_placing, and no role's grant reaches
+-- discount_cents or shipping_cents after the INSERT).
 CREATE FUNCTION orders_check_complete() RETURNS trigger
 LANGUAGE plpgsql SET search_path = pg_catalog, public, pg_temp AS $$
 DECLARE
     lines integer;
+    subtotal bigint;
     total bigint;
     tax_types integer;
+    coupon uuid;
+    coupon_kind text;
+    quoted bigint;
     o orders%ROWTYPE;
 BEGIN
     SELECT * INTO o FROM orders WHERE id = NEW.id;
@@ -2755,7 +2795,8 @@ BEGIN
     SELECT count(*), count(DISTINCT tax_type)
     INTO lines, tax_types
     FROM order_lines WHERE order_id = o.id;
-    SELECT total_cents INTO total FROM order_totals WHERE order_id = o.id;
+    SELECT subtotal_cents, total_cents INTO subtotal, total
+    FROM order_totals WHERE order_id = o.id;
 
     IF lines = 0 THEN
         RAISE EXCEPTION 'order % has no lines', o.order_number
@@ -2775,6 +2816,71 @@ BEGIN
     IF total < 0 THEN
         RAISE EXCEPTION 'order % totals below zero', o.order_number
             USING ERRCODE = 'check_violation', CONSTRAINT = 'orders_total_non_negative';
+    END IF;
+
+    -- The store role writes discount_cents and shipping_cents straight from
+    -- the checkout quote, and these are the quote's own rules, so an order
+    -- whose money no checkout would price is refused. Every order is checked
+    -- as it is placed, owed or not: a fully discounted or store-credit order
+    -- carries no payment, and its money is no less the shop's.
+    --
+    -- Asked by privilege, as orders_storefront_cancels_only asks it: whoever
+    -- holds the table owner's privileges (the owner, a superuser: migrations,
+    -- an import, a test's fixtures) is not held to it, since that writer can
+    -- disable the trigger outright. Every other role that can place an order
+    -- is, and today that is store alone: admin holds no INSERT on orders.
+    -- current_user is read at COMMIT, inside the transaction that placed the
+    -- order, which SET LOCAL ROLE does not leave.
+    IF pg_has_role(current_user,
+                   (SELECT c.relowner FROM pg_class c WHERE c.oid = TG_RELID), 'USAGE') THEN
+        RETURN NULL;
+    END IF;
+    --
+    -- A discount is a coupon's, and only what that coupon takes off these
+    -- goods; coupon_redemption_matches_order holds the redemption's recorded
+    -- amount to the same figure. Store credit and loyalty points are ledger
+    -- entries, never a discount.
+    SELECT r.coupon_id, c.kind INTO coupon, coupon_kind
+    FROM coupon_redemptions r
+    JOIN coupons c ON c.id = r.coupon_id
+    WHERE r.order_id = o.id;
+    IF coupon IS NULL THEN
+        IF o.discount_cents <> 0 THEN
+            RAISE EXCEPTION 'order % is discounted % with no coupon redeemed',
+                o.order_number, o.discount_cents
+                USING ERRCODE = 'check_violation', CONSTRAINT = 'orders_discount_redeemed';
+        END IF;
+    ELSIF o.discount_cents IS DISTINCT FROM coupon_discount(coupon, subtotal) THEN
+        RAISE EXCEPTION 'order % is discounted % where its coupon takes % off % of goods',
+            o.order_number, o.discount_cents,
+            coalesce(coupon_discount(coupon, subtotal)::text, 'nothing (under its minimum)'),
+            subtotal
+            USING ERRCODE = 'check_violation', CONSTRAINT = 'orders_discount_matches_coupon';
+    END IF;
+
+    -- Delivery is the version's fee, nothing at or over its free-over threshold
+    -- or with a free-delivery code, plus the surcharge of the zone the
+    -- postcode is in, which neither waives (cart.ShippingFee, cart.Quote,
+    -- ShippingZoneFor). A pickup point has no postcode and so no zone. The zone
+    -- tables are not versioned; checkout holds the zone lock shared from its
+    -- quote to its COMMIT, and every edit that changes what a postcode is
+    -- charged takes it exclusively, so this reads the rates checkout priced.
+    SELECT CASE WHEN coupon_kind IS NOT DISTINCT FROM 'free_shipping'
+                  OR (v.free_over_cents > 0 AND subtotal >= v.free_over_cents)
+                THEN 0 ELSE v.fee_cents END
+           + coalesce((SELECT vz.surcharge_cents
+                       FROM order_private_data pd
+                       JOIN shipping_zone_prefixes zp ON zp.prefix = left(pd.postal_code, 3)
+                       JOIN shipping_version_zones vz
+                         ON vz.version_id = v.id AND vz.zone_id = zp.zone_id
+                       WHERE pd.order_id = o.id), 0)
+    INTO quoted
+    FROM shipping_method_versions v
+    WHERE v.id = o.shipping_version_id;
+    IF o.shipping_cents <> quoted THEN
+        RAISE EXCEPTION 'order % charges % for delivery where its method quotes %',
+            o.order_number, o.shipping_cents, quoted
+            USING ERRCODE = 'check_violation', CONSTRAINT = 'orders_shipping_matches_quote';
     END IF;
 
     RETURN NULL;
@@ -2813,6 +2919,12 @@ CREATE INDEX coupon_redemptions_user_idx ON coupon_redemptions (user_id);
 CREATE TRIGGER coupon_redemptions_append_only
     BEFORE UPDATE OR DELETE ON coupon_redemptions
     FOR EACH ROW EXECUTE FUNCTION forbid_change('coupon_redemptions_append_only', 'user_id');
+
+-- Checkout redeems as it places. A redemption written afterwards would stand
+-- beside a discount and a delivery fee orders_have_lines priced without it.
+CREATE TRIGGER coupon_redemptions_written_while_placing
+    BEFORE INSERT ON coupon_redemptions
+    FOR EACH ROW EXECUTE FUNCTION order_part_check_placing('coupon_redemptions_written_while_placing');
 
 -- The redemption and the order's discount_cents are one fact, so the database
 -- keeps them one.
@@ -8707,6 +8819,11 @@ $$;
 -- Checkout on the store pool is the only production caller. Admin merchandises
 -- coupons and must not insert a redemption off that path.
 GRANT EXECUTE ON FUNCTION redeem_coupon(uuid, uuid, uuid, bigint) TO store;
+
+-- orders_have_lines runs as whoever placed the order, and checkout places it
+-- as store. An invoker that reads only coupons, which store already reads: it
+-- adds no capability, it only lets the check run.
+GRANT EXECUTE ON FUNCTION coupon_discount(uuid, bigint) TO store;
 
 
 -- Loyalty points

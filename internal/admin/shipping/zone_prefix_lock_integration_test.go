@@ -57,9 +57,24 @@ func TestANewZoneWaitsForThePrefixAssignments(t *testing.T) {
 	})
 }
 
+// TestASurchargeEditWaitsForTheZoneRates: what a postcode is charged is its
+// zone's surcharge as much as its prefix, and checkout holds the same lock
+// shared from its quote to its COMMIT, where orders_have_lines prices the order
+// again from both. An edit that skipped it would change the rate under a
+// checkout that has already priced it.
+func TestASurchargeEditWaitsForTheZoneRates(t *testing.T) {
+	ctx, _ := admintest.StaffContext(t, pool)
+	_, version, zone := surchargeFixture(t)
+	s := shipping.NewStore(admintest.AdminRolePool(t, pool))
+	saveWhileAssignmentsAreHeld(t, ctx, func() error {
+		return s.SetZoneSurcharge(ctx, version.String(), zone.String(), 200)
+	})
+}
+
 // saveWhileAssignmentsAreHeld starts the writers while another transaction
-// holds the prefix-assignment lock, waits until every one is queued on it, then
-// releases it. A writer that reaches a prefix row without the lock never queues.
+// holds the zone-rates lock, waits until every one is queued on it, then
+// releases it. A writer that reaches a prefix or surcharge row without the lock
+// never queues.
 func saveWhileAssignmentsAreHeld(t *testing.T, ctx context.Context, writers ...func() error) {
 	t.Helper()
 	holder, err := pool.Begin(ctx)
@@ -67,8 +82,8 @@ func saveWhileAssignmentsAreHeld(t *testing.T, ctx context.Context, writers ...f
 		t.Fatalf("begin holder: %v", err)
 	}
 	defer func() { _ = holder.Rollback(context.WithoutCancel(ctx)) }()
-	if lockErr := db.New(holder).LockZonePrefixAssignments(ctx); lockErr != nil {
-		t.Fatalf("hold the prefix-assignment lock: %v", lockErr)
+	if lockErr := db.New(holder).LockZoneRates(ctx); lockErr != nil {
+		t.Fatalf("hold the zone-rates lock: %v", lockErr)
 	}
 
 	results := make(chan error, len(writers))
@@ -78,7 +93,7 @@ func saveWhileAssignmentsAreHeld(t *testing.T, ctx context.Context, writers ...f
 	}
 	waitForAdvisoryWaiters(t, ctx, len(writers))
 	if err := holder.Commit(ctx); err != nil {
-		t.Fatalf("release the prefix-assignment lock: %v", err)
+		t.Fatalf("release the zone-rates lock: %v", err)
 	}
 	wg.Wait()
 	close(results)
@@ -107,7 +122,7 @@ func waitForAdvisoryWaiters(t *testing.T, ctx context.Context, want int) {
 			return
 		}
 		if time.Now().After(deadline) {
-			t.Fatalf("%d zone saves wait on the prefix-assignment lock, want %d: they touch prefix rows without holding it", waiting, want)
+			t.Fatalf("%d zone saves wait on the zone-rates lock, want %d: they change what a postcode is charged without holding it", waiting, want)
 		}
 		time.Sleep(20 * time.Millisecond)
 	}

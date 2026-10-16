@@ -100,9 +100,9 @@ RETURNING id AS answered_question_id \gset
 WITH sale_orders AS (
     INSERT INTO orders (user_id, shipping_version_id, shipping_method_code, shipping_method_name,
                         shipping_cents)
-    SELECT :'customer_id', v.id, sm.code, v.name, 0
+    SELECT :'customer_id', v.id, sm.code, v.name, v.fee_cents
     FROM generate_series(1, 9) AS n,
-         (SELECT v.id, v.name, v.method_id FROM shipping_method_versions v ORDER BY v.effective_at LIMIT 1) v
+         (SELECT v.id, v.name, v.method_id, v.fee_cents FROM shipping_method_versions v ORDER BY v.effective_at LIMIT 1) v
          JOIN shipping_methods sm ON sm.id = v.method_id
     RETURNING id
 ), sale_lines AS (
@@ -120,9 +120,9 @@ FROM (SELECT ol.order_id, row_number() OVER (ORDER BY ol.order_id) AS n
       FROM order_lines ol WHERE ol.sku = 'LAYOUT-STANDING') d
 WHERE o.id = d.order_id;
 SET ROLE store;
-SELECT open_payment(o.id, 'layout-sale-' || o.id, ol.unit_price_cents * ol.quantity)
+SELECT open_payment(o.id, 'layout-sale-' || o.id, order_amount_after_credit(o.id))
 FROM orders o JOIN order_lines ol ON ol.order_id = o.id WHERE ol.sku = 'LAYOUT-STANDING';
-SELECT capture_payment('layout-sale-' || o.id, ol.unit_price_cents * ol.quantity, NULL, NULL)
+SELECT capture_payment('layout-sale-' || o.id, order_amount_after_credit(o.id), NULL, NULL)
 FROM orders o JOIN order_lines ol ON ol.order_id = o.id WHERE ol.sku = 'LAYOUT-STANDING';
 -- store cannot write hidden_at: the one-star review is hidden below, as admin,
 -- the way moderation hides one.
@@ -190,7 +190,8 @@ WHERE pv.sku = 'PXL-9-1-1' AND p.status = 'active' AND pv.is_active
 SELECT p.slug AS review_slug FROM product_variants pv
 JOIN products p ON p.id = pv.product_id WHERE pv.id = :'variant_id' \gset
 SELECT v.id AS ship_version, sm.code AS ship_code, v.name AS ship_name,
-       CASE WHEN pv.price_cents >= v.free_over_cents THEN 0 ELSE v.fee_cents END AS ship_cents
+       CASE WHEN v.free_over_cents > 0 AND pv.price_cents >= v.free_over_cents
+            THEN 0 ELSE v.fee_cents END AS ship_cents, v.fee_cents AS ship_fee_cents
 FROM shipping_method_versions v
 JOIN shipping_methods sm ON sm.id = v.method_id
 CROSS JOIN product_variants pv
@@ -221,6 +222,16 @@ WHERE p.status = 'active' AND pv.is_active AND pv.stock_quantity > pv.safety_sto
                     WHERE fv.id = :'variant_id')
 ORDER BY pv.price_cents, pv.sku LIMIT 1 \gset
 
+-- What checkout charges to deliver the orders that carry best-seller lines:
+-- the fee, or nothing from the free-over threshold, as ship_cents is decided.
+-- orders_have_lines refuses any other figure. Their address, 110, is in no zone.
+SELECT CASE WHEN v.free_over_cents > 0 AND p.price_cents + 500 * s.price_cents >= v.free_over_cents
+            THEN 0 ELSE v.fee_cents END AS picking_ship_cents,
+       CASE WHEN v.free_over_cents > 0 AND p.price_cents + 2 * s.price_cents >= v.free_over_cents
+            THEN 0 ELSE v.fee_cents END AS unsent_ship_cents
+FROM shipping_method_versions v, product_variants p, product_variants s
+WHERE v.id = :'ship_version' AND p.id = :'variant_id' AND s.id = :'seller_variant_id' \gset
+
 SET ROLE admin;
 
 -- A coupon with a total limit, as the coupon form writes one: the list draws its
@@ -240,7 +251,7 @@ FROM generate_series(1, 2);
 -- UNSENT_ORDER's phone, its two best-seller units and its delivery.
 SELECT (SELECT price_cents FROM product_variants WHERE id = :'variant_id')
        + 2 * (SELECT price_cents FROM product_variants WHERE id = :'seller_variant_id')
-       + :ship_cents AS unsent_cents \gset
+       + :unsent_ship_cents AS unsent_cents \gset
 SELECT grant_store_credit(:'customer_id', :unsent_cents, 'Unsent refund fixture', :'staff_id', gen_random_uuid()),
        record_audit_event(:'staff_id', 'credit.grant', 'store_credit_entries', :'customer_id', NULL,
            jsonb_build_object('amount_cents', :unsent_cents, 'reason', 'Unsent refund fixture'));
@@ -269,8 +280,11 @@ SET ROLE store;
 INSERT INTO orders (user_id, shipping_version_id, shipping_method_code, shipping_method_name, shipping_cents)
 VALUES (NULL, :'ship_version', :'ship_code', :'ship_name', :ship_cents)
 RETURNING id AS placed_id, order_number AS placed_order \gset
-INSERT INTO orders (user_id, shipping_version_id, shipping_method_code, shipping_method_name, shipping_cents)
-VALUES (:'customer_id', :'ship_version', :'ship_code', :'ship_name', :ship_cents)
+INSERT INTO orders (user_id, shipping_version_id, shipping_method_code, shipping_method_name, shipping_cents,
+                    discount_cents)
+VALUES (:'customer_id', :'ship_version', :'ship_code', :'ship_name', :ship_cents,
+        (SELECT least(amount_cents, (SELECT price_cents FROM product_variants WHERE id = :'variant_id'))
+         FROM coupons WHERE id = :'capped_coupon_id'))
 RETURNING id AS invoice_id, order_number AS invoice_order \gset
 INSERT INTO orders (user_id, shipping_version_id, shipping_method_code, shipping_method_name, shipping_cents)
 VALUES (:'customer_id', :'ship_version', :'ship_code', :'ship_name', :ship_cents)
@@ -278,17 +292,17 @@ RETURNING id AS form_id, order_number AS return_form_order \gset
 
 -- Two more orders stay in picking so the batch print probe has two slips.
 INSERT INTO orders (user_id, shipping_version_id, shipping_method_code, shipping_method_name, shipping_cents)
-VALUES (:'customer_id', :'ship_version', :'ship_code', :'ship_name', :ship_cents)
+VALUES (:'customer_id', :'ship_version', :'ship_code', :'ship_name', :picking_ship_cents)
 RETURNING id AS picking_a_id \gset
 INSERT INTO orders (user_id, shipping_version_id, shipping_method_code, shipping_method_name, shipping_cents)
-VALUES (:'customer_id', :'ship_version', :'ship_code', :'ship_name', :ship_cents)
+VALUES (:'customer_id', :'ship_version', :'ship_code', :'ship_name', :picking_ship_cents)
 RETURNING id AS picking_b_id \gset
 
 -- UNSENT_ORDER is partly shipped: its first parcel carried the phone, and the
 -- two best-seller units it still owes are what its order page offers to refund
 -- as unsent (#1965).
 INSERT INTO orders (user_id, shipping_version_id, shipping_method_code, shipping_method_name, shipping_cents)
-VALUES (:'customer_id', :'ship_version', :'ship_code', :'ship_name', :ship_cents)
+VALUES (:'customer_id', :'ship_version', :'ship_code', :'ship_name', :unsent_ship_cents)
 RETURNING id AS unsent_id, order_number AS unsent_order \gset
 
 INSERT INTO order_lines (order_id, product_id, variant_id, sku, product_name, variant_label,
@@ -341,8 +355,10 @@ INSERT INTO order_access_grants (digest, order_id)
 VALUES (sha256(convert_to(:'placed_token', 'UTF8')), :'placed_id');
 
 -- One redemption on a paid order, so the capped coupon's meter has a filled
--- part. The order carries no discount, so the redemption records none.
-SELECT redeem_coupon(:'capped_coupon_id', :'invoice_id', :'customer_id', 0);
+-- part. In the transaction that placed the order, for the NT$1 it was
+-- discounted, as checkout redeems one.
+SELECT redeem_coupon(:'capped_coupon_id', :'invoice_id', :'customer_id', discount_cents)
+FROM orders WHERE id = :'invoice_id';
 
 -- /admin/reports draws its running totals only from seven shop days with paid
 -- orders, so the report gets seven, none today. The latest is NT$1,234,567, which
@@ -388,7 +404,7 @@ WHERE ol.sku = 'LAYOUT-REVENUE';
 WITH campaign_orders AS (
     INSERT INTO orders (user_id, shipping_version_id, shipping_method_code, shipping_method_name,
                         shipping_cents)
-    SELECT :'customer_id', :'ship_version', :'ship_code', :'ship_name', 0
+    SELECT :'customer_id', :'ship_version', :'ship_code', :'ship_name', :ship_fee_cents
     FROM generate_series(1, 7) AS day_ago
     RETURNING id
 ), campaign_lines AS (
@@ -409,10 +425,10 @@ FROM (SELECT ol.order_id, row_number() OVER (ORDER BY ol.order_id) AS day_ago
       FROM order_lines ol WHERE ol.sku = 'LAYOUT-CAMPAIGN') d
 WHERE o.id = d.order_id;
 SET ROLE store;
-SELECT open_payment(o.id, 'layout-camp-' || o.id, ol.unit_price_cents * ol.quantity)
+SELECT open_payment(o.id, 'layout-camp-' || o.id, order_amount_after_credit(o.id))
 FROM orders o JOIN order_lines ol ON ol.order_id = o.id
 WHERE ol.sku = 'LAYOUT-CAMPAIGN';
-SELECT capture_payment('layout-camp-' || o.id, ol.unit_price_cents * ol.quantity, NULL, NULL)
+SELECT capture_payment('layout-camp-' || o.id, order_amount_after_credit(o.id), NULL, NULL)
 FROM orders o JOIN order_lines ol ON ol.order_id = o.id
 WHERE ol.sku = 'LAYOUT-CAMPAIGN';
 
@@ -486,6 +502,10 @@ WHERE p.status = 'active' AND pv.is_active AND pv.stock_quantity > pv.safety_sto
   AND pv.product_id NOT IN (SELECT product_id FROM product_variants
                             WHERE id IN (:'variant_id', :'seller_variant_id'))
 ORDER BY pv.price_cents, pv.sku LIMIT 1 \gset
+SELECT CASE WHEN v.free_over_cents > 0 AND pv.price_cents >= v.free_over_cents
+            THEN 0 ELSE v.fee_cents END AS estimate_ship_cents
+FROM shipping_method_versions v, product_variants pv
+WHERE v.id = :'ship_version' AND pv.id = :'estimate_variant_id' \gset
 RESET ROLE;
 SET LOCAL session_replication_role = replica;
 UPDATE inventory_movements SET created_at = now() - interval '20 days'
@@ -497,14 +517,14 @@ SELECT record_inventory_movement(:'estimate_variant_id', 12 + :estimate_safety -
 WHERE :estimate_stock <> 12 + :estimate_safety;
 SELECT record_inventory_movement(:'estimate_variant_id', 10, 'receipt',
     'layout-check:' || gen_random_uuid(), 'admin', NULL, :'staff_id');
-SELECT grant_store_credit(:'customer_id', pv.price_cents + :ship_cents + 100, 'Estimate fixture', :'staff_id', gen_random_uuid())
+SELECT grant_store_credit(:'customer_id', pv.price_cents + :estimate_ship_cents + 100, 'Estimate fixture', :'staff_id', gen_random_uuid())
 FROM product_variants pv, generate_series(1, 10) WHERE pv.id = :'estimate_variant_id';
 
 SET ROLE store;
 
 WITH placed AS (
     INSERT INTO orders (user_id, shipping_version_id, shipping_method_code, shipping_method_name, shipping_cents)
-    SELECT :'customer_id', :'ship_version', :'ship_code', :'ship_name', :ship_cents
+    SELECT :'customer_id', :'ship_version', :'ship_code', :'ship_name', :estimate_ship_cents
     FROM generate_series(1, 10)
     RETURNING id
 )

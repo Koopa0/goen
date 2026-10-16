@@ -19,6 +19,9 @@ import (
 // add a line for another variant to an order checkout has already placed, then
 // hold that variant. Checkout is the neighbour: it writes every line in the
 // transaction that places the order, and it has just done so here as store.
+// A coupon redemption is held to the same transaction: orders_have_lines
+// priced the order's discount and delivery at its COMMIT, and one redeemed
+// afterwards would stand beside money priced without it.
 func TestAPlacedOrderTakesNoLineFromALaterRequest(t *testing.T) {
 	ctx := t.Context()
 	asStore := storeRolePool(t)
@@ -74,6 +77,20 @@ func TestAPlacedOrderTakesNoLineFromALaterRequest(t *testing.T) {
 	if constraint(holdErr) != "inventory_hold_within_order_lines" {
 		t.Errorf("a hold on the placed order for a variant it never carried = %v, "+
 			"want inventory_hold_within_order_lines", holdErr)
+	}
+
+	var couponID uuid.UUID
+	if err := pool.QueryRow(ctx, `
+		INSERT INTO coupons (code, description, kind, percent_bp)
+		VALUES ($1, '事後折扣', 'percent', 1000) RETURNING id`,
+		"LATE"+uuid.NewString()[:8]).Scan(&couponID); err != nil {
+		t.Fatalf("create coupon: %v", err)
+	}
+	redeemErr := inTx(`SELECT redeem_coupon($1, o.id, o.user_id, 0) FROM orders o WHERE o.id = $2`,
+		couponID, orderID)
+	if constraint(redeemErr) != "coupon_redemptions_written_while_placing" {
+		t.Errorf("a coupon redeemed on an order another transaction placed = %v, "+
+			"want coupon_redemptions_written_while_placing", redeemErr)
 	}
 
 	var stockAfter int32
