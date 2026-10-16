@@ -20,7 +20,6 @@ import (
 	"github.com/koopa0/goen/internal/order/notice"
 	"github.com/koopa0/goen/internal/outbox"
 	"github.com/koopa0/goen/internal/payment"
-	"github.com/koopa0/goen/internal/ui/pages/admin"
 )
 
 // TestTheOrderTimelineMergesEverySource builds one order through each source
@@ -125,7 +124,7 @@ func TestTheOrderTimelineMergesEverySource(t *testing.T) {
 	}
 	type entry struct {
 		Label, Status i18n.Key
-		ActorKind     admin.ActorKind
+		ActorKind     orders.ActorKind
 		Actor         string
 	}
 	got := make([]entry, 0, len(view.Timeline))
@@ -133,18 +132,18 @@ func TestTheOrderTimelineMergesEverySource(t *testing.T) {
 		got = append(got, entry{Label: e.Label, Status: e.Status, ActorKind: e.ActorKind, Actor: e.Actor})
 	}
 	want := []entry{
-		{Label: i18n.KeyStatusPlaced, ActorKind: admin.ActorCustomer},
-		{Label: i18n.KeyAdminTimelineMailPlaced, Status: i18n.KeyAdminTimelineMailSent, ActorKind: admin.ActorSystem},
-		{Label: i18n.KeyAdminTimelineProvider, ActorKind: admin.ActorProvider},
-		{Label: i18n.KeyStatusPaid, ActorKind: admin.ActorProvider},
-		{Label: i18n.KeyAdminTimelineMailPaid, Status: i18n.KeyAdminTimelineMailQueued, ActorKind: admin.ActorSystem},
-		{Label: i18n.KeyStatusPicking, ActorKind: admin.ActorStaff, Actor: staffAddress},
+		{Label: i18n.KeyStatusPlaced, ActorKind: orders.ActorCustomer},
+		{Label: i18n.KeyAdminTimelineMailPlaced, Status: i18n.KeyAdminTimelineMailSent, ActorKind: orders.ActorSystem},
+		{Label: i18n.KeyAdminTimelineProvider, ActorKind: orders.ActorProvider},
+		{Label: i18n.KeyStatusPaid, ActorKind: orders.ActorProvider},
+		{Label: i18n.KeyAdminTimelineMailPaid, Status: i18n.KeyAdminTimelineMailQueued, ActorKind: orders.ActorSystem},
+		{Label: i18n.KeyStatusPicking, ActorKind: orders.ActorStaff, Actor: staffAddress},
 		{Label: i18n.KeyAuditInvoiceAllowance, Status: i18n.KeyAdminTimelineInvoiceAwaitingBuyer,
-			ActorKind: admin.ActorStaff, Actor: staffAddress},
+			ActorKind: orders.ActorStaff, Actor: staffAddress},
 		// The store has no invoice writer, so nothing will send the void.
-		{Label: i18n.KeyAuditInvoiceVoid, Status: i18n.KeyAdminTimelineInvoiceNotSent, ActorKind: admin.ActorSystem},
-		{Label: i18n.KeyAdminTimelineMailShipped, Status: i18n.KeyAdminTimelineMailQueued, ActorKind: admin.ActorSystem},
-		{Label: i18n.KeyAdminTimelineMailTerminal, Status: i18n.KeyAdminTimelineMailQueued, ActorKind: admin.ActorSystem},
+		{Label: i18n.KeyAuditInvoiceVoid, Status: i18n.KeyAdminTimelineInvoiceNotSent, ActorKind: orders.ActorSystem},
+		{Label: i18n.KeyAdminTimelineMailShipped, Status: i18n.KeyAdminTimelineMailQueued, ActorKind: orders.ActorSystem},
+		{Label: i18n.KeyAdminTimelineMailTerminal, Status: i18n.KeyAdminTimelineMailQueued, ActorKind: orders.ActorSystem},
 	}
 	if diff := cmp.Diff(want, got); diff != "" {
 		t.Errorf("Order(%s).Timeline mismatch (-want +got):\n%s", number, diff)

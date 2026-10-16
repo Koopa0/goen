@@ -11,10 +11,10 @@ import (
 	"github.com/google/uuid"
 
 	"github.com/koopa0/goen/internal/admin/admintest"
+	"github.com/koopa0/goen/internal/admin/orders"
 	"github.com/koopa0/goen/internal/i18n"
 	"github.com/koopa0/goen/internal/order"
 	"github.com/koopa0/goen/internal/ui/layouts"
-	"github.com/koopa0/goen/internal/ui/pages/admin"
 )
 
 // The order page names the staff member behind an event, an invoice operation
@@ -36,10 +36,10 @@ func renamedStaff(t *testing.T) (ctxA context.Context, idA uuid.UUID, addressA, 
 
 // assertNamedByAddress renders the order page and holds that it shows the
 // address and not the name.
-func assertNamedByAddress(t *testing.T, ctx context.Context, view *admin.OrderView, address, colleague string) {
+func assertNamedByAddress(t *testing.T, ctx context.Context, view *orders.OrderView, address, colleague string) {
 	t.Helper()
 	var html bytes.Buffer
-	if err := admin.Order(layouts.Page{}, view).Render(ctx, &html); err != nil {
+	if err := orders.Order(layouts.Page{}, view).Render(ctx, &html); err != nil {
 		t.Fatalf("render the order page: %v", err)
 	}
 	if !strings.Contains(html.String(), address) {

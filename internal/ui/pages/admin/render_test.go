@@ -75,3 +75,14 @@ func attrPresent(n *html.Node, key string) (string, bool) {
 	}
 	return "", false
 }
+
+func textOf(n *html.Node) string {
+	if n.Type == html.TextNode {
+		return n.Data
+	}
+	var b strings.Builder
+	for c := n.FirstChild; c != nil; c = c.NextSibling {
+		b.WriteString(textOf(c))
+	}
+	return strings.TrimSpace(b.String())
+}

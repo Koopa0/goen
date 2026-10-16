@@ -2,7 +2,6 @@ package admin
 
 import (
 	"bytes"
-	"fmt"
 	"html"
 	"strings"
 	"testing"
@@ -50,13 +49,9 @@ func queuePages(b keyset.Bound, ctx func(k i18n.Key) string) map[string]struct {
 		page templ.Component
 		want string
 	}
-	term := "ZZ99"
 	return map[string]c{
-		"orders, no filter":  {Orders(p, OrdersView{Bound: b}), ctx(i18n.KeyAdminQueueNoneYet)},
-		"orders, status tab": {Orders(p, OrdersView{Bound: b, Status: "pending"}), ctx(i18n.KeyAdminQueueEmpty)},
-		"orders, search":     {Orders(p, OrdersView{Bound: b, Searched: true, Term: term}), fmt.Sprintf(ctx(i18n.KeyAdminQueueNoneFound), term)},
-		"products":           {Products(p, ProductsView{Bound: b}), ctx(i18n.KeyAdminProdEmpty)},
-		"audit":              {audit.Audit(p, audit.AuditView{Bound: b}), ctx(i18n.KeyAdminAuditEmpty)},
+		"products": {Products(p, ProductsView{Bound: b}), ctx(i18n.KeyAdminProdEmpty)},
+		"audit":    {audit.Audit(p, audit.AuditView{Bound: b}), ctx(i18n.KeyAdminAuditEmpty)},
 	}
 }
 

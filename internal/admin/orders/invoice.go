@@ -13,7 +13,6 @@ import (
 	"github.com/koopa0/goen/internal/invoice"
 	"github.com/koopa0/goen/internal/invoice/issuer"
 	"github.com/koopa0/goen/internal/shoptime"
-	"github.com/koopa0/goen/internal/ui/pages/admin"
 	"github.com/koopa0/goen/internal/web"
 )
 
@@ -44,7 +43,7 @@ var (
 
 // fillInvoices puts what has actually been FILED on the order page, which is a
 // different question from the preference the customer asked for at checkout.
-func (s *Store) fillInvoices(ctx context.Context, view *admin.OrderView, number string) error {
+func (s *Store) fillInvoices(ctx context.Context, view *OrderView, number string) error {
 	view.InvoicingEnabled = s.invoiceWriter != nil
 	docs, err := s.invoiceReader.Documents(ctx, number)
 	if err != nil {
@@ -52,13 +51,13 @@ func (s *Store) fillInvoices(ctx context.Context, view *admin.OrderView, number 
 	}
 	for i := range docs {
 		d := &docs[i]
-		doc := admin.InvoiceDocument{
+		doc := InvoiceDocument{
 			Kind: d.Kind, Number: d.Number, ProviderRef: d.ProviderRef,
 			AmountCents: d.AmountCents, Status: d.Status,
 			IssuedAt: shoptime.Minute(d.IssuedAt),
 		}
 		for _, l := range d.Lines {
-			doc.Lines = append(doc.Lines, admin.InvoiceLine{
+			doc.Lines = append(doc.Lines, InvoiceLine{
 				Description: l.Description, Quantity: l.Quantity, AmountCents: l.AmountCents,
 			})
 		}
@@ -72,7 +71,7 @@ func (s *Store) fillInvoices(ctx context.Context, view *admin.OrderView, number 
 	return s.fillOpenAllowance(ctx, view, number)
 }
 
-func (s *Store) fillOpenAllowance(ctx context.Context, view *admin.OrderView, number string) error {
+func (s *Store) fillOpenAllowance(ctx context.Context, view *OrderView, number string) error {
 	open, err := s.q.OpenAllowance(ctx, number)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return nil

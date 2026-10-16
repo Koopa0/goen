@@ -36,7 +36,6 @@ import (
 	"github.com/koopa0/goen/internal/returns"
 	"github.com/koopa0/goen/internal/ui/components"
 	"github.com/koopa0/goen/internal/ui/layouts"
-	"github.com/koopa0/goen/internal/ui/pages/admin"
 )
 
 // The refund of units a partly shipped order will not send (#1965), through
@@ -494,7 +493,7 @@ func TestTheOrderPageOffersTheUnsentRefundForWhatIsOwed(t *testing.T) {
 	ctx, _ := admintest.StaffContext(t, pool)
 	adminPool := admintest.AdminRolePool(t, pool)
 	desk := orderDesk(adminPool, admintest.Refunder{})
-	read := func(t *testing.T, number string) admin.OrderView {
+	read := func(t *testing.T, number string) orders.OrderView {
 		t.Helper()
 		view, err := desk.Order(ctx, number)
 		if err != nil {

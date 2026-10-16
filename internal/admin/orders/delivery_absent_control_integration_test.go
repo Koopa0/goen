@@ -16,8 +16,8 @@ import (
 
 	"github.com/koopa0/goen/internal/admin/admintest"
 	"github.com/koopa0/goen/internal/admin/audit"
+	"github.com/koopa0/goen/internal/admin/orders"
 	"github.com/koopa0/goen/internal/i18n"
-	"github.com/koopa0/goen/internal/ui/pages/admin"
 )
 
 func TestDeliveryCorrectionShowsAbsentControlRefusals(t *testing.T) {
@@ -41,7 +41,7 @@ func TestDeliveryCorrectionShowsAbsentControlRefusals(t *testing.T) {
 				controls := map[string]string{
 					"d-email": values.Get("email"), "d-recipient": values.Get("recipient"), "d-phone": values.Get("phone"),
 				}
-				want := admin.Delivery{Email: "proposed@example.com", Recipient: "Proposed <recipient>", Phone: "0922333444"}
+				want := orders.Delivery{Email: "proposed@example.com", Recipient: "Proposed <recipient>", Phone: "0922333444"}
 				if tc.pickup {
 					setPickupDeliveryDraft(t, ctx, f, true, values)
 					for _, field := range []string{"postal_code", "city", "district", "street"} {
