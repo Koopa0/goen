@@ -143,7 +143,7 @@ func TestADispatchTheOrderMovedPastIsRefused(t *testing.T) {
 			if w.Code != http.StatusUnprocessableEntity {
 				t.Fatalf("a dispatch for an order %s under it answered %d, want 422", tc.name, w.Code)
 			}
-			want := fmt.Sprintf(i18n.T(ctx, i18n.KeyAdminDispatchRefused), i18n.CarrierName(ctx, shipping.CarrierBlackCat), tracking)
+			want := fmt.Sprintf(i18n.T(ctx, i18n.KeyAdminDispatchRefused), shipping.CarrierBlackCat.Name(ctx), tracking)
 			if body := w.Body.String(); !strings.Contains(body, want) {
 				t.Errorf("the refused dispatch is missing %q", want)
 			}

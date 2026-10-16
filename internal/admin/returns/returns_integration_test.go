@@ -40,8 +40,8 @@ import (
 	"github.com/koopa0/goen/internal/admin/stock"
 	"github.com/koopa0/goen/internal/i18n"
 	"github.com/koopa0/goen/internal/keyset"
+	"github.com/koopa0/goen/internal/order/buyer"
 	"github.com/koopa0/goen/internal/refund"
-	"github.com/koopa0/goen/internal/returns/buyer"
 )
 
 type returnQueryCountKey struct{}
@@ -650,7 +650,7 @@ func TestTheDeliveryFeeIsPaidBackOnce(t *testing.T) {
 
 	openAndApprove := func(reason string, lineID uuid.UUID) int64 {
 		t.Helper()
-		if err := customerReturns.Open(ctx, number, uuid.NullUUID{}, &buyer.Request{
+		if err := customerReturns.OpenReturn(ctx, number, uuid.NullUUID{}, &buyer.ReturnRequest{
 			Reason: reason, Lines: map[string]int32{lineID.String(): 1},
 		}); err != nil {
 			t.Fatalf("open %s return: %v", reason, err)

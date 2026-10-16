@@ -344,6 +344,97 @@ try {
     assert.equal(corner['200%'], corner['100%'] * 2, `${label}: ${corner['100%']}px at 100% text is ${corner['200%']}px at 200%, not double`);
     console.log(`${label}: ${corner['100%']}px at 100% text, ${corner['200%']}px at 200%; heart and hero arrows round, footer button 4px inside its field`);
   }
+  // The header's search is a white pill with a 1px edge on all four sides, in
+  // rem so it grows with the text. A page that opens with the hero meets it
+  // without the header's rule; every other page keeps the rule.
+  {
+    const label = 'header search';
+    const measure = rootSize => evaluate(`(() => {
+      document.documentElement.style.fontSize = ${JSON.stringify(rootSize)};
+      const resolve = (property, value) => {
+        const probe = document.createElement('div');
+        probe.style.position = 'absolute';
+        probe.style.visibility = 'hidden';
+        probe.style.setProperty(property, value);
+        document.body.append(probe);
+        const got = getComputedStyle(probe).getPropertyValue(property);
+        probe.remove();
+        return got;
+      };
+      const field = document.querySelector('#site-search');
+      const icon = document.querySelector('.goen-header__searchicon svg');
+      const header = getComputedStyle(document.querySelector('.goen-header'));
+      if (!field || !icon) return null;
+      const style = getComputedStyle(field);
+      const box = field.getBoundingClientRect();
+      const sides = ['Top', 'Right', 'Bottom', 'Left'];
+      return {
+        hero: document.querySelector('.goen-hero') !== null,
+        rem: parseFloat(getComputedStyle(document.documentElement).fontSize),
+        edge: resolve('color', 'var(--edge)'),
+        press: resolve('border-top-left-radius', 'var(--r-press)'),
+        background: style.backgroundColor,
+        widths: sides.map(side => style[\`border\${side}Width\`]),
+        styles: sides.map(side => style[\`border\${side}Style\`]),
+        colors: sides.map(side => style[\`border\${side}Color\`]),
+        radii: ['TopLeft', 'TopRight', 'BottomRight', 'BottomLeft'].map(corner => style[\`border\${corner}Radius\`]),
+        paddingLeft: style.paddingLeft,
+        height: box.height,
+        iconLeft: icon.getBoundingClientRect().left - box.left,
+        iconRight: icon.getBoundingClientRect().right - box.left,
+        rule: { width: header.borderBottomWidth, style: header.borderBottomStyle },
+      };
+    })()`);
+    for (const width of [375, 1440]) {
+      for (const [path, hero] of [['/home', true], ['/search', false], ['/cart', false]]) {
+        await open(path, width);
+        for (const rootSize of ['', '200%']) {
+          const scale = rootSize || '100%';
+          const where = `${label} ${path} ${width}px at ${scale}`;
+          const got = await measure(rootSize);
+          assert.ok(got, `${where}: no search field or icon`);
+          assert.equal(got.hero, hero, `${where}: the fixture ${hero ? 'has no' : 'has a'} hero`);
+          assert.ok(got.height > 0, `${where}: the field is not drawn`);
+          assert.equal(got.background, 'rgb(255, 255, 255)', `${where}: background is ${got.background}, not white`);
+          assert.deepEqual(got.widths, ['1px', '1px', '1px', '1px'], `${where}: border widths ${got.widths}`);
+          assert.deepEqual(got.styles, ['solid', 'solid', 'solid', 'solid'], `${where}: border styles ${got.styles}`);
+          assert.deepEqual(got.colors, Array(4).fill(got.edge), `${where}: border colours ${got.colors}, not the control edge ${got.edge}`);
+          assert.match(got.press, /^\d+(\.\d+)?px$/, `${where}: --r-press resolves to ${got.press}, not a length`);
+          assert.deepEqual(got.radii, Array(4).fill(got.press), `${where}: corners ${got.radii}, not --r-press ${got.press}`);
+          assert.ok(parseFloat(got.press) >= got.height / 2 - 0.5, `${where}: ${got.height}px tall with a ${got.press} corner, not a full pill`);
+          assert.equal(got.paddingLeft, `${2.5 * got.rem}px`, `${where}: left padding ${got.paddingLeft}, not 2.5rem`);
+          assert.ok(Math.abs(got.iconLeft - got.rem) < 0.5, `${where}: the magnifier starts ${got.iconLeft}px in, not 1rem (${got.rem}px)`);
+          assert.ok(got.iconRight <= 2.5 * got.rem, `${where}: the magnifier ends ${got.iconRight}px in, over the text that starts at 2.5rem`);
+          if (hero) assert.equal(got.rule.width, '0px', `${where}: the header keeps its rule over the hero`);
+          else assert.deepEqual(got.rule, { width: '1px', style: 'solid' }, `${where}: the header's rule is ${JSON.stringify(got.rule)}`);
+        }
+        console.log(`${label} ${path} ${width}px: white pill, 1px edge, 2.5rem inset, header rule ${hero ? 'gone' : 'kept'}`);
+      }
+    }
+    // The focus ring is the shared 2px outline, drawn outside a field that
+    // keeps its pill corners while it is focused.
+    await open('/search', 1440);
+    await send('Emulation.setFocusEmulationEnabled', { enabled: true });
+    try {
+      const ring = await evaluate(`(() => {
+        const field = document.querySelector('#site-search');
+        const style = getComputedStyle(field);
+        const unfocused = style.borderTopLeftRadius;
+        field.focus();
+        return { focused: document.activeElement === field, visible: field.matches(':focus-visible'),
+          width: style.outlineWidth, style: style.outlineStyle, offset: style.outlineOffset,
+          radius: style.borderTopLeftRadius, resting: unfocused };
+      })()`);
+      assert.ok(ring.focused && ring.visible, `${label}: focus: the field did not take focus-visible: ${JSON.stringify(ring)}`);
+      assert.equal(ring.width, '2px', `${label}: focus: outline is ${ring.width}, not 2px`);
+      assert.equal(ring.style, 'solid', `${label}: focus: outline style ${ring.style}`);
+      assert.ok(parseFloat(ring.offset) >= 0, `${label}: focus: the ring is drawn ${ring.offset} inside the field`);
+      assert.equal(ring.radius, ring.resting, `${label}: focus: corner ${ring.radius} while focused, not the resting ${ring.resting}`);
+      console.log(`${label}: focus ring ${ring.width} ${ring.style}, offset ${ring.offset}, corner kept`);
+    } finally {
+      await send('Emulation.setFocusEmulationEnabled', { enabled: false });
+    }
+  }
 } finally {
   socket.close();
   await fetch(`${debugging}/json/close/${target.id}`);

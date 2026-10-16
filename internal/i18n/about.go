@@ -42,7 +42,7 @@ var (
 
 var (
 	KeyOGImageAlt = key("og.image_alt", Message{
-		ZhHant: "書、馬克杯、托特包、耳機與茶葉罐",
-		En:     "A book, a mug, a tote, headphones and a tea tin",
+		ZhHant: "goen 的標誌",
+		En:     "The goen logo",
 	})
 )

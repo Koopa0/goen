@@ -9,7 +9,7 @@ import (
 
 func TestOpenRequestTakesPrecedenceOverStaleFormRefusals(t *testing.T) {
 	t.Parallel()
-	order := &Order{HasOpen: true, Lines: []Line{{ID: "line"}}}
+	order := &ReturnOrder{HasOpen: true, Lines: []ReturnLine{{ID: "line"}}}
 	draft := &returnDraft{Reason: "Kept reason", Quantities: map[string]string{"line": "2"}}
 	for _, refusal := range []web.FieldRefusal{
 		{Field: "qty_line", MessageKey: i18n.KeyReturnTooMany},
