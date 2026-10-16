@@ -129,7 +129,7 @@ func TestStoreLoadAggregatesTiles(t *testing.T) {
 		if tile.HasImage() && (tile.ImageWidth != 1600 || tile.ImageHeight != 1200) {
 			t.Errorf("tile %q image is %dx%d; want 1600x1200", tile.Slug, tile.ImageWidth, tile.ImageHeight)
 		}
-		if tile.OnSale() && tile.CompareCents <= tile.PriceCents {
+		if tile.OnSale && tile.CompareCents <= tile.PriceCents {
 			t.Errorf("tile %q claims a sale but the compare price is not higher", tile.Slug)
 		}
 	}

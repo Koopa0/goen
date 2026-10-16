@@ -101,6 +101,7 @@ func (s *Store) Product(ctx context.Context, slug string, sel Selection) (pages.
 	if err != nil {
 		return pages.ProductView{}, err
 	}
+	view.OnSale = OnSale(view.Campaign.Running(), view.Sellable, view.PriceCents, view.CompareCents)
 
 	if err := s.loadDetail(ctx, &p, &view); err != nil {
 		return pages.ProductView{}, err
@@ -322,7 +323,7 @@ func (s *Store) loadOpinion(ctx context.Context, p *db.ProductBySlugRow, view *p
 			Slug: r.Slug, Name: r.Name, Brand: r.Brand,
 			PriceCents: r.MinPriceCents, PriceVaries: r.PriceVaries,
 			CompareCents: r.CompareAtPriceCents.Int64,
-			InCampaign:   r.InCampaign,
+			OnSale:       OnSale(r.InCampaign, r.InStock, r.MinPriceCents, r.CompareAtPriceCents.Int64),
 			Rating:       r.Rating, RatingCount: r.RatingCount, InStock: r.InStock, Colours: r.Colours,
 			ImageURL:    photo.URL(),
 			ImageSrcset: photo.Srcset(),
@@ -365,7 +366,7 @@ func (s *Store) boughtTogether(ctx context.Context, productID uuid.UUID) ([]page
 			PriceCents:   r.MinPriceCents,
 			PriceVaries:  r.PriceVaries,
 			CompareCents: r.CompareAtPriceCents.Int64,
-			InCampaign:   r.InCampaign,
+			OnSale:       OnSale(r.InCampaign, r.InStock, r.MinPriceCents, r.CompareAtPriceCents.Int64),
 			Rating:       r.Rating,
 			RatingCount:  r.RatingCount,
 			InStock:      r.InStock,

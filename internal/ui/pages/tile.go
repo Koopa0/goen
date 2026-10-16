@@ -23,8 +23,8 @@ type ProductTile struct {
 	// PriceVaries marks PriceCents as the cheapest of several: a "from" price.
 	PriceVaries  bool
 	CompareCents int64 // 0 when the product is not on sale
-	// InCampaign reports that a listed campaign (one with a deal) features the product; only then is CompareCents struck.
-	InCampaign  bool
+	// OnSale strikes CompareCents beside the price, as catalog.OnSale decides.
+	OnSale      bool
 	Rating      float64
 	RatingCount int64
 	// InStock is stock above safety_stock, not stock_quantity > 0.
@@ -60,10 +60,6 @@ func AnyComparable(tiles []ProductTile) bool {
 
 func (t *ProductTile) CompareLabel(ctx context.Context) string {
 	return fmt.Sprintf(i18n.T(ctx, i18n.KeyCompareAddNamed), t.Name)
-}
-
-func (t *ProductTile) OnSale() bool {
-	return t.InStock && t.InCampaign && t.CompareCents > t.PriceCents
 }
 
 func (t *ProductTile) SoldOut() bool { return !t.InStock }
