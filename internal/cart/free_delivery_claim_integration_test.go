@@ -13,7 +13,6 @@ import (
 
 	"github.com/koopa0/goen/internal/cart"
 	"github.com/koopa0/goen/internal/db"
-	"github.com/koopa0/goen/internal/ui/pages"
 )
 
 // The home and product pages claim free delivery from the same shipping methods
@@ -102,7 +101,7 @@ func TestTheStorefrontClaimsFreeDeliveryOnlyWhereTheCartDoes(t *testing.T) {
 				return
 			}
 			s := cart.NewStore(pool)
-			at := func(subtotal int64) pages.FreeDelivery {
+			at := func(subtotal int64) cart.FreeDelivery {
 				t.Helper()
 				choices, choicesErr := s.ShippingChoices(ctx, uuid.New(), subtotal)
 				if choicesErr != nil {
@@ -111,15 +110,15 @@ func TestTheStorefrontClaimsFreeDeliveryOnlyWhereTheCartDoes(t *testing.T) {
 				return cart.FreeDeliveryFor(choices, subtotal)
 			}
 			if got == 0 {
-				if c := at(0); c.Kind == pages.FreeDeliveryShort {
+				if c := at(0); c.Kind == cart.FreeDeliveryShort {
 					t.Errorf("the page claims nothing but the cart says %+v at 0", c)
 				}
 				return
 			}
-			if c := at(got); c.Kind != pages.FreeDeliveryReached || c.ThresholdCents != got {
+			if c := at(got); c.Kind != cart.FreeDeliveryReached || c.ThresholdCents != got {
 				t.Errorf("at the claimed %d the cart says %+v, want reached over %d", got, c, got)
 			}
-			if c := at(got - 1); c.Kind != pages.FreeDeliveryShort || c.ShortfallCents != 1 || c.ThresholdCents != got {
+			if c := at(got - 1); c.Kind != cart.FreeDeliveryShort || c.ShortfallCents != 1 || c.ThresholdCents != got {
 				t.Errorf("one cent under the claimed %d the cart says %+v, want 1 short of %d", got, c, got)
 			}
 		})

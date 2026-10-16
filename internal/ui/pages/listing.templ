@@ -63,7 +63,7 @@ templ Listing(p layouts.Page, v ListingView, rules *ShopRules, head *DepartmentH
 					>
 						if v.Empty() {
 							<div class="ui-empty">
-								@emptyArt(assets.EmptySearchImage)
+								@components.EmptyArt(assets.EmptySearchImage)
 								<p class="goen-empty__title">{ i18n.T(ctx, i18n.KeyListingEmpty) }</p>
 								<p class="goen-empty__text">
 									{ i18n.T(ctx, i18n.KeyListingEmptyHint) }
@@ -329,13 +329,13 @@ templ Search(p layouts.Page, v SearchView) {
 			</div>
 			if !v.Searched() {
 				<div class="ui-empty">
-					@emptyArt(assets.EmptySearchImage)
+					@components.EmptyArt(assets.EmptySearchImage)
 					<p class="goen-empty__title">{ i18n.T(ctx, i18n.KeySearchPrompt) }</p>
 					<p class="goen-empty__text">{ i18n.T(ctx, i18n.KeySearchPromptHint) }</p>
 				</div>
 			} else if v.Empty() {
 				<div class="ui-empty">
-					@emptyArt(assets.EmptySearchImage)
+					@components.EmptyArt(assets.EmptySearchImage)
 					<p class="goen-empty__title">{ fmt.Sprintf(i18n.T(ctx, i18n.KeySearchNoResults), v.Query) }</p>
 					<p class="goen-empty__text">{ i18n.T(ctx, i18n.KeySearchNoResultsHint) }</p>
 					if len(layouts.TopNavFrom(ctx)) > 0 {

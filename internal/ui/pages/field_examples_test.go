@@ -9,13 +9,12 @@ import (
 
 	"github.com/koopa0/goen/internal/contact"
 	"github.com/koopa0/goen/internal/i18n"
-	"github.com/koopa0/goen/internal/invoice"
-	"github.com/koopa0/goen/internal/ui/layouts"
 )
 
 // The address book's row of this test is internal/account's
-// TestAccountExamplesStayOutsideRefusedInputs, and the find-order row is
-// internal/order/buyer's TestFindOrderExampleStaysOutsideRefusedInputs.
+// TestAccountExamplesStayOutsideRefusedInputs, the find-order row is
+// internal/order/buyer's TestFindOrderExampleStaysOutsideRefusedInputs, and the
+// checkout's rows are internal/cart's TestCheckoutExamplesStayOutsideRefusedInputs.
 func TestCustomerExamplesStayOutsideRefusedInputs(t *testing.T) {
 	t.Parallel()
 	for _, locale := range i18n.Locales() {
@@ -35,11 +34,11 @@ func TestCustomerExamplesStayOutsideRefusedInputs(t *testing.T) {
 					return result
 				}
 				name := "Alex Chen"
-				message, coupon := "Tell us what happened…", "Have a discount code?"
+				message := "Tell us what happened…"
 				prefix := "Example: "
 				if locale == i18n.ZhHant {
 					name, prefix = "王小明", "例："
-					message, coupon = "請描述你遇到的狀況…", "有折扣碼嗎？"
+					message = "請描述你遇到的狀況…"
 				}
 				for _, page := range []struct {
 					name      string
@@ -47,8 +46,6 @@ func TestCustomerExamplesStayOutsideRefusedInputs(t *testing.T) {
 					fields    map[string]string
 				}{
 					{"contact", contact.ContactPanel(contact.ContactForm{Name: typed, Email: typed, OrderRef: typed, Message: typed, Errors: errors("name", "email", "order_ref", "message")}), map[string]string{"contact-name": name, "contact-email": "you@example.com", "contact-order": "GO-260101-000001", "contact-message": message}},
-					{"coupon", Checkout(layouts.Page{}, &CheckoutView{CouponCode: typed, Errors: errors("coupon")}), map[string]string{"coupon": coupon}},
-					{"mobile barcode", Checkout(layouts.Page{}, &CheckoutView{Invoice: CheckoutInvoice{Type: invoice.PreferenceMobile, MobileBarcode: typed}, Errors: errors("invoice_carrier")}), map[string]string{"invoice_carrier": "/ABC+123"}},
 				} {
 					t.Run(page.name, func(t *testing.T) {
 						markup := renderComponent(t, ctx, page.component)
@@ -83,7 +80,7 @@ func TestCustomerExamplesStayOutsideRefusedInputs(t *testing.T) {
 							if input.Data == "textarea" {
 								value = nodeText(input)
 							}
-							if id != "contact-message" && id != "coupon" {
+							if id != "contact-message" {
 								example = prefix + example
 							}
 							if attrValue(input, "placeholder") != "" || value != typed {

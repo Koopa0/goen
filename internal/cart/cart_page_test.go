@@ -1,4 +1,4 @@
-package pages
+package cart
 
 import (
 	"fmt"
@@ -9,7 +9,6 @@ import (
 
 	"github.com/koopa0/goen/internal/shipping"
 
-	"github.com/a-h/templ"
 	"github.com/google/go-cmp/cmp"
 	htmlparse "golang.org/x/net/html"
 
@@ -17,7 +16,7 @@ import (
 	"github.com/koopa0/goen/internal/i18n"
 	"github.com/koopa0/goen/internal/invoice"
 	"github.com/koopa0/goen/internal/ui/components"
-	"github.com/koopa0/goen/internal/ui/layouts"
+	"github.com/koopa0/goen/internal/ui/pages"
 )
 
 func TestCartDeliveryAvailabilityKeepsTheCheckoutDraftEligible(t *testing.T) {
@@ -45,7 +44,7 @@ func TestCartDeliveryAvailabilityKeepsTheCheckoutDraftEligible(t *testing.T) {
 				t.Run(tt.name, func(t *testing.T) {
 					t.Parallel()
 					ctx := i18n.WithLocale(t.Context(), locale.locale)
-					v := CartView{Lines: []CartLine{{VariantID: "item", Name: "Item", UnitCents: 100, Quantity: 1, Available: 2}}, SubtotalCents: 100, ItemCount: 1, NoDelivery: tt.noDelivery}
+					v := CartView{Lines: []pages.CartLine{{VariantID: "item", Name: "Item", UnitCents: 100, Quantity: 1, Available: 2}}, SubtotalCents: 100, ItemCount: 1, NoDelivery: tt.noDelivery}
 					if tt.blocked {
 						v.Lines[0].Quantity, v.Lines[0].Short = 3, true
 						v.SubtotalCents, v.ItemCount = 200, 2
@@ -99,33 +98,6 @@ func TestCartDeliveryAvailabilityKeepsTheCheckoutDraftEligible(t *testing.T) {
 	}
 }
 
-func TestKnownPickupChainChoicesMatchValidationAndReturnFreshStorage(t *testing.T) {
-	want := []PickupChainChoice{
-		{Value: "seven_eleven", Label: "7-ELEVEN"},
-		{Value: "family_mart", Label: "全家 FamilyMart"},
-		{Value: "hi_life", Label: "萊爾富 Hi-Life"},
-		{Value: "ok_mart", Label: "OK mart"},
-	}
-	got := KnownPickupChainChoices()
-	if diff := cmp.Diff(want, got); diff != "" {
-		t.Fatalf("KnownPickupChainChoices() mismatch (-want +got):\n%s", diff)
-	}
-	for _, choice := range got {
-		if !choice.Value.Known() {
-			t.Errorf("KnownPickupChainChoices() offers %q, but KnownPickupChain rejects it", choice.Value)
-		}
-	}
-
-	got[0].Value = "other_chain"
-	got[0].Label = "Other"
-	if diff := cmp.Diff(want, KnownPickupChainChoices()); diff != "" {
-		t.Errorf("mutating KnownPickupChainChoices() changed the next result (-want +got):\n%s", diff)
-	}
-	if shipping.Chain("other_chain").Known() {
-		t.Error("mutating KnownPickupChainChoices() changed KnownPickupChain")
-	}
-}
-
 // TestEveryCheckoutChoiceSurvivesChangingAnother holds that the choosers are
 // radio groups inside the checkout form, so changing one keeps what was typed
 // into the others and still works with scripting off.
@@ -134,7 +106,7 @@ func TestEveryCheckoutChoiceSurvivesChangingAnother(t *testing.T) {
 	ctx := i18n.WithLocale(t.Context(), i18n.ZhHant)
 
 	typed := CheckoutView{
-		Cart:     CartView{Lines: []CartLine{{Name: "x", Quantity: 1, UnitCents: 100}}},
+		Cart:     CartView{Lines: []pages.CartLine{{Name: "x", Quantity: 1, UnitCents: 100}}},
 		Shipping: []ShippingChoice{{VersionID: "ship-1", Code: "home", Name: "宅配到府"}},
 		Chosen:   "ship-1",
 		Address: CheckoutAddress{
@@ -182,7 +154,7 @@ func TestChangingACheckoutChoiceAppliesIt(t *testing.T) {
 	ctx := i18n.WithLocale(t.Context(), i18n.ZhHant)
 
 	view := CheckoutView{
-		Cart:           CartView{Lines: []CartLine{{Name: "x", Quantity: 1, UnitCents: 100}}},
+		Cart:           CartView{Lines: []pages.CartLine{{Name: "x", Quantity: 1, UnitCents: 100}}},
 		Shipping:       []ShippingChoice{{VersionID: "ship-1", Code: "home", Name: "宅配到府"}},
 		Chosen:         "ship-1",
 		SavedAddresses: []SavedAddress{{ID: "addr-1", Label: "家"}},
@@ -229,7 +201,7 @@ func TestChangingACheckoutChoiceAppliesIt(t *testing.T) {
 func TestTheCartSummaryEndsOnTheTotal(t *testing.T) {
 	t.Parallel()
 	ctx := i18n.WithLocale(t.Context(), i18n.En)
-	v := CartView{Lines: []CartLine{{VariantID: "item", Name: "Item", UnitCents: 100, Quantity: 1, Available: 2}}, SubtotalCents: 100, ItemCount: 1}
+	v := CartView{Lines: []pages.CartLine{{VariantID: "item", Name: "Item", UnitCents: 100, Quantity: 1, Available: 2}}, SubtotalCents: 100, ItemCount: 1}
 	body := renderComponent(t, ctx, Cart(CartMeta(ctx), v))
 	_, summary, ok := strings.Cut(body, `id="cart-summary"`)
 	if !ok {
@@ -253,7 +225,7 @@ func TestTheApplyButtonAimsAtTheSectionItChanged(t *testing.T) {
 	ctx := i18n.WithLocale(t.Context(), i18n.ZhHant)
 
 	view := CheckoutView{
-		Cart:           CartView{Lines: []CartLine{{Name: "x", Quantity: 1, UnitCents: 100}}},
+		Cart:           CartView{Lines: []pages.CartLine{{Name: "x", Quantity: 1, UnitCents: 100}}},
 		Shipping:       []ShippingChoice{{VersionID: "ship-1", Code: "home", Name: "宅配到府"}},
 		Chosen:         "ship-1",
 		SavedAddresses: []SavedAddress{{ID: "addr-1", Label: "家"}},
@@ -283,11 +255,11 @@ func TestThePickupFormAsksForTheChainAndNothingElse(t *testing.T) {
 	ctx := i18n.WithLocale(t.Context(), i18n.ZhHant)
 
 	view := CheckoutView{
-		Cart:         CartView{Lines: []CartLine{{Name: "x", Quantity: 1, UnitCents: 100}}},
+		Cart:         CartView{Lines: []pages.CartLine{{Name: "x", Quantity: 1, UnitCents: 100}}},
 		Shipping:     []ShippingChoice{{VersionID: "ship-1", Code: "pickup", Name: "超商取貨"}},
 		Chosen:       "ship-1",
 		Destination:  "pickup_point",
-		PickupChains: CheckoutPickupChainChoices(),
+		PickupChains: pages.CheckoutPickupChainChoices(),
 	}
 	html := renderToString(t, Checkout(CheckoutMeta(ctx), &view))
 
@@ -308,76 +280,6 @@ func TestThePickupFormAsksForTheChainAndNothingElse(t *testing.T) {
 		if strings.Contains(html, gone) {
 			t.Errorf("the pickup form still asks for %s", gone)
 		}
-	}
-}
-
-// TestCheckoutOffersTheChainsTheShopShipsTo holds the two sets apart: a shopper
-// chooses between the chains whose store picker the shop will integrate, and the
-// back office keeps every chain, because an order already placed at one of the
-// others still has to be correctable.
-func TestCheckoutOffersTheChainsTheShopShipsTo(t *testing.T) {
-	t.Parallel()
-
-	want := []PickupChainChoice{
-		{Value: shipping.ChainSevenEleven, Label: "7-ELEVEN"},
-		{Value: shipping.ChainFamilyMart, Label: "全家 FamilyMart"},
-	}
-	got := CheckoutPickupChainChoices()
-	if diff := cmp.Diff(want, got); diff != "" {
-		t.Errorf("CheckoutPickupChainChoices() mismatch (-want +got):\n%s", diff)
-	}
-	for _, choice := range got {
-		if !choice.Value.Known() {
-			t.Errorf("checkout offers %q, which validation rejects", choice.Value)
-		}
-	}
-	if len(KnownPickupChainChoices()) != len(shipping.Chains()) {
-		t.Error("the back office no longer offers every chain the shop can accept")
-	}
-}
-
-// TestAPickupOrderIsNamedByItsChain holds what the confirmation and the back
-// office show while no store picker exists: the chain is the destination, and a
-// store appears only when one is known.
-func TestAPickupOrderIsNamedByItsChain(t *testing.T) {
-	t.Parallel()
-
-	for _, tt := range []struct {
-		name   string
-		d      Delivery
-		pickup bool
-		want   string
-	}{
-		{
-			name: "the chain alone", pickup: true,
-			d:    Delivery{PickupChain: shipping.ChainSevenEleven},
-			want: "7-ELEVEN",
-		},
-		{
-			name: "a chain whose store is known", pickup: true,
-			d: Delivery{
-				PickupChain: shipping.ChainFamilyMart, PickupStoreCode: "012345",
-				PickupStoreName: "台北車站門市",
-			},
-			want: "全家 FamilyMart 台北車站門市(012345)",
-		},
-		{
-			name: "an address",
-			d: Delivery{
-				PostalCode: "110", City: "台北市", District: "信義區", Street: "松高路 1 號",
-			},
-			want: "110 台北市信義區松高路 1 號",
-		},
-	} {
-		t.Run(tt.name, func(t *testing.T) {
-			t.Parallel()
-			if got := tt.d.IsPickup(); got != tt.pickup {
-				t.Errorf("IsPickup() = %v, want %v", got, tt.pickup)
-			}
-			if got := tt.d.Line(); got != tt.want {
-				t.Errorf("Line() = %q, want %q", got, tt.want)
-			}
-		})
 	}
 }
 
@@ -499,134 +401,13 @@ func TestTheCheckoutSummaryAddsUpTheWayPlaceOrderDoes(t *testing.T) {
 	})
 }
 
-// TestTheOrderNotFoundPageOffersAWayThrough holds that this 404 offers both
-// /orders/find and /signin, since the reader is a guest or an account holder
-// and the page cannot tell which.
-func TestTheOrderNotFoundPageOffersAWayThrough(t *testing.T) {
-	html := renderToString(t, layouts.OrderNotFound(layouts.Page{Title: "404"}))
-
-	for _, want := range []string{"/orders/find", "/signin"} {
-		if !strings.Contains(html, want) {
-			t.Errorf("the order 404 does not link to %s; the reader is one of two "+
-				"people and the page cannot tell which", want)
-		}
-	}
-}
-
-func renderToString(t *testing.T, c templ.Component) string {
-	t.Helper()
-	var b strings.Builder
-	if err := c.Render(i18n.WithLocale(t.Context(), i18n.ZhHant), &b); err != nil {
-		t.Fatalf("render: %v", err)
-	}
-	return b.String()
-}
-
-// TestANamelessReviewerIsNotBadgedAsABuyer holds the byline apart from the
-// badge. A name is optional at registration and erase_user blanks it, so the
-// fallback byline must not borrow the verified-buyer wording:
-// product_reviews_verified_is_real guards the badge and cannot see a claim
-// made in the author slot.
-func TestANamelessReviewerIsNotBadgedAsABuyer(t *testing.T) {
-	t.Parallel()
-
-	ctx := i18n.WithLocale(t.Context(), i18n.ZhHant)
-	bought := i18n.T(ctx, i18n.KeyVerifiedBuyer)
-
-	nameless := ProductReview{Author: "", Rating: 1}
-	if got := nameless.DisplayAuthor(ctx); strings.Contains(got, bought) {
-		t.Errorf("a nameless reviewer is bylined %q, which contains the verified "+
-			"claim %q — the badge is what says somebody bought, and this review "+
-			"has not", got, bought)
-	}
-}
-
-func TestAReviewerIsMaskedTheSameWayForEveryReview(t *testing.T) {
-	t.Parallel()
-
-	tests := []struct {
-		name   string
-		locale i18n.Locale
-		author string
-		want   string
-	}{
-		{"zh full name", i18n.ZhHant, "王小明", "王○○"},
-		{"zh one character", i18n.ZhHant, "王", "王○○"},
-		{"zh latin name", i18n.ZhHant, "alice Chen", "a○○"},
-		{"en full name", i18n.En, "Alice Chen", "A."},
-		{"en lower case", i18n.En, "bob", "B."},
-		{"en han name", i18n.En, "王小明", "王."},
-		{"padded", i18n.ZhHant, "  陳大文", "陳○○"},
-		{"leading replacement character zh", i18n.ZhHant, "\uFFFD Example Person", "\uFFFD○○"},
-		{"leading replacement character en", i18n.En, "\uFFFD Example Person", "\uFFFD."},
-		{"blank", i18n.ZhHant, "   ", "○○"},
-		{"no name zh", i18n.ZhHant, "", "匿名顧客"},
-		{"no name en", i18n.En, "", "Anonymous"},
-	}
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			t.Parallel()
-			got := (ProductReview{Author: tt.author}).DisplayAuthor(i18n.WithLocale(t.Context(), tt.locale))
-			if got != tt.want {
-				t.Errorf("DisplayAuthor(%q) in %s = %q, want %q", tt.author, tt.locale, got, tt.want)
-			}
-		})
-	}
-}
-
-// TestTheProductPageSaysWhetherItAddedAnything asserts the HTML, because the
-// view model can carry the outcome correctly while the template renders it
-// nowhere.
-func TestTheProductPageSaysWhetherItAddedAnything(t *testing.T) {
-	base := func(outcome string) *ProductView {
-		return &ProductView{
-			Slug: "pixelight-9-pro", Name: "Pixelight 9 Pro",
-			VariantID: "v1", PriceCents: 3690000, Available: 3,
-			AddedOutcome: AddOutcome(outcome),
-		}
-	}
-
-	ctx := i18n.WithLocale(t.Context(), i18n.ZhHant)
-	confirm := i18n.T(ctx, i18n.KeyAddedToCart)
-	refusal := i18n.T(ctx, i18n.KeyAddRefused)
-
-	// The exact words, not just role="status": the page carries other live
-	// regions.
-	added := renderToString(t, Product(layouts.Page{Title: "x"}, base("added")))
-	if !strings.Contains(added, confirm) {
-		t.Errorf("a successful add renders no confirmation; wanted %q", confirm)
-	}
-	viewCart := i18n.T(ctx, i18n.KeyViewCart)
-	if !strings.Contains(added, viewCart) || !strings.Contains(added, `href="/cart"`) {
-		t.Errorf("a successful add renders no cart link; wanted %q beside /cart", viewCart)
-	}
-	if !strings.Contains(added, `role="status"`) {
-		t.Error("the success confirmation is not exposed as a live status")
-	}
-
-	refused := renderToString(t, Product(layouts.Page{Title: "x"}, base("unavailable")))
-	if !strings.Contains(refused, refusal) {
-		t.Errorf("a refused add renders no refusal; wanted %q", refusal)
-	}
-	if added == refused {
-		t.Error("the success and the refusal render identically, which is the " +
-			"defect: nothing added, and the page says the same thing either way")
-	}
-
-	// An ordinary visit shows neither.
-	plain := renderToString(t, Product(layouts.Page{Title: "x"}, base("")))
-	if strings.Contains(plain, confirm) || strings.Contains(plain, refusal) {
-		t.Error("an ordinary page visit renders an add-to-cart message")
-	}
-}
-
 // TestTheCheckoutSummaryNamesTheVariant holds that the summary names the
 // variant, on the one screen built to confirm what is about to be paid for.
 func TestTheCheckoutSummaryNamesTheVariant(t *testing.T) {
 	t.Parallel()
 
 	view := CheckoutView{
-		Cart: CartView{Lines: []CartLine{{
+		Cart: CartView{Lines: []pages.CartLine{{
 			Name: "Pixelight 9 Pro", Label: "星霧藍 / 512GB",
 			Quantity: 1, UnitCents: 3190000,
 		}}},
@@ -673,7 +454,7 @@ func TestTheInvoiceFormAsksForOneThing(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 			view := CheckoutView{
-				Cart:           CartView{Lines: []CartLine{{Name: "x", Quantity: 1, UnitCents: 100}}},
+				Cart:           CartView{Lines: []pages.CartLine{{Name: "x", Quantity: 1, UnitCents: 100}}},
 				Shipping:       []ShippingChoice{{Code: "home", Name: "宅配到府"}},
 				Invoice:        CheckoutInvoice{Type: tt.kind},
 				InvoiceChoices: []InvoiceChoice{{Value: "member_carrier", Label: "會員載具"}},
@@ -698,7 +479,7 @@ func TestTheInvoiceFormAsksForOneThing(t *testing.T) {
 	// The three choosers compose because they are three radio groups in ONE
 	// form, so a submission carries all of them.
 	full := CheckoutView{
-		Cart:           CartView{Lines: []CartLine{{Name: "x", Quantity: 1, UnitCents: 100}}},
+		Cart:           CartView{Lines: []pages.CartLine{{Name: "x", Quantity: 1, UnitCents: 100}}},
 		Shipping:       []ShippingChoice{{VersionID: "ship-1", Code: "home", Name: "宅配到府"}},
 		Chosen:         "ship-1",
 		Invoice:        CheckoutInvoice{Type: "company"},
@@ -729,7 +510,7 @@ func TestAnOffshoreRequoteIsNotAnError(t *testing.T) {
 	ctx := i18n.WithLocale(t.Context(), i18n.ZhHant)
 
 	view := CheckoutView{
-		Cart:     CartView{Lines: []CartLine{{Name: "x", Quantity: 1, UnitCents: 100}}},
+		Cart:     CartView{Lines: []pages.CartLine{{Name: "x", Quantity: 1, UnitCents: 100}}},
 		Shipping: []ShippingChoice{{Code: "home", Name: "宅配到府"}},
 		Repriced: "離島運費另計,已更新為 NT$280。確認後再送出一次。",
 	}
@@ -764,7 +545,7 @@ func TestAChangedCreditBalanceHasItsOwnStatusNotice(t *testing.T) {
 
 	//nolint:gosec // G101: a customer-facing balance-change notice, not a credential
 	view := CheckoutView{
-		Cart:          CartView{Lines: []CartLine{{Name: "x", Quantity: 1, UnitCents: 100}}},
+		Cart:          CartView{Lines: []pages.CartLine{{Name: "x", Quantity: 1, UnitCents: 100}}},
 		Shipping:      []ShippingChoice{{Code: "home", Name: "宅配到府"}},
 		CreditChanged: "可用購物金已變更為 NT$10。請確認後再送出一次。",
 	}
@@ -798,7 +579,7 @@ func TestAShortLineSaysWhatItIsPricedFor(t *testing.T) {
 	t.Parallel()
 	ctx := i18n.WithLocale(t.Context(), i18n.ZhHant)
 
-	short := CartLine{
+	short := pages.CartLine{
 		VariantID: "v1", Slug: "x", Name: "Pixelight 9 Pro",
 		UnitCents: 100000, Quantity: 5, Available: 2, Short: true,
 	}
@@ -806,7 +587,7 @@ func TestAShortLineSaysWhatItIsPricedFor(t *testing.T) {
 		t.Errorf("LineTotal() = %q, want %q — the price is for what can be supplied", got, want)
 	}
 
-	html := renderToString(t, Cart(CartMeta(ctx), CartView{Lines: []CartLine{short}}))
+	html := renderToString(t, Cart(CartMeta(ctx), CartView{Lines: []pages.CartLine{short}}))
 	said := fmt.Sprintf(i18n.T(ctx, i18n.KeyPricedFor), "2")
 	if !strings.Contains(html, said) {
 		t.Errorf("a line asking for 5 and priced for 2 does not say so; wanted %q", said)
@@ -814,8 +595,8 @@ func TestAShortLineSaysWhatItIsPricedFor(t *testing.T) {
 
 	// A line the shelf can meet says nothing: "priced for 5" beside "× 5" is
 	// noise on every ordinary row in the cart.
-	ok := CartLine{VariantID: "v2", Slug: "y", Name: "y", UnitCents: 100000, Quantity: 2, Available: 9}
-	full := renderToString(t, Cart(CartMeta(ctx), CartView{Lines: []CartLine{ok}}))
+	ok := pages.CartLine{VariantID: "v2", Slug: "y", Name: "y", UnitCents: 100000, Quantity: 2, Available: 9}
+	full := renderToString(t, Cart(CartMeta(ctx), CartView{Lines: []pages.CartLine{ok}}))
 	if strings.Contains(full, i18n.T(ctx, i18n.KeyPricedFor)[:3]) {
 		t.Error("an ordinary line is annotated with what it is priced for")
 	}
@@ -831,7 +612,7 @@ func TestEnterInTheCheckoutPlacesTheOrder(t *testing.T) {
 	ctx := i18n.WithLocale(t.Context(), i18n.ZhHant)
 
 	view := CheckoutView{
-		Cart:           CartView{Lines: []CartLine{{Name: "x", Quantity: 1, UnitCents: 100}}},
+		Cart:           CartView{Lines: []pages.CartLine{{Name: "x", Quantity: 1, UnitCents: 100}}},
 		Shipping:       []ShippingChoice{{VersionID: "s1", Code: "home", Name: "宅配到府"}},
 		Chosen:         "s1",
 		InvoiceChoices: []InvoiceChoice{{Value: "member_carrier", Label: "會員載具"}},
@@ -886,7 +667,7 @@ func TestCheckoutExplainsWhatPlacingTheOrderDoes(t *testing.T) {
 				ctx := i18n.WithLocale(t.Context(), locale.locale)
 				view := CheckoutView{
 					Cart: CartView{
-						Lines: []CartLine{{Name: "Item", Quantity: 1, UnitCents: 10000}}, SubtotalCents: 10000,
+						Lines: []pages.CartLine{{Name: "Item", Quantity: 1, UnitCents: 10000}}, SubtotalCents: 10000,
 						PayStartMinutes: 28,
 					},
 					Shipping: []ShippingChoice{{VersionID: "shipping", Code: "home", Name: "Home delivery"}}, Chosen: "shipping",
@@ -963,7 +744,7 @@ func TestTheChosenOptionIsMarkedOnTheRadioAlone(t *testing.T) {
 	ctx := i18n.WithLocale(t.Context(), i18n.ZhHant)
 
 	view := CheckoutView{
-		Cart: CartView{Lines: []CartLine{{Name: "x", Quantity: 1, UnitCents: 100}}},
+		Cart: CartView{Lines: []pages.CartLine{{Name: "x", Quantity: 1, UnitCents: 100}}},
 		Shipping: []ShippingChoice{
 			{VersionID: "ship-1", Code: "home", Name: "宅配到府"},
 			{VersionID: "ship-2", Code: "store_pickup", Name: "超商取貨"},
@@ -1007,7 +788,7 @@ func TestACouponCanBeAppliedWithoutPlacingTheOrder(t *testing.T) {
 	ctx := i18n.WithLocale(t.Context(), i18n.ZhHant)
 
 	view := CheckoutView{
-		Cart:     CartView{Lines: []CartLine{{Name: "x", Quantity: 1, UnitCents: 100}}},
+		Cart:     CartView{Lines: []pages.CartLine{{Name: "x", Quantity: 1, UnitCents: 100}}},
 		Shipping: []ShippingChoice{{VersionID: "s1", Code: "home", Name: "宅配到府"}},
 		Chosen:   "s1",
 	}
@@ -1047,7 +828,7 @@ func TestACouponCanBeAppliedWithoutPlacingTheOrder(t *testing.T) {
 func TestCartLineLoadsTheSmallPhoto(t *testing.T) {
 	t.Parallel()
 	const key = "nimbus-buds-pro-01.webp"
-	line := CartLine{
+	line := pages.CartLine{
 		Slug: "buds", Name: "Buds", Quantity: 1, UnitCents: 100,
 		ImageURL: assets.Image{BundledKey: key}.URL(), ImageSrcset: assets.Image{BundledKey: key}.Srcset(), ImageAlt: "Buds",
 	}
@@ -1065,7 +846,7 @@ func TestCartLineLoadsTheSmallPhoto(t *testing.T) {
 // to the attribute that lets script apply a change on its own.
 func TestCartLineStillWorksWithScriptingOff(t *testing.T) {
 	t.Parallel()
-	html := renderToString(t, cartLine(CartLine{Slug: "buds", Name: "Buds", Quantity: 1, UnitCents: 100}))
+	html := renderToString(t, cartLine(pages.CartLine{Slug: "buds", Name: "Buds", Quantity: 1, UnitCents: 100}))
 	for _, want := range []string{
 		`action="/cart/items/update" data-autosubmit`,
 		`goen-line__update" type="submit">更新`,
@@ -1085,7 +866,7 @@ func TestCartLineStillWorksWithScriptingOff(t *testing.T) {
 func TestCartLineUpdateSwapsOnlyWhatChanges(t *testing.T) {
 	t.Parallel()
 	const id = "11111111-1111-4111-8111-111111111111"
-	html := renderToString(t, cartLine(CartLine{VariantID: id, Slug: "buds", Name: "Buds", Quantity: 1, UnitCents: 100}))
+	html := renderToString(t, cartLine(pages.CartLine{VariantID: id, Slug: "buds", Name: "Buds", Quantity: 1, UnitCents: 100}))
 	for _, want := range []string{
 		`hx-post="/cart/items/update"`,
 		`hx-swap="none"`,
@@ -1114,7 +895,7 @@ func TestARecipientCanBeTheMemberAndAnAddressTheirSavedOne(t *testing.T) {
 	ctx := i18n.WithLocale(t.Context(), i18n.ZhHant)
 
 	view := CheckoutView{
-		Cart:     CartView{Lines: []CartLine{{Name: "x", Quantity: 1, UnitCents: 100}}},
+		Cart:     CartView{Lines: []pages.CartLine{{Name: "x", Quantity: 1, UnitCents: 100}}},
 		Shipping: []ShippingChoice{{VersionID: "ship-1", Code: "home", Name: "宅配到府"}},
 		Chosen:   "ship-1",
 		SavedAddresses: []SavedAddress{{
@@ -1171,7 +952,7 @@ func TestAGuestIsOfferedNeitherControl(t *testing.T) {
 	ctx := i18n.WithLocale(t.Context(), i18n.ZhHant)
 
 	view := CheckoutView{
-		Cart:     CartView{Lines: []CartLine{{Name: "x", Quantity: 1, UnitCents: 100}}},
+		Cart:     CartView{Lines: []pages.CartLine{{Name: "x", Quantity: 1, UnitCents: 100}}},
 		Shipping: []ShippingChoice{{VersionID: "ship-1", Code: "home", Name: "宅配到府"}},
 		Chosen:   "ship-1",
 	}
@@ -1186,29 +967,9 @@ func TestAGuestIsOfferedNeitherControl(t *testing.T) {
 	}
 }
 
-func TestQuestionsAndAnswersMaskNamesLikeReviews(t *testing.T) {
-	t.Parallel()
-	ctx := i18n.WithLocale(t.Context(), i18n.ZhHant)
-	if got := (Question{Asker: "王小明"}).Who(ctx); got != "王○○" {
-		t.Errorf("asker shown as %q, want 王○○", got)
-	}
-	if got := (Answer{Author: "陳大文"}).Who(ctx); got != "陳○○" {
-		t.Errorf("answerer shown as %q, want 陳○○", got)
-	}
-	if got := (Question{Asker: "\uFFFD Example Person"}).Who(ctx); strings.Contains(got, "Example") {
-		t.Errorf("asker shown as %q, which carries the rest of the name", got)
-	}
-	if got := (Answer{Author: "\uFFFD Example Person"}).Who(ctx); strings.Contains(got, "Example") {
-		t.Errorf("answerer shown as %q, which carries the rest of the name", got)
-	}
-	if got := (Answer{Author: "陳大文", IsStaff: true}).Who(ctx); got != "goen" {
-		t.Errorf("staff answer shown as %q, want goen", got)
-	}
-}
-
 func couponTestView() CheckoutView {
 	return CheckoutView{
-		Cart:     CartView{Lines: []CartLine{{Name: "x", Quantity: 1, UnitCents: 100}}},
+		Cart:     CartView{Lines: []pages.CartLine{{Name: "x", Quantity: 1, UnitCents: 100}}},
 		Shipping: []ShippingChoice{{VersionID: "s1", Code: "home", Name: "宅配到府"}},
 		Chosen:   "s1",
 	}
@@ -1301,7 +1062,7 @@ func TestTheCheckoutFormIsCheckedByTheServerAndFocusesTheFirstRefusal(t *testing
 		t.Error("a refused form does not ask for focus on its first refusal")
 	}
 
-	src, err := os.ReadFile(filepath.Join("..", "..", "..", "assets", "js", "goen.js"))
+	src, err := os.ReadFile(filepath.Join("..", "..", "assets", "js", "goen.js"))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -1310,15 +1071,6 @@ func TestTheCheckoutFormIsCheckedByTheServerAndFocusesTheFirstRefusal(t *testing
 	}
 	if !strings.Contains(string(src), `form[data-focus-refused] :is(input, select, textarea, button)[aria-invalid="true"]`) {
 		t.Error("the script does not focus the first refused control of a refused checkout")
-	}
-}
-
-func TestTheCartRecoveryPageReturnsToTheCart(t *testing.T) {
-	t.Parallel()
-	html := renderToString(t, CartRecovery(CartRecoveryMeta(t.Context()), CartRecoveryView{Next: "/account", Notice: "n", Retry: "r"}))
-	back := tagCarrying(t, html, "notice__back")
-	if !strings.Contains(back, `href="/cart"`) {
-		t.Errorf("cart recovery does not return to the cart: %s", back)
 	}
 }
 
@@ -1338,7 +1090,7 @@ func cartFactsOf(t *testing.T, v CartView) string {
 
 func TestTheCartFactLineStatesItemsSubtotalAndFreeDelivery(t *testing.T) {
 	t.Parallel()
-	lines := []CartLine{{VariantID: "v", Slug: "s", Name: "x", Quantity: 2, UnitCents: 40000}}
+	lines := []pages.CartLine{{VariantID: "v", Slug: "s", Name: "x", Quantity: 2, UnitCents: 40000}}
 	for _, tt := range []struct {
 		name string
 		v    CartView
@@ -1393,7 +1145,7 @@ func TestASoldOutLineIsNotCountedAndOffersOnlyRemove(t *testing.T) {
 	t.Parallel()
 	ctx := i18n.WithLocale(t.Context(), i18n.ZhHant)
 	v := CartView{
-		Lines: []CartLine{
+		Lines: []pages.CartLine{
 			{VariantID: "ok", Slug: "a", Name: "a", Quantity: 2, Available: 5, UnitCents: 40000},
 			{VariantID: "gone", Slug: "b", Name: "b", Quantity: 1, UnitCents: 99900, Unavailable: true},
 		},
@@ -1432,20 +1184,20 @@ func TestASoldOutLineIsNotCountedAndOffersOnlyRemove(t *testing.T) {
 func TestTheCartSentenceSaysWhatBlocksCheckout(t *testing.T) {
 	t.Parallel()
 	ctx := i18n.WithLocale(t.Context(), i18n.ZhHant)
-	line := CartLine{VariantID: "v", Slug: "s", Name: "x", Quantity: 1, UnitCents: 100}
+	line := pages.CartLine{VariantID: "v", Slug: "s", Name: "x", Quantity: 1, UnitCents: 100}
 	soldOut, short := line, line
 	soldOut.Unavailable = true
 	short.Short = true
 
 	for _, tt := range []struct {
 		name  string
-		lines []CartLine
+		lines []pages.CartLine
 		want  string
 	}{
-		{"sold out", []CartLine{soldOut}, "有商品已售完，移除後才能結帳。"},
-		{"short", []CartLine{short}, "有商品的庫存不足，請先調整數量再結帳。"},
-		{"both: the sold-out line is the one to deal with first", []CartLine{short, soldOut}, "有商品已售完，移除後才能結帳。"},
-		{"neither", []CartLine{line}, ""},
+		{"sold out", []pages.CartLine{soldOut}, "有商品已售完，移除後才能結帳。"},
+		{"short", []pages.CartLine{short}, "有商品的庫存不足，請先調整數量再結帳。"},
+		{"both: the sold-out line is the one to deal with first", []pages.CartLine{short, soldOut}, "有商品已售完，移除後才能結帳。"},
+		{"neither", []pages.CartLine{line}, ""},
 	} {
 		got := CartView{Lines: tt.lines}.StockNotice(ctx)
 		if got != tt.want {
@@ -1457,7 +1209,7 @@ func TestTheCartSentenceSaysWhatBlocksCheckout(t *testing.T) {
 func TestTheCartShowsTheStockHoldUnderCheckout(t *testing.T) {
 	t.Parallel()
 	ctx := i18n.WithLocale(t.Context(), i18n.ZhHant)
-	lines := []CartLine{{VariantID: "v", Slug: "s", Name: "x", Quantity: 1, UnitCents: 100}}
+	lines := []pages.CartLine{{VariantID: "v", Slug: "s", Name: "x", Quantity: 1, UnitCents: 100}}
 	html := renderToString(t, Cart(CartMeta(ctx), CartView{Lines: lines, HoldMinutes: 61}))
 	if !strings.Contains(html, "庫存保留 61 分鐘") {
 		t.Error("the cart does not say how long the stock is held")
@@ -1470,8 +1222,8 @@ func TestTheCartShowsTheStockHoldUnderCheckout(t *testing.T) {
 func TestRemovingALineIsNotBlockedByAQuantityTheShelfCannotMeet(t *testing.T) {
 	t.Parallel()
 	ctx := i18n.WithLocale(t.Context(), i18n.ZhHant)
-	line := CartLine{VariantID: "v1", Slug: "x", Name: "x", UnitCents: 100000, Quantity: 2, Available: 4}
-	html := renderToString(t, Cart(CartMeta(ctx), CartView{Lines: []CartLine{line}}))
+	line := pages.CartLine{VariantID: "v1", Slug: "x", Name: "x", UnitCents: 100000, Quantity: 2, Available: 4}
+	html := renderToString(t, Cart(CartMeta(ctx), CartView{Lines: []pages.CartLine{line}}))
 	i := strings.Index(html, `name="remove"`)
 	if i < 0 {
 		t.Fatal("the line has no remove button")
@@ -1498,7 +1250,7 @@ func TestTheEnglishItemCountIsTheBareNumber(t *testing.T) {
 
 func TestTheCartSummaryShippingRowAgreesWithTheFreeDeliveryFact(t *testing.T) {
 	t.Parallel()
-	lines := []CartLine{{VariantID: "v", Slug: "s", Name: "x", Quantity: 2, UnitCents: 180000}}
+	lines := []pages.CartLine{{VariantID: "v", Slug: "s", Name: "x", Quantity: 2, UnitCents: 180000}}
 	for _, tt := range []struct {
 		name   string
 		locale i18n.Locale
