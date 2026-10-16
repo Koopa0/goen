@@ -161,18 +161,13 @@ func newRouter(cfg *RouterConfig, log *slog.Logger) http.Handler {
 		catalogue, siteStore = catalogue.WithoutPickup(), siteStore.WithoutPickup()
 	}
 	sitePages := site.NewHandler(log, baseURL, catalogue, siteStore, secureCookies)
-	// Half of the order-lookup credential is a guessable order number, so
-	// unlimited asking makes the endpoint an oracle for the other half.
-	findLimit := ratelimit.New(ratelimit.Config{
-		Every: 6 * time.Minute, Burst: 10, TTL: time.Hour, MaxKeys: 65_536,
-	})
 	var barcodeChecker cart.MobileBarcodeChecker
 	if front.Invoices.Enabled() {
 		barcodeChecker = front.Invoices
 	}
 	orderAccess := access.NewStore(pool, secureCookies)
 	basketStore := cart.NewStore(pool)
-	basket := cart.NewHandler(basketStore, orderAccess, log, secureCookies, findLimit,
+	basket := cart.NewHandler(basketStore, orderAccess, log, secureCookies,
 		sessionCloser(front.Payments), front.StoreMap, barcodeChecker)
 	accounts := account.NewHandler(account.NewStore(pool), basket, log, secureCookies, front.Google)
 	accounts.OfferDemoAccount(front.DemoAccount)
@@ -180,7 +175,7 @@ func newRouter(cfg *RouterConfig, log *slog.Logger) http.Handler {
 	// /admin and the storefront's account doors cannot disagree about it.
 	factorStore := twofactor.NewStore(adminPool, cfg.BackOffice.TOTPKey, cfg.BackOffice.TOTPPreviousKey)
 	accounts.RequireStepUpFromStaff(storefrontStepUp(factorStore, pool, log))
-	storefrontRoutes(mux, front, log, catalogue, sitePages, basket, accounts, orderAccess, findLimit)
+	storefrontRoutes(mux, front, log, catalogue, sitePages, basket, accounts, orderAccess)
 	backOfficeRoutes(mux, &cfg.BackOffice, factorStore, log, poolsOnHealthPage(pool, adminPool, cfg.BackOffice.MaintenancePool))
 	mux.HandleFunc("GET /", sitePages.NotFound)
 
@@ -213,7 +208,7 @@ func newRouter(cfg *RouterConfig, log *slog.Logger) http.Handler {
 // chain and the catch-all read them too.
 func storefrontRoutes(mux *http.ServeMux, cfg *StorefrontConfig, log *slog.Logger,
 	catalogue *catalog.Store, sitePages *site.Handler, basket *cart.Handler,
-	accounts *account.Handler, orderAccess *access.Store, findLimit *ratelimit.Limiter) {
+	accounts *account.Handler, orderAccess *access.Store) {
 	pool, gateway := cfg.StorePool, cfg.Payments
 	baseURL, secureCookies := cfg.BaseURL, cfg.SecureCookies
 	authLimit := ratelimit.New(ratelimit.Config{
@@ -256,7 +251,12 @@ func storefrontRoutes(mux *http.ServeMux, cfg *StorefrontConfig, log *slog.Logge
 		Every: 2 * time.Second, Burst: 30, TTL: time.Hour, MaxKeys: 65_536,
 	})
 	till := payment.NewHandler(payment.NewStore(pool), gateway, orderAccess, log)
-	buyerOrders := buyer.NewHandler(buyer.NewStore(pool), orderAccess, log)
+	// Half of the order-lookup credential is a guessable order number, so
+	// unlimited asking makes the endpoint an oracle for the other half.
+	findLimit := ratelimit.New(ratelimit.Config{
+		Every: 6 * time.Minute, Burst: 10, TTL: time.Hour, MaxKeys: 65_536,
+	})
+	buyerOrders := buyer.NewHandler(buyer.NewStore(pool), orderAccess, log, findLimit, basket.TakesPayment())
 
 	mux.HandleFunc("GET /{$}", homePage.Index)
 	// The digest in the path is the only authorisation an image has, and it is
@@ -314,9 +314,9 @@ func storefrontRoutes(mux *http.ServeMux, cfg *StorefrontConfig, log *slog.Logge
 		mux.HandleFunc("POST "+pages.PickupStartAction, ratelimit.Guard(checkoutLimit, log, basket.PickupStart))
 		mux.HandleFunc("GET "+pages.PickupMapPath, basket.PickupMap)
 	}
-	mux.HandleFunc("GET /orders/find", basket.FindOrderPage)
-	mux.HandleFunc("POST /orders/find", ratelimit.Guard(findLimit, log, basket.FindOrder))
-	mux.HandleFunc("GET /orders/{number}", basket.OrderPage)
+	mux.HandleFunc("GET /orders/find", buyerOrders.FindOrderPage)
+	mux.HandleFunc("POST /orders/find", ratelimit.Guard(findLimit, log, buyerOrders.FindOrder))
+	mux.HandleFunc("GET /orders/{number}", buyerOrders.OrderPage)
 	mux.HandleFunc("POST /orders/{number}/cancel", buyerOrders.CancelOrder)
 	mux.HandleFunc("POST /orders/{number}/reorder", clearSpeculations(basket.ReorderItems))
 	mux.HandleFunc("GET /orders/{number}/pay", till.Page)
@@ -431,7 +431,7 @@ func backOfficeRoutes(mux *http.ServeMux, cfg *BackOfficeConfig, factorStore *tw
 	returnDesk := returns.NewHandler(returns.NewStore(adminPool, payouts), log)
 	delivery := shipping.NewHandler(shipping.NewStore(adminPool), cfg.StoreMap.Enabled(), log)
 	brands := taxonomy.NewHandler(taxonomy.NewStore(adminPool), adminImages, log)
-	shopfront := content.NewHandler(content.NewStore(adminPool, home.NewStore(adminPool)), adminImages, newsletter.NewStore(adminPool), log)
+	shopfront := content.NewHandler(content.NewStore(adminPool, home.NewStore(adminPool)), adminImages, log)
 	sales := campaigns.NewHandler(campaigns.NewStore(adminPool), adminImages, log)
 	inbox := feedback.NewHandler(feedback.NewStore(adminPool), log)
 	roster := staff.NewHandler(staff.NewStore(adminPool), log, factorStore.Enabled())

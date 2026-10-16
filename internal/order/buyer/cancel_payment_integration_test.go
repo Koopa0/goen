@@ -51,7 +51,7 @@ func TestCustomerCancellationKeepsOrdersThatMayStillTakeMoney(t *testing.T) {
 				}
 			}
 			appPool := storeRolePool(t)
-			h := buyer.NewHandler(buyer.NewStore(appPool), access.NewStore(appPool, false), slog.New(slog.DiscardHandler))
+			h := buyer.NewHandler(buyer.NewStore(appPool), access.NewStore(appPool, false), slog.New(slog.DiscardHandler), testLimiter(), false)
 			before := stockOf(t, variant)
 			for _, locale := range i18n.Locales() {
 				localized := i18n.WithLocale(ctx, locale)

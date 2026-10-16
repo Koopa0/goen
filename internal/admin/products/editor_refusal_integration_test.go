@@ -34,7 +34,6 @@ import (
 	"github.com/koopa0/goen/internal/home"
 	"github.com/koopa0/goen/internal/i18n"
 	"github.com/koopa0/goen/internal/media"
-	"github.com/koopa0/goen/internal/newsletter"
 	"github.com/koopa0/goen/internal/ui/pages/admin"
 )
 
@@ -359,7 +358,7 @@ func TestALosslessWebPUploadIsRefusedWithItsOwnNotice(t *testing.T) {
 	images := media.NewHandler(media.NewStore(idle), log)
 	mux := http.NewServeMux()
 	products.NewHandler(s, images, log).Routes(mux, admintest.BackOffice)
-	content.NewHandler(heroes, images, newsletter.NewStore(p), log).Routes(mux, admintest.BackOffice)
+	content.NewHandler(heroes, images, log).Routes(mux, admintest.BackOffice)
 	lossless := []byte{
 		'R', 'I', 'F', 'F', 0x14, 0x00, 0x00, 0x00, 'W', 'E', 'B', 'P',
 		'V', 'P', '8', 'L', 0x08, 0x00, 0x00, 0x00,

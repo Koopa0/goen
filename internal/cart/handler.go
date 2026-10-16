@@ -17,13 +17,11 @@ import (
 	"github.com/google/uuid"
 
 	"github.com/koopa0/goen/internal/bearer"
-	"github.com/koopa0/goen/internal/email"
 
 	"github.com/koopa0/goen/internal/i18n"
 	invoicepkg "github.com/koopa0/goen/internal/invoice"
 	"github.com/koopa0/goen/internal/invoice/issuer"
 	"github.com/koopa0/goen/internal/money"
-	"github.com/koopa0/goen/internal/order"
 	"github.com/koopa0/goen/internal/order/access"
 	"github.com/koopa0/goen/internal/order/delivery"
 	"github.com/koopa0/goen/internal/payment"
@@ -39,9 +37,6 @@ type Handler struct {
 	access *access.Store
 	log    *slog.Logger
 	secure bool
-	// findLimit bounds the order lookup, otherwise an oracle for the secret
-	// half of a credential whose other half is guessable.
-	findLimit *ratelimit.Limiter
 	// sessions is nil on a deployment with no Stripe key, where the checkout
 	// takes no payment.
 	sessions payment.SessionCloser
@@ -53,10 +48,6 @@ type Handler struct {
 	// about: a wrong code and a right one answer differently, so unbounded it
 	// finds codes never handed out.
 	couponMisses *ratelimit.Limiter
-	// findPerAddress bounds the lookup per submitted address as well as per
-	// client: the order number is guessable, so the address is the only secret,
-	// and a per-client bound alone is lifted by changing client.
-	findPerAddress *ratelimit.Limiter
 }
 
 type MobileBarcodeChecker interface {
@@ -66,11 +57,11 @@ type MobileBarcodeChecker interface {
 // NewHandler reads a nil sessions as no provider configured, and a nil or
 // disabled storeMap as no carrier, so the checkout offers no pickup; an
 // omitted checker keeps local shape validation where there is no invoice gateway.
-func NewHandler(store *Store, grants *access.Store, log *slog.Logger, secure bool, findLimit *ratelimit.Limiter,
+func NewHandler(store *Store, grants *access.Store, log *slog.Logger, secure bool,
 	sessions payment.SessionCloser, storeMap *StoreMap, checkers ...MobileBarcodeChecker,
 ) *Handler {
-	if store == nil || grants == nil || log == nil || findLimit == nil {
-		panic("cart: NewHandler requires a store, an access check, a logger and a lookup limiter")
+	if store == nil || grants == nil || log == nil {
+		panic("cart: NewHandler requires a store, an access check and a logger")
 	}
 	if len(checkers) > 1 {
 		panic("cart: NewHandler accepts one mobile barcode checker")
@@ -81,17 +72,12 @@ func NewHandler(store *Store, grants *access.Store, log *slog.Logger, secure boo
 	}
 	return &Handler{
 		barcodeChecker: checker,
-		store:          store, access: grants, log: log, secure: secure, findLimit: findLimit,
+		store:          store, access: grants, log: log, secure: secure,
 		sessions: sessions, storeMap: storeMap,
 		// Twenty wrong codes before the first refusal, then one every two
 		// minutes: more than a shopper retyping a code from a flyer needs.
 		couponMisses: ratelimit.New(ratelimit.Config{
 			Every: 2 * time.Minute, Burst: 20, TTL: time.Hour, MaxKeys: 65_536,
-		}),
-		// Five lookups of one address at once, then five an hour, from
-		// anywhere: a customer finding their own order needs one or two.
-		findPerAddress: ratelimit.New(ratelimit.Config{
-			Every: 12 * time.Minute, Burst: 5, TTL: time.Hour, MaxKeys: 65_536,
 		}),
 	}
 }
@@ -1466,76 +1452,6 @@ func destinationOf(choices []pages.ShippingChoice, versionID string) shipping.De
 	return ""
 }
 
-func (h *Handler) OrderPage(w http.ResponseWriter, r *http.Request) {
-	number := r.PathValue("number")
-
-	// Anything but the browser that placed the order or the account that owns
-	// it gets the same answer as an order that does not exist.
-	if !h.allows(r, number) {
-		if web.ReloadSameSite(w, r, h.log, payment.OrderReload) {
-			return
-		}
-		web.Render(w, r, h.log, http.StatusNotFound, layouts.OrderNotFound(h.notFoundPage(r)))
-		return
-	}
-
-	view, err := h.store.Order(r.Context(), number)
-	if err != nil {
-		if errors.Is(err, ErrNotFound) {
-			web.Render(w, r, h.log, http.StatusNotFound, layouts.Notice(
-				h.notFoundPage(r), "404", i18n.T(r.Context(), i18n.KeyOrderNotFound),
-				i18n.T(r.Context(), i18n.KeyOrderGone)))
-			return
-		}
-		h.log.ErrorContext(r.Context(), "read order", "error", err)
-		h.serverError(w, r)
-		return
-	}
-	view.Cancelled = r.URL.Query().Get("cancelled") == "1"
-	view.PaymentRefreshURL = paymentReturnRefresh(r, &view)
-	if view.PaymentRefreshURL != "" {
-		w.Header().Set("Refresh", strconv.Itoa(paymentReturnRefreshSeconds)+"; url="+view.PaymentRefreshURL)
-		view.PaymentRefreshSeconds = paymentReturnRefreshSeconds
-		view.PaymentRefreshChecks = paymentReturnRefreshChecks
-	}
-	view.ShowWarrantyLink = h.ownedBySignedInUser(r, number)
-	view.PaymentsEnabled = h.TakesPayment()
-	web.Render(w, r, h.log, http.StatusOK, pages.Order(pages.OrderMeta(r.Context(), view.Number), &view))
-}
-
-const (
-	paymentReturnRefreshSeconds = 5
-	paymentReturnRefreshChecks  = 3
-)
-
-// A browser return is not payment evidence. Keep that hint when bounded checks
-// end so a delayed webhook cannot turn it into an invitation to pay again.
-func paymentReturnRefresh(r *http.Request, view *pages.OrderView) string {
-	view.PaymentReturnHint = r.URL.Query().Get("paid") == "1"
-	if !view.AwaitingPayment() || !view.PaymentReturnHint {
-		return ""
-	}
-	attempt := 0
-	if raw := r.URL.Query().Get("confirmation"); raw != "" {
-		if raw == "done" {
-			view.PaymentConfirmationPending = true
-			return ""
-		}
-		parsed, err := strconv.Atoi(raw)
-		if err != nil || parsed < 0 || parsed >= paymentReturnRefreshChecks {
-			return ""
-		}
-		attempt = parsed
-	}
-	next := "/orders/" + url.PathEscape(view.Number) + "?paid=1&confirmation="
-	if attempt < paymentReturnRefreshChecks-1 {
-		next += strconv.Itoa(attempt + 1)
-	} else {
-		next += "done"
-	}
-	return next
-}
-
 func (h *Handler) ReorderItems(w http.ResponseWriter, r *http.Request) {
 	number := r.PathValue("number")
 	if !h.allows(r, number) {
@@ -1579,14 +1495,6 @@ func (h *Handler) allows(r *http.Request, number string) bool {
 		h.log.ErrorContext(r.Context(), "check order access", "order", number, "error", err)
 	}
 	return ok
-}
-
-func (h *Handler) ownedBySignedInUser(r *http.Request, number string) bool {
-	owns, err := h.access.OwnedBySignedInUser(r, number)
-	if err != nil {
-		h.log.ErrorContext(r.Context(), "check order ownership", "error", err)
-	}
-	return owns
 }
 
 func (h *Handler) checkoutView(ctx context.Context, cartID uuid.UUID, owner uuid.NullUUID) (pages.CheckoutView, error) {
@@ -1834,11 +1742,6 @@ func (h *Handler) placementGrantFailed(w http.ResponseWriter, r *http.Request) {
 		layouts.Page{Title: i18n.T(r.Context(), i18n.KeyPlacementGrantFailedTitle)}))
 }
 
-func (h *Handler) findOrderGrantFailed(w http.ResponseWriter, r *http.Request) {
-	web.Render(w, r, h.log, http.StatusInternalServerError, pages.FindOrderGrantFailed(
-		layouts.Page{Title: i18n.T(r.Context(), i18n.KeyFindOrderGrantFailedTitle)}))
-}
-
 func (h *Handler) notFoundPage(r *http.Request) layouts.Page {
 	return layouts.Page{Title: i18n.T(r.Context(), i18n.KeyOrderNotFound)}
 }
@@ -1934,59 +1837,4 @@ func (h *Handler) WithCount(next http.Handler) http.Handler {
 		}
 		next.ServeHTTP(w, r.WithContext(layouts.WithCartCount(r.Context(), n)))
 	})
-}
-
-func (h *Handler) FindOrderPage(w http.ResponseWriter, r *http.Request) {
-	web.Render(w, r, h.log, http.StatusOK, pages.FindOrder(
-		pages.FindOrderMeta(r.Context()), pages.FindOrderView{}))
-}
-
-// FindOrder writes the SAME cookie placing an order writes, and answers
-// IDENTICALLY on every failure, since "that number exists but the address is
-// wrong" hands over half a credential.
-func (h *Handler) FindOrder(w http.ResponseWriter, r *http.Request) {
-	if err := web.ParseForm(w, r); err != nil {
-		http.Error(w, "400 "+i18n.T(r.Context(), i18n.KeyFormUnreadable), http.StatusBadRequest)
-		return
-	}
-	typed := strings.TrimSpace(r.PostFormValue("number"))
-	number, _ := order.NormalizeNumber(typed) // "" when it names no order shape; the store refuses it
-	addr := r.PostFormValue("email")
-
-	// Bounded per IP and BEFORE the read: unbounded, this endpoint is an oracle
-	// for the secret half of the pair.
-	if retryAfter, ok := h.findLimit.Allow("findorder:" + ratelimit.ClientKey(r)); !ok {
-		ratelimit.Refuse(r.Context(), w, retryAfter)
-		return
-	}
-	// Keyed on the address as the lookup reads it, so case or spacing changes
-	// are the same address; one longer than the policy names no order and is
-	// not kept as a key.
-	if key := email.Clean(addr); key != "" && len(key) <= email.Max {
-		if retryAfter, ok := h.findPerAddress.Allow("findorder:" + key); !ok {
-			ratelimit.Refuse(r.Context(), w, retryAfter)
-			return
-		}
-	}
-
-	found, err := h.store.OrderBelongsToEmail(r.Context(), number, addr)
-	if err != nil {
-		h.log.ErrorContext(r.Context(), "find order", "error", err)
-		h.serverError(w, r)
-		return
-	}
-	if !found {
-		web.Render(w, r, h.log, http.StatusUnprocessableEntity, pages.FindOrder(
-			pages.FindOrderMeta(r.Context()), pages.FindOrderView{
-				Number: typed, Email: addr,
-				Error: i18n.T(r.Context(), i18n.KeyFindOrderRefused),
-			}))
-		return
-	}
-
-	if err := h.rememberOrder(w, r, number); err != nil {
-		h.findOrderGrantFailed(w, r)
-		return
-	}
-	http.Redirect(w, r, "/orders/"+url.PathEscape(number), http.StatusSeeOther)
 }

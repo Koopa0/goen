@@ -1,0 +1,40 @@
+package reports
+
+import (
+	"github.com/koopa0/goen/internal/i18n"
+	"github.com/koopa0/goen/internal/ui/chart"
+	"github.com/koopa0/goen/internal/ui/components"
+)
+
+// A product with no returned units is not listed, so an empty list draws
+// nothing; only a failed read says anything in its place.
+templ returnedProducts(v *ReportView) {
+	if v.ReturnedErr != nil {
+		<h2 class="goen-admin__subhead">{ i18n.T(ctx, i18n.KeyAdminRepReturned) }</h2>
+		<p class="goen-admin__hint">{ i18n.T(ctx, i18n.KeyAdminRepReturnedUnavailable) }</p>
+	} else if len(v.Returned) > 0 {
+		<h2 class="goen-admin__subhead">{ i18n.T(ctx, i18n.KeyAdminRepReturned) }</h2>
+		<p class="goen-admin__hint">{ i18n.T(ctx, i18n.KeyAdminRepReturnedNote) }</p>
+		if len(v.Returned) == 1 {
+			<p>{ v.ReturnedOne(ctx) }</p>
+		} else {
+			<ul class="goen-report__rows goen-report__rows--returned" role="list">
+				for _, item := range v.Returned {
+					@components.ReportRow(item.Name, item.Href(), item.Brand) {
+						<div class="goen-report__plot">
+							<p class="goen-report__state">
+								<span class="goen-report__figtext">{ item.Figure(ctx) }</span>
+								if item.ShowsRate() {
+									<span class="goen-report__aside">{ item.Counts(ctx) }</span>
+								}
+							</p>
+							if item.ShowsRate() {
+								@chart.Bar(chart.BarProps{Value: item.returnedPermille(), Max: returnedRateScale})
+							}
+						</div>
+					}
+				}
+			</ul>
+		}
+	}
+}

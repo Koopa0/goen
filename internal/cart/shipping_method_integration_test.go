@@ -10,6 +10,7 @@ import (
 
 	"github.com/koopa0/goen/internal/cart"
 	"github.com/koopa0/goen/internal/i18n"
+	"github.com/koopa0/goen/internal/order/buyer"
 	"github.com/koopa0/goen/internal/order/delivery"
 	"github.com/koopa0/goen/internal/shipping"
 )
@@ -53,7 +54,7 @@ func TestTheOrderNamesItsShippingMethodInTheReadersLanguage(t *testing.T) {
 		locale i18n.Locale
 		want   string
 	}{{i18n.En, "Test pickup"}, {i18n.ZhHant, "測試超取"}} {
-		view, err := s.Order(i18n.WithLocale(ctx, tt.locale), number)
+		view, err := buyer.NewStore(pool).Order(i18n.WithLocale(ctx, tt.locale), number)
 		if err != nil {
 			t.Fatalf("read the order in %s: %v", tt.locale.Tag(), err)
 		}

@@ -14215,9 +14215,10 @@ type RecentOrdersRow struct {
 // The newest orders whatever state they are in, as the landing page lists them.
 // The columns are the ones admin/orders' AdminOrders returns for a queue row,
 // plus returned: whether every unit is in a return whose refund has settled.
-// returned repeats the predicate of ReturnedOrders in internal/cart/query.sql,
-// so that this package reads no other package's query; the test that reads an
-// order through both desks holds the two to the same answer.
+// returned repeats the predicate of ReturnedOrders in
+// internal/order/buyer/query.sql, so that this package reads no other package's
+// query; the test that reads an order through both desks holds the two to the
+// same answer.
 func (q *Queries) RecentOrders(ctx context.Context, rowLimit int32) ([]RecentOrdersRow, error) {
 	rows, err := q.db.Query(ctx, recentOrders, rowLimit)
 	if err != nil {
@@ -14476,9 +14477,9 @@ type RecordNewsletterSendParams struct {
 	After   []byte
 }
 
-// record_audit_event is granted to `admin` and to nobody else, which is why the
-// back office's newsletter store runs on the admin pool. The subject travels,
-// the BODY does not: audit_events is append-only and erase_user does not reach it.
+// record_audit_event is granted to `admin` and to nobody else, which is why
+// issues are composed and sent on the admin pool. The subject travels, the
+// BODY does not: audit_events is append-only and erase_user does not reach it.
 func (q *Queries) RecordNewsletterSend(ctx context.Context, arg RecordNewsletterSendParams) error {
 	_, err := q.db.Exec(ctx, recordNewsletterSend,
 		arg.Actor,

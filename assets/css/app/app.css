@@ -2157,7 +2157,7 @@ body:has(.goen-hero) .goen-header {
 .goen-hero__tabs {
   display: flex;
   gap: var(--s-1);
-  margin-inline-start: calc(var(--s-4) * -1);
+  margin-inline-start: calc(var(--s-4) * -1 - 4px);
   mask-image: linear-gradient(to right, #000 calc(100% - 1.5rem), transparent);
   min-width: 0;
   overflow-x: auto;
@@ -2166,6 +2166,8 @@ body:has(.goen-hero) .goen-header {
   padding-block: 4px;
   /* The fade lands on this room, not on the last tab's words, when the tabs fit. */
   padding-inline-end: 1.5rem;
+  /* The same 4px on the leading side, so the ring of the first tab is not cut. */
+  padding-inline-start: 4px;
   scrollbar-width: none;
 }
 
@@ -2193,7 +2195,7 @@ body:has(.goen-hero) .goen-header {
 
 @media (max-width: 47.99rem) {
   .goen-hero__tabs {
-    margin-inline-start: 0;
+    margin-inline-start: -4px;
   }
 }
 

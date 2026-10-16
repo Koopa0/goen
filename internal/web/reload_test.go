@@ -9,8 +9,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/koopa0/goen/internal/cart"
 	"github.com/koopa0/goen/internal/order/access"
+	"github.com/koopa0/goen/internal/order/buyer"
 	"github.com/koopa0/goen/internal/payment"
 	"github.com/koopa0/goen/internal/ratelimit"
 )
@@ -24,9 +24,9 @@ func TestOnlyARefusedCrossSiteNavigationIsLoadedAgain(t *testing.T) {
 	t.Parallel()
 	log := slog.New(slog.DiscardHandler)
 	grants := &access.Store{}
-	orders := cart.NewHandler(&cart.Store{}, grants, log, true, ratelimit.New(ratelimit.Config{
+	orders := buyer.NewHandler(&buyer.Store{}, grants, log, ratelimit.New(ratelimit.Config{
 		Every: time.Millisecond, Burst: 1000, TTL: time.Hour, MaxKeys: 1000,
-	}), nil, nil)
+	}), false)
 	payments := payment.NewHandler(&payment.Store{}, &payment.Gateway{}, grants, log)
 
 	const number = "GO-261007-000004"

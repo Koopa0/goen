@@ -10,6 +10,7 @@ import (
 
 	"github.com/koopa0/goen/internal/cart"
 	"github.com/koopa0/goen/internal/i18n"
+	"github.com/koopa0/goen/internal/order/buyer"
 	"github.com/koopa0/goen/internal/order/delivery"
 )
 
@@ -74,7 +75,7 @@ func TestOrderPricesAreCopiedNotReferenced(t *testing.T) {
 	if err != nil {
 		t.Fatalf("place: %v", err)
 	}
-	before, err := s.Order(ctx, number)
+	before, err := buyer.NewStore(pool).Order(ctx, number)
 	if err != nil {
 		t.Fatalf("read order: %v", err)
 	}
@@ -88,7 +89,7 @@ func TestOrderPricesAreCopiedNotReferenced(t *testing.T) {
 			`UPDATE product_variants SET price_cents = price_cents - 100000 WHERE id = $1`, vid)
 	})
 
-	after, readErr := s.Order(ctx, number)
+	after, readErr := buyer.NewStore(pool).Order(ctx, number)
 	if readErr != nil {
 		t.Fatalf("re-read order: %v", readErr)
 	}

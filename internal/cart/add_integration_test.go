@@ -12,7 +12,6 @@ import (
 	"net/url"
 	"strings"
 	"testing"
-	"time"
 
 	"github.com/google/uuid"
 
@@ -21,7 +20,6 @@ import (
 	"github.com/koopa0/goen/internal/i18n"
 	"github.com/koopa0/goen/internal/order/access"
 	"github.com/koopa0/goen/internal/product"
-	"github.com/koopa0/goen/internal/ratelimit"
 	"github.com/koopa0/goen/internal/user"
 )
 
@@ -52,9 +50,9 @@ func TestConcurrentSignedInFirstAddsShareOneOwnedCart(t *testing.T) {
 
 	suffix := uuid.NewString()[:8]
 	firstName, secondName := "first-add-a-"+suffix, "first-add-b-"+suffix
-	firstHandler := cart.NewHandler(cart.NewStore(applicationPool(t, firstName)), access.NewStore(pool, false), slog.New(slog.DiscardHandler), false, ratelimit.New(ratelimit.Config{Every: time.Millisecond, Burst: 1000, TTL: time.Hour, MaxKeys: 1000}), nil, nil)
+	firstHandler := cart.NewHandler(cart.NewStore(applicationPool(t, firstName)), access.NewStore(pool, false), slog.New(slog.DiscardHandler), false, nil, nil)
 
-	secondHandler := cart.NewHandler(cart.NewStore(applicationPool(t, secondName)), access.NewStore(pool, false), slog.New(slog.DiscardHandler), false, ratelimit.New(ratelimit.Config{Every: time.Millisecond, Burst: 1000, TTL: time.Hour, MaxKeys: 1000}), nil, nil)
+	secondHandler := cart.NewHandler(cart.NewStore(applicationPool(t, secondName)), access.NewStore(pool, false), slog.New(slog.DiscardHandler), false, nil, nil)
 
 	type addResult struct {
 		code int
@@ -159,7 +157,7 @@ func TestConcurrentSignedInFirstAddsShareOneOwnedCart(t *testing.T) {
 func TestAddToCartReturnsToTheChosenVariant(t *testing.T) {
 	const slug = "nimbus-buds-pro"
 	vid := nimbusVariant(t, "雲白")
-	h := cart.NewHandler(cart.NewStore(pool), access.NewStore(pool, false), slog.New(slog.DiscardHandler), false, testLimiter(), nil, nil)
+	h := cart.NewHandler(cart.NewStore(pool), access.NewStore(pool, false), slog.New(slog.DiscardHandler), false, nil, nil)
 
 	res := postAddToProduct(t, h, vid, slug, "1")
 	if res.Code != http.StatusSeeOther {
@@ -201,7 +199,7 @@ func TestAddToCartReturnsToTheChosenVariant(t *testing.T) {
 func TestAddToCartRefusalKeepsTheChosenVariant(t *testing.T) {
 	const slug = "aurora-slate-11"
 	vid := soldOutAuroraVariant(t)
-	h := cart.NewHandler(cart.NewStore(pool), access.NewStore(pool, false), slog.New(slog.DiscardHandler), false, testLimiter(), nil, nil)
+	h := cart.NewHandler(cart.NewStore(pool), access.NewStore(pool, false), slog.New(slog.DiscardHandler), false, nil, nil)
 
 	res := postAddToProduct(t, h, vid, slug, "1")
 	if res.Code != http.StatusSeeOther {
@@ -221,7 +219,7 @@ func TestAddToCartRefusalKeepsTheChosenVariant(t *testing.T) {
 
 func TestAddToCartRejectsAMismatchedBackSlug(t *testing.T) {
 	vid := variantOf(t, "nimbus-buds-pro", true)
-	h := cart.NewHandler(cart.NewStore(pool), access.NewStore(pool, false), slog.New(slog.DiscardHandler), false, testLimiter(), nil, nil)
+	h := cart.NewHandler(cart.NewStore(pool), access.NewStore(pool, false), slog.New(slog.DiscardHandler), false, nil, nil)
 
 	res := postAddToProduct(t, h, vid, "pixelight-9-pro", "1")
 	if res.Code != http.StatusSeeOther {
@@ -366,7 +364,7 @@ func TestAddClampsToWhatCanBeSupplied(t *testing.T) {
 func TestAddAdjustedShowsNoticeOnTheProductPage(t *testing.T) {
 	ctx := t.Context()
 	s := cart.NewStore(pool)
-	h := cart.NewHandler(s, access.NewStore(pool, false), slog.New(slog.DiscardHandler), false, testLimiter(), nil, nil)
+	h := cart.NewHandler(s, access.NewStore(pool, false), slog.New(slog.DiscardHandler), false, nil, nil)
 
 	vid := freshVariant(t, "stockfix-add-notice")
 	var slug string

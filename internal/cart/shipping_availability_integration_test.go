@@ -75,7 +75,7 @@ func TestCheckoutWithoutDeliveryRetainsTheTypedDraftAndWritesNothing(t *testing.
 				}
 				before := deliveryWriteState(t, ownerPool, id, variant)
 				var diagnostics bytes.Buffer
-				h := cart.NewHandler(s, access.NewStore(appPool, false), slog.New(slog.NewJSONHandler(&diagnostics, nil)), false, testLimiter(), nil, nil)
+				h := cart.NewHandler(s, access.NewStore(appPool, false), slog.New(slog.NewJSONHandler(&diagnostics, nil)), false, nil, nil)
 				mux := http.NewServeMux()
 				mux.HandleFunc("GET /checkout", h.Checkout)
 				mux.HandleFunc("POST /checkout", h.PlaceOrder)
@@ -397,7 +397,7 @@ func TestCartPageDistinguishesUnavailableDeliveryFromALookupFailure(t *testing.T
 				}
 				before := deliveryWriteState(t, owner, id, variant)
 				var diagnostics bytes.Buffer
-				h := cart.NewHandler(s, access.NewStore(app, false), slog.New(slog.NewJSONHandler(&diagnostics, nil)), false, testLimiter(), nil, nil)
+				h := cart.NewHandler(s, access.NewStore(app, false), slog.New(slog.NewJSONHandler(&diagnostics, nil)), false, nil, nil)
 				mux := http.NewServeMux()
 				mux.HandleFunc("GET /cart", h.Page)
 				trace.mu.Lock()

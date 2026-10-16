@@ -16,7 +16,7 @@ import (
 func TestASoldOutLineIsNotCountedAndBlocksCheckout(t *testing.T) {
 	ctx := t.Context()
 	s := cart.NewStore(pool)
-	h := cart.NewHandler(s, access.NewStore(pool, false), slog.New(slog.DiscardHandler), false, testLimiter(), nil, nil)
+	h := cart.NewHandler(s, access.NewStore(pool, false), slog.New(slog.DiscardHandler), false, nil, nil)
 	cartID, token := newCartSession(t, s)
 
 	kept, gone, _ := variantsOf(t, "soldout-line", 2)
