@@ -16,6 +16,7 @@ import (
 
 	"github.com/koopa0/goen/internal/cart"
 	"github.com/koopa0/goen/internal/order/access"
+	"github.com/koopa0/goen/internal/order/buyer"
 	"github.com/koopa0/goen/internal/order/delivery"
 	"github.com/koopa0/goen/internal/payment"
 	"github.com/koopa0/goen/internal/user"
@@ -32,7 +33,7 @@ func TestAStripeReturnIsLoadedAgainOnlyWhenTheGateRefusesACrossSiteNavigation(t 
 	s := cart.NewStore(pool)
 	grants := access.NewStore(pool, false)
 	log := slog.New(slog.DiscardHandler)
-	orders := cart.NewHandler(s, grants, log, false, testLimiter(), nil, nil)
+	orders := buyer.NewHandler(buyer.NewStore(pool), grants, log, testLimiter(), false)
 	gateway, err := payment.NewGateway("", "", "http://127.0.0.1")
 	if err != nil {
 		t.Fatalf("build disabled payment gateway: %v", err)

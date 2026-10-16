@@ -12,10 +12,8 @@ import (
 	"regexp"
 	"strings"
 	"testing"
-	"time"
 
 	"github.com/koopa0/goen/internal/order/access"
-	"github.com/koopa0/goen/internal/ratelimit"
 )
 
 // TestTheStoreMapReturnIsWorthNothingToWhoeverDrivesIt holds the one route
@@ -25,9 +23,7 @@ import (
 // /checkout against the nonce this browser alone holds.
 func TestTheStoreMapReturnIsWorthNothingToWhoeverDrivesIt(t *testing.T) {
 	t.Parallel()
-	h := NewHandler(&Store{}, &access.Store{}, slog.New(slog.DiscardHandler), true, ratelimit.New(ratelimit.Config{
-		Every: time.Millisecond, Burst: 1000, TTL: time.Hour, MaxKeys: 1000,
-	}), nil, testMap(t, ModeB2C))
+	h := NewHandler(&Store{}, &access.Store{}, slog.New(slog.DiscardHandler), true, nil, testMap(t, ModeB2C))
 
 	callback := url.Values{
 		"MerchantID": {aMerchantID}, "MerchantTradeNo": {"ABCDEFGHIJ1234567890"},

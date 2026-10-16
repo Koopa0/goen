@@ -239,7 +239,7 @@ func TestAStrangerCannotCancelSomebodyElsesOrder(t *testing.T) {
 	number := numberOf(t, orderID)
 	before := stockOf(t, vid)
 
-	h := buyer.NewHandler(s, access.NewStore(pool, false), slog.New(slog.DiscardHandler))
+	h := buyer.NewHandler(s, access.NewStore(pool, false), slog.New(slog.DiscardHandler), testLimiter(), false)
 
 	stranger := httptest.NewRequestWithContext(ctx, http.MethodPost, "/orders/"+number+"/cancel", http.NoBody)
 	stranger.SetPathValue("number", number)
@@ -280,7 +280,7 @@ func TestRefusedCancellationLinksBackToTheOrderAndContact(t *testing.T) {
 	orderID := heldOrder(t, vid, -time.Hour, true)
 	number := numberOf(t, orderID)
 	appPool := storeRolePool(t)
-	h := buyer.NewHandler(buyer.NewStore(appPool), access.NewStore(appPool, false), slog.New(slog.DiscardHandler))
+	h := buyer.NewHandler(buyer.NewStore(appPool), access.NewStore(appPool, false), slog.New(slog.DiscardHandler), testLimiter(), false)
 	before := stockOf(t, vid)
 	for _, locale := range i18n.Locales() {
 		r := httptest.NewRequestWithContext(i18n.WithLocale(t.Context(), locale), http.MethodPost, "/orders/"+number+"/cancel", http.NoBody)

@@ -29,20 +29,20 @@ func TestSignedInGuestOrderAccessOffersLookupWithoutSignIn(t *testing.T) {
 	appPool := storeRolePool(t)
 	grants := access.NewStore(appPool, false)
 	log := slog.New(slog.DiscardHandler)
-	basket := cart.NewHandler(cart.NewStore(appPool), grants, log, false, testLimiter(), nil, nil)
+	basket := cart.NewHandler(cart.NewStore(appPool), grants, log, false, nil, nil)
 	gateway, err := payment.NewGateway("", "", "http://goen.example")
 	if err != nil {
 		t.Fatal(err)
 	}
 	pay := payment.NewHandler(payment.NewStore(appPool), gateway, grants, log)
-	buyerOrders := buyer.NewHandler(buyer.NewStore(appPool), grants, log)
+	buyerOrders := buyer.NewHandler(buyer.NewStore(appPool), grants, log, testLimiter(), false)
 	for _, locale := range i18n.Locales() {
 		for _, route := range []struct {
 			path    string
 			method  string
 			handler http.HandlerFunc
 		}{
-			{"", http.MethodGet, basket.OrderPage},
+			{"", http.MethodGet, buyerOrders.OrderPage},
 			{"/pay", http.MethodGet, pay.Page},
 			{"/return", http.MethodGet, buyerOrders.ReturnPage},
 			{"/cancel", http.MethodPost, buyerOrders.CancelOrder},

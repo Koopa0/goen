@@ -9,7 +9,6 @@ import (
 	"net/url"
 	"strings"
 	"testing"
-	"time"
 
 	"github.com/google/uuid"
 
@@ -17,8 +16,8 @@ import (
 	"github.com/koopa0/goen/internal/cart"
 	"github.com/koopa0/goen/internal/i18n"
 	"github.com/koopa0/goen/internal/order/access"
+	"github.com/koopa0/goen/internal/order/buyer"
 	"github.com/koopa0/goen/internal/order/delivery"
-	"github.com/koopa0/goen/internal/ratelimit"
 	"github.com/koopa0/goen/internal/user"
 )
 
@@ -150,7 +149,7 @@ func TestOrderIsAttachedToASignedInCustomer(t *testing.T) {
 		t.Error("the order is reported as belonging to a different account")
 	}
 
-	h := cart.NewHandler(s, access.NewStore(pool, false), slog.New(slog.DiscardHandler), false, testLimiter(), nil, nil)
+	h := buyer.NewHandler(buyer.NewStore(pool), access.NewStore(pool, false), slog.New(slog.DiscardHandler), testLimiter(), false)
 	open := func(who uuid.UUID, cookie *http.Cookie) int {
 		reqCtx := ctx
 		if who != uuid.Nil {
@@ -244,7 +243,7 @@ func TestASpentCouponComesBackAsAFieldErrorNotA500(t *testing.T) {
 	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
 	req.AddCookie(&http.Cookie{Name: "goen_cart", Value: token}) //nolint:gosec // G124: dev cart cookie under test
 
-	h := cart.NewHandler(s, access.NewStore(pool, false), slog.New(slog.DiscardHandler), false, ratelimit.New(ratelimit.Config{Every: time.Millisecond, Burst: 1000, TTL: time.Hour, MaxKeys: 1000}), nil, nil)
+	h := cart.NewHandler(s, access.NewStore(pool, false), slog.New(slog.DiscardHandler), false, nil, nil)
 
 	res := httptest.NewRecorder()
 	h.PlaceOrder(res, req)

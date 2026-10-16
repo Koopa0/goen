@@ -55,7 +55,7 @@ func TestReturnFormReadsTheDeliveredParcelsDatabaseDeadlineAndOnlyTheOpenNotice(
 	if len(order.Shipments) != 1 || !order.Shipments[0].RescissionEnds.Equal(expected) {
 		t.Fatalf("return form parcels = %+v, want the existing database deadline %v", order.Shipments, expected)
 	}
-	handler := buyer.NewHandler(store, access.NewStore(appPool, false), slog.New(slog.DiscardHandler))
+	handler := buyer.NewHandler(store, access.NewStore(appPool, false), slog.New(slog.DiscardHandler), testLimiter(), false)
 	mux := http.NewServeMux()
 	mux.HandleFunc("GET /orders/{number}/return", handler.ReturnPage)
 	mux.HandleFunc("POST /orders/{number}/return", handler.SubmitReturn)
@@ -110,7 +110,7 @@ func TestReturnFormTellsAPickupOrderToCountFromCollection(t *testing.T) {
 		t.Fatalf("read rescission_days: %v", err)
 	}
 	store := buyer.NewStore(appPool)
-	handler := buyer.NewHandler(store, access.NewStore(appPool, false), slog.New(slog.DiscardHandler))
+	handler := buyer.NewHandler(store, access.NewStore(appPool, false), slog.New(slog.DiscardHandler), testLimiter(), false)
 	mux := http.NewServeMux()
 	mux.HandleFunc("GET /orders/{number}/return", handler.ReturnPage)
 	for _, tc := range []struct {

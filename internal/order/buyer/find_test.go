@@ -1,4 +1,4 @@
-package cart
+package buyer
 
 import (
 	"log/slog"
@@ -19,9 +19,9 @@ import (
 // keyed on the whole address is no limit.
 func TestTheOrderLookupLimitCoversAWholeIPv6Slash64(t *testing.T) {
 	t.Parallel()
-	h := NewHandler(&Store{}, &access.Store{}, slog.New(slog.DiscardHandler), true, ratelimit.New(ratelimit.Config{
+	h := NewHandler(&Store{}, &access.Store{}, slog.New(slog.DiscardHandler), ratelimit.New(ratelimit.Config{
 		Every: time.Hour, Burst: 1, TTL: time.Hour, MaxKeys: 8,
-	}), nil, nil)
+	}), false)
 
 	// A lookup with no address is answered 422 without reading the store,
 	// which this handler does not have; the limit is spent before that.
