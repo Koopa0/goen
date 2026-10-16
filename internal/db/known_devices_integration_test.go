@@ -38,3 +38,20 @@ func TestOnlySignInWritesKnownDevices(t *testing.T) {
 		expectRefusal(t, tc.what, tc.stmt, "42501", "")
 	}
 }
+
+// TestPromotionForgetsTheBrowsersAnAccountRemembered: a browser remembered
+// before the account was given the back office was vouched for by somebody the
+// shop had not yet decided to trust, as its sessions were.
+func TestPromotionForgetsTheBrowsersAnAccountRemembered(t *testing.T) {
+	expectAccepted(t, "promoting ming forgets ming's browsers", `
+		INSERT INTO known_devices (digest, user_id, expires_at)
+		VALUES (sha256('promoted-device'::bytea), `+ming+`, now() + interval '1 day');
+		SET LOCAL ROLE admin;
+		SELECT upsert_staff('ming@example.com', '', 'staff');
+		RESET ROLE;
+		DO $$ BEGIN
+			IF EXISTS (SELECT 1 FROM known_devices WHERE digest = sha256('promoted-device'::bytea)) THEN
+				RAISE EXCEPTION 'the promoted account still remembers a browser';
+			END IF;
+		END $$;`)
+}
