@@ -14476,9 +14476,9 @@ type RecordNewsletterSendParams struct {
 	After   []byte
 }
 
-// record_audit_event is granted to `admin` and to nobody else, which is why the
-// back office's newsletter store runs on the admin pool. The subject travels,
-// the BODY does not: audit_events is append-only and erase_user does not reach it.
+// record_audit_event is granted to `admin` and to nobody else, which is why
+// issues are composed and sent on the admin pool. The subject travels, the
+// BODY does not: audit_events is append-only and erase_user does not reach it.
 func (q *Queries) RecordNewsletterSend(ctx context.Context, arg RecordNewsletterSendParams) error {
 	_, err := q.db.Exec(ctx, recordNewsletterSend,
 		arg.Actor,

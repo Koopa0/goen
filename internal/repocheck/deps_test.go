@@ -74,15 +74,14 @@ var (
 		"internal/returns", "internal/sales", "internal/shipping", "internal/user",
 	}
 	// storefrontPages are the packages that serve storefront pages. The rule
-	// that uses them leaves out, on purpose: internal/newsletter (its issue
-	// half moves to admin/content in T41), internal/contact (admin/feedback
+	// that uses them leaves out, on purpose: internal/contact (admin/feedback
 	// uses its Subject vocabulary), internal/loyalty (programme rules
 	// admin/loyalty configures), and internal/media and internal/payment
 	// (shared infrastructure). It matches exactly, not by prefix:
 	// internal/product/labelling is a vocabulary leaf that admin/products imports.
 	storefrontPages = []string{
 		"internal/account", "internal/cart", "internal/catalog", "internal/home",
-		"internal/product", "internal/site",
+		"internal/newsletter", "internal/product", "internal/site",
 	}
 	// importFreeLeaves import no goen package at all.
 	importFreeLeaves = []string{

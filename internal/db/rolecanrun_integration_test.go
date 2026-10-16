@@ -79,22 +79,14 @@ func TestEveryRoleCanRunItsOwnQueries(t *testing.T) {
 
 // runExemptions is a query a package calls that one of its roles cannot run, keyed role.Query.
 var runExemptions = map[string]string{
-	"admin.ClaimOutbox":                        "the relay and its sweeper run on the storefront pool; the admin pool's outbox.Store only reads the stuck list",
-	"admin.MarkOutboxDelivered":                "the relay and its sweeper run on the storefront pool; the admin pool's outbox.Store only reads the stuck list",
-	"admin.RescheduleOutbox":                   "the relay and its sweeper run on the storefront pool; the admin pool's outbox.Store only reads the stuck list",
-	"admin.SweepDeliveredMessages":             "the relay and its sweeper run on the storefront pool; the admin pool's outbox.Store only reads the stuck list",
-	"admin.SweepUndeliveredMessages":           "the relay and its sweeper run on the storefront pool; the admin pool's outbox.Store only reads the stuck list",
-	"store.DeleteMedia":                        "the sweeper runs on the admin pool; store serves images and never deletes one",
-	"store.AttributeCompletePaymentPaid":       "payment owns the capture invariants and side effects, but manual paid attribution is called only with an audited admin transaction; store must not hold that privilege",
-	"store.PutMedia":                           "only the back office uploads; store serves what is already stored",
-	"store.RecordNewsletterSend":               "the back office sends and audits; store only subscribes",
-	"store.CreateNewsletterIssue":              "the back office composes; store only subscribes",
-	"store.MarkNewsletterIssueSent":            "the back office sends; store only subscribes",
-	"admin.RequestNewsletterConfirm":           "only a visitor asks to join; admin holds no write on newsletter_confirmations by design",
-	"admin.SpendNewsletterConfirmation":        "only the mailbox owner confirms",
-	"admin.AddNewsletterSubscriber":            "the shop cannot put an address on its own list",
-	"admin.UnsubscribeNewsletter":              "only the address owner leaves",
-	"admin.DeleteStaleNewsletterConfirmations": "the sweeper runs on the storefront pool; the admin pool's newsletter.Store only sends issues",
+	"admin.ClaimOutbox":                  "the relay and its sweeper run on the storefront pool; the admin pool's outbox.Store only reads the stuck list",
+	"admin.MarkOutboxDelivered":          "the relay and its sweeper run on the storefront pool; the admin pool's outbox.Store only reads the stuck list",
+	"admin.RescheduleOutbox":             "the relay and its sweeper run on the storefront pool; the admin pool's outbox.Store only reads the stuck list",
+	"admin.SweepDeliveredMessages":       "the relay and its sweeper run on the storefront pool; the admin pool's outbox.Store only reads the stuck list",
+	"admin.SweepUndeliveredMessages":     "the relay and its sweeper run on the storefront pool; the admin pool's outbox.Store only reads the stuck list",
+	"store.DeleteMedia":                  "the sweeper runs on the admin pool; store serves images and never deletes one",
+	"store.AttributeCompletePaymentPaid": "payment owns the capture invariants and side effects, but manual paid attribution is called only with an audited admin transaction; store must not hold that privilege",
+	"store.PutMedia":                     "only the back office uploads; store serves what is already stored",
 }
 
 // TestNoStaleRunExemption refuses a runExemptions entry the schema has outgrown, by identity.
@@ -132,6 +124,29 @@ func TestNoStaleRunExemption(t *testing.T) {
 			t.Errorf("runExemptions has %q (%s), but %s CAN run %s now. The entry "+
 				"claims a gap that is closed, and an exemption nobody revisits is how "+
 				"a list stops describing the schema.", key, runExemptions[key], role, method)
+		}
+	}
+}
+
+// TestNoUnusedRunExemption refuses a runExemptions entry for a query that no
+// package on that role's pool calls any more. The role still cannot run it, so
+// TestNoStaleRunExemption passes; the entry exempts nothing, and it would
+// silently cover the query if code on that pool started calling it.
+func TestNoUnusedRunExemption(t *testing.T) {
+	called := map[string]bool{}
+	for _, role := range []string{"store", "admin", "maintenance"} {
+		for _, pkg := range packagesOn(role) {
+			for _, method := range calledQueries(t, pkg) {
+				called[role+"."+method] = true
+			}
+		}
+	}
+	for _, key := range slices.Sorted(maps.Keys(runExemptions)) {
+		if !called[key] {
+			role, method, _ := strings.Cut(key, ".")
+			t.Errorf("runExemptions has %q (%s), but no package on the %s pool calls %s. "+
+				"Delete the entry: it exempts nothing today, and would wave through the "+
+				"first call that needs a grant.", key, runExemptions[key], role, method)
 		}
 	}
 }

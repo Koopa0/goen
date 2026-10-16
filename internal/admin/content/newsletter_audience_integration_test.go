@@ -19,7 +19,6 @@ import (
 	"github.com/koopa0/goen/internal/db/dbtest"
 	"github.com/koopa0/goen/internal/i18n"
 	"github.com/koopa0/goen/internal/media"
-	"github.com/koopa0/goen/internal/newsletter"
 	"github.com/koopa0/goen/internal/outbox"
 )
 
@@ -39,16 +38,16 @@ func TestNewsletterAudienceUsesOnlyActiveSubscribers(t *testing.T) {
 		VALUES ('waiting@example.com', decode(repeat('ab', 32), 'hex'), now() + interval '1 day')`); err != nil {
 		t.Fatal(err)
 	}
-	letters := newsletter.NewStore(admin)
-	counts, countErr := letters.Counts(ctx)
+	letters := newStore(admin)
+	counts, countErr := letters.SubscriberCounts(ctx)
 	if countErr != nil {
 		t.Fatal(countErr)
 	}
-	if diff := cmp.Diff(newsletter.Counts{Active: 3, EnglishActive: 1, Unsubscribed: 2, Awaiting: 1}, counts); diff != "" {
+	if diff := cmp.Diff(content.SubscriberCounts{Active: 3, EnglishActive: 1, Unsubscribed: 2, Awaiting: 1}, counts); diff != "" {
 		t.Fatalf("newsletter counts (-want +got):\n%s", diff)
 	}
 	log := slog.New(slog.DiscardHandler)
-	handler := content.NewHandler(newStore(admin), media.NewHandler(media.NewStore(admin), log), letters, log)
+	handler := content.NewHandler(letters, media.NewHandler(media.NewStore(admin), log), log)
 	mux := http.NewServeMux()
 	handler.Routes(mux, admintest.BackOffice)
 	for _, locale := range []struct {
@@ -83,11 +82,11 @@ func TestNewsletterAudienceUsesOnlyActiveSubscribers(t *testing.T) {
 		t.Errorf("refused composition created %d issues and %d deliveries, want zero", issues, deliveries)
 	}
 	actor := uuid.NullUUID{UUID: staff, Valid: true}
-	issueID, err := letters.Compose(ctx, "Audience contract", "One body for all active subscribers", actor)
+	issueID, err := letters.ComposeNewsletter(ctx, "Audience contract", "One body for all active subscribers", actor)
 	if err != nil {
 		t.Fatal(err)
 	}
-	sent, err := letters.Send(ctx, issueID, actor)
+	sent, err := letters.SendNewsletter(ctx, issueID, actor)
 	if err != nil {
 		t.Fatal(err)
 	}

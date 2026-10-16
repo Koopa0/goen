@@ -11,7 +11,6 @@ import (
 	"github.com/koopa0/goen/internal/i18n"
 	"github.com/koopa0/goen/internal/keyset"
 	"github.com/koopa0/goen/internal/media"
-	"github.com/koopa0/goen/internal/newsletter"
 	"github.com/koopa0/goen/internal/ui/components"
 	"github.com/koopa0/goen/internal/ui/layouts"
 	"github.com/koopa0/goen/internal/ui/pages/admin"
@@ -19,17 +18,16 @@ import (
 )
 
 type Handler struct {
-	store   *Store
-	images  *media.Handler
-	letters *newsletter.Store
-	log     *slog.Logger
+	store  *Store
+	images *media.Handler
+	log    *slog.Logger
 }
 
-func NewHandler(store *Store, images *media.Handler, letters *newsletter.Store, log *slog.Logger) *Handler {
-	if store == nil || images == nil || letters == nil || log == nil {
-		panic("content: NewHandler requires a store, a media handler, a newsletter store and a logger")
+func NewHandler(store *Store, images *media.Handler, log *slog.Logger) *Handler {
+	if store == nil || images == nil || log == nil {
+		panic("content: NewHandler requires a store, a media handler and a logger")
 	}
-	return &Handler{store: store, images: images, letters: letters, log: log}
+	return &Handler{store: store, images: images, log: log}
 }
 
 func (h *Handler) Routes(mux *http.ServeMux, ac *access.Control) {
@@ -460,13 +458,13 @@ func (h *Handler) Newsletter(w http.ResponseWriter, r *http.Request) {
 
 // ComposeNewsletter writes a DRAFT and sends nothing: the irreversible step gets its own button.
 func (h *Handler) ComposeNewsletter(w http.ResponseWriter, r *http.Request) {
-	if err := web.ParseLongTextForm(w, r, newsletter.MaxIssueSubjectRunes+newsletter.MaxIssueBodyRunes); err != nil {
+	if err := web.ParseLongTextForm(w, r, MaxNewsletterSubjectRunes+MaxNewsletterBodyRunes); err != nil {
 		http.Error(w, i18n.T(r.Context(), i18n.KeyAdminBadForm), http.StatusBadRequest)
 		return
 	}
 	subject, body := r.PostFormValue("subject"), r.PostFormValue("body")
 
-	if keys := newsletter.ValidateIssue(subject, body); len(keys) > 0 {
+	if keys := validateNewsletter(subject, body); len(keys) > 0 {
 		view, err := h.newsletterView(r)
 		if err != nil {
 			h.log.ErrorContext(r.Context(), "read the newsletter", "error", err)
@@ -483,7 +481,7 @@ func (h *Handler) ComposeNewsletter(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if _, err := h.letters.Compose(r.Context(), subject, body, audit.ActorID(r.Context())); err != nil {
+	if _, err := h.store.ComposeNewsletter(r.Context(), subject, body, audit.ActorID(r.Context())); err != nil {
 		h.log.ErrorContext(r.Context(), "compose a newsletter issue", "error", err)
 		access.ServerError(w, r, h.log)
 		return
@@ -494,12 +492,12 @@ func (h *Handler) ComposeNewsletter(w http.ResponseWriter, r *http.Request) {
 // SendNewsletter relies on the store refusing a second send in the UPDATE's own
 // WHERE clause, because a reload is not the only way two of these arrive.
 func (h *Handler) SendNewsletter(w http.ResponseWriter, r *http.Request) {
-	switch _, err := h.letters.Send(r.Context(), r.PathValue("id"), audit.ActorID(r.Context())); {
+	switch _, err := h.store.SendNewsletter(r.Context(), r.PathValue("id"), audit.ActorID(r.Context())); {
 	case err == nil:
 		http.Redirect(w, r, "/admin/newsletter?sent=1", http.StatusSeeOther)
-	case errors.Is(err, newsletter.ErrAlreadySent):
+	case errors.Is(err, ErrAlreadySent):
 		http.Redirect(w, r, "/admin/newsletter?already=1", http.StatusSeeOther)
-	case errors.Is(err, newsletter.ErrNoSuchIssue):
+	case errors.Is(err, ErrNotFound):
 		access.NotFound(w, r, h.log)
 	default:
 		h.log.ErrorContext(r.Context(), "send a newsletter issue", "error", err)
@@ -508,11 +506,11 @@ func (h *Handler) SendNewsletter(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *Handler) newsletterView(r *http.Request) (admin.NewsletterView, error) {
-	counts, err := h.letters.Counts(r.Context())
+	counts, err := h.store.SubscriberCounts(r.Context())
 	if err != nil {
 		return admin.NewsletterView{}, err
 	}
-	issues, err := h.letters.Issues(r.Context(), NewsletterIssueLimit)
+	issues, err := h.store.NewsletterIssues(r.Context(), NewsletterIssueLimit)
 	if err != nil {
 		return admin.NewsletterView{}, err
 	}
