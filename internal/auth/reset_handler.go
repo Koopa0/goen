@@ -9,7 +9,6 @@ import (
 	"github.com/koopa0/goen/internal/i18n"
 	"github.com/koopa0/goen/internal/ratelimit"
 	"github.com/koopa0/goen/internal/ui/layouts"
-	"github.com/koopa0/goen/internal/ui/pages"
 	"github.com/koopa0/goen/internal/user"
 	"github.com/koopa0/goen/internal/web"
 )
@@ -19,11 +18,11 @@ func (h *Handler) ForgotPage(w http.ResponseWriter, r *http.Request) {
 		http.Redirect(w, r, "/account", http.StatusSeeOther)
 		return
 	}
-	view := pages.ForgotView{Sent: r.URL.Query().Get("sent") == "1", Address: email.ReadMasked(r.URL.Query().Get("address"))}
+	view := ForgotView{Sent: r.URL.Query().Get("sent") == "1", Address: email.ReadMasked(r.URL.Query().Get("address"))}
 	if r.URL.Query().Get("demo") == "fixed" {
 		view.Notice = i18n.T(r.Context(), i18n.KeyDemoPasswordNoReset)
 	}
-	web.Render(w, r, h.log, http.StatusOK, pages.Forgot(
+	web.Render(w, r, h.log, http.StatusOK, Forgot(
 		layouts.Page{Title: i18n.T(r.Context(), i18n.KeyForgotTitle)}, view))
 }
 
@@ -92,9 +91,9 @@ func (h *Handler) RequestPasswordSetup(w http.ResponseWriter, r *http.Request) {
 // ResetPage does not check the token: that would tell a guesser it is real.
 func (h *Handler) ResetPage(w http.ResponseWriter, r *http.Request) {
 	web.NoCompress(w)
-	web.Render(w, r, h.log, http.StatusOK, pages.Reset(
+	web.Render(w, r, h.log, http.StatusOK, Reset(
 		layouts.Page{Title: i18n.T(r.Context(), i18n.KeyResetTitle)},
-		pages.ResetView{Token: r.URL.Query().Get("token")}))
+		ResetView{Token: r.URL.Query().Get("token")}))
 }
 
 func (h *Handler) Reset(w http.ResponseWriter, r *http.Request) {
@@ -108,9 +107,9 @@ func (h *Handler) Reset(w http.ResponseWriter, r *http.Request) {
 	password := r.PostFormValue("password")
 
 	if password != r.PostFormValue("confirm") {
-		web.Render(w, r, h.log, http.StatusUnprocessableEntity, pages.Reset(
+		web.Render(w, r, h.log, http.StatusUnprocessableEntity, Reset(
 			layouts.Page{Title: i18n.T(r.Context(), i18n.KeyResetTitle)},
-			pages.ResetView{Token: token, Error: i18n.T(r.Context(), i18n.KeyPasswordMismatch), ErrorField: "confirm"}))
+			ResetView{Token: token, Error: i18n.T(r.Context(), i18n.KeyPasswordMismatch), ErrorField: "confirm"}))
 		return
 	}
 
@@ -128,13 +127,13 @@ func (h *Handler) Reset(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		errs := web.FieldMessages(r.Context(), []web.FieldRefusal{refusal})
-		web.Render(w, r, h.log, http.StatusUnprocessableEntity, pages.Reset(
+		web.Render(w, r, h.log, http.StatusUnprocessableEntity, Reset(
 			layouts.Page{Title: i18n.T(r.Context(), i18n.KeyResetTitle)},
-			pages.ResetView{Token: token, Error: errs["password"]}))
+			ResetView{Token: token, Error: errs["password"]}))
 	case errors.Is(err, ErrResetInvalid):
-		web.Render(w, r, h.log, http.StatusUnprocessableEntity, pages.Reset(
+		web.Render(w, r, h.log, http.StatusUnprocessableEntity, Reset(
 			layouts.Page{Title: i18n.T(r.Context(), i18n.KeyEmailLinkDeadTitle)},
-			pages.ResetView{Expired: true}))
+			ResetView{Expired: true}))
 	default:
 		h.log.ErrorContext(r.Context(), "complete password reset", "error", err)
 		h.serverError(w, r)
