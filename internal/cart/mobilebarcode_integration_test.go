@@ -70,7 +70,7 @@ func barcodeCheckoutFor(t *testing.T, checker *checkoutBarcode) barcodeCheckout 
 	logs := &bytes.Buffer{}
 	return barcodeCheckout{
 		logs:    logs,
-		handler: cart.NewHandler(s, access.NewStore(pool, false), slog.New(slog.NewTextHandler(logs, nil)), false, testLimiter(), nil, nil, checker),
+		handler: cart.NewHandler(s, access.NewStore(pool, false), slog.New(slog.NewTextHandler(logs, nil)), false, nil, nil, checker),
 		form:    form, token: token, variant: variant, stock: stockOf(t, variant), id: id,
 	}
 }

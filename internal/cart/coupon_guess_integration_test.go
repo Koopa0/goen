@@ -12,7 +12,6 @@ import (
 	"sync"
 	"sync/atomic"
 	"testing"
-	"time"
 
 	"github.com/google/uuid"
 
@@ -20,7 +19,6 @@ import (
 	"github.com/koopa0/goen/internal/cart"
 	"github.com/koopa0/goen/internal/i18n"
 	"github.com/koopa0/goen/internal/order/access"
-	"github.com/koopa0/goen/internal/ratelimit"
 	"github.com/koopa0/goen/internal/user"
 )
 
@@ -37,7 +35,6 @@ func TestWrongCouponCodesAreBoundedWithoutSayingWhichCodeWasRight(t *testing.T) 
 	coupon(t, valid, "amount", 1000, 0, 0, 0, 0)
 	ship := shipVersionFor(t, "home_delivery")
 	h := cart.NewHandler(s, access.NewStore(pool, false), slog.New(slog.DiscardHandler), false,
-		ratelimit.New(ratelimit.Config{Every: time.Millisecond, Burst: 1000, TTL: time.Hour, MaxKeys: 1000}),
 		nil, nil)
 
 	guestCart := func() string {
@@ -134,7 +131,6 @@ func newCouponGuesses(t *testing.T, label string) *couponGuesses {
 	return &couponGuesses{
 		t: t, s: s,
 		h: cart.NewHandler(s, access.NewStore(pool, false), slog.New(slog.DiscardHandler), false,
-			ratelimit.New(ratelimit.Config{Every: time.Millisecond, Burst: 1000, TTL: time.Hour, MaxKeys: 1000}),
 			nil, nil),
 		vid:  freshVariant(t, label),
 		ship: shipVersionFor(t, "home_delivery"),

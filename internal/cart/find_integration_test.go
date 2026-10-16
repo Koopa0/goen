@@ -8,12 +8,12 @@ import (
 
 	"github.com/google/uuid"
 
-	"github.com/koopa0/goen/internal/cart"
+	"github.com/koopa0/goen/internal/order/buyer"
 )
 
 func TestAGuestCanFindTheirOwnOrderWithTheEmail(t *testing.T) {
 	ctx := t.Context()
-	s := cart.NewStore(pool)
+	s := buyer.NewStore(pool)
 	number := orderOfVariants(t, map[uuid.UUID]int32{freshVariant(t, "find-mine"): 1})
 
 	var addr string
@@ -54,7 +54,7 @@ func TestAGuestCanFindTheirOwnOrderWithTheEmail(t *testing.T) {
 
 func TestTheWrongEmailFindsNothing(t *testing.T) {
 	ctx := t.Context()
-	s := cart.NewStore(pool)
+	s := buyer.NewStore(pool)
 	number := orderOfVariants(t, map[uuid.UUID]int32{freshVariant(t, "find-wrong"): 1})
 
 	for _, addr := range []string{
@@ -72,7 +72,7 @@ func TestTheWrongEmailFindsNothing(t *testing.T) {
 
 func TestAnErasedOrderCannotBeFound(t *testing.T) {
 	ctx := t.Context()
-	s := cart.NewStore(pool)
+	s := buyer.NewStore(pool)
 	number := orderOfVariants(t, map[uuid.UUID]int32{freshVariant(t, "find-erased"): 1})
 
 	var addr string

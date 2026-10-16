@@ -10,6 +10,7 @@ import (
 	"github.com/koopa0/goen/internal/cart"
 	"github.com/koopa0/goen/internal/db"
 	"github.com/koopa0/goen/internal/i18n"
+	"github.com/koopa0/goen/internal/order/buyer"
 	"github.com/koopa0/goen/internal/ui/pages"
 )
 
@@ -47,7 +48,7 @@ func TestTheParcelCarriesTheDatabasesLastDays(t *testing.T) {
 		t.Fatalf("commit: %v", err)
 	}
 
-	view, err := s.Order(ctx, number)
+	view, err := buyer.NewStore(pool).Order(ctx, number)
 	if err != nil {
 		t.Fatalf("order: %v", err)
 	}
@@ -175,10 +176,10 @@ func refundedEventOf(t *testing.T, returnID, ago string) time.Time {
 }
 
 // payFor captures the order's whole amount, so a card refund has a payment to come from.
-func payFor(t *testing.T, s *cart.Store, number string) {
+func payFor(t *testing.T, number string) {
 	t.Helper()
 	ctx := i18n.WithLocale(t.Context(), i18n.En)
-	view, err := s.Order(ctx, number)
+	view, err := buyer.NewStore(pool).Order(ctx, number)
 	if err != nil {
 		t.Fatalf("order: %v", err)
 	}
@@ -217,7 +218,7 @@ func TestAnOrderReadsRefundedOnlyOnceItsReturnsRefundHasSettled(t *testing.T) {
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			number := placeUnpaidOrderFor(t, s, fmt.Sprintf("settled-%d@example.com", i))
-			payFor(t, s, number)
+			payFor(t, number)
 			returnID := returnOf(t, number, tc.status, false)
 			if tc.zero {
 				asWritten(t, nil, `
@@ -235,7 +236,7 @@ func TestAnOrderReadsRefundedOnlyOnceItsReturnsRefundHasSettled(t *testing.T) {
 				t.Fatalf("read decision: %v", err)
 			}
 
-			view, err := s.Order(ctx, number)
+			view, err := buyer.NewStore(pool).Order(ctx, number)
 			if err != nil {
 				t.Fatalf("order: %v", err)
 			}
@@ -271,7 +272,7 @@ func TestAnOrderReadsRefundedOnlyOnceItsReturnsRefundHasSettled(t *testing.T) {
 
 	cancelled := placeUnpaidOrderFor(t, s, "cancelled@example.com")
 	returnOf(t, cancelled, "completed", true)
-	if refunded, err := s.Order(ctx, cancelled); err != nil || refunded.Returned != nil {
+	if refunded, err := buyer.NewStore(pool).Order(ctx, cancelled); err != nil || refunded.Returned != nil {
 		t.Errorf("a refund before shipment: Returned = %+v, err %v; want nil", refunded.Returned, err)
 	}
 }
@@ -285,7 +286,7 @@ func TestASecondReturnsUnsettledRefundKeepsTheOrderFromReadingRefunded(t *testin
 	ctx := i18n.WithLocale(t.Context(), i18n.En)
 	s := cart.NewStore(pool)
 	number := placeOrderOfUnits(t, s, "two-returns@example.com", 2)
-	payFor(t, s, number)
+	payFor(t, number)
 
 	oneUnit := func() string {
 		t.Helper()
@@ -308,7 +309,7 @@ func TestASecondReturnsUnsettledRefundKeepsTheOrderFromReadingRefunded(t *testin
 	refundedEventOf(t, first, "2 days")
 	cardRefundOf(t, second, "failed")
 
-	view, err := s.Order(ctx, number)
+	view, err := buyer.NewStore(pool).Order(ctx, number)
 	if err != nil {
 		t.Fatalf("order: %v", err)
 	}
@@ -329,7 +330,7 @@ func TestASecondReturnsUnsettledRefundKeepsTheOrderFromReadingRefunded(t *testin
 		JOIN orders o ON o.id = ol.order_id WHERE o.order_number = $1`, number).Scan(&wantCents); err != nil {
 		t.Fatalf("read the order's value: %v", err)
 	}
-	view, err = s.Order(ctx, number)
+	view, err = buyer.NewStore(pool).Order(ctx, number)
 	if err != nil {
 		t.Fatalf("order: %v", err)
 	}

@@ -20,7 +20,6 @@ import (
 	"github.com/koopa0/goen/internal/i18n"
 	"github.com/koopa0/goen/internal/order/access"
 	"github.com/koopa0/goen/internal/order/delivery"
-	"github.com/koopa0/goen/internal/ratelimit"
 )
 
 // overTheThreshold is above the seeded home-delivery 滿 NT$3,000 免運, so the base
@@ -75,7 +74,6 @@ func checkoutPost(
 
 func couponTestHandler(s *cart.Store) *cart.Handler {
 	return cart.NewHandler(s, access.NewStore(pool, false), slog.New(slog.DiscardHandler), false,
-		ratelimit.New(ratelimit.Config{Every: time.Millisecond, Burst: 1000, TTL: time.Hour, MaxKeys: 1000}),
 		nil, nil)
 }
 

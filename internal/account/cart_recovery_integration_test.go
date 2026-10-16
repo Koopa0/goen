@@ -9,7 +9,6 @@ import (
 	"net/http/httptest"
 	"strings"
 	"testing"
-	"time"
 
 	"github.com/google/uuid"
 
@@ -18,7 +17,6 @@ import (
 	"github.com/koopa0/goen/internal/cart"
 	"github.com/koopa0/goen/internal/i18n"
 	"github.com/koopa0/goen/internal/order/access"
-	"github.com/koopa0/goen/internal/ratelimit"
 	"github.com/koopa0/goen/internal/user"
 )
 
@@ -52,8 +50,7 @@ func TestCartRecoveryReadsBothBasketsWithoutChangingOrExposingAnotherAccount(t *
 					t.Fatal(lineErr)
 				}
 			}
-			carts := cart.NewHandler(cart.NewStore(app), access.NewStore(app, false), slog.New(slog.DiscardHandler), false,
-				ratelimit.New(ratelimit.Config{Every: time.Millisecond, Burst: 1000, TTL: time.Hour, MaxKeys: 1000}), nil, nil)
+			carts := cart.NewHandler(cart.NewStore(app), access.NewStore(app, false), slog.New(slog.DiscardHandler), false, nil, nil)
 			h := account.NewHandler(accounts, carts, slog.New(slog.DiscardHandler), false, nil)
 			token, err := accounts.StartSession(ctx, owner.ID, "recovery", "127.0.0.1")
 			if err != nil {
