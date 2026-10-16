@@ -15,7 +15,7 @@ import (
 	"github.com/koopa0/goen/internal/i18n"
 	"github.com/koopa0/goen/internal/keyset"
 	"github.com/koopa0/goen/internal/refund"
-	returnrules "github.com/koopa0/goen/internal/returns"
+	"github.com/koopa0/goen/internal/returns"
 	"github.com/koopa0/goen/internal/ui/components"
 	"github.com/koopa0/goen/internal/ui/layouts"
 	"github.com/koopa0/goen/internal/ui/pages/admin"
@@ -131,7 +131,7 @@ func (h *Handler) Assess(w http.ResponseWriter, r *http.Request) {
 	if parseErr != nil {
 		h.log.WarnContext(r.Context(), "return assessment rejected",
 			"return", r.PathValue("id"), "error", parseErr)
-		if h.renderReturnRefusal(w, r, formRefuse("decision", returnrules.RefuseIncomplete)) {
+		if h.renderReturnRefusal(w, r, formRefuse("decision", returns.RefuseIncomplete)) {
 			return
 		}
 		http.Redirect(w, r, "/admin/returns?refused=1", http.StatusSeeOther)
@@ -172,7 +172,7 @@ func assessmentLines(r *http.Request) ([]LineEligibility, error) {
 		if err != nil {
 			return nil, fmt.Errorf("field %q does not name an order line: %w", name, err)
 		}
-		fact, ok := returnrules.ParseFact(strings.TrimSpace(values[0]))
+		fact, ok := returns.ParseFact(strings.TrimSpace(values[0]))
 		if !ok {
 			return nil, fmt.Errorf("field %q is not a known fact", name)
 		}
@@ -192,13 +192,13 @@ func assessmentLines(r *http.Request) ([]LineEligibility, error) {
 	out := make([]LineEligibility, 0, len(seen))
 	for _, row := range seen {
 		if row.Unused == "" {
-			row.Unused = string(returnrules.FactUnknown)
+			row.Unused = string(returns.FactUnknown)
 		}
 		if row.Packaging == "" {
-			row.Packaging = string(returnrules.FactUnknown)
+			row.Packaging = string(returns.FactUnknown)
 		}
 		if row.Accessories == "" {
-			row.Accessories = string(returnrules.FactUnknown)
+			row.Accessories = string(returns.FactUnknown)
 		}
 		out = append(out, row)
 	}
@@ -289,7 +289,7 @@ func overlayDraftFacts(row *admin.Return, r *http.Request) {
 	}
 }
 
-func refusalMessage(r *http.Request, kind returnrules.RefusalKind) string {
+func refusalMessage(r *http.Request, kind returns.RefusalKind) string {
 	key, ok := refusalKeys[kind]
 	if !ok {
 		return i18n.T(r.Context(), i18n.KeyAdminNoticeRefused)
@@ -297,18 +297,18 @@ func refusalMessage(r *http.Request, kind returnrules.RefusalKind) string {
 	return i18n.T(r.Context(), key)
 }
 
-var refusalKeys = map[returnrules.RefusalKind]i18n.Key{
-	returnrules.RefuseStatutoryReject:   i18n.KeyAdminRetErrStatutoryReject,
-	returnrules.RefuseUndeliveredReject: i18n.KeyAdminRetErrUndeliveredReject,
-	returnrules.RefuseIncomplete:        i18n.KeyAdminRetErrIncomplete,
-	returnrules.RefuseNeedException:     i18n.KeyAdminRetErrNeedException,
-	returnrules.RefuseUnmetApprove:      i18n.KeyAdminRetErrUnmetApprove,
-	returnrules.RefuseNoUnmet:           i18n.KeyAdminRetErrNoUnmet,
-	returnrules.RefuseUseApprove:        i18n.KeyAdminRetErrUseApprove,
-	returnrules.RefuseStale:             i18n.KeyAdminRetErrStale,
-	returnrules.RefuseEmpty:             i18n.KeyAdminRetErrIncomplete,
-	returnrules.RefuseExceptionReason:   i18n.KeyAdminRetErrExceptionReason,
-	returnrules.RefuseRejectionReason:   i18n.KeyAdminRetErrRejectionReason,
+var refusalKeys = map[returns.RefusalKind]i18n.Key{
+	returns.RefuseStatutoryReject:   i18n.KeyAdminRetErrStatutoryReject,
+	returns.RefuseUndeliveredReject: i18n.KeyAdminRetErrUndeliveredReject,
+	returns.RefuseIncomplete:        i18n.KeyAdminRetErrIncomplete,
+	returns.RefuseNeedException:     i18n.KeyAdminRetErrNeedException,
+	returns.RefuseUnmetApprove:      i18n.KeyAdminRetErrUnmetApprove,
+	returns.RefuseNoUnmet:           i18n.KeyAdminRetErrNoUnmet,
+	returns.RefuseUseApprove:        i18n.KeyAdminRetErrUseApprove,
+	returns.RefuseStale:             i18n.KeyAdminRetErrStale,
+	returns.RefuseEmpty:             i18n.KeyAdminRetErrIncomplete,
+	returns.RefuseExceptionReason:   i18n.KeyAdminRetErrExceptionReason,
+	returns.RefuseRejectionReason:   i18n.KeyAdminRetErrRejectionReason,
 }
 
 func (h *Handler) Inspect(w http.ResponseWriter, r *http.Request) {
@@ -404,12 +404,12 @@ func (h *Handler) Complete(w http.ResponseWriter, r *http.Request) {
 // confirmReturnDecision renders the selected operation before Decide can move
 // money. The final POST still revalidates current eligibility and assessment.
 func (h *Handler) confirmReturnDecision(w http.ResponseWriter, r *http.Request) bool {
-	kind, ok := returnrules.ParseDecisionKind(r.PostFormValue("decision"))
+	kind, ok := returns.ParseDecisionKind(r.PostFormValue("decision"))
 	if !ok {
 		return false
 	}
 	resolution := r.PostFormValue("resolution")
-	required := kind == returnrules.DecisionReject || kind == returnrules.DecisionException
+	required := kind == returns.DecisionReject || kind == returns.DecisionException
 	confirmed := r.PostFormValue("confirm") == string(kind)
 	if confirmed {
 		return false
