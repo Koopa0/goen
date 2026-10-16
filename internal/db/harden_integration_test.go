@@ -125,8 +125,8 @@ func TestHardenSchemaRefusesARoleMigrationsWouldNotCreate(t *testing.T) {
 		}
 		defer func() { _ = tx.Rollback(context.WithoutCancel(ctx)) }()
 		if change != "" {
-			if _, err := tx.Exec(ctx, change); err != nil {
-				t.Fatalf("%s: %v", change, err)
+			if _, changeErr := tx.Exec(ctx, change); changeErr != nil {
+				t.Fatalf("%s: %v", change, changeErr)
 			}
 		}
 		_, err = tx.Exec(ctx, "CALL harden_schema()")
@@ -178,8 +178,8 @@ func TestAFunctionCreatedAfterTheSweepIsClosed(t *testing.T) {
 	if err != nil {
 		t.Fatalf("begin: %v", err)
 	}
-	if _, err := tx.Exec(ctx, "SET LOCAL ROLE reporting"); err != nil {
-		t.Fatalf("set role reporting: %v", err)
+	if _, roleErr := tx.Exec(ctx, "SET LOCAL ROLE reporting"); roleErr != nil {
+		t.Fatalf("set role reporting: %v", roleErr)
 	}
 	_, err = tx.Exec(ctx, "SELECT later_migration_probe()")
 	_ = tx.Rollback(context.WithoutCancel(ctx))
