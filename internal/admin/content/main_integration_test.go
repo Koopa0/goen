@@ -15,7 +15,6 @@ import (
 	"github.com/koopa0/goen/internal/db/dbtest"
 	"github.com/koopa0/goen/internal/home"
 	"github.com/koopa0/goen/internal/media"
-	"github.com/koopa0/goen/internal/newsletter"
 )
 
 var pool *pgxpool.Pool
@@ -45,5 +44,5 @@ func newStore(p *pgxpool.Pool) *content.Store {
 
 func handlerOver(s *content.Store) *content.Handler {
 	log := slog.New(slog.DiscardHandler)
-	return content.NewHandler(s, media.NewHandler(media.NewStore(pool), log), newsletter.NewStore(pool), log)
+	return content.NewHandler(s, media.NewHandler(media.NewStore(pool), log), log)
 }
