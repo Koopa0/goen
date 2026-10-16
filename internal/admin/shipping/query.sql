@@ -117,9 +117,12 @@ RETURNING id;
 -- name: LockShippingZone :one
 SELECT id FROM shipping_zones WHERE id = @zone_id FOR UPDATE;
 
--- Held before any prefix row is touched. Two zones that trade prefixes would
--- otherwise each lock one row and wait for the other's.
--- name: LockZonePrefixAssignments :exec
+-- Held before any prefix row or surcharge is touched: together they are what a
+-- postcode is charged. Two zones that trade prefixes would otherwise each lock
+-- one row and wait for the other's, and checkout holds this lock SHARED from
+-- its quote to its COMMIT (LockZoneRatesForCheckout), where orders_have_lines
+-- prices the order again from these same rows.
+-- name: LockZoneRates :exec
 SELECT pg_advisory_xact_lock(hashtextextended(
     'zone_prefixes', 628471039582915603::bigint));
 

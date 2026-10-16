@@ -209,6 +209,14 @@ func addHoldableLines(t *testing.T, tx pgx.Tx, orderID uuid.UUID, n int) {
 // ownedOrderHolding is ownedOrder with holdable free variant lines for hold.
 func ownedOrderHolding(t *testing.T, userID uuid.UUID, cents int64, holdable int) (number string, orderID uuid.UUID) {
 	t.Helper()
+	return ownedOrderPlacing(t, userID, cents, holdable, nil)
+}
+
+// ownedOrderPlacing is ownedOrderHolding with whatever else the placing
+// transaction writes, such as a coupon redemption, which no later one may.
+func ownedOrderPlacing(t *testing.T, userID uuid.UUID, cents int64, holdable int,
+	placing func(tx pgx.Tx, orderID uuid.UUID)) (number string, orderID uuid.UUID) {
+	t.Helper()
 	ctx := t.Context()
 
 	tx, err := pool.Begin(ctx)
@@ -238,6 +246,9 @@ func ownedOrderHolding(t *testing.T, userID uuid.UUID, cents int64, holdable int
 		VALUES ($1, 'tiered@example.com', '收件', '0912345678', '110', '台北市', '信義區', '路 1 號')`,
 		orderID); err != nil {
 		t.Fatalf("create private data: %v", err)
+	}
+	if placing != nil {
+		placing(tx, orderID)
 	}
 	if err := tx.Commit(ctx); err != nil {
 		t.Fatalf("commit: %v", err)
