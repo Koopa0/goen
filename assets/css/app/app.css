@@ -3940,7 +3940,7 @@ input.goen-check {
   background: var(--tone-ground);
   border-radius: var(--r-hero);
   margin-top: var(--s-2);
-  padding: var(--s-3) var(--head-inset) var(--s-4);
+  padding: var(--s-5) var(--head-inset);
 }
 
 /* The whole line is the link, read as words: the campaign's name and the arrow

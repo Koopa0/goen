@@ -841,6 +841,7 @@ try {
         assert.ok(near(head.body.padding[1], inline) && near(head.body.padding[3], inline), `${label}: copy padding beside ${head.body.padding}, want ${inline}px`);
         if (c.notice) {
           assert.equal(head.notice.background, head.ground, `${label}: the notice is ${head.notice.background}, the tone ground is ${head.ground}`);
+          assert.ok(Math.min(...head.notice.padding) >= 24, `${label}: the notice's padding ${head.notice.padding} is less than its corner`);
           const above = Math.max(head.body.box.bottom, head.media?.box.bottom ?? 0);
           assert.ok(near(head.notice.box.top - above, seam), `${label}: ${head.notice.box.top - above}px between the notice and the panels above, want ${seam}px`);
         }
