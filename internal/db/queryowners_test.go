@@ -38,7 +38,7 @@ const (
 // violation not named here fails, and an entry whose call is gone fails.
 var queryOwnerExceptions = map[string]string{
 	// order/buyer takes cart's order pages and their queries.
-	"internal/returns/buyer -> OrderTracking": "T36",
+	"internal/order/buyer -> OrderTracking": "T36b",
 
 	// ShopRules moves to site with its queries; the product page folds into catalog.
 	"internal/catalog -> FreeDeliveryThreshold": "T39",

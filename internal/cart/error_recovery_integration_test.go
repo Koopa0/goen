@@ -15,8 +15,8 @@ import (
 	"github.com/koopa0/goen/internal/cart"
 	"github.com/koopa0/goen/internal/i18n"
 	"github.com/koopa0/goen/internal/order/access"
+	"github.com/koopa0/goen/internal/order/buyer"
 	"github.com/koopa0/goen/internal/payment"
-	"github.com/koopa0/goen/internal/returns/buyer"
 	"github.com/koopa0/goen/internal/user"
 )
 
@@ -74,7 +74,7 @@ func TestSignedInGuestOrderAccessOffersLookupWithoutSignIn(t *testing.T) {
 		}{
 			{"", http.MethodGet, basket.OrderPage},
 			{"/pay", http.MethodGet, pay.Page},
-			{"/return", http.MethodGet, returns.Page},
+			{"/return", http.MethodGet, returns.ReturnPage},
 			{"/cancel", http.MethodPost, basket.CancelOrder},
 			{"/reorder", http.MethodPost, basket.ReorderItems},
 		} {

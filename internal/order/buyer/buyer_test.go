@@ -25,7 +25,7 @@ func TestValidateAcceptsABlankReason(t *testing.T) {
 	t.Parallel()
 
 	for _, reason := range []string{"", "   \t "} {
-		req := Request{
+		req := ReturnRequest{
 			Reason: reason,
 			Lines:  map[string]int32{"line": 1},
 		}
@@ -39,12 +39,12 @@ func TestParseWantedDistinguishesQuantityFromMalformedInput(t *testing.T) {
 	lineID := uuid.New()
 	allowed := map[string]int32{lineID.String(): 1}
 
-	if _, err := parseWanted(lineID.String(), 2, allowed); !errors.Is(err, ErrTooMany) ||
-		errors.Is(err, ErrInvalid) {
+	if _, err := parseWanted(lineID.String(), 2, allowed); !errors.Is(err, ErrReturnTooMany) ||
+		errors.Is(err, ErrReturnInvalid) {
 		t.Fatalf("quantity 2 with ceiling 1 = %v, want only ErrTooMany", err)
 	}
-	if _, err := parseWanted(uuid.NewString(), 1, allowed); !errors.Is(err, ErrInvalid) ||
-		errors.Is(err, ErrTooMany) {
+	if _, err := parseWanted(uuid.NewString(), 1, allowed); !errors.Is(err, ErrReturnInvalid) ||
+		errors.Is(err, ErrReturnTooMany) {
 		t.Fatalf("unknown line = %v, want only ErrInvalid", err)
 	}
 }
@@ -69,7 +69,7 @@ func TestReturnQuantityRefusalsKeepCompleteDrafts(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 			ctx := i18n.WithLocale(t.Context(), i18n.En)
-			order := &Order{Number: "GO-RETURN", Lines: []Line{{ID: "first", Returnable: tt.firstMax}, {ID: "later", Returnable: 3}}}
+			order := &ReturnOrder{Number: "GO-RETURN", Lines: []ReturnLine{{ID: "first", Returnable: tt.firstMax}, {ID: "later", Returnable: 3}}}
 			form := url.Values{"qty_first": {tt.first}, "qty_later": {"02"}, "reason": {tt.reason}}
 			r := httptest.NewRequestWithContext(ctx, http.MethodPost, "/", strings.NewReader(form.Encode()))
 			r.Header.Set("Content-Type", "application/x-www-form-urlencoded")
@@ -143,7 +143,7 @@ func returnReasonMessages(locale i18n.Locale) (lengthMessage, controlMessage str
 func assertReturnReasonRendering(t *testing.T, locale i18n.Locale, quantity, raw, message string) {
 	t.Helper()
 	ctx := i18n.WithLocale(t.Context(), locale)
-	order := &Order{Number: "GO-RETURN", Lines: []Line{{ID: "first", Returnable: 2}, {ID: "later", Returnable: 3}}}
+	order := &ReturnOrder{Number: "GO-RETURN", Lines: []ReturnLine{{ID: "first", Returnable: 2}, {ID: "later", Returnable: 3}}}
 	form := url.Values{"qty_first": {quantity}, "qty_later": {"0"}, "reason": {raw}}
 	r := httptest.NewRequestWithContext(ctx, http.MethodPost, "/", strings.NewReader(form.Encode()))
 	r.Header.Set("Content-Type", "application/x-www-form-urlencoded")
@@ -246,9 +246,9 @@ func TestReturnReasonBoundaryKeepsValidationPolicy(t *testing.T) {
 	} {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
-			req := Request{Reason: tt.reason, Lines: map[string]int32{"line": 1}}
+			req := ReturnRequest{Reason: tt.reason, Lines: map[string]int32{"line": 1}}
 			err := req.Validate()
-			if tt.invalid && !errors.Is(err, ErrInvalid) {
+			if tt.invalid && !errors.Is(err, ErrReturnInvalid) {
 				t.Errorf("Validate(%q)=%v, want ErrInvalid", tt.reason, err)
 			}
 			if !tt.invalid && err != nil {
@@ -321,7 +321,7 @@ func returnAttributes(n *html.Node, keys ...string) map[string]string {
 func TestReturnDraftRemainsVisibleAfterAvailabilityIsLost(t *testing.T) {
 	t.Parallel()
 	ctx := i18n.WithLocale(t.Context(), i18n.En)
-	original := &Order{Number: "GO-RETURN", Lines: []Line{{ID: "first", Returnable: 3}, {ID: "later", Returnable: 3}}}
+	original := &ReturnOrder{Number: "GO-RETURN", Lines: []ReturnLine{{ID: "first", Returnable: 3}, {ID: "later", Returnable: 3}}}
 	r := httptest.NewRequestWithContext(ctx, http.MethodPost, "/", strings.NewReader(url.Values{"qty_first": {"1"}, "qty_later": {"2"}, "reason": {"Keep this reason"}}.Encode()))
 	r.Header.Set("Content-Type", "application/x-www-form-urlencoded")
 	draft := returnDraftFromForm(r, original)
@@ -336,7 +336,7 @@ func TestReturnDraftRemainsVisibleAfterAvailabilityIsLost(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
-			fresh := &Order{Number: "GO-RETURN", HasOpen: tt.open, Lines: []Line{{ID: "first"}, {ID: "later"}}}
+			fresh := &ReturnOrder{Number: "GO-RETURN", HasOpen: tt.open, Lines: []ReturnLine{{ID: "first"}, {ID: "later"}}}
 			refusals := returnRefusals(fresh, draft, []web.FieldRefusal{{MessageKey: tt.refusal}})
 			var body bytes.Buffer
 			if err := pages.Returns(pages.ReturnsMeta(ctx, fresh.Number), viewOf(ctx, fresh, draft, refusals)).Render(ctx, &body); err != nil {
@@ -386,7 +386,7 @@ func FuzzReturnDraftCapturesLaterSelections(f *testing.F) {
 		f.Add(raw, "Optional reason")
 	}
 	f.Fuzz(func(t *testing.T, raw, reason string) {
-		order := &Order{Lines: []Line{{ID: "first", Returnable: 1}, {ID: "later", Returnable: 3}}}
+		order := &ReturnOrder{Lines: []ReturnLine{{ID: "first", Returnable: 1}, {ID: "later", Returnable: 3}}}
 		form := url.Values{"qty_first": {raw}, "qty_later": {"02"}, "reason": {reason}}
 		r := httptest.NewRequestWithContext(t.Context(), http.MethodPost, "/", strings.NewReader(form.Encode()))
 		r.Header.Set("Content-Type", "application/x-www-form-urlencoded")
