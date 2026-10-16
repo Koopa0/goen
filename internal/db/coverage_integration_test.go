@@ -798,6 +798,7 @@ func TestReportingCannotReadCredentialsOrPII(t *testing.T) {
 		"shipping_zone_prefixes":   {[]string{"prefix"}, published},
 		"shipping_zones":           {[]string{"code", "name", "name_en"}, published},
 		"store_credit_entries":     {[]string{"idempotency_key", "kind", "reason"}, shopWords},
+		"variant_primary_image":    {[]string{"alt_text", "alt_text_en", "bundled_key", "media_digest"}, "product_images' published columns, read through the view"},
 		"visible_reviews":          {[]string{"body", "title"}, customerPub},
 		"warranty_registrations": {[]string{"serial_number"},
 			"the manufacturer's number on the unit, which the privacy policy retains"},

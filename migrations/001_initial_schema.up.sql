@@ -643,6 +643,37 @@ CREATE INDEX variant_option_values_product_variant_idx
 CREATE INDEX variant_option_values_product_option_idx
     ON variant_option_values (product_id, option_id, option_value_id);
 
+-- The one photograph that stands for a choice: a cart line, an order line on
+-- the order, pay and back-office pages. The product page's own order, written
+-- once: a photograph of one of the variant's option values, else one that
+-- shows the product whichever value is chosen, else the first. Never a
+-- photograph of another value while an untagged one exists: the line copies
+-- once skipped that step and showed the silver watch for the black one (#2141).
+-- A row with variant_id NULL is the product with nothing chosen, for a line
+-- that names no variant. Read it through a LATERAL with LIMIT 1 on product_id
+-- and variant_id: the limit keeps PostgreSQL from flattening the subquery, so
+-- the condition reaches the DISTINCT ON and the view is computed for that one
+-- choice rather than the whole catalogue. security_invoker, so a role reads
+-- through it only what its own grants on the three tables allow.
+CREATE VIEW variant_primary_image WITH (security_invoker = true) AS
+    SELECT DISTINCT ON (c.product_id, c.variant_id)
+           c.product_id, c.variant_id,
+           i.media_digest, i.bundled_key, i.alt_text, i.alt_text_en, i.width, i.height
+    FROM (SELECT pv.product_id, pv.id AS variant_id FROM product_variants pv
+          UNION ALL
+          SELECT p.id, NULL::uuid FROM products p) c
+    JOIN product_images i ON i.product_id = c.product_id
+    ORDER BY c.product_id, c.variant_id,
+             EXISTS (SELECT 1 FROM variant_option_values vov
+                     WHERE vov.variant_id = c.variant_id
+                       AND vov.option_value_id = i.option_value_id) DESC,
+             (i.option_value_id IS NULL) DESC,
+             i.position, i.id;
+
+COMMENT ON VIEW variant_primary_image IS
+    'The photograph a cart or order line shows for its variant (variant_id NULL: '
+    'the product with nothing chosen), in the product page gallery''s order.';
+
 CREATE TABLE product_specs (
     id         uuid PRIMARY KEY DEFAULT uuidv7(),
     product_id uuid NOT NULL REFERENCES products (id) ON DELETE CASCADE,
