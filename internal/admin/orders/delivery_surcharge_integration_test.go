@@ -29,7 +29,6 @@ import (
 	"github.com/koopa0/goen/internal/admin/audit"
 	"github.com/koopa0/goen/internal/admin/orders"
 	"github.com/koopa0/goen/internal/i18n"
-	"github.com/koopa0/goen/internal/ui/pages/admin"
 )
 
 type deliveryPriceOrder struct {
@@ -476,7 +475,7 @@ func TestDeliveryCorrectionNonPostalRefusalKeepsDraftAndSavedSummary(t *testing.
 				if err != nil {
 					t.Fatal(err)
 				}
-				want := admin.Delivery{Recipient: "Proposed recipient", Email: "proposed@example.com", Phone: "0922333444"}
+				want := orders.Delivery{Recipient: "Proposed recipient", Email: "proposed@example.com", Phone: "0922333444"}
 				if tc.pickup {
 					want.PickupChain, want.PickupStoreCode, want.PickupStoreName = shipping.ChainSevenEleven, "A123", "Proposed store"
 				} else {

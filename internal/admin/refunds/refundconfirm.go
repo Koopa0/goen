@@ -7,7 +7,7 @@ import (
 
 	"github.com/koopa0/goen/internal/i18n"
 	"github.com/koopa0/goen/internal/money"
-	"github.com/koopa0/goen/internal/ui/pages/admin"
+	"github.com/koopa0/goen/internal/ui/components"
 )
 
 // RefundConfirmation is a refund before shipment, before it moves money.
@@ -39,7 +39,7 @@ func (v RefundConfirmation) CreditCancellation(ctx context.Context) string {
 }
 
 func (v RefundConfirmation) Channel(ctx context.Context) string {
-	return admin.PayoutChannel(ctx, v.CardCents, v.CreditCents)
+	return components.PayoutChannel(ctx, v.CardCents, v.CreditCents)
 }
 
 func (v RefundConfirmation) Action() string { return "/admin/orders/" + v.OrderNumber + "/refund" }

@@ -17,7 +17,6 @@ import (
 	"github.com/koopa0/goen/internal/order"
 	"github.com/koopa0/goen/internal/order/buyer"
 	"github.com/koopa0/goen/internal/outbox"
-	"github.com/koopa0/goen/internal/ui/pages/admin"
 
 	"github.com/google/go-cmp/cmp"
 	"github.com/google/uuid"
@@ -876,7 +875,7 @@ func TestAnOrderSearchTakesWildcardsLiterally(t *testing.T) {
 	}
 }
 
-func hasOrder(v admin.OrdersView, number string) bool {
+func hasOrder(v orders.OrdersView, number string) bool {
 	for i := range v.Orders {
 		if v.Orders[i].Number == number {
 			return true
@@ -1609,7 +1608,7 @@ func TestTheStatusStepsOfferOnlyWhatTheDatabaseWillAccept(t *testing.T) {
 	ctx, staff := admintest.StaffContext(t, pool)
 	s := admintest.OrderStore(pool, admintest.Refunder{}, nil, nil)
 	actor := uuid.NullUUID{UUID: staff, Valid: true}
-	offers := func(v *admin.OrderView, status order.FulfillmentStatus) bool {
+	offers := func(v *orders.OrderView, status order.FulfillmentStatus) bool {
 		for _, n := range v.Next {
 			if n.Value == status {
 				return true
@@ -1809,7 +1808,7 @@ func TestTheBackOfficeSaysRefundedOnceEveryUnitsRefundHasSettled(t *testing.T) {
 			if view.StatusText != want {
 				t.Errorf("Order(%s).StatusText = %q, want %q", tc.name, view.StatusText, want)
 			}
-			queue, err := s.List(ctx, admin.QueueAll, number)
+			queue, err := s.List(ctx, orders.QueueAll, number)
 			if err != nil {
 				t.Fatalf("List: %v", err)
 			}

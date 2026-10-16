@@ -12,7 +12,6 @@ import (
 	"github.com/koopa0/goen/internal/db"
 	"github.com/koopa0/goen/internal/i18n"
 	"github.com/koopa0/goen/internal/outbox"
-	"github.com/koopa0/goen/internal/ui/pages/admin"
 )
 
 func TestTimelineEntryKeepsARowItCannotLabel(t *testing.T) {
@@ -61,11 +60,11 @@ func TestLogUnrecognizedLogsOnlyUnrecognizedEntries(t *testing.T) {
 	t.Parallel()
 	for _, tc := range []struct {
 		name     string
-		timeline []admin.TimelineEntry
+		timeline []TimelineEntry
 		want     int
 	}{
-		{"one unrecognized entry", []admin.TimelineEntry{{At: "10:00"}, {At: "10:05", Unrecognized: "invoice / issue / voided"}}, 1},
-		{"every entry recognized", []admin.TimelineEntry{{At: "10:00"}}, 0},
+		{"one unrecognized entry", []TimelineEntry{{At: "10:00"}, {At: "10:05", Unrecognized: "invoice / issue / voided"}}, 1},
+		{"every entry recognized", []TimelineEntry{{At: "10:00"}}, 0},
 	} {
 		var buf bytes.Buffer
 		logUnrecognized(t.Context(), slog.New(slog.NewTextHandler(&buf, nil)), "GO-261005-000001", tc.timeline)

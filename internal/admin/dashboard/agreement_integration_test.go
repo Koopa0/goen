@@ -7,15 +7,15 @@ import (
 
 	"github.com/koopa0/goen/internal/admin/admintest"
 	"github.com/koopa0/goen/internal/admin/health"
+	"github.com/koopa0/goen/internal/admin/orders"
 	"github.com/koopa0/goen/internal/i18n"
-	"github.com/koopa0/goen/internal/ui/pages/admin"
 )
 
 func TestTheDashboardAndTheQueueTabsSplitPendingTheSameWay(t *testing.T) {
 	ctx := t.Context()
 	queue := admintest.OrderStore(pool, admintest.Refunder{}, nil, nil)
 	desk := storeOver(pool, health.NewStore(pool))
-	tab := func(v admin.OrdersView, status admin.QueueFilter) int64 {
+	tab := func(v orders.OrdersView, status orders.QueueFilter) int64 {
 		for _, tb := range v.Tabs {
 			if tb.Value == status {
 				return tb.Count
@@ -44,10 +44,10 @@ func TestTheDashboardAndTheQueueTabsSplitPendingTheSameWay(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Dashboard: %v", err)
 	}
-	if got := tab(after, admin.QueueAwaitingPayment) - tab(before, admin.QueueAwaitingPayment); got != 1 {
+	if got := tab(after, orders.QueueAwaitingPayment) - tab(before, orders.QueueAwaitingPayment); got != 1 {
 		t.Errorf("the awaiting-payment tab grew by %d, want 1: a funded order is not awaiting payment", got)
 	}
-	if got := tab(after, admin.QueueReady) - tab(before, admin.QueueReady); got != 1 {
+	if got := tab(after, orders.QueueReady) - tab(before, orders.QueueReady); got != 1 {
 		t.Errorf("the ready tab grew by %d, want 1", got)
 	}
 	if got := dashAfter.PendingOrders - dashBefore.PendingOrders; got != 1 {
@@ -57,9 +57,9 @@ func TestTheDashboardAndTheQueueTabsSplitPendingTheSameWay(t *testing.T) {
 		t.Errorf("the ready tile grew by %d, want 1", got)
 	}
 
-	for status, want := range map[admin.QueueFilter]struct{ in, out string }{
-		admin.QueueAwaitingPayment: {in: unpaid, out: funded},
-		admin.QueueReady:           {in: funded, out: unpaid},
+	for status, want := range map[orders.QueueFilter]struct{ in, out string }{
+		orders.QueueAwaitingPayment: {in: unpaid, out: funded},
+		orders.QueueReady:           {in: funded, out: unpaid},
 	} {
 		view, err := queue.List(ctx, status, "")
 		if err != nil {
@@ -118,9 +118,9 @@ func TestStore_RecentOrdersMatchTheQueue(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Dashboard: %v", err)
 	}
-	listed := map[string]admin.OrderRow{}
+	listed := map[string]orders.OrderRow{}
 	for _, row := range view.Recent {
-		listed[row.Number] = row
+		listed[row.Number] = orders.OrderRow(row)
 	}
 	for name, number := range numbers {
 		onDashboard, ok := listed[number]
@@ -128,7 +128,7 @@ func TestStore_RecentOrdersMatchTheQueue(t *testing.T) {
 			t.Errorf("%s: the dashboard's recent orders lack %s", name, number)
 			continue
 		}
-		found, err := queue.List(ctx, admin.QueueAll, number)
+		found, err := queue.List(ctx, orders.QueueAll, number)
 		if err != nil {
 			t.Fatalf("List(%s): %v", number, err)
 		}

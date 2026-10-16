@@ -9,7 +9,6 @@ import (
 	"github.com/koopa0/goen/internal/i18n"
 	"github.com/koopa0/goen/internal/order"
 	"github.com/koopa0/goen/internal/ui/components"
-	"github.com/koopa0/goen/internal/ui/pages/admin"
 )
 
 // The tests in this file are the dashboard halves of cross-feature tests that
@@ -58,8 +57,8 @@ func wantBadge(t *testing.T, page, word, class string) {
 func TestDashboardAndCustomerRecentOrdersFollowTheirGroup(t *testing.T) {
 	t.Parallel()
 	ctx := i18n.WithLocale(t.Context(), i18n.ZhHant)
-	row := admin.OrderRow{Number: "GO-A", Status: order.FulfillmentPending, StatusText: "待出貨", StatusIntent: components.IntentWarn}
+	row := OrderRow{Number: "GO-A", Status: order.FulfillmentPending, StatusText: "待出貨", StatusIntent: components.IntentWarn}
 
-	dashboard := renderComponent(t, ctx, Dashboard(Meta(ctx), DashboardView{Recent: []admin.OrderRow{row}}))
+	dashboard := renderComponent(t, ctx, Dashboard(Meta(ctx), DashboardView{Recent: []OrderRow{row}}))
 	wantBadge(t, dashboard, "待出貨", "goen-badge goen-badge--warn")
 }

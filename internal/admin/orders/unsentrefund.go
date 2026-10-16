@@ -1,4 +1,4 @@
-package admin
+package orders
 
 import (
 	"context"
@@ -9,7 +9,9 @@ import (
 	"github.com/koopa0/goen/internal/i18n"
 )
 
-// UnsentLine is one line of a refund of units an order will not send.
+// UnsentLine is one line of a refund of units an order will not send. The
+// refunds desk keeps a copy (refunds.UnsentLine) for its confirmation, which
+// lists the same units the same way and reads the same fields.
 type UnsentLine struct {
 	OrderLineID string
 	Name        string
@@ -31,9 +33,9 @@ func (l UnsentLine) QuantityText() string { return strconv.FormatInt(int64(l.Qua
 // dispatch form uses for the same line.
 func (l UnsentLine) Field() string { return "qty_" + l.OrderLineID }
 
-// UnsentLinesText lists the lines as name × quantity: the order page's open
-// refund and the refunds desk's confirmation show the units this way.
-func UnsentLinesText(ctx context.Context, lines []UnsentLine) string {
+// unsentLinesText lists the lines as name × quantity, as the refunds desk's
+// confirmation does.
+func unsentLinesText(ctx context.Context, lines []UnsentLine) string {
 	parts := make([]string, len(lines))
 	for i, l := range lines {
 		parts[i] = l.Line() + " × " + l.QuantityText()
@@ -43,5 +45,5 @@ func UnsentLinesText(ctx context.Context, lines []UnsentLine) string {
 
 // UnsentOpenText says which units the unfinished refund covers.
 func (v *OrderView) UnsentOpenText(ctx context.Context) string {
-	return fmt.Sprintf(i18n.T(ctx, i18n.KeyAdminUnsentOpen), UnsentLinesText(ctx, v.UnsentOpenLines))
+	return fmt.Sprintf(i18n.T(ctx, i18n.KeyAdminUnsentOpen), unsentLinesText(ctx, v.UnsentOpenLines))
 }
