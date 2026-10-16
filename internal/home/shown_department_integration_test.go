@@ -14,6 +14,7 @@ import (
 	"github.com/koopa0/goen/internal/db"
 	"github.com/koopa0/goen/internal/home"
 	"github.com/koopa0/goen/internal/i18n"
+	"github.com/koopa0/goen/internal/site"
 	"github.com/koopa0/goen/internal/ui/layouts"
 	"github.com/koopa0/goen/internal/ui/pages"
 )
@@ -83,7 +84,7 @@ func TestShownDepartmentsNeedListedProducts(t *testing.T) {
 			store := home.NewStore(tx)
 			assertShown := func(want []string) {
 				t.Helper()
-				nav, readErr := store.Nav(ctx)
+				nav, readErr := site.NewStore(tx).Nav(ctx)
 				if readErr != nil {
 					t.Fatalf("Nav(): %v", readErr)
 				}

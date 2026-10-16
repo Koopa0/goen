@@ -16,12 +16,15 @@ import (
 	"github.com/koopa0/goen/internal/db"
 	"github.com/koopa0/goen/internal/i18n"
 	"github.com/koopa0/goen/internal/shoptime"
+	"github.com/koopa0/goen/internal/site"
 	"github.com/koopa0/goen/internal/ui/components"
 	"github.com/koopa0/goen/internal/ui/pages"
 )
 
 type Store struct {
-	q        *db.Queries
+	q *db.Queries
+	// site reads the departments, which the header lists in the same order.
+	site     *site.Store
 	noPickup bool
 	// now decides the department of the day.
 	now func() time.Time
@@ -31,7 +34,7 @@ func NewStore(dbtx db.DBTX) *Store {
 	if dbtx == nil {
 		panic("home: NewStore requires a database handle")
 	}
-	return &Store{q: db.New(dbtx), now: time.Now}
+	return &Store{q: db.New(dbtx), site: site.NewStore(dbtx), now: time.Now}
 }
 
 // WithoutPickup is for a deployment whose store map is not configured: checkout
@@ -58,9 +61,9 @@ type carouselSources struct {
 
 func (s *Store) carouselSources(ctx context.Context) (carouselSources, error) {
 	locale := string(i18n.FromContext(ctx))
-	cats, err := s.q.RootCategories(ctx, locale)
+	cats, held, err := s.site.Departments(ctx)
 	if err != nil {
-		return carouselSources{}, fmt.Errorf("read home categories: %w", err)
+		return carouselSources{}, fmt.Errorf("read home departments: %w", err)
 	}
 	subRows, err := s.q.HomeSubcategories(ctx, locale)
 	if err != nil {
@@ -73,14 +76,6 @@ func (s *Store) carouselSources(ctx context.Context) (carouselSources, error) {
 	camps, err := s.q.ListedCampaigns(ctx, db.ListedCampaignsParams{Locale: locale, PageSize: maxSlides})
 	if err != nil {
 		return carouselSources{}, fmt.Errorf("read home campaigns: %w", err)
-	}
-	stock, err := s.q.HomeDepartmentStock(ctx)
-	if err != nil {
-		return carouselSources{}, fmt.Errorf("read department stock: %w", err)
-	}
-	held := make(map[uuid.UUID]int64, len(stock))
-	for _, r := range stock {
-		held[r.ID] = r.Products
 	}
 	return carouselSources{cats: cats, subs: subs, camps: camps, held: held}, nil
 }

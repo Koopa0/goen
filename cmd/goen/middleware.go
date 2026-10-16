@@ -14,8 +14,6 @@ import (
 
 	"github.com/koopa0/goen/assets"
 	"github.com/koopa0/goen/internal/cart"
-	"github.com/koopa0/goen/internal/catalog"
-	"github.com/koopa0/goen/internal/home"
 	"github.com/koopa0/goen/internal/i18n"
 	"github.com/koopa0/goen/internal/ui/layouts"
 	"github.com/koopa0/goen/internal/user"
@@ -364,25 +362,15 @@ var bannerFreePrefixes = []string{
 	"/healthz", "/readyz", "/favicon.ico", "/robots.txt", "/sitemap.xml",
 }
 
-// withBanner attaches the promotional strip to storefront requests. Not cached,
-// because a shop that switches a promotion off expects it gone.
-func withBanner(next http.Handler, store *home.Store, log *slog.Logger, secure bool) http.Handler {
+// withBanner runs banner, site's promotion strip, on storefront GETs only.
+func withBanner(next http.Handler, banner func(http.Handler) http.Handler) http.Handler {
+	shown := banner(next)
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.Method != http.MethodGet || !storefrontPath(r.URL.Path) {
 			next.ServeHTTP(w, r)
 			return
 		}
-		banner, err := store.Banner(r.Context(), home.ReadDismissal(r, secure))
-		if err != nil {
-			if errors.Is(err, context.Canceled) {
-				return // the caller left; there is nobody to serve
-			}
-			// Not fatal: an absent banner renders as nothing at all.
-			log.ErrorContext(r.Context(), "read promo banner", "error", err)
-			next.ServeHTTP(w, r)
-			return
-		}
-		next.ServeHTTP(w, r.WithContext(layouts.WithBanner(r.Context(), banner)))
+		shown.ServeHTTP(w, r)
 	})
 }
 
@@ -441,46 +429,21 @@ func onlyVisitorPaths(mw func(http.Handler) http.Handler, next http.Handler) htt
 	})
 }
 
-// withTopNav loads the header's category row. It runs inside withLocale,
-// because the names it reads are localized and the locale has to be on the
-// context before the query does. A failure degrades to a nav with no links.
+// withTopNav runs nav, site's header category row, on the nav paths. It runs
+// inside withLocale, because the names it reads are localized and the locale
+// has to be on the context before the query does.
 //
 // Every method, not just GET: a rejected form re-renders its own page at 422,
 // which is exactly when a visitor is most likely to navigate away.
-func withTopNav(next http.Handler, store *home.Store, deals *catalog.Store, log *slog.Logger) http.Handler {
+func withTopNav(next http.Handler, nav func(http.Handler) http.Handler) http.Handler {
+	shown := nav(next)
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if !navPath(r.URL.Path) {
 			next.ServeHTTP(w, r)
 			return
 		}
-		items, err := store.Nav(r.Context())
-		if err != nil {
-			if errors.Is(err, context.Canceled) {
-				return // the caller left; there is nobody to serve
-			}
-			log.ErrorContext(r.Context(), "read nav categories", "error", err)
-			next.ServeHTTP(w, r)
-			return
-		}
-		next.ServeHTTP(w, r.WithContext(withNav(r.Context(), items, dealsOnOffer(r.Context(), deals, log))))
+		shown.ServeHTTP(w, r)
 	})
-}
-
-func withNav(ctx context.Context, items []layouts.NavItem, deals bool) context.Context {
-	return layouts.WithDeals(layouts.WithTopNav(ctx, items), deals)
-}
-
-// dealsOnOffer is false when the read fails, like the department row beside it: a link
-// to a page with nothing on it is the worse mistake.
-func dealsOnOffer(ctx context.Context, deals *catalog.Store, log *slog.Logger) bool {
-	offered, err := deals.DealsOnOffer(ctx)
-	if err != nil {
-		if !errors.Is(err, context.Canceled) {
-			log.ErrorContext(ctx, "read whether deals are on offer", "error", err)
-		}
-		return false
-	}
-	return offered
 }
 
 // withStaffEntrance tells the chrome whether this visitor may reach the back

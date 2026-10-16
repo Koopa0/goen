@@ -32,7 +32,7 @@ var sha256Users = map[string]string{
 	"internal/admin/twofactor/crypt.go#newKeyedAEAD":   "key identifier written into a stored TOTP secret's header",
 	"internal/admin/twofactor/store.go#mailedCodeHash": "digest of a mailed one-time code",
 	"internal/cart/cart.go#ID":                         "checkout quote identity",
-	"internal/home/banner.go#DismissDigest":            "promo-dismiss cookie value",
+	"internal/site/chrome.go#dismissDigest":            "promo-dismiss cookie value",
 	"internal/media/decode.go#normaliseDecoded":        "content address",
 	"internal/ratelimit/ratelimit.go#clampKey":         "bounded limiter key",
 	"internal/ui/pages/facets.go#CountID":              "HTML id",
