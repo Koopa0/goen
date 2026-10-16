@@ -221,6 +221,55 @@ store before anything else.
   begins with a tool's name, such as `Claude`, whoever the person is.
   Automation lines such as Dependabot's `Signed-off-by` are accepted.
 
+### Packages
+
+A package is judged by its name and by what its callers use together, not by
+its size or by layer. The ruling is
+[#2184](https://github.com/Koopa0/goen/issues/2184).
+
+1. **The name test.** If one name cannot honestly describe every file in a
+   package, the boundary is wrong; if it can, a long file list is not a defect.
+   "If you cannot come up with a package name that's a meaningful prefix for the
+   package's contents, the package abstraction boundary may be wrong."
+   ([Package names](https://go.dev/blog/package-names))
+2. **Do not split a package to shorten a directory listing.**
+3. **What a caller must use together stays together.** For one feature, the
+   handler, store, SQL, view model and templates are one package: "if the user
+   must import both packages in order to use either in any meaningful way,
+   combining them together is usually the right thing to do"
+   ([package size](https://google.github.io/styleguide/go/best-practices#package-size)).
+   "Consolidated packages are often preferred over too many too small packages
+   that fail to stand on their own."
+   ([designing effective interfaces](https://google.github.io/styleguide/go/best-practices#designing-effective-interfaces))
+4. **Split out only a concept a caller can use alone, and name it for that
+   concept.** "When something is conceptually distinct, giving it its own small
+   package can make it easier to use." (package size). Never give it a layer
+   name such as `model`, `types`, `views`, `ui`, `util`, `api` or `interfaces`.
+   The Go blog: "Packages named util, common, or misc provide clients with no
+   sense of what the package contains", and putting every interface into one
+   package "named api, types, or interfaces" "is a mistake". Google: "Avoid
+   uninformative package names like util, utility, common, helper, model,
+   testhelper, and so on"
+   ([package names](https://google.github.io/styleguide/go/decisions#package-names)).
+5. **No `<feature>/ui` sub-package for the sake of flatness.** Whether templates
+   should see only their view model at compile time is a separate question, and
+   needs evidence that a template reaches past its view model today.
+6. **Where tests and generated files live is convenience, not package design.**
+   Decide it separately if it hurts.
+
+No source gives a limit on files or lines. Google calls Go style "flexible
+about file size" and offers a rule of thumb, not a number: "it is usually not a
+good idea to have a single file with many thousands of lines in it, or having
+many tiny files" (package size).
+
+So the large feature packages (`cart`, `admin/orders`, `auth`, `payment`,
+`catalog`, `order/buyer`) are not a defect by their size. Once page bodies have
+finished moving into their features (the templ/Go move, D13), one pass reads
+them against the name test, and each split it finds is filed as its own issue;
+#2184 tracks the pass. Nothing moves for it before then. Which package may
+import which is a separate rule, held by `internal/repocheck/deps_test.go` as
+described above.
+
 ### Tests
 
 - Name a test after the unit it exercises: `TestParse` for a function, the

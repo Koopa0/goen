@@ -29,7 +29,7 @@ Placement copies the terms of sale, so later price changes leave history intact.
 
 `net/http` handlers render typed `templ` views. Every write works as a plain `POST` form without JavaScript: success redirects, and a failed validation keeps the input. htmx enhances the returned HTML. CSS, fonts, and scripts are embedded in the binary under content-versioned URLs.
 
-Packages follow features: each groups its handlers, store, SQL, and tests. Page bodies are moving from `internal/ui/pages` into the features that render them; `internal/repocheck` holds the import policy. Stores call sqlc-generated `db.Queries`; `cmd/goen` composes routes, data access, provider clients, and workers. See [composition][server], [assets][assets], and [sqlc configuration][sqlc].
+Packages follow features: each groups its handlers, store, SQL, and tests. A package is judged by its name, not its size: what a caller must use together, including a feature's view model and templates, stays in one package, and only a concept a caller can use alone becomes a package of its own, named for that concept rather than for a layer. See [package rules][packages]. Page bodies are moving from `internal/ui/pages` into the features that render them; `internal/repocheck` holds the import policy. Stores call sqlc-generated `db.Queries`; `cmd/goen` composes routes, data access, provider clients, and workers. See [composition][server], [assets][assets], and [sqlc configuration][sqlc].
 
 ### External systems
 
@@ -275,6 +275,7 @@ CI runs formatting, vet, lint, dead-code and generated-code checks, migration li
 | Operations | [Health queries][health-sql], [probes][probe], [slow-query tracer][slowquery], [Makefile][makefile], [CI][workflows] |
 
 [contributing]: CONTRIBUTING.md
+[packages]: CONTRIBUTING.md#packages
 [main]: cmd/goen/main.go
 [server]: cmd/goen/server.go
 [middleware]: cmd/goen/middleware.go
