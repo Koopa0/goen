@@ -35,10 +35,9 @@ type importRule struct {
 // key "from -> to", value the task that removes the edge. An entry may only
 // disappear; one whose edge is gone fails, so each task proves its own work.
 var exceptions = map[string]string{
-	"internal/admin/admintest -> internal/admin/orders":   "T48",
-	"internal/admin/admintest -> internal/admin/products": "T48",
-	"internal/admin/admintest -> internal/admin/refunds":  "T48",
-	"internal/admin/admintest -> internal/admin/returns":  "T48",
+	"internal/admin/admintest -> internal/admin/orders":  "T48",
+	"internal/admin/admintest -> internal/admin/refunds": "T48",
+	"internal/admin/admintest -> internal/admin/returns": "T48",
 }
 
 // under reports whether pkg is dir or lies below it.

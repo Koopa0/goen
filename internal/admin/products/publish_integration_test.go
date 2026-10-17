@@ -13,6 +13,7 @@ import (
 
 	"github.com/koopa0/goen/internal/admin/admintest"
 	"github.com/koopa0/goen/internal/admin/products"
+	"github.com/koopa0/goen/internal/admin/products/productstest"
 )
 
 // TestPublishAnswersEachOutcome: publishing a product with nothing to sell is
@@ -21,7 +22,7 @@ import (
 func TestPublishAnswersEachOutcome(t *testing.T) {
 	ctx, _ := admintest.StaffContext(t, pool)
 	s := products.NewStore(pool)
-	empty := admintest.DraftProduct(t, ctx, pool, s)
+	empty := productstest.Draft(t, ctx, pool, s)
 	closed := admintest.NamedPool(t, pool, "publish_closed_"+uuid.NewString()[:8])
 	closed.Close()
 
@@ -35,14 +36,14 @@ func TestPublishAnswersEachOutcome(t *testing.T) {
 		return res
 	}
 
-	if res := publish(admintest.ProductDesk(pool, s), empty); res.Code != http.StatusSeeOther ||
+	if res := publish(productstest.NewHandler(pool, s), empty); res.Code != http.StatusSeeOther ||
 		res.Header().Get("Location") != "/admin/products/"+empty+"?refused=1" {
 		t.Errorf("Publish(%s with no variant) = %d %q, want 303 to ?refused=1", empty, res.Code, res.Header().Get("Location"))
 	}
-	if res := publish(admintest.ProductDesk(closed, products.NewStore(closed)), empty); res.Code != http.StatusInternalServerError {
+	if res := publish(productstest.NewHandler(closed, products.NewStore(closed)), empty); res.Code != http.StatusInternalServerError {
 		t.Errorf("Publish(%s) on a closed pool = %d %q, want 500", empty, res.Code, res.Header().Get("Location"))
 	}
-	if res := publish(admintest.ProductDesk(pool, s), "no-such-"+uuid.NewString()[:8]); res.Code != http.StatusNotFound {
+	if res := publish(productstest.NewHandler(pool, s), "no-such-"+uuid.NewString()[:8]); res.Code != http.StatusNotFound {
 		t.Errorf("Publish(missing slug) = %d %q, want 404", res.Code, res.Header().Get("Location"))
 	}
 }

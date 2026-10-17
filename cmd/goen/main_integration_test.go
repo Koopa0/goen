@@ -349,10 +349,11 @@ func (s *countingSender) Send(context.Context, *letter.Message) error {
 	return nil
 }
 
-// TestAnUnsubscribeDuringTheDrainStopsTheCopy is the lock on main's own consent
-// gate. The send freezes one outbox row per subscriber and the queue drains at
-// bulk priority behind every transactional message, so an unsubscribe committing
-// anywhere in that window has to be read at DELIVERY.
+// TestAnUnsubscribeDuringTheDrainStopsTheCopy is the lock on the consent gate
+// in newsletter.Store.DeliverIssue, through the handler main registers. The send
+// freezes one outbox row per subscriber and the queue drains at bulk priority
+// behind every transactional message, so an unsubscribe committing anywhere in
+// that window has to be read at DELIVERY.
 func TestAnUnsubscribeDuringTheDrainStopsTheCopy(t *testing.T) {
 	ctx := t.Context()
 	subscribers := newsletter.NewStore(pool)

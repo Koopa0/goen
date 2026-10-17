@@ -188,3 +188,22 @@ func (s *Store) StillSubscribed(ctx context.Context, address string) (bool, erro
 	}
 	return yes, nil
 }
+
+// DeliverIssue sends one copy of an issue only while its address still wants
+// it. The send froze one outbox row per subscriber and the queue drains at bulk
+// priority behind every transactional message — minutes to hours for a real
+// list — so an unsubscribe committing anywhere in that window is read here,
+// at delivery, rather than at the send. An address that left completes without
+// sending: rescheduling would retry exactly what must not happen. A failed read
+// or send stays retryable.
+func (s *Store) DeliverIssue(ctx context.Context, p *outbox.NewsletterIssue,
+	send func(context.Context, *outbox.NewsletterIssue) error) error {
+	wanted, err := s.StillSubscribed(ctx, p.Email)
+	if err != nil {
+		return err
+	}
+	if !wanted {
+		return nil
+	}
+	return send(ctx, p)
+}

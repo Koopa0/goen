@@ -30,6 +30,7 @@ import (
 	"github.com/koopa0/goen/internal/admin/audit"
 	"github.com/koopa0/goen/internal/admin/content"
 	"github.com/koopa0/goen/internal/admin/products"
+	"github.com/koopa0/goen/internal/admin/products/productstest"
 	"github.com/koopa0/goen/internal/db"
 	"github.com/koopa0/goen/internal/home"
 	"github.com/koopa0/goen/internal/i18n"
@@ -40,7 +41,7 @@ func TestProductEditorRefusalsKeepTheirDraftAndImageControls(t *testing.T) {
 	staffCtx, _ := admintest.StaffContext(t, pool)
 	p := admintest.AdminRolePool(t, pool)
 	s := products.NewStore(p)
-	slug := admintest.DraftProduct(t, staffCtx, pool, s)
+	slug := productstest.Draft(t, staffCtx, pool, s)
 	attached, library := storeMedia(t, pool), storeMedia(t, pool)
 	if err := s.AttachImage(staffCtx, slug, attached, "Editor photograph", "Editor photograph", "", 800, 600); err != nil {
 		t.Fatal(err)
@@ -53,7 +54,7 @@ func TestProductEditorRefusalsKeepTheirDraftAndImageControls(t *testing.T) {
 		t.Fatal(err)
 	}
 	mux := http.NewServeMux()
-	admintest.ProductDesk(p, s).Routes(mux, admintest.BackOffice)
+	productstest.NewHandler(p, s).Routes(mux, admintest.BackOffice)
 	for _, locale := range i18n.Locales() {
 		ctx := i18n.WithLocale(staffCtx, locale)
 		baseline, err := s.Product(ctx, slug)
@@ -197,7 +198,7 @@ func TestProductImageRefusalsKeepDescriptionsAndSelection(t *testing.T) {
 	p := admintest.AdminRolePool(t, pool)
 	s := products.NewStore(p)
 	mux := http.NewServeMux()
-	admintest.ProductDesk(p, s).Routes(mux, admintest.BackOffice)
+	productstest.NewHandler(p, s).Routes(mux, admintest.BackOffice)
 	slug, options := productWithColours(t, staffCtx, s, "Blue", "Black")
 	_, foreignOptions := productWithColours(t, staffCtx, s, "Red", "White")
 	attached, library := storeMedia(t, pool), storeMedia(t, pool)
@@ -336,7 +337,7 @@ func TestALosslessWebPUploadIsRefusedWithItsOwnNotice(t *testing.T) {
 	staffCtx, _ := admintest.StaffContext(t, pool)
 	p := admintest.AdminRolePool(t, pool)
 	s := products.NewStore(p)
-	slug := admintest.DraftProduct(t, staffCtx, pool, s)
+	slug := productstest.Draft(t, staffCtx, pool, s)
 	heroes := content.NewStore(p, home.NewStore(p))
 	beforeImages, err := s.Images(staffCtx, slug)
 	if err != nil {
@@ -499,7 +500,7 @@ func TestProductImageAttachmentFailuresAnswer500AndRecover(t *testing.T) {
 			t.Run(locale.Tag()+"/"+name, func(t *testing.T) {
 				staffCtx, actor := admintest.StaffContext(t, pool)
 				ctx := i18n.WithLocale(staffCtx, locale)
-				slug := admintest.DraftProduct(t, ctx, pool, healthy)
+				slug := productstest.Draft(t, ctx, pool, healthy)
 				obj, err := images.Put(ctx, bytes.NewReader(picture.Bytes()))
 				if err != nil {
 					t.Fatal(err)
@@ -631,7 +632,7 @@ func TestImageUploadsKeepStorageFailuresSeparateFromRefusals(t *testing.T) {
 	s := products.NewStore(adminPool)
 	for _, locale := range i18n.Locales() {
 		ctx := i18n.WithLocale(staff, locale)
-		slug := admintest.DraftProduct(t, ctx, owner, s)
+		slug := productstest.Draft(t, ctx, owner, s)
 		var diagnostics bytes.Buffer
 		logger := slog.New(slog.NewJSONHandler(&diagnostics, nil))
 		witness := &uploadWriteTrace{}

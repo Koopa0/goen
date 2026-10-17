@@ -18,6 +18,7 @@ import (
 
 	"github.com/koopa0/goen/internal/admin/admintest"
 	"github.com/koopa0/goen/internal/admin/products"
+	"github.com/koopa0/goen/internal/admin/products/productstest"
 	"github.com/koopa0/goen/internal/catalog"
 	"github.com/koopa0/goen/internal/i18n"
 )
@@ -178,7 +179,7 @@ func TestAStaleImageMoveIsRefusedWith422AndChangesNothing(t *testing.T) {
 	ctx, _ := admintest.StaffContext(t, pool)
 	ctx = i18n.WithLocale(ctx, i18n.En)
 	slug, _, keys := imageOrderProduct(t, 2)
-	h := admintest.ProductDesk(pool, products.NewStore(pool))
+	h := productstest.NewHandler(pool, products.NewStore(pool))
 	post := func(digest, move string) *httptest.ResponseRecorder {
 		values := url.Values{"digest": {digest}, "move": {move}}
 		r := httptest.NewRequestWithContext(ctx, http.MethodPost, "/admin/products/"+slug+"/images/move", strings.NewReader(values.Encode()))

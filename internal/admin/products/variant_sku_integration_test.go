@@ -11,6 +11,7 @@ import (
 
 	"github.com/koopa0/goen/internal/admin/admintest"
 	"github.com/koopa0/goen/internal/admin/products"
+	"github.com/koopa0/goen/internal/admin/products/productstest"
 	"github.com/koopa0/goen/internal/i18n"
 )
 
@@ -18,9 +19,9 @@ func TestAMalformedVariantSKUIsRefusedOnItsFieldAndNothingIsWritten(t *testing.T
 	staffCtx, _ := admintest.StaffContext(t, pool)
 	ctx := i18n.WithLocale(staffCtx, i18n.En)
 	s := products.NewStore(pool)
-	slug := admintest.DraftProduct(t, ctx, pool, s)
+	slug := productstest.Draft(t, ctx, pool, s)
 	mux := http.NewServeMux()
-	admintest.ProductDesk(pool, s).Routes(mux, admintest.BackOffice)
+	productstest.NewHandler(pool, s).Routes(mux, admintest.BackOffice)
 
 	add := func(sku string) *httptest.ResponseRecorder {
 		t.Helper()

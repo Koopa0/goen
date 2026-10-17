@@ -954,26 +954,14 @@ func invoiceVoidDueHandler(adminPool *pgxpool.Pool, gateway *issuer.Gateway) fun
 	return issuer.NewStore(adminPool, gateway).ClaimVoidDue
 }
 
-// newsletterIssueHandler delivers one copy of an issue, and asks at DELIVERY
-// whether the address still wants it. The send freezes one outbox row per
-// subscriber and the queue drains at bulk priority behind every transactional
-// message — minutes to hours for a real list — so an unsubscribe committing
-// anywhere in that window has to be read here rather than at the send.
+// newsletterIssueHandler delivers one copy of an issue; newsletter decides at
+// delivery whether the address still wants it.
 func newsletterIssueHandler(
 	subscribers *newsletter.Store,
 	notifier letter.Notifier,
 ) func(context.Context, *outbox.NewsletterIssue) error {
 	return func(ctx context.Context, p *outbox.NewsletterIssue) error {
-		wanted, err := subscribers.StillSubscribed(ctx, p.Email)
-		if err != nil {
-			return err
-		}
-		if !wanted {
-			// Nothing left to do rather than a failure: sending is what must not
-			// happen, and rescheduling would retry exactly that.
-			return nil
-		}
-		return notifier.SendNewsletterIssue(ctx, p)
+		return subscribers.DeliverIssue(ctx, p, notifier.SendNewsletterIssue)
 	}
 }
 
@@ -1014,27 +1002,13 @@ func addressVerifyHandler(accounts *auth.Store, notifier letter.Notifier) func(c
 // holds SELECT on users, and delivery writes nothing.
 func staffInvitationHandler(roster *staff.Store, notifier letter.Notifier) func(context.Context, *outbox.StaffInvitation) error {
 	return func(ctx context.Context, p *outbox.StaffInvitation) error {
-		address, name, err := roster.InvitationRecipient(ctx, p.UserID)
-		if err != nil {
-			return err
-		}
-		if address == "" {
-			return nil
-		}
-		return notifier.SendStaffInvitation(ctx, p, address, name)
+		return roster.DeliverInvitation(ctx, p, notifier.SendStaffInvitation)
 	}
 }
 
 func terminalOrderHandler(recipients notice.Recipients, notifier letter.Notifier) func(context.Context, *outbox.OrderTerminal) error {
 	return func(ctx context.Context, p *outbox.OrderTerminal) error {
-		to, ok, err := recipients.Of(ctx, p.OrderID)
-		if err != nil {
-			return err
-		}
-		if !ok {
-			return nil
-		}
-		return notifier.SendOrderTerminal(ctx, p, to)
+		return recipients.Deliver(ctx, p, notifier.SendOrderTerminal)
 	}
 }
 
@@ -1042,13 +1016,6 @@ func terminalOrderHandler(recipients notice.Recipients, notifier letter.Notifier
 // reads orders and returns already, and delivery writes nothing.
 func partRefundHandler(recipients notice.Recipients, notifier letter.Notifier) func(context.Context, *outbox.OrderPartRefunded) error {
 	return func(ctx context.Context, p *outbox.OrderPartRefunded) error {
-		refund, ok, err := recipients.PartRefund(ctx, p)
-		if err != nil {
-			return err
-		}
-		if !ok {
-			return nil
-		}
-		return notifier.SendOrderPartRefunded(ctx, p, &refund)
+		return recipients.DeliverPartRefunded(ctx, p, notifier.SendOrderPartRefunded)
 	}
 }
