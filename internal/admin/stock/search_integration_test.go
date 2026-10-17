@@ -11,6 +11,7 @@ import (
 
 	"github.com/koopa0/goen/internal/admin/admintest"
 	"github.com/koopa0/goen/internal/admin/products"
+	"github.com/koopa0/goen/internal/admin/products/productstest"
 	"github.com/koopa0/goen/internal/admin/stock"
 )
 
@@ -20,7 +21,7 @@ import (
 func TestTheStockListSearchesBySKUOrNameAndShowsOptionValues(t *testing.T) {
 	ctx, _ := admintest.StaffContext(t, pool)
 	s := products.NewStore(pool)
-	slug := admintest.DraftProduct(t, ctx, pool, s)
+	slug := productstest.Draft(t, ctx, pool, s)
 	if errs, err := s.AddOption(ctx, slug, products.OptionDraft{Name: "顏色"}); err != nil || len(errs) > 0 {
 		t.Fatalf("AddOption: %v %v", err, errs)
 	}

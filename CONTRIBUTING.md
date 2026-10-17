@@ -315,7 +315,10 @@ described above.
   (`schema_integration_test.go`), `internal/contact` and `internal/home`
   (`handler_integration_test.go`) keep theirs beside the tests it serves.
 - Put a helper shared by several packages in the area's helper package, such
-  as `admintest` or `dbtest`.
+  as `admintest` or `dbtest`. A helper that builds one package for other
+  packages' tests lives beside it, named for it with `test` appended
+  (`admin/products/productstest`, as `net/http/httptest` serves `net/http`;
+  [creating test helper packages](https://google.github.io/styleguide/go/best-practices#naming-doubles-helper-package)).
 - A test that needs a database of its own calls `dbtest.Pool`: a copy of the
   migrated template on the package's one server, made in milliseconds.
   `dbtest.Database` adds a pool per application role, assumed with `SET ROLE`

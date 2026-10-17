@@ -17,6 +17,7 @@ import (
 	"github.com/koopa0/goen/internal/admin/admintest"
 	"github.com/koopa0/goen/internal/admin/audit"
 	"github.com/koopa0/goen/internal/admin/products"
+	"github.com/koopa0/goen/internal/admin/products/productstest"
 	"github.com/koopa0/goen/internal/db"
 )
 
@@ -26,8 +27,8 @@ func TestOverlappingSpecAdditionsKeepBothSpecifications(t *testing.T) {
 	defer cancel()
 	adminPool := admintest.AdminRolePool(t, pool)
 	s := products.NewStore(adminPool)
-	slug := admintest.DraftProduct(t, ctx, pool, s)
-	otherSlug := admintest.DraftProduct(t, ctx, pool, s)
+	slug := productstest.Draft(t, ctx, pool, s)
+	otherSlug := productstest.Draft(t, ctx, pool, s)
 
 	first, beginErr := adminPool.Begin(ctx)
 	if beginErr != nil {
@@ -56,7 +57,7 @@ func TestOverlappingSpecAdditionsKeepBothSpecifications(t *testing.T) {
 	}
 	writer := products.NewStore(writerPool)
 	mux := http.NewServeMux()
-	admintest.ProductDesk(writerPool, writer).Routes(mux, admintest.BackOffice)
+	productstest.NewHandler(writerPool, writer).Routes(mux, admintest.BackOffice)
 	form := url.Values{
 		"label": {"Second label"}, "value": {"Second value"},
 		"label_en": {"Draft label"}, "value_en": {"Draft value"},
