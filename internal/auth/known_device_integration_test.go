@@ -124,10 +124,11 @@ func TestADeviceCookieCountsOnlyForItsAccount(t *testing.T) {
 	}
 }
 
-// TestAStolenDeviceCookieGetsDeviceMissesInAll: the cookie authenticates
-// nothing, and what it buys is bounded in the database, so a restart does not
-// refill it. After auth.DeviceMisses wrong passwords it is a stranger's browser.
-func TestAStolenDeviceCookieGetsDeviceMissesInAll(t *testing.T) {
+// TestAStolenDeviceCookieIsForgottenAfterItsMisses: the cookie authenticates
+// nothing, and what it buys is counted in the database, so a restart does not
+// refill it. Once auth.DeviceMisses wrong passwords are recorded against it, it
+// is a stranger's browser.
+func TestAStolenDeviceCookieIsForgottenAfterItsMisses(t *testing.T) {
 	h, s := newDeviceHandler(t)
 	owner := registerProved(t, s, "stolen-device-"+uuid.NewString()+"@example.com")
 	device := signedInDevice(t, h, owner.Email)

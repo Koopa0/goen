@@ -29,9 +29,11 @@ const (
 	// DevicesPerAccount is how many browsers an account keeps; the oldest goes
 	// when another signs in.
 	DevicesPerAccount = 10
-	// DeviceMisses is how many wrong passwords a remembered browser may send
-	// in all before it is forgotten, and must sign in as a stranger would. It
-	// bounds what a stolen cookie buys.
+	// DeviceMisses is the count of wrong passwords recorded against a
+	// remembered browser at which it is forgotten, and must sign in as a
+	// stranger would. It bounds what a stolen cookie buys to about this many:
+	// requests already past the lookup when the row goes still count, within
+	// the device budget's burst.
 	DeviceMisses = 10
 )
 

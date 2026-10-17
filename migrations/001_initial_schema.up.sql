@@ -838,8 +838,8 @@ CREATE INDEX sessions_expires_at_idx ON sessions (expires_at);
 -- at every sign-in from its browser and lapses expires_at after the last one;
 -- a password change, a reset or "sign out other devices" deletes the account's
 -- rows, and erasure takes them with the account. How many an account keeps,
--- how long one lasts and how many wrong passwords one may send are policy in
--- internal/auth, which writes every row.
+-- how long one lasts and after how many wrong passwords one is forgotten are
+-- policy in internal/auth, which writes every row.
 CREATE TABLE known_devices (
     digest     bytea PRIMARY KEY,
     user_id    uuid NOT NULL REFERENCES users (id) ON DELETE CASCADE,
@@ -10909,7 +10909,7 @@ GRANT INSERT (assessment_id, order_id, return_request_id, order_line_id,
 CREATE FUNCTION schema_version(OUT digest text, OUT version bigint, OUT dirty boolean)
 LANGUAGE plpgsql STABLE SECURITY DEFINER SET search_path = pg_catalog, public, pg_temp AS $$
 BEGIN
-    digest := '1b7267f02a0b3f6288291327cb5e36aeecb684a626753702f9e66f6d959692f9';
+    digest := '18a5430e0b7ccd20b43e56a2910aae2e0c7eb49ccbc7e94795060c71bb7947b3';
     -- NULL when the database was not built by golang-migrate, which the
     -- binary refuses as it refuses any other unknown schema.
     IF to_regclass('public.schema_migrations') IS NOT NULL THEN
