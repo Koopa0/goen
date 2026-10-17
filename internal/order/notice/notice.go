@@ -1,4 +1,5 @@
-// Package notice queues terminal order facts without retaining delivery PII.
+// Package notice queues terminal order facts without retaining delivery PII,
+// and delivers each to the recipient the order holds when it is sent.
 package notice
 
 import (
@@ -46,6 +47,22 @@ func (r Recipients) Of(ctx context.Context, orderID uuid.UUID) (Recipient, bool,
 		recipient.RescissionEnds = to.RescissionEnds
 	}
 	return recipient, true, nil
+}
+
+// Deliver sends a terminal notice to the order's recipient as the order holds
+// it now. An order whose recipient is erased or gone completes without
+// sending: rescheduling would retry exactly what must not happen. A failed read
+// or send stays retryable.
+func (r Recipients) Deliver(ctx context.Context, m *outbox.OrderTerminal,
+	send func(context.Context, *outbox.OrderTerminal, Recipient) error) error {
+	to, ok, err := r.Of(ctx, m.OrderID)
+	if err != nil {
+		return err
+	}
+	if !ok {
+		return nil
+	}
+	return send(ctx, m, to)
 }
 
 // EnqueuePartRefunded must use the transaction that settles the refund, so the
@@ -98,4 +115,21 @@ func (r Recipients) PartRefund(ctx context.Context, m *outbox.OrderPartRefunded)
 		})
 	}
 	return refund, true, nil
+}
+
+// DeliverPartRefunded sends the letter for a settled unsent refund, read at
+// delivery from the order and the refund: the queued row names neither address
+// nor amount. An order whose recipient is erased or gone completes without
+// sending; a refund with no settled lines, a failed read or a failed send stays
+// retryable.
+func (r Recipients) DeliverPartRefunded(ctx context.Context, m *outbox.OrderPartRefunded,
+	send func(context.Context, *outbox.OrderPartRefunded, *PartRefund) error) error {
+	refund, ok, err := r.PartRefund(ctx, m)
+	if err != nil {
+		return err
+	}
+	if !ok {
+		return nil
+	}
+	return send(ctx, m, &refund)
 }
