@@ -113,10 +113,11 @@ func (h *Handler) Reset(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	address, err := h.store.CompleteReset(r.Context(), token, password)
+	done, err := h.store.CompleteReset(r.Context(), token, password)
 	switch {
 	case err == nil:
-		h.writeSignInContext(w, signInAfterReset, address)
+		SetDeviceCookie(w, done.Device, h.secure)
+		h.writeSignInContext(w, signInAfterReset, done.Address)
 		http.Redirect(w, r, "/signin?reset=1", http.StatusSeeOther)
 	case errors.Is(err, ErrInvalidPassword):
 		refusal, refused := PasswordRefusal("password", password)
