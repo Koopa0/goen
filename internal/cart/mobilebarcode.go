@@ -5,7 +5,6 @@ import (
 
 	"github.com/koopa0/goen/internal/i18n"
 	"github.com/koopa0/goen/internal/invoice/issuer"
-	"github.com/koopa0/goen/internal/ui/pages"
 )
 
 // checkMobileBarcode refuses only a barcode the provider says does not exist. A
@@ -13,7 +12,7 @@ import (
 // external failure never costs a shopper their checkout.
 // Local fields, the quote and a prior successful attempt are handled before
 // this point, so an idempotent retry never asks.
-func (h *Handler) checkMobileBarcode(w http.ResponseWriter, r *http.Request, inv *Invoice, view *pages.CheckoutView) bool {
+func (h *Handler) checkMobileBarcode(w http.ResponseWriter, r *http.Request, inv *Invoice, view *CheckoutView) bool {
 	if !inv.Type.NeedsMobileBarcode() || h.barcodeChecker == nil {
 		return true
 	}

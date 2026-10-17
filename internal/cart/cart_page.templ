@@ -1,4 +1,4 @@
-package pages
+package cart
 
 import (
 	"fmt"
@@ -8,6 +8,7 @@ import (
 	"github.com/koopa0/goen/internal/i18n"
 	"github.com/koopa0/goen/internal/ui/components"
 	"github.com/koopa0/goen/internal/ui/layouts"
+	"github.com/koopa0/goen/internal/ui/pages"
 )
 
 templ Cart(p layouts.Page, v CartView) {
@@ -56,7 +57,7 @@ templ Cart(p layouts.Page, v CartView) {
 			</div>
 			if v.Empty() {
 				<div class="goen-empty">
-					@emptyArt(assets.EmptyCartImage)
+					@components.EmptyArt(assets.EmptyCartImage)
 					<p class="goen-empty__title">{ i18n.T(ctx, i18n.KeyEmptyCart) }</p>
 					<p class="goen-empty__text">{ i18n.T(ctx, i18n.KeyCartEmptyDesc) }</p>
 					@components.ButtonLink(components.ButtonProps{
@@ -150,7 +151,7 @@ templ Cart(p layouts.Page, v CartView) {
 	}
 }
 
-templ cartLine(l CartLine) {
+templ cartLine(l pages.CartLine) {
 	<li id={ "line-" + l.VariantID } class={ "goen-line", "goen-line--cart", templ.KV("goen-line--out", l.Unavailable) }>
 		<a class="goen-line__thumb" href={ templ.URL("/p/" + l.Slug) }>
 			if l.HasImage() {

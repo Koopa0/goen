@@ -2,6 +2,7 @@ package pages
 
 import (
 	"context"
+	"slices"
 	"strconv"
 	"strings"
 	"time"
@@ -20,6 +21,12 @@ type PickupChainChoice struct {
 // KnownPickupChainChoices keeps historical orders correctable when checkout no longer takes their chain.
 func KnownPickupChainChoices() []PickupChainChoice {
 	return choicesFor(shipping.Chains())
+}
+
+// CheckoutPickupChainChoices excludes chains whose store picker checkout does not integrate.
+func CheckoutPickupChainChoices() []PickupChainChoice {
+	chains := shipping.Chains()
+	return choicesFor(slices.DeleteFunc(chains, func(chain shipping.Chain) bool { return !chain.AtCheckout() }))
 }
 
 func choicesFor(chains []shipping.Chain) []PickupChainChoice {

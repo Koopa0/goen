@@ -1,4 +1,4 @@
-package pages
+package cart
 
 import (
 	"regexp"
@@ -6,6 +6,7 @@ import (
 	"testing"
 
 	"github.com/koopa0/goen/internal/shipping"
+	"github.com/koopa0/goen/internal/ui/pages"
 
 	"github.com/koopa0/goen/internal/i18n"
 )
@@ -45,11 +46,11 @@ func aMapForm() CheckoutMapForm {
 // back from the carrier's map.
 func aCheckoutWithAStore() *CheckoutView {
 	return &CheckoutView{
-		Cart:         CartView{Lines: []CartLine{{Name: "x", Quantity: 1, UnitCents: 100}}},
+		Cart:         CartView{Lines: []pages.CartLine{{Name: "x", Quantity: 1, UnitCents: 100}}},
 		Shipping:     []ShippingChoice{{VersionID: "ship-1", Code: "pickup", Name: "超商取貨"}},
 		Chosen:       "ship-1",
 		Destination:  "pickup_point",
-		PickupChains: CheckoutPickupChainChoices(),
+		PickupChains: pages.CheckoutPickupChainChoices(),
 		Address: CheckoutAddress{
 			Email: "someone@goen.test", Name: "王小明", Phone: "0912345678",
 			PickupChain: shipping.ChainSevenEleven, PickupStoreCode: "131386",

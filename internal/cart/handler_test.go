@@ -42,10 +42,10 @@ func TestSignedInCartLookupFallsBackToTheAccountCart(t *testing.T) {
 func TestRefusedCouponLeavesTheQuoteOfThePageWithoutIt(t *testing.T) {
 	t.Parallel()
 	cartID := uuid.MustParse("018f0000-0000-7000-8000-000000000001")
-	view := func() *pages.CheckoutView {
-		return &pages.CheckoutView{
+	view := func() *CheckoutView {
+		return &CheckoutView{
 			Chosen: "018f0000-0000-7000-8000-000000000021",
-			Cart: pages.CartView{
+			Cart: CartView{
 				SubtotalCents: 12000,
 				Lines: []pages.CartLine{{
 					VariantID: "018f0000-0000-7000-8000-000000000011",
@@ -54,7 +54,7 @@ func TestRefusedCouponLeavesTheQuoteOfThePageWithoutIt(t *testing.T) {
 			},
 		}
 	}
-	quote := func(v *pages.CheckoutView) checkoutQuoteID {
+	quote := func(v *CheckoutView) checkoutQuoteID {
 		t.Helper()
 		id, err := checkoutQuoteIDForView(cartID, v)
 		if err != nil {
@@ -101,7 +101,7 @@ func TestAddFromTheWishlistComesBackToTheWishlist(t *testing.T) {
 
 func TestUnavailableCheckoutDoesNotRenderAnObsoletePickupDestination(t *testing.T) {
 	h := &Handler{log: slog.New(slog.DiscardHandler)}
-	view := &pages.CheckoutView{Chosen: "withdrawn-method", QuoteID: "obsolete-quote", Destination: shipping.DestinationPickupPoint}
+	view := &CheckoutView{Chosen: "withdrawn-method", QuoteID: "obsolete-quote", Destination: shipping.DestinationPickupPoint}
 	req := httptest.NewRequestWithContext(t.Context(), http.MethodGet, "/checkout", http.NoBody)
 	res := httptest.NewRecorder()
 	h.renderCheckout(res, req, http.StatusOK, view)

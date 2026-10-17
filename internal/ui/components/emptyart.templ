@@ -1,9 +1,9 @@
-package pages
+package components
 
 import "github.com/koopa0/goen/assets"
 
-// emptyArt is decoration: the title and text below say the same thing.
-templ emptyArt(name string) {
+// EmptyArt is decoration: the title and text below say the same thing.
+templ EmptyArt(name string) {
 	if assets.Has(name) {
 		<img class="goen-empty__art" src={ assets.URL(name) } alt="" width="128" height="96" decoding="async"/>
 	}

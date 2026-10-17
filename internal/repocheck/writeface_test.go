@@ -88,7 +88,7 @@ func TestEveryFormActionResolvesToAPostRoute(t *testing.T) {
 				}
 				// The pickup map posts to the carrier, whose URL is supplied by
 				// the gateway; it must not be compared with this server's mux.
-				if key == "internal/ui/pages/pickupstart.templ:templ.URL(f.Action)" {
+				if key == "internal/cart/pickupstart.templ:templ.URL(f.Action)" {
 					continue
 				}
 				action = pathFromExpr(expr)

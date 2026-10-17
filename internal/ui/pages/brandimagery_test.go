@@ -38,13 +38,13 @@ func TestHomeDepartmentCardsWearTheirToneAndPhotograph(t *testing.T) {
 	}
 }
 
+// The cart's row of this test is internal/cart's TestCartEmptyStateShowsItsIllustration.
 func TestEmptyStatesShowTheirIllustrationAsDecoration(t *testing.T) {
 	t.Parallel()
 	for name, tt := range map[string]struct {
 		page  string
 		asset string
 	}{
-		"cart":            {renderIn(t, i18n.ZhHant, Cart(layouts.Page{}, CartView{})), assets.EmptyCartImage},
 		"campaign":        {renderIn(t, i18n.ZhHant, Campaign(layouts.Page{}, CampaignView{Title: "x"})), assets.EmptyCampaignImage},
 		"category":        {renderIn(t, i18n.ZhHant, Listing(layouts.Page{}, ListingView{Slug: "phones"}, nil, nil)), assets.EmptySearchImage},
 		"search prompt":   {renderIn(t, i18n.ZhHant, Search(layouts.Page{}, SearchView{})), assets.EmptySearchImage},

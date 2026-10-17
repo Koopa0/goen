@@ -11,8 +11,6 @@ import (
 	"testing"
 
 	"github.com/koopa0/goen/internal/shipping"
-
-	"github.com/koopa0/goen/internal/ui/pages"
 )
 
 // aMerchantID stands for whatever id the environment names. It is opaque to
@@ -673,7 +671,7 @@ func TestPickupRefusalDiagnosticsDoNotExposeSelectionSecrets(t *testing.T) {
 		"/checkout?pickup_n="+aNonce+"&pickup_chain=seven_eleven&pickup_store_code=131386&pickup_store_name=private-store", http.NoBody)
 	//nolint:gosec // G124: stale local cookie used to exercise refusal diagnostics
 	req.AddCookie(&http.Cookie{Name: "goen_pickup", Value: encodeState("fedcba98765432100000|a|b|c")})
-	view := &pages.CheckoutView{}
+	view := &CheckoutView{}
 	if got := h.applyReturnedStore(req, view); got != http.StatusUnprocessableEntity || !view.PickupRefused {
 		t.Fatalf("unmatched selection = %d, refused=%v", got, view.PickupRefused)
 	}
@@ -697,7 +695,7 @@ func TestMissingPickupNonceIsNotLoggedAsAMatch(t *testing.T) {
 		"/checkout?pickup_chain=seven_eleven&pickup_store_code=131386", http.NoBody)
 	//nolint:gosec // G124: local selection cookie without a matching return nonce
 	req.AddCookie(&http.Cookie{Name: "goen_pickup", Value: encodeState(aNonce + "|a|b|c")})
-	view := &pages.CheckoutView{}
+	view := &CheckoutView{}
 	if got := h.applyReturnedStore(req, view); got != http.StatusUnprocessableEntity {
 		t.Fatalf("return without a nonce = %d, want 422", got)
 	}
