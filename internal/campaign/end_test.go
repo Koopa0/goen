@@ -1,10 +1,11 @@
-package catalog
+package campaign_test
 
 import (
 	"strings"
 	"testing"
 	"time"
 
+	"github.com/koopa0/goen/internal/campaign"
 	"github.com/koopa0/goen/internal/i18n"
 	"github.com/koopa0/goen/internal/ui/components"
 )
@@ -35,7 +36,7 @@ func TestACampaignNamesItsLastDayHoweverFarOff(t *testing.T) {
 		{"into next year", i18n.ZhHant, december, time.Date(2027, 1, 5, 4, 0, 0, 0, time.UTC), "2027\u00a0年 1\u00a0月 5\u00a0日"},
 		{"into next year in English", i18n.En, december, time.Date(2027, 1, 5, 4, 0, 0, 0, time.UTC), "Jan\u00a05, 2027"},
 	} {
-		got := CampaignEndsOn(i18n.WithLocale(t.Context(), tt.locale), tt.endsAt, tt.now)
+		got := campaign.EndsOn(i18n.WithLocale(t.Context(), tt.locale), tt.endsAt, tt.now)
 		if got != tt.want {
 			t.Errorf("%s: %q, want %q", tt.name, got, tt.want)
 		}
@@ -47,7 +48,7 @@ func TestTheCampaignEndStatNamesItsLastDayAndTheLastTwoDays(t *testing.T) {
 	ctx := i18n.WithLocale(t.Context(), i18n.ZhHant)
 	now := time.Date(2026, 10, 9, 4, 0, 0, 0, time.UTC)
 	ends := time.Date(2026, 10, 10, 16, 0, 0, 0, time.UTC)
-	got := renderComponent(t, ctx, components.StatLine([]components.Stat{CampaignEndStat(ctx, ends, now)}, components.StatLinePlain))
+	got := renderComponent(t, ctx, components.StatLine([]components.Stat{campaign.EndStat(ctx, ends, now)}, components.StatLinePlain))
 	for _, want := range []string{`datetime="2026-10-10"`, "明天結束"} {
 		if !strings.Contains(got, want) {
 			t.Errorf("end stat omits %s:\n%s", want, got)

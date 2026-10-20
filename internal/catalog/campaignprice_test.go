@@ -22,7 +22,7 @@ func titleIn(locale i18n.Locale) string {
 	return "秋日選物"
 }
 
-// Whether a price is on sale is catalog.OnSale's to decide; the page strikes
+// Whether a price is on sale is campaign.OnSale's to decide; the page strikes
 // the price and names the campaign only when it is.
 func TestAProductPageStrikesItsPriceOnlyOnSale(t *testing.T) {
 	t.Parallel()

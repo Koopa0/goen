@@ -94,6 +94,11 @@ var (
 	policyMayImport = []string{
 		"internal/i18n", "internal/web", "internal/ui/layouts",
 	}
+	// campaignMayImport is what internal/campaign may import besides itself and
+	// the leaves: the message catalogue and the stat its schedule is told in.
+	campaignMayImport = []string{
+		"internal/i18n", "internal/ui/components",
+	}
 	// importFreeLeaves import no goen package at all.
 	importFreeLeaves = []string{
 		"internal/refund",
@@ -170,6 +175,17 @@ var depsRules = []importRule{
 		},
 		reason: "the home, department and product pages read the stated rules from policy, so policy imports no feature; " +
 			"a number it states is read from the database or restated beside a test in the package that enforces it",
+	},
+	{
+		name: "campaign",
+		hard: true,
+		forbid: func(from, to string) bool {
+			return under(from, "internal/campaign") && !under(to, "internal/campaign") &&
+				!slices.Contains(campaignMayImport, to) &&
+				!slices.Contains(importFreeLeaves, to) && !slices.Contains(i18nOnlyLeaves, to)
+		},
+		reason: "the catalogue, home and account pages strike a price with campaign.OnSale and tell a campaign's window with its Schedule and End, " +
+			"so campaign imports no feature",
 	},
 	{
 		name: "desks",
