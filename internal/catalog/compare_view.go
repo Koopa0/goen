@@ -121,9 +121,9 @@ func (v CompareView) ShelfHref() string {
 	return "/c/" + v.ShelfSlug
 }
 
-func (v CompareView) Enough() bool { return len(v.Products) >= pages.MinCompare }
+func (v CompareView) Enough() bool { return len(v.Products) >= MinCompare }
 
-func (v CompareView) Full() bool { return len(v.Products) >= pages.MaxCompare }
+func (v CompareView) Full() bool { return len(v.Products) >= MaxCompare }
 
 // AddHref is a link, not a write: the set is the address.
 func (v CompareView) AddHref(slug string) string {

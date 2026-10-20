@@ -212,7 +212,7 @@ func (h *Handler) AddItem(w http.ResponseWriter, r *http.Request) {
 
 	variantID, err := uuid.Parse(r.PostFormValue("variant"))
 	if err != nil {
-		h.backToProduct(w, r, uuid.Nil, pages.AddOutcomeUnknown)
+		h.backToProduct(w, r, uuid.Nil, item.AddOutcomeUnknown)
 		return
 	}
 	quantity := ParseQuantity(r.PostFormValue("quantity"))
@@ -229,13 +229,13 @@ func (h *Handler) AddItem(w http.ResponseWriter, r *http.Request) {
 
 	switch err := h.store.Add(r.Context(), cartID, variantID, quantity); {
 	case err == nil:
-		h.backToProduct(w, r, variantID, pages.AddOutcomeAdded)
+		h.backToProduct(w, r, variantID, item.AddOutcomeAdded)
 	case errors.Is(err, ErrQuantityAdjusted):
-		h.backToProduct(w, r, variantID, pages.AddOutcomeAdjusted)
+		h.backToProduct(w, r, variantID, item.AddOutcomeAdjusted)
 	case errors.Is(err, ErrTooManyItems):
-		h.backToProduct(w, r, variantID, pages.AddOutcomeFull)
+		h.backToProduct(w, r, variantID, item.AddOutcomeFull)
 	case errors.Is(err, ErrUnavailable), errors.Is(err, ErrNotFound):
-		h.backToProduct(w, r, variantID, pages.AddOutcomeUnavailable)
+		h.backToProduct(w, r, variantID, item.AddOutcomeUnavailable)
 	default:
 		h.log.ErrorContext(r.Context(), "add to cart", "error", err)
 		h.serverError(w, r)
@@ -1720,7 +1720,7 @@ const wishlistPath = "/account/wishlist"
 // backToProduct takes the slug from the form's own field rather than the
 // Referer, which a request controls; the selection query is rebuilt from the
 // variant the server accepted, not from anything the form named.
-func (h *Handler) backToProduct(w http.ResponseWriter, r *http.Request, variantID uuid.UUID, outcome pages.AddOutcome) {
+func (h *Handler) backToProduct(w http.ResponseWriter, r *http.Request, variantID uuid.UUID, outcome item.AddOutcome) {
 	if r.PostFormValue("return") == wishlistPath {
 		http.Redirect(w, r, wishlistPath+"?added="+url.QueryEscape(string(outcome)), http.StatusSeeOther)
 		return

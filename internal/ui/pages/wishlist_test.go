@@ -6,6 +6,7 @@ import (
 
 	"golang.org/x/net/html"
 
+	"github.com/koopa0/goen/internal/cart/item"
 	"github.com/koopa0/goen/internal/i18n"
 	"github.com/koopa0/goen/internal/ui/layouts"
 )
@@ -271,23 +272,23 @@ func nodeText(n *html.Node) string {
 
 func TestAddingFromTheWishlistStaysOnItAndSaysWhatHappened(t *testing.T) {
 	t.Parallel()
-	item := WishlistItem{ProductTile: ProductTile{Slug: "mug", Name: "Mug", PriceCents: 100, InStock: true}, SoleVariantID: "v1"}
+	saved := WishlistItem{ProductTile: ProductTile{Slug: "mug", Name: "Mug", PriceCents: 100, InStock: true}, SoleVariantID: "v1"}
 	for _, tc := range []struct {
-		outcome AddOutcome
+		outcome item.AddOutcome
 		want    i18n.Key
 	}{
-		{AddOutcomeAdded, i18n.KeyAddedToCart},
-		{AddOutcomeAdjusted, i18n.KeyAddAdjusted},
-		{AddOutcomeUnavailable, i18n.KeyAddRefused},
-		{AddOutcomeFull, i18n.KeyCartLineLimit},
+		{item.AddOutcomeAdded, i18n.KeyAddedToCart},
+		{item.AddOutcomeAdjusted, i18n.KeyAddAdjusted},
+		{item.AddOutcomeUnavailable, i18n.KeyAddRefused},
+		{item.AddOutcomeFull, i18n.KeyCartLineLimit},
 	} {
 		ctx := i18n.WithLocale(t.Context(), i18n.ZhHant)
-		got := renderToString(t, Wishlist(layouts.Page{}, WishlistView{Products: []WishlistItem{item}, Added: tc.outcome}))
+		got := renderToString(t, Wishlist(layouts.Page{}, WishlistView{Products: []WishlistItem{saved}, Added: tc.outcome}))
 		if !strings.Contains(got, i18n.T(ctx, tc.want)) {
 			t.Errorf("outcome %q renders no %q", tc.outcome, tc.want)
 		}
 	}
-	plain := renderToString(t, Wishlist(layouts.Page{}, WishlistView{Products: []WishlistItem{item}}))
+	plain := renderToString(t, Wishlist(layouts.Page{}, WishlistView{Products: []WishlistItem{saved}}))
 	if strings.Contains(plain, `id="added"`) {
 		t.Error("a plain visit shows an add-to-cart notice")
 	}
