@@ -25,7 +25,6 @@ func NewHandler(store *Store, log *slog.Logger) *Handler {
 }
 
 func (h *Handler) Routes(mux *http.ServeMux, ac *access.Control) {
-	mux.HandleFunc("GET /admin/warranty", ac.RequireStaff(h.Warranties))
 	mux.HandleFunc("GET /admin/customers", ac.RequireStaff(h.Search))
 	mux.HandleFunc("GET /admin/customers/{id}", ac.RequireStaff(h.Profile))
 }
@@ -39,17 +38,6 @@ func (h *Handler) Search(w http.ResponseWriter, r *http.Request) {
 	}
 	web.Render(w, r, h.log, http.StatusOK, Customers(
 		layouts.Page{Title: i18n.T(r.Context(), i18n.KeyAdminPageCustomers)}, view))
-}
-
-func (h *Handler) Warranties(w http.ResponseWriter, r *http.Request) {
-	view, err := h.store.Warranties(r.Context(), r.URL.Query().Get("q"), r.URL.Query().Get(keyset.Param))
-	if err != nil {
-		h.log.ErrorContext(r.Context(), "search warranties", "error", err)
-		access.ServerError(w, r, h.log)
-		return
-	}
-	web.Render(w, r, h.log, http.StatusOK, Warranties(
-		layouts.Page{Title: i18n.T(r.Context(), i18n.KeyAdminPageWarranty)}, view))
 }
 
 func (h *Handler) Profile(w http.ResponseWriter, r *http.Request) {

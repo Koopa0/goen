@@ -63,82 +63,57 @@ func TestCustomerRecentOrdersFollowTheirGroup(t *testing.T) {
 	wantBadge(t, customer, "待出貨", "goen-badge goen-badge--warn")
 }
 
-// From TestEveryAdminEmptyPageKeepsItsRestartLink (rows customers and warranty).
-func TestCustomerAndWarrantyEmptyPageKeepsItsRestartLink(t *testing.T) {
+// From TestEveryAdminEmptyPageKeepsItsRestartLink (row customers).
+func TestCustomerEmptyPageKeepsItsRestartLink(t *testing.T) {
 	t.Parallel()
 	b := keyset.Bound{PastEnd: true, First: "/admin/products?q=test"}
-	p := layouts.Page{Title: "Pagination"}
-	for name, c := range map[string]templ.Component{
-		"customers": Customers(p, CustomersView{Bound: b, Searched: true, Term: "test"}),
-		"warranty":  Warranties(p, WarrantiesView{Bound: b, Searched: true, Term: "test"}),
-	} {
-		t.Run(name, func(t *testing.T) {
-			t.Parallel()
-			body := renderComponent(t, i18n.WithLocale(t.Context(), i18n.En), c)
-			if !strings.Contains(body, `href="/admin/products?q=test"`) || !strings.Contains(body, "First page") {
-				t.Fatal("empty page lost its plain restart link")
-			}
-			if strings.Count(body, "There are no entries on this page.") != 1 {
-				t.Fatal("empty page lost its shared empty state")
-			}
-		})
+	body := renderComponent(t, i18n.WithLocale(t.Context(), i18n.En),
+		Customers(layouts.Page{Title: "Pagination"}, CustomersView{Bound: b, Searched: true, Term: "test"}))
+	if !strings.Contains(body, `href="/admin/products?q=test"`) || !strings.Contains(body, "First page") {
+		t.Fatal("empty page lost its plain restart link")
+	}
+	if strings.Count(body, "There are no entries on this page.") != 1 {
+		t.Fatal("empty page lost its shared empty state")
 	}
 }
 
-// queuePages builds the two search pages around one bound, with no rows.
-func queuePages(b keyset.Bound, ctx func(k i18n.Key) string) map[string]struct {
-	page templ.Component
-	want string
-} {
-	p := layouts.Page{Title: "Queue"}
-	type c = struct {
-		page templ.Component
-		want string
-	}
+// queuePage builds the search page around one bound, with no rows, and the
+// sentence its own empty first page says.
+func queuePage(b keyset.Bound, ctx func(k i18n.Key) string) (page templ.Component, empty string) {
 	term := "ZZ99"
-	return map[string]c{
-		"customers": {Customers(p, CustomersView{Bound: b, Searched: true, Term: term}), fmt.Sprintf(ctx(i18n.KeyAdminCustNoneFound), term)},
-		"warranty":  {Warranties(p, WarrantiesView{Bound: b, Searched: true, Term: term}), fmt.Sprintf(ctx(i18n.KeyAdminWarrantyNoneFound), term)},
-	}
+	return Customers(layouts.Page{Title: "Queue"}, CustomersView{Bound: b, Searched: true, Term: term}),
+		fmt.Sprintf(ctx(i18n.KeyAdminCustNoneFound), term)
 }
 
 // From TestEveryQueueKeepsItsOwnFirstPageEmptyState and
-// TestEveryQueueWithMoreRowsOffersNext (rows customers and warranty).
-func TestCustomerAndWarrantyQueuesKeepTheirOwnFirstPageEmptyState(t *testing.T) {
+// TestEveryQueueWithMoreRowsOffersNext (row customers).
+func TestCustomerQueueKeepsItsOwnFirstPageEmptyState(t *testing.T) {
 	t.Parallel()
 	ctx := func(k i18n.Key) string { return i18n.T(i18n.WithLocale(t.Context(), i18n.En), k) }
 	generic := ctx(i18n.KeyPageEmpty)
 	_, b := keyset.PageBound("/admin/queue", false, []db.Order{}, keyset.PageSize, func(*db.Order) string { return "" })
-	for name, c := range queuePages(b, ctx) {
-		t.Run(name, func(t *testing.T) {
-			t.Parallel()
-			body := renderComponent(t, i18n.WithLocale(t.Context(), i18n.En), c.page)
-			if !strings.Contains(body, html.EscapeString(c.want)) {
-				t.Errorf("the queue's own empty text %q is missing", c.want)
-			}
-			if strings.Contains(body, generic) {
-				t.Error("an empty first page shows the later-page sentence")
-			}
-		})
+	page, want := queuePage(b, ctx)
+	body := renderComponent(t, i18n.WithLocale(t.Context(), i18n.En), page)
+	if !strings.Contains(body, html.EscapeString(want)) {
+		t.Errorf("the queue's own empty text %q is missing", want)
+	}
+	if strings.Contains(body, generic) {
+		t.Error("an empty first page shows the later-page sentence")
 	}
 }
 
-func TestCustomerAndWarrantyQueuesWithMoreRowsOfferNext(t *testing.T) {
+func TestCustomerQueueWithMoreRowsOffersNext(t *testing.T) {
 	t.Parallel()
 	ctx := func(k i18n.Key) string { return i18n.T(i18n.WithLocale(t.Context(), i18n.En), k) }
 	rows := make([]db.Order, keyset.PageLimit)
 	_, b := keyset.PageBound("/admin/queue", false, rows, keyset.PageSize,
 		func(*db.Order) string { return `{"ID":"12345678-1234-1234-1234-123456789abc"}` })
-	for name, c := range queuePages(b, ctx) {
-		t.Run(name, func(t *testing.T) {
-			t.Parallel()
-			body := renderComponent(t, i18n.WithLocale(t.Context(), i18n.En), c.page)
-			if !strings.Contains(body, `rel="next"`) {
-				t.Error("a first page with more rows has no Next link")
-			}
-			if strings.Contains(body, ctx(i18n.KeyPageEmpty)) {
-				t.Error("a first page with more rows says it is empty")
-			}
-		})
+	page, _ := queuePage(b, ctx)
+	body := renderComponent(t, i18n.WithLocale(t.Context(), i18n.En), page)
+	if !strings.Contains(body, `rel="next"`) {
+		t.Error("a first page with more rows has no Next link")
+	}
+	if strings.Contains(body, ctx(i18n.KeyPageEmpty)) {
+		t.Error("a first page with more rows says it is empty")
 	}
 }

@@ -459,3 +459,55 @@ func captureCard(t *testing.T, tx pgx.Tx, orderID uuid.UUID, session string, cen
 func ReturnDesk(p *pgxpool.Pool, refunder refunds.Refunder) *returns.Store {
 	return returns.NewStore(p, refunds.NewStore(p, refunder, nil))
 }
+
+// Settlement is how far a return's refund has got.
+type Settlement int
+
+const (
+	RefundUnsettled Settlement = iota // approved, the card refund failed and no refunded event was written
+	RefundSettled                     // the card refund succeeded and the payout wrote the refunded event
+	ParcelReceived                    // settled, the parcel inspected and the return completed
+)
+
+// ReturnWithStatus files a return of quantity units of the line and takes it to status. The approval trigger
+// allocates the refund amounts itself, so none are written here.
+func ReturnWithStatus(t *testing.T, pool *pgxpool.Pool, orderID, lineID uuid.UUID, quantity int32, status string, how Settlement) {
+	t.Helper()
+	ctx := t.Context()
+	var requestID uuid.UUID
+	if err := pool.QueryRow(ctx, `INSERT INTO return_requests(order_id,reason) VALUES($1,'') RETURNING id`, orderID).Scan(&requestID); err != nil {
+		t.Fatal(err)
+	}
+	exec := func(query string, args ...any) {
+		t.Helper()
+		if _, err := pool.Exec(ctx, query, args...); err != nil {
+			t.Fatal(err)
+		}
+	}
+	exec(`INSERT INTO return_request_lines(order_id,return_request_id,order_line_id,quantity) VALUES($1,$2,$3,$4)`, orderID, requestID, lineID, quantity)
+	switch status {
+	case "rejected":
+		exec(`UPDATE return_requests SET status='rejected',decided_at=now() WHERE id=$1`, requestID)
+	case "approved", "completed":
+		exec(`UPDATE return_requests SET status='approved',decided_at=now() WHERE id=$1`, requestID)
+		cardRefund := "failed"
+		if how != RefundUnsettled {
+			cardRefund = "succeeded"
+		}
+		exec(`
+			INSERT INTO refunds (payment_id, return_request_id, request_key, status, amount_cents, reason,
+			                     provider_ref, succeeded_at, failed_at)
+			SELECT p.id, r.id, 'return:' || r.id, $2::text, r.card_refund_cents, 'test', 're_' || r.id,
+			       CASE WHEN $2::text = 'succeeded' THEN now() END,
+			       CASE WHEN $2::text = 'failed' THEN now() END
+			FROM return_requests r JOIN payments p ON p.order_id = r.order_id AND p.status = 'succeeded'
+			WHERE r.id = $1`, requestID, cardRefund)
+		if how != RefundUnsettled {
+			exec(`INSERT INTO order_events (order_id, kind, return_request_id) VALUES ($1, 'refunded', $2)`, orderID, requestID)
+		}
+		if status == "completed" {
+			exec(`UPDATE return_request_lines SET received_quantity=quantity, restocked_quantity=quantity WHERE return_request_id=$1`, requestID)
+			exec(`UPDATE return_requests SET status='completed' WHERE id=$1`, requestID)
+		}
+	}
+}

@@ -1,6 +1,5 @@
 // Package customers is the back office's customer lookup: search by name or
-// address, one customer's page, and the warranty search that finds a customer by
-// serial number.
+// address, and one customer's page.
 package customers
 
 import (

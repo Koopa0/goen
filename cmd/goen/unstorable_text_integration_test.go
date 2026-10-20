@@ -58,7 +58,7 @@ func TestUnstorableTextNeverReachesTheDatabase(t *testing.T) {
 			"/compare?p=" + bad,
 			"/admin/customers?q=" + bad,
 			"/admin/orders?q=" + bad,
-			"/admin/warranty?q=" + bad,
+			"/admin/warranties?q=" + bad,
 			"/admin/products/" + bad,
 		} {
 			req := httptest.NewRequestWithContext(ctx, http.MethodGet, target, http.NoBody)

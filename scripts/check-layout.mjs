@@ -354,13 +354,13 @@ const ADMIN = [
   { label: 'admin newsletters 375', width: 375, height: 812, path: '/admin/newsletters', marker: '.goen-admin' },
   { label: 'admin newsletters 1440', width: 1440, height: 900, path: '/admin/newsletters', marker: '.goen-admin' },
   { label: 'admin questions 1440', width: 1440, height: 900, path: '/admin/questions', marker: '.goen-admin__questions' },
-  // /admin/warranty lists NOTHING until somebody searches — the /admin/customers
+  // /admin/warranties lists NOTHING until somebody searches — the /admin/customers
   // rule, because these rows carry a customer's name beside what they own. So the
   // row searches for the serial scripts/check-layout.sql registered, and the marker
   // is the table that exists only when the search found it. A row against the bare
   // path would measure a search box and report a checked page.
-  { label: 'admin warranty 375', width: 375, height: 812, path: '/admin/warranty?q=LAYOUT_SERIAL', marker: '.goen-admin__warranties' },
-  { label: 'admin warranty 1440', width: 1440, height: 900, path: '/admin/warranty?q=LAYOUT_SERIAL', marker: '.goen-admin__warranties' },
+  { label: 'admin warranties 375', width: 375, height: 812, path: '/admin/warranties?q=LAYOUT_SERIAL', marker: '.goen-admin__warranties' },
+  { label: 'admin warranties 1440', width: 1440, height: 900, path: '/admin/warranties?q=LAYOUT_SERIAL', marker: '.goen-admin__warranties' },
   { label: 'admin returns 375', width: 375, height: 812, path: '/admin/returns', marker: '.goen-admin__returns' },
   { label: 'admin returns 1440', width: 1440, height: 900, path: '/admin/returns', marker: '.goen-admin__returns' },
   { label: 'admin taxonomy 375', width: 375, height: 812, path: '/admin/taxonomy', marker: '.goen-admin' },

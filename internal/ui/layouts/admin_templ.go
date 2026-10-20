@@ -604,7 +604,7 @@ func adminNav(current string) templ.Component {
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
-			if adminNavHolds(current, "customers", "credit", "tiers", "warranty", "newsletters") {
+			if adminNavHolds(current, "customers", "credit", "tiers", "warranties", "newsletters") {
 				templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 59, " open")
 				if templ_7745c5c3_Err != nil {
 					return templ_7745c5c3_Err
@@ -692,11 +692,11 @@ func adminNav(current string) templ.Component {
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
-			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 70, "</a> <a class=\"ui-navitem\" href=\"/admin/warranty\"")
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 70, "</a> <a class=\"ui-navitem\" href=\"/admin/warranties\"")
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
-			if current == "warranty" {
+			if current == "warranties" {
 				templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 71, " aria-current=\"page\"")
 				if templ_7745c5c3_Err != nil {
 					return templ_7745c5c3_Err

@@ -81,6 +81,10 @@ var queryOwnerExceptions = map[string]string{
 	"internal/home -> ListedCampaigns":           sharedRead,
 	"internal/payment -> OrderSummaryByNumber":   sharedRead,
 	"internal/catalog -> WishlistHas":            sharedRead,
+
+	// The warranty search marks a registration's order refunded by the read
+	// the customer's page and the storefront's warranty page use.
+	"internal/admin/warranties -> ReturnedOrders": sharedRead,
 }
 
 // ownedQuery is a query and the place that declares it.
