@@ -248,7 +248,7 @@ A broker should keep the handoff reliable: business transaction plus outbox, the
 
 Each extra instance multiplies in-memory rate allowances and runs every background loop. Outbox leases coordinate claims, and the co-purchase advisory lock prevents overlap but not a later rebuild by another instance. Sessions are shared through PostgreSQL; caches, `singleflight`, and rate limits stay per process. Review loop ownership with the connection budgets in §8.
 
-Migration `001` may change until real shop data exists; the first production deployment freezes it, and later changes use numbered migrations. Rolling deploys need old and new binaries, SQL functions, and durable payloads to stay compatible. See the [migration policy][contributing].
+Migration `001` is frozen, and so is each later migration once merged; a change is a new numbered migration, applied before the binary that needs it. A binary refuses a database behind its newest migration and accepts a newer one, so rolling deploys need old and new binaries, SQL functions, and durable payloads to stay compatible. See the [migration policy][contributing].
 
 Set acceptable data loss and recovery time first, then prove them in drills, including media and its references. A PostgreSQL restore can leave Stripe and ECPay ahead of the database, so recovery reconciles against provider outcomes by operation identity. See [point-in-time recovery][pg-pitr].
 

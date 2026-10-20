@@ -248,7 +248,7 @@ goen 有 request ID、結構化的 `slog` 日誌、500 ms 以上的慢查詢紀�
 
 每多一個實例，記憶體內的限流額度就多一份，所有背景迴圈也都會執行。outbox 租約協調領取；共購推薦的 advisory lock 防止重疊，但不阻止另一個實例之後再重建。session 經 PostgreSQL 共用；快取、`singleflight` 與限流則各程序獨立。背景迴圈的歸屬要與 §8 的連線額度一起檢視。
 
-在真正的商店資料出現前，migration `001` 可以修改；第一次正式部署後凍結，之後以編號 migration 變更。滾動部署需要新舊執行檔、SQL 函式與持久 payload 彼此相容。見 [migration 政策][contributing]。
+Migration `001` 已凍結，之後的每個 migration 合併後也一樣凍結；任何變更都是新的編號 migration，並在需要它的執行檔部署之前套用。執行檔拒絕落後於其最新 migration 的資料庫，接受較新的資料庫，因此滾動部署需要新舊執行檔、SQL 函式與持久 payload 彼此相容。見 [migration 政策][contributing]。
 
 先訂出可接受的資料遺失與恢復時間，再以演練驗證，媒體與其引用也要一併檢查。PostgreSQL 還原後，Stripe 與綠界的狀態可能比資料庫新，恢復時要依操作識別碼與外部結果對帳。見 [point-in-time recovery][pg-pitr]。
 
