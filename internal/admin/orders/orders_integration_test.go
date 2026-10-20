@@ -16,6 +16,7 @@ import (
 
 	"github.com/koopa0/goen/internal/order"
 	"github.com/koopa0/goen/internal/order/buyer"
+	"github.com/koopa0/goen/internal/order/lapse"
 	"github.com/koopa0/goen/internal/outbox"
 
 	"github.com/google/go-cmp/cmp"
@@ -25,7 +26,6 @@ import (
 	"github.com/koopa0/goen/internal/admin/admintest"
 	"github.com/koopa0/goen/internal/admin/audit"
 	"github.com/koopa0/goen/internal/admin/orders"
-	"github.com/koopa0/goen/internal/cart"
 	"github.com/koopa0/goen/internal/i18n"
 	"github.com/koopa0/goen/internal/invoice"
 	"github.com/koopa0/goen/internal/money"
@@ -936,7 +936,7 @@ func TestTheBackOfficeSeesTheSystemCancelAtThePaymentDeadline(t *testing.T) {
 		WHERE order_id = (SELECT id FROM orders WHERE order_number = $1)`, number); err != nil {
 		t.Fatalf("expire the hold: %v", err)
 	}
-	if _, _, err := cart.NewStore(pool).Sweep(ctx, slog.New(slog.DiscardHandler)); err != nil {
+	if _, _, err := lapse.NewSweeper(pool).Sweep(ctx, slog.New(slog.DiscardHandler)); err != nil {
 		t.Fatalf("sweep: %v", err)
 	}
 

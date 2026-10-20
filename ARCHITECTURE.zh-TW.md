@@ -86,7 +86,7 @@ Stripe 只送出端點有訂閱的事件，[.env.example](.env.example) 列出�
 
 保留會減少可售量；出貨消耗保留，不會重複扣庫存，部分出貨時其餘數量繼續保留。符合條件的逾期或取消會釋放保留；付款結果未定時，保留持續到對帳完成。
 
-扣款與釋放都會鎖訂單。扣款先提交，保留就留著；釋放先提交，扣款守門會拒絕晚到的付款，goen 記錄一則例外以供對帳與退款。見 [schema][schema]（扣款與釋放的守門）與[逾期處理][cart-sweeper]。
+扣款與釋放都會鎖訂單。扣款先提交，保留就留著；釋放先提交，扣款守門會拒絕晚到的付款，goen 記錄一則例外以供對帳與退款。見 [schema][schema]（扣款與釋放的守門）與[逾期處理][lapse]。
 
 保留中、被放棄與釋放延遲的庫存，都會減少可售量。保留多久，既是營運問題，也是商業決策。
 
@@ -263,7 +263,7 @@ CI 執行格式、vet、lint、無用程式碼與生成碼檢查、migration lin
 | 領域 | 入口 |
 | --- | --- |
 | 組合與生命週期 | [`cmd/goen`][main]、[路由][server]、[middleware][middleware]、[外部服務設定][provider-posture] |
-| 結帳、保留與訂單存取 | [`internal/cart`][checkout]、[優惠券規則][coupon]、[逾期處理][cart-sweeper]、[`internal/order/access`][orderaccess] |
+| 結帳、保留與訂單存取 | [`internal/cart`][checkout]、[`internal/coupon`][coupon]、[`internal/order/lapse`][lapse]、[`internal/order/access`][orderaccess] |
 | 付款與恢復 | [`internal/payment`][payment-store]、[Stripe adapter][stripe]、[`internal/admin/health`][health] |
 | 出貨、退貨與退款 | [`internal/order`][order]、[`internal/admin/orders`][orders]、[`internal/admin/dashboard`][dashboard]、[`internal/returns`][returns-rules]、[`internal/admin/returns`][returns]、[`internal/admin/refunds`][refund-payout] |
 | 發票與延後寄送 | [`internal/invoice/issuer`][invoice-store]、[`internal/admin/orders`][orders]、[`internal/outbox`][outbox]、[`internal/letter`][letter] |
@@ -284,7 +284,7 @@ CI 執行格式、vet、lint、無用程式碼與生成碼檢查、migration lin
 [slowquery]: cmd/goen/slowquery.go
 [checkout]: internal/cart/store.go
 [coupon]: internal/coupon/coupon.go
-[cart-sweeper]: internal/cart/sweeper.go
+[lapse]: internal/order/lapse/sweeper.go
 [customer-cancel]: internal/order/buyer/cancel.go
 [orderaccess]: internal/order/access
 [payment-store]: internal/payment/store.go
