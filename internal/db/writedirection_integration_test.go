@@ -666,7 +666,7 @@ var backOfficePackages = []string{
 }
 
 // maintenancePackages run on the pool that does SET ROLE maintenance, which holds no table write.
-var maintenancePackages = []string{"backinstock", "recommend"}
+var maintenancePackages = []string{"backinstock", "copurchase"}
 
 // TestThePoolMapIsComplete refuses a directory that ships a query.sql and is on no pool map, which
 // opts it out entirely. An entry covers its own directory and everything below it, so a nested
