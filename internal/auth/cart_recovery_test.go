@@ -10,20 +10,20 @@ import (
 	"testing"
 
 	"github.com/koopa0/goen/internal/auth"
-	"github.com/koopa0/goen/internal/cart/item"
+	"github.com/koopa0/goen/internal/cart/cartitem"
 	"github.com/koopa0/goen/internal/i18n"
 	"github.com/koopa0/goen/internal/user"
 )
 
 // reportedCarts reports fixed items, so the page is checked against exactly
 // what the cart said.
-type reportedCarts struct{ beforeSignIn, account []item.Item }
+type reportedCarts struct{ beforeSignIn, account []cartitem.Item }
 
 func (reportedCarts) AdoptRequestCart(context.Context, *http.Request, string) (bool, error) {
 	return false, nil
 }
 
-func (c reportedCarts) RecoveryContents(context.Context, *http.Request) (beforeSignIn, account []item.Item, err error) {
+func (c reportedCarts) RecoveryContents(context.Context, *http.Request) (beforeSignIn, account []cartitem.Item, err error) {
 	return c.beforeSignIn, c.account, nil
 }
 
@@ -32,11 +32,11 @@ func (reportedCarts) ForgetCart(http.ResponseWriter, *http.Request) {}
 func TestCartRecoveryPageListsWhatTheCartReports(t *testing.T) {
 	t.Parallel()
 	carts := reportedCarts{
-		beforeSignIn: []item.Item{{
+		beforeSignIn: []cartitem.Item{{
 			Name: "Guest tote", Label: "Red · Small", Quantity: 2,
 			ImageURL: "/guest.webp", ImageSrcset: "/guest-400.webp 400w", ImageAlt: "Guest photo",
 		}},
-		account: []item.Item{{Name: "Account mug", Quantity: 3}},
+		account: []cartitem.Item{{Name: "Account mug", Quantity: 3}},
 	}
 	h := auth.NewHandler(&auth.Store{}, carts, nil, slog.New(slog.DiscardHandler), false, nil)
 	for _, locale := range i18n.Locales() {
