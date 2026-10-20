@@ -13,7 +13,7 @@ import (
 	"github.com/a-h/templ"
 
 	"github.com/koopa0/goen/internal/campaign"
-	"github.com/koopa0/goen/internal/cart/item"
+	"github.com/koopa0/goen/internal/cart/cartitem"
 	"github.com/koopa0/goen/internal/i18n"
 	"github.com/koopa0/goen/internal/money"
 	"github.com/koopa0/goen/internal/product/labelling"
@@ -211,7 +211,7 @@ type ProductView struct {
 	AskOutcome     string
 	// AskDraft replays a refused question so a 422 does not empty the textarea.
 	AskDraft     string
-	AddedOutcome item.AddOutcome
+	AddedOutcome cartitem.AddOutcome
 	AlsoBought   []pages.ProductTile
 
 	Related []pages.ProductTile
@@ -517,15 +517,15 @@ func (v *ProductView) AskRefused() bool { return v.AskOutcome == "bad" || v.AskT
 
 func (v *ProductView) AskTooLong() bool { return v.AskOutcome == "long" }
 
-func (v *ProductView) JustAdded() bool { return v.AddedOutcome == item.AddOutcomeAdded }
+func (v *ProductView) JustAdded() bool { return v.AddedOutcome == cartitem.AddOutcomeAdded }
 
-func (v *ProductView) AddAdjusted() bool { return v.AddedOutcome == item.AddOutcomeAdjusted }
+func (v *ProductView) AddAdjusted() bool { return v.AddedOutcome == cartitem.AddOutcomeAdjusted }
 
 func (v *ProductView) AddRefused() bool {
-	return v.AddedOutcome == item.AddOutcomeUnavailable || v.AddedOutcome == item.AddOutcomeUnknown
+	return v.AddedOutcome == cartitem.AddOutcomeUnavailable || v.AddedOutcome == cartitem.AddOutcomeUnknown
 }
 
-func (v *ProductView) CartFull() bool { return v.AddedOutcome == item.AddOutcomeFull }
+func (v *ProductView) CartFull() bool { return v.AddedOutcome == cartitem.AddOutcomeFull }
 
 func (v *ProductView) AskAction() string { return "/p/" + v.Slug + "/questions#questions" }
 

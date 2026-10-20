@@ -39,8 +39,8 @@ var exceptions = map[string]string{
 	"internal/admin/admintest -> internal/admin/refunds": "T48",
 	"internal/admin/admintest -> internal/admin/returns": "T48",
 	// The wishlist page still renders from ui/pages and reads AddOutcome, which
-	// the cart reports from cart/item; the edge leaves with the wishlist.
-	"internal/ui/pages -> internal/cart/item": "S11",
+	// the cart reports from cart/cartitem; the edge leaves with the wishlist.
+	"internal/ui/pages -> internal/cart/cartitem": "S11",
 }
 
 // under reports whether pkg is dir or lies below it.
@@ -79,7 +79,7 @@ var (
 	// uses its Subject vocabulary), internal/loyalty (programme rules
 	// admin/tiers configures), and internal/media and internal/payment
 	// (shared infrastructure). It matches exactly, not by prefix:
-	// internal/cart/item is a vocabulary leaf, not a page.
+	// internal/cart/cartitem is a vocabulary leaf, not a page.
 	storefrontPages = []string{
 		"internal/account", "internal/auth", "internal/cart", "internal/catalog", "internal/home",
 		"internal/newsletter", "internal/policy", "internal/site",
@@ -104,7 +104,7 @@ var (
 		"internal/refund",
 		"internal/coupon", "internal/inventory", "internal/postcode", "internal/user",
 		"internal/money", "internal/db", "internal/keyset", "internal/bearer",
-		"internal/email", "internal/cart/item", "internal/product",
+		"internal/email", "internal/cart/cartitem", "internal/product",
 	}
 	// i18nOnlyLeaves import nothing from goen except the message catalogue.
 	i18nOnlyLeaves = []string{
