@@ -23,10 +23,10 @@ import (
 	"github.com/koopa0/goen/internal/auth"
 	"github.com/koopa0/goen/internal/bearer"
 	"github.com/koopa0/goen/internal/cart"
+	"github.com/koopa0/goen/internal/compress"
 	"github.com/koopa0/goen/internal/i18n"
 	"github.com/koopa0/goen/internal/order/access"
 	"github.com/koopa0/goen/internal/outbox"
-	"github.com/koopa0/goen/internal/web"
 )
 
 // followUpRegistrations delivers every queued registration naming addr's
@@ -469,7 +469,7 @@ func TestARegistrationLinkWithoutItsPasswordProvesNothing(t *testing.T) {
 			})
 			req.Header.Set("Accept-Encoding", "gzip")
 			res := httptest.NewRecorder()
-			web.Compress(http.HandlerFunc(h.CompleteRegistration)).ServeHTTP(res, req)
+			compress.Handler(http.HandlerFunc(h.CompleteRegistration)).ServeHTTP(res, req)
 			stillUnproved(t, res)
 			if res.Code != http.StatusUnprocessableEntity {
 				t.Errorf("answered %d, want 422", res.Code)

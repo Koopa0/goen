@@ -1,4 +1,4 @@
-package web
+package compress
 
 import (
 	"bytes"
@@ -16,7 +16,7 @@ import (
 
 func TestHTMLIsCompressedForAClientThatAcceptsIt(t *testing.T) {
 	body := []byte(strings.Repeat("<p>goen</p>", 3_000))
-	h := Compress(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+	h := Handler(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		w.Header().Set("Content-Type", "text/html; charset=utf-8")
 		w.Header().Set("Content-Length", strconv.Itoa(len(body)))
 		_, _ = w.Write(body)
@@ -41,7 +41,7 @@ func TestAClientThatDoesNotAskGetsIdentityAndVary(t *testing.T) {
 	body := []byte(strings.Repeat("identity ", 2_000))
 	h := fixedResponse("text/html; charset=utf-8", body)
 
-	res := serveCompressed(t, Compress(h), "")
+	res := serveCompressed(t, Handler(h), "")
 	if got := res.Header().Get("Content-Encoding"); got != "" {
 		t.Errorf("Content-Encoding = %q, want identity", got)
 	}
@@ -74,7 +74,7 @@ func TestGzipNegotiationHonoursQualityAndWildcard(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			res := serveCompressed(t, Compress(fixedResponse("text/plain", body)), tt.header)
+			res := serveCompressed(t, Handler(fixedResponse("text/plain", body)), tt.header)
 			if got := res.Header().Get("Content-Encoding") == "gzip"; got != tt.want {
 				t.Errorf("gzip selected = %v, want %v (Content-Encoding %q)",
 					got, tt.want, res.Header().Get("Content-Encoding"))
@@ -104,7 +104,7 @@ func TestEveryCompressibleMediaTypeIsExplicitAndWorks(t *testing.T) {
 			if !compressibleTypes[mediaType] {
 				t.Fatalf("compressibleTypes[%q] = false", mediaType)
 			}
-			res := serveCompressed(t, Compress(fixedResponse(mediaType, body)), "gzip")
+			res := serveCompressed(t, Handler(fixedResponse(mediaType, body)), "gzip")
 			if got := res.Header().Get("Content-Encoding"); got != "gzip" {
 				t.Errorf("Content-Encoding = %q, want gzip", got)
 			}
@@ -116,7 +116,7 @@ func TestCompressionThresholdIsExact(t *testing.T) {
 	for _, size := range []int{1_023, 1_024} {
 		t.Run(strconv.Itoa(size), func(t *testing.T) {
 			body := bytes.Repeat([]byte("x"), size)
-			res := serveCompressed(t, Compress(fixedResponse("text/plain", body)), "gzip")
+			res := serveCompressed(t, Handler(fixedResponse("text/plain", body)), "gzip")
 			wantGzip := size == 1_024
 			if got := res.Header().Get("Content-Encoding") == "gzip"; got != wantGzip {
 				t.Errorf("gzip selected at %d bytes = %v, want %v", size, got, wantGzip)
@@ -141,7 +141,7 @@ func TestAResponseThatAlreadyCarriesAnEncodingIsLeftAlone(t *testing.T) {
 		_, _ = w.Write(encoded)
 	})
 
-	res := serveCompressed(t, Compress(h), "gzip")
+	res := serveCompressed(t, Handler(h), "gzip")
 	if got := gunzip(t, res.Body.Bytes()); !bytes.Equal(got, plaintxt) {
 		t.Error("response was changed or compressed twice")
 	}
@@ -152,7 +152,7 @@ func TestAResponseThatAlreadyCarriesAnEncodingIsLeftAlone(t *testing.T) {
 
 func TestAnImageResponseIsNotCompressed(t *testing.T) {
 	body := bytes.Repeat([]byte{0x52}, 30_000)
-	res := serveCompressed(t, Compress(fixedResponse("image/webp", body)), "gzip")
+	res := serveCompressed(t, Handler(fixedResponse("image/webp", body)), "gzip")
 	if got := res.Header().Get("Content-Encoding"); got != "" {
 		t.Errorf("Content-Encoding = %q, want identity for image/webp", got)
 	}
@@ -163,7 +163,7 @@ func TestAnImageResponseIsNotCompressed(t *testing.T) {
 
 func TestASmallResponseIsNotCompressed(t *testing.T) {
 	body := bytes.Repeat([]byte("s"), 200)
-	res := serveCompressed(t, Compress(fixedResponse("text/html", body)), "gzip")
+	res := serveCompressed(t, Handler(fixedResponse("text/html", body)), "gzip")
 	if got := res.Header().Get("Content-Encoding"); got != "" {
 		t.Errorf("Content-Encoding = %q, want identity below threshold", got)
 	}
@@ -183,7 +183,7 @@ func TestWritesThatCrossTheThresholdAreCompressedTogether(t *testing.T) {
 		_, _ = w.Write(first)
 		_, _ = w.Write(second)
 	})
-	res := serveCompressed(t, Compress(h), "gzip")
+	res := serveCompressed(t, Handler(h), "gzip")
 	if got := res.Header().Get("Content-Encoding"); got != "gzip" {
 		t.Fatalf("Content-Encoding = %q, want gzip after writes crossed threshold", got)
 	}
@@ -205,7 +205,7 @@ func TestAStatusWithNoBodyEmitsNoGzipEnvelope(t *testing.T) {
 			req := httptest.NewRequestWithContext(t.Context(), http.MethodGet, "/", http.NoBody)
 			req.Header.Set("Accept-Encoding", "gzip")
 			res := &bodylessResponseRecorder{ResponseRecorder: httptest.NewRecorder()}
-			Compress(h).ServeHTTP(res, req)
+			Handler(h).ServeHTTP(res, req)
 			if res.Body.Len() != 0 {
 				t.Errorf("body is %d bytes, want empty", res.Body.Len())
 			}
@@ -236,7 +236,7 @@ func TestAPartialResponseIsNotCompressed(t *testing.T) {
 				w.WriteHeader(tt.status)
 				_, _ = w.Write(body)
 			})
-			res := serveCompressed(t, Compress(h), "gzip")
+			res := serveCompressed(t, Handler(h), "gzip")
 			if got := res.Header().Get("Content-Encoding"); got != "" {
 				t.Errorf("Content-Encoding = %q, want identity for Content-Range", got)
 			}
@@ -250,7 +250,7 @@ func TestAPartialResponseIsNotCompressed(t *testing.T) {
 func TestInformationalStatusDoesNotCommitTheFinalResponse(t *testing.T) {
 	body := bytes.Repeat([]byte("early hints "), 2_000)
 	underlying := newInformationalWriter()
-	h := Compress(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+	h := Handler(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		w.Header().Set("Link", "</static/css/app/app.css>; rel=preload")
 		w.WriteHeader(http.StatusEarlyHints)
 		w.Header().Set("Content-Type", "text/html; charset=utf-8")
@@ -275,8 +275,8 @@ func TestInformationalStatusDoesNotCommitTheFinalResponse(t *testing.T) {
 func TestPrivateMarkerDoesNotLeakOnAnInformationalResponse(t *testing.T) {
 	body := bytes.Repeat([]byte("secret "), 2_000)
 	underlying := newInformationalWriter()
-	h := Compress(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
-		NoCompress(w)
+	h := Handler(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		Skip(w)
 		w.WriteHeader(http.StatusEarlyHints)
 		w.Header().Set("Content-Type", "text/html")
 		_, _ = w.Write(body)
@@ -302,7 +302,7 @@ func TestPrivateMarkerDoesNotLeakOnAnInformationalResponse(t *testing.T) {
 func TestSwitchingProtocolsIsAFinalStatus(t *testing.T) {
 	body := bytes.Repeat([]byte("not an upgraded connection "), 100)
 	underlying := newInformationalWriter()
-	h := Compress(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+	h := Handler(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		w.WriteHeader(http.StatusSwitchingProtocols)
 		w.Header().Set("Content-Type", "text/plain")
 		w.WriteHeader(http.StatusOK)
@@ -323,7 +323,7 @@ func TestSwitchingProtocolsIsAFinalStatus(t *testing.T) {
 func TestInformationalStatusAfterFinalIsIgnored(t *testing.T) {
 	body := bytes.Repeat([]byte("final first "), 2_000)
 	underlying := newInformationalWriter()
-	h := Compress(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+	h := Handler(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		w.Header().Set("Content-Type", "text/plain")
 		w.WriteHeader(http.StatusOK)
 		w.WriteHeader(http.StatusEarlyHints)
@@ -341,11 +341,11 @@ func TestInformationalStatusAfterFinalIsIgnored(t *testing.T) {
 func TestAPageCarryingASecretIsNotCompressed(t *testing.T) {
 	body := []byte(strings.Repeat("secret ", 5_000))
 	h := http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
-		NoCompress(w)
+		Skip(w)
 		w.Header().Set("Content-Type", "text/html")
 		_, _ = w.Write(body)
 	})
-	res := serveCompressed(t, Compress(h), "gzip")
+	res := serveCompressed(t, Handler(h), "gzip")
 	if got := res.Header().Get("Content-Encoding"); got != "" {
 		t.Errorf("Content-Encoding = %q, want identity", got)
 	}
@@ -358,8 +358,8 @@ func TestAPageCarryingASecretIsNotCompressed(t *testing.T) {
 }
 
 func TestThePrivateMarkerDoesNotLeakWhenAHandlerPanics(t *testing.T) {
-	h := Compress(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
-		NoCompress(w)
+	h := Handler(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		Skip(w)
 		panic("test panic")
 	}))
 	res := httptest.NewRecorder()
@@ -373,8 +373,8 @@ func TestThePrivateMarkerDoesNotLeakWhenAHandlerPanics(t *testing.T) {
 }
 
 func TestThePrivateMarkerDoesNotLeakFromAnEmptyResponse(t *testing.T) {
-	h := Compress(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
-		NoCompress(w)
+	h := Handler(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		Skip(w)
 	}))
 	res := serveCompressed(t, h, "gzip")
 	if got := res.Header().Get(noCompressHeader); got != "" {
@@ -391,7 +391,7 @@ func TestCompressedRepresentationChangesETagAndDropsRanges(t *testing.T) {
 		w.Header().Set("Content-Length", strconv.Itoa(len(body)))
 		_, _ = w.Write(body)
 	})
-	identity := serveCompressed(t, Compress(h), "")
+	identity := serveCompressed(t, Handler(h), "")
 	if got := identity.Header().Get("ETag"); got != `"page-v1"` {
 		t.Errorf("identity ETag = %q, want unchanged", got)
 	}
@@ -405,7 +405,7 @@ func TestCompressedRepresentationChangesETagAndDropsRanges(t *testing.T) {
 		t.Error("identity representation body changed")
 	}
 
-	res := serveCompressed(t, Compress(h), "gzip")
+	res := serveCompressed(t, Handler(h), "gzip")
 	if got := res.Header().Get("ETag"); got != `"page-v1-gz"` {
 		t.Errorf("ETag = %q, want representation-specific gzip tag", got)
 	}
@@ -421,7 +421,7 @@ func TestAWeakETagRemainsWeakOnTheGzipRepresentation(t *testing.T) {
 		w.Header().Set("ETag", `W/"page-v1"`)
 		_, _ = w.Write(body)
 	})
-	res := serveCompressed(t, Compress(h), "gzip")
+	res := serveCompressed(t, Handler(h), "gzip")
 	if got := res.Header().Get("ETag"); got != `W/"page-v1-gz"` {
 		t.Errorf("ETag = %q, want weak representation-specific gzip tag", got)
 	}
@@ -435,7 +435,7 @@ func TestCompressionPreservesAndDeduplicatesVary(t *testing.T) {
 		w.Header().Set("Content-Type", "text/html")
 		_, _ = w.Write(body)
 	})
-	res := serveCompressed(t, Compress(h), "gzip")
+	res := serveCompressed(t, Handler(h), "gzip")
 	for _, token := range []string{"Cookie", "Accept-Language", "Accept-Encoding"} {
 		if got := varyTokenCount(res.Header(), token); got != 1 {
 			t.Errorf("Vary %s count = %d, want 1; lines %q", token, got, res.Header().Values("Vary"))
@@ -448,7 +448,7 @@ func TestTheFlusherAndStatusRecorderReachThroughTheCompressor(t *testing.T) {
 	status := &testStatusRecorder{ResponseWriter: recorder}
 	var flushErr error
 	first := bytes.Repeat([]byte("x"), 2_000)
-	h := Compress(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+	h := Handler(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		w.Header().Set("Content-Type", "text/plain")
 		_, _ = w.Write(first)
 		flushErr = http.NewResponseController(w).Flush()
@@ -491,7 +491,7 @@ func TestAnEarlyFlushCommitsABufferedResponseAsIdentity(t *testing.T) {
 	first := bytes.Repeat([]byte("a"), 600)
 	second := bytes.Repeat([]byte("b"), 2_000)
 	var flushErr error
-	h := Compress(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+	h := Handler(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		w.Header().Set("Content-Type", "text/plain")
 		_, _ = w.Write(first)
 		flushErr = http.NewResponseController(w).Flush()
@@ -522,7 +522,7 @@ func TestAnEarlyFlushCommitsABufferedResponseAsIdentity(t *testing.T) {
 func TestUnwrapLetsResponseControllerReachAWriteDeadline(t *testing.T) {
 	underlying := &deadlineWriter{ResponseRecorder: httptest.NewRecorder()}
 	var deadlineErr error
-	h := Compress(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+	h := Handler(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		deadlineErr = http.NewResponseController(w).SetWriteDeadline(time.Unix(1, 0))
 	}))
 	h.ServeHTTP(underlying,

@@ -28,12 +28,12 @@ import (
 	"github.com/koopa0/goen/internal/admin/admintest"
 	"github.com/koopa0/goen/internal/admin/staff"
 	"github.com/koopa0/goen/internal/admin/twofactor"
+	"github.com/koopa0/goen/internal/compress"
 	"github.com/koopa0/goen/internal/db"
 	"github.com/koopa0/goen/internal/db/dbtest"
 	"github.com/koopa0/goen/internal/i18n"
 	"github.com/koopa0/goen/internal/outbox"
 	"github.com/koopa0/goen/internal/user"
-	"github.com/koopa0/goen/internal/web"
 )
 
 var pool *pgxpool.Pool
@@ -97,7 +97,7 @@ func TestTheEnrolmentSecretPageIsNotCompressed(t *testing.T) {
 	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
 	req.Header.Set("Accept-Encoding", "gzip")
 	res := httptest.NewRecorder()
-	web.Compress(http.HandlerFunc(h.Enrol)).ServeHTTP(res, req)
+	compress.Handler(http.HandlerFunc(h.Enrol)).ServeHTTP(res, req)
 
 	if res.Code != http.StatusOK {
 		t.Fatalf("Enrol status = %d, want 200; body=%s", res.Code, res.Body.String())

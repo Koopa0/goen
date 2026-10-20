@@ -41,6 +41,7 @@ import (
 	"github.com/koopa0/goen/internal/auth/google"
 	"github.com/koopa0/goen/internal/cart"
 	"github.com/koopa0/goen/internal/catalog"
+	"github.com/koopa0/goen/internal/compress"
 	"github.com/koopa0/goen/internal/contact"
 	"github.com/koopa0/goen/internal/home"
 	"github.com/koopa0/goen/internal/invoice/issuer"
@@ -218,7 +219,7 @@ func routing(cfg *RouterConfig, log *slog.Logger) (http.Handler, *http.ServeMux)
 	// path value or query value PostgreSQL refuses reaches a query.
 	handler = web.RefuseUnstorableText(handler, secureCookies, http.HandlerFunc(sitePages.BadRequest))
 	handler = securityHeaders(handler, cspWith(front.StoreMap.Origin()), secureCookies)
-	handler = web.Compress(handler)
+	handler = compress.Handler(handler)
 	return withRequestTracing(handler, log), mux
 }
 
