@@ -3,7 +3,7 @@ package cart
 import (
 	"testing"
 
-	"github.com/koopa0/goen/internal/fieldrule"
+	"github.com/koopa0/goen/internal/ui/fieldrule"
 )
 
 func TestCheckoutAddressConstraintsReachTheForm(t *testing.T) {

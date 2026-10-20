@@ -66,7 +66,7 @@ func isDesk(pkg string) bool { return deskRoot(pkg) != "" }
 var (
 	// uiMayImport is what the view layer may import besides itself.
 	uiMayImport = []string{
-		"assets", "internal/fieldrule", "internal/i18n", "internal/money", "internal/shoptime",
+		"assets", "internal/i18n", "internal/money", "internal/shoptime",
 		"internal/coupon", "internal/inventory", "internal/invoice", "internal/keyset", "internal/order",
 		"internal/postcode", "internal/product", "internal/product/labelling", "internal/refund",
 		"internal/returns", "internal/sales", "internal/shipping", "internal/user",
@@ -95,7 +95,7 @@ var (
 	}
 	// i18nOnlyLeaves import nothing from goen except the message catalogue.
 	i18nOnlyLeaves = []string{
-		"internal/invoice", "internal/order", "internal/product/labelling", "internal/returns", "internal/shoptime", "internal/fieldrule",
+		"internal/invoice", "internal/order", "internal/product/labelling", "internal/returns", "internal/shoptime", "internal/ui/fieldrule",
 		"internal/sales", "internal/worklist", "internal/shipping",
 	}
 )
