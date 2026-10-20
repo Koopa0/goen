@@ -99,10 +99,12 @@ func ask(t *testing.T, s *catalog.Store, slug, userID, body string, days int) st
 	if err := s.Ask(ctx, slug, userID, body); err != nil {
 		t.Fatalf("ask %q: %v", body, err)
 	}
+	// The asker is new to each test, so body and asker name one row even when
+	// the test runs again against the same database (-count).
 	var id uuid.UUID
 	if err := pool.QueryRow(ctx, `
 		UPDATE product_questions SET created_at = now() + make_interval(days => $2)
-		WHERE body = $1 RETURNING id`, body, days).Scan(&id); err != nil {
+		WHERE body = $1 AND user_id = $3 RETURNING id`, body, days, userID).Scan(&id); err != nil {
 		t.Fatalf("backdate %q: %v", body, err)
 	}
 	return id.String()
