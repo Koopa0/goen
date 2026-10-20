@@ -1,6 +1,6 @@
 //go:build integration
 
-package restock_test
+package backinstock_test
 
 import (
 	"errors"
@@ -9,7 +9,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgconn"
 
-	"github.com/koopa0/goen/internal/restock"
+	"github.com/koopa0/goen/internal/backinstock"
 )
 
 func aVariant(t *testing.T) uuid.UUID {
@@ -48,7 +48,7 @@ func alertExists(t *testing.T, id uuid.UUID) bool {
 
 func TestTheRestockSweepDeletesOnlyAlertsNotifiedBeforeTheCutoff(t *testing.T) {
 	variant := aVariant(t)
-	retainDays := int(restock.NotifiedRetain.Hours() / 24)
+	retainDays := int(backinstock.NotifiedRetain.Hours() / 24)
 
 	cases := []struct {
 		name string
@@ -62,7 +62,7 @@ func TestTheRestockSweepDeletesOnlyAlertsNotifiedBeforeTheCutoff(t *testing.T) {
 		{"still waiting for stock, asked 500 days ago", alertAt(t, variant, -1), true},
 	}
 
-	n, err := restock.NewStore(maintenancePool(t)).Sweep(t.Context())
+	n, err := backinstock.NewStore(maintenancePool(t)).Sweep(t.Context())
 	if err != nil {
 		t.Fatalf("Sweep: %v", err)
 	}
@@ -79,7 +79,7 @@ func TestTheRestockSweepDeletesOnlyAlertsNotifiedBeforeTheCutoff(t *testing.T) {
 // More notified alerts than one batch must all go in one Sweep call.
 func TestTheRestockSweepDrainsMoreThanOneBatch(t *testing.T) {
 	const marker = "sweep-batch.example.com"
-	count := 2*restock.SweepBatch + 1
+	count := 2*backinstock.SweepBatch + 1
 	if _, err := pool.Exec(t.Context(), `
 		INSERT INTO stock_notifications (variant_id, email, created_at, notified_at)
 		SELECT $1, 'a'||g||'@'||$3::text, now() - interval '90 days', now() - interval '90 days'
@@ -87,7 +87,7 @@ func TestTheRestockSweepDrainsMoreThanOneBatch(t *testing.T) {
 		t.Fatalf("insert notified alerts: %v", err)
 	}
 
-	n, err := restock.NewStore(maintenancePool(t)).Sweep(t.Context())
+	n, err := backinstock.NewStore(maintenancePool(t)).Sweep(t.Context())
 	if err != nil {
 		t.Fatalf("Sweep: %v", err)
 	}

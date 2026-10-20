@@ -11,6 +11,7 @@ import (
 	"github.com/jackc/pgx/v5"
 
 	"github.com/koopa0/goen/assets"
+	"github.com/koopa0/goen/internal/backinstock"
 	"github.com/koopa0/goen/internal/db"
 	"github.com/koopa0/goen/internal/i18n"
 	"github.com/koopa0/goen/internal/policy"
@@ -23,15 +24,20 @@ type Store struct {
 	q    *db.Queries
 	// policy reads the shop rules the department and product pages show.
 	policy *policy.Store
-	log    *slog.Logger
-	now    func() time.Time
+	// backInStock records the requests the product page's form posts.
+	backInStock *backinstock.Store
+	log         *slog.Logger
+	now         func() time.Time
 }
 
 func NewStore(dbtx db.DBTX, log *slog.Logger) *Store {
 	if dbtx == nil || log == nil {
 		panic("catalog: NewStore requires a database handle and a logger")
 	}
-	return &Store{dbtx: dbtx, q: db.New(dbtx), policy: policy.NewStore(dbtx), log: log, now: time.Now}
+	return &Store{
+		dbtx: dbtx, q: db.New(dbtx), policy: policy.NewStore(dbtx), backInStock: backinstock.NewStore(dbtx),
+		log: log, now: time.Now,
+	}
 }
 
 // WithoutPickup is for a deployment whose store map is not configured: checkout
