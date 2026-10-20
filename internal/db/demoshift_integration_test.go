@@ -27,7 +27,7 @@ import (
 // sweep. seed/demo_shift.sql leaves them on the real clock, so that nothing
 // which expired comes back to life.
 var demoShiftLeaves = []string{
-	"sessions", "password_reset_tokens", "email_verifications", "newsletter_confirmations",
+	"sessions", "known_devices", "password_reset_tokens", "email_verifications", "newsletter_confirmations",
 	"carts", "cart_items", "checkout_attempts", "order_access_grants",
 }
 

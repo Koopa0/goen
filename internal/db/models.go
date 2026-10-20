@@ -296,6 +296,14 @@ type InvoicePreference struct {
 	CustomerEmail string
 }
 
+type KnownDevice struct {
+	Digest    []byte
+	UserID    uuid.UUID
+	Misses    int16
+	CreatedAt time.Time
+	ExpiresAt time.Time
+}
+
 // Running campaigns with a deal: the ones the storefront lists, and the only ones whose products a card shows at a struck-through price.
 type ListedCampaign struct {
 	ID uuid.UUID

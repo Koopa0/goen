@@ -75,7 +75,7 @@ func onlyCookie(t *testing.T, rec *httptest.ResponseRecorder) *http.Cookie {
 	return cookies[0]
 }
 
-// goenCookies lists the ten cookies the application sets: eight with a
+// goenCookies lists the eleven cookies the application sets: nine with a
 // __Host- name over https and a plain one over http, and two with one plain
 // name in both modes because their Path is not "/", which __Host- forbids.
 func goenCookies(pool *pgxpool.Pool) map[string]cookiePin {
@@ -88,6 +88,17 @@ func goenCookies(pool *pgxpool.Pool) map[string]cookiePin {
 				t.Helper()
 				rec := httptest.NewRecorder()
 				auth.SetSessionCookie(rec, "token", secure)
+				return onlyCookie(t, rec)
+			},
+		},
+		"device": {
+			purpose: "the token of the browser's remembered row, which keeps the owner's sign-in off the account's guess budget",
+			secure:  "__Host-goen_device", dev: "goen_device",
+			path: "/", maxAge: 90 * cookieDay, sameSite: http.SameSiteStrictMode,
+			probe: func(t *testing.T, secure bool) *http.Cookie {
+				t.Helper()
+				rec := httptest.NewRecorder()
+				auth.SetDeviceCookie(rec, "token", secure)
 				return onlyCookie(t, rec)
 			},
 		},

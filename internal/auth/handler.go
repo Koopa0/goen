@@ -306,19 +306,9 @@ func (h *Handler) SignIn(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Before Authenticate: argon2 at 64 MiB is the cost this limit protects.
-	// The demo account's password is printed on this page, so a per-account
-	// bound would guard nothing and let one visitor's mistakes shut out every
-	// other; the per-client bound still holds the cost.
-	var guess passwordGuess
-	if !h.demo.holds(normalised) {
-		var retryAfter time.Duration
-		var ok bool
-		if guess, retryAfter, ok = h.reservePasswordGuess(r, normalised); !ok {
-			h.log.WarnContext(r.Context(), "sign-in throttled by account")
-			ratelimit.Refuse(r.Context(), w, retryAfter)
-			return
-		}
+	guess, device, ok := h.reserveSignIn(w, r, normalised)
+	if !ok {
+		return
 	}
 	defer guess.settle(false)
 
@@ -330,6 +320,7 @@ func (h *Handler) SignIn(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		guess.settle(true)
+		h.countDeviceMiss(r, device)
 		h.signInFailed(w, r, addr, next)
 		return
 	}
@@ -340,6 +331,47 @@ func (h *Handler) SignIn(w http.ResponseWriter, r *http.Request) {
 	}
 	next = cartAdoptionLanding(next, adoption)
 	http.Redirect(w, r, next, http.StatusSeeOther) //nolint:gosec // G710: bounded by web.SitePathOr
+}
+
+// reserveSignIn sets aside one password guess for address before the hash,
+// and answers 429 itself when there is none to set aside. argon2 at 64 MiB is
+// the cost this protects. A browser remembered for the account is charged to
+// its own budget (device, the row's digest); every other browser to the
+// network's and the account's. The demo account's password is printed on the
+// sign-in page, so a per-account bound would guard nothing and let one
+// visitor's mistakes shut out every other; the per-client bound still holds
+// the cost.
+func (h *Handler) reserveSignIn(w http.ResponseWriter, r *http.Request, address string) (passwordGuess, []byte, bool) {
+	if h.demo.holds(address) {
+		return nil, nil, true
+	}
+	device, err := h.store.knownDevice(r.Context(), readDeviceCookie(r, h.secure), address)
+	if err != nil {
+		// Not knowing the browser costs it only the stranger's budgets.
+		h.log.ErrorContext(r.Context(), "read known device", "error", err)
+	}
+	guess, retryAfter, ok := h.reservePasswordGuess(r, address, device)
+	if !ok {
+		by := "account"
+		if device != nil {
+			by = "device"
+		}
+		h.log.WarnContext(r.Context(), "sign-in throttled by "+by)
+		ratelimit.Refuse(r.Context(), w, retryAfter)
+		return nil, nil, false
+	}
+	return guess, device, true
+}
+
+// countDeviceMiss records a wrong password sent by a remembered browser. A
+// failure is logged: the miss was already charged to the browser's budget.
+func (h *Handler) countDeviceMiss(r *http.Request, device []byte) {
+	if device == nil {
+		return
+	}
+	if err := h.store.countDeviceMiss(r.Context(), device); err != nil {
+		h.log.ErrorContext(r.Context(), "count known device miss", "error", err)
+	}
 }
 
 // signInFailed is one response for an unusable address, an unknown account and
@@ -578,7 +610,7 @@ func (h *Handler) SignOutOtherDevices(w http.ResponseWriter, r *http.Request) {
 	if h.refuseUnverifiedStaff(w, r, u) {
 		return
 	}
-	if err := h.store.endOtherSessions(r.Context(), u.ID, currentToken); err != nil {
+	if err := h.store.endOtherSessions(r.Context(), u.ID, currentToken, readDeviceCookie(r, h.secure)); err != nil {
 		h.log.ErrorContext(r.Context(), "end other sessions", "error", err)
 		h.serverError(w, r)
 		return
@@ -736,8 +768,21 @@ func (h *Handler) startSession(w http.ResponseWriter, r *http.Request, u user.Us
 		return false, cartAdoptionUnchanged
 	}
 	SetSessionCookie(w, token, h.secure)
+	h.rememberBrowser(w, r, u.ID)
 	// Authentication succeeds even when the preserved guest cart needs recovery.
 	return true, h.adoptRequestCart(r, u.ID)
+}
+
+// rememberBrowser replaces the browser's remembered row with a new one for the
+// account it just signed in to. A failure is logged and the sign-in stands: the
+// browser is then only a stranger to the guess budgets until it signs in again.
+func (h *Handler) rememberBrowser(w http.ResponseWriter, r *http.Request, userID string) {
+	token, err := h.store.rememberDevice(r.Context(), userID, readDeviceCookie(r, h.secure))
+	if err != nil {
+		h.log.ErrorContext(r.Context(), "remember this browser", "error", err)
+		return
+	}
+	SetDeviceCookie(w, token, h.secure)
 }
 
 func (h *Handler) adoptRequestCart(r *http.Request, userID string) cartAdoption {
@@ -1117,7 +1162,7 @@ func (h *Handler) CompleteRegistration(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	// Before the hash, and the budget sign-in uses, so the two share it.
-	guess, retryAfter, ok := h.reservePasswordGuess(r, email.Clean(addr))
+	guess, retryAfter, ok := h.reservePasswordGuess(r, email.Clean(addr), nil)
 	if !ok {
 		h.log.WarnContext(ctx, "registration completion throttled by account")
 		ratelimit.Refuse(ctx, w, retryAfter)

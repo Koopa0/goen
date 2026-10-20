@@ -292,6 +292,7 @@ func TestThePrivacyPolicyNamesEveryCookie(t *testing.T) {
 	described := map[string]struct{ zh, en string }{
 		cart.CookieName:              {zh: "購物車", en: "your cart"},
 		auth.SessionCookieName:       {zh: "登入狀態", en: "your sign-in"},
+		auth.DeviceCookieName:        {zh: "辨識你登入過的瀏覽器", en: "recognising a browser you have signed in on"},
 		access.CookieName:            {zh: "訂單瀏覽權限", en: "permission to view an order"},
 		cart.PickupCookieName:        {zh: "挑選超商取貨門市", en: "picking a convenience store"},
 		i18n.CookieName:              {zh: "你選擇的語言", en: "the language you chose"},
