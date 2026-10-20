@@ -20,7 +20,7 @@ func TestGoogleOnlyAccountOffersAMailboxPasswordSetup(t *testing.T) {
 			t.Run(name, func(t *testing.T) {
 				t.Parallel()
 				ctx := i18n.WithLocale(t.Context(), locale)
-				body := renderComponent(t, ctx, Account(AccountMeta(ctx), &AccountView{
+				body := renderComponent(t, ctx, Account(Meta(ctx), &View{
 					Email: "shopper@example.com", GoogleLinked: true, HasPassword: hasPassword, CanUnlinkGoogle: hasPassword,
 				}))
 				doc, err := html.Parse(strings.NewReader(body))
@@ -98,7 +98,7 @@ func TestPasswordSetupNoticeNamesTheCurrentMailbox(t *testing.T) {
 		t.Run(locale.Tag(), func(t *testing.T) {
 			t.Parallel()
 			ctx := i18n.WithLocale(t.Context(), locale)
-			body := renderComponent(t, ctx, Account(AccountMeta(ctx), &AccountView{
+			body := renderComponent(t, ctx, Account(Meta(ctx), &View{
 				Email: "shopper@example.com", GoogleLinked: true, PasswordSetupSent: true,
 			}))
 			doc, err := html.Parse(strings.NewReader(body))

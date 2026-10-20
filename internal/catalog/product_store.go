@@ -50,7 +50,7 @@ func (s *Store) Product(ctx context.Context, slug string, sel Selection) (Produc
 
 	chosen, exact := Resolve(variants, sel)
 
-	rules, err := s.site.ShopRules(ctx)
+	rules, err := s.policy.Rules(ctx)
 	if err != nil {
 		return ProductView{}, err
 	}

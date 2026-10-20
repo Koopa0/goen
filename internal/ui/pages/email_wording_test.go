@@ -28,8 +28,8 @@ func TestContact_EmailRefusal(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 			localized := i18n.WithLocale(t.Context(), tc.locale)
-			view := contact.ContactForm{Email: "invalid", Errors: map[string]string{"email": i18n.T(localized, tc.key)}}
-			markup := renderComponent(t, localized, contact.Contact(contact.ContactMeta(localized), view))
+			view := contact.Form{Email: "invalid", Errors: map[string]string{"email": i18n.T(localized, tc.key)}}
+			markup := renderComponent(t, localized, contact.Contact(contact.Meta(localized), view))
 			assertEmailRefusal(t, markup, "contact-email", tc.want)
 		})
 	}

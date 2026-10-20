@@ -45,10 +45,10 @@ func TestWarrantyCopyWaitsForDelivery(t *testing.T) {
 				layouts.Page{Title: "Warranty"}, WarrantyListView{},
 			))
 			order := renderWarrantyInLocale(t, ctx, WarrantyOrder(
-				layouts.Page{Title: "Warranty"}, WarrantyOrderView{
+				layouts.Page{Title: "Warranty"}, OrderView{
 					Number:  "GOEN-TEST",
 					Refusal: i18n.T(ctx, i18n.KeyWarrantyRefused),
-					Lines: []WarrantyLine{{
+					Lines: []Line{{
 						ID: "line-1", Name: "Item", Months: 12, HasTerm: true,
 					}},
 				},
@@ -80,13 +80,13 @@ func TestWarrantyOrderEmptyHintMatchesWhy(t *testing.T) {
 
 	tests := []struct {
 		name    string
-		lines   []WarrantyLine
+		lines   []Line
 		want    string
 		notWant string
 	}{
 		{
 			name: "every unit already registered",
-			lines: []WarrantyLine{{
+			lines: []Line{{
 				ID: "line-1", Name: "Item", Months: 12, HasTerm: true,
 				Delivered: 1, Registered: 1,
 			}},
@@ -95,7 +95,7 @@ func TestWarrantyOrderEmptyHintMatchesWhy(t *testing.T) {
 		},
 		{
 			name: "no warranty term",
-			lines: []WarrantyLine{{
+			lines: []Line{{
 				ID: "line-1", Name: "Item", HasTerm: false,
 			}},
 			want:    noTerm,
@@ -103,7 +103,7 @@ func TestWarrantyOrderEmptyHintMatchesWhy(t *testing.T) {
 		},
 		{
 			name: "mixed undelivered and registered",
-			lines: []WarrantyLine{
+			lines: []Line{
 				{
 					ID: "line-1", Name: "Waiting", Months: 12, HasTerm: true,
 				},
@@ -117,7 +117,7 @@ func TestWarrantyOrderEmptyHintMatchesWhy(t *testing.T) {
 		},
 		{
 			name: "every line still undelivered",
-			lines: []WarrantyLine{{
+			lines: []Line{{
 				ID: "line-1", Name: "Item", Months: 12, HasTerm: true,
 			}},
 			want: afterShipping,
@@ -127,7 +127,7 @@ func TestWarrantyOrderEmptyHintMatchesWhy(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 			html := renderWarrantyInLocale(t, ctx, WarrantyOrder(
-				layouts.Page{Title: "Warranty"}, WarrantyOrderView{
+				layouts.Page{Title: "Warranty"}, OrderView{
 					Number: "GOEN-TEST",
 					Lines:  tt.lines,
 				},
@@ -150,9 +150,9 @@ func TestWarrantyOrderAllRegisteredHasNoFuturePromise(t *testing.T) {
 	t.Parallel()
 	ctx := i18n.WithLocale(t.Context(), i18n.En)
 	html := renderWarrantyInLocale(t, ctx, WarrantyOrder(
-		layouts.Page{Title: "Warranty"}, WarrantyOrderView{
+		layouts.Page{Title: "Warranty"}, OrderView{
 			Number: "GOEN-TEST",
-			Lines: []WarrantyLine{{
+			Lines: []Line{{
 				ID: "line-1", Name: "Item", Months: 12, HasTerm: true,
 				Delivered: 1, Registered: 1,
 			}},
@@ -215,15 +215,15 @@ func TestAFullyReturnedLineDoesNotPromiseRegistrationOnDelivery(t *testing.T) {
 	t.Parallel()
 	for _, locale := range []i18n.Locale{i18n.En, i18n.ZhHant} {
 		ctx := i18n.WithLocale(t.Context(), locale)
-		returned := WarrantyLine{ID: "line-1", Name: "Item", Months: 12, HasTerm: true, Returned: 1}
+		returned := Line{ID: "line-1", Name: "Item", Months: 12, HasTerm: true, Returned: 1}
 		if got := returned.Why(ctx); got != i18n.T(ctx, i18n.KeyWarrantyReturned) {
 			t.Errorf("%s: fully returned line says %q, want the returned sentence", locale, got)
 		}
-		view := WarrantyOrderView{Number: "GOEN-TEST", Lines: []WarrantyLine{returned}}
+		view := OrderView{Number: "GOEN-TEST", Lines: []Line{returned}}
 		if got := view.EmptyHint(ctx); got != i18n.T(ctx, i18n.KeyWarrantyReturned) {
 			t.Errorf("%s: empty hint = %q, want the returned sentence", locale, got)
 		}
-		partly := WarrantyLine{ID: "line-2", Name: "Item", Months: 12, HasTerm: true, Delivered: 1, Returned: 1, Registered: 1}
+		partly := Line{ID: "line-2", Name: "Item", Months: 12, HasTerm: true, Delivered: 1, Returned: 1, Registered: 1}
 		if got := partly.Why(ctx); got != i18n.T(ctx, i18n.KeyWarrantyAllDone) {
 			t.Errorf("%s: partly returned, fully registered line says %q, want all done", locale, got)
 		}

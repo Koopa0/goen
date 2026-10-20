@@ -138,7 +138,7 @@ func TestProductEditorRefusalsKeepTheirDraftAndImageControls(t *testing.T) {
 					t.Fatal(err)
 				}
 				// Cut is recomputed from the read's clock, not saved editor state.
-				if diff := cmp.Diff(baseline, persisted, cmpopts.IgnoreFields(products.ProductSales{}, "Cut")); diff != "" {
+				if diff := cmp.Diff(baseline, persisted, cmpopts.IgnoreFields(products.Sales{}, "Cut")); diff != "" {
 					t.Errorf("refusal changed persisted editor state (-want +got):\n%s", diff)
 				}
 			})

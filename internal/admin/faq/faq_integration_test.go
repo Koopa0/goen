@@ -21,7 +21,7 @@ func TestSupportCanAnswerAQuestionWithoutADeploy(t *testing.T) {
 	category := "測試分類-" + uuid.NewString()[:8]
 	categoryID := newFAQCategory(t, ctx, s, category, "Testing "+category)
 
-	if errs, err := s.CreateFAQEntry(ctx, &faq.FAQForm{
+	if errs, err := s.CreateFAQEntry(ctx, &faq.Form{
 		CategoryID: categoryID, Question: "可以貨到付款嗎?", Answer: "目前只支援信用卡。",
 		QuestionEn: "Can I pay on delivery?",
 		AnswerEn:   "Card only for now.",
@@ -33,7 +33,7 @@ func TestSupportCanAnswerAQuestionWithoutADeploy(t *testing.T) {
 	if err != nil {
 		t.Fatalf("FAQ: %v", err)
 	}
-	var made *faq.FAQEntry
+	var made *faq.Entry
 	for i := range view.Rows {
 		if view.Rows[i].Category == category {
 			made = &view.Rows[i]
@@ -72,7 +72,7 @@ func TestSupportCanAnswerAQuestionWithoutADeploy(t *testing.T) {
 		})
 	}
 
-	if errs, updErr := s.UpdateFAQEntry(ctx, &faq.FAQForm{
+	if errs, updErr := s.UpdateFAQEntry(ctx, &faq.Form{
 		ID:       made.ID,
 		Question: made.Question, Answer: "現在也支援超商取貨付款。",
 		QuestionEn: made.QuestionEn, AnswerEn: "Store pickup payment works now.",
@@ -112,7 +112,7 @@ func TestTwoFAQEntriesInOneCategoryDoNotCollide(t *testing.T) {
 	category := newFAQCategory(t, ctx, s, "順序分類-"+uuid.NewString()[:8], "")
 
 	for _, q := range []string{"第一個問題", "第二個問題", "第三個問題"} {
-		if errs, err := s.CreateFAQEntry(ctx, &faq.FAQForm{
+		if errs, err := s.CreateFAQEntry(ctx, &faq.Form{
 			CategoryID: category, Question: q, Answer: "答案",
 		}); err != nil || len(errs) > 0 {
 			t.Fatalf("CreateFAQEntry(%s): %v %v", q, err, errs)
@@ -165,14 +165,14 @@ func TestTwoConcurrentFAQEntriesInOneCategoryTakeDistinctPositions(t *testing.T)
 	done := make(chan result, 2)
 	go func() {
 		<-start
-		errs, err := storeA.CreateFAQEntry(ctx, &faq.FAQForm{
+		errs, err := storeA.CreateFAQEntry(ctx, &faq.Form{
 			CategoryID: category, Question: "問題甲", Answer: "答案",
 		})
 		done <- result{errs: errs, err: err}
 	}()
 	go func() {
 		<-start
-		errs, err := storeB.CreateFAQEntry(ctx, &faq.FAQForm{
+		errs, err := storeB.CreateFAQEntry(ctx, &faq.Form{
 			CategoryID: category, Question: "問題乙", Answer: "答案",
 		})
 		done <- result{errs: errs, err: err}
@@ -213,7 +213,7 @@ func TestTwoConcurrentFAQEntriesInOneCategoryTakeDistinctPositions(t *testing.T)
 // newFAQCategory adds a FAQ category through the desk's store and returns its id.
 func newFAQCategory(t *testing.T, ctx context.Context, s *faq.Store, name, nameEn string) string {
 	t.Helper()
-	if errs, err := s.CreateFAQCategory(ctx, &faq.FAQCategoryForm{Name: name, NameEn: nameEn}); err != nil || len(errs) > 0 {
+	if errs, err := s.CreateFAQCategory(ctx, &faq.CategoryForm{Name: name, NameEn: nameEn}); err != nil || len(errs) > 0 {
 		t.Fatalf("CreateFAQCategory(%q): %v %v", name, err, errs)
 	}
 	return categoryID(t, ctx, s, name)

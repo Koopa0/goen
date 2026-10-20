@@ -111,7 +111,7 @@ type listPosition struct {
 	ID uuid.UUID
 }
 
-func (s *Store) List(ctx context.Context, status QueueFilter, term string, after ...string) (OrdersView, error) {
+func (s *Store) List(ctx context.Context, status QueueFilter, term string, after ...string) (View, error) {
 	term = strings.TrimSpace(term)
 	scope := keyset.ScopeURL("/admin/orders", "q", term, "status", string(status))
 	from, resumed := keyset.Resume(scope, after, func(p listPosition) bool { return p.ID != uuid.Nil })
@@ -144,11 +144,11 @@ func (s *Store) List(ctx context.Context, status QueueFilter, term string, after
 		rows, err = s.q.AdminOrders(ctx, db.AdminOrdersParams{HasCursor: resumed, AfterAt: from.At, AfterID: from.ID, Status: filter, Funding: funding, RowLimit: keyset.PageLimit})
 	}
 	if err != nil {
-		return OrdersView{}, fmt.Errorf("read orders: %w", err)
+		return View{}, fmt.Errorf("read orders: %w", err)
 	}
 	counts, err := s.q.AdminOrderCounts(ctx)
 	if err != nil {
-		return OrdersView{}, fmt.Errorf("read order counts: %w", err)
+		return View{}, fmt.Errorf("read order counts: %w", err)
 	}
 
 	// Both branches asked for one row more than the page shows, so the drop is
@@ -156,7 +156,7 @@ func (s *Store) List(ctx context.Context, status QueueFilter, term string, after
 	// AdminOrderCounts and not from len(rows), so the extra row was never in
 	// them to begin with.
 	rows, bound := keyset.PageBound(scope, resumed, rows, keyset.PageSize, func(r *db.AdminOrdersRow) string { return r.PageCursor })
-	view := OrdersView{
+	view := View{
 		Bound:  bound,
 		Status: status, Term: term, Searched: searched,
 	}
@@ -184,7 +184,7 @@ func (s *Store) List(ctx context.Context, status QueueFilter, term string, after
 		})
 	}
 	if view.Orders, err = s.orderRows(ctx, rows); err != nil {
-		return OrdersView{}, err
+		return View{}, err
 	}
 	return view, nil
 }

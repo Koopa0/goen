@@ -89,7 +89,7 @@ func (o AccountOrder) BadgeIntent() components.Intent {
 	}
 }
 
-type AccountAddress struct {
+type AddressView struct {
 	ID         string
 	Label      string
 	Name       string
@@ -101,18 +101,18 @@ type AccountAddress struct {
 	Default    bool
 }
 
-func (a AccountAddress) Line() string {
+func (a AddressView) Line() string {
 	return a.PostalCode + " " + a.City + a.District + a.Street
 }
 
-func (a AccountAddress) DisplayLabel(ctx context.Context) string {
+func (a AddressView) DisplayLabel(ctx context.Context) string {
 	if a.Label == "" {
 		return i18n.T(ctx, i18n.KeyDeliveryToAddress)
 	}
 	return a.Label
 }
 
-type AccountView struct {
+type View struct {
 	ReturnAfterWelcome string
 	CartAdjusted       bool
 
@@ -127,7 +127,7 @@ type AccountView struct {
 	Phone                      string
 	Orders                     []AccountOrder
 	OrdersBound                keyset.Bound
-	Addresses                  []AccountAddress
+	Addresses                  []AddressView
 	CreditCents                int64
 	Standing                   loyalty.MemberStanding
 	Notice                     string
@@ -146,27 +146,27 @@ type AddressDraft struct {
 	Default                                                bool
 }
 
-func (v *AccountView) AddressOpen() bool { return v.AddressDraft != nil }
+func (v *View) AddressOpen() bool { return v.AddressDraft != nil }
 
-func (v *AccountView) AddressEditing() bool {
+func (v *View) AddressEditing() bool {
 	return v.AddressDraft != nil && v.AddressDraft.ID != ""
 }
 
-func (v *AccountView) AddressAction() string {
+func (v *View) AddressAction() string {
 	if v.AddressEditing() {
 		return "/account/addresses/update#addresses-heading"
 	}
 	return "/account/addresses"
 }
 
-func (v *AccountView) AddressID() string {
+func (v *View) AddressID() string {
 	if v.AddressDraft == nil {
 		return ""
 	}
 	return v.AddressDraft.ID
 }
 
-func (v *AccountView) AddrValue(field string) string {
+func (v *View) AddrValue(field string) string {
 	d := v.AddressDraft
 	if d == nil {
 		return ""
@@ -190,20 +190,20 @@ func (v *AccountView) AddrValue(field string) string {
 	return ""
 }
 
-func (v *AccountView) AddrDefault() bool { return v.AddressDraft != nil && v.AddressDraft.Default }
+func (v *View) AddrDefault() bool { return v.AddressDraft != nil && v.AddressDraft.Default }
 
-func (v *AccountView) AddrInvalid(field string) bool { return v.AddressErrors[field] != "" }
+func (v *View) AddrInvalid(field string) bool { return v.AddressErrors[field] != "" }
 
-func (v *AccountView) AddrErr(field string) string { return v.AddressErrors[field] }
+func (v *View) AddrErr(field string) string { return v.AddressErrors[field] }
 
-func (v *AccountView) addressLabelDescribedBy() string {
+func (v *View) addressLabelDescribedBy() string {
 	if v.AddrInvalid("label") {
 		return "addr-label-example addr-label-error"
 	}
 	return "addr-label-example"
 }
 
-func (v *AccountView) addressLabelAttrs() templ.Attributes {
+func (v *View) addressLabelAttrs() templ.Attributes {
 	attrs := templ.Attributes{"maxlength": "30", "autocomplete": "off"}
 	if !v.AddrInvalid("label") {
 		attrs["aria-describedby"] = v.addressLabelDescribedBy()
@@ -211,26 +211,26 @@ func (v *AccountView) addressLabelAttrs() templ.Attributes {
 	return attrs
 }
 
-func AccountMeta(ctx context.Context) layouts.Page {
+func Meta(ctx context.Context) layouts.Page {
 	return layouts.Page{Title: i18n.T(ctx, i18n.KeyAccountTitle)}
 }
 
-func (v *AccountView) DisplayName() string {
+func (v *View) DisplayName() string {
 	if v.Name == "" {
 		return v.Email
 	}
 	return v.Name
 }
 
-func (v *AccountView) Credit() string { return twd(v.CreditCents) }
+func (v *View) Credit() string { return twd(v.CreditCents) }
 
-func (v *AccountView) HasCredit() bool { return v.CreditCents > 0 }
+func (v *View) HasCredit() bool { return v.CreditCents > 0 }
 
-func (v *AccountView) HasOrders() bool { return len(v.Orders) > 0 }
+func (v *View) HasOrders() bool { return len(v.Orders) > 0 }
 
-func (v *AccountView) HasAddresses() bool { return len(v.Addresses) > 0 }
+func (v *View) HasAddresses() bool { return len(v.Addresses) > 0 }
 
-func (v *AccountView) HasNotice() bool { return v.Notice != "" }
+func (v *View) HasNotice() bool { return v.Notice != "" }
 
 func googlePasswordSetupText(ctx context.Context) (before, after string) {
 	before, after, _ = strings.Cut(i18n.T(ctx, i18n.KeyGoogleOnlyMethod), "%s")

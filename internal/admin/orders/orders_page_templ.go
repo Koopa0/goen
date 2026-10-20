@@ -20,7 +20,7 @@ import (
 
 // The tabs are links and the selected one is marked with aria-current alone: a second
 // class saying the same thing is a second source of truth for which tab is on.
-func Orders(p layouts.Page, v OrdersView) templ.Component {
+func Orders(p layouts.Page, v View) templ.Component {
 	return templruntime.GeneratedTemplate(func(templ_7745c5c3_Input templruntime.GeneratedComponentInput) (templ_7745c5c3_Err error) {
 		templ_7745c5c3_W, ctx := templ_7745c5c3_Input.Writer, templ_7745c5c3_Input.Context
 		if templ_7745c5c3_CtxErr := ctx.Err(); templ_7745c5c3_CtxErr != nil {

@@ -294,7 +294,7 @@ them too.
    not in their directories: gocritic's `importShadow`, which the lint runs on
    test files too, fires only in a file that imports the name. That is why the
    form reader is `formtext`: `internal/contact/handler.go` already says
-   `form := ContactForm{…}`.
+   `form := Form{…}`.
 5. **The package comment is the definition.** "For a package comment, that
    means the first sentence begins with “Package ”."
    ([Go Doc Comments](https://go.dev/doc/comment#package)) Here that sentence
@@ -321,11 +321,12 @@ package (`order.Status` in package `orders`).
   not differ only by a plural.
 - A desk may not share a domain package's base name, and no new same-name pair
   may be added. The existing pairs: `returns` and `shipping` keep their desks'
-  names, because `return` is a keyword and `delivery` is taken, and each leaf
-  has one registered alias inside its desk; `admin/access` and `order/access`
-  are tolerated as one concept, who may reach a page, in two domains, the shape
-  of `math/rand` and `crypto/rand`; `admin` ends when `internal/ui/pages/admin`
-  is dissolved. (`loyalty` ended when its desk became `admin/tiers`.)
+  names, because `return` is a keyword and `delivery` is taken, and each desk
+  imports its leaf bare, as `net/http/pprof` imports `runtime/pprof`; a file
+  that imports both aliases the desk (`returndesk`); `admin/access` and
+  `order/access` are tolerated as one concept, who may reach a page, in two
+  domains, the shape of `math/rand` and `crypto/rand`; `admin` ends when
+  `internal/ui/pages/admin` is dissolved. (`loyalty` ended when its desk became `admin/tiers`.)
 
 **Import aliases.** "Package imports shouldn’t normally be renamed"; "Try to be
 consistent by always using the same local name for the same imported package";
@@ -334,12 +335,10 @@ renaming.)" ([Google: import renaming](https://google.github.io/styleguide/go/de
 
 - Choose names that need no alias.
 - A clash between two packages gets one registered alias per import path, used
-  in every file. Today `internal/admin/returns` imports `internal/returns` bare
-  in some files and as `returnrules` in others; that is what the rule removes.
+  in every file. `internal/admin/returns` imports `internal/returns` bare, and
+  a file that imports both aliases the desk `returndesk`.
   The `importas` lint with `no-extra-aliases`, which lists every alias with its
-  reason, and one `internal/repocheck` row, "a package may not import, unaliased,
-  a package with its own base name", arrive in a later pull request; until
-  then review holds the rule.
+  reason, arrives in a later pull request; until then review holds the rule.
 - A clash with a local variable is solved by renaming the local. Only where
   the local is the better word for its whole scope does the package take
   Google's "pkg suffix (e.g. urlpkg)", registered like any alias. `invoicepkg`,
@@ -367,6 +366,7 @@ Reopen if a staff URL is ever stored or mailed.
 | `order/lapse` | exists, from `internal/cart/sweeper.go` | an unpaid order's stock hold running out; it holds the sweeper that releases expired holds of uncommitted orders and cancels the orders whose last hold lapsed unpaid | what a cancellation settles (`order/cancellation`), the checkout sessions of a lapsed order (`payment`) | not `order/cancellation`: half the sweep releases holds of orders that stay pending; not `hold`: misses the cancelling half |
 | `shipping/storemap` | planned, from `internal/cart/ecpaymap.go`; its type is `storemap.Client` | ECPay's convenience-store map, where a shopper picks the store to collect a parcel from; it holds the map client, the nonce cookie, the callback checks, `PostedStore` and the two hop pages | the pickup method, chains, carriers and store-code shape (`shipping`) | not `pickup`: already the whole delivery method in `shipping`; not `cvsmap`: "CVS" reads as a US pharmacy. The type is `Client`, so `Map` never reads as a map of `Store`s |
 | `backinstock` | exists; renamed `internal/restock` and took the request from `internal/catalog` | a shopper's request to be emailed when a sold-out variant is back in stock; it holds the request and the retention sweep of answered requests | receiving stock (`admin/stock`), putting returned units back (`admin/returns`), safety-stock warnings and days of cover (`inventory`, `ui/stockrisk`) | not `restock`: here that means putting units back (`restocked_quantity`); not `stockalert`: reads as the staff low-stock alert. "Back in stock" is what the shopper and the email read |
+| `copurchase` | exists; renamed `internal/recommend` | the worker that keeps the co-purchase projection (`product_copurchases`) current; it holds the call to `refresh_copurchases()` and its interval | the "bought together" read and every other recommendation a shopper sees (`catalog`) | not `recommend`: it keeps the projection current and recommends nothing; the stored word is `copurchase` (`refresh_copurchases()`, `copurchase_refreshes`) |
 | `formtext` | planned, from `internal/web` | the text a person typed into a form, read on the server; it holds the bounded parse, the storable-text check, width folding, control characters, typed counts, the search term and per-field refusals | what the browser is told a field accepts (`ui/fieldrule`), the drawn field (`ui/widget`) | not `form`: the importing files already use `form` as a local (rule 4); not merged into `fieldrule`: `internal/ui` may import that but never request reading |
 | `ui/fieldrule` | exists | the one statement of what a form field accepts, in the form a browser can check while the shopper fills the form in | what was posted and how the server reads it (`formtext`), the drawn field (`ui/widget`) | stays apart from `formtext` for the deps rule above; a merged `form` would also take the importers' local |
 | `domtest` | planned, from `AssertEmailLink` in `internal/ui/uitest` and `AssertRefusedInput` in `internal/admin/admintest` | assertions about the HTML document a handler rendered: find by id, attributes, the refused-input check, the emailed-link page | running a browser (`Browser`, `LocalChrome` in `ui/uitest`) | not `htmltest`: a letter from `httptest`, which the same tests import; not `formtest`: a letter from `formtext`, and not only about forms |
@@ -387,7 +387,7 @@ Reopen if a staff URL is ever stored or mailed.
 | `checkout` | planned, from `internal/cart` | turning a shopper's cart into a placed order; it holds the checkout page, placement, quote, attempts, drafts, the invoice preference, and coupon and credit spending | the cart itself (`cart`), the placed order afterwards (`order`, `order/buyer`), taking the money (`payment`) | not `order/place`: a verb, and "place" is also a location; not `placement`: jargon that hides the page |
 | `coupon` | exists; gained the rule and the code shape from `internal/cart/coupon.go`, and the code shape `internal/admin/coupons` restated | what a coupon takes off an order and the shape of its code; it holds the kinds, `Coupon`, `Apply` and its refusals, `Normalise` and `ValidCode` | the lookup and redemption that run inside checkout's transaction (`cart`), a campaign's price strike (`catalog`), store credit (`credit`) | not `discount`: a campaign's price strike is a discount too; not `promotion`: reads alike with the promo strip and covers campaigns. "Coupon" is the schema's noun (`coupons`) |
 | `campaign` | planned, from `internal/catalog` | a time-boxed sale on chosen products; it holds its state, the price-strike rule `OnSale`, its page and `/deals` | a coupon code (`coupon`), sales figures (`sales`), the desk that edits campaigns (`admin/campaigns`) | not `sale`: reads alike with `sales`; not `promotion`: reads alike with the promo strip and covers coupons too |
-| `policy` | planned, from `internal/site`, after `internal/returns/policy.go` and the CSP `policy` parameter in `cmd/goen` are renamed | what the shop states publicly about how it works; it holds the policy documents, the shipping page, the stated windows and thresholds (`policy.Rules`, formerly `ShopRules`) and the retention texts | the rules that decide a return (`returns`), the FAQ (`site`), the CSP (`cmd/goen`) | not `terms`: one document, and reads as search terms; not `shoprules`: restates the shop |
+| `policy` | exists, from `internal/site`; `Rules` was `site.ShopRules`, `internal/returns/policy.go` became `decision.go` and the CSP `policy` parameter in `cmd/goen` became `csp` | what the shop states publicly about how it works; it holds the policy documents, the shipping page, the stated windows and thresholds (`Rules`) and the retention texts | the rules that decide a return (`returns`), the FAQ (`site`), the CSP (`cmd/goen`) | not `terms`: one document, and reads as search terms; not `shoprules`: restates the shop |
 | `auth/google` | exists | Google's OAuth and OpenID Connect sign-in client; it holds the authorize URL, the code exchange and the identity it returns | goen's sessions and its state cookie (`auth`) | not `oidc`: names the protocol, and the client is Google's; not `oauth`: goen's sign-in is not OAuth in general. As `golang.org/x/oauth2/google` |
 | `wishlist` | planned, from `internal/account` | the products a customer saved to buy later; it holds the page, save, remove and `Has` | the account overview (`account`), the cart (`cart`), the back-in-stock request (`backinstock`) | not `saved`: an adjective; not `favourites`: a second word for the same page |
 | `compress` | planned, from `internal/web` | gzip on dynamic HTTP responses; it holds the middleware, the opt-out and Accept-Encoding negotiation | build-time compression of static files (`assets`) | not `gzip`: shadows `compress/gzip`, which it imports; not `encoding`: a standard-library directory of codecs |
@@ -517,7 +517,7 @@ edit becomes a payment, a privilege or a legal term:
   `harden_schema()`, the procedure a migration ends with;
 - the Stripe session's `payment_method_types` pin, its `ExpiresAt` bound to the
   stock hold, and webhook attribution from goen's own payment row;
-- the statutory terms in `internal/site/policies.go` (消保法 §19);
+- the statutory terms in `internal/policy/policies.go` (消保法 §19);
 - the shop's content: product names, descriptions, FAQ and policy prose.
 
 ## Filing an issue

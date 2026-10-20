@@ -24,7 +24,7 @@ func TestOrdersEmptyPageKeepsItsRestartLink(t *testing.T) {
 	b := keyset.Bound{PastEnd: true, First: "/admin/products?q=test"}
 	p := layouts.Page{Title: "Pagination"}
 	cases := map[string]templ.Component{
-		"orders": Orders(p, OrdersView{Bound: b}),
+		"orders": Orders(p, View{Bound: b}),
 	}
 	for name, c := range cases {
 		t.Run(name, func(t *testing.T) {
@@ -56,9 +56,9 @@ func queuePages(b keyset.Bound, ctx func(k i18n.Key) string) map[string]struct {
 	}
 	term := "ZZ99"
 	return map[string]c{
-		"orders, no filter":  {Orders(p, OrdersView{Bound: b}), ctx(i18n.KeyAdminQueueNoneYet)},
-		"orders, status tab": {Orders(p, OrdersView{Bound: b, Status: "pending"}), ctx(i18n.KeyAdminQueueEmpty)},
-		"orders, search":     {Orders(p, OrdersView{Bound: b, Searched: true, Term: term}), fmt.Sprintf(ctx(i18n.KeyAdminQueueNoneFound), term)},
+		"orders, no filter":  {Orders(p, View{Bound: b}), ctx(i18n.KeyAdminQueueNoneYet)},
+		"orders, status tab": {Orders(p, View{Bound: b, Status: "pending"}), ctx(i18n.KeyAdminQueueEmpty)},
+		"orders, search":     {Orders(p, View{Bound: b, Searched: true, Term: term}), fmt.Sprintf(ctx(i18n.KeyAdminQueueNoneFound), term)},
 	}
 }
 

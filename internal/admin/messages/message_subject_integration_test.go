@@ -57,13 +57,13 @@ func TestContactSubjectsSurviveWritingAndRenderInBothLanguages(t *testing.T) {
 			ctx := i18n.WithLocale(t.Context(), language.locale)
 			page := httptest.NewRecorder()
 			h.Page(page, httptest.NewRequestWithContext(ctx, http.MethodGet, "/contact", nil))
-			wantChoices := make([]contact.ContactSubject, 0, len(tests))
+			wantChoices := make([]contact.SubjectOption, 0, len(tests))
 			for _, tc := range tests {
 				label := tc.zh
 				if language.en {
 					label = tc.en
 				}
-				wantChoices = append(wantChoices, contact.ContactSubject{Value: tc.value, Label: label})
+				wantChoices = append(wantChoices, contact.SubjectOption{Value: tc.value, Label: label})
 			}
 			if diff := cmp.Diff(wantChoices, contactSubjectPicker(t, page.Body.String())); diff != "" {
 				t.Errorf("contact picker (-want +got):\n%s", diff)
@@ -192,20 +192,20 @@ func contactSubjectRow(t *testing.T, ctx context.Context, desk *messages.Store, 
 	}
 }
 
-func contactSubjectPicker(t *testing.T, markup string) []contact.ContactSubject {
+func contactSubjectPicker(t *testing.T, markup string) []contact.SubjectOption {
 	t.Helper()
 	doc, err := html.Parse(strings.NewReader(markup))
 	if err != nil {
 		t.Fatalf("parse contact picker: %v", err)
 	}
-	var choices []contact.ContactSubject
+	var choices []contact.SubjectOption
 	for node := range doc.Descendants() {
 		if node.Type != html.ElementNode || node.Data != "select" || contactSubjectAttr(node, "name") != "subject" {
 			continue
 		}
 		for option := range node.Descendants() {
 			if option.Type == html.ElementNode && option.Data == "option" && contactSubjectAttr(option, "value") != "" {
-				choices = append(choices, contact.ContactSubject{Value: contactSubjectAttr(option, "value"), Label: contactSubjectText(option)})
+				choices = append(choices, contact.SubjectOption{Value: contactSubjectAttr(option, "value"), Label: contactSubjectText(option)})
 			}
 		}
 	}

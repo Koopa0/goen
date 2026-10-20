@@ -15,6 +15,7 @@ import (
 	"github.com/koopa0/goen/internal/catalog"
 	"github.com/koopa0/goen/internal/db"
 	"github.com/koopa0/goen/internal/i18n"
+	"github.com/koopa0/goen/internal/policy"
 	"github.com/koopa0/goen/internal/shoptime"
 	"github.com/koopa0/goen/internal/site"
 	"github.com/koopa0/goen/internal/ui/components"
@@ -23,9 +24,10 @@ import (
 
 type Store struct {
 	q *db.Queries
-	// site reads the departments, which the header lists in the same order, and
-	// the shop rules the page shows.
+	// site reads the departments, which the header lists in the same order.
 	site *site.Store
+	// policy reads the shop rules the page shows.
+	policy *policy.Store
 	// now decides the department of the day.
 	now func() time.Time
 }
@@ -34,14 +36,14 @@ func NewStore(dbtx db.DBTX) *Store {
 	if dbtx == nil {
 		panic("home: NewStore requires a database handle")
 	}
-	return &Store{q: db.New(dbtx), site: site.NewStore(dbtx), now: time.Now}
+	return &Store{q: db.New(dbtx), site: site.NewStore(dbtx), policy: policy.NewStore(dbtx), now: time.Now}
 }
 
 // WithoutPickup is for a deployment whose store map is not configured: checkout
 // offers no pickup there, so what this store describes must not either.
 func (s *Store) WithoutPickup() *Store {
 	c := *s
-	c.site = s.site.WithoutPickup()
+	c.policy = s.policy.WithoutPickup()
 	return &c
 }
 
@@ -109,7 +111,7 @@ func (s *Store) Load(ctx context.Context) (pages.HomeView, error) {
 		return pages.HomeView{}, err
 	}
 
-	rules, err := s.site.ShopRules(ctx)
+	rules, err := s.policy.Rules(ctx)
 	if err != nil {
 		return pages.HomeView{}, err
 	}

@@ -11,7 +11,7 @@ import (
 // the refused control marked.
 func TestARefusedAddressKeepsItsFields(t *testing.T) {
 	t.Parallel()
-	html := renderToString(t, Account(layouts.Page{Title: "account"}, &AccountView{
+	html := renderToString(t, Account(layouts.Page{Title: "account"}, &View{
 		Email: "a@example.com",
 		AddressDraft: &AddressDraft{
 			Label: "家", Name: "王小明", Phone: "0912345678", PostalCode: "ABC",
@@ -28,7 +28,7 @@ func TestARefusedAddressKeepsItsFields(t *testing.T) {
 			t.Errorf("the refused address form is missing %q", want)
 		}
 	}
-	if blank := renderToString(t, Account(layouts.Page{Title: "account"}, &AccountView{Email: "a@example.com"})); strings.Contains(blank, "aria-invalid") ||
+	if blank := renderToString(t, Account(layouts.Page{Title: "account"}, &View{Email: "a@example.com"})); strings.Contains(blank, "aria-invalid") ||
 		strings.Contains(blank, `disclosure" open`) {
 		t.Error("a plain visit shows a refused address form")
 	}

@@ -26,7 +26,7 @@ import (
 // address.
 
 // renderedTrail reads the trail and renders the page the way /admin/audit does.
-func renderedTrail(t *testing.T, ctx context.Context) (view audit.AuditView, html string) {
+func renderedTrail(t *testing.T, ctx context.Context) (view audit.View, html string) {
 	t.Helper()
 	view, err := audit.NewStore(pool).Events(ctx)
 	if err != nil {
@@ -39,7 +39,7 @@ func renderedTrail(t *testing.T, ctx context.Context) (view audit.AuditView, htm
 	return view, page.String()
 }
 
-func rowWithRequest(t *testing.T, view audit.AuditView, requestID string) audit.AuditEntry {
+func rowWithRequest(t *testing.T, view audit.View, requestID string) audit.Entry {
 	t.Helper()
 	for i := range view.Rows {
 		if view.Rows[i].RequestID == requestID {
@@ -47,7 +47,7 @@ func rowWithRequest(t *testing.T, view audit.AuditView, requestID string) audit.
 		}
 	}
 	t.Fatalf("no audit row carries request %s among %d rows", requestID, len(view.Rows))
-	return audit.AuditEntry{}
+	return audit.Entry{}
 }
 
 // TestARenamedActorIsStillNamedByAddress: staff A changes a product's status,
@@ -106,7 +106,7 @@ func TestARenamedStaffTargetIsStillNamedByAddress(t *testing.T) {
 	colleague := "Colleague " + suffix
 	admintest.RenameUser(t, pool, target, colleague)
 	view, html := renderedTrail(t, ctx)
-	var row audit.AuditEntry
+	var row audit.Entry
 	for i := range view.Rows {
 		if e := &view.Rows[i]; e.Action == string(audit.ActionGrantStaff) && e.CustomerID == target.String() {
 			row = *e
@@ -146,7 +146,7 @@ func TestARenamedCustomerIsStillNamedByAddress(t *testing.T) {
 	colleague := "Colleague " + uuid.NewString()[:8]
 	admintest.RenameUser(t, pool, customerID, colleague)
 	view, html := renderedTrail(t, ctx)
-	var row audit.AuditEntry
+	var row audit.Entry
 	for i := range view.Rows {
 		if e := &view.Rows[i]; e.Action == "customer.view" && e.CustomerID == customerID.String() {
 			row = *e

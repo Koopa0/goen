@@ -1,4 +1,4 @@
-package site
+package policy
 
 import (
 	"strings"
@@ -25,7 +25,7 @@ func TestThePolicyFooterReadsAsOneSentence(t *testing.T) {
 	} {
 		ctx := i18n.WithLocale(t.Context(), loc)
 		var b strings.Builder
-		if err := Policy(layouts.Page{Title: "p"}, PolicyDoc{}).Render(ctx, &b); err != nil {
+		if err := DocPage(layouts.Page{Title: "p"}, Doc{}).Render(ctx, &b); err != nil {
 			t.Fatal(err)
 		}
 		if !strings.Contains(b.String(), want) {

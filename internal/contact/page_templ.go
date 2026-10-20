@@ -18,7 +18,7 @@ import (
 	"github.com/koopa0/goen/internal/ui/layouts"
 )
 
-func Contact(p layouts.Page, f ContactForm) templ.Component {
+func Contact(p layouts.Page, f Form) templ.Component {
 	return templruntime.GeneratedTemplate(func(templ_7745c5c3_Input templruntime.GeneratedComponentInput) (templ_7745c5c3_Err error) {
 		templ_7745c5c3_W, ctx := templ_7745c5c3_Input.Writer, templ_7745c5c3_Input.Context
 		if templ_7745c5c3_CtxErr := ctx.Err(); templ_7745c5c3_CtxErr != nil {
@@ -81,7 +81,7 @@ func Contact(p layouts.Page, f ContactForm) templ.Component {
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
-			templ_7745c5c3_Err = ContactPanel(f).Render(ctx, templ_7745c5c3_Buffer)
+			templ_7745c5c3_Err = Panel(f).Render(ctx, templ_7745c5c3_Buffer)
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
@@ -204,7 +204,7 @@ func contactMethod(href, label, value string) templ.Component {
 // The two banners are written here, not through the notice component: the layout
 // gate reads the refusal's sentence through a descendant pair
 // (scripts/check-layout.mjs).
-func ContactPanel(f ContactForm) templ.Component {
+func Panel(f Form) templ.Component {
 	return templruntime.GeneratedTemplate(func(templ_7745c5c3_Input templruntime.GeneratedComponentInput) (templ_7745c5c3_Err error) {
 		templ_7745c5c3_W, ctx := templ_7745c5c3_Input.Writer, templ_7745c5c3_Input.Context
 		if templ_7745c5c3_CtxErr := ctx.Err(); templ_7745c5c3_CtxErr != nil {

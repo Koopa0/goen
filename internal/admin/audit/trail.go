@@ -42,22 +42,22 @@ type position struct {
 	At time.Time
 }
 
-func (s *Store) Events(ctx context.Context, after ...string) (AuditView, error) {
+func (s *Store) Events(ctx context.Context, after ...string) (View, error) {
 	const scope = "/admin/audit"
 	from, resumed := keyset.Resume(scope, after, func(p position) bool { return p.ID != uuid.Nil })
 	rows, err := s.q.AuditEvents(ctx, db.AuditEventsParams{HasCursor: resumed, AfterAt: from.At, AfterID: from.ID, RowLimit: maxRows + 1})
 	if err != nil {
-		return AuditView{}, fmt.Errorf("read audit events: %w", err)
+		return View{}, fmt.Errorf("read audit events: %w", err)
 	}
 	// The trail has its own size, and this is the list where silence costs
 	// most: a page that shows 200 of fifty thousand without saying so is a
 	// record somebody may take for the whole record.
 	rows, bound := keyset.PageBound(scope, resumed, rows, maxRows,
 		func(r *db.AuditEventsRow) string { return r.PageCursor })
-	view := AuditView{Bound: bound}
+	view := View{Bound: bound}
 	for i := range rows {
 		e := &rows[i]
-		view.Rows = append(view.Rows, AuditEntry{
+		view.Rows = append(view.Rows, Entry{
 			Action: e.Action, Entity: e.EntityTable, Actor: e.Actor, System: e.BySystem,
 			Subject: e.Subject, Href: entryHref(e.Subject, e.ProductSlug),
 			At:            shoptime.Second(e.OccurredAt),
@@ -80,7 +80,7 @@ func entryHref(subject, productSlug string) string {
 	return ""
 }
 
-func changes(before, after []byte) []AuditChange {
+func changes(before, after []byte) []Change {
 	b, bOK := decodeFields(before)
 	a, aOK := decodeFields(after)
 	if !bOK || !aOK {
@@ -91,7 +91,7 @@ func changes(before, after []byte) []AuditChange {
 		if raw == "" {
 			return nil
 		}
-		return []AuditChange{{Field: "", After: raw}}
+		return []Change{{Field: "", After: raw}}
 	}
 	both := len(before) > 0 && len(after) > 0
 	fields := make([]string, 0, len(a)+len(b))
@@ -104,13 +104,13 @@ func changes(before, after []byte) []AuditChange {
 		}
 	}
 	slices.Sort(fields)
-	var out []AuditChange
+	var out []Change
 	for _, k := range fields {
 		bv, av := b[k], a[k]
 		if both && bv == av {
 			continue
 		}
-		out = append(out, AuditChange{Field: k, Before: bv, After: av})
+		out = append(out, Change{Field: k, Before: bv, After: av})
 	}
 	return out
 }

@@ -119,8 +119,8 @@ func TestFAQEnglishFieldsKeepVisibleTranslatedLabelsAndRefusedDrafts(t *testing.
 		} {
 			t.Run(locale.Tag()+"/"+draft.name, func(t *testing.T) {
 				t.Parallel()
-				entry := FAQEntry{ID: "existing", QuestionEn: draft.value, AnswerEn: draft.value}
-				view := &FAQView{Rows: []FAQEntry{entry}}
+				entry := Entry{ID: "existing", QuestionEn: draft.value, AnswerEn: draft.value}
+				view := &FAQView{Rows: []Entry{entry}}
 				if draft.refusal != "" {
 					view.Edit = entry
 					view.EditErrors = map[string]string{"question_en": draft.refusal, "answer_en": draft.refusal}

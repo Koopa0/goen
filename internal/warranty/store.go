@@ -29,25 +29,25 @@ func NewStore(pool *pgxpool.Pool) *Store {
 	return &Store{q: db.New(pool)}
 }
 
-func (s *Store) Registrable(ctx context.Context, orderNumber, userID string) (WarrantyOrderView, error) {
+func (s *Store) Registrable(ctx context.Context, orderNumber, userID string) (OrderView, error) {
 	owner, err := uuid.Parse(userID)
 	if err != nil {
-		return WarrantyOrderView{}, ErrNotFound
+		return OrderView{}, ErrNotFound
 	}
 	rows, err := s.q.RegistrableLines(ctx, db.RegistrableLinesParams{
 		OrderNumber: pgtype.Text{String: orderNumber, Valid: true}, UserID: uuid.NullUUID{UUID: owner, Valid: true},
 	})
 	if err != nil {
-		return WarrantyOrderView{}, fmt.Errorf("read registrable lines: %w", err)
+		return OrderView{}, fmt.Errorf("read registrable lines: %w", err)
 	}
 	if len(rows) == 0 {
-		return WarrantyOrderView{}, ErrNotFound
+		return OrderView{}, ErrNotFound
 	}
 
-	view := WarrantyOrderView{Number: orderNumber}
+	view := OrderView{Number: orderNumber}
 	for i := range rows {
 		r := &rows[i]
-		view.Lines = append(view.Lines, WarrantyLine{
+		view.Lines = append(view.Lines, Line{
 			ID: r.OrderLineID.String(), Name: r.ProductName,
 			Label: r.VariantLabel.String, Slug: r.ProductSlug.String,
 			Note: r.WarrantyNote, Months: int(r.WarrantyMonths.Int32),
@@ -59,7 +59,7 @@ func (s *Store) Registrable(ctx context.Context, orderNumber, userID string) (Wa
 	}
 	registered, err := s.Mine(ctx, userID)
 	if err != nil {
-		return WarrantyOrderView{}, err
+		return OrderView{}, err
 	}
 	lastUnits := make(map[string]int)
 	for i := range registered {
@@ -79,8 +79,8 @@ func (s *Store) Registrable(ctx context.Context, orderNumber, userID string) (Wa
 	return view, nil
 }
 
-func warrantyLine(r *db.RegistrableLinesRow) WarrantyLine {
-	line := WarrantyLine{
+func warrantyLine(r *db.RegistrableLinesRow) Line {
+	line := Line{
 		ID: r.OrderLineID.String(), Name: r.ProductName,
 		Label: r.VariantLabel.String, Slug: r.ProductSlug.String,
 		Note: r.WarrantyNote, Months: int(r.WarrantyMonths.Int32),

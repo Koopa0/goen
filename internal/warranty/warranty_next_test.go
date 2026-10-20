@@ -21,11 +21,11 @@ func TestWarrantyNextRegistrationRequiresItsOwnDeliveredUnregisteredUnit(t *test
 		t.Run(tc.locale.Tag(), func(t *testing.T) {
 			t.Parallel()
 			ctx := i18n.WithLocale(t.Context(), tc.locale)
-			line := WarrantyLine{ID: "next", Name: "Parcel item", HasTerm: true, Months: 12, Delivered: 1}
+			line := Line{ID: "next", Name: "Parcel item", HasTerm: true, Months: 12, Delivered: 1}
 			if line.Registrable() {
 				t.Error("a net-delivered count without the next unit's expiry is registrable")
 			}
-			body := renderWarrantyInLocale(t, ctx, WarrantyOrder(layouts.Page{}, WarrantyOrderView{Number: "GO-NEXT", Lines: []WarrantyLine{line}}))
+			body := renderWarrantyInLocale(t, ctx, WarrantyOrder(layouts.Page{}, OrderView{Number: "GO-NEXT", Lines: []Line{line}}))
 			if strings.Contains(body, `name="unit"`) || strings.Contains(body, `id="serial-next"`) {
 				t.Error("unavailable next ordinal renders a registration form")
 			}
@@ -39,7 +39,7 @@ func TestWarrantyNextRegistrationRequiresItsOwnDeliveredUnregisteredUnit(t *test
 				t.Error("unavailable next unit renders an empty coverage badge")
 			}
 			line.DraftSerial = " Raw & \"serial\" "
-			body = renderWarrantyInLocale(t, ctx, WarrantyOrder(layouts.Page{}, WarrantyOrderView{Number: "GO-NEXT", Lines: []WarrantyLine{line}}))
+			body = renderWarrantyInLocale(t, ctx, WarrantyOrder(layouts.Page{}, OrderView{Number: "GO-NEXT", Lines: []Line{line}}))
 			attrs := warrantyAttributes(warrantyNodesByID(t, body)["serial-next"])
 			_, readonly := attrs["readonly"]
 			if attrs["value"] != line.DraftSerial || !readonly || strings.Contains(body, `name="unit"`) {
@@ -50,7 +50,7 @@ func TestWarrantyNextRegistrationRequiresItsOwnDeliveredUnregisteredUnit(t *test
 			if !line.Registrable() {
 				t.Fatal("a delivered next unit with an expiry is not registrable")
 			}
-			body = renderWarrantyInLocale(t, ctx, WarrantyOrder(layouts.Page{}, WarrantyOrderView{Number: "GO-NEXT", Lines: []WarrantyLine{line}}))
+			body = renderWarrantyInLocale(t, ctx, WarrantyOrder(layouts.Page{}, OrderView{Number: "GO-NEXT", Lines: []Line{line}}))
 			if !strings.Contains(body, `name="unit" value="1"`) || !strings.Contains(body, "2027-08-20") || strings.Contains(body, tc.neutral) {
 				t.Error("eligible next unit lost its unit1 form or own-parcel expiry")
 			}

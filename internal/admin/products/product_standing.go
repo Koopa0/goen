@@ -11,9 +11,9 @@ import (
 	"github.com/koopa0/goen/internal/ui/components"
 )
 
-// ProductSales is the units a product sold on each shop day of the last 13
+// Sales is the units a product sold on each shop day of the last 13
 // weeks, today last and counted up to Cut.
-type ProductSales struct {
+type Sales struct {
 	Days chart.Series
 	Cut  string
 	// Unavailable is set when the days could not be read, so the section says so
@@ -36,13 +36,13 @@ const MinReviewsForSpread = 5
 
 // ShowsUnitColumns reports whether the days with sales are enough to draw
 // columns; fewer are told in a sentence.
-func (s ProductSales) ShowsUnitColumns() bool {
+func (s Sales) ShowsUnitColumns() bool {
 	return s.Days.Density() >= chart.DensitySparse
 }
 
 // UnitColumns is the chart of the weeks, each of seven days counted back from
 // today.
-func (s ProductSales) UnitColumns(ctx context.Context) chart.ColumnsProps {
+func (s Sales) UnitColumns(ctx context.Context) chart.ColumnsProps {
 	days := s.Days
 	days.Label = i18n.T(ctx, i18n.KeyAdminProdUnitsSold)
 	return chart.ColumnsProps{
@@ -56,7 +56,7 @@ func (s ProductSales) UnitColumns(ctx context.Context) chart.ColumnsProps {
 
 // Sentence says what the days sold: the caption of the columns, or, when there
 // are too few days to draw them, all there is to say.
-func (s ProductSales) Sentence(ctx context.Context) string {
+func (s Sales) Sentence(ctx context.Context) string {
 	buckets := s.Days.Buckets
 	if len(buckets) == 0 {
 		return ""

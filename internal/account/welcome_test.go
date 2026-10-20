@@ -21,7 +21,7 @@ func TestAccountWelcomeKeepsTheOriginalAction(t *testing.T) {
 			if locale == i18n.ZhHant {
 				welcome = "\u5e33\u865f\u5df2\u5efa\u7acb\uff0c\u6b61\u8fce\u52a0\u5165\u3002"
 			}
-			body := renderComponent(t, ctx, Account(AccountMeta(ctx), &AccountView{
+			body := renderComponent(t, ctx, Account(Meta(ctx), &View{
 				Notice: i18n.T(ctx, i18n.KeyAccountWelcome), ReturnAfterWelcome: "/cart?qty=adjusted&next=%2Fcheckout", CartAdjusted: true,
 			}))
 			for _, want := range []string{welcome, html.EscapeString(i18n.T(ctx, i18n.KeyCartQuantityAdjusted)), `href="/cart?qty=adjusted&amp;next=%2Fcheckout"`} {

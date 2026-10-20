@@ -41,7 +41,7 @@ func TestAccountExamplesStayOutsideRefusedInputs(t *testing.T) {
 					component templ.Component
 					fields    map[string]string
 				}{
-					{"address", Account(layouts.Page{}, &AccountView{AddressDraft: &AddressDraft{Label: typed}, AddressErrors: errors("label")}), map[string]string{"addr-label": label}},
+					{"address", Account(layouts.Page{}, &View{AddressDraft: &AddressDraft{Label: typed}, AddressErrors: errors("label")}), map[string]string{"addr-label": label}},
 				} {
 					t.Run(page.name, func(t *testing.T) {
 						markup := renderComponent(t, ctx, page.component)

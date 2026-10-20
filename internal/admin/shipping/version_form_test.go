@@ -39,7 +39,7 @@ func TestVersionFormKeepsRawFieldsAndRefusesTheOwningAmount(t *testing.T) {
 			if diff := cmp.Diff(wantDraft, draft); diff != "" {
 				t.Errorf("raw version draft (-want +got):\n%s", diff)
 			}
-			if diff := cmp.Diff(ShippingVersion{MethodID: "owned", Name: " Raw name ", NameEn: " Raw name EN ", Carrier: " Raw carrier ", CarrierEn: " Raw carrier EN ", FeeDollars: tt.feeDollars, FreeOverDollars: tt.thresholdDollars}, v); diff != "" {
+			if diff := cmp.Diff(Version{MethodID: "owned", Name: " Raw name ", NameEn: " Raw name EN ", Carrier: " Raw carrier ", CarrierEn: " Raw carrier EN ", FeeDollars: tt.feeDollars, FreeOverDollars: tt.thresholdDollars}, v); diff != "" {
 				t.Errorf("parsed version (-want +got):\n%s", diff)
 			}
 			wantErrors := map[string]string{}

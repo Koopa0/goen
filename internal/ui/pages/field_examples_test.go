@@ -45,7 +45,7 @@ func TestCustomerExamplesStayOutsideRefusedInputs(t *testing.T) {
 					component templ.Component
 					fields    map[string]string
 				}{
-					{"contact", contact.ContactPanel(contact.ContactForm{Name: typed, Email: typed, OrderRef: typed, Message: typed, Errors: errors("name", "email", "order_ref", "message")}), map[string]string{"contact-name": name, "contact-email": "you@example.com", "contact-order": "GO-260101-000001", "contact-message": message}},
+					{"contact", contact.Panel(contact.Form{Name: typed, Email: typed, OrderRef: typed, Message: typed, Errors: errors("name", "email", "order_ref", "message")}), map[string]string{"contact-name": name, "contact-email": "you@example.com", "contact-order": "GO-260101-000001", "contact-message": message}},
 				} {
 					t.Run(page.name, func(t *testing.T) {
 						markup := renderComponent(t, ctx, page.component)

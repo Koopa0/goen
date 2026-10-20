@@ -6,7 +6,7 @@ import (
 	"time"
 
 	"github.com/koopa0/goen/internal/cart"
-	"github.com/koopa0/goen/internal/site"
+	"github.com/koopa0/goen/internal/policy"
 )
 
 // The privacy policy states how long a guest cart and a saved checkout draft
@@ -14,14 +14,14 @@ import (
 func TestThePrivacyPolicyStatesTheCartPeriodsTheSweepsEnforce(t *testing.T) {
 	t.Parallel()
 
-	days, err := strconv.Atoi(site.GuestCartRetainDaysText())
+	days, err := strconv.Atoi(policy.GuestCartRetainDaysText())
 	if err != nil {
 		t.Fatalf("parse stated guest-cart retention: %v", err)
 	}
 	if got := time.Duration(days) * 24 * time.Hour; got != cart.GuestCartRetain {
 		t.Errorf("privacy states %v for a guest cart, the sweep deletes after %v", got, cart.GuestCartRetain)
 	}
-	hours, err := strconv.Atoi(site.CheckoutDraftHoursText())
+	hours, err := strconv.Atoi(policy.CheckoutDraftHoursText())
 	if err != nil {
 		t.Fatalf("parse stated draft retention: %v", err)
 	}

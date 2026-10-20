@@ -1,6 +1,6 @@
 //go:build integration
 
-package site
+package policy
 
 import (
 	"context"
@@ -38,7 +38,7 @@ func TestThePoliciesStateTheSchemasCheckoutWindows(t *testing.T) {
 		t.Fatalf("open a store-role pool: %v", err)
 	}
 	t.Cleanup(storePool.Close)
-	h := Handler{content: NewStore(storePool), log: slog.New(slog.DiscardHandler)}
+	h := Handler{store: NewStore(storePool), log: slog.New(slog.DiscardHandler)}
 
 	for _, locale := range []i18n.Locale{i18n.ZhHant, i18n.En} {
 		ctx := i18n.WithLocale(t.Context(), locale)
@@ -48,7 +48,7 @@ func TestThePoliciesStateTheSchemasCheckoutWindows(t *testing.T) {
 			message i18n.Key
 		}{
 			{"/shipping", h.Shipping, i18n.KeyShippingHoldBody},
-			{"/payment", h.Policy, i18n.KeyPolicyPaymentHold},
+			{"/payment", h.DocPage, i18n.KeyPolicyPaymentHold},
 		} {
 			req := httptest.NewRequestWithContext(ctx, http.MethodGet, tc.path, http.NoBody)
 			res := httptest.NewRecorder()

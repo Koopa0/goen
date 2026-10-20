@@ -15,7 +15,7 @@ import (
 func TestPublicContactUsesTheOwnedEmail(t *testing.T) {
 	for _, locale := range []i18n.Locale{i18n.ZhHant, i18n.En} {
 		for name, component := range map[string]templ.Component{
-			"contact": contact.Contact(layouts.Page{}, contact.ContactForm{}),
+			"contact": contact.Contact(layouts.Page{}, contact.Form{}),
 			"footer":  layouts.Footer(layouts.NewsletterState{}),
 		} {
 			t.Run(string(locale)+"/"+name, func(t *testing.T) {
@@ -45,7 +45,7 @@ func TestTheOrderNumberFieldShowsTheFormatGoenIssues(t *testing.T) {
 
 	for _, locale := range []i18n.Locale{i18n.ZhHant, i18n.En} {
 		var b strings.Builder
-		if err := contact.Contact(layouts.Page{Title: "contact"}, contact.ContactForm{}).Render(i18n.WithLocale(t.Context(), locale), &b); err != nil {
+		if err := contact.Contact(layouts.Page{Title: "contact"}, contact.Form{}).Render(i18n.WithLocale(t.Context(), locale), &b); err != nil {
 			t.Fatal(err)
 		}
 		out := b.String()
@@ -68,9 +68,9 @@ func TestTheContactConfirmationTakesFocusFromTheFormItReplaces(t *testing.T) {
 		t.Run(string(locale), func(t *testing.T) {
 			t.Parallel()
 			ctx := i18n.WithLocale(t.Context(), locale)
-			render := func(f contact.ContactForm) *nethtml.Node {
+			render := func(f contact.Form) *nethtml.Node {
 				var b strings.Builder
-				if err := contact.ContactPanel(f).Render(ctx, &b); err != nil {
+				if err := contact.Panel(f).Render(ctx, &b); err != nil {
 					t.Fatal(err)
 				}
 				doc, err := nethtml.Parse(strings.NewReader(b.String()))
@@ -79,7 +79,7 @@ func TestTheContactConfirmationTakesFocusFromTheFormItReplaces(t *testing.T) {
 				}
 				return doc
 			}
-			form := elementByTag(render(contact.ContactForm{}), "form")
+			form := elementByTag(render(contact.Form{}), "form")
 			if form == nil {
 				t.Fatal("the contact panel has no form")
 			}
@@ -87,7 +87,7 @@ func TestTheContactConfirmationTakesFocusFromTheFormItReplaces(t *testing.T) {
 			if target == "" {
 				t.Fatal("the contact form names no element to take focus after it is swapped away")
 			}
-			done := elementByID(render(contact.ContactForm{Done: true}), target)
+			done := elementByID(render(contact.Form{Done: true}), target)
 			if done == nil {
 				t.Fatalf("the confirmation has no element with id %q", target)
 			}

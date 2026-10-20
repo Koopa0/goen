@@ -24,13 +24,13 @@ import (
 // From internal/ui/pages/cart_test.go, moved whole.
 func TestAccountOrderHistoryLinksToCanonicalOrderPage(t *testing.T) {
 	ctx := i18n.WithLocale(t.Context(), i18n.ZhHant)
-	view := &AccountView{
+	view := &View{
 		Orders: []AccountOrder{{
 			Number: "GO-260101-000012", Status: order.FulfillmentDelivered,
 			PlacedAt: shoptime.Date{Year: 2026, Month: time.January, Day: 1}, TotalCents: 106000, LineCount: 1,
 		}},
 	}
-	html := renderToString(t, Account(AccountMeta(ctx), view))
+	html := renderToString(t, Account(Meta(ctx), view))
 	if !strings.Contains(html, `href="/orders/GO-260101-000012"`) {
 		t.Error("the order history does not link to the canonical order page")
 	}
@@ -54,8 +54,8 @@ func TestAnOrderReturnedInFullIsBadgedRefundedInTheAccount(t *testing.T) {
 // From internal/ui/pages/cart_test.go, moved whole.
 func TestTheAccountListOffersToPayAnUnpaidOrderWhereThatCanBeDone(t *testing.T) {
 	t.Parallel()
-	view := func(enabled bool) *AccountView {
-		return &AccountView{
+	view := func(enabled bool) *View {
+		return &View{
 			PaymentsEnabled: enabled,
 			Orders: []AccountOrder{
 				{Number: "GO-260101-000011", Status: order.FulfillmentPending, OwedCents: 100},
@@ -63,14 +63,14 @@ func TestTheAccountListOffersToPayAnUnpaidOrderWhereThatCanBeDone(t *testing.T) 
 			},
 		}
 	}
-	on := renderToString(t, Account(AccountMeta(t.Context()), view(true)))
+	on := renderToString(t, Account(Meta(t.Context()), view(true)))
 	if !strings.Contains(on, `href="/orders/GO-260101-000011/pay"`) {
 		t.Error("an unpaid order has no 付款 action")
 	}
 	if strings.Contains(on, `href="/orders/GO-260101-000010/pay"`) {
 		t.Error("a paid order is offered payment")
 	}
-	if off := renderToString(t, Account(AccountMeta(t.Context()), view(false))); strings.Contains(off, "/orders/GO-260101-000011/pay") {
+	if off := renderToString(t, Account(Meta(t.Context()), view(false))); strings.Contains(off, "/orders/GO-260101-000011/pay") {
 		t.Error("an order is offered payment where the shop takes none")
 	}
 }
@@ -170,8 +170,8 @@ func TestOnlyAStaffMemberIsOfferedTheBackOffice(t *testing.T) {
 func renderAccountPage(t *testing.T, ctx context.Context) string {
 	t.Helper()
 	return renderComponent(t, ctx, Account(
-		AccountMeta(ctx),
-		&AccountView{Email: "somebody@example.com"},
+		Meta(ctx),
+		&View{Email: "somebody@example.com"},
 	))
 }
 
@@ -226,7 +226,7 @@ func renderedAddressBookControls(t *testing.T) map[string]map[string]string {
 	t.Helper()
 
 	controls := map[string]map[string]string{}
-	html := renderToString(t, Account(AccountMeta(t.Context()), &AccountView{}))
+	html := renderToString(t, Account(Meta(t.Context()), &View{}))
 	form := formWithAction(t, html, "/account/addresses")
 	for _, tag := range formControlPattern.FindAllString(form, -1) {
 		attributes := quotedAttributes(tag)

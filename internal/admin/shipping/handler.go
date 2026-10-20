@@ -319,7 +319,7 @@ func (h *Handler) PublishVersion(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-func versionFormOf(r *http.Request) (ShippingVersion, VersionDraft, map[string]string) {
+func versionFormOf(r *http.Request) (Version, VersionDraft, map[string]string) {
 	draft := VersionDraft{
 		MethodID: r.PostFormValue("method"), Name: r.PostFormValue("name"), NameEn: r.PostFormValue("name_en"),
 		Carrier: r.PostFormValue("carrier"), CarrierEn: r.PostFormValue("carrier_en"),
@@ -337,7 +337,7 @@ func versionFormOf(r *http.Request) (ShippingVersion, VersionDraft, map[string]s
 	if name := strings.TrimSpace(draft.Name); name == "" || utf8.RuneCountInString(name) > MaxNameRunes {
 		errs["version_name"] = i18n.T(r.Context(), i18n.KeyFormNameRequired)
 	}
-	return ShippingVersion{MethodID: draft.MethodID, Name: draft.Name, NameEn: draft.NameEn,
+	return Version{MethodID: draft.MethodID, Name: draft.Name, NameEn: draft.NameEn,
 		Carrier: draft.Carrier, CarrierEn: draft.CarrierEn, FeeDollars: fee, FreeOverDollars: freeOver}, draft, errs
 }
 

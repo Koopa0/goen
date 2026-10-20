@@ -114,10 +114,10 @@ const strictTransportSecurity = "max-age=31536000; includeSubDomains"
 // securityHeaders sets what every response carries. HSTS goes only with secure
 // cookies: development serves plain http, and a browser that once saw the
 // header on localhost would refuse http there for a year.
-func securityHeaders(next http.Handler, policy string, secure bool) http.Handler {
+func securityHeaders(next http.Handler, csp string, secure bool) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		h := w.Header()
-		h.Set("Content-Security-Policy", policy)
+		h.Set("Content-Security-Policy", csp)
 		h.Set("X-Content-Type-Options", "nosniff")
 		h.Set("Referrer-Policy", "strict-origin-when-cross-origin")
 		if secure {

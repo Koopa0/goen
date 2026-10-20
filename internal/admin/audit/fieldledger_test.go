@@ -210,8 +210,8 @@ func TestAuditRecordedFieldLabels(t *testing.T) {
 				if locale == i18n.En {
 					label = field.en
 				}
-				entry := AuditEntry{Entity: field.entity, Changes: []AuditChange{{Field: field.field, Before: "before-recorded", After: "after-recorded"}}}
-				rendered := renderComponent(t, ctx, Audit(layouts.Page{}, AuditView{Rows: []AuditEntry{entry}}))
+				entry := Entry{Entity: field.entity, Changes: []Change{{Field: field.field, Before: "before-recorded", After: "after-recorded"}}}
+				rendered := renderComponent(t, ctx, Audit(layouts.Page{}, View{Rows: []Entry{entry}}))
 				for _, want := range []string{"<dt>" + stdhtml.EscapeString(label) + "</dt>", "<dd>before-recorded → after-recorded</dd>"} {
 					if !strings.Contains(rendered, want) {
 						t.Errorf("recorded %s.%s is missing %q", field.entity, field.field, want)

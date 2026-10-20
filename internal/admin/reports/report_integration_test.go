@@ -11,7 +11,7 @@ import (
 
 	"github.com/koopa0/goen/internal/admin/admintest"
 	"github.com/koopa0/goen/internal/admin/reports"
-	stockdesk "github.com/koopa0/goen/internal/admin/stock"
+	"github.com/koopa0/goen/internal/admin/stock"
 	"github.com/koopa0/goen/internal/db"
 	"github.com/koopa0/goen/internal/i18n"
 	"github.com/koopa0/goen/internal/inventory"
@@ -22,7 +22,7 @@ import (
 
 func TestRevenueCountsOnlyCommittedOrders(t *testing.T) {
 	ctx := t.Context()
-	s := reports.NewStore(pool, stockdesk.NewStore(pool))
+	s := reports.NewStore(pool, stock.NewStore(pool))
 
 	before, err := s.ReportAt(ctx, 30, admintest.DatabaseNow(t, pool))
 	if err != nil {
@@ -63,7 +63,7 @@ func TestRevenueCountsOnlyCommittedOrders(t *testing.T) {
 // database's own clock does not.
 func TestAnOrderJustPlacedIsCountedAtTheDatabaseClockNotAHostClockBehindIt(t *testing.T) {
 	ctx := t.Context()
-	s := reports.NewStore(pool, stockdesk.NewStore(pool))
+	s := reports.NewStore(pool, stock.NewStore(pool))
 
 	before, err := s.ReportAt(ctx, 30, admintest.DatabaseNow(t, pool))
 	if err != nil {
@@ -98,7 +98,7 @@ func TestAnOrderJustPlacedIsCountedAtTheDatabaseClockNotAHostClockBehindIt(t *te
 
 func TestBestSellerHistorySurvivesRetirementOfAPurchasedVariant(t *testing.T) {
 	ctx := t.Context()
-	s := reports.NewStore(pool, stockdesk.NewStore(pool))
+	s := reports.NewStore(pool, stock.NewStore(pool))
 	tx, err := pool.Begin(ctx)
 	if err != nil {
 		t.Fatalf("begin: %v", err)
@@ -222,7 +222,7 @@ func TestBestSellersLeaveOutAnOrderRefundedBeforeShipment(t *testing.T) {
 
 	_, staff := admintest.StaffContext(t, pool)
 	backOffice := admintest.AdminRolePool(t, pool)
-	s := reports.NewStore(backOffice, stockdesk.NewStore(backOffice))
+	s := reports.NewStore(backOffice, stock.NewStore(backOffice))
 	listed := func() bool {
 		t.Helper()
 		view, err := s.ReportAt(ctx, 7, now)
@@ -289,7 +289,7 @@ func TestStockCoverLeavesOutAnOrderRefundedBeforeShipment(t *testing.T) {
 			if row, found := read(); found != soldOut || row.UnitsSold != 0 || row.OrdersSold != 0 {
 				t.Errorf("after refund: found=%v units=%d orders=%d, want %v/0/0", found, row.UnitsSold, row.OrdersSold, soldOut)
 			}
-			rows, _, err := stockdesk.NewStore(backOffice).DaysCover(ctx, 30, now)
+			rows, _, err := stock.NewStore(backOffice).DaysCover(ctx, 30, now)
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -305,7 +305,7 @@ func TestStockCoverLeavesOutAnOrderRefundedBeforeShipment(t *testing.T) {
 
 func TestTheWindowIsAnAllowlist(t *testing.T) {
 	ctx := t.Context()
-	s := reports.NewStore(pool, stockdesk.NewStore(pool))
+	s := reports.NewStore(pool, stock.NewStore(pool))
 
 	for _, days := range []int32{7, 30, 90} {
 		view, err := s.ReportAt(ctx, days, time.Now())
@@ -407,7 +407,7 @@ func reportOrderAt(t *testing.T, cents int64, paid bool, placedAt *time.Time) uu
 
 func TestCommittedCoversAnOrderWithNoPaymentRow(t *testing.T) {
 	ctx := t.Context()
-	s := reports.NewStore(pool, stockdesk.NewStore(pool))
+	s := reports.NewStore(pool, stock.NewStore(pool))
 
 	before, err := s.ReportAt(ctx, 30, admintest.DatabaseNow(t, pool))
 	if err != nil {
@@ -445,7 +445,7 @@ func TestCommittedCoversAnOrderWithNoPaymentRow(t *testing.T) {
 
 func TestStockRowsCapSoldOutAndKeepEstimatesListed(t *testing.T) {
 	ctx := t.Context()
-	s := reports.NewStore(pool, stockdesk.NewStore(pool))
+	s := reports.NewStore(pool, stock.NewStore(pool))
 
 	// One more sold out SKU than the list holds, so the count is at least 1
 	// whatever the seed leaves, and a SKU of ten orders that must still show.
@@ -510,7 +510,7 @@ func TestStockRowsCapSoldOutAndKeepEstimatesListed(t *testing.T) {
 
 func TestStockWindowIsWholeShopDays(t *testing.T) {
 	ctx := t.Context()
-	s := reports.NewStore(pool, stockdesk.NewStore(pool))
+	s := reports.NewStore(pool, stock.NewStore(pool))
 	now := shopMoment(t, "2024-03-10 15:20:00")
 
 	variantID, sku := newVariant(t, 20, 2)
@@ -539,7 +539,7 @@ func TestStockWindowIsWholeShopDays(t *testing.T) {
 
 func TestStockTimeAndSoldOutComeFromTheLedger(t *testing.T) {
 	ctx := t.Context()
-	s := reports.NewStore(pool, stockdesk.NewStore(pool))
+	s := reports.NewStore(pool, stock.NewStore(pool))
 	now := shopMoment(t, "2024-03-10 15:20:00")
 
 	// Stock 10 over safety 2, received on 02-25: nothing to sell before, so the
@@ -620,8 +620,8 @@ func ledger(t *testing.T, variantID uuid.UUID, delta int, reason string, at time
 	}
 }
 
-// newVariant makes an active variant holding stock with the given safety level.
-func newVariant(t *testing.T, stock, safety int) (id uuid.UUID, sku string) {
+// newVariant makes an active variant holding quantity units of stock with the given safety level.
+func newVariant(t *testing.T, quantity, safety int) (id uuid.UUID, sku string) {
 	t.Helper()
 	ctx := t.Context()
 
@@ -643,7 +643,7 @@ func newVariant(t *testing.T, stock, safety int) (id uuid.UUID, sku string) {
 	if err := tx.QueryRow(ctx, `
 		INSERT INTO product_variants (product_id, sku, price_cents, position, stock_quantity, safety_stock)
 		VALUES ($1, 'RUNWAY-' || upper(replace(gen_random_uuid()::text, '-', '')), 1, 0, $2, $3)
-		RETURNING id, sku`, productID, stock, safety).Scan(&id, &sku); err != nil {
+		RETURNING id, sku`, productID, quantity, safety).Scan(&id, &sku); err != nil {
 		t.Fatalf("create variant: %v", err)
 	}
 	if _, err := tx.Exec(ctx, `UPDATE products SET status = 'active' WHERE id = $1`, productID); err != nil {
@@ -702,7 +702,7 @@ func orderOnVariant(t *testing.T, variantID uuid.UUID, sku string, units int, pl
 
 func TestAPeriodIsWholeShopDaysAndThePreviousStopsAtTheSameHour(t *testing.T) {
 	ctx := t.Context()
-	s := reports.NewStore(pool, stockdesk.NewStore(pool))
+	s := reports.NewStore(pool, stock.NewStore(pool))
 	at := func(wallClock string) time.Time {
 		t.Helper()
 		moment, err := shoptime.ParseSecond(wallClock)
@@ -801,7 +801,7 @@ func TestAPeriodIsWholeShopDaysAndThePreviousStopsAtTheSameHour(t *testing.T) {
 // to more than the tile.
 func TestPaidByShopDayAddsUpToRevenue(t *testing.T) {
 	ctx := t.Context()
-	s := reports.NewStore(pool, stockdesk.NewStore(pool))
+	s := reports.NewStore(pool, stock.NewStore(pool))
 	at := func(wallClock string) time.Time {
 		t.Helper()
 		moment, err := shoptime.ParseSecond(wallClock)
@@ -898,7 +898,7 @@ func TestPaidByShopDayAddsUpToRevenue(t *testing.T) {
 
 func TestReturnedProductsCountOnlyDecidedUnitsOfOrdersPlacedInThePeriod(t *testing.T) {
 	ctx := t.Context()
-	s := reports.NewStore(pool, stockdesk.NewStore(pool))
+	s := reports.NewStore(pool, stock.NewStore(pool))
 
 	countedID, counted := newVariant(t, 20, 0)
 	orderOnVariant(t, countedID, counted, 12, nil)
@@ -1023,7 +1023,7 @@ func returnUnits(t *testing.T, orderID uuid.UUID, qty int, status string) {
 // one refunded before shipment and the ones outside the period are on no day.
 func TestPaidOrdersPerDayAddUpToThePaidOrderTile(t *testing.T) {
 	ctx := t.Context()
-	s := reports.NewStore(pool, stockdesk.NewStore(pool))
+	s := reports.NewStore(pool, stock.NewStore(pool))
 	at := func(wallClock string) time.Time {
 		t.Helper()
 		moment, err := shoptime.ParseSecond(wallClock)
@@ -1085,7 +1085,7 @@ func TestPaidOrdersPerDayAddUpToThePaidOrderTile(t *testing.T) {
 
 func TestCampaignsAreThoseOnDuringThePeriod(t *testing.T) {
 	ctx := t.Context()
-	s := reports.NewStore(pool, stockdesk.NewStore(pool))
+	s := reports.NewStore(pool, stock.NewStore(pool))
 	at := func(wallClock string) time.Time {
 		t.Helper()
 		moment, err := shoptime.ParseSecond(wallClock)
@@ -1147,7 +1147,7 @@ func TestCampaignsAreThoseOnDuringThePeriod(t *testing.T) {
 
 func TestAnEmptyPeriodNamesTheLatestPaidOrdersDay(t *testing.T) {
 	ctx := t.Context()
-	s := reports.NewStore(pool, stockdesk.NewStore(pool))
+	s := reports.NewStore(pool, stock.NewStore(pool))
 	at := func(wallClock string) time.Time {
 		t.Helper()
 		moment, err := shoptime.ParseSecond(wallClock)
@@ -1198,7 +1198,7 @@ func TestAnEmptyPeriodNamesTheLatestPaidOrdersDay(t *testing.T) {
 // figure, since the orders carry no discount, shipping or tax.
 func TestDepartmentsAddUpToTheRevenueFigure(t *testing.T) {
 	ctx := t.Context()
-	s := reports.NewStore(pool, stockdesk.NewStore(pool))
+	s := reports.NewStore(pool, stock.NewStore(pool))
 
 	suffix := uuid.NewString()
 	rootA := departmentName("A", suffix)
