@@ -1,8 +1,7 @@
-// Package reviews is the back office's review desk, where staff hide or show a
-// product review; it holds the list of every review, hidden ones included, its
-// three-stars-and-below filter, and the hide and show actions with their audit
-// rows; it does not hold product questions (admin/questions), contact messages
-// (admin/messages) or the review form a shopper posts (catalog).
+// Package reviews is the staff desk where product reviews are hidden or shown;
+// it holds the list of every review, hidden ones included, its
+// three-stars-and-below filter, and hiding and showing one; it does not hold
+// questions (admin/questions) or the review form and rules (catalog).
 package reviews
 
 import (

@@ -1,9 +1,7 @@
-// Package questions is the back office's product-question desk, where staff
-// answer a shopper's question as the shop or hide it; it holds the visible and
-// hidden queues, the shop's answer, hiding and showing a question and
-// withdrawing an answer; it does not hold product reviews (admin/reviews),
-// contact messages (admin/messages) or asking and answering as a customer
-// (catalog).
+// Package questions is the staff desk where product questions are answered or
+// hidden; it holds the visible and hidden queues, the shop's answer, hiding and
+// showing a question and withdrawing an answer; it does not hold reviews
+// (admin/reviews) or contact messages (admin/messages).
 package questions
 
 import (

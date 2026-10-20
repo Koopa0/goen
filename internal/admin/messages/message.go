@@ -1,8 +1,6 @@
-// Package messages is the back office's desk for contact-form messages; it
-// holds the staff queue of what customers sent through /contact, longest wait
-// first, and marking a message handled or reopening it; it does not hold the
-// contact form and its subjects (contact) or the mail the shop sends (outbox,
-// letter).
+// Package messages is the staff queue of contact messages customers sent; it
+// holds the list, handle and reopen; it does not hold outgoing mail (outbox,
+// letter) or catalogue messages (i18n).
 package messages
 
 import (
