@@ -1,7 +1,7 @@
 // Package banners is the staff desk for the site-wide promotional strip; it
 // holds writing a strip in both languages, its run and switching it on or off;
-// it does not hold the strip as shoppers see it (site) or the home carousel's
-// slides (slides).
+// it does not hold the home page (home) or the carousel's slides
+// (admin/slides).
 package banners
 
 import (

@@ -1,7 +1,6 @@
-// Package faq is the staff desk that edits the shop's frequently asked
-// questions; it holds the FAQ's categories and entries, in both languages, and
-// their order; it does not hold the storefront's FAQ page (site) or any other
-// shop-window copy (slides, banners).
+// Package faq is the staff desk that edits the FAQ's categories and entries;
+// it holds both languages of each and their order; it does not hold the
+// storefront FAQ page (site).
 package faq
 
 import (

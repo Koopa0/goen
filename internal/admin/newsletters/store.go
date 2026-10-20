@@ -1,7 +1,7 @@
-// Package newsletters is the staff desk where newsletter issues are composed
-// and sent; it holds the composer, the list of issues, the one send of each
-// issue through the outbox and the mailing list's counts; it does not hold the
-// mailing list itself or the storefront sign-up (newsletter).
+// Package newsletters is the staff desk that composes and sends newsletter
+// issues; it holds the composer, the list of issues, each issue's one send
+// through the outbox and the mailing list's counts; it does not hold the
+// subscriber list or the sign-up (newsletter).
 package newsletters
 
 import (

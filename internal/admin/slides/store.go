@@ -1,8 +1,8 @@
-// Package slides is the staff desk for the home carousel's scheduled slides; it
-// holds creating a slide, its schedule, switching one on or off and promoting
-// it, beside a preview of the carousel as shoppers see it now; it does not hold
-// the campaigns and departments that also fill the carousel (campaigns,
-// taxonomy) or the site-wide promotional strip (banners).
+// Package slides is the staff desk for the home carousel's scheduled slides;
+// it holds creating, scheduling, switching on or off and promoting a slide,
+// with a preview of the carousel as shoppers see it; it does not hold the
+// campaigns and departments that also fill the carousel (admin/campaigns,
+// admin/taxonomy) or the site-wide strip (admin/banners).
 package slides
 
 import (
