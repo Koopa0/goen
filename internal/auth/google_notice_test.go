@@ -7,12 +7,13 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/koopa0/goen/internal/auth/google"
 	"github.com/koopa0/goen/internal/i18n"
 )
 
 func TestDisabledGoogleOffersPasswordSignIn(t *testing.T) {
 	t.Parallel()
-	h := &Handler{google: &Google{}, log: slog.New(slog.DiscardHandler)}
+	h := &Handler{google: &google.Client{}, log: slog.New(slog.DiscardHandler)}
 	for _, locale := range i18n.Locales() {
 		for _, handler := range []http.HandlerFunc{h.GoogleSignIn, h.GoogleCallback} {
 			r := httptest.NewRequestWithContext(i18n.WithLocale(t.Context(), locale), http.MethodGet, "/auth/google", http.NoBody)

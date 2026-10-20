@@ -11,6 +11,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/koopa0/goen/internal/auth/google"
 	"github.com/koopa0/goen/internal/bearer"
 	"github.com/koopa0/goen/internal/cart/item"
 	"github.com/koopa0/goen/internal/email"
@@ -55,7 +56,7 @@ type Handler struct {
 	grants     Grants
 	log        *slog.Logger
 	secure     bool
-	google     *Google
+	google     *google.Client
 	demo       DemoAccount
 	// stepUp reports whether the request's session passed the second factor; nil
 	// is a deployment with none. See [Handler.RequireStepUpFromStaff].
@@ -71,15 +72,15 @@ type Handler struct {
 	mailLimit *ratelimit.Limiter
 }
 
-func NewHandler(store *Store, carts Carts, grants Grants, log *slog.Logger, secure bool, google *Google) *Handler {
+func NewHandler(store *Store, carts Carts, grants Grants, log *slog.Logger, secure bool, googleSignIn *google.Client) *Handler {
 	if store == nil || log == nil {
 		panic("auth: NewHandler requires a store and a logger")
 	}
-	if google == nil {
-		google = &Google{}
+	if googleSignIn == nil {
+		googleSignIn = &google.Client{}
 	}
 	return &Handler{
-		store: store, carts: carts, grants: grants, log: log, secure: secure, google: google,
+		store: store, carts: carts, grants: grants, log: log, secure: secure, google: googleSignIn,
 		// Six wrong passwords at once from one network, then one every fifteen
 		// seconds: more than someone retyping needs.
 		signinLimit: ratelimit.New(ratelimit.Config{
@@ -1235,14 +1236,14 @@ func (h *Handler) GoogleSignIn(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	target, state, err := h.google.AuthorizeURL(web.SitePathOr(r.URL.Query().Get("next"), "/account"))
+	target, state, err := h.google.AuthorizeURL()
 	if err != nil {
 		h.log.ErrorContext(r.Context(), "build the google authorisation url", "error", err)
 		h.serverError(w, r)
 		return
 	}
-	writeOAuthState(w, state, h.secure)
-	//nolint:gosec // G710: no request value reaches target
+	next := web.SitePathOr(r.URL.Query().Get("next"), "/account")
+	writeOAuthState(w, oauthState{Value: state.Value, Verifier: state.Verifier, Next: next}, h.secure)
 	http.Redirect(w, r, target, http.StatusSeeOther)
 }
 
@@ -1337,7 +1338,19 @@ func (h *Handler) UnlinkGoogle(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-func writeOAuthState(w http.ResponseWriter, s OAuthState, secure bool) {
+const oauthStateCookie = "__Host-goen_oauth"
+
+const oauthStateTTL = 10 * time.Minute
+
+// oauthState is what the state cookie carries through Google and back: the
+// client's state and PKCE verifier, and where the visitor was headed.
+type oauthState struct {
+	Value    string
+	Verifier string
+	Next     string
+}
+
+func writeOAuthState(w http.ResponseWriter, s oauthState, secure bool) {
 	raw := strings.Join([]string{s.Value, s.Verifier, s.Next}, "|")
 	//nolint:gosec // G124: Secure follows the deployment's own flag, as every cookie here does
 	http.SetCookie(w, &http.Cookie{
@@ -1351,20 +1364,20 @@ func writeOAuthState(w http.ResponseWriter, s OAuthState, secure bool) {
 	})
 }
 
-func readOAuthState(r *http.Request, secure bool) (OAuthState, bool) {
+func readOAuthState(r *http.Request, secure bool) (oauthState, bool) {
 	c, err := r.Cookie(oauthCookieName(secure))
 	if err != nil || c.Value == "" {
-		return OAuthState{}, false
+		return oauthState{}, false
 	}
 	raw, err := base64.RawURLEncoding.DecodeString(c.Value)
 	if err != nil {
-		return OAuthState{}, false
+		return oauthState{}, false
 	}
 	parts := strings.SplitN(string(raw), "|", 3)
 	if len(parts) != 3 {
-		return OAuthState{}, false
+		return oauthState{}, false
 	}
-	return OAuthState{
+	return oauthState{
 		Value: parts[0], Verifier: parts[1], Next: web.SitePathOr(parts[2], "/account"),
 	}, true
 }

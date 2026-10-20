@@ -16,6 +16,7 @@ import (
 	"golang.org/x/net/html"
 
 	"github.com/koopa0/goen/internal/auth"
+	"github.com/koopa0/goen/internal/auth/google"
 	"github.com/koopa0/goen/internal/i18n"
 	"github.com/koopa0/goen/internal/user"
 )
@@ -34,7 +35,7 @@ func TestSigningOutOtherDevicesKeepsTheCurrentSessionAndOtherUsers(t *testing.T)
 				var u user.User
 				if googleOnly {
 					var err error
-					u, err = s.SignInWithGoogle(ctx, auth.Identity{
+					u, err = s.SignInWithGoogle(ctx, google.Identity{
 						Subject: "other-devices-" + uuid.NewString(), Email: "other-devices-" + uuid.NewString() + "@example.com", EmailVerified: true,
 					})
 					if err != nil {

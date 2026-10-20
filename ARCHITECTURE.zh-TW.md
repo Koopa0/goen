@@ -271,7 +271,7 @@ CI 執行格式、vet、lint、無用程式碼與生成碼檢查、migration lin
 | 瀏覽與衍生資料 | [`internal/catalog`][catalog-store]、[`internal/home`][home-store]、[`internal/recommend`][recommend]、[報表][reports] |
 | 語言、金額與時間 | [`internal/i18n`][i18n]、[`internal/money`][money]、[`internal/shoptime`][shoptime] |
 | 資產與媒體 | [`assets`][assets]、[`internal/media`][media-render] |
-| 身分與瀏覽器安全 | [`internal/auth`][auth]、[`internal/bearer`][bearer]、[員工存取][access]、[`internal/admin/twofactor`][twofactor]、[`internal/ratelimit`][ratelimit] |
+| 身分與瀏覽器安全 | [`internal/auth`][auth]、[`internal/auth/google`][google-signin]、[`internal/bearer`][bearer]、[員工存取][access]、[`internal/admin/twofactor`][twofactor]、[`internal/ratelimit`][ratelimit] |
 | 維運 | [健康查詢][health-sql]、[探針][probe]、[慢查詢紀錄][slowquery]、[Makefile][makefile]、[CI][workflows] |
 
 [contributing]: CONTRIBUTING.md
@@ -309,6 +309,7 @@ CI 執行格式、vet、lint、無用程式碼與生成碼檢查、migration lin
 [dbtest]: internal/db/dbtest
 [audit]: internal/admin/audit/audit.go
 [auth]: internal/auth
+[google-signin]: internal/auth/google
 [bearer]: internal/bearer
 [access]: internal/admin/access/access.go
 [twofactor]: internal/admin/twofactor

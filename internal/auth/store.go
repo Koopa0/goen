@@ -16,6 +16,7 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/jackc/pgx/v5/pgxpool"
 
+	"github.com/koopa0/goen/internal/auth/google"
 	"github.com/koopa0/goen/internal/bearer"
 	"github.com/koopa0/goen/internal/db"
 	"github.com/koopa0/goen/internal/outbox"
@@ -397,7 +398,13 @@ func (s *Store) Erase(ctx context.Context, userID string) error {
 	return nil
 }
 
-func (s *Store) SignInWithGoogle(ctx context.Context, id Identity) (user.User, error) {
+var (
+	ErrOAuthUnverified = errors.New("auth: google has not verified that address")
+	ErrOAuthCollision  = errors.New("auth: that address already has an unverified account here")
+	errOAuthIdentity   = errors.New("auth: google returned an invalid subject")
+)
+
+func (s *Store) SignInWithGoogle(ctx context.Context, id google.Identity) (user.User, error) {
 	id, err := normaliseGoogleIdentity(id)
 	if err != nil {
 		return user.User{}, err
@@ -453,7 +460,7 @@ func (s *Store) SignInWithGoogle(ctx context.Context, id Identity) (user.User, e
 func googleLinkCandidate(
 	ctx context.Context,
 	q *db.Queries,
-	id Identity,
+	id google.Identity,
 ) (userID uuid.UUID, email string, fullName pgtype.Text, role string, err error) {
 	existing, err := q.UserForOAuthLink(ctx, id.Email)
 	switch {
@@ -503,16 +510,16 @@ func finishGoogleSignIn(
 	}, nil
 }
 
-func normaliseGoogleIdentity(id Identity) (Identity, error) {
+func normaliseGoogleIdentity(id google.Identity) (google.Identity, error) {
 	id.Email = strings.TrimSpace(id.Email)
 	if !id.EmailVerified || EmailError(id.Email) != "" {
-		return Identity{}, ErrOAuthUnverified
+		return google.Identity{}, ErrOAuthUnverified
 	}
 
 	subject := strings.TrimSpace(id.Subject)
 	if subject == "" || subject != id.Subject ||
 		utf8.RuneCountInString(subject) > maxOAuthSubjectRunes || web.HasControlChars(subject) {
-		return Identity{}, errOAuthIdentity
+		return google.Identity{}, errOAuthIdentity
 	}
 
 	// The display name is decoration, not identity: a malformed or oversized

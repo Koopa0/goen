@@ -20,6 +20,7 @@ import (
 	"github.com/jackc/pgx/v5/pgconn"
 
 	"github.com/koopa0/goen/internal/auth"
+	"github.com/koopa0/goen/internal/auth/google"
 	"github.com/koopa0/goen/internal/bearer"
 	"github.com/koopa0/goen/internal/cart"
 	"github.com/koopa0/goen/internal/i18n"
@@ -1020,7 +1021,7 @@ func TestErasingAnAccountTakesItsIdentities(t *testing.T) {
 	s := auth.NewStore(pool)
 	email := "oauth-erase-" + uuid.NewString()[:8] + "@example.com"
 
-	u, err := s.SignInWithGoogle(ctx, auth.Identity{
+	u, err := s.SignInWithGoogle(ctx, google.Identity{
 		Subject: "google-sub-" + uuid.NewString()[:8],
 		Email:   email, EmailVerified: true, Name: "谷歌使用者",
 	})

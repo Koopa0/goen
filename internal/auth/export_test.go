@@ -4,7 +4,6 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
-	"net/http"
 
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
@@ -50,12 +49,6 @@ func IssueQueuedReset(ctx context.Context, s *Store, dedupeKey string) error {
 // tests read the opaque token from the queued AddressVerify payload.
 func RequestVerification(ctx context.Context, s *Store, userID, email string) error {
 	return s.requestVerification(ctx, userID, email)
-}
-
-// SetGoogleHTTPClient lets integration tests replace Google's two HTTP
-// endpoints without making transport injection part of the production API.
-func SetGoogleHTTPClient(g *Google, client *http.Client) {
-	g.http = client
 }
 
 // LowerPasswordCostForTests makes HashPassword cheap for this package's own

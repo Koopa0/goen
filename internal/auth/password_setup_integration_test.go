@@ -16,6 +16,7 @@ import (
 
 	"github.com/koopa0/goen/internal/account"
 	"github.com/koopa0/goen/internal/auth"
+	"github.com/koopa0/goen/internal/auth/google"
 	"github.com/koopa0/goen/internal/i18n"
 	"github.com/koopa0/goen/internal/outbox"
 )
@@ -26,7 +27,7 @@ func TestGoogleOnlyPasswordSetupUsesTheCurrentMailboxAndExistingReset(t *testing
 			ctx := i18n.WithLocale(t.Context(), locale)
 			appPool := accountStorePool(t, "google-password-setup")
 			s := auth.NewStore(appPool)
-			u, err := s.SignInWithGoogle(ctx, auth.Identity{
+			u, err := s.SignInWithGoogle(ctx, google.Identity{
 				Subject: "password-setup-" + uuid.NewString(), Email: "password-setup-" + uuid.NewString() + "@example.com", EmailVerified: true,
 			})
 			if err != nil {
@@ -156,7 +157,7 @@ func TestGoogleOnlyPasswordSetupUsesTheCurrentMailboxAndExistingReset(t *testing
 func TestPasswordSetupSharesTheForgotPasswordMailboxBudget(t *testing.T) {
 	ctx := t.Context()
 	s := auth.NewStore(accountStorePool(t, "password-setup-mailbox-limit"))
-	u, err := s.SignInWithGoogle(ctx, auth.Identity{
+	u, err := s.SignInWithGoogle(ctx, google.Identity{
 		Subject: "setup-bound-" + uuid.NewString(), Email: "setup-bound-" + uuid.NewString() + "@example.com", EmailVerified: true,
 	})
 	if err != nil {

@@ -18,6 +18,7 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 
 	"github.com/koopa0/goen/internal/auth"
+	"github.com/koopa0/goen/internal/auth/google"
 	"github.com/koopa0/goen/internal/cart"
 	"github.com/koopa0/goen/internal/catalog"
 	"github.com/koopa0/goen/internal/i18n"
@@ -145,11 +146,11 @@ func goenCookies(pool *pgxpool.Pool) map[string]cookiePin {
 			path: "/", maxAge: 10 * 60, sameSite: http.SameSiteLaxMode,
 			probe: func(t *testing.T, secure bool) *http.Cookie {
 				t.Helper()
-				google, err := auth.NewGoogle("client", "secret", "https://goen.test")
+				client, err := google.New("client", "secret", "https://goen.test")
 				if err != nil {
 					t.Fatalf("build the Google client: %v", err)
 				}
-				h := auth.NewHandler(auth.NewStore(pool), nil, nil, slog.New(slog.DiscardHandler), secure, google)
+				h := auth.NewHandler(auth.NewStore(pool), nil, nil, slog.New(slog.DiscardHandler), secure, client)
 				rec := httptest.NewRecorder()
 				h.GoogleSignIn(rec, httptest.NewRequestWithContext(t.Context(), http.MethodGet, "/signin/google", nil))
 				return onlyCookie(t, rec)

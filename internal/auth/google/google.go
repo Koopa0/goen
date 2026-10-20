@@ -1,4 +1,7 @@
-package auth
+// Package google is Google's OAuth and OpenID Connect sign-in client; it holds
+// the authorize URL, the code exchange and the identity it returns; it does not
+// hold goen's sessions or its state cookie, which are package auth.
+package google
 
 import (
 	"context"
@@ -18,44 +21,35 @@ import (
 )
 
 const (
-	googleAuthURL = "https://accounts.google.com/o/oauth2/v2/auth"
+	authURL = "https://accounts.google.com/o/oauth2/v2/auth"
 	//nolint:gosec // G101: a published endpoint URL that happens to contain the
 	// word "token", not a credential.
-	googleTokenURL    = "https://oauth2.googleapis.com/token"
-	googleUserInfoURL = "https://openidconnect.googleapis.com/v1/userinfo"
+	tokenURL    = "https://oauth2.googleapis.com/token"
+	userInfoURL = "https://openidconnect.googleapis.com/v1/userinfo"
 )
 
-var (
-	ErrOAuthDisabled   = errors.New("auth: google sign-in is not configured")
-	ErrOAuthUnverified = errors.New("auth: google has not verified that address")
-	ErrOAuthCollision  = errors.New("auth: that address already has an unverified account here")
-	errOAuthIdentity   = errors.New("auth: google returned an invalid subject")
-)
+var errDisabled = errors.New("google: sign-in is not configured")
 
-const oauthStateCookie = "__Host-goen_oauth"
-
-const oauthStateTTL = 10 * time.Minute
-
-type Google struct {
+type Client struct {
 	clientID     string
 	clientSecret string
 	redirectURL  string
 	http         *http.Client
 }
 
-func NewGoogle(clientID, clientSecret, baseURL string) (*Google, error) {
+func New(clientID, clientSecret, baseURL string) (*Client, error) {
 	if clientID == "" && clientSecret == "" {
-		return &Google{}, nil
+		return &Client{}, nil
 	}
 	if clientID == "" || clientSecret == "" {
-		return nil, errors.New("auth: google sign-in needs both a client id and a " +
+		return nil, errors.New("google: sign-in needs both a client id and a " +
 			"client secret; one without the other cannot exchange an authorisation code")
 	}
 	origin, _, ok := web.SiteOrigin(baseURL)
 	if !ok {
-		return nil, fmt.Errorf("auth: base URL %q cannot build a redirect URI", baseURL)
+		return nil, fmt.Errorf("google: base URL %q cannot build a redirect URI", baseURL)
 	}
-	return &Google{
+	return &Client{
 		clientID:     clientID,
 		clientSecret: clientSecret,
 		redirectURL:  origin + "/auth/google/callback",
@@ -63,19 +57,19 @@ func NewGoogle(clientID, clientSecret, baseURL string) (*Google, error) {
 	}, nil
 }
 
-func (g *Google) Enabled() bool { return g != nil && g.clientID != "" }
+func (c *Client) Enabled() bool { return c != nil && c.clientID != "" }
 
-func (g *Google) AuthorizeURL(next string) (target string, state OAuthState, err error) {
-	if !g.Enabled() {
-		return "", OAuthState{}, ErrOAuthDisabled
+func (c *Client) AuthorizeURL() (target string, state State, err error) {
+	if !c.Enabled() {
+		return "", State{}, errDisabled
 	}
 	raw := bearer.New()
 	verifier := bearer.New()
 	sum := sha256.Sum256([]byte(verifier))
 
 	q := url.Values{
-		"client_id":             {g.clientID},
-		"redirect_uri":          {g.redirectURL},
+		"client_id":             {c.clientID},
+		"redirect_uri":          {c.redirectURL},
 		"response_type":         {"code"},
 		"scope":                 {"openid email profile"},
 		"state":                 {raw},
@@ -83,14 +77,15 @@ func (g *Google) AuthorizeURL(next string) (target string, state OAuthState, err
 		"code_challenge_method": {"S256"},
 		"prompt":                {"select_account"},
 	}
-	return googleAuthURL + "?" + q.Encode(),
-		OAuthState{Value: raw, Verifier: verifier, Next: next}, nil
+	return authURL + "?" + q.Encode(),
+		State{Value: raw, Verifier: verifier}, nil
 }
 
-type OAuthState struct {
+// State is what one sign-in must keep until Google sends the browser back: the
+// state the callback must echo and the PKCE verifier the exchange presents.
+type State struct {
 	Value    string
 	Verifier string
-	Next     string
 }
 
 type Identity struct {
@@ -100,34 +95,34 @@ type Identity struct {
 	Name          string
 }
 
-func (g *Google) Exchange(ctx context.Context, code, verifier string) (Identity, error) {
-	if !g.Enabled() {
-		return Identity{}, ErrOAuthDisabled
+func (c *Client) Exchange(ctx context.Context, code, verifier string) (Identity, error) {
+	if !c.Enabled() {
+		return Identity{}, errDisabled
 	}
-	token, err := g.token(ctx, code, verifier)
+	token, err := c.token(ctx, code, verifier)
 	if err != nil {
 		return Identity{}, err
 	}
-	return g.userInfo(ctx, token)
+	return c.userInfo(ctx, token)
 }
 
-func (g *Google) token(ctx context.Context, code, verifier string) (string, error) {
+func (c *Client) token(ctx context.Context, code, verifier string) (string, error) {
 	form := url.Values{
 		"code":          {code},
-		"client_id":     {g.clientID},
-		"client_secret": {g.clientSecret},
-		"redirect_uri":  {g.redirectURL},
+		"client_id":     {c.clientID},
+		"client_secret": {c.clientSecret},
+		"redirect_uri":  {c.redirectURL},
 		"grant_type":    {"authorization_code"},
 		"code_verifier": {verifier},
 	}
-	req, err := http.NewRequestWithContext(ctx, http.MethodPost, googleTokenURL,
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, tokenURL,
 		strings.NewReader(form.Encode()))
 	if err != nil {
 		return "", fmt.Errorf("build token request: %w", err)
 	}
 	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
 
-	resp, err := g.http.Do(req)
+	resp, err := c.http.Do(req)
 	if err != nil {
 		return "", fmt.Errorf("exchange the authorisation code: %w", err)
 	}
@@ -176,14 +171,14 @@ func oauthErrorCode(body []byte) string {
 	return refusal.Error
 }
 
-func (g *Google) userInfo(ctx context.Context, token string) (Identity, error) {
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, googleUserInfoURL, http.NoBody)
+func (c *Client) userInfo(ctx context.Context, token string) (Identity, error) {
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, userInfoURL, http.NoBody)
 	if err != nil {
 		return Identity{}, fmt.Errorf("build userinfo request: %w", err)
 	}
 	req.Header.Set("Authorization", "Bearer "+token)
 
-	resp, err := g.http.Do(req)
+	resp, err := c.http.Do(req)
 	if err != nil {
 		return Identity{}, fmt.Errorf("read the google profile: %w", err)
 	}

@@ -38,6 +38,7 @@ import (
 	"github.com/koopa0/goen/internal/admin/twofactor"
 	"github.com/koopa0/goen/internal/admin/warranties"
 	"github.com/koopa0/goen/internal/auth"
+	"github.com/koopa0/goen/internal/auth/google"
 	"github.com/koopa0/goen/internal/cart"
 	"github.com/koopa0/goen/internal/catalog"
 	"github.com/koopa0/goen/internal/contact"
@@ -110,7 +111,7 @@ type StorefrontConfig struct {
 	// checkout accepts none.
 	Invoices *issuer.Gateway
 	// Google signs customers in, or is disabled and 404s its two routes.
-	Google *auth.Google
+	Google *google.Client
 	// StoreMap is the carrier's convenience-store picker, or is disabled and
 	// the checkout offers no pickup, the route is not registered, the
 	// cross-origin defence gains no bypass, and the policy is unchanged.
