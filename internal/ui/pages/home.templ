@@ -228,7 +228,7 @@ templ productRow(r ProductRow) {
 					for i, t := range r.Shelf() {
 						if i == 0 {
 							<li class="goen-tile__cell goen-tile__cell--lead">
-								@tileCard(t)
+								@TileCard(t)
 							</li>
 						} else {
 							@Tile(t)

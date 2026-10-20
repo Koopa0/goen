@@ -25,6 +25,7 @@ sql:
       - "internal/warranty/query.sql"
       - "internal/auth/query.sql"
       - "internal/account/query.sql"
+      - "internal/wishlist/query.sql"
       - "internal/admin/audit/query.sql"
       - "internal/admin/banners/query.sql"
       - "internal/admin/campaigns/query.sql"

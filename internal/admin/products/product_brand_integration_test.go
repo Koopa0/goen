@@ -26,6 +26,7 @@ import (
 	"github.com/koopa0/goen/internal/db"
 	"github.com/koopa0/goen/internal/order/buyer"
 	"github.com/koopa0/goen/internal/user"
+	"github.com/koopa0/goen/internal/wishlist"
 )
 
 func TestTheShopCanPublishAnUnbrandedProduct(t *testing.T) {
@@ -109,12 +110,13 @@ func TestTheShopCanPublishAnUnbrandedProduct(t *testing.T) {
 		t.Errorf("unbranded cart = %+v, %v", cartView.Lines, err)
 	}
 	accounts := account.NewStore(p)
-	if wishlistErr := accounts.SaveToWishlist(ctx, actor.String(), slug); wishlistErr != nil {
-		t.Fatal(wishlistErr)
+	wishes := wishlist.NewStore(p)
+	if saveErr := wishes.Save(ctx, actor.String(), slug); saveErr != nil {
+		t.Fatal(saveErr)
 	}
-	wishlist, err := accounts.Wishlist(ctx, actor.String())
-	if err != nil || len(wishlist) != 1 || wishlist[0].Slug != slug || wishlist[0].Brand != "" {
-		t.Errorf("unbranded wishlist = %+v, %v", wishlist, err)
+	saved, err := wishes.Items(ctx, actor.String())
+	if err != nil || len(saved) != 1 || saved[0].Slug != slug || saved[0].Brand != "" {
+		t.Errorf("unbranded wishlist = %+v, %v", saved, err)
 	}
 	tx, err := p.Begin(ctx)
 	if err != nil {

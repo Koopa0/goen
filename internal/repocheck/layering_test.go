@@ -47,7 +47,6 @@ import (
 //     comparison cap, the review limits and the restock outcomes to catalog and
 //     the add-to-cart outcome to cart/cartitem).
 var viewPackageImporters = []string{
-	"internal/account",
 	"internal/admin/dashboard",
 	"internal/admin/orders",
 	"internal/admin/reports",
@@ -57,10 +56,10 @@ var viewPackageImporters = []string{
 	"internal/catalog",
 	"internal/home",
 	"internal/order/buyer",
+	"internal/wishlist",
 }
 
 var dataFilesNamingViews = []string{
-	"internal/account/store.go",
 	"internal/admin/dashboard/store.go",
 	"internal/admin/orders/picking.go",
 	"internal/admin/orders/store.go",
@@ -75,10 +74,10 @@ var dataFilesNamingViews = []string{
 	"internal/catalog/store.go",
 	"internal/home/store.go",
 	"internal/order/buyer/order.go",
+	"internal/wishlist/store.go",
 }
 
 var storeMethodsNamingViews = map[string]int{
-	"internal/account/store.go":         1,
 	"internal/catalog/compare.go":       1,
 	"internal/catalog/department.go":    1,
 	"internal/catalog/product_store.go": 1,
