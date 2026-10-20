@@ -1,0 +1,172 @@
+package credits
+
+import (
+	"github.com/koopa0/goen/internal/i18n"
+	"github.com/koopa0/goen/internal/ui/components"
+	"github.com/koopa0/goen/internal/ui/layouts"
+)
+
+// The grant is a card of its own because it writes money: sharing a panel with the
+// history it extends invites a reader to take the history for the form's fields.
+templ Credit(p layouts.Page, v CreditView) {
+	@layouts.Admin(p, "credit") {
+		<div class="ui-page-head">
+			<div>
+				<p class="ui-page-head__eyebrow">{ i18n.T(ctx, i18n.KeyAdminEyebrow) }</p>
+				<h1 class="ui-page-head__title">{ i18n.T(ctx, i18n.KeyAdminPageCredit) }</h1>
+				<p class="ui-page-head__sub">
+					{ i18n.T(ctx, i18n.KeyAdminCreditLead) }
+				</p>
+			</div>
+		</div>
+		@layouts.Announce(v.Notice)
+		if v.Filtered() {
+			<p class="goen-admin__hint">
+				<a href={ templ.SafeURL("/admin/customers/" + v.FilterCustomerID) }>{ v.FilterCustomerName }</a>
+				<span aria-hidden="true">{ " · " }</span>
+				<a href="/admin/credits">{ i18n.T(ctx, i18n.KeyAdminCreditAllCustomers) }</a>
+			</p>
+		}
+		@components.Card(components.CardProps{Class: "goen-admin__op"}) {
+			if v.Confirm {
+				<h2 class="goen-admin__optitle">{ i18n.T(ctx, i18n.KeyAdminCreditConfirm) }</h2>
+				<dl class="ui-dl">
+					<div class="ui-dl__row">
+						<dt class="ui-dl__term">{ i18n.T(ctx, i18n.KeyAdminCreditCustomer) }</dt>
+						<dd class="ui-dl__desc">{ v.CustomerName } · { v.Email }</dd>
+					</div>
+					<div class="ui-dl__row">
+						<dt class="ui-dl__term">{ i18n.T(ctx, i18n.KeyAdminCreditBalance) }</dt>
+						<dd class="ui-dl__desc">{ v.Balance() }</dd>
+					</div>
+					<div class="ui-dl__row">
+						<dt class="ui-dl__term">{ i18n.T(ctx, i18n.KeyAdminCreditAmount) }</dt>
+						<dd class="ui-dl__desc">{ v.GrantAmount() }</dd>
+					</div>
+					<div class="ui-dl__row">
+						<dt class="ui-dl__term">{ i18n.T(ctx, i18n.KeyAdminCreditReason) }</dt>
+						<dd class="ui-dl__desc">{ v.Reason }</dd>
+					</div>
+				</dl>
+				<form method="post" action="/admin/credits" class="goen-admin__form">
+					<input type="hidden" name="operation_id" value={ v.OperationID }/>
+					<input type="hidden" name="filter_customer" value={ v.FilterCustomerID }/>
+					<input type="hidden" name="customer_id" value={ v.CustomerID }/>
+					<input type="hidden" name="email" value={ v.Email }/>
+					<input type="hidden" name="amount" value={ v.Amount }/>
+					<input type="hidden" name="reason" value={ v.Reason }/>
+					@components.Button(components.ButtonProps{ButtonStyle: components.ButtonStylePrimary, Attrs: templ.Attributes{"name": "confirm", "value": "grant"}}, "submit") {
+						{ i18n.T(ctx, i18n.KeyAdminCreditGrant) }
+					}
+					@components.Button(components.ButtonProps{ButtonStyle: components.ButtonStyleOutline, Attrs: templ.Attributes{"name": "edit", "value": "1"}}, "submit") {
+						{ i18n.T(ctx, i18n.KeyAdminCreditEdit) }
+					}
+				</form>
+			} else {
+				<h2 class="goen-admin__optitle">{ i18n.T(ctx, i18n.KeyAdminCreditGrant) }</h2>
+				<form class="goen-admin__form goen-admin__grant" method="post" action="/admin/credits">
+					<input type="hidden" name="operation_id" value={ v.OperationID }/>
+					<input type="hidden" name="filter_customer" value={ v.FilterCustomerID }/>
+					<div class="ui-field">
+						<label class="ui-label" for="credit-email">{ i18n.T(ctx, i18n.KeyAdminCreditEmail) }</label>
+						<input class="ui-input" id="credit-email" name="email" type="email" required autocomplete="off" aria-invalid={ v.EmailInvalid } aria-describedby="credit-email-error" value={ v.Email }/>
+						if v.EmailInvalid {
+							<p class="ui-error-text" id="credit-email-error">{ i18n.T(ctx, i18n.KeyAdminCreditUnknown) }</p>
+						}
+					</div>
+					<div class="ui-field">
+						<label class="ui-label" for="credit-amount">{ i18n.T(ctx, i18n.KeyAdminCreditAmount) }</label>
+						<input class="ui-input" id="credit-amount" name="amount" type="number" min="1" max="100000" step="1" required inputmode="numeric" aria-invalid={ v.AmountInvalid } aria-describedby="credit-amount-error" value={ v.Amount }/>
+						if v.AmountInvalid {
+							<p class="ui-error-text" id="credit-amount-error">{ i18n.T(ctx, i18n.KeyAdminCreditAmountError) }</p>
+						}
+					</div>
+					<div class="ui-field">
+						<label class="ui-label" for="credit-reason">{ i18n.T(ctx, i18n.KeyAdminCreditReason) }</label>
+						<input class="ui-input" id="credit-reason" name="reason" required maxlength="200" autocomplete="off" aria-invalid={ v.ReasonInvalid } aria-describedby="credit-reason-error" value={ v.Reason }/>
+						if v.ReasonInvalid {
+							<p class="ui-error-text" id="credit-reason-error">{ i18n.T(ctx, i18n.KeyAdminCreditReasonError) }</p>
+						}
+					</div>
+					@components.Button(components.ButtonProps{ButtonStyle: components.ButtonStylePrimary}, "submit") {
+						{ i18n.T(ctx, i18n.KeyAdminCreditReview) }
+					}
+				</form>
+			}
+		}
+		<h2 class="goen-admin__subhead" id="credit-ledger-heading">{ i18n.T(ctx, i18n.KeyAdminCreditRecent) }</h2>
+		if v.Filtered() && !v.Empty() {
+			<p class="goen-admin__hint" id="credit-ledger-order">{ i18n.T(ctx, i18n.KeyAdminCreditLedgerOrder) }</p>
+		}
+		if v.Empty() && !v.PastEnd {
+			<div class="goen-admin__empty">
+				<p class="goen-admin__emptytitle">{ i18n.T(ctx, i18n.KeyAdminCreditEmpty) }</p>
+			</div>
+		} else if !v.Empty() {
+			<div class="goen-admin__tablewrap">
+				<table
+					class="ui-table goen-admin__table"
+					aria-labelledby="credit-ledger-heading"
+					if v.Filtered() {
+						aria-describedby="credit-ledger-order"
+					}
+				>
+					<thead>
+						<tr>
+							<th class="goen-admin__cellnum" scope="col">{ i18n.T(ctx, i18n.KeyAdminCreditAmount) }</th>
+							if !v.Filtered() {
+								<th scope="col">{ i18n.T(ctx, i18n.KeyAdminCustColCustomer) }</th>
+							}
+							<th scope="col">{ i18n.T(ctx, i18n.KeyAdminCreditReason) }</th>
+							if v.Filtered() {
+								<th class="goen-admin__cellnum" scope="col">{ i18n.T(ctx, i18n.KeyAdminCreditRunningTotal) }</th>
+							}
+							<th scope="col">{ i18n.T(ctx, i18n.KeyAdminColActor) }</th>
+							<th scope="col">{ i18n.T(ctx, i18n.KeyAdminColWhen) }</th>
+						</tr>
+					</thead>
+					<tbody>
+						for _, e := range v.Rows {
+							<tr>
+								<td class="goen-admin__cellnum">
+									<span class={ "goen-admin__amount", templ.KV("is-spend", e.IsSpend()) }>{ e.Amount() }</span>
+								</td>
+								if !v.Filtered() {
+									<td>
+										if e.CustomerID != "" {
+											<a href={ templ.SafeURL(e.CustomerHref()) }>{ e.Who(ctx) }</a>
+										} else {
+											{ e.Who(ctx) }
+										}
+									</td>
+								}
+								<td>
+									if e.SourceHref() != "" {
+										<a href={ templ.SafeURL(e.SourceHref()) }>{ e.ReasonText(ctx) }</a>
+										if e.OrderNumber != "" {
+											<span class="goen-admin__meta">{ e.OrderNumber }</span>
+										}
+									} else {
+										{ e.ReasonText(ctx) }
+									}
+								</td>
+								if v.Filtered() {
+									<td class="goen-admin__cellnum">{ e.RunningTotal() }</td>
+								}
+								<td>
+									if e.ActorEmail != "" {
+										{ e.ActorEmail }
+									} else {
+										—
+									}
+								</td>
+								<td>{ e.At }</td>
+							</tr>
+						}
+					</tbody>
+				</table>
+			</div>
+		}
+		@components.ListPager(v.Bound)
+	}
+}
