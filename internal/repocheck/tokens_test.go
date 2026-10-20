@@ -42,7 +42,7 @@ var sha256Users = map[string]string{
 }
 
 // TestNoBearerTokenIsMadeOrDigestedOutsideTheBearerPackage refuses a second
-// token generator or token digest. Six tables store digests of tokens made by
+// token generator or token digest. Seven tables store digests of tokens made by
 // internal/bearer, so a copy that drifts in encoding silently orphans every
 // session, cart and mailed link.
 //

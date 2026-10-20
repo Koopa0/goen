@@ -500,6 +500,10 @@ var sharedCleanup = map[string]string{
 		"DeleteUserSessions, DeleteExpiredSessions); revoke_staff and secure_promoted_account end them too",
 	"admin.sessions.DELETE": "removing a staff member's TOTP ends their sessions (RemoveTOTPAndSessions); " +
 		"revoke_staff and secure_promoted_account end them too",
+	"store.known_devices.DELETE": "sign-in retires the row it replaces and a stolen cookie's last miss forgets it " +
+		"(DeleteKnownDevice), a password change or reset, sign-out of other devices and the expiry sweep forget " +
+		"them (DeleteUserKnownDevices, DeleteOtherUserKnownDevices, DeleteExpiredKnownDevices) and the per-account " +
+		"limit drops the oldest (DeleteSurplusKnownDevices); secure_promoted_account forgets them too",
 	"store.outbox_messages.DELETE": "the relay sweeps delivered rows and expired undelivered ones (SweepDeliveredMessages, SweepUndeliveredMessages) and account " +
 		"flows drop superseded letters; erase_user drops a customer's messages",
 	"store.order_access_grants.DELETE": "the retention sweep deletes grants nobody can present " +

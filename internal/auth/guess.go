@@ -1,6 +1,7 @@
 package auth
 
 import (
+	"encoding/hex"
 	"net/http"
 	"time"
 
@@ -20,7 +21,20 @@ type passwordGuess []*ratelimit.Reservation
 //
 // The first is taken first, and a refusal by either gives the other back: a
 // request that did no work has guessed nothing.
-func (h *Handler) reservePasswordGuess(r *http.Request, address string) (passwordGuess, time.Duration, bool) {
+//
+// A browser that presents a remembered row for this account (device, the row's
+// digest) spends neither: it is charged to a budget of its own, as large as
+// one network's, which nobody else can reach. That is what keeps the owner in
+// while a stranger holds the account's ceiling empty; countDeviceMiss bounds
+// what a stolen cookie gets from it.
+func (h *Handler) reservePasswordGuess(r *http.Request, address string, device []byte) (passwordGuess, time.Duration, bool) {
+	if device != nil {
+		own, retryAfter, ok := h.signinLimit.Reserve("device:" + hex.EncodeToString(device) + "|" + address)
+		if !ok {
+			return nil, retryAfter, false
+		}
+		return passwordGuess{own}, 0, true
+	}
 	network, retryAfter, ok := h.signinLimit.Reserve("account:" + ratelimit.ClientNetwork(r) + "|" + address)
 	if !ok {
 		return nil, retryAfter, false
