@@ -428,7 +428,7 @@ func checkDatabaseSchema(ctx context.Context, pool *pgxpool.Pool, role databaseR
 	if err == nil {
 		return nil
 	}
-	message := fmt.Sprintf("the database %s reaches through %s is not the schema this binary was built with: %v; rebuild it from this build's migrations/ or restore a snapshot made from them",
+	message := fmt.Sprintf("the database %s reaches through %s is not the schema this binary was built with: %v; apply this build's migrations/ to it (migrate up) or restore a snapshot made from them",
 		role, role.urlVariable(), err)
 	if secureCookies {
 		return fmt.Errorf("refusing to start: %s", message)

@@ -51,7 +51,7 @@ endif
 
 .PHONY: build run test test-race test-integration production-build-check integration-build-check \
         image image-push lint fmt fmt-check vet deadcode gen templ-check vuln \
-        sqlc sqlc-check squawk db-up db-down migrate-up migrate-down db-seed \
+        sqlc sqlc-check squawk db-up db-down migrate-up migrate-down migrate-create db-seed \
         demo-restore-check workflow-check verify verify-all check-layout check-layout-run db-reset clean
 
 build: gen
@@ -63,12 +63,12 @@ build: gen
 # on every request. The default is secure, so forgetting this in a deployment
 # fails safe.
 # schema-drift is the existing catalogue comparison against migrations/; a dev
-# database built before an amended 001 fails here instead of as a 500 later.
+# database behind migrations/ fails here instead of as a 500 later.
 run: gen
 	@$(MAKE) --no-print-directory schema-drift; status=$$?; \
 		case $$status in \
 		0) ;; \
-		1) echo 'run: the development database does not match migrations/; back up anything you need, then run PGOPTIONS="-c goen.catalogue_seed=development" make db-reset' >&2; exit 1;; \
+		1) echo 'run: the development database does not match migrations/. Run make migrate-up; if it still differs it was built from an edition of 001 from before the freeze: back up anything you need, then run PGOPTIONS="-c goen.catalogue_seed=development" make db-reset' >&2; exit 1;; \
 		*) echo "run: could not compare the development database with migrations/ (schema-drift exited $$status; its message is above). If the database is not running: make db-up" >&2; exit $$status;; \
 		esac
 	GOEN_INSECURE_COOKIES=1 go run ./cmd/goen
@@ -355,6 +355,13 @@ migrate-down:
 	@test -n "$${GOEN_DATABASE_URL:-}" || { echo 'GOEN_DATABASE_URL is required' >&2; exit 2; }
 	$(MIGRATE) -path migrations -database "$$GOEN_DATABASE_URL" down 1
 
+# A new migration, numbered after the last as 001 is: make migrate-create
+# NAME=add_gift_wrap writes 002_add_gift_wrap.up.sql and .down.sql. What goes in
+# them is in CONTRIBUTING.md, Migrations.
+migrate-create:
+	@case "$(NAME)" in ''|*[!a-z0-9_]*) echo 'NAME is required: lower-case letters, digits and _' >&2; exit 2;; esac
+	$(MIGRATE) create -ext sql -dir migrations -seq -digits 3 "$(NAME)"
+
 # Load the development catalogue: brands, categories, 40 products with variants,
 # images, specs and reviews. Runs as the owner (psql, not the app's store
 # role), so it may write the tables store is barred from. Development only.
@@ -363,15 +370,6 @@ db-seed:
 	@test -n "$${GOEN_DATABASE_URL:-}" || { echo 'GOEN_DATABASE_URL is required' >&2; exit 2; }
 	psql "$$GOEN_DATABASE_URL" -v ON_ERROR_STOP=1 -f seed/dev_catalog.sql
 
-# Rebuild the development database from scratch.
-#
-# 001 is still amended in place rather than superseded (see CONTRIBUTING.md), so an
-# edit to it does NOT reach a database already at version 1 — `migrate up`
-# reports "no change" and the schema silently stays old. This is the documented
-# way to pick the edit up, and it exists as a target because the alternative is
-# a four-command incantation people get wrong.
-#
-# Development only, and it says so: it drops the database.
 # What a database ACTUALLY has, as text a diff can read.
 #
 # Constraints, indexes and columns, sorted and normalised. Not pg_dump: its
@@ -447,15 +445,14 @@ ACL_SQL := \
 
 # Does the deployed schema still match what migrations/ declares?
 #
-# PostgreSQL does not re-validate a CHECK that is amended in place, and this
-# repository amends 001 rather than superseding it — a decision that holds only
-# while no environment is undisposable. Nothing compared the two, so the first
-# database that is not thrown away would disagree with the file silently: two
-# correct halves, at the schema level, where none of this project's guards look.
+# 001 was amended in place until it was frozen, and golang-migrate never
+# re-runs a migration a database has passed, so a database built before a
+# change disagrees with the files silently: two correct halves, at the schema
+# level, where none of this project's guards look.
 #
 # It builds a REFERENCE database from migrations/ beside the live one and diffs
 # the catalogs. A difference is not automatically a defect — it is the signal
-# that 001 has stopped being the whole truth, and therefore that 002 begins.
+# that the database is behind migrations/ or was changed by hand.
 #
 # Needs the dev container and a GOEN_DATABASE_URL pointing at the database to
 # check. Exit 1 is DRIFT and nothing else: every other failure, a stopped
@@ -488,8 +485,8 @@ schema-drift:
 		[ "$$?" = 1 ] || { echo 'schema-drift: diff itself failed' >&2; exit 4; }; \
 		echo 'schema-drift: FAIL — the deployed schema and migrations/ disagree.'; \
 		echo '  -  is what migrations/ declares; +  is what the database has.'; \
-		echo '  An amended CHECK is not re-validated by PostgreSQL, so this is'; \
-		echo '  where amend-in-place stops being safe and 002 begins.'; \
+		echo '  make migrate-up applies a migration the database is behind; a database'; \
+		echo '  built from an edition of 001 from before the freeze is rebuilt instead.'; \
 		cat "$$tmp"/drift.txt; \
 		drift=1; exit 1; \
 	fi
@@ -615,6 +612,12 @@ restore-drill:
 	test "$$fail" -eq 0 || exit 1; \
 	echo 'restore-drill: PASS — same catalog, same dump-carried grants, same exact row counts'
 
+# Rebuild the development database from scratch: every migration, then the
+# catalogue seed. `make migrate-up` is enough to pick up a new migration; this is
+# for a database built from an edition of 001 from before it was frozen, which
+# no migration can bring forward, or one whose data you no longer want.
+#
+# Development only, and it says so: it drops the database.
 db-reset:
 	docker compose exec -T db dropdb -U goen --if-exists --force goen
 	docker compose exec -T db $(CREATEDB) goen

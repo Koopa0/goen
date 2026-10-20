@@ -3,10 +3,12 @@ package migrations
 import (
 	"bytes"
 	"context"
+	"crypto/sha256"
+	"encoding/hex"
 	"errors"
-	"flag"
 	"os"
 	"path/filepath"
+	"regexp"
 	"slices"
 	"strconv"
 	"strings"
@@ -16,12 +18,57 @@ import (
 	"github.com/jackc/pgx/v5/pgconn"
 )
 
-var update = flag.Bool("update", false, "rewrite the digest 001_initial_schema.up.sql records")
+// frozen is the SHA-256 of every file golang-migrate reads from this
+// directory (the names its source.Regex matches). golang-migrate records only
+// the version a database has reached, so an edit to a migration never reaches a
+// database already past it: a merged migration is never edited, and a change is
+// a new migration. A down file stays the inverse of the up file it merged with.
+// A new migration's files join this map in the pull request that adds them.
+var frozen = map[string]string{
+	"001_initial_schema.down.sql": "0a9d734ff6ce19a006bde8c2b307831e4746ce050473383ce8746881874da70f",
+	"001_initial_schema.up.sql":   "164fb800a883b36fd45f847102da04a6a6d6abf58421c3c24c71a43352be73cf",
+}
 
-// TestInitialRecordsItsDigest: the digest 001 records is the one the binary
-// computes from it, so a database built from this file passes the binary's
-// check and one built from any other edition does not. After editing 001, run
-// go test ./migrations -update.
+// migrationName is golang-migrate's source.Regex, which names the files it
+// applies.
+var migrationName = regexp.MustCompile(`^(\d+)_(.*)\.(down|up)\.(.*)$`)
+
+// TestFrozenMigrationsAreUnchanged: no migration changes once it has merged,
+// and none is added or removed without frozen saying so.
+func TestFrozenMigrationsAreUnchanged(t *testing.T) {
+	entries, err := os.ReadDir(".")
+	if err != nil {
+		t.Fatal(err)
+	}
+	found := make(map[string]bool)
+	for _, e := range entries {
+		if e.IsDir() || !migrationName.MatchString(e.Name()) {
+			continue
+		}
+		found[e.Name()] = true
+		src, err := os.ReadFile(e.Name())
+		if err != nil {
+			t.Fatal(err)
+		}
+		sum := sha256.Sum256(src)
+		got := hex.EncodeToString(sum[:])
+		want, ok := frozen[e.Name()]
+		switch {
+		case !ok:
+			t.Errorf("%s is not in frozen: add it, with SHA-256 %s, in the pull request that adds the migration", e.Name(), got)
+		case got != want:
+			t.Errorf("%s has SHA-256 %s, want %s: a merged migration is never edited; make the change a new migration (CONTRIBUTING.md, Migrations)", e.Name(), got, want)
+		}
+	}
+	for name := range frozen {
+		if !found[name] {
+			t.Errorf("%s is in frozen but not in migrations/: a merged migration is never removed", name)
+		}
+	}
+}
+
+// TestInitialRecordsItsDigest: the digest 001 records is the one Digest
+// computes from it, so a database built from 001 passes the binary's check.
 func TestInitialRecordsItsDigest(t *testing.T) {
 	src, err := os.ReadFile(initial)
 	if err != nil {
@@ -31,15 +78,8 @@ func TestInitialRecordsItsDigest(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if computed == recorded {
-		return
-	}
-	if !*update {
-		t.Fatalf("%s records digest %s, but its text hashes to %s; run go test ./migrations -update", initial, recorded, computed)
-	}
-	updated := bytes.Replace(src, []byte("'"+recorded+"'"), []byte("'"+computed+"'"), 1)
-	if err := os.WriteFile(initial, updated, 0o644); err != nil { //nolint:gosec // G306: a tracked source file keeps its usual mode.
-		t.Fatal(err)
+	if computed != recorded {
+		t.Errorf("Digest(%s) = %s, but the file records %s: every database built from it would be refused", initial, computed, recorded)
 	}
 }
 
