@@ -13,7 +13,6 @@ import (
 
 	"github.com/koopa0/goen/internal/catalog"
 	"github.com/koopa0/goen/internal/i18n"
-	"github.com/koopa0/goen/internal/ui/pages"
 )
 
 func TestListingAndSearchRedirectPastLastPage(t *testing.T) {
@@ -66,10 +65,10 @@ func TestListingDropsUnknownFiltersButRetainsRealEmptyCombinations(t *testing.T)
 	var brand, option string
 	for _, group := range view.Facets {
 		for _, choice := range group.Options {
-			if group.Kind == pages.FacetBrand && brand == "" {
+			if group.Kind == catalog.FacetBrand && brand == "" {
 				brand = choice.Value
 			}
-			if group.Kind == pages.FacetVariantOption && option == "" {
+			if group.Kind == catalog.FacetVariantOption && option == "" {
 				option = choice.Value
 			}
 		}
