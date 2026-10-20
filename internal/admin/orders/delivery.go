@@ -55,7 +55,7 @@ func (e *DeliveryValidationError) Unwrap() error { return ErrInvalid }
 // zone stands. The order lock serializes this decision with shipment and
 // cancellation.
 func (s *Store) CorrectDelivery(ctx context.Context, number string, d *DeliveryCorrection) error {
-	after := map[string]any{"order_number": number}
+	after := audit.State{audit.FieldOrderNumber: number}
 	return audit.Run(ctx, s.pool, audit.Event{
 		Action: audit.ActionCorrectDelivery, Table: "order_private_data",
 		Before: nil, After: after,
@@ -80,7 +80,7 @@ func (s *Store) CorrectDelivery(ctx context.Context, number string, d *DeliveryC
 			return fmt.Errorf("order %s ships by a method with an unknown destination %q",
 				number, row.DestinationKind)
 		}
-		after["destination"] = string(to)
+		after[audit.FieldDestination] = string(to)
 		addr, err := validatedDelivery(d, to)
 		if err != nil {
 			return err

@@ -111,7 +111,7 @@ func (s *Store) AnswerQuestion(ctx context.Context, id, userID, body string) err
 	return audit.Run(ctx, s.pool, audit.Event{
 		Action: audit.ActionAnswerQuestion, Table: "product_answers",
 		ID:    uuid.NullUUID{UUID: qID, Valid: true},
-		After: map[string]any{"length": utf8.RuneCountInString(body)},
+		After: audit.State{audit.FieldLength: utf8.RuneCountInString(body)},
 	},
 		func(ctx context.Context, q *db.Queries) error {
 			n, answerErr := q.AnswerQuestionAsStaff(ctx, db.AnswerQuestionAsStaffParams{
@@ -136,7 +136,7 @@ func (s *Store) ShowQuestion(ctx context.Context, id string) error {
 	if err != nil {
 		return ErrNotFound
 	}
-	return audit.Run(ctx, s.pool, audit.Event{Action: audit.ActionShowQuestion, Table: "product_questions", ID: audit.EntityID(questionID), After: map[string]any{"hidden": false}}, func(ctx context.Context, q *db.Queries) error {
+	return audit.Run(ctx, s.pool, audit.Event{Action: audit.ActionShowQuestion, Table: "product_questions", ID: audit.EntityID(questionID), After: audit.State{audit.FieldHidden: false}}, func(ctx context.Context, q *db.Queries) error {
 		changed, showErr := q.ShowQuestion(ctx, questionID)
 		if showErr != nil {
 			return fmt.Errorf("show question: %w", showErr)
@@ -157,7 +157,7 @@ func (s *Store) HideAnswer(ctx context.Context, questionID, answerID string) err
 	if err != nil {
 		return ErrNotFound
 	}
-	return audit.Run(ctx, s.pool, audit.Event{Action: audit.ActionHideAnswer, Table: "product_answers", ID: audit.EntityID(answer), After: map[string]any{"question_id": questionID, "hidden": true}}, func(ctx context.Context, q *db.Queries) error {
+	return audit.Run(ctx, s.pool, audit.Event{Action: audit.ActionHideAnswer, Table: "product_answers", ID: audit.EntityID(answer), After: audit.State{audit.FieldQuestionID: questionID, audit.FieldHidden: true}}, func(ctx context.Context, q *db.Queries) error {
 		changed, hideErr := q.HideQuestionAnswer(ctx, db.HideQuestionAnswerParams{QuestionID: question, AnswerID: answer})
 		if hideErr != nil {
 			return fmt.Errorf("hide answer: %w", hideErr)

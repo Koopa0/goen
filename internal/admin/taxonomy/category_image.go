@@ -46,7 +46,7 @@ func (s *Store) SetCategoryImage(ctx context.Context, slug, digest, alt, altEn s
 	}
 	return audit.Run(ctx, s.pool, audit.Event{
 		Action: audit.ActionSetCategoryImage, Table: "categories", ID: uuid.NullUUID{},
-		After: map[string]any{"category": slug, "digest": digest, "alt": alt},
+		After: audit.State{audit.FieldCategory: slug, audit.FieldDigest: digest, audit.FieldAlt: alt},
 	},
 		func(ctx context.Context, q *db.Queries) error {
 			n, err := q.SetCategoryImage(ctx, db.SetCategoryImageParams{
@@ -69,7 +69,7 @@ func (s *Store) SetCategoryImageText(ctx context.Context, slug, alt, altEn strin
 	}
 	return audit.Run(ctx, s.pool, audit.Event{
 		Action: audit.ActionSetCategoryImage, Table: "categories", ID: uuid.NullUUID{},
-		After: map[string]any{"category": slug, "alt": alt, "alt_en": altEn},
+		After: audit.State{audit.FieldCategory: slug, audit.FieldAlt: alt, audit.FieldAltEn: altEn},
 	}, func(ctx context.Context, q *db.Queries) error {
 		result, err := q.SetCategoryImageText(ctx, db.SetCategoryImageTextParams{
 			Slug: strings.TrimSpace(slug), ImageAlt: alt, ImageAltEn: altEn,
@@ -99,7 +99,7 @@ func categoryImageText(rawAlt, rawAltEn string) (alt, altEn string, err error) {
 func (s *Store) ClearCategoryImage(ctx context.Context, slug string) error {
 	return audit.Run(ctx, s.pool, audit.Event{
 		Action: audit.ActionClearCategoryImage, Table: "categories", ID: uuid.NullUUID{},
-		Before: map[string]any{"category": slug},
+		Before: audit.State{audit.FieldCategory: slug},
 	},
 		func(ctx context.Context, q *db.Queries) error {
 			n, err := q.ClearCategoryImage(ctx, strings.TrimSpace(slug))

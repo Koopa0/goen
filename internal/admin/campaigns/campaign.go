@@ -154,11 +154,11 @@ func (s *Store) SetWindow(ctx context.Context, slug, startsAt, endsAt string) (m
 		return map[string]string{"window": i18n.T(ctx, i18n.KeyFormCampaignWindow)}, nil
 	}
 	// Filled inside the transaction, which is before the audit row is encoded.
-	before := map[string]any{"slug": slug}
+	before := audit.State{audit.FieldSlug: slug}
 	return nil, audit.Run(ctx, s.pool, audit.Event{
 		Action: audit.ActionSetCampaignWindow, Table: "sale_campaigns", ID: uuid.NullUUID{},
 		Before: before,
-		After:  map[string]any{"slug": slug, "starts_at": starts.UTC(), "ends_at": ends.UTC()},
+		After:  audit.State{audit.FieldSlug: slug, audit.FieldStartsAt: starts.UTC(), audit.FieldEndsAt: ends.UTC()},
 	},
 		func(ctx context.Context, q *db.Queries) error {
 			prior, err := q.AdminCampaignWindowForUpdate(ctx, strings.TrimSpace(slug))
@@ -168,7 +168,7 @@ func (s *Store) SetWindow(ctx context.Context, slug, startsAt, endsAt string) (m
 			if err != nil {
 				return fmt.Errorf("read campaign dates: %w", err)
 			}
-			before["starts_at"], before["ends_at"] = prior.StartsAt.UTC(), prior.EndsAt.UTC()
+			before[audit.FieldStartsAt], before[audit.FieldEndsAt] = prior.StartsAt.UTC(), prior.EndsAt.UTC()
 			n, err := q.SetCampaignWindow(ctx, db.SetCampaignWindowParams{
 				Slug: strings.TrimSpace(slug), StartsAt: starts, EndsAt: ends,
 			})
@@ -213,7 +213,7 @@ func (s *Store) SetTone(ctx context.Context, slug, tone string) error {
 	}
 	return audit.Run(ctx, s.pool, audit.Event{
 		Action: audit.ActionSetCampaignTone, Table: "sale_campaigns", ID: uuid.NullUUID{},
-		Before: map[string]any{"campaign": slug}, After: map[string]any{"tone": tone},
+		Before: audit.State{audit.FieldCampaign: slug}, After: audit.State{audit.FieldTone: tone},
 	},
 		func(ctx context.Context, q *db.Queries) error {
 			n, err := q.SetCampaignTone(ctx, db.SetCampaignToneParams{Slug: strings.TrimSpace(slug), Tone: tone})
@@ -237,7 +237,7 @@ func (s *Store) SetImage(ctx context.Context, slug, digest, alt, altEn string) e
 	}
 	return audit.Run(ctx, s.pool, audit.Event{
 		Action: audit.ActionSetCampaignImage, Table: "sale_campaigns", ID: uuid.NullUUID{},
-		After: map[string]any{"campaign": slug, "digest": digest, "alt": alt},
+		After: audit.State{audit.FieldCampaign: slug, audit.FieldDigest: digest, audit.FieldAlt: alt},
 	},
 		func(ctx context.Context, q *db.Queries) error {
 			n, err := q.SetCampaignImage(ctx, db.SetCampaignImageParams{
@@ -257,7 +257,7 @@ func (s *Store) SetImage(ctx context.Context, slug, digest, alt, altEn string) e
 func (s *Store) ClearImage(ctx context.Context, slug string) error {
 	return audit.Run(ctx, s.pool, audit.Event{
 		Action: audit.ActionClearCampaignImage, Table: "sale_campaigns", ID: uuid.NullUUID{},
-		Before: map[string]any{"campaign": slug},
+		Before: audit.State{audit.FieldCampaign: slug},
 	},
 		func(ctx context.Context, q *db.Queries) error {
 			n, err := q.ClearCampaignImage(ctx, strings.TrimSpace(slug))
@@ -277,7 +277,7 @@ func (s *Store) Create(ctx context.Context, f *Form) (map[string]string, error) 
 	}
 	err := audit.Run(ctx, s.pool, audit.Event{
 		Action: audit.ActionCreateCampaign, Table: "sale_campaigns", ID: uuid.NullUUID{},
-		Before: nil, After: map[string]any{"slug": f.Slug, "title": f.Title, "title_en": f.TitleEn, "days": f.Days, "tone": f.Tone},
+		Before: nil, After: audit.State{audit.FieldSlug: f.Slug, audit.FieldTitle: f.Title, audit.FieldTitleEn: f.TitleEn, audit.FieldDays: f.Days, audit.FieldTone: f.Tone},
 	},
 		func(ctx context.Context, q *db.Queries) error {
 			return q.CreateCampaign(ctx, db.CreateCampaignParams{
@@ -296,7 +296,7 @@ func (s *Store) Create(ctx context.Context, f *Form) (map[string]string, error) 
 func (s *Store) SetActive(ctx context.Context, slug string, active bool) error {
 	return audit.Run(ctx, s.pool, audit.Event{
 		Action: audit.ActionToggleCampaign, Table: "sale_campaigns", ID: uuid.NullUUID{},
-		Before: map[string]any{"slug": slug}, After: map[string]any{"active": active},
+		Before: audit.State{audit.FieldSlug: slug}, After: audit.State{audit.FieldActive: active},
 	},
 		func(ctx context.Context, q *db.Queries) error {
 			n, err := q.SetCampaignActive(ctx, db.SetCampaignActiveParams{
@@ -316,7 +316,7 @@ func (s *Store) SetActive(ctx context.Context, slug string, active bool) error {
 func (s *Store) FeatureProduct(ctx context.Context, campaign, product string) error {
 	return audit.Run(ctx, s.pool, audit.Event{
 		Action: audit.ActionFeatureProduct, Table: "sale_campaign_products", ID: uuid.NullUUID{},
-		Before: nil, After: map[string]any{"campaign": campaign, "product": product},
+		Before: nil, After: audit.State{audit.FieldCampaign: campaign, audit.FieldProduct: product},
 	},
 		func(ctx context.Context, q *db.Queries) error {
 			if err := q.LockCampaignAppendPosition(ctx, strings.TrimSpace(campaign)); err != nil {
@@ -338,7 +338,7 @@ func (s *Store) FeatureProduct(ctx context.Context, campaign, product string) er
 func (s *Store) UnfeatureProduct(ctx context.Context, campaign, product string) error {
 	return audit.Run(ctx, s.pool, audit.Event{
 		Action: audit.ActionUnfeatureProduct, Table: "sale_campaign_products",
-		Before: map[string]any{"campaign": campaign, "product": product},
+		Before: audit.State{audit.FieldCampaign: campaign, audit.FieldProduct: product},
 	},
 		func(ctx context.Context, q *db.Queries) error {
 			if err := q.RemoveCampaignProduct(ctx, db.RemoveCampaignProductParams{

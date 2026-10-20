@@ -78,7 +78,7 @@ func (s *Store) GrantCredit(ctx context.Context, customerID uuid.UUID, amountCen
 		// The customer is named by ID and never by address: audit_events is
 		// append-only and erase_user does not reach it, so an email written here
 		// would outlive the erasure meant to remove it.
-		Before: nil, After: map[string]any{"amount_cents": amountCents, "reason": reason},
+		Before: nil, After: audit.State{audit.FieldAmountCents: amountCents, audit.FieldReason: reason},
 	}
 
 	tx, err := s.pool.Begin(ctx)

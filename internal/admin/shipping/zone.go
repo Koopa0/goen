@@ -48,8 +48,8 @@ func (s *Store) CreateZone(ctx context.Context, z *NewZone) (map[string]string, 
 
 	if err := audit.Run(ctx, s.pool, audit.Event{
 		Action: audit.ActionCreateShippingZone, Table: "shipping_zones",
-		After: map[string]any{
-			"code": z.Code, "name": z.Name, "prefixes": len(prefixes),
+		After: audit.State{
+			audit.FieldCode: z.Code, audit.FieldName: z.Name, audit.FieldPrefixes: len(prefixes),
 		},
 	}, func(ctx context.Context, q *db.Queries) error {
 		if lockErr := q.LockZoneRates(ctx); lockErr != nil {
@@ -96,7 +96,7 @@ func (s *Store) SetZonePrefixes(ctx context.Context, id, list string) (map[strin
 	if err := audit.Run(ctx, s.pool, audit.Event{
 		Action: audit.ActionSetZonePrefixes, Table: "shipping_zone_prefixes",
 		ID:    audit.EntityID(zoneID),
-		After: map[string]any{"prefixes": len(prefixes)},
+		After: audit.State{audit.FieldPrefixes: len(prefixes)},
 	}, func(ctx context.Context, q *db.Queries) error {
 		if lockErr := q.LockZoneRates(ctx); lockErr != nil {
 			return fmt.Errorf("lock zone rates: %w", lockErr)

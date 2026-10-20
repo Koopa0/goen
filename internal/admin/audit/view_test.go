@@ -1,15 +1,10 @@
 package audit
 
 import (
-	"go/ast"
-	"go/parser"
-	"go/token"
 	stdhtml "html"
 	"io/fs"
 	"os"
 	"path/filepath"
-	"reflect"
-	"strconv"
 	"strings"
 	"testing"
 	"unicode"
@@ -301,14 +296,13 @@ func TestAuditUnknownFieldsRetainDetails(t *testing.T) {
 	}
 }
 
-// TestAuditProducerFieldsAreInTheLedger derives every (table, key) pair a
-// producer writes into audit_events.before/after and asserts auditLedger
-// lists it. It reads the non-test, non-generated .go files under the
-// repository root (skipping directories whose name starts with ".", plus
-// node_modules and testdata) and every .sql file under migrations/, internal/,
-// seed/ and scripts/. Test files are deliberately out of scope: tests do not
-// write audit rows into a shop.
-func TestAuditProducerFieldsAreInTheLedger(t *testing.T) {
+// TestAuditSQLProducerFieldsAreInTheLedger derives every (table, key) pair SQL
+// writes into audit_events.before/after and asserts auditLedger lists it. It
+// reads migrations/*.up.sql and every .sql file under internal/, seed/ and
+// scripts/. Go writers are not read: their State is keyed by Field, which only
+// this package can make, and TestEveryFieldIsInTheLedger holds each Field to
+// the ledger.
+func TestAuditSQLProducerFieldsAreInTheLedger(t *testing.T) {
 	t.Parallel()
 	root, err := os.Getwd()
 	if err != nil {
@@ -324,353 +318,29 @@ func TestAuditProducerFieldsAreInTheLedger(t *testing.T) {
 		}
 		root = parent
 	}
-	fields := make(map[string]map[string]string)
-	add := func(entity string, keys []string, source string) {
-		if fields[entity] == nil {
-			fields[entity] = make(map[string]string)
-		}
+	fields := make(map[[2]string]string)
+	auditSQLProducerFields(t, root, func(entity string, keys []string, source string) {
 		for _, key := range keys {
-			fields[entity][key] = source
+			fields[[2]string{entity, key}] = source
 		}
-	}
-	wrappers := auditSQLProducerFields(t, root, add)
-	files := make(map[string][]*ast.File)
-	paths := make(map[*ast.File]string)
-	fset := token.NewFileSet()
-	err = filepath.WalkDir(root, func(path string, entry fs.DirEntry, walkErr error) error {
-		if walkErr != nil {
-			return walkErr
-		}
-		if entry.IsDir() {
-			name := entry.Name()
-			if path != root && (strings.HasPrefix(name, ".") || name == "node_modules" || name == "testdata") {
-				return filepath.SkipDir
-			}
-			return nil
-		}
-		if !strings.HasSuffix(path, ".go") || strings.HasSuffix(path, "_test.go") {
-			return nil
-		}
-		file, parseErr := parser.ParseFile(fset, path, nil, parser.ParseComments)
-		if parseErr != nil {
-			return parseErr
-		}
-		if !ast.IsGenerated(file) {
-			files[filepath.Dir(path)] = append(files[filepath.Dir(path)], file)
-			paths[file] = path
-		}
-		return nil
 	})
-	if err != nil {
-		t.Fatal(err)
-	}
-	for dir, packageFiles := range files {
-		for _, file := range packageFiles {
-			imports := make(map[string]string)
-			for _, imp := range file.Imports {
-				path, unquoteErr := strconv.Unquote(imp.Path.Value)
-				if unquoteErr != nil {
-					t.Fatal(unquoteErr)
-				}
-				name := filepath.Base(path)
-				if imp.Name != nil {
-					name = imp.Name.Name
-				}
-				imports[name] = path
-			}
-			for _, decl := range file.Decls {
-				fn, ok := decl.(*ast.FuncDecl)
-				if !ok || fn.Body == nil {
-					continue
-				}
-				selectedEntity, tableVariable := "", ""
-				var resolve func(ast.Expr, bool, *ast.FuncDecl, map[string]bool) []string
-				resolve = func(expr ast.Expr, payload bool, scope *ast.FuncDecl, visiting map[string]bool) []string {
-					var result []string
-					switch value := expr.(type) {
-					case *ast.BasicLit:
-						if !payload && value.Kind == token.STRING {
-							text, unquoteErr := strconv.Unquote(value.Value)
-							if unquoteErr != nil {
-								t.Fatal(unquoteErr)
-							}
-							return []string{text}
-						}
-					case *ast.Ident:
-						if value.Name == "nil" {
-							return nil
-						}
-						if visiting[value.Name] {
-							t.Fatalf("%s: cyclic audit payload %s", paths[file], value.Name)
-						}
-						next := make(map[string]bool)
-						for name, seen := range visiting {
-							next[name] = seen
-						}
-						next[value.Name] = true
-						found := false
-						ast.Inspect(scope.Body, func(node ast.Node) bool {
-							if branch, isBranch := node.(*ast.IfStmt); payload && isBranch && tableVariable != "" {
-								if entity := auditBranchTable(t, branch, tableVariable); entity != "" && entity != selectedEntity {
-									return false
-								}
-							}
-							assignment, isAssignment := node.(*ast.AssignStmt)
-							if !isAssignment {
-								return true
-							}
-							for index, lhs := range assignment.Lhs {
-								if id, isID := lhs.(*ast.Ident); isID && id.Name == value.Name && index < len(assignment.Rhs) {
-									found = true
-									result = append(result, resolve(assignment.Rhs[index], payload, scope, next)...)
-								}
-								if slot, isSlot := lhs.(*ast.IndexExpr); payload && isSlot {
-									if id, isID := slot.X.(*ast.Ident); isID && id.Name == value.Name {
-										result = append(result, resolve(slot.Index, false, scope, next)...)
-									}
-								}
-							}
-							return true
-						})
-						if !found && payload && file.Name.Name == "staff" && scope.Name.Name == "write" && value.Name == "after" {
-							return auditStaffCallbackFields(t, packageFiles, scope, func(expr ast.Expr, callback *ast.FuncDecl) []string {
-								return resolve(expr, true, callback, make(map[string]bool))
-							})
-						}
-						if !found && payload {
-							for _, param := range scope.Type.Params.List {
-								for _, name := range param.Names {
-									if name.Name == value.Name {
-										return auditStructJSONFields(t, root, dir, param.Type, imports, files)
-									}
-								}
-							}
-						}
-						if found {
-							return result
-						}
-					case *ast.CompositeLit:
-						if _, isMap := value.Type.(*ast.MapType); payload && isMap {
-							for _, element := range value.Elts {
-								pair, isPair := element.(*ast.KeyValueExpr)
-								if !isPair {
-									t.Fatalf("%s: unsupported audit map element", paths[file])
-								}
-								result = append(result, resolve(pair.Key, false, scope, visiting)...)
-							}
-							return result
-						}
-						if payload {
-							return auditStructJSONFields(t, root, dir, value.Type, imports, files)
-						}
-					case *ast.CallExpr:
-						if name, isName := value.Fun.(*ast.SelectorExpr); isName && name.Sel.Name == "Marshal" && len(value.Args) == 1 {
-							if pkg, isPackage := name.X.(*ast.Ident); isPackage && imports[pkg.Name] == "encoding/json" {
-								return resolve(value.Args[0], payload, scope, visiting)
-							}
-						}
-						if payload && auditGoEmptyMapCall(value) {
-							return nil
-						}
-						name, isName := value.Fun.(*ast.Ident)
-						if !isName {
-							break
-						}
-						helper := auditGoFunction(packageFiles, name.Name)
-						if helper == nil {
-							break
-						}
-						for _, returned := range auditGoFunctionReturns(helper) {
-							result = append(result, resolve(returned, payload, helper, make(map[string]bool))...)
-						}
-						return result
-					}
-					t.Fatalf("%s:%d: unsupported audit expression %T; extend producer discovery", paths[file], fset.Position(expr.Pos()).Line, expr)
-					return nil
-				}
-				ast.Inspect(fn.Body, func(node ast.Node) bool {
-					literal, isLiteral := node.(*ast.CompositeLit)
-					if !isLiteral {
-						return true
-					}
-					typ, isType := literal.Type.(*ast.SelectorExpr)
-					if !isType {
-						return true
-					}
-					pkg, isPackage := typ.X.(*ast.Ident)
-					if !isPackage {
-						return true
-					}
-					members := make(map[string]ast.Expr)
-					for _, element := range literal.Elts {
-						if pair, isPair := element.(*ast.KeyValueExpr); isPair {
-							if key, isKey := pair.Key.(*ast.Ident); isKey {
-								members[key.Name] = pair.Value
-							}
-						}
-					}
-					var entities []string
-					switch {
-					case imports[pkg.Name] == "github.com/koopa0/goen/internal/admin/audit" && typ.Sel.Name == "Event":
-						selectedEntity, tableVariable = "", ""
-						entities = resolve(members["Table"], false, fn, make(map[string]bool))
-						if variable, isVariable := members["Table"].(*ast.Ident); isVariable {
-							tableVariable = variable.Name
-						}
-					case imports[pkg.Name] == "github.com/koopa0/goen/internal/db" && strings.HasSuffix(typ.Sel.Name, "Params"):
-						entity, isWrapper := wrappers[strings.TrimSuffix(typ.Sel.Name, "Params")]
-						if !isWrapper {
-							return true
-						}
-						if entity != "" {
-							entities = []string{entity}
-							break
-						}
-						if file.Name.Name == "audit" {
-							return true
-						}
-						entities = resolve(members["EntityTable"], false, fn, make(map[string]bool))
-					default:
-						return true
-					}
-					for _, member := range []string{"Before", "After"} {
-						if expr := members[member]; expr != nil {
-							for _, entity := range entities {
-								selectedEntity = entity
-								keys := resolve(expr, true, fn, make(map[string]bool))
-								add(entity, keys, paths[file]+":"+strconv.Itoa(fset.Position(expr.Pos()).Line))
-							}
-						}
-					}
-					return true
-				})
-			}
-		}
-	}
-	if len(fields) == 0 {
-		t.Fatal("producer discovery found no audit fields")
-	}
 	ledger := make(map[[2]string]bool, len(auditLedger))
 	for _, row := range auditLedger {
 		ledger[[2]string{row.entity, row.field}] = true
 	}
-	unique := make(map[string]bool)
-	pairs := 0
-	for entity, keys := range fields {
-		for key, source := range keys {
-			unique[key] = true
-			pairs++
-			if !ledger[[2]string{entity, key}] {
-				t.Errorf("recorded producer field %s.%s from %s is not in the audit ledger: add it to auditLedger with its label (audit_events keeps it forever)", entity, key, source)
-			}
+	for pair, source := range fields {
+		if !ledger[pair] {
+			t.Errorf("recorded SQL producer field %s.%s from %s is not in the audit ledger: add it to auditLedger with its label (audit_events keeps it forever)", pair[0], pair[1], source)
 		}
 	}
-	// Measured on fac167bf: 160 pairs. A walk that reads nothing must not pass.
-	if pairs < 150 {
-		t.Errorf("producer discovery derived %d pairs, want at least 150: the walk stopped reading sources", pairs)
+	// Measured on 6ba69813: 38 pairs. A walk that reads nothing must not pass.
+	if len(fields) < 35 {
+		t.Errorf("SQL producer discovery derived %d pairs, want at least 35: the walk stopped reading sources", len(fields))
 	}
-	t.Logf("derived %d entity/key pairs, %d keys across %d entities", pairs, len(unique), len(fields))
 }
 
-func auditStructJSONFields(t *testing.T, root, dir string, expr ast.Expr, imports map[string]string, files map[string][]*ast.File) []string {
+func auditSQLProducerFields(t *testing.T, root string, add func(string, []string, string)) {
 	t.Helper()
-	name := ""
-	switch typ := expr.(type) {
-	case *ast.Ident:
-		name = typ.Name
-	case *ast.SelectorExpr:
-		pkg, ok := typ.X.(*ast.Ident)
-		if !ok {
-			t.Fatal("unsupported audit struct package")
-		}
-		path := strings.TrimPrefix(imports[pkg.Name], "github.com/koopa0/goen/")
-		dir = filepath.Join(root, path)
-		name = typ.Sel.Name
-	default:
-		t.Fatalf("unsupported audit struct type %T", expr)
-	}
-	for _, file := range files[dir] {
-		for _, decl := range file.Decls {
-			general, ok := decl.(*ast.GenDecl)
-			if !ok {
-				continue
-			}
-			for _, spec := range general.Specs {
-				typ, isType := spec.(*ast.TypeSpec)
-				if !isType || typ.Name.Name != name {
-					continue
-				}
-				structure, isStruct := typ.Type.(*ast.StructType)
-				if !isStruct {
-					t.Fatalf("audit payload %s is not a struct", name)
-				}
-				var keys []string
-				for _, field := range structure.Fields.List {
-					if len(field.Names) == 0 {
-						t.Fatal("embedded audit payload fields need explicit discovery")
-					}
-					for _, fieldName := range field.Names {
-						if !ast.IsExported(fieldName.Name) {
-							continue
-						}
-						key := fieldName.Name
-						if field.Tag != nil {
-							tag, err := strconv.Unquote(field.Tag.Value)
-							if err != nil {
-								t.Fatal(err)
-							}
-							if jsonName := strings.Split(reflect.StructTag(tag).Get("json"), ",")[0]; jsonName != "" {
-								key = jsonName
-							}
-						}
-						if key != "-" {
-							keys = append(keys, key)
-						}
-					}
-				}
-				return keys
-			}
-		}
-	}
-	t.Fatalf("cannot resolve audited struct %s", name)
-	return nil
-}
-
-func auditGoEmptyMapCall(call *ast.CallExpr) bool {
-	name, isName := call.Fun.(*ast.Ident)
-	if !isName || name.Name != "make" || len(call.Args) == 0 {
-		return false
-	}
-	_, isMap := call.Args[0].(*ast.MapType)
-	return isMap
-}
-
-func auditGoFunction(files []*ast.File, name string) *ast.FuncDecl {
-	for _, file := range files {
-		for _, declaration := range file.Decls {
-			helper, isHelper := declaration.(*ast.FuncDecl)
-			if isHelper && helper.Name.Name == name && helper.Body != nil {
-				return helper
-			}
-		}
-	}
-	return nil
-}
-
-func auditGoFunctionReturns(helper *ast.FuncDecl) []ast.Expr {
-	var result []ast.Expr
-	ast.Inspect(helper.Body, func(node ast.Node) bool {
-		if returned, isReturn := node.(*ast.ReturnStmt); isReturn && len(returned.Results) > 0 {
-			result = append(result, returned.Results[0])
-		}
-		return true
-	})
-	return result
-}
-
-func auditSQLProducerFields(t *testing.T, root string, add func(string, []string, string)) map[string]string {
-	t.Helper()
-	wrappers := make(map[string]string)
 	readPayload := func(tokens []string) []string {
 		if len(tokens) == 1 && strings.EqualFold(tokens[0], "null") {
 			return nil
@@ -799,23 +469,6 @@ func auditSQLProducerFields(t *testing.T, root string, add func(string, []string
 				invoiceEntity = strings.Trim(values[column][0], "'")
 			}
 		}
-		query := ""
-		offset := 0
-		for _, line := range strings.Split(string(data), "\n") {
-			lineStart := offset
-			offset += len(line) + 1
-			if strings.HasPrefix(line, "-- name: ") {
-				query = strings.Fields(line)[2]
-			}
-			if strings.Contains(line, "SELECT record_audit_event(") && query != "" {
-				start := lineStart
-				args, _ := auditSQLArguments(t, auditSQLTokens(t, string(data)[start:]), 2)
-				wrappers[query] = strings.Trim(args[2][0], "'")
-				if !strings.HasPrefix(args[2][0], "'") {
-					wrappers[query] = ""
-				}
-			}
-		}
 		function, signature = "", nil
 		for index, word := range tokens {
 			name := strings.ToLower(word)
@@ -834,14 +487,14 @@ func auditSQLProducerFields(t *testing.T, root string, add func(string, []string
 			}
 		}
 	}
-	return wrappers
 }
 
 func auditSQLQueryParameters(path string, args [][]string) bool {
 	if !strings.Contains(path, string(filepath.Separator)+"internal"+string(filepath.Separator)) {
 		return false
 	}
-	// Parameter-only query wrappers are resolved at their Go callers.
+	// A parameter-only query wrapper stores what its Go caller passes, and the
+	// caller marshals a State.
 	if len(args) == 7 && len(args[4]) > 0 && len(args[5]) > 0 && args[4][0] == "@" && args[5][0] == "@" {
 		return true
 	}
@@ -984,71 +637,6 @@ func auditSQLDollarTokens(t *testing.T, source string, start int, preceding []st
 	tokens = append(tokens, auditSQLTokens(t, source[end+1:bodyEnd])...)
 	tokens = append(tokens, "$audit_body_end$")
 	return tokens, next
-}
-
-func auditStaffCallbackFields(t *testing.T, packageFiles []*ast.File, scope *ast.FuncDecl, resolve func(ast.Expr, *ast.FuncDecl) []string) []string {
-	t.Helper()
-	var result []string
-
-	for _, source := range packageFiles {
-		ast.Inspect(source, func(node ast.Node) bool {
-			call, isCall := node.(*ast.CallExpr)
-			if !isCall {
-				return true
-			}
-			method, isMethod := call.Fun.(*ast.SelectorExpr)
-			if !isMethod || method.Sel.Name != "write" {
-				return true
-			}
-			if len(call.Args) != 3 {
-				t.Fatal("unsupported staff audit wrapper arguments")
-			}
-			callback, isCallback := call.Args[2].(*ast.FuncLit)
-			if !isCallback {
-				t.Fatal("staff audit wrapper needs callback source discovery")
-			}
-			callbackScope := &ast.FuncDecl{Name: scope.Name, Type: callback.Type, Body: callback.Body}
-			ast.Inspect(callback.Body, func(child ast.Node) bool {
-				if returned, isReturn := child.(*ast.ReturnStmt); isReturn && len(returned.Results) == 3 {
-					result = append(result, resolve(returned.Results[1], callbackScope)...)
-				}
-				return true
-			})
-			return true
-		})
-	}
-	if len(result) == 0 {
-		t.Fatal("staff audit wrapper has no discoverable callback payloads")
-	}
-	return result
-}
-
-func auditBranchTable(t *testing.T, branch *ast.IfStmt, name string) string {
-	t.Helper()
-	entity := ""
-	ast.Inspect(branch.Body, func(node ast.Node) bool {
-		assignment, ok := node.(*ast.AssignStmt)
-		if !ok {
-			return true
-		}
-		for index, lhs := range assignment.Lhs {
-			id, isID := lhs.(*ast.Ident)
-			if !isID || id.Name != name || index >= len(assignment.Rhs) {
-				continue
-			}
-			text, isText := assignment.Rhs[index].(*ast.BasicLit)
-			if !isText || text.Kind != token.STRING {
-				t.Fatal("conditional audit table needs explicit source discovery")
-			}
-			var err error
-			entity, err = strconv.Unquote(text.Value)
-			if err != nil {
-				t.Fatal(err)
-			}
-		}
-		return true
-	})
-	return entity
 }
 
 func auditSQLSignatureMatches(signature [][]string, namesAndTypes []string) bool {
