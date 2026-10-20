@@ -317,8 +317,8 @@ func (s *statusRecorder) statusCode() int {
 // option survives the switch. The switch's handler still refuses anything but a
 // same-site path.
 func localeReturnPath(r *http.Request) string {
-	if slug, ok := catalog.ProductFormSlug(r.URL.Path); ok {
-		return "/p/" + slug
+	if page, ok := catalog.ProductFormPage(r.URL.Path); ok {
+		return page
 	}
 	return r.URL.RequestURI()
 }

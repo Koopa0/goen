@@ -83,6 +83,32 @@ func NewHandler(store *Store, grants *access.Store, log *slog.Logger, secure boo
 	}
 }
 
+// Routes registers the basket, the checkout, the store-pickup round trip where
+// a carrier is configured, and reordering a past order into the basket.
+// checkout bounds each checkout submission per client; the caller owns that
+// budget. clearSpeculations wraps the writes that change the basket's count in
+// the shared header.
+func (h *Handler) Routes(mux *http.ServeMux, checkout *ratelimit.Limiter, clearSpeculations func(http.HandlerFunc) http.HandlerFunc) {
+	mux.HandleFunc("GET /cart", h.Page)
+	mux.HandleFunc("POST /cart/items", clearSpeculations(h.AddItem))
+	mux.HandleFunc("POST /cart/items/update", clearSpeculations(h.UpdateItem))
+	mux.HandleFunc("GET /checkout", h.Checkout)
+	mux.HandleFunc("POST /checkout", ratelimit.Guard(checkout, h.log, h.PlaceOrder))
+	if h.storeMap.Enabled() {
+		// The carrier's page posts the chosen store here from the SHOPPER'S
+		// browser, so it arrives cross-site with none of goen's cookies. It
+		// exists only where a carrier is configured: an unconfigured goen
+		// answers 404 here and its cross-origin defence keeps no bypass.
+		mux.HandleFunc("POST "+PickupReturnPath, h.PickupReturn)
+		// The checkout form is posted here by 「選擇門市」: same-origin, so under
+		// the cross-origin defence like every other form, and it keeps what was
+		// typed before the browser is handed to the carrier.
+		mux.HandleFunc("POST "+PickupStartAction, ratelimit.Guard(checkout, h.log, h.PickupStart))
+		mux.HandleFunc("GET "+PickupMapPath, h.PickupMap)
+	}
+	mux.HandleFunc("POST /orders/{number}/reorder", clearSpeculations(h.ReorderItems))
+}
+
 // freeDeliveryFor says only what is true for every method offered, since the
 // cart does not know the destination: methods that turn free at different
 // amounts are one sentence only at the highest, and a method that never does

@@ -99,6 +99,58 @@ func NewHandler(store *Store, carts Carts, grants Grants, log *slog.Logger, secu
 	}
 }
 
+// Routes registers signing in and out, registering, recovering an account,
+// confirming an address, and the account doors that need a password or a
+// session. limit bounds per client, before the handler runs, every route that
+// verifies a password with argon2 or mails an address; the caller owns that
+// budget, and one limiter across them all means moving between them earns no
+// fresh allowance. clearSpeculations wraps the writes that change who the
+// shared header shows, and clearCache adds emptying the browser's cache to
+// signing out.
+func (h *Handler) Routes(mux *http.ServeMux, limit *ratelimit.Limiter, clearSpeculations, clearCache func(http.HandlerFunc) http.HandlerFunc) {
+	guard := func(next http.HandlerFunc) http.HandlerFunc { return ratelimit.Guard(limit, h.log, next) }
+	mux.HandleFunc("GET /signin", h.SignInPage)
+	// GET on both: the callback is a redirect from Google whose method goen does
+	// not choose, and nothing about an account changes until the callback has
+	// matched the state it issued.
+	mux.HandleFunc("GET /auth/google", h.GoogleSignIn)
+	mux.HandleFunc("GET /auth/google/callback", h.GoogleCallback)
+	// The limiter runs before argon2 does: at 64 MiB a hash, an unbounded
+	// endpoint is a memory exhaustion anybody can trigger.
+	mux.HandleFunc("POST /signin", clearSpeculations(guard(h.SignIn)))
+	mux.HandleFunc("GET /forgot", h.ForgotPage)
+	mux.HandleFunc("POST /forgot", guard(h.Forgot))
+	// RequireUser's sign-in return URL would issue GET to this POST-only action.
+	mux.HandleFunc("POST /account/password/setup", guard(h.RequestPasswordSetup))
+	mux.HandleFunc("GET /reset", h.ResetPage)
+	mux.HandleFunc("POST /reset", guard(h.Reset))
+	// Open to a signed-out visitor, who is sent on rather than refused: a
+	// registration link to the page that asks for its password, and a new
+	// address's link to sign in first. The token proves only the mailbox, and
+	// the address goes to the account that asked for it.
+	mux.HandleFunc("GET /verify", h.VerifyPage)
+	mux.HandleFunc("POST /verify", guard(h.Verify))
+	mux.HandleFunc("GET /register", h.RegisterPage)
+	mux.HandleFunc("POST /register", clearSpeculations(guard(h.Register)))
+	mux.HandleFunc("POST /register/resend", guard(h.ResendRegistration))
+	// Open to a signed-out visitor: the link and the password chosen at
+	// registration are the proof. Under limit because it runs argon2, and it
+	// signs in, so it clears speculations.
+	mux.HandleFunc("GET /register/complete", h.CompleteRegistrationPage)
+	mux.HandleFunc("POST /register/complete", clearSpeculations(guard(h.CompleteRegistration)))
+	mux.HandleFunc("POST /signout", clearSpeculations(clearCache(h.SignOut)))
+	mux.HandleFunc("GET /account/cart-recovery", h.RequireUser(h.CartRecoveryPage))
+	mux.HandleFunc("POST /account/cart/retry", h.RequireUser(h.RetryCartAdoption))
+	mux.HandleFunc("POST /account/sessions/others/end", h.RequireUser(h.SignOutOtherDevices))
+	// Also guarded: these verify a password with argon2, so a signed-in session
+	// is otherwise an unbounded supply of 64 MiB hashes.
+	mux.HandleFunc("POST /account/email", guard(h.RequireUser(h.ChangeEmail)))
+	mux.HandleFunc("POST /account/email/resend", guard(h.RequireUser(h.ResendVerification)))
+	mux.HandleFunc("POST /account/password", guard(h.RequireUser(h.ChangePassword)))
+	mux.HandleFunc("POST /account/erase", h.RequireUser(h.Erase))
+	mux.HandleFunc("POST /account/google/unlink", h.RequireUser(h.UnlinkGoogle))
+}
+
 // OfferDemoAccount must be called before the handler serves.
 func (h *Handler) OfferDemoAccount(d DemoAccount) { h.demo = d }
 

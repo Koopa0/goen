@@ -36,6 +36,23 @@ func NewHandler(store *Store, log *slog.Logger, secure, takesPayment bool) *Hand
 	return &Handler{store: store, log: log, secure: secure, takesPayment: takesPayment}
 }
 
+// Routes registers the account's overview, wishlist, orders, profile and
+// addresses. requireUser sends a signed-out visitor to sign in and back; it is
+// the caller's, because signing in is not this package's.
+func (h *Handler) Routes(mux *http.ServeMux, requireUser func(http.HandlerFunc) http.HandlerFunc) {
+	mux.HandleFunc("GET /account", requireUser(h.Overview))
+	mux.HandleFunc("GET /account/wishlist", requireUser(h.Wishlist))
+	mux.HandleFunc("POST /account/wishlist", requireUser(h.SaveWishlist))
+	mux.HandleFunc("GET /account/orders/{number}", requireUser(h.OrderPage))
+	mux.HandleFunc("POST /account/profile", requireUser(h.UpdateProfile))
+	mux.HandleFunc("POST /account/addresses", requireUser(h.AddAddress))
+	mux.HandleFunc("GET /account/addresses/{address}/edit", requireUser(h.EditAddress))
+	// The handler redirects an expired session without returning sign-in to a POST-only URL.
+	mux.HandleFunc("POST /account/addresses/update", h.UpdateAddress)
+	mux.HandleFunc("POST /account/addresses/default", requireUser(h.MakeDefaultAddress))
+	mux.HandleFunc("POST /account/addresses/delete", requireUser(h.DeleteAddress))
+}
+
 // Refuse answers with the account page, its notice saying why, and 422: a
 // request made from the page is refused on the page. auth's credential changes
 // answer this way through [auth.Handler.RefuseOnAccountPage].
@@ -340,6 +357,7 @@ func (h *Handler) SaveWishlist(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		// Authentication does not replay writes; this redirect only preserves
 		// the page for callers outside the authenticated route wrapper.
+		//nolint:gosec // G710: the fixed /signin path; back, bounded by web.SitePathOr above, is only its escaped query
 		http.Redirect(w, r, auth.SignInPath(back), http.StatusSeeOther)
 		return
 	}
@@ -356,5 +374,5 @@ func (h *Handler) SaveWishlist(w http.ResponseWriter, r *http.Request) {
 		h.serverError(w, r)
 		return
 	}
-	http.Redirect(w, r, back, http.StatusSeeOther)
+	http.Redirect(w, r, back, http.StatusSeeOther) //nolint:gosec // G710: bounded by web.SitePathOr
 }

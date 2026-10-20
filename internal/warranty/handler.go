@@ -26,6 +26,15 @@ func NewHandler(store *Store, log *slog.Logger) *Handler {
 	return &Handler{store: store, log: log}
 }
 
+// Routes registers the customer's warranty list and registering an order's
+// cover. requireUser sends a signed-out visitor to sign in and back; it is the
+// caller's, because signing in is not this package's.
+func (h *Handler) Routes(mux *http.ServeMux, requireUser func(http.HandlerFunc) http.HandlerFunc) {
+	mux.HandleFunc("GET /account/warranty", requireUser(h.List))
+	mux.HandleFunc("GET /account/warranty/{number}", requireUser(h.Order))
+	mux.HandleFunc("POST /account/warranty/{number}", requireUser(h.Register))
+}
+
 func (h *Handler) List(w http.ResponseWriter, r *http.Request) {
 	u, ok := user.FromContext(r.Context())
 	if !ok {

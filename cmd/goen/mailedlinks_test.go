@@ -115,9 +115,9 @@ func mailedHTMLLinks(t *testing.T, part string) []string {
 // TestEveryMailedLinkReachesARoute connects the two halves of every mailed
 // link: the composer in internal/letter, which builds each URL by string
 // concatenation, and the routes cmd/goen registers. A link in a letter is
-// permanent once the letter is sent, so a route renamed in server.go, or a path
-// mistyped in the composer, must fail here and not in somebody's inbox years
-// later.
+// permanent once the letter is sent, so a route renamed in a feature's Routes,
+// or a path mistyped in the composer, must fail here and not in somebody's
+// inbox years later.
 //
 // It drives every Send method of letter.Notifier (found by reflection, so a
 // new letter fails until it has a case here) through a capturing sender with
