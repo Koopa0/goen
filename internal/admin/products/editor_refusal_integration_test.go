@@ -28,9 +28,9 @@ import (
 
 	"github.com/koopa0/goen/internal/admin/admintest"
 	"github.com/koopa0/goen/internal/admin/audit"
-	"github.com/koopa0/goen/internal/admin/content"
 	"github.com/koopa0/goen/internal/admin/products"
 	"github.com/koopa0/goen/internal/admin/products/productstest"
+	"github.com/koopa0/goen/internal/admin/slides"
 	"github.com/koopa0/goen/internal/db"
 	"github.com/koopa0/goen/internal/home"
 	"github.com/koopa0/goen/internal/i18n"
@@ -339,7 +339,7 @@ func TestALosslessWebPUploadIsRefusedWithItsOwnNotice(t *testing.T) {
 	p := admintest.AdminRolePool(t, pool)
 	s := products.NewStore(p)
 	slug := productstest.Draft(t, staffCtx, pool, s)
-	heroes := content.NewStore(p, home.NewStore(p))
+	heroes := slides.NewStore(p, home.NewStore(p))
 	beforeImages, err := s.Images(staffCtx, slug)
 	if err != nil {
 		t.Fatal(err)
@@ -359,7 +359,7 @@ func TestALosslessWebPUploadIsRefusedWithItsOwnNotice(t *testing.T) {
 	images := media.NewHandler(media.NewStore(idle), log)
 	mux := http.NewServeMux()
 	products.NewHandler(s, images, log).Routes(mux, admintest.BackOffice)
-	content.NewHandler(heroes, images, log).Routes(mux, admintest.BackOffice)
+	slides.NewHandler(heroes, images, log).Routes(mux, admintest.BackOffice)
 	lossless := []byte{
 		'R', 'I', 'F', 'F', 0x14, 0x00, 0x00, 0x00, 'W', 'E', 'B', 'P',
 		'V', 'P', '8', 'L', 0x08, 0x00, 0x00, 0x00,
@@ -377,7 +377,7 @@ func TestALosslessWebPUploadIsRefusedWithItsOwnNotice(t *testing.T) {
 				fields: map[string]string{"alt": " 正面 ", "alt_en": " Front "},
 			},
 			{
-				name: "hero", path: "/admin/home",
+				name: "hero", path: "/admin/slides",
 				inputID: "h-image", errorID: "h-image-error",
 				fields: map[string]string{
 					"headline": " 秋季新品 ", "primary_label": " 去看看 ", "primary_href": "/deals",

@@ -454,7 +454,7 @@ func TestAnUploadFormWhoseTextCannotBeStoredIsRefused(t *testing.T) {
 			if err := mw.Close(); err != nil {
 				t.Fatalf("close multipart: %v", err)
 			}
-			r := httptest.NewRequestWithContext(t.Context(), http.MethodPost, "/admin/home", &body)
+			r := httptest.NewRequestWithContext(t.Context(), http.MethodPost, "/admin/slides", &body)
 			r.Header.Set("Content-Type", mw.FormDataContentType())
 
 			var err error

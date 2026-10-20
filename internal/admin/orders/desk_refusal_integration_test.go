@@ -17,11 +17,13 @@ import (
 
 	"github.com/koopa0/goen/internal/admin/access"
 	"github.com/koopa0/goen/internal/admin/admintest"
-	"github.com/koopa0/goen/internal/admin/content"
+	"github.com/koopa0/goen/internal/admin/banners"
+	"github.com/koopa0/goen/internal/admin/faq"
 	"github.com/koopa0/goen/internal/admin/products"
 	"github.com/koopa0/goen/internal/admin/products/productstest"
 	"github.com/koopa0/goen/internal/admin/returns"
 	"github.com/koopa0/goen/internal/admin/shipping"
+	"github.com/koopa0/goen/internal/admin/slides"
 	"github.com/koopa0/goen/internal/admin/stock"
 	"github.com/koopa0/goen/internal/admin/taxonomy"
 	"github.com/koopa0/goen/internal/home"
@@ -40,8 +42,10 @@ func TestDeskRefusalPOSTsKeepDraftsAndLocateTheirForm(t *testing.T) {
 	productStore := products.NewStore(pool)
 	productstest.NewHandler(pool, productStore).Routes(mux, ac)
 	stock.NewHandler(stock.NewStore(pool), log).Routes(mux, ac)
-	contentStore := content.NewStore(pool, home.NewStore(pool))
-	content.NewHandler(contentStore, images, log).Routes(mux, ac)
+	slides.NewHandler(slides.NewStore(pool, home.NewStore(pool)), images, log).Routes(mux, ac)
+	banners.NewHandler(banners.NewStore(pool), log).Routes(mux, ac)
+	faqStore := faq.NewStore(pool)
+	faq.NewHandler(faqStore, log).Routes(mux, ac)
 	taxonomy.NewHandler(taxonomy.NewStore(pool), images, log).Routes(mux, ac)
 	shipping.NewHandler(shipping.NewStore(pool), false, log).Routes(mux, ac)
 	returns.NewHandler(admintest.ReturnDesk(pool, admintest.Refunder{}), log).Routes(mux, ac)
@@ -62,15 +66,15 @@ func TestDeskRefusalPOSTsKeepDraftsAndLocateTheirForm(t *testing.T) {
 		RETURNING id::text`, faqCategory[:30]).Scan(&faqCategoryID); err != nil {
 		t.Fatalf("FAQ category fixture: %v", err)
 	}
-	if errs, err := contentStore.CreateFAQEntry(ctx, &content.FAQForm{CategoryID: faqCategoryID, Question: "original question", Answer: "original answer"}); err != nil || len(errs) > 0 {
+	if errs, err := faqStore.CreateFAQEntry(ctx, &faq.FAQForm{CategoryID: faqCategoryID, Question: "original question", Answer: "original answer"}); err != nil || len(errs) > 0 {
 		t.Fatalf("FAQ fixture: %v %v", err, errs)
 	}
-	faq, err := contentStore.FAQ(ctx)
+	entries, err := faqStore.FAQ(ctx)
 	if err != nil {
 		t.Fatal(err)
 	}
 	var faqID string
-	for _, row := range faq.Rows {
+	for _, row := range entries.Rows {
 		if row.Category == faqCategory[:30] {
 			faqID = row.ID
 		}
@@ -96,8 +100,8 @@ func TestDeskRefusalPOSTsKeepDraftsAndLocateTheirForm(t *testing.T) {
 		{"brand", "/admin/taxonomy/brands", "new-brands", "brands-name", url.Values{"name": {"   "}, "slug": {"brand-" + uuid.NewString()}}, map[string]string{"brands-name": "   "}, false},
 		{"category", "/admin/taxonomy/categories", "new-categories", "categories-name", url.Values{"name": {"   "}, "slug": {"category-" + uuid.NewString()}, "icon_key": {"unknown-icon"}, "tone": {"invalid-tone"}}, map[string]string{"categories-name": "   ", "categories-icon": "unknown-icon", "categories-tone": "invalid-tone"}, false},
 		{"faq", "/admin/faq/" + faqID, "faq-" + faqID, "q-" + faqID, url.Values{"action": {"save"}, "question": {"   "}, "answer": {" kept answer "}}, map[string]string{"q-" + faqID: "   ", "a-" + faqID: " kept answer "}, false},
-		{"hero", "/admin/home", "new-hero", "h-headline", url.Values{"headline": {"   "}, "body": {" kept body "}, "primary_label": {"Go"}, "primary_href": {"/about"}, "days": {"0"}}, map[string]string{"h-headline": "   ", "h-body": " kept body "}, true},
-		{"banner", "/admin/home/banner", "new-banner", "b-message", url.Values{"message": {"   "}, "short": {" kept short "}, "days": {"0"}}, map[string]string{"b-message": "   ", "b-short": " kept short "}, false},
+		{"hero", "/admin/slides", "new-hero", "h-headline", url.Values{"headline": {"   "}, "body": {" kept body "}, "primary_label": {"Go"}, "primary_href": {"/about"}, "days": {"0"}}, map[string]string{"h-headline": "   ", "h-body": " kept body "}, true},
+		{"banner", "/admin/banners", "new-banner", "b-message", url.Values{"message": {"   "}, "short": {" kept short "}, "days": {"0"}}, map[string]string{"b-message": "   ", "b-short": " kept short "}, false},
 		{"method", "/admin/shipping/method", "new-method", "m-code", url.Values{"code": {"bad code"}, "destination": {"address"}, "name": {" kept name "}, "fee": {" +oops "}, "free_over": {""}, "max_parcel_longest": {"0"}, "max_parcel_sum": {"0"}, "max_parcel_weight": {"0"}}, map[string]string{"m-code": "bad code", "m-fee": " +oops ", "m-name": " kept name "}, false},
 		{"zone", "/admin/shipping/zone", "new-zone", "z-code", url.Values{"code": {"bad code"}, "name": {" kept name "}, "prefixes": {"bogus"}}, map[string]string{"z-code": "bad code", "z-name": " kept name ", "z-prefixes": "bogus"}, false},
 		{"inspection", "/admin/returns/" + returnID + "/inspect", "inspect-" + returnID, "recv-" + returnID + "-" + lineID, url.Values{"received_" + lineID: {" +oops "}, "note_" + lineID: {" kept note "}}, map[string]string{"recv-" + returnID + "-" + lineID: " +oops ", "note-" + returnID + "-" + lineID: " kept note "}, false},
