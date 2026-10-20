@@ -23,15 +23,30 @@ func writableVerbs(t *testing.T, role string) map[string]map[string]bool {
 	t.Helper()
 	byQuery := queryWriteVerbs(t)
 	out := map[string]map[string]bool{}
+	for _, method := range queriesRunOn(t, role) {
+		for table, verbs := range byQuery[method] {
+			if out[table] == nil {
+				out[table] = map[string]bool{}
+			}
+			for verb := range verbs {
+				out[table][verb] = true
+			}
+		}
+	}
+	return out
+}
+
+// queriesRunOn is the generated queries the packages on a role's pool call,
+// less those runExemptions says that role never runs. A package can call the
+// queries of another pool (outbox's relay, backinstock's request), and a query
+// the role cannot run must not justify a write the role holds.
+func queriesRunOn(t *testing.T, role string) []string {
+	t.Helper()
+	var out []string
 	for _, pkg := range packagesOn(role) {
 		for _, method := range calledQueries(t, pkg) {
-			for table, verbs := range byQuery[method] {
-				if out[table] == nil {
-					out[table] = map[string]bool{}
-				}
-				for verb := range verbs {
-					out[table][verb] = true
-				}
+			if _, exempt := runExemptions[role+"."+method]; !exempt {
+				out = append(out, method)
 			}
 		}
 	}
@@ -337,12 +352,10 @@ func writableColumns(t *testing.T, role string) map[string]map[string]map[string
 	t.Helper()
 	byQuery := queryColumnWrites(t)
 	out := map[string]map[string]map[string]bool{"INSERT": {}, "UPDATE": {}}
-	for _, pkg := range packagesOn(role) {
-		for _, method := range calledQueries(t, pkg) {
-			for verb, tables := range byQuery[method] {
-				for table, cols := range tables {
-					mergeColumns(out[verb], table, cols)
-				}
+	for _, method := range queriesRunOn(t, role) {
+		for verb, tables := range byQuery[method] {
+			for table, cols := range tables {
+				mergeColumns(out[verb], table, cols)
 			}
 		}
 	}
@@ -644,7 +657,7 @@ func stripSQLComments(src string) string {
 // storefrontPackages run on the pool that does SET ROLE store, mirroring cmd/goen's wiring.
 var storefrontPackages = []string{
 	"account", "auth", "cart", "catalog", "contact", "home", "loyalty", "media",
-	"newsletter", "order/access", "order/buyer", "order/cancellation", "order/notice", "outbox", "payment", "site", "warranty",
+	"newsletter", "order/access", "order/buyer", "order/cancellation", "order/lapse", "order/notice", "outbox", "payment", "site", "warranty",
 }
 
 // backOfficePackages run on the pool that does SET ROLE admin.
@@ -653,7 +666,7 @@ var backOfficePackages = []string{
 }
 
 // maintenancePackages run on the pool that does SET ROLE maintenance, which holds no table write.
-var maintenancePackages = []string{"recommend", "restock"}
+var maintenancePackages = []string{"backinstock", "recommend"}
 
 // TestThePoolMapIsComplete refuses a directory that ships a query.sql and is on no pool map, which
 // opts it out entirely. An entry covers its own directory and everything below it, so a nested

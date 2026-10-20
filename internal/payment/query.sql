@@ -66,6 +66,16 @@ WHERE p.provider = 'stripe'
 ORDER BY h.lapsed_at DESC, p.id
 LIMIT @batch;
 
+-- Every Checkout Session this order still has open at Stripe. 'requires_payment'
+-- is only ever a HINT: a customer who paid seconds ago still has this row,
+-- because only the webhook moves it, and Stripe refuses to expire anything else.
+-- name: OpenSessionsForOrder :many
+SELECT p.provider_ref
+FROM payments p
+JOIN orders o ON o.id = p.order_id
+WHERE o.order_number = @order_number::text AND p.status = 'requires_payment'
+ORDER BY p.created_at;
+
 -- :execrows is what makes a replay visible to Go: 1 means "ours to process",
 -- 0 means "already seen".
 -- name: RecordWebhookEvent :execrows

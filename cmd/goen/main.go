@@ -27,18 +27,19 @@ import (
 	"github.com/koopa0/goen/internal/admin/twofactor"
 	"github.com/koopa0/goen/internal/auth"
 	"github.com/koopa0/goen/internal/auth/google"
+	"github.com/koopa0/goen/internal/backinstock"
 	"github.com/koopa0/goen/internal/cart"
 	"github.com/koopa0/goen/internal/invoice/issuer"
 	"github.com/koopa0/goen/internal/letter"
 	"github.com/koopa0/goen/internal/media"
 	"github.com/koopa0/goen/internal/newsletter"
 	"github.com/koopa0/goen/internal/order/access"
+	"github.com/koopa0/goen/internal/order/lapse"
 	"github.com/koopa0/goen/internal/order/notice"
 	"github.com/koopa0/goen/internal/outbox"
 	"github.com/koopa0/goen/internal/payment"
 	"github.com/koopa0/goen/internal/ratelimit"
 	"github.com/koopa0/goen/internal/recommend"
-	"github.com/koopa0/goen/internal/restock"
 	"github.com/koopa0/goen/internal/web"
 	"github.com/koopa0/goen/migrations"
 )
@@ -888,9 +889,10 @@ func startWorkers(ctx context.Context, d workerDeps) {
 	d.run(func() { outboxStore.Run(ctx) })
 	d.run(func() { outboxStore.SweepForever(ctx, d.log) })
 
-	holds := cart.NewStore(d.pool)
+	holds := lapse.NewSweeper(d.pool)
+	carts := cart.NewStore(d.pool)
 	d.run(func() { holds.SweepForever(ctx, d.log) })
-	d.run(func() { holds.SweepAttemptsForever(ctx, d.log) })
+	d.run(func() { carts.SweepAttemptsForever(ctx, d.log) })
 	d.run(func() { access.NewStore(d.pool, false).SweepForever(ctx, d.log) })
 	// Before the hold sweeper can cancel a lapsed order, its checkout must be
 	// closed: by Stripe's event, or by this sweeper asking Stripe when the event
@@ -900,8 +902,8 @@ func startWorkers(ctx context.Context, d workerDeps) {
 			payment.NewSessionSweeper(payment.NewStore(d.pool), d.payments).SweepForever(ctx, d.log)
 		})
 	}
-	d.run(func() { holds.SweepDraftsForever(ctx, d.log) })
-	d.run(func() { holds.SweepGuestCartsForever(ctx, d.log) })
+	d.run(func() { carts.SweepDraftsForever(ctx, d.log) })
+	d.run(func() { carts.SweepGuestCartsForever(ctx, d.log) })
 	d.run(func() { newsletter.NewStore(d.pool).SweepConfirmationsForever(ctx, d.log) })
 
 	d.run(func() { auth.NewStore(d.pool).SweepSessionsForever(ctx, d.log) })
@@ -914,7 +916,7 @@ func startWorkers(ctx context.Context, d workerDeps) {
 	}
 
 	d.run(func() { recommend.NewStore(d.maintenance, d.log).RefreshForever(ctx) })
-	d.run(func() { restock.NewStore(d.maintenance).SweepForever(ctx, d.log) })
+	d.run(func() { backinstock.NewStore(d.maintenance).SweepForever(ctx, d.log) })
 }
 
 // newOutboxStore is the outbox with a handler for each topic goen enqueues. A

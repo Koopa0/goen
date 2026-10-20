@@ -1,6 +1,6 @@
 // Package catalog renders goen's browsing pages: category listings, search,
 // deals, campaigns, compare, and the product page with its reviews, questions
-// and restock requests.
+// and back-in-stock form (the request itself is backinstock's).
 //
 // Two rules the SQL alone does not carry: a listing shows a category AND its
 // descendants, and every variant-level filter must be satisfied by ONE variant.

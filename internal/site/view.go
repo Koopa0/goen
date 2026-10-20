@@ -154,7 +154,7 @@ const guestCartRetainDays = 30
 // cart.DraftTTL.
 const checkoutDraftHours = 1
 
-// restock.NotifiedRetain.
+// backinstock.NotifiedRetain.
 const stockAlertRetainDays = 30
 
 // outbox.Retain, for delivered and for undelivered mail alike.

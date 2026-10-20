@@ -21,9 +21,9 @@ import (
 
 	"github.com/koopa0/goen/internal/admin/audit"
 	"github.com/koopa0/goen/internal/admin/health"
-	"github.com/koopa0/goen/internal/cart"
 	"github.com/koopa0/goen/internal/i18n"
 	"github.com/koopa0/goen/internal/order/access"
+	"github.com/koopa0/goen/internal/order/lapse"
 	"github.com/koopa0/goen/internal/outbox"
 	"github.com/koopa0/goen/internal/payment"
 	"github.com/koopa0/goen/internal/user"
@@ -538,7 +538,7 @@ func TestPaymentReconciliationPinsExpiredStock(t *testing.T) {
 
 			_, releaseErr := pool.Exec(ctx, `SELECT release_reservation($1)`, reservationID)
 			assertNamedConstraint(t, "inventory_reservation_payment_reconciliation_no_release", releaseErr)
-			if _, _, err := cart.NewStore(pool).Sweep(ctx, slog.New(slog.DiscardHandler)); err != nil {
+			if _, _, err := lapse.NewSweeper(pool).Sweep(ctx, slog.New(slog.DiscardHandler)); err != nil {
 				t.Fatalf("sweep during reconciliation: %v", err)
 			}
 			var state string
@@ -606,7 +606,7 @@ func TestReleasedStockMakesLateMoneyARefundCase(t *testing.T) {
 			WHERE order_id = $1 AND state = 'held'`, orderID); err != nil {
 			t.Fatalf("expire reservation: %v", err)
 		}
-		if released, _, err := cart.NewStore(pool).Sweep(
+		if released, _, err := lapse.NewSweeper(pool).Sweep(
 			ctx, slog.New(slog.DiscardHandler),
 		); err != nil || released < 1 {
 			t.Fatalf("sweep before payment outcome = released %d, error %v; want at least 1, nil",
