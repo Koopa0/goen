@@ -321,11 +321,12 @@ package (`order.Status` in package `orders`).
   not differ only by a plural.
 - A desk may not share a domain package's base name, and no new same-name pair
   may be added. The existing pairs: `returns` and `shipping` keep their desks'
-  names, because `return` is a keyword and `delivery` is taken, and each leaf
-  has one registered alias inside its desk; `admin/access` and `order/access`
-  are tolerated as one concept, who may reach a page, in two domains, the shape
-  of `math/rand` and `crypto/rand`; `admin` ends when `internal/ui/pages/admin`
-  is dissolved. (`loyalty` ended when its desk became `admin/tiers`.)
+  names, because `return` is a keyword and `delivery` is taken, and each desk
+  imports its leaf bare, as `net/http/pprof` imports `runtime/pprof`; a file
+  that imports both aliases the desk (`returndesk`); `admin/access` and
+  `order/access` are tolerated as one concept, who may reach a page, in two
+  domains, the shape of `math/rand` and `crypto/rand`; `admin` ends when
+  `internal/ui/pages/admin` is dissolved. (`loyalty` ended when its desk became `admin/tiers`.)
 
 **Import aliases.** "Package imports shouldn’t normally be renamed"; "Try to be
 consistent by always using the same local name for the same imported package";
@@ -334,12 +335,10 @@ renaming.)" ([Google: import renaming](https://google.github.io/styleguide/go/de
 
 - Choose names that need no alias.
 - A clash between two packages gets one registered alias per import path, used
-  in every file. Today `internal/admin/returns` imports `internal/returns` bare
-  in some files and as `returnrules` in others; that is what the rule removes.
+  in every file. `internal/admin/returns` imports `internal/returns` bare, and
+  a file that imports both aliases the desk `returndesk`.
   The `importas` lint with `no-extra-aliases`, which lists every alias with its
-  reason, and one `internal/repocheck` row, "a package may not import, unaliased,
-  a package with its own base name", arrive in a later pull request; until
-  then review holds the rule.
+  reason, arrives in a later pull request; until then review holds the rule.
 - A clash with a local variable is solved by renaming the local. Only where
   the local is the better word for its whole scope does the package take
   Google's "pkg suffix (e.g. urlpkg)", registered like any alias. `invoicepkg`,

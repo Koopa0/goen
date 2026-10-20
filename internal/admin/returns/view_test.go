@@ -13,7 +13,7 @@ import (
 	"github.com/koopa0/goen/internal/db"
 	"github.com/koopa0/goen/internal/i18n"
 	"github.com/koopa0/goen/internal/keyset"
-	returnrules "github.com/koopa0/goen/internal/returns"
+	"github.com/koopa0/goen/internal/returns"
 	"github.com/koopa0/goen/internal/ui/components"
 	"github.com/koopa0/goen/internal/ui/layouts"
 )
@@ -63,12 +63,12 @@ func wantBadge(t *testing.T, page, word, class string) {
 // From statusbadge_test.go, moved whole.
 func TestEveryReturnStatusHasAGroup(t *testing.T) {
 	t.Parallel()
-	for _, status := range returnrules.Statuses {
+	for _, status := range returns.Statuses {
 		row := &Return{Status: status}
-		if status == returnrules.StatusApproved {
+		if status == returns.StatusApproved {
 			row.Lines = []ReturnLine{{}}
 		}
-		if status == returnrules.StatusRejected {
+		if status == returns.StatusRejected {
 			continue
 		}
 		if row.StatusIntent() == components.IntentNeutral {
@@ -87,14 +87,14 @@ func TestReturnIntentGroupsEachReturnState(t *testing.T) {
 		row  Return
 		want components.Intent
 	}{
-		{"requested", Return{Status: returnrules.StatusRequested}, components.IntentWarn},
-		{"approved, goods not back", Return{Status: returnrules.StatusApproved, Lines: waiting}, components.IntentProgress},
-		{"approved, fully inspected", Return{Status: returnrules.StatusApproved, Lines: inspected}, components.IntentWarn},
-		{"approved, payout outstanding", Return{Status: returnrules.StatusApproved, Lines: waiting, Decided: true, PayoutOutstanding: true}, components.IntentWarn},
-		{"approved, payout stranded", Return{Status: returnrules.StatusApproved, Lines: waiting, Decided: true, PayoutOutstanding: true, PayoutBlocked: true}, components.IntentDanger},
-		{"declined", Return{Status: returnrules.StatusRejected}, components.IntentNeutral},
-		{"completed", Return{Status: returnrules.StatusCompleted}, components.IntentDone},
-		{"cancelled and refunded", Return{Status: returnrules.StatusCompleted, BeforeShipment: true}, components.IntentNeutral},
+		{"requested", Return{Status: returns.StatusRequested}, components.IntentWarn},
+		{"approved, goods not back", Return{Status: returns.StatusApproved, Lines: waiting}, components.IntentProgress},
+		{"approved, fully inspected", Return{Status: returns.StatusApproved, Lines: inspected}, components.IntentWarn},
+		{"approved, payout outstanding", Return{Status: returns.StatusApproved, Lines: waiting, Decided: true, PayoutOutstanding: true}, components.IntentWarn},
+		{"approved, payout stranded", Return{Status: returns.StatusApproved, Lines: waiting, Decided: true, PayoutOutstanding: true, PayoutBlocked: true}, components.IntentDanger},
+		{"declined", Return{Status: returns.StatusRejected}, components.IntentNeutral},
+		{"completed", Return{Status: returns.StatusCompleted}, components.IntentDone},
+		{"cancelled and refunded", Return{Status: returns.StatusCompleted, BeforeShipment: true}, components.IntentNeutral},
 	} {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
@@ -126,14 +126,14 @@ func TestReturnQueueBadgesFollowTheirGroup(t *testing.T) {
 				word  string
 				class string
 			}{
-				{Return{Status: returnrules.StatusRequested, StatusText: w[0]}, w[0], "goen-badge goen-badge--warn"},
-				{Return{Status: returnrules.StatusApproved, Lines: waiting, StatusText: "x1"}, w[1], "goen-badge goen-badge--progress"},
-				{Return{Status: returnrules.StatusApproved, Lines: inspected, StatusText: "x2"}, w[2], "goen-badge goen-badge--warn"},
-				{Return{Status: returnrules.StatusApproved, Lines: waiting, Decided: true, PayoutOutstanding: true, StatusText: "x3"}, w[3], "goen-badge goen-badge--warn"},
-				{Return{Status: returnrules.StatusApproved, Lines: waiting, Decided: true, PayoutOutstanding: true, PayoutBlocked: true, StatusText: "x4"}, w[4], "goen-badge goen-badge--danger"},
-				{Return{Status: returnrules.StatusRejected, StatusText: w[5]}, w[5], "goen-badge"},
-				{Return{Status: returnrules.StatusCompleted, StatusText: w[6]}, w[6], "goen-badge goen-badge--done"},
-				{Return{Status: returnrules.StatusCompleted, BeforeShipment: true, StatusText: w[7]}, w[7], "goen-badge"},
+				{Return{Status: returns.StatusRequested, StatusText: w[0]}, w[0], "goen-badge goen-badge--warn"},
+				{Return{Status: returns.StatusApproved, Lines: waiting, StatusText: "x1"}, w[1], "goen-badge goen-badge--progress"},
+				{Return{Status: returns.StatusApproved, Lines: inspected, StatusText: "x2"}, w[2], "goen-badge goen-badge--warn"},
+				{Return{Status: returns.StatusApproved, Lines: waiting, Decided: true, PayoutOutstanding: true, StatusText: "x3"}, w[3], "goen-badge goen-badge--warn"},
+				{Return{Status: returns.StatusApproved, Lines: waiting, Decided: true, PayoutOutstanding: true, PayoutBlocked: true, StatusText: "x4"}, w[4], "goen-badge goen-badge--danger"},
+				{Return{Status: returns.StatusRejected, StatusText: w[5]}, w[5], "goen-badge"},
+				{Return{Status: returns.StatusCompleted, StatusText: w[6]}, w[6], "goen-badge goen-badge--done"},
+				{Return{Status: returns.StatusCompleted, BeforeShipment: true, StatusText: w[7]}, w[7], "goen-badge"},
 			}
 			for i, r := range rows {
 				r.row.ID = fmt.Sprintf("r%d", i)
@@ -334,7 +334,7 @@ func TestReturnExamplesStayOutsideRefusedInputs(t *testing.T) {
 					component templ.Component
 					fields    map[string]string
 				}{
-					{"return inspection", Returns(p, ReturnsView{Rows: []Return{{ID: "request", Status: returnrules.StatusApproved, Window: returnrules.WindowStatutory, Decided: true, Lines: []ReturnLine{{OrderLineID: "line", Quantity: 1, DraftNote: typed}}}}, Errors: errors("request.inspect")}), map[string]string{"note-request-line": inspection}},
+					{"return inspection", Returns(p, ReturnsView{Rows: []Return{{ID: "request", Status: returns.StatusApproved, Window: returns.WindowStatutory, Decided: true, Lines: []ReturnLine{{OrderLineID: "line", Quantity: 1, DraftNote: typed}}}}, Errors: errors("request.inspect")}), map[string]string{"note-request-line": inspection}},
 				} {
 					t.Run(page.name, func(t *testing.T) {
 						markup := renderComponent(t, ctx, page.component)
