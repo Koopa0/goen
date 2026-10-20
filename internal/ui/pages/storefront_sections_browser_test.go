@@ -110,7 +110,7 @@ func TestStorefrontSectionsAsDrawn(t *testing.T) {
 		if query.Get("zh") == "1" {
 			locale, names = i18n.ZhHant, []string{"手機", "筆電", "平板", "耳機與音響", "穿戴裝置", "周邊配件"}
 		}
-		theme := &catalog.Theme{Tone: tones[query.Get("tone")], Children: []pages.Crumb{
+		theme := &catalog.Theme{Tone: tones[query.Get("tone")], Children: []catalog.Crumb{
 			{Slug: "phones", Name: names[0]}, {Slug: "laptops", Name: names[1]}, {Slug: "tablets", Name: names[2]},
 			{Slug: "audio", Name: names[3]}, {Slug: "wearables", Name: names[4]}, {Slug: "accessories", Name: names[5]},
 		}}
@@ -121,7 +121,7 @@ func TestStorefrontSectionsAsDrawn(t *testing.T) {
 		if query.Get("notice") == "1" {
 			now := time.Date(2026, 10, 9, 4, 0, 0, 0, time.UTC)
 			head = &catalog.DepartmentHead{Notice: &catalog.DepartmentNotice{
-				Title: "Autumn audio", Href: "/s/autumn", End: pages.NewCampaignEnd(time.Date(2026, 10, 30, 16, 0, 0, 0, time.UTC), now),
+				Title: "Autumn audio", Href: "/s/autumn", End: catalog.NewCampaignEnd(time.Date(2026, 10, 30, 16, 0, 0, 0, time.UTC), now),
 			}}
 		}
 		view := catalog.ListingView{Slug: "phones", Name: names[0], Theme: theme}
@@ -131,25 +131,25 @@ func TestStorefrontSectionsAsDrawn(t *testing.T) {
 		}
 	})
 	mux.HandleFunc("GET /product", func(w http.ResponseWriter, r *http.Request) {
-		view := &pages.ProductView{
+		view := &catalog.ProductView{
 			Name: "Restwood Mug", Brand: "Restwood", Slug: "restwood-mug", Description: "A stoneware mug.",
 			SelectionOK: true, Exact: true, Sellable: true, AnySellable: true, PriceCents: 43200,
 			Tone: tones[r.URL.Query().Get("tone")],
 		}
 		if chosen := r.URL.Query().Get("options"); chosen != "" {
-			view.Options = []pages.ProductOption{{Name: "storage", Label: "Storage", Values: []pages.ProductOptionValue{
+			view.Options = []catalog.ProductOption{{Name: "storage", Label: "Storage", Values: []catalog.ProductOptionValue{
 				{Value: "64", Label: "64 GB", Available: true, Href: "/product?options=" + chosen},
 				{Value: "128", Label: "128 GB", Selected: true, Available: chosen == "in", Href: "/product?options=" + chosen},
 				{Value: "256", Label: "256 GB", Href: "/product?options=" + chosen},
 			}}}
 		}
 		if r.URL.Query().Get("photo") == "1" {
-			view.Images = []pages.ProductImage{{
+			view.Images = []catalog.ProductImage{{
 				URL: assets.Image{BundledKey: "nimbus-band-2-01.webp"}.URL(), Alt: "A mug", Width: 1600, Height: 1200,
 			}}
 		}
 		w.Header().Set("Content-Type", "text/html; charset=utf-8")
-		if renderErr := pages.Product(pages.ProductMeta(view), view).Render(i18n.WithLocale(r.Context(), i18n.En), w); renderErr != nil {
+		if renderErr := catalog.Product(catalog.ProductMeta(view), view).Render(i18n.WithLocale(r.Context(), i18n.En), w); renderErr != nil {
 			t.Errorf("render product fixture: %v", renderErr)
 		}
 	})

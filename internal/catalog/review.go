@@ -15,7 +15,6 @@ import (
 	"github.com/koopa0/goen/internal/db"
 
 	"github.com/koopa0/goen/internal/i18n"
-	"github.com/koopa0/goen/internal/ui/pages"
 )
 
 var (
@@ -68,39 +67,39 @@ func hasUnprintableReviewControl(s string) bool {
 
 // ReviewStanding answers for a signed-in customer; a visitor is
 // ReviewSignedOut.
-func (s *Store) ReviewStanding(ctx context.Context, slug, userID string) (pages.ReviewStanding, error) {
+func (s *Store) ReviewStanding(ctx context.Context, slug, userID string) (ReviewStanding, error) {
 	id, parseErr := uuid.Parse(userID)
 	if parseErr != nil {
-		return pages.ReviewSignedOut, nil //nolint:nilerr // not signed in is not an error
+		return ReviewSignedOut, nil //nolint:nilerr // not signed in is not an error
 	}
 	owner := uuid.NullUUID{UUID: id, Valid: true}
 
 	productID, err := s.q.ActiveProductForReview(ctx, slug)
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
-			return pages.ReviewSignedOut, ErrNotFound
+			return ReviewSignedOut, ErrNotFound
 		}
-		return pages.ReviewSignedOut, fmt.Errorf("find review product: %w", err)
+		return ReviewSignedOut, fmt.Errorf("find review product: %w", err)
 	}
 	reviewed, err := s.q.HasReviewed(ctx, db.HasReviewedParams{
 		UserID: owner, ProductID: productID,
 	})
 	if err != nil {
-		return pages.ReviewSignedOut, fmt.Errorf("check existing review: %w", err)
+		return ReviewSignedOut, fmt.Errorf("check existing review: %w", err)
 	}
 	if reviewed {
-		return pages.ReviewAlreadyWritten, nil
+		return ReviewAlreadyWritten, nil
 	}
 	delivered, err := s.q.HasDeliveredProduct(ctx, db.HasDeliveredProductParams{
 		UserID: owner, ProductID: uuid.NullUUID{UUID: productID, Valid: true},
 	})
 	if err != nil {
-		return pages.ReviewSignedOut, fmt.Errorf("check delivery: %w", err)
+		return ReviewSignedOut, fmt.Errorf("check delivery: %w", err)
 	}
 	if !delivered {
-		return pages.ReviewNotDelivered, nil
+		return ReviewNotDelivered, nil
 	}
-	return pages.ReviewOpen, nil
+	return ReviewOpen, nil
 }
 
 func (s *Store) AddReview(ctx context.Context, slug, userID string, r *Review) (map[string]i18n.Key, error) {
@@ -118,12 +117,12 @@ func (s *Store) AddReview(ctx context.Context, slug, userID string, r *Review) (
 		return nil, err
 	}
 	switch standing {
-	case pages.ReviewOpen:
-	case pages.ReviewAlreadyWritten:
+	case ReviewOpen:
+	case ReviewAlreadyWritten:
 		return nil, ErrAlreadyReviewed
-	case pages.ReviewNotDelivered:
+	case ReviewNotDelivered:
 		return nil, ErrNotDelivered
-	case pages.ReviewSignedOut:
+	case ReviewSignedOut:
 		return nil, ErrReviewInvalid
 	}
 

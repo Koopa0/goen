@@ -7,6 +7,7 @@ import (
 	"net/url"
 
 	"github.com/koopa0/goen/internal/auth"
+	"github.com/koopa0/goen/internal/cart/item"
 	"github.com/koopa0/goen/internal/i18n"
 	"github.com/koopa0/goen/internal/ui/layouts"
 	"github.com/koopa0/goen/internal/ui/pages"
@@ -340,7 +341,7 @@ func (h *Handler) Wishlist(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	web.Render(w, r, h.log, http.StatusOK, pages.Wishlist(
-		layouts.Page{Title: i18n.T(r.Context(), i18n.KeyWishlistTitle)}, pages.WishlistView{Products: tiles, Added: pages.AddOutcome(r.URL.Query().Get("added"))}))
+		layouts.Page{Title: i18n.T(r.Context(), i18n.KeyWishlistTitle)}, pages.WishlistView{Products: tiles, Added: item.AddOutcome(r.URL.Query().Get("added"))}))
 }
 
 func (h *Handler) SaveWishlist(w http.ResponseWriter, r *http.Request) {

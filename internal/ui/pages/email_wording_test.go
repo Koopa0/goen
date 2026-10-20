@@ -35,15 +35,6 @@ func TestContact_EmailRefusal(t *testing.T) {
 	}
 }
 
-// TestProductNotifyForm_EmailRefusal wants the same of the restock form.
-func TestProductNotifyForm_EmailRefusal(t *testing.T) {
-	t.Parallel()
-	ctx := i18n.WithLocale(t.Context(), i18n.ZhHant)
-	view := ProductView{Slug: "sold-out", VariantID: "v1", SelectionOK: true, Exact: true, NotifyOutcome: NotifyBadAddress, NotifyEmail: "invalid"}
-	markup := renderComponent(t, ctx, productNotifyForm(&view))
-	assertEmailRefusal(t, markup, "notify-email", "請填寫正確的電子郵件。")
-}
-
 func assertEmailRefusal(t *testing.T, markup, inputID, sentence string) {
 	t.Helper()
 	doc, err := html.Parse(strings.NewReader(markup))

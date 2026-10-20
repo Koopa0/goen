@@ -13,8 +13,8 @@ import (
 	"github.com/google/go-cmp/cmp"
 	"golang.org/x/net/html"
 
+	"github.com/koopa0/goen/internal/catalog"
 	"github.com/koopa0/goen/internal/i18n"
-	"github.com/koopa0/goen/internal/ui/pages"
 )
 
 func TestSignInProductReturnNamesOnlyTheRequestedAction(t *testing.T) {
@@ -54,9 +54,9 @@ func TestProductSignInLinksPreserveTheirDistinctIntent(t *testing.T) {
 		t.Run(locale.Tag(), func(t *testing.T) {
 			t.Parallel()
 			ctx := i18n.WithLocale(t.Context(), locale)
-			view := pages.ProductView{Slug: "a-product", Name: "Product", ReviewStanding: pages.ReviewSignedOut}
+			view := catalog.ProductView{Slug: "a-product", Name: "Product", ReviewStanding: catalog.ReviewSignedOut}
 			var body strings.Builder
-			if err := pages.Product(pages.ProductMeta(&view), &view).Render(ctx, &body); err != nil {
+			if err := catalog.Product(catalog.ProductMeta(&view), &view).Render(ctx, &body); err != nil {
 				t.Fatal(err)
 			}
 			doc, err := html.Parse(strings.NewReader(body.String()))

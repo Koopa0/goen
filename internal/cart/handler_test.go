@@ -14,6 +14,7 @@ import (
 	"github.com/google/go-cmp/cmp"
 	"github.com/google/uuid"
 
+	"github.com/koopa0/goen/internal/cart/item"
 	"github.com/koopa0/goen/internal/ui/pages"
 )
 
@@ -85,7 +86,7 @@ func TestAddFromTheWishlistComesBackToTheWishlist(t *testing.T) {
 		req := httptest.NewRequestWithContext(t.Context(), http.MethodPost, "/cart/items", strings.NewReader(form.Encode()))
 		req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
 		rec := httptest.NewRecorder()
-		(&Handler{}).backToProduct(rec, req, uuid.Nil, pages.AddOutcomeAdded)
+		(&Handler{}).backToProduct(rec, req, uuid.Nil, item.AddOutcomeAdded)
 		if rec.Code != http.StatusSeeOther {
 			t.Fatalf("status = %d, want 303", rec.Code)
 		}

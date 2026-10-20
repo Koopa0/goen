@@ -879,7 +879,7 @@ func TestComparisonIsBoundedDeduplicatedAndForgiving(t *testing.T) {
 	ctx := t.Context()
 	s := catalog.NewStore(pool, slog.New(slog.DiscardHandler))
 	// One past pages.MaxCompare, so the ceiling cases follow the constant.
-	slugs := activeSlugs(t, pages.MaxCompare+1)
+	slugs := activeSlugs(t, catalog.MaxCompare+1)
 
 	tests := []struct {
 		name string
@@ -887,8 +887,8 @@ func TestComparisonIsBoundedDeduplicatedAndForgiving(t *testing.T) {
 		want int
 	}{
 		{"two products", slugs[:2], 2},
-		{"the ceiling", slugs[:pages.MaxCompare], pages.MaxCompare},
-		{"past the ceiling", slugs, pages.MaxCompare},
+		{"the ceiling", slugs[:catalog.MaxCompare], catalog.MaxCompare},
+		{"past the ceiling", slugs, catalog.MaxCompare},
 		{"a repeat is one column", []string{slugs[0], slugs[0], slugs[1]}, 2},
 		{"an unknown slug is dropped", []string{slugs[0], "no-such-product", slugs[1]}, 2},
 		{"nothing at all", nil, 0},

@@ -101,7 +101,7 @@ func TestTheComparisonPageOffersPlainLinksToAddAndRemove(t *testing.T) {
 // message, not by silently dropping a product.
 func TestAFullComparisonSaysSoAndOffersNoPicker(t *testing.T) {
 	t.Parallel()
-	slugs := make([]string, pages.MaxCompare)
+	slugs := make([]string, MaxCompare)
 	for i := range slugs {
 		slugs[i] = string(rune('a' + i))
 	}
@@ -109,7 +109,7 @@ func TestAFullComparisonSaysSoAndOffersNoPicker(t *testing.T) {
 	if !strings.Contains(full, `goen-compare__note`) || strings.Contains(full, `goen-compare__picker`) {
 		t.Errorf("a full comparison should show the limit message and no picker")
 	}
-	room := renderToString(t, Compare(layouts.Page{Title: "比較"}, compareOf(slugs[:pages.MaxCompare-1]...)))
+	room := renderToString(t, Compare(layouts.Page{Title: "比較"}, compareOf(slugs[:MaxCompare-1]...)))
 	if strings.Contains(room, `role="status"`) || !strings.Contains(room, `goen-compare__picker`) {
 		t.Errorf("a comparison with room should show the picker and no limit message")
 	}

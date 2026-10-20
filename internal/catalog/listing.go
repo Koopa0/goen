@@ -39,7 +39,7 @@ func (o FacetOption) CountText() string { return strconv.FormatInt(o.Count, 10) 
 type ListingView struct {
 	Slug     string
 	Name     string
-	Crumbs   []pages.Crumb
+	Crumbs   []Crumb
 	Theme    *Theme
 	Products []pages.ProductTile
 	Facets   []FacetGroup
@@ -142,7 +142,7 @@ func (v ListingView) Empty() bool { return v.Total == 0 }
 
 func (v ListingView) Grid() []pages.ProductTile { return pages.FirstRowEager(v.Products) }
 
-func (v ListingView) Children() []pages.Crumb {
+func (v ListingView) Children() []Crumb {
 	if v.Theme == nil {
 		return nil
 	}

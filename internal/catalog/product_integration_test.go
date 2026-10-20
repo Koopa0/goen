@@ -26,7 +26,6 @@ import (
 	"github.com/koopa0/goen/internal/admin/stock"
 	"github.com/koopa0/goen/internal/catalog"
 	"github.com/koopa0/goen/internal/db/dbtest"
-	"github.com/koopa0/goen/internal/ui/pages"
 	"github.com/koopa0/goen/internal/user"
 )
 
@@ -209,7 +208,7 @@ func TestTheChosenValuesPhotographsLeadTheGallery(t *testing.T) {
 
 			// And the page renders that order, with the gallery in the swap.
 			var body strings.Builder
-			if err := pages.Product(pages.ProductMeta(&view), &view).Render(ctx, &body); err != nil {
+			if err := catalog.Product(catalog.ProductMeta(&view), &view).Render(ctx, &body); err != nil {
 				t.Fatalf("render: %v", err)
 			}
 			markup := body.String()
@@ -430,7 +429,7 @@ func TestOnlyACustomerWhoReceivedTheProductMayReview(t *testing.T) {
 
 	for name, who := range map[string]uuid.UUID{"never bought": browser, "paid, not delivered": paidOnly} {
 		standing, err := s.ReviewStanding(ctx, slug, who.String())
-		if err != nil || standing != pages.ReviewNotDelivered {
+		if err != nil || standing != catalog.ReviewNotDelivered {
 			t.Errorf("%s: ReviewStanding = %v, %v; want ReviewNotDelivered", name, standing, err)
 		}
 		if _, err := s.AddReview(ctx, slug, who.String(), &catalog.Review{
@@ -452,7 +451,7 @@ func TestOnlyACustomerWhoReceivedTheProductMayReview(t *testing.T) {
 		t.Errorf("a post without a delivered order returned %d, want 422", res.Code)
 	}
 
-	if standing, err := s.ReviewStanding(ctx, slug, received.String()); err != nil || standing != pages.ReviewOpen {
+	if standing, err := s.ReviewStanding(ctx, slug, received.String()); err != nil || standing != catalog.ReviewOpen {
 		t.Fatalf("a delivered order: ReviewStanding = %v, %v; want ReviewOpen", standing, err)
 	}
 	if errs, err := s.AddReview(ctx, slug, received.String(), &catalog.Review{
@@ -601,7 +600,7 @@ func TestRetiringAPurchasedVariantDoesNotEraseVerifiedPurchase(t *testing.T) {
 	}
 	s := catalog.NewStore(tx, slog.New(slog.DiscardHandler))
 	standing, err := s.ReviewStanding(ctx, slug, who.String())
-	if err != nil || standing != pages.ReviewOpen {
+	if err != nil || standing != catalog.ReviewOpen {
 		t.Fatalf("ReviewStanding after variant retirement = %v, %v; want ReviewOpen, nil", standing, err)
 	}
 	if errs, addErr := s.AddReview(ctx, slug, who.String(), &catalog.Review{
@@ -1777,7 +1776,7 @@ func TestAQuestionIsBoundedInRunesNotBytes(t *testing.T) {
 	}
 }
 
-func containsQuestion(qs []pages.Question, body string) bool {
+func containsQuestion(qs []catalog.Question, body string) bool {
 	for _, q := range qs {
 		if q.Body == body {
 			return true
@@ -1857,7 +1856,7 @@ func TestASingleHiddenAnswerGoesWithoutTakingTheQuestion(t *testing.T) {
 	if err != nil {
 		t.Fatalf("load: %v", err)
 	}
-	var found *pages.Question
+	var found *catalog.Question
 	for i := range view.Questions {
 		if view.Questions[i].Body == "這題會留著" {
 			found = &view.Questions[i]
@@ -1998,7 +1997,7 @@ func TestAHiddenReviewStillBlocksASecondOne(t *testing.T) {
 	if err != nil {
 		t.Fatalf("ReviewStanding: %v", err)
 	}
-	if standing == pages.ReviewOpen {
+	if standing == catalog.ReviewOpen {
 		t.Error("a customer whose review is hidden was offered the form again — the " +
 			"insert would meet the unique index")
 	}

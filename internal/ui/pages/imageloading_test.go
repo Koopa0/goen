@@ -87,22 +87,3 @@ func TestTheHomePageLoadsItsFirstScreenPhotographsAtOnceAndReservesEveryBox(t *t
 		t.Errorf("%d high-priority photographs, want the hero's alone", got)
 	}
 }
-
-func TestAProductGalleryHasNoLazyPhotographAndReservesEveryBox(t *testing.T) {
-	t.Parallel()
-	view := ProductView{Slug: "buds", Name: "Buds"}
-	for i := range 3 {
-		view.Images = append(view.Images, ProductImage{
-			URL: fmt.Sprintf("/img/%d.webp", i), Alt: "buds", Width: 1600, Height: 1200,
-		})
-	}
-	page := renderProduct(t, &view, i18n.ZhHant)
-
-	assertEveryImageReservesItsBox(t, page)
-	if strings.Contains(page, `loading="lazy"`) {
-		t.Error("a gallery photograph or thumbnail is lazy: choosing a thumbnail would start its download")
-	}
-	if got := strings.Count(page, `fetchpriority="high"`); got != 1 {
-		t.Errorf("%d high-priority photographs, want the first shot's alone", got)
-	}
-}
