@@ -42,7 +42,8 @@ func (s *Store) SetProductInvoiceLine(ctx context.Context, slug string, facts in
 	}
 	if auditErr := audit.In(ctx, q, audit.Event{
 		Action: audit.ActionSetProductInvoiceLine, Table: "products", ID: uuid.NullUUID{UUID: before.ID, Valid: true},
-		Before: invoice.LineTerms{TaxType: invoice.TaxType(before.TaxType), Unit: invoice.ItemUnit(before.InvoiceUnit)}, After: facts,
+		Before: invoiceLineState(invoice.LineTerms{TaxType: invoice.TaxType(before.TaxType), Unit: invoice.ItemUnit(before.InvoiceUnit)}),
+		After:  invoiceLineState(facts),
 	}); auditErr != nil {
 		return auditErr
 	}
@@ -50,6 +51,11 @@ func (s *Store) SetProductInvoiceLine(ctx context.Context, slug string, facts in
 		return fmt.Errorf("commit product invoice: %w", err)
 	}
 	return nil
+}
+
+// invoiceLineState is a product's invoice line as its audit row records it.
+func invoiceLineState(terms invoice.LineTerms) audit.State {
+	return audit.State{audit.FieldTaxType: terms.TaxType, audit.FieldInvoiceUnit: terms.Unit}
 }
 
 func (h *Handler) ProductInvoiceLine(w http.ResponseWriter, r *http.Request) {

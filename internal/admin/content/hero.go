@@ -139,7 +139,7 @@ func (s *Store) CreateHeroSlide(ctx context.Context, f *HeroForm) (map[string]st
 	}
 	err := audit.Run(ctx, s.pool, audit.Event{
 		Action: audit.ActionCreateHeroSlide, Table: "hero_slides",
-		After: map[string]any{"headline": f.Headline, "cta": f.PrimaryHref},
+		After: audit.State{audit.FieldHeadline: f.Headline, audit.FieldCTA: f.PrimaryHref},
 	},
 		func(ctx context.Context, q *db.Queries) error {
 			if err := q.LockHeroAppendPosition(ctx); err != nil {
@@ -170,7 +170,7 @@ func (s *Store) SetHeroSlideActive(ctx context.Context, id string, active bool) 
 	return audit.Run(ctx, s.pool, audit.Event{
 		Action: audit.ActionToggleHeroSlide, Table: "hero_slides",
 		ID:    uuid.NullUUID{UUID: slideID, Valid: true},
-		After: map[string]any{"active": active},
+		After: audit.State{audit.FieldActive: active},
 	},
 		func(ctx context.Context, q *db.Queries) error {
 			n, setErr := q.SetHeroSlideActive(ctx, db.SetHeroSlideActiveParams{

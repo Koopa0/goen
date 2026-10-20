@@ -263,7 +263,7 @@ func (s *Store) Create(ctx context.Context, f *Form) (slug string, fieldErrs map
 
 	err = audit.Run(ctx, s.pool, audit.Event{
 		Action: audit.ActionCreateProduct, Table: "products", ID: uuid.NullUUID{},
-		Before: nil, After: map[string]any{"name": f.Name, "slug": f.Slug, "brand_id": brandID},
+		Before: nil, After: audit.State{audit.FieldName: f.Name, audit.FieldSlug: f.Slug, audit.FieldBrandID: brandID},
 	},
 		func(ctx context.Context, q *db.Queries) error {
 			var createErr error
@@ -296,10 +296,10 @@ func (s *Store) Update(ctx context.Context, f *Form) (map[string]string, error) 
 	brandID := brandFromForm(f.BrandID)
 	err := audit.Run(ctx, s.pool, audit.Event{
 		Action: audit.ActionUpdateProduct, Table: "products", ID: uuid.NullUUID{},
-		After: map[string]any{
-			"slug": f.Slug, "name": f.Name,
-			"brand_id": brandID, "category_id": f.CategoryID,
-			"warranty_months": f.WarrantyMonths,
+		After: audit.State{
+			audit.FieldSlug: f.Slug, audit.FieldName: f.Name,
+			audit.FieldBrandID: brandID, audit.FieldCategoryID: f.CategoryID,
+			audit.FieldWarrantyMonths: f.WarrantyMonths,
 		},
 	}, func(ctx context.Context, q *db.Queries) error {
 		n, updateErr := q.UpdateProduct(ctx, db.UpdateProductParams{
@@ -348,7 +348,7 @@ func (s *Store) SetStatus(ctx context.Context, slug string, status product.Statu
 	}
 	err := audit.Run(ctx, s.pool, audit.Event{
 		Action: audit.ActionPublishProduct, Table: "products", ID: uuid.NullUUID{},
-		Before: nil, After: map[string]any{"slug": slug, "status": status},
+		Before: nil, After: audit.State{audit.FieldSlug: slug, audit.FieldStatus: status},
 	},
 		func(ctx context.Context, q *db.Queries) error {
 			n, err := q.SetProductStatus(ctx, db.SetProductStatusParams{
@@ -429,7 +429,7 @@ func (s *Store) AddSpec(ctx context.Context, slug string, d SpecDraft) (map[stri
 
 	err := audit.Run(ctx, s.pool, audit.Event{
 		Action: audit.ActionAddSpec, Table: "product_specs", ID: uuid.NullUUID{},
-		Before: nil, After: map[string]any{"slug": slug, "label": label},
+		Before: nil, After: audit.State{audit.FieldSlug: slug, audit.FieldLabel: label},
 	}, func(ctx context.Context, q *db.Queries) error {
 		if err := q.LockProductSpecAppendPosition(ctx, slug); err != nil {
 			return err
@@ -463,7 +463,7 @@ func (s *Store) RemoveSpec(ctx context.Context, slug, id string) error {
 	}
 	return audit.Run(ctx, s.pool, audit.Event{
 		Action: audit.ActionRemoveSpec, Table: "product_specs", ID: audit.EntityID(specID),
-		Before: map[string]any{"slug": slug}, After: nil,
+		Before: audit.State{audit.FieldSlug: slug}, After: nil,
 	}, func(ctx context.Context, q *db.Queries) error {
 		rows, err := q.RemoveProductSpec(ctx, db.RemoveProductSpecParams{
 			Slug: slug, SpecID: specID,
@@ -497,7 +497,7 @@ func (s *Store) AddOption(ctx context.Context, slug string, d OptionDraft) (map[
 
 	if err := audit.Run(ctx, s.pool, audit.Event{
 		Action: audit.ActionAddOption, Table: "product_options", ID: uuid.NullUUID{},
-		Before: nil, After: map[string]any{"slug": slug, "name": name},
+		Before: nil, After: audit.State{audit.FieldSlug: slug, audit.FieldName: name},
 	}, func(ctx context.Context, q *db.Queries) error {
 		if _, err := q.AddProductOption(ctx, db.AddProductOptionParams{
 			Slug: slug, Name: name, NameEn: nameEn,
@@ -546,7 +546,7 @@ func (s *Store) AddOptionValue(ctx context.Context, slug string, d OptionDraft) 
 
 	if err := audit.Run(ctx, s.pool, audit.Event{
 		Action: audit.ActionAddOptionValue, Table: "product_option_values", ID: audit.EntityID(optionID),
-		Before: nil, After: map[string]any{"slug": slug, "value": name},
+		Before: nil, After: audit.State{audit.FieldSlug: slug, audit.FieldValue: name},
 	}, func(ctx context.Context, q *db.Queries) error {
 		if _, err := q.AddProductOptionValue(ctx, db.AddProductOptionValueParams{
 			Slug: slug, OptionID: optionID, Value: name, ValueEn: nameEn,
