@@ -51,7 +51,7 @@ func (s *Store) Compare(ctx context.Context, slugs []string) (CompareView, error
 	if len(view.Products) == 0 {
 		return s.withStart(ctx, view)
 	}
-	if len(view.Products) < pages.MinCompare {
+	if len(view.Products) < MinCompare {
 		if view.Suggestions, err = s.compareSuggestions(ctx, &view.Products[0], slugs); err != nil {
 			return CompareView{}, err
 		}
@@ -88,12 +88,12 @@ func (s *Store) Compare(ctx context.Context, slugs []string) (CompareView, error
 }
 
 func normaliseSlugs(raw []string) (out []string, dropped bool) {
-	out = make([]string, 0, pages.MaxCompare)
+	out = make([]string, 0, MaxCompare)
 	for _, s := range raw {
 		if s == "" || slices.Contains(out, s) {
 			continue
 		}
-		if len(out) == pages.MaxCompare {
+		if len(out) == MaxCompare {
 			return out, true
 		}
 		out = append(out, s)

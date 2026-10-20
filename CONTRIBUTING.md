@@ -260,6 +260,144 @@ them against the name test, and each split it finds is filed as its own issue;
 import which is a separate rule, held by `internal/repocheck/deps_test.go` as
 described above.
 
+#### Naming
+
+A package name is read in the files that import it, so it is chosen for them.
+These rules settle the names in the [glossary](#glossary); a new name follows
+them too.
+
+1. **A name is a noun for the concept**, lower case, one word or an
+   established compound (`cookiejar`, `httptest`). "They are often simple
+   nouns" ([Package names](https://go.dev/blog/package-names)); "short,
+   concise, evocative" ([Effective Go](https://go.dev/doc/effective_go#package-names)).
+   A verb is tolerated, as `sort` is, only for a package that does one thing
+   (`compress`, `render`).
+2. **No layer name** (rule 4 above), and no name for a kind of declaration:
+   every templ function is a `templ.Component`, so `components` is true of every
+   page package and becomes `ui/widget`.
+3. **No two names that read alike**: no synonyms (`email`/`mail`), no prefix
+   pair (`storecredit` beside `credit`), no names a letter apart
+   (`formtest`/`formtext`, `htmltest`/`httptest`), no repeated base name
+   (`order/buyer`/`returns/buyer`): "packages that are frequently used together
+   should have distinct names. This reduces confusion and the need for local
+   renaming in client code." (Package names). The plural desk below is the one
+   alike family allowed. Where two names share a referent on purpose (`site`
+   and `siteurl`), each package comment states the line between them.
+4. **Do not take a word the importing files use as a local.** "Don't steal good
+   names from the user. Avoid giving a package a name that is commonly used in
+   client code. For example, the buffered I/O package is called bufio, not buf,
+   since buf is a good variable name for a buffer." (Package names). "For
+   example, usercount is a better package name than count, since count is a
+   commonly used variable name."
+   ([Google: package names](https://google.github.io/styleguide/go/decisions#package-names))
+   Count the locals in the files that would import the package, tests included,
+   not in their directories: gocritic's `importShadow`, which the lint runs on
+   test files too, fires only in a file that imports the name. That is why the
+   form reader is `formtext`: `internal/contact/handler.go` already says
+   `form := ContactForm{…}`.
+5. **The package comment is the definition.** "For a package comment, that
+   means the first sentence begins with “Package ”."
+   ([Go Doc Comments](https://go.dev/doc/comment#package)) Here that sentence
+   reads `Package x is …; it holds …; it does not hold …`, and the last clause
+   names the nearest sibling a reader would otherwise look in. The glossary row
+   carries the same sentence. A package that cannot be given one fails the name
+   test. Not every existing comment has this form yet; each package in the
+   glossary takes it when it is created or moved.
+
+**A domain package is singular; the back-office desk over it is plural.**
+`order` is the vocabulary of an order and `admin/orders` the desk where staff
+work orders; so too `refund`/`refunds`, `coupon`/`coupons`,
+`product`/`products`. A desk is named for the plural of the record staff manage
+there, or for a collective noun when there is none (`faq`). This is a house
+rule, and it is written here because no source gives it. The standard library
+has plural packages that work over a singular thing (`strings`, `bytes`,
+`errors`, `maps`, `slices`), but the singular there is a builtin type: no two
+importable packages in `go list std` differ only by a plural. It is acceptable
+because the pair is predictable and rarely written together: in production only
+`cmd/goen` imports a desk, and inside a desk the singular is always the other
+package (`order.Status` in package `orders`).
+
+- The plural is reserved for desks: two packages outside `internal/admin` may
+  not differ only by a plural.
+- A desk may not share a domain package's base name, and no new same-name pair
+  may be added. The existing pairs: `returns` and `shipping` keep their desks'
+  names, because `return` is a keyword and `delivery` is taken, and each leaf
+  has one registered alias inside its desk; `admin/access` and `order/access`
+  are tolerated as one concept, who may reach a page, in two domains, the shape
+  of `math/rand` and `crypto/rand`; `loyalty` ends when its desk becomes
+  `admin/tiers`; `admin` ends when `internal/ui/pages/admin` is dissolved.
+
+**Import aliases.** "Package imports shouldn’t normally be renamed"; "Try to be
+consistent by always using the same local name for the same imported package";
+"(A corollary of this is that good package names should not require
+renaming.)" ([Google: import renaming](https://google.github.io/styleguide/go/decisions#import-renaming))
+
+- Choose names that need no alias.
+- A clash between two packages gets one registered alias per import path, used
+  in every file. Today `internal/admin/returns` imports `internal/returns` bare
+  in some files and as `returnrules` in others; that is what the rule removes.
+  The `importas` lint with `no-extra-aliases`, which lists every alias with its
+  reason, and one `internal/repocheck` row, "a package may not import, unaliased,
+  a package with its own base name", arrive in a later pull request; until
+  then review holds the rule.
+- A clash with a local variable is solved by renaming the local. Only where
+  the local is the better word for its whole scope does the package take
+  Google's "pkg suffix (e.g. urlpkg)", registered like any alias. `invoicepkg`,
+  in six files behind a single `invoice` parameter, goes when `checkout` moves.
+- An alias is never a layer word (`domain`).
+
+#### Glossary
+
+The packages the naming pass of #2184 decided, and the existing ones it
+affects. `planned` means the package does not exist yet, and the second column
+says where its code is today. Each definition is the package comment's first
+sentence, given here as "x is …; it holds …".
+
+The desks that are renamed take their routes with them in the same pull
+request, with no redirect: `/admin/newsletter` becomes `/admin/newsletters`,
+`/admin/warranty` becomes `/admin/warranties`, `/admin/home` becomes
+`/admin/slides` and `/admin/home/banner` becomes `/admin/banners`, and
+`/admin/credit` becomes `/admin/credits`. Every one is behind `RequireStaff`,
+and none of these URLs is stored or mailed, so a redirect would be dead code.
+Reopen if a staff URL is ever stored or mailed.
+
+| Package | Status, from | Definition | Does not hold | Why this noun, not the two closest |
+| --- | --- | --- | --- | --- |
+| `catalog` | exists; its campaign files leave for `campaign` | the shop's products as a shopper browses them; it holds listings, search, compare and each product's page with everything shown and posted on it: its reviews, questions and the back-in-stock form | a campaign (`campaign`), saved products (`wishlist`), the alert itself (`backinstock`) | not `review` and `question` leaves: each has one production caller, and a refused review re-renders the product page, so a split would cycle; not `feedback`: the word the back office drops as dishonest |
+| `order/lapse` | planned, from `internal/cart/sweeper.go` | an unpaid order's stock hold running out; it holds the sweeper that releases expired holds of uncommitted orders and cancels the orders whose last hold lapsed unpaid | what a cancellation settles (`order/cancellation`), the checkout sessions of a lapsed order (`payment`) | not `order/cancellation`: half the sweep releases holds of orders that stay pending; not `hold`: misses the cancelling half |
+| `shipping/storemap` | planned, from `internal/cart/ecpaymap.go`; its type is `storemap.Client` | ECPay's convenience-store map, where a shopper picks the store to collect a parcel from; it holds the map client, the nonce cookie, the callback checks, `PostedStore` and the two hop pages | the pickup method, chains, carriers and store-code shape (`shipping`) | not `pickup`: already the whole delivery method in `shipping`; not `cvsmap`: "CVS" reads as a US pharmacy. The type is `Client`, so `Map` never reads as a map of `Store`s |
+| `backinstock` | planned, renames `internal/restock` | a shopper's request to be emailed when a sold-out variant is back in stock; it holds the request and the retention sweep of answered requests | receiving stock (`admin/stock`), putting returned units back (`admin/returns`), safety-stock warnings and days of cover (`inventory`, `ui/stockrisk`) | not `restock`: here that means putting units back (`restocked_quantity`); not `stockalert`: reads as the staff low-stock alert. "Back in stock" is what the shopper and the email read |
+| `formtext` | planned, from `internal/web` | the text a person typed into a form, read on the server; it holds the bounded parse, the storable-text check, width folding, control characters, typed counts, the search term and per-field refusals | what the browser is told a field accepts (`ui/fieldrule`), the drawn field (`ui/widget`) | not `form`: the importing files already use `form` as a local (rule 4); not merged into `fieldrule`: `internal/ui` may import that but never request reading |
+| `ui/fieldrule` | exists | the one statement of what a form field accepts, in the form a browser can check while the shopper fills the form in | what was posted and how the server reads it (`formtext`), the drawn field (`ui/widget`) | stays apart from `formtext` for the deps rule above; a merged `form` would also take the importers' local |
+| `domtest` | planned, from `AssertEmailLink` in `internal/ui/uitest` and `AssertRefusedInput` in `internal/admin/admintest` | assertions about the HTML document a handler rendered: find by id, attributes, the refused-input check, the emailed-link page | running a browser (`Browser`, `LocalChrome` in `ui/uitest`) | not `htmltest`: a letter from `httptest`, which the same tests import; not `formtest`: a letter from `formtext`, and not only about forms |
+| `render` | planned, what is left of `internal/web` | writing a templ component as the HTTP answer, whole or as an htmx fragment, and the same-site reload hop page | reading input (`formtext`), judging URLs (`siteurl`) | not `page`: reads alike with `ui/pages`, the frame's `Page` and the pager; not `response`: reads as `http.Response`. The seven test helpers named `render` are renamed in the same pull request |
+| `ui/widget` | planned, renames `internal/ui/components` after its domain items leave | an element placed inside a page that a person reads or operates, used by two or more packages; it holds buttons, fields, the stepper, badges, notices and flash, the in-page `Announce` and `RefusalSummary`, cards, disclosure, breadcrumb and pager, stat lines, photos and empty art | the page's surround (`ui/frame`), drawings to scale (`ui/chart`), glyphs (`ui/icons`), any stored vocabulary or domain wording (`tone`, `hero`, `order`, `refund`) | not `components` (rule 2); not a six-way split (`control`, `status`, `stat` …): most importers use several groups together |
+| `ui/frame` | planned, renames `internal/ui/layouts` | what surrounds every page's content; it holds the document head, the storefront and back-office frames, header, footer, the drawn promo strip, the chrome context, and the pages that are only the frame plus a message (404 and 400, missing record, emailed-link landing) | anything placed inside a page (`ui/widget`) | not `layouts`: there is one storefront frame and one back-office frame, and "layout" is also CSS layout; not `shell`: reads as a command shell |
+| `credit` | planned, from the posting-kind wording in `internal/admin/loyalty` and `internal/admin/orders` | store credit, a customer's balance at the shop; it holds the closed set of posting kinds (`store_credit_entries.kind`) and how each reads | points (`loyalty`), money back to a card (`refund`), a code discount (`coupon`) | not `storecredit`: a prefix pair with the desk, and "store" is the house's persistence word; not desk-only: leaves today's two copies of the posting-kind switch |
+| `admin/credits` | planned, from `internal/admin/loyalty` | the staff desk for store credit: recent postings, one customer's ledger and the grant form | membership tiers (`admin/tiers`) | not `admin/credit`: the leaf's base name; not `admin/loyalty`: credit is not points |
+| `admin/tiers` | planned, what is left of `internal/admin/loyalty` | the staff desk that edits the membership tiers and their earn multipliers | store credit (`admin/credits`) | not `admin/loyalty`: the base name of `loyalty`; "tier" means only membership tiers in this code, so it is not ambiguous |
+| `admin/slides` | planned, from `internal/admin/content` | the staff desk for the home carousel's scheduled slides: create, schedule, switch on or off, promote, with a preview of the carousel as shoppers see it | the campaigns and departments that also fill the carousel (`admin/campaigns`, `admin/taxonomy`), the site-wide strip (`admin/banners`) | not `admin/banners` for both: the slide code says "slide", never "banner"; not `admin/carousel`: staff edit one of its three sources. `admin/home` would take `home`'s base name |
+| `admin/banners` | planned, from `internal/admin/content` | the staff desk for the site-wide promotional strip | the home page (`home`), the carousel's slides (`admin/slides`) | not `admin/home`: the strip is site-wide, and the base name is `home`'s; not `admin/homepage`: reads alike with `home` |
+| `admin/reviews` | planned, from `internal/admin/feedback` | the staff desk where product reviews are hidden or shown | questions (`admin/questions`), the review form and rules (`catalog`) | not `admin/feedback`: it also held questions and contact messages, so it named none honestly |
+| `admin/questions` | planned, from `internal/admin/feedback` | the staff desk where product questions are answered or hidden | reviews (`admin/reviews`), contact messages (`admin/messages`) | as `admin/reviews` |
+| `admin/messages` | planned, from `internal/admin/feedback` | the staff queue of contact messages customers sent; it holds the list, handle and reopen | outgoing mail (`outbox`, `letter`), catalogue messages (`i18n`) | not `admin/inbox`: "inbox" is already the customer's mailbox (`i18n.KeyCheckInbox`), and beside `outbox` it reads as the inbox pattern; `admin/enquiries` is the fallback if the overload of "message" bites |
+| `admin/newsletters` | planned, from `internal/admin/content` | the staff desk that composes and sends newsletter issues | the subscriber list and the sign-up (`newsletter`) | not `admin/newsletter`: the leaf's base name; not `admin/issues`: collides with invoice issuing |
+| `admin/faq` | planned, from `internal/admin/content` | the staff desk that edits the FAQ's categories and entries | the storefront FAQ page (`site`) | "FAQ" is a collective noun with no plural, and no domain package is named `faq` |
+| `admin/warranties` | planned, from `internal/admin/customers` | the staff search over warranty registrations by serial or order number | recording cover (`warranty`) | not `admin/warranty`: the leaf's base name |
+| `checkout` | planned, from `internal/cart` | turning a shopper's cart into a placed order; it holds the checkout page, placement, quote, attempts, drafts, the invoice preference, and coupon and credit spending | the cart itself (`cart`), the placed order afterwards (`order`, `order/buyer`), taking the money (`payment`) | not `order/place`: a verb, and "place" is also a location; not `placement`: jargon that hides the page |
+| `campaign` | planned, from `internal/catalog` | a time-boxed sale on chosen products; it holds its state, the price-strike rule `OnSale`, its page and `/deals` | a coupon code (`coupon`), sales figures (`sales`), the desk that edits campaigns (`admin/campaigns`) | not `sale`: reads alike with `sales`; not `promotion`: reads alike with the promo strip and covers coupons too |
+| `policy` | planned, from `internal/site`, after `internal/returns/policy.go` and the CSP `policy` parameter in `cmd/goen` are renamed | what the shop states publicly about how it works; it holds the policy documents, the shipping page, the stated windows and thresholds (`policy.Rules`, formerly `ShopRules`) and the retention texts | the rules that decide a return (`returns`), the FAQ (`site`), the CSP (`cmd/goen`) | not `terms`: one document, and reads as search terms; not `shoprules`: restates the shop |
+| `auth/google` | planned, from `internal/auth` | Google's OAuth and OpenID Connect sign-in client; it holds the authorize URL, the code exchange and the identity it returns | goen's sessions and its state cookie (`auth`) | not `oidc`: names the protocol, and the client is Google's; not `oauth`: goen's sign-in is not OAuth in general. As `golang.org/x/oauth2/google` |
+| `wishlist` | planned, from `internal/account` | the products a customer saved to buy later; it holds the page, save, remove and `Has` | the account overview (`account`), the cart (`cart`), the back-in-stock request (`backinstock`) | not `saved`: an adjective; not `favourites`: a second word for the same page |
+| `compress` | planned, from `internal/web` | gzip on dynamic HTTP responses; it holds the middleware, the opt-out and Accept-Encoding negotiation | build-time compression of static files (`assets`) | not `gzip`: shadows `compress/gzip`, which it imports; not `encoding`: a standard-library directory of codecs |
+| `requestid` | planned, from `internal/web` | the identifier every log line of one request carries; it holds minting, validating and carrying it in the context | the audit event it stamps (`admin/audit`) | not `reqid`: an abbreviation; not `trace`: overclaims, and reads as `runtime/trace` |
+| `siteurl` | planned, from `internal/web`, with `ValidSlug` | the shape of a URL on goen's own site; it holds the same-site path check, the configured origin and the slug shape | any page (`site`), the response (`render`) | not `origin`: shadowed by the `origin` locals at its own call sites; not `href` or `link`: common locals. A tolerated read-alike of `site`; reopen if `site` is renamed |
+| `picture` | planned, from `assets` (`Image`) and the `/media` URL scheme | an image a page shows, from either source, at the widths it exists in; it holds `Image`, its `srcset` and the `/media` URL scheme with its width allowlist | the uploaded files (`media`), the files built into the binary (`assets`) | not `image`: the standard library's; not `photo`: a fourth word for an image, and empty-state art is not a photo |
+| `clientip` | planned, from `internal/ratelimit` | the client's address as seen through goen's trusted proxies; it holds the proxy list and the `X-Forwarded-For` resolution | limiter keys (`ratelimit`) | not `realip`: names nginx's module; not `proxy`: reads as `httputil.ReverseProxy` |
+| `hero` | planned, from `internal/ui/components` | a slide of the home page's carousel; it holds `Slide`, `CTA`, `Layout` and `Source`, which `home` produces and `admin/slides` lists | the home page (`home`), the promo strip (`site`, `ui/frame`), the editor (`admin/slides`) | not `carousel`: names the container, not the slide; not `slide` as a leaf: too generic. The schema says `hero_slides` |
+| `ui/stockrisk` | planned, from `internal/ui/pages/admin` | the list of SKUs ranked by how soon they run out, as three desks show it; it holds `Row`, `Rows` and `Section` | the estimate itself (`inventory`) | not `cover`: reads as a cover image, and `warranty` already says "cover"; not `runway`: a third word beside "days of cover" and "risk" |
+| `tone` | planned, from `internal/ui/components` | the stored colour mood a category or campaign wears; it holds the closed set, parse and labels | what a status colour means (`widget.Intent`), a page's image and tone (`catalog.Theme`) | not `palette`: the set, not one value; not `theme`: already `catalog.Theme` |
+
 ### Tests
 
 - Name a test after the unit it exercises: `TestParse` for a function, the

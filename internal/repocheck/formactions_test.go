@@ -22,7 +22,6 @@ import (
 	"github.com/koopa0/goen/internal/order/buyer"
 	"github.com/koopa0/goen/internal/payment"
 	"github.com/koopa0/goen/internal/ui/layouts"
-	"github.com/koopa0/goen/internal/ui/pages"
 	"github.com/koopa0/goen/internal/warranty"
 )
 
@@ -33,7 +32,7 @@ func methodFormActions(t *testing.T) map[string][]string {
 	t.Helper()
 	product := &products.ProductView{Slug: "product"}
 	newProduct := &products.ProductView{IsNew: true}
-	pdp := &pages.ProductView{Slug: "product"}
+	pdp := &catalog.ProductView{Slug: "product"}
 	ret := &returns.Return{ID: "return"}
 	return map[string][]string{
 		"internal/account/page.templ:v.AddressAction()":                                                      {(&account.AccountView{}).AddressAction(), (&account.AccountView{AddressDraft: &account.AddressDraft{ID: "address"}}).AddressAction()},
@@ -57,9 +56,9 @@ func methodFormActions(t *testing.T) map[string][]string {
 		"internal/admin/products/product_page.templ:templ.SafeURL(v.OptionValueAction() + \"#sec-options\")": {product.OptionValueAction() + "#sec-options"},
 		"internal/admin/products/product_page.templ:templ.SafeURL(v.SpecAction() + \"#sec-specs\")":          {product.SpecAction() + "#sec-specs"},
 		"internal/admin/products/product_page.templ:templ.SafeURL(v.SpecRemoveAction())":                     {product.SpecRemoveAction()},
-		"internal/ui/pages/product.templ:templ.SafeURL(v.NotifyAction())":                                    {pdp.NotifyAction()},
-		"internal/ui/pages/product.templ:templ.SafeURL(v.AskAction())":                                       {pdp.AskAction()},
-		"internal/ui/pages/product.templ:templ.SafeURL(v.ReviewAction())":                                    {pdp.ReviewAction()},
+		"internal/catalog/product_page.templ:templ.SafeURL(v.NotifyAction())":                                {pdp.NotifyAction()},
+		"internal/catalog/product_page.templ:templ.SafeURL(v.AskAction())":                                   {pdp.AskAction()},
+		"internal/catalog/product_page.templ:templ.SafeURL(v.ReviewAction())":                                {pdp.ReviewAction()},
 		"internal/admin/returns/page.templ:templ.SafeURL(r.Action())":                                        {ret.Action()},
 		"internal/admin/returns/returnconfirm.templ:templ.SafeURL(v.Action())":                               {(returns.ReturnConfirmation{ID: "return"}).Action()},
 		"internal/admin/refunds/refundconfirm.templ:templ.SafeURL(v.Action())":                               {(refunds.RefundConfirmation{OrderNumber: "order"}).Action()},

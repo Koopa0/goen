@@ -147,3 +147,29 @@ func TestAComparableTileDrawsItsSpecHighlights(t *testing.T) {
 		t.Errorf("tile omits %s", want)
 	}
 }
+
+func TestACardStrikesItsPriceOnlyOnSale(t *testing.T) {
+	t.Parallel()
+
+	ctx := i18n.WithLocale(t.Context(), i18n.ZhHant)
+	for _, tt := range []struct {
+		name       string
+		onSale     bool
+		wantStruck bool
+	}{
+		{"on sale", true, true},
+		{"not on sale", false, false},
+	} {
+		tile := ProductTile{Slug: "a", Name: "A", Brand: "B", PriceCents: 80000, CompareCents: 100000, InStock: true, OnSale: tt.onSale}
+		page := renderComponent(t, ctx, Tile(tile))
+		if got := strings.Contains(page, `class="goen-tile__was"`); got != tt.wantStruck {
+			t.Errorf("Tile %s: struck price drawn = %v, want %v", tt.name, got, tt.wantStruck)
+		}
+		if strings.Contains(page, "原價") != tt.wantStruck {
+			t.Errorf("Tile %s: the was-price label and the struck price disagree", tt.name)
+		}
+		if strings.Contains(page, "goen-tile__source") {
+			t.Errorf("Tile %s: a card has no room for a source line", tt.name)
+		}
+	}
+}

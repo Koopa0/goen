@@ -29,18 +29,18 @@ type ShopRules struct {
 
 func (r ShopRules) Stats(ctx context.Context) []components.Stat {
 	return []components.Stat{
-		r.holdStat(ctx),
-		r.rescissionStat(ctx),
+		r.HoldStat(ctx),
+		r.RescissionStat(ctx),
 		{
 			Label: i18n.T(ctx, i18n.KeyRuleReturn),
 			Value: components.StatCount(r.ReturnDays, i18n.T(ctx, i18n.KeyRuleUnitDays)),
 			Note:  i18n.T(ctx, i18n.KeyRuleReturnNote),
 		},
-		r.freeDeliveryStat(ctx),
+		r.FreeDeliveryStat(ctx),
 	}
 }
 
-func (r ShopRules) holdStat(ctx context.Context) components.Stat {
+func (r ShopRules) HoldStat(ctx context.Context) components.Stat {
 	return components.Stat{
 		Label: i18n.T(ctx, i18n.KeyRuleHold),
 		Value: components.StatCount(r.HoldMinutes, i18n.T(ctx, i18n.KeyRuleUnitMinutes)),
@@ -48,7 +48,7 @@ func (r ShopRules) holdStat(ctx context.Context) components.Stat {
 	}
 }
 
-func (r ShopRules) rescissionStat(ctx context.Context) components.Stat {
+func (r ShopRules) RescissionStat(ctx context.Context) components.Stat {
 	return components.Stat{
 		Label: i18n.T(ctx, i18n.KeyRuleRescission),
 		Value: components.StatCount(r.RescissionDays, i18n.T(ctx, i18n.KeyRuleUnitDays)),
@@ -56,8 +56,8 @@ func (r ShopRules) rescissionStat(ctx context.Context) components.Stat {
 	}
 }
 
-// freeDeliveryStat has no figure where some delivery method never turns free, and a stat with no figure is left out.
-func (r ShopRules) freeDeliveryStat(ctx context.Context) components.Stat {
+// FreeDeliveryStat has no figure where some delivery method never turns free, and a stat with no figure is left out.
+func (r ShopRules) FreeDeliveryStat(ctx context.Context) components.Stat {
 	if r.FreeDeliveryCents <= 0 {
 		return components.Stat{}
 	}

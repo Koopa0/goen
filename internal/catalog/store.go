@@ -244,21 +244,21 @@ func (s *Store) NewestProducts(ctx context.Context, n int32) ([]pages.ProductTil
 	return searchTiles(asSearch, offers), nil
 }
 
-func childCrumbs(rows []db.CategoryChildrenRow) []pages.Crumb {
-	out := make([]pages.Crumb, 0, len(rows))
+func childCrumbs(rows []db.CategoryChildrenRow) []Crumb {
+	out := make([]Crumb, 0, len(rows))
 	for _, r := range rows {
-		out = append(out, pages.Crumb{Slug: r.Slug, Name: r.Name})
+		out = append(out, Crumb{Slug: r.Slug, Name: r.Name})
 	}
 	return out
 }
 
 // The shorter array wins: a mismatched length would shift every label onto the
 // wrong link.
-func crumbs(slugs, names []string) []pages.Crumb {
+func crumbs(slugs, names []string) []Crumb {
 	n := min(len(slugs), len(names))
-	out := make([]pages.Crumb, 0, n)
+	out := make([]Crumb, 0, n)
 	for i := range n {
-		out = append(out, pages.Crumb{Slug: slugs[i], Name: names[i]})
+		out = append(out, Crumb{Slug: slugs[i], Name: names[i]})
 	}
 	return out
 }

@@ -55,7 +55,7 @@ func OnSale(featured, buyable bool, priceCents, compareCents int64) bool {
 func NewCampaignSchedule(ctx context.Context, title string, items int64, startsAt, endsAt, now time.Time) CampaignSchedule {
 	state := CampaignStateAt(startsAt, endsAt, now)
 	count := components.Stat{Label: i18n.T(ctx, i18n.KeySlideItems), Value: components.StatCount(items, i18n.T(ctx, i18n.KeyFactUnitItems))}
-	ends := pages.CampaignEndStat(ctx, endsAt, now)
+	ends := CampaignEndStat(ctx, endsAt, now)
 	schedule := CampaignSchedule{Ends: ends}
 
 	switch state {
@@ -144,7 +144,7 @@ func (s *Store) ListedCampaigns(ctx context.Context, page int) (CampaignPage, er
 		c := &rows[i]
 		view.Rows = append(view.Rows, CampaignSummary{
 			Slug: c.Slug, Title: c.Title, Products: c.Products,
-			EndsOn: pages.CampaignEndsOn(ctx, c.EndsAt, s.now()),
+			EndsOn: CampaignEndsOn(ctx, c.EndsAt, s.now()),
 		})
 	}
 	return view, nil
