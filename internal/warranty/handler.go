@@ -73,7 +73,7 @@ func (h *Handler) Order(w http.ResponseWriter, r *http.Request) {
 		layouts.Page{Title: fmt.Sprintf(i18n.T(r.Context(), i18n.KeyWarrantyRegisterMeta), view.Number)}, view))
 }
 
-func (h *Handler) orderView(w http.ResponseWriter, r *http.Request, userID string) (WarrantyOrderView, bool) {
+func (h *Handler) orderView(w http.ResponseWriter, r *http.Request, userID string) (OrderView, bool) {
 	view, err := h.store.Registrable(r.Context(), r.PathValue("number"), userID)
 	if err == nil {
 		return view, true
@@ -87,7 +87,7 @@ func (h *Handler) orderView(w http.ResponseWriter, r *http.Request, userID strin
 		h.log.ErrorContext(r.Context(), "read registrable lines", "error", err)
 		h.serverError(w, r)
 	}
-	return WarrantyOrderView{}, false
+	return OrderView{}, false
 }
 
 func (h *Handler) Register(w http.ResponseWriter, r *http.Request) {

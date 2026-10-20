@@ -10,7 +10,7 @@ import (
 	"github.com/koopa0/goen/internal/ui/layouts"
 )
 
-templ Contact(p layouts.Page, f ContactForm) {
+templ Contact(p layouts.Page, f Form) {
 	@layouts.Base(p) {
 		<div class="contact">
 			<div class="goen-pagehead">
@@ -18,7 +18,7 @@ templ Contact(p layouts.Page, f ContactForm) {
 				<p class="goen-pagehead__sub">{ i18n.T(ctx, i18n.KeyContactHours) }</p>
 			</div>
 			<div class="contact__layout">
-				@ContactPanel(f)
+				@Panel(f)
 				<aside class="contact__aside">
 					<div class="contact__methods">
 						@contactMethod("mailto:"+layouts.ContactEmail, i18n.T(ctx, i18n.KeyFieldEmail), layouts.ContactEmail) {
@@ -46,7 +46,7 @@ templ contactMethod(href, label, value string) {
 // The two banners are written here, not through the notice component: the layout
 // gate reads the refusal's sentence through a descendant pair
 // (scripts/check-layout.mjs).
-templ ContactPanel(f ContactForm) {
+templ Panel(f Form) {
 	if f.Done {
 		<div class="goen-card contact__panel contact__panel--done" role="status" id="contact-form" tabindex="-1">
 			<span class="contact__donemark" aria-hidden="true">

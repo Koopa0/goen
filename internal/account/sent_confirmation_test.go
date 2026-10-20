@@ -17,7 +17,7 @@ func TestAccountEmailReentry(t *testing.T) {
 		t.Run(locale.Tag(), func(t *testing.T) {
 			t.Parallel()
 			ctx := i18n.WithLocale(t.Context(), locale)
-			body := renderComponent(t, ctx, Account(AccountMeta(ctx), &AccountView{Email: "old@example.com", EmailConfirmationRequested: true, EmailReentry: true}))
+			body := renderComponent(t, ctx, Account(Meta(ctx), &View{Email: "old@example.com", EmailConfirmationRequested: true, EmailReentry: true}))
 			doc, err := html.Parse(strings.NewReader(body))
 			if err != nil {
 				t.Fatal(err)

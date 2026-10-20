@@ -15,7 +15,7 @@ import (
 func TestARuleWritesItselfIntoTheMarkup(t *testing.T) {
 	t.Parallel()
 	ctx := i18n.WithLocale(t.Context(), i18n.ZhHant)
-	html := renderToString(t, contact.Contact(layouts.Page{Title: "contact"}, contact.ContactForm{}))
+	html := renderToString(t, contact.Contact(layouts.Page{Title: "contact"}, contact.Form{}))
 	rule := fieldrule.Email
 	for _, want := range []string{
 		`data-rule="email"`,

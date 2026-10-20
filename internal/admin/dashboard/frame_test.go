@@ -52,7 +52,7 @@ func TestTheBackOfficeRendersNoStorefrontChrome(t *testing.T) {
 			"chrome it replaced took the only one with it")
 	}
 
-	shop := renderComponent(t, ctx, account.Account(account.AccountMeta(ctx), &account.AccountView{Email: "somebody@example.com"}))
+	shop := renderComponent(t, ctx, account.Account(account.Meta(ctx), &account.View{Email: "somebody@example.com"}))
 	for where, markup := range storefrontChrome {
 		if !strings.Contains(shop, markup) {
 			t.Errorf("the storefront lost %s: no %s in the page", where, markup)

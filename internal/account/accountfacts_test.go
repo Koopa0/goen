@@ -25,11 +25,11 @@ func TestAccountOrderRowLastDayOnlyWhenOneDayHolds(t *testing.T) {
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
-			view := &AccountView{Orders: []AccountOrder{{
+			view := &View{Orders: []AccountOrder{{
 				Number: "GO-261001-000001", Status: order.FulfillmentShipped, PlacedAt: placed, TotalCents: 106000,
 				LineCount: 1, OneLastDay: tc.delivered, LastDay: lastDay,
 			}}}
-			html := renderToString(t, Account(AccountMeta(ctx), view))
+			html := renderToString(t, Account(Meta(ctx), view))
 			if !strings.Contains(html, `class="ui-statline ui-statline--s"`) {
 				t.Error("an order row carries no small stat line")
 			}

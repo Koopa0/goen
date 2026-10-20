@@ -37,7 +37,7 @@ func methodFormActions(t *testing.T) map[string][]string {
 	pdp := &catalog.ProductView{Slug: "product"}
 	ret := &returns.Return{ID: "return"}
 	return map[string][]string{
-		"internal/account/page.templ:v.AddressAction()":                                                      {(&account.AccountView{}).AddressAction(), (&account.AccountView{AddressDraft: &account.AddressDraft{ID: "address"}}).AddressAction()},
+		"internal/account/page.templ:v.AddressAction()":                                                      {(&account.View{}).AddressAction(), (&account.View{AddressDraft: &account.AddressDraft{ID: "address"}}).AddressAction()},
 		"internal/admin/products/product_label_page.templ:templ.URL(v.LabelAction())":                        {product.LabelAction()},
 		"internal/ui/layouts/banner.templ:templ.SafeURL(b.DismissAction())":                                  {(layouts.Banner{}).DismissAction()},
 		"internal/ui/layouts/email_link.templ:templ.SafeURL(v.Action)":                                       newsletterFormActions(t),
@@ -78,7 +78,7 @@ func methodFormActions(t *testing.T) map[string][]string {
 		"internal/admin/slides/slides_page.templ:templ.SafeURL(slide.ToggleAction())":                        {(slides.HeroSlide{ID: "slide"}).ToggleAction()},
 		"internal/admin/questions/question_page.templ:templ.SafeURL(q.AnswerAction())":                       {(questions.Question{ID: "question"}).AnswerAction()},
 		"internal/catalog/listing.templ:templ.SafeURL(v.FilterAction())":                                     {(catalog.ListingView{Slug: "category"}).FilterAction()},
-		"internal/warranty/page.templ:templ.SafeURL(v.Action())":                                             {(warranty.WarrantyOrderView{Number: "order"}).Action()},
+		"internal/warranty/page.templ:templ.SafeURL(v.Action())":                                             {(warranty.OrderView{Number: "order"}).Action()},
 		"internal/payment/pay.templ:templ.SafeURL(v.Action())":                                               {(&payment.PayView{Number: "order"}).Action()},
 		"internal/order/buyer/returns.templ:templ.SafeURL(v.Action())":                                       {(buyer.ReturnsView{Number: "order"}).Action()},
 		"internal/admin/products/product_invoice_line.templ:templ.URL(v.InvoiceLineAction())":                {product.InvoiceLineAction()},
