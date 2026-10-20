@@ -19,14 +19,16 @@ import (
 	"github.com/koopa0/goen/internal/admin/customers"
 	"github.com/koopa0/goen/internal/admin/dashboard"
 	"github.com/koopa0/goen/internal/admin/faq"
-	"github.com/koopa0/goen/internal/admin/feedback"
 	"github.com/koopa0/goen/internal/admin/health"
+	"github.com/koopa0/goen/internal/admin/messages"
 	"github.com/koopa0/goen/internal/admin/newsletters"
 	"github.com/koopa0/goen/internal/admin/orders"
 	"github.com/koopa0/goen/internal/admin/products"
+	"github.com/koopa0/goen/internal/admin/questions"
 	"github.com/koopa0/goen/internal/admin/refunds"
 	"github.com/koopa0/goen/internal/admin/reports"
 	"github.com/koopa0/goen/internal/admin/returns"
+	"github.com/koopa0/goen/internal/admin/reviews"
 	"github.com/koopa0/goen/internal/admin/shipping"
 	"github.com/koopa0/goen/internal/admin/slides"
 	"github.com/koopa0/goen/internal/admin/staff"
@@ -336,7 +338,9 @@ func backOfficeRoutes(mux *http.ServeMux, cfg *BackOfficeConfig, factorStore *tw
 	issueDesk := newsletters.NewHandler(newsletters.NewStore(adminPool), log)
 	faqDesk := faq.NewHandler(faq.NewStore(adminPool), log)
 	sales := campaigns.NewHandler(campaigns.NewStore(adminPool), adminImages, log)
-	inbox := feedback.NewHandler(feedback.NewStore(adminPool), log)
+	reviewDesk := reviews.NewHandler(reviews.NewStore(adminPool), log)
+	questionDesk := questions.NewHandler(questions.NewStore(adminPool), log)
+	messageDesk := messages.NewHandler(messages.NewStore(adminPool), log)
 	roster := staff.NewHandler(staff.NewStore(adminPool), log, factorStore.Enabled())
 	lookup := customers.NewHandler(customers.NewStore(adminPool), log)
 	registrations := warranties.NewHandler(warranties.NewStore(adminPool), log)
@@ -360,7 +364,9 @@ func backOfficeRoutes(mux *http.ServeMux, cfg *BackOfficeConfig, factorStore *tw
 	lookup.Routes(mux, backOffice)
 	registrations.Routes(mux, backOffice)
 	roster.Routes(mux, backOffice)
-	inbox.Routes(mux, backOffice)
+	messageDesk.Routes(mux, backOffice)
+	reviewDesk.Routes(mux, backOffice)
+	questionDesk.Routes(mux, backOffice)
 	sales.Routes(mux, backOffice)
 	slideDesk.Routes(mux, backOffice)
 	bannerDesk.Routes(mux, backOffice)

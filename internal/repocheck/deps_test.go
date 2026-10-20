@@ -75,7 +75,7 @@ var (
 		"internal/returns", "internal/sales", "internal/shipping", "internal/user",
 	}
 	// storefrontPages are the packages that serve storefront pages. The rule
-	// that uses them leaves out, on purpose: internal/contact (admin/feedback
+	// that uses them leaves out, on purpose: internal/contact (admin/messages
 	// uses its Subject vocabulary), internal/loyalty (programme rules
 	// admin/tiers configures), and internal/media and internal/payment
 	// (shared infrastructure). It matches exactly, not by prefix:

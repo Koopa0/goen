@@ -31,11 +31,12 @@ sql:
       - "internal/admin/customers/query.sql"
       - "internal/admin/dashboard/query.sql"
       - "internal/admin/faq/query.sql"
-      - "internal/admin/feedback/query.sql"
       - "internal/admin/health/query.sql"
+      - "internal/admin/messages/query.sql"
       - "internal/admin/newsletters/query.sql"
       - "internal/admin/orders/query.sql"
       - "internal/admin/products/query.sql"
+      - "internal/admin/questions/query.sql"
       - "internal/admin/refunds/query.sql"
       - "internal/admin/shipping/query.sql"
       - "internal/admin/slides/query.sql"
@@ -47,6 +48,7 @@ sql:
       - "internal/admin/returns/query.sql"
       - "internal/admin/reports/query.sql"
       - "internal/admin/reports/orders_export.sql"
+      - "internal/admin/reviews/query.sql"
       - "internal/invoice/issuer/query.sql"
     gen:
       go:
