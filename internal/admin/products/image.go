@@ -39,7 +39,7 @@ func (s *Store) AttachImage(
 	}
 	return audit.Run(ctx, s.pool, audit.Event{
 		Action: audit.ActionAttachImage, Table: "product_images", ID: uuid.NullUUID{},
-		After: map[string]any{"product": slug, "digest": digest, "alt": alt, "option_value": shows},
+		After: audit.State{audit.FieldProduct: slug, audit.FieldDigest: digest, audit.FieldAlt: alt, audit.FieldOptionValue: shows},
 	},
 		func(ctx context.Context, q *db.Queries) error {
 			// The same lock, taken before the next position is computed: MoveImage
@@ -66,7 +66,7 @@ func (s *Store) SetImageOption(ctx context.Context, slug, key, optionValue strin
 	}
 	return audit.Run(ctx, s.pool, audit.Event{
 		Action: audit.ActionSetImageOption, Table: "product_images", ID: uuid.NullUUID{},
-		After: map[string]any{"product": slug, "digest": key, "option_value": shows},
+		After: audit.State{audit.FieldProduct: slug, audit.FieldDigest: key, audit.FieldOptionValue: shows},
 	},
 		func(ctx context.Context, q *db.Queries) error {
 			n, err := q.SetProductImageOptionValue(ctx, db.SetProductImageOptionValueParams{
@@ -107,7 +107,7 @@ func imageOptionRefusal(err error) error {
 func (s *Store) DetachImage(ctx context.Context, slug, digest string) error {
 	return audit.Run(ctx, s.pool, audit.Event{
 		Action: audit.ActionDetachImage, Table: "product_images", ID: uuid.NullUUID{},
-		Before: map[string]any{"product": slug, "digest": digest},
+		Before: audit.State{audit.FieldProduct: slug, audit.FieldDigest: digest},
 	},
 		func(ctx context.Context, q *db.Queries) error {
 			n, err := q.DetachProductImage(ctx, db.DetachProductImageParams{
@@ -141,7 +141,7 @@ func (s *Store) MoveImage(ctx context.Context, slug, digest string, move ImageMo
 	order := []string{}
 	return audit.Run(ctx, s.pool, audit.Event{
 		Action: audit.ActionMoveImage, Table: "product_images", ID: uuid.NullUUID{},
-		After: map[string]any{"product": slug, "digest": digest, "move": string(move), "order": &order},
+		After: audit.State{audit.FieldProduct: slug, audit.FieldDigest: digest, audit.FieldMove: string(move), audit.FieldOrder: &order},
 	},
 		func(ctx context.Context, q *db.Queries) error {
 			// The product's catalogue lock, the one variant creation takes: it

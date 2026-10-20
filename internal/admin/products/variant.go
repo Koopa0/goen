@@ -95,7 +95,7 @@ func (s *Store) insertVariant(
 ) error {
 	return audit.Run(ctx, s.pool, audit.Event{
 		Action: audit.ActionCreateVariant, Table: "product_variants", ID: uuid.NullUUID{},
-		Before: nil, After: map[string]any{"product": slug, "sku": f.SKU, "price_cents": f.PriceCents},
+		Before: nil, After: audit.State{audit.FieldProduct: slug, audit.FieldSKU: f.SKU, audit.FieldPriceCents: f.PriceCents},
 	},
 		func(ctx context.Context, q *db.Queries) error {
 			if _, err := q.LockProductCatalogue(ctx, slug); err != nil {

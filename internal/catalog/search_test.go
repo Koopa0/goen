@@ -10,7 +10,6 @@ import (
 	"testing"
 
 	"github.com/koopa0/goen/internal/i18n"
-	"github.com/koopa0/goen/internal/ui/pages"
 )
 
 func TestSearchPageLeavesTheHeaderInputBlankWithoutAQuery(t *testing.T) {
@@ -73,7 +72,7 @@ func TestSearchUnicodeWhitespaceIsEmptyForPatternAndDisplay(t *testing.T) {
 			if got := SearchPattern(q); got != "" {
 				t.Errorf("SearchPattern(%q) = %q, want empty", q, got)
 			}
-			view := pages.SearchView{Query: trimForDisplay(q)}
+			view := SearchView{Query: trimForDisplay(q)}
 			if view.Searched() {
 				t.Errorf("SearchView.Query = %q; Searched() is true for Unicode-space-only input", view.Query)
 			}
@@ -91,7 +90,7 @@ func TestSearchUnicodeWhitespaceIsEmptyForPatternAndDisplay(t *testing.T) {
 
 func TestSearchKeepsATermWrappedInUnicodeSpaceThenCapsRunes(t *testing.T) {
 	q := "\u00a0\u3000pixel\u2003"
-	view := pages.SearchView{Query: trimForDisplay(q)}
+	view := SearchView{Query: trimForDisplay(q)}
 	if view.Query != "pixel" {
 		t.Fatalf("trimForDisplay(%q) = %q, want %q", q, view.Query, "pixel")
 	}
@@ -104,7 +103,7 @@ func TestSearchKeepsATermWrappedInUnicodeSpaceThenCapsRunes(t *testing.T) {
 
 	over := "\u00a0" + strings.Repeat("字", MaxQueryRunes+8) + "\u3000"
 	want := strings.Repeat("字", MaxQueryRunes)
-	capped := pages.SearchView{Query: trimForDisplay(over)}
+	capped := SearchView{Query: trimForDisplay(over)}
 	if capped.Query != want {
 		t.Fatalf("display after edge trim kept %d runes, want %d", len([]rune(capped.Query)), MaxQueryRunes)
 	}

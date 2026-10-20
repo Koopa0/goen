@@ -22,6 +22,7 @@ import (
 	"github.com/koopa0/goen/internal/admin/admintest"
 	"github.com/koopa0/goen/internal/admin/audit"
 	"github.com/koopa0/goen/internal/admin/products"
+	"github.com/koopa0/goen/internal/admin/products/productstest"
 	"github.com/koopa0/goen/internal/catalog"
 	"github.com/koopa0/goen/internal/db"
 	"github.com/koopa0/goen/internal/i18n"
@@ -130,7 +131,7 @@ func TestProductLabelRoutesRefuseCustomersAndKeepInvalidForm(t *testing.T) {
 		t.Fatal(err)
 	}
 	s := products.NewStore(p)
-	h := admintest.ProductDesk(p, s)
+	h := productstest.NewHandler(p, s)
 	mux := http.NewServeMux()
 	h.Routes(mux, access.New(slog.New(slog.DiscardHandler), nil))
 	path := "/admin/products/" + slug + "/label"
@@ -189,7 +190,7 @@ func TestProductLabelRedirectSurvivesAProductReadFailure(t *testing.T) {
 	if err = writer.QueryRow(ctx, `SELECT current_user`).Scan(&role); err != nil || role != "admin" {
 		t.Fatalf("label writer role=%q: %v", role, err)
 	}
-	handler := admintest.ProductDesk(p, products.NewStore(writer))
+	handler := productstest.NewHandler(p, products.NewStore(writer))
 	mux := http.NewServeMux()
 	handler.Routes(mux, access.New(slog.New(slog.DiscardHandler), nil))
 	request := httptest.NewRequestWithContext(ctx, http.MethodPost, "/admin/products/"+slug+"/label", strings.NewReader("origin=Redirect+fixture"))
@@ -250,7 +251,7 @@ func TestProductLabelDatabaseRefusalsKeepTheDraftAndLeaveNoWrite(t *testing.T) {
 				t.Fatalf("writer role=%q: %v", role, err)
 			}
 			mux := http.NewServeMux()
-			admintest.ProductDesk(owner, products.NewStore(writer)).Routes(mux, access.New(slog.New(slog.DiscardHandler), nil))
+			productstest.NewHandler(owner, products.NewStore(writer)).Routes(mux, access.New(slog.New(slog.DiscardHandler), nil))
 			for _, locale := range []i18n.Locale{i18n.ZhHant, i18n.En} {
 				req := httptest.NewRequestWithContext(i18n.WithLocale(ctx, locale), http.MethodPost, "/admin/products/"+slug+"/label", strings.NewReader("origin=Taiwan&domestic_party_name=Retained+maker"))
 				req.Header.Set("Content-Type", "application/x-www-form-urlencoded")

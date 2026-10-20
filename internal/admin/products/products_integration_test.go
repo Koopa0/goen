@@ -23,6 +23,7 @@ import (
 	"github.com/koopa0/goen/internal/admin/admintest"
 	"github.com/koopa0/goen/internal/admin/audit"
 	"github.com/koopa0/goen/internal/admin/products"
+	"github.com/koopa0/goen/internal/admin/products/productstest"
 	"github.com/koopa0/goen/internal/product"
 	"github.com/koopa0/goen/internal/user"
 	"github.com/koopa0/goen/internal/web"
@@ -40,7 +41,7 @@ func TestProductReadsDistinguishAbsenceFromInfrastructure(t *testing.T) {
 	missingReq := httptest.NewRequestWithContext(ctx, http.MethodGet, "/admin/products/"+missing, nil)
 	missingReq.SetPathValue("slug", missing)
 	missingRes := httptest.NewRecorder()
-	admintest.ProductDesk(pool, s).Edit(missingRes, missingReq)
+	productstest.NewHandler(pool, s).Edit(missingRes, missingReq)
 	if missingRes.Code != http.StatusNotFound {
 		t.Fatalf("missing product page answered %d, want 404", missingRes.Code)
 	}
@@ -84,7 +85,7 @@ func TestProductReadsDistinguishAbsenceFromInfrastructure(t *testing.T) {
 		t.Fatalf("product read failure = %v, want preserved PgError 57014", err)
 	}
 
-	timedHandler := admintest.ProductDesk(timeoutPool, timedStore)
+	timedHandler := productstest.NewHandler(timeoutPool, timedStore)
 	readReq := httptest.NewRequestWithContext(ctx, http.MethodGet, "/admin/products/"+existing, nil)
 	readReq.SetPathValue("slug", existing)
 	readRes := httptest.NewRecorder()
@@ -107,7 +108,7 @@ func TestProductReadsDistinguishAbsenceFromInfrastructure(t *testing.T) {
 func TestProductUpdateDistinguishesAbsenceFromSuccess(t *testing.T) {
 	ctx, _ := admintest.StaffContext(t, pool)
 	s := products.NewStore(pool)
-	slug := admintest.DraftProduct(t, ctx, pool, s)
+	slug := productstest.Draft(t, ctx, pool, s)
 	view, err := s.Product(ctx, slug)
 	if err != nil {
 		t.Fatalf("read product fixture: %v", err)
@@ -142,7 +143,7 @@ func TestProductUpdateDistinguishesAbsenceFromSuccess(t *testing.T) {
 	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
 	req.SetPathValue("slug", missing)
 	res := httptest.NewRecorder()
-	admintest.ProductDesk(pool, s).Update(res, req)
+	productstest.NewHandler(pool, s).Update(res, req)
 	if res.Code != http.StatusNotFound {
 		t.Fatalf("UpdateProduct(absent) HTTP status = %d, want 404", res.Code)
 	}
@@ -182,7 +183,7 @@ func TestAnAuditRowNamesItsActorAndRequest(t *testing.T) {
 func TestProductUpdateAndAuditCommitTogether(t *testing.T) {
 	ctx, actor := admintest.StaffContext(t, pool)
 	s := products.NewStore(pool)
-	slug := admintest.DraftProduct(t, ctx, pool, s)
+	slug := productstest.Draft(t, ctx, pool, s)
 	view, err := s.Product(ctx, slug)
 	if err != nil {
 		t.Fatalf("read product fixture: %v", err)
@@ -353,7 +354,7 @@ func twoProducts(t *testing.T) (first, second string) {
 func TestTheShopCanGiveAProductASpecTable(t *testing.T) {
 	ctx, _ := admintest.StaffContext(t, pool)
 	s := products.NewStore(pool)
-	slug := admintest.DraftProduct(t, ctx, pool, s)
+	slug := productstest.Draft(t, ctx, pool, s)
 
 	if errs, err := s.AddSpec(ctx, slug, products.SpecDraft{
 		Label: "螢幕", Value: "6.3 吋 OLED", LabelEn: "Screen",
@@ -393,7 +394,7 @@ func TestTheShopCanGiveAProductASpecTable(t *testing.T) {
 		t.Errorf("after removing 螢幕 the table is %+v", after.Specs)
 	}
 
-	other := admintest.DraftProduct(t, ctx, pool, s)
+	other := productstest.Draft(t, ctx, pool, s)
 	if rmErr := s.RemoveSpec(ctx, other, after.Specs[0].ID); !errors.Is(rmErr, products.ErrNotFound) {
 		t.Errorf("removing another product's spec returned %v, want ErrNotFound", rmErr)
 	}
@@ -402,7 +403,7 @@ func TestTheShopCanGiveAProductASpecTable(t *testing.T) {
 func TestASpecIsRefusedRatherThanTruncated(t *testing.T) {
 	ctx, _ := admintest.StaffContext(t, pool)
 	s := products.NewStore(pool)
-	slug := admintest.DraftProduct(t, ctx, pool, s)
+	slug := productstest.Draft(t, ctx, pool, s)
 
 	tests := []struct {
 		name  string
@@ -464,7 +465,7 @@ func TestASpecIsRefusedRatherThanTruncated(t *testing.T) {
 func TestAProductCannotHaveTwoSpecsWithTheSameIdentity(t *testing.T) {
 	ctx, _ := admintest.StaffContext(t, pool)
 	s := products.NewStore(pool)
-	slug := admintest.DraftProduct(t, ctx, pool, s)
+	slug := productstest.Draft(t, ctx, pool, s)
 
 	if errs, err := s.AddSpec(ctx, slug, products.SpecDraft{
 		Label: "連接埠", Value: "USB-C",
@@ -496,7 +497,7 @@ func TestAProductCannotHaveTwoSpecsWithTheSameIdentity(t *testing.T) {
 func TestTheShopCanGiveAProductAVariantPicker(t *testing.T) {
 	ctx, _ := admintest.StaffContext(t, pool)
 	s := products.NewStore(pool)
-	slug := admintest.DraftProduct(t, ctx, pool, s)
+	slug := productstest.Draft(t, ctx, pool, s)
 
 	if errs, err := s.AddOption(ctx, slug, products.OptionDraft{
 		Name: "顏色", NameEn: "Colour",
@@ -582,8 +583,8 @@ func TestTheShopCanGiveAProductAVariantPicker(t *testing.T) {
 func TestAMistypedColourComesBackBesideTheField(t *testing.T) {
 	ctx, _ := admintest.StaffContext(t, pool)
 	s := products.NewStore(pool)
-	h := admintest.ProductDesk(pool, s)
-	slug := admintest.DraftProduct(t, ctx, pool, s)
+	h := productstest.NewHandler(pool, s)
+	slug := productstest.Draft(t, ctx, pool, s)
 
 	if errs, err := s.AddOption(ctx, slug, products.OptionDraft{
 		Name: "顏色", NameEn: "Colour",
@@ -674,7 +675,7 @@ func TestAVariantCannotBorrowAnotherProductsOptionValue(t *testing.T) {
 	ctx, _ := admintest.StaffContext(t, pool)
 	s := products.NewStore(pool)
 
-	first := admintest.DraftProduct(t, ctx, pool, s)
+	first := productstest.Draft(t, ctx, pool, s)
 	if errs, err := s.AddOption(ctx, first, products.OptionDraft{Name: "顏色"}); err != nil ||
 		len(errs) > 0 {
 		t.Fatalf("AddOption: %v %v", err, errs)
@@ -694,7 +695,7 @@ func TestAVariantCannotBorrowAnotherProductsOptionValue(t *testing.T) {
 	}
 	borrowed := firstView.Options[0].Values[0].ID
 
-	second := admintest.DraftProduct(t, ctx, pool, s)
+	second := productstest.Draft(t, ctx, pool, s)
 	if errs, addErr := s.AddOption(ctx, second, products.OptionDraft{Name: "顏色"}); addErr != nil ||
 		len(errs) > 0 {
 		t.Fatalf("AddOption: %v %v", addErr, errs)
@@ -723,7 +724,7 @@ func TestTheOptionValueIsAddedToTheRightProduct(t *testing.T) {
 	ctx, _ := admintest.StaffContext(t, pool)
 	s := products.NewStore(pool)
 
-	first := admintest.DraftProduct(t, ctx, pool, s)
+	first := productstest.Draft(t, ctx, pool, s)
 	if errs, err := s.AddOption(ctx, first, products.OptionDraft{Name: "顏色"}); err != nil ||
 		len(errs) > 0 {
 		t.Fatalf("AddOption: %v %v", err, errs)
@@ -733,7 +734,7 @@ func TestTheOptionValueIsAddedToTheRightProduct(t *testing.T) {
 		t.Fatalf("Product: %v", err)
 	}
 
-	second := admintest.DraftProduct(t, ctx, pool, s)
+	second := productstest.Draft(t, ctx, pool, s)
 	errs, err := s.AddOptionValue(ctx, second, products.OptionDraft{
 		OptionID: view.Options[0].ID, Name: "星霧藍",
 	})
@@ -748,7 +749,7 @@ func TestTheOptionValueIsAddedToTheRightProduct(t *testing.T) {
 func TestAltTextFollowsThePagesLanguage(t *testing.T) {
 	ctx, _ := admintest.StaffContext(t, pool)
 	s := products.NewStore(pool)
-	slug := admintest.DraftProduct(t, ctx, pool, s)
+	slug := productstest.Draft(t, ctx, pool, s)
 	digest := storeMedia(t, pool)
 
 	if err := s.AttachImage(ctx, slug, digest, "銀色筆電,螢幕開啟",
@@ -778,7 +779,7 @@ func TestAltTextFollowsThePagesLanguage(t *testing.T) {
 		})
 	}
 
-	second := admintest.DraftProduct(t, ctx, pool, s)
+	second := productstest.Draft(t, ctx, pool, s)
 	if err := s.AttachImage(ctx, second, digest, "沒有英文說明", "", "", 800, 600); err != nil {
 		t.Fatalf("AttachImage without English: %v", err)
 	}
@@ -810,7 +811,7 @@ func storeMedia(t *testing.T, in *pgxpool.Pool) string {
 func TestAMistypedWarrantyTermIsRefusedNotDropped(t *testing.T) {
 	ctx, _ := admintest.StaffContext(t, pool)
 	s := products.NewStore(pool)
-	slug := admintest.DraftProduct(t, ctx, pool, s)
+	slug := productstest.Draft(t, ctx, pool, s)
 	view, err := s.Product(ctx, slug)
 	if err != nil {
 		t.Fatalf("Product: %v", err)
@@ -835,7 +836,7 @@ func TestAMistypedWarrantyTermIsRefusedNotDropped(t *testing.T) {
 	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
 	req.SetPathValue("slug", slug)
 	res := httptest.NewRecorder()
-	admintest.ProductDesk(pool, s).Update(res, req)
+	productstest.NewHandler(pool, s).Update(res, req)
 	if res.Code != http.StatusUnprocessableEntity {
 		t.Errorf("UpdateProduct(warranty_months=%q) status = %d, want 422", "12o", res.Code)
 	} else {
@@ -861,13 +862,13 @@ func TestAMistypedWarrantyTermIsRefusedNotDropped(t *testing.T) {
 func TestAParcelSumCannotBeShorterThanItsLongestSide(t *testing.T) {
 	ctx, _ := admintest.StaffContext(t, pool)
 	s := products.NewStore(pool)
-	slug := admintest.DraftProduct(t, ctx, pool, s)
+	slug := productstest.Draft(t, ctx, pool, s)
 	sku := "SHORT-SUM-" + strings.ToUpper(uuid.NewString()[:8])
 	form := url.Values{
 		"sku": {sku}, "price": {"1000"}, "safety": {"0"},
 		"parcel_longest": {"500"}, "parcel_sum": {"499"}, "parcel_weight": {"1000"},
 	}
-	res := admintest.PostVariantForm(t, admintest.ProductDesk(pool, s), ctx, slug, form)
+	res := productstest.PostVariantForm(t, productstest.NewHandler(pool, s), ctx, slug, form)
 	if res.Code != http.StatusUnprocessableEntity {
 		t.Errorf("AddVariant(parcel_sum < parcel_longest) status = %d, want 422", res.Code)
 	} else {
@@ -897,7 +898,7 @@ func TestAParcelSumCannotBeShorterThanItsLongestSide(t *testing.T) {
 func TestTheShopSetsEachProductsWarrantyTerm(t *testing.T) {
 	ctx, _ := admintest.StaffContext(t, pool)
 	s := products.NewStore(pool)
-	slug := admintest.DraftProduct(t, ctx, pool, s)
+	slug := productstest.Draft(t, ctx, pool, s)
 
 	view, err := s.Product(ctx, slug)
 	if err != nil {

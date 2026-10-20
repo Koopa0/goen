@@ -41,6 +41,25 @@ func NewHandler(log *slog.Logger, baseURL string, catalogue Catalogue, content *
 	return &Handler{log: log, baseURL: baseURL, catalogue: catalogue, content: content, secure: secure}
 }
 
+// Routes registers the shop's own pages: the policies, the FAQ, the sitemap,
+// the language switch and the promotion strip's dismissal. The catch-all 404 is
+// the caller's, because every unmatched path reaches it, not only this
+// package's.
+func (h *Handler) Routes(mux *http.ServeMux) {
+	mux.HandleFunc("GET /sitemap.xml", h.Sitemap)
+	mux.HandleFunc("GET /robots.txt", h.Robots)
+	mux.HandleFunc("POST /promo/dismiss", h.DismissBanner)
+	mux.HandleFunc("POST /locale", h.SetLocale)
+	mux.HandleFunc("GET /faq", h.FAQ)
+	mux.HandleFunc("GET /shipping", h.Shipping)
+	mux.HandleFunc("GET /returns", h.Policy)
+	mux.HandleFunc("GET /payment", h.Policy)
+	mux.HandleFunc("GET /warranty", h.Policy)
+	mux.HandleFunc("GET /privacy", h.Policy)
+	mux.HandleFunc("GET /terms", h.Policy)
+	mux.HandleFunc("GET /about", h.About)
+}
+
 func (h *Handler) About(w http.ResponseWriter, r *http.Request) {
 	web.Render(w, r, h.log, http.StatusOK, About(AboutMeta(r.Context())))
 }

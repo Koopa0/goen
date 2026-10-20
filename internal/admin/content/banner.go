@@ -110,7 +110,7 @@ func (s *Store) CreateBanner(ctx context.Context, f *BannerForm) (map[string]str
 	}
 	if err := audit.Run(ctx, s.pool, audit.Event{
 		Action: audit.ActionCreateBanner, Table: "promo_banners",
-		After: map[string]any{"message": f.Message, "cta": f.CTAHref},
+		After: audit.State{audit.FieldMessage: f.Message, audit.FieldCTA: f.CTAHref},
 	}, func(ctx context.Context, q *db.Queries) error {
 		return q.CreateBanner(ctx, db.CreateBannerParams{
 			Message: f.Message, MessageShort: f.Short, Code: f.Code,
@@ -132,7 +132,7 @@ func (s *Store) SetBannerActive(ctx context.Context, id string, active bool) err
 	}
 	return audit.Run(ctx, s.pool, audit.Event{
 		Action: audit.ActionToggleBanner, Table: "promo_banners", ID: audit.EntityID(bannerID),
-		After: map[string]any{"active": active},
+		After: audit.State{audit.FieldActive: active},
 	}, func(ctx context.Context, q *db.Queries) error {
 		n, execErr := q.SetBannerActive(ctx, db.SetBannerActiveParams{
 			BannerID: bannerID, IsActive: active,

@@ -32,6 +32,21 @@ func NewHandler(store *Store, limit *ratelimit.Limiter, log *slog.Logger) *Handl
 	return &Handler{store: store, limit: limit, log: log}
 }
 
+// Routes registers signing up and the two mailed links.
+func (h *Handler) Routes(mux *http.ServeMux) {
+	// Submit applies the per-IP bound itself: Guard would answer plain text and
+	// htmx would swap that over the footer form.
+	mux.HandleFunc("POST /newsletter", h.Submit)
+	mux.HandleFunc("GET /newsletter/thanks", h.Thanks)
+	// Both links open a page carrying a form; a GET that confirmed or
+	// unsubscribed would be completed by every link scanner that reads the mail
+	// before its owner does.
+	mux.HandleFunc("GET /newsletter/confirm", h.ConfirmPage)
+	mux.HandleFunc("POST /newsletter/confirm", h.Confirm)
+	mux.HandleFunc("GET /newsletter/unsubscribe", h.UnsubscribePage)
+	mux.HandleFunc("POST /newsletter/unsubscribe", h.Unsubscribe)
+}
+
 // Submit joins nobody to the list and answers every outcome identically.
 func (h *Handler) Submit(w http.ResponseWriter, r *http.Request) {
 	// Per-IP lives here rather than in Guard so an HTMX refusal can still
@@ -243,7 +258,7 @@ func parseUnsubscribeForm(w http.ResponseWriter, r *http.Request) error {
 	}
 	// RFC 8058 receivers may use either form encoding. ParseForm has already
 	// bounded the body, but it leaves multipart fields unread.
-	err = r.ParseMultipartForm(web.MaxFormBytes)
+	err = r.ParseMultipartForm(web.MaxFormBytes) //nolint:gosec // G120: web.ParseForm above bounded the body with http.MaxBytesReader
 	if r.MultipartForm != nil {
 		defer func() { _ = r.MultipartForm.RemoveAll() }() //nolint:errcheck // Best-effort temporary-file cleanup.
 	}

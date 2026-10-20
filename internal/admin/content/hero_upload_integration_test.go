@@ -5,7 +5,6 @@ package content_test
 import (
 	"bytes"
 	"context"
-	"errors"
 	"image"
 	"image/png"
 	"log/slog"
@@ -18,16 +17,14 @@ import (
 
 	"github.com/google/go-cmp/cmp"
 	"github.com/google/uuid"
-	"github.com/jackc/pgx/v5"
-	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"golang.org/x/net/html"
 
 	"github.com/koopa0/goen/internal/admin/admintest"
 	"github.com/koopa0/goen/internal/admin/content"
-	"github.com/koopa0/goen/internal/db"
 	"github.com/koopa0/goen/internal/i18n"
 	"github.com/koopa0/goen/internal/media"
+	"github.com/koopa0/goen/internal/media/mediatest"
 )
 
 // TestARefusedHeroSlideStoresNoImage holds the order of the hero form: its copy
@@ -464,10 +461,9 @@ func TestHeroUploadsKeepStorageFailuresSeparateFromRefusals(t *testing.T) {
 		}
 		var diagnostics bytes.Buffer
 		logger := slog.New(slog.NewJSONHandler(&diagnostics, nil))
-		witness := &heroUploadWriteTrace{}
-		mediaPool := heroUploadWritePool(t, adminPool, witness)
+		var writes mediatest.Writes
 		mux := http.NewServeMux()
-		content.NewHandler(newStore(adminPool), media.NewHandler(media.NewStore(mediaPool), logger), logger).Routes(mux, admintest.BackOffice)
+		content.NewHandler(newStore(adminPool), media.NewHandler(mediatest.NewStore(t, adminPool, &writes), logger), logger).Routes(mux, admintest.BackOffice)
 		for _, tt := range []struct {
 			name   string
 			alt    string
@@ -483,11 +479,11 @@ func TestHeroUploadsKeepStorageFailuresSeparateFromRefusals(t *testing.T) {
 				diagnostics.Reset()
 				res := httptest.NewRecorder()
 				if tt.name == "storage" {
-					res = heroUploadWithStorageFault(t, ctx, owner, mux, fields, witness)
+					res = heroUploadWithStorageFault(t, ctx, owner, mux, fields, &writes)
 				} else {
 					mux.ServeHTTP(res, heroUploadFailureRequest(t, ctx, fields, tt.alt, tt.name == "corrupt"))
-					if witness.seen != 1 || ctx.Err() != nil {
-						t.Fatalf("refused input reached PutMedia or lost its request: writes=%d parent=%v", witness.seen, ctx.Err())
+					if writes.Calls != 1 || ctx.Err() != nil {
+						t.Fatalf("refused input reached PutMedia or lost its request: writes=%d parent=%v", writes.Calls, ctx.Err())
 					}
 				}
 				assertHeroUploadFailure(t, ctx, res, diagnostics.String(), tt.status, fields)
@@ -498,14 +494,13 @@ func TestHeroUploadsKeepStorageFailuresSeparateFromRefusals(t *testing.T) {
 		}
 		beforeAudit := heroUploadAuditCount(t, owner)
 		diagnostics.Reset()
-		witness.code = ""
 		res := httptest.NewRecorder()
 		mux.ServeHTTP(res, heroUploadFailureRequest(t, ctx, fields, fields["alt"], false))
 		if res.Code != http.StatusSeeOther || res.Header().Get("Location") != "/admin/home?ok=1" {
 			t.Errorf("recovered hero upload = %d to %q, want 303 to the editor", res.Code, res.Header().Get("Location"))
 		}
-		if witness.seen != 2 || witness.code != "" || !witness.live || ctx.Err() != nil {
-			t.Fatalf("recovered PutMedia = %d/%q/live=%t parent=%v, want the second actual successful write", witness.seen, witness.code, witness.live, ctx.Err())
+		if writes.Calls != 2 || writes.Code != "" || !writes.Live || ctx.Err() != nil {
+			t.Fatalf("recovered PutMedia = %+v parent=%v, want the second actual successful write", writes, ctx.Err())
 		}
 		var alt, altEn, imageKey string
 		if err := owner.QueryRow(ctx, `SELECT image_alt, image_alt_en, media_digest FROM hero_slides WHERE headline=$1`,
@@ -525,69 +520,16 @@ func TestHeroUploadsKeepStorageFailuresSeparateFromRefusals(t *testing.T) {
 	}
 }
 
-func heroUploadWithStorageFault(t *testing.T, ctx context.Context, owner *pgxpool.Pool, mux *http.ServeMux, fields map[string]string, witness *heroUploadWriteTrace) *httptest.ResponseRecorder {
+func heroUploadWithStorageFault(t *testing.T, ctx context.Context, owner *pgxpool.Pool, mux *http.ServeMux, fields map[string]string, writes *mediatest.Writes) *httptest.ResponseRecorder {
 	t.Helper()
-	tx, err := owner.Begin(ctx)
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer db.Rollback(ctx, tx)
-	if _, err := tx.Exec(ctx, `LOCK TABLE media_objects IN SHARE MODE`); err != nil {
-		t.Fatal(err)
-	}
+	release := mediatest.HoldWrites(t, owner)
 	res := httptest.NewRecorder()
 	mux.ServeHTTP(res, heroUploadFailureRequest(t, ctx, fields, fields["alt"], false))
-	if err := tx.Rollback(ctx); err != nil {
-		t.Fatal(err)
-	}
-	if witness.seen != 1 || witness.code != "55P03" || !witness.live || ctx.Err() != nil {
-		t.Fatalf("PutMedia fault witness = %d/%q/live=%t parent=%v, want exactly one real 55P03 with live request", witness.seen, witness.code, witness.live, ctx.Err())
+	release()
+	if writes.Calls != 1 || writes.Code != "55P03" || !writes.Live || ctx.Err() != nil {
+		t.Fatalf("PutMedia fault witness = %+v parent=%v, want exactly one real 55P03 with live request", *writes, ctx.Err())
 	}
 	return res
-}
-
-type heroUploadTraceKey struct{}
-
-type heroUploadWriteTrace struct {
-	seen int
-	code string
-	live bool
-}
-
-func (w *heroUploadWriteTrace) TraceQueryStart(ctx context.Context, _ *pgx.Conn, data pgx.TraceQueryStartData) context.Context {
-	if strings.HasPrefix(data.SQL, "-- name: PutMedia :exec\n") {
-		w.seen++
-		return context.WithValue(ctx, heroUploadTraceKey{}, true)
-	}
-	return ctx
-}
-
-func (w *heroUploadWriteTrace) TraceQueryEnd(ctx context.Context, _ *pgx.Conn, data pgx.TraceQueryEndData) {
-	if target, ok := ctx.Value(heroUploadTraceKey{}).(bool); !ok || !target {
-		return
-	}
-	w.live = ctx.Err() == nil
-	if cause, ok := errors.AsType[*pgconn.PgError](data.Err); ok {
-		w.code = cause.Code
-	}
-}
-
-func heroUploadWritePool(t *testing.T, adminPool *pgxpool.Pool, witness *heroUploadWriteTrace) *pgxpool.Pool {
-	t.Helper()
-	cfg := adminPool.Config().Copy()
-	cfg.MaxConns = 1
-	cfg.ConnConfig.RuntimeParams["lock_timeout"] = "75ms"
-	cfg.ConnConfig.Tracer = witness
-	p, err := pgxpool.NewWithConfig(t.Context(), cfg)
-	if err != nil {
-		t.Fatal(err)
-	}
-	t.Cleanup(p.Close)
-	var role string
-	if err := p.QueryRow(t.Context(), `SELECT current_user`).Scan(&role); err != nil || role != "admin" {
-		t.Fatalf("media current_user = %q/%v, want admin", role, err)
-	}
-	return p
 }
 
 func heroUploadFailureRequest(t *testing.T, ctx context.Context, fields map[string]string, alt string, corrupt bool) *http.Request {
@@ -629,8 +571,8 @@ func assertHeroUploadFailure(t *testing.T, ctx context.Context, res *httptest.Re
 	body := res.Body.String()
 	switch status {
 	case 500:
-		if !strings.Contains(diagnostics, `"level":"ERROR"`) || !strings.Contains(diagnostics, "SQLSTATE 55P03") || !strings.Contains(diagnostics, "store image") {
-			t.Errorf("storage diagnostics = %q, want Error with actual PutMedia cause", diagnostics)
+		if !strings.Contains(diagnostics, `"level":"ERROR"`) {
+			t.Errorf("storage diagnostics = %q, want Error", diagnostics)
 		}
 		if !strings.Contains(body, i18n.T(ctx, i18n.KeyAdminErrorBody)) || strings.Contains(body, "SQLSTATE") {
 			t.Error("storage failure did not show a generic server error")

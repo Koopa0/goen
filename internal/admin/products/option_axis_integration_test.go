@@ -17,13 +17,14 @@ import (
 
 	"github.com/koopa0/goen/internal/admin/admintest"
 	"github.com/koopa0/goen/internal/admin/products"
+	"github.com/koopa0/goen/internal/admin/products/productstest"
 	"github.com/koopa0/goen/internal/i18n"
 )
 
 func TestOptionAxesMustPrecedeVariants(t *testing.T) {
 	ctx, _ := admintest.StaffContext(t, pool)
 	s := products.NewStore(pool)
-	slug := admintest.DraftProduct(t, ctx, pool, s)
+	slug := productstest.Draft(t, ctx, pool, s)
 	if errs, err := s.AddVariant(ctx, slug, &products.VariantForm{SKU: "AXIS-" + strings.ToUpper(uuid.NewString()[:8]), PriceCents: 10000}); err != nil || len(errs) != 0 {
 		t.Fatalf("create optionless SKU: %v %v", err, errs)
 	}
@@ -34,7 +35,7 @@ func TestOptionAxesMustPrecedeVariants(t *testing.T) {
 		req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
 		req.SetPathValue("slug", slug)
 		rec := httptest.NewRecorder()
-		admintest.ProductDesk(pool, s).AddOption(rec, req)
+		productstest.NewHandler(pool, s).AddOption(rec, req)
 		if rec.Code != http.StatusUnprocessableEntity {
 			t.Fatalf("%s response = %d: %s", locale, rec.Code, rec.Body.String())
 		}
@@ -62,7 +63,7 @@ func TestOptionAxesMustPrecedeVariants(t *testing.T) {
 	if axes != 0 || variants != 1 {
 		t.Fatalf("refusal changed catalogue: axes=%d variants=%d", axes, variants)
 	}
-	empty := admintest.DraftProduct(t, ctx, pool, s)
+	empty := productstest.Draft(t, ctx, pool, s)
 	if optionErrors, addErr := s.AddOption(ctx, empty, products.OptionDraft{Name: "Size"}); addErr != nil || len(optionErrors) != 0 {
 		t.Fatalf("axis before SKU refused: %v %v", addErr, optionErrors)
 	}
@@ -83,7 +84,7 @@ func TestOptionAxisAndVariantCreationSerialize(t *testing.T) {
 			ctx, cancel := context.WithTimeout(ctx, 10*time.Second)
 			defer cancel()
 			s := products.NewStore(pool)
-			slug := admintest.DraftProduct(t, ctx, pool, s)
+			slug := productstest.Draft(t, ctx, pool, s)
 			first, err := pool.Begin(ctx)
 			if err != nil {
 				t.Fatal(err)
@@ -144,7 +145,7 @@ func TestOptionAxisAndVariantCreationSerialize(t *testing.T) {
 func TestTwoVariantsCannotShareAnOptionCombination(t *testing.T) {
 	ctx, _ := admintest.StaffContext(t, pool)
 	s := products.NewStore(pool)
-	slug := admintest.DraftProduct(t, ctx, pool, s)
+	slug := productstest.Draft(t, ctx, pool, s)
 
 	for _, axis := range []string{"Colour", "Edition"} {
 		if errs, err := s.AddOption(ctx, slug, products.OptionDraft{Name: axis}); err != nil || len(errs) > 0 {

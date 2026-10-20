@@ -42,6 +42,21 @@ func NewHandler(store *Store, log *slog.Logger, baseURL string) *Handler {
 	}
 }
 
+// Routes registers browsing, the product page and its three forms. notify
+// bounds the restock form per client before Notify runs; the caller owns that
+// budget.
+func (h *Handler) Routes(mux *http.ServeMux, notify *ratelimit.Limiter) {
+	mux.HandleFunc("GET /c/{slug}", h.Listing)
+	mux.HandleFunc("GET /search", h.Search)
+	mux.HandleFunc("GET /compare", h.Compare)
+	mux.HandleFunc("GET /deals", h.Deals)
+	mux.HandleFunc("GET /s/{slug}", h.Campaign)
+	mux.HandleFunc("GET /p/{slug}", h.Product)
+	mux.HandleFunc("POST /p/{slug}/reviews", h.Review)
+	mux.HandleFunc("POST /p/{slug}/notify", ratelimit.Guard(notify, h.log, h.Notify))
+	mux.HandleFunc("POST /p/{slug}/questions", h.Ask)
+}
+
 func (h *Handler) Listing(w http.ResponseWriter, r *http.Request) {
 	if web.DropEmptyParams(w, r) {
 		return
@@ -67,7 +82,7 @@ func (h *Handler) Listing(w http.ResponseWriter, r *http.Request) {
 	// A partial swap never draws the rules or the head, so it does not read them.
 	var rules *pages.ShopRules
 	if web.IsHTMX(r) {
-		r = r.WithContext(pages.AsPartial(r.Context()))
+		r = r.WithContext(AsPartial(r.Context()))
 	} else {
 		loaded, err := h.store.ShopRules(r.Context())
 		if err != nil {
@@ -77,7 +92,7 @@ func (h *Handler) Listing(w http.ResponseWriter, r *http.Request) {
 		}
 		rules = new(pages.ShopRules(loaded))
 	}
-	web.Render(w, r, h.log, http.StatusOK, pages.Listing(pages.ListingMeta(r.Context(), view), view, rules, head))
+	web.Render(w, r, h.log, http.StatusOK, Listing(ListingMeta(r.Context(), view), view, rules, head))
 }
 
 const newestOnEmpty = 4
@@ -92,7 +107,7 @@ func (h *Handler) Search(w http.ResponseWriter, r *http.Request) {
 
 	sort := ParseSort(r.URL.Query().Get("sort"), SortRelevance)
 
-	view := pages.SearchView{Query: trimForDisplay(q), Page: page, PageSize: PageSize}
+	view := SearchView{Query: trimForDisplay(q), Page: page, PageSize: PageSize}
 	if pattern != "" {
 		var err error
 		if view, err = h.searched(r.Context(), pattern, view.Query, sort, page); err != nil {
@@ -106,15 +121,15 @@ func (h *Handler) Search(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if web.IsHTMX(r) {
-		r = r.WithContext(pages.AsPartial(r.Context()))
+		r = r.WithContext(AsPartial(r.Context()))
 	}
-	web.Render(w, r, h.log, http.StatusOK, pages.Search(pages.SearchMeta(r.Context(), view.Query), view))
+	web.Render(w, r, h.log, http.StatusOK, Search(SearchMeta(r.Context(), view.Query), view))
 }
 
-func (h *Handler) searched(ctx context.Context, pattern, query string, sort Sort, page int) (pages.SearchView, error) {
+func (h *Handler) searched(ctx context.Context, pattern, query string, sort Sort, page int) (SearchView, error) {
 	view, err := h.store.Search(ctx, pattern, sort, page)
 	if err != nil {
-		return pages.SearchView{}, err
+		return SearchView{}, err
 	}
 	view.Query = query
 	if view.Empty() {
@@ -218,7 +233,7 @@ func (h *Handler) Deals(w http.ResponseWriter, r *http.Request) {
 		h.log.ErrorContext(r.Context(), "load campaigns", "error", err)
 	}
 	view.Campaigns = campaigns
-	web.Render(w, r, h.log, http.StatusOK, pages.Deals(pages.DealsMeta(r.Context()), view))
+	web.Render(w, r, h.log, http.StatusOK, Deals(DealsMeta(r.Context()), view))
 }
 
 // Campaign answers 404 for a campaign that is switched off or does not exist.
@@ -238,8 +253,8 @@ func (h *Handler) Campaign(w http.ResponseWriter, r *http.Request) {
 		h.serverError(w, r)
 		return
 	}
-	web.Render(w, r, h.log, http.StatusOK, pages.Campaign(
-		pages.CampaignMeta(r.Context(), view.Title, view.Image), view))
+	web.Render(w, r, h.log, http.StatusOK, Campaign(
+		CampaignMeta(r.Context(), view.Title, view.Image), view))
 }
 
 // Compare keeps the set in the URL and nowhere else.
@@ -262,20 +277,20 @@ func (h *Handler) Compare(w http.ResponseWriter, r *http.Request) {
 			view.Candidates = compareCandidates(found.Products, view)
 		}
 	}
-	web.Render(w, r, h.log, http.StatusOK, pages.Compare(
+	web.Render(w, r, h.log, http.StatusOK, Compare(
 		layouts.Page{
 			Title:       i18n.T(r.Context(), i18n.KeyCompareTitle),
 			Description: i18n.T(r.Context(), i18n.KeyCompareDescription),
 		}, view))
 }
 
-func compareCandidates(found []pages.ProductTile, view pages.CompareView) []pages.CompareCandidate {
-	out := make([]pages.CompareCandidate, 0, len(found))
+func compareCandidates(found []pages.ProductTile, view CompareView) []CompareCandidate {
+	out := make([]CompareCandidate, 0, len(found))
 	for i := range found {
-		if slices.ContainsFunc(view.Products, func(p pages.CompareProduct) bool { return p.Slug == found[i].Slug }) {
+		if slices.ContainsFunc(view.Products, func(p CompareProduct) bool { return p.Slug == found[i].Slug }) {
 			continue
 		}
-		out = append(out, pages.CompareCandidate{Slug: found[i].Slug, Name: found[i].Name, Brand: found[i].Brand})
+		out = append(out, CompareCandidate{Slug: found[i].Slug, Name: found[i].Name, Brand: found[i].Brand})
 	}
 	return out
 }
@@ -293,7 +308,7 @@ func redirectPastLastPage(w http.ResponseWriter, r *http.Request, page, last int
 	return true
 }
 
-func redirectUnknownFilters(w http.ResponseWriter, r *http.Request, facets []pages.FacetGroup) bool {
+func redirectUnknownFilters(w http.ResponseWriter, r *http.Request, facets []FacetGroup) bool {
 	q := r.URL.Query()
 	if len(q["brand"]) == 0 && len(q["opt"]) == 0 {
 		return false

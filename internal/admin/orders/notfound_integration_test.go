@@ -17,6 +17,7 @@ import (
 	"github.com/koopa0/goen/internal/admin/campaigns"
 	"github.com/koopa0/goen/internal/admin/customers"
 	"github.com/koopa0/goen/internal/admin/products"
+	"github.com/koopa0/goen/internal/admin/products/productstest"
 	"github.com/koopa0/goen/internal/i18n"
 	"github.com/koopa0/goen/internal/media"
 	"github.com/koopa0/goen/internal/user"
@@ -27,13 +28,13 @@ func TestMissingRecordsKeepVerifiedStaffInTheBackOffice(t *testing.T) {
 	mux := http.NewServeMux()
 	ac := access.New(log, func(*http.Request) (bool, error) { return true, nil })
 	admintest.OrderDesk(admintest.OrderStore(pool, admintest.Refunder{}, nil, admintest.DisabledInvoiceWriter{})).Routes(mux, ac)
-	admintest.ProductDesk(pool, products.NewStore(pool)).Routes(mux, ac)
+	productstest.NewHandler(pool, products.NewStore(pool)).Routes(mux, ac)
 	customers.NewHandler(customers.NewStore(pool), log).Routes(mux, ac)
 	campaigns.NewHandler(campaigns.NewStore(pool), media.NewHandler(media.NewStore(pool), log), log).Routes(mux, ac)
 	unverified := http.NewServeMux()
 	unverifiedAC := access.New(log, func(*http.Request) (bool, error) { return false, nil })
 	admintest.OrderDesk(admintest.OrderStore(pool, admintest.Refunder{}, nil, admintest.DisabledInvoiceWriter{})).Routes(unverified, unverifiedAC)
-	admintest.ProductDesk(pool, products.NewStore(pool)).Routes(unverified, unverifiedAC)
+	productstest.NewHandler(pool, products.NewStore(pool)).Routes(unverified, unverifiedAC)
 	customers.NewHandler(customers.NewStore(pool), log).Routes(unverified, unverifiedAC)
 	campaigns.NewHandler(campaigns.NewStore(pool), media.NewHandler(media.NewStore(pool), log), log).Routes(unverified, unverifiedAC)
 

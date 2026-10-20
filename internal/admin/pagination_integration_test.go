@@ -24,6 +24,7 @@ import (
 	"github.com/koopa0/goen/internal/admin/feedback"
 	"github.com/koopa0/goen/internal/admin/loyalty"
 	"github.com/koopa0/goen/internal/admin/products"
+	"github.com/koopa0/goen/internal/admin/products/productstest"
 	"github.com/koopa0/goen/internal/admin/returns"
 	"github.com/koopa0/goen/internal/admin/stock"
 	"github.com/koopa0/goen/internal/i18n"
@@ -232,7 +233,7 @@ func TestEveryAdminQueueReachesBeyondItsFirstPage(t *testing.T) {
 	}
 	h := admintest.OrderDesk(s)
 	inboxHandler := feedback.NewHandler(inboxStore, slog.New(slog.DiscardHandler))
-	handlers := map[string]http.HandlerFunc{"orders": h.List, "order search": h.List, "customers": customers.NewHandler(customerLookup, slog.New(slog.DiscardHandler)).Search, "products": admintest.ProductDesk(p, catalogueStore).List, "stock": stockHandler.Variants, "movements": stockHandler.Movements, "returns": returns.NewHandler(returnDesk, slog.New(slog.DiscardHandler)).Queue, "coupons": coupons.NewHandler(coupons.NewStore(p), slog.New(slog.DiscardHandler)).Page, "campaigns": campaigns.NewHandler(salesStore, media.NewHandler(media.NewStore(p), slog.New(slog.DiscardHandler)), slog.New(slog.DiscardHandler)).Page, "reviews": inboxHandler.Reviews, "messages": inboxHandler.Messages, "credit": loyalty.NewHandler(loyalty.NewStore(p), slog.New(slog.DiscardHandler)).Credit, "audit": audit.NewHandler(trail, slog.New(slog.DiscardHandler)).Page, "warranty": customers.NewHandler(customerLookup, slog.New(slog.DiscardHandler)).Warranties}
+	handlers := map[string]http.HandlerFunc{"orders": h.List, "order search": h.List, "customers": customers.NewHandler(customerLookup, slog.New(slog.DiscardHandler)).Search, "products": productstest.NewHandler(p, catalogueStore).List, "stock": stockHandler.Variants, "movements": stockHandler.Movements, "returns": returns.NewHandler(returnDesk, slog.New(slog.DiscardHandler)).Queue, "coupons": coupons.NewHandler(coupons.NewStore(p), slog.New(slog.DiscardHandler)).Page, "campaigns": campaigns.NewHandler(salesStore, media.NewHandler(media.NewStore(p), slog.New(slog.DiscardHandler)), slog.New(slog.DiscardHandler)).Page, "reviews": inboxHandler.Reviews, "messages": inboxHandler.Messages, "credit": loyalty.NewHandler(loyalty.NewStore(p), slog.New(slog.DiscardHandler)).Credit, "audit": audit.NewHandler(trail, slog.New(slog.DiscardHandler)).Page, "warranty": customers.NewHandler(customerLookup, slog.New(slog.DiscardHandler)).Warranties}
 	for _, tt := range cases {
 		t.Run(tt.name, func(t *testing.T) {
 			var want int

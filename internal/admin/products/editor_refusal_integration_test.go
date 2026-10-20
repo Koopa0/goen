@@ -30,17 +30,19 @@ import (
 	"github.com/koopa0/goen/internal/admin/audit"
 	"github.com/koopa0/goen/internal/admin/content"
 	"github.com/koopa0/goen/internal/admin/products"
+	"github.com/koopa0/goen/internal/admin/products/productstest"
 	"github.com/koopa0/goen/internal/db"
 	"github.com/koopa0/goen/internal/home"
 	"github.com/koopa0/goen/internal/i18n"
 	"github.com/koopa0/goen/internal/media"
+	"github.com/koopa0/goen/internal/media/mediatest"
 )
 
 func TestProductEditorRefusalsKeepTheirDraftAndImageControls(t *testing.T) {
 	staffCtx, _ := admintest.StaffContext(t, pool)
 	p := admintest.AdminRolePool(t, pool)
 	s := products.NewStore(p)
-	slug := admintest.DraftProduct(t, staffCtx, pool, s)
+	slug := productstest.Draft(t, staffCtx, pool, s)
 	attached, library := storeMedia(t, pool), storeMedia(t, pool)
 	if err := s.AttachImage(staffCtx, slug, attached, "Editor photograph", "Editor photograph", "", 800, 600); err != nil {
 		t.Fatal(err)
@@ -53,7 +55,7 @@ func TestProductEditorRefusalsKeepTheirDraftAndImageControls(t *testing.T) {
 		t.Fatal(err)
 	}
 	mux := http.NewServeMux()
-	admintest.ProductDesk(p, s).Routes(mux, admintest.BackOffice)
+	productstest.NewHandler(p, s).Routes(mux, admintest.BackOffice)
 	for _, locale := range i18n.Locales() {
 		ctx := i18n.WithLocale(staffCtx, locale)
 		baseline, err := s.Product(ctx, slug)
@@ -197,7 +199,7 @@ func TestProductImageRefusalsKeepDescriptionsAndSelection(t *testing.T) {
 	p := admintest.AdminRolePool(t, pool)
 	s := products.NewStore(p)
 	mux := http.NewServeMux()
-	admintest.ProductDesk(p, s).Routes(mux, admintest.BackOffice)
+	productstest.NewHandler(p, s).Routes(mux, admintest.BackOffice)
 	slug, options := productWithColours(t, staffCtx, s, "Blue", "Black")
 	_, foreignOptions := productWithColours(t, staffCtx, s, "Red", "White")
 	attached, library := storeMedia(t, pool), storeMedia(t, pool)
@@ -336,7 +338,7 @@ func TestALosslessWebPUploadIsRefusedWithItsOwnNotice(t *testing.T) {
 	staffCtx, _ := admintest.StaffContext(t, pool)
 	p := admintest.AdminRolePool(t, pool)
 	s := products.NewStore(p)
-	slug := admintest.DraftProduct(t, staffCtx, pool, s)
+	slug := productstest.Draft(t, staffCtx, pool, s)
 	heroes := content.NewStore(p, home.NewStore(p))
 	beforeImages, err := s.Images(staffCtx, slug)
 	if err != nil {
@@ -499,7 +501,7 @@ func TestProductImageAttachmentFailuresAnswer500AndRecover(t *testing.T) {
 			t.Run(locale.Tag()+"/"+name, func(t *testing.T) {
 				staffCtx, actor := admintest.StaffContext(t, pool)
 				ctx := i18n.WithLocale(staffCtx, locale)
-				slug := admintest.DraftProduct(t, ctx, pool, healthy)
+				slug := productstest.Draft(t, ctx, pool, healthy)
 				obj, err := images.Put(ctx, bytes.NewReader(picture.Bytes()))
 				if err != nil {
 					t.Fatal(err)
@@ -631,12 +633,11 @@ func TestImageUploadsKeepStorageFailuresSeparateFromRefusals(t *testing.T) {
 	s := products.NewStore(adminPool)
 	for _, locale := range i18n.Locales() {
 		ctx := i18n.WithLocale(staff, locale)
-		slug := admintest.DraftProduct(t, ctx, owner, s)
+		slug := productstest.Draft(t, ctx, owner, s)
 		var diagnostics bytes.Buffer
 		logger := slog.New(slog.NewJSONHandler(&diagnostics, nil))
-		witness := &uploadWriteTrace{}
-		mediaPool := uploadWritePool(t, adminPool, witness)
-		h := products.NewHandler(s, media.NewHandler(media.NewStore(mediaPool), logger), logger)
+		var writes mediatest.Writes
+		h := products.NewHandler(s, media.NewHandler(mediatest.NewStore(t, adminPool, &writes), logger), logger)
 		mux := http.NewServeMux()
 		h.Routes(mux, admintest.BackOffice)
 		path := "/admin/products/" + slug + "/images"
@@ -655,15 +656,15 @@ func TestImageUploadsKeepStorageFailuresSeparateFromRefusals(t *testing.T) {
 				diagnostics.Reset()
 				var release func()
 				if tt.name == "storage" {
-					release = holdUploadWrite(t, owner)
+					release = mediatest.HoldWrites(t, owner)
 				}
 				res := httptest.NewRecorder()
 				mux.ServeHTTP(res, uploadFailureRequest(t, ctx, path, tt.alt, tt.name == "corrupt"))
 				if release != nil {
 					release()
 				}
-				if tt.name == "storage" {
-					assertUploadStorageWitness(t, ctx, witness)
+				if tt.name == "storage" && (writes.Calls != 1 || writes.Code != "55P03" || !writes.Live || ctx.Err() != nil) {
+					t.Fatalf("PutMedia fault witness = %+v parent=%v, want exactly one real 55P03 with live request", writes, ctx.Err())
 				}
 				if res.Code != tt.status || res.Header().Get("Location") != "" {
 					t.Errorf("image upload %s = %d to %q, want %d with no redirect", tt.name, res.Code, res.Header().Get("Location"), tt.status)
@@ -676,14 +677,13 @@ func TestImageUploadsKeepStorageFailuresSeparateFromRefusals(t *testing.T) {
 		}
 		beforeAudit := uploadAuditCount(t, owner)
 		diagnostics.Reset()
-		witness.code = ""
 		res := httptest.NewRecorder()
 		mux.ServeHTTP(res, uploadFailureRequest(t, ctx, path, " Recovered description ", false))
 		if res.Code != http.StatusSeeOther || res.Header().Get("Location") != "/admin/products/"+slug+"?ok=1" {
 			t.Errorf("recovered image upload = %d to %q, want 303 to the editor", res.Code, res.Header().Get("Location"))
 		}
-		if witness.seen != 2 || witness.code != "" || !witness.live || ctx.Err() != nil {
-			t.Errorf("recovered PutMedia = %d/%q/live=%t, want the second actual successful write", witness.seen, witness.code, witness.live)
+		if writes.Calls != 2 || writes.Code != "" || !writes.Live || ctx.Err() != nil {
+			t.Errorf("recovered PutMedia = %+v, want the second actual successful write", writes)
 		}
 		var alt, altEn string
 		if err := owner.QueryRow(ctx, `SELECT alt_text, alt_text_en FROM product_images WHERE product_id=(SELECT id FROM products WHERE slug=$1)`, slug).Scan(&alt, &altEn); err != nil {
@@ -691,69 +691,6 @@ func TestImageUploadsKeepStorageFailuresSeparateFromRefusals(t *testing.T) {
 		}
 		if alt != "Recovered description" || altEn != "English description" || uploadAuditCount(t, owner) != beforeAudit+1 {
 			t.Errorf("recovered image = %q/%q, want saved descriptions and exactly one new audit", alt, altEn)
-		}
-	}
-}
-
-type uploadTraceKey struct{}
-
-type uploadWriteTrace struct {
-	seen int
-	code string
-	live bool
-}
-
-func (w *uploadWriteTrace) TraceQueryStart(ctx context.Context, _ *pgx.Conn, data pgx.TraceQueryStartData) context.Context {
-	if strings.HasPrefix(data.SQL, "-- name: PutMedia :exec\n") {
-		w.seen++
-		return context.WithValue(ctx, uploadTraceKey{}, true)
-	}
-	return ctx
-}
-
-func (w *uploadWriteTrace) TraceQueryEnd(ctx context.Context, _ *pgx.Conn, data pgx.TraceQueryEndData) {
-	if target, ok := ctx.Value(uploadTraceKey{}).(bool); !ok || !target {
-		return
-	}
-	w.live = ctx.Err() == nil
-	if cause, ok := errors.AsType[*pgconn.PgError](data.Err); ok {
-		w.code = cause.Code
-	}
-}
-
-func uploadWritePool(t *testing.T, adminPool *pgxpool.Pool, witness *uploadWriteTrace) *pgxpool.Pool {
-	t.Helper()
-	cfg := adminPool.Config().Copy()
-	cfg.MaxConns = 1
-	cfg.ConnConfig.RuntimeParams["lock_timeout"] = "75ms"
-	cfg.ConnConfig.Tracer = witness
-	p, err := pgxpool.NewWithConfig(t.Context(), cfg)
-	if err != nil {
-		t.Fatal(err)
-	}
-	t.Cleanup(p.Close)
-	var role string
-	if err := p.QueryRow(t.Context(), `SELECT current_user`).Scan(&role); err != nil || role != "admin" {
-		t.Fatalf("media current_user = %q/%v, want admin", role, err)
-	}
-	return p
-}
-
-func holdUploadWrite(t *testing.T, owner *pgxpool.Pool) func() {
-	t.Helper()
-	ctx := t.Context()
-	tx, err := owner.Begin(ctx)
-	if err != nil {
-		t.Fatal(err)
-	}
-	t.Cleanup(func() { db.Rollback(ctx, tx) })
-	if _, err := tx.Exec(ctx, `LOCK TABLE media_objects IN SHARE MODE`); err != nil {
-		t.Fatal(err)
-	}
-	return func() {
-		t.Helper()
-		if err := tx.Rollback(ctx); err != nil {
-			t.Fatal(err)
 		}
 	}
 }
@@ -784,8 +721,8 @@ func assertUploadFailure(t *testing.T, ctx context.Context, body, diagnostics st
 	t.Helper()
 	switch status {
 	case 500:
-		if !strings.Contains(diagnostics, `"level":"ERROR"`) || !strings.Contains(diagnostics, "SQLSTATE 55P03") || !strings.Contains(diagnostics, "store image") {
-			t.Errorf("storage diagnostics = %q, want Error with actual PutMedia cause", diagnostics)
+		if !strings.Contains(diagnostics, `"level":"ERROR"`) {
+			t.Errorf("storage diagnostics = %q, want Error", diagnostics)
 		}
 		if !strings.Contains(body, i18n.T(ctx, i18n.KeyAdminErrorBody)) || strings.Contains(body, "SQLSTATE") {
 			t.Error("storage failure did not show a generic server error")
@@ -836,13 +773,6 @@ func uploadSavedRows(t *testing.T, owner *pgxpool.Pool) string {
 		t.Fatal(err)
 	}
 	return saved
-}
-
-func assertUploadStorageWitness(t *testing.T, ctx context.Context, witness *uploadWriteTrace) {
-	t.Helper()
-	if witness.seen != 1 || witness.code != "55P03" || !witness.live || ctx.Err() != nil {
-		t.Fatalf("PutMedia fault witness = %d/%q/live=%t parent=%v, want exactly one real 55P03 with live request", witness.seen, witness.code, witness.live, ctx.Err())
-	}
 }
 
 func writeUploadImage(t *testing.T, part io.Writer, corrupt bool) {

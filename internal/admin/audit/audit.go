@@ -25,8 +25,8 @@ type Event struct {
 	// rows they describe.
 	Table  string
 	ID     uuid.NullUUID
-	Before any
-	After  any
+	Before State
+	After  State
 }
 
 // EntityID is Event.ID for a row's identifier; the zero UUID is no entity.
@@ -107,10 +107,10 @@ func Actor(ctx context.Context) (uuid.UUID, bool) {
 	return id, true
 }
 
-// encodeState turns a before/after value into jsonb, or NULL. Invalid state is
+// encodeState turns a before/after state into jsonb, or NULL. Invalid state is
 // an audit failure: silently storing NULL would let the write commit with a
 // materially incomplete trail.
-func encodeState(v any) ([]byte, error) {
+func encodeState(v State) ([]byte, error) {
 	if v == nil {
 		return nil, nil
 	}

@@ -115,11 +115,11 @@ func mailedHTMLLinks(t *testing.T, part string) []string {
 // TestEveryMailedLinkReachesARoute connects the two halves of every mailed
 // link: the composer in internal/letter, which builds each URL by string
 // concatenation, and the routes cmd/goen registers. A link in a letter is
-// permanent once the letter is sent, so a route renamed in server.go, or a path
-// mistyped in the composer, must fail here and not in somebody's inbox years
-// later.
+// permanent once the letter is sent, so a route renamed in a feature's Routes,
+// or a path mistyped in the composer, must fail here and not in somebody's
+// inbox years later.
 //
-// It drives all 13 Send methods of letter.Notifier (found by reflection, so a
+// It drives every Send method of letter.Notifier (found by reflection, so a
 // new letter fails until it has a case here) through a capturing sender with
 // base URL https://goen.test. From each message it extracts every link: the
 // absolute URLs of Message.Body, the a@href and img@src of Message.HTML, and
@@ -127,20 +127,23 @@ func mailedHTMLLinks(t *testing.T, part string) []string {
 //
 //   - every link is on https://goen.test, because a letter never links
 //     off-site;
-//   - every link matches a pattern of storefrontPatterns (the patterns
-//     production registers, back office excluded) other than the catch-all
-//     "GET /", which would answer the 404 page;
+//   - every link reaches a pattern of production's own mux (routing's, the
+//     mux newRouter serves with) other than the catch-all "GET /", which would
+//     answer the 404 page. The mux is asked, not a pattern list read from the
+//     source, so a route whose registration is in the source but never runs
+//     (a Routes method nobody calls, a branch never taken) fails here;
 //   - the sorted shapes "<METHOD> <pattern>?<query names>" of each letter
 //     equal the table below. Routing cannot see a renamed query name (token,
 //     next, v); the table can. Query values are not checked: that a token opens
 //     its form is each feature's own integration test;
-//   - every /static/ link is answered 200 by the real router, built on an
-//     unreachable pool the way TestOnlyTheSecurePosturePinsHTTPS does. Other
-//     links are not requested: without a database an order link answers 404 by
-//     design, so a status says nothing about routing.
+//   - every /static/ link is answered 200 by the real router. Other links are
+//     not requested: without a database an order link answers 404 by design,
+//     so a status says nothing about routing.
 //
-// It reads no source file itself; storefrontPatterns reads the non-test .go
-// files of cmd/goen and internal, minus internal/admin.
+// The router and its mux are built on an unreachable pool, the way
+// TestOnlyTheSecurePosturePinsHTTPS does, and with no optional provider, so a
+// letter may link only to a route every deployment serves. It reads no source
+// file.
 func TestEveryMailedLinkReachesARoute(t *testing.T) {
 	t.Parallel()
 
@@ -263,10 +266,19 @@ func TestEveryMailedLinkReachesARoute(t *testing.T) {
 		}
 	}
 
-	mux := http.NewServeMux()
-	for _, pattern := range storefrontPatterns(t) {
-		mux.HandleFunc(pattern, func(http.ResponseWriter, *http.Request) {})
+	idle, err := pgxpool.New(t.Context(), "postgres://unused:unused@127.0.0.1:1/unused?sslmode=disable")
+	if err != nil {
+		t.Fatalf("open an unused pool: %v", err)
 	}
+	t.Cleanup(idle.Close)
+	gateway, err := payment.NewGateway("", "", "http://127.0.0.1")
+	if err != nil {
+		t.Fatalf("build a disabled payment gateway: %v", err)
+	}
+	router, mux := routing(&RouterConfig{
+		Storefront: StorefrontConfig{StorePool: idle, Payments: gateway, BaseURL: base},
+		BackOffice: BackOfficeConfig{AdminPool: idle, Payments: gateway, Refunder: gateway},
+	}, slog.New(slog.DiscardHandler))
 
 	occurrences := 0
 	shapes := map[string]bool{}
@@ -368,28 +380,15 @@ func TestEveryMailedLinkReachesARoute(t *testing.T) {
 		}
 	}
 
-	// Non-vacuity, measured on the tree this was written on: 13 methods,
-	// 20 cases, 65 link occurrences (Body, HTML and one-click header together)
+	// Non-vacuity, measured on the tree this was last changed on: 15 methods,
+	// 23 cases, 74 link occurrences (Body, HTML and one-click header together)
 	// and 11 distinct shapes.
 	// A link that reaches no route is already reported and is not a shape.
-	if !t.Failed() && (len(methods) < 13 || len(letters) < 20 || occurrences < 62 || len(shapes) < 11 || len(assets) < 1) {
-		t.Fatalf("read %d Send methods, %d cases, %d links, %d shapes and %d assets; want at least 13, 20, 62, 11 and 1: the test has gone vacuous",
+	if !t.Failed() && (len(methods) < 15 || len(letters) < 23 || occurrences < 70 || len(shapes) < 11 || len(assets) < 1) {
+		t.Fatalf("read %d Send methods, %d cases, %d links, %d shapes and %d assets; want at least 15, 23, 70, 11 and 1: the test has gone vacuous",
 			len(methods), len(letters), occurrences, len(shapes), len(assets))
 	}
 
-	idle, err := pgxpool.New(t.Context(), "postgres://unused:unused@127.0.0.1:1/unused?sslmode=disable")
-	if err != nil {
-		t.Fatalf("open an unused pool: %v", err)
-	}
-	t.Cleanup(idle.Close)
-	gateway, err := payment.NewGateway("", "", "http://127.0.0.1")
-	if err != nil {
-		t.Fatalf("build a disabled payment gateway: %v", err)
-	}
-	router := newRouter(&RouterConfig{
-		Storefront: StorefrontConfig{StorePool: idle, Payments: gateway, BaseURL: base},
-		BackOffice: BackOfficeConfig{AdminPool: idle, Payments: gateway, Refunder: gateway},
-	}, slog.New(slog.DiscardHandler))
 	for target := range assets {
 		res := httptest.NewRecorder()
 		router.ServeHTTP(res, httptest.NewRequestWithContext(t.Context(), http.MethodGet, target, http.NoBody))

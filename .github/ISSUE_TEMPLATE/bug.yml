@@ -14,8 +14,10 @@ body:
         never in a public issue.
 
         **A back-office page answers 500 right after you pulled.** Run
-        `PGOPTIONS='-c goen.catalogue_seed=development' make db-reset` first: `migrations/001` is amended in place, and a
-        database built from an older copy is missing what the code reads.
+        `make migrate-up` first, and if it still answers 500,
+        `PGOPTIONS='-c goen.catalogue_seed=development' make db-reset`: a database
+        behind `migrations/`, or built from `migrations/001` before it was frozen,
+        is missing what the code reads.
 
   - type: textarea
     id: what-happened

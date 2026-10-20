@@ -1,12 +1,12 @@
-// Package bearer makes and digests goen's opaque bearer tokens: the session
-// and cart cookies, the order-access cookie, and the tokens in reset,
+// Package bearer makes and digests goen's opaque bearer tokens: the session,
+// cart and remembered-browser cookies, the order-access cookie, and the tokens in reset,
 // verification and newsletter links. Whoever holds a token holds what it
 // grants, so the database keeps only its digest.
 //
 // This is the only place a token is generated or digested. The encoding is a
 // stored contract: New returns 32 bytes from crypto/rand as unpadded
 // base64url (43 characters), and Digest is the SHA-256 of the token's text.
-// Six tables store digests made this way, so neither may ever change.
+// Seven tables store digests made this way, so neither may ever change.
 package bearer
 
 import (

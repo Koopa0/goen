@@ -99,6 +99,58 @@ func NewHandler(store *Store, carts Carts, grants Grants, log *slog.Logger, secu
 	}
 }
 
+// Routes registers signing in and out, registering, recovering an account,
+// confirming an address, and the account doors that need a password or a
+// session. limit bounds per client, before the handler runs, every route that
+// verifies a password with argon2 or mails an address; the caller owns that
+// budget, and one limiter across them all means moving between them earns no
+// fresh allowance. clearSpeculations wraps the writes that change who the
+// shared header shows, and clearCache adds emptying the browser's cache to
+// signing out.
+func (h *Handler) Routes(mux *http.ServeMux, limit *ratelimit.Limiter, clearSpeculations, clearCache func(http.HandlerFunc) http.HandlerFunc) {
+	guard := func(next http.HandlerFunc) http.HandlerFunc { return ratelimit.Guard(limit, h.log, next) }
+	mux.HandleFunc("GET /signin", h.SignInPage)
+	// GET on both: the callback is a redirect from Google whose method goen does
+	// not choose, and nothing about an account changes until the callback has
+	// matched the state it issued.
+	mux.HandleFunc("GET /auth/google", h.GoogleSignIn)
+	mux.HandleFunc("GET /auth/google/callback", h.GoogleCallback)
+	// The limiter runs before argon2 does: at 64 MiB a hash, an unbounded
+	// endpoint is a memory exhaustion anybody can trigger.
+	mux.HandleFunc("POST /signin", clearSpeculations(guard(h.SignIn)))
+	mux.HandleFunc("GET /forgot", h.ForgotPage)
+	mux.HandleFunc("POST /forgot", guard(h.Forgot))
+	// RequireUser's sign-in return URL would issue GET to this POST-only action.
+	mux.HandleFunc("POST /account/password/setup", guard(h.RequestPasswordSetup))
+	mux.HandleFunc("GET /reset", h.ResetPage)
+	mux.HandleFunc("POST /reset", guard(h.Reset))
+	// Open to a signed-out visitor, who is sent on rather than refused: a
+	// registration link to the page that asks for its password, and a new
+	// address's link to sign in first. The token proves only the mailbox, and
+	// the address goes to the account that asked for it.
+	mux.HandleFunc("GET /verify", h.VerifyPage)
+	mux.HandleFunc("POST /verify", guard(h.Verify))
+	mux.HandleFunc("GET /register", h.RegisterPage)
+	mux.HandleFunc("POST /register", clearSpeculations(guard(h.Register)))
+	mux.HandleFunc("POST /register/resend", guard(h.ResendRegistration))
+	// Open to a signed-out visitor: the link and the password chosen at
+	// registration are the proof. Under limit because it runs argon2, and it
+	// signs in, so it clears speculations.
+	mux.HandleFunc("GET /register/complete", h.CompleteRegistrationPage)
+	mux.HandleFunc("POST /register/complete", clearSpeculations(guard(h.CompleteRegistration)))
+	mux.HandleFunc("POST /signout", clearSpeculations(clearCache(h.SignOut)))
+	mux.HandleFunc("GET /account/cart-recovery", h.RequireUser(h.CartRecoveryPage))
+	mux.HandleFunc("POST /account/cart/retry", h.RequireUser(h.RetryCartAdoption))
+	mux.HandleFunc("POST /account/sessions/others/end", h.RequireUser(h.SignOutOtherDevices))
+	// Also guarded: these verify a password with argon2, so a signed-in session
+	// is otherwise an unbounded supply of 64 MiB hashes.
+	mux.HandleFunc("POST /account/email", guard(h.RequireUser(h.ChangeEmail)))
+	mux.HandleFunc("POST /account/email/resend", guard(h.RequireUser(h.ResendVerification)))
+	mux.HandleFunc("POST /account/password", guard(h.RequireUser(h.ChangePassword)))
+	mux.HandleFunc("POST /account/erase", h.RequireUser(h.Erase))
+	mux.HandleFunc("POST /account/google/unlink", h.RequireUser(h.UnlinkGoogle))
+}
+
 // OfferDemoAccount must be called before the handler serves.
 func (h *Handler) OfferDemoAccount(d DemoAccount) { h.demo = d }
 
@@ -254,19 +306,9 @@ func (h *Handler) SignIn(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Before Authenticate: argon2 at 64 MiB is the cost this limit protects.
-	// The demo account's password is printed on this page, so a per-account
-	// bound would guard nothing and let one visitor's mistakes shut out every
-	// other; the per-client bound still holds the cost.
-	var guess passwordGuess
-	if !h.demo.holds(normalised) {
-		var retryAfter time.Duration
-		var ok bool
-		if guess, retryAfter, ok = h.reservePasswordGuess(r, normalised); !ok {
-			h.log.WarnContext(r.Context(), "sign-in throttled by account")
-			ratelimit.Refuse(r.Context(), w, retryAfter)
-			return
-		}
+	guess, device, ok := h.reserveSignIn(w, r, normalised)
+	if !ok {
+		return
 	}
 	defer guess.settle(false)
 
@@ -278,6 +320,7 @@ func (h *Handler) SignIn(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		guess.settle(true)
+		h.countDeviceMiss(r, device)
 		h.signInFailed(w, r, addr, next)
 		return
 	}
@@ -288,6 +331,47 @@ func (h *Handler) SignIn(w http.ResponseWriter, r *http.Request) {
 	}
 	next = cartAdoptionLanding(next, adoption)
 	http.Redirect(w, r, next, http.StatusSeeOther) //nolint:gosec // G710: bounded by web.SitePathOr
+}
+
+// reserveSignIn sets aside one password guess for address before the hash,
+// and answers 429 itself when there is none to set aside. argon2 at 64 MiB is
+// the cost this protects. A browser remembered for the account is charged to
+// its own budget (device, the row's digest); every other browser to the
+// network's and the account's. The demo account's password is printed on the
+// sign-in page, so a per-account bound would guard nothing and let one
+// visitor's mistakes shut out every other; the per-client bound still holds
+// the cost.
+func (h *Handler) reserveSignIn(w http.ResponseWriter, r *http.Request, address string) (passwordGuess, []byte, bool) {
+	if h.demo.holds(address) {
+		return nil, nil, true
+	}
+	device, err := h.store.knownDevice(r.Context(), readDeviceCookie(r, h.secure), address)
+	if err != nil {
+		// Not knowing the browser costs it only the stranger's budgets.
+		h.log.ErrorContext(r.Context(), "read known device", "error", err)
+	}
+	guess, retryAfter, ok := h.reservePasswordGuess(r, address, device)
+	if !ok {
+		by := "account"
+		if device != nil {
+			by = "device"
+		}
+		h.log.WarnContext(r.Context(), "sign-in throttled by "+by)
+		ratelimit.Refuse(r.Context(), w, retryAfter)
+		return nil, nil, false
+	}
+	return guess, device, true
+}
+
+// countDeviceMiss records a wrong password sent by a remembered browser. A
+// failure is logged: the miss was already charged to the browser's budget.
+func (h *Handler) countDeviceMiss(r *http.Request, device []byte) {
+	if device == nil {
+		return
+	}
+	if err := h.store.countDeviceMiss(r.Context(), device); err != nil {
+		h.log.ErrorContext(r.Context(), "count known device miss", "error", err)
+	}
 }
 
 // signInFailed is one response for an unusable address, an unknown account and
@@ -526,7 +610,7 @@ func (h *Handler) SignOutOtherDevices(w http.ResponseWriter, r *http.Request) {
 	if h.refuseUnverifiedStaff(w, r, u) {
 		return
 	}
-	if err := h.store.endOtherSessions(r.Context(), u.ID, currentToken); err != nil {
+	if err := h.store.endOtherSessions(r.Context(), u.ID, currentToken, readDeviceCookie(r, h.secure)); err != nil {
 		h.log.ErrorContext(r.Context(), "end other sessions", "error", err)
 		h.serverError(w, r)
 		return
@@ -684,8 +768,21 @@ func (h *Handler) startSession(w http.ResponseWriter, r *http.Request, u user.Us
 		return false, cartAdoptionUnchanged
 	}
 	SetSessionCookie(w, token, h.secure)
+	h.rememberBrowser(w, r, u.ID)
 	// Authentication succeeds even when the preserved guest cart needs recovery.
 	return true, h.adoptRequestCart(r, u.ID)
+}
+
+// rememberBrowser replaces the browser's remembered row with a new one for the
+// account it just signed in to. A failure is logged and the sign-in stands: the
+// browser is then only a stranger to the guess budgets until it signs in again.
+func (h *Handler) rememberBrowser(w http.ResponseWriter, r *http.Request, userID string) {
+	token, err := h.store.rememberDevice(r.Context(), userID, readDeviceCookie(r, h.secure))
+	if err != nil {
+		h.log.ErrorContext(r.Context(), "remember this browser", "error", err)
+		return
+	}
+	SetDeviceCookie(w, token, h.secure)
 }
 
 func (h *Handler) adoptRequestCart(r *http.Request, userID string) cartAdoption {
@@ -1065,7 +1162,7 @@ func (h *Handler) CompleteRegistration(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	// Before the hash, and the budget sign-in uses, so the two share it.
-	guess, retryAfter, ok := h.reservePasswordGuess(r, email.Clean(addr))
+	guess, retryAfter, ok := h.reservePasswordGuess(r, email.Clean(addr), nil)
 	if !ok {
 		h.log.WarnContext(ctx, "registration completion throttled by account")
 		ratelimit.Refuse(ctx, w, retryAfter)

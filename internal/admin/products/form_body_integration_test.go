@@ -15,6 +15,7 @@ import (
 
 	"github.com/koopa0/goen/internal/admin/admintest"
 	"github.com/koopa0/goen/internal/admin/products"
+	"github.com/koopa0/goen/internal/admin/products/productstest"
 	"github.com/koopa0/goen/internal/i18n"
 )
 
@@ -58,7 +59,7 @@ func TestProductFormsAcceptTheirFullBilingualTextLimits(t *testing.T) {
 					t.Fatal("fixture does not exceed the old form cap")
 				}
 				mux := http.NewServeMux()
-				admintest.ProductDesk(p, s).Routes(mux, admintest.BackOffice)
+				productstest.NewHandler(p, s).Routes(mux, admintest.BackOffice)
 				req := httptest.NewRequestWithContext(ctx, http.MethodPost, path, strings.NewReader(encoded))
 				req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
 				res := httptest.NewRecorder()

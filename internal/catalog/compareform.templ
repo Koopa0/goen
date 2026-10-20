@@ -1,0 +1,30 @@
+package catalog
+
+import (
+	"fmt"
+
+	"github.com/koopa0/goen/internal/i18n"
+	"github.com/koopa0/goen/internal/ui/components"
+	"github.com/koopa0/goen/internal/ui/pages"
+)
+
+// A GET, because the set is the URL and a comparison writes nothing. It wraps the
+// grid only when some tile carries a box: a bar with nothing to tick does nothing.
+templ compareForm(offered bool) {
+	if offered {
+		<form class="goen-compare-pick" id="compare-pick" method="get" action="/compare">
+			{ children... }
+			<div class="goen-compare-pick__go">
+				@components.Button(components.ButtonProps{
+					ButtonStyle: components.ButtonStyleOutline,
+					Size:        components.SizeSmall,
+				}, "submit") {
+					{ i18n.T(ctx, i18n.KeyCompareSelected) }
+				}
+				<span class="goen-compare-pick__note">{ fmt.Sprintf(i18n.T(ctx, i18n.KeyCompareLimit), pages.MaxCompare) }</span>
+			</div>
+		</form>
+	} else {
+		{ children... }
+	}
+}

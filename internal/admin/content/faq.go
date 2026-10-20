@@ -127,7 +127,7 @@ func (s *Store) CreateFAQEntry(ctx context.Context, f *FAQForm) (map[string]stri
 	}
 	if err := audit.Run(ctx, s.pool, audit.Event{
 		Action: audit.ActionCreateFAQ, Table: "faq_entries",
-		After: map[string]any{"category_id": f.category.String(), "question": f.Question},
+		After: audit.State{audit.FieldCategoryID: f.category.String(), audit.FieldQuestion: f.Question},
 	}, func(ctx context.Context, q *db.Queries) error {
 		if err := q.LockFAQAppendPosition(ctx, f.category); err != nil {
 			return err
@@ -156,7 +156,7 @@ func (s *Store) UpdateFAQEntry(ctx context.Context, f *FAQForm) (map[string]stri
 	}
 	if err := audit.Run(ctx, s.pool, audit.Event{
 		Action: audit.ActionUpdateFAQ, Table: "faq_entries", ID: audit.EntityID(entryID),
-		After: map[string]any{"question": f.Question},
+		After: audit.State{audit.FieldQuestion: f.Question},
 	}, func(ctx context.Context, q *db.Queries) error {
 		n, execErr := q.UpdateFAQEntry(ctx, db.UpdateFAQEntryParams{
 			EntryID: entryID, Question: f.Question, Answer: f.Answer,
@@ -182,7 +182,7 @@ func (s *Store) DeleteFAQEntry(ctx context.Context, id string) error {
 	}
 	return audit.Run(ctx, s.pool, audit.Event{
 		Action: audit.ActionDeleteFAQ, Table: "faq_entries", ID: audit.EntityID(entryID),
-		Before: map[string]any{"id": id},
+		Before: audit.State{audit.FieldID: id},
 	}, func(ctx context.Context, q *db.Queries) error {
 		n, execErr := q.DeleteFAQEntry(ctx, entryID)
 		if execErr != nil {
@@ -202,7 +202,7 @@ func (s *Store) CreateFAQCategory(ctx context.Context, f *FAQCategoryForm) (map[
 	}
 	err := audit.Run(ctx, s.pool, audit.Event{
 		Action: audit.ActionCreateFAQCategory, Table: "faq_categories",
-		After: map[string]any{"name": f.Name, "name_en": f.NameEn},
+		After: audit.State{audit.FieldName: f.Name, audit.FieldNameEn: f.NameEn},
 	}, func(ctx context.Context, q *db.Queries) error {
 		if err := q.LockFAQCategoryAppendPosition(ctx); err != nil {
 			return err
@@ -230,7 +230,7 @@ func (s *Store) RenameFAQCategory(ctx context.Context, f *FAQCategoryForm) (map[
 	}
 	err = audit.Run(ctx, s.pool, audit.Event{
 		Action: audit.ActionRenameFAQCategory, Table: "faq_categories", ID: audit.EntityID(categoryID),
-		After: map[string]any{"name": f.Name, "name_en": f.NameEn},
+		After: audit.State{audit.FieldName: f.Name, audit.FieldNameEn: f.NameEn},
 	}, func(ctx context.Context, q *db.Queries) error {
 		n, execErr := q.RenameFAQCategory(ctx, db.RenameFAQCategoryParams{
 			CategoryID: categoryID, Name: f.Name, NameEn: f.NameEn,
@@ -273,7 +273,7 @@ func (s *Store) DeleteFAQCategory(ctx context.Context, id string) error {
 	}
 	return audit.Run(ctx, s.pool, audit.Event{
 		Action: audit.ActionDeleteFAQCategory, Table: "faq_categories", ID: audit.EntityID(categoryID),
-		Before: map[string]any{"id": id},
+		Before: audit.State{audit.FieldID: id},
 	}, func(ctx context.Context, q *db.Queries) error {
 		n, execErr := q.DeleteFAQCategory(ctx, categoryID)
 		switch {

@@ -61,14 +61,13 @@ README, which also covers the owner's first sign-in.
 Skip the catalogue seed to run an empty shop. The seed accepts only an explicit
 development marker; it does not infer the deployment environment.
 
-`migrations/001` is amended in place while nothing is deployed, so after pulling
-a change to it run `PGOPTIONS='-c goen.catalogue_seed=development' make db-reset`, which rebuilds and re-seeds. Without it
-`/readyz` answers 503 and goen warns at startup that the database is not the
-schema it was built with (outside development it refuses to start).
-
-001 records its own digest in `schema_version()`. After editing it, run
-`go test ./migrations -update` to rewrite that line; `go test ./...` fails until
-you do.
+After pulling a new migration, run `make migrate-up`. A database built from an
+edition of `migrations/001` from before it was frozen cannot be brought forward
+by any migration: rebuild it with
+`PGOPTIONS='-c goen.catalogue_seed=development' make db-reset`, which drops,
+migrates and re-seeds it. Until the database matches, `/readyz` answers 503 and
+goen warns at startup that the database is not the schema it was built with
+(outside development it refuses to start).
 
 `make run` runs `make schema-drift` first and refuses to start against a
 database that no longer matches `migrations/`.
@@ -164,15 +163,6 @@ PostgreSQL. With more than one:
 If a shop needed more than one, the first change would be a shared rate limiter,
 then pool sizes read from the environment. Neither is built while goen runs as
 one.
-
-**Migration 001 is amended in place only while no real shop's data exists.**
-The demo restores a snapshot nightly, so editing `001` costs nothing there. From
-the first production deploy `001` is frozen: every change becomes a new numbered
-migration, and a function it changes is re-created in that migration with
-`CREATE OR REPLACE`. The re-created function restates `SECURITY DEFINER` (when it
-is one) and `SET search_path = pg_catalog, public, pg_temp` in its header, because
-`CREATE OR REPLACE` resets whatever the header leaves out;
-`internal/db/functionheaders_test.go` enforces it. Until then, run `PGOPTIONS='-c goen.catalogue_seed=development' make db-reset` after pulling a change.
 
 **Uploads live in PostgreSQL.** Product images are stored in `media_objects`,
 re-encoded and capped at 8 MB each and 2400 px on the longest side. That keeps
@@ -315,7 +305,10 @@ described above.
   (`schema_integration_test.go`), `internal/contact` and `internal/home`
   (`handler_integration_test.go`) keep theirs beside the tests it serves.
 - Put a helper shared by several packages in the area's helper package, such
-  as `admintest` or `dbtest`.
+  as `admintest` or `dbtest`. A helper that builds one package for other
+  packages' tests lives beside it, named for it with `test` appended
+  (`admin/products/productstest`, as `net/http/httptest` serves `net/http`;
+  [creating test helper packages](https://google.github.io/styleguide/go/best-practices#naming-doubles-helper-package)).
 - A test that needs a database of its own calls `dbtest.Pool`: a copy of the
   migrated template on the package's one server, made in milliseconds.
   `dbtest.Database` adds a pool per application role, assumed with `SET ROLE`
@@ -328,13 +321,61 @@ described above.
   a workflow. A test may read CSS or JS text only where the bytes are the
   contract, and `internal/repocheck/assetreaders_test.go` lists each one.
 
+### Migrations
+
+`migrations/001` is frozen, and so is every migration once it merges:
+`TestFrozenMigrationsAreUnchanged` in `migrations` holds each file to the
+SHA-256 it merged with. golang-migrate records only the version a database has
+reached, so an edit to a migration never reaches a database already past it.
+A change is a new migration:
+
+1. `make migrate-create NAME=add_gift_wrap` writes `002_add_gift_wrap.up.sql`
+   and `002_add_gift_wrap.down.sql`, numbered after the last migration. Add
+   both files' SHA-256 to `frozen` in `migrations/migrations_test.go` in the
+   same pull request; the test prints them.
+2. The up file starts with the timeouts 001 sets, `SET lock_timeout = '3s';`
+   and `SET statement_timeout = '120s';`, and ends with
+   `CALL harden_schema();`, which puts what it created under 001's privilege
+   posture. A function it creates or re-creates states `SECURITY DEFINER` (when
+   it is one) and `SET search_path = pg_catalog, public, pg_temp` in its header,
+   because `CREATE OR REPLACE` resets whatever the header leaves out
+   (`internal/db/functionheaders_test.go`). A new table, view or function is
+   granted to no role: grant each role what it needs.
+3. The down file undoes the up file, and CI's schema job runs every down
+   migration and then every up migration again. A down migration is a
+   development tool: it drops what its up file created, rows included. 001's
+   refuses a database that holds any row, so no one migrates a shop below 001.
+4. `make squawk` lints every up file with every rule on (`.squawk.toml`). The
+   file-wide ignores at the top of 001 hold because it creates its tables
+   empty; a later migration alters tables that hold rows and gets none of them.
+   Add a CHECK or foreign key `NOT VALID` and `VALIDATE CONSTRAINT` it in the next
+   migration. Create an index `CONCURRENTLY`: golang-migrate sends a file as one
+   implicit transaction, in which PostgreSQL refuses `CREATE INDEX
+   CONCURRENTLY`, so that index is a migration of its own holding that one
+   statement (the "Multi-statement mode" section of golang-migrate's PostgreSQL
+   driver README). It cannot set its timeouts first, so it carries
+   `-- squawk-ignore require-statement-timeout, require-lock-timeout` with that
+   reason, and it does not call `harden_schema()`: an index has nothing for it
+   to change.
+5. The migration is applied before the binary that needs it is deployed. A
+   binary refuses a database behind its newest migration and accepts a newer
+   one (`migrations.Schema.Check`), so the binary already running must keep
+   working on the new schema: expand in one migration, deploy, and contract in
+   a later one. A function's signature changes by adding the new overload,
+   deploying the binary that calls it, and dropping the old one in the next
+   migration. A constraint name Go matches (`db.IsConstraint`,
+   `db.ConstraintName`) is never renamed, since the running binary still
+   matches the old name.
+6. The demo snapshot is rebuilt from the new checkout:
+   `deploy/demo/restore-demo-db.sh` refuses one behind `migrations/`.
+
 ## Changes that need the maintainer first
 
 Open an issue before touching any of these; each one is a place where a small
 edit becomes a payment, a privilege or a legal term:
 
 - a `SECURITY DEFINER` function's privilege, a role's grant, and
-  `harden_schema()`, the procedure that ends `migrations/001`;
+  `harden_schema()`, the procedure a migration ends with;
 - the Stripe session's `payment_method_types` pin, its `ExpiresAt` bound to the
   stock hold, and webhook attribution from goen's own payment row;
 - the statutory terms in `internal/site/policies.go` (消保法 §19);
