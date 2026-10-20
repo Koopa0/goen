@@ -243,23 +243,6 @@ func checkoutStoreButtonAttrs(invalid string, refused bool) templ.Attributes {
 	return attrs
 }
 
-// CheckoutMapForm holds only parameters ECPay's map documents, so the
-// template cannot add one carrying something the shopper typed.
-type CheckoutMapForm struct {
-	Action          string
-	MerchantID      string
-	MerchantTradeNo string
-	LogisticsType   string
-	// LogisticsSubType is the chain in the spelling the merchant's contract uses; B2C
-	// and C2C spell the same chain differently.
-	LogisticsSubType string
-	IsCollection     string
-	ServerReplyURL   string
-	ExtraData        string
-	// Device is sent only to a phone, and only 7-ELEVEN reads it.
-	Device string
-}
-
 func (v *CheckoutView) OffersTheStoreMap() bool {
 	return v.ToPickupPoint() && v.MapOffered
 }

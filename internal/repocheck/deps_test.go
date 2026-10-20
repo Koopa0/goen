@@ -110,6 +110,10 @@ var (
 	// bearer makes its state and PKCE verifier, web reads the configured origin
 	// its callback is built on.
 	googleMayImport = []string{"internal/bearer", "internal/web"}
+	// storemapMayImport is all of goen that ECPay's store map imports: shipping
+	// names the chains and the store-code shape, web refuses control characters
+	// in a posted store, and i18n and assets build the two hop pages.
+	storemapMayImport = []string{"assets", "internal/i18n", "internal/shipping", "internal/web"}
 )
 
 // depsRules is the repository's whole package-graph policy, in one place, in the
@@ -223,6 +227,15 @@ var depsRules = []importRule{
 		},
 		reason: "Google's sign-in client holds no session, account or page, so it imports no goen feature; " +
 			"auth imports it, never the other way round",
+	},
+	{
+		name: "storemap",
+		hard: true,
+		forbid: func(from, to string) bool {
+			return under(from, "internal/shipping/storemap") && !slices.Contains(storemapMayImport, to)
+		},
+		reason: "ECPay's store map holds no cart, order or session, so it imports no goen feature; " +
+			"the checkout imports it, never the other way round",
 	},
 	{
 		name: "foundation",

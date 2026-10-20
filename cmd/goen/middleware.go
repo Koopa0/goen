@@ -12,9 +12,9 @@ import (
 	"github.com/google/uuid"
 
 	"github.com/koopa0/goen/assets"
-	"github.com/koopa0/goen/internal/cart"
 	"github.com/koopa0/goen/internal/catalog"
 	"github.com/koopa0/goen/internal/i18n"
+	"github.com/koopa0/goen/internal/shipping/storemap"
 	"github.com/koopa0/goen/internal/ui/layouts"
 	"github.com/koopa0/goen/internal/user"
 	"github.com/koopa0/goen/internal/web"
@@ -72,7 +72,7 @@ func withRequestBudget(next http.Handler) http.Handler {
 func crossOriginProtection(next http.Handler, pickupReturn bool) http.Handler {
 	protection := http.NewCrossOriginProtection()
 	if pickupReturn {
-		protection.AddInsecureBypassPattern("POST " + cart.PickupReturnPath)
+		protection.AddInsecureBypassPattern("POST " + storemap.ReturnPath)
 	}
 	return protection.Handler(next)
 }
@@ -369,7 +369,7 @@ func withBanner(next http.Handler, banner func(http.Handler) http.Handler) http.
 var navFreePrefixes = []string{
 	"/admin", "/webhooks", "/media", "/static", "/healthz", "/readyz", "/favicon.ico",
 	"/robots.txt", "/sitemap.xml",
-	cart.PickupReturnPath,
+	storemap.ReturnPath,
 }
 
 // statelessPrefixes belong to no visitor: goen's own bytes, probes and the

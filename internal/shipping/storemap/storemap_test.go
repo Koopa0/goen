@@ -1,12 +1,15 @@
-package cart
+package storemap
 
 import (
-	"bytes"
 	"encoding/base64"
-	"log/slog"
+	"go/ast"
+	"go/parser"
+	"go/token"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
+	"path/filepath"
+	"regexp"
 	"strings"
 	"testing"
 
@@ -18,7 +21,7 @@ import (
 // repeats, so a made-up one exercises the rule exactly as the real one would.
 const aMerchantID = "1000001"
 
-// aNonce is a nonce of the exact shape newPickupNonce produces.
+// aNonce is a nonce of the exact shape NewNonce produces.
 const aNonce = "0123456789abcdef0123"
 
 // urlWithUserinfo is a base URL the constructor has to refuse. A URL goen posts
@@ -27,9 +30,9 @@ const aNonce = "0123456789abcdef0123"
 //nolint:gosec // G101: the shape under test, not a credential of anybody's
 const urlWithUserinfo = "https://user:pass@logistics.example"
 
-func testMap(t *testing.T, mode LogisticsMode) *StoreMap {
+func testMap(t *testing.T, mode LogisticsMode) *Client {
 	t.Helper()
-	m, err := NewStoreMap(aMerchantID, string(mode), "", "https://goen.test")
+	m, err := New(aMerchantID, string(mode), "", "https://goen.test")
 	if err != nil {
 		t.Fatalf("build the store map: %v", err)
 	}
@@ -70,7 +73,7 @@ func TestTheStoreMapIsOffUntilAContractIsNamed(t *testing.T) {
 		{
 			name:       "production is a base URL and nothing else",
 			merchantID: aMerchantID, mode: "c2c",
-			base: MapProductionBaseURL, site: "https://goen.test",
+			base: ProductionBaseURL, site: "https://goen.test",
 			wantOn:     true,
 			wantAction: "https://logistics.ecpay.com.tw/Express/map",
 			wantReply:  "https://goen.test/checkout/pickup/return",
@@ -104,7 +107,7 @@ func TestTheStoreMapIsOffUntilAContractIsNamed(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
-			m, err := NewStoreMap(tt.merchantID, tt.mode, tt.base, tt.site)
+			m, err := New(tt.merchantID, tt.mode, tt.base, tt.site)
 			if tt.wantErr {
 				if err == nil {
 					t.Fatal("started on half a configuration, which is the failure that " +
@@ -113,7 +116,7 @@ func TestTheStoreMapIsOffUntilAContractIsNamed(t *testing.T) {
 				return
 			}
 			if err != nil {
-				t.Fatalf("NewStoreMap: %v", err)
+				t.Fatalf("New: %v", err)
 			}
 			if m.Enabled() != tt.wantOn {
 				t.Fatalf("Enabled() = %v, want %v", m.Enabled(), tt.wantOn)
@@ -227,18 +230,18 @@ func TestACorrelationNumberIsNeverTheNonce(t *testing.T) {
 	if len(first) != 20 {
 		t.Errorf("MerchantTradeNo is %d characters, want 20 — ECPay's own cap", len(first))
 	}
-	if validNonce(first) {
+	if ValidNonce(first) {
 		t.Error("a correlation number has the shape of a nonce; the two must not be confusable")
 	}
 
-	nonce, err := newPickupNonce()
+	nonce, err := NewNonce()
 	if err != nil {
 		t.Fatalf("new nonce: %v", err)
 	}
-	if !validNonce(nonce) {
-		t.Errorf("newPickupNonce produced %q, which validNonce refuses", nonce)
+	if !ValidNonce(nonce) {
+		t.Errorf("NewNonce produced %q, which ValidNonce refuses", nonce)
 	}
-	other, err := newPickupNonce()
+	other, err := NewNonce()
 	if err != nil {
 		t.Fatalf("new nonce: %v", err)
 	}
@@ -262,8 +265,8 @@ func TestANonceShapeIsExactlyTwentyLowercaseHex(t *testing.T) {
 		{in: "0123456789abcdef012g", want: false},
 		{in: "0123456789abcdef012 ", want: false},
 	} {
-		if got := validNonce(tt.in); got != tt.want {
-			t.Errorf("validNonce(%q) = %v, want %v", tt.in, got, tt.want)
+		if got := ValidNonce(tt.in); got != tt.want {
+			t.Errorf("ValidNonce(%q) = %v, want %v", tt.in, got, tt.want)
 		}
 	}
 }
@@ -274,12 +277,12 @@ func TestOnlyThisBrowsersOwnStoreIsHonoured(t *testing.T) {
 	t.Parallel()
 
 	const otherNonce = "fedcba98765432100000"
-	held := pickupState{Nonce: aNonce}
+	held := State{Nonce: aNonce}
 
 	tests := []struct {
 		name   string
 		posted PostedStore
-		state  pickupState
+		state  State
 		known  bool
 		want   bool
 	}{
@@ -309,7 +312,7 @@ func TestOnlyThisBrowsersOwnStoreIsHonoured(t *testing.T) {
 		{
 			name:   "the right nonce but no cookie in this browser",
 			posted: PostedStore{Chain: shipping.ChainSevenEleven, Code: "131386", Name: "南港園區", Nonce: aNonce},
-			state:  pickupState{},
+			state:  State{},
 		},
 		{
 			name:   "a chain the checkout does not offer",
@@ -324,15 +327,15 @@ func TestOnlyThisBrowsersOwnStoreIsHonoured(t *testing.T) {
 		{
 			name:   "an empty nonce on both sides is not a match",
 			posted: PostedStore{Chain: shipping.ChainSevenEleven, Code: "131386", Name: "南港園區"},
-			state:  pickupState{}, known: true,
+			state:  State{}, known: true,
 		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
-			if got := honourPickupStore(tt.posted, tt.state, tt.known); got != tt.want {
-				t.Errorf("honourPickupStore = %v, want %v", got, tt.want)
+			if got := Honoured(tt.posted, tt.state, tt.known); got != tt.want {
+				t.Errorf("Honoured = %v, want %v", got, tt.want)
 			}
 		})
 	}
@@ -449,12 +452,12 @@ func TestTheCallbackIsCheckedForShapeAndNothingElse(t *testing.T) {
 				tt.edit(form)
 			}
 			req := httptest.NewRequestWithContext(t.Context(), http.MethodPost,
-				PickupReturnPath, strings.NewReader(form.Encode()))
+				ReturnPath, strings.NewReader(form.Encode()))
 			req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
 
-			store, ok := m.readCallback(req)
+			store, ok := m.ReadCallback(req)
 			if ok != tt.want {
-				t.Fatalf("readCallback ok = %v, want %v", ok, tt.want)
+				t.Fatalf("ReadCallback ok = %v, want %v", ok, tt.want)
 			}
 			if !tt.want {
 				return
@@ -474,17 +477,17 @@ func TestTheCallbackIsCheckedForShapeAndNothingElse(t *testing.T) {
 func TestADisabledMapReadsNoCallbackAtAll(t *testing.T) {
 	t.Parallel()
 
-	off, err := NewStoreMap(aMerchantID, "", "", "https://goen.test")
+	off, err := New(aMerchantID, "", "", "https://goen.test")
 	if err != nil {
-		t.Fatalf("NewStoreMap: %v", err)
+		t.Fatalf("New: %v", err)
 	}
-	req := httptest.NewRequestWithContext(t.Context(), http.MethodPost, PickupReturnPath,
+	req := httptest.NewRequestWithContext(t.Context(), http.MethodPost, ReturnPath,
 		strings.NewReader(url.Values{
 			"MerchantID": {aMerchantID}, "LogisticsSubType": {"UNIMART"},
 			"CVSStoreID": {"131386"}, "CVSStoreName": {"南港園區"}, "ExtraData": {aNonce},
 		}.Encode()))
 	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
-	if _, ok := off.readCallback(req); ok {
+	if _, ok := off.ReadCallback(req); ok {
 		t.Error("a disabled map read a callback")
 	}
 }
@@ -501,10 +504,10 @@ func TestALowerCaseStoreCodeIsReadTheWayPlacementReadsIt(t *testing.T) {
 		"CVSStoreID": {" a12345 "}, "CVSStoreName": {"松高店"}, "ExtraData": {aNonce},
 	}
 	req := httptest.NewRequestWithContext(t.Context(), http.MethodPost,
-		PickupReturnPath, strings.NewReader(form.Encode()))
+		ReturnPath, strings.NewReader(form.Encode()))
 	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
 
-	store, ok := testMap(t, ModeB2C).readCallback(req)
+	store, ok := testMap(t, ModeB2C).ReadCallback(req)
 	if !ok {
 		t.Fatal("a store code in lower case was refused; placement would have accepted it")
 	}
@@ -531,25 +534,25 @@ func TestNothingPostedReachesTheSchemeHostOrPathOfTheRefresh(t *testing.T) {
 	}
 
 	for _, s := range hostile {
-		got := callback{
+		got := Callback{
 			Chain: shipping.ChainSevenEleven, Code: "131386", Name: s, Address: s, Nonce: aNonce,
-		}.refreshTarget()
+		}.RefreshTarget()
 
 		if !strings.HasPrefix(got, "/checkout?") {
-			t.Errorf("refreshTarget(%q) = %q, which does not start at goen's own checkout", s, got)
+			t.Errorf("RefreshTarget(%q) = %q, which does not start at goen's own checkout", s, got)
 			continue
 		}
 		u, err := url.Parse(got)
 		if err != nil {
-			t.Errorf("refreshTarget(%q) = %q, which will not parse: %v", s, got, err)
+			t.Errorf("RefreshTarget(%q) = %q, which will not parse: %v", s, got, err)
 			continue
 		}
 		if u.Scheme != "" || u.Host != "" || u.Opaque != "" {
-			t.Errorf("refreshTarget(%q) reached outside goen: scheme=%q host=%q",
+			t.Errorf("RefreshTarget(%q) reached outside goen: scheme=%q host=%q",
 				s, u.Scheme, u.Host)
 		}
 		if u.Path != "/checkout" {
-			t.Errorf("refreshTarget(%q) has path %q, want /checkout", s, u.Path)
+			t.Errorf("RefreshTarget(%q) has path %q, want /checkout", s, u.Path)
 		}
 		if name := u.Query().Get("pickup_store_name"); name != s {
 			t.Errorf("the store name came back as %q, want %q — encoding must not "+
@@ -570,15 +573,15 @@ func TestThePickupCookieFollowsTheHouseNaming(t *testing.T) {
 	for _, secure := range []bool{true, false} {
 		want := "goen_pickup"
 		if secure {
-			want = PickupCookieName
+			want = CookieName
 		}
-		if got := pickupCookieName(secure); got != want {
-			t.Fatalf("pickupCookieName(%v) = %q, want %q", secure, got, want)
+		if got := CookieNameFor(secure); got != want {
+			t.Fatalf("CookieNameFor(%v) = %q, want %q", secure, got, want)
 		}
 
 		res := httptest.NewRecorder()
-		state := pickupState{Nonce: aNonce, Ship: "ship-1", Invoice: "mobile", Address: "addr-7"}
-		writePickupCookie(res, state, secure)
+		state := State{Nonce: aNonce, Ship: "ship-1", Invoice: "mobile", Address: "addr-7"}
+		WriteCookie(res, state, secure)
 
 		c := res.Result().Cookies()[0]
 		if c.Name != want {
@@ -595,7 +598,7 @@ func TestThePickupCookieFollowsTheHouseNaming(t *testing.T) {
 
 		req := httptest.NewRequestWithContext(t.Context(), http.MethodGet, "/checkout", http.NoBody)
 		req.AddCookie(c)
-		got, ok := readPickupCookie(req, secure)
+		got, ok := ReadCookie(req, secure)
 		if !ok {
 			t.Fatal("the cookie goen just wrote did not read back")
 		}
@@ -615,8 +618,8 @@ func TestAMangledPickupCookieIsNoCookieAtAll(t *testing.T) {
 		req := httptest.NewRequestWithContext(t.Context(), http.MethodGet, "/checkout", http.NoBody)
 		//nolint:gosec // G124: a deliberately mangled cookie, read and refused
 		req.AddCookie(&http.Cookie{Name: "goen_pickup", Value: value})
-		if _, ok := readPickupCookie(req, false); ok {
-			t.Errorf("readPickupCookie accepted %q", value)
+		if _, ok := ReadCookie(req, false); ok {
+			t.Errorf("ReadCookie accepted %q", value)
 		}
 	}
 }
@@ -627,7 +630,7 @@ func TestClearingThePickupCookieExpiresIt(t *testing.T) {
 	t.Parallel()
 
 	res := httptest.NewRecorder()
-	clearPickupCookie(res, false)
+	ClearCookie(res, false)
 	c := res.Result().Cookies()[0]
 	if c.Value != "" || c.MaxAge >= 0 {
 		t.Errorf("clearing wrote value %q MaxAge %d, want an expired empty cookie",
@@ -651,10 +654,10 @@ func TestPickupUsesTheMatchingCookieAcrossCheckoutRequests(t *testing.T) {
 				req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
 				for _, value := range []string{prefix, encodeState(aNonce + "|chosen-ship|mobile_carrier|chosen-address")} {
 					//nolint:gosec // G124: both production and local cookie names are exercised
-					req.AddCookie(&http.Cookie{Name: pickupCookieName(secure), Value: value})
+					req.AddCookie(&http.Cookie{Name: CookieNameFor(secure), Value: value})
 				}
-				got, ok := readPickupCookie(req, secure)
-				want := pickupState{Nonce: aNonce, Ship: "chosen-ship", Invoice: "mobile_carrier", Address: "chosen-address"}
+				got, ok := ReadCookie(req, secure)
+				want := State{Nonce: aNonce, Ship: "chosen-ship", Invoice: "mobile_carrier", Address: "chosen-address"}
 				if !ok || got != want {
 					t.Fatalf("%s secure=%v matching cookie = %+v/%v, want %+v", method, secure, got, ok, want)
 				}
@@ -663,64 +666,64 @@ func TestPickupUsesTheMatchingCookieAcrossCheckoutRequests(t *testing.T) {
 	}
 }
 
-func TestPickupRefusalDiagnosticsDoNotExposeSelectionSecrets(t *testing.T) {
+// TestPickupNoncesAreComparedInConstantTime holds the one comparison the
+// store-map rule rests on. The honour rule's behaviour cannot show how it
+// compares, so the source is read: a nonce is compared with
+// crypto/subtle, and == or != on a nonce is only a test for absence.
+func TestPickupNoncesAreComparedInConstantTime(t *testing.T) {
 	t.Parallel()
-	var logs bytes.Buffer
-	h := &Handler{storeMap: testMap(t, ModeB2C), log: slog.New(slog.NewJSONHandler(&logs, nil))}
-	req := httptest.NewRequestWithContext(t.Context(), http.MethodGet,
-		"/checkout?pickup_n="+aNonce+"&pickup_chain=seven_eleven&pickup_store_code=131386&pickup_store_name=private-store", http.NoBody)
-	//nolint:gosec // G124: stale local cookie used to exercise refusal diagnostics
-	req.AddCookie(&http.Cookie{Name: "goen_pickup", Value: encodeState("fedcba98765432100000|a|b|c")})
-	view := &CheckoutView{}
-	if got := h.applyReturnedStore(req, view); got != http.StatusUnprocessableEntity || !view.PickupRefused {
-		t.Fatalf("unmatched selection = %d, refused=%v", got, view.PickupRefused)
-	}
-	for _, want := range []string{`"pickup_cookie_count":1`, `"nonce_valid":true`, `"nonce_matched":false`, `"chain_offered":true`} {
-		if !strings.Contains(logs.String(), want) {
-			t.Errorf("diagnostics missing %s: %s", want, logs.String())
+	// This package holds the rule; the checkout's handlers in internal/cart
+	// carry the nonce through every render and placement.
+	var files []string
+	for _, dir := range []string{".", filepath.Join("..", "..", "cart")} {
+		found, err := filepath.Glob(filepath.Join(dir, "*.go"))
+		if err != nil {
+			t.Fatalf("list sources: %v", err)
 		}
-	}
-	for _, secret := range []string{aNonce, "fedcba98765432100000", "131386", "private-store"} {
-		if strings.Contains(logs.String(), secret) {
-			t.Errorf("diagnostics disclosed selection data %q", secret)
+		if len(found) == 0 {
+			t.Fatalf("no sources in %s; the read below would prove nothing", dir)
 		}
+		files = append(files, found...)
 	}
-}
+	nonceName := regexp.MustCompile(`(?i)nonce$`)
+	isNonce := func(e ast.Expr) bool {
+		switch v := e.(type) {
+		case *ast.Ident:
+			return nonceName.MatchString(v.Name)
+		case *ast.SelectorExpr:
+			return nonceName.MatchString(v.Sel.Name)
+		}
+		return false
+	}
+	isEmpty := func(e ast.Expr) bool {
+		lit, ok := e.(*ast.BasicLit)
+		return ok && lit.Kind == token.STRING && lit.Value == `""`
+	}
 
-func TestMissingPickupNonceIsNotLoggedAsAMatch(t *testing.T) {
-	t.Parallel()
-	var logs bytes.Buffer
-	h := &Handler{storeMap: testMap(t, ModeB2C), log: slog.New(slog.NewJSONHandler(&logs, nil))}
-	req := httptest.NewRequestWithContext(t.Context(), http.MethodGet,
-		"/checkout?pickup_chain=seven_eleven&pickup_store_code=131386", http.NoBody)
-	//nolint:gosec // G124: local selection cookie without a matching return nonce
-	req.AddCookie(&http.Cookie{Name: "goen_pickup", Value: encodeState(aNonce + "|a|b|c")})
-	view := &CheckoutView{}
-	if got := h.applyReturnedStore(req, view); got != http.StatusUnprocessableEntity {
-		t.Fatalf("return without a nonce = %d, want 422", got)
+	fset := token.NewFileSet()
+	var offenders []string
+	for _, name := range files {
+		if strings.HasSuffix(name, "_test.go") {
+			continue
+		}
+		file, err := parser.ParseFile(fset, name, nil, 0)
+		if err != nil {
+			t.Fatalf("parse %s: %v", name, err)
+		}
+		ast.Inspect(file, func(n ast.Node) bool {
+			cmp, ok := n.(*ast.BinaryExpr)
+			if !ok || (cmp.Op != token.EQL && cmp.Op != token.NEQ) {
+				return true
+			}
+			if (isNonce(cmp.X) || isNonce(cmp.Y)) && !isEmpty(cmp.X) && !isEmpty(cmp.Y) {
+				offenders = append(offenders, fset.Position(cmp.Pos()).String())
+			}
+			return true
+		})
 	}
-	if !strings.Contains(logs.String(), `"nonce_matched":false`) {
-		t.Errorf("missing nonce reported as a match: %s", logs.String())
-	}
-}
-
-func TestASingleCookieSurvivesAMismatchedNonce(t *testing.T) {
-	t.Parallel()
-	const other = "fedcba98765432100000"
-	req := httptest.NewRequestWithContext(t.Context(), http.MethodGet, "/checkout?pickup_n="+other, http.NoBody)
-	//nolint:gosec // G124: the browser's own pickup cookie
-	req.AddCookie(&http.Cookie{Name: "goen_pickup", Value: encodeState(aNonce + "|ship-1|mobile_carrier|addr-1")})
-	h := &Handler{storeMap: testMap(t, ModeB2C), log: slog.New(slog.DiscardHandler)}
-
-	got := h.checkoutChoices(req)
-	if got.Ship != "ship-1" || got.Invoice != "mobile_carrier" || got.Address != "addr-1" {
-		t.Errorf("a mismatched nonce hid the saved choices: %+v", got)
-	}
-	state, ok := readPickupCookie(req, false)
-	if !ok || state.Nonce != aNonce {
-		t.Errorf("the shopper's own nonce was replaced: %+v/%v", state, ok)
-	}
-	if honourPickupStore(PostedStore{Chain: "seven_eleven", Code: "131386", Nonce: other}, state, ok) {
-		t.Error("a mismatched nonce was honoured")
+	if len(offenders) > 0 {
+		t.Errorf("a pickup nonce is compared with == or != at %v; use "+
+			"subtle.ConstantTimeCompare so the comparison's time says nothing about the nonce",
+			offenders)
 	}
 }

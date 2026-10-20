@@ -28,6 +28,7 @@ import (
 	"github.com/koopa0/goen/internal/order/delivery"
 	"github.com/koopa0/goen/internal/payment"
 	"github.com/koopa0/goen/internal/ratelimit"
+	"github.com/koopa0/goen/internal/shipping/storemap"
 	"github.com/koopa0/goen/internal/ui/layouts"
 	"github.com/koopa0/goen/internal/ui/pages"
 	"github.com/koopa0/goen/internal/user"
@@ -44,7 +45,7 @@ type Handler struct {
 	sessions payment.SessionCloser
 	// storeMap is nil or disabled on a deployment with no carrier, where the
 	// checkout offers no pickup.
-	storeMap       *StoreMap
+	storeMap       *storemap.Client
 	barcodeChecker MobileBarcodeChecker
 	// couponMisses bounds how many wrong coupon codes one shopper is told
 	// about: a wrong code and a right one answer differently, so unbounded it
@@ -60,7 +61,7 @@ type MobileBarcodeChecker interface {
 // disabled storeMap as no carrier, so the checkout offers no pickup; an
 // omitted checker keeps local shape validation where there is no invoice gateway.
 func NewHandler(store *Store, grants *access.Store, log *slog.Logger, secure bool,
-	sessions payment.SessionCloser, storeMap *StoreMap, checkers ...MobileBarcodeChecker,
+	sessions payment.SessionCloser, storeMap *storemap.Client, checkers ...MobileBarcodeChecker,
 ) *Handler {
 	if store == nil || grants == nil || log == nil {
 		panic("cart: NewHandler requires a store, an access check and a logger")
@@ -100,7 +101,7 @@ func (h *Handler) Routes(mux *http.ServeMux, checkout *ratelimit.Limiter, clearS
 		// browser, so it arrives cross-site with none of goen's cookies. It
 		// exists only where a carrier is configured: an unconfigured goen
 		// answers 404 here and its cross-origin defence keeps no bypass.
-		mux.HandleFunc("POST "+PickupReturnPath, h.PickupReturn)
+		mux.HandleFunc("POST "+storemap.ReturnPath, h.PickupReturn)
 		// The checkout form is posted here by 「選擇門市」: same-origin, so under
 		// the cross-origin defence like every other form, and it keeps what was
 		// typed before the browser is handed to the carrier.
@@ -560,7 +561,7 @@ func (h *Handler) PickupMap(w http.ResponseWriter, r *http.Request) {
 		h.serverError(w, r)
 		return
 	}
-	state, known := readPickupCookie(r, h.secure)
+	state, known := storemap.ReadCookie(r, h.secure)
 	if !found || !known {
 		http.Redirect(w, r, back, http.StatusSeeOther)
 		return
@@ -571,21 +572,21 @@ func (h *Handler) PickupMap(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	w.Header().Set("Cache-Control", "no-store")
-	web.Render(w, r, h.log, http.StatusOK, PickupStart(form, back))
+	web.Render(w, r, h.log, http.StatusOK, storemap.StartPage(form, back))
 }
 
 // checkoutChoices reads the pickup cookie ONLY on the one hop back from the
 // map: a plain visit keeps today's defaults rather than silently restoring an
 // older choice.
-func (h *Handler) checkoutChoices(r *http.Request) pickupState {
+func (h *Handler) checkoutChoices(r *http.Request) storemap.State {
 	q := r.URL.Query()
-	chosen := pickupState{
+	chosen := storemap.State{
 		Ship: q.Get("ship"), Invoice: q.Get("invoice"), Address: q.Get("address"),
 	}
 	if q.Get("pickup_n") == "" {
 		return chosen
 	}
-	saved, ok := readPickupCookie(r, h.secure)
+	saved, ok := storemap.ReadCookie(r, h.secure)
 	if !ok {
 		return chosen
 	}
@@ -610,7 +611,7 @@ func (h *Handler) applyReturnedStore(r *http.Request, view *CheckoutView) int {
 		return http.StatusOK
 	}
 	q := r.URL.Query()
-	posted := PostedStore{
+	posted := storemap.PostedStore{
 		Chain: shipping.Chain(q.Get("pickup_chain")),
 		Code:  q.Get("pickup_store_code"),
 		Name:  q.Get("pickup_store_name"),
@@ -619,8 +620,8 @@ func (h *Handler) applyReturnedStore(r *http.Request, view *CheckoutView) int {
 	if posted.Empty() {
 		return http.StatusOK
 	}
-	state, known := readPickupCookie(r, h.secure)
-	if !honourPickupStore(posted, state, known) {
+	state, known := storemap.ReadCookie(r, h.secure)
+	if !storemap.Honoured(posted, state, known) {
 		h.logPickupRefusal(r, posted)
 		view.PickupRefused = true
 		return http.StatusUnprocessableEntity
@@ -643,12 +644,12 @@ func (h *Handler) applyReturnedStore(r *http.Request, view *CheckoutView) int {
 func (h *Handler) PickupReturn(w http.ResponseWriter, r *http.Request) {
 	// Smaller than web.MaxFormBytes: the callback is under 300 bytes and this
 	// endpoint takes unauthenticated traffic.
-	r.Body = http.MaxBytesReader(w, r.Body, maxCallbackFieldBytes)
+	r.Body = http.MaxBytesReader(w, r.Body, storemap.MaxCallbackBytes)
 	if err := r.ParseForm(); err != nil {
 		http.Error(w, "400 "+i18n.T(r.Context(), i18n.KeyFormUnreadable), http.StatusBadRequest)
 		return
 	}
-	store, ok := h.storeMap.readCallback(r)
+	store, ok := h.storeMap.ReadCallback(r)
 	if !ok {
 		http.Error(w, "400 "+i18n.T(r.Context(), i18n.KeyPickupStoreUnreadable), http.StatusBadRequest)
 		return
@@ -656,7 +657,7 @@ func (h *Handler) PickupReturn(w http.ResponseWriter, r *http.Request) {
 	// Not cacheable: the body carries a store a third party chose for whoever
 	// holds this browser.
 	w.Header().Set("Cache-Control", "no-store")
-	web.Render(w, r, h.log, http.StatusOK, PickupReturn(store.refreshTarget()))
+	web.Render(w, r, h.log, http.StatusOK, storemap.ReturnPage(store.RefreshTarget()))
 }
 
 // dropUnvouchedStore is the placement half of the same rule: a store number or
@@ -675,15 +676,15 @@ func (h *Handler) dropUnvouchedStore(r *http.Request, addr *delivery.Details) bo
 	if addr.PickupStoreCode == "" && addr.PickupStoreName == "" {
 		return false
 	}
-	posted := PostedStore{
+	posted := storemap.PostedStore{
 		Chain: addr.PickupChain,
 		Code:  addr.PickupStoreCode,
 		Name:  addr.PickupStoreName,
 		Nonce: r.PostFormValue("pickup_n"),
 	}
-	state, known := readPickupCookie(r, h.secure)
+	state, known := storemap.ReadCookie(r, h.secure)
 	sameChain := r.PostFormValue("pickup_store_chain") == string(addr.PickupChain)
-	if sameChain && honourPickupStore(posted, state, known) {
+	if sameChain && storemap.Honoured(posted, state, known) {
 		return false
 	}
 	addr.PickupStoreCode, addr.PickupStoreName = "", ""
@@ -693,14 +694,14 @@ func (h *Handler) dropUnvouchedStore(r *http.Request, addr *delivery.Details) bo
 	return sameChain
 }
 
-func (h *Handler) logPickupRefusal(r *http.Request, posted PostedStore) {
+func (h *Handler) logPickupRefusal(r *http.Request, posted storemap.PostedStore) {
 	// The nonce authorizes a selection; diagnostics must not disclose it or the
 	// customer's destination to anyone who can read logs.
 	h.log.WarnContext(r.Context(), "pickup store refused",
 		"method", r.Method,
-		"pickup_cookie_count", len(r.CookiesNamed(pickupCookieName(h.secure))),
-		"nonce_valid", validNonce(posted.Nonce),
-		"nonce_matched", pickupNonceMatched(r, h.secure, posted.Nonce),
+		"pickup_cookie_count", len(r.CookiesNamed(storemap.CookieNameFor(h.secure))),
+		"nonce_valid", storemap.ValidNonce(posted.Nonce),
+		"nonce_matched", storemap.NonceMatched(r, h.secure, posted.Nonce),
 		"chain_offered", posted.Chain.AtCheckout())
 }
 
@@ -742,27 +743,27 @@ func (h *Handler) offerTheStoreMap(
 func (h *Handler) pickupSession(
 	w http.ResponseWriter, r *http.Request, ship, invoice, address string,
 ) (nonce string, ok bool) {
-	state, ok := readPickupCookie(r, h.secure)
+	state, ok := storemap.ReadCookie(r, h.secure)
 	if !ok {
-		n, err := newPickupNonce()
+		n, err := storemap.NewNonce()
 		if err != nil {
 			h.log.ErrorContext(r.Context(), "open a pickup nonce", "error", err)
 			return "", false
 		}
-		state = pickupState{Nonce: n}
+		state = storemap.State{Nonce: n}
 	}
 	state.Ship, state.Invoice, state.Address = ship, invoice, address
-	writePickupCookie(w, state, h.secure)
+	storemap.WriteCookie(w, state, h.secure)
 	return state.Nonce, true
 }
 
 func (h *Handler) mapRequest(
 	r *http.Request, chain shipping.Chain, nonce string,
-) (CheckoutMapForm, bool) {
-	tradeNo, err := NewMerchantTradeNo()
+) (storemap.Form, bool) {
+	tradeNo, err := storemap.NewMerchantTradeNo()
 	if err != nil {
 		h.log.ErrorContext(r.Context(), "open a map correlation number", "error", err)
-		return CheckoutMapForm{}, false
+		return storemap.Form{}, false
 	}
 	return h.storeMap.Request(chain, tradeNo, nonce, wantsTheMobileMap(r))
 }
@@ -1054,7 +1055,7 @@ func (h *Handler) answerPlacement(
 		}
 		// Left behind, the nonce would still vouch for a store in the next
 		// checkout this browser starts.
-		clearPickupCookie(w, h.secure)
+		storemap.ClearCookie(w, h.secure)
 		// Straight to payment: a confirmation shown before payment reads as
 		// done to a customer who then closes the tab.
 		http.Redirect(w, r, "/orders/"+number+"/pay", http.StatusSeeOther) //nolint:gosec // G710: server-generated order number

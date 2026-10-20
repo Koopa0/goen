@@ -263,7 +263,7 @@ CI runs formatting, vet, lint, dead-code and generated-code checks, migration li
 | Area | Entry points |
 | --- | --- |
 | Composition and lifecycle | [`cmd/goen`][main], [routes][server], [middleware][middleware], [provider posture][provider-posture] |
-| Checkout, reservations, order access | [`internal/cart`][checkout], [`internal/coupon`][coupon], [`internal/order/lapse`][lapse], [`internal/order/access`][orderaccess] |
+| Checkout, reservations, order access | [`internal/cart`][checkout], [`internal/coupon`][coupon], [`internal/shipping/storemap`][storemap], [`internal/order/lapse`][lapse], [`internal/order/access`][orderaccess] |
 | Payments and recovery | [`internal/payment`][payment-store], [Stripe adapter][stripe], [`internal/admin/health`][health] |
 | Fulfillment, returns, refunds | [`internal/order`][order], [`internal/admin/orders`][orders], [`internal/admin/dashboard`][dashboard], [`internal/returns`][returns-rules], [`internal/admin/returns`][returns], [`internal/admin/refunds`][refund-payout] |
 | Invoices and deferred delivery | [`internal/invoice/issuer`][invoice-store], [`internal/admin/orders`][orders], [`internal/outbox`][outbox], [`internal/letter`][letter] |
@@ -284,6 +284,7 @@ CI runs formatting, vet, lint, dead-code and generated-code checks, migration li
 [slowquery]: cmd/goen/slowquery.go
 [checkout]: internal/cart/store.go
 [coupon]: internal/coupon/coupon.go
+[storemap]: internal/shipping/storemap/storemap.go
 [lapse]: internal/order/lapse/sweeper.go
 [customer-cancel]: internal/order/buyer/cancel.go
 [orderaccess]: internal/order/access

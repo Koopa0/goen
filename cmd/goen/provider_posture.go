@@ -6,10 +6,10 @@ import (
 	"net/url"
 	"strings"
 
-	"github.com/koopa0/goen/internal/cart"
 	"github.com/koopa0/goen/internal/email"
 	"github.com/koopa0/goen/internal/invoice/issuer"
 	"github.com/koopa0/goen/internal/payment"
+	"github.com/koopa0/goen/internal/shipping/storemap"
 )
 
 // prepareProviderPosture refuses a configuration that holds a live Stripe key
@@ -38,8 +38,8 @@ func (cfg *config) prepareProviderPosture() error {
 	// A live key reads the production store map unless told otherwise; the map
 	// has no other setting that says which environment it is.
 	if cfg.ECPayLogisticsBaseURL == "" {
-		cfg.ECPayLogisticsBaseURL = cart.MapProductionBaseURL
-	} else if namesHost(cfg.ECPayLogisticsBaseURL, cart.MapStagingBaseURL) {
+		cfg.ECPayLogisticsBaseURL = storemap.ProductionBaseURL
+	} else if namesHost(cfg.ECPayLogisticsBaseURL, storemap.StagingBaseURL) {
 		return errors.New("GOEN_ECPAY_LOGISTICS_BASE_URL names the ECPay staging store map beside a live GOEN_STRIPE_API_KEY")
 	}
 	return cfg.validateLiveSender()

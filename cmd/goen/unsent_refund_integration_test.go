@@ -15,12 +15,12 @@ import (
 
 	"github.com/koopa0/goen/internal/admin/admintest"
 	"github.com/koopa0/goen/internal/admin/refunds"
-	"github.com/koopa0/goen/internal/cart"
 	"github.com/koopa0/goen/internal/letter"
 	"github.com/koopa0/goen/internal/order/notice"
 	"github.com/koopa0/goen/internal/outbox"
 	"github.com/koopa0/goen/internal/payment"
 	"github.com/koopa0/goen/internal/returns"
+	"github.com/koopa0/goen/internal/shipping/storemap"
 )
 
 // capturingSender keeps the letters a worker sends.
@@ -98,7 +98,7 @@ func TestTheUnsentRefundDoorRefusesACrossSitePost(t *testing.T) {
 	if err != nil {
 		t.Fatalf("build disabled payment gateway: %v", err)
 	}
-	storeMap, err := cart.NewStoreMap("1000001", string(cart.ModeB2C), "", "https://goen.test")
+	storeMap, err := storemap.New("1000001", string(storemap.ModeB2C), "", "https://goen.test")
 	if err != nil {
 		t.Fatalf("build the store map: %v", err)
 	}
