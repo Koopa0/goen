@@ -14,7 +14,7 @@ import (
 	"github.com/google/uuid"
 
 	"github.com/koopa0/goen/internal/admin/admintest"
-	"github.com/koopa0/goen/internal/admin/loyalty"
+	"github.com/koopa0/goen/internal/admin/credits"
 	"github.com/koopa0/goen/internal/i18n"
 )
 
@@ -60,7 +60,7 @@ func TestHandlerQueueFromCreditPosting(t *testing.T) {
 	if err := pool.QueryRow(ctx, `SELECT user_id FROM store_credit_accounts WHERE id = $1`, accountID).Scan(&customerID); err != nil {
 		t.Fatal(err)
 	}
-	credit := loyalty.NewHandler(loyalty.NewStore(appPool), slog.New(slog.DiscardHandler))
+	credit := credits.NewHandler(credits.NewStore(appPool), slog.New(slog.DiscardHandler))
 	for _, locale := range i18n.Locales() {
 		get := httptest.NewRequestWithContext(i18n.WithLocale(ctx, locale), http.MethodGet, "/admin/credit?customer="+customerID.String(), http.NoBody)
 		page := httptest.NewRecorder()

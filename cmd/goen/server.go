@@ -15,11 +15,11 @@ import (
 	"github.com/koopa0/goen/internal/admin/campaigns"
 	"github.com/koopa0/goen/internal/admin/content"
 	"github.com/koopa0/goen/internal/admin/coupons"
+	"github.com/koopa0/goen/internal/admin/credits"
 	"github.com/koopa0/goen/internal/admin/customers"
 	"github.com/koopa0/goen/internal/admin/dashboard"
 	"github.com/koopa0/goen/internal/admin/feedback"
 	"github.com/koopa0/goen/internal/admin/health"
-	adminloyalty "github.com/koopa0/goen/internal/admin/loyalty"
 	"github.com/koopa0/goen/internal/admin/orders"
 	"github.com/koopa0/goen/internal/admin/products"
 	"github.com/koopa0/goen/internal/admin/refunds"
@@ -29,6 +29,7 @@ import (
 	"github.com/koopa0/goen/internal/admin/staff"
 	"github.com/koopa0/goen/internal/admin/stock"
 	"github.com/koopa0/goen/internal/admin/taxonomy"
+	"github.com/koopa0/goen/internal/admin/tiers"
 	"github.com/koopa0/goen/internal/admin/twofactor"
 	"github.com/koopa0/goen/internal/auth"
 	"github.com/koopa0/goen/internal/cart"
@@ -332,7 +333,8 @@ func backOfficeRoutes(mux *http.ServeMux, cfg *BackOfficeConfig, factorStore *tw
 	roster := staff.NewHandler(staff.NewStore(adminPool), log, factorStore.Enabled())
 	lookup := customers.NewHandler(customers.NewStore(adminPool), log)
 	promotions := coupons.NewHandler(coupons.NewStore(adminPool), log)
-	programme := adminloyalty.NewHandler(adminloyalty.NewStore(adminPool), log)
+	tierDesk := tiers.NewHandler(tiers.NewStore(adminPool), log)
+	creditDesk := credits.NewHandler(credits.NewStore(adminPool), log)
 	workers := health.NewHandler(checkup, outbox.NewStore(adminPool, log),
 		healthPools, disputeSource(gateway), log)
 
@@ -344,7 +346,8 @@ func backOfficeRoutes(mux *http.ServeMux, cfg *BackOfficeConfig, factorStore *tw
 	trail.Routes(mux, backOffice)
 	figures.Routes(mux, backOffice)
 	workers.Routes(mux, backOffice)
-	programme.Routes(mux, backOffice)
+	tierDesk.Routes(mux, backOffice)
+	creditDesk.Routes(mux, backOffice)
 	promotions.Routes(mux, backOffice)
 	lookup.Routes(mux, backOffice)
 	roster.Routes(mux, backOffice)
