@@ -6,7 +6,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"regexp"
 	"strings"
 	"time"
 	"unicode/utf8"
@@ -43,8 +42,6 @@ func NewStore(pool *pgxpool.Pool) *Store {
 	return &Store{pool: pool, q: db.New(pool)}
 }
 
-var codeShape = regexp.MustCompile(`^[A-Za-z0-9][A-Za-z0-9-]{1,31}$`)
-
 const maxDescriptionRunes = 60
 
 // Form is what the back office submits, in DOLLARS and whole percent.
@@ -63,7 +60,7 @@ type Form struct {
 }
 
 func (f *Form) Validate(ctx context.Context) map[string]string {
-	f.Code = strings.ToUpper(strings.TrimSpace(f.Code))
+	f.Code = coupon.Normalise(f.Code)
 	f.Description = strings.TrimSpace(f.Description)
 
 	errs := map[string]string{}
@@ -81,7 +78,7 @@ func (f *Form) Validate(ctx context.Context) map[string]string {
 			errs[field] = i18n.T(ctx, i18n.KeyFormCouponDays)
 		}
 	}
-	if !codeShape.MatchString(f.Code) {
+	if !coupon.ValidCode(f.Code) {
 		errs["code"] = i18n.T(ctx, i18n.KeyFormCouponCode)
 	}
 	if f.Description == "" || utf8.RuneCountInString(f.Description) > maxDescriptionRunes {
