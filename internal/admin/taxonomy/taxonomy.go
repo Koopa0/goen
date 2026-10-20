@@ -116,7 +116,7 @@ func (s *Store) CreateBrand(ctx context.Context, f *Form) (map[string]string, er
 	}
 	err := audit.Run(ctx, s.pool, audit.Event{
 		Action: audit.ActionCreateBrand, Table: "brands",
-		After: map[string]any{"slug": f.Slug, "name": f.Name},
+		After: audit.State{audit.FieldSlug: f.Slug, audit.FieldName: f.Name},
 	},
 		func(ctx context.Context, q *db.Queries) error {
 			return q.CreateBrand(ctx, db.CreateBrandParams{Slug: f.Slug, Name: f.Name})
@@ -136,9 +136,9 @@ func (s *Store) CreateCategory(ctx context.Context, f *Form) (map[string]string,
 	}
 	err := audit.Run(ctx, s.pool, audit.Event{
 		Action: audit.ActionCreateCategory, Table: "categories",
-		After: map[string]any{
-			"slug": f.Slug, "name": f.Name, "name_en": f.NameEn,
-			"icon_key": f.IconKey, "tone": f.Tone, "comparable": f.Comparable, "parent": f.Parent,
+		After: audit.State{
+			audit.FieldSlug: f.Slug, audit.FieldName: f.Name, audit.FieldNameEn: f.NameEn,
+			audit.FieldIconKey: f.IconKey, audit.FieldTone: f.Tone, audit.FieldComparable: f.Comparable, audit.FieldParent: f.Parent,
 		},
 	},
 		func(ctx context.Context, q *db.Queries) error {
@@ -190,17 +190,17 @@ func (s *Store) Rename(ctx context.Context, kind, slug, name, nameEn, iconKey, t
 		return ErrInvalid
 	}
 	action, table := audit.ActionRenameBrand, "brands"
-	after := map[string]any{"name": name}
+	after := audit.State{audit.FieldName: name}
 	if kind == "category" {
 		action, table = audit.ActionRenameCategory, "categories"
-		after["name_en"] = nameEn
-		after["icon_key"] = iconKey
-		after["tone"] = tone
-		after["comparable"] = offersComparison
+		after[audit.FieldNameEn] = nameEn
+		after[audit.FieldIconKey] = iconKey
+		after[audit.FieldTone] = tone
+		after[audit.FieldComparable] = offersComparison
 	}
 	return audit.Run(ctx, s.pool, audit.Event{
 		Action: action, Table: table,
-		Before: map[string]any{"slug": slug},
+		Before: audit.State{audit.FieldSlug: slug},
 		After:  after,
 	},
 		func(ctx context.Context, q *db.Queries) error {
@@ -229,7 +229,7 @@ func (s *Store) Delete(ctx context.Context, kind, slug string) error {
 		action, table = audit.ActionDeleteCategory, "categories"
 	}
 	return audit.Run(ctx, s.pool, audit.Event{
-		Action: action, Table: table, Before: map[string]any{"slug": slug},
+		Action: action, Table: table, Before: audit.State{audit.FieldSlug: slug},
 	},
 		func(ctx context.Context, q *db.Queries) error {
 			var n int64

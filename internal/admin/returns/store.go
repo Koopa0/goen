@@ -411,17 +411,17 @@ func returnDecisionAudit(
 	status returns.Status, resolution string,
 	window returns.PolicyWindow, entitlement returns.Entitlement,
 	assessmentVersion int32,
-) map[string]any {
-	after := map[string]any{
-		"decision":      string(status),
-		"resolution":    resolution,
-		"policy_window": string(window),
+) audit.State {
+	after := audit.State{
+		audit.FieldDecision:     string(status),
+		audit.FieldResolution:   resolution,
+		audit.FieldPolicyWindow: string(window),
 	}
 	if entitlement != "" {
-		after["entitlement"] = string(entitlement)
+		after[audit.FieldEntitlement] = string(entitlement)
 	}
 	if assessmentVersion > 0 {
-		after["assessment_version"] = assessmentVersion
+		after[audit.FieldAssessmentVersion] = assessmentVersion
 	}
 	return after
 }
@@ -797,7 +797,7 @@ func (s *Store) Inspect(
 		Action: audit.ActionInspectReturn, Table: "return_requests", ID: audit.EntityID(requestID),
 		// Counts, never the note: audit_events is append-only and erase_user does
 		// not reach it.
-		After: map[string]any{"lines": len(lines), "restocked": len(restock)},
+		After: audit.State{audit.FieldLines: len(lines), audit.FieldRestocked: len(restock)},
 	}); err != nil {
 		return err
 	}
@@ -845,7 +845,7 @@ func (s *Store) Complete(ctx context.Context, id, resolution string) error {
 
 	if err := audit.In(ctx, q, audit.Event{
 		Action: audit.ActionCompleteReturn, Table: "return_requests", ID: audit.EntityID(requestID),
-		After: map[string]any{"resolution": resolution},
+		After: audit.State{audit.FieldResolution: resolution},
 	}); err != nil {
 		return err
 	}
