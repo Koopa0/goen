@@ -160,3 +160,20 @@ func TestCreditRunningTotalNamesItsOrder(t *testing.T) {
 		}
 	}
 }
+
+// The page passes the back-office layout a page name, and the layout compares
+// it with the name on the menu link; nothing else ties the two strings, so a
+// mismatch silently drops the link's current state.
+func TestCreditMarksItsMenuLinkCurrent(t *testing.T) {
+	t.Parallel()
+	ctx := i18n.WithLocale(t.Context(), i18n.En)
+	doc, err := html.Parse(strings.NewReader(renderComponent(t, ctx, Credit(layouts.Page{}, CreditView{}))))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !hasElement(doc, func(n *html.Node) bool {
+		return n.Data == "a" && attr(n, "href") == "/admin/credits" && attr(n, "aria-current") == "page"
+	}) {
+		t.Error(`the menu link to /admin/credits is not marked aria-current="page" on the credits page`)
+	}
+}
