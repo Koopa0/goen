@@ -60,11 +60,11 @@ func TestHandlerQueueFromCreditPosting(t *testing.T) {
 	if err := pool.QueryRow(ctx, `SELECT user_id FROM store_credit_accounts WHERE id = $1`, accountID).Scan(&customerID); err != nil {
 		t.Fatal(err)
 	}
-	credit := credits.NewHandler(credits.NewStore(appPool), slog.New(slog.DiscardHandler))
+	creditDesk := credits.NewHandler(credits.NewStore(appPool), slog.New(slog.DiscardHandler))
 	for _, locale := range i18n.Locales() {
 		get := httptest.NewRequestWithContext(i18n.WithLocale(ctx, locale), http.MethodGet, "/admin/credits?customer="+customerID.String(), http.NoBody)
 		page := httptest.NewRecorder()
-		admintest.BackOffice.RequireStaff(credit.Credit)(page, get)
+		admintest.BackOffice.RequireStaff(creditDesk.Credit)(page, get)
 		for _, href := range []string{"/admin/orders/" + number, "/admin/returns?request=" + first.String()} {
 			if page.Code != http.StatusOK || !strings.Contains(page.Body.String(), `href="`+href+`"`) {
 				t.Errorf("%s credit page lost source %s: %d", locale.Tag(), href, page.Code)
