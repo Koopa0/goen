@@ -11,7 +11,6 @@ import (
 
 	"github.com/koopa0/goen/internal/db"
 	"github.com/koopa0/goen/internal/shoptime"
-	"github.com/koopa0/goen/internal/ui/pages"
 )
 
 const (
@@ -50,7 +49,7 @@ func (s *Store) Ask(ctx context.Context, slug, userID, body string) error {
 	return nil
 }
 
-func (s *Store) loadQuestions(ctx context.Context, productID uuid.UUID, view *pages.ProductView) error {
+func (s *Store) loadQuestions(ctx context.Context, productID uuid.UUID, view *ProductView) error {
 	rows, err := s.q.ProductQuestions(ctx, db.ProductQuestionsParams{
 		ProductID: productID, Limit: MaxQuestions,
 	})
@@ -67,7 +66,7 @@ func (s *Store) loadQuestions(ctx context.Context, productID uuid.UUID, view *pa
 	for i := range rows {
 		ids = append(ids, rows[i].ID)
 		byID[rows[i].ID] = i
-		view.Questions = append(view.Questions, pages.Question{
+		view.Questions = append(view.Questions, Question{
 			Asker: rows[i].Asker,
 			Body:  rows[i].Body,
 			Asked: shoptime.DateText(ctx, shoptime.DateOf(rows[i].CreatedAt, now)),
@@ -84,7 +83,7 @@ func (s *Store) loadQuestions(ctx context.Context, productID uuid.UUID, view *pa
 		if !ok {
 			continue
 		}
-		view.Questions[at].Answers = append(view.Questions[at].Answers, pages.Answer{
+		view.Questions[at].Answers = append(view.Questions[at].Answers, Answer{
 			Author:  a.Author,
 			Body:    a.Body,
 			IsStaff: a.IsStaff,

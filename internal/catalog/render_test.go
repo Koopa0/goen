@@ -92,3 +92,46 @@ func renderHeadAt(t *testing.T, ctx context.Context, p layouts.Page) string {
 	t.Helper()
 	return renderComponent(t, layouts.WithSiteOrigin(ctx, "https://goen.test"), layouts.Base(p))
 }
+
+func renderIn(t *testing.T, locale i18n.Locale, c templ.Component) string {
+	t.Helper()
+	var b strings.Builder
+	if err := c.Render(i18n.WithLocale(t.Context(), locale), &b); err != nil {
+		t.Fatalf("render: %v", err)
+	}
+	return b.String()
+}
+
+func assertEmailRefusal(t *testing.T, markup, inputID, sentence string) {
+	t.Helper()
+	doc, err := html.Parse(strings.NewReader(markup))
+	if err != nil {
+		t.Fatal(err)
+	}
+	input := findDescendant(doc, func(n *html.Node) bool {
+		return n.Type == html.ElementNode && n.Data == "input" && attrValue(n, "id") == inputID
+	})
+	if input == nil || attrValue(input, "aria-invalid") != "true" {
+		t.Fatal("refused email field is not marked invalid")
+	}
+	errorID := attrValue(input, "aria-describedby")
+	attached := false
+	for _, id := range strings.Fields(errorID) {
+		target := findDescendant(doc, func(n *html.Node) bool { return n.Type == html.ElementNode && attrValue(n, "id") == id })
+		if target == nil {
+			continue
+		}
+		var text strings.Builder
+		for n := range target.Descendants() {
+			if n.Type == html.TextNode {
+				text.WriteString(n.Data)
+			}
+		}
+		if strings.TrimSpace(text.String()) == sentence {
+			attached = true
+		}
+	}
+	if !attached {
+		t.Errorf("email refusal does not attach %q to its field", sentence)
+	}
+}

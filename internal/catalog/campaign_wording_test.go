@@ -7,7 +7,6 @@ import (
 
 	"github.com/koopa0/goen/internal/i18n"
 	"github.com/koopa0/goen/internal/ui/components"
-	"github.com/koopa0/goen/internal/ui/pages"
 )
 
 // 12:00 on 2 October 2026 in Taipei.
@@ -26,7 +25,7 @@ func TestNothingOfferedIsCalledLimitedTime(t *testing.T) {
 		"campaigns strip":  renderComponent(t, ctx, campaignStrip([]CampaignSummary{{Slug: "a", Title: "秋日選物", Products: 2}})),
 		"campaigns header": i18n.T(ctx, i18n.KeyCampaignsRunning),
 		"department notice": renderComponent(t, ctx, departmentNotice(&DepartmentNotice{
-			Title: "秋日選物", Href: "/s/autumn", End: pages.NewCampaignEnd(day(11), scheduleNow),
+			Title: "秋日選物", Href: "/s/autumn", End: NewCampaignEnd(day(11), scheduleNow),
 		})),
 	} {
 		if strings.Contains(text, "限時") {

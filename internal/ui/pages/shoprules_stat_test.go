@@ -10,6 +10,12 @@ import (
 	"github.com/koopa0/goen/internal/ui/layouts"
 )
 
+// testRules' windows are not the shop's: a page that printed a number of its own instead of the field's would show.
+var testRules = ShopRules{
+	FreeDeliveryCents: 300000, LowestFeeCents: 6000, PickupOffered: true,
+	RescissionDays: 8, ReturnDays: 15, HoldMinutes: 61, PayStartMinutes: 28,
+}
+
 // The four rules are read from where goen keeps them, in both languages; the
 // free-delivery threshold is the shop's own figure, and a shop whose methods
 // never turn free states none.
