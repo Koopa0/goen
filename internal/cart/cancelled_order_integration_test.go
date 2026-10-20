@@ -12,8 +12,8 @@ import (
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgconn"
 
-	"github.com/koopa0/goen/internal/cart"
 	"github.com/koopa0/goen/internal/order/buyer"
+	"github.com/koopa0/goen/internal/order/lapse"
 )
 
 // TestACancelledOrdersStockComesBackByEveryDoor. Cancelled is SETTLED and not
@@ -21,7 +21,7 @@ import (
 // on the wrong side of both doors, and its units come back by no route at all.
 func TestACancelledOrdersStockComesBackByEveryDoor(t *testing.T) {
 	ctx := t.Context()
-	s := cart.NewStore(pool)
+	s := lapse.NewSweeper(pool)
 	vid := freshVariant(t, "stockfix-14")
 
 	orderID := heldOrder(t, vid, time.Hour, true) // expired hold, paid

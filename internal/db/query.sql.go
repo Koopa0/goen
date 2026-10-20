@@ -17942,7 +17942,8 @@ type ShippableLinesRow struct {
 // LEFT JOIN on the reservation, not JOIN: a line whose variant was deleted has
 // no hold, and dropping the row here would ship it without moving stock. The
 // caller refuses instead. ReleaseReservation and HeldReservationsForOrder live
-// in internal/cart/query.sql — sqlc generates ONE db package for the module.
+// in internal/order/cancellation/query.sql — sqlc generates ONE db package for
+// the module.
 // What is still owed a parcel is bought less dispatched less what an unsent
 // refund claims (open_unsent_refund): shipment_lines_within_purchase refuses
 // a parcel carrying those units, so the form must not offer them.
