@@ -20,26 +20,26 @@ import (
 	"github.com/koopa0/goen/internal/user"
 )
 
-func (s *Store) Product(ctx context.Context, slug string, sel Selection) (pages.ProductView, error) {
+func (s *Store) Product(ctx context.Context, slug string, sel Selection) (ProductView, error) {
 	p, err := s.q.ProductBySlug(ctx, db.ProductBySlugParams{
 		Slug: slug, Locale: string(i18n.FromContext(ctx)),
 	})
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
-			return pages.ProductView{}, ErrNotFound
+			return ProductView{}, ErrNotFound
 		}
-		return pages.ProductView{}, fmt.Errorf("read product %q: %w", slug, err)
+		return ProductView{}, fmt.Errorf("read product %q: %w", slug, err)
 	}
 
 	rows, err := s.q.ProductVariants(ctx, p.ID)
 	if err != nil {
-		return pages.ProductView{}, fmt.Errorf("read variants of %q: %w", slug, err)
+		return ProductView{}, fmt.Errorf("read variants of %q: %w", slug, err)
 	}
 	variants := variantsOf(rows)
 
 	groups, labels, order, err := s.optionGroups(ctx, p.ID, slug)
 	if err != nil {
-		return pages.ProductView{}, err
+		return ProductView{}, err
 	}
 
 	// A query key is a variant option only if some variant carries it.
@@ -52,10 +52,10 @@ func (s *Store) Product(ctx context.Context, slug string, sel Selection) (pages.
 
 	rules, err := s.site.ShopRules(ctx)
 	if err != nil {
-		return pages.ProductView{}, err
+		return ProductView{}, err
 	}
 
-	view := pages.ProductView{
+	view := ProductView{
 		Rules:                   pages.ShopRules(rules),
 		Slug:                    p.Slug,
 		Name:                    p.Name,
@@ -83,9 +83,9 @@ func (s *Store) Product(ctx context.Context, slug string, sel Selection) (pages.
 	}
 
 	for _, o := range BuildOptions(slug, groups, order, labels, variants, sel) {
-		po := pages.ProductOption{Name: o.Name, Label: o.Label}
+		po := ProductOption{Name: o.Name, Label: o.Label}
 		for _, v := range o.Values {
-			po.Values = append(po.Values, pages.ProductOptionValue{
+			po.Values = append(po.Values, ProductOptionValue{
 				Value:     v.Value,
 				Label:     v.Label,
 				Selected:  v.Selected,
@@ -99,12 +99,12 @@ func (s *Store) Product(ctx context.Context, slug string, sel Selection) (pages.
 
 	view.Campaign, err = s.listedCampaign(ctx, p.ID, slug)
 	if err != nil {
-		return pages.ProductView{}, err
+		return ProductView{}, err
 	}
 	view.OnSale = OnSale(view.Campaign.Running(), view.Sellable, view.PriceCents, view.CompareCents)
 
 	if err := s.loadDetail(ctx, &p, &view); err != nil {
-		return pages.ProductView{}, err
+		return ProductView{}, err
 	}
 	return view, nil
 }
@@ -156,7 +156,7 @@ func (s *Store) optionGroups(ctx context.Context, id uuid.UUID, slug string) (ch
 }
 
 // showChosenVariant puts the variant the shopper resolved to on the page.
-func (s *Store) showChosenVariant(ctx context.Context, view *pages.ProductView, chosen *Variant) {
+func (s *Store) showChosenVariant(ctx context.Context, view *ProductView, chosen *Variant) {
 	view.VariantID = chosen.ID
 	view.SKU = chosen.SKU
 	view.PriceCents = chosen.PriceCents
@@ -167,20 +167,20 @@ func (s *Store) showChosenVariant(ctx context.Context, view *pages.ProductView, 
 	view.ExpectedArrivalText = s.arrivalText(ctx, view)
 }
 
-func (s *Store) listedCampaign(ctx context.Context, id uuid.UUID, slug string) (pages.ProductCampaign, error) {
+func (s *Store) listedCampaign(ctx context.Context, id uuid.UUID, slug string) (ProductCampaign, error) {
 	c, err := s.q.ListedCampaignOfProduct(ctx, db.ListedCampaignOfProductParams{
 		ProductID: id, Locale: string(i18n.FromContext(ctx)),
 	})
 	if errors.Is(err, pgx.ErrNoRows) {
-		return pages.ProductCampaign{}, nil
+		return ProductCampaign{}, nil
 	}
 	if err != nil {
-		return pages.ProductCampaign{}, fmt.Errorf("read listed campaign of %q: %w", slug, err)
+		return ProductCampaign{}, fmt.Errorf("read listed campaign of %q: %w", slug, err)
 	}
-	return pages.NewProductCampaign(c.Slug, c.Title, c.EndsAt, s.now()), nil
+	return NewProductCampaign(c.Slug, c.Title, c.EndsAt, s.now()), nil
 }
 
-func (s *Store) loadDetail(ctx context.Context, p *db.ProductBySlugRow, view *pages.ProductView) error {
+func (s *Store) loadDetail(ctx context.Context, p *db.ProductBySlugRow, view *ProductView) error {
 	if err := s.loadPresentation(ctx, p, view); err != nil {
 		return err
 	}
@@ -195,7 +195,7 @@ func (s *Store) loadDetail(ctx context.Context, p *db.ProductBySlugRow, view *pa
 	return s.loadQuestions(ctx, p.ID, view)
 }
 
-func (s *Store) loadPresentation(ctx context.Context, p *db.ProductBySlugRow, view *pages.ProductView) error {
+func (s *Store) loadPresentation(ctx context.Context, p *db.ProductBySlugRow, view *ProductView) error {
 	view.LabelFacts = &labelling.Facts{
 		Origin: p.Origin, DomesticPartyName: p.DomesticPartyName, DomesticPartyPhone: p.DomesticPartyPhone, DomesticPartyAddress: p.DomesticPartyAddress,
 		NetQuantity: p.NetQuantity, NetUnit: labelling.NetUnit(p.NetUnit),
@@ -225,7 +225,7 @@ func (s *Store) loadPresentation(ctx context.Context, p *db.ProductBySlugRow, vi
 			return fmt.Errorf("read crumbs for %q: %w", p.Slug, err)
 		}
 		for _, c := range trail {
-			view.Crumbs = append(view.Crumbs, pages.Crumb{Slug: c.Slug, Name: c.Name})
+			view.Crumbs = append(view.Crumbs, Crumb{Slug: c.Slug, Name: c.Name})
 		}
 	}
 
@@ -245,7 +245,7 @@ func (s *Store) loadPresentation(ctx context.Context, p *db.ProductBySlugRow, vi
 		if u == "" {
 			continue
 		}
-		view.Images = append(view.Images, pages.ProductImage{
+		view.Images = append(view.Images, ProductImage{
 			URL:         u,
 			Srcset:      photo.Srcset(),
 			Alt:         img.AltText,
@@ -262,19 +262,19 @@ func (s *Store) loadPresentation(ctx context.Context, p *db.ProductBySlugRow, vi
 		return fmt.Errorf("read specs of %q: %w", p.Slug, err)
 	}
 	for _, sp := range specs {
-		view.Specs = append(view.Specs, pages.ProductSpec{Label: sp.Label, Value: sp.Value})
+		view.Specs = append(view.Specs, ProductSpec{Label: sp.Label, Value: sp.Value})
 	}
 	return nil
 }
 
-func (s *Store) loadOpinion(ctx context.Context, p *db.ProductBySlugRow, view *pages.ProductView) error {
+func (s *Store) loadOpinion(ctx context.Context, p *db.ProductBySlugRow, view *ProductView) error {
 	rating, err := s.q.ProductRating(ctx, p.ID)
 	if err != nil {
 		return fmt.Errorf("read rating of %q: %w", p.Slug, err)
 	}
 	view.Rating = rating.Rating
 	view.RatingCount = rating.RatingCount
-	view.RatingBars = []pages.RatingBar{
+	view.RatingBars = []RatingBar{
 		{Stars: 5, Count: rating.Five}, {Stars: 4, Count: rating.Four},
 		{Stars: 3, Count: rating.Three}, {Stars: 2, Count: rating.Two},
 		{Stars: 1, Count: rating.One},
@@ -291,7 +291,7 @@ func (s *Store) loadOpinion(ctx context.Context, p *db.ProductBySlugRow, view *p
 	}
 	viewer, signedIn := user.FromContext(ctx)
 	for _, r := range reviews {
-		view.Reviews = append(view.Reviews, pages.ProductReview{
+		view.Reviews = append(view.Reviews, ProductReview{
 			Rating:   int(r.Rating),
 			Title:    r.Title.String,
 			Body:     r.Body,
@@ -408,7 +408,7 @@ func expectedArrivalOf(r *db.ProductVariantsRow) time.Time {
 	return time.Time{}
 }
 
-func (s *Store) arrivalText(ctx context.Context, v *pages.ProductView) string {
+func (s *Store) arrivalText(ctx context.Context, v *ProductView) string {
 	if v.ExpectedArrival.IsZero() {
 		return ""
 	}

@@ -38,6 +38,9 @@ var exceptions = map[string]string{
 	"internal/admin/admintest -> internal/admin/orders":  "T48",
 	"internal/admin/admintest -> internal/admin/refunds": "T48",
 	"internal/admin/admintest -> internal/admin/returns": "T48",
+	// The wishlist page still renders from ui/pages and reads AddOutcome, which
+	// the cart reports from cart/item; the edge leaves with the wishlist.
+	"internal/ui/pages -> internal/cart/item": "S11",
 }
 
 // under reports whether pkg is dir or lies below it.

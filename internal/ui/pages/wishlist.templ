@@ -1,6 +1,7 @@
 package pages
 
 import (
+	"github.com/koopa0/goen/internal/cart/item"
 	"github.com/koopa0/goen/internal/i18n"
 	"github.com/koopa0/goen/internal/ui/components"
 	"github.com/koopa0/goen/internal/ui/icons"
@@ -18,7 +19,7 @@ type WishlistView struct {
 	Products []WishlistItem
 	// Added is what the last add-to-cart from this page did, as the cart's
 	// redirect names it.
-	Added AddOutcome
+	Added item.AddOutcome
 }
 
 func (v WishlistView) Empty() bool { return len(v.Products) == 0 }
@@ -46,21 +47,21 @@ templ Wishlist(p layouts.Page, v WishlistView) {
 					</div>
 				} else {
 					switch v.Added {
-						case AddOutcomeAdded:
+						case item.AddOutcomeAdded:
 							@components.Notice(components.NoticeProps{Intent: components.IntentAccent, ID: "added", Class: "goen-wish__added"}) {
 								{ i18n.T(ctx, i18n.KeyAddedToCart) }
 								<a href="/cart">{ i18n.T(ctx, i18n.KeyViewCart) }</a>
 							}
-						case AddOutcomeAdjusted:
+						case item.AddOutcomeAdjusted:
 							@components.Notice(components.NoticeProps{Intent: components.IntentAccent, ID: "added", Class: "goen-wish__added"}) {
 								{ i18n.T(ctx, i18n.KeyAddAdjusted) }
 								<a href="/cart">{ i18n.T(ctx, i18n.KeyViewCart) }</a>
 							}
-						case AddOutcomeUnavailable, AddOutcomeUnknown:
+						case item.AddOutcomeUnavailable, item.AddOutcomeUnknown:
 							@components.Notice(components.NoticeProps{Intent: components.IntentDanger, ID: "added", Class: "goen-wish__added"}) {
 								{ i18n.T(ctx, i18n.KeyAddRefused) }
 							}
-						case AddOutcomeFull:
+						case item.AddOutcomeFull:
 							@components.Notice(components.NoticeProps{Intent: components.IntentDanger, ID: "added", Class: "goen-wish__added"}) {
 								{ i18n.T(ctx, i18n.KeyCartLineLimit) }
 							}

@@ -15,12 +15,12 @@ import (
 func TestProductViewsOmitAnAbsentBrand(t *testing.T) {
 	for _, locale := range []i18n.Locale{i18n.ZhHant, i18n.En} {
 		for _, brand := range []string{"", "Maker"} {
-			view := pages.ProductView{Slug: "generic", Name: "Generic", Brand: brand, VariantID: "generic-variant"}
+			view := ProductView{Slug: "generic", Name: "Generic", Brand: brand, VariantID: "generic-variant"}
 			for name, tc := range map[string]struct {
 				component templ.Component
 				class     string
 			}{
-				"product": {component: pages.Product(layouts.Page{Title: "Generic"}, &view), class: "goen-pdp__brand"},
+				"product": {component: Product(layouts.Page{Title: "Generic"}, &view), class: "goen-pdp__brand"},
 				"tile":    {component: pages.Tile(pages.ProductTile{Slug: "generic", Name: "Generic", Brand: brand}), class: "goen-tile__brand"},
 				"compare": {component: Compare(layouts.Page{Title: "Compare"}, CompareView{Products: []CompareProduct{
 					{Slug: "a", Name: "A", Brand: brand}, {Slug: "b", Name: "B", Brand: brand},

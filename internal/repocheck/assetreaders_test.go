@@ -71,8 +71,8 @@ var assetReaders = map[string]string{
 	"internal/ui/chart/columns_test.go#TestColumnsDropStripNamesFromAFigureNarrowerThanTheyAreFittedTo": "T14c",
 	"internal/ui/layouts/chrome_test.go#TestOnlyTheBackOfficeLinksItsStylesheet":                        "contract: which sheet each shell links is the page contract",
 	"internal/cart/cart_page_test.go#TestTheCheckoutFormIsCheckedByTheServerAndFocusesTheFirstRefusal":  "T14e",
-	"internal/ui/pages/product_test.go#TestTheBottomBarIsDrivenByAnIntersectionObserver":                "T14e",
-	"internal/ui/pages/stepper_test.go#TestTheStepperNeverDisablesTheButtonThatHasFocus":                "T14e",
+	"internal/catalog/product_page_test.go#TestTheBottomBarIsDrivenByAnIntersectionObserver":            "T14e",
+	"internal/catalog/stepper_test.go#TestTheStepperNeverDisablesTheButtonThatHasFocus":                 "T14e",
 }
 
 // TestOnlyListedTestsReadTheStyleSheetsAndScripts keeps tests from matching
