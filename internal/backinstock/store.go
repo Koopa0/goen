@@ -1,4 +1,4 @@
-package restock
+package backinstock
 
 import (
 	"context"
@@ -20,7 +20,7 @@ type Store struct {
 // that deletes an alert.
 func NewStore(pool *pgxpool.Pool) *Store {
 	if pool == nil {
-		panic("restock: NewStore requires a pool")
+		panic("backinstock: NewStore requires a pool")
 	}
 	return &Store{q: db.New(pool)}
 }
