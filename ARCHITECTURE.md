@@ -86,7 +86,7 @@ Checkout keys, provider request keys, and event IDs each protect their own opera
 
 A hold reduces sellable stock; shipment consumes it without debiting stock twice, and a partial shipment keeps holding the rest. Eligible expiry or cancellation releases it; an unresolved payment keeps it until reconciliation.
 
-Capture and release lock the order. If capture commits first, the hold stays. If release commits first, the capture guard refuses the late payment and goen records an exception for reconciliation and refund. See the [schema][schema] (capture and release guards) and [expiry][cart-sweeper].
+Capture and release lock the order. If capture commits first, the hold stays. If release commits first, the capture guard refuses the late payment and goen records an exception for reconciliation and refund. See the [schema][schema] (capture and release guards) and [expiry][lapse].
 
 Held, abandoned, and slowly released stock all reduce what can be sold. How long to hold is a commercial decision as much as an operational one.
 
@@ -263,7 +263,7 @@ CI runs formatting, vet, lint, dead-code and generated-code checks, migration li
 | Area | Entry points |
 | --- | --- |
 | Composition and lifecycle | [`cmd/goen`][main], [routes][server], [middleware][middleware], [provider posture][provider-posture] |
-| Checkout, reservations, order access | [`internal/cart`][checkout], [expiry][cart-sweeper], [`internal/order/access`][orderaccess] |
+| Checkout, reservations, order access | [`internal/cart`][checkout], [`internal/order/lapse`][lapse], [`internal/order/access`][orderaccess] |
 | Payments and recovery | [`internal/payment`][payment-store], [Stripe adapter][stripe], [`internal/admin/health`][health] |
 | Fulfillment, returns, refunds | [`internal/order`][order], [`internal/admin/orders`][orders], [`internal/admin/dashboard`][dashboard], [`internal/returns`][returns-rules], [`internal/admin/returns`][returns], [`internal/admin/refunds`][refund-payout] |
 | Invoices and deferred delivery | [`internal/invoice/issuer`][invoice-store], [`internal/admin/orders`][orders], [`internal/outbox`][outbox], [`internal/letter`][letter] |
@@ -283,7 +283,7 @@ CI runs formatting, vet, lint, dead-code and generated-code checks, migration li
 [provider-posture]: cmd/goen/provider_posture.go
 [slowquery]: cmd/goen/slowquery.go
 [checkout]: internal/cart/store.go
-[cart-sweeper]: internal/cart/sweeper.go
+[lapse]: internal/order/lapse/sweeper.go
 [customer-cancel]: internal/order/buyer/cancel.go
 [orderaccess]: internal/order/access
 [payment-store]: internal/payment/store.go

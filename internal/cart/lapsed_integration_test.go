@@ -19,6 +19,7 @@ import (
 	"github.com/koopa0/goen/internal/cart"
 	"github.com/koopa0/goen/internal/order/buyer"
 	"github.com/koopa0/goen/internal/order/delivery"
+	"github.com/koopa0/goen/internal/order/lapse"
 	"github.com/koopa0/goen/internal/outbox"
 )
 
@@ -123,7 +124,7 @@ func (l *sweepLog) errors() string {
 func sweepAs(t *testing.T, p *pgxpool.Pool) {
 	t.Helper()
 	var logged sweepLog
-	if _, _, err := cart.NewStore(p).Sweep(t.Context(), slog.New(slog.NewTextHandler(&logged, nil))); err != nil {
+	if _, _, err := lapse.NewSweeper(p).Sweep(t.Context(), slog.New(slog.NewTextHandler(&logged, nil))); err != nil {
 		t.Fatalf("sweep: %v", err)
 	}
 	if failures := logged.errors(); failures != "" {
@@ -356,7 +357,7 @@ func TestTheSweepRereadsPaymentsAfterTakingTheOrderLock(t *testing.T) {
 		t.Fatalf("open payment: %v", err)
 	}
 
-	sweeper := cart.NewStore(storeApplicationPool(t, "lapse-sweep-behind-open"))
+	sweeper := lapse.NewSweeper(storeApplicationPool(t, "lapse-sweep-behind-open"))
 	done := make(chan error, 1)
 	go func() {
 		_, _, sweepErr := sweeper.Sweep(ctx, slog.New(slog.DiscardHandler))
@@ -404,7 +405,7 @@ func TestTheSweepAndTheCustomerCancelOnce(t *testing.T) {
 				t.Fatalf("lock order: %v", err)
 			}
 
-			sweeper := cart.NewStore(storeApplicationPool(t, "lapse-race-sweep"))
+			sweeper := lapse.NewSweeper(storeApplicationPool(t, "lapse-race-sweep"))
 			customer := buyer.NewStore(storeApplicationPool(t, "lapse-race-cancel"))
 			var logged sweepLog
 			sweepDone, cancelDone := make(chan error, 1), make(chan error, 1)
