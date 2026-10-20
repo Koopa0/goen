@@ -2464,13 +2464,13 @@ VALUES ('a0000001-0000-4000-8000-000000000000', 1, repeat('購', 200), 'grant:sc
 		accept:     `DELETE FROM order_private_data WHERE order_id = '6666aaaa-6666-4666-8666-666666666666'; INSERT INTO order_private_data (order_id, email, recipient_name, phone, pickup_chain, pickup_store_code, pickup_store_name) VALUES ('6666aaaa-6666-4666-8666-666666666666', 'test@example.com', '測試', '0912000000', 'hi_life', 'S884', repeat('店', 40));`,
 	},
 	{
-		// content.MaxHeadlineRunes, counted in characters, not bytes.
+		// slides.MaxHeadlineRunes, counted in characters, not bytes.
 		constraint: "hero_slides_headline_bounded",
 		reject:     `INSERT INTO hero_slides (headline, primary_cta_label, primary_cta_href, position) VALUES (repeat('夏', 41), '立即選購', '/c/phones', 5);`,
 		accept:     `INSERT INTO hero_slides (headline, primary_cta_label, primary_cta_href, position) VALUES (repeat('夏', 40), '立即選購', '/c/phones', 5);`,
 	},
 	{
-		// content.MaxBannerRunes, counted in characters, not bytes.
+		// banners.MaxBannerRunes, counted in characters, not bytes.
 		constraint: "promo_banners_message_bounded",
 		reject:     `INSERT INTO promo_banners (id, message) VALUES ('11110009-0000-4000-8000-000000000092', repeat('訊', 61));`,
 		accept:     `INSERT INTO promo_banners (id, message) VALUES ('11110009-0000-4000-8000-000000000092', repeat('訊', 60));`,
@@ -2513,7 +2513,7 @@ VALUES ('a0000001-0000-4000-8000-000000000000', 1, repeat('購', 200), 'grant:sc
 		accept:     `INSERT INTO sale_campaigns (slug, title, ends_at, bundled_key, image_alt, image_alt_en) VALUES ('header-long-alt', '有圖活動', now() + interval '7 days', 'campaign-banner-01.webp', '限時優惠商品', repeat('圖', 200));`,
 	},
 	{
-		// content.MaxFAQQuestionRunes, counted in characters, not bytes.
+		// faq.MaxFAQQuestionRunes, counted in characters, not bytes.
 		constraint: "faq_entries_question_bounded",
 		reject:     `INSERT INTO faq_entries (id, category_id, question, answer, position) VALUES ('1111000e-0000-4000-8000-000000000093', 'cccc0001-0000-4000-8000-000000000000', repeat('問', 201), '答案', 93);`,
 		accept:     `INSERT INTO faq_entries (id, category_id, question, answer, position) VALUES ('1111000e-0000-4000-8000-000000000093', 'cccc0001-0000-4000-8000-000000000000', repeat('問', 200), '答案', 93);`,
@@ -2524,7 +2524,7 @@ VALUES ('a0000001-0000-4000-8000-000000000000', 1, repeat('購', 200), 'grant:sc
 		accept:     `INSERT INTO faq_entries (id, category_id, question, answer, question_en, position) VALUES ('1111000e-0000-4000-8000-000000000093', 'cccc0001-0000-4000-8000-000000000000', '問題', '答案', repeat('問', 200), 93);`,
 	},
 	{
-		// content.MaxFAQAnswerRunes, counted in characters, not bytes.
+		// faq.MaxFAQAnswerRunes, counted in characters, not bytes.
 		constraint: "faq_entries_answer_bounded",
 		reject:     `INSERT INTO faq_entries (id, category_id, question, answer, position) VALUES ('1111000e-0000-4000-8000-000000000093', 'cccc0001-0000-4000-8000-000000000000', '問題', repeat('答', 2001), 93);`,
 		accept:     `INSERT INTO faq_entries (id, category_id, question, answer, position) VALUES ('1111000e-0000-4000-8000-000000000093', 'cccc0001-0000-4000-8000-000000000000', '問題', repeat('答', 2000), 93);`,
@@ -2553,13 +2553,13 @@ VALUES ('a0000001-0000-4000-8000-000000000000', 1, repeat('購', 200), 'grant:sc
 		accept:     `INSERT INTO contact_messages (name, email, subject, message) VALUES ('王小明', 'ming@example.com', 'order', repeat('詢', 2000));`,
 	},
 	{
-		// content.MaxNewsletterSubjectRunes, counted in characters, not bytes.
+		// newsletters.MaxNewsletterSubjectRunes, counted in characters, not bytes.
 		constraint: "newsletter_issues_subject_bounded",
 		reject:     `INSERT INTO newsletter_issues (subject, body) VALUES (repeat('主', 121), '內容');`,
 		accept:     `INSERT INTO newsletter_issues (subject, body) VALUES (repeat('主', 120), '內容');`,
 	},
 	{
-		// content.MaxNewsletterBodyRunes, counted in characters, not bytes.
+		// newsletters.MaxNewsletterBodyRunes, counted in characters, not bytes.
 		constraint: "newsletter_issues_body_bounded",
 		reject:     `INSERT INTO newsletter_issues (subject, body) VALUES ('主旨', repeat('內', 20001));`,
 		accept:     `INSERT INTO newsletter_issues (subject, body) VALUES ('主旨', repeat('內', 20000));`,

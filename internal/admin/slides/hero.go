@@ -1,0 +1,210 @@
+package slides
+
+import (
+	"context"
+	"fmt"
+	"strings"
+	"unicode/utf8"
+
+	"github.com/google/uuid"
+
+	"github.com/koopa0/goen/internal/admin/audit"
+	"github.com/koopa0/goen/internal/db"
+	"github.com/koopa0/goen/internal/i18n"
+	"github.com/koopa0/goen/internal/keyset"
+	"github.com/koopa0/goen/internal/shoptime"
+	"github.com/koopa0/goen/internal/web"
+)
+
+const MaxSlides = 20
+
+// MaxHeadlineRunes bounds the largest text on the site.
+const MaxHeadlineRunes = 40
+
+// MaxDays bounds how long a slide runs; banners.MaxDays is the same bound for
+// the promotional strip, and KeyFormRunDays states it to staff.
+const MaxDays = 365
+
+type HeroForm struct {
+	Eyebrow        string
+	Headline       string
+	Body           string
+	PrimaryLabel   string
+	PrimaryHref    string
+	SecondLabel    string
+	SecondHref     string
+	ImageKey       string
+	ImageAlt       string
+	EyebrowEn      string
+	HeadlineEn     string
+	BodyEn         string
+	PrimaryLabelEn string
+	SecondLabelEn  string
+	ImageAltEn     string
+	Days           int32
+
+	// ImageChosen is a file the form carries that is not stored yet. The alt
+	// text rule applies to it before it is decoded, so a slide refused for its
+	// copy leaves no stored image behind.
+	ImageChosen bool
+}
+
+func (f *HeroForm) Validate(ctx context.Context) map[string]string {
+	f.Eyebrow = strings.TrimSpace(f.Eyebrow)
+	f.Headline = strings.TrimSpace(f.Headline)
+	f.Body = strings.TrimSpace(f.Body)
+	f.PrimaryLabel = strings.TrimSpace(f.PrimaryLabel)
+	f.SecondLabel = strings.TrimSpace(f.SecondLabel)
+	f.ImageAlt = strings.TrimSpace(f.ImageAlt)
+	// Trimmed so that a translation left as spaces is stored as NULL, which
+	// falls back to the Chinese, rather than refused by the *_en_present CHECKs.
+	f.EyebrowEn = strings.TrimSpace(f.EyebrowEn)
+	f.HeadlineEn = strings.TrimSpace(f.HeadlineEn)
+	f.BodyEn = strings.TrimSpace(f.BodyEn)
+	f.PrimaryLabelEn = strings.TrimSpace(f.PrimaryLabelEn)
+	f.SecondLabelEn = strings.TrimSpace(f.SecondLabelEn)
+	f.ImageAltEn = strings.TrimSpace(f.ImageAltEn)
+
+	errs := map[string]string{}
+	if f.Headline == "" || utf8.RuneCountInString(f.Headline) > MaxHeadlineRunes {
+		errs["headline"] = i18n.T(ctx, i18n.KeyFormHeroHeadline)
+	}
+	if f.PrimaryLabel == "" {
+		errs["primary"] = i18n.T(ctx, i18n.KeyFormHeroPrimary)
+	}
+	if href, ok := web.SitePath(f.PrimaryHref); ok {
+		f.PrimaryHref = href
+	} else {
+		errs["primaryhref"] = i18n.T(ctx, i18n.KeyFormHeroPrimaryHref)
+	}
+
+	// Both or neither: hero_slides_secondary_cta_complete refuses half a button.
+	switch {
+	case f.SecondLabel == "" && f.SecondHref == "":
+	case f.SecondLabel == "" || f.SecondHref == "":
+		errs["second"] = i18n.T(ctx, i18n.KeyFormHeroSecondPair)
+	default:
+		if href, ok := web.SitePath(f.SecondHref); ok {
+			f.SecondHref = href
+		} else {
+			errs["second"] = i18n.T(ctx, i18n.KeyFormHeroSecondHref)
+		}
+	}
+
+	if (f.ImageKey != "" || f.ImageChosen) && f.ImageAlt == "" {
+		errs["alt"] = i18n.T(ctx, i18n.KeyFormHeroAlt)
+	}
+	if f.Days < 0 || f.Days > MaxDays {
+		errs["days"] = i18n.T(ctx, i18n.KeyFormRunDays)
+	}
+	return errs
+}
+
+const heroScope = "/admin/slides#hero-history"
+
+type heroPosition struct {
+	Position int32
+	ID       uuid.UUID
+}
+
+func (s *Store) HeroSlides(ctx context.Context, after ...string) (HeroView, error) {
+	from, resumed := keyset.Resume(heroScope, after, func(p heroPosition) bool { return p.ID != uuid.Nil })
+	rows, err := s.q.AdminHeroSlides(ctx, db.AdminHeroSlidesParams{
+		HasCursor: resumed, AfterPosition: from.Position, AfterID: from.ID, RowLimit: MaxSlides + 1,
+	})
+	if err != nil {
+		return HeroView{}, fmt.Errorf("read hero slides: %w", err)
+	}
+	live, err := s.storefront.Carousel(ctx)
+	if err != nil {
+		return HeroView{}, fmt.Errorf("read carousel: %w", err)
+	}
+	rows, bound := keyset.PageBound(heroScope, resumed, rows, MaxSlides, func(r *db.AdminHeroSlidesRow) string { return r.PageCursor })
+	view := HeroView{Carousel: live, Bound: bound}
+	for i := range rows {
+		r := &rows[i]
+		view.Rows = append(view.Rows, HeroSlide{
+			ID: r.ID.String(), Eyebrow: r.Eyebrow.String, Headline: r.Headline,
+			CTALabel: r.PrimaryCtaLabel, CTAHref: r.PrimaryCtaHref,
+			ImageDigest: r.MediaDigest.String, Active: r.IsActive,
+			InWindow: r.InWindow, Position: r.Position,
+			EndsAt: shoptime.DayIf(r.EndsAt.Time, r.EndsAt.Valid),
+		})
+	}
+	return view, nil
+}
+
+// CreateHeroSlide schedules one at the BACK; Promote is what makes one live.
+func (s *Store) CreateHeroSlide(ctx context.Context, f *HeroForm) (map[string]string, error) {
+	if errs := f.Validate(ctx); len(errs) > 0 {
+		return errs, nil
+	}
+	err := audit.Run(ctx, s.pool, audit.Event{
+		Action: audit.ActionCreateHeroSlide, Table: "hero_slides",
+		After: audit.State{audit.FieldHeadline: f.Headline, audit.FieldCTA: f.PrimaryHref},
+	},
+		func(ctx context.Context, q *db.Queries) error {
+			if err := q.LockHeroAppendPosition(ctx); err != nil {
+				return err
+			}
+			return q.CreateHeroSlide(ctx, db.CreateHeroSlideParams{
+				Eyebrow: f.Eyebrow, Headline: f.Headline, Body: f.Body,
+				PrimaryCtaLabel: f.PrimaryLabel, PrimaryCtaHref: f.PrimaryHref,
+				SecondaryCtaLabel: f.SecondLabel, SecondaryCtaHref: f.SecondHref,
+				MediaDigest: f.ImageKey, ImageAlt: f.ImageAlt,
+				EyebrowEn: f.EyebrowEn, HeadlineEn: f.HeadlineEn, BodyEn: f.BodyEn,
+				PrimaryCtaLabelEn:   f.PrimaryLabelEn,
+				SecondaryCtaLabelEn: f.SecondLabelEn, ImageAltEn: f.ImageAltEn,
+				Days: f.Days,
+			})
+		})
+	if err != nil {
+		return nil, db.WrapRefusal(err, ErrRefused)
+	}
+	return nil, nil
+}
+
+func (s *Store) SetHeroSlideActive(ctx context.Context, id string, active bool) error {
+	slideID, err := uuid.Parse(id)
+	if err != nil {
+		return ErrNotFound
+	}
+	return audit.Run(ctx, s.pool, audit.Event{
+		Action: audit.ActionToggleHeroSlide, Table: "hero_slides",
+		ID:    uuid.NullUUID{UUID: slideID, Valid: true},
+		After: audit.State{audit.FieldActive: active},
+	},
+		func(ctx context.Context, q *db.Queries) error {
+			n, setErr := q.SetHeroSlideActive(ctx, db.SetHeroSlideActiveParams{
+				ID: slideID, IsActive: active,
+			})
+			if setErr != nil {
+				return db.WrapRefusal(setErr, ErrRefused)
+			}
+			if n == 0 {
+				return ErrNotFound
+			}
+			return nil
+		})
+}
+
+func (s *Store) PromoteHeroSlide(ctx context.Context, id string) error {
+	slideID, err := uuid.Parse(id)
+	if err != nil {
+		return ErrNotFound
+	}
+	return audit.Run(ctx, s.pool, audit.Event{
+		Action: audit.ActionPromoteHeroSlide, Table: "hero_slides",
+		ID: uuid.NullUUID{UUID: slideID, Valid: true},
+	},
+		func(ctx context.Context, q *db.Queries) error {
+			n, promoteErr := q.PromoteHeroSlide(ctx, slideID)
+			if promoteErr != nil {
+				return db.WrapRefusal(promoteErr, ErrRefused)
+			}
+			if n == 0 {
+				return ErrNotFound
+			}
+			return nil
+		})
+}

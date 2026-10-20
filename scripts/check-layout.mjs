@@ -322,8 +322,10 @@ const ADMIN = [
   { label: 'admin order voidfailed 1440', width: 1440, height: 900, path: '/admin/orders/INVOICE_ORDER?voidfailed=1', marker: '.ui-alert' },
   { label: 'admin order allowfailed 375', width: 375, height: 812, path: '/admin/orders/INVOICE_ORDER?allowfailed=1', marker: '.ui-alert' },
   { label: 'admin order allowfailed 1440', width: 1440, height: 900, path: '/admin/orders/INVOICE_ORDER?allowfailed=1', marker: '.ui-alert' },
-  { label: 'admin home 375', width: 375, height: 812, path: '/admin/home', marker: '.goen-admin' },
-  { label: 'admin home 1440', width: 1440, height: 900, path: '/admin/home', marker: '.goen-admin' },
+  { label: 'admin slides 375', width: 375, height: 812, path: '/admin/slides', marker: '.goen-admin' },
+  { label: 'admin slides 1440', width: 1440, height: 900, path: '/admin/slides', marker: '.goen-admin' },
+  { label: 'admin banners 375', width: 375, height: 812, path: '/admin/banners', marker: '.goen-admin' },
+  { label: 'admin banners 1440', width: 1440, height: 900, path: '/admin/banners', marker: '.goen-admin' },
   { label: 'admin questions 375', width: 375, height: 812, path: '/admin/questions', marker: '.goen-admin__questions' },
   { label: 'admin reviews 375', width: 375, height: 812, path: '/admin/reviews', marker: '.goen-admin' },
   { label: 'admin reviews 1440', width: 1440, height: 900, path: '/admin/reviews', marker: '.goen-admin' },
@@ -349,8 +351,8 @@ const ADMIN = [
   { label: 'admin customer 1440', width: 1440, height: 900, path: '/admin/customers/CUSTOMER_ID', marker: '.goen-chartmeter' },
   { label: 'admin messages 375', width: 375, height: 812, path: '/admin/messages', marker: '.goen-admin__returns' },
   { label: 'admin messages 1440', width: 1440, height: 900, path: '/admin/messages', marker: '.goen-admin__returns' },
-  { label: 'admin newsletter 375', width: 375, height: 812, path: '/admin/newsletter', marker: '.goen-admin' },
-  { label: 'admin newsletter 1440', width: 1440, height: 900, path: '/admin/newsletter', marker: '.goen-admin' },
+  { label: 'admin newsletters 375', width: 375, height: 812, path: '/admin/newsletters', marker: '.goen-admin' },
+  { label: 'admin newsletters 1440', width: 1440, height: 900, path: '/admin/newsletters', marker: '.goen-admin' },
   { label: 'admin questions 1440', width: 1440, height: 900, path: '/admin/questions', marker: '.goen-admin__questions' },
   // /admin/warranties lists NOTHING until somebody searches — the /admin/customers
   // rule, because these rows carry a customer's name beside what they own. So the
