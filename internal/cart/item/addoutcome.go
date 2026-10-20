@@ -1,4 +1,4 @@
-package pages
+package item
 
 // AddOutcome is carried in ?added= back to the page the form was on.
 type AddOutcome string

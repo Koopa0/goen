@@ -87,7 +87,6 @@ var storeMethodsNamingViews = map[string]int{
 }
 
 var viewValueReads = map[string]int{
-	"internal/cart/handler.go":    5,
 	"internal/catalog/compare.go": 3,
 	// The compare views moved in S8a read MinCompare and MaxCompare, which stay
 	// in ui/pages while the product page there reads them too. S8b moves

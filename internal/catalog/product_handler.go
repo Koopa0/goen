@@ -11,6 +11,7 @@ import (
 
 	"github.com/google/uuid"
 
+	"github.com/koopa0/goen/internal/cart/item"
 	"github.com/koopa0/goen/internal/email"
 	"github.com/koopa0/goen/internal/i18n"
 	"github.com/koopa0/goen/internal/ratelimit"
@@ -50,7 +51,7 @@ func (h *Handler) Product(w http.ResponseWriter, r *http.Request) {
 	view.NotifyOutcome = pages.NotifyOutcome(r.URL.Query().Get("notify"))
 	view.AskOutcome = r.URL.Query().Get("ask")
 	view.ReviewPosted = r.URL.Query().Get("reviewed") == "1"
-	view.AddedOutcome = pages.AddOutcome(r.URL.Query().Get("added"))
+	view.AddedOutcome = item.AddOutcome(r.URL.Query().Get("added"))
 	view.Comparing = boundedSlugs(r.URL.Query()["p"])
 	meta := pages.ProductMeta(&view)
 	meta.StructuredData = pages.JSONLDSet(

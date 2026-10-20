@@ -15,6 +15,7 @@ import (
 
 	"golang.org/x/net/html"
 
+	"github.com/koopa0/goen/internal/cart/item"
 	"github.com/koopa0/goen/internal/contact"
 	"github.com/koopa0/goen/internal/i18n"
 	"github.com/koopa0/goen/internal/ui/layouts"
@@ -739,7 +740,7 @@ func TestTheProductPageSaysWhetherItAddedAnything(t *testing.T) {
 		return &ProductView{
 			Slug: "pixelight-9-pro", Name: "Pixelight 9 Pro",
 			VariantID: "v1", PriceCents: 3690000, Available: 3,
-			AddedOutcome: AddOutcome(outcome),
+			AddedOutcome: item.AddOutcome(outcome),
 		}
 	}
 
