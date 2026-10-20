@@ -33,8 +33,8 @@ func TestCustomerLinksBalanceAndGrantToCredit(t *testing.T) {
 		body := renderComponent(t, ctx, Customer(Meta(ctx), &CustomerView{ID: id, Email: "ada@example.test", SpentCents: 12300, CreditCents: 4500}))
 		for name, want := range map[string]string{
 			"spend label":          i18n.T(ctx, i18n.KeyAdminCustStatSpent),
-			"balance label link":   `<dt><a href="/admin/credit?customer=` + id + `">` + i18n.T(ctx, i18n.KeyAdminCustStatCredit) + `</a></dt>`,
-			"grant button to form": `href="/admin/credit?customer=` + id + `#credit-email"`,
+			"balance label link":   `<dt><a href="/admin/credits?customer=` + id + `">` + i18n.T(ctx, i18n.KeyAdminCustStatCredit) + `</a></dt>`,
+			"grant button to form": `href="/admin/credits?customer=` + id + `#credit-email"`,
 		} {
 			if !strings.Contains(body, want) {
 				t.Errorf("%s profile lacks the %s %q", locale.Tag(), name, want)
