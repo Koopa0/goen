@@ -12,14 +12,16 @@ import (
 	"github.com/koopa0/goen/internal/account"
 	adminaccess "github.com/koopa0/goen/internal/admin/access"
 	"github.com/koopa0/goen/internal/admin/audit"
+	"github.com/koopa0/goen/internal/admin/banners"
 	"github.com/koopa0/goen/internal/admin/campaigns"
-	"github.com/koopa0/goen/internal/admin/content"
 	"github.com/koopa0/goen/internal/admin/coupons"
 	"github.com/koopa0/goen/internal/admin/credits"
 	"github.com/koopa0/goen/internal/admin/customers"
 	"github.com/koopa0/goen/internal/admin/dashboard"
+	"github.com/koopa0/goen/internal/admin/faq"
 	"github.com/koopa0/goen/internal/admin/health"
 	"github.com/koopa0/goen/internal/admin/messages"
+	"github.com/koopa0/goen/internal/admin/newsletters"
 	"github.com/koopa0/goen/internal/admin/orders"
 	"github.com/koopa0/goen/internal/admin/products"
 	"github.com/koopa0/goen/internal/admin/questions"
@@ -28,6 +30,7 @@ import (
 	"github.com/koopa0/goen/internal/admin/returns"
 	"github.com/koopa0/goen/internal/admin/reviews"
 	"github.com/koopa0/goen/internal/admin/shipping"
+	"github.com/koopa0/goen/internal/admin/slides"
 	"github.com/koopa0/goen/internal/admin/staff"
 	"github.com/koopa0/goen/internal/admin/stock"
 	"github.com/koopa0/goen/internal/admin/taxonomy"
@@ -329,7 +332,10 @@ func backOfficeRoutes(mux *http.ServeMux, cfg *BackOfficeConfig, factorStore *tw
 	returnDesk := returns.NewHandler(returns.NewStore(adminPool, payouts), log)
 	delivery := shipping.NewHandler(shipping.NewStore(adminPool), cfg.StoreMap.Enabled(), log)
 	brands := taxonomy.NewHandler(taxonomy.NewStore(adminPool), adminImages, log)
-	shopfront := content.NewHandler(content.NewStore(adminPool, home.NewStore(adminPool)), adminImages, log)
+	slideDesk := slides.NewHandler(slides.NewStore(adminPool, home.NewStore(adminPool)), adminImages, log)
+	bannerDesk := banners.NewHandler(banners.NewStore(adminPool), log)
+	issueDesk := newsletters.NewHandler(newsletters.NewStore(adminPool), log)
+	faqDesk := faq.NewHandler(faq.NewStore(adminPool), log)
 	sales := campaigns.NewHandler(campaigns.NewStore(adminPool), adminImages, log)
 	reviewDesk := reviews.NewHandler(reviews.NewStore(adminPool), log)
 	questionDesk := questions.NewHandler(questions.NewStore(adminPool), log)
@@ -359,7 +365,10 @@ func backOfficeRoutes(mux *http.ServeMux, cfg *BackOfficeConfig, factorStore *tw
 	reviewDesk.Routes(mux, backOffice)
 	questionDesk.Routes(mux, backOffice)
 	sales.Routes(mux, backOffice)
-	shopfront.Routes(mux, backOffice)
+	slideDesk.Routes(mux, backOffice)
+	bannerDesk.Routes(mux, backOffice)
+	issueDesk.Routes(mux, backOffice)
+	faqDesk.Routes(mux, backOffice)
 	brands.Routes(mux, backOffice)
 	delivery.Routes(mux, backOffice)
 	warehouse.Routes(mux, backOffice)

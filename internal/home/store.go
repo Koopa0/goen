@@ -81,7 +81,7 @@ func (s *Store) carouselSources(ctx context.Context) (carouselSources, error) {
 }
 
 // Carousel is exported so the back office lists the same slides: cmd/goen
-// hands this store to the content desk as its content.Storefront.
+// hands this store to the slides desk as its slides.Storefront.
 func (s *Store) Carousel(ctx context.Context) ([]components.HeroSlide, error) {
 	src, err := s.carouselSources(ctx)
 	if err != nil {
