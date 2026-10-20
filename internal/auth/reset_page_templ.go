@@ -9,9 +9,9 @@ import "github.com/a-h/templ"
 import templruntime "github.com/a-h/templ/runtime"
 
 import (
-	"github.com/koopa0/goen/internal/fieldrule"
 	"github.com/koopa0/goen/internal/i18n"
 	"github.com/koopa0/goen/internal/ui/components"
+	"github.com/koopa0/goen/internal/ui/fieldrule"
 	"github.com/koopa0/goen/internal/ui/layouts"
 )
 
