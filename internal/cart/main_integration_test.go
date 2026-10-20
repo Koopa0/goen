@@ -22,6 +22,7 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 
 	"github.com/koopa0/goen/internal/cart"
+	"github.com/koopa0/goen/internal/coupon"
 	"github.com/koopa0/goen/internal/db/dbtest"
 	"github.com/koopa0/goen/internal/order/access"
 	"github.com/koopa0/goen/internal/order/delivery"
@@ -174,12 +175,12 @@ func checkoutQuoteFacts(
 	}
 	shippingFee, discount := quoteTotal(t, quote), int64(0)
 	if couponCode != "" {
-		coupon, findErr := s.CouponByCode(t.Context(), couponCode)
+		c, findErr := s.CouponByCode(t.Context(), couponCode)
 		if findErr != nil {
 			t.Fatalf("find quoted coupon: %v", findErr)
 		}
 		var free bool
-		discount, free, err = coupon.Apply(view.SubtotalCents, quote.FeeCents == 0)
+		discount, free, err = c.Apply(view.SubtotalCents, quote.FeeCents == 0)
 		if err != nil {
 			t.Fatalf("apply coupon to quote: %v", err)
 		}
@@ -210,7 +211,7 @@ func checkoutQuoteFacts(
 		Lines:             lines,
 		ShippingVersionID: shippingID,
 		ShippingCents:     shippingFee,
-		CouponCode:        cart.NormaliseCode(couponCode),
+		CouponCode:        coupon.Normalise(couponCode),
 		DiscountCents:     discount,
 		CreditCents:       min(balance, gross),
 	}

@@ -17,6 +17,7 @@ import (
 
 	"github.com/koopa0/goen/internal/bearer"
 	"github.com/koopa0/goen/internal/cart"
+	"github.com/koopa0/goen/internal/coupon"
 	"github.com/koopa0/goen/internal/i18n"
 	"github.com/koopa0/goen/internal/order/access"
 	"github.com/koopa0/goen/internal/order/delivery"
@@ -28,7 +29,7 @@ const overTheThreshold = 350000
 
 func freeShippingCode(t *testing.T, label string) string {
 	t.Helper()
-	return coupon(t, label+strings.ToUpper(uuid.NewString()[:6]), "free_shipping", 0, 0, 0, 0, 1)
+	return insertCoupon(t, label+strings.ToUpper(uuid.NewString()[:6]), "free_shipping", 0, 0, 0, 1)
 }
 
 func redemptionsOf(t *testing.T, code string) int {
@@ -175,8 +176,8 @@ func TestAFreeShippingCodeRefusedOnAFreeOrderStillFreesOneThatPays(t *testing.T)
 	}
 	_, err = s.PlaceOrder(ctx, free, uuid.NullUUID{}, ship, mainlandAddress("free@example.com"),
 		nil, code, quote, checkoutAttemptKey("still-there-free-"+code))
-	if !errors.Is(err, cart.ErrCouponNotNeeded) {
-		t.Fatalf("placing a free-delivery order with a free-shipping code = %v, want ErrCouponNotNeeded", err)
+	if !errors.Is(err, coupon.ErrNotNeeded) {
+		t.Fatalf("placing a free-delivery order with a free-shipping code = %v, want coupon.ErrNotNeeded", err)
 	}
 	if n := redemptionsOf(t, code); n != 0 {
 		t.Fatalf("the refused order left %d redemptions, want 0", n)

@@ -19,6 +19,7 @@ import (
 	"github.com/koopa0/goen/internal/bearer"
 	"github.com/koopa0/goen/internal/cart/item"
 
+	"github.com/koopa0/goen/internal/coupon"
 	"github.com/koopa0/goen/internal/i18n"
 	invoicepkg "github.com/koopa0/goen/internal/invoice"
 	"github.com/koopa0/goen/internal/invoice/issuer"
@@ -1077,9 +1078,9 @@ func (h *Handler) answerPlacement(
 		h.answerCheckoutKeyConflict(w, r, cartID, view)
 	case errors.Is(err, ErrNotFound):
 		h.answerMissingShipping(w, r, cartID, addr, view)
-	case errors.Is(err, ErrCouponUsedUp), errors.Is(err, ErrCouponExpired),
-		errors.Is(err, ErrCouponMinimum), errors.Is(err, ErrCouponNotNeeded),
-		errors.Is(err, ErrNoSuchCoupon):
+	case errors.Is(err, coupon.ErrUsedUp), errors.Is(err, coupon.ErrExpired),
+		errors.Is(err, coupon.ErrBelowMinimum), errors.Is(err, coupon.ErrNotNeeded),
+		errors.Is(err, coupon.ErrNotFound):
 		h.answerCouponRefusal(w, r, cartID, addr, view, err)
 	case errors.Is(err, ErrBusy):
 		// Warn: a lock wait that outlived statement_timeout is a busy shop, not
@@ -1198,13 +1199,13 @@ func (h *Handler) answerCouponRefusal(
 	}
 	reason := i18n.KeyCouponUsedUp
 	switch {
-	case errors.Is(refusal, ErrCouponExpired):
+	case errors.Is(refusal, coupon.ErrExpired):
 		reason = i18n.KeyCouponExpired
-	case errors.Is(refusal, ErrCouponMinimum):
+	case errors.Is(refusal, coupon.ErrBelowMinimum):
 		reason = i18n.KeyCouponBelowMinimum
-	case errors.Is(refusal, ErrCouponNotNeeded):
+	case errors.Is(refusal, coupon.ErrNotNeeded):
 		reason = i18n.KeyCouponNotNeeded
-	case errors.Is(refusal, ErrNoSuchCoupon):
+	case errors.Is(refusal, coupon.ErrNotFound):
 		reason = i18n.KeyCouponUnknown
 	}
 	view.Errors = map[string]string{"coupon": i18n.T(r.Context(), reason)}
@@ -1289,7 +1290,7 @@ func (h *Handler) resolveCoupon(r *http.Request, view *CheckoutView) (message st
 // guess limiter; a draft restored after the map reaches it directly, which is
 // safe because a draft only holds a code accepted when saved.
 func (h *Handler) applyCoupon(r *http.Request, view *CheckoutView, raw string) (message string, missed bool) {
-	view.CouponCode = NormaliseCode(raw)
+	view.CouponCode = coupon.Normalise(raw)
 	if view.CouponCode == "" {
 		return "", false
 	}
@@ -1301,7 +1302,7 @@ func (h *Handler) applyCoupon(r *http.Request, view *CheckoutView, raw string) (
 			subtotal, view.HasShipping() && view.BaseShippingCents() == 0,
 		)
 		if applyErr == nil {
-			view.CouponApplied = c.description
+			view.CouponApplied = c.Description
 			view.CouponDiscountCents = discountCents
 			view.CouponFreeShipping = freeShipping
 			return "", false
@@ -1309,13 +1310,13 @@ func (h *Handler) applyCoupon(r *http.Request, view *CheckoutView, raw string) (
 		err = applyErr
 	}
 	switch {
-	case errors.Is(err, ErrCouponExpired):
+	case errors.Is(err, coupon.ErrExpired):
 		return i18n.T(r.Context(), i18n.KeyCouponExpired), true
-	case errors.Is(err, ErrCouponMinimum):
+	case errors.Is(err, coupon.ErrBelowMinimum):
 		return i18n.T(r.Context(), i18n.KeyCouponBelowMinimum), true
-	case errors.Is(err, ErrCouponNotNeeded):
+	case errors.Is(err, coupon.ErrNotNeeded):
 		return i18n.T(r.Context(), i18n.KeyCouponNotNeeded), true
-	case errors.Is(err, ErrNoSuchCoupon):
+	case errors.Is(err, coupon.ErrNotFound):
 		return i18n.T(r.Context(), i18n.KeyCouponUnknown), true
 	default:
 		h.log.ErrorContext(r.Context(), "resolve coupon", "error", err)
@@ -1331,7 +1332,7 @@ type couponGuess []*ratelimit.Reservation
 // rather than checked, because every request that passed while one token was
 // left would be told about its code.
 func (h *Handler) reserveCouponGuess(w http.ResponseWriter, r *http.Request, cartID uuid.UUID) (couponGuess, bool) {
-	if NormaliseCode(r.PostFormValue("coupon")) == "" {
+	if coupon.Normalise(r.PostFormValue("coupon")) == "" {
 		return nil, true
 	}
 	keys := couponKeys(r, cartID)
@@ -1594,7 +1595,7 @@ func checkoutQuoteIDForView(cartID uuid.UUID, view *CheckoutView) (checkoutQuote
 	// changed after the shopper clears it.
 	couponCode := ""
 	if view.HasCoupon() {
-		couponCode = NormaliseCode(view.CouponCode)
+		couponCode = coupon.Normalise(view.CouponCode)
 	}
 	return (checkoutQuote{
 		CartID:            cartID,

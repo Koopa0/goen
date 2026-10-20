@@ -179,7 +179,7 @@ func TestOrderIsAttachedToASignedInCustomer(t *testing.T) {
 }
 
 // TestASpentCouponComesBackAsAFieldErrorNotA500 drives the checkout handler,
-// because the branch that maps ErrCouponUsedUp to a 422 lives there. CouponByCode
+// because the branch that maps coupon.ErrUsedUp to a 422 lives there. CouponByCode
 // reads no limit — they are counted under redeem_coupon's lock — so a spent code
 // passes form validation every time and is refused inside the transaction every
 // time, which makes this an ordinary outcome on the buying mainline.

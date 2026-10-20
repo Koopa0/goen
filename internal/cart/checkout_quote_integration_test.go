@@ -20,6 +20,7 @@ import (
 
 	"github.com/koopa0/goen/internal/bearer"
 	"github.com/koopa0/goen/internal/cart"
+	"github.com/koopa0/goen/internal/coupon"
 	"github.com/koopa0/goen/internal/db"
 	"github.com/koopa0/goen/internal/i18n"
 	"github.com/koopa0/goen/internal/money"
@@ -30,7 +31,7 @@ import (
 
 func TestStoreRoleCanLockTheCreditAndCouponQuoteFacts(t *testing.T) {
 	ctx := t.Context()
-	code := coupon(t, "ROLEQUOTE", "amount", 1000, 0, 0, 0, 0)
+	code := insertCoupon(t, "ROLEQUOTE", "amount", 1000, 0, 0, 0)
 	userID := creditedCustomer(t, 5000)
 	s := cart.NewStore(storeRolePool(t))
 	token := bearer.New()
@@ -341,7 +342,7 @@ func TestCheckoutWaitsForAZoneRateEditInFlight(t *testing.T) {
 
 func TestCheckoutCouponDefinitionIsReloadedUnderItsRowLock(t *testing.T) {
 	ctx := t.Context()
-	code := coupon(t, "LOCKEDCOUPON", "amount", 1000, 0, 0, 0, 0)
+	code := insertCoupon(t, "LOCKEDCOUPON", "amount", 1000, 0, 0, 0)
 	baseStore := cart.NewStore(pool)
 	cartID := newCart(t, baseStore)
 	if err := baseStore.Add(ctx, cartID, freshVariant(t, "coupon-definition-race"), 1); err != nil {
@@ -386,8 +387,8 @@ func TestCheckoutCouponDefinitionIsReloadedUnderItsRowLock(t *testing.T) {
 	if err := change.Commit(ctx); err != nil {
 		t.Fatalf("commit coupon change: %v", err)
 	}
-	if err := <-done; !errors.Is(err, cart.ErrNoSuchCoupon) {
-		t.Fatalf("deactivated coupon returned %v, want ErrNoSuchCoupon", err)
+	if err := <-done; !errors.Is(err, coupon.ErrNotFound) {
+		t.Fatalf("deactivated coupon returned %v, want coupon.ErrNotFound", err)
 	}
 	var attempts int
 	if err := pool.QueryRow(ctx,
@@ -656,7 +657,7 @@ func TestCouponMinimumIsRecheckedWhenCheckoutIsPlaced(t *testing.T) {
 		t.Fatalf("set preview price: %v", err)
 	}
 	code := "MINRACE" + strings.ToUpper(uuid.NewString()[:6])
-	coupon(t, code, "amount", 10000, 0, 0, 200000, 0)
+	insertCoupon(t, code, "amount", 10000, 0, 200000, 0)
 
 	token := bearer.New()
 	cartID, createErr := s.Create(ctx, token, uuid.NullUUID{})

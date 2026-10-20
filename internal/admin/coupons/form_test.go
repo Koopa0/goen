@@ -8,6 +8,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/koopa0/goen/internal/coupon"
 	"github.com/koopa0/goen/internal/i18n"
 )
 
@@ -29,6 +30,24 @@ func TestCouponDollarInputsAreBoundedBeforeMultiplication(t *testing.T) {
 	}).Validate(ctx)
 	if errs["cap"] == "" || errs["min"] == "" {
 		t.Fatalf("coupon overflow fields were accepted: %v", errs)
+	}
+}
+
+// The desk stores the code checkout looks up: a code the desk accepts is the
+// one checkout's Normalise finds, and a code checkout could never find is
+// refused here rather than stored.
+func TestTheDeskStoresTheCodeCheckoutLooksUp(t *testing.T) {
+	t.Parallel()
+	ctx := i18n.WithLocale(t.Context(), i18n.En)
+	for _, typed := range []string{"summer-10", "  Spring \t", "\u3000ab\u00a0", "a", "-AB", "AB C", "ＡＢＣ", strings.Repeat("a", 33)} {
+		f := &Form{Code: typed, Description: "test", Kind: coupon.FreeShipping, PerCustomer: 1}
+		errs := f.Validate(ctx)
+		if f.Code != coupon.Normalise(typed) {
+			t.Errorf("the desk stores %q as %q; checkout looks it up as %q", typed, f.Code, coupon.Normalise(typed))
+		}
+		if refused := errs["code"] != ""; refused == coupon.ValidCode(f.Code) {
+			t.Errorf("the desk refused %q: %v; checkout says %q is a valid code: %v", typed, refused, f.Code, !refused)
+		}
 	}
 }
 
