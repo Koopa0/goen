@@ -27,9 +27,9 @@ var (
 )
 
 const (
-	refundEngine      = "unassigned: the refund engine settles an order, its return and its reservations in one transaction across desks"
-	sharedWithRefunds = "unassigned: shared with the refund engine and cart"
-	sharedRead        = "unassigned: a read several packages share"
+	refundEngine = "unassigned: the refund engine settles an order, its return and its reservations in one transaction across desks"
+	oneOrderLock = "unassigned: one order lock, shared by every path that cancels an order"
+	sharedRead   = "unassigned: a read several packages share"
 )
 
 // queryOwnerExceptions is every cross-package query call that exists today, keyed
@@ -37,9 +37,13 @@ const (
 // "unassigned: <reason>" while nobody owns it yet. The list may only shrink: a
 // violation not named here fails, and an entry whose call is gone fails.
 var queryOwnerExceptions = map[string]string{
-	// The customer's cancel takes the order lock cart's lapse sweeper takes
-	// before it cancels; the lock is declared beside the sweeper's query.
-	"internal/order/buyer -> LockOrderByNumber": "unassigned: one order lock, shared by every path that cancels an order",
+	// The customer's cancel, the lapse sweeper and the refund engine each take
+	// the order lock before the status UPDATE that cancellation.Settle must run
+	// behind; the lock is declared beside Settle's queries.
+	"internal/order/buyer -> LockOrderByNumber": oneOrderLock,
+	"internal/order/lapse -> LockOrderByNumber": oneOrderLock,
+	// The sweeper returns an expired hold through the one release every path uses.
+	"internal/order/lapse -> ReleaseReservation": "unassigned: one stock release, shared by every path that returns a hold",
 	// The order-placed email is written from the order page's own reads, in the
 	// transaction that places the order.
 	"internal/cart -> OrderPageLines":       "unassigned: the order-placed email reads the order page's lines",
@@ -59,10 +63,6 @@ var queryOwnerExceptions = map[string]string{
 	"internal/admin/refunds -> ReleaseReservation":       refundEngine,
 	"internal/admin/refunds -> ReturnForDecision":        refundEngine,
 	"internal/admin/orders -> OpenSessionsForOrder":      refundEngine,
-
-	"internal/order/cancellation -> HeldReservationsForOrder": sharedWithRefunds,
-	"internal/order/cancellation -> PaidByCreditAlone":        sharedWithRefunds,
-	"internal/order/cancellation -> ReleaseReservation":       sharedWithRefunds,
 
 	// The account page shows the profile and whether a password is set from
 	// the users row sign-in reads.

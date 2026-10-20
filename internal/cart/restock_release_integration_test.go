@@ -11,11 +11,11 @@ import (
 	"testing"
 	"time"
 
-	"github.com/koopa0/goen/internal/cart"
 	"github.com/koopa0/goen/internal/catalog"
 	"github.com/koopa0/goen/internal/i18n"
 	"github.com/koopa0/goen/internal/order/access"
 	"github.com/koopa0/goen/internal/order/buyer"
+	"github.com/koopa0/goen/internal/order/lapse"
 )
 
 func TestReleasingTheLastHoldQueuesRestockNotices(t *testing.T) {
@@ -64,10 +64,10 @@ func TestReleasingTheLastHoldQueuesRestockNotices(t *testing.T) {
 					t.Fatalf("%s subscription = %d %s", locale.Tag(), res.Code, res.Header().Get("Location"))
 				}
 			}
-			store := cart.NewStore(appPool)
+			sweeper := lapse.NewSweeper(appPool)
 			if tc.expired {
 				for pass := range 2 {
-					if _, _, err := store.Sweep(ctx, log); err != nil {
+					if _, _, err := sweeper.Sweep(ctx, log); err != nil {
 						t.Fatalf("expiry sweep %d: %v", pass, err)
 					}
 				}

@@ -12,11 +12,12 @@ import (
 	"github.com/jackc/pgx/v5/pgconn"
 
 	"github.com/koopa0/goen/internal/cart"
+	"github.com/koopa0/goen/internal/order/lapse"
 )
 
 func TestSweepReturnsAbandonedHoldsToTheShelf(t *testing.T) {
 	ctx := t.Context()
-	s := cart.NewStore(pool)
+	s := lapse.NewSweeper(pool)
 	vid := freshVariant(t, "stockfix-2")
 
 	var before int32
@@ -75,7 +76,7 @@ func TestSweepReturnsAbandonedHoldsToTheShelf(t *testing.T) {
 // filter this also exercises is defence in depth rather than a lock.
 func TestSweepNeverTouchesAPaidOrdersHold(t *testing.T) {
 	ctx := t.Context()
-	s := cart.NewStore(pool)
+	s := lapse.NewSweeper(pool)
 	vid := freshVariant(t, "stockfix-3")
 
 	// Expired AND paid: without the expiry this passes with the funding check gone.
@@ -109,7 +110,7 @@ func TestSweepNeverTouchesAPaidOrdersHold(t *testing.T) {
 // one, so the view reports it uncommitted while the customer has paid in full.
 func TestSweepNeverTouchesAFullyCreditFundedOrdersHold(t *testing.T) {
 	ctx := t.Context()
-	s := cart.NewStore(pool)
+	s := lapse.NewSweeper(pool)
 	vid := freshVariant(t, "stockfix-credit")
 
 	var before int32
@@ -171,7 +172,7 @@ func TestReleasingAFundedOrdersHoldIsRefusedByName(t *testing.T) {
 		t.Fatalf("releasing a fully-funded order's hold = %v, want "+
 			"inventory_reservation_funded_no_release", err)
 	}
-	if !cart.BenignSweepFailure(err) {
+	if !lapse.BenignSweepFailure(err) {
 		t.Errorf("the sweeper reads this refusal as a failure; it is the sweeper " +
 			"being safe, and an operator cannot tell those apart if it logs as an error")
 	}
@@ -189,7 +190,7 @@ func TestReleasingAFundedOrdersHoldIsRefusedByName(t *testing.T) {
 
 func TestSweepLeavesUnexpiredHolds(t *testing.T) {
 	ctx := t.Context()
-	s := cart.NewStore(pool)
+	s := lapse.NewSweeper(pool)
 	vid := freshVariant(t, "stockfix-4")
 
 	// -(-10 minutes) is ten minutes in the FUTURE: still holding.
@@ -212,7 +213,7 @@ func TestSweepLeavesUnexpiredHolds(t *testing.T) {
 
 func TestSweepIsIdempotent(t *testing.T) {
 	ctx := t.Context()
-	s := cart.NewStore(pool)
+	s := lapse.NewSweeper(pool)
 	vid := freshVariant(t, "stockfix-5")
 	orderID := heldOrder(t, vid, time.Hour, false)
 
@@ -269,11 +270,11 @@ func TestSweepCountsABenignRefusalAsSkippedNotFailed(t *testing.T) {
 	if !ok || pgErr.ConstraintName != "inventory_reservation_committed_no_release" {
 		t.Fatalf("refused by %v, want inventory_reservation_committed_no_release", err)
 	}
-	if !cart.BenignSweepFailure(err) {
+	if !lapse.BenignSweepFailure(err) {
 		t.Error("the sweeper would count this refusal as a failure; it is the sweeper being safe")
 	}
 
-	if cart.BenignSweepFailure(errors.New("connection reset")) {
+	if lapse.BenignSweepFailure(errors.New("connection reset")) {
 		t.Error("an ordinary error was classified as benign")
 	}
 }
