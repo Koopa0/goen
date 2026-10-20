@@ -289,8 +289,8 @@ const ADMIN = [
   // so a row without a meter measured the list of uncapped coupons.
   { label: 'admin coupons 375', width: 375, height: 812, path: '/admin/coupons', marker: '.goen-chartmeter' },
   { label: 'admin coupons 1440', width: 1440, height: 900, path: '/admin/coupons', marker: '.goen-chartmeter' },
-  { label: 'admin credit 375', width: 375, height: 812, path: '/admin/credit', marker: '.goen-admin' },
-  { label: 'admin credit 1440', width: 1440, height: 900, path: '/admin/credit', marker: '.goen-admin' },
+  { label: 'admin credit 375', width: 375, height: 812, path: '/admin/credits', marker: '.goen-admin' },
+  { label: 'admin credit 1440', width: 1440, height: 900, path: '/admin/credits', marker: '.goen-admin' },
   // .ui-table and not .goen-health: the status list is always present, so a
   // marker on it measures the HEALTHY page — chrome and nothing else — while
   // the alarm tables an operator has to act on go unrendered.
@@ -3536,7 +3536,7 @@ try {
       { path: '/contact', selectors: ['#contact-name', '#contact-subject', '#contact-message', '#site-search', '#newsletter-email'], widths: [1440] },
       { path: '/compare?p=' + encodeURIComponent(process.env.PRODUCT_SLUG || ''), selectors: ['#compare-q'], widths: [1440] },
       { path: '/c/phones', selectors: ['#sort'], widths: [1440] },
-      { path: '/admin/credit', selectors: ['#credit-email'], widths: [375, 1440], session: process.env.ADMIN_TOKEN },
+      { path: '/admin/credits', selectors: ['#credit-email'], widths: [375, 1440], session: process.env.ADMIN_TOKEN },
       { path: '/admin/orders/' + (process.env.RETURN_FORM_ORDER || ''), selectors: ['#staff-note', '#order-primary-step'], widths: [375, 1440], session: process.env.ADMIN_TOKEN },
       { path: '/checkout', selectors: ['#address-book'], widths: [375, 1440], session: process.env.CUST_TOKEN },
     ]) {
