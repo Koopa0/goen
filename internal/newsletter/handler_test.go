@@ -14,11 +14,11 @@ import (
 	"github.com/google/go-cmp/cmp"
 	"golang.org/x/net/html"
 
+	"github.com/koopa0/goen/internal/compress"
 	"github.com/koopa0/goen/internal/email"
 	"github.com/koopa0/goen/internal/i18n"
 	"github.com/koopa0/goen/internal/ratelimit"
 	"github.com/koopa0/goen/internal/ui/uitest"
-	"github.com/koopa0/goen/internal/web"
 )
 
 func TestSecretBearingNewsletterPagesAreNotCompressed(t *testing.T) {
@@ -38,7 +38,7 @@ func TestSecretBearingNewsletterPagesAreNotCompressed(t *testing.T) {
 			req := httptest.NewRequestWithContext(t.Context(), http.MethodGet, tt.target, http.NoBody)
 			req.Header.Set("Accept-Encoding", "gzip")
 			res := httptest.NewRecorder()
-			web.Compress(tt.handler).ServeHTTP(res, req)
+			compress.Handler(tt.handler).ServeHTTP(res, req)
 
 			if got := res.Header().Get("Content-Encoding"); got != "" {
 				t.Errorf("Content-Encoding = %q, want identity", got)
