@@ -16,8 +16,8 @@ func TestNormaliseSlugsBoundsAndReportsWhatItDropped(t *testing.T) {
 		t.Errorf("five distinct slugs: got %v dropped=%v", got, dropped)
 	}
 	got, dropped = normaliseSlugs([]string{"a", "b", "c", "d", "e", "f"})
-	if len(got) != pages.MaxCompare || !dropped {
-		t.Errorf("six slugs: got %v dropped=%v, want %d and true", got, dropped, pages.MaxCompare)
+	if len(got) != MaxCompare || !dropped {
+		t.Errorf("six slugs: got %v dropped=%v, want %d and true", got, dropped, MaxCompare)
 	}
 }
 

@@ -25,7 +25,6 @@ import (
 	"github.com/koopa0/goen/internal/catalog"
 	"github.com/koopa0/goen/internal/db"
 	"github.com/koopa0/goen/internal/db/dbtest"
-	"github.com/koopa0/goen/internal/ui/pages"
 	"github.com/koopa0/goen/internal/web"
 )
 
@@ -187,7 +186,7 @@ func (d *recommendationFaultDB) Query(ctx context.Context, sql string, args ...a
 	return d.Pool.Query(ctx, "SELECT 1 / 0")
 }
 
-func recommendationFixture(t *testing.T) (*pgxpool.Pool, pages.ProductView, uuid.UUID) {
+func recommendationFixture(t *testing.T) (*pgxpool.Pool, catalog.ProductView, uuid.UUID) {
 	t.Helper()
 	p := dbtest.Pool(t)
 	seed, err := os.ReadFile("../../seed/dev_catalog.sql")
@@ -235,7 +234,7 @@ func recommendationFixture(t *testing.T) (*pgxpool.Pool, pages.ProductView, uuid
 	return p, view, productID
 }
 
-func recommendationResponse(t *testing.T, ctx context.Context, h *catalog.Handler, want *pages.ProductView) *httptest.ResponseRecorder {
+func recommendationResponse(t *testing.T, ctx context.Context, h *catalog.Handler, want *catalog.ProductView) *httptest.ResponseRecorder {
 	t.Helper()
 	selection := url.Values{}
 	for _, option := range want.Options {
@@ -292,7 +291,7 @@ func nodeText(n *htmlnode.Node) string {
 	return text.String()
 }
 
-func assertBuyBoxIntact(t *testing.T, res *httptest.ResponseRecorder, want *pages.ProductView) *htmlnode.Node {
+func assertBuyBoxIntact(t *testing.T, res *httptest.ResponseRecorder, want *catalog.ProductView) *htmlnode.Node {
 	t.Helper()
 	if res.Code != http.StatusOK {
 		t.Fatalf("optional failure returned %d, want 200", res.Code)

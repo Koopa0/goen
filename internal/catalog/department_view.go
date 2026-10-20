@@ -50,7 +50,7 @@ func (h *DepartmentHead) Slot() EditorialSlot {
 type DepartmentNotice struct {
 	Title string
 	Href  string
-	End   pages.CampaignEnd
+	End   CampaignEnd
 }
 
 // ComparePreview is the comparison a comparable department offers: the same table as /compare,

@@ -5,7 +5,6 @@ import (
 
 	"github.com/koopa0/goen/internal/i18n"
 	"github.com/koopa0/goen/internal/ui/components"
-	"github.com/koopa0/goen/internal/ui/pages"
 )
 
 // A GET, because the set is the URL and a comparison writes nothing. It wraps the
@@ -21,7 +20,7 @@ templ compareForm(offered bool) {
 				}, "submit") {
 					{ i18n.T(ctx, i18n.KeyCompareSelected) }
 				}
-				<span class="goen-compare-pick__note">{ fmt.Sprintf(i18n.T(ctx, i18n.KeyCompareLimit), pages.MaxCompare) }</span>
+				<span class="goen-compare-pick__note">{ fmt.Sprintf(i18n.T(ctx, i18n.KeyCompareLimit), MaxCompare) }</span>
 			</div>
 		</form>
 	} else {

@@ -33,7 +33,7 @@ func TestThePageMarksTheCategoryYouAreIn(t *testing.T) {
 			name: "a child marks its ROOT, which is what the header shows",
 			view: ListingView{
 				Slug: "chargers", Name: "充電與線材",
-				Crumbs: []pages.Crumb{{Slug: "accessories", Name: "周邊配件"}},
+				Crumbs: []Crumb{{Slug: "accessories", Name: "周邊配件"}},
 			},
 			want: "accessories",
 		},
@@ -49,18 +49,18 @@ func TestThePageMarksTheCategoryYouAreIn(t *testing.T) {
 
 	// A PDP marks the category its product is in, for the same reason: somebody who
 	// followed 手機 → a phone should still see 手機 marked.
-	pdp := pages.ProductView{
+	pdp := ProductView{
 		Name: "Pixelight 9 Pro", Brand: "Pixelight",
 		CategorySlug: "chargers",
-		Crumbs:       []pages.Crumb{{Slug: "accessories", Name: "周邊配件"}},
+		Crumbs:       []Crumb{{Slug: "accessories", Name: "周邊配件"}},
 	}
-	if got := pages.ProductMeta(&pdp).Nav; got != "accessories" {
+	if got := ProductMeta(&pdp).Nav; got != "accessories" {
 		t.Errorf("ProductMeta().Nav = %q, want accessories", got)
 	}
 
 	// And a page outside the tree marks nothing. current() is false for an empty
 	// slug precisely so an unrelated page never highlights a category.
-	if got := (pages.ProductMeta(&pages.ProductView{Name: "x", Brand: "y"})).Nav; got != "" {
+	if got := (ProductMeta(&ProductView{Name: "x", Brand: "y"})).Nav; got != "" {
 		t.Errorf("a product with no category marks %q", got)
 	}
 }
@@ -320,7 +320,7 @@ func TestACheapestPriceSaysItIsTheCheapest(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
-			v := pages.ProductView{PriceVaries: tt.varies, Exact: tt.exact}
+			v := ProductView{PriceVaries: tt.varies, Exact: tt.exact}
 			if got := v.PriceFrom(); got != tt.want {
 				t.Errorf("PriceFrom(varies=%v, exact=%v) = %v, want %v",
 					tt.varies, tt.exact, got, tt.want)
@@ -391,11 +391,11 @@ func TestTheHeadOffersItsSubcategoriesAndPhotograph(t *testing.T) {
 	t.Parallel()
 	ctx := i18n.WithLocale(t.Context(), i18n.En)
 	view := ListingView{
-		Slug: "cases", Name: "Cases", Crumbs: []pages.Crumb{{Slug: "accessories", Name: "Accessories"}},
+		Slug: "cases", Name: "Cases", Crumbs: []Crumb{{Slug: "accessories", Name: "Accessories"}},
 		Theme: &Theme{
 			Tone:     components.ToneMist,
 			Photo:    components.Photo{URL: "/img/d.webp", Alt: "a desk"},
-			Children: []pages.Crumb{{Slug: "chargers", Name: "Chargers"}, {Slug: "cases", Name: "Cases"}},
+			Children: []Crumb{{Slug: "chargers", Name: "Chargers"}, {Slug: "cases", Name: "Cases"}},
 		},
 	}
 	html := renderToString(t, Listing(ListingMeta(ctx, view), view, nil, nil))
@@ -414,7 +414,7 @@ func TestTheHeadOffersItsSubcategoriesAndPhotograph(t *testing.T) {
 		t.Error("a head with no photograph or children draws them anyway")
 	}
 
-	only := ListingView{Slug: "tea", Name: "Tea", Theme: &Theme{Children: []pages.Crumb{{Slug: "tea", Name: "Tea"}}}}
+	only := ListingView{Slug: "tea", Name: "Tea", Theme: &Theme{Children: []Crumb{{Slug: "tea", Name: "Tea"}}}}
 	if h := renderToString(t, Listing(ListingMeta(ctx, only), only, nil, nil)); strings.Contains(h, "goen-pagehead__chips") {
 		t.Error("a head with a single sub-category draws it as a choice")
 	}
