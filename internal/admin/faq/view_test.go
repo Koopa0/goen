@@ -40,8 +40,8 @@ func TestARefusedFAQEditNamesItsFormAndLinksToTheFirstInvalidControl(t *testing.
 			ctx := i18n.WithLocale(t.Context(), locale)
 			bad := i18n.T(ctx, i18n.KeyAdminNoticeRefused)
 			body := renderComponent(t, ctx, FAQ(layouts.Page{}, &FAQView{
-				Rows:       []FAQEntry{{ID: "faq1", Question: "stored", Answer: "stored"}},
-				Edit:       FAQEntry{ID: "faq1", Question: "", Answer: " kept ", QuestionEn: "bad"},
+				Rows:       []Entry{{ID: "faq1", Question: "stored", Answer: "stored"}},
+				Edit:       Entry{ID: "faq1", Question: "", Answer: " kept ", QuestionEn: "bad"},
 				EditErrors: map[string]string{"question": bad, "question_en": bad},
 			}))
 			uitest.AssertRefusalSummary(t, body, uitest.RefusedForm{

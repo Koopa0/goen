@@ -22,11 +22,11 @@ func TestShippingRefusalsKeepTheirOwnDraftAndExplainOnlyTheirOwnControls(t *test
 			ctx := i18n.WithLocale(t.Context(), locale)
 			view := ShippingView{
 				FeeMaxDollars: 5000, FreeOverMaxDollars: 100000000,
-				Methods: []ShippingMethod{
+				Methods: []Method{
 					{MethodID: "owned", VersionID: "owned-version", Destination: shipping.DestinationAddress, Name: "Stored", FeeCents: 10000},
 					{MethodID: "other", VersionID: "other-version", Destination: shipping.DestinationAddress, Name: "Other", FeeCents: 20000},
 				},
-				Zones:        []ShippingZone{{ID: "zone-a", Name: "Zone A"}, {ID: "zone-b", Name: "Zone B"}},
+				Zones:        []Zone{{ID: "zone-a", Name: "Zone A"}, {ID: "zone-b", Name: "Zone B"}},
 				VersionDraft: VersionDraft{MethodID: "owned", Name: " Draft & name ", NameEn: " Draft name EN ", Carrier: " Draft carrier ", CarrierEn: " Draft carrier EN ", Fee: " malformed ", FreeOver: "+1000"},
 				Errors:       map[string]string{"version_fee": fmt.Sprintf(i18n.T(ctx, i18n.KeyFormMethodFee), "NT$5,000")},
 			}
@@ -85,7 +85,7 @@ func TestShippingDatabaseRefusalIsAnnouncedOnTheOwningForm(t *testing.T) {
 			t.Parallel()
 			ctx := i18n.WithLocale(t.Context(), locale)
 			message := i18n.T(ctx, i18n.KeyAdminShipRefused)
-			view := ShippingView{Methods: []ShippingMethod{{MethodID: "owned", VersionID: "version", Name: "Stored", Destination: shipping.DestinationAddress}}, VersionDraft: VersionDraft{MethodID: "owned", Name: "Draft", Fee: "100"}, Errors: map[string]string{"version_form": message}}
+			view := ShippingView{Methods: []Method{{MethodID: "owned", VersionID: "version", Name: "Stored", Destination: shipping.DestinationAddress}}, VersionDraft: VersionDraft{MethodID: "owned", Name: "Draft", Fee: "100"}, Errors: map[string]string{"version_form": message}}
 			body := renderComponent(t, ctx, Shipping(layouts.Page{}, view))
 			doc, err := html.Parse(strings.NewReader(body))
 			if err != nil {

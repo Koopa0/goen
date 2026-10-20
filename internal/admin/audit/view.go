@@ -7,7 +7,7 @@ import (
 	"github.com/koopa0/goen/internal/keyset"
 )
 
-type AuditEntry struct {
+type Entry struct {
 	Action    string
 	Entity    string
 	Subject   string
@@ -15,7 +15,7 @@ type AuditEntry struct {
 	Actor     string
 	At        string
 	RequestID string
-	Changes   []AuditChange
+	Changes   []Change
 	// CustomerEmail is the customer a customer.view row is about, by CustomerID:
 	// their current address, never the display name they may edit. It is empty
 	// when the account is erased.
@@ -26,21 +26,21 @@ type AuditEntry struct {
 	System bool
 }
 
-// AuditChange is one recorded field. Before is empty when the action only
+// Change is one recorded field. Before is empty when the action only
 // recorded a value, After when it only recorded what was there.
-type AuditChange struct {
+type Change struct {
 	Field         string
 	Before, After string
 }
 
-func (c AuditChange) Text() string {
+func (c Change) Text() string {
 	if c.Before != "" && c.After != "" {
 		return c.Before + " → " + c.After
 	}
 	return c.Before + c.After
 }
 
-func (e AuditEntry) Label(ctx context.Context) string {
+func (e Entry) Label(ctx context.Context) string {
 	if k, ok := actionLabels[e.Action]; ok {
 		return i18n.T(ctx, k)
 	}
@@ -90,7 +90,7 @@ var entityLabels = map[string]i18n.Key{
 	"shipping_zones":           i18n.KeyAuditEntityShippingZones,
 }
 
-func (e AuditEntry) EntityLabel(ctx context.Context) string {
+func (e Entry) EntityLabel(ctx context.Context) string {
 	if k, ok := entityLabels[e.Entity]; ok {
 		return i18n.T(ctx, k)
 	}
@@ -199,7 +199,7 @@ var actionLabels = map[string]i18n.Key{
 	"staff.factor.lock":                   i18n.KeyAuditStaffFactorLock,
 }
 
-func (e AuditEntry) ActorText(ctx context.Context) string {
+func (e Entry) ActorText(ctx context.Context) string {
 	switch {
 	case e.System:
 		return i18n.T(ctx, i18n.KeyAdminActorSystem)
@@ -210,7 +210,7 @@ func (e AuditEntry) ActorText(ctx context.Context) string {
 }
 
 // Money reports whether the entry recorded an amount.
-func (e AuditEntry) Money() bool {
+func (e Entry) Money() bool {
 	for _, c := range e.Changes {
 		if f, ok := e.field(c.Field); ok && f.amount != nil && f.amount(e) {
 			return true
@@ -219,17 +219,17 @@ func (e AuditEntry) Money() bool {
 	return false
 }
 
-func (e AuditEntry) ShortRequestID() string {
+func (e Entry) ShortRequestID() string {
 	if len(e.RequestID) <= 8 {
 		return e.RequestID
 	}
 	return e.RequestID[:8]
 }
 
-type AuditView struct {
+type View struct {
 	keyset.Bound
 
-	Rows []AuditEntry
+	Rows []Entry
 }
 
-func (v AuditView) Empty() bool { return len(v.Rows) == 0 }
+func (v View) Empty() bool { return len(v.Rows) == 0 }

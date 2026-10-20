@@ -93,7 +93,7 @@ func (s *Store) Configuration(ctx context.Context) (ShippingView, error) {
 	view := ShippingView{FeeMaxDollars: MaxFee / 100, FreeOverMaxDollars: money.MaxCents / 100}
 	for i := range rows {
 		m := &rows[i]
-		method := ShippingMethod{
+		method := Method{
 			MethodID: m.MethodID.String(), VersionID: m.VersionID.String(),
 			Code: m.Code, Destination: shipping.Destination(m.DestinationKind), Name: m.Name,
 			Carrier: m.Carrier.String, FeeCents: m.FeeCents,
@@ -114,7 +114,7 @@ func (s *Store) Configuration(ctx context.Context) (ShippingView, error) {
 	}
 	for i := range zones {
 		z := &zones[i]
-		view.Zones = append(view.Zones, ShippingZone{
+		view.Zones = append(view.Zones, Zone{
 			ID: z.ID.String(), Code: z.Code, Name: z.Name, NameEn: z.NameEn,
 			Prefixes: z.Prefixes, PrefixCount: z.PrefixCount,
 		})
@@ -122,7 +122,7 @@ func (s *Store) Configuration(ctx context.Context) (ShippingView, error) {
 	return view, nil
 }
 
-type ShippingVersion struct {
+type Version struct {
 	MethodID        string
 	Name            string
 	Carrier         string
@@ -138,7 +138,7 @@ type VersionChangedError struct {
 
 func (*VersionChangedError) Error() string { return "shipping: version changed" }
 
-func (s *Store) PublishShippingVersion(ctx context.Context, v ShippingVersion) error {
+func (s *Store) PublishShippingVersion(ctx context.Context, v Version) error {
 	id, err := uuid.Parse(v.MethodID)
 	if err != nil {
 		return ErrInvalid

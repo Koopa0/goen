@@ -27,9 +27,9 @@ const (
 	MaxFAQAnswerRunes   = 2000
 )
 
-// FAQForm is an entry as the desk posts it. CategoryID is read on create only:
+// Form is an entry as the desk posts it. CategoryID is read on create only:
 // an entry stays in the category it was added to.
-type FAQForm struct {
+type Form struct {
 	ID         string
 	CategoryID string
 	Question   string
@@ -40,7 +40,7 @@ type FAQForm struct {
 	category uuid.UUID
 }
 
-func (f *FAQForm) Validate(ctx context.Context) map[string]string {
+func (f *Form) Validate(ctx context.Context) map[string]string {
 	f.Question = strings.TrimSpace(f.Question)
 	f.Answer = strings.TrimSpace(f.Answer)
 	f.QuestionEn = strings.TrimSpace(f.QuestionEn)
@@ -69,15 +69,15 @@ func (f *FAQForm) Validate(ctx context.Context) map[string]string {
 	return errs
 }
 
-// FAQCategoryForm is a category as the desk posts it: a new one when ID is
+// CategoryForm is a category as the desk posts it: a new one when ID is
 // empty, a rename otherwise.
-type FAQCategoryForm struct {
+type CategoryForm struct {
 	ID     string
 	Name   string
 	NameEn string
 }
 
-func (f *FAQCategoryForm) Validate(ctx context.Context) map[string]string {
+func (f *CategoryForm) Validate(ctx context.Context) map[string]string {
 	f.Name = strings.TrimSpace(f.Name)
 	f.NameEn = strings.TrimSpace(f.NameEn)
 
@@ -101,12 +101,12 @@ func (s *Store) FAQ(ctx context.Context) (FAQView, error) {
 		return FAQView{}, fmt.Errorf("read faq categories: %w", err)
 	}
 	view := FAQView{
-		Rows:       make([]FAQEntry, 0, len(rows)),
+		Rows:       make([]Entry, 0, len(rows)),
 		Categories: make([]FAQCategory, 0, len(cats)),
 	}
 	for i := range rows {
 		r := &rows[i]
-		view.Rows = append(view.Rows, FAQEntry{
+		view.Rows = append(view.Rows, Entry{
 			ID: r.ID.String(), Category: r.Category, Question: r.Question,
 			Answer: r.Answer, QuestionEn: r.QuestionEn,
 			AnswerEn: r.AnswerEn, UpdatedAt: shoptime.Day(r.UpdatedAt),
@@ -121,7 +121,7 @@ func (s *Store) FAQ(ctx context.Context) (FAQView, error) {
 	return view, nil
 }
 
-func (s *Store) CreateFAQEntry(ctx context.Context, f *FAQForm) (map[string]string, error) {
+func (s *Store) CreateFAQEntry(ctx context.Context, f *Form) (map[string]string, error) {
 	if errs := f.Validate(ctx); len(errs) > 0 {
 		return errs, nil
 	}
@@ -146,7 +146,7 @@ func (s *Store) CreateFAQEntry(ctx context.Context, f *FAQForm) (map[string]stri
 	return nil, nil
 }
 
-func (s *Store) UpdateFAQEntry(ctx context.Context, f *FAQForm) (map[string]string, error) {
+func (s *Store) UpdateFAQEntry(ctx context.Context, f *Form) (map[string]string, error) {
 	entryID, err := uuid.Parse(f.ID)
 	if err != nil {
 		return nil, ErrNotFound
@@ -196,7 +196,7 @@ func (s *Store) DeleteFAQEntry(ctx context.Context, id string) error {
 }
 
 // CreateFAQCategory appends a category after the existing ones.
-func (s *Store) CreateFAQCategory(ctx context.Context, f *FAQCategoryForm) (map[string]string, error) {
+func (s *Store) CreateFAQCategory(ctx context.Context, f *CategoryForm) (map[string]string, error) {
 	if errs := f.Validate(ctx); len(errs) > 0 {
 		return errs, nil
 	}
@@ -220,7 +220,7 @@ func (s *Store) CreateFAQCategory(ctx context.Context, f *FAQCategoryForm) (map[
 
 // RenameFAQCategory changes a category's names, and with them the heading of
 // every entry in it.
-func (s *Store) RenameFAQCategory(ctx context.Context, f *FAQCategoryForm) (map[string]string, error) {
+func (s *Store) RenameFAQCategory(ctx context.Context, f *CategoryForm) (map[string]string, error) {
 	categoryID, err := uuid.Parse(f.ID)
 	if err != nil {
 		return nil, ErrNotFound

@@ -18,9 +18,9 @@ import (
 type auditField struct {
 	label i18n.Key
 	// text renders one recorded value; nil prints it as stored.
-	text func(ctx context.Context, e AuditEntry, value string) string
+	text func(ctx context.Context, e Entry, value string) string
 	// amount reports whether the value is a sum of money; nil means it is not.
-	amount func(e AuditEntry) bool
+	amount func(e Entry) bool
 }
 
 // auditFields is keyed by the stored key, or "table.key" where the same key
@@ -140,7 +140,7 @@ var auditFields = map[string]auditField{
 	"zone_id":                          {i18n.KeyAuditFieldDeliveryZoneID, nil, nil},
 }
 
-func (e AuditEntry) field(key string) (auditField, bool) {
+func (e Entry) field(key string) (auditField, bool) {
 	if f, ok := auditFields[e.Entity+"."+key]; ok {
 		return f, true
 	}
@@ -157,7 +157,7 @@ type ReadableChange struct {
 }
 
 // ReadableChanges reads the entry's recorded fields for staff.
-func (e AuditEntry) ReadableChanges(ctx context.Context) []ReadableChange {
+func (e Entry) ReadableChanges(ctx context.Context) []ReadableChange {
 	rows := make([]ReadableChange, 0, len(e.Changes))
 	for _, c := range e.Changes {
 		f, ok := e.field(c.Field)
@@ -189,12 +189,12 @@ func (e AuditEntry) ReadableChanges(ctx context.Context) []ReadableChange {
 	return rows
 }
 
-func isAmount(AuditEntry) bool { return true }
+func isAmount(Entry) bool { return true }
 
 // couponValueIsAmount: only an amount coupon's value is money; a percentage's is not.
-func couponValueIsAmount(e AuditEntry) bool { return coupon.Kind(e.recorded("kind")) == coupon.Amount }
+func couponValueIsAmount(e Entry) bool { return coupon.Kind(e.recorded("kind")) == coupon.Amount }
 
-func centsText(_ context.Context, _ AuditEntry, value string) string {
+func centsText(_ context.Context, _ Entry, value string) string {
 	n, err := strconv.ParseInt(value, 10, 64)
 	if err != nil {
 		return value
@@ -202,15 +202,15 @@ func centsText(_ context.Context, _ AuditEntry, value string) string {
 	return money.TWD(n)
 }
 
-func carrierText(ctx context.Context, _ AuditEntry, value string) string {
+func carrierText(ctx context.Context, _ Entry, value string) string {
 	return shipping.Carrier(value).Name(ctx)
 }
 
-func fulfillmentText(ctx context.Context, _ AuditEntry, value string) string {
+func fulfillmentText(ctx context.Context, _ Entry, value string) string {
 	return order.FulfillmentStatus(value).Label(ctx)
 }
 
-func returnDecisionText(ctx context.Context, _ AuditEntry, value string) string {
+func returnDecisionText(ctx context.Context, _ Entry, value string) string {
 	switch returns.Status(value) {
 	case returns.StatusRequested:
 		return i18n.T(ctx, i18n.KeyAdminReturnRequested)
@@ -226,7 +226,7 @@ func returnDecisionText(ctx context.Context, _ AuditEntry, value string) string 
 
 // reasonText words the code a refund of unsent units records as its reason;
 // every other reason is someone's own words, printed as stored.
-func reasonText(ctx context.Context, e AuditEntry, value string) string {
+func reasonText(ctx context.Context, e Entry, value string) string {
 	if e.Action != "return.refund_unsent" {
 		return value
 	}
@@ -236,7 +236,7 @@ func reasonText(ctx context.Context, e AuditEntry, value string) string {
 	return value
 }
 
-func entitlementText(ctx context.Context, _ AuditEntry, value string) string {
+func entitlementText(ctx context.Context, _ Entry, value string) string {
 	switch returns.Entitlement(value) {
 	case returns.EntitlementStatutory:
 		return i18n.T(ctx, i18n.KeyAuditEntitlementStatutory)
@@ -248,7 +248,7 @@ func entitlementText(ctx context.Context, _ AuditEntry, value string) string {
 	return value
 }
 
-func policyWindowText(ctx context.Context, _ AuditEntry, value string) string {
+func policyWindowText(ctx context.Context, _ Entry, value string) string {
 	w, ok := returns.ParsePolicyWindow(value)
 	if !ok {
 		return value
@@ -256,7 +256,7 @@ func policyWindowText(ctx context.Context, _ AuditEntry, value string) string {
 	return w.Label(ctx)
 }
 
-func couponKindText(ctx context.Context, _ AuditEntry, value string) string {
+func couponKindText(ctx context.Context, _ Entry, value string) string {
 	switch coupon.Kind(value) {
 	case coupon.Amount:
 		return i18n.T(ctx, i18n.KeyCouponKindAmount)
@@ -270,7 +270,7 @@ func couponKindText(ctx context.Context, _ AuditEntry, value string) string {
 
 // couponValueText reads a coupon's value by the kind recorded beside it: whole
 // dollars for an amount, whole percent for a percentage.
-func couponValueText(_ context.Context, e AuditEntry, value string) string {
+func couponValueText(_ context.Context, e Entry, value string) string {
 	n, err := strconv.ParseInt(value, 10, 64)
 	if err != nil {
 		return value
@@ -285,14 +285,14 @@ func couponValueText(_ context.Context, e AuditEntry, value string) string {
 	return value
 }
 
-func customerText(_ context.Context, e AuditEntry, value string) string {
+func customerText(_ context.Context, e Entry, value string) string {
 	if e.CustomerEmail != "" {
 		return e.CustomerEmail
 	}
 	return value
 }
 
-func (e AuditEntry) recorded(key string) string {
+func (e Entry) recorded(key string) string {
 	for _, c := range e.Changes {
 		if c.Field == key {
 			return c.Before + c.After

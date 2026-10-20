@@ -15,7 +15,7 @@ func TestTheDashboardAndTheQueueTabsSplitPendingTheSameWay(t *testing.T) {
 	ctx := t.Context()
 	queue := admintest.OrderStore(pool, admintest.Refunder{}, nil, nil)
 	desk := storeOver(pool, health.NewStore(pool))
-	tab := func(v orders.OrdersView, status orders.QueueFilter) int64 {
+	tab := func(v orders.View, status orders.QueueFilter) int64 {
 		for _, tb := range v.Tabs {
 			if tb.Value == status {
 				return tb.Count

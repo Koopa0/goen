@@ -213,7 +213,7 @@ func TestPublishingAVersionCarriesItsZoneSurcharges(t *testing.T) {
 		t.Fatal("the surcharge this test just set is not there — it would prove nothing")
 	}
 
-	if err := s.PublishShippingVersion(ctx, shipping.ShippingVersion{
+	if err := s.PublishShippingVersion(ctx, shipping.Version{
 		MethodID: methodID.String(), Name: "宅配到府", Carrier: "黑貓宅急便",
 		NameEn: "Home delivery", CarrierEn: "T-Cat",
 		FeeDollars: 100, FreeOverDollars: 2000,
@@ -265,7 +265,7 @@ func TestPublishingAVersionKeepsItsEnglishName(t *testing.T) {
 	if err != nil {
 		t.Fatalf("read shipping methods: %v", err)
 	}
-	var method *shipping.ShippingMethod
+	var method *shipping.Method
 	for i := range view.Methods {
 		if view.Methods[i].Code == code {
 			method = &view.Methods[i]
@@ -284,7 +284,7 @@ func TestPublishingAVersionKeepsItsEnglishName(t *testing.T) {
 		t.Fatalf("shipping view translations (-want +got):\n%s", diff)
 	}
 
-	if err := s.PublishShippingVersion(ctx, shipping.ShippingVersion{
+	if err := s.PublishShippingVersion(ctx, shipping.Version{
 		MethodID: method.MethodID, Name: method.Name, Carrier: method.Carrier,
 		NameEn: method.NameEn, CarrierEn: method.CarrierEn,
 		FeeDollars: 100, FreeOverDollars: 3000,
@@ -345,7 +345,7 @@ func TestPublishingAVersionKeepsItsEnglishName(t *testing.T) {
 	}
 	assertAuditTranslations("Home delivery", "T-Cat")
 
-	if err := s.PublishShippingVersion(ctx, shipping.ShippingVersion{
+	if err := s.PublishShippingVersion(ctx, shipping.Version{
 		MethodID: method.MethodID, Name: method.Name, Carrier: method.Carrier,
 		NameEn: "", CarrierEn: "", FeeDollars: 101, FreeOverDollars: 3000,
 	}); err != nil {
@@ -1144,7 +1144,7 @@ func TestStaleSurchargeFormsRefuseSetAndClear(t *testing.T) {
 				if got := form.Get("amount"); got != "100" {
 					t.Fatalf("captured amount=%q, want 100", got)
 				}
-				if err := s.PublishShippingVersion(ctx, shipping.ShippingVersion{MethodID: method.String(), Name: "Updated shipping", FeeDollars: 90}); err != nil {
+				if err := s.PublishShippingVersion(ctx, shipping.Version{MethodID: method.String(), Name: "Updated shipping", FeeDollars: 90}); err != nil {
 					t.Fatal(err)
 				}
 				current := currentShippingVersion(t, method)
@@ -1202,7 +1202,7 @@ func TestPublicationAndSurchargeEditsSerialize(t *testing.T) {
 			}
 			done := make(chan result, 2) // One result from each of the two writers.
 			publish := func() {
-				done <- result{publish: true, err: publisher.PublishShippingVersion(workerCtx, shipping.ShippingVersion{MethodID: method.String(), Name: "Published", FeeDollars: 90})}
+				done <- result{publish: true, err: publisher.PublishShippingVersion(workerCtx, shipping.Version{MethodID: method.String(), Name: "Published", FeeDollars: 90})}
 			}
 			edit := func() {
 				done <- result{err: editor.SetZoneSurcharge(workerCtx, oldVersion.String(), zone.String(), 200)}
@@ -1259,7 +1259,7 @@ func TestWaitingPublicationBecomesCurrentAndCarriesTheLatestSurcharge(t *testing
 	defer func() { cancel(); _ = blocker.Rollback(context.WithoutCancel(ctx)); wg.Wait() }()
 	done := make(chan error, 1) // The single waiting publisher's result.
 	wg.Go(func() {
-		done <- s.PublishShippingVersion(workerCtx, shipping.ShippingVersion{MethodID: method.String(), Name: "Final shipping", FeeDollars: 90})
+		done <- s.PublishShippingVersion(workerCtx, shipping.Version{MethodID: method.String(), Name: "Final shipping", FeeDollars: 90})
 	})
 	traceCtx, stopTrace := context.WithTimeout(ctx, 5*time.Second)
 	defer stopTrace()
@@ -1579,7 +1579,7 @@ func zoneRemovalFixture(
 		t.Fatalf("create blocking version: %v", err)
 	}
 	if historical {
-		if err := store.PublishShippingVersion(ctx, shipping.ShippingVersion{MethodID: method.String(), Name: "New removal shipping", FeeDollars: 90}); err != nil {
+		if err := store.PublishShippingVersion(ctx, shipping.Version{MethodID: method.String(), Name: "New removal shipping", FeeDollars: 90}); err != nil {
 			t.Fatalf("publish newer version: %v", err)
 		}
 		if err := owner.QueryRow(ctx, `SELECT id FROM shipping_method_versions WHERE method_id=$1 AND effective_at <= statement_timestamp() ORDER BY effective_at DESC,id DESC LIMIT 1`, method).Scan(&version); err != nil {

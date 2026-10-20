@@ -64,7 +64,7 @@ func wantBadge(t *testing.T, page, word, class string) {
 func TestOrderListPillsFollowTheirGroupAndLeaveOutCommitted(t *testing.T) {
 	t.Parallel()
 	ctx := i18n.WithLocale(t.Context(), i18n.ZhHant)
-	view := OrdersView{
+	view := View{
 		Bound: firstPageBound("orders"),
 		Orders: []OrderRow{
 			{Number: "GO-A", Status: order.FulfillmentPicking, StatusText: "備貨中", StatusIntent: components.IntentProgress},

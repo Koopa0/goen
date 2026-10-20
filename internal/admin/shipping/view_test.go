@@ -21,7 +21,7 @@ import (
 
 func TestAMethodWithoutEnglishSaysSoAndMarksTheOtherName(t *testing.T) {
 	t.Parallel()
-	view := ShippingView{Methods: []ShippingMethod{
+	view := ShippingView{Methods: []Method{
 		{MethodID: "a", VersionID: "va", Destination: shipping.DestinationAddress, Name: "宅配到府", NameEn: "Home delivery"},
 		{MethodID: "b", VersionID: "vb", Destination: shipping.DestinationAddress, Name: "超商取貨"},
 	}}
@@ -58,7 +58,7 @@ func TestShippingZonesKeepTableRelationshipsWhenRowsBecomeCards(t *testing.T) {
 	t.Parallel()
 	for _, locale := range i18n.Locales() {
 		ctx := i18n.WithLocale(t.Context(), locale)
-		view := ShippingView{Zones: []ShippingZone{
+		view := ShippingView{Zones: []Zone{
 			{ID: "mainland", Code: "mainland", Name: "本島", NameEn: "Mainland"},
 			{ID: "offshore", Code: "offshore", Name: "離島", NameEn: "Offshore"},
 		}}

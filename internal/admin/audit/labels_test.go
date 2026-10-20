@@ -20,7 +20,7 @@ import (
 // that declares it, so an action added next week is covered the day it is
 // written.
 //
-// AuditEntry.Label falls back to the raw action when the map has no entry, and
+// Entry.Label falls back to the raw action when the map has no entry, and
 // the fallback is right — audit_events is append-only, so a row naming a
 // retired action must still render rather than crash the page. The cost is that
 // a MISSING label looks like working software: "invoice.issue" appears where a
@@ -45,7 +45,7 @@ func TestEveryAuditActionHasALabel(t *testing.T) {
 	ctx := i18n.WithLocale(t.Context(), i18n.ZhHant)
 	var missing []string
 	for _, action := range actions {
-		entry := audit.AuditEntry{Action: action}
+		entry := audit.Entry{Action: action}
 		if entry.Label(ctx) == action {
 			missing = append(missing, action)
 		}
@@ -176,7 +176,7 @@ func TestEveryAuditedTableHasAnEntityLabel(t *testing.T) {
 	ctx := i18n.WithLocale(t.Context(), i18n.ZhHant)
 	var missing []string
 	for table := range tables {
-		if (audit.AuditEntry{Entity: table}).EntityLabel(ctx) == table {
+		if (audit.Entry{Entity: table}).EntityLabel(ctx) == table {
 			missing = append(missing, table)
 		}
 	}

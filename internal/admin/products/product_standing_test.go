@@ -11,13 +11,13 @@ import (
 
 // thirteenWeeks is 91 shop days ending Oct 6, with units on the days given by
 // their offset from Jul 8.
-func thirteenWeeks(units map[int]int64) ProductSales {
+func thirteenWeeks(units map[int]int64) Sales {
 	first := time.Date(2026, time.July, 8, 0, 0, 0, 0, time.UTC)
 	days := chart.Series{Partial: true}
 	for i := range 91 {
 		days.Buckets = append(days.Buckets, chart.Bucket{Day: first.AddDate(0, 0, i), Value: units[i]})
 	}
-	return ProductSales{Days: days, Cut: "15:20"}
+	return Sales{Days: days, Cut: "15:20"}
 }
 
 func renderStanding(t *testing.T, loc i18n.Locale, v *ProductView) string {
@@ -86,7 +86,7 @@ func TestWeeklyUnitsNameTheBestWeek(t *testing.T) {
 }
 
 func TestAWeeklyChartThatCouldNotBeReadIsNotAnEmptyOne(t *testing.T) {
-	got := renderStanding(t, i18n.En, &ProductView{Sales: ProductSales{Unavailable: true}, Ratings: ProductRatings{Unavailable: true}})
+	got := renderStanding(t, i18n.En, &ProductView{Sales: Sales{Unavailable: true}, Ratings: ProductRatings{Unavailable: true}})
 	if n := strings.Count(got, `role="status"`); n != 2 {
 		t.Errorf("status lines = %d, want 2", n)
 	}

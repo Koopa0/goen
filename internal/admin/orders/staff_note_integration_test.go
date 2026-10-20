@@ -175,7 +175,7 @@ func TestUnchangedStaffNoteDoesNotInventAnOperation(t *testing.T) {
 	}
 }
 
-func changesText(changes []audit.AuditChange) string {
+func changesText(changes []audit.Change) string {
 	var b strings.Builder
 	for _, c := range changes {
 		b.WriteString(c.Field + " " + c.Text() + "\n")

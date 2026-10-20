@@ -47,17 +47,17 @@ func (s *Store) standing(ctx context.Context, id uuid.UUID, now time.Time, view 
 
 // sales is a bucket for each shop day of the last salesWeeks weeks, counted up
 // to now.
-func (s *Store) sales(ctx context.Context, id uuid.UUID, now time.Time) (ProductSales, error) {
+func (s *Store) sales(ctx context.Context, id uuid.UUID, now time.Time) (Sales, error) {
 	from := shoptime.FirstDay(now, salesWeeks*7)
 	rows, err := s.q.ProductUnitsByShopDay(ctx, db.ProductUnitsByShopDayParams{
 		ProductID: id, FromAt: from, ToAt: now,
 	})
 	if err != nil {
-		return ProductSales{}, fmt.Errorf("read units by day: %w", err)
+		return Sales{}, fmt.Errorf("read units by day: %w", err)
 	}
 	days := chart.Series{Partial: true, Buckets: make([]chart.Bucket, 0, len(rows))}
 	for _, r := range rows {
 		days.Buckets = append(days.Buckets, chart.Bucket{Day: r.Day, Value: r.Units})
 	}
-	return ProductSales{Days: days, Cut: shoptime.Clock(now)}, nil
+	return Sales{Days: days, Cut: shoptime.Clock(now)}, nil
 }

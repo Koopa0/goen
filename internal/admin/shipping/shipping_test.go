@@ -25,11 +25,11 @@ func TestShippingStaleSurchargeKeepsTheDraftOnTheCurrentForm(t *testing.T) {
 				ctx := i18n.WithLocale(t.Context(), locale)
 				message := i18n.T(ctx, i18n.KeyAdminShipVersionChanged)
 				view := ShippingView{
-					Methods: []ShippingMethod{
+					Methods: []Method{
 						{MethodID: "one", VersionID: "current", Destination: shipping.DestinationAddress, Surcharges: []ZoneSurcharge{{ZoneID: "offshore", Cents: 10000}, {ZoneID: "other", Cents: 30000}}},
 						{MethodID: "two", VersionID: "neighbour", Destination: shipping.DestinationAddress, Surcharges: []ZoneSurcharge{{ZoneID: "offshore", Cents: 40000}}},
 					},
-					Zones:          []ShippingZone{{ID: "offshore"}, {ID: "other"}},
+					Zones:          []Zone{{ID: "offshore"}, {ID: "other"}},
 					Errors:         map[string]string{"surcharge": message},
 					SurchargeDraft: SurchargeDraft{MethodID: "one", ZoneID: "offshore", Amount: amount},
 				}
@@ -96,7 +96,7 @@ func TestShippingPickupAvailabilityIsVisibleAtTheMethodHeading(t *testing.T) {
 			t.Run(locale.locale.Tag()+"/"+tt.name, func(t *testing.T) {
 				t.Parallel()
 				ctx := i18n.WithLocale(t.Context(), locale.locale)
-				view := ShippingView{Methods: []ShippingMethod{{
+				view := ShippingView{Methods: []Method{{
 					MethodID: "method", VersionID: "version", Code: "internal_method_code",
 					Name: "Method name", NameEn: "Method name", Destination: tt.destination, Active: true,
 					PickupUnavailable: tt.unavailable,
@@ -181,7 +181,7 @@ func TestShippingZonePrefixesHaveCompleteMultilineEditors(t *testing.T) {
 			t.Run(locale.Tag()+"/"+tt.name, func(t *testing.T) {
 				t.Parallel()
 				ctx := i18n.WithLocale(t.Context(), locale)
-				view := ShippingView{Zones: []ShippingZone{
+				view := ShippingView{Zones: []Zone{
 					{ID: "islands", Name: "Islands", NameEn: "Islands", Prefixes: islands},
 					{ID: "neighbour", Name: "Neighbour", NameEn: "Neighbour", Prefixes: "100"},
 				}, Errors: map[string]string{}}
@@ -316,11 +316,11 @@ func TestZonePrefixEntriesListARepeatedPrefixOnce(t *testing.T) {
 func TestShippingNamesAndCountsReadInTheReadersLanguage(t *testing.T) {
 	t.Parallel()
 	view := ShippingView{
-		Methods: []ShippingMethod{{
+		Methods: []Method{{
 			MethodID: "home", VersionID: "v1", Destination: shipping.DestinationAddress,
 			Name: "宅配到府", NameEn: "Home delivery", EffectiveAt: "2026-10-07", VersionCount: 1,
 		}},
-		Zones: []ShippingZone{
+		Zones: []Zone{
 			{ID: "islands", Code: "islands", Name: "離島", NameEn: "Outlying islands", PrefixCount: 1},
 			{ID: "plain", Code: "plain", Name: "本島", PrefixCount: 2},
 		},

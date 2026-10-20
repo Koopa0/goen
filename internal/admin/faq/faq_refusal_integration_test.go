@@ -22,7 +22,7 @@ func TestARefusedFAQEditAnswersOnTheEntryItself(t *testing.T) {
 	ctx, _ := admintest.StaffContext(t, pool)
 	s := faq.NewStore(pool)
 	category := "編輯分類-" + uuid.NewString()[:8]
-	if errs, err := s.CreateFAQEntry(ctx, &faq.FAQForm{
+	if errs, err := s.CreateFAQEntry(ctx, &faq.Form{
 		CategoryID: newFAQCategory(t, ctx, s, category, ""), Question: "原本的問題", Answer: "原本的答案",
 	}); err != nil || len(errs) > 0 {
 		t.Fatalf("CreateFAQEntry: %v %v", err, errs)
