@@ -11,6 +11,7 @@ import (
 
 	"github.com/google/uuid"
 
+	"github.com/koopa0/goen/internal/backinstock"
 	"github.com/koopa0/goen/internal/cart/item"
 	"github.com/koopa0/goen/internal/email"
 	"github.com/koopa0/goen/internal/i18n"
@@ -150,7 +151,7 @@ func (h *Handler) Notify(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	err := h.store.RequestRestockNotice(r.Context(), slug, variantID, addr, userID)
+	err := h.store.backInStock.Request(r.Context(), slug, variantID, addr, userID)
 	switch {
 	case err == nil && accountEmail != "" && strings.EqualFold(email.Clean(addr), accountEmail):
 		// Never the typed address in the query string: anybody could put text
@@ -158,7 +159,7 @@ func (h *Handler) Notify(w http.ResponseWriter, r *http.Request) {
 		h.redirectNotified(w, r, slug, NotifyRecordedForAccount)
 	case err == nil:
 		h.redirectNotified(w, r, slug, NotifyRecorded)
-	case errors.Is(err, ErrNotifyInvalid):
+	case errors.Is(err, backinstock.ErrInvalid):
 		// Two causes, two messages: an address goen will not mail, or a variant
 		// that no longer needs a notice (back in stock, or gone).
 		outcome := NotifyVariantUnavailable

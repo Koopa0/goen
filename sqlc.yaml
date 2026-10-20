@@ -20,7 +20,7 @@ sql:
       - "internal/site/query.sql"
       - "internal/admin/twofactor/query.sql"
       - "internal/recommend/query.sql"
-      - "internal/restock/query.sql"
+      - "internal/backinstock/query.sql"
       - "internal/warranty/query.sql"
       - "internal/auth/query.sql"
       - "internal/account/query.sql"

@@ -84,6 +84,7 @@ var runExemptions = map[string]string{
 	"admin.RescheduleOutbox":             "the relay and its sweeper run on the storefront pool; the admin pool's outbox.Store only reads the stuck list",
 	"admin.SweepDeliveredMessages":       "the relay and its sweeper run on the storefront pool; the admin pool's outbox.Store only reads the stuck list",
 	"admin.SweepUndeliveredMessages":     "the relay and its sweeper run on the storefront pool; the admin pool's outbox.Store only reads the stuck list",
+	"maintenance.RequestStockNotice":     "the product page asks through catalog on the storefront pool; the maintenance pool's backinstock.Store only sweeps answered requests",
 	"store.DeleteMedia":                  "the sweeper runs on the admin pool; store serves images and never deletes one",
 	"store.AttributeCompletePaymentPaid": "payment owns the capture invariants and side effects, but manual paid attribution is called only with an audited admin transaction; store must not hold that privilege",
 	"store.PutMedia":                     "only the back office uploads; store serves what is already stored",
