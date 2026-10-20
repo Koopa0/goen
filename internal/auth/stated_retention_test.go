@@ -6,7 +6,7 @@ import (
 	"time"
 
 	"github.com/koopa0/goen/internal/auth"
-	"github.com/koopa0/goen/internal/site"
+	"github.com/koopa0/goen/internal/policy"
 )
 
 // The privacy policy states how long a sign-in lasts. Sessions are not renewed,
@@ -14,7 +14,7 @@ import (
 func TestThePrivacyPolicyStatesTheSessionLifetimeTheStoreGrants(t *testing.T) {
 	t.Parallel()
 
-	days, err := strconv.Atoi(site.SessionDaysText())
+	days, err := strconv.Atoi(policy.SessionDaysText())
 	if err != nil {
 		t.Fatalf("parse stated session lifetime: %v", err)
 	}
@@ -28,14 +28,14 @@ func TestThePrivacyPolicyStatesTheSessionLifetimeTheStoreGrants(t *testing.T) {
 func TestThePrivacyPolicyStatesWhatSignInRemembers(t *testing.T) {
 	t.Parallel()
 
-	days, err := strconv.Atoi(site.KnownDeviceDaysText())
+	days, err := strconv.Atoi(policy.KnownDeviceDaysText())
 	if err != nil {
 		t.Fatalf("parse stated device retention: %v", err)
 	}
 	if got := time.Duration(days) * 24 * time.Hour; got != auth.DeviceTTL {
 		t.Errorf("privacy states %v, a remembered browser lasts %v", got, auth.DeviceTTL)
 	}
-	if got := site.KnownDevicesPerAccountText(); got != strconv.Itoa(auth.DevicesPerAccount) {
+	if got := policy.KnownDevicesPerAccountText(); got != strconv.Itoa(auth.DevicesPerAccount) {
 		t.Errorf("privacy states %s browsers per account, sign-in keeps %d", got, auth.DevicesPerAccount)
 	}
 }

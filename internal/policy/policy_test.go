@@ -1,4 +1,4 @@
-package site
+package policy
 
 import (
 	"errors"
@@ -296,7 +296,7 @@ func TestThePrivacyPolicyNamesEveryCookie(t *testing.T) {
 		access.CookieName:            {zh: "訂單瀏覽權限", en: "permission to view an order"},
 		cart.PickupCookieName:        {zh: "挑選超商取貨門市", en: "picking a convenience store"},
 		i18n.CookieName:              {zh: "你選擇的語言", en: "the language you chose"},
-		dismissCookie:                {zh: "你關閉過的網站公告", en: "which site notice you have dismissed"},
+		"__Host-goen_promo":          {zh: "你關閉過的網站公告", en: "which site notice you have dismissed"}, // site.dismissCookie
 		"__Host-goen_signin_context": {zh: "重設密碼後或刪除帳號前重新登入", en: "prefill sign-in after a password reset"},
 		"__Host-goen_oauth":          {zh: "用 Google 登入時暫存", en: "while you sign in with Google"},
 	}

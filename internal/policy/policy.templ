@@ -1,4 +1,4 @@
-package site
+package policy
 
 import (
 	"fmt"
@@ -36,46 +36,6 @@ templ Policy(p layouts.Page, doc PolicyDoc) {
 					<p class="goen-doc__contact">
 						{ i18n.T(ctx, i18n.KeyPolicyMore) }<a href="/contact">{ i18n.T(ctx, i18n.KeyPolicyContactLink) }</a>{ i18n.T(ctx, i18n.KeyPolicyMoreFAQ) }<a href="/faq">{ i18n.T(ctx, i18n.KeyPolicyFAQLink) }</a>{ i18n.T(ctx, i18n.KeyPolicyMoreEnd) }
 					</p>
-				</article>
-			</div>
-		</div>
-	}
-}
-
-templ FAQ(p layouts.Page, v FAQView) {
-	@layouts.Base(p) {
-		<div class="goen-doc">
-			<div class="goen-pagehead goen-doc__head">
-				<p class="goen-pagehead__eyebrow">{ i18n.T(ctx, i18n.KeyPolicyHelp) }</p>
-				<h1 class="goen-pagehead__title">{ i18n.T(ctx, i18n.KeyFAQTitle) }</h1>
-			</div>
-			<div class="goen-doc__layout">
-				if !v.Empty() {
-					<nav class="goen-doc__toc" aria-labelledby="faq-toc-heading">
-						<p class="goen-doc__tochead" id="faq-toc-heading">{ i18n.T(ctx, i18n.KeyFAQTitle) }</p>
-						for i, g := range v.Groups {
-							<a class="goen-doc__toclink" href={ templ.SafeURL(faqGroupHref(i)) }>{ g.Category }</a>
-						}
-					</nav>
-				}
-				<article class="goen-doc__article">
-					if v.Empty() {
-						<p class="goen-doc__contact">
-							{ i18n.T(ctx, i18n.KeyFAQEmpty) }<a href="/contact">{ i18n.T(ctx, i18n.KeyPolicyContactLink) }</a>{ i18n.T(ctx, i18n.KeyFAQEmptyTail) }
-						</p>
-					} else {
-						for i, g := range v.Groups {
-							<section class="goen-doc__section" id={ faqGroupID(i) }>
-								<h2>{ g.Category }</h2>
-								for _, item := range g.Items {
-									<details class="goen-doc__qa">
-										<summary>{ item.Question }</summary>
-										<p>{ item.Answer }</p>
-									</details>
-								}
-							</section>
-						}
-					}
 				</article>
 			</div>
 		</div>

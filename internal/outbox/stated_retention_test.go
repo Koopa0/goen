@@ -6,7 +6,7 @@ import (
 	"time"
 
 	"github.com/koopa0/goen/internal/outbox"
-	"github.com/koopa0/goen/internal/site"
+	"github.com/koopa0/goen/internal/policy"
 )
 
 // The privacy policy states how long mail records are kept, delivered or not.
@@ -14,7 +14,7 @@ import (
 func TestThePrivacyPolicyStatesTheMailRetentionTheSweepEnforces(t *testing.T) {
 	t.Parallel()
 
-	days, err := strconv.Atoi(site.MailRetainDaysText())
+	days, err := strconv.Atoi(policy.MailRetainDaysText())
 	if err != nil {
 		t.Fatalf("parse stated mail retention: %v", err)
 	}

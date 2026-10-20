@@ -1,4 +1,4 @@
-package site
+package policy
 
 import (
 	"context"
@@ -69,34 +69,13 @@ func (w CheckoutWindows) State(ctx context.Context, k i18n.Key) string {
 		strconv.FormatInt(w.HoldMinutes, 10), strconv.FormatInt(w.PayStartMinutes, 10))
 }
 
-type FAQItem struct {
-	Question string
-	Answer   string
-}
-
 // SectionID names a section by position, since a policy section has no identifier of its own (the documents are prose in
-// internal/site); the contents list uses the same numbers.
+// internal/policy); the contents list uses the same numbers.
 func (d PolicyDoc) SectionID(i int) string {
 	return "doc-section-" + strconv.Itoa(i+1)
 }
 
 func (d PolicyDoc) SectionHref(i int) string { return "#" + d.SectionID(i) }
-
-// faqGroupID names a category the same way, for the same reason.
-func faqGroupID(i int) string { return "faq-group-" + strconv.Itoa(i+1) }
-
-func faqGroupHref(i int) string { return "#" + faqGroupID(i) }
-
-type FAQGroup struct {
-	Category string
-	Items    []FAQItem
-}
-
-type FAQView struct {
-	Groups []FAQGroup
-}
-
-func (v FAQView) Empty() bool { return len(v.Groups) == 0 }
 
 type ShippingMethod struct {
 	Name          string

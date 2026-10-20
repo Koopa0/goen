@@ -50,6 +50,7 @@ import (
 	"github.com/koopa0/goen/internal/order/buyer"
 	"github.com/koopa0/goen/internal/outbox"
 	"github.com/koopa0/goen/internal/payment"
+	"github.com/koopa0/goen/internal/policy"
 	"github.com/koopa0/goen/internal/probe"
 	"github.com/koopa0/goen/internal/ratelimit"
 	"github.com/koopa0/goen/internal/site"
@@ -173,7 +174,7 @@ func routing(cfg *RouterConfig, log *slog.Logger) (http.Handler, *http.ServeMux)
 	catalogue := catalog.NewStore(pool, log)
 	siteStore := site.NewStore(pool)
 	if !front.StoreMap.Enabled() {
-		catalogue, siteStore = catalogue.WithoutPickup(), siteStore.WithoutPickup()
+		catalogue = catalogue.WithoutPickup()
 	}
 	sitePages := site.NewHandler(log, baseURL, catalogue, siteStore, secureCookies)
 	var barcodeChecker cart.MobileBarcodeChecker
@@ -239,11 +240,13 @@ func storefrontRoutes(mux *http.ServeMux, cfg *StorefrontConfig, log *slog.Logge
 	// Everything that describes shipping reads what checkout offers: pickup needs
 	// the store map, so without it nothing may promise pickup or its price.
 	homeStore := home.NewStore(pool)
+	policyStore := policy.NewStore(pool)
 	if !cfg.StoreMap.Enabled() {
-		homeStore = homeStore.WithoutPickup()
+		homeStore, policyStore = homeStore.WithoutPickup(), policyStore.WithoutPickup()
 	}
 	browse := catalog.NewHandler(catalogue, log, baseURL)
 	homePage := home.NewHandler(homeStore, log)
+	policyPages := policy.NewHandler(policyStore, log)
 	images := media.NewHandler(media.NewStore(pool), log)
 	contactLimit := ratelimit.New(ratelimit.Config{
 		Every: 5 * time.Minute, Burst: 5, TTL: time.Hour, MaxKeys: 65_536,
@@ -282,6 +285,7 @@ func storefrontRoutes(mux *http.ServeMux, cfg *StorefrontConfig, log *slog.Logge
 	homePage.Routes(mux)
 	images.Routes(mux)
 	sitePages.Routes(mux)
+	policyPages.Routes(mux)
 	contactPage.Routes(mux)
 	signups.Routes(mux)
 	browse.Routes(mux, notifyLimit)

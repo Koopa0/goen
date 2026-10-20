@@ -66,8 +66,8 @@ func TestNoChromeStringIsHardCoded(t *testing.T) {
 
 // notChrome is every path prefix this test does not read, and why.
 var notChrome = map[string]string{
-	"internal/site/policies.go": "prose in Go; both languages declared per clause and guarded",
-	"internal/i18n":             "the catalogue itself",
+	"internal/policy/policies.go": "prose in Go; both languages declared per clause and guarded",
+	"internal/i18n":               "the catalogue itself",
 }
 
 // pendingTranslation is DEBT, not decision: files that still write Chinese in

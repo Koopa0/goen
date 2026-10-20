@@ -13,7 +13,7 @@ import (
 	"github.com/koopa0/goen/assets"
 	"github.com/koopa0/goen/internal/db"
 	"github.com/koopa0/goen/internal/i18n"
-	"github.com/koopa0/goen/internal/site"
+	"github.com/koopa0/goen/internal/policy"
 	"github.com/koopa0/goen/internal/ui/components"
 	"github.com/koopa0/goen/internal/ui/pages"
 )
@@ -21,29 +21,29 @@ import (
 type Store struct {
 	dbtx db.DBTX
 	q    *db.Queries
-	// site reads the shop rules the department and product pages show.
-	site *site.Store
-	log  *slog.Logger
-	now  func() time.Time
+	// policy reads the shop rules the department and product pages show.
+	policy *policy.Store
+	log    *slog.Logger
+	now    func() time.Time
 }
 
 func NewStore(dbtx db.DBTX, log *slog.Logger) *Store {
 	if dbtx == nil || log == nil {
 		panic("catalog: NewStore requires a database handle and a logger")
 	}
-	return &Store{dbtx: dbtx, q: db.New(dbtx), site: site.NewStore(dbtx), log: log, now: time.Now}
+	return &Store{dbtx: dbtx, q: db.New(dbtx), policy: policy.NewStore(dbtx), log: log, now: time.Now}
 }
 
 // WithoutPickup is for a deployment whose store map is not configured: checkout
 // offers no pickup there, so what this store describes must not either.
 func (s *Store) WithoutPickup() *Store {
 	c := *s
-	c.site = s.site.WithoutPickup()
+	c.policy = s.policy.WithoutPickup()
 	return &c
 }
 
-func (s *Store) ShopRules(ctx context.Context) (site.ShopRules, error) {
-	return s.site.ShopRules(ctx)
+func (s *Store) ShopRules(ctx context.Context) (policy.Rules, error) {
+	return s.policy.Rules(ctx)
 }
 
 // Listing uses one set of descendant ids for the listing, the count and the
