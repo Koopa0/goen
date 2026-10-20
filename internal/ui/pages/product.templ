@@ -191,7 +191,7 @@ templ productBand(v *ProductView) {
 		<section class={ "goen-band goen-band--product", templ.KV("goen-band--text", !hasPhoto) } data-tone={ v.Tone.Attr() } aria-labelledby="desc-heading">
 			<div class="goen-band__grid">
 				if hasPhoto {
-					@bandMedia("goen-band__photo", "", components.Photo{URL: photo.URL, Srcset: photo.Srcset, Alt: photo.Alt}, true, "(min-width: 1024px) 42vw, 100vw", true)
+					@BandMedia("goen-band__photo", "", components.Photo{URL: photo.URL, Srcset: photo.Srcset, Alt: photo.Alt}, true, "(min-width: 1024px) 42vw, 100vw", true)
 				}
 				<div class="goen-band__body goen-pdp__desc">
 					if v.Brand != "" {

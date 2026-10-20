@@ -19,8 +19,8 @@ import (
 // editorial slot are read only when slots is true, which is the unfiltered first page: a page
 // of filtered results is not the department's front. compared is whether the department
 // puts its products side by side.
-func (s *Store) DepartmentHead(ctx context.Context, slug string, compared, slots bool, offers map[uuid.UUID]bool) (*pages.DepartmentHead, error) {
-	head := &pages.DepartmentHead{}
+func (s *Store) DepartmentHead(ctx context.Context, slug string, compared, slots bool, offers map[uuid.UUID]bool) (*DepartmentHead, error) {
+	head := &DepartmentHead{}
 	if !slots {
 		return head, nil
 	}
@@ -41,7 +41,7 @@ func (s *Store) DepartmentHead(ctx context.Context, slug string, compared, slots
 	return head, nil
 }
 
-func (s *Store) departmentNotice(ctx context.Context, slug string) (*pages.DepartmentNotice, error) {
+func (s *Store) departmentNotice(ctx context.Context, slug string) (*DepartmentNotice, error) {
 	c, err := s.q.DepartmentCampaign(ctx, db.DepartmentCampaignParams{Slug: slug, Locale: string(i18n.FromContext(ctx))})
 	if errors.Is(err, pgx.ErrNoRows) {
 		return nil, nil
@@ -49,12 +49,12 @@ func (s *Store) departmentNotice(ctx context.Context, slug string) (*pages.Depar
 	if err != nil {
 		return nil, fmt.Errorf("read campaign of %q: %w", slug, err)
 	}
-	return &pages.DepartmentNotice{Title: c.Title, Href: "/s/" + c.Slug, End: pages.NewCampaignEnd(c.EndsAt, s.now())}, nil
+	return &DepartmentNotice{Title: c.Title, Href: "/s/" + c.Slug, End: pages.NewCampaignEnd(c.EndsAt, s.now())}, nil
 }
 
 // comparePreview tries the categories holding the most comparable products, each with its
 // three newest, and takes the first whose products share enough specifications.
-func (s *Store) comparePreview(ctx context.Context, slug string, offers map[uuid.UUID]bool) (*pages.ComparePreview, error) {
+func (s *Store) comparePreview(ctx context.Context, slug string, offers map[uuid.UUID]bool) (*ComparePreview, error) {
 	rows, err := s.q.DepartmentCompareCandidates(ctx, slug)
 	if err != nil {
 		return nil, fmt.Errorf("read comparison candidates of %q: %w", slug, err)
@@ -79,24 +79,24 @@ func (s *Store) comparePreview(ctx context.Context, slug string, offers map[uuid
 		if len(view.Products) == 0 {
 			continue
 		}
-		if preview, ok := pages.NewComparePreview(view.Products[0].Category, view); ok {
+		if preview, ok := NewComparePreview(view.Products[0].Category, view); ok {
 			return &preview, nil
 		}
 	}
 	return nil, nil
 }
 
-func (s *Store) colourStory(ctx context.Context, slug string) (*pages.ColourStory, error) {
+func (s *Store) colourStory(ctx context.Context, slug string) (*ColourStory, error) {
 	rows, err := s.q.DepartmentColourStory(ctx, db.DepartmentColourStoryParams{Slug: slug, Locale: string(i18n.FromContext(ctx))})
 	if err != nil {
 		return nil, fmt.Errorf("read colour story of %q: %w", slug, err)
 	}
-	if len(rows) < pages.StoryColours {
+	if len(rows) < StoryColours {
 		return nil, nil
 	}
-	rows = rows[:pages.StoryColours]
+	rows = rows[:StoryColours]
 	first := &rows[0]
-	story := &pages.ColourStory{
+	story := &ColourStory{
 		Slug: first.Slug, Name: first.Name, Summary: first.Summary, Brand: first.Brand,
 		Price: pages.ProductTile{
 			PriceCents: first.PriceCents, PriceVaries: first.PriceVaries,
@@ -107,7 +107,7 @@ func (s *Store) colourStory(ctx context.Context, slug string) (*pages.ColourStor
 	for i := range rows {
 		r := &rows[i]
 		photo := assets.Image{Digest: r.ImageDigest, BundledKey: r.ImageBundledKey, Width: int(r.ImageWidth)}
-		story.Plates = append(story.Plates, pages.ColourPlate{
+		story.Plates = append(story.Plates, ColourPlate{
 			Colour: r.Colour, Swatch: r.Swatch,
 			Image: components.Photo{
 				URL:    photo.URL(),

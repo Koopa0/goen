@@ -7,7 +7,6 @@ import (
 
 	"github.com/koopa0/goen/internal/contact"
 	"github.com/koopa0/goen/internal/i18n"
-	"github.com/koopa0/goen/internal/ui/components"
 	"github.com/koopa0/goen/internal/ui/layouts"
 )
 
@@ -16,13 +15,10 @@ func renderHeadAt(t *testing.T, ctx context.Context, p layouts.Page) string {
 	return renderComponent(t, layouts.WithSiteOrigin(ctx, "https://goen.test"), layouts.Base(p))
 }
 
+// The department and campaign rows are catalog's TestCatalogPagesSendTheirOwnLinkPreviewTags.
 func TestEveryPageKindSendsItsOwnLinkPreviewTags(t *testing.T) {
 	t.Parallel()
 	ctx := i18n.WithLocale(layouts.WithRequestPath(t.Context(), "/c/books"), i18n.ZhHant)
-	department := ListingView{
-		Slug: "books", Name: "書籍",
-		Theme: &Theme{Photo: components.Photo{URL: "/static/media/products/books.webp?v=1", Alt: "書架"}},
-	}
 	for name, tt := range map[string]struct {
 		page layouts.Page
 		want []string
@@ -30,22 +26,6 @@ func TestEveryPageKindSendsItsOwnLinkPreviewTags(t *testing.T) {
 		"home": {
 			HomeMeta(ctx),
 			[]string{`og:title" content="` + i18n.T(ctx, i18n.KeySiteTitle) + `"`},
-		},
-		"department": {
-			ListingMeta(ctx, department),
-			[]string{
-				`og:title" content="書籍 · goen"`,
-				`og:image" content="https://goen.test/static/media/products/books.webp?v=1"`,
-				`og:image:alt" content="書架"`,
-			},
-		},
-		"campaign": {
-			CampaignMeta(ctx, "秋日選物", components.Photo{URL: "/static/media/campaigns/autumn.webp?v=1", Alt: "秋日"}),
-			[]string{
-				`og:title" content="秋日選物 · goen"`,
-				`og:description" content="秋日選物 — goen 優惠"`,
-				`og:image" content="https://goen.test/static/media/campaigns/autumn.webp?v=1"`,
-			},
 		},
 		"contact": {
 			contact.ContactMeta(ctx),
@@ -69,17 +49,6 @@ func TestEveryPageKindSendsItsOwnLinkPreviewTags(t *testing.T) {
 			if !strings.Contains(head, want) {
 				t.Errorf("%s head omits %s", name, want)
 			}
-		}
-	}
-}
-
-func TestADepartmentCarriesNoFillerDescription(t *testing.T) {
-	t.Parallel()
-	ctx := i18n.WithLocale(t.Context(), i18n.ZhHant)
-	head := renderHeadAt(t, ctx, ListingMeta(ctx, ListingView{Slug: "books", Name: "書籍"}))
-	for _, forbidden := range []string{`name="description"`, `og:description`} {
-		if strings.Contains(head, forbidden) {
-			t.Errorf("a department with no subtitle sent %s", forbidden)
 		}
 	}
 }
