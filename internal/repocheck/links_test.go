@@ -64,12 +64,12 @@ func routesFor(t *testing.T, root, method string) []*regexp.Regexp {
 	return out
 }
 
-// routeSources is the text of every file that registers a route: cmd/goen's
-// table, and each back-office package's Routes, which that table calls.
+// routeSources is the text of every file that may register a route: cmd/goen's
+// table, and every package under internal, whose Routes that table calls.
 func routeSources(t *testing.T, root string) string {
 	t.Helper()
 	files := []string{filepath.Join(root, "cmd", "goen", "server.go")}
-	err := filepath.WalkDir(filepath.Join(root, "internal", "admin"), func(path string, d os.DirEntry, err error) error {
+	err := filepath.WalkDir(filepath.Join(root, "internal"), func(path string, d os.DirEntry, err error) error {
 		if err != nil || d.IsDir() || !strings.HasSuffix(path, ".go") || strings.HasSuffix(path, "_test.go") {
 			return err
 		}
@@ -77,7 +77,7 @@ func routeSources(t *testing.T, root string) string {
 		return nil
 	})
 	if err != nil {
-		t.Fatalf("walk internal/admin: %v", err)
+		t.Fatalf("walk internal: %v", err)
 	}
 	var all strings.Builder
 	registering := 0
@@ -92,7 +92,7 @@ func routeSources(t *testing.T, root string) string {
 		all.Write(src)
 	}
 	if registering < 2 {
-		t.Fatalf("only %d file(s) register routes; the walk is not reaching internal/admin", registering)
+		t.Fatalf("only %d file(s) register routes; the walk is not reaching internal", registering)
 	}
 	return all.String()
 }

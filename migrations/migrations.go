@@ -3,9 +3,10 @@
 //
 // A database reports its schema through schema_version(), which
 // 001_initial_schema.up.sql creates: the digest of the 001 it was built from,
-// and the version golang-migrate recorded. 001 is amended in place until it
-// is frozen, so the version alone cannot tell two editions of it apart; the
-// digest can.
+// and the version golang-migrate recorded. 001 was amended in place until it
+// was frozen, so the version alone cannot tell a database built from an earlier
+// edition of it from one built from the frozen file; the digest can. Every
+// later change is a new migration, and raises the version.
 package migrations
 
 import (
