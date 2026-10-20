@@ -13,6 +13,7 @@ import (
 
 	"github.com/koopa0/goen/internal/account"
 	"github.com/koopa0/goen/internal/auth"
+	"github.com/koopa0/goen/internal/auth/google"
 	"github.com/koopa0/goen/internal/outbox"
 )
 
@@ -23,7 +24,7 @@ func TestPasswordSetupRefusesALegacyInvalidMailboxWithoutQueueing(t *testing.T) 
 	ctx := t.Context()
 	app := accountStorePool(t, "legacy-password-setup")
 	store := auth.NewStore(app)
-	person, err := store.SignInWithGoogle(ctx, auth.Identity{Subject: "legacy-setup-" + uuid.NewString(), Email: "legacy-setup-" + uuid.NewString() + "@example.com", EmailVerified: true})
+	person, err := store.SignInWithGoogle(ctx, google.Identity{Subject: "legacy-setup-" + uuid.NewString(), Email: "legacy-setup-" + uuid.NewString() + "@example.com", EmailVerified: true})
 	if err != nil {
 		t.Fatal(err)
 	}

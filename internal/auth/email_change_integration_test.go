@@ -23,6 +23,7 @@ import (
 
 	"github.com/koopa0/goen/internal/account"
 	"github.com/koopa0/goen/internal/auth"
+	"github.com/koopa0/goen/internal/auth/google"
 	"github.com/koopa0/goen/internal/bearer"
 	"github.com/koopa0/goen/internal/i18n"
 	"github.com/koopa0/goen/internal/outbox"
@@ -129,13 +130,13 @@ func TestAnAddressChangeLinkProvesNothingForAnyoneButTheAccountThatAsked(t *test
 	}
 	unproved("followed by another account")
 
-	google, err := s.SignInWithGoogle(ctx, auth.Identity{
+	signedIn, err := s.SignInWithGoogle(ctx, google.Identity{
 		Subject: "change-google-" + uuid.NewString(), Email: target, EmailVerified: true, Name: "Owner",
 	})
 	if err != nil {
 		t.Fatalf("the address's owner signs in with Google: %v", err)
 	}
-	if google.ID == asker.ID {
+	if signedIn.ID == asker.ID {
 		t.Error("the owner's Google sign-in landed in the account that asked for their address")
 	}
 	if _, err := s.Authenticate(ctx, target, "a sufficiently long password"); !errors.Is(err, auth.ErrBadCredentials) {

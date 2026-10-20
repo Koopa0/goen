@@ -17,6 +17,7 @@ import (
 
 	"github.com/koopa0/goen/internal/account"
 	"github.com/koopa0/goen/internal/auth"
+	"github.com/koopa0/goen/internal/auth/google"
 	"github.com/koopa0/goen/internal/bearer"
 	"github.com/koopa0/goen/internal/cart"
 	"github.com/koopa0/goen/internal/i18n"
@@ -72,18 +73,18 @@ func TestCartAdjustmentSurvivesAuthenticationAndCheckout(t *testing.T) {
 					}
 					log := slog.New(slog.DiscardHandler)
 					carts := cart.NewHandler(cart.NewStore(appPool), access.NewStore(appPool, false), log, false, nil, nil)
-					google, googleErr := auth.NewGoogle("client-id", "client-secret", "https://goen.example")
+					googleSignIn, googleErr := google.New("client-id", "client-secret", "https://goen.example")
 					if googleErr != nil {
 						t.Fatal(googleErr)
 					}
-					auth.SetGoogleHTTPClient(google, &http.Client{Transport: roundTripFunc(func(r *http.Request) (*http.Response, error) {
+					google.SetHTTPClient(googleSignIn, &http.Client{Transport: roundTripFunc(func(r *http.Request) (*http.Response, error) {
 						body := `{"access_token":"fixture"}`
 						if r.URL.Path == "/v1/userinfo" {
 							body = fmt.Sprintf(`{"sub":%q,"email":%q,"email_verified":true,"name":"Fixture"}`, suffix, email)
 						}
 						return &http.Response{StatusCode: http.StatusOK, Header: make(http.Header), Body: io.NopCloser(strings.NewReader(body)), Request: r}, nil
 					})})
-					h := auth.NewHandler(accounts, carts, access.NewStore(appPool, false), log, false, google)
+					h := auth.NewHandler(accounts, carts, access.NewStore(appPool, false), log, false, googleSignIn)
 					form := url.Values{"email": {email}, "password": {password}, "confirm": {password}, "name": {"Fixture"}, "next": {next}}
 					req := httptest.NewRequestWithContext(ctx, http.MethodPost, "/"+mode, strings.NewReader(form.Encode()))
 					req.Header.Set("Content-Type", "application/x-www-form-urlencoded")

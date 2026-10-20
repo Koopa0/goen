@@ -1,7 +1,6 @@
 package auth
 
 import (
-	"io"
 	"log/slog"
 	"net/http"
 	"net/http/httptest"
@@ -137,48 +136,6 @@ func TestTheDemoAccountIsRefusedEveryChangeThatWouldShutOutTheNextVisitor(t *tes
 	h.ForgotPage(page, httptest.NewRequestWithContext(t.Context(), http.MethodGet, "/forgot?demo=fixed", http.NoBody))
 	if want := i18n.T(t.Context(), i18n.KeyDemoPasswordNoReset); !strings.Contains(page.Body.String(), want) {
 		t.Errorf("the forgot page after a refusal does not say %q", want)
-	}
-}
-
-// TestGoogleIsNeverLinkedToTheDemoAccount: a Google sign-in at an account's
-// address links Google to that account, and whoever holds a Google account at
-// the demo address would then sign in with Google alone.
-func TestGoogleIsNeverLinkedToTheDemoAccount(t *testing.T) {
-	g, err := NewGoogle("client-id", "client-secret", "https://goen.example")
-	if err != nil {
-		t.Fatalf("NewGoogle: %v", err)
-	}
-	g.http = &http.Client{Transport: roundTrip(func(r *http.Request) (*http.Response, error) {
-		body := `{"access_token":"a-token"}`
-		if r.Method == http.MethodGet {
-			body = `{"sub":"google-subject","email":"Demo@goen.example","email_verified":true}`
-		}
-		return &http.Response{
-			StatusCode: http.StatusOK, Header: make(http.Header),
-			Body: io.NopCloser(strings.NewReader(body)), Request: r,
-		}, nil
-	})}
-	h := demoHandler(t)
-	h.google = g
-
-	start := httptest.NewRecorder()
-	h.GoogleSignIn(start, httptest.NewRequestWithContext(t.Context(), http.MethodGet, "/auth/google", http.NoBody))
-	target, err := url.Parse(start.Header().Get("Location"))
-	if err != nil {
-		t.Fatalf("parse the authorisation redirect: %v", err)
-	}
-	callback := httptest.NewRequestWithContext(t.Context(), http.MethodGet,
-		"/auth/google/callback?code=the-code&state="+url.QueryEscape(target.Query().Get("state")), http.NoBody)
-	for _, c := range start.Result().Cookies() {
-		callback.AddCookie(c)
-	}
-	res := httptest.NewRecorder()
-	h.GoogleCallback(res, callback)
-	if loc := res.Header().Get("Location"); loc != "/signin?oauth=demo" {
-		t.Fatalf("a Google sign-in at the demo address lands at %q, want /signin?oauth=demo", loc)
-	}
-	if got, want := oauthOutcome(t.Context(), "demo")["oauth"], i18n.T(t.Context(), i18n.KeyDemoSignInPassword); got != want {
-		t.Errorf("the sign-in page says %q, want %q", got, want)
 	}
 }
 

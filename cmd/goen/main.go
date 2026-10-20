@@ -26,6 +26,7 @@ import (
 	"github.com/koopa0/goen/internal/admin/staff"
 	"github.com/koopa0/goen/internal/admin/twofactor"
 	"github.com/koopa0/goen/internal/auth"
+	"github.com/koopa0/goen/internal/auth/google"
 	"github.com/koopa0/goen/internal/backinstock"
 	"github.com/koopa0/goen/internal/cart"
 	"github.com/koopa0/goen/internal/copurchase"
@@ -528,7 +529,7 @@ var _ refunds.Refunder = (*payment.Gateway)(nil)
 // absent. Each refuses to start on HALF a configuration.
 func openProviders(cfg *config, log *slog.Logger) (
 	payments *payment.Gateway, invoices *issuer.Gateway,
-	googleSignIn *auth.Google, storeMap *cart.StoreMap, err error,
+	googleSignIn *google.Client, storeMap *cart.StoreMap, err error,
 ) {
 	if payments, err = payment.NewGateway(cfg.StripeAPIKey, cfg.StripeWebhookSecret, cfg.BaseURL); err != nil {
 		return nil, nil, nil, nil, err
@@ -576,8 +577,8 @@ func (cfg *config) demoAccount(log *slog.Logger) (auth.DemoAccount, error) {
 	return d, nil
 }
 
-func openGoogleSignIn(cfg *config, log *slog.Logger) (*auth.Google, error) {
-	g, err := auth.NewGoogle(cfg.GoogleClientID, cfg.GoogleClientSecret, cfg.BaseURL)
+func openGoogleSignIn(cfg *config, log *slog.Logger) (*google.Client, error) {
+	g, err := google.New(cfg.GoogleClientID, cfg.GoogleClientSecret, cfg.BaseURL)
 	if err != nil {
 		return nil, err
 	}

@@ -9,6 +9,7 @@ import (
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgconn"
 
+	"github.com/koopa0/goen/internal/auth/google"
 	"github.com/koopa0/goen/internal/db"
 )
 
@@ -58,7 +59,7 @@ func TestGoogleSignInDatabaseErrorsDoNotCarryTheAddress(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 			q := db.New(&scriptedDB{errs: tc.script})
-			_, _, _, _, err := googleLinkCandidate(t.Context(), q, Identity{
+			_, _, _, _, err := googleLinkCandidate(t.Context(), q, google.Identity{
 				Subject: "sub-1", Email: address, Name: "Jane Doe", EmailVerified: true,
 			})
 			if err == nil {

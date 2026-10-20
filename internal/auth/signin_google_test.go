@@ -13,6 +13,7 @@ import (
 	"github.com/google/go-cmp/cmp"
 	"golang.org/x/net/html"
 
+	"github.com/koopa0/goen/internal/auth/google"
 	"github.com/koopa0/goen/internal/catalog"
 	"github.com/koopa0/goen/internal/i18n"
 )
@@ -169,7 +170,11 @@ func TestARefusedSignInKeepsTheConfiguredWaysIn(t *testing.T) {
 		for _, enabled := range []bool{false, true} {
 			h := rateLimitedAccountHandler(deadAccountStore(t))
 			if enabled {
-				h.google = &Google{clientID: "configured"}
+				g, err := google.New("configured", "secret", "https://goen.example")
+				if err != nil {
+					t.Fatalf("google.New: %v", err)
+				}
+				h.google = g
 			}
 			ctx := i18n.WithLocale(t.Context(), locale)
 			page := httptest.NewRecorder()

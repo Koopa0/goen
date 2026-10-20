@@ -9,12 +9,13 @@ import (
 
 	"golang.org/x/net/html"
 
+	"github.com/koopa0/goen/internal/auth/google"
 	"github.com/koopa0/goen/internal/i18n"
 )
 
 func TestSignInConfirmsOnlyThePasswordChangeFlag(t *testing.T) {
 	t.Parallel()
-	h := &Handler{google: &Google{}, log: slog.New(slog.DiscardHandler)}
+	h := &Handler{google: &google.Client{}, log: slog.New(slog.DiscardHandler)}
 	for _, locale := range i18n.Locales() {
 		for _, query := range []string{"", "?changed=0", "?changed=unknown", "?changed=1"} {
 			t.Run(locale.Tag()+query, func(t *testing.T) {

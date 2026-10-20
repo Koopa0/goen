@@ -1,4 +1,4 @@
-package auth
+package google
 
 import (
 	"io"
@@ -55,9 +55,9 @@ func TestGoogleSignInTalksOnlyToGoogleAndReadsBoundedReplies(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			g, err := NewGoogle("client-id", "client-secret", "https://goen.example")
+			g, err := New("client-id", "client-secret", "https://goen.example")
 			if err != nil {
-				t.Fatalf("NewGoogle: %v", err)
+				t.Fatalf("New: %v", err)
 			}
 			standIn := tt.standIn
 			g.http.Transport = &standIn
@@ -90,9 +90,9 @@ func TestGoogleSignInTalksOnlyToGoogleAndReadsBoundedReplies(t *testing.T) {
 // the client secret: a finite timeout, and the default transport, whose
 // certificate verification is on.
 func TestTheGoogleClientHasADeadlineAndVerifiesTLS(t *testing.T) {
-	g, err := NewGoogle("client-id", "client-secret", "https://goen.example")
+	g, err := New("client-id", "client-secret", "https://goen.example")
 	if err != nil {
-		t.Fatalf("NewGoogle: %v", err)
+		t.Fatalf("New: %v", err)
 	}
 	if g.http.Timeout <= 0 {
 		t.Errorf("the Google client has timeout %v, want a finite one", g.http.Timeout)

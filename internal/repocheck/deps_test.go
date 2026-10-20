@@ -106,6 +106,10 @@ var (
 		"internal/invoice", "internal/order", "internal/product/labelling", "internal/returns", "internal/shoptime", "internal/ui/fieldrule",
 		"internal/sales", "internal/worklist", "internal/shipping", "internal/credit",
 	}
+	// googleMayImport is all of goen that Google's sign-in client imports:
+	// bearer makes its state and PKCE verifier, web reads the configured origin
+	// its callback is built on.
+	googleMayImport = []string{"internal/bearer", "internal/web"}
 )
 
 // depsRules is the repository's whole package-graph policy, in one place, in the
@@ -210,6 +214,15 @@ var depsRules = []importRule{
 		},
 		reason: "how a customer proves who they are does not depend on the customer's pages; " +
 			"account imports auth, never the other way round",
+	},
+	{
+		name: "google",
+		hard: true,
+		forbid: func(from, to string) bool {
+			return under(from, "internal/auth/google") && !slices.Contains(googleMayImport, to)
+		},
+		reason: "Google's sign-in client holds no session, account or page, so it imports no goen feature; " +
+			"auth imports it, never the other way round",
 	},
 	{
 		name: "foundation",

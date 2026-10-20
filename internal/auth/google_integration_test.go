@@ -11,6 +11,7 @@ import (
 	"github.com/google/uuid"
 
 	"github.com/koopa0/goen/internal/auth"
+	"github.com/koopa0/goen/internal/auth/google"
 	"github.com/koopa0/goen/internal/user"
 )
 
@@ -19,7 +20,7 @@ func TestGoogleSignInCreatesAnAccountWithNoPassword(t *testing.T) {
 	s := auth.NewStore(pool)
 	email := "oauth-new-" + uuid.NewString()[:8] + "@example.com"
 
-	u, err := s.SignInWithGoogle(ctx, auth.Identity{
+	u, err := s.SignInWithGoogle(ctx, google.Identity{
 		Subject: "google-sub-" + uuid.NewString()[:8],
 		Email:   email, EmailVerified: true, Name: "谷歌使用者",
 	})
@@ -54,7 +55,7 @@ func TestGoogleSignInIsIdempotentOnTheSubject(t *testing.T) {
 	s := auth.NewStore(pool)
 	subject := "google-sub-" + uuid.NewString()[:8]
 
-	first, err := s.SignInWithGoogle(ctx, auth.Identity{
+	first, err := s.SignInWithGoogle(ctx, google.Identity{
 		Subject: subject, Email: "oauth-same-" + uuid.NewString()[:8] + "@example.com",
 		EmailVerified: true, Name: "谷歌使用者",
 	})
@@ -62,7 +63,7 @@ func TestGoogleSignInIsIdempotentOnTheSubject(t *testing.T) {
 		t.Fatalf("first sign-in: %v", err)
 	}
 
-	second, err := s.SignInWithGoogle(ctx, auth.Identity{
+	second, err := s.SignInWithGoogle(ctx, google.Identity{
 		Subject: subject, Email: "changed-" + uuid.NewString()[:8] + "@example.com",
 		EmailVerified: true, Name: "谷歌使用者",
 	})
@@ -114,14 +115,14 @@ func TestConcurrentGoogleLinkingReturnsTheDurableExistingOwner(t *testing.T) {
 	firstDone, secondDone := make(chan error, 1), make(chan error, 1)
 	go func() {
 		var signInErr error
-		first, signInErr = firstStore.SignInWithGoogle(context.WithoutCancel(ctx), auth.Identity{
+		first, signInErr = firstStore.SignInWithGoogle(context.WithoutCancel(ctx), google.Identity{
 			Subject: subject, Email: emailA, EmailVerified: true,
 		})
 		firstDone <- signInErr
 	}()
 	go func() {
 		var signInErr error
-		second, signInErr = secondStore.SignInWithGoogle(context.WithoutCancel(ctx), auth.Identity{
+		second, signInErr = secondStore.SignInWithGoogle(context.WithoutCancel(ctx), google.Identity{
 			Subject: subject, Email: emailB, EmailVerified: true,
 		})
 		secondDone <- signInErr
@@ -181,14 +182,14 @@ func TestConcurrentGoogleSignUpCreatesOnlyTheSubjectOwner(t *testing.T) {
 	firstDone, secondDone := make(chan error, 1), make(chan error, 1)
 	go func() {
 		var signInErr error
-		first, signInErr = firstStore.SignInWithGoogle(context.WithoutCancel(ctx), auth.Identity{
+		first, signInErr = firstStore.SignInWithGoogle(context.WithoutCancel(ctx), google.Identity{
 			Subject: subject, Email: emailA, EmailVerified: true,
 		})
 		firstDone <- signInErr
 	}()
 	go func() {
 		var signInErr error
-		second, signInErr = secondStore.SignInWithGoogle(context.WithoutCancel(ctx), auth.Identity{
+		second, signInErr = secondStore.SignInWithGoogle(context.WithoutCancel(ctx), google.Identity{
 			Subject: subject, Email: emailB, EmailVerified: true,
 		})
 		secondDone <- signInErr
@@ -240,7 +241,7 @@ func TestGoogleWillNotLinkToAnUnverifiedAccount(t *testing.T) {
 
 	victim := register(t, s, email)
 
-	_, err := s.SignInWithGoogle(ctx, auth.Identity{
+	_, err := s.SignInWithGoogle(ctx, google.Identity{
 		Subject: "google-sub-" + uuid.NewString()[:8],
 		Email:   email, EmailVerified: true, Name: "谷歌使用者",
 	})
@@ -276,7 +277,7 @@ func TestGoogleLinksToAVerifiedAccount(t *testing.T) {
 		t.Fatalf("verify the address: %v", err)
 	}
 
-	got, err := s.SignInWithGoogle(ctx, auth.Identity{
+	got, err := s.SignInWithGoogle(ctx, google.Identity{
 		Subject: "google-sub-" + uuid.NewString()[:8],
 		Email:   email, EmailVerified: true, Name: "谷歌使用者",
 	})
@@ -300,7 +301,7 @@ func TestGoogleRefusesAnAddressGoogleHasNotVerified(t *testing.T) {
 	s := auth.NewStore(pool)
 	email := "oauth-unverified-" + uuid.NewString()[:8] + "@example.com"
 
-	_, err := s.SignInWithGoogle(ctx, auth.Identity{
+	_, err := s.SignInWithGoogle(ctx, google.Identity{
 		Subject: "google-sub-" + uuid.NewString()[:8],
 		Email:   email, EmailVerified: false, Name: "谷歌使用者",
 	})
@@ -322,7 +323,7 @@ func TestUnlinkingTheOnlyWayInIsRefused(t *testing.T) {
 	s := auth.NewStore(pool)
 	email := "oauth-only-" + uuid.NewString()[:8] + "@example.com"
 
-	u, err := s.SignInWithGoogle(ctx, auth.Identity{
+	u, err := s.SignInWithGoogle(ctx, google.Identity{
 		Subject: "google-sub-" + uuid.NewString()[:8],
 		Email:   email, EmailVerified: true, Name: "谷歌使用者",
 	})

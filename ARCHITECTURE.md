@@ -271,7 +271,7 @@ CI runs formatting, vet, lint, dead-code and generated-code checks, migration li
 | Browsing and derived data | [`internal/catalog`][catalog-store], [`internal/backinstock`][backinstock], [`internal/home`][home-store], [`internal/copurchase`][copurchase], [reports][reports] |
 | Language, money, time | [`internal/i18n`][i18n], [`internal/money`][money], [`internal/shoptime`][shoptime] |
 | Assets and media | [`assets`][assets], [`internal/media`][media-render] |
-| Identity and browser security | [`internal/auth`][auth], [`internal/bearer`][bearer], [staff access][access], [`internal/admin/twofactor`][twofactor], [`internal/ratelimit`][ratelimit] |
+| Identity and browser security | [`internal/auth`][auth], [`internal/auth/google`][google-signin], [`internal/bearer`][bearer], [staff access][access], [`internal/admin/twofactor`][twofactor], [`internal/ratelimit`][ratelimit] |
 | Operations | [Health queries][health-sql], [probes][probe], [slow-query tracer][slowquery], [Makefile][makefile], [CI][workflows] |
 
 [contributing]: CONTRIBUTING.md
@@ -310,6 +310,7 @@ CI runs formatting, vet, lint, dead-code and generated-code checks, migration li
 [dbtest]: internal/db/dbtest
 [audit]: internal/admin/audit/audit.go
 [auth]: internal/auth
+[google-signin]: internal/auth/google
 [bearer]: internal/bearer
 [access]: internal/admin/access/access.go
 [twofactor]: internal/admin/twofactor

@@ -19,6 +19,7 @@ import (
 	"github.com/google/go-cmp/cmp"
 	"github.com/jackc/pgx/v5/pgxpool"
 
+	"github.com/koopa0/goen/internal/auth/google"
 	"github.com/koopa0/goen/internal/i18n"
 	"github.com/koopa0/goen/internal/ratelimit"
 	"github.com/koopa0/goen/internal/ui/uitest"
@@ -262,7 +263,7 @@ func deadAccountStore(t *testing.T) *Store {
 
 func rateLimitedAccountHandler(store *Store) *Handler {
 	return &Handler{
-		store: store, log: slog.New(slog.DiscardHandler), google: &Google{},
+		store: store, log: slog.New(slog.DiscardHandler), google: &google.Client{},
 		signinLimit: accountTestLimiter(), guessCeiling: accountTestLimiter(),
 		resetLimit: accountTestLimiter(),
 	}
@@ -328,7 +329,7 @@ func bodyWithSubmittedEmailHidden(t *testing.T, body, addr string) string {
 func TestSignInKeepsItsAccountFallback(t *testing.T) {
 	t.Parallel()
 
-	h := &Handler{log: slog.New(slog.DiscardHandler), google: &Google{}}
+	h := &Handler{log: slog.New(slog.DiscardHandler), google: &google.Client{}}
 	r := httptest.NewRequestWithContext(t.Context(), http.MethodGet,
 		"/signin?next=%2F%2F%2Fevil.example", http.NoBody)
 	w := httptest.NewRecorder()
@@ -421,7 +422,7 @@ func TestValidateRegistration(t *testing.T) {
 func TestNormaliseGoogleIdentityBoundsProviderData(t *testing.T) {
 	t.Parallel()
 
-	valid := Identity{
+	valid := google.Identity{
 		Subject: "google-subject", Email: "person@example.com",
 		EmailVerified: true, Name: "  王小明  ",
 	}
@@ -433,7 +434,7 @@ func TestNormaliseGoogleIdentityBoundsProviderData(t *testing.T) {
 		t.Errorf("trimmed display name = %q, want 王小明", got.Name)
 	}
 
-	for _, id := range []Identity{
+	for _, id := range []google.Identity{
 		{Subject: "", Email: valid.Email, EmailVerified: true},
 		{Subject: " padded ", Email: valid.Email, EmailVerified: true},
 		{Subject: strings.Repeat("s", maxOAuthSubjectRunes+1), Email: valid.Email, EmailVerified: true},

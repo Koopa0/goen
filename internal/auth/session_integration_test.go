@@ -19,6 +19,7 @@ import (
 	"github.com/jackc/pgx/v5"
 
 	"github.com/koopa0/goen/internal/auth"
+	"github.com/koopa0/goen/internal/auth/google"
 	"github.com/koopa0/goen/internal/bearer"
 )
 
@@ -227,11 +228,11 @@ func TestSessionWriteFailureDoesNotFallThroughToRedirect(t *testing.T) {
 		})
 	}
 
-	google, err := auth.NewGoogle("client-id", "client-secret", "https://goen.example")
+	googleSignIn, err := google.New("client-id", "client-secret", "https://goen.example")
 	if err != nil {
 		t.Fatalf("new google client: %v", err)
 	}
-	auth.SetGoogleHTTPClient(google, &http.Client{Transport: roundTripFunc(
+	google.SetHTTPClient(googleSignIn, &http.Client{Transport: roundTripFunc(
 		func(r *http.Request) (*http.Response, error) {
 			var body string
 			switch r.URL.String() {
@@ -254,7 +255,7 @@ func TestSessionWriteFailureDoesNotFallThroughToRedirect(t *testing.T) {
 			}, nil
 		},
 	)})
-	googleHandler := auth.NewHandler(s, nil, nil, slog.New(slog.DiscardHandler), false, google)
+	googleHandler := auth.NewHandler(s, nil, nil, slog.New(slog.DiscardHandler), false, googleSignIn)
 
 	start := httptest.NewRequestWithContext(t.Context(), http.MethodGet,
 		"/auth/google?next=/account", http.NoBody)
