@@ -21,7 +21,7 @@ func TestAccountOffersSigningOutOtherDevicesWithoutAPassword(t *testing.T) {
 		t.Run(tt.locale.Tag(), func(t *testing.T) {
 			t.Parallel()
 			ctx := i18n.WithLocale(t.Context(), tt.locale)
-			body := renderComponent(t, ctx, Account(AccountMeta(ctx), &AccountView{
+			body := renderComponent(t, ctx, Account(Meta(ctx), &View{
 				Email: "shopper@example.com", GoogleLinked: true,
 			}))
 			doc, err := html.Parse(strings.NewReader(body))

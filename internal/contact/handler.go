@@ -35,12 +35,12 @@ func (h *Handler) Routes(mux *http.ServeMux) {
 // Page reads a sent flag, which the plain form's redirect carries, so a reload
 // shows the acknowledgement instead of re-submitting.
 func (h *Handler) Page(w http.ResponseWriter, r *http.Request) {
-	form := ContactForm{
+	form := Form{
 		Subjects: subjectChoices(r.Context()),
 		Done:     r.URL.Query().Get("sent") == "1",
 		SignedIn: signedIn(r.Context()),
 	}
-	web.Render(w, r, h.log, http.StatusOK, Contact(ContactMeta(r.Context()), form))
+	web.Render(w, r, h.log, http.StatusOK, Contact(Meta(r.Context()), form))
 }
 
 func (h *Handler) Submit(w http.ResponseWriter, r *http.Request) {
@@ -57,7 +57,7 @@ func (h *Handler) Submit(w http.ResponseWriter, r *http.Request) {
 		Body:     r.PostFormValue("message"),
 	})
 
-	form := ContactForm{
+	form := Form{
 		Name:     msg.Name,
 		Email:    msg.Email,
 		Subject:  string(msg.Subject),
@@ -95,8 +95,8 @@ func (h *Handler) Submit(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if web.IsHTMX(r) {
-		done := ContactForm{Subjects: subjectChoices(r.Context()), Done: true, SignedIn: signedIn(r.Context())}
-		web.Render(w, r, h.log, http.StatusOK, ContactPanel(done))
+		done := Form{Subjects: subjectChoices(r.Context()), Done: true, SignedIn: signedIn(r.Context())}
+		web.Render(w, r, h.log, http.StatusOK, Panel(done))
 		return
 	}
 	http.Redirect(w, r, "/contact?sent=1", http.StatusSeeOther)
@@ -107,19 +107,19 @@ func signedIn(ctx context.Context) bool {
 	return ok
 }
 
-func (h *Handler) respond(w http.ResponseWriter, r *http.Request, status int, form ContactForm) {
+func (h *Handler) respond(w http.ResponseWriter, r *http.Request, status int, form Form) {
 	if web.IsHTMX(r) {
-		web.Render(w, r, h.log, status, ContactPanel(form))
+		web.Render(w, r, h.log, status, Panel(form))
 		return
 	}
-	web.Render(w, r, h.log, status, Contact(ContactMeta(r.Context()), form))
+	web.Render(w, r, h.log, status, Contact(Meta(r.Context()), form))
 }
 
-func subjectChoices(ctx context.Context) []ContactSubject {
+func subjectChoices(ctx context.Context) []SubjectOption {
 	choices := Choices()
-	out := make([]ContactSubject, 0, len(choices))
+	out := make([]SubjectOption, 0, len(choices))
 	for _, choice := range choices {
-		out = append(out, ContactSubject{Value: string(choice.Value), Label: i18n.T(ctx, choice.Key)})
+		out = append(out, SubjectOption{Value: string(choice.Value), Label: i18n.T(ctx, choice.Key)})
 	}
 	return out
 }

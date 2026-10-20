@@ -13,7 +13,7 @@ import (
 	"github.com/koopa0/goen/internal/ui/components"
 )
 
-type WarrantyLine struct {
+type Line struct {
 	ID    string
 	Name  string
 	Label string
@@ -33,7 +33,7 @@ type WarrantyLine struct {
 	CoverEnds     *shoptime.Date
 }
 
-func (l WarrantyLine) serialField(ctx context.Context) components.FieldProps {
+func (l Line) serialField(ctx context.Context) components.FieldProps {
 	id := "serial-" + l.ID
 	hint := "serial-hint-" + l.ID
 	field := components.FieldProps{
@@ -50,7 +50,7 @@ func (l WarrantyLine) serialField(ctx context.Context) components.FieldProps {
 	return field
 }
 
-func (l WarrantyLine) Remaining() int {
+func (l Line) Remaining() int {
 	left := l.Delivered - l.Registered
 	if left < 0 {
 		return 0
@@ -58,11 +58,11 @@ func (l WarrantyLine) Remaining() int {
 	return left
 }
 
-func (l WarrantyLine) Registrable() bool { return l.HasTerm && l.Remaining() > 0 && l.CoverEnds != nil }
+func (l Line) Registrable() bool { return l.HasTerm && l.Remaining() > 0 && l.CoverEnds != nil }
 
-func (l WarrantyLine) NextUnit() string { return strconv.Itoa(l.Registered + 1) }
+func (l Line) NextUnit() string { return strconv.Itoa(l.Registered + 1) }
 
-func (l WarrantyLine) TermText(ctx context.Context) string {
+func (l Line) TermText(ctx context.Context) string {
 	if !l.HasTerm {
 		return ""
 	}
@@ -72,7 +72,7 @@ func (l WarrantyLine) TermText(ctx context.Context) string {
 	return fmt.Sprintf(i18n.T(ctx, i18n.KeyWarrantyMonths), l.Months)
 }
 
-func (l WarrantyLine) CoverText(ctx context.Context) string {
+func (l Line) CoverText(ctx context.Context) string {
 	if !l.HasTerm {
 		return ""
 	}
@@ -85,7 +85,7 @@ func (l WarrantyLine) CoverText(ctx context.Context) string {
 	return fmt.Sprintf(i18n.T(ctx, i18n.KeyWarrantyTerm), l.TermText(ctx), l.CoverEnds.ISO())
 }
 
-func (l WarrantyLine) Why(ctx context.Context) string {
+func (l Line) Why(ctx context.Context) string {
 	switch {
 	case l.Registrable():
 		return ""
@@ -102,15 +102,15 @@ func (l WarrantyLine) Why(ctx context.Context) string {
 	}
 }
 
-type WarrantyOrderView struct {
+type OrderView struct {
 	Number         string
-	Lines          []WarrantyLine
+	Lines          []Line
 	Refusal        string
 	Registered     []Warranty
 	RegisteredUnit *Warranty
 }
 
-func (v WarrantyOrderView) AnyRegistrable() bool {
+func (v OrderView) AnyRegistrable() bool {
 	for i := range v.Lines {
 		if v.Lines[i].Registrable() {
 			return true
@@ -121,7 +121,7 @@ func (v WarrantyOrderView) AnyRegistrable() bool {
 
 // EmptyHint says delivery is pending only when every line is still waiting to arrive; any other
 // mix would contradict the Why() under each line.
-func (v WarrantyOrderView) EmptyHint(ctx context.Context) string {
+func (v OrderView) EmptyHint(ctx context.Context) string {
 	if v.AnyRegistrable() {
 		return ""
 	}
@@ -140,7 +140,7 @@ func (v WarrantyOrderView) EmptyHint(ctx context.Context) string {
 	return shared
 }
 
-func (v WarrantyOrderView) lineWhy(ctx context.Context, line WarrantyLine) string {
+func (v OrderView) lineWhy(ctx context.Context, line Line) string {
 	why, hint := line.Why(ctx), v.EmptyHint(ctx)
 	if why == hint || (hint == i18n.T(ctx, i18n.KeyWarrantyOrderAllDone) && why == i18n.T(ctx, i18n.KeyWarrantyAllDone)) {
 		return ""
@@ -148,7 +148,7 @@ func (v WarrantyOrderView) lineWhy(ctx context.Context, line WarrantyLine) strin
 	return why
 }
 
-func (v WarrantyOrderView) waitingOnDelivery() bool {
+func (v OrderView) waitingOnDelivery() bool {
 	if len(v.Lines) == 0 {
 		return false
 	}
@@ -161,7 +161,7 @@ func (v WarrantyOrderView) waitingOnDelivery() bool {
 	return true
 }
 
-func (v WarrantyOrderView) Action() string { return "/account/warranty/" + v.Number }
+func (v OrderView) Action() string { return "/account/warranty/" + v.Number }
 
 type Warranty struct {
 	LineID       string
@@ -207,7 +207,7 @@ type WarrantyListView struct {
 
 type WarrantyReady struct {
 	Number string
-	Line   WarrantyLine
+	Line   Line
 }
 
 func (w WarrantyReady) Href() string {

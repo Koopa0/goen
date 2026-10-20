@@ -28,7 +28,7 @@ func TestEveryPageKindSendsItsOwnLinkPreviewTags(t *testing.T) {
 			[]string{`og:title" content="` + i18n.T(ctx, i18n.KeySiteTitle) + `"`},
 		},
 		"contact": {
-			contact.ContactMeta(ctx),
+			contact.Meta(ctx),
 			[]string{
 				`og:title" content="` + i18n.T(ctx, i18n.KeyContactTitle) + ` · goen"`,
 				`og:description" content="` + i18n.T(ctx, i18n.KeyContactDescription) + `"`,
@@ -54,7 +54,7 @@ func TestNoPageNamesAnInventedCompanyOrAddress(t *testing.T) {
 	for _, locale := range []i18n.Locale{i18n.ZhHant, i18n.En} {
 		ctx := i18n.WithLocale(t.Context(), locale)
 		for name, html := range map[string]string{
-			"contact": renderComponent(t, ctx, contact.Contact(contact.ContactMeta(ctx), contact.ContactForm{})),
+			"contact": renderComponent(t, ctx, contact.Contact(contact.Meta(ctx), contact.Form{})),
 			"footer":  renderComponent(t, ctx, layouts.Footer(layouts.NewsletterState{})),
 		} {
 			for _, forbidden := range []string{"90123456", "Co., Ltd.", "松高路", "google.com/maps"} {

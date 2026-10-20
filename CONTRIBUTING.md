@@ -294,7 +294,7 @@ them too.
    not in their directories: gocritic's `importShadow`, which the lint runs on
    test files too, fires only in a file that imports the name. That is why the
    form reader is `formtext`: `internal/contact/handler.go` already says
-   `form := ContactForm{…}`.
+   `form := Form{…}`.
 5. **The package comment is the definition.** "For a package comment, that
    means the first sentence begins with “Package ”."
    ([Go Doc Comments](https://go.dev/doc/comment#package)) Here that sentence

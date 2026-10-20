@@ -16,7 +16,7 @@ func TestSavedAddressesOfferEditAndNativeDeleteConfirmation(t *testing.T) {
 			t.Parallel()
 			ctx := i18n.WithLocale(t.Context(), locale)
 			id := "11111111-1111-4111-8111-111111111111"
-			body := renderComponent(t, ctx, Account(AccountMeta(ctx), &AccountView{Addresses: []AccountAddress{{
+			body := renderComponent(t, ctx, Account(Meta(ctx), &View{Addresses: []AddressView{{
 				ID: id, Label: "Home", Name: "Recipient", Phone: "0912345678", PostalCode: "110", City: "Taipei", District: "Xinyi", Street: "1 Test Road", Default: true,
 			}}}))
 			doc, err := html.Parse(strings.NewReader(body))
@@ -76,11 +76,11 @@ func TestAddressEditKeepsItsDraftAndDefaultWithoutOfferingDefaultChanges(t *test
 			t.Parallel()
 			ctx := i18n.WithLocale(t.Context(), locale)
 			id := "11111111-1111-4111-8111-111111111111"
-			v := &AccountView{
+			v := &View{
 				AddressDraft:  &AddressDraft{ID: id, Label: "  Edited home  ", Name: "Edited recipient", Phone: "wrong phone", PostalCode: "110", City: "Taipei", District: "Xinyi", Street: "  2 Test Road  ", Default: true},
 				AddressErrors: map[string]string{"phone": "That phone number cannot be used."},
 			}
-			body := renderComponent(t, ctx, Account(AccountMeta(ctx), v))
+			body := renderComponent(t, ctx, Account(Meta(ctx), v))
 			doc, err := html.Parse(strings.NewReader(body))
 			if err != nil {
 				t.Fatal(err)
@@ -127,7 +127,7 @@ func TestAddressEmptyStateExplainsTheCheckoutChoice(t *testing.T) {
 		t.Run(locale.Tag(), func(t *testing.T) {
 			t.Parallel()
 			ctx := i18n.WithLocale(t.Context(), locale)
-			body := renderComponent(t, ctx, Account(AccountMeta(ctx), &AccountView{}))
+			body := renderComponent(t, ctx, Account(Meta(ctx), &View{}))
 			want := "No saved addresses yet. Add one to use it at checkout."
 			if locale == i18n.ZhHant {
 				want = "\u9084\u6c92\u6709\u5e38\u7528\u5730\u5740\u3002\u65b0\u589e\u5f8c\uff0c\u7d50\u5e33\u6642\u53ef\u4ee5\u76f4\u63a5\u9078\u7528\u3002"

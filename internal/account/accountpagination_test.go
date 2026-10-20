@@ -11,7 +11,7 @@ import (
 func TestEmptyOlderOrdersPageOffersLatestOrders(t *testing.T) {
 	t.Parallel()
 	ctx := i18n.WithLocale(t.Context(), i18n.En)
-	body := renderComponent(t, ctx, Account(AccountMeta(ctx), &AccountView{OrdersBound: keyset.Bound{PastEnd: true, First: "/account#orders-heading"}}))
+	body := renderComponent(t, ctx, Account(Meta(ctx), &View{OrdersBound: keyset.Bound{PastEnd: true, First: "/account#orders-heading"}}))
 	if !strings.Contains(body, `href="/account#orders-heading"`) || !strings.Contains(body, "There are no entries on this page.") {
 		t.Fatal("empty older page lost its return to latest orders")
 	}
@@ -23,7 +23,7 @@ func TestEmptyOlderOrdersPageOffersLatestOrders(t *testing.T) {
 func TestAnEmptyFirstOrdersPageStillSaysNoOrdersYet(t *testing.T) {
 	t.Parallel()
 	ctx := i18n.WithLocale(t.Context(), i18n.En)
-	body := renderComponent(t, ctx, Account(AccountMeta(ctx), &AccountView{}))
+	body := renderComponent(t, ctx, Account(Meta(ctx), &View{}))
 	if !strings.Contains(body, i18n.T(ctx, i18n.KeyNoOrdersYet)) {
 		t.Fatal("a customer with no orders lost the no-orders sentence")
 	}

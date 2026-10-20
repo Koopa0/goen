@@ -347,7 +347,7 @@ func TestControlsThatSwapTheirOwnRegionKeepAStableID(t *testing.T) {
 		}
 	}
 
-	panel := renderToString(t, contact.ContactPanel(contact.ContactForm{}))
+	panel := renderToString(t, contact.Panel(contact.Form{}))
 	if !strings.Contains(panel, `id="contact-submit"`) {
 		t.Error("the contact form's submit button has no id, so a refused submit drops focus to the body")
 	}

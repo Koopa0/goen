@@ -15,13 +15,13 @@ func TestWarrantyTermStatesTheParcelExpiry(t *testing.T) {
 	end := shoptime.Date{Year: 2028, Month: time.October, Day: 5}
 	for _, tt := range []struct {
 		name   string
-		line   WarrantyLine
+		line   Line
 		zh, en string
 	}{
-		{name: "delivered", line: WarrantyLine{HasTerm: true, Months: 24, CoverEnds: &end}, zh: "保固 2 年，到 2028-10-05（從送達日起算）", en: "2-year warranty, until 2028-10-05 (from delivery)"},
-		{name: "before delivery", line: WarrantyLine{HasTerm: true, Months: 24}, zh: "保固 2 年，從送達日起算", en: "2-year warranty, from delivery"},
-		{name: "month term", line: WarrantyLine{HasTerm: true, Months: 18, CoverEnds: &end}, zh: "保固 18 個月，到 2028-10-05（從送達日起算）", en: "18-month warranty, until 2028-10-05 (from delivery)"},
-		{name: "no warranty", line: WarrantyLine{}},
+		{name: "delivered", line: Line{HasTerm: true, Months: 24, CoverEnds: &end}, zh: "保固 2 年，到 2028-10-05（從送達日起算）", en: "2-year warranty, until 2028-10-05 (from delivery)"},
+		{name: "before delivery", line: Line{HasTerm: true, Months: 24}, zh: "保固 2 年，從送達日起算", en: "2-year warranty, from delivery"},
+		{name: "month term", line: Line{HasTerm: true, Months: 18, CoverEnds: &end}, zh: "保固 18 個月，到 2028-10-05（從送達日起算）", en: "18-month warranty, until 2028-10-05 (from delivery)"},
+		{name: "no warranty", line: Line{}},
 	} {
 		for _, locale := range []struct {
 			locale i18n.Locale
@@ -50,8 +50,8 @@ func TestWarrantyRegistrationShowsTheUnitAndRemainingSteps(t *testing.T) {
 		t.Run(locale.locale.Tag(), func(t *testing.T) {
 			t.Parallel()
 			ctx := i18n.WithLocale(t.Context(), locale.locale)
-			body := renderWarrantyInLocale(t, ctx, WarrantyOrder(layouts.Page{}, WarrantyOrderView{
-				Number: "GO-TEST", Lines: []WarrantyLine{{ID: "phone", Name: "Pixelight", HasTerm: true, Months: 24, Delivered: 2, Registered: 2, CoverEnds: &end}},
+			body := renderWarrantyInLocale(t, ctx, WarrantyOrder(layouts.Page{}, OrderView{
+				Number: "GO-TEST", Lines: []Line{{ID: "phone", Name: "Pixelight", HasTerm: true, Months: 24, Delivered: 2, Registered: 2, CoverEnds: &end}},
 				RegisteredUnit: &Warranty{Name: "Pixelight", Unit: 2, Serial: "SN-SECOND", ExpiresOn: end},
 			}))
 			for _, want := range []string{locale.confirmation, locale.done, locale.serial, `<a href="/account/warranty">` + locale.all + `</a>`, `role="status" id="warranty-registered"`} {
@@ -63,8 +63,8 @@ func TestWarrantyRegistrationShowsTheUnitAndRemainingSteps(t *testing.T) {
 				t.Error("completed registration repeats a line-level completion message")
 			}
 			ready := renderWarrantyInLocale(t, ctx, WarrantyList(layouts.Page{}, WarrantyListView{Ready: []WarrantyReady{
-				{Number: "GO-FIRST", Line: WarrantyLine{ID: "phone", Name: "Pixelight <Pro>", HasTerm: true, Months: 24, CoverEnds: &end}},
-				{Number: "GO-SECOND", Line: WarrantyLine{ID: "tablet", Name: "Tablet", HasTerm: true, Months: 24, CoverEnds: &end}},
+				{Number: "GO-FIRST", Line: Line{ID: "phone", Name: "Pixelight <Pro>", HasTerm: true, Months: 24, CoverEnds: &end}},
+				{Number: "GO-SECOND", Line: Line{ID: "tablet", Name: "Tablet", HasTerm: true, Months: 24, CoverEnds: &end}},
 			}}))
 			for _, want := range []string{`id="warranty-ready-heading">` + locale.heading, `href="/account/warranty/GO-FIRST#serial-phone"`, `href="/account/warranty/GO-SECOND#serial-tablet"`, "Pixelight &lt;Pro&gt;", "2028-10-05", locale.register} {
 				if !strings.Contains(ready, want) {
@@ -78,7 +78,7 @@ func TestWarrantyRegistrationShowsTheUnitAndRemainingSteps(t *testing.T) {
 			if strings.Contains(empty, `id="warranty-ready-heading"`) {
 				t.Error("empty ready list has a registration section")
 			}
-			noTerm := renderWarrantyInLocale(t, ctx, WarrantyOrder(layouts.Page{}, WarrantyOrderView{Number: "GO-NONE", Lines: []WarrantyLine{{Name: "No cover"}}}))
+			noTerm := renderWarrantyInLocale(t, ctx, WarrantyOrder(layouts.Page{}, OrderView{Number: "GO-NONE", Lines: []Line{{Name: "No cover"}}}))
 			if strings.Count(noTerm, i18n.T(ctx, i18n.KeyWarrantyNoTerm)) != 1 {
 				t.Error("no-warranty explanation is duplicated")
 			}

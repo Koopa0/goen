@@ -23,7 +23,7 @@ func TestWarrantySerialRefusalKeepsOnlyItsOwnDraftAndExplanation(t *testing.T) {
 		t.Run(tc.locale.Tag(), func(t *testing.T) {
 			t.Parallel()
 			ctx := i18n.WithLocale(t.Context(), tc.locale)
-			view := WarrantyOrderView{Number: "GO-000001", Lines: []WarrantyLine{
+			view := OrderView{Number: "GO-000001", Lines: []Line{
 				{ID: "owned", Name: "Refused item", HasTerm: true, Months: 12, Delivered: 1, DraftSerial: " Raw & \"serial\" ", SerialRefusal: tc.refusal},
 				{ID: "sibling", Name: "Other item", HasTerm: true, Months: 12, Delivered: 1},
 			}}
