@@ -32,6 +32,14 @@ func NewHandler(store *Store, log *slog.Logger) *Handler {
 	return &Handler{store: store, log: log, confirmationKey: rand.Text()}
 }
 
+// Routes registers the customer's points page and redeeming them.
+// requireUser sends a signed-out visitor to sign in and back; it is the
+// caller's, because signing in is not this package's.
+func (h *Handler) Routes(mux *http.ServeMux, requireUser func(http.HandlerFunc) http.HandlerFunc) {
+	mux.HandleFunc("GET /account/points", requireUser(h.Page))
+	mux.HandleFunc("POST /account/points", requireUser(h.Redeem))
+}
+
 func (h *Handler) Page(w http.ResponseWriter, r *http.Request) {
 	u, ok := user.FromContext(r.Context())
 	if !ok {

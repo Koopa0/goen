@@ -10,9 +10,9 @@ import (
 
 	"github.com/koopa0/goen/internal/cart"
 	"github.com/koopa0/goen/internal/email"
-	"github.com/koopa0/goen/internal/fieldrule"
 	"github.com/koopa0/goen/internal/invoice"
 	"github.com/koopa0/goen/internal/order/delivery"
+	"github.com/koopa0/goen/internal/ui/fieldrule"
 	"github.com/koopa0/goen/internal/web"
 )
 

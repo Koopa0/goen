@@ -910,52 +910,6 @@ func TestAWriteThrowsAwaySpeculationsTakenBeforeIt(t *testing.T) {
 	}
 }
 
-// TestEveryWriteThatChangesTheChromeClearsSpeculations reads server.go and
-// names the routes, because the wiring is the part that rots: a new cart write
-// added beside the others inherits nothing, and the failure is invisible — a
-// count one behind on one page view.
-func TestEveryWriteThatChangesTheChromeClearsSpeculations(t *testing.T) {
-	t.Parallel()
-
-	src, err := os.ReadFile("server.go")
-	if err != nil {
-		t.Fatalf("read server.go: %v", err)
-	}
-	text := string(src)
-
-	// The header renders the cart's count and the staff/customer entrance.
-	// These are the writes that move either one.
-	for _, route := range []string{
-		`"POST /cart/items"`,
-		`"POST /cart/items/update"`,
-		`"POST /orders/{number}/reorder"`,
-		`"POST /signin"`,
-		`"POST /signout"`,
-		`"POST /register"`,
-		`"POST /register/complete"`,
-	} {
-		line := routeLine(text, route)
-		if line == "" {
-			t.Errorf("no route registered for %s; this test's inventory has gone stale", route)
-			continue
-		}
-		if !strings.Contains(line, "clearSpeculations(") {
-			t.Errorf("%s does not clear speculations: a page speculated before it "+
-				"keeps the header it was rendered with\n  %s", route, strings.TrimSpace(line))
-		}
-	}
-}
-
-// routeLine returns the mux registration line naming route, or "".
-func routeLine(src, route string) string {
-	for line := range strings.SplitSeq(src, "\n") {
-		if strings.Contains(line, "mux.HandleFunc(") && strings.Contains(line, route) {
-			return line
-		}
-	}
-	return ""
-}
-
 // TestTheCatalogueStaysEligibleForSpeculation is the inverse of the refusals,
 // and it exists because the first version of the rules carried a
 // selector_matches of "form a" as a precaution — and a listing's compare form

@@ -122,6 +122,54 @@ WHERE user_id = @user_id AND digest <> @current_digest::bytea;
 -- name: DeleteExpiredSessions :exec
 DELETE FROM sessions WHERE expires_at <= now();
 
+-- A remembered browser counts only for the account the form names, so one
+-- signed in to X spends nobody's budget when it guesses at Y, and an address
+-- with no account finds nothing either way.
+-- name: KnownDeviceForAddress :one
+SELECT d.digest
+FROM known_devices d
+JOIN users u ON u.id = d.user_id
+WHERE d.digest = @digest AND lower(u.email) = lower(@email::text) AND d.expires_at > now();
+
+-- name: CountKnownDeviceMiss :one
+UPDATE known_devices SET misses = misses + 1
+WHERE digest = $1
+RETURNING misses;
+
+-- name: DeleteKnownDevice :exec
+DELETE FROM known_devices WHERE digest = $1;
+
+-- Taken before a browser is remembered, so two sign-ins to one account cannot
+-- each count the other's row out of the newest and leave more than the limit.
+-- NO KEY: the rows that reference the account still insert meanwhile.
+-- name: LockUserForKnownDevices :one
+SELECT id FROM users WHERE id = @user_id::uuid FOR NO KEY UPDATE;
+
+-- The expiry is computed from the DATABASE's clock, which is what reads it back.
+-- name: CreateKnownDevice :exec
+INSERT INTO known_devices (digest, user_id, expires_at)
+VALUES (@digest, @user_id, now() + @ttl::interval);
+
+-- Keeps the newest @keep of an account's browsers. The digest breaks a tie in
+-- created_at, so the cut is the same however the rows are read.
+-- name: DeleteSurplusKnownDevices :exec
+DELETE FROM known_devices d
+WHERE d.user_id = @user_id::uuid
+  AND d.digest NOT IN (SELECT k.digest FROM known_devices k
+                       WHERE k.user_id = @user_id::uuid
+                       ORDER BY k.created_at DESC, k.digest DESC
+                       LIMIT @keep::integer);
+
+-- name: DeleteUserKnownDevices :exec
+DELETE FROM known_devices WHERE user_id = $1;
+
+-- name: DeleteOtherUserKnownDevices :exec
+DELETE FROM known_devices
+WHERE user_id = @user_id AND digest <> @current_digest::bytea;
+
+-- name: DeleteExpiredKnownDevices :exec
+DELETE FROM known_devices WHERE expires_at <= now();
+
 -- A grace period rather than now(), so support can still answer "did they ask
 -- for a reset yesterday?".
 -- name: DeleteDeadResetTokens :exec

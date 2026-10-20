@@ -5958,6 +5958,19 @@ func (q *Queries) ConsumeReservationPartial(ctx context.Context, arg ConsumeRese
 	return err
 }
 
+const countKnownDeviceMiss = `-- name: CountKnownDeviceMiss :one
+UPDATE known_devices SET misses = misses + 1
+WHERE digest = $1
+RETURNING misses
+`
+
+func (q *Queries) CountKnownDeviceMiss(ctx context.Context, digest []byte) (int16, error) {
+	row := q.db.QueryRow(ctx, countKnownDeviceMiss, digest)
+	var misses int16
+	err := row.Scan(&misses)
+	return misses, err
+}
+
 const couponByCode = `-- name: CouponByCode :one
 SELECT id, code, description, kind, amount_cents, percent_bp,
        min_subtotal_cents, max_discount_cents,
@@ -6384,6 +6397,23 @@ func (q *Queries) CreateInvoicePreference(ctx context.Context, arg CreateInvoice
 		arg.CustomerName,
 		arg.CustomerEmail,
 	)
+	return err
+}
+
+const createKnownDevice = `-- name: CreateKnownDevice :exec
+INSERT INTO known_devices (digest, user_id, expires_at)
+VALUES ($1, $2, now() + $3::interval)
+`
+
+type CreateKnownDeviceParams struct {
+	Digest []byte
+	UserID uuid.UUID
+	Ttl    pgtype.Interval
+}
+
+// The expiry is computed from the DATABASE's clock, which is what reads it back.
+func (q *Queries) CreateKnownDevice(ctx context.Context, arg CreateKnownDeviceParams) error {
+	_, err := q.db.Exec(ctx, createKnownDevice, arg.Digest, arg.UserID, arg.Ttl)
 	return err
 }
 
@@ -7454,6 +7484,15 @@ func (q *Queries) DeleteDeadResetTokens(ctx context.Context, grace pgtype.Interv
 	return err
 }
 
+const deleteExpiredKnownDevices = `-- name: DeleteExpiredKnownDevices :exec
+DELETE FROM known_devices WHERE expires_at <= now()
+`
+
+func (q *Queries) DeleteExpiredKnownDevices(ctx context.Context) error {
+	_, err := q.db.Exec(ctx, deleteExpiredKnownDevices)
+	return err
+}
+
 const deleteExpiredSessions = `-- name: DeleteExpiredSessions :exec
 DELETE FROM sessions WHERE expires_at <= now()
 `
@@ -7519,6 +7558,15 @@ func (q *Queries) DeleteIdleGuestCarts(ctx context.Context, arg DeleteIdleGuestC
 		return 0, err
 	}
 	return result.RowsAffected(), nil
+}
+
+const deleteKnownDevice = `-- name: DeleteKnownDevice :exec
+DELETE FROM known_devices WHERE digest = $1
+`
+
+func (q *Queries) DeleteKnownDevice(ctx context.Context, digest []byte) error {
+	_, err := q.db.Exec(ctx, deleteKnownDevice, digest)
+	return err
 }
 
 const deleteMedia = `-- name: DeleteMedia :execrows
@@ -7590,6 +7638,21 @@ DELETE FROM order_access_grants WHERE created_at < now() - $1::interval
 // MaxAge, they are live bearer credentials kept forever for nobody.
 func (q *Queries) DeleteOldOrderAccessGrants(ctx context.Context, retain pgtype.Interval) error {
 	_, err := q.db.Exec(ctx, deleteOldOrderAccessGrants, retain)
+	return err
+}
+
+const deleteOtherUserKnownDevices = `-- name: DeleteOtherUserKnownDevices :exec
+DELETE FROM known_devices
+WHERE user_id = $1 AND digest <> $2::bytea
+`
+
+type DeleteOtherUserKnownDevicesParams struct {
+	UserID        uuid.UUID
+	CurrentDigest []byte
+}
+
+func (q *Queries) DeleteOtherUserKnownDevices(ctx context.Context, arg DeleteOtherUserKnownDevicesParams) error {
+	_, err := q.db.Exec(ctx, deleteOtherUserKnownDevices, arg.UserID, arg.CurrentDigest)
 	return err
 }
 
@@ -7679,6 +7742,36 @@ func (q *Queries) DeleteStaleNewsletterConfirmations(ctx context.Context, retain
 		return 0, err
 	}
 	return result.RowsAffected(), nil
+}
+
+const deleteSurplusKnownDevices = `-- name: DeleteSurplusKnownDevices :exec
+DELETE FROM known_devices d
+WHERE d.user_id = $1::uuid
+  AND d.digest NOT IN (SELECT k.digest FROM known_devices k
+                       WHERE k.user_id = $1::uuid
+                       ORDER BY k.created_at DESC, k.digest DESC
+                       LIMIT $2::integer)
+`
+
+type DeleteSurplusKnownDevicesParams struct {
+	UserID uuid.UUID
+	Keep   int32
+}
+
+// Keeps the newest @keep of an account's browsers. The digest breaks a tie in
+// created_at, so the cut is the same however the rows are read.
+func (q *Queries) DeleteSurplusKnownDevices(ctx context.Context, arg DeleteSurplusKnownDevicesParams) error {
+	_, err := q.db.Exec(ctx, deleteSurplusKnownDevices, arg.UserID, arg.Keep)
+	return err
+}
+
+const deleteUserKnownDevices = `-- name: DeleteUserKnownDevices :exec
+DELETE FROM known_devices WHERE user_id = $1
+`
+
+func (q *Queries) DeleteUserKnownDevices(ctx context.Context, userID uuid.UUID) error {
+	_, err := q.db.Exec(ctx, deleteUserKnownDevices, userID)
+	return err
 }
 
 const deleteUserSessions = `-- name: DeleteUserSessions :exec
@@ -9396,6 +9489,28 @@ func (q *Queries) KnownAllowances(ctx context.Context, originalID uuid.UUID) ([]
 	return items, nil
 }
 
+const knownDeviceForAddress = `-- name: KnownDeviceForAddress :one
+SELECT d.digest
+FROM known_devices d
+JOIN users u ON u.id = d.user_id
+WHERE d.digest = $1 AND lower(u.email) = lower($2::text) AND d.expires_at > now()
+`
+
+type KnownDeviceForAddressParams struct {
+	Digest []byte
+	Email  string
+}
+
+// A remembered browser counts only for the account the form names, so one
+// signed in to X spends nobody's budget when it guesses at Y, and an address
+// with no account finds nothing either way.
+func (q *Queries) KnownDeviceForAddress(ctx context.Context, arg KnownDeviceForAddressParams) ([]byte, error) {
+	row := q.db.QueryRow(ctx, knownDeviceForAddress, arg.Digest, arg.Email)
+	var digest []byte
+	err := row.Scan(&digest)
+	return digest, err
+}
+
 const lapsedCheckoutSessions = `-- name: LapsedCheckoutSessions :many
 SELECT p.provider_ref, o.order_number, p.intended_amount_cents
 FROM payments p
@@ -10327,6 +10442,20 @@ func (q *Queries) LockUserForEmailVerification(ctx context.Context, userID uuid.
 		&i.Role,
 	)
 	return i, err
+}
+
+const lockUserForKnownDevices = `-- name: LockUserForKnownDevices :one
+SELECT id FROM users WHERE id = $1::uuid FOR NO KEY UPDATE
+`
+
+// Taken before a browser is remembered, so two sign-ins to one account cannot
+// each count the other's row out of the newest and leave more than the limit.
+// NO KEY: the rows that reference the account still insert meanwhile.
+func (q *Queries) LockUserForKnownDevices(ctx context.Context, userID uuid.UUID) (uuid.UUID, error) {
+	row := q.db.QueryRow(ctx, lockUserForKnownDevices, userID)
+	var id uuid.UUID
+	err := row.Scan(&id)
+	return id, err
 }
 
 const lockUserForPasswordReset = `-- name: LockUserForPasswordReset :one

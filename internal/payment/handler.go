@@ -75,6 +75,16 @@ func NewHandler(s *Store, g *Gateway, grants *access.Store, log *slog.Logger) *H
 	return &Handler{store: s, gateway: g, access: grants, log: log}
 }
 
+// Routes registers paying for an order and Stripe's webhook.
+func (h *Handler) Routes(mux *http.ServeMux) {
+	mux.HandleFunc("GET /orders/{number}/pay", h.Page)
+	mux.HandleFunc("POST /orders/{number}/pay", h.Start)
+	// Stripe posts server-to-server with no Origin, so the cross-origin
+	// middleware has nothing to check and lets it through; its authentication is
+	// the Stripe-Signature header the handler verifies.
+	mux.HandleFunc("POST /webhooks/stripe", h.Webhook)
+}
+
 func (h *Handler) Page(w http.ResponseWriter, r *http.Request) {
 	number := r.PathValue("number")
 	o, ok := h.payableOrder(w, r, number)

@@ -99,18 +99,18 @@ func (s *Store) Adjust(ctx context.Context, sku string, delta int32, actorID, ke
 	if err != nil {
 		return fmt.Errorf("adjust stock: actor %q is not a user id: %w", actorID, err)
 	}
-	before := map[string]any{"sku": sku}
+	before := audit.State{audit.FieldSKU: sku}
 	err = audit.Run(ctx, s.pool, audit.Event{
 		Action: audit.ActionAdjustStock, Table: "product_variants", ID: audit.EntityID(v.ID),
 		Before: before,
-		After:  map[string]any{"delta": delta},
+		After:  audit.State{audit.FieldDelta: delta},
 	},
 		func(ctx context.Context, q *db.Queries) error {
 			replaced, lockErr := lockVariant(ctx, q, v.ID, sku)
 			if lockErr != nil {
 				return lockErr
 			}
-			before["stock"] = replaced.StockQuantity
+			before[audit.FieldStock] = replaced.StockQuantity
 			if moveErr := q.AdjustStock(ctx, db.AdjustStockParams{
 				VariantID: v.ID, Delta: delta, IdempotencyKey: key, ActorUserID: actor,
 			}); moveErr != nil {
@@ -136,19 +136,19 @@ func (s *Store) Receive(ctx context.Context, sku string, quantity int32, actorID
 	if err != nil {
 		return fmt.Errorf("receive stock: actor %q is not a user id: %w", actorID, err)
 	}
-	before := map[string]any{"sku": sku}
+	before := audit.State{audit.FieldSKU: sku}
 	err = audit.Run(ctx, s.pool, audit.Event{
 		Action: audit.ActionReceiveStock, Table: "product_variants", ID: audit.EntityID(v.ID),
 		Before: before,
-		After:  map[string]any{"received": quantity, "preorder_release_on": ""},
+		After:  audit.State{audit.FieldReceived: quantity, audit.FieldPreorderReleaseOn: ""},
 	},
 		func(ctx context.Context, q *db.Queries) error {
 			replaced, lockErr := lockVariant(ctx, q, v.ID, sku)
 			if lockErr != nil {
 				return lockErr
 			}
-			before["stock"] = replaced.StockQuantity
-			before["preorder_release_on"] = arrivalInput(replaced.PreorderReleaseOn)
+			before[audit.FieldStock] = replaced.StockQuantity
+			before[audit.FieldPreorderReleaseOn] = arrivalInput(replaced.PreorderReleaseOn)
 			if moveErr := q.ReceiveStock(ctx, db.ReceiveStockParams{
 				VariantID: v.ID, Delta: quantity, IdempotencyKey: key, ActorUserID: actor,
 			}); moveErr != nil {
@@ -211,18 +211,18 @@ func (s *Store) SetActive(ctx context.Context, sku string, active bool) error {
 		}
 		return fmt.Errorf("read variant: %w", err)
 	}
-	before := map[string]any{"sku": sku}
+	before := audit.State{audit.FieldSKU: sku}
 	err = audit.Run(ctx, s.pool, audit.Event{
 		Action: audit.ActionRetireVariant, Table: "product_variants", ID: audit.EntityID(v.ID),
 		Before: before,
-		After:  map[string]any{"active": active},
+		After:  audit.State{audit.FieldActive: active},
 	},
 		func(ctx context.Context, q *db.Queries) error {
 			replaced, lockErr := lockVariant(ctx, q, v.ID, sku)
 			if lockErr != nil {
 				return lockErr
 			}
-			before["active"] = replaced.IsActive
+			before[audit.FieldActive] = replaced.IsActive
 			return q.SetVariantActive(ctx, db.SetVariantActiveParams{
 				ID: v.ID, IsActive: active,
 			})
@@ -244,18 +244,18 @@ func (s *Store) SetPrice(ctx context.Context, sku string, price, compareAt int64
 	if compareAt > 0 {
 		cmp = pgtype.Int8{Int64: compareAt, Valid: true}
 	}
-	before := map[string]any{"sku": sku}
+	before := audit.State{audit.FieldSKU: sku}
 	return audit.Run(ctx, s.pool, audit.Event{
 		Action: audit.ActionRepriceVariant, Table: "product_variants", ID: audit.EntityID(v.ID),
 		Before: before,
-		After:  map[string]any{"price_cents": price, "compare_at_cents": compareAt},
+		After:  audit.State{audit.FieldPriceCents: price, audit.FieldCompareAtCents: compareAt},
 	},
 		func(ctx context.Context, q *db.Queries) error {
 			replaced, lockErr := lockVariant(ctx, q, v.ID, sku)
 			if lockErr != nil {
 				return lockErr
 			}
-			before["price_cents"] = replaced.PriceCents
+			before[audit.FieldPriceCents] = replaced.PriceCents
 			if err := q.SetVariantPrice(ctx, db.SetVariantPriceParams{
 				ID: v.ID, PriceCents: price, CompareAtPriceCents: cmp,
 			}); err != nil {
@@ -361,16 +361,16 @@ func (s *Store) SetArrival(ctx context.Context, sku string, day pgtype.Date) err
 	if err != nil {
 		return fmt.Errorf("read variant: %w", err)
 	}
-	before := map[string]any{"sku": sku}
+	before := audit.State{audit.FieldSKU: sku}
 	return audit.Run(ctx, s.pool, audit.Event{
 		Action: audit.ActionSetVariantArrival, Table: "product_variants", ID: audit.EntityID(v.ID),
-		Before: before, After: map[string]any{"preorder_release_on": arrivalInput(day)},
+		Before: before, After: audit.State{audit.FieldPreorderReleaseOn: arrivalInput(day)},
 	}, func(ctx context.Context, q *db.Queries) error {
 		replaced, err := lockVariant(ctx, q, v.ID, sku)
 		if err != nil {
 			return err
 		}
-		before["preorder_release_on"] = arrivalInput(replaced.PreorderReleaseOn)
+		before[audit.FieldPreorderReleaseOn] = arrivalInput(replaced.PreorderReleaseOn)
 		if err := q.SetVariantArrival(ctx, db.SetVariantArrivalParams{ID: v.ID, ArrivalOn: day}); err != nil {
 			return fmt.Errorf("set variant arrival: %w", err)
 		}

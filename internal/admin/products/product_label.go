@@ -25,15 +25,30 @@ import (
 )
 
 type productLabelState struct {
-	Slug                 string         `json:"slug"`
-	Origin               pgtype.Text    `json:"origin"`
-	OriginEn             pgtype.Text    `json:"origin_en"`
-	DomesticPartyName    pgtype.Text    `json:"domestic_party_name"`
-	DomesticPartyPhone   pgtype.Text    `json:"domestic_party_phone"`
-	DomesticPartyAddress pgtype.Text    `json:"domestic_party_address"`
-	NetQuantity          pgtype.Numeric `json:"net_quantity"`
-	NetUnit              pgtype.Text    `json:"net_unit"`
-	MinAgeMonths         pgtype.Int2    `json:"min_age_months"`
+	Slug                 string
+	Origin               pgtype.Text
+	OriginEn             pgtype.Text
+	DomesticPartyName    pgtype.Text
+	DomesticPartyPhone   pgtype.Text
+	DomesticPartyAddress pgtype.Text
+	NetQuantity          pgtype.Numeric
+	NetUnit              pgtype.Text
+	MinAgeMonths         pgtype.Int2
+}
+
+// state is the label as its audit row records it.
+func (l productLabelState) state() audit.State {
+	return audit.State{
+		audit.FieldSlug:                 l.Slug,
+		audit.FieldOrigin:               l.Origin,
+		audit.FieldOriginEn:             l.OriginEn,
+		audit.FieldDomesticPartyName:    l.DomesticPartyName,
+		audit.FieldDomesticPartyPhone:   l.DomesticPartyPhone,
+		audit.FieldDomesticPartyAddress: l.DomesticPartyAddress,
+		audit.FieldNetQuantity:          l.NetQuantity,
+		audit.FieldNetUnit:              l.NetUnit,
+		audit.FieldMinAgeMonths:         l.MinAgeMonths,
+	}
 }
 
 func (s *Store) SetProductLabel(ctx context.Context, slug string, input *LabelInput) error {
@@ -63,12 +78,12 @@ func (s *Store) SetProductLabel(ctx context.Context, slug string, input *LabelIn
 			Slug: slug, Origin: before.Origin, OriginEn: before.OriginEn,
 			DomesticPartyName: before.DomesticPartyName, DomesticPartyPhone: before.DomesticPartyPhone, DomesticPartyAddress: before.DomesticPartyAddress,
 			NetQuantity: before.NetQuantity, NetUnit: before.NetUnit, MinAgeMonths: before.MinAgeMonths,
-		},
+		}.state(),
 		After: productLabelState{
 			Slug: slug, Origin: optionalText(params.Origin), OriginEn: optionalText(params.OriginEn),
 			DomesticPartyName: optionalText(params.DomesticPartyName), DomesticPartyPhone: optionalText(params.DomesticPartyPhone), DomesticPartyAddress: optionalText(params.DomesticPartyAddress),
 			NetQuantity: params.NetQuantity, NetUnit: optionalText(params.NetUnit), MinAgeMonths: params.MinAgeMonths,
-		},
+		}.state(),
 	}); auditErr != nil {
 		return auditErr
 	}

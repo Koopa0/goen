@@ -26,6 +26,12 @@ func NewHandler(store *Store, limit *ratelimit.Limiter, log *slog.Logger) *Handl
 	return &Handler{store: store, limit: limit, log: log}
 }
 
+// Routes registers the contact form.
+func (h *Handler) Routes(mux *http.ServeMux) {
+	mux.HandleFunc("GET /contact", h.Page)
+	mux.HandleFunc("POST /contact", h.Submit)
+}
+
 // Page reads a sent flag, which the plain form's redirect carries, so a reload
 // shows the acknowledgement instead of re-submitting.
 func (h *Handler) Page(w http.ResponseWriter, r *http.Request) {

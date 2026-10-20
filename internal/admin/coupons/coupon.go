@@ -214,7 +214,7 @@ func (s *Store) CreateCoupon(ctx context.Context, f *Form) (map[string]string, e
 	}
 	if err := audit.Run(ctx, s.pool, audit.Event{
 		Action: audit.ActionCreateCoupon, Table: "coupons", ID: uuid.NullUUID{},
-		Before: nil, After: map[string]any{"code": f.Code, "kind": f.Kind, "value": f.Value},
+		Before: nil, After: audit.State{audit.FieldCode: f.Code, audit.FieldKind: f.Kind, audit.FieldValue: f.Value},
 	},
 		func(ctx context.Context, q *db.Queries) error {
 			return q.CreateCoupon(ctx, params)
@@ -230,7 +230,7 @@ func (s *Store) CreateCoupon(ctx context.Context, f *Form) (map[string]string, e
 func (s *Store) SetCouponActive(ctx context.Context, code string, active bool) error {
 	if err := audit.Run(ctx, s.pool, audit.Event{
 		Action: audit.ActionToggleCoupon, Table: "coupons", ID: uuid.NullUUID{},
-		Before: map[string]any{"code": code}, After: map[string]any{"active": active},
+		Before: audit.State{audit.FieldCode: code}, After: audit.State{audit.FieldActive: active},
 	},
 		func(ctx context.Context, q *db.Queries) error {
 			n, err := q.SetCouponActive(ctx, db.SetCouponActiveParams{
