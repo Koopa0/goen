@@ -13,6 +13,7 @@ import (
 	"github.com/a-h/templ"
 
 	"github.com/koopa0/goen/internal/i18n"
+	"github.com/koopa0/goen/internal/money"
 	"github.com/koopa0/goen/internal/product/labelling"
 	"github.com/koopa0/goen/internal/shoptime"
 	"github.com/koopa0/goen/internal/ui/components"
@@ -284,13 +285,13 @@ func (v *ProductView) RootSlug() string {
 	return v.CategorySlug
 }
 
-func (v *ProductView) Price() string { return twd(v.PriceCents) }
+func (v *ProductView) Price() string { return money.TWD(v.PriceCents) }
 
 // PriceFrom is true when the visitor has chosen no variant yet, or the one they chose is the
 // cheapest and dearer ones exist.
 func (v *ProductView) PriceFrom() bool { return v.PriceVaries && !v.Exact }
 
-func (v *ProductView) Compare() string { return twd(v.CompareCents) }
+func (v *ProductView) Compare() string { return money.TWD(v.CompareCents) }
 
 func (v *ProductView) CanBuy() bool { return v.SelectionOK && v.Exact && v.Sellable }
 
@@ -583,11 +584,11 @@ func (v *ProductView) BuyFacts(ctx context.Context) []components.Stat {
 			Value: components.StatCount(int64(v.WarrantyMonths), components.CountUnit(ctx, i18n.KeyUnitMonths, int64(v.WarrantyMonths))),
 		})
 	}
-	stats = append(stats, v.Rules.rescissionStat(ctx))
+	stats = append(stats, v.Rules.RescissionStat(ctx))
 	if v.AnySellable {
-		stats = append(stats, v.Rules.holdStat(ctx))
+		stats = append(stats, v.Rules.HoldStat(ctx))
 	}
-	return append(stats, v.Rules.freeDeliveryStat(ctx))
+	return append(stats, v.Rules.FreeDeliveryStat(ctx))
 }
 
 // RestockNote is the sentence over the notify form, asking for a pick only while there is none.
