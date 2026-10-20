@@ -12,7 +12,7 @@ import (
 
 	"github.com/a-h/templ"
 
-	"github.com/koopa0/goen/internal/cart/item"
+	"github.com/koopa0/goen/internal/cart/cartitem"
 	"github.com/koopa0/goen/internal/i18n"
 	"github.com/koopa0/goen/internal/ui/uitest"
 )
@@ -24,7 +24,7 @@ func TestProductChoiceAgainstAnInFlightPurchase(t *testing.T) {
 	fixtures := make(map[string]string)
 	for _, locale := range []i18n.Locale{i18n.ZhHant, i18n.En} {
 		for index, choice := range []string{"blue", "black"} {
-			for _, outcome := range []item.AddOutcome{"", item.AddOutcomeAdded} {
+			for _, outcome := range []cartitem.AddOutcome{"", cartitem.AddOutcomeAdded} {
 				view := ProductView{
 					Slug: "two-colours", Name: "Two colours", VariantID: choice,
 					SelectionOK: true, Exact: true, Sellable: true, AnySellable: true,
@@ -38,7 +38,7 @@ func TestProductChoiceAgainstAnInFlightPurchase(t *testing.T) {
 				var body strings.Builder
 				body.WriteString(`<!doctype html><html><head><script src="/htmx.js" defer></script><script src="/goen.js" defer></script></head><body>`)
 				count, key := "0", string(locale)+"-"+choice
-				if outcome == item.AddOutcomeAdded {
+				if outcome == cartitem.AddOutcomeAdded {
 					count, key = "1", key+"-added"
 				}
 				body.WriteString(`<a id="cart-link" href="/cart"><span id="cart-count">` + count + `</span></a>`)

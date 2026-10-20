@@ -17,7 +17,7 @@ import (
 	"github.com/google/uuid"
 
 	"github.com/koopa0/goen/internal/bearer"
-	"github.com/koopa0/goen/internal/cart/item"
+	"github.com/koopa0/goen/internal/cart/cartitem"
 
 	"github.com/koopa0/goen/internal/coupon"
 	"github.com/koopa0/goen/internal/i18n"
@@ -213,7 +213,7 @@ func (h *Handler) AddItem(w http.ResponseWriter, r *http.Request) {
 
 	variantID, err := uuid.Parse(r.PostFormValue("variant"))
 	if err != nil {
-		h.backToProduct(w, r, uuid.Nil, item.AddOutcomeUnknown)
+		h.backToProduct(w, r, uuid.Nil, cartitem.AddOutcomeUnknown)
 		return
 	}
 	quantity := ParseQuantity(r.PostFormValue("quantity"))
@@ -230,13 +230,13 @@ func (h *Handler) AddItem(w http.ResponseWriter, r *http.Request) {
 
 	switch err := h.store.Add(r.Context(), cartID, variantID, quantity); {
 	case err == nil:
-		h.backToProduct(w, r, variantID, item.AddOutcomeAdded)
+		h.backToProduct(w, r, variantID, cartitem.AddOutcomeAdded)
 	case errors.Is(err, ErrQuantityAdjusted):
-		h.backToProduct(w, r, variantID, item.AddOutcomeAdjusted)
+		h.backToProduct(w, r, variantID, cartitem.AddOutcomeAdjusted)
 	case errors.Is(err, ErrTooManyItems):
-		h.backToProduct(w, r, variantID, item.AddOutcomeFull)
+		h.backToProduct(w, r, variantID, cartitem.AddOutcomeFull)
 	case errors.Is(err, ErrUnavailable), errors.Is(err, ErrNotFound):
-		h.backToProduct(w, r, variantID, item.AddOutcomeUnavailable)
+		h.backToProduct(w, r, variantID, cartitem.AddOutcomeUnavailable)
 	default:
 		h.log.ErrorContext(r.Context(), "add to cart", "error", err)
 		h.serverError(w, r)
@@ -1721,7 +1721,7 @@ const wishlistPath = "/account/wishlist"
 // backToProduct takes the slug from the form's own field rather than the
 // Referer, which a request controls; the selection query is rebuilt from the
 // variant the server accepted, not from anything the form named.
-func (h *Handler) backToProduct(w http.ResponseWriter, r *http.Request, variantID uuid.UUID, outcome item.AddOutcome) {
+func (h *Handler) backToProduct(w http.ResponseWriter, r *http.Request, variantID uuid.UUID, outcome cartitem.AddOutcome) {
 	if r.PostFormValue("return") == wishlistPath {
 		http.Redirect(w, r, wishlistPath+"?added="+url.QueryEscape(string(outcome)), http.StatusSeeOther)
 		return
@@ -1776,7 +1776,7 @@ func (h *Handler) notFoundPage(r *http.Request) layouts.Page {
 // account owns, and the account's own. A cookie that names another account's
 // cart reads as none. Without a signed-in customer it reads nothing and
 // returns ErrNotFound; after any other error it reports neither cart.
-func (h *Handler) RecoveryContents(ctx context.Context, r *http.Request) (beforeSignIn, account []item.Item, err error) {
+func (h *Handler) RecoveryContents(ctx context.Context, r *http.Request) (beforeSignIn, account []cartitem.Item, err error) {
 	u, ok := user.FromContext(ctx)
 	if !ok {
 		return nil, nil, ErrNotFound
