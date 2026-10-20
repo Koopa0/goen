@@ -1,0 +1,38 @@
+package components
+
+import "github.com/koopa0/goen/internal/i18n"
+
+// LangSwitch is the back-office editor's choice of which language's fields a
+// bilingual form shows. Both languages stay in the one form; the switch only
+// hides one group, and opens on English when english is set.
+templ LangSwitch(name string, english bool) {
+	<fieldset class="goen-admin__lang">
+		<legend class="goen-sr-only">{ i18n.T(ctx, i18n.KeyAdminLangSwitch) }</legend>
+		<label class="goen-admin__langopt">
+			<input
+				class="goen-sr-only"
+				type="radio"
+				name={ name }
+				value="zh"
+				if !english {
+					checked
+				}
+			/>
+			// i18n-exempt: a language's own name, shown in both locales on purpose.
+			<span>繁體中文</span>
+		</label>
+		<label class="goen-admin__langopt">
+			<input
+				class="goen-sr-only"
+				type="radio"
+				name={ name }
+				value="en"
+				if english {
+					checked
+				}
+			/>
+			// i18n-exempt: a language's own name, shown in both locales on purpose.
+			<span>English</span>
+		</label>
+	</fieldset>
+}

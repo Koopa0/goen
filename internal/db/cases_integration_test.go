@@ -2464,13 +2464,13 @@ VALUES ('a0000001-0000-4000-8000-000000000000', 1, repeat('購', 200), 'grant:sc
 		accept:     `DELETE FROM order_private_data WHERE order_id = '6666aaaa-6666-4666-8666-666666666666'; INSERT INTO order_private_data (order_id, email, recipient_name, phone, pickup_chain, pickup_store_code, pickup_store_name) VALUES ('6666aaaa-6666-4666-8666-666666666666', 'test@example.com', '測試', '0912000000', 'hi_life', 'S884', repeat('店', 40));`,
 	},
 	{
-		// content.MaxHeadlineRunes, counted in characters, not bytes.
+		// slides.MaxHeadlineRunes, counted in characters, not bytes.
 		constraint: "hero_slides_headline_bounded",
 		reject:     `INSERT INTO hero_slides (headline, primary_cta_label, primary_cta_href, position) VALUES (repeat('夏', 41), '立即選購', '/c/phones', 5);`,
 		accept:     `INSERT INTO hero_slides (headline, primary_cta_label, primary_cta_href, position) VALUES (repeat('夏', 40), '立即選購', '/c/phones', 5);`,
 	},
 	{
-		// content.MaxBannerRunes, counted in characters, not bytes.
+		// banners.MaxBannerRunes, counted in characters, not bytes.
 		constraint: "promo_banners_message_bounded",
 		reject:     `INSERT INTO promo_banners (id, message) VALUES ('11110009-0000-4000-8000-000000000092', repeat('訊', 61));`,
 		accept:     `INSERT INTO promo_banners (id, message) VALUES ('11110009-0000-4000-8000-000000000092', repeat('訊', 60));`,
