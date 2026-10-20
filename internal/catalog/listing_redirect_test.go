@@ -5,8 +5,6 @@ import (
 	"net/http/httptest"
 	"net/url"
 	"testing"
-
-	"github.com/koopa0/goen/internal/ui/pages"
 )
 
 func TestPastLastPageRedirectKeepsOtherParameters(t *testing.T) {
@@ -43,9 +41,9 @@ func TestPastLastPageRedirectKeepsOtherParameters(t *testing.T) {
 
 func TestUnknownFiltersRedirectWithoutDiscardingKnownZeroCountChoices(t *testing.T) {
 	t.Parallel()
-	facets := []pages.FacetGroup{
-		{Kind: pages.FacetBrand, Options: []pages.FacetOption{{Value: "aurora", Count: 0}}},
-		{Kind: pages.FacetVariantOption, Name: "colour", Options: []pages.FacetOption{{Value: "colour:white", Count: 0}}},
+	facets := []FacetGroup{
+		{Kind: FacetBrand, Options: []FacetOption{{Value: "aurora", Count: 0}}},
+		{Kind: FacetVariantOption, Name: "colour", Options: []FacetOption{{Value: "colour:white", Count: 0}}},
 	}
 	for _, tc := range []struct {
 		name, query, want string

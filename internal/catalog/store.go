@@ -48,17 +48,17 @@ func (s *Store) ShopRules(ctx context.Context) (site.ShopRules, error) {
 
 // Listing uses one set of descendant ids for the listing, the count and the
 // brand facet, which otherwise disagree about scope.
-func (s *Store) Listing(ctx context.Context, slug string, f Filters) (pages.ListingView, error) {
+func (s *Store) Listing(ctx context.Context, slug string, f Filters) (ListingView, error) {
 	view, _, err := s.listing(ctx, slug, f)
 	return view, err
 }
 
 // ListingPage is Listing with the shopper's filters on the view and, when withHead is set, the
 // department head, which reuses the comparable categories the listing has just read.
-func (s *Store) ListingPage(ctx context.Context, slug string, f Filters, withHead bool) (pages.ListingView, *pages.DepartmentHead, error) {
+func (s *Store) ListingPage(ctx context.Context, slug string, f Filters, withHead bool) (ListingView, *DepartmentHead, error) {
 	view, offers, err := s.listing(ctx, slug, f)
 	if err != nil {
-		return pages.ListingView{}, nil, err
+		return ListingView{}, nil, err
 	}
 	view.Query = canonicalQuery(f)
 	view.Filtered = f.Active()
@@ -73,20 +73,20 @@ func (s *Store) ListingPage(ctx context.Context, slug string, f Filters, withHea
 	return view, head, err
 }
 
-func (s *Store) listing(ctx context.Context, slug string, f Filters) (pages.ListingView, map[uuid.UUID]bool, error) {
+func (s *Store) listing(ctx context.Context, slug string, f Filters) (ListingView, map[uuid.UUID]bool, error) {
 	cat, err := s.q.CategoryBySlug(ctx, db.CategoryBySlugParams{
 		Slug: slug, Locale: string(i18n.FromContext(ctx)),
 	})
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
-			return pages.ListingView{}, nil, ErrNotFound
+			return ListingView{}, nil, ErrNotFound
 		}
-		return pages.ListingView{}, nil, fmt.Errorf("read category %q: %w", slug, err)
+		return ListingView{}, nil, fmt.Errorf("read category %q: %w", slug, err)
 	}
 
 	ids, err := s.q.CategoryDescendants(ctx, cat.ID)
 	if err != nil {
-		return pages.ListingView{}, nil, fmt.Errorf("read descendants of %q: %w", slug, err)
+		return ListingView{}, nil, fmt.Errorf("read descendants of %q: %w", slug, err)
 	}
 
 	names, values := optionFilterColumns(f.OptionValues)
@@ -99,7 +99,7 @@ func (s *Store) listing(ctx context.Context, slug string, f Filters) (pages.List
 		MaxPrice:       f.MaxPrice,
 	})
 	if err != nil {
-		return pages.ListingView{}, nil, fmt.Errorf("read brands for %q: %w", slug, err)
+		return ListingView{}, nil, fmt.Errorf("read brands for %q: %w", slug, err)
 	}
 
 	brandIDs, selected := selectedListingBrands(brands, f.BrandSlugs)
@@ -118,7 +118,7 @@ func (s *Store) listing(ctx context.Context, slug string, f Filters) (pages.List
 		PageOffset:     f.Offset(),
 	})
 	if err != nil {
-		return pages.ListingView{}, nil, fmt.Errorf("read listing for %q: %w", slug, err)
+		return ListingView{}, nil, fmt.Errorf("read listing for %q: %w", slug, err)
 	}
 
 	total, err := s.q.CategoryListingCount(ctx, db.CategoryListingCountParams{
@@ -131,7 +131,7 @@ func (s *Store) listing(ctx context.Context, slug string, f Filters) (pages.List
 		MaxPrice:       f.MaxPrice,
 	})
 	if err != nil {
-		return pages.ListingView{}, nil, fmt.Errorf("count listing for %q: %w", slug, err)
+		return ListingView{}, nil, fmt.Errorf("count listing for %q: %w", slug, err)
 	}
 
 	trail := crumbs(cat.AncestorSlugs, cat.AncestorNames)
@@ -143,20 +143,20 @@ func (s *Store) listing(ctx context.Context, slug string, f Filters) (pages.List
 		Slug: department, Locale: string(i18n.FromContext(ctx)),
 	})
 	if err != nil {
-		return pages.ListingView{}, nil, fmt.Errorf("read children of %q: %w", department, err)
+		return ListingView{}, nil, fmt.Errorf("read children of %q: %w", department, err)
 	}
 
 	offers, err := s.comparableCategories(ctx)
 	if err != nil {
-		return pages.ListingView{}, nil, err
+		return ListingView{}, nil, err
 	}
 
 	photo := assets.Image{Digest: cat.ImageDigest, BundledKey: cat.ImageBundledKey, Width: int(cat.ImageWidth)}
-	view := pages.ListingView{
+	view := ListingView{
 		Slug:   slug,
 		Name:   cat.Name,
 		Crumbs: trail,
-		Theme: &pages.Theme{
+		Theme: &Theme{
 			Children:   childCrumbs(children),
 			Tone:       components.ResolveTone(cat.Tone),
 			Comparable: offers[cat.ID],
@@ -174,11 +174,11 @@ func (s *Store) listing(ctx context.Context, slug string, f Filters) (pages.List
 
 	err = s.withHighlights(ctx, view.Products)
 	if err != nil {
-		return pages.ListingView{}, nil, err
+		return ListingView{}, nil, err
 	}
 
 	if len(brands) > 0 {
-		view.Facets = append(view.Facets, pages.FacetGroup{Kind: pages.FacetBrand, Label: i18n.T(ctx, i18n.KeyFacetBrand), Options: brandFacets(brands, selected)})
+		view.Facets = append(view.Facets, FacetGroup{Kind: FacetBrand, Label: i18n.T(ctx, i18n.KeyFacetBrand), Options: brandFacets(brands, selected)})
 	}
 	optionRows, err := s.q.CategoryOptionValues(ctx, db.CategoryOptionValuesParams{
 		Locale: string(i18n.FromContext(ctx)), CategoryIds: ids, BrandIds: brandIDs,
@@ -186,13 +186,13 @@ func (s *Store) listing(ctx context.Context, slug string, f Filters) (pages.List
 		OptionNames: names, OptionValues: values,
 	})
 	if err != nil {
-		return pages.ListingView{}, nil, fmt.Errorf("read option facets for %q: %w", slug, err)
+		return ListingView{}, nil, fmt.Errorf("read option facets for %q: %w", slug, err)
 	}
 	view.Facets = append(view.Facets, optionFacets(optionRows, f.OptionValues)...)
 	return view, offers, nil
 }
 
-func (s *Store) Search(ctx context.Context, pattern string, sort Sort, page int) (pages.SearchView, error) {
+func (s *Store) Search(ctx context.Context, pattern string, sort Sort, page int) (SearchView, error) {
 	terms, exact := SearchTerms(pattern)
 	rows, err := s.q.SearchProducts(ctx, db.SearchProductsParams{
 		Locale:       string(i18n.FromContext(ctx)),
@@ -203,18 +203,18 @@ func (s *Store) Search(ctx context.Context, pattern string, sort Sort, page int)
 		PageOffset:   offsetFor(page),
 	})
 	if err != nil {
-		return pages.SearchView{}, fmt.Errorf("search: %w", err)
+		return SearchView{}, fmt.Errorf("search: %w", err)
 	}
 	total, err := s.q.SearchProductsCount(ctx, terms)
 	if err != nil {
-		return pages.SearchView{}, fmt.Errorf("count search: %w", err)
+		return SearchView{}, fmt.Errorf("count search: %w", err)
 	}
 	offers, err := s.comparableCategories(ctx)
 	if err != nil {
-		return pages.SearchView{}, err
+		return SearchView{}, err
 	}
 
-	return pages.SearchView{
+	return SearchView{
 		Products: searchTiles(rows, offers),
 		Total:    total,
 		Page:     max(page, 1),
@@ -263,10 +263,10 @@ func crumbs(slugs, names []string) []pages.Crumb {
 	return out
 }
 
-func brandFacets(brands []db.CategoryBrandsRow, selected map[string]bool) []pages.FacetOption {
-	out := make([]pages.FacetOption, 0, len(brands))
+func brandFacets(brands []db.CategoryBrandsRow, selected map[string]bool) []FacetOption {
+	out := make([]FacetOption, 0, len(brands))
 	for _, b := range brands {
-		out = append(out, pages.FacetOption{
+		out = append(out, FacetOption{
 			Value:    b.Slug,
 			Label:    b.Name,
 			Count:    b.ProductCount,
@@ -348,20 +348,20 @@ func searchTiles(rows []db.SearchProductsRow, offers map[uuid.UUID]bool) []pages
 	return out
 }
 
-func (s *Store) Deals(ctx context.Context, page int) (pages.SearchView, error) {
+func (s *Store) Deals(ctx context.Context, page int) (SearchView, error) {
 	rows, err := s.q.DealProducts(ctx, db.DealProductsParams{
 		Locale:     string(i18n.FromContext(ctx)),
 		PageSize:   PageSize,
 		PageOffset: offsetFor(page),
 	})
 	if err != nil {
-		return pages.SearchView{}, fmt.Errorf("read deals: %w", err)
+		return SearchView{}, fmt.Errorf("read deals: %w", err)
 	}
 	total, err := s.q.DealProductsCount(ctx)
 	if err != nil {
-		return pages.SearchView{}, fmt.Errorf("count deals: %w", err)
+		return SearchView{}, fmt.Errorf("count deals: %w", err)
 	}
-	return pages.SearchView{
+	return SearchView{
 		Products: dealTiles(rows),
 		Total:    total,
 		Page:     max(page, 1),
@@ -416,8 +416,8 @@ func (s *Store) SitemapCategories(ctx context.Context, limit int32) ([]db.Sitema
 	return rows, nil
 }
 
-func optionFacets(rows []db.CategoryOptionValuesRow, selected []OptionFilter) []pages.FacetGroup {
-	groups := make([]pages.FacetGroup, 0)
+func optionFacets(rows []db.CategoryOptionValuesRow, selected []OptionFilter) []FacetGroup {
+	groups := make([]FacetGroup, 0)
 	positions := make(map[string]int)
 	chosen := make(map[OptionFilter]bool, len(selected))
 	for _, pair := range selected {
@@ -429,9 +429,9 @@ func optionFacets(rows []db.CategoryOptionValuesRow, selected []OptionFilter) []
 		if !found {
 			position = len(groups)
 			positions[row.OptionName] = position
-			groups = append(groups, pages.FacetGroup{Kind: pages.FacetVariantOption, Name: row.OptionName, Label: row.OptionLabel})
+			groups = append(groups, FacetGroup{Kind: FacetVariantOption, Name: row.OptionName, Label: row.OptionLabel})
 		}
-		groups[position].Options = append(groups[position].Options, pages.FacetOption{
+		groups[position].Options = append(groups[position].Options, FacetOption{
 			Value: row.OptionName + ":" + row.Value, Label: row.ValueLabel, Count: row.ProductCount,
 			Selected: chosen[OptionFilter{Name: row.OptionName, Value: row.Value}],
 		})

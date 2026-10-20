@@ -13,7 +13,6 @@ import (
 
 	"github.com/koopa0/goen/internal/catalog"
 	"github.com/koopa0/goen/internal/i18n"
-	"github.com/koopa0/goen/internal/ui/pages"
 )
 
 func TestOptionFacetsRequireOneVariantForEverySelectedAxisStockAndPrice(t *testing.T) {
@@ -105,7 +104,7 @@ func TestOptionFacetsRequireOneVariantForEverySelectedAxisStockAndPrice(t *testi
 	facetCounts := map[string]int64{}
 	selected := 0
 	for _, group := range view.Facets {
-		if group.Kind != pages.FacetVariantOption {
+		if group.Kind != catalog.FacetVariantOption {
 			continue
 		}
 		if group.Label != "Capacity" && group.Label != "Colour" {
@@ -165,10 +164,10 @@ func TestOptionFacetsRequireOneVariantForEverySelectedAxisStockAndPrice(t *testi
 	}
 }
 
-func assertFacetBrandCount(t *testing.T, view pages.ListingView, slug string, want int64) {
+func assertFacetBrandCount(t *testing.T, view catalog.ListingView, slug string, want int64) {
 	t.Helper()
 	for _, group := range view.Facets {
-		if group.Kind != pages.FacetBrand {
+		if group.Kind != catalog.FacetBrand {
 			continue
 		}
 		for _, option := range group.Options {
