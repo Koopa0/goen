@@ -18,9 +18,9 @@ import (
 
 	"github.com/koopa0/goen/internal/admin/admintest"
 	"github.com/koopa0/goen/internal/admin/twofactor"
+	"github.com/koopa0/goen/internal/compress"
 	"github.com/koopa0/goen/internal/i18n"
 	"github.com/koopa0/goen/internal/user"
-	"github.com/koopa0/goen/internal/web"
 )
 
 func TestEnrolmentQRMatchesTheOneTimeURI(t *testing.T) {
@@ -34,7 +34,7 @@ func TestEnrolmentQRMatchesTheOneTimeURI(t *testing.T) {
 			r.Header.Set("Content-Type", "application/x-www-form-urlencoded")
 			r.Header.Set("Accept-Encoding", "gzip")
 			w := httptest.NewRecorder()
-			web.Compress(http.HandlerFunc(h.Enrol)).ServeHTTP(w, r)
+			compress.Handler(http.HandlerFunc(h.Enrol)).ServeHTTP(w, r)
 			if w.Code != http.StatusOK || w.Header().Get("Content-Encoding") != "" {
 				t.Fatalf("enrolment status/encoding = %d/%q", w.Code, w.Header().Get("Content-Encoding"))
 			}

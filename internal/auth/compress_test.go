@@ -8,7 +8,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/koopa0/goen/internal/web"
+	"github.com/koopa0/goen/internal/compress"
 )
 
 func TestSecretBearingAccountPagesAreNotCompressed(t *testing.T) {
@@ -56,7 +56,7 @@ func TestSecretBearingAccountPagesAreNotCompressed(t *testing.T) {
 			}
 			req.Header.Set("Accept-Encoding", "gzip")
 			res := httptest.NewRecorder()
-			web.Compress(tt.handler).ServeHTTP(res, req)
+			compress.Handler(tt.handler).ServeHTTP(res, req)
 
 			if got := res.Header().Get("Content-Encoding"); got != "" {
 				t.Errorf("Content-Encoding = %q, want identity", got)

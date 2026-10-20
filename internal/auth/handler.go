@@ -14,6 +14,7 @@ import (
 	"github.com/koopa0/goen/internal/auth/google"
 	"github.com/koopa0/goen/internal/bearer"
 	"github.com/koopa0/goen/internal/cart/item"
+	"github.com/koopa0/goen/internal/compress"
 	"github.com/koopa0/goen/internal/email"
 	"github.com/koopa0/goen/internal/i18n"
 	"github.com/koopa0/goen/internal/ratelimit"
@@ -259,7 +260,7 @@ func (h *Handler) SignInPage(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	// next can be a live link back to /verify; never compress it.
-	web.NoCompress(w)
+	compress.Skip(w)
 	view := h.signInView(AuthView{
 		Next:          web.SitePathOr(r.URL.Query().Get("next"), "/account"),
 		ReturnMessage: signInReturnMessage(r.Context(), r.URL.Query().Get("next")),
@@ -379,7 +380,7 @@ func (h *Handler) countDeviceMiss(r *http.Request, device []byte) {
 // a wrong password, so two submissions never differ in information about an
 // account.
 func (h *Handler) signInFailed(w http.ResponseWriter, r *http.Request, addr, next string) {
-	web.NoCompress(w)
+	compress.Skip(w)
 	web.Render(w, r, h.log, http.StatusUnprocessableEntity,
 		SignIn(SignInMeta(r.Context()), h.signInView(AuthView{
 			Email: addr, Next: next, ReturnMessage: signInReturnMessage(r.Context(), r.PostFormValue("next")),
@@ -1048,7 +1049,7 @@ func (h *Handler) ResendVerification(w http.ResponseWriter, r *http.Request) {
 
 func (h *Handler) VerifyPage(w http.ResponseWriter, r *http.Request) {
 	// The live address-verification token changes identity data; never compress it.
-	web.NoCompress(w)
+	compress.Skip(w)
 	ctx := r.Context()
 	if r.URL.Query().Get("done") == "1" {
 		web.Render(w, r, h.log, http.StatusOK, layouts.EmailLinkPage(
@@ -1129,7 +1130,7 @@ func (h *Handler) Verify(w http.ResponseWriter, r *http.Request) {
 // it is real.
 func (h *Handler) CompleteRegistrationPage(w http.ResponseWriter, r *http.Request) {
 	// The page carries a live registration token; keep it out of BREACH's reach.
-	web.NoCompress(w)
+	compress.Skip(w)
 	web.Render(w, r, h.log, http.StatusOK, RegisterComplete(
 		RegisterCompleteMeta(r.Context()), RegisterCompleteView{
 			Token: r.URL.Query().Get("token"),
@@ -1143,7 +1144,7 @@ func (h *Handler) CompleteRegistrationPage(w http.ResponseWriter, r *http.Reques
 // sign-in's per-account limit, so this is no second place to guess it.
 func (h *Handler) CompleteRegistration(w http.ResponseWriter, r *http.Request) {
 	// A refused password re-renders the still-live token; never compress it.
-	web.NoCompress(w)
+	compress.Skip(w)
 	if err := web.ParseForm(w, r); err != nil {
 		http.Error(w, "400 "+i18n.T(r.Context(), i18n.KeyFormUnreadable), http.StatusBadRequest)
 		return
