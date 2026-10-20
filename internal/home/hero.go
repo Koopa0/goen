@@ -5,7 +5,7 @@ import (
 	"fmt"
 
 	"github.com/koopa0/goen/assets"
-	"github.com/koopa0/goen/internal/catalog"
+	"github.com/koopa0/goen/internal/campaign"
 	"github.com/koopa0/goen/internal/db"
 	"github.com/koopa0/goen/internal/i18n"
 	"github.com/koopa0/goen/internal/ui/components"
@@ -112,8 +112,8 @@ func (s *Store) campaignStats(ctx context.Context, c *db.ListedCampaignsRow) []c
 	return s.campaignSchedule(ctx, c).Facts
 }
 
-func (s *Store) campaignSchedule(ctx context.Context, c *db.ListedCampaignsRow) catalog.CampaignSchedule {
-	return catalog.NewCampaignSchedule(ctx, c.Title, c.Products, c.StartsAt, c.EndsAt, s.now())
+func (s *Store) campaignSchedule(ctx context.Context, c *db.ListedCampaignsRow) campaign.Schedule {
+	return campaign.NewSchedule(ctx, c.Title, c.Products, c.StartsAt, c.EndsAt, s.now())
 }
 
 // campaignPhoto is a campaign's header photograph, and false when it has none.

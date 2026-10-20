@@ -12,7 +12,7 @@ import (
 	"github.com/google/uuid"
 
 	"github.com/koopa0/goen/assets"
-	"github.com/koopa0/goen/internal/catalog"
+	"github.com/koopa0/goen/internal/campaign"
 	"github.com/koopa0/goen/internal/db"
 	"github.com/koopa0/goen/internal/i18n"
 	"github.com/koopa0/goen/internal/policy"
@@ -159,16 +159,16 @@ func (s *Store) campaignRow(ctx context.Context, c *db.ListedCampaignsRow) (row 
 		return pages.ProductRow{}, false, err
 	}
 	schedule := s.campaignSchedule(ctx, c)
-	campaign := &pages.RowCampaign{
+	rowCampaign := &pages.RowCampaign{
 		Tone:      components.ResolveTone(c.Tone),
 		Items:     c.Products,
 		Facts:     schedule.Facts,
 		CardFacts: schedule.CardFacts(),
 	}
 	if period, ok := components.DayPeriod(ctx, c.Title, c.StartsAt, c.EndsAt, s.now()); ok {
-		campaign.Period = &period
+		rowCampaign.Period = &period
 	}
-	return pages.ProductRow{Title: c.Title, Href: "/s/" + c.Slug, Tiles: tiles, Campaign: campaign}, true, nil
+	return pages.ProductRow{Title: c.Title, Href: "/s/" + c.Slug, Tiles: tiles, Campaign: rowCampaign}, true, nil
 }
 
 // departmentBand rotates by shop day through the departments with enough
@@ -228,9 +228,9 @@ func dayIndex(t time.Time, n int) int {
 	return int(day.Unix()/86400) % n
 }
 
-func (s *Store) tiles(ctx context.Context, campaign, department uuid.NullUUID, limit int32) ([]pages.ProductTile, error) {
+func (s *Store) tiles(ctx context.Context, campaignID, department uuid.NullUUID, limit int32) ([]pages.ProductTile, error) {
 	rows, err := s.q.HomeTiles(ctx, db.HomeTilesParams{
-		Locale: string(i18n.FromContext(ctx)), CampaignID: campaign, DepartmentID: department, MaxTiles: limit,
+		Locale: string(i18n.FromContext(ctx)), CampaignID: campaignID, DepartmentID: department, MaxTiles: limit,
 	})
 	if err != nil {
 		return nil, fmt.Errorf("read home tiles: %w", err)
@@ -247,7 +247,7 @@ func (s *Store) tiles(ctx context.Context, campaign, department uuid.NullUUID, l
 			PriceCents:   t.TilePriceCents,
 			PriceVaries:  t.PriceVaries,
 			CompareCents: t.CompareAtPriceCents.Int64, // 0 when NULL
-			OnSale:       catalog.OnSale(t.InCampaign, t.InStock, t.TilePriceCents, t.CompareAtPriceCents.Int64),
+			OnSale:       campaign.OnSale(t.InCampaign, t.InStock, t.TilePriceCents, t.CompareAtPriceCents.Int64),
 			Rating:       t.Rating,
 			RatingCount:  t.RatingCount,
 			InStock:      t.InStock,

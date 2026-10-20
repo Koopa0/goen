@@ -11,6 +11,7 @@ import (
 	"github.com/jackc/pgx/v5"
 
 	"github.com/koopa0/goen/assets"
+	"github.com/koopa0/goen/internal/campaign"
 	"github.com/koopa0/goen/internal/db"
 	"github.com/koopa0/goen/internal/i18n"
 	"github.com/koopa0/goen/internal/product/labelling"
@@ -101,7 +102,7 @@ func (s *Store) Product(ctx context.Context, slug string, sel Selection) (Produc
 	if err != nil {
 		return ProductView{}, err
 	}
-	view.OnSale = OnSale(view.Campaign.Running(), view.Sellable, view.PriceCents, view.CompareCents)
+	view.OnSale = campaign.OnSale(view.Campaign.Running(), view.Sellable, view.PriceCents, view.CompareCents)
 
 	if err := s.loadDetail(ctx, &p, &view); err != nil {
 		return ProductView{}, err
@@ -323,7 +324,7 @@ func (s *Store) loadOpinion(ctx context.Context, p *db.ProductBySlugRow, view *P
 			Slug: r.Slug, Name: r.Name, Brand: r.Brand,
 			PriceCents: r.MinPriceCents, PriceVaries: r.PriceVaries,
 			CompareCents: r.CompareAtPriceCents.Int64,
-			OnSale:       OnSale(r.InCampaign, r.InStock, r.MinPriceCents, r.CompareAtPriceCents.Int64),
+			OnSale:       campaign.OnSale(r.InCampaign, r.InStock, r.MinPriceCents, r.CompareAtPriceCents.Int64),
 			Rating:       r.Rating, RatingCount: r.RatingCount, InStock: r.InStock, Colours: r.Colours,
 			ImageURL:    photo.URL(),
 			ImageSrcset: photo.Srcset(),
@@ -366,7 +367,7 @@ func (s *Store) boughtTogether(ctx context.Context, productID uuid.UUID) ([]page
 			PriceCents:   r.MinPriceCents,
 			PriceVaries:  r.PriceVaries,
 			CompareCents: r.CompareAtPriceCents.Int64,
-			OnSale:       OnSale(r.InCampaign, r.InStock, r.MinPriceCents, r.CompareAtPriceCents.Int64),
+			OnSale:       campaign.OnSale(r.InCampaign, r.InStock, r.MinPriceCents, r.CompareAtPriceCents.Int64),
 			Rating:       r.Rating,
 			RatingCount:  r.RatingCount,
 			InStock:      r.InStock,

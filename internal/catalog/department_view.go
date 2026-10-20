@@ -4,6 +4,7 @@ import (
 	"context"
 	"strings"
 
+	"github.com/koopa0/goen/internal/campaign"
 	"github.com/koopa0/goen/internal/i18n"
 	"github.com/koopa0/goen/internal/ui/components"
 	"github.com/koopa0/goen/internal/ui/pages"
@@ -50,7 +51,7 @@ func (h *DepartmentHead) Slot() EditorialSlot {
 type DepartmentNotice struct {
 	Title string
 	Href  string
-	End   CampaignEnd
+	End   campaign.End
 }
 
 // ComparePreview is the comparison a comparable department offers: the same table as /compare,

@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/koopa0/goen/assets"
+	"github.com/koopa0/goen/internal/campaign"
 	"github.com/koopa0/goen/internal/cart"
 	"github.com/koopa0/goen/internal/catalog"
 	"github.com/koopa0/goen/internal/i18n"
@@ -121,7 +122,7 @@ func TestStorefrontSectionsAsDrawn(t *testing.T) {
 		if query.Get("notice") == "1" {
 			now := time.Date(2026, 10, 9, 4, 0, 0, 0, time.UTC)
 			head = &catalog.DepartmentHead{Notice: &catalog.DepartmentNotice{
-				Title: "Autumn audio", Href: "/s/autumn", End: catalog.NewCampaignEnd(time.Date(2026, 10, 30, 16, 0, 0, 0, time.UTC), now),
+				Title: "Autumn audio", Href: "/s/autumn", End: campaign.NewEnd(time.Date(2026, 10, 30, 16, 0, 0, 0, time.UTC), now),
 			}}
 		}
 		view := catalog.ListingView{Slug: "phones", Name: names[0], Theme: theme}
