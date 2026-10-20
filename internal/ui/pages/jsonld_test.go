@@ -106,3 +106,22 @@ func TestDollarsIsExact(t *testing.T) {
 		}
 	}
 }
+
+func TestProductJSONLDOmitsAnAbsentBrand(t *testing.T) {
+	for _, brand := range []string{"", "Maker"} {
+		view := ProductView{Slug: "generic", Name: "Generic", Brand: brand, SKU: "GENERIC", PriceCents: 10000}
+		var doc map[string]any
+		if err := json.Unmarshal([]byte(ProductJSONLD(&view, "https://goen.example")), &doc); err != nil {
+			t.Fatal(err)
+		}
+		got, exists := doc["brand"]
+		if exists != (brand != "") {
+			t.Errorf("brand %q: JSON-LD brand present = %t", brand, exists)
+		}
+		if brand != "" {
+			if object, ok := got.(map[string]any); !ok || object["name"] != brand || object["@type"] != "Brand" {
+				t.Errorf("JSON-LD brand = %v, want Maker Brand", got)
+			}
+		}
+	}
+}

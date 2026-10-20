@@ -6,9 +6,9 @@ on:
       - assets/js/goen.js
       - assets/css/app/app.css
       - scripts/popover-focus-check.mjs
-      - internal/ui/pages/listing.templ
+      - internal/catalog/listing.templ
       - internal/ui/layouts/header.templ
-      - internal/ui/pages/popover_native_browser_test.go
+      - internal/catalog/popover_native_browser_test.go
       - scripts/popover-safari-check.mjs
       - .github/workflows/popover-interaction.yml
 
@@ -50,7 +50,7 @@ jobs:
           cat safari.log
           exit 1
       - name: Native pointer and keyboard regression
-        run: go test -count=1 -v -run '^TestPopoverPointerAndFocusInNativeBrowsers$' ./internal/ui/pages
+        run: go test -count=1 -v -run '^TestPopoverPointerAndFocusInNativeBrowsers$' ./internal/catalog
       - name: Keep Safari automation output
         if: always()
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
@@ -87,4 +87,4 @@ jobs:
           cat chrome.log
           exit 1
       - name: Native pointer and keyboard regression
-        run: go test -count=1 -v -run '^TestPopoverPointerAndFocusInNativeBrowsers$' ./internal/ui/pages
+        run: go test -count=1 -v -run '^TestPopoverPointerAndFocusInNativeBrowsers$' ./internal/catalog

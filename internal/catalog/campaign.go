@@ -52,11 +52,11 @@ func OnSale(featured, buyable bool, priceCents, compareCents int64) bool {
 
 // NewCampaignSchedule states a campaign of items products running from startsAt
 // to endsAt, which is exclusive, as it stands at now.
-func NewCampaignSchedule(ctx context.Context, title string, items int64, startsAt, endsAt, now time.Time) pages.CampaignSchedule {
+func NewCampaignSchedule(ctx context.Context, title string, items int64, startsAt, endsAt, now time.Time) CampaignSchedule {
 	state := CampaignStateAt(startsAt, endsAt, now)
 	count := components.Stat{Label: i18n.T(ctx, i18n.KeySlideItems), Value: components.StatCount(items, i18n.T(ctx, i18n.KeyFactUnitItems))}
 	ends := pages.CampaignEndStat(ctx, endsAt, now)
-	schedule := pages.CampaignSchedule{Ends: ends}
+	schedule := CampaignSchedule{Ends: ends}
 
 	switch state {
 	case CampaignNotStarted:
@@ -86,25 +86,25 @@ func NewCampaignSchedule(ctx context.Context, title string, items int64, startsA
 
 // Campaign returns ErrNotFound for a campaign that is switched off. One outside
 // its window is still shown, as not started or ended.
-func (s *Store) Campaign(ctx context.Context, slug string) (pages.CampaignView, error) {
+func (s *Store) Campaign(ctx context.Context, slug string) (CampaignView, error) {
 	c, err := s.q.CampaignBySlug(ctx, db.CampaignBySlugParams{
 		Slug: slug, Locale: string(i18n.FromContext(ctx)),
 	})
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
-			return pages.CampaignView{}, ErrNotFound
+			return CampaignView{}, ErrNotFound
 		}
-		return pages.CampaignView{}, fmt.Errorf("read campaign %q: %w", slug, err)
+		return CampaignView{}, fmt.Errorf("read campaign %q: %w", slug, err)
 	}
 
 	rows, err := s.q.CampaignProducts(ctx, db.CampaignProductsParams{
 		CampaignID: c.ID, Locale: string(i18n.FromContext(ctx)),
 	})
 	if err != nil {
-		return pages.CampaignView{}, fmt.Errorf("read campaign products: %w", err)
+		return CampaignView{}, fmt.Errorf("read campaign products: %w", err)
 	}
 	photo := assets.Image{Digest: c.ImageDigest, BundledKey: c.ImageBundledKey, Width: int(c.ImageWidth)}
-	return pages.CampaignView{
+	return CampaignView{
 		Slug:     c.Slug,
 		Title:    c.Title,
 		Schedule: NewCampaignSchedule(ctx, c.Title, int64(len(rows)), c.StartsAt, c.EndsAt, s.now()),
@@ -127,22 +127,22 @@ func (s *Store) DealsOnOffer(ctx context.Context) (bool, error) {
 	return offered, nil
 }
 
-func (s *Store) ListedCampaigns(ctx context.Context, page int) (pages.CampaignPage, error) {
+func (s *Store) ListedCampaigns(ctx context.Context, page int) (CampaignPage, error) {
 	total, err := s.q.ListedCampaignsCount(ctx)
 	if err != nil {
-		return pages.CampaignPage{}, fmt.Errorf("count campaigns: %w", err)
+		return CampaignPage{}, fmt.Errorf("count campaigns: %w", err)
 	}
 	page = max(1, min(page, maxPage, max(1, int((total+CampaignPageSize-1)/CampaignPageSize))))
-	view := pages.CampaignPage{Page: page, Total: total, PageSize: CampaignPageSize}
+	view := CampaignPage{Page: page, Total: total, PageSize: CampaignPageSize}
 	rows, err := s.q.ListedCampaigns(ctx, db.ListedCampaignsParams{
 		PageSize: CampaignPageSize, PageOffset: int32((page - 1) * CampaignPageSize), Locale: string(i18n.FromContext(ctx)),
 	})
 	if err != nil {
-		return pages.CampaignPage{}, fmt.Errorf("read campaigns: %w", err)
+		return CampaignPage{}, fmt.Errorf("read campaigns: %w", err)
 	}
 	for i := range rows {
 		c := &rows[i]
-		view.Rows = append(view.Rows, pages.CampaignSummary{
+		view.Rows = append(view.Rows, CampaignSummary{
 			Slug: c.Slug, Title: c.Title, Products: c.Products,
 			EndsOn: pages.CampaignEndsOn(ctx, c.EndsAt, s.now()),
 		})
