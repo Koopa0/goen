@@ -10,7 +10,6 @@ import (
 
 	"github.com/koopa0/goen/internal/i18n"
 	"github.com/koopa0/goen/internal/ui/components"
-	"github.com/koopa0/goen/internal/ui/pages"
 )
 
 func previewOf(products int, rows ...CompareRow) CompareView {
@@ -97,7 +96,7 @@ func TestTheCampaignNoticeAppearsOnlyWithACampaign(t *testing.T) {
 	}
 	now := time.Date(2026, 10, 9, 4, 0, 0, 0, time.UTC)
 	ends := time.Date(2026, 10, 30, 16, 0, 0, 0, time.UTC)
-	notice := &DepartmentNotice{Title: "秋日選物", Href: "/s/autumn", End: pages.NewCampaignEnd(ends, now)}
+	notice := &DepartmentNotice{Title: "秋日選物", Href: "/s/autumn", End: NewCampaignEnd(ends, now)}
 	with := renderComponent(t, ctx, Listing(ListingMeta(ctx, view), view, nil, &DepartmentHead{Notice: notice}))
 	for _, want := range []string{`class="goen-deptnotice"`, `aria-label="活動"`, `href="/s/autumn"`, `<time datetime="2026-10-30">`} {
 		if !strings.Contains(with, want) {
@@ -136,7 +135,7 @@ func TestACampaignNoticeSaysItsEndInWords(t *testing.T) {
 		t.Run(tt.name+" "+string(tt.locale), func(t *testing.T) {
 			t.Parallel()
 			ctx := i18n.WithLocale(t.Context(), tt.locale)
-			notice := &DepartmentNotice{Title: "秋日選物", Href: "/s/autumn", End: pages.NewCampaignEnd(tt.ends, now)}
+			notice := &DepartmentNotice{Title: "秋日選物", Href: "/s/autumn", End: NewCampaignEnd(tt.ends, now)}
 			doc, err := html.Parse(strings.NewReader(renderComponent(t, ctx, departmentNotice(notice))))
 			if err != nil {
 				t.Fatal(err)
@@ -180,7 +179,7 @@ func TestTheCampaignNoticeIsTheBandsLastRow(t *testing.T) {
 	ctx := i18n.WithLocale(t.Context(), i18n.ZhHant)
 	view := ListingView{Slug: "c", Name: "Books", Theme: &Theme{Tone: components.ToneSage, Photo: components.Photo{URL: "/d.webp"}}}
 	now := time.Date(2026, 10, 9, 4, 0, 0, 0, time.UTC)
-	notice := &DepartmentNotice{Title: "秋日選物", Href: "/s/autumn", End: pages.NewCampaignEnd(time.Date(2026, 10, 30, 16, 0, 0, 0, time.UTC), now)}
+	notice := &DepartmentNotice{Title: "秋日選物", Href: "/s/autumn", End: NewCampaignEnd(time.Date(2026, 10, 30, 16, 0, 0, 0, time.UTC), now)}
 	doc, err := html.Parse(strings.NewReader(renderComponent(t, ctx, Listing(ListingMeta(ctx, view), view, nil, &DepartmentHead{Notice: notice}))))
 	if err != nil {
 		t.Fatal(err)

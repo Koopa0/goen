@@ -37,6 +37,10 @@ func TestCatalogPagesSendTheirOwnLinkPreviewTags(t *testing.T) {
 				`og:image" content="https://goen.test/static/media/campaigns/autumn.webp?v=1"`,
 			},
 		},
+		"product": {
+			ProductMeta(&ProductView{Name: "Phone", Brand: "goen", Summary: "A phone", Images: []ProductImage{{URL: "/p.webp"}}}),
+			[]string{`og:description" content="A phone"`, `og:image" content="https://goen.test/p.webp"`},
+		},
 	} {
 		head := renderHeadAt(t, ctx, tt.page)
 		for _, want := range append(tt.want,

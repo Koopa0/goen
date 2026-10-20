@@ -16,7 +16,6 @@ import (
 	"github.com/koopa0/goen/internal/i18n"
 	"github.com/koopa0/goen/internal/ratelimit"
 	"github.com/koopa0/goen/internal/ui/layouts"
-	"github.com/koopa0/goen/internal/ui/pages"
 	"github.com/koopa0/goen/internal/user"
 	"github.com/koopa0/goen/internal/web"
 )
@@ -48,17 +47,17 @@ func (h *Handler) Product(w http.ResponseWriter, r *http.Request) {
 		view.Saved = h.store.SavedByUser(r.Context(), u.ID, slug)
 	}
 	h.fillForViewer(r, slug, &view)
-	view.NotifyOutcome = pages.NotifyOutcome(r.URL.Query().Get("notify"))
+	view.NotifyOutcome = NotifyOutcome(r.URL.Query().Get("notify"))
 	view.AskOutcome = r.URL.Query().Get("ask")
 	view.ReviewPosted = r.URL.Query().Get("reviewed") == "1"
 	view.AddedOutcome = item.AddOutcome(r.URL.Query().Get("added"))
 	view.Comparing = boundedSlugs(r.URL.Query()["p"])
-	meta := pages.ProductMeta(&view)
-	meta.StructuredData = pages.JSONLDSet(
-		pages.ProductJSONLD(&view, h.baseURL),
-		pages.BreadcrumbJSONLD(view.CategoryTrail(), view.Name, h.baseURL),
+	meta := ProductMeta(&view)
+	meta.StructuredData = JSONLDSet(
+		ProductJSONLD(&view, h.baseURL),
+		BreadcrumbJSONLD(view.CategoryTrail(), view.Name, h.baseURL),
 	)
-	web.Render(w, r, h.log, http.StatusOK, pages.Product(meta, &view))
+	web.Render(w, r, h.log, http.StatusOK, Product(meta, &view))
 }
 
 func (h *Handler) productNotFound(w http.ResponseWriter, r *http.Request) {
@@ -141,12 +140,12 @@ func (h *Handler) Notify(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if variantID == "" {
-		h.rejectNotify(w, r, slug, addr, pages.NotifyNoOption)
+		h.rejectNotify(w, r, slug, addr, NotifyNoOption)
 		return
 	}
 	// Not a value the form can send: nothing on a page to re-render for.
 	if _, parseErr := uuid.Parse(variantID); parseErr != nil {
-		h.redirectNotified(w, r, slug, pages.NotifyBadAddress)
+		h.redirectNotified(w, r, slug, NotifyBadAddress)
 		return
 	}
 
@@ -155,15 +154,15 @@ func (h *Handler) Notify(w http.ResponseWriter, r *http.Request) {
 	case err == nil && accountEmail != "" && strings.EqualFold(email.Clean(addr), accountEmail):
 		// Never the typed address in the query string: anybody could put text
 		// on the confirmation that way.
-		h.redirectNotified(w, r, slug, pages.NotifyRecordedForAccount)
+		h.redirectNotified(w, r, slug, NotifyRecordedForAccount)
 	case err == nil:
-		h.redirectNotified(w, r, slug, pages.NotifyRecorded)
+		h.redirectNotified(w, r, slug, NotifyRecorded)
 	case errors.Is(err, ErrNotifyInvalid):
 		// Two causes, two messages: an address goen will not mail, or a variant
 		// that no longer needs a notice (back in stock, or gone).
-		outcome := pages.NotifyVariantUnavailable
+		outcome := NotifyVariantUnavailable
 		if !email.Valid(email.Clean(addr)) {
-			outcome = pages.NotifyBadAddress
+			outcome = NotifyBadAddress
 		}
 		h.rejectNotify(w, r, slug, addr, outcome)
 	default:
@@ -175,7 +174,7 @@ func (h *Handler) Notify(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-func (h *Handler) redirectNotified(w http.ResponseWriter, r *http.Request, slug string, outcome pages.NotifyOutcome) {
+func (h *Handler) redirectNotified(w http.ResponseWriter, r *http.Request, slug string, outcome NotifyOutcome) {
 	q := url.Values{}
 	for k, v := range ParseSelection(r.URL.Query()) {
 		q.Set(k, v)
@@ -184,7 +183,7 @@ func (h *Handler) redirectNotified(w http.ResponseWriter, r *http.Request, slug 
 	http.Redirect(w, r, "/p/"+url.PathEscape(slug)+"?"+q.Encode(), http.StatusSeeOther)
 }
 
-func (h *Handler) rejectNotify(w http.ResponseWriter, r *http.Request, slug, addr string, outcome pages.NotifyOutcome) {
+func (h *Handler) rejectNotify(w http.ResponseWriter, r *http.Request, slug, addr string, outcome NotifyOutcome) {
 	view, err := h.store.Product(r.Context(), slug, ParseSelection(r.URL.Query()))
 	if err != nil {
 		if errors.Is(err, ErrNotFound) {
@@ -202,7 +201,7 @@ func (h *Handler) rejectNotify(w http.ResponseWriter, r *http.Request, slug, add
 	view.NotifyOutcome = outcome
 	view.NotifyEmail = addr
 	web.Render(w, r, h.log, http.StatusUnprocessableEntity,
-		pages.Product(pages.ProductMeta(&view), &view))
+		Product(ProductMeta(&view), &view))
 }
 
 func (h *Handler) rejectReview(w http.ResponseWriter, r *http.Request, slug string, review *Review, errs map[string]i18n.Key) {
@@ -220,14 +219,14 @@ func (h *Handler) rejectReview(w http.ResponseWriter, r *http.Request, slug stri
 	for field, k := range errs {
 		view.ReviewErrors[field] = i18n.T(r.Context(), k)
 	}
-	view.ReviewDraft = pages.ReviewDraft{
+	view.ReviewDraft = ReviewDraft{
 		Rating: int(review.Rating), Title: review.Title, Body: review.Body,
 	}
 	web.Render(w, r, h.log, http.StatusUnprocessableEntity,
-		pages.Product(pages.ProductMeta(&view), &view))
+		Product(ProductMeta(&view), &view))
 }
 
-func (h *Handler) fillForViewer(r *http.Request, slug string, view *pages.ProductView) {
+func (h *Handler) fillForViewer(r *http.Request, slug string, view *ProductView) {
 	u, signedIn := user.FromContext(r.Context())
 	view.SignedIn, view.AccountEmail = signedIn, u.Email
 	if !signedIn {
@@ -304,17 +303,17 @@ func (h *Handler) rejectAsk(w http.ResponseWriter, r *http.Request, slug, body, 
 	view.AskOutcome = outcome
 	view.AskDraft = body
 	web.Render(w, r, h.log, http.StatusUnprocessableEntity,
-		pages.Product(pages.ProductMeta(&view), &view))
+		Product(ProductMeta(&view), &view))
 }
 
 func boundedSlugs(raw []string) []string {
-	out := make([]string, 0, pages.MaxCompare)
+	out := make([]string, 0, MaxCompare)
 	for _, s := range raw {
 		if !web.ValidSlug(s) || slices.Contains(out, s) {
 			continue
 		}
 		out = append(out, s)
-		if len(out) == pages.MaxCompare {
+		if len(out) == MaxCompare {
 			break
 		}
 	}

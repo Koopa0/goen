@@ -7,7 +7,6 @@ import (
 
 	"github.com/koopa0/goen/internal/i18n"
 	"github.com/koopa0/goen/internal/ui/layouts"
-	"github.com/koopa0/goen/internal/ui/pages"
 )
 
 // The cap is written once, in MaxCompare; every sentence that names it is
@@ -15,7 +14,7 @@ import (
 func TestTheCompareCapIsSaidFromMaxCompareInBothLanguages(t *testing.T) {
 	t.Parallel()
 
-	most := strconv.Itoa(pages.MaxCompare)
+	most := strconv.Itoa(MaxCompare)
 	for _, tt := range []struct {
 		locale i18n.Locale
 		hint   string
