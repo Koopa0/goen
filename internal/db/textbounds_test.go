@@ -72,7 +72,7 @@ var textBounds = []textBound{
 	{constraint: "product_images_alt_bounded", file: "internal/admin/products/image.go", name: "MaxAltRunes"},
 	{constraint: "product_images_alt_en_bounded", file: "internal/admin/products/image.go", name: "MaxAltRunes"},
 	{constraint: "product_variants_sku_bounded", file: "internal/admin/products/variant.go", name: "maxSKURunes"},
-	{constraint: "product_answers_body_bounded", file: "internal/admin/feedback/question.go", name: "MaxStaffAnswerRunes"},
+	{constraint: "product_answers_body_bounded", file: "internal/admin/questions/question.go", name: "MaxStaffAnswerRunes"},
 	{constraint: "sale_campaigns_title_bounded", file: "internal/admin/campaigns/campaign.go", name: "MaxTitleRunes"},
 	{constraint: "sale_campaigns_title_en_bounded", file: "internal/admin/campaigns/campaign.go", name: "MaxTitleRunes"},
 	{constraint: "sale_campaigns_image_alt_bounded", file: "internal/admin/campaigns/campaign.go", name: "MaxAltRunes"},

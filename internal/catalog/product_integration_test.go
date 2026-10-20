@@ -22,7 +22,7 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 
 	"github.com/koopa0/goen/assets"
-	"github.com/koopa0/goen/internal/admin/feedback"
+	"github.com/koopa0/goen/internal/admin/questions"
 	"github.com/koopa0/goen/internal/admin/stock"
 	"github.com/koopa0/goen/internal/catalog"
 	"github.com/koopa0/goen/internal/db/dbtest"
@@ -1583,7 +1583,7 @@ func payFor(t *testing.T, orderID uuid.UUID) {
 func TestAStaffAnswerStaysStaffWhenTheAuthorChangesRole(t *testing.T) {
 	ctx := t.Context()
 	s := catalog.NewStore(pool, slog.New(slog.DiscardHandler))
-	back := feedback.NewStore(pool)
+	back := questions.NewStore(pool)
 	slug := anyActiveProduct(t)
 	customer := newCustomer(t)
 	// Keep another administrator on the roster so changing the answer author's
@@ -1677,9 +1677,9 @@ func TestAHiddenQuestionDisappearsWithItsAnswers(t *testing.T) {
 
 	staff := newShopAuthor(t)
 	staffCtx := user.NewContext(ctx, user.User{ID: staff, Role: user.RoleAdmin})
-	back := feedback.NewStore(pool)
-	if err := back.AnswerQuestion(staffCtx, qID, staff, "太遲了"); !errors.Is(err, feedback.ErrNotFound) {
-		t.Errorf("a hidden question's new answer = %v, want feedback.ErrNotFound", err)
+	back := questions.NewStore(pool)
+	if err := back.AnswerQuestion(staffCtx, qID, staff, "太遲了"); !errors.Is(err, questions.ErrNotFound) {
+		t.Errorf("a hidden question's new answer = %v, want questions.ErrNotFound", err)
 	}
 }
 
