@@ -68,7 +68,7 @@ func (s *Store) AddStaff(ctx context.Context, address, name, role string) (bool,
 	}
 
 	var cleared bool
-	err = s.write(ctx, audit.ActionGrantStaff, func(ctx context.Context, q *db.Queries) (uuid.UUID, any, error) {
+	err = s.write(ctx, audit.ActionGrantStaff, func(ctx context.Context, q *db.Queries) (uuid.UUID, audit.State, error) {
 		credentialCleared, target, promoteErr := promoteStaff(ctx, q, address, name, role)
 		if promoteErr != nil {
 			return uuid.UUID{}, nil, promoteErr
@@ -77,7 +77,7 @@ func (s *Store) AddStaff(ctx context.Context, address, name, role string) (bool,
 		if enqueueErr := enqueueStaffInvitation(ctx, q, target.ID); enqueueErr != nil {
 			return uuid.UUID{}, nil, enqueueErr
 		}
-		return target.ID, map[string]string{"role": target.Role}, nil
+		return target.ID, audit.State{audit.FieldRole: target.Role}, nil
 	})
 	if err != nil {
 		return false, err
@@ -123,7 +123,7 @@ func (s *Store) RevokeStaff(ctx context.Context, userID string) error {
 		return ErrSelf
 	}
 
-	return s.write(ctx, audit.ActionRevokeStaff, func(ctx context.Context, q *db.Queries) (uuid.UUID, any, error) {
+	return s.write(ctx, audit.ActionRevokeStaff, func(ctx context.Context, q *db.Queries) (uuid.UUID, audit.State, error) {
 		revoked, revokeErr := q.RevokeStaff(ctx, target)
 		if revokeErr != nil {
 			return uuid.UUID{}, nil, fmt.Errorf("revoke staff: %w", revokeErr)
@@ -138,7 +138,7 @@ func (s *Store) RevokeStaff(ctx context.Context, userID string) error {
 		if lookupErr != nil {
 			return uuid.UUID{}, nil, fmt.Errorf("read revoked staff: %w", lookupErr)
 		}
-		return target, map[string]string{"role": row.Role}, nil
+		return target, audit.State{audit.FieldRole: row.Role}, nil
 	})
 }
 
@@ -158,7 +158,7 @@ func (s *Store) RemoveFactor(ctx context.Context, userID string) error {
 		return ErrSelf
 	}
 
-	return s.write(ctx, audit.ActionRemoveStaffFactor, func(ctx context.Context, q *db.Queries) (uuid.UUID, any, error) {
+	return s.write(ctx, audit.ActionRemoveStaffFactor, func(ctx context.Context, q *db.Queries) (uuid.UUID, audit.State, error) {
 		removed, removeErr := q.RemoveTOTPAndSessions(ctx, target)
 		if removeErr != nil {
 			return uuid.UUID{}, nil, fmt.Errorf("remove totp and end its sessions: %w", removeErr)
@@ -181,7 +181,7 @@ func (s *Store) RemoveFactor(ctx context.Context, userID string) error {
 func (s *Store) write(
 	ctx context.Context,
 	action audit.Action,
-	work func(context.Context, *db.Queries) (target uuid.UUID, after any, err error),
+	work func(context.Context, *db.Queries) (target uuid.UUID, after audit.State, err error),
 ) error {
 	tx, err := s.pool.Begin(ctx)
 	if err != nil {

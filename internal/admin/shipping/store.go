@@ -157,10 +157,10 @@ func (s *Store) PublishShippingVersion(ctx context.Context, v ShippingVersion) e
 		Action: audit.ActionPublishShipping, Table: "shipping_method_versions",
 		ID:     audit.EntityID(id),
 		Before: nil,
-		After: map[string]any{
-			"method_id": v.MethodID, "name": name, "carrier": carrierName,
-			"name_en": nameEn, "carrier_en": carrierEn,
-			"fee_cents": feeDollars * 100, "free_over_cents": freeOverDollars * 100,
+		After: audit.State{
+			audit.FieldMethodID: v.MethodID, audit.FieldName: name, audit.FieldCarrier: carrierName,
+			audit.FieldNameEn: nameEn, audit.FieldCarrierEn: carrierEn,
+			audit.FieldFeeCents: feeDollars * 100, audit.FieldFreeOverCents: freeOverDollars * 100,
 		},
 	},
 		func(ctx context.Context, q *db.Queries) error {
@@ -221,9 +221,9 @@ func (s *Store) SetZoneSurcharge(ctx context.Context, versionID, zoneID string, 
 		Action: audit.ActionSetSurcharge, Table: "shipping_version_zones",
 		ID:     audit.EntityID(vid),
 		Before: nil,
-		After: map[string]any{
-			"version_id": versionID, "zone_id": zoneID,
-			"surcharge_cents": dollars * 100,
+		After: audit.State{
+			audit.FieldVersionID: versionID, audit.FieldZoneID: zoneID,
+			audit.FieldSurchargeCents: dollars * 100,
 		},
 	},
 		func(ctx context.Context, q *db.Queries) error {
@@ -349,9 +349,9 @@ func (s *Store) CreateMethod(ctx context.Context, m *NewMethod) (map[string]stri
 func (s *Store) insertMethod(ctx context.Context, m *NewMethod) error {
 	return audit.Run(ctx, s.pool, audit.Event{
 		Action: audit.ActionCreateShippingMethod, Table: "shipping_methods",
-		After: map[string]any{
-			"code": m.Code, "destination_kind": m.Destination,
-			"name": m.Name, "fee_cents": m.FeeDollars * 100,
+		After: audit.State{
+			audit.FieldCode: m.Code, audit.FieldDestinationKind: m.Destination,
+			audit.FieldName: m.Name, audit.FieldFeeCents: m.FeeDollars * 100,
 		},
 	}, func(ctx context.Context, q *db.Queries) error {
 		methodID, insErr := q.CreateShippingMethod(ctx, db.CreateShippingMethodParams{
@@ -402,7 +402,7 @@ func (s *Store) SetMethodActive(ctx context.Context, id string, active bool) err
 	return audit.Run(ctx, s.pool, audit.Event{
 		Action: audit.ActionToggleShippingMethod, Table: "shipping_methods",
 		ID:    audit.EntityID(methodID),
-		After: map[string]any{"active": active},
+		After: audit.State{audit.FieldActive: active},
 	}, func(ctx context.Context, q *db.Queries) error {
 		n, execErr := q.SetShippingMethodActive(ctx, db.SetShippingMethodActiveParams{
 			MethodID: methodID, IsActive: active,

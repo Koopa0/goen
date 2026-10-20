@@ -78,9 +78,9 @@ func (s *Store) CreateTier(
 	return audit.Run(ctx, s.pool, audit.Event{
 		Action: audit.ActionCreateTier, Table: "membership_tiers",
 		Before: nil,
-		After: map[string]any{
-			"code": code, "name": name, "name_en": nameEn,
-			"min_spend_cents": thresholdDollars * 100, "multiplier_bp": multiplierBP,
+		After: audit.State{
+			audit.FieldCode: code, audit.FieldName: name, audit.FieldNameEn: nameEn,
+			audit.FieldMinSpendCents: thresholdDollars * 100, audit.FieldMultiplierBP: multiplierBP,
 		},
 	},
 		func(ctx context.Context, q *db.Queries) error {
@@ -103,7 +103,7 @@ func (s *Store) DeleteTier(ctx context.Context, id string) error {
 	}
 	return audit.Run(ctx, s.pool, audit.Event{
 		Action: audit.ActionDeleteTier, Table: "membership_tiers", ID: audit.EntityID(tierID),
-		Before: map[string]any{"id": id}, After: nil,
+		Before: audit.State{audit.FieldID: id}, After: nil,
 	},
 		func(ctx context.Context, q *db.Queries) error {
 			n, delErr := q.DeleteMembershipTier(ctx, tierID)

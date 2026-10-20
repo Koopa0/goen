@@ -68,9 +68,9 @@ func (s *Store) ReleasePaymentEventAfterRefundOrAccounting(
 	}
 	return audit.Run(ctx, s.pool, audit.Event{
 		Action: audit.ActionReconcilePayment, Table: "payment_webhook_events", ID: uuid.NullUUID{},
-		After: map[string]any{
-			"event":      eventID,
-			"resolution": "fully_refunded_or_already_accounted",
+		After: audit.State{
+			audit.FieldEvent:      eventID,
+			audit.FieldResolution: "fully_refunded_or_already_accounted",
 		},
 	}, func(ctx context.Context, q *db.Queries) error {
 		reconciled, err := q.ReleasePaymentEvent(ctx, eventID)
@@ -101,9 +101,9 @@ func (s *Store) ReconcileCompletePayment(
 
 	event := audit.Event{
 		Action: audit.ActionReconcilePayment, Table: "payments", ID: uuid.NullUUID{},
-		After: map[string]any{
-			"provider_ref": providerRef,
-			"resolution":   resolution.auditValue(),
+		After: audit.State{
+			audit.FieldProviderRef: providerRef,
+			audit.FieldResolution:  resolution.auditValue(),
 		},
 	}
 
