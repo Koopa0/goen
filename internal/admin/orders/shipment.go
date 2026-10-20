@@ -49,8 +49,8 @@ func (s *Store) DeliverShipment(ctx context.Context, number string, shipmentID u
 	}
 	if err := audit.In(ctx, q, audit.Event{
 		Action: audit.ActionDeliverShipment, Table: "order_shipments", ID: audit.EntityID(shipmentID),
-		Before: map[string]any{"delivered_at": nil},
-		After:  map[string]any{"carrier": parcel.Carrier, "tracking": parcel.TrackingNumber, "delivered_at": shoptime.Minute(delivered.Time)},
+		Before: audit.State{audit.FieldDeliveredAt: nil},
+		After:  audit.State{audit.FieldCarrier: parcel.Carrier, audit.FieldTracking: parcel.TrackingNumber, audit.FieldDeliveredAt: shoptime.Minute(delivered.Time)},
 	}); err != nil {
 		return err
 	}

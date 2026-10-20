@@ -72,8 +72,8 @@ func (s *Store) ComposeNewsletter(ctx context.Context, subject, body string, act
 		return "", fmt.Errorf("composing an issue: %w", err)
 	}
 
-	after, err := json.Marshal(map[string]any{
-		"issue_id": id.String(), "subject": subject,
+	after, err := json.Marshal(audit.State{
+		audit.FieldIssueID: id.String(), audit.FieldSubject: subject,
 	})
 	if err != nil {
 		return "", fmt.Errorf("encoding the audit row: %w", err)
@@ -157,8 +157,8 @@ func (s *Store) SendNewsletter(ctx context.Context, issueID string, actor uuid.N
 
 	// The subject travels and the body does not: audit_events is append-only
 	// and erase_user does not reach it.
-	after, err := json.Marshal(map[string]any{
-		"issue_id": issueID, "subject": issue.Subject, "recipients": len(subscribers),
+	after, err := json.Marshal(audit.State{
+		audit.FieldIssueID: issueID, audit.FieldSubject: issue.Subject, audit.FieldRecipients: len(subscribers),
 	})
 	if err != nil {
 		return 0, fmt.Errorf("encoding the audit row: %w", err)

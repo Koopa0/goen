@@ -372,7 +372,7 @@ func (s *Store) Advance(ctx context.Context, number string, status order.Fulfill
 	}
 	if err := audit.In(ctx, q, audit.Event{
 		Action: audit.ActionAdvanceOrder, Table: "orders", ID: audit.EntityID(row.ID),
-		Before: nil, After: map[string]any{"number": number, "status": string(status)},
+		Before: nil, After: audit.State{audit.FieldNumber: number, audit.FieldStatus: string(status)},
 	}); err != nil {
 		return nil, err
 	}
@@ -743,7 +743,7 @@ func (s *Store) Ship(ctx context.Context, number string, d Dispatch, actor uuid.
 	}
 	if err := audit.In(ctx, q, audit.Event{
 		Action: audit.ActionShipOrder, Table: "orders", ID: audit.EntityID(row.ID),
-		Before: nil, After: map[string]any{"carrier": string(carrierCode), "tracking": tracking},
+		Before: nil, After: audit.State{audit.FieldCarrier: string(carrierCode), audit.FieldTracking: tracking},
 	}); err != nil {
 		return err
 	}
@@ -898,7 +898,7 @@ func (s *Store) SetStaffNote(ctx context.Context, number, note string) error {
 	}
 	// The append-only trail outlives erasure, so it records the operation and
 	// order number without retaining another copy of the note.
-	if err := audit.In(ctx, q, audit.Event{Action: action, Table: "orders", ID: audit.EntityID(prior.ID), After: map[string]any{"number": number}}); err != nil {
+	if err := audit.In(ctx, q, audit.Event{Action: action, Table: "orders", ID: audit.EntityID(prior.ID), After: audit.State{audit.FieldNumber: number}}); err != nil {
 		return err
 	}
 	if err := tx.Commit(ctx); err != nil {

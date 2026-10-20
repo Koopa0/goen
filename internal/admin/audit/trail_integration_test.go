@@ -100,7 +100,7 @@ func TestACustomerViewNamesTheCustomerUntilTheAccountIsErased(t *testing.T) {
 	customerID := admintest.Customer(t, pool)
 	err := audit.Run(ctx, pool, audit.Event{
 		Action: audit.ActionViewCustomer, Table: "users", ID: audit.EntityID(customerID),
-		After: map[string]any{"user_id": customerID.String()},
+		After: audit.State{audit.FieldUserID: customerID.String()},
 	}, func(context.Context, *db.Queries) error { return nil })
 	if err != nil {
 		t.Fatalf("record customer.view: %v", err)

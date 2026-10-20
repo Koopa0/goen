@@ -342,9 +342,9 @@ func recordStaffCancellation(
 	}
 	err = audit.In(ctx, q, audit.Event{
 		Action: audit.ActionAdvanceOrder, Table: "orders", ID: audit.EntityID(orderID),
-		After: map[string]any{
-			"number": number, "status": string(order.FulfillmentCancelled),
-			"return_request_id": returnID.String(),
+		After: audit.State{
+			audit.FieldNumber: number, audit.FieldStatus: string(order.FulfillmentCancelled),
+			audit.FieldReturnRequestID: returnID.String(),
 		},
 	})
 	if err != nil {
@@ -412,9 +412,9 @@ func (s *Store) cancelCreditPaid(ctx context.Context, number, reason string, act
 	}
 	err = audit.In(ctx, q, audit.Event{
 		Action: audit.ActionAdvanceOrder, Table: "orders", ID: audit.EntityID(orderID),
-		After: map[string]any{
-			"number": number, "status": string(order.FulfillmentCancelled),
-			"note": note, "credit_returned_cents": returnedCents,
+		After: audit.State{
+			audit.FieldNumber: number, audit.FieldStatus: string(order.FulfillmentCancelled),
+			audit.FieldNote: note, audit.FieldCreditReturnedCents: returnedCents,
 		},
 	})
 	if err != nil {

@@ -1,7 +1,12 @@
 package audit
 
 import (
+	"go/ast"
+	"go/parser"
+	"go/token"
 	stdhtml "html"
+	"path/filepath"
+	"strconv"
 	"strings"
 	"testing"
 
@@ -14,7 +19,13 @@ import (
 // audit_events is append-only and erase_user does not reach it, so a pair
 // stays here after the code stops writing it (users.email: staff rows hold
 // only role since #1897, older rows still hold the address). Never delete a
-// row; add one, with its label, in the PR that first writes the key.
+// row; add one, with its label, in the PR that first writes the pair.
+//
+// What holds it: a Go writer can record only a declared Field, and
+// TestEveryFieldIsInTheLedger needs every Field's key in some row here; SQL
+// writers are read pair by pair (TestAuditSQLProducerFieldsAreInTheLedger).
+// Nothing checks the table a Go writer records a Field under, so a desk that
+// records an existing Field on a new table adds that row by hand.
 //
 // products.domestic_party_name/_phone/_address are the product's legally
 // required labelling party (an importer or maker named on the package), not a
@@ -235,4 +246,77 @@ func TestEveryAuditLabelIsInTheLedger(t *testing.T) {
 			t.Errorf("audit label %q has no row in auditLedger: audit_events keeps old rows forever, so the ledger must keep the key", key)
 		}
 	}
+	// 166 rows on 6ba69813; the ledger only grows.
+	if len(auditLedger) < 166 {
+		t.Errorf("auditLedger has %d rows, want at least 166: a row was deleted", len(auditLedger))
+	}
+}
+
+// TestEveryFieldIsInTheLedger holds the keys a Go writer can record to the
+// ledger, which gives each a label on /admin/audit. A Field misspelt where it
+// is declared would store a new key under an old name; it fails here.
+func TestEveryFieldIsInTheLedger(t *testing.T) {
+	t.Parallel()
+	fields := make(map[string]bool, len(auditLedger))
+	for _, row := range auditLedger {
+		fields[row.field] = true
+	}
+	keys := declaredFields(t)
+	// 94 on 6ba69813; a parser that stops matching must not pass over nothing.
+	if len(keys) < 94 {
+		t.Fatalf("found %d Fields, want at least 94: the parser is not reading their declarations", len(keys))
+	}
+	seen := make(map[string]bool, len(keys))
+	for _, key := range keys {
+		if seen[key] {
+			t.Errorf("two Fields store %q: one key, one Field", key)
+		}
+		seen[key] = true
+		if !fields[key] {
+			t.Errorf("Field %q has no row in auditLedger: add one for each table that records it, with its label", key)
+		}
+	}
+}
+
+// declaredFields is the key of every Field this package's source makes.
+// Field{"key"} is the only way to make one with a key.
+func declaredFields(t *testing.T) []string {
+	t.Helper()
+	paths, err := filepath.Glob("*.go")
+	if err != nil {
+		t.Fatal(err)
+	}
+	var keys []string
+	for _, path := range paths {
+		if strings.HasSuffix(path, "_test.go") {
+			continue
+		}
+		file, err := parser.ParseFile(token.NewFileSet(), path, nil, 0)
+		if err != nil {
+			t.Fatal(err)
+		}
+		ast.Inspect(file, func(node ast.Node) bool {
+			literal, ok := node.(*ast.CompositeLit)
+			if !ok {
+				return true
+			}
+			if name, isName := literal.Type.(*ast.Ident); !isName || name.Name != "Field" {
+				return true
+			}
+			var key *ast.BasicLit
+			if len(literal.Elts) == 1 {
+				key, _ = literal.Elts[0].(*ast.BasicLit)
+			}
+			if key == nil || key.Kind != token.STRING {
+				t.Fatalf("%s: a Field is made from something other than one string literal", path)
+			}
+			text, err := strconv.Unquote(key.Value)
+			if err != nil {
+				t.Fatal(err)
+			}
+			keys = append(keys, text)
+			return true
+		})
+	}
+	return keys
 }
