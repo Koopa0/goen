@@ -602,7 +602,7 @@
 
   /*
    * A field that carries a rule says so in its markup (data-rule, a pattern, the
-   * message the server would give), all written from internal/fieldrule so the
+   * message the server would give), all written from internal/ui/fieldrule so the
    * browser and the server cannot hold two opinions. This only reads them.
    *
    * A field is checked when the shopper leaves it, never while a fresh one is
