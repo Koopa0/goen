@@ -48,7 +48,7 @@ func TestThePoliciesStateTheSchemasCheckoutWindows(t *testing.T) {
 			message i18n.Key
 		}{
 			{"/shipping", h.Shipping, i18n.KeyShippingHoldBody},
-			{"/payment", h.Policy, i18n.KeyPolicyPaymentHold},
+			{"/payment", h.DocPage, i18n.KeyPolicyPaymentHold},
 		} {
 			req := httptest.NewRequestWithContext(ctx, http.MethodGet, tc.path, http.NoBody)
 			res := httptest.NewRecorder()

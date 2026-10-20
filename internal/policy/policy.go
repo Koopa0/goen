@@ -34,16 +34,16 @@ func NewHandler(store *Store, log *slog.Logger) *Handler {
 // at its key in policies.
 func (h *Handler) Routes(mux *http.ServeMux) {
 	mux.HandleFunc("GET /shipping", h.Shipping)
-	mux.HandleFunc("GET /returns", h.Policy)
-	mux.HandleFunc("GET /payment", h.Policy)
-	mux.HandleFunc("GET /warranty", h.Policy)
-	mux.HandleFunc("GET /privacy", h.Policy)
-	mux.HandleFunc("GET /terms", h.Policy)
+	mux.HandleFunc("GET /returns", h.DocPage)
+	mux.HandleFunc("GET /payment", h.DocPage)
+	mux.HandleFunc("GET /warranty", h.DocPage)
+	mux.HandleFunc("GET /privacy", h.DocPage)
+	mux.HandleFunc("GET /terms", h.DocPage)
 }
 
 // Shipping reads the same rows checkout charges from.
 func (h *Handler) Shipping(w http.ResponseWriter, r *http.Request) {
-	methods, err := h.store.ShippingPolicy(r.Context())
+	methods, err := h.store.ShippingMethods(r.Context())
 	if err != nil {
 		h.log.ErrorContext(r.Context(), "read shipping policy", "error", err)
 		h.serverError(w, r)
@@ -63,7 +63,7 @@ func (h *Handler) Shipping(w http.ResponseWriter, r *http.Request) {
 		}, view))
 }
 
-func (h *Handler) Policy(w http.ResponseWriter, r *http.Request) {
+func (h *Handler) DocPage(w http.ResponseWriter, r *http.Request) {
 	doc, ok := policies[strings.TrimPrefix(r.URL.Path, "/")]
 	if !ok {
 		h.notFound(w, r)
@@ -79,12 +79,12 @@ func (h *Handler) Policy(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 	doc = doc.For(i18n.FromContext(r.Context()), windows)
-	web.Render(w, r, h.log, http.StatusOK, Policy(
+	web.Render(w, r, h.log, http.StatusOK, DocPage(
 		layouts.Page{Title: doc.Title, Description: doc.Summary}, doc))
 }
 
 // notFound is the shop's 404 page, as site.Handler.NotFound renders it. Only a
-// path routed to Policy without a document reaches it, which
+// path routed to DocPage without a document reaches it, which
 // TestEveryPolicyRouteHasADocument refuses.
 func (h *Handler) notFound(w http.ResponseWriter, r *http.Request) {
 	web.Render(w, r, h.log, http.StatusNotFound, layouts.Notice(

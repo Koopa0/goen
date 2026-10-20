@@ -30,7 +30,7 @@ func (s *Store) WithoutPickup() *Store {
 	return &c
 }
 
-func (s *Store) ShippingPolicy(ctx context.Context) ([]ShippingMethod, error) {
+func (s *Store) ShippingMethods(ctx context.Context) ([]ShippingMethod, error) {
 	rows, err := s.q.ShippingPolicy(ctx, db.ShippingPolicyParams{
 		Locale: string(i18n.FromContext(ctx)), WithPickup: !s.noPickup,
 	})

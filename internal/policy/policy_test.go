@@ -270,11 +270,11 @@ func sqlStringAfter(t *testing.T, src, marker string) string {
 // TestEveryPolicyRouteHasADocument proves every routed policy resolves, and
 // every document is reachable.
 func TestEveryPolicyRouteHasADocument(t *testing.T) {
-	// The paths cmd/goen registers to Policy, which a test here cannot read.
+	// The paths cmd/goen registers to DocPage, which a test here cannot read.
 	routed := []string{"returns", "payment", "warranty", "privacy", "terms"}
 	for _, path := range routed {
 		if _, ok := policies[path]; !ok {
-			t.Errorf("/%s is routed to Policy and has no document; it would render "+
+			t.Errorf("/%s is routed to DocPage and has no document; it would render "+
 				"the 404 the footer links to", path)
 		}
 	}
@@ -516,7 +516,7 @@ func renderReturnsPolicy(t *testing.T, locale i18n.Locale) string {
 	}
 	doc = doc.For(locale, testWindows)
 	var b strings.Builder
-	if err := Policy(
+	if err := DocPage(
 		layouts.Page{Title: doc.Title, Description: doc.Summary},
 		doc,
 	).Render(i18n.WithLocale(t.Context(), locale), &b); err != nil {
