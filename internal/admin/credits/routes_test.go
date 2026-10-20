@@ -14,5 +14,5 @@ func TestEveryRouteRefusesAnOutsider(t *testing.T) {
 	log := slog.New(slog.DiscardHandler)
 	accesstest.RefuseOutsiders(t, func(mux *http.ServeMux, ac *access.Control) {
 		NewHandler(&Store{}, log).Routes(mux, ac)
-	}, "GET /admin/credit", "POST /admin/credit")
+	}, "GET /admin/credits", "POST /admin/credits")
 }

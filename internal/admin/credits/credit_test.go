@@ -153,7 +153,7 @@ func TestCreditRunningTotalNamesItsOrder(t *testing.T) {
 			t.Errorf("%s one customer's ledger repeats the customer column", locale.Tag())
 		}
 		body := renderComponent(t, ctx, Credit(layouts.Page{}, view))
-		for _, want := range []string{`<td class="goen-admin__cellnum">NT$100</td>`, `href="/admin/customers/customer-a">Ada</a>`, `href="/admin/credit">` + html.EscapeString(i18n.T(ctx, i18n.KeyAdminCreditAllCustomers))} {
+		for _, want := range []string{`<td class="goen-admin__cellnum">NT$100</td>`, `href="/admin/customers/customer-a">Ada</a>`, `href="/admin/credits">` + html.EscapeString(i18n.T(ctx, i18n.KeyAdminCreditAllCustomers))} {
 			if !strings.Contains(body, want) {
 				t.Errorf("%s one customer's ledger lacks %q", locale.Tag(), want)
 			}

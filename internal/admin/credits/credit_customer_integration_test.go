@@ -93,7 +93,7 @@ func TestStoreCreditPagesOneCustomer(t *testing.T) {
 		return res
 	}
 	for _, locale := range i18n.Locales() {
-		first := get("/admin/credit?customer="+customerID.String(), locale)
+		first := get("/admin/credits?customer="+customerID.String(), locale)
 		body := first.Body.String()
 		if first.Code != http.StatusOK {
 			t.Fatalf("%s filtered desk = %d", locale.Tag(), first.Code)
@@ -114,7 +114,7 @@ func TestStoreCreditPagesOneCustomer(t *testing.T) {
 			t.Errorf("%s second page lost the customer or the oldest total: %d", locale.Tag(), second.Code)
 		}
 
-		whole := get("/admin/credit", locale).Body.String()
+		whole := get("/admin/credits", locale).Body.String()
 		if strings.Contains(whole, i18n.T(i18n.WithLocale(ctx, locale), i18n.KeyAdminCreditRunningTotal)) {
 			t.Errorf("%s desk for every customer shows the running total column", locale.Tag())
 		}

@@ -33,8 +33,8 @@ func NewHandler(store *Store, log *slog.Logger) *Handler {
 }
 
 func (h *Handler) Routes(mux *http.ServeMux, ac *access.Control) {
-	mux.HandleFunc("GET /admin/credit", ac.RequireStaff(h.Credit))
-	mux.HandleFunc("POST /admin/credit", ac.RequireStaff(h.GrantCredit))
+	mux.HandleFunc("GET /admin/credits", ac.RequireStaff(h.Credit))
+	mux.HandleFunc("POST /admin/credits", ac.RequireStaff(h.GrantCredit))
 }
 
 var notices = map[string]components.NoticeEntry{
@@ -120,7 +120,7 @@ func creditNotice(r *http.Request) components.Result {
 	}
 }
 
-// GrantCredit serves POST /admin/credit. The amount is typed in DOLLARS and
+// GrantCredit serves POST /admin/credits. The amount is typed in DOLLARS and
 // stored in cents.
 func (h *Handler) GrantCredit(w http.ResponseWriter, r *http.Request) {
 	if err := web.ParseForm(w, r); err != nil {
@@ -166,16 +166,16 @@ func (h *Handler) GrantCredit(w http.ResponseWriter, r *http.Request) {
 	case err == nil:
 		// The balance travels as a number and never the address it belongs to,
 		// because a query string is logged.
-		target := "/admin/credit?ok=1&balance=" + strconv.FormatInt(balance, 10)
+		target := "/admin/credits?ok=1&balance=" + strconv.FormatInt(balance, 10)
 		if view.FilterCustomerID != "" {
 			target += "&customer=" + view.FilterCustomerID
 		}
 		http.Redirect(w, r, target, http.StatusSeeOther)
 	case errors.Is(err, ErrInvalid):
-		http.Redirect(w, r, "/admin/credit?creditneeds=1", http.StatusSeeOther)
+		http.Redirect(w, r, "/admin/credits?creditneeds=1", http.StatusSeeOther)
 	case errors.Is(err, ErrRefused):
 		h.log.WarnContext(r.Context(), "credit grant refused", "error", err)
-		http.Redirect(w, r, "/admin/credit?refused=1", http.StatusSeeOther)
+		http.Redirect(w, r, "/admin/credits?refused=1", http.StatusSeeOther)
 	default:
 		h.log.ErrorContext(r.Context(), "grant credit", "error", err)
 		access.ServerError(w, r, h.log)

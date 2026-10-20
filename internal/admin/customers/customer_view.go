@@ -105,7 +105,7 @@ func (v CustomerView) TierSentence(ctx context.Context) string {
 func (v CustomerView) HasOrders() bool { return len(v.Recent) > 0 }
 
 // CreditHref is the credit desk narrowed to this customer.
-func (v CustomerView) CreditHref() string { return keyset.ScopeURL("/admin/credit", "customer", v.ID) }
+func (v CustomerView) CreditHref() string { return keyset.ScopeURL("/admin/credits", "customer", v.ID) }
 
 // GrantCreditHref opens the same view at the grant form, where the customer's email is already filled in.
 func (v CustomerView) GrantCreditHref() string { return v.CreditHref() + "#credit-email" }

@@ -135,7 +135,7 @@ func TestStoreCreditReversedCommits(t *testing.T) {
 			t.Errorf("%s recorded-order totals=%+v,want grant/300 then spend/-700", locale, view.Postings)
 		}
 		response := httptest.NewRecorder()
-		desk.ServeHTTP(response, httptest.NewRequestWithContext(readCtx, http.MethodGet, "/admin/credit?customer="+customer.String(), http.NoBody))
+		desk.ServeHTTP(response, httptest.NewRequestWithContext(readCtx, http.MethodGet, "/admin/credits?customer="+customer.String(), http.NoBody))
 		body := html.UnescapeString(response.Body.String())
 		if response.Code != http.StatusOK || !strings.Contains(body, i18n.T(readCtx, i18n.KeyAdminCreditRunningTotal)) || !strings.Contains(body, i18n.T(readCtx, i18n.KeyAdminCreditLedgerOrder)) {
 			t.Errorf("%s ledger GET does not explain its accounting-order totals: %d", locale, response.Code)

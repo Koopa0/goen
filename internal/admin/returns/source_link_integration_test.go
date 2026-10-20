@@ -62,7 +62,7 @@ func TestHandlerQueueFromCreditPosting(t *testing.T) {
 	}
 	credit := credits.NewHandler(credits.NewStore(appPool), slog.New(slog.DiscardHandler))
 	for _, locale := range i18n.Locales() {
-		get := httptest.NewRequestWithContext(i18n.WithLocale(ctx, locale), http.MethodGet, "/admin/credit?customer="+customerID.String(), http.NoBody)
+		get := httptest.NewRequestWithContext(i18n.WithLocale(ctx, locale), http.MethodGet, "/admin/credits?customer="+customerID.String(), http.NoBody)
 		page := httptest.NewRecorder()
 		admintest.BackOffice.RequireStaff(credit.Credit)(page, get)
 		for _, href := range []string{"/admin/orders/" + number, "/admin/returns?request=" + first.String()} {

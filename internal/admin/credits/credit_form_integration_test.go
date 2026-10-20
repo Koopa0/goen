@@ -55,16 +55,16 @@ func TestTheCreditFormCarriesItsOperationThroughReviewToTheBalanceNotice(t *test
 		return w
 	}
 
-	blank := serve(http.MethodGet, "/admin/credit", nil, h.Credit)
+	blank := serve(http.MethodGet, "/admin/credits", nil, h.Credit)
 	if blank.Code != http.StatusOK {
-		t.Fatalf("GET /admin/credit answered %d, want 200", blank.Code)
+		t.Fatalf("GET /admin/credits answered %d, want 200", blank.Code)
 	}
 	operation := hiddenField(t, blank.Body.String(), "operation_id")
 	if _, err := uuid.Parse(operation); err != nil {
 		t.Fatalf("the blank form issued operation_id %q, want a UUID: %v", operation, err)
 	}
 
-	review := serve(http.MethodPost, "/admin/credit", url.Values{
+	review := serve(http.MethodPost, "/admin/credits", url.Values{
 		"operation_id": {operation}, "email": {email}, "amount": {"125"}, "reason": {"Courtesy credit"},
 	}, h.GrantCredit)
 	if review.Code != http.StatusOK {
@@ -74,7 +74,7 @@ func TestTheCreditFormCarriesItsOperationThroughReviewToTheBalanceNotice(t *test
 		t.Fatalf("the review step carries operation_id %q, want the one issued: %q", got, operation)
 	}
 
-	confirmed := serve(http.MethodPost, "/admin/credit", url.Values{
+	confirmed := serve(http.MethodPost, "/admin/credits", url.Values{
 		"operation_id": {hiddenField(t, review.Body.String(), "operation_id")},
 		"customer_id":  {hiddenField(t, review.Body.String(), "customer_id")},
 		"email":        {hiddenField(t, review.Body.String(), "email")},
@@ -85,7 +85,7 @@ func TestTheCreditFormCarriesItsOperationThroughReviewToTheBalanceNotice(t *test
 	if confirmed.Code != http.StatusSeeOther {
 		t.Fatalf("the confirmed grant answered %d, want 303; body=%s", confirmed.Code, confirmed.Body.String())
 	}
-	if got, want := confirmed.Header().Get("Location"), "/admin/credit?ok=1&balance=12500"; got != want {
+	if got, want := confirmed.Header().Get("Location"), "/admin/credits?ok=1&balance=12500"; got != want {
 		t.Errorf("the confirmed grant redirects to %q, want %q", got, want)
 	}
 }

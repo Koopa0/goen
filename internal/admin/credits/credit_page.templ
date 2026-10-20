@@ -24,7 +24,7 @@ templ Credit(p layouts.Page, v CreditView) {
 			<p class="goen-admin__hint">
 				<a href={ templ.SafeURL("/admin/customers/" + v.FilterCustomerID) }>{ v.FilterCustomerName }</a>
 				<span aria-hidden="true">{ " · " }</span>
-				<a href="/admin/credit">{ i18n.T(ctx, i18n.KeyAdminCreditAllCustomers) }</a>
+				<a href="/admin/credits">{ i18n.T(ctx, i18n.KeyAdminCreditAllCustomers) }</a>
 			</p>
 		}
 		@components.Card(components.CardProps{Class: "goen-admin__op"}) {
@@ -48,7 +48,7 @@ templ Credit(p layouts.Page, v CreditView) {
 						<dd class="ui-dl__desc">{ v.Reason }</dd>
 					</div>
 				</dl>
-				<form method="post" action="/admin/credit" class="goen-admin__form">
+				<form method="post" action="/admin/credits" class="goen-admin__form">
 					<input type="hidden" name="operation_id" value={ v.OperationID }/>
 					<input type="hidden" name="filter_customer" value={ v.FilterCustomerID }/>
 					<input type="hidden" name="customer_id" value={ v.CustomerID }/>
@@ -64,7 +64,7 @@ templ Credit(p layouts.Page, v CreditView) {
 				</form>
 			} else {
 				<h2 class="goen-admin__optitle">{ i18n.T(ctx, i18n.KeyAdminCreditGrant) }</h2>
-				<form class="goen-admin__form goen-admin__grant" method="post" action="/admin/credit">
+				<form class="goen-admin__form goen-admin__grant" method="post" action="/admin/credits">
 					<input type="hidden" name="operation_id" value={ v.OperationID }/>
 					<input type="hidden" name="filter_customer" value={ v.FilterCustomerID }/>
 					<div class="ui-field">

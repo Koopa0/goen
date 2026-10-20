@@ -79,11 +79,11 @@ func TestTheCreditHistoryLabelsAPostingByItsKindAndShowsAGrantsOwnWords(t *testi
 	h := credits.NewHandler(s, slog.New(slog.DiscardHandler))
 	read := func(locale i18n.Locale) []string {
 		t.Helper()
-		req := httptest.NewRequestWithContext(i18n.WithLocale(ctx, locale), http.MethodGet, "/admin/credit", nil)
+		req := httptest.NewRequestWithContext(i18n.WithLocale(ctx, locale), http.MethodGet, "/admin/credits", nil)
 		w := httptest.NewRecorder()
 		admintest.BackOffice.RequireStaff(h.Credit)(w, req)
 		if w.Code != http.StatusOK {
-			t.Fatalf("GET /admin/credit answered %d, want 200", w.Code)
+			t.Fatalf("GET /admin/credits answered %d, want 200", w.Code)
 		}
 		var labels []string
 		for _, cells := range ledgerCells(t, w.Body.String()) {

@@ -13,7 +13,7 @@ func TestEveryRedirectTheFormsMakeCarriesAMessage(t *testing.T) {
 		t.Fatalf("read handler.go: %v", err)
 	}
 	sent := map[string]bool{}
-	for _, m := range regexp.MustCompile(`/admin/credit\?(?:[a-z]+=[^&"]+&)*([a-z]+)=1`).FindAllStringSubmatch(string(src), -1) {
+	for _, m := range regexp.MustCompile(`/admin/credits\?(?:[a-z]+=[^&"]+&)*([a-z]+)=1`).FindAllStringSubmatch(string(src), -1) {
 		sent[m[1]] = true
 	}
 	if len(sent) == 0 {
