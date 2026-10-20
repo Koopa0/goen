@@ -1,4 +1,4 @@
-package content
+package newsletters
 
 import (
 	"strings"

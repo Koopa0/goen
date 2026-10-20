@@ -1,6 +1,6 @@
 //go:build integration
 
-package content_test
+package newsletters_test
 
 import (
 	"log/slog"
@@ -15,9 +15,8 @@ import (
 	"golang.org/x/net/html"
 
 	"github.com/koopa0/goen/internal/admin/admintest"
-	"github.com/koopa0/goen/internal/admin/content"
+	"github.com/koopa0/goen/internal/admin/newsletters"
 	"github.com/koopa0/goen/internal/i18n"
-	"github.com/koopa0/goen/internal/media"
 )
 
 func TestNewsletterCompositionAcceptsItsFullTextLimits(t *testing.T) {
@@ -32,7 +31,7 @@ func TestNewsletterCompositionAcceptsItsFullTextLimits(t *testing.T) {
 			ctx, _ := admintest.StaffContext(t, pool)
 			p := admintest.AdminRolePool(t, pool)
 			log := slog.New(slog.DiscardHandler)
-			h := content.NewHandler(newStore(p), media.NewHandler(media.NewStore(p), log), log)
+			h := newsletters.NewHandler(newsletters.NewStore(p), log)
 			mux := http.NewServeMux()
 			h.Routes(mux, admintest.BackOffice)
 			subject := uuid.NewString()[:8] + strings.Repeat(tt.text, 112)
@@ -42,11 +41,11 @@ func TestNewsletterCompositionAcceptsItsFullTextLimits(t *testing.T) {
 			if len(encoded) <= 65536 {
 				t.Fatal("fixture does not exceed the old form cap")
 			}
-			req := httptest.NewRequestWithContext(ctx, http.MethodPost, "/admin/newsletter", strings.NewReader(encoded))
+			req := httptest.NewRequestWithContext(ctx, http.MethodPost, "/admin/newsletters", strings.NewReader(encoded))
 			req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
 			res := httptest.NewRecorder()
 			mux.ServeHTTP(res, req)
-			if res.Code != http.StatusSeeOther || res.Header().Get("Location") != "/admin/newsletter?saved=1" {
+			if res.Code != http.StatusSeeOther || res.Header().Get("Location") != "/admin/newsletters?saved=1" {
 				t.Fatalf("legal newsletter status/location=%d/%q, want 303 saved", res.Code, res.Header().Get("Location"))
 			}
 			var savedSubject, savedBody string
@@ -65,7 +64,7 @@ func TestNewsletterCompositionAcceptsItsFullTextLimits(t *testing.T) {
 				refusedBody := strings.Repeat(tt.text, 20001)
 				form.Set("subject", refusedSubject)
 				form.Set("body", refusedBody)
-				req = httptest.NewRequestWithContext(i18n.WithLocale(ctx, locale), http.MethodPost, "/admin/newsletter", strings.NewReader(form.Encode()))
+				req = httptest.NewRequestWithContext(i18n.WithLocale(ctx, locale), http.MethodPost, "/admin/newsletters", strings.NewReader(form.Encode()))
 				req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
 				res = httptest.NewRecorder()
 				mux.ServeHTTP(res, req)

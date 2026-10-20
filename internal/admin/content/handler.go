@@ -7,7 +7,6 @@ import (
 	"net/http"
 
 	"github.com/koopa0/goen/internal/admin/access"
-	"github.com/koopa0/goen/internal/admin/audit"
 	"github.com/koopa0/goen/internal/i18n"
 	"github.com/koopa0/goen/internal/keyset"
 	"github.com/koopa0/goen/internal/media"
@@ -35,9 +34,6 @@ func (h *Handler) Routes(mux *http.ServeMux, ac *access.Control) {
 	mux.HandleFunc("POST /admin/faq/{id}", ac.RequireStaff(h.EditFAQ))
 	mux.HandleFunc("POST /admin/faq/categories", ac.RequireStaff(h.CreateFAQCategory))
 	mux.HandleFunc("POST /admin/faq/categories/{id}", ac.RequireStaff(h.EditFAQCategory))
-	mux.HandleFunc("GET /admin/newsletter", ac.RequireStaff(h.Newsletter))
-	mux.HandleFunc("POST /admin/newsletter", ac.RequireStaff(h.ComposeNewsletter))
-	mux.HandleFunc("POST /admin/newsletter/{id}/send", ac.RequireStaff(h.SendNewsletter))
 	mux.HandleFunc("GET /admin/home", ac.RequireStaff(h.Home))
 	mux.HandleFunc("POST /admin/home", ac.RequireStaff(h.CreateHero))
 	mux.HandleFunc("POST /admin/home/banner", ac.RequireStaff(h.CreateBanner))
@@ -49,9 +45,6 @@ func (h *Handler) Routes(mux *http.ServeMux, ac *access.Control) {
 var notices = map[string]components.NoticeEntry{
 	"ok":      components.NoticeDone(i18n.KeyAdminNoticeOK),
 	"refused": components.NoticeRefused(i18n.KeyAdminNoticeRefused),
-	"saved":   components.NoticeDone(i18n.KeyAdminNoticeSaved),
-	"sent":    components.NoticeDone(i18n.KeyAdminNoticeSent),
-	"already": components.NoticeDone(i18n.KeyAdminNoticeAlready),
 	"inuse":   components.NoticeRefused(i18n.KeyAdminFaqpCategoryInUse),
 }
 
@@ -439,83 +432,4 @@ func (h *Handler) PromoteHero(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	h.answerRowWrite(w, r, "promote hero slide", "/admin/home", h.store.PromoteHeroSlide(r.Context(), r.PathValue("id")))
-}
-
-const NewsletterIssueLimit = 50
-
-func (h *Handler) Newsletter(w http.ResponseWriter, r *http.Request) {
-	view, err := h.newsletterView(r)
-	if err != nil {
-		h.log.ErrorContext(r.Context(), "read the newsletter", "error", err)
-		access.ServerError(w, r, h.log)
-		return
-	}
-	view.Notice = components.NoticeFrom(r, notices)
-	web.Render(w, r, h.log, http.StatusOK, Newsletter(
-		layouts.Page{Title: i18n.T(r.Context(), i18n.KeyAdminPageNewsletter)}, view))
-}
-
-// ComposeNewsletter writes a DRAFT and sends nothing: the irreversible step gets its own button.
-func (h *Handler) ComposeNewsletter(w http.ResponseWriter, r *http.Request) {
-	if err := web.ParseLongTextForm(w, r, MaxNewsletterSubjectRunes+MaxNewsletterBodyRunes); err != nil {
-		http.Error(w, i18n.T(r.Context(), i18n.KeyAdminBadForm), http.StatusBadRequest)
-		return
-	}
-	subject, body := r.PostFormValue("subject"), r.PostFormValue("body")
-
-	if keys := validateNewsletter(subject, body); len(keys) > 0 {
-		view, err := h.newsletterView(r)
-		if err != nil {
-			h.log.ErrorContext(r.Context(), "read the newsletter", "error", err)
-			access.ServerError(w, r, h.log)
-			return
-		}
-		view.Draft = NewsletterDraft{Subject: subject, Body: body}
-		view.Errors = make(map[string]string, len(keys))
-		for field, k := range keys {
-			view.Errors[field] = i18n.T(r.Context(), k)
-		}
-		web.Render(w, r, h.log, http.StatusUnprocessableEntity, Newsletter(
-			layouts.Page{Title: i18n.T(r.Context(), i18n.KeyAdminPageNewsletter)}, view))
-		return
-	}
-
-	if _, err := h.store.ComposeNewsletter(r.Context(), subject, body, audit.ActorID(r.Context())); err != nil {
-		h.log.ErrorContext(r.Context(), "compose a newsletter issue", "error", err)
-		access.ServerError(w, r, h.log)
-		return
-	}
-	http.Redirect(w, r, "/admin/newsletter?saved=1", http.StatusSeeOther)
-}
-
-// SendNewsletter relies on the store refusing a second send in the UPDATE's own
-// WHERE clause, because a reload is not the only way two of these arrive.
-func (h *Handler) SendNewsletter(w http.ResponseWriter, r *http.Request) {
-	switch _, err := h.store.SendNewsletter(r.Context(), r.PathValue("id"), audit.ActorID(r.Context())); {
-	case err == nil:
-		http.Redirect(w, r, "/admin/newsletter?sent=1", http.StatusSeeOther)
-	case errors.Is(err, ErrAlreadySent):
-		http.Redirect(w, r, "/admin/newsletter?already=1", http.StatusSeeOther)
-	case errors.Is(err, ErrNotFound):
-		access.NotFound(w, r, h.log)
-	default:
-		h.log.ErrorContext(r.Context(), "send a newsletter issue", "error", err)
-		access.ServerError(w, r, h.log)
-	}
-}
-
-func (h *Handler) newsletterView(r *http.Request) (NewsletterView, error) {
-	counts, err := h.store.SubscriberCounts(r.Context())
-	if err != nil {
-		return NewsletterView{}, err
-	}
-	issues, err := h.store.NewsletterIssues(r.Context(), NewsletterIssueLimit)
-	if err != nil {
-		return NewsletterView{}, err
-	}
-	return NewsletterView{
-		Active: counts.Active, Unsubscribed: counts.Unsubscribed, Awaiting: counts.Awaiting,
-		EnglishActive: counts.EnglishActive,
-		Issues:        issues,
-	}, nil
 }

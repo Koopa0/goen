@@ -1,6 +1,6 @@
 //go:build integration
 
-package content_test
+package newsletters_test
 
 import (
 	"log/slog"
@@ -15,10 +15,9 @@ import (
 	"github.com/google/uuid"
 
 	"github.com/koopa0/goen/internal/admin/admintest"
-	"github.com/koopa0/goen/internal/admin/content"
+	"github.com/koopa0/goen/internal/admin/newsletters"
 	"github.com/koopa0/goen/internal/db/dbtest"
 	"github.com/koopa0/goen/internal/i18n"
-	"github.com/koopa0/goen/internal/media"
 	"github.com/koopa0/goen/internal/outbox"
 )
 
@@ -38,16 +37,16 @@ func TestNewsletterAudienceUsesOnlyActiveSubscribers(t *testing.T) {
 		VALUES ('waiting@example.com', decode(repeat('ab', 32), 'hex'), now() + interval '1 day')`); err != nil {
 		t.Fatal(err)
 	}
-	letters := newStore(admin)
+	letters := newsletters.NewStore(admin)
 	counts, countErr := letters.SubscriberCounts(ctx)
 	if countErr != nil {
 		t.Fatal(countErr)
 	}
-	if diff := cmp.Diff(content.SubscriberCounts{Active: 3, EnglishActive: 1, Unsubscribed: 2, Awaiting: 1}, counts); diff != "" {
+	if diff := cmp.Diff(newsletters.SubscriberCounts{Active: 3, EnglishActive: 1, Unsubscribed: 2, Awaiting: 1}, counts); diff != "" {
 		t.Fatalf("newsletter counts (-want +got):\n%s", diff)
 	}
 	log := slog.New(slog.DiscardHandler)
-	handler := content.NewHandler(letters, media.NewHandler(media.NewStore(admin), log), log)
+	handler := newsletters.NewHandler(letters, log)
 	mux := http.NewServeMux()
 	handler.Routes(mux, admintest.BackOffice)
 	for _, locale := range []struct {
@@ -60,12 +59,12 @@ func TestNewsletterAudienceUsesOnlyActiveSubscribers(t *testing.T) {
 		t.Run(locale.locale.Tag(), func(t *testing.T) {
 			localized := i18n.WithLocale(ctx, locale.locale)
 			get := httptest.NewRecorder()
-			mux.ServeHTTP(get, httptest.NewRequestWithContext(localized, http.MethodGet, "/admin/newsletter", nil))
+			mux.ServeHTTP(get, httptest.NewRequestWithContext(localized, http.MethodGet, "/admin/newsletters", nil))
 			if get.Code != http.StatusOK || !strings.Contains(get.Body.String(), locale.want) {
 				t.Errorf("newsletter GET status/body=%d/%s, want audience %q", get.Code, get.Body.String(), locale.want)
 			}
 			form := url.Values{"subject": {""}, "body": {" Draft body kept "}}
-			request := httptest.NewRequestWithContext(localized, http.MethodPost, "/admin/newsletter", strings.NewReader(form.Encode()))
+			request := httptest.NewRequestWithContext(localized, http.MethodPost, "/admin/newsletters", strings.NewReader(form.Encode()))
 			request.Header.Set("Content-Type", "application/x-www-form-urlencoded")
 			post := httptest.NewRecorder()
 			mux.ServeHTTP(post, request)

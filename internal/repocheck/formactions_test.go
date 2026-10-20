@@ -13,6 +13,7 @@ import (
 	"github.com/koopa0/goen/internal/admin/content"
 	"github.com/koopa0/goen/internal/admin/coupons"
 	"github.com/koopa0/goen/internal/admin/feedback"
+	"github.com/koopa0/goen/internal/admin/newsletters"
 	"github.com/koopa0/goen/internal/admin/products"
 	"github.com/koopa0/goen/internal/admin/refunds"
 	"github.com/koopa0/goen/internal/admin/returns"
@@ -69,7 +70,7 @@ func methodFormActions(t *testing.T) map[string][]string {
 		"internal/admin/feedback/message_page.templ:templ.SafeURL(m.Action())":                               {(feedback.Message{}).Action(), (feedback.Message{Handled: true}).Action()},
 		"internal/admin/feedback/review_page.templ:templ.SafeURL(r.Action())":                                {(feedback.Review{}).Action(), (feedback.Review{Hidden: true}).Action()},
 		"internal/admin/coupons/page.templ:templ.SafeURL(c.Action())":                                        {(coupons.Coupon{Code: "coupon"}).Action()},
-		"internal/admin/content/newsletter_page.templ:templ.SafeURL(issue.SendAction())":                     {(content.NewsletterIssue{ID: "issue"}).SendAction()},
+		"internal/admin/newsletters/newsletter_page.templ:templ.SafeURL(issue.SendAction())":                 {(newsletters.NewsletterIssue{ID: "issue"}).SendAction()},
 		"internal/admin/campaigns/page.templ:templ.SafeURL(c.ToggleAction())":                                {(campaigns.CampaignRow{Slug: "campaign"}).ToggleAction()},
 		"internal/admin/campaigns/page.templ:templ.SafeURL(v.FeatureAction())":                               {(&campaigns.CampaignView{Slug: "campaign"}).FeatureAction()},
 		"internal/admin/content/home_page.templ:templ.SafeURL(slide.PromoteAction())":                        {(content.HeroSlide{ID: "slide"}).PromoteAction()},

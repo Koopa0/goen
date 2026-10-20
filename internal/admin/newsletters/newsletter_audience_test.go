@@ -1,4 +1,4 @@
-package content
+package newsletters
 
 import (
 	"strings"
@@ -25,7 +25,7 @@ func TestNewsletterComposeStatesBothAudienceCounts(t *testing.T) {
 			t.Parallel()
 			ctx := i18n.WithLocale(t.Context(), tt.locale)
 			body := renderComponent(t, ctx, Newsletter(layouts.Page{}, NewsletterView{Active: tt.active, EnglishActive: tt.english, Awaiting: 98, Unsubscribed: 76}))
-			if !strings.Contains(body, `id="newsletter-audience">`+tt.want+`</p>`) || !strings.Contains(body, `action="/admin/newsletter" aria-describedby="newsletter-audience"`) {
+			if !strings.Contains(body, `id="newsletter-audience">`+tt.want+`</p>`) || !strings.Contains(body, `action="/admin/newsletters" aria-describedby="newsletter-audience"`) {
 				t.Errorf("newsletter compose lacks its described audience %q", tt.want)
 			}
 		})

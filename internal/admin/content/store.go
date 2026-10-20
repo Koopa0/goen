@@ -1,5 +1,5 @@
 // Package content is the back office's shop-window copy: the home page's hero
-// slides and promo banner, the FAQ, and the newsletter composer.
+// slides and promo banner, and the FAQ.
 package content
 
 import (

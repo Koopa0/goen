@@ -2553,13 +2553,13 @@ VALUES ('a0000001-0000-4000-8000-000000000000', 1, repeat('購', 200), 'grant:sc
 		accept:     `INSERT INTO contact_messages (name, email, subject, message) VALUES ('王小明', 'ming@example.com', 'order', repeat('詢', 2000));`,
 	},
 	{
-		// content.MaxNewsletterSubjectRunes, counted in characters, not bytes.
+		// newsletters.MaxNewsletterSubjectRunes, counted in characters, not bytes.
 		constraint: "newsletter_issues_subject_bounded",
 		reject:     `INSERT INTO newsletter_issues (subject, body) VALUES (repeat('主', 121), '內容');`,
 		accept:     `INSERT INTO newsletter_issues (subject, body) VALUES (repeat('主', 120), '內容');`,
 	},
 	{
-		// content.MaxNewsletterBodyRunes, counted in characters, not bytes.
+		// newsletters.MaxNewsletterBodyRunes, counted in characters, not bytes.
 		constraint: "newsletter_issues_body_bounded",
 		reject:     `INSERT INTO newsletter_issues (subject, body) VALUES ('主旨', repeat('內', 20001));`,
 		accept:     `INSERT INTO newsletter_issues (subject, body) VALUES ('主旨', repeat('內', 20000));`,

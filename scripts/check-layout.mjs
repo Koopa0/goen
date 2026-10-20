@@ -349,8 +349,8 @@ const ADMIN = [
   { label: 'admin customer 1440', width: 1440, height: 900, path: '/admin/customers/CUSTOMER_ID', marker: '.goen-chartmeter' },
   { label: 'admin messages 375', width: 375, height: 812, path: '/admin/messages', marker: '.goen-admin__returns' },
   { label: 'admin messages 1440', width: 1440, height: 900, path: '/admin/messages', marker: '.goen-admin__returns' },
-  { label: 'admin newsletter 375', width: 375, height: 812, path: '/admin/newsletter', marker: '.goen-admin' },
-  { label: 'admin newsletter 1440', width: 1440, height: 900, path: '/admin/newsletter', marker: '.goen-admin' },
+  { label: 'admin newsletters 375', width: 375, height: 812, path: '/admin/newsletters', marker: '.goen-admin' },
+  { label: 'admin newsletters 1440', width: 1440, height: 900, path: '/admin/newsletters', marker: '.goen-admin' },
   { label: 'admin questions 1440', width: 1440, height: 900, path: '/admin/questions', marker: '.goen-admin__questions' },
   // /admin/warranty lists NOTHING until somebody searches — the /admin/customers
   // rule, because these rows carry a customer's name beside what they own. So the

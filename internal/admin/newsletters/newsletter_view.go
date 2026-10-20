@@ -1,4 +1,4 @@
-package content
+package newsletters
 
 import (
 	"strconv"
@@ -52,7 +52,7 @@ func (i NewsletterIssue) RecipientsText() string {
 	return strconv.FormatInt(int64(i.Recipients), 10)
 }
 
-func (i NewsletterIssue) SendAction() string { return "/admin/newsletter/" + i.ID + "/send" }
+func (i NewsletterIssue) SendAction() string { return "/admin/newsletters/" + i.ID + "/send" }
 
 func (i NewsletterIssue) Preview() string {
 	const limit = 80

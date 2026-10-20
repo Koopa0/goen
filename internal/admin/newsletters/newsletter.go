@@ -1,4 +1,4 @@
-package content
+package newsletters
 
 import (
 	"context"
@@ -25,7 +25,7 @@ const (
 	MaxNewsletterBodyRunes    = 20000
 )
 
-var ErrAlreadySent = errors.New("content: that newsletter issue has already been sent")
+var ErrAlreadySent = errors.New("newsletters: that newsletter issue has already been sent")
 
 func validateNewsletter(subject, body string) map[string]i18n.Key {
 	errs := map[string]i18n.Key{}

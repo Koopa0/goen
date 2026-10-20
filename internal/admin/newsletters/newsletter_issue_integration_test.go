@@ -1,6 +1,6 @@
 //go:build integration
 
-package content_test
+package newsletters_test
 
 import (
 	"context"
@@ -14,7 +14,7 @@ import (
 	"github.com/jackc/pgx/v5/pgconn"
 
 	"github.com/koopa0/goen/internal/admin/audit"
-	"github.com/koopa0/goen/internal/admin/content"
+	"github.com/koopa0/goen/internal/admin/newsletters"
 	"github.com/koopa0/goen/internal/newsletter"
 	"github.com/koopa0/goen/internal/outbox"
 )
@@ -54,7 +54,7 @@ func tokenFor(t *testing.T, topic, email, field string) string {
 func TestASentIssueReachesEveryoneOnTheListExactlyOnce(t *testing.T) {
 	emptyList(t)
 	ctx := t.Context()
-	s := newStore(pool)
+	s := newsletters.NewStore(pool)
 
 	stay, left := addr(t), addr(t)
 	joinList(t, stay)
@@ -95,7 +95,7 @@ func TestASentIssueReachesEveryoneOnTheListExactlyOnce(t *testing.T) {
 func TestAnIssueIsSentOnceUnderConcurrency(t *testing.T) {
 	emptyList(t)
 	ctx := t.Context()
-	s := newStore(pool)
+	s := newsletters.NewStore(pool)
 	joinList(t, addr(t))
 
 	id, err := s.ComposeNewsletter(ctx, "只送一次", "內容。", staffActor(t))
@@ -118,7 +118,7 @@ func TestAnIssueIsSentOnceUnderConcurrency(t *testing.T) {
 			switch {
 			case err == nil:
 				sent++
-			case errors.Is(err, content.ErrAlreadySent):
+			case errors.Is(err, newsletters.ErrAlreadySent):
 			default:
 				others = append(others, err)
 			}
@@ -154,7 +154,7 @@ func TestABulkSendWaitsBehindTransactionalMail(t *testing.T) {
 	emptyList(t)
 	emptyOutbox(t)
 	ctx := t.Context()
-	s := newStore(pool)
+	s := newsletters.NewStore(pool)
 	for range 3 {
 		joinList(t, addr(t))
 	}
@@ -218,7 +218,7 @@ func TestABulkSendWaitsBehindTransactionalMail(t *testing.T) {
 func TestASentIssueCannotBeRewritten(t *testing.T) {
 	emptyList(t)
 	ctx := t.Context()
-	s := newStore(pool)
+	s := newsletters.NewStore(pool)
 	joinList(t, addr(t))
 
 	id, err := s.ComposeNewsletter(ctx, "原本的主旨", "原本的內容。", staffActor(t))
@@ -277,7 +277,7 @@ func joinList(t *testing.T, email string) string {
 func TestASecondSendIsRefusedSequentially(t *testing.T) {
 	emptyList(t)
 	ctx := t.Context()
-	s := newStore(pool)
+	s := newsletters.NewStore(pool)
 	joinList(t, addr(t))
 
 	id, err := s.ComposeNewsletter(ctx, "序列送兩次", "內容。", staffActor(t))
@@ -287,7 +287,7 @@ func TestASecondSendIsRefusedSequentially(t *testing.T) {
 	if _, sendErr := s.SendNewsletter(ctx, id, staffActor(t)); sendErr != nil {
 		t.Fatalf("first Send: %v", sendErr)
 	}
-	if _, sendErr := s.SendNewsletter(ctx, id, staffActor(t)); !errors.Is(sendErr, content.ErrAlreadySent) {
+	if _, sendErr := s.SendNewsletter(ctx, id, staffActor(t)); !errors.Is(sendErr, newsletters.ErrAlreadySent) {
 		t.Errorf("second Send = %v, want ErrAlreadySent", sendErr)
 	}
 }
@@ -309,7 +309,7 @@ func staffActor(t *testing.T) uuid.NullUUID {
 func TestASendNeedsAnActor(t *testing.T) {
 	emptyList(t)
 	ctx := t.Context()
-	s := newStore(pool)
+	s := newsletters.NewStore(pool)
 	subscriber := addr(t)
 	joinList(t, subscriber)
 
@@ -330,7 +330,7 @@ func TestASendNeedsAnActor(t *testing.T) {
 // because erase_user cannot reach that table.
 func TestComposeRecordsWhoWroteTheDraft(t *testing.T) {
 	ctx := t.Context()
-	s := newStore(pool)
+	s := newsletters.NewStore(pool)
 	actor := staffActor(t)
 	const subject = "本月草稿"
 	const body = "這段不得寫進 audit_events。"
@@ -373,7 +373,7 @@ func TestComposeRecordsWhoWroteTheDraft(t *testing.T) {
 
 func TestComposeNeedsAnActor(t *testing.T) {
 	ctx := t.Context()
-	s := newStore(pool)
+	s := newsletters.NewStore(pool)
 	const subject = "沒有操作者的草稿"
 
 	id, err := s.ComposeNewsletter(ctx, subject, "內容。", uuid.NullUUID{})
@@ -398,7 +398,7 @@ func TestComposeNeedsAnActor(t *testing.T) {
 
 func TestComposeLeavesNeitherRowWhenAuditFails(t *testing.T) {
 	ctx := t.Context()
-	s := newStore(pool)
+	s := newsletters.NewStore(pool)
 	subject := "不得落地 " + uuid.NewString()[:8]
 	missing := uuid.NullUUID{UUID: uuid.New(), Valid: true}
 
@@ -433,7 +433,7 @@ func TestComposeLeavesNeitherRowWhenAuditFails(t *testing.T) {
 func TestAnIssueCopyKeepsItsDedupeKey(t *testing.T) {
 	emptyList(t)
 	ctx := t.Context()
-	s := newStore(pool)
+	s := newsletters.NewStore(pool)
 	subscriber := addr(t)
 	const token = "issue-key-golden-unsubscribe-token-0001"
 	if _, err := pool.Exec(ctx, `
