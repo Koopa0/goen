@@ -109,8 +109,6 @@ var (
 
 	KeyAdminQueueCampaigns = key("admin.queue.campaigns", Message{ZhHant: "活動", En: "Campaigns"})
 
-	KeyAdminQueueCredit = key("admin.queue.credit", Message{ZhHant: "購物金", En: "Credit"})
-
 	KeyAdminQueueShipping = key("admin.queue.shipping", Message{ZhHant: "運費", En: "Delivery fees"})
 
 	KeyAdminQueueStaff = key("admin.queue.staff", Message{ZhHant: "人員", En: "Staff"})
