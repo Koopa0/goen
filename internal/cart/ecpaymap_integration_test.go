@@ -681,7 +681,7 @@ func TestWhatWasTypedSurvivesTheMapRoundTrip(t *testing.T) {
 	s := cart.NewStore(pool)
 	h := cart.NewHandler(s, access.NewStore(pool, false), slog.New(slog.DiscardHandler), false, nil, configuredMap(t))
 	token, shipping := aPickupCart(t, s, "map-typed")
-	code := coupon(t, "MAPTYPED", "amount", 5000, 0, 0, 0, 0)
+	code := insertCoupon(t, "MAPTYPED", "amount", 5000, 0, 0, 0)
 
 	start, cookie, status := startPickup(t, h, token, aTypedStart(shipping, code))
 	if status != http.StatusOK {

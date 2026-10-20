@@ -53,7 +53,7 @@ func newIntegrityCheckout(t *testing.T) *integrityCheckout {
 		h:      cart.NewHandler(s, access.NewStore(pool, false), slog.New(slog.DiscardHandler), false, nil, nil),
 		userID: userID, cartID: cartID, token: token, variant: variant,
 		shipID: shipVersionFor(t, "home_delivery"),
-		coupon: coupon(t, "INTEGRITY"+strings.ToUpper(uuid.NewString()[:8]), "amount", 10000, 0, 0, 0, 0),
+		coupon: insertCoupon(t, "INTEGRITY"+strings.ToUpper(uuid.NewString()[:8]), "amount", 10000, 0, 0, 0),
 		addr: &delivery.Details{
 			Email: "integrity@example.com", RecipientName: "王小明", Phone: "0912345678",
 			PostalCode: "110", City: "台北市", District: "信義區", Street: "松高路 1 號",

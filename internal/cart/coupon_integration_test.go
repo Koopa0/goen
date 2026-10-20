@@ -9,104 +9,33 @@ import (
 	"testing"
 
 	"github.com/google/uuid"
-	"github.com/jackc/pgx/v5/pgtype"
 
 	"github.com/koopa0/goen/internal/cart"
+	"github.com/koopa0/goen/internal/coupon"
 	"github.com/koopa0/goen/internal/order/delivery"
 )
 
-// coupon inserts one and returns its code.
-func coupon(t *testing.T, code, kind string, amount, percent, cap_, minSpend int64, maxRedemptions int) string {
+// insertCoupon inserts one and returns its code.
+func insertCoupon(t *testing.T, code, kind string, amount, percent, minSpend int64, maxRedemptions int) string {
 	t.Helper()
-	var amountArg, percentArg, capArg, maxArg any
+	var amountArg, percentArg, maxArg any
 	if amount > 0 {
 		amountArg = amount
 	}
 	if percent > 0 {
 		percentArg = percent
 	}
-	if cap_ > 0 {
-		capArg = cap_
-	}
 	if maxRedemptions > 0 {
 		maxArg = maxRedemptions
 	}
 	if _, err := pool.Exec(t.Context(), `
 		INSERT INTO coupons (code, description, kind, amount_cents, percent_bp,
-		                     max_discount_cents, min_subtotal_cents, max_redemptions)
-		VALUES ($1, '測試折扣', $2, $3, $4, $5, $6, $7)`,
-		code, kind, amountArg, percentArg, capArg, minSpend, maxArg); err != nil {
+		                     min_subtotal_cents, max_redemptions)
+		VALUES ($1, '測試折扣', $2, $3, $4, $5, $6)`,
+		code, kind, amountArg, percentArg, minSpend, maxArg); err != nil {
 		t.Fatalf("create coupon %s: %v", code, err)
 	}
 	return code
-}
-
-// TestCouponPricing is the arithmetic, every case a hand-computed literal. The
-// schema restates it as coupon_discount, which orders_have_lines refuses an
-// order by, so each case is asked of both: two copies that drift apart refuse
-// the orders checkout prices.
-func TestCouponPricing(t *testing.T) {
-	ctx := t.Context()
-	s := cart.NewStore(pool)
-
-	coupon(t, "FLAT200", "amount", 20000, 0, 0, 0, 0)
-	coupon(t, "PCT20", "percent", 0, 2000, 0, 0, 0)
-	coupon(t, "PCT20CAP", "percent", 0, 2000, 50000, 0, 0)
-	coupon(t, "SHIP", "free_shipping", 0, 0, 0, 0, 0)
-	coupon(t, "BIG", "amount", 900000, 0, 0, 0, 0)
-	coupon(t, "PCT15CAP", "percent", 0, 1500, 14950, 0, 0)
-
-	tests := []struct {
-		name             string
-		code             string
-		subtotal         int64
-		wantDiscount     int64
-		wantFreeShipping bool
-	}{
-		{"flat amount", "FLAT200", 500000, 20000, false},
-		{"twenty percent", "PCT20", 500000, 100000, false},
-		{"capped percent", "PCT20CAP", 500000, 50000, false},
-		{"percent under the cap", "PCT20CAP", 100000, 20000, false},
-		{"free shipping is not a discount", "SHIP", 500000, 0, true},
-		// The discount may never exceed the subtotal, or the total goes negative
-		// and orders_total_non_negative refuses the checkout.
-		{"coupon larger than the order", "BIG", 100000, 100000, false},
-		// 20% of 1001 cents is 200.2 cents; integer division gives 200, already
-		// a whole NT$.
-		{"sub-cent remainder truncates", "PCT20", 1001, 200, false},
-		// 20% of 5005 cents is 1001, which rounds up to the next whole NT$.
-		{"discount rounds up to a whole NT$", "PCT20", 5005, 1100, false},
-		// 15% of 99900 is 14985, rounded up to 15000; the cap of 14950 is
-		// floored to 14900, and binds after the rounding.
-		{"the cap binds after rounding", "PCT15CAP", 99900, 14900, false},
-	}
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			c, err := s.CouponByCode(ctx, tt.code)
-			if err != nil {
-				t.Fatalf("find %s: %v", tt.code, err)
-			}
-			discount, freeShipping, err := c.Apply(tt.subtotal, false)
-			if err != nil {
-				t.Fatalf("apply %s: %v", tt.code, err)
-			}
-			if discount != tt.wantDiscount {
-				t.Errorf("discount on %d is %d, want %d", tt.subtotal, discount, tt.wantDiscount)
-			}
-			if freeShipping != tt.wantFreeShipping {
-				t.Errorf("free shipping is %v, want %v", freeShipping, tt.wantFreeShipping)
-			}
-			var schema pgtype.Int8
-			if err := pool.QueryRow(ctx, `
-				SELECT coupon_discount(id, $2) FROM coupons WHERE upper(code) = $1`,
-				tt.code, tt.subtotal).Scan(&schema); err != nil {
-				t.Fatalf("coupon_discount %s: %v", tt.code, err)
-			}
-			if !schema.Valid || schema.Int64 != tt.wantDiscount {
-				t.Errorf("coupon_discount on %d is %+v, want %d", tt.subtotal, schema, tt.wantDiscount)
-			}
-		})
-	}
 }
 
 // TestAPercentCouponOrderIsWholeYuanAndItsInvoiceEqualsTheCapture places an
@@ -116,7 +45,7 @@ func TestCouponPricing(t *testing.T) {
 func TestAPercentCouponOrderIsWholeYuanAndItsInvoiceEqualsTheCapture(t *testing.T) {
 	ctx := t.Context()
 	s := cart.NewStore(pool)
-	code := coupon(t, "PCT15", "percent", 0, 1500, 0, 0, 0)
+	code := insertCoupon(t, "PCT15", "percent", 0, 1500, 0, 0)
 
 	number, err := placeWithCoupon(t, s, code, 0)
 	if err != nil {
@@ -176,49 +105,20 @@ func TestAPercentCouponOrderIsWholeYuanAndItsInvoiceEqualsTheCapture(t *testing.
 	}
 }
 
-// TestCouponMinimumSpend proves the threshold binds at its own boundary.
-func TestCouponMinimumSpend(t *testing.T) {
-	ctx := t.Context()
-	s := cart.NewStore(pool)
-	coupon(t, "MIN1000", "amount", 20000, 0, 0, 100000, 0)
-
-	c, err := s.CouponByCode(ctx, "MIN1000")
-	if err != nil {
-		t.Fatalf("find below-minimum coupon definition: %v", err)
-	}
-	if _, _, err := c.Apply(99999, false); !errors.Is(err, cart.ErrCouponMinimum) {
-		t.Errorf("below the minimum gave %v, want ErrCouponMinimum", err)
-	}
-	// Exactly the minimum qualifies — the boundary.
-	if _, _, err := c.Apply(100000, false); err != nil {
-		t.Errorf("exactly the minimum was refused: %v", err)
-	}
-	// The schema's copy says the same: nothing below, the amount at it.
-	var below, at pgtype.Int8
-	if err := pool.QueryRow(ctx, `
-		SELECT coupon_discount(id, 99999), coupon_discount(id, 100000)
-		FROM coupons WHERE code = 'MIN1000'`).Scan(&below, &at); err != nil {
-		t.Fatalf("coupon_discount at the minimum: %v", err)
-	}
-	if below.Valid || !at.Valid || at.Int64 != 20000 {
-		t.Errorf("coupon_discount is %+v below the minimum and %+v at it, want NULL and 20000", below, at)
-	}
-}
-
 // TestUnknownAndDisabledCouponsLookTheSame: telling somebody a code exists but
 // is switched off confirms which of a shop's codes are real.
 func TestUnknownAndDisabledCouponsLookTheSame(t *testing.T) {
 	ctx := t.Context()
 	s := cart.NewStore(pool)
-	coupon(t, "SWITCHEDOFF", "amount", 20000, 0, 0, 0, 0)
+	insertCoupon(t, "SWITCHEDOFF", "amount", 20000, 0, 0, 0)
 	if _, err := pool.Exec(ctx, `UPDATE coupons SET is_active = false WHERE code = 'SWITCHEDOFF'`); err != nil {
 		t.Fatalf("disable: %v", err)
 	}
 
 	_, offErr := s.CouponByCode(ctx, "SWITCHEDOFF")
 	_, unknownErr := s.CouponByCode(ctx, "NEVEREXISTED")
-	if !errors.Is(offErr, cart.ErrNoSuchCoupon) || !errors.Is(unknownErr, cart.ErrNoSuchCoupon) {
-		t.Errorf("disabled gave %v and unknown gave %v; both must be ErrNoSuchCoupon",
+	if !errors.Is(offErr, coupon.ErrNotFound) || !errors.Is(unknownErr, coupon.ErrNotFound) {
+		t.Errorf("disabled gave %v and unknown gave %v; both must be coupon.ErrNotFound",
 			offErr, unknownErr)
 	}
 }
@@ -227,7 +127,7 @@ func TestUnknownAndDisabledCouponsLookTheSame(t *testing.T) {
 func TestCouponCodeIsCaseInsensitive(t *testing.T) {
 	ctx := t.Context()
 	s := cart.NewStore(pool)
-	coupon(t, "MixedCase", "amount", 20000, 0, 0, 0, 0)
+	insertCoupon(t, "MixedCase", "amount", 20000, 0, 0, 0)
 
 	for _, typed := range []string{"MixedCase", "mixedcase", "MIXEDCASE", "  MixedCase  "} {
 		if _, err := s.CouponByCode(ctx, typed); err != nil {
@@ -241,7 +141,7 @@ func TestCouponCodeIsCaseInsensitive(t *testing.T) {
 func TestTotalRedemptionLimitIsEnforced(t *testing.T) {
 	ctx := t.Context()
 	s := cart.NewStore(pool)
-	code := coupon(t, "ONLYTWO", "amount", 10000, 0, 0, 0, 2)
+	code := insertCoupon(t, "ONLYTWO", "amount", 10000, 0, 0, 2)
 
 	placed := 0
 	var lastErr error
@@ -276,7 +176,7 @@ func TestTotalRedemptionLimitIsEnforced(t *testing.T) {
 func TestTheRedemptionMatchesTheOrdersDiscount(t *testing.T) {
 	ctx := t.Context()
 	s := cart.NewStore(pool)
-	code := coupon(t, "MATCHES", "amount", 20000, 0, 0, 0, 0)
+	code := insertCoupon(t, "MATCHES", "amount", 20000, 0, 0, 0)
 
 	_, err := s.CouponByCode(ctx, code)
 	if err != nil {
@@ -307,7 +207,7 @@ func TestTheRedemptionMatchesTheOrdersDiscount(t *testing.T) {
 // checkout form discarded. CouponByCode reads no limit, so this is not a race.
 func TestASpentCouponIsRefusedAsItselfRatherThanAsAnUnknownFailure(t *testing.T) {
 	s := cart.NewStore(pool)
-	code := coupon(t, "SPENTONCE", "amount", 10000, 0, 0, 0, 1)
+	code := insertCoupon(t, "SPENTONCE", "amount", 10000, 0, 0, 1)
 
 	_, err := s.CouponByCode(t.Context(), code)
 	if err != nil {
@@ -325,8 +225,8 @@ func TestASpentCouponIsRefusedAsItselfRatherThanAsAnUnknownFailure(t *testing.T)
 	}
 
 	_, err = placeWithCoupon(t, s, code, 2)
-	if !errors.Is(err, cart.ErrCouponUsedUp) {
-		t.Fatalf("redeeming a spent coupon = %v, want ErrCouponUsedUp — the "+
+	if !errors.Is(err, coupon.ErrUsedUp) {
+		t.Fatalf("redeeming a spent coupon = %v, want coupon.ErrUsedUp — the "+
 			"checkout handler branches on this sentinel, and anything else is a "+
 			"500 with the customer's address discarded", err)
 	}
@@ -494,8 +394,8 @@ func TestTheCouponWindowUsesOneClock(t *testing.T) {
 		        now() + interval '1 day', now() + interval '2 days')`); err != nil {
 		t.Fatalf("create future: %v", err)
 	}
-	if _, err := s.CouponByCode(ctx, "FUTURE"); !errors.Is(err, cart.ErrCouponExpired) {
-		t.Errorf("a coupon that has not started gave %v, want ErrCouponExpired", err)
+	if _, err := s.CouponByCode(ctx, "FUTURE"); !errors.Is(err, coupon.ErrExpired) {
+		t.Errorf("a coupon that has not started gave %v, want coupon.ErrExpired", err)
 	}
 
 	if _, err := pool.Exec(ctx, `
@@ -504,7 +404,7 @@ func TestTheCouponWindowUsesOneClock(t *testing.T) {
 		        now() - interval '2 days', now() - interval '1 day')`); err != nil {
 		t.Fatalf("create lapsed: %v", err)
 	}
-	if _, err := s.CouponByCode(ctx, "LAPSED"); !errors.Is(err, cart.ErrCouponExpired) {
-		t.Errorf("a lapsed coupon gave %v, want ErrCouponExpired", err)
+	if _, err := s.CouponByCode(ctx, "LAPSED"); !errors.Is(err, coupon.ErrExpired) {
+		t.Errorf("a lapsed coupon gave %v, want coupon.ErrExpired", err)
 	}
 }

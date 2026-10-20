@@ -19,6 +19,7 @@ import (
 	"github.com/koopa0/goen/assets"
 	"github.com/koopa0/goen/internal/bearer"
 	"github.com/koopa0/goen/internal/cart/item"
+	"github.com/koopa0/goen/internal/coupon"
 	"github.com/koopa0/goen/internal/db"
 	"github.com/koopa0/goen/internal/i18n"
 	invoicepkg "github.com/koopa0/goen/internal/invoice"
@@ -588,7 +589,7 @@ func (s *Store) placeOrder(
 type checkoutTerms struct {
 	lines       []db.CartLinesRow
 	ship        db.ShippingVersionRow
-	coupon      *Coupon
+	coupon      *coupon.Coupon
 	shippingFee int64
 	discount    int64
 	gross       int64
@@ -637,19 +638,19 @@ func lockCheckoutTerms(
 		return nil, err
 	}
 
-	canonicalCouponCode := NormaliseCode(couponCode)
-	var coupon *Coupon
+	canonicalCouponCode := coupon.Normalise(couponCode)
+	var c *coupon.Coupon
 	if canonicalCouponCode != "" {
 		if lockErr := q.LockCouponForCheckout(ctx, canonicalCouponCode); lockErr != nil {
 			return nil, fmt.Errorf("lock coupon %q: %w", canonicalCouponCode, lockErr)
 		}
-		coupon, err = couponByCode(ctx, q, canonicalCouponCode)
+		c, err = couponByCode(ctx, q, canonicalCouponCode)
 		if err != nil {
 			return nil, err
 		}
 	}
 
-	shippingFee, discount, err := priceOrder(ctx, q, &ship, subtotal, addr.PostalCode, coupon)
+	shippingFee, discount, err := priceOrder(ctx, q, &ship, subtotal, addr.PostalCode, c)
 	if err != nil {
 		return nil, err
 	}
@@ -674,7 +675,7 @@ func lockCheckoutTerms(
 		return nil, errCheckoutChanged
 	}
 	return &checkoutTerms{
-		lines: lines, ship: ship, coupon: coupon,
+		lines: lines, ship: ship, coupon: c,
 		shippingFee: shippingFee, discount: discount,
 		gross: gross, creditCents: creditCents,
 	}, nil
@@ -763,7 +764,7 @@ type orderParts struct {
 	userID        uuid.NullUUID
 	discountCents int64
 	invoice       *Invoice
-	coupon        *Coupon
+	coupon        *coupon.Coupon
 	orderNumber   string
 	address       *delivery.Details
 	totalCents    int64
@@ -865,7 +866,7 @@ func priceOrder(
 	ship *db.ShippingVersionRow,
 	subtotal int64,
 	postalCode string,
-	coupon *Coupon,
+	c *coupon.Coupon,
 ) (shippingCents, discountCents int64, err error) {
 	quote, err := quoteFor(ctx, q, ship, subtotal, postalCode)
 	if err != nil {
@@ -878,9 +879,9 @@ func priceOrder(
 
 	// Applied against what the cart holds NOW: amount and minimum-spend
 	// eligibility can have changed since the form was rendered.
-	if coupon != nil {
+	if c != nil {
 		var freeShipping bool
-		discountCents, freeShipping, err = coupon.Apply(subtotal, quote.FeeCents == 0)
+		discountCents, freeShipping, err = c.Apply(subtotal, quote.FeeCents == 0)
 		if err != nil {
 			return 0, 0, err
 		}

@@ -4,8 +4,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"regexp"
-	"strings"
 
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
@@ -15,128 +13,50 @@ import (
 	"github.com/koopa0/goen/internal/db"
 )
 
-var (
-	// ErrNoSuchCoupon covers a code that names nothing and one that is switched
-	// off, so a shop does not confirm which codes are real to somebody
-	// guessing.
-	ErrNoSuchCoupon  = errors.New("cart: no such coupon")
-	ErrCouponExpired = errors.New("cart: coupon expired")
-	ErrCouponMinimum = errors.New("cart: order below the coupon minimum")
-	ErrCouponUsedUp  = errors.New("cart: coupon already used")
-	// ErrCouponNotNeeded is a free-delivery code on an order whose base rate is
-	// already nothing: it would take nothing off and still spend a redemption.
-	ErrCouponNotNeeded = errors.New("cart: order already ships free")
-)
-
-// couponCode restates coupons_code_format so a malformed code is a message
-// rather than a query.
-var couponCode = regexp.MustCompile(`^[A-Za-z0-9][A-Za-z0-9-]{1,31}$`)
-
-type Coupon struct {
-	id          uuid.UUID
-	code        string
-	description string
-	kind        coupon.Kind
-
-	amountCents  int64
-	percentBP    int32
-	capCents     int64
-	minimumCents int64
-}
-
-const centsPerYuan = 100
-
-func NormaliseCode(s string) string { return strings.ToUpper(strings.TrimSpace(s)) }
-
-// Apply caps a discount at the subtotal, never the total, which
-// orders_total_non_negative refuses. shipsFree says the order's base delivery
-// rate is already nothing, which is all a free-delivery code would remove.
-func (c Coupon) Apply(subtotalCents int64, shipsFree bool) (discountCents int64, freeShipping bool, err error) {
-	if subtotalCents < c.minimumCents {
-		return 0, false, fmt.Errorf("%w: needs %d", ErrCouponMinimum, c.minimumCents)
-	}
-
-	switch c.kind {
-	case coupon.Amount:
-		return min(c.amountCents, subtotalCents), false, nil
-	case coupon.Percent:
-		// Split quotient and remainder before multiplying: subtotalCents may
-		// fit in int64 while subtotalCents*percentBP does not.
-		basisPoints := int64(c.percentBP)
-		discountCents = subtotalCents/10000*basisPoints +
-			subtotalCents%10000*basisPoints/10000
-		// The discount is a whole NT$, so the quoted total, the card charge and
-		// the invoice agree; refunds of a partial return and store-credit
-		// splits still carry cents. It rounds UP, in the customer's favour. The
-		// cap and the subtotal bind after rounding, each floored to a whole
-		// NT$, and the limit is checked first so the round-up cannot overflow
-		// near int64's end.
-		limit := subtotalCents
-		if c.capCents > 0 {
-			limit = min(limit, c.capCents)
-		}
-		limit -= limit % centsPerYuan
-		if discountCents >= limit {
-			return limit, false, nil
-		}
-		if remainder := discountCents % centsPerYuan; remainder != 0 {
-			discountCents += centsPerYuan - remainder
-		}
-		return discountCents, false, nil
-	case coupon.FreeShipping:
-		if shipsFree {
-			return 0, false, ErrCouponNotNeeded
-		}
-		return 0, true, nil
-	default:
-		return 0, false, fmt.Errorf("%w: coupon %s has unknown kind %q", ErrNoSuchCoupon, c.code, c.kind)
-	}
-}
-
 // CouponByCode leaves eligibility and value to Apply; redemption limits are
 // counted by redeem_coupon under a coupon-row lock.
-func (s *Store) CouponByCode(ctx context.Context, code string) (*Coupon, error) {
+func (s *Store) CouponByCode(ctx context.Context, code string) (*coupon.Coupon, error) {
 	return couponByCode(ctx, s.q, code)
 }
 
 // couponByCode runs on the caller's binding: checkout first calls
 // lock_coupon_for_checkout on it, so this read and the later redemption stay in
 // the row-locking transaction.
-func couponByCode(ctx context.Context, q *db.Queries, code string) (*Coupon, error) {
-	code = NormaliseCode(code)
-	if !couponCode.MatchString(code) {
-		return nil, ErrNoSuchCoupon
+func couponByCode(ctx context.Context, q *db.Queries, code string) (*coupon.Coupon, error) {
+	code = coupon.Normalise(code)
+	if !coupon.ValidCode(code) {
+		return nil, coupon.ErrNotFound
 	}
 
 	row, err := q.CouponByCode(ctx, code)
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
-			return nil, ErrNoSuchCoupon
+			return nil, coupon.ErrNotFound
 		}
 		return nil, fmt.Errorf("find coupon %q: %w", code, err)
 	}
 	if !row.IsActive {
-		return nil, ErrNoSuchCoupon
+		return nil, coupon.ErrNotFound
 	}
 	// Decided by the query, against the database's own clock and never Go's.
 	if !row.IsCurrent {
-		return nil, ErrCouponExpired
+		return nil, coupon.ErrExpired
 	}
 
 	kind, ok := coupon.Parse(row.Kind)
 	if !ok {
-		return nil, fmt.Errorf("%w: coupon %s has unknown kind %q", ErrNoSuchCoupon, row.Code, row.Kind)
+		return nil, fmt.Errorf("%w: coupon %s has unknown kind %q", coupon.ErrNotFound, row.Code, row.Kind)
 	}
 
-	return &Coupon{
-		id:           row.ID,
-		code:         row.Code,
-		description:  row.Description,
-		kind:         kind,
-		amountCents:  row.AmountCents.Int64,
-		percentBP:    row.PercentBp.Int32,
-		capCents:     row.MaxDiscountCents.Int64,
-		minimumCents: row.MinSubtotalCents,
+	return &coupon.Coupon{
+		ID:           row.ID,
+		Code:         row.Code,
+		Description:  row.Description,
+		Kind:         kind,
+		AmountCents:  row.AmountCents.Int64,
+		PercentBP:    row.PercentBp.Int32,
+		CapCents:     row.MaxDiscountCents.Int64,
+		MinimumCents: row.MinSubtotalCents,
 	}, nil
 }
 
@@ -145,7 +65,7 @@ func couponByCode(ctx context.Context, q *db.Queries, code string) (*Coupon, err
 func redeemCoupon(
 	ctx context.Context,
 	q *db.Queries,
-	c *Coupon,
+	c *coupon.Coupon,
 	discountCents int64,
 	orderID uuid.UUID,
 	userID uuid.NullUUID,
@@ -154,7 +74,7 @@ func redeemCoupon(
 		return nil
 	}
 	if _, err := q.RedeemCoupon(ctx, db.RedeemCouponParams{
-		CouponID: c.id, OrderID: orderID, UserID: userID,
+		CouponID: c.ID, OrderID: orderID, UserID: userID,
 		AmountCents: discountCents,
 	}); err != nil {
 		// Bound to the constraint NAME: pgconn renders a PgError as severity +
@@ -162,12 +82,12 @@ func redeemCoupon(
 		if pgErr, ok := errors.AsType[*pgconn.PgError](err); ok {
 			switch pgErr.ConstraintName {
 			case "coupon_within_total_limit", "coupon_within_customer_limit":
-				return ErrCouponUsedUp
+				return coupon.ErrUsedUp
 			case "coupon_is_current":
-				return ErrCouponExpired
+				return coupon.ErrExpired
 			}
 		}
-		return fmt.Errorf("redeem coupon %s: %w", c.code, err)
+		return fmt.Errorf("redeem coupon %s: %w", c.Code, err)
 	}
 	return nil
 }
