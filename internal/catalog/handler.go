@@ -42,6 +42,21 @@ func NewHandler(store *Store, log *slog.Logger, baseURL string) *Handler {
 	}
 }
 
+// Routes registers browsing, the product page and its three forms. notify
+// bounds the restock form per client before Notify runs; the caller owns that
+// budget.
+func (h *Handler) Routes(mux *http.ServeMux, notify *ratelimit.Limiter) {
+	mux.HandleFunc("GET /c/{slug}", h.Listing)
+	mux.HandleFunc("GET /search", h.Search)
+	mux.HandleFunc("GET /compare", h.Compare)
+	mux.HandleFunc("GET /deals", h.Deals)
+	mux.HandleFunc("GET /s/{slug}", h.Campaign)
+	mux.HandleFunc("GET /p/{slug}", h.Product)
+	mux.HandleFunc("POST /p/{slug}/reviews", h.Review)
+	mux.HandleFunc("POST /p/{slug}/notify", ratelimit.Guard(notify, h.log, h.Notify))
+	mux.HandleFunc("POST /p/{slug}/questions", h.Ask)
+}
+
 func (h *Handler) Listing(w http.ResponseWriter, r *http.Request) {
 	if web.DropEmptyParams(w, r) {
 		return

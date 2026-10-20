@@ -46,6 +46,14 @@ func NewHandler(store *Store, log *slog.Logger) *Handler {
 	}
 }
 
+// Routes registers the uploaded images.
+func (h *Handler) Routes(mux *http.ServeMux) {
+	// The digest in the path is the only authorisation an image has, and it is
+	// unguessable by construction.
+	mux.HandleFunc("GET /media/{digest}", h.Serve)
+	mux.HandleFunc("GET /media/{digest}/{width}", h.Serve)
+}
+
 func (h *Handler) Serve(w http.ResponseWriter, r *http.Request) {
 	digest := r.PathValue("digest")
 	if !digestPath.MatchString(digest) {

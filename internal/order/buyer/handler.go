@@ -54,6 +54,18 @@ func NewHandler(s *Store, grants *access.Store, log *slog.Logger, findLimit *rat
 	}
 }
 
+// Routes registers finding an order, its page, and the buyer's cancel and
+// return. The lookup is bounded per client by the limiter NewHandler was
+// given, before the handler runs and again inside it.
+func (h *Handler) Routes(mux *http.ServeMux) {
+	mux.HandleFunc("GET /orders/find", h.FindOrderPage)
+	mux.HandleFunc("POST /orders/find", ratelimit.Guard(h.findLimit, h.log, h.FindOrder))
+	mux.HandleFunc("GET /orders/{number}", h.OrderPage)
+	mux.HandleFunc("POST /orders/{number}/cancel", h.CancelOrder)
+	mux.HandleFunc("GET /orders/{number}/return", h.ReturnPage)
+	mux.HandleFunc("POST /orders/{number}/return", h.SubmitReturn)
+}
+
 func (h *Handler) FindOrderPage(w http.ResponseWriter, r *http.Request) {
 	web.Render(w, r, h.log, http.StatusOK, FindOrder(
 		FindOrderMeta(r.Context()), FindOrderView{}))

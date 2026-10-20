@@ -22,6 +22,11 @@ func NewHandler(store *Store, log *slog.Logger) *Handler {
 	return &Handler{store: store, log: log}
 }
 
+// Routes registers the home page.
+func (h *Handler) Routes(mux *http.ServeMux) {
+	mux.HandleFunc("GET /{$}", h.Index)
+}
+
 func (h *Handler) Index(w http.ResponseWriter, r *http.Request) {
 	view, err := h.store.Load(r.Context())
 	if err != nil {

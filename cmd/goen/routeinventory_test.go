@@ -52,8 +52,9 @@ const routeInventoryFloor = 380
 // on this list says nothing about test helpers.
 //
 // A registration is a call of HandleFunc or Handle whose first argument is a
-// string literal "<METHOD> /…", or such a literal plus a selector that
-// routeConstants resolves ("GET "+assets.Prefix). Any other first argument is
+// string literal "<METHOD> /…", or such a literal plus a constant that
+// routeConstants resolves ("GET "+assets.Prefix, or "POST "+PickupReturnPath
+// inside cart). Any other first argument is
 // not a route, and the call is skipped: the outbox's Store.Handle names a topic.
 // A pattern whose path begins with /admin is a back-office route and is skipped.
 func storefrontPatterns(t *testing.T) []string {
@@ -96,7 +97,7 @@ func storefrontPatterns(t *testing.T) []string {
 				if !ok || len(call.Args) == 0 {
 					return true
 				}
-				if pattern, ok := routePattern(t, fset, call); ok && !strings.HasPrefix(patternPath(pattern), "/admin") {
+				if pattern, ok := routePattern(t, fset, file.Name.Name, call); ok && !strings.HasPrefix(patternPath(pattern), "/admin") {
 					patterns = append(patterns, pattern)
 				}
 				return true
@@ -115,9 +116,11 @@ func storefrontPatterns(t *testing.T) []string {
 	return slices.Compact(patterns)
 }
 
-// routePattern returns the pattern a HandleFunc or Handle call registers, or
-// false when the call is not a route registration.
-func routePattern(t *testing.T, fset *token.FileSet, call *ast.CallExpr) (string, bool) {
+// routePattern returns the pattern a HandleFunc or Handle call in package pkg
+// registers, or false when the call is not a route registration. A constant
+// named without a qualifier is pkg's own, so cart's "POST "+PickupReturnPath
+// resolves as cart.PickupReturnPath does in any other package.
+func routePattern(t *testing.T, fset *token.FileSet, pkg string, call *ast.CallExpr) (string, bool) {
 	t.Helper()
 
 	sel, ok := call.Fun.(*ast.SelectorExpr)
@@ -140,15 +143,19 @@ func routePattern(t *testing.T, fset *token.FileSet, call *ast.CallExpr) (string
 		if !ok {
 			return "", false
 		}
-		ref, ok := arg.Y.(*ast.SelectorExpr)
-		if !ok {
+		var key string
+		switch ref := arg.Y.(type) {
+		case *ast.SelectorExpr:
+			qualifier, ok := ref.X.(*ast.Ident)
+			if !ok {
+				return "", false
+			}
+			key = qualifier.Name + "." + ref.Sel.Name
+		case *ast.Ident:
+			key = pkg + "." + ref.Name
+		default:
 			return "", false
 		}
-		qualifier, ok := ref.X.(*ast.Ident)
-		if !ok {
-			return "", false
-		}
-		key := qualifier.Name + "." + ref.Sel.Name
 		value, known := routeConstants[key]
 		if !known {
 			t.Fatalf("unknown constant %s in a route pattern at %s: add it to the resolver", key, fset.Position(arg.Pos()))
