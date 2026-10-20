@@ -19,6 +19,7 @@ import (
 
 	"github.com/google/uuid"
 
+	"github.com/koopa0/goen/internal/coupon"
 	"github.com/koopa0/goen/internal/i18n"
 	invoicepkg "github.com/koopa0/goen/internal/invoice"
 	"github.com/koopa0/goen/internal/web"
@@ -177,8 +178,8 @@ func (q checkoutQuote) validateIdentityHeader() (code string, err error) {
 		return "", errors.New("cart: checkout quote contains negative money")
 	}
 
-	code = NormaliseCode(q.CouponCode)
-	if code != q.CouponCode || (code != "" && !couponCode.MatchString(code)) {
+	code = coupon.Normalise(q.CouponCode)
+	if code != q.CouponCode || (code != "" && !coupon.ValidCode(code)) {
 		return "", errors.New("cart: checkout quote contains a non-canonical coupon code")
 	}
 	if code == "" && q.DiscountCents != 0 {

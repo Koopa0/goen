@@ -65,7 +65,7 @@ func TestCheckoutQueuesTheCompletePlacedConfirmation(t *testing.T) {
 					if locale == i18n.ZhHant {
 						shippingName = "確認信配送"
 					}
-					couponCode := coupon(t, "MAIL"+strings.ToUpper(uuid.NewString()[:8]), "amount", funding.discount, 0, 0, 0, 0)
+					couponCode := insertCoupon(t, "MAIL"+strings.ToUpper(uuid.NewString()[:8]), "amount", funding.discount, 0, 0, 0)
 					owner := uuid.NullUUID{}
 					if funding.balance > 0 {
 						owner = uuid.NullUUID{UUID: creditedCustomer(t, funding.balance), Valid: true}

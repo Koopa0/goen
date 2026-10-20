@@ -32,7 +32,7 @@ func TestWrongCouponCodesAreBoundedWithoutSayingWhichCodeWasRight(t *testing.T) 
 	s := cart.NewStore(pool)
 	vid := freshVariant(t, "coupon-guess")
 	valid := "GUESSRIGHT" + strings.ToUpper(uuid.NewString()[:6])
-	coupon(t, valid, "amount", 1000, 0, 0, 0, 0)
+	insertCoupon(t, valid, "amount", 1000, 0, 0, 0)
 	ship := shipVersionFor(t, "home_delivery")
 	h := cart.NewHandler(s, access.NewStore(pool, false), slog.New(slog.DiscardHandler), false,
 		nil, nil)
@@ -229,7 +229,7 @@ func TestWrongCouponCodesSentAtOnceAreBoundedByTheSameBudget(t *testing.T) {
 func TestACodeAnsweredBeforeItsLookupCostsNothing(t *testing.T) {
 	g := newCouponGuesses(t, "coupon-unlooked")
 	valid := "UNLOOKED" + strings.ToUpper(uuid.NewString()[:6])
-	coupon(t, valid, "amount", 1000, 0, 0, 0, 0)
+	insertCoupon(t, valid, "amount", 1000, 0, 0, 0)
 	const client = "198.51.100.88:5000"
 
 	token := bearer.New()
