@@ -1,7 +1,6 @@
 // Package credits is the staff desk for store credit; it holds the recent
 // postings, one customer's ledger and the grant form; it does not hold
-// membership tiers (admin/tiers), points (loyalty) or the posting kinds and
-// their words (credit).
+// membership tiers (admin/tiers).
 package credits
 
 import (

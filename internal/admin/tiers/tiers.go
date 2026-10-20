@@ -1,7 +1,6 @@
-// Package tiers is the staff desk for membership tiers; it holds the tier
-// bands, their spend thresholds and points earn multipliers, and how many
-// customers each band holds; it does not hold store credit (admin/credits) or
-// the points programme itself (loyalty).
+// Package tiers is the staff desk that edits the membership tiers and their
+// earn multipliers; it holds the bands, their spend thresholds and how many
+// customers each holds; it does not hold store credit (admin/credits).
 package tiers
 
 import (
