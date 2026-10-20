@@ -1,4 +1,4 @@
-package content
+package faq
 
 import (
 	"context"
@@ -18,7 +18,7 @@ import (
 const MaxFAQEntries = 200
 
 // ErrInUse is a FAQ category that still holds entries.
-var ErrInUse = errors.New("content: faq category in use")
+var ErrInUse = errors.New("faq: category in use")
 
 const (
 	// MaxFAQCategoryRunes is faq_categories_name_bounded and _name_en_bounded.

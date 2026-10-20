@@ -30,12 +30,10 @@ func TestAdminExamplesStayOutsideRefusedInputs(t *testing.T) {
 					return result
 				}
 				prefix := "Example: "
-				category := "Orders"
 				headline, message, short, cta := "What goen sells", "Free delivery site-wide over NT$3,000", "Free over 3,000", "Take a look"
 				days := "0 means no end date."
 				if locale == i18n.ZhHant {
 					prefix = "例："
-					category = "訂單"
 					headline, message, short, cta = "goen 販售的商品", "全站滿 NT$3,000 免運", "滿 3,000 免運", "看看"
 					days = "0 表示不設結束日。"
 				}
@@ -45,7 +43,6 @@ func TestAdminExamplesStayOutsideRefusedInputs(t *testing.T) {
 					component templ.Component
 					fields    map[string]string
 				}{
-					{"FAQ category", FAQ(p, &FAQView{CategoryDraft: FAQCategory{Name: typed}, CategoryErrors: errors("name")}), map[string]string{"faq-new-category-name": prefix + category}},
 					{"hero and strip", Home(p, &HeroView{
 						Draft:       HeroDraft{Headline: typed, HeadlineEn: typed, PrimaryHref: typed, SecondHref: typed, Days: typed},
 						BannerDraft: BannerDraft{Message: typed, Short: typed, CTALabel: typed, MessageEn: typed, CTALabelEn: typed, CTAHref: typed, Code: typed, Days: typed},
@@ -118,67 +115,4 @@ func exampleElementByID(n *html.Node, id string) *html.Node {
 		}
 	}
 	return nil
-}
-
-func TestFAQEnglishFieldsKeepVisibleTranslatedLabelsAndRefusedDrafts(t *testing.T) {
-	t.Parallel()
-	for _, locale := range i18n.Locales() {
-		for _, draft := range []struct{ name, value, refusal string }{
-			{name: "empty"},
-			{name: "filled", value: "Submitted <& value"},
-			{name: "refused empty", refusal: "Refused"},
-			{name: "refused filled", value: "Submitted <& value", refusal: "Refused"},
-		} {
-			t.Run(locale.Tag()+"/"+draft.name, func(t *testing.T) {
-				t.Parallel()
-				entry := FAQEntry{ID: "existing", QuestionEn: draft.value, AnswerEn: draft.value}
-				view := &FAQView{Rows: []FAQEntry{entry}}
-				if draft.refusal != "" {
-					view.Edit = entry
-					view.EditErrors = map[string]string{"question_en": draft.refusal, "answer_en": draft.refusal}
-				}
-				ctx := i18n.WithLocale(t.Context(), locale)
-				doc, err := html.Parse(strings.NewReader(renderComponent(t, ctx, FAQ(layouts.Page{}, view))))
-				if err != nil {
-					t.Fatal(err)
-				}
-				for _, field := range []struct{ id, name, zh, en string }{
-					{id: "qe-existing", name: "question_en", zh: "問題（英文）", en: "Question (English)"},
-					{id: "ae-existing", name: "answer_en", zh: "答案（英文）", en: "Answer (English)"},
-				} {
-					input := exampleElementByID(doc, field.id)
-					if input == nil {
-						t.Fatalf("FAQ has no field %q", field.id)
-					}
-					value := attr(input, "value")
-					if input.Data == "textarea" {
-						value = textOf(input)
-					}
-					if value != draft.value || attr(input, "placeholder") != "" {
-						t.Errorf("FAQ %q value/placeholder = %q/%q, want %q/empty", field.name, value, attr(input, "placeholder"), draft.value)
-					}
-					wantLabel := field.en
-					if locale == i18n.ZhHant {
-						wantLabel = field.zh
-					}
-					var visibleLabels int
-					for n := range doc.Descendants() {
-						if n.Type == html.ElementNode && n.Data == "label" && attr(n, "for") == field.id && !strings.Contains(attr(n, "class"), "sr-only") && textOf(n) == wantLabel {
-							visibleLabels++
-						}
-					}
-					if visibleLabels != 1 {
-						t.Errorf("FAQ %q has %d visible labels %q, want one", field.name, visibleLabels, wantLabel)
-					}
-					if draft.refusal != "" {
-						errorID := "faq-err-" + field.name + "-existing"
-						errorText := exampleElementByID(doc, errorID)
-						if attr(input, "aria-invalid") != "true" || attr(input, "aria-describedby") != errorID || errorText == nil || textOf(errorText) != draft.refusal {
-							t.Errorf("FAQ %q loses its linked refusal", field.name)
-						}
-					}
-				}
-			})
-		}
-	}
 }

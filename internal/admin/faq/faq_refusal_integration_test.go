@@ -1,6 +1,6 @@
 //go:build integration
 
-package content_test
+package faq_test
 
 import (
 	"net/http"
@@ -12,7 +12,7 @@ import (
 	"github.com/google/uuid"
 
 	"github.com/koopa0/goen/internal/admin/admintest"
-	"github.com/koopa0/goen/internal/admin/content"
+	"github.com/koopa0/goen/internal/admin/faq"
 )
 
 // A refused FAQ edit answers 422 on the entry that was edited. Its text used
@@ -20,9 +20,9 @@ import (
 // copy and left the original unedited.
 func TestARefusedFAQEditAnswersOnTheEntryItself(t *testing.T) {
 	ctx, _ := admintest.StaffContext(t, pool)
-	s := newStore(pool)
+	s := faq.NewStore(pool)
 	category := "編輯分類-" + uuid.NewString()[:8]
-	if errs, err := s.CreateFAQEntry(ctx, &content.FAQForm{
+	if errs, err := s.CreateFAQEntry(ctx, &faq.FAQForm{
 		CategoryID: newFAQCategory(t, ctx, s, category, ""), Question: "原本的問題", Answer: "原本的答案",
 	}); err != nil || len(errs) > 0 {
 		t.Fatalf("CreateFAQEntry: %v %v", err, errs)

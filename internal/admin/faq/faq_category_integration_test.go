@@ -1,6 +1,6 @@
 //go:build integration
 
-package content_test
+package faq_test
 
 import (
 	"context"
@@ -14,7 +14,7 @@ import (
 
 	"github.com/koopa0/goen/internal/admin/admintest"
 	"github.com/koopa0/goen/internal/admin/audit"
-	"github.com/koopa0/goen/internal/admin/content"
+	"github.com/koopa0/goen/internal/admin/faq"
 	"github.com/koopa0/goen/internal/i18n"
 	"github.com/koopa0/goen/internal/site"
 )
@@ -25,7 +25,7 @@ import (
 // one of them in both languages, and a category with entries is not deleted.
 func TestTheDeskKeepsAFAQCategoryAsOneRow(t *testing.T) {
 	staffCtx, _ := admintest.StaffContext(t, pool)
-	desk := newStore(admintest.AdminRolePool(t, pool))
+	desk := faq.NewStore(admintest.AdminRolePool(t, pool))
 	h := handlerOver(desk)
 	storefront := site.NewStore(admintest.StoreRolePool(t, pool))
 	suffix := uuid.NewString()[:8]
@@ -187,7 +187,7 @@ func TestTheDeskKeepsAFAQCategoryAsOneRow(t *testing.T) {
 	}
 }
 
-func categoryID(t *testing.T, ctx context.Context, s *content.Store, name string) string {
+func categoryID(t *testing.T, ctx context.Context, s *faq.Store, name string) string {
 	t.Helper()
 	view, err := s.FAQ(ctx)
 	if err != nil {

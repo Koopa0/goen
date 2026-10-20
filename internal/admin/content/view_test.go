@@ -17,35 +17,6 @@ import (
 // still live in internal/ui/pages/admin, as in #2081, #2082, #2114 and #2129:
 // each half moved here with the page it renders and the other views stay behind.
 
-// From copy_test.go: TestEveryExampleHintReadsInFull, which keeps the product half.
-func TestEveryFAQExampleHintReadsInFull(t *testing.T) {
-	t.Parallel()
-	for _, tt := range []struct {
-		locale   i18n.Locale
-		sentence func(example string) string
-	}{
-		{i18n.ZhHant, func(e string) string { return "<p class=\"goen-admin__hint\">例如 " + e + "。</p>" }},
-		{i18n.En, func(e string) string { return "<p class=\"goen-admin__hint\">For example, " + e + ".</p>" }},
-	} {
-		t.Run(tt.locale.Tag(), func(t *testing.T) {
-			t.Parallel()
-			ctx := i18n.WithLocale(t.Context(), tt.locale)
-			for name, c := range map[string]struct {
-				body     string
-				examples []string
-			}{
-				"faq": {renderComponent(t, ctx, FAQ(layouts.Page{Title: "FAQ"}, &FAQView{})), []string{"Orders"}},
-			} {
-				for _, e := range c.examples {
-					if want := tt.sentence(e); !strings.Contains(c.body, want) {
-						t.Errorf("%s page lacks the hint %s", name, want)
-					}
-				}
-			}
-		})
-	}
-}
-
 // From image_draft_test.go, moved whole.
 func TestHeroImageRefusalRendersTheCompleteDraft(t *testing.T) {
 	t.Parallel()
@@ -159,7 +130,6 @@ func TestContentRefusalsNameTheirFormAndLinkToTheFirstInvalidControl(t *testing.
 				title                 i18n.Key
 				count                 int
 			}{
-				{"faq-edit", FAQ(layouts.Page{}, &FAQView{Rows: []FAQEntry{{ID: "faq1", Question: "stored", Answer: "stored"}}, Edit: FAQEntry{ID: "faq1", Question: "", Answer: " kept ", QuestionEn: "bad"}, EditErrors: map[string]string{"question": bad, "question_en": bad}}), "/admin/faq/faq1#faq-faq1", "faq-faq1", "q-faq1", i18n.KeyAdminRefusalFAQ, 2},
 				{"hero", Home(layouts.Page{}, &HeroView{Errors: map[string]string{"headline": bad, "primary": bad}}), "/admin/home#new-hero", "new-hero", "h-headline", i18n.KeyAdminRefusalHero, 2},
 				{"banner", Home(layouts.Page{}, &HeroView{Errors: map[string]string{"message_en": bad, "banner_cta": bad}}), "/admin/home/banner#new-banner", "new-banner", "b-message-en", i18n.KeyAdminRefusalBanner, 2},
 			}

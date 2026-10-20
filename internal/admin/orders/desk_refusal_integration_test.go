@@ -18,6 +18,7 @@ import (
 	"github.com/koopa0/goen/internal/admin/access"
 	"github.com/koopa0/goen/internal/admin/admintest"
 	"github.com/koopa0/goen/internal/admin/content"
+	"github.com/koopa0/goen/internal/admin/faq"
 	"github.com/koopa0/goen/internal/admin/products"
 	"github.com/koopa0/goen/internal/admin/products/productstest"
 	"github.com/koopa0/goen/internal/admin/returns"
@@ -40,8 +41,9 @@ func TestDeskRefusalPOSTsKeepDraftsAndLocateTheirForm(t *testing.T) {
 	productStore := products.NewStore(pool)
 	productstest.NewHandler(pool, productStore).Routes(mux, ac)
 	stock.NewHandler(stock.NewStore(pool), log).Routes(mux, ac)
-	contentStore := content.NewStore(pool, home.NewStore(pool))
-	content.NewHandler(contentStore, images, log).Routes(mux, ac)
+	content.NewHandler(content.NewStore(pool, home.NewStore(pool)), images, log).Routes(mux, ac)
+	faqStore := faq.NewStore(pool)
+	faq.NewHandler(faqStore, log).Routes(mux, ac)
 	taxonomy.NewHandler(taxonomy.NewStore(pool), images, log).Routes(mux, ac)
 	shipping.NewHandler(shipping.NewStore(pool), false, log).Routes(mux, ac)
 	returns.NewHandler(admintest.ReturnDesk(pool, admintest.Refunder{}), log).Routes(mux, ac)
@@ -62,15 +64,15 @@ func TestDeskRefusalPOSTsKeepDraftsAndLocateTheirForm(t *testing.T) {
 		RETURNING id::text`, faqCategory[:30]).Scan(&faqCategoryID); err != nil {
 		t.Fatalf("FAQ category fixture: %v", err)
 	}
-	if errs, err := contentStore.CreateFAQEntry(ctx, &content.FAQForm{CategoryID: faqCategoryID, Question: "original question", Answer: "original answer"}); err != nil || len(errs) > 0 {
+	if errs, err := faqStore.CreateFAQEntry(ctx, &faq.FAQForm{CategoryID: faqCategoryID, Question: "original question", Answer: "original answer"}); err != nil || len(errs) > 0 {
 		t.Fatalf("FAQ fixture: %v %v", err, errs)
 	}
-	faq, err := contentStore.FAQ(ctx)
+	entries, err := faqStore.FAQ(ctx)
 	if err != nil {
 		t.Fatal(err)
 	}
 	var faqID string
-	for _, row := range faq.Rows {
+	for _, row := range entries.Rows {
 		if row.Category == faqCategory[:30] {
 			faqID = row.ID
 		}

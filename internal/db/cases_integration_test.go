@@ -2513,7 +2513,7 @@ VALUES ('a0000001-0000-4000-8000-000000000000', 1, repeat('購', 200), 'grant:sc
 		accept:     `INSERT INTO sale_campaigns (slug, title, ends_at, bundled_key, image_alt, image_alt_en) VALUES ('header-long-alt', '有圖活動', now() + interval '7 days', 'campaign-banner-01.webp', '限時優惠商品', repeat('圖', 200));`,
 	},
 	{
-		// content.MaxFAQQuestionRunes, counted in characters, not bytes.
+		// faq.MaxFAQQuestionRunes, counted in characters, not bytes.
 		constraint: "faq_entries_question_bounded",
 		reject:     `INSERT INTO faq_entries (id, category_id, question, answer, position) VALUES ('1111000e-0000-4000-8000-000000000093', 'cccc0001-0000-4000-8000-000000000000', repeat('問', 201), '答案', 93);`,
 		accept:     `INSERT INTO faq_entries (id, category_id, question, answer, position) VALUES ('1111000e-0000-4000-8000-000000000093', 'cccc0001-0000-4000-8000-000000000000', repeat('問', 200), '答案', 93);`,
@@ -2524,7 +2524,7 @@ VALUES ('a0000001-0000-4000-8000-000000000000', 1, repeat('購', 200), 'grant:sc
 		accept:     `INSERT INTO faq_entries (id, category_id, question, answer, question_en, position) VALUES ('1111000e-0000-4000-8000-000000000093', 'cccc0001-0000-4000-8000-000000000000', '問題', '答案', repeat('問', 200), 93);`,
 	},
 	{
-		// content.MaxFAQAnswerRunes, counted in characters, not bytes.
+		// faq.MaxFAQAnswerRunes, counted in characters, not bytes.
 		constraint: "faq_entries_answer_bounded",
 		reject:     `INSERT INTO faq_entries (id, category_id, question, answer, position) VALUES ('1111000e-0000-4000-8000-000000000093', 'cccc0001-0000-4000-8000-000000000000', '問題', repeat('答', 2001), 93);`,
 		accept:     `INSERT INTO faq_entries (id, category_id, question, answer, position) VALUES ('1111000e-0000-4000-8000-000000000093', 'cccc0001-0000-4000-8000-000000000000', '問題', repeat('答', 2000), 93);`,

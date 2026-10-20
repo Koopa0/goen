@@ -17,6 +17,7 @@ import (
 	"github.com/koopa0/goen/internal/admin/coupons"
 	"github.com/koopa0/goen/internal/admin/customers"
 	"github.com/koopa0/goen/internal/admin/dashboard"
+	"github.com/koopa0/goen/internal/admin/faq"
 	"github.com/koopa0/goen/internal/admin/feedback"
 	"github.com/koopa0/goen/internal/admin/health"
 	adminloyalty "github.com/koopa0/goen/internal/admin/loyalty"
@@ -329,6 +330,7 @@ func backOfficeRoutes(mux *http.ServeMux, cfg *BackOfficeConfig, factorStore *tw
 	brands := taxonomy.NewHandler(taxonomy.NewStore(adminPool), adminImages, log)
 	shopfront := content.NewHandler(content.NewStore(adminPool, home.NewStore(adminPool)), adminImages, log)
 	issueDesk := newsletters.NewHandler(newsletters.NewStore(adminPool), log)
+	faqDesk := faq.NewHandler(faq.NewStore(adminPool), log)
 	sales := campaigns.NewHandler(campaigns.NewStore(adminPool), adminImages, log)
 	inbox := feedback.NewHandler(feedback.NewStore(adminPool), log)
 	roster := staff.NewHandler(staff.NewStore(adminPool), log, factorStore.Enabled())
@@ -354,6 +356,7 @@ func backOfficeRoutes(mux *http.ServeMux, cfg *BackOfficeConfig, factorStore *tw
 	sales.Routes(mux, backOffice)
 	shopfront.Routes(mux, backOffice)
 	issueDesk.Routes(mux, backOffice)
+	faqDesk.Routes(mux, backOffice)
 	brands.Routes(mux, backOffice)
 	delivery.Routes(mux, backOffice)
 	warehouse.Routes(mux, backOffice)

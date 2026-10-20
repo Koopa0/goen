@@ -39,7 +39,6 @@ func TestContentRowWritesAnswerAFailureAsAServerError(t *testing.T) {
 		form  url.Values
 		serve http.HandlerFunc
 	}{
-		{name: "delete faq entry", form: url.Values{"action": {"delete"}}, serve: h.EditFAQ},
 		{name: "toggle promo banner", form: url.Values{"active": {"1"}}, serve: h.SetBannerActive},
 		{name: "toggle hero slide", form: url.Values{"active": {"true"}}, serve: h.SetHeroActive},
 		{name: "promote hero slide", form: url.Values{}, serve: h.PromoteHero},

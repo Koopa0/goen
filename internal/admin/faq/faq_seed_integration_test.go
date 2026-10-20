@@ -1,6 +1,6 @@
 //go:build integration
 
-package content_test
+package faq_test
 
 import (
 	"context"
