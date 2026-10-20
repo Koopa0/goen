@@ -9,6 +9,7 @@ import (
 	"net/url"
 	"time"
 
+	"github.com/koopa0/goen/internal/compress"
 	"github.com/koopa0/goen/internal/email"
 	"github.com/koopa0/goen/internal/i18n"
 	"github.com/koopa0/goen/internal/ratelimit"
@@ -112,7 +113,7 @@ func (h *Handler) Thanks(w http.ResponseWriter, r *http.Request) {
 // ConfirmPage echoes the token into a form rather than acting on it: a
 // confirmation a link scanner can complete confirms nothing.
 func (h *Handler) ConfirmPage(w http.ResponseWriter, r *http.Request) {
-	web.NoCompress(w)
+	compress.Skip(w)
 	ctx := r.Context()
 	if r.URL.Query().Get("done") == "1" {
 		web.Render(w, r, h.log, http.StatusOK, layouts.EmailLinkPage(
@@ -167,7 +168,7 @@ func (h *Handler) Confirm(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *Handler) UnsubscribePage(w http.ResponseWriter, r *http.Request) {
-	web.NoCompress(w)
+	compress.Skip(w)
 	ctx := r.Context()
 	if r.URL.Query().Get("done") == "1" {
 		web.Render(w, r, h.log, http.StatusOK, layouts.EmailLinkPage(

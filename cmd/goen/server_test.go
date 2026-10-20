@@ -21,6 +21,7 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 
 	"github.com/koopa0/goen/assets"
+	"github.com/koopa0/goen/internal/compress"
 	"github.com/koopa0/goen/internal/payment"
 	"github.com/koopa0/goen/internal/ui/layouts"
 	"github.com/koopa0/goen/internal/user"
@@ -255,7 +256,7 @@ func TestMachineReadableFilesRenderNoChrome(t *testing.T) {
 }
 
 func TestAnAssetIsNotCompressedTwiceByTheChain(t *testing.T) {
-	h := web.Compress(securityHeaders(assets.Handler(slog.New(slog.DiscardHandler)), contentSecurityPolicy, false))
+	h := compress.Handler(securityHeaders(assets.Handler(slog.New(slog.DiscardHandler)), contentSecurityPolicy, false))
 	req := httptest.NewRequestWithContext(t.Context(), http.MethodGet, assets.URL(assets.AppCSS), http.NoBody)
 	req.Header.Set("Accept-Encoding", "gzip")
 	res := httptest.NewRecorder()
@@ -289,7 +290,7 @@ func TestTheStaticAssetHandlerOwnsItsEncodingDecision(t *testing.T) {
 		w.Header().Set("Content-Type", "text/plain")
 		_, _ = w.Write(body)
 	})
-	h := web.Compress(staticAssetHandler(asset))
+	h := compress.Handler(staticAssetHandler(asset))
 	req := httptest.NewRequestWithContext(t.Context(), http.MethodGet, "/static/fixture.txt", http.NoBody)
 	req.Header.Set("Accept-Encoding", "gzip")
 	res := httptest.NewRecorder()
@@ -369,7 +370,7 @@ func FuzzAssetAndDynamicGzipNegotiationAgree(f *testing.F) {
 		dynamicReq := httptest.NewRequestWithContext(t.Context(), http.MethodGet, "/", http.NoBody)
 		setEncoding(dynamicReq)
 		dynamicOut := httptest.NewRecorder()
-		web.Compress(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		compress.Handler(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 			w.Header().Set("Content-Type", "text/plain")
 			_, _ = w.Write(bytes.Repeat([]byte("x"), 2_000))
 		})).ServeHTTP(dynamicOut, dynamicReq)

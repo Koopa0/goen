@@ -13,6 +13,7 @@ import (
 
 	"github.com/koopa0/goen/assets"
 	"github.com/koopa0/goen/internal/catalog"
+	"github.com/koopa0/goen/internal/compress"
 	"github.com/koopa0/goen/internal/i18n"
 	"github.com/koopa0/goen/internal/shipping/storemap"
 	"github.com/koopa0/goen/internal/ui/layouts"
@@ -35,7 +36,7 @@ func withRequestTracing(next http.Handler, log *slog.Logger) http.Handler {
 // asset catalogue deliberately omitted because it did not shrink.
 func staticAssetHandler(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		web.NoCompress(w)
+		compress.Skip(w)
 		next.ServeHTTP(w, r)
 	})
 }

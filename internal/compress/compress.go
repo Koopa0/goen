@@ -1,4 +1,7 @@
-package web
+// Package compress is gzip on dynamic HTTP responses; it holds the middleware,
+// the opt-out and Accept-Encoding negotiation; it does not hold build-time
+// compression of static files, which is package assets.
+package compress
 
 import (
 	"bytes"
@@ -30,10 +33,10 @@ var compressibleTypes = map[string]bool{
 
 var gzipWriterPool = sync.Pool{New: func() any { return gzip.NewWriter(io.Discard) }}
 
-// Compress answers a client that asked for gzip with gzip, for response types
+// Handler answers a client that asked for gzip with gzip, for response types
 // where it pays. The decision waits for the content type, status and enough of
 // the body to know whether the gzip envelope is worthwhile.
-func Compress(next http.Handler) http.Handler {
+func Handler(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		c := &compressor{
 			ResponseWriter: w,
@@ -54,12 +57,12 @@ func Compress(next http.Handler) http.Handler {
 	})
 }
 
-// NoCompress opts a handler out of dynamic compression. Secret-bearing pages
-// use it to avoid a future reflection channel; handlers that negotiate their
-// own representations use it to keep that decision authoritative. It must be
-// called before the first Write or WriteHeader. The private marker is removed
-// before any response header reaches the client.
-func NoCompress(w http.ResponseWriter) {
+// Skip opts a handler out of dynamic compression. Secret-bearing pages use it
+// to avoid a future reflection channel; handlers that negotiate their own
+// representations use it to keep that decision authoritative. It must be called
+// before the first Write or WriteHeader. The private marker is removed before
+// any response header reaches the client.
+func Skip(w http.ResponseWriter) {
 	w.Header().Set(noCompressHeader, "1")
 }
 
