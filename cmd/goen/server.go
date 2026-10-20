@@ -213,14 +213,19 @@ func routing(cfg *RouterConfig, log *slog.Logger) (http.Handler, *http.ServeMux)
 	return withRequestTracing(handler, log), mux
 }
 
-// storefrontRoutes registers the shop and the customer account, every handler
-// on the `store` pool. The rest are built by the caller because the middleware
-// chain and the catch-all read them too.
+// storefrontRoutes builds the shop and the customer account, every handler on
+// the `store` pool, and has each register its own routes. The rest are built
+// by the caller because the middleware chain and the catch-all read them too.
+// The per-client budgets are decided here and handed to the routes they bound;
+// clearSpeculations and clearCache are this deployment's, handed to the writes
+// that need them; RequireUser is sign-in's, handed to the account's pages.
 func storefrontRoutes(mux *http.ServeMux, cfg *StorefrontConfig, log *slog.Logger,
 	catalogue *catalog.Store, sitePages *site.Handler, basket *cart.Handler,
 	authn *auth.Handler, accounts *account.Handler, orderAccess *access.Store) {
 	pool, gateway := cfg.StorePool, cfg.Payments
 	baseURL := cfg.BaseURL
+	// Every route that runs argon2 or mails an address: signing in, registering,
+	// recovering an account, and changing a password or an email address.
 	authLimit := ratelimit.New(ratelimit.Config{
 		Every: 3 * time.Second, Burst: 20, TTL: time.Hour, MaxKeys: 65_536,
 	})
@@ -267,138 +272,19 @@ func storefrontRoutes(mux *http.ServeMux, cfg *StorefrontConfig, log *slog.Logge
 	})
 	buyerOrders := buyer.NewHandler(buyer.NewStore(pool), orderAccess, log, findLimit, basket.TakesPayment())
 
-	mux.HandleFunc("GET /{$}", homePage.Index)
-	// The digest in the path is the only authorisation an image has, and it is
-	// unguessable by construction.
-	mux.HandleFunc("GET /media/{digest}", images.Serve)
-	mux.HandleFunc("GET /media/{digest}/{width}", images.Serve)
-	mux.HandleFunc("GET /sitemap.xml", sitePages.Sitemap)
-	mux.HandleFunc("GET /robots.txt", sitePages.Robots)
-	mux.HandleFunc("POST /promo/dismiss", sitePages.DismissBanner)
-	mux.HandleFunc("POST /locale", sitePages.SetLocale)
-	mux.HandleFunc("GET /faq", sitePages.FAQ)
-	mux.HandleFunc("GET /shipping", sitePages.Shipping)
-	mux.HandleFunc("GET /returns", sitePages.Policy)
-	mux.HandleFunc("GET /payment", sitePages.Policy)
-	mux.HandleFunc("GET /warranty", sitePages.Policy)
-	mux.HandleFunc("GET /privacy", sitePages.Policy)
-	mux.HandleFunc("GET /terms", sitePages.Policy)
-	mux.HandleFunc("GET /about", sitePages.About)
-	mux.HandleFunc("GET /contact", contactPage.Page)
-	mux.HandleFunc("POST /contact", contactPage.Submit)
-	// Submit applies the per-IP bound itself: Guard would answer plain text and
-	// htmx would swap that over the footer form.
-	mux.HandleFunc("POST /newsletter", signups.Submit)
-	mux.HandleFunc("GET /newsletter/thanks", signups.Thanks)
-	// Both links open a page carrying a form; a GET that confirmed or
-	// unsubscribed would be completed by every link scanner that reads the mail
-	// before its owner does.
-	mux.HandleFunc("GET /newsletter/confirm", signups.ConfirmPage)
-	mux.HandleFunc("POST /newsletter/confirm", signups.Confirm)
-	mux.HandleFunc("GET /newsletter/unsubscribe", signups.UnsubscribePage)
-	mux.HandleFunc("POST /newsletter/unsubscribe", signups.Unsubscribe)
-	mux.HandleFunc("GET /c/{slug}", browse.Listing)
-	mux.HandleFunc("GET /search", browse.Search)
-	mux.HandleFunc("GET /compare", browse.Compare)
-	mux.HandleFunc("GET /deals", browse.Deals)
-	mux.HandleFunc("GET /s/{slug}", browse.Campaign)
-	mux.HandleFunc("GET /p/{slug}", browse.Product)
-	mux.HandleFunc("POST /p/{slug}/reviews", browse.Review)
-	mux.HandleFunc("POST /p/{slug}/notify", ratelimit.Guard(notifyLimit, log, browse.Notify))
-	mux.HandleFunc("POST /p/{slug}/questions", browse.Ask)
-	mux.HandleFunc("GET /cart", basket.Page)
-	mux.HandleFunc("POST /cart/items", clearSpeculations(basket.AddItem))
-	mux.HandleFunc("POST /cart/items/update", clearSpeculations(basket.UpdateItem))
-	mux.HandleFunc("GET /checkout", basket.Checkout)
-	mux.HandleFunc("POST /checkout", ratelimit.Guard(checkoutLimit, log, basket.PlaceOrder))
-	if cfg.StoreMap.Enabled() {
-		// The carrier's page posts the chosen store here from the SHOPPER'S
-		// browser, so it arrives cross-site with none of goen's cookies. It
-		// exists only where a carrier is configured: an unconfigured goen
-		// answers 404 here and its cross-origin defence keeps no bypass.
-		mux.HandleFunc("POST "+cart.PickupReturnPath, basket.PickupReturn)
-		// The checkout form is posted here by 「選擇門市」: same-origin, so under
-		// the cross-origin defence like every other form, and it keeps what was
-		// typed before the browser is handed to the carrier.
-		mux.HandleFunc("POST "+cart.PickupStartAction, ratelimit.Guard(checkoutLimit, log, basket.PickupStart))
-		mux.HandleFunc("GET "+cart.PickupMapPath, basket.PickupMap)
-	}
-	mux.HandleFunc("GET /orders/find", buyerOrders.FindOrderPage)
-	mux.HandleFunc("POST /orders/find", ratelimit.Guard(findLimit, log, buyerOrders.FindOrder))
-	mux.HandleFunc("GET /orders/{number}", buyerOrders.OrderPage)
-	mux.HandleFunc("POST /orders/{number}/cancel", buyerOrders.CancelOrder)
-	mux.HandleFunc("POST /orders/{number}/reorder", clearSpeculations(basket.ReorderItems))
-	mux.HandleFunc("GET /orders/{number}/pay", till.Page)
-	mux.HandleFunc("POST /orders/{number}/pay", till.Start)
-	mux.HandleFunc("GET /orders/{number}/return", buyerOrders.ReturnPage)
-	mux.HandleFunc("POST /orders/{number}/return", buyerOrders.SubmitReturn)
-
-	// Stripe posts server-to-server with no Origin, so the cross-origin
-	// middleware has nothing to check and lets it through; its authentication is
-	// the Stripe-Signature header the handler verifies.
-	mux.HandleFunc("POST /webhooks/stripe", till.Webhook)
-
-	mux.HandleFunc("GET /signin", authn.SignInPage)
-	// GET on both: the callback is a redirect from Google whose method goen does
-	// not choose, and nothing about an account changes until the callback has
-	// matched the state it issued.
-	mux.HandleFunc("GET /auth/google", authn.GoogleSignIn)
-	mux.HandleFunc("GET /auth/google/callback", authn.GoogleCallback)
-	// The limiter runs before argon2 does: at 64 MiB a hash, an unbounded
-	// endpoint is a memory exhaustion anybody can trigger. One limiter across
-	// them all, so moving between them earns no fresh allowance.
-	mux.HandleFunc("POST /signin", clearSpeculations(ratelimit.Guard(authLimit, log, authn.SignIn)))
-	mux.HandleFunc("GET /forgot", authn.ForgotPage)
-	mux.HandleFunc("POST /forgot", ratelimit.Guard(authLimit, log, authn.Forgot))
-	// RequireUser's sign-in return URL would issue GET to this POST-only action.
-	mux.HandleFunc("POST /account/password/setup",
-		ratelimit.Guard(authLimit, log, authn.RequestPasswordSetup))
-	mux.HandleFunc("GET /reset", authn.ResetPage)
-	mux.HandleFunc("POST /reset", ratelimit.Guard(authLimit, log, authn.Reset))
-	// Open to a signed-out visitor, who is sent on rather than refused: a
-	// registration link to the page that asks for its password, and a new
-	// address's link to sign in first. The token proves only the mailbox, and
-	// the address goes to the account that asked for it.
-	mux.HandleFunc("GET /verify", authn.VerifyPage)
-	mux.HandleFunc("POST /verify", ratelimit.Guard(authLimit, log, authn.Verify))
-	mux.HandleFunc("GET /register", authn.RegisterPage)
-	mux.HandleFunc("POST /register", clearSpeculations(ratelimit.Guard(authLimit, log, authn.Register)))
-	mux.HandleFunc("POST /register/resend", ratelimit.Guard(authLimit, log, authn.ResendRegistration))
-	// Open to a signed-out visitor: the link and the password chosen at
-	// registration are the proof. Under authLimit because it runs
-	// argon2, and it signs in, so it clears speculations.
-	mux.HandleFunc("GET /register/complete", authn.CompleteRegistrationPage)
-	mux.HandleFunc("POST /register/complete", clearSpeculations(ratelimit.Guard(authLimit, log, authn.CompleteRegistration)))
-	mux.HandleFunc("POST /signout", clearSpeculations(clearCache(authn.SignOut)))
-	mux.HandleFunc("GET /account", authn.RequireUser(accounts.Overview))
-	mux.HandleFunc("GET /account/cart-recovery", authn.RequireUser(authn.CartRecoveryPage))
-	mux.HandleFunc("POST /account/cart/retry", authn.RequireUser(authn.RetryCartAdoption))
-	mux.HandleFunc("GET /account/points", authn.RequireUser(points.Page))
-	mux.HandleFunc("POST /account/points", authn.RequireUser(points.Redeem))
-	mux.HandleFunc("GET /account/warranty", authn.RequireUser(cover.List))
-	mux.HandleFunc("GET /account/warranty/{number}", authn.RequireUser(cover.Order))
-	mux.HandleFunc("POST /account/warranty/{number}", authn.RequireUser(cover.Register))
-	mux.HandleFunc("GET /account/wishlist", authn.RequireUser(accounts.Wishlist))
-	mux.HandleFunc("POST /account/wishlist", authn.RequireUser(accounts.SaveWishlist))
-	mux.HandleFunc("GET /account/orders/{number}", authn.RequireUser(accounts.OrderPage))
-	mux.HandleFunc("POST /account/profile", authn.RequireUser(accounts.UpdateProfile))
-	mux.HandleFunc("POST /account/addresses", authn.RequireUser(accounts.AddAddress))
-	mux.HandleFunc("GET /account/addresses/{address}/edit", authn.RequireUser(accounts.EditAddress))
-	// The handler redirects an expired session without returning sign-in to a POST-only URL.
-	mux.HandleFunc("POST /account/addresses/update", accounts.UpdateAddress)
-	mux.HandleFunc("POST /account/addresses/default", authn.RequireUser(accounts.MakeDefaultAddress))
-	mux.HandleFunc("POST /account/addresses/delete", authn.RequireUser(accounts.DeleteAddress))
-	mux.HandleFunc("POST /account/sessions/others/end", authn.RequireUser(authn.SignOutOtherDevices))
-	// Also guarded: these verify a password with argon2, so a signed-in session
-	// is otherwise an unbounded supply of 64 MiB hashes.
-	mux.HandleFunc("POST /account/email",
-		ratelimit.Guard(authLimit, log, authn.RequireUser(authn.ChangeEmail)))
-	mux.HandleFunc("POST /account/email/resend",
-		ratelimit.Guard(authLimit, log, authn.RequireUser(authn.ResendVerification)))
-	mux.HandleFunc("POST /account/password",
-		ratelimit.Guard(authLimit, log, authn.RequireUser(authn.ChangePassword)))
-	mux.HandleFunc("POST /account/erase", authn.RequireUser(authn.Erase))
-	mux.HandleFunc("POST /account/google/unlink", authn.RequireUser(authn.UnlinkGoogle))
+	homePage.Routes(mux)
+	images.Routes(mux)
+	sitePages.Routes(mux)
+	contactPage.Routes(mux)
+	signups.Routes(mux)
+	browse.Routes(mux, notifyLimit)
+	basket.Routes(mux, checkoutLimit, clearSpeculations)
+	buyerOrders.Routes(mux)
+	till.Routes(mux)
+	authn.Routes(mux, authLimit, clearSpeculations, clearCache)
+	accounts.Routes(mux, authn.RequireUser)
+	points.Routes(mux, authn.RequireUser)
+	cover.Routes(mux, authn.RequireUser)
 }
 
 // backOfficeRoutes registers /admin, every desk on the `admin` pool. The store

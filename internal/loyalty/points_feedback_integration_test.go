@@ -42,9 +42,8 @@ func pointsRoutes(application *pgxpool.Pool, points *loyalty.Handler) http.Handl
 	log := slog.New(slog.DiscardHandler)
 	customers := auth.NewHandler(auth.NewStore(application), nil, nil, log, false, nil)
 	mux := http.NewServeMux()
-	// Both customer routes use the one rewards handler, as in server.go.
-	mux.HandleFunc("GET /account/points", customers.RequireUser(points.Page))
-	mux.HandleFunc("POST /account/points", customers.RequireUser(points.Redeem))
+	// Both customer routes use the one rewards handler, as in production.
+	points.Routes(mux, customers.RequireUser)
 	return customers.Authenticate(mux)
 }
 

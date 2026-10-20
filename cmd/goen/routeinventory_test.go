@@ -5,6 +5,7 @@ import (
 	"go/parser"
 	"go/token"
 	"io/fs"
+	"log/slog"
 	"net/http"
 	"net/http/httptest"
 	"path/filepath"
@@ -13,8 +14,11 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/jackc/pgx/v5/pgxpool"
+
 	"github.com/koopa0/goen/assets"
 	"github.com/koopa0/goen/internal/cart"
+	"github.com/koopa0/goen/internal/payment"
 )
 
 // routeConstants resolves the named constants a route pattern is built from.
@@ -48,8 +52,9 @@ const routeInventoryFloor = 380
 // on this list says nothing about test helpers.
 //
 // A registration is a call of HandleFunc or Handle whose first argument is a
-// string literal "<METHOD> /…", or such a literal plus a selector that
-// routeConstants resolves ("GET "+assets.Prefix). Any other first argument is
+// string literal "<METHOD> /…", or such a literal plus a constant that
+// routeConstants resolves ("GET "+assets.Prefix, or "POST "+PickupReturnPath
+// inside cart). Any other first argument is
 // not a route, and the call is skipped: the outbox's Store.Handle names a topic.
 // A pattern whose path begins with /admin is a back-office route and is skipped.
 func storefrontPatterns(t *testing.T) []string {
@@ -92,7 +97,7 @@ func storefrontPatterns(t *testing.T) []string {
 				if !ok || len(call.Args) == 0 {
 					return true
 				}
-				if pattern, ok := routePattern(t, fset, call); ok && !strings.HasPrefix(patternPath(pattern), "/admin") {
+				if pattern, ok := routePattern(t, fset, file.Name.Name, call); ok && !strings.HasPrefix(patternPath(pattern), "/admin") {
 					patterns = append(patterns, pattern)
 				}
 				return true
@@ -111,9 +116,11 @@ func storefrontPatterns(t *testing.T) []string {
 	return slices.Compact(patterns)
 }
 
-// routePattern returns the pattern a HandleFunc or Handle call registers, or
-// false when the call is not a route registration.
-func routePattern(t *testing.T, fset *token.FileSet, call *ast.CallExpr) (string, bool) {
+// routePattern returns the pattern a HandleFunc or Handle call in package pkg
+// registers, or false when the call is not a route registration. A constant
+// named without a qualifier is pkg's own, so cart's "POST "+PickupReturnPath
+// resolves as cart.PickupReturnPath does in any other package.
+func routePattern(t *testing.T, fset *token.FileSet, pkg string, call *ast.CallExpr) (string, bool) {
 	t.Helper()
 
 	sel, ok := call.Fun.(*ast.SelectorExpr)
@@ -136,15 +143,19 @@ func routePattern(t *testing.T, fset *token.FileSet, call *ast.CallExpr) (string
 		if !ok {
 			return "", false
 		}
-		ref, ok := arg.Y.(*ast.SelectorExpr)
-		if !ok {
+		var key string
+		switch ref := arg.Y.(type) {
+		case *ast.SelectorExpr:
+			qualifier, ok := ref.X.(*ast.Ident)
+			if !ok {
+				return "", false
+			}
+			key = qualifier.Name + "." + ref.Sel.Name
+		case *ast.Ident:
+			key = pkg + "." + ref.Name
+		default:
 			return "", false
 		}
-		qualifier, ok := ref.X.(*ast.Ident)
-		if !ok {
-			return "", false
-		}
-		key := qualifier.Name + "." + ref.Sel.Name
 		value, known := routeConstants[key]
 		if !known {
 			t.Fatalf("unknown constant %s in a route pattern at %s: add it to the resolver", key, fset.Position(arg.Pos()))
@@ -230,6 +241,15 @@ type inventoryRow struct {
 	sample string
 	// traits is a sorted, space-separated set from knownTraits.
 	traits string
+	// limiter names the budget a burst from one address spends on this route,
+	// for a row whose traits include limited. Rows that spend one budget
+	// between them carry one name, so a route that leaves a shared limiter, or
+	// joins another, changes the grouping. The name is the table's own; the
+	// grouping is what is observed.
+	limiter string
+	// burst is how many requests one fresh address is admitted before its
+	// first 429, for a row whose traits include limited.
+	burst int
 }
 
 // storefrontInventory has one row per storefront pattern. It is a record of
@@ -241,14 +261,14 @@ type inventoryRow struct {
 var storefrontInventory = []inventoryRow{
 	{pattern: "GET /", sample: "/inventory-no-such-page", traits: "banner nav speculation visitor"},
 	{pattern: "GET /about", sample: "/about", traits: "banner nav speculation visitor"},
-	{pattern: "GET /account", sample: "/account", traits: "nav nostore signin visitor"},
-	{pattern: "GET /account/addresses/{address}/edit", sample: "/account/addresses/" + probeAddress + "/edit", traits: "nav nostore signin visitor"},
-	{pattern: "GET /account/cart-recovery", sample: "/account/cart-recovery", traits: "nav nostore signin visitor"},
-	{pattern: "GET /account/orders/{number}", sample: "/account/orders/" + probeNumber, traits: "nav nostore signin visitor"},
-	{pattern: "GET /account/points", sample: "/account/points", traits: "nav nostore signin visitor"},
-	{pattern: "GET /account/warranty", sample: "/account/warranty", traits: "nav nostore signin visitor"},
-	{pattern: "GET /account/warranty/{number}", sample: "/account/warranty/" + probeNumber, traits: "nav nostore signin visitor"},
-	{pattern: "GET /account/wishlist", sample: "/account/wishlist", traits: "nav nostore signin visitor"},
+	{pattern: "GET /account", sample: "/account", traits: "nav nostore signin signinreturn visitor"},
+	{pattern: "GET /account/addresses/{address}/edit", sample: "/account/addresses/" + probeAddress + "/edit", traits: "nav nostore signin signinreturn visitor"},
+	{pattern: "GET /account/cart-recovery", sample: "/account/cart-recovery", traits: "nav nostore signin signinreturn visitor"},
+	{pattern: "GET /account/orders/{number}", sample: "/account/orders/" + probeNumber, traits: "nav nostore signin signinreturn visitor"},
+	{pattern: "GET /account/points", sample: "/account/points", traits: "nav nostore signin signinreturn visitor"},
+	{pattern: "GET /account/warranty", sample: "/account/warranty", traits: "nav nostore signin signinreturn visitor"},
+	{pattern: "GET /account/warranty/{number}", sample: "/account/warranty/" + probeNumber, traits: "nav nostore signin signinreturn visitor"},
+	{pattern: "GET /account/wishlist", sample: "/account/wishlist", traits: "nav nostore signin signinreturn visitor"},
 	{pattern: "GET /auth/google", sample: "/auth/google", traits: "banner nav nostore visitor"},                   // Google is not configured in this test, so this answers the full 404 page, header included; configured, it answers 303
 	{pattern: "GET /auth/google/callback", sample: "/auth/google/callback", traits: "banner nav nostore visitor"}, // Google is not configured in this test, so this answers the full 404 page, header included; configured, it answers 303
 	{pattern: "GET /c/{slug}", sample: "/c/" + probeSlug, traits: "banner nav speculation visitor"},
@@ -290,49 +310,49 @@ var storefrontInventory = []inventoryRow{
 	{pattern: "GET /verify", sample: "/verify", traits: "banner nav nostore visitor"}, // shows the banner like the other mailed-link pages that share its template (/newsletter/confirm, /newsletter/unsubscribe); the account-recovery forms /forgot and /reset are banner-free
 	{pattern: "GET /warranty", sample: "/warranty", traits: "banner nav speculation visitor"},
 	{pattern: "GET /{$}", sample: "/", traits: "banner nav speculation visitor"},
-	{pattern: "POST /account/addresses", sample: "/account/addresses", traits: "nav nostore signin visitor"},
-	{pattern: "POST /account/addresses/default", sample: "/account/addresses/default", traits: "nav nostore signin visitor"},
-	{pattern: "POST /account/addresses/delete", sample: "/account/addresses/delete", traits: "nav nostore signin visitor"},
+	{pattern: "POST /account/addresses", sample: "/account/addresses", traits: "nav nostore signin signinreturn visitor"},
+	{pattern: "POST /account/addresses/default", sample: "/account/addresses/default", traits: "nav nostore signin signinreturn visitor"},
+	{pattern: "POST /account/addresses/delete", sample: "/account/addresses/delete", traits: "nav nostore signin signinreturn visitor"},
 	{pattern: "POST /account/addresses/update", sample: "/account/addresses/update", traits: "nav nostore signin visitor"},
-	{pattern: "POST /account/cart/retry", sample: "/account/cart/retry", traits: "nav nostore signin visitor"},
-	{pattern: "POST /account/email", sample: "/account/email", traits: "limited nav nostore signin visitor"},
-	{pattern: "POST /account/email/resend", sample: "/account/email/resend", traits: "limited nav nostore signin visitor"},
-	{pattern: "POST /account/erase", sample: "/account/erase", traits: "nav nostore signin visitor"},
-	{pattern: "POST /account/google/unlink", sample: "/account/google/unlink", traits: "nav nostore signin visitor"},
-	{pattern: "POST /account/password", sample: "/account/password", traits: "limited nav nostore signin visitor"},
-	{pattern: "POST /account/password/setup", sample: "/account/password/setup", traits: "limited nav nostore signin visitor"},
-	{pattern: "POST /account/points", sample: "/account/points", traits: "nav nostore signin visitor"},
-	{pattern: "POST /account/profile", sample: "/account/profile", traits: "nav nostore signin visitor"},
-	{pattern: "POST /account/sessions/others/end", sample: "/account/sessions/others/end", traits: "nav nostore signin visitor"},
-	{pattern: "POST /account/warranty/{number}", sample: "/account/warranty/" + probeNumber, traits: "nav nostore signin visitor"},
-	{pattern: "POST /account/wishlist", sample: "/account/wishlist", traits: "nav nostore signin visitor"},
+	{pattern: "POST /account/cart/retry", sample: "/account/cart/retry", traits: "nav nostore signin signinreturn visitor"},
+	{pattern: "POST /account/email", sample: "/account/email", traits: "limited logged nav nostore signin signinreturn visitor", limiter: "auth", burst: 20},
+	{pattern: "POST /account/email/resend", sample: "/account/email/resend", traits: "limited logged nav nostore signin signinreturn visitor", limiter: "auth", burst: 20},
+	{pattern: "POST /account/erase", sample: "/account/erase", traits: "nav nostore signin signinreturn visitor"},
+	{pattern: "POST /account/google/unlink", sample: "/account/google/unlink", traits: "nav nostore signin signinreturn visitor"},
+	{pattern: "POST /account/password", sample: "/account/password", traits: "limited logged nav nostore signin signinreturn visitor", limiter: "auth", burst: 20},
+	{pattern: "POST /account/password/setup", sample: "/account/password/setup", traits: "limited logged nav nostore signin visitor", limiter: "auth", burst: 20},
+	{pattern: "POST /account/points", sample: "/account/points", traits: "nav nostore signin signinreturn visitor"},
+	{pattern: "POST /account/profile", sample: "/account/profile", traits: "nav nostore signin signinreturn visitor"},
+	{pattern: "POST /account/sessions/others/end", sample: "/account/sessions/others/end", traits: "nav nostore signin signinreturn visitor"},
+	{pattern: "POST /account/warranty/{number}", sample: "/account/warranty/" + probeNumber, traits: "nav nostore signin signinreturn visitor"},
+	{pattern: "POST /account/wishlist", sample: "/account/wishlist", traits: "nav nostore signin signinreturn visitor"},
 	{pattern: "POST /cart/items", sample: "/cart/items", traits: "clearsite nav nostore visitor"},
 	{pattern: "POST /cart/items/update", sample: "/cart/items/update", traits: "clearsite nav nostore visitor"},
-	{pattern: "POST /checkout", sample: "/checkout", traits: "limited nav nostore visitor"},
+	{pattern: "POST /checkout", sample: "/checkout", traits: "limited logged nav nostore visitor", limiter: "checkout", burst: 30},
 	{pattern: "POST /checkout/pickup/return", sample: "/checkout/pickup/return", traits: "nostore visitor"},
-	{pattern: "POST /checkout/pickup/start", sample: "/checkout/pickup/start", traits: "limited nav nostore visitor"},
-	{pattern: "POST /contact", sample: "/contact", traits: "limited nav nostore visitor"},
-	{pattern: "POST /forgot", sample: "/forgot", traits: "limited nav nostore visitor"},
+	{pattern: "POST /checkout/pickup/start", sample: "/checkout/pickup/start", traits: "limited logged nav nostore visitor", limiter: "checkout", burst: 30},
+	{pattern: "POST /contact", sample: "/contact", traits: "limited nav nostore visitor", limiter: "contact", burst: 5},
+	{pattern: "POST /forgot", sample: "/forgot", traits: "limited nav nostore visitor", limiter: "auth", burst: 3},
 	{pattern: "POST /locale", sample: "/locale", traits: "nav nostore visitor"},
-	{pattern: "POST /newsletter", sample: "/newsletter", traits: "limited nav nostore visitor"},
+	{pattern: "POST /newsletter", sample: "/newsletter", traits: "limited logged nav nostore visitor", limiter: "signup", burst: 2},
 	{pattern: "POST /newsletter/confirm", sample: "/newsletter/confirm", traits: "nav nostore visitor"},
 	{pattern: "POST /newsletter/unsubscribe", sample: "/newsletter/unsubscribe", traits: "nav nostore visitor"},
-	{pattern: "POST /orders/find", sample: "/orders/find", traits: "limited nav nostore visitor"},
+	{pattern: "POST /orders/find", sample: "/orders/find", traits: "limited logged nav nostore visitor", limiter: "find", burst: 10},
 	{pattern: "POST /orders/{number}/cancel", sample: "/orders/" + probeNumber + "/cancel", traits: "nav nostore visitor"},
 	{pattern: "POST /orders/{number}/pay", sample: "/orders/" + probeNumber + "/pay", traits: "nav nostore visitor"},
 	{pattern: "POST /orders/{number}/reorder", sample: "/orders/" + probeNumber + "/reorder", traits: "clearsite nav nostore visitor"},
 	{pattern: "POST /orders/{number}/return", sample: "/orders/" + probeNumber + "/return", traits: "nav nostore visitor"},
-	{pattern: "POST /p/{slug}/notify", sample: "/p/" + probeSlug + "/notify", traits: "limited nav nostore visitor"},
+	{pattern: "POST /p/{slug}/notify", sample: "/p/" + probeSlug + "/notify", traits: "limited logged nav nostore visitor", limiter: "notify", burst: 5},
 	{pattern: "POST /p/{slug}/questions", sample: "/p/" + probeSlug + "/questions", traits: "nav nostore signin visitor"},
 	{pattern: "POST /p/{slug}/reviews", sample: "/p/" + probeSlug + "/reviews", traits: "nav nostore signin visitor"},
 	{pattern: "POST /promo/dismiss", sample: "/promo/dismiss", traits: "nav nostore visitor"},
-	{pattern: "POST /register", sample: "/register", traits: "clearsite limited nav nostore visitor"},
-	{pattern: "POST /register/complete", sample: "/register/complete", traits: "clearsite limited nav nostore visitor"},
-	{pattern: "POST /register/resend", sample: "/register/resend", traits: "limited nav nostore visitor"},
-	{pattern: "POST /reset", sample: "/reset", traits: "limited nav nostore visitor"},
-	{pattern: "POST /signin", sample: "/signin", traits: "clearsite limited nav nostore visitor"},
+	{pattern: "POST /register", sample: "/register", traits: "clearsite limited logged nav nostore visitor", limiter: "auth", burst: 20},
+	{pattern: "POST /register/complete", sample: "/register/complete", traits: "clearsite limited logged nav nostore visitor", limiter: "auth", burst: 20},
+	{pattern: "POST /register/resend", sample: "/register/resend", traits: "limited logged nav nostore visitor", limiter: "auth", burst: 20},
+	{pattern: "POST /reset", sample: "/reset", traits: "limited logged nav nostore visitor", limiter: "auth", burst: 20},
+	{pattern: "POST /signin", sample: "/signin", traits: "clearsite limited nav nostore visitor", limiter: "auth", burst: 6},
 	{pattern: "POST /signout", sample: "/signout", traits: "clearcache clearsite nav nostore visitor"},
-	{pattern: "POST /verify", sample: "/verify", traits: "limited nav nostore visitor"},
+	{pattern: "POST /verify", sample: "/verify", traits: "limited logged nav nostore visitor", limiter: "auth", burst: 20},
 	{pattern: "POST /webhooks/stripe", sample: "/webhooks/stripe", traits: "nostore"},
 }
 
@@ -355,8 +375,11 @@ func inventoryRequest(t *testing.T, row inventoryRow, id string) *http.Request {
 
 // checkInventoryCoversTheRoutes holds the two halves of the inventory that need
 // no database: the table lists exactly the patterns the source registers, and
-// each row's sample reaches its own pattern rather than the catch-all.
-func checkInventoryCoversTheRoutes(t *testing.T) {
+// on mux, production's own, each row's sample reaches its own pattern rather
+// than the catch-all. The second half is what notices a pattern the source
+// still spells but production no longer registers: a feature's Routes that
+// nobody calls, or a registration behind a branch that does not run.
+func checkInventoryCoversTheRoutes(t *testing.T, mux *http.ServeMux) {
 	t.Helper()
 
 	registered := storefrontPatterns(t)
@@ -382,15 +405,37 @@ func checkInventoryCoversTheRoutes(t *testing.T) {
 	}
 
 	// Each sample reaches its own pattern, and not the catch-all.
-	standalone := http.NewServeMux()
 	for _, row := range storefrontInventory {
-		standalone.HandleFunc(row.pattern, func(http.ResponseWriter, *http.Request) {})
-	}
-	for _, row := range storefrontInventory {
-		if _, got := standalone.Handler(inventoryRequest(t, row, "inv-sample")); got != row.pattern {
+		if _, got := mux.Handler(inventoryRequest(t, row, "inv-sample")); got != row.pattern {
 			t.Errorf("%s: the sample %s reaches %q instead", row.pattern, row.sample, got)
 		}
 	}
+}
+
+// idleInventoryMux is production's mux on a pool that never connects, with the
+// store map configured so its routes are registered. Building the router
+// reaches no database; only serving does.
+func idleInventoryMux(t *testing.T) *http.ServeMux {
+	t.Helper()
+
+	idle, err := pgxpool.New(t.Context(), "postgres://unused:unused@127.0.0.1:1/unused?sslmode=disable")
+	if err != nil {
+		t.Fatalf("open an unused pool: %v", err)
+	}
+	t.Cleanup(idle.Close)
+	gateway, err := payment.NewGateway("", "", "http://127.0.0.1")
+	if err != nil {
+		t.Fatalf("build a disabled payment gateway: %v", err)
+	}
+	storeMap, err := cart.NewStoreMap(testMerchantID, string(cart.ModeB2C), "", "https://goen.test")
+	if err != nil {
+		t.Fatalf("build the store map: %v", err)
+	}
+	_, mux := routing(&RouterConfig{
+		Storefront: StorefrontConfig{StorePool: idle, Payments: gateway, BaseURL: "https://goen.test", StoreMap: storeMap},
+		BackOffice: BackOfficeConfig{AdminPool: idle, Payments: gateway, Refunder: gateway, StoreMap: storeMap},
+	}, slog.New(slog.DiscardHandler))
+	return mux
 }
 
 // TestEveryStorefrontRouteHasAnInventoryRow fails the moment a storefront route
@@ -399,7 +444,7 @@ func checkInventoryCoversTheRoutes(t *testing.T) {
 func TestEveryStorefrontRouteHasAnInventoryRow(t *testing.T) {
 	t.Parallel()
 
-	checkInventoryCoversTheRoutes(t)
+	checkInventoryCoversTheRoutes(t, idleInventoryMux(t))
 	if walked := len(storefrontPatterns(t)); walked != len(storefrontInventory) {
 		t.Errorf("the walk found %d storefront patterns, the inventory has %d rows", walked, len(storefrontInventory))
 	}

@@ -46,6 +46,14 @@ func NewHandler(store *Store, log *slog.Logger) *Handler {
 	}
 }
 
+// Routes registers the uploaded images.
+func (h *Handler) Routes(mux *http.ServeMux) {
+	// The digest in the path is the only authorisation an image has, and it is
+	// unguessable by construction.
+	mux.HandleFunc("GET /media/{digest}", h.Serve)
+	mux.HandleFunc("GET /media/{digest}/{width}", h.Serve)
+}
+
 func (h *Handler) Serve(w http.ResponseWriter, r *http.Request) {
 	digest := r.PathValue("digest")
 	if !digestPath.MatchString(digest) {
@@ -115,7 +123,9 @@ func (h *Handler) Serve(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Length", strconv.Itoa(len(data)))
 	// No filename: a download dialog must not show anything a user chose.
 	w.Header().Set("Content-Disposition", "inline")
-	_, _ = w.Write(data)
+	// G705: the bytes are served as the stored type, which the schema holds to
+	// image/jpeg or image/png, under nosniff and the CSP the router adds.
+	_, _ = w.Write(data) //nolint:gosec // G705: see above
 }
 
 func writeCacheHeaders(w http.ResponseWriter, etag string) {
