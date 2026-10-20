@@ -79,7 +79,7 @@ func TestASystemAuditRowIsReadAsTheSystem(t *testing.T) {
 	t.Errorf("no audit row carries %s among %d rows", trigger, len(view.Rows))
 }
 
-func customerViewRow(t *testing.T, ctx context.Context, customerID uuid.UUID) (audit.AuditEntry, bool) {
+func customerViewRow(t *testing.T, ctx context.Context, customerID uuid.UUID) (audit.Entry, bool) {
 	t.Helper()
 	view, err := audit.NewStore(pool).Events(ctx)
 	if err != nil {
@@ -90,7 +90,7 @@ func customerViewRow(t *testing.T, ctx context.Context, customerID uuid.UUID) (a
 			return *e, true
 		}
 	}
-	return audit.AuditEntry{}, false
+	return audit.Entry{}, false
 }
 
 // TestACustomerViewNamesTheCustomerUntilTheAccountIsErased: the audit row
@@ -145,7 +145,7 @@ func TestAStaffGrantNamesThePersonUntilTheAccountIsErased(t *testing.T) {
 		t.Fatalf("read the promoted user: %v", err)
 	}
 
-	page := func() (audit.AuditEntry, string) {
+	page := func() (audit.Entry, string) {
 		t.Helper()
 		view, err := audit.NewStore(pool).Events(ctx)
 		if err != nil {
@@ -161,7 +161,7 @@ func TestAStaffGrantNamesThePersonUntilTheAccountIsErased(t *testing.T) {
 			}
 		}
 		t.Fatal("the staff.grant row is not on the trail")
-		return audit.AuditEntry{}, ""
+		return audit.Entry{}, ""
 	}
 
 	row, html := page()

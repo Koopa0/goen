@@ -60,7 +60,7 @@ type StatusTab struct {
 
 func (t StatusTab) CountText() string { return strconv.FormatInt(t.Count, 10) }
 
-type OrdersView struct {
+type View struct {
 	keyset.Bound
 
 	Term     string
@@ -71,13 +71,13 @@ type OrdersView struct {
 	Notice   components.Result
 }
 
-func (v OrdersView) Searching() bool { return v.Searched }
+func (v View) Searching() bool { return v.Searched }
 
-func (v OrdersView) TermTooShort() bool { return v.Term != "" && !v.Searched }
+func (v View) TermTooShort() bool { return v.Term != "" && !v.Searched }
 
-func (v OrdersView) Empty() bool { return len(v.Orders) == 0 }
+func (v View) Empty() bool { return len(v.Orders) == 0 }
 
-func (v OrdersView) EmptyText(ctx context.Context) string {
+func (v View) EmptyText(ctx context.Context) string {
 	if v.Searching() {
 		return fmt.Sprintf(i18n.T(ctx, i18n.KeyAdminQueueNoneFound), v.Term)
 	}

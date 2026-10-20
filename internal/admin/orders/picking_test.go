@@ -66,7 +66,7 @@ func TestPickingRendersSeparateReadOnlySlipsWithOutstandingQuantities(t *testing
 
 func TestPickingLinkAppearsOnlyOnThePickingTab(t *testing.T) {
 	t.Parallel()
-	for _, v := range []OrdersView{{Status: QueuePicking}, {Status: QueueReady}, {Status: QueueAll}, {Status: QueuePicking, Term: "GO-ONE", Searched: true}} {
+	for _, v := range []View{{Status: QueuePicking}, {Status: QueueReady}, {Status: QueueAll}, {Status: QueuePicking, Term: "GO-ONE", Searched: true}} {
 		out := renderToString(t, Orders(layouts.Page{Title: "Orders"}, v))
 		got := strings.Contains(out, `href="/admin/orders/picking/slips"`)
 		if want := v.Status == QueuePicking && !v.Searched; got != want {

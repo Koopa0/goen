@@ -66,7 +66,7 @@ func TestDeskRefusalPOSTsKeepDraftsAndLocateTheirForm(t *testing.T) {
 		RETURNING id::text`, faqCategory[:30]).Scan(&faqCategoryID); err != nil {
 		t.Fatalf("FAQ category fixture: %v", err)
 	}
-	if errs, err := faqStore.CreateFAQEntry(ctx, &faq.FAQForm{CategoryID: faqCategoryID, Question: "original question", Answer: "original answer"}); err != nil || len(errs) > 0 {
+	if errs, err := faqStore.CreateFAQEntry(ctx, &faq.Form{CategoryID: faqCategoryID, Question: "original question", Answer: "original answer"}); err != nil || len(errs) > 0 {
 		t.Fatalf("FAQ fixture: %v %v", err, errs)
 	}
 	entries, err := faqStore.FAQ(ctx)

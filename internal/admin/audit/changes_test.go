@@ -10,23 +10,23 @@ func TestAuditChangesReadsFieldsNotJSON(t *testing.T) {
 	for _, tt := range []struct {
 		name          string
 		before, after string
-		want          []AuditChange
+		want          []Change
 	}{
 		{
 			name:   "a pair keeps the fields that differ",
 			before: `{"status":"pending","note":"same","qty":2}`,
 			after:  `{"status":"picking","note":"same","qty":2}`,
-			want:   []AuditChange{{Field: "status", Before: "pending", After: "picking"}},
+			want:   []Change{{Field: "status", Before: "pending", After: "picking"}},
 		},
 		{
 			name:  "one side lists every field in order",
 			after: `{"b":1,"a":"x","c":null}`,
-			want: []AuditChange{
+			want: []Change{
 				{Field: "a", After: "x"}, {Field: "b", After: "1"}, {Field: "c", After: "—"},
 			},
 		},
-		{name: "a field only one side has", before: `{"a":1}`, after: `{"a":1,"b":true}`, want: []AuditChange{{Field: "b", After: "true"}}},
-		{name: "not an object is one row", after: `[1,2]`, want: []AuditChange{{After: "[1,2]"}}},
+		{name: "a field only one side has", before: `{"a":1}`, after: `{"a":1,"b":true}`, want: []Change{{Field: "b", After: "true"}}},
+		{name: "not an object is one row", after: `[1,2]`, want: []Change{{After: "[1,2]"}}},
 		{name: "nothing recorded", want: nil},
 	} {
 		t.Run(tt.name, func(t *testing.T) {

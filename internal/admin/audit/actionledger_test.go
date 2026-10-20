@@ -175,7 +175,7 @@ func TestEveryLedgerActionHasAPhrase(t *testing.T) {
 			t.Run(action+"/"+string(locale), func(t *testing.T) {
 				t.Parallel()
 				ctx := i18n.WithLocale(t.Context(), locale)
-				if got := (audit.AuditEntry{Action: action}).Label(ctx); got == action {
+				if got := (audit.Entry{Action: action}).Label(ctx); got == action {
 					t.Errorf("Label(%q) in %s is the raw code: the action has no staff-facing phrase (add it to pages.actionLabels)", action, locale)
 				}
 			})

@@ -77,7 +77,7 @@ func TestARedirectedNoticeIsShownAsItsOwnOutcome(t *testing.T) {
 		ctx := i18n.WithLocale(t.Context(), i18n.ZhHant)
 		req := httptest.NewRequestWithContext(ctx, http.MethodGet, "/admin/orders?"+tc.name+"=1", http.NoBody)
 		var page strings.Builder
-		view := OrdersView{Notice: components.NoticeFrom(req, notices)}
+		view := View{Notice: components.NoticeFrom(req, notices)}
 		if err := Orders(layouts.Page{Title: "orders"}, view).Render(ctx, &page); err != nil {
 			t.Fatal(err)
 		}

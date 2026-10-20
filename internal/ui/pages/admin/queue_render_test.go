@@ -50,7 +50,7 @@ func queuePages(b keyset.Bound, ctx func(k i18n.Key) string) map[string]struct {
 		want string
 	}
 	return map[string]c{
-		"audit": {audit.Audit(p, audit.AuditView{Bound: b}), ctx(i18n.KeyAdminAuditEmpty)},
+		"audit": {audit.Audit(p, audit.View{Bound: b}), ctx(i18n.KeyAdminAuditEmpty)},
 	}
 }
 

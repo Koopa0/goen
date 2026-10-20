@@ -10,9 +10,9 @@ import (
 	"github.com/koopa0/goen/internal/ui/components"
 )
 
-// FAQEntry is a listed entry, or the add form's draft. Category is the listed
+// Entry is a listed entry, or the add form's draft. Category is the listed
 // entry's category name; CategoryID is the category the draft chose.
-type FAQEntry struct {
+type Entry struct {
 	ID         string
 	CategoryID string
 	Category   string
@@ -32,17 +32,17 @@ type FAQCategory struct {
 	InUse  bool
 }
 
-func (e FAQEntry) Translated() bool { return e.AnswerEn != "" }
+func (e Entry) Translated() bool { return e.AnswerEn != "" }
 
 type FAQView struct {
-	Rows   []FAQEntry
+	Rows   []Entry
 	Notice components.Result
 	Errors map[string]string
-	Draft  FAQEntry
+	Draft  Entry
 	// Edit and EditErrors are a refused edit of one listed entry, carried apart
 	// from Draft and Errors so the refusal lands on that entry and not on the
 	// add form, where fixing it would publish a second copy.
-	Edit       FAQEntry
+	Edit       Entry
 	EditErrors map[string]string
 
 	Categories []FAQCategory
@@ -54,7 +54,7 @@ type FAQView struct {
 
 // Listed is the entry as its own form shows it: the refused submission when
 // this is the entry whose edit was refused, otherwise what is stored.
-func (v *FAQView) Listed(e *FAQEntry) FAQEntry {
+func (v *FAQView) Listed(e *Entry) Entry {
 	if v.Edit.ID != e.ID {
 		return *e
 	}
@@ -63,7 +63,7 @@ func (v *FAQView) Listed(e *FAQEntry) FAQEntry {
 	return out
 }
 
-func (v *FAQView) RowErr(e *FAQEntry, f string) bool {
+func (v *FAQView) RowErr(e *Entry, f string) bool {
 	_, refused := v.EditErrors[f]
 	return refused && v.Edit.ID == e.ID
 }

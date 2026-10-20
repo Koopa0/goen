@@ -8,7 +8,7 @@ import (
 
 // A feed rather than a table: the detail line is a recorded payload of no fixed
 // width, and a column that held one would turn every other row into empty space.
-templ Audit(p layouts.Page, v AuditView) {
+templ Audit(p layouts.Page, v View) {
 	@layouts.Admin(p, "audit") {
 		<div class="ui-page-head">
 			<div>

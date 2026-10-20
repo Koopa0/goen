@@ -21,7 +21,7 @@ func TestOrderStatusNavigationIsNamedInBothLanguages(t *testing.T) {
 		t.Run(string(tc.locale), func(t *testing.T) {
 			t.Parallel()
 			ctx := i18n.WithLocale(t.Context(), tc.locale)
-			view := OrdersView{
+			view := View{
 				Status: QueuePicking,
 				Tabs: []StatusTab{
 					{Value: QueueAll, Label: i18n.T(ctx, i18n.KeyAdminTabAll), Count: 3},

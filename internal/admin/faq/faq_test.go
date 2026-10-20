@@ -26,12 +26,12 @@ func tagHolding(t *testing.T, page, attr string) string {
 func TestARefusedFAQEditReturnsToItsOwnEntryNotTheAddForm(t *testing.T) {
 	t.Parallel()
 	v := &FAQView{
-		Rows: []FAQEntry{
+		Rows: []Entry{
 			{ID: "e1", Category: "會員", Question: "stored question", Answer: "stored answer"},
 			{ID: "e2", Category: "運送", Question: "other question", Answer: "other answer"},
 		},
 		EditErrors: map[string]string{"question": "REFUSED-QUESTION"},
-		Edit: FAQEntry{
+		Edit: Entry{
 			ID: "e1", Category: "會員", Question: "", Answer: "edited answer",
 		},
 	}
@@ -67,9 +67,9 @@ func TestARefusedFAQEditReturnsToItsOwnEntryNotTheAddForm(t *testing.T) {
 func TestARefusedFAQAddStaysOnTheAddForm(t *testing.T) {
 	t.Parallel()
 	v := &FAQView{
-		Rows:   []FAQEntry{{ID: "e1", Category: "會員", Question: "q", Answer: "a"}},
+		Rows:   []Entry{{ID: "e1", Category: "會員", Question: "q", Answer: "a"}},
 		Errors: map[string]string{"question": "REFUSED-QUESTION"},
-		Draft:  FAQEntry{Category: "會員", Answer: "typed answer"},
+		Draft:  Entry{Category: "會員", Answer: "typed answer"},
 	}
 	page := renderToString(t, FAQ(layouts.Page{Title: "faq"}, v))
 	if !strings.Contains(tagHolding(t, page, `id="faq-question"`), "aria-invalid") {

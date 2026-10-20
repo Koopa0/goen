@@ -12,7 +12,7 @@ import (
 
 // The tabs are links and the selected one is marked with aria-current alone: a second
 // class saying the same thing is a second source of truth for which tab is on.
-templ Orders(p layouts.Page, v OrdersView) {
+templ Orders(p layouts.Page, v View) {
 	@layouts.Admin(p, "orders") {
 		<div class="ui-page-head">
 			<div>

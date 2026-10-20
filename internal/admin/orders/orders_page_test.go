@@ -18,13 +18,13 @@ import (
 func TestAdminOrdersEmptyCopyMatchesTheQueueContext(t *testing.T) {
 	t.Parallel()
 	ctx := i18n.WithLocale(t.Context(), i18n.ZhHant)
-	render := func(v OrdersView) string {
+	render := func(v View) string {
 		return renderToString(t, Orders(OrdersMeta(ctx), v))
 	}
 
 	t.Run("a search miss names the term and not the status filter", func(t *testing.T) {
 		t.Parallel()
-		body := render(OrdersView{Term: "GO-MISSING", Searched: true})
+		body := render(View{Term: "GO-MISSING", Searched: true})
 		want := i18n.T(ctx, i18n.KeyAdminQueueNoneFound)
 		if !strings.Contains(body, fmt.Sprintf(want, "GO-MISSING")) {
 			t.Fatalf("search miss HTML lacks %q", fmt.Sprintf(want, "GO-MISSING"))
@@ -36,7 +36,7 @@ func TestAdminOrdersEmptyCopyMatchesTheQueueContext(t *testing.T) {
 
 	t.Run("an empty all-orders queue says there are none yet", func(t *testing.T) {
 		t.Parallel()
-		body := render(OrdersView{})
+		body := render(View{})
 		want := i18n.T(ctx, i18n.KeyAdminQueueNoneYet)
 		if !strings.Contains(body, want) {
 			t.Fatalf("empty shop HTML lacks %q", want)
@@ -48,7 +48,7 @@ func TestAdminOrdersEmptyCopyMatchesTheQueueContext(t *testing.T) {
 
 	t.Run("an empty status tab keeps the state-specific copy", func(t *testing.T) {
 		t.Parallel()
-		body := render(OrdersView{Status: "picking"})
+		body := render(View{Status: "picking"})
 		want := i18n.T(ctx, i18n.KeyAdminQueueEmpty)
 		if !strings.Contains(body, want) {
 			t.Fatalf("empty status tab HTML lacks %q", want)

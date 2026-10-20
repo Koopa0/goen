@@ -875,7 +875,7 @@ func TestAnOrderSearchTakesWildcardsLiterally(t *testing.T) {
 	}
 }
 
-func hasOrder(v orders.OrdersView, number string) bool {
+func hasOrder(v orders.View, number string) bool {
 	for i := range v.Orders {
 		if v.Orders[i].Number == number {
 			return true

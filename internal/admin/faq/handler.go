@@ -95,8 +95,8 @@ func (h *Handler) EditFAQ(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-func faqFormOf(r *http.Request) *FAQForm {
-	return &FAQForm{
+func faqFormOf(r *http.Request) *Form {
+	return &Form{
 		CategoryID: r.PostFormValue("category_id"),
 		Question:   r.PostFormValue("question"),
 		Answer:     r.PostFormValue("answer"),
@@ -106,14 +106,14 @@ func faqFormOf(r *http.Request) *FAQForm {
 }
 
 func (h *Handler) rejectFAQ(
-	w http.ResponseWriter, r *http.Request, f *FAQForm, errs map[string]string,
+	w http.ResponseWriter, r *http.Request, f *Form, errs map[string]string,
 ) {
 	view, err := h.store.FAQ(r.Context())
 	if err != nil {
 		access.ServerError(w, r, h.log)
 		return
 	}
-	typed := FAQEntry{
+	typed := Entry{
 		ID: f.ID, CategoryID: r.PostFormValue("category_id"),
 		Question: r.PostFormValue("question"), Answer: r.PostFormValue("answer"),
 		QuestionEn: r.PostFormValue("question_en"), AnswerEn: r.PostFormValue("answer_en"),
@@ -180,14 +180,14 @@ func (h *Handler) EditFAQCategory(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-func faqCategoryFormOf(r *http.Request) *FAQCategoryForm {
-	return &FAQCategoryForm{Name: r.PostFormValue("name"), NameEn: r.PostFormValue("name_en")}
+func faqCategoryFormOf(r *http.Request) *CategoryForm {
+	return &CategoryForm{Name: r.PostFormValue("name"), NameEn: r.PostFormValue("name_en")}
 }
 
 // rejectFAQCategory answers a refused category form on the form it came from,
 // with what was typed.
 func (h *Handler) rejectFAQCategory(
-	w http.ResponseWriter, r *http.Request, f *FAQCategoryForm, errs map[string]string,
+	w http.ResponseWriter, r *http.Request, f *CategoryForm, errs map[string]string,
 ) {
 	view, err := h.store.FAQ(r.Context())
 	if err != nil {
