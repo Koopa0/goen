@@ -21,7 +21,7 @@ import (
 	"github.com/koopa0/goen/internal/admin/admintest"
 	"github.com/koopa0/goen/internal/admin/audit"
 	"github.com/koopa0/goen/internal/admin/campaigns"
-	"github.com/koopa0/goen/internal/admin/loyalty"
+	"github.com/koopa0/goen/internal/admin/credits"
 	"github.com/koopa0/goen/internal/admin/products"
 	"github.com/koopa0/goen/internal/admin/products/productstest"
 	"github.com/koopa0/goen/internal/admin/shipping"
@@ -151,7 +151,7 @@ func TestEveryBackOfficeWriteLeavesATrail(t *testing.T) {
 			return s.SetStatus(ctx, slug, "draft")
 		}},
 		{"grant credit", audit.ActionGrantCredit, func() error {
-			_, grantErr := loyalty.NewStore(pool).GrantCredit(ctx, actor, 500,
+			_, grantErr := credits.NewStore(pool).GrantCredit(ctx, actor, 500,
 				"測試", uuid.New())
 			return grantErr
 		}},

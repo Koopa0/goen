@@ -77,7 +77,7 @@ var (
 	// storefrontPages are the packages that serve storefront pages. The rule
 	// that uses them leaves out, on purpose: internal/contact (admin/messages
 	// uses its Subject vocabulary), internal/loyalty (programme rules
-	// admin/loyalty configures), and internal/media and internal/payment
+	// admin/tiers configures), and internal/media and internal/payment
 	// (shared infrastructure). It matches exactly, not by prefix:
 	// internal/cart/item is a vocabulary leaf, not a page.
 	storefrontPages = []string{
@@ -99,7 +99,7 @@ var (
 	// i18nOnlyLeaves import nothing from goen except the message catalogue.
 	i18nOnlyLeaves = []string{
 		"internal/invoice", "internal/order", "internal/product/labelling", "internal/returns", "internal/shoptime", "internal/ui/fieldrule",
-		"internal/sales", "internal/worklist", "internal/shipping",
+		"internal/sales", "internal/worklist", "internal/shipping", "internal/credit",
 	}
 )
 
