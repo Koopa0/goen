@@ -19,7 +19,7 @@ sql:
       - "internal/media/query.sql"
       - "internal/site/query.sql"
       - "internal/admin/twofactor/query.sql"
-      - "internal/recommend/query.sql"
+      - "internal/copurchase/query.sql"
       - "internal/backinstock/query.sql"
       - "internal/warranty/query.sql"
       - "internal/auth/query.sql"

@@ -28,6 +28,7 @@ import (
 	"github.com/koopa0/goen/internal/auth"
 	"github.com/koopa0/goen/internal/backinstock"
 	"github.com/koopa0/goen/internal/cart"
+	"github.com/koopa0/goen/internal/copurchase"
 	"github.com/koopa0/goen/internal/invoice/issuer"
 	"github.com/koopa0/goen/internal/letter"
 	"github.com/koopa0/goen/internal/media"
@@ -38,7 +39,6 @@ import (
 	"github.com/koopa0/goen/internal/outbox"
 	"github.com/koopa0/goen/internal/payment"
 	"github.com/koopa0/goen/internal/ratelimit"
-	"github.com/koopa0/goen/internal/recommend"
 	"github.com/koopa0/goen/internal/web"
 	"github.com/koopa0/goen/migrations"
 )
@@ -914,7 +914,7 @@ func startWorkers(ctx context.Context, d workerDeps) {
 		d.run(func() { issuer.NewStore(d.admin, d.invoices).ReconcileForever(ctx, d.log) })
 	}
 
-	d.run(func() { recommend.NewStore(d.maintenance, d.log).RefreshForever(ctx) })
+	d.run(func() { copurchase.NewStore(d.maintenance, d.log).RefreshForever(ctx) })
 	d.run(func() { backinstock.NewStore(d.maintenance).SweepForever(ctx, d.log) })
 }
 
