@@ -9,7 +9,7 @@ import "github.com/a-h/templ"
 import templruntime "github.com/a-h/templ/runtime"
 
 import (
-	"github.com/koopa0/goen/internal/cart/item"
+	"github.com/koopa0/goen/internal/cart/cartitem"
 	"github.com/koopa0/goen/internal/i18n"
 	"github.com/koopa0/goen/internal/ui/components"
 	"github.com/koopa0/goen/internal/ui/icons"
@@ -27,7 +27,7 @@ type WishlistView struct {
 	Products []WishlistItem
 	// Added is what the last add-to-cart from this page did, as the cart's
 	// redirect names it.
-	Added item.AddOutcome
+	Added cartitem.AddOutcome
 }
 
 func (v WishlistView) Empty() bool { return len(v.Products) == 0 }
@@ -169,7 +169,7 @@ func Wishlist(p layouts.Page, v WishlistView) templ.Component {
 				}
 			} else {
 				switch v.Added {
-				case item.AddOutcomeAdded:
+				case cartitem.AddOutcomeAdded:
 					templ_7745c5c3_Var9 := templruntime.GeneratedTemplate(func(templ_7745c5c3_Input templruntime.GeneratedComponentInput) (templ_7745c5c3_Err error) {
 						templ_7745c5c3_W, ctx := templ_7745c5c3_Input.Writer, templ_7745c5c3_Input.Context
 						templ_7745c5c3_Buffer, templ_7745c5c3_IsBuffer := templruntime.GetBuffer(templ_7745c5c3_W)
@@ -214,7 +214,7 @@ func Wishlist(p layouts.Page, v WishlistView) templ.Component {
 					if templ_7745c5c3_Err != nil {
 						return templ_7745c5c3_Err
 					}
-				case item.AddOutcomeAdjusted:
+				case cartitem.AddOutcomeAdjusted:
 					templ_7745c5c3_Var12 := templruntime.GeneratedTemplate(func(templ_7745c5c3_Input templruntime.GeneratedComponentInput) (templ_7745c5c3_Err error) {
 						templ_7745c5c3_W, ctx := templ_7745c5c3_Input.Writer, templ_7745c5c3_Input.Context
 						templ_7745c5c3_Buffer, templ_7745c5c3_IsBuffer := templruntime.GetBuffer(templ_7745c5c3_W)
@@ -259,7 +259,7 @@ func Wishlist(p layouts.Page, v WishlistView) templ.Component {
 					if templ_7745c5c3_Err != nil {
 						return templ_7745c5c3_Err
 					}
-				case item.AddOutcomeUnavailable, item.AddOutcomeUnknown:
+				case cartitem.AddOutcomeUnavailable, cartitem.AddOutcomeUnknown:
 					templ_7745c5c3_Var15 := templruntime.GeneratedTemplate(func(templ_7745c5c3_Input templruntime.GeneratedComponentInput) (templ_7745c5c3_Err error) {
 						templ_7745c5c3_W, ctx := templ_7745c5c3_Input.Writer, templ_7745c5c3_Input.Context
 						templ_7745c5c3_Buffer, templ_7745c5c3_IsBuffer := templruntime.GetBuffer(templ_7745c5c3_W)
@@ -287,7 +287,7 @@ func Wishlist(p layouts.Page, v WishlistView) templ.Component {
 					if templ_7745c5c3_Err != nil {
 						return templ_7745c5c3_Err
 					}
-				case item.AddOutcomeFull:
+				case cartitem.AddOutcomeFull:
 					templ_7745c5c3_Var17 := templruntime.GeneratedTemplate(func(templ_7745c5c3_Input templruntime.GeneratedComponentInput) (templ_7745c5c3_Err error) {
 						templ_7745c5c3_W, ctx := templ_7745c5c3_Input.Writer, templ_7745c5c3_Input.Context
 						templ_7745c5c3_Buffer, templ_7745c5c3_IsBuffer := templruntime.GetBuffer(templ_7745c5c3_W)

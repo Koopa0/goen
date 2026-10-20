@@ -13,7 +13,7 @@ import (
 
 	"github.com/koopa0/goen/internal/auth/google"
 	"github.com/koopa0/goen/internal/bearer"
-	"github.com/koopa0/goen/internal/cart/item"
+	"github.com/koopa0/goen/internal/cart/cartitem"
 	"github.com/koopa0/goen/internal/email"
 	"github.com/koopa0/goen/internal/i18n"
 	"github.com/koopa0/goen/internal/ratelimit"
@@ -31,7 +31,7 @@ type Carts interface {
 	// it or was left out. An error means the cart was not carried over and has
 	// been logged.
 	AdoptRequestCart(ctx context.Context, r *http.Request, userID string) (adjusted bool, err error)
-	RecoveryContents(ctx context.Context, r *http.Request) (beforeSignIn, account []item.Item, err error)
+	RecoveryContents(ctx context.Context, r *http.Request) (beforeSignIn, account []cartitem.Item, err error)
 	ForgetCart(w http.ResponseWriter, r *http.Request)
 }
 
@@ -697,7 +697,7 @@ func (h *Handler) CartRecoveryPage(w http.ResponseWriter, r *http.Request) {
 		http.Redirect(w, r, "/signin", http.StatusSeeOther)
 		return
 	}
-	var beforeSignIn, account []item.Item
+	var beforeSignIn, account []cartitem.Item
 	if h.carts != nil {
 		var err error
 		beforeSignIn, account, err = h.carts.RecoveryContents(r.Context(), r)
@@ -723,7 +723,7 @@ func (h *Handler) CartRecoveryPage(w http.ResponseWriter, r *http.Request) {
 
 // recoveryLines places a cart's items on the recovery page, which lists what
 // each line is and how many, not what it costs.
-func recoveryLines(items []item.Item) []pages.CartLine {
+func recoveryLines(items []cartitem.Item) []pages.CartLine {
 	lines := make([]pages.CartLine, 0, len(items))
 	for _, it := range items {
 		lines = append(lines, pages.CartLine{
