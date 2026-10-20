@@ -1,4 +1,4 @@
-package restock
+package backinstock
 
 import (
 	"context"
@@ -7,7 +7,6 @@ import (
 	"time"
 
 	"github.com/jackc/pgx/v5/pgtype"
-	"github.com/jackc/pgx/v5/pgxpool"
 
 	"github.com/koopa0/goen/internal/db"
 )
@@ -16,13 +15,15 @@ type Store struct {
 	q *db.Queries
 }
 
-// NewStore needs the maintenance pool: no other login may execute the function
-// that deletes an alert.
-func NewStore(pool *pgxpool.Pool) *Store {
-	if pool == nil {
-		panic("restock: NewStore requires a pool")
+// NewStore takes the handle of the role that runs the method called:
+// [Store.Request] runs as `store`, from the product page, and [Store.Sweep]
+// needs the maintenance pool, because no other login may execute the function
+// that deletes a request.
+func NewStore(dbtx db.DBTX) *Store {
+	if dbtx == nil {
+		panic("backinstock: NewStore requires a database handle")
 	}
-	return &Store{q: db.New(pool)}
+	return &Store{q: db.New(dbtx)}
 }
 
 // Sweep deletes alerts notified more than [NotifiedRetain] ago, a batch at a

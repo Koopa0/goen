@@ -1,4 +1,4 @@
-package catalog
+package backinstock
 
 import (
 	"context"
@@ -12,16 +12,21 @@ import (
 	"github.com/koopa0/goen/internal/i18n"
 )
 
-var ErrNotifyInvalid = errors.New("catalog: invalid restock request")
+// ErrInvalid is a request that is not recorded: an address goen will not mail,
+// or a variant that is not a sold-out variant of the product on the route.
+var ErrInvalid = errors.New("backinstock: invalid request")
 
-func (s *Store) RequestRestockNotice(ctx context.Context, slug, variantID, addr, userID string) error {
+// Request records that addr wants an email when the variant is back in stock.
+// Asking again while a request is waiting is not an error and records nothing
+// new. userID is the signed-in customer's id, or empty for a guest.
+func (s *Store) Request(ctx context.Context, slug, variantID, addr, userID string) error {
 	vid, err := uuid.Parse(variantID)
 	if err != nil {
-		return ErrNotifyInvalid
+		return ErrInvalid
 	}
 	addr = email.Clean(addr)
 	if !email.Valid(addr) {
-		return ErrNotifyInvalid
+		return ErrInvalid
 	}
 
 	var owner uuid.NullUUID
@@ -39,7 +44,7 @@ func (s *Store) RequestRestockNotice(ctx context.Context, slug, variantID, addr,
 		return fmt.Errorf("request restock notice: %w", err)
 	}
 	if !eligible {
-		return ErrNotifyInvalid
+		return ErrInvalid
 	}
 	return nil
 }

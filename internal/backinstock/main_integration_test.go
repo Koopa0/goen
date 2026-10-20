@@ -1,6 +1,6 @@
 //go:build integration
 
-package restock_test
+package backinstock_test
 
 import (
 	"context"
