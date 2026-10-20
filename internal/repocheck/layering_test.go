@@ -45,7 +45,7 @@ import (
 //     import and Name an exported const or var declared in that view package. A
 //     constant belongs to the package whose rule it states (S8b moved the
 //     comparison cap, the review limits and the restock outcomes to catalog and
-//     the add-to-cart outcome to cart/item).
+//     the add-to-cart outcome to cart/cartitem).
 var viewPackageImporters = []string{
 	"internal/account",
 	"internal/admin/dashboard",

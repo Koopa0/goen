@@ -6,7 +6,7 @@ import (
 
 	"golang.org/x/net/html"
 
-	"github.com/koopa0/goen/internal/cart/item"
+	"github.com/koopa0/goen/internal/cart/cartitem"
 	"github.com/koopa0/goen/internal/i18n"
 	"github.com/koopa0/goen/internal/ui/layouts"
 )
@@ -274,13 +274,13 @@ func TestAddingFromTheWishlistStaysOnItAndSaysWhatHappened(t *testing.T) {
 	t.Parallel()
 	saved := WishlistItem{ProductTile: ProductTile{Slug: "mug", Name: "Mug", PriceCents: 100, InStock: true}, SoleVariantID: "v1"}
 	for _, tc := range []struct {
-		outcome item.AddOutcome
+		outcome cartitem.AddOutcome
 		want    i18n.Key
 	}{
-		{item.AddOutcomeAdded, i18n.KeyAddedToCart},
-		{item.AddOutcomeAdjusted, i18n.KeyAddAdjusted},
-		{item.AddOutcomeUnavailable, i18n.KeyAddRefused},
-		{item.AddOutcomeFull, i18n.KeyCartLineLimit},
+		{cartitem.AddOutcomeAdded, i18n.KeyAddedToCart},
+		{cartitem.AddOutcomeAdjusted, i18n.KeyAddAdjusted},
+		{cartitem.AddOutcomeUnavailable, i18n.KeyAddRefused},
+		{cartitem.AddOutcomeFull, i18n.KeyCartLineLimit},
 	} {
 		ctx := i18n.WithLocale(t.Context(), i18n.ZhHant)
 		got := renderToString(t, Wishlist(layouts.Page{}, WishlistView{Products: []WishlistItem{saved}, Added: tc.outcome}))

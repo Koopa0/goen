@@ -18,7 +18,7 @@ import (
 
 	"github.com/koopa0/goen/assets"
 	"github.com/koopa0/goen/internal/bearer"
-	"github.com/koopa0/goen/internal/cart/item"
+	"github.com/koopa0/goen/internal/cart/cartitem"
 	"github.com/koopa0/goen/internal/coupon"
 	"github.com/koopa0/goen/internal/db"
 	"github.com/koopa0/goen/internal/i18n"
@@ -313,18 +313,18 @@ func (s *Store) View(ctx context.Context, cartID uuid.UUID) (CartView, error) {
 
 // Items reads what the cart holds, every line the cart page lists and in its
 // order, sellable or not.
-func (s *Store) Items(ctx context.Context, cartID uuid.UUID) ([]item.Item, error) {
+func (s *Store) Items(ctx context.Context, cartID uuid.UUID) ([]cartitem.Item, error) {
 	rows, err := s.q.CartLines(ctx, db.CartLinesParams{
 		CartID: cartID, Locale: string(i18n.FromContext(ctx)),
 	})
 	if err != nil {
 		return nil, fmt.Errorf("read cart lines: %w", err)
 	}
-	items := make([]item.Item, 0, len(rows))
+	items := make([]cartitem.Item, 0, len(rows))
 	for i := range rows {
 		r := &rows[i]
 		photo := assets.Image{Digest: r.ImageDigest, BundledKey: r.ImageBundledKey, Width: int(r.ImageWidth)}
-		items = append(items, item.Item{
+		items = append(items, cartitem.Item{
 			VariantID:   r.VariantID,
 			Name:        r.Name,
 			Label:       optionLabel(r.OptionNames, r.OptionValues),
