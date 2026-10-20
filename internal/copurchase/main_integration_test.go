@@ -1,6 +1,6 @@
 //go:build integration
 
-package recommend_test
+package copurchase_test
 
 import (
 	"context"

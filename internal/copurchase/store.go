@@ -1,4 +1,4 @@
-package recommend
+package copurchase
 
 import (
 	"context"
@@ -20,7 +20,7 @@ type Store struct {
 // refresh_copurchases writes.
 func NewStore(pool *pgxpool.Pool, log *slog.Logger) *Store {
 	if pool == nil || log == nil {
-		panic("recommend: NewStore requires a pool and a logger")
+		panic("copurchase: NewStore requires a pool and a logger")
 	}
 	return &Store{q: db.New(pool), log: log}
 }
