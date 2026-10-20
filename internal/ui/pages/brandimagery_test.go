@@ -38,25 +38,6 @@ func TestHomeDepartmentCardsWearTheirToneAndPhotograph(t *testing.T) {
 	}
 }
 
-// The cart's row of this test is internal/cart's TestCartEmptyStateShowsItsIllustration.
-func TestEmptyStatesShowTheirIllustrationAsDecoration(t *testing.T) {
-	t.Parallel()
-	for name, tt := range map[string]struct {
-		page  string
-		asset string
-	}{
-		"campaign":        {renderIn(t, i18n.ZhHant, Campaign(layouts.Page{}, CampaignView{Title: "x"})), assets.EmptyCampaignImage},
-		"category":        {renderIn(t, i18n.ZhHant, Listing(layouts.Page{}, ListingView{Slug: "phones"}, nil, nil)), assets.EmptySearchImage},
-		"search prompt":   {renderIn(t, i18n.ZhHant, Search(layouts.Page{}, SearchView{})), assets.EmptySearchImage},
-		"search no match": {renderIn(t, i18n.ZhHant, Search(layouts.Page{}, SearchView{Query: "zzz"})), assets.EmptySearchImage},
-	} {
-		want := `<img class="goen-empty__art" src="` + assets.URL(tt.asset) + `" alt="" width="128" height="96"`
-		if !strings.Contains(tt.page, want) {
-			t.Errorf("%s empty state omits %s", name, want)
-		}
-	}
-}
-
 func renderHead(t *testing.T, p layouts.Page) string {
 	t.Helper()
 	ctx := layouts.WithSiteOrigin(i18n.WithLocale(t.Context(), i18n.ZhHant), "https://goen.test")

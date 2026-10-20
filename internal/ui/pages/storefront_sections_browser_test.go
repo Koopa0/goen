@@ -12,6 +12,7 @@ import (
 
 	"github.com/koopa0/goen/assets"
 	"github.com/koopa0/goen/internal/cart"
+	"github.com/koopa0/goen/internal/catalog"
 	"github.com/koopa0/goen/internal/i18n"
 	"github.com/koopa0/goen/internal/ui/components"
 	"github.com/koopa0/goen/internal/ui/layouts"
@@ -67,22 +68,22 @@ func TestStorefrontSectionsAsDrawn(t *testing.T) {
 		}
 	})
 	mux.HandleFunc("GET /deals", func(w http.ResponseWriter, r *http.Request) {
-		view := pages.SearchView{Campaigns: pages.CampaignPage{Page: 1, Total: 2, PageSize: 12, Rows: []pages.CampaignSummary{
+		view := catalog.SearchView{Campaigns: catalog.CampaignPage{Page: 1, Total: 2, PageSize: 12, Rows: []catalog.CampaignSummary{
 			{Slug: "autumn", Title: "Autumn audio", Products: 4, EndsOn: "31 Oct"},
 			{Slug: "desk", Title: "Desk week", Products: 6},
 		}}}
 		w.Header().Set("Content-Type", "text/html; charset=utf-8")
-		if renderErr := pages.Deals(layouts.Page{}, view).Render(i18n.WithLocale(r.Context(), i18n.En), w); renderErr != nil {
+		if renderErr := catalog.Deals(layouts.Page{}, view).Render(i18n.WithLocale(r.Context(), i18n.En), w); renderErr != nil {
 			t.Errorf("render deals fixture: %v", renderErr)
 		}
 	})
 	mux.HandleFunc("GET /search", func(w http.ResponseWriter, r *http.Request) {
-		view := pages.SearchView{Query: "tote", Total: 2, Page: 1, PageSize: 20, Products: []pages.ProductTile{
+		view := catalog.SearchView{Query: "tote", Total: 2, Page: 1, PageSize: 20, Products: []pages.ProductTile{
 			{Slug: "canvas-tote", Name: "Canvas tote", PriceCents: 89000, InStock: true, Comparable: true},
 			{Slug: "city-tote", Name: "City tote", PriceCents: 129000, InStock: true, Comparable: true},
 		}}
 		w.Header().Set("Content-Type", "text/html; charset=utf-8")
-		if renderErr := pages.Search(layouts.Page{}, view).Render(i18n.WithLocale(r.Context(), i18n.En), w); renderErr != nil {
+		if renderErr := catalog.Search(layouts.Page{}, view).Render(i18n.WithLocale(r.Context(), i18n.En), w); renderErr != nil {
 			t.Errorf("render search fixture: %v", renderErr)
 		}
 	})
@@ -97,9 +98,9 @@ func TestStorefrontSectionsAsDrawn(t *testing.T) {
 		}
 	})
 	mux.HandleFunc("GET /c/audio", func(w http.ResponseWriter, r *http.Request) {
-		view := pages.ListingView{Slug: "audio", Name: "Audio", Filtered: true, InStockOnly: true, Query: "in_stock=1"}
+		view := catalog.ListingView{Slug: "audio", Name: "Audio", Filtered: true, InStockOnly: true, Query: "in_stock=1"}
 		w.Header().Set("Content-Type", "text/html; charset=utf-8")
-		if renderErr := pages.Listing(layouts.Page{}, view, nil, nil).Render(i18n.WithLocale(r.Context(), i18n.En), w); renderErr != nil {
+		if renderErr := catalog.Listing(layouts.Page{}, view, nil, nil).Render(i18n.WithLocale(r.Context(), i18n.En), w); renderErr != nil {
 			t.Errorf("render listing fixture: %v", renderErr)
 		}
 	})
@@ -109,23 +110,23 @@ func TestStorefrontSectionsAsDrawn(t *testing.T) {
 		if query.Get("zh") == "1" {
 			locale, names = i18n.ZhHant, []string{"手機", "筆電", "平板", "耳機與音響", "穿戴裝置", "周邊配件"}
 		}
-		theme := &pages.Theme{Tone: tones[query.Get("tone")], Children: []pages.Crumb{
+		theme := &catalog.Theme{Tone: tones[query.Get("tone")], Children: []pages.Crumb{
 			{Slug: "phones", Name: names[0]}, {Slug: "laptops", Name: names[1]}, {Slug: "tablets", Name: names[2]},
 			{Slug: "audio", Name: names[3]}, {Slug: "wearables", Name: names[4]}, {Slug: "accessories", Name: names[5]},
 		}}
 		if query.Get("photo") == "1" {
 			theme.Photo = components.Photo{URL: assets.Image{BundledKey: "nimbus-band-2-01.webp"}.URL(), Alt: "Headphones on a desk"}
 		}
-		var head *pages.DepartmentHead
+		var head *catalog.DepartmentHead
 		if query.Get("notice") == "1" {
 			now := time.Date(2026, 10, 9, 4, 0, 0, 0, time.UTC)
-			head = &pages.DepartmentHead{Notice: &pages.DepartmentNotice{
+			head = &catalog.DepartmentHead{Notice: &catalog.DepartmentNotice{
 				Title: "Autumn audio", Href: "/s/autumn", End: pages.NewCampaignEnd(time.Date(2026, 10, 30, 16, 0, 0, 0, time.UTC), now),
 			}}
 		}
-		view := pages.ListingView{Slug: "phones", Name: names[0], Theme: theme}
+		view := catalog.ListingView{Slug: "phones", Name: names[0], Theme: theme}
 		w.Header().Set("Content-Type", "text/html; charset=utf-8")
-		if renderErr := pages.Listing(layouts.Page{}, view, nil, head).Render(i18n.WithLocale(r.Context(), locale), w); renderErr != nil {
+		if renderErr := catalog.Listing(layouts.Page{}, view, nil, head).Render(i18n.WithLocale(r.Context(), locale), w); renderErr != nil {
 			t.Errorf("render department fixture: %v", renderErr)
 		}
 	})

@@ -5,29 +5,7 @@ import (
 	"strings"
 
 	"github.com/koopa0/goen/internal/i18n"
-	"github.com/koopa0/goen/internal/ui/components"
 )
-
-// A GET, because the set is the URL and a comparison writes nothing. It wraps the
-// grid only when some tile carries a box: a bar with nothing to tick does nothing.
-templ compareForm(offered bool) {
-	if offered {
-		<form class="goen-compare-pick" id="compare-pick" method="get" action="/compare">
-			{ children... }
-			<div class="goen-compare-pick__go">
-				@components.Button(components.ButtonProps{
-					ButtonStyle: components.ButtonStyleOutline,
-					Size:        components.SizeSmall,
-				}, "submit") {
-					{ i18n.T(ctx, i18n.KeyCompareSelected) }
-				}
-				<span class="goen-compare-pick__note">{ fmt.Sprintf(i18n.T(ctx, i18n.KeyCompareLimit), MaxCompare) }</span>
-			</div>
-		</form>
-	} else {
-		{ children... }
-	}
-}
 
 templ tileCard(t ProductTile) {
 	if t.Comparable {
@@ -76,7 +54,7 @@ templ tileCard(t ProductTile) {
 			if len(t.Highlights) > 0 {
 				<span class="goen-tile__specs">{ strings.Join(t.Highlights, " · ") }</span>
 			}
-			@tilePrice(t) {
+			@TilePrice(t) {
 				if t.SoldOut() {
 					<span class="goen-tile__state">{ i18n.T(ctx, i18n.KeySoldOut) }</span>
 				}
@@ -88,7 +66,7 @@ templ tileCard(t ProductTile) {
 	</a>
 }
 
-templ tilePrice(t ProductTile) {
+templ TilePrice(t ProductTile) {
 	<span class="goen-tile__price">
 		<span class="goen-tile__amount">
 			if t.PriceVaries {

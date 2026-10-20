@@ -17,6 +17,7 @@ import (
 	"github.com/koopa0/goen/internal/admin/refunds"
 	"github.com/koopa0/goen/internal/admin/returns"
 	"github.com/koopa0/goen/internal/admin/taxonomy"
+	"github.com/koopa0/goen/internal/catalog"
 	"github.com/koopa0/goen/internal/order/buyer"
 	"github.com/koopa0/goen/internal/payment"
 	"github.com/koopa0/goen/internal/ui/layouts"
@@ -74,7 +75,7 @@ func methodFormActions(t *testing.T) map[string][]string {
 		"internal/admin/content/home_page.templ:templ.SafeURL(slide.PromoteAction())":                        {(content.HeroSlide{ID: "slide"}).PromoteAction()},
 		"internal/admin/content/home_page.templ:templ.SafeURL(slide.ToggleAction())":                         {(content.HeroSlide{ID: "slide"}).ToggleAction()},
 		"internal/admin/feedback/question_page.templ:templ.SafeURL(q.AnswerAction())":                        {(feedback.Question{ID: "question"}).AnswerAction()},
-		"internal/ui/pages/listing.templ:templ.SafeURL(v.FilterAction())":                                    {(pages.ListingView{Slug: "category"}).FilterAction()},
+		"internal/catalog/listing.templ:templ.SafeURL(v.FilterAction())":                                     {(catalog.ListingView{Slug: "category"}).FilterAction()},
 		"internal/warranty/page.templ:templ.SafeURL(v.Action())":                                             {(warranty.WarrantyOrderView{Number: "order"}).Action()},
 		"internal/payment/pay.templ:templ.SafeURL(v.Action())":                                               {(&payment.PayView{Number: "order"}).Action()},
 		"internal/order/buyer/returns.templ:templ.SafeURL(v.Action())":                                       {(buyer.ReturnsView{Number: "order"}).Action()},

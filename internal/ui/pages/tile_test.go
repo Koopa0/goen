@@ -138,3 +138,12 @@ func textOf(n *html.Node) string {
 	}
 	return b.String()
 }
+
+func TestAComparableTileDrawsItsSpecHighlights(t *testing.T) {
+	t.Parallel()
+	ctx := i18n.WithLocale(t.Context(), i18n.En)
+	got := renderComponent(t, ctx, Tile(ProductTile{Slug: "a", Name: "A", Comparable: true, Highlights: []string{"14″", "2.8K OLED"}}))
+	if want := `<span class="goen-tile__specs">14″ · 2.8K OLED</span>`; !strings.Contains(got, want) {
+		t.Errorf("tile omits %s", want)
+	}
+}
