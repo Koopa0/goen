@@ -1,4 +1,4 @@
-package customers
+package warranties
 
 import (
 	"strings"

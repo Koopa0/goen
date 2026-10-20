@@ -103,7 +103,7 @@ func TestTextPostgreSQLCannotStoreIsRefusedBeforeRouting(t *testing.T) {
 			"/compare?p=aurora-slate&p=" + bad,
 			"/admin/customers?q=" + bad,
 			"/admin/orders?q=" + bad,
-			"/admin/warranty?q=" + bad,
+			"/admin/warranties?q=" + bad,
 		} {
 			res := get(target)
 			if res.Code != http.StatusBadRequest {

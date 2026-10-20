@@ -30,6 +30,7 @@ import (
 	"github.com/koopa0/goen/internal/admin/stock"
 	"github.com/koopa0/goen/internal/admin/taxonomy"
 	"github.com/koopa0/goen/internal/admin/twofactor"
+	"github.com/koopa0/goen/internal/admin/warranties"
 	"github.com/koopa0/goen/internal/auth"
 	"github.com/koopa0/goen/internal/cart"
 	"github.com/koopa0/goen/internal/catalog"
@@ -331,6 +332,7 @@ func backOfficeRoutes(mux *http.ServeMux, cfg *BackOfficeConfig, factorStore *tw
 	inbox := feedback.NewHandler(feedback.NewStore(adminPool), log)
 	roster := staff.NewHandler(staff.NewStore(adminPool), log, factorStore.Enabled())
 	lookup := customers.NewHandler(customers.NewStore(adminPool), log)
+	registrations := warranties.NewHandler(warranties.NewStore(adminPool), log)
 	promotions := coupons.NewHandler(coupons.NewStore(adminPool), log)
 	programme := adminloyalty.NewHandler(adminloyalty.NewStore(adminPool), log)
 	workers := health.NewHandler(checkup, outbox.NewStore(adminPool, log),
@@ -347,6 +349,7 @@ func backOfficeRoutes(mux *http.ServeMux, cfg *BackOfficeConfig, factorStore *tw
 	programme.Routes(mux, backOffice)
 	promotions.Routes(mux, backOffice)
 	lookup.Routes(mux, backOffice)
+	registrations.Routes(mux, backOffice)
 	roster.Routes(mux, backOffice)
 	inbox.Routes(mux, backOffice)
 	sales.Routes(mux, backOffice)

@@ -1,13 +1,18 @@
-package customers
+// Package warranties is the staff search over warranty registrations by serial
+// or order number; it holds the /admin/warranties page, its query and its rows;
+// it does not hold recording cover, which is package warranty.
+package warranties
 
 import (
 	"context"
 	"fmt"
 	"slices"
 	"strings"
+	"time"
 	"unicode/utf8"
 
 	"github.com/google/uuid"
+	"github.com/jackc/pgx/v5/pgxpool"
 
 	"github.com/koopa0/goen/internal/db"
 	"github.com/koopa0/goen/internal/i18n"
@@ -17,10 +22,32 @@ import (
 	"github.com/koopa0/goen/internal/web"
 )
 
+type Store struct {
+	q *db.Queries
+}
+
+func NewStore(pool *pgxpool.Pool) *Store {
+	if pool == nil {
+		panic("warranties: NewStore requires a pool")
+	}
+	return &Store{q: db.New(pool)}
+}
+
+// position is a reader's place in a list. The query builds it as PageCursor,
+// so its fields are the ordering values and nothing else.
+type position struct {
+	ID uuid.UUID
+	At time.Time
+}
+
+func resume(scope string, after []string) (position, bool) {
+	return keyset.Resume(scope, after, func(p position) bool { return p.ID != uuid.Nil })
+}
+
 func (s *Store) Warranties(ctx context.Context, term string, after ...string) (WarrantiesView, error) {
 	// Uppercased: a serial is typed off a label and a shift key is not a failed lookup.
 	term = strings.ToUpper(strings.TrimSpace(term))
-	scope := keyset.ScopeURL("/admin/warranty", "q", term)
+	scope := keyset.ScopeURL("/admin/warranties", "q", term)
 	from, resumed := resume(scope, after)
 	view := WarrantiesView{Term: term}
 	if utf8.RuneCountInString(term) < web.MinSearchRunes {

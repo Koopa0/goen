@@ -1,4 +1,4 @@
-package customers
+package warranties
 
 import (
 	"fmt"
@@ -9,7 +9,7 @@ import (
 )
 
 templ Warranties(p layouts.Page, v WarrantiesView) {
-	@layouts.Admin(p, "warranty") {
+	@layouts.Admin(p, "warranties") {
 		<div class="ui-page-head">
 			<div>
 				<p class="ui-page-head__eyebrow">{ i18n.T(ctx, i18n.KeyAdminEyebrow) }</p>
@@ -19,7 +19,7 @@ templ Warranties(p layouts.Page, v WarrantiesView) {
 				</p>
 			</div>
 		</div>
-		<form class="goen-admin__search" method="get" action="/admin/warranty">
+		<form class="goen-admin__search" method="get" action="/admin/warranties">
 			<label class="goen-sr-only" for="warranty-search">{ i18n.T(ctx, i18n.KeyAdminWarrantySearch) }</label>
 			<input
 				class="ui-input"

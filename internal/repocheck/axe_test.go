@@ -147,8 +147,8 @@ func TestTheRouteKeyFoldsEveryOrderNumberTheShopDraws(t *testing.T) {
 		}
 		// check-layout.sql makes the serial with translate(order_number, 'GO-', ''),
 		// which also strips a G from the suffix.
-		route = "/admin/warranty?q=LAYOUTSN261014" + strings.ReplaceAll(suffix, "G", "")
-		if got := folds["serial"].ReplaceAllString(route, "{serial}"); got != "/admin/warranty?q={serial}" {
+		route = "/admin/warranties?q=LAYOUTSN261014" + strings.ReplaceAll(suffix, "G", "")
+		if got := folds["serial"].ReplaceAllString(route, "{serial}"); got != "/admin/warranties?q={serial}" {
 			t.Errorf("serial made from an order number ending %s folds %q to %q", suffix, route, got)
 		}
 	}

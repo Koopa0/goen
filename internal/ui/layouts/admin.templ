@@ -186,7 +186,7 @@ templ adminNav(current string) {
 			</details>
 			<details
 				class="goen-admin__navgroup"
-				open?={ adminNavHolds(current, "customers", "credit", "tiers", "warranty", "newsletter") }
+				open?={ adminNavHolds(current, "customers", "credit", "tiers", "warranties", "newsletter") }
 			>
 				<summary class="ui-navitem goen-admin__navlabel">{ i18n.T(ctx, i18n.KeyAdminNavCustomers) }</summary>
 				<div class="goen-admin__navitems">
@@ -213,8 +213,8 @@ templ adminNav(current string) {
 					>{ i18n.T(ctx, i18n.KeyAdminPageTiers) }</a>
 					<a
 						class="ui-navitem"
-						href="/admin/warranty"
-						if current == "warranty" {
+						href="/admin/warranties"
+						if current == "warranties" {
 							aria-current="page"
 						}
 					>{ i18n.T(ctx, i18n.KeyAdminQueueWarranty) }</a>
