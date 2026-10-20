@@ -186,7 +186,7 @@ templ adminNav(current string) {
 			</details>
 			<details
 				class="goen-admin__navgroup"
-				open?={ adminNavHolds(current, "customers", "credit", "tiers", "warranties", "newsletters") }
+				open?={ adminNavHolds(current, "customers", "credits", "tiers", "warranties", "newsletters") }
 			>
 				<summary class="ui-navitem goen-admin__navlabel">{ i18n.T(ctx, i18n.KeyAdminNavCustomers) }</summary>
 				<div class="goen-admin__navitems">
@@ -200,10 +200,10 @@ templ adminNav(current string) {
 					<a
 						class="ui-navitem"
 						href="/admin/credits"
-						if current == "credit" {
+						if current == "credits" {
 							aria-current="page"
 						}
-					>{ i18n.T(ctx, i18n.KeyAdminQueueCredit) }</a>
+					>{ i18n.T(ctx, i18n.KeyAdminPageCredit) }</a>
 					<a
 						class="ui-navitem"
 						href="/admin/tiers"

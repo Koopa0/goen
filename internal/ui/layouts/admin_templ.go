@@ -604,7 +604,7 @@ func adminNav(current string) templ.Component {
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
-			if adminNavHolds(current, "customers", "credit", "tiers", "warranties", "newsletters") {
+			if adminNavHolds(current, "customers", "credits", "tiers", "warranties", "newsletters") {
 				templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 59, " open")
 				if templ_7745c5c3_Err != nil {
 					return templ_7745c5c3_Err
@@ -650,7 +650,7 @@ func adminNav(current string) templ.Component {
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
-			if current == "credit" {
+			if current == "credits" {
 				templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 65, " aria-current=\"page\"")
 				if templ_7745c5c3_Err != nil {
 					return templ_7745c5c3_Err
@@ -661,9 +661,9 @@ func adminNav(current string) templ.Component {
 				return templ_7745c5c3_Err
 			}
 			var templ_7745c5c3_Var27 string
-			templ_7745c5c3_Var27, templ_7745c5c3_Err = templ.JoinStringErrs(i18n.T(ctx, i18n.KeyAdminQueueCredit))
+			templ_7745c5c3_Var27, templ_7745c5c3_Err = templ.JoinStringErrs(i18n.T(ctx, i18n.KeyAdminPageCredit))
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `ui/layouts/admin.templ`, Line: 206, Col: 45}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `ui/layouts/admin.templ`, Line: 206, Col: 44}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var27))
 			if templ_7745c5c3_Err != nil {
