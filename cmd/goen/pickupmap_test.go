@@ -191,12 +191,12 @@ func TestAnUnconfiguredGoenHasNoReturnRouteAndNoBypass(t *testing.T) {
 func TestThePolicyNamesTheMapOriginOnlyWhenConfigured(t *testing.T) {
 	t.Parallel()
 
-	if got := policyWith(""); got != contentSecurityPolicy {
-		t.Fatalf("policyWith(\"\") is not the policy main sends:\n  %q\n  %q",
+	if got := cspWith(""); got != contentSecurityPolicy {
+		t.Fatalf("cspWith(\"\") is not the policy main sends:\n  %q\n  %q",
 			got, contentSecurityPolicy)
 	}
 
-	widened := policyWith(mapStagingOrigin)
+	widened := cspWith(mapStagingOrigin)
 	before := directivesOf(t, contentSecurityPolicy)
 	after := directivesOf(t, widened)
 	if len(before) != len(after) {
@@ -226,10 +226,10 @@ func TestThePolicyNamesTheMapOriginOnlyWhenConfigured(t *testing.T) {
 }
 
 // directivesOf splits a policy into name -> value.
-func directivesOf(t *testing.T, policy string) map[string]string {
+func directivesOf(t *testing.T, csp string) map[string]string {
 	t.Helper()
 	out := map[string]string{}
-	for _, d := range strings.Split(policy, ";") {
+	for _, d := range strings.Split(csp, ";") {
 		d = strings.TrimSpace(d)
 		if d == "" {
 			continue

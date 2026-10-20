@@ -76,10 +76,10 @@ const contentSecurityPolicy = "default-src 'self'; " +
 // the only place that widening may happen.
 const formActionDirective = "form-action 'self' https://checkout.stripe.com"
 
-// policyWith is the policy this deployment sends. With no store map configured
-// it is contentSecurityPolicy itself, byte for byte; with one it names exactly
-// one more origin, and only as a form DESTINATION.
-func policyWith(mapOrigin string) string {
+// cspWith is the Content-Security-Policy this deployment sends. With no store
+// map configured it is contentSecurityPolicy itself, byte for byte; with one it
+// names exactly one more origin, and only as a form DESTINATION.
+func cspWith(mapOrigin string) string {
 	if mapOrigin == "" {
 		return contentSecurityPolicy
 	}
@@ -215,7 +215,7 @@ func routing(cfg *RouterConfig, log *slog.Logger) (http.Handler, *http.ServeMux)
 	// Before routing and before every middleware that reads the request, so no
 	// path value or query value PostgreSQL refuses reaches a query.
 	handler = web.RefuseUnstorableText(handler, secureCookies, http.HandlerFunc(sitePages.BadRequest))
-	handler = securityHeaders(handler, policyWith(front.StoreMap.Origin()), secureCookies)
+	handler = securityHeaders(handler, cspWith(front.StoreMap.Origin()), secureCookies)
 	handler = web.Compress(handler)
 	return withRequestTracing(handler, log), mux
 }
