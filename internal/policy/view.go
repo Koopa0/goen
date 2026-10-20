@@ -1,4 +1,4 @@
-package site
+package policy
 
 import (
 	"context"
@@ -10,7 +10,7 @@ import (
 	"github.com/koopa0/goen/internal/i18n"
 )
 
-type PolicySection struct {
+type Section struct {
 	Heading   string
 	Body      []string
 	HeadingEn string
@@ -21,23 +21,23 @@ type PolicySection struct {
 	Windows i18n.Key
 }
 
-type PolicyDoc struct {
+type Doc struct {
 	Title     string
 	TitleEn   string
 	Summary   string
 	SummaryEn string
-	Sections  []PolicySection
+	Sections  []Section
 }
 
 // For is the document in one language, with every Windows message formatted from w.
-func (d PolicyDoc) For(l i18n.Locale, w CheckoutWindows) PolicyDoc {
-	out := PolicyDoc{Title: d.Title, Summary: d.Summary}
+func (d Doc) For(l i18n.Locale, w CheckoutWindows) Doc {
+	out := Doc{Title: d.Title, Summary: d.Summary}
 	if l == i18n.En {
 		out.Title, out.Summary = d.TitleEn, d.SummaryEn
 	}
 	ctx := i18n.WithLocale(context.Background(), l)
 	for _, s := range d.Sections {
-		section := PolicySection{Heading: s.Heading, Body: s.Body, Pending: s.Pending}
+		section := Section{Heading: s.Heading, Body: s.Body, Pending: s.Pending}
 		if l == i18n.En {
 			section.Heading, section.Body = s.HeadingEn, s.BodyEn
 		}
@@ -51,8 +51,8 @@ func (d PolicyDoc) For(l i18n.Locale, w CheckoutWindows) PolicyDoc {
 
 // statesWindows reports whether any section states the checkout windows, the
 // one thing For needs the database for.
-func (d PolicyDoc) statesWindows() bool {
-	return slices.ContainsFunc(d.Sections, func(s PolicySection) bool { return s.Windows != "" })
+func (d Doc) statesWindows() bool {
+	return slices.ContainsFunc(d.Sections, func(s Section) bool { return s.Windows != "" })
 }
 
 // CheckoutWindows is how long placing an order holds the stock and how long the
@@ -69,34 +69,13 @@ func (w CheckoutWindows) State(ctx context.Context, k i18n.Key) string {
 		strconv.FormatInt(w.HoldMinutes, 10), strconv.FormatInt(w.PayStartMinutes, 10))
 }
 
-type FAQItem struct {
-	Question string
-	Answer   string
-}
-
 // SectionID names a section by position, since a policy section has no identifier of its own (the documents are prose in
-// internal/site); the contents list uses the same numbers.
-func (d PolicyDoc) SectionID(i int) string {
+// internal/policy); the contents list uses the same numbers.
+func (d Doc) SectionID(i int) string {
 	return "doc-section-" + strconv.Itoa(i+1)
 }
 
-func (d PolicyDoc) SectionHref(i int) string { return "#" + d.SectionID(i) }
-
-// faqGroupID names a category the same way, for the same reason.
-func faqGroupID(i int) string { return "faq-group-" + strconv.Itoa(i+1) }
-
-func faqGroupHref(i int) string { return "#" + faqGroupID(i) }
-
-type FAQGroup struct {
-	Category string
-	Items    []FAQItem
-}
-
-type FAQView struct {
-	Groups []FAQGroup
-}
-
-func (v FAQView) Empty() bool { return len(v.Groups) == 0 }
+func (d Doc) SectionHref(i int) string { return "#" + d.SectionID(i) }
 
 type ShippingMethod struct {
 	Name          string

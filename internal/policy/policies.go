@@ -1,4 +1,4 @@
-package site
+package policy
 
 import (
 	"context"
@@ -14,13 +14,13 @@ func policyText(locale i18n.Locale, key i18n.Key) string {
 // policies is the static policy documents, keyed by their path segment. A
 // section marked Pending renders as a visible gap, and a term the law already
 // fixes is never the shop's to leave Pending.
-var policies = map[string]PolicyDoc{
+var policies = map[string]Doc{
 	"returns": {
 		Title:     "退貨政策",
 		TitleEn:   "Returns",
 		Summary:   "goen 的退貨條件、流程與退款方式。",
 		SummaryEn: "What can be returned, how to ask, and how you get your money back.",
-		Sections: []PolicySection{
+		Sections: []Section{
 			{
 				Heading:   "可以退什麼",
 				HeadingEn: "What can be returned",
@@ -133,7 +133,7 @@ var policies = map[string]PolicyDoc{
 		TitleEn:   "Paying for your order",
 		Summary:   "goen 接受的付款方式與安全性說明。",
 		SummaryEn: "What we accept, and what happens to your card details.",
-		Sections: []PolicySection{
+		Sections: []Section{
 			{
 				Heading:   "信用卡",
 				HeadingEn: "Credit cards",
@@ -185,7 +185,7 @@ var policies = map[string]PolicyDoc{
 		TitleEn:   "Warranty",
 		Summary:   "goen 販售商品的保固方式。",
 		SummaryEn: "How the goods we sell are covered.",
-		Sections: []PolicySection{
+		Sections: []Section{
 			{
 				Heading:   "保固範圍",
 				HeadingEn: "What is covered",
@@ -229,7 +229,7 @@ var policies = map[string]PolicyDoc{
 		TitleEn:   "Privacy",
 		Summary:   "goen 蒐集哪些資料、為什麼蒐集，以及你可以怎麼處理它。",
 		SummaryEn: "What we collect, why, and what you can do about it.",
-		Sections: []PolicySection{
+		Sections: []Section{
 			{
 				Heading:   "我們蒐集什麼",
 				HeadingEn: "What we collect",
@@ -342,7 +342,7 @@ var policies = map[string]PolicyDoc{
 		TitleEn:   "Terms of service",
 		Summary:   "使用 goen 的基本約定。",
 		SummaryEn: "The basic agreement for using goen.",
-		Sections: []PolicySection{
+		Sections: []Section{
 			{
 				Heading:   "訂單成立",
 				HeadingEn: "When an order is formed",

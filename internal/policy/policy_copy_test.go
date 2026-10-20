@@ -1,4 +1,4 @@
-package site
+package policy
 
 import (
 	"fmt"
@@ -27,7 +27,7 @@ func TestPolicyPaymentDeadlines(t *testing.T) {
 			t.Parallel()
 			ctx := i18n.WithLocale(t.Context(), tc.locale)
 			var out strings.Builder
-			if err := Policy(layouts.Page{}, policies["payment"].For(tc.locale, testWindows)).Render(ctx, &out); err != nil {
+			if err := DocPage(layouts.Page{}, policies["payment"].For(tc.locale, testWindows)).Render(ctx, &out); err != nil {
 				t.Fatal(err)
 			}
 			want := fmt.Sprintf(tc.want, "61", "28")
@@ -83,7 +83,7 @@ func TestWarrantyRegistrationNamesTheOrderPage(t *testing.T) {
 			t.Parallel()
 			ctx := i18n.WithLocale(t.Context(), tc.locale)
 			var out strings.Builder
-			if err := Policy(layouts.Page{}, policies["warranty"].For(tc.locale, testWindows)).Render(ctx, &out); err != nil {
+			if err := DocPage(layouts.Page{}, policies["warranty"].For(tc.locale, testWindows)).Render(ctx, &out); err != nil {
 				t.Fatal(err)
 			}
 			if !strings.Contains(html.UnescapeString(out.String()), tc.want) {

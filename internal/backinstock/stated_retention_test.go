@@ -7,7 +7,7 @@ import (
 
 	"github.com/koopa0/goen/internal/backinstock"
 	"github.com/koopa0/goen/internal/outbox"
-	"github.com/koopa0/goen/internal/site"
+	"github.com/koopa0/goen/internal/policy"
 )
 
 // The privacy policy states how long a notified restock alert is kept. It is
@@ -16,7 +16,7 @@ import (
 func TestThePrivacyPolicyStatesTheRestockPeriodTheSweepEnforces(t *testing.T) {
 	t.Parallel()
 
-	days, err := strconv.Atoi(site.StockAlertRetainDaysText())
+	days, err := strconv.Atoi(policy.StockAlertRetainDaysText())
 	if err != nil {
 		t.Fatalf("parse stated restock-alert retention: %v", err)
 	}

@@ -82,12 +82,17 @@ var (
 	// internal/cart/item is a vocabulary leaf, not a page.
 	storefrontPages = []string{
 		"internal/account", "internal/auth", "internal/cart", "internal/catalog", "internal/home",
-		"internal/newsletter", "internal/site",
+		"internal/newsletter", "internal/policy", "internal/site",
 	}
 	// siteMayImport is what internal/site may import besides itself and the
 	// leaves: the foundation every storefront page is built on.
 	siteMayImport = []string{
 		"assets", "internal/i18n", "internal/web", "internal/ui/layouts",
+	}
+	// policyMayImport is what internal/policy may import besides itself and the
+	// leaves: the foundation its pages are built on.
+	policyMayImport = []string{
+		"internal/i18n", "internal/web", "internal/ui/layouts",
 	}
 	// importFreeLeaves import no goen package at all.
 	importFreeLeaves = []string{
@@ -146,6 +151,17 @@ var depsRules = []importRule{
 		},
 		reason: "every storefront page wears site's chrome, so site imports no feature; " +
 			"it reaches one through an interface it declares, as Catalogue reaches the catalogue",
+	},
+	{
+		name: "policy",
+		hard: true,
+		forbid: func(from, to string) bool {
+			return under(from, "internal/policy") && !under(to, "internal/policy") &&
+				!slices.Contains(policyMayImport, to) &&
+				!slices.Contains(importFreeLeaves, to) && !slices.Contains(i18nOnlyLeaves, to)
+		},
+		reason: "the home, department and product pages read the stated rules from policy, so policy imports no feature; " +
+			"a number it states is read from the database or restated beside a test in the package that enforces it",
 	},
 	{
 		name: "desks",

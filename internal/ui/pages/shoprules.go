@@ -10,9 +10,9 @@ import (
 )
 
 // ShopRules is the view of the rules the shop states about itself, as the home,
-// department and product pages show them. Its fields are site.ShopRules's, in
-// the same order, so each page's package converts the value site reads and the
-// compiler refuses the conversion the day the two differ.
+// department and product pages show them. Its fields are policy.Rules's, in
+// the same order, so each page's package converts the value policy reads and
+// the compiler refuses the conversion the day the two differ.
 type ShopRules struct {
 	// FreeDeliveryCents is zero where some delivery method never turns free.
 	FreeDeliveryCents int64

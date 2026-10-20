@@ -94,7 +94,7 @@ var textBounds = []textBound{
 	{constraint: "shipping_method_versions_name_bounded", file: "internal/admin/shipping/store.go", name: "MaxNameRunes"},
 	{constraint: "shipping_zones_name_bounded", file: "internal/admin/shipping/store.go", name: "MaxNameRunes"},
 	{constraint: "store_credit_entries_reason_bounded", file: "internal/admin/credits/credit.go", name: "MaxCreditReasonRunes"},
-	{constraint: "return_requests_resolution_bounded", file: "internal/returns/policy.go", name: "MaxResolutionRunes"},
+	{constraint: "return_requests_resolution_bounded", file: "internal/returns/decision.go", name: "MaxResolutionRunes"},
 	{constraint: "return_eligibility_assessments_basis_bounded", file: "internal/admin/returns/store.go", name: "maxAssessmentBasisRunes"},
 }
 

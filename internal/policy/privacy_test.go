@@ -1,4 +1,4 @@
-package site
+package policy
 
 import (
 	"html"
@@ -14,7 +14,7 @@ func TestPrivacyDisclosuresRenderOnce(t *testing.T) {
 		t.Run(string(locale), func(t *testing.T) {
 			doc := policies["privacy"].For(locale, testWindows)
 			var out strings.Builder
-			if err := Policy(layouts.Page{}, doc).Render(i18n.WithLocale(t.Context(), locale), &out); err != nil {
+			if err := DocPage(layouts.Page{}, doc).Render(i18n.WithLocale(t.Context(), locale), &out); err != nil {
 				t.Fatal(err)
 			}
 			body := out.String()
@@ -39,7 +39,7 @@ func TestPrivacyDisclosesCollectedAndRetainedData(t *testing.T) {
 		t.Run(string(locale), func(t *testing.T) {
 			doc := policies["privacy"].For(locale, testWindows)
 			var out strings.Builder
-			if err := Policy(layouts.Page{}, doc).Render(i18n.WithLocale(t.Context(), locale), &out); err != nil {
+			if err := DocPage(layouts.Page{}, doc).Render(i18n.WithLocale(t.Context(), locale), &out); err != nil {
 				t.Fatal(err)
 			}
 			body := out.String()

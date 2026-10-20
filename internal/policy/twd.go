@@ -1,4 +1,4 @@
-package site
+package policy
 
 import "github.com/koopa0/goen/internal/money"
 

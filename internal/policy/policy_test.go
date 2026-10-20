@@ -1,4 +1,4 @@
-package site
+package policy
 
 import (
 	"errors"
@@ -270,11 +270,11 @@ func sqlStringAfter(t *testing.T, src, marker string) string {
 // TestEveryPolicyRouteHasADocument proves every routed policy resolves, and
 // every document is reachable.
 func TestEveryPolicyRouteHasADocument(t *testing.T) {
-	// The paths cmd/goen registers to Policy, which a test here cannot read.
+	// The paths cmd/goen registers to DocPage, which a test here cannot read.
 	routed := []string{"returns", "payment", "warranty", "privacy", "terms"}
 	for _, path := range routed {
 		if _, ok := policies[path]; !ok {
-			t.Errorf("/%s is routed to Policy and has no document; it would render "+
+			t.Errorf("/%s is routed to DocPage and has no document; it would render "+
 				"the 404 the footer links to", path)
 		}
 	}
@@ -296,7 +296,7 @@ func TestThePrivacyPolicyNamesEveryCookie(t *testing.T) {
 		access.CookieName:            {zh: "訂單瀏覽權限", en: "permission to view an order"},
 		cart.PickupCookieName:        {zh: "挑選超商取貨門市", en: "picking a convenience store"},
 		i18n.CookieName:              {zh: "你選擇的語言", en: "the language you chose"},
-		dismissCookie:                {zh: "你關閉過的網站公告", en: "which site notice you have dismissed"},
+		"__Host-goen_promo":          {zh: "你關閉過的網站公告", en: "which site notice you have dismissed"}, // site.dismissCookie
 		"__Host-goen_signin_context": {zh: "重設密碼後或刪除帳號前重新登入", en: "prefill sign-in after a password reset"},
 		"__Host-goen_oauth":          {zh: "用 Google 登入時暫存", en: "while you sign in with Google"},
 	}
@@ -516,7 +516,7 @@ func renderReturnsPolicy(t *testing.T, locale i18n.Locale) string {
 	}
 	doc = doc.For(locale, testWindows)
 	var b strings.Builder
-	if err := Policy(
+	if err := DocPage(
 		layouts.Page{Title: doc.Title, Description: doc.Summary},
 		doc,
 	).Render(i18n.WithLocale(t.Context(), locale), &b); err != nil {

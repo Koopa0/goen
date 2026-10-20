@@ -2,8 +2,8 @@
 // page, and the chrome every storefront page wears: the promotion strip and the
 // header's department row. Middleware puts the chrome on the request's context,
 // so no page handler has to remember to read it; which paths carry it is the
-// route table's decision, in cmd/goen. It also reads the rules the shop states
-// about itself, which the home, department and product pages show.
+// route table's decision, in cmd/goen. The policy documents, the shipping page
+// and the rules the shop states about itself are internal/policy's.
 package site
 
 import (
@@ -41,7 +41,7 @@ func NewHandler(log *slog.Logger, baseURL string, catalogue Catalogue, content *
 	return &Handler{log: log, baseURL: baseURL, catalogue: catalogue, content: content, secure: secure}
 }
 
-// Routes registers the shop's own pages: the policies, the FAQ, the sitemap,
+// Routes registers the shop's own pages: the FAQ, the about page, the sitemap,
 // the language switch and the promotion strip's dismissal. The catch-all 404 is
 // the caller's, because every unmatched path reaches it, not only this
 // package's.
@@ -51,12 +51,6 @@ func (h *Handler) Routes(mux *http.ServeMux) {
 	mux.HandleFunc("POST /promo/dismiss", h.DismissBanner)
 	mux.HandleFunc("POST /locale", h.SetLocale)
 	mux.HandleFunc("GET /faq", h.FAQ)
-	mux.HandleFunc("GET /shipping", h.Shipping)
-	mux.HandleFunc("GET /returns", h.Policy)
-	mux.HandleFunc("GET /payment", h.Policy)
-	mux.HandleFunc("GET /warranty", h.Policy)
-	mux.HandleFunc("GET /privacy", h.Policy)
-	mux.HandleFunc("GET /terms", h.Policy)
 	mux.HandleFunc("GET /about", h.About)
 }
 
@@ -78,4 +72,11 @@ func (h *Handler) BadRequest(w http.ResponseWriter, r *http.Request) {
 		layouts.Page{Title: i18n.T(r.Context(), i18n.KeyAddressUnreadable)}, "400",
 		i18n.T(r.Context(), i18n.KeyAddressUnreadable),
 		i18n.T(r.Context(), i18n.KeyAddressRecovery)))
+}
+
+func (h *Handler) serverError(w http.ResponseWriter, r *http.Request) {
+	web.Render(w, r, h.log, http.StatusInternalServerError, layouts.Notice(
+		layouts.Page{Title: i18n.T(r.Context(), i18n.KeyTryAgainTitle)}, "500",
+		i18n.T(r.Context(), i18n.KeyTryAgainTitle),
+		i18n.T(r.Context(), i18n.KeyLoggedTryAgain)))
 }

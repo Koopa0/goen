@@ -18,6 +18,7 @@ sql:
       - "internal/loyalty/query.sql"
       - "internal/media/query.sql"
       - "internal/site/query.sql"
+      - "internal/policy/query.sql"
       - "internal/admin/twofactor/query.sql"
       - "internal/copurchase/query.sql"
       - "internal/backinstock/query.sql"
