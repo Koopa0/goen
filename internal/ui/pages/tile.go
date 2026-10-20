@@ -23,7 +23,7 @@ type ProductTile struct {
 	// PriceVaries marks PriceCents as the cheapest of several: a "from" price.
 	PriceVaries  bool
 	CompareCents int64 // 0 when the product is not on sale
-	// OnSale strikes CompareCents beside the price, as catalog.OnSale decides.
+	// OnSale strikes CompareCents beside the price, as campaign.OnSale decides.
 	OnSale      bool
 	Rating      float64
 	RatingCount int64

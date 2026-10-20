@@ -12,6 +12,7 @@ import (
 
 	"github.com/a-h/templ"
 
+	"github.com/koopa0/goen/internal/campaign"
 	"github.com/koopa0/goen/internal/cart/item"
 	"github.com/koopa0/goen/internal/i18n"
 	"github.com/koopa0/goen/internal/money"
@@ -189,7 +190,7 @@ type ProductView struct {
 	ExpectedArrival     time.Time
 	ExpectedArrivalText string
 	Available           int32
-	// OnSale strikes CompareCents beside the price and names the campaign, as catalog.OnSale decides.
+	// OnSale strikes CompareCents beside the price and names the campaign, as campaign.OnSale decides.
 	OnSale bool
 
 	Rating         float64
@@ -660,11 +661,11 @@ func (v *ProductView) LabelRows(ctx context.Context) []LabelRow {
 type ProductCampaign struct {
 	Slug  string
 	Title string
-	End   CampaignEnd
+	End   campaign.End
 }
 
 func NewProductCampaign(slug, title string, endsAt, now time.Time) ProductCampaign {
-	return ProductCampaign{Slug: slug, Title: title, End: NewCampaignEnd(endsAt, now)}
+	return ProductCampaign{Slug: slug, Title: title, End: campaign.NewEnd(endsAt, now)}
 }
 
 func (c ProductCampaign) Running() bool { return c.Slug != "" }

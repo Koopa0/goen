@@ -12,6 +12,7 @@ import (
 
 	"github.com/koopa0/goen/assets"
 	"github.com/koopa0/goen/internal/backinstock"
+	"github.com/koopa0/goen/internal/campaign"
 	"github.com/koopa0/goen/internal/db"
 	"github.com/koopa0/goen/internal/i18n"
 	"github.com/koopa0/goen/internal/policy"
@@ -309,7 +310,7 @@ func tiles(rows []db.CategoryListingRow, offers map[uuid.UUID]bool) []pages.Prod
 			PriceCents:   r.MinPriceCents,
 			PriceVaries:  r.PriceVaries,
 			CompareCents: r.CompareAtPriceCents.Int64,
-			OnSale:       OnSale(r.InCampaign, r.InStock, r.MinPriceCents, r.CompareAtPriceCents.Int64),
+			OnSale:       campaign.OnSale(r.InCampaign, r.InStock, r.MinPriceCents, r.CompareAtPriceCents.Int64),
 			Rating:       r.Rating,
 			RatingCount:  r.RatingCount,
 			InStock:      r.InStock,
@@ -338,7 +339,7 @@ func searchTiles(rows []db.SearchProductsRow, offers map[uuid.UUID]bool) []pages
 			PriceCents:   r.MinPriceCents,
 			PriceVaries:  r.PriceVaries,
 			CompareCents: r.CompareAtPriceCents.Int64,
-			OnSale:       OnSale(r.InCampaign, r.InStock, r.MinPriceCents, r.CompareAtPriceCents.Int64),
+			OnSale:       campaign.OnSale(r.InCampaign, r.InStock, r.MinPriceCents, r.CompareAtPriceCents.Int64),
 			Rating:       r.Rating,
 			RatingCount:  r.RatingCount,
 			InStock:      r.InStock,
@@ -391,7 +392,7 @@ func dealTiles(rows []db.DealProductsRow) []pages.ProductTile {
 			PriceCents:   r.TilePriceCents,
 			PriceVaries:  r.PriceVaries,
 			CompareCents: r.CompareAtPriceCents.Int64,
-			OnSale:       OnSale(r.InCampaign, r.InStock, r.TilePriceCents, r.CompareAtPriceCents.Int64),
+			OnSale:       campaign.OnSale(r.InCampaign, r.InStock, r.TilePriceCents, r.CompareAtPriceCents.Int64),
 			Rating:       r.Rating,
 			RatingCount:  r.RatingCount,
 			InStock:      r.InStock,
