@@ -5,6 +5,7 @@ import (
 	"net/http"
 	"net/url"
 
+	"github.com/koopa0/goen/internal/compress"
 	"github.com/koopa0/goen/internal/email"
 	"github.com/koopa0/goen/internal/i18n"
 	"github.com/koopa0/goen/internal/ratelimit"
@@ -90,7 +91,7 @@ func (h *Handler) RequestPasswordSetup(w http.ResponseWriter, r *http.Request) {
 
 // ResetPage does not check the token: that would tell a guesser it is real.
 func (h *Handler) ResetPage(w http.ResponseWriter, r *http.Request) {
-	web.NoCompress(w)
+	compress.Skip(w)
 	web.Render(w, r, h.log, http.StatusOK, Reset(
 		layouts.Page{Title: i18n.T(r.Context(), i18n.KeyResetTitle)},
 		ResetView{Token: r.URL.Query().Get("token")}))
@@ -98,7 +99,7 @@ func (h *Handler) ResetPage(w http.ResponseWriter, r *http.Request) {
 
 func (h *Handler) Reset(w http.ResponseWriter, r *http.Request) {
 	// A rejected password can re-render the still-live reset token; never compress it.
-	web.NoCompress(w)
+	compress.Skip(w)
 	if err := web.ParseForm(w, r); err != nil {
 		http.Error(w, "400 "+i18n.T(r.Context(), i18n.KeyFormUnreadable), http.StatusBadRequest)
 		return

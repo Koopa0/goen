@@ -11,6 +11,7 @@ import (
 	"rsc.io/qr"
 
 	"github.com/koopa0/goen/internal/admin/access"
+	"github.com/koopa0/goen/internal/compress"
 	"github.com/koopa0/goen/internal/i18n"
 	"github.com/koopa0/goen/internal/ratelimit"
 	"github.com/koopa0/goen/internal/ui/layouts"
@@ -142,7 +143,7 @@ func (h *Handler) Verify(w http.ResponseWriter, r *http.Request) {
 
 func (h *Handler) Enrol(w http.ResponseWriter, r *http.Request) {
 	// The one-time TOTP seed is password-equivalent; keep its page out of BREACH's reach.
-	web.NoCompress(w)
+	compress.Skip(w)
 	u, ok := user.FromContext(r.Context())
 	if !ok {
 		http.NotFound(w, r)
