@@ -26,8 +26,6 @@ import (
 //     internal/db or pgx and also selects an identifier from a view import.
 //   - storeMethodsNamingViews: a method on a type named *Store whose signature
 //     selects from a view import, counted per file.
-//   - viewValueReads: a selector x.Name where x is a view import and Name is an
-//     exported const or var declared in that view package, counted per file.
 //
 // The consumer is task series T42-T53, which lowers these lists until
 // internal/ui/pages is deleted, at which point the lists become hard rules.
@@ -36,11 +34,18 @@ import (
 // and map it to the view in the package that renders it. A missing entry is
 // progress: delete it (or lower its count) in the same PR.
 //
-// One measure has reached zero and is a hard rule instead: no interface outside
-// internal/ui has a method whose signature selects from a view import (a view
-// contract, keyed dir.Interface.Method, or file:line for an unnamed interface).
-// A consumer declares the values it needs from a leaf, and the package that
-// renders a view fills it from them (T46, T47).
+// Two measures have reached zero and are hard rules instead:
+//
+//   - viewContracts: no interface outside internal/ui has a method whose
+//     signature selects from a view import (keyed dir.Interface.Method, or
+//     file:line for an unnamed interface). A consumer declares the values it
+//     needs from a leaf, and the package that renders a view fills it from them
+//     (T46, T47).
+//   - viewValueReads: no file outside internal/ui reads x.Name, where x is a view
+//     import and Name an exported const or var declared in that view package. A
+//     constant belongs to the package whose rule it states (S8b moved the
+//     comparison cap, the review limits and the restock outcomes to catalog and
+//     the add-to-cart outcome to cart/item).
 var viewPackageImporters = []string{
 	"internal/account",
 	"internal/admin/dashboard",
@@ -67,8 +72,6 @@ var dataFilesNamingViews = []string{
 	"internal/catalog/compare.go",
 	"internal/catalog/department.go",
 	"internal/catalog/product_store.go",
-	"internal/catalog/question.go",
-	"internal/catalog/review.go",
 	"internal/catalog/store.go",
 	"internal/home/store.go",
 	"internal/order/buyer/order.go",
@@ -78,25 +81,10 @@ var storeMethodsNamingViews = map[string]int{
 	"internal/account/store.go":         1,
 	"internal/catalog/compare.go":       1,
 	"internal/catalog/department.go":    1,
-	"internal/catalog/product_store.go": 8,
-	"internal/catalog/question.go":      1,
-	"internal/catalog/review.go":        1,
+	"internal/catalog/product_store.go": 1,
 	"internal/catalog/store.go":         1,
 	"internal/home/store.go":            5,
 	"internal/order/buyer/order.go":     1,
-}
-
-var viewValueReads = map[string]int{
-	"internal/cart/handler.go":    5,
-	"internal/catalog/compare.go": 3,
-	// The compare views moved in S8a read MinCompare and MaxCompare, which stay
-	// in ui/pages while the product page there reads them too. S8b moves
-	// comparecap.go into catalog with the product page and deletes these three.
-	"internal/catalog/compare_page_templ.go": 4,
-	"internal/catalog/compare_view.go":       2,
-	"internal/catalog/compareform_templ.go":  1,
-	"internal/catalog/product_handler.go":    8,
-	"internal/catalog/review.go":             12,
 }
 
 const (
@@ -109,7 +97,6 @@ const (
 // layering is one measurement of the repository.
 type layering struct {
 	files        int             // non-test .go files parsed, including internal/ui
-	viewNames    int             // exported consts and vars declared in view packages
 	importers    map[string]bool // package directories
 	dataFiles    map[string]bool // files
 	contracts    map[string]bool // dir.Interface.Method
@@ -203,10 +190,6 @@ func measureLayering(t *testing.T, root string) layering {
 		storeMethods: map[string]int{},
 		valueReads:   map[string]int{},
 	}
-	for _, names := range viewValues {
-		m.viewNames += len(names)
-	}
-
 	for _, fl := range files {
 		if strings.HasPrefix(fl.rel, "internal/ui/") {
 			continue
@@ -354,9 +337,6 @@ func TestLayeringRatchet(t *testing.T) {
 	if m.files < minLayeringFiles {
 		t.Fatalf("the walk parsed %d non-test .go files, want at least %d: it is not looking at the repository", m.files, minLayeringFiles)
 	}
-	if m.viewNames == 0 {
-		t.Fatal("no exported const or var found in internal/ui/pages: viewValueReads would count nothing")
-	}
 
 	t.Run("viewPackageImporters", func(t *testing.T) {
 		t.Parallel()
@@ -378,7 +358,10 @@ func TestLayeringRatchet(t *testing.T) {
 	})
 	t.Run("viewValueReads", func(t *testing.T) {
 		t.Parallel()
-		checkLayeringCounts(t, "viewValueReads", m.valueReads, viewValueReads)
+		for _, file := range slices.Sorted(maps.Keys(m.valueReads)) {
+			t.Errorf("%s reads %d exported const or var of a view package: the package whose rule the value states declares it",
+				file, m.valueReads[file])
+		}
 	})
 }
 
@@ -415,15 +398,7 @@ type Store struct{}
 func (s *Store) View() pages.CartView { return pages.CartView{} }
 `,
 	}
-	for rel, body := range files {
-		path := filepath.Join(root, filepath.FromSlash(rel))
-		if err := os.MkdirAll(filepath.Dir(path), 0o750); err != nil {
-			t.Fatal(err)
-		}
-		if err := os.WriteFile(path, []byte(body), 0o600); err != nil {
-			t.Fatal(err)
-		}
-	}
+	writeLayeringTree(t, root, files)
 
 	got := slices.Sorted(maps.Keys(measureLayering(t, root).contracts))
 	want := []string{
@@ -433,5 +408,57 @@ func (s *Store) View() pages.CartView { return pages.CartView{} }
 	}
 	if !slices.Equal(got, want) {
 		t.Errorf("view contracts = %q, want %q", got, want)
+	}
+}
+
+// TestMeasureLayeringFindsViewValueReads does the same for the viewValueReads
+// rule: no view package declares an exported const or var any more, so an empty
+// count on the repository proves nothing unless the walk counts reads in a tree
+// that has them, and leaves out reads inside internal/ui.
+func TestMeasureLayeringFindsViewValueReads(t *testing.T) {
+	t.Parallel()
+
+	root := t.TempDir()
+	writeLayeringTree(t, root, map[string]string{
+		"internal/ui/pages/cap.go": `package pages
+
+const Max = 5
+
+var Default = Max
+`,
+		"internal/ui/chart/chart.go": `package chart
+
+import "github.com/koopa0/goen/internal/ui/pages"
+
+func Bars() int { return pages.Max }
+`,
+		"internal/desk/desk.go": `package desk
+
+import "github.com/koopa0/goen/internal/ui/pages"
+
+func Limit() int { return pages.Max + pages.Default }
+
+func Again() int { return pages.Max }
+`,
+	})
+
+	got := measureLayering(t, root).valueReads
+	want := map[string]int{"internal/desk/desk.go": 3}
+	if !maps.Equal(got, want) {
+		t.Errorf("view value reads = %v, want %v", got, want)
+	}
+}
+
+// writeLayeringTree writes files, keyed by slash path under root, for a walk.
+func writeLayeringTree(t *testing.T, root string, files map[string]string) {
+	t.Helper()
+	for rel, body := range files {
+		path := filepath.Join(root, filepath.FromSlash(rel))
+		if err := os.MkdirAll(filepath.Dir(path), 0o750); err != nil {
+			t.Fatal(err)
+		}
+		if err := os.WriteFile(path, []byte(body), 0o600); err != nil {
+			t.Fatal(err)
+		}
 	}
 }

@@ -5,7 +5,6 @@ import (
 
 	"github.com/koopa0/goen/internal/ui/components"
 	"github.com/koopa0/goen/internal/ui/layouts"
-	"github.com/koopa0/goen/internal/ui/pages"
 )
 
 // shareImage is p as a page's share image. The pixel size is not known here,
@@ -25,7 +24,7 @@ func shareImage(p components.Photo, fallbackAlt string) layouts.ShareImage {
 type Theme struct {
 	Tone     components.Tone
 	Photo    components.Photo
-	Children []pages.Crumb
+	Children []Crumb
 	// Comparable is the department's answer to whether its products are put side by side.
 	Comparable bool
 }
