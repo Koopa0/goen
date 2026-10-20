@@ -123,7 +123,9 @@ func (h *Handler) Serve(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Length", strconv.Itoa(len(data)))
 	// No filename: a download dialog must not show anything a user chose.
 	w.Header().Set("Content-Disposition", "inline")
-	_, _ = w.Write(data)
+	// G705: the bytes are served as the stored type, which the schema holds to
+	// image/jpeg or image/png, under nosniff and the CSP the router adds.
+	_, _ = w.Write(data) //nolint:gosec // G705: see above
 }
 
 func writeCacheHeaders(w http.ResponseWriter, etag string) {

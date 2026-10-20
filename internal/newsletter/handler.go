@@ -258,7 +258,7 @@ func parseUnsubscribeForm(w http.ResponseWriter, r *http.Request) error {
 	}
 	// RFC 8058 receivers may use either form encoding. ParseForm has already
 	// bounded the body, but it leaves multipart fields unread.
-	err = r.ParseMultipartForm(web.MaxFormBytes)
+	err = r.ParseMultipartForm(web.MaxFormBytes) //nolint:gosec // G120: web.ParseForm above bounded the body with http.MaxBytesReader
 	if r.MultipartForm != nil {
 		defer func() { _ = r.MultipartForm.RemoveAll() }() //nolint:errcheck // Best-effort temporary-file cleanup.
 	}

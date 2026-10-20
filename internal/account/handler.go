@@ -356,6 +356,7 @@ func (h *Handler) SaveWishlist(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		// Authentication does not replay writes; this redirect only preserves
 		// the page for callers outside the authenticated route wrapper.
+		//nolint:gosec // G710: the fixed /signin path; back, bounded by web.SitePathOr above, is only its escaped query
 		http.Redirect(w, r, auth.SignInPath(back), http.StatusSeeOther)
 		return
 	}
@@ -372,5 +373,5 @@ func (h *Handler) SaveWishlist(w http.ResponseWriter, r *http.Request) {
 		h.serverError(w, r)
 		return
 	}
-	http.Redirect(w, r, back, http.StatusSeeOther)
+	http.Redirect(w, r, back, http.StatusSeeOther) //nolint:gosec // G710: bounded by web.SitePathOr
 }
