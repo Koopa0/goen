@@ -830,6 +830,32 @@ CREATE TABLE sessions (
 CREATE INDEX sessions_user_id_idx ON sessions (user_id);
 CREATE INDEX sessions_expires_at_idx ON sessions (expires_at);
 
+-- A browser that has signed in to an account, by the digest of the cookie it
+-- was given, never the cookie. Sign-in charges a browser that presents one for
+-- this account to its own budget, so the wrong passwords a stranger sends to
+-- the address cannot shut the owner out (#1953; the device cookie of OWASP's
+-- "Slow Down Online Guessing Attacks with Device Cookies"). A row is replaced
+-- at every sign-in from its browser and lapses expires_at after the last one;
+-- a password change, a reset or "sign out other devices" deletes the account's
+-- rows, and erasure takes them with the account. How many an account keeps,
+-- how long one lasts and after how many wrong passwords one is forgotten are
+-- policy in internal/auth, which writes every row.
+CREATE TABLE known_devices (
+    digest     bytea PRIMARY KEY,
+    user_id    uuid NOT NULL REFERENCES users (id) ON DELETE CASCADE,
+    -- Wrong passwords sent with this cookie since it was issued. Kept here and
+    -- not in the process, so a restart does not refill a stolen cookie.
+    misses     smallint NOT NULL DEFAULT 0,
+    created_at timestamptz NOT NULL DEFAULT now(),
+    expires_at timestamptz NOT NULL,
+    CONSTRAINT known_devices_digest_sha256 CHECK (octet_length(digest) = 32),
+    CONSTRAINT known_devices_misses_non_negative CHECK (misses >= 0),
+    CONSTRAINT known_devices_expiry_after_creation CHECK (expires_at > created_at)
+);
+
+CREATE INDEX known_devices_user_id_idx ON known_devices (user_id, created_at);
+CREATE INDEX known_devices_expires_at_idx ON known_devices (expires_at);
+
 CREATE TABLE password_reset_tokens (
     digest     bytea PRIMARY KEY,
     user_id    uuid NOT NULL REFERENCES users (id) ON DELETE CASCADE,
@@ -5709,14 +5735,16 @@ BEGIN
 
     -- Always, not only when the credential was cleared: a session that predates
     -- the promotion was opened by somebody the shop had not yet decided to trust
-    -- with the back office, and role is read live on every request.
+    -- with the back office, and role is read live on every request. A browser
+    -- remembered before it is forgotten for the same reason.
     DELETE FROM sessions WHERE user_id = p_user_id;
+    DELETE FROM known_devices WHERE user_id = p_user_id;
 
     RETURN cleared;
 END $$;
 
 COMMENT ON FUNCTION secure_promoted_account(uuid) IS
-    'Neutralises an unproved credential on an account being given back-office access, and ends its sessions.';
+    'Neutralises an unproved credential on an account being given back-office access, and ends its sessions and remembered browsers.';
 
 -- The admin role has no direct INSERT/UPDATE privilege on users. These two
 -- doors keep roster serialization, last-admin enforcement and session cleanup
@@ -5784,7 +5812,7 @@ GRANT INSERT, UPDATE, DELETE ON ALL TABLES IN SCHEMA public TO store;
 -- swept in by the blanket GRANT above and stays there silently, so
 -- TestReportingCannotReadCredentialsOrPII asks of every column that can hold words.
 REVOKE SELECT ON
-    sessions, password_reset_tokens, staff_totp_credentials, user_identities,
+    sessions, known_devices, password_reset_tokens, staff_totp_credentials, user_identities,
     order_private_data, payment_webhook_events, order_access_grants,
     email_verifications, newsletter_confirmations,
     -- outbox_messages is the least obvious: a reset link, an unsubscribe link
@@ -10250,6 +10278,14 @@ REVOKE ALL ON staff_totp_credentials FROM store;
 REVOKE INSERT, UPDATE ON sessions FROM store;
 GRANT INSERT (digest, user_id, user_agent, ip, expires_at) ON sessions TO store;
 
+-- known_devices: sign-in issues a remembered browser, counts its wrong
+-- passwords and forgets it, all on the storefront pool. The back office does
+-- none of that and has no reason to read one: a digest with its account is
+-- half of what a stolen cookie needs.
+REVOKE ALL ON known_devices FROM admin;
+REVOKE INSERT, UPDATE ON known_devices FROM store;
+GRANT INSERT (digest, user_id, expires_at), UPDATE (misses) ON known_devices TO store;
+
 -- Merchandising is not something a storefront request does: it reads all of this
 -- and writes none of it. shipping_method_versions keeps SELECT and loses INSERT,
 -- because it is append-only and /admin/shipping is the only thing that appends.
@@ -10873,7 +10909,7 @@ GRANT INSERT (assessment_id, order_id, return_request_id, order_line_id,
 CREATE FUNCTION schema_version(OUT digest text, OUT version bigint, OUT dirty boolean)
 LANGUAGE plpgsql STABLE SECURITY DEFINER SET search_path = pg_catalog, public, pg_temp AS $$
 BEGIN
-    digest := '002d399e28a8048351225aee13f7a251681b640c230c4e4e6f5838df6480f7d1';
+    digest := '18a5430e0b7ccd20b43e56a2910aae2e0c7eb49ccbc7e94795060c71bb7947b3';
     -- NULL when the database was not built by golang-migrate, which the
     -- binary refuses as it refuses any other unknown schema.
     IF to_regclass('public.schema_migrations') IS NOT NULL THEN

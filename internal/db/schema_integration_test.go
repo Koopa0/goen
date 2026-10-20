@@ -141,6 +141,7 @@ var expectedForeignKeys = map[string]bool{
 	"sale_campaign_products_product_id_fkey":      true,
 	"sale_campaigns_media_digest_fk":              true,
 	"sessions_user_id_fkey":                       true,
+	"known_devices_user_id_fkey":                  true,
 	"shipping_method_versions_method_id_fkey":     true,
 	"shipping_version_zones_version_id_fkey":      true,
 	"shipping_version_zones_zone_id_fkey":         true,
