@@ -8,7 +8,7 @@ import (
 	"golang.org/x/net/html"
 
 	"github.com/koopa0/goen/internal/i18n"
-	returnrules "github.com/koopa0/goen/internal/returns"
+	"github.com/koopa0/goen/internal/returns"
 	"github.com/koopa0/goen/internal/ui/layouts"
 )
 
@@ -20,7 +20,7 @@ func TestReturnInspectionCountsRestockedUnitsInBothLanguages(t *testing.T) {
 				t.Parallel()
 				ctx := i18n.WithLocale(t.Context(), locale)
 				rendered := renderComponent(t, ctx, Returns(layouts.Page{}, ReturnsView{
-					Rows: []Return{{ID: "inspected", OrderNumber: "GO-INSPECTED", Status: returnrules.StatusApproved, Window: "within",
+					Rows: []Return{{ID: "inspected", OrderNumber: "GO-INSPECTED", Status: returns.StatusApproved, Window: "within",
 						Lines: []ReturnLine{{OrderLineID: "line", Quantity: count, Inspected: true, Restocked: count}}}},
 				}))
 				want := fmt.Sprintf("Inspection finished — %d units went back into stock.", count)
@@ -307,7 +307,7 @@ func TestAnApprovedReturnWithMoneyOutstandingOffersToSendItAgain(t *testing.T) {
 				row := base("window-" + tt.window)
 				row.Status = "requested"
 				row.Decided = false
-				row.Window = returnrules.PolicyWindow(tt.window)
+				row.Window = returns.PolicyWindow(tt.window)
 				page := render(t, row)
 				for _, want := range tt.want {
 					if !strings.Contains(page, want) {
@@ -464,21 +464,21 @@ func TestReturnQueueProtectsUndeliveredLinesFromRejection(t *testing.T) {
 	for _, locale := range i18n.Locales() {
 		for _, tt := range []struct {
 			name       string
-			window     returnrules.PolicyWindow
+			window     returns.PolicyWindow
 			lines      []ReturnLine
 			wantReject bool
 		}{
-			{name: "undelivered", window: returnrules.WindowUndelivered},
-			{name: "statutory", window: returnrules.WindowStatutory},
-			{name: "mixed undelivered late", window: returnrules.WindowMixed, lines: []ReturnLine{{Window: returnrules.WindowUndelivered}, {Window: returnrules.WindowLate}}},
-			{name: "mixed undelivered goodwill", window: returnrules.WindowMixed, lines: []ReturnLine{{Window: returnrules.WindowUndelivered}, {Window: returnrules.WindowGoodwill}}},
-			{name: "goodwill", window: returnrules.WindowGoodwill, wantReject: true},
-			{name: "late", window: returnrules.WindowLate, wantReject: true},
+			{name: "undelivered", window: returns.WindowUndelivered},
+			{name: "statutory", window: returns.WindowStatutory},
+			{name: "mixed undelivered late", window: returns.WindowMixed, lines: []ReturnLine{{Window: returns.WindowUndelivered}, {Window: returns.WindowLate}}},
+			{name: "mixed undelivered goodwill", window: returns.WindowMixed, lines: []ReturnLine{{Window: returns.WindowUndelivered}, {Window: returns.WindowGoodwill}}},
+			{name: "goodwill", window: returns.WindowGoodwill, wantReject: true},
+			{name: "late", window: returns.WindowLate, wantReject: true},
 		} {
 			t.Run(locale.Tag()+"/"+tt.name, func(t *testing.T) {
 				t.Parallel()
 				page := renderComponent(t, i18n.WithLocale(t.Context(), locale), Returns(layouts.Page{}, ReturnsView{
-					Rows: []Return{{ID: "open-row", OrderNumber: "GO-OPEN", Status: returnrules.StatusRequested, Window: tt.window, Lines: tt.lines}},
+					Rows: []Return{{ID: "open-row", OrderNumber: "GO-OPEN", Status: returns.StatusRequested, Window: tt.window, Lines: tt.lines}},
 				}))
 				if got := strings.Contains(page, `name="decision" value="rejected"`); got != tt.wantReject {
 					t.Errorf("queue offers Reject = %t, want %t", got, tt.wantReject)
@@ -493,24 +493,24 @@ func TestReturnQueueOffersOrdinaryApprovalForProtectedWindows(t *testing.T) {
 	for _, locale := range i18n.Locales() {
 		for _, tt := range []struct {
 			name             string
-			window           returnrules.PolicyWindow
+			window           returns.PolicyWindow
 			lines            []ReturnLine
 			wantAssessment   bool
 			wantException    bool
 			wantGoodwillHint bool
 		}{
-			{name: "undelivered", window: returnrules.WindowUndelivered, lines: []ReturnLine{{OrderLineID: "first-line", Window: returnrules.WindowUndelivered}}},
-			{name: "statutory", window: returnrules.WindowStatutory, lines: []ReturnLine{{OrderLineID: "first-line", Window: returnrules.WindowStatutory}}},
-			{name: "mixed statutory undelivered", window: returnrules.WindowMixed, lines: []ReturnLine{{OrderLineID: "first-line", Window: returnrules.WindowStatutory}, {OrderLineID: "second-line", Window: returnrules.WindowUndelivered}}},
-			{name: "mixed undelivered goodwill", window: returnrules.WindowMixed, lines: []ReturnLine{{OrderLineID: "first-line", Window: returnrules.WindowUndelivered}, {OrderLineID: "second-line", Window: returnrules.WindowGoodwill}}, wantAssessment: true, wantException: true, wantGoodwillHint: true},
-			{name: "mixed statutory goodwill", window: returnrules.WindowMixed, lines: []ReturnLine{{OrderLineID: "first-line", Window: returnrules.WindowStatutory}, {OrderLineID: "second-line", Window: returnrules.WindowGoodwill}}, wantAssessment: true, wantException: true, wantGoodwillHint: true},
-			{name: "mixed undelivered late", window: returnrules.WindowMixed, lines: []ReturnLine{{OrderLineID: "first-line", Window: returnrules.WindowUndelivered}, {OrderLineID: "second-line", Window: returnrules.WindowLate}}, wantAssessment: true, wantException: true, wantGoodwillHint: true},
+			{name: "undelivered", window: returns.WindowUndelivered, lines: []ReturnLine{{OrderLineID: "first-line", Window: returns.WindowUndelivered}}},
+			{name: "statutory", window: returns.WindowStatutory, lines: []ReturnLine{{OrderLineID: "first-line", Window: returns.WindowStatutory}}},
+			{name: "mixed statutory undelivered", window: returns.WindowMixed, lines: []ReturnLine{{OrderLineID: "first-line", Window: returns.WindowStatutory}, {OrderLineID: "second-line", Window: returns.WindowUndelivered}}},
+			{name: "mixed undelivered goodwill", window: returns.WindowMixed, lines: []ReturnLine{{OrderLineID: "first-line", Window: returns.WindowUndelivered}, {OrderLineID: "second-line", Window: returns.WindowGoodwill}}, wantAssessment: true, wantException: true, wantGoodwillHint: true},
+			{name: "mixed statutory goodwill", window: returns.WindowMixed, lines: []ReturnLine{{OrderLineID: "first-line", Window: returns.WindowStatutory}, {OrderLineID: "second-line", Window: returns.WindowGoodwill}}, wantAssessment: true, wantException: true, wantGoodwillHint: true},
+			{name: "mixed undelivered late", window: returns.WindowMixed, lines: []ReturnLine{{OrderLineID: "first-line", Window: returns.WindowUndelivered}, {OrderLineID: "second-line", Window: returns.WindowLate}}, wantAssessment: true, wantException: true, wantGoodwillHint: true},
 		} {
 			t.Run(locale.Tag()+"/"+tt.name, func(t *testing.T) {
 				t.Parallel()
 				ctx := i18n.WithLocale(t.Context(), locale)
 				page := renderComponent(t, ctx, Returns(layouts.Page{}, ReturnsView{
-					Rows: []Return{{ID: "open-row", OrderNumber: "GO-OPEN", Status: returnrules.StatusRequested, Window: tt.window, Lines: tt.lines}},
+					Rows: []Return{{ID: "open-row", OrderNumber: "GO-OPEN", Status: returns.StatusRequested, Window: tt.window, Lines: tt.lines}},
 				}))
 				if !strings.Contains(page, `name="decision" value="approved"`) {
 					t.Error("the queue does not offer ordinary approval")
@@ -528,7 +528,7 @@ func TestReturnQueueOffersOrdinaryApprovalForProtectedWindows(t *testing.T) {
 						t.Errorf("queue offers %s = %t, want %t", item.name, got, item.want)
 					}
 				}
-				if tt.window == returnrules.WindowMixed && !strings.Contains(page, i18n.T(ctx, i18n.KeyAdminReturnWindowMixed)) {
+				if tt.window == returns.WindowMixed && !strings.Contains(page, i18n.T(ctx, i18n.KeyAdminReturnWindowMixed)) {
 					t.Error("the mixed request lost its factual window label")
 				}
 			})

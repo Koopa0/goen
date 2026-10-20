@@ -17,8 +17,8 @@ import (
 
 	"github.com/google/uuid"
 
-	"github.com/koopa0/goen/internal/admin/returns"
-	returnrules "github.com/koopa0/goen/internal/returns"
+	returndesk "github.com/koopa0/goen/internal/admin/returns"
+	"github.com/koopa0/goen/internal/returns"
 )
 
 func TestReturnDecisionHTTPRequiresConfirmation(t *testing.T) {
@@ -73,8 +73,8 @@ func TestReturnRejectionRequiresAReasonAtTheStoreBoundary(t *testing.T) {
 	s := storeOver(pool, admintest.Refunder{})
 	id, _ := admintest.ReturnedOrder(t, pool, 1)
 	err := s.Decide(ctx, id.String(), "rejected", " \t ", "")
-	refused, ok := errors.AsType[*returns.FormRefusalError](err)
-	if !ok || refused.Kind != returnrules.RefuseRejectionReason || refused.Field != "resolution" {
+	refused, ok := errors.AsType[*returndesk.FormRefusalError](err)
+	if !ok || refused.Kind != returns.RefuseRejectionReason || refused.Field != "resolution" {
 		t.Fatalf("blank rejection = %v, want resolution/rejection_reason", err)
 	}
 	if status, n := returnPayoutOn(t, pool, id); status != "requested" || n != 0 {
