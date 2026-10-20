@@ -70,7 +70,7 @@ func TestEveryScheduledSlideRemainsManageableBeyondExpiredHistory(t *testing.T) 
 		t.Run(locale.Tag(), func(t *testing.T) {
 			localeCtx := i18n.WithLocale(ctx, locale)
 			first := get(localeCtx, "/admin/slides")
-			firstHeroes, heroNext := homepageQueue(t, first, "hero-history")
+			firstHeroes, heroNext := slideQueue(t, first)
 			if len(firstHeroes) != 20 || heroNext == "" {
 				t.Fatalf("first page heroes=%d heroNext=%q", len(firstHeroes), heroNext)
 			}
@@ -80,7 +80,7 @@ func TestEveryScheduledSlideRemainsManageableBeyondExpiredHistory(t *testing.T) 
 				if page >= 4 {
 					t.Fatal("pagination did not terminate")
 				}
-				ids, next := homepageQueue(t, get(localeCtx, path), "hero-history")
+				ids, next := slideQueue(t, get(localeCtx, path))
 				if len(ids) == 0 || len(ids) > 20 {
 					t.Errorf("hero-history page %d has %d entries", page, len(ids))
 				}
@@ -93,7 +93,7 @@ func TestEveryScheduledSlideRemainsManageableBeyondExpiredHistory(t *testing.T) 
 			if diff := cmp.Diff(heroes, got); diff != "" {
 				t.Errorf("hero-history reachable entries (-want +got):\n%s", diff)
 			}
-			ids, _ := homepageQueue(t, get(localeCtx, "/admin/slides?after=invalid"), "hero-history")
+			ids, _ := slideQueue(t, get(localeCtx, "/admin/slides?after=invalid"))
 			if diff := cmp.Diff(firstHeroes, ids); diff != "" {
 				t.Errorf("an invalid position changes hero-history (-want +got):\n%s", diff)
 			}
@@ -102,7 +102,7 @@ func TestEveryScheduledSlideRemainsManageableBeyondExpiredHistory(t *testing.T) 
 			assertHomepageSlideBadge(t, second, heroes[24], false, i18n.T(localeCtx, i18n.KeyAdminHomeShowing))
 		})
 	}
-	_, heroNext := homepageQueue(t, get(ctx, "/admin/slides"), "hero-history")
+	_, heroNext := slideQueue(t, get(ctx, "/admin/slides"))
 	post := func(body, action, active string) {
 		t.Helper()
 		if !strings.Contains(body, `action="`+action+`"`) {
@@ -132,13 +132,15 @@ func TestEveryScheduledSlideRemainsManageableBeyondExpiredHistory(t *testing.T) 
 		t.Fatal(err)
 	}
 	body := get(ctx, heroNext)
-	ids, next := homepageQueue(t, body, "hero-history")
+	ids, next := slideQueue(t, body)
 	if len(ids) != 0 || next != "" || !strings.Contains(body, i18n.T(ctx, i18n.KeyPageEmpty)) || !strings.Contains(body, `href="/admin/slides#hero-history"`) || strings.Contains(body, i18n.T(ctx, i18n.KeyAdminHomeEmpty)) {
 		t.Error("hero-history vanished continuation is not explained with a restart")
 	}
 }
 
-func homepageQueue(t *testing.T, body, heading string) (ids []string, next string) {
+// slideQueue is the slides one page lists, by the id each toggle form posts
+// to, and the page's next link.
+func slideQueue(t *testing.T, body string) (ids []string, next string) {
 	t.Helper()
 	doc, err := html.Parse(strings.NewReader(body))
 	if err != nil {
@@ -146,13 +148,13 @@ func homepageQueue(t *testing.T, body, heading string) (ids []string, next strin
 	}
 	var side *html.Node
 	for n := range doc.Descendants() {
-		if homepageAttribute(n, "id") == heading {
+		if homepageAttribute(n, "id") == "hero-history" {
 			side = n.Parent
 			break
 		}
 	}
 	if side == nil {
-		t.Fatalf("no queue heading %q", heading)
+		t.Fatal("no queue heading hero-history")
 	}
 	prefix := "/admin/slides/"
 	for n := range side.Descendants() {

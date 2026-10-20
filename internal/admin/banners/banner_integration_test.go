@@ -27,10 +27,13 @@ func TestTheShopCanRunAPromotion(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Banners: %v", err)
 	}
+	// The list puts live strips first and the newest first among them, so the
+	// first match is this run's: an earlier run's copy is switched off.
 	var made *banners.Banner
 	for i := range list.Rows {
 		if list.Rows[i].Message == "全站滿 NT$3,000 免運" {
 			made = &list.Rows[i]
+			break
 		}
 	}
 	if made == nil {

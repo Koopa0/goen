@@ -7,8 +7,6 @@ import (
 
 	"github.com/a-h/templ"
 	"golang.org/x/net/html"
-
-	"github.com/koopa0/goen/internal/i18n"
 )
 
 // renderComponent renders c under ctx, which the caller owns so the locale and
@@ -20,11 +18,6 @@ func renderComponent(t *testing.T, ctx context.Context, c templ.Component) strin
 		t.Fatalf("render: %v", err)
 	}
 	return b.String()
-}
-
-func renderToString(t *testing.T, c templ.Component) string {
-	t.Helper()
-	return renderComponent(t, i18n.WithLocale(t.Context(), i18n.ZhHant), c)
 }
 
 func attr(n *html.Node, key string) string {
