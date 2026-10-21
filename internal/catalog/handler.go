@@ -58,7 +58,7 @@ func (h *Handler) Routes(mux *http.ServeMux, notify *ratelimit.Limiter) {
 }
 
 func (h *Handler) Listing(w http.ResponseWriter, r *http.Request) {
-	if web.DropEmptyParams(w, r) {
+	if dropEmptyParams(w, r) {
 		return
 	}
 	slug := r.PathValue("slug")
@@ -98,7 +98,7 @@ func (h *Handler) Listing(w http.ResponseWriter, r *http.Request) {
 const newestOnEmpty = 4
 
 func (h *Handler) Search(w http.ResponseWriter, r *http.Request) {
-	if web.DropEmptyParams(w, r, "q") {
+	if dropEmptyParams(w, r, "q") {
 		return
 	}
 	q := r.URL.Query().Get("q")
