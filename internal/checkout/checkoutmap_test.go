@@ -7,7 +7,6 @@ import (
 
 	"github.com/koopa0/goen/internal/cart"
 	"github.com/koopa0/goen/internal/shipping"
-	"github.com/koopa0/goen/internal/ui/pages"
 
 	"github.com/koopa0/goen/internal/i18n"
 )
@@ -20,7 +19,7 @@ func aCheckoutWithAStore() *View {
 		Shipping:     []cart.ShippingChoice{{VersionID: "ship-1", Code: "pickup", Name: "超商取貨"}},
 		Chosen:       "ship-1",
 		Destination:  "pickup_point",
-		PickupChains: pages.CheckoutPickupChainChoices(),
+		PickupChains: pickupChains(),
 		Address: Address{
 			Email: "someone@goen.test", Name: "王小明", Phone: "0912345678",
 			PickupChain: shipping.ChainSevenEleven, PickupStoreCode: "131386",

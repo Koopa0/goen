@@ -33,6 +33,26 @@ func (c Chain) Known() bool {
 	return false
 }
 
+// Name is the chain's own name as the shop prints it, the same in every
+// language: each chain already writes it in both scripts. A value outside the
+// closed set panics, as the database refuses one (order_private_data_pickup_chain_known).
+func (c Chain) Name() string {
+	switch c {
+	case "":
+		return ""
+	case ChainSevenEleven:
+		return "7-ELEVEN"
+	case ChainFamilyMart:
+		return "全家 FamilyMart" // i18n-exempt: a chain's own name, already bilingual
+	case ChainHiLife:
+		return "萊爾富 Hi-Life" // i18n-exempt: a chain's own name, already bilingual
+	case ChainOKMart:
+		return "OK mart"
+	default:
+		panic("shipping: unknown pickup chain: " + string(c))
+	}
+}
+
 // AtCheckout excludes historical chains whose store picker checkout does not integrate.
 func (c Chain) AtCheckout() bool {
 	return c == ChainSevenEleven || c == ChainFamilyMart

@@ -24,7 +24,6 @@ import (
 	"github.com/koopa0/goen/internal/shipping"
 	"github.com/koopa0/goen/internal/shipping/storemap"
 	"github.com/koopa0/goen/internal/ui/layouts"
-	"github.com/koopa0/goen/internal/ui/pages"
 	"github.com/koopa0/goen/internal/user"
 	"github.com/koopa0/goen/internal/web/formtext"
 	"github.com/koopa0/goen/internal/web/ratelimit"
@@ -1303,7 +1302,7 @@ func (h *Handler) checkoutView(ctx context.Context, cartID uuid.UUID, owner uuid
 	view := View{
 		Cart: cartView, Shipping: choices,
 		InvoiceChoices: invoiceChoices(ctx),
-		PickupChains:   pages.CheckoutPickupChainChoices(),
+		PickupChains:   pickupChains(),
 		SavedAddresses: saved,
 		IdempotencyKey: attemptID.String(),
 	}

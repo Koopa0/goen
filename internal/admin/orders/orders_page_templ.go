@@ -1044,9 +1044,9 @@ func Order(p layouts.Page, v *OrderView) templ.Component {
 								return templ_7745c5c3_Err
 							}
 							var templ_7745c5c3_Var60 string
-							templ_7745c5c3_Var60, templ_7745c5c3_Err = templ.ResolveAttributeValue(string(b.Value))
+							templ_7745c5c3_Var60, templ_7745c5c3_Err = templ.ResolveAttributeValue(string(b))
 							if templ_7745c5c3_Err != nil {
-								return templ.Error{Err: templ_7745c5c3_Err, FileName: `admin/orders/orders_page.templ`, Line: 232, Col: 43}
+								return templ.Error{Err: templ_7745c5c3_Err, FileName: `admin/orders/orders_page.templ`, Line: 232, Col: 37}
 							}
 							_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var60)
 							if templ_7745c5c3_Err != nil {
@@ -1056,7 +1056,7 @@ func Order(p layouts.Page, v *OrderView) templ.Component {
 							if templ_7745c5c3_Err != nil {
 								return templ_7745c5c3_Err
 							}
-							if b.Value == v.Delivery.PickupChain {
+							if b == v.Delivery.PickupChain {
 								templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 81, " selected")
 								if templ_7745c5c3_Err != nil {
 									return templ_7745c5c3_Err
@@ -1067,9 +1067,9 @@ func Order(p layouts.Page, v *OrderView) templ.Component {
 								return templ_7745c5c3_Err
 							}
 							var templ_7745c5c3_Var61 string
-							templ_7745c5c3_Var61, templ_7745c5c3_Err = templ.JoinStringErrs(b.Label)
+							templ_7745c5c3_Var61, templ_7745c5c3_Err = templ.JoinStringErrs(b.Name())
 							if templ_7745c5c3_Err != nil {
-								return templ.Error{Err: templ_7745c5c3_Err, FileName: `admin/orders/orders_page.templ`, Line: 232, Col: 103}
+								return templ.Error{Err: templ_7745c5c3_Err, FileName: `admin/orders/orders_page.templ`, Line: 232, Col: 92}
 							}
 							_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var61))
 							if templ_7745c5c3_Err != nil {

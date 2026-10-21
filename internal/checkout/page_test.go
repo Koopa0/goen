@@ -14,7 +14,6 @@ import (
 
 	"github.com/koopa0/goen/internal/i18n"
 	"github.com/koopa0/goen/internal/invoice"
-	"github.com/koopa0/goen/internal/ui/pages"
 )
 
 // TestEveryCheckoutChoiceSurvivesChangingAnother holds that the choosers are
@@ -159,7 +158,7 @@ func TestThePickupFormAsksForTheChainAndNothingElse(t *testing.T) {
 		Shipping:     []cart.ShippingChoice{{VersionID: "ship-1", Code: "pickup", Name: "超商取貨"}},
 		Chosen:       "ship-1",
 		Destination:  "pickup_point",
-		PickupChains: pages.CheckoutPickupChainChoices(),
+		PickupChains: pickupChains(),
 	}
 	html := renderToString(t, Page(Meta(ctx), &view))
 
