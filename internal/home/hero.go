@@ -8,6 +8,7 @@ import (
 	"github.com/koopa0/goen/internal/db"
 	"github.com/koopa0/goen/internal/discount/campaign"
 	"github.com/koopa0/goen/internal/i18n"
+	"github.com/koopa0/goen/internal/tone"
 	"github.com/koopa0/goen/internal/ui/components"
 	"github.com/koopa0/goen/internal/web/siteurl"
 )
@@ -32,7 +33,7 @@ func (s *Store) slides(ctx context.Context, src carouselSources) ([]components.H
 			ID:     r.ID.String(),
 			Source: components.SlideScheduled,
 			Layout: components.SlidePhoto,
-			Tone:   components.ToneStone,
+			Tone:   tone.Stone,
 			Title:  r.Headline,
 			Fact:   r.Body,
 		}
@@ -63,7 +64,7 @@ func (s *Store) slides(ctx context.Context, src carouselSources) ([]components.H
 		slide := components.HeroSlide{
 			Source: components.SlideCampaign,
 			Layout: components.SlidePhoto,
-			Tone:   components.ResolveTone(c.Tone),
+			Tone:   tone.Resolve(c.Tone),
 			Title:  c.Title,
 			Stats:  s.campaignStats(ctx, c),
 			CTA:    components.CTA{Label: i18n.T(ctx, i18n.KeyHeroCampaignCTA), Href: "/s/" + c.Slug},
@@ -93,7 +94,7 @@ func (s *Store) slides(ctx context.Context, src carouselSources) ([]components.H
 		out = append(out, components.HeroSlide{
 			Source:     components.SlideDepartment,
 			Layout:     components.SlideSplit,
-			Tone:       components.ResolveTone(c.Tone),
+			Tone:       tone.Resolve(c.Tone),
 			Photo:      photo,
 			PhotoWidth: 1600, PhotoHeight: 1200,
 			Title: c.Name,
@@ -140,16 +141,16 @@ func departmentPhoto(c *db.RootCategoriesRow) components.Photo {
 
 // toneOf is the tone of the campaign or department a link goes to; any other
 // link, and a link to nothing the shop has, is stone.
-func (src carouselSources) toneOf(href string) components.Tone {
+func (src carouselSources) toneOf(href string) tone.Tone {
 	for i := range src.camps {
 		if href == "/s/"+src.camps[i].Slug {
-			return components.ResolveTone(src.camps[i].Tone)
+			return tone.Resolve(src.camps[i].Tone)
 		}
 	}
 	for i := range src.cats {
 		if href == "/c/"+src.cats[i].Slug {
-			return components.ResolveTone(src.cats[i].Tone)
+			return tone.Resolve(src.cats[i].Tone)
 		}
 	}
-	return components.ToneStone
+	return tone.Stone
 }

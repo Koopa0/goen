@@ -18,6 +18,7 @@ import (
 	"github.com/koopa0/goen/internal/home"
 	"github.com/koopa0/goen/internal/i18n"
 	"github.com/koopa0/goen/internal/policy"
+	"github.com/koopa0/goen/internal/tone"
 	"github.com/koopa0/goen/internal/ui/components"
 	"github.com/koopa0/goen/internal/ui/layouts"
 	"github.com/koopa0/goen/internal/ui/tile"
@@ -39,16 +40,16 @@ func TestStorefrontSectionsAsDrawn(t *testing.T) {
 	}
 	mux := http.NewServeMux()
 	mux.Handle(assets.Prefix, assets.Handler(slog.New(slog.DiscardHandler)))
-	tones := map[string]components.Tone{"ink": components.ToneInk, "sage": components.ToneSage}
+	tones := map[string]tone.Tone{"ink": tone.Ink, "sage": tone.Sage}
 	mux.HandleFunc("GET /home", func(w http.ResponseWriter, r *http.Request) {
 		view := home.View{Rules: policy.Rules{FreeDeliveryCents: 99900, LowestFeeCents: 6000, PickupOffered: true}}
 		photo := components.Photo{URL: assets.Image{BundledKey: "nimbus-band-2-01.webp"}.URL(), Alt: "Headphones on a desk"}
 		view.Slides = []components.HeroSlide{
-			{Title: "Technology", Layout: components.SlideSplit, Tone: components.ToneStone, Photo: photo},
-			{Title: "Everyday essentials", Layout: components.SlideSplit, Tone: components.ToneInk, Photo: photo, CTA: components.CTA{Label: "Shop now", Href: "/c/audio"}},
-			{Title: "Books & stationery", Layout: components.SlidePhoto, Tone: components.ToneSage, Photo: photo},
-			{Title: "Slow mornings", Layout: components.SlideSplit, Tone: components.ToneSage, CTA: components.CTA{Label: "See the range", Href: "/c/coffee"}},
-			{Title: "After dark", Layout: components.SlideSplit, Tone: components.ToneInk},
+			{Title: "Technology", Layout: components.SlideSplit, Tone: tone.Stone, Photo: photo},
+			{Title: "Everyday essentials", Layout: components.SlideSplit, Tone: tone.Ink, Photo: photo, CTA: components.CTA{Label: "Shop now", Href: "/c/audio"}},
+			{Title: "Books & stationery", Layout: components.SlidePhoto, Tone: tone.Sage, Photo: photo},
+			{Title: "Slow mornings", Layout: components.SlideSplit, Tone: tone.Sage, CTA: components.CTA{Label: "See the range", Href: "/c/coffee"}},
+			{Title: "After dark", Layout: components.SlideSplit, Tone: tone.Ink},
 		}
 		for _, c := range []struct{ slug, name, photo string }{
 			{"audio", "Audio", "nimbus-band-2-01.webp"},
@@ -56,12 +57,12 @@ func TestStorefrontSectionsAsDrawn(t *testing.T) {
 			{"coffee", "Coffee", "dawnroast-drip-coffee-01.webp"},
 		} {
 			view.Categories = append(view.Categories, home.Category{
-				Slug: c.slug, Name: c.name, Tone: components.ToneStone,
+				Slug: c.slug, Name: c.name, Tone: tone.Stone,
 				Photo: components.Photo{URL: assets.Image{BundledKey: c.photo}.URL()},
 			})
 		}
-		if tone, ok := tones[r.URL.Query().Get("band")]; ok {
-			view.Band = &home.DepartmentBand{Name: "Technology", Items: 12, Fact: "Audio · Phones", Href: "/c/tech", Tone: tone}
+		if bandTone, ok := tones[r.URL.Query().Get("band")]; ok {
+			view.Band = &home.DepartmentBand{Name: "Technology", Items: 12, Fact: "Audio · Phones", Href: "/c/tech", Tone: bandTone}
 			for _, name := range []string{"Canvas tote", "City tote", "Weekend tote", "Market tote"} {
 				view.Band.Tiles = append(view.Band.Tiles, tile.Tile{Slug: strings.ToLower(strings.ReplaceAll(name, " ", "-")), Name: name, PriceCents: 89000, InStock: true})
 			}

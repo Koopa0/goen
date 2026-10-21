@@ -20,6 +20,7 @@ import (
 	"github.com/koopa0/goen/internal/i18n"
 	"github.com/koopa0/goen/internal/keyset"
 	"github.com/koopa0/goen/internal/shoptime"
+	"github.com/koopa0/goen/internal/tone"
 	"github.com/koopa0/goen/internal/ui/components"
 	"github.com/koopa0/goen/internal/web/formtext"
 	"github.com/koopa0/goen/internal/web/siteurl"
@@ -86,9 +87,9 @@ func (f *Form) Validate(ctx context.Context) map[string]string {
 	}
 	f.Tone = strings.TrimSpace(f.Tone)
 	if f.Tone == "" {
-		f.Tone = string(components.ToneStone)
+		f.Tone = string(tone.Stone)
 	}
-	if _, ok := components.ParseTone(f.Tone); !ok {
+	if _, ok := tone.Parse(f.Tone); !ok {
 		errs["tone"] = i18n.T(ctx, i18n.KeyFormToneUnknown)
 	}
 	return errs
@@ -207,17 +208,17 @@ func (s *Store) SearchProducts(ctx context.Context, slug, term string) ([]Campai
 	return out, nil
 }
 
-func (s *Store) SetTone(ctx context.Context, slug, tone string) error {
-	tone = strings.TrimSpace(tone)
-	if _, ok := components.ParseTone(tone); !ok {
-		return fmt.Errorf("%w: unknown tone %q", ErrInvalid, tone)
+func (s *Store) SetTone(ctx context.Context, slug, toneName string) error {
+	toneName = strings.TrimSpace(toneName)
+	if _, ok := tone.Parse(toneName); !ok {
+		return fmt.Errorf("%w: unknown tone %q", ErrInvalid, toneName)
 	}
 	return audit.Run(ctx, s.pool, audit.Event{
 		Action: audit.ActionSetCampaignTone, Table: "sale_campaigns", ID: uuid.NullUUID{},
-		Before: audit.State{audit.FieldCampaign: slug}, After: audit.State{audit.FieldTone: tone},
+		Before: audit.State{audit.FieldCampaign: slug}, After: audit.State{audit.FieldTone: toneName},
 	},
 		func(ctx context.Context, q *db.Queries) error {
-			n, err := q.SetCampaignTone(ctx, db.SetCampaignToneParams{Slug: strings.TrimSpace(slug), Tone: tone})
+			n, err := q.SetCampaignTone(ctx, db.SetCampaignToneParams{Slug: strings.TrimSpace(slug), Tone: toneName})
 			if err != nil {
 				return db.WrapRefusal(err, ErrRefused)
 			}

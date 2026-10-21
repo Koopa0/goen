@@ -109,7 +109,7 @@ func (h *Handler) render(w http.ResponseWriter, r *http.Request, status int, not
 		access.ServerError(w, r, h.log)
 		return
 	}
-	image, tone, err := h.store.Image(r.Context(), slug)
+	image, toneName, err := h.store.Image(r.Context(), slug)
 	if err != nil {
 		if errors.Is(err, ErrNotFound) {
 			respond.Component(w, r, h.log, http.StatusNotFound, layouts.MissingRecord(
@@ -143,7 +143,7 @@ func (h *Handler) render(w http.ResponseWriter, r *http.Request, status int, not
 	}
 	view := CampaignView{
 		Slug: slug, CampaignDetail: detail, Term: term, Matches: matches,
-		Products: products, Notice: notice, Image: image, Tone: tone, Errors: errs,
+		Products: products, Notice: notice, Image: image, Tone: toneName, Errors: errs,
 		ImageAltDraft: altDraft, ImageAltEnDraft: altEnDraft,
 	}
 	// The results are one figure of the page: failing to read them must not

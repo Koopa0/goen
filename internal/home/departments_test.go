@@ -5,6 +5,7 @@ import (
 	"testing"
 
 	"github.com/koopa0/goen/internal/i18n"
+	"github.com/koopa0/goen/internal/tone"
 	"github.com/koopa0/goen/internal/ui/components"
 )
 
@@ -16,12 +17,12 @@ func TestHeroCarouselDrawsItsSlides(t *testing.T) {
 		ctx := i18n.WithLocale(t.Context(), locale)
 		see := i18n.T(ctx, i18n.KeyHeroCampaignCTA)
 		campaign := components.HeroSlide{
-			Layout: components.SlidePhoto, Tone: components.ToneSage, Title: "Autumn desk sale",
+			Layout: components.SlidePhoto, Tone: tone.Sage, Title: "Autumn desk sale",
 			Stats: []components.Stat{{Label: "Items", Value: components.StatCount(4, "items")}},
 			CTA:   components.CTA{Label: see, Href: "/s/autumn-desk"},
 			Photo: components.Photo{URL: "/static/a.webp", Alt: "a desk"}, PhotoWidth: 1600, PhotoHeight: 600,
 		}
-		department := components.HeroSlide{Layout: components.SlideSplit, Tone: components.ToneMist, Title: "Tech", CTA: components.CTA{Label: see, Href: "/c/tech"}}
+		department := components.HeroSlide{Layout: components.SlideSplit, Tone: tone.Mist, Title: "Tech", CTA: components.CTA{Label: see, Href: "/c/tech"}}
 
 		many := renderComponent(t, ctx, Page(Meta(ctx), View{Slides: []components.HeroSlide{campaign, department}}))
 		for _, want := range []string{
@@ -72,8 +73,8 @@ func TestHeroCarouselDrawsItsSlides(t *testing.T) {
 func TestHeroCarouselHasNoAutoplay(t *testing.T) {
 	t.Parallel()
 	slides := []components.HeroSlide{
-		{Layout: components.SlideSplit, Tone: components.ToneMist, Title: "Tech"},
-		{Layout: components.SlideSplit, Tone: components.ToneSage, Title: "Food"},
+		{Layout: components.SlideSplit, Tone: tone.Mist, Title: "Tech"},
+		{Layout: components.SlideSplit, Tone: tone.Sage, Title: "Food"},
 	}
 	for _, locale := range []i18n.Locale{i18n.ZhHant, i18n.En} {
 		ctx := i18n.WithLocale(t.Context(), locale)
@@ -97,7 +98,7 @@ func TestACampaignSlideDrawsItsStatsAndItsDayGrid(t *testing.T) {
 	ctx := i18n.WithLocale(t.Context(), i18n.ZhHant)
 	spec := components.PeriodSpec{Description: "秋日選物：10 月 1 日至 10 月 30 日，共 30 天", TodayLabel: "今天", Cells: []components.PeriodCell{{State: components.CellToday, Label: "10/9"}, {Label: "10/10"}}}
 	slide := components.HeroSlide{
-		Layout: components.SlidePhoto, Tone: components.ToneSage, Title: "年終感謝祭全館滿額再折",
+		Layout: components.SlidePhoto, Tone: tone.Sage, Title: "年終感謝祭全館滿額再折",
 		Stats:  []components.Stat{{Label: "結束", Value: components.StatDate("10\u00a0月 30\u00a0日", ""), Note: "明天結束"}},
 		Period: &spec,
 	}

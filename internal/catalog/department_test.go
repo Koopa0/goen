@@ -10,6 +10,7 @@ import (
 
 	"github.com/koopa0/goen/internal/discount/campaign"
 	"github.com/koopa0/goen/internal/i18n"
+	"github.com/koopa0/goen/internal/tone"
 	"github.com/koopa0/goen/internal/ui/components"
 )
 
@@ -178,7 +179,7 @@ func TestACampaignNoticeSaysItsEndInWords(t *testing.T) {
 func TestTheCampaignNoticeIsTheBandsLastRow(t *testing.T) {
 	t.Parallel()
 	ctx := i18n.WithLocale(t.Context(), i18n.ZhHant)
-	view := ListingView{Slug: "c", Name: "Books", Theme: &Theme{Tone: components.ToneSage, Photo: components.Photo{URL: "/d.webp"}}}
+	view := ListingView{Slug: "c", Name: "Books", Theme: &Theme{Tone: tone.Sage, Photo: components.Photo{URL: "/d.webp"}}}
 	now := time.Date(2026, 10, 9, 4, 0, 0, 0, time.UTC)
 	notice := &DepartmentNotice{Title: "秋日選物", Href: "/s/autumn", End: campaign.NewEnd(time.Date(2026, 10, 30, 16, 0, 0, 0, time.UTC), now)}
 	doc, err := html.Parse(strings.NewReader(renderComponent(t, ctx, Listing(ListingMeta(ctx, view), view, nil, &DepartmentHead{Notice: notice}))))

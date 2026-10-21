@@ -14,7 +14,7 @@ import (
 	"github.com/koopa0/goen/internal/admin/audit"
 	"github.com/koopa0/goen/internal/db"
 	"github.com/koopa0/goen/internal/i18n"
-	"github.com/koopa0/goen/internal/ui/components"
+	"github.com/koopa0/goen/internal/tone"
 	"github.com/koopa0/goen/internal/ui/icons"
 	"github.com/koopa0/goen/internal/web/siteurl"
 )
@@ -76,7 +76,7 @@ func (f *Form) Validate(ctx context.Context) map[string]string {
 		errs["icon_key"] = i18n.T(ctx, i18n.KeyFormIconUnknown)
 	}
 	f.Tone = strings.TrimSpace(f.Tone)
-	if _, ok := components.ParseTone(f.Tone); f.Tone != "" && !ok {
+	if _, ok := tone.Parse(f.Tone); f.Tone != "" && !ok {
 		errs["tone"] = i18n.T(ctx, i18n.KeyFormToneUnknown)
 	}
 	return errs
@@ -174,9 +174,9 @@ func (s *Store) CreateCategory(ctx context.Context, f *Form) (map[string]string,
 }
 
 // Rename changes a display name, never a slug: goen has no redirect table.
-func (s *Store) Rename(ctx context.Context, kind, slug, name, nameEn, iconKey, tone string, offersComparison bool) error {
+func (s *Store) Rename(ctx context.Context, kind, slug, name, nameEn, iconKey, toneName string, offersComparison bool) error {
 	name, nameEn = strings.TrimSpace(name), strings.TrimSpace(nameEn)
-	iconKey, tone = strings.TrimSpace(iconKey), strings.TrimSpace(tone)
+	iconKey, toneName = strings.TrimSpace(iconKey), strings.TrimSpace(toneName)
 	if name == "" || utf8.RuneCountInString(name) > MaxNameRunes {
 		return ErrInvalid
 	}
@@ -186,7 +186,7 @@ func (s *Store) Rename(ctx context.Context, kind, slug, name, nameEn, iconKey, t
 	if iconKey != "" && !icons.KnownCategory(iconKey) {
 		return ErrInvalid
 	}
-	if _, ok := components.ParseTone(tone); tone != "" && !ok {
+	if _, ok := tone.Parse(toneName); toneName != "" && !ok {
 		return ErrInvalid
 	}
 	action, table := audit.ActionRenameBrand, "brands"
@@ -195,7 +195,7 @@ func (s *Store) Rename(ctx context.Context, kind, slug, name, nameEn, iconKey, t
 		action, table = audit.ActionRenameCategory, "categories"
 		after[audit.FieldNameEn] = nameEn
 		after[audit.FieldIconKey] = iconKey
-		after[audit.FieldTone] = tone
+		after[audit.FieldTone] = toneName
 		after[audit.FieldComparable] = offersComparison
 	}
 	return audit.Run(ctx, s.pool, audit.Event{
@@ -210,7 +210,7 @@ func (s *Store) Rename(ctx context.Context, kind, slug, name, nameEn, iconKey, t
 				n, err = q.RenameBrand(ctx, db.RenameBrandParams{Slug: slug, Name: name})
 			} else {
 				n, err = q.RenameCategory(ctx, db.RenameCategoryParams{
-					Slug: slug, Name: name, NameEn: nameEn, IconKey: iconKey, Tone: tone, Comparable: offersComparison,
+					Slug: slug, Name: name, NameEn: nameEn, IconKey: iconKey, Tone: toneName, Comparable: offersComparison,
 				})
 			}
 			if err != nil {

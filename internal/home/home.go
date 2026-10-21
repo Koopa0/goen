@@ -6,6 +6,7 @@ import (
 
 	"github.com/koopa0/goen/internal/i18n"
 	"github.com/koopa0/goen/internal/policy"
+	"github.com/koopa0/goen/internal/tone"
 	"github.com/koopa0/goen/internal/ui/components"
 	"github.com/koopa0/goen/internal/ui/layouts"
 	"github.com/koopa0/goen/internal/ui/tile"
@@ -18,7 +19,7 @@ func Meta(ctx context.Context) layouts.Page {
 type Category struct {
 	Slug  string
 	Name  string
-	Tone  components.Tone
+	Tone  tone.Tone
 	Photo components.Photo
 }
 
@@ -43,7 +44,7 @@ type ProductRow struct {
 
 // RowCampaign is what a campaign's row says about the campaign.
 type RowCampaign struct {
-	Tone  components.Tone
+	Tone  tone.Tone
 	Items int64
 	// Facts stand under the heading when the row has no campaign card.
 	Facts []components.Stat
@@ -80,7 +81,7 @@ type DepartmentBand struct {
 	Items int64
 	Fact  string
 	Href  string
-	Tone  components.Tone
+	Tone  tone.Tone
 	Tiles []tile.Tile
 }
 

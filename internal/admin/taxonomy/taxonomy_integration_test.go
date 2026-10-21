@@ -30,7 +30,7 @@ import (
 	"github.com/koopa0/goen/internal/i18n"
 	"github.com/koopa0/goen/internal/media"
 	"github.com/koopa0/goen/internal/media/mediatest"
-	"github.com/koopa0/goen/internal/ui/components"
+	"github.com/koopa0/goen/internal/tone"
 	"github.com/koopa0/goen/internal/ui/icons"
 )
 
@@ -425,19 +425,19 @@ func TestEveryToneOfTheClosedSetIsStorable(t *testing.T) {
 	if err != nil || len(errs) > 0 {
 		t.Fatalf("create the campaign: %v %v", errs, err)
 	}
-	for _, tone := range components.Tones() {
-		if err = campaigns.NewStore(pool).SetTone(ctx, camp, string(tone)); err != nil {
-			t.Errorf("SetTone(%q): %v", tone, err)
+	for v := range tone.All() {
+		if err = campaigns.NewStore(pool).SetTone(ctx, camp, string(v)); err != nil {
+			t.Errorf("SetTone(%q): %v", v, err)
 		}
-		if err = taxonomy.NewStore(pool).Rename(ctx, "category", slug, "無色調", "", "", string(tone), false); err != nil {
-			t.Errorf("Rename with tone %q: %v", tone, err)
+		if err = taxonomy.NewStore(pool).Rename(ctx, "category", slug, "無色調", "", "", string(v), false); err != nil {
+			t.Errorf("Rename with tone %q: %v", v, err)
 		}
 	}
 	if err = campaigns.NewStore(pool).SetTone(ctx, camp, "neon"); err == nil {
 		t.Error("a campaign accepted a tone outside the set")
 	}
 	cv, err := campaign.NewStore(pool).Campaign(ctx, camp)
-	if err != nil || cv.Tone != components.ToneInk {
+	if err != nil || cv.Tone != tone.Ink {
 		t.Fatalf("campaign tone = %q (err %v), want the last one set, ink", cv.Tone, err)
 	}
 }

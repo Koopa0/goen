@@ -9,6 +9,7 @@ import (
 
 	"github.com/koopa0/goen/internal/i18n"
 	"github.com/koopa0/goen/internal/policy"
+	"github.com/koopa0/goen/internal/tone"
 	"github.com/koopa0/goen/internal/ui/components"
 	"github.com/koopa0/goen/internal/ui/layouts"
 )
@@ -19,8 +20,8 @@ import (
 func TestTheHeroIsDescribedToAScreenReaderInThePagesLanguage(t *testing.T) {
 	t.Parallel()
 	slides := []components.HeroSlide{
-		{Layout: components.SlideSplit, Tone: components.ToneMist, Title: "One"},
-		{Layout: components.SlideSplit, Tone: components.ToneMist, Title: "Two"},
+		{Layout: components.SlideSplit, Tone: tone.Mist, Title: "One"},
+		{Layout: components.SlideSplit, Tone: tone.Mist, Title: "Two"},
 	}
 	described := map[i18n.Locale]map[string]bool{}
 	for _, locale := range i18n.Locales() {

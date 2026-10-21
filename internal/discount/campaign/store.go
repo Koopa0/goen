@@ -12,6 +12,7 @@ import (
 
 	"github.com/koopa0/goen/internal/db"
 	"github.com/koopa0/goen/internal/i18n"
+	"github.com/koopa0/goen/internal/tone"
 	"github.com/koopa0/goen/internal/ui/components"
 	"github.com/koopa0/goen/internal/ui/tile"
 )
@@ -65,7 +66,7 @@ func (s *Store) Campaign(ctx context.Context, slug string) (View, error) {
 			Srcset: photo.Srcset(),
 			Alt:    c.ImageAlt,
 		},
-		Tone: components.ResolveTone(c.Tone),
+		Tone: tone.Resolve(c.Tone),
 	}, nil
 }
 

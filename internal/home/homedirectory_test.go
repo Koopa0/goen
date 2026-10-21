@@ -6,6 +6,7 @@ import (
 	"testing"
 
 	"github.com/koopa0/goen/internal/i18n"
+	"github.com/koopa0/goen/internal/tone"
 	"github.com/koopa0/goen/internal/ui/components"
 	"github.com/koopa0/goen/internal/ui/layouts"
 )
@@ -110,7 +111,7 @@ func campaignRow(firstPhotoWidth int32, tiles int) ProductRow {
 	return ProductRow{
 		Title: "秋日選物", Href: "/s/autumn", Tiles: shelf,
 		Campaign: &RowCampaign{
-			Tone: components.ToneSage, Items: 6,
+			Tone: tone.Sage, Items: 6,
 			Facts:     []components.Stat{{Label: "商品", Value: components.StatCount(6, "件")}},
 			CardFacts: []components.Stat{{Label: "結束", Value: components.StatCount(3, "天")}},
 			Period:    &components.PeriodSpec{Cells: []components.PeriodCell{{}, {}}, Description: "兩天"},
