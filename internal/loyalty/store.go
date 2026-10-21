@@ -79,6 +79,15 @@ func (s *Store) Redeem(
 				return 0, ErrNotEnough
 			case "loyalty_redemption_return_unsettled":
 				return 0, ErrReturnUnsettled
+			case "loyalty_redemption_owner":
+				// The account is gone, or never existed: a crafted POST or one
+				// that outlived the account.
+				return 0, ErrNoAccount
+			case "loyalty_redemption_operation_owner", "loyalty_redemption_attribution":
+				// Another customer's operation id, or this one's replayed with
+				// other points. The database rolled the claim back, so nothing
+				// was spent; the form is what is wrong.
+				return 0, ErrInvalidOperation
 			}
 		}
 		return 0, fmt.Errorf("redeem %d points: %w", points, err)
