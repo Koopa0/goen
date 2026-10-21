@@ -10,7 +10,7 @@ import (
 	"github.com/koopa0/goen/internal/admin/worklist"
 	"github.com/koopa0/goen/internal/sales"
 	"github.com/koopa0/goen/internal/ui/chart"
-	"github.com/koopa0/goen/internal/web"
+	"github.com/koopa0/goen/internal/web/respond"
 )
 
 type Handler struct {
@@ -48,7 +48,7 @@ func (h *Handler) Dashboard(w http.ResponseWriter, r *http.Request) {
 		h.log.ErrorContext(r.Context(), "read the last seven days for the dashboard", "error", err)
 	}
 	showWeek(&view, recent, err)
-	web.Render(w, r, h.log, http.StatusOK, Dashboard(Meta(r.Context()), view))
+	respond.Component(w, r, h.log, http.StatusOK, Dashboard(Meta(r.Context()), view))
 }
 
 // healthTasks lists the health desk's tasks as the dashboard shows them.

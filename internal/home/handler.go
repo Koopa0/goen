@@ -7,7 +7,7 @@ import (
 	"github.com/koopa0/goen/internal/i18n"
 	"github.com/koopa0/goen/internal/ui/layouts"
 	"github.com/koopa0/goen/internal/ui/pages"
-	"github.com/koopa0/goen/internal/web"
+	"github.com/koopa0/goen/internal/web/respond"
 )
 
 type Handler struct {
@@ -31,12 +31,12 @@ func (h *Handler) Index(w http.ResponseWriter, r *http.Request) {
 	view, err := h.store.Load(r.Context())
 	if err != nil {
 		h.log.Error("load home page", "error", err)
-		web.Render(w, r, h.log, http.StatusInternalServerError, layouts.Notice(
+		respond.Component(w, r, h.log, http.StatusInternalServerError, layouts.Notice(
 			layouts.Page{Title: i18n.T(r.Context(), i18n.KeyHome)}, "",
 			i18n.T(r.Context(), i18n.KeyCannotLoad),
 			i18n.T(r.Context(), i18n.KeyCannotLoadHome)))
 		return
 	}
 	view.AccountErased = r.URL.Query().Get("erased") == "1"
-	web.Render(w, r, h.log, http.StatusOK, pages.Home(pages.HomeMeta(r.Context()), view))
+	respond.Component(w, r, h.log, http.StatusOK, pages.Home(pages.HomeMeta(r.Context()), view))
 }

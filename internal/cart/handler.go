@@ -19,8 +19,8 @@ import (
 	"github.com/koopa0/goen/internal/shipping/storemap"
 	"github.com/koopa0/goen/internal/ui/layouts"
 	"github.com/koopa0/goen/internal/user"
-	"github.com/koopa0/goen/internal/web"
 	"github.com/koopa0/goen/internal/web/formtext"
+	"github.com/koopa0/goen/internal/web/respond"
 	"github.com/koopa0/goen/internal/web/siteurl"
 )
 
@@ -94,7 +94,7 @@ func (h *Handler) Page(w http.ResponseWriter, r *http.Request) {
 	}
 	if !found {
 		view := View{Notice: cartPageNotice(r), ContinueURL: cartContinuation(r)}
-		web.Render(w, r, h.log, http.StatusOK, Page(Meta(r.Context()), view))
+		respond.Component(w, r, h.log, http.StatusOK, Page(Meta(r.Context()), view))
 		return
 	}
 	view, err := h.store.View(r.Context(), cartID)
@@ -115,7 +115,7 @@ func (h *Handler) Page(w http.ResponseWriter, r *http.Request) {
 	if notice := cartPageNotice(r); notice != "" && !view.ReorderAdjusted {
 		view.Notice = notice
 	}
-	web.Render(w, r, h.log, http.StatusOK, Page(Meta(r.Context()), view))
+	respond.Component(w, r, h.log, http.StatusOK, Page(Meta(r.Context()), view))
 }
 
 func cartContinuation(r *http.Request) string {
@@ -231,7 +231,7 @@ func (h *Handler) UpdateItem(w http.ResponseWriter, r *http.Request) {
 func (h *Handler) ReorderItems(w http.ResponseWriter, r *http.Request) {
 	number := r.PathValue("number")
 	if !h.allows(r, number) {
-		web.Render(w, r, h.log, http.StatusNotFound, layouts.OrderNotFound(h.notFoundPage(r)))
+		respond.Component(w, r, h.log, http.StatusNotFound, layouts.OrderNotFound(h.notFoundPage(r)))
 		return
 	}
 
@@ -428,7 +428,7 @@ func isSlug(s string) bool {
 }
 
 func (h *Handler) serverError(w http.ResponseWriter, r *http.Request) {
-	web.Render(w, r, h.log, http.StatusInternalServerError, layouts.Notice(
+	respond.Component(w, r, h.log, http.StatusInternalServerError, layouts.Notice(
 		layouts.Page{Title: i18n.T(r.Context(), i18n.KeyTryAgainTitle)}, "",
 		i18n.T(r.Context(), i18n.KeyTryAgainTitle),
 		i18n.T(r.Context(), i18n.KeyCartUnavailable)))

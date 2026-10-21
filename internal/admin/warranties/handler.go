@@ -8,7 +8,7 @@ import (
 	"github.com/koopa0/goen/internal/i18n"
 	"github.com/koopa0/goen/internal/keyset"
 	"github.com/koopa0/goen/internal/ui/layouts"
-	"github.com/koopa0/goen/internal/web"
+	"github.com/koopa0/goen/internal/web/respond"
 )
 
 type Handler struct {
@@ -34,6 +34,6 @@ func (h *Handler) Warranties(w http.ResponseWriter, r *http.Request) {
 		access.ServerError(w, r, h.log)
 		return
 	}
-	web.Render(w, r, h.log, http.StatusOK, Warranties(
+	respond.Component(w, r, h.log, http.StatusOK, Warranties(
 		layouts.Page{Title: i18n.T(r.Context(), i18n.KeyAdminPageWarranty)}, view))
 }

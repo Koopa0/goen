@@ -20,9 +20,9 @@ import (
 	"github.com/koopa0/goen/internal/payment"
 	"github.com/koopa0/goen/internal/ui/layouts"
 	"github.com/koopa0/goen/internal/user"
-	"github.com/koopa0/goen/internal/web"
 	"github.com/koopa0/goen/internal/web/formtext"
 	"github.com/koopa0/goen/internal/web/ratelimit"
+	"github.com/koopa0/goen/internal/web/respond"
 )
 
 type Handler struct {
@@ -68,7 +68,7 @@ func (h *Handler) Routes(mux *http.ServeMux) {
 }
 
 func (h *Handler) FindOrderPage(w http.ResponseWriter, r *http.Request) {
-	web.Render(w, r, h.log, http.StatusOK, FindOrder(
+	respond.Component(w, r, h.log, http.StatusOK, FindOrder(
 		FindOrderMeta(r.Context()), FindOrderView{}))
 }
 
@@ -107,7 +107,7 @@ func (h *Handler) FindOrder(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if !found {
-		web.Render(w, r, h.log, http.StatusUnprocessableEntity, FindOrder(
+		respond.Component(w, r, h.log, http.StatusUnprocessableEntity, FindOrder(
 			FindOrderMeta(r.Context()), FindOrderView{
 				Number: typed, Email: addr,
 				Error: i18n.T(r.Context(), i18n.KeyFindOrderRefused),
@@ -123,7 +123,7 @@ func (h *Handler) FindOrder(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *Handler) findOrderGrantFailed(w http.ResponseWriter, r *http.Request) {
-	web.Render(w, r, h.log, http.StatusInternalServerError, FindOrderGrantFailed(
+	respond.Component(w, r, h.log, http.StatusInternalServerError, FindOrderGrantFailed(
 		layouts.Page{Title: i18n.T(r.Context(), i18n.KeyFindOrderGrantFailedTitle)}))
 }
 
@@ -141,17 +141,17 @@ func (h *Handler) OrderPage(w http.ResponseWriter, r *http.Request) {
 	// Anything but the browser that placed the order or the account that owns
 	// it gets the same answer as an order that does not exist.
 	if !h.allows(r, number) {
-		if web.ReloadSameSite(w, r, h.log, payment.OrderReload) {
+		if respond.ReloadSameSite(w, r, h.log, payment.OrderReload) {
 			return
 		}
-		web.Render(w, r, h.log, http.StatusNotFound, layouts.OrderNotFound(h.notFoundPage(r)))
+		respond.Component(w, r, h.log, http.StatusNotFound, layouts.OrderNotFound(h.notFoundPage(r)))
 		return
 	}
 
 	view, err := h.store.Order(r.Context(), number)
 	if err != nil {
 		if errors.Is(err, ErrNotFound) {
-			web.Render(w, r, h.log, http.StatusNotFound, layouts.Notice(
+			respond.Component(w, r, h.log, http.StatusNotFound, layouts.Notice(
 				h.notFoundPage(r), "404", i18n.T(r.Context(), i18n.KeyOrderNotFound),
 				i18n.T(r.Context(), i18n.KeyOrderGone)))
 			return
@@ -169,7 +169,7 @@ func (h *Handler) OrderPage(w http.ResponseWriter, r *http.Request) {
 	}
 	view.ShowWarrantyLink = h.ownedBySignedInUser(r, number)
 	view.PaymentsEnabled = h.takesPayment
-	web.Render(w, r, h.log, http.StatusOK, Order(OrderMeta(r.Context(), view.Number), &view))
+	respond.Component(w, r, h.log, http.StatusOK, Order(OrderMeta(r.Context(), view.Number), &view))
 }
 
 const (
@@ -226,7 +226,7 @@ func (h *Handler) CancelOrder(w http.ResponseWriter, r *http.Request) {
 		http.Redirect(w, r, "/orders/"+url.PathEscape(number)+"?cancelled=1", http.StatusSeeOther)
 	case errors.Is(err, ErrNotCancellable):
 		// 422, not a redirect: nothing was written.
-		web.Render(w, r, h.log, http.StatusUnprocessableEntity, layouts.Notice(
+		respond.Component(w, r, h.log, http.StatusUnprocessableEntity, layouts.Notice(
 			layouts.Page{Title: i18n.T(r.Context(), i18n.KeyCancelRefusedTitle)}, "",
 			i18n.T(r.Context(), i18n.KeyCancelRefusedTitle),
 			i18n.T(r.Context(), i18n.KeyCancelRefusedBody), layouts.NoticeActions{
@@ -246,7 +246,7 @@ func (h *Handler) ReturnPage(w http.ResponseWriter, r *http.Request) {
 	}
 	view := viewOf(r.Context(), o, nil, nil)
 	view.Filed = r.URL.Query().Get("filed") == "1"
-	web.Render(w, r, h.log, http.StatusOK, Returns(
+	respond.Component(w, r, h.log, http.StatusOK, Returns(
 		ReturnsMeta(r.Context(), o.Number), view))
 }
 
@@ -358,7 +358,7 @@ func (h *Handler) respondToOpen(
 		h.reject(w, r, o, draft, []formtext.FieldRefusal{{MessageKey: i18n.KeyReturnInvalid}})
 	default:
 		h.log.ErrorContext(r.Context(), "open return request", "order", o.Number, "error", err)
-		web.Render(w, r, h.log, http.StatusInternalServerError, layouts.Notice(
+		respond.Component(w, r, h.log, http.StatusInternalServerError, layouts.Notice(
 			layouts.Page{Title: i18n.T(r.Context(), i18n.KeyTryAgainTitle)}, "",
 			i18n.T(r.Context(), i18n.KeyTryAgainTitle),
 			i18n.T(r.Context(), i18n.KeyLoggedTryAgain)))
@@ -369,13 +369,13 @@ func (h *Handler) reject(w http.ResponseWriter, r *http.Request, o *ReturnOrder,
 	fresh, err := h.store.ReturnOrder(r.Context(), o.Number)
 	if err != nil {
 		h.log.ErrorContext(r.Context(), "refresh order after return refusal", "order", o.Number, "error", err)
-		web.Render(w, r, h.log, http.StatusInternalServerError, layouts.Notice(
+		respond.Component(w, r, h.log, http.StatusInternalServerError, layouts.Notice(
 			layouts.Page{Title: i18n.T(r.Context(), i18n.KeyTryAgainTitle)}, "",
 			i18n.T(r.Context(), i18n.KeyTryAgainTitle),
 			i18n.T(r.Context(), i18n.KeyLoggedTryAgain)))
 		return
 	}
-	web.Render(w, r, h.log, http.StatusUnprocessableEntity, Returns(
+	respond.Component(w, r, h.log, http.StatusUnprocessableEntity, Returns(
 		ReturnsMeta(r.Context(), fresh.Number), viewOf(r.Context(), fresh, draft, returnRefusals(fresh, draft, refusals))))
 }
 
@@ -394,7 +394,7 @@ func (h *Handler) ownOrder(w http.ResponseWriter, r *http.Request) (*ReturnOrder
 			return nil, false
 		}
 		h.log.ErrorContext(r.Context(), "read order for return", "order", number, "error", err)
-		web.Render(w, r, h.log, http.StatusInternalServerError, layouts.Notice(
+		respond.Component(w, r, h.log, http.StatusInternalServerError, layouts.Notice(
 			layouts.Page{Title: i18n.T(r.Context(), i18n.KeyTryAgainTitle)}, "",
 			i18n.T(r.Context(), i18n.KeyTryAgainTitle),
 			i18n.T(r.Context(), i18n.KeyLoggedTryAgain)))
@@ -412,7 +412,7 @@ func (h *Handler) allows(r *http.Request, number string) bool {
 }
 
 func (h *Handler) notFound(w http.ResponseWriter, r *http.Request) {
-	web.Render(w, r, h.log, http.StatusNotFound, layouts.OrderNotFound(h.notFoundPage(r)))
+	respond.Component(w, r, h.log, http.StatusNotFound, layouts.OrderNotFound(h.notFoundPage(r)))
 }
 
 func (h *Handler) notFoundPage(r *http.Request) layouts.Page {
@@ -422,7 +422,7 @@ func (h *Handler) notFoundPage(r *http.Request) layouts.Page {
 // cartUnavailable is the failure page the lookup, the order page and cancelling
 // share with the cart's routes.
 func (h *Handler) cartUnavailable(w http.ResponseWriter, r *http.Request) {
-	web.Render(w, r, h.log, http.StatusInternalServerError, layouts.Notice(
+	respond.Component(w, r, h.log, http.StatusInternalServerError, layouts.Notice(
 		layouts.Page{Title: i18n.T(r.Context(), i18n.KeyTryAgainTitle)}, "",
 		i18n.T(r.Context(), i18n.KeyTryAgainTitle),
 		i18n.T(r.Context(), i18n.KeyCartUnavailable)))
