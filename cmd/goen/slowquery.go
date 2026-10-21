@@ -9,7 +9,7 @@ import (
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 
-	"github.com/koopa0/goen/internal/web"
+	"github.com/koopa0/goen/internal/requestid"
 )
 
 // slowQueryThreshold is the duration at which a statement is worth a line in
@@ -69,7 +69,7 @@ func (t *slowQueryTracer) TraceQueryEnd(ctx context.Context, _ *pgx.Conn, _ pgx.
 			slog.Duration("duration", elapsed),
 			slog.String("pool", t.pool),
 		}
-		if id := web.RequestID(ctx); id != "" {
+		if id := requestid.From(ctx); id != "" {
 			attrs = append(attrs, slog.String("request_id", id))
 		}
 		t.log.LogAttrs(ctx, slog.LevelWarn, "slow query", attrs...)
@@ -93,7 +93,7 @@ func (t *slowQueryTracer) TraceAcquireEnd(ctx context.Context, _ *pgxpool.Pool, 
 			slog.Duration("duration", elapsed),
 			slog.Bool("failed", data.Err != nil),
 		}
-		if id := web.RequestID(ctx); id != "" {
+		if id := requestid.From(ctx); id != "" {
 			attrs = append(attrs, slog.String("request_id", id))
 		}
 		t.log.LogAttrs(ctx, slog.LevelWarn, "slow acquire", attrs...)

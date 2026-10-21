@@ -30,8 +30,8 @@ import (
 	"github.com/koopa0/goen/internal/db/dbtest"
 	"github.com/koopa0/goen/internal/outbox"
 	"github.com/koopa0/goen/internal/refund"
+	"github.com/koopa0/goen/internal/requestid"
 	"github.com/koopa0/goen/internal/user"
-	"github.com/koopa0/goen/internal/web"
 )
 
 // BackOffice wraps a handler as its route in cmd/goen does, with 2FA off.
@@ -95,7 +95,7 @@ func StaffContext(t *testing.T, p *pgxpool.Pool) (context.Context, uuid.UUID) {
 		t.Fatalf("create staff: %v", err)
 	}
 	ctx := user.NewContext(t.Context(), user.User{ID: id.String(), Role: user.RoleAdmin})
-	return web.WithRequestID(ctx, "req-"+id.String()[:8]), id
+	return requestid.With(ctx, "req-"+id.String()[:8]), id
 }
 
 // NamedStaff creates an admin called name and returns a context that carries
@@ -110,7 +110,7 @@ func NamedStaff(t *testing.T, p *pgxpool.Pool, name string) (ctx context.Context
 		t.Fatalf("create staff %q: %v", name, err)
 	}
 	ctx = user.NewContext(t.Context(), user.User{ID: id.String(), Role: user.RoleAdmin})
-	return web.WithRequestID(ctx, "req-"+id.String()[:8]), id, address
+	return requestid.With(ctx, "req-"+id.String()[:8]), id, address
 }
 
 // RenameUser sets a user's display name to name, which is all /account/profile

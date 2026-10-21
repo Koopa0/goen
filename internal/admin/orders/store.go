@@ -30,6 +30,7 @@ import (
 	"github.com/koopa0/goen/internal/outbox"
 	"github.com/koopa0/goen/internal/payment"
 	"github.com/koopa0/goen/internal/refund"
+	"github.com/koopa0/goen/internal/requestid"
 	"github.com/koopa0/goen/internal/shoptime"
 	"github.com/koopa0/goen/internal/ui/components"
 	"github.com/koopa0/goen/internal/ui/pages"
@@ -450,7 +451,7 @@ func applyStatusEffects(ctx context.Context, q *db.Queries, e statusEffect) erro
 	case order.FulfillmentCancelled:
 		_, err := cancellation.Settle(ctx, q, &cancellation.Order{
 			ID: e.orderID, Number: e.number, Actor: e.actor, Kind: outbox.TerminalCancelledByStaff,
-			VoidTrigger: web.RequestID(ctx),
+			VoidTrigger: requestid.From(ctx),
 		})
 		if err != nil {
 			return err

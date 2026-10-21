@@ -28,8 +28,8 @@ import (
 	"github.com/koopa0/goen/internal/cart"
 	"github.com/koopa0/goen/internal/db"
 	"github.com/koopa0/goen/internal/i18n"
+	"github.com/koopa0/goen/internal/requestid"
 	"github.com/koopa0/goen/internal/shipping/storemap"
-	"github.com/koopa0/goen/internal/web"
 )
 
 func TestShippingSurchargesStayWithTheirVersionThroughTheForm(t *testing.T) {
@@ -865,8 +865,8 @@ func TestConcurrentZonePrefixSetsCommitOneWholeKnownLastSet(t *testing.T) {
 	requestA, requestB := "zone-set-a-"+uuid.NewString(), "zone-set-b-"+uuid.NewString()
 	writersCtx, cancelWriters := context.WithTimeout(ctx, 10*time.Second)
 	defer cancelWriters()
-	ctxA := web.WithRequestID(writersCtx, requestA)
-	ctxB := web.WithRequestID(writersCtx, requestB)
+	ctxA := requestid.With(writersCtx, requestA)
+	ctxB := requestid.With(writersCtx, requestB)
 
 	type result struct {
 		name string

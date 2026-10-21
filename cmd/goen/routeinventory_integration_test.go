@@ -22,8 +22,8 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 
 	"github.com/koopa0/goen/internal/payment"
+	"github.com/koopa0/goen/internal/requestid"
 	"github.com/koopa0/goen/internal/shipping/storemap"
-	"github.com/koopa0/goen/internal/web"
 )
 
 // Every trait is observed on one anonymous request, never derived from the
@@ -202,7 +202,7 @@ func (r *queryRecorder) TraceQueryStart(ctx context.Context, _ *pgx.Conn, data p
 	_, deadline := ctx.Deadline()
 	r.mu.Lock()
 	defer r.mu.Unlock()
-	r.queries = append(r.queries, queryRecord{name: name, requestID: web.RequestID(ctx), hasDeadline: deadline})
+	r.queries = append(r.queries, queryRecord{name: name, requestID: requestid.From(ctx), hasDeadline: deadline})
 	return ctx
 }
 

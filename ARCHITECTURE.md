@@ -262,7 +262,7 @@ CI runs formatting, vet, lint, dead-code and generated-code checks, migration li
 
 | Area | Entry points |
 | --- | --- |
-| Composition and lifecycle | [`cmd/goen`][main], [routes][server], [middleware][middleware], [`internal/compress`][compress], [provider posture][provider-posture] |
+| Composition and lifecycle | [`cmd/goen`][main], [routes][server], [middleware][middleware], [`internal/compress`][compress], [`internal/requestid`][requestid], [provider posture][provider-posture] |
 | Checkout, reservations, order access | [`internal/cart`][checkout], [`internal/coupon`][coupon], [`internal/shipping/storemap`][storemap], [`internal/order/lapse`][lapse], [`internal/order/access`][orderaccess] |
 | Payments and recovery | [`internal/payment`][payment-store], [Stripe adapter][stripe], [`internal/admin/health`][health] |
 | Fulfillment, returns, refunds | [`internal/order`][order], [`internal/admin/orders`][orders], [`internal/admin/dashboard`][dashboard], [`internal/returns`][returns-rules], [`internal/admin/returns`][returns], [`internal/admin/refunds`][refund-payout] |
@@ -281,6 +281,7 @@ CI runs formatting, vet, lint, dead-code and generated-code checks, migration li
 [server]: cmd/goen/server.go
 [middleware]: cmd/goen/middleware.go
 [compress]: internal/compress/compress.go
+[requestid]: internal/requestid/requestid.go
 [provider-posture]: cmd/goen/provider_posture.go
 [slowquery]: cmd/goen/slowquery.go
 [checkout]: internal/cart/store.go

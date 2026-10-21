@@ -18,8 +18,8 @@ import (
 	"github.com/koopa0/goen/internal/order/notice"
 	"github.com/koopa0/goen/internal/outbox"
 	"github.com/koopa0/goen/internal/refund"
+	"github.com/koopa0/goen/internal/requestid"
 	"github.com/koopa0/goen/internal/returns"
-	"github.com/koopa0/goen/internal/web"
 )
 
 // The refusals of the refund of units a partly shipped order will not send
@@ -180,7 +180,7 @@ func (s *Store) UnsentRefundPreview(ctx context.Context, number string, req *Uns
 	// one, and it changes no amount.
 	returnID, err := q.OpenUnsentRefund(ctx, db.OpenUnsentRefundParams{
 		OrderNumber: number, LineIds: lineIDs, Quantities: quantities,
-		Reason: string(reason), Note: "preview", ActorUserID: actorID, RequestID: web.RequestID(ctx),
+		Reason: string(reason), Note: "preview", ActorUserID: actorID, RequestID: requestid.From(ctx),
 	})
 	if err != nil {
 		return UnsentRefund{}, db.WrapRefusal(
@@ -307,7 +307,7 @@ func (s *Store) openNewUnsent(ctx context.Context, number string, actorID uuid.U
 	}
 	returnID, err := s.q.OpenUnsentRefund(ctx, db.OpenUnsentRefundParams{
 		OrderNumber: number, LineIds: lineIDs, Quantities: quantities,
-		Reason: string(reason), Note: note, ActorUserID: actorID, RequestID: web.RequestID(ctx),
+		Reason: string(reason), Note: note, ActorUserID: actorID, RequestID: requestid.From(ctx),
 	})
 	if err != nil {
 		return uuid.Nil, db.WrapRefusal(fmt.Errorf("open the unsent refund of %s: %w", number, err), refund.ErrRefused)
@@ -326,7 +326,7 @@ func (s *Store) settleUnsent(ctx context.Context, orderID, returnID, actorID uui
 	defer db.Rollback(ctx, tx)
 	q := s.q.WithTx(tx)
 	if err := q.SettleUnsentRefund(ctx, db.SettleUnsentRefundParams{
-		ReturnRequestID: returnID, ActorUserID: actorID, RequestID: web.RequestID(ctx),
+		ReturnRequestID: returnID, ActorUserID: actorID, RequestID: requestid.From(ctx),
 	}); err != nil {
 		return db.WrapRefusal(fmt.Errorf("settle unsent refund %s: %w", returnID, err), refund.ErrRefused)
 	}
@@ -354,7 +354,7 @@ func (s *Store) fileUnsentAllowance(ctx context.Context, number string, returnID
 	}
 	ctx, cancel := invoiceShare(ctx)
 	defer cancel()
-	filing := issuer.WithFilingIdentity(ctx, actorID, web.RequestID(ctx))
+	filing := issuer.WithFilingIdentity(ctx, actorID, requestid.From(ctx))
 	_, err := s.invoices.FileAllowance(filing, number, uuid.NewSHA1(returnID, []byte("allowance")))
 	switch {
 	case err == nil, errors.Is(err, issuer.ErrAwaitingBuyer), errors.Is(err, issuer.ErrNotFound),
