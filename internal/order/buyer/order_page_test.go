@@ -304,13 +304,13 @@ func TestTheOrderPageStatesItsOwnState(t *testing.T) {
 		{"funded by credit", OrderView{Status: order.FulfillmentPending}, PaymentPaid},
 		{"cancelled before paying", OrderView{Status: order.FulfillmentCancelled, OwedCents: 100}, PaymentNone},
 		{"cancelled and refunded", OrderView{
-			Status: order.FulfillmentCancelled, Timeline: []pages.OrderEvent{{Kind: "cancelled"}, {Kind: "refunded"}},
+			Status: order.FulfillmentCancelled, Timeline: []OrderEvent{{Kind: "cancelled"}, {Kind: "refunded"}},
 		}, PaymentRefunded},
 		{"delivered and returned in full", OrderView{
 			Status: order.FulfillmentDelivered, Committed: true, Returned: &OrderReturned{RefundCents: 100},
 		}, PaymentRefunded},
 		{"delivered with a partial refund", OrderView{
-			Status: order.FulfillmentDelivered, Committed: true, Timeline: []pages.OrderEvent{{Kind: "refunded"}},
+			Status: order.FulfillmentDelivered, Committed: true, Timeline: []OrderEvent{{Kind: "refunded"}},
 		}, PaymentPaid},
 	} {
 		if got := tt.view.PaymentState(); got != tt.want {
@@ -371,7 +371,7 @@ func TestTheOrderHistoryHidesAShippedEventsNote(t *testing.T) {
 	t.Parallel()
 	page := renderToString(t, Order(layouts.Page{Title: "o"}, &OrderView{
 		Status: order.FulfillmentCancelled,
-		Timeline: []pages.OrderEvent{
+		Timeline: []OrderEvent{
 			{Kind: order.EventShipped, Note: "shipped-note-text"},
 			{Kind: order.EventCancelled, Note: "cancelled-note-text"},
 		},

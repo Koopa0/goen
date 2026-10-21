@@ -51,7 +51,7 @@ func headphones() pages.OrderLine {
 func TestTheHistoryReadsItsTimesInTheShortForm(t *testing.T) {
 	t.Parallel()
 	html := orderPage(t, &OrderView{
-		Timeline: []pages.OrderEvent{{Kind: order.EventPlaced, At: time.Date(2026, 10, 3, 6, 2, 0, 0, time.UTC)}},
+		Timeline: []OrderEvent{{Kind: order.EventPlaced, At: time.Date(2026, 10, 3, 6, 2, 0, 0, time.UTC)}},
 	})
 	if want := `<time datetime="2026-10-03T14:02+08:00">10/3 14:02</time>`; !strings.Contains(html, want) {
 		t.Errorf("the history does not contain %s", want)
@@ -148,13 +148,13 @@ func TestACancelledOrderHasNoRightToCancelAndNoReturn(t *testing.T) {
 	t.Parallel()
 	tests := []struct {
 		name       string
-		timeline   []pages.OrderEvent
+		timeline   []OrderEvent
 		wantRefund bool
 	}{
-		{"paid", []pages.OrderEvent{
+		{"paid", []OrderEvent{
 			{Kind: order.EventCancelled, At: orderNow}, {Kind: order.EventRefunded, At: orderNow},
 		}, true},
-		{"unpaid", []pages.OrderEvent{{Kind: order.EventCancelled, At: orderNow}}, false},
+		{"unpaid", []OrderEvent{{Kind: order.EventCancelled, At: orderNow}}, false},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {

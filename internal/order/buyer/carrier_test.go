@@ -62,9 +62,9 @@ func TestTheEnglishOrderPageHasNoChineseOfItsOwn(t *testing.T) {
 		shipments = append(shipments, OrderShipment{Carrier: c, Tracking: "T1", ShippedAt: dispatched})
 	}
 	kinds := []order.EventKind{order.EventPlaced, order.EventPaid, order.EventPicking, order.EventShipped, order.EventInTransit, order.EventDelivered, order.EventCompleted}
-	timeline := make([]pages.OrderEvent, 0, len(kinds))
+	timeline := make([]OrderEvent, 0, len(kinds))
 	for _, kind := range kinds {
-		timeline = append(timeline, pages.OrderEvent{Kind: kind, At: dispatched})
+		timeline = append(timeline, OrderEvent{Kind: kind, At: dispatched})
 	}
 	const userData = "台北市信義區松高路 68 號"
 	v := &OrderView{

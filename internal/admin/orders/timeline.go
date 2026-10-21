@@ -13,7 +13,6 @@ import (
 	"github.com/koopa0/goen/internal/order"
 	"github.com/koopa0/goen/internal/outbox"
 	"github.com/koopa0/goen/internal/shoptime"
-	"github.com/koopa0/goen/internal/ui/pages"
 )
 
 // timelineSource is the table AdminOrderTimeline read an entry from.
@@ -55,7 +54,7 @@ func timelineEntry(r *db.AdminOrderTimelineRow) TimelineEntry {
 	var labels, statuses map[string]i18n.Key
 	switch timelineSource(r.Source) {
 	case timelineOrder:
-		label, known := pages.OrderEvent{Kind: order.EventKind(r.Kind)}.LookupLabelKey()
+		label, known := orderEventLabel(order.EventKind(r.Kind))
 		if !known {
 			return unrecognizedEntry(e, r)
 		}
@@ -93,4 +92,31 @@ func unrecognizedEntry(e TimelineEntry, r *db.AdminOrderTimelineRow) TimelineEnt
 	e.Unrecognized = strings.Join(slices.DeleteFunc([]string{r.Source, r.Kind, r.Status},
 		func(s string) bool { return s == "" }), " / ")
 	return e
+}
+
+// orderEventLabel is the status word the timeline gives an order event of kind k,
+// and false for a kind this build does not know: the timeline must survive one.
+func orderEventLabel(k order.EventKind) (i18n.Key, bool) {
+	switch k {
+	case order.EventPlaced:
+		return i18n.KeyStatusPlaced, true
+	case order.EventPaid:
+		return i18n.KeyStatusPaid, true
+	case order.EventPicking:
+		return i18n.KeyStatusPicking, true
+	case order.EventShipped:
+		return i18n.KeyStatusShipped, true
+	case order.EventInTransit:
+		return i18n.KeyStatusInTransit, true
+	case order.EventDelivered:
+		return i18n.KeyStatusDelivered, true
+	case order.EventCompleted:
+		return i18n.KeyStatusCompleted, true
+	case order.EventCancelled:
+		return i18n.KeyStatusCancelled, true
+	case order.EventRefunded:
+		return i18n.KeyStatusRefunded, true
+	default:
+		return "", false
+	}
 }
