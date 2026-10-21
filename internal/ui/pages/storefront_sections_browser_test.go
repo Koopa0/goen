@@ -17,6 +17,7 @@ import (
 	"github.com/koopa0/goen/internal/discount/campaign"
 	"github.com/koopa0/goen/internal/home"
 	"github.com/koopa0/goen/internal/i18n"
+	"github.com/koopa0/goen/internal/policy"
 	"github.com/koopa0/goen/internal/ui/components"
 	"github.com/koopa0/goen/internal/ui/layouts"
 	"github.com/koopa0/goen/internal/ui/pages"
@@ -41,7 +42,7 @@ func TestStorefrontSectionsAsDrawn(t *testing.T) {
 	mux.Handle(assets.Prefix, assets.Handler(slog.New(slog.DiscardHandler)))
 	tones := map[string]components.Tone{"ink": components.ToneInk, "sage": components.ToneSage}
 	mux.HandleFunc("GET /home", func(w http.ResponseWriter, r *http.Request) {
-		view := home.View{Rules: pages.ShopRules{FreeDeliveryCents: 99900, LowestFeeCents: 6000, PickupOffered: true}}
+		view := home.View{Rules: policy.Rules{FreeDeliveryCents: 99900, LowestFeeCents: 6000, PickupOffered: true}}
 		photo := components.Photo{URL: assets.Image{BundledKey: "nimbus-band-2-01.webp"}.URL(), Alt: "Headphones on a desk"}
 		view.Slides = []components.HeroSlide{
 			{Title: "Technology", Layout: components.SlideSplit, Tone: components.ToneStone, Photo: photo},

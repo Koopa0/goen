@@ -11,8 +11,8 @@ import (
 	"time"
 
 	"github.com/koopa0/goen/internal/i18n"
+	"github.com/koopa0/goen/internal/policy"
 	"github.com/koopa0/goen/internal/ui/layouts"
-	"github.com/koopa0/goen/internal/ui/pages"
 	"github.com/koopa0/goen/internal/ui/tile"
 	"github.com/koopa0/goen/internal/web/ratelimit"
 	"github.com/koopa0/goen/internal/web/respond"
@@ -79,7 +79,7 @@ func (h *Handler) Listing(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// A partial swap never draws the rules or the head, so it does not read them.
-	var rules *pages.ShopRules
+	var rules *policy.Rules
 	if respond.IsHTMX(r) {
 		r = r.WithContext(AsPartial(r.Context()))
 	} else {
@@ -89,7 +89,7 @@ func (h *Handler) Listing(w http.ResponseWriter, r *http.Request) {
 			h.serverError(w, r)
 			return
 		}
-		rules = new(pages.ShopRules(loaded))
+		rules = &loaded
 	}
 	respond.Component(w, r, h.log, http.StatusOK, Listing(ListingMeta(r.Context(), view), view, rules, head))
 }

@@ -5,12 +5,12 @@ import (
 	"testing"
 
 	"github.com/koopa0/goen/internal/i18n"
+	"github.com/koopa0/goen/internal/policy"
 	"github.com/koopa0/goen/internal/ui/components"
-	"github.com/koopa0/goen/internal/ui/pages"
 )
 
 // testRules' windows are not the shop's: a page that printed a number of its own instead of the field's would show.
-var testRules = pages.ShopRules{
+var testRules = policy.Rules{
 	FreeDeliveryCents: 300000, LowestFeeCents: 6000, PickupOffered: true,
 	RescissionDays: 8, ReturnDays: 15, HoldMinutes: 61, PayStartMinutes: 28,
 }

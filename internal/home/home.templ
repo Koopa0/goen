@@ -4,10 +4,10 @@ import (
 	"fmt"
 
 	"github.com/koopa0/goen/internal/i18n"
+	"github.com/koopa0/goen/internal/policy"
 	"github.com/koopa0/goen/internal/ui/components"
 	"github.com/koopa0/goen/internal/ui/icons"
 	"github.com/koopa0/goen/internal/ui/layouts"
-	"github.com/koopa0/goen/internal/ui/pages"
 	"github.com/koopa0/goen/internal/ui/tile"
 )
 
@@ -34,7 +34,7 @@ templ Page(p layouts.Page, v View) {
 			@departmentBand(v.Band)
 		}
 		<div class="goen-home">
-			@pages.ShopRulesSection(v.Rules)
+			@policy.RulesSection(v.Rules)
 		</div>
 	}
 }

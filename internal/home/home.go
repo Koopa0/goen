@@ -5,9 +5,9 @@ import (
 	"unicode/utf8"
 
 	"github.com/koopa0/goen/internal/i18n"
+	"github.com/koopa0/goen/internal/policy"
 	"github.com/koopa0/goen/internal/ui/components"
 	"github.com/koopa0/goen/internal/ui/layouts"
-	"github.com/koopa0/goen/internal/ui/pages"
 	"github.com/koopa0/goen/internal/ui/tile"
 )
 
@@ -90,7 +90,7 @@ type View struct {
 	Categories    []Category
 	Row           ProductRow
 	Band          *DepartmentBand
-	Rules         pages.ShopRules
+	Rules         policy.Rules
 }
 
 // ShowsDirectory reports whether the department list is drawn. With one

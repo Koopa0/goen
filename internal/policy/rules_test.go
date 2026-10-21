@@ -1,4 +1,4 @@
-package pages
+package policy
 
 import (
 	"fmt"
@@ -6,11 +6,22 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/a-h/templ"
+
 	"github.com/koopa0/goen/internal/i18n"
 )
 
+func renderIn(t *testing.T, locale i18n.Locale, c templ.Component) string {
+	t.Helper()
+	var b strings.Builder
+	if err := c.Render(i18n.WithLocale(t.Context(), locale), &b); err != nil {
+		t.Fatalf("render: %v", err)
+	}
+	return b.String()
+}
+
 // testRules' windows are not the shop's: a page that printed a number of its own instead of the field's would show.
-var testRules = ShopRules{
+var testRules = Rules{
 	FreeDeliveryCents: 300000, LowestFeeCents: 6000, PickupOffered: true,
 	RescissionDays: 8, ReturnDays: 15, HoldMinutes: 61, PayStartMinutes: 28,
 }
@@ -21,7 +32,7 @@ var testRules = ShopRules{
 func TestShopRulesStateTheStoredRules(t *testing.T) {
 	t.Parallel()
 	for _, locale := range []i18n.Locale{i18n.ZhHant, i18n.En} {
-		page := renderIn(t, locale, ShopRulesSection(testRules))
+		page := renderIn(t, locale, RulesSection(testRules))
 		for _, want := range []string{
 			`<dl class="ui-statline ui-statline--wide">`,
 			strconv.FormatInt(testRules.HoldMinutes, 10) + " <small>",
@@ -48,7 +59,7 @@ func TestShopRulesStateTheStoredRules(t *testing.T) {
 
 func TestShopRulesOmitFreeDeliveryWhereNoMethodTurnsFree(t *testing.T) {
 	t.Parallel()
-	page := renderIn(t, i18n.ZhHant, ShopRulesSection(ShopRules{}))
+	page := renderIn(t, i18n.ZhHant, RulesSection(Rules{}))
 	if n := strings.Count(page, "<dt>"); n != 3 {
 		t.Errorf("a rules section with no free-delivery threshold states %d rules, want 3", n)
 	}
@@ -62,8 +73,8 @@ func TestShopRulesNamePickupOnlyWhereItIsOffered(t *testing.T) {
 	for _, locale := range []i18n.Locale{i18n.ZhHant, i18n.En} {
 		ctx := i18n.WithLocale(t.Context(), locale)
 		pickup := map[i18n.Locale]string{i18n.ZhHant: "超商取貨", i18n.En: "pickup"}[locale]
-		with := ShopRules{FreeDeliveryCents: 300000, PickupOffered: true}.Stats(ctx)[3].Note
-		without := ShopRules{FreeDeliveryCents: 300000}.Stats(ctx)[3].Note
+		with := Rules{FreeDeliveryCents: 300000, PickupOffered: true}.Stats(ctx)[3].Note
+		without := Rules{FreeDeliveryCents: 300000}.Stats(ctx)[3].Note
 		if !strings.Contains(with, pickup) {
 			t.Errorf("%s: the note with pickup does not name pickup: %q", locale, with)
 		}

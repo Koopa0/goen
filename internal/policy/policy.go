@@ -1,7 +1,8 @@
 // Package policy is what the shop states publicly about how it works; it holds
 // the policy documents, the shipping page, the stated windows and thresholds
-// (Rules) and the retention texts; it does not hold the rules that decide a
-// return (returns), the FAQ (site) or the CSP (cmd/goen).
+// (Rules) with the stat line the home, department and product pages draw them
+// in, and the retention texts; it does not hold the rules that decide a return
+// (returns), the FAQ (site) or the CSP (cmd/goen).
 //
 // It states and does not decide: each number it shows is read from where it is
 // enforced, a database function or the stored delivery methods, or restates a

@@ -55,11 +55,9 @@ import (
 var viewPackageImporters = []string{
 	"internal/admin/orders",
 	"internal/cart",
-	"internal/catalog",
 	// The checkout's half of what was internal/cart's import of the view layer
 	// (#2184): the same pickup-chain choices and delivery line, not a new one.
 	"internal/checkout",
-	"internal/home",
 	"internal/order/buyer",
 }
 
@@ -68,9 +66,7 @@ var dataFilesNamingViews = []string{
 	"internal/admin/orders/store.go",
 	"internal/admin/orders/timeline.go",
 	"internal/cart/store.go",
-	"internal/catalog/product_store.go",
 	"internal/checkout/outbox.go",
-	"internal/home/store.go",
 	"internal/order/buyer/order.go",
 }
 
