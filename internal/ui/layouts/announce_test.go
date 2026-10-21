@@ -1,4 +1,4 @@
-package admin
+package layouts_test
 
 import (
 	"strings"

@@ -196,13 +196,11 @@ store before anything else.
   another desk through an interface it declares; nothing outside
   `internal/admin` and `cmd/goen` imports a back-office package. Each rule's
   reason is printed when it fails.
-- Page bodies still live in `internal/ui/pages` while they move into the
-  features that render them. A new package does not import it: put its
-  `.templ` beside its handler, build on `internal/ui/layouts`,
-  `internal/ui/components` and, for a product in a grid, `internal/ui/tile`,
-  and have its store return domain values.
-  `internal/repocheck/layering_test.go` lists the existing imports, and the
-  list may only shrink.
+- A page body lives in the feature that renders it: put its `.templ` beside
+  its handler, build on `internal/ui/layouts`, `internal/ui/components` and,
+  for a product in a grid, `internal/ui/tile`, and have its store return domain
+  values. No package is named for a layer;
+  `internal/repocheck/layername_test.go` refuses one.
 - A test that guards a guarantee is a lock, and a lock nobody has watched fail
   is a hope. Plant the defect it exists to catch, watch it go red for the stated
   reason, restore, and say so in the pull request.
@@ -258,10 +256,10 @@ good idea to have a single file with many thousands of lines in it, or having
 many tiny files" (package size).
 
 So the large feature packages (`cart`, `admin/orders`, `auth`, `payment`,
-`catalog`, `order/buyer`) are not a defect by their size. Once page bodies have
-finished moving into their features (the templ/Go move, D13), one pass reads
-them against the name test, and each split it finds is filed as its own issue;
-#2184 tracks the pass. Nothing moves for it before then. Which package may
+`catalog`, `order/buyer`) are not a defect by their size. Page bodies have
+finished moving into their features (the templ/Go move, D13), so one pass now
+reads them against the name test, and each split it finds is filed as its own
+issue; #2184 tracks the pass. Which package may
 import which is a separate rule, held by `internal/repocheck/deps_test.go` as
 described above.
 
@@ -431,7 +429,7 @@ Reopen if a staff URL is ever stored or mailed.
 | `web/siteurl` | exists, under `internal/web`, from `web` itself, with `ValidSlug`; `Path` was `web.SitePath`, `PathOr` was `web.SitePathOr` and `Origin` was `web.SiteOrigin` | the shape of a URL on goen's own site; it holds the same-site path check, the configured origin and the slug shape | any page (`site`), the response (`respond`) | not `origin`: shadowed by the `origin` locals at its own call sites; not `href` or `link`: common locals. A tolerated read-alike of `site`; reopen if `site` is renamed |
 | `picture` | planned, from `assets` (`Image`) and the `/media` URL scheme | an image a page shows, from either source, at the widths it exists in; it holds `Image`, its `srcset` and the `/media` URL scheme with its width allowlist | the uploaded files (`media`), the files built into the binary (`assets`) | not `image`: the standard library's; not `photo`: a fourth word for an image, and empty-state art is not a photo |
 | `web/clientip` | exists, under `internal/web`, from `web/ratelimit`; `From` was `ratelimit.ClientIP` and `Normalise` was its unexported `normalise` | the client's address as seen through goen's trusted proxies; it holds the proxy list and the `X-Forwarded-For` resolution | limiter keys (`web/ratelimit`) | not `realip`: names nginx's module; not `proxy`: reads as `httputil.ReverseProxy` |
-| `web/respond` | exists, under `internal/web`, what was left of `web` itself; `Component` was `web.Render`, `IsHTMX` was `web.IsHTMX` and `ReloadSameSite` was `web.ReloadSameSite` | the HTTP answer written from a templ component, whole or as an htmx fragment, and the same-site reload hop page; it holds `Component`, `IsHTMX` and `ReloadSameSite` | reading input (`web/formtext`), judging URLs (`web/siteurl`) | not `render`: nine importing packages declare a `func render` (rule 4); not `page`: reads alike with `ui/pages`; not `templhttp`: names a dependency, not the job; not `web`: with no other file left it would only restate the directory |
+| `web/respond` | exists, under `internal/web`, what was left of `web` itself; `Component` was `web.Render`, `IsHTMX` was `web.IsHTMX` and `ReloadSameSite` was `web.ReloadSameSite` | the HTTP answer written from a templ component, whole or as an htmx fragment, and the same-site reload hop page; it holds `Component`, `IsHTMX` and `ReloadSameSite` | reading input (`web/formtext`), judging URLs (`web/siteurl`) | not `render`: nine importing packages declare a `func render` (rule 4); not `page`: names a layer (rule 4); not `templhttp`: names a dependency, not the job; not `web`: with no other file left it would only restate the directory |
 | `hero` | planned, from `internal/ui/components` | a slide of the home page's carousel; it holds `Slide`, `CTA`, `Layout` and `Source`, which `home` produces and `admin/slides` lists | the home page (`home`), the promo strip (`site`, `ui/frame`), the editor (`admin/slides`) | not `carousel`: names the container, not the slide; not `slide` as a leaf: too generic. The schema says `hero_slides` |
 | `ui/stockrisk` | exists, from `internal/ui/pages/admin`; `StockRisk`, `StockRisks`, `StockRiskRows` and `StockRiskSection` became `Row`, `NewRows`, `Rows` and `Section` | the list of SKUs ranked by how soon they run out, as three desks show it; it holds `Row`, `NewRows`, `DaysCover`, `Rows` and `Section` | the estimate itself (`inventory`) | not `cover`: reads as a cover image, and `warranty` already says "cover"; not `runway`: a third word beside "days of cover" and "risk" |
 | `tone` | planned, from `internal/ui/components` | the stored colour mood a category or campaign wears; it holds the closed set, parse and labels | what a status colour means (`widget.Intent`), a page's image and tone (`catalog.Theme`) | not `palette`: the set, not one value; not `theme`: already `catalog.Theme`. The move renames the `tone` locals in its importers |

@@ -11,7 +11,7 @@ import (
 	"github.com/koopa0/goen/internal/ui/layouts"
 )
 
-// From internal/ui/pages/field_examples_test.go: the address row of
+// The address row of internal/contact's
 // TestCustomerExamplesStayOutsideRefusedInputs, with the example text it reads.
 func TestAccountExamplesStayOutsideRefusedInputs(t *testing.T) {
 	t.Parallel()

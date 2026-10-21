@@ -1,4 +1,4 @@
-package admin_test
+package layouts_test
 
 import (
 	"net/http"
@@ -18,7 +18,7 @@ import (
 
 func TestAdminContentDisclosuresWorkWithTheKeyboard(t *testing.T) {
 	_, port := uitest.Browser(t, "CDP_PORT")
-	root, err := filepath.Abs("../../../..")
+	root, err := filepath.Abs("../../..")
 	if err != nil {
 		t.Fatal(err)
 	}

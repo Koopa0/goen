@@ -12,7 +12,7 @@ import (
 	"github.com/koopa0/goen/internal/ui/layouts"
 )
 
-// From internal/ui/pages/field_examples_test.go: the checkout's rows of
+// The checkout's rows of internal/contact's
 // TestCustomerExamplesStayOutsideRefusedInputs.
 func TestCheckoutExamplesStayOutsideRefusedInputs(t *testing.T) {
 	t.Parallel()

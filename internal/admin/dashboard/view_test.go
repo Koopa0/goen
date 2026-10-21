@@ -11,9 +11,8 @@ import (
 	"github.com/koopa0/goen/internal/ui/components"
 )
 
-// The tests in this file are the dashboard halves of cross-feature tests that
-// still live in internal/ui/pages/admin, as in #2081, #2082, #2114 and #2129:
-// each half moved here with the page it renders and the other views stay behind.
+// The tests in this file are the dashboard halves of tests that render several
+// desks' pages: each half lives with the page it renders.
 
 // badgeClasses returns the class attribute of every badge whose text contains word.
 func badgeClasses(t *testing.T, page, word string) []string {

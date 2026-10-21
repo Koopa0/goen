@@ -13,9 +13,8 @@ import (
 	"github.com/koopa0/goen/internal/ui/uitest"
 )
 
-// The tests in this file are the slide halves of cross-feature tests that
-// still live in internal/ui/pages/admin, as in #2081, #2082, #2114 and #2129:
-// each half moved here with the page it renders and the other views stay behind.
+// The tests in this file are the slide halves of tests that render several
+// desks' pages: each half lives with the page it renders.
 
 // From image_draft_test.go, moved whole.
 func TestHeroImageRefusalRendersTheCompleteDraft(t *testing.T) {

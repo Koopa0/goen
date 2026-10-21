@@ -9,7 +9,7 @@ import (
 	"github.com/koopa0/goen/internal/ui/layouts"
 )
 
-// From internal/ui/pages/brandimagery_test.go: the cart's row of
+// The cart's row of internal/catalog's
 // TestEmptyStatesShowTheirIllustrationAsDecoration.
 func TestCartEmptyStateShowsItsIllustration(t *testing.T) {
 	t.Parallel()

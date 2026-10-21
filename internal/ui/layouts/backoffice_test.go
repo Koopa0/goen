@@ -1,4 +1,4 @@
-package pages
+package layouts_test
 
 import (
 	"context"

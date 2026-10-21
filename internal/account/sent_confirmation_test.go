@@ -9,8 +9,6 @@ import (
 	"github.com/koopa0/goen/internal/i18n"
 )
 
-// From internal/ui/pages/sent_confirmation_test.go, moved whole with
-// sentAttribute and sentHasAttribute.
 func TestAccountEmailReentry(t *testing.T) {
 	t.Parallel()
 	for _, locale := range i18n.Locales() {

@@ -9,8 +9,8 @@ import (
 	"github.com/koopa0/goen/internal/ui/tile"
 )
 
-// The image helpers of ui/pages' imageloading_test.go, which the moved department
-// test calls; the home page's test there keeps the originals.
+// The image helpers of internal/home's imageloading_test.go, which the department
+// test calls; a test cannot import another package's.
 
 var imgTag = regexp.MustCompile(`<img\b[^>]*>`)
 

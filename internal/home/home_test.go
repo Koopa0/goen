@@ -56,7 +56,7 @@ func TestTheHeroIsDescribedToAScreenReaderInThePagesLanguage(t *testing.T) {
 	}
 }
 
-// The home page's row of ui/pages' TestEveryPageKindSendsItsOwnLinkPreviewTags, which lives here since the page does.
+// The home page's row of internal/contact's TestEveryPageKindSendsItsOwnLinkPreviewTags, which lives here since the page does.
 func TestTheHomePageSendsItsOwnLinkPreviewTags(t *testing.T) {
 	t.Parallel()
 	ctx := i18n.WithLocale(layouts.WithRequestPath(t.Context(), "/c/books"), i18n.ZhHant)

@@ -14,11 +14,8 @@ import (
 	"github.com/koopa0/goen/internal/ui/layouts"
 )
 
-// The tests in this file are the tiers halves of cross-feature tests that
-// still live in internal/ui/pages and internal/ui/pages/admin. Those packages'
-// test builds cannot import this one while the back office's audit desk reaches
-// the view package, so each half moved here with the page it renders and the
-// other views stay behind.
+// The tests in this file are the tiers halves of tests that render several
+// desks' pages: each half lives with the page it renders.
 
 // From TestAnExampleIsItsOwnHintLine.
 func TestTiersExampleIsItsOwnHintLine(t *testing.T) {

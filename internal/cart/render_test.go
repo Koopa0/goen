@@ -10,8 +10,9 @@ import (
 	"github.com/koopa0/goen/internal/i18n"
 )
 
-// The ui/pages test helpers the moved cart and checkout view tests call, copied
-// with the bodies ui/pages keeps: a test in another package cannot import them.
+// The render helpers and node walkers the cart and checkout view tests call,
+// with the bodies every page package's tests keep: a test in another package
+// cannot import them.
 
 func renderComponent(t *testing.T, ctx context.Context, c templ.Component) string {
 	t.Helper()

@@ -59,7 +59,7 @@ const paymentStatusMember = "a member of the Status set that payments_status_kno
 // invoiceActionMember explains the three invoice Action constants nothing reads.
 const invoiceActionMember = "the schema writes this action itself, as 'invoice.' || kind in the invoice " +
 	"audit function, so no Go code passes it; the constant keeps the action in action.go, which " +
-	"TestEveryActionConstantIsInTheLedger reads and pages/admin's actionLabels phrases"
+	"TestEveryActionConstantIsInTheLedger reads and admin/audit's actionLabels phrases"
 
 // exportedObject is one declared, exported, hand-written identifier.
 type exportedObject struct {

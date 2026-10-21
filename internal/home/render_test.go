@@ -9,8 +9,8 @@ import (
 	"golang.org/x/net/html"
 )
 
-// The helpers below are the ones the moved view tests call, with the bodies
-// ui/pages keeps for its own tests; those are not importable from here.
+// The helpers below are the ones the view tests call, with the bodies every
+// page package's tests keep; those are not importable from here.
 
 func renderComponent(t *testing.T, ctx context.Context, c templ.Component) string {
 	t.Helper()

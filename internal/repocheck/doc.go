@@ -1,8 +1,7 @@
 // Package repocheck holds the repository's policy tests: what CI runs and how,
 // which commits may merge, the layout gate's own locks, that every named test
 // exists, that every integration suite uses the migration runner, which
-// package may import which, the layering ratchet that stops new code reaching
-// into the page packages, that the packages whose tests were renamed to the
+// package may import which, that no package is named for a layer, that the packages whose tests were renamed to the
 // naming convention keep their names within it, that no exported identifier is
 // left unreferenced,
 // that LIKE escaping and constraint names live only in internal/db, that no

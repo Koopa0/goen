@@ -15,8 +15,8 @@ import (
 	"github.com/koopa0/goen/internal/ui/layouts"
 )
 
-// The helpers below are copies of internal/ui/pages/admin's test helpers, as in
-// #2044, #2081, #2082, #2129 and #2154, rather than exported ones.
+// The helpers below are copies of the render helpers every page package's
+// tests keep, rather than exported ones: a test cannot import another's.
 
 // renderComponent renders c under ctx, which the caller owns so the locale and
 // the staff flag stay explicit at the call site.

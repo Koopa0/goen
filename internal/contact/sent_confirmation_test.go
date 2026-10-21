@@ -1,4 +1,4 @@
-package pages
+package contact_test
 
 import (
 	"strings"

@@ -6,7 +6,7 @@ on:
       - assets/css/app/admin.css
       - internal/admin/health/page.templ
       - internal/admin/twofactor/page.templ
-      - internal/ui/pages/admin/disclosure_browser_test.go
+      - internal/ui/layouts/disclosure_browser_test.go
       - scripts/admin-disclosure-check.mjs
       - .github/workflows/admin-disclosure-interaction.yml
 
@@ -46,4 +46,4 @@ jobs:
           cat chrome.log
           exit 1
       - name: Native disclosure keyboard regression
-        run: go test -count=1 -v -run '^TestAdminContentDisclosuresWorkWithTheKeyboard$' ./internal/ui/pages/admin
+        run: go test -count=1 -v -run '^TestAdminContentDisclosuresWorkWithTheKeyboard$' ./internal/ui/layouts

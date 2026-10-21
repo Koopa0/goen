@@ -13,10 +13,8 @@ import (
 	"github.com/koopa0/goen/internal/ui/layouts"
 )
 
-// The tests in this file are the products halves of cross-feature tests that
-// still live in internal/ui/pages/admin, as in #2081, #2082, #2129 and #2154:
-// each half moved here with the page it renders and the other views stay
-// behind.
+// The tests in this file are the products halves of tests that render several
+// desks' pages: each half lives with the page it renders.
 
 // From TestEveryAdminEmptyPageKeepsItsRestartLink.
 func TestProductsEmptyPageKeepsItsRestartLink(t *testing.T) {

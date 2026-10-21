@@ -14,11 +14,8 @@ import (
 	"github.com/koopa0/goen/internal/ui/layouts"
 )
 
-// The tests in this file are this desk's halves of cross-feature tests that
-// still live in internal/ui/pages/admin. That package's test build cannot
-// import this one while the back office's audit desk reaches the view
-// package, so each half moved here with the pages it renders and the other
-// views stay behind.
+// The tests in this file are this desk's halves of tests that render several
+// desks' pages: each half lives with the pages it renders.
 
 // firstPageBound is the bound the stores build for the first page of a
 // queue that has no rows, exactly as production builds it.
