@@ -9,6 +9,7 @@ import (
 	"github.com/jackc/pgx/v5"
 
 	"github.com/koopa0/goen/assets"
+	"github.com/koopa0/goen/internal/campaign"
 	"github.com/koopa0/goen/internal/db"
 	"github.com/koopa0/goen/internal/i18n"
 	"github.com/koopa0/goen/internal/ui/components"
@@ -49,7 +50,7 @@ func (s *Store) departmentNotice(ctx context.Context, slug string) (*DepartmentN
 	if err != nil {
 		return nil, fmt.Errorf("read campaign of %q: %w", slug, err)
 	}
-	return &DepartmentNotice{Title: c.Title, Href: "/s/" + c.Slug, End: NewCampaignEnd(c.EndsAt, s.now())}, nil
+	return &DepartmentNotice{Title: c.Title, Href: "/s/" + c.Slug, End: campaign.NewEnd(c.EndsAt, s.now())}, nil
 }
 
 // comparePreview tries the categories holding the most comparable products, each with its
@@ -101,7 +102,7 @@ func (s *Store) colourStory(ctx context.Context, slug string) (*ColourStory, err
 		Price: pages.ProductTile{
 			PriceCents: first.PriceCents, PriceVaries: first.PriceVaries,
 			CompareCents: first.CompareAtPriceCents.Int64, InStock: true,
-			OnSale: OnSale(first.InCampaign, true, first.PriceCents, first.CompareAtPriceCents.Int64),
+			OnSale: campaign.OnSale(first.InCampaign, true, first.PriceCents, first.CompareAtPriceCents.Int64),
 		},
 	}
 	for i := range rows {

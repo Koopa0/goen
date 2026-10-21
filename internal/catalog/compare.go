@@ -9,6 +9,7 @@ import (
 	"github.com/jackc/pgx/v5"
 
 	"github.com/koopa0/goen/assets"
+	"github.com/koopa0/goen/internal/campaign"
 	"github.com/koopa0/goen/internal/db"
 	"github.com/koopa0/goen/internal/i18n"
 	"github.com/koopa0/goen/internal/ui/pages"
@@ -40,7 +41,7 @@ func (s *Store) Compare(ctx context.Context, slugs []string) (CompareView, error
 			Slug: r.Slug, Name: r.Name, Summary: r.Summary,
 			Brand: r.Brand, Category: r.Category,
 			PriceCents: r.MinPriceCents, PriceVaries: r.PriceVaries, CompareCents: r.CompareAtPriceCents.Int64,
-			OnSale: OnSale(r.InCampaign, r.InStock, r.MinPriceCents, r.CompareAtPriceCents.Int64),
+			OnSale: campaign.OnSale(r.InCampaign, r.InStock, r.MinPriceCents, r.CompareAtPriceCents.Int64),
 			Rating: r.Rating, RatingCount: r.RatingCount, InStock: r.InStock,
 			WarrantyMonths: int(r.WarrantyMonths),
 			ImageURL:       photo.URL(),

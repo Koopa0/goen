@@ -8,7 +8,7 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 
 	"github.com/koopa0/goen/assets"
-	"github.com/koopa0/goen/internal/catalog"
+	"github.com/koopa0/goen/internal/campaign"
 	"github.com/koopa0/goen/internal/db"
 	"github.com/koopa0/goen/internal/i18n"
 	"github.com/koopa0/goen/internal/ui/pages"
@@ -56,7 +56,7 @@ func (s *Store) Items(ctx context.Context, userID string) ([]Item, error) {
 				PriceCents:   r.MinPriceCents,
 				PriceVaries:  r.PriceVaries,
 				CompareCents: r.CompareAtPriceCents.Int64,
-				OnSale:       catalog.OnSale(r.InCampaign, r.InStock, r.MinPriceCents, r.CompareAtPriceCents.Int64),
+				OnSale:       campaign.OnSale(r.InCampaign, r.InStock, r.MinPriceCents, r.CompareAtPriceCents.Int64),
 				Rating:       r.Rating,
 				RatingCount:  r.RatingCount,
 				InStock:      r.InStock,

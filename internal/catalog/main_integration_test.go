@@ -21,6 +21,7 @@ import (
 	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/jackc/pgx/v5/pgxpool"
 
+	"github.com/koopa0/goen/internal/campaign"
 	"github.com/koopa0/goen/internal/catalog"
 	"github.com/koopa0/goen/internal/db"
 	"github.com/koopa0/goen/internal/db/dbtest"
@@ -442,7 +443,7 @@ func TestDealsListsOnlyWhatARunningCampaignFeatures(t *testing.T) {
 			slices.Contains(slugs, product), total, before)
 	}
 
-	slug := campaign(t, "deals-"+uuid.NewString()[:8])
+	slug := runningCampaign(t, "deals-"+uuid.NewString()[:8])
 	if err := feature(t, slug, product); err != nil {
 		t.Fatalf("feature: %v", err)
 	}
@@ -499,11 +500,11 @@ func TestDealsAreOrderedByHowDeepTheCutIs(t *testing.T) {
 	}
 }
 
-// campaign creates a running campaign. Its window opens an hour ago rather than
+// runningCampaign creates a running campaign. Its window opens an hour ago rather than
 // at the column default now(): the page judges the window with the host's clock,
 // and a database that runs a millisecond ahead of the host (Docker Desktop's VM
 // does) would otherwise read a campaign made a moment ago as not started.
-func campaign(t *testing.T, slug string) string {
+func runningCampaign(t *testing.T, slug string) string {
 	t.Helper()
 	if _, err := pool.Exec(t.Context(), `
 		INSERT INTO sale_campaigns (slug, title, starts_at, ends_at)
@@ -592,7 +593,7 @@ func TestACampaignIsListedOnlyWhileItHasSomethingToBuy(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			slug := campaign(t, "listed-"+uuid.NewString()[:8])
+			slug := runningCampaign(t, "listed-"+uuid.NewString()[:8])
 			t.Cleanup(func() {
 				_, _ = pool.Exec(context.WithoutCancel(ctx), `UPDATE sale_campaigns SET is_active = false WHERE slug = $1`, slug)
 			})
@@ -642,7 +643,7 @@ func plainSlug(t *testing.T) string {
 // judged with a host clock behind the database's at the moment of creation, it
 // is still running.
 func TestAFixtureCampaignRunsWhateverTheHostClockReads(t *testing.T) {
-	slug := campaign(t, "window-skew-"+uuid.NewString())
+	slug := runningCampaign(t, "window-skew-"+uuid.NewString())
 	var startsAt, endsAt, createdAt time.Time
 	if err := pool.QueryRow(t.Context(),
 		`SELECT starts_at, ends_at, created_at FROM sale_campaigns WHERE slug = $1`, slug,
@@ -651,7 +652,7 @@ func TestAFixtureCampaignRunsWhateverTheHostClockReads(t *testing.T) {
 	}
 	for _, behind := range []time.Duration{0, 2 * time.Millisecond, time.Second} {
 		hostNow := createdAt.Add(-behind)
-		if got := catalog.CampaignStateAt(startsAt, endsAt, hostNow); got != catalog.CampaignRunning {
+		if got := campaign.StateAt(startsAt, endsAt, hostNow); got != campaign.Running {
 			t.Errorf("a campaign created at %v, judged by a host clock %v behind, is %q, want running",
 				createdAt, behind, got)
 		}
@@ -664,12 +665,12 @@ func TestACampaignOutsideItsWindowIsShownAsNotStartedOrEnded(t *testing.T) {
 
 	suffix := "-" + uuid.NewString()
 
-	running := campaign(t, "window-now"+suffix)
+	running := runningCampaign(t, "window-now"+suffix)
 	if err := feature(t, running, discountedSlug(t)); err != nil {
 		t.Fatalf("feature: %v", err)
 	}
 	// What the fact line leads with, and what it notes on the end, says which
-	// state catalog.NewCampaignSchedule laid the page out for.
+	// state campaign.NewSchedule laid the page out for.
 	if view, err := s.Campaign(ctx, running); err != nil || view.Schedule.Facts[0].Label != i18n.T(ctx, i18n.KeySlideItems) {
 		t.Fatalf("a running campaign = facts %+v, %v; want its item count first", view.Schedule.Facts, err)
 	}
@@ -689,7 +690,7 @@ func TestACampaignOutsideItsWindowIsShownAsNotStartedOrEnded(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			slug := campaign(t, tt.slug)
+			slug := runningCampaign(t, tt.slug)
 			if err := feature(t, slug, discountedSlug(t)); err != nil {
 				t.Fatalf("feature: %v", err)
 			}
@@ -707,7 +708,7 @@ func TestACampaignOutsideItsWindowIsShownAsNotStartedOrEnded(t *testing.T) {
 		})
 	}
 
-	off := campaign(t, "window-off"+suffix)
+	off := runningCampaign(t, "window-off"+suffix)
 	if _, err := pool.Exec(ctx, `UPDATE sale_campaigns SET is_active = false WHERE slug = $1`, off); err != nil {
 		t.Fatalf("switch off: %v", err)
 	}
@@ -814,7 +815,7 @@ func newDeal(t *testing.T, exec sqlExecer, price, stock int) string {
 // sale_campaign_needs_discount takes a lock on the product before it reads the
 // variants.
 func TestOnlyDiscountedProductsCanBeFeatured(t *testing.T) {
-	slug := campaign(t, "only-discounted")
+	slug := runningCampaign(t, "only-discounted")
 
 	if err := feature(t, slug, discountedSlug(t)); err != nil {
 		t.Errorf("a discounted product could not be featured: %v", err)
@@ -833,7 +834,7 @@ func TestOnlyDiscountedProductsCanBeFeatured(t *testing.T) {
 func TestACampaignShowsOnlyActiveProducts(t *testing.T) {
 	ctx := t.Context()
 	s := catalog.NewStore(pool, slog.New(slog.DiscardHandler))
-	slug := campaign(t, "active-only")
+	slug := runningCampaign(t, "active-only")
 	product := discountedSlug(t)
 	if err := feature(t, slug, product); err != nil {
 		t.Fatalf("feature: %v", err)
@@ -1190,7 +1191,7 @@ func TestPromotionalTilesArePricedOnTheDiscountedVariant(t *testing.T) {
 		SELECT slug FROM p`).Scan(&slug); err != nil {
 		t.Fatalf("build a product whose discount is on the dearer variant: %v", err)
 	}
-	if err := feature(t, campaign(t, "split-"+uuid.NewString()[:8]), slug); err != nil {
+	if err := feature(t, runningCampaign(t, "split-"+uuid.NewString()[:8]), slug); err != nil {
 		t.Fatalf("feature the product: %v", err)
 	}
 
@@ -1243,14 +1244,14 @@ func TestPromotionalTilesArePricedOnTheDiscountedVariant(t *testing.T) {
 		SELECT id, $2 FROM campaign`, campaignSlug, productID); execErr != nil {
 		t.Fatalf("feature split-price product: %v", execErr)
 	}
-	campaign, err := s.Campaign(ctx, campaignSlug)
+	campaignView, err := s.Campaign(ctx, campaignSlug)
 	if err != nil {
 		t.Fatalf("campaign: %v", err)
 	}
-	if len(campaign.Products) != 1 {
-		t.Fatalf("campaign has %d products, want 1", len(campaign.Products))
+	if len(campaignView.Products) != 1 {
+		t.Fatalf("campaign has %d products, want 1", len(campaignView.Products))
 	}
-	campaignTile := campaign.Products[0]
+	campaignTile := campaignView.Products[0]
 	if campaignTile.PriceCents != 150000 || !campaignTile.OnSale {
 		t.Errorf("campaign tile = price %d/on-sale %t, want 150000/true; the regular "+
 			"variant must not hide the discount", campaignTile.PriceCents, campaignTile.OnSale)
@@ -1557,7 +1558,7 @@ func TestACardIsOnSaleOnlyWhileACampaignRunsWithSomethingToBuy(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			product := discountedProduct(t)
-			slug := campaign(t, "card-"+uuid.NewString()[:8])
+			slug := runningCampaign(t, "card-"+uuid.NewString()[:8])
 			if err := feature(t, slug, product); err != nil {
 				t.Fatalf("feature: %v", err)
 			}
@@ -1631,7 +1632,7 @@ func TestACardNeverStrikesAPriceOfASoldOutVariant(t *testing.T) {
 		SELECT p.id, 'FULL-' || upper(replace($1, '-', '')), 150000, NULL, 10, 0, 1 FROM p`, slug); err != nil {
 		t.Fatalf("create product: %v", err)
 	}
-	campaignSlug := campaign(t, "soldout-"+uuid.NewString()[:8])
+	campaignSlug := runningCampaign(t, "soldout-"+uuid.NewString()[:8])
 	if err := feature(t, campaignSlug, slug); err != nil {
 		t.Fatalf("feature: %v", err)
 	}
