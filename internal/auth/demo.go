@@ -63,12 +63,18 @@ func (s *Store) EnsureDemoAccount(ctx context.Context, d DemoAccount) error {
 		if hashErr != nil {
 			return fmt.Errorf("hash the demo password: %w", hashErr)
 		}
-		if createErr := s.q.CreateVerifiedUser(ctx, db.CreateVerifiedUserParams{
+		created, createErr := s.q.CreateVerifiedUser(ctx, db.CreateVerifiedUserParams{
 			Email: d.email, PasswordHash: hash,
-		}); createErr != nil {
+		})
+		if createErr != nil {
 			return fmt.Errorf("create the demo account: %w", createErr)
 		}
-		return nil
+		if created == 1 {
+			return nil
+		}
+		// A process that started with this one made the account first, so this
+		// start finds it as a later start would.
+		row, err = s.q.UserByEmail(ctx, d.email)
 	}
 	if err != nil {
 		return fmt.Errorf("read the demo account: %w", err)

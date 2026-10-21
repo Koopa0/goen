@@ -6975,9 +6975,10 @@ func (q *Queries) CreateVariant(ctx context.Context, arg CreateVariantParams) er
 	return err
 }
 
-const createVerifiedUser = `-- name: CreateVerifiedUser :exec
+const createVerifiedUser = `-- name: CreateVerifiedUser :execrows
 INSERT INTO users (email, password_hash, email_verified_at)
 VALUES ($1::text, $2::text, now())
+ON CONFLICT ((lower(email))) DO NOTHING
 `
 
 type CreateVerifiedUserParams struct {
@@ -6986,10 +6987,15 @@ type CreateVerifiedUserParams struct {
 }
 
 // Born proved: the address is the operator's, published beside the password,
-// so no link is mailed for it.
-func (q *Queries) CreateVerifiedUser(ctx context.Context, arg CreateVerifiedUserParams) error {
-	_, err := q.db.Exec(ctx, createVerifiedUser, arg.Email, arg.PasswordHash)
-	return err
+// so no link is mailed for it. Processes that start together on a database
+// without the account all insert it; users_email_key lets one win, and the
+// rows affected say whether this was it.
+func (q *Queries) CreateVerifiedUser(ctx context.Context, arg CreateVerifiedUserParams) (int64, error) {
+	result, err := q.db.Exec(ctx, createVerifiedUser, arg.Email, arg.PasswordHash)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected(), nil
 }
 
 const creditBalance = `-- name: CreditBalance :one

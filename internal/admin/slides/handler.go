@@ -11,8 +11,8 @@ import (
 	"github.com/koopa0/goen/internal/media"
 	"github.com/koopa0/goen/internal/ui/components"
 	"github.com/koopa0/goen/internal/ui/layouts"
-	"github.com/koopa0/goen/internal/web"
 	"github.com/koopa0/goen/internal/web/formtext"
+	"github.com/koopa0/goen/internal/web/respond"
 )
 
 type Handler struct {
@@ -48,7 +48,7 @@ func (h *Handler) Slides(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	view.Notice = components.NoticeFrom(r, notices)
-	web.Render(w, r, h.log, http.StatusOK, Slides(
+	respond.Component(w, r, h.log, http.StatusOK, Slides(
 		layouts.Page{Title: i18n.T(r.Context(), i18n.KeyAdminPageHero)}, &view))
 }
 
@@ -158,7 +158,7 @@ func (h *Handler) rejectHeroSlide(
 		PrimaryLabelEn: r.PostFormValue("primary_label_en"), SecondLabelEn: r.PostFormValue("second_label_en"),
 		ImageAltEn: r.PostFormValue("alt_en"),
 	}
-	web.Render(w, r, h.log, http.StatusUnprocessableEntity, Slides(
+	respond.Component(w, r, h.log, http.StatusUnprocessableEntity, Slides(
 		layouts.Page{Title: i18n.T(r.Context(), i18n.KeyAdminPageHero)}, &view))
 }
 

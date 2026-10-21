@@ -1,4 +1,4 @@
-package pages
+package home
 
 import (
 	"log/slog"
@@ -18,7 +18,7 @@ import (
 
 func TestCarouselCurrentTabStaysVisibleWithoutMovingThePage(t *testing.T) {
 	_, port := uitest.Browser(t, "CDP_PORT")
-	root, err := filepath.Abs("../../..")
+	root, err := filepath.Abs("../..")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -31,12 +31,12 @@ func TestCarouselCurrentTabStaysVisibleWithoutMovingThePage(t *testing.T) {
 			locale = i18n.En
 			titles = []string{"Technology", "Everyday essentials", "Books & stationery"}
 		}
-		view := HomeView{}
+		view := View{}
 		for _, title := range titles {
 			view.Slides = append(view.Slides, components.HeroSlide{Title: title, Layout: components.SlideSplit, Tone: components.ToneStone})
 		}
 		w.Header().Set("Content-Type", "text/html; charset=utf-8")
-		if renderErr := Home(layouts.Page{}, view).Render(i18n.WithLocale(r.Context(), locale), w); renderErr != nil {
+		if renderErr := Page(layouts.Page{}, view).Render(i18n.WithLocale(r.Context(), locale), w); renderErr != nil {
 			t.Errorf("render carousel fixture: %v", renderErr)
 		}
 	})

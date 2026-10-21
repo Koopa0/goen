@@ -1,4 +1,4 @@
-package pages
+package home
 
 import (
 	"fmt"
@@ -55,18 +55,18 @@ func tileImages(page string) []string {
 
 func TestTheHomePageLoadsItsFirstScreenPhotographsAtOnceAndReservesEveryBox(t *testing.T) {
 	t.Parallel()
-	view := HomeView{
+	view := View{
 		Slides: []components.HeroSlide{
 			{Layout: components.SlidePhoto, Photo: components.Photo{URL: "/img/hero.webp", Alt: "hero"}, PhotoWidth: 1600, PhotoHeight: 600, Title: "A"},
 			{Layout: components.SlidePhoto, Photo: components.Photo{URL: "/img/hero2.webp", Alt: "hero"}, PhotoWidth: 1600, PhotoHeight: 600, Title: "B"},
 		},
-		Categories: []HomeCategory{
+		Categories: []Category{
 			{Slug: "a", Name: "A", Photo: components.Photo{URL: "/img/a.webp"}},
 			{Slug: "b", Name: "B", Photo: components.Photo{URL: "/img/b.webp"}},
 		},
 		Row: ProductRow{Title: "Row", Href: "/s/row", Tiles: tiledShelf(10)},
 	}
-	page := renderIn(t, i18n.ZhHant, Home(layouts.Page{}, view))
+	page := renderIn(t, i18n.ZhHant, Page(layouts.Page{}, view))
 
 	assertEveryImageReservesItsBox(t, page)
 	for _, tag := range imageTags(page) {

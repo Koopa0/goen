@@ -25,9 +25,9 @@ import (
 	"github.com/koopa0/goen/internal/shipping/storemap"
 	"github.com/koopa0/goen/internal/ui/layouts"
 	"github.com/koopa0/goen/internal/user"
-	"github.com/koopa0/goen/internal/web"
 	"github.com/koopa0/goen/internal/web/formtext"
 	"github.com/koopa0/goen/internal/web/ratelimit"
+	"github.com/koopa0/goen/internal/web/respond"
 )
 
 type Handler struct {
@@ -388,7 +388,7 @@ func (h *Handler) PickupMap(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	w.Header().Set("Cache-Control", "no-store")
-	web.Render(w, r, h.log, http.StatusOK, storemap.StartPage(form, back))
+	respond.Component(w, r, h.log, http.StatusOK, storemap.StartPage(form, back))
 }
 
 // checkoutChoices reads the pickup cookie ONLY on the one hop back from the
@@ -473,7 +473,7 @@ func (h *Handler) PickupReturn(w http.ResponseWriter, r *http.Request) {
 	// Not cacheable: the body carries a store a third party chose for whoever
 	// holds this browser.
 	w.Header().Set("Cache-Control", "no-store")
-	web.Render(w, r, h.log, http.StatusOK, storemap.ReturnPage(store.RefreshTarget()))
+	respond.Component(w, r, h.log, http.StatusOK, storemap.ReturnPage(store.RefreshTarget()))
 }
 
 // dropUnvouchedStore is the placement half of the same rule: a store number or
@@ -532,7 +532,7 @@ func (h *Handler) renderCheckout(
 		view.Destination = ""
 	}
 	h.offerTheStoreMap(w, r, view)
-	web.Render(w, r, h.log, status, Page(Meta(r.Context()), view))
+	respond.Component(w, r, h.log, status, Page(Meta(r.Context()), view))
 }
 
 // offerTheStoreMap keeps the nonce across renders, since reload and Back must
@@ -1390,13 +1390,13 @@ func invoiceChoices(ctx context.Context) []InvoiceChoice {
 }
 
 func (h *Handler) serverError(w http.ResponseWriter, r *http.Request) {
-	web.Render(w, r, h.log, http.StatusInternalServerError, layouts.Notice(
+	respond.Component(w, r, h.log, http.StatusInternalServerError, layouts.Notice(
 		layouts.Page{Title: i18n.T(r.Context(), i18n.KeyTryAgainTitle)}, "",
 		i18n.T(r.Context(), i18n.KeyTryAgainTitle),
 		i18n.T(r.Context(), i18n.KeyCartUnavailable)))
 }
 
 func (h *Handler) placementGrantFailed(w http.ResponseWriter, r *http.Request) {
-	web.Render(w, r, h.log, http.StatusInternalServerError, PlacementGrantFailed(
+	respond.Component(w, r, h.log, http.StatusInternalServerError, PlacementGrantFailed(
 		layouts.Page{Title: i18n.T(r.Context(), i18n.KeyPlacementGrantFailedTitle)}))
 }

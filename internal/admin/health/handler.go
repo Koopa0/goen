@@ -15,8 +15,8 @@ import (
 	"github.com/koopa0/goen/internal/outbox"
 	"github.com/koopa0/goen/internal/ui/components"
 	"github.com/koopa0/goen/internal/ui/layouts"
-	"github.com/koopa0/goen/internal/web"
 	"github.com/koopa0/goen/internal/web/formtext"
+	"github.com/koopa0/goen/internal/web/respond"
 )
 
 type NamedPool struct {
@@ -175,7 +175,7 @@ func (h *Handler) Page(w http.ResponseWriter, r *http.Request) {
 	view.Notice = components.NoticeFrom(r, notices)
 	view.Pools = h.poolHealth()
 	view.Disputes = readDisputes(r.Context(), h.disputes, disputeReadTimeout, h.log, h.store.OrderNumbersBySession)
-	web.Render(w, r, h.log, http.StatusOK, Health(
+	respond.Component(w, r, h.log, http.StatusOK, Health(
 		layouts.Page{Title: i18n.T(r.Context(), i18n.KeyAdminPageHealth)}, &view))
 }
 

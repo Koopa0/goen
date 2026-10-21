@@ -1,4 +1,4 @@
-package pages
+package home
 
 import (
 	"fmt"
@@ -10,10 +10,10 @@ import (
 	"github.com/koopa0/goen/internal/ui/layouts"
 )
 
-func departmentsOf(n int) []HomeCategory {
-	cats := make([]HomeCategory, n)
+func departmentsOf(n int) []Category {
+	cats := make([]Category, n)
 	for i := range cats {
-		cats[i] = HomeCategory{Slug: fmt.Sprintf("d%d", i), Name: fmt.Sprintf("館%d", i)}
+		cats[i] = Category{Slug: fmt.Sprintf("d%d", i), Name: fmt.Sprintf("館%d", i)}
 	}
 	return cats
 }
@@ -34,14 +34,14 @@ func TestTheDirectoryIsDrawnWhenItListsMoreThanTheBand(t *testing.T) {
 		{"six", 6, true, true},
 		{"ten", 10, true, true},
 	} {
-		view := HomeView{Categories: departmentsOf(tt.departments)}
+		view := View{Categories: departmentsOf(tt.departments)}
 		if tt.band {
 			view.Band = &DepartmentBand{Name: "館0", Href: "/c/d0", Tiles: tiledShelf(4)}
 		}
 		if got := view.ShowsDirectory(); got != tt.want {
 			t.Errorf("%s: ShowsDirectory() = %t, want %t", tt.name, got, tt.want)
 		}
-		page := renderIn(t, i18n.ZhHant, Home(layouts.Page{}, view))
+		page := renderIn(t, i18n.ZhHant, Page(layouts.Page{}, view))
 		if got := strings.Contains(page, "goen-cats__grid"); got != tt.want {
 			t.Errorf("%s: directory drawn = %t, want %t", tt.name, got, tt.want)
 		}
@@ -62,7 +62,7 @@ func TestTheDirectoryIsDrawnWhenItListsMoreThanTheBand(t *testing.T) {
 // tile: the home page never names it only in the header.
 func TestOneDepartmentWithNoBandIsTheDirectorysOneTile(t *testing.T) {
 	t.Parallel()
-	page := renderIn(t, i18n.ZhHant, Home(layouts.Page{}, HomeView{Categories: departmentsOf(1)}))
+	page := renderIn(t, i18n.ZhHant, Page(layouts.Page{}, View{Categories: departmentsOf(1)}))
 	if !strings.Contains(page, "goen-cats__grid") || !strings.Contains(page, `href="/c/d0"`) {
 		t.Error("the only department is not drawn as a tile")
 	}
@@ -72,7 +72,7 @@ func TestOneDepartmentWithNoBandIsTheDirectorysOneTile(t *testing.T) {
 // sub-categories.
 func TestADepartmentTileHoldsOnlyItsPictureAndName(t *testing.T) {
 	t.Parallel()
-	page := renderIn(t, i18n.ZhHant, Home(layouts.Page{}, HomeView{Categories: departmentsOf(2)}))
+	page := renderIn(t, i18n.ZhHant, Page(layouts.Page{}, View{Categories: departmentsOf(2)}))
 	want := `<a class="goen-cat" data-tone="stone" href="/c/d0"><span class="goen-cat__well"><span class="goen-cat__mark" aria-hidden="true">館</span></span> <span class="goen-cat__name">館0</span></a>`
 	if !strings.Contains(page, want) {
 		t.Errorf("the tile is not its picture and name; want %s", want)
@@ -85,8 +85,8 @@ func TestADepartmentTileHoldsOnlyItsPictureAndName(t *testing.T) {
 func TestADepartmentWithoutAPhotographIsItsToneAndFirstCharacter(t *testing.T) {
 	t.Parallel()
 	cats := departmentsOf(3)
-	cats[1] = HomeCategory{Slug: "wood", Name: "棲木家居"}
-	page := renderIn(t, i18n.ZhHant, Home(layouts.Page{}, HomeView{Categories: cats}))
+	cats[1] = Category{Slug: "wood", Name: "棲木家居"}
+	page := renderIn(t, i18n.ZhHant, Page(layouts.Page{}, View{Categories: cats}))
 	if !strings.Contains(page, `<span class="goen-cat__mark" aria-hidden="true">棲</span>`) {
 		t.Error("the department with no photograph lost its first-character square")
 	}
@@ -95,11 +95,11 @@ func TestADepartmentWithoutAPhotographIsItsToneAndFirstCharacter(t *testing.T) {
 	}
 	pair := departmentsOf(2)
 	pair[0].Name = "棲木家居"
-	tiles := renderIn(t, i18n.ZhHant, Home(layouts.Page{}, HomeView{Categories: pair}))
+	tiles := renderIn(t, i18n.ZhHant, Page(layouts.Page{}, View{Categories: pair}))
 	if !strings.Contains(tiles, `<span class="goen-cat__well"><span class="goen-cat__mark" aria-hidden="true">棲</span></span>`) {
 		t.Error("a tile with no photograph lost its first-character square")
 	}
-	if got := (HomeCategory{}).Initial(); got != "" {
+	if got := (Category{}).Initial(); got != "" {
 		t.Errorf("Initial of no name = %q, want none", got)
 	}
 }
@@ -132,7 +132,7 @@ func TestTheLeadTileNeedsAWidePhotographAndFourProducts(t *testing.T) {
 		{"three products", 1600, 3, false},
 	} {
 		row := campaignRow(tt.width, tt.tiles)
-		page := renderIn(t, i18n.ZhHant, Home(layouts.Page{}, HomeView{Row: row}))
+		page := renderIn(t, i18n.ZhHant, Page(layouts.Page{}, View{Row: row}))
 		if got := strings.Contains(page, "goen-tiles__grid--lead"); got != tt.lead {
 			t.Errorf("%s: lead tile = %t, want %t", tt.name, got, tt.lead)
 		}
@@ -159,7 +159,7 @@ func TestTheLeadTileNeedsAWidePhotographAndFourProducts(t *testing.T) {
 // campaign page around the heading's, and nothing in it is a link but that.
 func TestTheCampaignCardIsNotOneBigLink(t *testing.T) {
 	t.Parallel()
-	page := renderIn(t, i18n.ZhHant, Home(layouts.Page{}, HomeView{Row: campaignRow(1600, 4)}))
+	page := renderIn(t, i18n.ZhHant, Page(layouts.Page{}, View{Row: campaignRow(1600, 4)}))
 	start := strings.Index(page, `<li class="goen-rowcard">`)
 	if start < 0 {
 		t.Fatal("no campaign card")
@@ -182,7 +182,7 @@ func TestTheCampaignCardIsNotOneBigLink(t *testing.T) {
 func TestWithNoCampaignTheRowIsNewInWithNoCard(t *testing.T) {
 	t.Parallel()
 	row := ProductRow{Title: "新到貨", Href: "/search", Tiles: tiledShelf(4)}
-	page := renderIn(t, i18n.ZhHant, Home(layouts.Page{}, HomeView{Row: row}))
+	page := renderIn(t, i18n.ZhHant, Page(layouts.Page{}, View{Row: row}))
 	for _, want := range []string{">新到貨</h2>", "看全部商品", `href="/search"`} {
 		if !strings.Contains(page, want) {
 			t.Errorf("the row lacks %q", want)
@@ -198,7 +198,7 @@ func TestWithNoCampaignTheRowIsNewInWithNoCard(t *testing.T) {
 func TestTheNewInLinkSaysProductsInBothLanguages(t *testing.T) {
 	t.Parallel()
 	row := ProductRow{Title: "New in", Href: "/search", Tiles: tiledShelf(4)}
-	page := renderIn(t, i18n.En, Home(layouts.Page{}, HomeView{Row: row}))
+	page := renderIn(t, i18n.En, Page(layouts.Page{}, View{Row: row}))
 	if !strings.Contains(page, "See all products") {
 		t.Error("the New in link does not read See all products")
 	}
@@ -207,7 +207,7 @@ func TestTheNewInLinkSaysProductsInBothLanguages(t *testing.T) {
 func TestTheBandLinkCountsTheDepartmentsProducts(t *testing.T) {
 	t.Parallel()
 	for locale, want := range map[i18n.Locale]string{i18n.ZhHant: "看全部 20 件", i18n.En: "See all 20 items"} {
-		page := renderIn(t, locale, Home(layouts.Page{}, HomeView{Band: &DepartmentBand{
+		page := renderIn(t, locale, Page(layouts.Page{}, View{Band: &DepartmentBand{
 			Name: "Tech", Items: 20, Href: "/c/tech", Tiles: tiledShelf(4),
 		}}))
 		if !strings.Contains(page, want) {
