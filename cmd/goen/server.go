@@ -60,6 +60,7 @@ import (
 	"github.com/koopa0/goen/internal/shipping/storemap"
 	"github.com/koopa0/goen/internal/site"
 	"github.com/koopa0/goen/internal/warranty"
+	"github.com/koopa0/goen/internal/wishlist"
 )
 
 // contentSecurityPolicy is strict: goen renders no inline script and no inline
@@ -272,6 +273,7 @@ func storefrontRoutes(mux *http.ServeMux, cfg *StorefrontConfig, log *slog.Logge
 	signups := newsletter.NewHandler(newsletter.NewStore(pool), signupLimit, log)
 	cover := warranty.NewHandler(warranty.NewStore(pool), log)
 	points := loyalty.NewHandler(loyalty.NewStore(pool), log)
+	saved := wishlist.NewHandler(wishlist.NewStore(pool), log)
 	// Every checkout submission looks up the coupon it carries, and a chooser
 	// change is a submission too, so a whole checkout is a dozen posts at most.
 	// checkout.Handler bounds the wrong codes themselves; this bounds the rest.
@@ -299,6 +301,7 @@ func storefrontRoutes(mux *http.ServeMux, cfg *StorefrontConfig, log *slog.Logge
 	till.Routes(mux)
 	authn.Routes(mux, authLimit, clearSpeculations, clearCache)
 	accounts.Routes(mux, authn.RequireUser)
+	saved.Routes(mux, authn.RequireUser)
 	points.Routes(mux, authn.RequireUser)
 	cover.Routes(mux, authn.RequireUser)
 }

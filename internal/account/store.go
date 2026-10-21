@@ -14,8 +14,6 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/jackc/pgx/v5/pgxpool"
 
-	"github.com/koopa0/goen/assets"
-	"github.com/koopa0/goen/internal/campaign"
 	"github.com/koopa0/goen/internal/db"
 	"github.com/koopa0/goen/internal/formtext"
 	"github.com/koopa0/goen/internal/loyalty"
@@ -23,7 +21,6 @@ import (
 	"github.com/koopa0/goen/internal/order/delivery"
 	"github.com/koopa0/goen/internal/shipping"
 	"github.com/koopa0/goen/internal/shoptime"
-	"github.com/koopa0/goen/internal/ui/pages"
 
 	"github.com/koopa0/goen/internal/i18n"
 	"github.com/koopa0/goen/internal/user"
@@ -373,75 +370,4 @@ func (a *Address) details() delivery.Details {
 		To: shipping.DestinationAddress, RecipientName: a.Name, Phone: a.Phone,
 		PostalCode: a.PostalCode, City: a.City, District: a.District, Street: a.Street,
 	}
-}
-
-func (s *Store) Wishlist(ctx context.Context, userID string) ([]pages.WishlistItem, error) {
-	id, err := uuid.Parse(userID)
-	if err != nil {
-		return nil, ErrNotFound
-	}
-	rows, err := s.q.WishlistItems(ctx, db.WishlistItemsParams{
-		UserID: id, Locale: string(i18n.FromContext(ctx)),
-	})
-	if err != nil {
-		return nil, fmt.Errorf("read wishlist: %w", err)
-	}
-	out := make([]pages.WishlistItem, 0, len(rows))
-	for i := range rows {
-		r := &rows[i]
-		photo := assets.Image{Digest: r.ImageDigest, BundledKey: r.ImageBundledKey, Width: int(r.ImageWidth)}
-		var soleVariant string
-		if r.SoleVariantID != uuid.Nil {
-			soleVariant = r.SoleVariantID.String()
-		}
-		out = append(out, pages.WishlistItem{
-			SoleVariantID: soleVariant,
-			ProductTile: pages.ProductTile{
-				Slug:         r.Slug,
-				Name:         r.Name,
-				Summary:      r.Summary.String,
-				Brand:        r.Brand,
-				PriceCents:   r.MinPriceCents,
-				PriceVaries:  r.PriceVaries,
-				CompareCents: r.CompareAtPriceCents.Int64,
-				OnSale:       campaign.OnSale(r.InCampaign, r.InStock, r.MinPriceCents, r.CompareAtPriceCents.Int64),
-				Rating:       r.Rating,
-				RatingCount:  r.RatingCount,
-				InStock:      r.InStock,
-				Colours:      r.Colours,
-				ImageURL:     photo.URL(),
-				ImageSrcset:  photo.Srcset(),
-				ImageAlt:     r.ImageAlt,
-				ImageWidth:   r.ImageWidth,
-				ImageHeight:  r.ImageHeight,
-			},
-		})
-	}
-	return out, nil
-}
-
-func (s *Store) SaveToWishlist(ctx context.Context, userID, slug string) error {
-	id, err := uuid.Parse(userID)
-	if err != nil {
-		return ErrNotFound
-	}
-	if err := s.q.AddWishlistItem(ctx, db.AddWishlistItemParams{
-		UserID: id, Slug: slug,
-	}); err != nil {
-		return fmt.Errorf("save to wishlist: %w", err)
-	}
-	return nil
-}
-
-func (s *Store) RemoveFromWishlist(ctx context.Context, userID, slug string) error {
-	id, err := uuid.Parse(userID)
-	if err != nil {
-		return ErrNotFound
-	}
-	if err := s.q.RemoveWishlistItem(ctx, db.RemoveWishlistItemParams{
-		UserID: id, Slug: slug,
-	}); err != nil {
-		return fmt.Errorf("remove from wishlist: %w", err)
-	}
-	return nil
 }

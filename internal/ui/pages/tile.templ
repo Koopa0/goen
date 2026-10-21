@@ -7,7 +7,9 @@ import (
 	"github.com/koopa0/goen/internal/i18n"
 )
 
-templ tileCard(t ProductTile) {
+// TileCard is the card Tile wraps in its grid cell, for a grid whose cell holds
+// more than the card (the wishlist's, with its buttons).
+templ TileCard(t ProductTile) {
 	if t.Comparable {
 		// Outside the card, never inside: the whole card is one link, and a control
 		// nested in an anchor is neither clickable nor valid.
@@ -100,6 +102,6 @@ templ tileColours(t ProductTile) {
 
 templ Tile(t ProductTile) {
 	<li class="goen-tile__cell">
-		@tileCard(t)
+		@TileCard(t)
 	</li>
 }

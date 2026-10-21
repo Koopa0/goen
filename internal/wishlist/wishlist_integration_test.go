@@ -1,6 +1,6 @@
 //go:build integration
 
-package account_test
+package wishlist_test
 
 import (
 	"log/slog"
@@ -12,8 +12,8 @@ import (
 
 	"github.com/google/uuid"
 
-	"github.com/koopa0/goen/internal/account"
 	"github.com/koopa0/goen/internal/user"
+	"github.com/koopa0/goen/internal/wishlist"
 )
 
 // TestAWishlistRowOffersTheCartOnlyForAProductWithOneVariant: "add to cart"
@@ -21,7 +21,7 @@ import (
 // so only a product with a single variant, in stock, names one.
 func TestAWishlistRowOffersTheCartOnlyForAProductWithOneVariant(t *testing.T) {
 	ctx := t.Context()
-	s := account.NewStore(pool)
+	s := wishlist.NewStore(pool)
 	u := register(t, "wish-"+uuid.NewString()+"@example.com")
 
 	variant := ownVariant(t, "wish")
@@ -32,15 +32,15 @@ func TestAWishlistRowOffersTheCartOnlyForAProductWithOneVariant(t *testing.T) {
 		variant).Scan(&slug, &productID); err != nil {
 		t.Fatalf("read the fixture product: %v", err)
 	}
-	if err := s.SaveToWishlist(ctx, u.ID, slug); err != nil {
-		t.Fatalf("SaveToWishlist: %v", err)
+	if err := s.Save(ctx, u.ID, slug); err != nil {
+		t.Fatalf("Save: %v", err)
 	}
 
 	soleVariant := func() string {
 		t.Helper()
-		tiles, err := s.Wishlist(ctx, u.ID)
+		tiles, err := s.Items(ctx, u.ID)
 		if err != nil {
-			t.Fatalf("Wishlist: %v", err)
+			t.Fatalf("Items: %v", err)
 		}
 		if len(tiles) != 1 {
 			t.Fatalf("wishlist has %d products, want 1", len(tiles))
@@ -74,7 +74,7 @@ func TestAWishlistRowOffersTheCartOnlyForAProductWithOneVariant(t *testing.T) {
 // browser goes back to the page named in return.
 func TestAMemberSavesAProductToTheWishlistAndReturnsWhereTheyWere(t *testing.T) {
 	ctx := t.Context()
-	s := account.NewStore(pool)
+	s := wishlist.NewStore(pool)
 	u := register(t, "wish-post-"+uuid.NewString()+"@example.com")
 	variant := ownVariant(t, "wishpost")
 	var slug string
@@ -83,24 +83,24 @@ func TestAMemberSavesAProductToTheWishlistAndReturnsWhereTheyWere(t *testing.T) 
 		variant).Scan(&slug); err != nil {
 		t.Fatalf("read the fixture product: %v", err)
 	}
-	h := account.NewHandler(s, slog.New(slog.DiscardHandler), false, false)
+	h := wishlist.NewHandler(s, slog.New(slog.DiscardHandler))
 
 	form := url.Values{"slug": {slug}, "return": {"/p/" + slug}}
 	req := httptest.NewRequestWithContext(user.NewContext(ctx, u), http.MethodPost,
 		"/account/wishlist", strings.NewReader(form.Encode()))
 	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
 	w := httptest.NewRecorder()
-	h.SaveWishlist(w, req)
+	h.Update(w, req)
 
 	if w.Code != http.StatusSeeOther {
-		t.Fatalf("SaveWishlist answered %d, want 303; body=%s", w.Code, w.Body.String())
+		t.Fatalf("Update answered %d, want 303; body=%s", w.Code, w.Body.String())
 	}
 	if got, want := w.Header().Get("Location"), "/p/"+slug; got != want {
-		t.Errorf("SaveWishlist redirects to %q, want %q", got, want)
+		t.Errorf("Update redirects to %q, want %q", got, want)
 	}
-	tiles, err := s.Wishlist(ctx, u.ID)
+	tiles, err := s.Items(ctx, u.ID)
 	if err != nil {
-		t.Fatalf("Wishlist: %v", err)
+		t.Fatalf("Items: %v", err)
 	}
 	if len(tiles) != 1 {
 		t.Errorf("the wishlist holds %d products after saving one, want 1", len(tiles))

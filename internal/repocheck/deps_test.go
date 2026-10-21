@@ -38,9 +38,6 @@ var exceptions = map[string]string{
 	"internal/admin/admintest -> internal/admin/orders":  "T48",
 	"internal/admin/admintest -> internal/admin/refunds": "T48",
 	"internal/admin/admintest -> internal/admin/returns": "T48",
-	// The wishlist page still renders from ui/pages and reads AddOutcome, which
-	// the cart reports from cart/cartitem; the edge leaves with the wishlist.
-	"internal/ui/pages -> internal/cart/cartitem": "S11",
 }
 
 // under reports whether pkg is dir or lies below it.
@@ -82,7 +79,7 @@ var (
 	// internal/cart/cartitem is a vocabulary leaf, not a page.
 	storefrontPages = []string{
 		"internal/account", "internal/auth", "internal/cart", "internal/catalog", "internal/checkout", "internal/home",
-		"internal/newsletter", "internal/policy", "internal/site",
+		"internal/newsletter", "internal/policy", "internal/site", "internal/wishlist",
 	}
 	// siteMayImport is what internal/site may import besides itself and the
 	// leaves: the foundation every storefront page is built on.
@@ -194,7 +191,7 @@ var depsRules = []importRule{
 				!slices.Contains(campaignMayImport, to) &&
 				!slices.Contains(importFreeLeaves, to) && !slices.Contains(i18nOnlyLeaves, to)
 		},
-		reason: "the catalogue, home and account pages strike a price with campaign.OnSale and tell a campaign's window with its Schedule and End, " +
+		reason: "the catalogue, home and wishlist pages strike a price with campaign.OnSale and tell a campaign's window with its Schedule and End, " +
 			"so campaign imports no feature",
 	},
 	{
@@ -233,9 +230,10 @@ var depsRules = []importRule{
 		name: "back office and account",
 		hard: true,
 		forbid: func(from, to string) bool {
-			return under(from, "internal/admin") && (under(to, "internal/account") || under(to, "internal/auth"))
+			return under(from, "internal/admin") &&
+				(under(to, "internal/account") || under(to, "internal/wishlist") || under(to, "internal/auth"))
 		},
-		reason: "the back office does not depend on the storefront's account feature or on its sign-in",
+		reason: "the back office does not depend on the storefront's account feature, its wishlist or its sign-in",
 	},
 	{
 		name: "auth and account",

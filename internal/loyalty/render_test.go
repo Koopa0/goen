@@ -12,7 +12,7 @@ import (
 )
 
 // The helpers below are the ones ui/pages keeps for its own tests (renderComponent in backoffice_test.go, renderIn
-// in brandimagery_test.go, the node walkers in wishlist_test.go). A test in another package cannot import them, so
+// in brandimagery_test.go, the node walkers in render_test.go). A test in another package cannot import them, so
 // the moved points tests get their own copies, the same as payment and warranty did.
 
 // renderComponent renders c with the caller's context, so the locale is explicit at the call site.
