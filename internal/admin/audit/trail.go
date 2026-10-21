@@ -19,7 +19,7 @@ import (
 	"github.com/koopa0/goen/internal/order"
 	"github.com/koopa0/goen/internal/shoptime"
 	"github.com/koopa0/goen/internal/ui/layouts"
-	"github.com/koopa0/goen/internal/web"
+	"github.com/koopa0/goen/internal/web/respond"
 )
 
 const maxRows = 200
@@ -164,6 +164,6 @@ func (h *Handler) Page(w http.ResponseWriter, r *http.Request) {
 		access.ServerError(w, r, h.log)
 		return
 	}
-	web.Render(w, r, h.log, http.StatusOK, Audit(
+	respond.Component(w, r, h.log, http.StatusOK, Audit(
 		layouts.Page{Title: i18n.T(r.Context(), i18n.KeyAdminPageAudit)}, view))
 }

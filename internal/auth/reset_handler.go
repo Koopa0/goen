@@ -9,10 +9,10 @@ import (
 	"github.com/koopa0/goen/internal/i18n"
 	"github.com/koopa0/goen/internal/ui/layouts"
 	"github.com/koopa0/goen/internal/user"
-	"github.com/koopa0/goen/internal/web"
 	"github.com/koopa0/goen/internal/web/compress"
 	"github.com/koopa0/goen/internal/web/formtext"
 	"github.com/koopa0/goen/internal/web/ratelimit"
+	"github.com/koopa0/goen/internal/web/respond"
 )
 
 func (h *Handler) ForgotPage(w http.ResponseWriter, r *http.Request) {
@@ -24,7 +24,7 @@ func (h *Handler) ForgotPage(w http.ResponseWriter, r *http.Request) {
 	if r.URL.Query().Get("demo") == "fixed" {
 		view.Notice = i18n.T(r.Context(), i18n.KeyDemoPasswordNoReset)
 	}
-	web.Render(w, r, h.log, http.StatusOK, Forgot(
+	respond.Component(w, r, h.log, http.StatusOK, Forgot(
 		layouts.Page{Title: i18n.T(r.Context(), i18n.KeyForgotTitle)}, view))
 }
 
@@ -93,7 +93,7 @@ func (h *Handler) RequestPasswordSetup(w http.ResponseWriter, r *http.Request) {
 // ResetPage does not check the token: that would tell a guesser it is real.
 func (h *Handler) ResetPage(w http.ResponseWriter, r *http.Request) {
 	compress.Skip(w)
-	web.Render(w, r, h.log, http.StatusOK, Reset(
+	respond.Component(w, r, h.log, http.StatusOK, Reset(
 		layouts.Page{Title: i18n.T(r.Context(), i18n.KeyResetTitle)},
 		ResetView{Token: r.URL.Query().Get("token")}))
 }
@@ -109,7 +109,7 @@ func (h *Handler) Reset(w http.ResponseWriter, r *http.Request) {
 	password := r.PostFormValue("password")
 
 	if password != r.PostFormValue("confirm") {
-		web.Render(w, r, h.log, http.StatusUnprocessableEntity, Reset(
+		respond.Component(w, r, h.log, http.StatusUnprocessableEntity, Reset(
 			layouts.Page{Title: i18n.T(r.Context(), i18n.KeyResetTitle)},
 			ResetView{Token: token, Error: i18n.T(r.Context(), i18n.KeyPasswordMismatch), ErrorField: "confirm"}))
 		return
@@ -130,11 +130,11 @@ func (h *Handler) Reset(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		errs := formtext.FieldMessages(r.Context(), []formtext.FieldRefusal{refusal})
-		web.Render(w, r, h.log, http.StatusUnprocessableEntity, Reset(
+		respond.Component(w, r, h.log, http.StatusUnprocessableEntity, Reset(
 			layouts.Page{Title: i18n.T(r.Context(), i18n.KeyResetTitle)},
 			ResetView{Token: token, Error: errs["password"]}))
 	case errors.Is(err, ErrResetInvalid):
-		web.Render(w, r, h.log, http.StatusUnprocessableEntity, Reset(
+		respond.Component(w, r, h.log, http.StatusUnprocessableEntity, Reset(
 			layouts.Page{Title: i18n.T(r.Context(), i18n.KeyEmailLinkDeadTitle)},
 			ResetView{Expired: true}))
 	default:

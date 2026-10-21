@@ -16,8 +16,8 @@ import (
 	"github.com/koopa0/goen/internal/shoptime"
 	"github.com/koopa0/goen/internal/ui/components"
 	"github.com/koopa0/goen/internal/ui/layouts"
-	"github.com/koopa0/goen/internal/web"
 	"github.com/koopa0/goen/internal/web/formtext"
+	"github.com/koopa0/goen/internal/web/respond"
 )
 
 func (s *Store) DeliverShipment(ctx context.Context, number string, shipmentID uuid.UUID) error {
@@ -90,7 +90,7 @@ func (h *Handler) DeliverShipment(w http.ResponseWriter, r *http.Request) {
 		}
 		view.Notice = components.Result{Outcome: components.OutcomeRefused, Text: i18n.T(r.Context(), i18n.KeyAdminShipmentArrivalRefused)}
 		view.AllowanceOperationID = uuid.NewString()
-		web.Render(w, r, h.log, http.StatusUnprocessableEntity,
+		respond.Component(w, r, h.log, http.StatusUnprocessableEntity,
 			Order(layouts.Page{Title: fmt.Sprintf(i18n.T(r.Context(), i18n.KeyAdminPageOrder), number)}, &view))
 	default:
 		h.log.ErrorContext(r.Context(), "record parcel arrival", "error", err)

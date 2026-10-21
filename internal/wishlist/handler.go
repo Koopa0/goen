@@ -9,8 +9,8 @@ import (
 	"github.com/koopa0/goen/internal/i18n"
 	"github.com/koopa0/goen/internal/ui/layouts"
 	"github.com/koopa0/goen/internal/user"
-	"github.com/koopa0/goen/internal/web"
 	"github.com/koopa0/goen/internal/web/formtext"
+	"github.com/koopa0/goen/internal/web/respond"
 	"github.com/koopa0/goen/internal/web/siteurl"
 )
 
@@ -49,7 +49,7 @@ func (h *Handler) Page(w http.ResponseWriter, r *http.Request) {
 		h.serverError(w, r)
 		return
 	}
-	web.Render(w, r, h.log, http.StatusOK, Page(
+	respond.Component(w, r, h.log, http.StatusOK, Page(
 		layouts.Page{Title: i18n.T(r.Context(), i18n.KeyWishlistTitle)}, View{Products: tiles, Added: cartitem.AddOutcome(r.URL.Query().Get("added"))}))
 }
 
@@ -89,7 +89,7 @@ func (h *Handler) Update(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *Handler) serverError(w http.ResponseWriter, r *http.Request) {
-	web.Render(w, r, h.log, http.StatusInternalServerError, layouts.Notice(
+	respond.Component(w, r, h.log, http.StatusInternalServerError, layouts.Notice(
 		layouts.Page{Title: i18n.T(r.Context(), i18n.KeyBusyTitle)}, "",
 		i18n.T(r.Context(), i18n.KeyBusyTitle),
 		i18n.T(r.Context(), i18n.KeyBusyBody)))
