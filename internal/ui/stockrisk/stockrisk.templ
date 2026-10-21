@@ -1,4 +1,4 @@
-package admin
+package stockrisk
 
 import (
 	"fmt"
@@ -9,18 +9,18 @@ import (
 	"github.com/koopa0/goen/internal/ui/components"
 )
 
-// StockRiskSection is the report's list of SKUs by days cover and the stock
+// Section is the report's list of SKUs by days cover and the stock
 // desk's: one component, so the two pages cannot say different things.
-templ StockRiskSection(rows []StockRisk, moreSoldOut, days int) {
+templ Section(rows []Row, moreSoldOut, days int) {
 	<h2 class="goen-admin__subhead" id="stock">{ i18n.T(ctx, i18n.KeyAdminRepStock) }</h2>
 	<p class="goen-admin__hint">
 		{ fmt.Sprintf(i18n.T(ctx, i18n.KeyAdminRepStockLead), days, inventory.CoverMinOrders, inventory.CoverWarnDays, inventory.RankRows) }
 	</p>
-	@StockRiskRows(rows, moreSoldOut, days)
+	@Rows(rows, moreSoldOut, days)
 }
 
-// StockRiskRows is the rows without the report's lead.
-templ StockRiskRows(rows []StockRisk, moreSoldOut, days int) {
+// Rows is the rows without the report's lead.
+templ Rows(rows []Row, moreSoldOut, days int) {
 	if len(rows) == 0 {
 		<div class="goen-admin__empty">
 			<p class="goen-admin__emptytitle">{ i18n.Count(ctx, i18n.KeyAdminRepStockEmpty, int64(days), days) }</p>

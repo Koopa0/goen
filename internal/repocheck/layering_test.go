@@ -29,9 +29,9 @@ import (
 //
 // A view import is internal/ui/pages or below it, nothing else under
 // internal/ui: a store that builds a value of a ui element package, such as
-// components.Photo or tile.Tile, is not counted. The entries the product
-// tile's move to internal/ui/tile removed were reclassified that way, not
-// decoupled.
+// components.Photo, tile.Tile or stockrisk.Row, is not counted. The entries the
+// moves to internal/ui/tile and internal/ui/stockrisk removed were reclassified
+// that way, not decoupled.
 //
 // The consumer is task series T42-T53, which lowers these lists until
 // internal/ui/pages is deleted, at which point the lists become hard rules.
@@ -53,10 +53,7 @@ import (
 //     comparison cap, the review limits and the restock outcomes to catalog and
 //     the add-to-cart outcome to cart/cartitem).
 var viewPackageImporters = []string{
-	"internal/admin/dashboard",
 	"internal/admin/orders",
-	"internal/admin/reports",
-	"internal/admin/stock",
 	"internal/auth",
 	"internal/cart",
 	"internal/catalog",
@@ -68,11 +65,9 @@ var viewPackageImporters = []string{
 }
 
 var dataFilesNamingViews = []string{
-	"internal/admin/dashboard/store.go",
 	"internal/admin/orders/picking.go",
 	"internal/admin/orders/store.go",
 	"internal/admin/orders/timeline.go",
-	"internal/admin/reports/store.go",
 	"internal/cart/store.go",
 	"internal/catalog/product_store.go",
 	"internal/checkout/outbox.go",

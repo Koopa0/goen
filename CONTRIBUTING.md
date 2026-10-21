@@ -196,11 +196,11 @@ store before anything else.
   another desk through an interface it declares; nothing outside
   `internal/admin` and `cmd/goen` imports a back-office package. Each rule's
   reason is printed when it fails.
-- Page bodies still live in `internal/ui/pages` and `internal/ui/pages/admin`
-  while they move into the features that render them. A new package does not
-  import either: put its `.templ` beside its handler, build on
-  `internal/ui/layouts`, `internal/ui/components` and, for a product in a grid,
-  `internal/ui/tile`, and have its store return domain values.
+- Page bodies still live in `internal/ui/pages` while they move into the
+  features that render them. A new package does not import it: put its
+  `.templ` beside its handler, build on `internal/ui/layouts`,
+  `internal/ui/components` and, for a product in a grid, `internal/ui/tile`,
+  and have its store return domain values.
   `internal/repocheck/layering_test.go` lists the existing imports, and the
   list may only shrink.
 - A test that guards a guarantee is a lock, and a lock nobody has watched fail
@@ -433,7 +433,7 @@ Reopen if a staff URL is ever stored or mailed.
 | `picture` | planned, from `assets` (`Image`) and the `/media` URL scheme | an image a page shows, from either source, at the widths it exists in; it holds `Image`, its `srcset` and the `/media` URL scheme with its width allowlist | the uploaded files (`media`), the files built into the binary (`assets`) | not `image`: the standard library's; not `photo`: a fourth word for an image, and empty-state art is not a photo |
 | `web/clientip` | exists, under `internal/web`, from `web/ratelimit`; `From` was `ratelimit.ClientIP` and `Normalise` was its unexported `normalise` | the client's address as seen through goen's trusted proxies; it holds the proxy list and the `X-Forwarded-For` resolution | limiter keys (`web/ratelimit`) | not `realip`: names nginx's module; not `proxy`: reads as `httputil.ReverseProxy` |
 | `hero` | planned, from `internal/ui/components` | a slide of the home page's carousel; it holds `Slide`, `CTA`, `Layout` and `Source`, which `home` produces and `admin/slides` lists | the home page (`home`), the promo strip (`site`, `ui/frame`), the editor (`admin/slides`) | not `carousel`: names the container, not the slide; not `slide` as a leaf: too generic. The schema says `hero_slides` |
-| `ui/stockrisk` | planned, from `internal/ui/pages/admin` | the list of SKUs ranked by how soon they run out, as three desks show it; it holds `Row`, `Rows` and `Section` | the estimate itself (`inventory`) | not `cover`: reads as a cover image, and `warranty` already says "cover"; not `runway`: a third word beside "days of cover" and "risk" |
+| `ui/stockrisk` | exists, from `internal/ui/pages/admin`; `StockRisk`, `StockRisks`, `StockRiskRows` and `StockRiskSection` became `Row`, `NewRows`, `Rows` and `Section` | the list of SKUs ranked by how soon they run out, as three desks show it; it holds `Row`, `NewRows`, `DaysCover`, `Rows` and `Section` | the estimate itself (`inventory`) | not `cover`: reads as a cover image, and `warranty` already says "cover"; not `runway`: a third word beside "days of cover" and "risk" |
 | `tone` | planned, from `internal/ui/components` | the stored colour mood a category or campaign wears; it holds the closed set, parse and labels | what a status colour means (`widget.Intent`), a page's image and tone (`catalog.Theme`) | not `palette`: the set, not one value; not `theme`: already `catalog.Theme`. The move renames the `tone` locals in its importers |
 | `ui/tile` | exists, from `internal/ui/pages`; `ProductTile`, `Tile`, `TileCard` and `TilePrice` became `Tile`, `Cell`, `Card` and `Price` | a product as one card in a grid of products, drawn the same on every page that lists products; it holds the tile's view, its card, grid cell and price line with the struck compare-at price, and which tiles load at once | whether a price is struck (`campaign.OnSale`, which the caller applies), the pages that list tiles (`catalog`, `discount/campaign`, `home`, `wishlist`), page elements without a product (`ui/widget`) | not in `catalog`: `home`, `wishlist` and `campaign` draw it, and `catalog` imports `campaign`, so a tile there cycles with the campaign page; not in `ui/widget`: a product's name, brand, price and colours are domain wording; not `producttile`: every tile in the shop is a product's |
 
