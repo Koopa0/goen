@@ -26,7 +26,6 @@ import (
 	"container/list"
 	"crypto/sha256"
 	"encoding/base64"
-	"net"
 	"net/http"
 	"net/netip"
 	"strings"
@@ -34,6 +33,8 @@ import (
 	"time"
 
 	"golang.org/x/time/rate"
+
+	"github.com/koopa0/goen/internal/clientip"
 )
 
 // maxKeyBytes is the most of one key the limiter retains. Longer logical keys
@@ -272,33 +273,22 @@ func (l *Limiter) dropLocked(el *list.Element) {
 	}
 }
 
-// ClientIP is the address an HTTP request came from: r.RemoteAddr, unless
-// [Proxies.Resolve] has run and decided otherwise. A header read on faith hands
-// every attacker an unlimited supply of keys, so no header is read here. It is
-// the address to record; a limit keys on [ClientKey].
-func ClientIP(r *http.Request) string {
-	if ip, ok := r.Context().Value(clientIPKey{}).(string); ok && ip != "" {
-		return ip
-	}
-	return remoteHost(r)
-}
-
 // clientPrefixBits is how much of an IPv6 address identifies a client. A /64 is
 // the smallest network a host autoconfigures in, so it is the least any
 // subscriber is routed, and the low 64 bits are the subscriber's to choose.
 const clientPrefixBits = 64
 
-// ClientKey is what to key a per-client limit on: [ClientIP], with an IPv6
+// ClientKey is what to key a per-client limit on: [clientip.From], with an IPv6
 // address reduced to its /64. Keyed on the whole address, a client that rotates
 // the low 64 bits has 2^64 keys and a fresh allowance on every request. An IPv4
 // address, and an IPv6 address that only spells one, keep the dotted form.
 func ClientKey(r *http.Request) string {
-	host := ClientIP(r)
+	host := clientip.From(r)
 	addr, err := netip.ParseAddr(host)
 	if err != nil {
 		return host
 	}
-	addr = normalise(addr)
+	addr = clientip.Normalise(addr)
 	if addr.Is4() {
 		return addr.String()
 	}
@@ -313,27 +303,19 @@ const ipv4NetworkBits = 24
 
 // ClientNetwork is the network the client is on, for a limit that lets each
 // network spend its own allowance of a resource all networks share: the /24 of
-// an IPv4 address and the /64 of an IPv6 one. It reads the address [ClientIP]
-// does, so it trusts exactly the headers [Proxies.Resolve] has been told to.
-// [ClientKey] is finer for IPv4 and the same for IPv6.
+// an IPv4 address and the /64 of an IPv6 one. It reads the address
+// [clientip.From] does, so it trusts exactly the headers
+// [clientip.Proxies.Resolve] has been told to. [ClientKey] is finer for IPv4
+// and the same for IPv6.
 func ClientNetwork(r *http.Request) string {
-	host := ClientIP(r)
+	host := clientip.From(r)
 	addr, err := netip.ParseAddr(host)
 	if err != nil {
 		return host
 	}
-	addr = normalise(addr)
+	addr = clientip.Normalise(addr)
 	if addr.Is4() {
 		return netip.PrefixFrom(addr, ipv4NetworkBits).Masked().String()
 	}
 	return netip.PrefixFrom(addr, clientPrefixBits).Masked().String()
-}
-
-func remoteHost(r *http.Request) string {
-	host, _, err := net.SplitHostPort(r.RemoteAddr)
-	if err != nil {
-		// No port, which happens in tests and with some transports.
-		return r.RemoteAddr
-	}
-	return host
 }

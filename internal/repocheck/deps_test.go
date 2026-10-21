@@ -101,7 +101,7 @@ var (
 	}
 	// importFreeLeaves import no goen package at all.
 	importFreeLeaves = []string{
-		"internal/refund",
+		"internal/refund", "internal/clientip",
 		"internal/coupon", "internal/inventory", "internal/postcode", "internal/user",
 		"internal/money", "internal/db", "internal/keyset", "internal/bearer",
 		"internal/email", "internal/cart/cartitem", "internal/product", "internal/compress",
