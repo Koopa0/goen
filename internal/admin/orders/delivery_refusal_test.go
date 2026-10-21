@@ -12,7 +12,7 @@ import (
 	"github.com/koopa0/goen/internal/i18n"
 	"github.com/koopa0/goen/internal/ui/layouts"
 	"github.com/koopa0/goen/internal/ui/pages"
-	"github.com/koopa0/goen/internal/web"
+	"github.com/koopa0/goen/internal/web/formtext"
 )
 
 func TestDeliveryRefusalShowsAnAbsentControlsReason(t *testing.T) {
@@ -44,7 +44,7 @@ func TestDeliveryRefusalShowsAnAbsentControlsReason(t *testing.T) {
 					Number: "GO-REFUSAL", Correctable: true, PickupDestination: tc.pickup,
 					PickupChains: pages.KnownPickupChainChoices(), Recipient: "Saved recipient",
 				}
-				applyDeliveryRefusals(ctx, &view, &draft, []web.FieldRefusal{
+				applyDeliveryRefusals(ctx, &view, &draft, []formtext.FieldRefusal{
 					{Field: "phone", MessageKey: i18n.KeyPhoneMalformed},
 					{Field: tc.field, MessageKey: i18n.KeyFieldHasControlChars},
 				})
@@ -84,7 +84,7 @@ func TestDeliveryRefusalKeepsVisibleErrorsBesideTheirControls(t *testing.T) {
 				t.Parallel()
 				ctx := i18n.WithLocale(t.Context(), locale)
 				view := OrderView{Number: "GO-REFUSAL", Correctable: true, PickupDestination: pickupDestination}
-				applyDeliveryRefusals(ctx, &view, &DeliveryCorrection{}, []web.FieldRefusal{
+				applyDeliveryRefusals(ctx, &view, &DeliveryCorrection{}, []formtext.FieldRefusal{
 					{Field: "name", MessageKey: i18n.KeyNameRequired},
 					{Field: "phone", MessageKey: i18n.KeyPhoneRequired},
 				})

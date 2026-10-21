@@ -8,7 +8,7 @@ import (
 	"testing"
 
 	"github.com/koopa0/goen/internal/i18n"
-	"github.com/koopa0/goen/internal/web"
+	"github.com/koopa0/goen/internal/web/formtext"
 )
 
 func TestUnreadableAddressRendersTheShopBeforeRouting(t *testing.T) {
@@ -20,7 +20,7 @@ func TestUnreadableAddressRendersTheShopBeforeRouting(t *testing.T) {
 			r.Header.Set("Accept-Language", locale.Tag())
 			w := httptest.NewRecorder()
 			next := http.HandlerFunc(func(http.ResponseWriter, *http.Request) { t.Error("unreadable address reached routing") })
-			web.RefuseUnstorableText(next, false, http.HandlerFunc(h.BadRequest)).ServeHTTP(w, r)
+			formtext.RefuseUnstorable(next, false, http.HandlerFunc(h.BadRequest)).ServeHTTP(w, r)
 			body := w.Body.String()
 			if w.Code != http.StatusBadRequest || !strings.HasPrefix(w.Header().Get("Content-Type"), "text/html") {
 				t.Errorf("%s: status=%d content-type=%q", target, w.Code, w.Header().Get("Content-Type"))

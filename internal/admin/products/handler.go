@@ -22,6 +22,7 @@ import (
 	"github.com/koopa0/goen/internal/ui/components"
 	"github.com/koopa0/goen/internal/ui/layouts"
 	"github.com/koopa0/goen/internal/web"
+	"github.com/koopa0/goen/internal/web/formtext"
 )
 
 type Handler struct {
@@ -90,7 +91,7 @@ func (h *Handler) New(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *Handler) Create(w http.ResponseWriter, r *http.Request) {
-	if err := web.ParseLongTextForm(w, r, 2*maxDescriptionRunes); err != nil {
+	if err := formtext.ParseLongTextForm(w, r, 2*maxDescriptionRunes); err != nil {
 		http.Error(w, i18n.T(r.Context(), i18n.KeyAdminBadForm), http.StatusBadRequest)
 		return
 	}
@@ -171,7 +172,7 @@ func (h *Handler) renderProduct(w http.ResponseWriter, r *http.Request, status i
 }
 
 func (h *Handler) Update(w http.ResponseWriter, r *http.Request) {
-	if err := web.ParseLongTextForm(w, r, 2*maxDescriptionRunes); err != nil {
+	if err := formtext.ParseLongTextForm(w, r, 2*maxDescriptionRunes); err != nil {
 		http.Error(w, i18n.T(r.Context(), i18n.KeyAdminBadForm), http.StatusBadRequest)
 		return
 	}
@@ -199,7 +200,7 @@ func (h *Handler) Update(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *Handler) Publish(w http.ResponseWriter, r *http.Request) {
-	if err := web.ParseForm(w, r); err != nil {
+	if err := formtext.ParseForm(w, r); err != nil {
 		http.Error(w, i18n.T(r.Context(), i18n.KeyAdminBadForm), http.StatusBadRequest)
 		return
 	}
@@ -222,7 +223,7 @@ func (h *Handler) Publish(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *Handler) AddVariant(w http.ResponseWriter, r *http.Request) {
-	if err := web.ParseForm(w, r); err != nil {
+	if err := formtext.ParseForm(w, r); err != nil {
 		http.Error(w, i18n.T(r.Context(), i18n.KeyAdminBadForm), http.StatusBadRequest)
 		return
 	}
@@ -295,7 +296,7 @@ func variantFormOf(r *http.Request) (*VariantForm, VariantDraft, map[string]stri
 }
 
 func parseVariantCount(raw string, ceiling int32, field, message string, errs map[string]string) int32 {
-	value, ok := web.ParseBounded(raw, ceiling)
+	value, ok := formtext.ParseBounded(raw, ceiling)
 	if !ok {
 		errs[field] = message
 	}
@@ -304,7 +305,7 @@ func parseVariantCount(raw string, ceiling int32, field, message string, errs ma
 
 func productFormOf(r *http.Request) (form *Form, errs map[string]string) {
 	raw := r.PostFormValue("warranty_months")
-	warranty, ok := web.ParseBounded(raw, MaxWarrantyMonths)
+	warranty, ok := formtext.ParseBounded(raw, MaxWarrantyMonths)
 	errs = map[string]string{}
 	if !ok {
 		errs["warranty_months"] = i18n.T(r.Context(), i18n.KeyFormWarrantyMonths)
@@ -386,7 +387,7 @@ func (h *Handler) UploadImage(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *Handler) ReuseImage(w http.ResponseWriter, r *http.Request) {
-	if err := web.ParseForm(w, r); err != nil {
+	if err := formtext.ParseForm(w, r); err != nil {
 		http.Error(w, i18n.T(r.Context(), i18n.KeyAdminBadForm), http.StatusBadRequest)
 		return
 	}
@@ -431,7 +432,7 @@ func (h *Handler) rejectImageReuse(w http.ResponseWriter, r *http.Request, field
 }
 
 func (h *Handler) SetImageOption(w http.ResponseWriter, r *http.Request) {
-	if err := web.ParseForm(w, r); err != nil {
+	if err := formtext.ParseForm(w, r); err != nil {
 		http.Error(w, i18n.T(r.Context(), i18n.KeyAdminBadForm), http.StatusBadRequest)
 		return
 	}
@@ -460,7 +461,7 @@ func (h *Handler) SetImageOption(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *Handler) RemoveImage(w http.ResponseWriter, r *http.Request) {
-	if err := web.ParseForm(w, r); err != nil {
+	if err := formtext.ParseForm(w, r); err != nil {
 		http.Error(w, i18n.T(r.Context(), i18n.KeyAdminBadForm), http.StatusBadRequest)
 		return
 	}
@@ -485,7 +486,7 @@ func (h *Handler) RemoveImage(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *Handler) MoveImage(w http.ResponseWriter, r *http.Request) {
-	if err := web.ParseForm(w, r); err != nil {
+	if err := formtext.ParseForm(w, r); err != nil {
 		http.Error(w, i18n.T(r.Context(), i18n.KeyAdminBadForm), http.StatusBadRequest)
 		return
 	}
@@ -530,7 +531,7 @@ func (h *Handler) AddOptionValue(w http.ResponseWriter, r *http.Request) {
 func (h *Handler) optionWrite(
 	w http.ResponseWriter, r *http.Request, write func(slug string) (map[string]string, error),
 ) {
-	if err := web.ParseForm(w, r); err != nil {
+	if err := formtext.ParseForm(w, r); err != nil {
 		http.Error(w, i18n.T(r.Context(), i18n.KeyAdminBadForm), http.StatusBadRequest)
 		return
 	}
@@ -571,7 +572,7 @@ func (h *Handler) optionWrite(
 }
 
 func (h *Handler) AddSpec(w http.ResponseWriter, r *http.Request) {
-	if err := web.ParseForm(w, r); err != nil {
+	if err := formtext.ParseForm(w, r); err != nil {
 		http.Error(w, i18n.T(r.Context(), i18n.KeyAdminBadForm), http.StatusBadRequest)
 		return
 	}
@@ -602,7 +603,7 @@ func (h *Handler) AddSpec(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *Handler) RemoveSpec(w http.ResponseWriter, r *http.Request) {
-	if err := web.ParseForm(w, r); err != nil {
+	if err := formtext.ParseForm(w, r); err != nil {
 		http.Error(w, i18n.T(r.Context(), i18n.KeyAdminBadForm), http.StatusBadRequest)
 		return
 	}
@@ -672,7 +673,7 @@ func attachImageRefusal(err error, alt string) (string, i18n.Key) {
 
 func (h *Handler) respondToUploadError(w http.ResponseWriter, r *http.Request, err error) {
 	switch {
-	case errors.Is(err, web.ErrFormText):
+	case errors.Is(err, formtext.ErrUnstorable):
 		http.Error(w, i18n.T(r.Context(), i18n.KeyAdminBadForm), http.StatusBadRequest)
 	case errors.Is(err, media.ErrUploadAborted):
 		// The browser went away mid-upload; there is no one to answer.

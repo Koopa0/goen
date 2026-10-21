@@ -15,7 +15,7 @@ import (
 	"testing/synctest"
 
 	"github.com/koopa0/goen/internal/i18n"
-	"github.com/koopa0/goen/internal/web"
+	"github.com/koopa0/goen/internal/web/formtext"
 )
 
 // TestUploadsBeyondTheSlotsAreRefused holds the bound on decodes at once. Each
@@ -130,7 +130,7 @@ func TestUploadRefusalsKeepTheirNotice(t *testing.T) {
 		{name: "not an image", err: ErrNotAnImage, want: i18n.KeyAdminNoticeNotImage, refusal: true},
 		{name: "lossless WebP", err: ErrLosslessWebP, want: i18n.KeyAdminNoticeLosslessWebP, refusal: true},
 		{name: "decoder busy", err: ErrBusy, want: i18n.KeyAdminNoticeUploadBusy, refusal: true},
-		{name: "bad form", err: web.ErrFormText, want: i18n.KeyAdminNoticeUploadFailed},
+		{name: "bad form", err: formtext.ErrUnstorable, want: i18n.KeyAdminNoticeUploadFailed},
 		{name: "storage failure", err: errors.New("storage unavailable"), want: i18n.KeyAdminNoticeUploadFailed},
 	} {
 		t.Run(tt.name, func(t *testing.T) {

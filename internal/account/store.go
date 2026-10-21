@@ -20,7 +20,7 @@ import (
 	"github.com/koopa0/goen/internal/order/delivery"
 	"github.com/koopa0/goen/internal/shipping"
 	"github.com/koopa0/goen/internal/shoptime"
-	"github.com/koopa0/goen/internal/web"
+	"github.com/koopa0/goen/internal/web/formtext"
 
 	"github.com/koopa0/goen/internal/i18n"
 	"github.com/koopa0/goen/internal/user"
@@ -153,7 +153,7 @@ func (s *Store) UpdateProfile(ctx context.Context, userID, name, phone string) e
 	if err != nil {
 		return fmt.Errorf("parse user id: %w", err)
 	}
-	name, phone = strings.TrimSpace(name), strings.TrimSpace(web.FoldWidth(phone))
+	name, phone = strings.TrimSpace(name), strings.TrimSpace(formtext.FoldWidth(phone))
 	if !profileInputValid(name, phone) {
 		return ErrInvalidInput
 	}
@@ -342,14 +342,14 @@ type Address struct {
 // Validate holds the address to the checkout's own rule for who a parcel goes to
 // and where, so an address the book keeps cannot fail at checkout, and then
 // checks the label, which only the book has.
-func (a *Address) Validate() []web.FieldRefusal {
+func (a *Address) Validate() []formtext.FieldRefusal {
 	d := a.details()
 	errs := d.ValidateRecipient()
 	if utf8.RuneCountInString(a.Label) > maxAddressLabelRunes {
-		errs = append(errs, web.FieldRefusal{Field: "label", MessageKey: i18n.KeyAddressIncomplete})
+		errs = append(errs, formtext.FieldRefusal{Field: "label", MessageKey: i18n.KeyAddressIncomplete})
 	}
-	if web.HasControlChars(a.Label) {
-		errs = append(errs, web.FieldRefusal{Field: "label", MessageKey: i18n.KeyFieldHasControlChars})
+	if formtext.HasControlChars(a.Label) {
+		errs = append(errs, formtext.FieldRefusal{Field: "label", MessageKey: i18n.KeyFieldHasControlChars})
 	}
 	return errs
 }

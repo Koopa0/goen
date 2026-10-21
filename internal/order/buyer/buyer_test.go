@@ -13,7 +13,7 @@ import (
 	"golang.org/x/net/html"
 
 	"github.com/koopa0/goen/internal/i18n"
-	"github.com/koopa0/goen/internal/web"
+	"github.com/koopa0/goen/internal/web/formtext"
 
 	"github.com/google/uuid"
 )
@@ -336,7 +336,7 @@ func TestReturnDraftRemainsVisibleAfterAvailabilityIsLost(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 			fresh := &ReturnOrder{Number: "GO-RETURN", HasOpen: tt.open, Lines: []ReturnLine{{ID: "first"}, {ID: "later"}}}
-			refusals := returnRefusals(fresh, draft, []web.FieldRefusal{{MessageKey: tt.refusal}})
+			refusals := returnRefusals(fresh, draft, []formtext.FieldRefusal{{MessageKey: tt.refusal}})
 			var body bytes.Buffer
 			if err := Returns(ReturnsMeta(ctx, fresh.Number), viewOf(ctx, fresh, draft, refusals)).Render(ctx, &body); err != nil {
 				t.Fatal(err)

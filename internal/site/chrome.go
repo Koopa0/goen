@@ -16,7 +16,7 @@ import (
 	"github.com/koopa0/goen/internal/i18n"
 	"github.com/koopa0/goen/internal/money"
 	"github.com/koopa0/goen/internal/ui/layouts"
-	"github.com/koopa0/goen/internal/web"
+	"github.com/koopa0/goen/internal/web/formtext"
 	"github.com/koopa0/goen/internal/web/siteurl"
 )
 
@@ -101,7 +101,7 @@ func writeDismissal(w http.ResponseWriter, id string, secure bool) {
 
 // DismissBanner serves the strip's close button.
 func (h *Handler) DismissBanner(w http.ResponseWriter, r *http.Request) {
-	if err := web.ParseForm(w, r); err != nil {
+	if err := formtext.ParseForm(w, r); err != nil {
 		http.Error(w, "400", http.StatusBadRequest)
 		return
 	}

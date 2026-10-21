@@ -11,6 +11,7 @@ import (
 	"github.com/koopa0/goen/internal/ui/components"
 	"github.com/koopa0/goen/internal/ui/layouts"
 	"github.com/koopa0/goen/internal/web"
+	"github.com/koopa0/goen/internal/web/formtext"
 )
 
 type Handler struct {
@@ -53,7 +54,7 @@ func (h *Handler) Newsletter(w http.ResponseWriter, r *http.Request) {
 
 // ComposeNewsletter writes a DRAFT and sends nothing: the irreversible step gets its own button.
 func (h *Handler) ComposeNewsletter(w http.ResponseWriter, r *http.Request) {
-	if err := web.ParseLongTextForm(w, r, MaxNewsletterSubjectRunes+MaxNewsletterBodyRunes); err != nil {
+	if err := formtext.ParseLongTextForm(w, r, MaxNewsletterSubjectRunes+MaxNewsletterBodyRunes); err != nil {
 		http.Error(w, i18n.T(r.Context(), i18n.KeyAdminBadForm), http.StatusBadRequest)
 		return
 	}

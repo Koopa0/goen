@@ -11,7 +11,7 @@ import (
 	"github.com/koopa0/goen/internal/i18n"
 	"github.com/koopa0/goen/internal/invoice/issuer"
 	"github.com/koopa0/goen/internal/order"
-	"github.com/koopa0/goen/internal/web"
+	"github.com/koopa0/goen/internal/web/formtext"
 )
 
 // IssueInvoice files the order's uniform invoice.
@@ -55,7 +55,7 @@ func (h *Handler) IssueInvoice(w http.ResponseWriter, r *http.Request) {
 // VoidInvoice voids a wrong invoice so a correct one can be issued in its
 // place: a uniform invoice cannot be edited, which invoice_documents_guard enforces.
 func (h *Handler) VoidInvoice(w http.ResponseWriter, r *http.Request) {
-	if err := web.ParseForm(w, r); err != nil {
+	if err := formtext.ParseForm(w, r); err != nil {
 		http.Error(w, i18n.T(r.Context(), i18n.KeyAdminBadForm), http.StatusBadRequest)
 		return
 	}
@@ -98,7 +98,7 @@ func (h *Handler) VoidInvoice(w http.ResponseWriter, r *http.Request) {
 // amount is derived from settled refunds and prior filed allowances inside the
 // database claim. The form carries no money for an operator to override.
 func (h *Handler) FileAllowance(w http.ResponseWriter, r *http.Request) {
-	if err := web.ParseForm(w, r); err != nil {
+	if err := formtext.ParseForm(w, r); err != nil {
 		http.Error(w, i18n.T(r.Context(), i18n.KeyAdminBadForm), http.StatusBadRequest)
 		return
 	}

@@ -19,7 +19,7 @@ import (
 	"github.com/koopa0/goen/internal/keyset"
 	"github.com/koopa0/goen/internal/order"
 	"github.com/koopa0/goen/internal/shoptime"
-	"github.com/koopa0/goen/internal/web"
+	"github.com/koopa0/goen/internal/web/formtext"
 )
 
 type Store struct {
@@ -50,7 +50,7 @@ func (s *Store) Warranties(ctx context.Context, term string, after ...string) (W
 	scope := keyset.ScopeURL("/admin/warranties", "q", term)
 	from, resumed := resume(scope, after)
 	view := WarrantiesView{Term: term}
-	if utf8.RuneCountInString(term) < web.MinSearchRunes {
+	if utf8.RuneCountInString(term) < formtext.MinSearchRunes {
 		return view, nil
 	}
 	view.Searched = true

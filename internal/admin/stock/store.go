@@ -22,7 +22,7 @@ import (
 	"github.com/koopa0/goen/internal/inventory"
 	"github.com/koopa0/goen/internal/keyset"
 	"github.com/koopa0/goen/internal/shoptime"
-	"github.com/koopa0/goen/internal/web"
+	"github.com/koopa0/goen/internal/web/formtext"
 )
 
 var (
@@ -61,7 +61,7 @@ type movementPosition struct {
 }
 
 func (s *Store) Variants(ctx context.Context, soldOutOnly bool, term string, after ...string) (VariantsView, error) {
-	term = web.SearchTerm(term)
+	term = formtext.SearchTerm(term)
 	soldOut := ""
 	if soldOutOnly {
 		soldOut = "1"

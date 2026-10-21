@@ -23,6 +23,7 @@ import (
 	"github.com/koopa0/goen/internal/ui/pages"
 	"github.com/koopa0/goen/internal/user"
 	"github.com/koopa0/goen/internal/web"
+	"github.com/koopa0/goen/internal/web/formtext"
 	"github.com/koopa0/goen/internal/web/siteurl"
 )
 
@@ -295,7 +296,7 @@ func (h *Handler) SignInPage(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *Handler) SignIn(w http.ResponseWriter, r *http.Request) {
-	if err := web.ParseForm(w, r); err != nil {
+	if err := formtext.ParseForm(w, r); err != nil {
 		http.Error(w, "400 "+i18n.T(r.Context(), i18n.KeyFormUnreadable), http.StatusBadRequest)
 		return
 	}
@@ -500,7 +501,7 @@ func (h *Handler) RegisterPage(w http.ResponseWriter, r *http.Request) {
 // ResendRegistration gives every usable address the same answer, so the form
 // cannot be asked who has an account.
 func (h *Handler) ResendRegistration(w http.ResponseWriter, r *http.Request) {
-	if err := web.ParseForm(w, r); err != nil {
+	if err := formtext.ParseForm(w, r); err != nil {
 		http.Error(w, "400 "+i18n.T(r.Context(), i18n.KeyFormUnreadable), http.StatusBadRequest)
 		return
 	}
@@ -568,7 +569,7 @@ func clearPendingRegistration(w http.ResponseWriter, secure bool) {
 // address already has an account: the mailbox is told which, never the visitor.
 // A refusal is only ever about what was typed.
 func (h *Handler) Register(w http.ResponseWriter, r *http.Request) {
-	if err := web.ParseForm(w, r); err != nil {
+	if err := formtext.ParseForm(w, r); err != nil {
 		http.Error(w, "400 "+i18n.T(r.Context(), i18n.KeyFormUnreadable), http.StatusBadRequest)
 		return
 	}
@@ -582,7 +583,7 @@ func (h *Handler) Register(w http.ResponseWriter, r *http.Request) {
 	next := siteurl.PathOr(r.PostFormValue("next"), "/account")
 
 	view := AuthView{Email: c.Email, Name: c.Name, Next: next}
-	if errs := web.FieldMessages(r.Context(), c.ValidateRegistration()); len(errs) > 0 {
+	if errs := formtext.FieldMessages(r.Context(), c.ValidateRegistration()); len(errs) > 0 {
 		view.Errors = errs
 		web.Render(w, r, h.log, http.StatusUnprocessableEntity,
 			Register(RegisterMeta(r.Context()), view))
@@ -747,7 +748,7 @@ func (h *Handler) RetryCartAdoption(w http.ResponseWriter, r *http.Request) {
 		http.Redirect(w, r, "/signin", http.StatusSeeOther)
 		return
 	}
-	if err := web.ParseForm(w, r); err != nil {
+	if err := formtext.ParseForm(w, r); err != nil {
 		http.Error(w, "400 "+i18n.T(r.Context(), i18n.KeyFormUnreadable), http.StatusBadRequest)
 		return
 	}
@@ -895,7 +896,7 @@ func (h *Handler) ChangePassword(w http.ResponseWriter, r *http.Request) {
 	if h.refuseDemoChange(w, r, u) || h.refuseUnverifiedStaff(w, r, u) {
 		return
 	}
-	if err := web.ParseForm(w, r); err != nil {
+	if err := formtext.ParseForm(w, r); err != nil {
 		http.Error(w, "400 "+i18n.T(r.Context(), i18n.KeyFormUnreadable), http.StatusBadRequest)
 		return
 	}
@@ -936,7 +937,7 @@ func (h *Handler) Erase(w http.ResponseWriter, r *http.Request) {
 	if h.refuseDemoChange(w, r, u) || h.refuseUnverifiedStaff(w, r, u) {
 		return
 	}
-	if err := web.ParseForm(w, r); err != nil {
+	if err := formtext.ParseForm(w, r); err != nil {
 		http.Error(w, "400 "+i18n.T(r.Context(), i18n.KeyFormUnreadable), http.StatusBadRequest)
 		return
 	}
@@ -991,7 +992,7 @@ func (h *Handler) ChangeEmail(w http.ResponseWriter, r *http.Request) {
 		http.Redirect(w, r, "/account?email=staff", http.StatusSeeOther)
 		return
 	}
-	if err := web.ParseForm(w, r); err != nil {
+	if err := formtext.ParseForm(w, r); err != nil {
 		http.Error(w, "400 "+i18n.T(r.Context(), i18n.KeyFormUnreadable), http.StatusBadRequest)
 		return
 	}
@@ -1081,7 +1082,7 @@ func (h *Handler) VerifyPage(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *Handler) Verify(w http.ResponseWriter, r *http.Request) {
-	if err := web.ParseForm(w, r); err != nil {
+	if err := formtext.ParseForm(w, r); err != nil {
 		http.Error(w, "400 "+i18n.T(r.Context(), i18n.KeyFormUnreadable), http.StatusBadRequest)
 		return
 	}
@@ -1143,7 +1144,7 @@ func (h *Handler) CompleteRegistrationPage(w http.ResponseWriter, r *http.Reques
 func (h *Handler) CompleteRegistration(w http.ResponseWriter, r *http.Request) {
 	// A refused password re-renders the still-live token; never compress it.
 	compress.Skip(w)
-	if err := web.ParseForm(w, r); err != nil {
+	if err := formtext.ParseForm(w, r); err != nil {
 		http.Error(w, "400 "+i18n.T(r.Context(), i18n.KeyFormUnreadable), http.StatusBadRequest)
 		return
 	}

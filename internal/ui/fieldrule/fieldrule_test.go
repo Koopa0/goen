@@ -13,7 +13,7 @@ import (
 	"github.com/koopa0/goen/internal/invoice"
 	"github.com/koopa0/goen/internal/order/delivery"
 	"github.com/koopa0/goen/internal/ui/fieldrule"
-	"github.com/koopa0/goen/internal/web"
+	"github.com/koopa0/goen/internal/web/formtext"
 )
 
 // matches reports whether the browser would accept value for rule on its
@@ -27,7 +27,7 @@ func matches(rule fieldrule.Rule, value string) bool {
 }
 
 // hasField reports whether a validator named field among its refusals.
-func hasField(errs []web.FieldRefusal, field string) bool {
+func hasField(errs []formtext.FieldRefusal, field string) bool {
 	for _, e := range errs {
 		if e.Field == field {
 			return true

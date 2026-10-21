@@ -21,7 +21,7 @@ import (
 	"github.com/koopa0/goen/internal/keyset"
 	"github.com/koopa0/goen/internal/shoptime"
 	"github.com/koopa0/goen/internal/ui/components"
-	"github.com/koopa0/goen/internal/web"
+	"github.com/koopa0/goen/internal/web/formtext"
 	"github.com/koopa0/goen/internal/web/siteurl"
 )
 
@@ -186,7 +186,7 @@ func (s *Store) SetWindow(ctx context.Context, slug, startsAt, endsAt string) (m
 const searchLimit = 10
 
 func (s *Store) SearchProducts(ctx context.Context, slug, term string) ([]CampaignProduct, error) {
-	term = web.SearchTerm(term)
+	term = formtext.SearchTerm(term)
 	if term == "" {
 		return nil, nil
 	}

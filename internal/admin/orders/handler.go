@@ -23,6 +23,7 @@ import (
 	"github.com/koopa0/goen/internal/ui/components"
 	"github.com/koopa0/goen/internal/ui/layouts"
 	"github.com/koopa0/goen/internal/web"
+	"github.com/koopa0/goen/internal/web/formtext"
 )
 
 type Handler struct {
@@ -87,7 +88,7 @@ func (h *Handler) Order(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *Handler) Advance(w http.ResponseWriter, r *http.Request) {
-	if err := web.ParseForm(w, r); err != nil {
+	if err := formtext.ParseForm(w, r); err != nil {
 		http.Error(w, i18n.T(r.Context(), i18n.KeyAdminBadForm), http.StatusBadRequest)
 		return
 	}
@@ -120,7 +121,7 @@ func (h *Handler) Advance(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *Handler) Ship(w http.ResponseWriter, r *http.Request) {
-	if err := web.ParseForm(w, r); err != nil {
+	if err := formtext.ParseForm(w, r); err != nil {
 		http.Error(w, i18n.T(r.Context(), i18n.KeyAdminBadForm), http.StatusBadRequest)
 		return
 	}
@@ -250,7 +251,7 @@ func parcelLines(r *http.Request) (map[uuid.UUID]int32, error) {
 }
 
 func (h *Handler) StaffNote(w http.ResponseWriter, r *http.Request) {
-	if err := web.ParseForm(w, r); err != nil {
+	if err := formtext.ParseForm(w, r); err != nil {
 		http.Error(w, i18n.T(r.Context(), i18n.KeyAdminBadForm), http.StatusBadRequest)
 		return
 	}
@@ -321,7 +322,7 @@ var notices = map[string]components.NoticeEntry{
 }
 
 func (h *Handler) CorrectDelivery(w http.ResponseWriter, r *http.Request) {
-	if err := web.ParseForm(w, r); err != nil {
+	if err := formtext.ParseForm(w, r); err != nil {
 		http.Error(w, i18n.T(r.Context(), i18n.KeyAdminBadForm), http.StatusBadRequest)
 		return
 	}
@@ -333,7 +334,7 @@ func (h *Handler) CorrectDelivery(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if refused, ok := errors.AsType[*DeliveryPostalError](err); ok {
-		h.rejectDelivery(w, r, submitted, []web.FieldRefusal{{Field: "postal_code", MessageKey: refused.Key}})
+		h.rejectDelivery(w, r, submitted, []formtext.FieldRefusal{{Field: "postal_code", MessageKey: refused.Key}})
 		return
 	}
 
@@ -360,7 +361,7 @@ func (h *Handler) CorrectDelivery(w http.ResponseWriter, r *http.Request) {
 
 // rejectDelivery keeps proposed data in the form while the summary continues
 // to show the saved destination, so a refusal cannot look like a completed edit.
-func (h *Handler) rejectDelivery(w http.ResponseWriter, r *http.Request, d *DeliveryCorrection, refusals []web.FieldRefusal) {
+func (h *Handler) rejectDelivery(w http.ResponseWriter, r *http.Request, d *DeliveryCorrection, refusals []formtext.FieldRefusal) {
 	view, err := h.store.Order(r.Context(), r.PathValue("number"))
 	if err != nil {
 		h.log.ErrorContext(r.Context(), "read refused delivery correction", "error", err)
@@ -373,7 +374,7 @@ func (h *Handler) rejectDelivery(w http.ResponseWriter, r *http.Request, d *Deli
 		Order(layouts.Page{Title: fmt.Sprintf(i18n.T(r.Context(), i18n.KeyAdminPageOrder), view.Number)}, &view))
 }
 
-func applyDeliveryRefusals(ctx context.Context, view *OrderView, d *DeliveryCorrection, refusals []web.FieldRefusal) {
+func applyDeliveryRefusals(ctx context.Context, view *OrderView, d *DeliveryCorrection, refusals []formtext.FieldRefusal) {
 	view.Delivery = Delivery(*d)
 	view.DeliveryErrors = make(map[string]string, len(refusals))
 	for _, refusal := range refusals {

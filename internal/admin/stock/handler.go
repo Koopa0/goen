@@ -19,6 +19,7 @@ import (
 	"github.com/koopa0/goen/internal/ui/pages/admin"
 	"github.com/koopa0/goen/internal/user"
 	"github.com/koopa0/goen/internal/web"
+	"github.com/koopa0/goen/internal/web/formtext"
 )
 
 type Handler struct {
@@ -75,7 +76,7 @@ func (h *Handler) Variants(w http.ResponseWriter, r *http.Request) {
 
 func (h *Handler) Adjust(w http.ResponseWriter, r *http.Request) {
 	u, _ := user.FromContext(r.Context())
-	if err := web.ParseForm(w, r); err != nil {
+	if err := formtext.ParseForm(w, r); err != nil {
 		http.Error(w, i18n.T(r.Context(), i18n.KeyAdminBadForm), http.StatusBadRequest)
 		return
 	}
@@ -146,7 +147,7 @@ func (h *Handler) rejectStockForm(w http.ResponseWriter, r *http.Request, key i1
 
 func (h *Handler) Receive(w http.ResponseWriter, r *http.Request) {
 	u, _ := user.FromContext(r.Context())
-	if err := web.ParseForm(w, r); err != nil {
+	if err := formtext.ParseForm(w, r); err != nil {
 		http.Error(w, i18n.T(r.Context(), i18n.KeyAdminBadForm), http.StatusBadRequest)
 		return
 	}
@@ -202,7 +203,7 @@ func (h *Handler) renderReceiptRefusal(w http.ResponseWriter, r *http.Request, v
 }
 
 func (h *Handler) SetActive(w http.ResponseWriter, r *http.Request) {
-	if err := web.ParseForm(w, r); err != nil {
+	if err := formtext.ParseForm(w, r); err != nil {
 		http.Error(w, i18n.T(r.Context(), i18n.KeyAdminBadForm), http.StatusBadRequest)
 		return
 	}
@@ -222,7 +223,7 @@ func (h *Handler) SetActive(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *Handler) SetPrice(w http.ResponseWriter, r *http.Request) {
-	if err := web.ParseForm(w, r); err != nil {
+	if err := formtext.ParseForm(w, r); err != nil {
 		http.Error(w, i18n.T(r.Context(), i18n.KeyAdminBadForm), http.StatusBadRequest)
 		return
 	}
@@ -278,7 +279,7 @@ func stockReturn(soldOut, term, after, notice, sku string) string {
 func stockBack(r *http.Request, notice string) string {
 	var soldOut, term, after string
 	if u, err := url.Parse(r.PostFormValue("return")); err == nil && u.Path == "/admin/stock" && u.Host == "" {
-		soldOut, term, after = u.Query().Get("soldout"), web.SearchTerm(u.Query().Get("q")), u.Query().Get(keyset.Param)
+		soldOut, term, after = u.Query().Get("soldout"), formtext.SearchTerm(u.Query().Get("q")), u.Query().Get(keyset.Param)
 	}
 	return stockReturn(soldOut, term, after, notice, r.PostFormValue("sku"))
 }
@@ -307,7 +308,7 @@ func (h *Handler) Movements(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *Handler) SetArrival(w http.ResponseWriter, r *http.Request) {
-	if err := web.ParseForm(w, r); err != nil {
+	if err := formtext.ParseForm(w, r); err != nil {
 		http.Error(w, i18n.T(r.Context(), i18n.KeyAdminBadForm), http.StatusBadRequest)
 		return
 	}

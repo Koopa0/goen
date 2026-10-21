@@ -28,6 +28,7 @@ import (
 	"github.com/koopa0/goen/internal/ui/pages"
 	"github.com/koopa0/goen/internal/user"
 	"github.com/koopa0/goen/internal/web"
+	"github.com/koopa0/goen/internal/web/formtext"
 )
 
 type Handler struct {
@@ -305,7 +306,7 @@ func (h *Handler) applyDraft(
 // typed is saved before they leave; the carrier gets only the map form on the
 // page this answers, which holds none of it.
 func (h *Handler) PickupStart(w http.ResponseWriter, r *http.Request) {
-	if err := web.ParseForm(w, r); err != nil {
+	if err := formtext.ParseForm(w, r); err != nil {
 		http.Error(w, "400 "+i18n.T(r.Context(), i18n.KeyFormUnreadable), http.StatusBadRequest)
 		return
 	}
@@ -458,7 +459,7 @@ func (h *Handler) applyReturnedStore(r *http.Request, view *View) int {
 // Whether the store is honoured is decided at /checkout, against a nonce this
 // browser alone holds.
 func (h *Handler) PickupReturn(w http.ResponseWriter, r *http.Request) {
-	// Smaller than web.MaxFormBytes: the callback is under 300 bytes and this
+	// Smaller than formtext.MaxFormBytes: the callback is under 300 bytes and this
 	// endpoint takes unauthenticated traffic.
 	r.Body = http.MaxBytesReader(w, r.Body, storemap.MaxCallbackBytes)
 	if err := r.ParseForm(); err != nil {
@@ -606,7 +607,7 @@ func (h *Handler) rememberOrder(w http.ResponseWriter, r *http.Request, number s
 }
 
 func (h *Handler) PlaceOrder(w http.ResponseWriter, r *http.Request) {
-	if err := web.ParseForm(w, r); err != nil {
+	if err := formtext.ParseForm(w, r); err != nil {
 		http.Error(w, "400 "+i18n.T(r.Context(), i18n.KeyFormUnreadable), http.StatusBadRequest)
 		return
 	}
@@ -1196,19 +1197,19 @@ func checkoutErrors(
 	refusals := addr.Validate()
 	if shipErr != nil {
 		refusals = append(refusals,
-			web.FieldRefusal{Field: "shipping", MessageKey: i18n.KeyChooseShipping})
+			formtext.FieldRefusal{Field: "shipping", MessageKey: i18n.KeyChooseShipping})
 	}
 	if addr.To == shipping.DestinationPickupPoint {
 		if !addr.PickupChain.AtCheckout() {
 			refusals = append(refusals,
-				web.FieldRefusal{Field: "pickup_chain", MessageKey: i18n.KeyPickupChainRequired})
+				formtext.FieldRefusal{Field: "pickup_chain", MessageKey: i18n.KeyPickupChainRequired})
 		} else if addr.PickupStoreCode == "" || addr.PickupStoreName == "" {
 			refusals = append(refusals,
-				web.FieldRefusal{Field: "pickup_store", MessageKey: i18n.KeyPickupStoreRequired})
+				formtext.FieldRefusal{Field: "pickup_store", MessageKey: i18n.KeyPickupStoreRequired})
 		}
 	}
 	refusals = append(refusals, inv.Validate()...)
-	return web.FieldMessages(ctx, refusals)
+	return formtext.FieldMessages(ctx, refusals)
 }
 
 func (h *Handler) quoteCheckoutShipping(

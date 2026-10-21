@@ -16,6 +16,7 @@ import (
 	"github.com/koopa0/goen/internal/ui/components"
 	"github.com/koopa0/goen/internal/ui/layouts"
 	"github.com/koopa0/goen/internal/web"
+	"github.com/koopa0/goen/internal/web/formtext"
 )
 
 type NamedPool struct {
@@ -60,7 +61,7 @@ var notices = map[string]components.NoticeEntry{
 // resend after a human confirms provider absence. The three subjects and their
 // outcomes use distinct form fields and database doors.
 func (h *Handler) Reconcile(w http.ResponseWriter, r *http.Request) {
-	if err := web.ParseForm(w, r); err != nil {
+	if err := formtext.ParseForm(w, r); err != nil {
 		http.Error(w, i18n.T(r.Context(), i18n.KeyAdminBadForm), http.StatusBadRequest)
 		return
 	}

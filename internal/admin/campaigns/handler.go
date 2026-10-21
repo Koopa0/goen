@@ -16,6 +16,7 @@ import (
 	"github.com/koopa0/goen/internal/ui/components"
 	"github.com/koopa0/goen/internal/ui/layouts"
 	"github.com/koopa0/goen/internal/web"
+	"github.com/koopa0/goen/internal/web/formtext"
 )
 
 type Handler struct {
@@ -62,7 +63,7 @@ func (h *Handler) Page(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *Handler) Create(w http.ResponseWriter, r *http.Request) {
-	if err := web.ParseForm(w, r); err != nil {
+	if err := formtext.ParseForm(w, r); err != nil {
 		http.Error(w, i18n.T(r.Context(), i18n.KeyAdminBadForm), http.StatusBadRequest)
 		return
 	}
@@ -70,7 +71,7 @@ func (h *Handler) Create(w http.ResponseWriter, r *http.Request) {
 		Slug:    r.PostFormValue("slug"),
 		Title:   r.PostFormValue("title"),
 		TitleEn: r.PostFormValue("title_en"),
-		Days:    web.ParseCountOrInvalid(r.PostFormValue("days")),
+		Days:    formtext.ParseCountOrInvalid(r.PostFormValue("days")),
 		Tone:    r.PostFormValue("tone"),
 	}
 	errs, err := h.store.Create(r.Context(), f)
@@ -129,7 +130,7 @@ func (h *Handler) render(w http.ResponseWriter, r *http.Request, status int, not
 	if errs["window"] != "" {
 		detail.StartsAtInput, detail.EndsAtInput = r.PostFormValue("starts_at"), r.PostFormValue("ends_at")
 	}
-	term := web.SearchTerm(r.URL.Query().Get("find"))
+	term := formtext.SearchTerm(r.URL.Query().Get("find"))
 	matches, err := h.store.SearchProducts(r.Context(), slug, term)
 	if err != nil {
 		h.log.ErrorContext(r.Context(), "search campaign products", "error", err)
@@ -156,7 +157,7 @@ func (h *Handler) render(w http.ResponseWriter, r *http.Request, status int, not
 }
 
 func (h *Handler) SetWindow(w http.ResponseWriter, r *http.Request) {
-	if err := web.ParseForm(w, r); err != nil {
+	if err := formtext.ParseForm(w, r); err != nil {
 		http.Error(w, i18n.T(r.Context(), i18n.KeyAdminBadForm), http.StatusBadRequest)
 		return
 	}
@@ -178,7 +179,7 @@ func (h *Handler) SetWindow(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *Handler) SetTone(w http.ResponseWriter, r *http.Request) {
-	if err := web.ParseForm(w, r); err != nil {
+	if err := formtext.ParseForm(w, r); err != nil {
 		http.Error(w, i18n.T(r.Context(), i18n.KeyAdminBadForm), http.StatusBadRequest)
 		return
 	}
@@ -224,7 +225,7 @@ func (h *Handler) SetImage(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *Handler) RemoveImage(w http.ResponseWriter, r *http.Request) {
-	if err := web.ParseForm(w, r); err != nil {
+	if err := formtext.ParseForm(w, r); err != nil {
 		http.Error(w, i18n.T(r.Context(), i18n.KeyAdminBadForm), http.StatusBadRequest)
 		return
 	}
@@ -242,7 +243,7 @@ func (h *Handler) RemoveImage(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *Handler) FeatureProduct(w http.ResponseWriter, r *http.Request) {
-	if err := web.ParseForm(w, r); err != nil {
+	if err := formtext.ParseForm(w, r); err != nil {
 		http.Error(w, i18n.T(r.Context(), i18n.KeyAdminBadForm), http.StatusBadRequest)
 		return
 	}
@@ -273,7 +274,7 @@ func (h *Handler) FeatureProduct(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *Handler) SetActive(w http.ResponseWriter, r *http.Request) {
-	if err := web.ParseForm(w, r); err != nil {
+	if err := formtext.ParseForm(w, r); err != nil {
 		http.Error(w, i18n.T(r.Context(), i18n.KeyAdminBadForm), http.StatusBadRequest)
 		return
 	}
@@ -299,7 +300,7 @@ func (h *Handler) SetActive(w http.ResponseWriter, r *http.Request) {
 
 func (h *Handler) respondToUploadError(w http.ResponseWriter, r *http.Request, err error) {
 	switch {
-	case errors.Is(err, web.ErrFormText):
+	case errors.Is(err, formtext.ErrUnstorable):
 		http.Error(w, i18n.T(r.Context(), i18n.KeyAdminBadForm), http.StatusBadRequest)
 	case errors.Is(err, media.ErrUploadAborted):
 		// The browser went away mid-upload; there is no one to answer.

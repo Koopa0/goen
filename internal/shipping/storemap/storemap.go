@@ -18,7 +18,7 @@ import (
 
 	"github.com/koopa0/goen/internal/shipping"
 
-	"github.com/koopa0/goen/internal/web"
+	"github.com/koopa0/goen/internal/web/formtext"
 )
 
 // ECPay's convenience-store map. Staging is the default and answers with one
@@ -408,11 +408,11 @@ func (m *Client) ReadCallback(r *http.Request) (Callback, bool) {
 		return Callback{}, false
 	}
 	name := strings.TrimSpace(r.PostFormValue("CVSStoreName"))
-	if name == "" || utf8.RuneCountInString(name) > maxCallbackStoreNameRunes || web.HasControlChars(name) {
+	if name == "" || utf8.RuneCountInString(name) > maxCallbackStoreNameRunes || formtext.HasControlChars(name) {
 		return Callback{}, false
 	}
 	address := strings.TrimSpace(r.PostFormValue("CVSAddress"))
-	if utf8.RuneCountInString(address) > maxCallbackAddressRunes || web.HasControlChars(address) {
+	if utf8.RuneCountInString(address) > maxCallbackAddressRunes || formtext.HasControlChars(address) {
 		return Callback{}, false
 	}
 	nonce := r.PostFormValue("ExtraData")

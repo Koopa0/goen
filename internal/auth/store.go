@@ -20,7 +20,7 @@ import (
 	"github.com/koopa0/goen/internal/bearer"
 	"github.com/koopa0/goen/internal/db"
 	"github.com/koopa0/goen/internal/outbox"
-	"github.com/koopa0/goen/internal/web"
+	"github.com/koopa0/goen/internal/web/formtext"
 
 	"github.com/koopa0/goen/internal/i18n"
 	"github.com/koopa0/goen/internal/user"
@@ -518,14 +518,14 @@ func normaliseGoogleIdentity(id google.Identity) (google.Identity, error) {
 
 	subject := strings.TrimSpace(id.Subject)
 	if subject == "" || subject != id.Subject ||
-		utf8.RuneCountInString(subject) > maxOAuthSubjectRunes || web.HasControlChars(subject) {
+		utf8.RuneCountInString(subject) > maxOAuthSubjectRunes || formtext.HasControlChars(subject) {
 		return google.Identity{}, errOAuthIdentity
 	}
 
 	// The display name is decoration, not identity: a malformed or oversized
 	// value must not prevent sign-in or become an unbounded row.
 	id.Name = strings.TrimSpace(id.Name)
-	if utf8.RuneCountInString(id.Name) > user.MaxNameRunes || web.HasControlChars(id.Name) {
+	if utf8.RuneCountInString(id.Name) > user.MaxNameRunes || formtext.HasControlChars(id.Name) {
 		id.Name = ""
 	}
 	return id, nil

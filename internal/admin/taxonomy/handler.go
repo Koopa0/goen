@@ -13,6 +13,7 @@ import (
 	"github.com/koopa0/goen/internal/ui/components"
 	"github.com/koopa0/goen/internal/ui/layouts"
 	"github.com/koopa0/goen/internal/web"
+	"github.com/koopa0/goen/internal/web/formtext"
 )
 
 type Handler struct {
@@ -57,7 +58,7 @@ func (h *Handler) Page(w http.ResponseWriter, r *http.Request) {
 
 // Create takes the kind from the path, which the router constrains, never from a form.
 func (h *Handler) Create(w http.ResponseWriter, r *http.Request) {
-	if err := web.ParseForm(w, r); err != nil {
+	if err := formtext.ParseForm(w, r); err != nil {
 		http.Error(w, i18n.T(r.Context(), i18n.KeyAdminBadForm), http.StatusBadRequest)
 		return
 	}
@@ -101,7 +102,7 @@ func (h *Handler) Create(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *Handler) Edit(w http.ResponseWriter, r *http.Request) {
-	if err := web.ParseForm(w, r); err != nil {
+	if err := formtext.ParseForm(w, r); err != nil {
 		http.Error(w, i18n.T(r.Context(), i18n.KeyAdminBadForm), http.StatusBadRequest)
 		return
 	}
@@ -196,7 +197,7 @@ func (h *Handler) SetCategoryImage(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *Handler) RemoveCategoryImage(w http.ResponseWriter, r *http.Request) {
-	if err := web.ParseForm(w, r); err != nil {
+	if err := formtext.ParseForm(w, r); err != nil {
 		http.Error(w, i18n.T(r.Context(), i18n.KeyAdminBadForm), http.StatusBadRequest)
 		return
 	}
@@ -215,7 +216,7 @@ func (h *Handler) RemoveCategoryImage(w http.ResponseWriter, r *http.Request) {
 
 func (h *Handler) respondToUploadError(w http.ResponseWriter, r *http.Request, err error) {
 	switch {
-	case errors.Is(err, web.ErrFormText):
+	case errors.Is(err, formtext.ErrUnstorable):
 		http.Error(w, i18n.T(r.Context(), i18n.KeyAdminBadForm), http.StatusBadRequest)
 	case errors.Is(err, media.ErrUploadAborted):
 		// The browser went away mid-upload; there is no one to answer.

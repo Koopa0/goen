@@ -7,7 +7,7 @@ import (
 	"github.com/koopa0/goen/internal/shipping"
 
 	"github.com/koopa0/goen/internal/i18n"
-	"github.com/koopa0/goen/internal/web"
+	"github.com/koopa0/goen/internal/web/formtext"
 )
 
 // TestDeliveryValidateRejects covers what the server must catch even though the
@@ -157,7 +157,7 @@ func TestValidateRecipient(t *testing.T) {
 }
 
 // firstOn is the message a form shows beside field: the first refusal naming it.
-func firstOn(errs []web.FieldRefusal, field string) i18n.Key {
+func firstOn(errs []formtext.FieldRefusal, field string) i18n.Key {
 	for _, e := range errs {
 		if e.Field == field {
 			return e.MessageKey

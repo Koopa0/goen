@@ -15,6 +15,7 @@ import (
 	"github.com/koopa0/goen/internal/ratelimit"
 	"github.com/koopa0/goen/internal/ui/layouts"
 	"github.com/koopa0/goen/internal/web"
+	"github.com/koopa0/goen/internal/web/formtext"
 )
 
 type Handler struct {
@@ -59,7 +60,7 @@ func (h *Handler) Submit(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if err := web.ParseForm(w, r); err != nil {
+	if err := formtext.ParseForm(w, r); err != nil {
 		h.log.WarnContext(r.Context(), "parse newsletter form", "error", err)
 		http.Error(w, "400 "+i18n.T(r.Context(), i18n.KeyFormUnreadable), http.StatusBadRequest)
 		return
@@ -147,7 +148,7 @@ func (h *Handler) ConfirmPage(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *Handler) Confirm(w http.ResponseWriter, r *http.Request) {
-	if err := web.ParseForm(w, r); err != nil {
+	if err := formtext.ParseForm(w, r); err != nil {
 		http.Error(w, "400 "+i18n.T(r.Context(), i18n.KeyFormUnreadable), http.StatusBadRequest)
 		return
 	}
@@ -244,7 +245,7 @@ func (h *Handler) Unsubscribe(w http.ResponseWriter, r *http.Request) {
 }
 
 func parseUnsubscribeForm(w http.ResponseWriter, r *http.Request) error {
-	if err := web.ParseForm(w, r); err != nil {
+	if err := formtext.ParseForm(w, r); err != nil {
 		return err
 	}
 	if r.Header.Get("Content-Type") == "" {
@@ -259,14 +260,14 @@ func parseUnsubscribeForm(w http.ResponseWriter, r *http.Request) error {
 	}
 	// RFC 8058 receivers may use either form encoding. ParseForm has already
 	// bounded the body, but it leaves multipart fields unread.
-	err = r.ParseMultipartForm(web.MaxFormBytes) //nolint:gosec // G120: web.ParseForm above bounded the body with http.MaxBytesReader
+	err = r.ParseMultipartForm(formtext.MaxFormBytes) //nolint:gosec // G120: formtext.ParseForm above bounded the body with http.MaxBytesReader
 	if r.MultipartForm != nil {
 		defer func() { _ = r.MultipartForm.RemoveAll() }() //nolint:errcheck // Best-effort temporary-file cleanup.
 	}
 	if err != nil {
 		return err
 	}
-	return web.CheckFormText(r.Form)
+	return formtext.CheckStorable(r.Form)
 }
 
 func unsubscribeToken(r *http.Request) (token string, oneClick bool, err error) {

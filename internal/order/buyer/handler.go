@@ -22,6 +22,7 @@ import (
 	"github.com/koopa0/goen/internal/ui/layouts"
 	"github.com/koopa0/goen/internal/user"
 	"github.com/koopa0/goen/internal/web"
+	"github.com/koopa0/goen/internal/web/formtext"
 )
 
 type Handler struct {
@@ -75,7 +76,7 @@ func (h *Handler) FindOrderPage(w http.ResponseWriter, r *http.Request) {
 // IDENTICALLY on every failure, since "that number exists but the address is
 // wrong" hands over half a credential.
 func (h *Handler) FindOrder(w http.ResponseWriter, r *http.Request) {
-	if err := web.ParseForm(w, r); err != nil {
+	if err := formtext.ParseForm(w, r); err != nil {
 		http.Error(w, "400 "+i18n.T(r.Context(), i18n.KeyFormUnreadable), http.StatusBadRequest)
 		return
 	}
@@ -250,7 +251,7 @@ func (h *Handler) ReturnPage(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *Handler) SubmitReturn(w http.ResponseWriter, r *http.Request) {
-	if err := web.ParseForm(w, r); err != nil {
+	if err := formtext.ParseForm(w, r); err != nil {
 		http.Error(w, "400 "+i18n.T(r.Context(), i18n.KeyFormUnreadable), http.StatusBadRequest)
 		return
 	}
@@ -282,9 +283,9 @@ func returnDraftFromForm(r *http.Request, o *ReturnOrder) *returnDraft {
 	return draft
 }
 
-func (d *returnDraft) request(o *ReturnOrder) (*ReturnRequest, []web.FieldRefusal) {
+func (d *returnDraft) request(o *ReturnOrder) (*ReturnRequest, []formtext.FieldRefusal) {
 	req := &ReturnRequest{Reason: d.Reason, Lines: make(map[string]int32, len(o.Lines))}
-	var refusals []web.FieldRefusal
+	var refusals []formtext.FieldRefusal
 	chosen := false
 	quantityRefused := false
 	for _, line := range o.Lines {
@@ -305,14 +306,14 @@ func (d *returnDraft) request(o *ReturnOrder) (*ReturnRequest, []web.FieldRefusa
 		}
 		if key != "" {
 			quantityRefused = true
-			refusals = append(refusals, web.FieldRefusal{Field: "qty_" + line.ID, MessageKey: key})
+			refusals = append(refusals, formtext.FieldRefusal{Field: "qty_" + line.ID, MessageKey: key})
 		}
 	}
 	if key := returnReasonMessage(d.Reason); key != "" {
-		refusals = append(refusals, web.FieldRefusal{Field: "reason", MessageKey: key})
+		refusals = append(refusals, formtext.FieldRefusal{Field: "reason", MessageKey: key})
 	}
 	if !chosen && !quantityRefused {
-		refusals = append(refusals, web.FieldRefusal{MessageKey: i18n.KeyReturnInvalid})
+		refusals = append(refusals, formtext.FieldRefusal{MessageKey: i18n.KeyReturnInvalid})
 	}
 	return req, refusals
 }
@@ -346,15 +347,15 @@ func (h *Handler) respondToOpen(
 	case err == nil:
 		http.Redirect(w, r, "/orders/"+url.PathEscape(o.Number)+"/return?filed=1", http.StatusSeeOther)
 	case errors.Is(err, ErrReturnOpen):
-		h.reject(w, r, o, draft, []web.FieldRefusal{{MessageKey: i18n.KeyReturnAlreadyOpen}})
+		h.reject(w, r, o, draft, []formtext.FieldRefusal{{MessageKey: i18n.KeyReturnAlreadyOpen}})
 	case errors.Is(err, ErrNotReturnable):
-		h.reject(w, r, o, draft, []web.FieldRefusal{{MessageKey: i18n.KeyReturnNothingShort}})
+		h.reject(w, r, o, draft, []formtext.FieldRefusal{{MessageKey: i18n.KeyReturnNothingShort}})
 	case errors.Is(err, ErrReturnTooMany):
-		h.reject(w, r, o, draft, []web.FieldRefusal{{MessageKey: i18n.KeyReturnTooMany}})
+		h.reject(w, r, o, draft, []formtext.FieldRefusal{{MessageKey: i18n.KeyReturnTooMany}})
 	case errors.Is(err, ErrReturnAccountErased):
-		h.reject(w, r, o, draft, []web.FieldRefusal{{MessageKey: i18n.KeyReturnAccountErased}})
+		h.reject(w, r, o, draft, []formtext.FieldRefusal{{MessageKey: i18n.KeyReturnAccountErased}})
 	case errors.Is(err, ErrReturnInvalid):
-		h.reject(w, r, o, draft, []web.FieldRefusal{{MessageKey: i18n.KeyReturnInvalid}})
+		h.reject(w, r, o, draft, []formtext.FieldRefusal{{MessageKey: i18n.KeyReturnInvalid}})
 	default:
 		h.log.ErrorContext(r.Context(), "open return request", "order", o.Number, "error", err)
 		web.Render(w, r, h.log, http.StatusInternalServerError, layouts.Notice(
@@ -364,7 +365,7 @@ func (h *Handler) respondToOpen(
 	}
 }
 
-func (h *Handler) reject(w http.ResponseWriter, r *http.Request, o *ReturnOrder, draft *returnDraft, refusals []web.FieldRefusal) {
+func (h *Handler) reject(w http.ResponseWriter, r *http.Request, o *ReturnOrder, draft *returnDraft, refusals []formtext.FieldRefusal) {
 	fresh, err := h.store.ReturnOrder(r.Context(), o.Number)
 	if err != nil {
 		h.log.ErrorContext(r.Context(), "refresh order after return refusal", "order", o.Number, "error", err)
@@ -427,7 +428,7 @@ func (h *Handler) cartUnavailable(w http.ResponseWriter, r *http.Request) {
 		i18n.T(r.Context(), i18n.KeyCartUnavailable)))
 }
 
-func viewOf(ctx context.Context, o *ReturnOrder, draft *returnDraft, refusals []web.FieldRefusal) ReturnsView {
+func viewOf(ctx context.Context, o *ReturnOrder, draft *returnDraft, refusals []formtext.FieldRefusal) ReturnsView {
 	v := ReturnsView{
 		Number: o.Number, HasOpen: o.HasOpen, HasDraft: draft != nil,
 		Pickup: o.Pickup, Now: o.Now,
@@ -474,7 +475,7 @@ func viewOf(ctx context.Context, o *ReturnOrder, draft *returnDraft, refusals []
 	return v
 }
 
-func returnRefusals(o *ReturnOrder, draft *returnDraft, refusals []web.FieldRefusal) []web.FieldRefusal {
+func returnRefusals(o *ReturnOrder, draft *returnDraft, refusals []formtext.FieldRefusal) []formtext.FieldRefusal {
 	if o.HasOpen {
 		return nil
 	}

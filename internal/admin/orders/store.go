@@ -34,7 +34,7 @@ import (
 	"github.com/koopa0/goen/internal/shoptime"
 	"github.com/koopa0/goen/internal/ui/components"
 	"github.com/koopa0/goen/internal/ui/pages"
-	"github.com/koopa0/goen/internal/web"
+	"github.com/koopa0/goen/internal/web/formtext"
 )
 
 // Refunds says what the order page offers of the refund before shipment and
@@ -116,7 +116,7 @@ func (s *Store) List(ctx context.Context, status QueueFilter, term string, after
 	term = strings.TrimSpace(term)
 	scope := keyset.ScopeURL("/admin/orders", "q", term, "status", string(status))
 	from, resumed := keyset.Resume(scope, after, func(p listPosition) bool { return p.ID != uuid.Nil })
-	searched := utf8.RuneCountInString(term) >= web.MinSearchRunes
+	searched := utf8.RuneCountInString(term) >= formtext.MinSearchRunes
 	var rows []db.AdminOrdersRow
 	var err error
 	if searched {
