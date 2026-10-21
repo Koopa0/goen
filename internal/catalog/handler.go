@@ -50,8 +50,6 @@ func (h *Handler) Routes(mux *http.ServeMux, notify *ratelimit.Limiter) {
 	mux.HandleFunc("GET /c/{slug}", h.Listing)
 	mux.HandleFunc("GET /search", h.Search)
 	mux.HandleFunc("GET /compare", h.Compare)
-	mux.HandleFunc("GET /deals", h.Deals)
-	mux.HandleFunc("GET /s/{slug}", h.Campaign)
 	mux.HandleFunc("GET /p/{slug}", h.Product)
 	mux.HandleFunc("POST /p/{slug}/reviews", h.Review)
 	mux.HandleFunc("POST /p/{slug}/notify", ratelimit.Guard(notify, h.log, h.Notify))
@@ -218,44 +216,6 @@ func canonicalQuery(f Filters) string {
 
 func trimForDisplay(q string) string {
 	return trimmedQuery(q)
-}
-
-func (h *Handler) Deals(w http.ResponseWriter, r *http.Request) {
-	page := ParsePage(r.URL.Query().Get("page"))
-	view, err := h.store.Deals(r.Context(), page)
-	if err != nil {
-		h.log.ErrorContext(r.Context(), "load deals", "error", err)
-		h.serverError(w, r)
-		return
-	}
-	campaigns, err := h.store.ListedCampaigns(r.Context(), ParsePage(r.URL.Query().Get("campaign_page")))
-	if err != nil {
-		// Best effort: the discounted products are the page's substance.
-		h.log.ErrorContext(r.Context(), "load campaigns", "error", err)
-	}
-	view.Campaigns = campaigns
-	web.Render(w, r, h.log, http.StatusOK, Deals(DealsMeta(r.Context()), view))
-}
-
-// Campaign answers 404 for a campaign that is switched off or does not exist.
-func (h *Handler) Campaign(w http.ResponseWriter, r *http.Request) {
-	slug := r.PathValue("slug")
-	view, err := h.store.Campaign(r.Context(), slug)
-	if err != nil {
-		if errors.Is(err, ErrNotFound) {
-			web.Render(w, r, h.log, http.StatusNotFound, layouts.Notice(
-				layouts.Page{Title: i18n.T(r.Context(), i18n.KeyCampaignNotFound)}, "404",
-				i18n.T(r.Context(), i18n.KeyCampaignNotFound),
-				i18n.T(r.Context(), i18n.KeyCampaignNotFoundBody),
-				layouts.NoticeActions{Primary: layouts.NoticeLink{Href: "/deals", Label: i18n.KeyCurrentDeals}}))
-			return
-		}
-		h.log.ErrorContext(r.Context(), "load campaign", "error", err, "slug", slug)
-		h.serverError(w, r)
-		return
-	}
-	web.Render(w, r, h.log, http.StatusOK, Campaign(
-		CampaignMeta(r.Context(), view.Title, view.Image), view))
 }
 
 // Compare keeps the set in the URL and nowhere else.

@@ -25,6 +25,7 @@ import (
 	"github.com/koopa0/goen/internal/admin/admintest"
 	"github.com/koopa0/goen/internal/admin/campaigns"
 	"github.com/koopa0/goen/internal/admin/taxonomy"
+	"github.com/koopa0/goen/internal/campaign"
 	"github.com/koopa0/goen/internal/catalog"
 	"github.com/koopa0/goen/internal/i18n"
 	"github.com/koopa0/goen/internal/media"
@@ -435,7 +436,7 @@ func TestEveryToneOfTheClosedSetIsStorable(t *testing.T) {
 	if err = campaigns.NewStore(pool).SetTone(ctx, camp, "neon"); err == nil {
 		t.Error("a campaign accepted a tone outside the set")
 	}
-	cv, err := catalog.NewStore(pool, slog.New(slog.DiscardHandler)).Campaign(ctx, camp)
+	cv, err := campaign.NewStore(pool).Campaign(ctx, camp)
 	if err != nil || cv.Tone != components.ToneInk {
 		t.Fatalf("campaign tone = %q (err %v), want the last one set, ink", cv.Tone, err)
 	}

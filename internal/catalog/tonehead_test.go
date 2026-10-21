@@ -10,8 +10,9 @@ import (
 )
 
 // The attribute is what app.css selects the ground on; a head without it is
-// unthemed, and one carrying a tone outside the set would match no rule.
-func TestADepartmentAndCampaignHeadCarryTheirTone(t *testing.T) {
+// unthemed, and one carrying a tone outside the set would match no rule. The
+// campaign head's half of this test is campaign's TestACampaignHeadCarriesItsTone.
+func TestADepartmentHeadCarriesItsTone(t *testing.T) {
 	t.Parallel()
 	ctx := i18n.WithLocale(t.Context(), i18n.En)
 
@@ -22,9 +23,5 @@ func TestADepartmentAndCampaignHeadCarryTheirTone(t *testing.T) {
 	unset := renderComponent(t, ctx, Listing(layouts.Page{Title: "c"}, ListingView{Slug: "c", Name: "Books"}, nil, nil))
 	if !strings.Contains(unset, `data-tone="stone"`) {
 		t.Error("a category head with no tone is not stone")
-	}
-	campaign := renderComponent(t, ctx, Campaign(layouts.Page{Title: "c"}, CampaignView{Slug: "c", Title: "Sale", Tone: components.ToneInk}))
-	if !strings.Contains(campaign, `data-tone="ink"`) {
-		t.Error("the campaign head does not carry its tone")
 	}
 }

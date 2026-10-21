@@ -1,4 +1,4 @@
-package catalog
+package campaign
 
 import (
 	"strings"
@@ -8,7 +8,7 @@ import (
 func TestTheOffersStripNamesOnlyANearLastDay(t *testing.T) {
 	t.Parallel()
 
-	strip := renderToString(t, campaignStrip([]CampaignSummary{
+	strip := renderToString(t, strip([]Summary{
 		{Slug: "far", Title: "秋日選物", Products: 6},
 		{Slug: "near", Title: "茶與咖啡週", Products: 4, EndsOn: "10 月 31 日"},
 	}))

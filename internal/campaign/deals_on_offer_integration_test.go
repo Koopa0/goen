@@ -1,15 +1,14 @@
 //go:build integration
 
-package catalog_test
+package campaign_test
 
 import (
 	"context"
-	"log/slog"
 	"testing"
 
 	"github.com/google/uuid"
 
-	"github.com/koopa0/goen/internal/catalog"
+	"github.com/koopa0/goen/internal/campaign"
 )
 
 type dealVariant struct {
@@ -83,7 +82,7 @@ func TestDealsOnOfferNeedsARunningCampaignWithSomethingToBuy(t *testing.T) {
 					t.Fatalf("create campaign: %v", err)
 				}
 			}
-			got, err := catalog.NewStore(tx, slog.New(slog.DiscardHandler)).DealsOnOffer(ctx)
+			got, err := campaign.NewStore(tx).DealsOnOffer(ctx)
 			if err != nil {
 				t.Fatal(err)
 			}

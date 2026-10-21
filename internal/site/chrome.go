@@ -156,7 +156,7 @@ func withNav(ctx context.Context, items []layouts.NavItem, deals bool) context.C
 // dealsOnOffer is false when the read fails, like the department row beside it: a link
 // to a page with nothing on it is the worse mistake.
 func (h *Handler) dealsOnOffer(ctx context.Context) bool {
-	offered, err := h.catalogue.DealsOnOffer(ctx)
+	offered, err := h.deals.DealsOnOffer(ctx)
 	if err != nil {
 		if !errors.Is(err, context.Canceled) {
 			h.log.ErrorContext(ctx, "read whether deals are on offer", "error", err)

@@ -39,6 +39,7 @@ import (
 	"github.com/koopa0/goen/internal/admin/warranties"
 	"github.com/koopa0/goen/internal/auth"
 	"github.com/koopa0/goen/internal/auth/google"
+	"github.com/koopa0/goen/internal/campaign"
 	"github.com/koopa0/goen/internal/cart"
 	"github.com/koopa0/goen/internal/catalog"
 	"github.com/koopa0/goen/internal/checkout"
@@ -181,7 +182,8 @@ func routing(cfg *RouterConfig, log *slog.Logger) (http.Handler, *http.ServeMux)
 	if !front.StoreMap.Enabled() {
 		catalogue = catalogue.WithoutPickup()
 	}
-	sitePages := site.NewHandler(log, baseURL, catalogue, siteStore, secureCookies)
+	deals := campaign.NewStore(pool)
+	sitePages := site.NewHandler(log, baseURL, catalogue, deals, siteStore, secureCookies)
 	var barcodeChecker checkout.MobileBarcodeChecker
 	if front.Invoices.Enabled() {
 		barcodeChecker = front.Invoices
@@ -198,7 +200,7 @@ func routing(cfg *RouterConfig, log *slog.Logger) (http.Handler, *http.ServeMux)
 	authn.RequireStepUpFromStaff(storefrontStepUp(factorStore, pool, log))
 	accounts := account.NewHandler(account.NewStore(pool), log, secureCookies, checkouts.TakesPayment())
 	authn.RefuseOnAccountPage(accounts.Refuse)
-	storefrontRoutes(mux, front, log, catalogue, sitePages, basket, checkouts, authn, accounts, orderAccess)
+	storefrontRoutes(mux, front, log, catalogue, deals, sitePages, basket, checkouts, authn, accounts, orderAccess)
 	backOfficeRoutes(mux, &cfg.BackOffice, factorStore, log, poolsOnHealthPage(pool, adminPool, cfg.BackOffice.MaintenancePool))
 	mux.HandleFunc("GET /", sitePages.NotFound)
 
@@ -233,7 +235,7 @@ func routing(cfg *RouterConfig, log *slog.Logger) (http.Handler, *http.ServeMux)
 // clearSpeculations and clearCache are this deployment's, handed to the writes
 // that need them; RequireUser is sign-in's, handed to the account's pages.
 func storefrontRoutes(mux *http.ServeMux, cfg *StorefrontConfig, log *slog.Logger,
-	catalogue *catalog.Store, sitePages *site.Handler, basket *cart.Handler, checkouts *checkout.Handler,
+	catalogue *catalog.Store, deals *campaign.Store, sitePages *site.Handler, basket *cart.Handler, checkouts *checkout.Handler,
 	authn *auth.Handler, accounts *account.Handler, orderAccess *access.Store) {
 	pool, gateway := cfg.StorePool, cfg.Payments
 	baseURL := cfg.BaseURL
@@ -250,6 +252,7 @@ func storefrontRoutes(mux *http.ServeMux, cfg *StorefrontConfig, log *slog.Logge
 		homeStore, policyStore = homeStore.WithoutPickup(), policyStore.WithoutPickup()
 	}
 	browse := catalog.NewHandler(catalogue, log, baseURL)
+	offers := campaign.NewHandler(deals, log)
 	homePage := home.NewHandler(homeStore, log)
 	policyPages := policy.NewHandler(policyStore, log)
 	images := media.NewHandler(media.NewStore(pool), log)
@@ -295,6 +298,7 @@ func storefrontRoutes(mux *http.ServeMux, cfg *StorefrontConfig, log *slog.Logge
 	contactPage.Routes(mux)
 	signups.Routes(mux)
 	browse.Routes(mux, notifyLimit)
+	offers.Routes(mux)
 	basket.Routes(mux, clearSpeculations)
 	checkouts.Routes(mux, checkoutLimit)
 	buyerOrders.Routes(mux)

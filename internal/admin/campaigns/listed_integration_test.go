@@ -3,7 +3,6 @@
 package campaigns_test
 
 import (
-	"log/slog"
 	"net/url"
 	"testing"
 
@@ -11,7 +10,7 @@ import (
 
 	"github.com/koopa0/goen/internal/admin/admintest"
 	"github.com/koopa0/goen/internal/admin/campaigns"
-	"github.com/koopa0/goen/internal/catalog"
+	"github.com/koopa0/goen/internal/campaign"
 	"github.com/koopa0/goen/internal/keyset"
 )
 
@@ -19,7 +18,7 @@ import (
 // campaign has something to buy.
 func TestTheShopListCountAndBackOfficeAgreeOnWhatIsBuyable(t *testing.T) {
 	ctx, _ := admintest.StaffContext(t, pool)
-	shop := catalog.NewStore(pool, slog.New(slog.DiscardHandler))
+	shop := campaign.NewStore(pool)
 	office := campaigns.NewStore(pool)
 
 	tests := []struct {
@@ -39,7 +38,7 @@ func TestTheShopListCountAndBackOfficeAgreeOnWhatIsBuyable(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			before, err := shop.ListedCampaigns(ctx, 1)
+			before, err := shop.Listed(ctx, 1)
 			if err != nil {
 				t.Fatalf("read the shop list: %v", err)
 			}
@@ -85,7 +84,7 @@ func TestTheShopListCountAndBackOfficeAgreeOnWhatIsBuyable(t *testing.T) {
 				t.Fatalf("set status: %v", execErr)
 			}
 
-			after, err := shop.ListedCampaigns(ctx, 1)
+			after, err := shop.Listed(ctx, 1)
 			if err != nil {
 				t.Fatalf("read the shop list: %v", err)
 			}
@@ -94,7 +93,7 @@ func TestTheShopListCountAndBackOfficeAgreeOnWhatIsBuyable(t *testing.T) {
 			}
 			listed := false
 			for page := 1; page <= after.Pages() && !listed; page++ {
-				view, listErr := shop.ListedCampaigns(ctx, page)
+				view, listErr := shop.Listed(ctx, page)
 				if listErr != nil {
 					t.Fatalf("read the shop list page %d: %v", page, listErr)
 				}

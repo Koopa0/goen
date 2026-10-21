@@ -8,14 +8,14 @@ import (
 	"github.com/koopa0/goen/internal/ui/layouts"
 )
 
-// The cart's row of this test is internal/cart's TestCartEmptyStateShowsItsIllustration.
+// The cart's row of this test is internal/cart's TestCartEmptyStateShowsItsIllustration,
+// the campaign's internal/campaign's TestTheEmptyCampaignShowsItsIllustrationAsDecoration.
 func TestEmptyStatesShowTheirIllustrationAsDecoration(t *testing.T) {
 	t.Parallel()
 	for name, tt := range map[string]struct {
 		page  string
 		asset string
 	}{
-		"campaign":        {renderToString(t, Campaign(layouts.Page{}, CampaignView{Title: "x"})), assets.EmptyCampaignImage},
 		"category":        {renderToString(t, Listing(layouts.Page{}, ListingView{Slug: "phones"}, nil, nil)), assets.EmptySearchImage},
 		"search prompt":   {renderToString(t, Search(layouts.Page{}, SearchView{})), assets.EmptySearchImage},
 		"search no match": {renderToString(t, Search(layouts.Page{}, SearchView{Query: "zzz"})), assets.EmptySearchImage},

@@ -3,7 +3,6 @@
 package campaigns_test
 
 import (
-	"log/slog"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
@@ -12,7 +11,7 @@ import (
 
 	"github.com/koopa0/goen/internal/admin/admintest"
 	"github.com/koopa0/goen/internal/admin/campaigns"
-	"github.com/koopa0/goen/internal/catalog"
+	"github.com/koopa0/goen/internal/campaign"
 	"github.com/koopa0/goen/internal/i18n"
 )
 
@@ -36,7 +35,7 @@ func TestCampaignEnglishTitleReachesStorefront(t *testing.T) {
 		if err := store.SetActive(ctx, slug, true); err != nil {
 			t.Fatal(err)
 		}
-		view, err := catalog.NewStore(pool, slog.New(slog.DiscardHandler)).Campaign(i18n.WithLocale(ctx, i18n.En), slug)
+		view, err := campaign.NewStore(pool).Campaign(i18n.WithLocale(ctx, i18n.En), slug)
 		if err != nil {
 			t.Fatal(err)
 		}

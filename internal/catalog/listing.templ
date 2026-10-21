@@ -278,25 +278,6 @@ templ sortField(options []SortOption) {
 	</div>
 }
 
-// The end of the run stays visible as a disabled span so the control does not move.
-templ pager(label string, hasPrev, hasNext bool, prev, next, page, pages string) {
-	if hasPrev || hasNext {
-		<nav class="goen-pager" aria-label={ label }>
-			if hasPrev {
-				<a class="goen-btn goen-btn--outline goen-btn--sm" href={ templ.URL(prev) } rel="prev">{ i18n.T(ctx, i18n.KeyPrevPage) }</a>
-			} else {
-				<span class="goen-btn goen-btn--outline goen-btn--sm" aria-disabled="true">{ i18n.T(ctx, i18n.KeyPrevPage) }</span>
-			}
-			<span class="goen-pager__at">{ fmt.Sprintf(i18n.T(ctx, i18n.KeyPageOf), page, pages) }</span>
-			if hasNext {
-				<a class="goen-btn goen-btn--outline goen-btn--sm" href={ templ.URL(next) } rel="next">{ i18n.T(ctx, i18n.KeyNextPage) }</a>
-			} else {
-				<span class="goen-btn goen-btn--outline goen-btn--sm" aria-disabled="true">{ i18n.T(ctx, i18n.KeyNextPage) }</span>
-			}
-		</nav>
-	}
-}
-
 // A link to the next page, not a button: with scripting off it is the whole control.
 // The progress line counts pages because each page replaces the one before it.
 templ showMore(hasPrev, hasNext bool, prev, next, page, pages string) {

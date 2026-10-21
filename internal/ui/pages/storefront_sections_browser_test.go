@@ -71,12 +71,12 @@ func TestStorefrontSectionsAsDrawn(t *testing.T) {
 		}
 	})
 	mux.HandleFunc("GET /deals", func(w http.ResponseWriter, r *http.Request) {
-		view := catalog.SearchView{Campaigns: catalog.CampaignPage{Page: 1, Total: 2, PageSize: 12, Rows: []catalog.CampaignSummary{
+		view := campaign.DealsView{Campaigns: campaign.Listed{Page: 1, Total: 2, PageSize: 12, Rows: []campaign.Summary{
 			{Slug: "autumn", Title: "Autumn audio", Products: 4, EndsOn: "31 Oct"},
 			{Slug: "desk", Title: "Desk week", Products: 6},
 		}}}
 		w.Header().Set("Content-Type", "text/html; charset=utf-8")
-		if renderErr := catalog.Deals(layouts.Page{}, view).Render(i18n.WithLocale(r.Context(), i18n.En), w); renderErr != nil {
+		if renderErr := campaign.Deals(layouts.Page{}, view).Render(i18n.WithLocale(r.Context(), i18n.En), w); renderErr != nil {
 			t.Errorf("render deals fixture: %v", renderErr)
 		}
 	})
