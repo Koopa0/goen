@@ -18,7 +18,7 @@ import (
 	"github.com/google/uuid"
 
 	returndesk "github.com/koopa0/goen/internal/admin/returns"
-	"github.com/koopa0/goen/internal/returns"
+	"github.com/koopa0/goen/internal/order/returns"
 )
 
 func TestReturnDecisionHTTPRequiresConfirmation(t *testing.T) {

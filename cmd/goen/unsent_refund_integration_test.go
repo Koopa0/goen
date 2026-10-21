@@ -17,9 +17,9 @@ import (
 	"github.com/koopa0/goen/internal/admin/refunds"
 	"github.com/koopa0/goen/internal/letter"
 	"github.com/koopa0/goen/internal/order/notice"
+	"github.com/koopa0/goen/internal/order/returns"
 	"github.com/koopa0/goen/internal/outbox"
 	"github.com/koopa0/goen/internal/payment"
-	"github.com/koopa0/goen/internal/returns"
 	"github.com/koopa0/goen/internal/shipping/storemap"
 )
 

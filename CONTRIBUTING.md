@@ -355,7 +355,7 @@ settings", and `cmd/asm/main.go` imports both `flag` and
 if a non-test file other than `cmd/goen` imports both halves of a pair.
 
 - A desk may share a domain package's name only as rule 3 allows:
-  `admin/returns` beside `returns`, and `admin/shipping` beside `shipping`.
+  `admin/returns` beside `order/returns`, and `admin/shipping` beside `shipping`.
   Inside the desk the domain package is imported bare, as `net/http/pprof`
   imports `runtime/pprof`; a file that imports both aliases the desk
   `<noun>desk` (`returndesk`), the same in every such file.

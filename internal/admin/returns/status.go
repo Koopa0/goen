@@ -4,7 +4,7 @@ import (
 	"context"
 
 	"github.com/koopa0/goen/internal/i18n"
-	"github.com/koopa0/goen/internal/returns"
+	"github.com/koopa0/goen/internal/order/returns"
 )
 
 func statusLabel(ctx context.Context, s returns.Status) string {

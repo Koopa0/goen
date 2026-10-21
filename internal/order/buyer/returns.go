@@ -9,7 +9,7 @@ import (
 	"github.com/koopa0/goen/internal/ui/layouts"
 
 	"github.com/koopa0/goen/internal/i18n"
-	"github.com/koopa0/goen/internal/returns"
+	"github.com/koopa0/goen/internal/order/returns"
 )
 
 type ReturnsLine struct {
