@@ -118,6 +118,13 @@ func TestTheRightmostUntrustedHopIsTheClient(t *testing.T) {
 			want:       "198.51.100.4",
 		},
 		{
+			name:       "a trusted proxy seen on its IPv4-mapped spelling",
+			trusted:    "10.0.0.0/8",
+			remoteAddr: "[::ffff:10.0.0.7]:443",
+			forwarded:  []string{"198.51.100.4"},
+			want:       "198.51.100.4",
+		},
+		{
 			name:       "an IPv6 proxy and an IPv6 client",
 			trusted:    "2001:db8::/32",
 			remoteAddr: "[2001:db8::1]:443",
