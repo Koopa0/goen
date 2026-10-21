@@ -54,7 +54,6 @@ import (
 //     the add-to-cart outcome to cart/cartitem).
 var viewPackageImporters = []string{
 	"internal/admin/orders",
-	"internal/auth",
 	"internal/cart",
 	"internal/catalog",
 	// The checkout's half of what was internal/cart's import of the view layer

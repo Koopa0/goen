@@ -1,6 +1,9 @@
-package pages
+package auth
 
 import (
+	"strconv"
+
+	"github.com/koopa0/goen/internal/cart/cartitem"
 	"github.com/koopa0/goen/internal/i18n"
 	"github.com/koopa0/goen/internal/ui/components"
 	"github.com/koopa0/goen/internal/ui/layouts"
@@ -33,7 +36,7 @@ templ CartRecovery(p layouts.Page, v CartRecoveryView) {
 	}
 }
 
-templ cartRecoveryList(id string, heading i18n.Key, lines []CartLine) {
+templ cartRecoveryList(id string, heading i18n.Key, lines []cartitem.Item) {
 	<section class="goen-cart-recovery__cart" aria-labelledby={ id }>
 		<h2 class="goen-account__heading" id={ id }>{ i18n.T(ctx, heading) }</h2>
 		if len(lines) == 0 {
@@ -43,7 +46,7 @@ templ cartRecoveryList(id string, heading i18n.Key, lines []CartLine) {
 				for _, line := range lines {
 					<li class="goen-line goen-line--recovery">
 						<span class="goen-line__thumb">
-							if line.HasImage() {
+							if line.ImageURL != "" {
 								<img class="goen-line__img" src={ line.ImageURL } srcset={ line.ImageSrcset } sizes="96px" alt={ line.ImageAlt } width="96" height="96" loading="lazy" decoding="async"/>
 							} else {
 								<span class="goen-line__ph" aria-hidden="true"></span>
@@ -54,7 +57,7 @@ templ cartRecoveryList(id string, heading i18n.Key, lines []CartLine) {
 							if line.Label != "" {
 								<span class="goen-line__meta">{ line.Label }</span>
 							}
-							<span class="goen-line__meta">{ i18n.T(ctx, i18n.KeyQuantity) } { line.QuantityText() }</span>
+							<span class="goen-line__meta">{ i18n.T(ctx, i18n.KeyQuantity) } { strconv.FormatInt(int64(line.Quantity), 10) }</span>
 						</div>
 					</li>
 				}

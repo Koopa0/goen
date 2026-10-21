@@ -1,8 +1,9 @@
-package pages
+package auth
 
 import (
 	"context"
 
+	"github.com/koopa0/goen/internal/cart/cartitem"
 	"github.com/koopa0/goen/internal/i18n"
 	"github.com/koopa0/goen/internal/ui/layouts"
 )
@@ -16,8 +17,8 @@ type CartRecoveryView struct {
 }
 
 type CartRecoveryContents struct {
-	BeforeSignIn []CartLine
-	Account      []CartLine
+	BeforeSignIn []cartitem.Item
+	Account      []cartitem.Item
 }
 
 func CartRecoveryMeta(ctx context.Context) layouts.Page {

@@ -17,7 +17,6 @@ import (
 	"github.com/koopa0/goen/internal/email"
 	"github.com/koopa0/goen/internal/i18n"
 	"github.com/koopa0/goen/internal/ui/layouts"
-	"github.com/koopa0/goen/internal/ui/pages"
 	"github.com/koopa0/goen/internal/user"
 	"github.com/koopa0/goen/internal/web/clientip"
 	"github.com/koopa0/goen/internal/web/compress"
@@ -712,34 +711,17 @@ func (h *Handler) CartRecoveryPage(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 	next := siteurl.PathOr(r.URL.Query().Get("next"), "/account")
-	respond.Component(w, r, h.log, http.StatusOK, pages.CartRecovery(
-		pages.CartRecoveryMeta(r.Context()), pages.CartRecoveryView{
+	respond.Component(w, r, h.log, http.StatusOK, CartRecovery(
+		CartRecoveryMeta(r.Context()), CartRecoveryView{
 			Next:    next,
 			Welcome: r.URL.Query().Get("welcome") == "1",
 			Notice:  i18n.T(r.Context(), i18n.KeyCartMergeFailed),
 			Retry:   i18n.T(r.Context(), i18n.KeyCartMergeRetry),
-			Contents: pages.CartRecoveryContents{
-				BeforeSignIn: recoveryLines(beforeSignIn),
-				Account:      recoveryLines(account),
+			Contents: CartRecoveryContents{
+				BeforeSignIn: beforeSignIn,
+				Account:      account,
 			},
 		}))
-}
-
-// recoveryLines places a cart's items on the recovery page, which lists what
-// each line is and how many, not what it costs.
-func recoveryLines(items []cartitem.Item) []pages.CartLine {
-	lines := make([]pages.CartLine, 0, len(items))
-	for _, it := range items {
-		lines = append(lines, pages.CartLine{
-			Name:        it.Name,
-			Label:       it.Label,
-			Quantity:    it.Quantity,
-			ImageURL:    it.ImageURL,
-			ImageSrcset: it.ImageSrcset,
-			ImageAlt:    it.ImageAlt,
-		})
-	}
-	return lines
 }
 
 func (h *Handler) RetryCartAdoption(w http.ResponseWriter, r *http.Request) {

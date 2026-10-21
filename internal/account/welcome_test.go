@@ -8,7 +8,7 @@ import (
 	"github.com/koopa0/goen/internal/i18n"
 )
 
-// From internal/ui/pages/account_register_test.go: the account page's half of
+// The account page's half of internal/auth's
 // TestRegistrationWelcomeKeepsTheOriginalActionAndCartRecovery, which keeps the
 // cart recovery page's.
 func TestAccountWelcomeKeepsTheOriginalAction(t *testing.T) {

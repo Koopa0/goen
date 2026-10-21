@@ -16,7 +16,7 @@ import (
 const minTemplates = 80
 
 // templSources is every hand-written template under internal/, keyed by its
-// path from the repository root ("internal/ui/pages/account.templ"). The key is
+// path from the repository root ("internal/auth/cart_recovery_page.templ"). The key is
 // the whole path, never a directory's base name: two packages each hold an
 // admin.templ, and a base-name map would silently drop one. The generated
 // *_templ.go files end in .go, so they are not part of the walk.
