@@ -12,7 +12,7 @@ import (
 	"github.com/koopa0/goen/internal/shoptime"
 	"github.com/koopa0/goen/internal/ui/chart"
 	"github.com/koopa0/goen/internal/ui/layouts"
-	"github.com/koopa0/goen/internal/ui/pages/admin"
+	"github.com/koopa0/goen/internal/ui/stockrisk"
 )
 
 func TestAnEmptySalesWindowStillListsStockAtRisk(t *testing.T) {
@@ -22,7 +22,7 @@ func TestAnEmptySalesWindowStillListsStockAtRisk(t *testing.T) {
 	html := renderToString(t, Report(layouts.Page{Title: "報表"}, &ReportView{
 		Days:    30,
 		Windows: []int32{7, 30, 90},
-		AtRisk:  []admin.StockRisk{{Risk: inventory.Risk{SKU: "RISK-SKU-1", Name: "Shrinking SKU", Slug: "shrinking-sku", Sales: inventory.Sales{Sellable: 2, Sold: 8, Orders: 3}}}},
+		AtRisk:  []stockrisk.Row{{Risk: inventory.Risk{SKU: "RISK-SKU-1", Name: "Shrinking SKU", Slug: "shrinking-sku", Sales: inventory.Sales{Sellable: 2, Sold: 8, Orders: 3}}}},
 	}))
 
 	empty := i18n.T(ctx, i18n.KeyAdminRepEmpty)

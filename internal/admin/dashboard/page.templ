@@ -8,7 +8,7 @@ import (
 	"github.com/koopa0/goen/internal/inventory"
 	"github.com/koopa0/goen/internal/ui/components"
 	"github.com/koopa0/goen/internal/ui/layouts"
-	"github.com/koopa0/goen/internal/ui/pages/admin"
+	"github.com/koopa0/goen/internal/ui/stockrisk"
 )
 
 // Every figure and every task is a link: a count on its own says there is work and not where it is.
@@ -107,7 +107,7 @@ templ Dashboard(p layouts.Page, v DashboardView) {
 				}
 			} else {
 				<p class="goen-admin__hint">{ fmt.Sprintf(i18n.T(ctx, i18n.KeyAdminQueueRunwayLegend), inventory.CoverWindowDays, inventory.CoverWarnDays) }</p>
-				@admin.StockRiskRows(v.Runway, 0, inventory.CoverWindowDays)
+				@stockrisk.Rows(v.Runway, 0, inventory.CoverWindowDays)
 			}
 			<p class="goen-admin__hint">
 				if v.RunwayCut {

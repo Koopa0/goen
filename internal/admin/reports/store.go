@@ -16,7 +16,7 @@ import (
 	"github.com/koopa0/goen/internal/sales"
 	"github.com/koopa0/goen/internal/shoptime"
 	"github.com/koopa0/goen/internal/ui/chart"
-	"github.com/koopa0/goen/internal/ui/pages/admin"
+	"github.com/koopa0/goen/internal/ui/stockrisk"
 )
 
 // Cover ranks the SKUs by days cover over the last shop days, for the report's
@@ -73,7 +73,7 @@ func (s *Store) ReportAt(ctx context.Context, days int32, now time.Time) (Report
 	if err != nil {
 		return ReportView{}, err
 	}
-	view.AtRisk, view.MoreSoldOut = admin.StockRisks(atRisk, now), moreSoldOut
+	view.AtRisk, view.MoreSoldOut = stockrisk.NewRows(atRisk, now), moreSoldOut
 	current, _ := periods(now, int(window(days)))
 	view.Returned, view.ReturnedErr = readReturnedProducts(ctx, tx, current)
 	// The daily charts are figures of the page: failing to read them must not take

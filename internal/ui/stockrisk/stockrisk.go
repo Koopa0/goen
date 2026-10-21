@@ -1,4 +1,7 @@
-package admin
+// Package stockrisk is the list of SKUs ranked by how soon they run out, as
+// three desks show it; it holds Row, NewRows, DaysCover, Rows and Section; it
+// does not hold the estimate itself (inventory).
+package stockrisk
 
 import (
 	"context"
@@ -13,8 +16,8 @@ import (
 	"github.com/koopa0/goen/internal/ui/chart"
 )
 
-// StockRisk is one SKU's row as the back office shows it.
-type StockRisk struct {
+// Row is one SKU's row as the back office shows it.
+type Row struct {
 	inventory.Risk
 
 	// ReadAt is when the row was read: it decides whether a day is told with
@@ -22,11 +25,11 @@ type StockRisk struct {
 	ReadAt time.Time
 }
 
-// StockRisks wraps ranked rows read at readAt for display.
-func StockRisks(rows []inventory.Risk, readAt time.Time) []StockRisk {
-	out := make([]StockRisk, 0, len(rows))
+// NewRows wraps ranked rows read at readAt for display.
+func NewRows(rows []inventory.Risk, readAt time.Time) []Row {
+	out := make([]Row, 0, len(rows))
 	for i := range rows {
-		out = append(out, StockRisk{Risk: rows[i], ReadAt: readAt})
+		out = append(out, Row{Risk: rows[i], ReadAt: readAt})
 	}
 	return out
 }
@@ -35,7 +38,7 @@ func StockRisks(rows []inventory.Risk, readAt time.Time) []StockRisk {
 type DaysCover struct{ inventory.Cover }
 
 // Estimate reads the SKU's days cover.
-func (r StockRisk) Estimate() DaysCover {
+func (r Row) Estimate() DaysCover {
 	return DaysCover{r.Sales.Estimate()}
 }
 
@@ -87,11 +90,11 @@ func (c DaysCover) Warning(ctx context.Context) string {
 	return i18n.Count(ctx, i18n.KeyAdminRepMayRun, inventory.CoverWarnDays, inventory.CoverWarnDays)
 }
 
-func (r StockRisk) SellableText() string { return strconv.FormatInt(int64(r.Sellable), 10) }
+func (r Row) SellableText() string { return strconv.FormatInt(int64(r.Sellable), 10) }
 
 // Facts is the line under the name: the SKU, what can be sold and what was. A
 // sold out SKU has only its code: the badge and the day say the rest.
-func (r StockRisk) Facts(ctx context.Context, days int) string {
+func (r Row) Facts(ctx context.Context, days int) string {
 	if r.Sellable <= 0 {
 		return r.SKU
 	}
@@ -103,7 +106,7 @@ func (r StockRisk) Facts(ctx context.Context, days int) string {
 }
 
 // SoldOutSince is the day it ran out, empty when it was out before the window.
-func (r StockRisk) SoldOutSince(ctx context.Context) string {
+func (r Row) SoldOutSince(ctx context.Context) string {
 	if r.SoldOutAt.IsZero() {
 		return ""
 	}
@@ -116,10 +119,10 @@ func (r StockRisk) SoldOutSince(ctx context.Context) string {
 }
 
 // SoldText says what was sold over the window, in units and in orders.
-func (r StockRisk) SoldText(ctx context.Context, days int) string {
+func (r Row) SoldText(ctx context.Context, days int) string {
 	return fmt.Sprintf(i18n.T(ctx, i18n.KeyAdminRepSold), days,
 		i18n.Count(ctx, i18n.KeyAdminRepUnitCount, r.Sold, r.Sold),
 		i18n.Count(ctx, i18n.KeyAdminRepOrderCount, r.Orders, r.Orders))
 }
 
-func (r StockRisk) Href() string { return "/admin/products/" + r.Slug }
+func (r Row) Href() string { return "/admin/products/" + r.Slug }

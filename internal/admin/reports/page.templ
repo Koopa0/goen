@@ -7,7 +7,7 @@ import (
 	"github.com/koopa0/goen/internal/ui/chart"
 	"github.com/koopa0/goen/internal/ui/components"
 	"github.com/koopa0/goen/internal/ui/layouts"
-	"github.com/koopa0/goen/internal/ui/pages/admin"
+	"github.com/koopa0/goen/internal/ui/stockrisk"
 )
 
 // The lists are not tables: each cell carries its own label ("%s units", "%s left")
@@ -135,6 +135,6 @@ templ Report(p layouts.Page, v *ReportView) {
 			}
 		}
 		@returnedProducts(v)
-		@admin.StockRiskSection(v.AtRisk, v.MoreSoldOut, v.StockDays)
+		@stockrisk.Section(v.AtRisk, v.MoreSoldOut, v.StockDays)
 	}
 }

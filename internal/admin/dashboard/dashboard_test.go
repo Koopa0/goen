@@ -13,7 +13,7 @@ import (
 	"github.com/koopa0/goen/internal/sales"
 	"github.com/koopa0/goen/internal/ui/chart"
 	"github.com/koopa0/goen/internal/ui/components"
-	"github.com/koopa0/goen/internal/ui/pages/admin"
+	"github.com/koopa0/goen/internal/ui/stockrisk"
 )
 
 // TestTheDashboardOpensEveryOrderItLists holds the landing page's reason for
@@ -320,7 +320,7 @@ func TestTheDashboardShowsTheDaysCoverInPlaceOfTheLowStockList(t *testing.T) {
 
 		t.Run(string(loc)+" rows of SKUs that are not sold out", func(t *testing.T) {
 			t.Parallel()
-			rows := []admin.StockRisk{
+			rows := []stockrisk.Row{
 				{Risk: inventory.Risk{SKU: "FEW-1", Name: "Rare", Slug: "rare", Sales: inventory.Sales{Sellable: 4, Sold: 6, Orders: 3, InStock: stockedAllWindow}}},
 				{Risk: inventory.Risk{SKU: "EST-1", Name: "Going", Slug: "going", Sales: inventory.Sales{Sellable: 20, Sold: 60, Orders: 30, InStock: stockedAllWindow}}},
 			}
@@ -347,7 +347,7 @@ func TestTheDashboardShowsTheDaysCoverInPlaceOfTheLowStockList(t *testing.T) {
 			unknown := i18n.T(ctx, i18n.KeyAdminQueueRunwayUnknown)
 			noStock := i18n.Count(ctx, i18n.KeyAdminQueueRunwayNoStock, inventory.CoverWindowDays, inventory.CoverWindowDays)
 			all := i18n.T(ctx, i18n.KeyAdminQueueRunwayAll)
-			going := []admin.StockRisk{{Risk: inventory.Risk{SKU: "EST-1", Name: "Going", Slug: "going", Sales: inventory.Sales{Sellable: 9, Sold: 60, Orders: 30, InStock: stockedAllWindow}}}}
+			going := []stockrisk.Row{{Risk: inventory.Risk{SKU: "EST-1", Name: "Going", Slug: "going", Sales: inventory.Sales{Sellable: 9, Sold: 60, Orders: 30, InStock: stockedAllWindow}}}}
 
 			for _, tc := range []struct {
 				name string
@@ -391,26 +391,26 @@ func TestDashboardRunwayKeepsOnlyRowsRunningOutWithinTheLine(t *testing.T) {
 	t.Parallel()
 
 	// 9 sellable at 30 units over 30 days is 9 days; 45 sellable is 45 days.
-	runningOut := func(n int) (rows []admin.StockRisk) {
+	runningOut := func(n int) (rows []stockrisk.Row) {
 		for i := range n {
-			rows = append(rows, admin.StockRisk{Risk: inventory.Risk{SKU: fmt.Sprintf("RUN-%d", i), Sales: inventory.Sales{Sellable: 9, Sold: 30, Orders: 20, InStock: stockedAllWindow}}})
+			rows = append(rows, stockrisk.Row{Risk: inventory.Risk{SKU: fmt.Sprintf("RUN-%d", i), Sales: inventory.Sales{Sellable: 9, Sold: 30, Orders: 20, InStock: stockedAllWindow}}})
 		}
 		return rows
 	}
-	later := func(n int) (rows []admin.StockRisk) {
+	later := func(n int) (rows []stockrisk.Row) {
 		for i := range n {
-			rows = append(rows, admin.StockRisk{Risk: inventory.Risk{SKU: fmt.Sprintf("LATER-%d", i), Sales: inventory.Sales{Sellable: 45, Sold: 30, Orders: 20, InStock: stockedAllWindow}}})
+			rows = append(rows, stockrisk.Row{Risk: inventory.Risk{SKU: fmt.Sprintf("LATER-%d", i), Sales: inventory.Sales{Sellable: 45, Sold: 30, Orders: 20, InStock: stockedAllWindow}}})
 		}
 		return rows
 	}
-	soldOut := func(n int) (rows []admin.StockRisk) {
+	soldOut := func(n int) (rows []stockrisk.Row) {
 		for i := range n {
-			rows = append(rows, admin.StockRisk{Risk: inventory.Risk{SKU: fmt.Sprintf("OUT-%d", i)}})
+			rows = append(rows, stockrisk.Row{Risk: inventory.Risk{SKU: fmt.Sprintf("OUT-%d", i)}})
 		}
 		return rows
 	}
-	fewOrders := []admin.StockRisk{{Risk: inventory.Risk{SKU: "FEW-0", Sales: inventory.Sales{Sellable: 4, Sold: 6, Orders: 3, InStock: stockedAllWindow}}}}
-	skus := func(rows []admin.StockRisk) (out []string) {
+	fewOrders := []stockrisk.Row{{Risk: inventory.Risk{SKU: "FEW-0", Sales: inventory.Sales{Sellable: 4, Sold: 6, Orders: 3, InStock: stockedAllWindow}}}}
+	skus := func(rows []stockrisk.Row) (out []string) {
 		for _, r := range rows {
 			out = append(out, r.SKU)
 		}
@@ -419,7 +419,7 @@ func TestDashboardRunwayKeepsOnlyRowsRunningOutWithinTheLine(t *testing.T) {
 
 	for _, tc := range []struct {
 		name    string
-		listed  []admin.StockRisk
+		listed  []stockrisk.Row
 		want    []string
 		wantCut bool
 		// wantBasis is what an empty list can say.

@@ -17,7 +17,7 @@ import (
 	"github.com/koopa0/goen/internal/inventory"
 	"github.com/koopa0/goen/internal/shoptime"
 	"github.com/koopa0/goen/internal/ui/chart"
-	"github.com/koopa0/goen/internal/ui/pages/admin"
+	"github.com/koopa0/goen/internal/ui/stockrisk"
 )
 
 func TestRevenueCountsOnlyCommittedOrders(t *testing.T) {
@@ -591,10 +591,10 @@ func indexOf(view *reports.ReportView, sku string) (int, bool) {
 	return 0, false
 }
 
-func stockRow(view *reports.ReportView, sku string) (admin.StockRisk, bool) {
+func stockRow(view *reports.ReportView, sku string) (stockrisk.Row, bool) {
 	i, ok := indexOf(view, sku)
 	if !ok {
-		return admin.StockRisk{}, false
+		return stockrisk.Row{}, false
 	}
 	return view.AtRisk[i], true
 }

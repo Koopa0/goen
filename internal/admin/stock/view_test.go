@@ -15,7 +15,7 @@ import (
 	"github.com/koopa0/goen/internal/inventory"
 	"github.com/koopa0/goen/internal/keyset"
 	"github.com/koopa0/goen/internal/ui/layouts"
-	"github.com/koopa0/goen/internal/ui/pages/admin"
+	"github.com/koopa0/goen/internal/ui/stockrisk"
 )
 
 // The tests in this file are the stock halves of cross-feature tests that
@@ -45,7 +45,7 @@ func TestStockDeskListsDaysCoverAboveTheSearch(t *testing.T) {
 
 	for _, loc := range []i18n.Locale{i18n.ZhHant, i18n.En} {
 		ctx := i18n.WithLocale(t.Context(), loc)
-		rows := []admin.StockRisk{{Risk: inventory.Risk{SKU: "OUT-1", Name: "Gone", Slug: "gone"}},
+		rows := []stockrisk.Row{{Risk: inventory.Risk{SKU: "OUT-1", Name: "Gone", Slug: "gone"}},
 			{Risk: inventory.Risk{SKU: "EST-1", Name: "Going", Slug: "going", Sales: inventory.Sales{Sellable: 20, Sold: 60, Orders: 30, InStock: stockedAllWindow}}},
 		}
 		html := renderComponent(t, ctx, Variants(layouts.Page{}, VariantsView{ShowCover: true, AtRisk: rows, MoreSoldOut: 3}))
@@ -96,8 +96,8 @@ func TestStockDeskDrawsTheSharedDaysCoverSection(t *testing.T) {
 	t.Parallel()
 
 	ctx := i18n.WithLocale(t.Context(), i18n.En)
-	rows := []admin.StockRisk{{Risk: inventory.Risk{SKU: "OUT-1", Name: "Gone", Slug: "gone"}}}
-	section := renderComponent(t, ctx, admin.StockRiskSection(rows, 0, inventory.CoverWindowDays))
+	rows := []stockrisk.Row{{Risk: inventory.Risk{SKU: "OUT-1", Name: "Gone", Slug: "gone"}}}
+	section := renderComponent(t, ctx, stockrisk.Section(rows, 0, inventory.CoverWindowDays))
 	for name, page := range map[string]string{
 		"stock desk": renderComponent(t, ctx, Variants(layouts.Page{}, VariantsView{ShowCover: true, AtRisk: rows})),
 	} {
