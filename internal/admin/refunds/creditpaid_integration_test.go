@@ -25,7 +25,7 @@ import (
 	"github.com/koopa0/goen/internal/money"
 	"github.com/koopa0/goen/internal/outbox"
 	"github.com/koopa0/goen/internal/refund"
-	"github.com/koopa0/goen/internal/web"
+	"github.com/koopa0/goen/internal/requestid"
 )
 
 // creditPaidEffects is what cancelling a pending order store credit paid
@@ -145,17 +145,17 @@ func TestRefundBeforeShipmentCancelsACreditPaidPendingOrder(t *testing.T) {
 			t.Errorf("%s: holds held/released = %d/%d, stock %d -> %d; want the hold released once",
 				when, e.held, e.released, stockHeld, stock)
 		}
-		if e.voidsDue != 1 || e.voidTrigger != web.RequestID(ctx) {
+		if e.voidsDue != 1 || e.voidTrigger != requestid.From(ctx) {
 			t.Errorf("%s: %d invoice voids due with trigger %q, want one with the request id %q",
-				when, e.voidsDue, e.voidTrigger, web.RequestID(ctx))
+				when, e.voidsDue, e.voidTrigger, requestid.From(ctx))
 		}
 		if e.cancelledEvents != 1 || e.staffEvents != 1 || e.notedEvents != 0 {
 			t.Errorf("%s: cancelled events %d (%d by the staff member, %d with a note), want one by them with no note the customer reads",
 				when, e.cancelledEvents, e.staffEvents, e.notedEvents)
 		}
-		if e.audits != 1 || e.auditNote != "顧客來電取消" || e.auditRequest != web.RequestID(ctx) {
+		if e.audits != 1 || e.auditNote != "顧客來電取消" || e.auditRequest != requestid.From(ctx) {
 			t.Errorf("%s: %d audit rows noting %q under request %q, want one with the note under %q",
-				when, e.audits, e.auditNote, e.auditRequest, web.RequestID(ctx))
+				when, e.audits, e.auditNote, e.auditRequest, requestid.From(ctx))
 		}
 		if e.terminalNotices != 1 || e.returnRequests != 0 {
 			t.Errorf("%s: terminal notices %d, return requests %d; want 1 and none", when, e.terminalNotices, e.returnRequests)

@@ -25,8 +25,8 @@ import (
 	"github.com/koopa0/goen/internal/admin/products"
 	"github.com/koopa0/goen/internal/admin/products/productstest"
 	"github.com/koopa0/goen/internal/product"
+	"github.com/koopa0/goen/internal/requestid"
 	"github.com/koopa0/goen/internal/user"
-	"github.com/koopa0/goen/internal/web"
 )
 
 func TestProductReadsDistinguishAbsenceFromInfrastructure(t *testing.T) {
@@ -102,6 +102,29 @@ func TestProductReadsDistinguishAbsenceFromInfrastructure(t *testing.T) {
 	timedHandler.AddVariant(badVariantRes, badVariantReq)
 	if badVariantRes.Code != http.StatusInternalServerError {
 		t.Fatalf("timed-out rejected-form rebuild answered %d, want 500", badVariantRes.Code)
+	}
+}
+
+// A details form that is refused, and a new variant that is valid, posted to a
+// slug with no product, answer 404 like the editor page and the other routes.
+func TestProductFormsPostedToAMissingProductAnswerNotFound(t *testing.T) {
+	ctx, _ := admintest.StaffContext(t, pool)
+	h := productstest.NewHandler(pool, products.NewStore(pool))
+	missing := "no-such-product-" + uuid.NewString()
+
+	details := httptest.NewRequestWithContext(ctx, http.MethodPost, "/admin/products/"+missing,
+		strings.NewReader("name=x"))
+	details.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+	details.SetPathValue("slug", missing)
+	detailsRes := httptest.NewRecorder()
+	h.Update(detailsRes, details)
+	if detailsRes.Code != http.StatusNotFound {
+		t.Errorf("refused details form for a missing product answered %d, want 404", detailsRes.Code)
+	}
+
+	variantRes := productstest.PostVariantForm(t, h, ctx, missing, url.Values{"sku": {"X"}, "price": {"1"}})
+	if variantRes.Code != http.StatusNotFound {
+		t.Errorf("new variant for a missing product answered %d, want 404", variantRes.Code)
 	}
 }
 
@@ -226,7 +249,7 @@ func TestProductUpdateAndAuditCommitTogether(t *testing.T) {
 	// transaction, so observing the old name proves the audit failure rolled it
 	// back instead of leaving an unattributed customer-visible change.
 	missingActor := uuid.New()
-	failingCtx := web.WithRequestID(user.NewContext(t.Context(), user.User{
+	failingCtx := requestid.With(user.NewContext(t.Context(), user.User{
 		ID: missingActor.String(), Role: user.RoleAdmin,
 	}), "req-missing-actor")
 	failing := *form

@@ -14,8 +14,8 @@ import (
 
 	"github.com/koopa0/goen/internal/admin/admintest"
 	"github.com/koopa0/goen/internal/admin/orders"
+	"github.com/koopa0/goen/internal/requestid"
 	"github.com/koopa0/goen/internal/user"
-	"github.com/koopa0/goen/internal/web"
 )
 
 func terminalNotice(t *testing.T, id uuid.UUID, want outbox.TerminalKind) {
@@ -68,7 +68,7 @@ func TestTerminalArrivalIsNotRequeuedAfterCompletionOrOutboxRetention(t *testing
 
 func TestFailedAdvanceRollsBackItsTerminalNotice(t *testing.T) {
 	number, id, _ := admintest.PendingOrderHoldingStock(t, pool)
-	ctx := web.WithRequestID(user.NewContext(t.Context(), user.User{ID: uuid.NewString(), Role: user.RoleAdmin}), "missing-audit-actor")
+	ctx := requestid.With(user.NewContext(t.Context(), user.User{ID: uuid.NewString(), Role: user.RoleAdmin}), "missing-audit-actor")
 	if _, err := admintest.OrderStore(pool, admintest.Refunder{}, nil, nil).Advance(ctx, number, "cancelled", uuid.NullUUID{}); err == nil {
 		t.Fatal("advance accepted missing audit actor")
 	}

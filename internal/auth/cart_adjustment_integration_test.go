@@ -20,6 +20,7 @@ import (
 	"github.com/koopa0/goen/internal/auth/google"
 	"github.com/koopa0/goen/internal/bearer"
 	"github.com/koopa0/goen/internal/cart"
+	"github.com/koopa0/goen/internal/checkout"
 	"github.com/koopa0/goen/internal/i18n"
 	"github.com/koopa0/goen/internal/order/access"
 	"github.com/koopa0/goen/internal/order/delivery"
@@ -72,7 +73,7 @@ func TestCartAdjustmentSurvivesAuthenticationAndCheckout(t *testing.T) {
 						t.Fatal(err)
 					}
 					log := slog.New(slog.DiscardHandler)
-					carts := cart.NewHandler(cart.NewStore(appPool), access.NewStore(appPool, false), log, false, nil, nil)
+					carts := cart.NewHandler(cart.NewStore(appPool), access.NewStore(appPool, false), log, false, nil)
 					googleSignIn, googleErr := google.New("client-id", "client-secret", "https://goen.example")
 					if googleErr != nil {
 						t.Fatal(googleErr)
@@ -186,7 +187,7 @@ func TestCartAdjustmentSurvivesAuthenticationAndCheckout(t *testing.T) {
 					}
 					owner := uuid.NullUUID{UUID: uid, Valid: true}
 					address := &delivery.Details{Email: email, RecipientName: "Fixture", Phone: "0912345678", PostalCode: "110", City: "Taipei", District: "Xinyi", Street: "1 Test Road"}
-					store := cart.NewStore(appPool)
+					store := checkout.NewStore(appPool)
 					quote := accountCheckoutQuote(t, store, accountCart, owner, shippingID, address.PostalCode)
 					number, err := store.PlaceOrder(ctx, accountCart, owner, shippingID, address, nil, "", quote, checkoutAttemptKey(suffix))
 					if err != nil {

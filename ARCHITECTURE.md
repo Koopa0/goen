@@ -262,8 +262,8 @@ CI runs formatting, vet, lint, dead-code and generated-code checks, migration li
 
 | Area | Entry points |
 | --- | --- |
-| Composition and lifecycle | [`cmd/goen`][main], [routes][server], [middleware][middleware], [`internal/compress`][compress], [provider posture][provider-posture] |
-| Checkout, reservations, order access | [`internal/cart`][checkout], [`internal/coupon`][coupon], [`internal/shipping/storemap`][storemap], [`internal/order/lapse`][lapse], [`internal/order/access`][orderaccess] |
+| Composition and lifecycle | [`cmd/goen`][main], [routes][server], [middleware][middleware], [`internal/compress`][compress], [`internal/requestid`][requestid], [provider posture][provider-posture] |
+| Cart, checkout, reservations, order access | [`internal/cart`][cart], [`internal/checkout`][checkout], [`internal/coupon`][coupon], [`internal/shipping/storemap`][storemap], [`internal/order/lapse`][lapse], [`internal/order/access`][orderaccess] |
 | Payments and recovery | [`internal/payment`][payment-store], [Stripe adapter][stripe], [`internal/admin/health`][health] |
 | Fulfillment, returns, refunds | [`internal/order`][order], [`internal/admin/orders`][orders], [`internal/admin/dashboard`][dashboard], [`internal/returns`][returns-rules], [`internal/admin/returns`][returns], [`internal/admin/refunds`][refund-payout] |
 | Invoices and deferred delivery | [`internal/invoice/issuer`][invoice-store], [`internal/admin/orders`][orders], [`internal/outbox`][outbox], [`internal/letter`][letter] |
@@ -271,7 +271,7 @@ CI runs formatting, vet, lint, dead-code and generated-code checks, migration li
 | Browsing and derived data | [`internal/catalog`][catalog-store], [`internal/campaign`][campaign], [`internal/backinstock`][backinstock], [`internal/home`][home-store], [`internal/copurchase`][copurchase], [reports][reports] |
 | Language, money, time | [`internal/i18n`][i18n], [`internal/money`][money], [`internal/shoptime`][shoptime] |
 | Assets and media | [`assets`][assets], [`internal/media`][media-render] |
-| Identity and browser security | [`internal/auth`][auth], [`internal/auth/google`][google-signin], [`internal/bearer`][bearer], [staff access][access], [`internal/admin/twofactor`][twofactor], [`internal/ratelimit`][ratelimit] |
+| Identity and browser security | [`internal/auth`][auth], [`internal/auth/google`][google-signin], [`internal/bearer`][bearer], [staff access][access], [`internal/admin/twofactor`][twofactor], [`internal/ratelimit`][ratelimit], [`internal/clientip`][clientip] |
 | Operations | [Health queries][health-sql], [probes][probe], [slow-query tracer][slowquery], [Makefile][makefile], [CI][workflows] |
 
 [contributing]: CONTRIBUTING.md
@@ -281,9 +281,11 @@ CI runs formatting, vet, lint, dead-code and generated-code checks, migration li
 [server]: cmd/goen/server.go
 [middleware]: cmd/goen/middleware.go
 [compress]: internal/compress/compress.go
+[requestid]: internal/requestid/requestid.go
 [provider-posture]: cmd/goen/provider_posture.go
 [slowquery]: cmd/goen/slowquery.go
-[checkout]: internal/cart/store.go
+[cart]: internal/cart/store.go
+[checkout]: internal/checkout/store.go
 [coupon]: internal/coupon/coupon.go
 [storemap]: internal/shipping/storemap/storemap.go
 [lapse]: internal/order/lapse/sweeper.go
@@ -317,6 +319,7 @@ CI runs formatting, vet, lint, dead-code and generated-code checks, migration li
 [access]: internal/admin/access/access.go
 [twofactor]: internal/admin/twofactor
 [ratelimit]: internal/ratelimit
+[clientip]: internal/clientip/clientip.go
 [i18n]: internal/i18n
 [money]: internal/money
 [shoptime]: internal/shoptime

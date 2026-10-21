@@ -12,7 +12,7 @@ import (
 	"github.com/koopa0/goen/assets"
 	"github.com/koopa0/goen/internal/db"
 	"github.com/koopa0/goen/internal/i18n"
-	invoicepkg "github.com/koopa0/goen/internal/invoice"
+	"github.com/koopa0/goen/internal/invoice"
 	"github.com/koopa0/goen/internal/order"
 	"github.com/koopa0/goen/internal/shipping"
 	"github.com/koopa0/goen/internal/shoptime"
@@ -217,14 +217,14 @@ func (s *Store) orderInvoice(ctx context.Context, orderID uuid.UUID) (*OrderInvo
 		return nil, fmt.Errorf("read order invoice preference: %w", err)
 	}
 	out := &OrderInvoice{
-		Type: invoicepkg.Preference(pref.InvoiceType), MobileBarcode: pref.CarrierCode,
+		Type: invoice.Preference(pref.InvoiceType), MobileBarcode: pref.CarrierCode,
 		DonationCode: pref.DonationCode, TaxID: pref.TaxID,
 	}
 	for i := range docs {
 		d := &docs[i]
 		out.Documents = append(out.Documents, OrderInvoiceDocument{
-			Allowance: invoicepkg.DocumentKind(d.Kind) == invoicepkg.DocumentAllowance, Number: d.Number, RandomCode: d.ProviderRef,
-			AmountCents: d.AmountCents, Voided: invoicepkg.DocumentStatus(d.Status) == invoicepkg.DocumentVoided,
+			Allowance: invoice.DocumentKind(d.Kind) == invoice.DocumentAllowance, Number: d.Number, RandomCode: d.ProviderRef,
+			AmountCents: d.AmountCents, Voided: invoice.DocumentStatus(d.Status) == invoice.DocumentVoided,
 			IssuedOn: shoptime.Day(d.IssuedAt),
 		})
 	}

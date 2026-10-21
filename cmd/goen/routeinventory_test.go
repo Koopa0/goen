@@ -17,7 +17,8 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 
 	"github.com/koopa0/goen/assets"
-	"github.com/koopa0/goen/internal/cart"
+	"github.com/koopa0/goen/internal/admin/access/accesstest"
+	"github.com/koopa0/goen/internal/checkout"
 	"github.com/koopa0/goen/internal/payment"
 	"github.com/koopa0/goen/internal/shipping/storemap"
 )
@@ -27,43 +28,54 @@ import (
 // a constant added to a pattern must be added here, and storefrontPatterns
 // says so when it meets one it cannot resolve.
 var routeConstants = map[string]string{
-	"assets.Prefix":          assets.Prefix,
-	"storemap.ReturnPath":    storemap.ReturnPath,
-	"cart.PickupStartAction": cart.PickupStartAction,
-	"cart.PickupMapPath":     cart.PickupMapPath,
+	"assets.Prefix":              assets.Prefix,
+	"storemap.ReturnPath":        storemap.ReturnPath,
+	"checkout.PickupStartAction": checkout.PickupStartAction,
+	"checkout.PickupMapPath":     checkout.PickupMapPath,
 }
 
-// routeInventoryFloor is the fewest non-test files storefrontPatterns must have
-// parsed. On the tree this was written against the walk reads 409 files, so a
+// routeInventoryFloor is the fewest non-test files the route walk must have
+// parsed. On the tree this was written against the walk reads 607 files, so a
 // walk that quietly reads none (a wrong root, a skip rule that swallowed a
 // directory) fails instead of reporting an empty route table.
-const routeInventoryFloor = 380
+const routeInventoryFloor = 540
 
 // storefrontPatterns returns, sorted, every route pattern the production code
 // registers outside the back office, read from the source because
-// [http.ServeMux] cannot list its patterns.
+// [http.ServeMux] cannot list its patterns. backOfficePatterns returns the
+// ones whose path begins with /admin; both come from one walk.
 //
 // It parses, without resolving objects, every non-test .go file under the
-// repository's cmd/goen and internal directories. It skips internal/admin,
-// which accesstest owns, directories whose name starts with "." or "_", and
-// testdata. Test files are out of scope on purpose: a test that registers a
-// route on a mux of its own is not production routing, and counting it would
-// put a route in the inventory that no visitor can reach. A registration the
-// walk finds only in a test file is therefore not reported, and a guard built
-// on this list says nothing about test helpers.
+// repository's cmd/goen and internal directories, skipping directories whose
+// name starts with "." or "_", and testdata. Test files are out of scope on
+// purpose: a test that registers a route on a mux of its own is not production
+// routing, and counting it would put a route in the inventory that no visitor
+// can reach. A registration the walk finds only in a test file is therefore not
+// reported, and a guard built on this list says nothing about test helpers.
 //
 // A registration is a call of HandleFunc or Handle whose first argument is a
 // string literal "<METHOD> /…", or such a literal plus a constant that
 // routeConstants resolves ("GET "+assets.Prefix, or "POST "+PickupStartAction
-// inside cart). Any other first argument is
+// inside checkout). Any other first argument is
 // not a route, and the call is skipped: the outbox's Store.Handle names a topic.
-// A pattern whose path begins with /admin is a back-office route and is skipped.
 func storefrontPatterns(t *testing.T) []string {
+	t.Helper()
+	storefront, _ := routePatterns(t)
+	return storefront
+}
+
+// backOfficePatterns is the /admin half of the walk storefrontPatterns describes.
+func backOfficePatterns(t *testing.T) []string {
+	t.Helper()
+	_, backOffice := routePatterns(t)
+	return backOffice
+}
+
+func routePatterns(t *testing.T) (storefront, backOffice []string) {
 	t.Helper()
 
 	root := filepath.Join("..", "..")
 	fset := token.NewFileSet()
-	var patterns []string
 	parsed := 0
 
 	for _, top := range []string{"cmd/goen", "internal"} {
@@ -79,7 +91,7 @@ func storefrontPatterns(t *testing.T) []string {
 			rel = filepath.ToSlash(rel)
 			name := d.Name()
 			if d.IsDir() {
-				if rel == "internal/admin" || name == "testdata" ||
+				if name == "testdata" ||
 					(rel != top && (strings.HasPrefix(name, ".") || strings.HasPrefix(name, "_"))) {
 					return filepath.SkipDir
 				}
@@ -98,8 +110,12 @@ func storefrontPatterns(t *testing.T) []string {
 				if !ok || len(call.Args) == 0 {
 					return true
 				}
-				if pattern, ok := routePattern(t, fset, file.Name.Name, call); ok && !strings.HasPrefix(patternPath(pattern), "/admin") {
-					patterns = append(patterns, pattern)
+				if pattern, ok := routePattern(t, fset, file.Name.Name, call); ok {
+					if strings.HasPrefix(patternPath(pattern), "/admin") {
+						backOffice = append(backOffice, pattern)
+					} else {
+						storefront = append(storefront, pattern)
+					}
 				}
 				return true
 			})
@@ -113,14 +129,15 @@ func storefrontPatterns(t *testing.T) []string {
 	if parsed < routeInventoryFloor {
 		t.Fatalf("the walk parsed %d non-test files, want at least %d: it is reading the wrong tree", parsed, routeInventoryFloor)
 	}
-	slices.Sort(patterns)
-	return slices.Compact(patterns)
+	slices.Sort(storefront)
+	slices.Sort(backOffice)
+	return slices.Compact(storefront), slices.Compact(backOffice)
 }
 
 // routePattern returns the pattern a HandleFunc or Handle call in package pkg
 // registers, or false when the call is not a route registration. A constant
-// named without a qualifier is pkg's own, so cart's "POST "+PickupStartAction
-// resolves as cart.PickupStartAction does in any other package.
+// named without a qualifier is pkg's own, so checkout's "POST "+PickupStartAction
+// resolves as checkout.PickupStartAction does in any other package.
 func routePattern(t *testing.T, fset *token.FileSet, pkg string, call *ast.CallExpr) (string, bool) {
 	t.Helper()
 
@@ -220,7 +237,7 @@ func TestStorefrontPatternsAreReadFromTheSource(t *testing.T) {
 	}
 	for _, pattern := range patterns {
 		if strings.HasPrefix(patternPath(pattern), "/admin") {
-			t.Errorf("%q is a back-office route: accesstest owns those", pattern)
+			t.Errorf("%q is a back-office route: TestEveryBackOfficeRouteRefusesAnOutsider owns those", pattern)
 		}
 	}
 }
@@ -449,4 +466,24 @@ func TestEveryStorefrontRouteHasAnInventoryRow(t *testing.T) {
 	if walked := len(storefrontPatterns(t)); walked != len(storefrontInventory) {
 		t.Errorf("the walk found %d storefront patterns, the inventory has %d rows", walked, len(storefrontInventory))
 	}
+}
+
+// backOfficeRouteFloor is the fewest /admin patterns the walk must find; it
+// finds 114 on the tree this was written against. A walk that reads none of the
+// desks would otherwise ask the mux about no route and pass.
+const backOfficeRouteFloor = 100
+
+// TestEveryBackOfficeRouteRefusesAnOutsider asks production's own mux each
+// /admin route the source registers, signed out and as a customer, and wants
+// the guard's 404 page from both. A desk's own routes_test.go checks only the
+// routes it is given, so a route added to a desk without the staff wrapper, or
+// without a line in that list, is caught here.
+func TestEveryBackOfficeRouteRefusesAnOutsider(t *testing.T) {
+	t.Parallel()
+
+	routes := backOfficePatterns(t)
+	if len(routes) < backOfficeRouteFloor {
+		t.Fatalf("found %d back-office patterns, want at least %d: the walk reads too little", len(routes), backOfficeRouteFloor)
+	}
+	accesstest.RefuseOutsidersOn(t, idleInventoryMux(t), routes...)
 }

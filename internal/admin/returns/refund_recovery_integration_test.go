@@ -17,8 +17,8 @@ import (
 	"github.com/jackc/pgx/v5"
 
 	"github.com/koopa0/goen/internal/refund"
+	"github.com/koopa0/goen/internal/requestid"
 	"github.com/koopa0/goen/internal/user"
-	"github.com/koopa0/goen/internal/web"
 )
 
 func TestRefundRecoveryAttributesEveryProviderAttempt(t *testing.T) {
@@ -193,7 +193,7 @@ func TestRefundRecoveryRequiresActorAndRequestIDBeforeProviderCall(t *testing.T)
 			context: func(t *testing.T) context.Context {
 				t.Helper()
 				requestID := "refund-no-actor-" + uuid.NewString()[:8]
-				return web.WithRequestID(t.Context(), requestID)
+				return requestid.With(t.Context(), requestID)
 			},
 		},
 		{

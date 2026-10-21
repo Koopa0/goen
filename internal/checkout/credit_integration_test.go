@@ -1,0 +1,348 @@
+//go:build integration
+
+package checkout_test
+
+import (
+	"errors"
+	"testing"
+
+	"github.com/google/uuid"
+	"github.com/jackc/pgx/v5/pgconn"
+
+	"github.com/koopa0/goen/internal/checkout"
+	"github.com/koopa0/goen/internal/order/buyer"
+	"github.com/koopa0/goen/internal/order/delivery"
+)
+
+// TestCreditIsCappedAtWhatTheOrderOwesAfterTheDiscount. The cap is
+// `subtotal - discount + shipping`: leaving the discount out lets a coupon and a
+// balance spend more credit than the order is worth, which nothing refuses.
+func TestCreditIsCappedAtWhatTheOrderOwesAfterTheDiscount(t *testing.T) {
+	ctx := t.Context()
+	s := checkout.NewStore(pool)
+
+	if _, err := pool.Exec(ctx, `
+		INSERT INTO coupons (code, description, kind, amount_cents, min_subtotal_cents)
+		VALUES ('CREDITCAP', '測試折抵', 'amount', 30000, 0)`); err != nil {
+		t.Fatalf("create the coupon: %v", err)
+	}
+	userID := creditedCustomer(t, 10000000) // NT$100,000 — far above the order
+
+	id := newCart(t, s)
+	if err := s.Carts().Add(ctx, id, freshVariant(t, "creditcap"), 1); err != nil {
+		t.Fatalf("add: %v", err)
+	}
+	_, err := s.CouponByCode(ctx, "CREDITCAP")
+	if err != nil {
+		t.Fatalf("find the coupon: %v", err)
+	}
+
+	number, err := placeOrder(t, s, ctx, id, uuid.NullUUID{UUID: userID, Valid: true},
+		shipVersionFor(t, "home_delivery"), &delivery.Details{
+			Email: "creditcap@example.com", RecipientName: "王小明", Phone: "0912345678",
+			PostalCode: "110", City: "台北市", District: "信義區", Street: "松高路 1 號",
+		}, "CREDITCAP", "creditcap-"+uuid.NewString())
+	if err != nil {
+		t.Fatalf("place: %v", err)
+	}
+
+	var owed, debit int64
+	if err := pool.QueryRow(ctx, `
+		SELECT order_amount_after_credit(o.id),
+		       -coalesce((SELECT sum(e.amount_cents) FROM store_credit_entries e
+		                  WHERE e.order_id = o.id), 0)
+		FROM orders o WHERE o.order_number = $1`, number).Scan(&owed, &debit); err != nil {
+		t.Fatalf("read the order: %v", err)
+	}
+
+	if owed != 0 {
+		t.Errorf("order_amount_after_credit(%s) = %d, want 0. A negative figure means credit was "+
+			"spent against the GROSS total, which loses the customer the discount and "+
+			"leaves the order permanently unpayable", number, owed)
+	}
+	if debit <= 0 {
+		t.Errorf("credit debited %d on the order, want a positive spend", debit)
+	}
+}
+
+func TestCreditIsSpentInsideTheOrdersOwnTransaction(t *testing.T) {
+	ctx := t.Context()
+	s := checkout.NewStore(pool)
+	vid := variantOf(t, "koto-over-ear")
+	userID := creditedCustomer(t, 300000) // NT$3,000
+
+	var shipID uuid.UUID
+	if err := pool.QueryRow(ctx,
+		`SELECT id FROM shipping_method_versions ORDER BY effective_at LIMIT 1`).Scan(&shipID); err != nil {
+		t.Fatalf("shipping: %v", err)
+	}
+	addr := &delivery.Details{
+		Email: "c@example.com", RecipientName: "王小明", Phone: "0912345678",
+		PostalCode: "110", City: "台北市", District: "信義區", Street: "松高路 1 號",
+	}
+
+	id := newCart(t, s)
+	if err := s.Carts().Add(ctx, id, vid, 1); err != nil {
+		t.Fatalf("add: %v", err)
+	}
+	number, err := placeOrder(t, s, ctx, id,
+		uuid.NullUUID{UUID: userID, Valid: true}, shipID, addr, "", "credit-1")
+	if err != nil {
+		t.Fatalf("place: %v", err)
+	}
+
+	var spent int64
+	if err := pool.QueryRow(ctx, `
+		SELECT coalesce(sum(e.amount_cents), 0) FROM store_credit_entries e
+		JOIN orders o ON o.id = e.order_id
+		WHERE o.order_number = $1`, number).Scan(&spent); err != nil {
+		t.Fatalf("read spend: %v", err)
+	}
+	if spent != -300000 {
+		t.Errorf("credit spent is %d, want -300000 — the whole balance, since the "+
+			"order costs more than it", spent)
+	}
+
+	var balance int64
+	if err := pool.QueryRow(ctx, `
+		SELECT coalesce(sum(e.amount_cents), 0) FROM store_credit_entries e
+		JOIN store_credit_accounts a ON a.id = e.account_id
+		WHERE a.user_id = $1`, userID).Scan(&balance); err != nil {
+		t.Fatalf("read balance: %v", err)
+	}
+	if balance != 0 {
+		t.Errorf("balance is %d after spending it all, want 0", balance)
+	}
+}
+
+func TestCreditNeverExceedsWhatTheOrderOwes(t *testing.T) {
+	ctx := t.Context()
+	s := checkout.NewStore(pool)
+	vid := variantOf(t, "koto-over-ear")
+	userID := creditedCustomer(t, 100000000) // NT$1,000,000: far more than any order
+
+	var shipID uuid.UUID
+	if err := pool.QueryRow(ctx,
+		`SELECT id FROM shipping_method_versions ORDER BY effective_at LIMIT 1`).Scan(&shipID); err != nil {
+		t.Fatalf("shipping: %v", err)
+	}
+	addr := &delivery.Details{
+		Email: "c2@example.com", RecipientName: "王小明", Phone: "0912345678",
+		PostalCode: "110", City: "台北市", District: "信義區", Street: "松高路 1 號",
+	}
+
+	id := newCart(t, s)
+	if err := s.Carts().Add(ctx, id, vid, 1); err != nil {
+		t.Fatalf("add: %v", err)
+	}
+	number, err := placeOrder(t, s, ctx, id,
+		uuid.NullUUID{UUID: userID, Valid: true}, shipID, addr, "", "credit-2")
+	if err != nil {
+		t.Fatalf("place: %v", err)
+	}
+
+	var spent, total int64
+	if err := pool.QueryRow(ctx, `
+		SELECT coalesce(sum(e.amount_cents), 0),
+		       (SELECT coalesce(sum(ol.unit_price_cents * ol.quantity), 0) + o.shipping_cents
+		        FROM order_lines ol WHERE ol.order_id = o.id)
+		FROM orders o
+		LEFT JOIN store_credit_entries e ON e.order_id = o.id
+		WHERE o.order_number = $1
+		GROUP BY o.id, o.shipping_cents`, number).Scan(&spent, &total); err != nil {
+		t.Fatalf("read: %v", err)
+	}
+	if -spent != total {
+		t.Errorf("spent %d against an order owing %d; credit must be capped at the total",
+			-spent, total)
+	}
+
+	var orderID uuid.UUID
+	if err := pool.QueryRow(ctx,
+		`SELECT id FROM orders WHERE order_number = $1`, number).Scan(&orderID); err != nil {
+		t.Fatalf("find order: %v", err)
+	}
+	if _, err := pool.Exec(ctx,
+		`UPDATE orders SET fulfillment_status = 'picking' WHERE id = $1`, orderID); err != nil {
+		t.Fatalf("a fully-credited order could not enter fulfilment: %v", err)
+	}
+
+	var payments int
+	if err := pool.QueryRow(ctx,
+		`SELECT count(*) FROM payments WHERE order_id = $1`, orderID).Scan(&payments); err != nil {
+		t.Fatalf("count payments: %v", err)
+	}
+	if payments != 0 {
+		t.Errorf("%d payment rows on a fully-credited order, want 0", payments)
+	}
+}
+
+func TestAGuestSpendsNoCredit(t *testing.T) {
+	ctx := t.Context()
+	s := checkout.NewStore(pool)
+	vid := variantOf(t, "koto-over-ear")
+
+	var shipID uuid.UUID
+	if err := pool.QueryRow(ctx,
+		`SELECT id FROM shipping_method_versions ORDER BY effective_at LIMIT 1`).Scan(&shipID); err != nil {
+		t.Fatalf("shipping: %v", err)
+	}
+	addr := &delivery.Details{
+		Email: "g@example.com", RecipientName: "王小明", Phone: "0912345678",
+		PostalCode: "110", City: "台北市", District: "信義區", Street: "松高路 1 號",
+	}
+	id := newCart(t, s)
+	if err := s.Carts().Add(ctx, id, vid, 1); err != nil {
+		t.Fatalf("add: %v", err)
+	}
+	number, err := placeOrder(t, s, ctx, id, uuid.NullUUID{}, shipID, addr, "", "credit-guest")
+	if err != nil {
+		t.Fatalf("place: %v", err)
+	}
+	var entries int
+	if err := pool.QueryRow(ctx, `
+		SELECT count(*) FROM store_credit_entries e JOIN orders o ON o.id = e.order_id
+		WHERE o.order_number = $1`, number).Scan(&entries); err != nil {
+		t.Fatalf("count: %v", err)
+	}
+	if entries != 0 {
+		t.Errorf("%d credit entries on a GUEST order, want 0", entries)
+	}
+}
+
+func TestCancellingReturnsSpentStoreCredit(t *testing.T) {
+	ctx := t.Context()
+	s := buyer.NewStore(pool)
+	userID, accountID := creditedAccount(t, 50000)
+
+	number := pendingOrderSpendingCredit(t, userID, 20000)
+	if got := creditBalance(t, accountID); got != 30000 {
+		t.Fatalf("balance after spending = %d, want 30000", got)
+	}
+
+	if err := s.CancelOrder(ctx, number); err != nil {
+		t.Fatalf("Cancel: %v", err)
+	}
+
+	if got := creditBalance(t, accountID); got != 50000 {
+		t.Errorf("balance after cancelling = %d, want 50000 — the credit spent on a "+
+			"cancelled order has to come back, the same way the stock does", got)
+	}
+	var reversals int
+	if err := pool.QueryRow(ctx, `
+		SELECT count(*) FROM store_credit_entries e
+		JOIN store_credit_entries orig ON orig.id = e.reverses_id
+		WHERE orig.account_id = $1`, accountID).Scan(&reversals); err != nil {
+		t.Fatalf("count reversals: %v", err)
+	}
+	if reversals != 1 {
+		t.Errorf("%d reversal entries, want 1", reversals)
+	}
+}
+
+func TestReversingCancelledCreditIsIdempotent(t *testing.T) {
+	ctx := t.Context()
+	userID, accountID := creditedAccount(t, 50000)
+	number := pendingOrderSpendingCredit(t, userID, 20000)
+
+	var orderID uuid.UUID
+	if err := pool.QueryRow(ctx,
+		`UPDATE orders SET fulfillment_status = 'cancelled', cancelled_at = now()
+		 WHERE order_number = $1 RETURNING id`, number).Scan(&orderID); err != nil {
+		t.Fatalf("cancel the order: %v", err)
+	}
+
+	for i := range 3 {
+		var returned int64
+		if err := pool.QueryRow(ctx,
+			`SELECT reverse_order_credit($1)`, orderID).Scan(&returned); err != nil {
+			t.Fatalf("reverse %d: %v", i+1, err)
+		}
+		want := int64(20000)
+		if i > 0 {
+			want = 0
+		}
+		if returned != want {
+			t.Errorf("call %d returned %d cents, want %d", i+1, returned, want)
+		}
+	}
+	if got := creditBalance(t, accountID); got != 50000 {
+		t.Errorf("balance after three reversals = %d, want 50000", got)
+	}
+}
+
+func TestAShippedOrdersCreditIsNotReversed(t *testing.T) {
+	ctx := t.Context()
+	userID, accountID := creditedAccount(t, 50000)
+	number := pendingOrderSpendingCredit(t, userID, 20000)
+
+	// Through the real transitions: orders_check_transition refuses pending →
+	// shipped, because an order is picked before it leaves.
+	var orderID uuid.UUID
+	for _, status := range []string{"picking", "shipped"} {
+		if err := pool.QueryRow(ctx,
+			`UPDATE orders SET fulfillment_status = $2 WHERE order_number = $1
+			 RETURNING id`, number, status).Scan(&orderID); err != nil {
+			t.Fatalf("move the order to %s: %v", status, err)
+		}
+	}
+
+	var returned int64
+	err := pool.QueryRow(ctx, `SELECT reverse_order_credit($1)`, orderID).Scan(&returned)
+	pgErr, ok := errors.AsType[*pgconn.PgError](err)
+	if !ok || pgErr.ConstraintName != "store_credit_posting_matches_order" {
+		t.Errorf("reversing a shipped order's credit = %v, want "+
+			"store_credit_posting_matches_order", err)
+	}
+	if got := creditBalance(t, accountID); got != 30000 {
+		t.Errorf("balance = %d, want 30000 — the refusal must not have paid anything", got)
+	}
+}
+
+// pendingOrderSpendingCredit places a pending unpaid order for userID that
+// spends `cents` of their credit — the state a cancellation acts on.
+func pendingOrderSpendingCredit(t *testing.T, userID uuid.UUID, cents int64) string {
+	t.Helper()
+	ctx := t.Context()
+
+	// One transaction: orders_has_lines is DEFERRED, so an order and its lines have
+	// to commit together.
+	tx, err := pool.Begin(ctx)
+	if err != nil {
+		t.Fatalf("begin: %v", err)
+	}
+	defer func() { _ = tx.Rollback(ctx) }()
+
+	var orderID uuid.UUID
+	var number string
+	if err := tx.QueryRow(ctx, `
+		INSERT INTO orders (order_number, user_id, shipping_version_id,
+		                    shipping_method_code, shipping_method_name, shipping_cents)
+		SELECT next_order_number(), $1, v.id, sm.code, v.name, 0
+		FROM shipping_method_versions v JOIN shipping_methods sm ON sm.id = v.method_id
+		ORDER BY v.effective_at LIMIT 1
+		RETURNING id, order_number`, userID).Scan(&orderID, &number); err != nil {
+		t.Fatalf("create order: %v", err)
+	}
+	if _, err := tx.Exec(ctx, `
+		INSERT INTO order_lines (order_id, sku, product_name, unit_price_cents, quantity)
+		VALUES ($1, 'CREDIT-SKU', '測試商品', $2, 1)`, orderID, cents); err != nil {
+		t.Fatalf("create line: %v", err)
+	}
+	if _, err := tx.Exec(ctx, `
+		INSERT INTO order_private_data (order_id, email, recipient_name, phone,
+		                                postal_code, city, district, street)
+		VALUES ($1, 'credit@example.com', '額度', '0912345678', '110', '台北市', '信義區', '路 1 號')`,
+		orderID); err != nil {
+		t.Fatalf("create private data: %v", err)
+	}
+	if _, err := tx.Exec(ctx,
+		`SELECT post_store_credit($1, $2, NULL, $3, $4, NULL)`,
+		userID, -cents, orderID, "order:"+orderID.String()); err != nil {
+		t.Fatalf("spend credit: %v", err)
+	}
+	if err := tx.Commit(ctx); err != nil {
+		t.Fatalf("commit the fixture: %v", err)
+	}
+	return number
+}

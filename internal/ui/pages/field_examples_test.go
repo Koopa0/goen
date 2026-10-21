@@ -14,7 +14,7 @@ import (
 // The address book's row of this test is internal/account's
 // TestAccountExamplesStayOutsideRefusedInputs, the find-order row is
 // internal/order/buyer's TestFindOrderExampleStaysOutsideRefusedInputs, and the
-// checkout's rows are internal/cart's TestCheckoutExamplesStayOutsideRefusedInputs.
+// checkout's rows are internal/checkout's TestCheckoutExamplesStayOutsideRefusedInputs.
 func TestCustomerExamplesStayOutsideRefusedInputs(t *testing.T) {
 	t.Parallel()
 	for _, locale := range i18n.Locales() {

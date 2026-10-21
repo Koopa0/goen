@@ -19,8 +19,8 @@ import (
 	"github.com/koopa0/goen/internal/admin/admintest"
 	"github.com/koopa0/goen/internal/admin/staff"
 	"github.com/koopa0/goen/internal/auth"
+	"github.com/koopa0/goen/internal/requestid"
 	"github.com/koopa0/goen/internal/user"
-	"github.com/koopa0/goen/internal/web"
 )
 
 // TestAnotherAdminCanRecoverALostAuthenticator holds the recovery path: another
@@ -589,7 +589,7 @@ func TestErasureAndRevocationShareTheRosterGuard(t *testing.T) {
 // naming the actor and the target. A drop of the record call is a silent
 // back-office grant.
 func TestStaffAuthorizationChangesLeaveATrail(t *testing.T) {
-	ctx := web.WithRequestID(t.Context(), "req-staff-audit")
+	ctx := requestid.With(t.Context(), "req-staff-audit")
 	s := staff.NewStore(pool)
 	actor, _ := admintest.AdminUser(t, pool)
 

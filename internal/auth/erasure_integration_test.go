@@ -23,6 +23,7 @@ import (
 	"github.com/koopa0/goen/internal/auth/google"
 	"github.com/koopa0/goen/internal/bearer"
 	"github.com/koopa0/goen/internal/cart"
+	"github.com/koopa0/goen/internal/checkout"
 	"github.com/koopa0/goen/internal/i18n"
 	"github.com/koopa0/goen/internal/order/delivery"
 	"github.com/koopa0/goen/internal/outbox"
@@ -421,7 +422,7 @@ func TestErasureSnapshotsBeforeConcurrentCheckout(t *testing.T) {
 		Email: u.Email, RecipientName: "王小明", Phone: "0912345678",
 		PostalCode: "110", City: "台北市", District: "信義區", Street: "松高路 1 號",
 	}
-	shown := accountCheckoutQuote(t, cart.NewStore(pool), cartID, owner, shippingID, addr.PostalCode)
+	shown := accountCheckoutQuote(t, checkout.NewStore(pool), cartID, owner, shippingID, addr.PostalCode)
 
 	var notificationID uuid.UUID
 	if err := pool.QueryRow(ctx, `
@@ -443,7 +444,7 @@ func TestErasureSnapshotsBeforeConcurrentCheckout(t *testing.T) {
 	suffix := uuid.NewString()[:8]
 	eraseName, checkoutName := "erase-before-checkout-"+suffix, "checkout-behind-erase-"+suffix
 	eraseStore := auth.NewStore(accountStorePool(t, eraseName))
-	checkoutStore := cart.NewStore(accountStorePool(t, checkoutName))
+	checkoutStore := checkout.NewStore(accountStorePool(t, checkoutName))
 	eraseDone, checkoutDone := make(chan error, 1), make(chan error, 1)
 	go func() { eraseDone <- eraseStore.Erase(ctx, u.ID) }()
 	waitForAccountLock(t, eraseName, eraseDone)

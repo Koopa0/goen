@@ -16,8 +16,8 @@ import (
 	"github.com/koopa0/goen/internal/admin/returns"
 	"github.com/koopa0/goen/internal/db"
 	"github.com/koopa0/goen/internal/payment"
+	"github.com/koopa0/goen/internal/requestid"
 	"github.com/koopa0/goen/internal/shoptime"
-	"github.com/koopa0/goen/internal/web"
 )
 
 func MoveOrderToShipped(t *testing.T, tx pgx.Tx, orderID uuid.UUID) {
@@ -391,7 +391,7 @@ func RefundRecoveryStaffContext(
 	t.Helper()
 	ctx, actor := StaffContext(t, pool)
 	requestID := "refund-" + label + "-" + uuid.NewString()[:8]
-	return web.WithRequestID(ctx, requestID), actor, requestID
+	return requestid.With(ctx, requestID), actor, requestID
 }
 
 func PreapprovedReturn(t *testing.T, pool *pgxpool.Pool) uuid.UUID {

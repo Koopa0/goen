@@ -90,7 +90,7 @@ func TestAdoptRequestCartLogLevels(t *testing.T) {
 			}
 			var logs bytes.Buffer
 			h := cart.NewHandler(cart.NewStore(storePool), access.NewStore(pool, false),
-				slog.New(slog.NewJSONHandler(&logs, nil)), false, nil, nil)
+				slog.New(slog.NewJSONHandler(&logs, nil)), false, nil)
 			userID := u.ID
 			if tt.badUserID {
 				userID = "not-a-uuid"

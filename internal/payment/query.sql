@@ -249,5 +249,5 @@ FROM attributed a
 JOIN payments p ON p.id = a.payment_id
 JOIN orders o ON o.id = p.order_id;
 
--- EnqueueMessage is defined in internal/cart/query.sql; sqlc builds one db
+-- EnqueueMessage is defined in internal/outbox/query.sql; sqlc builds one db
 -- package for the module.

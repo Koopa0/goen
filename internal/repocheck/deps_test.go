@@ -78,7 +78,7 @@ var (
 	// (shared infrastructure). It matches exactly, not by prefix:
 	// internal/cart/cartitem is a vocabulary leaf, not a page.
 	storefrontPages = []string{
-		"internal/account", "internal/auth", "internal/cart", "internal/catalog", "internal/home",
+		"internal/account", "internal/auth", "internal/cart", "internal/catalog", "internal/checkout", "internal/home",
 		"internal/newsletter", "internal/policy", "internal/site", "internal/wishlist",
 	}
 	// siteMayImport is what internal/site may import besides itself and the
@@ -98,10 +98,11 @@ var (
 	}
 	// importFreeLeaves import no goen package at all.
 	importFreeLeaves = []string{
-		"internal/refund",
+		"internal/refund", "internal/clientip",
 		"internal/coupon", "internal/inventory", "internal/postcode", "internal/user",
 		"internal/money", "internal/db", "internal/keyset", "internal/bearer",
 		"internal/email", "internal/cart/cartitem", "internal/product", "internal/compress",
+		"internal/requestid",
 	}
 	// i18nOnlyLeaves import nothing from goen except the message catalogue.
 	i18nOnlyLeaves = []string{
@@ -117,6 +118,15 @@ var (
 	// in a posted store, and i18n and assets build the two hop pages.
 	storemapMayImport = []string{"assets", "internal/i18n", "internal/shipping", "internal/web"}
 )
+
+// packageLists are the package lists the rules above match against, by variable
+// name, so TestDependencies can hold every entry to a package that exists.
+var packageLists = map[string][]string{
+	"uiMayImport": uiMayImport, "storefrontPages": storefrontPages, "siteMayImport": siteMayImport,
+	"policyMayImport": policyMayImport, "campaignMayImport": campaignMayImport,
+	"importFreeLeaves": importFreeLeaves, "i18nOnlyLeaves": i18nOnlyLeaves,
+	"googleMayImport": googleMayImport, "storemapMayImport": storemapMayImport,
+}
 
 // depsRules is the repository's whole package-graph policy, in one place, in the
 // shape of the standard library's go/build deps_test.go.
@@ -209,11 +219,12 @@ var depsRules = []importRule{
 		reason: "only cmd/goen composes and sends mail; a feature enqueues an outbox payload instead",
 	},
 	{
-		name: "cart and account",
+		name: "cart, checkout and account",
 		forbid: func(from, to string) bool {
-			return under(from, "internal/cart") && (under(to, "internal/account") || under(to, "internal/auth"))
+			return (under(from, "internal/cart") || under(from, "internal/checkout")) &&
+				(under(to, "internal/account") || under(to, "internal/auth"))
 		},
-		reason: "the cart does not depend on the account feature or on sign-in",
+		reason: "the cart and the checkout do not depend on the account feature or on sign-in",
 	},
 	{
 		name: "back office and account",
@@ -249,7 +260,7 @@ var depsRules = []importRule{
 			return under(from, "internal/shipping/storemap") && !slices.Contains(storemapMayImport, to)
 		},
 		reason: "ECPay's store map holds no cart, order or session, so it imports no goen feature; " +
-			"the checkout imports it, never the other way round",
+			"the cart and the checkout import it, never the other way round",
 	},
 	{
 		name: "foundation",
@@ -398,6 +409,15 @@ func TestDependencies(t *testing.T) {
 	}
 
 	var problems []string
+	// A name in a rule's list that no scanned directory carries turns the rule off
+	// for the package it meant, as a package move leaves behind.
+	for list, names := range packageLists {
+		for _, name := range names {
+			if !g.scanned[name] {
+				problems = append(problems, fmt.Sprintf("%s: %q names no package: rename or delete the entry", list, name))
+			}
+		}
+	}
 	waived := map[string]bool{} // exception keys that a soft rule still needs
 	for from, tos := range g.edges {
 		for to, files := range tos {

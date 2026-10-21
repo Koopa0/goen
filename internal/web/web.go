@@ -97,20 +97,3 @@ func Render(w http.ResponseWriter, r *http.Request, log *slog.Logger, status int
 		log.ErrorContext(r.Context(), "write response", "error", err, "path", r.URL.Path)
 	}
 }
-
-type requestIDKey struct{}
-
-// WithRequestID records the identifier the log lines for this request carry.
-func WithRequestID(ctx context.Context, id string) context.Context {
-	return context.WithValue(ctx, requestIDKey{}, id)
-}
-
-// RequestID is that identifier, or "" outside a request. The audit trail stamps
-// it onto every back-office row, so a row and its log lines can be put together.
-func RequestID(ctx context.Context) string {
-	id, ok := ctx.Value(requestIDKey{}).(string)
-	if !ok {
-		return ""
-	}
-	return id
-}

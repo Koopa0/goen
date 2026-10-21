@@ -130,7 +130,7 @@ const newsletterRetainDays = 14
 // cart.GuestCartRetain.
 const guestCartRetainDays = 30
 
-// cart.DraftTTL.
+// checkout.DraftTTL.
 const checkoutDraftHours = 1
 
 // backinstock.NotifiedRetain.
