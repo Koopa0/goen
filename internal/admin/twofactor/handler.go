@@ -14,10 +14,10 @@ import (
 	"github.com/koopa0/goen/internal/i18n"
 	"github.com/koopa0/goen/internal/ui/layouts"
 	"github.com/koopa0/goen/internal/user"
-	"github.com/koopa0/goen/internal/web"
 	"github.com/koopa0/goen/internal/web/compress"
 	"github.com/koopa0/goen/internal/web/formtext"
 	"github.com/koopa0/goen/internal/web/ratelimit"
+	"github.com/koopa0/goen/internal/web/respond"
 )
 
 type Handler struct {
@@ -86,7 +86,7 @@ func (h *Handler) Challenge(w http.ResponseWriter, r *http.Request) {
 		Enrolled: enrolled,
 		Notice:   notice,
 	}
-	web.Render(w, r, h.log, http.StatusOK, TwoFactor(
+	respond.Component(w, r, h.log, http.StatusOK, TwoFactor(
 		layouts.Page{Title: i18n.T(r.Context(), i18n.KeyAdminPageTwoFactor)}, view))
 }
 
@@ -181,7 +181,7 @@ func (h *Handler) Enrol(w http.ResponseWriter, r *http.Request) {
 		access.Fault(w, r, h.log)
 		return
 	}
-	web.Render(w, r, h.log, http.StatusOK, TwoFactor(
+	respond.Component(w, r, h.log, http.StatusOK, TwoFactor(
 		layouts.Page{Title: i18n.T(r.Context(), i18n.KeyAdminPageTwoFactor)}, TwoFactorView{
 			Enabled: true, Enrolling: true,
 			Secret: EncodeSecret(secret), URI: uri,

@@ -7,9 +7,9 @@ import (
 
 	"github.com/koopa0/goen/internal/i18n"
 	"github.com/koopa0/goen/internal/user"
-	"github.com/koopa0/goen/internal/web"
 	"github.com/koopa0/goen/internal/web/formtext"
 	"github.com/koopa0/goen/internal/web/ratelimit"
+	"github.com/koopa0/goen/internal/web/respond"
 )
 
 type Handler struct {
@@ -41,7 +41,7 @@ func (h *Handler) Page(w http.ResponseWriter, r *http.Request) {
 		Done:     r.URL.Query().Get("sent") == "1",
 		SignedIn: signedIn(r.Context()),
 	}
-	web.Render(w, r, h.log, http.StatusOK, Contact(Meta(r.Context()), form))
+	respond.Component(w, r, h.log, http.StatusOK, Contact(Meta(r.Context()), form))
 }
 
 func (h *Handler) Submit(w http.ResponseWriter, r *http.Request) {
@@ -73,7 +73,7 @@ func (h *Handler) Submit(w http.ResponseWriter, r *http.Request) {
 	// a 429 fragment can keep the values the way 422 does.
 	if retryAfter, allowed := h.limit.Allow(ratelimit.ClientKey(r)); !allowed {
 		form.Errors = map[string]string{"": i18n.T(r.Context(), i18n.KeyTooManyRequests)}
-		if web.IsHTMX(r) {
+		if respond.IsHTMX(r) {
 			ratelimit.SetRetryAfter(w, retryAfter)
 			h.respond(w, r, http.StatusTooManyRequests, form)
 			return
@@ -95,9 +95,9 @@ func (h *Handler) Submit(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if web.IsHTMX(r) {
+	if respond.IsHTMX(r) {
 		done := Form{Subjects: subjectChoices(r.Context()), Done: true, SignedIn: signedIn(r.Context())}
-		web.Render(w, r, h.log, http.StatusOK, Panel(done))
+		respond.Component(w, r, h.log, http.StatusOK, Panel(done))
 		return
 	}
 	http.Redirect(w, r, "/contact?sent=1", http.StatusSeeOther)
@@ -109,11 +109,11 @@ func signedIn(ctx context.Context) bool {
 }
 
 func (h *Handler) respond(w http.ResponseWriter, r *http.Request, status int, form Form) {
-	if web.IsHTMX(r) {
-		web.Render(w, r, h.log, status, Panel(form))
+	if respond.IsHTMX(r) {
+		respond.Component(w, r, h.log, status, Panel(form))
 		return
 	}
-	web.Render(w, r, h.log, status, Contact(Meta(r.Context()), form))
+	respond.Component(w, r, h.log, status, Contact(Meta(r.Context()), form))
 }
 
 func subjectChoices(ctx context.Context) []SubjectOption {

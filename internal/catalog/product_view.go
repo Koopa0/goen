@@ -16,11 +16,11 @@ import (
 	"github.com/koopa0/goen/internal/discount/campaign"
 	"github.com/koopa0/goen/internal/i18n"
 	"github.com/koopa0/goen/internal/money"
+	"github.com/koopa0/goen/internal/policy"
 	"github.com/koopa0/goen/internal/product/labelling"
 	"github.com/koopa0/goen/internal/shoptime"
 	"github.com/koopa0/goen/internal/ui/components"
 	"github.com/koopa0/goen/internal/ui/layouts"
-	"github.com/koopa0/goen/internal/ui/pages"
 	"github.com/koopa0/goen/internal/ui/tile"
 )
 
@@ -163,7 +163,7 @@ type ProductView struct {
 	WarrantyNote            string
 	// WarrantyMonths is 0 when the shop has stated no term, and registration is refused.
 	WarrantyMonths int32
-	Rules          pages.ShopRules
+	Rules          policy.Rules
 	Brand          string
 	CategorySlug   string
 	CategoryName   string

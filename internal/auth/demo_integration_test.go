@@ -9,6 +9,7 @@ import (
 	"net/http/httptest"
 	"net/url"
 	"strings"
+	"sync"
 	"testing"
 
 	"github.com/google/uuid"
@@ -98,6 +99,57 @@ func TestTheDemoAccountIsEnsuredAtEveryStart(t *testing.T) {
 	}
 	if _, err := s.SessionUser(ctx, session); !errors.Is(err, auth.ErrNotFound) {
 		t.Errorf("a session outlived the password reset: %v", err)
+	}
+}
+
+// TestProcessesStartingTogetherEnsureOneDemoAccount is the nightly restore: every
+// replica restarts at once on a database without the account, each reads no
+// row, and each inserts. All of them must start, and the account is made once.
+func TestProcessesStartingTogetherEnsureOneDemoAccount(t *testing.T) {
+	ctx := t.Context()
+	addr := "demo-race-" + uuid.NewString() + "@example.com"
+	d := demoAccount(t, addr, sharedPassword)
+
+	const processes = 8
+	stores := make([]*auth.Store, processes)
+	for i := range stores {
+		p := accountStorePool(t, "demo-race")
+		if err := p.Ping(ctx); err != nil {
+			t.Fatalf("connect process %d: %v", i, err)
+		}
+		stores[i] = auth.NewStore(p)
+	}
+	var ready, done sync.WaitGroup
+	start := make(chan struct{})
+	errs := make([]error, processes)
+	ready.Add(processes)
+	done.Add(processes)
+	for i, s := range stores {
+		go func() {
+			defer done.Done()
+			ready.Done()
+			<-start
+			errs[i] = s.EnsureDemoAccount(ctx, d)
+		}()
+	}
+	ready.Wait()
+	close(start)
+	done.Wait()
+
+	for i, err := range errs {
+		if err != nil {
+			t.Errorf("process %d did not start: %v", i, err)
+		}
+	}
+	var holders int
+	if err := pool.QueryRow(ctx, `SELECT count(*) FROM users WHERE lower(email) = lower($1)`, addr).Scan(&holders); err != nil {
+		t.Fatalf("count the accounts: %v", err)
+	}
+	if holders != 1 {
+		t.Errorf("%d accounts hold the demo address, want 1", holders)
+	}
+	if _, err := auth.NewStore(pool).Authenticate(ctx, addr, sharedPassword); err != nil {
+		t.Errorf("the demo password does not sign in: %v", err)
 	}
 }
 

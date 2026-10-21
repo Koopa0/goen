@@ -7,7 +7,7 @@ import (
 
 	"github.com/koopa0/goen/internal/i18n"
 	"github.com/koopa0/goen/internal/ui/layouts"
-	"github.com/koopa0/goen/internal/web"
+	"github.com/koopa0/goen/internal/web/respond"
 )
 
 // Handler serves a campaign's page and /deals.
@@ -43,7 +43,7 @@ func (h *Handler) Deals(w http.ResponseWriter, r *http.Request) {
 		h.log.ErrorContext(r.Context(), "load campaigns", "error", err)
 	}
 	view.Campaigns = campaigns
-	web.Render(w, r, h.log, http.StatusOK, Deals(DealsMeta(r.Context()), view))
+	respond.Component(w, r, h.log, http.StatusOK, Deals(DealsMeta(r.Context()), view))
 }
 
 // Campaign answers 404 for a campaign that is switched off or does not exist.
@@ -52,7 +52,7 @@ func (h *Handler) Campaign(w http.ResponseWriter, r *http.Request) {
 	view, err := h.store.Campaign(r.Context(), slug)
 	if err != nil {
 		if errors.Is(err, ErrNotFound) {
-			web.Render(w, r, h.log, http.StatusNotFound, layouts.Notice(
+			respond.Component(w, r, h.log, http.StatusNotFound, layouts.Notice(
 				layouts.Page{Title: i18n.T(r.Context(), i18n.KeyCampaignNotFound)}, "404",
 				i18n.T(r.Context(), i18n.KeyCampaignNotFound),
 				i18n.T(r.Context(), i18n.KeyCampaignNotFoundBody),
@@ -63,11 +63,11 @@ func (h *Handler) Campaign(w http.ResponseWriter, r *http.Request) {
 		h.serverError(w, r)
 		return
 	}
-	web.Render(w, r, h.log, http.StatusOK, Page(Meta(r.Context(), view.Title, view.Image), view))
+	respond.Component(w, r, h.log, http.StatusOK, Page(Meta(r.Context(), view.Title, view.Image), view))
 }
 
 func (h *Handler) serverError(w http.ResponseWriter, r *http.Request) {
-	web.Render(w, r, h.log, http.StatusInternalServerError, layouts.Notice(
+	respond.Component(w, r, h.log, http.StatusInternalServerError, layouts.Notice(
 		layouts.Page{Title: i18n.T(r.Context(), i18n.KeyCannotLoad)}, "500",
 		i18n.T(r.Context(), i18n.KeyCannotLoad),
 		i18n.T(r.Context(), i18n.KeyCannotLoadListing)))

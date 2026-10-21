@@ -17,7 +17,6 @@ import (
 	"github.com/koopa0/goen/internal/product/labelling"
 	"github.com/koopa0/goen/internal/shoptime"
 	"github.com/koopa0/goen/internal/ui/components"
-	"github.com/koopa0/goen/internal/ui/pages"
 	"github.com/koopa0/goen/internal/ui/tile"
 	"github.com/koopa0/goen/internal/user"
 )
@@ -58,7 +57,7 @@ func (s *Store) Product(ctx context.Context, slug string, sel Selection) (Produc
 	}
 
 	view := ProductView{
-		Rules:                   pages.ShopRules(rules),
+		Rules:                   rules,
 		Slug:                    p.Slug,
 		Name:                    p.Name,
 		Summary:                 p.Summary,

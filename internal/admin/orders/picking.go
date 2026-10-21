@@ -19,7 +19,7 @@ import (
 	"github.com/koopa0/goen/internal/shoptime"
 	"github.com/koopa0/goen/internal/ui/layouts"
 	"github.com/koopa0/goen/internal/ui/pages"
-	"github.com/koopa0/goen/internal/web"
+	"github.com/koopa0/goen/internal/web/respond"
 )
 
 func (s *Store) Picking(ctx context.Context, after ...string) (PickingView, error) {
@@ -110,6 +110,6 @@ func (h *Handler) PickingSlips(w http.ResponseWriter, r *http.Request) {
 		access.ServerError(w, r, h.log)
 		return
 	}
-	web.Render(w, r, h.log, http.StatusOK, Picking(
+	respond.Component(w, r, h.log, http.StatusOK, Picking(
 		layouts.Page{Title: i18n.T(r.Context(), i18n.KeyAdminPickingSlips)}, &view))
 }

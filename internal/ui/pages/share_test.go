@@ -16,7 +16,8 @@ func renderHeadAt(t *testing.T, ctx context.Context, p layouts.Page) string {
 }
 
 // The department and product rows are catalog's TestCatalogPagesSendTheirOwnLinkPreviewTags,
-// the campaign's row campaign's TestTheCampaignPageSendsItsOwnLinkPreviewTags.
+// the campaign's row campaign's TestTheCampaignPageSendsItsOwnLinkPreviewTags,
+// the home row home's TestTheHomePageSendsItsOwnLinkPreviewTags.
 func TestEveryPageKindSendsItsOwnLinkPreviewTags(t *testing.T) {
 	t.Parallel()
 	ctx := i18n.WithLocale(layouts.WithRequestPath(t.Context(), "/c/books"), i18n.ZhHant)
@@ -24,10 +25,6 @@ func TestEveryPageKindSendsItsOwnLinkPreviewTags(t *testing.T) {
 		page layouts.Page
 		want []string
 	}{
-		"home": {
-			HomeMeta(ctx),
-			[]string{`og:title" content="` + i18n.T(ctx, i18n.KeySiteTitle) + `"`},
-		},
 		"contact": {
 			contact.Meta(ctx),
 			[]string{
