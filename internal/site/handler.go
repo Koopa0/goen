@@ -22,24 +22,28 @@ type Handler struct {
 	log       *slog.Logger
 	baseURL   string
 	catalogue Catalogue
+	deals     Deals
 	content   *Store
 	secure    bool
 }
 
-// Catalogue is what site reads from the catalogue: the sitemap's rows, and
-// whether a running campaign has something to buy, which decides whether the
-// header links to /deals.
+// Catalogue is what site reads from the catalogue: the sitemap's rows.
 type Catalogue interface {
 	SitemapProducts(ctx context.Context, limit int32) ([]db.SitemapProductsRow, error)
 	SitemapCategories(ctx context.Context, limit int32) ([]db.SitemapCategoriesRow, error)
+}
+
+// Deals is what site reads from the campaigns: whether a running campaign has
+// something to buy, which decides whether the header links to /deals.
+type Deals interface {
 	DealsOnOffer(ctx context.Context) (bool, error)
 }
 
-func NewHandler(log *slog.Logger, baseURL string, catalogue Catalogue, content *Store, secure bool) *Handler {
-	if log == nil || catalogue == nil || content == nil {
-		panic("site: NewHandler requires a logger, a catalogue and content")
+func NewHandler(log *slog.Logger, baseURL string, catalogue Catalogue, deals Deals, content *Store, secure bool) *Handler {
+	if log == nil || catalogue == nil || deals == nil || content == nil {
+		panic("site: NewHandler requires a logger, a catalogue, deals and content")
 	}
-	return &Handler{log: log, baseURL: baseURL, catalogue: catalogue, content: content, secure: secure}
+	return &Handler{log: log, baseURL: baseURL, catalogue: catalogue, deals: deals, content: content, secure: secure}
 }
 
 // Routes registers the shop's own pages: the FAQ, the about page, the sitemap,

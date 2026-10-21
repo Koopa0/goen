@@ -79,7 +79,7 @@ var (
 	// (shared infrastructure). It matches exactly, not by prefix:
 	// internal/cart/cartitem is a vocabulary leaf, not a page.
 	storefrontPages = []string{
-		"internal/account", "internal/auth", "internal/cart", "internal/catalog", "internal/checkout", "internal/home",
+		"internal/account", "internal/auth", "internal/campaign", "internal/cart", "internal/catalog", "internal/checkout", "internal/home",
 		"internal/newsletter", "internal/policy", "internal/site", "internal/wishlist",
 	}
 	// siteMayImport is what internal/site may import besides itself and the
@@ -93,9 +93,10 @@ var (
 		"internal/i18n", "internal/web", "internal/ui/layouts",
 	}
 	// campaignMayImport is what internal/campaign may import besides itself and
-	// the leaves: the message catalogue and the stat its schedule is told in.
+	// the leaves: the message catalogue, the stat its schedule is told in, and
+	// the foundation its page and /deals are built on, the product tile included.
 	campaignMayImport = []string{
-		"internal/i18n", "internal/ui/components",
+		"assets", "internal/i18n", "internal/ui/components", "internal/ui/layouts", "internal/ui/tile", "internal/web",
 	}
 	// importFreeLeaves import no goen package at all.
 	importFreeLeaves = []string{
@@ -192,8 +193,8 @@ var depsRules = []importRule{
 				!slices.Contains(campaignMayImport, to) &&
 				!slices.Contains(importFreeLeaves, to) && !slices.Contains(i18nOnlyLeaves, to)
 		},
-		reason: "the catalogue, home and wishlist pages strike a price with campaign.OnSale and tell a campaign's window with its Schedule and End, " +
-			"so campaign imports no feature",
+		reason: "the catalogue, home and wishlist pages strike a price with campaign.OnSale and tell a campaign's window with its Schedule and End: " +
+			"campaign imports no feature, so catalog, home and wishlist can import it",
 	},
 	{
 		name: "desks",

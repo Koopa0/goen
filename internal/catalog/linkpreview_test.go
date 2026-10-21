@@ -9,7 +9,8 @@ import (
 	"github.com/koopa0/goen/internal/ui/layouts"
 )
 
-// From TestEveryPageKindSendsItsOwnLinkPreviewTags, which keeps the other pages' rows.
+// From TestEveryPageKindSendsItsOwnLinkPreviewTags, which keeps the other pages' rows;
+// the campaign's row is internal/campaign's TestTheCampaignPageSendsItsOwnLinkPreviewTags.
 func TestCatalogPagesSendTheirOwnLinkPreviewTags(t *testing.T) {
 	t.Parallel()
 	ctx := i18n.WithLocale(layouts.WithRequestPath(t.Context(), "/c/books"), i18n.ZhHant)
@@ -27,14 +28,6 @@ func TestCatalogPagesSendTheirOwnLinkPreviewTags(t *testing.T) {
 				`og:title" content="書籍 · goen"`,
 				`og:image" content="https://goen.test/static/media/products/books.webp?v=1"`,
 				`og:image:alt" content="書架"`,
-			},
-		},
-		"campaign": {
-			CampaignMeta(ctx, "秋日選物", components.Photo{URL: "/static/media/campaigns/autumn.webp?v=1", Alt: "秋日"}),
-			[]string{
-				`og:title" content="秋日選物 · goen"`,
-				`og:description" content="秋日選物 — goen 優惠"`,
-				`og:image" content="https://goen.test/static/media/campaigns/autumn.webp?v=1"`,
 			},
 		},
 		"product": {

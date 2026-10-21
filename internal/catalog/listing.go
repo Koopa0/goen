@@ -121,7 +121,7 @@ func ListingMeta(ctx context.Context, v ListingView) layouts.Page {
 	return layouts.Page{
 		Title: v.Name,
 		Nav:   v.RootSlug(),
-		Share: shareImage(v.Theme.Image(), v.Name),
+		Share: layouts.NewShareImage(v.Theme.Image(), v.Name),
 	}
 }
 
@@ -255,15 +255,13 @@ func (v ListingView) priceRangeChip(ctx context.Context) string {
 }
 
 type SearchView struct {
-	Query     string
-	Products  []tile.Tile
-	Total     int64
-	Page      int
-	PageSize  int
-	Campaigns CampaignPage
-	Path      string
-	Sort      string
-	Newest    []tile.Tile
+	Query    string
+	Products []tile.Tile
+	Total    int64
+	Page     int
+	PageSize int
+	Sort     string
+	Newest   []tile.Tile
 }
 
 // SortOptions defaults to best match: newest-first would bury the name that holds the whole query.
@@ -311,19 +309,6 @@ func (v SearchView) PrevHref() string { return v.PageHref(v.Page - 1) }
 func (v SearchView) NextHref() string { return v.PageHref(v.Page + 1) }
 
 func (v SearchView) PageHref(n int) string {
-	if v.Path != "" {
-		q := url.Values{}
-		if n > 1 {
-			q.Set("page", strconv.Itoa(n))
-		}
-		if v.Campaigns.Page > 1 {
-			q.Set("campaign_page", strconv.Itoa(v.Campaigns.Page))
-		}
-		if len(q) > 0 {
-			return v.Path + "?" + q.Encode()
-		}
-		return v.Path
-	}
 	u := "/search?q=" + queryEscape(v.Query)
 	if v.Sort != "" {
 		u += "&sort=" + queryEscape(v.Sort)
@@ -336,20 +321,3 @@ func (v SearchView) PageHref(n int) string {
 
 func (v SearchView) PageText() string  { return strconv.Itoa(v.Page) }
 func (v SearchView) PagesText() string { return strconv.Itoa(v.Pages()) }
-
-func (v SearchView) HasCampaigns() bool { return len(v.Campaigns.Rows) > 0 }
-
-func (v SearchView) CampaignPageHref(page int) string {
-	q := url.Values{}
-	if v.Page > 1 {
-		q.Set("page", strconv.Itoa(v.Page))
-	}
-	if page > 1 {
-		q.Set("campaign_page", strconv.Itoa(page))
-	}
-	href := "/deals"
-	if len(q) > 0 {
-		href += "?" + q.Encode()
-	}
-	return href + "#campaigns"
-}

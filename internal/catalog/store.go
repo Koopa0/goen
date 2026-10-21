@@ -355,58 +355,6 @@ func searchTiles(rows []db.SearchProductsRow, offers map[uuid.UUID]bool) []tile.
 	return out
 }
 
-func (s *Store) Deals(ctx context.Context, page int) (SearchView, error) {
-	rows, err := s.q.DealProducts(ctx, db.DealProductsParams{
-		Locale:     string(i18n.FromContext(ctx)),
-		PageSize:   PageSize,
-		PageOffset: offsetFor(page),
-	})
-	if err != nil {
-		return SearchView{}, fmt.Errorf("read deals: %w", err)
-	}
-	total, err := s.q.DealProductsCount(ctx)
-	if err != nil {
-		return SearchView{}, fmt.Errorf("count deals: %w", err)
-	}
-	return SearchView{
-		Products: dealTiles(rows),
-		Total:    total,
-		Page:     max(page, 1),
-		PageSize: PageSize,
-		Path:     "/deals",
-	}, nil
-}
-
-// dealTiles exists because sqlc emits a row struct per query, so one function
-// cannot take both.
-func dealTiles(rows []db.DealProductsRow) []tile.Tile {
-	out := make([]tile.Tile, 0, len(rows))
-	for i := range rows {
-		r := &rows[i]
-		photo := assets.Image{Digest: r.ImageDigest, BundledKey: r.ImageBundledKey, Width: int(r.ImageWidth)}
-		out = append(out, tile.Tile{
-			Slug:         r.Slug,
-			Name:         r.Name,
-			Summary:      r.Summary,
-			Brand:        r.Brand,
-			PriceCents:   r.TilePriceCents,
-			PriceVaries:  r.PriceVaries,
-			CompareCents: r.CompareAtPriceCents.Int64,
-			OnSale:       campaign.OnSale(r.InCampaign, r.InStock, r.TilePriceCents, r.CompareAtPriceCents.Int64),
-			Rating:       r.Rating,
-			RatingCount:  r.RatingCount,
-			InStock:      r.InStock,
-			Colours:      r.Colours,
-			ImageURL:     photo.URL(),
-			ImageSrcset:  photo.Srcset(),
-			ImageAlt:     r.ImageAlt,
-			ImageWidth:   r.ImageWidth,
-			ImageHeight:  r.ImageHeight,
-		})
-	}
-	return out
-}
-
 func (s *Store) SitemapProducts(ctx context.Context, limit int32) ([]db.SitemapProductsRow, error) {
 	rows, err := s.q.SitemapProducts(ctx, limit)
 	if err != nil {

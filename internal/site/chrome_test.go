@@ -36,15 +36,11 @@ type ctxErrRow struct{ err error }
 
 func (r ctxErrRow) Scan(...any) error { return r.err }
 
-// dealsCatalogue answers DealsOnOffer with err, or with the context's error
+// failingDeals answers DealsOnOffer with err, or with the context's error
 // when err is nil.
-type dealsCatalogue struct {
-	Catalogue // nil: the chrome reads only DealsOnOffer
+type failingDeals struct{ err error }
 
-	err error
-}
-
-func (c dealsCatalogue) DealsOnOffer(ctx context.Context) (bool, error) {
+func (c failingDeals) DealsOnOffer(ctx context.Context) (bool, error) {
 	if c.err != nil {
 		return false, c.err
 	}
@@ -67,7 +63,7 @@ func TestChromeMiddlewareOfAnAbandonedRequestLogsNothing(t *testing.T) {
 			reached := false
 			h := &Handler{
 				log: slog.New(slog.NewTextHandler(logs, nil)), content: NewStore(ctxErrDB{}),
-				catalogue: dealsCatalogue{}, secure: true,
+				deals: failingDeals{}, secure: true,
 			}
 			chrome := wrap(h, http.HandlerFunc(func(http.ResponseWriter, *http.Request) { reached = true }))
 			ctx, cancel := context.WithCancel(t.Context())
@@ -90,7 +86,7 @@ func TestAFailedDealsReadHidesTheLinkAndIsLogged(t *testing.T) {
 	t.Parallel()
 
 	logs := &bytes.Buffer{}
-	h := &Handler{log: slog.New(slog.NewTextHandler(logs, nil)), catalogue: dealsCatalogue{err: errors.New("down")}}
+	h := &Handler{log: slog.New(slog.NewTextHandler(logs, nil)), deals: failingDeals{err: errors.New("down")}}
 	got := h.dealsOnOffer(t.Context())
 	if got || layouts.HasDeals(withNav(t.Context(), nil, got)) {
 		t.Error("a failed deals read still offers the link")

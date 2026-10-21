@@ -1,6 +1,6 @@
 //go:build integration
 
-package catalog_test
+package campaign_test
 
 import (
 	"context"
@@ -13,7 +13,7 @@ import (
 
 	"github.com/google/uuid"
 
-	"github.com/koopa0/goen/internal/catalog"
+	"github.com/koopa0/goen/internal/campaign"
 )
 
 func TestListedCampaignsExposeTheSeventhCampaign(t *testing.T) {
@@ -34,12 +34,12 @@ func TestListedCampaignsExposeTheSeventhCampaign(t *testing.T) {
 		}
 		featureNewProduct(t, tx, slugs[i], 5, "active")
 	}
-	store := catalog.NewStore(tx, slog.New(slog.DiscardHandler))
-	first, err := store.ListedCampaigns(ctx, 1)
+	store := campaign.NewStore(tx)
+	first, err := store.Listed(ctx, 1)
 	if err != nil {
 		t.Fatal(err)
 	}
-	second, err := store.ListedCampaigns(ctx, 2)
+	second, err := store.Listed(ctx, 2)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -51,7 +51,7 @@ func TestListedCampaignsExposeTheSeventhCampaign(t *testing.T) {
 	}
 	r := httptest.NewRequestWithContext(ctx, http.MethodGet, "/deals?campaign_page=2", http.NoBody)
 	w := httptest.NewRecorder()
-	catalog.NewHandler(store, slog.New(slog.DiscardHandler), "https://goen.example").Deals(w, r)
+	campaign.NewHandler(store, slog.New(slog.DiscardHandler)).Deals(w, r)
 	if w.Code != http.StatusOK || !strings.Contains(w.Body.String(), `href="/s/`+slugs[6]+`"`) || strings.Contains(w.Body.String(), `href="/s/`+slugs[0]+`"`) {
 		t.Fatalf("HTTP campaign page two omitted the seventh campaign or repeated page one: status=%d", w.Code)
 	}
@@ -60,7 +60,7 @@ func TestListedCampaignsExposeTheSeventhCampaign(t *testing.T) {
 			t.Errorf("campaign %d = %s, want %s", i, first.Rows[i].Slug, slugs[i])
 		}
 	}
-	beyond, err := store.ListedCampaigns(ctx, 500)
+	beyond, err := store.Listed(ctx, 500)
 	if err != nil {
 		t.Fatal(err)
 	}

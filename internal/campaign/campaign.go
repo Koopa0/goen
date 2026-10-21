@@ -1,10 +1,8 @@
 // Package campaign is a time-boxed sale on chosen products; it holds its
-// state, the price-strike rule OnSale and how its window is told (Schedule,
-// End); it does not hold a coupon code (coupon), sales figures (sales) or the
-// desk that edits campaigns (admin/campaigns).
-//
-// The campaign page and /deals are still served by catalog. They move here
-// next, now that the product tile they draw is ui/tile and not ui/pages.
+// state, the price-strike rule OnSale, how its window is told (Schedule, End),
+// the campaign's page and /deals; it does not hold a coupon code (coupon),
+// sales figures (sales), the desk that edits campaigns (admin/campaigns) or the
+// product tile its pages list (ui/tile).
 package campaign
 
 import "time"

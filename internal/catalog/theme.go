@@ -4,21 +4,7 @@ import (
 	"strconv"
 
 	"github.com/koopa0/goen/internal/ui/components"
-	"github.com/koopa0/goen/internal/ui/layouts"
 )
-
-// shareImage is p as a page's share image. The pixel size is not known here,
-// so the tags leave it out.
-func shareImage(p components.Photo, fallbackAlt string) layouts.ShareImage {
-	if !p.Shown() {
-		return layouts.ShareImage{}
-	}
-	alt := p.Alt
-	if alt == "" {
-		alt = fallbackAlt
-	}
-	return layouts.ShareImage{Path: p.URL, Alt: alt}
-}
 
 // Theme is what a sub-category page wears: its department's.
 type Theme struct {

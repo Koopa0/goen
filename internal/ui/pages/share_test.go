@@ -15,7 +15,8 @@ func renderHeadAt(t *testing.T, ctx context.Context, p layouts.Page) string {
 	return renderComponent(t, layouts.WithSiteOrigin(ctx, "https://goen.test"), layouts.Base(p))
 }
 
-// The department, campaign and product rows are catalog's TestCatalogPagesSendTheirOwnLinkPreviewTags.
+// The department and product rows are catalog's TestCatalogPagesSendTheirOwnLinkPreviewTags,
+// the campaign's row campaign's TestTheCampaignPageSendsItsOwnLinkPreviewTags.
 func TestEveryPageKindSendsItsOwnLinkPreviewTags(t *testing.T) {
 	t.Parallel()
 	ctx := i18n.WithLocale(layouts.WithRequestPath(t.Context(), "/c/books"), i18n.ZhHant)
