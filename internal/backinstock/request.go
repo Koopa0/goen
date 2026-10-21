@@ -41,7 +41,7 @@ func (s *Store) Request(ctx context.Context, slug, variantID, addr, userID strin
 		Locale: i18n.FromContext(ctx).Tag(),
 	})
 	if err != nil {
-		return fmt.Errorf("request restock notice: %w", err)
+		return fmt.Errorf("record restock request: %w", err)
 	}
 	if !eligible {
 		return ErrInvalid

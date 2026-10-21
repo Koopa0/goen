@@ -15,12 +15,12 @@ import (
 
 	"github.com/koopa0/goen/internal/admin/admintest"
 	"github.com/koopa0/goen/internal/admin/health"
+	"github.com/koopa0/goen/internal/admin/worklist"
 	"github.com/koopa0/goen/internal/db"
 	"github.com/koopa0/goen/internal/db/dbtest"
 	"github.com/koopa0/goen/internal/i18n"
 	"github.com/koopa0/goen/internal/invoice/issuer"
 	"github.com/koopa0/goen/internal/outbox"
-	"github.com/koopa0/goen/internal/worklist"
 )
 
 // TestARefundWithNoAllowanceFiledNeedsAPerson: a return paid back to the card

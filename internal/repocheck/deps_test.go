@@ -46,8 +46,9 @@ func under(pkg, dir string) bool {
 }
 
 // deskRoot returns "internal/admin/<x>" for a desk package and "" for anything
-// else. internal/admin/access, audit and admintest are not desks: access and audit
-// are the foundation every desk may import, admintest is the shared test fixture.
+// else. internal/admin/access, audit, worklist and admintest are not desks: access
+// and audit are the foundation every desk may import, worklist is the vocabulary the
+// desks use to report work for one another, admintest is the shared test fixture.
 func deskRoot(pkg string) string {
 	rest, ok := strings.CutPrefix(pkg, "internal/admin/")
 	if !ok {
@@ -55,7 +56,7 @@ func deskRoot(pkg string) string {
 	}
 	name, _, _ := strings.Cut(rest, "/")
 	switch name {
-	case "", "access", "audit", "admintest":
+	case "", "access", "audit", "worklist", "admintest":
 		return ""
 	}
 	return "internal/admin/" + name
@@ -68,7 +69,7 @@ var (
 	uiMayImport = []string{
 		"assets", "internal/i18n", "internal/money", "internal/shoptime",
 		"internal/coupon", "internal/inventory", "internal/invoice", "internal/keyset", "internal/order",
-		"internal/postcode", "internal/product", "internal/product/labelling", "internal/refund",
+		"internal/shipping/postcode", "internal/product", "internal/product/labelling", "internal/refund",
 		"internal/order/returns", "internal/sales", "internal/shipping", "internal/user",
 	}
 	// storefrontPages are the packages that serve storefront pages. The rule
@@ -99,7 +100,7 @@ var (
 	// importFreeLeaves import no goen package at all.
 	importFreeLeaves = []string{
 		"internal/refund", "internal/clientip",
-		"internal/coupon", "internal/inventory", "internal/postcode", "internal/user",
+		"internal/coupon", "internal/inventory", "internal/shipping/postcode", "internal/user",
 		"internal/money", "internal/db", "internal/keyset", "internal/bearer",
 		"internal/email", "internal/cart/cartitem", "internal/product", "internal/compress",
 		"internal/requestid",
@@ -107,7 +108,7 @@ var (
 	// i18nOnlyLeaves import nothing from goen except the message catalogue.
 	i18nOnlyLeaves = []string{
 		"internal/invoice", "internal/order", "internal/product/labelling", "internal/order/returns", "internal/shoptime", "internal/ui/fieldrule",
-		"internal/sales", "internal/worklist", "internal/shipping", "internal/credit",
+		"internal/sales", "internal/admin/worklist", "internal/shipping", "internal/credit",
 	}
 	// googleMayImport is all of goen that Google's sign-in client imports:
 	// bearer makes its state and PKCE verifier, web reads the configured origin
