@@ -26,6 +26,14 @@ func RefuseOutsiders(t *testing.T, register func(*http.ServeMux, *access.Control
 	t.Helper()
 	mux := http.NewServeMux()
 	register(mux, access.New(slog.New(slog.DiscardHandler), nil))
+	RefuseOutsidersOn(t, mux, routes...)
+}
+
+// RefuseOutsidersOn asks mux, which the caller has built, each of routes as
+// RefuseOutsiders does. A caller that passes production's own mux learns that
+// the routes it ends up with are guarded, whatever a feature's own table says.
+func RefuseOutsidersOn(t *testing.T, mux *http.ServeMux, routes ...string) {
+	t.Helper()
 	for _, route := range routes {
 		method, pattern, _ := strings.Cut(route, " ")
 		path := pattern
