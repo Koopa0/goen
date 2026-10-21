@@ -19,6 +19,7 @@ import (
 	"github.com/koopa0/goen/internal/email"
 	"github.com/koopa0/goen/internal/i18n"
 	"github.com/koopa0/goen/internal/ratelimit"
+	"github.com/koopa0/goen/internal/siteurl"
 	"github.com/koopa0/goen/internal/ui/layouts"
 	"github.com/koopa0/goen/internal/ui/pages"
 	"github.com/koopa0/goen/internal/user"
@@ -263,7 +264,7 @@ func (h *Handler) SignInPage(w http.ResponseWriter, r *http.Request) {
 	// next can be a live link back to /verify; never compress it.
 	compress.Skip(w)
 	view := h.signInView(AuthView{
-		Next:          web.SitePathOr(r.URL.Query().Get("next"), "/account"),
+		Next:          siteurl.PathOr(r.URL.Query().Get("next"), "/account"),
 		ReturnMessage: signInReturnMessage(r.Context(), r.URL.Query().Get("next")),
 		GoogleSignIn:  h.google.Enabled(),
 	})
@@ -300,7 +301,7 @@ func (h *Handler) SignIn(w http.ResponseWriter, r *http.Request) {
 	}
 	addr := r.PostFormValue("email")
 	password := r.PostFormValue("password")
-	next := web.SitePathOr(r.PostFormValue("next"), "/account")
+	next := siteurl.PathOr(r.PostFormValue("next"), "/account")
 	normalised := email.Clean(addr)
 	// email.MaxBytes is the application's address policy; the column is text, so
 	// the handler must bound the value before it becomes a long-lived limiter key.
@@ -333,7 +334,7 @@ func (h *Handler) SignIn(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	next = cartAdoptionLanding(next, adoption)
-	http.Redirect(w, r, next, http.StatusSeeOther) //nolint:gosec // G710: bounded by web.SitePathOr
+	http.Redirect(w, r, next, http.StatusSeeOther) //nolint:gosec // G710: bounded by siteurl.PathOr
 }
 
 // reserveSignIn sets aside one password guess for address before the hash,
@@ -442,7 +443,7 @@ func (h *Handler) takeSignInContext(w http.ResponseWriter, r *http.Request) (pur
 }
 
 func signInReturnMessage(ctx context.Context, next string) string {
-	target, ok := web.SitePath(next)
+	target, ok := siteurl.Path(next)
 	if !ok {
 		return ""
 	}
@@ -480,7 +481,7 @@ func (h *Handler) RegisterPage(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	q := r.URL.Query()
-	view := AuthView{Next: web.SitePathOr(q.Get("next"), "/account")}
+	view := AuthView{Next: siteurl.PathOr(q.Get("next"), "/account")}
 	view.OffersResend = q.Get("resend") == "1" || q.Get("sent") == "1"
 	if q.Get("sent") == "1" {
 		view.Notice = i18n.T(r.Context(), i18n.KeyRegisterSent)
@@ -504,7 +505,7 @@ func (h *Handler) ResendRegistration(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	addr := email.Clean(r.PostFormValue("email"))
-	next := web.SitePathOr(r.PostFormValue("next"), "/account")
+	next := siteurl.PathOr(r.PostFormValue("next"), "/account")
 	if EmailError(addr) != "" {
 		http.Redirect(w, r, "/register?"+url.Values{"next": {next}}.Encode(), http.StatusSeeOther)
 		return
@@ -552,7 +553,7 @@ func readPendingRegistration(r *http.Request) (addr, next string, ok bool) {
 	if !found || EmailError(email.Clean(addr)) != "" {
 		return "", "", false
 	}
-	return email.Clean(addr), web.SitePathOr(next, "/account"), true
+	return email.Clean(addr), siteurl.PathOr(next, "/account"), true
 }
 
 func clearPendingRegistration(w http.ResponseWriter, secure bool) {
@@ -578,7 +579,7 @@ func (h *Handler) Register(w http.ResponseWriter, r *http.Request) {
 		Name:     r.PostFormValue("name"),
 	}
 	c.Trim()
-	next := web.SitePathOr(r.PostFormValue("next"), "/account")
+	next := siteurl.PathOr(r.PostFormValue("next"), "/account")
 
 	view := AuthView{Email: c.Email, Name: c.Name, Next: next}
 	if errs := web.FieldMessages(r.Context(), c.ValidateRegistration()); len(errs) > 0 {
@@ -709,7 +710,7 @@ func (h *Handler) CartRecoveryPage(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 	}
-	next := web.SitePathOr(r.URL.Query().Get("next"), "/account")
+	next := siteurl.PathOr(r.URL.Query().Get("next"), "/account")
 	web.Render(w, r, h.log, http.StatusOK, pages.CartRecovery(
 		pages.CartRecoveryMeta(r.Context()), pages.CartRecoveryView{
 			Next:    next,
@@ -750,9 +751,9 @@ func (h *Handler) RetryCartAdoption(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "400 "+i18n.T(r.Context(), i18n.KeyFormUnreadable), http.StatusBadRequest)
 		return
 	}
-	next := web.SitePathOr(r.PostFormValue("next"), "/account")
+	next := siteurl.PathOr(r.PostFormValue("next"), "/account")
 	next = cartAdoptionLanding(next, h.adoptRequestCart(r, u.ID))
-	http.Redirect(w, r, next, http.StatusSeeOther) //nolint:gosec // G710: bounded by web.SitePathOr
+	http.Redirect(w, r, next, http.StatusSeeOther) //nolint:gosec // G710: bounded by siteurl.PathOr
 }
 
 type cartAdoption uint8
@@ -804,7 +805,7 @@ func (h *Handler) adoptRequestCart(r *http.Request, userID string) cartAdoption 
 }
 
 func registrationLanding(next string, outcome cartAdoption) string {
-	next = web.SitePathOr(next, "/account")
+	next = siteurl.PathOr(next, "/account")
 	query := url.Values{"welcome": {"1"}}
 	if outcome == cartAdoptionAdjusted {
 		next = appendCartAdjustNotice(next)
@@ -832,7 +833,7 @@ func cartAdoptionLanding(next string, outcome cartAdoption) string {
 }
 
 func appendCartAdjustNotice(target string) string {
-	next := web.SitePathOr(target, "/account")
+	next := siteurl.PathOr(target, "/account")
 	u, err := url.Parse(next)
 	if err != nil {
 		u = &url.URL{Path: "/account"}
@@ -870,7 +871,7 @@ func urlQueryEscape(s string) string {
 }
 
 func cartRecoveryLanding(continuation string) string {
-	next := web.SitePathOr(continuation, "/account")
+	next := siteurl.PathOr(continuation, "/account")
 	u := &url.URL{Path: "/account/cart-recovery"}
 	q := u.Query()
 	q.Set("next", next)
@@ -1131,7 +1132,7 @@ func (h *Handler) CompleteRegistrationPage(w http.ResponseWriter, r *http.Reques
 	web.Render(w, r, h.log, http.StatusOK, RegisterComplete(
 		RegisterCompleteMeta(r.Context()), RegisterCompleteView{
 			Token: r.URL.Query().Get("token"),
-			Next:  web.SitePathOr(r.URL.Query().Get("next"), "/account"),
+			Next:  siteurl.PathOr(r.URL.Query().Get("next"), "/account"),
 		}))
 }
 
@@ -1148,7 +1149,7 @@ func (h *Handler) CompleteRegistration(w http.ResponseWriter, r *http.Request) {
 	}
 	ctx := r.Context()
 	token := r.PostFormValue("token")
-	next := web.SitePathOr(r.PostFormValue("next"), "/account")
+	next := siteurl.PathOr(r.PostFormValue("next"), "/account")
 
 	addr, err := h.store.RegistrationAddress(ctx, token)
 	if errors.Is(err, ErrVerifyInvalid) {
@@ -1240,7 +1241,7 @@ func (h *Handler) GoogleSignIn(w http.ResponseWriter, r *http.Request) {
 		h.serverError(w, r)
 		return
 	}
-	next := web.SitePathOr(r.URL.Query().Get("next"), "/account")
+	next := siteurl.PathOr(r.URL.Query().Get("next"), "/account")
 	writeOAuthState(w, oauthState{Value: state.Value, Verifier: state.Verifier, Next: next}, h.secure)
 	http.Redirect(w, r, target, http.StatusSeeOther)
 }
@@ -1376,7 +1377,7 @@ func readOAuthState(r *http.Request, secure bool) (oauthState, bool) {
 		return oauthState{}, false
 	}
 	return oauthState{
-		Value: parts[0], Verifier: parts[1], Next: web.SitePathOr(parts[2], "/account"),
+		Value: parts[0], Verifier: parts[1], Next: siteurl.PathOr(parts[2], "/account"),
 	}, true
 }
 

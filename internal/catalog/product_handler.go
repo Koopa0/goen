@@ -16,6 +16,7 @@ import (
 	"github.com/koopa0/goen/internal/email"
 	"github.com/koopa0/goen/internal/i18n"
 	"github.com/koopa0/goen/internal/ratelimit"
+	"github.com/koopa0/goen/internal/siteurl"
 	"github.com/koopa0/goen/internal/ui/layouts"
 	"github.com/koopa0/goen/internal/user"
 	"github.com/koopa0/goen/internal/web"
@@ -77,7 +78,7 @@ func ProductFormPage(path string) (string, bool) {
 		return "", false
 	}
 	for _, form := range []string{"/reviews", "/questions", "/notify"} {
-		if slug, ok := strings.CutSuffix(rest, form); ok && web.ValidSlug(slug) {
+		if slug, ok := strings.CutSuffix(rest, form); ok && siteurl.ValidSlug(slug) {
 			return "/p/" + slug, true
 		}
 	}
@@ -311,7 +312,7 @@ func (h *Handler) rejectAsk(w http.ResponseWriter, r *http.Request, slug, body, 
 func boundedSlugs(raw []string) []string {
 	out := make([]string, 0, MaxCompare)
 	for _, s := range raw {
-		if !web.ValidSlug(s) || slices.Contains(out, s) {
+		if !siteurl.ValidSlug(s) || slices.Contains(out, s) {
 			continue
 		}
 		out = append(out, s)

@@ -7,15 +7,15 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/koopa0/goen/internal/web"
+	"github.com/koopa0/goen/internal/siteurl"
 )
 
 func TestTheReturnTargetFallsBackToThisFeaturesOwnPage(t *testing.T) {
 	const fallback = "/"
-	if got := web.SitePathOr("//evil.example", fallback); got != fallback {
+	if got := siteurl.PathOr("//evil.example", fallback); got != fallback {
 		t.Errorf("a refused target gave %q, want %q", got, fallback)
 	}
-	if got := web.SitePathOr("/deals", fallback); got != "/deals" {
+	if got := siteurl.PathOr("/deals", fallback); got != "/deals" {
 		t.Errorf("a same-site path gave %q", got)
 	}
 }

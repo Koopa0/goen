@@ -271,7 +271,7 @@ CI runs formatting, vet, lint, dead-code and generated-code checks, migration li
 | Browsing and derived data | [`internal/catalog`][catalog-store], [`internal/campaign`][campaign], [`internal/backinstock`][backinstock], [`internal/home`][home-store], [`internal/copurchase`][copurchase], [reports][reports] |
 | Language, money, time | [`internal/i18n`][i18n], [`internal/money`][money], [`internal/shoptime`][shoptime] |
 | Assets and media | [`assets`][assets], [`internal/media`][media-render] |
-| Identity and browser security | [`internal/auth`][auth], [`internal/auth/google`][google-signin], [`internal/bearer`][bearer], [staff access][access], [`internal/admin/twofactor`][twofactor], [`internal/ratelimit`][ratelimit], [`internal/clientip`][clientip] |
+| Identity and browser security | [`internal/auth`][auth], [`internal/auth/google`][google-signin], [`internal/bearer`][bearer], [staff access][access], [`internal/admin/twofactor`][twofactor], [`internal/ratelimit`][ratelimit], [`internal/clientip`][clientip], [`internal/siteurl`][siteurl] |
 | Operations | [Health queries][health-sql], [probes][probe], [slow-query tracer][slowquery], [Makefile][makefile], [CI][workflows] |
 
 [contributing]: CONTRIBUTING.md
@@ -319,6 +319,7 @@ CI runs formatting, vet, lint, dead-code and generated-code checks, migration li
 [twofactor]: internal/admin/twofactor
 [ratelimit]: internal/ratelimit
 [clientip]: internal/clientip/clientip.go
+[siteurl]: internal/siteurl/siteurl.go
 [i18n]: internal/i18n
 [money]: internal/money
 [shoptime]: internal/shoptime

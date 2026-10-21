@@ -19,7 +19,7 @@ import (
 	"github.com/koopa0/goen/internal/invoice"
 	"github.com/koopa0/goen/internal/keyset"
 	"github.com/koopa0/goen/internal/product"
-	"github.com/koopa0/goen/internal/web"
+	"github.com/koopa0/goen/internal/siteurl"
 )
 
 const (
@@ -58,7 +58,7 @@ func (f *Form) Validate(ctx context.Context) map[string]string {
 	f.WarrantyNote = strings.TrimSpace(f.WarrantyNote)
 
 	errs := map[string]string{}
-	if !web.ValidSlug(f.Slug) || utf8.RuneCountInString(f.Slug) > maxSlugRunes {
+	if !siteurl.ValidSlug(f.Slug) || utf8.RuneCountInString(f.Slug) > maxSlugRunes {
 		errs["slug"] = i18n.T(ctx, i18n.KeyFormSlugFormatExample)
 	}
 	if f.Name == "" || utf8.RuneCountInString(f.Name) > maxNameRunes {

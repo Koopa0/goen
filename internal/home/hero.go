@@ -8,8 +8,8 @@ import (
 	"github.com/koopa0/goen/internal/campaign"
 	"github.com/koopa0/goen/internal/db"
 	"github.com/koopa0/goen/internal/i18n"
+	"github.com/koopa0/goen/internal/siteurl"
 	"github.com/koopa0/goen/internal/ui/components"
-	"github.com/koopa0/goen/internal/web"
 )
 
 // maxSlides: more than three is a queue, not a hero.
@@ -39,7 +39,7 @@ func (s *Store) slides(ctx context.Context, src carouselSources) ([]components.H
 		// Typed by a person and rendered into an href at the top of the home
 		// page; direct SQL bypasses the write gate, so a bad link is a slide
 		// with no button rather than a dead one.
-		if href, ok := web.SitePath(r.PrimaryCtaHref); ok {
+		if href, ok := siteurl.Path(r.PrimaryCtaHref); ok {
 			slide.CTA = components.CTA{Label: r.PrimaryCtaLabel, Href: href}
 			slide.Tone = src.toneOf(href)
 		}

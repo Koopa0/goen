@@ -9,6 +9,7 @@ import (
 	"github.com/koopa0/goen/internal/auth"
 	"github.com/koopa0/goen/internal/cart/cartitem"
 	"github.com/koopa0/goen/internal/i18n"
+	"github.com/koopa0/goen/internal/siteurl"
 	"github.com/koopa0/goen/internal/ui/layouts"
 	"github.com/koopa0/goen/internal/ui/pages"
 	"github.com/koopa0/goen/internal/user"
@@ -88,7 +89,7 @@ func (h *Handler) overview(w http.ResponseWriter, r *http.Request, status int, r
 	view.EmailConfirmationRequested = r.URL.Query().Get("email") == "sent"
 	view.EmailReentry = r.URL.Query().Get("email") == "reenter"
 	if r.URL.Query().Get("welcome") == "1" {
-		view.ReturnAfterWelcome, _ = web.SitePath(r.URL.Query().Get("next"))
+		view.ReturnAfterWelcome, _ = siteurl.Path(r.URL.Query().Get("next"))
 		view.CartAdjusted = r.URL.Query().Get("adjusted") == "1"
 	}
 	view.PaymentsEnabled = h.takesPayment
@@ -349,15 +350,15 @@ func (h *Handler) SaveWishlist(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "400 "+i18n.T(r.Context(), i18n.KeyFormUnreadable), http.StatusBadRequest)
 		return
 	}
-	// web.SitePathOr refuses anything but a same-site path, which makes a
+	// siteurl.PathOr refuses anything but a same-site path, which makes a
 	// redirect target read off a form safe.
-	back := web.SitePathOr(r.PostFormValue("return"), "/account/wishlist")
+	back := siteurl.PathOr(r.PostFormValue("return"), "/account/wishlist")
 
 	u, ok := user.FromContext(r.Context())
 	if !ok {
 		// Authentication does not replay writes; this redirect only preserves
 		// the page for callers outside the authenticated route wrapper.
-		//nolint:gosec // G710: the fixed /signin path; back, bounded by web.SitePathOr above, is only its escaped query
+		//nolint:gosec // G710: the fixed /signin path; back, bounded by siteurl.PathOr above, is only its escaped query
 		http.Redirect(w, r, auth.SignInPath(back), http.StatusSeeOther)
 		return
 	}
@@ -374,5 +375,5 @@ func (h *Handler) SaveWishlist(w http.ResponseWriter, r *http.Request) {
 		h.serverError(w, r)
 		return
 	}
-	http.Redirect(w, r, back, http.StatusSeeOther) //nolint:gosec // G710: bounded by web.SitePathOr
+	http.Redirect(w, r, back, http.StatusSeeOther) //nolint:gosec // G710: bounded by siteurl.PathOr
 }

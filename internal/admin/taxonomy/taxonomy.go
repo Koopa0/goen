@@ -14,9 +14,9 @@ import (
 	"github.com/koopa0/goen/internal/admin/audit"
 	"github.com/koopa0/goen/internal/db"
 	"github.com/koopa0/goen/internal/i18n"
+	"github.com/koopa0/goen/internal/siteurl"
 	"github.com/koopa0/goen/internal/ui/components"
 	"github.com/koopa0/goen/internal/ui/icons"
-	"github.com/koopa0/goen/internal/web"
 )
 
 const MaxNameRunes = 60
@@ -62,7 +62,7 @@ func (f *Form) Validate(ctx context.Context) map[string]string {
 	f.Parent = strings.ToLower(strings.TrimSpace(f.Parent))
 
 	errs := map[string]string{}
-	if !web.ValidSlug(f.Slug) {
+	if !siteurl.ValidSlug(f.Slug) {
 		errs["slug"] = i18n.T(ctx, i18n.KeyFormSlugFormat)
 	}
 	if f.Name == "" || utf8.RuneCountInString(f.Name) > MaxNameRunes {

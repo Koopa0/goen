@@ -17,7 +17,7 @@ import (
 	"github.com/stripe/stripe-go/v86/webhook"
 
 	"github.com/koopa0/goen/internal/i18n"
-	"github.com/koopa0/goen/internal/web"
+	"github.com/koopa0/goen/internal/siteurl"
 )
 
 // Gateway is the only thing in goen that knows Stripe exists.
@@ -102,7 +102,7 @@ func newGateway(apiKey, webhookSecret, baseURL string, backend *stripe.BackendCo
 		return nil, errors.New("payment: a Stripe API key without a webhook secret " +
 			"would leave /webhooks/stripe unauthenticated")
 	}
-	origin, _, ok := web.SiteOrigin(baseURL)
+	origin, _, ok := siteurl.Origin(baseURL)
 	if !ok {
 		return nil, fmt.Errorf("payment: base URL %q is not usable for Stripe return URLs", baseURL)
 	}

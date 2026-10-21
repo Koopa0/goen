@@ -1,4 +1,4 @@
-package web
+package siteurl
 
 import (
 	"go/scanner"
@@ -11,10 +11,10 @@ import (
 	"testing"
 )
 
-// TestOnlySitePathDecidesASameSitePath keeps WHATWG rootedness in one place.
+// TestOnlyPathDecidesASameSitePath keeps WHATWG rootedness in one place.
 // A second prefix test is not a simpler spelling of this rule; it is a second
 // definition waiting to drift from the browser grammar again.
-func TestOnlySitePathDecidesASameSitePath(t *testing.T) {
+func TestOnlyPathDecidesASameSitePath(t *testing.T) {
 	t.Parallel()
 
 	root := filepath.Clean(filepath.Join("..", ".."))
@@ -32,7 +32,7 @@ func TestOnlySitePathDecidesASameSitePath(t *testing.T) {
 				return filepath.SkipDir
 			}
 			switch rel {
-			case "internal/db", "internal/web":
+			case "internal/db", "internal/siteurl":
 				return filepath.SkipDir
 			}
 			return nil
@@ -45,7 +45,7 @@ func TestOnlySitePathDecidesASameSitePath(t *testing.T) {
 			return err
 		}
 		for _, at := range sameSitePrefixTests(path, src) {
-			t.Errorf("%s:%d reimplements same-site rootedness with strings.HasPrefix; use web.SitePath",
+			t.Errorf("%s:%d reimplements same-site rootedness with strings.HasPrefix; use siteurl.Path",
 				rel, at)
 		}
 		return nil

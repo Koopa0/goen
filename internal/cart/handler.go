@@ -29,6 +29,7 @@ import (
 	"github.com/koopa0/goen/internal/payment"
 	"github.com/koopa0/goen/internal/ratelimit"
 	"github.com/koopa0/goen/internal/shipping/storemap"
+	"github.com/koopa0/goen/internal/siteurl"
 	"github.com/koopa0/goen/internal/ui/layouts"
 	"github.com/koopa0/goen/internal/ui/pages"
 	"github.com/koopa0/goen/internal/user"
@@ -183,7 +184,7 @@ func cartContinuation(r *http.Request) string {
 	if r.URL.Query().Get("qty") != "adjusted" {
 		return ""
 	}
-	return web.SitePathOr(r.URL.Query().Get("next"), "")
+	return siteurl.PathOr(r.URL.Query().Get("next"), "")
 }
 
 func cartPageNotice(r *http.Request) string {

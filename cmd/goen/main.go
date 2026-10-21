@@ -41,7 +41,7 @@ import (
 	"github.com/koopa0/goen/internal/outbox"
 	"github.com/koopa0/goen/internal/payment"
 	"github.com/koopa0/goen/internal/shipping/storemap"
-	"github.com/koopa0/goen/internal/web"
+	"github.com/koopa0/goen/internal/siteurl"
 	"github.com/koopa0/goen/migrations"
 )
 
@@ -224,7 +224,7 @@ func (cfg *config) prepareRuntimePosture(log *slog.Logger) error {
 			"link goen mails and every URL it gives Stripe, and guessing it from " +
 			"the listen address produces URLs that only work on this machine")
 	}
-	origin, scheme, ok := web.SiteOrigin(cfg.BaseURL)
+	origin, scheme, ok := siteurl.Origin(cfg.BaseURL)
 	if !ok && os.Getenv("GOEN_BASE_URL") == "" {
 		return fmt.Errorf("GOEN_BASE_URL is unset and %q, guessed from GOEN_ADDR, is not an "+
 			"origin: a listen address with no host or an unspecified one names no machine "+
