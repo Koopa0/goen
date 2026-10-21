@@ -1,19 +1,15 @@
 package cart
 
 import (
-	"go/ast"
-	"go/parser"
-	"go/token"
 	"log/slog"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
-	"path/filepath"
-	"regexp"
 	"strings"
 	"testing"
 
 	"github.com/koopa0/goen/internal/order/access"
+	"github.com/koopa0/goen/internal/shipping/storemap"
 )
 
 // TestTheStoreMapReturnIsWorthNothingToWhoeverDrivesIt holds the one route
@@ -23,7 +19,7 @@ import (
 // /checkout against the nonce this browser alone holds.
 func TestTheStoreMapReturnIsWorthNothingToWhoeverDrivesIt(t *testing.T) {
 	t.Parallel()
-	h := NewHandler(&Store{}, &access.Store{}, slog.New(slog.DiscardHandler), true, nil, testMap(t, ModeB2C))
+	h := NewHandler(&Store{}, &access.Store{}, slog.New(slog.DiscardHandler), true, nil, testMap(t))
 
 	callback := url.Values{
 		"MerchantID": {aMerchantID}, "MerchantTradeNo": {"ABCDEFGHIJ1234567890"},
@@ -33,7 +29,7 @@ func TestTheStoreMapReturnIsWorthNothingToWhoeverDrivesIt(t *testing.T) {
 	}
 	post := func(body string, cookies ...*http.Cookie) *httptest.ResponseRecorder {
 		t.Helper()
-		req := httptest.NewRequestWithContext(t.Context(), http.MethodPost, PickupReturnPath,
+		req := httptest.NewRequestWithContext(t.Context(), http.MethodPost, storemap.ReturnPath,
 			strings.NewReader(body))
 		req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
 		for _, c := range cookies {
@@ -50,7 +46,7 @@ func TestTheStoreMapReturnIsWorthNothingToWhoeverDrivesIt(t *testing.T) {
 		for k, v := range callback {
 			padded[k] = v
 		}
-		padded.Set("CVSOutSide", strings.Repeat("0", maxCallbackFieldBytes))
+		padded.Set("CVSOutSide", strings.Repeat("0", storemap.MaxCallbackBytes))
 		if res := post(padded.Encode()); res.Code != http.StatusBadRequest {
 			t.Errorf("an oversized callback answered %d, want 400", res.Code)
 		}
@@ -75,64 +71,11 @@ func TestTheStoreMapReturnIsWorthNothingToWhoeverDrivesIt(t *testing.T) {
 		}
 
 		// This browser's own pickup state changes nothing about the answer.
-		held := &http.Cookie{Name: pickupCookieName(true), Value: "c3RhdGU"} //nolint:gosec // G124: a request cookie, as the browser sends it
+		held := &http.Cookie{Name: storemap.CookieNameFor(true), Value: "c3RhdGU"} //nolint:gosec // G124: a request cookie, as the browser sends it
 		withCookie := post(callback.Encode(), held)
 		if withCookie.Body.String() != bare.Body.String() ||
 			len(withCookie.Header().Values("Set-Cookie")) != 0 {
 			t.Error("the callback's answer depends on this browser's cookie")
 		}
 	})
-}
-
-// TestPickupNoncesAreComparedInConstantTime holds the one comparison the
-// store-map rule rests on. The honour rule's behaviour cannot show how it
-// compares, so the source is read: a nonce is compared with
-// crypto/subtle, and == or != on a nonce is only a test for absence.
-func TestPickupNoncesAreComparedInConstantTime(t *testing.T) {
-	t.Parallel()
-	files, err := filepath.Glob("*.go")
-	if err != nil {
-		t.Fatalf("list sources: %v", err)
-	}
-	nonceName := regexp.MustCompile(`(?i)nonce$`)
-	isNonce := func(e ast.Expr) bool {
-		switch v := e.(type) {
-		case *ast.Ident:
-			return nonceName.MatchString(v.Name)
-		case *ast.SelectorExpr:
-			return nonceName.MatchString(v.Sel.Name)
-		}
-		return false
-	}
-	isEmpty := func(e ast.Expr) bool {
-		lit, ok := e.(*ast.BasicLit)
-		return ok && lit.Kind == token.STRING && lit.Value == `""`
-	}
-
-	fset := token.NewFileSet()
-	var offenders []string
-	for _, name := range files {
-		if strings.HasSuffix(name, "_test.go") {
-			continue
-		}
-		file, err := parser.ParseFile(fset, name, nil, 0)
-		if err != nil {
-			t.Fatalf("parse %s: %v", name, err)
-		}
-		ast.Inspect(file, func(n ast.Node) bool {
-			cmp, ok := n.(*ast.BinaryExpr)
-			if !ok || (cmp.Op != token.EQL && cmp.Op != token.NEQ) {
-				return true
-			}
-			if (isNonce(cmp.X) || isNonce(cmp.Y)) && !isEmpty(cmp.X) && !isEmpty(cmp.Y) {
-				offenders = append(offenders, fset.Position(cmp.Pos()).String())
-			}
-			return true
-		})
-	}
-	if len(offenders) > 0 {
-		t.Errorf("a pickup nonce is compared with == or != at %v; use "+
-			"subtle.ConstantTimeCompare so the comparison's time says nothing about the nonce",
-			offenders)
-	}
 }

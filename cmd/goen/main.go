@@ -40,6 +40,7 @@ import (
 	"github.com/koopa0/goen/internal/outbox"
 	"github.com/koopa0/goen/internal/payment"
 	"github.com/koopa0/goen/internal/ratelimit"
+	"github.com/koopa0/goen/internal/shipping/storemap"
 	"github.com/koopa0/goen/internal/web"
 	"github.com/koopa0/goen/migrations"
 )
@@ -507,8 +508,8 @@ func openInvoicing(cfg *config, log *slog.Logger) (*issuer.Gateway, error) {
 	return g, nil
 }
 
-func openStoreMap(cfg *config, log *slog.Logger) (*cart.StoreMap, error) {
-	m, err := cart.NewStoreMap(cfg.ECPayMerchantID, cfg.ECPayLogistics,
+func openStoreMap(cfg *config, log *slog.Logger) (*storemap.Client, error) {
+	m, err := storemap.New(cfg.ECPayMerchantID, cfg.ECPayLogistics,
 		cfg.ECPayLogisticsBaseURL, cfg.BaseURL)
 	if err != nil {
 		return nil, err
@@ -529,7 +530,7 @@ var _ refunds.Refunder = (*payment.Gateway)(nil)
 // absent. Each refuses to start on HALF a configuration.
 func openProviders(cfg *config, log *slog.Logger) (
 	payments *payment.Gateway, invoices *issuer.Gateway,
-	googleSignIn *google.Client, storeMap *cart.StoreMap, err error,
+	googleSignIn *google.Client, storeMap *storemap.Client, err error,
 ) {
 	if payments, err = payment.NewGateway(cfg.StripeAPIKey, cfg.StripeWebhookSecret, cfg.BaseURL); err != nil {
 		return nil, nil, nil, nil, err

@@ -55,6 +55,7 @@ import (
 	"github.com/koopa0/goen/internal/policy"
 	"github.com/koopa0/goen/internal/probe"
 	"github.com/koopa0/goen/internal/ratelimit"
+	"github.com/koopa0/goen/internal/shipping/storemap"
 	"github.com/koopa0/goen/internal/site"
 	"github.com/koopa0/goen/internal/warranty"
 	"github.com/koopa0/goen/internal/web"
@@ -118,7 +119,7 @@ type StorefrontConfig struct {
 	// StoreMap is the carrier's convenience-store picker, or is disabled and
 	// the checkout offers no pickup, the route is not registered, the
 	// cross-origin defence gains no bypass, and the policy is unchanged.
-	StoreMap *cart.StoreMap
+	StoreMap *storemap.Client
 	// DemoAccount is the account a public demonstration shares, or the zero
 	// value and the sign-in page offers none.
 	DemoAccount auth.DemoAccount
@@ -144,7 +145,7 @@ type BackOfficeConfig struct {
 	TOTPPreviousKey []byte
 	// Invoices issues uniform invoices, or is disabled and renders no controls.
 	Invoices *issuer.Gateway
-	StoreMap *cart.StoreMap
+	StoreMap *storemap.Client
 }
 
 func newRouter(cfg *RouterConfig, log *slog.Logger) http.Handler {

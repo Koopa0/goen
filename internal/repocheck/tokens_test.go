@@ -15,13 +15,13 @@ import (
 // randReaders lists every crypto/rand.Read call outside internal/bearer, keyed
 // "<slash path>#<enclosing func>", with why it is not a bearer token.
 var randReaders = map[string]string{ //nolint:gosec // G101: the key names the function NewSecret, no credential is held
-	"internal/auth/auth.go#HashPassword":           "argon2 salt",
-	"internal/admin/twofactor/totp.go#NewSecret":   "TOTP shared secret",
-	"internal/admin/twofactor/crypt.go#seal":       "AES-GCM nonce",
-	"internal/admin/stock/handler.go#newKey":       "form idempotency key, never digested",
-	"internal/cart/cart.go#newCheckoutAttemptID":   "checkout attempt id echoed in the form",
-	"internal/cart/ecpaymap.go#NewMerchantTradeNo": "ECPay map trade number",
-	"internal/cart/ecpaymap.go#newPickupNonce":     "map return nonce",
+	"internal/auth/auth.go#HashPassword":                        "argon2 salt",
+	"internal/admin/twofactor/totp.go#NewSecret":                "TOTP shared secret",
+	"internal/admin/twofactor/crypt.go#seal":                    "AES-GCM nonce",
+	"internal/admin/stock/handler.go#newKey":                    "form idempotency key, never digested",
+	"internal/cart/cart.go#newCheckoutAttemptID":                "checkout attempt id echoed in the form",
+	"internal/shipping/storemap/storemap.go#NewMerchantTradeNo": "ECPay map trade number",
+	"internal/shipping/storemap/storemap.go#NewNonce":           "map return nonce",
 }
 
 // sha256Users lists every crypto/sha256 Sum256 or New call outside

@@ -21,8 +21,8 @@ import (
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 
-	"github.com/koopa0/goen/internal/cart"
 	"github.com/koopa0/goen/internal/payment"
+	"github.com/koopa0/goen/internal/shipping/storemap"
 	"github.com/koopa0/goen/internal/web"
 )
 
@@ -325,7 +325,7 @@ func TestStorefrontRouteInventory(t *testing.T) {
 	if err != nil {
 		t.Fatalf("build a disabled payment gateway: %v", err)
 	}
-	storeMap, err := cart.NewStoreMap(testMerchantID, string(cart.ModeB2C), "", "https://goen.test")
+	storeMap, err := storemap.New(testMerchantID, string(storemap.ModeB2C), "", "https://goen.test")
 	if err != nil {
 		t.Fatalf("build the store map: %v", err)
 	}

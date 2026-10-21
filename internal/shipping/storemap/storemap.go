@@ -1,4 +1,8 @@
-package cart
+// Package storemap is ECPay's convenience-store map, where a shopper picks the
+// store to collect a parcel from; it holds the map client, the nonce cookie,
+// the callback checks, PostedStore and the two hop pages; it does not hold the
+// pickup method, chains, carriers or store-code shape (shipping).
+package storemap
 
 import (
 	"crypto/rand"
@@ -20,16 +24,16 @@ import (
 // ECPay's convenience-store map. Staging is the default and answers with one
 // fixed store instead of a map.
 const (
-	MapStagingBaseURL    = "https://logistics-stage.ecpay.com.tw"
-	MapProductionBaseURL = "https://logistics.ecpay.com.tw"
+	StagingBaseURL    = "https://logistics-stage.ecpay.com.tw"
+	ProductionBaseURL = "https://logistics.ecpay.com.tw"
 )
 
 const mapPath = "/Express/map"
 
-// PickupReturnPath receives a cross-site POST carrying none of goen's cookies,
+// ReturnPath receives a cross-site POST carrying none of goen's cookies,
 // so the route is exempt from the cross-origin defence and validates shape
 // only.
-const PickupReturnPath = "/checkout/pickup/return"
+const ReturnPath = "/checkout/pickup/return"
 
 // LogisticsMode cannot be guessed from the request: ECPay refuses a
 // LogisticsSubType the merchant did not apply for.
@@ -54,8 +58,8 @@ var mapSubtypes = map[LogisticsMode]map[shipping.Chain]string{
 	},
 }
 
-// StoreMap is DISABLED at its zero value: the checkout then offers no pickup.
-type StoreMap struct {
+// Client is DISABLED at its zero value: the checkout then offers no pickup.
+type Client struct {
 	merchantID string
 	mode       LogisticsMode
 	// origin is the scheme and host of action that the Content-Security-Policy
@@ -67,60 +71,60 @@ type StoreMap struct {
 	returnURL string
 }
 
-// NewStoreMap follows the 加值中心 posture beside it: half a configuration refuses
+// New follows the 加值中心 posture beside it: half a configuration refuses
 // to start rather than failing at first use.
-func NewStoreMap(merchantID, mode, baseURL, siteBaseURL string) (*StoreMap, error) {
+func New(merchantID, mode, baseURL, siteBaseURL string) (*Client, error) {
 	if mode == "" {
-		return &StoreMap{}, nil
+		return &Client{}, nil
 	}
 	m := LogisticsMode(mode)
 	if _, ok := mapSubtypes[m]; !ok {
 		// i18n-exempt: a startup failure, read by whoever is deploying this.
-		return nil, fmt.Errorf("cart: GOEN_ECPAY_LOGISTICS is %q; it must be %q or %q, "+
+		return nil, fmt.Errorf("storemap: GOEN_ECPAY_LOGISTICS is %q; it must be %q or %q, "+
 			"whichever logistics contract the merchant holds", mode, ModeC2C, ModeB2C)
 	}
 	if merchantID == "" {
-		return nil, errors.New("cart: GOEN_ECPAY_LOGISTICS is set without " +
+		return nil, errors.New("storemap: GOEN_ECPAY_LOGISTICS is set without " +
 			"GOEN_ECPAY_MERCHANT_ID — the map request is identified by the merchant id " +
 			"and ECPay refuses a call without one")
 	}
 	if baseURL == "" {
-		baseURL = MapStagingBaseURL
+		baseURL = StagingBaseURL
 	}
 	parsed, err := url.Parse(baseURL)
 	if err != nil {
-		return nil, fmt.Errorf("cart: GOEN_ECPAY_LOGISTICS_BASE_URL %q is not usable: %w", baseURL, err)
+		return nil, fmt.Errorf("storemap: GOEN_ECPAY_LOGISTICS_BASE_URL %q is not usable: %w", baseURL, err)
 	}
 	if (parsed.Scheme != "http" && parsed.Scheme != "https") || parsed.Host == "" || parsed.User != nil {
-		return nil, fmt.Errorf("cart: GOEN_ECPAY_LOGISTICS_BASE_URL %q must be an absolute "+
+		return nil, fmt.Errorf("storemap: GOEN_ECPAY_LOGISTICS_BASE_URL %q must be an absolute "+
 			"HTTP(S) URL without userinfo", baseURL)
 	}
 	if siteBaseURL == "" {
-		return nil, errors.New("cart: the store map needs GOEN_BASE_URL: ECPay sends the " +
+		return nil, errors.New("storemap: the store map needs GOEN_BASE_URL: ECPay sends the " +
 			"chosen store to that origin, and a URL guessed from the request's Host header " +
 			"is a URL the client chose")
 	}
-	return &StoreMap{
+	return &Client{
 		merchantID: merchantID,
 		mode:       m,
 		action:     strings.TrimSuffix(baseURL, "/") + mapPath,
 		origin:     parsed.Scheme + "://" + parsed.Host,
-		returnURL:  strings.TrimSuffix(siteBaseURL, "/") + PickupReturnPath,
+		returnURL:  strings.TrimSuffix(siteBaseURL, "/") + ReturnPath,
 	}, nil
 }
 
-func (m *StoreMap) Enabled() bool { return m != nil && m.merchantID != "" }
+func (m *Client) Enabled() bool { return m != nil && m.merchantID != "" }
 
 // Origin is the one third-party origin form-action must name, or "" when the
 // picker is off.
-func (m *StoreMap) Origin() string {
+func (m *Client) Origin() string {
 	if !m.Enabled() {
 		return ""
 	}
 	return m.origin
 }
 
-func (m *StoreMap) Subtype(chain shipping.Chain) (string, bool) {
+func (m *Client) Subtype(chain shipping.Chain) (string, bool) {
 	if !m.Enabled() {
 		return "", false
 	}
@@ -130,7 +134,7 @@ func (m *StoreMap) Subtype(chain shipping.Chain) (string, bool) {
 
 // ChainFor refuses a subtype from the other contract: it cannot have come from
 // a map call this deployment made.
-func (m *StoreMap) ChainFor(subtype string) (shipping.Chain, bool) {
+func (m *Client) ChainFor(subtype string) (shipping.Chain, bool) {
 	if !m.Enabled() {
 		return "", false
 	}
@@ -142,16 +146,33 @@ func (m *StoreMap) ChainFor(subtype string) (shipping.Chain, bool) {
 	return "", false
 }
 
+// Form holds only parameters ECPay's map documents, so the
+// template cannot add one carrying something the shopper typed.
+type Form struct {
+	Action          string
+	MerchantID      string
+	MerchantTradeNo string
+	LogisticsType   string
+	// LogisticsSubType is the chain in the spelling the merchant's contract uses; B2C
+	// and C2C spell the same chain differently.
+	LogisticsSubType string
+	IsCollection     string
+	ServerReplyURL   string
+	ExtraData        string
+	// Device is sent only to a phone, and only 7-ELEVEN reads it.
+	Device string
+}
+
 // Request builds a form that carries ECPay's own parameters and NOTHING else: the
 // checkout's name, phone, e-mail and address must never ride to a third party.
 // tradeNo is fresh per render; the nonce travels in ExtraData, which ECPay
 // echoes back unchanged.
-func (m *StoreMap) Request(chain shipping.Chain, tradeNo, nonce string, mobile bool) (CheckoutMapForm, bool) {
+func (m *Client) Request(chain shipping.Chain, tradeNo, nonce string, mobile bool) (Form, bool) {
 	subtype, ok := m.Subtype(chain)
 	if !ok {
-		return CheckoutMapForm{}, false
+		return Form{}, false
 	}
-	f := CheckoutMapForm{
+	f := Form{
 		Action:           m.action,
 		MerchantID:       m.merchantID,
 		MerchantTradeNo:  tradeNo,
@@ -189,7 +210,8 @@ func NewMerchantTradeNo() (string, error) {
 // nonceBytes gives 80 bits, which fits ExtraData's 20 characters as hex.
 const nonceBytes = 10
 
-func newPickupNonce() (string, error) {
+// NewNonce returns a fresh nonce for the pickup cookie and ExtraData.
+func NewNonce() (string, error) {
 	b := make([]byte, nonceBytes)
 	if _, err := rand.Read(b); err != nil {
 		return "", err
@@ -197,7 +219,8 @@ func newPickupNonce() (string, error) {
 	return hex.EncodeToString(b), nil
 }
 
-func validNonce(s string) bool {
+// ValidNonce reports whether s has the exact shape NewNonce produces.
+func ValidNonce(s string) bool {
 	if len(s) != nonceBytes*2 {
 		return false
 	}
@@ -209,25 +232,26 @@ func validNonce(s string) bool {
 	return true
 }
 
-// PickupCookieName binds the nonce to this origin; development uses a different
+// CookieName binds the nonce to this origin; development uses a different
 // name because a __Host- cookie without Secure is rejected.
-const PickupCookieName = "__Host-goen_pickup"
+const CookieName = "__Host-goen_pickup"
 
-func pickupCookieName(secure bool) string {
+// CookieNameFor is CookieName on a secure deployment and its bare form otherwise.
+func CookieNameFor(secure bool) string {
 	if secure {
-		return PickupCookieName
+		return CookieName
 	}
 	return "goen_pickup"
 }
 
-// pickupCookieMaxAge bounds how long a nonce left in the address bar is worth
+// cookieMaxAge bounds how long a nonce left in the address bar is worth
 // anything; the map itself times out after three idle minutes.
-const pickupCookieMaxAge = 2 * 60 * 60
+const cookieMaxAge = 2 * 60 * 60
 
-// pickupState carries the three query keys with the nonce because the return is
+// State carries the three query keys with the nonce because the return is
 // a cross-site POST: the browser sends this Lax cookie on the refreshed GET,
 // the only thing that survives the trip.
-type pickupState struct {
+type State struct {
 	Nonce string
 	// Ship, Invoice and Address are the three query keys Checkout reads and
 	// re-validates, so a tampered cookie chooses nothing a hand-typed URL could
@@ -237,41 +261,43 @@ type pickupState struct {
 	Address string
 }
 
-func writePickupCookie(w http.ResponseWriter, s pickupState, secure bool) {
+// WriteCookie sets the pickup cookie carrying s.
+func WriteCookie(w http.ResponseWriter, s State, secure bool) {
 	raw := strings.Join([]string{s.Nonce, s.Ship, s.Invoice, s.Address}, "|")
 	//nolint:gosec // G124: Secure follows the deployment's own flag, as every cookie here does
 	http.SetCookie(w, &http.Cookie{
-		Name:     pickupCookieName(secure),
+		Name:     CookieNameFor(secure),
 		Value:    base64.RawURLEncoding.EncodeToString([]byte(raw)),
 		Path:     "/",
-		MaxAge:   pickupCookieMaxAge,
+		MaxAge:   cookieMaxAge,
 		HttpOnly: true,
 		Secure:   secure,
 		SameSite: http.SameSiteLaxMode,
 	})
 }
 
-func readPickupCookie(r *http.Request, secure bool) (pickupState, bool) {
+// ReadCookie returns this browser's pickup state, and false when it holds none.
+func ReadCookie(r *http.Request, secure bool) (State, bool) {
 	// POST state belongs to the submitted form, never to an unrelated query.
 	nonce := r.URL.Query().Get("pickup_n")
 	if r.Method == http.MethodPost {
 		nonce = r.PostFormValue("pickup_n")
 	}
-	var first pickupState
+	var first State
 	var found bool
-	for _, c := range r.CookiesNamed(pickupCookieName(secure)) {
+	for _, c := range r.CookiesNamed(CookieNameFor(secure)) {
 		raw, err := base64.RawURLEncoding.DecodeString(c.Value)
 		if err != nil {
 			continue
 		}
 		parts := strings.SplitN(string(raw), "|", 4)
-		if len(parts) != 4 || !validNonce(parts[0]) {
+		if len(parts) != 4 || !ValidNonce(parts[0]) {
 			continue
 		}
-		state := pickupState{Nonce: parts[0], Ship: parts[1], Invoice: parts[2], Address: parts[3]}
+		state := State{Nonce: parts[0], Ship: parts[1], Invoice: parts[2], Address: parts[3]}
 		// Browsers can send same-name cookies from different paths. The one
 		// carrying the returned nonce wins; otherwise the first valid cookie is
-		// still this browser's state, and honourPickupStore alone decides
+		// still this browser's state, and Honoured alone decides
 		// whether the store is believed.
 		if nonce != "" && subtle.ConstantTimeCompare([]byte(nonce), []byte(parts[0])) == 1 {
 			return state, true
@@ -283,12 +309,14 @@ func readPickupCookie(r *http.Request, secure bool) (pickupState, bool) {
 	return first, found
 }
 
-func pickupNonceMatched(r *http.Request, secure bool, posted string) bool {
-	if !validNonce(posted) {
+// NonceMatched reports whether posted equals the nonce of any pickup cookie
+// this browser sent; it is for diagnostics, and Honoured alone decides.
+func NonceMatched(r *http.Request, secure bool, posted string) bool {
+	if !ValidNonce(posted) {
 		return false
 	}
 	matched := false
-	for _, c := range r.CookiesNamed(pickupCookieName(secure)) {
+	for _, c := range r.CookiesNamed(CookieNameFor(secure)) {
 		raw, err := base64.RawURLEncoding.DecodeString(c.Value)
 		if err != nil {
 			continue
@@ -301,12 +329,12 @@ func pickupNonceMatched(r *http.Request, secure bool, posted string) bool {
 	return matched
 }
 
-// A nonce left behind after an order is placed would still honour a store for
-// the next checkout in this browser.
-func clearPickupCookie(w http.ResponseWriter, secure bool) {
+// ClearCookie expires the pickup cookie: a nonce left behind after an order is
+// placed would still honour a store for the next checkout in this browser.
+func ClearCookie(w http.ResponseWriter, secure bool) {
 	//nolint:gosec // G124: as above
 	http.SetCookie(w, &http.Cookie{
-		Name: pickupCookieName(secure), Value: "", Path: "/", MaxAge: -1,
+		Name: CookieNameFor(secure), Value: "", Path: "/", MaxAge: -1,
 		HttpOnly: true, Secure: secure, SameSite: http.SameSiteLaxMode,
 	})
 }
@@ -326,15 +354,15 @@ func (p PostedStore) Empty() bool {
 	return p.Chain == "" && p.Code == "" && p.Name == "" && p.Nonce == ""
 }
 
-// honourPickupStore is the ONE rule: a store is honoured only when the returned
+// Honoured is the ONE rule: a store is honoured only when the returned
 // nonce equals the nonce in this browser's own Lax cookie, compared in constant
 // time, and the chain is one the checkout offers. The chain equality carries no
 // weight of its own: both halves come from the same attacker-influenceable URL.
 // It runs on the GET that renders a returned store AND on the POST that places
 // the order, otherwise a 422 re-render would carry a dropped store back in its
 // hidden fields.
-func honourPickupStore(p PostedStore, state pickupState, known bool) bool {
-	if !known || !validNonce(state.Nonce) || !validNonce(p.Nonce) {
+func Honoured(p PostedStore, state State, known bool) bool {
+	if !known || !ValidNonce(state.Nonce) || !ValidNonce(p.Nonce) {
 		return false
 	}
 	if subtle.ConstantTimeCompare([]byte(p.Nonce), []byte(state.Nonce)) != 1 {
@@ -348,10 +376,11 @@ func honourPickupStore(p PostedStore, state pickupState, known bool) bool {
 const (
 	maxCallbackStoreNameRunes = 20
 	maxCallbackAddressRunes   = 80
-	maxCallbackFieldBytes     = 8 << 10
+	MaxCallbackBytes          = 8 << 10
 )
 
-type callback struct {
+// Callback is a store the map posted back, of a shape ReadCallback accepted.
+type Callback struct {
 	Chain   shipping.Chain
 	Code    string
 	Name    string
@@ -359,43 +388,44 @@ type callback struct {
 	Nonce   string
 }
 
-// readCallback validates SHAPE only: no cookie, no database, and false for
+// ReadCallback validates SHAPE only: no cookie, no database, and false for
 // anything unrecognised rather than repeating it.
-func (m *StoreMap) readCallback(r *http.Request) (callback, bool) {
+func (m *Client) ReadCallback(r *http.Request) (Callback, bool) {
 	if !m.Enabled() {
-		return callback{}, false
+		return Callback{}, false
 	}
 	if r.PostFormValue("MerchantID") != m.merchantID {
-		return callback{}, false
+		return Callback{}, false
 	}
 	chain, ok := m.ChainFor(r.PostFormValue("LogisticsSubType"))
 	if !ok {
-		return callback{}, false
+		return Callback{}, false
 	}
 	// Uppercased first, as Delivery.Trim does before placement checks the same
 	// shape, so the return cannot refuse a code the order accepts.
 	code := strings.ToUpper(strings.TrimSpace(r.PostFormValue("CVSStoreID")))
 	if !shipping.ValidStoreCode(code) {
-		return callback{}, false
+		return Callback{}, false
 	}
 	name := strings.TrimSpace(r.PostFormValue("CVSStoreName"))
 	if name == "" || utf8.RuneCountInString(name) > maxCallbackStoreNameRunes || web.HasControlChars(name) {
-		return callback{}, false
+		return Callback{}, false
 	}
 	address := strings.TrimSpace(r.PostFormValue("CVSAddress"))
 	if utf8.RuneCountInString(address) > maxCallbackAddressRunes || web.HasControlChars(address) {
-		return callback{}, false
+		return Callback{}, false
 	}
 	nonce := r.PostFormValue("ExtraData")
-	if !validNonce(nonce) {
-		return callback{}, false
+	if !ValidNonce(nonce) {
+		return Callback{}, false
 	}
-	return callback{Chain: chain, Code: code, Name: name, Address: address, Nonce: nonce}, true
+	return Callback{Chain: chain, Code: code, Name: name, Address: address, Nonce: nonce}, true
 }
 
-// The path is a fixed literal and every posted value is one encoded query
+// RefreshTarget is the checkout URL the return page sends the browser to. The
+// path is a fixed literal and every posted value is one encoded query
 // parameter, so nothing in the callback can influence the scheme, host or path.
-func (c callback) refreshTarget() string {
+func (c Callback) RefreshTarget() string {
 	q := url.Values{
 		"pickup_chain":      {string(c.Chain)},
 		"pickup_store_code": {c.Code},
