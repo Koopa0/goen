@@ -9,7 +9,6 @@ import (
 
 	"github.com/koopa0/goen/assets"
 	"github.com/koopa0/goen/internal/i18n"
-	"github.com/koopa0/goen/internal/ui/pages"
 )
 
 func TestAdminOrderLineShowsItsPhotoOrTheEmptyWell(t *testing.T) {
@@ -18,7 +17,7 @@ func TestAdminOrderLineShowsItsPhotoOrTheEmptyWell(t *testing.T) {
 		for _, present := range []bool{true, false} {
 			t.Run(locale.Tag()+"/photo="+map[bool]string{true: "present", false: "missing"}[present], func(t *testing.T) {
 				t.Parallel()
-				line := pages.OrderLine{Name: "Recorded line name", Label: "Blue", UnitCents: 10000, Quantity: 2}
+				line := Line{Name: "Recorded line name", Label: "Blue", UnitCents: 10000, Quantity: 2}
 				alt := "藍色商品的正面"
 				if locale == i18n.En {
 					alt = "The blue product, front view"
@@ -28,7 +27,7 @@ func TestAdminOrderLineShowsItsPhotoOrTheEmptyWell(t *testing.T) {
 					line.ImageSrcset = assets.Image{BundledKey: "pixelight-9-pro-02.webp"}.Srcset()
 					line.ImageAlt = alt
 				}
-				doc, err := html.Parse(strings.NewReader(renderOrder(t, locale, &OrderView{Number: "GO-1", Lines: []pages.OrderLine{line}})))
+				doc, err := html.Parse(strings.NewReader(renderOrder(t, locale, &OrderView{Number: "GO-1", Lines: []Line{line}})))
 				if err != nil {
 					t.Fatal(err)
 				}
@@ -78,7 +77,7 @@ func TestPickingSlipLinesRenderNoPhotoBlock(t *testing.T) {
 	for _, locale := range i18n.Locales() {
 		t.Run(locale.Tag(), func(t *testing.T) {
 			t.Parallel()
-			slip := &OrderView{OutstandingQuantities: true, Number: "GO-1", Lines: []pages.OrderLine{{SKU: "SKU-A", Name: "Slip line", Quantity: 2, UnitCents: 100}}}
+			slip := &OrderView{OutstandingQuantities: true, Number: "GO-1", Lines: []Line{{SKU: "SKU-A", Name: "Slip line", Quantity: 2, UnitCents: 100}}}
 			out := renderOrder(t, locale, slip)
 			for _, banned := range []string{"goen-order__photo", "goen-line__ph", "goen-order__image"} {
 				if strings.Contains(out, banned) {

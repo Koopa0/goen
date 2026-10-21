@@ -11,7 +11,6 @@ import (
 	"github.com/koopa0/goen/internal/order"
 	"github.com/koopa0/goen/internal/shipping"
 	"github.com/koopa0/goen/internal/ui/layouts"
-	"github.com/koopa0/goen/internal/ui/pages"
 )
 
 // OrderShipment is one parcel. The right to cancel and the warranty of the lines in it count from its own delivery.
@@ -28,7 +27,7 @@ type OrderShipment struct {
 	// RescissionDays is how long the right to cancel lasts once the parcel arrives, as the database states it.
 	RescissionDays int64
 	// Lines are the units of each line that went in this parcel.
-	Lines []pages.OrderLine
+	Lines []OrderLine
 }
 
 func (s OrderShipment) TrackURL() string { return s.Carrier.TrackingURL(s.Tracking) }
@@ -49,8 +48,8 @@ type OrderView struct {
 	// Pickup is set for an order collected from a store, where delivery reads as collection.
 	Pickup bool
 	// Lines are the lines as bought; Unshipped are the units no parcel carries yet.
-	Lines          []pages.OrderLine
-	Unshipped      []pages.OrderLine
+	Lines          []OrderLine
+	Unshipped      []OrderLine
 	Returned       *OrderReturned
 	SubtotalCents  int64
 	ShippingCents  int64

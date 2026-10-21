@@ -52,20 +52,11 @@ import (
 //     constant belongs to the package whose rule it states (S8b moved the
 //     comparison cap, the review limits and the restock outcomes to catalog and
 //     the add-to-cart outcome to cart/cartitem).
-var viewPackageImporters = []string{
-	"internal/admin/orders",
-	"internal/order/buyer",
-}
+var viewPackageImporters = []string{}
 
-var dataFilesNamingViews = []string{
-	"internal/admin/orders/picking.go",
-	"internal/admin/orders/store.go",
-	"internal/order/buyer/order.go",
-}
+var dataFilesNamingViews = []string{}
 
-var storeMethodsNamingViews = map[string]int{
-	"internal/order/buyer/order.go": 1,
-}
+var storeMethodsNamingViews = map[string]int{}
 
 const (
 	layeringModule = "github.com/koopa0/goen/"

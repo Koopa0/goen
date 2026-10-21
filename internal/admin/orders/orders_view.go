@@ -15,7 +15,6 @@ import (
 	"github.com/koopa0/goen/internal/order"
 	"github.com/koopa0/goen/internal/ui/components"
 	"github.com/koopa0/goen/internal/ui/layouts"
-	"github.com/koopa0/goen/internal/ui/pages"
 )
 
 type OrderRow struct {
@@ -101,7 +100,7 @@ type OrderView struct {
 	StatusIntent components.Intent
 	PlacedAt     string
 	ShippingName string
-	Lines        []pages.OrderLine
+	Lines        []Line
 	// OutstandingQuantities omits purchased line totals on a remaining-quantity slip.
 	OutstandingQuantities bool
 	SubtotalCents         int64

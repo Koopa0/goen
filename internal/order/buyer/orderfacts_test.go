@@ -12,7 +12,6 @@ import (
 	"github.com/koopa0/goen/internal/i18n"
 	"github.com/koopa0/goen/internal/order"
 	"github.com/koopa0/goen/internal/ui/layouts"
-	"github.com/koopa0/goen/internal/ui/pages"
 )
 
 // orderNow is noon on 9 October 2026 in Taipei; a parcel delivered on the 6th has 4 days of the right to cancel left.
@@ -21,7 +20,7 @@ var orderNow = time.Date(2026, 10, 9, 4, 0, 0, 0, time.UTC)
 // orderDay is a date column as the database returns it.
 func orderDay(day int) time.Time { return time.Date(2026, 10, day, 0, 0, 0, 0, time.UTC) }
 
-func deliveredOn(day int, lines ...pages.OrderLine) OrderShipment {
+func deliveredOn(day int, lines ...OrderLine) OrderShipment {
 	return OrderShipment{
 		Carrier: shipping.CarrierBlackCat, Tracking: "T" + strconv.Itoa(day),
 		ShippedAt:      time.Date(2026, 10, day-1, 2, 0, 0, 0, time.UTC),
@@ -44,8 +43,8 @@ var periodMarkup = regexp.MustCompile(`(?s)<div class="ui-period"[^>]*>.*?</div>
 
 func periods(html string) []string { return periodMarkup.FindAllString(html, -1) }
 
-func headphones() pages.OrderLine {
-	return pages.OrderLine{SKU: "H1", Name: "耳機", UnitCents: 590000, Quantity: 1, WarrantyMonths: 12}
+func headphones() OrderLine {
+	return OrderLine{SKU: "H1", Name: "耳機", UnitCents: 590000, Quantity: 1, WarrantyMonths: 12}
 }
 
 func TestTheHistoryReadsItsTimesInTheShortForm(t *testing.T) {
@@ -62,7 +61,7 @@ func TestEachParcelDrawsTheRightToCancelFromItsOwnDelivery(t *testing.T) {
 	t.Parallel()
 	html := orderPage(t, &OrderView{
 		Status: order.FulfillmentDelivered, ShowWarrantyLink: true,
-		Lines:     []pages.OrderLine{headphones(), headphones()},
+		Lines:     []OrderLine{headphones(), headphones()},
 		Shipments: []OrderShipment{deliveredOn(6, headphones()), deliveredOn(8, headphones())},
 	})
 	grids := periods(html)
@@ -89,7 +88,7 @@ func TestTheReturnWindowMarksOnlyTheGoodwillDays(t *testing.T) {
 	for _, delivered := range []int{6, 1} {
 		html := orderPage(t, &OrderView{
 			Status: order.FulfillmentDelivered, ShowWarrantyLink: true,
-			Lines: []pages.OrderLine{headphones()}, Shipments: []OrderShipment{deliveredOn(delivered, headphones())},
+			Lines: []OrderLine{headphones()}, Shipments: []OrderShipment{deliveredOn(delivered, headphones())},
 		})
 		grids := periods(html)
 		if len(grids) != 1 {
@@ -111,11 +110,11 @@ func TestAParcelNotYetDeliveredStatesTheRuleAndDrawsNoGrid(t *testing.T) {
 	t.Parallel()
 	waiting := OrderShipment{
 		Carrier: shipping.CarrierBlackCat, Tracking: "T9", ShippedAt: orderNow.AddDate(0, 0, -1), RescissionDays: 8,
-		Lines: []pages.OrderLine{headphones()},
+		Lines: []OrderLine{headphones()},
 	}
 	html := orderPage(t, &OrderView{
 		Status: order.FulfillmentShipped, ShowWarrantyLink: true,
-		Lines: []pages.OrderLine{headphones()}, Shipments: []OrderShipment{waiting},
+		Lines: []OrderLine{headphones()}, Shipments: []OrderShipment{waiting},
 	})
 	if len(periods(html)) != 0 {
 		t.Error("a parcel that has not arrived draws a grid")
@@ -132,7 +131,7 @@ func TestStorePickupCountsFromTheCollection(t *testing.T) {
 	t.Parallel()
 	html := orderPage(t, &OrderView{
 		Status: order.FulfillmentCompleted, Pickup: true,
-		Lines: []pages.OrderLine{headphones()}, Shipments: []OrderShipment{deliveredOn(6, headphones())},
+		Lines: []OrderLine{headphones()}, Shipments: []OrderShipment{deliveredOn(6, headphones())},
 	})
 	for _, want := range []string{"<dt>取貨</dt>", "從取貨的次日起算", "10\u00a0月 6\u00a0日取貨", "取貨日起算"} {
 		if !strings.Contains(html, want) {
@@ -161,7 +160,7 @@ func TestACancelledOrderHasNoRightToCancelAndNoReturn(t *testing.T) {
 			t.Parallel()
 			html := orderPage(t, &OrderView{
 				Status: order.FulfillmentCancelled, SubtotalCents: 590000, Timeline: tt.timeline,
-				Lines: []pages.OrderLine{headphones()},
+				Lines: []OrderLine{headphones()},
 			})
 			for _, banned := range []string{"申請退貨", "猶豫期", "剩餘", "退貨完成", "已全部退回", "個月"} {
 				if strings.Contains(html, banned) {
@@ -182,7 +181,7 @@ func TestAFullyReturnedOrderDrawsNoGrid(t *testing.T) {
 	t.Parallel()
 	html := orderPage(t, &OrderView{
 		Status: order.FulfillmentDelivered, SubtotalCents: 590000, ShowWarrantyLink: true,
-		Lines:     []pages.OrderLine{headphones()},
+		Lines:     []OrderLine{headphones()},
 		Shipments: []OrderShipment{deliveredOn(6, headphones())},
 		Returned:  &OrderReturned{At: time.Date(2026, 10, 7, 4, 0, 0, 0, time.UTC), RefundCents: 590000},
 	})
@@ -209,7 +208,7 @@ func TestAGuestSeesTheWarrantyMonthsAndNoRegisterLink(t *testing.T) {
 	t.Parallel()
 	html := orderPage(t, &OrderView{
 		Status: order.FulfillmentDelivered, ShowWarrantyLink: false,
-		Lines: []pages.OrderLine{headphones()}, Shipments: []OrderShipment{deliveredOn(6, headphones())},
+		Lines: []OrderLine{headphones()}, Shipments: []OrderShipment{deliveredOn(6, headphones())},
 	})
 	if strings.Contains(html, "/account/warranty/") {
 		t.Error("a guest is offered the registration link")
@@ -238,7 +237,7 @@ func TestARegisteredWarrantyStatesItsEndInWords(t *testing.T) {
 		registered.WarrantyMonths, registered.Registered, registered.WarrantyUntil = tt.months, 1, tt.until
 		html := orderPage(t, &OrderView{
 			Status: order.FulfillmentDelivered, ShowWarrantyLink: true,
-			Lines: []pages.OrderLine{registered}, Shipments: []OrderShipment{deliveredOn(6, registered)},
+			Lines: []OrderLine{registered}, Shipments: []OrderShipment{deliveredOn(6, registered)},
 		})
 		for _, want := range []string{"<dt>保固至</dt>", tt.want} {
 			if !strings.Contains(html, want) {
@@ -265,7 +264,7 @@ func TestTheHeadFactsOfAnOrderWithOneDeliveredParcel(t *testing.T) {
 	t.Parallel()
 	html := orderPage(t, &OrderView{
 		Status: order.FulfillmentDelivered, SubtotalCents: 3980000,
-		Lines: []pages.OrderLine{headphones()}, Shipments: []OrderShipment{deliveredOn(6, headphones())},
+		Lines: []OrderLine{headphones()}, Shipments: []OrderShipment{deliveredOn(6, headphones())},
 	})
 	for _, want := range []string{"<dt>送出</dt>", "<dt>總計</dt>", "<dt>送達</dt>", `datetime="2026-10-06"`, "15:20，黑貓宅急便", "NT$39,800"} {
 		if !strings.Contains(html, want) {
@@ -289,7 +288,7 @@ func TestDaysLeftIsABareFigureInEnglish(t *testing.T) {
 			v := &OrderView{
 				Number: "GO-1", Status: order.FulfillmentDelivered, Now: time.Date(2026, 10, tt.day, 4, 0, 0, 0, time.UTC),
 				PlacedAt:  orderNow,
-				Lines:     []pages.OrderLine{headphones()},
+				Lines:     []OrderLine{headphones()},
 				Shipments: []OrderShipment{deliveredOn(6, headphones())},
 			}
 			html := renderComponent(t, i18n.WithLocale(t.Context(), i18n.En), Order(layouts.Page{Title: "Order"}, v))

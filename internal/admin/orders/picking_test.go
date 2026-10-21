@@ -9,7 +9,6 @@ import (
 	"github.com/koopa0/goen/internal/i18n"
 	"github.com/koopa0/goen/internal/keyset"
 	"github.com/koopa0/goen/internal/ui/layouts"
-	"github.com/koopa0/goen/internal/ui/pages"
 )
 
 func TestPickingRendersSeparateReadOnlySlipsWithOutstandingQuantities(t *testing.T) {
@@ -20,8 +19,8 @@ func TestPickingRendersSeparateReadOnlySlipsWithOutstandingQuantities(t *testing
 			Bound:  keyset.Bound{Next: "/admin/orders/picking/slips?after=next"},
 			Totals: []PickingLine{{SKU: "SKU-A", Name: "商品 <A>", Label: "容量 256 GB", Remaining: 7}},
 			Slips: []*OrderView{
-				{OutstandingQuantities: true, Number: "GO-ONE", CustomerNote: "Gift <note>: no price inside", Recipient: "顧客 <一>", Address: "臺北市 1 號", Phone: "0912345678", Lines: []pages.OrderLine{{SKU: "SKU-A", Name: "商品 <A>", Quantity: 2, UnitCents: 100}}},
-				{OutstandingQuantities: true, Number: "GO-TWO", Recipient: "顧客二", Address: "臺南市 2 號", Lines: []pages.OrderLine{{SKU: "SKU-A", Name: "商品 <A>", Quantity: 5, UnitCents: 100}}},
+				{OutstandingQuantities: true, Number: "GO-ONE", CustomerNote: "Gift <note>: no price inside", Recipient: "顧客 <一>", Address: "臺北市 1 號", Phone: "0912345678", Lines: []Line{{SKU: "SKU-A", Name: "商品 <A>", Quantity: 2, UnitCents: 100}}},
+				{OutstandingQuantities: true, Number: "GO-TWO", Recipient: "顧客二", Address: "臺南市 2 號", Lines: []Line{{SKU: "SKU-A", Name: "商品 <A>", Quantity: 5, UnitCents: 100}}},
 			},
 		}
 		out := renderComponent(t, ctx, Picking(layouts.Page{Title: "Picking"}, v))

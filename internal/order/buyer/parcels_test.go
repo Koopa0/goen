@@ -8,7 +8,6 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 
 	"github.com/koopa0/goen/internal/db"
-	"github.com/koopa0/goen/internal/ui/pages"
 )
 
 func TestCutParcelsCountsEachParcelFromItsOwnDelivery(t *testing.T) {
@@ -20,7 +19,7 @@ func TestCutParcelsCountsEachParcelFromItsOwnDelivery(t *testing.T) {
 	goodwill := time.Date(2026, 10, 20, 0, 0, 0, 0, time.UTC)
 	today := time.Date(2026, 10, 9, 0, 0, 0, 0, time.UTC)
 
-	byID := map[uuid.UUID]pages.OrderLine{
+	byID := map[uuid.UUID]OrderLine{
 		phone: {Name: "phone", Quantity: 1, WarrantyMonths: 24},
 		buds:  {Name: "buds", Quantity: 3, WarrantyMonths: 12},
 		stand: {Name: "case", Quantity: 2},
@@ -70,7 +69,7 @@ func TestCutParcelsLeavesOutUnitsRefundedUnsent(t *testing.T) {
 	t.Parallel()
 	pen, notebook := uuid.New(), uuid.New()
 	parcel := uuid.New()
-	byID := map[uuid.UUID]pages.OrderLine{
+	byID := map[uuid.UUID]OrderLine{
 		pen:      {Name: "pen", Quantity: 1},
 		notebook: {Name: "notebook", Quantity: 3},
 	}
