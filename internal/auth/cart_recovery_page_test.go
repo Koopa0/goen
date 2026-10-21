@@ -1,11 +1,13 @@
-package pages
+package auth
 
 import (
+	"strconv"
 	"strings"
 	"testing"
 
 	"golang.org/x/net/html"
 
+	"github.com/koopa0/goen/internal/cart/cartitem"
 	"github.com/koopa0/goen/internal/i18n"
 )
 
@@ -15,17 +17,17 @@ func TestCartRecoveryListsBothCartsBeforeTheNativeRetry(t *testing.T) {
 		t.Run(locale.Tag(), func(t *testing.T) {
 			t.Parallel()
 			ctx := i18n.WithLocale(t.Context(), locale)
-			before := CartLine{Name: "Guest item", Label: "Red / Small", Quantity: 2, ImageURL: "/guest.webp", ImageAlt: "Guest photo"}
-			stored := CartLine{Name: "Account item", Label: "Blue / Large", Quantity: 3, ImageURL: "/account.webp", ImageAlt: "Account photo"}
+			before := cartitem.Item{Name: "Guest item", Label: "Red / Small", Quantity: 2, ImageURL: "/guest.webp", ImageAlt: "Guest photo"}
+			stored := cartitem.Item{Name: "Account item", Label: "Blue / Large", Quantity: 3, ImageURL: "/account.webp", ImageAlt: "Account photo"}
 			body := renderComponent(t, ctx, CartRecovery(CartRecoveryMeta(ctx), CartRecoveryView{
 				Next: "/checkout", Notice: i18n.T(ctx, i18n.KeyCartMergeFailed), Retry: i18n.T(ctx, i18n.KeyCartMergeRetry),
-				Contents: CartRecoveryContents{BeforeSignIn: []CartLine{before}, Account: []CartLine{stored}},
+				Contents: CartRecoveryContents{BeforeSignIn: []cartitem.Item{before}, Account: []cartitem.Item{stored}},
 			}))
 			doc, err := html.Parse(strings.NewReader(body))
 			if err != nil {
 				t.Fatal(err)
 			}
-			for id, line := range map[string]CartLine{"cart-recovery-before": before, "cart-recovery-account": stored} {
+			for id, line := range map[string]cartitem.Item{"cart-recovery-before": before, "cart-recovery-account": stored} {
 				section := findDescendant(doc, func(n *html.Node) bool {
 					return n.Type == html.ElementNode && n.Data == "section" && attrValue(n, "aria-labelledby") == id
 				})
@@ -42,7 +44,7 @@ func TestCartRecoveryListsBothCartsBeforeTheNativeRetry(t *testing.T) {
 					t.Errorf("%s does not show its product photo", id)
 				}
 				text := nodeText(section)
-				for _, want := range []string{line.Name, line.Label, i18n.T(ctx, i18n.KeyQuantity) + " " + line.QuantityText()} {
+				for _, want := range []string{line.Name, line.Label, i18n.T(ctx, i18n.KeyQuantity) + " " + strconv.FormatInt(int64(line.Quantity), 10)} {
 					if !strings.Contains(text, want) {
 						t.Errorf("%s omits %q", id, want)
 					}

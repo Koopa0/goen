@@ -1,8 +1,10 @@
 // Package auth is how a customer proves who they are: password and Google
-// sign-in, the session that follows, registration and the proof of an address,
-// password reset, and the changes that replace or end a credential (password,
-// address, Google link, other devices, erasure). The customer's own pages are
-// package account, which imports this one and never the other way round.
+// sign-in, the session that follows with the browser's cart it takes over (and
+// the page that offers the retry when the carts could not be combined),
+// registration and the proof of an address, password reset, and the changes
+// that replace or end a credential (password, address, Google link, other
+// devices, erasure). The customer's own pages are package account, which
+// imports this one and never the other way round.
 package auth
 
 import (
