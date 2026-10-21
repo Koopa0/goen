@@ -9,7 +9,7 @@ import (
 	"github.com/koopa0/goen/internal/i18n"
 	"github.com/koopa0/goen/internal/keyset"
 	"github.com/koopa0/goen/internal/ui/layouts"
-	"github.com/koopa0/goen/internal/web"
+	"github.com/koopa0/goen/internal/web/respond"
 )
 
 type Handler struct {
@@ -36,7 +36,7 @@ func (h *Handler) Search(w http.ResponseWriter, r *http.Request) {
 		access.ServerError(w, r, h.log)
 		return
 	}
-	web.Render(w, r, h.log, http.StatusOK, Customers(
+	respond.Component(w, r, h.log, http.StatusOK, Customers(
 		layouts.Page{Title: i18n.T(r.Context(), i18n.KeyAdminPageCustomers)}, view))
 }
 
@@ -44,10 +44,10 @@ func (h *Handler) Profile(w http.ResponseWriter, r *http.Request) {
 	view, err := h.store.Profile(r.Context(), r.PathValue("id"))
 	switch {
 	case err == nil:
-		web.Render(w, r, h.log, http.StatusOK, Customer(
+		respond.Component(w, r, h.log, http.StatusOK, Customer(
 			layouts.Page{Title: view.DisplayName()}, &view))
 	case errors.Is(err, ErrNotFound):
-		web.Render(w, r, h.log, http.StatusNotFound, layouts.MissingRecord(
+		respond.Component(w, r, h.log, http.StatusNotFound, layouts.MissingRecord(
 			layouts.Page{Title: i18n.T(r.Context(), i18n.KeyAdminMissingCustomer)},
 			layouts.MissingRecordView{Section: "customers", Heading: i18n.T(r.Context(), i18n.KeyAdminMissingCustomer), Body: i18n.T(r.Context(), i18n.KeyAdminNotFoundBody), BackLabel: i18n.KeyAdminBackCustomers}))
 	default:

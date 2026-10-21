@@ -1,4 +1,4 @@
-package web_test
+package respond_test
 
 import (
 	"html"

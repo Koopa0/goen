@@ -15,8 +15,8 @@ import (
 	"github.com/koopa0/goen/internal/media"
 	"github.com/koopa0/goen/internal/ui/components"
 	"github.com/koopa0/goen/internal/ui/layouts"
-	"github.com/koopa0/goen/internal/web"
 	"github.com/koopa0/goen/internal/web/formtext"
+	"github.com/koopa0/goen/internal/web/respond"
 )
 
 type Handler struct {
@@ -58,7 +58,7 @@ func (h *Handler) Page(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	view.Notice = components.NoticeFrom(r, notices)
-	web.Render(w, r, h.log, http.StatusOK, Campaigns(
+	respond.Component(w, r, h.log, http.StatusOK, Campaigns(
 		layouts.Page{Title: i18n.T(r.Context(), i18n.KeyAdminPageCampaigns)}, view))
 }
 
@@ -89,7 +89,7 @@ func (h *Handler) Create(w http.ResponseWriter, r *http.Request) {
 		view.Draft = CampaignDraft{
 			Slug: f.Slug, Title: f.Title, TitleEn: f.TitleEn, Days: r.PostFormValue("days"), Tone: f.Tone,
 		}
-		web.Render(w, r, h.log, http.StatusUnprocessableEntity, Campaigns(
+		respond.Component(w, r, h.log, http.StatusUnprocessableEntity, Campaigns(
 			layouts.Page{Title: i18n.T(r.Context(), i18n.KeyAdminPageCampaigns)}, view))
 	default:
 		//nolint:gosec // G710: slug matched slugFormat in Validate
@@ -112,7 +112,7 @@ func (h *Handler) render(w http.ResponseWriter, r *http.Request, status int, not
 	image, tone, err := h.store.Image(r.Context(), slug)
 	if err != nil {
 		if errors.Is(err, ErrNotFound) {
-			web.Render(w, r, h.log, http.StatusNotFound, layouts.MissingRecord(
+			respond.Component(w, r, h.log, http.StatusNotFound, layouts.MissingRecord(
 				layouts.Page{Title: i18n.T(r.Context(), i18n.KeyAdminMissingCampaign)},
 				layouts.MissingRecordView{Section: "campaigns", Heading: i18n.T(r.Context(), i18n.KeyAdminMissingCampaign), Body: i18n.T(r.Context(), i18n.KeyAdminNotFoundBody), BackLabel: i18n.KeyAdminBackCampaigns}))
 			return
@@ -153,7 +153,7 @@ func (h *Handler) render(w http.ResponseWriter, r *http.Request, status int, not
 		h.log.ErrorContext(r.Context(), "read campaign results", "error", err, "slug", slug)
 		view.ResultsUnavailable = true
 	}
-	web.Render(w, r, h.log, status, CampaignForm(layouts.Page{Title: detail.Title}, view))
+	respond.Component(w, r, h.log, status, CampaignForm(layouts.Page{Title: detail.Title}, view))
 }
 
 func (h *Handler) SetWindow(w http.ResponseWriter, r *http.Request) {

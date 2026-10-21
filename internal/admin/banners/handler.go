@@ -10,8 +10,8 @@ import (
 	"github.com/koopa0/goen/internal/keyset"
 	"github.com/koopa0/goen/internal/ui/components"
 	"github.com/koopa0/goen/internal/ui/layouts"
-	"github.com/koopa0/goen/internal/web"
 	"github.com/koopa0/goen/internal/web/formtext"
+	"github.com/koopa0/goen/internal/web/respond"
 )
 
 type Handler struct {
@@ -45,7 +45,7 @@ func (h *Handler) Banners(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	view.Notice = components.NoticeFrom(r, notices)
-	web.Render(w, r, h.log, http.StatusOK, Banners(
+	respond.Component(w, r, h.log, http.StatusOK, Banners(
 		layouts.Page{Title: i18n.T(r.Context(), i18n.KeyAdminHomeBanner)}, &view))
 }
 
@@ -117,6 +117,6 @@ func (h *Handler) rejectBanner(
 		CTALabel: r.PostFormValue("cta_label"), CTAHref: r.PostFormValue("cta_href"), Days: r.PostFormValue("days"),
 		MessageEn: r.PostFormValue("message_en"), ShortEn: r.PostFormValue("short_en"), CTALabelEn: r.PostFormValue("cta_label_en"),
 	}
-	web.Render(w, r, h.log, http.StatusUnprocessableEntity, Banners(
+	respond.Component(w, r, h.log, http.StatusUnprocessableEntity, Banners(
 		layouts.Page{Title: i18n.T(r.Context(), i18n.KeyAdminHomeBanner)}, &view))
 }

@@ -21,8 +21,8 @@ import (
 	"github.com/koopa0/goen/internal/product"
 	"github.com/koopa0/goen/internal/ui/components"
 	"github.com/koopa0/goen/internal/ui/layouts"
-	"github.com/koopa0/goen/internal/web"
 	"github.com/koopa0/goen/internal/web/formtext"
+	"github.com/koopa0/goen/internal/web/respond"
 )
 
 type Handler struct {
@@ -75,7 +75,7 @@ func (h *Handler) List(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	view.Notice = components.NoticeFrom(r, notices)
-	web.Render(w, r, h.log, http.StatusOK, Products(
+	respond.Component(w, r, h.log, http.StatusOK, Products(
 		layouts.Page{Title: i18n.T(r.Context(), i18n.KeyAdminPageProducts)}, view))
 }
 
@@ -86,7 +86,7 @@ func (h *Handler) New(w http.ResponseWriter, r *http.Request) {
 		access.ServerError(w, r, h.log)
 		return
 	}
-	web.Render(w, r, h.log, http.StatusOK, ProductForm(
+	respond.Component(w, r, h.log, http.StatusOK, ProductForm(
 		layouts.Page{Title: i18n.T(r.Context(), i18n.KeyAdminPageNewProduct)}, view))
 }
 
@@ -156,7 +156,7 @@ func (h *Handler) renderProduct(w http.ResponseWriter, r *http.Request, status i
 	view, err := h.productView(r.Context(), r.PathValue("slug"))
 	if err != nil {
 		if errors.Is(err, ErrNotFound) {
-			web.Render(w, r, h.log, http.StatusNotFound, layouts.MissingRecord(
+			respond.Component(w, r, h.log, http.StatusNotFound, layouts.MissingRecord(
 				layouts.Page{Title: i18n.T(r.Context(), i18n.KeyAdminMissingProduct)},
 				layouts.MissingRecordView{Section: "products", Heading: i18n.T(r.Context(), i18n.KeyAdminMissingProduct), Body: i18n.T(r.Context(), i18n.KeyAdminNotFoundBody), BackLabel: i18n.KeyAdminBackProducts}))
 			return
@@ -167,7 +167,7 @@ func (h *Handler) renderProduct(w http.ResponseWriter, r *http.Request, status i
 	}
 	view.Notice = notice
 
-	web.Render(w, r, h.log, status, ProductForm(
+	respond.Component(w, r, h.log, status, ProductForm(
 		layouts.Page{Title: view.Name}, view))
 }
 
@@ -354,7 +354,7 @@ func (h *Handler) rejectProduct(w http.ResponseWriter, r *http.Request, f *Form,
 	view.DescriptionEn = r.PostFormValue("description_en")
 	view.BrandID, view.CategoryID = r.PostFormValue("brand"), r.PostFormValue("category")
 	view.Errors = errs
-	web.Render(w, r, h.log, http.StatusUnprocessableEntity, ProductForm(
+	respond.Component(w, r, h.log, http.StatusUnprocessableEntity, ProductForm(
 		layouts.Page{Title: view.Title(r.Context())}, view))
 }
 
@@ -650,7 +650,7 @@ func (h *Handler) editProductWithErrors(
 	view.Errors = errs
 	view.VariantDraft, view.SpecDraft = draft.variant, draft.spec
 	view.ImageUploadDraft, view.ImageReuseDraft = draft.upload, draft.reuse
-	web.Render(w, r, h.log, http.StatusUnprocessableEntity, ProductForm(
+	respond.Component(w, r, h.log, http.StatusUnprocessableEntity, ProductForm(
 		layouts.Page{Title: view.Title(r.Context())}, view))
 }
 

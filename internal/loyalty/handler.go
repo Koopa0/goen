@@ -15,8 +15,8 @@ import (
 	"github.com/koopa0/goen/internal/money"
 	"github.com/koopa0/goen/internal/ui/layouts"
 	"github.com/koopa0/goen/internal/user"
-	"github.com/koopa0/goen/internal/web"
 	"github.com/koopa0/goen/internal/web/formtext"
+	"github.com/koopa0/goen/internal/web/respond"
 )
 
 type Handler struct {
@@ -57,7 +57,7 @@ func (h *Handler) Page(w http.ResponseWriter, r *http.Request) {
 	if view.CanRedeem() {
 		view.OperationID = uuid.NewString()
 	}
-	web.Render(w, r, h.log, http.StatusOK, Points(
+	respond.Component(w, r, h.log, http.StatusOK, Points(
 		layouts.Page{Title: i18n.T(r.Context(), i18n.KeyPointsTitle)}, view))
 }
 
@@ -103,7 +103,7 @@ func (h *Handler) Redeem(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *Handler) serverError(w http.ResponseWriter, r *http.Request) {
-	web.Render(w, r, h.log, http.StatusInternalServerError, layouts.Notice(
+	respond.Component(w, r, h.log, http.StatusInternalServerError, layouts.Notice(
 		layouts.Page{Title: i18n.T(r.Context(), i18n.KeyTryAgainTitle)}, "",
 		i18n.T(r.Context(), i18n.KeyTryAgainTitle),
 		i18n.T(r.Context(), i18n.KeyTryAgainBody)))
@@ -122,7 +122,7 @@ func (h *Handler) renderRefusal(w http.ResponseWriter, r *http.Request, userID s
 	if view.CanRedeem() {
 		view.OperationID = uuid.NewString()
 	}
-	web.Render(w, r, h.log, http.StatusUnprocessableEntity, Points(
+	respond.Component(w, r, h.log, http.StatusUnprocessableEntity, Points(
 		layouts.Page{Title: i18n.T(r.Context(), i18n.KeyPointsTitle)}, view))
 }
 
@@ -161,5 +161,5 @@ func (h *Handler) renderFormRefusal(w http.ResponseWriter, r *http.Request, owne
 	} else {
 		view.OperationID = uuid.NewString()
 	}
-	web.Render(w, r, h.log, http.StatusUnprocessableEntity, Points(layouts.Page{Title: i18n.T(r.Context(), i18n.KeyPointsTitle)}, view))
+	respond.Component(w, r, h.log, http.StatusUnprocessableEntity, Points(layouts.Page{Title: i18n.T(r.Context(), i18n.KeyPointsTitle)}, view))
 }
