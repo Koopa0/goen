@@ -18682,13 +18682,13 @@ const strandedInvoiceClaims = `-- name: StrandedInvoiceClaims :many
 SELECT op.id AS operation_id, o.order_number, op.kind, op.status,
        op.amount_cents, op.reconcile_attempts, op.send_attempts,
        coalesce(op.last_error, '')::text AS last_error, op.created_at,
-       (op.kind = 'allowance'
+       coalesce(op.kind = 'allowance'
         AND op.send_attempts > op.resend_authorizations
         AND ((op.status = 'pending' AND op.last_error = 'allowance_not_yet_visible')
              OR (op.status = 'attention' AND op.last_error = 'allowance_buyer_unconfirmed'))
         AND op.last_send_at IS NOT NULL
         AND op.last_send_at <= now() - interval '15 minutes'
-        AND (op.lease_until IS NULL OR op.lease_until <= now()))::boolean
+        AND (op.lease_until IS NULL OR op.lease_until <= now()), false)::boolean
            AS can_authorize_resend,
        count(*) OVER () AS total,
        coalesce(greatest(extract(epoch FROM now() - min(op.created_at) OVER ()), 0), 0)::bigint
@@ -18728,7 +18728,8 @@ type StrandedInvoiceClaimsRow struct {
 // rejection, which that person saw, are not an active health alarm. A system
 // issue's rejection was seen by nobody, so it stays while the order still owes
 // an invoice and no later issue exists. With no 加值中心 configured an operation
-// never sent is waiting for one, not stranded; one already sent stays.
+// never sent is waiting for one, not stranded; one already sent stays. A sent
+// allowance with no last_error, its outcome never recorded, offers no resend.
 func (q *Queries) StrandedInvoiceClaims(ctx context.Context, invoicingEnabled bool) ([]StrandedInvoiceClaimsRow, error) {
 	rows, err := q.db.Query(ctx, strandedInvoiceClaims, invoicingEnabled)
 	if err != nil {
