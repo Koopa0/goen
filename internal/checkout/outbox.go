@@ -9,7 +9,6 @@ import (
 	"github.com/koopa0/goen/internal/order/delivery"
 	"github.com/koopa0/goen/internal/outbox"
 	"github.com/koopa0/goen/internal/payment"
-	"github.com/koopa0/goen/internal/ui/pages"
 )
 
 // enqueueOrderPlaced is keyed on the order number so a retried checkout cannot
@@ -39,12 +38,8 @@ func enqueueOrderPlaced(ctx context.Context, q *db.Queries, number string, addr 
 		DiscountCents: summary.DiscountCents, DiscountReason: summary.DiscountReason,
 		CreditCents: summary.CreditCents, ShippingName: summary.ShippingMethodName,
 		Phone: addr.Phone, DeliveryNote: addr.Note, HoldUntil: hold.HeldUntil, StartBy: payment.StartBy(hold.HeldUntil),
-		DeliveryTo: pages.Delivery{
-			PostalCode: addr.PostalCode, City: addr.City, District: addr.District,
-			Street: addr.Street, PickupChain: addr.PickupChain,
-			PickupStoreCode: addr.PickupStoreCode, PickupStoreName: addr.PickupStoreName,
-		}.Line(),
-		Lines: make([]outbox.PlacedLine, 0, len(lines)),
+		DeliveryTo: addr.Line(),
+		Lines:      make([]outbox.PlacedLine, 0, len(lines)),
 	}
 	for i := range lines {
 		line := &lines[i]

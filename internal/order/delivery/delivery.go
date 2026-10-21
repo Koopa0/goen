@@ -1,6 +1,7 @@
 // Package delivery is the form that says where and to whom an order goes: the
 // recipient, their contact details, a street address or pickup point, and the
-// note, with the checks the server applies to what the buyer typed.
+// note, with the checks the server applies to what the buyer typed and the one
+// line the order's pages and its confirmation print the destination as.
 package delivery
 
 import (
@@ -159,6 +160,25 @@ func (a *Details) pickupPointErrors() []formtext.FieldRefusal {
 		add("pickup_store_name", i18n.KeyStoreNameTooLong)
 	}
 	return errs
+}
+
+// Line is where the order goes, in one line: the pickup chain, with the store
+// when one is known, or else the postal address. It reads the chain as the
+// destination and needs no To: the store behind a chain comes from the
+// carrier's picker and is absent on an order placed before one existed, and a
+// stored order keeps only the half DropOtherDestination left.
+func (a *Details) Line() string {
+	if a.PickupChain != "" {
+		line := a.PickupChain.Name()
+		if a.PickupStoreName != "" {
+			line += " " + a.PickupStoreName
+		}
+		if a.PickupStoreCode != "" {
+			line += "(" + a.PickupStoreCode + ")"
+		}
+		return line
+	}
+	return strings.TrimSpace(a.PostalCode + " " + a.City + a.District + a.Street)
 }
 
 // DropOtherDestination blanks the half of the address that does not apply, because

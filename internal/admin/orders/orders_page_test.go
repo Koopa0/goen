@@ -7,12 +7,12 @@ import (
 	"testing"
 	"time"
 
+	"github.com/koopa0/goen/internal/order/delivery"
 	"github.com/koopa0/goen/internal/shipping"
 
 	"github.com/koopa0/goen/internal/i18n"
 	"github.com/koopa0/goen/internal/order"
 	"github.com/koopa0/goen/internal/ui/layouts"
-	"github.com/koopa0/goen/internal/ui/pages"
 )
 
 func TestAdminOrdersEmptyCopyMatchesTheQueueContext(t *testing.T) {
@@ -68,7 +68,7 @@ func TestAPickupOrderCorrectsWithoutAStore(t *testing.T) {
 		Correctable:       true,
 		PickupDestination: true,
 		PickupChains:      shipping.Chains(),
-		Address:           pages.Delivery{PickupChain: shipping.ChainFamilyMart}.Line(),
+		Address:           (&delivery.Details{PickupChain: shipping.ChainFamilyMart}).Line(),
 		Delivery:          Delivery{PickupChain: shipping.ChainFamilyMart},
 	}))
 
@@ -82,7 +82,7 @@ func TestAPickupOrderCorrectsWithoutAStore(t *testing.T) {
 		t.Errorf("the chain stopped being required: %s", tag)
 	}
 
-	chain := pages.Delivery{PickupChain: shipping.ChainFamilyMart}.Line()
+	chain := (&delivery.Details{PickupChain: shipping.ChainFamilyMart}).Line()
 	if !strings.Contains(body, chain) {
 		t.Errorf("the order detail does not name the chain %q", chain)
 	}

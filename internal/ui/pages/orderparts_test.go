@@ -5,7 +5,6 @@ import (
 
 	"github.com/koopa0/goen/internal/i18n"
 	"github.com/koopa0/goen/internal/order"
-	"github.com/koopa0/goen/internal/shipping"
 )
 
 func TestOrderEventLabelsCoverEveryKind(t *testing.T) {
@@ -48,50 +47,5 @@ func TestTheAdminTimelineKeepsItsStatusWords(t *testing.T) {
 	key, ok := OrderEvent{Kind: order.EventCancelled}.LookupLabelKey()
 	if !ok || i18n.T(ctx, key) != "訂單取消" {
 		t.Errorf("LookupLabelKey(cancelled) = %q, %v; want the status 訂單取消", i18n.T(ctx, key), ok)
-	}
-}
-
-// TestAPickupOrderIsNamedByItsChain holds what the confirmation and the back
-// office show while no store picker exists: the chain is the destination, and a
-// store appears only when one is known.
-func TestAPickupOrderIsNamedByItsChain(t *testing.T) {
-	t.Parallel()
-
-	for _, tt := range []struct {
-		name   string
-		d      Delivery
-		pickup bool
-		want   string
-	}{
-		{
-			name: "the chain alone", pickup: true,
-			d:    Delivery{PickupChain: shipping.ChainSevenEleven},
-			want: "7-ELEVEN",
-		},
-		{
-			name: "a chain whose store is known", pickup: true,
-			d: Delivery{
-				PickupChain: shipping.ChainFamilyMart, PickupStoreCode: "012345",
-				PickupStoreName: "台北車站門市",
-			},
-			want: "全家 FamilyMart 台北車站門市(012345)",
-		},
-		{
-			name: "an address",
-			d: Delivery{
-				PostalCode: "110", City: "台北市", District: "信義區", Street: "松高路 1 號",
-			},
-			want: "110 台北市信義區松高路 1 號",
-		},
-	} {
-		t.Run(tt.name, func(t *testing.T) {
-			t.Parallel()
-			if got := tt.d.IsPickup(); got != tt.pickup {
-				t.Errorf("IsPickup() = %v, want %v", got, tt.pickup)
-			}
-			if got := tt.d.Line(); got != tt.want {
-				t.Errorf("Line() = %q, want %q", got, tt.want)
-			}
-		})
 	}
 }

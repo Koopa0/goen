@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"net/http"
 
+	"github.com/koopa0/goen/internal/order/delivery"
 	"github.com/koopa0/goen/internal/shipping"
 
 	"github.com/google/uuid"
@@ -87,15 +88,16 @@ func pickingSnapshot(ctx context.Context, q *db.Queries, after []string) (Pickin
 }
 
 func pickingSlip(r *db.PickingSlipsRow) *OrderView {
+	to := delivery.Details{
+		PostalCode: r.PostalCode, City: r.City, District: r.District, Street: r.Street,
+		PickupChain: shipping.Chain(r.PickupChain), PickupStoreCode: r.PickupStoreCode,
+		PickupStoreName: r.PickupStoreName,
+	}
 	return &OrderView{
 		OutstandingQuantities: true,
 		Number:                r.OrderNumber, PlacedAt: shoptime.Minute(r.PlacedAt), ShippingName: r.ShippingMethodName,
 		CustomerNote: r.CustomerNote, Email: r.Email, Recipient: r.RecipientName, Phone: r.Phone,
-		Address: pages.Delivery{
-			PostalCode: r.PostalCode, City: r.City, District: r.District, Street: r.Street,
-			PickupChain: shipping.Chain(r.PickupChain), PickupStoreCode: r.PickupStoreCode,
-			PickupStoreName: r.PickupStoreName,
-		}.Line(),
+		Address:     to.Line(),
 		InvoiceType: invoice.Preference(r.InvoiceType), InvoiceMobileBarcode: r.InvoiceMobileBarcode,
 		InvoiceDonationCode: r.InvoiceDonationCode, InvoiceTaxID: r.InvoiceTaxID,
 	}
