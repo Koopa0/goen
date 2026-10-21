@@ -10,8 +10,8 @@ import (
 
 	"github.com/jackc/pgx/v5/pgxpool"
 
-	"github.com/koopa0/goen/internal/cart"
 	"github.com/koopa0/goen/internal/payment"
+	"github.com/koopa0/goen/internal/shipping/storemap"
 )
 
 // mapStagingOrigin is ECPay's staging logistics host, which is what an
@@ -43,9 +43,9 @@ func storeMapRouter(t *testing.T, configured bool) http.Handler {
 
 	mode := ""
 	if configured {
-		mode = string(cart.ModeB2C)
+		mode = string(storemap.ModeB2C)
 	}
-	storeMap, err := cart.NewStoreMap(testMerchantID, mode, "", "https://goen.test")
+	storeMap, err := storemap.New(testMerchantID, mode, "", "https://goen.test")
 	if err != nil {
 		t.Fatalf("build the store map: %v", err)
 	}
@@ -98,9 +98,9 @@ func TestTheBypassAdmitsExactlyOneMethodAndPath(t *testing.T) {
 	t.Run("the return route is admitted and answers the interstitial", func(t *testing.T) {
 		t.Parallel()
 		res := httptest.NewRecorder()
-		router.ServeHTTP(res, crossSitePost(t, cart.PickupReturnPath, aStoreCallback()))
+		router.ServeHTTP(res, crossSitePost(t, storemap.ReturnPath, aStoreCallback()))
 		if res.Code != http.StatusOK {
-			t.Fatalf("cross-site POST %s = %d, want 200", cart.PickupReturnPath, res.Code)
+			t.Fatalf("cross-site POST %s = %d, want 200", storemap.ReturnPath, res.Code)
 		}
 		if got := res.Header().Get("Cache-Control"); got != "no-store" {
 			t.Errorf("Cache-Control = %q, want no-store: the body carries a store "+
@@ -123,11 +123,11 @@ func TestTheBypassAdmitsExactlyOneMethodAndPath(t *testing.T) {
 	t.Run("the trailing-slash variant is refused", func(t *testing.T) {
 		t.Parallel()
 		res := httptest.NewRecorder()
-		router.ServeHTTP(res, crossSitePost(t, cart.PickupReturnPath+"/", aStoreCallback()))
+		router.ServeHTTP(res, crossSitePost(t, storemap.ReturnPath+"/", aStoreCallback()))
 		if res.Code != http.StatusForbidden {
 			t.Errorf("cross-site POST %s/ = %d, want 403: the bypass matches the "+
 				"pattern itself and never a path that would redirect to it",
-				cart.PickupReturnPath, res.Code)
+				storemap.ReturnPath, res.Code)
 		}
 	})
 
@@ -145,7 +145,7 @@ func TestTheBypassAdmitsExactlyOneMethodAndPath(t *testing.T) {
 		form := aStoreCallback()
 		form.Set("MerchantID", "1000002")
 		res := httptest.NewRecorder()
-		router.ServeHTTP(res, crossSitePost(t, cart.PickupReturnPath, form))
+		router.ServeHTTP(res, crossSitePost(t, storemap.ReturnPath, form))
 		if res.Code != http.StatusBadRequest {
 			t.Errorf("a callback naming another merchant = %d, want 400", res.Code)
 		}
@@ -162,14 +162,14 @@ func TestAnUnconfiguredGoenHasNoReturnRouteAndNoBypass(t *testing.T) {
 	router := storeMapRouter(t, false)
 
 	res := httptest.NewRecorder()
-	router.ServeHTTP(res, crossSitePost(t, cart.PickupReturnPath, aStoreCallback()))
+	router.ServeHTTP(res, crossSitePost(t, storemap.ReturnPath, aStoreCallback()))
 	if res.Code != http.StatusForbidden {
 		t.Errorf("cross-site POST %s = %d on an unconfigured goen, want 403: "+
-			"the bypass exists only where a carrier does", cart.PickupReturnPath, res.Code)
+			"the bypass exists only where a carrier does", storemap.ReturnPath, res.Code)
 	}
 
 	sameSite := httptest.NewRequestWithContext(t.Context(), http.MethodPost,
-		cart.PickupReturnPath, strings.NewReader(aStoreCallback().Encode()))
+		storemap.ReturnPath, strings.NewReader(aStoreCallback().Encode()))
 	sameSite.Header.Set("Content-Type", "application/x-www-form-urlencoded")
 	sameSite.Header.Set("Sec-Fetch-Site", "same-origin")
 	res = httptest.NewRecorder()
@@ -178,7 +178,7 @@ func TestAnUnconfiguredGoenHasNoReturnRouteAndNoBypass(t *testing.T) {
 	// the only pattern its path matches is the catalogue's GET catch-all.
 	if res.Code != http.StatusMethodNotAllowed {
 		t.Errorf("same-site POST %s = %d on an unconfigured goen, want 405: "+
-			"the route is not registered at all", cart.PickupReturnPath, res.Code)
+			"the route is not registered at all", storemap.ReturnPath, res.Code)
 	}
 	if got := res.Header().Get("Content-Security-Policy"); got != contentSecurityPolicy {
 		t.Errorf("the policy of an unconfigured goen is\n  %q\nand main's is\n  %q\n"+
@@ -267,12 +267,12 @@ func TestTheCheckoutStillTellsTheCarrierNothingAboutItself(t *testing.T) {
 func TestTheReturnRouteRendersNoChrome(t *testing.T) {
 	t.Parallel()
 
-	if navPath(cart.PickupReturnPath) {
+	if navPath(storemap.ReturnPath) {
 		t.Errorf("%s is a nav path, so withTopNav runs store.Nav() for every "+
-			"anonymous cross-site post to it", cart.PickupReturnPath)
+			"anonymous cross-site post to it", storemap.ReturnPath)
 	}
-	if storefrontPath(cart.PickupReturnPath) {
+	if storefrontPath(storemap.ReturnPath) {
 		t.Errorf("%s is a storefront path, so withBanner would read a promotion "+
-			"for a page that renders none", cart.PickupReturnPath)
+			"for a page that renders none", storemap.ReturnPath)
 	}
 }

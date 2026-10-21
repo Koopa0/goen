@@ -28,6 +28,7 @@ import (
 	"github.com/koopa0/goen/internal/cart"
 	"github.com/koopa0/goen/internal/db"
 	"github.com/koopa0/goen/internal/i18n"
+	"github.com/koopa0/goen/internal/shipping/storemap"
 	"github.com/koopa0/goen/internal/web"
 )
 
@@ -995,9 +996,9 @@ func TestTheShippingPageSaysWhenCheckoutHidesPickup(t *testing.T) {
 	ctx, _ := admintest.StaffContext(t, pool)
 	s := shipping.NewStore(pool)
 	log := slog.New(slog.DiscardHandler)
-	enabled, err := cart.NewStoreMap("2000132", string(cart.ModeC2C), "", "https://shop.example")
+	enabled, err := storemap.New("2000132", string(storemap.ModeC2C), "", "https://shop.example")
 	if err != nil {
-		t.Fatalf("NewStoreMap: %v", err)
+		t.Fatalf("storemap.New: %v", err)
 	}
 	note := i18n.T(ctx, i18n.KeyAdminShipPickupOff)
 
@@ -1015,7 +1016,7 @@ func TestTheShippingPageSaysWhenCheckoutHidesPickup(t *testing.T) {
 		t.Fatalf("create pickup method = %d: %s", created.Code, created.Body.String())
 	}
 
-	for name, storeMap := range map[string]*cart.StoreMap{"no map": nil, "a map": enabled} {
+	for name, storeMap := range map[string]*storemap.Client{"no map": nil, "a map": enabled} {
 		h := shipping.NewHandler(s, storeMap.Enabled(), log)
 		req := httptest.NewRequestWithContext(ctx, http.MethodGet, "/admin/shipping", http.NoBody)
 		w := httptest.NewRecorder()

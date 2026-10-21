@@ -19,6 +19,7 @@ import (
 	"github.com/koopa0/goen/assets"
 	"github.com/koopa0/goen/internal/cart"
 	"github.com/koopa0/goen/internal/payment"
+	"github.com/koopa0/goen/internal/shipping/storemap"
 )
 
 // routeConstants resolves the named constants a route pattern is built from.
@@ -27,7 +28,7 @@ import (
 // says so when it meets one it cannot resolve.
 var routeConstants = map[string]string{
 	"assets.Prefix":          assets.Prefix,
-	"cart.PickupReturnPath":  cart.PickupReturnPath,
+	"storemap.ReturnPath":    storemap.ReturnPath,
 	"cart.PickupStartAction": cart.PickupStartAction,
 	"cart.PickupMapPath":     cart.PickupMapPath,
 }
@@ -53,7 +54,7 @@ const routeInventoryFloor = 380
 //
 // A registration is a call of HandleFunc or Handle whose first argument is a
 // string literal "<METHOD> /…", or such a literal plus a constant that
-// routeConstants resolves ("GET "+assets.Prefix, or "POST "+PickupReturnPath
+// routeConstants resolves ("GET "+assets.Prefix, or "POST "+PickupStartAction
 // inside cart). Any other first argument is
 // not a route, and the call is skipped: the outbox's Store.Handle names a topic.
 // A pattern whose path begins with /admin is a back-office route and is skipped.
@@ -118,8 +119,8 @@ func storefrontPatterns(t *testing.T) []string {
 
 // routePattern returns the pattern a HandleFunc or Handle call in package pkg
 // registers, or false when the call is not a route registration. A constant
-// named without a qualifier is pkg's own, so cart's "POST "+PickupReturnPath
-// resolves as cart.PickupReturnPath does in any other package.
+// named without a qualifier is pkg's own, so cart's "POST "+PickupStartAction
+// resolves as cart.PickupStartAction does in any other package.
 func routePattern(t *testing.T, fset *token.FileSet, pkg string, call *ast.CallExpr) (string, bool) {
 	t.Helper()
 
@@ -210,7 +211,7 @@ func TestStorefrontPatternsAreReadFromTheSource(t *testing.T) {
 	}
 	for _, want := range []string{
 		"GET /cart",
-		"POST " + cart.PickupReturnPath,
+		"POST " + storemap.ReturnPath,
 		"GET /static/",
 	} {
 		if !slices.Contains(patterns, want) {
@@ -427,7 +428,7 @@ func idleInventoryMux(t *testing.T) *http.ServeMux {
 	if err != nil {
 		t.Fatalf("build a disabled payment gateway: %v", err)
 	}
-	storeMap, err := cart.NewStoreMap(testMerchantID, string(cart.ModeB2C), "", "https://goen.test")
+	storeMap, err := storemap.New(testMerchantID, string(storemap.ModeB2C), "", "https://goen.test")
 	if err != nil {
 		t.Fatalf("build the store map: %v", err)
 	}

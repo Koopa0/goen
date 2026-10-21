@@ -1,4 +1,4 @@
-package cart
+package storemap
 
 import (
 	"github.com/koopa0/goen/assets"
@@ -9,9 +9,10 @@ import (
 // anonymous cross-site POST this route receives. The site stylesheet is linked so
 // the hop is goen's own ground colour, not a white flash.
 //
-// target is built by the cart package from a fixed local path plus encoded query
-// values: nothing posted can reach the scheme, the host or the path.
-templ PickupReturn(target string) {
+// target is built by Callback.RefreshTarget from a fixed local path plus
+// encoded query values: nothing posted can reach the scheme, the host or the
+// path.
+templ ReturnPage(target string) {
 	<!DOCTYPE html>
 	<html lang={ i18n.FromContext(ctx).Tag() } class="theme-blue">
 		<head>

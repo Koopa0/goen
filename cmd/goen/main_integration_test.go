@@ -28,13 +28,13 @@ import (
 	"github.com/koopa0/goen/internal/admin/twofactor"
 	"github.com/koopa0/goen/internal/auth"
 	"github.com/koopa0/goen/internal/bearer"
-	"github.com/koopa0/goen/internal/cart"
 	"github.com/koopa0/goen/internal/db/dbtest"
 	"github.com/koopa0/goen/internal/i18n"
 	"github.com/koopa0/goen/internal/letter"
 	"github.com/koopa0/goen/internal/newsletter"
 	"github.com/koopa0/goen/internal/outbox"
 	"github.com/koopa0/goen/internal/payment"
+	"github.com/koopa0/goen/internal/shipping/storemap"
 )
 
 var pool *pgxpool.Pool
@@ -421,7 +421,7 @@ func TestTheStoreMapReturnCostsNoDatabaseRoundTrip(t *testing.T) {
 		t.Fatalf("build disabled payment gateway: %v", err)
 	}
 	// Any id: goen compares it against what a callback repeats and nothing else.
-	storeMap, err := cart.NewStoreMap("1000001", string(cart.ModeB2C), "", "https://goen.test")
+	storeMap, err := storemap.New("1000001", string(storemap.ModeB2C), "", "https://goen.test")
 	if err != nil {
 		t.Fatalf("build the store map: %v", err)
 	}
@@ -442,7 +442,7 @@ func TestTheStoreMapReturnCostsNoDatabaseRoundTrip(t *testing.T) {
 	}
 	queries.Store(0)
 	req := httptest.NewRequestWithContext(t.Context(), http.MethodPost,
-		cart.PickupReturnPath, strings.NewReader(form.Encode()))
+		storemap.ReturnPath, strings.NewReader(form.Encode()))
 	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
 	req.Header.Set("Sec-Fetch-Site", "cross-site")
 	res := httptest.NewRecorder()

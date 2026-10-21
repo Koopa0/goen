@@ -5,8 +5,8 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/koopa0/goen/internal/cart"
 	"github.com/koopa0/goen/internal/invoice/issuer"
+	"github.com/koopa0/goen/internal/shipping/storemap"
 )
 
 const (
@@ -47,7 +47,7 @@ func TestProviderPostureFollowsTheStripeKeyNotSecureCookies(t *testing.T) {
 		{"implicit invoice endpoint", func(c *config) { c.ECPayBaseURL = "" }, "GOEN_ECPAY_BASE_URL"},
 		{"staging invoice endpoint", func(c *config) { c.ECPayBaseURL = issuer.StagingBaseURL }, "GOEN_ECPAY_BASE_URL"},
 		{"staging invoice endpoint respelled", func(c *config) { c.ECPayBaseURL = "HTTP://EINVOICE-STAGE.ecpay.com.tw/" }, "GOEN_ECPAY_BASE_URL"},
-		{"staging map", func(c *config) { c.ECPayLogisticsBaseURL = cart.MapStagingBaseURL }, "GOEN_ECPAY_LOGISTICS_BASE_URL"},
+		{"staging map", func(c *config) { c.ECPayLogisticsBaseURL = storemap.StagingBaseURL }, "GOEN_ECPAY_LOGISTICS_BASE_URL"},
 		{"placeholder sender", func(c *config) { c.SMTPFrom = "goen <no-reply@goen.example>" }, "GOEN_SMTP_FROM"},
 		{"unparsable sender", func(c *config) { c.SMTPFrom = "broken<>" }, "GOEN_SMTP_FROM"},
 		{"empty sender", func(c *config) { c.SMTPFrom = "" }, "GOEN_SMTP_FROM"},
@@ -94,7 +94,7 @@ func TestProviderPostureFollowsTheStripeKeyNotSecureCookies(t *testing.T) {
 		_, err := prepare(t, func(c *config) {
 			c.StripeAPIKey = testKey
 			c.ECPayBaseURL = issuer.StagingBaseURL
-			c.ECPayLogisticsBaseURL = cart.MapStagingBaseURL
+			c.ECPayLogisticsBaseURL = storemap.StagingBaseURL
 			c.SMTPFrom = "goen <no-reply@goen.example>"
 		})
 		if err != nil {
@@ -109,8 +109,8 @@ func TestStoreMapDefaultFollowsTheStripeKey(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		if live.ECPayLogisticsBaseURL != cart.MapProductionBaseURL {
-			t.Errorf("key %q: map URL = %q, want %q", key, live.ECPayLogisticsBaseURL, cart.MapProductionBaseURL)
+		if live.ECPayLogisticsBaseURL != storemap.ProductionBaseURL {
+			t.Errorf("key %q: map URL = %q, want %q", key, live.ECPayLogisticsBaseURL, storemap.ProductionBaseURL)
 		}
 	}
 	for _, key := range []string{testKey, " " + testKey, ""} {

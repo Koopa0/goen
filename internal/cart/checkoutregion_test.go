@@ -69,7 +69,7 @@ func TestSwitchingTheChainInPlaceKeepsTheStoreButton(t *testing.T) {
 	t.Parallel()
 
 	h := &Handler{
-		storeMap: testMap(t, ModeB2C),
+		storeMap: testMap(t),
 		secure:   true,
 		log:      slog.New(slog.DiscardHandler),
 	}

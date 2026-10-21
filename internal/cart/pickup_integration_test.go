@@ -18,6 +18,7 @@ import (
 	"github.com/koopa0/goen/internal/cart"
 	"github.com/koopa0/goen/internal/i18n"
 	"github.com/koopa0/goen/internal/order/access"
+	"github.com/koopa0/goen/internal/shipping/storemap"
 	"github.com/koopa0/goen/internal/user"
 )
 
@@ -28,9 +29,9 @@ const mapMerchantID = "1000001"
 // aForeignNonce is a well-formed nonce that no browser here holds.
 const aForeignNonce = "fedcba98765432100000"
 
-func configuredMap(t *testing.T) *cart.StoreMap {
+func configuredMap(t *testing.T) *storemap.Client {
 	t.Helper()
-	m, err := cart.NewStoreMap(mapMerchantID, string(cart.ModeB2C), "", "https://goen.test")
+	m, err := storemap.New(mapMerchantID, string(storemap.ModeB2C), "", "https://goen.test")
 	if err != nil {
 		t.Fatalf("build the store map: %v", err)
 	}
@@ -96,7 +97,7 @@ func theMapAnswers(t *testing.T, h *cart.Handler, nonce, code, name, address str
 		"ExtraData":        {nonce},
 	}
 	req := httptest.NewRequestWithContext(t.Context(), http.MethodPost,
-		cart.PickupReturnPath, strings.NewReader(form.Encode()))
+		storemap.ReturnPath, strings.NewReader(form.Encode()))
 	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
 	// The browser is coming from ECPay's page, so it sends neither cookie.
 	req.Header.Set("Sec-Fetch-Site", "cross-site")
@@ -496,12 +497,12 @@ func postPickupCheckout(
 // TestPickupIsOfferedOnlyWhereTheStoreMapIsConfigured holds that checkout does
 // not offer a method that can only be refused.
 func TestPickupIsOfferedOnlyWhereTheStoreMapIsConfigured(t *testing.T) {
-	disabled, err := cart.NewStoreMap("", "", "", "https://goen.test")
+	disabled, err := storemap.New("", "", "", "https://goen.test")
 	if err != nil {
 		t.Fatalf("build a disabled map: %v", err)
 	}
 	for name, tt := range map[string]struct {
-		storeMap *cart.StoreMap
+		storeMap *storemap.Client
 		offered  bool
 	}{"map enabled": {configuredMap(t), true}, "map disabled": {disabled, false}} {
 		t.Run(name, func(t *testing.T) {
@@ -527,11 +528,11 @@ func TestPickupIsOfferedOnlyWhereTheStoreMapIsConfigured(t *testing.T) {
 // hand-written POST naming another chain, or any chain and no store, is a 422
 // whether or not this deployment can open the map.
 func TestAForgedPickupPostIsRefusedWithOrWithoutTheMap(t *testing.T) {
-	disabled, err := cart.NewStoreMap("", "", "", "https://goen.test")
+	disabled, err := storemap.New("", "", "", "https://goen.test")
 	if err != nil {
 		t.Fatalf("build a disabled map: %v", err)
 	}
-	for name, storeMap := range map[string]*cart.StoreMap{"map enabled": configuredMap(t), "map disabled": disabled} {
+	for name, storeMap := range map[string]*storemap.Client{"map enabled": configuredMap(t), "map disabled": disabled} {
 		for _, forged := range []struct {
 			name   string
 			fields url.Values
