@@ -1,16 +1,30 @@
-package admin
+package stockrisk
 
 import (
+	"context"
 	"fmt"
 	"strings"
 	"testing"
 	"time"
+
+	"github.com/a-h/templ"
 
 	"github.com/koopa0/goen/internal/i18n"
 	"github.com/koopa0/goen/internal/inventory"
 )
 
 const stockedAllWindow = 30 * 24 * time.Hour
+
+// renderComponent renders c under ctx, which the caller owns so the locale stays
+// explicit at the call site.
+func renderComponent(t *testing.T, ctx context.Context, c templ.Component) string {
+	t.Helper()
+	var b strings.Builder
+	if err := c.Render(ctx, &b); err != nil {
+		t.Fatalf("render: %v", err)
+	}
+	return b.String()
+}
 
 func TestWarningFollowsTheEstimateAndItsWordsTheRange(t *testing.T) {
 	t.Parallel()
@@ -41,7 +55,7 @@ func TestAnEstimateUnderADayIsADay(t *testing.T) {
 	t.Parallel()
 
 	// 1 sellable at 150 units in 30 days is 0.2 days.
-	c := StockRisk{Risk: inventory.Risk{Sales: inventory.Sales{Sellable: 1, Sold: 150, Orders: 40, InStock: stockedAllWindow}}}.Estimate()
+	c := Row{Risk: inventory.Risk{Sales: inventory.Sales{Sellable: 1, Sold: 150, Orders: 40, InStock: stockedAllWindow}}}.Estimate()
 	if c.Days != 1 || c.Low != 1 || c.High != 1 {
 		t.Errorf("0.2 days reads %+v, want 1, 1 and 1", c)
 	}
@@ -91,13 +105,13 @@ func TestStockRowIsNameAndFactsBesideOneFigure(t *testing.T) {
 
 	for _, loc := range []i18n.Locale{i18n.ZhHant, i18n.En} {
 		ctx := i18n.WithLocale(t.Context(), loc)
-		rows := []StockRisk{{Risk: inventory.Risk{SKU: "OUT-1", Name: "Gone", Slug: "gone", SoldOutAt: time.Date(2026, time.October, 2, 4, 0, 0, 0, time.UTC)}, ReadAt: time.Date(2026, time.October, 7, 4, 0, 0, 0, time.UTC)},
+		rows := []Row{{Risk: inventory.Risk{SKU: "OUT-1", Name: "Gone", Slug: "gone", SoldOutAt: time.Date(2026, time.October, 2, 4, 0, 0, 0, time.UTC)}, ReadAt: time.Date(2026, time.October, 7, 4, 0, 0, 0, time.UTC)},
 			{Risk: inventory.Risk{SKU: "OUT-2", Name: "Long gone", Slug: "long-gone"}},
 			{Risk: inventory.Risk{SKU: "EST-1", Name: "Going", Slug: "going", Sales: inventory.Sales{Sellable: 14, Sold: 43, Orders: 36, InStock: stockedAllWindow}}},
 			{Risk: inventory.Risk{SKU: "EST-2", Name: "Later", Slug: "later", Sales: inventory.Sales{Sellable: 45, Sold: 30, Orders: 20, InStock: stockedAllWindow}}},
 			{Risk: inventory.Risk{SKU: "FEW-1", Name: "Rare", Slug: "rare", Sales: inventory.Sales{Sellable: 9, Sold: 2, Orders: 2, InStock: stockedAllWindow}}},
 		}
-		html := renderComponent(t, ctx, StockRiskRows(rows, 0, 30))
+		html := renderComponent(t, ctx, Rows(rows, 0, 30))
 
 		if got := strings.Count(html, `<li class="goen-report__row">`); got != 5 {
 			t.Fatalf("%s: %d rows, want 5", loc, got)
@@ -153,7 +167,7 @@ func TestSoldOutSinceNamesTheYearOnlyWhenItIsNotThisOne(t *testing.T) {
 	} {
 		for loc, want := range tc.want {
 			ctx := i18n.WithLocale(t.Context(), loc)
-			if got := (StockRisk{Risk: inventory.Risk{SoldOutAt: tc.soldOutAt}, ReadAt: readAt}).SoldOutSince(ctx); got != want {
+			if got := (Row{Risk: inventory.Risk{SoldOutAt: tc.soldOutAt}, ReadAt: readAt}).SoldOutSince(ctx); got != want {
 				t.Errorf("%s, %s: SoldOutSince = %q, want %q", tc.name, loc, got, want)
 			}
 		}
@@ -171,7 +185,7 @@ func TestStockLeadDescribesTheDrawingAsDrawn(t *testing.T) {
 		{i18n.En, []string{"The pale stretch is how long it may last and the short line marks 30 days", "▲ marks only an estimate under 30 days"}},
 	} {
 		ctx := i18n.WithLocale(t.Context(), tc.loc)
-		html := renderComponent(t, ctx, StockRiskSection(nil, 0, 30))
+		html := renderComponent(t, ctx, Section(nil, 0, 30))
 		for _, want := range tc.want {
 			if !strings.Contains(html, want) {
 				t.Errorf("%s: the stock lead lacks %q", tc.loc, want)

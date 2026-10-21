@@ -15,7 +15,7 @@ import (
 	"github.com/koopa0/goen/internal/inventory"
 	"github.com/koopa0/goen/internal/ui/components"
 	"github.com/koopa0/goen/internal/ui/layouts"
-	"github.com/koopa0/goen/internal/ui/pages/admin"
+	"github.com/koopa0/goen/internal/ui/stockrisk"
 )
 
 func Variants(p layouts.Page, v VariantsView) templ.Component {
@@ -100,7 +100,7 @@ func Variants(p layouts.Page, v VariantsView) templ.Component {
 				if templ_7745c5c3_Err != nil {
 					return templ_7745c5c3_Err
 				}
-				templ_7745c5c3_Err = admin.StockRiskSection(v.AtRisk, v.MoreSoldOut, inventory.CoverWindowDays).Render(ctx, templ_7745c5c3_Buffer)
+				templ_7745c5c3_Err = stockrisk.Section(v.AtRisk, v.MoreSoldOut, inventory.CoverWindowDays).Render(ctx, templ_7745c5c3_Buffer)
 				if templ_7745c5c3_Err != nil {
 					return templ_7745c5c3_Err
 				}

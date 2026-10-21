@@ -11,7 +11,7 @@ import (
 	"github.com/koopa0/goen/internal/i18n"
 	"github.com/koopa0/goen/internal/inventory"
 	"github.com/koopa0/goen/internal/ui/layouts"
-	"github.com/koopa0/goen/internal/ui/pages/admin"
+	"github.com/koopa0/goen/internal/ui/stockrisk"
 )
 
 // The tests in this file render the report and moved whole from test files
@@ -29,7 +29,7 @@ func TestStockRowsCarryTheirRangeAndWindowInText(t *testing.T) {
 	ctx := i18n.WithLocale(t.Context(), i18n.En)
 	html := renderComponent(t, ctx, Report(layouts.Page{Title: "Reports"}, &ReportView{
 		Days: 7, StockDays: 30, Windows: []int32{7, 30, 90},
-		AtRisk: []admin.StockRisk{{Risk: inventory.Risk{SKU: "OUT-1", Name: "Gone", Slug: "gone"}},
+		AtRisk: []stockrisk.Row{{Risk: inventory.Risk{SKU: "OUT-1", Name: "Gone", Slug: "gone"}},
 			{Risk: inventory.Risk{SKU: "EST-1", Name: "Going", Slug: "going", Sales: inventory.Sales{Sellable: 20, Sold: 30, Orders: 15, InStock: stockedAllWindow}}},
 			{Risk: inventory.Risk{SKU: "FEW-1", Name: "Rare", Slug: "rare", Sales: inventory.Sales{Sellable: 9, Sold: 2, Orders: 2, InStock: stockedAllWindow}}},
 		},
@@ -65,7 +65,7 @@ func TestMoreSoldOutLinksToTheStockDeskFilter(t *testing.T) {
 	ctx := i18n.WithLocale(t.Context(), i18n.En)
 	view := &ReportView{
 		Days: 30, StockDays: 30, Windows: []int32{7, 30, 90}, MoreSoldOut: 2,
-		AtRisk: []admin.StockRisk{{Risk: inventory.Risk{SKU: "OUT-1", Name: "Gone", Slug: "gone"}}},
+		AtRisk: []stockrisk.Row{{Risk: inventory.Risk{SKU: "OUT-1", Name: "Gone", Slug: "gone"}}},
 	}
 	html := renderComponent(t, ctx, Report(layouts.Page{Title: "Reports"}, view))
 	if want := `<a href="/admin/stock?soldout=1">2 more items sold out</a>`; !strings.Contains(html, want) {
@@ -84,8 +84,8 @@ func TestReportAndStockDeskShareTheDaysCoverSection(t *testing.T) {
 	t.Parallel()
 
 	ctx := i18n.WithLocale(t.Context(), i18n.En)
-	rows := []admin.StockRisk{{Risk: inventory.Risk{SKU: "OUT-1", Name: "Gone", Slug: "gone"}}}
-	section := renderComponent(t, ctx, admin.StockRiskSection(rows, 0, inventory.CoverWindowDays))
+	rows := []stockrisk.Row{{Risk: inventory.Risk{SKU: "OUT-1", Name: "Gone", Slug: "gone"}}}
+	section := renderComponent(t, ctx, stockrisk.Section(rows, 0, inventory.CoverWindowDays))
 	for name, page := range map[string]string{
 		"report": renderComponent(t, ctx, Report(layouts.Page{}, &ReportView{Days: 30, Windows: []int32{7, 30, 90}, AtRisk: rows, StockDays: inventory.CoverWindowDays})),
 	} {
@@ -100,7 +100,7 @@ func TestListsShareOneRowSkeleton(t *testing.T) {
 	t.Parallel()
 
 	ctx := i18n.WithLocale(t.Context(), i18n.En)
-	stock := renderComponent(t, ctx, admin.StockRiskRows([]admin.StockRisk{{Risk: inventory.Risk{SKU: "EST-1", Name: "Going", Slug: "going", Sales: inventory.Sales{Sellable: 14, Sold: 43, Orders: 36, InStock: stockedAllWindow}}}}, 0, 30))
+	stock := renderComponent(t, ctx, stockrisk.Rows([]stockrisk.Row{{Risk: inventory.Risk{SKU: "EST-1", Name: "Going", Slug: "going", Sales: inventory.Sales{Sellable: 14, Sold: 43, Orders: 36, InStock: stockedAllWindow}}}}, 0, 30))
 	report := renderComponent(t, ctx, Report(layouts.Page{Title: "Reports"}, &ReportView{
 		Days: 30, Windows: []int32{7, 30, 90}, Placed: 3, Committed: 3, Orders: 3,
 		Sellers: []Seller{{Slug: "a", Name: "Alpha", Brand: "Aurora", Units: 40}, {Slug: "b", Name: "Beta", Units: 10}},

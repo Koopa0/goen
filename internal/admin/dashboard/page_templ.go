@@ -16,7 +16,7 @@ import (
 	"github.com/koopa0/goen/internal/inventory"
 	"github.com/koopa0/goen/internal/ui/components"
 	"github.com/koopa0/goen/internal/ui/layouts"
-	"github.com/koopa0/goen/internal/ui/pages/admin"
+	"github.com/koopa0/goen/internal/ui/stockrisk"
 )
 
 // Every figure and every task is a link: a count on its own says there is work and not where it is.
@@ -560,7 +560,7 @@ func Dashboard(p layouts.Page, v DashboardView) templ.Component {
 				if templ_7745c5c3_Err != nil {
 					return templ_7745c5c3_Err
 				}
-				templ_7745c5c3_Err = admin.StockRiskRows(v.Runway, 0, inventory.CoverWindowDays).Render(ctx, templ_7745c5c3_Buffer)
+				templ_7745c5c3_Err = stockrisk.Rows(v.Runway, 0, inventory.CoverWindowDays).Render(ctx, templ_7745c5c3_Buffer)
 				if templ_7745c5c3_Err != nil {
 					return templ_7745c5c3_Err
 				}

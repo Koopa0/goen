@@ -16,7 +16,7 @@ import (
 	"github.com/koopa0/goen/internal/money"
 	"github.com/koopa0/goen/internal/ui/components"
 	"github.com/koopa0/goen/internal/ui/layouts"
-	"github.com/koopa0/goen/internal/ui/pages/admin"
+	"github.com/koopa0/goen/internal/ui/stockrisk"
 	"github.com/koopa0/goen/internal/user"
 	"github.com/koopa0/goen/internal/web/formtext"
 	"github.com/koopa0/goen/internal/web/respond"
@@ -67,7 +67,7 @@ func (h *Handler) Variants(w http.ResponseWriter, r *http.Request) {
 			access.ServerError(w, r, h.log)
 			return
 		}
-		view.AtRisk, view.MoreSoldOut = admin.StockRisks(listed, now), more
+		view.AtRisk, view.MoreSoldOut = stockrisk.NewRows(listed, now), more
 	}
 	view.Notice = components.NoticeFrom(r, notices)
 	view.Return = stockReturn(r.URL.Query().Get("soldout"), view.Term, r.URL.Query().Get(keyset.Param), "", "")

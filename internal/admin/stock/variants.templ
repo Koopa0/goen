@@ -7,7 +7,7 @@ import (
 	"github.com/koopa0/goen/internal/inventory"
 	"github.com/koopa0/goen/internal/ui/components"
 	"github.com/koopa0/goen/internal/ui/layouts"
-	"github.com/koopa0/goen/internal/ui/pages/admin"
+	"github.com/koopa0/goen/internal/ui/stockrisk"
 )
 
 templ Variants(p layouts.Page, v VariantsView) {
@@ -26,7 +26,7 @@ templ Variants(p layouts.Page, v VariantsView) {
 		}
 		if v.ShowCover {
 			<section class="goen-admin__cover">
-				@admin.StockRiskSection(v.AtRisk, v.MoreSoldOut, inventory.CoverWindowDays)
+				@stockrisk.Section(v.AtRisk, v.MoreSoldOut, inventory.CoverWindowDays)
 			</section>
 		}
 		<section aria-labelledby="stock-list-heading">

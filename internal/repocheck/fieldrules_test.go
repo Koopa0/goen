@@ -38,10 +38,9 @@ func TestEveryCustomerEmailFieldCarriesTheSharedRule(t *testing.T) {
 }
 
 // backOffice reports whether a template path (from the repository root) belongs
-// to the staff screens: anything under internal/admin/ or internal/ui/pages/admin/,
-// and a template whose file name starts with "admin" (the back-office layout).
+// to the staff screens: anything under internal/admin/, and a template whose
+// file name starts with "admin" (the back-office layout).
 func backOffice(name string) bool {
 	return strings.HasPrefix(name, "internal/admin/") ||
-		strings.HasPrefix(name, "internal/ui/pages/admin/") ||
 		strings.HasPrefix(path.Base(name), "admin")
 }

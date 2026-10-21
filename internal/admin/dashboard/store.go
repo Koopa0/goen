@@ -20,7 +20,7 @@ import (
 	"github.com/koopa0/goen/internal/sales"
 	"github.com/koopa0/goen/internal/shoptime"
 	"github.com/koopa0/goen/internal/ui/components"
-	"github.com/koopa0/goen/internal/ui/pages/admin"
+	"github.com/koopa0/goen/internal/ui/stockrisk"
 )
 
 // Stock ranks the SKUs by days cover; the stock desk implements it.
@@ -95,7 +95,7 @@ func (s *Store) Dashboard(ctx context.Context) (DashboardView, error) {
 	if err != nil {
 		return DashboardView{}, fmt.Errorf("read days cover: %w", err)
 	}
-	view.Runway, view.RunwayCut, view.RunwayBasis = DashboardRunway(admin.StockRisks(listed, now))
+	view.Runway, view.RunwayCut, view.RunwayBasis = DashboardRunway(stockrisk.NewRows(listed, now))
 	view.Tasks = view.DeskTasks()
 	return view, nil
 }
