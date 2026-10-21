@@ -1,4 +1,4 @@
-package pages
+package buyer
 
 import (
 	"testing"
@@ -38,14 +38,5 @@ func TestARefundOfUnsentUnitsIsNamedAsSuch(t *testing.T) {
 		if got := i18n.T(ctx, OrderEvent{Kind: order.EventRefunded}.LabelKey()); got == want {
 			t.Errorf("%s: a return's refund reads %q too", locale, got)
 		}
-	}
-}
-
-func TestTheAdminTimelineKeepsItsStatusWords(t *testing.T) {
-	t.Parallel()
-	ctx := i18n.WithLocale(t.Context(), i18n.ZhHant)
-	key, ok := OrderEvent{Kind: order.EventCancelled}.LookupLabelKey()
-	if !ok || i18n.T(ctx, key) != "訂單取消" {
-		t.Errorf("LookupLabelKey(cancelled) = %q, %v; want the status 訂單取消", i18n.T(ctx, key), ok)
 	}
 }

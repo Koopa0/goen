@@ -62,7 +62,6 @@ var viewPackageImporters = []string{
 var dataFilesNamingViews = []string{
 	"internal/admin/orders/picking.go",
 	"internal/admin/orders/store.go",
-	"internal/admin/orders/timeline.go",
 	"internal/catalog/product_store.go",
 	"internal/home/store.go",
 	"internal/order/buyer/order.go",

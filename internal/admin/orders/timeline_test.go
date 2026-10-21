@@ -11,6 +11,7 @@ import (
 
 	"github.com/koopa0/goen/internal/db"
 	"github.com/koopa0/goen/internal/i18n"
+	"github.com/koopa0/goen/internal/order"
 	"github.com/koopa0/goen/internal/outbox"
 )
 
@@ -91,5 +92,14 @@ func TestTimelineEntryCarriesWhenAnOperationCompleted(t *testing.T) {
 		if (got.DoneAt != "") != tc.want || got.At == got.DoneAt {
 			t.Errorf("timelineEntry(%s) At %q DoneAt %q, want a completion time = %v", tc.name, got.At, got.DoneAt, tc.want)
 		}
+	}
+}
+
+func TestTheAdminTimelineKeepsItsStatusWords(t *testing.T) {
+	t.Parallel()
+	ctx := i18n.WithLocale(t.Context(), i18n.ZhHant)
+	key, ok := orderEventLabel(order.EventCancelled)
+	if !ok || i18n.T(ctx, key) != "訂單取消" {
+		t.Errorf("orderEventLabel(cancelled) = %q, %v; want the status 訂單取消", i18n.T(ctx, key), ok)
 	}
 }

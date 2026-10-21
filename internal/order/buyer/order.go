@@ -87,7 +87,7 @@ func (s *Store) Order(ctx context.Context, number string) (OrderView, error) {
 		return OrderView{}, fmt.Errorf("read order timeline: %w", err)
 	}
 	for _, e := range events {
-		view.Timeline = append(view.Timeline, pages.OrderEvent{
+		view.Timeline = append(view.Timeline, OrderEvent{
 			Kind: order.EventKind(e.Kind), Note: e.Note,
 			At: e.OccurredAt, Unsent: e.Unsent,
 		})

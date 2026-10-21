@@ -58,7 +58,7 @@ type OrderView struct {
 	DiscountReason string
 	TotalCents     int64
 	CreditCents    int64
-	Timeline       []pages.OrderEvent
+	Timeline       []OrderEvent
 	Shipments      []OrderShipment
 	Invoice        *OrderInvoice
 	Cancelled      bool
