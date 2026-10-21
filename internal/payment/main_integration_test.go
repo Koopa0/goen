@@ -20,8 +20,8 @@ import (
 	"github.com/koopa0/goen/internal/db/dbtest"
 	"github.com/koopa0/goen/internal/order/access"
 	"github.com/koopa0/goen/internal/payment"
+	"github.com/koopa0/goen/internal/requestid"
 	"github.com/koopa0/goen/internal/user"
-	"github.com/koopa0/goen/internal/web"
 )
 
 var pool *pgxpool.Pool
@@ -279,7 +279,7 @@ func staffContext(t *testing.T) (context.Context, uuid.UUID) {
 		t.Fatalf("create staff: %v", err)
 	}
 	ctx := user.NewContext(t.Context(), user.User{ID: id.String(), Role: user.RoleAdmin})
-	return web.WithRequestID(ctx, "req-"+id.String()[:8]), id
+	return requestid.With(ctx, "req-"+id.String()[:8]), id
 }
 
 func adminRolePool(t *testing.T) *pgxpool.Pool {

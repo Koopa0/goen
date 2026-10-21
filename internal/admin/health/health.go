@@ -18,8 +18,8 @@ import (
 	"github.com/koopa0/goen/internal/outbox"
 	"github.com/koopa0/goen/internal/payment"
 	"github.com/koopa0/goen/internal/refund"
+	"github.com/koopa0/goen/internal/requestid"
 	"github.com/koopa0/goen/internal/shoptime"
-	"github.com/koopa0/goen/internal/web"
 	"github.com/koopa0/goen/internal/worklist"
 )
 
@@ -421,7 +421,7 @@ func (s *Store) AuthorizeInvoiceAllowanceResend(
 	if !ok {
 		return audit.ErrNoActor
 	}
-	requestID := web.RequestID(ctx)
+	requestID := requestid.From(ctx)
 	if requestID == "" {
 		return audit.ErrNoActor
 	}

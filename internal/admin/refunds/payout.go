@@ -10,8 +10,8 @@ import (
 	"github.com/koopa0/goen/internal/admin/audit"
 	"github.com/koopa0/goen/internal/db"
 	"github.com/koopa0/goen/internal/refund"
+	"github.com/koopa0/goen/internal/requestid"
 	"github.com/koopa0/goen/internal/returns"
-	"github.com/koopa0/goen/internal/web"
 )
 
 type returnPayoutFacts struct {
@@ -387,7 +387,7 @@ func (s *Store) refundCard(
 	if !ok {
 		return "", "", fmt.Errorf("%w: refund provider attempt", audit.ErrNoActor)
 	}
-	requestID := web.RequestID(ctx)
+	requestID := requestid.From(ctx)
 	if requestID == "" {
 		return "", "", fmt.Errorf("%w: refund provider attempt has no request id", refund.ErrRefused)
 	}

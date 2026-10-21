@@ -9,12 +9,11 @@ import (
 	"strings"
 	"time"
 
-	"github.com/google/uuid"
-
 	"github.com/koopa0/goen/assets"
 	"github.com/koopa0/goen/internal/catalog"
 	"github.com/koopa0/goen/internal/compress"
 	"github.com/koopa0/goen/internal/i18n"
+	"github.com/koopa0/goen/internal/requestid"
 	"github.com/koopa0/goen/internal/shipping/storemap"
 	"github.com/koopa0/goen/internal/ui/layouts"
 	"github.com/koopa0/goen/internal/user"
@@ -22,13 +21,14 @@ import (
 )
 
 // withRequestTracing wraps a handler with the request log, panic recovery,
-// and identifier middleware. withRequestID is outermost so recovery sees the
-// same context the response header was stamped from. Recovery sits inside the
-// request log, so a request that panicked is logged with the 500 recovery sent.
+// and identifier middleware. requestid.Handler is outermost so recovery sees
+// the same context the response header was stamped from. Recovery sits inside
+// the request log, so a request that panicked is logged with the 500 recovery
+// sent.
 func withRequestTracing(next http.Handler, log *slog.Logger) http.Handler {
 	next = recoverPanic(next, log)
 	next = requestLog(next, log)
-	return withRequestID(next)
+	return requestid.Handler(next)
 }
 
 // staticAssetHandler leaves identity-versus-gzip selection with assets.Handler.
@@ -76,33 +76,6 @@ func crossOriginProtection(next http.Handler, pickupReturn bool) http.Handler {
 		protection.AddInsecureBypassPattern("POST " + storemap.ReturnPath)
 	}
 	return protection.Handler(next)
-}
-
-// withRequestID gives every request an identifier and echoes it back. A
-// client-supplied X-Request-Id is honoured only when it looks like an id: an
-// arbitrary one reaches the logs, where a newline could forge a log line.
-func withRequestID(next http.Handler) http.Handler {
-	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		id := r.Header.Get("X-Request-Id")
-		if !validRequestID(id) {
-			id = uuid.NewString()
-		}
-		w.Header().Set("X-Request-Id", id)
-		next.ServeHTTP(w, r.WithContext(web.WithRequestID(r.Context(), id)))
-	})
-}
-
-func validRequestID(s string) bool {
-	if s == "" || len(s) > 64 {
-		return false
-	}
-	for _, c := range s {
-		alphanumeric := (c >= '0' && c <= '9') || (c >= 'A' && c <= 'Z') || (c >= 'a' && c <= 'z')
-		if !alphanumeric && c != '-' {
-			return false
-		}
-	}
-	return true
 }
 
 // strictTransportSecurity tells a browser that has reached goen over https to
@@ -233,7 +206,7 @@ func requestLog(next http.Handler, log *slog.Logger) http.Handler {
 		next.ServeHTTP(rec, r)
 
 		log.LogAttrs(r.Context(), slog.LevelInfo, "request",
-			slog.String("request_id", web.RequestID(r.Context())),
+			slog.String("request_id", requestid.From(r.Context())),
 			slog.String("method", r.Method),
 			slog.String("path", r.URL.Path),
 			slog.Int("status", rec.statusCode()),
@@ -253,7 +226,7 @@ func recoverPanic(next http.Handler, log *slog.Logger) http.Handler {
 					panic(v)
 				}
 				log.Error("panic serving request",
-					"request_id", web.RequestID(r.Context()),
+					"request_id", requestid.From(r.Context()),
 					"panic", v,
 					"stack", string(debug.Stack()),
 					"method", r.Method,

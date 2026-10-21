@@ -30,6 +30,7 @@ import (
 	"github.com/koopa0/goen/internal/backinstock"
 	"github.com/koopa0/goen/internal/cart"
 	"github.com/koopa0/goen/internal/checkout"
+	"github.com/koopa0/goen/internal/clientip"
 	"github.com/koopa0/goen/internal/copurchase"
 	"github.com/koopa0/goen/internal/invoice/issuer"
 	"github.com/koopa0/goen/internal/letter"
@@ -40,7 +41,6 @@ import (
 	"github.com/koopa0/goen/internal/order/notice"
 	"github.com/koopa0/goen/internal/outbox"
 	"github.com/koopa0/goen/internal/payment"
-	"github.com/koopa0/goen/internal/ratelimit"
 	"github.com/koopa0/goen/internal/shipping/storemap"
 	"github.com/koopa0/goen/internal/web"
 	"github.com/koopa0/goen/migrations"
@@ -251,8 +251,8 @@ func (cfg *config) prepareRuntimePosture(log *slog.Logger) error {
 // collapsed single-bucket behaviour it is configuring its way out of. So is a
 // set no peer of the listener can be in, which configures nothing and starts
 // looking configured.
-func (cfg *config) trustedProxies(log *slog.Logger) (*ratelimit.Proxies, error) {
-	proxies, err := ratelimit.ParseProxies(cfg.TrustedProxies)
+func (cfg *config) trustedProxies(log *slog.Logger) (*clientip.Proxies, error) {
+	proxies, err := clientip.ParseProxies(cfg.TrustedProxies)
 	if err != nil {
 		return nil, fmt.Errorf("GOEN_TRUSTED_PROXIES: %w", err)
 	}
@@ -305,7 +305,7 @@ func listenerPeers(addr string) []netip.Prefix {
 	return []netip.Prefix{loopbackV6}
 }
 
-func newServer(cfg *config, routes *RouterConfig, proxies *ratelimit.Proxies, log *slog.Logger) *http.Server {
+func newServer(cfg *config, routes *RouterConfig, proxies *clientip.Proxies, log *slog.Logger) *http.Server {
 	return &http.Server{
 		Addr: cfg.Addr,
 		// Resolve decides which address a request came from, so it sits outside

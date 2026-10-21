@@ -11,7 +11,7 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 
 	"github.com/koopa0/goen/internal/db"
-	"github.com/koopa0/goen/internal/web"
+	"github.com/koopa0/goen/internal/requestid"
 )
 
 type recommendationRead string
@@ -80,7 +80,7 @@ func (s *Store) omitFailedRecommendation(ctx context.Context, operation recommen
 		slog.String("product_id", productID.String()),
 		slog.String("reason", string(reason)),
 	}
-	if requestID := web.RequestID(ctx); requestID != "" {
+	if requestID := requestid.From(ctx); requestID != "" {
 		attrs = append(attrs, slog.String("request_id", requestID))
 	}
 	s.log.LogAttrs(ctx, slog.LevelWarn, "product recommendations unavailable", attrs...)

@@ -1,4 +1,4 @@
-package ratelimit
+package clientip
 
 import (
 	"net/netip"

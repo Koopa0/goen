@@ -18,8 +18,8 @@ import (
 	"github.com/koopa0/goen/internal/order/notice"
 	"github.com/koopa0/goen/internal/outbox"
 	"github.com/koopa0/goen/internal/refund"
+	"github.com/koopa0/goen/internal/requestid"
 	"github.com/koopa0/goen/internal/returns"
-	"github.com/koopa0/goen/internal/web"
 )
 
 // beforeShipment is what the refund before shipment reads of an order. Whether
@@ -159,7 +159,7 @@ func (s *Store) RefundBeforeShipment(ctx context.Context, number, reason string)
 
 	returnID, err := s.q.OpenRefundBeforeShipment(ctx, db.OpenRefundBeforeShipmentParams{
 		OrderNumber: number, Reason: strings.TrimSpace(reason),
-		ActorUserID: actorID, RequestID: web.RequestID(ctx),
+		ActorUserID: actorID, RequestID: requestid.From(ctx),
 	})
 	if err != nil {
 		return nil, db.WrapRefusal(fmt.Errorf("open refund before shipment of %s: %w", number, err), refund.ErrRefused)
@@ -187,7 +187,7 @@ func (s *Store) correctInvoice(ctx context.Context, number string, actorID uuid.
 	}
 	ctx, cancel := invoiceShare(ctx)
 	defer cancel()
-	filing := issuer.WithFilingIdentity(ctx, actorID, web.RequestID(ctx))
+	filing := issuer.WithFilingIdentity(ctx, actorID, requestid.From(ctx))
 	if err := s.invoices.CorrectForCancellation(filing, number); err != nil {
 		return fmt.Errorf("correct the invoice of %s: %w", number, err)
 	}
@@ -213,7 +213,7 @@ func (s *Store) fileRefundAllowance(
 	}
 	ctx, cancel := invoiceShare(ctx)
 	defer cancel()
-	filing := issuer.WithFilingIdentity(ctx, openedBy.UUID, web.RequestID(ctx))
+	filing := issuer.WithFilingIdentity(ctx, openedBy.UUID, requestid.From(ctx))
 	operationID := uuid.NewSHA1(returnID, []byte("allowance"))
 	if err := s.invoices.FileCancellationAllowance(filing, number, operationID); err != nil {
 		return fmt.Errorf("file the allowance of %s: %w", number, err)
@@ -405,7 +405,7 @@ func (s *Store) cancelCreditPaid(ctx context.Context, number, reason string, act
 	// page shows.
 	returnedCents, err := cancellation.Settle(ctx, q, &cancellation.Order{
 		ID: orderID, Number: number, Actor: actor, Kind: outbox.TerminalCancelledByStaff,
-		VoidTrigger: web.RequestID(ctx),
+		VoidTrigger: requestid.From(ctx),
 	})
 	if err != nil {
 		return nil, err

@@ -13,8 +13,8 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 
 	"github.com/koopa0/goen/internal/db"
+	"github.com/koopa0/goen/internal/requestid"
 	"github.com/koopa0/goen/internal/user"
-	"github.com/koopa0/goen/internal/web"
 )
 
 var ErrNoActor = errors.New("admin: a back-office write reached the store with no actor")
@@ -72,7 +72,7 @@ func In(ctx context.Context, q *db.Queries, e Event) error {
 	if err != nil {
 		return fmt.Errorf("encode after state for %s: %w", e.Action, err)
 	}
-	requestID := web.RequestID(ctx)
+	requestID := requestid.From(ctx)
 	if _, err := q.RecordAuditEvent(ctx, db.RecordAuditEventParams{
 		Actor:       actor,
 		Action:      string(e.Action),

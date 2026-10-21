@@ -25,8 +25,8 @@ import (
 	"github.com/koopa0/goen/internal/admin/products"
 	"github.com/koopa0/goen/internal/admin/products/productstest"
 	"github.com/koopa0/goen/internal/product"
+	"github.com/koopa0/goen/internal/requestid"
 	"github.com/koopa0/goen/internal/user"
-	"github.com/koopa0/goen/internal/web"
 )
 
 func TestProductReadsDistinguishAbsenceFromInfrastructure(t *testing.T) {
@@ -249,7 +249,7 @@ func TestProductUpdateAndAuditCommitTogether(t *testing.T) {
 	// transaction, so observing the old name proves the audit failure rolled it
 	// back instead of leaving an unattributed customer-visible change.
 	missingActor := uuid.New()
-	failingCtx := web.WithRequestID(user.NewContext(t.Context(), user.User{
+	failingCtx := requestid.With(user.NewContext(t.Context(), user.User{
 		ID: missingActor.String(), Role: user.RoleAdmin,
 	}), "req-missing-actor")
 	failing := *form

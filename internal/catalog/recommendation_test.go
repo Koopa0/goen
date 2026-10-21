@@ -12,7 +12,7 @@ import (
 
 	"github.com/google/uuid"
 
-	"github.com/koopa0/goen/internal/web"
+	"github.com/koopa0/goen/internal/requestid"
 )
 
 func TestRecommendationTimeoutLeavesTheParentAndPageBudgetIntact(t *testing.T) {
@@ -53,7 +53,7 @@ func TestRecommendationReadsKeepParentCancellation(t *testing.T) {
 func TestRecommendationDiagnosticsKeepCorrelationWithoutRawDatabaseErrors(t *testing.T) {
 	var log bytes.Buffer
 	s := NewStore(ctxErrDB{}, slog.New(slog.NewJSONHandler(&log, nil)))
-	ctx := web.WithRequestID(t.Context(), "req-recommendations")
+	ctx := requestid.With(t.Context(), "req-recommendations")
 	id := uuid.New()
 	if err := s.omitFailedRecommendation(ctx, readRelatedProducts, id, errors.New("SELECT customer_email: customer@example.com")); err != nil {
 		t.Fatal(err)

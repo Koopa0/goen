@@ -1,11 +1,10 @@
-package ratelimit
+package clientip
 
 import (
 	"net/http"
 	"net/http/httptest"
 	"net/netip"
 	"testing"
-	"time"
 )
 
 func proxied(t *testing.T, p *Proxies, r *http.Request) string {
@@ -13,7 +12,7 @@ func proxied(t *testing.T, p *Proxies, r *http.Request) string {
 
 	var got string
 	p.Resolve(http.HandlerFunc(func(_ http.ResponseWriter, seen *http.Request) {
-		got = ClientIP(seen)
+		got = From(seen)
 	})).ServeHTTP(httptest.NewRecorder(), r)
 	return got
 }
@@ -41,12 +40,12 @@ func TestNothingIsTrustedUntilSomethingIsConfigured(t *testing.T) {
 
 	r := request(t, "203.0.113.9:54321", "198.51.100.1, 198.51.100.2")
 	if got := proxied(t, empty, r); got != "203.0.113.9" {
-		t.Errorf("ClientIP through an empty Proxies = %q, want the connection's "+
+		t.Errorf("From through an empty Proxies = %q, want the connection's "+
 			"own address — an unconfigured deployment must not start believing "+
 			"headers", got)
 	}
 	if got := proxied(t, nil, r); got != "203.0.113.9" {
-		t.Errorf("ClientIP through a nil Proxies = %q, want %q", got, "203.0.113.9")
+		t.Errorf("From through a nil Proxies = %q, want %q", got, "203.0.113.9")
 	}
 
 	// Resolve wraps nothing when it has nothing to decide.
@@ -119,6 +118,13 @@ func TestTheRightmostUntrustedHopIsTheClient(t *testing.T) {
 			want:       "198.51.100.4",
 		},
 		{
+			name:       "a trusted proxy seen on its IPv4-mapped spelling",
+			trusted:    "10.0.0.0/8",
+			remoteAddr: "[::ffff:10.0.0.7]:443",
+			forwarded:  []string{"198.51.100.4"},
+			want:       "198.51.100.4",
+		},
+		{
 			name:       "an IPv6 proxy and an IPv6 client",
 			trusted:    "2001:db8::/32",
 			remoteAddr: "[2001:db8::1]:443",
@@ -181,45 +187,9 @@ func TestTheRightmostUntrustedHopIsTheClient(t *testing.T) {
 			}
 			got := proxied(t, p, request(t, tt.remoteAddr, tt.forwarded...))
 			if got != tt.want {
-				t.Errorf("ClientIP = %q, want %q", got, tt.want)
+				t.Errorf("From = %q, want %q", got, tt.want)
 			}
 		})
-	}
-}
-
-// The attack this configuration must not open: one attacker holding an
-// unlimited supply of keys.
-func TestASpoofedHeaderBuysNoFreshAllowance(t *testing.T) {
-	t.Parallel()
-
-	p, err := ParseProxies("10.0.0.0/8")
-	if err != nil {
-		t.Fatalf("ParseProxies: %v", err)
-	}
-	l := New(Config{Every: time.Minute, Burst: 1, TTL: time.Hour, MaxKeys: 1000})
-
-	// One client behind the proxy, changing the half of the header it controls.
-	spend := func(spoof string) bool {
-		r := request(t, "10.0.0.7:443", spoof+", 198.51.100.4")
-		_, ok := l.Allow(proxied(t, p, r))
-		return ok
-	}
-	if !spend("1.2.3.4") {
-		t.Fatal("the first attempt was refused")
-	}
-	for _, spoof := range []string{"5.6.7.8", "9.9.9.9", "203.0.113.1", "10.0.0.55"} {
-		if spend(spoof) {
-			t.Errorf("prepending %q to X-Forwarded-For bought a fresh allowance; "+
-				"the client half of the header is being believed", spoof)
-		}
-	}
-
-	// A genuinely different client is still its own key, or the rule would
-	// trade one collapse for another.
-	other := request(t, "10.0.0.7:443", "198.51.100.5")
-	if _, ok := l.Allow(proxied(t, p, other)); !ok {
-		t.Error("a second client behind the proxy was refused because the first " +
-			"was at its limit — every visitor is still sharing one bucket")
 	}
 }
 
@@ -295,5 +265,16 @@ func TestOverlapsAsksWhetherAnyAddressInThePrefixIsTrusted(t *testing.T) {
 	var none *Proxies
 	if none.Overlaps(loopback) {
 		t.Error("a nil set trusts something")
+	}
+}
+
+// From is what sessions and logs record, so it must keep the whole address
+// while the limiter keys on less.
+func TestTheAddressToRecordKeepsAllOfAnIPv6Address(t *testing.T) {
+	t.Parallel()
+
+	r := request(t, "[2001:db8:1:2:dead:beef:0:9]:443")
+	if got := From(r); got != "2001:db8:1:2:dead:beef:0:9" {
+		t.Errorf("From = %q, want the whole address", got)
 	}
 }

@@ -17,8 +17,8 @@ import (
 	"github.com/koopa0/goen/internal/i18n"
 	"github.com/koopa0/goen/internal/invoice"
 	"github.com/koopa0/goen/internal/invoice/issuer"
+	"github.com/koopa0/goen/internal/requestid"
 	"github.com/koopa0/goen/internal/user"
-	"github.com/koopa0/goen/internal/web"
 )
 
 type stubInvoiceWriter struct {
@@ -54,7 +54,7 @@ func invoiceNoticeContext(t *testing.T) context.Context {
 	ctx := user.NewContext(t.Context(), user.User{
 		ID: uuid.NewString(), Role: user.RoleAdmin,
 	})
-	ctx = web.WithRequestID(ctx, "req-void-notice")
+	ctx = requestid.With(ctx, "req-void-notice")
 	return i18n.WithLocale(ctx, i18n.ZhHant)
 }
 

@@ -13,8 +13,8 @@ import (
 
 	"github.com/jackc/pgx/v5/pgxpool"
 
+	"github.com/koopa0/goen/internal/clientip"
 	"github.com/koopa0/goen/internal/payment"
-	"github.com/koopa0/goen/internal/ratelimit"
 )
 
 // TestStorefrontPoolWaitRespectsRequestBudget exhausts the production storefront
@@ -37,7 +37,7 @@ func TestStorefrontPoolWaitRespectsRequestBudget(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	proxies, err := ratelimit.ParseProxies("")
+	proxies, err := clientip.ParseProxies("")
 	if err != nil {
 		t.Fatal(err)
 	}
