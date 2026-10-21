@@ -9,8 +9,8 @@ import (
 
 	"github.com/jackc/pgx/v5/pgxpool"
 
-	"github.com/koopa0/goen/internal/ratelimit"
 	"github.com/koopa0/goen/internal/user"
+	"github.com/koopa0/goen/internal/web/ratelimit"
 )
 
 func TestPasswordSetupRequiresAuthentication(t *testing.T) {

@@ -11,12 +11,12 @@ import (
 
 	"github.com/koopa0/goen/assets"
 	"github.com/koopa0/goen/internal/catalog"
-	"github.com/koopa0/goen/internal/compress"
 	"github.com/koopa0/goen/internal/i18n"
-	"github.com/koopa0/goen/internal/requestid"
 	"github.com/koopa0/goen/internal/shipping/storemap"
 	"github.com/koopa0/goen/internal/ui/layouts"
 	"github.com/koopa0/goen/internal/user"
+	"github.com/koopa0/goen/internal/web/compress"
+	"github.com/koopa0/goen/internal/web/requestid"
 	"github.com/koopa0/goen/internal/web/siteurl"
 )
 

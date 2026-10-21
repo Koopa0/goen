@@ -262,7 +262,7 @@ CI 執行格式、vet、lint、無用程式碼與生成碼檢查、migration lin
 
 | 領域 | 入口 |
 | --- | --- |
-| 組合與生命週期 | [`cmd/goen`][main]、[路由][server]、[middleware][middleware]、[`internal/compress`][compress]、[`internal/requestid`][requestid]、[`internal/web/formtext`][formtext]、[外部服務設定][provider-posture] |
+| 組合與生命週期 | [`cmd/goen`][main]、[路由][server]、[middleware][middleware]、[`internal/web/compress`][compress]、[`internal/web/requestid`][requestid]、[`internal/web/formtext`][formtext]、[外部服務設定][provider-posture] |
 | 購物車、結帳、保留與訂單存取 | [`internal/cart`][cart]、[`internal/checkout`][checkout]、[`internal/discount/coupon`][coupon]、[`internal/shipping/storemap`][storemap]、[`internal/order/lapse`][lapse]、[`internal/order/access`][orderaccess] |
 | 付款與恢復 | [`internal/payment`][payment-store]、[Stripe adapter][stripe]、[`internal/admin/health`][health] |
 | 出貨、退貨與退款 | [`internal/order`][order]、[`internal/admin/orders`][orders]、[`internal/admin/dashboard`][dashboard]、[`internal/order/returns`][returns-rules]、[`internal/admin/returns`][returns]、[`internal/admin/refunds`][refund-payout] |
@@ -271,7 +271,7 @@ CI 執行格式、vet、lint、無用程式碼與生成碼檢查、migration lin
 | 瀏覽與衍生資料 | [`internal/catalog`][catalog-store]、[`internal/discount/campaign`][campaign]、[`internal/ui/tile`][tile]、[`internal/backinstock`][backinstock]、[`internal/home`][home-store]、[`internal/product/copurchase`][copurchase]、[報表][reports] |
 | 語言、金額與時間 | [`internal/i18n`][i18n]、[`internal/money`][money]、[`internal/shoptime`][shoptime] |
 | 資產與媒體 | [`assets`][assets]、[`internal/media`][media-render] |
-| 身分與瀏覽器安全 | [`internal/auth`][auth]、[`internal/auth/google`][google-signin]、[`internal/bearer`][bearer]、[員工存取][access]、[`internal/admin/twofactor`][twofactor]、[`internal/ratelimit`][ratelimit]、[`internal/clientip`][clientip]、[`internal/web/siteurl`][siteurl] |
+| 身分與瀏覽器安全 | [`internal/auth`][auth]、[`internal/auth/google`][google-signin]、[`internal/bearer`][bearer]、[員工存取][access]、[`internal/admin/twofactor`][twofactor]、[`internal/web/ratelimit`][ratelimit]、[`internal/web/clientip`][clientip]、[`internal/web/siteurl`][siteurl] |
 | 維運 | [健康查詢][health-sql]、[探針][probe]、[慢查詢紀錄][slowquery]、[Makefile][makefile]、[CI][workflows] |
 
 [contributing]: CONTRIBUTING.md
@@ -280,8 +280,8 @@ CI 執行格式、vet、lint、無用程式碼與生成碼檢查、migration lin
 [main]: cmd/goen/main.go
 [server]: cmd/goen/server.go
 [middleware]: cmd/goen/middleware.go
-[compress]: internal/compress/compress.go
-[requestid]: internal/requestid/requestid.go
+[compress]: internal/web/compress/compress.go
+[requestid]: internal/web/requestid/requestid.go
 [formtext]: internal/web/formtext/parse.go
 [provider-posture]: cmd/goen/provider_posture.go
 [slowquery]: cmd/goen/slowquery.go
@@ -319,8 +319,8 @@ CI 執行格式、vet、lint、無用程式碼與生成碼檢查、migration lin
 [bearer]: internal/bearer
 [access]: internal/admin/access/access.go
 [twofactor]: internal/admin/twofactor
-[ratelimit]: internal/ratelimit
-[clientip]: internal/clientip/clientip.go
+[ratelimit]: internal/web/ratelimit
+[clientip]: internal/web/clientip/clientip.go
 [siteurl]: internal/web/siteurl/siteurl.go
 [i18n]: internal/i18n
 [money]: internal/money
@@ -340,7 +340,7 @@ CI 執行格式、vet、lint、無用程式碼與生成碼檢查、migration lin
 [health]: internal/admin/health
 [health-reconcile]: internal/admin/health/reconcile.go
 [health-sql]: internal/admin/health/query.sql
-[probe]: internal/probe/probe.go
+[probe]: internal/web/probe/probe.go
 [makefile]: Makefile
 [workflows]: .github/workflows
 [stripe-errors]: https://docs.stripe.com/error-low-level

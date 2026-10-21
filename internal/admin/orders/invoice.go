@@ -12,8 +12,8 @@ import (
 	"github.com/koopa0/goen/internal/admin/audit"
 	"github.com/koopa0/goen/internal/invoice"
 	"github.com/koopa0/goen/internal/invoice/issuer"
-	"github.com/koopa0/goen/internal/requestid"
 	"github.com/koopa0/goen/internal/shoptime"
+	"github.com/koopa0/goen/internal/web/requestid"
 )
 
 // ErrInvoiceRefused is an invoice write unavailable in the current back-office state.

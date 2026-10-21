@@ -25,7 +25,7 @@ import (
 	"github.com/koopa0/goen/internal/catalog"
 	"github.com/koopa0/goen/internal/db"
 	"github.com/koopa0/goen/internal/db/dbtest"
-	"github.com/koopa0/goen/internal/requestid"
+	"github.com/koopa0/goen/internal/web/requestid"
 )
 
 type recommendationFault string

@@ -26,8 +26,8 @@ import (
 	"github.com/koopa0/goen/internal/contact"
 	"github.com/koopa0/goen/internal/i18n"
 	"github.com/koopa0/goen/internal/keyset"
-	"github.com/koopa0/goen/internal/ratelimit"
 	"github.com/koopa0/goen/internal/ui/layouts"
+	"github.com/koopa0/goen/internal/web/ratelimit"
 )
 
 func TestContactSubjectsSurviveWritingAndRenderInBothLanguages(t *testing.T) {

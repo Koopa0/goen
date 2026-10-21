@@ -42,7 +42,6 @@ import (
 	"github.com/koopa0/goen/internal/cart"
 	"github.com/koopa0/goen/internal/catalog"
 	"github.com/koopa0/goen/internal/checkout"
-	"github.com/koopa0/goen/internal/compress"
 	"github.com/koopa0/goen/internal/contact"
 	"github.com/koopa0/goen/internal/discount/campaign"
 	"github.com/koopa0/goen/internal/home"
@@ -55,12 +54,13 @@ import (
 	"github.com/koopa0/goen/internal/outbox"
 	"github.com/koopa0/goen/internal/payment"
 	"github.com/koopa0/goen/internal/policy"
-	"github.com/koopa0/goen/internal/probe"
-	"github.com/koopa0/goen/internal/ratelimit"
 	"github.com/koopa0/goen/internal/shipping/storemap"
 	"github.com/koopa0/goen/internal/site"
 	"github.com/koopa0/goen/internal/warranty"
+	"github.com/koopa0/goen/internal/web/compress"
 	"github.com/koopa0/goen/internal/web/formtext"
+	"github.com/koopa0/goen/internal/web/probe"
+	"github.com/koopa0/goen/internal/web/ratelimit"
 	"github.com/koopa0/goen/internal/wishlist"
 )
 

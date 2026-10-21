@@ -12,7 +12,7 @@ import (
 
 	"github.com/google/uuid"
 
-	"github.com/koopa0/goen/internal/requestid"
+	"github.com/koopa0/goen/internal/web/requestid"
 )
 
 func TestRecommendationTimeoutLeavesTheParentAndPageBudgetIntact(t *testing.T) {

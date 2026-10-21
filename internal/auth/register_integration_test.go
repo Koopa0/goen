@@ -23,10 +23,10 @@ import (
 	"github.com/koopa0/goen/internal/auth"
 	"github.com/koopa0/goen/internal/bearer"
 	"github.com/koopa0/goen/internal/cart"
-	"github.com/koopa0/goen/internal/compress"
 	"github.com/koopa0/goen/internal/i18n"
 	"github.com/koopa0/goen/internal/order/access"
 	"github.com/koopa0/goen/internal/outbox"
+	"github.com/koopa0/goen/internal/web/compress"
 )
 
 // followUpRegistrations delivers every queued registration naming addr's

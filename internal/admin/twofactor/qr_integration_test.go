@@ -18,9 +18,9 @@ import (
 
 	"github.com/koopa0/goen/internal/admin/admintest"
 	"github.com/koopa0/goen/internal/admin/twofactor"
-	"github.com/koopa0/goen/internal/compress"
 	"github.com/koopa0/goen/internal/i18n"
 	"github.com/koopa0/goen/internal/user"
+	"github.com/koopa0/goen/internal/web/compress"
 )
 
 func TestEnrolmentQRMatchesTheOneTimeURI(t *testing.T) {

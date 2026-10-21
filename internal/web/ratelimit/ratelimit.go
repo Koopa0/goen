@@ -34,7 +34,7 @@ import (
 
 	"golang.org/x/time/rate"
 
-	"github.com/koopa0/goen/internal/clientip"
+	"github.com/koopa0/goen/internal/web/clientip"
 )
 
 // maxKeyBytes is the most of one key the limiter retains. Longer logical keys

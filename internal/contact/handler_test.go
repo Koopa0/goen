@@ -11,8 +11,8 @@ import (
 	"time"
 
 	"github.com/koopa0/goen/internal/i18n"
-	"github.com/koopa0/goen/internal/ratelimit"
 	"github.com/koopa0/goen/internal/user"
+	"github.com/koopa0/goen/internal/web/ratelimit"
 )
 
 func TestHTMXOverLimitKeepsTheContactPanel(t *testing.T) {

@@ -34,7 +34,7 @@ var sha256Users = map[string]string{
 	"internal/checkout/checkout.go#ID":                 "checkout quote identity",
 	"internal/site/chrome.go#dismissDigest":            "promo-dismiss cookie value",
 	"internal/media/decode.go#normaliseDecoded":        "content address",
-	"internal/ratelimit/ratelimit.go#clampKey":         "bounded limiter key",
+	"internal/web/ratelimit/ratelimit.go#clampKey":     "bounded limiter key",
 	"internal/catalog/facets.go#CountID":               "HTML id",
 	"internal/catalog/facets.go#SelectedID":            "HTML id",
 	"assets/assets.go#index":                           "asset fingerprint",

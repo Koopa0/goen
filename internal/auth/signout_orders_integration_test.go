@@ -20,8 +20,8 @@ import (
 	"github.com/koopa0/goen/internal/order/access"
 	"github.com/koopa0/goen/internal/order/buyer"
 	"github.com/koopa0/goen/internal/order/delivery"
-	"github.com/koopa0/goen/internal/ratelimit"
 	"github.com/koopa0/goen/internal/user"
+	"github.com/koopa0/goen/internal/web/ratelimit"
 )
 
 // TestSigningOutEndsTheBrowsersAccessToItsOrders is the shared computer again:

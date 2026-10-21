@@ -21,10 +21,10 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 
 	"github.com/koopa0/goen/assets"
-	"github.com/koopa0/goen/internal/compress"
 	"github.com/koopa0/goen/internal/payment"
 	"github.com/koopa0/goen/internal/ui/layouts"
 	"github.com/koopa0/goen/internal/user"
+	"github.com/koopa0/goen/internal/web/compress"
 	"github.com/koopa0/goen/internal/web/siteurl"
 )
 

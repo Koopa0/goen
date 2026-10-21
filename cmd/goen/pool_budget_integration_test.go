@@ -13,8 +13,8 @@ import (
 
 	"github.com/jackc/pgx/v5/pgxpool"
 
-	"github.com/koopa0/goen/internal/clientip"
 	"github.com/koopa0/goen/internal/payment"
+	"github.com/koopa0/goen/internal/web/clientip"
 )
 
 // TestStorefrontPoolWaitRespectsRequestBudget exhausts the production storefront

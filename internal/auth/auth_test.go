@@ -21,10 +21,10 @@ import (
 
 	"github.com/koopa0/goen/internal/auth/google"
 	"github.com/koopa0/goen/internal/i18n"
-	"github.com/koopa0/goen/internal/ratelimit"
 	"github.com/koopa0/goen/internal/ui/uitest"
 	"github.com/koopa0/goen/internal/user"
 	"github.com/koopa0/goen/internal/web/formtext"
+	"github.com/koopa0/goen/internal/web/ratelimit"
 )
 
 func TestPasswordHashingRoundTrips(t *testing.T) {

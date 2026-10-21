@@ -16,8 +16,8 @@ import (
 	"github.com/koopa0/goen/internal/admin/returns"
 	"github.com/koopa0/goen/internal/db"
 	"github.com/koopa0/goen/internal/payment"
-	"github.com/koopa0/goen/internal/requestid"
 	"github.com/koopa0/goen/internal/shoptime"
+	"github.com/koopa0/goen/internal/web/requestid"
 )
 
 func MoveOrderToShipped(t *testing.T, tx pgx.Tx, orderID uuid.UUID) {
