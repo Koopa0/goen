@@ -7,10 +7,10 @@ import (
 	"time"
 
 	"github.com/koopa0/goen/internal/admin/access"
+	"github.com/koopa0/goen/internal/admin/worklist"
 	"github.com/koopa0/goen/internal/sales"
 	"github.com/koopa0/goen/internal/ui/chart"
 	"github.com/koopa0/goen/internal/web"
-	"github.com/koopa0/goen/internal/worklist"
 )
 
 type Handler struct {
