@@ -37,7 +37,7 @@ var kindsAdmitted = regexp.MustCompile(`coupons_kind_known CHECK \(kind IN \(([^
 func TestEveryAdmittedKindHasAConstant(t *testing.T) {
 	t.Parallel()
 
-	schema, err := os.ReadFile(filepath.Join("..", "..", "migrations", "001_initial_schema.up.sql"))
+	schema, err := os.ReadFile(filepath.Join("..", "..", "..", "migrations", "001_initial_schema.up.sql"))
 	if err != nil {
 		t.Fatalf("read the schema: %v", err)
 	}

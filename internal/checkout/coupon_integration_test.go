@@ -11,7 +11,7 @@ import (
 	"github.com/google/uuid"
 
 	"github.com/koopa0/goen/internal/checkout"
-	"github.com/koopa0/goen/internal/coupon"
+	"github.com/koopa0/goen/internal/discount/coupon"
 	"github.com/koopa0/goen/internal/order/delivery"
 )
 

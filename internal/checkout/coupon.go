@@ -9,8 +9,8 @@ import (
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgconn"
 
-	"github.com/koopa0/goen/internal/coupon"
 	"github.com/koopa0/goen/internal/db"
+	"github.com/koopa0/goen/internal/discount/coupon"
 )
 
 // CouponByCode leaves eligibility and value to Apply; redemption limits are

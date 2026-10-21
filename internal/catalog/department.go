@@ -9,8 +9,8 @@ import (
 	"github.com/jackc/pgx/v5"
 
 	"github.com/koopa0/goen/assets"
-	"github.com/koopa0/goen/internal/campaign"
 	"github.com/koopa0/goen/internal/db"
+	"github.com/koopa0/goen/internal/discount/campaign"
 	"github.com/koopa0/goen/internal/i18n"
 	"github.com/koopa0/goen/internal/ui/components"
 	"github.com/koopa0/goen/internal/ui/tile"

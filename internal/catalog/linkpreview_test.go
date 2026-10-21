@@ -10,7 +10,7 @@ import (
 )
 
 // From TestEveryPageKindSendsItsOwnLinkPreviewTags, which keeps the other pages' rows;
-// the campaign's row is internal/campaign's TestTheCampaignPageSendsItsOwnLinkPreviewTags.
+// the campaign's row is internal/discount/campaign's TestTheCampaignPageSendsItsOwnLinkPreviewTags.
 func TestCatalogPagesSendTheirOwnLinkPreviewTags(t *testing.T) {
 	t.Parallel()
 	ctx := i18n.WithLocale(layouts.WithRequestPath(t.Context(), "/c/books"), i18n.ZhHant)

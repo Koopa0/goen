@@ -12,8 +12,8 @@ import (
 	"github.com/google/uuid"
 
 	"github.com/koopa0/goen/assets"
-	"github.com/koopa0/goen/internal/campaign"
 	"github.com/koopa0/goen/internal/db"
+	"github.com/koopa0/goen/internal/discount/campaign"
 	"github.com/koopa0/goen/internal/i18n"
 	"github.com/koopa0/goen/internal/policy"
 	"github.com/koopa0/goen/internal/shoptime"

@@ -16,9 +16,9 @@ import (
 	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/jackc/pgx/v5/pgxpool"
 
-	"github.com/koopa0/goen/internal/campaign"
 	"github.com/koopa0/goen/internal/db"
 	"github.com/koopa0/goen/internal/db/dbtest"
+	"github.com/koopa0/goen/internal/discount/campaign"
 	"github.com/koopa0/goen/internal/i18n"
 	"github.com/koopa0/goen/internal/ui/tile"
 )
@@ -33,7 +33,7 @@ func TestMain(m *testing.M) {
 	}
 	pool = p
 
-	seed, err := os.ReadFile("../../seed/dev_catalog.sql")
+	seed, err := os.ReadFile("../../../seed/dev_catalog.sql")
 	if err != nil {
 		slog.Error("read seed", "error", err)
 		os.Exit(1)

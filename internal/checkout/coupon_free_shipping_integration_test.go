@@ -17,7 +17,7 @@ import (
 
 	"github.com/koopa0/goen/internal/bearer"
 	"github.com/koopa0/goen/internal/checkout"
-	"github.com/koopa0/goen/internal/coupon"
+	"github.com/koopa0/goen/internal/discount/coupon"
 	"github.com/koopa0/goen/internal/i18n"
 	"github.com/koopa0/goen/internal/order/access"
 	"github.com/koopa0/goen/internal/order/delivery"

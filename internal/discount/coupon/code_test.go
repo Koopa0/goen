@@ -49,7 +49,7 @@ var codeFormat = regexp.MustCompile(`coupons_code_format CHECK \(code ~ '([^']*)
 func TestTheCodeShapeIsTheSchemas(t *testing.T) {
 	t.Parallel()
 
-	schema, err := os.ReadFile(filepath.Join("..", "..", "migrations", "001_initial_schema.up.sql"))
+	schema, err := os.ReadFile(filepath.Join("..", "..", "..", "migrations", "001_initial_schema.up.sql"))
 	if err != nil {
 		t.Fatalf("read the schema: %v", err)
 	}

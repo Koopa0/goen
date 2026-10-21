@@ -7,7 +7,7 @@ import (
 	"github.com/google/go-cmp/cmp"
 	"golang.org/x/net/html"
 
-	"github.com/koopa0/goen/internal/coupon"
+	"github.com/koopa0/goen/internal/discount/coupon"
 	"github.com/koopa0/goen/internal/i18n"
 	"github.com/koopa0/goen/internal/ui/layouts"
 )
