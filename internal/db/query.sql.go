@@ -104,7 +104,7 @@ type AddCartItemParams struct {
 // the line ceiling, so a conflict stores the total it was handed. It overwrites
 // rather than adds: two unlocked callers would each write a total computed from
 // the same stale read, so every caller must hold the cart row lock that
-// lockCart takes in mutateCart.
+// Lock takes in mutateCart.
 func (q *Queries) AddCartItem(ctx context.Context, arg AddCartItemParams) error {
 	_, err := q.db.Exec(ctx, addCartItem, arg.CartID, arg.VariantID, arg.Quantity)
 	return err

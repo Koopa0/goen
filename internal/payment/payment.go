@@ -67,6 +67,19 @@ const minSessionLifetime = 30 * time.Minute
 // The session still expires at the stock hold; this margin never extends it.
 const sessionStartMargin = time.Minute
 
+// PayWindow leaves the stock hold room for Stripe's 30-minute floor plus the
+// creation margin. It is checkout_pay_start_minutes(), which the pages state; a
+// test in internal/db holds the two together.
+const PayWindow = 29 * time.Minute
+
+// HoldTTL is how long placing an order holds its stock. The floor and margin
+// are inventory time, not extra pay time; they let a session started at the
+// end of PayWindow expire with the same hold. It is checkout_hold_minutes(),
+// the longest hold hold_inventory takes; a test in internal/db holds the two
+// together. The frozen migrations/001 still names the two windows' former home,
+// cart.holdTTL and cart.payWindow.
+const HoldTTL = PayWindow + minSessionLifetime + sessionStartMargin
+
 // Order is what the payment page needs to know about what is being paid.
 type Order struct {
 	ID     uuid.UUID

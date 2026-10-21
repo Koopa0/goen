@@ -4,84 +4,23 @@ package cart_test
 
 import (
 	"context"
-	"errors"
 	"log/slog"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
+	"strconv"
 	"strings"
 	"testing"
-
-	"github.com/google/uuid"
 
 	"github.com/koopa0/goen/internal/cart"
 	"github.com/koopa0/goen/internal/i18n"
 	"github.com/koopa0/goen/internal/order/access"
-	"github.com/koopa0/goen/internal/order/delivery"
 )
-
-func TestSetQuantityClampsToWhatCanBeSupplied(t *testing.T) {
-	ctx := t.Context()
-	s := cart.NewStore(pool)
-
-	vid := freshVariant(t, "stockfix-setqty")
-	var wasStock, wasSafety int32
-	if err := pool.QueryRow(ctx,
-		`SELECT stock_quantity, safety_stock FROM product_variants WHERE id = $1`,
-		vid).Scan(&wasStock, &wasSafety); err != nil {
-		t.Fatalf("read stock: %v", err)
-	}
-	t.Cleanup(func() {
-		_, _ = pool.Exec(context.Background(), //nolint:usetesting // t.Context is already cancelled in Cleanup
-			`UPDATE product_variants SET stock_quantity = $2, safety_stock = $3 WHERE id = $1`,
-			vid, wasStock, wasSafety)
-	})
-	if _, err := pool.Exec(ctx,
-		`UPDATE product_variants SET stock_quantity = 5, safety_stock = 2 WHERE id = $1`,
-		vid); err != nil {
-		t.Fatalf("fixture: %v", err)
-	}
-
-	// 3 can be sold: 5 on hand less safety stock of 2.
-	id := newCart(t, s)
-	if err := s.Add(ctx, id, vid, 1); err != nil {
-		t.Fatalf("add: %v", err)
-	}
-
-	// Set quantity above sellable clamps to 3.
-	if err := s.SetQuantity(ctx, id, vid, 10); !errors.Is(err, cart.ErrQuantityAdjusted) {
-		t.Fatalf("set quantity over stock returned %v, want ErrQuantityAdjusted", err)
-	}
-
-	var stored int32
-	if err := pool.QueryRow(ctx,
-		`SELECT quantity FROM cart_items WHERE cart_id = $1 AND variant_id = $2`,
-		id, vid).Scan(&stored); err != nil {
-		t.Fatalf("read line: %v", err)
-	}
-	if stored != 3 {
-		t.Errorf("set quantity to 10 on variant with 3 sellable, cart holds %d; want 3", stored)
-	}
-
-	// The clamped cart can checkout without ErrUnavailable dead-end.
-	var shipID uuid.UUID
-	if err := pool.QueryRow(ctx,
-		`SELECT id FROM shipping_method_versions ORDER BY effective_at LIMIT 1`).Scan(&shipID); err != nil {
-		t.Fatalf("shipping: %v", err)
-	}
-	addr := &delivery.Details{
-		Email: "setqty-checkout@example.com", RecipientName: "李大華", Phone: "0987654321",
-		PostalCode: "220", City: "新北市", District: "板橋區", Street: "文化路一段 1 號",
-	}
-	if _, err := placeOrder(t, s, ctx, id, uuid.NullUUID{}, shipID, addr, "", "setqty-checkout-1"); err != nil {
-		t.Fatalf("checkout after set quantity clamp returned error: %v", err)
-	}
-}
 
 func TestUpdateItemUnavailableDoesNot500(t *testing.T) {
 	ctx := t.Context()
 	s := cart.NewStore(pool)
-	h := cart.NewHandler(s, access.NewStore(pool, false), slog.New(slog.DiscardHandler), false, nil, nil)
+	h := cart.NewHandler(s, access.NewStore(pool, false), slog.New(slog.DiscardHandler), false, nil)
 
 	// Each case makes the variant impossible to sell a different way; the line
 	// keeps its quantity and the visitor is told, not sent to a 500.
@@ -177,7 +116,7 @@ func TestUpdateItemUnavailableDoesNot500(t *testing.T) {
 func TestUpdateItemAdjustedShowsNotice(t *testing.T) {
 	ctx := t.Context()
 	s := cart.NewStore(pool)
-	h := cart.NewHandler(s, access.NewStore(pool, false), slog.New(slog.DiscardHandler), false, nil, nil)
+	h := cart.NewHandler(s, access.NewStore(pool, false), slog.New(slog.DiscardHandler), false, nil)
 
 	vid := freshVariant(t, "stockfix-update-notice")
 	var wasStock, wasSafety int32
@@ -225,5 +164,59 @@ func TestUpdateItemAdjustedShowsNotice(t *testing.T) {
 	want := i18n.T(ctx, i18n.KeyCartQuantityAdjusted)
 	if !strings.Contains(page.Body.String(), want) {
 		t.Fatalf("cart page does not show adjustment notice %q", want)
+	}
+}
+
+// TestNoPostedQuantityReachesACartOutsideItsBounds holds the cart's quantity
+// at the HTTP boundary: whatever a POST carries — nothing, zero, a negative,
+// a number past int32, or text — a line holds between one and the cart's
+// ceiling and never more than can be supplied, which is the only quantity a
+// checkout quote can then name.
+func TestNoPostedQuantityReachesACartOutsideItsBounds(t *testing.T) {
+	ctx := t.Context()
+	s := cart.NewStore(pool)
+	h := cart.NewHandler(s, access.NewStore(pool, false), slog.New(slog.DiscardHandler), false, nil)
+
+	for _, quantity := range []string{
+		"", "0", "-1", "-2147483648", "2147483647", "2147483648",
+		"99999999999999999999", "1e3", "0x10", " 3 ", "１",
+	} {
+		t.Run(strconv.Quote(quantity), func(t *testing.T) {
+			cartID, token := newCartSession(t, s)
+			variant := freshVariant(t, "quantity-bounds")
+
+			for _, route := range []struct {
+				path  string
+				serve func(http.ResponseWriter, *http.Request)
+			}{
+				{"/cart/items", h.AddItem},
+				{"/cart/items/update", h.UpdateItem},
+			} {
+				form := url.Values{"variant": {variant.String()}, "quantity": {quantity}}
+				req := httptest.NewRequestWithContext(ctx, http.MethodPost, route.path,
+					strings.NewReader(form.Encode()))
+				req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+				req.AddCookie(&http.Cookie{Name: "goen_cart", Value: token}) //nolint:gosec // G124: dev cart cookie under test
+				res := httptest.NewRecorder()
+				route.serve(res, req)
+				if res.Code != http.StatusSeeOther {
+					t.Fatalf("POST %s quantity=%q answered %d, want 303", route.path, quantity, res.Code)
+				}
+
+				var held, stock int
+				err := pool.QueryRow(ctx, `
+					SELECT coalesce((SELECT quantity FROM cart_items
+					                 WHERE cart_id = $1 AND variant_id = $2), 0),
+					       (SELECT stock_quantity - safety_stock FROM product_variants WHERE id = $2)`,
+					cartID, variant).Scan(&held, &stock)
+				if err != nil {
+					t.Fatalf("read the cart line: %v", err)
+				}
+				if held < 0 || held > cart.MaxLineQuantity || held > stock {
+					t.Errorf("after POST %s quantity=%q the line holds %d (supply %d, ceiling %d)",
+						route.path, quantity, held, stock, cart.MaxLineQuantity)
+				}
+			}
+		})
 	}
 }

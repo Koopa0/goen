@@ -1,0 +1,60 @@
+package checkout
+
+import (
+	"context"
+	"fmt"
+
+	"github.com/koopa0/goen/internal/db"
+	"github.com/koopa0/goen/internal/i18n"
+	"github.com/koopa0/goen/internal/order/delivery"
+	"github.com/koopa0/goen/internal/outbox"
+	"github.com/koopa0/goen/internal/payment"
+	"github.com/koopa0/goen/internal/ui/pages"
+)
+
+// enqueueOrderPlaced is keyed on the order number so a retried checkout cannot
+// send a second confirmation.
+func enqueueOrderPlaced(ctx context.Context, q *db.Queries, number string, addr *delivery.Details, totalCents int64) error {
+	// Credit is already posted in this transaction, so order_amount_after_credit is the
+	// figure the payment page will show.
+	summary, err := q.OrderSummaryByNumber(ctx, db.OrderSummaryByNumberParams{
+		Number: number, Locale: i18n.FromContext(ctx).Tag(),
+	})
+	if err != nil {
+		return fmt.Errorf("read owed for order.placed: %w", err)
+	}
+	lines, err := q.OrderPageLines(ctx, db.OrderPageLinesParams{
+		OrderID: summary.ID, Locale: i18n.FromContext(ctx).Tag(),
+	})
+	if err != nil {
+		return fmt.Errorf("read lines for order.placed: %w", err)
+	}
+	hold, err := q.OrderHoldSpan(ctx, summary.ID)
+	if err != nil {
+		return fmt.Errorf("read stock hold for order.placed: %w", err)
+	}
+	// finishOrder persists this same delivery after the confirmation is queued.
+	snapshot := &outbox.PlacedSnapshot{
+		SubtotalCents: summary.SubtotalCents, ShippingCents: summary.ShippingCents,
+		DiscountCents: summary.DiscountCents, DiscountReason: summary.DiscountReason,
+		CreditCents: summary.CreditCents, ShippingName: summary.ShippingMethodName,
+		Phone: addr.Phone, DeliveryNote: addr.Note, HoldUntil: hold.HeldUntil, StartBy: payment.StartBy(hold.HeldUntil),
+		DeliveryTo: pages.Delivery{
+			PostalCode: addr.PostalCode, City: addr.City, District: addr.District,
+			Street: addr.Street, PickupChain: addr.PickupChain,
+			PickupStoreCode: addr.PickupStoreCode, PickupStoreName: addr.PickupStoreName,
+		}.Line(),
+		Lines: make([]outbox.PlacedLine, 0, len(lines)),
+	}
+	for i := range lines {
+		line := &lines[i]
+		snapshot.Lines = append(snapshot.Lines, outbox.PlacedLine{
+			SKU: line.SKU, Name: line.ProductName, Label: line.VariantLabel.String,
+			UnitCents: line.UnitPriceCents, Quantity: line.Quantity,
+		})
+	}
+	return outbox.Enqueue(ctx, q, outbox.TopicOrderPlaced, number, &outbox.OrderPlaced{
+		OrderNumber: number, Email: addr.Email, Name: addr.RecipientName, TotalCents: totalCents,
+		OwedCents: summary.OwedCents, Snapshot: snapshot, Locale: i18n.FromContext(ctx).Tag(),
+	})
+}

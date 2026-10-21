@@ -672,10 +672,10 @@ func TestPickupUsesTheMatchingCookieAcrossCheckoutRequests(t *testing.T) {
 // crypto/subtle, and == or != on a nonce is only a test for absence.
 func TestPickupNoncesAreComparedInConstantTime(t *testing.T) {
 	t.Parallel()
-	// This package holds the rule; the checkout's handlers in internal/cart
+	// This package holds the rule; the checkout's handlers in internal/checkout
 	// carry the nonce through every render and placement.
 	var files []string
-	for _, dir := range []string{".", filepath.Join("..", "..", "cart")} {
+	for _, dir := range []string{".", filepath.Join("..", "..", "checkout")} {
 		found, err := filepath.Glob(filepath.Join(dir, "*.go"))
 		if err != nil {
 			t.Fatalf("list sources: %v", err)

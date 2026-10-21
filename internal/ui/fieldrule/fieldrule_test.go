@@ -8,7 +8,7 @@ import (
 
 	"github.com/koopa0/goen/internal/shipping"
 
-	"github.com/koopa0/goen/internal/cart"
+	"github.com/koopa0/goen/internal/checkout"
 	"github.com/koopa0/goen/internal/email"
 	"github.com/koopa0/goen/internal/formtext"
 	"github.com/koopa0/goen/internal/invoice"
@@ -61,15 +61,15 @@ var server = map[string]func(string) bool{
 		return !hasField(a.Validate(), "postal_code")
 	},
 	"invoice_carrier": func(s string) bool {
-		i := cart.Invoice{Type: invoice.PreferenceMobile, MobileBarcode: s}
+		i := checkout.Invoice{Type: invoice.PreferenceMobile, MobileBarcode: s}
 		return !hasField(i.Validate(), "invoice_carrier")
 	},
 	"invoice_donation_code": func(s string) bool {
-		i := cart.Invoice{Type: invoice.PreferenceDonate, DonationCode: s}
+		i := checkout.Invoice{Type: invoice.PreferenceDonate, DonationCode: s}
 		return !hasField(i.Validate(), "invoice_donation_code")
 	},
 	"invoice_tax_id": func(s string) bool {
-		i := cart.Invoice{Type: invoice.PreferenceCompany, CompanyName: "公司", TaxID: s}
+		i := checkout.Invoice{Type: invoice.PreferenceCompany, CompanyName: "公司", TaxID: s}
 		return !hasField(i.Validate(), "invoice_tax_id")
 	},
 }

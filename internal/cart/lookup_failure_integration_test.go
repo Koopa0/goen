@@ -22,6 +22,7 @@ import (
 
 	"github.com/koopa0/goen/internal/auth"
 	"github.com/koopa0/goen/internal/cart"
+	"github.com/koopa0/goen/internal/checkout"
 	"github.com/koopa0/goen/internal/db/dbtest"
 	"github.com/koopa0/goen/internal/i18n"
 	"github.com/koopa0/goen/internal/order/access"
@@ -81,7 +82,9 @@ func TestCartLookupFailuresDoNotReplaceOrHideTheBasket(t *testing.T) {
 				before := cartLookupRows(t, owner, id, variant)
 				var diagnostics bytes.Buffer
 				logger := slog.New(slog.NewJSONHandler(&diagnostics, nil))
-				h := cart.NewHandler(s, access.NewStore(app, false), logger, false, nil, nil)
+				grants := access.NewStore(app, false)
+				h := cart.NewHandler(s, grants, logger, false, nil)
+				placement := checkout.NewHandler(checkout.NewStore(app), h, grants, logger, false, nil, nil)
 				accounts := auth.NewHandler(auth.NewStore(app), h, access.NewStore(app, false), logger, false, nil)
 				method, path, handler := http.MethodGet, "/cart", http.HandlerFunc(h.Page)
 				form := url.Values{"variant": {variant.String()}, "quantity": {"1"}, "remove": {"1"}}
@@ -93,13 +96,13 @@ func TestCartLookupFailuresDoNotReplaceOrHideTheBasket(t *testing.T) {
 				case "update":
 					method, path, handler = http.MethodPost, "/cart/items/update", h.UpdateItem
 				case "checkout":
-					path, handler = "/checkout", h.Checkout
+					path, handler = "/checkout", placement.Page
 				case "place":
-					method, path, handler = http.MethodPost, "/checkout", h.PlaceOrder
+					method, path, handler = http.MethodPost, "/checkout", placement.PlaceOrder
 				case "pickup-start":
-					method, path, handler = http.MethodPost, "/checkout/pickup/start", h.PickupStart
+					method, path, handler = http.MethodPost, "/checkout/pickup/start", placement.PickupStart
 				case "pickup-map":
-					path, handler = "/checkout/pickup/map", h.PickupMap
+					path, handler = "/checkout/pickup/map", placement.PickupMap
 				case "badge":
 					wantStatus = http.StatusNoContent
 					handler = func(w http.ResponseWriter, _ *http.Request) { w.WriteHeader(http.StatusNoContent) }
@@ -170,15 +173,15 @@ func TestCartLookupFailuresDoNotReplaceOrHideTheBasket(t *testing.T) {
 	}
 	for _, tt := range []struct {
 		name, method, path string
-		handler            func(*cart.Handler) http.HandlerFunc
+		handler            func(*cart.Handler, *checkout.Handler) http.HandlerFunc
 	}{
-		{name: "page", method: http.MethodGet, path: "/cart", handler: func(h *cart.Handler) http.HandlerFunc { return h.Page }},
-		{name: "add", method: http.MethodPost, path: "/cart/items", handler: func(h *cart.Handler) http.HandlerFunc { return h.AddItem }},
-		{name: "update", method: http.MethodPost, path: "/cart/items/update", handler: func(h *cart.Handler) http.HandlerFunc { return h.UpdateItem }},
-		{name: "checkout", method: http.MethodGet, path: "/checkout", handler: func(h *cart.Handler) http.HandlerFunc { return h.Checkout }},
-		{name: "place", method: http.MethodPost, path: "/checkout", handler: func(h *cart.Handler) http.HandlerFunc { return h.PlaceOrder }},
-		{name: "pickup-start", method: http.MethodPost, path: "/checkout/pickup/start", handler: func(h *cart.Handler) http.HandlerFunc { return h.PickupStart }},
-		{name: "pickup-map", method: http.MethodGet, path: "/checkout/pickup/map", handler: func(h *cart.Handler) http.HandlerFunc { return h.PickupMap }},
+		{name: "page", method: http.MethodGet, path: "/cart", handler: func(h *cart.Handler, _ *checkout.Handler) http.HandlerFunc { return h.Page }},
+		{name: "add", method: http.MethodPost, path: "/cart/items", handler: func(h *cart.Handler, _ *checkout.Handler) http.HandlerFunc { return h.AddItem }},
+		{name: "update", method: http.MethodPost, path: "/cart/items/update", handler: func(h *cart.Handler, _ *checkout.Handler) http.HandlerFunc { return h.UpdateItem }},
+		{name: "checkout", method: http.MethodGet, path: "/checkout", handler: func(_ *cart.Handler, p *checkout.Handler) http.HandlerFunc { return p.Page }},
+		{name: "place", method: http.MethodPost, path: "/checkout", handler: func(_ *cart.Handler, p *checkout.Handler) http.HandlerFunc { return p.PlaceOrder }},
+		{name: "pickup-start", method: http.MethodPost, path: "/checkout/pickup/start", handler: func(_ *cart.Handler, p *checkout.Handler) http.HandlerFunc { return p.PickupStart }},
+		{name: "pickup-map", method: http.MethodGet, path: "/checkout/pickup/map", handler: func(_ *cart.Handler, p *checkout.Handler) http.HandlerFunc { return p.PickupMap }},
 		{name: "badge", method: http.MethodGet, path: "/cart"},
 	} {
 		t.Run("disconnect/"+tt.name, func(t *testing.T) {
@@ -189,11 +192,12 @@ func TestCartLookupFailuresDoNotReplaceOrHideTheBasket(t *testing.T) {
 			before := cartLookupRows(t, owner, id, variant)
 			var diagnostics bytes.Buffer
 			logger := slog.New(slog.NewJSONHandler(&diagnostics, nil))
-			h := cart.NewHandler(s, access.NewStore(app, false), logger, false, nil, nil)
+			grants := access.NewStore(app, false)
+			h := cart.NewHandler(s, grants, logger, false, nil)
 			var continued bool
 			route := h.WithCount(http.HandlerFunc(func(http.ResponseWriter, *http.Request) { continued = true }))
 			if tt.handler != nil {
-				route = tt.handler(h)
+				route = tt.handler(h, checkout.NewHandler(checkout.NewStore(app), h, grants, logger, false, nil, nil))
 			}
 			requestCtx, cancel := context.WithCancel(t.Context())
 			defer cancel()
@@ -236,7 +240,7 @@ func TestCartLookupFailuresDoNotReplaceOrHideTheBasket(t *testing.T) {
 				before := cartLookupRows(t, owner, id, variant)
 				var diagnostics bytes.Buffer
 				logger := slog.New(slog.NewJSONHandler(&diagnostics, nil))
-				h := cart.NewHandler(s, access.NewStore(app, false), logger, false, nil, nil)
+				h := cart.NewHandler(s, access.NewStore(app, false), logger, false, nil)
 				requestCtx, cancel := context.WithCancel(ctx)
 				defer cancel()
 				trace.set("")

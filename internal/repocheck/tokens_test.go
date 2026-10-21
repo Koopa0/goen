@@ -19,7 +19,7 @@ var randReaders = map[string]string{ //nolint:gosec // G101: the key names the f
 	"internal/admin/twofactor/totp.go#NewSecret":                "TOTP shared secret",
 	"internal/admin/twofactor/crypt.go#seal":                    "AES-GCM nonce",
 	"internal/admin/stock/handler.go#newKey":                    "form idempotency key, never digested",
-	"internal/cart/cart.go#newCheckoutAttemptID":                "checkout attempt id echoed in the form",
+	"internal/checkout/checkout.go#newCheckoutAttemptID":        "checkout attempt id echoed in the form",
 	"internal/shipping/storemap/storemap.go#NewMerchantTradeNo": "ECPay map trade number",
 	"internal/shipping/storemap/storemap.go#NewNonce":           "map return nonce",
 }
@@ -31,7 +31,7 @@ var sha256Users = map[string]string{
 	"internal/auth/google/google.go#AuthorizeURL":      "PKCE S256 code challenge (RFC 7636 section 4.2)",
 	"internal/admin/twofactor/crypt.go#newKeyedAEAD":   "key identifier written into a stored TOTP secret's header",
 	"internal/admin/twofactor/store.go#mailedCodeHash": "digest of a mailed one-time code",
-	"internal/cart/cart.go#ID":                         "checkout quote identity",
+	"internal/checkout/checkout.go#ID":                 "checkout quote identity",
 	"internal/site/chrome.go#dismissDigest":            "promo-dismiss cookie value",
 	"internal/media/decode.go#normaliseDecoded":        "content address",
 	"internal/ratelimit/ratelimit.go#clampKey":         "bounded limiter key",
