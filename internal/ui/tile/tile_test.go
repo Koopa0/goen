@@ -1,9 +1,12 @@
-package pages
+package tile
 
 import (
+	"context"
+	"fmt"
 	"strings"
 	"testing"
 
+	"github.com/a-h/templ"
 	"golang.org/x/net/html"
 
 	"github.com/koopa0/goen/internal/i18n"
@@ -12,7 +15,7 @@ import (
 func TestTileColourDots(t *testing.T) {
 	t.Parallel()
 	ctx := i18n.WithLocale(t.Context(), i18n.ZhHant)
-	base := ProductTile{Slug: "a", Name: "A", PriceCents: 100000, InStock: true}
+	base := Tile{Slug: "a", Name: "A", PriceCents: 100000, InStock: true}
 	hexes := []string{"#111111", "#222222", "#333333", "#444444", "#555555", "#666666", "#777777", "#888888", "#999999"}
 
 	tests := []struct {
@@ -32,21 +35,21 @@ func TestTileColourDots(t *testing.T) {
 			t.Parallel()
 			tile := base
 			tile.Colours = tc.colours
-			got := renderComponent(t, ctx, Tile(tile))
+			got := renderComponent(t, ctx, Cell(tile))
 			if n := strings.Count(got, `class="goen-tile__dot"`); n != tc.dots {
-				t.Errorf("Tile(%d colours) drew %d dots, want %d", len(tc.colours), n, tc.dots)
+				t.Errorf("Cell(%d colours) drew %d dots, want %d", len(tc.colours), n, tc.dots)
 			}
 			if has := strings.Contains(got, "goen-tile__colours"); has != (tc.dots > 0) {
-				t.Errorf("Tile(%d colours) colour list present = %v, want %v", len(tc.colours), has, tc.dots > 0)
+				t.Errorf("Cell(%d colours) colour list present = %v, want %v", len(tc.colours), has, tc.dots > 0)
 			}
 			if has := strings.Contains(got, ">"+tc.more+"<"); tc.more != "" && !has {
-				t.Errorf("Tile(%d colours) lacks the count %q", len(tc.colours), tc.more)
+				t.Errorf("Cell(%d colours) lacks the count %q", len(tc.colours), tc.more)
 			}
 			if tc.more == "" && strings.Contains(got, "goen-tile__more") {
-				t.Errorf("Tile(%d colours) counts colours it drew", len(tc.colours))
+				t.Errorf("Cell(%d colours) counts colours it drew", len(tc.colours))
 			}
 			if tc.dots > 0 && !strings.Contains(got, `fill="`+tc.colours[0]+`"`) {
-				t.Errorf("Tile(%d colours) lost the first colour", len(tc.colours))
+				t.Errorf("Cell(%d colours) lost the first colour", len(tc.colours))
 			}
 		})
 	}
@@ -55,8 +58,8 @@ func TestTileColourDots(t *testing.T) {
 func TestSoldOutTileSaysSoWithoutABadge(t *testing.T) {
 	t.Parallel()
 	ctx := i18n.WithLocale(t.Context(), i18n.ZhHant)
-	sold := ProductTile{Slug: "a", Name: "A", PriceCents: 100000}
-	got := renderComponent(t, ctx, Tile(sold))
+	sold := Tile{Slug: "a", Name: "A", PriceCents: 100000}
+	got := renderComponent(t, ctx, Cell(sold))
 	if !strings.Contains(got, `<span class="goen-tile__state">已售完</span>`) {
 		t.Error("a sold-out tile does not say 已售完 beside its price")
 	}
@@ -68,7 +71,7 @@ func TestSoldOutTileSaysSoWithoutABadge(t *testing.T) {
 	}
 
 	sold.InStock = true
-	got = renderComponent(t, ctx, Tile(sold))
+	got = renderComponent(t, ctx, Cell(sold))
 	if strings.Contains(got, "已售完") || strings.Contains(got, "goen-tile--out") {
 		t.Error("an in-stock tile says sold out")
 	}
@@ -77,7 +80,7 @@ func TestSoldOutTileSaysSoWithoutABadge(t *testing.T) {
 func TestTileWithoutPhotoKeepsItsWellAndSaysSo(t *testing.T) {
 	t.Parallel()
 	ctx := i18n.WithLocale(t.Context(), i18n.ZhHant)
-	got := renderComponent(t, ctx, Tile(ProductTile{Slug: "a", Name: "A", PriceCents: 100000, InStock: true}))
+	got := renderComponent(t, ctx, Cell(Tile{Slug: "a", Name: "A", PriceCents: 100000, InStock: true}))
 	if !strings.Contains(got, `<div class="goen-tile__media">`) || !strings.Contains(got, `<span class="goen-tile__ph">沒有照片</span>`) {
 		t.Errorf("a tile without a photograph does not say 沒有照片 on its well: %s", got)
 	}
@@ -93,7 +96,7 @@ func TestATilePhotoAddsNothingToTheNameItsLinkReads(t *testing.T) {
 		t.Run(locale.Tag(), func(t *testing.T) {
 			t.Parallel()
 			ctx := i18n.WithLocale(t.Context(), locale)
-			body := renderComponent(t, ctx, Tile(ProductTile{
+			body := renderComponent(t, ctx, Cell(Tile{
 				Slug: "pixelight-9", Name: "Pixelight 9 5G", Brand: "Pixelight", PriceCents: 2590000, InStock: true,
 				ImageURL: "/img/pixelight-9.webp", ImageAlt: "Pixelight 9 5G 商品照", ImageWidth: 1600, ImageHeight: 1200,
 			}))
@@ -142,7 +145,7 @@ func textOf(n *html.Node) string {
 func TestAComparableTileDrawsItsSpecHighlights(t *testing.T) {
 	t.Parallel()
 	ctx := i18n.WithLocale(t.Context(), i18n.En)
-	got := renderComponent(t, ctx, Tile(ProductTile{Slug: "a", Name: "A", Comparable: true, Highlights: []string{"14″", "2.8K OLED"}}))
+	got := renderComponent(t, ctx, Cell(Tile{Slug: "a", Name: "A", Comparable: true, Highlights: []string{"14″", "2.8K OLED"}}))
 	if want := `<span class="goen-tile__specs">14″ · 2.8K OLED</span>`; !strings.Contains(got, want) {
 		t.Errorf("tile omits %s", want)
 	}
@@ -160,8 +163,8 @@ func TestACardStrikesItsPriceOnlyOnSale(t *testing.T) {
 		{"on sale", true, true},
 		{"not on sale", false, false},
 	} {
-		tile := ProductTile{Slug: "a", Name: "A", Brand: "B", PriceCents: 80000, CompareCents: 100000, InStock: true, OnSale: tt.onSale}
-		page := renderComponent(t, ctx, Tile(tile))
+		tile := Tile{Slug: "a", Name: "A", Brand: "B", PriceCents: 80000, CompareCents: 100000, InStock: true, OnSale: tt.onSale}
+		page := renderComponent(t, ctx, Cell(tile))
 		if got := strings.Contains(page, `class="goen-tile__was"`); got != tt.wantStruck {
 			t.Errorf("Tile %s: struck price drawn = %v, want %v", tt.name, got, tt.wantStruck)
 		}
@@ -174,22 +177,67 @@ func TestACardStrikesItsPriceOnlyOnSale(t *testing.T) {
 	}
 }
 
-// TestTileStillEmitsItsOwnGridCell holds other Tile consumers: extracting
-// TileCard for the wishlist must not drop the list item the grid expects.
+// TestTileStillEmitsItsOwnGridCell holds other Cell consumers: extracting
+// Card for the wishlist must not drop the list item the grid expects.
 func TestTileStillEmitsItsOwnGridCell(t *testing.T) {
 	t.Parallel()
 
-	out := renderToString(t, Tile(ProductTile{
+	out := renderComponent(t, i18n.WithLocale(t.Context(), i18n.ZhHant), Cell(Tile{
 		Slug: "pixelight-9-pro", Name: "Pixelight 9 Pro", Brand: "Pixelight",
 		PriceCents: 3690000, InStock: true, Comparable: true,
 	}))
 	if strings.Count(out, "<li") != 1 {
-		t.Fatalf("Tile rendered %d list items, want 1", strings.Count(out, "<li"))
+		t.Fatalf("Cell rendered %d list items, want 1", strings.Count(out, "<li"))
 	}
 	if !strings.Contains(out, `class="goen-tile__cell"`) {
-		t.Error("Tile lost its grid cell wrapper")
+		t.Error("Cell lost its grid cell wrapper")
 	}
 	if !strings.Contains(out, `class="goen-tile__compare"`) {
-		t.Error("Tile lost its compare checkbox")
+		t.Error("Cell lost its compare checkbox")
 	}
+}
+
+// The struck-through original price already says a product is reduced, so a
+// card carries no "on sale" chip.
+func TestATileSaysSaleByItsPriceAndNotByAChip(t *testing.T) {
+	t.Parallel()
+	ctx := i18n.WithLocale(t.Context(), i18n.ZhHant)
+	sale := Tile{Slug: "a", Name: "A", Brand: "B", PriceCents: 80000, CompareCents: 100000, InStock: true, OnSale: true}
+	page := renderComponent(t, ctx, Cell(sale))
+	if strings.Contains(page, i18n.T(ctx, i18n.KeyOnSale)) {
+		t.Error("a reduced tile draws an on-sale chip")
+	}
+	if !strings.Contains(page, `class="goen-tile__was"`) {
+		t.Error("a reduced tile lost its struck-through original price")
+	}
+}
+
+func TestColourCountSelectsSingularInItsRenderedText(t *testing.T) {
+	t.Parallel()
+	for _, locale := range []i18n.Locale{i18n.En, i18n.ZhHant} {
+		for _, n := range []int{0, 1, 2} {
+			ctx := i18n.WithLocale(t.Context(), locale)
+			v := Tile{Colours: make([]string, n)}
+			want := fmt.Sprintf("%d colours", n)
+			if n == 1 {
+				want = "1 colour"
+			}
+			if locale == i18n.ZhHant {
+				want = fmt.Sprintf("%d 種顏色", n)
+			}
+			body := renderComponent(t, ctx, tileColours(v))
+			if !strings.Contains(body, ">"+want+"</span>") {
+				t.Errorf("colour text (%s, %d) does not contain %q", locale, n, want)
+			}
+		}
+	}
+}
+
+func renderComponent(t *testing.T, ctx context.Context, c templ.Component) string {
+	t.Helper()
+	var b strings.Builder
+	if err := c.Render(ctx, &b); err != nil {
+		t.Fatalf("render: %v", err)
+	}
+	return b.String()
 }

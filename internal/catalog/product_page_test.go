@@ -19,7 +19,7 @@ import (
 	"github.com/koopa0/goen/internal/contact"
 	"github.com/koopa0/goen/internal/i18n"
 	"github.com/koopa0/goen/internal/ui/layouts"
-	"github.com/koopa0/goen/internal/ui/pages"
+	"github.com/koopa0/goen/internal/ui/tile"
 )
 
 func TestSoldOutGuidanceMatchesAvailableOptionPickers(t *testing.T) {
@@ -658,12 +658,12 @@ func TestAHalfStarIsShownAsAHalf(t *testing.T) {
 
 func TestASingleSimilarProductDoesNotMakeARow(t *testing.T) {
 	t.Parallel()
-	tile := pages.ProductTile{Slug: "a", Name: "A", PriceCents: 100}
-	one := ProductView{Slug: "x", Name: "X", SelectionOK: true, Related: []pages.ProductTile{tile}}
+	similar := tile.Tile{Slug: "a", Name: "A", PriceCents: 100}
+	one := ProductView{Slug: "x", Name: "X", SelectionOK: true, Related: []tile.Tile{similar}}
 	if strings.Contains(renderProduct(t, &one, i18n.En), i18n.T(i18n.WithLocale(t.Context(), i18n.En), i18n.KeySectionRelated)) {
 		t.Error("a similar-products row with one card is rendered")
 	}
-	two := ProductView{Slug: "x", Name: "X", SelectionOK: true, Related: []pages.ProductTile{tile, tile}}
+	two := ProductView{Slug: "x", Name: "X", SelectionOK: true, Related: []tile.Tile{similar, similar}}
 	if !strings.Contains(renderProduct(t, &two, i18n.En), i18n.T(i18n.WithLocale(t.Context(), i18n.En), i18n.KeySectionRelated)) {
 		t.Error("a similar-products row with two cards is not rendered")
 	}

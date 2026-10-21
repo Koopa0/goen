@@ -6,7 +6,7 @@ import (
 
 	"github.com/koopa0/goen/internal/i18n"
 	"github.com/koopa0/goen/internal/ui/layouts"
-	"github.com/koopa0/goen/internal/ui/pages"
+	"github.com/koopa0/goen/internal/ui/tile"
 	"github.com/koopa0/goen/internal/warranty"
 )
 
@@ -143,21 +143,21 @@ func TestOneProductInTheComparisonInvitesTheNextNotTheDeadEnd(t *testing.T) {
 func TestACompareBoxOnlyWhereTheTileIsComparable(t *testing.T) {
 	t.Parallel()
 	ctx := i18n.WithLocale(t.Context(), i18n.ZhHant)
-	tile := func(comparable bool) pages.ProductTile {
-		return pages.ProductTile{Slug: "a", Name: "A", Comparable: comparable}
+	candidate := func(comparable bool) tile.Tile {
+		return tile.Tile{Slug: "a", Name: "A", Comparable: comparable}
 	}
-	if !pages.AnyComparable([]pages.ProductTile{tile(false), tile(true)}) || pages.AnyComparable([]pages.ProductTile{tile(false)}) || pages.AnyComparable(nil) {
+	if !tile.AnyComparable([]tile.Tile{candidate(false), candidate(true)}) || tile.AnyComparable([]tile.Tile{candidate(false)}) || tile.AnyComparable(nil) {
 		t.Error("AnyComparable does not report whether a tile carries the box")
 	}
 	for _, tt := range []struct {
 		comparable bool
 		wantBox    bool
 	}{{true, true}, {false, false}} {
-		html := renderComponent(t, ctx, compareForm(pages.AnyComparable([]pages.ProductTile{tile(tt.comparable)})))
+		html := renderComponent(t, ctx, compareForm(tile.AnyComparable([]tile.Tile{candidate(tt.comparable)})))
 		if got := strings.Contains(html, `id="compare-pick"`); got != tt.wantBox {
 			t.Errorf("comparable=%v: the compare bar is present = %v, want %v", tt.comparable, got, tt.wantBox)
 		}
-		box := renderComponent(t, ctx, pages.Tile(tile(tt.comparable)))
+		box := renderComponent(t, ctx, tile.Cell(candidate(tt.comparable)))
 		if got := strings.Contains(box, `form="compare-pick"`); got != tt.wantBox {
 			t.Errorf("comparable=%v: the tile's box is present = %v, want %v", tt.comparable, got, tt.wantBox)
 		}
@@ -213,7 +213,7 @@ func TestOneProductOffersWhatToCompareItWith(t *testing.T) {
 	t.Parallel()
 	v := compareOf("a")
 	v.Products[0].Category, v.ShelfSlug = "手機", "phones"
-	v.Suggestions = []pages.ProductTile{
+	v.Suggestions = []tile.Tile{
 		{Slug: "b", Name: "Bee", Brand: "B", PriceCents: 1000},
 		{Slug: "c", Name: "Cee", Brand: "C", PriceCents: 2000},
 	}

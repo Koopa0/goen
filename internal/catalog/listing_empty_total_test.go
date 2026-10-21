@@ -3,7 +3,7 @@ package catalog
 import (
 	"testing"
 
-	"github.com/koopa0/goen/internal/ui/pages"
+	"github.com/koopa0/goen/internal/ui/tile"
 )
 
 func TestEmptyListingAndSearchDependOnTotalMatches(t *testing.T) {
@@ -11,12 +11,12 @@ func TestEmptyListingAndSearchDependOnTotalMatches(t *testing.T) {
 	for _, tc := range []struct {
 		name     string
 		total    int64
-		products []pages.ProductTile
+		products []tile.Tile
 		want     bool
 	}{
 		{"past last page", 3, nil, false},
 		{"no matches", 0, nil, true},
-		{"populated page", 1, []pages.ProductTile{{Slug: "match"}}, false},
+		{"populated page", 1, []tile.Tile{{Slug: "match"}}, false},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()

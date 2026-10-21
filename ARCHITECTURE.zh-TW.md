@@ -265,10 +265,10 @@ CI 執行格式、vet、lint、無用程式碼與生成碼檢查、migration lin
 | 組合與生命週期 | [`cmd/goen`][main]、[路由][server]、[middleware][middleware]、[`internal/compress`][compress]、[`internal/requestid`][requestid]、[外部服務設定][provider-posture] |
 | 購物車、結帳、保留與訂單存取 | [`internal/cart`][cart]、[`internal/checkout`][checkout]、[`internal/coupon`][coupon]、[`internal/shipping/storemap`][storemap]、[`internal/order/lapse`][lapse]、[`internal/order/access`][orderaccess] |
 | 付款與恢復 | [`internal/payment`][payment-store]、[Stripe adapter][stripe]、[`internal/admin/health`][health] |
-| 出貨、退貨與退款 | [`internal/order`][order]、[`internal/admin/orders`][orders]、[`internal/admin/dashboard`][dashboard]、[`internal/returns`][returns-rules]、[`internal/admin/returns`][returns]、[`internal/admin/refunds`][refund-payout] |
+| 出貨、退貨與退款 | [`internal/order`][order]、[`internal/admin/orders`][orders]、[`internal/admin/dashboard`][dashboard]、[`internal/order/returns`][returns-rules]、[`internal/admin/returns`][returns]、[`internal/admin/refunds`][refund-payout] |
 | 發票與延後寄送 | [`internal/invoice/issuer`][invoice-store]、[`internal/admin/orders`][orders]、[`internal/outbox`][outbox]、[`internal/letter`][letter] |
 | 資料庫權限 | [schema][schema]、[sqlc 設定][sqlc]、[一致性測試][conformance]、[`internal/admin/audit`][audit]、[`internal/db/dbtest`][dbtest] |
-| 瀏覽與衍生資料 | [`internal/catalog`][catalog-store]、[`internal/campaign`][campaign]、[`internal/backinstock`][backinstock]、[`internal/home`][home-store]、[`internal/product/copurchase`][copurchase]、[報表][reports] |
+| 瀏覽與衍生資料 | [`internal/catalog`][catalog-store]、[`internal/campaign`][campaign]、[`internal/ui/tile`][tile]、[`internal/backinstock`][backinstock]、[`internal/home`][home-store]、[`internal/product/copurchase`][copurchase]、[報表][reports] |
 | 語言、金額與時間 | [`internal/i18n`][i18n]、[`internal/money`][money]、[`internal/shoptime`][shoptime] |
 | 資產與媒體 | [`assets`][assets]、[`internal/media`][media-render] |
 | 身分與瀏覽器安全 | [`internal/auth`][auth]、[`internal/auth/google`][google-signin]、[`internal/bearer`][bearer]、[員工存取][access]、[`internal/admin/twofactor`][twofactor]、[`internal/ratelimit`][ratelimit]、[`internal/clientip`][clientip] |
@@ -298,7 +298,7 @@ CI 執行格式、vet、lint、無用程式碼與生成碼檢查、migration lin
 [order]: internal/order
 [orders]: internal/admin/orders
 [dashboard]: internal/admin/dashboard
-[returns-rules]: internal/returns
+[returns-rules]: internal/order/returns
 [returns]: internal/admin/returns/store.go
 [refund-payout]: internal/admin/refunds/payout.go
 [before-shipment]: internal/admin/refunds/beforeshipment.go
@@ -326,6 +326,7 @@ CI 執行格式、vet、lint、無用程式碼與生成碼檢查、migration lin
 [catalog-store]: internal/catalog/store.go
 [catalog-query]: internal/catalog/query.sql
 [campaign]: internal/campaign/campaign.go
+[tile]: internal/ui/tile/tile.go
 [backinstock]: internal/backinstock/backinstock.go
 [home-store]: internal/home/store.go
 [site-chrome]: internal/site/chrome.go

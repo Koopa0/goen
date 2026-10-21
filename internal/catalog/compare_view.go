@@ -6,7 +6,7 @@ import (
 	"strings"
 
 	"github.com/koopa0/goen/internal/i18n"
-	"github.com/koopa0/goen/internal/ui/pages"
+	"github.com/koopa0/goen/internal/ui/tile"
 )
 
 type CompareCandidate struct {
@@ -34,8 +34,8 @@ type CompareProduct struct {
 	ImageAlt       string
 }
 
-func (p *CompareProduct) PriceTile() pages.ProductTile {
-	return pages.ProductTile{
+func (p *CompareProduct) PriceTile() tile.Tile {
+	return tile.Tile{
 		PriceCents: p.PriceCents, CompareCents: p.CompareCents, OnSale: p.OnSale,
 		PriceVaries: p.PriceVaries, InStock: p.InStock,
 	}
@@ -100,7 +100,7 @@ type CompareView struct {
 	Query      string
 	Candidates []CompareCandidate
 	// Suggestions are empty once there are two products.
-	Suggestions []pages.ProductTile
+	Suggestions []tile.Tile
 	ShelfSlug   string
 	// StartSlug is "" when no category offers comparison.
 	StartSlug string

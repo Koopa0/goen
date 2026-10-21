@@ -18,7 +18,7 @@ import (
 	"github.com/koopa0/goen/internal/ui/fieldrule"
 	"github.com/koopa0/goen/internal/ui/icons"
 	"github.com/koopa0/goen/internal/ui/layouts"
-	"github.com/koopa0/goen/internal/ui/pages"
+	"github.com/koopa0/goen/internal/ui/tile"
 )
 
 func Product(p layouts.Page, v *ProductView) templ.Component {
@@ -358,7 +358,7 @@ func Product(p layouts.Page, v *ProductView) templ.Component {
 					return templ_7745c5c3_Err
 				}
 				for _, t := range v.Related {
-					templ_7745c5c3_Err = pages.Tile(t).Render(ctx, templ_7745c5c3_Buffer)
+					templ_7745c5c3_Err = tile.Cell(t).Render(ctx, templ_7745c5c3_Buffer)
 					if templ_7745c5c3_Err != nil {
 						return templ_7745c5c3_Err
 					}
@@ -418,7 +418,7 @@ func Product(p layouts.Page, v *ProductView) templ.Component {
 					return templ_7745c5c3_Err
 				}
 				for _, t := range v.AlsoBought {
-					templ_7745c5c3_Err = pages.Tile(t).Render(ctx, templ_7745c5c3_Buffer)
+					templ_7745c5c3_Err = tile.Cell(t).Render(ctx, templ_7745c5c3_Buffer)
 					if templ_7745c5c3_Err != nil {
 						return templ_7745c5c3_Err
 					}

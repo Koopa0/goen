@@ -14,7 +14,7 @@ import (
 	"github.com/koopa0/goen/internal/i18n"
 	"github.com/koopa0/goen/internal/site"
 	"github.com/koopa0/goen/internal/ui/layouts"
-	"github.com/koopa0/goen/internal/ui/pages"
+	"github.com/koopa0/goen/internal/ui/tile"
 	"github.com/koopa0/goen/internal/ui/uitest"
 	"github.com/koopa0/goen/internal/web"
 )
@@ -51,7 +51,7 @@ func TestPopoverPointerAndFocusInNativeBrowsers(t *testing.T) {
 				{Value: "nimbus", Label: "Nimbus", Count: 1, Selected: r.URL.Query().Get("brand") == "nimbus"},
 				{Value: "aurora", Label: "Aurora", Count: 1, Selected: r.URL.Query().Get("brand") == "aurora"},
 			}}},
-			Products: []pages.ProductTile{{Slug: "headphones", Name: "Headphones", PriceCents: 10000, InStock: true}},
+			Products: []tile.Tile{{Slug: "headphones", Name: "Headphones", PriceCents: 10000, InStock: true}},
 		}
 		w.Header().Set("Content-Type", "text/html; charset=utf-8")
 		if renderErr := catalog.Listing(layouts.Page{Title: "Audio", Nav: "audio"}, view, nil, nil).Render(ctx, w); renderErr != nil {

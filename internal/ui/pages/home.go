@@ -7,6 +7,7 @@ import (
 	"github.com/koopa0/goen/internal/i18n"
 	"github.com/koopa0/goen/internal/ui/components"
 	"github.com/koopa0/goen/internal/ui/layouts"
+	"github.com/koopa0/goen/internal/ui/tile"
 )
 
 func HomeMeta(ctx context.Context) layouts.Page {
@@ -35,7 +36,7 @@ func (c HomeCategory) Initial() string {
 type ProductRow struct {
 	Title    string
 	Href     string
-	Tiles    []ProductTile
+	Tiles    []tile.Tile
 	Campaign *RowCampaign
 }
 
@@ -58,8 +59,8 @@ const (
 )
 
 // Shelf is the tiles as drawn: under the hero, and with the lead marked.
-func (r ProductRow) Shelf() []ProductTile {
-	tiles := UnderLeadEager(r.Tiles)
+func (r ProductRow) Shelf() []tile.Tile {
+	tiles := tile.UnderLeadEager(r.Tiles)
 	if r.HasLead() {
 		tiles[0].Lead = true
 	}
@@ -79,7 +80,7 @@ type DepartmentBand struct {
 	Fact  string
 	Href  string
 	Tone  components.Tone
-	Tiles []ProductTile
+	Tiles []tile.Tile
 }
 
 type HomeView struct {

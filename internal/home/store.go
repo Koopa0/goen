@@ -20,6 +20,7 @@ import (
 	"github.com/koopa0/goen/internal/site"
 	"github.com/koopa0/goen/internal/ui/components"
 	"github.com/koopa0/goen/internal/ui/pages"
+	"github.com/koopa0/goen/internal/ui/tile"
 )
 
 type Store struct {
@@ -175,7 +176,7 @@ func (s *Store) campaignRow(ctx context.Context, c *db.ListedCampaignsRow) (row 
 // products to fill the shelf, skipping any whose shelf would be left short
 // once the products already in the row above are taken out; nil when none
 // qualifies.
-func (s *Store) departmentBand(ctx context.Context, src carouselSources, row []pages.ProductTile) (*pages.DepartmentBand, error) {
+func (s *Store) departmentBand(ctx context.Context, src carouselSources, row []tile.Tile) (*pages.DepartmentBand, error) {
 	cats, subs, held := src.cats, src.subs, src.held
 	var eligible []*db.RootCategoriesRow
 	for i := range cats {
@@ -194,8 +195,8 @@ func (s *Store) departmentBand(ctx context.Context, src carouselSources, row []p
 		if err != nil {
 			return nil, err
 		}
-		tiles = slices.DeleteFunc(tiles, func(t pages.ProductTile) bool {
-			return slices.ContainsFunc(row, func(r pages.ProductTile) bool { return r.Slug == t.Slug })
+		tiles = slices.DeleteFunc(tiles, func(t tile.Tile) bool {
+			return slices.ContainsFunc(row, func(r tile.Tile) bool { return r.Slug == t.Slug })
 		})
 		if len(tiles) < bandTiles {
 			continue
@@ -228,18 +229,18 @@ func dayIndex(t time.Time, n int) int {
 	return int(day.Unix()/86400) % n
 }
 
-func (s *Store) tiles(ctx context.Context, campaignID, department uuid.NullUUID, limit int32) ([]pages.ProductTile, error) {
+func (s *Store) tiles(ctx context.Context, campaignID, department uuid.NullUUID, limit int32) ([]tile.Tile, error) {
 	rows, err := s.q.HomeTiles(ctx, db.HomeTilesParams{
 		Locale: string(i18n.FromContext(ctx)), CampaignID: campaignID, DepartmentID: department, MaxTiles: limit,
 	})
 	if err != nil {
 		return nil, fmt.Errorf("read home tiles: %w", err)
 	}
-	out := make([]pages.ProductTile, 0, len(rows))
+	out := make([]tile.Tile, 0, len(rows))
 	for i := range rows {
 		t := &rows[i]
 		photo := assets.Image{Digest: t.ImageDigest, BundledKey: t.ImageBundledKey, Width: int(t.ImageWidth)}
-		out = append(out, pages.ProductTile{
+		out = append(out, tile.Tile{
 			Slug:         t.Slug,
 			Name:         t.Name,
 			Summary:      t.Summary,

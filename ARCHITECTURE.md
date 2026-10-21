@@ -265,10 +265,10 @@ CI runs formatting, vet, lint, dead-code and generated-code checks, migration li
 | Composition and lifecycle | [`cmd/goen`][main], [routes][server], [middleware][middleware], [`internal/compress`][compress], [`internal/requestid`][requestid], [provider posture][provider-posture] |
 | Cart, checkout, reservations, order access | [`internal/cart`][cart], [`internal/checkout`][checkout], [`internal/coupon`][coupon], [`internal/shipping/storemap`][storemap], [`internal/order/lapse`][lapse], [`internal/order/access`][orderaccess] |
 | Payments and recovery | [`internal/payment`][payment-store], [Stripe adapter][stripe], [`internal/admin/health`][health] |
-| Fulfillment, returns, refunds | [`internal/order`][order], [`internal/admin/orders`][orders], [`internal/admin/dashboard`][dashboard], [`internal/returns`][returns-rules], [`internal/admin/returns`][returns], [`internal/admin/refunds`][refund-payout] |
+| Fulfillment, returns, refunds | [`internal/order`][order], [`internal/admin/orders`][orders], [`internal/admin/dashboard`][dashboard], [`internal/order/returns`][returns-rules], [`internal/admin/returns`][returns], [`internal/admin/refunds`][refund-payout] |
 | Invoices and deferred delivery | [`internal/invoice/issuer`][invoice-store], [`internal/admin/orders`][orders], [`internal/outbox`][outbox], [`internal/letter`][letter] |
 | Database authority | [Schema][schema], [sqlc configuration][sqlc], [conformance tests][conformance], [`internal/admin/audit`][audit], [`internal/db/dbtest`][dbtest] |
-| Browsing and derived data | [`internal/catalog`][catalog-store], [`internal/campaign`][campaign], [`internal/backinstock`][backinstock], [`internal/home`][home-store], [`internal/product/copurchase`][copurchase], [reports][reports] |
+| Browsing and derived data | [`internal/catalog`][catalog-store], [`internal/campaign`][campaign], [`internal/ui/tile`][tile], [`internal/backinstock`][backinstock], [`internal/home`][home-store], [`internal/product/copurchase`][copurchase], [reports][reports] |
 | Language, money, time | [`internal/i18n`][i18n], [`internal/money`][money], [`internal/shoptime`][shoptime] |
 | Assets and media | [`assets`][assets], [`internal/media`][media-render] |
 | Identity and browser security | [`internal/auth`][auth], [`internal/auth/google`][google-signin], [`internal/bearer`][bearer], [staff access][access], [`internal/admin/twofactor`][twofactor], [`internal/ratelimit`][ratelimit], [`internal/clientip`][clientip] |
@@ -298,7 +298,7 @@ CI runs formatting, vet, lint, dead-code and generated-code checks, migration li
 [order]: internal/order
 [orders]: internal/admin/orders
 [dashboard]: internal/admin/dashboard
-[returns-rules]: internal/returns
+[returns-rules]: internal/order/returns
 [returns]: internal/admin/returns/store.go
 [refund-payout]: internal/admin/refunds/payout.go
 [before-shipment]: internal/admin/refunds/beforeshipment.go
@@ -326,6 +326,7 @@ CI runs formatting, vet, lint, dead-code and generated-code checks, migration li
 [catalog-store]: internal/catalog/store.go
 [catalog-query]: internal/catalog/query.sql
 [campaign]: internal/campaign/campaign.go
+[tile]: internal/ui/tile/tile.go
 [backinstock]: internal/backinstock/backinstock.go
 [home-store]: internal/home/store.go
 [site-chrome]: internal/site/chrome.go

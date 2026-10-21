@@ -16,7 +16,7 @@ var quoted = regexp.MustCompile(`'([a-z_]+)'`)
 
 func TestUnsentReasonsAreTheSchemasCodes(t *testing.T) {
 	t.Parallel()
-	schema, err := os.ReadFile(filepath.Join("..", "..", "migrations", "001_initial_schema.up.sql"))
+	schema, err := os.ReadFile(filepath.Join("..", "..", "..", "migrations", "001_initial_schema.up.sql"))
 	if err != nil {
 		t.Fatalf("read the schema: %v", err)
 	}

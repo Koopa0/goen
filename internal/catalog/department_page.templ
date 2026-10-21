@@ -2,7 +2,7 @@ package catalog
 
 import (
 	"github.com/koopa0/goen/internal/i18n"
-	"github.com/koopa0/goen/internal/ui/pages"
+	"github.com/koopa0/goen/internal/ui/tile"
 )
 
 // One line of words, all of it the link to the campaign: which one runs here, its last day and what is left.
@@ -58,7 +58,7 @@ templ colourStory(s *ColourStory) {
 				<p class="goen-story__deck">{ s.Summary }</p>
 			}
 			<p class="goen-story__buy">
-				@pages.TilePrice(s.Price)
+				@tile.Price(s.Price)
 			</p>
 			<a class="goen-story__link" href={ templ.URL("/p/" + s.Slug) }>{ s.Name } <span aria-hidden="true">&rarr;</span></a>
 		</div>

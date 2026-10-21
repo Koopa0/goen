@@ -4,7 +4,7 @@ import (
 	"testing"
 
 	"github.com/koopa0/goen/internal/i18n"
-	"github.com/koopa0/goen/internal/returns"
+	"github.com/koopa0/goen/internal/order/returns"
 )
 
 // TestEveryKnownReturnStatusHasACustomerLabel holds the closed set together:

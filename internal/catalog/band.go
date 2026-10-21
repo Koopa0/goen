@@ -4,7 +4,7 @@ import (
 	"unicode/utf8"
 
 	"github.com/koopa0/goen/internal/ui/components"
-	"github.com/koopa0/goen/internal/ui/pages"
+	"github.com/koopa0/goen/internal/ui/tile"
 )
 
 // Longest names the band sets at full size: Chinese by character, anything
@@ -16,7 +16,7 @@ const (
 
 // bandPhoto is the department's own photograph; failing that its first
 // product's, which sits on its well; failing that nothing.
-func bandPhoto(department components.Photo, products []pages.ProductTile) (photo components.Photo, onWell bool) {
+func bandPhoto(department components.Photo, products []tile.Tile) (photo components.Photo, onWell bool) {
 	if department.Shown() {
 		return department, false
 	}

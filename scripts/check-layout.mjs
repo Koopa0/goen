@@ -2831,7 +2831,7 @@ const POINTS_PAGE_PROBE = `(() => {
 
 // Wishlist rows need each saved product as one direct grid list item: the card
 // link and its native remove form live in the same li, with matching slugs.
-// Tile already emits li.goen-tile__cell; wrapping @Tile in li.goen-wish leaves
+// tile.Cell already emits li.goen-tile__cell; wrapping @tile.Cell in li.goen-wish leaves
 // an empty outer item and parks the form as a direct ul child.
 const WISHLIST_PAGE_PROBE = `(() => {
   const de = document.documentElement;
