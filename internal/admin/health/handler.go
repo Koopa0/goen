@@ -11,6 +11,7 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 
 	"github.com/koopa0/goen/internal/admin/access"
+	"github.com/koopa0/goen/internal/formtext"
 	"github.com/koopa0/goen/internal/i18n"
 	"github.com/koopa0/goen/internal/outbox"
 	"github.com/koopa0/goen/internal/ui/components"
@@ -60,7 +61,7 @@ var notices = map[string]components.NoticeEntry{
 // resend after a human confirms provider absence. The three subjects and their
 // outcomes use distinct form fields and database doors.
 func (h *Handler) Reconcile(w http.ResponseWriter, r *http.Request) {
-	if err := web.ParseForm(w, r); err != nil {
+	if err := formtext.ParseForm(w, r); err != nil {
 		http.Error(w, i18n.T(r.Context(), i18n.KeyAdminBadForm), http.StatusBadRequest)
 		return
 	}

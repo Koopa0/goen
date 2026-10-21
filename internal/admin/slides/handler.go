@@ -6,6 +6,7 @@ import (
 	"net/http"
 
 	"github.com/koopa0/goen/internal/admin/access"
+	"github.com/koopa0/goen/internal/formtext"
 	"github.com/koopa0/goen/internal/i18n"
 	"github.com/koopa0/goen/internal/keyset"
 	"github.com/koopa0/goen/internal/media"
@@ -89,7 +90,7 @@ func (h *Handler) CreateHero(w http.ResponseWriter, r *http.Request) {
 		PrimaryLabelEn: r.PostFormValue("primary_label_en"),
 		SecondLabelEn:  r.PostFormValue("second_label_en"),
 		ImageAltEn:     r.PostFormValue("alt_en"),
-		Days:           web.ParseCountOrInvalid(r.PostFormValue("days")),
+		Days:           formtext.ParseCountOrInvalid(r.PostFormValue("days")),
 	}
 	if err != nil {
 		h.respondToUploadError(w, r, f, err)
@@ -125,7 +126,7 @@ func (h *Handler) CreateHero(w http.ResponseWriter, r *http.Request) {
 
 func (h *Handler) respondToUploadError(w http.ResponseWriter, r *http.Request, f *HeroForm, err error) {
 	switch {
-	case errors.Is(err, web.ErrFormText):
+	case errors.Is(err, formtext.ErrUnstorable):
 		http.Error(w, i18n.T(r.Context(), i18n.KeyAdminBadForm), http.StatusBadRequest)
 	case errors.Is(err, media.ErrUploadAborted):
 		// The browser went away mid-upload; there is no one to answer.
@@ -162,7 +163,7 @@ func (h *Handler) rejectHeroSlide(
 }
 
 func (h *Handler) SetHeroActive(w http.ResponseWriter, r *http.Request) {
-	if err := web.ParseForm(w, r); err != nil {
+	if err := formtext.ParseForm(w, r); err != nil {
 		http.Error(w, i18n.T(r.Context(), i18n.KeyAdminBadForm), http.StatusBadRequest)
 		return
 	}
@@ -171,7 +172,7 @@ func (h *Handler) SetHeroActive(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *Handler) PromoteHero(w http.ResponseWriter, r *http.Request) {
-	if err := web.ParseForm(w, r); err != nil {
+	if err := formtext.ParseForm(w, r); err != nil {
 		http.Error(w, i18n.T(r.Context(), i18n.KeyAdminBadForm), http.StatusBadRequest)
 		return
 	}

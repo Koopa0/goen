@@ -10,9 +10,9 @@ import (
 
 	"github.com/google/go-cmp/cmp"
 
+	"github.com/koopa0/goen/internal/formtext"
 	"github.com/koopa0/goen/internal/i18n"
 	"github.com/koopa0/goen/internal/order/delivery"
-	"github.com/koopa0/goen/internal/web"
 )
 
 func TestValidatedDeliveryPreservesFieldRefusals(t *testing.T) {
@@ -26,34 +26,34 @@ func TestValidatedDeliveryPreservesFieldRefusals(t *testing.T) {
 		name   string
 		to     shipping.Destination
 		change func(*DeliveryCorrection)
-		want   []web.FieldRefusal
+		want   []formtext.FieldRefusal
 	}{
 		{
 			name: "short phone", to: shipping.DestinationAddress,
 			change: func(d *DeliveryCorrection) { d.Phone = " 123 " },
-			want:   []web.FieldRefusal{{Field: "phone", MessageKey: i18n.KeyPhoneMalformed}},
+			want:   []formtext.FieldRefusal{{Field: "phone", MessageKey: i18n.KeyPhoneMalformed}},
 		},
 		{
 			name: "pickup code without name", to: shipping.DestinationPickupPoint,
 			change: func(d *DeliveryCorrection) { d.PickupStoreCode = " a123 " },
-			want:   []web.FieldRefusal{{Field: "pickup_store_name", MessageKey: i18n.KeyAddressIncomplete}},
+			want:   []formtext.FieldRefusal{{Field: "pickup_store_name", MessageKey: i18n.KeyAddressIncomplete}},
 		},
 		{
 			name: "pickup name without code", to: shipping.DestinationPickupPoint,
 			change: func(d *DeliveryCorrection) { d.PickupStoreName = " Store " },
-			want:   []web.FieldRefusal{{Field: "pickup_store_code", MessageKey: i18n.KeyStoreCodeMalformed}},
+			want:   []formtext.FieldRefusal{{Field: "pickup_store_code", MessageKey: i18n.KeyStoreCodeMalformed}},
 		},
 		{
 			name: "recipient field identity", to: shipping.DestinationAddress,
 			change: func(d *DeliveryCorrection) { d.Recipient = " " },
-			want:   []web.FieldRefusal{{Field: "name", MessageKey: i18n.KeyNameRequired}},
+			want:   []formtext.FieldRefusal{{Field: "name", MessageKey: i18n.KeyNameRequired}},
 		},
 		{
 			name: "postal and non-postal failures", to: shipping.DestinationAddress,
 			change: func(d *DeliveryCorrection) {
 				d.Email, d.Recipient, d.Phone, d.PostalCode = "invalid", " ", "123", "11A"
 			},
-			want: []web.FieldRefusal{
+			want: []formtext.FieldRefusal{
 				{Field: "email", MessageKey: i18n.KeyCheckoutEmailMalformed},
 				{Field: "name", MessageKey: i18n.KeyNameRequired},
 				{Field: "phone", MessageKey: i18n.KeyPhoneMalformed},

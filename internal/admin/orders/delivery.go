@@ -12,10 +12,10 @@ import (
 
 	"github.com/koopa0/goen/internal/admin/audit"
 	"github.com/koopa0/goen/internal/db"
+	"github.com/koopa0/goen/internal/formtext"
 	"github.com/koopa0/goen/internal/i18n"
 	"github.com/koopa0/goen/internal/order"
 	"github.com/koopa0/goen/internal/order/delivery"
-	"github.com/koopa0/goen/internal/web"
 )
 
 var ErrTooLateToCorrect = errors.New("orders: this order has already shipped")
@@ -43,7 +43,7 @@ func (e *DeliveryPostalError) Error() string {
 	return "admin: delivery postcode refused: " + string(e.Key)
 }
 
-type DeliveryValidationError struct{ Fields []web.FieldRefusal }
+type DeliveryValidationError struct{ Fields []formtext.FieldRefusal }
 
 func (e *DeliveryValidationError) Error() string {
 	return fmt.Sprintf("admin: delivery refused on %d fields", len(e.Fields))

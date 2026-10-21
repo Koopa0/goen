@@ -14,6 +14,7 @@ import (
 	"github.com/koopa0/goen/internal/backinstock"
 	"github.com/koopa0/goen/internal/cart/cartitem"
 	"github.com/koopa0/goen/internal/email"
+	"github.com/koopa0/goen/internal/formtext"
 	"github.com/koopa0/goen/internal/i18n"
 	"github.com/koopa0/goen/internal/ratelimit"
 	"github.com/koopa0/goen/internal/ui/layouts"
@@ -91,7 +92,7 @@ func (h *Handler) Review(w http.ResponseWriter, r *http.Request) {
 		http.Redirect(w, r, "/signin?next=/p/"+url.PathEscape(slug), http.StatusSeeOther)
 		return
 	}
-	if err := web.ParseForm(w, r); err != nil {
+	if err := formtext.ParseForm(w, r); err != nil {
 		http.Error(w, "400 "+i18n.T(r.Context(), i18n.KeyFormUnreadable), http.StatusBadRequest)
 		return
 	}
@@ -128,7 +129,7 @@ func (h *Handler) Notify(w http.ResponseWriter, r *http.Request) {
 		ratelimit.Refuse(r.Context(), w, retryAfter)
 		return
 	}
-	if err := web.ParseForm(w, r); err != nil {
+	if err := formtext.ParseForm(w, r); err != nil {
 		http.Error(w, "400 "+i18n.T(r.Context(), i18n.KeyFormUnreadable), http.StatusBadRequest)
 		return
 	}
@@ -259,7 +260,7 @@ func (h *Handler) Ask(w http.ResponseWriter, r *http.Request) {
 			http.StatusSeeOther)
 		return
 	}
-	if err := web.ParseForm(w, r); err != nil {
+	if err := formtext.ParseForm(w, r); err != nil {
 		http.Error(w, "400 "+i18n.T(r.Context(), i18n.KeyFormUnreadable), http.StatusBadRequest)
 		return
 	}

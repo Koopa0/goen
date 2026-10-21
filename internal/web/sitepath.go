@@ -4,6 +4,7 @@ import (
 	"net/netip"
 	"net/url"
 	"strings"
+	"unicode"
 )
 
 // SitePath reports whether raw is a path on this site, as a BROWSER will
@@ -45,7 +46,7 @@ func hasSitePathShape(raw string) bool {
 	// also trims leading C0-and-space. Refuse every control character outright:
 	// none belongs in a link, and CR/LF in a Location header is response
 	// splitting. net/url rejecting some of these is not this browser rule.
-	if raw == "" || HasControlChars(raw) || raw[0] != '/' {
+	if raw == "" || hasControlChars(raw) || raw[0] != '/' {
 		return false
 	}
 	// A second "/" or "\" is where a browser starts reading a host. Position
@@ -91,4 +92,11 @@ func SitePathOr(raw, fallback string) string {
 		return p
 	}
 	return fallback
+}
+
+// hasControlChars reports whether s carries a control character.
+// unicode.IsControl covers C1 (0x80–0x9F) as well as C0, which an ASCII-only
+// check lets through.
+func hasControlChars(s string) bool {
+	return strings.ContainsFunc(s, unicode.IsControl)
 }

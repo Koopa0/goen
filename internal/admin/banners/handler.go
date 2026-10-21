@@ -6,6 +6,7 @@ import (
 	"net/http"
 
 	"github.com/koopa0/goen/internal/admin/access"
+	"github.com/koopa0/goen/internal/formtext"
 	"github.com/koopa0/goen/internal/i18n"
 	"github.com/koopa0/goen/internal/keyset"
 	"github.com/koopa0/goen/internal/ui/components"
@@ -49,7 +50,7 @@ func (h *Handler) Banners(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *Handler) CreateBanner(w http.ResponseWriter, r *http.Request) {
-	if err := web.ParseForm(w, r); err != nil {
+	if err := formtext.ParseForm(w, r); err != nil {
 		http.Error(w, i18n.T(r.Context(), i18n.KeyAdminBadForm), http.StatusBadRequest)
 		return
 	}
@@ -62,7 +63,7 @@ func (h *Handler) CreateBanner(w http.ResponseWriter, r *http.Request) {
 		MessageEn:  r.PostFormValue("message_en"),
 		ShortEn:    r.PostFormValue("short_en"),
 		CTALabelEn: r.PostFormValue("cta_label_en"),
-		Days:       web.ParseCountOrInvalid(r.PostFormValue("days")),
+		Days:       formtext.ParseCountOrInvalid(r.PostFormValue("days")),
 	}
 	errs, err := h.store.CreateBanner(r.Context(), f)
 	switch {
@@ -77,7 +78,7 @@ func (h *Handler) CreateBanner(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *Handler) SetBannerActive(w http.ResponseWriter, r *http.Request) {
-	if err := web.ParseForm(w, r); err != nil {
+	if err := formtext.ParseForm(w, r); err != nil {
 		http.Error(w, i18n.T(r.Context(), i18n.KeyAdminBadForm), http.StatusBadRequest)
 		return
 	}

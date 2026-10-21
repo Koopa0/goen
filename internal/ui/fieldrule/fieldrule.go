@@ -30,7 +30,7 @@ const (
 const (
 	// ws is what strings.TrimSpace removes. JS \s differs from it at both ends.
 	ws = "[\t\n\v\f\r \u0085   -     　]*"
-	// digit is a digit as web.FoldWidth leaves it: ASCII or full-width.
+	// digit is a digit as formtext.FoldWidth leaves it: ASCII or full-width.
 	digit = "[0-9０-９]"
 	// punct is what a phone number may carry between its digits, in ASCII or
 	// the full-width forms FoldWidth maps onto them (and the ideographic space).

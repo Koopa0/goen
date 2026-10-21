@@ -17,12 +17,12 @@ import (
 
 	"github.com/koopa0/goen/internal/admin/audit"
 	"github.com/koopa0/goen/internal/db"
+	"github.com/koopa0/goen/internal/formtext"
 	"github.com/koopa0/goen/internal/i18n"
 	"github.com/koopa0/goen/internal/keyset"
 	"github.com/koopa0/goen/internal/order"
 	"github.com/koopa0/goen/internal/shoptime"
 	"github.com/koopa0/goen/internal/ui/components"
-	"github.com/koopa0/goen/internal/web"
 )
 
 var ErrNotFound = errors.New("customers: not found")
@@ -55,7 +55,7 @@ func (s *Store) Search(ctx context.Context, term string, after ...string) (Custo
 	scope := keyset.ScopeURL("/admin/customers", "q", term)
 	from, resumed := resume(scope, after)
 	view := CustomersView{Term: term}
-	if utf8.RuneCountInString(term) < web.MinSearchRunes {
+	if utf8.RuneCountInString(term) < formtext.MinSearchRunes {
 		return view, nil
 	}
 	view.Searched = true

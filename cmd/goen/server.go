@@ -43,6 +43,7 @@ import (
 	"github.com/koopa0/goen/internal/catalog"
 	"github.com/koopa0/goen/internal/compress"
 	"github.com/koopa0/goen/internal/contact"
+	"github.com/koopa0/goen/internal/formtext"
 	"github.com/koopa0/goen/internal/home"
 	"github.com/koopa0/goen/internal/invoice/issuer"
 	"github.com/koopa0/goen/internal/loyalty"
@@ -58,7 +59,6 @@ import (
 	"github.com/koopa0/goen/internal/shipping/storemap"
 	"github.com/koopa0/goen/internal/site"
 	"github.com/koopa0/goen/internal/warranty"
-	"github.com/koopa0/goen/internal/web"
 )
 
 // contentSecurityPolicy is strict: goen renders no inline script and no inline
@@ -218,7 +218,7 @@ func routing(cfg *RouterConfig, log *slog.Logger) (http.Handler, *http.ServeMux)
 	handler = crossOriginProtection(handler, front.StoreMap.Enabled())
 	// Before routing and before every middleware that reads the request, so no
 	// path value or query value PostgreSQL refuses reaches a query.
-	handler = web.RefuseUnstorableText(handler, secureCookies, http.HandlerFunc(sitePages.BadRequest))
+	handler = formtext.RefuseUnstorable(handler, secureCookies, http.HandlerFunc(sitePages.BadRequest))
 	handler = securityHeaders(handler, cspWith(front.StoreMap.Origin()), secureCookies)
 	handler = compress.Handler(handler)
 	return withRequestTracing(handler, log), mux

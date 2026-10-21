@@ -20,9 +20,9 @@ import (
 	"github.com/google/uuid"
 
 	"github.com/koopa0/goen/internal/coupon"
+	"github.com/koopa0/goen/internal/formtext"
 	"github.com/koopa0/goen/internal/i18n"
 	invoicepkg "github.com/koopa0/goen/internal/invoice"
-	"github.com/koopa0/goen/internal/web"
 )
 
 var (
@@ -400,28 +400,28 @@ type Invoice struct {
 	TaxID       string
 }
 
-func (i *Invoice) Validate() []web.FieldRefusal {
+func (i *Invoice) Validate() []formtext.FieldRefusal {
 	i.Type = invoicepkg.Preference(strings.TrimSpace(string(i.Type)))
-	i.MobileBarcode = strings.ToUpper(strings.TrimSpace(web.FoldWidth(i.MobileBarcode)))
+	i.MobileBarcode = strings.ToUpper(strings.TrimSpace(formtext.FoldWidth(i.MobileBarcode)))
 	i.DonationCode = strings.TrimSpace(i.DonationCode)
 	i.CompanyName = strings.TrimSpace(i.CompanyName)
-	i.TaxID = strings.TrimSpace(web.FoldWidth(i.TaxID))
+	i.TaxID = strings.TrimSpace(formtext.FoldWidth(i.TaxID))
 
 	if i.Type == "" {
 		i.Type = invoicepkg.PreferenceMember
 	}
 	if !i.Type.Known() {
-		return []web.FieldRefusal{{Field: "invoice_type", MessageKey: i18n.KeyInvoiceTypeRequired}}
+		return []formtext.FieldRefusal{{Field: "invoice_type", MessageKey: i18n.KeyInvoiceTypeRequired}}
 	}
 
-	var errs []web.FieldRefusal
+	var errs []formtext.FieldRefusal
 	if i.Type != invoicepkg.PreferenceDonate {
 		i.DonationCode = ""
 	}
 	switch i.Type {
 	case invoicepkg.PreferenceMobile:
 		if !invoicepkg.ValidMobileBarcode(i.MobileBarcode) {
-			errs = append(errs, web.FieldRefusal{
+			errs = append(errs, formtext.FieldRefusal{
 				Field:      "invoice_carrier",
 				MessageKey: i18n.KeyMobileBarcodeMalformed,
 			})
@@ -429,18 +429,18 @@ func (i *Invoice) Validate() []web.FieldRefusal {
 		i.CompanyName, i.TaxID = "", ""
 	case invoicepkg.PreferenceDonate:
 		if !invoicepkg.ValidDonationCode(i.DonationCode) {
-			errs = append(errs, web.FieldRefusal{Field: "invoice_donation_code", MessageKey: i18n.KeyDonationCodeMalformed})
+			errs = append(errs, formtext.FieldRefusal{Field: "invoice_donation_code", MessageKey: i18n.KeyDonationCodeMalformed})
 		}
 		i.MobileBarcode, i.CompanyName, i.TaxID = "", "", ""
 	case invoicepkg.PreferenceCompany:
 		if !invoicepkg.ValidBuyerName(i.CompanyName) {
-			errs = append(errs, web.FieldRefusal{
+			errs = append(errs, formtext.FieldRefusal{
 				Field:      "invoice_company_name",
 				MessageKey: i18n.KeyCompanyNameMalformed,
 			})
 		}
 		if !invoicepkg.ValidTaxID(i.TaxID) {
-			errs = append(errs, web.FieldRefusal{
+			errs = append(errs, formtext.FieldRefusal{
 				Field:      "invoice_tax_id",
 				MessageKey: i18n.KeyTaxIDMalformed,
 			})

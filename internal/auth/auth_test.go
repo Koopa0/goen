@@ -20,11 +20,11 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 
 	"github.com/koopa0/goen/internal/auth/google"
+	"github.com/koopa0/goen/internal/formtext"
 	"github.com/koopa0/goen/internal/i18n"
 	"github.com/koopa0/goen/internal/ratelimit"
 	"github.com/koopa0/goen/internal/ui/uitest"
 	"github.com/koopa0/goen/internal/user"
-	"github.com/koopa0/goen/internal/web"
 )
 
 func TestPasswordHashingRoundTrips(t *testing.T) {
@@ -491,12 +491,12 @@ func TestNoFieldMessageLeaksAFormatVerb(t *testing.T) {
 		"password2": "short",
 		"password3": strings.Repeat("a", MaxPasswordBytes+1),
 	}
-	every := make([]web.FieldRefusal, 0, 4+len(passwords))
+	every := make([]formtext.FieldRefusal, 0, 4+len(passwords))
 	every = append(every,
-		web.FieldRefusal{Field: "email", MessageKey: i18n.KeyCheckoutEmailRequired},
-		web.FieldRefusal{Field: "email2", MessageKey: i18n.KeyCheckoutEmailMalformed},
-		web.FieldRefusal{Field: "email3", MessageKey: i18n.KeyCheckoutEmailTooLong},
-		web.FieldRefusal{Field: "confirm", MessageKey: i18n.KeyPasswordMismatch})
+		formtext.FieldRefusal{Field: "email", MessageKey: i18n.KeyCheckoutEmailRequired},
+		formtext.FieldRefusal{Field: "email2", MessageKey: i18n.KeyCheckoutEmailMalformed},
+		formtext.FieldRefusal{Field: "email3", MessageKey: i18n.KeyCheckoutEmailTooLong},
+		formtext.FieldRefusal{Field: "confirm", MessageKey: i18n.KeyPasswordMismatch})
 	for field, password := range passwords {
 		refusal, refused := PasswordRefusal(field, password)
 		if !refused {
@@ -507,7 +507,7 @@ func TestNoFieldMessageLeaksAFormatVerb(t *testing.T) {
 
 	for _, locale := range []i18n.Locale{i18n.ZhHant, i18n.En} {
 		ctx := i18n.WithLocale(t.Context(), locale)
-		messages := web.FieldMessages(ctx, every)
+		messages := formtext.FieldMessages(ctx, every)
 		if len(messages) != len(every) {
 			t.Fatalf("%s: %d messages for %d refusals", locale, len(messages), len(every))
 		}
@@ -524,7 +524,7 @@ func TestNoFieldMessageLeaksAFormatVerb(t *testing.T) {
 	// way registration builds it.
 	ctx := i18n.WithLocale(t.Context(), i18n.ZhHant)
 	creds := Credentials{Email: "a@example.com", Password: "short", Confirm: "short"}
-	short := web.FieldMessages(ctx, creds.ValidateRegistration())["password"]
+	short := formtext.FieldMessages(ctx, creds.ValidateRegistration())["password"]
 	if !strings.Contains(short, strconv.Itoa(MinPasswordRunes)) {
 		t.Errorf("the too-short message is %q and does not state the minimum", short)
 	}

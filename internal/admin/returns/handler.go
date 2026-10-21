@@ -12,6 +12,7 @@ import (
 
 	"github.com/koopa0/goen/internal/admin/access"
 	"github.com/koopa0/goen/internal/admin/audit"
+	"github.com/koopa0/goen/internal/formtext"
 	"github.com/koopa0/goen/internal/i18n"
 	"github.com/koopa0/goen/internal/keyset"
 	"github.com/koopa0/goen/internal/refund"
@@ -84,7 +85,7 @@ func (h *Handler) Queue(w http.ResponseWriter, r *http.Request) {
 // Decide approves or rejects a return. Approving pays money back, so a refusal
 // from the database or from Stripe is reported and never swallowed.
 func (h *Handler) Decide(w http.ResponseWriter, r *http.Request) {
-	if err := web.ParseForm(w, r); err != nil {
+	if err := formtext.ParseForm(w, r); err != nil {
 		http.Error(w, i18n.T(r.Context(), i18n.KeyAdminBadForm), http.StatusBadRequest)
 		return
 	}
@@ -122,7 +123,7 @@ func (h *Handler) Decide(w http.ResponseWriter, r *http.Request) {
 
 // Assess records eligibility facts and never pays or restocks.
 func (h *Handler) Assess(w http.ResponseWriter, r *http.Request) {
-	if err := web.ParseForm(w, r); err != nil {
+	if err := formtext.ParseForm(w, r); err != nil {
 		http.Error(w, i18n.T(r.Context(), i18n.KeyAdminBadForm), http.StatusBadRequest)
 		return
 	}
@@ -311,7 +312,7 @@ var refusalKeys = map[returns.RefusalKind]i18n.Key{
 }
 
 func (h *Handler) Inspect(w http.ResponseWriter, r *http.Request) {
-	if err := web.ParseForm(w, r); err != nil {
+	if err := formtext.ParseForm(w, r); err != nil {
 		http.Error(w, i18n.T(r.Context(), i18n.KeyAdminBadForm), http.StatusBadRequest)
 		return
 	}
@@ -380,7 +381,7 @@ func inspectionLines(r *http.Request) ([]LineInspection, error) {
 }
 
 func (h *Handler) Complete(w http.ResponseWriter, r *http.Request) {
-	if err := web.ParseForm(w, r); err != nil {
+	if err := formtext.ParseForm(w, r); err != nil {
 		http.Error(w, i18n.T(r.Context(), i18n.KeyAdminBadForm), http.StatusBadRequest)
 		return
 	}

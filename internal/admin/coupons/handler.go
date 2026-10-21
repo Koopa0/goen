@@ -9,6 +9,7 @@ import (
 
 	"github.com/koopa0/goen/internal/admin/access"
 	"github.com/koopa0/goen/internal/coupon"
+	"github.com/koopa0/goen/internal/formtext"
 	"github.com/koopa0/goen/internal/i18n"
 	"github.com/koopa0/goen/internal/keyset"
 	"github.com/koopa0/goen/internal/money"
@@ -53,7 +54,7 @@ func (h *Handler) Page(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *Handler) Create(w http.ResponseWriter, r *http.Request) {
-	if err := web.ParseForm(w, r); err != nil {
+	if err := formtext.ParseForm(w, r); err != nil {
 		http.Error(w, i18n.T(r.Context(), i18n.KeyAdminBadForm), http.StatusBadRequest)
 		return
 	}
@@ -110,7 +111,7 @@ func formOf(r *http.Request) *Form {
 		dst  *int32
 	}{{"max", &f.MaxRedemptions}, {"percustomer", &f.PerCustomer}, {"days", &f.Days}}
 	for _, field := range smallFields {
-		value, ok := web.ParseCount(r.PostFormValue(field.name))
+		value, ok := formtext.ParseCount(r.PostFormValue(field.name))
 		*field.dst = value
 		if !ok {
 			f.parseInvalid[field.name] = true
@@ -124,7 +125,7 @@ func formOf(r *http.Request) *Form {
 }
 
 func (h *Handler) SetActive(w http.ResponseWriter, r *http.Request) {
-	if err := web.ParseForm(w, r); err != nil {
+	if err := formtext.ParseForm(w, r); err != nil {
 		http.Error(w, i18n.T(r.Context(), i18n.KeyAdminBadForm), http.StatusBadRequest)
 		return
 	}

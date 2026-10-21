@@ -1,4 +1,4 @@
-package web
+package formtext
 
 import "testing"
 
@@ -15,6 +15,8 @@ func TestFoldWidth(t *testing.T) {
 		{"ｱｲｳ", "ｱｲｳ"},   // half-width kana is not ASCII's to fold
 		{"耳機：１", "耳機:1"}, // U+FF1A is in the folded range
 		{"｟", "｟"},       // just past U+FF5E
+		{"！", "!"},       // U+FF01, the first folded
+		{"～", "~"},       // U+FF5E, the last folded
 	}
 	for _, tt := range tests {
 		if got := FoldWidth(tt.in); got != tt.want {

@@ -10,8 +10,8 @@ import (
 	"github.com/koopa0/goen/internal/shipping"
 
 	"github.com/koopa0/goen/internal/email"
+	"github.com/koopa0/goen/internal/formtext"
 	"github.com/koopa0/goen/internal/i18n"
-	"github.com/koopa0/goen/internal/web"
 )
 
 // Details is where and to whom an order goes: order_private_data's recipient,
@@ -52,16 +52,16 @@ const (
 	maxInvoiceEmailBytes = 80
 )
 
-func (a *Details) Validate() []web.FieldRefusal {
-	var errs []web.FieldRefusal
+func (a *Details) Validate() []formtext.FieldRefusal {
+	var errs []formtext.FieldRefusal
 	if k := emailError(a.Email); k != "" {
-		errs = append(errs, web.FieldRefusal{Field: "email", MessageKey: k})
+		errs = append(errs, formtext.FieldRefusal{Field: "email", MessageKey: k})
 	}
 
 	errs = append(errs, a.recipientErrors()...)
 
 	if utf8.RuneCountInString(a.Note) > maxNoteRunes {
-		errs = append(errs, web.FieldRefusal{Field: "note", MessageKey: i18n.KeyNoteTooLong})
+		errs = append(errs, formtext.FieldRefusal{Field: "note", MessageKey: i18n.KeyNoteTooLong})
 	}
 
 	fields := append([]field{{"email", a.Email}}, a.recipientFields()...)
@@ -72,13 +72,13 @@ func (a *Details) Validate() []web.FieldRefusal {
 // ValidateRecipient checks who the parcel goes to and where: everything Validate
 // checks but the order's own email and note. The account's address book saves
 // only what passes it, so a saved address cannot fail at checkout.
-func (a *Details) ValidateRecipient() []web.FieldRefusal {
+func (a *Details) ValidateRecipient() []formtext.FieldRefusal {
 	return append(a.recipientErrors(), controlCharErrors(a.recipientFields())...)
 }
 
-func (a *Details) recipientErrors() []web.FieldRefusal {
-	var errs []web.FieldRefusal
-	add := func(f string, k i18n.Key) { errs = append(errs, web.FieldRefusal{Field: f, MessageKey: k}) }
+func (a *Details) recipientErrors() []formtext.FieldRefusal {
+	var errs []formtext.FieldRefusal
+	add := func(f string, k i18n.Key) { errs = append(errs, formtext.FieldRefusal{Field: f, MessageKey: k}) }
 
 	if strings.TrimSpace(a.RecipientName) == "" {
 		add("name", i18n.KeyNameRequired)
@@ -96,9 +96,9 @@ func (a *Details) recipientErrors() []web.FieldRefusal {
 	return append(errs, a.destinationErrors()...)
 }
 
-func (a *Details) destinationErrors() []web.FieldRefusal {
-	var errs []web.FieldRefusal
-	add := func(f string, k i18n.Key) { errs = append(errs, web.FieldRefusal{Field: f, MessageKey: k}) }
+func (a *Details) destinationErrors() []formtext.FieldRefusal {
+	var errs []formtext.FieldRefusal
+	add := func(f string, k i18n.Key) { errs = append(errs, formtext.FieldRefusal{Field: f, MessageKey: k}) }
 
 	switch a.To {
 	case shipping.DestinationAddress:
@@ -138,9 +138,9 @@ func (a *Details) destinationErrors() []web.FieldRefusal {
 // come from the back office and are checked only when present, since the
 // carrier's picker supplies them; once either is written,
 // order_private_data_pickup_complete refuses a row without the other.
-func (a *Details) pickupPointErrors() []web.FieldRefusal {
-	var errs []web.FieldRefusal
-	add := func(f string, k i18n.Key) { errs = append(errs, web.FieldRefusal{Field: f, MessageKey: k}) }
+func (a *Details) pickupPointErrors() []formtext.FieldRefusal {
+	var errs []formtext.FieldRefusal
+	add := func(f string, k i18n.Key) { errs = append(errs, formtext.FieldRefusal{Field: f, MessageKey: k}) }
 
 	if !a.PickupChain.Known() {
 		add("pickup_chain", i18n.KeyPickupChainRequired)
@@ -187,11 +187,11 @@ func (a *Details) recipientFields() []field {
 
 // controlCharErrors: a newline in a name is how a shipping label gets a line it
 // was never given.
-func controlCharErrors(fields []field) []web.FieldRefusal {
-	var errs []web.FieldRefusal
+func controlCharErrors(fields []field) []formtext.FieldRefusal {
+	var errs []formtext.FieldRefusal
 	for _, f := range fields {
-		if web.HasControlChars(f.value) {
-			errs = append(errs, web.FieldRefusal{Field: f.name, MessageKey: i18n.KeyFieldHasControlChars})
+		if formtext.HasControlChars(f.value) {
+			errs = append(errs, formtext.FieldRefusal{Field: f.name, MessageKey: i18n.KeyFieldHasControlChars})
 		}
 	}
 	return errs
@@ -244,8 +244,8 @@ func isPostalCode(s string) bool {
 func (a *Details) Trim() {
 	a.Email = strings.TrimSpace(a.Email)
 	a.RecipientName = strings.TrimSpace(a.RecipientName)
-	a.Phone = strings.TrimSpace(web.FoldWidth(a.Phone))
-	a.PostalCode = strings.TrimSpace(web.FoldWidth(a.PostalCode))
+	a.Phone = strings.TrimSpace(formtext.FoldWidth(a.Phone))
+	a.PostalCode = strings.TrimSpace(formtext.FoldWidth(a.PostalCode))
 	a.City = strings.TrimSpace(a.City)
 	a.District = strings.TrimSpace(a.District)
 	a.Street = strings.TrimSpace(a.Street)

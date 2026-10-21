@@ -17,9 +17,9 @@ import (
 	"github.com/google/go-cmp/cmp"
 	"github.com/jackc/pgx/v5/pgconn"
 
+	"github.com/koopa0/goen/internal/formtext"
 	"github.com/koopa0/goen/internal/i18n"
 	"github.com/koopa0/goen/internal/media"
-	"github.com/koopa0/goen/internal/web"
 )
 
 func TestEveryRedirectTheProductFormsMakeCarriesAMessage(t *testing.T) {
@@ -98,8 +98,8 @@ func TestUploadErrorsDistinguishBadFormsFromStorageFailures(t *testing.T) {
 			err    error
 			status int
 		}{
-			{name: "bad form", err: web.ErrFormText, status: 400},
-			{name: "wrapped bad form", err: fmt.Errorf("multipart: %w", web.ErrFormText), status: 400},
+			{name: "bad form", err: formtext.ErrUnstorable, status: 400},
+			{name: "wrapped bad form", err: fmt.Errorf("multipart: %w", formtext.ErrUnstorable), status: 400},
 			{name: "storage", err: fmt.Errorf("store image: %w", errors.New("storage witness")), status: 500},
 		} {
 			t.Run(locale.Tag()+"/"+tt.name, func(t *testing.T) {

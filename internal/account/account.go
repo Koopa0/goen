@@ -8,8 +8,8 @@ import (
 	"errors"
 	"unicode/utf8"
 
+	"github.com/koopa0/goen/internal/formtext"
 	"github.com/koopa0/goen/internal/user"
-	"github.com/koopa0/goen/internal/web"
 )
 
 var (
@@ -27,5 +27,5 @@ const (
 func profileInputValid(name, phone string) bool {
 	return utf8.RuneCountInString(name) <= user.MaxNameRunes &&
 		utf8.RuneCountInString(phone) <= maxPhoneRunes &&
-		!web.HasControlChars(name) && !web.HasControlChars(phone)
+		!formtext.HasControlChars(name) && !formtext.HasControlChars(phone)
 }

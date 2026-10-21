@@ -12,7 +12,7 @@ import (
 	"strings"
 
 	"github.com/koopa0/goen/internal/db"
-	"github.com/koopa0/goen/internal/web"
+	"github.com/koopa0/goen/internal/formtext"
 )
 
 var ErrNotFound = errors.New("catalog: not found")
@@ -126,7 +126,7 @@ func ParsePrice(s string) int64 {
 // ILIKE pattern and the echoed heading rather than a term one side never
 // queried.
 func trimmedQuery(q string) string {
-	q = strings.TrimSpace(web.FoldWidth(q))
+	q = strings.TrimSpace(formtext.FoldWidth(q))
 	if r := []rune(q); len(r) > MaxQueryRunes {
 		return string(r[:MaxQueryRunes])
 	}

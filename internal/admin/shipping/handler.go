@@ -14,6 +14,7 @@ import (
 	"github.com/koopa0/goen/internal/shipping"
 
 	"github.com/koopa0/goen/internal/admin/access"
+	"github.com/koopa0/goen/internal/formtext"
 	"github.com/koopa0/goen/internal/i18n"
 	"github.com/koopa0/goen/internal/money"
 	"github.com/koopa0/goen/internal/ui/components"
@@ -55,7 +56,7 @@ var notices = map[string]components.NoticeEntry{
 }
 
 func (h *Handler) CreateMethod(w http.ResponseWriter, r *http.Request) {
-	if err := web.ParseForm(w, r); err != nil {
+	if err := formtext.ParseForm(w, r); err != nil {
 		http.Error(w, i18n.T(r.Context(), i18n.KeyAdminBadForm), http.StatusBadRequest)
 		return
 	}
@@ -89,7 +90,7 @@ func methodFormOf(r *http.Request) (*NewMethod, MethodDraft, map[string]string) 
 	}
 	errs := map[string]string{}
 	parse := func(raw string, max int32, field string) int32 {
-		value, ok := web.ParseBounded(raw, max)
+		value, ok := formtext.ParseBounded(raw, max)
 		if !ok {
 			errs[field] = fmt.Sprintf(i18n.T(r.Context(), i18n.KeyFormMethodParcelLimit), max)
 		}
@@ -120,7 +121,7 @@ func methodFormOf(r *http.Request) (*NewMethod, MethodDraft, map[string]string) 
 
 // SetMethodActive switches a method OFF, never deletes it: past orders name their version.
 func (h *Handler) SetMethodActive(w http.ResponseWriter, r *http.Request) {
-	if err := web.ParseForm(w, r); err != nil {
+	if err := formtext.ParseForm(w, r); err != nil {
 		http.Error(w, i18n.T(r.Context(), i18n.KeyAdminBadForm), http.StatusBadRequest)
 		return
 	}
@@ -142,7 +143,7 @@ func (h *Handler) SetMethodActive(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *Handler) CreateZone(w http.ResponseWriter, r *http.Request) {
-	if err := web.ParseForm(w, r); err != nil {
+	if err := formtext.ParseForm(w, r); err != nil {
 		http.Error(w, i18n.T(r.Context(), i18n.KeyAdminBadForm), http.StatusBadRequest)
 		return
 	}
@@ -167,7 +168,7 @@ func (h *Handler) CreateZone(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *Handler) SetZonePrefixes(w http.ResponseWriter, r *http.Request) {
-	if err := web.ParseForm(w, r); err != nil {
+	if err := formtext.ParseForm(w, r); err != nil {
 		http.Error(w, i18n.T(r.Context(), i18n.KeyAdminBadForm), http.StatusBadRequest)
 		return
 	}
@@ -190,7 +191,7 @@ func (h *Handler) SetZonePrefixes(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *Handler) DeleteZone(w http.ResponseWriter, r *http.Request) {
-	if err := web.ParseForm(w, r); err != nil {
+	if err := formtext.ParseForm(w, r); err != nil {
 		http.Error(w, i18n.T(r.Context(), i18n.KeyAdminBadForm), http.StatusBadRequest)
 		return
 	}
@@ -297,7 +298,7 @@ func (h *Handler) Page(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *Handler) PublishVersion(w http.ResponseWriter, r *http.Request) {
-	if err := web.ParseForm(w, r); err != nil {
+	if err := formtext.ParseForm(w, r); err != nil {
 		http.Error(w, i18n.T(r.Context(), i18n.KeyAdminBadForm), http.StatusBadRequest)
 		return
 	}
@@ -342,7 +343,7 @@ func versionFormOf(r *http.Request) (Version, VersionDraft, map[string]string) {
 }
 
 func (h *Handler) SetZoneSurcharge(w http.ResponseWriter, r *http.Request) {
-	if err := web.ParseForm(w, r); err != nil {
+	if err := formtext.ParseForm(w, r); err != nil {
 		http.Error(w, i18n.T(r.Context(), i18n.KeyAdminBadForm), http.StatusBadRequest)
 		return
 	}

@@ -7,6 +7,7 @@ import (
 
 	"github.com/koopa0/goen/internal/compress"
 	"github.com/koopa0/goen/internal/email"
+	"github.com/koopa0/goen/internal/formtext"
 	"github.com/koopa0/goen/internal/i18n"
 	"github.com/koopa0/goen/internal/ratelimit"
 	"github.com/koopa0/goen/internal/ui/layouts"
@@ -29,7 +30,7 @@ func (h *Handler) ForgotPage(w http.ResponseWriter, r *http.Request) {
 
 // Forgot answers identically whether or not the address is known.
 func (h *Handler) Forgot(w http.ResponseWriter, r *http.Request) {
-	if err := web.ParseForm(w, r); err != nil {
+	if err := formtext.ParseForm(w, r); err != nil {
 		http.Error(w, "400 "+i18n.T(r.Context(), i18n.KeyFormUnreadable), http.StatusBadRequest)
 		return
 	}
@@ -100,7 +101,7 @@ func (h *Handler) ResetPage(w http.ResponseWriter, r *http.Request) {
 func (h *Handler) Reset(w http.ResponseWriter, r *http.Request) {
 	// A rejected password can re-render the still-live reset token; never compress it.
 	compress.Skip(w)
-	if err := web.ParseForm(w, r); err != nil {
+	if err := formtext.ParseForm(w, r); err != nil {
 		http.Error(w, "400 "+i18n.T(r.Context(), i18n.KeyFormUnreadable), http.StatusBadRequest)
 		return
 	}
@@ -128,7 +129,7 @@ func (h *Handler) Reset(w http.ResponseWriter, r *http.Request) {
 			h.serverError(w, r)
 			return
 		}
-		errs := web.FieldMessages(r.Context(), []web.FieldRefusal{refusal})
+		errs := formtext.FieldMessages(r.Context(), []formtext.FieldRefusal{refusal})
 		web.Render(w, r, h.log, http.StatusUnprocessableEntity, Reset(
 			layouts.Page{Title: i18n.T(r.Context(), i18n.KeyResetTitle)},
 			ResetView{Token: token, Error: errs["password"]}))

@@ -15,7 +15,7 @@ import (
 	"testing"
 
 	"github.com/koopa0/goen/assets"
-	"github.com/koopa0/goen/internal/web"
+	"github.com/koopa0/goen/internal/formtext"
 )
 
 func pngBytes(t *testing.T, w, h int) []byte {
@@ -461,8 +461,8 @@ func TestAnUploadFormWhoseTextCannotBeStoredIsRefused(t *testing.T) {
 			http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 				err = tt.read(w, r)
 			}).ServeHTTP(httptest.NewRecorder(), r)
-			if !errors.Is(err, web.ErrFormText) {
-				t.Fatalf("%s = %v, want web.ErrFormText", tt.name, err)
+			if !errors.Is(err, formtext.ErrUnstorable) {
+				t.Fatalf("%s = %v, want formtext.ErrUnstorable", tt.name, err)
 			}
 		})
 	}

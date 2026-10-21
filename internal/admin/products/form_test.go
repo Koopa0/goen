@@ -15,9 +15,9 @@ import (
 
 	"github.com/jackc/pgx/v5/pgconn"
 
+	"github.com/koopa0/goen/internal/formtext"
 	"github.com/koopa0/goen/internal/i18n"
 	"github.com/koopa0/goen/internal/money"
-	"github.com/koopa0/goen/internal/web"
 )
 
 func TestAFormNumberKeepsInvalidDistinctFromZero(t *testing.T) {
@@ -50,9 +50,9 @@ func TestAFormNumberKeepsInvalidDistinctFromZero(t *testing.T) {
 	} {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
-			got, ok := web.ParseBounded(tt.raw, tt.max)
+			got, ok := formtext.ParseBounded(tt.raw, tt.max)
 			if got != tt.want || ok != tt.ok {
-				t.Errorf("web.ParseBounded(%q, %d) = (%d, %v), want (%d, %v)",
+				t.Errorf("formtext.ParseBounded(%q, %d) = (%d, %v), want (%d, %v)",
 					tt.raw, tt.max, got, ok, tt.want, tt.ok)
 			}
 		})
@@ -69,18 +69,18 @@ func FuzzParseBoundedInt(f *testing.F) {
 			shipping.MaxParcelWeightG, safetyStockCeiling,
 		}
 		ceiling := maxima[int(choice)%len(maxima)]
-		got, ok := web.ParseBounded(raw, ceiling)
+		got, ok := formtext.ParseBounded(raw, ceiling)
 		trimmed := strings.TrimSpace(raw)
 		if trimmed == "" {
 			if got != 0 || !ok {
-				t.Fatalf("web.ParseBounded(%q, %d) = (%d, %v), want (0, true)", raw, ceiling, got, ok)
+				t.Fatalf("formtext.ParseBounded(%q, %d) = (%d, %v), want (0, true)", raw, ceiling, got, ok)
 			}
 			return
 		}
 		n, err := strconv.ParseInt(trimmed, 10, 32)
 		wantOK := err == nil && n >= 0 && n <= int64(ceiling)
 		if ok != wantOK || ok && int64(got) != n || !ok && got != 0 {
-			t.Fatalf("web.ParseBounded(%q, %d) = (%d, %v), parsed=(%d, %v)",
+			t.Fatalf("formtext.ParseBounded(%q, %d) = (%d, %v), parsed=(%d, %v)",
 				raw, ceiling, got, ok, n, err)
 		}
 	})

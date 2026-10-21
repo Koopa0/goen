@@ -19,9 +19,9 @@ import (
 	"golang.org/x/crypto/argon2"
 
 	"github.com/koopa0/goen/internal/email"
+	"github.com/koopa0/goen/internal/formtext"
 	"github.com/koopa0/goen/internal/i18n"
 	"github.com/koopa0/goen/internal/user"
-	"github.com/koopa0/goen/internal/web"
 )
 
 var (
@@ -191,24 +191,24 @@ func (c *Credentials) Trim() {
 	c.Name = strings.TrimSpace(c.Name)
 }
 
-func (c *Credentials) ValidateRegistration() []web.FieldRefusal {
-	var errs []web.FieldRefusal
+func (c *Credentials) ValidateRegistration() []formtext.FieldRefusal {
+	var errs []formtext.FieldRefusal
 	if k := EmailError(c.Email); k != "" {
-		errs = append(errs, web.FieldRefusal{Field: "email", MessageKey: k})
+		errs = append(errs, formtext.FieldRefusal{Field: "email", MessageKey: k})
 	}
 	if refusal, refused := PasswordRefusal("password", c.Password); refused {
 		errs = append(errs, refusal)
 	} else if c.Confirm != c.Password {
-		errs = append(errs, web.FieldRefusal{Field: "confirm", MessageKey: i18n.KeyPasswordsDiffer})
+		errs = append(errs, formtext.FieldRefusal{Field: "confirm", MessageKey: i18n.KeyPasswordsDiffer})
 	}
 	if utf8.RuneCountInString(c.Name) > user.MaxNameRunes {
-		errs = append(errs, web.FieldRefusal{Field: "name", MessageKey: i18n.KeyNameTooLong})
+		errs = append(errs, formtext.FieldRefusal{Field: "name", MessageKey: i18n.KeyNameTooLong})
 	}
-	if web.HasControlChars(c.Name) {
-		errs = append(errs, web.FieldRefusal{Field: "name", MessageKey: i18n.KeyFieldHasControlChars})
+	if formtext.HasControlChars(c.Name) {
+		errs = append(errs, formtext.FieldRefusal{Field: "name", MessageKey: i18n.KeyFieldHasControlChars})
 	}
-	if web.HasControlChars(c.Email) {
-		errs = append(errs, web.FieldRefusal{Field: "email", MessageKey: i18n.KeyFieldHasControlChars})
+	if formtext.HasControlChars(c.Email) {
+		errs = append(errs, formtext.FieldRefusal{Field: "email", MessageKey: i18n.KeyFieldHasControlChars})
 	}
 	return errs
 }
@@ -239,12 +239,12 @@ func PasswordError(s string) i18n.Key {
 
 // PasswordRefusal is PasswordError as a refusal of field, carrying the
 // minimum the too-short message states.
-func PasswordRefusal(field, s string) (web.FieldRefusal, bool) {
+func PasswordRefusal(field, s string) (formtext.FieldRefusal, bool) {
 	k := PasswordError(s)
 	if k == "" {
-		return web.FieldRefusal{}, false
+		return formtext.FieldRefusal{}, false
 	}
-	refusal := web.FieldRefusal{Field: field, MessageKey: k}
+	refusal := formtext.FieldRefusal{Field: field, MessageKey: k}
 	if k == i18n.KeyPasswordTooShort {
 		refusal.Args = []any{MinPasswordRunes}
 	}
@@ -257,7 +257,7 @@ func PasswordRefusal(field, s string) (web.FieldRefusal, bool) {
 // one of them.
 func normaliseUserAgent(s string) string {
 	s = strings.TrimSpace(s)
-	if !utf8.ValidString(s) || utf8.RuneCountInString(s) > maxUserAgentRunes || web.HasControlChars(s) {
+	if !utf8.ValidString(s) || utf8.RuneCountInString(s) > maxUserAgentRunes || formtext.HasControlChars(s) {
 		return ""
 	}
 	return s
