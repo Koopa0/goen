@@ -6,8 +6,8 @@ import (
 
 	"github.com/koopa0/goen/internal/shipping"
 
-	"github.com/koopa0/goen/internal/formtext"
 	"github.com/koopa0/goen/internal/i18n"
+	"github.com/koopa0/goen/internal/web/formtext"
 )
 
 // TestDeliveryValidateRejects covers what the server must catch even though the

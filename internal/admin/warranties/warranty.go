@@ -15,11 +15,11 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 
 	"github.com/koopa0/goen/internal/db"
-	"github.com/koopa0/goen/internal/formtext"
 	"github.com/koopa0/goen/internal/i18n"
 	"github.com/koopa0/goen/internal/keyset"
 	"github.com/koopa0/goen/internal/order"
 	"github.com/koopa0/goen/internal/shoptime"
+	"github.com/koopa0/goen/internal/web/formtext"
 )
 
 type Store struct {

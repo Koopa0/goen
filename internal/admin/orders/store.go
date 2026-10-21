@@ -20,7 +20,6 @@ import (
 	"github.com/koopa0/goen/internal/admin/audit"
 	"github.com/koopa0/goen/internal/credit"
 	"github.com/koopa0/goen/internal/db"
-	"github.com/koopa0/goen/internal/formtext"
 	"github.com/koopa0/goen/internal/i18n"
 	"github.com/koopa0/goen/internal/invoice"
 	"github.com/koopa0/goen/internal/keyset"
@@ -35,6 +34,7 @@ import (
 	"github.com/koopa0/goen/internal/shoptime"
 	"github.com/koopa0/goen/internal/ui/components"
 	"github.com/koopa0/goen/internal/ui/pages"
+	"github.com/koopa0/goen/internal/web/formtext"
 )
 
 // Refunds says what the order page offers of the refund before shipment and

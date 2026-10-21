@@ -10,7 +10,6 @@ import (
 	"time"
 
 	"github.com/koopa0/goen/internal/admin/access"
-	"github.com/koopa0/goen/internal/formtext"
 	"github.com/koopa0/goen/internal/i18n"
 	"github.com/koopa0/goen/internal/inventory"
 	"github.com/koopa0/goen/internal/keyset"
@@ -20,6 +19,7 @@ import (
 	"github.com/koopa0/goen/internal/ui/pages/admin"
 	"github.com/koopa0/goen/internal/user"
 	"github.com/koopa0/goen/internal/web"
+	"github.com/koopa0/goen/internal/web/formtext"
 )
 
 type Handler struct {

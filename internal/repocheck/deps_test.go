@@ -107,7 +107,7 @@ var (
 	// i18nOnlyLeaves import nothing from goen except the message catalogue.
 	i18nOnlyLeaves = []string{
 		"internal/invoice", "internal/order", "internal/product/labelling", "internal/returns", "internal/shoptime", "internal/ui/fieldrule",
-		"internal/sales", "internal/worklist", "internal/shipping", "internal/credit", "internal/formtext",
+		"internal/sales", "internal/worklist", "internal/shipping", "internal/credit", "internal/web/formtext",
 	}
 	// googleMayImport is all of goen that Google's sign-in client imports:
 	// bearer makes its state and PKCE verifier, siteurl reads the configured
@@ -116,7 +116,7 @@ var (
 	// storemapMayImport is all of goen that ECPay's store map imports: shipping
 	// names the chains and the store-code shape, formtext refuses control
 	// characters in a posted store, and i18n and assets build the two hop pages.
-	storemapMayImport = []string{"assets", "internal/formtext", "internal/i18n", "internal/shipping"}
+	storemapMayImport = []string{"assets", "internal/web/formtext", "internal/i18n", "internal/shipping"}
 )
 
 // packageLists are the package lists the rules above match against, by variable

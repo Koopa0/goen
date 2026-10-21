@@ -8,8 +8,8 @@ import (
 	"errors"
 	"unicode/utf8"
 
-	"github.com/koopa0/goen/internal/formtext"
 	"github.com/koopa0/goen/internal/user"
+	"github.com/koopa0/goen/internal/web/formtext"
 )
 
 var (

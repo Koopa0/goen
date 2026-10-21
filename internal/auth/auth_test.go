@@ -20,11 +20,11 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 
 	"github.com/koopa0/goen/internal/auth/google"
-	"github.com/koopa0/goen/internal/formtext"
 	"github.com/koopa0/goen/internal/i18n"
 	"github.com/koopa0/goen/internal/ratelimit"
 	"github.com/koopa0/goen/internal/ui/uitest"
 	"github.com/koopa0/goen/internal/user"
+	"github.com/koopa0/goen/internal/web/formtext"
 )
 
 func TestPasswordHashingRoundTrips(t *testing.T) {

@@ -44,7 +44,6 @@ import (
 	"github.com/koopa0/goen/internal/checkout"
 	"github.com/koopa0/goen/internal/compress"
 	"github.com/koopa0/goen/internal/contact"
-	"github.com/koopa0/goen/internal/formtext"
 	"github.com/koopa0/goen/internal/home"
 	"github.com/koopa0/goen/internal/invoice/issuer"
 	"github.com/koopa0/goen/internal/loyalty"
@@ -60,6 +59,7 @@ import (
 	"github.com/koopa0/goen/internal/shipping/storemap"
 	"github.com/koopa0/goen/internal/site"
 	"github.com/koopa0/goen/internal/warranty"
+	"github.com/koopa0/goen/internal/web/formtext"
 	"github.com/koopa0/goen/internal/wishlist"
 )
 

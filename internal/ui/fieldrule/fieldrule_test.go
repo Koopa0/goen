@@ -10,10 +10,10 @@ import (
 
 	"github.com/koopa0/goen/internal/checkout"
 	"github.com/koopa0/goen/internal/email"
-	"github.com/koopa0/goen/internal/formtext"
 	"github.com/koopa0/goen/internal/invoice"
 	"github.com/koopa0/goen/internal/order/delivery"
 	"github.com/koopa0/goen/internal/ui/fieldrule"
+	"github.com/koopa0/goen/internal/web/formtext"
 )
 
 // matches reports whether the browser would accept value for rule on its

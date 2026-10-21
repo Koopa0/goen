@@ -14,7 +14,6 @@ import (
 
 	"github.com/koopa0/goen/internal/cart"
 	"github.com/koopa0/goen/internal/coupon"
-	"github.com/koopa0/goen/internal/formtext"
 	"github.com/koopa0/goen/internal/i18n"
 	"github.com/koopa0/goen/internal/invoice"
 	"github.com/koopa0/goen/internal/invoice/issuer"
@@ -29,6 +28,7 @@ import (
 	"github.com/koopa0/goen/internal/ui/pages"
 	"github.com/koopa0/goen/internal/user"
 	"github.com/koopa0/goen/internal/web"
+	"github.com/koopa0/goen/internal/web/formtext"
 )
 
 type Handler struct {

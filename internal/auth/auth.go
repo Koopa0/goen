@@ -19,9 +19,9 @@ import (
 	"golang.org/x/crypto/argon2"
 
 	"github.com/koopa0/goen/internal/email"
-	"github.com/koopa0/goen/internal/formtext"
 	"github.com/koopa0/goen/internal/i18n"
 	"github.com/koopa0/goen/internal/user"
+	"github.com/koopa0/goen/internal/web/formtext"
 )
 
 var (

@@ -15,7 +15,7 @@ import (
 	"testing"
 
 	"github.com/koopa0/goen/assets"
-	"github.com/koopa0/goen/internal/formtext"
+	"github.com/koopa0/goen/internal/web/formtext"
 )
 
 func pngBytes(t *testing.T, w, h int) []byte {

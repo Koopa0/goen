@@ -8,10 +8,10 @@ import (
 	"github.com/google/uuid"
 
 	"github.com/koopa0/goen/internal/admin/access"
-	"github.com/koopa0/goen/internal/formtext"
 	"github.com/koopa0/goen/internal/i18n"
 	"github.com/koopa0/goen/internal/invoice/issuer"
 	"github.com/koopa0/goen/internal/order"
+	"github.com/koopa0/goen/internal/web/formtext"
 )
 
 // IssueInvoice files the order's uniform invoice.

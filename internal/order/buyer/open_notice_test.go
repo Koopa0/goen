@@ -3,8 +3,8 @@ package buyer
 import (
 	"testing"
 
-	"github.com/koopa0/goen/internal/formtext"
 	"github.com/koopa0/goen/internal/i18n"
+	"github.com/koopa0/goen/internal/web/formtext"
 )
 
 func TestOpenRequestTakesPrecedenceOverStaleFormRefusals(t *testing.T) {

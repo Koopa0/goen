@@ -15,9 +15,9 @@ import (
 
 	"github.com/jackc/pgx/v5/pgconn"
 
-	"github.com/koopa0/goen/internal/formtext"
 	"github.com/koopa0/goen/internal/i18n"
 	"github.com/koopa0/goen/internal/money"
+	"github.com/koopa0/goen/internal/web/formtext"
 )
 
 func TestAFormNumberKeepsInvalidDistinctFromZero(t *testing.T) {

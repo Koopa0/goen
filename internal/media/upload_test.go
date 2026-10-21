@@ -14,8 +14,8 @@ import (
 	"testing"
 	"testing/synctest"
 
-	"github.com/koopa0/goen/internal/formtext"
 	"github.com/koopa0/goen/internal/i18n"
+	"github.com/koopa0/goen/internal/web/formtext"
 )
 
 // TestUploadsBeyondTheSlotsAreRefused holds the bound on decodes at once. Each

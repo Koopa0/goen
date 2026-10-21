@@ -12,8 +12,8 @@ import (
 	"github.com/google/go-cmp/cmp"
 	"golang.org/x/net/html"
 
-	"github.com/koopa0/goen/internal/formtext"
 	"github.com/koopa0/goen/internal/i18n"
+	"github.com/koopa0/goen/internal/web/formtext"
 
 	"github.com/google/uuid"
 )

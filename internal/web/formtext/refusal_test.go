@@ -4,8 +4,8 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/koopa0/goen/internal/formtext"
 	"github.com/koopa0/goen/internal/i18n"
+	"github.com/koopa0/goen/internal/web/formtext"
 )
 
 func TestFieldMessagesKeepsTheFirstMessagePerField(t *testing.T) {

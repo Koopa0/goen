@@ -18,7 +18,7 @@ import (
 
 	"github.com/koopa0/goen/internal/shipping"
 
-	"github.com/koopa0/goen/internal/formtext"
+	"github.com/koopa0/goen/internal/web/formtext"
 )
 
 // ECPay's convenience-store map. Staging is the default and answers with one

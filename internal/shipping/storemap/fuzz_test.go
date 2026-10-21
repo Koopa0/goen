@@ -10,7 +10,7 @@ import (
 
 	"github.com/koopa0/goen/internal/shipping"
 
-	"github.com/koopa0/goen/internal/formtext"
+	"github.com/koopa0/goen/internal/web/formtext"
 )
 
 // FuzzReadCallback: the map callback is a form any visitor can post, so what

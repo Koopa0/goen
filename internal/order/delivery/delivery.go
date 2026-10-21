@@ -10,8 +10,8 @@ import (
 	"github.com/koopa0/goen/internal/shipping"
 
 	"github.com/koopa0/goen/internal/email"
-	"github.com/koopa0/goen/internal/formtext"
 	"github.com/koopa0/goen/internal/i18n"
+	"github.com/koopa0/goen/internal/web/formtext"
 )
 
 // Details is where and to whom an order goes: order_private_data's recipient,

@@ -12,7 +12,7 @@ import (
 	"strings"
 
 	"github.com/koopa0/goen/internal/db"
-	"github.com/koopa0/goen/internal/formtext"
+	"github.com/koopa0/goen/internal/web/formtext"
 )
 
 var ErrNotFound = errors.New("catalog: not found")

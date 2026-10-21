@@ -10,9 +10,9 @@ import (
 
 	"github.com/google/go-cmp/cmp"
 
-	"github.com/koopa0/goen/internal/formtext"
 	"github.com/koopa0/goen/internal/i18n"
 	"github.com/koopa0/goen/internal/order/delivery"
+	"github.com/koopa0/goen/internal/web/formtext"
 )
 
 func TestValidatedDeliveryPreservesFieldRefusals(t *testing.T) {

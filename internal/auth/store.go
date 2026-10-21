@@ -19,8 +19,8 @@ import (
 	"github.com/koopa0/goen/internal/auth/google"
 	"github.com/koopa0/goen/internal/bearer"
 	"github.com/koopa0/goen/internal/db"
-	"github.com/koopa0/goen/internal/formtext"
 	"github.com/koopa0/goen/internal/outbox"
+	"github.com/koopa0/goen/internal/web/formtext"
 
 	"github.com/koopa0/goen/internal/i18n"
 	"github.com/koopa0/goen/internal/user"
