@@ -14,14 +14,14 @@ import (
 
 	"github.com/koopa0/goen/assets"
 	"github.com/koopa0/goen/internal/i18n"
+	"github.com/koopa0/goen/internal/policy"
 	"github.com/koopa0/goen/internal/ui/components"
 	"github.com/koopa0/goen/internal/ui/layouts"
-	"github.com/koopa0/goen/internal/ui/pages"
 	"github.com/koopa0/goen/internal/ui/tile"
 )
 
 // rules and head are nil where the page has none to state.
-func Listing(p layouts.Page, v ListingView, rules *pages.ShopRules, head *DepartmentHead) templ.Component {
+func Listing(p layouts.Page, v ListingView, rules *policy.Rules, head *DepartmentHead) templ.Component {
 	return templruntime.GeneratedTemplate(func(templ_7745c5c3_Input templruntime.GeneratedComponentInput) (templ_7745c5c3_Err error) {
 		templ_7745c5c3_W, ctx := templ_7745c5c3_Input.Writer, templ_7745c5c3_Input.Context
 		if templ_7745c5c3_CtxErr := ctx.Err(); templ_7745c5c3_CtxErr != nil {
@@ -401,7 +401,7 @@ func Listing(p layouts.Page, v ListingView, rules *pages.ShopRules, head *Depart
 				return templ_7745c5c3_Err
 			}
 			if rules != nil && !isPartial(ctx) {
-				templ_7745c5c3_Err = pages.ShopRulesSection(*rules).Render(ctx, templ_7745c5c3_Buffer)
+				templ_7745c5c3_Err = policy.RulesSection(*rules).Render(ctx, templ_7745c5c3_Buffer)
 				if templ_7745c5c3_Err != nil {
 					return templ_7745c5c3_Err
 				}

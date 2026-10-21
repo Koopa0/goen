@@ -14,8 +14,8 @@ import (
 	"github.com/koopa0/goen/internal/money"
 	"github.com/koopa0/goen/internal/ui/components"
 	"github.com/koopa0/goen/internal/ui/layouts"
-	"github.com/koopa0/goen/internal/web"
 	"github.com/koopa0/goen/internal/web/formtext"
+	"github.com/koopa0/goen/internal/web/respond"
 )
 
 type Handler struct {
@@ -49,7 +49,7 @@ func (h *Handler) Page(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	view.Notice = components.NoticeFrom(r, notices)
-	web.Render(w, r, h.log, http.StatusOK, Coupons(
+	respond.Component(w, r, h.log, http.StatusOK, Coupons(
 		layouts.Page{Title: i18n.T(r.Context(), i18n.KeyAdminPageCoupons)}, view))
 }
 
@@ -81,7 +81,7 @@ func (h *Handler) Create(w http.ResponseWriter, r *http.Request) {
 			PerCustomer: r.PostFormValue("percustomer"),
 			Days:        r.PostFormValue("days"),
 		}
-		web.Render(w, r, h.log, http.StatusUnprocessableEntity, Coupons(
+		respond.Component(w, r, h.log, http.StatusUnprocessableEntity, Coupons(
 			layouts.Page{Title: i18n.T(r.Context(), i18n.KeyAdminPageCoupons)}, view))
 	default:
 		http.Redirect(w, r, "/admin/coupons?ok=1", http.StatusSeeOther)

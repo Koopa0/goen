@@ -9,8 +9,8 @@ import (
 	"github.com/koopa0/goen/internal/i18n"
 	"github.com/koopa0/goen/internal/ui/components"
 	"github.com/koopa0/goen/internal/ui/layouts"
-	"github.com/koopa0/goen/internal/web"
 	"github.com/koopa0/goen/internal/web/formtext"
+	"github.com/koopa0/goen/internal/web/respond"
 )
 
 type Handler struct {
@@ -47,7 +47,7 @@ func (h *Handler) FAQ(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	view.Notice = components.NoticeFrom(r, notices)
-	web.Render(w, r, h.log, http.StatusOK, FAQ(
+	respond.Component(w, r, h.log, http.StatusOK, FAQ(
 		layouts.Page{Title: i18n.T(r.Context(), i18n.KeyAdminPageFAQ)}, &view))
 }
 
@@ -127,7 +127,7 @@ func (h *Handler) rejectFAQ(
 	} else {
 		view.Draft, view.Errors = typed, errs
 	}
-	web.Render(w, r, h.log, http.StatusUnprocessableEntity, FAQ(
+	respond.Component(w, r, h.log, http.StatusUnprocessableEntity, FAQ(
 		layouts.Page{Title: i18n.T(r.Context(), i18n.KeyAdminPageFAQ)}, &view))
 }
 
@@ -199,7 +199,7 @@ func (h *Handler) rejectFAQCategory(
 		ID: f.ID, Name: r.PostFormValue("name"), NameEn: r.PostFormValue("name_en"),
 	}
 	view.CategoryErrors = errs
-	web.Render(w, r, h.log, http.StatusUnprocessableEntity, FAQ(
+	respond.Component(w, r, h.log, http.StatusUnprocessableEntity, FAQ(
 		layouts.Page{Title: i18n.T(r.Context(), i18n.KeyAdminPageFAQ)}, &view))
 }
 

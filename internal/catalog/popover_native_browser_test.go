@@ -16,7 +16,7 @@ import (
 	"github.com/koopa0/goen/internal/ui/layouts"
 	"github.com/koopa0/goen/internal/ui/tile"
 	"github.com/koopa0/goen/internal/ui/uitest"
-	"github.com/koopa0/goen/internal/web"
+	"github.com/koopa0/goen/internal/web/respond"
 )
 
 func TestPopoverPointerAndFocusInNativeBrowsers(t *testing.T) {
@@ -42,7 +42,7 @@ func TestPopoverPointerAndFocusInNativeBrowsers(t *testing.T) {
 		}
 		ctx := layouts.WithReturnPath(i18n.WithLocale(r.Context(), locale), r.URL.RequestURI())
 		ctx = layouts.WithTopNav(ctx, []layouts.NavItem{{Slug: "audio", Name: "Audio", Href: "/c/audio"}})
-		if web.IsHTMX(r) {
+		if respond.IsHTMX(r) {
 			ctx = catalog.AsPartial(ctx)
 		}
 		view := catalog.ListingView{

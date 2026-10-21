@@ -12,10 +12,10 @@ import (
 	"github.com/koopa0/goen/internal/email"
 	"github.com/koopa0/goen/internal/i18n"
 	"github.com/koopa0/goen/internal/ui/layouts"
-	"github.com/koopa0/goen/internal/web"
 	"github.com/koopa0/goen/internal/web/compress"
 	"github.com/koopa0/goen/internal/web/formtext"
 	"github.com/koopa0/goen/internal/web/ratelimit"
+	"github.com/koopa0/goen/internal/web/respond"
 )
 
 type Handler struct {
@@ -93,8 +93,8 @@ func (h *Handler) Submit(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if web.IsHTMX(r) {
-		web.Render(w, r, h.log, http.StatusOK, layouts.NewsletterForm(layouts.NewsletterState{Done: true, Email: email.Mask(addr)}))
+	if respond.IsHTMX(r) {
+		respond.Component(w, r, h.log, http.StatusOK, layouts.NewsletterForm(layouts.NewsletterState{Done: true, Email: email.Mask(addr)}))
 		return
 	}
 	http.Redirect(w, r, "/newsletter/thanks?"+url.Values{"address": {email.Mask(addr)}}.Encode(), http.StatusSeeOther)
@@ -108,7 +108,7 @@ func (h *Handler) Thanks(w http.ResponseWriter, r *http.Request) {
 		Title:       i18n.T(ctx, i18n.KeyCheckInbox),
 		Description: i18n.T(ctx, i18n.KeyNewsletterSentMeta),
 	}
-	web.Render(w, r, h.log, http.StatusOK, NewsletterSent(meta, email.ReadMasked(r.URL.Query().Get("address"))))
+	respond.Component(w, r, h.log, http.StatusOK, NewsletterSent(meta, email.ReadMasked(r.URL.Query().Get("address"))))
 }
 
 // ConfirmPage echoes the token into a form rather than acting on it: a
@@ -117,7 +117,7 @@ func (h *Handler) ConfirmPage(w http.ResponseWriter, r *http.Request) {
 	compress.Skip(w)
 	ctx := r.Context()
 	if r.URL.Query().Get("done") == "1" {
-		web.Render(w, r, h.log, http.StatusOK, layouts.EmailLinkPage(
+		respond.Component(w, r, h.log, http.StatusOK, layouts.EmailLinkPage(
 			layouts.EmailLinkMeta(i18n.T(ctx, i18n.KeyNewsletterDone)),
 			layouts.EmailLinkView{
 				Heading: i18n.T(ctx, i18n.KeyNewsletterDone),
@@ -127,7 +127,7 @@ func (h *Handler) ConfirmPage(w http.ResponseWriter, r *http.Request) {
 	}
 	token := r.URL.Query().Get("token")
 	if token == "" {
-		web.Render(w, r, h.log, http.StatusOK, layouts.EmailLinkPage(
+		respond.Component(w, r, h.log, http.StatusOK, layouts.EmailLinkPage(
 			layouts.EmailLinkMeta(i18n.T(ctx, i18n.KeyNewsletterConfirmTitle)),
 			layouts.EmailLinkView{
 				Heading:  i18n.T(ctx, i18n.KeyNewsletterConfirmTitle),
@@ -136,7 +136,7 @@ func (h *Handler) ConfirmPage(w http.ResponseWriter, r *http.Request) {
 			}))
 		return
 	}
-	web.Render(w, r, h.log, http.StatusOK, layouts.EmailLinkPage(
+	respond.Component(w, r, h.log, http.StatusOK, layouts.EmailLinkPage(
 		layouts.EmailLinkMeta(i18n.T(ctx, i18n.KeyNewsletterConfirmTitle)),
 		layouts.EmailLinkView{
 			Heading: i18n.T(ctx, i18n.KeyNewsletterConfirmTitle),
@@ -172,7 +172,7 @@ func (h *Handler) UnsubscribePage(w http.ResponseWriter, r *http.Request) {
 	compress.Skip(w)
 	ctx := r.Context()
 	if r.URL.Query().Get("done") == "1" {
-		web.Render(w, r, h.log, http.StatusOK, layouts.EmailLinkPage(
+		respond.Component(w, r, h.log, http.StatusOK, layouts.EmailLinkPage(
 			layouts.EmailLinkMeta(i18n.T(ctx, i18n.KeyNewsletterLeft)),
 			layouts.EmailLinkView{
 				Heading: i18n.T(ctx, i18n.KeyNewsletterLeft),
@@ -182,7 +182,7 @@ func (h *Handler) UnsubscribePage(w http.ResponseWriter, r *http.Request) {
 	}
 	token := r.URL.Query().Get("token")
 	if token == "" {
-		web.Render(w, r, h.log, http.StatusOK, layouts.EmailLinkPage(
+		respond.Component(w, r, h.log, http.StatusOK, layouts.EmailLinkPage(
 			layouts.EmailLinkMeta(i18n.T(ctx, i18n.KeyNewsletterLeaveTitle)),
 			layouts.EmailLinkView{
 				Heading:  i18n.T(ctx, i18n.KeyNewsletterLeaveTitle),
@@ -191,7 +191,7 @@ func (h *Handler) UnsubscribePage(w http.ResponseWriter, r *http.Request) {
 			}))
 		return
 	}
-	web.Render(w, r, h.log, http.StatusOK, layouts.EmailLinkPage(
+	respond.Component(w, r, h.log, http.StatusOK, layouts.EmailLinkPage(
 		layouts.EmailLinkMeta(i18n.T(ctx, i18n.KeyNewsletterLeaveTitle)),
 		layouts.EmailLinkView{
 			Heading: i18n.T(ctx, i18n.KeyNewsletterLeaveTitle),
@@ -284,13 +284,13 @@ func unsubscribeToken(r *http.Request) (token string, oneClick bool, err error) 
 
 func (h *Handler) deadLink(w http.ResponseWriter, r *http.Request, body string, recovery layouts.EmailLinkRecovery) {
 	heading := i18n.T(r.Context(), i18n.KeyEmailLinkDeadTitle)
-	web.Render(w, r, h.log, http.StatusUnprocessableEntity, layouts.EmailLinkPage(
+	respond.Component(w, r, h.log, http.StatusUnprocessableEntity, layouts.EmailLinkPage(
 		layouts.EmailLinkMeta(heading),
 		layouts.EmailLinkView{Heading: heading, Body: body, Recovery: recovery}))
 }
 
 func (h *Handler) linkFailed(w http.ResponseWriter, r *http.Request, heading, body string) {
-	web.Render(w, r, h.log, http.StatusUnprocessableEntity, layouts.EmailLinkPage(
+	respond.Component(w, r, h.log, http.StatusUnprocessableEntity, layouts.EmailLinkPage(
 		layouts.EmailLinkMeta(heading),
 		layouts.EmailLinkView{Heading: heading, Body: body}))
 }
@@ -298,7 +298,7 @@ func (h *Handler) linkFailed(w http.ResponseWriter, r *http.Request, heading, bo
 // throttled: HTMX swaps the body into the footer form, so it must stay a form;
 // a plain request can stay text.
 func (h *Handler) throttled(w http.ResponseWriter, r *http.Request, addr string, retryAfter time.Duration) {
-	if web.IsHTMX(r) {
+	if respond.IsHTMX(r) {
 		ratelimit.SetRetryAfter(w, retryAfter)
 		h.fail(w, r, http.StatusTooManyRequests, addr, i18n.T(r.Context(), i18n.KeyTooManyRequests))
 		return
@@ -313,10 +313,10 @@ func (h *Handler) fail(w http.ResponseWriter, r *http.Request, status int, addr,
 	} else {
 		state.Notice = msg
 	}
-	if web.IsHTMX(r) {
-		web.Render(w, r, h.log, status, layouts.NewsletterForm(state))
+	if respond.IsHTMX(r) {
+		respond.Component(w, r, h.log, status, layouts.NewsletterForm(state))
 		return
 	}
 	title := i18n.T(r.Context(), i18n.KeyNewsletterFailed)
-	web.Render(w, r, h.log, status, layouts.Notice(layouts.Page{Title: title, Newsletter: state}, "", title, i18n.T(r.Context(), i18n.KeyNewsletterReviewForm)))
+	respond.Component(w, r, h.log, status, layouts.Notice(layouts.Page{Title: title, Newsletter: state}, "", title, i18n.T(r.Context(), i18n.KeyNewsletterReviewForm)))
 }
