@@ -21,7 +21,7 @@ import (
 
 	"github.com/koopa0/goen/internal/admin/admintest"
 	"github.com/koopa0/goen/internal/admin/coupons"
-	"github.com/koopa0/goen/internal/cart"
+	"github.com/koopa0/goen/internal/checkout"
 	"github.com/koopa0/goen/internal/coupon"
 	"github.com/koopa0/goen/internal/i18n"
 	"github.com/koopa0/goen/internal/order"
@@ -34,7 +34,7 @@ func TestCouponUsageReleasesCancelledOrdersAndRetainsTheirHistory(t *testing.T) 
 	ctx, _ := admintest.StaffContext(t, owner)
 	desk := coupons.NewStore(admintest.AdminRolePool(t, owner))
 	storefront := checkoutPool(t, owner)
-	checkout, customer := cart.NewStore(storefront), buyer.NewStore(storefront)
+	placement, customer := checkout.NewStore(storefront), buyer.NewStore(storefront)
 	code := "USAGE-" + strings.ToUpper(uuid.NewString()[:8])
 	errs, err := desk.CreateCoupon(ctx, &coupons.Form{
 		Code: code, Description: "One current checkout", Kind: coupon.Amount,
@@ -64,7 +64,7 @@ func TestCouponUsageReleasesCancelledOrdersAndRetainsTheirHistory(t *testing.T) 
 	assertCouponUsage(t, ctx, desk, mux, code, 0, 0)
 	for n := 1; n <= 3; n++ {
 		t.Run(fmt.Sprintf("checkout %d", n), func(t *testing.T) {
-			number := placeCouponOrder(t, checkout, variant, shipping, code)
+			number := placeCouponOrder(t, placement, variant, shipping, code)
 			var id uuid.UUID
 			var state order.FulfillmentStatus
 			if err := owner.QueryRow(ctx, `SELECT id,fulfillment_status FROM orders WHERE order_number=$1`, number).Scan(&id, &state); err != nil {
@@ -117,17 +117,17 @@ func checkoutPool(t *testing.T, owner *pgxpool.Pool) *pgxpool.Pool {
 	return p
 }
 
-func placeCouponOrder(t *testing.T, s *cart.Store, variant, shipping uuid.UUID, code string) string {
+func placeCouponOrder(t *testing.T, s *checkout.Store, variant, shipping uuid.UUID, code string) string {
 	t.Helper()
 	ctx := t.Context()
-	id, err := s.Create(ctx, uuid.NewString(), uuid.NullUUID{})
+	id, err := s.Carts().Create(ctx, uuid.NewString(), uuid.NullUUID{})
 	if err != nil {
 		t.Fatal(err)
 	}
-	if addErr := s.Add(ctx, id, variant, 1); addErr != nil {
+	if addErr := s.Carts().Add(ctx, id, variant, 1); addErr != nil {
 		t.Fatal(addErr)
 	}
-	view, err := s.View(ctx, id)
+	view, err := s.Carts().View(ctx, id)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -146,8 +146,8 @@ func placeCouponOrder(t *testing.T, s *cart.Store, variant, shipping uuid.UUID, 
 	if err != nil {
 		t.Fatal(err)
 	}
-	shown, err := (cart.CheckoutQuote{
-		CartID: id, Lines: []cart.CheckoutQuoteLine{{VariantID: variant, Quantity: 1, UnitCents: view.Lines[0].UnitCents}},
+	shown, err := (checkout.Quote{
+		CartID: id, Lines: []checkout.QuoteLine{{VariantID: variant, Quantity: 1, UnitCents: view.Lines[0].UnitCents}},
 		ShippingVersionID: shipping, ShippingCents: shippingCents, CouponCode: code, DiscountCents: 10000,
 	}).ID()
 	if err != nil {

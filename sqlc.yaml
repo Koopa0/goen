@@ -8,6 +8,7 @@ sql:
       - "internal/home/query.sql"
       - "internal/catalog/query.sql"
       - "internal/cart/query.sql"
+      - "internal/checkout/query.sql"
       - "internal/order/access/query.sql"
       - "internal/payment/query.sql"
       - "internal/order/buyer/query.sql"

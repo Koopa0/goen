@@ -17,7 +17,7 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 
 	"github.com/koopa0/goen/assets"
-	"github.com/koopa0/goen/internal/cart"
+	"github.com/koopa0/goen/internal/checkout"
 	"github.com/koopa0/goen/internal/payment"
 	"github.com/koopa0/goen/internal/shipping/storemap"
 )
@@ -27,10 +27,10 @@ import (
 // a constant added to a pattern must be added here, and storefrontPatterns
 // says so when it meets one it cannot resolve.
 var routeConstants = map[string]string{
-	"assets.Prefix":          assets.Prefix,
-	"storemap.ReturnPath":    storemap.ReturnPath,
-	"cart.PickupStartAction": cart.PickupStartAction,
-	"cart.PickupMapPath":     cart.PickupMapPath,
+	"assets.Prefix":              assets.Prefix,
+	"storemap.ReturnPath":        storemap.ReturnPath,
+	"checkout.PickupStartAction": checkout.PickupStartAction,
+	"checkout.PickupMapPath":     checkout.PickupMapPath,
 }
 
 // routeInventoryFloor is the fewest non-test files storefrontPatterns must have
@@ -55,7 +55,7 @@ const routeInventoryFloor = 380
 // A registration is a call of HandleFunc or Handle whose first argument is a
 // string literal "<METHOD> /…", or such a literal plus a constant that
 // routeConstants resolves ("GET "+assets.Prefix, or "POST "+PickupStartAction
-// inside cart). Any other first argument is
+// inside checkout). Any other first argument is
 // not a route, and the call is skipped: the outbox's Store.Handle names a topic.
 // A pattern whose path begins with /admin is a back-office route and is skipped.
 func storefrontPatterns(t *testing.T) []string {
@@ -119,8 +119,8 @@ func storefrontPatterns(t *testing.T) []string {
 
 // routePattern returns the pattern a HandleFunc or Handle call in package pkg
 // registers, or false when the call is not a route registration. A constant
-// named without a qualifier is pkg's own, so cart's "POST "+PickupStartAction
-// resolves as cart.PickupStartAction does in any other package.
+// named without a qualifier is pkg's own, so checkout's "POST "+PickupStartAction
+// resolves as checkout.PickupStartAction does in any other package.
 func routePattern(t *testing.T, fset *token.FileSet, pkg string, call *ast.CallExpr) (string, bool) {
 	t.Helper()
 

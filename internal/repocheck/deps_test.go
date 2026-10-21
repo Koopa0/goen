@@ -81,7 +81,7 @@ var (
 	// (shared infrastructure). It matches exactly, not by prefix:
 	// internal/cart/cartitem is a vocabulary leaf, not a page.
 	storefrontPages = []string{
-		"internal/account", "internal/auth", "internal/cart", "internal/catalog", "internal/home",
+		"internal/account", "internal/auth", "internal/cart", "internal/catalog", "internal/checkout", "internal/home",
 		"internal/newsletter", "internal/policy", "internal/site",
 	}
 	// siteMayImport is what internal/site may import besides itself and the
@@ -212,11 +212,12 @@ var depsRules = []importRule{
 		reason: "only cmd/goen composes and sends mail; a feature enqueues an outbox payload instead",
 	},
 	{
-		name: "cart and account",
+		name: "cart, checkout and account",
 		forbid: func(from, to string) bool {
-			return under(from, "internal/cart") && (under(to, "internal/account") || under(to, "internal/auth"))
+			return (under(from, "internal/cart") || under(from, "internal/checkout")) &&
+				(under(to, "internal/account") || under(to, "internal/auth"))
 		},
-		reason: "the cart does not depend on the account feature or on sign-in",
+		reason: "the cart and the checkout do not depend on the account feature or on sign-in",
 	},
 	{
 		name: "back office and account",
@@ -251,7 +252,7 @@ var depsRules = []importRule{
 			return under(from, "internal/shipping/storemap") && !slices.Contains(storemapMayImport, to)
 		},
 		reason: "ECPay's store map holds no cart, order or session, so it imports no goen feature; " +
-			"the checkout imports it, never the other way round",
+			"the cart and the checkout import it, never the other way round",
 	},
 	{
 		name: "foundation",

@@ -362,7 +362,7 @@ func recordStaffCancellation(
 }
 
 // cancelCreditPaid does what the customer's own cancellation does
-// (internal/cart), as staff: the order is cancelled, its stock released, its
+// (internal/order/buyer), as staff: the order is cancelled, its stock released, its
 // credit spend reversed and its 統一發票 void queued.
 func (s *Store) cancelCreditPaid(ctx context.Context, number, reason string, actor uuid.NullUUID) ([]string, error) {
 	note := strings.TrimSpace(reason)

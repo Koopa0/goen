@@ -11,7 +11,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/koopa0/goen/internal/cart"
 	"github.com/koopa0/goen/internal/payment"
 )
 
@@ -95,8 +94,8 @@ func TestTheReturnWindowsAreNamedOnceInTheSchema(t *testing.T) {
 }
 
 // TestTheCheckoutWindowsAreTheOnesTheStorefrontEnforces holds every Go copy of
-// the checkout windows to the schema's: the hold the cart asks hold_inventory
-// for, the cart's pay window, and the payment page's admission rule, which
+// the checkout windows to the schema's: the hold the checkout asks
+// hold_inventory for, the pay window, and the payment page's admission rule, which
 // leaves Stripe its session floor out of the hold. The FAQ seed types both
 // numbers, so it is held here too.
 func TestTheCheckoutWindowsAreTheOnesTheStorefrontEnforces(t *testing.T) {
@@ -110,11 +109,11 @@ func TestTheCheckoutWindowsAreTheOnesTheStorefrontEnforces(t *testing.T) {
 	}
 	holdFor, payFor := time.Duration(hold)*time.Minute, time.Duration(payStart)*time.Minute
 
-	if cart.HoldTTL != holdFor {
-		t.Errorf("cart.holdTTL = %s, checkout_hold_minutes() = %s", cart.HoldTTL, holdFor)
+	if payment.HoldTTL != holdFor {
+		t.Errorf("payment.HoldTTL = %s, checkout_hold_minutes() = %s", payment.HoldTTL, holdFor)
 	}
-	if cart.PayWindow != payFor {
-		t.Errorf("cart.payWindow = %s, checkout_pay_start_minutes() = %s", cart.PayWindow, payFor)
+	if payment.PayWindow != payFor {
+		t.Errorf("payment.PayWindow = %s, checkout_pay_start_minutes() = %s", payment.PayWindow, payFor)
 	}
 	placed := time.Date(2026, 10, 2, 9, 0, 0, 0, time.UTC)
 	if got := payment.StartBy(placed.Add(holdFor)).Sub(placed); got != payFor {

@@ -29,6 +29,7 @@ import (
 	"github.com/koopa0/goen/internal/auth/google"
 	"github.com/koopa0/goen/internal/backinstock"
 	"github.com/koopa0/goen/internal/cart"
+	"github.com/koopa0/goen/internal/checkout"
 	"github.com/koopa0/goen/internal/copurchase"
 	"github.com/koopa0/goen/internal/invoice/issuer"
 	"github.com/koopa0/goen/internal/letter"
@@ -892,8 +893,9 @@ func startWorkers(ctx context.Context, d workerDeps) {
 
 	holds := lapse.NewSweeper(d.pool)
 	carts := cart.NewStore(d.pool)
+	checkouts := checkout.NewStore(d.pool)
 	d.run(func() { holds.SweepForever(ctx, d.log) })
-	d.run(func() { carts.SweepAttemptsForever(ctx, d.log) })
+	d.run(func() { checkouts.SweepAttemptsForever(ctx, d.log) })
 	d.run(func() { access.NewStore(d.pool, false).SweepForever(ctx, d.log) })
 	// Before the hold sweeper can cancel a lapsed order, its checkout must be
 	// closed: by Stripe's event, or by this sweeper asking Stripe when the event
@@ -903,7 +905,7 @@ func startWorkers(ctx context.Context, d workerDeps) {
 			payment.NewSessionSweeper(payment.NewStore(d.pool), d.payments).SweepForever(ctx, d.log)
 		})
 	}
-	d.run(func() { carts.SweepDraftsForever(ctx, d.log) })
+	d.run(func() { checkouts.SweepDraftsForever(ctx, d.log) })
 	d.run(func() { carts.SweepGuestCartsForever(ctx, d.log) })
 	d.run(func() { newsletter.NewStore(d.pool).SweepConfirmationsForever(ctx, d.log) })
 

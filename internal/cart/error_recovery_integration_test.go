@@ -29,7 +29,7 @@ func TestSignedInGuestOrderAccessOffersLookupWithoutSignIn(t *testing.T) {
 	appPool := storeRolePool(t)
 	grants := access.NewStore(appPool, false)
 	log := slog.New(slog.DiscardHandler)
-	basket := cart.NewHandler(cart.NewStore(appPool), grants, log, false, nil, nil)
+	basket := cart.NewHandler(cart.NewStore(appPool), grants, log, false, nil)
 	gateway, err := payment.NewGateway("", "", "http://goen.example")
 	if err != nil {
 		t.Fatal(err)

@@ -186,7 +186,7 @@ func TestRegistrationWelcomePreservesFailedCartAdoptionForRetry(t *testing.T) {
 	if _, err := blocker.Exec(ctx, `SELECT 1 FROM carts WHERE id = $1 FOR UPDATE`, guestCart); err != nil {
 		t.Fatal(err)
 	}
-	carts := cart.NewHandler(cart.NewStore(appPool), access.NewStore(appPool, false), slog.New(slog.DiscardHandler), false, nil, nil)
+	carts := cart.NewHandler(cart.NewStore(appPool), access.NewStore(appPool, false), slog.New(slog.DiscardHandler), false, nil)
 	h := auth.NewHandler(s, carts, access.NewStore(appPool, false), slog.New(slog.DiscardHandler), false, nil)
 	h.Register(httptest.NewRecorder(), registrationForm(ctx, addr, cartOwnerPassword, "/checkout"))
 	statements.takeErrors()
@@ -327,7 +327,7 @@ func TestARegistrationIsUsableOnlyOnceItsLinkIsFollowed(t *testing.T) {
 	appPool := accountStorePool(t, "registration-link")
 	s := auth.NewStore(appPool)
 	carts := cart.NewHandler(cart.NewStore(appPool), access.NewStore(appPool, false), slog.New(slog.DiscardHandler), false,
-		nil, nil)
+		nil)
 	h := auth.NewHandler(s, carts, access.NewStore(appPool, false), slog.New(slog.DiscardHandler), false, nil)
 	addr := "register-link-" + uuid.NewString() + "@example.com"
 	const password = "a sufficiently long password"

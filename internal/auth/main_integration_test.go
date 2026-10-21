@@ -21,7 +21,7 @@ import (
 
 	"github.com/koopa0/goen/internal/account"
 	"github.com/koopa0/goen/internal/auth"
-	"github.com/koopa0/goen/internal/cart"
+	"github.com/koopa0/goen/internal/checkout"
 	"github.com/koopa0/goen/internal/db/dbtest"
 	"github.com/koopa0/goen/internal/outbox"
 	"github.com/koopa0/goen/internal/user"
@@ -195,14 +195,14 @@ func operationResult(t *testing.T, done <-chan error) error {
 
 func accountCheckoutQuote(
 	t *testing.T,
-	s *cart.Store,
+	s *checkout.Store,
 	cartID uuid.UUID,
 	owner uuid.NullUUID,
 	shippingID uuid.UUID,
 	postalCode string,
-) cart.CheckoutQuoteID {
+) checkout.QuoteID {
 	t.Helper()
-	view, err := s.View(t.Context(), cartID)
+	view, err := s.Carts().View(t.Context(), cartID)
 	if err != nil {
 		t.Fatalf("read account checkout cart: %v", err)
 	}
@@ -214,14 +214,14 @@ func accountCheckoutQuote(
 	if err != nil {
 		t.Fatalf("read account checkout credit: %v", err)
 	}
-	lines := make([]cart.CheckoutQuoteLine, 0, len(view.Lines))
+	lines := make([]checkout.QuoteLine, 0, len(view.Lines))
 	for i := range view.Lines {
 		line := &view.Lines[i]
 		variantID, parseErr := uuid.Parse(line.VariantID)
 		if parseErr != nil {
 			t.Fatalf("parse account checkout variant: %v", parseErr)
 		}
-		lines = append(lines, cart.CheckoutQuoteLine{
+		lines = append(lines, checkout.QuoteLine{
 			VariantID: variantID, Quantity: line.Quantity, UnitCents: line.UnitCents,
 		})
 	}
@@ -229,7 +229,7 @@ func accountCheckoutQuote(
 	if err != nil {
 		t.Fatalf("total account checkout shipping: %v", err)
 	}
-	id, err := (cart.CheckoutQuote{
+	id, err := (checkout.Quote{
 		CartID: cartID, Lines: lines,
 		ShippingVersionID: shippingID, ShippingCents: shipping,
 		CreditCents: min(balance, view.SubtotalCents+shipping),

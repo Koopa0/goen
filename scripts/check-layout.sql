@@ -326,7 +326,7 @@ FROM (VALUES (:'placed_id'::uuid, :'variant_id'::uuid, 1, 0),
 JOIN product_variants pv ON pv.id = l.variant_id
 JOIN products p ON p.id = pv.product_id;
 
--- Checkout's whole hold window (cart.holdTTL): a shorter one renders the pay
+-- Checkout's whole hold window (payment.HoldTTL): a shorter one renders the pay
 -- page's window-closed state, which carries the same marker.
 SELECT hold_inventory(order_id, variant_id, quantity, make_interval(mins => checkout_hold_minutes()),
                       'hold:' || order_id || ':' || variant_id)
