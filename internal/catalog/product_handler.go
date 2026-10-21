@@ -68,15 +68,15 @@ func (h *Handler) productNotFound(w http.ResponseWriter, r *http.Request) {
 		i18n.T(r.Context(), i18n.KeyProductNotFoundBody)))
 }
 
-// ProductFormPage is the product page a refused review or question form
-// re-rendered under: those POST-only addresses have no page of their own to
-// return to.
+// ProductFormPage is the product page a refused review, question or restock
+// notice form re-rendered under: those POST-only addresses have no page of
+// their own to return to.
 func ProductFormPage(path string) (string, bool) {
 	rest, ok := strings.CutPrefix(path, "/p/")
 	if !ok {
 		return "", false
 	}
-	for _, form := range []string{"/reviews", "/questions"} {
+	for _, form := range []string{"/reviews", "/questions", "/notify"} {
 		if slug, ok := strings.CutSuffix(rest, form); ok && web.ValidSlug(slug) {
 			return "/p/" + slug, true
 		}

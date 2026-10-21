@@ -632,6 +632,7 @@ func TestLocaleReturnPathKeepsTheQuery(t *testing.T) {
 		{name: "product keeps the chosen options", raw: "/p/aurora-slate?%E9%A1%8F%E8%89%B2=%E9%8A%80", want: "/p/aurora-slate?%E9%A1%8F%E8%89%B2=%E9%8A%80"},
 		{name: "refused review returns to the product", raw: "/p/koto-over-ear/reviews", want: "/p/koto-over-ear"},
 		{name: "refused question returns to the product", raw: "/p/koto-over-ear/questions", want: "/p/koto-over-ear"},
+		{name: "refused restock notice returns to the product", raw: "/p/koto-pad-mini/notify", want: "/p/koto-pad-mini"},
 		{name: "a bad slug under reviews is left alone", raw: "/p/BAD_SLUG/reviews", want: "/p/BAD_SLUG/reviews"},
 		{name: "compare keeps its products", raw: "/compare?p=aurora-charger-65&p=aurora-edge-7", want: "/compare?p=aurora-charger-65&p=aurora-edge-7"},
 	}
