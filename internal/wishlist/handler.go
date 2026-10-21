@@ -10,6 +10,7 @@ import (
 	"github.com/koopa0/goen/internal/ui/layouts"
 	"github.com/koopa0/goen/internal/user"
 	"github.com/koopa0/goen/internal/web"
+	"github.com/koopa0/goen/internal/web/siteurl"
 )
 
 // Handler serves the wishlist to the signed-in customer only: a visitor
@@ -58,15 +59,15 @@ func (h *Handler) Update(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "400 "+i18n.T(r.Context(), i18n.KeyFormUnreadable), http.StatusBadRequest)
 		return
 	}
-	// web.SitePathOr refuses anything but a same-site path, which makes a
+	// siteurl.PathOr refuses anything but a same-site path, which makes a
 	// redirect target read off a form safe.
-	back := web.SitePathOr(r.PostFormValue("return"), "/account/wishlist")
+	back := siteurl.PathOr(r.PostFormValue("return"), "/account/wishlist")
 
 	u, ok := user.FromContext(r.Context())
 	if !ok {
 		// Authentication does not replay writes; this redirect only preserves
 		// the page for callers outside the authenticated route wrapper.
-		//nolint:gosec // G710: the fixed /signin path; back, bounded by web.SitePathOr above, is only its escaped query
+		//nolint:gosec // G710: the fixed /signin path; back, bounded by siteurl.PathOr above, is only its escaped query
 		http.Redirect(w, r, auth.SignInPath(back), http.StatusSeeOther)
 		return
 	}
@@ -83,7 +84,7 @@ func (h *Handler) Update(w http.ResponseWriter, r *http.Request) {
 		h.serverError(w, r)
 		return
 	}
-	http.Redirect(w, r, back, http.StatusSeeOther) //nolint:gosec // G710: bounded by web.SitePathOr
+	http.Redirect(w, r, back, http.StatusSeeOther) //nolint:gosec // G710: bounded by siteurl.PathOr
 }
 
 func (h *Handler) serverError(w http.ResponseWriter, r *http.Request) {

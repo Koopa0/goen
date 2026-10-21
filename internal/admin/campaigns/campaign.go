@@ -22,6 +22,7 @@ import (
 	"github.com/koopa0/goen/internal/shoptime"
 	"github.com/koopa0/goen/internal/ui/components"
 	"github.com/koopa0/goen/internal/web"
+	"github.com/koopa0/goen/internal/web/siteurl"
 )
 
 var (
@@ -71,7 +72,7 @@ func (f *Form) Validate(ctx context.Context) map[string]string {
 	f.TitleEn = strings.TrimSpace(f.TitleEn)
 
 	errs := map[string]string{}
-	if !web.ValidSlug(f.Slug) {
+	if !siteurl.ValidSlug(f.Slug) {
 		errs["slug"] = i18n.T(ctx, i18n.KeyFormSlugFormat)
 	}
 	if f.Title == "" || utf8.RuneCountInString(f.Title) > MaxTitleRunes {

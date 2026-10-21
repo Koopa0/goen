@@ -17,6 +17,7 @@ import (
 	"github.com/koopa0/goen/internal/money"
 	"github.com/koopa0/goen/internal/ui/layouts"
 	"github.com/koopa0/goen/internal/web"
+	"github.com/koopa0/goen/internal/web/siteurl"
 )
 
 // dismissCookie holds a digest of the banner's id, never the id, because it
@@ -50,7 +51,7 @@ func (s *Store) Banner(ctx context.Context, dismissed string) (layouts.Banner, e
 	}
 
 	// Typed by a person and rendered into an href at the top of every page.
-	href, ok := web.SitePath(row.CtaHref)
+	href, ok := siteurl.Path(row.CtaHref)
 	if !ok {
 		href = ""
 	}
@@ -109,8 +110,8 @@ func (h *Handler) DismissBanner(w http.ResponseWriter, r *http.Request) {
 	if id := r.PostFormValue("banner"); id != "" {
 		writeDismissal(w, id, h.secure)
 	}
-	//nolint:gosec // G710: web.SitePathOr accepts only a same-site path
-	http.Redirect(w, r, web.SitePathOr(r.PostFormValue("return"), "/"), http.StatusSeeOther)
+	//nolint:gosec // G710: siteurl.PathOr accepts only a same-site path
+	http.Redirect(w, r, siteurl.PathOr(r.PostFormValue("return"), "/"), http.StatusSeeOther)
 }
 
 // WithBanner attaches the promotional strip to the request. Not cached,
