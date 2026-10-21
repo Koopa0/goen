@@ -12,7 +12,7 @@ import (
 	"github.com/koopa0/goen/internal/catalog"
 	"github.com/koopa0/goen/internal/i18n"
 	"github.com/koopa0/goen/internal/ui/layouts"
-	"github.com/koopa0/goen/internal/ui/pages"
+	"github.com/koopa0/goen/internal/ui/tile"
 )
 
 // 12:00 on 2 October 2026 in Taipei.
@@ -34,7 +34,7 @@ func renderCampaign(t *testing.T, startsAt, endsAt time.Time) string {
 	t.Helper()
 	ctx := i18n.WithLocale(t.Context(), i18n.ZhHant)
 	return renderComponent(t, ctx, catalog.Campaign(layouts.Page{Title: "c"}, catalog.CampaignView{
-		Slug: "c", Title: "秋日選物", Products: []pages.ProductTile{{Slug: "p", Name: "茶壺", PriceCents: 80000, InStock: true}},
+		Slug: "c", Title: "秋日選物", Products: []tile.Tile{{Slug: "p", Name: "茶壺", PriceCents: 80000, InStock: true}},
 		Schedule: campaign.NewSchedule(ctx, "秋日選物", 1, startsAt, endsAt, scheduleNow),
 	}))
 }

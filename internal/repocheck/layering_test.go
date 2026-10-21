@@ -27,6 +27,12 @@ import (
 //   - storeMethodsNamingViews: a method on a type named *Store whose signature
 //     selects from a view import, counted per file.
 //
+// A view import is internal/ui/pages or below it, nothing else under
+// internal/ui: a store that builds a value of a ui element package, such as
+// components.Photo or tile.Tile, is not counted. The entries the product
+// tile's move to internal/ui/tile removed were reclassified that way, not
+// decoupled.
+//
 // The consumer is task series T42-T53, which lowers these lists until
 // internal/ui/pages is deleted, at which point the lists become hard rules.
 //
@@ -59,7 +65,6 @@ var viewPackageImporters = []string{
 	"internal/checkout",
 	"internal/home",
 	"internal/order/buyer",
-	"internal/wishlist",
 }
 
 var dataFilesNamingViews = []string{
@@ -69,24 +74,15 @@ var dataFilesNamingViews = []string{
 	"internal/admin/orders/timeline.go",
 	"internal/admin/reports/store.go",
 	"internal/cart/store.go",
-	"internal/catalog/campaign.go",
-	"internal/catalog/compare.go",
-	"internal/catalog/department.go",
 	"internal/catalog/product_store.go",
-	"internal/catalog/store.go",
 	"internal/checkout/outbox.go",
 	"internal/home/store.go",
 	"internal/order/buyer/order.go",
-	"internal/wishlist/store.go",
 }
 
 var storeMethodsNamingViews = map[string]int{
-	"internal/catalog/compare.go":       1,
-	"internal/catalog/department.go":    1,
-	"internal/catalog/product_store.go": 1,
-	"internal/catalog/store.go":         1,
-	"internal/home/store.go":            5,
-	"internal/order/buyer/order.go":     1,
+	"internal/home/store.go":        4,
+	"internal/order/buyer/order.go": 1,
 }
 
 const (

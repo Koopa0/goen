@@ -14,6 +14,7 @@ import (
 	"github.com/koopa0/goen/internal/ratelimit"
 	"github.com/koopa0/goen/internal/ui/layouts"
 	"github.com/koopa0/goen/internal/ui/pages"
+	"github.com/koopa0/goen/internal/ui/tile"
 	"github.com/koopa0/goen/internal/web"
 )
 
@@ -284,7 +285,7 @@ func (h *Handler) Compare(w http.ResponseWriter, r *http.Request) {
 		}, view))
 }
 
-func compareCandidates(found []pages.ProductTile, view CompareView) []CompareCandidate {
+func compareCandidates(found []tile.Tile, view CompareView) []CompareCandidate {
 	out := make([]CompareCandidate, 0, len(found))
 	for i := range found {
 		if slices.ContainsFunc(view.Products, func(p CompareProduct) bool { return p.Slug == found[i].Slug }) {

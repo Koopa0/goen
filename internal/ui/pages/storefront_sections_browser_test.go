@@ -19,6 +19,7 @@ import (
 	"github.com/koopa0/goen/internal/ui/components"
 	"github.com/koopa0/goen/internal/ui/layouts"
 	"github.com/koopa0/goen/internal/ui/pages"
+	"github.com/koopa0/goen/internal/ui/tile"
 	"github.com/koopa0/goen/internal/ui/uitest"
 )
 
@@ -61,7 +62,7 @@ func TestStorefrontSectionsAsDrawn(t *testing.T) {
 		if tone, ok := tones[r.URL.Query().Get("band")]; ok {
 			view.Band = &pages.DepartmentBand{Name: "Technology", Items: 12, Fact: "Audio · Phones", Href: "/c/tech", Tone: tone}
 			for _, name := range []string{"Canvas tote", "City tote", "Weekend tote", "Market tote"} {
-				view.Band.Tiles = append(view.Band.Tiles, pages.ProductTile{Slug: strings.ToLower(strings.ReplaceAll(name, " ", "-")), Name: name, PriceCents: 89000, InStock: true})
+				view.Band.Tiles = append(view.Band.Tiles, tile.Tile{Slug: strings.ToLower(strings.ReplaceAll(name, " ", "-")), Name: name, PriceCents: 89000, InStock: true})
 			}
 		}
 		w.Header().Set("Content-Type", "text/html; charset=utf-8")
@@ -80,7 +81,7 @@ func TestStorefrontSectionsAsDrawn(t *testing.T) {
 		}
 	})
 	mux.HandleFunc("GET /search", func(w http.ResponseWriter, r *http.Request) {
-		view := catalog.SearchView{Query: "tote", Total: 2, Page: 1, PageSize: 20, Products: []pages.ProductTile{
+		view := catalog.SearchView{Query: "tote", Total: 2, Page: 1, PageSize: 20, Products: []tile.Tile{
 			{Slug: "canvas-tote", Name: "Canvas tote", PriceCents: 89000, InStock: true, Comparable: true},
 			{Slug: "city-tote", Name: "City tote", PriceCents: 129000, InStock: true, Comparable: true},
 		}}

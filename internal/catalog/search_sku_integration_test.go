@@ -15,7 +15,7 @@ import (
 	"github.com/jackc/pgx/v5"
 
 	"github.com/koopa0/goen/internal/catalog"
-	"github.com/koopa0/goen/internal/ui/pages"
+	"github.com/koopa0/goen/internal/ui/tile"
 )
 
 // skuFixture is one product the SKU search may or may not return.
@@ -91,7 +91,7 @@ func TestSearchSKUsRankAndPaginateWithoutDuplicateProducts(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	for _, page := range [][]pages.ProductTile{first.Products, second.Products} {
+	for _, page := range [][]tile.Tile{first.Products, second.Products} {
 		for _, product := range page {
 			switch product.Slug {
 			case privateSlug:
@@ -189,7 +189,7 @@ func TestRetiredVariantsNeverLiftARankedSKUMatch(t *testing.T) {
 	}
 }
 
-func skuResultSlugs(products []pages.ProductTile) []string {
+func skuResultSlugs(products []tile.Tile) []string {
 	out := make([]string, 0, len(products))
 	for i := range products {
 		out = append(out, products[i].Slug)

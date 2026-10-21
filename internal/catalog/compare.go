@@ -12,7 +12,7 @@ import (
 	"github.com/koopa0/goen/internal/campaign"
 	"github.com/koopa0/goen/internal/db"
 	"github.com/koopa0/goen/internal/i18n"
-	"github.com/koopa0/goen/internal/ui/pages"
+	"github.com/koopa0/goen/internal/ui/tile"
 )
 
 // Compare drops a slug naming no active product rather than refusing it.
@@ -113,7 +113,7 @@ func (s *Store) withStart(ctx context.Context, view CompareView) (CompareView, e
 	return view, nil
 }
 
-func (s *Store) compareSuggestions(ctx context.Context, anchor *CompareProduct, chosen []string) ([]pages.ProductTile, error) {
+func (s *Store) compareSuggestions(ctx context.Context, anchor *CompareProduct, chosen []string) ([]tile.Tile, error) {
 	rows, err := s.q.CompareSuggestions(ctx, db.CompareSuggestionsParams{
 		Locale:       string(i18n.FromContext(ctx)),
 		ProductSlug:  anchor.Slug,
@@ -127,12 +127,12 @@ func (s *Store) compareSuggestions(ctx context.Context, anchor *CompareProduct, 
 	return suggestionTiles(rows), nil
 }
 
-func suggestionTiles(rows []db.CompareSuggestionsRow) []pages.ProductTile {
-	out := make([]pages.ProductTile, 0, len(rows))
+func suggestionTiles(rows []db.CompareSuggestionsRow) []tile.Tile {
+	out := make([]tile.Tile, 0, len(rows))
 	for i := range rows {
 		r := &rows[i]
 		photo := assets.Image{Digest: r.ImageDigest, BundledKey: r.ImageBundledKey, Width: int(r.ImageWidth)}
-		out = append(out, pages.ProductTile{
+		out = append(out, tile.Tile{
 			Slug: r.Slug, Name: r.Name, Brand: r.Brand,
 			PriceCents: r.MinPriceCents, PriceVaries: r.PriceVaries,
 			ImageURL:    photo.URL(),

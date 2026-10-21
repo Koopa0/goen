@@ -1,6 +1,10 @@
 package pages
 
-import "strconv"
+import (
+	"strconv"
+
+	"github.com/koopa0/goen/internal/money"
+)
 
 type CartLine struct {
 	VariantID    string
@@ -23,9 +27,9 @@ type CartLine struct {
 	ImageAlt    string
 }
 
-func (l CartLine) UnitPrice() string { return twd(l.UnitCents) }
+func (l CartLine) UnitPrice() string { return money.TWD(l.UnitCents) }
 
-func (l CartLine) LineTotal() string { return twd(l.UnitCents * int64(l.effectiveQuantity())) }
+func (l CartLine) LineTotal() string { return money.TWD(l.UnitCents * int64(l.effectiveQuantity())) }
 
 func (l CartLine) effectiveQuantity() int32 {
 	if l.Unavailable {

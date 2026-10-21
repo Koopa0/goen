@@ -7,25 +7,25 @@ import (
 	"github.com/koopa0/goen/internal/i18n"
 	"github.com/koopa0/goen/internal/ui/components"
 	"github.com/koopa0/goen/internal/ui/layouts"
-	"github.com/koopa0/goen/internal/ui/pages"
+	"github.com/koopa0/goen/internal/ui/tile"
 )
 
 func TestBandPhotoFallsBackToTheFirstProductThenToNothing(t *testing.T) {
 	t.Parallel()
 
 	own := components.Photo{URL: "/dept.webp"}
-	first := pages.ProductTile{ImageURL: "/first.webp", ImageSrcset: "/first-400.webp 400w", ImageAlt: "first"}
-	second := pages.ProductTile{ImageURL: "/second.webp"}
+	first := tile.Tile{ImageURL: "/first.webp", ImageSrcset: "/first-400.webp 400w", ImageAlt: "first"}
+	second := tile.Tile{ImageURL: "/second.webp"}
 
 	for name, tt := range map[string]struct {
 		department components.Photo
-		products   []pages.ProductTile
+		products   []tile.Tile
 		wantURL    string
 		wantWell   bool
 	}{
-		"department photograph":   {own, []pages.ProductTile{first}, "/dept.webp", false},
-		"first product on a well": {components.Photo{}, []pages.ProductTile{first, second}, "/first.webp", true},
-		"first product has none":  {components.Photo{}, []pages.ProductTile{{}, second}, "", false},
+		"department photograph":   {own, []tile.Tile{first}, "/dept.webp", false},
+		"first product on a well": {components.Photo{}, []tile.Tile{first, second}, "/first.webp", true},
+		"first product has none":  {components.Photo{}, []tile.Tile{{}, second}, "", false},
 		"no products":             {components.Photo{}, nil, "", false},
 	} {
 		got, onWell := bandPhoto(tt.department, tt.products)
@@ -60,7 +60,7 @@ func TestADepartmentHeadWithNoPhotographAndNoProductDrawsNone(t *testing.T) {
 	if strings.Contains(page, "goen-pagehead__photo") {
 		t.Error("a head with neither a department nor a product photograph drew an image")
 	}
-	withProduct := renderComponent(t, ctx, Listing(layouts.Page{}, ListingView{Slug: "c", Name: "Books", Products: []pages.ProductTile{{Slug: "p", Name: "P", ImageURL: "/p.webp"}}}, nil, nil))
+	withProduct := renderComponent(t, ctx, Listing(layouts.Page{}, ListingView{Slug: "c", Name: "Books", Products: []tile.Tile{{Slug: "p", Name: "P", ImageURL: "/p.webp"}}}, nil, nil))
 	if !strings.Contains(withProduct, `class="goen-band__media goen-band__media--well"`) {
 		t.Error("a head with no department photograph did not take its first product's, on the well")
 	}

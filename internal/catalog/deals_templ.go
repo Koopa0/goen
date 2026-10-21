@@ -15,7 +15,7 @@ import (
 	"github.com/koopa0/goen/internal/i18n"
 	"github.com/koopa0/goen/internal/ui/components"
 	"github.com/koopa0/goen/internal/ui/layouts"
-	"github.com/koopa0/goen/internal/ui/pages"
+	"github.com/koopa0/goen/internal/ui/tile"
 )
 
 func DealsMeta(ctx context.Context) layouts.Page {
@@ -159,8 +159,8 @@ func Deals(p layouts.Page, v SearchView) templ.Component {
 				if templ_7745c5c3_Err != nil {
 					return templ_7745c5c3_Err
 				}
-				for _, t := range pages.FirstRowEager(v.Products) {
-					templ_7745c5c3_Err = pages.Tile(t).Render(ctx, templ_7745c5c3_Buffer)
+				for _, t := range tile.FirstRowEager(v.Products) {
+					templ_7745c5c3_Err = tile.Cell(t).Render(ctx, templ_7745c5c3_Buffer)
 					if templ_7745c5c3_Err != nil {
 						return templ_7745c5c3_Err
 					}

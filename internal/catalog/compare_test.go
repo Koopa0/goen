@@ -6,7 +6,7 @@ import (
 	"github.com/google/uuid"
 
 	"github.com/koopa0/goen/internal/db"
-	"github.com/koopa0/goen/internal/ui/pages"
+	"github.com/koopa0/goen/internal/ui/tile"
 )
 
 func TestNormaliseSlugsBoundsAndReportsWhatItDropped(t *testing.T) {
@@ -26,7 +26,7 @@ func TestNormaliseSlugsBoundsAndReportsWhatItDropped(t *testing.T) {
 func TestThePickerOffersOnlyProductsNotAlreadyCompared(t *testing.T) {
 	t.Parallel()
 	view := CompareView{Products: []CompareProduct{{Slug: "a"}, {Slug: "b"}}}
-	found := []pages.ProductTile{{Slug: "a", Name: "A"}, {Slug: "c", Name: "C", Brand: "B"}}
+	found := []tile.Tile{{Slug: "a", Name: "A"}, {Slug: "c", Name: "C", Brand: "B"}}
 	got := compareCandidates(found, view)
 	if len(got) != 1 || got[0].Slug != "c" || got[0].Name != "C" {
 		t.Errorf("candidates = %+v, want only c", got)
@@ -42,7 +42,7 @@ func TestATileCarriesTheBoxOnlyForACategoryThatOffersComparison(t *testing.T) {
 
 	listing := tiles([]db.CategoryListingRow{{Slug: "a", CategoryID: yes}, {Slug: "b", CategoryID: no}}, offers)
 	search := searchTiles([]db.SearchProductsRow{{Slug: "a", CategoryID: yes}, {Slug: "b", CategoryID: no}}, offers)
-	for name, got := range map[string][]pages.ProductTile{"listing": listing, "search": search} {
+	for name, got := range map[string][]tile.Tile{"listing": listing, "search": search} {
 		if len(got) != 2 || !got[0].Comparable || got[1].Comparable {
 			t.Errorf("%s: comparable = %v %v, want true false", name, got[0].Comparable, got[1].Comparable)
 		}

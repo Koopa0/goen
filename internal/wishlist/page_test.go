@@ -9,19 +9,19 @@ import (
 	"github.com/koopa0/goen/internal/cart/cartitem"
 	"github.com/koopa0/goen/internal/i18n"
 	"github.com/koopa0/goen/internal/ui/layouts"
-	"github.com/koopa0/goen/internal/ui/pages"
+	"github.com/koopa0/goen/internal/ui/tile"
 )
 
 // TestEachSavedProductIsOneWishlistListItem holds the wishlist grid against
-// nested list items. Tile emits li.goen-tile__cell; wrapping @Tile in another
+// nested list items. tile.Cell emits li.goen-tile__cell; wrapping @tile.Cell in another
 // li leaves an empty outer item and parks the remove form as a direct ul child.
 func TestEachSavedProductIsOneWishlistListItem(t *testing.T) {
 	t.Parallel()
 
 	view := View{
 		Products: []Item{
-			{ProductTile: pages.ProductTile{Slug: "pixelight-9-pro", Name: "Pixelight 9 Pro", Brand: "Pixelight", PriceCents: 3690000, InStock: true}},
-			{ProductTile: pages.ProductTile{Slug: "aurora-fold-2", Name: "Aurora Fold 2", Brand: "Aurora", PriceCents: 5990000, InStock: true}},
+			{Tile: tile.Tile{Slug: "pixelight-9-pro", Name: "Pixelight 9 Pro", Brand: "Pixelight", PriceCents: 3690000, InStock: true}},
+			{Tile: tile.Tile{Slug: "aurora-fold-2", Name: "Aurora Fold 2", Brand: "Aurora", PriceCents: 5990000, InStock: true}},
 		},
 	}
 	doc := parseWishlistHTML(t, view)
@@ -174,9 +174,9 @@ func TestAWishlistRowBuysOrSendsToTheProductAndStatesOnlySoldOut(t *testing.T) {
 
 	const variant = "7f0b6a3e-2c1d-4e5f-8a9b-0c1d2e3f4a5b"
 	view := View{Products: []Item{
-		{ProductTile: pages.ProductTile{Slug: "one-variant", Name: "One", InStock: true}, SoleVariantID: variant},
-		{ProductTile: pages.ProductTile{Slug: "many-variants", Name: "Many", InStock: true}},
-		{ProductTile: pages.ProductTile{Slug: "sold-out", Name: "Gone"}},
+		{Tile: tile.Tile{Slug: "one-variant", Name: "One", InStock: true}, SoleVariantID: variant},
+		{Tile: tile.Tile{Slug: "many-variants", Name: "Many", InStock: true}},
+		{Tile: tile.Tile{Slug: "sold-out", Name: "Gone"}},
 	}}
 	items := wishlistGrid(t, parseWishlistHTML(t, view))
 	if len(items) != 3 {
@@ -227,7 +227,7 @@ func TestAWishlistRowBuysOrSendsToTheProductAndStatesOnlySoldOut(t *testing.T) {
 func TestRemovingFromTheWishlistSwapsThePageInPlaceAndStillPosts(t *testing.T) {
 	t.Parallel()
 
-	items := wishlistGrid(t, parseWishlistHTML(t, View{Products: []Item{{ProductTile: pages.ProductTile{Slug: "a", Name: "A", InStock: true}}}}))
+	items := wishlistGrid(t, parseWishlistHTML(t, View{Products: []Item{{Tile: tile.Tile{Slug: "a", Name: "A", InStock: true}}}}))
 	form := findDescendant(items[0], func(n *html.Node) bool { return n.Data == "form" && hasClass(n, "goen-wish__remove") })
 	if form == nil {
 		t.Fatal("no remove form")
@@ -253,7 +253,7 @@ func nodeText(n *html.Node) string {
 
 func TestAddingFromTheWishlistStaysOnItAndSaysWhatHappened(t *testing.T) {
 	t.Parallel()
-	saved := Item{ProductTile: pages.ProductTile{Slug: "mug", Name: "Mug", PriceCents: 100, InStock: true}, SoleVariantID: "v1"}
+	saved := Item{Tile: tile.Tile{Slug: "mug", Name: "Mug", PriceCents: 100, InStock: true}, SoleVariantID: "v1"}
 	for _, tc := range []struct {
 		outcome cartitem.AddOutcome
 		want    i18n.Key
@@ -282,8 +282,8 @@ func TestNoSavedProductOffersAPrimaryButton(t *testing.T) {
 	t.Parallel()
 
 	view := View{Products: []Item{
-		{ProductTile: pages.ProductTile{Slug: "one-variant", Name: "One", InStock: true}, SoleVariantID: "7f0b6a3e-2c1d-4e5f-8a9b-0c1d2e3f4a5b"},
-		{ProductTile: pages.ProductTile{Slug: "many-variants", Name: "Many", InStock: true}},
+		{Tile: tile.Tile{Slug: "one-variant", Name: "One", InStock: true}, SoleVariantID: "7f0b6a3e-2c1d-4e5f-8a9b-0c1d2e3f4a5b"},
+		{Tile: tile.Tile{Slug: "many-variants", Name: "Many", InStock: true}},
 	}}
 	for i, item := range wishlistGrid(t, parseWishlistHTML(t, view)) {
 		if findDescendant(item, func(n *html.Node) bool { return hasClass(n, "goen-btn--primary") }) != nil {

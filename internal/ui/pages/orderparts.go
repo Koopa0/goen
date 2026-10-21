@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/koopa0/goen/internal/i18n"
+	"github.com/koopa0/goen/internal/money"
 	"github.com/koopa0/goen/internal/order"
 	"github.com/koopa0/goen/internal/shipping"
 	"github.com/koopa0/goen/internal/shoptime"
@@ -101,9 +102,9 @@ type OrderLine struct {
 
 func (l OrderLine) HasImage() bool { return l.ImageURL != "" }
 
-func (l OrderLine) UnitPrice() string { return twd(l.UnitCents) }
+func (l OrderLine) UnitPrice() string { return money.TWD(l.UnitCents) }
 
-func (l OrderLine) LineTotal() string { return twd(l.UnitCents * int64(l.Quantity)) }
+func (l OrderLine) LineTotal() string { return money.TWD(l.UnitCents * int64(l.Quantity)) }
 
 func (l OrderLine) QuantityText() string { return strconv.FormatInt(int64(l.Quantity), 10) }
 

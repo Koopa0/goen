@@ -6,7 +6,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/koopa0/goen/internal/ui/pages"
+	"github.com/koopa0/goen/internal/ui/tile"
 )
 
 // The image helpers of ui/pages' imageloading_test.go, which the moved department
@@ -31,11 +31,11 @@ func assertEveryImageReservesItsBox(t *testing.T, page string) {
 	}
 }
 
-func tiledShelf(n int) []pages.ProductTile {
-	tiles := make([]pages.ProductTile, 0, n)
+func tiledShelf(n int) []tile.Tile {
+	tiles := make([]tile.Tile, 0, n)
 	for i := range n {
 		slug := fmt.Sprintf("p%d", i)
-		tiles = append(tiles, pages.ProductTile{
+		tiles = append(tiles, tile.Tile{
 			Slug: slug, Name: slug, PriceCents: 1000, InStock: true,
 			ImageURL: "/img/" + slug + ".webp", ImageAlt: slug, ImageWidth: 1600, ImageHeight: 1200,
 		})
