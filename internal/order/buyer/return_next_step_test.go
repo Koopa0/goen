@@ -10,7 +10,7 @@ import (
 	nethtml "golang.org/x/net/html"
 
 	"github.com/koopa0/goen/internal/i18n"
-	"github.com/koopa0/goen/internal/returns"
+	"github.com/koopa0/goen/internal/order/returns"
 )
 
 func TestReturnFormExplainsEachParcelsDeadlineAndNextStep(t *testing.T) {

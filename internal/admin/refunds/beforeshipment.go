@@ -16,10 +16,10 @@ import (
 	"github.com/koopa0/goen/internal/order"
 	"github.com/koopa0/goen/internal/order/cancellation"
 	"github.com/koopa0/goen/internal/order/notice"
+	"github.com/koopa0/goen/internal/order/returns"
 	"github.com/koopa0/goen/internal/outbox"
 	"github.com/koopa0/goen/internal/refund"
 	"github.com/koopa0/goen/internal/requestid"
-	"github.com/koopa0/goen/internal/returns"
 )
 
 // beforeShipment is what the refund before shipment reads of an order. Whether

@@ -4,7 +4,7 @@ import (
 	"errors"
 	"testing"
 
-	"github.com/koopa0/goen/internal/returns"
+	"github.com/koopa0/goen/internal/order/returns"
 )
 
 func TestAStatutoryRequestCannotBeRejectedOnTheDecisionPath(t *testing.T) {

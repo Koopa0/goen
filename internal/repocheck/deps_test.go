@@ -70,7 +70,7 @@ var (
 		"assets", "internal/i18n", "internal/money", "internal/shoptime",
 		"internal/coupon", "internal/inventory", "internal/invoice", "internal/keyset", "internal/order",
 		"internal/shipping/postcode", "internal/product", "internal/product/labelling", "internal/refund",
-		"internal/returns", "internal/sales", "internal/shipping", "internal/user",
+		"internal/order/returns", "internal/sales", "internal/shipping", "internal/user",
 	}
 	// storefrontPages are the packages that serve storefront pages. The rule
 	// that uses them leaves out, on purpose: internal/contact (admin/messages
@@ -107,7 +107,7 @@ var (
 	}
 	// i18nOnlyLeaves import nothing from goen except the message catalogue.
 	i18nOnlyLeaves = []string{
-		"internal/invoice", "internal/order", "internal/product/labelling", "internal/returns", "internal/shoptime", "internal/ui/fieldrule",
+		"internal/invoice", "internal/order", "internal/product/labelling", "internal/order/returns", "internal/shoptime", "internal/ui/fieldrule",
 		"internal/sales", "internal/admin/worklist", "internal/shipping", "internal/credit",
 	}
 	// googleMayImport is all of goen that Google's sign-in client imports:
