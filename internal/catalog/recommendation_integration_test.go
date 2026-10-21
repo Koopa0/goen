@@ -25,7 +25,7 @@ import (
 	"github.com/koopa0/goen/internal/catalog"
 	"github.com/koopa0/goen/internal/db"
 	"github.com/koopa0/goen/internal/db/dbtest"
-	"github.com/koopa0/goen/internal/web"
+	"github.com/koopa0/goen/internal/requestid"
 )
 
 type recommendationFault string
@@ -244,7 +244,7 @@ func recommendationResponse(t *testing.T, ctx context.Context, h *catalog.Handle
 			}
 		}
 	}
-	req := httptest.NewRequestWithContext(web.WithRequestID(ctx, "req-optional-read"), http.MethodGet, "/p/"+want.Slug+"?"+selection.Encode(), http.NoBody)
+	req := httptest.NewRequestWithContext(requestid.With(ctx, "req-optional-read"), http.MethodGet, "/p/"+want.Slug+"?"+selection.Encode(), http.NoBody)
 	req.SetPathValue("slug", want.Slug)
 	res := httptest.NewRecorder()
 	h.Product(res, req)

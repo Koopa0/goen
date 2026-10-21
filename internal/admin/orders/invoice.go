@@ -12,8 +12,8 @@ import (
 	"github.com/koopa0/goen/internal/admin/audit"
 	"github.com/koopa0/goen/internal/invoice"
 	"github.com/koopa0/goen/internal/invoice/issuer"
+	"github.com/koopa0/goen/internal/requestid"
 	"github.com/koopa0/goen/internal/shoptime"
-	"github.com/koopa0/goen/internal/web"
 )
 
 // ErrInvoiceRefused is an invoice write unavailable in the current back-office state.
@@ -139,7 +139,7 @@ func filingContext(ctx context.Context) (context.Context, error) {
 	if !ok {
 		return nil, audit.ErrNoActor
 	}
-	requestID := web.RequestID(ctx)
+	requestID := requestid.From(ctx)
 	if requestID == "" {
 		return nil, audit.ErrNoActor
 	}

@@ -12,7 +12,7 @@ import (
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 
-	"github.com/koopa0/goen/internal/web"
+	"github.com/koopa0/goen/internal/requestid"
 )
 
 // runTraced drives one statement through the tracer on a clock that has advanced by
@@ -82,7 +82,7 @@ func TestSlowQueriesKeepTheirOwnRequestIDsAndOmitBackgroundIdentity(t *testing.T
 	for _, id := range []string{"request-one", "request-two", ""} {
 		ctx := t.Context()
 		if id != "" {
-			ctx = web.WithRequestID(ctx, id)
+			ctx = requestid.With(ctx, id)
 		}
 		starts = append(starts, tr.TraceQueryStart(ctx, nil, pgx.TraceQueryStartData{SQL: namedStatement, Args: []any{"private@example.com", 4242}}))
 	}
@@ -175,9 +175,9 @@ func TestSlowAcquiresKeepSeparateClocksAndRequestIDs(t *testing.T) {
 	tr := newSlowQueryTracer(slog.New(slog.NewTextHandler(&out, nil)), "store")
 	clock := time.Unix(1_700_000_000, 0)
 	tr.now = func() time.Time { return clock }
-	first := tr.TraceAcquireStart(web.WithRequestID(t.Context(), "request-one"), nil, pgxpool.TraceAcquireStartData{})
+	first := tr.TraceAcquireStart(requestid.With(t.Context(), "request-one"), nil, pgxpool.TraceAcquireStartData{})
 	clock = clock.Add(50 * time.Millisecond)
-	second := tr.TraceAcquireStart(web.WithRequestID(t.Context(), "request-two"), nil, pgxpool.TraceAcquireStartData{})
+	second := tr.TraceAcquireStart(requestid.With(t.Context(), "request-two"), nil, pgxpool.TraceAcquireStartData{})
 	clock = clock.Add(50 * time.Millisecond)
 	background := tr.TraceAcquireStart(t.Context(), nil, pgxpool.TraceAcquireStartData{})
 	query := tr.TraceQueryStart(first, nil, pgx.TraceQueryStartData{SQL: namedStatement, Args: []any{"private@example.com"}})
