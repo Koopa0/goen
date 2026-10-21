@@ -14,6 +14,7 @@ import (
 	"github.com/koopa0/goen/internal/auth/google"
 	"github.com/koopa0/goen/internal/bearer"
 	"github.com/koopa0/goen/internal/cart/cartitem"
+	"github.com/koopa0/goen/internal/clientip"
 	"github.com/koopa0/goen/internal/compress"
 	"github.com/koopa0/goen/internal/email"
 	"github.com/koopa0/goen/internal/i18n"
@@ -763,7 +764,7 @@ const (
 )
 
 func (h *Handler) startSession(w http.ResponseWriter, r *http.Request, u user.User) (started bool, adoption cartAdoption) {
-	token, err := h.store.StartSession(r.Context(), u.ID, r.UserAgent(), clientIP(r))
+	token, err := h.store.StartSession(r.Context(), u.ID, r.UserAgent(), clientip.From(r))
 	if err != nil {
 		h.log.ErrorContext(r.Context(), "start session", "error", err)
 		h.serverError(w, r)
@@ -845,10 +846,6 @@ func appendCartAdjustNotice(target string) string {
 	q.Set("qty", "adjusted")
 	u.RawQuery = q.Encode()
 	return u.String()
-}
-
-func clientIP(r *http.Request) string {
-	return ratelimit.ClientIP(r)
 }
 
 // SignInPath is the sign-in page that returns to next once someone has signed in.

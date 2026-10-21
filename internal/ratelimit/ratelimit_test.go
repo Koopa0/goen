@@ -12,6 +12,7 @@ import (
 	"testing/synctest"
 	"time"
 
+	"github.com/koopa0/goen/internal/clientip"
 	"github.com/koopa0/goen/internal/i18n"
 )
 
@@ -716,21 +717,80 @@ func TestTheKeyIsTheAddressAndNeverAHeader(t *testing.T) {
 	r.Header.Set("X-Real-IP", "198.51.100.2")
 	r.Header.Set("Forwarded", "for=198.51.100.3")
 
-	if got := ClientIP(r); got != "203.0.113.9" {
-		t.Errorf("ClientIP = %q, want the connection's own address — a header "+
+	if got := clientip.From(r); got != "203.0.113.9" {
+		t.Errorf("clientip.From = %q, want the connection's own address — a header "+
 			"key is an unlimited supply of keys", got)
 	}
 
 	// Two requests claiming different forwarded addresses share one bucket.
 	l := New(Config{Every: time.Minute, Burst: 1, TTL: time.Hour, MaxKeys: testMaxKeys})
-	if _, ok := l.Allow(ClientIP(r)); !ok {
+	if _, ok := l.Allow(clientip.From(r)); !ok {
 		t.Fatal("the first was refused")
 	}
 	r2 := httptest.NewRequestWithContext(t.Context(), http.MethodPost, "/signin", http.NoBody)
 	r2.RemoteAddr = "203.0.113.9:60000" // same host, different source port
 	r2.Header.Set("X-Forwarded-For", "198.51.100.99")
-	if _, ok := l.Allow(ClientIP(r2)); ok {
+	if _, ok := l.Allow(clientip.From(r2)); ok {
 		t.Error("changing X-Forwarded-For bought a fresh allowance")
+	}
+}
+
+func proxied(t *testing.T, p *clientip.Proxies, r *http.Request) string {
+	t.Helper()
+
+	var got string
+	p.Resolve(http.HandlerFunc(func(_ http.ResponseWriter, seen *http.Request) {
+		got = clientip.From(seen)
+	})).ServeHTTP(httptest.NewRecorder(), r)
+	return got
+}
+
+// request is one arriving from remoteAddr carrying the given X-Forwarded-For
+// lines, in the order a proxy chain would have written them.
+func request(t *testing.T, remoteAddr string, forwarded ...string) *http.Request {
+	t.Helper()
+
+	r := httptest.NewRequestWithContext(t.Context(), http.MethodPost, "/signin", http.NoBody)
+	r.RemoteAddr = remoteAddr
+	for _, line := range forwarded {
+		r.Header.Add("X-Forwarded-For", line)
+	}
+	return r
+}
+
+// The attack this configuration must not open: one attacker holding an
+// unlimited supply of keys.
+func TestASpoofedHeaderBuysNoFreshAllowance(t *testing.T) {
+	t.Parallel()
+
+	p, err := clientip.ParseProxies("10.0.0.0/8")
+	if err != nil {
+		t.Fatalf("ParseProxies: %v", err)
+	}
+	l := New(Config{Every: time.Minute, Burst: 1, TTL: time.Hour, MaxKeys: 1000})
+
+	// One client behind the proxy, changing the half of the header it controls.
+	spend := func(spoof string) bool {
+		r := request(t, "10.0.0.7:443", spoof+", 198.51.100.4")
+		_, ok := l.Allow(proxied(t, p, r))
+		return ok
+	}
+	if !spend("1.2.3.4") {
+		t.Fatal("the first attempt was refused")
+	}
+	for _, spoof := range []string{"5.6.7.8", "9.9.9.9", "203.0.113.1", "10.0.0.55"} {
+		if spend(spoof) {
+			t.Errorf("prepending %q to X-Forwarded-For bought a fresh allowance; "+
+				"the client half of the header is being believed", spoof)
+		}
+	}
+
+	// A genuinely different client is still its own key, or the rule would
+	// trade one collapse for another.
+	other := request(t, "10.0.0.7:443", "198.51.100.5")
+	if _, ok := l.Allow(proxied(t, p, other)); !ok {
+		t.Error("a second client behind the proxy was refused because the first " +
+			"was at its limit — every visitor is still sharing one bucket")
 	}
 }
 
@@ -800,7 +860,7 @@ func TestAClientNetworkFollowsTheResolvedAddressAndNoHeader(t *testing.T) {
 		t.Errorf("ClientNetwork = %q, want the connection's /24: a header was believed", got)
 	}
 
-	proxies, err := ParseProxies("198.51.100.7")
+	proxies, err := clientip.ParseProxies("198.51.100.7")
 	if err != nil {
 		t.Fatalf("ParseProxies: %v", err)
 	}
@@ -810,17 +870,6 @@ func TestAClientNetworkFollowsTheResolvedAddressAndNoHeader(t *testing.T) {
 	})).ServeHTTP(httptest.NewRecorder(), r)
 	if seen != "203.0.113.0/24" {
 		t.Errorf("behind a trusted proxy ClientNetwork = %q, want the forwarded client's /24", seen)
-	}
-}
-
-// ClientIP is what sessions and logs record, so it must keep the whole address
-// while the limiter keys on less.
-func TestTheAddressToRecordKeepsAllOfAnIPv6Address(t *testing.T) {
-	t.Parallel()
-
-	r := request(t, "[2001:db8:1:2:dead:beef:0:9]:443")
-	if got := ClientIP(r); got != "2001:db8:1:2:dead:beef:0:9" {
-		t.Errorf("ClientIP = %q, want the whole address", got)
 	}
 }
 
@@ -904,7 +953,7 @@ func TestIPv4ClientsKeepTheirOwnBucketsAndTheMappedFormSharesOne(t *testing.T) {
 func TestAForwardedIPv6ClientIsKeyedOnItsSlash64(t *testing.T) {
 	t.Parallel()
 
-	p, err := ParseProxies("10.0.0.0/8")
+	p, err := clientip.ParseProxies("10.0.0.0/8")
 	if err != nil {
 		t.Fatalf("ParseProxies: %v", err)
 	}

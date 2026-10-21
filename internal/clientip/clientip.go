@@ -1,8 +1,12 @@
-package ratelimit
+// Package clientip is the client's address as seen through goen's trusted
+// proxies; it holds the proxy list and the X-Forwarded-For resolution; it does
+// not hold limiter keys, which is package ratelimit.
+package clientip
 
 import (
 	"context"
 	"fmt"
+	"net"
 	"net/http"
 	"net/netip"
 	"strings"
@@ -10,7 +14,7 @@ import (
 
 // Proxies is the set of hops whose forwarding header goen believes. The empty
 // set is the default and reads no header at all, so a deployment that has not
-// been told what its proxies are keeps [ClientIP] on the connection's address.
+// been told what its proxies are keeps [From] on the connection's address.
 type Proxies struct {
 	// nets is what may forward. Masked at parse time so Contains compares the
 	// network and not what somebody typed.
@@ -18,7 +22,7 @@ type Proxies struct {
 }
 
 // clientIPKey is the context key the resolved address travels on. Unexported,
-// so nothing outside this package can write the value [ClientIP] reads.
+// so nothing outside this package can write the value [From] reads.
 type clientIPKey struct{}
 
 // ParseProxies reads a comma-separated list of CIDR blocks and bare addresses,
@@ -42,16 +46,16 @@ func parseTrusted(field string) (netip.Prefix, error) {
 	if prefix, err := netip.ParsePrefix(field); err == nil {
 		if prefix.Bits() == 0 {
 			return netip.Prefix{}, fmt.Errorf(
-				"ratelimit: %q trusts every address, which is a header read on faith", field)
+				"clientip: %q trusts every address, which is a header read on faith", field)
 		}
 		return prefix.Masked(), nil
 	}
 	addr, err := netip.ParseAddr(field)
 	if err != nil {
 		return netip.Prefix{}, fmt.Errorf(
-			"ratelimit: %q is not an address or a CIDR block", field)
+			"clientip: %q is not an address or a CIDR block", field)
 	}
-	addr = normalise(addr)
+	addr = Normalise(addr)
 	return netip.PrefixFrom(addr, addr.BitLen()), nil
 }
 
@@ -103,7 +107,7 @@ func (p *Proxies) trusts(addr netip.Addr) bool {
 	if p == nil || !addr.IsValid() {
 		return false
 	}
-	addr = normalise(addr)
+	addr = Normalise(addr)
 	for _, n := range p.nets {
 		if n.Contains(addr) {
 			return true
@@ -136,17 +140,37 @@ func parseHop(field string) (netip.Addr, bool) {
 		return netip.Addr{}, false
 	}
 	if addr, err := netip.ParseAddr(field); err == nil {
-		return normalise(addr), true
+		return Normalise(addr), true
 	}
 	if hostPort, err := netip.ParseAddrPort(field); err == nil {
-		return normalise(hostPort.Addr()), true
+		return Normalise(hostPort.Addr()), true
 	}
 	return netip.Addr{}, false
 }
 
-// normalise makes two spellings of one address one key: an IPv4-mapped IPv6
+// Normalise makes two spellings of one address one key: an IPv4-mapped IPv6
 // address and its IPv4 form are the same machine, and left in, each would be a
 // second bucket the same client reaches by changing nothing about itself.
-func normalise(addr netip.Addr) netip.Addr {
+func Normalise(addr netip.Addr) netip.Addr {
 	return addr.Unmap().WithZone("")
+}
+
+// From is the address an HTTP request came from: r.RemoteAddr, unless
+// [Proxies.Resolve] has run and decided otherwise. A header read on faith hands
+// every attacker an unlimited supply of keys, so no header is read here. It is
+// the address to record; a limit keys on ratelimit.ClientKey.
+func From(r *http.Request) string {
+	if ip, ok := r.Context().Value(clientIPKey{}).(string); ok && ip != "" {
+		return ip
+	}
+	return remoteHost(r)
+}
+
+func remoteHost(r *http.Request) string {
+	host, _, err := net.SplitHostPort(r.RemoteAddr)
+	if err != nil {
+		// No port, which happens in tests and with some transports.
+		return r.RemoteAddr
+	}
+	return host
 }
