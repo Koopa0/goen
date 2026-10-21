@@ -19,9 +19,9 @@ import (
 
 	"github.com/koopa0/goen/internal/auth"
 	"github.com/koopa0/goen/internal/auth/google"
-	"github.com/koopa0/goen/internal/campaign"
 	"github.com/koopa0/goen/internal/cart"
 	"github.com/koopa0/goen/internal/catalog"
+	"github.com/koopa0/goen/internal/discount/campaign"
 	"github.com/koopa0/goen/internal/i18n"
 	"github.com/koopa0/goen/internal/order/access"
 	"github.com/koopa0/goen/internal/site"

@@ -7,7 +7,7 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/koopa0/goen/internal/coupon"
+	"github.com/koopa0/goen/internal/discount/coupon"
 	"github.com/koopa0/goen/internal/i18n"
 	"github.com/koopa0/goen/internal/keyset"
 	"github.com/koopa0/goen/internal/money"

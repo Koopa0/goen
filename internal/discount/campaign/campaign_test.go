@@ -4,7 +4,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/koopa0/goen/internal/campaign"
+	"github.com/koopa0/goen/internal/discount/campaign"
 )
 
 func TestStateAtJudgesTheWindowByTheInstant(t *testing.T) {

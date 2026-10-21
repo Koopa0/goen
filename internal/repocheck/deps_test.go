@@ -68,7 +68,7 @@ var (
 	// uiMayImport is what the view layer may import besides itself.
 	uiMayImport = []string{
 		"assets", "internal/i18n", "internal/money", "internal/shoptime",
-		"internal/coupon", "internal/inventory", "internal/invoice", "internal/keyset", "internal/order",
+		"internal/discount/coupon", "internal/inventory", "internal/invoice", "internal/keyset", "internal/order",
 		"internal/shipping/postcode", "internal/product", "internal/product/labelling", "internal/payment/refund",
 		"internal/order/returns", "internal/sales", "internal/shipping", "internal/user",
 	}
@@ -79,7 +79,7 @@ var (
 	// (shared infrastructure). It matches exactly, not by prefix:
 	// internal/cart/cartitem is a vocabulary leaf, not a page.
 	storefrontPages = []string{
-		"internal/account", "internal/auth", "internal/campaign", "internal/cart", "internal/catalog", "internal/checkout", "internal/home",
+		"internal/account", "internal/auth", "internal/cart", "internal/catalog", "internal/checkout", "internal/discount/campaign", "internal/home",
 		"internal/newsletter", "internal/policy", "internal/site", "internal/wishlist",
 	}
 	// siteMayImport is what internal/site may import besides itself and the
@@ -92,7 +92,7 @@ var (
 	policyMayImport = []string{
 		"internal/i18n", "internal/web", "internal/ui/layouts",
 	}
-	// campaignMayImport is what internal/campaign may import besides itself and
+	// campaignMayImport is what internal/discount/campaign may import besides itself and
 	// the leaves: the message catalogue, the stat its schedule is told in, and
 	// the foundation its page and /deals are built on, the product tile included.
 	campaignMayImport = []string{
@@ -101,7 +101,7 @@ var (
 	// importFreeLeaves import no goen package at all.
 	importFreeLeaves = []string{
 		"internal/payment/refund", "internal/web/clientip",
-		"internal/coupon", "internal/inventory", "internal/shipping/postcode", "internal/user",
+		"internal/discount/coupon", "internal/inventory", "internal/shipping/postcode", "internal/user",
 		"internal/money", "internal/db", "internal/keyset", "internal/bearer",
 		"internal/email", "internal/cart/cartitem", "internal/product", "internal/web/compress",
 		"internal/web/requestid", "internal/web/siteurl",
@@ -189,7 +189,7 @@ var depsRules = []importRule{
 		name: "campaign",
 		hard: true,
 		forbid: func(from, to string) bool {
-			return under(from, "internal/campaign") && !under(to, "internal/campaign") &&
+			return under(from, "internal/discount/campaign") && !under(to, "internal/discount/campaign") &&
 				!slices.Contains(campaignMayImport, to) &&
 				!slices.Contains(importFreeLeaves, to) && !slices.Contains(i18nOnlyLeaves, to)
 		},

@@ -23,8 +23,8 @@ import (
 
 	"github.com/koopa0/goen/internal/cart"
 	"github.com/koopa0/goen/internal/checkout"
-	"github.com/koopa0/goen/internal/coupon"
 	"github.com/koopa0/goen/internal/db/dbtest"
+	"github.com/koopa0/goen/internal/discount/coupon"
 	"github.com/koopa0/goen/internal/order/access"
 	"github.com/koopa0/goen/internal/order/delivery"
 	"github.com/koopa0/goen/internal/payment"

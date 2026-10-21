@@ -6,7 +6,7 @@ import (
 	"time"
 
 	"github.com/koopa0/goen/assets"
-	"github.com/koopa0/goen/internal/campaign"
+	"github.com/koopa0/goen/internal/discount/campaign"
 	"github.com/koopa0/goen/internal/i18n"
 	"github.com/koopa0/goen/internal/ui/components"
 	"github.com/koopa0/goen/internal/ui/layouts"
