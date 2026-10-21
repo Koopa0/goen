@@ -268,7 +268,7 @@ CI 執行格式、vet、lint、無用程式碼與生成碼檢查、migration lin
 | 出貨、退貨與退款 | [`internal/order`][order]、[`internal/admin/orders`][orders]、[`internal/admin/dashboard`][dashboard]、[`internal/returns`][returns-rules]、[`internal/admin/returns`][returns]、[`internal/admin/refunds`][refund-payout] |
 | 發票與延後寄送 | [`internal/invoice/issuer`][invoice-store]、[`internal/admin/orders`][orders]、[`internal/outbox`][outbox]、[`internal/letter`][letter] |
 | 資料庫權限 | [schema][schema]、[sqlc 設定][sqlc]、[一致性測試][conformance]、[`internal/admin/audit`][audit]、[`internal/db/dbtest`][dbtest] |
-| 瀏覽與衍生資料 | [`internal/catalog`][catalog-store]、[`internal/campaign`][campaign]、[`internal/backinstock`][backinstock]、[`internal/home`][home-store]、[`internal/copurchase`][copurchase]、[報表][reports] |
+| 瀏覽與衍生資料 | [`internal/catalog`][catalog-store]、[`internal/campaign`][campaign]、[`internal/backinstock`][backinstock]、[`internal/home`][home-store]、[`internal/product/copurchase`][copurchase]、[報表][reports] |
 | 語言、金額與時間 | [`internal/i18n`][i18n]、[`internal/money`][money]、[`internal/shoptime`][shoptime] |
 | 資產與媒體 | [`assets`][assets]、[`internal/media`][media-render] |
 | 身分與瀏覽器安全 | [`internal/auth`][auth]、[`internal/auth/google`][google-signin]、[`internal/bearer`][bearer]、[員工存取][access]、[`internal/admin/twofactor`][twofactor]、[`internal/ratelimit`][ratelimit]、[`internal/clientip`][clientip]、[`internal/web/siteurl`][siteurl] |
@@ -330,7 +330,7 @@ CI 執行格式、vet、lint、無用程式碼與生成碼檢查、migration lin
 [backinstock]: internal/backinstock/backinstock.go
 [home-store]: internal/home/store.go
 [site-chrome]: internal/site/chrome.go
-[copurchase]: internal/copurchase/store.go
+[copurchase]: internal/product/copurchase/store.go
 [reports]: internal/admin/reports/store.go
 [assets]: assets/assets.go
 [media-render]: internal/media/render.go
