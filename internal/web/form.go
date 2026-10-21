@@ -1,7 +1,6 @@
 package web
 
 import (
-	"regexp"
 	"strconv"
 	"strings"
 	"unicode/utf8"
@@ -45,12 +44,6 @@ func SearchTerm(raw string) string {
 	}
 	return term
 }
-
-var slugShape = regexp.MustCompile(`^[a-z0-9]+(-[a-z0-9]+)*$`)
-
-// ValidSlug is the shape of an address segment goen mints: lower-case words
-// joined by single hyphens.
-func ValidSlug(s string) bool { return slugShape.MatchString(s) }
 
 // ParseCountOrInvalid is ParseCount for a form field whose blank means "no
 // limit": a malformed value becomes -1, which the form's Validate refuses by

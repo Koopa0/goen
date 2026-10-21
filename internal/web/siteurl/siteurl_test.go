@@ -1,4 +1,4 @@
-package web
+package siteurl
 
 import (
 	"net"
@@ -8,7 +8,7 @@ import (
 )
 
 // Every refusal below is a real bypass of a prefix check or of RFC 3986 parsing.
-func TestSitePathRefusesAnythingButAPathOnThisSite(t *testing.T) {
+func TestPathRefusesAnythingButAPathOnThisSite(t *testing.T) {
 	t.Parallel()
 
 	tests := []struct {
@@ -60,23 +60,25 @@ func TestSitePathRefusesAnythingButAPathOnThisSite(t *testing.T) {
 		{"canonical escaped slash cannot become an authority", "/%2f ", ""},
 		{"a control character", "/deals\n/evil", ""},
 		{"header injection", "/x\r\nSet-Cookie: a=b", ""},
+		// net/url refuses C0 and DEL itself; only the shape rule refuses C1.
+		{"a C1 control character", "/deals\u0085", ""},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			got, ok := SitePath(tt.raw)
+			got, ok := Path(tt.raw)
 			if tt.want == "" {
 				if ok {
-					t.Errorf("SitePath(%q) accepted it as %q", tt.raw, got)
+					t.Errorf("Path(%q) accepted it as %q", tt.raw, got)
 				}
 				return
 			}
 			if !ok {
-				t.Fatalf("SitePath(%q) refused a legitimate path", tt.raw)
+				t.Fatalf("Path(%q) refused a legitimate path", tt.raw)
 			}
 			if got != tt.want {
-				t.Errorf("SitePath(%q) = %q, want %q", tt.raw, got, tt.want)
+				t.Errorf("Path(%q) = %q, want %q", tt.raw, got, tt.want)
 			}
 			if origin := whatwgOrigin(tt.raw); origin != "goen.example" {
 				t.Errorf("accepted %q, which a browser resolves at %q", tt.raw, origin)
@@ -84,7 +86,7 @@ func TestSitePathRefusesAnythingButAPathOnThisSite(t *testing.T) {
 			if origin := whatwgOrigin(got); origin != "goen.example" {
 				t.Errorf("returned %q, which a browser resolves at %q", got, origin)
 			}
-			if gotAgain, okAgain := SitePath(got); !okAgain || gotAgain != got {
+			if gotAgain, okAgain := Path(got); !okAgain || gotAgain != got {
 				t.Errorf("output %q is not itself accepted unchanged: got %q, ok=%v",
 					got, gotAgain, okAgain)
 			}
@@ -131,22 +133,22 @@ func whatwgOrigin(ref string) string {
 
 func isSlash(b byte) bool { return b == '/' || b == '\\' }
 
-// TestSitePathOrFallsBackRatherThanErroring: somebody switching language cannot
+// TestPathOrFallsBackRatherThanErroring: somebody switching language cannot
 // read the error page they would otherwise land on.
-func TestSitePathOrFallsBackRatherThanErroring(t *testing.T) {
-	if got := SitePathOr("//evil.example", "/"); got != "/" {
+func TestPathOrFallsBackRatherThanErroring(t *testing.T) {
+	if got := PathOr("//evil.example", "/"); got != "/" {
 		t.Errorf("a refused target gave %q, want the fallback", got)
 	}
-	if got := SitePathOr("/deals", "/"); got != "/deals" {
+	if got := PathOr("/deals", "/"); got != "/deals" {
 		t.Errorf("a good target gave %q", got)
 	}
 	// The fallback is returned verbatim: it is the caller's constant.
-	if got := SitePathOr("", "/account/wishlist"); got != "/account/wishlist" {
+	if got := PathOr("", "/account/wishlist"); got != "/account/wishlist" {
 		t.Errorf("empty gave %q", got)
 	}
 }
 
-func TestSiteOriginRefusesWhatIsNotAnOrigin(t *testing.T) {
+func TestOriginRefusesWhatIsNotAnOrigin(t *testing.T) {
 	t.Parallel()
 
 	tests := []struct {
@@ -179,33 +181,33 @@ func TestSiteOriginRefusesWhatIsNotAnOrigin(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			origin, scheme, ok := SiteOrigin(tt.raw)
+			origin, scheme, ok := Origin(tt.raw)
 			if tt.wantOrigin == "" {
 				if ok {
-					t.Errorf("SiteOrigin(%q) accepted it as %q with scheme %q",
+					t.Errorf("Origin(%q) accepted it as %q with scheme %q",
 						tt.raw, origin, scheme)
 				}
 				if origin != "" || scheme != "" {
-					t.Errorf("SiteOrigin(%q) refused with outputs %q, %q; want empty outputs",
+					t.Errorf("Origin(%q) refused with outputs %q, %q; want empty outputs",
 						tt.raw, origin, scheme)
 				}
 				return
 			}
 			if !ok {
-				t.Fatalf("SiteOrigin(%q) refused a legitimate origin", tt.raw)
+				t.Fatalf("Origin(%q) refused a legitimate origin", tt.raw)
 			}
 			if origin != tt.wantOrigin || scheme != tt.wantScheme {
-				t.Errorf("SiteOrigin(%q) = (%q, %q), want (%q, %q)",
+				t.Errorf("Origin(%q) = (%q, %q), want (%q, %q)",
 					tt.raw, origin, scheme, tt.wantOrigin, tt.wantScheme)
 			}
 		})
 	}
 }
 
-// FuzzSitePath holds the same-site parser to properties that remain true for
+// FuzzPath holds the same-site parser to properties that remain true for
 // every input, including malformed UTF-8: refusal has no residual output, and
 // every accepted canonical path is safe to feed back unchanged.
-func FuzzSitePath(f *testing.F) {
+func FuzzPath(f *testing.F) {
 	for _, seed := range []string{
 		"", "/", "/deals", "/search?q=abc#part", "//evil.example",
 		"///evil.example/x", `/\evil.example`, "/%2f%2fevil.example", "/%2f ",
@@ -215,37 +217,37 @@ func FuzzSitePath(f *testing.F) {
 	}
 
 	f.Fuzz(func(t *testing.T, raw string) {
-		got, ok := SitePath(raw)
+		got, ok := Path(raw)
 		if !ok {
 			if got != "" {
-				t.Errorf("SitePath(%q) refused with output %q, want empty", raw, got)
+				t.Errorf("Path(%q) refused with output %q, want empty", raw, got)
 			}
 			return
 		}
 		if got == "" || got[0] != '/' {
-			t.Fatalf("SitePath(%q) accepted non-rooted output %q", raw, got)
+			t.Fatalf("Path(%q) accepted non-rooted output %q", raw, got)
 		}
-		if HasControlChars(got) || strings.ContainsRune(got, '\\') {
-			t.Errorf("SitePath(%q) returned unsafe path %q", raw, got)
+		if hasControlChars(got) || strings.ContainsRune(got, '\\') {
+			t.Errorf("Path(%q) returned unsafe path %q", raw, got)
 		}
 		if len(got) > 1 && (got[1] == '/' || got[1] == '\\') {
-			t.Errorf("SitePath(%q) returned authority-shaped path %q", raw, got)
+			t.Errorf("Path(%q) returned authority-shaped path %q", raw, got)
 		}
 		if origin := whatwgOrigin(got); origin != "goen.example" {
-			t.Errorf("SitePath(%q) returned %q, which resolves at %q", raw, got, origin)
+			t.Errorf("Path(%q) returned %q, which resolves at %q", raw, got, origin)
 		}
-		gotAgain, okAgain := SitePath(got)
+		gotAgain, okAgain := Path(got)
 		if !okAgain || gotAgain != got {
-			t.Errorf("SitePath(%q) canonical output %q reparsed as %q, ok=%v",
+			t.Errorf("Path(%q) canonical output %q reparsed as %q, ok=%v",
 				raw, got, gotAgain, okAgain)
 		}
 	})
 }
 
-// FuzzSiteOrigin pins canonical origins as a closed grammar: successful output
+// FuzzOrigin pins canonical origins as a closed grammar: successful output
 // reparses to the same value and scheme, while refusal never returns a partial
 // origin that a caller could accidentally use.
-func FuzzSiteOrigin(f *testing.F) {
+func FuzzOrigin(f *testing.F) {
 	for _, seed := range []string{
 		"", "https://shop.example", "https://shop.example/",
 		"http://127.0.0.1:9700", "httpx://evil.example",
@@ -257,31 +259,43 @@ func FuzzSiteOrigin(f *testing.F) {
 	}
 
 	f.Fuzz(func(t *testing.T, raw string) {
-		origin, scheme, ok := SiteOrigin(raw)
+		origin, scheme, ok := Origin(raw)
 		if !ok {
 			if origin != "" || scheme != "" {
-				t.Errorf("SiteOrigin(%q) refused with outputs %q, %q", raw, origin, scheme)
+				t.Errorf("Origin(%q) refused with outputs %q, %q", raw, origin, scheme)
 			}
 			return
 		}
 		if scheme != "http" && scheme != "https" {
-			t.Fatalf("SiteOrigin(%q) returned unsupported scheme %q", raw, scheme)
+			t.Fatalf("Origin(%q) returned unsupported scheme %q", raw, scheme)
 		}
 		u, err := url.Parse(origin)
 		if err != nil {
-			t.Fatalf("SiteOrigin(%q) returned unparsable origin %q: %v", raw, origin, err)
+			t.Fatalf("Origin(%q) returned unparsable origin %q: %v", raw, origin, err)
 		}
 		if u.Scheme != scheme || u.Hostname() == "" || u.User != nil ||
 			u.Path != "" || u.RawQuery != "" || u.Fragment != "" {
-			t.Errorf("SiteOrigin(%q) returned non-origin %q with scheme %q", raw, origin, scheme)
+			t.Errorf("Origin(%q) returned non-origin %q with scheme %q", raw, origin, scheme)
 		}
 		if net.ParseIP(u.Hostname()).IsUnspecified() {
-			t.Errorf("SiteOrigin(%q) returned %q, which names no machine", raw, origin)
+			t.Errorf("Origin(%q) returned %q, which names no machine", raw, origin)
 		}
-		again, againScheme, againOK := SiteOrigin(origin)
+		again, againScheme, againOK := Origin(origin)
 		if !againOK || again != origin || againScheme != scheme {
-			t.Errorf("SiteOrigin(%q) canonical output (%q, %q) reparsed as (%q, %q), ok=%v",
+			t.Errorf("Origin(%q) canonical output (%q, %q) reparsed as (%q, %q), ok=%v",
 				raw, origin, scheme, again, againScheme, againOK)
 		}
 	})
+}
+
+func TestValidSlugIsLowerCaseWordsJoinedByHyphens(t *testing.T) {
+	t.Parallel()
+	for in, want := range map[string]bool{
+		"koto-cable": true, "a1": true, "": false, "Koto": false, "a--b": false,
+		"-a": false, "a-": false, "a b": false, "a/b": false,
+	} {
+		if got := ValidSlug(in); got != want {
+			t.Errorf("ValidSlug(%q) = %t, want %t", in, got, want)
+		}
+	}
 }

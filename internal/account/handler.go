@@ -11,6 +11,7 @@ import (
 	"github.com/koopa0/goen/internal/ui/layouts"
 	"github.com/koopa0/goen/internal/user"
 	"github.com/koopa0/goen/internal/web"
+	"github.com/koopa0/goen/internal/web/siteurl"
 )
 
 // Handler serves the customer's own pages, each to the signed-in customer only:
@@ -84,7 +85,7 @@ func (h *Handler) overview(w http.ResponseWriter, r *http.Request, status int, r
 	view.EmailConfirmationRequested = r.URL.Query().Get("email") == "sent"
 	view.EmailReentry = r.URL.Query().Get("email") == "reenter"
 	if r.URL.Query().Get("welcome") == "1" {
-		view.ReturnAfterWelcome, _ = web.SitePath(r.URL.Query().Get("next"))
+		view.ReturnAfterWelcome, _ = siteurl.Path(r.URL.Query().Get("next"))
 		view.CartAdjusted = r.URL.Query().Get("adjusted") == "1"
 	}
 	view.PaymentsEnabled = h.takesPayment

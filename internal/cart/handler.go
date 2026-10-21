@@ -20,6 +20,7 @@ import (
 	"github.com/koopa0/goen/internal/ui/layouts"
 	"github.com/koopa0/goen/internal/user"
 	"github.com/koopa0/goen/internal/web"
+	"github.com/koopa0/goen/internal/web/siteurl"
 )
 
 type Handler struct {
@@ -120,7 +121,7 @@ func cartContinuation(r *http.Request) string {
 	if r.URL.Query().Get("qty") != "adjusted" {
 		return ""
 	}
-	return web.SitePathOr(r.URL.Query().Get("next"), "")
+	return siteurl.PathOr(r.URL.Query().Get("next"), "")
 }
 
 func cartPageNotice(r *http.Request) string {

@@ -13,7 +13,7 @@ import (
 	"github.com/koopa0/goen/internal/i18n"
 	"github.com/koopa0/goen/internal/keyset"
 	"github.com/koopa0/goen/internal/shoptime"
-	"github.com/koopa0/goen/internal/web"
+	"github.com/koopa0/goen/internal/web/siteurl"
 )
 
 const MaxSlides = 20
@@ -72,7 +72,7 @@ func (f *HeroForm) Validate(ctx context.Context) map[string]string {
 	if f.PrimaryLabel == "" {
 		errs["primary"] = i18n.T(ctx, i18n.KeyFormHeroPrimary)
 	}
-	if href, ok := web.SitePath(f.PrimaryHref); ok {
+	if href, ok := siteurl.Path(f.PrimaryHref); ok {
 		f.PrimaryHref = href
 	} else {
 		errs["primaryhref"] = i18n.T(ctx, i18n.KeyFormHeroPrimaryHref)
@@ -84,7 +84,7 @@ func (f *HeroForm) Validate(ctx context.Context) map[string]string {
 	case f.SecondLabel == "" || f.SecondHref == "":
 		errs["second"] = i18n.T(ctx, i18n.KeyFormHeroSecondPair)
 	default:
-		if href, ok := web.SitePath(f.SecondHref); ok {
+		if href, ok := siteurl.Path(f.SecondHref); ok {
 			f.SecondHref = href
 		} else {
 			errs["second"] = i18n.T(ctx, i18n.KeyFormHeroSecondHref)

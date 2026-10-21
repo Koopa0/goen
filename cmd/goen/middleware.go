@@ -17,7 +17,7 @@ import (
 	"github.com/koopa0/goen/internal/shipping/storemap"
 	"github.com/koopa0/goen/internal/ui/layouts"
 	"github.com/koopa0/goen/internal/user"
-	"github.com/koopa0/goen/internal/web"
+	"github.com/koopa0/goen/internal/web/siteurl"
 )
 
 // withRequestTracing wraps a handler with the request log, panic recovery,
@@ -490,7 +490,7 @@ func storefrontPath(path string) bool {
 // withSiteOrigin puts the configured origin and the request's path on every
 // request's context, for the chrome's absolute URLs. A base URL that is not an origin adds nothing.
 func withSiteOrigin(next http.Handler, baseURL string) http.Handler {
-	origin, _, ok := web.SiteOrigin(baseURL)
+	origin, _, ok := siteurl.Origin(baseURL)
 	if !ok {
 		return next
 	}

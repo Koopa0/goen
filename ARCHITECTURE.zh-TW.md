@@ -271,7 +271,7 @@ CI 執行格式、vet、lint、無用程式碼與生成碼檢查、migration lin
 | 瀏覽與衍生資料 | [`internal/catalog`][catalog-store]、[`internal/campaign`][campaign]、[`internal/ui/tile`][tile]、[`internal/backinstock`][backinstock]、[`internal/home`][home-store]、[`internal/product/copurchase`][copurchase]、[報表][reports] |
 | 語言、金額與時間 | [`internal/i18n`][i18n]、[`internal/money`][money]、[`internal/shoptime`][shoptime] |
 | 資產與媒體 | [`assets`][assets]、[`internal/media`][media-render] |
-| 身分與瀏覽器安全 | [`internal/auth`][auth]、[`internal/auth/google`][google-signin]、[`internal/bearer`][bearer]、[員工存取][access]、[`internal/admin/twofactor`][twofactor]、[`internal/ratelimit`][ratelimit]、[`internal/clientip`][clientip] |
+| 身分與瀏覽器安全 | [`internal/auth`][auth]、[`internal/auth/google`][google-signin]、[`internal/bearer`][bearer]、[員工存取][access]、[`internal/admin/twofactor`][twofactor]、[`internal/ratelimit`][ratelimit]、[`internal/clientip`][clientip]、[`internal/web/siteurl`][siteurl] |
 | 維運 | [健康查詢][health-sql]、[探針][probe]、[慢查詢紀錄][slowquery]、[Makefile][makefile]、[CI][workflows] |
 
 [contributing]: CONTRIBUTING.md
@@ -320,6 +320,7 @@ CI 執行格式、vet、lint、無用程式碼與生成碼檢查、migration lin
 [twofactor]: internal/admin/twofactor
 [ratelimit]: internal/ratelimit
 [clientip]: internal/clientip/clientip.go
+[siteurl]: internal/web/siteurl/siteurl.go
 [i18n]: internal/i18n
 [money]: internal/money
 [shoptime]: internal/shoptime

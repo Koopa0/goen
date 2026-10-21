@@ -14,7 +14,7 @@ import (
 	"github.com/koopa0/goen/internal/i18n"
 	"github.com/koopa0/goen/internal/keyset"
 	"github.com/koopa0/goen/internal/shoptime"
-	"github.com/koopa0/goen/internal/web"
+	"github.com/koopa0/goen/internal/web/siteurl"
 )
 
 const MaxBanners = 20
@@ -66,7 +66,7 @@ func (f *BannerForm) Validate(ctx context.Context) map[string]string {
 		errs["cta"] = i18n.T(ctx, i18n.KeyFormBannerCTAPair)
 	}
 	if f.CTAHref != "" {
-		if _, ok := web.SitePath(f.CTAHref); !ok {
+		if _, ok := siteurl.Path(f.CTAHref); !ok {
 			errs["cta"] = i18n.T(ctx, i18n.KeyFormBannerCTAHref)
 		}
 	}
