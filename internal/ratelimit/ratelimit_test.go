@@ -973,6 +973,11 @@ func TestAForwardedIPv6ClientIsKeyedOnItsSlash64(t *testing.T) {
 	if allowed("2001:db8:1:2:9:9:9:9") {
 		t.Error("a forwarded address in a spent /64 bought a fresh allowance")
 	}
+	// The key is the forwarded client's, not the proxy's: another /64 behind
+	// the same proxy keeps its own allowance.
+	if !allowed("2001:db8:1:3::1") {
+		t.Error("a forwarded client in another /64 was refused; the key is the proxy's address")
+	}
 }
 
 func discardLogger() *slog.Logger { return slog.New(slog.DiscardHandler) }
