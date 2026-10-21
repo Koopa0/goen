@@ -26,8 +26,8 @@ func NewStore(dbtx db.DBTX) *Store {
 	return &Store{q: db.New(dbtx)}
 }
 
-// Sweep deletes alerts notified more than [NotifiedRetain] ago, a batch at a
-// time until a batch comes back short, and reports how many went. An alert
+// Sweep deletes requests notified more than [NotifiedRetain] ago, a batch at a
+// time until a batch comes back short, and reports how many went. A request
 // still waiting for stock is never touched.
 func (s *Store) Sweep(ctx context.Context) (int64, error) {
 	retain := pgtype.Interval{Microseconds: int64(NotifiedRetain / time.Microsecond), Valid: true}
@@ -38,7 +38,7 @@ func (s *Store) Sweep(ctx context.Context) (int64, error) {
 		})
 		total += n
 		if err != nil {
-			return total, fmt.Errorf("sweep notified restock alerts: %w", err)
+			return total, fmt.Errorf("sweep notified restock requests: %w", err)
 		}
 		if n < SweepBatch {
 			return total, nil
@@ -47,17 +47,17 @@ func (s *Store) Sweep(ctx context.Context) (int64, error) {
 }
 
 // SweepForever runs once at startup, so a host redeployed more often than the
-// interval still clears notified alerts.
+// interval still clears notified requests.
 func (s *Store) SweepForever(ctx context.Context, log *slog.Logger) {
 	t := time.NewTicker(SweepInterval)
 	defer t.Stop()
 	for {
 		n, err := s.Sweep(ctx)
 		if err != nil && ctx.Err() == nil {
-			log.ErrorContext(ctx, "sweep notified restock alerts", "error", err)
+			log.ErrorContext(ctx, "sweep notified restock requests", "error", err)
 		}
 		if n > 0 {
-			log.InfoContext(ctx, "deleted notified restock alerts", "deleted", n,
+			log.InfoContext(ctx, "deleted notified restock requests", "deleted", n,
 				"retain_days", int(NotifiedRetain.Hours()/24))
 		}
 		select {

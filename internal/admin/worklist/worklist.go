@@ -2,7 +2,8 @@
 // as one desk reports it for another to list: the health desk judges what needs
 // a person and the dashboard lists it. The desks reach one another only through
 // interfaces the consumer declares, so the value those interfaces promise lives
-// here, where no desk has to import another.
+// here, where no desk has to import another. It is the vocabulary the desks use
+// to report work for one another, not a desk.
 package worklist
 
 import "github.com/koopa0/goen/internal/i18n"

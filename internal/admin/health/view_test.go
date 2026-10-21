@@ -7,9 +7,9 @@ import (
 
 	"golang.org/x/net/html"
 
+	"github.com/koopa0/goen/internal/admin/worklist"
 	"github.com/koopa0/goen/internal/i18n"
 	"github.com/koopa0/goen/internal/ui/layouts"
-	"github.com/koopa0/goen/internal/worklist"
 )
 
 func TestWorkerHealthTasksFollowTheHealthPredicates(t *testing.T) {
