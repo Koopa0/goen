@@ -24,7 +24,7 @@ func TestCartMarksOnlyExemptLines(t *testing.T) {
 			t.Parallel()
 			for _, mixed := range []bool{true, false} {
 				ctx := i18n.WithLocale(t.Context(), locale.locale)
-				cart := CartView{MixedTaxTypes: mixed, Lines: []pages.CartLine{
+				cart := View{MixedTaxTypes: mixed, Lines: []pages.CartLine{
 					{VariantID: "exempt", Name: "Exempt item", TaxExempt: true, Quantity: 1, Available: 1},
 					{VariantID: "exempt-short", Name: "Short item", TaxExempt: true, Quantity: 2, Available: 1, Short: true},
 					{VariantID: "exempt-unavailable", Name: "Unavailable item", TaxExempt: true, Quantity: 1, Unavailable: true},
@@ -32,7 +32,7 @@ func TestCartMarksOnlyExemptLines(t *testing.T) {
 				if mixed {
 					cart.Lines = append(cart.Lines, pages.CartLine{VariantID: "taxable", Name: "Taxable item", Quantity: 1, Available: 1})
 				}
-				rendered := renderComponent(t, ctx, Cart(CartMeta(ctx), cart))
+				rendered := renderComponent(t, ctx, Page(Meta(ctx), cart))
 				doc, err := htmlparse.Parse(strings.NewReader(rendered))
 				if err != nil {
 					t.Fatal(err)
@@ -79,11 +79,11 @@ func TestMixedTaxCartExplainsWhyCheckoutIsUnavailable(t *testing.T) {
 	for _, locale := range []i18n.Locale{i18n.ZhHant, i18n.En} {
 		t.Run(string(locale), func(t *testing.T) {
 			ctx := i18n.WithLocale(t.Context(), locale)
-			cart := CartView{Lines: []pages.CartLine{{Name: "Item", Quantity: 1, Available: 1, UnitCents: 100}}, MixedTaxTypes: true}
+			cart := View{Lines: []pages.CartLine{{Name: "Item", Quantity: 1, Available: 1, UnitCents: 100}}, MixedTaxTypes: true}
 			if cart.CanCheckout() {
 				t.Error("mixed taxable and exempt cart can check out")
 			}
-			rendered := renderComponent(t, ctx, Cart(layouts.Page{Title: "Cart"}, cart))
+			rendered := renderComponent(t, ctx, Page(layouts.Page{Title: "Cart"}, cart))
 			if !strings.Contains(rendered, i18n.T(ctx, i18n.KeyCartMixedTaxTypes)) {
 				t.Error("mixed cart has no explanation")
 			}
@@ -94,7 +94,7 @@ func TestMixedTaxCartExplainsWhyCheckoutIsUnavailable(t *testing.T) {
 			if !cart.CanCheckout() {
 				t.Error("one tax type cannot check out")
 			}
-			rendered = renderComponent(t, ctx, Cart(layouts.Page{Title: "Cart"}, cart))
+			rendered = renderComponent(t, ctx, Page(layouts.Page{Title: "Cart"}, cart))
 			if !strings.Contains(rendered, `href="/checkout"`) || strings.Contains(rendered, i18n.T(ctx, i18n.KeyCartMixedTaxTypes)) {
 				t.Error("single-tax cart did not recover checkout")
 			}

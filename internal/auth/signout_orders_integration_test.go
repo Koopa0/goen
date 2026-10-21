@@ -16,6 +16,7 @@ import (
 	"github.com/koopa0/goen/internal/auth"
 	"github.com/koopa0/goen/internal/bearer"
 	"github.com/koopa0/goen/internal/cart"
+	"github.com/koopa0/goen/internal/checkout"
 	"github.com/koopa0/goen/internal/order/access"
 	"github.com/koopa0/goen/internal/order/buyer"
 	"github.com/koopa0/goen/internal/order/delivery"
@@ -33,9 +34,9 @@ import (
 func TestSigningOutEndsTheBrowsersAccessToItsOrders(t *testing.T) {
 	ctx := t.Context()
 	appPool := accountStorePool(t, "signout-orders")
-	shop := cart.NewStore(appPool)
-	carts := cart.NewHandler(shop, access.NewStore(appPool, false), slog.New(slog.DiscardHandler), false,
-		nil, nil)
+	shop := checkout.NewStore(appPool)
+	carts := cart.NewHandler(shop.Carts(), access.NewStore(appPool, false), slog.New(slog.DiscardHandler), false,
+		nil)
 	orders := buyer.NewHandler(buyer.NewStore(appPool), access.NewStore(appPool, false), slog.New(slog.DiscardHandler),
 		ratelimit.New(ratelimit.Config{Every: time.Millisecond, Burst: 1000, TTL: time.Hour, MaxKeys: 1000}), false)
 	accounts := auth.NewStore(appPool)
@@ -60,11 +61,11 @@ func TestSigningOutEndsTheBrowsersAccessToItsOrders(t *testing.T) {
 	place := func(buyer uuid.NullUUID, previous *http.Cookie) (string, *http.Cookie) {
 		t.Helper()
 		token := bearer.New()
-		cartID, err := shop.Create(ctx, token, buyer)
+		cartID, err := shop.Carts().Create(ctx, token, buyer)
 		if err != nil {
 			t.Fatalf("create cart: %v", err)
 		}
-		if err = shop.Add(ctx, cartID, variant, 1); err != nil {
+		if err = shop.Carts().Add(ctx, cartID, variant, 1); err != nil {
 			t.Fatalf("add to cart: %v", err)
 		}
 		address := &delivery.Details{Email: addr, RecipientName: "登出測試", Phone: "0912345678",
@@ -153,10 +154,10 @@ func newPlacedOrders(t *testing.T, name string) *placedOrders {
 	t.Helper()
 	ctx := t.Context()
 	appPool := accountStorePool(t, name)
-	shop := cart.NewStore(appPool)
+	shop := checkout.NewStore(appPool)
 	p := &placedOrders{t: t, accounts: auth.NewStore(appPool)}
-	p.carts = cart.NewHandler(shop, access.NewStore(appPool, false), slog.New(slog.DiscardHandler), false,
-		nil, nil)
+	p.carts = cart.NewHandler(shop.Carts(), access.NewStore(appPool, false), slog.New(slog.DiscardHandler), false,
+		nil)
 	p.orderPages = buyer.NewHandler(buyer.NewStore(appPool), access.NewStore(appPool, false), slog.New(slog.DiscardHandler),
 		ratelimit.New(ratelimit.Config{Every: time.Millisecond, Burst: 1000, TTL: time.Hour, MaxKeys: 1000}), false)
 	p.h = auth.NewHandler(p.accounts, p.carts, access.NewStore(appPool, false), slog.New(slog.DiscardHandler), false, nil)
@@ -172,11 +173,11 @@ func newPlacedOrders(t *testing.T, name string) *placedOrders {
 	variant := ownVariant(t, name)
 	for _, buyer := range []uuid.NullUUID{{}, {UUID: uuid.MustParse(p.u.ID), Valid: true}} {
 		token := bearer.New()
-		cartID, err := shop.Create(ctx, token, buyer)
+		cartID, err := shop.Carts().Create(ctx, token, buyer)
 		if err != nil {
 			t.Fatalf("create cart: %v", err)
 		}
-		if err = shop.Add(ctx, cartID, variant, 1); err != nil {
+		if err = shop.Carts().Add(ctx, cartID, variant, 1); err != nil {
 			t.Fatalf("add to cart: %v", err)
 		}
 		address := &delivery.Details{Email: addr, RecipientName: "登出測試", Phone: "0912345678",

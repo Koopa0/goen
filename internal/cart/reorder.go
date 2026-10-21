@@ -36,7 +36,7 @@ func (s *Store) Reorder(ctx context.Context, cartID uuid.UUID, number string) (R
 	}
 	defer db.Rollback(ctx, tx)
 	q := s.q.WithTx(tx)
-	if lockErr := lockCart(ctx, q, cartID); lockErr != nil {
+	if lockErr := Lock(ctx, q, cartID); lockErr != nil {
 		return Reorder{}, lockErr
 	}
 

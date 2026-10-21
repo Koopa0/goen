@@ -1,0 +1,108 @@
+package checkout
+
+import (
+	"log/slog"
+	"net/http"
+	"net/http/httptest"
+	"net/url"
+	"regexp"
+	"strings"
+	"testing"
+
+	"github.com/koopa0/goen/internal/cart"
+	"github.com/koopa0/goen/internal/shipping"
+
+	"github.com/koopa0/goen/internal/i18n"
+	"github.com/koopa0/goen/internal/ui/pages"
+)
+
+// divTag walks a rendered page's div open and close tags, so
+// checkoutRegionElement can pull one balanced <div> out of a full checkout
+// render the way a browser's own DOM would.
+var divTag = regexp.MustCompile(`</?div\b[^>]*>`)
+
+// checkoutRegionElement returns the outerHTML of the element carrying
+// id="checkout-region" — the element #checkout-region as an hx-select value
+// names, and the one PlaceOrder's update branch must swap in whole, forms and
+// all, for the store button to have anything to submit after an in-place
+// choice.
+//
+// Deliberately div-only, unlike checkoutmap_test.go's elementByID: this
+// file always looks up the literal "checkout-region" id, which is only ever
+// a <div> in cart_page.templ, rather than an id read off a live hx-select
+// attribute that could name any element.
+func checkoutRegionElement(t *testing.T, html string) string {
+	t.Helper()
+
+	marker := `id="checkout-region"`
+	at := strings.Index(html, marker)
+	if at < 0 {
+		t.Fatal(`no element carries id="checkout-region"`)
+	}
+	start := strings.LastIndex(html[:at], "<div")
+	if start < 0 {
+		t.Fatal(`id="checkout-region" is not on a <div>`)
+	}
+	depth := 0
+	for _, m := range divTag.FindAllStringIndex(html[start:], -1) {
+		tag := html[start+m[0] : start+m[1]]
+		if strings.HasPrefix(tag, "</div") {
+			depth--
+		} else {
+			depth++
+		}
+		if depth == 0 {
+			return html[start : start+m[1]]
+		}
+	}
+	t.Fatal(`id="checkout-region" is never closed`)
+	return ""
+}
+
+// TestSwitchingTheChainInPlaceKeepsTheStoreButton holds the update path
+// PlaceOrder takes when a chooser fires: r.PostFormValue("update") is set, so
+// renderCheckout answers with the fresh render rather than placing an order.
+// That response is exactly what #checkout-region selects and replaces, so it
+// must carry the 「選擇門市」 button, which submits the checkout form to goen's
+// own start route; the chain the shopper has just chosen travels in that form,
+// and the carrier's form is built there, so none is left here to go stale.
+func TestSwitchingTheChainInPlaceKeepsTheStoreButton(t *testing.T) {
+	t.Parallel()
+
+	h := &Handler{
+		storeMap: testMap(t),
+		secure:   true,
+		log:      slog.New(slog.DiscardHandler),
+	}
+
+	// What checkoutSubmission would have built from this POST: everything
+	// typed is echoed, and the chain just switched to 全家.
+	view := View{
+		Cart:         cart.View{Lines: []pages.CartLine{{Name: "x", Quantity: 1, UnitCents: 100}}},
+		Shipping:     []cart.ShippingChoice{{VersionID: "ship-1", Code: "pickup", Name: "超商取貨"}},
+		Chosen:       "ship-1",
+		Destination:  "pickup_point",
+		PickupChains: pages.CheckoutPickupChainChoices(),
+		Address: Address{
+			Email: "someone@goen.test", Name: "王小明", Phone: "0912345678",
+			PickupChain: shipping.ChainFamilyMart,
+		},
+	}
+
+	form := url.Values{"update": {"pickup_chain"}, "pickup_chain": {"family_mart"}}
+	ctx := i18n.WithLocale(t.Context(), i18n.ZhHant)
+	req := httptest.NewRequestWithContext(ctx, http.MethodPost, "/checkout", strings.NewReader(form.Encode()))
+	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+	rec := httptest.NewRecorder()
+
+	h.renderCheckout(rec, req, http.StatusOK, &view)
+
+	region := checkoutRegionElement(t, rec.Body.String())
+	if !strings.Contains(region, `formaction="`+PickupStartAction+`"`) {
+		t.Fatal("the swap region carries no button that submits the form to the store-map start route")
+	}
+	if strings.Contains(region, `id="pickup-map-form"`) || strings.Contains(region, "ecpay") {
+		t.Error("the checkout carries the carrier's form; it belongs on the start route's page, " +
+			"where nothing the shopper typed is on it")
+	}
+}

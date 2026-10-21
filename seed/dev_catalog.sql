@@ -1189,7 +1189,7 @@ COMMIT;
 --
 -- Every answer here is TRUE of what the code does, and several are checkable:
 -- the free-shipping threshold is what shipping_method_versions holds, the
--- reservation window is cart.HoldTTL, and the return rule is
+-- reservation window is payment.HoldTTL, and the return rule is
 -- return_within_shipment. Where a commercial decision has not been made the
 -- answer says so rather than inventing one.
 -- ---------------------------------------------------------------------------
