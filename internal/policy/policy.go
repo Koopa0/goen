@@ -16,7 +16,7 @@ import (
 
 	"github.com/koopa0/goen/internal/i18n"
 	"github.com/koopa0/goen/internal/ui/layouts"
-	"github.com/koopa0/goen/internal/web"
+	"github.com/koopa0/goen/internal/web/respond"
 )
 
 type Handler struct {
@@ -57,7 +57,7 @@ func (h *Handler) Shipping(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	view := ShippingView{Methods: methods, Windows: windows}
-	web.Render(w, r, h.log, http.StatusOK, Shipping(
+	respond.Component(w, r, h.log, http.StatusOK, Shipping(
 		layouts.Page{
 			Title:       i18n.T(r.Context(), i18n.KeyShippingTitle),
 			Description: i18n.T(r.Context(), i18n.KeyShippingDescription),
@@ -80,7 +80,7 @@ func (h *Handler) DocPage(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 	doc = doc.For(i18n.FromContext(r.Context()), windows)
-	web.Render(w, r, h.log, http.StatusOK, DocPage(
+	respond.Component(w, r, h.log, http.StatusOK, DocPage(
 		layouts.Page{Title: doc.Title, Description: doc.Summary}, doc))
 }
 
@@ -88,7 +88,7 @@ func (h *Handler) DocPage(w http.ResponseWriter, r *http.Request) {
 // path routed to DocPage without a document reaches it, which
 // TestEveryPolicyRouteHasADocument refuses.
 func (h *Handler) notFound(w http.ResponseWriter, r *http.Request) {
-	web.Render(w, r, h.log, http.StatusNotFound, layouts.Notice(
+	respond.Component(w, r, h.log, http.StatusNotFound, layouts.Notice(
 		layouts.Page{Title: i18n.T(r.Context(), i18n.KeyPageNotFoundTitle)},
 		"404",
 		i18n.T(r.Context(), i18n.KeyPageNotFound),
@@ -97,7 +97,7 @@ func (h *Handler) notFound(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *Handler) serverError(w http.ResponseWriter, r *http.Request) {
-	web.Render(w, r, h.log, http.StatusInternalServerError, layouts.Notice(
+	respond.Component(w, r, h.log, http.StatusInternalServerError, layouts.Notice(
 		layouts.Page{Title: i18n.T(r.Context(), i18n.KeyTryAgainTitle)}, "500",
 		i18n.T(r.Context(), i18n.KeyTryAgainTitle),
 		i18n.T(r.Context(), i18n.KeyLoggedTryAgain)))

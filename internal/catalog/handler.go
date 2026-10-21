@@ -14,8 +14,8 @@ import (
 	"github.com/koopa0/goen/internal/policy"
 	"github.com/koopa0/goen/internal/ui/layouts"
 	"github.com/koopa0/goen/internal/ui/tile"
-	"github.com/koopa0/goen/internal/web"
 	"github.com/koopa0/goen/internal/web/ratelimit"
+	"github.com/koopa0/goen/internal/web/respond"
 )
 
 type Handler struct {
@@ -63,7 +63,7 @@ func (h *Handler) Listing(w http.ResponseWriter, r *http.Request) {
 	slug := r.PathValue("slug")
 	f := parseFilters(r.URL.Query())
 
-	view, head, err := h.store.ListingPage(r.Context(), slug, f, !web.IsHTMX(r))
+	view, head, err := h.store.ListingPage(r.Context(), slug, f, !respond.IsHTMX(r))
 	if err != nil {
 		if errors.Is(err, ErrNotFound) {
 			h.notFound(w, r)
@@ -80,7 +80,7 @@ func (h *Handler) Listing(w http.ResponseWriter, r *http.Request) {
 
 	// A partial swap never draws the rules or the head, so it does not read them.
 	var rules *policy.Rules
-	if web.IsHTMX(r) {
+	if respond.IsHTMX(r) {
 		r = r.WithContext(AsPartial(r.Context()))
 	} else {
 		loaded, err := h.store.ShopRules(r.Context())
@@ -91,7 +91,7 @@ func (h *Handler) Listing(w http.ResponseWriter, r *http.Request) {
 		}
 		rules = &loaded
 	}
-	web.Render(w, r, h.log, http.StatusOK, Listing(ListingMeta(r.Context(), view), view, rules, head))
+	respond.Component(w, r, h.log, http.StatusOK, Listing(ListingMeta(r.Context(), view), view, rules, head))
 }
 
 const newestOnEmpty = 4
@@ -119,10 +119,10 @@ func (h *Handler) Search(w http.ResponseWriter, r *http.Request) {
 	if redirectPastLastPage(w, r, view.Page, view.Pages()) {
 		return
 	}
-	if web.IsHTMX(r) {
+	if respond.IsHTMX(r) {
 		r = r.WithContext(AsPartial(r.Context()))
 	}
-	web.Render(w, r, h.log, http.StatusOK, Search(SearchMeta(r.Context(), view.Query), view))
+	respond.Component(w, r, h.log, http.StatusOK, Search(SearchMeta(r.Context(), view.Query), view))
 }
 
 func (h *Handler) searched(ctx context.Context, pattern, query string, sort Sort, page int) (SearchView, error) {
@@ -144,14 +144,14 @@ func (h *Handler) searched(ctx context.Context, pattern, query string, sort Sort
 }
 
 func (h *Handler) notFound(w http.ResponseWriter, r *http.Request) {
-	web.Render(w, r, h.log, http.StatusNotFound, layouts.Notice(
+	respond.Component(w, r, h.log, http.StatusNotFound, layouts.Notice(
 		layouts.Page{Title: i18n.T(r.Context(), i18n.KeyCategoryNotFound)}, "404",
 		i18n.T(r.Context(), i18n.KeyCategoryNotFound),
 		i18n.T(r.Context(), i18n.KeyCategoryNotFoundBody)))
 }
 
 func (h *Handler) serverError(w http.ResponseWriter, r *http.Request) {
-	web.Render(w, r, h.log, http.StatusInternalServerError, layouts.Notice(
+	respond.Component(w, r, h.log, http.StatusInternalServerError, layouts.Notice(
 		layouts.Page{Title: i18n.T(r.Context(), i18n.KeyCannotLoad)}, "500",
 		i18n.T(r.Context(), i18n.KeyCannotLoad),
 		i18n.T(r.Context(), i18n.KeyCannotLoadListing)))
@@ -238,7 +238,7 @@ func (h *Handler) Compare(w http.ResponseWriter, r *http.Request) {
 			view.Candidates = compareCandidates(found.Products, view)
 		}
 	}
-	web.Render(w, r, h.log, http.StatusOK, Compare(
+	respond.Component(w, r, h.log, http.StatusOK, Compare(
 		layouts.Page{
 			Title:       i18n.T(r.Context(), i18n.KeyCompareTitle),
 			Description: i18n.T(r.Context(), i18n.KeyCompareDescription),

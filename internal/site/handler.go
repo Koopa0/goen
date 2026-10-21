@@ -15,7 +15,7 @@ import (
 	"github.com/koopa0/goen/internal/db"
 	"github.com/koopa0/goen/internal/i18n"
 	"github.com/koopa0/goen/internal/ui/layouts"
-	"github.com/koopa0/goen/internal/web"
+	"github.com/koopa0/goen/internal/web/respond"
 )
 
 type Handler struct {
@@ -60,11 +60,11 @@ func (h *Handler) Routes(mux *http.ServeMux) {
 }
 
 func (h *Handler) About(w http.ResponseWriter, r *http.Request) {
-	web.Render(w, r, h.log, http.StatusOK, About(AboutMeta(r.Context())))
+	respond.Component(w, r, h.log, http.StatusOK, About(AboutMeta(r.Context())))
 }
 
 func (h *Handler) NotFound(w http.ResponseWriter, r *http.Request) {
-	web.Render(w, r, h.log, http.StatusNotFound, layouts.Notice(
+	respond.Component(w, r, h.log, http.StatusNotFound, layouts.Notice(
 		layouts.Page{Title: i18n.T(r.Context(), i18n.KeyPageNotFoundTitle)},
 		"404",
 		i18n.T(r.Context(), i18n.KeyPageNotFound),
@@ -73,14 +73,14 @@ func (h *Handler) NotFound(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *Handler) BadRequest(w http.ResponseWriter, r *http.Request) {
-	web.Render(w, r, h.log, http.StatusBadRequest, layouts.Notice(
+	respond.Component(w, r, h.log, http.StatusBadRequest, layouts.Notice(
 		layouts.Page{Title: i18n.T(r.Context(), i18n.KeyAddressUnreadable)}, "400",
 		i18n.T(r.Context(), i18n.KeyAddressUnreadable),
 		i18n.T(r.Context(), i18n.KeyAddressRecovery)))
 }
 
 func (h *Handler) serverError(w http.ResponseWriter, r *http.Request) {
-	web.Render(w, r, h.log, http.StatusInternalServerError, layouts.Notice(
+	respond.Component(w, r, h.log, http.StatusInternalServerError, layouts.Notice(
 		layouts.Page{Title: i18n.T(r.Context(), i18n.KeyTryAgainTitle)}, "500",
 		i18n.T(r.Context(), i18n.KeyTryAgainTitle),
 		i18n.T(r.Context(), i18n.KeyLoggedTryAgain)))

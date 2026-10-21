@@ -18,8 +18,8 @@ import (
 	"github.com/koopa0/goen/internal/payment/refund"
 	"github.com/koopa0/goen/internal/ui/components"
 	"github.com/koopa0/goen/internal/ui/layouts"
-	"github.com/koopa0/goen/internal/web"
 	"github.com/koopa0/goen/internal/web/formtext"
+	"github.com/koopa0/goen/internal/web/respond"
 )
 
 type Handler struct {
@@ -78,7 +78,7 @@ func (h *Handler) Queue(w http.ResponseWriter, r *http.Request) {
 		Rows:   queue.Rows,
 		Notice: components.NoticeFrom(r, notices),
 	}
-	web.Render(w, r, h.log, http.StatusOK, Returns(
+	respond.Component(w, r, h.log, http.StatusOK, Returns(
 		layouts.Page{Title: i18n.T(r.Context(), i18n.KeyAdminPageReturns)}, view))
 }
 
@@ -241,7 +241,7 @@ func (h *Handler) renderReturnRefusal(w http.ResponseWriter, r *http.Request, er
 		}
 		overlayDraftFacts(&view.Rows[i], r)
 	}
-	web.Render(w, r, h.log, http.StatusUnprocessableEntity, Returns(
+	respond.Component(w, r, h.log, http.StatusUnprocessableEntity, Returns(
 		layouts.Page{Title: i18n.T(r.Context(), i18n.KeyAdminPageReturns)}, view))
 	return true
 }
@@ -270,7 +270,7 @@ func (h *Handler) renderInspection(w http.ResponseWriter, r *http.Request, key i
 			line.DraftNote = r.PostFormValue("note_" + line.OrderLineID)
 		}
 	}
-	web.Render(w, r, h.log, http.StatusUnprocessableEntity, Returns(
+	respond.Component(w, r, h.log, http.StatusUnprocessableEntity, Returns(
 		layouts.Page{Title: i18n.T(r.Context(), i18n.KeyAdminPageReturns)}, view))
 }
 
@@ -424,6 +424,6 @@ func (h *Handler) confirmReturnDecision(w http.ResponseWriter, r *http.Request) 
 		return true
 	}
 	view := ReturnConfirmation{ID: row.ID.String(), OrderNumber: row.OrderNumber, Decision: string(kind), Reason: row.Reason, AmountCents: row.RefundableCents, Resolution: resolution, AssessmentVersion: r.PostFormValue("assessment_version"), Required: required, Retry: retry}
-	web.Render(w, r, h.log, http.StatusOK, ConfirmReturn(layouts.Page{Title: view.Title(r.Context())}, view))
+	respond.Component(w, r, h.log, http.StatusOK, ConfirmReturn(layouts.Page{Title: view.Title(r.Context())}, view))
 	return true
 }

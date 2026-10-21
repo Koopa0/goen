@@ -1,4 +1,4 @@
-package web
+package respond
 
 import (
 	"bytes"
@@ -14,9 +14,9 @@ import (
 	"github.com/a-h/templ"
 )
 
-// TestRenderOfAnAbandonedRequestIsSilent: a departed caller stops the render
+// TestComponentOfAnAbandonedRequestIsSilent: a departed caller stops the render
 // with context.Canceled, which is not a server fault and has no reader for a 500.
-func TestRenderOfAnAbandonedRequestIsSilent(t *testing.T) {
+func TestComponentOfAnAbandonedRequestIsSilent(t *testing.T) {
 	t.Parallel()
 
 	ctx, cancel := context.WithCancel(t.Context())
@@ -25,7 +25,7 @@ func TestRenderOfAnAbandonedRequestIsSilent(t *testing.T) {
 	w := httptest.NewRecorder()
 	logs := &bytes.Buffer{}
 
-	Render(w, r, slog.New(slog.NewTextHandler(logs, nil)), http.StatusOK,
+	Component(w, r, slog.New(slog.NewTextHandler(logs, nil)), http.StatusOK,
 		templ.ComponentFunc(func(ctx context.Context, _ io.Writer) error { return ctx.Err() }))
 
 	if logs.Len() != 0 {
@@ -36,16 +36,16 @@ func TestRenderOfAnAbandonedRequestIsSilent(t *testing.T) {
 	}
 }
 
-// TestRenderFailureOfALiveRequestIsStillA500 keeps the guard to the departed
+// TestComponentFailureOfALiveRequestIsStillA500 keeps the guard to the departed
 // caller: a render that fails for goen's own reason is an error and a 500.
-func TestRenderFailureOfALiveRequestIsStillA500(t *testing.T) {
+func TestComponentFailureOfALiveRequestIsStillA500(t *testing.T) {
 	t.Parallel()
 
 	r := httptest.NewRequestWithContext(t.Context(), http.MethodGet, "/p/x", http.NoBody)
 	w := httptest.NewRecorder()
 	logs := &bytes.Buffer{}
 
-	Render(w, r, slog.New(slog.NewTextHandler(logs, nil)), http.StatusOK,
+	Component(w, r, slog.New(slog.NewTextHandler(logs, nil)), http.StatusOK,
 		templ.ComponentFunc(func(context.Context, io.Writer) error { return errors.New("boom") }))
 
 	if w.Code != http.StatusInternalServerError || !strings.Contains(logs.String(), "level=ERROR") {

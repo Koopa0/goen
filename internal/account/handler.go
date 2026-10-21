@@ -10,8 +10,8 @@ import (
 	"github.com/koopa0/goen/internal/i18n"
 	"github.com/koopa0/goen/internal/ui/layouts"
 	"github.com/koopa0/goen/internal/user"
-	"github.com/koopa0/goen/internal/web"
 	"github.com/koopa0/goen/internal/web/formtext"
+	"github.com/koopa0/goen/internal/web/respond"
 	"github.com/koopa0/goen/internal/web/siteurl"
 )
 
@@ -97,7 +97,7 @@ func (h *Handler) overview(w http.ResponseWriter, r *http.Request, status int, r
 	if refused != nil {
 		refused(&view)
 	}
-	web.Render(w, r, h.log, status, Account(Meta(r.Context()), &view))
+	respond.Component(w, r, h.log, status, Account(Meta(r.Context()), &view))
 }
 
 func accountNotice(r *http.Request) string {
@@ -147,7 +147,7 @@ func (h *Handler) UpdateProfile(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *Handler) serverError(w http.ResponseWriter, r *http.Request) {
-	web.Render(w, r, h.log, http.StatusInternalServerError, layouts.Notice(
+	respond.Component(w, r, h.log, http.StatusInternalServerError, layouts.Notice(
 		layouts.Page{Title: i18n.T(r.Context(), i18n.KeyBusyTitle)}, "",
 		i18n.T(r.Context(), i18n.KeyBusyTitle),
 		i18n.T(r.Context(), i18n.KeyBusyBody)))
@@ -279,7 +279,7 @@ func (h *Handler) refuseAddressEdit(w http.ResponseWriter, r *http.Request, id s
 }
 
 func (h *Handler) addressNotFound(w http.ResponseWriter, r *http.Request) {
-	web.Render(w, r, h.log, http.StatusNotFound, layouts.Notice(
+	respond.Component(w, r, h.log, http.StatusNotFound, layouts.Notice(
 		layouts.Page{Title: i18n.T(r.Context(), i18n.KeyPageNotFoundTitle)}, "404",
 		i18n.T(r.Context(), i18n.KeyPageNotFound), i18n.T(r.Context(), i18n.KeyPageNotFoundBody),
 		layouts.NoticeActions{Primary: layouts.NoticeLink{Href: "/account#addresses-heading", Label: i18n.KeyAddresses}}))
