@@ -11,6 +11,7 @@ import (
 	"github.com/koopa0/goen/internal/shipping"
 
 	"github.com/google/uuid"
+	"github.com/jackc/pgx/v5"
 
 	"github.com/koopa0/goen/internal/admin/audit"
 	"github.com/koopa0/goen/internal/db"
@@ -145,6 +146,12 @@ var (
 )
 
 func variantWriteError(ctx context.Context, slug string, err error) (map[string]string, error) {
+	// The catalogue lock found no product: the form was posted to a slug that is
+	// not there. ErrNotFound below means an option value that is not the
+	// product's, a field error.
+	if errors.Is(err, pgx.ErrNoRows) {
+		return nil, ErrNotFound
+	}
 	if errors.Is(err, errVariantNeedsEveryOption) {
 		return map[string]string{"options": i18n.T(ctx, i18n.KeyFormVariantNeedsEveryOption)}, nil
 	}

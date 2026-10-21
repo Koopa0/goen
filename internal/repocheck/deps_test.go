@@ -121,6 +121,15 @@ var (
 	storemapMayImport = []string{"assets", "internal/i18n", "internal/shipping", "internal/web"}
 )
 
+// packageLists are the package lists the rules above match against, by variable
+// name, so TestDependencies can hold every entry to a package that exists.
+var packageLists = map[string][]string{
+	"uiMayImport": uiMayImport, "storefrontPages": storefrontPages, "siteMayImport": siteMayImport,
+	"policyMayImport": policyMayImport, "campaignMayImport": campaignMayImport,
+	"importFreeLeaves": importFreeLeaves, "i18nOnlyLeaves": i18nOnlyLeaves,
+	"googleMayImport": googleMayImport, "storemapMayImport": storemapMayImport,
+}
+
 // depsRules is the repository's whole package-graph policy, in one place, in the
 // shape of the standard library's go/build deps_test.go.
 var depsRules = []importRule{
@@ -401,6 +410,15 @@ func TestDependencies(t *testing.T) {
 	}
 
 	var problems []string
+	// A name in a rule's list that no scanned directory carries turns the rule off
+	// for the package it meant, as a package move leaves behind.
+	for list, names := range packageLists {
+		for _, name := range names {
+			if !g.scanned[name] {
+				problems = append(problems, fmt.Sprintf("%s: %q names no package: rename or delete the entry", list, name))
+			}
+		}
+	}
 	waived := map[string]bool{} // exception keys that a soft rule still needs
 	for from, tos := range g.edges {
 		for to, files := range tos {

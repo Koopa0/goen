@@ -712,6 +712,47 @@ func TestALapsedOnlineAllowanceOffersOneResend(t *testing.T) {
 	t.Errorf("the lapsed allowance of %s is not on the health page", number)
 }
 
+// An allowance sent to ECPay whose outcome was never recorded (the process
+// stopped between the two) has no error text. It is a stranded claim like any
+// other, offered no resend because nothing says ECPay did not receive it, and
+// it must not take the health page or the task count down with it.
+func TestASentAllowanceWithNoErrorTextIsStillListed(t *testing.T) {
+	ctx, actor := admintest.StaffContext(t, pool)
+	worker := outbox.NewStore(pool, slog.New(slog.DiscardHandler))
+	number, orderID, _, _ := admintest.TwoLineOrderWithStock(t, pool, "silent")
+	if _, err := pool.Exec(ctx, `
+		WITH invoice AS (
+			INSERT INTO invoice_documents (order_id, kind, number, amount_cents)
+			VALUES ($1, 'invoice', 'GD-' || substr(replace(gen_random_uuid()::text,'-',''),1,8), 100000)
+			RETURNING id, order_id, number)
+		INSERT INTO invoice_operations
+		    (order_id, kind, target_document_id, provider_key, amount_cents, request_payload,
+		     actor_user_id, actor_id_snapshot, request_id, status, send_attempts, last_send_at, created_at)
+		SELECT order_id, 'allowance', id, number, 50000, '{}', $2, $2, $3,
+		       'pending', 1, now() - interval '1 hour', now() - interval '1 hour'
+		FROM invoice`, orderID, actor, "invoice-silent:"+number); err != nil {
+		t.Fatalf("record a sent allowance with no error text: %v", err)
+	}
+
+	store := health.NewStore(pool)
+	if _, err := store.StaffTaskCount(ctx); err != nil {
+		t.Fatalf("task count: %v", err)
+	}
+	view, err := store.WorkerHealth(ctx, worker)
+	if err != nil {
+		t.Fatalf("health: %v", err)
+	}
+	for _, c := range view.StrandedClaims {
+		if c.OrderNumber == number {
+			if c.CanAuthorizeResend {
+				t.Error("an allowance with no recorded outcome offers a resend")
+			}
+			return
+		}
+	}
+	t.Errorf("the sent allowance of %s is not on the health page", number)
+}
+
 // With no 加值中心 an issue a paid sale owes is claimed and waits for one to be
 // configured (issuer.Store.ClaimDue). It is not stranded, so the page and the
 // dashboard task must not raise it; an operation already sent still is.

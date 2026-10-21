@@ -82,8 +82,12 @@ func TestRefundOnlyReportWindow(t *testing.T) {
 			t.Fatalf("pending or out-of-window refunds contaminated empty report: %+v", view)
 		}
 	}
+	// Settled a second ago, not now(): the page asks with the host's clock, and a
+	// database in a container can run ahead of it, which would leave a refund
+	// stamped now() in the future of the page's window.
 	if _, err := p.Exec(ctx, `
-		UPDATE refunds SET status = 'succeeded', provider_ref = 're_report_new', succeeded_at = now()
+		UPDATE refunds SET status = 'succeeded', provider_ref = 're_report_new',
+		                   succeeded_at = now() - interval '1 second'
 		WHERE id = $1`, refundID); err != nil {
 		t.Fatalf("settle the older refund request: %v", err)
 	}

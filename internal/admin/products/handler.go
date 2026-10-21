@@ -235,6 +235,8 @@ func (h *Handler) AddVariant(w http.ResponseWriter, r *http.Request) {
 	}
 	errs, err := h.store.AddVariant(r.Context(), slug, f)
 	switch {
+	case errors.Is(err, ErrNotFound):
+		access.NotFound(w, r, h.log)
 	case err != nil:
 		h.log.ErrorContext(r.Context(), "add variant", "error", err)
 		access.ServerError(w, r, h.log)
@@ -332,6 +334,10 @@ func (h *Handler) rejectProduct(w http.ResponseWriter, r *http.Request, f *Form,
 		view, err = h.productView(r.Context(), f.Slug)
 	}
 	if err != nil {
+		if errors.Is(err, ErrNotFound) {
+			access.NotFound(w, r, h.log)
+			return
+		}
 		h.log.ErrorContext(r.Context(), "rebuild product form", "error", err)
 		access.ServerError(w, r, h.log)
 		return
