@@ -50,7 +50,7 @@ func TestCartRecoveryReadsBothBasketsWithoutChangingOrExposingAnotherAccount(t *
 					t.Fatal(lineErr)
 				}
 			}
-			carts := cart.NewHandler(cart.NewStore(app), access.NewStore(app, false), slog.New(slog.DiscardHandler), false, nil, nil)
+			carts := cart.NewHandler(cart.NewStore(app), access.NewStore(app, false), slog.New(slog.DiscardHandler), false, nil)
 			h := auth.NewHandler(accounts, carts, access.NewStore(app, false), slog.New(slog.DiscardHandler), false, nil)
 			token, err := accounts.StartSession(ctx, owner.ID, "recovery", "127.0.0.1")
 			if err != nil {

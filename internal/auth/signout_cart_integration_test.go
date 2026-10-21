@@ -18,6 +18,7 @@ import (
 	"github.com/koopa0/goen/internal/auth"
 	"github.com/koopa0/goen/internal/bearer"
 	"github.com/koopa0/goen/internal/cart"
+	"github.com/koopa0/goen/internal/checkout"
 	"github.com/koopa0/goen/internal/order/access"
 )
 
@@ -29,7 +30,9 @@ func TestAnAccountCartAnswersOnlyToItsAccount(t *testing.T) {
 	ctx := t.Context()
 	appPool := accountStorePool(t, "account-cart-owner")
 	carts := cart.NewHandler(cart.NewStore(appPool), access.NewStore(appPool, false), slog.New(slog.DiscardHandler), false,
-		nil, nil)
+		nil)
+	placement := checkout.NewHandler(checkout.NewStore(appPool), carts, access.NewStore(appPool, false),
+		slog.New(slog.DiscardHandler), false, nil, nil)
 	h := auth.NewHandler(auth.NewStore(appPool), carts, access.NewStore(appPool, false), slog.New(slog.DiscardHandler), false, nil)
 	// The storefront's order: the session, then the cart badge, then the route.
 	serve := func(route http.HandlerFunc, req *http.Request) *httptest.ResponseRecorder {
@@ -132,7 +135,7 @@ func TestAnAccountCartAnswersOnlyToItsAccount(t *testing.T) {
 		place := cartForm(ctx, "/checkout", url.Values{})
 		place.AddCookie(bSession)
 		place.AddCookie(browserCart(aToken))
-		res := serve(carts.PlaceOrder, place)
+		res := serve(placement.PlaceOrder, place)
 		if loc := res.Header().Get("Location"); res.Code != http.StatusSeeOther || loc != "/cart" {
 			t.Errorf("B's checkout answered %d to %q, want 303 to /cart: B has no cart", res.Code, loc)
 		}
@@ -186,7 +189,7 @@ func TestSignOutLeavesAGuestCartWithTheBrowser(t *testing.T) {
 	ctx := t.Context()
 	appPool := accountStorePool(t, "account-guest-cart-kept")
 	carts := cart.NewHandler(cart.NewStore(appPool), access.NewStore(appPool, false), slog.New(slog.DiscardHandler), false,
-		nil, nil)
+		nil)
 	h := auth.NewHandler(auth.NewStore(appPool), carts, access.NewStore(appPool, false), slog.New(slog.DiscardHandler), false, nil)
 	serve := func(route http.HandlerFunc, req *http.Request) *httptest.ResponseRecorder {
 		rec := httptest.NewRecorder()

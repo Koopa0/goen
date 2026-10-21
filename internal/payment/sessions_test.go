@@ -53,3 +53,16 @@ func TestPostCommitSessionExpiryOwnsItsContext(t *testing.T) {
 			observed.remaining)
 	}
 }
+
+func TestHoldTTLIncludesTheWholePaymentSafetyBudget(t *testing.T) {
+	t.Parallel()
+	if minSessionLifetime != 30*time.Minute {
+		t.Errorf("minSessionLifetime = %s, want 30m", minSessionLifetime)
+	}
+	if sessionStartMargin != time.Minute {
+		t.Errorf("sessionStartMargin = %s, want 1m", sessionStartMargin)
+	}
+	if HoldTTL != PayWindow+minSessionLifetime+sessionStartMargin {
+		t.Errorf("HoldTTL = %s, want pay window + Stripe floor + start margin", HoldTTL)
+	}
+}

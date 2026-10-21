@@ -4,8 +4,6 @@ package cart_test
 
 import (
 	"context"
-	"crypto/sha256"
-	"encoding/base64"
 	"log/slog"
 	"net/http"
 	"net/http/httptest"
@@ -22,42 +20,12 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 
 	"github.com/koopa0/goen/internal/cart"
-	"github.com/koopa0/goen/internal/coupon"
 	"github.com/koopa0/goen/internal/db/dbtest"
 	"github.com/koopa0/goen/internal/order/access"
-	"github.com/koopa0/goen/internal/order/delivery"
-	"github.com/koopa0/goen/internal/payment"
 	"github.com/koopa0/goen/internal/ratelimit"
 )
 
 var pool *pgxpool.Pool
-
-// checkoutAttemptKey turns a readable test label into the same canonical
-// fixed-size identity the checkout page issues. It is idempotent so concurrency
-// fixtures may share one identity between a manual advisory lock and placeOrder.
-func checkoutAttemptKey(label string) string {
-	if decoded, err := base64.RawURLEncoding.DecodeString(label); err == nil &&
-		len(decoded) == 16 && base64.RawURLEncoding.EncodeToString(decoded) == label {
-		var nonzero bool
-		for _, b := range decoded {
-			nonzero = nonzero || b != 0
-		}
-		if nonzero {
-			return label
-		}
-	}
-	digest := sha256.Sum256([]byte(label))
-	return base64.RawURLEncoding.EncodeToString(digest[:16])
-}
-
-func quoteTotal(t *testing.T, quote cart.Quote) int64 {
-	t.Helper()
-	total, err := quote.Total()
-	if err != nil {
-		t.Fatalf("total shipping quote: %v", err)
-	}
-	return total
-}
 
 func hiddenInputValue(body, name string) (string, bool) {
 	marker := `name="` + name + `" value="`
@@ -129,111 +97,6 @@ func newCartSession(t *testing.T, s *cart.Store) (id uuid.UUID, token string) {
 		t.Fatalf("create cart: %v", err)
 	}
 	return id, tok
-}
-
-// checkoutQuote builds the quote a direct Store test would have rendered. HTTP
-// tests carry these values through the real hidden controls instead. Keeping
-// this helper in cart_test avoids a production escape hatch that could place an
-// unconfirmed current quote.
-func checkoutQuote(
-	t *testing.T,
-	s *cart.Store,
-	cartID uuid.UUID,
-	owner uuid.NullUUID,
-	shippingID uuid.UUID,
-	addr *delivery.Details,
-	couponCode string,
-) cart.CheckoutQuoteID {
-	t.Helper()
-	facts := checkoutQuoteFacts(t, s, cartID, owner, shippingID, addr, couponCode)
-	id, err := facts.ID()
-	if err != nil {
-		t.Fatalf("build checkout quote: %v", err)
-	}
-	return id
-}
-
-// checkoutQuoteFacts is the quote checkoutQuote hashes, for a test that has to
-// change one fact of what the checkout rendered.
-func checkoutQuoteFacts(
-	t *testing.T,
-	s *cart.Store,
-	cartID uuid.UUID,
-	owner uuid.NullUUID,
-	shippingID uuid.UUID,
-	addr *delivery.Details,
-	couponCode string,
-) cart.CheckoutQuote {
-	t.Helper()
-	view, err := s.View(t.Context(), cartID)
-	if err != nil {
-		t.Fatalf("read cart quote: %v", err)
-	}
-	quote, err := s.QuoteShipping(t.Context(), shippingID, view.SubtotalCents, addr.PostalCode)
-	if err != nil {
-		t.Fatalf("quote delivery: %v", err)
-	}
-	shippingFee, discount := quoteTotal(t, quote), int64(0)
-	if couponCode != "" {
-		c, findErr := s.CouponByCode(t.Context(), couponCode)
-		if findErr != nil {
-			t.Fatalf("find quoted coupon: %v", findErr)
-		}
-		var free bool
-		discount, free, err = c.Apply(view.SubtotalCents, quote.FeeCents == 0)
-		if err != nil {
-			t.Fatalf("apply coupon to quote: %v", err)
-		}
-		if free {
-			shippingFee = quote.Surcharge
-		}
-	}
-	gross := view.SubtotalCents + shippingFee - discount
-	balance, err := s.AvailableCredit(t.Context(), owner)
-	if err != nil {
-		t.Fatalf("read quoted credit: %v", err)
-	}
-	lines := make([]cart.CheckoutQuoteLine, 0, len(view.Lines))
-	for i := range view.Lines {
-		line := &view.Lines[i]
-		variantID, parseErr := uuid.Parse(line.VariantID)
-		if parseErr != nil {
-			t.Fatalf("parse quoted variant: %v", parseErr)
-		}
-		lines = append(lines, cart.CheckoutQuoteLine{
-			VariantID: variantID,
-			Quantity:  line.Quantity,
-			UnitCents: line.UnitCents,
-		})
-	}
-	return cart.CheckoutQuote{
-		CartID:            cartID,
-		Lines:             lines,
-		ShippingVersionID: shippingID,
-		ShippingCents:     shippingFee,
-		CouponCode:        coupon.Normalise(couponCode),
-		DiscountCents:     discount,
-		CreditCents:       min(balance, gross),
-	}
-}
-
-func placeOrder(
-	t *testing.T,
-	s *cart.Store,
-	ctx context.Context,
-	cartID uuid.UUID,
-	owner uuid.NullUUID,
-	shippingID uuid.UUID,
-	addr *delivery.Details,
-	couponCode string,
-	key string,
-) (string, error) {
-	t.Helper()
-	quote := checkoutQuote(t, s, cartID, owner, shippingID, addr, couponCode)
-	return s.PlaceOrder(
-		ctx, cartID, owner, shippingID, addr, nil, couponCode, quote,
-		checkoutAttemptKey(key),
-	)
 }
 
 func applicationPool(t *testing.T, name string) *pgxpool.Pool {
@@ -454,38 +317,6 @@ func creditedCustomer(t *testing.T, cents int64) uuid.UUID {
 	return id
 }
 
-// shipVersionFor is the current version of the named shipping method.
-func shipVersionFor(t *testing.T, code string) uuid.UUID {
-	t.Helper()
-	var id uuid.UUID
-	if err := pool.QueryRow(t.Context(),
-		`SELECT v.id FROM shipping_method_versions v
-		 JOIN shipping_methods sm ON sm.id = v.method_id
-		 WHERE sm.code = $1 ORDER BY v.effective_at DESC LIMIT 1`, code).Scan(&id); err != nil {
-		t.Fatalf("shipping version for %s: %v", code, err)
-	}
-	return id
-}
-
-// destinationOf reads back what an order recorded as its destination.
-func destinationOf(t *testing.T, number string) (street, brand, code, name string) {
-	t.Helper()
-	var s, b, c, n *string
-	if err := pool.QueryRow(t.Context(),
-		`SELECT pd.street, pd.pickup_chain, pd.pickup_store_code, pd.pickup_store_name
-		 FROM order_private_data pd JOIN orders o ON o.id = pd.order_id
-		 WHERE o.order_number = $1`, number).Scan(&s, &b, &c, &n); err != nil {
-		t.Fatalf("read destination of %s: %v", number, err)
-	}
-	deref := func(p *string) string {
-		if p == nil {
-			return ""
-		}
-		return *p
-	}
-	return deref(s), deref(b), deref(c), deref(n)
-}
-
 // numberOf is an order's customer-facing number.
 func numberOf(t *testing.T, orderID uuid.UUID) string {
 	t.Helper()
@@ -632,68 +463,6 @@ func variantsOf(t *testing.T, name string, n int) (a, b, c uuid.UUID) {
 	return ids[0], ids[1], ids[2]
 }
 
-// creditedAccount is creditedCustomer plus the account id.
-func creditedAccount(t *testing.T, cents int64) (userID, accountID uuid.UUID) {
-	t.Helper()
-	userID = creditedCustomer(t, cents)
-	if err := pool.QueryRow(t.Context(),
-		`SELECT id FROM store_credit_accounts WHERE user_id = $1`, userID).
-		Scan(&accountID); err != nil {
-		t.Fatalf("read credit account: %v", err)
-	}
-	return userID, accountID
-}
-
-// creditBalance is what the ledger sums to for one account.
-func creditBalance(t *testing.T, accountID uuid.UUID) int64 {
-	t.Helper()
-	var cents int64
-	if err := pool.QueryRow(t.Context(),
-		`SELECT coalesce(sum(amount_cents), 0) FROM store_credit_entries WHERE account_id = $1`,
-		accountID).Scan(&cents); err != nil {
-		t.Fatalf("read balance: %v", err)
-	}
-	return cents
-}
-
-// translatedVariant makes a product whose Chinese and English names differ, and
-// returns the variant id and both names.
-func translatedVariant(t *testing.T) (variantID uuid.UUID, zhName, enName string) {
-	t.Helper()
-	ctx := t.Context()
-
-	suffix := uuid.NewString()[:8]
-	zhName, enName = "快照測試 "+suffix, "Snapshot Test "+suffix
-	var productID uuid.UUID
-	if err := pool.QueryRow(ctx, `
-		INSERT INTO products (brand_id, category_id, slug, name, name_en, status,
-		                      published_at)
-		SELECT b.id, c.id, $1, $2, $3, 'draft', now()
-		FROM brands b, categories c
-		WHERE b.slug = 'koto' AND c.parent_id IS NULL
-		ORDER BY c.position LIMIT 1
-		RETURNING id`, "snapshot-"+suffix, zhName, enName).Scan(&productID); err != nil {
-		t.Fatalf("create product: %v", err)
-	}
-	if err := pool.QueryRow(ctx, `
-		INSERT INTO product_variants (product_id, sku, price_cents, safety_stock)
-		VALUES ($1, $2, 100000, 0) RETURNING id`,
-		productID, "SNAP-"+strings.ToUpper(suffix)).Scan(&variantID); err != nil {
-		t.Fatalf("create variant: %v", err)
-	}
-	// Stock arrives through the ledger, the only door that writes stock_quantity.
-	if _, err := pool.Exec(ctx,
-		`SELECT record_inventory_movement($1, 5, 'receipt', $2, 'admin', NULL)`,
-		variantID, "snapshot-stock-"+suffix); err != nil {
-		t.Fatalf("stock the variant: %v", err)
-	}
-	if _, err := pool.Exec(ctx,
-		`UPDATE products SET status = 'active' WHERE id = $1`, productID); err != nil {
-		t.Fatalf("publish: %v", err)
-	}
-	return variantID, zhName, enName
-}
-
 // placedCookie issues a REAL access token through the same grant the checkout
 // writes: a fixture putting the order NUMBER in the cookie would assert a
 // forgeable design rather than the rule.
@@ -717,61 +486,4 @@ func placedCookie(t *testing.T, number string) *http.Cookie {
 // limiter that refused mid-suite would be testing the limiter.
 func testLimiter() *ratelimit.Limiter {
 	return ratelimit.New(ratelimit.Config{Every: time.Millisecond, Burst: 1000, TTL: time.Hour, MaxKeys: 1000})
-}
-
-func testPayHandler(t *testing.T) *payment.Handler {
-	t.Helper()
-	gateway, err := payment.NewGateway("", "", "")
-	if err != nil {
-		t.Fatalf("gateway: %v", err)
-	}
-	return payment.NewHandler(payment.NewStore(pool), gateway, access.NewStore(pool, false), slog.New(slog.DiscardHandler))
-}
-
-func followPayWithCookie(
-	t *testing.T, ctx context.Context, payH *payment.Handler, number string, cookie *http.Cookie,
-) {
-	t.Helper()
-	req := httptest.NewRequestWithContext(ctx, http.MethodGet, "/orders/"+number+"/pay", http.NoBody)
-	req.SetPathValue("number", number)
-	req.AddCookie(cookie)
-	res := httptest.NewRecorder()
-	payH.Page(res, req)
-	if res.Code != http.StatusOK {
-		t.Fatalf("issued cookie could not reach pay page for %s: %d", number, res.Code)
-	}
-}
-
-// placeUnpaidOrderFor places one order for an address, through the store's own
-// checkout.
-func placeUnpaidOrderFor(t *testing.T, s *cart.Store, address string) string {
-	t.Helper()
-	return placeOrderOfUnits(t, s, address, 1)
-}
-
-// placeOrderOfUnits is placeUnpaidOrderFor with that many units of its one line.
-func placeOrderOfUnits(t *testing.T, s *cart.Store, address string, units int32) string {
-	t.Helper()
-	ctx := t.Context()
-
-	id := newCart(t, s)
-	if err := s.Add(ctx, id, freshVariant(t, "unpaid-order"), units); err != nil {
-		t.Fatalf("add: %v", err)
-	}
-	var shipID uuid.UUID
-	if err := pool.QueryRow(ctx,
-		`SELECT id FROM shipping_method_versions ORDER BY effective_at LIMIT 1`).
-		Scan(&shipID); err != nil {
-		t.Fatalf("shipping: %v", err)
-	}
-	addr := &delivery.Details{
-		Email: address, RecipientName: "王小明", Phone: "0912345678",
-		PostalCode: "110", City: "台北市", District: "信義區", Street: "松高路 1 號",
-	}
-	number, err := placeOrder(t, s, ctx, id, uuid.NullUUID{}, shipID, addr, "",
-		"forge-"+uuid.NewString())
-	if err != nil {
-		t.Fatalf("place: %v", err)
-	}
-	return number
 }

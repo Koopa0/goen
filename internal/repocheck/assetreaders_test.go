@@ -70,7 +70,7 @@ var assetReaders = map[string]string{
 	"cmd/goen/server_test.go#TestSpeculationRulesAreOfferedOnlyWhereTheyAreSafe":                        "contract: the served asset bytes, their headers and the middleware around them are the contract",
 	"internal/ui/chart/columns_test.go#TestColumnsDropStripNamesFromAFigureNarrowerThanTheyAreFittedTo": "T14c",
 	"internal/ui/layouts/chrome_test.go#TestOnlyTheBackOfficeLinksItsStylesheet":                        "contract: which sheet each shell links is the page contract",
-	"internal/cart/cart_page_test.go#TestTheCheckoutFormIsCheckedByTheServerAndFocusesTheFirstRefusal":  "T14e",
+	"internal/checkout/page_test.go#TestTheCheckoutFormIsCheckedByTheServerAndFocusesTheFirstRefusal":   "T14e",
 	"internal/catalog/product_page_test.go#TestTheBottomBarIsDrivenByAnIntersectionObserver":            "T14e",
 	"internal/catalog/stepper_test.go#TestTheStepperNeverDisablesTheButtonThatHasFocus":                 "T14e",
 }

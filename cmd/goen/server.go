@@ -41,6 +41,7 @@ import (
 	"github.com/koopa0/goen/internal/auth/google"
 	"github.com/koopa0/goen/internal/cart"
 	"github.com/koopa0/goen/internal/catalog"
+	"github.com/koopa0/goen/internal/checkout"
 	"github.com/koopa0/goen/internal/compress"
 	"github.com/koopa0/goen/internal/contact"
 	"github.com/koopa0/goen/internal/home"
@@ -180,13 +181,13 @@ func routing(cfg *RouterConfig, log *slog.Logger) (http.Handler, *http.ServeMux)
 		catalogue = catalogue.WithoutPickup()
 	}
 	sitePages := site.NewHandler(log, baseURL, catalogue, siteStore, secureCookies)
-	var barcodeChecker cart.MobileBarcodeChecker
+	var barcodeChecker checkout.MobileBarcodeChecker
 	if front.Invoices.Enabled() {
 		barcodeChecker = front.Invoices
 	}
 	orderAccess := access.NewStore(pool, secureCookies)
-	basketStore := cart.NewStore(pool)
-	basket := cart.NewHandler(basketStore, orderAccess, log, secureCookies,
+	basket := cart.NewHandler(cart.NewStore(pool), orderAccess, log, secureCookies, front.StoreMap)
+	checkouts := checkout.NewHandler(checkout.NewStore(pool), basket, orderAccess, log, secureCookies,
 		sessionCloser(front.Payments), front.StoreMap, barcodeChecker)
 	authn := auth.NewHandler(auth.NewStore(pool), basket, orderAccess, log, secureCookies, front.Google)
 	authn.OfferDemoAccount(front.DemoAccount)
@@ -194,9 +195,9 @@ func routing(cfg *RouterConfig, log *slog.Logger) (http.Handler, *http.ServeMux)
 	// /admin and the storefront's account doors cannot disagree about it.
 	factorStore := twofactor.NewStore(adminPool, cfg.BackOffice.TOTPKey, cfg.BackOffice.TOTPPreviousKey)
 	authn.RequireStepUpFromStaff(storefrontStepUp(factorStore, pool, log))
-	accounts := account.NewHandler(account.NewStore(pool), log, secureCookies, basket.TakesPayment())
+	accounts := account.NewHandler(account.NewStore(pool), log, secureCookies, checkouts.TakesPayment())
 	authn.RefuseOnAccountPage(accounts.Refuse)
-	storefrontRoutes(mux, front, log, catalogue, sitePages, basket, authn, accounts, orderAccess)
+	storefrontRoutes(mux, front, log, catalogue, sitePages, basket, checkouts, authn, accounts, orderAccess)
 	backOfficeRoutes(mux, &cfg.BackOffice, factorStore, log, poolsOnHealthPage(pool, adminPool, cfg.BackOffice.MaintenancePool))
 	mux.HandleFunc("GET /", sitePages.NotFound)
 
@@ -231,7 +232,7 @@ func routing(cfg *RouterConfig, log *slog.Logger) (http.Handler, *http.ServeMux)
 // clearSpeculations and clearCache are this deployment's, handed to the writes
 // that need them; RequireUser is sign-in's, handed to the account's pages.
 func storefrontRoutes(mux *http.ServeMux, cfg *StorefrontConfig, log *slog.Logger,
-	catalogue *catalog.Store, sitePages *site.Handler, basket *cart.Handler,
+	catalogue *catalog.Store, sitePages *site.Handler, basket *cart.Handler, checkouts *checkout.Handler,
 	authn *auth.Handler, accounts *account.Handler, orderAccess *access.Store) {
 	pool, gateway := cfg.StorePool, cfg.Payments
 	baseURL := cfg.BaseURL
@@ -273,7 +274,7 @@ func storefrontRoutes(mux *http.ServeMux, cfg *StorefrontConfig, log *slog.Logge
 	points := loyalty.NewHandler(loyalty.NewStore(pool), log)
 	// Every checkout submission looks up the coupon it carries, and a chooser
 	// change is a submission too, so a whole checkout is a dozen posts at most.
-	// cart.Handler bounds the wrong codes themselves; this bounds the rest.
+	// checkout.Handler bounds the wrong codes themselves; this bounds the rest.
 	checkoutLimit := ratelimit.New(ratelimit.Config{
 		Every: 2 * time.Second, Burst: 30, TTL: time.Hour, MaxKeys: 65_536,
 	})
@@ -283,7 +284,7 @@ func storefrontRoutes(mux *http.ServeMux, cfg *StorefrontConfig, log *slog.Logge
 	findLimit := ratelimit.New(ratelimit.Config{
 		Every: 6 * time.Minute, Burst: 10, TTL: time.Hour, MaxKeys: 65_536,
 	})
-	buyerOrders := buyer.NewHandler(buyer.NewStore(pool), orderAccess, log, findLimit, basket.TakesPayment())
+	buyerOrders := buyer.NewHandler(buyer.NewStore(pool), orderAccess, log, findLimit, checkouts.TakesPayment())
 
 	homePage.Routes(mux)
 	images.Routes(mux)
@@ -292,7 +293,8 @@ func storefrontRoutes(mux *http.ServeMux, cfg *StorefrontConfig, log *slog.Logge
 	contactPage.Routes(mux)
 	signups.Routes(mux)
 	browse.Routes(mux, notifyLimit)
-	basket.Routes(mux, checkoutLimit, clearSpeculations)
+	basket.Routes(mux, clearSpeculations)
+	checkouts.Routes(mux, checkoutLimit)
 	buyerOrders.Routes(mux)
 	till.Routes(mux)
 	authn.Routes(mux, authLimit, clearSpeculations, clearCache)

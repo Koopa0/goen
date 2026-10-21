@@ -46,8 +46,8 @@ var queryOwnerExceptions = map[string]string{
 	"internal/order/lapse -> ReleaseReservation": "unassigned: one stock release, shared by every path that returns a hold",
 	// The order-placed email is written from the order page's own reads, in the
 	// transaction that places the order.
-	"internal/cart -> OrderPageLines":       "unassigned: the order-placed email reads the order page's lines",
-	"internal/cart -> OrderSummaryByNumber": "unassigned: the order-placed email reads the order page's figures",
+	"internal/checkout -> OrderPageLines":       "unassigned: the order-placed email reads the order page's lines",
+	"internal/checkout -> OrderSummaryByNumber": "unassigned: the order-placed email reads the order page's figures",
 
 	// The order page shows what was refunded; the refund engine reads the same sum.
 	"internal/admin/orders -> SettledRefundsForOrder": sharedRead,
@@ -76,7 +76,7 @@ var queryOwnerExceptions = map[string]string{
 	"internal/admin/staff -> UserByEmail":        sharedRead,
 	"internal/admin/staff -> UserByID":           sharedRead,
 	"internal/admin/products -> ProductRating":   sharedRead,
-	"internal/cart -> OrderHoldSpan":             sharedRead,
+	"internal/checkout -> OrderHoldSpan":         sharedRead,
 	"internal/order/buyer -> OrderHoldSpan":      sharedRead,
 	"internal/home -> ListedCampaigns":           sharedRead,
 	"internal/payment -> OrderSummaryByNumber":   sharedRead,

@@ -1,0 +1,40 @@
+package checkout
+
+import (
+	"html"
+	"strings"
+	"testing"
+
+	"github.com/koopa0/goen/internal/cart"
+	"github.com/koopa0/goen/internal/i18n"
+	"github.com/koopa0/goen/internal/invoice"
+	"github.com/koopa0/goen/internal/ui/pages"
+)
+
+func TestCompanyInvoiceChoiceSaysWhereTheInvoiceIsStored(t *testing.T) {
+	t.Parallel()
+	for _, loc := range []i18n.Locale{i18n.ZhHant, i18n.En} {
+		ctx := i18n.WithLocale(t.Context(), loc)
+		view := func(typ string) string {
+			v := View{
+				Cart:           cart.View{Lines: []pages.CartLine{{Name: "x", Quantity: 1, UnitCents: 100}}},
+				Shipping:       []cart.ShippingChoice{{VersionID: "ship-1", Code: "home", Name: "home"}},
+				Chosen:         "ship-1",
+				Invoice:        InvoiceView{Type: invoice.Preference(typ)},
+				InvoiceChoices: []InvoiceChoice{{Value: "company", Label: "company"}, {Value: "mobile_carrier", Label: "mobile"}},
+			}
+			var b strings.Builder
+			if err := Page(Meta(ctx), &v).Render(ctx, &b); err != nil {
+				t.Fatal(err)
+			}
+			return b.String()
+		}
+		want := html.EscapeString(i18n.T(ctx, i18n.KeyInvoiceCompanyStored))
+		if !strings.Contains(view("company"), want) {
+			t.Errorf("%v: the company invoice choice does not say where the invoice is stored", loc)
+		}
+		if strings.Contains(view("mobile_carrier"), want) {
+			t.Errorf("%v: the mobile-barcode choice shows the company-invoice storage note", loc)
+		}
+	}
+}

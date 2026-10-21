@@ -407,7 +407,7 @@ func TestAMergedCartIsVisibleAfterSignInWithTheDeletedGuestCookie(t *testing.T) 
 		t.Fatalf("guest lines: %v", err)
 	}
 
-	carts := cart.NewHandler(cart.NewStore(pool), access.NewStore(pool, false), slog.New(slog.DiscardHandler), false, nil, nil)
+	carts := cart.NewHandler(cart.NewStore(pool), access.NewStore(pool, false), slog.New(slog.DiscardHandler), false, nil)
 
 	h := auth.NewHandler(accounts, carts, access.NewStore(pool, false), slog.New(slog.DiscardHandler), false, nil)
 
@@ -501,7 +501,7 @@ func TestFailedCartAdoptionOnSignInShowsNoticeAndPreservesBothCarts(t *testing.T
 		t.Fatalf("lock guest cart: %v", err)
 	}
 
-	carts := cart.NewHandler(cart.NewStore(pool), access.NewStore(pool, false), slog.New(slog.DiscardHandler), false, nil, nil)
+	carts := cart.NewHandler(cart.NewStore(pool), access.NewStore(pool, false), slog.New(slog.DiscardHandler), false, nil)
 
 	h := auth.NewHandler(accounts, carts, access.NewStore(pool, false), slog.New(slog.DiscardHandler), false, nil)
 
@@ -652,7 +652,7 @@ func TestAdoptCartRefusesGuestCartOwnedByAnotherAccount(t *testing.T) {
 		t.Fatalf("guest line: %v", err)
 	}
 
-	carts := cart.NewHandler(cart.NewStore(pool), access.NewStore(pool, false), slog.New(slog.DiscardHandler), false, nil, nil)
+	carts := cart.NewHandler(cart.NewStore(pool), access.NewStore(pool, false), slog.New(slog.DiscardHandler), false, nil)
 
 	h := auth.NewHandler(accounts, carts, access.NewStore(pool, false), slog.New(slog.DiscardHandler), false, nil)
 
