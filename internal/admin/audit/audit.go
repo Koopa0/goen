@@ -13,8 +13,8 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 
 	"github.com/koopa0/goen/internal/db"
-	"github.com/koopa0/goen/internal/requestid"
 	"github.com/koopa0/goen/internal/user"
+	"github.com/koopa0/goen/internal/web/requestid"
 )
 
 var ErrNoActor = errors.New("admin: a back-office write reached the store with no actor")

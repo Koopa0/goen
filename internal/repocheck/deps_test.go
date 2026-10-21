@@ -100,11 +100,11 @@ var (
 	}
 	// importFreeLeaves import no goen package at all.
 	importFreeLeaves = []string{
-		"internal/payment/refund", "internal/clientip",
+		"internal/payment/refund", "internal/web/clientip",
 		"internal/coupon", "internal/inventory", "internal/shipping/postcode", "internal/user",
 		"internal/money", "internal/db", "internal/keyset", "internal/bearer",
-		"internal/email", "internal/cart/cartitem", "internal/product", "internal/compress",
-		"internal/requestid", "internal/web/siteurl",
+		"internal/email", "internal/cart/cartitem", "internal/product", "internal/web/compress",
+		"internal/web/requestid", "internal/web/siteurl",
 	}
 	// i18nOnlyLeaves import nothing from goen except the message catalogue.
 	i18nOnlyLeaves = []string{

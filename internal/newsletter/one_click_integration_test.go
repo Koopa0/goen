@@ -16,7 +16,7 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 
 	"github.com/koopa0/goen/internal/newsletter"
-	"github.com/koopa0/goen/internal/ratelimit"
+	"github.com/koopa0/goen/internal/web/ratelimit"
 )
 
 func TestOneClickUnsubscribeUsesTheURLTokenAndIsIdempotent(t *testing.T) {

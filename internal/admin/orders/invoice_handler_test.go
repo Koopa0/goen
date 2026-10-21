@@ -17,8 +17,8 @@ import (
 	"github.com/koopa0/goen/internal/i18n"
 	"github.com/koopa0/goen/internal/invoice"
 	"github.com/koopa0/goen/internal/invoice/issuer"
-	"github.com/koopa0/goen/internal/requestid"
 	"github.com/koopa0/goen/internal/user"
+	"github.com/koopa0/goen/internal/web/requestid"
 )
 
 type stubInvoiceWriter struct {

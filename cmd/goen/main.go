@@ -30,7 +30,6 @@ import (
 	"github.com/koopa0/goen/internal/backinstock"
 	"github.com/koopa0/goen/internal/cart"
 	"github.com/koopa0/goen/internal/checkout"
-	"github.com/koopa0/goen/internal/clientip"
 	"github.com/koopa0/goen/internal/invoice/issuer"
 	"github.com/koopa0/goen/internal/letter"
 	"github.com/koopa0/goen/internal/media"
@@ -42,6 +41,7 @@ import (
 	"github.com/koopa0/goen/internal/payment"
 	"github.com/koopa0/goen/internal/product/copurchase"
 	"github.com/koopa0/goen/internal/shipping/storemap"
+	"github.com/koopa0/goen/internal/web/clientip"
 	"github.com/koopa0/goen/internal/web/siteurl"
 	"github.com/koopa0/goen/migrations"
 )

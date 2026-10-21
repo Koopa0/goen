@@ -11,7 +11,7 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 
 	"github.com/koopa0/goen/internal/db"
-	"github.com/koopa0/goen/internal/requestid"
+	"github.com/koopa0/goen/internal/web/requestid"
 )
 
 type recommendationRead string

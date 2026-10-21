@@ -22,7 +22,7 @@ import (
 	"github.com/koopa0/goen/internal/cart"
 	"github.com/koopa0/goen/internal/db/dbtest"
 	"github.com/koopa0/goen/internal/order/access"
-	"github.com/koopa0/goen/internal/ratelimit"
+	"github.com/koopa0/goen/internal/web/ratelimit"
 )
 
 var pool *pgxpool.Pool

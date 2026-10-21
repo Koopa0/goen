@@ -25,8 +25,8 @@ import (
 	"github.com/koopa0/goen/internal/db/dbtest"
 	"github.com/koopa0/goen/internal/i18n"
 	"github.com/koopa0/goen/internal/newsletter"
-	"github.com/koopa0/goen/internal/ratelimit"
 	"github.com/koopa0/goen/internal/ui/uitest"
+	"github.com/koopa0/goen/internal/web/ratelimit"
 )
 
 var pool *pgxpool.Pool

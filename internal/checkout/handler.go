@@ -21,7 +21,6 @@ import (
 	"github.com/koopa0/goen/internal/order/access"
 	"github.com/koopa0/goen/internal/order/delivery"
 	"github.com/koopa0/goen/internal/payment"
-	"github.com/koopa0/goen/internal/ratelimit"
 	"github.com/koopa0/goen/internal/shipping"
 	"github.com/koopa0/goen/internal/shipping/storemap"
 	"github.com/koopa0/goen/internal/ui/layouts"
@@ -29,6 +28,7 @@ import (
 	"github.com/koopa0/goen/internal/user"
 	"github.com/koopa0/goen/internal/web"
 	"github.com/koopa0/goen/internal/web/formtext"
+	"github.com/koopa0/goen/internal/web/ratelimit"
 )
 
 type Handler struct {

@@ -30,11 +30,11 @@ import (
 	"github.com/koopa0/goen/internal/outbox"
 	"github.com/koopa0/goen/internal/payment"
 	"github.com/koopa0/goen/internal/payment/refund"
-	"github.com/koopa0/goen/internal/requestid"
 	"github.com/koopa0/goen/internal/shoptime"
 	"github.com/koopa0/goen/internal/ui/components"
 	"github.com/koopa0/goen/internal/ui/pages"
 	"github.com/koopa0/goen/internal/web/formtext"
+	"github.com/koopa0/goen/internal/web/requestid"
 )
 
 // Refunds says what the order page offers of the refund before shipment and

@@ -27,9 +27,9 @@ import (
 	"github.com/koopa0/goen/internal/bearer"
 	"github.com/koopa0/goen/internal/i18n"
 	"github.com/koopa0/goen/internal/outbox"
-	"github.com/koopa0/goen/internal/ratelimit"
 	"github.com/koopa0/goen/internal/ui/uitest"
 	"github.com/koopa0/goen/internal/user"
+	"github.com/koopa0/goen/internal/web/ratelimit"
 )
 
 // changeBrowser drives the account handlers the way the router does, through

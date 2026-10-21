@@ -8,7 +8,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/koopa0/goen/internal/compress"
+	"github.com/koopa0/goen/internal/web/compress"
 )
 
 func TestSecretBearingAccountPagesAreNotCompressed(t *testing.T) {

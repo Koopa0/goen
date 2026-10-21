@@ -19,8 +19,8 @@ import (
 	"github.com/koopa0/goen/internal/admin/admintest"
 	"github.com/koopa0/goen/internal/admin/staff"
 	"github.com/koopa0/goen/internal/auth"
-	"github.com/koopa0/goen/internal/requestid"
 	"github.com/koopa0/goen/internal/user"
+	"github.com/koopa0/goen/internal/web/requestid"
 )
 
 // TestAnotherAdminCanRecoverALostAuthenticator holds the recovery path: another

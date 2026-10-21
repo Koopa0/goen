@@ -11,7 +11,7 @@ import (
 
 	"github.com/koopa0/goen/internal/i18n"
 	"github.com/koopa0/goen/internal/order/access"
-	"github.com/koopa0/goen/internal/ratelimit"
+	"github.com/koopa0/goen/internal/web/ratelimit"
 )
 
 func TestRefusedOrderLookupOffersContactAndKeepsInput(t *testing.T) {

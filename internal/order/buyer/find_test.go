@@ -10,7 +10,7 @@ import (
 
 	"github.com/koopa0/goen/internal/i18n"
 	"github.com/koopa0/goen/internal/order/access"
-	"github.com/koopa0/goen/internal/ratelimit"
+	"github.com/koopa0/goen/internal/web/ratelimit"
 )
 
 // The order lookup answers whether a number and an address belong together,

@@ -5,7 +5,7 @@ import (
 	"net/http"
 	"time"
 
-	"github.com/koopa0/goen/internal/ratelimit"
+	"github.com/koopa0/goen/internal/web/ratelimit"
 )
 
 // passwordGuess is what one password attempt has set aside, and holds nothing

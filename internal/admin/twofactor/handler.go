@@ -11,13 +11,13 @@ import (
 	"rsc.io/qr"
 
 	"github.com/koopa0/goen/internal/admin/access"
-	"github.com/koopa0/goen/internal/compress"
 	"github.com/koopa0/goen/internal/i18n"
-	"github.com/koopa0/goen/internal/ratelimit"
 	"github.com/koopa0/goen/internal/ui/layouts"
 	"github.com/koopa0/goen/internal/user"
 	"github.com/koopa0/goen/internal/web"
+	"github.com/koopa0/goen/internal/web/compress"
 	"github.com/koopa0/goen/internal/web/formtext"
+	"github.com/koopa0/goen/internal/web/ratelimit"
 )
 
 type Handler struct {

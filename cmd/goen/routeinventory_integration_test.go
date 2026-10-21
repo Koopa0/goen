@@ -22,8 +22,8 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 
 	"github.com/koopa0/goen/internal/payment"
-	"github.com/koopa0/goen/internal/requestid"
 	"github.com/koopa0/goen/internal/shipping/storemap"
+	"github.com/koopa0/goen/internal/web/requestid"
 )
 
 // Every trait is observed on one anonymous request, never derived from the

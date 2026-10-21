@@ -12,7 +12,7 @@ import (
 	"github.com/koopa0/goen/internal/order/access"
 	"github.com/koopa0/goen/internal/order/buyer"
 	"github.com/koopa0/goen/internal/payment"
-	"github.com/koopa0/goen/internal/ratelimit"
+	"github.com/koopa0/goen/internal/web/ratelimit"
 )
 
 // TestOnlyARefusedCrossSiteNavigationIsLoadedAgain drives the two pages Stripe

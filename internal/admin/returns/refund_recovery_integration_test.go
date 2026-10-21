@@ -17,8 +17,8 @@ import (
 	"github.com/jackc/pgx/v5"
 
 	"github.com/koopa0/goen/internal/payment/refund"
-	"github.com/koopa0/goen/internal/requestid"
 	"github.com/koopa0/goen/internal/user"
+	"github.com/koopa0/goen/internal/web/requestid"
 )
 
 func TestRefundRecoveryAttributesEveryProviderAttempt(t *testing.T) {

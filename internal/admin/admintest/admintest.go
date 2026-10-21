@@ -30,8 +30,8 @@ import (
 	"github.com/koopa0/goen/internal/db/dbtest"
 	"github.com/koopa0/goen/internal/outbox"
 	"github.com/koopa0/goen/internal/payment/refund"
-	"github.com/koopa0/goen/internal/requestid"
 	"github.com/koopa0/goen/internal/user"
+	"github.com/koopa0/goen/internal/web/requestid"
 )
 
 // BackOffice wraps a handler as its route in cmd/goen does, with 2FA off.

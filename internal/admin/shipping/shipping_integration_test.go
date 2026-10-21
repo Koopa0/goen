@@ -28,8 +28,8 @@ import (
 	"github.com/koopa0/goen/internal/cart"
 	"github.com/koopa0/goen/internal/db"
 	"github.com/koopa0/goen/internal/i18n"
-	"github.com/koopa0/goen/internal/requestid"
 	"github.com/koopa0/goen/internal/shipping/storemap"
+	"github.com/koopa0/goen/internal/web/requestid"
 )
 
 func TestShippingSurchargesStayWithTheirVersionThroughTheForm(t *testing.T) {

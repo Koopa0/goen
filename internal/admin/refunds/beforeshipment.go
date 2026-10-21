@@ -19,7 +19,7 @@ import (
 	"github.com/koopa0/goen/internal/order/returns"
 	"github.com/koopa0/goen/internal/outbox"
 	"github.com/koopa0/goen/internal/payment/refund"
-	"github.com/koopa0/goen/internal/requestid"
+	"github.com/koopa0/goen/internal/web/requestid"
 )
 
 // beforeShipment is what the refund before shipment reads of an order. Whether

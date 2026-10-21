@@ -19,7 +19,7 @@ import (
 	"github.com/koopa0/goen/internal/order/returns"
 	"github.com/koopa0/goen/internal/outbox"
 	"github.com/koopa0/goen/internal/payment/refund"
-	"github.com/koopa0/goen/internal/requestid"
+	"github.com/koopa0/goen/internal/web/requestid"
 )
 
 // The refusals of the refund of units a partly shipped order will not send
