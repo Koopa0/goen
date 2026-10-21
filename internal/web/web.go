@@ -1,6 +1,5 @@
 // Package web holds the HTTP helpers every feature shares: rendering a templ
-// component, htmx detection and same-site paths. It knows nothing about any
-// single feature.
+// component and htmx detection. It knows nothing about any single feature.
 package web
 
 import (

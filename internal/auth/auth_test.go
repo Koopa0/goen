@@ -324,7 +324,7 @@ func bodyWithSubmittedEmailHidden(t *testing.T, body, addr string) string {
 	return strings.Replace(body, needle, `value="<submitted-email>"`, 1)
 }
 
-// TestSignInKeepsItsAccountFallback locks the caller's choice. web.SitePath
+// TestSignInKeepsItsAccountFallback locks the caller's choice. siteurl.Path
 // owns what is safe; account owns where a refused post-sign-in redirect lands.
 func TestSignInKeepsItsAccountFallback(t *testing.T) {
 	t.Parallel()

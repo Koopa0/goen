@@ -6,12 +6,12 @@ import (
 
 	"github.com/koopa0/goen/assets"
 	"github.com/koopa0/goen/internal/i18n"
-	"github.com/koopa0/goen/internal/web"
+	"github.com/koopa0/goen/internal/web/siteurl"
 )
 
 func TestHeadNamesAnAbsoluteShareImageOnlyWhereTheOriginIsKnown(t *testing.T) {
 	t.Parallel()
-	origin, _, ok := web.SiteOrigin("https://shop.example/")
+	origin, _, ok := siteurl.Origin("https://shop.example/")
 	if !ok {
 		t.Fatal("origin")
 	}

@@ -25,7 +25,7 @@ import (
 	"github.com/koopa0/goen/internal/payment"
 	"github.com/koopa0/goen/internal/ui/layouts"
 	"github.com/koopa0/goen/internal/user"
-	"github.com/koopa0/goen/internal/web"
+	"github.com/koopa0/goen/internal/web/siteurl"
 )
 
 func TestPanicRecoveryUsesProductionRequestTracing(t *testing.T) {
@@ -641,7 +641,7 @@ func TestLanguageSwitchComparisonJourney(t *testing.T) {
 	}
 
 	// Verify the return target resolves through the same-site redirect guard.
-	redirectTarget := web.SitePathOr(extractedReturn, "/")
+	redirectTarget := siteurl.PathOr(extractedReturn, "/")
 	if redirectTarget != wantReturn {
 		t.Fatalf("SitePathOr(%q) = %q, want %q", extractedReturn, redirectTarget, wantReturn)
 	}

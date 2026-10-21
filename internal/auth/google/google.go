@@ -17,7 +17,7 @@ import (
 	"time"
 
 	"github.com/koopa0/goen/internal/bearer"
-	"github.com/koopa0/goen/internal/web"
+	"github.com/koopa0/goen/internal/web/siteurl"
 )
 
 const (
@@ -45,7 +45,7 @@ func New(clientID, clientSecret, baseURL string) (*Client, error) {
 		return nil, errors.New("google: sign-in needs both a client id and a " +
 			"client secret; one without the other cannot exchange an authorisation code")
 	}
-	origin, _, ok := web.SiteOrigin(baseURL)
+	origin, _, ok := siteurl.Origin(baseURL)
 	if !ok {
 		return nil, fmt.Errorf("google: base URL %q cannot build a redirect URI", baseURL)
 	}
