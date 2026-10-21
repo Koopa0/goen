@@ -25,7 +25,7 @@ func TestEveryCheckoutChoiceSurvivesChangingAnother(t *testing.T) {
 	ctx := i18n.WithLocale(t.Context(), i18n.ZhHant)
 
 	typed := View{
-		Cart:     cart.View{Lines: []pages.CartLine{{Name: "x", Quantity: 1, UnitCents: 100}}},
+		Cart:     cart.View{Lines: []cart.Line{{Name: "x", Quantity: 1, UnitCents: 100}}},
 		Shipping: []cart.ShippingChoice{{VersionID: "ship-1", Code: "home", Name: "宅配到府"}},
 		Chosen:   "ship-1",
 		Address: Address{
@@ -73,7 +73,7 @@ func TestChangingACheckoutChoiceAppliesIt(t *testing.T) {
 	ctx := i18n.WithLocale(t.Context(), i18n.ZhHant)
 
 	view := View{
-		Cart:           cart.View{Lines: []pages.CartLine{{Name: "x", Quantity: 1, UnitCents: 100}}},
+		Cart:           cart.View{Lines: []cart.Line{{Name: "x", Quantity: 1, UnitCents: 100}}},
 		Shipping:       []cart.ShippingChoice{{VersionID: "ship-1", Code: "home", Name: "宅配到府"}},
 		Chosen:         "ship-1",
 		SavedAddresses: []SavedAddress{{ID: "addr-1", Label: "家"}},
@@ -125,7 +125,7 @@ func TestTheApplyButtonAimsAtTheSectionItChanged(t *testing.T) {
 	ctx := i18n.WithLocale(t.Context(), i18n.ZhHant)
 
 	view := View{
-		Cart:           cart.View{Lines: []pages.CartLine{{Name: "x", Quantity: 1, UnitCents: 100}}},
+		Cart:           cart.View{Lines: []cart.Line{{Name: "x", Quantity: 1, UnitCents: 100}}},
 		Shipping:       []cart.ShippingChoice{{VersionID: "ship-1", Code: "home", Name: "宅配到府"}},
 		Chosen:         "ship-1",
 		SavedAddresses: []SavedAddress{{ID: "addr-1", Label: "家"}},
@@ -155,7 +155,7 @@ func TestThePickupFormAsksForTheChainAndNothingElse(t *testing.T) {
 	ctx := i18n.WithLocale(t.Context(), i18n.ZhHant)
 
 	view := View{
-		Cart:         cart.View{Lines: []pages.CartLine{{Name: "x", Quantity: 1, UnitCents: 100}}},
+		Cart:         cart.View{Lines: []cart.Line{{Name: "x", Quantity: 1, UnitCents: 100}}},
 		Shipping:     []cart.ShippingChoice{{VersionID: "ship-1", Code: "pickup", Name: "超商取貨"}},
 		Chosen:       "ship-1",
 		Destination:  "pickup_point",
@@ -307,7 +307,7 @@ func TestTheCheckoutSummaryNamesTheVariant(t *testing.T) {
 	t.Parallel()
 
 	view := View{
-		Cart: cart.View{Lines: []pages.CartLine{{
+		Cart: cart.View{Lines: []cart.Line{{
 			Name: "Pixelight 9 Pro", Label: "星霧藍 / 512GB",
 			Quantity: 1, UnitCents: 3190000,
 		}}},
@@ -354,7 +354,7 @@ func TestTheInvoiceFormAsksForOneThing(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 			view := View{
-				Cart:           cart.View{Lines: []pages.CartLine{{Name: "x", Quantity: 1, UnitCents: 100}}},
+				Cart:           cart.View{Lines: []cart.Line{{Name: "x", Quantity: 1, UnitCents: 100}}},
 				Shipping:       []cart.ShippingChoice{{Code: "home", Name: "宅配到府"}},
 				Invoice:        InvoiceView{Type: tt.kind},
 				InvoiceChoices: []InvoiceChoice{{Value: "member_carrier", Label: "會員載具"}},
@@ -379,7 +379,7 @@ func TestTheInvoiceFormAsksForOneThing(t *testing.T) {
 	// The three choosers compose because they are three radio groups in ONE
 	// form, so a submission carries all of them.
 	full := View{
-		Cart:           cart.View{Lines: []pages.CartLine{{Name: "x", Quantity: 1, UnitCents: 100}}},
+		Cart:           cart.View{Lines: []cart.Line{{Name: "x", Quantity: 1, UnitCents: 100}}},
 		Shipping:       []cart.ShippingChoice{{VersionID: "ship-1", Code: "home", Name: "宅配到府"}},
 		Chosen:         "ship-1",
 		Invoice:        InvoiceView{Type: "company"},
@@ -410,7 +410,7 @@ func TestAnOffshoreRequoteIsNotAnError(t *testing.T) {
 	ctx := i18n.WithLocale(t.Context(), i18n.ZhHant)
 
 	view := View{
-		Cart:     cart.View{Lines: []pages.CartLine{{Name: "x", Quantity: 1, UnitCents: 100}}},
+		Cart:     cart.View{Lines: []cart.Line{{Name: "x", Quantity: 1, UnitCents: 100}}},
 		Shipping: []cart.ShippingChoice{{Code: "home", Name: "宅配到府"}},
 		Repriced: "離島運費另計,已更新為 NT$280。確認後再送出一次。",
 	}
@@ -445,7 +445,7 @@ func TestAChangedCreditBalanceHasItsOwnStatusNotice(t *testing.T) {
 
 	//nolint:gosec // G101: a customer-facing balance-change notice, not a credential
 	view := View{
-		Cart:          cart.View{Lines: []pages.CartLine{{Name: "x", Quantity: 1, UnitCents: 100}}},
+		Cart:          cart.View{Lines: []cart.Line{{Name: "x", Quantity: 1, UnitCents: 100}}},
 		Shipping:      []cart.ShippingChoice{{Code: "home", Name: "宅配到府"}},
 		CreditChanged: "可用購物金已變更為 NT$10。請確認後再送出一次。",
 	}
@@ -482,7 +482,7 @@ func TestEnterInTheCheckoutPlacesTheOrder(t *testing.T) {
 	ctx := i18n.WithLocale(t.Context(), i18n.ZhHant)
 
 	view := View{
-		Cart:           cart.View{Lines: []pages.CartLine{{Name: "x", Quantity: 1, UnitCents: 100}}},
+		Cart:           cart.View{Lines: []cart.Line{{Name: "x", Quantity: 1, UnitCents: 100}}},
 		Shipping:       []cart.ShippingChoice{{VersionID: "s1", Code: "home", Name: "宅配到府"}},
 		Chosen:         "s1",
 		InvoiceChoices: []InvoiceChoice{{Value: "member_carrier", Label: "會員載具"}},
@@ -537,7 +537,7 @@ func TestCheckoutExplainsWhatPlacingTheOrderDoes(t *testing.T) {
 				ctx := i18n.WithLocale(t.Context(), locale.locale)
 				view := View{
 					Cart: cart.View{
-						Lines: []pages.CartLine{{Name: "Item", Quantity: 1, UnitCents: 10000}}, SubtotalCents: 10000,
+						Lines: []cart.Line{{Name: "Item", Quantity: 1, UnitCents: 10000}}, SubtotalCents: 10000,
 						PayStartMinutes: 28,
 					},
 					Shipping: []cart.ShippingChoice{{VersionID: "shipping", Code: "home", Name: "Home delivery"}}, Chosen: "shipping",
@@ -614,7 +614,7 @@ func TestTheChosenOptionIsMarkedOnTheRadioAlone(t *testing.T) {
 	ctx := i18n.WithLocale(t.Context(), i18n.ZhHant)
 
 	view := View{
-		Cart: cart.View{Lines: []pages.CartLine{{Name: "x", Quantity: 1, UnitCents: 100}}},
+		Cart: cart.View{Lines: []cart.Line{{Name: "x", Quantity: 1, UnitCents: 100}}},
 		Shipping: []cart.ShippingChoice{
 			{VersionID: "ship-1", Code: "home", Name: "宅配到府"},
 			{VersionID: "ship-2", Code: "store_pickup", Name: "超商取貨"},
@@ -658,7 +658,7 @@ func TestACouponCanBeAppliedWithoutPlacingTheOrder(t *testing.T) {
 	ctx := i18n.WithLocale(t.Context(), i18n.ZhHant)
 
 	view := View{
-		Cart:     cart.View{Lines: []pages.CartLine{{Name: "x", Quantity: 1, UnitCents: 100}}},
+		Cart:     cart.View{Lines: []cart.Line{{Name: "x", Quantity: 1, UnitCents: 100}}},
 		Shipping: []cart.ShippingChoice{{VersionID: "s1", Code: "home", Name: "宅配到府"}},
 		Chosen:   "s1",
 	}
@@ -700,7 +700,7 @@ func TestARecipientCanBeTheMemberAndAnAddressTheirSavedOne(t *testing.T) {
 	ctx := i18n.WithLocale(t.Context(), i18n.ZhHant)
 
 	view := View{
-		Cart:     cart.View{Lines: []pages.CartLine{{Name: "x", Quantity: 1, UnitCents: 100}}},
+		Cart:     cart.View{Lines: []cart.Line{{Name: "x", Quantity: 1, UnitCents: 100}}},
 		Shipping: []cart.ShippingChoice{{VersionID: "ship-1", Code: "home", Name: "宅配到府"}},
 		Chosen:   "ship-1",
 		SavedAddresses: []SavedAddress{{
@@ -757,7 +757,7 @@ func TestAGuestIsOfferedNeitherControl(t *testing.T) {
 	ctx := i18n.WithLocale(t.Context(), i18n.ZhHant)
 
 	view := View{
-		Cart:     cart.View{Lines: []pages.CartLine{{Name: "x", Quantity: 1, UnitCents: 100}}},
+		Cart:     cart.View{Lines: []cart.Line{{Name: "x", Quantity: 1, UnitCents: 100}}},
 		Shipping: []cart.ShippingChoice{{VersionID: "ship-1", Code: "home", Name: "宅配到府"}},
 		Chosen:   "ship-1",
 	}
@@ -774,7 +774,7 @@ func TestAGuestIsOfferedNeitherControl(t *testing.T) {
 
 func couponTestView() View {
 	return View{
-		Cart:     cart.View{Lines: []pages.CartLine{{Name: "x", Quantity: 1, UnitCents: 100}}},
+		Cart:     cart.View{Lines: []cart.Line{{Name: "x", Quantity: 1, UnitCents: 100}}},
 		Shipping: []cart.ShippingChoice{{VersionID: "s1", Code: "home", Name: "宅配到府"}},
 		Chosen:   "s1",
 	}

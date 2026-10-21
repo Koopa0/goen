@@ -11,7 +11,6 @@ import (
 	"github.com/koopa0/goen/assets"
 	"github.com/koopa0/goen/internal/i18n"
 	"github.com/koopa0/goen/internal/ui/components"
-	"github.com/koopa0/goen/internal/ui/pages"
 )
 
 func TestCartDeliveryAvailabilityKeepsTheCheckoutDraftEligible(t *testing.T) {
@@ -39,7 +38,7 @@ func TestCartDeliveryAvailabilityKeepsTheCheckoutDraftEligible(t *testing.T) {
 				t.Run(tt.name, func(t *testing.T) {
 					t.Parallel()
 					ctx := i18n.WithLocale(t.Context(), locale.locale)
-					v := View{Lines: []pages.CartLine{{VariantID: "item", Name: "Item", UnitCents: 100, Quantity: 1, Available: 2}}, SubtotalCents: 100, ItemCount: 1, NoDelivery: tt.noDelivery}
+					v := View{Lines: []Line{{VariantID: "item", Name: "Item", UnitCents: 100, Quantity: 1, Available: 2}}, SubtotalCents: 100, ItemCount: 1, NoDelivery: tt.noDelivery}
 					if tt.blocked {
 						v.Lines[0].Quantity, v.Lines[0].Short = 3, true
 						v.SubtotalCents, v.ItemCount = 200, 2
@@ -96,7 +95,7 @@ func TestCartDeliveryAvailabilityKeepsTheCheckoutDraftEligible(t *testing.T) {
 func TestTheCartSummaryEndsOnTheTotal(t *testing.T) {
 	t.Parallel()
 	ctx := i18n.WithLocale(t.Context(), i18n.En)
-	v := View{Lines: []pages.CartLine{{VariantID: "item", Name: "Item", UnitCents: 100, Quantity: 1, Available: 2}}, SubtotalCents: 100, ItemCount: 1}
+	v := View{Lines: []Line{{VariantID: "item", Name: "Item", UnitCents: 100, Quantity: 1, Available: 2}}, SubtotalCents: 100, ItemCount: 1}
 	body := renderComponent(t, ctx, Page(Meta(ctx), v))
 	_, summary, ok := strings.Cut(body, `id="cart-summary"`)
 	if !ok {
@@ -119,7 +118,7 @@ func TestAShortLineSaysWhatItIsPricedFor(t *testing.T) {
 	t.Parallel()
 	ctx := i18n.WithLocale(t.Context(), i18n.ZhHant)
 
-	short := pages.CartLine{
+	short := Line{
 		VariantID: "v1", Slug: "x", Name: "Pixelight 9 Pro",
 		UnitCents: 100000, Quantity: 5, Available: 2, Short: true,
 	}
@@ -127,7 +126,7 @@ func TestAShortLineSaysWhatItIsPricedFor(t *testing.T) {
 		t.Errorf("LineTotal() = %q, want %q — the price is for what can be supplied", got, want)
 	}
 
-	html := renderToString(t, Page(Meta(ctx), View{Lines: []pages.CartLine{short}}))
+	html := renderToString(t, Page(Meta(ctx), View{Lines: []Line{short}}))
 	said := fmt.Sprintf(i18n.T(ctx, i18n.KeyPricedFor), "2")
 	if !strings.Contains(html, said) {
 		t.Errorf("a line asking for 5 and priced for 2 does not say so; wanted %q", said)
@@ -135,8 +134,8 @@ func TestAShortLineSaysWhatItIsPricedFor(t *testing.T) {
 
 	// A line the shelf can meet says nothing: "priced for 5" beside "× 5" is
 	// noise on every ordinary row in the cart.
-	ok := pages.CartLine{VariantID: "v2", Slug: "y", Name: "y", UnitCents: 100000, Quantity: 2, Available: 9}
-	full := renderToString(t, Page(Meta(ctx), View{Lines: []pages.CartLine{ok}}))
+	ok := Line{VariantID: "v2", Slug: "y", Name: "y", UnitCents: 100000, Quantity: 2, Available: 9}
+	full := renderToString(t, Page(Meta(ctx), View{Lines: []Line{ok}}))
 	if strings.Contains(full, i18n.T(ctx, i18n.KeyPricedFor)[:3]) {
 		t.Error("an ordinary line is annotated with what it is priced for")
 	}
@@ -148,7 +147,7 @@ func TestAShortLineSaysWhatItIsPricedFor(t *testing.T) {
 func TestCartLineLoadsTheSmallPhoto(t *testing.T) {
 	t.Parallel()
 	const key = "nimbus-buds-pro-01.webp"
-	line := pages.CartLine{
+	line := Line{
 		Slug: "buds", Name: "Buds", Quantity: 1, UnitCents: 100,
 		ImageURL: assets.Image{BundledKey: key}.URL(), ImageSrcset: assets.Image{BundledKey: key}.Srcset(), ImageAlt: "Buds",
 	}
@@ -166,7 +165,7 @@ func TestCartLineLoadsTheSmallPhoto(t *testing.T) {
 // to the attribute that lets script apply a change on its own.
 func TestCartLineStillWorksWithScriptingOff(t *testing.T) {
 	t.Parallel()
-	html := renderToString(t, cartLine(pages.CartLine{Slug: "buds", Name: "Buds", Quantity: 1, UnitCents: 100}))
+	html := renderToString(t, cartLine(Line{Slug: "buds", Name: "Buds", Quantity: 1, UnitCents: 100}))
 	for _, want := range []string{
 		`action="/cart/items/update" data-autosubmit`,
 		`goen-line__update" type="submit">更新`,
@@ -186,7 +185,7 @@ func TestCartLineStillWorksWithScriptingOff(t *testing.T) {
 func TestCartLineUpdateSwapsOnlyWhatChanges(t *testing.T) {
 	t.Parallel()
 	const id = "11111111-1111-4111-8111-111111111111"
-	html := renderToString(t, cartLine(pages.CartLine{VariantID: id, Slug: "buds", Name: "Buds", Quantity: 1, UnitCents: 100}))
+	html := renderToString(t, cartLine(Line{VariantID: id, Slug: "buds", Name: "Buds", Quantity: 1, UnitCents: 100}))
 	for _, want := range []string{
 		`hx-post="/cart/items/update"`,
 		`hx-swap="none"`,
@@ -223,7 +222,7 @@ func cartFactsOf(t *testing.T, v View) string {
 
 func TestTheCartFactLineStatesItemsSubtotalAndFreeDelivery(t *testing.T) {
 	t.Parallel()
-	lines := []pages.CartLine{{VariantID: "v", Slug: "s", Name: "x", Quantity: 2, UnitCents: 40000}}
+	lines := []Line{{VariantID: "v", Slug: "s", Name: "x", Quantity: 2, UnitCents: 40000}}
 	for _, tt := range []struct {
 		name string
 		v    View
@@ -278,7 +277,7 @@ func TestASoldOutLineIsNotCountedAndOffersOnlyRemove(t *testing.T) {
 	t.Parallel()
 	ctx := i18n.WithLocale(t.Context(), i18n.ZhHant)
 	v := View{
-		Lines: []pages.CartLine{
+		Lines: []Line{
 			{VariantID: "ok", Slug: "a", Name: "a", Quantity: 2, Available: 5, UnitCents: 40000},
 			{VariantID: "gone", Slug: "b", Name: "b", Quantity: 1, UnitCents: 99900, Unavailable: true},
 		},
@@ -317,20 +316,20 @@ func TestASoldOutLineIsNotCountedAndOffersOnlyRemove(t *testing.T) {
 func TestTheCartSentenceSaysWhatBlocksCheckout(t *testing.T) {
 	t.Parallel()
 	ctx := i18n.WithLocale(t.Context(), i18n.ZhHant)
-	line := pages.CartLine{VariantID: "v", Slug: "s", Name: "x", Quantity: 1, UnitCents: 100}
+	line := Line{VariantID: "v", Slug: "s", Name: "x", Quantity: 1, UnitCents: 100}
 	soldOut, short := line, line
 	soldOut.Unavailable = true
 	short.Short = true
 
 	for _, tt := range []struct {
 		name  string
-		lines []pages.CartLine
+		lines []Line
 		want  string
 	}{
-		{"sold out", []pages.CartLine{soldOut}, "有商品已售完，移除後才能結帳。"},
-		{"short", []pages.CartLine{short}, "有商品的庫存不足，請先調整數量再結帳。"},
-		{"both: the sold-out line is the one to deal with first", []pages.CartLine{short, soldOut}, "有商品已售完，移除後才能結帳。"},
-		{"neither", []pages.CartLine{line}, ""},
+		{"sold out", []Line{soldOut}, "有商品已售完，移除後才能結帳。"},
+		{"short", []Line{short}, "有商品的庫存不足，請先調整數量再結帳。"},
+		{"both: the sold-out line is the one to deal with first", []Line{short, soldOut}, "有商品已售完，移除後才能結帳。"},
+		{"neither", []Line{line}, ""},
 	} {
 		got := View{Lines: tt.lines}.StockNotice(ctx)
 		if got != tt.want {
@@ -342,7 +341,7 @@ func TestTheCartSentenceSaysWhatBlocksCheckout(t *testing.T) {
 func TestTheCartShowsTheStockHoldUnderCheckout(t *testing.T) {
 	t.Parallel()
 	ctx := i18n.WithLocale(t.Context(), i18n.ZhHant)
-	lines := []pages.CartLine{{VariantID: "v", Slug: "s", Name: "x", Quantity: 1, UnitCents: 100}}
+	lines := []Line{{VariantID: "v", Slug: "s", Name: "x", Quantity: 1, UnitCents: 100}}
 	html := renderToString(t, Page(Meta(ctx), View{Lines: lines, HoldMinutes: 61}))
 	if !strings.Contains(html, "庫存保留 61 分鐘") {
 		t.Error("the cart does not say how long the stock is held")
@@ -355,8 +354,8 @@ func TestTheCartShowsTheStockHoldUnderCheckout(t *testing.T) {
 func TestRemovingALineIsNotBlockedByAQuantityTheShelfCannotMeet(t *testing.T) {
 	t.Parallel()
 	ctx := i18n.WithLocale(t.Context(), i18n.ZhHant)
-	line := pages.CartLine{VariantID: "v1", Slug: "x", Name: "x", UnitCents: 100000, Quantity: 2, Available: 4}
-	html := renderToString(t, Page(Meta(ctx), View{Lines: []pages.CartLine{line}}))
+	line := Line{VariantID: "v1", Slug: "x", Name: "x", UnitCents: 100000, Quantity: 2, Available: 4}
+	html := renderToString(t, Page(Meta(ctx), View{Lines: []Line{line}}))
 	i := strings.Index(html, `name="remove"`)
 	if i < 0 {
 		t.Fatal("the line has no remove button")
@@ -383,7 +382,7 @@ func TestTheEnglishItemCountIsTheBareNumber(t *testing.T) {
 
 func TestTheCartSummaryShippingRowAgreesWithTheFreeDeliveryFact(t *testing.T) {
 	t.Parallel()
-	lines := []pages.CartLine{{VariantID: "v", Slug: "s", Name: "x", Quantity: 2, UnitCents: 180000}}
+	lines := []Line{{VariantID: "v", Slug: "s", Name: "x", Quantity: 2, UnitCents: 180000}}
 	for _, tt := range []struct {
 		name   string
 		locale i18n.Locale

@@ -12,8 +12,6 @@ import (
 
 	"github.com/google/go-cmp/cmp"
 	"github.com/google/uuid"
-
-	"github.com/koopa0/goen/internal/ui/pages"
 )
 
 // TestRefusedCouponLeavesTheQuoteOfThePageWithoutIt locks that a typed code the
@@ -27,7 +25,7 @@ func TestRefusedCouponLeavesTheQuoteOfThePageWithoutIt(t *testing.T) {
 			Chosen: "018f0000-0000-7000-8000-000000000021",
 			Cart: cart.View{
 				SubtotalCents: 12000,
-				Lines: []pages.CartLine{{
+				Lines: []cart.Line{{
 					VariantID: "018f0000-0000-7000-8000-000000000011",
 					Quantity:  1, UnitCents: 12000,
 				}},

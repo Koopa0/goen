@@ -16,7 +16,7 @@ import (
 // back from the carrier's map.
 func aCheckoutWithAStore() *View {
 	return &View{
-		Cart:         cart.View{Lines: []pages.CartLine{{Name: "x", Quantity: 1, UnitCents: 100}}},
+		Cart:         cart.View{Lines: []cart.Line{{Name: "x", Quantity: 1, UnitCents: 100}}},
 		Shipping:     []cart.ShippingChoice{{VersionID: "ship-1", Code: "pickup", Name: "超商取貨"}},
 		Chosen:       "ship-1",
 		Destination:  "pickup_point",

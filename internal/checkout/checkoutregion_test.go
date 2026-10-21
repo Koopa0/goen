@@ -78,7 +78,7 @@ func TestSwitchingTheChainInPlaceKeepsTheStoreButton(t *testing.T) {
 	// What checkoutSubmission would have built from this POST: everything
 	// typed is echoed, and the chain just switched to 全家.
 	view := View{
-		Cart:         cart.View{Lines: []pages.CartLine{{Name: "x", Quantity: 1, UnitCents: 100}}},
+		Cart:         cart.View{Lines: []cart.Line{{Name: "x", Quantity: 1, UnitCents: 100}}},
 		Shipping:     []cart.ShippingChoice{{VersionID: "ship-1", Code: "pickup", Name: "超商取貨"}},
 		Chosen:       "ship-1",
 		Destination:  "pickup_point",

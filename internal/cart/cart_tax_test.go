@@ -8,7 +8,6 @@ import (
 
 	"github.com/koopa0/goen/internal/i18n"
 	"github.com/koopa0/goen/internal/ui/layouts"
-	"github.com/koopa0/goen/internal/ui/pages"
 )
 
 func TestCartMarksOnlyExemptLines(t *testing.T) {
@@ -24,13 +23,13 @@ func TestCartMarksOnlyExemptLines(t *testing.T) {
 			t.Parallel()
 			for _, mixed := range []bool{true, false} {
 				ctx := i18n.WithLocale(t.Context(), locale.locale)
-				cart := View{MixedTaxTypes: mixed, Lines: []pages.CartLine{
+				cart := View{MixedTaxTypes: mixed, Lines: []Line{
 					{VariantID: "exempt", Name: "Exempt item", TaxExempt: true, Quantity: 1, Available: 1},
 					{VariantID: "exempt-short", Name: "Short item", TaxExempt: true, Quantity: 2, Available: 1, Short: true},
 					{VariantID: "exempt-unavailable", Name: "Unavailable item", TaxExempt: true, Quantity: 1, Unavailable: true},
 				}}
 				if mixed {
-					cart.Lines = append(cart.Lines, pages.CartLine{VariantID: "taxable", Name: "Taxable item", Quantity: 1, Available: 1})
+					cart.Lines = append(cart.Lines, Line{VariantID: "taxable", Name: "Taxable item", Quantity: 1, Available: 1})
 				}
 				rendered := renderComponent(t, ctx, Page(Meta(ctx), cart))
 				doc, err := htmlparse.Parse(strings.NewReader(rendered))
@@ -79,7 +78,7 @@ func TestMixedTaxCartExplainsWhyCheckoutIsUnavailable(t *testing.T) {
 	for _, locale := range []i18n.Locale{i18n.ZhHant, i18n.En} {
 		t.Run(string(locale), func(t *testing.T) {
 			ctx := i18n.WithLocale(t.Context(), locale)
-			cart := View{Lines: []pages.CartLine{{Name: "Item", Quantity: 1, Available: 1, UnitCents: 100}}, MixedTaxTypes: true}
+			cart := View{Lines: []Line{{Name: "Item", Quantity: 1, Available: 1, UnitCents: 100}}, MixedTaxTypes: true}
 			if cart.CanCheckout() {
 				t.Error("mixed taxable and exempt cart can check out")
 			}

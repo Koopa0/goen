@@ -8,7 +8,6 @@ import (
 	"github.com/koopa0/goen/internal/cart"
 	"github.com/koopa0/goen/internal/i18n"
 	"github.com/koopa0/goen/internal/invoice"
-	"github.com/koopa0/goen/internal/ui/pages"
 )
 
 func TestCompanyInvoiceChoiceSaysWhereTheInvoiceIsStored(t *testing.T) {
@@ -17,7 +16,7 @@ func TestCompanyInvoiceChoiceSaysWhereTheInvoiceIsStored(t *testing.T) {
 		ctx := i18n.WithLocale(t.Context(), loc)
 		view := func(typ string) string {
 			v := View{
-				Cart:           cart.View{Lines: []pages.CartLine{{Name: "x", Quantity: 1, UnitCents: 100}}},
+				Cart:           cart.View{Lines: []cart.Line{{Name: "x", Quantity: 1, UnitCents: 100}}},
 				Shipping:       []cart.ShippingChoice{{VersionID: "ship-1", Code: "home", Name: "home"}},
 				Chosen:         "ship-1",
 				Invoice:        InvoiceView{Type: invoice.Preference(typ)},

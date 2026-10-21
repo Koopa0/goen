@@ -91,7 +91,7 @@ func TestStorefrontSectionsAsDrawn(t *testing.T) {
 		}
 	})
 	mux.HandleFunc("GET /cart", func(w http.ResponseWriter, r *http.Request) {
-		view := cart.View{ItemCount: 1, SubtotalCents: 89000, Lines: []pages.CartLine{
+		view := cart.View{ItemCount: 1, SubtotalCents: 89000, Lines: []cart.Line{
 			{VariantID: "tote-natural", Slug: "canvas-tote", Name: "Canvas tote", Quantity: 1, Available: 5, UnitCents: 89000},
 		}}
 		ctx := layouts.WithStaff(i18n.WithLocale(r.Context(), i18n.En), true)
@@ -158,7 +158,7 @@ func TestStorefrontSectionsAsDrawn(t *testing.T) {
 	})
 	mux.HandleFunc("GET /checkout", func(w http.ResponseWriter, r *http.Request) {
 		view := checkout.View{
-			Cart:     cart.View{ItemCount: 1, SubtotalCents: 89000, Lines: []pages.CartLine{{VariantID: "tote-natural", Slug: "canvas-tote", Name: "Canvas tote", Quantity: 1, UnitCents: 89000}}},
+			Cart:     cart.View{ItemCount: 1, SubtotalCents: 89000, Lines: []cart.Line{{VariantID: "tote-natural", Slug: "canvas-tote", Name: "Canvas tote", Quantity: 1, UnitCents: 89000}}},
 			Shipping: []cart.ShippingChoice{{VersionID: "home", Name: "Home delivery", Carrier: "Courier", FeeCents: 8000}, {VersionID: "store", Name: "Convenience store", FeeCents: 6000}},
 			Chosen:   "home",
 			SavedAddresses: []checkout.SavedAddress{

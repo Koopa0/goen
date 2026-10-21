@@ -22,7 +22,6 @@ import (
 	"github.com/koopa0/goen/internal/invoice/issuer"
 	"github.com/koopa0/goen/internal/payment"
 	"github.com/koopa0/goen/internal/product"
-	"github.com/koopa0/goen/internal/ui/pages"
 )
 
 // Store holds the pool rather than a DBTX because multi-statement operations
@@ -269,7 +268,7 @@ func (s *Store) View(ctx context.Context, cartID uuid.UUID) (View, error) {
 	}
 
 	view := View{
-		Lines:       make([]pages.CartLine, 0, len(rows)),
+		Lines:       make([]Line, 0, len(rows)),
 		HoldMinutes: int64(payment.HoldTTL / time.Minute), PayStartMinutes: int64(payment.PayWindow / time.Minute),
 	}
 	for i := range rows {
@@ -278,7 +277,7 @@ func (s *Store) View(ctx context.Context, cartID uuid.UUID) (View, error) {
 		if r.TaxType != rows[0].TaxType {
 			view.MixedTaxTypes = true
 		}
-		line := pages.CartLine{
+		line := Line{
 			VariantID:    r.VariantID.String(),
 			Slug:         r.Slug,
 			Name:         r.Name,
