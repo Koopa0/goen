@@ -280,3 +280,84 @@ func TestPointsBackendFailureMakesNoConfirmationOrNoDebitClaim(t *testing.T) {
 		requirePointsEffects(t, owner, accountID, pointsEffects{Balance: 200})
 	}
 }
+
+// The database refuses these three for reasons a customer or a retried form can
+// cause. None is a server fault, and none may leave a claim or a spend behind.
+func TestPointsRedemptionOfACustomerWithoutAnAccountIsAShortBalance(t *testing.T) {
+	application := pointsStorePool(t)
+	var owner uuid.UUID
+	if err := pool.QueryRow(t.Context(), `
+		INSERT INTO users (email, role, full_name)
+		VALUES ('pt-' || gen_random_uuid() || '@goen.invalid', 'customer', '點數測試')
+		RETURNING id`).Scan(&owner); err != nil {
+		t.Fatal(err)
+	}
+	points := loyalty.NewHandler(loyalty.NewStore(application), slog.New(slog.DiscardHandler))
+	journey := newPointsJourney(t, owner.String(), application, points)
+
+	res := journey.request(i18n.En, http.MethodPost, "/account/points",
+		url.Values{"points": {"100"}, "operation_id": {uuid.NewString()}})
+	if res.Code != http.StatusSeeOther || res.Header().Get("Location") != "/account/points?short=1" {
+		t.Fatalf("POST without an account = %d, Location %q, want 303 to /account/points?short=1", res.Code, res.Header().Get("Location"))
+	}
+	var operations int
+	if err := pool.QueryRow(t.Context(),
+		`SELECT count(*) FROM loyalty_redemption_operations WHERE user_id = $1`, owner).Scan(&operations); err != nil {
+		t.Fatal(err)
+	}
+	if operations != 0 {
+		t.Fatalf("a refused redemption left %d operation claims", operations)
+	}
+}
+
+// redeemedOnce is an owner who has spent 100 of 200 points on one operation.
+func redeemedOnce(t *testing.T, application *pgxpool.Pool) (journey pointsJourney, owner string, account uuid.UUID, operation string, points *loyalty.Handler) {
+	t.Helper()
+	points = loyalty.NewHandler(loyalty.NewStore(application), slog.New(slog.DiscardHandler))
+	owner, account = customer(t, 200)
+	journey = newPointsJourney(t, owner, application, points)
+	operation = uuid.NewString()
+	if saved := journey.request(i18n.En, http.MethodPost, "/account/points",
+		url.Values{"points": {"100"}, "operation_id": {operation}}); saved.Code != http.StatusSeeOther {
+		t.Fatalf("first redemption = %d, want 303", saved.Code)
+	}
+	requirePointsEffects(t, owner, account, pointsEffects{Balance: 100, Operations: 1, Spent: -100, Credit: 1000})
+	return journey, owner, account, operation, points
+}
+
+func requireFormRefusal(t *testing.T, res *httptest.ResponseRecorder) {
+	t.Helper()
+	reason := pointsContent(pointsElement(t, res.Body.String(), "id", "points-error"))
+	if res.Code != http.StatusUnprocessableEntity || reason != "This redemption was not submitted. No points were deducted. Please press Redeem again." {
+		t.Fatalf("refused POST = %d, reason %q, want 422 with the form refusal", res.Code, reason)
+	}
+}
+
+func TestPointsRedemptionRefusesAnotherCustomersOperationInTheForm(t *testing.T) {
+	application := pointsStorePool(t)
+	_, owner, ownerAccount, operation, points := redeemedOnce(t, application)
+	other, otherAccount := customer(t, 200)
+	otherJourney := newPointsJourney(t, other, application, points)
+
+	requireFormRefusal(t, otherJourney.request(i18n.En, http.MethodPost, "/account/points",
+		url.Values{"points": {"100"}, "operation_id": {operation}}))
+	requirePointsEffects(t, other, otherAccount, pointsEffects{Balance: 200})
+	requirePointsEffects(t, owner, ownerAccount, pointsEffects{Balance: 100, Operations: 1, Spent: -100, Credit: 1000})
+}
+
+func TestPointsRedemptionRefusesAReplayWithOtherPointsInTheFormAndKeepsTheReplay(t *testing.T) {
+	application := pointsStorePool(t)
+	journey, owner, account, operation, _ := redeemedOnce(t, application)
+	spent := pointsEffects{Balance: 100, Operations: 1, Spent: -100, Credit: 1000}
+
+	requireFormRefusal(t, journey.request(i18n.En, http.MethodPost, "/account/points",
+		url.Values{"points": {"200"}, "operation_id": {operation}}))
+	requirePointsEffects(t, owner, account, spent)
+
+	// The refusal does not weaken the replay: the original form still confirms, once.
+	if replay := journey.request(i18n.En, http.MethodPost, "/account/points",
+		url.Values{"points": {"100"}, "operation_id": {operation}}); replay.Code != http.StatusSeeOther {
+		t.Fatalf("exact replay = %d, want 303", replay.Code)
+	}
+	requirePointsEffects(t, owner, account, spent)
+}
