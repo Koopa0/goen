@@ -217,39 +217,3 @@ func postForm(ctx context.Context, target string, form url.Values) *http.Request
 	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
 	return req
 }
-
-// ownVariant is a published product of the calling test's own with one variant
-// in stock. The suite shuffles, and orders held on a shared variant take the
-// stock other tests count on.
-func ownVariant(t *testing.T, name string) uuid.UUID {
-	t.Helper()
-	ctx := t.Context()
-	slug := name + "-" + uuid.NewString()[:8]
-	var productID, variantID uuid.UUID
-	if err := pool.QueryRow(ctx, `
-		INSERT INTO products (brand_id, category_id, slug, name, status, published_at)
-		SELECT b.id, c.id, $1, $1, 'draft', NULL
-		FROM brands b, categories c
-		ORDER BY b.id, c.id LIMIT 1
-		RETURNING id`, slug).Scan(&productID); err != nil {
-		t.Fatalf("create product %s: %v", slug, err)
-	}
-	if err := pool.QueryRow(ctx, `
-		INSERT INTO product_variants (product_id, sku, price_cents, is_active, position)
-		VALUES ($1, $2, 199900, true, 0) RETURNING id`,
-		productID, strings.ToUpper(slug)).Scan(&variantID); err != nil {
-		t.Fatalf("create variant: %v", err)
-	}
-	if _, err := pool.Exec(ctx,
-		`SELECT record_inventory_movement($1, 10, 'adjustment', $2, 'admin', NULL, NULL)`,
-		variantID, "fixture:"+variantID.String()); err != nil {
-		t.Fatalf("stock the variant: %v", err)
-	}
-	// Published only now: products_active_has_variant is deferred and fires from
-	// both sides.
-	if _, err := pool.Exec(ctx,
-		`UPDATE products SET status = 'active', published_at = now() WHERE id = $1`, productID); err != nil {
-		t.Fatalf("publish %s: %v", slug, err)
-	}
-	return variantID
-}
