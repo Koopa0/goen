@@ -9,9 +9,6 @@ import (
 	"github.com/koopa0/goen/internal/ui/layouts"
 )
 
-// From internal/ui/pages/admin/frame_test.go, moved whole: the back office's
-// side of it is the dashboard.
-
 // storefrontChrome is what the shop's document shell renders for a shopper and
 // the back office has no use for, named by the markup each one produces: the
 // header's product search and the footer's newsletter signup. Naming them by a

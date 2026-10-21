@@ -15,7 +15,7 @@ import (
 
 // importGraph maps an importing package to the goen packages it imports, and each
 // edge to the production files that create it. Every path is relative to the
-// module ("internal/ui/pages", "cmd/goen", "assets").
+// module ("internal/ui/tile", "cmd/goen", "assets").
 type importGraph struct {
 	edges   map[string]map[string][]string
 	scanned map[string]bool // every directory that held a production .go file

@@ -9,9 +9,8 @@ import (
 	"github.com/koopa0/goen/internal/i18n"
 )
 
-// renderToString is the one ui/pages keeps for its own tests, in
-// ordernotfound_test.go. A test in another package cannot import it, so the
-// moved wishlist page tests get their own copy, the same as account did.
+// renderToString is the one every page package's tests keep. A test in another
+// package cannot import it, so the wishlist page tests have their own copy.
 func renderToString(t *testing.T, c templ.Component) string {
 	t.Helper()
 	var b strings.Builder

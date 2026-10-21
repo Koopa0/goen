@@ -11,8 +11,6 @@ import (
 	"github.com/koopa0/goen/internal/ui/layouts"
 )
 
-// From internal/ui/pages/admin/refundconfirm_test.go.
-
 func TestRefundConfirmationRepeatsTheTotalItShows(t *testing.T) {
 	t.Parallel()
 	for _, locale := range []i18n.Locale{i18n.ZhHant, i18n.En} {
@@ -65,8 +63,6 @@ func TestACreditPaidCancellationConfirmationSaysWhatItDoes(t *testing.T) {
 		}
 	}
 }
-
-// From internal/ui/pages/admin/orderflow_test.go.
 
 // The cancellation's confirm page is about a cancellation: its figure is what is
 // refunded for cancelling, and the one field it insists on says so.

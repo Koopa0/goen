@@ -1,4 +1,4 @@
-package admin
+package audit_test
 
 import (
 	"bytes"

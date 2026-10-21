@@ -53,7 +53,7 @@ func TestEveryAuditActionHasALabel(t *testing.T) {
 	if len(missing) > 0 {
 		sort.Strings(missing)
 		t.Errorf("%d audit action(s) render as their own identifier on /admin/audit:\n  %s\n\n"+
-			"Add a key to internal/i18n/audit.go and an entry to pages.actionLabels.",
+			"Add a key to internal/i18n/audit.go and an entry to actionLabels in internal/admin/audit/view.go.",
 			len(missing), strings.Join(missing, "\n  "))
 	}
 }

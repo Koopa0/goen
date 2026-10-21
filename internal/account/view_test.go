@@ -14,14 +14,11 @@ import (
 	"github.com/koopa0/goen/internal/ui/layouts"
 )
 
-// The tests in this file are the account page's halves of cross-feature tests
-// that still live in internal/ui/pages, as in #2077, #2129 and #2154: each half
-// moved here with the page it renders and the other views stay behind.
+// The tests in this file are the account page's halves of tests that render
+// several pages: each half lives with the page it renders.
 
 // TestAccountOrderHistoryLinksToCanonicalOrderPage holds that the account
 // overview sends readers to /orders/{number}, not a second detail template.
-//
-// From internal/ui/pages/cart_test.go, moved whole.
 func TestAccountOrderHistoryLinksToCanonicalOrderPage(t *testing.T) {
 	ctx := i18n.WithLocale(t.Context(), i18n.ZhHant)
 	view := &View{
@@ -39,7 +36,6 @@ func TestAccountOrderHistoryLinksToCanonicalOrderPage(t *testing.T) {
 	}
 }
 
-// From internal/ui/pages/cart_test.go, moved whole.
 func TestAnOrderReturnedInFullIsBadgedRefundedInTheAccount(t *testing.T) {
 	ctx := i18n.WithLocale(t.Context(), i18n.ZhHant)
 	row := AccountOrder{Status: order.FulfillmentDelivered, Committed: true, Returned: true}
@@ -50,8 +46,6 @@ func TestAnOrderReturnedInFullIsBadgedRefundedInTheAccount(t *testing.T) {
 
 // TestTheAccountListOffersToPayAnUnpaidOrderWhereThatCanBeDone holds the 付款
 // action: only for an order that owes, only where payment is possible.
-//
-// From internal/ui/pages/cart_test.go, moved whole.
 func TestTheAccountListOffersToPayAnUnpaidOrderWhereThatCanBeDone(t *testing.T) {
 	t.Parallel()
 	view := func(enabled bool) *View {
@@ -75,7 +69,7 @@ func TestTheAccountListOffersToPayAnUnpaidOrderWhereThatCanBeDone(t *testing.T) 
 	}
 }
 
-// From internal/ui/pages/cart_test.go: the history badge's half of
+// The history badge's half of internal/order/buyer's
 // TestAPaidOrderIsNotBadgedAwaitingPaymentInTheAccount, which keeps the order
 // page's notice.
 func TestAccountOrderPaidIsNotAwaitingPayment(t *testing.T) {
@@ -104,8 +98,8 @@ func TestAccountOrderPaidIsNotAwaitingPayment(t *testing.T) {
 // The wide bar's action row is deliberately not one of them, and header.templ
 // carries the measurement: at 1024 the English header has no room left.
 //
-// A copy of the map in internal/ui/pages/backoffice_test.go, whose header test
-// still reads it.
+// A copy of the map in internal/ui/layouts/backoffice_test.go, whose header
+// test reads it.
 var backOfficeEntrances = map[string]string{
 	"the header's drawer":    `<a class="ui-navitem" href="/admin">`,
 	"the account page's nav": `<a class="goen-account__navitem" href="/admin">`,
@@ -117,8 +111,6 @@ var backOfficeEntrances = map[string]string{
 // customer being offered a door that answers 404 — RequireStaff does not
 // disclose that /admin exists, so following it is a dead end that also says the
 // shop has something to hide.
-//
-// From internal/ui/pages/backoffice_test.go, moved whole with renderAccountPage.
 func TestOnlyAStaffMemberIsOfferedTheBackOffice(t *testing.T) {
 	t.Parallel()
 
@@ -175,7 +167,7 @@ func renderAccountPage(t *testing.T, ctx context.Context) string {
 	))
 }
 
-// From internal/ui/pages/autofill_test.go: the address book's row of
+// The address book's row of internal/checkout's
 // TestEveryCheckoutFieldTellsTheBrowserWhatItIs, with the rows of its tables
 // that name the address book's controls and copies of the helpers it calls.
 func TestAccountAddressFieldsNameTheirAutofill(t *testing.T) {

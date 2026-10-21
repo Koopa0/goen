@@ -15,9 +15,8 @@ import (
 	"github.com/koopa0/goen/internal/ui/layouts"
 )
 
-// The tests in this file are the taxonomy halves of cross-feature tests that
-// still live in internal/ui/pages/admin, as in #2081, #2082 and #2084: each
-// half moved here with the page it renders and the other views stay behind.
+// The tests in this file are the taxonomy halves of tests that render several
+// desks' pages: each half lives with the page it renders.
 
 // From copy_test.go; it rendered only the taxonomy page, so it moved whole.
 func TestATaxonomyRowSavesWhatItShows(t *testing.T) {

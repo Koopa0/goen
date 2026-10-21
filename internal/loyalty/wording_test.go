@@ -1,11 +1,10 @@
-package pages
+package loyalty
 
 import (
 	"strings"
 	"testing"
 
 	"github.com/koopa0/goen/internal/i18n"
-	"github.com/koopa0/goen/internal/loyalty"
 	"github.com/koopa0/goen/internal/ui/layouts"
 )
 
@@ -17,7 +16,7 @@ func TestThePointsRuleNamesTheStepInPoints(t *testing.T) {
 	} {
 		ctx := i18n.WithLocale(t.Context(), loc)
 		var b strings.Builder
-		if err := loyalty.Points(layouts.Page{Title: "p"}, loyalty.PointsView{PerCredit: 10, Minimum: 20, Redeemable: 40}).Render(ctx, &b); err != nil {
+		if err := Points(layouts.Page{Title: "p"}, PointsView{PerCredit: 10, Minimum: 20, Redeemable: 40}).Render(ctx, &b); err != nil {
 			t.Fatal(err)
 		}
 		if !strings.Contains(b.String(), want) {

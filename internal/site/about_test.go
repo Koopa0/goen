@@ -37,7 +37,7 @@ func TestAboutDrawsTheMarkRatherThanAPhotograph(t *testing.T) {
 	}
 }
 
-// The about page's row of ui/pages' TestEveryPageKindSendsItsOwnLinkPreviewTags, which lives here since the page does.
+// The about page's row of internal/contact's TestEveryPageKindSendsItsOwnLinkPreviewTags, which lives here since the page does.
 func TestAboutSendsItsOwnLinkPreviewTags(t *testing.T) {
 	t.Parallel()
 	ctx := i18n.WithLocale(layouts.WithRequestPath(t.Context(), "/about"), i18n.ZhHant)
@@ -55,7 +55,7 @@ func TestAboutSendsItsOwnLinkPreviewTags(t *testing.T) {
 	}
 }
 
-// The about page's entry of ui/pages' TestNoPageNamesAnInventedCompanyOrAddress, which lives here since the page does.
+// The about page's entry of internal/ui/layouts' TestNoPageNamesAnInventedCompanyOrAddress, which lives here since the page does.
 func TestTheAboutPageNamesNoInventedCompanyOrAddress(t *testing.T) {
 	t.Parallel()
 	for _, locale := range []i18n.Locale{i18n.ZhHant, i18n.En} {

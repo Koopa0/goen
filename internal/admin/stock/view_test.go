@@ -18,11 +18,8 @@ import (
 	"github.com/koopa0/goen/internal/ui/stockrisk"
 )
 
-// The tests in this file are the stock halves of cross-feature tests that
-// still live in internal/ui/pages/admin. That package's test build cannot
-// import this one, because this package still imports it for the days cover
-// rows and section the report and the dashboard share, so each half moved
-// here with the page it renders and the other views stay behind.
+// The tests in this file are the stock halves of tests that render several
+// desks' pages: each half lives with the page it renders.
 
 const stockedAllWindow = 30 * 24 * time.Hour
 

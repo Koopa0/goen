@@ -15,9 +15,8 @@ import (
 	"github.com/koopa0/goen/internal/ui/layouts"
 )
 
-// The tests below render the shipping page next to nothing else. They used to sit in ui/pages/admin
-// beside tests of other desks; that package's test build cannot import this one (admin/audit still
-// reaches it), so the shipping halves moved here with the page, and the helpers they use are copies.
+// The tests below render the shipping page next to nothing else; the helpers they use are copies, since a
+// test cannot import another package's.
 
 func TestAMethodWithoutEnglishSaysSoAndMarksTheOtherName(t *testing.T) {
 	t.Parallel()

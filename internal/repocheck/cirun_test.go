@@ -27,7 +27,7 @@ type goTestRun struct {
 	file    string // slash path relative to the repository root
 	line    int
 	pattern string
-	pkgs    []string // package arguments as written, such as ./internal/ui/pages
+	pkgs    []string // package arguments as written, such as ./internal/ui/layouts
 }
 
 // TestCIRunPatternsNameExistingTests requires every `go test -run PATTERN

@@ -150,9 +150,10 @@ func templatePackages(templates map[string]string) []string {
 
 // viewModelPackages are the packages, by import path, whose structs can be view
 // models: those that hold a template, except templatePackagesWithoutViewModels.
-// Types are keyed by the import path of the package that declares them: pages and
-// pages/admin each declare a CampaignView or an OrderView, and on the bare name a
-// field assigned in one would excuse the same name unassigned in the other.
+// Types are keyed by the import path of the package that declares them:
+// admin/orders, order/buyer and warranty each declare an OrderView, and on the
+// bare name a field assigned in one would excuse the same name unassigned in
+// another.
 func viewModelPackages(templates map[string]string) []string {
 	var out []string
 	for _, pkg := range templatePackages(templates) {

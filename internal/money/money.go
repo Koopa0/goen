@@ -1,8 +1,8 @@
 // Package money renders amounts in the shop's currency.
 //
-// It is a package rather than a helper because two callers that share no
-// package both print prices: internal/ui/pages and internal/letter. Neither
-// should import the other, so the formatting lives in a leaf both can reach.
+// It is a package rather than a helper because callers that share no package
+// all print prices: the features' own pages and internal/letter. None should
+// import another, so the formatting lives in a leaf both can reach.
 // Left apart they grew two implementations that disagreed about a negative
 // amount.
 package money

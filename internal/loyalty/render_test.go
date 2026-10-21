@@ -11,9 +11,8 @@ import (
 	"github.com/koopa0/goen/internal/i18n"
 )
 
-// The helpers below are the ones ui/pages keeps for its own tests (renderComponent in backoffice_test.go, renderIn
-// in brandimagery_test.go, the node walkers in render_test.go). A test in another package cannot import them, so
-// the moved points tests get their own copies, the same as payment and warranty did.
+// The render helpers and node walkers every page package's tests keep, with the same bodies. A test in another
+// package cannot import them, so the points tests have their own copies.
 
 // renderComponent renders c with the caller's context, so the locale is explicit at the call site.
 func renderComponent(t *testing.T, ctx context.Context, c templ.Component) string {
