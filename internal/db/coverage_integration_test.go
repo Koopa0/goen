@@ -143,11 +143,11 @@ func TestCheckConstraintsAccept(t *testing.T) {
 	}
 }
 
-// TestKnownPickupChainChoicesMatchDatabaseContract binds the persisted closed
-// set to the schema allowlist. A new form choice is not usable unless the
+// TestChainsMatchTheDatabaseContract binds the persisted closed set to the
+// schema allowlist. A new form choice is not usable unless the
 // database admits it, and widening the CHECK must not make arbitrary carrier
 // routing codes valid at the write boundary.
-func TestKnownPickupChainChoicesMatchDatabaseContract(t *testing.T) {
+func TestChainsMatchTheDatabaseContract(t *testing.T) {
 	chains := shipping.Chains()
 	if len(chains) == 0 {
 		t.Fatal("shipping.Chains() is empty; this test would prove nothing")

@@ -229,7 +229,7 @@ templ Order(p layouts.Page, v *OrderView) {
 												}
 											}
 											for _, b := range v.PickupChains {
-												<option value={ string(b.Value) } selected?={ b.Value == v.Delivery.PickupChain }>{ b.Label }</option>
+												<option value={ string(b) } selected?={ b == v.Delivery.PickupChain }>{ b.Name() }</option>
 											}
 										</select>
 										if v.DeliveryErrors["pickup_chain"] != "" {

@@ -45,8 +45,8 @@ const (
 	ModeC2C LogisticsMode = "c2c"
 )
 
-// mapSubtypes is what CheckoutPickupChainChoices offers; a chain outside it has
-// no subtype rather than a guessed one.
+// mapSubtypes covers the chains checkout offers (shipping.Chain.AtCheckout); a
+// chain outside it has no subtype rather than a guessed one.
 var mapSubtypes = map[LogisticsMode]map[shipping.Chain]string{
 	ModeB2C: {
 		shipping.ChainSevenEleven: "UNIMART",

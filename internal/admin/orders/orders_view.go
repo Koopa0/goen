@@ -162,7 +162,7 @@ type OrderView struct {
 	Delivery          Delivery
 	Correctable       bool
 	PickupDestination bool
-	PickupChains      []pages.PickupChainChoice
+	PickupChains      []shipping.Chain
 
 	// RefundOffered is a paid order nothing has shipped from and no return
 	// exists for.

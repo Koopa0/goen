@@ -2,7 +2,6 @@ package pages
 
 import (
 	"context"
-	"slices"
 	"strconv"
 	"strings"
 	"time"
@@ -13,47 +12,6 @@ import (
 	"github.com/koopa0/goen/internal/shipping"
 	"github.com/koopa0/goen/internal/shoptime"
 )
-
-type PickupChainChoice struct {
-	Value shipping.Chain
-	Label string
-}
-
-// KnownPickupChainChoices keeps historical orders correctable when checkout no longer takes their chain.
-func KnownPickupChainChoices() []PickupChainChoice {
-	return choicesFor(shipping.Chains())
-}
-
-// CheckoutPickupChainChoices excludes chains whose store picker checkout does not integrate.
-func CheckoutPickupChainChoices() []PickupChainChoice {
-	chains := shipping.Chains()
-	return choicesFor(slices.DeleteFunc(chains, func(chain shipping.Chain) bool { return !chain.AtCheckout() }))
-}
-
-func choicesFor(chains []shipping.Chain) []PickupChainChoice {
-	out := make([]PickupChainChoice, 0, len(chains))
-	for _, c := range chains {
-		out = append(out, PickupChainChoice{Value: c, Label: pickupChainLabel(c)})
-	}
-	return out
-}
-
-func pickupChainLabel(code shipping.Chain) string {
-	switch code {
-	case "":
-		return ""
-	case shipping.ChainSevenEleven:
-		return "7-ELEVEN"
-	case shipping.ChainFamilyMart:
-		return "全家 FamilyMart" // i18n-exempt: a chain's own name, already bilingual
-	case shipping.ChainHiLife:
-		return "萊爾富 Hi-Life" // i18n-exempt: a chain's own name, already bilingual
-	case shipping.ChainOKMart:
-		return "OK mart"
-	default:
-		panic("pages: unknown pickup chain: " + string(code))
-	}
-}
 
 type Delivery struct {
 	PostalCode string
@@ -72,7 +30,7 @@ func (d Delivery) IsPickup() bool { return d.PickupChain != "" }
 
 func (d Delivery) Line() string {
 	if d.IsPickup() {
-		line := pickupChainLabel(d.PickupChain)
+		line := d.PickupChain.Name()
 		if d.PickupStoreName != "" {
 			line += " " + d.PickupStoreName
 		}

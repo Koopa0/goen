@@ -3,6 +3,7 @@ package checkout
 import (
 	"context"
 	"fmt"
+	"slices"
 	"strconv"
 	"strings"
 
@@ -14,8 +15,15 @@ import (
 	"github.com/koopa0/goen/internal/shipping"
 	"github.com/koopa0/goen/internal/ui/fieldrule"
 	"github.com/koopa0/goen/internal/ui/layouts"
-	"github.com/koopa0/goen/internal/ui/pages"
 )
+
+// pickupChains are the chains a shopper chooses between: those whose store
+// picker checkout integrates. The back office offers every chain
+// (shipping.Chains), so an order placed at one checkout no longer takes stays
+// correctable.
+func pickupChains() []shipping.Chain {
+	return slices.DeleteFunc(shipping.Chains(), func(c shipping.Chain) bool { return !c.AtCheckout() })
+}
 
 type View struct {
 	Cart                cart.View
@@ -35,7 +43,7 @@ type View struct {
 	Errors         map[string]string
 	Invoice        InvoiceView
 	InvoiceChoices []InvoiceChoice
-	PickupChains   []pages.PickupChainChoice
+	PickupChains   []shipping.Chain
 	SavedAddresses []SavedAddress
 	ChosenAddress  string
 	Profile        Profile

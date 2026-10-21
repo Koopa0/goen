@@ -44,3 +44,28 @@ func TestOnlyCurrentPickupChainsAreAtCheckout(t *testing.T) {
 		})
 	}
 }
+
+// A chain prints under its own name, which it already writes in both scripts,
+// so the name is the same in every language.
+func TestChain_Name(t *testing.T) {
+	t.Parallel()
+	for _, tc := range []struct {
+		chain Chain
+		want  string
+	}{
+		{ChainSevenEleven, "7-ELEVEN"},
+		{ChainFamilyMart, "全家 FamilyMart"},
+		{ChainHiLife, "萊爾富 Hi-Life"},
+		{ChainOKMart, "OK mart"},
+		{"", ""},
+	} {
+		if got := tc.chain.Name(); got != tc.want {
+			t.Errorf("Chain(%q).Name() = %q, want %q", tc.chain, got, tc.want)
+		}
+	}
+	for _, chain := range Chains() {
+		if chain.Name() == "" {
+			t.Errorf("Chain(%q) has no name", chain)
+		}
+	}
+}

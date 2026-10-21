@@ -13,7 +13,6 @@ import (
 	"github.com/koopa0/goen/internal/shipping"
 
 	"github.com/koopa0/goen/internal/i18n"
-	"github.com/koopa0/goen/internal/ui/pages"
 )
 
 // divTag walks a rendered page's div open and close tags, so
@@ -82,7 +81,7 @@ func TestSwitchingTheChainInPlaceKeepsTheStoreButton(t *testing.T) {
 		Shipping:     []cart.ShippingChoice{{VersionID: "ship-1", Code: "pickup", Name: "超商取貨"}},
 		Chosen:       "ship-1",
 		Destination:  "pickup_point",
-		PickupChains: pages.CheckoutPickupChainChoices(),
+		PickupChains: pickupChains(),
 		Address: Address{
 			Email: "someone@goen.test", Name: "王小明", Phone: "0912345678",
 			PickupChain: shipping.ChainFamilyMart,

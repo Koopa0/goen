@@ -929,9 +929,9 @@ func Page(p layouts.Page, v *View) templ.Component {
 							return templ_7745c5c3_Err
 						}
 						var templ_7745c5c3_Var49 string
-						templ_7745c5c3_Var49, templ_7745c5c3_Err = templ.ResolveAttributeValue("pickup_chain-" + string(b.Value))
+						templ_7745c5c3_Var49, templ_7745c5c3_Err = templ.ResolveAttributeValue("pickup_chain-" + string(b))
 						if templ_7745c5c3_Err != nil {
-							return templ.Error{Err: templ_7745c5c3_Err, FileName: `checkout/page.templ`, Line: 222, Col: 52}
+							return templ.Error{Err: templ_7745c5c3_Err, FileName: `checkout/page.templ`, Line: 222, Col: 46}
 						}
 						_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var49)
 						if templ_7745c5c3_Err != nil {
@@ -942,9 +942,9 @@ func Page(p layouts.Page, v *View) templ.Component {
 							return templ_7745c5c3_Err
 						}
 						var templ_7745c5c3_Var50 string
-						templ_7745c5c3_Var50, templ_7745c5c3_Err = templ.ResolveAttributeValue(string(b.Value))
+						templ_7745c5c3_Var50, templ_7745c5c3_Err = templ.ResolveAttributeValue(string(b))
 						if templ_7745c5c3_Err != nil {
-							return templ.Error{Err: templ_7745c5c3_Err, FileName: `checkout/page.templ`, Line: 225, Col: 37}
+							return templ.Error{Err: templ_7745c5c3_Err, FileName: `checkout/page.templ`, Line: 225, Col: 31}
 						}
 						_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var50)
 						if templ_7745c5c3_Err != nil {
@@ -954,7 +954,7 @@ func Page(p layouts.Page, v *View) templ.Component {
 						if templ_7745c5c3_Err != nil {
 							return templ_7745c5c3_Err
 						}
-						if b.Value == v.Address.PickupChain {
+						if b == v.Address.PickupChain {
 							templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 80, " checked")
 							if templ_7745c5c3_Err != nil {
 								return templ_7745c5c3_Err
@@ -965,9 +965,9 @@ func Page(p layouts.Page, v *View) templ.Component {
 							return templ_7745c5c3_Err
 						}
 						var templ_7745c5c3_Var51 string
-						templ_7745c5c3_Var51, templ_7745c5c3_Err = templ.JoinStringErrs(b.Label)
+						templ_7745c5c3_Var51, templ_7745c5c3_Err = templ.JoinStringErrs(b.Name())
 						if templ_7745c5c3_Err != nil {
-							return templ.Error{Err: templ_7745c5c3_Err, FileName: `checkout/page.templ`, Line: 228, Col: 60}
+							return templ.Error{Err: templ_7745c5c3_Err, FileName: `checkout/page.templ`, Line: 228, Col: 61}
 						}
 						_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var51))
 						if templ_7745c5c3_Err != nil {

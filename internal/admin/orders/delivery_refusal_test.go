@@ -11,7 +11,6 @@ import (
 
 	"github.com/koopa0/goen/internal/i18n"
 	"github.com/koopa0/goen/internal/ui/layouts"
-	"github.com/koopa0/goen/internal/ui/pages"
 	"github.com/koopa0/goen/internal/web/formtext"
 )
 
@@ -42,7 +41,7 @@ func TestDeliveryRefusalShowsAnAbsentControlsReason(t *testing.T) {
 				before := draft
 				view := OrderView{
 					Number: "GO-REFUSAL", Correctable: true, PickupDestination: tc.pickup,
-					PickupChains: pages.KnownPickupChainChoices(), Recipient: "Saved recipient",
+					PickupChains: shipping.Chains(), Recipient: "Saved recipient",
 				}
 				applyDeliveryRefusals(ctx, &view, &draft, []formtext.FieldRefusal{
 					{Field: "phone", MessageKey: i18n.KeyPhoneMalformed},

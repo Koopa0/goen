@@ -219,13 +219,13 @@ templ Page(p layouts.Page, v *View) {
 												<label class="goen-checkout__ship">
 													<input
 														class="goen-sr-only"
-														id={ "pickup_chain-" + string(b.Value) }
+														id={ "pickup_chain-" + string(b) }
 														type="radio"
 														name="pickup_chain"
-														value={ string(b.Value) }
-														checked?={ b.Value == v.Address.PickupChain }
+														value={ string(b) }
+														checked?={ b == v.Address.PickupChain }
 													/>
-													<span class="goen-checkout__shipname">{ b.Label }</span>
+													<span class="goen-checkout__shipname">{ b.Name() }</span>
 												</label>
 											}
 										</div>

@@ -3,8 +3,6 @@ package pages
 import (
 	"testing"
 
-	"github.com/google/go-cmp/cmp"
-
 	"github.com/koopa0/goen/internal/i18n"
 	"github.com/koopa0/goen/internal/order"
 	"github.com/koopa0/goen/internal/shipping"
@@ -50,58 +48,6 @@ func TestTheAdminTimelineKeepsItsStatusWords(t *testing.T) {
 	key, ok := OrderEvent{Kind: order.EventCancelled}.LookupLabelKey()
 	if !ok || i18n.T(ctx, key) != "訂單取消" {
 		t.Errorf("LookupLabelKey(cancelled) = %q, %v; want the status 訂單取消", i18n.T(ctx, key), ok)
-	}
-}
-
-func TestKnownPickupChainChoicesMatchValidationAndReturnFreshStorage(t *testing.T) {
-	want := []PickupChainChoice{
-		{Value: "seven_eleven", Label: "7-ELEVEN"},
-		{Value: "family_mart", Label: "全家 FamilyMart"},
-		{Value: "hi_life", Label: "萊爾富 Hi-Life"},
-		{Value: "ok_mart", Label: "OK mart"},
-	}
-	got := KnownPickupChainChoices()
-	if diff := cmp.Diff(want, got); diff != "" {
-		t.Fatalf("KnownPickupChainChoices() mismatch (-want +got):\n%s", diff)
-	}
-	for _, choice := range got {
-		if !choice.Value.Known() {
-			t.Errorf("KnownPickupChainChoices() offers %q, but KnownPickupChain rejects it", choice.Value)
-		}
-	}
-
-	got[0].Value = "other_chain"
-	got[0].Label = "Other"
-	if diff := cmp.Diff(want, KnownPickupChainChoices()); diff != "" {
-		t.Errorf("mutating KnownPickupChainChoices() changed the next result (-want +got):\n%s", diff)
-	}
-	if shipping.Chain("other_chain").Known() {
-		t.Error("mutating KnownPickupChainChoices() changed KnownPickupChain")
-	}
-}
-
-// TestCheckoutOffersTheChainsTheShopShipsTo holds the two sets apart: a shopper
-// chooses between the chains whose store picker the shop will integrate, and the
-// back office keeps every chain, because an order already placed at one of the
-// others still has to be correctable.
-func TestCheckoutOffersTheChainsTheShopShipsTo(t *testing.T) {
-	t.Parallel()
-
-	want := []PickupChainChoice{
-		{Value: shipping.ChainSevenEleven, Label: "7-ELEVEN"},
-		{Value: shipping.ChainFamilyMart, Label: "全家 FamilyMart"},
-	}
-	got := CheckoutPickupChainChoices()
-	if diff := cmp.Diff(want, got); diff != "" {
-		t.Errorf("CheckoutPickupChainChoices() mismatch (-want +got):\n%s", diff)
-	}
-	for _, choice := range got {
-		if !choice.Value.Known() {
-			t.Errorf("checkout offers %q, which validation rejects", choice.Value)
-		}
-	}
-	if len(KnownPickupChainChoices()) != len(shipping.Chains()) {
-		t.Error("the back office no longer offers every chain the shop can accept")
 	}
 }
 
