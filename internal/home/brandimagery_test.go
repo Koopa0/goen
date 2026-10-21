@@ -1,4 +1,4 @@
-package pages
+package home
 
 import (
 	"strings"
@@ -22,7 +22,7 @@ func renderIn(t *testing.T, locale i18n.Locale, c templ.Component) string {
 
 func TestHomeDepartmentCardsWearTheirToneAndPhotograph(t *testing.T) {
 	t.Parallel()
-	page := renderIn(t, i18n.ZhHant, Home(layouts.Page{}, HomeView{Categories: []HomeCategory{
+	page := renderIn(t, i18n.ZhHant, Page(layouts.Page{}, View{Categories: []Category{
 		{Slug: "tech", Name: "3C 數位", Tone: components.ToneMist, Photo: components.Photo{URL: "/static/media/products/department-tech.webp", Srcset: "/static/x-400.webp 400w"}},
 		{Slug: "unlisted", Name: "其他", Tone: components.ToneStone},
 	}}))

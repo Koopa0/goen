@@ -2,9 +2,22 @@ package pages
 
 import (
 	"strings"
+	"testing"
 
+	"github.com/a-h/templ"
 	"golang.org/x/net/html"
+
+	"github.com/koopa0/goen/internal/i18n"
 )
+
+func renderIn(t *testing.T, locale i18n.Locale, c templ.Component) string {
+	t.Helper()
+	var b strings.Builder
+	if err := c.Render(i18n.WithLocale(t.Context(), locale), &b); err != nil {
+		t.Fatalf("render: %v", err)
+	}
+	return b.String()
+}
 
 // The node walkers the page tests share.
 

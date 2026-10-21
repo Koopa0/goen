@@ -15,6 +15,7 @@ import (
 	"github.com/koopa0/goen/internal/catalog"
 	"github.com/koopa0/goen/internal/checkout"
 	"github.com/koopa0/goen/internal/discount/campaign"
+	"github.com/koopa0/goen/internal/home"
 	"github.com/koopa0/goen/internal/i18n"
 	"github.com/koopa0/goen/internal/ui/components"
 	"github.com/koopa0/goen/internal/ui/layouts"
@@ -40,7 +41,7 @@ func TestStorefrontSectionsAsDrawn(t *testing.T) {
 	mux.Handle(assets.Prefix, assets.Handler(slog.New(slog.DiscardHandler)))
 	tones := map[string]components.Tone{"ink": components.ToneInk, "sage": components.ToneSage}
 	mux.HandleFunc("GET /home", func(w http.ResponseWriter, r *http.Request) {
-		view := pages.HomeView{Rules: pages.ShopRules{FreeDeliveryCents: 99900, LowestFeeCents: 6000, PickupOffered: true}}
+		view := home.View{Rules: pages.ShopRules{FreeDeliveryCents: 99900, LowestFeeCents: 6000, PickupOffered: true}}
 		photo := components.Photo{URL: assets.Image{BundledKey: "nimbus-band-2-01.webp"}.URL(), Alt: "Headphones on a desk"}
 		view.Slides = []components.HeroSlide{
 			{Title: "Technology", Layout: components.SlideSplit, Tone: components.ToneStone, Photo: photo},
@@ -54,19 +55,19 @@ func TestStorefrontSectionsAsDrawn(t *testing.T) {
 			{"bags", "Bags", "orili-canvas-tote-02.webp"},
 			{"coffee", "Coffee", "dawnroast-drip-coffee-01.webp"},
 		} {
-			view.Categories = append(view.Categories, pages.HomeCategory{
+			view.Categories = append(view.Categories, home.Category{
 				Slug: c.slug, Name: c.name, Tone: components.ToneStone,
 				Photo: components.Photo{URL: assets.Image{BundledKey: c.photo}.URL()},
 			})
 		}
 		if tone, ok := tones[r.URL.Query().Get("band")]; ok {
-			view.Band = &pages.DepartmentBand{Name: "Technology", Items: 12, Fact: "Audio · Phones", Href: "/c/tech", Tone: tone}
+			view.Band = &home.DepartmentBand{Name: "Technology", Items: 12, Fact: "Audio · Phones", Href: "/c/tech", Tone: tone}
 			for _, name := range []string{"Canvas tote", "City tote", "Weekend tote", "Market tote"} {
 				view.Band.Tiles = append(view.Band.Tiles, tile.Tile{Slug: strings.ToLower(strings.ReplaceAll(name, " ", "-")), Name: name, PriceCents: 89000, InStock: true})
 			}
 		}
 		w.Header().Set("Content-Type", "text/html; charset=utf-8")
-		if renderErr := pages.Home(layouts.Page{}, view).Render(i18n.WithLocale(r.Context(), i18n.En), w); renderErr != nil {
+		if renderErr := home.Page(layouts.Page{}, view).Render(i18n.WithLocale(r.Context(), i18n.En), w); renderErr != nil {
 			t.Errorf("render home fixture: %v", renderErr)
 		}
 	})

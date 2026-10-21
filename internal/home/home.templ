@@ -1,4 +1,4 @@
-package pages
+package home
 
 import (
 	"fmt"
@@ -7,10 +7,11 @@ import (
 	"github.com/koopa0/goen/internal/ui/components"
 	"github.com/koopa0/goen/internal/ui/icons"
 	"github.com/koopa0/goen/internal/ui/layouts"
+	"github.com/koopa0/goen/internal/ui/pages"
 	"github.com/koopa0/goen/internal/ui/tile"
 )
 
-templ Home(p layouts.Page, v HomeView) {
+templ Page(p layouts.Page, v View) {
 	@layouts.Base(p) {
 		<h1 class="goen-sr-only">{ i18n.T(ctx, i18n.KeyHomeHeading) }</h1>
 		if v.AccountErased {
@@ -33,7 +34,7 @@ templ Home(p layouts.Page, v HomeView) {
 			@departmentBand(v.Band)
 		}
 		<div class="goen-home">
-			@ShopRulesSection(v.Rules)
+			@pages.ShopRulesSection(v.Rules)
 		</div>
 	}
 }
@@ -161,7 +162,7 @@ templ departmentBand(b *DepartmentBand) {
 	</section>
 }
 
-templ departmentDirectory(cats []HomeCategory) {
+templ departmentDirectory(cats []Category) {
 	<section class="goen-home__section goen-cats" aria-labelledby="cats-heading">
 		<div class="goen-home__head">
 			@heading("cats-heading", i18n.T(ctx, i18n.KeySectionCategories))
@@ -176,7 +177,7 @@ templ departmentDirectory(cats []HomeCategory) {
 	</section>
 }
 
-templ departmentTile(c HomeCategory) {
+templ departmentTile(c Category) {
 	<a class="goen-cat" data-tone={ c.Tone.Attr() } href={ templ.URL("/c/" + c.Slug) }>
 		<span class="goen-cat__well">
 			if c.Photo.Shown() {
