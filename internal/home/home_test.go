@@ -8,9 +8,9 @@ import (
 	"golang.org/x/net/html"
 
 	"github.com/koopa0/goen/internal/i18n"
+	"github.com/koopa0/goen/internal/policy"
 	"github.com/koopa0/goen/internal/ui/components"
 	"github.com/koopa0/goen/internal/ui/layouts"
-	"github.com/koopa0/goen/internal/ui/pages"
 )
 
 // A screen reader says the role description of the hero and of each slide aloud
@@ -75,11 +75,11 @@ func TestTheHomePageSendsItsOwnLinkPreviewTags(t *testing.T) {
 }
 
 // The home page draws the shop rules it is given, as the department page does;
-// what the rules section says is ui/pages' TestShopRulesStateTheStoredRules.
+// what the rules section says is policy's TestShopRulesStateTheStoredRules.
 func TestTheHomePageEndsWithTheShopRules(t *testing.T) {
 	t.Parallel()
 	ctx := i18n.WithLocale(t.Context(), i18n.ZhHant)
-	page := renderComponent(t, ctx, Page(layouts.Page{}, View{Rules: pages.ShopRules{FreeDeliveryCents: 300000}}))
+	page := renderComponent(t, ctx, Page(layouts.Page{}, View{Rules: policy.Rules{FreeDeliveryCents: 300000}}))
 	if !strings.Contains(page, `<section class="goen-rules" aria-labelledby="rules-heading">`) {
 		t.Error("home page lacks the shop rules")
 	}

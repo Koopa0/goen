@@ -6,9 +6,9 @@ import (
 	"testing"
 
 	"github.com/koopa0/goen/internal/i18n"
+	"github.com/koopa0/goen/internal/policy"
 	"github.com/koopa0/goen/internal/ui/components"
 	"github.com/koopa0/goen/internal/ui/layouts"
-	"github.com/koopa0/goen/internal/ui/pages"
 	"github.com/koopa0/goen/internal/ui/tile"
 )
 
@@ -657,7 +657,7 @@ func TestAPartialListingCarriesTheSelectedCountsForTheRail(t *testing.T) {
 
 func TestTheDepartmentPageEndsWithTheShopRules(t *testing.T) {
 	t.Parallel()
-	rules := pages.ShopRules{FreeDeliveryCents: 300000}
+	rules := policy.Rules{FreeDeliveryCents: 300000}
 	page := renderToString(t, Listing(layouts.Page{}, ListingView{Slug: "tech", Name: "3C 數位"}, &rules, nil))
 	if !strings.Contains(page, `<dl class="ui-statline ui-statline--wide">`) {
 		t.Error("department page lacks the shop rules")

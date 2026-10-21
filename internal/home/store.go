@@ -19,7 +19,6 @@ import (
 	"github.com/koopa0/goen/internal/shoptime"
 	"github.com/koopa0/goen/internal/site"
 	"github.com/koopa0/goen/internal/ui/components"
-	"github.com/koopa0/goen/internal/ui/pages"
 	"github.com/koopa0/goen/internal/ui/tile"
 )
 
@@ -122,7 +121,7 @@ func (s *Store) Load(ctx context.Context) (View, error) {
 		Categories: make([]Category, 0, len(src.cats)),
 		Row:        row,
 		Band:       band,
-		Rules:      pages.ShopRules(rules),
+		Rules:      rules,
 	}
 	for i := range src.cats {
 		c := &src.cats[i]

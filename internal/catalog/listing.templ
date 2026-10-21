@@ -6,14 +6,14 @@ import (
 
 	"github.com/koopa0/goen/assets"
 	"github.com/koopa0/goen/internal/i18n"
+	"github.com/koopa0/goen/internal/policy"
 	"github.com/koopa0/goen/internal/ui/components"
 	"github.com/koopa0/goen/internal/ui/layouts"
-	"github.com/koopa0/goen/internal/ui/pages"
 	"github.com/koopa0/goen/internal/ui/tile"
 )
 
 // rules and head are nil where the page has none to state.
-templ Listing(p layouts.Page, v ListingView, rules *pages.ShopRules, head *DepartmentHead) {
+templ Listing(p layouts.Page, v ListingView, rules *policy.Rules, head *DepartmentHead) {
 	{{ photo, onWell := bandPhoto(v.Theme.Image(), v.Products) }}
 	{{ p = awaitingIf(p, photo.Shown(), layouts.AwaitPageheadPhoto) }}
 	@layouts.Base(p) {
@@ -87,7 +87,7 @@ templ Listing(p layouts.Page, v ListingView, rules *pages.ShopRules, head *Depar
 				</div>
 			</div>
 			if rules != nil && !isPartial(ctx) {
-				@pages.ShopRulesSection(*rules)
+				@policy.RulesSection(*rules)
 			}
 			if isPartial(ctx) {
 				// The rail is not swapped, or the box the shopper just used would lose focus;

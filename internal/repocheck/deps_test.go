@@ -88,9 +88,10 @@ var (
 		"assets", "internal/i18n", "internal/web", "internal/ui/layouts",
 	}
 	// policyMayImport is what internal/policy may import besides itself and the
-	// leaves: the foundation its pages are built on.
+	// leaves: the foundation its pages are built on, and the stat line the home,
+	// department and product pages draw the stated rules in.
 	policyMayImport = []string{
-		"internal/i18n", "internal/web", "internal/ui/layouts",
+		"internal/i18n", "internal/web", "internal/ui/components", "internal/ui/layouts",
 	}
 	// campaignMayImport is what internal/discount/campaign may import besides itself and
 	// the leaves: the message catalogue, the stat its schedule is told in, and
