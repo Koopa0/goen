@@ -7,12 +7,12 @@ import (
 	"strings"
 	"time"
 
+	"github.com/koopa0/goen/internal/admin/worklist"
 	"github.com/koopa0/goen/internal/i18n"
 	"github.com/koopa0/goen/internal/invoice"
 	"github.com/koopa0/goen/internal/money"
 	"github.com/koopa0/goen/internal/refund"
 	"github.com/koopa0/goen/internal/ui/components"
-	"github.com/koopa0/goen/internal/worklist"
 )
 
 type WorkerHealthView struct {
