@@ -11,7 +11,7 @@ import (
 	"github.com/koopa0/goen/internal/i18n"
 	"github.com/koopa0/goen/internal/ui/layouts"
 	"github.com/koopa0/goen/internal/user"
-	"github.com/koopa0/goen/internal/web"
+	"github.com/koopa0/goen/internal/web/respond"
 )
 
 type Control struct {
@@ -118,7 +118,7 @@ func (c *Control) RequireAdmin(next http.HandlerFunc) http.HandlerFunc {
 }
 
 func NotFound(w http.ResponseWriter, r *http.Request, log *slog.Logger) {
-	web.Render(w, r, log, http.StatusNotFound, layouts.Notice(
+	respond.Component(w, r, log, http.StatusNotFound, layouts.Notice(
 		layouts.Page{Title: i18n.T(r.Context(), i18n.KeyAdminNotFoundTitle)}, "404",
 		i18n.T(r.Context(), i18n.KeyAdminNotFoundHead),
 		i18n.T(r.Context(), i18n.KeyAdminNotFoundBody)))
@@ -128,14 +128,14 @@ func NotFound(w http.ResponseWriter, r *http.Request, log *slog.Logger) {
 // member reaches in a browser: a bare status code would show them an unstyled
 // "500" with no way back.
 func Fault(w http.ResponseWriter, r *http.Request, log *slog.Logger) {
-	web.Render(w, r, log, http.StatusInternalServerError, layouts.Notice(
+	respond.Component(w, r, log, http.StatusInternalServerError, layouts.Notice(
 		layouts.Page{Title: i18n.T(r.Context(), i18n.KeyAdminFaultTitle)}, "",
 		i18n.T(r.Context(), i18n.KeyAdminFaultHead),
 		i18n.T(r.Context(), i18n.KeyAdminFaultBody)))
 }
 
 func ServerError(w http.ResponseWriter, r *http.Request, log *slog.Logger) {
-	web.Render(w, r, log, http.StatusInternalServerError, layouts.Notice(
+	respond.Component(w, r, log, http.StatusInternalServerError, layouts.Notice(
 		layouts.Page{Title: i18n.T(r.Context(), i18n.KeyAdminErrorTitle)}, "500",
 		i18n.T(r.Context(), i18n.KeyAdminErrorTitle),
 		i18n.T(r.Context(), i18n.KeyAdminErrorBody)))

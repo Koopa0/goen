@@ -16,8 +16,8 @@ import (
 	"github.com/koopa0/goen/internal/i18n"
 	"github.com/koopa0/goen/internal/invoice"
 	"github.com/koopa0/goen/internal/ui/layouts"
-	"github.com/koopa0/goen/internal/web"
 	"github.com/koopa0/goen/internal/web/formtext"
+	"github.com/koopa0/goen/internal/web/respond"
 )
 
 func (s *Store) SetProductInvoiceLine(ctx context.Context, slug string, facts invoice.LineTerms) error {
@@ -96,5 +96,5 @@ func (h *Handler) rejectProductInvoiceLine(w http.ResponseWriter, r *http.Reques
 	}
 	view.InvoiceTerms = &facts
 	view.Errors = errs
-	web.Render(w, r, h.log, http.StatusUnprocessableEntity, ProductForm(layouts.Page{Title: view.Name}, view))
+	respond.Component(w, r, h.log, http.StatusUnprocessableEntity, ProductForm(layouts.Page{Title: view.Name}, view))
 }

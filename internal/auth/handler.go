@@ -18,11 +18,11 @@ import (
 	"github.com/koopa0/goen/internal/i18n"
 	"github.com/koopa0/goen/internal/ui/layouts"
 	"github.com/koopa0/goen/internal/user"
-	"github.com/koopa0/goen/internal/web"
 	"github.com/koopa0/goen/internal/web/clientip"
 	"github.com/koopa0/goen/internal/web/compress"
 	"github.com/koopa0/goen/internal/web/formtext"
 	"github.com/koopa0/goen/internal/web/ratelimit"
+	"github.com/koopa0/goen/internal/web/respond"
 	"github.com/koopa0/goen/internal/web/siteurl"
 )
 
@@ -291,7 +291,7 @@ func (h *Handler) SignInPage(w http.ResponseWriter, r *http.Request) {
 		view.Email = address
 		view.PasswordFocus = view.Email != ""
 	}
-	web.Render(w, r, h.log, http.StatusOK, SignIn(SignInMeta(r.Context()), view))
+	respond.Component(w, r, h.log, http.StatusOK, SignIn(SignInMeta(r.Context()), view))
 }
 
 func (h *Handler) SignIn(w http.ResponseWriter, r *http.Request) {
@@ -383,7 +383,7 @@ func (h *Handler) countDeviceMiss(r *http.Request, device []byte) {
 // account.
 func (h *Handler) signInFailed(w http.ResponseWriter, r *http.Request, addr, next string) {
 	compress.Skip(w)
-	web.Render(w, r, h.log, http.StatusUnprocessableEntity,
+	respond.Component(w, r, h.log, http.StatusUnprocessableEntity,
 		SignIn(SignInMeta(r.Context()), h.signInView(AuthView{
 			Email: addr, Next: next, ReturnMessage: signInReturnMessage(r.Context(), r.PostFormValue("next")),
 			HideRegister: r.PostFormValue("reauth") == "erase", PasswordFocus: true,
@@ -494,7 +494,7 @@ func (h *Handler) RegisterPage(w http.ResponseWriter, r *http.Request) {
 			view.Notice = i18n.T(r.Context(), i18n.KeyRegisterResent)
 		}
 	}
-	web.Render(w, r, h.log, http.StatusOK, Register(RegisterMeta(r.Context()), view))
+	respond.Component(w, r, h.log, http.StatusOK, Register(RegisterMeta(r.Context()), view))
 }
 
 // ResendRegistration gives every usable address the same answer, so the form
@@ -584,7 +584,7 @@ func (h *Handler) Register(w http.ResponseWriter, r *http.Request) {
 	view := AuthView{Email: c.Email, Name: c.Name, Next: next}
 	if errs := formtext.FieldMessages(r.Context(), c.ValidateRegistration()); len(errs) > 0 {
 		view.Errors = errs
-		web.Render(w, r, h.log, http.StatusUnprocessableEntity,
+		respond.Component(w, r, h.log, http.StatusUnprocessableEntity,
 			Register(RegisterMeta(r.Context()), view))
 		return
 	}
@@ -711,7 +711,7 @@ func (h *Handler) CartRecoveryPage(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 	next := siteurl.PathOr(r.URL.Query().Get("next"), "/account")
-	web.Render(w, r, h.log, http.StatusOK, CartRecovery(
+	respond.Component(w, r, h.log, http.StatusOK, CartRecovery(
 		CartRecoveryMeta(r.Context()), CartRecoveryView{
 			Next:    next,
 			Welcome: r.URL.Query().Get("welcome") == "1",
@@ -863,7 +863,7 @@ func cartRecoveryLanding(continuation string) string {
 }
 
 func (h *Handler) serverError(w http.ResponseWriter, r *http.Request) {
-	web.Render(w, r, h.log, http.StatusInternalServerError, layouts.Notice(
+	respond.Component(w, r, h.log, http.StatusInternalServerError, layouts.Notice(
 		layouts.Page{Title: i18n.T(r.Context(), i18n.KeyBusyTitle)}, "",
 		i18n.T(r.Context(), i18n.KeyBusyTitle),
 		i18n.T(r.Context(), i18n.KeyBusyBody)))
@@ -1033,7 +1033,7 @@ func (h *Handler) VerifyPage(w http.ResponseWriter, r *http.Request) {
 	compress.Skip(w)
 	ctx := r.Context()
 	if r.URL.Query().Get("done") == "1" {
-		web.Render(w, r, h.log, http.StatusOK, layouts.EmailLinkPage(
+		respond.Component(w, r, h.log, http.StatusOK, layouts.EmailLinkPage(
 			layouts.EmailLinkMeta(i18n.T(ctx, i18n.KeyVerifyDone)),
 			layouts.EmailLinkView{
 				Heading: i18n.T(ctx, i18n.KeyVerifyDone),
@@ -1043,7 +1043,7 @@ func (h *Handler) VerifyPage(w http.ResponseWriter, r *http.Request) {
 	}
 	token := r.URL.Query().Get("token")
 	if token == "" {
-		web.Render(w, r, h.log, http.StatusOK, layouts.EmailLinkPage(
+		respond.Component(w, r, h.log, http.StatusOK, layouts.EmailLinkPage(
 			layouts.EmailLinkMeta(i18n.T(ctx, i18n.KeyVerifyTitle)),
 			layouts.EmailLinkView{
 				Heading:  i18n.T(ctx, i18n.KeyVerifyTitle),
@@ -1052,7 +1052,7 @@ func (h *Handler) VerifyPage(w http.ResponseWriter, r *http.Request) {
 			}))
 		return
 	}
-	web.Render(w, r, h.log, http.StatusOK, layouts.EmailLinkPage(
+	respond.Component(w, r, h.log, http.StatusOK, layouts.EmailLinkPage(
 		layouts.EmailLinkMeta(i18n.T(ctx, i18n.KeyVerifyTitle)),
 		layouts.EmailLinkView{
 			Heading: i18n.T(ctx, i18n.KeyVerifyTitle),
@@ -1094,7 +1094,7 @@ func (h *Handler) Verify(w http.ResponseWriter, r *http.Request) {
 		h.verifyFailed(w, r, i18n.T(ctx, i18n.KeyVerifyDeadTitle), i18n.T(ctx, i18n.KeyEmailStaffFixed))
 	case errors.Is(err, ErrVerifyInvalid):
 		heading := i18n.T(ctx, i18n.KeyEmailLinkDeadTitle)
-		web.Render(w, r, h.log, http.StatusUnprocessableEntity, layouts.EmailLinkPage(
+		respond.Component(w, r, h.log, http.StatusUnprocessableEntity, layouts.EmailLinkPage(
 			layouts.EmailLinkMeta(heading),
 			layouts.EmailLinkView{
 				Heading:  heading,
@@ -1112,7 +1112,7 @@ func (h *Handler) Verify(w http.ResponseWriter, r *http.Request) {
 func (h *Handler) CompleteRegistrationPage(w http.ResponseWriter, r *http.Request) {
 	// The page carries a live registration token; keep it out of BREACH's reach.
 	compress.Skip(w)
-	web.Render(w, r, h.log, http.StatusOK, RegisterComplete(
+	respond.Component(w, r, h.log, http.StatusOK, RegisterComplete(
 		RegisterCompleteMeta(r.Context()), RegisterCompleteView{
 			Token: r.URL.Query().Get("token"),
 			Next:  siteurl.PathOr(r.URL.Query().Get("next"), "/account"),
@@ -1164,7 +1164,7 @@ func (h *Handler) CompleteRegistration(w http.ResponseWriter, r *http.Request) {
 		clearPendingRegistration(w, h.secure)
 		http.Redirect(w, r, registrationLanding(next, adoption), http.StatusSeeOther)
 	case errors.Is(err, ErrBadCredentials):
-		web.Render(w, r, h.log, http.StatusUnprocessableEntity, RegisterComplete(
+		respond.Component(w, r, h.log, http.StatusUnprocessableEntity, RegisterComplete(
 			RegisterCompleteMeta(ctx), RegisterCompleteView{
 				Token: token, Next: next, Error: i18n.T(ctx, i18n.KeyBadCredentials),
 			}))
@@ -1179,12 +1179,12 @@ func (h *Handler) CompleteRegistration(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *Handler) registrationDead(w http.ResponseWriter, r *http.Request, next string) {
-	web.Render(w, r, h.log, http.StatusUnprocessableEntity, RegistrationDead(
+	respond.Component(w, r, h.log, http.StatusUnprocessableEntity, RegistrationDead(
 		layouts.Page{Title: i18n.T(r.Context(), i18n.KeyVerifyDeadTitle)}, next))
 }
 
 func (h *Handler) verifyFailed(w http.ResponseWriter, r *http.Request, heading, body string) {
-	web.Render(w, r, h.log, http.StatusUnprocessableEntity, layouts.EmailLinkPage(
+	respond.Component(w, r, h.log, http.StatusUnprocessableEntity, layouts.EmailLinkPage(
 		layouts.EmailLinkMeta(heading),
 		layouts.EmailLinkView{Heading: heading, Body: body}))
 }
@@ -1292,7 +1292,7 @@ func (h *Handler) GoogleCallback(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *Handler) googleUnavailable(w http.ResponseWriter, r *http.Request) {
-	web.Render(w, r, h.log, http.StatusNotFound, layouts.Notice(
+	respond.Component(w, r, h.log, http.StatusNotFound, layouts.Notice(
 		layouts.Page{Title: i18n.T(r.Context(), i18n.KeySignIn)}, "404",
 		i18n.T(r.Context(), i18n.KeySignIn), i18n.T(r.Context(), i18n.KeyGoogleUnavailable),
 		layouts.NoticeActions{Primary: layouts.NoticeLink{Href: "/signin", Label: i18n.KeySignIn}}))

@@ -85,18 +85,18 @@ var (
 	// siteMayImport is what internal/site may import besides itself and the
 	// leaves: the foundation every storefront page is built on.
 	siteMayImport = []string{
-		"assets", "internal/i18n", "internal/web", "internal/ui/layouts",
+		"assets", "internal/i18n", "internal/web/respond", "internal/ui/layouts",
 	}
 	// policyMayImport is what internal/policy may import besides itself and the
 	// leaves: the foundation its pages are built on.
 	policyMayImport = []string{
-		"internal/i18n", "internal/web", "internal/ui/layouts",
+		"internal/i18n", "internal/web/respond", "internal/ui/layouts",
 	}
 	// campaignMayImport is what internal/discount/campaign may import besides itself and
 	// the leaves: the message catalogue, the stat its schedule is told in, and
 	// the foundation its page and /deals are built on, the product tile included.
 	campaignMayImport = []string{
-		"assets", "internal/i18n", "internal/ui/components", "internal/ui/layouts", "internal/ui/tile", "internal/web",
+		"assets", "internal/i18n", "internal/ui/components", "internal/ui/layouts", "internal/ui/tile", "internal/web/respond",
 	}
 	// importFreeLeaves import no goen package at all.
 	importFreeLeaves = []string{
@@ -141,9 +141,9 @@ var depsRules = []importRule{
 		reason: "the view layer never reaches request plumbing, the database, a feature or a desk",
 	},
 	{
-		name: "web",
+		name: "respond",
 		forbid: func(from, to string) bool {
-			return from == "internal/web" && to != "internal/i18n"
+			return from == "internal/web/respond" && to != "internal/i18n"
 		},
 		reason: "request plumbing does not depend on the view layer",
 	},

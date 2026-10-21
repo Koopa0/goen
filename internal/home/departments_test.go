@@ -1,4 +1,4 @@
-package pages
+package home
 
 import (
 	"strings"
@@ -23,7 +23,7 @@ func TestHeroCarouselDrawsItsSlides(t *testing.T) {
 		}
 		department := components.HeroSlide{Layout: components.SlideSplit, Tone: components.ToneMist, Title: "Tech", CTA: components.CTA{Label: see, Href: "/c/tech"}}
 
-		many := renderComponent(t, ctx, Home(HomeMeta(ctx), HomeView{Slides: []components.HeroSlide{campaign, department}}))
+		many := renderComponent(t, ctx, Page(Meta(ctx), View{Slides: []components.HeroSlide{campaign, department}}))
 		for _, want := range []string{
 			`class="goen-hero__slide goen-hero__slide--photo" data-tone="sage"`,
 			`class="goen-hero__slide goen-hero__slide--split goen-hero__slide--text" data-tone="mist"`,
@@ -50,7 +50,7 @@ func TestHeroCarouselDrawsItsSlides(t *testing.T) {
 			t.Errorf("%s carousel does not link both slide kinds with the one label", locale)
 		}
 
-		one := renderComponent(t, ctx, Home(HomeMeta(ctx), HomeView{Slides: []components.HeroSlide{department}}))
+		one := renderComponent(t, ctx, Page(Meta(ctx), View{Slides: []components.HeroSlide{department}}))
 		for _, banned := range []string{"goen-hero__controls", "goen-hero__tabs", "data-step", "carousel"} {
 			if strings.Contains(one, banned) {
 				t.Errorf("%s carousel of one slide draws %s", locale, banned)
@@ -60,7 +60,7 @@ func TestHeroCarouselDrawsItsSlides(t *testing.T) {
 			t.Errorf("%s slide with no fact draws an empty line", locale)
 		}
 
-		none := renderComponent(t, ctx, Home(HomeMeta(ctx), HomeView{}))
+		none := renderComponent(t, ctx, Page(Meta(ctx), View{}))
 		if strings.Contains(none, "goen-hero") {
 			t.Errorf("%s home with no slides draws an empty carousel", locale)
 		}
@@ -77,7 +77,7 @@ func TestHeroCarouselHasNoAutoplay(t *testing.T) {
 	}
 	for _, locale := range []i18n.Locale{i18n.ZhHant, i18n.En} {
 		ctx := i18n.WithLocale(t.Context(), locale)
-		got := renderComponent(t, ctx, Home(HomeMeta(ctx), HomeView{Slides: slides}))
+		got := renderComponent(t, ctx, Page(Meta(ctx), View{Slides: slides}))
 		for _, banned := range []string{"data-autoplay", "goen-hero__pause"} {
 			if strings.Contains(got, banned) {
 				t.Errorf("%s carousel draws %s", locale, banned)
@@ -101,7 +101,7 @@ func TestACampaignSlideDrawsItsStatsAndItsDayGrid(t *testing.T) {
 		Stats:  []components.Stat{{Label: "結束", Value: components.StatDate("10\u00a0月 30\u00a0日", ""), Note: "明天結束"}},
 		Period: &spec,
 	}
-	got := renderComponent(t, ctx, Home(HomeMeta(ctx), HomeView{Slides: []components.HeroSlide{slide}}))
+	got := renderComponent(t, ctx, Page(Meta(ctx), View{Slides: []components.HeroSlide{slide}}))
 	for _, want := range []string{
 		`<dt>結束</dt>`, `明天結束`, `class="ui-period" role="img" aria-label="秋日選物：10 月 1 日至 10 月 30 日，共 30 天"`,
 		`<b>今天</b>`, `goen-hero__title goen-hero__title--long`,

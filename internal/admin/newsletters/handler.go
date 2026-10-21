@@ -10,8 +10,8 @@ import (
 	"github.com/koopa0/goen/internal/i18n"
 	"github.com/koopa0/goen/internal/ui/components"
 	"github.com/koopa0/goen/internal/ui/layouts"
-	"github.com/koopa0/goen/internal/web"
 	"github.com/koopa0/goen/internal/web/formtext"
+	"github.com/koopa0/goen/internal/web/respond"
 )
 
 type Handler struct {
@@ -48,7 +48,7 @@ func (h *Handler) Newsletter(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	view.Notice = components.NoticeFrom(r, notices)
-	web.Render(w, r, h.log, http.StatusOK, Newsletter(
+	respond.Component(w, r, h.log, http.StatusOK, Newsletter(
 		layouts.Page{Title: i18n.T(r.Context(), i18n.KeyAdminPageNewsletter)}, view))
 }
 
@@ -72,7 +72,7 @@ func (h *Handler) ComposeNewsletter(w http.ResponseWriter, r *http.Request) {
 		for field, k := range keys {
 			view.Errors[field] = i18n.T(r.Context(), k)
 		}
-		web.Render(w, r, h.log, http.StatusUnprocessableEntity, Newsletter(
+		respond.Component(w, r, h.log, http.StatusUnprocessableEntity, Newsletter(
 			layouts.Page{Title: i18n.T(r.Context(), i18n.KeyAdminPageNewsletter)}, view))
 		return
 	}
