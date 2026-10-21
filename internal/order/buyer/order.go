@@ -14,6 +14,7 @@ import (
 	"github.com/koopa0/goen/internal/i18n"
 	"github.com/koopa0/goen/internal/invoice"
 	"github.com/koopa0/goen/internal/order"
+	"github.com/koopa0/goen/internal/order/delivery"
 	"github.com/koopa0/goen/internal/shipping"
 	"github.com/koopa0/goen/internal/shoptime"
 	"github.com/koopa0/goen/internal/ui/pages"
@@ -40,18 +41,19 @@ func (s *Store) Order(ctx context.Context, number string) (OrderView, error) {
 	}
 
 	now := time.Now()
+	to := delivery.Details{
+		PostalCode: o.PostalCode, City: o.City, District: o.District, Street: o.Street,
+		PickupChain: shipping.Chain(o.PickupChain), PickupStoreCode: o.PickupStoreCode,
+		PickupStoreName: o.PickupStoreName,
+	}
 	view := OrderView{
-		Number:       o.OrderNumber,
-		Status:       order.FulfillmentStatus(o.FulfillmentStatus),
-		Email:        o.Email,
-		ShippingName: o.ShippingMethodName,
-		Committed:    o.Committed,
-		OwedCents:    o.OwedCents,
-		DeliveryTo: pages.Delivery{
-			PostalCode: o.PostalCode, City: o.City, District: o.District, Street: o.Street,
-			PickupChain: shipping.Chain(o.PickupChain), PickupStoreCode: o.PickupStoreCode,
-			PickupStoreName: o.PickupStoreName,
-		}.Line(),
+		Number:        o.OrderNumber,
+		Status:        order.FulfillmentStatus(o.FulfillmentStatus),
+		Email:         o.Email,
+		ShippingName:  o.ShippingMethodName,
+		Committed:     o.Committed,
+		OwedCents:     o.OwedCents,
+		DeliveryTo:    to.Line(),
 		SubtotalCents: o.SubtotalCents,
 		ShippingCents: o.ShippingCents,
 		DiscountCents: o.DiscountCents, DiscountReason: o.DiscountReason,

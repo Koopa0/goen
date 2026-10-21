@@ -196,3 +196,44 @@ func TestTheCheckoutRefusesWhatTheSenderWillRefuse(t *testing.T) {
 		t.Errorf("an ordinary address was refused: %v", got)
 	}
 }
+
+// TestAPickupOrderIsNamedByItsChain holds what the confirmation and the back
+// office show while no store picker exists: the chain is the destination, and a
+// store appears only when one is known.
+func TestAPickupOrderIsNamedByItsChain(t *testing.T) {
+	t.Parallel()
+
+	for _, tt := range []struct {
+		name string
+		d    Details
+		want string
+	}{
+		{
+			name: "the chain alone",
+			d:    Details{PickupChain: shipping.ChainSevenEleven},
+			want: "7-ELEVEN",
+		},
+		{
+			name: "a chain whose store is known",
+			d: Details{
+				PickupChain: shipping.ChainFamilyMart, PickupStoreCode: "012345",
+				PickupStoreName: "台北車站門市",
+			},
+			want: "全家 FamilyMart 台北車站門市(012345)",
+		},
+		{
+			name: "an address",
+			d: Details{
+				PostalCode: "110", City: "台北市", District: "信義區", Street: "松高路 1 號",
+			},
+			want: "110 台北市信義區松高路 1 號",
+		},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			if got := tt.d.Line(); got != tt.want {
+				t.Errorf("Line() = %q, want %q", got, tt.want)
+			}
+		})
+	}
+}

@@ -3,44 +3,13 @@ package pages
 import (
 	"context"
 	"strconv"
-	"strings"
 	"time"
 
 	"github.com/koopa0/goen/internal/i18n"
 	"github.com/koopa0/goen/internal/money"
 	"github.com/koopa0/goen/internal/order"
-	"github.com/koopa0/goen/internal/shipping"
 	"github.com/koopa0/goen/internal/shoptime"
 )
-
-type Delivery struct {
-	PostalCode string
-	City       string
-	District   string
-	Street     string
-
-	PickupChain     shipping.Chain
-	PickupStoreCode string
-	PickupStoreName string
-}
-
-// IsPickup reads the chain as the destination: the store behind it comes from the
-// carrier's picker and is absent on an order placed before one existed.
-func (d Delivery) IsPickup() bool { return d.PickupChain != "" }
-
-func (d Delivery) Line() string {
-	if d.IsPickup() {
-		line := d.PickupChain.Name()
-		if d.PickupStoreName != "" {
-			line += " " + d.PickupStoreName
-		}
-		if d.PickupStoreCode != "" {
-			line += "(" + d.PickupStoreCode + ")"
-		}
-		return line
-	}
-	return strings.TrimSpace(d.PostalCode + " " + d.City + d.District + d.Street)
-}
 
 type OrderLine struct {
 	SKU         string

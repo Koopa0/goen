@@ -9,6 +9,7 @@ import (
 	"time"
 	"unicode/utf8"
 
+	"github.com/koopa0/goen/internal/order/delivery"
 	"github.com/koopa0/goen/internal/shipping"
 
 	"github.com/google/uuid"
@@ -211,6 +212,11 @@ func (s *Store) Order(ctx context.Context, number string) (OrderView, error) {
 	}
 	fulfillment := order.FulfillmentStatus(o.FulfillmentStatus)
 	statusText, statusIntent := orderStatus(ctx, fulfillment, o.Committed, o.OwedCents, len(returned) > 0)
+	to := delivery.Details{
+		PostalCode: o.PostalCode, City: o.City, District: o.District, Street: o.Street,
+		PickupChain: shipping.Chain(o.PickupChain), PickupStoreCode: o.PickupStoreCode,
+		PickupStoreName: o.PickupStoreName,
+	}
 	view := OrderView{
 		Number: o.OrderNumber, Status: fulfillment,
 		StatusText:    statusText,
@@ -221,11 +227,7 @@ func (s *Store) Order(ctx context.Context, number string) (OrderView, error) {
 		DiscountCents: o.DiscountCents, DiscountReason: o.DiscountReason,
 		TotalCents: o.TotalCents,
 		Email:      o.Email, Recipient: o.RecipientName, Phone: o.Phone,
-		Address: pages.Delivery{
-			PostalCode: o.PostalCode, City: o.City, District: o.District, Street: o.Street,
-			PickupChain: shipping.Chain(o.PickupChain), PickupStoreCode: o.PickupStoreCode,
-			PickupStoreName: o.PickupStoreName,
-		}.Line(),
+		Address: to.Line(),
 		Delivery: Delivery{
 			Email: o.Email, Recipient: o.RecipientName, Phone: o.Phone,
 			PostalCode: o.PostalCode, City: o.City,
