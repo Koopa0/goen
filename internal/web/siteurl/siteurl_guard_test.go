@@ -17,7 +17,7 @@ import (
 func TestOnlyPathDecidesASameSitePath(t *testing.T) {
 	t.Parallel()
 
-	root := filepath.Clean(filepath.Join("..", ".."))
+	root := filepath.Clean(filepath.Join("..", "..", ".."))
 	err := filepath.WalkDir(root, func(path string, d fs.DirEntry, walkErr error) error {
 		if walkErr != nil {
 			return walkErr
@@ -32,7 +32,7 @@ func TestOnlyPathDecidesASameSitePath(t *testing.T) {
 				return filepath.SkipDir
 			}
 			switch rel {
-			case "internal/db", "internal/siteurl":
+			case "internal/db", "internal/web/siteurl":
 				return filepath.SkipDir
 			}
 			return nil

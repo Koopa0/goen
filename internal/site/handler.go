@@ -4,7 +4,7 @@
 // so no page handler has to remember to read it; which paths carry it is the
 // route table's decision, in cmd/goen. The policy documents, the shipping page
 // and the rules the shop states about itself are internal/policy's, and what
-// makes a path or an origin a URL on this site is internal/siteurl's.
+// makes a path or an origin a URL on this site is internal/web/siteurl's.
 package site
 
 import (

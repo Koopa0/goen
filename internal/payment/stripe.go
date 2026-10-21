@@ -17,7 +17,7 @@ import (
 	"github.com/stripe/stripe-go/v86/webhook"
 
 	"github.com/koopa0/goen/internal/i18n"
-	"github.com/koopa0/goen/internal/siteurl"
+	"github.com/koopa0/goen/internal/web/siteurl"
 )
 
 // Gateway is the only thing in goen that knows Stripe exists.

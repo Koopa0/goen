@@ -14,7 +14,7 @@ import (
 	"github.com/koopa0/goen/internal/i18n"
 	"github.com/koopa0/goen/internal/keyset"
 	"github.com/koopa0/goen/internal/shoptime"
-	"github.com/koopa0/goen/internal/siteurl"
+	"github.com/koopa0/goen/internal/web/siteurl"
 )
 
 const MaxBanners = 20

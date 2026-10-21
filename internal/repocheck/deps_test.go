@@ -105,7 +105,7 @@ var (
 		"internal/coupon", "internal/inventory", "internal/postcode", "internal/user",
 		"internal/money", "internal/db", "internal/keyset", "internal/bearer",
 		"internal/email", "internal/cart/cartitem", "internal/product", "internal/compress",
-		"internal/requestid", "internal/siteurl",
+		"internal/requestid", "internal/web/siteurl",
 	}
 	// i18nOnlyLeaves import nothing from goen except the message catalogue.
 	i18nOnlyLeaves = []string{
@@ -115,7 +115,7 @@ var (
 	// googleMayImport is all of goen that Google's sign-in client imports:
 	// bearer makes its state and PKCE verifier, siteurl reads the configured
 	// origin its callback is built on.
-	googleMayImport = []string{"internal/bearer", "internal/siteurl"}
+	googleMayImport = []string{"internal/bearer", "internal/web/siteurl"}
 	// storemapMayImport is all of goen that ECPay's store map imports: shipping
 	// names the chains and the store-code shape, web refuses control characters
 	// in a posted store, and i18n and assets build the two hop pages.

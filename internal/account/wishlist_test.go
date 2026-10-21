@@ -3,7 +3,7 @@ package account
 import (
 	"testing"
 
-	"github.com/koopa0/goen/internal/siteurl"
+	"github.com/koopa0/goen/internal/web/siteurl"
 )
 
 // siteurl.Path owns the rule; the FALLBACK is what differs per caller.

@@ -15,9 +15,9 @@ import (
 	"github.com/koopa0/goen/internal/i18n"
 	"github.com/koopa0/goen/internal/requestid"
 	"github.com/koopa0/goen/internal/shipping/storemap"
-	"github.com/koopa0/goen/internal/siteurl"
 	"github.com/koopa0/goen/internal/ui/layouts"
 	"github.com/koopa0/goen/internal/user"
+	"github.com/koopa0/goen/internal/web/siteurl"
 )
 
 // withRequestTracing wraps a handler with the request log, panic recovery,

@@ -8,8 +8,8 @@ import (
 	"github.com/koopa0/goen/internal/campaign"
 	"github.com/koopa0/goen/internal/db"
 	"github.com/koopa0/goen/internal/i18n"
-	"github.com/koopa0/goen/internal/siteurl"
 	"github.com/koopa0/goen/internal/ui/components"
+	"github.com/koopa0/goen/internal/web/siteurl"
 )
 
 // maxSlides: more than three is a queue, not a hero.

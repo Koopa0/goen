@@ -19,7 +19,7 @@ import (
 	"github.com/koopa0/goen/internal/invoice"
 	"github.com/koopa0/goen/internal/keyset"
 	"github.com/koopa0/goen/internal/product"
-	"github.com/koopa0/goen/internal/siteurl"
+	"github.com/koopa0/goen/internal/web/siteurl"
 )
 
 const (

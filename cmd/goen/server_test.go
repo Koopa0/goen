@@ -23,9 +23,9 @@ import (
 	"github.com/koopa0/goen/assets"
 	"github.com/koopa0/goen/internal/compress"
 	"github.com/koopa0/goen/internal/payment"
-	"github.com/koopa0/goen/internal/siteurl"
 	"github.com/koopa0/goen/internal/ui/layouts"
 	"github.com/koopa0/goen/internal/user"
+	"github.com/koopa0/goen/internal/web/siteurl"
 )
 
 func TestPanicRecoveryUsesProductionRequestTracing(t *testing.T) {

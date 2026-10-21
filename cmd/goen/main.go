@@ -42,7 +42,7 @@ import (
 	"github.com/koopa0/goen/internal/outbox"
 	"github.com/koopa0/goen/internal/payment"
 	"github.com/koopa0/goen/internal/shipping/storemap"
-	"github.com/koopa0/goen/internal/siteurl"
+	"github.com/koopa0/goen/internal/web/siteurl"
 	"github.com/koopa0/goen/migrations"
 )
 

@@ -6,7 +6,7 @@ import (
 
 	"github.com/koopa0/goen/assets"
 	"github.com/koopa0/goen/internal/i18n"
-	"github.com/koopa0/goen/internal/siteurl"
+	"github.com/koopa0/goen/internal/web/siteurl"
 )
 
 func TestHeadNamesAnAbsoluteShareImageOnlyWhereTheOriginIsKnown(t *testing.T) {

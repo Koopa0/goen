@@ -17,7 +17,7 @@ import (
 	"time"
 
 	"github.com/koopa0/goen/internal/bearer"
-	"github.com/koopa0/goen/internal/siteurl"
+	"github.com/koopa0/goen/internal/web/siteurl"
 )
 
 const (

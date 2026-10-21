@@ -7,7 +7,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/koopa0/goen/internal/siteurl"
+	"github.com/koopa0/goen/internal/web/siteurl"
 )
 
 func TestTheReturnTargetFallsBackToThisFeaturesOwnPage(t *testing.T) {

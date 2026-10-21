@@ -4,8 +4,8 @@ import (
 	"net/http"
 
 	"github.com/koopa0/goen/internal/i18n"
-	"github.com/koopa0/goen/internal/siteurl"
 	"github.com/koopa0/goen/internal/web"
+	"github.com/koopa0/goen/internal/web/siteurl"
 )
 
 func (h *Handler) SetLocale(w http.ResponseWriter, r *http.Request) {
