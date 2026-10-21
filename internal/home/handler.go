@@ -6,7 +6,6 @@ import (
 
 	"github.com/koopa0/goen/internal/i18n"
 	"github.com/koopa0/goen/internal/ui/layouts"
-	"github.com/koopa0/goen/internal/ui/pages"
 	"github.com/koopa0/goen/internal/web/respond"
 )
 
@@ -38,5 +37,5 @@ func (h *Handler) Index(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	view.AccountErased = r.URL.Query().Get("erased") == "1"
-	respond.Component(w, r, h.log, http.StatusOK, pages.Home(pages.HomeMeta(r.Context()), view))
+	respond.Component(w, r, h.log, http.StatusOK, Page(Meta(r.Context()), view))
 }

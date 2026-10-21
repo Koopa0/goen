@@ -7,7 +7,6 @@ import (
 	"testing"
 
 	"github.com/koopa0/goen/internal/i18n"
-	"github.com/koopa0/goen/internal/ui/layouts"
 )
 
 // testRules' windows are not the shop's: a page that printed a number of its own instead of the field's would show.
@@ -22,7 +21,7 @@ var testRules = ShopRules{
 func TestShopRulesStateTheStoredRules(t *testing.T) {
 	t.Parallel()
 	for _, locale := range []i18n.Locale{i18n.ZhHant, i18n.En} {
-		page := renderIn(t, locale, Home(layouts.Page{}, HomeView{Rules: testRules}))
+		page := renderIn(t, locale, ShopRulesSection(testRules))
 		for _, want := range []string{
 			`<dl class="ui-statline ui-statline--wide">`,
 			strconv.FormatInt(testRules.HoldMinutes, 10) + " <small>",
@@ -35,26 +34,26 @@ func TestShopRulesStateTheStoredRules(t *testing.T) {
 			i18n.T(i18n.WithLocale(t.Context(), locale), i18n.KeySectionRules),
 		} {
 			if !strings.Contains(page, want) {
-				t.Errorf("%s home lacks %q", locale, want)
+				t.Errorf("%s rules section lacks %q", locale, want)
 			}
 		}
 		if n := strings.Count(page, "<dt>"); n != 4 {
-			t.Errorf("%s home states %d rules, want 4", locale, n)
+			t.Errorf("%s rules section states %d rules, want 4", locale, n)
 		}
 		if strings.Contains(page, "style=") {
-			t.Errorf("%s home carries a style attribute", locale)
+			t.Errorf("%s rules section carries a style attribute", locale)
 		}
 	}
 }
 
 func TestShopRulesOmitFreeDeliveryWhereNoMethodTurnsFree(t *testing.T) {
 	t.Parallel()
-	page := renderIn(t, i18n.ZhHant, Home(layouts.Page{}, HomeView{Rules: ShopRules{}}))
+	page := renderIn(t, i18n.ZhHant, ShopRulesSection(ShopRules{}))
 	if n := strings.Count(page, "<dt>"); n != 3 {
-		t.Errorf("home with no free-delivery threshold states %d rules, want 3", n)
+		t.Errorf("a rules section with no free-delivery threshold states %d rules, want 3", n)
 	}
 	if strings.Contains(page, "免運門檻") {
-		t.Error("home states a free-delivery threshold the shop does not have")
+		t.Error("the rules section states a free-delivery threshold the shop does not have")
 	}
 }
 

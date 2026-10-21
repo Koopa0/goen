@@ -16,7 +16,6 @@ import (
 	"github.com/koopa0/goen/internal/i18n"
 	"github.com/koopa0/goen/internal/site"
 	"github.com/koopa0/goen/internal/ui/layouts"
-	"github.com/koopa0/goen/internal/ui/pages"
 )
 
 func TestShownDepartmentsNeedListedProducts(t *testing.T) {
@@ -120,7 +119,7 @@ func TestShownDepartmentsNeedListedProducts(t *testing.T) {
 					{"desktop nav", layouts.Header(layouts.Page{}), "goen-header__nav", ""},
 					{"phone menu", layouts.Header(layouts.Page{}), "goen-header__drawer", ""},
 					{"footer", layouts.Footer(layouts.NewsletterState{}), "goen-footer__links", i18n.T(ctx, i18n.KeyCategoryNav)},
-					{"home directory", pages.Home(layouts.Page{}, view), "goen-cats__grid", ""},
+					{"home directory", home.Page(layouts.Page{}, view), "goen-cats__grid", ""},
 				} {
 					var output strings.Builder
 					if renderErr := region.component.Render(pageCtx, &output); renderErr != nil {

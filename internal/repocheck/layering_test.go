@@ -76,7 +76,6 @@ var dataFilesNamingViews = []string{
 }
 
 var storeMethodsNamingViews = map[string]int{
-	"internal/home/store.go":        4,
 	"internal/order/buyer/order.go": 1,
 }
 
