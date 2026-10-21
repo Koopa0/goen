@@ -24,7 +24,7 @@ import (
 	"github.com/koopa0/goen/internal/db"
 	"github.com/koopa0/goen/internal/i18n"
 	"github.com/koopa0/goen/internal/outbox"
-	"github.com/koopa0/goen/internal/refund"
+	"github.com/koopa0/goen/internal/payment/refund"
 )
 
 func TestRefundCompletionLockFailureOffersResumeAfterSettlement(t *testing.T) {

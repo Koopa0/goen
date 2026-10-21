@@ -5,7 +5,7 @@ import (
 	"log/slog"
 
 	"github.com/koopa0/goen/internal/db"
-	"github.com/koopa0/goen/internal/refund"
+	"github.com/koopa0/goen/internal/payment/refund"
 )
 
 // unsentNotice is the outcome that selects the order page notice for what

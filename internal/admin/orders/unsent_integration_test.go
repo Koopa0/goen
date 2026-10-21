@@ -13,7 +13,7 @@ import (
 	"github.com/koopa0/goen/internal/admin/refunds"
 	"github.com/koopa0/goen/internal/db"
 	"github.com/koopa0/goen/internal/order/returns"
-	"github.com/koopa0/goen/internal/refund"
+	"github.com/koopa0/goen/internal/payment/refund"
 )
 
 // A unit an unsent refund claims is no longer owed a parcel the moment the

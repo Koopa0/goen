@@ -3,7 +3,7 @@ package refunds
 import (
 	"context"
 
-	"github.com/koopa0/goen/internal/refund"
+	"github.com/koopa0/goen/internal/payment/refund"
 )
 
 type Refunder interface {

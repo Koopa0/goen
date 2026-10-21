@@ -8,7 +8,7 @@ import (
 	"github.com/google/uuid"
 
 	"github.com/koopa0/goen/internal/order/returns"
-	"github.com/koopa0/goen/internal/refund"
+	"github.com/koopa0/goen/internal/payment/refund"
 )
 
 func TestASplitRefundedEventWaitsUntilEverySourceSettled(t *testing.T) {

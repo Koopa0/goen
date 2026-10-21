@@ -12,7 +12,7 @@ import (
 
 	"github.com/koopa0/goen/internal/i18n"
 	"github.com/koopa0/goen/internal/order"
-	"github.com/koopa0/goen/internal/refund"
+	"github.com/koopa0/goen/internal/payment/refund"
 )
 
 func TestAdvanceKindAcceptsOnlyAMoveTheDeskMakes(t *testing.T) {

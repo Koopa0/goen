@@ -69,7 +69,7 @@ var (
 	uiMayImport = []string{
 		"assets", "internal/i18n", "internal/money", "internal/shoptime",
 		"internal/coupon", "internal/inventory", "internal/invoice", "internal/keyset", "internal/order",
-		"internal/shipping/postcode", "internal/product", "internal/product/labelling", "internal/refund",
+		"internal/shipping/postcode", "internal/product", "internal/product/labelling", "internal/payment/refund",
 		"internal/order/returns", "internal/sales", "internal/shipping", "internal/user",
 	}
 	// storefrontPages are the packages that serve storefront pages. The rule
@@ -99,7 +99,7 @@ var (
 	}
 	// importFreeLeaves import no goen package at all.
 	importFreeLeaves = []string{
-		"internal/refund", "internal/clientip",
+		"internal/payment/refund", "internal/clientip",
 		"internal/coupon", "internal/inventory", "internal/shipping/postcode", "internal/user",
 		"internal/money", "internal/db", "internal/keyset", "internal/bearer",
 		"internal/email", "internal/cart/cartitem", "internal/product", "internal/compress",
