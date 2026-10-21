@@ -7,7 +7,6 @@ import (
 	"github.com/koopa0/goen/internal/i18n"
 	"github.com/koopa0/goen/internal/ui/components"
 	"github.com/koopa0/goen/internal/ui/layouts"
-	"github.com/koopa0/goen/internal/ui/pages"
 )
 
 templ Page(p layouts.Page, v View) {
@@ -150,7 +149,7 @@ templ Page(p layouts.Page, v View) {
 	}
 }
 
-templ cartLine(l pages.CartLine) {
+templ cartLine(l Line) {
 	<li id={ "line-" + l.VariantID } class={ "goen-line", "goen-line--cart", templ.KV("goen-line--out", l.Unavailable) }>
 		<a class="goen-line__thumb" href={ templ.URL("/p/" + l.Slug) }>
 			if l.HasImage() {

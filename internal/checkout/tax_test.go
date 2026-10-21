@@ -12,7 +12,6 @@ import (
 	"github.com/koopa0/goen/internal/cart"
 	"github.com/koopa0/goen/internal/i18n"
 	"github.com/koopa0/goen/internal/order/delivery"
-	"github.com/koopa0/goen/internal/ui/pages"
 )
 
 func TestMixedTaxCheckoutUsesTheCartExplanation(t *testing.T) {
@@ -21,7 +20,7 @@ func TestMixedTaxCheckoutUsesTheCartExplanation(t *testing.T) {
 			ctx := i18n.WithLocale(t.Context(), locale)
 			request := httptest.NewRequestWithContext(ctx, http.MethodPost, "/checkout", http.NoBody)
 			response := httptest.NewRecorder()
-			view := View{Cart: cart.View{Lines: []pages.CartLine{{Name: "Item", Quantity: 1, UnitCents: 100, Available: 1}}}}
+			view := View{Cart: cart.View{Lines: []cart.Line{{Name: "Item", Quantity: 1, UnitCents: 100, Available: 1}}}}
 			handler := &Handler{log: slog.New(slog.DiscardHandler)}
 			handler.answerPlacement(response, request, uuid.Nil, &delivery.Details{}, &view, "", ErrMixedTaxTypes)
 			if response.Code != http.StatusUnprocessableEntity {

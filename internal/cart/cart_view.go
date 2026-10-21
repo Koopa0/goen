@@ -10,11 +10,10 @@ import (
 	"github.com/koopa0/goen/internal/i18n"
 	"github.com/koopa0/goen/internal/ui/components"
 	"github.com/koopa0/goen/internal/ui/layouts"
-	"github.com/koopa0/goen/internal/ui/pages"
 )
 
 type View struct {
-	Lines         []pages.CartLine
+	Lines         []Line
 	SubtotalCents int64
 	ItemCount     int64
 	MixedTaxTypes bool
@@ -103,7 +102,7 @@ func (v View) StockNotice(ctx context.Context) string {
 }
 
 func (v View) HasSoldOut() bool {
-	return slices.ContainsFunc(v.Lines, func(l pages.CartLine) bool { return l.Unavailable })
+	return slices.ContainsFunc(v.Lines, func(l Line) bool { return l.Unavailable })
 }
 
 func (v View) HasNotice() bool { return v.Notice != "" }
