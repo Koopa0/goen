@@ -33,7 +33,6 @@ import (
 	"github.com/koopa0/goen/internal/payment/refund"
 	"github.com/koopa0/goen/internal/shoptime"
 	"github.com/koopa0/goen/internal/ui/components"
-	"github.com/koopa0/goen/internal/ui/pages"
 	"github.com/koopa0/goen/internal/web/formtext"
 	"github.com/koopa0/goen/internal/web/requestid"
 )
@@ -272,7 +271,7 @@ func (s *Store) Order(ctx context.Context, number string) (OrderView, error) {
 	for i := range lines {
 		l := &lines[i]
 		photo := assets.Image{Digest: l.ImageDigest, BundledKey: l.ImageBundledKey, Width: int(l.ImageWidth)}
-		view.Lines = append(view.Lines, pages.OrderLine{
+		view.Lines = append(view.Lines, Line{
 			SKU: l.SKU, Name: l.ProductName, Label: l.VariantLabel.String,
 			UnitCents: l.UnitPriceCents, Quantity: l.Quantity,
 			ImageURL:    photo.URL(),

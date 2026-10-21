@@ -1,4 +1,4 @@
-package pages
+package buyer
 
 import (
 	"strconv"
@@ -7,6 +7,8 @@ import (
 	"github.com/koopa0/goen/internal/money"
 )
 
+// OrderLine is one line of the order as the buyer's page shows it, with the
+// warranty the line carries and how much of it is registered.
 type OrderLine struct {
 	SKU         string
 	Name        string

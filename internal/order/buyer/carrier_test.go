@@ -12,7 +12,6 @@ import (
 	"github.com/koopa0/goen/internal/i18n"
 	"github.com/koopa0/goen/internal/order"
 	"github.com/koopa0/goen/internal/ui/layouts"
-	"github.com/koopa0/goen/internal/ui/pages"
 )
 
 var dispatched = time.Date(2026, 10, 1, 1, 0, 0, 0, time.UTC)
@@ -72,7 +71,7 @@ func TestTheEnglishOrderPageHasNoChineseOfItsOwn(t *testing.T) {
 		Status:       order.FulfillmentShipped,
 		ShippingName: "Home delivery",
 		DeliveryTo:   userData,
-		Lines:        []pages.OrderLine{{SKU: "S1", Name: "Aurora 充電器", Label: "銀", UnitCents: 1000, Quantity: 1}},
+		Lines:        []OrderLine{{SKU: "S1", Name: "Aurora 充電器", Label: "銀", UnitCents: 1000, Quantity: 1}},
 		Timeline:     timeline,
 		Shipments:    shipments,
 	}

@@ -18,7 +18,6 @@ import (
 	"github.com/koopa0/goen/internal/keyset"
 	"github.com/koopa0/goen/internal/shoptime"
 	"github.com/koopa0/goen/internal/ui/layouts"
-	"github.com/koopa0/goen/internal/ui/pages"
 	"github.com/koopa0/goen/internal/web"
 )
 
@@ -69,7 +68,7 @@ func pickingSnapshot(ctx context.Context, q *db.Queries, after []string) (Pickin
 	for i := range lines {
 		l := &lines[i]
 		slip := byOrder[l.OrderID]
-		slip.Lines = append(slip.Lines, pages.OrderLine{
+		slip.Lines = append(slip.Lines, Line{
 			SKU: l.SKU, Name: l.ProductName, Label: l.VariantLabel.String,
 			UnitCents: l.UnitPriceCents, Quantity: l.Remaining,
 		})

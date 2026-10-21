@@ -6,7 +6,6 @@ import (
 	"github.com/koopa0/goen/internal/i18n"
 	"github.com/koopa0/goen/internal/ui/components"
 	"github.com/koopa0/goen/internal/ui/layouts"
-	"github.com/koopa0/goen/internal/ui/pages"
 )
 
 templ Order(p layouts.Page, v *OrderView) {
@@ -265,7 +264,7 @@ templ orderParcel(v *OrderView, sh OrderShipment, i int) {
 }
 
 // A list of lines keeps the markers the layout gate and the tests read. Without a heading it sits inside its parcel.
-templ orderLines(v *OrderView, lines []pages.OrderLine, heading, headingID string, delivered, warranty bool) {
+templ orderLines(v *OrderView, lines []OrderLine, heading, headingID string, delivered, warranty bool) {
 	if headingID != "" {
 		<section class="goen-order__items" aria-labelledby={ headingID }>
 			<h2 id={ headingID } class="goen-order__subhead">{ heading }</h2>
@@ -276,7 +275,7 @@ templ orderLines(v *OrderView, lines []pages.OrderLine, heading, headingID strin
 	}
 }
 
-templ orderLineList(v *OrderView, lines []pages.OrderLine, delivered, warranty bool) {
+templ orderLineList(v *OrderView, lines []OrderLine, delivered, warranty bool) {
 	<ul class="goen-order__lines" role="list">
 		for _, l := range lines {
 			<li class="goen-line goen-line--order">

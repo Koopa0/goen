@@ -12,7 +12,6 @@ import (
 	"github.com/koopa0/goen/internal/payment"
 	"github.com/koopa0/goen/internal/shipping"
 	"github.com/koopa0/goen/internal/ui/layouts"
-	"github.com/koopa0/goen/internal/ui/pages"
 )
 
 // TestCanCancelIsAboutFundingNotJustStatus holds that a captured order still at
@@ -158,7 +157,7 @@ func TestADeliveredOrderOffersReturnAndShowsCredit(t *testing.T) {
 // TestADeliveredOrderLinksToItsWarrantyForm holds that a line links to the registration form from the day its
 // parcel arrives, because cover starts when the goods reach somebody, and not before.
 func TestADeliveredOrderLinksToItsWarrantyForm(t *testing.T) {
-	line := pages.OrderLine{SKU: "S1", Name: "耳機", UnitCents: 100000, Quantity: 1, WarrantyMonths: 12}
+	line := OrderLine{SKU: "S1", Name: "耳機", UnitCents: 100000, Quantity: 1, WarrantyMonths: 12}
 	tests := []struct {
 		name      string
 		status    order.FulfillmentStatus
@@ -178,10 +177,10 @@ func TestADeliveredOrderLinksToItsWarrantyForm(t *testing.T) {
 			v := &OrderView{
 				Number: "GO-260101-000012", Status: tt.status,
 				SubtotalCents: 100000, ShippingCents: 6000, ShippingName: "宅配",
-				Committed: true, ShowWarrantyLink: true, Lines: []pages.OrderLine{line},
+				Committed: true, ShowWarrantyLink: true, Lines: []OrderLine{line},
 			}
 			if tt.status != "pending" && tt.status != "picking" {
-				parcel := OrderShipment{Carrier: shipping.CarrierBlackCat, Tracking: "T1", ShippedAt: orderNow.AddDate(0, 0, -4), Lines: []pages.OrderLine{line}}
+				parcel := OrderShipment{Carrier: shipping.CarrierBlackCat, Tracking: "T1", ShippedAt: orderNow.AddDate(0, 0, -4), Lines: []OrderLine{line}}
 				if tt.delivered {
 					parcel.DeliveredAt, parcel.RescissionEnds, parcel.GoodwillEnds = orderNow.AddDate(0, 0, -3), orderDay(13), orderDay(20)
 				}
@@ -201,14 +200,14 @@ func TestADeliveredOrderLinksToItsWarrantyForm(t *testing.T) {
 // TestGuestTokenViewerDoesNotSeeWarrantyLink holds that a delivered order read
 // through a guest access token must not expose the account-only registration door.
 func TestGuestTokenViewerDoesNotSeeWarrantyLink(t *testing.T) {
-	line := pages.OrderLine{SKU: "S1", Name: "耳機", UnitCents: 100000, Quantity: 1, WarrantyMonths: 12}
+	line := OrderLine{SKU: "S1", Name: "耳機", UnitCents: 100000, Quantity: 1, WarrantyMonths: 12}
 	v := &OrderView{
 		Number: "GO-260101-000012", Status: order.FulfillmentDelivered,
 		SubtotalCents: 100000, ShippingCents: 6000, ShippingName: "宅配",
-		ShowWarrantyLink: false, Now: orderNow, Lines: []pages.OrderLine{line},
+		ShowWarrantyLink: false, Now: orderNow, Lines: []OrderLine{line},
 		Shipments: []OrderShipment{{
 			Carrier: shipping.CarrierBlackCat, Tracking: "T1", ShippedAt: orderNow.AddDate(0, 0, -4), DeliveredAt: orderNow.AddDate(0, 0, -3),
-			RescissionEnds: orderDay(13), GoodwillEnds: orderDay(20), Lines: []pages.OrderLine{line},
+			RescissionEnds: orderDay(13), GoodwillEnds: orderDay(20), Lines: []OrderLine{line},
 		}},
 	}
 	html := renderToString(t, Order(layouts.Page{Title: "訂單"}, v))

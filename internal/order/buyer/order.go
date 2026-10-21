@@ -17,7 +17,6 @@ import (
 	"github.com/koopa0/goen/internal/order/delivery"
 	"github.com/koopa0/goen/internal/shipping"
 	"github.com/koopa0/goen/internal/shoptime"
-	"github.com/koopa0/goen/internal/ui/pages"
 )
 
 func (s *Store) Order(ctx context.Context, number string) (OrderView, error) {
@@ -65,11 +64,11 @@ func (s *Store) Order(ctx context.Context, number string) (OrderView, error) {
 		Pickup:      o.PickupChain != "",
 	}
 	ids := make([]uuid.UUID, 0, len(lines))
-	byID := make(map[uuid.UUID]pages.OrderLine, len(lines))
+	byID := make(map[uuid.UUID]OrderLine, len(lines))
 	for i := range lines {
 		l := &lines[i]
 		photo := assets.Image{Digest: l.ImageDigest, BundledKey: l.ImageBundledKey, Width: int(l.ImageWidth)}
-		line := pages.OrderLine{
+		line := OrderLine{
 			SKU: l.SKU, Name: l.ProductName, Label: l.VariantLabel.String,
 			UnitCents: l.UnitPriceCents, Quantity: l.Quantity,
 			ImageURL:       photo.URL(),
@@ -106,8 +105,8 @@ func (s *Store) Order(ctx context.Context, number string) (OrderView, error) {
 }
 
 func (s *Store) orderParcels(
-	ctx context.Context, orderID uuid.UUID, ids []uuid.UUID, byID map[uuid.UUID]pages.OrderLine,
-) (parcels []OrderShipment, unshipped []pages.OrderLine, err error) {
+	ctx context.Context, orderID uuid.UUID, ids []uuid.UUID, byID map[uuid.UUID]OrderLine,
+) (parcels []OrderShipment, unshipped []OrderLine, err error) {
 	shipments, err := s.q.OrderTracking(ctx, orderID)
 	if err != nil {
 		return nil, nil, fmt.Errorf("read order tracking: %w", err)
@@ -141,8 +140,8 @@ func (s *Store) orderParcels(
 // delivered carries no day: the database reads shop_today() there.
 func cutParcels(
 	shipments []db.OrderTrackingRow, parcelLines []db.OrderParcelLinesRow, registrations []db.OrderWarrantyRegistrationsRow,
-	refunded map[uuid.UUID]int32, ids []uuid.UUID, byID map[uuid.UUID]pages.OrderLine,
-) (parcels []OrderShipment, unshipped []pages.OrderLine) {
+	refunded map[uuid.UUID]int32, ids []uuid.UUID, byID map[uuid.UUID]OrderLine,
+) (parcels []OrderShipment, unshipped []OrderLine) {
 	registered := make(map[uuid.UUID][]db.OrderWarrantyRegistrationsRow)
 	for _, r := range registrations {
 		registered[r.OrderLineID] = append(registered[r.OrderLineID], r)

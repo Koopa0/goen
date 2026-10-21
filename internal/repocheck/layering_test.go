@@ -53,23 +53,17 @@ import (
 //     comparison cap, the review limits and the restock outcomes to catalog and
 //     the add-to-cart outcome to cart/cartitem).
 var viewPackageImporters = []string{
-	"internal/admin/orders",
 	"internal/catalog",
 	"internal/home",
-	"internal/order/buyer",
 }
 
 var dataFilesNamingViews = []string{
-	"internal/admin/orders/picking.go",
-	"internal/admin/orders/store.go",
 	"internal/catalog/product_store.go",
 	"internal/home/store.go",
-	"internal/order/buyer/order.go",
 }
 
 var storeMethodsNamingViews = map[string]int{
-	"internal/home/store.go":        4,
-	"internal/order/buyer/order.go": 1,
+	"internal/home/store.go": 4,
 }
 
 const (
