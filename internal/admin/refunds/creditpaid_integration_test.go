@@ -24,7 +24,7 @@ import (
 	"github.com/koopa0/goen/internal/i18n"
 	"github.com/koopa0/goen/internal/money"
 	"github.com/koopa0/goen/internal/outbox"
-	"github.com/koopa0/goen/internal/refund"
+	"github.com/koopa0/goen/internal/payment/refund"
 	"github.com/koopa0/goen/internal/requestid"
 )
 

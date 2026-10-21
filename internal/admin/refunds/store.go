@@ -11,7 +11,7 @@ import (
 
 	"github.com/koopa0/goen/internal/db"
 	"github.com/koopa0/goen/internal/invoice/issuer"
-	"github.com/koopa0/goen/internal/refund"
+	"github.com/koopa0/goen/internal/payment/refund"
 )
 
 var (

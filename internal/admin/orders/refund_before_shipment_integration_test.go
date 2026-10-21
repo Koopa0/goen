@@ -24,7 +24,7 @@ import (
 	"github.com/koopa0/goen/internal/db/dbtest"
 	"github.com/koopa0/goen/internal/i18n"
 	"github.com/koopa0/goen/internal/order"
-	"github.com/koopa0/goen/internal/refund"
+	"github.com/koopa0/goen/internal/payment/refund"
 )
 
 func TestPaidOrderCannotBeCancelledDirectly(t *testing.T) {
