@@ -21,6 +21,7 @@ import (
 	"github.com/koopa0/goen/internal/ui/components"
 	"github.com/koopa0/goen/internal/ui/layouts"
 	"github.com/koopa0/goen/internal/ui/pages"
+	"github.com/koopa0/goen/internal/ui/tile"
 )
 
 type ProductImage struct {
@@ -212,9 +213,9 @@ type ProductView struct {
 	// AskDraft replays a refused question so a 422 does not empty the textarea.
 	AskDraft     string
 	AddedOutcome cartitem.AddOutcome
-	AlsoBought   []pages.ProductTile
+	AlsoBought   []tile.Tile
 
-	Related []pages.ProductTile
+	Related []tile.Tile
 
 	// Tone is the department's; the gallery's mat and the band wear it.
 	Tone components.Tone

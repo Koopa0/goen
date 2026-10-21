@@ -9,6 +9,7 @@ import (
 	"github.com/koopa0/goen/internal/ui/components"
 	"github.com/koopa0/goen/internal/ui/layouts"
 	"github.com/koopa0/goen/internal/ui/pages"
+	"github.com/koopa0/goen/internal/ui/tile"
 )
 
 // rules and head are nil where the page has none to state.
@@ -73,10 +74,10 @@ templ Listing(p layouts.Page, v ListingView, rules *pages.ShopRules, head *Depar
 							</div>
 						} else {
 							<h2 class="goen-sr-only">{ i18n.T(ctx, i18n.KeyResultsHeading) }</h2>
-							@compareForm(pages.AnyComparable(v.Grid())) {
+							@compareForm(tile.AnyComparable(v.Grid())) {
 								<ul class="goen-tiles__grid" role="list">
 									for _, t := range v.Grid() {
-										@pages.Tile(t)
+										@tile.Cell(t)
 									}
 								</ul>
 							}
@@ -349,10 +350,10 @@ templ Search(p layouts.Page, v SearchView) {
 				</div>
 				if len(v.Newest) > 0 {
 					<h2 class="goen-listing__subhead">{ i18n.T(ctx, i18n.KeySearchNewest) }</h2>
-					@compareForm(pages.AnyComparable(v.Newest)) {
+					@compareForm(tile.AnyComparable(v.Newest)) {
 						<ul class="goen-tiles__grid" role="list">
-							for _, t := range pages.FirstRowEager(v.Newest) {
-								@pages.Tile(t)
+							for _, t := range tile.FirstRowEager(v.Newest) {
+								@tile.Cell(t)
 							}
 						</ul>
 					}
@@ -387,10 +388,10 @@ templ Search(p layouts.Page, v SearchView) {
 				</form>
 				<p id="goen-search-sort-error" class="goen-filters__error" role="alert" hidden>{ i18n.T(ctx, i18n.KeyCannotLoadListing) }</p>
 				<div id="search-results">
-					@compareForm(pages.AnyComparable(v.Products)) {
+					@compareForm(tile.AnyComparable(v.Products)) {
 						<ul class="goen-tiles__grid" role="list">
-							for _, t := range pages.FirstRowEager(v.Products) {
-								@pages.Tile(t)
+							for _, t := range tile.FirstRowEager(v.Products) {
+								@tile.Cell(t)
 							}
 						</ul>
 					}

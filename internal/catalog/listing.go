@@ -9,7 +9,7 @@ import (
 	"github.com/koopa0/goen/internal/i18n"
 	"github.com/koopa0/goen/internal/ui/components"
 	"github.com/koopa0/goen/internal/ui/layouts"
-	"github.com/koopa0/goen/internal/ui/pages"
+	"github.com/koopa0/goen/internal/ui/tile"
 )
 
 type partialKey struct{}
@@ -41,7 +41,7 @@ type ListingView struct {
 	Name     string
 	Crumbs   []Crumb
 	Theme    *Theme
-	Products []pages.ProductTile
+	Products []tile.Tile
 	Facets   []FacetGroup
 	Total    int64
 	// Page and PageSize are int32 so they share a word: the view is passed by value
@@ -140,7 +140,7 @@ func (v ListingView) IsFront() bool { return !v.Filtered && v.Page <= 1 }
 
 func (v ListingView) Empty() bool { return v.Total == 0 }
 
-func (v ListingView) Grid() []pages.ProductTile { return pages.FirstRowEager(v.Products) }
+func (v ListingView) Grid() []tile.Tile { return tile.FirstRowEager(v.Products) }
 
 func (v ListingView) Children() []Crumb {
 	if v.Theme == nil {
@@ -256,14 +256,14 @@ func (v ListingView) priceRangeChip(ctx context.Context) string {
 
 type SearchView struct {
 	Query     string
-	Products  []pages.ProductTile
+	Products  []tile.Tile
 	Total     int64
 	Page      int
 	PageSize  int
 	Campaigns CampaignPage
 	Path      string
 	Sort      string
-	Newest    []pages.ProductTile
+	Newest    []tile.Tile
 }
 
 // SortOptions defaults to best match: newest-first would bury the name that holds the whole query.

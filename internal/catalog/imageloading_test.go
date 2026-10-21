@@ -24,7 +24,7 @@ func TestADepartmentPageDoesNotLazyLoadItsFirstScreen(t *testing.T) {
 		}
 	}
 	tiles := tileImages(page)
-	// The first eight, the tile's eagerTiles, which stays unexported in ui/pages;
+	// The first eight, the tile's eagerTiles, which stays unexported in ui/tile;
 	// TestTheFirstRowsOfAListingLoadsItsPhotographsEagerly counts the same eight.
 	for i, tag := range tiles[:8] {
 		if strings.Contains(tag, `loading="lazy"`) {

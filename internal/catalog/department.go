@@ -13,7 +13,7 @@ import (
 	"github.com/koopa0/goen/internal/db"
 	"github.com/koopa0/goen/internal/i18n"
 	"github.com/koopa0/goen/internal/ui/components"
-	"github.com/koopa0/goen/internal/ui/pages"
+	"github.com/koopa0/goen/internal/ui/tile"
 )
 
 // DepartmentHead reads what a department page says under its band. The campaign notice and the
@@ -99,7 +99,7 @@ func (s *Store) colourStory(ctx context.Context, slug string) (*ColourStory, err
 	first := &rows[0]
 	story := &ColourStory{
 		Slug: first.Slug, Name: first.Name, Summary: first.Summary, Brand: first.Brand,
-		Price: pages.ProductTile{
+		Price: tile.Tile{
 			PriceCents: first.PriceCents, PriceVaries: first.PriceVaries,
 			CompareCents: first.CompareAtPriceCents.Int64, InStock: true,
 			OnSale: campaign.OnSale(first.InCampaign, true, first.PriceCents, first.CompareAtPriceCents.Int64),
@@ -121,7 +121,7 @@ func (s *Store) colourStory(ctx context.Context, slug string) (*ColourStory, err
 }
 
 // withHighlights gives each comparable tile the first specifications it lists.
-func (s *Store) withHighlights(ctx context.Context, tiles []pages.ProductTile) error {
+func (s *Store) withHighlights(ctx context.Context, tiles []tile.Tile) error {
 	var slugs []string
 	for i := range tiles {
 		if tiles[i].Comparable {

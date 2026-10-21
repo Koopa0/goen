@@ -9,7 +9,7 @@ import (
 	"github.com/koopa0/goen/internal/i18n"
 	"github.com/koopa0/goen/internal/ui/components"
 	"github.com/koopa0/goen/internal/ui/layouts"
-	"github.com/koopa0/goen/internal/ui/pages"
+	"github.com/koopa0/goen/internal/ui/tile"
 )
 
 type CampaignSummary struct {
@@ -27,7 +27,7 @@ type CampaignView struct {
 	Slug     string
 	Title    string
 	Schedule campaign.Schedule
-	Products []pages.ProductTile
+	Products []tile.Tile
 	Image    components.Photo
 	Tone     components.Tone
 }

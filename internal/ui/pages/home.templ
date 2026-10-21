@@ -7,6 +7,7 @@ import (
 	"github.com/koopa0/goen/internal/ui/components"
 	"github.com/koopa0/goen/internal/ui/icons"
 	"github.com/koopa0/goen/internal/ui/layouts"
+	"github.com/koopa0/goen/internal/ui/tile"
 )
 
 templ Home(p layouts.Page, v HomeView) {
@@ -152,7 +153,7 @@ templ departmentBand(b *DepartmentBand) {
 				</div>
 				<ul class="goen-band__tiles" role="list">
 					for _, t := range b.Tiles {
-						@Tile(t)
+						@tile.Cell(t)
 					}
 				</ul>
 			</div>
@@ -228,10 +229,10 @@ templ productRow(r ProductRow) {
 					for i, t := range r.Shelf() {
 						if i == 0 {
 							<li class="goen-tile__cell goen-tile__cell--lead">
-								@TileCard(t)
+								@tile.Card(t)
 							</li>
 						} else {
-							@Tile(t)
+							@tile.Cell(t)
 						}
 					}
 					<li class="goen-rowcard">
@@ -245,7 +246,7 @@ templ productRow(r ProductRow) {
 			} else {
 				<ul class="goen-tiles__grid" role="list">
 					for _, t := range r.Shelf() {
-						@Tile(t)
+						@tile.Cell(t)
 					}
 				</ul>
 			}

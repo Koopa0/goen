@@ -6,6 +6,7 @@ import (
 	"strconv"
 
 	"github.com/koopa0/goen/internal/i18n"
+	"github.com/koopa0/goen/internal/money"
 	"github.com/koopa0/goen/internal/ui/components"
 )
 
@@ -64,7 +65,7 @@ func (r ShopRules) FreeDeliveryStat(ctx context.Context) components.Stat {
 	return components.Stat{
 		Label: i18n.T(ctx, i18n.KeyRuleFreeDelivery),
 		Value: components.StatMoney(r.FreeDeliveryCents),
-		Note:  fmt.Sprintf(i18n.T(ctx, r.freeDeliveryNoteKey()), twd(r.LowestFeeCents)),
+		Note:  fmt.Sprintf(i18n.T(ctx, r.freeDeliveryNoteKey()), money.TWD(r.LowestFeeCents)),
 	}
 }
 

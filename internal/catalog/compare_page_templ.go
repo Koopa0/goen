@@ -15,7 +15,7 @@ import (
 	"github.com/koopa0/goen/internal/ui/components"
 	"github.com/koopa0/goen/internal/ui/icons"
 	"github.com/koopa0/goen/internal/ui/layouts"
-	"github.com/koopa0/goen/internal/ui/pages"
+	"github.com/koopa0/goen/internal/ui/tile"
 )
 
 func Compare(p layouts.Page, v CompareView) templ.Component {
@@ -984,7 +984,7 @@ func compareTable(v CompareView, preview bool) templ.Component {
 				if templ_7745c5c3_Err != nil {
 					return templ_7745c5c3_Err
 				}
-				templ_7745c5c3_Err = pages.TilePrice(item.PriceTile()).Render(ctx, templ_7745c5c3_Buffer)
+				templ_7745c5c3_Err = tile.Price(item.PriceTile()).Render(ctx, templ_7745c5c3_Buffer)
 				if templ_7745c5c3_Err != nil {
 					return templ_7745c5c3_Err
 				}
@@ -1056,7 +1056,7 @@ func compareTable(v CompareView, preview bool) templ.Component {
 				if templ_7745c5c3_Err != nil {
 					return templ_7745c5c3_Err
 				}
-				templ_7745c5c3_Err = pages.TilePrice(item.PriceTile()).Render(ctx, templ_7745c5c3_Buffer)
+				templ_7745c5c3_Err = tile.Price(item.PriceTile()).Render(ctx, templ_7745c5c3_Buffer)
 				if templ_7745c5c3_Err != nil {
 					return templ_7745c5c3_Err
 				}

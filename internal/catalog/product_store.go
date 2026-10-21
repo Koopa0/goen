@@ -18,6 +18,7 @@ import (
 	"github.com/koopa0/goen/internal/shoptime"
 	"github.com/koopa0/goen/internal/ui/components"
 	"github.com/koopa0/goen/internal/ui/pages"
+	"github.com/koopa0/goen/internal/ui/tile"
 	"github.com/koopa0/goen/internal/user"
 )
 
@@ -320,7 +321,7 @@ func (s *Store) loadOpinion(ctx context.Context, p *db.ProductBySlugRow, view *P
 	for i := range related {
 		r := &related[i]
 		photo := assets.Image{Digest: r.ImageDigest, BundledKey: r.ImageBundledKey, Width: int(r.ImageWidth)}
-		view.Related = append(view.Related, pages.ProductTile{
+		view.Related = append(view.Related, tile.Tile{
 			Slug: r.Slug, Name: r.Name, Brand: r.Brand,
 			PriceCents: r.MinPriceCents, PriceVaries: r.PriceVaries,
 			CompareCents: r.CompareAtPriceCents.Int64,
@@ -340,7 +341,7 @@ const MinCoPurchases = 2
 
 const MaxRecommendations = 4
 
-func (s *Store) boughtTogether(ctx context.Context, productID uuid.UUID) ([]pages.ProductTile, error) {
+func (s *Store) boughtTogether(ctx context.Context, productID uuid.UUID) ([]tile.Tile, error) {
 	q, readCtx, release, err := s.recommendationQueries(ctx)
 	if err != nil {
 		return nil, s.omitFailedRecommendation(ctx, readBoughtTogether, productID, err)
@@ -355,11 +356,11 @@ func (s *Store) boughtTogether(ctx context.Context, productID uuid.UUID) ([]page
 	if err != nil {
 		return nil, s.omitFailedRecommendation(ctx, readBoughtTogether, productID, err)
 	}
-	out := make([]pages.ProductTile, 0, len(rows))
+	out := make([]tile.Tile, 0, len(rows))
 	for i := range rows {
 		r := &rows[i]
 		photo := assets.Image{Digest: r.ImageDigest, BundledKey: r.ImageBundledKey, Width: int(r.ImageWidth)}
-		out = append(out, pages.ProductTile{
+		out = append(out, tile.Tile{
 			Slug:         r.Slug,
 			Name:         r.Name,
 			Summary:      r.Summary,

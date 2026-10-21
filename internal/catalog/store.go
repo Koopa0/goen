@@ -17,7 +17,7 @@ import (
 	"github.com/koopa0/goen/internal/i18n"
 	"github.com/koopa0/goen/internal/policy"
 	"github.com/koopa0/goen/internal/ui/components"
-	"github.com/koopa0/goen/internal/ui/pages"
+	"github.com/koopa0/goen/internal/ui/tile"
 )
 
 type Store struct {
@@ -230,7 +230,7 @@ func (s *Store) Search(ctx context.Context, pattern string, sort Sort, page int)
 	}, nil
 }
 
-func (s *Store) NewestProducts(ctx context.Context, n int32) ([]pages.ProductTile, error) {
+func (s *Store) NewestProducts(ctx context.Context, n int32) ([]tile.Tile, error) {
 	rows, err := s.q.NewestProducts(ctx, db.NewestProductsParams{
 		Locale:   string(i18n.FromContext(ctx)),
 		PageSize: n,
@@ -297,12 +297,12 @@ func (s *Store) comparableCategories(ctx context.Context) (map[uuid.UUID]bool, e
 	return out, nil
 }
 
-func tiles(rows []db.CategoryListingRow, offers map[uuid.UUID]bool) []pages.ProductTile {
-	out := make([]pages.ProductTile, 0, len(rows))
+func tiles(rows []db.CategoryListingRow, offers map[uuid.UUID]bool) []tile.Tile {
+	out := make([]tile.Tile, 0, len(rows))
 	for i := range rows {
 		r := &rows[i]
 		photo := assets.Image{Digest: r.ImageDigest, BundledKey: r.ImageBundledKey, Width: int(r.ImageWidth)}
-		out = append(out, pages.ProductTile{
+		out = append(out, tile.Tile{
 			Slug:         r.Slug,
 			Name:         r.Name,
 			Summary:      r.Summary,
@@ -326,12 +326,12 @@ func tiles(rows []db.CategoryListingRow, offers map[uuid.UUID]bool) []pages.Prod
 	return out
 }
 
-func searchTiles(rows []db.SearchProductsRow, offers map[uuid.UUID]bool) []pages.ProductTile {
-	out := make([]pages.ProductTile, 0, len(rows))
+func searchTiles(rows []db.SearchProductsRow, offers map[uuid.UUID]bool) []tile.Tile {
+	out := make([]tile.Tile, 0, len(rows))
 	for i := range rows {
 		r := &rows[i]
 		photo := assets.Image{Digest: r.ImageDigest, BundledKey: r.ImageBundledKey, Width: int(r.ImageWidth)}
-		out = append(out, pages.ProductTile{
+		out = append(out, tile.Tile{
 			Slug:         r.Slug,
 			Name:         r.Name,
 			Summary:      r.Summary,
@@ -379,12 +379,12 @@ func (s *Store) Deals(ctx context.Context, page int) (SearchView, error) {
 
 // dealTiles exists because sqlc emits a row struct per query, so one function
 // cannot take both.
-func dealTiles(rows []db.DealProductsRow) []pages.ProductTile {
-	out := make([]pages.ProductTile, 0, len(rows))
+func dealTiles(rows []db.DealProductsRow) []tile.Tile {
+	out := make([]tile.Tile, 0, len(rows))
 	for i := range rows {
 		r := &rows[i]
 		photo := assets.Image{Digest: r.ImageDigest, BundledKey: r.ImageBundledKey, Width: int(r.ImageWidth)}
-		out = append(out, pages.ProductTile{
+		out = append(out, tile.Tile{
 			Slug:         r.Slug,
 			Name:         r.Name,
 			Summary:      r.Summary,

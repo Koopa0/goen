@@ -14,13 +14,13 @@ import (
 	"github.com/koopa0/goen/internal/ui/components"
 	"github.com/koopa0/goen/internal/ui/icons"
 	"github.com/koopa0/goen/internal/ui/layouts"
-	"github.com/koopa0/goen/internal/ui/pages"
+	"github.com/koopa0/goen/internal/ui/tile"
 )
 
 // SoleVariantID is set only when the product has one variant and it is in stock:
 // the one case where the row can add it to the cart without asking which.
 type Item struct {
-	pages.ProductTile
+	tile.Tile
 	SoleVariantID string
 }
 
@@ -339,7 +339,7 @@ func Page(p layouts.Page, v View) templ.Component {
 					if templ_7745c5c3_Err != nil {
 						return templ_7745c5c3_Err
 					}
-					templ_7745c5c3_Err = pages.TileCard(t.ProductTile).Render(ctx, templ_7745c5c3_Buffer)
+					templ_7745c5c3_Err = tile.Card(t.Tile).Render(ctx, templ_7745c5c3_Buffer)
 					if templ_7745c5c3_Err != nil {
 						return templ_7745c5c3_Err
 					}

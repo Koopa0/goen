@@ -53,24 +53,3 @@ func TestPointsCountsSelectSingularAtTheirConsumers(t *testing.T) {
 		}
 	}
 }
-
-func TestColourCountSelectsSingularInItsRenderedText(t *testing.T) {
-	t.Parallel()
-	for _, locale := range []i18n.Locale{i18n.En, i18n.ZhHant} {
-		for _, n := range []int{0, 1, 2} {
-			ctx := i18n.WithLocale(t.Context(), locale)
-			v := ProductTile{Colours: make([]string, n)}
-			want := fmt.Sprintf("%d colours", n)
-			if n == 1 {
-				want = "1 colour"
-			}
-			if locale == i18n.ZhHant {
-				want = fmt.Sprintf("%d 種顏色", n)
-			}
-			body := renderComponent(t, ctx, tileColours(v))
-			if !strings.Contains(body, ">"+want+"</span>") {
-				t.Errorf("colour text (%s, %d) does not contain %q", locale, n, want)
-			}
-		}
-	}
-}

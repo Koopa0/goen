@@ -7,7 +7,7 @@ import (
 	"github.com/koopa0/goen/internal/i18n"
 	"github.com/koopa0/goen/internal/ui/components"
 	"github.com/koopa0/goen/internal/ui/layouts"
-	"github.com/koopa0/goen/internal/ui/pages"
+	"github.com/koopa0/goen/internal/ui/tile"
 )
 
 templ Campaign(p layouts.Page, v CampaignView) {
@@ -47,8 +47,8 @@ templ Campaign(p layouts.Page, v CampaignView) {
 			} else {
 				<h2 class="goen-sr-only">{ i18n.T(ctx, i18n.KeyResultsHeading) }</h2>
 				<ul class="goen-tiles__grid" role="list">
-					for _, t := range pages.FirstRowEager(v.Products) {
-						@pages.Tile(t)
+					for _, t := range tile.FirstRowEager(v.Products) {
+						@tile.Cell(t)
 					}
 				</ul>
 			}

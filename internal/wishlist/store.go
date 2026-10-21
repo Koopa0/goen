@@ -11,7 +11,7 @@ import (
 	"github.com/koopa0/goen/internal/campaign"
 	"github.com/koopa0/goen/internal/db"
 	"github.com/koopa0/goen/internal/i18n"
-	"github.com/koopa0/goen/internal/ui/pages"
+	"github.com/koopa0/goen/internal/ui/tile"
 )
 
 type Store struct {
@@ -48,7 +48,7 @@ func (s *Store) Items(ctx context.Context, userID string) ([]Item, error) {
 		}
 		out = append(out, Item{
 			SoleVariantID: soleVariant,
-			ProductTile: pages.ProductTile{
+			Tile: tile.Tile{
 				Slug:         r.Slug,
 				Name:         r.Name,
 				Summary:      r.Summary.String,
