@@ -239,10 +239,18 @@ func assertLayoutChromeExited(t *testing.T, binDir string) {
 	}
 }
 
+// layoutChromeStatGone reports whether err from reading /proc/<pid>/stat means
+// the process has exited. The kernel answers a lookup of a missing entry with
+// ENOENT, but a read of an entry whose process is reaped after the open returns
+// ESRCH (proc_single_show), so both mean gone.
+func layoutChromeStatGone(err error) bool {
+	return errors.Is(err, os.ErrNotExist) || errors.Is(err, syscall.ESRCH)
+}
+
 func linuxLayoutChromeExited(t *testing.T, pid int) bool {
 	t.Helper()
 	stat, err := os.ReadFile(fmt.Sprintf("/proc/%d/stat", pid))
-	if errors.Is(err, os.ErrNotExist) {
+	if layoutChromeStatGone(err) {
 		return true
 	}
 	if err != nil {
@@ -259,6 +267,31 @@ func linuxLayoutChromeExited(t *testing.T, pid int) bool {
 	}
 	// Signal 0 still succeeds for an exited zombie when PID 1 does not reap it.
 	return fields[0][0] == 'Z'
+}
+
+// TestLayoutChromeStatGone keeps a fixture reaped between the signal probe and
+// the /proc read from failing the layout check, and a real read failure from
+// passing as an exit.
+func TestLayoutChromeStatGone(t *testing.T) {
+	t.Parallel()
+	tests := []struct {
+		name string
+		err  error
+		want bool
+	}{
+		{"no entry", os.ErrNotExist, true},
+		{"reaped after open", &os.PathError{Op: "read", Path: "/proc/1/stat", Err: syscall.ESRCH}, true},
+		{"permission denied", &os.PathError{Op: "read", Path: "/proc/1/stat", Err: syscall.EACCES}, false},
+		{"no error", nil, false},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			if got := layoutChromeStatGone(tt.err); got != tt.want {
+				t.Errorf("layoutChromeStatGone(%v) = %t, want %t", tt.err, got, tt.want)
+			}
+		})
+	}
 }
 
 func readMakefile(t *testing.T, root string) string {
