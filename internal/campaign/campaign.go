@@ -3,9 +3,8 @@
 // End); it does not hold a coupon code (coupon), sales figures (sales) or the
 // desk that edits campaigns (admin/campaigns).
 //
-// The campaign page and /deals are still served by catalog: they draw the
-// product tiles of ui/pages, which a new package may not import. They move
-// here once the tile has left ui/pages.
+// The campaign page and /deals are still served by catalog. They move here
+// next, now that the product tile they draw is ui/tile and not ui/pages.
 package campaign
 
 import "time"

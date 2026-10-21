@@ -10,7 +10,7 @@ import (
 	"github.com/koopa0/goen/internal/ui/fieldrule"
 	"github.com/koopa0/goen/internal/ui/icons"
 	"github.com/koopa0/goen/internal/ui/layouts"
-	"github.com/koopa0/goen/internal/ui/pages"
+	"github.com/koopa0/goen/internal/ui/tile"
 )
 
 templ Product(p layouts.Page, v *ProductView) {
@@ -102,7 +102,7 @@ templ Product(p layouts.Page, v *ProductView) {
 					<h2 id="related-heading" class="goen-pdp__sectiontitle">{ i18n.T(ctx, i18n.KeySectionRelated) }</h2>
 					<ul class="goen-tiles__grid" role="list">
 						for _, t := range v.Related {
-							@pages.Tile(t)
+							@tile.Cell(t)
 						}
 					</ul>
 				</section>
@@ -114,7 +114,7 @@ templ Product(p layouts.Page, v *ProductView) {
 					<h2 id="also-heading" class="goen-pdp__sectiontitle">{ i18n.T(ctx, i18n.KeySectionAlsoBought) }</h2>
 					<ul class="goen-tiles__grid" role="list">
 						for _, t := range v.AlsoBought {
-							@pages.Tile(t)
+							@tile.Cell(t)
 						}
 					</ul>
 				</section>

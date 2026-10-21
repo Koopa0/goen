@@ -9,6 +9,7 @@ import (
 	"github.com/koopa0/goen/internal/ui/components"
 	"github.com/koopa0/goen/internal/ui/layouts"
 	"github.com/koopa0/goen/internal/ui/pages"
+	"github.com/koopa0/goen/internal/ui/tile"
 )
 
 // TestThePageMarksTheCategoryYouAreIn holds layouts.Page.Nav, which drives the
@@ -73,7 +74,7 @@ func TestMobileFiltersStayCollapsedWithoutScript(t *testing.T) {
 	ctx := i18n.WithLocale(t.Context(), i18n.ZhHant)
 	view := ListingView{
 		Slug: "audio", Name: "耳機與音響", Total: 1,
-		Products: []pages.ProductTile{{Slug: "nimbus-buds-pro", Name: "Nimbus Buds Pro", PriceCents: 399000}},
+		Products: []tile.Tile{{Slug: "nimbus-buds-pro", Name: "Nimbus Buds Pro", PriceCents: 399000}},
 		Facets:   []FacetGroup{{Label: i18n.T(ctx, i18n.KeyFacetBrand), Options: []FacetOption{{Value: "nimbus", Label: "Nimbus", Count: 1}}}},
 	}
 	html := renderToString(t, Listing(ListingMeta(ctx, view), view, nil, nil))
@@ -103,7 +104,7 @@ func TestTheListingControlsWorkWithoutScript(t *testing.T) {
 	ctx := i18n.WithLocale(t.Context(), i18n.ZhHant)
 	view := ListingView{
 		Slug: "audio", Name: "耳機與音響", Total: 45, Page: 1, PageSize: 20, Query: "in_stock=1",
-		Products: []pages.ProductTile{{Slug: "nimbus-buds-pro", Name: "Nimbus Buds Pro", PriceCents: 399000}},
+		Products: []tile.Tile{{Slug: "nimbus-buds-pro", Name: "Nimbus Buds Pro", PriceCents: 399000}},
 		Facets:   []FacetGroup{{Label: i18n.T(ctx, i18n.KeyFacetBrand), Options: []FacetOption{{Value: "nimbus", Label: "Nimbus", Count: 1}}}},
 	}
 	html := renderToString(t, Listing(ListingMeta(ctx, view), view, nil, nil))
@@ -167,7 +168,7 @@ func TestAnEmptyListingHasNoCountAndNoSort(t *testing.T) {
 
 	full := ListingView{
 		Slug: "audio", Name: "耳機與音響", Total: 1,
-		Products: []pages.ProductTile{{Slug: "nimbus-buds-pro", Name: "Nimbus Buds Pro", PriceCents: 399000}},
+		Products: []tile.Tile{{Slug: "nimbus-buds-pro", Name: "Nimbus Buds Pro", PriceCents: 399000}},
 	}
 	got := renderToString(t, Listing(ListingMeta(ctx, full), full, nil, nil))
 	if !strings.Contains(got, `id="listing-count" aria-hidden="true">共 1 件商品</p>`) || !strings.Contains(got, `id="sort"`) {
@@ -181,7 +182,7 @@ func TestTheSearchCountSitsBesideTheSort(t *testing.T) {
 	ctx := i18n.WithLocale(t.Context(), i18n.ZhHant)
 	view := SearchView{
 		Query: "nimbus", Total: 3, Page: 1, PageSize: 20,
-		Products: []pages.ProductTile{{Slug: "nimbus-buds-pro", Name: "Nimbus Buds Pro", PriceCents: 399000}},
+		Products: []tile.Tile{{Slug: "nimbus-buds-pro", Name: "Nimbus Buds Pro", PriceCents: 399000}},
 	}
 	html := renderComponent(t, ctx, Search(layouts.Page{}, view))
 
@@ -205,7 +206,7 @@ func TestFilteredListingFocusesResults(t *testing.T) {
 	ctx := i18n.WithLocale(t.Context(), i18n.ZhHant)
 	view := ListingView{
 		Slug: "audio", Name: "耳機與音響", Total: 1, Filtered: true, InStockOnly: true,
-		Products: []pages.ProductTile{{Slug: "nimbus-buds-pro", Name: "Nimbus Buds Pro", PriceCents: 399000}},
+		Products: []tile.Tile{{Slug: "nimbus-buds-pro", Name: "Nimbus Buds Pro", PriceCents: 399000}},
 	}
 	html := renderToString(t, Listing(ListingMeta(ctx, view), view, nil, nil))
 
@@ -248,7 +249,7 @@ func TestAComparisonCanBeBuiltFromAListing(t *testing.T) {
 
 	view := ListingView{
 		Slug: "phones", Name: "手機", Total: 2,
-		Products: []pages.ProductTile{
+		Products: []tile.Tile{
 			{Slug: "pixelight-9-pro", Name: "Pixelight 9 Pro", Comparable: true},
 			{Slug: "aurora-fold-2", Name: "Aurora Fold 2", Comparable: true},
 		},
@@ -292,14 +293,14 @@ func TestACheapestPriceSaysItIsTheCheapest(t *testing.T) {
 
 	// One price for the product: the figure IS the price, and saying "from"
 	// there would be worse than saying nothing.
-	one := ListingView{Slug: "phones", Name: "手機", Total: 1, Products: []pages.ProductTile{
+	one := ListingView{Slug: "phones", Name: "手機", Total: 1, Products: []tile.Tile{
 		{Slug: "solo", Name: "Solo", PriceCents: 2590000},
 	}}
 	if got := renderToString(t, Listing(ListingMeta(ctx, one), one, nil, nil)); strings.Contains(got, marked) {
 		t.Errorf("a single-priced product renders %q", marked)
 	}
 
-	many := ListingView{Slug: "phones", Name: "手機", Total: 1, Products: []pages.ProductTile{
+	many := ListingView{Slug: "phones", Name: "手機", Total: 1, Products: []tile.Tile{
 		{Slug: "spread", Name: "Spread", PriceCents: 2590000, PriceVaries: true},
 	}}
 	if got := renderToString(t, Listing(ListingMeta(ctx, many), many, nil, nil)); !strings.Contains(got, marked) {
@@ -334,10 +335,10 @@ func TestACheapestPriceSaysItIsTheCheapest(t *testing.T) {
 func TestTheFirstRowsOfAListingLoadsItsPhotographsEagerly(t *testing.T) {
 	t.Parallel()
 	ctx := i18n.WithLocale(t.Context(), i18n.ZhHant)
-	tiles := make([]pages.ProductTile, 0, 10)
+	tiles := make([]tile.Tile, 0, 10)
 	for i := range 10 {
 		slug := fmt.Sprintf("p%d", i)
-		tiles = append(tiles, pages.ProductTile{Slug: slug, Name: slug, PriceCents: 1000, ImageURL: "/img/" + slug + ".webp", ImageAlt: slug})
+		tiles = append(tiles, tile.Tile{Slug: slug, Name: slug, PriceCents: 1000, ImageURL: "/img/" + slug + ".webp", ImageAlt: slug})
 	}
 	view := ListingView{Slug: "audio", Name: "Audio", Total: int64(len(tiles)), Products: tiles}
 	html := renderToString(t, Listing(ListingMeta(ctx, view), view, nil, nil))
@@ -353,11 +354,11 @@ func TestTheFirstRowsOfAListingLoadsItsPhotographsEagerly(t *testing.T) {
 	}
 }
 
-func shelf(n int) []pages.ProductTile {
-	tiles := make([]pages.ProductTile, 0, n)
+func shelf(n int) []tile.Tile {
+	tiles := make([]tile.Tile, 0, n)
 	for i := range n {
 		slug := fmt.Sprintf("p%d", i)
-		tiles = append(tiles, pages.ProductTile{Slug: slug, Name: slug, PriceCents: 1000, Comparable: true, ImageURL: "/img/" + slug + ".webp", ImageAlt: slug})
+		tiles = append(tiles, tile.Tile{Slug: slug, Name: slug, PriceCents: 1000, Comparable: true, ImageURL: "/img/" + slug + ".webp", ImageAlt: slug})
 	}
 	return tiles
 }

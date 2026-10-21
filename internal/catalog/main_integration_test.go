@@ -26,7 +26,7 @@ import (
 	"github.com/koopa0/goen/internal/db"
 	"github.com/koopa0/goen/internal/db/dbtest"
 	"github.com/koopa0/goen/internal/i18n"
-	"github.com/koopa0/goen/internal/ui/pages"
+	"github.com/koopa0/goen/internal/ui/tile"
 )
 
 var pool *pgxpool.Pool
@@ -481,17 +481,17 @@ func TestDealsAreOrderedByHowDeepTheCutIs(t *testing.T) {
 
 	last, soldOut := 2.0, false
 	for i := range view.Products {
-		tile := &view.Products[i]
-		if !tile.InStock && !soldOut {
+		deal := &view.Products[i]
+		if !deal.InStock && !soldOut {
 			soldOut, last = true, 2.0
 		}
-		if tile.InStock && soldOut {
+		if deal.InStock && soldOut {
 			t.Errorf("product %d can be bought, after one that cannot", i)
 		}
-		if tile.CompareCents <= 0 {
+		if deal.CompareCents <= 0 {
 			continue
 		}
-		cut := float64(tile.CompareCents-tile.PriceCents) / float64(tile.CompareCents)
+		cut := float64(deal.CompareCents-deal.PriceCents) / float64(deal.CompareCents)
 		if cut > last+1e-9 {
 			t.Errorf("product %d is %.0f%% off, after one at %.0f%% — the deepest "+
 				"cut is not first", i, cut*100, last*100)
@@ -1199,30 +1199,30 @@ func TestPromotionalTilesArePricedOnTheDiscountedVariant(t *testing.T) {
 	if err != nil {
 		t.Fatalf("deals: %v", err)
 	}
-	var tile *pages.ProductTile
+	var deal *tile.Tile
 	for i := range view.Products {
 		if view.Products[i].Slug == slug {
-			tile = &view.Products[i]
+			deal = &view.Products[i]
 			break
 		}
 	}
-	if tile == nil {
+	if deal == nil {
 		t.Fatalf("the product is not on /deals at all, so this proved nothing")
 	}
 
-	if tile.PriceCents != 150000 {
+	if deal.PriceCents != 150000 {
 		t.Errorf("the deals tile is priced at %d, want 150000 — the cheapest buyable "+
 			"variant carries no discount, and this page is about discounts",
-			tile.PriceCents)
+			deal.PriceCents)
 	}
-	if !tile.OnSale {
+	if !deal.OnSale {
 		t.Error("a product on the sale page shows no sale badge, because the variant " +
 			"it was priced on is not the one that is marked down")
 	}
 
 	// And it must NOT say 起: the discounted variant is the dearer one, so a
 	// cheaper variant sits under the price the tile shows.
-	if tile.PriceVaries {
+	if deal.PriceVaries {
 		t.Error("the deals tile is marked as a range starting at this price, and a " +
 			"cheaper variant exists — 起 on a price that is not the lowest")
 	}
@@ -1580,9 +1580,9 @@ func TestACardIsOnSaleOnlyWhileACampaignRunsWithSomethingToBuy(t *testing.T) {
 				t.Fatalf("newest products: %v", err)
 			}
 			for i := range tiles {
-				if tile := &tiles[i]; tile.Slug == product {
-					if tile.OnSale != tt.want {
-						t.Errorf("%s: OnSale = %v, want %v", tt.name, tile.OnSale, tt.want)
+				if got := &tiles[i]; got.Slug == product {
+					if got.OnSale != tt.want {
+						t.Errorf("%s: OnSale = %v, want %v", tt.name, got.OnSale, tt.want)
 					}
 					return
 				}
@@ -1598,9 +1598,9 @@ func TestACardIsOnSaleOnlyWhileACampaignRunsWithSomethingToBuy(t *testing.T) {
 			t.Fatalf("newest products: %v", err)
 		}
 		for i := range tiles {
-			if tile := &tiles[i]; tile.Slug == product {
-				if tile.OnSale || tile.CompareCents == 0 {
-					t.Errorf("a discounted product in no campaign: OnSale = %v, CompareCents = %d, want false and its standing compare price", tile.OnSale, tile.CompareCents)
+			if got := &tiles[i]; got.Slug == product {
+				if got.OnSale || got.CompareCents == 0 {
+					t.Errorf("a discounted product in no campaign: OnSale = %v, CompareCents = %d, want false and its standing compare price", got.OnSale, got.CompareCents)
 				}
 				return
 			}
@@ -1676,17 +1676,17 @@ func TestACardNeverStrikesAPriceOfASoldOutVariant(t *testing.T) {
 	}
 	var sawSoldOut, sawMixed bool
 	for i := range view.Products {
-		switch tile := &view.Products[i]; tile.Slug {
+		switch card := &view.Products[i]; card.Slug {
 		case slug:
 			sawSoldOut = true
-			if tile.PriceCents != 150000 || tile.OnSale {
-				t.Errorf("campaign card: price %d, on sale %v; want the buyable NT$1,500 unstruck", tile.PriceCents, tile.OnSale)
+			if card.PriceCents != 150000 || card.OnSale {
+				t.Errorf("campaign card: price %d, on sale %v; want the buyable NT$1,500 unstruck", card.PriceCents, card.OnSale)
 			}
 		case mixed:
 			sawMixed = true
-			if tile.PriceCents != 150000 || !tile.OnSale || tile.CompareCents != 300000 {
+			if card.PriceCents != 150000 || !card.OnSale || card.CompareCents != 300000 {
 				t.Errorf("campaign card of a product with a plain and a discounted variant in stock: price %d, was %d, on sale %v; want NT$1,500 struck from NT$3,000",
-					tile.PriceCents, tile.CompareCents, tile.OnSale)
+					card.PriceCents, card.CompareCents, card.OnSale)
 			}
 		}
 	}
@@ -1702,9 +1702,9 @@ func TestACardNeverStrikesAPriceOfASoldOutVariant(t *testing.T) {
 			break
 		}
 		for i := range deals.Products {
-			if tile := &deals.Products[i]; tile.Slug == mixed {
-				if tile.PriceCents != 150000 || !tile.OnSale {
-					t.Errorf("deals card of a product with a plain and a discounted variant in stock: price %d, on sale %v; want NT$1,500 struck", tile.PriceCents, tile.OnSale)
+			if card := &deals.Products[i]; card.Slug == mixed {
+				if card.PriceCents != 150000 || !card.OnSale {
+					t.Errorf("deals card of a product with a plain and a discounted variant in stock: price %d, on sale %v; want NT$1,500 struck", card.PriceCents, card.OnSale)
 				}
 				return
 			}

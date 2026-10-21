@@ -7,7 +7,7 @@ import (
 	"github.com/koopa0/goen/internal/campaign"
 	"github.com/koopa0/goen/internal/i18n"
 	"github.com/koopa0/goen/internal/ui/components"
-	"github.com/koopa0/goen/internal/ui/pages"
+	"github.com/koopa0/goen/internal/ui/tile"
 )
 
 const (
@@ -89,7 +89,7 @@ func NewComparePreview(category string, v CompareView) (ComparePreview, bool) {
 // ColourStory is one product shown by its colours, each with its own photograph.
 type ColourStory struct {
 	Slug, Name, Summary, Brand string
-	Price                      pages.ProductTile
+	Price                      tile.Tile
 	Plates                     []ColourPlate
 }
 

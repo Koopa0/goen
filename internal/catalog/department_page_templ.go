@@ -10,7 +10,7 @@ import templruntime "github.com/a-h/templ/runtime"
 
 import (
 	"github.com/koopa0/goen/internal/i18n"
-	"github.com/koopa0/goen/internal/ui/pages"
+	"github.com/koopa0/goen/internal/ui/tile"
 )
 
 // One line of words, all of it the link to the campaign: which one runs here, its last day and what is left.
@@ -415,7 +415,7 @@ func colourStory(s *ColourStory) templ.Component {
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
-		templ_7745c5c3_Err = pages.TilePrice(s.Price).Render(ctx, templ_7745c5c3_Buffer)
+		templ_7745c5c3_Err = tile.Price(s.Price).Render(ctx, templ_7745c5c3_Buffer)
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}

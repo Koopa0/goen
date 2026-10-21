@@ -13,7 +13,7 @@ import (
 	"github.com/koopa0/goen/internal/db"
 	"github.com/koopa0/goen/internal/i18n"
 	"github.com/koopa0/goen/internal/ui/components"
-	"github.com/koopa0/goen/internal/ui/pages"
+	"github.com/koopa0/goen/internal/ui/tile"
 )
 
 const CampaignPageSize = 6
@@ -84,12 +84,12 @@ func (s *Store) ListedCampaigns(ctx context.Context, page int) (CampaignPage, er
 	return view, nil
 }
 
-func campaignTiles(rows []db.CampaignProductsRow) []pages.ProductTile {
-	out := make([]pages.ProductTile, 0, len(rows))
+func campaignTiles(rows []db.CampaignProductsRow) []tile.Tile {
+	out := make([]tile.Tile, 0, len(rows))
 	for i := range rows {
 		r := &rows[i]
 		photo := assets.Image{Digest: r.ImageDigest, BundledKey: r.ImageBundledKey, Width: int(r.ImageWidth)}
-		out = append(out, pages.ProductTile{
+		out = append(out, tile.Tile{
 			Slug:         r.Slug,
 			Name:         r.Name,
 			Summary:      r.Summary,

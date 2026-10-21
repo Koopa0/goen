@@ -1,4 +1,4 @@
-package pages
+package tile
 
 import (
 	"fmt"
@@ -7,9 +7,9 @@ import (
 	"github.com/koopa0/goen/internal/i18n"
 )
 
-// TileCard is the card Tile wraps in its grid cell, for a grid whose cell holds
+// Card is the card Cell wraps in its grid cell, for a grid whose cell holds
 // more than the card (the wishlist's, with its buttons).
-templ TileCard(t ProductTile) {
+templ Card(t Tile) {
 	if t.Comparable {
 		// Outside the card, never inside: the whole card is one link, and a control
 		// nested in an anchor is neither clickable nor valid.
@@ -56,7 +56,7 @@ templ TileCard(t ProductTile) {
 			if len(t.Highlights) > 0 {
 				<span class="goen-tile__specs">{ strings.Join(t.Highlights, " · ") }</span>
 			}
-			@TilePrice(t) {
+			@Price(t) {
 				if t.SoldOut() {
 					<span class="goen-tile__state">{ i18n.T(ctx, i18n.KeySoldOut) }</span>
 				}
@@ -68,7 +68,7 @@ templ TileCard(t ProductTile) {
 	</a>
 }
 
-templ TilePrice(t ProductTile) {
+templ Price(t Tile) {
 	<span class="goen-tile__price">
 		<span class="goen-tile__amount">
 			if t.PriceVaries {
@@ -86,7 +86,7 @@ templ TilePrice(t ProductTile) {
 }
 
 // The colour is a presentation attribute, not a style, so the CSP has nothing to refuse.
-templ tileColours(t ProductTile) {
+templ tileColours(t Tile) {
 	<span class="goen-tile__colours">
 		for _, hex := range t.Dots() {
 			<svg class="goen-tile__dot" viewBox="0 0 12 12" width="12" height="12" aria-hidden="true">
@@ -100,8 +100,8 @@ templ tileColours(t ProductTile) {
 	</span>
 }
 
-templ Tile(t ProductTile) {
+templ Cell(t Tile) {
 	<li class="goen-tile__cell">
-		@TileCard(t)
+		@Card(t)
 	</li>
 }

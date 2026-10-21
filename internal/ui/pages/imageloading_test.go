@@ -9,6 +9,7 @@ import (
 	"github.com/koopa0/goen/internal/i18n"
 	"github.com/koopa0/goen/internal/ui/components"
 	"github.com/koopa0/goen/internal/ui/layouts"
+	"github.com/koopa0/goen/internal/ui/tile"
 )
 
 var imgTag = regexp.MustCompile(`<img\b[^>]*>`)
@@ -30,11 +31,11 @@ func assertEveryImageReservesItsBox(t *testing.T, page string) {
 	}
 }
 
-func tiledShelf(n int) []ProductTile {
-	tiles := make([]ProductTile, 0, n)
+func tiledShelf(n int) []tile.Tile {
+	tiles := make([]tile.Tile, 0, n)
 	for i := range n {
 		slug := fmt.Sprintf("p%d", i)
-		tiles = append(tiles, ProductTile{
+		tiles = append(tiles, tile.Tile{
 			Slug: slug, Name: slug, PriceCents: 1000, InStock: true,
 			ImageURL: "/img/" + slug + ".webp", ImageAlt: slug, ImageWidth: 1600, ImageHeight: 1200,
 		})
@@ -77,8 +78,9 @@ func TestTheHomePageLoadsItsFirstScreenPhotographsAtOnceAndReservesEveryBox(t *t
 	if len(tiles) != 10 {
 		t.Fatalf("%d tile photographs, want 10", len(tiles))
 	}
+	// The first eight, the tile's eagerTiles, which stays unexported in ui/tile.
 	for i, tag := range tiles {
-		wantLazy := i >= eagerTiles
+		wantLazy := i >= 8
 		if got := strings.Contains(tag, `loading="lazy"`); got != wantLazy {
 			t.Errorf("tile %d lazy = %t, want %t: %s", i, got, wantLazy, tag)
 		}
