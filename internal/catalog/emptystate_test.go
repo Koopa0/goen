@@ -9,7 +9,7 @@ import (
 )
 
 // The cart's row of this test is internal/cart's TestCartEmptyStateShowsItsIllustration,
-// the campaign's internal/campaign's TestTheEmptyCampaignShowsItsIllustrationAsDecoration.
+// the campaign's internal/discount/campaign's TestTheEmptyCampaignShowsItsIllustrationAsDecoration.
 func TestEmptyStatesShowTheirIllustrationAsDecoration(t *testing.T) {
 	t.Parallel()
 	for name, tt := range map[string]struct {

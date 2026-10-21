@@ -8,7 +8,7 @@ import (
 
 	"golang.org/x/net/html"
 
-	"github.com/koopa0/goen/internal/campaign"
+	"github.com/koopa0/goen/internal/discount/campaign"
 	"github.com/koopa0/goen/internal/i18n"
 	"github.com/koopa0/goen/internal/ui/components"
 )

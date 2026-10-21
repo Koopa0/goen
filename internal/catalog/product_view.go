@@ -12,8 +12,8 @@ import (
 
 	"github.com/a-h/templ"
 
-	"github.com/koopa0/goen/internal/campaign"
 	"github.com/koopa0/goen/internal/cart/cartitem"
+	"github.com/koopa0/goen/internal/discount/campaign"
 	"github.com/koopa0/goen/internal/i18n"
 	"github.com/koopa0/goen/internal/money"
 	"github.com/koopa0/goen/internal/product/labelling"

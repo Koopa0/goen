@@ -8,7 +8,7 @@ import (
 
 	"github.com/google/uuid"
 
-	"github.com/koopa0/goen/internal/campaign"
+	"github.com/koopa0/goen/internal/discount/campaign"
 )
 
 type dealVariant struct {

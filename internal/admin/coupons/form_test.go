@@ -8,7 +8,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/koopa0/goen/internal/coupon"
+	"github.com/koopa0/goen/internal/discount/coupon"
 	"github.com/koopa0/goen/internal/i18n"
 )
 

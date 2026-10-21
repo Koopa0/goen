@@ -9,8 +9,8 @@ import (
 
 	"github.com/google/uuid"
 
-	"github.com/koopa0/goen/internal/campaign"
 	"github.com/koopa0/goen/internal/db/dbtest"
+	"github.com/koopa0/goen/internal/discount/campaign"
 )
 
 // A campaign page judges its window in Go, and whether a card is struck follows

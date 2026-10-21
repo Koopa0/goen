@@ -11,7 +11,7 @@ import (
 
 	"github.com/google/uuid"
 
-	"github.com/koopa0/goen/internal/campaign"
+	"github.com/koopa0/goen/internal/discount/campaign"
 	"github.com/koopa0/goen/internal/i18n"
 )
 
