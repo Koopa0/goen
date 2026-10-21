@@ -1,7 +1,7 @@
 // Package account is the customer's own pages: the overview with its orders,
-// membership standing and store credit, the profile, the address book and the
-// wishlist. How a customer proves who they are, and every change to that proof,
-// is package auth.
+// membership standing and store credit, the profile and the address book. How
+// a customer proves who they are, and every change to that proof, is package
+// auth; the products they saved to buy later are package wishlist.
 package account
 
 import (

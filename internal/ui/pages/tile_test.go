@@ -173,3 +173,23 @@ func TestACardStrikesItsPriceOnlyOnSale(t *testing.T) {
 		}
 	}
 }
+
+// TestTileStillEmitsItsOwnGridCell holds other Tile consumers: extracting
+// TileCard for the wishlist must not drop the list item the grid expects.
+func TestTileStillEmitsItsOwnGridCell(t *testing.T) {
+	t.Parallel()
+
+	out := renderToString(t, Tile(ProductTile{
+		Slug: "pixelight-9-pro", Name: "Pixelight 9 Pro", Brand: "Pixelight",
+		PriceCents: 3690000, InStock: true, Comparable: true,
+	}))
+	if strings.Count(out, "<li") != 1 {
+		t.Fatalf("Tile rendered %d list items, want 1", strings.Count(out, "<li"))
+	}
+	if !strings.Contains(out, `class="goen-tile__cell"`) {
+		t.Error("Tile lost its grid cell wrapper")
+	}
+	if !strings.Contains(out, `class="goen-tile__compare"`) {
+		t.Error("Tile lost its compare checkbox")
+	}
+}

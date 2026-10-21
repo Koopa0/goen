@@ -7,10 +7,8 @@ import (
 	"net/url"
 
 	"github.com/koopa0/goen/internal/auth"
-	"github.com/koopa0/goen/internal/cart/cartitem"
 	"github.com/koopa0/goen/internal/i18n"
 	"github.com/koopa0/goen/internal/ui/layouts"
-	"github.com/koopa0/goen/internal/ui/pages"
 	"github.com/koopa0/goen/internal/user"
 	"github.com/koopa0/goen/internal/web"
 )
@@ -36,13 +34,11 @@ func NewHandler(store *Store, log *slog.Logger, secure, takesPayment bool) *Hand
 	return &Handler{store: store, log: log, secure: secure, takesPayment: takesPayment}
 }
 
-// Routes registers the account's overview, wishlist, orders, profile and
-// addresses. requireUser sends a signed-out visitor to sign in and back; it is
-// the caller's, because signing in is not this package's.
+// Routes registers the account's overview, orders, profile and addresses.
+// requireUser sends a signed-out visitor to sign in and back; it is the
+// caller's, because signing in is not this package's.
 func (h *Handler) Routes(mux *http.ServeMux, requireUser func(http.HandlerFunc) http.HandlerFunc) {
 	mux.HandleFunc("GET /account", requireUser(h.Overview))
-	mux.HandleFunc("GET /account/wishlist", requireUser(h.Wishlist))
-	mux.HandleFunc("POST /account/wishlist", requireUser(h.SaveWishlist))
 	mux.HandleFunc("GET /account/orders/{number}", requireUser(h.OrderPage))
 	mux.HandleFunc("POST /account/profile", requireUser(h.UpdateProfile))
 	mux.HandleFunc("POST /account/addresses", requireUser(h.AddAddress))
@@ -326,53 +322,4 @@ func (h *Handler) DeleteAddress(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 	http.Redirect(w, r, "/account?saved=1", http.StatusSeeOther)
-}
-
-func (h *Handler) Wishlist(w http.ResponseWriter, r *http.Request) {
-	u, ok := user.FromContext(r.Context())
-	if !ok {
-		http.Redirect(w, r, "/signin?next=/account/wishlist", http.StatusSeeOther)
-		return
-	}
-	tiles, err := h.store.Wishlist(r.Context(), u.ID)
-	if err != nil {
-		h.log.ErrorContext(r.Context(), "read wishlist", "error", err)
-		h.serverError(w, r)
-		return
-	}
-	web.Render(w, r, h.log, http.StatusOK, pages.Wishlist(
-		layouts.Page{Title: i18n.T(r.Context(), i18n.KeyWishlistTitle)}, pages.WishlistView{Products: tiles, Added: cartitem.AddOutcome(r.URL.Query().Get("added"))}))
-}
-
-func (h *Handler) SaveWishlist(w http.ResponseWriter, r *http.Request) {
-	if err := web.ParseForm(w, r); err != nil {
-		http.Error(w, "400 "+i18n.T(r.Context(), i18n.KeyFormUnreadable), http.StatusBadRequest)
-		return
-	}
-	// web.SitePathOr refuses anything but a same-site path, which makes a
-	// redirect target read off a form safe.
-	back := web.SitePathOr(r.PostFormValue("return"), "/account/wishlist")
-
-	u, ok := user.FromContext(r.Context())
-	if !ok {
-		// Authentication does not replay writes; this redirect only preserves
-		// the page for callers outside the authenticated route wrapper.
-		//nolint:gosec // G710: the fixed /signin path; back, bounded by web.SitePathOr above, is only its escaped query
-		http.Redirect(w, r, auth.SignInPath(back), http.StatusSeeOther)
-		return
-	}
-
-	slug := r.PostFormValue("slug")
-	var err error
-	if r.PostFormValue("action") == "remove" {
-		err = h.store.RemoveFromWishlist(r.Context(), u.ID, slug)
-	} else {
-		err = h.store.SaveToWishlist(r.Context(), u.ID, slug)
-	}
-	if err != nil {
-		h.log.ErrorContext(r.Context(), "update wishlist", "error", err, "slug", slug)
-		h.serverError(w, r)
-		return
-	}
-	http.Redirect(w, r, back, http.StatusSeeOther) //nolint:gosec // G710: bounded by web.SitePathOr
 }

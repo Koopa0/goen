@@ -1,4 +1,4 @@
-package pages
+package wishlist
 
 import (
 	"github.com/koopa0/goen/internal/cart/cartitem"
@@ -6,25 +6,26 @@ import (
 	"github.com/koopa0/goen/internal/ui/components"
 	"github.com/koopa0/goen/internal/ui/icons"
 	"github.com/koopa0/goen/internal/ui/layouts"
+	"github.com/koopa0/goen/internal/ui/pages"
 )
 
 // SoleVariantID is set only when the product has one variant and it is in stock:
 // the one case where the row can add it to the cart without asking which.
-type WishlistItem struct {
-	ProductTile
+type Item struct {
+	pages.ProductTile
 	SoleVariantID string
 }
 
-type WishlistView struct {
-	Products []WishlistItem
+type View struct {
+	Products []Item
 	// Added is what the last add-to-cart from this page did, as the cart's
 	// redirect names it.
 	Added cartitem.AddOutcome
 }
 
-func (v WishlistView) Empty() bool { return len(v.Products) == 0 }
+func (v View) Empty() bool { return len(v.Products) == 0 }
 
-templ Wishlist(p layouts.Page, v WishlistView) {
+templ Page(p layouts.Page, v View) {
 	@layouts.Base(p) {
 		<div class="goen-listing">
 			<div class="goen-pagehead">
@@ -70,7 +71,7 @@ templ Wishlist(p layouts.Page, v WishlistView) {
 					<ul class="goen-tiles__grid" role="list">
 						for _, t := range v.Products {
 							<li class="goen-wish goen-tile__cell">
-								@tileCard(t.ProductTile)
+								@pages.TileCard(t.ProductTile)
 								if t.SoleVariantID != "" {
 									<form method="post" action="/cart/items" class="goen-wish__add">
 										<input type="hidden" name="variant" value={ t.SoleVariantID }/>
