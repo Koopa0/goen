@@ -262,7 +262,7 @@ CI runs formatting, vet, lint, dead-code and generated-code checks, migration li
 
 | Area | Entry points |
 | --- | --- |
-| Composition and lifecycle | [`cmd/goen`][main], [routes][server], [middleware][middleware], [`internal/web/compress`][compress], [`internal/web/requestid`][requestid], [`internal/web/formtext`][formtext], [provider posture][provider-posture] |
+| Composition and lifecycle | [`cmd/goen`][main], [routes][server], [middleware][middleware], [`internal/web/compress`][compress], [`internal/web/requestid`][requestid], [`internal/web/respond`][respond], [`internal/web/formtext`][formtext], [provider posture][provider-posture] |
 | Cart, checkout, reservations, order access | [`internal/cart`][cart], [`internal/checkout`][checkout], [`internal/discount/coupon`][coupon], [`internal/shipping/storemap`][storemap], [`internal/order/lapse`][lapse], [`internal/order/access`][orderaccess] |
 | Payments and recovery | [`internal/payment`][payment-store], [Stripe adapter][stripe], [`internal/admin/health`][health] |
 | Fulfillment, returns, refunds | [`internal/order`][order], [`internal/admin/orders`][orders], [`internal/admin/dashboard`][dashboard], [`internal/order/returns`][returns-rules], [`internal/admin/returns`][returns], [`internal/admin/refunds`][refund-payout] |
@@ -282,6 +282,7 @@ CI runs formatting, vet, lint, dead-code and generated-code checks, migration li
 [middleware]: cmd/goen/middleware.go
 [compress]: internal/web/compress/compress.go
 [requestid]: internal/web/requestid/requestid.go
+[respond]: internal/web/respond/respond.go
 [formtext]: internal/web/formtext/parse.go
 [provider-posture]: cmd/goen/provider_posture.go
 [slowquery]: cmd/goen/slowquery.go

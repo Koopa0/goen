@@ -22,8 +22,8 @@ import (
 	"github.com/koopa0/goen/internal/payment"
 	"github.com/koopa0/goen/internal/ui/components"
 	"github.com/koopa0/goen/internal/ui/layouts"
-	"github.com/koopa0/goen/internal/web"
 	"github.com/koopa0/goen/internal/web/formtext"
+	"github.com/koopa0/goen/internal/web/respond"
 )
 
 type Handler struct {
@@ -64,14 +64,14 @@ func (h *Handler) List(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	view.Notice = components.NoticeFrom(r, notices)
-	web.Render(w, r, h.log, http.StatusOK, Orders(OrdersMeta(r.Context()), view))
+	respond.Component(w, r, h.log, http.StatusOK, Orders(OrdersMeta(r.Context()), view))
 }
 
 func (h *Handler) Order(w http.ResponseWriter, r *http.Request) {
 	view, err := h.store.Order(r.Context(), r.PathValue("number"))
 	if err != nil {
 		if errors.Is(err, ErrNotFound) {
-			web.Render(w, r, h.log, http.StatusNotFound, layouts.MissingRecord(
+			respond.Component(w, r, h.log, http.StatusNotFound, layouts.MissingRecord(
 				layouts.Page{Title: i18n.T(r.Context(), i18n.KeyAdminNoOrderTitle)},
 				layouts.MissingRecordView{Section: "orders", Heading: fmt.Sprintf(i18n.T(r.Context(), i18n.KeyAdminNoOrderHead), r.PathValue("number")), Body: i18n.T(r.Context(), i18n.KeyAdminNoOrderBody), BackLabel: i18n.KeyAdminBackOrders, OrderNumber: r.PathValue("number")}))
 			return
@@ -83,7 +83,7 @@ func (h *Handler) Order(w http.ResponseWriter, r *http.Request) {
 	logUnrecognized(r.Context(), h.log, view.Number, view.Timeline)
 	view.Notice = components.NoticeFrom(r, notices)
 	view.AllowanceOperationID = uuid.NewString()
-	web.Render(w, r, h.log, http.StatusOK,
+	respond.Component(w, r, h.log, http.StatusOK,
 		Order(layouts.Page{Title: fmt.Sprintf(i18n.T(r.Context(), i18n.KeyAdminPageOrder), view.Number)}, &view))
 }
 
@@ -214,7 +214,7 @@ func (h *Handler) rejectShip(w http.ResponseWriter, r *http.Request, refusal *sh
 		}
 	}
 	view.AllowanceOperationID = uuid.NewString()
-	web.Render(w, r, h.log, http.StatusUnprocessableEntity,
+	respond.Component(w, r, h.log, http.StatusUnprocessableEntity,
 		Order(layouts.Page{Title: fmt.Sprintf(i18n.T(r.Context(), i18n.KeyAdminPageOrder), view.Number)}, &view))
 }
 
@@ -370,7 +370,7 @@ func (h *Handler) rejectDelivery(w http.ResponseWriter, r *http.Request, d *Deli
 	}
 	applyDeliveryRefusals(r.Context(), &view, d, refusals)
 	view.AllowanceOperationID = uuid.NewString()
-	web.Render(w, r, h.log, http.StatusUnprocessableEntity,
+	respond.Component(w, r, h.log, http.StatusUnprocessableEntity,
 		Order(layouts.Page{Title: fmt.Sprintf(i18n.T(r.Context(), i18n.KeyAdminPageOrder), view.Number)}, &view))
 }
 

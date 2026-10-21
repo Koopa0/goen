@@ -18,8 +18,8 @@ import (
 	"github.com/koopa0/goen/internal/money"
 	"github.com/koopa0/goen/internal/ui/components"
 	"github.com/koopa0/goen/internal/ui/layouts"
-	"github.com/koopa0/goen/internal/web"
 	"github.com/koopa0/goen/internal/web/formtext"
+	"github.com/koopa0/goen/internal/web/respond"
 )
 
 type Handler struct {
@@ -255,7 +255,7 @@ func (h *Handler) rejectShippingForm(
 	if drafts.version != nil {
 		view.VersionDraft = *drafts.version
 	}
-	web.Render(w, r, h.log, http.StatusUnprocessableEntity, Shipping(
+	respond.Component(w, r, h.log, http.StatusUnprocessableEntity, Shipping(
 		layouts.Page{Title: i18n.T(r.Context(), i18n.KeyAdminPageShipping)}, view))
 }
 
@@ -293,7 +293,7 @@ func (h *Handler) Page(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	view.Notice = components.NoticeFrom(r, notices)
-	web.Render(w, r, h.log, http.StatusOK, Shipping(
+	respond.Component(w, r, h.log, http.StatusOK, Shipping(
 		layouts.Page{Title: i18n.T(r.Context(), i18n.KeyAdminPageShipping)}, view))
 }
 
@@ -406,6 +406,6 @@ func (h *Handler) rejectSurcharge(w http.ResponseWriter, r *http.Request, messag
 	}
 	view.SurchargeDraft = SurchargeDraft{MethodID: methodID, ZoneID: zoneID, Amount: r.PostFormValue("amount")}
 	view.Errors = map[string]string{"surcharge": message}
-	web.Render(w, r, h.log, http.StatusUnprocessableEntity, Shipping(
+	respond.Component(w, r, h.log, http.StatusUnprocessableEntity, Shipping(
 		layouts.Page{Title: i18n.T(r.Context(), i18n.KeyAdminPageShipping)}, view))
 }

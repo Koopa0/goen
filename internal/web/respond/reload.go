@@ -1,4 +1,4 @@
-package web
+package respond
 
 import (
 	"log/slog"
@@ -21,7 +21,7 @@ import (
 // re-requests with GET. The two GETs it serves must stay free of side effects:
 // this page lets any site load them with the member's cookie.
 //
-// page renders the refresh page for the target; web cannot import payment,
+// page renders the refresh page for the target; respond cannot import payment,
 // so the caller passes payment.OrderReload.
 //
 // Call it only after refusing, and before reading the order: the answer is
@@ -38,6 +38,6 @@ func ReloadSameSite(w http.ResponseWriter, r *http.Request, log *slog.Logger, pa
 	}
 	target := r.URL.RequestURI()
 	w.Header().Set("Cache-Control", "no-store")
-	Render(w, r, log, http.StatusOK, page(target))
+	Component(w, r, log, http.StatusOK, page(target))
 	return true
 }

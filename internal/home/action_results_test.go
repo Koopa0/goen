@@ -1,4 +1,4 @@
-package pages
+package home
 
 import (
 	"strings"
@@ -14,7 +14,7 @@ func TestHomeShowsTheErasureResultOnlyWhenRequested(t *testing.T) {
 	for _, locale := range i18n.Locales() {
 		for _, erased := range []bool{false, true} {
 			ctx := i18n.WithLocale(t.Context(), locale)
-			body := renderComponent(t, ctx, Home(HomeMeta(ctx), HomeView{AccountErased: erased}))
+			body := renderComponent(t, ctx, Page(Meta(ctx), View{AccountErased: erased}))
 			doc, err := html.Parse(strings.NewReader(body))
 			if err != nil {
 				t.Fatal(err)

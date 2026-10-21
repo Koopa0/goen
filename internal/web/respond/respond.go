@@ -1,6 +1,8 @@
-// Package web holds the HTTP helpers every feature shares: rendering a templ
-// component and htmx detection. It knows nothing about any single feature.
-package web
+// Package respond is the HTTP answer written from a templ component, whole or
+// as an htmx fragment, and the same-site reload hop page; it holds Component,
+// IsHTMX and ReloadSameSite; it does not hold reading input, which is package
+// formtext, or judging URLs, which is package siteurl.
+package respond
 
 import (
 	"bytes"
@@ -18,10 +20,10 @@ func IsHTMX(r *http.Request) bool {
 	return r.Header.Get("HX-Request") == "true"
 }
 
-// Render writes c to the response with the given status, rendering into memory
+// Component writes c to the response with the given status, rendering into memory
 // first: a template that fails halfway would otherwise leave a truncated body
 // under an already-sent 200.
-func Render(w http.ResponseWriter, r *http.Request, log *slog.Logger, status int, c templ.Component) {
+func Component(w http.ResponseWriter, r *http.Request, log *slog.Logger, status int, c templ.Component) {
 	var buf bytes.Buffer
 	if err := c.Render(r.Context(), &buf); err != nil {
 		if errors.Is(r.Context().Err(), context.Canceled) {

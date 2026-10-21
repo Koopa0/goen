@@ -1,4 +1,4 @@
-package pages
+package loyalty
 
 import (
 	"html"
@@ -6,7 +6,6 @@ import (
 	"testing"
 
 	"github.com/koopa0/goen/internal/i18n"
-	"github.com/koopa0/goen/internal/loyalty"
 	"github.com/koopa0/goen/internal/ui/layouts"
 )
 
@@ -15,7 +14,7 @@ func TestThePointsPageSaysWhatExpiresAndWhatDoesNot(t *testing.T) {
 	for _, loc := range []i18n.Locale{i18n.ZhHant, i18n.En} {
 		ctx := i18n.WithLocale(t.Context(), loc)
 		var b strings.Builder
-		if err := loyalty.Points(layouts.Page{Title: "p"}, loyalty.PointsView{PerCredit: 1}).Render(ctx, &b); err != nil {
+		if err := Points(layouts.Page{Title: "p"}, PointsView{PerCredit: 1}).Render(ctx, &b); err != nil {
 			t.Fatal(err)
 		}
 		if !strings.Contains(b.String(), html.EscapeString(i18n.T(ctx, i18n.KeyPointsExpiryTerms))) {

@@ -17,7 +17,7 @@ import (
 	"github.com/koopa0/goen/internal/order/access"
 	"github.com/koopa0/goen/internal/payment/refund"
 	"github.com/koopa0/goen/internal/ui/layouts"
-	"github.com/koopa0/goen/internal/web"
+	"github.com/koopa0/goen/internal/web/respond"
 )
 
 const maxWebhookBody = 1 << 20
@@ -158,7 +158,7 @@ func (h *Handler) renderPay(w http.ResponseWriter, r *http.Request, o *Order, ha
 			ImageAlt:    l.ImageAlt,
 		})
 	}
-	web.Render(w, r, h.log, status, Pay(PayMeta(r.Context(), o.Number), view))
+	respond.Component(w, r, h.log, status, Pay(PayMeta(r.Context(), o.Number), view))
 }
 
 // Start creates the Stripe Checkout Session and sends the customer to it with a
@@ -656,7 +656,7 @@ func (h *Handler) payableOrder(w http.ResponseWriter, r *http.Request, number st
 		h.log.ErrorContext(r.Context(), "check order access", "order", number, "error", err)
 	}
 	if !ok {
-		if !web.ReloadSameSite(w, r, h.log, OrderReload) {
+		if !respond.ReloadSameSite(w, r, h.log, OrderReload) {
 			h.notFound(w, r)
 		}
 		return nil, false
@@ -684,12 +684,12 @@ func (h *Handler) payableOrder(w http.ResponseWriter, r *http.Request, number st
 }
 
 func (h *Handler) notFound(w http.ResponseWriter, r *http.Request) {
-	web.Render(w, r, h.log, http.StatusNotFound, layouts.OrderNotFound(
+	respond.Component(w, r, h.log, http.StatusNotFound, layouts.OrderNotFound(
 		layouts.Page{Title: i18n.T(r.Context(), i18n.KeyOrderNotFound)}))
 }
 
 func (h *Handler) notice(w http.ResponseWriter, r *http.Request, status int, title, heading, body string) {
-	web.Render(w, r, h.log, status, layouts.Notice(
+	respond.Component(w, r, h.log, status, layouts.Notice(
 		layouts.Page{Title: title}, "", heading, body, layouts.NoticeActions{
 			Primary:   layouts.NoticeLink{Href: "/orders/" + url.PathEscape(r.PathValue("number")), Label: i18n.KeyBackToOrder},
 			Secondary: layouts.NoticeLink{Href: "/contact", Label: i18n.KeyContact},
