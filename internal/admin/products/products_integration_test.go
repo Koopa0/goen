@@ -105,6 +105,29 @@ func TestProductReadsDistinguishAbsenceFromInfrastructure(t *testing.T) {
 	}
 }
 
+// A details form that is refused, and a new variant that is valid, posted to a
+// slug with no product, answer 404 like the editor page and the other routes.
+func TestProductFormsPostedToAMissingProductAnswerNotFound(t *testing.T) {
+	ctx, _ := admintest.StaffContext(t, pool)
+	h := productstest.NewHandler(pool, products.NewStore(pool))
+	missing := "no-such-product-" + uuid.NewString()
+
+	details := httptest.NewRequestWithContext(ctx, http.MethodPost, "/admin/products/"+missing,
+		strings.NewReader("name=x"))
+	details.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+	details.SetPathValue("slug", missing)
+	detailsRes := httptest.NewRecorder()
+	h.Update(detailsRes, details)
+	if detailsRes.Code != http.StatusNotFound {
+		t.Errorf("refused details form for a missing product answered %d, want 404", detailsRes.Code)
+	}
+
+	variantRes := productstest.PostVariantForm(t, h, ctx, missing, url.Values{"sku": {"X"}, "price": {"1"}})
+	if variantRes.Code != http.StatusNotFound {
+		t.Errorf("new variant for a missing product answered %d, want 404", variantRes.Code)
+	}
+}
+
 func TestProductUpdateDistinguishesAbsenceFromSuccess(t *testing.T) {
 	ctx, _ := admintest.StaffContext(t, pool)
 	s := products.NewStore(pool)
