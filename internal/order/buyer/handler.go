@@ -103,7 +103,7 @@ func (h *Handler) FindOrder(w http.ResponseWriter, r *http.Request) {
 	found, err := h.store.OrderBelongsToEmail(r.Context(), number, addr)
 	if err != nil {
 		h.log.ErrorContext(r.Context(), "find order", "error", err)
-		h.cartUnavailable(w, r)
+		h.tryAgain(w, r)
 		return
 	}
 	if !found {
@@ -157,7 +157,7 @@ func (h *Handler) OrderPage(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		h.log.ErrorContext(r.Context(), "read order", "error", err)
-		h.cartUnavailable(w, r)
+		h.tryAgain(w, r)
 		return
 	}
 	view.Cancelled = r.URL.Query().Get("cancelled") == "1"
@@ -235,7 +235,7 @@ func (h *Handler) CancelOrder(w http.ResponseWriter, r *http.Request) {
 			}))
 	default:
 		h.log.ErrorContext(r.Context(), "cancel order", "error", err)
-		h.cartUnavailable(w, r)
+		h.tryAgain(w, r)
 	}
 }
 
@@ -419,13 +419,14 @@ func (h *Handler) notFoundPage(r *http.Request) layouts.Page {
 	return layouts.Page{Title: i18n.T(r.Context(), i18n.KeyOrderNotFound)}
 }
 
-// cartUnavailable is the failure page the lookup, the order page and cancelling
-// share with the cart's routes.
-func (h *Handler) cartUnavailable(w http.ResponseWriter, r *http.Request) {
+// tryAgain is the failure page the lookup, the order page and cancelling share
+// with the return form: the cause is in the log, and nothing on these pages is
+// the cart.
+func (h *Handler) tryAgain(w http.ResponseWriter, r *http.Request) {
 	respond.Component(w, r, h.log, http.StatusInternalServerError, layouts.Notice(
 		layouts.Page{Title: i18n.T(r.Context(), i18n.KeyTryAgainTitle)}, "",
 		i18n.T(r.Context(), i18n.KeyTryAgainTitle),
-		i18n.T(r.Context(), i18n.KeyCartUnavailable)))
+		i18n.T(r.Context(), i18n.KeyLoggedTryAgain)))
 }
 
 func viewOf(ctx context.Context, o *ReturnOrder, draft *returnDraft, refusals []formtext.FieldRefusal) ReturnsView {
