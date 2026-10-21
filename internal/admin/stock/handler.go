@@ -18,8 +18,8 @@ import (
 	"github.com/koopa0/goen/internal/ui/layouts"
 	"github.com/koopa0/goen/internal/ui/stockrisk"
 	"github.com/koopa0/goen/internal/user"
-	"github.com/koopa0/goen/internal/web"
 	"github.com/koopa0/goen/internal/web/formtext"
+	"github.com/koopa0/goen/internal/web/respond"
 )
 
 type Handler struct {
@@ -71,7 +71,7 @@ func (h *Handler) Variants(w http.ResponseWriter, r *http.Request) {
 	}
 	view.Notice = components.NoticeFrom(r, notices)
 	view.Return = stockReturn(r.URL.Query().Get("soldout"), view.Term, r.URL.Query().Get(keyset.Param), "", "")
-	web.Render(w, r, h.log, http.StatusOK, Variants(VariantsMeta(r.Context()), view))
+	respond.Component(w, r, h.log, http.StatusOK, Variants(VariantsMeta(r.Context()), view))
 }
 
 func (h *Handler) Adjust(w http.ResponseWriter, r *http.Request) {
@@ -142,7 +142,7 @@ func (h *Handler) rejectStockForm(w http.ResponseWriter, r *http.Request, key i1
 		// The row is not on this page, so the banner has to say it.
 		view.Notice = components.Result{Outcome: components.OutcomeRefused, Text: i18n.T(r.Context(), key)}
 	}
-	web.Render(w, r, h.log, http.StatusUnprocessableEntity, Variants(VariantsMeta(r.Context()), view))
+	respond.Component(w, r, h.log, http.StatusUnprocessableEntity, Variants(VariantsMeta(r.Context()), view))
 }
 
 func (h *Handler) Receive(w http.ResponseWriter, r *http.Request) {
@@ -198,7 +198,7 @@ func (h *Handler) renderReceiptRefusal(w http.ResponseWriter, r *http.Request, v
 	view.DraftQuantity = r.PostFormValue("quantity")
 	view.QuantityError = i18n.T(r.Context(), key)
 	view.ReceiptKey = r.PostFormValue("idempotency")
-	web.Render(w, r, h.log, http.StatusUnprocessableEntity, Movements(
+	respond.Component(w, r, h.log, http.StatusUnprocessableEntity, Movements(
 		layouts.Page{Title: view.SKU}, view))
 }
 
@@ -297,7 +297,7 @@ func (h *Handler) Movements(w http.ResponseWriter, r *http.Request) {
 	switch {
 	case err == nil:
 		view.Notice = components.NoticeFrom(r, notices)
-		web.Render(w, r, h.log, http.StatusOK, Movements(
+		respond.Component(w, r, h.log, http.StatusOK, Movements(
 			layouts.Page{Title: view.SKU}, &view))
 	case errors.Is(err, ErrNotFound):
 		access.NotFound(w, r, h.log)

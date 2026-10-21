@@ -12,8 +12,8 @@ import (
 	"github.com/koopa0/goen/internal/media"
 	"github.com/koopa0/goen/internal/ui/components"
 	"github.com/koopa0/goen/internal/ui/layouts"
-	"github.com/koopa0/goen/internal/web"
 	"github.com/koopa0/goen/internal/web/formtext"
+	"github.com/koopa0/goen/internal/web/respond"
 )
 
 type Handler struct {
@@ -52,7 +52,7 @@ func (h *Handler) Page(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	view.Notice = components.NoticeFrom(r, notices)
-	web.Render(w, r, h.log, http.StatusOK, Taxonomy(
+	respond.Component(w, r, h.log, http.StatusOK, Taxonomy(
 		layouts.Page{Title: i18n.T(r.Context(), i18n.KeyAdminPageTaxonomy)}, &view))
 }
 
@@ -94,7 +94,7 @@ func (h *Handler) Create(w http.ResponseWriter, r *http.Request) {
 		}
 		view.Which, view.Errors = kind, errs
 		view.Draft = TaxonDraft(typed)
-		web.Render(w, r, h.log, http.StatusUnprocessableEntity, Taxonomy(
+		respond.Component(w, r, h.log, http.StatusUnprocessableEntity, Taxonomy(
 			layouts.Page{Title: i18n.T(r.Context(), i18n.KeyAdminPageTaxonomy)}, &view))
 	default:
 		http.Redirect(w, r, "/admin/taxonomy?ok=1", http.StatusSeeOther)
@@ -155,7 +155,7 @@ func (h *Handler) renderCategory(w http.ResponseWriter, r *http.Request, status 
 	if errs["image"] != "" || errs["alt"] != "" || errs["alt_en"] != "" {
 		view.ImageAltDraft, view.ImageAltEnDraft = r.PostFormValue("alt"), r.PostFormValue("alt_en")
 	}
-	web.Render(w, r, h.log, status, CategoryForm(layouts.Page{Title: view.Name}, view))
+	respond.Component(w, r, h.log, status, CategoryForm(layouts.Page{Title: view.Name}, view))
 }
 
 func (h *Handler) SetCategoryImage(w http.ResponseWriter, r *http.Request) {

@@ -1,20 +1,21 @@
-package pages
+package home
 
 import (
 	"context"
 	"unicode/utf8"
 
 	"github.com/koopa0/goen/internal/i18n"
+	"github.com/koopa0/goen/internal/policy"
 	"github.com/koopa0/goen/internal/ui/components"
 	"github.com/koopa0/goen/internal/ui/layouts"
 	"github.com/koopa0/goen/internal/ui/tile"
 )
 
-func HomeMeta(ctx context.Context) layouts.Page {
+func Meta(ctx context.Context) layouts.Page {
 	return layouts.Page{Description: layouts.DescribeDepartments(ctx, i18n.KeyHomeDescription)}
 }
 
-type HomeCategory struct {
+type Category struct {
 	Slug  string
 	Name  string
 	Tone  components.Tone
@@ -23,7 +24,7 @@ type HomeCategory struct {
 
 // Initial is the first character of the name, which a department without a
 // photograph shows on its tone.
-func (c HomeCategory) Initial() string {
+func (c Category) Initial() string {
 	r, _ := utf8.DecodeRuneInString(c.Name)
 	if r == utf8.RuneError {
 		return ""
@@ -83,17 +84,17 @@ type DepartmentBand struct {
 	Tiles []tile.Tile
 }
 
-type HomeView struct {
+type View struct {
 	AccountErased bool
 	Slides        []components.HeroSlide
-	Categories    []HomeCategory
+	Categories    []Category
 	Row           ProductRow
 	Band          *DepartmentBand
-	Rules         ShopRules
+	Rules         policy.Rules
 }
 
 // ShowsDirectory reports whether the department list is drawn. With one
 // department the band is the department, unless no band is drawn.
-func (v *HomeView) ShowsDirectory() bool {
+func (v *View) ShowsDirectory() bool {
 	return len(v.Categories) > 1 || len(v.Categories) == 1 && v.Band == nil
 }

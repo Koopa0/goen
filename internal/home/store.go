@@ -19,7 +19,6 @@ import (
 	"github.com/koopa0/goen/internal/shoptime"
 	"github.com/koopa0/goen/internal/site"
 	"github.com/koopa0/goen/internal/ui/components"
-	"github.com/koopa0/goen/internal/ui/pages"
 	"github.com/koopa0/goen/internal/ui/tile"
 )
 
@@ -93,43 +92,43 @@ func (s *Store) Carousel(ctx context.Context) ([]components.HeroSlide, error) {
 	return s.slides(ctx, src)
 }
 
-func (s *Store) Load(ctx context.Context) (pages.HomeView, error) {
+func (s *Store) Load(ctx context.Context) (View, error) {
 	src, err := s.carouselSources(ctx)
 	if err != nil {
-		return pages.HomeView{}, err
+		return View{}, err
 	}
 
 	slides, err := s.slides(ctx, src)
 	if err != nil {
-		return pages.HomeView{}, err
+		return View{}, err
 	}
 	row, err := s.productRow(ctx, src.camps)
 	if err != nil {
-		return pages.HomeView{}, err
+		return View{}, err
 	}
 	band, err := s.departmentBand(ctx, src, row.Tiles)
 	if err != nil {
-		return pages.HomeView{}, err
+		return View{}, err
 	}
 
 	rules, err := s.policy.Rules(ctx)
 	if err != nil {
-		return pages.HomeView{}, err
+		return View{}, err
 	}
 
-	view := pages.HomeView{
+	view := View{
 		Slides:     slides,
-		Categories: make([]pages.HomeCategory, 0, len(src.cats)),
+		Categories: make([]Category, 0, len(src.cats)),
 		Row:        row,
 		Band:       band,
-		Rules:      pages.ShopRules(rules),
+		Rules:      rules,
 	}
 	for i := range src.cats {
 		c := &src.cats[i]
 		if src.held[c.ID] == 0 {
 			continue
 		}
-		view.Categories = append(view.Categories, pages.HomeCategory{
+		view.Categories = append(view.Categories, Category{
 			Slug:  c.Slug,
 			Name:  c.Name,
 			Tone:  components.ResolveTone(c.Tone),
@@ -139,7 +138,7 @@ func (s *Store) Load(ctx context.Context) (pages.HomeView, error) {
 	return view, nil
 }
 
-func (s *Store) productRow(ctx context.Context, camps []db.ListedCampaignsRow) (pages.ProductRow, error) {
+func (s *Store) productRow(ctx context.Context, camps []db.ListedCampaignsRow) (ProductRow, error) {
 	if len(camps) > 0 {
 		row, ok, err := s.campaignRow(ctx, &camps[0])
 		if err != nil || ok {
@@ -148,19 +147,19 @@ func (s *Store) productRow(ctx context.Context, camps []db.ListedCampaignsRow) (
 	}
 	tiles, err := s.tiles(ctx, uuid.NullUUID{}, uuid.NullUUID{}, rowTiles)
 	if err != nil {
-		return pages.ProductRow{}, err
+		return ProductRow{}, err
 	}
-	return pages.ProductRow{Title: i18n.T(ctx, i18n.KeyHomeNewIn), Href: "/search", Tiles: tiles}, nil
+	return ProductRow{Title: i18n.T(ctx, i18n.KeyHomeNewIn), Href: "/search", Tiles: tiles}, nil
 }
 
 // campaignRow is the campaign's own row; ok is false when it has no product to show.
-func (s *Store) campaignRow(ctx context.Context, c *db.ListedCampaignsRow) (row pages.ProductRow, ok bool, err error) {
+func (s *Store) campaignRow(ctx context.Context, c *db.ListedCampaignsRow) (row ProductRow, ok bool, err error) {
 	tiles, err := s.tiles(ctx, uuid.NullUUID{UUID: c.ID, Valid: true}, uuid.NullUUID{}, rowTiles)
 	if err != nil || len(tiles) == 0 {
-		return pages.ProductRow{}, false, err
+		return ProductRow{}, false, err
 	}
 	schedule := s.campaignSchedule(ctx, c)
-	rowCampaign := &pages.RowCampaign{
+	rowCampaign := &RowCampaign{
 		Tone:      components.ResolveTone(c.Tone),
 		Items:     c.Products,
 		Facts:     schedule.Facts,
@@ -169,14 +168,14 @@ func (s *Store) campaignRow(ctx context.Context, c *db.ListedCampaignsRow) (row 
 	if period, ok := components.DayPeriod(ctx, c.Title, c.StartsAt, c.EndsAt, s.now()); ok {
 		rowCampaign.Period = &period
 	}
-	return pages.ProductRow{Title: c.Title, Href: "/s/" + c.Slug, Tiles: tiles, Campaign: rowCampaign}, true, nil
+	return ProductRow{Title: c.Title, Href: "/s/" + c.Slug, Tiles: tiles, Campaign: rowCampaign}, true, nil
 }
 
 // departmentBand rotates by shop day through the departments with enough
 // products to fill the shelf, skipping any whose shelf would be left short
 // once the products already in the row above are taken out; nil when none
 // qualifies.
-func (s *Store) departmentBand(ctx context.Context, src carouselSources, row []tile.Tile) (*pages.DepartmentBand, error) {
+func (s *Store) departmentBand(ctx context.Context, src carouselSources, row []tile.Tile) (*DepartmentBand, error) {
 	cats, subs, held := src.cats, src.subs, src.held
 	var eligible []*db.RootCategoriesRow
 	for i := range cats {
@@ -201,7 +200,7 @@ func (s *Store) departmentBand(ctx context.Context, src carouselSources, row []t
 		if len(tiles) < bandTiles {
 			continue
 		}
-		return &pages.DepartmentBand{
+		return &DepartmentBand{
 			Name:  c.Name,
 			Items: held[c.ID],
 			Fact:  subCategoryLine(subs[c.ID]),

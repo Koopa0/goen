@@ -6,8 +6,8 @@ on:
       - assets/js/goen.js
       - assets/css/app/app.css
       - scripts/carousel-tab-check.mjs
-      - internal/ui/pages/carousel_browser_test.go
-      - internal/ui/pages/home.templ
+      - internal/home/carousel_browser_test.go
+      - internal/home/home.templ
       - .github/workflows/carousel-interaction.yml
 
 permissions:
@@ -46,4 +46,4 @@ jobs:
           cat chrome.log
           exit 1
       - name: Native slide and tab-row regression
-        run: go test -count=1 -v -run '^TestCarouselCurrentTabStaysVisibleWithoutMovingThePage$' ./internal/ui/pages
+        run: go test -count=1 -v -run '^TestCarouselCurrentTabStaysVisibleWithoutMovingThePage$' ./internal/home

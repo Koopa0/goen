@@ -5,7 +5,7 @@ import (
 	"net/url"
 	"slices"
 
-	"github.com/koopa0/goen/internal/web"
+	"github.com/koopa0/goen/internal/web/respond"
 )
 
 // dropEmptyParams answers a request whose query string carries a parameter with
@@ -32,7 +32,7 @@ func dropEmptyParams(w http.ResponseWriter, r *http.Request, keep ...string) (re
 	}
 	target := *r.URL
 	target.RawQuery = clean.Encode()
-	if web.IsHTMX(r) {
+	if respond.IsHTMX(r) {
 		w.Header().Set("HX-Push-Url", target.RequestURI())
 		return false
 	}

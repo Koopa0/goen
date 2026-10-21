@@ -11,8 +11,8 @@ import (
 	"github.com/koopa0/goen/internal/i18n"
 	"github.com/koopa0/goen/internal/ui/layouts"
 	"github.com/koopa0/goen/internal/user"
-	"github.com/koopa0/goen/internal/web"
 	"github.com/koopa0/goen/internal/web/formtext"
+	"github.com/koopa0/goen/internal/web/respond"
 )
 
 type Handler struct {
@@ -54,7 +54,7 @@ func (h *Handler) List(w http.ResponseWriter, r *http.Request) {
 		h.serverError(w, r)
 		return
 	}
-	web.Render(w, r, h.log, http.StatusOK, WarrantyList(
+	respond.Component(w, r, h.log, http.StatusOK, WarrantyList(
 		layouts.Page{Title: i18n.T(r.Context(), i18n.KeyWarrantyTitle)},
 		WarrantyListView{Rows: rows, Ready: ready}))
 }
@@ -70,7 +70,7 @@ func (h *Handler) Order(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	view.RegisteredUnit = registeredUnitFor(r, view.Registered)
-	web.Render(w, r, h.log, http.StatusOK, WarrantyOrder(
+	respond.Component(w, r, h.log, http.StatusOK, WarrantyOrder(
 		layouts.Page{Title: fmt.Sprintf(i18n.T(r.Context(), i18n.KeyWarrantyRegisterMeta), view.Number)}, view))
 }
 
@@ -80,7 +80,7 @@ func (h *Handler) orderView(w http.ResponseWriter, r *http.Request, userID strin
 		return view, true
 	}
 	if errors.Is(err, ErrNotFound) {
-		web.Render(w, r, h.log, http.StatusNotFound, layouts.Notice(
+		respond.Component(w, r, h.log, http.StatusNotFound, layouts.Notice(
 			layouts.Page{Title: i18n.T(r.Context(), i18n.KeyOrderNotFound)}, "404",
 			i18n.T(r.Context(), i18n.KeyOrderNotFound),
 			i18n.T(r.Context(), i18n.KeyWarrantyOrderNotFound)))
@@ -149,12 +149,12 @@ func (h *Handler) rejectRegistration(w http.ResponseWriter, r *http.Request, use
 		}
 		break
 	}
-	web.Render(w, r, h.log, http.StatusUnprocessableEntity, WarrantyOrder(
+	respond.Component(w, r, h.log, http.StatusUnprocessableEntity, WarrantyOrder(
 		layouts.Page{Title: fmt.Sprintf(i18n.T(r.Context(), i18n.KeyWarrantyRegisterMeta), view.Number)}, view))
 }
 
 func (h *Handler) serverError(w http.ResponseWriter, r *http.Request) {
-	web.Render(w, r, h.log, http.StatusInternalServerError, layouts.Notice(
+	respond.Component(w, r, h.log, http.StatusInternalServerError, layouts.Notice(
 		layouts.Page{Title: i18n.T(r.Context(), i18n.KeyTryAgainTitle)}, "",
 		i18n.T(r.Context(), i18n.KeyTryAgainTitle),
 		i18n.T(r.Context(), i18n.KeyTryAgainBody)))

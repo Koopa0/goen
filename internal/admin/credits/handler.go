@@ -17,8 +17,8 @@ import (
 	"github.com/koopa0/goen/internal/shoptime"
 	"github.com/koopa0/goen/internal/ui/components"
 	"github.com/koopa0/goen/internal/ui/layouts"
-	"github.com/koopa0/goen/internal/web"
 	"github.com/koopa0/goen/internal/web/formtext"
+	"github.com/koopa0/goen/internal/web/respond"
 )
 
 type Handler struct {
@@ -67,7 +67,7 @@ func (h *Handler) Credit(w http.ResponseWriter, r *http.Request) {
 	}
 	view.OperationID = uuid.NewString()
 	view.Notice = creditNotice(r)
-	web.Render(w, r, h.log, http.StatusOK, Credit(
+	respond.Component(w, r, h.log, http.StatusOK, Credit(
 		layouts.Page{Title: i18n.T(r.Context(), i18n.KeyAdminPageCredit)}, view))
 }
 
@@ -205,5 +205,5 @@ func (h *Handler) renderCreditForm(w http.ResponseWriter, r *http.Request, view 
 	if notice != "" {
 		view.Notice = components.Result{Outcome: components.OutcomeRefused, Text: i18n.T(r.Context(), notice)}
 	}
-	web.Render(w, r, h.log, status, Credit(layouts.Page{Title: i18n.T(r.Context(), i18n.KeyAdminPageCredit)}, *view))
+	respond.Component(w, r, h.log, status, Credit(layouts.Page{Title: i18n.T(r.Context(), i18n.KeyAdminPageCredit)}, *view))
 }
