@@ -21,15 +21,55 @@ type importGraph struct {
 	scanned map[string]bool // every directory that held a production .go file
 }
 
+// holds reports whether a scanned package is dir or lies below it.
+func (g importGraph) holds(dir string) bool {
+	for pkg := range g.scanned {
+		if under(pkg, dir) {
+			return true
+		}
+	}
+	return false
+}
+
 // importRule is one row of the policy table. forbids reports whether the edge
 // from -> to breaks the rule. A hard rule admits no exception; any other rule's
-// current violations are listed in exceptions.
+// current violations are listed in exceptions. A predicate names a package only
+// through the constants below, never a string literal, and the row lists each
+// one in pkgs (a package) or dirs (a directory it matches with under, which may
+// hold no .go file itself): TestDependencies fails a row whose entry names no
+// scanned package, as it does for an entry of packageLists.
 type importRule struct {
 	name   string
 	hard   bool
+	pkgs   []string
+	dirs   []string
 	forbid func(from, to string) bool
 	reason string
 }
+
+// The packages and directories the rule predicates name.
+const (
+	cmdGoen      = "cmd/goen"
+	dirUI        = "internal/ui"
+	dirAdmin     = "internal/admin"
+	pkgI18n      = "internal/i18n"
+	pkgRespond   = "internal/web/respond"
+	pkgSite      = "internal/site"
+	pkgPolicy    = "internal/policy"
+	pkgCampaign  = "internal/discount/campaign"
+	pkgLetter    = "internal/letter"
+	pkgCart      = "internal/cart"
+	pkgCheckout  = "internal/checkout"
+	pkgAccount   = "internal/account"
+	pkgAuth      = "internal/auth"
+	pkgWishlist  = "internal/wishlist"
+	pkgGoogle    = "internal/auth/google"
+	pkgStoremap  = "internal/shipping/storemap"
+	pkgAccess    = "internal/admin/access"
+	pkgAudit     = "internal/admin/audit"
+	pkgWorklist  = "internal/admin/worklist"
+	pkgAdmintest = "internal/admin/admintest"
+)
 
 // exceptions are the edges the rules forbid and the plan has not removed yet:
 // key "from -> to", value the task that removes the edge. An entry may only
@@ -50,21 +90,23 @@ func under(pkg, dir string) bool {
 // and audit are the foundation every desk may import, worklist is the vocabulary the
 // desks use to report work for one another, admintest is the shared test fixture.
 func deskRoot(pkg string) string {
-	rest, ok := strings.CutPrefix(pkg, "internal/admin/")
+	rest, ok := strings.CutPrefix(pkg, dirAdmin+"/")
 	if !ok {
 		return ""
 	}
 	name, _, _ := strings.Cut(rest, "/")
-	switch name {
-	case "", "access", "audit", "worklist", "admintest":
+	root := dirAdmin + "/" + name
+	if name == "" || slices.Contains(notDesks, root) {
 		return ""
 	}
-	return "internal/admin/" + name
+	return root
 }
 
 func isDesk(pkg string) bool { return deskRoot(pkg) != "" }
 
 var (
+	// notDesks are the packages under internal/admin that are not desks.
+	notDesks = []string{pkgAccess, pkgAudit, pkgWorklist, pkgAdmintest}
 	// uiMayImport is what the view layer may import besides itself.
 	uiMayImport = []string{
 		"assets", "internal/i18n", "internal/money", "internal/shoptime",
@@ -128,7 +170,7 @@ var packageLists = map[string][]string{
 	"uiMayImport": uiMayImport, "storefrontPages": storefrontPages, "siteMayImport": siteMayImport,
 	"policyMayImport": policyMayImport, "campaignMayImport": campaignMayImport,
 	"importFreeLeaves": importFreeLeaves, "i18nOnlyLeaves": i18nOnlyLeaves,
-	"googleMayImport": googleMayImport, "storemapMayImport": storemapMayImport,
+	"googleMayImport": googleMayImport, "storemapMayImport": storemapMayImport, "notDesks": notDesks,
 }
 
 // depsRules is the repository's whole package-graph policy, in one place, in the
@@ -136,39 +178,44 @@ var packageLists = map[string][]string{
 var depsRules = []importRule{
 	{
 		name: "ui",
+		dirs: []string{dirUI},
 		forbid: func(from, to string) bool {
-			return under(from, "internal/ui") && !under(to, "internal/ui") && !slices.Contains(uiMayImport, to)
+			return under(from, dirUI) && !under(to, dirUI) && !slices.Contains(uiMayImport, to)
 		},
 		reason: "the view layer never reaches request plumbing, the database, a feature or a desk",
 	},
 	{
 		name: "respond",
+		pkgs: []string{pkgRespond, pkgI18n},
 		forbid: func(from, to string) bool {
-			return from == "internal/web/respond" && to != "internal/i18n"
+			return from == pkgRespond && to != pkgI18n
 		},
 		reason: "request plumbing does not depend on the view layer",
 	},
 	{
 		name: "i18n",
+		pkgs: []string{pkgI18n},
 		forbid: func(from, _ string) bool {
-			return from == "internal/i18n"
+			return from == pkgI18n
 		},
 		reason: "a closed set names its own labels with the catalogue's keys, not the other way round",
 	},
 	{
 		name: "leaves",
 		hard: true,
+		pkgs: []string{pkgI18n},
 		forbid: func(from, to string) bool {
 			return slices.Contains(importFreeLeaves, from) ||
-				(slices.Contains(i18nOnlyLeaves, from) && to != "internal/i18n")
+				(slices.Contains(i18nOnlyLeaves, from) && to != pkgI18n)
 		},
 		reason: "a vocabulary package can be imported by anything without a cycle",
 	},
 	{
 		name: "site",
 		hard: true,
+		pkgs: []string{pkgSite},
 		forbid: func(from, to string) bool {
-			return under(from, "internal/site") && !under(to, "internal/site") &&
+			return under(from, pkgSite) && !under(to, pkgSite) &&
 				!slices.Contains(siteMayImport, to) &&
 				!slices.Contains(importFreeLeaves, to) && !slices.Contains(i18nOnlyLeaves, to)
 		},
@@ -178,8 +225,9 @@ var depsRules = []importRule{
 	{
 		name: "policy",
 		hard: true,
+		pkgs: []string{pkgPolicy},
 		forbid: func(from, to string) bool {
-			return under(from, "internal/policy") && !under(to, "internal/policy") &&
+			return under(from, pkgPolicy) && !under(to, pkgPolicy) &&
 				!slices.Contains(policyMayImport, to) &&
 				!slices.Contains(importFreeLeaves, to) && !slices.Contains(i18nOnlyLeaves, to)
 		},
@@ -189,8 +237,9 @@ var depsRules = []importRule{
 	{
 		name: "campaign",
 		hard: true,
+		pkgs: []string{pkgCampaign},
 		forbid: func(from, to string) bool {
-			return under(from, "internal/discount/campaign") && !under(to, "internal/discount/campaign") &&
+			return under(from, pkgCampaign) && !under(to, pkgCampaign) &&
 				!slices.Contains(campaignMayImport, to) &&
 				!slices.Contains(importFreeLeaves, to) && !slices.Contains(i18nOnlyLeaves, to)
 		},
@@ -199,15 +248,18 @@ var depsRules = []importRule{
 	},
 	{
 		name: "desks",
+		pkgs: []string{cmdGoen},
+		dirs: []string{dirAdmin},
 		forbid: func(from, to string) bool {
 			root := deskRoot(to)
-			return root != "" && from != "cmd/goen" && !under(from, root)
+			return root != "" && from != cmdGoen && !under(from, root)
 		},
 		reason: "a desk is imported in production only by cmd/goen or from inside its own directory; " +
 			"a desk reaches another desk through an interface it declares",
 	},
 	{
 		name: "desks and storefront pages",
+		dirs: []string{dirAdmin},
 		forbid: func(from, to string) bool {
 			return isDesk(from) && slices.Contains(storefrontPages, to)
 		},
@@ -216,33 +268,38 @@ var depsRules = []importRule{
 	{
 		name: "letter",
 		hard: true,
+		pkgs: []string{pkgLetter, cmdGoen},
 		forbid: func(from, to string) bool {
-			return to == "internal/letter" && from != "cmd/goen"
+			return to == pkgLetter && from != cmdGoen
 		},
 		reason: "only cmd/goen composes and sends mail; a feature enqueues an outbox payload instead",
 	},
 	{
 		name: "cart, checkout and account",
+		pkgs: []string{pkgCart, pkgCheckout, pkgAccount, pkgAuth},
 		forbid: func(from, to string) bool {
-			return (under(from, "internal/cart") || under(from, "internal/checkout")) &&
-				(under(to, "internal/account") || under(to, "internal/auth"))
+			return (under(from, pkgCart) || under(from, pkgCheckout)) &&
+				(under(to, pkgAccount) || under(to, pkgAuth))
 		},
 		reason: "the cart and the checkout do not depend on the account feature or on sign-in",
 	},
 	{
 		name: "back office and account",
 		hard: true,
+		pkgs: []string{pkgAccount, pkgWishlist, pkgAuth},
+		dirs: []string{dirAdmin},
 		forbid: func(from, to string) bool {
-			return under(from, "internal/admin") &&
-				(under(to, "internal/account") || under(to, "internal/wishlist") || under(to, "internal/auth"))
+			return under(from, dirAdmin) &&
+				(under(to, pkgAccount) || under(to, pkgWishlist) || under(to, pkgAuth))
 		},
 		reason: "the back office does not depend on the storefront's account feature, its wishlist or its sign-in",
 	},
 	{
 		name: "auth and account",
 		hard: true,
+		pkgs: []string{pkgAuth, pkgAccount},
 		forbid: func(from, to string) bool {
-			return under(from, "internal/auth") && under(to, "internal/account")
+			return under(from, pkgAuth) && under(to, pkgAccount)
 		},
 		reason: "how a customer proves who they are does not depend on the customer's pages; " +
 			"account imports auth, never the other way round",
@@ -250,8 +307,9 @@ var depsRules = []importRule{
 	{
 		name: "google",
 		hard: true,
+		pkgs: []string{pkgGoogle},
 		forbid: func(from, to string) bool {
-			return under(from, "internal/auth/google") && !slices.Contains(googleMayImport, to)
+			return under(from, pkgGoogle) && !slices.Contains(googleMayImport, to)
 		},
 		reason: "Google's sign-in client holds no session, account or page, so it imports no goen feature; " +
 			"auth imports it, never the other way round",
@@ -259,8 +317,9 @@ var depsRules = []importRule{
 	{
 		name: "storemap",
 		hard: true,
+		pkgs: []string{pkgStoremap},
 		forbid: func(from, to string) bool {
-			return under(from, "internal/shipping/storemap") && !slices.Contains(storemapMayImport, to)
+			return under(from, pkgStoremap) && !slices.Contains(storemapMayImport, to)
 		},
 		reason: "ECPay's store map holds no cart, order or session, so it imports no goen feature; " +
 			"the cart and the checkout import it, never the other way round",
@@ -268,16 +327,20 @@ var depsRules = []importRule{
 	{
 		name: "foundation",
 		hard: true,
+		pkgs: []string{pkgAccess, pkgAudit},
+		dirs: []string{dirAdmin},
 		forbid: func(from, to string) bool {
-			return (under(from, "internal/admin/access") || under(from, "internal/admin/audit")) && isDesk(to)
+			return (under(from, pkgAccess) || under(from, pkgAudit)) && isDesk(to)
 		},
 		reason: "access and audit are the foundation every desk imports, so they import no desk",
 	},
 	{
 		name: "one way",
 		hard: true,
+		pkgs: []string{cmdGoen},
+		dirs: []string{dirAdmin},
 		forbid: func(from, to string) bool {
-			return under(to, "internal/admin") && !under(from, "internal/admin") && from != "cmd/goen"
+			return under(to, dirAdmin) && !under(from, dirAdmin) && from != cmdGoen
 		},
 		reason: "only the back office and cmd/goen import a back-office package",
 	},
@@ -400,8 +463,8 @@ func TestDependencies(t *testing.T) {
 	if len(g.edges) < 50 {
 		t.Errorf("the graph has %d importing packages, want at least 50: the walker reads too little", len(g.edges))
 	}
-	if _, ok := g.edges["cmd/goen"]; !ok {
-		t.Error("cmd/goen is not among the importing packages: the walker reads too little")
+	if _, ok := g.edges[cmdGoen]; !ok {
+		t.Error(cmdGoen + " is not among the importing packages: the walker reads too little")
 	}
 	for pkg := range g.scanned {
 		for seg := range strings.SplitSeq(pkg, "/") {
@@ -418,6 +481,20 @@ func TestDependencies(t *testing.T) {
 		for _, name := range names {
 			if !g.scanned[name] {
 				problems = append(problems, fmt.Sprintf("%s: %q names no package: rename or delete the entry", list, name))
+			}
+		}
+	}
+	// A path a rule's predicate names is held to the same standard: a package that
+	// moved leaves the rule matching nothing, and no edge says so.
+	for _, rule := range depsRules {
+		for _, pkg := range rule.pkgs {
+			if !g.scanned[pkg] {
+				problems = append(problems, fmt.Sprintf("rule %q: its predicate names %q, which is no package: rename the path or delete the rule", rule.name, pkg))
+			}
+		}
+		for _, dir := range rule.dirs {
+			if !g.holds(dir) {
+				problems = append(problems, fmt.Sprintf("rule %q: its predicate names directory %q, which holds no package: rename the path or delete the rule", rule.name, dir))
 			}
 		}
 	}
