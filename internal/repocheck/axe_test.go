@@ -11,7 +11,7 @@ import (
 	"testing"
 )
 
-// TestTheLayoutGateFetchesAxeCoreAtAPinnedDigest refuses an audit whose rules
+// TestLayoutGateFetchesPinnedAxeCore refuses an audit whose rules
 // arrive from a CDN at page load.
 //
 // axe-core decides what merges, so where it comes from is a supply-chain
@@ -21,7 +21,7 @@ import (
 // a page no visitor is served. The Makefile fetches the file at a pinned
 // version, checks it against a digest pinned beside it, and the script
 // evaluates it over CDP.
-func TestTheLayoutGateFetchesAxeCoreAtAPinnedDigest(t *testing.T) {
+func TestLayoutGateFetchesPinnedAxeCore(t *testing.T) {
 	t.Parallel()
 
 	root := repoRoot(t)
@@ -117,15 +117,16 @@ func perRunFixtures(t *testing.T, script string) map[string]*regexp.Regexp {
 	return folds
 }
 
-// TestTheRouteKeyFoldsEveryOrderNumberTheShopDraws holds the baseline's route
-// keys to the day the number was drawn.
+// TestRouteKeyFoldsOrderNumbers requires the layout baseline's route keys to
+// fold every order number the shop can draw, and the warranty serial made from
+// it, so a key names the same page on any day.
 //
 // An order number is the day and six characters of the schema's alphabet, and
 // the layout fixtures mint one per run, with a warranty serial made from it. A
 // fold that only knows digits leaves GO-261014-FTEJYP in the key, which names
 // no baseline row, so every page the baseline accepts fails the gate on a run
 // whose number happens to carry a letter.
-func TestTheRouteKeyFoldsEveryOrderNumberTheShopDraws(t *testing.T) {
+func TestRouteKeyFoldsOrderNumbers(t *testing.T) {
 	t.Parallel()
 
 	root := repoRoot(t)

@@ -41,7 +41,7 @@ var sha256Users = map[string]string{
 	"migrations/migrations.go#Digest":                  "digest of migrations/001 a database records",
 }
 
-// TestNoBearerTokenIsMadeOrDigestedOutsideTheBearerPackage refuses a second
+// TestBearerMintAndDigestOnlyInBearer refuses a second
 // token generator or token digest. Seven tables store digests of tokens made by
 // internal/bearer, so a copy that drifts in encoding silently orphans every
 // session, cart and mailed link.
@@ -50,7 +50,7 @@ var sha256Users = map[string]string{
 // internal/bearer is the defect this catches. Add an entry to randReaders or
 // sha256Users only for randomness or hashing that is not a bearer token, and
 // say why. An entry that matches no call fails too, so the lists only shrink.
-func TestNoBearerTokenIsMadeOrDigestedOutsideTheBearerPackage(t *testing.T) {
+func TestBearerMintAndDigestOnlyInBearer(t *testing.T) {
 	t.Parallel()
 
 	root := repoRoot(t)

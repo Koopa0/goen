@@ -96,6 +96,7 @@ var migratedTestPackages = []string{
 	"internal/product/copurchase",
 	"internal/product/inventory",
 	"internal/product/labelling",
+	"internal/repocheck",
 	"internal/shipping",
 	"internal/shipping/postcode",
 	"internal/shipping/storemap",
