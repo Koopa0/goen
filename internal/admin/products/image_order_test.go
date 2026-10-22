@@ -5,7 +5,8 @@ import (
 	"testing"
 )
 
-func TestPlaceImageMovesOneAndRefusesNoOps(t *testing.T) {
+// TestPlaceImage: placeImage moves one image and refuses no-ops.
+func TestPlaceImage(t *testing.T) {
 	t.Parallel()
 	abc := []string{"a", "b", "c"}
 	for _, tc := range []struct {
@@ -34,9 +35,11 @@ func TestPlaceImageMovesOneAndRefusesNoOps(t *testing.T) {
 	}
 }
 
+// TestImageMoveWords: the image move words match the image list forms.
+//
 // The image list posts these words from its template, in another package; the
 // spelling is the contract between them.
-func TestImageMoveWordsMatchTheImageListForms(t *testing.T) {
+func TestImageMoveWords(t *testing.T) {
 	t.Parallel()
 	for move, want := range map[ImageMove]string{MoveToCover: "cover", MoveUp: "up", MoveDown: "down"} {
 		if string(move) != want {

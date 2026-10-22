@@ -32,10 +32,10 @@ import (
 var coveredByNamedTest = map[string]string{
 	"product_variants_restock_notices":       "TestReleasingTheLastHoldQueuesRestockNotices (internal/cart), TestStore_InspectRestocks (internal/admin/returns), TestStore_SetActiveRestockNotices (internal/admin/stock)",
 	"inventory_movements_source_parent":      "TestInventoryMovementSourceParents",
-	"product_options_before_variants":        "TestOptionAxesMustPrecedeVariants (internal/admin)",
-	"product_variants_lock_catalogue":        "TestOptionAxisAndVariantCreationSerialize (internal/admin)",
+	"product_options_before_variants":        "TestStore_AddOptionAfterVariants (internal/admin/products)",
+	"product_variants_lock_catalogue":        "TestStore_AddVariantOptionRace (internal/admin/products)",
 	"loyalty_lot_guard":                      "the loyalty_entries_lot_* rule cases below exercise each branch by its own constraint name",
-	"order_lines_bind_product":               "TestRetiringAPurchasedVariantDoesNotEraseVerifiedPurchase (internal/catalog), TestProductInvoiceLineFactsUseAdminRoleAndSnapshotOnOrderLines (internal/admin/products)",
+	"order_lines_bind_product":               "TestRetiringAPurchasedVariantDoesNotEraseVerifiedPurchase (internal/catalog), TestStore_SetProductInvoiceLineFacts (internal/admin/products)",
 	"product_variants_keep_product_sellable": "TestDeactivatingTheLastVariantIsRefused, TestDeletingTheLastVariantIsRefused",
 	"users_keep_one_admin_on_role":           "TestUsersTriggerKeepsOneAdmin (internal/db)",
 	"users_keep_one_admin_on_delete":         "TestUsersTriggerKeepsOneAdmin (internal/db)",

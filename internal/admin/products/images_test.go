@@ -8,10 +8,13 @@ import (
 	"github.com/koopa0/goen/internal/i18n"
 )
 
+// TestProductImagesThumbnails: the admin product images resolve seed and
+// uploaded thumbnails.
+//
 // A seeded image's key is a file name, not a digest, so /media/<key> is a 404:
 // the back office must resolve it from the embedded assets, as the storefront
 // does, and offer the 400px rendition to its small tiles.
-func TestAdminProductImagesResolveSeedAndUploadedThumbnails(t *testing.T) {
+func TestProductImagesThumbnails(t *testing.T) {
 	t.Parallel()
 	const seedKey = "pixelight-9-pro-01.webp"
 	digest := strings.Repeat("ab", 32)

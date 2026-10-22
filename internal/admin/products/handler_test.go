@@ -22,7 +22,9 @@ import (
 	"github.com/koopa0/goen/internal/web/formtext"
 )
 
-func TestEveryRedirectTheProductFormsMakeCarriesAMessage(t *testing.T) {
+// TestNoticesCoverRedirects: every redirect the product forms make carries a
+// message.
+func TestNoticesCoverRedirects(t *testing.T) {
 	t.Parallel()
 	names, err := filepath.Glob("*.go")
 	if err != nil {
@@ -57,7 +59,8 @@ func TestEveryRedirectTheProductFormsMakeCarriesAMessage(t *testing.T) {
 	}
 }
 
-func TestAttachImageRefusalNamesOnlyTheRefusedField(t *testing.T) {
+// TestAttachImageRefusal: attachImageRefusal names only the refused field.
+func TestAttachImageRefusal(t *testing.T) {
 	t.Parallel()
 	for _, tt := range []struct {
 		name  string
@@ -90,7 +93,9 @@ func TestAttachImageRefusalNamesOnlyTheRefusedField(t *testing.T) {
 	}
 }
 
-func TestUploadErrorsDistinguishBadFormsFromStorageFailures(t *testing.T) {
+// TestHandler_RespondToUploadError: upload errors distinguish bad forms from
+// storage failures.
+func TestHandler_RespondToUploadError(t *testing.T) {
 	t.Parallel()
 	for _, locale := range i18n.Locales() {
 		for _, tt := range []struct {
@@ -125,9 +130,12 @@ func TestUploadErrorsDistinguishBadFormsFromStorageFailures(t *testing.T) {
 	}
 }
 
+// TestHandler_RespondToUploadAborted: an abandoned upload is answered with
+// nothing.
+//
 // A browser that left mid-upload has no one to read a notice: the answer is
 // empty and nothing is logged as a failure.
-func TestAnAbandonedUploadIsAnsweredWithNothing(t *testing.T) {
+func TestHandler_RespondToUploadAborted(t *testing.T) {
 	t.Parallel()
 	var diagnostics bytes.Buffer
 	h := &Handler{log: slog.New(slog.NewJSONHandler(&diagnostics, nil))}

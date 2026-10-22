@@ -29,7 +29,9 @@ import (
 	"github.com/koopa0/goen/internal/web/requestid"
 )
 
-func TestProductReadsDistinguishAbsenceFromInfrastructure(t *testing.T) {
+// TestStore_ProductAbsentOrFailed: product reads distinguish absence from
+// infrastructure failure.
+func TestStore_ProductAbsentOrFailed(t *testing.T) {
 	ctx := t.Context()
 	missing := "no-such-product-" + uuid.NewString()
 	s := products.NewStore(pool)
@@ -105,9 +107,12 @@ func TestProductReadsDistinguishAbsenceFromInfrastructure(t *testing.T) {
 	}
 }
 
+// TestHandler_MissingProductNotFound: forms posted to a missing product answer
+// 404.
+//
 // A details form that is refused, and a new variant that is valid, posted to a
 // slug with no product, answer 404 like the editor page and the other routes.
-func TestProductFormsPostedToAMissingProductAnswerNotFound(t *testing.T) {
+func TestHandler_MissingProductNotFound(t *testing.T) {
 	ctx, _ := admintest.StaffContext(t, pool)
 	h := productstest.NewHandler(pool, products.NewStore(pool))
 	missing := "no-such-product-" + uuid.NewString()
@@ -128,7 +133,9 @@ func TestProductFormsPostedToAMissingProductAnswerNotFound(t *testing.T) {
 	}
 }
 
-func TestProductUpdateDistinguishesAbsenceFromSuccess(t *testing.T) {
+// TestStore_UpdateAbsentProduct: a product update distinguishes an absent
+// product from success.
+func TestStore_UpdateAbsentProduct(t *testing.T) {
 	ctx, _ := admintest.StaffContext(t, pool)
 	s := products.NewStore(pool)
 	slug := productstest.Draft(t, ctx, pool, s)
@@ -175,7 +182,8 @@ func TestProductUpdateDistinguishesAbsenceFromSuccess(t *testing.T) {
 	}
 }
 
-func TestAnAuditRowNamesItsActorAndRequest(t *testing.T) {
+// TestStore_SetStatusAuditActor: an audit row names its actor and request.
+func TestStore_SetStatusAuditActor(t *testing.T) {
 	ctx, actor := admintest.StaffContext(t, pool)
 	s := products.NewStore(pool)
 
@@ -203,7 +211,9 @@ func TestAnAuditRowNamesItsActorAndRequest(t *testing.T) {
 	}
 }
 
-func TestProductUpdateAndAuditCommitTogether(t *testing.T) {
+// TestStore_UpdateAuditAtomic: a product update and its audit row commit
+// together.
+func TestStore_UpdateAuditAtomic(t *testing.T) {
 	ctx, actor := admintest.StaffContext(t, pool)
 	s := products.NewStore(pool)
 	slug := productstest.Draft(t, ctx, pool, s)
@@ -276,7 +286,9 @@ func TestProductUpdateAndAuditCommitTogether(t *testing.T) {
 	}
 }
 
-func TestAnActionWithNoActorIsRefused(t *testing.T) {
+// TestStore_SetStatusNoActor: a status change with no actor is refused and
+// leaves the status as it was.
+func TestStore_SetStatusNoActor(t *testing.T) {
 	s := products.NewStore(pool)
 	slug := admintest.AnyProductSlug(t, pool)
 
@@ -307,7 +319,8 @@ func TestAnActionWithNoActorIsRefused(t *testing.T) {
 	}
 }
 
-func TestAFailedWriteLeavesNoAuditRow(t *testing.T) {
+// TestStore_SetStatusRefusedNoAudit: a failed write leaves no audit row.
+func TestStore_SetStatusRefusedNoAudit(t *testing.T) {
 	ctx, _ := admintest.StaffContext(t, pool)
 	s := products.NewStore(pool)
 
@@ -323,7 +336,9 @@ func TestAFailedWriteLeavesNoAuditRow(t *testing.T) {
 	}
 }
 
-func TestOneUploadCanBeAttachedToTwoProducts(t *testing.T) {
+// TestStore_AttachImageSharedUpload: one upload can be attached to two products,
+// but only once to each.
+func TestStore_AttachImageSharedUpload(t *testing.T) {
 	ctx, _ := admintest.StaffContext(t, pool)
 	s := products.NewStore(pool)
 
@@ -374,7 +389,8 @@ func twoProducts(t *testing.T) (first, second string) {
 	return slugs[0], slugs[1]
 }
 
-func TestTheShopCanGiveAProductASpecTable(t *testing.T) {
+// TestStore_AddRemoveSpec: the shop can give a product a specification table.
+func TestStore_AddRemoveSpec(t *testing.T) {
 	ctx, _ := admintest.StaffContext(t, pool)
 	s := products.NewStore(pool)
 	slug := productstest.Draft(t, ctx, pool, s)
@@ -423,7 +439,8 @@ func TestTheShopCanGiveAProductASpecTable(t *testing.T) {
 	}
 }
 
-func TestASpecIsRefusedRatherThanTruncated(t *testing.T) {
+// TestStore_AddSpecBounds: a specification is refused rather than truncated.
+func TestStore_AddSpecBounds(t *testing.T) {
 	ctx, _ := admintest.StaffContext(t, pool)
 	s := products.NewStore(pool)
 	slug := productstest.Draft(t, ctx, pool, s)
@@ -485,7 +502,9 @@ func TestASpecIsRefusedRatherThanTruncated(t *testing.T) {
 	}
 }
 
-func TestAProductCannotHaveTwoSpecsWithTheSameIdentity(t *testing.T) {
+// TestStore_AddSpecDuplicateLabel: a product cannot have two specifications with
+// the same label.
+func TestStore_AddSpecDuplicateLabel(t *testing.T) {
 	ctx, _ := admintest.StaffContext(t, pool)
 	s := products.NewStore(pool)
 	slug := productstest.Draft(t, ctx, pool, s)
@@ -517,7 +536,8 @@ func TestAProductCannotHaveTwoSpecsWithTheSameIdentity(t *testing.T) {
 	}
 }
 
-func TestTheShopCanGiveAProductAVariantPicker(t *testing.T) {
+// TestStore_AddVariantPicker: the shop can give a product a variant picker.
+func TestStore_AddVariantPicker(t *testing.T) {
 	ctx, _ := admintest.StaffContext(t, pool)
 	s := products.NewStore(pool)
 	slug := productstest.Draft(t, ctx, pool, s)
@@ -600,10 +620,13 @@ func TestTheShopCanGiveAProductAVariantPicker(t *testing.T) {
 	}
 }
 
+// TestHandler_AddOptionValueSwatch: a mistyped colour comes back beside the
+// field.
+//
 // A colour is a shape, not a word, and the shop finds that out at the field
 // rather than from a refused write. The column's CHECK is the last word; this
 // is the first one, and the two have to agree or the page 500s on a typo.
-func TestAMistypedColourComesBackBesideTheField(t *testing.T) {
+func TestHandler_AddOptionValueSwatch(t *testing.T) {
 	ctx, _ := admintest.StaffContext(t, pool)
 	s := products.NewStore(pool)
 	h := productstest.NewHandler(pool, s)
@@ -694,7 +717,9 @@ func postOptionValueForm(
 	return res
 }
 
-func TestAVariantCannotBorrowAnotherProductsOptionValue(t *testing.T) {
+// TestStore_AddVariantBorrowedValue: a variant cannot borrow another product's
+// option value.
+func TestStore_AddVariantBorrowedValue(t *testing.T) {
 	ctx, _ := admintest.StaffContext(t, pool)
 	s := products.NewStore(pool)
 
@@ -743,7 +768,9 @@ func TestAVariantCannotBorrowAnotherProductsOptionValue(t *testing.T) {
 	}
 }
 
-func TestTheOptionValueIsAddedToTheRightProduct(t *testing.T) {
+// TestStore_AddOptionValueOtherProduct: an option value is added to the right
+// product, never to another product's axis.
+func TestStore_AddOptionValueOtherProduct(t *testing.T) {
 	ctx, _ := admintest.StaffContext(t, pool)
 	s := products.NewStore(pool)
 
@@ -769,7 +796,8 @@ func TestTheOptionValueIsAddedToTheRightProduct(t *testing.T) {
 	}
 }
 
-func TestAltTextFollowsThePagesLanguage(t *testing.T) {
+// TestLocalizedNameAltText: an image's alt text follows the page's language.
+func TestLocalizedNameAltText(t *testing.T) {
 	ctx, _ := admintest.StaffContext(t, pool)
 	s := products.NewStore(pool)
 	slug := productstest.Draft(t, ctx, pool, s)
@@ -831,7 +859,9 @@ func storeMedia(t *testing.T, in *pgxpool.Pool) string {
 	return digest
 }
 
-func TestAMistypedWarrantyTermIsRefusedNotDropped(t *testing.T) {
+// TestHandler_UpdateMistypedWarranty: a mistyped warranty term is refused, not
+// dropped.
+func TestHandler_UpdateMistypedWarranty(t *testing.T) {
 	ctx, _ := admintest.StaffContext(t, pool)
 	s := products.NewStore(pool)
 	slug := productstest.Draft(t, ctx, pool, s)
@@ -882,7 +912,9 @@ func TestAMistypedWarrantyTermIsRefusedNotDropped(t *testing.T) {
 	}
 }
 
-func TestAParcelSumCannotBeShorterThanItsLongestSide(t *testing.T) {
+// TestHandler_AddVariantShortParcelSum: a parcel sum cannot be shorter than its
+// longest side, in the form or in the database.
+func TestHandler_AddVariantShortParcelSum(t *testing.T) {
 	ctx, _ := admintest.StaffContext(t, pool)
 	s := products.NewStore(pool)
 	slug := productstest.Draft(t, ctx, pool, s)
@@ -918,7 +950,8 @@ func TestAParcelSumCannotBeShorterThanItsLongestSide(t *testing.T) {
 	}
 }
 
-func TestTheShopSetsEachProductsWarrantyTerm(t *testing.T) {
+// TestStore_UpdateWarrantyTerm: the shop sets each product's warranty term.
+func TestStore_UpdateWarrantyTerm(t *testing.T) {
 	ctx, _ := admintest.StaffContext(t, pool)
 	s := products.NewStore(pool)
 	slug := productstest.Draft(t, ctx, pool, s)

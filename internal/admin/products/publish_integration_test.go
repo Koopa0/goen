@@ -16,10 +16,10 @@ import (
 	"github.com/koopa0/goen/internal/admin/products/productstest"
 )
 
-// TestPublishAnswersEachOutcome: publishing a product with nothing to sell is
+// TestHandler_PublishOutcomes: publishing a product with nothing to sell is
 // refused at COMMIT by the deferred products_active_has_variant, which is a
 // rule staff can act on; a database that cannot be reached is not.
-func TestPublishAnswersEachOutcome(t *testing.T) {
+func TestHandler_PublishOutcomes(t *testing.T) {
 	ctx, _ := admintest.StaffContext(t, pool)
 	s := products.NewStore(pool)
 	empty := productstest.Draft(t, ctx, pool, s)

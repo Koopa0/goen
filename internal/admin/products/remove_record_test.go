@@ -12,7 +12,9 @@ import (
 	"github.com/koopa0/goen/internal/i18n"
 )
 
-func TestRemoveButtonsNameTheirRecord(t *testing.T) {
+// TestProductImagesRemoveButtons: the remove buttons of the image list and of
+// the specification table name their record.
+func TestProductImagesRemoveButtons(t *testing.T) {
 	t.Parallel()
 	for _, locale := range []struct {
 		locale i18n.Locale

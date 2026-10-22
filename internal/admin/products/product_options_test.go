@@ -13,7 +13,9 @@ import (
 	"github.com/koopa0/goen/internal/ui/frame"
 )
 
-func TestOptionFormIsReplacedByTheNoteOnceAProductHasVariants(t *testing.T) {
+// TestProductOptionsFrozenNote: the option form is replaced by a note once the
+// product has variants.
+func TestProductOptionsFrozenNote(t *testing.T) {
 	t.Parallel()
 	for _, locale := range []i18n.Locale{i18n.ZhHant, i18n.En} {
 		ctx := i18n.WithLocale(t.Context(), locale)
@@ -45,11 +47,14 @@ func TestOptionFormIsReplacedByTheNoteOnceAProductHasVariants(t *testing.T) {
 	}
 }
 
+// TestProductOptionsRefusedChoices: a refused option or variant form keeps the
+// choices made.
+//
 // A refused option or variant form comes back holding what was submitted. The
 // selects matter most: they default to the first choice, so a re-render that
 // forgets them files the corrected resubmit under the first axis or on the
 // first combination.
-func TestARefusedOptionOrVariantFormKeepsTheChoicesMade(t *testing.T) {
+func TestProductOptionsRefusedChoices(t *testing.T) {
 	t.Parallel()
 	ctx := i18n.WithLocale(t.Context(), i18n.ZhHant)
 	view := ProductView{
@@ -104,7 +109,9 @@ func TestARefusedOptionOrVariantFormKeepsTheChoicesMade(t *testing.T) {
 	}
 }
 
-func TestTheProductPageJumpsToItsSectionsAndKeepsItsStatusMovesAtTheTop(t *testing.T) {
+// TestProductFormSectionNav: the product page jumps to its sections and keeps
+// its status moves at the top.
+func TestProductFormSectionNav(t *testing.T) {
 	t.Parallel()
 	ctx := i18n.WithLocale(t.Context(), i18n.ZhHant)
 	var b strings.Builder

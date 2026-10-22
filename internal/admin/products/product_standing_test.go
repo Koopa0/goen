@@ -25,7 +25,9 @@ func renderStanding(t *testing.T, loc i18n.Locale, v *ProductView) string {
 	return renderComponent(t, i18n.WithLocale(t.Context(), loc), productStanding(*v))
 }
 
-func TestWeeklyUnitsAreToldInASentenceUntilThreeDaysSold(t *testing.T) {
+// TestProductStandingSalesSentence: weekly units are told in a sentence until
+// three days have sold.
+func TestProductStandingSalesSentence(t *testing.T) {
 	tests := []struct {
 		name  string
 		units map[int]int64
@@ -48,7 +50,8 @@ func TestWeeklyUnitsAreToldInASentenceUntilThreeDaysSold(t *testing.T) {
 	}
 }
 
-func TestWeeklyUnitsAreThirteenWholeWeeks(t *testing.T) {
+// TestProductStandingThirteenWeeks: weekly units are thirteen whole weeks.
+func TestProductStandingThirteenWeeks(t *testing.T) {
 	sparse := map[int]int64{10: 1, 30: 2, 50: 1, 90: 3}
 	got := renderStanding(t, i18n.En, &ProductView{Sales: thirteenWeeks(sparse)})
 	if !strings.Contains(got, "Units sold per week</h3>") {
@@ -70,7 +73,8 @@ func TestWeeklyUnitsAreThirteenWholeWeeks(t *testing.T) {
 	}
 }
 
-func TestWeeklyUnitsNameTheBestWeek(t *testing.T) {
+// TestProductStandingBestWeek: weekly units name the best week.
+func TestProductStandingBestWeek(t *testing.T) {
 	// Jul 8 is day 0, so week 5 starts on day 35, Aug 12.
 	units := map[int]int64{0: 1, 10: 1, 20: 1, 36: 4, 37: 3, 70: 2, 90: 1}
 	got := renderStanding(t, i18n.En, &ProductView{Sales: thirteenWeeks(units)})
@@ -85,7 +89,9 @@ func TestWeeklyUnitsNameTheBestWeek(t *testing.T) {
 	}
 }
 
-func TestAWeeklyChartThatCouldNotBeReadIsNotAnEmptyOne(t *testing.T) {
+// TestProductStandingUnavailable: a weekly chart that could not be read is not
+// shown as an empty one.
+func TestProductStandingUnavailable(t *testing.T) {
 	got := renderStanding(t, i18n.En, &ProductView{Sales: Sales{Unavailable: true}, Ratings: ProductRatings{Unavailable: true}})
 	if n := strings.Count(got, `role="status"`); n != 2 {
 		t.Errorf("status lines = %d, want 2", n)
@@ -98,7 +104,8 @@ func TestAWeeklyChartThatCouldNotBeReadIsNotAnEmptyOne(t *testing.T) {
 	}
 }
 
-func TestTheRatingSpreadNeedsFiveReviews(t *testing.T) {
+// TestProductStandingSpreadMinimum: the rating spread needs five reviews.
+func TestProductStandingSpreadMinimum(t *testing.T) {
 	tests := []struct {
 		name    string
 		ratings ProductRatings
@@ -124,7 +131,9 @@ func TestTheRatingSpreadNeedsFiveReviews(t *testing.T) {
 	}
 }
 
-func TestTheRatingSpreadCountsEveryStarInTextAndScalesToTheLargest(t *testing.T) {
+// TestProductStandingSpreadCounts: the rating spread counts every star in text
+// and scales to the largest.
+func TestProductStandingSpreadCounts(t *testing.T) {
 	got := renderStanding(t, i18n.En, &ProductView{Ratings: ProductRatings{Count: 12, Average: 4.2, Stars: [5]int64{8, 2, 1, 0, 1}}})
 	_, table, _ := strings.Cut(got, `class="goen-spread"`)
 	for _, want := range []string{

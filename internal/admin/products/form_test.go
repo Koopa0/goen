@@ -20,7 +20,9 @@ import (
 	"github.com/koopa0/goen/internal/web/formtext"
 )
 
-func TestAFormNumberKeepsInvalidDistinctFromZero(t *testing.T) {
+// TestParseBoundedCeilings: a form number keeps an invalid entry distinct from
+// zero, at each ceiling this desk applies.
+func TestParseBoundedCeilings(t *testing.T) {
 	t.Parallel()
 	for _, tt := range []struct {
 		name string
@@ -86,7 +88,9 @@ func FuzzParseBoundedInt(f *testing.F) {
 	})
 }
 
-func TestAParcelSumCoversItsLongestSideBeforeWriting(t *testing.T) {
+// TestVariantForm_ValidateParcelSum: a parcel sum shorter than the longest side
+// is refused before anything is written.
+func TestVariantForm_ValidateParcelSum(t *testing.T) {
 	t.Parallel()
 	ctx := i18n.WithLocale(t.Context(), i18n.En)
 	for _, tt := range []struct {
@@ -112,7 +116,10 @@ func TestAParcelSumCoversItsLongestSideBeforeWriting(t *testing.T) {
 	}
 }
 
-func TestParcelAndSafetyBoundsGuardStoreCallers(t *testing.T) {
+// TestVariantForm_ValidateCeilings: parcel and safety bounds guard store
+// callers: one over a ceiling is refused on its field and the ceiling itself is
+// accepted.
+func TestVariantForm_ValidateCeilings(t *testing.T) {
 	t.Parallel()
 	ctx := i18n.WithLocale(t.Context(), i18n.En)
 	for _, tt := range []struct {
@@ -159,13 +166,16 @@ func TestParcelAndSafetyBoundsGuardStoreCallers(t *testing.T) {
 	}
 }
 
-// TestAMistypedPriceIsRefusedByEveryFormThatWritesOne. Two back-office forms
-// write products.price_cents and compare_at_price_cents: the reprice box on
-// /admin/stock and the variant form on /admin/products/{slug}. Both must tell a
-// blank field from an unreadable one, because zero on a compare-at price is not
-// an error — it is the stored value for "not on sale", so a collapsed figure
-// publishes the product at full price with the discount silently dropped.
-func TestAMistypedPriceIsRefusedByEveryFormThatWritesOne(t *testing.T) {
+// TestVariantFormOfMistypedPrice: the variant form refuses an unreadable,
+// negative or too large price or compare-at price instead of reading it as zero.
+// Two back-office forms write products.price_cents and compare_at_price_cents,
+// the reprice box on /admin/stock and the variant form on
+// /admin/products/{slug}. Both must tell a blank field from an unreadable one,
+// because zero on a compare-at price is not an error: it is the stored value for
+// "not on sale", so a collapsed figure publishes the product at full price with
+// the discount silently dropped. This test drives the variant form only and
+// does not cover the reprice box.
+func TestVariantFormOfMistypedPrice(t *testing.T) {
 	t.Parallel()
 
 	for _, tt := range []struct {
@@ -195,7 +205,9 @@ func TestAMistypedPriceIsRefusedByEveryFormThatWritesOne(t *testing.T) {
 	}
 }
 
-func TestAVariantSKUNeedsTheShapeTheColumnRequires(t *testing.T) {
+// TestVariantForm_ValidateSKUShape: a variant SKU needs the shape the column
+// requires.
+func TestVariantForm_ValidateSKUShape(t *testing.T) {
 	t.Parallel()
 	ctx := i18n.WithLocale(t.Context(), i18n.En)
 	for _, tt := range []struct {
@@ -223,7 +235,9 @@ func TestAVariantSKUNeedsTheShapeTheColumnRequires(t *testing.T) {
 	}
 }
 
-func TestAVariantWriteRefusedForItsSKUShapeNamesTheSKUField(t *testing.T) {
+// TestVariantWriteErrorSKUFormat: a variant write refused for its SKU shape
+// names the SKU field.
+func TestVariantWriteErrorSKUFormat(t *testing.T) {
 	t.Parallel()
 	ctx := i18n.WithLocale(t.Context(), i18n.En)
 	err := fmt.Errorf("%w: %w", ErrRefused, &pgconn.PgError{

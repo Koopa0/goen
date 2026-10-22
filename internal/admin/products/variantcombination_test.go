@@ -7,10 +7,13 @@ import (
 	"github.com/koopa0/goen/internal/i18n"
 )
 
+// TestVariantWriteErrorCombinationTaken: a duplicate option combination is
+// refused on the option selects.
+//
 // A combination another SKU already carries is answered on the option selects,
 // the control that chose it, and not as a server error: the storefront sells a
 // selection only when exactly one variant matches it.
-func TestADuplicateOptionCombinationIsRefusedOnTheOptionSelects(t *testing.T) {
+func TestVariantWriteErrorCombinationTaken(t *testing.T) {
 	t.Parallel()
 	ctx := i18n.WithLocale(t.Context(), i18n.ZhHant)
 

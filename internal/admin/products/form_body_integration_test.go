@@ -19,7 +19,9 @@ import (
 	"github.com/koopa0/goen/internal/i18n"
 )
 
-func TestProductFormsAcceptTheirFullBilingualTextLimits(t *testing.T) {
+// TestHandler_CreateUpdateTextLimits: the product forms accept their full
+// bilingual text limits.
+func TestHandler_CreateUpdateTextLimits(t *testing.T) {
 	for _, tt := range []struct {
 		name string
 		text string

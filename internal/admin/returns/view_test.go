@@ -221,7 +221,7 @@ func TestReturnsRefusedInspectionCounts(t *testing.T) {
 // TestReturnsView_InspectionRefusalsOnce: the inspection refusals count each
 // refusal once.
 //
-// From TestRefusalSummariesCountEachRefusalOnce, which keeps the product half.
+// From TestProductView_VariantRefusal, which keeps the product half.
 func TestReturnsView_InspectionRefusalsOnce(t *testing.T) {
 	t.Parallel()
 	view := ReturnsView{

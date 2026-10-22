@@ -7,7 +7,9 @@ import (
 	"github.com/koopa0/goen/internal/i18n"
 )
 
-func TestTheProductsPageSaysHowManyAreSold(t *testing.T) {
+// TestProductsPublishedCount: the products page says how many products are
+// published.
+func TestProductsPublishedCount(t *testing.T) {
 	t.Parallel()
 	for _, tc := range []struct {
 		loc  i18n.Locale

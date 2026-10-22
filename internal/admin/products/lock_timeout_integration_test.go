@@ -11,10 +11,10 @@ import (
 	"github.com/koopa0/goen/internal/admin/products"
 )
 
-// TestAttachImageAnswersALockTimeoutAsAFailure: the catalogue lock timing out
+// TestStore_AttachImageLockTimeout: the catalogue lock timing out
 // is the database not answering, and calling it a refusal tells staff the
 // image is already on the product.
-func TestAttachImageAnswersALockTimeoutAsAFailure(t *testing.T) {
+func TestStore_AttachImageLockTimeout(t *testing.T) {
 	ctx, _ := admintest.StaffContext(t, pool)
 	slug := admintest.AnyProductSlug(t, pool)
 	s := products.NewStore(admintest.LockTimeoutPool(t, pool))

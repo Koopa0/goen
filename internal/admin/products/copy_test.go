@@ -8,7 +8,9 @@ import (
 	"github.com/koopa0/goen/internal/ui/frame"
 )
 
-func TestTheNewProductSectionIsNotNamedLikeItsFirstField(t *testing.T) {
+// TestProductFormNewSection: the new product section is not named like its first
+// field.
+func TestProductFormNewSection(t *testing.T) {
 	t.Parallel()
 	for _, tt := range []struct {
 		locale  i18n.Locale
@@ -28,7 +30,8 @@ func TestTheNewProductSectionIsNotNamedLikeItsFirstField(t *testing.T) {
 	}
 }
 
-func TestAnExampleIsItsOwnHintLine(t *testing.T) {
+// TestProductFormExampleLine: an example is its own hint line.
+func TestProductFormExampleLine(t *testing.T) {
 	t.Parallel()
 	ctx := i18n.WithLocale(t.Context(), i18n.ZhHant)
 	pages := map[string]string{
@@ -44,7 +47,8 @@ func TestAnExampleIsItsOwnHintLine(t *testing.T) {
 	}
 }
 
-func TestEveryExampleHintReadsInFull(t *testing.T) {
+// TestProductFormExampleHints: every example hint reads in full.
+func TestProductFormExampleHints(t *testing.T) {
 	t.Parallel()
 	for _, tt := range []struct {
 		locale   i18n.Locale
