@@ -1,0 +1,6 @@
+file	old	new	unit	source	action	newfile
+internal/web/clientip/clientip_test.go	TestNothingIsTrustedUntilSomethingIsConfigured	TestProxies_ResolveUnconfigured	Proxies_Resolve	hand	rename	
+internal/web/clientip/clientip_test.go	TestOverlapsAsksWhetherAnyAddressInThePrefixIsTrusted	TestProxies_Overlaps	Proxies_Overlaps	hand	rename	
+internal/web/clientip/clientip_test.go	TestParseProxiesRefusesWhatCannotBeAConfiguration	TestParseProxies	ParseProxies	hand	rename	
+internal/web/clientip/clientip_test.go	TestTheAddressToRecordKeepsAllOfAnIPv6Address	TestFromWholeIPv6Address	From	hand	rename	
+internal/web/clientip/clientip_test.go	TestTheRightmostUntrustedHopIsTheClient	TestProxies_ResolveRightmostHop	Proxies_Resolve	hand	rename	

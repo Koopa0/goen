@@ -35,6 +35,14 @@ const maxTestNameLen = 40
 var migratedTestPackages = []string{
 	"assets",
 	"internal/media",
+	"internal/web/clientip",
+	"internal/web/compress",
+	"internal/web/formtext",
+	"internal/web/probe",
+	"internal/web/ratelimit",
+	"internal/web/requestid",
+	"internal/web/respond",
+	"internal/web/siteurl",
 }
 
 // testNameExceptions is the shrink-only allow list: for a listed package, each

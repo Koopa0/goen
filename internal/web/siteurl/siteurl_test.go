@@ -7,8 +7,10 @@ import (
 	"testing"
 )
 
+// Path refuses anything but a path on this site.
+//
 // Every refusal below is a real bypass of a prefix check or of RFC 3986 parsing.
-func TestPathRefusesAnythingButAPathOnThisSite(t *testing.T) {
+func TestPath(t *testing.T) {
 	t.Parallel()
 
 	tests := []struct {
@@ -133,9 +135,9 @@ func whatwgOrigin(ref string) string {
 
 func isSlash(b byte) bool { return b == '/' || b == '\\' }
 
-// TestPathOrFallsBackRatherThanErroring: somebody switching language cannot
+// PathOr falls back rather than erroring: somebody switching language cannot
 // read the error page they would otherwise land on.
-func TestPathOrFallsBackRatherThanErroring(t *testing.T) {
+func TestPathOr(t *testing.T) {
 	if got := PathOr("//evil.example", "/"); got != "/" {
 		t.Errorf("a refused target gave %q, want the fallback", got)
 	}
@@ -148,7 +150,8 @@ func TestPathOrFallsBackRatherThanErroring(t *testing.T) {
 	}
 }
 
-func TestOriginRefusesWhatIsNotAnOrigin(t *testing.T) {
+// Origin refuses what is not an origin.
+func TestOrigin(t *testing.T) {
 	t.Parallel()
 
 	tests := []struct {
@@ -288,7 +291,8 @@ func FuzzOrigin(f *testing.F) {
 	})
 }
 
-func TestValidSlugIsLowerCaseWordsJoinedByHyphens(t *testing.T) {
+// A valid slug is lower-case words joined by hyphens.
+func TestValidSlug(t *testing.T) {
 	t.Parallel()
 	for in, want := range map[string]bool{
 		"koto-cable": true, "a1": true, "": false, "Koto": false, "a--b": false,
