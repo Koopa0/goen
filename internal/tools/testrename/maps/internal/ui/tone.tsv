@@ -1,0 +1,2 @@
+file	old	new	unit	source	action	newfile
+internal/ui/tone/tone_test.go	TestAnUnsetOrUnknownToneIsStone	TestResolveDefaultsToStone	Resolve	hand	rename	

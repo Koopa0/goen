@@ -10,7 +10,8 @@ import (
 	"github.com/koopa0/goen/internal/ui/widget"
 )
 
-func TestACampaignNamesItsLastDayHoweverFarOff(t *testing.T) {
+// TestEndsOn: a campaign names its last day however far off.
+func TestEndsOn(t *testing.T) {
 	t.Parallel()
 
 	// 12:00 in Taipei.
@@ -43,7 +44,8 @@ func TestACampaignNamesItsLastDayHoweverFarOff(t *testing.T) {
 	}
 }
 
-func TestTheCampaignEndStatNamesItsLastDayAndTheLastTwoDays(t *testing.T) {
+// TestEndStat: the campaign end stat names its last day and the last two days.
+func TestEndStat(t *testing.T) {
 	t.Parallel()
 	ctx := i18n.WithLocale(t.Context(), i18n.ZhHant)
 	now := time.Date(2026, 10, 9, 4, 0, 0, 0, time.UTC)

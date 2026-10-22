@@ -29,7 +29,9 @@ func renderComponent(t *testing.T, ctx context.Context, c templ.Component) strin
 	return b.String()
 }
 
-func TestCardFactsPutDaysLeftBeforeTheEndAndOmitItInTheLastTwoDays(t *testing.T) {
+// TestSchedule_CardFacts: card facts put days left before the end and omit it
+// in the last two days.
+func TestSchedule_CardFacts(t *testing.T) {
 	t.Parallel()
 	ctx := i18n.WithLocale(t.Context(), i18n.ZhHant)
 	for _, tt := range []struct {
@@ -55,7 +57,9 @@ func TestCardFactsPutDaysLeftBeforeTheEndAndOmitItInTheLastTwoDays(t *testing.T)
 	}
 }
 
-func TestAFactNamesWhatItCountsOnce(t *testing.T) {
+// TestNewScheduleFacts: a fact names what it counts once: each rendered fact
+// line names its noun once, in both locales.
+func TestNewScheduleFacts(t *testing.T) {
 	t.Parallel()
 	ends := time.Date(2026, 10, 10, 0, 0, 0, 0, time.UTC)
 	now := time.Date(2026, 10, 3, 12, 0, 0, 0, time.UTC)

@@ -39,7 +39,10 @@ func testMap(t *testing.T, mode LogisticsMode) *Client {
 	return m
 }
 
-func TestTheStoreMapIsOffUntilAContractIsNamed(t *testing.T) {
+// TestNew: the store map is off until a contract is named: no mode is the
+// feature off and not an error, a mode with a merchant id builds the staging or
+// production map, and half a configuration refuses to start.
+func TestNew(t *testing.T) {
 	t.Parallel()
 
 	tests := []struct {
@@ -147,10 +150,12 @@ func TestTheStoreMapIsOffUntilAContractIsNamed(t *testing.T) {
 	}
 }
 
-// TestTheMapFormCarriesTheContractAndNothingElse holds the subtype table, which
-// is the one field that differs between the two contracts, and the fixed values
-// ECPay's map requires.
-func TestTheMapFormCarriesTheContractAndNothingElse(t *testing.T) {
+// TestClient_Request: the map form carries the contract and nothing else: the
+// subtype for each mode and chain, the fixed values ECPay requires, no form for
+// a chain ECPay does not serve, and Device only on a phone. It holds the
+// subtype table, which is the one field that differs between the two contracts,
+// and the fixed values ECPay's map requires.
+func TestClient_Request(t *testing.T) {
 	t.Parallel()
 
 	tests := []struct {
@@ -210,10 +215,12 @@ func TestTheMapFormCarriesTheContractAndNothingElse(t *testing.T) {
 	}
 }
 
-// TestACorrelationNumberIsNeverTheNonce pins the one finding the security
-// review made about the map request itself: MerchantTradeNo reaches ECPay's own
-// systems and logs, and the nonce is a browser-bound secret.
-func TestACorrelationNumberIsNeverTheNonce(t *testing.T) {
+// TestNewMerchantTradeNoNotNonce: a correlation number is never the nonce:
+// MerchantTradeNo is unique, twenty characters and not of a nonce's shape, and
+// NewNonce produces valid, distinct nonces. It pins the one finding the
+// security review made about the map request itself: MerchantTradeNo reaches
+// ECPay's own systems and logs, and the nonce is a browser-bound secret.
+func TestNewMerchantTradeNoNotNonce(t *testing.T) {
 	t.Parallel()
 
 	first, err := NewMerchantTradeNo()
@@ -250,7 +257,8 @@ func TestACorrelationNumberIsNeverTheNonce(t *testing.T) {
 	}
 }
 
-func TestANonceShapeIsExactlyTwentyLowercaseHex(t *testing.T) {
+// TestValidNonce: a nonce is exactly twenty lowercase hex characters.
+func TestValidNonce(t *testing.T) {
 	t.Parallel()
 
 	for _, tt := range []struct {
@@ -271,9 +279,11 @@ func TestANonceShapeIsExactlyTwentyLowercaseHex(t *testing.T) {
 	}
 }
 
-// TestOnlyThisBrowsersOwnStoreIsHonoured is the ONE security rule, in the one
-// place it lives. Both attacks the design names end here.
-func TestOnlyThisBrowsersOwnStoreIsHonoured(t *testing.T) {
+// TestHonoured: only this browser's own store is honoured: a posted store
+// counts only with the nonce this browser's cookie holds, a chain the checkout
+// offers and a known store. It is the ONE security rule, in the one place it
+// lives. Both attacks the design names end here.
+func TestHonoured(t *testing.T) {
 	t.Parallel()
 
 	const otherNonce = "fedcba98765432100000"
@@ -341,9 +351,11 @@ func TestOnlyThisBrowsersOwnStoreIsHonoured(t *testing.T) {
 	}
 }
 
-// TestTheCallbackIsCheckedForShapeAndNothingElse is R3: every rejection the
-// return handler makes, over the fields ECPay documents.
-func TestTheCallbackIsCheckedForShapeAndNothingElse(t *testing.T) {
+// TestClient_ReadCallback: the callback is checked for shape and nothing else:
+// what ECPay posts is read, and each malformed or foreign field is refused. It
+// is R3: every rejection the return handler makes, over the fields ECPay
+// documents.
+func TestClient_ReadCallback(t *testing.T) {
 	t.Parallel()
 
 	good := func() url.Values {
@@ -472,9 +484,10 @@ func TestTheCallbackIsCheckedForShapeAndNothingElse(t *testing.T) {
 	}
 }
 
-// TestADisabledMapReadsNoCallbackAtAll is the other half of R4: without a
-// carrier there is no route, and the reader behind it would refuse anyway.
-func TestADisabledMapReadsNoCallbackAtAll(t *testing.T) {
+// TestClient_ReadCallbackDisabled: a disabled map reads no callback at all. It
+// is the other half of R4: without a carrier there is no route, and the reader
+// behind it would refuse anyway.
+func TestClient_ReadCallbackDisabled(t *testing.T) {
 	t.Parallel()
 
 	off, err := New(aMerchantID, "", "", "https://goen.test")
@@ -492,11 +505,12 @@ func TestADisabledMapReadsNoCallbackAtAll(t *testing.T) {
 	}
 }
 
-// TestALowerCaseStoreCodeIsReadTheWayPlacementReadsIt closes the gap the review
+// TestClient_ReadCallbackFoldsStoreCode: a lower-case store code is read the
+// way placement reads it: trimmed and upper-cased. It closes the gap the review
 // found: Delivery.Trim uppercases the code before the same shape rule runs at
 // placement, so the return must fold it the same way or it refuses a store the
 // order would have accepted.
-func TestALowerCaseStoreCodeIsReadTheWayPlacementReadsIt(t *testing.T) {
+func TestClient_ReadCallbackFoldsStoreCode(t *testing.T) {
 	t.Parallel()
 
 	form := url.Values{
@@ -516,9 +530,11 @@ func TestALowerCaseStoreCodeIsReadTheWayPlacementReadsIt(t *testing.T) {
 	}
 }
 
-// TestNothingPostedReachesTheSchemeHostOrPathOfTheRefresh is the rule that, if
-// dropped, turns a CSRF-exempt endpoint into an open redirect.
-func TestNothingPostedReachesTheSchemeHostOrPathOfTheRefresh(t *testing.T) {
+// TestCallback_RefreshTargetStaysLocal: nothing posted reaches the scheme, host
+// or path of the refresh, and the posted name and nonce come back intact in its
+// query. It is the rule that, if dropped, turns a CSRF-exempt endpoint into an
+// open redirect.
+func TestCallback_RefreshTargetStaysLocal(t *testing.T) {
 	t.Parallel()
 
 	hostile := []string{
@@ -564,10 +580,12 @@ func TestNothingPostedReachesTheSchemeHostOrPathOfTheRefresh(t *testing.T) {
 	}
 }
 
-// TestThePickupCookieFollowsTheHouseNaming holds R2, including the development
-// name: a __Host- cookie without Secure is rejected outright by the browser,
-// and the whole feature would silently never work on a plain-HTTP dev server.
-func TestThePickupCookieFollowsTheHouseNaming(t *testing.T) {
+// TestWriteCookie: the pickup cookie follows the house naming: the __Host- name
+// when Secure and the development name otherwise, HttpOnly, SameSite Lax, and
+// it reads back as written. It holds R2, including the development name: a
+// __Host- cookie without Secure is rejected outright by the browser, and the
+// whole feature would silently never work on a plain-HTTP dev server.
+func TestWriteCookie(t *testing.T) {
 	t.Parallel()
 
 	for _, secure := range []bool{true, false} {
@@ -608,7 +626,8 @@ func TestThePickupCookieFollowsTheHouseNaming(t *testing.T) {
 	}
 }
 
-func TestAMangledPickupCookieIsNoCookieAtAll(t *testing.T) {
+// TestReadCookieMangled: a mangled pickup cookie is no cookie at all.
+func TestReadCookieMangled(t *testing.T) {
 	t.Parallel()
 
 	for _, value := range []string{
@@ -624,9 +643,10 @@ func TestAMangledPickupCookieIsNoCookieAtAll(t *testing.T) {
 	}
 }
 
-// TestClearingThePickupCookieExpiresIt holds the last line of R2: a nonce left
-// behind would vouch for a store in the next checkout this browser starts.
-func TestClearingThePickupCookieExpiresIt(t *testing.T) {
+// TestClearCookie: clearing the pickup cookie expires it. It holds the last
+// line of R2: a nonce left behind would vouch for a store in the next checkout
+// this browser starts.
+func TestClearCookie(t *testing.T) {
 	t.Parallel()
 
 	res := httptest.NewRecorder()
@@ -643,7 +663,10 @@ func encodeState(raw string) string {
 	return base64.RawURLEncoding.EncodeToString([]byte(raw))
 }
 
-func TestPickupUsesTheMatchingCookieAcrossCheckoutRequests(t *testing.T) {
+// TestReadCookieMatchingNonce: ReadCookie uses the pickup cookie that matches
+// the nonce when a request carries several, across checkout requests by GET and
+// POST and under both cookie names.
+func TestReadCookieMatchingNonce(t *testing.T) {
 	t.Parallel()
 	const staleNonce = "fedcba98765432100000"
 	for _, method := range []string{http.MethodGet, http.MethodPost} {
@@ -666,11 +689,13 @@ func TestPickupUsesTheMatchingCookieAcrossCheckoutRequests(t *testing.T) {
 	}
 }
 
-// TestPickupNoncesAreComparedInConstantTime holds the one comparison the
-// store-map rule rests on. The honour rule's behaviour cannot show how it
-// compares, so the source is read: a nonce is compared with
-// crypto/subtle, and == or != on a nonce is only a test for absence.
-func TestPickupNoncesAreComparedInConstantTime(t *testing.T) {
+// TestPickupNonceComparison: pickup nonces are compared in constant time: no
+// source of this package or of internal/checkout compares a nonce with == or
+// !=. It holds the one comparison the store-map rule rests on. The honour
+// rule's behaviour cannot show how it compares, so the source is read: a nonce
+// is compared with crypto/subtle, and == or != on a nonce is only a test for
+// absence.
+func TestPickupNonceComparison(t *testing.T) {
 	t.Parallel()
 	// This package holds the rule; the checkout's handlers in internal/checkout
 	// carry the nonce through every render and placement.

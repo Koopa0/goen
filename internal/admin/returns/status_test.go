@@ -7,9 +7,10 @@ import (
 	"github.com/koopa0/goen/internal/order/returns"
 )
 
-// TestEveryKnownReturnStatusHasAnAdminLabel holds the closed set together:
-// a status with no catalogue entry must render as itself, never panic.
-func TestEveryKnownReturnStatusHasAnAdminLabel(t *testing.T) {
+// TestStatusLabelKnown: every known return status has an admin label. It holds
+// the closed set together: a status with no catalogue entry renders as itself,
+// never panics, so each known status needs an entry of its own.
+func TestStatusLabelKnown(t *testing.T) {
 	t.Parallel()
 
 	for _, locale := range []i18n.Locale{i18n.ZhHant, i18n.En} {
@@ -29,7 +30,8 @@ func TestEveryKnownReturnStatusHasAnAdminLabel(t *testing.T) {
 	}
 }
 
-func TestUnknownReturnStatusLabelRendersAsItself(t *testing.T) {
+// TestStatusLabelUnknown: an unknown return status renders as itself.
+func TestStatusLabelUnknown(t *testing.T) {
 	t.Parallel()
 
 	ctx := i18n.WithLocale(t.Context(), i18n.En)
@@ -39,9 +41,12 @@ func TestUnknownReturnStatusLabelRendersAsItself(t *testing.T) {
 	}
 }
 
+// TestStatusTextBeforeShipment: a finished refund before shipment is not called
+// completed.
+//
 // A refund before shipment that has finished is a cancellation. The queue must
 // not call it completed, which is what a return that came back is called.
-func TestAFinishedRefundBeforeShipmentIsNotCalledCompleted(t *testing.T) {
+func TestStatusTextBeforeShipment(t *testing.T) {
 	t.Parallel()
 	for _, locale := range []i18n.Locale{i18n.ZhHant, i18n.En} {
 		ctx := i18n.WithLocale(t.Context(), locale)
@@ -58,9 +63,12 @@ func TestAFinishedRefundBeforeShipmentIsNotCalledCompleted(t *testing.T) {
 	}
 }
 
+// TestStatusTextUnsent: a finished refund of units never sent is not called
+// completed.
+//
 // A finished refund of units that were never sent is not a return that came
 // back either.
-func TestAFinishedUnsentRefundIsNotCalledCompleted(t *testing.T) {
+func TestStatusTextUnsent(t *testing.T) {
 	t.Parallel()
 	for _, locale := range []i18n.Locale{i18n.ZhHant, i18n.En} {
 		ctx := i18n.WithLocale(t.Context(), locale)

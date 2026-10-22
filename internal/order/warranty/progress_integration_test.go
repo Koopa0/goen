@@ -18,7 +18,11 @@ import (
 	"github.com/koopa0/goen/internal/user"
 )
 
-func TestWarrantyNextExpiryAndConfirmationUseTheUnitsOwnParcel(t *testing.T) {
+// TestStore_ReadyOwnParcelExpiry: the next expiry and the confirmation use the
+// unit's own parcel: Ready offers each unit with its own parcel's expiry, and
+// the confirmation page selects the unit just registered and never a foreign
+// one.
+func TestStore_ReadyOwnParcelExpiry(t *testing.T) {
 	app := warrantyStoreRolePool(t)
 	store := warranty.NewStore(app)
 	handler := warranty.NewHandler(store, slog.New(slog.DiscardHandler))
@@ -100,7 +104,10 @@ func TestWarrantyNextExpiryAndConfirmationUseTheUnitsOwnParcel(t *testing.T) {
 	}
 }
 
-func TestWarrantyReadyListKeepsOwnershipDeliveryAndReturnBoundaries(t *testing.T) {
+// TestStore_ReadyBoundaries: the ready list keeps the ownership, delivery and
+// return boundaries: Ready lists only the customer's own delivered, unreturned
+// lines, and the list page links each to its form.
+func TestStore_ReadyBoundaries(t *testing.T) {
 	app := warrantyStoreRolePool(t)
 	store := warranty.NewStore(app)
 	mux := http.NewServeMux()

@@ -32,9 +32,11 @@ func TestRefusedIfNoRowRefusesOnlyAMissingRow(t *testing.T) {
 	}
 }
 
+// TestShowPayout: an unfit payout is the only blocked row.
+//
 // The queue's retry control and its repair notice read these two flags; the
 // refunds desk only reports the payout, so the mapping is this desk's.
-func TestAnUnfitPayoutIsTheOnlyBlockedRow(t *testing.T) {
+func TestShowPayout(t *testing.T) {
 	t.Parallel()
 	unfit := fmt.Errorf("%w: the payout does not fit the return", refund.ErrRefused)
 	for _, tt := range []struct {

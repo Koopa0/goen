@@ -119,7 +119,11 @@ func assertNoNextWarranty(t *testing.T, store *warranty.Store, handler http.Hand
 	}
 }
 
-func TestWarrantyReverseParcelArrivalWaitsForTheActualNextUnit(t *testing.T) {
+// TestStore_ReadyReverseArrival: a parcel that arrives out of order waits for
+// the actual next unit: while the earlier parcel is in transit neither Ready
+// nor the order page offers a unit and posting one is refused, and once it
+// arrives Ready offers each unit with its own parcel's expiry.
+func TestStore_ReadyReverseArrival(t *testing.T) {
 	store := warranty.NewStore(warrantyStoreRolePool(t))
 	handler := nextWarrantyRouter(store)
 	for _, locale := range []i18n.Locale{i18n.ZhHant, i18n.En} {
@@ -170,7 +174,11 @@ func TestWarrantyReverseParcelArrivalWaitsForTheActualNextUnit(t *testing.T) {
 	}
 }
 
-func TestWarrantyRegistrationGapDoesNotOfferAnAlreadyRegisteredOrdinal(t *testing.T) {
+// TestStore_ReadyRegistrationGap: a registration gap does not offer an already
+// registered ordinal: after unit 2 is registered ahead of unit 1, neither Ready
+// nor the order page offers a next unit, and a duplicate post of unit 2 is
+// refused without changing the registrations.
+func TestStore_ReadyRegistrationGap(t *testing.T) {
 	store := warranty.NewStore(warrantyStoreRolePool(t))
 	handler := nextWarrantyRouter(store)
 	for _, locale := range []i18n.Locale{i18n.ZhHant, i18n.En} {
@@ -190,7 +198,11 @@ func TestWarrantyRegistrationGapDoesNotOfferAnAlreadyRegisteredOrdinal(t *testin
 	}
 }
 
-func TestWarrantyReverseArrivalKeepsDecidedReturnCounts(t *testing.T) {
+// TestStore_ReadyDecidedReturns: reverse arrival keeps decided return counts:
+// requested and rejected returns leave the net delivered count at one, approved
+// and completed returns take it to none, and in every case no unit is offered
+// and posting a unit is refused.
+func TestStore_ReadyDecidedReturns(t *testing.T) {
 	store := warranty.NewStore(warrantyStoreRolePool(t))
 	handler := nextWarrantyRouter(store)
 	for _, tc := range []struct {

@@ -79,7 +79,9 @@ func TestBrowserPrefersTheFirstSetVariable(t *testing.T) {
 	}
 }
 
-func TestBrowserWithoutVariablesIsAProgrammingError(t *testing.T) {
+// TestBrowserNoVariables: calling Browser without variables is a programming
+// error.
+func TestBrowserNoVariables(t *testing.T) {
 	rec := &recorder{TB: t}
 	uitest.Browser(rec)
 	if rec.fatal == "" {
@@ -90,7 +92,9 @@ func TestBrowserWithoutVariablesIsAProgrammingError(t *testing.T) {
 	}
 }
 
-func TestLocalChromeReturnsTheTrimmedPathFromTheResolver(t *testing.T) {
+// TestLocalChromeResolverPath: LocalChrome returns the trimmed path from the
+// resolver.
+func TestLocalChromeResolverPath(t *testing.T) {
 	if _, err := exec.LookPath("node"); err != nil {
 		t.Skip("node is not on PATH")
 	}

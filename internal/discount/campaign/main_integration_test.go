@@ -66,7 +66,9 @@ func dealSlugs(t *testing.T, s *campaign.Store) (slugs []string, total int64) {
 	return slugs, total
 }
 
-func TestDealsListsOnlyWhatARunningCampaignFeatures(t *testing.T) {
+// TestStore_DealsRunningOnly: Deals lists only what a running campaign
+// features.
+func TestStore_DealsRunningOnly(t *testing.T) {
 	s := campaign.NewStore(pool)
 	_, before := dealSlugs(t, s)
 
@@ -209,9 +211,11 @@ func listedSlugs(t *testing.T, s *campaign.Store) []string {
 	return out
 }
 
-// The shop lists a campaign only while it has a published featured product in
-// stock; the same predicate serves the deals page and the home carousel. The campaign page itself stays reachable by direct link.
-func TestACampaignIsListedOnlyWhileItHasSomethingToBuy(t *testing.T) {
+// TestStore_ListedSomethingToBuy: a campaign is listed only while it has
+// something to buy. The shop lists a campaign only while it has a published
+// featured product in stock; the same predicate serves the deals page and the
+// home carousel. The campaign page itself stays reachable by direct link.
+func TestStore_ListedSomethingToBuy(t *testing.T) {
 	ctx := t.Context()
 	s := campaign.NewStore(pool)
 	tests := []struct {
@@ -271,12 +275,13 @@ func plainSlug(t *testing.T) string {
 	return slug
 }
 
-// The state of a campaign is judged with the host's clock, the window's edges
-// come from the database's, and the two may differ by a millisecond or more. A
-// campaign the fixture means to be running must not depend on which is ahead:
-// judged with a host clock behind the database's at the moment of creation, it
-// is still running.
-func TestAFixtureCampaignRunsWhateverTheHostClockReads(t *testing.T) {
+// TestStateAtFixtureClock: a fixture campaign runs whatever the host clock
+// reads. The state of a campaign is judged with the host's clock, the window's
+// edges come from the database's, and the two may differ by a millisecond or
+// more. A campaign the fixture means to be running must not depend on which is
+// ahead: judged with a host clock behind the database's at the moment of
+// creation, it is still running.
+func TestStateAtFixtureClock(t *testing.T) {
 	slug := runningCampaign(t, "window-skew-"+uuid.NewString())
 	var startsAt, endsAt, createdAt time.Time
 	if err := pool.QueryRow(t.Context(),
@@ -293,7 +298,9 @@ func TestAFixtureCampaignRunsWhateverTheHostClockReads(t *testing.T) {
 	}
 }
 
-func TestACampaignOutsideItsWindowIsShownAsNotStartedOrEnded(t *testing.T) {
+// TestStore_CampaignWindow: a campaign outside its window is shown as not
+// started or ended.
+func TestStore_CampaignWindow(t *testing.T) {
 	ctx := t.Context()
 	s := campaign.NewStore(pool)
 
@@ -351,11 +358,12 @@ func TestACampaignOutsideItsWindowIsShownAsNotStartedOrEnded(t *testing.T) {
 	}
 }
 
+// TestStore_SellableBeforeSoldOut: sellable products come before sold-out ones.
 // What can be bought comes before what cannot, however deep the sold-out
 // markdown is. On /deals the tile shows the discounted variant, so a product
 // whose discounted variant is sold out ranks as sold out even when a regular
 // variant is in stock.
-func TestSellableProductsComeBeforeSoldOutOnes(t *testing.T) {
+func TestStore_SellableBeforeSoldOut(t *testing.T) {
 	ctx := t.Context()
 	tx, err := pool.Begin(ctx)
 	if err != nil {
@@ -446,9 +454,10 @@ func newDeal(t *testing.T, exec sqlExecer, price, stock int) string {
 	return slug
 }
 
-// sale_campaign_needs_discount takes a lock on the product before it reads the
-// variants.
-func TestOnlyDiscountedProductsCanBeFeatured(t *testing.T) {
+// TestSaleCampaignNeedsDiscount: only discounted products can be featured: the
+// sale_campaign_needs_discount trigger refuses a product with nothing marked
+// down. It takes a lock on the product before it reads the variants.
+func TestSaleCampaignNeedsDiscount(t *testing.T) {
 	slug := runningCampaign(t, "only-discounted-"+uuid.NewString()[:8])
 
 	if err := feature(t, slug, discountedSlug(t)); err != nil {
@@ -465,7 +474,8 @@ func TestOnlyDiscountedProductsCanBeFeatured(t *testing.T) {
 	}
 }
 
-func TestACampaignShowsOnlyActiveProducts(t *testing.T) {
+// TestStore_CampaignActiveProducts: a campaign shows only active products.
+func TestStore_CampaignActiveProducts(t *testing.T) {
 	ctx := t.Context()
 	s := campaign.NewStore(pool)
 	slug := runningCampaign(t, "active-only-"+uuid.NewString()[:8])
@@ -510,11 +520,12 @@ func constraintName(err error) (code, name string) {
 	return pgErr.Code, pgErr.ConstraintName
 }
 
-// The tile shows a discounted variant that can be bought, which is a different
-// variant from the cheapest buyable one whenever the discount sits on the dearer
-// variant. Every product in the seed has the discount on its cheapest variant, so
-// this fixture puts it on the DEARER one.
-func TestPromotionalTilesArePricedOnTheDiscountedVariant(t *testing.T) {
+// TestStore_TilesDiscountedVariant: promotional tiles are priced on the
+// discounted variant. The tile shows a discounted variant that can be bought,
+// which is a different variant from the cheapest buyable one whenever the
+// discount sits on the dearer variant. Every product in the seed has the
+// discount on its cheapest variant, so this fixture puts it on the DEARER one.
+func TestStore_TilesDiscountedVariant(t *testing.T) {
 	ctx := t.Context()
 	s := campaign.NewStore(pool)
 
@@ -638,10 +649,12 @@ func discountedProduct(t *testing.T) string {
 	return slug
 }
 
-// A card strikes only a price the shopper can pay: a product whose discounted
-// variant is sold out, with another in stock at full price, shows the full price
-// unstruck on /deals and on its campaign page, and /deals does not list it.
-func TestACardNeverStrikesAPriceOfASoldOutVariant(t *testing.T) {
+// TestStore_NoStrikeSoldOutVariant: a card never strikes a price of a sold-out
+// variant. A card strikes only a price the shopper can pay: a product whose
+// discounted variant is sold out, with another in stock at full price, shows
+// the full price unstruck on /deals and on its campaign page, and /deals does
+// not list it.
+func TestStore_NoStrikeSoldOutVariant(t *testing.T) {
 	ctx := t.Context()
 	s := campaign.NewStore(pool)
 

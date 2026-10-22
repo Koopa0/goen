@@ -55,7 +55,9 @@ func TestNormaliseAndValidCode(t *testing.T) {
 
 var codeFormat = regexp.MustCompile(`coupons_code_format CHECK \(code ~ '([^']*)'\)`)
 
-func TestTheCodeShapeIsTheSchemas(t *testing.T) {
+// TestValidCodeMatchesSchema: the code shape is the schema's: ValidCode matches
+// what coupons_code_format admits.
+func TestValidCodeMatchesSchema(t *testing.T) {
 	t.Parallel()
 
 	schema, err := os.ReadFile(filepath.Join("..", "..", "..", "migrations", "001_initial_schema.up.sql"))

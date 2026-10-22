@@ -413,7 +413,7 @@ func TestListingPriceIsBuyable(t *testing.T) {
 // at the column default now(): the page judges the window with the host's clock,
 // and a database that runs a millisecond ahead of the host (Docker Desktop's VM
 // does) would otherwise read a campaign made a moment ago as not started. The
-// campaign package's copy is held to that by TestAFixtureCampaignRunsWhateverTheHostClockReads.
+// campaign package's copy is held to that by TestStateAtFixtureClock.
 func runningCampaign(t *testing.T, slug string) string {
 	t.Helper()
 	if _, err := pool.Exec(t.Context(), `
