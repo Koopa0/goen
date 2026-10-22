@@ -23,13 +23,13 @@ const (
 	macosChromeBundle    = `/Applications/Google Chrome.app/Contents/MacOS/Google Chrome`
 )
 
-// TestTheLayoutGateResolvesChromeAcrossPlatforms refuses a macOS-only CHROME
+// TestLayoutGateChromeCrossPlatform refuses a macOS-only CHROME
 // default in the Makefile.
 //
 // check-layout sits outside verify because it needs a real browser; a default
 // that only names the macOS app bundle makes the documented gate unrunnable on
 // Linux CI and on machines where Chromium is google-chrome-stable.
-func TestTheLayoutGateResolvesChromeAcrossPlatforms(t *testing.T) {
+func TestLayoutGateChromeCrossPlatform(t *testing.T) {
 	t.Parallel()
 
 	ctx := t.Context()

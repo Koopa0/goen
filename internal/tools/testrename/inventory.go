@@ -17,7 +17,7 @@ const (
 	guardRuns  = "TestCIRunPatternsNameExistingTests"
 	guardPaths = "TestCIPathFiltersNameExistingFiles"
 	guardNamed = "TestEveryNamedTestExists"
-	guardKeys  = "TestOnlyListedTestsReadTheStyleSheetsAndScripts"
+	guardKeys  = "TestOnlyListedTestsReadAssets"
 )
 
 type invRow struct {

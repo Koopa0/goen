@@ -68,10 +68,10 @@ updated-dependencies:
 
 Signed-off-by: dependabot[bot] <support@github.com>`
 
-// TestCommitAttributionRejectsForbiddenMessages holds the whole policy: a human
+// TestCommitAttributionForbiddenMessages holds the whole policy: a human
 // co-author is credited with a well-formed trailer, and every way of naming an
 // AI tool stays refused. Each case is a separate commit judged on its own.
-func TestCommitAttributionRejectsForbiddenMessages(t *testing.T) {
+func TestCommitAttributionForbiddenMessages(t *testing.T) {
 	script := commitAttributionScript(t)
 	dir, git := newCommitAttributionRepo(t)
 	git("commit", "--allow-empty", "-qm", "test: clean base")
@@ -248,7 +248,10 @@ func TestCommitAttributionScansReachableHistory(t *testing.T) {
 	})
 }
 
-func TestCommitAttributionFailsClosedOnInputAndDetectorErrors(t *testing.T) {
+// TestCommitAttributionFailsClosed refuses to pass a range the policy script
+// cannot judge: a malformed SHA, a head commit that does not exist, and a grep
+// that fails while scanning each fail the script rather than read as clean.
+func TestCommitAttributionFailsClosed(t *testing.T) {
 	script := commitAttributionScript(t)
 	dir, git := newCommitAttributionRepo(t)
 	git("commit", "--allow-empty", "-qm", "test: clean base")

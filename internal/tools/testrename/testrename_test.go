@@ -498,7 +498,7 @@ func TestInventoryCountsTheFixture(t *testing.T) {
 		"Names declared in several directories 1 (TestSame has 2 copies)",
 		"-run in the Makefile 2 TestCIRunPatternsNameExistingTests and workflow-check",
 		"-run in workflows 1 TestCIRunPatternsNameExistingTests",
-		"file#Test keys in alpha/keys_test.go 3 its own stale-row check (TestOnlyListedTestsReadTheStyleSheetsAndScripts)",
+		"file#Test keys in alpha/keys_test.go 3 its own stale-row check (TestOnlyListedTestsReadAssets)",
 		"markdown: README.md 2 TestEveryNamedTestExists",
 		"Makefile:8 TestAlpha",
 	} {
