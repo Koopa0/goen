@@ -4,9 +4,9 @@ import (
 	"fmt"
 
 	"github.com/koopa0/goen/internal/i18n"
-	"github.com/koopa0/goen/internal/ui/components"
 	"github.com/koopa0/goen/internal/ui/fieldrule"
 	"github.com/koopa0/goen/internal/ui/layouts"
+	"github.com/koopa0/goen/internal/ui/widget"
 )
 
 templ FindOrder(p layouts.Page, v FindOrderView) {
@@ -16,8 +16,8 @@ templ FindOrder(p layouts.Page, v FindOrderView) {
 				<h1 class="goen-auth__title">{ i18n.T(ctx, i18n.KeyFindOrderTitle) }</h1>
 				<p class="goen-auth__lede">{ i18n.T(ctx, i18n.KeyFindOrderSub) }</p>
 				if v.Error != "" {
-					@components.Notice(components.NoticeProps{
-						Intent: components.IntentDanger,
+					@widget.Notice(widget.NoticeProps{
+						Intent: widget.IntentDanger,
 						ID:     "find-error",
 					}) {
 						{ v.Error }
@@ -26,10 +26,10 @@ templ FindOrder(p layouts.Page, v FindOrderView) {
 				}
 				<form class="goen-auth__form" method="post" action="/orders/find">
 					<div class="goen-field">
-						@components.Label(components.LabelProps{For: "find-number"}) {
+						@widget.Label(widget.LabelProps{For: "find-number"}) {
 							{ i18n.T(ctx, i18n.KeyFieldOrderNumber) }
 						}
-						@components.Input(components.FieldProps{
+						@widget.Input(widget.FieldProps{
 							ID:    "find-number",
 							Name:  "number",
 							Type:  "text",
@@ -43,10 +43,10 @@ templ FindOrder(p layouts.Page, v FindOrderView) {
 						<p class="goen-auth__hint" id="find-number-example">{ fmt.Sprintf(i18n.T(ctx, i18n.KeyFieldExample), i18n.T(ctx, i18n.KeyOrderRefExample)) }</p>
 					</div>
 					<div class="goen-field">
-						@components.Label(components.LabelProps{For: "find-email"}) {
+						@widget.Label(widget.LabelProps{For: "find-email"}) {
 							{ i18n.T(ctx, i18n.KeyFieldEmail) }
 						}
-						@components.Input(components.FieldProps{
+						@widget.Input(widget.FieldProps{
 							ID:    "find-email",
 							Name:  "email",
 							Type:  "email",
@@ -57,9 +57,9 @@ templ FindOrder(p layouts.Page, v FindOrderView) {
 							}),
 						})
 					</div>
-					@components.Button(components.ButtonProps{
-						ButtonStyle: components.ButtonStylePrimary,
-						Size:        components.SizeLarge,
+					@widget.Button(widget.ButtonProps{
+						ButtonStyle: widget.ButtonStylePrimary,
+						Size:        widget.SizeLarge,
 						Block:       true,
 					}, "submit") {
 						{ i18n.T(ctx, i18n.KeyFindOrderSubmit) }

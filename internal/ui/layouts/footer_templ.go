@@ -12,9 +12,9 @@ import (
 	"fmt"
 
 	"github.com/koopa0/goen/internal/i18n"
-	"github.com/koopa0/goen/internal/ui/components"
 	"github.com/koopa0/goen/internal/ui/fieldrule"
 	"github.com/koopa0/goen/internal/ui/icons"
+	"github.com/koopa0/goen/internal/ui/widget"
 )
 
 func Footer(state NewsletterState) templ.Component {
@@ -435,7 +435,7 @@ func NewsletterForm(s NewsletterState) templ.Component {
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
-			templ_7745c5c3_Err = components.Input(components.FieldProps{
+			templ_7745c5c3_Err = widget.Input(widget.FieldProps{
 				ID:        "newsletter-email",
 				Name:      "email",
 				Type:      "email",
@@ -478,7 +478,7 @@ func NewsletterForm(s NewsletterState) templ.Component {
 				}
 				return nil
 			})
-			templ_7745c5c3_Err = components.Button(components.ButtonProps{ButtonStyle: components.ButtonStyleGhost, Attrs: templ.Attributes{"id": "newsletter-submit"}}, "submit").Render(templ.WithChildren(ctx, templ_7745c5c3_Var22), templ_7745c5c3_Buffer)
+			templ_7745c5c3_Err = widget.Button(widget.ButtonProps{ButtonStyle: widget.ButtonStyleGhost, Attrs: templ.Attributes{"id": "newsletter-submit"}}, "submit").Render(templ.WithChildren(ctx, templ_7745c5c3_Var22), templ_7745c5c3_Buffer)
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}

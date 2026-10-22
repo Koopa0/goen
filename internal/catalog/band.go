@@ -3,8 +3,8 @@ package catalog
 import (
 	"unicode/utf8"
 
-	"github.com/koopa0/goen/internal/ui/components"
 	"github.com/koopa0/goen/internal/ui/tile"
+	"github.com/koopa0/goen/internal/ui/widget"
 )
 
 // Longest names the band sets at full size: Chinese by character, anything
@@ -16,15 +16,15 @@ const (
 
 // bandPhoto is the department's own photograph; failing that its first
 // product's, which sits on its well; failing that nothing.
-func bandPhoto(department components.Photo, products []tile.Tile) (photo components.Photo, onWell bool) {
+func bandPhoto(department widget.Photo, products []tile.Tile) (photo widget.Photo, onWell bool) {
 	if department.Shown() {
 		return department, false
 	}
 	if len(products) > 0 && products[0].ImageURL != "" {
 		first := products[0]
-		return components.Photo{URL: first.ImageURL, Srcset: first.ImageSrcset}, true
+		return widget.Photo{URL: first.ImageURL, Srcset: first.ImageSrcset}, true
 	}
-	return components.Photo{}, false
+	return widget.Photo{}, false
 }
 
 func bandNameLong(name string) bool {

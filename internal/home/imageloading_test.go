@@ -7,10 +7,10 @@ import (
 	"testing"
 
 	"github.com/koopa0/goen/internal/i18n"
-	"github.com/koopa0/goen/internal/ui/components"
 	"github.com/koopa0/goen/internal/ui/hero"
 	"github.com/koopa0/goen/internal/ui/layouts"
 	"github.com/koopa0/goen/internal/ui/tile"
+	"github.com/koopa0/goen/internal/ui/widget"
 )
 
 var imgTag = regexp.MustCompile(`<img\b[^>]*>`)
@@ -58,12 +58,12 @@ func TestTheHomePageLoadsItsFirstScreenPhotographsAtOnceAndReservesEveryBox(t *t
 	t.Parallel()
 	view := View{
 		Slides: []hero.Slide{
-			{Layout: hero.LayoutPhoto, Photo: components.Photo{URL: "/img/hero.webp", Alt: "hero"}, PhotoWidth: 1600, PhotoHeight: 600, Title: "A"},
-			{Layout: hero.LayoutPhoto, Photo: components.Photo{URL: "/img/hero2.webp", Alt: "hero"}, PhotoWidth: 1600, PhotoHeight: 600, Title: "B"},
+			{Layout: hero.LayoutPhoto, Photo: widget.Photo{URL: "/img/hero.webp", Alt: "hero"}, PhotoWidth: 1600, PhotoHeight: 600, Title: "A"},
+			{Layout: hero.LayoutPhoto, Photo: widget.Photo{URL: "/img/hero2.webp", Alt: "hero"}, PhotoWidth: 1600, PhotoHeight: 600, Title: "B"},
 		},
 		Categories: []Category{
-			{Slug: "a", Name: "A", Photo: components.Photo{URL: "/img/a.webp"}},
-			{Slug: "b", Name: "B", Photo: components.Photo{URL: "/img/b.webp"}},
+			{Slug: "a", Name: "A", Photo: widget.Photo{URL: "/img/a.webp"}},
+			{Slug: "b", Name: "B", Photo: widget.Photo{URL: "/img/b.webp"}},
 		},
 		Row: ProductRow{Title: "Row", Href: "/s/row", Tiles: tiledShelf(10)},
 	}

@@ -4,9 +4,9 @@ import (
 	"net/url"
 
 	"github.com/koopa0/goen/internal/i18n"
-	"github.com/koopa0/goen/internal/ui/components"
 	"github.com/koopa0/goen/internal/ui/icons"
 	"github.com/koopa0/goen/internal/ui/layouts"
+	"github.com/koopa0/goen/internal/ui/widget"
 )
 
 templ RegistrationDead(p layouts.Page, next string) {
@@ -18,10 +18,10 @@ templ RegistrationDead(p layouts.Page, next string) {
 			<h1 class="notice__title">{ i18n.T(ctx, i18n.KeyVerifyDeadTitle) }</h1>
 			<p class="notice__body">{ i18n.T(ctx, i18n.KeyRegisterDeadBody) }</p>
 			<div class="notice__actions">
-				@components.ButtonLink(components.ButtonProps{ButtonStyle: components.ButtonStylePrimary, Size: components.SizeLarge}, templ.URL("/register?"+url.Values{"resend": {"1"}, "next": {next}}.Encode())) {
+				@widget.ButtonLink(widget.ButtonProps{ButtonStyle: widget.ButtonStylePrimary, Size: widget.SizeLarge}, templ.URL("/register?"+url.Values{"resend": {"1"}, "next": {next}}.Encode())) {
 					{ i18n.T(ctx, i18n.KeyRegisterResend) }
 				}
-				@components.ButtonLink(components.ButtonProps{ButtonStyle: components.ButtonStyleOutline, Size: components.SizeLarge, Class: "notice__back"}, "/") {
+				@widget.ButtonLink(widget.ButtonProps{ButtonStyle: widget.ButtonStyleOutline, Size: widget.SizeLarge, Class: "notice__back"}, "/") {
 					{ i18n.T(ctx, i18n.KeyBackToShop) }
 				}
 			</div>

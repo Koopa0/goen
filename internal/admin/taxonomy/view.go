@@ -6,7 +6,7 @@ import (
 	"strconv"
 
 	"github.com/koopa0/goen/internal/i18n"
-	"github.com/koopa0/goen/internal/ui/components"
+	"github.com/koopa0/goen/internal/ui/widget"
 )
 
 type Taxon struct {
@@ -63,7 +63,7 @@ func (t Taxon) DepthText() string {
 type TaxonomyView struct {
 	Brands     []Taxon
 	Categories []Taxon
-	Notice     components.Result
+	Notice     widget.Result
 	Which      string
 	Errors     map[string]string
 	Draft      TaxonDraft

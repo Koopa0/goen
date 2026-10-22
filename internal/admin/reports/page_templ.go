@@ -13,9 +13,9 @@ import (
 
 	"github.com/koopa0/goen/internal/i18n"
 	"github.com/koopa0/goen/internal/ui/chart"
-	"github.com/koopa0/goen/internal/ui/components"
 	"github.com/koopa0/goen/internal/ui/layouts"
 	"github.com/koopa0/goen/internal/ui/stockrisk"
+	"github.com/koopa0/goen/internal/ui/widget"
 )
 
 // The lists are not tables: each cell carries its own label ("%s units", "%s left")
@@ -632,7 +632,7 @@ func Report(p layouts.Page, v *ReportView) templ.Component {
 							}
 							return nil
 						})
-						templ_7745c5c3_Err = components.ReportRow(item.Name, item.Href(), item.Facts(ctx)).Render(templ.WithChildren(ctx, templ_7745c5c3_Var38), templ_7745c5c3_Buffer)
+						templ_7745c5c3_Err = widget.ReportRow(item.Name, item.Href(), item.Facts(ctx)).Render(templ.WithChildren(ctx, templ_7745c5c3_Var38), templ_7745c5c3_Buffer)
 						if templ_7745c5c3_Err != nil {
 							return templ_7745c5c3_Err
 						}
@@ -741,7 +741,7 @@ func Report(p layouts.Page, v *ReportView) templ.Component {
 								}
 								return nil
 							})
-							templ_7745c5c3_Err = components.ReportRow(d.Name, "", "").Render(templ.WithChildren(ctx, templ_7745c5c3_Var42), templ_7745c5c3_Buffer)
+							templ_7745c5c3_Err = widget.ReportRow(d.Name, "", "").Render(templ.WithChildren(ctx, templ_7745c5c3_Var42), templ_7745c5c3_Buffer)
 							if templ_7745c5c3_Err != nil {
 								return templ_7745c5c3_Err
 							}

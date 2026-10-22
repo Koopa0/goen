@@ -8,9 +8,9 @@ import (
 	"github.com/koopa0/goen/internal/db"
 	"github.com/koopa0/goen/internal/discount/campaign"
 	"github.com/koopa0/goen/internal/i18n"
-	"github.com/koopa0/goen/internal/ui/components"
 	"github.com/koopa0/goen/internal/ui/hero"
 	"github.com/koopa0/goen/internal/ui/tone"
+	"github.com/koopa0/goen/internal/ui/widget"
 	"github.com/koopa0/goen/internal/web/siteurl"
 )
 
@@ -47,7 +47,7 @@ func (s *Store) slides(ctx context.Context, src carouselSources) ([]hero.Slide, 
 		}
 		if digest := r.MediaDigest.String; digest != "" {
 			photo := assets.Image{Digest: digest, Width: int(r.ImageWidth)}
-			slide.Photo = components.Photo{
+			slide.Photo = widget.Photo{
 				URL:    photo.URL(),
 				Srcset: photo.Srcset(),
 				Alt:    r.ImageAlt,
@@ -70,7 +70,7 @@ func (s *Store) slides(ctx context.Context, src carouselSources) ([]hero.Slide, 
 			Stats:  s.campaignStats(ctx, c),
 			CTA:    hero.CTA{Label: i18n.T(ctx, i18n.KeyHeroCampaignCTA), Href: "/s/" + c.Slug},
 		}
-		if period, ok := components.DayPeriod(ctx, c.Title, c.StartsAt, c.EndsAt, s.now()); ok {
+		if period, ok := widget.DayPeriod(ctx, c.Title, c.StartsAt, c.EndsAt, s.now()); ok {
 			slide.Period = &period
 		}
 		if photo, ok := campaignPhoto(c); ok {
@@ -99,9 +99,9 @@ func (s *Store) slides(ctx context.Context, src carouselSources) ([]hero.Slide, 
 			Photo:      photo,
 			PhotoWidth: 1600, PhotoHeight: 1200,
 			Title: c.Name,
-			Stats: []components.Stat{
-				{Label: i18n.T(ctx, i18n.KeySlideItems), Value: components.StatCount(src.held[c.ID], i18n.T(ctx, i18n.KeyFactUnitItems))},
-				{Label: i18n.T(ctx, i18n.KeySlideCategories), Value: components.StatCount(int64(len(src.subs[c.ID])), i18n.T(ctx, i18n.KeyFactUnitCategories))},
+			Stats: []widget.Stat{
+				{Label: i18n.T(ctx, i18n.KeySlideItems), Value: widget.StatCount(src.held[c.ID], i18n.T(ctx, i18n.KeyFactUnitItems))},
+				{Label: i18n.T(ctx, i18n.KeySlideCategories), Value: widget.StatCount(int64(len(src.subs[c.ID])), i18n.T(ctx, i18n.KeyFactUnitCategories))},
 			},
 			CTA: hero.CTA{Label: i18n.T(ctx, i18n.KeyHeroCampaignCTA), Href: "/c/" + c.Slug},
 		})
@@ -110,7 +110,7 @@ func (s *Store) slides(ctx context.Context, src carouselSources) ([]hero.Slide, 
 }
 
 // campaignStats is the fact line of a campaign the query lists, which is always running.
-func (s *Store) campaignStats(ctx context.Context, c *db.ListedCampaignsRow) []components.Stat {
+func (s *Store) campaignStats(ctx context.Context, c *db.ListedCampaignsRow) []widget.Stat {
 	return s.campaignSchedule(ctx, c).Facts
 }
 
@@ -119,21 +119,21 @@ func (s *Store) campaignSchedule(ctx context.Context, c *db.ListedCampaignsRow) 
 }
 
 // campaignPhoto is a campaign's header photograph, and false when it has none.
-func campaignPhoto(c *db.ListedCampaignsRow) (components.Photo, bool) {
+func campaignPhoto(c *db.ListedCampaignsRow) (widget.Photo, bool) {
 	if c.ImageDigest == "" && c.ImageBundledKey == "" {
-		return components.Photo{}, false
+		return widget.Photo{}, false
 	}
 	photo := assets.Image{Digest: c.ImageDigest, BundledKey: c.ImageBundledKey, Width: int(c.ImageWidth)}
-	return components.Photo{URL: photo.URL(), Srcset: photo.Srcset(), Alt: c.ImageAlt}, true
+	return widget.Photo{URL: photo.URL(), Srcset: photo.Srcset(), Alt: c.ImageAlt}, true
 }
 
-func departmentPhoto(c *db.RootCategoriesRow) components.Photo {
+func departmentPhoto(c *db.RootCategoriesRow) widget.Photo {
 	photo := assets.Image{Digest: c.ImageDigest, BundledKey: c.ImageBundledKey, Width: int(c.ImageWidth)}
 	url := photo.URL()
 	if url == "" {
-		return components.Photo{}
+		return widget.Photo{}
 	}
-	return components.Photo{
+	return widget.Photo{
 		URL:    url,
 		Srcset: photo.Srcset(),
 		Alt:    c.ImageAlt,

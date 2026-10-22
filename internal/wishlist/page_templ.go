@@ -11,10 +11,10 @@ import templruntime "github.com/a-h/templ/runtime"
 import (
 	"github.com/koopa0/goen/internal/cart/cartitem"
 	"github.com/koopa0/goen/internal/i18n"
-	"github.com/koopa0/goen/internal/ui/components"
 	"github.com/koopa0/goen/internal/ui/icons"
 	"github.com/koopa0/goen/internal/ui/layouts"
 	"github.com/koopa0/goen/internal/ui/tile"
+	"github.com/koopa0/goen/internal/ui/widget"
 )
 
 // SoleVariantID is set only when the product has one variant and it is in stock:
@@ -158,8 +158,8 @@ func Page(p layouts.Page, v View) templ.Component {
 					}
 					return nil
 				})
-				templ_7745c5c3_Err = components.ButtonLink(components.ButtonProps{
-					ButtonStyle: components.ButtonStylePrimary,
+				templ_7745c5c3_Err = widget.ButtonLink(widget.ButtonProps{
+					ButtonStyle: widget.ButtonStylePrimary,
 				}, templ.SafeURL("/")).Render(templ.WithChildren(ctx, templ_7745c5c3_Var7), templ_7745c5c3_Buffer)
 				if templ_7745c5c3_Err != nil {
 					return templ_7745c5c3_Err
@@ -211,7 +211,7 @@ func Page(p layouts.Page, v View) templ.Component {
 						}
 						return nil
 					})
-					templ_7745c5c3_Err = components.Notice(components.NoticeProps{Intent: components.IntentAccent, ID: "added", Class: "goen-wish__added"}).Render(templ.WithChildren(ctx, templ_7745c5c3_Var9), templ_7745c5c3_Buffer)
+					templ_7745c5c3_Err = widget.Notice(widget.NoticeProps{Intent: widget.IntentAccent, ID: "added", Class: "goen-wish__added"}).Render(templ.WithChildren(ctx, templ_7745c5c3_Var9), templ_7745c5c3_Buffer)
 					if templ_7745c5c3_Err != nil {
 						return templ_7745c5c3_Err
 					}
@@ -256,7 +256,7 @@ func Page(p layouts.Page, v View) templ.Component {
 						}
 						return nil
 					})
-					templ_7745c5c3_Err = components.Notice(components.NoticeProps{Intent: components.IntentAccent, ID: "added", Class: "goen-wish__added"}).Render(templ.WithChildren(ctx, templ_7745c5c3_Var12), templ_7745c5c3_Buffer)
+					templ_7745c5c3_Err = widget.Notice(widget.NoticeProps{Intent: widget.IntentAccent, ID: "added", Class: "goen-wish__added"}).Render(templ.WithChildren(ctx, templ_7745c5c3_Var12), templ_7745c5c3_Buffer)
 					if templ_7745c5c3_Err != nil {
 						return templ_7745c5c3_Err
 					}
@@ -284,7 +284,7 @@ func Page(p layouts.Page, v View) templ.Component {
 						}
 						return nil
 					})
-					templ_7745c5c3_Err = components.Notice(components.NoticeProps{Intent: components.IntentDanger, ID: "added", Class: "goen-wish__added"}).Render(templ.WithChildren(ctx, templ_7745c5c3_Var15), templ_7745c5c3_Buffer)
+					templ_7745c5c3_Err = widget.Notice(widget.NoticeProps{Intent: widget.IntentDanger, ID: "added", Class: "goen-wish__added"}).Render(templ.WithChildren(ctx, templ_7745c5c3_Var15), templ_7745c5c3_Buffer)
 					if templ_7745c5c3_Err != nil {
 						return templ_7745c5c3_Err
 					}
@@ -312,7 +312,7 @@ func Page(p layouts.Page, v View) templ.Component {
 						}
 						return nil
 					})
-					templ_7745c5c3_Err = components.Notice(components.NoticeProps{Intent: components.IntentDanger, ID: "added", Class: "goen-wish__added"}).Render(templ.WithChildren(ctx, templ_7745c5c3_Var17), templ_7745c5c3_Buffer)
+					templ_7745c5c3_Err = widget.Notice(widget.NoticeProps{Intent: widget.IntentDanger, ID: "added", Class: "goen-wish__added"}).Render(templ.WithChildren(ctx, templ_7745c5c3_Var17), templ_7745c5c3_Buffer)
 					if templ_7745c5c3_Err != nil {
 						return templ_7745c5c3_Err
 					}
@@ -384,7 +384,7 @@ func Page(p layouts.Page, v View) templ.Component {
 							}
 							return nil
 						})
-						templ_7745c5c3_Err = components.Button(components.ButtonProps{ButtonStyle: components.ButtonStyleSecondary, Size: components.SizeSmall, Block: true}, "submit").Render(templ.WithChildren(ctx, templ_7745c5c3_Var21), templ_7745c5c3_Buffer)
+						templ_7745c5c3_Err = widget.Button(widget.ButtonProps{ButtonStyle: widget.ButtonStyleSecondary, Size: widget.SizeSmall, Block: true}, "submit").Render(templ.WithChildren(ctx, templ_7745c5c3_Var21), templ_7745c5c3_Buffer)
 						if templ_7745c5c3_Err != nil {
 							return templ_7745c5c3_Err
 						}
@@ -416,7 +416,7 @@ func Page(p layouts.Page, v View) templ.Component {
 							}
 							return nil
 						})
-						templ_7745c5c3_Err = components.ButtonLink(components.ButtonProps{ButtonStyle: components.ButtonStyleSecondary, Size: components.SizeSmall, Block: true}, templ.SafeURL("/p/"+t.Slug)).Render(templ.WithChildren(ctx, templ_7745c5c3_Var23), templ_7745c5c3_Buffer)
+						templ_7745c5c3_Err = widget.ButtonLink(widget.ButtonProps{ButtonStyle: widget.ButtonStyleSecondary, Size: widget.SizeSmall, Block: true}, templ.SafeURL("/p/"+t.Slug)).Render(templ.WithChildren(ctx, templ_7745c5c3_Var23), templ_7745c5c3_Buffer)
 						if templ_7745c5c3_Err != nil {
 							return templ_7745c5c3_Err
 						}

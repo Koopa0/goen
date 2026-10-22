@@ -7,7 +7,7 @@ import (
 	"testing"
 
 	"github.com/koopa0/goen/internal/i18n"
-	"github.com/koopa0/goen/internal/ui/components"
+	"github.com/koopa0/goen/internal/ui/widget"
 )
 
 // The void and allowance forms redirect here with these notices, whose words
@@ -18,7 +18,7 @@ func TestVoidAndAllowanceNoticesDoNotBlameTaxIDs(t *testing.T) {
 	for _, name := range []string{"voidfailed", "allowfailed", "voidreason"} {
 		req := httptest.NewRequestWithContext(ctx, http.MethodGet,
 			"/admin/orders/GO-260901-000001?"+name+"=1", nil)
-		got := components.NoticeFrom(req, notices).Text
+		got := widget.NoticeFrom(req, notices).Text
 		if got == "" {
 			t.Errorf("%s has no notice", name)
 		}
@@ -35,7 +35,7 @@ func TestTheRefusedNoticeNamesNoProvider(t *testing.T) {
 	t.Parallel()
 	req := httptest.NewRequestWithContext(i18n.WithLocale(t.Context(), i18n.ZhHant), http.MethodGet,
 		"/admin/orders/GO-260901-000001?refused=1", nil)
-	got := components.NoticeFrom(req, notices).Text
+	got := widget.NoticeFrom(req, notices).Text
 	if got == "" {
 		t.Fatal("refused has no notice")
 	}

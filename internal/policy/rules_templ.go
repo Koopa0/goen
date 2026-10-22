@@ -10,7 +10,7 @@ import templruntime "github.com/a-h/templ/runtime"
 
 import (
 	"github.com/koopa0/goen/internal/i18n"
-	"github.com/koopa0/goen/internal/ui/components"
+	"github.com/koopa0/goen/internal/ui/widget"
 )
 
 func RulesSection(r Rules) templ.Component {
@@ -51,7 +51,7 @@ func RulesSection(r Rules) templ.Component {
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
-		templ_7745c5c3_Err = components.StatLine(r.Stats(ctx), components.StatLineWide).Render(ctx, templ_7745c5c3_Buffer)
+		templ_7745c5c3_Err = widget.StatLine(r.Stats(ctx), widget.StatLineWide).Render(ctx, templ_7745c5c3_Buffer)
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}

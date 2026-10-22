@@ -7,10 +7,10 @@ import (
 	"strconv"
 
 	"github.com/koopa0/goen/internal/i18n"
-	"github.com/koopa0/goen/internal/ui/components"
 	"github.com/koopa0/goen/internal/ui/layouts"
 	"github.com/koopa0/goen/internal/ui/tile"
 	"github.com/koopa0/goen/internal/ui/tone"
+	"github.com/koopa0/goen/internal/ui/widget"
 )
 
 // Summary is a campaign as the strip on /deals lists it.
@@ -31,13 +31,13 @@ type View struct {
 	Title    string
 	Schedule Schedule
 	Products []tile.Tile
-	Image    components.Photo
+	Image    widget.Photo
 	Tone     tone.Tone
 }
 
 func (v *View) Empty() bool { return len(v.Products) == 0 }
 
-func Meta(ctx context.Context, title string, photo components.Photo) layouts.Page {
+func Meta(ctx context.Context, title string, photo widget.Photo) layouts.Page {
 	return layouts.Page{
 		Title:       title,
 		Description: fmt.Sprintf(i18n.T(ctx, i18n.KeyCampaignDescription), title),

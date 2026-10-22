@@ -2,8 +2,8 @@ package credits
 
 import (
 	"github.com/koopa0/goen/internal/i18n"
-	"github.com/koopa0/goen/internal/ui/components"
 	"github.com/koopa0/goen/internal/ui/layouts"
+	"github.com/koopa0/goen/internal/ui/widget"
 )
 
 // The grant is a card of its own because it writes money: sharing a panel with the
@@ -27,7 +27,7 @@ templ Credit(p layouts.Page, v CreditView) {
 				<a href="/admin/credits">{ i18n.T(ctx, i18n.KeyAdminCreditAllCustomers) }</a>
 			</p>
 		}
-		@components.Card(components.CardProps{Class: "goen-admin__op"}) {
+		@widget.Card(widget.CardProps{Class: "goen-admin__op"}) {
 			if v.Confirm {
 				<h2 class="goen-admin__optitle">{ i18n.T(ctx, i18n.KeyAdminCreditConfirm) }</h2>
 				<dl class="ui-dl">
@@ -55,10 +55,10 @@ templ Credit(p layouts.Page, v CreditView) {
 					<input type="hidden" name="email" value={ v.Email }/>
 					<input type="hidden" name="amount" value={ v.Amount }/>
 					<input type="hidden" name="reason" value={ v.Reason }/>
-					@components.Button(components.ButtonProps{ButtonStyle: components.ButtonStylePrimary, Attrs: templ.Attributes{"name": "confirm", "value": "grant"}}, "submit") {
+					@widget.Button(widget.ButtonProps{ButtonStyle: widget.ButtonStylePrimary, Attrs: templ.Attributes{"name": "confirm", "value": "grant"}}, "submit") {
 						{ i18n.T(ctx, i18n.KeyAdminCreditGrant) }
 					}
-					@components.Button(components.ButtonProps{ButtonStyle: components.ButtonStyleOutline, Attrs: templ.Attributes{"name": "edit", "value": "1"}}, "submit") {
+					@widget.Button(widget.ButtonProps{ButtonStyle: widget.ButtonStyleOutline, Attrs: templ.Attributes{"name": "edit", "value": "1"}}, "submit") {
 						{ i18n.T(ctx, i18n.KeyAdminCreditEdit) }
 					}
 				</form>
@@ -88,7 +88,7 @@ templ Credit(p layouts.Page, v CreditView) {
 							<p class="ui-error-text" id="credit-reason-error">{ i18n.T(ctx, i18n.KeyAdminCreditReasonError) }</p>
 						}
 					</div>
-					@components.Button(components.ButtonProps{ButtonStyle: components.ButtonStylePrimary}, "submit") {
+					@widget.Button(widget.ButtonProps{ButtonStyle: widget.ButtonStylePrimary}, "submit") {
 						{ i18n.T(ctx, i18n.KeyAdminCreditReview) }
 					}
 				</form>
@@ -167,6 +167,6 @@ templ Credit(p layouts.Page, v CreditView) {
 				</table>
 			</div>
 		}
-		@components.ListPager(v.Bound)
+		@widget.ListPager(v.Bound)
 	}
 }

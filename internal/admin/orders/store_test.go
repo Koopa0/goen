@@ -10,7 +10,7 @@ import (
 	"github.com/koopa0/goen/internal/db"
 	"github.com/koopa0/goen/internal/i18n"
 	"github.com/koopa0/goen/internal/order"
-	"github.com/koopa0/goen/internal/ui/components"
+	"github.com/koopa0/goen/internal/ui/widget"
 )
 
 func TestRefusedIfNoRowRefusesOnlyAMissingRow(t *testing.T) {
@@ -39,8 +39,8 @@ func TestAnOrderRefundedInFullSaysSoInPlaceOfItsDelivery(t *testing.T) {
 	t.Parallel()
 	ctx := i18n.WithLocale(t.Context(), i18n.ZhHant)
 	text, intent := orderStatus(ctx, order.FulfillmentDelivered, true, 0, true)
-	if want := i18n.T(ctx, i18n.KeyStatusRefunded); text != want || intent != components.IntentNeutral {
-		t.Errorf("orderStatus(delivered, returned) = %q, %q; want %q, %q", text, intent, want, components.IntentNeutral)
+	if want := i18n.T(ctx, i18n.KeyStatusRefunded); text != want || intent != widget.IntentNeutral {
+		t.Errorf("orderStatus(delivered, returned) = %q, %q; want %q, %q", text, intent, want, widget.IntentNeutral)
 	}
 	text, _ = orderStatus(ctx, order.FulfillmentDelivered, true, 0, false)
 	if want := order.FulfillmentDelivered.FundedLabel(ctx, true, 0); text != want {
@@ -51,11 +51,11 @@ func TestAnOrderRefundedInFullSaysSoInPlaceOfItsDelivery(t *testing.T) {
 func TestOrderRowCarriesTheColourOfItsWord(t *testing.T) {
 	t.Parallel()
 	row := orderRow(t.Context(), &db.AdminOrdersRow{FulfillmentStatus: string(order.FulfillmentPicking), Committed: true}, false)
-	if row.StatusIntent != components.IntentProgress {
-		t.Errorf("a picking order's row has intent %q, want %q", row.StatusIntent, components.IntentProgress)
+	if row.StatusIntent != widget.IntentProgress {
+		t.Errorf("a picking order's row has intent %q, want %q", row.StatusIntent, widget.IntentProgress)
 	}
 	ready := orderRow(t.Context(), &db.AdminOrdersRow{FulfillmentStatus: string(order.FulfillmentPending), Committed: true}, false)
-	if ready.StatusIntent != components.IntentWarn {
-		t.Errorf("a paid pending order's row has intent %q, want %q", ready.StatusIntent, components.IntentWarn)
+	if ready.StatusIntent != widget.IntentWarn {
+		t.Errorf("a paid pending order's row has intent %q, want %q", ready.StatusIntent, widget.IntentWarn)
 	}
 }

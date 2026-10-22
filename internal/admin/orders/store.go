@@ -32,7 +32,7 @@ import (
 	"github.com/koopa0/goen/internal/payment"
 	"github.com/koopa0/goen/internal/payment/refund"
 	"github.com/koopa0/goen/internal/shoptime"
-	"github.com/koopa0/goen/internal/ui/components"
+	"github.com/koopa0/goen/internal/ui/widget"
 	"github.com/koopa0/goen/internal/web/formtext"
 	"github.com/koopa0/goen/internal/web/requestid"
 )
@@ -98,11 +98,11 @@ func orderRow(ctx context.Context, o *db.AdminOrdersRow, returned bool) OrderRow
 
 // orderStatus is the word and colour an order carries: an order returned in full, with every refund settled, says
 // so in place of where its delivery stands.
-func orderStatus(ctx context.Context, status order.FulfillmentStatus, committed bool, owedCents int64, returned bool) (string, components.Intent) {
+func orderStatus(ctx context.Context, status order.FulfillmentStatus, committed bool, owedCents int64, returned bool) (string, widget.Intent) {
 	if returned {
-		return i18n.T(ctx, i18n.KeyStatusRefunded), components.IntentNeutral
+		return i18n.T(ctx, i18n.KeyStatusRefunded), widget.IntentNeutral
 	}
-	return status.FundedLabel(ctx, committed, owedCents), components.FundedFulfillmentIntent(status, committed, owedCents)
+	return status.FundedLabel(ctx, committed, owedCents), widget.FundedFulfillmentIntent(status, committed, owedCents)
 }
 
 // listPosition is a reader's place in the orders queue. The query builds it as

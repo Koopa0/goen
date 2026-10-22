@@ -11,9 +11,9 @@ import templruntime "github.com/a-h/templ/runtime"
 import (
 	"github.com/koopa0/goen/assets"
 	"github.com/koopa0/goen/internal/i18n"
-	"github.com/koopa0/goen/internal/ui/components"
 	"github.com/koopa0/goen/internal/ui/fieldrule"
 	"github.com/koopa0/goen/internal/ui/layouts"
+	"github.com/koopa0/goen/internal/ui/widget"
 )
 
 func SignIn(p layouts.Page, v AuthView) templ.Component {
@@ -182,7 +182,7 @@ func SignIn(p layouts.Page, v AuthView) templ.Component {
 					}
 					return nil
 				})
-				templ_7745c5c3_Err = components.Notice(components.NoticeProps{Intent: components.IntentAccent}).Render(templ.WithChildren(ctx, templ_7745c5c3_Var10), templ_7745c5c3_Buffer)
+				templ_7745c5c3_Err = widget.Notice(widget.NoticeProps{Intent: widget.IntentAccent}).Render(templ.WithChildren(ctx, templ_7745c5c3_Var10), templ_7745c5c3_Buffer)
 				if templ_7745c5c3_Err != nil {
 					return templ_7745c5c3_Err
 				}
@@ -262,11 +262,11 @@ func SignIn(p layouts.Page, v AuthView) templ.Component {
 				}
 				return nil
 			})
-			templ_7745c5c3_Err = components.Label(components.LabelProps{For: "email"}).Render(templ.WithChildren(ctx, templ_7745c5c3_Var14), templ_7745c5c3_Buffer)
+			templ_7745c5c3_Err = widget.Label(widget.LabelProps{For: "email"}).Render(templ.WithChildren(ctx, templ_7745c5c3_Var14), templ_7745c5c3_Buffer)
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
-			templ_7745c5c3_Err = components.Input(components.FieldProps{
+			templ_7745c5c3_Err = widget.Input(widget.FieldProps{
 				ID:    "email",
 				Name:  "email",
 				Type:  "email",
@@ -307,11 +307,11 @@ func SignIn(p layouts.Page, v AuthView) templ.Component {
 				}
 				return nil
 			})
-			templ_7745c5c3_Err = components.Label(components.LabelProps{For: "password"}).Render(templ.WithChildren(ctx, templ_7745c5c3_Var16), templ_7745c5c3_Buffer)
+			templ_7745c5c3_Err = widget.Label(widget.LabelProps{For: "password"}).Render(templ.WithChildren(ctx, templ_7745c5c3_Var16), templ_7745c5c3_Buffer)
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
-			templ_7745c5c3_Err = components.Input(components.FieldProps{
+			templ_7745c5c3_Err = widget.Input(widget.FieldProps{
 				ID:        "password",
 				Name:      "password",
 				Type:      "password",
@@ -366,7 +366,7 @@ func SignIn(p layouts.Page, v AuthView) templ.Component {
 				}
 				return nil
 			})
-			templ_7745c5c3_Err = components.Button(components.ButtonProps{ButtonStyle: components.ButtonStylePrimary, Size: components.SizeLarge, Block: true}, "submit").Render(templ.WithChildren(ctx, templ_7745c5c3_Var19), templ_7745c5c3_Buffer)
+			templ_7745c5c3_Err = widget.Button(widget.ButtonProps{ButtonStyle: widget.ButtonStylePrimary, Size: widget.SizeLarge, Block: true}, "submit").Render(templ.WithChildren(ctx, templ_7745c5c3_Var19), templ_7745c5c3_Buffer)
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
@@ -398,9 +398,9 @@ func SignIn(p layouts.Page, v AuthView) templ.Component {
 					}
 					return nil
 				})
-				templ_7745c5c3_Err = components.ButtonLink(components.ButtonProps{
-					ButtonStyle: components.ButtonStyleOutline,
-					Size:        components.SizeLarge,
+				templ_7745c5c3_Err = widget.ButtonLink(widget.ButtonProps{
+					ButtonStyle: widget.ButtonStyleOutline,
+					Size:        widget.SizeLarge,
 					Block:       true,
 					Class:       "goen-auth__oauth",
 				}, templ.SafeURL(v.GoogleLink())).Render(templ.WithChildren(ctx, templ_7745c5c3_Var21), templ_7745c5c3_Buffer)
@@ -660,8 +660,8 @@ func demoAccountNote(v AuthView) templ.Component {
 			}
 			return nil
 		})
-		templ_7745c5c3_Err = components.Button(components.ButtonProps{
-			ButtonStyle: components.ButtonStyleOutline,
+		templ_7745c5c3_Err = widget.Button(widget.ButtonProps{
+			ButtonStyle: widget.ButtonStyleOutline,
 			Block:       true,
 			Class:       "goen-auth__demofill",
 			Attrs: templ.Attributes{
@@ -780,7 +780,7 @@ func Register(p layouts.Page, v AuthView) templ.Component {
 					}
 					return nil
 				})
-				templ_7745c5c3_Err = components.Notice(components.NoticeProps{Intent: components.IntentAccent, ID: "register-sent"}).Render(templ.WithChildren(ctx, templ_7745c5c3_Var42), templ_7745c5c3_Buffer)
+				templ_7745c5c3_Err = widget.Notice(widget.NoticeProps{Intent: widget.IntentAccent, ID: "register-sent"}).Render(templ.WithChildren(ctx, templ_7745c5c3_Var42), templ_7745c5c3_Buffer)
 				if templ_7745c5c3_Err != nil {
 					return templ_7745c5c3_Err
 				}
@@ -809,7 +809,7 @@ func Register(p layouts.Page, v AuthView) templ.Component {
 					}
 					return nil
 				})
-				templ_7745c5c3_Err = components.Notice(components.NoticeProps{Intent: components.IntentDanger}).Render(templ.WithChildren(ctx, templ_7745c5c3_Var44), templ_7745c5c3_Buffer)
+				templ_7745c5c3_Err = widget.Notice(widget.NoticeProps{Intent: widget.IntentDanger}).Render(templ.WithChildren(ctx, templ_7745c5c3_Var44), templ_7745c5c3_Buffer)
 				if templ_7745c5c3_Err != nil {
 					return templ_7745c5c3_Err
 				}
@@ -878,11 +878,11 @@ func Register(p layouts.Page, v AuthView) templ.Component {
 						}
 						return nil
 					})
-					templ_7745c5c3_Err = components.Label(components.LabelProps{For: "email"}).Render(templ.WithChildren(ctx, templ_7745c5c3_Var48), templ_7745c5c3_Buffer)
+					templ_7745c5c3_Err = widget.Label(widget.LabelProps{For: "email"}).Render(templ.WithChildren(ctx, templ_7745c5c3_Var48), templ_7745c5c3_Buffer)
 					if templ_7745c5c3_Err != nil {
 						return templ_7745c5c3_Err
 					}
-					templ_7745c5c3_Err = components.Input(components.FieldProps{
+					templ_7745c5c3_Err = widget.Input(widget.FieldProps{
 						ID:   "email",
 						Name: "email",
 						Type: "email",
@@ -922,7 +922,7 @@ func Register(p layouts.Page, v AuthView) templ.Component {
 					}
 					return nil
 				})
-				templ_7745c5c3_Err = components.Button(components.ButtonProps{ButtonStyle: components.ButtonStyleOutline, Size: components.SizeLarge, Block: true}, "submit").Render(templ.WithChildren(ctx, templ_7745c5c3_Var50), templ_7745c5c3_Buffer)
+				templ_7745c5c3_Err = widget.Button(widget.ButtonProps{ButtonStyle: widget.ButtonStyleOutline, Size: widget.SizeLarge, Block: true}, "submit").Render(templ.WithChildren(ctx, templ_7745c5c3_Var50), templ_7745c5c3_Buffer)
 				if templ_7745c5c3_Err != nil {
 					return templ_7745c5c3_Err
 				}
@@ -1003,11 +1003,11 @@ func Register(p layouts.Page, v AuthView) templ.Component {
 					}
 					return nil
 				})
-				templ_7745c5c3_Err = components.Label(components.LabelProps{For: "email"}).Render(templ.WithChildren(ctx, templ_7745c5c3_Var55), templ_7745c5c3_Buffer)
+				templ_7745c5c3_Err = widget.Label(widget.LabelProps{For: "email"}).Render(templ.WithChildren(ctx, templ_7745c5c3_Var55), templ_7745c5c3_Buffer)
 				if templ_7745c5c3_Err != nil {
 					return templ_7745c5c3_Err
 				}
-				templ_7745c5c3_Err = components.Input(components.FieldProps{
+				templ_7745c5c3_Err = widget.Input(widget.FieldProps{
 					ID:        "email",
 					Name:      "email",
 					Type:      "email",
@@ -1069,11 +1069,11 @@ func Register(p layouts.Page, v AuthView) templ.Component {
 					}
 					return nil
 				})
-				templ_7745c5c3_Err = components.Label(components.LabelProps{For: "name"}).Render(templ.WithChildren(ctx, templ_7745c5c3_Var58), templ_7745c5c3_Buffer)
+				templ_7745c5c3_Err = widget.Label(widget.LabelProps{For: "name"}).Render(templ.WithChildren(ctx, templ_7745c5c3_Var58), templ_7745c5c3_Buffer)
 				if templ_7745c5c3_Err != nil {
 					return templ_7745c5c3_Err
 				}
-				templ_7745c5c3_Err = components.Input(components.FieldProps{
+				templ_7745c5c3_Err = widget.Input(widget.FieldProps{
 					ID:        "name",
 					Name:      "name",
 					Type:      "text",
@@ -1134,11 +1134,11 @@ func Register(p layouts.Page, v AuthView) templ.Component {
 					}
 					return nil
 				})
-				templ_7745c5c3_Err = components.Label(components.LabelProps{For: "password"}).Render(templ.WithChildren(ctx, templ_7745c5c3_Var61), templ_7745c5c3_Buffer)
+				templ_7745c5c3_Err = widget.Label(widget.LabelProps{For: "password"}).Render(templ.WithChildren(ctx, templ_7745c5c3_Var61), templ_7745c5c3_Buffer)
 				if templ_7745c5c3_Err != nil {
 					return templ_7745c5c3_Err
 				}
-				templ_7745c5c3_Err = components.Input(components.FieldProps{
+				templ_7745c5c3_Err = widget.Input(widget.FieldProps{
 					ID:        "password",
 					Name:      "password",
 					Type:      "password",
@@ -1217,11 +1217,11 @@ func Register(p layouts.Page, v AuthView) templ.Component {
 					}
 					return nil
 				})
-				templ_7745c5c3_Err = components.Label(components.LabelProps{For: "confirm"}).Render(templ.WithChildren(ctx, templ_7745c5c3_Var65), templ_7745c5c3_Buffer)
+				templ_7745c5c3_Err = widget.Label(widget.LabelProps{For: "confirm"}).Render(templ.WithChildren(ctx, templ_7745c5c3_Var65), templ_7745c5c3_Buffer)
 				if templ_7745c5c3_Err != nil {
 					return templ_7745c5c3_Err
 				}
-				templ_7745c5c3_Err = components.Input(components.FieldProps{
+				templ_7745c5c3_Err = widget.Input(widget.FieldProps{
 					ID:        "confirm",
 					Name:      "confirm",
 					Type:      "password",
@@ -1281,7 +1281,7 @@ func Register(p layouts.Page, v AuthView) templ.Component {
 					}
 					return nil
 				})
-				templ_7745c5c3_Err = components.Button(components.ButtonProps{ButtonStyle: components.ButtonStylePrimary, Size: components.SizeLarge, Block: true}, "submit").Render(templ.WithChildren(ctx, templ_7745c5c3_Var68), templ_7745c5c3_Buffer)
+				templ_7745c5c3_Err = widget.Button(widget.ButtonProps{ButtonStyle: widget.ButtonStylePrimary, Size: widget.SizeLarge, Block: true}, "submit").Render(templ.WithChildren(ctx, templ_7745c5c3_Var68), templ_7745c5c3_Buffer)
 				if templ_7745c5c3_Err != nil {
 					return templ_7745c5c3_Err
 				}
@@ -1541,11 +1541,11 @@ func RegisterComplete(p layouts.Page, v RegisterCompleteView) templ.Component {
 				}
 				return nil
 			})
-			templ_7745c5c3_Err = components.Label(components.LabelProps{For: "password"}).Render(templ.WithChildren(ctx, templ_7745c5c3_Var85), templ_7745c5c3_Buffer)
+			templ_7745c5c3_Err = widget.Label(widget.LabelProps{For: "password"}).Render(templ.WithChildren(ctx, templ_7745c5c3_Var85), templ_7745c5c3_Buffer)
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
-			templ_7745c5c3_Err = components.Input(components.FieldProps{
+			templ_7745c5c3_Err = widget.Input(widget.FieldProps{
 				ID:        "password",
 				Name:      "password",
 				Type:      "password",
@@ -1606,7 +1606,7 @@ func RegisterComplete(p layouts.Page, v RegisterCompleteView) templ.Component {
 				}
 				return nil
 			})
-			templ_7745c5c3_Err = components.Button(components.ButtonProps{ButtonStyle: components.ButtonStylePrimary, Size: components.SizeLarge, Block: true}, "submit").Render(templ.WithChildren(ctx, templ_7745c5c3_Var88), templ_7745c5c3_Buffer)
+			templ_7745c5c3_Err = widget.Button(widget.ButtonProps{ButtonStyle: widget.ButtonStylePrimary, Size: widget.SizeLarge, Block: true}, "submit").Render(templ.WithChildren(ctx, templ_7745c5c3_Var88), templ_7745c5c3_Buffer)
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}

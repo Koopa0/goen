@@ -33,8 +33,8 @@ import (
 	"github.com/koopa0/goen/internal/order/returns"
 	"github.com/koopa0/goen/internal/outbox"
 	"github.com/koopa0/goen/internal/payment/refund"
-	"github.com/koopa0/goen/internal/ui/components"
 	"github.com/koopa0/goen/internal/ui/layouts"
+	"github.com/koopa0/goen/internal/ui/widget"
 )
 
 // The refund of units a partly shipped order will not send (#1965), through
@@ -568,7 +568,7 @@ func TestTheReturnsQueueSendsAnUnsentRefundToItsOrder(t *testing.T) {
 		t.Fatalf("resume: %v", err)
 	}
 	row = queueRow(t)
-	if row.StatusIntent() != components.IntentNeutral {
+	if row.StatusIntent() != widget.IntentNeutral {
 		t.Errorf("a closed unsent refund is coloured %v, want neutral like a cancellation: nothing came back", row.StatusIntent())
 	}
 	var page strings.Builder

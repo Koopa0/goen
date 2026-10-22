@@ -12,8 +12,8 @@ import (
 	"github.com/koopa0/goen/internal/db"
 	"github.com/koopa0/goen/internal/discount/campaign"
 	"github.com/koopa0/goen/internal/i18n"
-	"github.com/koopa0/goen/internal/ui/components"
 	"github.com/koopa0/goen/internal/ui/tile"
+	"github.com/koopa0/goen/internal/ui/widget"
 )
 
 // DepartmentHead reads what a department page says under its band. The campaign notice and the
@@ -110,7 +110,7 @@ func (s *Store) colourStory(ctx context.Context, slug string) (*ColourStory, err
 		photo := assets.Image{Digest: r.ImageDigest, BundledKey: r.ImageBundledKey, Width: int(r.ImageWidth)}
 		story.Plates = append(story.Plates, ColourPlate{
 			Colour: r.Colour, Swatch: r.Swatch,
-			Image: components.Photo{
+			Image: widget.Photo{
 				URL:    photo.URL(),
 				Srcset: photo.Srcset(),
 				Alt:    r.ImageAlt,

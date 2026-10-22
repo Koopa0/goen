@@ -5,9 +5,9 @@ import (
 
 	"github.com/koopa0/goen/internal/i18n"
 	"github.com/koopa0/goen/internal/product/inventory"
-	"github.com/koopa0/goen/internal/ui/components"
 	"github.com/koopa0/goen/internal/ui/layouts"
 	"github.com/koopa0/goen/internal/ui/stockrisk"
+	"github.com/koopa0/goen/internal/ui/widget"
 )
 
 templ Variants(p layouts.Page, v VariantsView) {
@@ -72,7 +72,7 @@ templ Variants(p layouts.Page, v VariantsView) {
 					@variantTable(v.Variants, v.Return)
 				</div>
 			}
-			@components.ListPager(v.Bound)
+			@widget.ListPager(v.Bound)
 		</section>
 	}
 }
@@ -163,7 +163,7 @@ templ variantTable(variants []Variant, back string) {
 							<input
 								class="ui-input ui-input--sm goen-admin__num"
 								id={ "adj-" + x.SKU }
-								type={ components.DollarInputType(x.DraftDelta) }
+								type={ widget.DollarInputType(x.DraftDelta) }
 								inputmode="numeric"
 								name="delta"
 								value={ x.DraftDelta }

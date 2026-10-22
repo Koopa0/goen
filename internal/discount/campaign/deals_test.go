@@ -7,7 +7,7 @@ import (
 	"github.com/a-h/templ"
 
 	"github.com/koopa0/goen/internal/i18n"
-	"github.com/koopa0/goen/internal/ui/components"
+	"github.com/koopa0/goen/internal/ui/widget"
 )
 
 // renderToString renders c in Traditional Chinese.
@@ -87,7 +87,7 @@ func TestNothingOfferedIsCalledLimitedTime(t *testing.T) {
 	for name, text := range map[string]string{
 		"deals title":      DealsMeta(ctx).Title,
 		"deals page":       page.String(),
-		"campaign meta":    Meta(ctx, "秋日選物", components.Photo{}).Description,
+		"campaign meta":    Meta(ctx, "秋日選物", widget.Photo{}).Description,
 		"campaigns strip":  list.String(),
 		"campaigns header": i18n.T(ctx, i18n.KeyCampaignsRunning),
 	} {

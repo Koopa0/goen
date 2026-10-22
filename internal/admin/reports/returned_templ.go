@@ -11,7 +11,7 @@ import templruntime "github.com/a-h/templ/runtime"
 import (
 	"github.com/koopa0/goen/internal/i18n"
 	"github.com/koopa0/goen/internal/ui/chart"
-	"github.com/koopa0/goen/internal/ui/components"
+	"github.com/koopa0/goen/internal/ui/widget"
 )
 
 // A product with no returned units is not listed, so an empty list draws
@@ -187,7 +187,7 @@ func returnedProducts(v *ReportView) templ.Component {
 						}
 						return nil
 					})
-					templ_7745c5c3_Err = components.ReportRow(item.Name, item.Href(), item.Brand).Render(templ.WithChildren(ctx, templ_7745c5c3_Var7), templ_7745c5c3_Buffer)
+					templ_7745c5c3_Err = widget.ReportRow(item.Name, item.Href(), item.Brand).Render(templ.WithChildren(ctx, templ_7745c5c3_Var7), templ_7745c5c3_Buffer)
 					if templ_7745c5c3_Err != nil {
 						return templ_7745c5c3_Err
 					}

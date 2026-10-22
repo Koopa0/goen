@@ -4,10 +4,10 @@ import (
 	"fmt"
 
 	"github.com/koopa0/goen/internal/i18n"
-	"github.com/koopa0/goen/internal/ui/components"
 	"github.com/koopa0/goen/internal/ui/fieldrule"
 	"github.com/koopa0/goen/internal/ui/icons"
 	"github.com/koopa0/goen/internal/ui/layouts"
+	"github.com/koopa0/goen/internal/ui/widget"
 )
 
 templ Contact(p layouts.Page, f Form) {
@@ -88,11 +88,11 @@ templ Panel(f Form) {
 			}
 			<div class="contact__fields">
 				<div class="goen-field">
-					@components.Label(components.LabelProps{For: "contact-name"}) {
+					@widget.Label(widget.LabelProps{For: "contact-name"}) {
 						{ i18n.T(ctx, i18n.KeyFieldFullName) }
 						<span class="contact__req" aria-hidden="true">*</span>
 					}
-					@components.Input(components.FieldProps{
+					@widget.Input(widget.FieldProps{
 						ID:        "contact-name",
 						Name:      "name",
 						Type:      "text",
@@ -111,11 +111,11 @@ templ Panel(f Form) {
 					}
 				</div>
 				<div class="goen-field">
-					@components.Label(components.LabelProps{For: "contact-email"}) {
+					@widget.Label(widget.LabelProps{For: "contact-email"}) {
 						{ i18n.T(ctx, i18n.KeyFieldEmail) }
 						<span class="contact__req" aria-hidden="true">*</span>
 					}
-					@components.Input(components.FieldProps{
+					@widget.Input(widget.FieldProps{
 						ID:        "contact-email",
 						Name:      "email",
 						Type:      "email",
@@ -134,7 +134,7 @@ templ Panel(f Form) {
 					}
 				</div>
 				<div class="goen-field">
-					@components.Label(components.LabelProps{For: "contact-subject"}) {
+					@widget.Label(widget.LabelProps{For: "contact-subject"}) {
 						{ i18n.T(ctx, i18n.KeyFieldSubject) }
 					}
 					<select
@@ -155,10 +155,10 @@ templ Panel(f Form) {
 					}
 				</div>
 				<div class="goen-field">
-					@components.Label(components.LabelProps{For: "contact-order"}) {
+					@widget.Label(widget.LabelProps{For: "contact-order"}) {
 						{ i18n.T(ctx, i18n.KeyFieldOrderRefOpt) }
 					}
-					@components.Input(components.FieldProps{
+					@widget.Input(widget.FieldProps{
 						ID:        "contact-order",
 						Name:      "order_ref",
 						Type:      "text",
@@ -176,11 +176,11 @@ templ Panel(f Form) {
 					}
 				</div>
 				<div class="goen-field contact__field--wide">
-					@components.Label(components.LabelProps{For: "contact-message"}) {
+					@widget.Label(widget.LabelProps{For: "contact-message"}) {
 						{ i18n.T(ctx, i18n.KeyFieldMessage) }
 						<span class="contact__req" aria-hidden="true">*</span>
 					}
-					@components.Textarea(components.FieldProps{
+					@widget.Textarea(widget.FieldProps{
 						ID:        "contact-message",
 						Name:      "message",
 						Invalid:   f.err("message") != "",
@@ -200,7 +200,7 @@ templ Panel(f Form) {
 					}
 				</div>
 			</div>
-			@components.Button(components.ButtonProps{ButtonStyle: components.ButtonStylePrimary, Size: components.SizeLarge, Class: "contact__submit", Attrs: templ.Attributes{"id": "contact-submit"}}, "submit") {
+			@widget.Button(widget.ButtonProps{ButtonStyle: widget.ButtonStylePrimary, Size: widget.SizeLarge, Class: "contact__submit", Attrs: templ.Attributes{"id": "contact-submit"}}, "submit") {
 				{ i18n.T(ctx, i18n.KeyContactSubmit) }
 			}
 		</form>

@@ -11,8 +11,8 @@ import (
 	"github.com/koopa0/goen/internal/sales"
 	"github.com/koopa0/goen/internal/shoptime"
 	"github.com/koopa0/goen/internal/ui/chart"
-	"github.com/koopa0/goen/internal/ui/components"
 	"github.com/koopa0/goen/internal/ui/stockrisk"
+	"github.com/koopa0/goen/internal/ui/widget"
 )
 
 type Seller struct {
@@ -117,7 +117,7 @@ type PreviousFigures struct {
 // Heading names the period and the one it is set against, by shop day.
 func (v *ReportView) Heading(ctx context.Context) string {
 	return fmt.Sprintf(i18n.T(ctx, i18n.KeyAdminRepPeriods),
-		components.DayText(ctx, v.From), components.DayText(ctx, v.To), components.DayText(ctx, v.Previous.From), components.DayText(ctx, v.Previous.To))
+		widget.DayText(ctx, v.From), widget.DayText(ctx, v.To), widget.DayText(ctx, v.Previous.From), widget.DayText(ctx, v.Previous.To))
 }
 
 // RevenueAgainst is the line under the revenue figure.
@@ -222,7 +222,7 @@ func (v *ReportView) PaidColumns(ctx context.Context) chart.ColumnsProps {
 // columns, or, when there are too few days to draw them, all there is to say.
 func (v *ReportView) PaidSentence(ctx context.Context) string {
 	days := v.Paid.Days
-	period := components.DayText(ctx, v.From) + "–" + components.DayText(ctx, v.To)
+	period := widget.DayText(ctx, v.From) + "–" + widget.DayText(ctx, v.To)
 	var withOrders []chart.Bucket
 	for _, b := range days.Buckets {
 		if b.Value != 0 {
@@ -238,7 +238,7 @@ func (v *ReportView) PaidSentence(ctx context.Context) string {
 	case chart.DensityFew:
 		items := make([]string, len(withOrders))
 		for i, b := range withOrders {
-			items[i] = i18n.Count(ctx, i18n.KeyAdminRepFewDay, b.Value, components.DayText(ctx, components.DayOf(b.Day)), b.Value)
+			items[i] = i18n.Count(ctx, i18n.KeyAdminRepFewDay, b.Value, widget.DayText(ctx, widget.DayOf(b.Day)), b.Value)
 		}
 		return i18n.Count(ctx, i18n.KeyAdminRepFewDays, int64(len(withOrders)),
 			period, len(withOrders), strings.Join(items, i18n.T(ctx, i18n.KeyChartListSeparator)))
@@ -258,18 +258,18 @@ func (v *ReportView) busiest(ctx context.Context) string {
 	each := orders(peaks[0].Value)
 	if days.Grouped() {
 		if len(peaks) == 1 {
-			return fmt.Sprintf(i18n.T(ctx, i18n.KeyAdminRepBusiestStretch), peaks[0].Days, components.DayText(ctx, components.DayOf(peaks[0].Day)), each)
+			return fmt.Sprintf(i18n.T(ctx, i18n.KeyAdminRepBusiestStretch), peaks[0].Days, widget.DayText(ctx, widget.DayOf(peaks[0].Day)), each)
 		}
 		return fmt.Sprintf(i18n.T(ctx, i18n.KeyAdminRepBusiestStretches), len(peaks), each)
 	}
 	today := orders(days.Buckets[len(days.Buckets)-1].Value)
 	switch {
 	case len(peaks) == 1:
-		return fmt.Sprintf(i18n.T(ctx, i18n.KeyAdminRepBusiestDay), longDayText(ctx, components.DayOf(peaks[0].Day)), each, today, v.Daily.Cut)
+		return fmt.Sprintf(i18n.T(ctx, i18n.KeyAdminRepBusiestDay), longDayText(ctx, widget.DayOf(peaks[0].Day)), each, today, v.Daily.Cut)
 	case len(peaks) <= 3:
 		names := make([]string, len(peaks))
 		for i, c := range peaks {
-			names[i] = longDayText(ctx, components.DayOf(c.Day))
+			names[i] = longDayText(ctx, widget.DayOf(c.Day))
 		}
 		return fmt.Sprintf(i18n.T(ctx, i18n.KeyAdminRepBusiestDays), strings.Join(names, i18n.T(ctx, i18n.KeyChartListSeparator)), each, today, v.Daily.Cut)
 	}

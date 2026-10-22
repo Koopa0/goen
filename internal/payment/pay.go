@@ -8,8 +8,8 @@ import (
 
 	"github.com/koopa0/goen/internal/i18n"
 	"github.com/koopa0/goen/internal/shoptime"
-	"github.com/koopa0/goen/internal/ui/components"
 	"github.com/koopa0/goen/internal/ui/layouts"
+	"github.com/koopa0/goen/internal/ui/widget"
 )
 
 type PayLine struct {
@@ -72,19 +72,19 @@ type PayView struct {
 }
 
 // Facts is when the order was placed and the amount due, or for a lapsed hold what became of the order.
-func (h PayHold) Facts(ctx context.Context, totalCents int64) []components.Stat {
+func (h PayHold) Facts(ctx context.Context, totalCents int64) []widget.Stat {
 	if h.PlacedAt.IsZero() {
 		return nil
 	}
-	placed := components.Stat{Label: i18n.T(ctx, i18n.KeyPayFactPlaced), Value: payClock(h.PlacedAt)}
+	placed := widget.Stat{Label: i18n.T(ctx, i18n.KeyPayFactPlaced), Value: payClock(h.PlacedAt)}
 	if h.Lapsed() {
-		return []components.Stat{
+		return []widget.Stat{
 			placed,
 			{Label: i18n.T(ctx, i18n.KeyPayFactCancelled), Value: payClock(h.CancelledAt), Note: i18n.T(ctx, i18n.KeyPayFactLapsed)},
-			{Label: i18n.T(ctx, i18n.KeyPayFactCharged), Value: components.StatMoney(0)},
+			{Label: i18n.T(ctx, i18n.KeyPayFactCharged), Value: widget.StatMoney(0)},
 		}
 	}
-	return []components.Stat{placed, {Label: i18n.T(ctx, i18n.KeyPayFactAmountDue), Value: components.StatMoney(totalCents)}}
+	return []widget.Stat{placed, {Label: i18n.T(ctx, i18n.KeyPayFactAmountDue), Value: widget.StatMoney(totalCents)}}
 }
 
 // Window is the hold in words while it runs: the deadline to start paying and then when the hold ends, or the
@@ -170,6 +170,6 @@ func PayMeta(ctx context.Context, number string) layouts.Page {
 	return layouts.Page{Title: fmt.Sprintf(i18n.T(ctx, i18n.KeyPayMeta), number)}
 }
 
-func payClock(t time.Time) components.StatValue {
-	return components.StatClock(shoptime.ClockText(t)).WithDatetime(shoptime.InputMinute(t))
+func payClock(t time.Time) widget.StatValue {
+	return widget.StatClock(shoptime.ClockText(t)).WithDatetime(shoptime.InputMinute(t))
 }

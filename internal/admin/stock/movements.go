@@ -7,7 +7,7 @@ import (
 	"github.com/koopa0/goen/internal/i18n"
 	"github.com/koopa0/goen/internal/keyset"
 	"github.com/koopa0/goen/internal/product/inventory"
-	"github.com/koopa0/goen/internal/ui/components"
+	"github.com/koopa0/goen/internal/ui/widget"
 )
 
 type Movement struct {
@@ -68,7 +68,7 @@ type MovementsView struct {
 	Safety        int32
 	Rows          []Movement
 	Days          []StockDay
-	Notice        components.Result
+	Notice        widget.Result
 	FormID        string
 	DraftQuantity string
 	QuantityError string

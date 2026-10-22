@@ -14,11 +14,11 @@ import (
 
 	"github.com/koopa0/goen/internal/i18n"
 	"github.com/koopa0/goen/internal/shoptime"
-	"github.com/koopa0/goen/internal/ui/components"
 	"github.com/koopa0/goen/internal/ui/fieldrule"
 	"github.com/koopa0/goen/internal/ui/icons"
 	"github.com/koopa0/goen/internal/ui/layouts"
 	"github.com/koopa0/goen/internal/ui/tile"
+	"github.com/koopa0/goen/internal/ui/widget"
 )
 
 func Product(p layouts.Page, v *ProductView) templ.Component {
@@ -58,7 +58,7 @@ func Product(p layouts.Page, v *ProductView) templ.Component {
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
-			templ_7745c5c3_Err = components.Breadcrumb(components.BreadcrumbProps{
+			templ_7745c5c3_Err = widget.Breadcrumb(widget.BreadcrumbProps{
 				Label:  i18n.T(ctx, i18n.KeyBreadcrumb),
 				Crumbs: v.Trail(ctx),
 			}).Render(ctx, templ_7745c5c3_Buffer)
@@ -794,7 +794,7 @@ func productBand(v *ProductView) templ.Component {
 				return templ_7745c5c3_Err
 			}
 			if hasPhoto {
-				templ_7745c5c3_Err = bandMedia("goen-band__photo", "", components.Photo{URL: photo.URL, Srcset: photo.Srcset, Alt: photo.Alt}, true, "(min-width: 1024px) 42vw, 100vw", true).Render(ctx, templ_7745c5c3_Buffer)
+				templ_7745c5c3_Err = bandMedia("goen-band__photo", "", widget.Photo{URL: photo.URL, Srcset: photo.Srcset, Alt: photo.Alt}, true, "(min-width: 1024px) 42vw, 100vw", true).Render(ctx, templ_7745c5c3_Buffer)
 				if templ_7745c5c3_Err != nil {
 					return templ_7745c5c3_Err
 				}
@@ -1054,7 +1054,7 @@ func productBuy(v *ProductView) templ.Component {
 					}
 					return nil
 				})
-				templ_7745c5c3_Err = components.Badge(components.BadgeProps{}).Render(templ.WithChildren(ctx, templ_7745c5c3_Var48), templ_7745c5c3_Buffer)
+				templ_7745c5c3_Err = widget.Badge(widget.BadgeProps{}).Render(templ.WithChildren(ctx, templ_7745c5c3_Var48), templ_7745c5c3_Buffer)
 				if templ_7745c5c3_Err != nil {
 					return templ_7745c5c3_Err
 				}
@@ -1234,7 +1234,7 @@ func productBuy(v *ProductView) templ.Component {
 					}
 					return nil
 				})
-				templ_7745c5c3_Err = components.Badge(components.BadgeProps{}).Render(templ.WithChildren(ctx, templ_7745c5c3_Var58), templ_7745c5c3_Buffer)
+				templ_7745c5c3_Err = widget.Badge(widget.BadgeProps{}).Render(templ.WithChildren(ctx, templ_7745c5c3_Var58), templ_7745c5c3_Buffer)
 				if templ_7745c5c3_Err != nil {
 					return templ_7745c5c3_Err
 				}
@@ -1749,7 +1749,7 @@ func productBuy(v *ProductView) templ.Component {
 				}
 				return nil
 			})
-			templ_7745c5c3_Err = components.Notice(components.NoticeProps{Intent: components.IntentWarn, Class: "goen-pdp__note"}).Render(templ.WithChildren(ctx, templ_7745c5c3_Var89), templ_7745c5c3_Buffer)
+			templ_7745c5c3_Err = widget.Notice(widget.NoticeProps{Intent: widget.IntentWarn, Class: "goen-pdp__note"}).Render(templ.WithChildren(ctx, templ_7745c5c3_Var89), templ_7745c5c3_Buffer)
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
@@ -1778,7 +1778,7 @@ func productBuy(v *ProductView) templ.Component {
 				}
 				return nil
 			})
-			templ_7745c5c3_Err = components.Notice(components.NoticeProps{Intent: components.IntentDanger, ID: "notify-unavailable"}).Render(templ.WithChildren(ctx, templ_7745c5c3_Var91), templ_7745c5c3_Buffer)
+			templ_7745c5c3_Err = widget.Notice(widget.NoticeProps{Intent: widget.IntentDanger, ID: "notify-unavailable"}).Render(templ.WithChildren(ctx, templ_7745c5c3_Var91), templ_7745c5c3_Buffer)
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
@@ -1832,7 +1832,7 @@ func productBuy(v *ProductView) templ.Component {
 				}
 				return nil
 			})
-			templ_7745c5c3_Err = components.Notice(components.NoticeProps{Intent: components.IntentWarn, Class: "goen-pdp__note"}).Render(templ.WithChildren(ctx, templ_7745c5c3_Var93), templ_7745c5c3_Buffer)
+			templ_7745c5c3_Err = widget.Notice(widget.NoticeProps{Intent: widget.IntentWarn, Class: "goen-pdp__note"}).Render(templ.WithChildren(ctx, templ_7745c5c3_Var93), templ_7745c5c3_Buffer)
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
@@ -1847,7 +1847,7 @@ func productBuy(v *ProductView) templ.Component {
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
-		templ_7745c5c3_Err = components.StatLine(v.BuyFacts(ctx), components.StatLinePairs).Render(ctx, templ_7745c5c3_Buffer)
+		templ_7745c5c3_Err = widget.StatLine(v.BuyFacts(ctx), widget.StatLinePairs).Render(ctx, templ_7745c5c3_Buffer)
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
@@ -1956,8 +1956,8 @@ func productLinks(v *ProductView) templ.Component {
 				}
 				return nil
 			})
-			templ_7745c5c3_Err = components.Button(components.ButtonProps{
-				ButtonStyle: components.ButtonStyleGhost,
+			templ_7745c5c3_Err = widget.Button(widget.ButtonProps{
+				ButtonStyle: widget.ButtonStyleGhost,
 				Attrs: templ.Attributes{
 					"aria-label":   v.WishlistLabel(ctx),
 					"aria-pressed": v.SavedText(),
@@ -2006,7 +2006,7 @@ func productLinks(v *ProductView) templ.Component {
 				}
 				return nil
 			})
-			templ_7745c5c3_Err = components.ButtonLink(components.ButtonProps{ButtonStyle: components.ButtonStyleGhost}, templ.SafeURL("/signin?next=/p/"+v.Slug+"%23wishlist")).Render(templ.WithChildren(ctx, templ_7745c5c3_Var101), templ_7745c5c3_Buffer)
+			templ_7745c5c3_Err = widget.ButtonLink(widget.ButtonProps{ButtonStyle: widget.ButtonStyleGhost}, templ.SafeURL("/signin?next=/p/"+v.Slug+"%23wishlist")).Render(templ.WithChildren(ctx, templ_7745c5c3_Var101), templ_7745c5c3_Buffer)
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
@@ -2117,11 +2117,11 @@ func productAddForm(v *ProductView) templ.Component {
 				}
 				return nil
 			})
-			templ_7745c5c3_Err = components.Label(components.LabelProps{For: "quantity", Class: "goen-sr-only"}).Render(templ.WithChildren(ctx, templ_7745c5c3_Var107), templ_7745c5c3_Buffer)
+			templ_7745c5c3_Err = widget.Label(widget.LabelProps{For: "quantity", Class: "goen-sr-only"}).Render(templ.WithChildren(ctx, templ_7745c5c3_Var107), templ_7745c5c3_Buffer)
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
-			templ_7745c5c3_Err = components.Stepper(components.StepperProps{
+			templ_7745c5c3_Err = widget.Stepper(widget.StepperProps{
 				ID: "quantity", Name: "quantity", Value: "1",
 				Min: "1", Max: v.MaxQuantity(), Disabled: !v.CanBuy(),
 				DecreaseLabel: i18n.T(ctx, i18n.KeyQuantityDecrease),
@@ -2189,8 +2189,8 @@ func productAddForm(v *ProductView) templ.Component {
 			}
 			return nil
 		})
-		templ_7745c5c3_Err = components.Button(components.ButtonProps{
-			ButtonStyle: components.ButtonStylePrimary,
+		templ_7745c5c3_Err = widget.Button(widget.ButtonProps{
+			ButtonStyle: widget.ButtonStylePrimary,
 			Class:       "goen-pdp__add",
 			Attrs:       templ.Attributes{"id": "add-to-cart", "disabled": !v.CanBuy()},
 		}, "submit").Render(templ.WithChildren(ctx, templ_7745c5c3_Var109), templ_7745c5c3_Buffer)
@@ -2242,8 +2242,8 @@ func productAddForm(v *ProductView) templ.Component {
 				}
 				return nil
 			})
-			templ_7745c5c3_Err = components.Notice(components.NoticeProps{
-				Intent: components.IntentAccent, ID: "added", Class: "goen-pdp__added",
+			templ_7745c5c3_Err = widget.Notice(widget.NoticeProps{
+				Intent: widget.IntentAccent, ID: "added", Class: "goen-pdp__added",
 			}).Render(templ.WithChildren(ctx, templ_7745c5c3_Var113), templ_7745c5c3_Buffer)
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
@@ -2290,7 +2290,7 @@ func productAddForm(v *ProductView) templ.Component {
 				}
 				return nil
 			})
-			templ_7745c5c3_Err = components.Notice(components.NoticeProps{Intent: components.IntentAccent, ID: "added", Class: "goen-pdp__added"}).Render(templ.WithChildren(ctx, templ_7745c5c3_Var116), templ_7745c5c3_Buffer)
+			templ_7745c5c3_Err = widget.Notice(widget.NoticeProps{Intent: widget.IntentAccent, ID: "added", Class: "goen-pdp__added"}).Render(templ.WithChildren(ctx, templ_7745c5c3_Var116), templ_7745c5c3_Buffer)
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
@@ -2319,8 +2319,8 @@ func productAddForm(v *ProductView) templ.Component {
 				}
 				return nil
 			})
-			templ_7745c5c3_Err = components.Notice(components.NoticeProps{
-				Intent: components.IntentDanger, ID: "added", Class: "goen-pdp__added",
+			templ_7745c5c3_Err = widget.Notice(widget.NoticeProps{
+				Intent: widget.IntentDanger, ID: "added", Class: "goen-pdp__added",
 			}).Render(templ.WithChildren(ctx, templ_7745c5c3_Var119), templ_7745c5c3_Buffer)
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
@@ -2350,8 +2350,8 @@ func productAddForm(v *ProductView) templ.Component {
 				}
 				return nil
 			})
-			templ_7745c5c3_Err = components.Notice(components.NoticeProps{
-				Intent: components.IntentDanger, ID: "added", Class: "goen-pdp__added",
+			templ_7745c5c3_Err = widget.Notice(widget.NoticeProps{
+				Intent: widget.IntentDanger, ID: "added", Class: "goen-pdp__added",
 			}).Render(templ.WithChildren(ctx, templ_7745c5c3_Var121), templ_7745c5c3_Buffer)
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
@@ -2448,7 +2448,7 @@ func productBuyBar(v *ProductView) templ.Component {
 					}
 					return nil
 				})
-				templ_7745c5c3_Err = components.ButtonLink(components.ButtonProps{ButtonStyle: components.ButtonStyleOutline, Class: "goen-buybar__btn"}, templ.SafeURL("/cart")).Render(templ.WithChildren(ctx, templ_7745c5c3_Var126), templ_7745c5c3_Buffer)
+				templ_7745c5c3_Err = widget.ButtonLink(widget.ButtonProps{ButtonStyle: widget.ButtonStyleOutline, Class: "goen-buybar__btn"}, templ.SafeURL("/cart")).Render(templ.WithChildren(ctx, templ_7745c5c3_Var126), templ_7745c5c3_Buffer)
 				if templ_7745c5c3_Err != nil {
 					return templ_7745c5c3_Err
 				}
@@ -2506,8 +2506,8 @@ func productBuyBar(v *ProductView) templ.Component {
 				}
 				return nil
 			})
-			templ_7745c5c3_Err = components.Button(components.ButtonProps{
-				ButtonStyle: components.ButtonStylePrimary,
+			templ_7745c5c3_Err = widget.Button(widget.ButtonProps{
+				ButtonStyle: widget.ButtonStylePrimary,
 				Class:       "goen-buybar__btn",
 				Attrs:       templ.Attributes{"form": "pdp-add"},
 			}, "submit").Render(templ.WithChildren(ctx, templ_7745c5c3_Var129), templ_7745c5c3_Buffer)
@@ -2538,7 +2538,7 @@ func productBuyBar(v *ProductView) templ.Component {
 				}
 				return nil
 			})
-			templ_7745c5c3_Err = components.ButtonLink(components.ButtonProps{ButtonStyle: components.ButtonStyleOutline, Class: "goen-buybar__btn"}, templ.SafeURL("#restock")).Render(templ.WithChildren(ctx, templ_7745c5c3_Var131), templ_7745c5c3_Buffer)
+			templ_7745c5c3_Err = widget.ButtonLink(widget.ButtonProps{ButtonStyle: widget.ButtonStyleOutline, Class: "goen-buybar__btn"}, templ.SafeURL("#restock")).Render(templ.WithChildren(ctx, templ_7745c5c3_Var131), templ_7745c5c3_Buffer)
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
@@ -2602,8 +2602,8 @@ func productCompare(v *ProductView) templ.Component {
 					}
 					return nil
 				})
-				templ_7745c5c3_Err = components.ButtonLink(components.ButtonProps{
-					ButtonStyle: components.ButtonStyleGhost, Class: "goen-pdp__compare",
+				templ_7745c5c3_Err = widget.ButtonLink(widget.ButtonProps{
+					ButtonStyle: widget.ButtonStyleGhost, Class: "goen-pdp__compare",
 				}, templ.SafeURL(v.CompareHref())).Render(templ.WithChildren(ctx, templ_7745c5c3_Var134), templ_7745c5c3_Buffer)
 				if templ_7745c5c3_Err != nil {
 					return templ_7745c5c3_Err
@@ -2632,8 +2632,8 @@ func productCompare(v *ProductView) templ.Component {
 					}
 					return nil
 				})
-				templ_7745c5c3_Err = components.ButtonLink(components.ButtonProps{
-					ButtonStyle: components.ButtonStyleGhost, Class: "goen-pdp__compare",
+				templ_7745c5c3_Err = widget.ButtonLink(widget.ButtonProps{
+					ButtonStyle: widget.ButtonStyleGhost, Class: "goen-pdp__compare",
 				}, templ.SafeURL(v.CompareHref())).Render(templ.WithChildren(ctx, templ_7745c5c3_Var136), templ_7745c5c3_Buffer)
 				if templ_7745c5c3_Err != nil {
 					return templ_7745c5c3_Err
@@ -2780,7 +2780,7 @@ func productNotifyForm(v *ProductView) templ.Component {
 				}
 				return nil
 			})
-			templ_7745c5c3_Err = components.Notice(components.NoticeProps{Intent: components.IntentAccent}).Render(templ.WithChildren(ctx, templ_7745c5c3_Var145), templ_7745c5c3_Buffer)
+			templ_7745c5c3_Err = widget.Notice(widget.NoticeProps{Intent: widget.IntentAccent}).Render(templ.WithChildren(ctx, templ_7745c5c3_Var145), templ_7745c5c3_Buffer)
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
@@ -2808,7 +2808,7 @@ func productNotifyForm(v *ProductView) templ.Component {
 				}
 				return nil
 			})
-			templ_7745c5c3_Err = components.Label(components.LabelProps{For: "notify-email"}).Render(templ.WithChildren(ctx, templ_7745c5c3_Var147), templ_7745c5c3_Buffer)
+			templ_7745c5c3_Err = widget.Label(widget.LabelProps{For: "notify-email"}).Render(templ.WithChildren(ctx, templ_7745c5c3_Var147), templ_7745c5c3_Buffer)
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
@@ -2816,7 +2816,7 @@ func productNotifyForm(v *ProductView) templ.Component {
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
-			templ_7745c5c3_Err = components.Input(components.FieldProps{
+			templ_7745c5c3_Err = widget.Input(widget.FieldProps{
 				ID: "notify-email", Name: "email", Type: "email", Value: v.NotifyEmailValue(),
 				Invalid: v.NotifyRefused(), Describes: "notify-email-error",
 				Attrs: fieldrule.Email.Attrs(ctx, templ.Attributes{
@@ -2849,7 +2849,7 @@ func productNotifyForm(v *ProductView) templ.Component {
 				}
 				return nil
 			})
-			templ_7745c5c3_Err = components.Button(components.ButtonProps{ButtonStyle: components.ButtonStyleOutline}, "submit").Render(templ.WithChildren(ctx, templ_7745c5c3_Var149), templ_7745c5c3_Buffer)
+			templ_7745c5c3_Err = widget.Button(widget.ButtonProps{ButtonStyle: widget.ButtonStyleOutline}, "submit").Render(templ.WithChildren(ctx, templ_7745c5c3_Var149), templ_7745c5c3_Buffer)
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
@@ -3109,7 +3109,7 @@ func productReviews(v *ProductView) templ.Component {
 						}
 						return nil
 					})
-					templ_7745c5c3_Err = components.Badge(components.BadgeProps{}).Render(templ.WithChildren(ctx, templ_7745c5c3_Var163), templ_7745c5c3_Buffer)
+					templ_7745c5c3_Err = widget.Badge(widget.BadgeProps{}).Render(templ.WithChildren(ctx, templ_7745c5c3_Var163), templ_7745c5c3_Buffer)
 					if templ_7745c5c3_Err != nil {
 						return templ_7745c5c3_Err
 					}
@@ -3150,7 +3150,7 @@ func productReviews(v *ProductView) templ.Component {
 						}
 						return nil
 					})
-					templ_7745c5c3_Err = components.Badge(components.BadgeProps{}).Render(templ.WithChildren(ctx, templ_7745c5c3_Var165), templ_7745c5c3_Buffer)
+					templ_7745c5c3_Err = widget.Badge(widget.BadgeProps{}).Render(templ.WithChildren(ctx, templ_7745c5c3_Var165), templ_7745c5c3_Buffer)
 					if templ_7745c5c3_Err != nil {
 						return templ_7745c5c3_Err
 					}
@@ -3264,7 +3264,7 @@ func productReviews(v *ProductView) templ.Component {
 				}
 				return nil
 			})
-			templ_7745c5c3_Err = components.Notice(components.NoticeProps{Intent: components.IntentAccent}).Render(templ.WithChildren(ctx, templ_7745c5c3_Var172), templ_7745c5c3_Buffer)
+			templ_7745c5c3_Err = widget.Notice(widget.NoticeProps{Intent: widget.IntentAccent}).Render(templ.WithChildren(ctx, templ_7745c5c3_Var172), templ_7745c5c3_Buffer)
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
@@ -3343,7 +3343,7 @@ func productQuestions(v *ProductView) templ.Component {
 				}
 				return nil
 			})
-			templ_7745c5c3_Err = components.Notice(components.NoticeProps{Intent: components.IntentAccent}).Render(templ.WithChildren(ctx, templ_7745c5c3_Var176), templ_7745c5c3_Buffer)
+			templ_7745c5c3_Err = widget.Notice(widget.NoticeProps{Intent: widget.IntentAccent}).Render(templ.WithChildren(ctx, templ_7745c5c3_Var176), templ_7745c5c3_Buffer)
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
@@ -3457,7 +3457,7 @@ func productQuestions(v *ProductView) templ.Component {
 								}
 								return nil
 							})
-							templ_7745c5c3_Err = components.Badge(components.BadgeProps{}).Render(templ.WithChildren(ctx, templ_7745c5c3_Var183), templ_7745c5c3_Buffer)
+							templ_7745c5c3_Err = widget.Badge(widget.BadgeProps{}).Render(templ.WithChildren(ctx, templ_7745c5c3_Var183), templ_7745c5c3_Buffer)
 							if templ_7745c5c3_Err != nil {
 								return templ_7745c5c3_Err
 							}
@@ -3645,7 +3645,7 @@ func askForm(v *ProductView) templ.Component {
 				}
 				return nil
 			})
-			templ_7745c5c3_Err = components.Label(components.LabelProps{For: "ask-body"}).Render(templ.WithChildren(ctx, templ_7745c5c3_Var193), templ_7745c5c3_Buffer)
+			templ_7745c5c3_Err = widget.Label(widget.LabelProps{For: "ask-body"}).Render(templ.WithChildren(ctx, templ_7745c5c3_Var193), templ_7745c5c3_Buffer)
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
@@ -3672,7 +3672,7 @@ func askForm(v *ProductView) templ.Component {
 				}
 				return nil
 			})
-			templ_7745c5c3_Err = components.Textarea(components.FieldProps{
+			templ_7745c5c3_Err = widget.Textarea(widget.FieldProps{
 				ID: "ask-body", Name: "body",
 				Invalid: v.AskRefused(), Describes: v.askBodyDescribedBy(),
 				Attrs: v.askBodyAttrs(templ.Attributes{
@@ -3766,7 +3766,7 @@ func askForm(v *ProductView) templ.Component {
 				}
 				return nil
 			})
-			templ_7745c5c3_Err = components.Button(components.ButtonProps{ButtonStyle: components.ButtonStyleOutline}, "submit").Render(templ.WithChildren(ctx, templ_7745c5c3_Var200), templ_7745c5c3_Buffer)
+			templ_7745c5c3_Err = widget.Button(widget.ButtonProps{ButtonStyle: widget.ButtonStyleOutline}, "submit").Render(templ.WithChildren(ctx, templ_7745c5c3_Var200), templ_7745c5c3_Buffer)
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
@@ -3982,11 +3982,11 @@ func reviewForm(v *ProductView) templ.Component {
 				}
 				return nil
 			})
-			templ_7745c5c3_Err = components.Label(components.LabelProps{For: "review-title"}).Render(templ.WithChildren(ctx, templ_7745c5c3_Var211), templ_7745c5c3_Buffer)
+			templ_7745c5c3_Err = widget.Label(widget.LabelProps{For: "review-title"}).Render(templ.WithChildren(ctx, templ_7745c5c3_Var211), templ_7745c5c3_Buffer)
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
-			templ_7745c5c3_Err = components.Input(components.FieldProps{
+			templ_7745c5c3_Err = widget.Input(widget.FieldProps{
 				ID: "review-title", Name: "title", Value: v.ReviewDraft.Title,
 				Invalid: v.HasReviewErr("title"), Describes: "review-title-error",
 				Attrs: templ.Attributes{"maxlength": "80"},
@@ -4040,7 +4040,7 @@ func reviewForm(v *ProductView) templ.Component {
 				}
 				return nil
 			})
-			templ_7745c5c3_Err = components.Label(components.LabelProps{For: "review-body"}).Render(templ.WithChildren(ctx, templ_7745c5c3_Var214), templ_7745c5c3_Buffer)
+			templ_7745c5c3_Err = widget.Label(widget.LabelProps{For: "review-body"}).Render(templ.WithChildren(ctx, templ_7745c5c3_Var214), templ_7745c5c3_Buffer)
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
@@ -4067,7 +4067,7 @@ func reviewForm(v *ProductView) templ.Component {
 				}
 				return nil
 			})
-			templ_7745c5c3_Err = components.Textarea(components.FieldProps{
+			templ_7745c5c3_Err = widget.Textarea(widget.FieldProps{
 				ID: "review-body", Name: "body", Class: "goen-pdp__reviewbody",
 				Invalid: v.HasReviewErr("body"), Describes: v.reviewBodyDescribedBy(),
 				Attrs: v.reviewBodyAttrs(),
@@ -4139,7 +4139,7 @@ func reviewForm(v *ProductView) templ.Component {
 				}
 				return nil
 			})
-			templ_7745c5c3_Err = components.Button(components.ButtonProps{ButtonStyle: components.ButtonStylePrimary}, "submit").Render(templ.WithChildren(ctx, templ_7745c5c3_Var220), templ_7745c5c3_Buffer)
+			templ_7745c5c3_Err = widget.Button(widget.ButtonProps{ButtonStyle: widget.ButtonStylePrimary}, "submit").Render(templ.WithChildren(ctx, templ_7745c5c3_Var220), templ_7745c5c3_Buffer)
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}

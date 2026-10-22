@@ -4,16 +4,16 @@ import (
 	"fmt"
 
 	"github.com/koopa0/goen/internal/i18n"
-	"github.com/koopa0/goen/internal/ui/components"
 	"github.com/koopa0/goen/internal/ui/layouts"
+	"github.com/koopa0/goen/internal/ui/widget"
 )
 
 templ WarrantyList(p layouts.Page, v WarrantyListView) {
 	@layouts.Base(p) {
 		<div class="goen-account goen-account--narrow goen-account--warranty">
-			@components.Breadcrumb(components.BreadcrumbProps{
+			@widget.Breadcrumb(widget.BreadcrumbProps{
 				Label: i18n.T(ctx, i18n.KeyBreadcrumb),
-				Crumbs: []components.Crumb{
+				Crumbs: []widget.Crumb{
 					{Label: i18n.T(ctx, i18n.KeyAccountTitle), Href: "/account"},
 					{Label: i18n.T(ctx, i18n.KeyWarrantyTitle)},
 				},
@@ -33,7 +33,7 @@ templ WarrantyList(p layouts.Page, v WarrantyListView) {
 									<span class="goen-warranty__meta">{ item.Line.Label }</span>
 								}
 								<p class="goen-warranty__meta">{ item.Line.CoverText(ctx) }</p>
-								@components.ButtonLink(components.ButtonProps{ButtonStyle: components.ButtonStyleOutline}, templ.SafeURL(item.Href())) {
+								@widget.ButtonLink(widget.ButtonProps{ButtonStyle: widget.ButtonStyleOutline}, templ.SafeURL(item.Href())) {
 									{ i18n.T(ctx, i18n.KeyWarrantyRegisterReady) }
 								}
 							</li>
@@ -58,7 +58,7 @@ templ WarrantyList(p layouts.Page, v WarrantyListView) {
 								} else {
 									<span class="goen-warranty__name">{ item.Name }</span>
 								}
-								@components.Badge(components.BadgeProps{}) {
+								@widget.Badge(widget.BadgeProps{}) {
 									{ item.State(ctx) }
 								}
 							</div>
@@ -66,7 +66,7 @@ templ WarrantyList(p layouts.Page, v WarrantyListView) {
 								<span class="goen-warranty__meta">{ item.Label }</span>
 							}
 							if !item.Returned {
-								@components.StatLine(item.Facts(ctx), components.StatLineSmall)
+								@widget.StatLine(item.Facts(ctx), widget.StatLineSmall)
 							}
 							<span class="goen-warranty__meta">{ fmt.Sprintf(i18n.T(ctx, i18n.KeyWarrantyOrderMeta), item.Order, item.RegisteredAt) }</span>
 							if item.Serial != "" {
@@ -83,9 +83,9 @@ templ WarrantyList(p layouts.Page, v WarrantyListView) {
 templ WarrantyOrder(p layouts.Page, v OrderView) {
 	@layouts.Base(p) {
 		<div class="goen-account goen-account--narrow goen-account--warranty">
-			@components.Breadcrumb(components.BreadcrumbProps{
+			@widget.Breadcrumb(widget.BreadcrumbProps{
 				Label: i18n.T(ctx, i18n.KeyBreadcrumb),
-				Crumbs: []components.Crumb{
+				Crumbs: []widget.Crumb{
 					{Label: i18n.T(ctx, i18n.KeyAccountTitle), Href: "/account"},
 					{Label: i18n.T(ctx, i18n.KeyWarrantyTitle), Href: "/account/warranty"},
 					{Label: v.Number},
@@ -95,7 +95,7 @@ templ WarrantyOrder(p layouts.Page, v OrderView) {
 				<h1 class="goen-pagehead__title">{ fmt.Sprintf(i18n.T(ctx, i18n.KeyOrderMeta), v.Number) }</h1>
 			</div>
 			if v.Refusal != "" {
-				@components.Notice(components.NoticeProps{Intent: components.IntentDanger, ID: "warranty-refusal"}) {
+				@widget.Notice(widget.NoticeProps{Intent: widget.IntentDanger, ID: "warranty-refusal"}) {
 					{ v.Refusal }
 				}
 			}
@@ -122,7 +122,7 @@ templ WarrantyOrder(p layouts.Page, v OrderView) {
 						<div class="goen-warranty__head">
 							<span class="goen-warranty__name">{ line.Name }</span>
 							if line.CoverText(ctx) != "" {
-								@components.Badge(components.BadgeProps{}) {
+								@widget.Badge(widget.BadgeProps{}) {
 									{ line.CoverText(ctx) }
 								}
 							}
@@ -138,10 +138,10 @@ templ WarrantyOrder(p layouts.Page, v OrderView) {
 								<input type="hidden" name="line" value={ line.ID }/>
 								<input type="hidden" name="unit" value={ line.NextUnit() }/>
 								<div class="goen-field goen-warranty__field">
-									@components.Label(components.LabelProps{For: "serial-" + line.ID}) {
+									@widget.Label(widget.LabelProps{For: "serial-" + line.ID}) {
 										{ i18n.T(ctx, i18n.KeyFieldSerialOpt) }
 									}
-									@components.Input(line.serialField(ctx))
+									@widget.Input(line.serialField(ctx))
 									if line.SerialRefusal != "" {
 										<p class="ui-error-text" id={ "serial-" + line.ID + "-error" } role="alert">{ line.SerialRefusal }</p>
 									}
@@ -149,7 +149,7 @@ templ WarrantyOrder(p layouts.Page, v OrderView) {
 										{ i18n.T(ctx, i18n.KeySerialHint) }
 									</p>
 								</div>
-								@components.Button(components.ButtonProps{ButtonStyle: components.ButtonStylePrimary}, "submit") {
+								@widget.Button(widget.ButtonProps{ButtonStyle: widget.ButtonStylePrimary}, "submit") {
 									{ i18n.T(ctx, i18n.KeyWarrantyRegister) }
 								}
 							</form>
@@ -158,10 +158,10 @@ templ WarrantyOrder(p layouts.Page, v OrderView) {
 						}
 						if !line.Registrable() && line.DraftSerial != "" {
 							<div class="goen-field goen-warranty__field">
-								@components.Label(components.LabelProps{For: "serial-" + line.ID}) {
+								@widget.Label(widget.LabelProps{For: "serial-" + line.ID}) {
 									{ i18n.T(ctx, i18n.KeyFieldSerialOpt) }
 								}
-								@components.Input(components.FieldProps{
+								@widget.Input(widget.FieldProps{
 									ID: "serial-" + line.ID, Name: "serial", Value: line.DraftSerial,
 									Attrs: templ.Attributes{"readonly": true},
 								})

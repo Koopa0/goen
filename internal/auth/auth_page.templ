@@ -3,9 +3,9 @@ package auth
 import (
 	"github.com/koopa0/goen/assets"
 	"github.com/koopa0/goen/internal/i18n"
-	"github.com/koopa0/goen/internal/ui/components"
 	"github.com/koopa0/goen/internal/ui/fieldrule"
 	"github.com/koopa0/goen/internal/ui/layouts"
+	"github.com/koopa0/goen/internal/ui/widget"
 )
 
 templ SignIn(p layouts.Page, v AuthView) {
@@ -25,7 +25,7 @@ templ SignIn(p layouts.Page, v AuthView) {
 					</p>
 				}
 				if v.HasNotice() {
-					@components.Notice(components.NoticeProps{Intent: components.IntentAccent}) {
+					@widget.Notice(widget.NoticeProps{Intent: widget.IntentAccent}) {
 						{ v.Notice }
 					}
 				}
@@ -42,10 +42,10 @@ templ SignIn(p layouts.Page, v AuthView) {
 						<p class="goen-notice goen-notice--danger" id="signin-error" role="alert">{ v.Err("form") }</p>
 					}
 					<div class="goen-field">
-						@components.Label(components.LabelProps{For: "email"}) {
+						@widget.Label(widget.LabelProps{For: "email"}) {
 							{ i18n.T(ctx, i18n.KeyFieldEmail) }
 						}
-						@components.Input(components.FieldProps{
+						@widget.Input(widget.FieldProps{
 							ID:    "email",
 							Name:  "email",
 							Type:  "email",
@@ -58,10 +58,10 @@ templ SignIn(p layouts.Page, v AuthView) {
 						})
 					</div>
 					<div class="goen-field">
-						@components.Label(components.LabelProps{For: "password"}) {
+						@widget.Label(widget.LabelProps{For: "password"}) {
 							{ i18n.T(ctx, i18n.KeyFieldPassword) }
 						}
-						@components.Input(components.FieldProps{
+						@widget.Input(widget.FieldProps{
 							ID:        "password",
 							Name:      "password",
 							Type:      "password",
@@ -75,14 +75,14 @@ templ SignIn(p layouts.Page, v AuthView) {
 						})
 						<a class="goen-auth__forgot" href="/forgot">{ i18n.T(ctx, i18n.KeyForgotPassword) }</a>
 					</div>
-					@components.Button(components.ButtonProps{ButtonStyle: components.ButtonStylePrimary, Size: components.SizeLarge, Block: true}, "submit") {
+					@widget.Button(widget.ButtonProps{ButtonStyle: widget.ButtonStylePrimary, Size: widget.SizeLarge, Block: true}, "submit") {
 						{ i18n.T(ctx, i18n.KeySignIn) }
 					}
 				</form>
 				if v.GoogleSignIn {
-					@components.ButtonLink(components.ButtonProps{
-						ButtonStyle: components.ButtonStyleOutline,
-						Size:        components.SizeLarge,
+					@widget.ButtonLink(widget.ButtonProps{
+						ButtonStyle: widget.ButtonStyleOutline,
+						Size:        widget.SizeLarge,
 						Block:       true,
 						Class:       "goen-auth__oauth",
 					}, templ.SafeURL(v.GoogleLink())) {
@@ -134,8 +134,8 @@ templ demoAccountNote(v AuthView) {
 			</div>
 		</dl>
 		<p class="goen-auth__demonote">{ i18n.T(ctx, i18n.KeyDemoAccountShared) }</p>
-		@components.Button(components.ButtonProps{
-			ButtonStyle: components.ButtonStyleOutline,
+		@widget.Button(widget.ButtonProps{
+			ButtonStyle: widget.ButtonStyleOutline,
 			Block:       true,
 			Class:       "goen-auth__demofill",
 			Attrs: templ.Attributes{
@@ -160,12 +160,12 @@ templ Register(p layouts.Page, v AuthView) {
 					<h1 class="goen-auth__title">{ i18n.T(ctx, i18n.KeyCreateAccount) }</h1>
 				}
 				if v.HasNotice() {
-					@components.Notice(components.NoticeProps{Intent: components.IntentAccent, ID: "register-sent"}) {
+					@widget.Notice(widget.NoticeProps{Intent: widget.IntentAccent, ID: "register-sent"}) {
 						{ v.Notice }
 					}
 				}
 				if v.AnyErrors() {
-					@components.Notice(components.NoticeProps{Intent: components.IntentDanger}) {
+					@widget.Notice(widget.NoticeProps{Intent: widget.IntentDanger}) {
 						{ i18n.T(ctx, i18n.KeyFormHasErrors) }
 					}
 				}
@@ -176,10 +176,10 @@ templ Register(p layouts.Page, v AuthView) {
 							<input type="hidden" name="email" value={ v.Email }/>
 						} else {
 							<div class="goen-field">
-								@components.Label(components.LabelProps{For: "email"}) {
+								@widget.Label(widget.LabelProps{For: "email"}) {
 									{ i18n.T(ctx, i18n.KeyFieldEmail) }
 								}
-								@components.Input(components.FieldProps{
+								@widget.Input(widget.FieldProps{
 									ID:   "email",
 									Name: "email",
 									Type: "email",
@@ -190,7 +190,7 @@ templ Register(p layouts.Page, v AuthView) {
 								})
 							</div>
 						}
-						@components.Button(components.ButtonProps{ButtonStyle: components.ButtonStyleOutline, Size: components.SizeLarge, Block: true}, "submit") {
+						@widget.Button(widget.ButtonProps{ButtonStyle: widget.ButtonStyleOutline, Size: widget.SizeLarge, Block: true}, "submit") {
 							{ i18n.T(ctx, i18n.KeyRegisterResend) }
 						}
 					</form>
@@ -203,10 +203,10 @@ templ Register(p layouts.Page, v AuthView) {
 					<form class="goen-auth__form" method="post" action="/register">
 						<input type="hidden" name="next" value={ v.Next }/>
 						<div class="goen-field">
-							@components.Label(components.LabelProps{For: "email"}) {
+							@widget.Label(widget.LabelProps{For: "email"}) {
 								{ i18n.T(ctx, i18n.KeyFieldEmail) }
 							}
-							@components.Input(components.FieldProps{
+							@widget.Input(widget.FieldProps{
 								ID:        "email",
 								Name:      "email",
 								Type:      "email",
@@ -224,10 +224,10 @@ templ Register(p layouts.Page, v AuthView) {
 							}
 						</div>
 						<div class="goen-field">
-							@components.Label(components.LabelProps{For: "name"}) {
+							@widget.Label(widget.LabelProps{For: "name"}) {
 								{ i18n.T(ctx, i18n.KeyFieldNameOpt) }
 							}
-							@components.Input(components.FieldProps{
+							@widget.Input(widget.FieldProps{
 								ID:        "name",
 								Name:      "name",
 								Type:      "text",
@@ -244,10 +244,10 @@ templ Register(p layouts.Page, v AuthView) {
 							}
 						</div>
 						<div class="goen-field">
-							@components.Label(components.LabelProps{For: "password"}) {
+							@widget.Label(widget.LabelProps{For: "password"}) {
 								{ i18n.T(ctx, i18n.KeyFieldPassword) }
 							}
-							@components.Input(components.FieldProps{
+							@widget.Input(widget.FieldProps{
 								ID:        "password",
 								Name:      "password",
 								Type:      "password",
@@ -266,10 +266,10 @@ templ Register(p layouts.Page, v AuthView) {
 							}
 						</div>
 						<div class="goen-field">
-							@components.Label(components.LabelProps{For: "confirm"}) {
+							@widget.Label(widget.LabelProps{For: "confirm"}) {
 								{ i18n.T(ctx, i18n.KeyFieldConfirmPassword) }
 							}
-							@components.Input(components.FieldProps{
+							@widget.Input(widget.FieldProps{
 								ID:        "confirm",
 								Name:      "confirm",
 								Type:      "password",
@@ -284,7 +284,7 @@ templ Register(p layouts.Page, v AuthView) {
 								<p class="ui-error-text" id="confirm-error" role="alert">{ v.Err("confirm") }</p>
 							}
 						</div>
-						@components.Button(components.ButtonProps{ButtonStyle: components.ButtonStylePrimary, Size: components.SizeLarge, Block: true}, "submit") {
+						@widget.Button(widget.ButtonProps{ButtonStyle: widget.ButtonStylePrimary, Size: widget.SizeLarge, Block: true}, "submit") {
 							{ i18n.T(ctx, i18n.KeyCreateAccount) }
 						}
 						<p class="goen-auth__hint">{ i18n.T(ctx, i18n.KeyRegisterEmailFollows) }</p>
@@ -313,10 +313,10 @@ templ RegisterComplete(p layouts.Page, v RegisterCompleteView) {
 					<input type="hidden" name="token" value={ v.Token }/>
 					<input type="hidden" name="next" value={ v.Next }/>
 					<div class="goen-field">
-						@components.Label(components.LabelProps{For: "password"}) {
+						@widget.Label(widget.LabelProps{For: "password"}) {
 							{ i18n.T(ctx, i18n.KeyFieldPassword) }
 						}
-						@components.Input(components.FieldProps{
+						@widget.Input(widget.FieldProps{
 							ID:        "password",
 							Name:      "password",
 							Type:      "password",
@@ -332,7 +332,7 @@ templ RegisterComplete(p layouts.Page, v RegisterCompleteView) {
 							<p class="ui-error-text" id="complete-error" role="alert">{ v.Error }</p>
 						}
 					</div>
-					@components.Button(components.ButtonProps{ButtonStyle: components.ButtonStylePrimary, Size: components.SizeLarge, Block: true}, "submit") {
+					@widget.Button(widget.ButtonProps{ButtonStyle: widget.ButtonStylePrimary, Size: widget.SizeLarge, Block: true}, "submit") {
 						{ i18n.T(ctx, i18n.KeyRegisterCompleteSubmit) }
 					}
 				</form>

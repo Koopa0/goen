@@ -2,8 +2,8 @@ package audit
 
 import (
 	"github.com/koopa0/goen/internal/i18n"
-	"github.com/koopa0/goen/internal/ui/components"
 	"github.com/koopa0/goen/internal/ui/layouts"
+	"github.com/koopa0/goen/internal/ui/widget"
 )
 
 // A feed rather than a table: the detail line is a recorded payload of no fixed
@@ -30,7 +30,7 @@ templ Audit(p layouts.Page, v View) {
 						<div class="goen-admin__audithead">
 							<span class="goen-admin__auditaction">{ e.Label(ctx) }</span>
 							if e.Money() {
-								@components.Badge(components.BadgeProps{Intent: components.IntentNeutral}) {
+								@widget.Badge(widget.BadgeProps{Intent: widget.IntentNeutral}) {
 									{ i18n.T(ctx, i18n.KeyAuditMoneyTag) }
 								}
 							}
@@ -63,6 +63,6 @@ templ Audit(p layouts.Page, v View) {
 				}
 			</ul>
 		}
-		@components.ListPager(v.Bound)
+		@widget.ListPager(v.Bound)
 	}
 }

@@ -12,8 +12,8 @@ import (
 	"github.com/koopa0/goen/internal/i18n"
 	"github.com/koopa0/goen/internal/keyset"
 	"github.com/koopa0/goen/internal/order"
-	"github.com/koopa0/goen/internal/ui/components"
 	"github.com/koopa0/goen/internal/ui/layouts"
+	"github.com/koopa0/goen/internal/ui/widget"
 )
 
 // badgeClasses returns the class attribute of every badge whose text contains word.
@@ -58,7 +58,7 @@ func wantBadge(t *testing.T, page, word, class string) {
 func TestCustomerRecentOrdersFollowTheirGroup(t *testing.T) {
 	t.Parallel()
 	ctx := i18n.WithLocale(t.Context(), i18n.ZhHant)
-	recent := RecentOrder{Number: "GO-A", Status: order.FulfillmentPending, StatusText: "待出貨", StatusIntent: components.IntentWarn}
+	recent := RecentOrder{Number: "GO-A", Status: order.FulfillmentPending, StatusText: "待出貨", StatusIntent: widget.IntentWarn}
 	customer := renderComponent(t, ctx, Customer(Meta(ctx), &CustomerView{Orders: 1, Recent: []RecentOrder{recent}}))
 	wantBadge(t, customer, "待出貨", "goen-badge goen-badge--warn")
 }

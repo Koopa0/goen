@@ -4,9 +4,9 @@ import (
 	"fmt"
 
 	"github.com/koopa0/goen/internal/i18n"
-	"github.com/koopa0/goen/internal/ui/components"
 	"github.com/koopa0/goen/internal/ui/icons"
 	"github.com/koopa0/goen/internal/ui/layouts"
+	"github.com/koopa0/goen/internal/ui/widget"
 )
 
 // The badge carries the rating, because nothing here waits for approval: a review is
@@ -60,7 +60,7 @@ templ Reviews(p layouts.Page, v ReviewsView) {
 								<p class="goen-modqueue__title">
 									<a href={ templ.SafeURL(r.Href()) }>{ r.Product }</a>
 								</p>
-								@components.Badge(components.BadgeProps{}) {
+								@widget.Badge(widget.BadgeProps{}) {
 									<span aria-hidden="true">{ r.Stars() }</span>
 									<span>{ fmt.Sprintf(i18n.T(ctx, i18n.KeyAdminReviewStars), r.Rating) }</span>
 								}
@@ -82,9 +82,9 @@ templ Reviews(p layouts.Page, v ReviewsView) {
 						<div class="goen-modqueue__actions">
 							<form method="post" action={ templ.SafeURL(r.Action()) }>
 								<input type="hidden" name="review" value={ r.ID }/>
-								@components.Button(components.ButtonProps{
-									ButtonStyle: components.ButtonStyleOutline,
-									Size:        components.SizeSmall,
+								@widget.Button(widget.ButtonProps{
+									ButtonStyle: widget.ButtonStyleOutline,
+									Size:        widget.SizeSmall,
 								}, "submit") {
 									{ r.ActionLabel(ctx) }
 								}
@@ -94,6 +94,6 @@ templ Reviews(p layouts.Page, v ReviewsView) {
 				}
 			</ul>
 		}
-		@components.ListPager(v.Bound)
+		@widget.ListPager(v.Bound)
 	}
 }

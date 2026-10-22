@@ -12,8 +12,8 @@ import (
 	"fmt"
 
 	"github.com/koopa0/goen/internal/i18n"
-	"github.com/koopa0/goen/internal/ui/components"
 	"github.com/koopa0/goen/internal/ui/layouts"
+	"github.com/koopa0/goen/internal/ui/widget"
 )
 
 func Returns(p layouts.Page, v ReturnsView) templ.Component {
@@ -183,7 +183,7 @@ func Returns(p layouts.Page, v ReturnsView) templ.Component {
 						}
 						return nil
 					})
-					templ_7745c5c3_Err = components.Badge(components.BadgeProps{Intent: r.StatusIntent()}).Render(templ.WithChildren(ctx, templ_7745c5c3_Var9), templ_7745c5c3_Buffer)
+					templ_7745c5c3_Err = widget.Badge(widget.BadgeProps{Intent: r.StatusIntent()}).Render(templ.WithChildren(ctx, templ_7745c5c3_Var9), templ_7745c5c3_Buffer)
 					if templ_7745c5c3_Err != nil {
 						return templ_7745c5c3_Err
 					}
@@ -799,7 +799,7 @@ func Returns(p layouts.Page, v ReturnsView) templ.Component {
 								}
 								return nil
 							})
-							templ_7745c5c3_Err = components.Button(components.ButtonProps{ButtonStyle: components.ButtonStyleOutline}, "submit").Render(templ.WithChildren(ctx, templ_7745c5c3_Var45), templ_7745c5c3_Buffer)
+							templ_7745c5c3_Err = widget.Button(widget.ButtonProps{ButtonStyle: widget.ButtonStyleOutline}, "submit").Render(templ.WithChildren(ctx, templ_7745c5c3_Var45), templ_7745c5c3_Buffer)
 							if templ_7745c5c3_Err != nil {
 								return templ_7745c5c3_Err
 							}
@@ -989,8 +989,8 @@ func Returns(p layouts.Page, v ReturnsView) templ.Component {
 								}
 								return nil
 							})
-							templ_7745c5c3_Err = components.Button(components.ButtonProps{
-								ButtonStyle: components.ButtonStylePrimary,
+							templ_7745c5c3_Err = widget.Button(widget.ButtonProps{
+								ButtonStyle: widget.ButtonStylePrimary,
 								Attrs:       templ.Attributes{"name": "decision", "value": "approved"},
 							}, "submit").Render(templ.WithChildren(ctx, templ_7745c5c3_Var58), templ_7745c5c3_Buffer)
 							if templ_7745c5c3_Err != nil {
@@ -1021,8 +1021,8 @@ func Returns(p layouts.Page, v ReturnsView) templ.Component {
 								}
 								return nil
 							})
-							templ_7745c5c3_Err = components.Button(components.ButtonProps{
-								ButtonStyle: components.ButtonStyleOutline,
+							templ_7745c5c3_Err = widget.Button(widget.ButtonProps{
+								ButtonStyle: widget.ButtonStyleOutline,
 								Attrs:       templ.Attributes{"name": "decision", "value": "exception"},
 							}, "submit").Render(templ.WithChildren(ctx, templ_7745c5c3_Var60), templ_7745c5c3_Buffer)
 							if templ_7745c5c3_Err != nil {
@@ -1053,8 +1053,8 @@ func Returns(p layouts.Page, v ReturnsView) templ.Component {
 								}
 								return nil
 							})
-							templ_7745c5c3_Err = components.Button(components.ButtonProps{
-								ButtonStyle: components.ButtonStyleOutline,
+							templ_7745c5c3_Err = widget.Button(widget.ButtonProps{
+								ButtonStyle: widget.ButtonStyleOutline,
 								Attrs:       templ.Attributes{"name": "decision", "value": "rejected"},
 							}, "submit").Render(templ.WithChildren(ctx, templ_7745c5c3_Var62), templ_7745c5c3_Buffer)
 							if templ_7745c5c3_Err != nil {
@@ -1119,7 +1119,7 @@ func Returns(p layouts.Page, v ReturnsView) templ.Component {
 							}
 							return nil
 						})
-						templ_7745c5c3_Err = components.Button(components.ButtonProps{ButtonStyle: components.ButtonStylePrimary}, "submit").Render(templ.WithChildren(ctx, templ_7745c5c3_Var66), templ_7745c5c3_Buffer)
+						templ_7745c5c3_Err = widget.Button(widget.ButtonProps{ButtonStyle: widget.ButtonStylePrimary}, "submit").Render(templ.WithChildren(ctx, templ_7745c5c3_Var66), templ_7745c5c3_Buffer)
 						if templ_7745c5c3_Err != nil {
 							return templ_7745c5c3_Err
 						}
@@ -1248,9 +1248,9 @@ func Returns(p layouts.Page, v ReturnsView) templ.Component {
 								return templ_7745c5c3_Err
 							}
 							var templ_7745c5c3_Var76 string
-							templ_7745c5c3_Var76, templ_7745c5c3_Err = templ.ResolveAttributeValue(components.DollarInputType(l.ReceivedField(v.FieldInvalid(r.ID, "inspect"))))
+							templ_7745c5c3_Var76, templ_7745c5c3_Err = templ.ResolveAttributeValue(widget.DollarInputType(l.ReceivedField(v.FieldInvalid(r.ID, "inspect"))))
 							if templ_7745c5c3_Err != nil {
-								return templ.Error{Err: templ_7745c5c3_Err, FileName: `admin/returns/page.templ`, Line: 213, Col: 95}
+								return templ.Error{Err: templ_7745c5c3_Err, FileName: `admin/returns/page.templ`, Line: 213, Col: 91}
 							}
 							_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var76)
 							if templ_7745c5c3_Err != nil {
@@ -1403,9 +1403,9 @@ func Returns(p layouts.Page, v ReturnsView) templ.Component {
 									return templ_7745c5c3_Err
 								}
 								var templ_7745c5c3_Var86 string
-								templ_7745c5c3_Var86, templ_7745c5c3_Err = templ.ResolveAttributeValue(components.DollarInputType(l.RestockedField(v.FieldInvalid(r.ID, "inspect"))))
+								templ_7745c5c3_Var86, templ_7745c5c3_Err = templ.ResolveAttributeValue(widget.DollarInputType(l.RestockedField(v.FieldInvalid(r.ID, "inspect"))))
 								if templ_7745c5c3_Err != nil {
-									return templ.Error{Err: templ_7745c5c3_Err, FileName: `admin/returns/page.templ`, Line: 235, Col: 97}
+									return templ.Error{Err: templ_7745c5c3_Err, FileName: `admin/returns/page.templ`, Line: 235, Col: 93}
 								}
 								_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var86)
 								if templ_7745c5c3_Err != nil {
@@ -1700,7 +1700,7 @@ func Returns(p layouts.Page, v ReturnsView) templ.Component {
 							}
 							return nil
 						})
-						templ_7745c5c3_Err = components.Button(components.ButtonProps{ButtonStyle: components.ButtonStylePrimary}, "submit").Render(templ.WithChildren(ctx, templ_7745c5c3_Var104), templ_7745c5c3_Buffer)
+						templ_7745c5c3_Err = widget.Button(widget.ButtonProps{ButtonStyle: widget.ButtonStylePrimary}, "submit").Render(templ.WithChildren(ctx, templ_7745c5c3_Var104), templ_7745c5c3_Buffer)
 						if templ_7745c5c3_Err != nil {
 							return templ_7745c5c3_Err
 						}
@@ -1802,7 +1802,7 @@ func Returns(p layouts.Page, v ReturnsView) templ.Component {
 							}
 							return nil
 						})
-						templ_7745c5c3_Err = components.Button(components.ButtonProps{ButtonStyle: components.ButtonStylePrimary}, "submit").Render(templ.WithChildren(ctx, templ_7745c5c3_Var111), templ_7745c5c3_Buffer)
+						templ_7745c5c3_Err = widget.Button(widget.ButtonProps{ButtonStyle: widget.ButtonStylePrimary}, "submit").Render(templ.WithChildren(ctx, templ_7745c5c3_Var111), templ_7745c5c3_Buffer)
 						if templ_7745c5c3_Err != nil {
 							return templ_7745c5c3_Err
 						}
@@ -1825,7 +1825,7 @@ func Returns(p layouts.Page, v ReturnsView) templ.Component {
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
-			templ_7745c5c3_Err = components.ListPager(v.Bound).Render(ctx, templ_7745c5c3_Buffer)
+			templ_7745c5c3_Err = widget.ListPager(v.Bound).Render(ctx, templ_7745c5c3_Buffer)
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}

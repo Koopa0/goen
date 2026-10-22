@@ -14,9 +14,9 @@ import (
 	"github.com/koopa0/goen/internal/keyset"
 	"github.com/koopa0/goen/internal/money"
 	"github.com/koopa0/goen/internal/product/inventory"
-	"github.com/koopa0/goen/internal/ui/components"
 	"github.com/koopa0/goen/internal/ui/layouts"
 	"github.com/koopa0/goen/internal/ui/stockrisk"
+	"github.com/koopa0/goen/internal/ui/widget"
 	"github.com/koopa0/goen/internal/user"
 	"github.com/koopa0/goen/internal/web/formtext"
 	"github.com/koopa0/goen/internal/web/respond"
@@ -44,11 +44,11 @@ func (h *Handler) Routes(mux *http.ServeMux, ac *access.Control) {
 	mux.HandleFunc("POST /admin/stock/arrival", ac.RequireStaff(h.SetArrival))
 }
 
-var notices = map[string]components.NoticeEntry{
-	"ok":               components.NoticeDone(i18n.KeyAdminNoticeOK),
-	"refused":          components.NoticeRefused(i18n.KeyAdminNoticeRefused),
-	"received":         components.NoticeDone(i18n.KeyAdminNoticeReceived),
-	"receipt-conflict": components.NoticeRefused(i18n.KeyAdminReceiptConflict),
+var notices = map[string]widget.NoticeEntry{
+	"ok":               widget.NoticeDone(i18n.KeyAdminNoticeOK),
+	"refused":          widget.NoticeRefused(i18n.KeyAdminNoticeRefused),
+	"received":         widget.NoticeDone(i18n.KeyAdminNoticeReceived),
+	"receipt-conflict": widget.NoticeRefused(i18n.KeyAdminReceiptConflict),
 }
 
 func (h *Handler) Variants(w http.ResponseWriter, r *http.Request) {
@@ -69,7 +69,7 @@ func (h *Handler) Variants(w http.ResponseWriter, r *http.Request) {
 		}
 		view.AtRisk, view.MoreSoldOut = stockrisk.NewRows(listed, now), more
 	}
-	view.Notice = components.NoticeFrom(r, notices)
+	view.Notice = widget.NoticeFrom(r, notices)
 	view.Return = stockReturn(r.URL.Query().Get("soldout"), view.Term, r.URL.Query().Get(keyset.Param), "", "")
 	respond.Component(w, r, h.log, http.StatusOK, Variants(VariantsMeta(r.Context()), view))
 }
@@ -140,7 +140,7 @@ func (h *Handler) rejectStockForm(w http.ResponseWriter, r *http.Request, key i1
 	}
 	if !shown {
 		// The row is not on this page, so the banner has to say it.
-		view.Notice = components.Result{Outcome: components.OutcomeRefused, Text: i18n.T(r.Context(), key)}
+		view.Notice = widget.Result{Outcome: widget.OutcomeRefused, Text: i18n.T(r.Context(), key)}
 	}
 	respond.Component(w, r, h.log, http.StatusUnprocessableEntity, Variants(VariantsMeta(r.Context()), view))
 }
@@ -296,7 +296,7 @@ func (h *Handler) Movements(w http.ResponseWriter, r *http.Request) {
 	view, err := h.store.Movements(r.Context(), r.PathValue("sku"), time.Now(), r.URL.Query().Get(keyset.Param))
 	switch {
 	case err == nil:
-		view.Notice = components.NoticeFrom(r, notices)
+		view.Notice = widget.NoticeFrom(r, notices)
 		respond.Component(w, r, h.log, http.StatusOK, Movements(
 			layouts.Page{Title: view.SKU}, &view))
 	case errors.Is(err, ErrNotFound):

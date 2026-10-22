@@ -4,16 +4,16 @@ import (
 	"fmt"
 
 	"github.com/koopa0/goen/internal/i18n"
-	"github.com/koopa0/goen/internal/ui/components"
 	"github.com/koopa0/goen/internal/ui/layouts"
+	"github.com/koopa0/goen/internal/ui/widget"
 )
 
 templ Points(p layouts.Page, v PointsView) {
 	@layouts.Base(p) {
 		<div class="goen-account goen-account--narrow">
-			@components.Breadcrumb(components.BreadcrumbProps{
+			@widget.Breadcrumb(widget.BreadcrumbProps{
 				Label: i18n.T(ctx, i18n.KeyBreadcrumb),
-				Crumbs: []components.Crumb{
+				Crumbs: []widget.Crumb{
 					{Label: i18n.T(ctx, i18n.KeyAccountTitle), Href: "/account"},
 					{Label: i18n.T(ctx, i18n.KeyPointsTitle)},
 				},
@@ -26,7 +26,7 @@ templ Points(p layouts.Page, v PointsView) {
 				<p class="goen-pagehead__sub">{ i18n.T(ctx, i18n.KeyPointsExpiryTerms) }</p>
 			</div>
 			if v.Notice != "" {
-				@components.Notice(components.NoticeProps{Intent: components.IntentAccent, ID: "points-notice", Class: "ui-alert--info"}) {
+				@widget.Notice(widget.NoticeProps{Intent: widget.IntentAccent, ID: "points-notice", Class: "ui-alert--info"}) {
 					{ v.Notice }
 				}
 			}
@@ -42,7 +42,7 @@ templ Points(p layouts.Page, v PointsView) {
 				</li>
 			</ul>
 			if v.Expiring() {
-				@components.Notice(components.NoticeProps{Intent: components.IntentWarn, ID: "points-expiring"}) {
+				@widget.Notice(widget.NoticeProps{Intent: widget.IntentWarn, ID: "points-expiring"}) {
 					{ v.ExpiringText(ctx) }
 				}
 			}
@@ -50,10 +50,10 @@ templ Points(p layouts.Page, v PointsView) {
 				<form class="goen-card goen-qa__form" method="post" action="/account/points">
 					<input type="hidden" name="operation_id" value={ v.OperationID }/>
 					<div class="goen-field">
-						@components.Label(components.LabelProps{For: "points"}) {
+						@widget.Label(widget.LabelProps{For: "points"}) {
 							{ i18n.T(ctx, i18n.KeyPointsHowMany) }
 						}
-						@components.Input(components.FieldProps{
+						@widget.Input(widget.FieldProps{
 							ID:        "points",
 							Name:      "points",
 							Type:      "number",
@@ -71,7 +71,7 @@ templ Points(p layouts.Page, v PointsView) {
 							<p class="ui-error-text" id="points-error" role="alert">{ v.FieldError }</p>
 						}
 					</div>
-					@components.Button(components.ButtonProps{ButtonStyle: components.ButtonStylePrimary, Class: "ui-btn goen-points__submit"}, "submit") {
+					@widget.Button(widget.ButtonProps{ButtonStyle: widget.ButtonStylePrimary, Class: "ui-btn goen-points__submit"}, "submit") {
 						{ i18n.T(ctx, i18n.KeyPointsRedeem) }
 					}
 				</form>
@@ -111,7 +111,7 @@ templ Points(p layouts.Page, v PointsView) {
 						}
 					</ul>
 				}
-				@components.ListPager(v.Bound)
+				@widget.ListPager(v.Bound)
 			</section>
 		</div>
 	}

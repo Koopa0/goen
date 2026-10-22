@@ -10,8 +10,8 @@ import (
 
 	"github.com/koopa0/goen/assets"
 	"github.com/koopa0/goen/internal/i18n"
-	"github.com/koopa0/goen/internal/ui/components"
 	"github.com/koopa0/goen/internal/ui/layouts"
+	"github.com/koopa0/goen/internal/ui/widget"
 )
 
 func TestCategoryControlsHaveVisibleHeadingsAndNamedParentChoices(t *testing.T) {
@@ -94,7 +94,7 @@ func TestCategoryImageDescriptionsCanBeSavedWithoutReplacingThePhotograph(t *tes
 				t.Parallel()
 				view := CategoryView{Slug: "books"}
 				if hasImage {
-					view.Image = components.HeaderImage{Image: assets.Image{Digest: strings.Repeat("a", 64)}}
+					view.Image = widget.HeaderImage{Image: assets.Image{Digest: strings.Repeat("a", 64)}}
 				}
 				doc, err := html.Parse(strings.NewReader(renderComponent(t, i18n.WithLocale(t.Context(), tt.locale), CategoryForm(layouts.Page{}, view))))
 				if err != nil {

@@ -15,9 +15,9 @@ import (
 	"github.com/koopa0/goen/assets"
 	"github.com/koopa0/goen/internal/i18n"
 	"github.com/koopa0/goen/internal/policy"
-	"github.com/koopa0/goen/internal/ui/components"
 	"github.com/koopa0/goen/internal/ui/layouts"
 	"github.com/koopa0/goen/internal/ui/tile"
+	"github.com/koopa0/goen/internal/ui/widget"
 )
 
 // rules and head are nil where the page has none to state.
@@ -83,7 +83,7 @@ func Listing(p layouts.Page, v ListingView, rules *policy.Rules, head *Departmen
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
-			templ_7745c5c3_Err = components.Breadcrumb(components.BreadcrumbProps{
+			templ_7745c5c3_Err = widget.Breadcrumb(widget.BreadcrumbProps{
 				Label:  i18n.T(ctx, i18n.KeyBreadcrumb),
 				Crumbs: v.Trail(ctx),
 			}).Render(ctx, templ_7745c5c3_Buffer)
@@ -281,7 +281,7 @@ func Listing(p layouts.Page, v ListingView, rules *policy.Rules, head *Departmen
 				if templ_7745c5c3_Err != nil {
 					return templ_7745c5c3_Err
 				}
-				templ_7745c5c3_Err = components.EmptyArt(assets.EmptySearchImage).Render(ctx, templ_7745c5c3_Buffer)
+				templ_7745c5c3_Err = widget.EmptyArt(assets.EmptySearchImage).Render(ctx, templ_7745c5c3_Buffer)
 				if templ_7745c5c3_Err != nil {
 					return templ_7745c5c3_Err
 				}
@@ -888,8 +888,8 @@ func listingFilters(v ListingView) templ.Component {
 			}
 			return nil
 		})
-		templ_7745c5c3_Err = components.Button(components.ButtonProps{
-			ButtonStyle: components.ButtonStylePrimary,
+		templ_7745c5c3_Err = widget.Button(widget.ButtonProps{
+			ButtonStyle: widget.ButtonStylePrimary,
 			Block:       true,
 			Class:       "goen-filters__apply",
 		}, "submit").Render(templ.WithChildren(ctx, templ_7745c5c3_Var44), templ_7745c5c3_Buffer)
@@ -1231,7 +1231,7 @@ func sortField(options []SortOption) templ.Component {
 			}
 			return nil
 		})
-		templ_7745c5c3_Err = components.Label(components.LabelProps{For: "sort"}).Render(templ.WithChildren(ctx, templ_7745c5c3_Var62), templ_7745c5c3_Buffer)
+		templ_7745c5c3_Err = widget.Label(widget.LabelProps{For: "sort"}).Render(templ.WithChildren(ctx, templ_7745c5c3_Var62), templ_7745c5c3_Buffer)
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
@@ -1510,7 +1510,7 @@ func Search(p layouts.Page, v SearchView) templ.Component {
 				if templ_7745c5c3_Err != nil {
 					return templ_7745c5c3_Err
 				}
-				templ_7745c5c3_Err = components.EmptyArt(assets.EmptySearchImage).Render(ctx, templ_7745c5c3_Buffer)
+				templ_7745c5c3_Err = widget.EmptyArt(assets.EmptySearchImage).Render(ctx, templ_7745c5c3_Buffer)
 				if templ_7745c5c3_Err != nil {
 					return templ_7745c5c3_Err
 				}
@@ -1549,7 +1549,7 @@ func Search(p layouts.Page, v SearchView) templ.Component {
 				if templ_7745c5c3_Err != nil {
 					return templ_7745c5c3_Err
 				}
-				templ_7745c5c3_Err = components.EmptyArt(assets.EmptySearchImage).Render(ctx, templ_7745c5c3_Buffer)
+				templ_7745c5c3_Err = widget.EmptyArt(assets.EmptySearchImage).Render(ctx, templ_7745c5c3_Buffer)
 				if templ_7745c5c3_Err != nil {
 					return templ_7745c5c3_Err
 				}
@@ -1738,8 +1738,8 @@ func Search(p layouts.Page, v SearchView) templ.Component {
 					}
 					return nil
 				})
-				templ_7745c5c3_Err = components.Button(components.ButtonProps{
-					ButtonStyle: components.ButtonStyleOutline,
+				templ_7745c5c3_Err = widget.Button(widget.ButtonProps{
+					ButtonStyle: widget.ButtonStyleOutline,
 					Class:       "goen-filters__apply",
 				}, "submit").Render(templ.WithChildren(ctx, templ_7745c5c3_Var89), templ_7745c5c3_Buffer)
 				if templ_7745c5c3_Err != nil {

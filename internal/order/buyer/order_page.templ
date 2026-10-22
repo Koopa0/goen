@@ -4,8 +4,8 @@ import (
 	"fmt"
 
 	"github.com/koopa0/goen/internal/i18n"
-	"github.com/koopa0/goen/internal/ui/components"
 	"github.com/koopa0/goen/internal/ui/layouts"
+	"github.com/koopa0/goen/internal/ui/widget"
 )
 
 templ Order(p layouts.Page, v *OrderView) {
@@ -21,12 +21,12 @@ templ Order(p layouts.Page, v *OrderView) {
 					if note := v.ParcelsNote(ctx); note != "" {
 						<p class="goen-pagehead__sub">{ note }</p>
 					}
-					@components.StatLine(v.Facts(ctx), components.StatLinePlain)
+					@widget.StatLine(v.Facts(ctx), widget.StatLinePlain)
 				</div>
 			</div>
 			if v.Cancelled {
-				@components.Notice(components.NoticeProps{
-					Intent: components.IntentNeutral,
+				@widget.Notice(widget.NoticeProps{
+					Intent: widget.IntentNeutral,
 					ID:     "order-cancelled",
 				}) {
 					{ i18n.T(ctx, i18n.KeyOrderCancelled) }
@@ -37,25 +37,25 @@ templ Order(p layouts.Page, v *OrderView) {
 					<h2 class="goen-order__subhead">{ i18n.T(ctx, i18n.KeyPayProcessingTitle) }</h2>
 					<p>{ fmt.Sprintf(i18n.T(ctx, i18n.KeyOrderPaymentChecking), v.PaymentRefreshSeconds, v.PaymentRefreshChecks) }</p>
 					<div class="goen-order__actions">
-						@components.ButtonLink(components.ButtonProps{ButtonStyle: components.ButtonStyleOutline}, templ.SafeURL(v.PaymentRefreshURL)) {
+						@widget.ButtonLink(widget.ButtonProps{ButtonStyle: widget.ButtonStyleOutline}, templ.SafeURL(v.PaymentRefreshURL)) {
 							{ i18n.T(ctx, i18n.KeyOrderCheckPayment) }
 						}
-						@components.ButtonLink(components.ButtonProps{ButtonStyle: components.ButtonStyleGhost}, templ.SafeURL("/orders/"+v.Number+"?paid=1&confirmation=done")) {
+						@widget.ButtonLink(widget.ButtonProps{ButtonStyle: widget.ButtonStyleGhost}, templ.SafeURL("/orders/"+v.Number+"?paid=1&confirmation=done")) {
 							{ i18n.T(ctx, i18n.KeyOrderStopChecking) }
 						}
 					</div>
 				</div>
 			} else if v.PaymentConfirmationPending {
-				@components.Notice(components.NoticeProps{
-					Intent: components.IntentAccent,
+				@widget.Notice(widget.NoticeProps{
+					Intent: widget.IntentAccent,
 					ID:     "order-payment-confirmation-pending",
 				}) {
 					{ i18n.T(ctx, i18n.KeyOrderPaymentConfirmationPending) }
 					<a href="/contact">{ i18n.T(ctx, i18n.KeyContact) }</a>
 				}
 			} else if v.AwaitingPayment() {
-				@components.Notice(components.NoticeProps{
-					Intent: components.IntentAccent,
+				@widget.Notice(widget.NoticeProps{
+					Intent: widget.IntentAccent,
 					ID:     "order-unpaid",
 				}) {
 					{ i18n.T(ctx, i18n.KeyOrderUnpaid) }
@@ -69,7 +69,7 @@ templ Order(p layouts.Page, v *OrderView) {
 					if v.Returned != nil {
 						<section class="goen-order__returned" aria-labelledby="returned-heading">
 							<h2 id="returned-heading" class="goen-order__subhead">{ i18n.T(ctx, i18n.KeyOrderReturnedTitle) }</h2>
-							@components.StatLine(v.ReturnedFacts(ctx), components.StatLinePlain)
+							@widget.StatLine(v.ReturnedFacts(ctx), widget.StatLinePlain)
 							<p class="goen-order__meta">{ i18n.T(ctx, i18n.KeyOrderReturnedAll) }</p>
 						</section>
 					}
@@ -129,7 +129,7 @@ templ Order(p layouts.Page, v *OrderView) {
 											<span class="goen-order__meta">{ d.Amount() }</span>
 										}
 										if d.Voided {
-											@components.Badge(components.BadgeProps{Intent: components.IntentWarn}) {
+											@widget.Badge(widget.BadgeProps{Intent: widget.IntentWarn}) {
 												{ i18n.T(ctx, i18n.KeyAdminQueueVoided) }
 											}
 										}
@@ -144,7 +144,7 @@ templ Order(p layouts.Page, v *OrderView) {
 						</section>
 					}
 				</div>
-				@components.Card(components.CardProps{Class: "goen-order__summary"}) {
+				@widget.Card(widget.CardProps{Class: "goen-order__summary"}) {
 					<dl class="goen-summary">
 						<div class="goen-summary__row">
 							<dt>{ i18n.T(ctx, i18n.KeySubtotal) }</dt>
@@ -156,7 +156,7 @@ templ Order(p layouts.Page, v *OrderView) {
 						</div>
 						if v.Discounted() {
 							<div class="goen-summary__row">
-								<dt>{ components.DiscountLabel(ctx, v.DiscountReason) }</dt>
+								<dt>{ widget.DiscountLabel(ctx, v.DiscountReason) }</dt>
 								<dd class="goen-summary__value">{ v.Discount() }</dd>
 							</div>
 						}
@@ -184,14 +184,14 @@ templ Order(p layouts.Page, v *OrderView) {
 					</dl>
 					<div class="goen-summary__actions">
 						<form class="goen-order__cancel" method="post" action={ templ.SafeURL("/orders/" + v.Number + "/reorder") }>
-							@components.Button(components.ButtonProps{ButtonStyle: components.ButtonStyleOutline}, "submit") {
+							@widget.Button(widget.ButtonProps{ButtonStyle: widget.ButtonStyleOutline}, "submit") {
 								{ i18n.T(ctx, i18n.KeyOrderReorder) }
 							}
 							<span class="goen-order__meta">{ i18n.T(ctx, i18n.KeyOrderReorderNote) }</span>
 						</form>
 						if v.ShowCancel() {
 							<form class="goen-order__cancel" method="post" action={ templ.SafeURL("/orders/" + v.Number + "/cancel") }>
-								@components.Button(components.ButtonProps{ButtonStyle: components.ButtonStyleGhost}, "submit") {
+								@widget.Button(widget.ButtonProps{ButtonStyle: widget.ButtonStyleGhost}, "submit") {
 									{ i18n.T(ctx, i18n.KeyOrderCancel) }
 								}
 								if v.CancelVoidsInvoice() {
@@ -202,15 +202,15 @@ templ Order(p layouts.Page, v *OrderView) {
 							</form>
 						}
 						if v.CanRequestReturn() {
-							@components.ButtonLink(components.ButtonProps{
-								ButtonStyle: components.ButtonStyleOutline,
+							@widget.ButtonLink(widget.ButtonProps{
+								ButtonStyle: widget.ButtonStyleOutline,
 								Block:       true,
 							}, templ.SafeURL("/orders/"+v.Number+"/return")) {
 								{ i18n.T(ctx, i18n.KeyOrderReturn) }
 							}
 						}
-						@components.ButtonLink(components.ButtonProps{
-							ButtonStyle: components.ButtonStyleGhost,
+						@widget.ButtonLink(widget.ButtonProps{
+							ButtonStyle: widget.ButtonStyleGhost,
 							Block:       true,
 						}, "/") {
 							{ i18n.T(ctx, i18n.KeyContinue) }
@@ -243,9 +243,9 @@ templ orderParcel(v *OrderView, sh OrderShipment, i int) {
 			}
 		</p>
 		if sh.Delivered() {
-			@components.StatLine(v.ReturnFacts(ctx, sh), components.StatLinePlain)
+			@widget.StatLine(v.ReturnFacts(ctx, sh), widget.StatLinePlain)
 			if grid, ok := v.ReturnGrid(ctx, sh); ok {
-				@components.Period(grid)
+				@widget.Period(grid)
 			}
 			<p class="goen-order__meta">{ fmt.Sprintf(i18n.T(ctx, i18n.KeyOrderRescissionEnds), v.RescissionLastDay(ctx, sh)) }</p>
 			if note := v.PickupCounted(ctx); note != "" {
@@ -303,7 +303,7 @@ templ orderLineList(v *OrderView, lines []OrderLine, delivered, warranty bool) {
 					}
 					<span class="goen-line__meta">{ l.SKU } · { l.UnitPrice() } × { l.QuantityText() }</span>
 					if warranty && l.WarrantyMonths > 0 {
-						@components.StatLine(v.WarrantyFacts(ctx, l, delivered), components.StatLineSmall)
+						@widget.StatLine(v.WarrantyFacts(ctx, l, delivered), widget.StatLineSmall)
 						if v.CanRegister(l, delivered) {
 							<a class="goen-line__act" href={ templ.SafeURL(v.WarrantyLink()) }>{ i18n.T(ctx, i18n.KeyOrderWarrantyRegister) }</a>
 						}

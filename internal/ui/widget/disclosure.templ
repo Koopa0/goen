@@ -1,0 +1,14 @@
+package widget
+
+// Renders closed. The navigation rail that uses it shows the panel at the wide
+// breakpoint through ::details-content and hides the summary there, so the stylesheet
+// that closes it for a phone forces it open for a desk. A browser without
+// ::details-content keeps the summary at every width: one tap further, not gone.
+templ Disclosure(p DisclosureProps) {
+	<details class={ p.class() }>
+		<summary class="goen-disclosure__summary">{ p.Summary }</summary>
+		<div class="goen-disclosure__panel">
+			{ children... }
+		</div>
+	</details>
+}

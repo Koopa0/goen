@@ -3,10 +3,10 @@ package wishlist
 import (
 	"github.com/koopa0/goen/internal/cart/cartitem"
 	"github.com/koopa0/goen/internal/i18n"
-	"github.com/koopa0/goen/internal/ui/components"
 	"github.com/koopa0/goen/internal/ui/icons"
 	"github.com/koopa0/goen/internal/ui/layouts"
 	"github.com/koopa0/goen/internal/ui/tile"
+	"github.com/koopa0/goen/internal/ui/widget"
 )
 
 // SoleVariantID is set only when the product has one variant and it is in stock:
@@ -40,8 +40,8 @@ templ Page(p layouts.Page, v View) {
 						</span>
 						<p class="goen-empty__title">{ i18n.T(ctx, i18n.KeyWishlistEmpty) }</p>
 						<p class="goen-empty__text">{ i18n.T(ctx, i18n.KeyWishlistEmptyHint) }</p>
-						@components.ButtonLink(components.ButtonProps{
-							ButtonStyle: components.ButtonStylePrimary,
+						@widget.ButtonLink(widget.ButtonProps{
+							ButtonStyle: widget.ButtonStylePrimary,
 						}, templ.SafeURL("/")) {
 							{ i18n.T(ctx, i18n.KeyWishlistEmptyLink) }
 						}
@@ -49,21 +49,21 @@ templ Page(p layouts.Page, v View) {
 				} else {
 					switch v.Added {
 						case cartitem.AddOutcomeAdded:
-							@components.Notice(components.NoticeProps{Intent: components.IntentAccent, ID: "added", Class: "goen-wish__added"}) {
+							@widget.Notice(widget.NoticeProps{Intent: widget.IntentAccent, ID: "added", Class: "goen-wish__added"}) {
 								{ i18n.T(ctx, i18n.KeyAddedToCart) }
 								<a href="/cart">{ i18n.T(ctx, i18n.KeyViewCart) }</a>
 							}
 						case cartitem.AddOutcomeAdjusted:
-							@components.Notice(components.NoticeProps{Intent: components.IntentAccent, ID: "added", Class: "goen-wish__added"}) {
+							@widget.Notice(widget.NoticeProps{Intent: widget.IntentAccent, ID: "added", Class: "goen-wish__added"}) {
 								{ i18n.T(ctx, i18n.KeyAddAdjusted) }
 								<a href="/cart">{ i18n.T(ctx, i18n.KeyViewCart) }</a>
 							}
 						case cartitem.AddOutcomeUnavailable, cartitem.AddOutcomeUnknown:
-							@components.Notice(components.NoticeProps{Intent: components.IntentDanger, ID: "added", Class: "goen-wish__added"}) {
+							@widget.Notice(widget.NoticeProps{Intent: widget.IntentDanger, ID: "added", Class: "goen-wish__added"}) {
 								{ i18n.T(ctx, i18n.KeyAddRefused) }
 							}
 						case cartitem.AddOutcomeFull:
-							@components.Notice(components.NoticeProps{Intent: components.IntentDanger, ID: "added", Class: "goen-wish__added"}) {
+							@widget.Notice(widget.NoticeProps{Intent: widget.IntentDanger, ID: "added", Class: "goen-wish__added"}) {
 								{ i18n.T(ctx, i18n.KeyCartLineLimit) }
 							}
 					}
@@ -77,12 +77,12 @@ templ Page(p layouts.Page, v View) {
 										<input type="hidden" name="variant" value={ t.SoleVariantID }/>
 										<input type="hidden" name="return" value="/account/wishlist"/>
 										<input type="hidden" name="quantity" value="1"/>
-										@components.Button(components.ButtonProps{ButtonStyle: components.ButtonStyleSecondary, Size: components.SizeSmall, Block: true}, "submit") {
+										@widget.Button(widget.ButtonProps{ButtonStyle: widget.ButtonStyleSecondary, Size: widget.SizeSmall, Block: true}, "submit") {
 											{ i18n.T(ctx, i18n.KeyAddToCart) }
 										}
 									</form>
 								} else if t.InStock {
-									@components.ButtonLink(components.ButtonProps{ButtonStyle: components.ButtonStyleSecondary, Size: components.SizeSmall, Block: true}, templ.SafeURL("/p/"+t.Slug)) {
+									@widget.ButtonLink(widget.ButtonProps{ButtonStyle: widget.ButtonStyleSecondary, Size: widget.SizeSmall, Block: true}, templ.SafeURL("/p/"+t.Slug)) {
 										{ i18n.T(ctx, i18n.KeyChooseOptions) }
 									}
 								}

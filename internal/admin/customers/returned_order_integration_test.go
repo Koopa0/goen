@@ -11,7 +11,7 @@ import (
 	"github.com/koopa0/goen/internal/admin/customers"
 	"github.com/koopa0/goen/internal/i18n"
 	"github.com/koopa0/goen/internal/order"
-	"github.com/koopa0/goen/internal/ui/components"
+	"github.com/koopa0/goen/internal/ui/widget"
 )
 
 func TestCustomerOrderStatusSaysRefundedOnceTheWholeOrdersRefundHasSettled(t *testing.T) {
@@ -54,10 +54,10 @@ func TestCustomerOrderStatusSaysRefundedOnceTheWholeOrdersRefundHasSettled(t *te
 					t.Fatalf("recent orders=%d, want 1", len(profile.Recent))
 				}
 				wantText := i18n.T(ctx, i18n.KeyStatusDelivered)
-				wantIntent := components.IntentDone
+				wantIntent := widget.IntentDone
 				if tc.wantReturned {
 					wantText = i18n.T(ctx, i18n.KeyStatusRefunded)
-					wantIntent = components.IntentNeutral
+					wantIntent = widget.IntentNeutral
 				}
 				recent := profile.Recent[0]
 				if recent.StatusText != wantText || recent.StatusIntent != wantIntent {

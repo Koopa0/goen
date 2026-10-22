@@ -7,7 +7,7 @@ import (
 	"github.com/a-h/templ"
 
 	"github.com/koopa0/goen/internal/i18n"
-	"github.com/koopa0/goen/internal/ui/components"
+	"github.com/koopa0/goen/internal/ui/widget"
 )
 
 // Entry is a listed entry, or the add form's draft. Category is the listed
@@ -36,7 +36,7 @@ func (e Entry) Translated() bool { return e.AnswerEn != "" }
 
 type FAQView struct {
 	Rows   []Entry
-	Notice components.Result
+	Notice widget.Result
 	Errors map[string]string
 	Draft  Entry
 	// Edit and EditErrors are a refused edit of one listed entry, carried apart

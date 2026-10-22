@@ -10,7 +10,7 @@ import (
 	"github.com/koopa0/goen/internal/money"
 	"github.com/koopa0/goen/internal/order"
 	"github.com/koopa0/goen/internal/ui/chart"
-	"github.com/koopa0/goen/internal/ui/components"
+	"github.com/koopa0/goen/internal/ui/widget"
 )
 
 type CustomersView struct {
@@ -19,7 +19,7 @@ type CustomersView struct {
 	Term     string
 	Searched bool
 	Rows     []CustomerRow
-	Notice   components.Result
+	Notice   widget.Result
 }
 
 type CustomerRow struct {
@@ -54,7 +54,7 @@ type RecentOrder struct {
 	Number       string
 	Status       order.FulfillmentStatus
 	StatusText   string
-	StatusIntent components.Intent
+	StatusIntent widget.Intent
 	PlacedAt     string
 	TotalCents   int64
 }

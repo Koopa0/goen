@@ -158,7 +158,7 @@ func ariaTemplates(t *testing.T) map[string]string {
 	t.Helper()
 	sources := templSources(t)
 	maps.DeleteFunc(sources, func(name, _ string) bool {
-		return strings.HasPrefix(name, "internal/ui/components/")
+		return strings.HasPrefix(name, "internal/ui/widget/")
 	})
 	return sources
 }

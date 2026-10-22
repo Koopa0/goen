@@ -5,25 +5,25 @@ import (
 	"testing"
 
 	"github.com/koopa0/goen/internal/i18n"
-	"github.com/koopa0/goen/internal/ui/components"
 	"github.com/koopa0/goen/internal/ui/layouts"
+	"github.com/koopa0/goen/internal/ui/widget"
 )
 
 func TestAnnounceTreatsEachOutcomeApart(t *testing.T) {
 	t.Parallel()
 	for _, tt := range []struct {
 		name        string
-		outcome     components.Outcome
+		outcome     widget.Outcome
 		role, class string
 		lead        i18n.Key
 	}{
-		{"done", components.OutcomeDone, `role="status"`, "goen-notice--accent", ""},
-		{"refused", components.OutcomeRefused, `role="alert"`, "goen-notice--danger", i18n.KeyAdminNoticeLeadRefused},
-		{"failed", components.OutcomeFailed, `role="alert"`, "goen-notice--danger", i18n.KeyAdminNoticeLeadFailed},
+		{"done", widget.OutcomeDone, `role="status"`, "goen-notice--accent", ""},
+		{"refused", widget.OutcomeRefused, `role="alert"`, "goen-notice--danger", i18n.KeyAdminNoticeLeadRefused},
+		{"failed", widget.OutcomeFailed, `role="alert"`, "goen-notice--danger", i18n.KeyAdminNoticeLeadFailed},
 	} {
 		for _, locale := range []i18n.Locale{i18n.ZhHant, i18n.En} {
 			ctx := i18n.WithLocale(t.Context(), locale)
-			got := renderComponent(t, ctx, layouts.Announce(components.Result{Outcome: tt.outcome, Text: "the sentence"}))
+			got := renderComponent(t, ctx, layouts.Announce(widget.Result{Outcome: tt.outcome, Text: "the sentence"}))
 			for _, want := range []string{tt.role, tt.class, "the sentence"} {
 				if !strings.Contains(got, want) {
 					t.Errorf("layouts.Announce(%s) in %s lacks %q: %s", tt.name, locale, want, got)
@@ -48,7 +48,7 @@ func TestAnnounceTreatsEachOutcomeApart(t *testing.T) {
 
 func TestAnnounceShowsNothingWithoutASentence(t *testing.T) {
 	t.Parallel()
-	if got := renderToString(t, layouts.Announce(components.Result{})); got != "" {
+	if got := renderToString(t, layouts.Announce(widget.Result{})); got != "" {
 		t.Errorf("layouts.Announce(zero) = %q, want nothing", got)
 	}
 }

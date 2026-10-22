@@ -8,8 +8,8 @@ import (
 
 	"github.com/koopa0/goen/internal/i18n"
 	"github.com/koopa0/goen/internal/order"
-	"github.com/koopa0/goen/internal/ui/components"
 	"github.com/koopa0/goen/internal/ui/layouts"
+	"github.com/koopa0/goen/internal/ui/widget"
 )
 
 // badgeClasses returns the class attribute of every badge whose text contains word.
@@ -67,9 +67,9 @@ func TestOrderListPillsFollowTheirGroupAndLeaveOutCommitted(t *testing.T) {
 	view := View{
 		Bound: firstPageBound("orders"),
 		Orders: []OrderRow{
-			{Number: "GO-A", Status: order.FulfillmentPicking, StatusText: "備貨中", StatusIntent: components.IntentProgress},
-			{Number: "GO-B", Status: order.FulfillmentPending, StatusText: "待出貨", StatusIntent: components.IntentWarn},
-			{Number: "GO-C", Status: order.FulfillmentCompleted, StatusText: "已完成", StatusIntent: components.IntentDone},
+			{Number: "GO-A", Status: order.FulfillmentPicking, StatusText: "備貨中", StatusIntent: widget.IntentProgress},
+			{Number: "GO-B", Status: order.FulfillmentPending, StatusText: "待出貨", StatusIntent: widget.IntentWarn},
+			{Number: "GO-C", Status: order.FulfillmentCompleted, StatusText: "已完成", StatusIntent: widget.IntentDone},
 		},
 	}
 	page := renderComponent(t, ctx, Orders(layouts.Page{}, view))
@@ -84,7 +84,7 @@ func TestOrderListPillsFollowTheirGroupAndLeaveOutCommitted(t *testing.T) {
 func TestOrderPageHeadKeepsItsGroupAndCommitted(t *testing.T) {
 	t.Parallel()
 	ctx := i18n.WithLocale(t.Context(), i18n.ZhHant)
-	view := &OrderView{Number: "GO-A", Status: order.FulfillmentShipped, StatusText: "已出貨", StatusIntent: components.IntentProgress, Committed: true}
+	view := &OrderView{Number: "GO-A", Status: order.FulfillmentShipped, StatusText: "已出貨", StatusIntent: widget.IntentProgress, Committed: true}
 	page := renderComponent(t, ctx, Order(layouts.Page{}, view))
 	wantBadge(t, page, "已出貨", "goen-badge goen-badge--progress")
 	wantBadge(t, page, i18n.T(ctx, i18n.KeyAdminQueueCommitted), "goen-badge")

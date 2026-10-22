@@ -7,9 +7,9 @@ import (
 
 	"github.com/koopa0/goen/internal/i18n"
 	"github.com/koopa0/goen/internal/keyset"
-	"github.com/koopa0/goen/internal/ui/components"
 	"github.com/koopa0/goen/internal/ui/layouts"
 	"github.com/koopa0/goen/internal/ui/stockrisk"
+	"github.com/koopa0/goen/internal/ui/widget"
 )
 
 type Variant struct {
@@ -47,7 +47,7 @@ type VariantsView struct {
 	Variants    []Variant
 	SoldOutOnly bool
 	Term        string
-	Notice      components.Result
+	Notice      widget.Result
 	// ShowCover is set on the desk's opening page only: not on a search, the
 	// sold out filter or a later page of the list.
 	ShowCover   bool

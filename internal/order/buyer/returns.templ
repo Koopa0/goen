@@ -4,8 +4,8 @@ import (
 	"fmt"
 
 	"github.com/koopa0/goen/internal/i18n"
-	"github.com/koopa0/goen/internal/ui/components"
 	"github.com/koopa0/goen/internal/ui/layouts"
+	"github.com/koopa0/goen/internal/ui/widget"
 )
 
 templ Returns(p layouts.Page, v ReturnsView) {
@@ -30,7 +30,7 @@ templ Returns(p layouts.Page, v ReturnsView) {
 				<p class="goen-notice goen-notice--danger" role="alert" id="return-form-error">{ v.FormRefusal }</p>
 			}
 			if len(v.Existing) > 0 {
-				@components.Card(components.CardProps{
+				@widget.Card(widget.CardProps{
 					Class: "goen-returns__existing",
 					Attrs: templ.Attributes{"aria-labelledby": "existing-heading"},
 				}) {
@@ -46,11 +46,11 @@ templ Returns(p layouts.Page, v ReturnsView) {
 									}
 								</span>
 								if e.Resolution != "" {
-									@components.Badge(components.BadgeProps{Intent: components.IntentNeutral}) {
+									@widget.Badge(widget.BadgeProps{Intent: widget.IntentNeutral}) {
 										{ e.StatusText(ctx) }
 									}
 								} else {
-									@components.Badge(components.BadgeProps{Intent: components.IntentWarn}) {
+									@widget.Badge(widget.BadgeProps{Intent: widget.IntentWarn}) {
 										{ e.StatusText(ctx) }
 									}
 								}
@@ -60,20 +60,20 @@ templ Returns(p layouts.Page, v ReturnsView) {
 				}
 			}
 			if v.Filed {
-				@components.Notice(components.NoticeProps{Intent: components.IntentAccent, ID: "return-sent"}) {
+				@widget.Notice(widget.NoticeProps{Intent: widget.IntentAccent, ID: "return-sent"}) {
 					{ i18n.T(ctx, i18n.KeyReturnRequestSent) }
 				}
 			} else if v.HasOpen {
-				@components.Notice(components.NoticeProps{Intent: components.IntentAccent, ID: "return-inflight"}) {
+				@widget.Notice(widget.NoticeProps{Intent: widget.IntentAccent, ID: "return-inflight"}) {
 					{ i18n.T(ctx, i18n.KeyReturnInFlight) }
 				}
 			} else if !v.AnyReturnable() {
-				@components.Notice(components.NoticeProps{Intent: components.IntentAccent, ID: "return-nothing"}) {
+				@widget.Notice(widget.NoticeProps{Intent: widget.IntentAccent, ID: "return-nothing"}) {
 					{ i18n.T(ctx, i18n.KeyReturnNothingShort) }
 				}
 			}
 			if (!v.HasOpen && v.AnyReturnable()) || v.HasDraft {
-				@components.Card(components.CardProps{Class: "goen-returns__panel"}) {
+				@widget.Card(widget.CardProps{Class: "goen-returns__panel"}) {
 					<form class="goen-returns__form" method="post" action={ templ.SafeURL(v.Action()) }>
 						<fieldset class="goen-returns__lines">
 							<legend class="goen-returns__subhead">{ i18n.T(ctx, i18n.KeyReturnChoose) }</legend>
@@ -88,10 +88,10 @@ templ Returns(p layouts.Page, v ReturnsView) {
 											<span class="goen-returns__meta">{ l.SKU } · { l.UnitPrice() }</span>
 										</div>
 										<div class="goen-field goen-returns__qty">
-											@components.Label(components.LabelProps{For: l.Field()}) {
+											@widget.Label(widget.LabelProps{For: l.Field()}) {
 												{ fmt.Sprintf(i18n.T(ctx, i18n.KeyReturnQuantity), l.Max()) }
 											}
-											@components.Input(components.FieldProps{
+											@widget.Input(widget.FieldProps{
 												ID:        l.Field(),
 												Name:      l.Field(),
 												Type:      l.QuantityType(),
@@ -114,7 +114,7 @@ templ Returns(p layouts.Page, v ReturnsView) {
 							}
 						</fieldset>
 						<div class="goen-field">
-							@components.Label(components.LabelProps{For: "return-reason"}) {
+							@widget.Label(widget.LabelProps{For: "return-reason"}) {
 								{ i18n.T(ctx, i18n.KeyFieldReturnReason) }
 							}
 							// Written out, not composed: internal/policy/policy_test.go reads this element
@@ -135,11 +135,11 @@ templ Returns(p layouts.Page, v ReturnsView) {
 							}
 						</div>
 						<div class="goen-returns__actions">
-							@components.Button(components.ButtonProps{ButtonStyle: components.ButtonStylePrimary, Attrs: templ.Attributes{"disabled": v.HasOpen || !v.AnyReturnable()}}, "submit") {
+							@widget.Button(widget.ButtonProps{ButtonStyle: widget.ButtonStylePrimary, Attrs: templ.Attributes{"disabled": v.HasOpen || !v.AnyReturnable()}}, "submit") {
 								{ i18n.T(ctx, i18n.KeyReturnSubmit) }
 							}
-							@components.ButtonLink(components.ButtonProps{
-								ButtonStyle: components.ButtonStyleGhost,
+							@widget.ButtonLink(widget.ButtonProps{
+								ButtonStyle: widget.ButtonStyleGhost,
 							}, templ.SafeURL("/orders/"+v.Number)) {
 								{ i18n.T(ctx, i18n.KeyBackToOrder) }
 							}
@@ -149,8 +149,8 @@ templ Returns(p layouts.Page, v ReturnsView) {
 			}
 			if !v.HasDraft && (v.HasOpen || !v.AnyReturnable()) {
 				<div class="goen-returns__actions">
-					@components.ButtonLink(components.ButtonProps{
-						ButtonStyle: components.ButtonStyleOutline,
+					@widget.ButtonLink(widget.ButtonProps{
+						ButtonStyle: widget.ButtonStyleOutline,
 					}, templ.SafeURL("/orders/"+v.Number)) {
 						{ i18n.T(ctx, i18n.KeyBackToOrder) }
 					}

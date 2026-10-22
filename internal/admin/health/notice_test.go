@@ -7,8 +7,8 @@ import (
 	"testing"
 
 	"github.com/koopa0/goen/internal/i18n"
-	"github.com/koopa0/goen/internal/ui/components"
 	"github.com/koopa0/goen/internal/ui/layouts"
+	"github.com/koopa0/goen/internal/ui/widget"
 )
 
 func TestARedirectedNoticeIsShownAsItsOwnOutcome(t *testing.T) {
@@ -20,7 +20,7 @@ func TestARedirectedNoticeIsShownAsItsOwnOutcome(t *testing.T) {
 		ctx := i18n.WithLocale(t.Context(), i18n.En)
 		req := httptest.NewRequestWithContext(ctx, http.MethodGet, "/admin/health?"+tc.query+"=1", http.NoBody)
 		var page strings.Builder
-		if err := Health(layouts.Page{Title: "health"}, &WorkerHealthView{Notice: components.NoticeFrom(req, notices)}).Render(ctx, &page); err != nil {
+		if err := Health(layouts.Page{Title: "health"}, &WorkerHealthView{Notice: widget.NoticeFrom(req, notices)}).Render(ctx, &page); err != nil {
 			t.Fatal(err)
 		}
 		got := page.String()
@@ -39,8 +39,8 @@ func TestARedirectedNoticeIsShownAsItsOwnOutcome(t *testing.T) {
 
 func TestARedirectedNoticeKeepsItsOutcome(t *testing.T) {
 	t.Parallel()
-	for name, want := range map[string]components.Outcome{
-		"notflagged": components.OutcomeDone,
+	for name, want := range map[string]widget.Outcome{
+		"notflagged": widget.OutcomeDone,
 	} {
 		if got := notices[name].Outcome; got != want {
 			t.Errorf("notices[%q].Outcome = %d, want %d", name, got, want)

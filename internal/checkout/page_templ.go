@@ -12,9 +12,9 @@ import (
 	"fmt"
 
 	"github.com/koopa0/goen/internal/i18n"
-	"github.com/koopa0/goen/internal/ui/components"
 	"github.com/koopa0/goen/internal/ui/fieldrule"
 	"github.com/koopa0/goen/internal/ui/layouts"
+	"github.com/koopa0/goen/internal/ui/widget"
 )
 
 func Page(p layouts.Page, v *View) templ.Component {
@@ -175,8 +175,8 @@ func Page(p layouts.Page, v *View) templ.Component {
 					}
 					return nil
 				})
-				templ_7745c5c3_Err = components.Notice(components.NoticeProps{
-					Intent: components.IntentDanger,
+				templ_7745c5c3_Err = widget.Notice(widget.NoticeProps{
+					Intent: widget.IntentDanger,
 					Class:  "ui-alert--error",
 				}).Render(templ.WithChildren(ctx, templ_7745c5c3_Var8), templ_7745c5c3_Buffer)
 				if templ_7745c5c3_Err != nil {
@@ -451,7 +451,7 @@ func Page(p layouts.Page, v *View) templ.Component {
 						}
 						return nil
 					})
-					templ_7745c5c3_Err = components.Notice(components.NoticeProps{Intent: components.IntentAccent}).Render(templ.WithChildren(ctx, templ_7745c5c3_Var24), templ_7745c5c3_Buffer)
+					templ_7745c5c3_Err = widget.Notice(widget.NoticeProps{Intent: widget.IntentAccent}).Render(templ.WithChildren(ctx, templ_7745c5c3_Var24), templ_7745c5c3_Buffer)
 					if templ_7745c5c3_Err != nil {
 						return templ_7745c5c3_Err
 					}
@@ -484,8 +484,8 @@ func Page(p layouts.Page, v *View) templ.Component {
 						}
 						return nil
 					})
-					templ_7745c5c3_Err = components.Notice(components.NoticeProps{
-						Intent: components.IntentAccent,
+					templ_7745c5c3_Err = widget.Notice(widget.NoticeProps{
+						Intent: widget.IntentAccent,
 						Class:  "ui-alert--info",
 					}).Render(templ.WithChildren(ctx, templ_7745c5c3_Var26), templ_7745c5c3_Buffer)
 					if templ_7745c5c3_Err != nil {
@@ -494,7 +494,7 @@ func Page(p layouts.Page, v *View) templ.Component {
 				}
 				return nil
 			})
-			templ_7745c5c3_Err = components.Card(components.CardProps{
+			templ_7745c5c3_Err = widget.Card(widget.CardProps{
 				Class: "goen-checkout__section",
 				Attrs: templ.Attributes{"id": "shipping"},
 			}).Render(templ.WithChildren(ctx, templ_7745c5c3_Var11), templ_7745c5c3_Buffer)
@@ -660,7 +660,7 @@ func Page(p layouts.Page, v *View) templ.Component {
 						}
 						return nil
 					})
-					templ_7745c5c3_Err = components.Label(components.LabelProps{For: "address-book"}).Render(templ.WithChildren(ctx, templ_7745c5c3_Var36), templ_7745c5c3_Buffer)
+					templ_7745c5c3_Err = widget.Label(widget.LabelProps{For: "address-book"}).Render(templ.WithChildren(ctx, templ_7745c5c3_Var36), templ_7745c5c3_Buffer)
 					if templ_7745c5c3_Err != nil {
 						return templ_7745c5c3_Err
 					}
@@ -880,8 +880,8 @@ func Page(p layouts.Page, v *View) templ.Component {
 							}
 							return nil
 						})
-						templ_7745c5c3_Err = components.Notice(components.NoticeProps{
-							Intent: components.IntentDanger,
+						templ_7745c5c3_Err = widget.Notice(widget.NoticeProps{
+							Intent: widget.IntentDanger,
 							Class:  "ui-alert--error",
 						}).Render(templ.WithChildren(ctx, templ_7745c5c3_Var46), templ_7745c5c3_Buffer)
 						if templ_7745c5c3_Err != nil {
@@ -1053,7 +1053,7 @@ func Page(p layouts.Page, v *View) templ.Component {
 						}
 						return nil
 					})
-					templ_7745c5c3_Err = components.Label(components.LabelProps{For: "street"}).Render(templ.WithChildren(ctx, templ_7745c5c3_Var53), templ_7745c5c3_Buffer)
+					templ_7745c5c3_Err = widget.Label(widget.LabelProps{For: "street"}).Render(templ.WithChildren(ctx, templ_7745c5c3_Var53), templ_7745c5c3_Buffer)
 					if templ_7745c5c3_Err != nil {
 						return templ_7745c5c3_Err
 					}
@@ -1148,7 +1148,7 @@ func Page(p layouts.Page, v *View) templ.Component {
 					}
 					return nil
 				})
-				templ_7745c5c3_Err = components.Label(components.LabelProps{For: "note"}).Render(templ.WithChildren(ctx, templ_7745c5c3_Var58), templ_7745c5c3_Buffer)
+				templ_7745c5c3_Err = widget.Label(widget.LabelProps{For: "note"}).Render(templ.WithChildren(ctx, templ_7745c5c3_Var58), templ_7745c5c3_Buffer)
 				if templ_7745c5c3_Err != nil {
 					return templ_7745c5c3_Err
 				}
@@ -1217,7 +1217,7 @@ func Page(p layouts.Page, v *View) templ.Component {
 				}
 				return nil
 			})
-			templ_7745c5c3_Err = components.Card(components.CardProps{
+			templ_7745c5c3_Err = widget.Card(widget.CardProps{
 				Class: "goen-checkout__section",
 				Attrs: templ.Attributes{"id": "address"},
 			}).Render(templ.WithChildren(ctx, templ_7745c5c3_Var28), templ_7745c5c3_Buffer)
@@ -1379,7 +1379,7 @@ func Page(p layouts.Page, v *View) templ.Component {
 						}
 						return nil
 					})
-					templ_7745c5c3_Err = components.Label(components.LabelProps{For: "invoice_carrier"}).Render(templ.WithChildren(ctx, templ_7745c5c3_Var69), templ_7745c5c3_Buffer)
+					templ_7745c5c3_Err = widget.Label(widget.LabelProps{For: "invoice_carrier"}).Render(templ.WithChildren(ctx, templ_7745c5c3_Var69), templ_7745c5c3_Buffer)
 					if templ_7745c5c3_Err != nil {
 						return templ_7745c5c3_Err
 					}
@@ -1501,7 +1501,7 @@ func Page(p layouts.Page, v *View) templ.Component {
 						}
 						return nil
 					})
-					templ_7745c5c3_Err = components.Label(components.LabelProps{For: "invoice_donation_code"}).Render(templ.WithChildren(ctx, templ_7745c5c3_Var75), templ_7745c5c3_Buffer)
+					templ_7745c5c3_Err = widget.Label(widget.LabelProps{For: "invoice_donation_code"}).Render(templ.WithChildren(ctx, templ_7745c5c3_Var75), templ_7745c5c3_Buffer)
 					if templ_7745c5c3_Err != nil {
 						return templ_7745c5c3_Err
 					}
@@ -1623,7 +1623,7 @@ func Page(p layouts.Page, v *View) templ.Component {
 						}
 						return nil
 					})
-					templ_7745c5c3_Err = components.Label(components.LabelProps{For: "invoice_company_name"}).Render(templ.WithChildren(ctx, templ_7745c5c3_Var81), templ_7745c5c3_Buffer)
+					templ_7745c5c3_Err = widget.Label(widget.LabelProps{For: "invoice_company_name"}).Render(templ.WithChildren(ctx, templ_7745c5c3_Var81), templ_7745c5c3_Buffer)
 					if templ_7745c5c3_Err != nil {
 						return templ_7745c5c3_Err
 					}
@@ -1713,7 +1713,7 @@ func Page(p layouts.Page, v *View) templ.Component {
 						}
 						return nil
 					})
-					templ_7745c5c3_Err = components.Label(components.LabelProps{For: "invoice_tax_id"}).Render(templ.WithChildren(ctx, templ_7745c5c3_Var86), templ_7745c5c3_Buffer)
+					templ_7745c5c3_Err = widget.Label(widget.LabelProps{For: "invoice_tax_id"}).Render(templ.WithChildren(ctx, templ_7745c5c3_Var86), templ_7745c5c3_Buffer)
 					if templ_7745c5c3_Err != nil {
 						return templ_7745c5c3_Err
 					}
@@ -1827,7 +1827,7 @@ func Page(p layouts.Page, v *View) templ.Component {
 				}
 				return nil
 			})
-			templ_7745c5c3_Err = components.Card(components.CardProps{
+			templ_7745c5c3_Err = widget.Card(widget.CardProps{
 				Class: "goen-checkout__section",
 				Attrs: templ.Attributes{"id": "invoice"},
 			}).Render(templ.WithChildren(ctx, templ_7745c5c3_Var63), templ_7745c5c3_Buffer)
@@ -2051,9 +2051,9 @@ func Page(p layouts.Page, v *View) templ.Component {
 						return templ_7745c5c3_Err
 					}
 					var templ_7745c5c3_Var107 string
-					templ_7745c5c3_Var107, templ_7745c5c3_Err = templ.JoinStringErrs(components.DiscountLabel(ctx, v.CouponApplied))
+					templ_7745c5c3_Var107, templ_7745c5c3_Err = templ.JoinStringErrs(widget.DiscountLabel(ctx, v.CouponApplied))
 					if templ_7745c5c3_Err != nil {
-						return templ.Error{Err: templ_7745c5c3_Err, FileName: `checkout/page.templ`, Line: 466, Col: 61}
+						return templ.Error{Err: templ_7745c5c3_Err, FileName: `checkout/page.templ`, Line: 466, Col: 57}
 					}
 					_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var107))
 					if templ_7745c5c3_Err != nil {
@@ -2162,7 +2162,7 @@ func Page(p layouts.Page, v *View) templ.Component {
 					}
 					return nil
 				})
-				templ_7745c5c3_Err = components.Label(components.LabelProps{For: "coupon"}).Render(templ.WithChildren(ctx, templ_7745c5c3_Var113), templ_7745c5c3_Buffer)
+				templ_7745c5c3_Err = widget.Label(widget.LabelProps{For: "coupon"}).Render(templ.WithChildren(ctx, templ_7745c5c3_Var113), templ_7745c5c3_Buffer)
 				if templ_7745c5c3_Err != nil {
 					return templ_7745c5c3_Err
 				}
@@ -2234,8 +2234,8 @@ func Page(p layouts.Page, v *View) templ.Component {
 					}
 					return nil
 				})
-				templ_7745c5c3_Err = components.Button(components.ButtonProps{
-					ButtonStyle: components.ButtonStyleOutline,
+				templ_7745c5c3_Err = widget.Button(widget.ButtonProps{
+					ButtonStyle: widget.ButtonStyleOutline,
 					Attrs:       couponButtonAttrs(ctx),
 				}, "submit").Render(templ.WithChildren(ctx, templ_7745c5c3_Var117), templ_7745c5c3_Buffer)
 				if templ_7745c5c3_Err != nil {
@@ -2336,9 +2336,9 @@ func Page(p layouts.Page, v *View) templ.Component {
 					}
 					return nil
 				})
-				templ_7745c5c3_Err = components.Button(components.ButtonProps{
-					ButtonStyle: components.ButtonStylePrimary,
-					Size:        components.SizeLarge,
+				templ_7745c5c3_Err = widget.Button(widget.ButtonProps{
+					ButtonStyle: widget.ButtonStylePrimary,
+					Size:        widget.SizeLarge,
 					Block:       true,
 					Attrs:       templ.Attributes{"disabled": !v.HasShipping()},
 				}, "submit").Render(templ.WithChildren(ctx, templ_7745c5c3_Var123), templ_7745c5c3_Buffer)
@@ -2347,7 +2347,7 @@ func Page(p layouts.Page, v *View) templ.Component {
 				}
 				return nil
 			})
-			templ_7745c5c3_Err = components.Card(components.CardProps{
+			templ_7745c5c3_Err = widget.Card(widget.CardProps{
 				Class: "goen-checkout__summary",
 				Attrs: templ.Attributes{"id": "summary", "aria-labelledby": "summary-heading"},
 			}).Render(templ.WithChildren(ctx, templ_7745c5c3_Var93), templ_7745c5c3_Buffer)
@@ -2561,8 +2561,8 @@ func pickupStore(v *View) templ.Component {
 					}
 					return nil
 				})
-				templ_7745c5c3_Err = components.Button(components.ButtonProps{
-					ButtonStyle: components.ButtonStyleOutline,
+				templ_7745c5c3_Err = widget.Button(widget.ButtonProps{
+					ButtonStyle: widget.ButtonStyleOutline,
 					Attrs:       storeAttrs,
 				}, "submit").Render(templ.WithChildren(ctx, templ_7745c5c3_Var134), templ_7745c5c3_Buffer)
 				if templ_7745c5c3_Err != nil {
@@ -2630,9 +2630,9 @@ func applyChoice(which string) templ.Component {
 			}
 			return nil
 		})
-		templ_7745c5c3_Err = components.Button(components.ButtonProps{
-			ButtonStyle: components.ButtonStyleOutline,
-			Size:        components.SizeSmall,
+		templ_7745c5c3_Err = widget.Button(widget.ButtonProps{
+			ButtonStyle: widget.ButtonStyleOutline,
+			Size:        widget.SizeSmall,
 			Attrs: templ.Attributes{
 				"formaction":     "/checkout#" + which,
 				"name":           "update",
@@ -2700,7 +2700,7 @@ func field(name, label, kind, value string, v *View) templ.Component {
 			}
 			return nil
 		})
-		templ_7745c5c3_Err = components.Label(components.LabelProps{For: name}).Render(templ.WithChildren(ctx, templ_7745c5c3_Var141), templ_7745c5c3_Buffer)
+		templ_7745c5c3_Err = widget.Label(widget.LabelProps{For: name}).Render(templ.WithChildren(ctx, templ_7745c5c3_Var141), templ_7745c5c3_Buffer)
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}

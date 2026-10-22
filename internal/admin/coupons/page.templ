@@ -6,8 +6,8 @@ import (
 	"github.com/koopa0/goen/internal/discount/coupon"
 	"github.com/koopa0/goen/internal/i18n"
 	"github.com/koopa0/goen/internal/ui/chart"
-	"github.com/koopa0/goen/internal/ui/components"
 	"github.com/koopa0/goen/internal/ui/layouts"
+	"github.com/koopa0/goen/internal/ui/widget"
 )
 
 // Each row leads with its code and whether it works RIGHT NOW: a coupon switched on
@@ -75,11 +75,11 @@ templ Coupons(p layouts.Page, v CouponsView) {
 								</td>
 								<td>
 									if c.Live() {
-										@components.Badge(components.BadgeProps{Intent: components.IntentProgress}) {
+										@widget.Badge(widget.BadgeProps{Intent: widget.IntentProgress}) {
 											{ c.State(ctx) }
 										}
 									} else {
-										@components.Badge(components.BadgeProps{Intent: components.IntentNeutral}) {
+										@widget.Badge(widget.BadgeProps{Intent: widget.IntentNeutral}) {
 											{ c.State(ctx) }
 										}
 									}
@@ -87,9 +87,9 @@ templ Coupons(p layouts.Page, v CouponsView) {
 								<td class="goen-admin__cellactions">
 									<form method="post" action={ templ.SafeURL(c.Action()) }>
 										<input type="hidden" name="active" value={ c.NextActive() }/>
-										@components.Button(components.ButtonProps{
-											ButtonStyle: components.ButtonStyleOutline,
-											Size:        components.SizeSmall,
+										@widget.Button(widget.ButtonProps{
+											ButtonStyle: widget.ButtonStyleOutline,
+											Size:        widget.SizeSmall,
 										}, "submit") {
 											{ c.ToggleLabel(ctx) }
 										}
@@ -101,12 +101,12 @@ templ Coupons(p layouts.Page, v CouponsView) {
 				</table>
 			</div>
 		}
-		@components.Card(components.CardProps{Class: "goen-admin__section"}) {
+		@widget.Card(widget.CardProps{Class: "goen-admin__section"}) {
 			<h2 class="goen-admin__heading">{ i18n.T(ctx, i18n.KeyAdminCoupCreate) }</h2>
 			<form class="goen-admin__form" method="post" action="/admin/coupons">
 				<div class="goen-admin__fields">
 					<div class="goen-admin__field">
-						@components.Label(components.LabelProps{For: "c-code"}) {
+						@widget.Label(widget.LabelProps{For: "c-code"}) {
 							{ i18n.T(ctx, i18n.KeyAdminCoupCode) }
 						}
 						<input
@@ -130,7 +130,7 @@ templ Coupons(p layouts.Page, v CouponsView) {
 						}
 					</div>
 					<div class="goen-admin__field">
-						@components.Label(components.LabelProps{For: "c-kind"}) {
+						@widget.Label(widget.LabelProps{For: "c-kind"}) {
 							{ i18n.T(ctx, i18n.KeyAdminCoupKind) }
 						}
 						<select class="goen-input" id="c-kind" name="kind" required>
@@ -141,7 +141,7 @@ templ Coupons(p layouts.Page, v CouponsView) {
 					</div>
 				</div>
 				<div class="goen-admin__field">
-					@components.Label(components.LabelProps{For: "c-description"}) {
+					@widget.Label(widget.LabelProps{For: "c-description"}) {
 						{ i18n.T(ctx, i18n.KeyAdminCoupDescription) }
 					}
 					<input
@@ -165,7 +165,7 @@ templ Coupons(p layouts.Page, v CouponsView) {
 				</div>
 				<div class="goen-admin__fields">
 					<div class="goen-admin__field">
-						@components.Label(components.LabelProps{For: "c-value"}) {
+						@widget.Label(widget.LabelProps{For: "c-value"}) {
 							{ i18n.T(ctx, i18n.KeyAdminCoupValue) }
 						}
 						<input
@@ -188,7 +188,7 @@ templ Coupons(p layouts.Page, v CouponsView) {
 						}
 					</div>
 					<div class="goen-admin__field">
-						@components.Label(components.LabelProps{For: "c-cap"}) {
+						@widget.Label(widget.LabelProps{For: "c-cap"}) {
 							{ i18n.T(ctx, i18n.KeyAdminCoupCap) }
 						}
 						<input
@@ -211,7 +211,7 @@ templ Coupons(p layouts.Page, v CouponsView) {
 						}
 					</div>
 					<div class="goen-admin__field">
-						@components.Label(components.LabelProps{For: "c-min"}) {
+						@widget.Label(widget.LabelProps{For: "c-min"}) {
 							{ i18n.T(ctx, i18n.KeyAdminCoupMinSpend) }
 						}
 						<input
@@ -233,7 +233,7 @@ templ Coupons(p layouts.Page, v CouponsView) {
 						}
 					</div>
 					<div class="goen-admin__field">
-						@components.Label(components.LabelProps{For: "c-days"}) {
+						@widget.Label(widget.LabelProps{For: "c-days"}) {
 							{ i18n.T(ctx, i18n.KeyAdminCoupDays) }
 						}
 						<input
@@ -256,7 +256,7 @@ templ Coupons(p layouts.Page, v CouponsView) {
 						}
 					</div>
 					<div class="goen-admin__field">
-						@components.Label(components.LabelProps{For: "c-max"}) {
+						@widget.Label(widget.LabelProps{For: "c-max"}) {
 							{ i18n.T(ctx, i18n.KeyAdminCoupMaxRedeem) }
 						}
 						<input
@@ -279,7 +279,7 @@ templ Coupons(p layouts.Page, v CouponsView) {
 						}
 					</div>
 					<div class="goen-admin__field">
-						@components.Label(components.LabelProps{For: "c-percustomer"}) {
+						@widget.Label(widget.LabelProps{For: "c-percustomer"}) {
 							{ i18n.T(ctx, i18n.KeyAdminCoupPerCustomer) }
 						}
 						<input
@@ -307,14 +307,14 @@ templ Coupons(p layouts.Page, v CouponsView) {
 						}
 					</div>
 				</div>
-				@components.Button(components.ButtonProps{
-					ButtonStyle: components.ButtonStylePrimary,
+				@widget.Button(widget.ButtonProps{
+					ButtonStyle: widget.ButtonStylePrimary,
 					Class:       "goen-admin__submit",
 				}, "submit") {
 					{ i18n.T(ctx, i18n.KeyAdminCoupCreate) }
 				}
 			</form>
 		}
-		@components.ListPager(v.Bound)
+		@widget.ListPager(v.Bound)
 	}
 }

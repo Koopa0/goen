@@ -13,8 +13,8 @@ import (
 	"github.com/koopa0/goen/internal/keyset"
 	"github.com/koopa0/goen/internal/money"
 	"github.com/koopa0/goen/internal/product"
-	"github.com/koopa0/goen/internal/ui/components"
 	"github.com/koopa0/goen/internal/ui/layouts"
+	"github.com/koopa0/goen/internal/ui/widget"
 )
 
 type Choice struct {
@@ -53,7 +53,7 @@ type ProductsView struct {
 	Rows []Product
 	// Published is how many products the shop sells now, over every page of Rows.
 	Published int64
-	Notice    components.Result
+	Notice    widget.Result
 }
 
 func (v ProductsView) Empty() bool { return len(v.Rows) == 0 }
@@ -110,7 +110,7 @@ type ProductView struct {
 	Options           []Option
 	Specs             []Spec
 	Errors            map[string]string
-	Notice            components.Result
+	Notice            widget.Result
 	VariantDraft      VariantDraft
 	SpecDraft         SpecDraft
 	Sales             Sales

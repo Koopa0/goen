@@ -5,7 +5,7 @@ import (
 	"strconv"
 
 	"github.com/koopa0/goen/internal/i18n"
-	"github.com/koopa0/goen/internal/ui/components"
+	"github.com/koopa0/goen/internal/ui/widget"
 	"github.com/koopa0/goen/internal/user"
 )
 
@@ -23,7 +23,7 @@ func RoleLabel(ctx context.Context, r user.Role) string {
 type StaffView struct {
 	Rows     []StaffRow
 	Roles    []user.Role
-	Notice   components.Result
+	Notice   widget.Result
 	NoKey    bool
 	Actor    string
 	AddEmail string

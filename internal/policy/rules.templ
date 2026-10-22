@@ -2,12 +2,12 @@ package policy
 
 import (
 	"github.com/koopa0/goen/internal/i18n"
-	"github.com/koopa0/goen/internal/ui/components"
+	"github.com/koopa0/goen/internal/ui/widget"
 )
 
 templ RulesSection(r Rules) {
 	<section class="goen-rules" aria-labelledby="rules-heading">
 		<h2 id="rules-heading" class="goen-sr-only">{ i18n.T(ctx, i18n.KeySectionRules) }</h2>
-		@components.StatLine(r.Stats(ctx), components.StatLineWide)
+		@widget.StatLine(r.Stats(ctx), widget.StatLineWide)
 	</section>
 }

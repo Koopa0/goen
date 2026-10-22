@@ -12,7 +12,7 @@ import (
 	"github.com/koopa0/goen/internal/invoice"
 	"github.com/koopa0/goen/internal/money"
 	"github.com/koopa0/goen/internal/payment/refund"
-	"github.com/koopa0/goen/internal/ui/components"
+	"github.com/koopa0/goen/internal/ui/widget"
 )
 
 type WorkerHealthView struct {
@@ -40,7 +40,7 @@ type WorkerHealthView struct {
 	StrandedClaimCount                 int64
 	StrandedClaimOldestSeconds         int64
 	StrandedClaims                     []StrandedClaim
-	Notice                             components.Result
+	Notice                             widget.Result
 	OpenRefundCount                    int64
 	OpenRefunds                        []OpenRefund
 	UninvoicedCount                    int64

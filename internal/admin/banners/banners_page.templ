@@ -4,8 +4,8 @@ import (
 	"fmt"
 
 	"github.com/koopa0/goen/internal/i18n"
-	"github.com/koopa0/goen/internal/ui/components"
 	"github.com/koopa0/goen/internal/ui/layouts"
+	"github.com/koopa0/goen/internal/ui/widget"
 )
 
 templ Banners(p layouts.Page, v *BannersView) {
@@ -23,7 +23,7 @@ templ Banners(p layouts.Page, v *BannersView) {
 		@layouts.RefusalSummary(layouts.SummarizeRefusal(i18n.KeyAdminRefusalBanner, v.Errors, layouts.RefusalField{Key: "message", ID: "b-message"}, layouts.RefusalField{Key: "short", ID: "b-short"}, layouts.RefusalField{Key: "message_en", ID: "b-message-en"}, layouts.RefusalField{Key: "short_en", ID: "b-short-en"}, layouts.RefusalField{Key: "cta", ID: "b-cta-href"}, layouts.RefusalField{Key: "days", ID: "b-days"}))
 		<div class="goen-admin__productlayout">
 			<form class="goen-admin__form" id="new-banner" method="post" action="/admin/banners#new-banner">
-				@components.LangSwitch("banner_lang", v.InEnglish())
+				@widget.LangSwitch("banner_lang", v.InEnglish())
 				<div class="goen-admin__langgroup" data-lang="zh">
 					<div class="ui-field">
 						<label class="ui-label" for="b-message">{ i18n.T(ctx, i18n.KeyAdminHomeBannerMessage) }</label>
@@ -168,7 +168,7 @@ templ Banners(p layouts.Page, v *BannersView) {
 				if v.HasErr("cta") {
 					<p class="ui-error-text" id="b-cta-error" role="alert">{ v.Err("cta") }</p>
 				}
-				@components.Button(components.ButtonProps{ButtonStyle: components.ButtonStylePrimary}, "submit") {
+				@widget.Button(widget.ButtonProps{ButtonStyle: widget.ButtonStylePrimary}, "submit") {
 					{ i18n.T(ctx, i18n.KeyAdminHomeBannerAdd) }
 				}
 			</form>
@@ -215,7 +215,7 @@ templ Banners(p layouts.Page, v *BannersView) {
 						}
 					</ul>
 				}
-				@components.ListPager(v.Bound, "banner-history")
+				@widget.ListPager(v.Bound, "banner-history")
 			</aside>
 		</div>
 	}

@@ -4,9 +4,9 @@ import (
 	"fmt"
 	"github.com/koopa0/goen/internal/i18n"
 	"github.com/koopa0/goen/internal/ui/chart"
-	"github.com/koopa0/goen/internal/ui/components"
 	"github.com/koopa0/goen/internal/ui/layouts"
 	"github.com/koopa0/goen/internal/ui/tone"
+	"github.com/koopa0/goen/internal/ui/widget"
 )
 
 // The list leads with whether a campaign is running RIGHT NOW: a switched-on
@@ -51,11 +51,11 @@ templ Campaigns(p layouts.Page, v CampaignsView) {
 								</td>
 								<td>
 									if c.Live() {
-										@components.Badge(components.BadgeProps{Intent: components.IntentProgress}) {
+										@widget.Badge(widget.BadgeProps{Intent: widget.IntentProgress}) {
 											{ c.State(ctx) }
 										}
 									} else {
-										@components.Badge(components.BadgeProps{Intent: components.IntentNeutral}) {
+										@widget.Badge(widget.BadgeProps{Intent: widget.IntentNeutral}) {
 											{ c.State(ctx) }
 										}
 									}
@@ -63,9 +63,9 @@ templ Campaigns(p layouts.Page, v CampaignsView) {
 								<td class="goen-admin__cellactions">
 									<form method="post" action={ templ.SafeURL(c.ToggleAction()) }>
 										<input type="hidden" name="active" value={ c.NextActive() }/>
-										@components.Button(components.ButtonProps{
-											ButtonStyle: components.ButtonStyleOutline,
-											Size:        components.SizeSmall,
+										@widget.Button(widget.ButtonProps{
+											ButtonStyle: widget.ButtonStyleOutline,
+											Size:        widget.SizeSmall,
 										}, "submit") {
 											{ c.ToggleLabel(ctx) }
 										}
@@ -77,11 +77,11 @@ templ Campaigns(p layouts.Page, v CampaignsView) {
 				</table>
 			</div>
 		}
-		@components.Card(components.CardProps{Class: "goen-admin__section"}) {
+		@widget.Card(widget.CardProps{Class: "goen-admin__section"}) {
 			<h2 class="goen-admin__heading">{ i18n.T(ctx, i18n.KeyAdminCampCreate) }</h2>
 			<form class="goen-admin__form" method="post" action="/admin/campaigns">
 				<div class="goen-admin__field">
-					@components.Label(components.LabelProps{For: "k-title"}) {
+					@widget.Label(widget.LabelProps{For: "k-title"}) {
 						{ i18n.T(ctx, i18n.KeyAdminCampTitle) }
 					}
 					<input
@@ -104,7 +104,7 @@ templ Campaigns(p layouts.Page, v CampaignsView) {
 					}
 				</div>
 				<div class="goen-admin__field">
-					@components.Label(components.LabelProps{For: "k-title-en"}) {
+					@widget.Label(widget.LabelProps{For: "k-title-en"}) {
 						{ i18n.T(ctx, i18n.KeyAdminCampaignTitleEn) }
 					}
 					<p class="goen-admin__hint" id="k-title-en-hint">{ i18n.T(ctx, i18n.KeyAdminCampaignTitleEnHint) }</p>
@@ -126,7 +126,7 @@ templ Campaigns(p layouts.Page, v CampaignsView) {
 					}
 				</div>
 				<div class="goen-admin__field">
-					@components.Label(components.LabelProps{For: "k-tone"}) {
+					@widget.Label(widget.LabelProps{For: "k-tone"}) {
 						{ i18n.T(ctx, i18n.KeyAdminColTone) }
 					}
 					<select class="goen-input" id="k-tone" name="tone">
@@ -140,7 +140,7 @@ templ Campaigns(p layouts.Page, v CampaignsView) {
 				</div>
 				<div class="goen-admin__fields">
 					<div class="goen-admin__field">
-						@components.Label(components.LabelProps{For: "k-slug"}) {
+						@widget.Label(widget.LabelProps{For: "k-slug"}) {
 							{ i18n.T(ctx, i18n.KeyAdminColSlug) }
 						}
 						<input
@@ -163,7 +163,7 @@ templ Campaigns(p layouts.Page, v CampaignsView) {
 						}
 					</div>
 					<div class="goen-admin__field">
-						@components.Label(components.LabelProps{For: "k-days"}) {
+						@widget.Label(widget.LabelProps{For: "k-days"}) {
 							{ i18n.T(ctx, i18n.KeyAdminCampDays) }
 						}
 						<input
@@ -187,15 +187,15 @@ templ Campaigns(p layouts.Page, v CampaignsView) {
 						}
 					</div>
 				</div>
-				@components.Button(components.ButtonProps{
-					ButtonStyle: components.ButtonStylePrimary,
+				@widget.Button(widget.ButtonProps{
+					ButtonStyle: widget.ButtonStylePrimary,
 					Class:       "goen-admin__submit",
 				}, "submit") {
 					{ i18n.T(ctx, i18n.KeyAdminCampCreate) }
 				}
 			</form>
 		}
-		@components.ListPager(v.Bound)
+		@widget.ListPager(v.Bound)
 	}
 }
 
@@ -212,19 +212,19 @@ templ CampaignForm(p layouts.Page, v CampaignView) {
 			<form class="ui-page-head__actions" method="post" action={ templ.SafeURL(v.ActiveAction()) }>
 				<input type="hidden" name="back" value="detail"/>
 				<input type="hidden" name="active" value={ v.NextActive() }/>
-				@components.Button(components.ButtonProps{ButtonStyle: components.ButtonStyleOutline}, "submit") {
+				@widget.Button(widget.ButtonProps{ButtonStyle: widget.ButtonStyleOutline}, "submit") {
 					{ v.ToggleLabel(ctx) }
 				}
 			</form>
 		</div>
 		@layouts.Announce(v.Notice)
 		if v.ResultsUnavailable {
-			@components.Card(components.CardProps{Class: "goen-admin__section"}) {
+			@widget.Card(widget.CardProps{Class: "goen-admin__section"}) {
 				<h2 class="goen-admin__heading">{ i18n.T(ctx, i18n.KeyAdminCampResults) }</h2>
 				<p class="goen-admin__hint" role="status">{ i18n.T(ctx, i18n.KeyAdminChartUnavailable) }</p>
 			}
 		} else if v.Results != nil {
-			@components.Card(components.CardProps{Class: "goen-admin__section"}) {
+			@widget.Card(widget.CardProps{Class: "goen-admin__section"}) {
 				<h2 class="goen-admin__heading">{ i18n.T(ctx, i18n.KeyAdminCampResults) }</h2>
 				if v.Results.Drawn() {
 					@chart.Columns(v.Results.Columns(ctx))
@@ -236,12 +236,12 @@ templ CampaignForm(p layouts.Page, v CampaignView) {
 				}
 			}
 		}
-		@components.Card(components.CardProps{Class: "goen-admin__section"}) {
+		@widget.Card(widget.CardProps{Class: "goen-admin__section"}) {
 			<h2 class="goen-admin__heading">{ i18n.T(ctx, i18n.KeyAdminCampWindow) }</h2>
 			<form class="goen-admin__form" method="post" action={ templ.SafeURL(v.WindowAction()) }>
 				<div class="goen-admin__fields">
 					<div class="goen-admin__field">
-						@components.Label(components.LabelProps{For: "c-starts"}) {
+						@widget.Label(widget.LabelProps{For: "c-starts"}) {
 							{ i18n.T(ctx, i18n.KeyAdminCampStarts) }
 						}
 						<input
@@ -258,7 +258,7 @@ templ CampaignForm(p layouts.Page, v CampaignView) {
 						/>
 					</div>
 					<div class="goen-admin__field">
-						@components.Label(components.LabelProps{For: "c-ends"}) {
+						@widget.Label(widget.LabelProps{For: "c-ends"}) {
 							{ i18n.T(ctx, i18n.KeyAdminCampEnds) }
 						}
 						<input
@@ -278,8 +278,8 @@ templ CampaignForm(p layouts.Page, v CampaignView) {
 				if v.HasErr("window") {
 					<p class="ui-error-text" id="c-window-error" role="alert">{ v.Err("window") }</p>
 				}
-				@components.Button(components.ButtonProps{
-					ButtonStyle: components.ButtonStylePrimary,
+				@widget.Button(widget.ButtonProps{
+					ButtonStyle: widget.ButtonStylePrimary,
 					Class:       "goen-admin__submit",
 				}, "submit") {
 					{ i18n.T(ctx, i18n.KeyAdminProdSave) }
@@ -311,9 +311,9 @@ templ CampaignForm(p layouts.Page, v CampaignView) {
 									<form method="post" action={ templ.SafeURL(v.FeatureAction()) }>
 										<input type="hidden" name="product" value={ item.Slug }/>
 										<input type="hidden" name="action" value="remove"/>
-										@components.Button(components.ButtonProps{
-											ButtonStyle: components.ButtonStyleOutline,
-											Size:        components.SizeSmall,
+										@widget.Button(widget.ButtonProps{
+											ButtonStyle: widget.ButtonStyleOutline,
+											Size:        widget.SizeSmall,
 										}, "submit") {
 											{ i18n.T(ctx, i18n.KeyAdminRemove) }
 											<span class="goen-sr-only">{ " " + item.Name }</span>
@@ -326,11 +326,11 @@ templ CampaignForm(p layouts.Page, v CampaignView) {
 				</table>
 			</div>
 		}
-		@components.Card(components.CardProps{Class: "goen-admin__section"}) {
+		@widget.Card(widget.CardProps{Class: "goen-admin__section"}) {
 			<h2 class="goen-admin__heading">{ i18n.T(ctx, i18n.KeyAdminColTone) }</h2>
 			<form class="goen-admin__form" method="post" action={ templ.SafeURL(v.ToneAction()) }>
 				<div class="goen-admin__field">
-					@components.Label(components.LabelProps{For: "c-tone"}) {
+					@widget.Label(widget.LabelProps{For: "c-tone"}) {
 						{ i18n.T(ctx, i18n.KeyAdminColTone) }
 					}
 					<select
@@ -350,22 +350,22 @@ templ CampaignForm(p layouts.Page, v CampaignView) {
 						<p class="ui-error-text" id="c-tone-error" role="alert">{ v.Err("tone") }</p>
 					}
 				</div>
-				@components.Button(components.ButtonProps{
-					ButtonStyle: components.ButtonStylePrimary,
+				@widget.Button(widget.ButtonProps{
+					ButtonStyle: widget.ButtonStylePrimary,
 					Class:       "goen-admin__submit",
 				}, "submit") {
 					{ i18n.T(ctx, i18n.KeyAdminProdSave) }
 				}
 			</form>
 		}
-		@components.Card(components.CardProps{Class: "goen-admin__section"}) {
+		@widget.Card(widget.CardProps{Class: "goen-admin__section"}) {
 			<h2 class="goen-admin__heading">{ i18n.T(ctx, i18n.KeyAdminCampImage) }</h2>
 			if v.Image.Has() && v.Image.URL() != "" {
 				<img class="goen-admin__heroshot goen-admin__heroshot--campaign" src={ v.Image.URL() } srcset={ v.Image.Srcset() } sizes="160px" alt={ v.Image.Alt } loading="lazy" width="160" height="60"/>
 				<form method="post" action={ templ.SafeURL(v.ImageRemoveAction()) }>
-					@components.Button(components.ButtonProps{
-						ButtonStyle: components.ButtonStyleOutline,
-						Size:        components.SizeSmall,
+					@widget.Button(widget.ButtonProps{
+						ButtonStyle: widget.ButtonStyleOutline,
+						Size:        widget.SizeSmall,
 					}, "submit") {
 						{ i18n.T(ctx, i18n.KeyAdminRemove) }
 						<span class="goen-sr-only">{ " " + i18n.T(ctx, i18n.KeyAdminCampImage) + " " + v.Image.Alt }</span>
@@ -375,7 +375,7 @@ templ CampaignForm(p layouts.Page, v CampaignView) {
 			// Without enctype a browser posts only the filename.
 			<form class="goen-admin__form" method="post" action={ templ.SafeURL(v.ImageAction()) } enctype="multipart/form-data">
 				<div class="goen-admin__field">
-					@components.Label(components.LabelProps{For: "c-image"}) {
+					@widget.Label(widget.LabelProps{For: "c-image"}) {
 						{ i18n.T(ctx, i18n.KeyAdminProdUpload) }
 					}
 					<input
@@ -397,7 +397,7 @@ templ CampaignForm(p layouts.Page, v CampaignView) {
 					}
 				</div>
 				<div class="goen-admin__field">
-					@components.Label(components.LabelProps{For: "c-alt"}) {
+					@widget.Label(widget.LabelProps{For: "c-alt"}) {
 						{ i18n.T(ctx, i18n.KeyAdminAltText) }
 					}
 					<input
@@ -417,7 +417,7 @@ templ CampaignForm(p layouts.Page, v CampaignView) {
 					}
 				</div>
 				<div class="goen-admin__field">
-					@components.Label(components.LabelProps{For: "c-alt-en"}) {
+					@widget.Label(widget.LabelProps{For: "c-alt-en"}) {
 						{ i18n.T(ctx, i18n.KeyAdminHomeAltEn) }
 					}
 					<input
@@ -435,15 +435,15 @@ templ CampaignForm(p layouts.Page, v CampaignView) {
 						<p class="ui-error-text" id="c-alt-en-error" role="alert">{ v.Err("alt_en") }</p>
 					}
 				</div>
-				@components.Button(components.ButtonProps{
-					ButtonStyle: components.ButtonStylePrimary,
+				@widget.Button(widget.ButtonProps{
+					ButtonStyle: widget.ButtonStylePrimary,
 					Class:       "goen-admin__submit",
 				}, "submit") {
 					{ i18n.T(ctx, i18n.KeyAdminProdSave) }
 				}
 			</form>
 		}
-		@components.Card(components.CardProps{Class: "goen-admin__section"}) {
+		@widget.Card(widget.CardProps{Class: "goen-admin__section"}) {
 			<h2 class="goen-admin__heading">{ i18n.T(ctx, i18n.KeyAdminCampAdd) }</h2>
 			<form class="goen-admin__search" method="get" action={ templ.SafeURL("/admin/campaigns/" + v.Slug) }>
 				<label class="goen-sr-only" for="k-find">{ i18n.T(ctx, i18n.KeyAdminCampFind) }</label>
@@ -456,7 +456,7 @@ templ CampaignForm(p layouts.Page, v CampaignView) {
 					placeholder={ i18n.T(ctx, i18n.KeyAdminCampFindPlaceholder) }
 					autocomplete="off"
 				/>
-				@components.Button(components.ButtonProps{ButtonStyle: components.ButtonStyleOutline}, "submit") {
+				@widget.Button(widget.ButtonProps{ButtonStyle: widget.ButtonStyleOutline}, "submit") {
 					{ i18n.T(ctx, i18n.KeyAdminSearch) }
 				}
 			</form>
@@ -472,9 +472,9 @@ templ CampaignForm(p layouts.Page, v CampaignView) {
 							if m.HasDiscountedVariant {
 								<form method="post" action={ templ.SafeURL(v.FeatureAction()) }>
 									<input type="hidden" name="product" value={ m.Slug }/>
-									@components.Button(components.ButtonProps{
-										ButtonStyle: components.ButtonStyleOutline,
-										Size:        components.SizeSmall,
+									@widget.Button(widget.ButtonProps{
+										ButtonStyle: widget.ButtonStyleOutline,
+										Size:        widget.SizeSmall,
 									}, "submit") {
 										{ i18n.T(ctx, i18n.KeyAdminCampAdd) }
 									}

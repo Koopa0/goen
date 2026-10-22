@@ -40,7 +40,7 @@ var unreferencedExports = map[string]string{
 	"github.com/koopa0/goen/internal/admin/audit.ActionVoidInvoice":  invoiceActionMember,
 	"github.com/koopa0/goen/internal/admin/audit.ActionAllowInvoice": invoiceActionMember,
 
-	"github.com/koopa0/goen/internal/ui/components.SizeMedium": "the default step: class() has no case for it and renders the empty class, " +
+	"github.com/koopa0/goen/internal/ui/widget.SizeMedium": "the default step: class() has no case for it and renders the empty class, " +
 		"so a caller that leaves Size empty and one that names SizeMedium get the same button; the name is the " +
 		"third member of the Size set beside SizeSmall and SizeLarge",
 	"github.com/koopa0/goen/internal/cart.FreeDeliveryUnstated": "the zero value of FreeDeliveryKind, named because silence is a " +

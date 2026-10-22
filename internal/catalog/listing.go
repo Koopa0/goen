@@ -7,9 +7,9 @@ import (
 	"strconv"
 
 	"github.com/koopa0/goen/internal/i18n"
-	"github.com/koopa0/goen/internal/ui/components"
 	"github.com/koopa0/goen/internal/ui/layouts"
 	"github.com/koopa0/goen/internal/ui/tile"
+	"github.com/koopa0/goen/internal/ui/widget"
 )
 
 type partialKey struct{}
@@ -109,12 +109,12 @@ func (v ListingView) SortOptions(ctx context.Context) []SortOption {
 }
 
 // Trail leaves the last step without an href: it is the page you are on.
-func (v ListingView) Trail(ctx context.Context) []components.Crumb {
-	trail := []components.Crumb{{Label: i18n.T(ctx, i18n.KeyHome), Href: "/"}}
+func (v ListingView) Trail(ctx context.Context) []widget.Crumb {
+	trail := []widget.Crumb{{Label: i18n.T(ctx, i18n.KeyHome), Href: "/"}}
 	for _, c := range v.Crumbs {
-		trail = append(trail, components.Crumb{Label: c.Name, Href: "/c/" + c.Slug})
+		trail = append(trail, widget.Crumb{Label: c.Name, Href: "/c/" + c.Slug})
 	}
-	return append(trail, components.Crumb{Label: v.Name})
+	return append(trail, widget.Crumb{Label: v.Name})
 }
 
 func ListingMeta(ctx context.Context, v ListingView) layouts.Page {

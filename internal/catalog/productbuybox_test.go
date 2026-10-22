@@ -6,7 +6,7 @@ import (
 
 	"github.com/koopa0/goen/internal/i18n"
 	"github.com/koopa0/goen/internal/policy"
-	"github.com/koopa0/goen/internal/ui/components"
+	"github.com/koopa0/goen/internal/ui/widget"
 )
 
 // testRules' windows are not the shop's: a page that printed a number of its own instead of the field's would show.
@@ -142,7 +142,7 @@ func TestBuyBoxFactsFollowWhatTheShopStates(t *testing.T) {
 		{"no free delivery", ProductView{WarrantyMonths: 12, Sellable: true, AnySellable: true, SelectionOK: true},
 			[]string{"保固", "猶豫期", "庫存保留"}},
 	} {
-		parts := strings.Split(renderIn(t, i18n.ZhHant, components.StatLine(tc.view.BuyFacts(ctx), components.StatLinePairs)), "<dt>")[1:]
+		parts := strings.Split(renderIn(t, i18n.ZhHant, widget.StatLine(tc.view.BuyFacts(ctx), widget.StatLinePairs)), "<dt>")[1:]
 		got := make([]string, 0, len(parts))
 		for _, part := range parts {
 			label, _, ok := strings.Cut(part, "</dt>")
@@ -224,7 +224,7 @@ func TestWarrantyTermReadsInTheSingularForOneMonth(t *testing.T) {
 	} {
 		v := ProductView{WarrantyMonths: 1, Rules: testRules}
 		v.WarrantyMonths = tc.months
-		got := renderIn(t, tc.locale, components.StatLine(v.BuyFacts(i18n.WithLocale(t.Context(), tc.locale)), components.StatLinePairs))
+		got := renderIn(t, tc.locale, widget.StatLine(v.BuyFacts(i18n.WithLocale(t.Context(), tc.locale)), widget.StatLinePairs))
 		if !strings.Contains(got, tc.want) {
 			t.Errorf("%s, %d months: %s, want it to contain %q", tc.locale, tc.months, got, tc.want)
 		}

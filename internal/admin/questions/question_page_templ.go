@@ -12,9 +12,9 @@ import (
 	"fmt"
 
 	"github.com/koopa0/goen/internal/i18n"
-	"github.com/koopa0/goen/internal/ui/components"
 	"github.com/koopa0/goen/internal/ui/icons"
 	"github.com/koopa0/goen/internal/ui/layouts"
+	"github.com/koopa0/goen/internal/ui/widget"
 )
 
 // A divided list rather than a column of cards: the queue is read down the page for
@@ -144,7 +144,7 @@ func Questions(p layouts.Page, v QuestionsView) templ.Component {
 				}
 				return nil
 			})
-			templ_7745c5c3_Err = components.ButtonLink(components.ButtonProps{ButtonStyle: components.ButtonStyleGhost, Class: "goen-modqueue__switch"}, templ.SafeURL(v.OtherQueueHref())).Render(templ.WithChildren(ctx, templ_7745c5c3_Var7), templ_7745c5c3_Buffer)
+			templ_7745c5c3_Err = widget.ButtonLink(widget.ButtonProps{ButtonStyle: widget.ButtonStyleGhost, Class: "goen-modqueue__switch"}, templ.SafeURL(v.OtherQueueHref())).Render(templ.WithChildren(ctx, templ_7745c5c3_Var7), templ_7745c5c3_Buffer)
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
@@ -242,7 +242,7 @@ func Questions(p layouts.Page, v QuestionsView) templ.Component {
 							}
 							return nil
 						})
-						templ_7745c5c3_Err = components.Badge(components.BadgeProps{Intent: components.IntentWarn}).Render(templ.WithChildren(ctx, templ_7745c5c3_Var12), templ_7745c5c3_Buffer)
+						templ_7745c5c3_Err = widget.Badge(widget.BadgeProps{Intent: widget.IntentWarn}).Render(templ.WithChildren(ctx, templ_7745c5c3_Var12), templ_7745c5c3_Buffer)
 						if templ_7745c5c3_Err != nil {
 							return templ_7745c5c3_Err
 						}
@@ -270,7 +270,7 @@ func Questions(p layouts.Page, v QuestionsView) templ.Component {
 							}
 							return nil
 						})
-						templ_7745c5c3_Err = components.Badge(components.BadgeProps{}).Render(templ.WithChildren(ctx, templ_7745c5c3_Var14), templ_7745c5c3_Buffer)
+						templ_7745c5c3_Err = widget.Badge(widget.BadgeProps{}).Render(templ.WithChildren(ctx, templ_7745c5c3_Var14), templ_7745c5c3_Buffer)
 						if templ_7745c5c3_Err != nil {
 							return templ_7745c5c3_Err
 						}
@@ -365,7 +365,7 @@ func Questions(p layouts.Page, v QuestionsView) templ.Component {
 									}
 									return nil
 								})
-								templ_7745c5c3_Err = components.Badge(components.BadgeProps{}).Render(templ.WithChildren(ctx, templ_7745c5c3_Var20), templ_7745c5c3_Buffer)
+								templ_7745c5c3_Err = widget.Badge(widget.BadgeProps{}).Render(templ.WithChildren(ctx, templ_7745c5c3_Var20), templ_7745c5c3_Buffer)
 								if templ_7745c5c3_Err != nil {
 									return templ_7745c5c3_Err
 								}
@@ -394,7 +394,7 @@ func Questions(p layouts.Page, v QuestionsView) templ.Component {
 									}
 									return nil
 								})
-								templ_7745c5c3_Err = components.Badge(components.BadgeProps{}).Render(templ.WithChildren(ctx, templ_7745c5c3_Var22), templ_7745c5c3_Buffer)
+								templ_7745c5c3_Err = widget.Badge(widget.BadgeProps{}).Render(templ.WithChildren(ctx, templ_7745c5c3_Var22), templ_7745c5c3_Buffer)
 								if templ_7745c5c3_Err != nil {
 									return templ_7745c5c3_Err
 								}
@@ -498,7 +498,7 @@ func Questions(p layouts.Page, v QuestionsView) templ.Component {
 									}
 									return nil
 								})
-								templ_7745c5c3_Err = components.Button(components.ButtonProps{ButtonStyle: components.ButtonStyleGhost, Size: components.SizeSmall, Attrs: templ.Attributes{"name": "action", "value": string(QuestionHideAnswerAction)}}, "submit").Render(templ.WithChildren(ctx, templ_7745c5c3_Var29), templ_7745c5c3_Buffer)
+								templ_7745c5c3_Err = widget.Button(widget.ButtonProps{ButtonStyle: widget.ButtonStyleGhost, Size: widget.SizeSmall, Attrs: templ.Attributes{"name": "action", "value": string(QuestionHideAnswerAction)}}, "submit").Render(templ.WithChildren(ctx, templ_7745c5c3_Var29), templ_7745c5c3_Buffer)
 								if templ_7745c5c3_Err != nil {
 									return templ_7745c5c3_Err
 								}
@@ -562,7 +562,7 @@ func Questions(p layouts.Page, v QuestionsView) templ.Component {
 							}
 							return nil
 						})
-						templ_7745c5c3_Err = components.Label(components.LabelProps{For: "answer-" + q.ID}).Render(templ.WithChildren(ctx, templ_7745c5c3_Var32), templ_7745c5c3_Buffer)
+						templ_7745c5c3_Err = widget.Label(widget.LabelProps{For: "answer-" + q.ID}).Render(templ.WithChildren(ctx, templ_7745c5c3_Var32), templ_7745c5c3_Buffer)
 						if templ_7745c5c3_Err != nil {
 							return templ_7745c5c3_Err
 						}
@@ -589,7 +589,7 @@ func Questions(p layouts.Page, v QuestionsView) templ.Component {
 							}
 							return nil
 						})
-						templ_7745c5c3_Err = components.Textarea(components.FieldProps{
+						templ_7745c5c3_Err = widget.Textarea(widget.FieldProps{
 							ID:        "answer-" + q.ID,
 							Name:      "body",
 							Invalid:   q.Error != "",
@@ -668,9 +668,9 @@ func Questions(p layouts.Page, v QuestionsView) templ.Component {
 							}
 							return nil
 						})
-						templ_7745c5c3_Err = components.Button(components.ButtonProps{
-							ButtonStyle: components.ButtonStyleOutline,
-							Size:        components.SizeSmall,
+						templ_7745c5c3_Err = widget.Button(widget.ButtonProps{
+							ButtonStyle: widget.ButtonStyleOutline,
+							Size:        widget.SizeSmall,
 							Attrs:       templ.Attributes{"name": "action", "value": string(QuestionAnswerAction)},
 						}, "submit").Render(templ.WithChildren(ctx, templ_7745c5c3_Var38), templ_7745c5c3_Buffer)
 						if templ_7745c5c3_Err != nil {
@@ -700,9 +700,9 @@ func Questions(p layouts.Page, v QuestionsView) templ.Component {
 						}
 						return nil
 					})
-					templ_7745c5c3_Err = components.Button(components.ButtonProps{
-						ButtonStyle: components.ButtonStyleGhost,
-						Size:        components.SizeSmall,
+					templ_7745c5c3_Err = widget.Button(widget.ButtonProps{
+						ButtonStyle: widget.ButtonStyleGhost,
+						Size:        widget.SizeSmall,
 						Attrs:       templ.Attributes{"name": "action", "value": string(q.VisibilityAction())},
 					}, "submit").Render(templ.WithChildren(ctx, templ_7745c5c3_Var40), templ_7745c5c3_Buffer)
 					if templ_7745c5c3_Err != nil {
@@ -722,7 +722,7 @@ func Questions(p layouts.Page, v QuestionsView) templ.Component {
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
-			templ_7745c5c3_Err = components.ListPager(v.Bound).Render(ctx, templ_7745c5c3_Buffer)
+			templ_7745c5c3_Err = widget.ListPager(v.Bound).Render(ctx, templ_7745c5c3_Buffer)
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}

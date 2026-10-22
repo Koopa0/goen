@@ -13,15 +13,15 @@ import (
 	"github.com/koopa0/goen/internal/keyset"
 	"github.com/koopa0/goen/internal/money"
 	"github.com/koopa0/goen/internal/order"
-	"github.com/koopa0/goen/internal/ui/components"
 	"github.com/koopa0/goen/internal/ui/layouts"
+	"github.com/koopa0/goen/internal/ui/widget"
 )
 
 type OrderRow struct {
 	Number       string
 	Status       order.FulfillmentStatus
 	StatusText   string
-	StatusIntent components.Intent
+	StatusIntent widget.Intent
 	PlacedAt     string
 	Recipient    string
 	TotalCents   int64
@@ -67,7 +67,7 @@ type View struct {
 	Status   QueueFilter
 	Orders   []OrderRow
 	Tabs     []StatusTab
-	Notice   components.Result
+	Notice   widget.Result
 }
 
 func (v View) Searching() bool { return v.Searched }
@@ -97,7 +97,7 @@ type OrderView struct {
 	Number       string
 	Status       order.FulfillmentStatus
 	StatusText   string
-	StatusIntent components.Intent
+	StatusIntent widget.Intent
 	PlacedAt     string
 	ShippingName string
 	Lines        []Line
@@ -144,7 +144,7 @@ type OrderView struct {
 	Next                      []Transition
 	CanShip                   bool
 	Shippable                 []ShippableLine
-	Notice                    components.Result
+	Notice                    widget.Result
 	Timeline                  []TimelineEntry
 	MailKept                  time.Duration
 	Shipments                 []Shipment

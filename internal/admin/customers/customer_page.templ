@@ -5,8 +5,8 @@ import (
 
 	"github.com/koopa0/goen/internal/i18n"
 	"github.com/koopa0/goen/internal/ui/chart"
-	"github.com/koopa0/goen/internal/ui/components"
 	"github.com/koopa0/goen/internal/ui/layouts"
+	"github.com/koopa0/goen/internal/ui/widget"
 )
 
 // The table appears only once somebody has searched: listing every customer by
@@ -36,7 +36,7 @@ templ Customers(p layouts.Page, v CustomersView) {
 					aria-describedby="customer-search-hint"
 				}
 			/>
-			@components.Button(components.ButtonProps{ButtonStyle: components.ButtonStyleOutline}, "submit") {
+			@widget.Button(widget.ButtonProps{ButtonStyle: widget.ButtonStyleOutline}, "submit") {
 				{ i18n.T(ctx, i18n.KeyAdminSearch) }
 			}
 		</form>
@@ -70,7 +70,7 @@ templ Customers(p layouts.Page, v CustomersView) {
 								<td>
 									{ c.Email }
 									if !c.Verified {
-										@components.Badge(components.BadgeProps{}) {
+										@widget.Badge(widget.BadgeProps{}) {
 											{ i18n.T(ctx, i18n.KeyAdminCustEmailUnconfirmed) }
 										}
 									}
@@ -83,15 +83,15 @@ templ Customers(p layouts.Page, v CustomersView) {
 				</table>
 			</div>
 		}
-		@components.ListPager(v.Bound)
+		@widget.ListPager(v.Bound)
 	}
 }
 
 templ Customer(p layouts.Page, v *CustomerView) {
 	@layouts.Admin(p, "customers") {
-		@components.Breadcrumb(components.BreadcrumbProps{
+		@widget.Breadcrumb(widget.BreadcrumbProps{
 			Label: i18n.T(ctx, i18n.KeyBreadcrumb),
-			Crumbs: []components.Crumb{
+			Crumbs: []widget.Crumb{
 				{Label: i18n.T(ctx, i18n.KeyAdminPageCustomers), Href: "/admin/customers"},
 				{Label: v.DisplayName()},
 			},
@@ -102,23 +102,23 @@ templ Customer(p layouts.Page, v *CustomerView) {
 				<p class="ui-page-head__sub">
 					{ v.Email }
 					if !v.Verified {
-						@components.Badge(components.BadgeProps{}) {
+						@widget.Badge(widget.BadgeProps{}) {
 							{ i18n.T(ctx, i18n.KeyAdminCustEmailUnconfirmed) }
 						}
 					}
 				</p>
 			</div>
-			@components.ButtonLink(components.ButtonProps{ButtonStyle: components.ButtonStyleOutline}, templ.SafeURL(v.GrantCreditHref())) {
+			@widget.ButtonLink(widget.ButtonProps{ButtonStyle: widget.ButtonStyleOutline}, templ.SafeURL(v.GrantCreditHref())) {
 				{ i18n.T(ctx, i18n.KeyAdminCreditGrant) }
 			}
 		</div>
 		<div class="goen-admin__stats">
-			@components.StatLine([]components.Stat{
-				{Label: i18n.T(ctx, i18n.KeyAdminCustStatOrders), Value: components.StatNumber(v.Orders)},
-				{Label: i18n.T(ctx, i18n.KeyAdminCustStatSpent), Value: components.StatMoney(v.SpentCents)},
-				{Label: i18n.T(ctx, i18n.KeyAdminCustStatCredit), Value: components.StatMoney(v.CreditCents), LabelHref: v.CreditHref()},
-				{Label: i18n.T(ctx, i18n.KeyAdminCustStatPoints), Value: components.StatNumber(v.Points)},
-			}, components.StatLineWide)
+			@widget.StatLine([]widget.Stat{
+				{Label: i18n.T(ctx, i18n.KeyAdminCustStatOrders), Value: widget.StatNumber(v.Orders)},
+				{Label: i18n.T(ctx, i18n.KeyAdminCustStatSpent), Value: widget.StatMoney(v.SpentCents)},
+				{Label: i18n.T(ctx, i18n.KeyAdminCustStatCredit), Value: widget.StatMoney(v.CreditCents), LabelHref: v.CreditHref()},
+				{Label: i18n.T(ctx, i18n.KeyAdminCustStatPoints), Value: widget.StatNumber(v.Points)},
+			}, widget.StatLineWide)
 		</div>
 		<div class="goen-admin__tier">
 			<p>{ v.TierSentence(ctx) }</p>
@@ -126,7 +126,7 @@ templ Customer(p layouts.Page, v *CustomerView) {
 				@chart.Meter(v.TierMeter())
 			}
 		</div>
-		@components.Card(components.CardProps{Class: "goen-admin__op"}) {
+		@widget.Card(widget.CardProps{Class: "goen-admin__op"}) {
 			<dl class="ui-dl">
 				<div class="ui-dl__row">
 					<dt class="ui-dl__term">{ i18n.T(ctx, i18n.KeyAdminColPhone) }</dt>
@@ -171,7 +171,7 @@ templ Customer(p layouts.Page, v *CustomerView) {
 									<a href={ templ.SafeURL("/admin/orders/" + o.Number) }>{ o.Number }</a>
 								</td>
 								<td>
-									@components.Badge(components.BadgeProps{Intent: o.StatusIntent}) {
+									@widget.Badge(widget.BadgeProps{Intent: o.StatusIntent}) {
 										{ o.StatusText }
 									}
 								</td>

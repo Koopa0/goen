@@ -9,8 +9,8 @@ import (
 
 	"github.com/koopa0/goen/internal/db"
 	"github.com/koopa0/goen/internal/i18n"
-	"github.com/koopa0/goen/internal/ui/components"
 	"github.com/koopa0/goen/internal/ui/tone"
+	"github.com/koopa0/goen/internal/ui/widget"
 )
 
 // The campaign card says what is left before when it ends, and leaves the count
@@ -35,7 +35,7 @@ func TestTheCampaignCardStatesWhatIsLeftThenTheEnd(t *testing.T) {
 		got := make([]string, 0, len(stats))
 		for i := range stats {
 			var b strings.Builder
-			if err := components.StatLine(stats[i:i+1], components.StatLinePlain).Render(ctx, &b); err != nil {
+			if err := widget.StatLine(stats[i:i+1], widget.StatLinePlain).Render(ctx, &b); err != nil {
 				t.Fatal(err)
 			}
 			got = append(got, text(b.String()))
@@ -69,7 +69,7 @@ func TestACampaignSlideStatesWhatTheShopperNeeds(t *testing.T) {
 		got := make([]string, 0, len(stats))
 		for i := range stats {
 			var b strings.Builder
-			if err := components.StatLine(stats[i:i+1], components.StatLinePlain).Render(ctx, &b); err != nil {
+			if err := widget.StatLine(stats[i:i+1], widget.StatLinePlain).Render(ctx, &b); err != nil {
 				t.Fatal(err)
 			}
 			got = append(got, text(b.String()))
@@ -117,7 +117,7 @@ func TestTheEndDateIsATimeElement(t *testing.T) {
 	} {
 		var b strings.Builder
 		stats := s.campaignStats(ctx, &db.ListedCampaignsRow{EndsAt: tt.endsAt, Products: 6})
-		if err := components.StatLine(stats, components.StatLinePlain).Render(ctx, &b); err != nil {
+		if err := widget.StatLine(stats, widget.StatLinePlain).Render(ctx, &b); err != nil {
 			t.Fatal(err)
 		}
 		if !strings.Contains(b.String(), tt.want) {

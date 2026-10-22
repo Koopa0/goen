@@ -12,8 +12,8 @@ import (
 	"fmt"
 
 	"github.com/koopa0/goen/internal/i18n"
-	"github.com/koopa0/goen/internal/ui/components"
 	"github.com/koopa0/goen/internal/ui/layouts"
+	"github.com/koopa0/goen/internal/ui/widget"
 )
 
 // Nothing on this page loads, so it has no skeleton and no spinner: the handover is a form post.
@@ -154,12 +154,12 @@ func Pay(p layouts.Page, v PayView) templ.Component {
 				if templ_7745c5c3_Err != nil {
 					return templ_7745c5c3_Err
 				}
-				templ_7745c5c3_Err = components.StatLine(v.Hold.Facts(ctx, v.TotalCents), components.StatLineSmall).Render(ctx, templ_7745c5c3_Buffer)
+				templ_7745c5c3_Err = widget.StatLine(v.Hold.Facts(ctx, v.TotalCents), widget.StatLineSmall).Render(ctx, templ_7745c5c3_Buffer)
 				if templ_7745c5c3_Err != nil {
 					return templ_7745c5c3_Err
 				}
 			} else {
-				templ_7745c5c3_Err = components.StatLine(v.Hold.Facts(ctx, v.TotalCents), components.StatLinePlain).Render(ctx, templ_7745c5c3_Buffer)
+				templ_7745c5c3_Err = widget.StatLine(v.Hold.Facts(ctx, v.TotalCents), widget.StatLinePlain).Render(ctx, templ_7745c5c3_Buffer)
 				if templ_7745c5c3_Err != nil {
 					return templ_7745c5c3_Err
 				}
@@ -192,8 +192,8 @@ func Pay(p layouts.Page, v PayView) templ.Component {
 					}
 					return nil
 				})
-				templ_7745c5c3_Err = components.Notice(components.NoticeProps{
-					Intent: components.IntentAccent,
+				templ_7745c5c3_Err = widget.Notice(widget.NoticeProps{
+					Intent: widget.IntentAccent,
 					ID:     "pay-cancelled",
 				}).Render(templ.WithChildren(ctx, templ_7745c5c3_Var11), templ_7745c5c3_Buffer)
 				if templ_7745c5c3_Err != nil {
@@ -417,9 +417,9 @@ func Pay(p layouts.Page, v PayView) templ.Component {
 						return templ_7745c5c3_Err
 					}
 					var templ_7745c5c3_Var26 string
-					templ_7745c5c3_Var26, templ_7745c5c3_Err = templ.JoinStringErrs(components.DiscountLabel(ctx, v.DiscountReason))
+					templ_7745c5c3_Var26, templ_7745c5c3_Err = templ.JoinStringErrs(widget.DiscountLabel(ctx, v.DiscountReason))
 					if templ_7745c5c3_Err != nil {
-						return templ.Error{Err: templ_7745c5c3_Err, FileName: `payment/pay.templ`, Line: 78, Col: 60}
+						return templ.Error{Err: templ_7745c5c3_Err, FileName: `payment/pay.templ`, Line: 78, Col: 56}
 					}
 					_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var26))
 					if templ_7745c5c3_Err != nil {
@@ -529,8 +529,8 @@ func Pay(p layouts.Page, v PayView) templ.Component {
 						}
 						return nil
 					})
-					templ_7745c5c3_Err = components.Notice(components.NoticeProps{
-						Intent: components.IntentAccent,
+					templ_7745c5c3_Err = widget.Notice(widget.NoticeProps{
+						Intent: widget.IntentAccent,
 						ID:     "pay-closed",
 					}).Render(templ.WithChildren(ctx, templ_7745c5c3_Var32), templ_7745c5c3_Buffer)
 					if templ_7745c5c3_Err != nil {
@@ -576,9 +576,9 @@ func Pay(p layouts.Page, v PayView) templ.Component {
 						}
 						return nil
 					})
-					templ_7745c5c3_Err = components.Button(components.ButtonProps{
-						ButtonStyle: components.ButtonStylePrimary,
-						Size:        components.SizeLarge,
+					templ_7745c5c3_Err = widget.Button(widget.ButtonProps{
+						ButtonStyle: widget.ButtonStylePrimary,
+						Size:        widget.SizeLarge,
 						Block:       true,
 					}, "submit").Render(templ.WithChildren(ctx, templ_7745c5c3_Var35), templ_7745c5c3_Buffer)
 					if templ_7745c5c3_Err != nil {
@@ -626,8 +626,8 @@ func Pay(p layouts.Page, v PayView) templ.Component {
 							}
 							return nil
 						})
-						templ_7745c5c3_Err = components.Notice(components.NoticeProps{
-							Intent: components.IntentAccent,
+						templ_7745c5c3_Err = widget.Notice(widget.NoticeProps{
+							Intent: widget.IntentAccent,
 							ID:     "pay-sandbox",
 						}).Render(templ.WithChildren(ctx, templ_7745c5c3_Var38), templ_7745c5c3_Buffer)
 						if templ_7745c5c3_Err != nil {
@@ -674,9 +674,9 @@ func Pay(p layouts.Page, v PayView) templ.Component {
 						}
 						return nil
 					})
-					templ_7745c5c3_Err = components.Button(components.ButtonProps{
-						ButtonStyle: components.ButtonStylePrimary,
-						Size:        components.SizeLarge,
+					templ_7745c5c3_Err = widget.Button(widget.ButtonProps{
+						ButtonStyle: widget.ButtonStylePrimary,
+						Size:        widget.SizeLarge,
 						Block:       true,
 					}, "submit").Render(templ.WithChildren(ctx, templ_7745c5c3_Var41), templ_7745c5c3_Buffer)
 					if templ_7745c5c3_Err != nil {
@@ -723,8 +723,8 @@ func Pay(p layouts.Page, v PayView) templ.Component {
 						}
 						return nil
 					})
-					templ_7745c5c3_Err = components.Notice(components.NoticeProps{
-						Intent: components.IntentAccent,
+					templ_7745c5c3_Err = widget.Notice(widget.NoticeProps{
+						Intent: widget.IntentAccent,
 						ID:     "pay-disabled",
 					}).Render(templ.WithChildren(ctx, templ_7745c5c3_Var44), templ_7745c5c3_Buffer)
 					if templ_7745c5c3_Err != nil {
@@ -753,8 +753,8 @@ func Pay(p layouts.Page, v PayView) templ.Component {
 						}
 						return nil
 					})
-					templ_7745c5c3_Err = components.ButtonLink(components.ButtonProps{
-						ButtonStyle: components.ButtonStyleGhost,
+					templ_7745c5c3_Err = widget.ButtonLink(widget.ButtonProps{
+						ButtonStyle: widget.ButtonStyleGhost,
 						Block:       true,
 					}, "/contact").Render(templ.WithChildren(ctx, templ_7745c5c3_Var46), templ_7745c5c3_Buffer)
 					if templ_7745c5c3_Err != nil {
@@ -788,8 +788,8 @@ func Pay(p layouts.Page, v PayView) templ.Component {
 					}
 					return nil
 				})
-				templ_7745c5c3_Err = components.ButtonLink(components.ButtonProps{
-					ButtonStyle: components.ButtonStyleOutline,
+				templ_7745c5c3_Err = widget.ButtonLink(widget.ButtonProps{
+					ButtonStyle: widget.ButtonStyleOutline,
 					Block:       true,
 				}, templ.SafeURL("/orders/"+v.Number)).Render(templ.WithChildren(ctx, templ_7745c5c3_Var48), templ_7745c5c3_Buffer)
 				if templ_7745c5c3_Err != nil {
@@ -797,7 +797,7 @@ func Pay(p layouts.Page, v PayView) templ.Component {
 				}
 				return nil
 			})
-			templ_7745c5c3_Err = components.Card(components.CardProps{Class: "goen-pay__summary"}).Render(templ.WithChildren(ctx, templ_7745c5c3_Var21), templ_7745c5c3_Buffer)
+			templ_7745c5c3_Err = widget.Card(widget.CardProps{Class: "goen-pay__summary"}).Render(templ.WithChildren(ctx, templ_7745c5c3_Var21), templ_7745c5c3_Buffer)
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}

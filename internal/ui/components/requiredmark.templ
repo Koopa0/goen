@@ -1,9 +1,0 @@
-package components
-
-import "github.com/koopa0/goen/internal/i18n"
-
-// RequiredMark says, beside a label, that the form will not take the field
-// empty. The browser says so only once the button has been pressed.
-templ RequiredMark() {
-	<span class="goen-admin__mark">({ i18n.T(ctx, i18n.KeyAdminRequiredMark) })</span>
-}

@@ -7,7 +7,7 @@ import (
 	"github.com/koopa0/goen/internal/i18n"
 	"github.com/koopa0/goen/internal/keyset"
 	"github.com/koopa0/goen/internal/money"
-	"github.com/koopa0/goen/internal/ui/components"
+	"github.com/koopa0/goen/internal/ui/widget"
 )
 
 type CreditEntry struct {
@@ -61,7 +61,7 @@ type CreditView struct {
 	keyset.Bound
 
 	Rows   []CreditEntry
-	Notice components.Result
+	Notice widget.Result
 	Email  string
 	Reason string
 	Amount string

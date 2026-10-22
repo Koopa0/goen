@@ -5,11 +5,11 @@ import (
 
 	"github.com/koopa0/goen/internal/i18n"
 	"github.com/koopa0/goen/internal/policy"
-	"github.com/koopa0/goen/internal/ui/components"
 	"github.com/koopa0/goen/internal/ui/hero"
 	"github.com/koopa0/goen/internal/ui/icons"
 	"github.com/koopa0/goen/internal/ui/layouts"
 	"github.com/koopa0/goen/internal/ui/tile"
+	"github.com/koopa0/goen/internal/ui/widget"
 )
 
 templ Page(p layouts.Page, v View) {
@@ -17,7 +17,7 @@ templ Page(p layouts.Page, v View) {
 		<h1 class="goen-sr-only">{ i18n.T(ctx, i18n.KeyHomeHeading) }</h1>
 		if v.AccountErased {
 			<div class="goen-home">
-				@components.Notice(components.NoticeProps{Intent: components.IntentAccent, ID: "account-erased"}) {
+				@widget.Notice(widget.NoticeProps{Intent: widget.IntentAccent, ID: "account-erased"}) {
 					{ i18n.T(ctx, i18n.KeyAccountErased) }
 				}
 			</div>
@@ -79,9 +79,9 @@ templ heroCarousel(slides []hero.Slide) {
 							if s.Fact != "" {
 								<p class="goen-hero__lede">{ s.Fact }</p>
 							}
-							@components.StatLine(s.Stats, components.StatLinePlain)
+							@widget.StatLine(s.Stats, widget.StatLinePlain)
 							if s.Period != nil {
-								@components.Period(*s.Period)
+								@widget.Period(*s.Period)
 							}
 							if s.CTA.Shown() {
 								<div class="goen-hero__actions">
@@ -220,9 +220,9 @@ templ productRow(r ProductRow) {
 			</div>
 			if r.Campaign != nil && !r.HasLead() {
 				<div class="goen-home__facts">
-					@components.StatLine(r.Campaign.Facts, components.StatLinePlain)
+					@widget.StatLine(r.Campaign.Facts, widget.StatLinePlain)
 					if r.Campaign.Period != nil {
-						@components.Period(*r.Campaign.Period)
+						@widget.Period(*r.Campaign.Period)
 					}
 				</div>
 			}
@@ -238,9 +238,9 @@ templ productRow(r ProductRow) {
 						}
 					}
 					<li class="goen-rowcard">
-						@components.StatLine(r.Campaign.CardFacts, components.StatLinePlain)
+						@widget.StatLine(r.Campaign.CardFacts, widget.StatLinePlain)
 						if r.Campaign.Period != nil {
-							@components.Period(*r.Campaign.Period)
+							@widget.Period(*r.Campaign.Period)
 						}
 						@seeAll(i18n.Count(ctx, i18n.KeyHomeSeeAllCount, r.Campaign.Items, r.Campaign.Items), r.Href)
 					</li>

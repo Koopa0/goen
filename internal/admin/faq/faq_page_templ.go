@@ -12,9 +12,9 @@ import (
 	"fmt"
 
 	"github.com/koopa0/goen/internal/i18n"
-	"github.com/koopa0/goen/internal/ui/components"
 	"github.com/koopa0/goen/internal/ui/icons"
 	"github.com/koopa0/goen/internal/ui/layouts"
+	"github.com/koopa0/goen/internal/ui/widget"
 )
 
 // Two cards down the column rather than a form beside a list: a 320px side column
@@ -138,7 +138,7 @@ func FAQ(p layouts.Page, v *FAQView) templ.Component {
 					}
 					return nil
 				})
-				templ_7745c5c3_Err = components.Notice(components.NoticeProps{Intent: components.IntentWarn}).Render(templ.WithChildren(ctx, templ_7745c5c3_Var6), templ_7745c5c3_Buffer)
+				templ_7745c5c3_Err = widget.Notice(widget.NoticeProps{Intent: widget.IntentWarn}).Render(templ.WithChildren(ctx, templ_7745c5c3_Var6), templ_7745c5c3_Buffer)
 				if templ_7745c5c3_Err != nil {
 					return templ_7745c5c3_Err
 				}
@@ -199,7 +199,7 @@ func FAQ(p layouts.Page, v *FAQView) templ.Component {
 					}
 					return nil
 				})
-				templ_7745c5c3_Err = components.Label(components.LabelProps{For: "faq-category"}).Render(templ.WithChildren(ctx, templ_7745c5c3_Var10), templ_7745c5c3_Buffer)
+				templ_7745c5c3_Err = widget.Label(widget.LabelProps{For: "faq-category"}).Render(templ.WithChildren(ctx, templ_7745c5c3_Var10), templ_7745c5c3_Buffer)
 				if templ_7745c5c3_Err != nil {
 					return templ_7745c5c3_Err
 				}
@@ -354,11 +354,11 @@ func FAQ(p layouts.Page, v *FAQView) templ.Component {
 					}
 					return nil
 				})
-				templ_7745c5c3_Err = components.Label(components.LabelProps{For: "faq-question"}).Render(templ.WithChildren(ctx, templ_7745c5c3_Var18), templ_7745c5c3_Buffer)
+				templ_7745c5c3_Err = widget.Label(widget.LabelProps{For: "faq-question"}).Render(templ.WithChildren(ctx, templ_7745c5c3_Var18), templ_7745c5c3_Buffer)
 				if templ_7745c5c3_Err != nil {
 					return templ_7745c5c3_Err
 				}
-				templ_7745c5c3_Err = components.Input(components.FieldProps{
+				templ_7745c5c3_Err = widget.Input(widget.FieldProps{
 					ID:        "faq-question",
 					Name:      "question",
 					Value:     v.Draft.Question,
@@ -418,7 +418,7 @@ func FAQ(p layouts.Page, v *FAQView) templ.Component {
 					}
 					return nil
 				})
-				templ_7745c5c3_Err = components.Label(components.LabelProps{For: "faq-answer"}).Render(templ.WithChildren(ctx, templ_7745c5c3_Var21), templ_7745c5c3_Buffer)
+				templ_7745c5c3_Err = widget.Label(widget.LabelProps{For: "faq-answer"}).Render(templ.WithChildren(ctx, templ_7745c5c3_Var21), templ_7745c5c3_Buffer)
 				if templ_7745c5c3_Err != nil {
 					return templ_7745c5c3_Err
 				}
@@ -445,7 +445,7 @@ func FAQ(p layouts.Page, v *FAQView) templ.Component {
 					}
 					return nil
 				})
-				templ_7745c5c3_Err = components.Textarea(components.FieldProps{
+				templ_7745c5c3_Err = widget.Textarea(widget.FieldProps{
 					ID:        "faq-answer",
 					Name:      "answer",
 					Invalid:   v.HasErr("answer"),
@@ -505,11 +505,11 @@ func FAQ(p layouts.Page, v *FAQView) templ.Component {
 					}
 					return nil
 				})
-				templ_7745c5c3_Err = components.Label(components.LabelProps{For: "faq-question-en"}).Render(templ.WithChildren(ctx, templ_7745c5c3_Var26), templ_7745c5c3_Buffer)
+				templ_7745c5c3_Err = widget.Label(widget.LabelProps{For: "faq-question-en"}).Render(templ.WithChildren(ctx, templ_7745c5c3_Var26), templ_7745c5c3_Buffer)
 				if templ_7745c5c3_Err != nil {
 					return templ_7745c5c3_Err
 				}
-				templ_7745c5c3_Err = components.Input(components.FieldProps{
+				templ_7745c5c3_Err = widget.Input(widget.FieldProps{
 					ID:        "faq-question-en",
 					Name:      "question_en",
 					Value:     v.Draft.QuestionEn,
@@ -566,7 +566,7 @@ func FAQ(p layouts.Page, v *FAQView) templ.Component {
 					}
 					return nil
 				})
-				templ_7745c5c3_Err = components.Label(components.LabelProps{For: "faq-answer-en"}).Render(templ.WithChildren(ctx, templ_7745c5c3_Var29), templ_7745c5c3_Buffer)
+				templ_7745c5c3_Err = widget.Label(widget.LabelProps{For: "faq-answer-en"}).Render(templ.WithChildren(ctx, templ_7745c5c3_Var29), templ_7745c5c3_Buffer)
 				if templ_7745c5c3_Err != nil {
 					return templ_7745c5c3_Err
 				}
@@ -593,7 +593,7 @@ func FAQ(p layouts.Page, v *FAQView) templ.Component {
 					}
 					return nil
 				})
-				templ_7745c5c3_Err = components.Textarea(components.FieldProps{
+				templ_7745c5c3_Err = widget.Textarea(widget.FieldProps{
 					ID:        "faq-answer-en",
 					Name:      "answer_en",
 					Invalid:   v.HasErr("answer_en"),
@@ -662,8 +662,8 @@ func FAQ(p layouts.Page, v *FAQView) templ.Component {
 					}
 					return nil
 				})
-				templ_7745c5c3_Err = components.Button(components.ButtonProps{
-					ButtonStyle: components.ButtonStylePrimary,
+				templ_7745c5c3_Err = widget.Button(widget.ButtonProps{
+					ButtonStyle: widget.ButtonStylePrimary,
 					Class:       "goen-admin__submit",
 				}, "submit").Render(templ.WithChildren(ctx, templ_7745c5c3_Var35), templ_7745c5c3_Buffer)
 				if templ_7745c5c3_Err != nil {
@@ -675,7 +675,7 @@ func FAQ(p layouts.Page, v *FAQView) templ.Component {
 				}
 				return nil
 			})
-			templ_7745c5c3_Err = components.Card(components.CardProps{Class: "goen-admin__add"}).Render(templ.WithChildren(ctx, templ_7745c5c3_Var8), templ_7745c5c3_Buffer)
+			templ_7745c5c3_Err = widget.Card(widget.CardProps{Class: "goen-admin__add"}).Render(templ.WithChildren(ctx, templ_7745c5c3_Var8), templ_7745c5c3_Buffer)
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
@@ -783,7 +783,7 @@ func FAQ(p layouts.Page, v *FAQView) templ.Component {
 								}
 								return nil
 							})
-							templ_7745c5c3_Err = components.Badge(components.BadgeProps{Intent: components.IntentWarn}).Render(templ.WithChildren(ctx, templ_7745c5c3_Var41), templ_7745c5c3_Buffer)
+							templ_7745c5c3_Err = widget.Badge(widget.BadgeProps{Intent: widget.IntentWarn}).Render(templ.WithChildren(ctx, templ_7745c5c3_Var41), templ_7745c5c3_Buffer)
 							if templ_7745c5c3_Err != nil {
 								return templ_7745c5c3_Err
 							}
@@ -854,11 +854,11 @@ func FAQ(p layouts.Page, v *FAQView) templ.Component {
 							}
 							return nil
 						})
-						templ_7745c5c3_Err = components.Label(components.LabelProps{For: "q-" + e.ID, Class: "goen-sr-only"}).Render(templ.WithChildren(ctx, templ_7745c5c3_Var46), templ_7745c5c3_Buffer)
+						templ_7745c5c3_Err = widget.Label(widget.LabelProps{For: "q-" + e.ID, Class: "goen-sr-only"}).Render(templ.WithChildren(ctx, templ_7745c5c3_Var46), templ_7745c5c3_Buffer)
 						if templ_7745c5c3_Err != nil {
 							return templ_7745c5c3_Err
 						}
-						templ_7745c5c3_Err = components.Input(components.FieldProps{
+						templ_7745c5c3_Err = widget.Input(widget.FieldProps{
 							ID:        "q-" + e.ID,
 							Name:      "question",
 							Value:     e.Question,
@@ -928,7 +928,7 @@ func FAQ(p layouts.Page, v *FAQView) templ.Component {
 							}
 							return nil
 						})
-						templ_7745c5c3_Err = components.Label(components.LabelProps{For: "a-" + e.ID, Class: "goen-sr-only"}).Render(templ.WithChildren(ctx, templ_7745c5c3_Var50), templ_7745c5c3_Buffer)
+						templ_7745c5c3_Err = widget.Label(widget.LabelProps{For: "a-" + e.ID, Class: "goen-sr-only"}).Render(templ.WithChildren(ctx, templ_7745c5c3_Var50), templ_7745c5c3_Buffer)
 						if templ_7745c5c3_Err != nil {
 							return templ_7745c5c3_Err
 						}
@@ -955,7 +955,7 @@ func FAQ(p layouts.Page, v *FAQView) templ.Component {
 							}
 							return nil
 						})
-						templ_7745c5c3_Err = components.Textarea(components.FieldProps{
+						templ_7745c5c3_Err = widget.Textarea(widget.FieldProps{
 							ID:        "a-" + e.ID,
 							Name:      "answer",
 							Invalid:   v.RowErr(stored, "answer"),
@@ -1024,11 +1024,11 @@ func FAQ(p layouts.Page, v *FAQView) templ.Component {
 							}
 							return nil
 						})
-						templ_7745c5c3_Err = components.Label(components.LabelProps{For: "qe-" + e.ID}).Render(templ.WithChildren(ctx, templ_7745c5c3_Var56), templ_7745c5c3_Buffer)
+						templ_7745c5c3_Err = widget.Label(widget.LabelProps{For: "qe-" + e.ID}).Render(templ.WithChildren(ctx, templ_7745c5c3_Var56), templ_7745c5c3_Buffer)
 						if templ_7745c5c3_Err != nil {
 							return templ_7745c5c3_Err
 						}
-						templ_7745c5c3_Err = components.Input(components.FieldProps{
+						templ_7745c5c3_Err = widget.Input(widget.FieldProps{
 							ID:        "qe-" + e.ID,
 							Name:      "question_en",
 							Value:     e.QuestionEn,
@@ -1098,7 +1098,7 @@ func FAQ(p layouts.Page, v *FAQView) templ.Component {
 							}
 							return nil
 						})
-						templ_7745c5c3_Err = components.Label(components.LabelProps{For: "ae-" + e.ID}).Render(templ.WithChildren(ctx, templ_7745c5c3_Var60), templ_7745c5c3_Buffer)
+						templ_7745c5c3_Err = widget.Label(widget.LabelProps{For: "ae-" + e.ID}).Render(templ.WithChildren(ctx, templ_7745c5c3_Var60), templ_7745c5c3_Buffer)
 						if templ_7745c5c3_Err != nil {
 							return templ_7745c5c3_Err
 						}
@@ -1125,7 +1125,7 @@ func FAQ(p layouts.Page, v *FAQView) templ.Component {
 							}
 							return nil
 						})
-						templ_7745c5c3_Err = components.Textarea(components.FieldProps{
+						templ_7745c5c3_Err = widget.Textarea(widget.FieldProps{
 							ID:        "ae-" + e.ID,
 							Name:      "answer_en",
 							Invalid:   v.RowErr(stored, "answer_en"),
@@ -1194,9 +1194,9 @@ func FAQ(p layouts.Page, v *FAQView) templ.Component {
 							}
 							return nil
 						})
-						templ_7745c5c3_Err = components.Button(components.ButtonProps{
-							ButtonStyle: components.ButtonStyleOutline,
-							Size:        components.SizeSmall,
+						templ_7745c5c3_Err = widget.Button(widget.ButtonProps{
+							ButtonStyle: widget.ButtonStyleOutline,
+							Size:        widget.SizeSmall,
 							Attrs:       templ.Attributes{"name": "action", "value": "save"},
 						}, "submit").Render(templ.WithChildren(ctx, templ_7745c5c3_Var66), templ_7745c5c3_Buffer)
 						if templ_7745c5c3_Err != nil {
@@ -1225,9 +1225,9 @@ func FAQ(p layouts.Page, v *FAQView) templ.Component {
 							}
 							return nil
 						})
-						templ_7745c5c3_Err = components.Button(components.ButtonProps{
-							ButtonStyle: components.ButtonStyleGhost,
-							Size:        components.SizeSmall,
+						templ_7745c5c3_Err = widget.Button(widget.ButtonProps{
+							ButtonStyle: widget.ButtonStyleGhost,
+							Size:        widget.SizeSmall,
 							Attrs:       templ.Attributes{"name": "action", "value": "delete"},
 						}, "submit").Render(templ.WithChildren(ctx, templ_7745c5c3_Var68), templ_7745c5c3_Buffer)
 						if templ_7745c5c3_Err != nil {
@@ -1245,7 +1245,7 @@ func FAQ(p layouts.Page, v *FAQView) templ.Component {
 				}
 				return nil
 			})
-			templ_7745c5c3_Err = components.Card(components.CardProps{Class: "goen-admin__add"}).Render(templ.WithChildren(ctx, templ_7745c5c3_Var37), templ_7745c5c3_Buffer)
+			templ_7745c5c3_Err = widget.Card(widget.CardProps{Class: "goen-admin__add"}).Render(templ.WithChildren(ctx, templ_7745c5c3_Var37), templ_7745c5c3_Buffer)
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
@@ -1400,9 +1400,9 @@ func FAQCategories(v *FAQView) templ.Component {
 						}
 						return nil
 					})
-					templ_7745c5c3_Err = components.Button(components.ButtonProps{
-						ButtonStyle: components.ButtonStyleOutline,
-						Size:        components.SizeSmall,
+					templ_7745c5c3_Err = widget.Button(widget.ButtonProps{
+						ButtonStyle: widget.ButtonStyleOutline,
+						Size:        widget.SizeSmall,
 						Attrs:       templ.Attributes{"name": "action", "value": "save"},
 					}, "submit").Render(templ.WithChildren(ctx, templ_7745c5c3_Var76), templ_7745c5c3_Buffer)
 					if templ_7745c5c3_Err != nil {
@@ -1432,9 +1432,9 @@ func FAQCategories(v *FAQView) templ.Component {
 							}
 							return nil
 						})
-						templ_7745c5c3_Err = components.Button(components.ButtonProps{
-							ButtonStyle: components.ButtonStyleGhost,
-							Size:        components.SizeSmall,
+						templ_7745c5c3_Err = widget.Button(widget.ButtonProps{
+							ButtonStyle: widget.ButtonStyleGhost,
+							Size:        widget.SizeSmall,
 							Attrs:       templ.Attributes{"name": "action", "value": "delete"},
 						}, "submit").Render(templ.WithChildren(ctx, templ_7745c5c3_Var78), templ_7745c5c3_Buffer)
 						if templ_7745c5c3_Err != nil {
@@ -1495,8 +1495,8 @@ func FAQCategories(v *FAQView) templ.Component {
 				}
 				return nil
 			})
-			templ_7745c5c3_Err = components.Button(components.ButtonProps{
-				ButtonStyle: components.ButtonStylePrimary,
+			templ_7745c5c3_Err = widget.Button(widget.ButtonProps{
+				ButtonStyle: widget.ButtonStylePrimary,
 				Class:       "goen-admin__submit",
 			}, "submit").Render(templ.WithChildren(ctx, templ_7745c5c3_Var80), templ_7745c5c3_Buffer)
 			if templ_7745c5c3_Err != nil {
@@ -1508,7 +1508,7 @@ func FAQCategories(v *FAQView) templ.Component {
 			}
 			return nil
 		})
-		templ_7745c5c3_Err = components.Card(components.CardProps{Class: "goen-admin__add"}).Render(templ.WithChildren(ctx, templ_7745c5c3_Var71), templ_7745c5c3_Buffer)
+		templ_7745c5c3_Err = widget.Card(widget.CardProps{Class: "goen-admin__add"}).Render(templ.WithChildren(ctx, templ_7745c5c3_Var71), templ_7745c5c3_Buffer)
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
@@ -1568,11 +1568,11 @@ func faqCategoryField(v *FAQView, form, field, id, value string, label i18n.Key,
 			}
 			return nil
 		})
-		templ_7745c5c3_Err = components.Label(components.LabelProps{For: id}).Render(templ.WithChildren(ctx, templ_7745c5c3_Var83), templ_7745c5c3_Buffer)
+		templ_7745c5c3_Err = widget.Label(widget.LabelProps{For: id}).Render(templ.WithChildren(ctx, templ_7745c5c3_Var83), templ_7745c5c3_Buffer)
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
-		templ_7745c5c3_Err = components.Input(components.FieldProps{
+		templ_7745c5c3_Err = widget.Input(widget.FieldProps{
 			ID:        id,
 			Name:      field,
 			Value:     value,

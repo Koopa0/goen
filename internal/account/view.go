@@ -12,8 +12,8 @@ import (
 	"github.com/koopa0/goen/internal/loyalty"
 	"github.com/koopa0/goen/internal/order"
 	"github.com/koopa0/goen/internal/shoptime"
-	"github.com/koopa0/goen/internal/ui/components"
 	"github.com/koopa0/goen/internal/ui/layouts"
+	"github.com/koopa0/goen/internal/ui/widget"
 )
 
 type AccountOrder struct {
@@ -33,13 +33,13 @@ type AccountOrder struct {
 
 // Facts are what a row of the history says about its order. The last day to cancel is counted from each parcel's
 // delivery, so the row names one only when the whole order has the same.
-func (o AccountOrder) Facts(ctx context.Context) []components.Stat {
-	facts := []components.Stat{
-		components.DateStat(ctx, i18n.T(ctx, i18n.KeyOrderFactPlaced), o.PlacedAt, ""),
-		{Label: i18n.T(ctx, i18n.KeyOrderGrandTotal), Value: components.StatMoney(o.TotalCents)},
+func (o AccountOrder) Facts(ctx context.Context) []widget.Stat {
+	facts := []widget.Stat{
+		widget.DateStat(ctx, i18n.T(ctx, i18n.KeyOrderFactPlaced), o.PlacedAt, ""),
+		{Label: i18n.T(ctx, i18n.KeyOrderGrandTotal), Value: widget.StatMoney(o.TotalCents)},
 	}
 	if o.OneLastDay {
-		facts = append(facts, components.DateStat(ctx, i18n.T(ctx, i18n.KeyOrderLastDay), o.LastDay, ""))
+		facts = append(facts, widget.DateStat(ctx, i18n.T(ctx, i18n.KeyOrderLastDay), o.LastDay, ""))
 	}
 	return facts
 }
@@ -78,14 +78,14 @@ func (o AccountOrder) StatusText(ctx context.Context) string {
 
 // BadgeIntent colours only two states: one the shopper must act on and one that ended
 // without a delivery. The rest is progress, not something to look at.
-func (o AccountOrder) BadgeIntent() components.Intent {
+func (o AccountOrder) BadgeIntent() widget.Intent {
 	switch {
 	case o.Status == order.FulfillmentCancelled:
-		return components.IntentDanger
+		return widget.IntentDanger
 	case order.AwaitingPayment(o.Status, o.Committed, o.OwedCents):
-		return components.IntentWarn
+		return widget.IntentWarn
 	default:
-		return components.IntentNeutral
+		return widget.IntentNeutral
 	}
 }
 

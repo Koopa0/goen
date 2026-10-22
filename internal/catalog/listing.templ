@@ -7,9 +7,9 @@ import (
 	"github.com/koopa0/goen/assets"
 	"github.com/koopa0/goen/internal/i18n"
 	"github.com/koopa0/goen/internal/policy"
-	"github.com/koopa0/goen/internal/ui/components"
 	"github.com/koopa0/goen/internal/ui/layouts"
 	"github.com/koopa0/goen/internal/ui/tile"
+	"github.com/koopa0/goen/internal/ui/widget"
 )
 
 // rules and head are nil where the page has none to state.
@@ -25,7 +25,7 @@ templ Listing(p layouts.Page, v ListingView, rules *policy.Rules, head *Departme
 							@bandMedia("goen-pagehead__photo", "pagehead-photo", photo, onWell, "(min-width: 48rem) 57vw, 100vw", false)
 						}
 						<div class="goen-band__body goen-pagehead__text">
-							@components.Breadcrumb(components.BreadcrumbProps{
+							@widget.Breadcrumb(widget.BreadcrumbProps{
 								Label:  i18n.T(ctx, i18n.KeyBreadcrumb),
 								Crumbs: v.Trail(ctx),
 							})
@@ -65,7 +65,7 @@ templ Listing(p layouts.Page, v ListingView, rules *policy.Rules, head *Departme
 					>
 						if v.Empty() {
 							<div class="ui-empty">
-								@components.EmptyArt(assets.EmptySearchImage)
+								@widget.EmptyArt(assets.EmptySearchImage)
 								<p class="goen-empty__title">{ i18n.T(ctx, i18n.KeyListingEmpty) }</p>
 								<p class="goen-empty__text">
 									{ i18n.T(ctx, i18n.KeyListingEmptyHint) }
@@ -206,8 +206,8 @@ templ listingFilters(v ListingView) {
 							@sortField(v.SortOptions(ctx))
 						}
 					</div>
-					@components.Button(components.ButtonProps{
-						ButtonStyle: components.ButtonStylePrimary,
+					@widget.Button(widget.ButtonProps{
+						ButtonStyle: widget.ButtonStylePrimary,
 						Block:       true,
 						Class:       "goen-filters__apply",
 					}, "submit") {
@@ -267,7 +267,7 @@ templ appliedFilters(v ListingView) {
 // Shared by the listing and the search; each owns what its empty value means.
 templ sortField(options []SortOption) {
 	<div class="goen-filters__field">
-		@components.Label(components.LabelProps{For: "sort"}) {
+		@widget.Label(widget.LabelProps{For: "sort"}) {
 			{ i18n.T(ctx, i18n.KeySort) }
 		}
 		<select class="ui-select" id="sort" name="sort">
@@ -312,13 +312,13 @@ templ Search(p layouts.Page, v SearchView) {
 			</div>
 			if !v.Searched() {
 				<div class="ui-empty">
-					@components.EmptyArt(assets.EmptySearchImage)
+					@widget.EmptyArt(assets.EmptySearchImage)
 					<p class="goen-empty__title">{ i18n.T(ctx, i18n.KeySearchPrompt) }</p>
 					<p class="goen-empty__text">{ i18n.T(ctx, i18n.KeySearchPromptHint) }</p>
 				</div>
 			} else if v.Empty() {
 				<div class="ui-empty">
-					@components.EmptyArt(assets.EmptySearchImage)
+					@widget.EmptyArt(assets.EmptySearchImage)
 					<p class="goen-empty__title">{ fmt.Sprintf(i18n.T(ctx, i18n.KeySearchNoResults), v.Query) }</p>
 					<p class="goen-empty__text">{ i18n.T(ctx, i18n.KeySearchNoResultsHint) }</p>
 					if len(layouts.TopNavFrom(ctx)) > 0 {
@@ -359,8 +359,8 @@ templ Search(p layouts.Page, v SearchView) {
 				>
 					<input type="hidden" name="q" value={ v.Query }/>
 					@sortField(v.SortOptions(ctx))
-					@components.Button(components.ButtonProps{
-						ButtonStyle: components.ButtonStyleOutline,
+					@widget.Button(widget.ButtonProps{
+						ButtonStyle: widget.ButtonStyleOutline,
 						Class:       "goen-filters__apply",
 					}, "submit") {
 						{ i18n.T(ctx, i18n.KeySearchSortApply) }

@@ -129,7 +129,7 @@ const (
 // templates take (viewModelPackages), so a template moved into a new package is
 // covered without anybody editing a list.
 var templatePackagesWithoutViewModels = []string{
-	goenModule + "/internal/ui/components",
+	goenModule + "/internal/ui/widget",
 	goenModule + "/internal/ui/chart",
 	goenModule + "/internal/ui/icons",
 	goenModule + "/internal/letter",

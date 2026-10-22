@@ -20,8 +20,8 @@ import (
 	"github.com/koopa0/goen/internal/i18n"
 	"github.com/koopa0/goen/internal/keyset"
 	"github.com/koopa0/goen/internal/shoptime"
-	"github.com/koopa0/goen/internal/ui/components"
 	"github.com/koopa0/goen/internal/ui/tone"
+	"github.com/koopa0/goen/internal/ui/widget"
 	"github.com/koopa0/goen/internal/web/formtext"
 	"github.com/koopa0/goen/internal/web/siteurl"
 )
@@ -118,15 +118,15 @@ func (s *Store) List(ctx context.Context, after ...string) (CampaignsView, error
 
 const MaxAltRunes = 200
 
-func (s *Store) Image(ctx context.Context, slug string) (components.HeaderImage, string, error) {
+func (s *Store) Image(ctx context.Context, slug string) (widget.HeaderImage, string, error) {
 	row, err := s.q.AdminCampaignImage(ctx, slug)
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
-			return components.HeaderImage{}, "", ErrNotFound
+			return widget.HeaderImage{}, "", ErrNotFound
 		}
-		return components.HeaderImage{}, "", fmt.Errorf("read campaign image: %w", err)
+		return widget.HeaderImage{}, "", fmt.Errorf("read campaign image: %w", err)
 	}
-	return components.HeaderImage{
+	return widget.HeaderImage{
 		Image: assets.Image{Digest: row.ImageDigest, BundledKey: row.ImageBundledKey, Width: int(row.ImageWidth)},
 		Alt:   row.ImageAlt, AltEn: row.ImageAltEn,
 	}, row.Tone, nil

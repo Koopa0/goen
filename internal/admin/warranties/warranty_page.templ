@@ -4,8 +4,8 @@ import (
 	"fmt"
 
 	"github.com/koopa0/goen/internal/i18n"
-	"github.com/koopa0/goen/internal/ui/components"
 	"github.com/koopa0/goen/internal/ui/layouts"
+	"github.com/koopa0/goen/internal/ui/widget"
 )
 
 templ Warranties(p layouts.Page, v WarrantiesView) {
@@ -33,7 +33,7 @@ templ Warranties(p layouts.Page, v WarrantiesView) {
 					aria-describedby="warranty-search-hint"
 				}
 			/>
-			@components.Button(components.ButtonProps{ButtonStyle: components.ButtonStyleOutline}, "submit") {
+			@widget.Button(widget.ButtonProps{ButtonStyle: widget.ButtonStyleOutline}, "submit") {
 				{ i18n.T(ctx, i18n.KeyAdminSearchButton) }
 			}
 		</form>
@@ -88,7 +88,7 @@ templ Warranties(p layouts.Page, v WarrantiesView) {
 								<td>
 									{ w.ExpiresOn }
 									<div class="goen-admin__cellbadges">
-										@components.Badge(components.BadgeProps{}) {
+										@widget.Badge(widget.BadgeProps{}) {
 											{ w.StateText(ctx) }
 										}
 									</div>
@@ -102,6 +102,6 @@ templ Warranties(p layouts.Page, v WarrantiesView) {
 				{ i18n.T(ctx, i18n.KeyAdminWarrantyClock) }
 			</p>
 		}
-		@components.ListPager(v.Bound)
+		@widget.ListPager(v.Bound)
 	}
 }

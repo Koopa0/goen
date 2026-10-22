@@ -12,8 +12,8 @@ import (
 	"fmt"
 
 	"github.com/koopa0/goen/internal/i18n"
-	"github.com/koopa0/goen/internal/ui/components"
 	"github.com/koopa0/goen/internal/ui/layouts"
+	"github.com/koopa0/goen/internal/ui/widget"
 )
 
 func WarrantyList(p layouts.Page, v WarrantyListView) templ.Component {
@@ -53,9 +53,9 @@ func WarrantyList(p layouts.Page, v WarrantyListView) templ.Component {
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
-			templ_7745c5c3_Err = components.Breadcrumb(components.BreadcrumbProps{
+			templ_7745c5c3_Err = widget.Breadcrumb(widget.BreadcrumbProps{
 				Label: i18n.T(ctx, i18n.KeyBreadcrumb),
-				Crumbs: []components.Crumb{
+				Crumbs: []widget.Crumb{
 					{Label: i18n.T(ctx, i18n.KeyAccountTitle), Href: "/account"},
 					{Label: i18n.T(ctx, i18n.KeyWarrantyTitle)},
 				},
@@ -188,7 +188,7 @@ func WarrantyList(p layouts.Page, v WarrantyListView) templ.Component {
 						}
 						return nil
 					})
-					templ_7745c5c3_Err = components.ButtonLink(components.ButtonProps{ButtonStyle: components.ButtonStyleOutline}, templ.SafeURL(item.Href())).Render(templ.WithChildren(ctx, templ_7745c5c3_Var9), templ_7745c5c3_Buffer)
+					templ_7745c5c3_Err = widget.ButtonLink(widget.ButtonProps{ButtonStyle: widget.ButtonStyleOutline}, templ.SafeURL(item.Href())).Render(templ.WithChildren(ctx, templ_7745c5c3_Var9), templ_7745c5c3_Buffer)
 					if templ_7745c5c3_Err != nil {
 						return templ_7745c5c3_Err
 					}
@@ -360,7 +360,7 @@ func WarrantyList(p layouts.Page, v WarrantyListView) templ.Component {
 						}
 						return nil
 					})
-					templ_7745c5c3_Err = components.Badge(components.BadgeProps{}).Render(templ.WithChildren(ctx, templ_7745c5c3_Var20), templ_7745c5c3_Buffer)
+					templ_7745c5c3_Err = widget.Badge(widget.BadgeProps{}).Render(templ.WithChildren(ctx, templ_7745c5c3_Var20), templ_7745c5c3_Buffer)
 					if templ_7745c5c3_Err != nil {
 						return templ_7745c5c3_Err
 					}
@@ -388,7 +388,7 @@ func WarrantyList(p layouts.Page, v WarrantyListView) templ.Component {
 						}
 					}
 					if !item.Returned {
-						templ_7745c5c3_Err = components.StatLine(item.Facts(ctx), components.StatLineSmall).Render(ctx, templ_7745c5c3_Buffer)
+						templ_7745c5c3_Err = widget.StatLine(item.Facts(ctx), widget.StatLineSmall).Render(ctx, templ_7745c5c3_Buffer)
 						if templ_7745c5c3_Err != nil {
 							return templ_7745c5c3_Err
 						}
@@ -490,9 +490,9 @@ func WarrantyOrder(p layouts.Page, v OrderView) templ.Component {
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
-			templ_7745c5c3_Err = components.Breadcrumb(components.BreadcrumbProps{
+			templ_7745c5c3_Err = widget.Breadcrumb(widget.BreadcrumbProps{
 				Label: i18n.T(ctx, i18n.KeyBreadcrumb),
-				Crumbs: []components.Crumb{
+				Crumbs: []widget.Crumb{
 					{Label: i18n.T(ctx, i18n.KeyAccountTitle), Href: "/account"},
 					{Label: i18n.T(ctx, i18n.KeyWarrantyTitle), Href: "/account/warranty"},
 					{Label: v.Number},
@@ -542,7 +542,7 @@ func WarrantyOrder(p layouts.Page, v OrderView) templ.Component {
 					}
 					return nil
 				})
-				templ_7745c5c3_Err = components.Notice(components.NoticeProps{Intent: components.IntentDanger, ID: "warranty-refusal"}).Render(templ.WithChildren(ctx, templ_7745c5c3_Var28), templ_7745c5c3_Buffer)
+				templ_7745c5c3_Err = widget.Notice(widget.NoticeProps{Intent: widget.IntentDanger, ID: "warranty-refusal"}).Render(templ.WithChildren(ctx, templ_7745c5c3_Var28), templ_7745c5c3_Buffer)
 				if templ_7745c5c3_Err != nil {
 					return templ_7745c5c3_Err
 				}
@@ -690,7 +690,7 @@ func WarrantyOrder(p layouts.Page, v OrderView) templ.Component {
 						}
 						return nil
 					})
-					templ_7745c5c3_Err = components.Badge(components.BadgeProps{}).Render(templ.WithChildren(ctx, templ_7745c5c3_Var36), templ_7745c5c3_Buffer)
+					templ_7745c5c3_Err = widget.Badge(widget.BadgeProps{}).Render(templ.WithChildren(ctx, templ_7745c5c3_Var36), templ_7745c5c3_Buffer)
 					if templ_7745c5c3_Err != nil {
 						return templ_7745c5c3_Err
 					}
@@ -804,11 +804,11 @@ func WarrantyOrder(p layouts.Page, v OrderView) templ.Component {
 						}
 						return nil
 					})
-					templ_7745c5c3_Err = components.Label(components.LabelProps{For: "serial-" + line.ID}).Render(templ.WithChildren(ctx, templ_7745c5c3_Var43), templ_7745c5c3_Buffer)
+					templ_7745c5c3_Err = widget.Label(widget.LabelProps{For: "serial-" + line.ID}).Render(templ.WithChildren(ctx, templ_7745c5c3_Var43), templ_7745c5c3_Buffer)
 					if templ_7745c5c3_Err != nil {
 						return templ_7745c5c3_Err
 					}
-					templ_7745c5c3_Err = components.Input(line.serialField(ctx)).Render(ctx, templ_7745c5c3_Buffer)
+					templ_7745c5c3_Err = widget.Input(line.serialField(ctx)).Render(ctx, templ_7745c5c3_Buffer)
 					if templ_7745c5c3_Err != nil {
 						return templ_7745c5c3_Err
 					}
@@ -897,7 +897,7 @@ func WarrantyOrder(p layouts.Page, v OrderView) templ.Component {
 						}
 						return nil
 					})
-					templ_7745c5c3_Err = components.Button(components.ButtonProps{ButtonStyle: components.ButtonStylePrimary}, "submit").Render(templ.WithChildren(ctx, templ_7745c5c3_Var49), templ_7745c5c3_Buffer)
+					templ_7745c5c3_Err = widget.Button(widget.ButtonProps{ButtonStyle: widget.ButtonStylePrimary}, "submit").Render(templ.WithChildren(ctx, templ_7745c5c3_Var49), templ_7745c5c3_Buffer)
 					if templ_7745c5c3_Err != nil {
 						return templ_7745c5c3_Err
 					}
@@ -952,11 +952,11 @@ func WarrantyOrder(p layouts.Page, v OrderView) templ.Component {
 						}
 						return nil
 					})
-					templ_7745c5c3_Err = components.Label(components.LabelProps{For: "serial-" + line.ID}).Render(templ.WithChildren(ctx, templ_7745c5c3_Var52), templ_7745c5c3_Buffer)
+					templ_7745c5c3_Err = widget.Label(widget.LabelProps{For: "serial-" + line.ID}).Render(templ.WithChildren(ctx, templ_7745c5c3_Var52), templ_7745c5c3_Buffer)
 					if templ_7745c5c3_Err != nil {
 						return templ_7745c5c3_Err
 					}
-					templ_7745c5c3_Err = components.Input(components.FieldProps{
+					templ_7745c5c3_Err = widget.Input(widget.FieldProps{
 						ID: "serial-" + line.ID, Name: "serial", Value: line.DraftSerial,
 						Attrs: templ.Attributes{"readonly": true},
 					}).Render(ctx, templ_7745c5c3_Buffer)

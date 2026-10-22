@@ -4,10 +4,10 @@ import (
 	"fmt"
 
 	"github.com/koopa0/goen/internal/i18n"
-	"github.com/koopa0/goen/internal/ui/components"
 	"github.com/koopa0/goen/internal/ui/icons"
 	"github.com/koopa0/goen/internal/ui/layouts"
 	"github.com/koopa0/goen/internal/ui/tone"
+	"github.com/koopa0/goen/internal/ui/widget"
 )
 
 // Two cards, each holding what it lists and the form that adds to it, because a brand
@@ -29,21 +29,21 @@ templ Taxonomy(p layouts.Page, v *TaxonomyView) {
 		} else if v.Which == "categories" {
 			@layouts.RefusalSummary(layouts.SummarizeRefusal(i18n.KeyAdminTaxNewCategory, v.Errors, layouts.RefusalField{Key: "name", ID: "categories-name"}, layouts.RefusalField{Key: "name_en", ID: "categories-name-en"}, layouts.RefusalField{Key: "slug", ID: "categories-slug"}, layouts.RefusalField{Key: "icon_key", ID: "categories-icon"}, layouts.RefusalField{Key: "tone", ID: "categories-tone"}, layouts.RefusalField{Key: "parent", ID: "categories-parent"}))
 		}
-		@components.Card(components.CardProps{Class: "goen-admin__section"}) {
+		@widget.Card(widget.CardProps{Class: "goen-admin__section"}) {
 			<h2 class="goen-admin__heading">{ i18n.T(ctx, i18n.KeyAdminTaxBrands) }</h2>
 			@taxonList("brands", i18n.KeyAdminTaxNoBrands, v.Brands)
-			@taxonForm("brands", i18n.KeyAdminTaxNewBrand, components.ButtonStyleOutline, v)
+			@taxonForm("brands", i18n.KeyAdminTaxNewBrand, widget.ButtonStyleOutline, v)
 		}
-		@components.Card(components.CardProps{Class: "goen-admin__section"}) {
+		@widget.Card(widget.CardProps{Class: "goen-admin__section"}) {
 			<h2 class="goen-admin__heading">{ i18n.T(ctx, i18n.KeyAdminTaxCategories) }</h2>
 			@taxonList("categories", i18n.KeyAdminTaxNoCategories, v.Categories)
-			@taxonForm("categories", i18n.KeyAdminTaxNewCategory, components.ButtonStylePrimary, v)
+			@taxonForm("categories", i18n.KeyAdminTaxNewCategory, widget.ButtonStylePrimary, v)
 		}
 	}
 }
 
 // taxonForm's fields keep the ids and names the handler and its tests read.
-templ taxonForm(kind string, title i18n.Key, style components.ButtonStyle, v *TaxonomyView) {
+templ taxonForm(kind string, title i18n.Key, style widget.ButtonStyle, v *TaxonomyView) {
 	<form id={ "new-" + kind } class="goen-admin__form" method="post" action={ templ.SafeURL("/admin/taxonomy/" + kind + "#new-" + kind) }>
 		<h3 class="goen-admin__subhead">{ i18n.T(ctx, title) }</h3>
 		if v.HasErr(kind, "form") {
@@ -51,7 +51,7 @@ templ taxonForm(kind string, title i18n.Key, style components.ButtonStyle, v *Ta
 		}
 		<div class="goen-admin__fields">
 			<div class="goen-admin__field">
-				@components.Label(components.LabelProps{For: kind + "-name"}) {
+				@widget.Label(widget.LabelProps{For: kind + "-name"}) {
 					{ i18n.T(ctx, i18n.KeyAdminColName) }
 				}
 				<input
@@ -72,7 +72,7 @@ templ taxonForm(kind string, title i18n.Key, style components.ButtonStyle, v *Ta
 			</div>
 			if kind == "categories" {
 				<div class="goen-admin__field">
-					@components.Label(components.LabelProps{For: kind + "-name-en"}) {
+					@widget.Label(widget.LabelProps{For: kind + "-name-en"}) {
 						{ i18n.T(ctx, i18n.KeyAdminTaxNameEn) }
 					}
 					<input
@@ -95,7 +95,7 @@ templ taxonForm(kind string, title i18n.Key, style components.ButtonStyle, v *Ta
 				</div>
 			}
 			<div class="goen-admin__field">
-				@components.Label(components.LabelProps{For: kind + "-slug"}) {
+				@widget.Label(widget.LabelProps{For: kind + "-slug"}) {
 					{ i18n.T(ctx, i18n.KeyAdminColSlug) }
 				}
 				<input
@@ -120,7 +120,7 @@ templ taxonForm(kind string, title i18n.Key, style components.ButtonStyle, v *Ta
 			</div>
 			if kind == "categories" {
 				<div class="goen-admin__field">
-					@components.Label(components.LabelProps{For: "categories-icon"}) {
+					@widget.Label(widget.LabelProps{For: "categories-icon"}) {
 						{ i18n.T(ctx, i18n.KeyAdminColIcon) }
 					}
 					<select
@@ -145,7 +145,7 @@ templ taxonForm(kind string, title i18n.Key, style components.ButtonStyle, v *Ta
 					}
 				</div>
 				<div class="goen-admin__field">
-					@components.Label(components.LabelProps{For: "categories-tone"}) {
+					@widget.Label(widget.LabelProps{For: "categories-tone"}) {
 						{ i18n.T(ctx, i18n.KeyAdminColTone) }
 					}
 					<select
@@ -174,7 +174,7 @@ templ taxonForm(kind string, title i18n.Key, style components.ButtonStyle, v *Ta
 					<span>{ i18n.T(ctx, i18n.KeyAdminColComparable) }</span>
 				</label>
 				<div class="goen-admin__field">
-					@components.Label(components.LabelProps{For: "categories-parent"}) {
+					@widget.Label(widget.LabelProps{For: "categories-parent"}) {
 						{ i18n.T(ctx, i18n.KeyAdminTaxParent) }
 					}
 					<select
@@ -203,7 +203,7 @@ templ taxonForm(kind string, title i18n.Key, style components.ButtonStyle, v *Ta
 				</div>
 			}
 		</div>
-		@components.Button(components.ButtonProps{ButtonStyle: style, Class: "goen-admin__submit"}, "submit") {
+		@widget.Button(widget.ButtonProps{ButtonStyle: style, Class: "goen-admin__submit"}, "submit") {
 			{ i18n.T(ctx, i18n.KeyAdminTaxCreate) }
 		}
 	</form>
@@ -306,17 +306,17 @@ templ taxonList(kind string, empty i18n.Key, rows []Taxon) {
 								<span class="goen-admin__taxonfield" aria-hidden="true"></span>
 							}
 						}
-						@components.Button(components.ButtonProps{
-							ButtonStyle: components.ButtonStyleOutline,
-							Size:        components.SizeSmall,
+						@widget.Button(widget.ButtonProps{
+							ButtonStyle: widget.ButtonStyleOutline,
+							Size:        widget.SizeSmall,
 							Attrs:       templ.Attributes{"name": "action", "value": "rename"},
 						}, "submit") {
 							{ i18n.T(ctx, i18n.KeyAdminProdSave) }
 						}
 						if t.Removable() {
-							@components.Button(components.ButtonProps{
-								ButtonStyle: components.ButtonStyleGhost,
-								Size:        components.SizeSmall,
+							@widget.Button(widget.ButtonProps{
+								ButtonStyle: widget.ButtonStyleGhost,
+								Size:        widget.SizeSmall,
 								Attrs:       templ.Attributes{"name": "action", "value": "delete"},
 							}, "submit") {
 								{ i18n.T(ctx, i18n.KeyAdminDelete) }
@@ -326,7 +326,7 @@ templ taxonList(kind string, empty i18n.Key, rows []Taxon) {
 					<span class="goen-admin__meta">
 						{ t.Slug }
 						if kind == "categories" && !t.Translated() {
-							@components.Badge(components.BadgeProps{Intent: components.IntentWarn}) {
+							@widget.Badge(widget.BadgeProps{Intent: widget.IntentWarn}) {
 								{ i18n.T(ctx, i18n.KeyAdminUntranslated) }
 							}
 						}

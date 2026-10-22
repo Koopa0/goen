@@ -7,8 +7,8 @@ import (
 
 	"github.com/koopa0/goen/internal/admin/access"
 	"github.com/koopa0/goen/internal/i18n"
-	"github.com/koopa0/goen/internal/ui/components"
 	"github.com/koopa0/goen/internal/ui/layouts"
+	"github.com/koopa0/goen/internal/ui/widget"
 	"github.com/koopa0/goen/internal/web/formtext"
 	"github.com/koopa0/goen/internal/web/respond"
 )
@@ -33,10 +33,10 @@ func (h *Handler) Routes(mux *http.ServeMux, ac *access.Control) {
 	mux.HandleFunc("POST /admin/faq/categories/{id}", ac.RequireStaff(h.EditFAQCategory))
 }
 
-var notices = map[string]components.NoticeEntry{
-	"ok":      components.NoticeDone(i18n.KeyAdminNoticeOK),
-	"refused": components.NoticeRefused(i18n.KeyAdminNoticeRefused),
-	"inuse":   components.NoticeRefused(i18n.KeyAdminFaqpCategoryInUse),
+var notices = map[string]widget.NoticeEntry{
+	"ok":      widget.NoticeDone(i18n.KeyAdminNoticeOK),
+	"refused": widget.NoticeRefused(i18n.KeyAdminNoticeRefused),
+	"inuse":   widget.NoticeRefused(i18n.KeyAdminFaqpCategoryInUse),
 }
 
 func (h *Handler) FAQ(w http.ResponseWriter, r *http.Request) {
@@ -46,7 +46,7 @@ func (h *Handler) FAQ(w http.ResponseWriter, r *http.Request) {
 		access.ServerError(w, r, h.log)
 		return
 	}
-	view.Notice = components.NoticeFrom(r, notices)
+	view.Notice = widget.NoticeFrom(r, notices)
 	respond.Component(w, r, h.log, http.StatusOK, FAQ(
 		layouts.Page{Title: i18n.T(r.Context(), i18n.KeyAdminPageFAQ)}, &view))
 }

@@ -16,8 +16,8 @@ import (
 	"github.com/koopa0/goen/internal/keyset"
 	"github.com/koopa0/goen/internal/order/returns"
 	"github.com/koopa0/goen/internal/payment/refund"
-	"github.com/koopa0/goen/internal/ui/components"
 	"github.com/koopa0/goen/internal/ui/layouts"
+	"github.com/koopa0/goen/internal/ui/widget"
 	"github.com/koopa0/goen/internal/web/formtext"
 	"github.com/koopa0/goen/internal/web/respond"
 )
@@ -42,13 +42,13 @@ func (h *Handler) Routes(mux *http.ServeMux, ac *access.Control) {
 	mux.HandleFunc("POST /admin/returns/{id}/complete", ac.RequireStaff(h.Complete))
 }
 
-var notices = map[string]components.NoticeEntry{
-	"ok":           components.NoticeDone(i18n.KeyAdminNoticeOK),
-	"refused":      components.NoticeRefused(i18n.KeyAdminNoticeRefused),
-	"refundfailed": components.NoticeFailed(i18n.KeyAdminNoticeRefundFailed),
-	"assessed":     components.NoticeDone(i18n.KeyAdminNoticeAssessed),
-	"inspected":    components.NoticeDone(i18n.KeyAdminNoticeInspected),
-	"closed":       components.NoticeDone(i18n.KeyAdminNoticeClosed),
+var notices = map[string]widget.NoticeEntry{
+	"ok":           widget.NoticeDone(i18n.KeyAdminNoticeOK),
+	"refused":      widget.NoticeRefused(i18n.KeyAdminNoticeRefused),
+	"refundfailed": widget.NoticeFailed(i18n.KeyAdminNoticeRefundFailed),
+	"assessed":     widget.NoticeDone(i18n.KeyAdminNoticeAssessed),
+	"inspected":    widget.NoticeDone(i18n.KeyAdminNoticeInspected),
+	"closed":       widget.NoticeDone(i18n.KeyAdminNoticeClosed),
 }
 
 func (h *Handler) Queue(w http.ResponseWriter, r *http.Request) {
@@ -76,7 +76,7 @@ func (h *Handler) Queue(w http.ResponseWriter, r *http.Request) {
 	view := ReturnsView{
 		Bound:  queue.Bound,
 		Rows:   queue.Rows,
-		Notice: components.NoticeFrom(r, notices),
+		Notice: widget.NoticeFrom(r, notices),
 	}
 	respond.Component(w, r, h.log, http.StatusOK, Returns(
 		layouts.Page{Title: i18n.T(r.Context(), i18n.KeyAdminPageReturns)}, view))

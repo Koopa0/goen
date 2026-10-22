@@ -8,8 +8,8 @@ import (
 	"github.com/koopa0/goen/internal/admin/access"
 	"github.com/koopa0/goen/internal/admin/audit"
 	"github.com/koopa0/goen/internal/i18n"
-	"github.com/koopa0/goen/internal/ui/components"
 	"github.com/koopa0/goen/internal/ui/layouts"
+	"github.com/koopa0/goen/internal/ui/widget"
 	"github.com/koopa0/goen/internal/web/formtext"
 	"github.com/koopa0/goen/internal/web/respond"
 )
@@ -32,10 +32,10 @@ func (h *Handler) Routes(mux *http.ServeMux, ac *access.Control) {
 	mux.HandleFunc("POST /admin/newsletters/{id}/send", ac.RequireStaff(h.SendNewsletter))
 }
 
-var notices = map[string]components.NoticeEntry{
-	"saved":   components.NoticeDone(i18n.KeyAdminNoticeSaved),
-	"sent":    components.NoticeDone(i18n.KeyAdminNoticeSent),
-	"already": components.NoticeDone(i18n.KeyAdminNoticeAlready),
+var notices = map[string]widget.NoticeEntry{
+	"saved":   widget.NoticeDone(i18n.KeyAdminNoticeSaved),
+	"sent":    widget.NoticeDone(i18n.KeyAdminNoticeSent),
+	"already": widget.NoticeDone(i18n.KeyAdminNoticeAlready),
 }
 
 const NewsletterIssueLimit = 50
@@ -47,7 +47,7 @@ func (h *Handler) Newsletter(w http.ResponseWriter, r *http.Request) {
 		access.ServerError(w, r, h.log)
 		return
 	}
-	view.Notice = components.NoticeFrom(r, notices)
+	view.Notice = widget.NoticeFrom(r, notices)
 	respond.Component(w, r, h.log, http.StatusOK, Newsletter(
 		layouts.Page{Title: i18n.T(r.Context(), i18n.KeyAdminPageNewsletter)}, view))
 }
