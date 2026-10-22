@@ -3,9 +3,6 @@
 // strip, the chrome context, and the pages that are only the frame plus a
 // message (404 and 400, missing record, emailed-link landing); it does not hold
 // anything placed inside a page (ui/widget).
-//
-// Announce and RefusalSummary are placed inside a page and still live here;
-// they join ui/widget when they move.
 package frame
 
 import (

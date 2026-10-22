@@ -86,11 +86,11 @@ func (v *Variant) AdjustKey() string {
 	return "adj:" + v.SKU + ":" + v.FormID
 }
 
-func (v VariantsView) Refusals() []frame.Refusal {
-	out := make([]frame.Refusal, 0, len(v.Variants))
+func (v VariantsView) Refusals() []widget.Refusal {
+	out := make([]widget.Refusal, 0, len(v.Variants))
 	for i := range v.Variants {
 		row := &v.Variants[i]
-		out = append(out, frame.SummarizeRefusal(i18n.KeyAdminRefusalStock, map[string]string{"delta": row.DeltaError}, frame.RefusalField{Key: "delta", ID: "adj-" + row.SKU}))
+		out = append(out, widget.SummarizeRefusal(i18n.KeyAdminRefusalStock, map[string]string{"delta": row.DeltaError}, widget.RefusalField{Key: "delta", ID: "adj-" + row.SKU}))
 	}
 	return out
 }

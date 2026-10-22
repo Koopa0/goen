@@ -92,11 +92,11 @@ func Banners(p frame.Page, v *BannersView) templ.Component {
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
-			templ_7745c5c3_Err = frame.Announce(v.Notice).Render(ctx, templ_7745c5c3_Buffer)
+			templ_7745c5c3_Err = widget.Announce(v.Notice).Render(ctx, templ_7745c5c3_Buffer)
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
-			templ_7745c5c3_Err = frame.RefusalSummary(frame.SummarizeRefusal(i18n.KeyAdminRefusalBanner, v.Errors, frame.RefusalField{Key: "message", ID: "b-message"}, frame.RefusalField{Key: "short", ID: "b-short"}, frame.RefusalField{Key: "message_en", ID: "b-message-en"}, frame.RefusalField{Key: "short_en", ID: "b-short-en"}, frame.RefusalField{Key: "cta", ID: "b-cta-href"}, frame.RefusalField{Key: "days", ID: "b-days"})).Render(ctx, templ_7745c5c3_Buffer)
+			templ_7745c5c3_Err = widget.RefusalSummary(widget.SummarizeRefusal(i18n.KeyAdminRefusalBanner, v.Errors, widget.RefusalField{Key: "message", ID: "b-message"}, widget.RefusalField{Key: "short", ID: "b-short"}, widget.RefusalField{Key: "message_en", ID: "b-message-en"}, widget.RefusalField{Key: "short_en", ID: "b-short-en"}, widget.RefusalField{Key: "cta", ID: "b-cta-href"}, widget.RefusalField{Key: "days", ID: "b-days"})).Render(ctx, templ_7745c5c3_Buffer)
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}

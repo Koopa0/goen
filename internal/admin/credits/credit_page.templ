@@ -19,7 +19,7 @@ templ Credit(p frame.Page, v CreditView) {
 				</p>
 			</div>
 		</div>
-		@frame.Announce(v.Notice)
+		@widget.Announce(v.Notice)
 		if v.Filtered() {
 			<p class="goen-admin__hint">
 				<a href={ templ.SafeURL("/admin/customers/" + v.FilterCustomerID) }>{ v.FilterCustomerName }</a>

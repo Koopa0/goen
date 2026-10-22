@@ -27,7 +27,7 @@ templ Messages(p frame.Page, v MessagesView) {
 				}
 			</div>
 		</div>
-		@frame.Announce(v.Notice)
+		@widget.Announce(v.Notice)
 		if v.Empty() && !v.PastEnd {
 			<div class="goen-admin__empty">
 				<span class="goen-modqueue__emptyicon">

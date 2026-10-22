@@ -23,7 +23,7 @@ templ Newsletter(p frame.Page, v NewsletterView) {
 				</p>
 			</div>
 		</div>
-		@frame.Announce(v.Notice)
+		@widget.Announce(v.Notice)
 		<div class="goen-admin__stats">
 			<div class="goen-stat">
 				<span class="goen-stat__label">{ i18n.T(ctx, i18n.KeyAdminNewsOnList) }</span>

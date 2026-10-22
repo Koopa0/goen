@@ -43,7 +43,7 @@ templ Health(p frame.Page, v *WorkerHealthView) {
 				}
 			</div>
 		</div>
-		@frame.Announce(v.Notice)
+		@widget.Announce(v.Notice)
 		if len(v.UnreconciledEvents) > 0 || len(v.UnreconciledCompletePayments) > 0 {
 			<div id="events-heading">
 				if len(v.UnreconciledEvents) > 0 {

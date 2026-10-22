@@ -19,9 +19,9 @@ templ Returns(p frame.Page, v ReturnsView) {
 				</p>
 			</div>
 		</div>
-		@frame.Announce(v.Notice)
+		@widget.Announce(v.Notice)
 		for _, refusal := range v.InspectionRefusals() {
-			@frame.RefusalSummary(refusal)
+			@widget.RefusalSummary(refusal)
 		}
 		if v.Empty() && !v.PastEnd {
 			<div class="goen-admin__empty">

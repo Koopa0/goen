@@ -2,19 +2,19 @@ package returns
 
 import (
 	"github.com/koopa0/goen/internal/i18n"
-	"github.com/koopa0/goen/internal/ui/frame"
+	"github.com/koopa0/goen/internal/ui/widget"
 )
 
-func (v ReturnsView) InspectionRefusals() []frame.Refusal {
-	out := make([]frame.Refusal, 0, len(v.Rows))
+func (v ReturnsView) InspectionRefusals() []widget.Refusal {
+	out := make([]widget.Refusal, 0, len(v.Rows))
 	for i := range v.Rows {
 		row := &v.Rows[i]
-		var fields []frame.RefusalField
+		var fields []widget.RefusalField
 		if len(row.Lines) > 0 {
-			fields = append(fields, frame.RefusalField{Key: "inspect", ID: "recv-" + row.ID + "-" + row.Lines[0].OrderLineID})
+			fields = append(fields, widget.RefusalField{Key: "inspect", ID: "recv-" + row.ID + "-" + row.Lines[0].OrderLineID})
 		}
 		errors := map[string]string{"inspect": v.FieldRefusal(row.ID, "inspect")}
-		out = append(out, frame.SummarizeRefusal(i18n.KeyAdminRefusalInspection, errors, fields...))
+		out = append(out, widget.SummarizeRefusal(i18n.KeyAdminRefusalInspection, errors, fields...))
 	}
 	return out
 }

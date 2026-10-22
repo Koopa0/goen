@@ -96,15 +96,15 @@ func Shipping(p frame.Page, v ShippingView) templ.Component {
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
-			templ_7745c5c3_Err = frame.Announce(v.Notice).Render(ctx, templ_7745c5c3_Buffer)
+			templ_7745c5c3_Err = widget.Announce(v.Notice).Render(ctx, templ_7745c5c3_Buffer)
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
-			templ_7745c5c3_Err = frame.RefusalSummary(frame.SummarizeRefusal(i18n.KeyAdminShipAddMethod, v.Errors, frame.RefusalField{Key: "code", ID: "m-code"}, frame.RefusalField{Key: "destination", ID: "m-destination"}, frame.RefusalField{Key: "max_parcel_longest", ID: "m-max-longest"}, frame.RefusalField{Key: "max_parcel_sum", ID: "m-max-sum"}, frame.RefusalField{Key: "max_parcel_weight", ID: "m-max-weight"}, frame.RefusalField{Key: "name", ID: "m-name"}, frame.RefusalField{Key: "fee", ID: "m-fee"}, frame.RefusalField{Key: "free_over", ID: "m-free"})).Render(ctx, templ_7745c5c3_Buffer)
+			templ_7745c5c3_Err = widget.RefusalSummary(widget.SummarizeRefusal(i18n.KeyAdminShipAddMethod, v.Errors, widget.RefusalField{Key: "code", ID: "m-code"}, widget.RefusalField{Key: "destination", ID: "m-destination"}, widget.RefusalField{Key: "max_parcel_longest", ID: "m-max-longest"}, widget.RefusalField{Key: "max_parcel_sum", ID: "m-max-sum"}, widget.RefusalField{Key: "max_parcel_weight", ID: "m-max-weight"}, widget.RefusalField{Key: "name", ID: "m-name"}, widget.RefusalField{Key: "fee", ID: "m-fee"}, widget.RefusalField{Key: "free_over", ID: "m-free"})).Render(ctx, templ_7745c5c3_Buffer)
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
-			templ_7745c5c3_Err = frame.RefusalSummary(frame.SummarizeRefusal(i18n.KeyAdminShipAddZone, v.Errors, frame.RefusalField{Key: "zone_code", ID: "z-code"}, frame.RefusalField{Key: "zone_name", ID: "z-name"}, frame.RefusalField{Key: "prefixes", ID: "z-prefixes"})).Render(ctx, templ_7745c5c3_Buffer)
+			templ_7745c5c3_Err = widget.RefusalSummary(widget.SummarizeRefusal(i18n.KeyAdminShipAddZone, v.Errors, widget.RefusalField{Key: "zone_code", ID: "z-code"}, widget.RefusalField{Key: "zone_name", ID: "z-name"}, widget.RefusalField{Key: "prefixes", ID: "z-prefixes"})).Render(ctx, templ_7745c5c3_Buffer)
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}

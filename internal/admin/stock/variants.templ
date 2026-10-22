@@ -20,9 +20,9 @@ templ Variants(p frame.Page, v VariantsView) {
 				</p>
 			</div>
 		</div>
-		@frame.Announce(v.Notice)
+		@widget.Announce(v.Notice)
 		for _, refusal := range v.Refusals() {
-			@frame.RefusalSummary(refusal)
+			@widget.RefusalSummary(refusal)
 		}
 		if v.ShowCover {
 			<section class="goen-admin__cover">

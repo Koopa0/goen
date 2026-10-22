@@ -1,13 +1,10 @@
-package frame
+package widget
 
-import (
-	"github.com/koopa0/goen/internal/i18n"
-	"github.com/koopa0/goen/internal/ui/widget"
-)
+import "github.com/koopa0/goen/internal/i18n"
 
 templ RefusalSummary(v Refusal) {
 	if v.Count>0 {
-		@widget.Notice(widget.NoticeProps{Intent: widget.IntentDanger}) {
+		@Notice(NoticeProps{Intent: IntentDanger}) {
 			<strong class="goen-notice__lead">{ i18n.T(ctx,i18n.KeyAdminNoticeLeadRefused) }</strong>
 			{ v.Text(ctx) }
 			<a href={ templ.URL("#" + v.First) }>{ i18n.T(ctx,i18n.KeyAdminRefusalFirst) }</a>

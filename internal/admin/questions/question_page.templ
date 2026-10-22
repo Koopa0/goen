@@ -31,7 +31,7 @@ templ Questions(p frame.Page, v QuestionsView) {
 				{ v.OtherQueueLabel(ctx) }
 			}
 		</div>
-		@frame.Announce(v.Notice)
+		@widget.Announce(v.Notice)
 		if v.Empty() {
 			<div class="goen-admin__empty">
 				<span class="goen-modqueue__emptyicon">

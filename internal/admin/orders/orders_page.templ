@@ -20,7 +20,7 @@ templ Orders(p frame.Page, v View) {
 				<h1 class="ui-page-head__title">{ i18n.T(ctx, i18n.KeyAdminQueueOrders) }</h1>
 			</div>
 		</div>
-		@frame.Announce(v.Notice)
+		@widget.Announce(v.Notice)
 		<form class="goen-admin__search" method="get" action="/admin/orders">
 			<label class="goen-sr-only" for="order-search">{ i18n.T(ctx, i18n.KeyAdminQueueSearchLabel) }</label>
 			<input
@@ -141,7 +141,7 @@ templ Order(p frame.Page, v *OrderView) {
 				}
 			</div>
 		</div>
-		@frame.AnnounceOrder(v.Notice)
+		@widget.AnnounceOrder(v.Notice)
 		<div class="goen-admin__layout">
 			<div class="goen-admin__orderpanel">
 				@orderItemsAndDelivery(v)

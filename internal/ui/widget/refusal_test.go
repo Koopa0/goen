@@ -1,10 +1,10 @@
-package frame_test
+package widget_test
 
 import (
 	"testing"
 
 	"github.com/koopa0/goen/internal/i18n"
-	"github.com/koopa0/goen/internal/ui/frame"
+	"github.com/koopa0/goen/internal/ui/widget"
 )
 
 func TestRefusalSummaryCountsInEnglish(t *testing.T) {
@@ -17,7 +17,7 @@ func TestRefusalSummaryCountsInEnglish(t *testing.T) {
 		{1, "Stock adjustment was not saved. Please correct 1 field."},
 		{2, "Stock adjustment was not saved. Please correct 2 fields."},
 	} {
-		if got := (frame.Refusal{Form: i18n.KeyAdminRefusalStock, Count: tt.count}).Text(ctx); got != tt.want {
+		if got := (widget.Refusal{Form: i18n.KeyAdminRefusalStock, Count: tt.count}).Text(ctx); got != tt.want {
 			t.Errorf("Text(%d) = %q, want %q", tt.count, got, tt.want)
 		}
 	}

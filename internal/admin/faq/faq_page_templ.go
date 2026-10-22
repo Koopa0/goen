@@ -98,19 +98,19 @@ func FAQ(p frame.Page, v *FAQView) templ.Component {
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
-			templ_7745c5c3_Err = frame.Announce(v.Notice).Render(ctx, templ_7745c5c3_Buffer)
+			templ_7745c5c3_Err = widget.Announce(v.Notice).Render(ctx, templ_7745c5c3_Buffer)
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
-			templ_7745c5c3_Err = frame.RefusalSummary(frame.SummarizeRefusal(i18n.KeyAdminFaqpAdd, v.Errors, frame.RefusalField{Key: "category", ID: "faq-category"}, frame.RefusalField{Key: "question", ID: "faq-question"}, frame.RefusalField{Key: "answer", ID: "faq-answer"}, frame.RefusalField{Key: "question_en", ID: "faq-question-en"}, frame.RefusalField{Key: "answer_en", ID: "faq-answer-en"})).Render(ctx, templ_7745c5c3_Buffer)
+			templ_7745c5c3_Err = widget.RefusalSummary(widget.SummarizeRefusal(i18n.KeyAdminFaqpAdd, v.Errors, widget.RefusalField{Key: "category", ID: "faq-category"}, widget.RefusalField{Key: "question", ID: "faq-question"}, widget.RefusalField{Key: "answer", ID: "faq-answer"}, widget.RefusalField{Key: "question_en", ID: "faq-question-en"}, widget.RefusalField{Key: "answer_en", ID: "faq-answer-en"})).Render(ctx, templ_7745c5c3_Buffer)
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
-			templ_7745c5c3_Err = frame.RefusalSummary(frame.SummarizeRefusal(v.categoryRefusalForm(), v.CategoryErrors, frame.RefusalField{Key: "name", ID: v.categoryFieldID("name")}, frame.RefusalField{Key: "name_en", ID: v.categoryFieldID("name_en")})).Render(ctx, templ_7745c5c3_Buffer)
+			templ_7745c5c3_Err = widget.RefusalSummary(widget.SummarizeRefusal(v.categoryRefusalForm(), v.CategoryErrors, widget.RefusalField{Key: "name", ID: v.categoryFieldID("name")}, widget.RefusalField{Key: "name_en", ID: v.categoryFieldID("name_en")})).Render(ctx, templ_7745c5c3_Buffer)
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
-			templ_7745c5c3_Err = frame.RefusalSummary(frame.SummarizeRefusal(i18n.KeyAdminRefusalFAQ, v.EditErrors, frame.RefusalField{Key: "question", ID: "q-" + v.Edit.ID}, frame.RefusalField{Key: "answer", ID: "a-" + v.Edit.ID}, frame.RefusalField{Key: "question_en", ID: "qe-" + v.Edit.ID}, frame.RefusalField{Key: "answer_en", ID: "ae-" + v.Edit.ID})).Render(ctx, templ_7745c5c3_Buffer)
+			templ_7745c5c3_Err = widget.RefusalSummary(widget.SummarizeRefusal(i18n.KeyAdminRefusalFAQ, v.EditErrors, widget.RefusalField{Key: "question", ID: "q-" + v.Edit.ID}, widget.RefusalField{Key: "answer", ID: "a-" + v.Edit.ID}, widget.RefusalField{Key: "question_en", ID: "qe-" + v.Edit.ID}, widget.RefusalField{Key: "answer_en", ID: "ae-" + v.Edit.ID})).Render(ctx, templ_7745c5c3_Buffer)
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}

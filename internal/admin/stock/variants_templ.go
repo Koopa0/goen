@@ -81,12 +81,12 @@ func Variants(p frame.Page, v VariantsView) templ.Component {
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
-			templ_7745c5c3_Err = frame.Announce(v.Notice).Render(ctx, templ_7745c5c3_Buffer)
+			templ_7745c5c3_Err = widget.Announce(v.Notice).Render(ctx, templ_7745c5c3_Buffer)
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
 			for _, refusal := range v.Refusals() {
-				templ_7745c5c3_Err = frame.RefusalSummary(refusal).Render(ctx, templ_7745c5c3_Buffer)
+				templ_7745c5c3_Err = widget.RefusalSummary(refusal).Render(ctx, templ_7745c5c3_Buffer)
 				if templ_7745c5c3_Err != nil {
 					return templ_7745c5c3_Err
 				}

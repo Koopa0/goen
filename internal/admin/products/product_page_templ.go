@@ -139,7 +139,7 @@ func Products(p frame.Page, v ProductsView) templ.Component {
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
-			templ_7745c5c3_Err = frame.Announce(v.Notice).Render(ctx, templ_7745c5c3_Buffer)
+			templ_7745c5c3_Err = widget.Announce(v.Notice).Render(ctx, templ_7745c5c3_Buffer)
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
@@ -534,27 +534,27 @@ func ProductForm(p frame.Page, v ProductView) templ.Component {
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
-			templ_7745c5c3_Err = frame.Announce(v.Notice).Render(ctx, templ_7745c5c3_Buffer)
+			templ_7745c5c3_Err = widget.Announce(v.Notice).Render(ctx, templ_7745c5c3_Buffer)
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
-			templ_7745c5c3_Err = frame.RefusalSummary(frame.SummarizeRefusal(i18n.KeyAdminProdBasics, v.Errors, frame.RefusalField{Key: "name", ID: "p-name"}, frame.RefusalField{Key: "slug", ID: "p-slug"}, frame.RefusalField{Key: "brand", ID: "p-brand"}, frame.RefusalField{Key: "category", ID: "p-category"}, frame.RefusalField{Key: "summary", ID: "p-summary"}, frame.RefusalField{Key: "description", ID: "p-description"}, frame.RefusalField{Key: "name_en", ID: "p-name-en"}, frame.RefusalField{Key: "summary_en", ID: "p-summary-en"}, frame.RefusalField{Key: "description_en", ID: "p-description-en"}, frame.RefusalField{Key: "warranty_months", ID: "p-warranty-months"})).Render(ctx, templ_7745c5c3_Buffer)
+			templ_7745c5c3_Err = widget.RefusalSummary(widget.SummarizeRefusal(i18n.KeyAdminProdBasics, v.Errors, widget.RefusalField{Key: "name", ID: "p-name"}, widget.RefusalField{Key: "slug", ID: "p-slug"}, widget.RefusalField{Key: "brand", ID: "p-brand"}, widget.RefusalField{Key: "category", ID: "p-category"}, widget.RefusalField{Key: "summary", ID: "p-summary"}, widget.RefusalField{Key: "description", ID: "p-description"}, widget.RefusalField{Key: "name_en", ID: "p-name-en"}, widget.RefusalField{Key: "summary_en", ID: "p-summary-en"}, widget.RefusalField{Key: "description_en", ID: "p-description-en"}, widget.RefusalField{Key: "warranty_months", ID: "p-warranty-months"})).Render(ctx, templ_7745c5c3_Buffer)
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
-			templ_7745c5c3_Err = frame.RefusalSummary(v.VariantRefusal()).Render(ctx, templ_7745c5c3_Buffer)
+			templ_7745c5c3_Err = widget.RefusalSummary(v.VariantRefusal()).Render(ctx, templ_7745c5c3_Buffer)
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
-			templ_7745c5c3_Err = frame.RefusalSummary(frame.SummarizeRefusal(i18n.KeyAdminProdOptionAdd, v.Errors, frame.RefusalField{Key: "option", ID: "opt-name"}, frame.RefusalField{Key: "option_en", ID: "opt-name-en"})).Render(ctx, templ_7745c5c3_Buffer)
+			templ_7745c5c3_Err = widget.RefusalSummary(widget.SummarizeRefusal(i18n.KeyAdminProdOptionAdd, v.Errors, widget.RefusalField{Key: "option", ID: "opt-name"}, widget.RefusalField{Key: "option_en", ID: "opt-name-en"})).Render(ctx, templ_7745c5c3_Buffer)
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
-			templ_7745c5c3_Err = frame.RefusalSummary(frame.SummarizeRefusal(i18n.KeyAdminProdValueAdd, v.Errors, frame.RefusalField{Key: "value", ID: "optval-value"}, frame.RefusalField{Key: "value_en", ID: "optval-value-en"}, frame.RefusalField{Key: "swatch_hex", ID: "optval-swatch"})).Render(ctx, templ_7745c5c3_Buffer)
+			templ_7745c5c3_Err = widget.RefusalSummary(widget.SummarizeRefusal(i18n.KeyAdminProdValueAdd, v.Errors, widget.RefusalField{Key: "value", ID: "optval-value"}, widget.RefusalField{Key: "value_en", ID: "optval-value-en"}, widget.RefusalField{Key: "swatch_hex", ID: "optval-swatch"})).Render(ctx, templ_7745c5c3_Buffer)
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
-			templ_7745c5c3_Err = frame.RefusalSummary(frame.SummarizeRefusal(i18n.KeyAdminProdSpecs, v.Errors, frame.RefusalField{Key: "spec_label", ID: "spec-label"}, frame.RefusalField{Key: "spec_value", ID: "spec-value"}, frame.RefusalField{Key: "spec_label_en", ID: "spec-label-en"}, frame.RefusalField{Key: "spec_value_en", ID: "spec-value-en"})).Render(ctx, templ_7745c5c3_Buffer)
+			templ_7745c5c3_Err = widget.RefusalSummary(widget.SummarizeRefusal(i18n.KeyAdminProdSpecs, v.Errors, widget.RefusalField{Key: "spec_label", ID: "spec-label"}, widget.RefusalField{Key: "spec_value", ID: "spec-value"}, widget.RefusalField{Key: "spec_label_en", ID: "spec-label-en"}, widget.RefusalField{Key: "spec_value_en", ID: "spec-value-en"})).Render(ctx, templ_7745c5c3_Buffer)
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
