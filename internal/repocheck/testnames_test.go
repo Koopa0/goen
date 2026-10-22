@@ -60,6 +60,8 @@ var migratedTestPackages = []string{
 	"internal/admin/warranties",
 	"internal/bearer",
 	"internal/credit",
+	"internal/discount/campaign",
+	"internal/discount/coupon",
 	"internal/email",
 	"internal/i18n",
 	"internal/invoice",
@@ -71,11 +73,14 @@ var migratedTestPackages = []string{
 	"internal/order/cancellation",
 	"internal/order/delivery",
 	"internal/order/returns",
+	"internal/order/warranty",
 	"internal/product",
 	"internal/product/copurchase",
 	"internal/product/inventory",
 	"internal/product/labelling",
+	"internal/shipping",
 	"internal/shipping/postcode",
+	"internal/shipping/storemap",
 	"internal/shoptime",
 	"internal/ui/chart",
 	"internal/ui/frame",
@@ -152,6 +157,10 @@ var testNameExceptions = map[string]map[string]string{
 	"internal/admin/twofactor": {
 		"TestRecordTOTPStepConcurrent": "its unit is the SQL statement RecordTOTPStep (a sqlc query, declared in internal/db), driven directly through db.Queries from concurrent goroutines; Store.Verify is only the final check that the spent step is refused, because staggered Verify calls would hide a guard missing from the SQL",
 	},
+	"internal/discount/campaign": {
+		"TestImage_URLHeaderKey":        "the unit is assets.Image.URL and Srcset of package assets, which resolve a campaign's header key as they resolve a product image; this package declares no identifier for it, and moving the test to assets is a reorganisation this pass does not do",
+		"TestSaleCampaignNeedsDiscount": "the unit is the sale_campaign_needs_discount trigger on sale_campaign_products, a SQL object the test provokes by featuring products through the pool, not a Go identifier",
+	},
 	"internal/i18n": {
 		"TestNoHardCodedGenericChrome": "a repository rule: no customer-facing .templ source hard-codes a generic English word; it reads every source file, and no function of the package is its unit",
 		"TestNoHardCodedHan":           "a repository rule: no customer-facing source file hard-codes a Han string; it reads every source file, and no function of the package is its unit",
@@ -164,6 +173,9 @@ var testNameExceptions = map[string]map[string]string{
 	},
 	"internal/product/copurchase": {
 		"TestRefreshCopurchasesOverlap": "its unit is the SQL function refresh_copurchases, called directly through the pool; Store.Refresh is not what it exercises",
+	},
+	"internal/shipping/storemap": {
+		"TestPickupNonceComparison": "a repository rule: no source file of this package or of internal/checkout compares a pickup nonce with == or !=; it reads those files, and no one declared identifier is its unit",
 	},
 	"internal/shoptime": {
 		"TestAmbientFormat":   "its unit is ambientFormat, a helper declared in the guard's test file, not part of the package",

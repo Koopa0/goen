@@ -9,7 +9,10 @@ import (
 	"github.com/koopa0/goen/internal/ui/frame"
 )
 
-func TestWarrantyNextRegistrationRequiresItsOwnDeliveredUnregisteredUnit(t *testing.T) {
+// TestWarrantyOrderNextUnit: the next registration requires its own delivered,
+// unregistered unit: without the next unit's expiry the order shows one neutral
+// state and no form, and with it the form, unit and own-parcel expiry.
+func TestWarrantyOrderNextUnit(t *testing.T) {
 	t.Parallel()
 	for _, tc := range []struct {
 		locale  i18n.Locale

@@ -12,7 +12,10 @@ import (
 	"github.com/koopa0/goen/internal/order/warranty"
 )
 
-func TestWarrantyNextExpiryMatchesRegistrationAcrossShopCalendarBoundaries(t *testing.T) {
+// TestStore_ReadyExpiryCalendar: the next unit's expiry matches its
+// registration across shop calendar boundaries: the expiry Ready offers, the
+// form, the stored registration and the confirmation agree.
+func TestStore_ReadyExpiryCalendar(t *testing.T) {
 	store := warranty.NewStore(warrantyStoreRolePool(t))
 	handler := nextWarrantyRouter(store)
 	for _, tc := range []struct {

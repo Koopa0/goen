@@ -7,7 +7,10 @@ import (
 	"github.com/koopa0/goen/internal/i18n"
 )
 
-func TestTheDeliveryChoicesAreTheKnownClosedSet(t *testing.T) {
+// TestCarrier_KnownClosedSet: the delivery choices are the known closed set: a
+// home and a store order offer eight carriers between them, all of them Known,
+// and only the carrier codes are Known, not the names a person types.
+func TestCarrier_KnownClosedSet(t *testing.T) {
 	t.Parallel()
 
 	home, _ := CarriersFor("", DestinationAddress)
@@ -28,7 +31,9 @@ func TestTheDeliveryChoicesAreTheKnownClosedSet(t *testing.T) {
 	}
 }
 
-func TestEveryCarrierHasANameInBothLanguages(t *testing.T) {
+// TestCarrier_NameBothLanguages: every carrier has a name in both languages,
+// and an unknown carrier prints its stored value.
+func TestCarrier_NameBothLanguages(t *testing.T) {
 	t.Parallel()
 
 	for _, loc := range i18n.Locales() {
@@ -44,7 +49,11 @@ func TestEveryCarrierHasANameInBothLanguages(t *testing.T) {
 	}
 }
 
-func TestTrackingURL(t *testing.T) {
+// TestCarrier_TrackingURL: a carrier's tracking URL and whether it deep-links:
+// Black Cat opens the parcel and falls back to its page without a number, HCT
+// and 7-ELEVEN give their lookup page, Hi-Life, OK mart and an unknown carrier
+// give none.
+func TestCarrier_TrackingURL(t *testing.T) {
 	t.Parallel()
 
 	tests := []struct {
@@ -75,7 +84,11 @@ func TestTrackingURL(t *testing.T) {
 	}
 }
 
-func TestCarriersForNamesTheCarriersAnOrderCanUse(t *testing.T) {
+// TestCarriersForValidAndImplied: CarriersFor names the carriers an order can
+// use: a store chain's order is carried only by that chain's carrier, which it
+// implies, a home delivery lists the four home carriers and implies none, and a
+// store order with no chain lists the four store carriers.
+func TestCarriersForValidAndImplied(t *testing.T) {
 	t.Parallel()
 
 	for _, chain := range []Chain{ChainSevenEleven, ChainFamilyMart, ChainHiLife, ChainOKMart} {

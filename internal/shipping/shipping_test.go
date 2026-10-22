@@ -5,7 +5,9 @@ import (
 	"testing"
 )
 
-func TestChainCarrierIsTheSameNamedCarrier(t *testing.T) {
+// TestChain_Carrier: a chain's Carrier is the same-named carrier, with the same
+// wire value, and an unknown chain has none.
+func TestChain_Carrier(t *testing.T) {
 	t.Parallel()
 	for _, tc := range []struct {
 		chain Chain
@@ -30,7 +32,10 @@ func TestChainCarrierIsTheSameNamedCarrier(t *testing.T) {
 	}
 }
 
-func TestCarriersForByChainAndDestination(t *testing.T) {
+// TestCarriersForChainAndDestination: CarriersFor answers by chain and
+// destination: a store chain to a pickup point, an unknown chain to a pickup
+// point, and a home delivery.
+func TestCarriersForChainAndDestination(t *testing.T) {
 	t.Parallel()
 
 	valid, implied := CarriersFor(ChainFamilyMart, DestinationPickupPoint)

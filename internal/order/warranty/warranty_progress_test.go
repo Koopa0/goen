@@ -10,7 +10,9 @@ import (
 	"github.com/koopa0/goen/internal/ui/frame"
 )
 
-func TestWarrantyTermStatesTheParcelExpiry(t *testing.T) {
+// TestLine_CoverText: the warranty term states the parcel's expiry, in both
+// locales: with the expiry, before delivery, as months, and with no warranty.
+func TestLine_CoverText(t *testing.T) {
 	t.Parallel()
 	end := shoptime.Date{Year: 2028, Month: time.October, Day: 5}
 	for _, tt := range []struct {
@@ -37,7 +39,11 @@ func TestWarrantyTermStatesTheParcelExpiry(t *testing.T) {
 	}
 }
 
-func TestWarrantyRegistrationShowsTheUnitAndRemainingSteps(t *testing.T) {
+// TestWarrantyOrderConfirmationNextSteps: registration shows the unit and the
+// remaining steps: the confirmation names the registered unit and its expiry,
+// links on to all warranties, and the ready list has one registration link per
+// item.
+func TestWarrantyOrderConfirmationNextSteps(t *testing.T) {
 	t.Parallel()
 	end := shoptime.Date{Year: 2028, Month: time.October, Day: 5}
 	for _, locale := range []struct {

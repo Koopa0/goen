@@ -14,7 +14,10 @@ import (
 	"github.com/koopa0/goen/internal/order/warranty"
 )
 
-func TestWarrantyNextExpiryRespectsTheNetDeliveredOrdinalCap(t *testing.T) {
+// TestStore_ReadyNetDeliveredCap: the next expiry respects the net-delivered
+// ordinal cap: after a return Ready offers no unit beyond the units delivered
+// net of returns, and an over-cap post is refused.
+func TestStore_ReadyNetDeliveredCap(t *testing.T) {
 	app := warrantyStoreRolePool(t)
 	store := warranty.NewStore(app)
 	handler := nextWarrantyRouter(store)
