@@ -16,8 +16,8 @@ import (
 	"github.com/koopa0/goen/internal/i18n"
 	"github.com/koopa0/goen/internal/product/labelling"
 	"github.com/koopa0/goen/internal/shoptime"
-	"github.com/koopa0/goen/internal/ui/components"
 	"github.com/koopa0/goen/internal/ui/tile"
+	"github.com/koopa0/goen/internal/ui/tone"
 	"github.com/koopa0/goen/internal/user"
 )
 
@@ -212,11 +212,11 @@ func (s *Store) loadPresentation(ctx context.Context, p *db.ProductBySlugRow, vi
 	}
 	view.Comparable = slices.Contains(offers, p.CategoryID)
 
-	tone, toneErr := s.q.CategoryTone(ctx, p.CategoryID)
+	categoryTone, toneErr := s.q.CategoryTone(ctx, p.CategoryID)
 	if toneErr != nil {
 		return fmt.Errorf("read tone of %q: %w", p.Slug, toneErr)
 	}
-	view.Tone = components.ResolveTone(tone)
+	view.Tone = tone.Resolve(categoryTone)
 
 	if p.CategoryParentID.Valid {
 		trail, err := s.q.CategoryAncestors(ctx, db.CategoryAncestorsParams{

@@ -20,6 +20,7 @@ import (
 	"github.com/koopa0/goen/internal/site"
 	"github.com/koopa0/goen/internal/ui/components"
 	"github.com/koopa0/goen/internal/ui/tile"
+	"github.com/koopa0/goen/internal/ui/tone"
 )
 
 type Store struct {
@@ -131,7 +132,7 @@ func (s *Store) Load(ctx context.Context) (View, error) {
 		view.Categories = append(view.Categories, Category{
 			Slug:  c.Slug,
 			Name:  c.Name,
-			Tone:  components.ResolveTone(c.Tone),
+			Tone:  tone.Resolve(c.Tone),
 			Photo: departmentPhoto(c),
 		})
 	}
@@ -160,7 +161,7 @@ func (s *Store) campaignRow(ctx context.Context, c *db.ListedCampaignsRow) (row 
 	}
 	schedule := s.campaignSchedule(ctx, c)
 	rowCampaign := &RowCampaign{
-		Tone:      components.ResolveTone(c.Tone),
+		Tone:      tone.Resolve(c.Tone),
 		Items:     c.Products,
 		Facts:     schedule.Facts,
 		CardFacts: schedule.CardFacts(),
@@ -205,7 +206,7 @@ func (s *Store) departmentBand(ctx context.Context, src carouselSources, row []t
 			Items: held[c.ID],
 			Fact:  subCategoryLine(subs[c.ID]),
 			Href:  "/c/" + c.Slug,
-			Tone:  components.ResolveTone(c.Tone),
+			Tone:  tone.Resolve(c.Tone),
 			Tiles: tiles[:bandTiles],
 		}, nil
 	}

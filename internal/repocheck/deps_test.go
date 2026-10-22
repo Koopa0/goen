@@ -153,6 +153,7 @@ var (
 	i18nOnlyLeaves = []string{
 		"internal/invoice", "internal/order", "internal/product/labelling", "internal/order/returns", "internal/shoptime", "internal/ui/fieldrule",
 		"internal/sales", "internal/admin/worklist", "internal/shipping", "internal/credit", "internal/web/formtext",
+		"internal/ui/tone",
 	}
 	// googleMayImport is all of goen that Google's sign-in client imports:
 	// bearer makes its state and PKCE verifier, siteurl reads the configured

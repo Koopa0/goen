@@ -6,6 +6,7 @@ import (
 	"github.com/koopa0/goen/internal/ui/chart"
 	"github.com/koopa0/goen/internal/ui/components"
 	"github.com/koopa0/goen/internal/ui/layouts"
+	"github.com/koopa0/goen/internal/ui/tone"
 )
 
 // The list leads with whether a campaign is running RIGHT NOW: a switched-on
@@ -129,7 +130,7 @@ templ Campaigns(p layouts.Page, v CampaignsView) {
 						{ i18n.T(ctx, i18n.KeyAdminColTone) }
 					}
 					<select class="goen-input" id="k-tone" name="tone">
-						for _, k := range components.Tones() {
+						for k := range tone.All() {
 							<option value={ string(k) } selected?={ v.Draft.ToneOrStone() == k }>{ k.Label(ctx) }</option>
 						}
 					</select>
@@ -341,7 +342,7 @@ templ CampaignForm(p layouts.Page, v CampaignView) {
 							aria-describedby="c-tone-error"
 						}
 					>
-						for _, k := range components.Tones() {
+						for k := range tone.All() {
 							<option value={ string(k) } selected?={ v.Tone == string(k) }>{ k.Label(ctx) }</option>
 						}
 					</select>

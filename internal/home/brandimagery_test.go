@@ -9,6 +9,7 @@ import (
 	"github.com/koopa0/goen/internal/i18n"
 	"github.com/koopa0/goen/internal/ui/components"
 	"github.com/koopa0/goen/internal/ui/layouts"
+	"github.com/koopa0/goen/internal/ui/tone"
 )
 
 func renderIn(t *testing.T, locale i18n.Locale, c templ.Component) string {
@@ -23,8 +24,8 @@ func renderIn(t *testing.T, locale i18n.Locale, c templ.Component) string {
 func TestHomeDepartmentCardsWearTheirToneAndPhotograph(t *testing.T) {
 	t.Parallel()
 	page := renderIn(t, i18n.ZhHant, Page(layouts.Page{}, View{Categories: []Category{
-		{Slug: "tech", Name: "3C 數位", Tone: components.ToneMist, Photo: components.Photo{URL: "/static/media/products/department-tech.webp", Srcset: "/static/x-400.webp 400w"}},
-		{Slug: "unlisted", Name: "其他", Tone: components.ToneStone},
+		{Slug: "tech", Name: "3C 數位", Tone: tone.Mist, Photo: components.Photo{URL: "/static/media/products/department-tech.webp", Srcset: "/static/x-400.webp 400w"}},
+		{Slug: "unlisted", Name: "其他", Tone: tone.Stone},
 	}}))
 	if !strings.Contains(page, `data-tone="mist" href="/c/tech"`) || !strings.Contains(page, "3C 數位") {
 		t.Fatal("the card lost its tone, link or name")

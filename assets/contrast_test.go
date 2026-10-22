@@ -8,6 +8,8 @@ import (
 	"strconv"
 	"strings"
 	"testing"
+
+	"github.com/koopa0/goen/internal/ui/tone"
 )
 
 // tokenHex finds a custom property declared as a six-digit hex colour, and
@@ -362,9 +364,14 @@ func checkPeriod(t *testing.T, where, fill, track, groundName, ground string) {
 // hero, the department and campaign head, and the lead tile.
 var toneHeads = []string{"goen-hero__slide", "goen-pagehead", "goen-tiles__grid--lead"}
 
-// toneNames is components.Tone's closed set. assets cannot import
-// components, whose test repeats the list.
-var toneNames = []string{"paper", "stone", "mist", "sage", "blush", "ink"}
+// toneNames is tone.Tone's closed set, as the data-tone attribute spells it.
+var toneNames = func() []string {
+	var names []string
+	for v := range tone.All() {
+		names = append(names, string(v))
+	}
+	return names
+}()
 
 // TestEveryToneGroundHoldsItsText holds the text a department or campaign head
 // shows to 4.5:1 on each tone's ground, and its period fill to 3:1
