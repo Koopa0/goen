@@ -5,7 +5,8 @@ import (
 	"testing"
 )
 
-func TestEncodeStatePreservesNullAndRejectsInvalidJSONValues(t *testing.T) {
+// TestEncodeStateNullAndInvalid: encode state preserves null and rejects invalid JSON values.
+func TestEncodeStateNullAndInvalid(t *testing.T) {
 	t.Parallel()
 
 	none, err := encodeState(nil)

@@ -228,7 +228,7 @@ func refusalAttr(n *html.Node, key string) string {
 	return ""
 }
 
-// From TestEveryAdminEmptyPageKeepsItsRestartLink.
+// From TestAuditEmptyPageRestartLink.
 func TestReturnsEmptyPageKeepsItsRestartLink(t *testing.T) {
 	t.Parallel()
 	b := keyset.Bound{PastEnd: true, First: "/admin/products?q=test"}
@@ -254,7 +254,7 @@ func TestReturnsEmptyPageKeepsItsRestartLink(t *testing.T) {
 	}
 }
 
-// From TestEveryQueueKeepsItsOwnFirstPageEmptyState.
+// From TestAuditFirstPageEmpty.
 func TestReturnsQueueKeepsItsOwnFirstPageEmptyState(t *testing.T) {
 	t.Parallel()
 	ctx := func(k i18n.Key) string { return i18n.T(i18n.WithLocale(t.Context(), i18n.En), k) }
@@ -280,7 +280,7 @@ func TestReturnsQueueKeepsItsOwnFirstPageEmptyState(t *testing.T) {
 	}
 }
 
-// From TestEveryQueueWithMoreRowsOffersNext.
+// From TestAuditFullPageOffersNext.
 func TestReturnsQueueWithMoreRowsOffersNext(t *testing.T) {
 	t.Parallel()
 	ctx := func(k i18n.Key) string { return i18n.T(i18n.WithLocale(t.Context(), i18n.En), k) }

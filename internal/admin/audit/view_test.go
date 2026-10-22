@@ -13,7 +13,8 @@ import (
 	"github.com/koopa0/goen/internal/ui/frame"
 )
 
-func TestProductUpdateAuditLabelIsLocalized(t *testing.T) {
+// TestEntry_LabelProductUpdate: product update audit label is localized.
+func TestEntry_LabelProductUpdate(t *testing.T) {
 	t.Parallel()
 	for _, tt := range []struct {
 		name   string
@@ -33,9 +34,9 @@ func TestProductUpdateAuditLabelIsLocalized(t *testing.T) {
 	}
 }
 
-// TestASystemIssueIsNotReadAsAnErasedAccount: a system row has no user, which
+// TestEntry_ActorTextSystem: a system row has no user, which
 // is also what an erased staff account leaves, and the two must read apart.
-func TestASystemIssueIsNotReadAsAnErasedAccount(t *testing.T) {
+func TestEntry_ActorTextSystem(t *testing.T) {
 	t.Parallel()
 	for _, tt := range []struct {
 		name   string
@@ -58,7 +59,8 @@ func TestASystemIssueIsNotReadAsAnErasedAccount(t *testing.T) {
 	}
 }
 
-func TestTheAuditTrailShowsChangesAsRowsNotJSON(t *testing.T) {
+// TestAuditChangesAsRows: the audit trail shows changes as rows not JSON.
+func TestAuditChangesAsRows(t *testing.T) {
 	t.Parallel()
 	ctx := i18n.WithLocale(t.Context(), i18n.En)
 	html := renderComponent(t, ctx, Audit(frame.Page{}, View{Rows: []Entry{{
@@ -117,7 +119,8 @@ func TestAuditChangesReadAsWordsAndWholeDollars(t *testing.T) {
 	}
 }
 
-func TestAMoneyRowCarriesAVisibleTag(t *testing.T) {
+// TestAuditMoneyTag: a money row carries a visible tag.
+func TestAuditMoneyTag(t *testing.T) {
 	t.Parallel()
 	ctx := i18n.WithLocale(t.Context(), i18n.ZhHant)
 	html := renderComponent(t, ctx, Audit(frame.Page{}, View{Rows: []Entry{
@@ -225,7 +228,8 @@ func TestEntryReadsEachRecordedKindAsWords(t *testing.T) {
 	}
 }
 
-func TestOnlyARowThatRecordsAnAmountSaysMoney(t *testing.T) {
+// TestEntry_MoneyAmountsOnly: only a row that records an amount says money.
+func TestEntry_MoneyAmountsOnly(t *testing.T) {
 	t.Parallel()
 	for _, tt := range []struct {
 		name  string
@@ -300,7 +304,7 @@ func TestAuditUnknownFieldsRetainDetails(t *testing.T) {
 // writes into audit_events.before/after and asserts auditLedger lists it. It
 // reads migrations/*.up.sql and every .sql file under internal/, seed/ and
 // scripts/. Go writers are not read: their State is keyed by Field, which only
-// this package can make, and TestEveryFieldIsInTheLedger holds each Field to
+// this package can make, and TestFieldKeysInLedger holds each Field to
 // the ledger.
 func TestAuditSQLProducerFieldsAreInTheLedger(t *testing.T) {
 	t.Parallel()
@@ -681,7 +685,8 @@ func auditSQLInvoiceForwarder(function string, signature, columns, values [][]st
 		auditSQLColumnsMatch(columns, values, map[string]string{"entity_id": "p_entity_id", "before": "NULL", "after": "p_after"})
 }
 
-func TestAuditSQLForwardingRequiresItsExactFunction(t *testing.T) {
+// TestAuditSQLForwardingExactFunction: audit SQL forwarding requires its exact function.
+func TestAuditSQLForwardingExactFunction(t *testing.T) {
 	t.Parallel()
 	columns := [][]string{{"entity_id"}, {"entity_table"}, {"before"}, {"after"}}
 	generic := [][]string{{"p_actor", "uuid"}, {"p_action", "text"}, {"p_entity_table", "text"}, {"p_entity_id", "uuid"}, {"p_before", "jsonb"}, {"p_after", "jsonb"}, {"p_request_id", "text"}}

@@ -14,7 +14,8 @@ import (
 	"github.com/koopa0/goen/internal/ui/widget"
 )
 
-func TestCustomerOrderStatusSaysRefundedOnceTheWholeOrdersRefundHasSettled(t *testing.T) {
+// TestStore_ProfileRefundedOrder: a customer's order status says refunded once the whole order's refund has settled.
+func TestStore_ProfileRefundedOrder(t *testing.T) {
 	for _, tc := range []struct {
 		name         string
 		quantity     int32

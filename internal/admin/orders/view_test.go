@@ -17,7 +17,7 @@ import (
 // The tests in this file are the orders halves of tests that render several
 // desks' pages: each half lives with the page it renders.
 
-// From TestEveryAdminEmptyPageKeepsItsRestartLink.
+// From TestAuditEmptyPageRestartLink.
 func TestOrdersEmptyPageKeepsItsRestartLink(t *testing.T) {
 	t.Parallel()
 	b := keyset.Bound{PastEnd: true, First: "/admin/products?q=test"}
@@ -61,7 +61,7 @@ func queuePages(b keyset.Bound, ctx func(k i18n.Key) string) map[string]struct {
 	}
 }
 
-// From TestEveryQueueKeepsItsOwnFirstPageEmptyState.
+// From TestAuditFirstPageEmpty.
 func TestOrdersQueueKeepsItsOwnFirstPageEmptyState(t *testing.T) {
 	t.Parallel()
 	ctx := func(k i18n.Key) string { return i18n.T(i18n.WithLocale(t.Context(), i18n.En), k) }
@@ -80,7 +80,7 @@ func TestOrdersQueueKeepsItsOwnFirstPageEmptyState(t *testing.T) {
 	}
 }
 
-// From TestEveryQueueWithMoreRowsOffersNext.
+// From TestAuditFullPageOffersNext.
 func TestOrdersQueueWithMoreRowsOffersNext(t *testing.T) {
 	t.Parallel()
 	ctx := func(k i18n.Key) string { return i18n.T(i18n.WithLocale(t.Context(), i18n.En), k) }

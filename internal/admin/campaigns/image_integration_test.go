@@ -51,7 +51,8 @@ func campaignImageRequest(t *testing.T, slug, alt string) *http.Request {
 	return req
 }
 
-func TestACampaignHeaderIsUploadedShownAndRemoved(t *testing.T) {
+// TestHandler_SetImageLifecycle: a campaign header is uploaded, shown and removed.
+func TestHandler_SetImageLifecycle(t *testing.T) {
 	ctx, _ := admintest.StaffContext(t, pool)
 	s := campaigns.NewStore(pool)
 	h := handlerOver(s)
@@ -100,7 +101,8 @@ func TestACampaignHeaderIsUploadedShownAndRemoved(t *testing.T) {
 	}
 }
 
-func TestHeaderImageRefusalsKeepBothDescriptions(t *testing.T) {
+// TestHandler_SetImageRefusals: header image refusals keep both descriptions.
+func TestHandler_SetImageRefusals(t *testing.T) {
 	staffCtx, _ := admintest.StaffContext(t, pool)
 	p := admintest.AdminRolePool(t, pool)
 	s := campaigns.NewStore(p)
@@ -186,7 +188,8 @@ func TestHeaderImageRefusalsKeepBothDescriptions(t *testing.T) {
 	}
 }
 
-func TestImageUploadsKeepStorageFailuresSeparateFromRefusals(t *testing.T) {
+// TestHandler_SetImageStorage: image uploads keep storage failures separate from refusals.
+func TestHandler_SetImageStorage(t *testing.T) {
 	owner := admintest.Pool(t)
 	staff, _ := admintest.StaffContext(t, owner)
 	adminPool := admintest.AdminRolePool(t, owner)
