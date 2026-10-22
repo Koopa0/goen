@@ -6,10 +6,11 @@ import (
 	"testing"
 )
 
-// The department head is the band, which was drawn for the home page: it must
-// not bring the home's section margin, and without a photograph it must take
-// the page's column and no white lift instead of the photograph's track.
-func TestTheBandWithoutAPhotographKeepsThePageColumn(t *testing.T) {
+// TestAppCSSBandWithoutPhoto checks that the band without a photograph keeps the
+// page's column. The department head is the band, which was drawn for the home
+// page: it must not bring the home's section margin, and without a photograph it
+// must take the page's column and no white lift instead of the photograph's track.
+func TestAppCSSBandWithoutPhoto(t *testing.T) {
 	t.Parallel()
 
 	sheet, err := fs.ReadFile(files, AppCSS)

@@ -15,12 +15,12 @@ import (
 	"github.com/koopa0/goen/internal/web/ratelimit"
 )
 
-// TestOnlyARefusedCrossSiteNavigationIsLoadedAgain drives the two pages Stripe
-// sends a customer back to. The stores are zero values, so reading either one
+// Only a refused cross-site navigation is loaded again. It drives the two pages
+// Stripe sends a customer back to. The stores are zero values, so reading either one
 // panics: every answer here is decided before the order is read. With no
 // cookie and nobody signed in the gate refuses without a query; the cookie
 // columns are in the integration test.
-func TestOnlyARefusedCrossSiteNavigationIsLoadedAgain(t *testing.T) {
+func TestReloadSameSiteCrossSiteNavigation(t *testing.T) {
 	t.Parallel()
 	log := slog.New(slog.DiscardHandler)
 	grants := &access.Store{}
@@ -76,10 +76,10 @@ func TestOnlyARefusedCrossSiteNavigationIsLoadedAgain(t *testing.T) {
 	})
 }
 
-// TestTheNextLoadIsTheRequestsOwnPathAndQuery holds the target to goen's own
-// path, escaped as it arrived, and keeps the query a hostile link carries out
+// The next load is the request's own path and query. It holds the target to
+// goen's own path, escaped as it arrived, and keeps the query a hostile link carries out
 // of the markup.
-func TestTheNextLoadIsTheRequestsOwnPathAndQuery(t *testing.T) {
+func TestReloadSameSiteTarget(t *testing.T) {
 	t.Parallel()
 	log := slog.New(slog.DiscardHandler)
 	payments := payment.NewHandler(&payment.Store{}, &payment.Gateway{}, &access.Store{}, log)

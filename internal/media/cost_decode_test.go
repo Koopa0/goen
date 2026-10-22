@@ -19,17 +19,17 @@ import (
 // compressed partitions, which the test adds as len(raw).
 const decoderState = 128 << 10
 
-// TestTheBudgetBoundsWhatDecodeAllocates decodes one real file of every layout
-// the budget prices differently and holds decodeCost above both the image
-// image.Decode returns and everything it allocated on the way. The headers
-// DecodeConfig reads do not say what either will be: a tRNS chunk or an Adobe
-// segment after the first scan decodes wider than the header's colour model.
-// Lossless WebP is refused before it is decoded, and
-// TestALosslessWebPIsRefusedBeforeItIsDecoded holds that.
+// TestDecodeCostBoundsAllocation checks that the budget bounds what Decode
+// allocates. It decodes one real file of every layout the budget prices
+// differently and holds decodeCost above both the image image.Decode returns and
+// everything it allocated on the way. The headers DecodeConfig reads do not say
+// what either will be: a tRNS chunk or an Adobe segment after the first scan
+// decodes wider than the header's colour model. Lossless WebP is refused before it
+// is decoded, and TestNormaliseLosslessWebP holds that.
 //
 // It is not parallel: it reads the process's allocation counter, which a test
 // running beside it would add to.
-func TestTheBudgetBoundsWhatDecodeAllocates(t *testing.T) {
+func TestDecodeCostBoundsAllocation(t *testing.T) {
 	const w, h = 250, 200 // not a whole number of MCUs or macroblocks
 	for _, tt := range []struct {
 		name string

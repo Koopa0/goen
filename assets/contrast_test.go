@@ -112,11 +112,12 @@ func resolve(name string, tokens, links map[string]string) string {
 	return tokens[name]
 }
 
-// TestTextTokensReadOnTheGroundsTheyAreUsedOn holds the contrast of the text
-// colours against the grounds a page paints. A palette is edited a value at a
-// time, and a pale grey that looks fine beside its neighbours fails a reader
-// outdoors; the axe gate sees only the routes it visits.
-func TestTextTokensReadOnTheGroundsTheyAreUsedOn(t *testing.T) {
+// TestBaseCSSTokenContrast checks that the text tokens read on the grounds they
+// are used on. It holds the contrast of the text colours against the grounds a
+// page paints. A palette is edited a value at a time, and a pale grey that looks
+// fine beside its neighbours fails a reader outdoors; the axe gate sees only the
+// routes it visits.
+func TestBaseCSSTokenContrast(t *testing.T) {
 	t.Parallel()
 
 	tokens := hexTokens(t)
@@ -272,8 +273,10 @@ func toneBlocks(t *testing.T, sheet string, tokens map[string]string) map[string
 	return blocks
 }
 
-// A contrast guarantee is useful only for a colour the stylesheet draws.
-func TestEveryDeclaredToneColourHasAConsumer(t *testing.T) {
+// TestAppCSSToneColoursConsumed checks that every tone colour app.css declares has
+// a consumer. A contrast guarantee is useful only for a colour the stylesheet
+// draws.
+func TestAppCSSToneColoursConsumed(t *testing.T) {
 	t.Parallel()
 
 	sheet, err := fs.ReadFile(files, AppCSS)
@@ -373,12 +376,12 @@ var toneNames = func() []string {
 	return names
 }()
 
-// TestEveryToneGroundHoldsItsText holds the text a department or campaign head
-// shows to 4.5:1 on each tone's ground, and its period fill to 3:1
-// (WCAG 1.4.11). A new tone is a new block, and one
-// whose ground drifts from its oklch source would fail a reader without any
+// TestAppCSSToneGroundContrast checks that every tone ground holds its text. It
+// holds the text a department or campaign head shows to 4.5:1 on each tone's
+// ground, and its period fill to 3:1 (WCAG 1.4.11). A new tone is a new block, and
+// one whose ground drifts from its oklch source would fail a reader without any
 // route the axe gate visits showing it.
-func TestEveryToneGroundHoldsItsText(t *testing.T) {
+func TestAppCSSToneGroundContrast(t *testing.T) {
 	t.Parallel()
 
 	sheet, err := fs.ReadFile(files, AppCSS)
@@ -457,10 +460,11 @@ func TestEveryToneGroundHoldsItsText(t *testing.T) {
 	}
 }
 
-// The review form's star picker is a control with no text, so WCAG 1.4.11 holds
-// its outline and its selected fill to 3:1 against the ground the form sits on,
-// and the fill must stand out from the outline around it.
-func TestTheStarPickerIsVisibleOnTheReviewForm(t *testing.T) {
+// TestAppCSSStarPickerContrast checks that the star picker is visible on the
+// review form. The review form's star picker is a control with no text, so WCAG
+// 1.4.11 holds its outline and its selected fill to 3:1 against the ground the
+// form sits on, and the fill must stand out from the outline around it.
+func TestAppCSSStarPickerContrast(t *testing.T) {
 	t.Parallel()
 
 	sheet, err := fs.ReadFile(files, AppCSS)
@@ -486,7 +490,8 @@ func TestTheStarPickerIsVisibleOnTheReviewForm(t *testing.T) {
 	}
 }
 
-func TestControlBoundariesReadOnTheirGrounds(t *testing.T) {
+// TestBaseCSSControlBoundary checks that control boundaries read on their grounds.
+func TestBaseCSSControlBoundary(t *testing.T) {
 	t.Parallel()
 	sheet, err := fs.ReadFile(files, BaseCSS)
 	if err != nil {
@@ -506,10 +511,11 @@ func TestControlBoundariesReadOnTheirGrounds(t *testing.T) {
 	}
 }
 
-// The focus ring is a graphical object (WCAG 1.4.11, 2.4.7): 3:1 on every
-// ground a focusable thing sits on. The accent is dark, so the grounds that
-// are dark themselves re-point --ring to white.
-func TestTheFocusRingReadsOnEveryGround(t *testing.T) {
+// TestAppCSSFocusRingContrast checks that the focus ring reads on every ground.
+// The focus ring is a graphical object (WCAG 1.4.11, 2.4.7): 3:1 on every ground a
+// focusable thing sits on. The accent is dark, so the grounds that are dark
+// themselves re-point --ring to white.
+func TestAppCSSFocusRingContrast(t *testing.T) {
 	t.Parallel()
 
 	sheet, err := fs.ReadFile(files, AppCSS)
@@ -611,10 +617,11 @@ func TestEveryCustomPropertyUsedIsDeclared(t *testing.T) {
 	}
 }
 
-// The band paints its tone behind text that the page styles in --n-500, which
-// no tone ground holds to 4.5:1; each of these classes must take the tone's own
-// muted colour.
-func TestTheBandReadsItsMutedTextFromTheTone(t *testing.T) {
+// TestAppCSSBandMutedText checks that the band reads its muted text from the tone.
+// The band paints its tone behind text that the page styles in --n-500, which no
+// tone ground holds to 4.5:1; each of these classes must take the tone's own muted
+// colour.
+func TestAppCSSBandMutedText(t *testing.T) {
 	t.Parallel()
 
 	sheet, err := fs.ReadFile(files, AppCSS)
@@ -632,9 +639,10 @@ func TestTheBandReadsItsMutedTextFromTheTone(t *testing.T) {
 	}
 }
 
-// The promotion strip owns .goen-promo; a second block declaring it restyles the
-// strip on every page that has one.
-func TestPromoIsDeclaredOnlyForThePromotionStrip(t *testing.T) {
+// TestAppCSSPromoDeclaredOnce checks that .goen-promo is declared only for the
+// promotion strip. The promotion strip owns .goen-promo; a second block declaring
+// it restyles the strip on every page that has one.
+func TestAppCSSPromoDeclaredOnce(t *testing.T) {
 	t.Parallel()
 	sheet, err := fs.ReadFile(files, AppCSS)
 	if err != nil {
@@ -645,8 +653,10 @@ func TestPromoIsDeclaredOnlyForThePromotionStrip(t *testing.T) {
 	}
 }
 
-// The state colours are read from the rules that actually paint the boundary.
-func TestInvalidAndReadOnlyFieldBoundariesHoldContrast(t *testing.T) {
+// TestFieldBoundariesHoldContrast checks that the boundaries of invalid and
+// read-only fields hold their contrast. The state colours are read from the rules
+// that actually paint the boundary.
+func TestFieldBoundariesHoldContrast(t *testing.T) {
 	t.Parallel()
 	tokens := hexTokens(t)
 	links := aliasTokens(t)
@@ -680,12 +690,13 @@ func TestInvalidAndReadOnlyFieldBoundariesHoldContrast(t *testing.T) {
 // is not taken for part of its selector.
 var cssComment = regexp.MustCompile(`(?s)/\*.*?\*/`)
 
-// A shelf price is one token, --price, an alias of the ink blue, and it is held
-// to 4.5:1 on every ground a shelf price sits on. The ink band is the one
-// ground the blue fails on, so it alone re-points the token to the tone's own
-// text colour, and no other rule may declare it: a bare [data-tone="ink"] would
-// white-out the price on the light grounds that carry the tone as data.
-func TestShelfPricesReadOnTheirGrounds(t *testing.T) {
+// TestAppCSSShelfPriceContrast checks that shelf prices read on their grounds. A
+// shelf price is one token, --price, an alias of the ink blue, and it is held to
+// 4.5:1 on every ground a shelf price sits on. The ink band is the one ground the
+// blue fails on, so it alone re-points the token to the tone's own text colour,
+// and no other rule may declare it: a bare [data-tone="ink"] would white-out the
+// price on the light grounds that carry the tone as data.
+func TestAppCSSShelfPriceContrast(t *testing.T) {
 	t.Parallel()
 
 	tokens := hexTokens(t)

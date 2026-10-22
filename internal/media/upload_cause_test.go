@@ -77,7 +77,8 @@ func openUpload(t *testing.T, ctx context.Context, body io.Reader, contentType s
 	return upload, err
 }
 
-func TestAnUploadOverTheCapIsTooLarge(t *testing.T) {
+// TestHandler_OpenUploadOverCap checks that an upload over the cap is too large.
+func TestHandler_OpenUploadOverCap(t *testing.T) {
 	t.Parallel()
 	body, contentType := multipartBody(t, MaxUploadBytes+1)
 
@@ -93,7 +94,9 @@ func TestAnUploadOverTheCapIsTooLarge(t *testing.T) {
 	}
 }
 
-func TestABodyThatStopsArrivingIsIncompleteNotTooLarge(t *testing.T) {
+// TestHandler_OpenUploadStopsArriving checks that a body that stops arriving is
+// incomplete, not too large.
+func TestHandler_OpenUploadStopsArriving(t *testing.T) {
 	t.Parallel()
 	body, contentType := multipartBody(t, 64<<10) // 1/128 of the cap
 	prefix := body[:len(body)/2]
@@ -131,11 +134,12 @@ func TestABodyThatStopsArrivingIsIncompleteNotTooLarge(t *testing.T) {
 	}
 }
 
-// TestAFormCutOffInsideItsFileIsIncomplete: the stream ended cleanly part-way
-// through the file part, as when a client gives up and the body is short. The
-// multipart reader reports that as an unexpected EOF, the same as a connection
-// that dropped, and the remedy is the same.
-func TestAFormCutOffInsideItsFileIsIncomplete(t *testing.T) {
+// TestHandler_OpenUploadCutOff checks that a form cut off inside its file is
+// incomplete. The stream ended cleanly part-way through the file part, as when a
+// client gives up and the body is short. The multipart reader reports that as an
+// unexpected EOF, the same as a connection that dropped, and the remedy is the
+// same.
+func TestHandler_OpenUploadCutOff(t *testing.T) {
 	t.Parallel()
 	body, contentType := multipartBody(t, 64<<10)
 
@@ -151,7 +155,9 @@ func TestAFormCutOffInsideItsFileIsIncomplete(t *testing.T) {
 	}
 }
 
-func TestAMalformedBodyIsUnreadableNotTooLarge(t *testing.T) {
+// TestHandler_OpenUploadMalformed checks that a malformed body is unreadable, not
+// too large.
+func TestHandler_OpenUploadMalformed(t *testing.T) {
 	t.Parallel()
 	body, contentType := multipartBody(t, 64<<10)
 
@@ -185,7 +191,8 @@ func TestAMalformedBodyIsUnreadableNotTooLarge(t *testing.T) {
 	}
 }
 
-func TestAnAbandonedUploadHasNoNotice(t *testing.T) {
+// TestHandler_OpenUploadAbandoned checks that an abandoned upload has no notice.
+func TestHandler_OpenUploadAbandoned(t *testing.T) {
 	t.Parallel()
 	body, contentType := multipartBody(t, 64<<10)
 	ctx, cancel := context.WithCancel(t.Context())
@@ -212,11 +219,12 @@ func TestAnAbandonedUploadHasNoNotice(t *testing.T) {
 	}
 }
 
-// TestASlowSmallUploadThroughARealServerIsIncomplete is the reproduction from
-// the report: a real http.Server whose ReadTimeout passes before a small body
-// has arrived. The doubles above stand in for its errors; this holds that they
-// are the errors a server really hands the handler.
-func TestASlowSmallUploadThroughARealServerIsIncomplete(t *testing.T) {
+// TestHandler_OpenUploadSlowServer checks that a slow small upload through a real
+// server is incomplete. It is the reproduction from the report: a real http.Server
+// whose ReadTimeout passes before a small body has arrived. The doubles above
+// stand in for its errors; this holds that they are the errors a server really
+// hands the handler.
+func TestHandler_OpenUploadSlowServer(t *testing.T) {
 	t.Parallel()
 	body, contentType := multipartBody(t, 64<<10)
 
@@ -268,9 +276,10 @@ func TestASlowSmallUploadThroughARealServerIsIncomplete(t *testing.T) {
 	}
 }
 
-// TestEachUploadCauseSaysSomethingDifferent holds the copy: only the real size
-// violation mentions a size, and each cause reads differently in both languages.
-func TestEachUploadCauseSaysSomethingDifferent(t *testing.T) {
+// TestUploadNoticeDistinctCauses checks that each upload cause says something
+// different. It holds the copy: only the real size violation mentions a size, and
+// each cause reads differently in both languages.
+func TestUploadNoticeDistinctCauses(t *testing.T) {
 	t.Parallel()
 	for _, l := range i18n.Locales() {
 		ctx := i18n.WithLocale(t.Context(), l)

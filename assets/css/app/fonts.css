@@ -18,7 +18,7 @@
    while a font arrives.
 
    The ?v= digests are generated. assets/fonts/README says how to regenerate
-   this file, and TestFontStylesheetMatchesTheEmbeddedFonts fails if a font
+   this file, and TestFontsCSSMatchesEmbeddedFonts fails if a font
    changes without it.
    ============================================================ */
 

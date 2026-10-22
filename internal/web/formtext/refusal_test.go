@@ -8,7 +8,8 @@ import (
 	"github.com/koopa0/goen/internal/web/formtext"
 )
 
-func TestFieldMessagesKeepsTheFirstMessagePerField(t *testing.T) {
+// FieldMessages keeps the first message per field.
+func TestFieldMessagesFirstPerField(t *testing.T) {
 	t.Parallel()
 
 	ctx := i18n.WithLocale(t.Context(), i18n.En)
@@ -28,7 +29,8 @@ func TestFieldMessagesKeepsTheFirstMessagePerField(t *testing.T) {
 	}
 }
 
-func TestFieldMessagesIsNilForNoRefusals(t *testing.T) {
+// FieldMessages is nil for no refusals.
+func TestFieldMessagesNoRefusals(t *testing.T) {
 	t.Parallel()
 
 	if got := formtext.FieldMessages(t.Context(), nil); got != nil {
@@ -39,7 +41,8 @@ func TestFieldMessagesIsNilForNoRefusals(t *testing.T) {
 	}
 }
 
-func TestFieldMessagesFormatsAMessageWithItsArgs(t *testing.T) {
+// FieldMessages formats a message with its args.
+func TestFieldMessagesFormatsArgs(t *testing.T) {
 	t.Parallel()
 
 	for _, locale := range []i18n.Locale{i18n.ZhHant, i18n.En} {
@@ -56,7 +59,8 @@ func TestFieldMessagesFormatsAMessageWithItsArgs(t *testing.T) {
 	}
 }
 
-func TestFieldMessagesLeavesAMessageWithoutArgsUnformatted(t *testing.T) {
+// FieldMessages leaves a message without args unformatted.
+func TestFieldMessagesNoArgs(t *testing.T) {
 	t.Parallel()
 
 	keys := []i18n.Key{
