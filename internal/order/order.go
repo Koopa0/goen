@@ -5,6 +5,8 @@ package order
 import (
 	"slices"
 	"strings"
+
+	"github.com/koopa0/goen/internal/web/formtext"
 )
 
 // FulfillmentStatus is orders.fulfillment_status, closed by orders_fulfillment_status_known.
@@ -97,8 +99,10 @@ func ValidNumber(s string) bool {
 	return true
 }
 
-// NormalizeNumber reads an order number as a person typed it: surrounding space
-// is dropped, ASCII letters are upper-cased, and after the GO- prefix the
+// NormalizeNumber reads an order number as a person typed it: full-width
+// characters are folded to ASCII (a Chinese keyboard left in full-width mode
+// types the number it spells), surrounding space is dropped, ASCII letters are
+// upper-cased, and after the GO- prefix the
 // characters Crockford base32 reads as look-alikes are mapped to what they
 // stand for (O to 0, I and L to 1). The prefix itself is never mapped. ok is
 // false, and the number empty, when what remains is not a ValidNumber.
@@ -106,7 +110,7 @@ func ValidNumber(s string) bool {
 // Every path that takes a number from a person calls this, so a number typed
 // from a printed page or read aloud finds the order it names.
 func NormalizeNumber(s string) (number string, ok bool) {
-	s = strings.TrimSpace(s)
+	s = strings.TrimSpace(formtext.FoldWidth(s))
 	if len(s) != numberLen {
 		return "", false
 	}
