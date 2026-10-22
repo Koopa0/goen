@@ -51,8 +51,10 @@ type Handler struct {
 	// guessCeiling bounds, per account, the guesses that missed, from every
 	// network together: the bound on a guess spread over many networks.
 	guessCeiling *ratelimit.Limiter
-	// resetLimit has a budget of its own: spending the registration and change
-	// budget for an address must not stop its owner getting a reset link.
+	// resetLimit bounds the reset links an address is sent, and has a budget of
+	// its own: spending the registration and change budget for an address must
+	// not stop its owner getting a reset link. It never refuses a request; see
+	// [Handler.requestResetLink].
 	resetLimit *ratelimit.Limiter
 	store      *Store
 	carts      Carts

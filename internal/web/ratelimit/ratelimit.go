@@ -11,7 +11,10 @@
 // [Limiter.Reserve] and keep the token only for a miss, so that the person
 // with the right answer gives theirs back. That narrows the lockout and cannot
 // remove it: while the shared key is empty, a request is refused before it is
-// known to be right.
+// known to be right. A shared key that bounds what is sent to that person, a
+// mail, need not refuse anyone: when it is empty, answer as if it were sent and
+// send nothing. That locks nobody out only while what was sent already serves
+// whoever asks, as the newest of a run of reset links does.
 //
 // Every request runs under one mutex, and some keys are chosen by the client,
 // so a client that can fill the table must not also be able to make each of its
