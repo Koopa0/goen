@@ -18,7 +18,8 @@ import (
 // The tests in this file are the coupon halves of tests that render several
 // desks' pages: each half lives with the page it renders.
 
-func TestTheCouponFormSaysTheLimitIsPerMemberAccount(t *testing.T) {
+// TestCouponsPerMemberLimit: the coupon form says the limit is per member account.
+func TestCouponsPerMemberLimit(t *testing.T) {
 	t.Parallel()
 	for _, loc := range []i18n.Locale{i18n.ZhHant, i18n.En} {
 		ctx := i18n.WithLocale(t.Context(), loc)
@@ -34,8 +35,9 @@ func TestTheCouponFormSaysTheLimitIsPerMemberAccount(t *testing.T) {
 	}
 }
 
-// From TestEveryAdminScreenPutsItsWorkInTheContentColumn.
-func TestCouponsScreenPutsItsWorkInTheContentColumn(t *testing.T) {
+// From TestNewsletterContentColumn.
+// TestCouponsContentColumn: the coupons screen puts its work in the content column.
+func TestCouponsContentColumn(t *testing.T) {
 	t.Parallel()
 	ctx := frame.WithStaff(i18n.WithLocale(t.Context(), i18n.ZhHant), true)
 
@@ -64,7 +66,8 @@ func TestCouponsScreenPutsItsWorkInTheContentColumn(t *testing.T) {
 }
 
 // From TestEveryAdminEmptyPageKeepsItsRestartLink.
-func TestCouponsEmptyPageKeepsItsRestartLink(t *testing.T) {
+// TestCouponsEmptyPage: the coupons empty page keeps its restart link.
+func TestCouponsEmptyPage(t *testing.T) {
 	t.Parallel()
 	b := keyset.Bound{PastEnd: true, First: "/admin/products?q=test"}
 	var out bytes.Buffer
@@ -82,7 +85,8 @@ func TestCouponsEmptyPageKeepsItsRestartLink(t *testing.T) {
 
 // From TestEveryQueueKeepsItsOwnFirstPageEmptyState and
 // TestEveryQueueWithMoreRowsOffersNext.
-func TestCouponsQueueKeepsItsOwnFirstPageEmptyState(t *testing.T) {
+// TestCouponsFirstPageEmpty: the coupons queue keeps its own first-page empty state.
+func TestCouponsFirstPageEmpty(t *testing.T) {
 	t.Parallel()
 	ctx := func(k i18n.Key) string { return i18n.T(i18n.WithLocale(t.Context(), i18n.En), k) }
 	generic := ctx(i18n.KeyPageEmpty)
@@ -96,7 +100,8 @@ func TestCouponsQueueKeepsItsOwnFirstPageEmptyState(t *testing.T) {
 	}
 }
 
-func TestCouponsQueueWithMoreRowsOffersNext(t *testing.T) {
+// TestCouponsNextLink: a coupons queue with more rows offers a next link.
+func TestCouponsNextLink(t *testing.T) {
 	t.Parallel()
 	ctx := func(k i18n.Key) string { return i18n.T(i18n.WithLocale(t.Context(), i18n.En), k) }
 	rows := make([]db.Order, keyset.PageLimit)
@@ -111,8 +116,9 @@ func TestCouponsQueueWithMoreRowsOffersNext(t *testing.T) {
 	}
 }
 
-// From TestAdminExamplesStayOutsideRefusedInputs.
-func TestCouponExamplesStayOutsideRefusedInputs(t *testing.T) {
+// From the examples test the admin screens once shared.
+// TestCouponsFieldExamples: coupon field examples stay outside refused inputs.
+func TestCouponsFieldExamples(t *testing.T) {
 	t.Parallel()
 	for _, locale := range i18n.Locales() {
 		for _, draft := range []struct{ value, refusal string }{{"", ""}, {"Submitted <& value", ""}, {"", "Refused"}, {"Submitted <& value", "Refused"}} {

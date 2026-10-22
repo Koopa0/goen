@@ -61,7 +61,8 @@ func wantBadge(t *testing.T, page, word, class string) {
 }
 
 // From statusbadge_test.go, moved whole.
-func TestQuestionQueueWaitingNeedsYouAndTheCountIsPlainText(t *testing.T) {
+// TestQuestionsWaitingBadge: a waiting question needs you and the count is plain text.
+func TestQuestionsWaitingBadge(t *testing.T) {
 	t.Parallel()
 	ctx := i18n.WithLocale(t.Context(), i18n.ZhHant)
 	view := QuestionsView{Rows: []Question{{ID: "q", ProductName: "P"}}}
@@ -77,9 +78,9 @@ func TestQuestionQueueWaitingNeedsYouAndTheCountIsPlainText(t *testing.T) {
 }
 
 // From refusedforms_test.go, moved whole.
-// TestARefusedAnswerKeepsItsText holds that the reply staff typed stays in its
+// TestQuestionsRefusedAnswer holds that the reply staff typed stays in its
 // box, marked invalid, instead of vanishing with the redirect.
-func TestARefusedAnswerKeepsItsText(t *testing.T) {
+func TestQuestionsRefusedAnswer(t *testing.T) {
 	t.Parallel()
 	ctx := i18n.WithLocale(t.Context(), i18n.ZhHant)
 	view := QuestionsView{Rows: []Question{{

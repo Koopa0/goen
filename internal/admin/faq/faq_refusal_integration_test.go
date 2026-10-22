@@ -18,7 +18,7 @@ import (
 // A refused FAQ edit answers 422 on the entry that was edited. Its text used
 // to be re-rendered into the add form, where pressing 新增 published a second
 // copy and left the original unedited.
-func TestARefusedFAQEditAnswersOnTheEntryItself(t *testing.T) {
+func TestHandler_EditFAQRefused(t *testing.T) {
 	ctx, _ := admintest.StaffContext(t, pool)
 	s := faq.NewStore(pool)
 	category := "編輯分類-" + uuid.NewString()[:8]

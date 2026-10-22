@@ -13,7 +13,8 @@ import (
 	"github.com/koopa0/goen/internal/ui/widget"
 )
 
-func TestEveryRedirectTheNewsletterFormsMakeCarriesAMessage(t *testing.T) {
+// TestNoticesCoverRedirects: every redirect the newsletter forms make carries a message.
+func TestNoticesCoverRedirects(t *testing.T) {
 	t.Parallel()
 	src, err := os.ReadFile("handler.go")
 	if err != nil {
@@ -38,7 +39,8 @@ func TestEveryRedirectTheNewsletterFormsMakeCarriesAMessage(t *testing.T) {
 	}
 }
 
-func TestARedirectedNoticeIsShownAsItsOwnOutcome(t *testing.T) {
+// TestNewsletterNoticeShown: a redirected notice is shown as its own outcome.
+func TestNewsletterNoticeShown(t *testing.T) {
 	t.Parallel()
 	for _, query := range []string{"saved", "sent", "already"} {
 		ctx := i18n.WithLocale(t.Context(), i18n.En)
@@ -61,7 +63,8 @@ func TestARedirectedNoticeIsShownAsItsOwnOutcome(t *testing.T) {
 	}
 }
 
-func TestARedirectedNoticeKeepsItsOutcome(t *testing.T) {
+// TestNoticesOutcome: a redirected notice keeps its outcome.
+func TestNoticesOutcome(t *testing.T) {
 	t.Parallel()
 	if got := notices["already"].Outcome; got != widget.OutcomeDone {
 		t.Errorf(`notices["already"].Outcome = %d, want %d`, got, widget.OutcomeDone)

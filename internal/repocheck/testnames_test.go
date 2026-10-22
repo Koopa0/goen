@@ -32,7 +32,14 @@ const maxTestNameLen = 40
 // vacuous guard: TestCheckTestNames runs the same checks over fixtures that
 // fail them, and once a package is listed the check fails if the package has
 // no tests to read.
-var migratedTestPackages = []string{}
+var migratedTestPackages = []string{
+	"internal/admin/banners",
+	"internal/admin/coupons",
+	"internal/admin/credits",
+	"internal/admin/faq",
+	"internal/admin/newsletters",
+	"internal/admin/questions",
+}
 
 // testNameExceptions is the shrink-only allow list: for a listed package, each
 // test that breaks the rule and why. A row is stale, and fails, once its test is

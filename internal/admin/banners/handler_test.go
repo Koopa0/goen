@@ -6,7 +6,8 @@ import (
 	"testing"
 )
 
-func TestEveryRedirectTheBannerFormsMakeCarriesAMessage(t *testing.T) {
+// TestNoticesCoverRedirects: every redirect the banner forms make carries a message.
+func TestNoticesCoverRedirects(t *testing.T) {
 	t.Parallel()
 	src, err := os.ReadFile("handler.go")
 	if err != nil {

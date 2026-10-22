@@ -53,7 +53,7 @@ func TestEveryTiersExampleHintReadsInFull(t *testing.T) {
 	}
 }
 
-// From TestEveryAdminScreenPutsItsWorkInTheContentColumn.
+// From TestNewsletterContentColumn.
 func TestTiersScreenPutsItsWorkInTheContentColumn(t *testing.T) {
 	t.Parallel()
 	ctx := frame.WithStaff(i18n.WithLocale(t.Context(), i18n.ZhHant), true)

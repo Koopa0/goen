@@ -11,7 +11,8 @@ import (
 	"github.com/koopa0/goen/internal/site"
 )
 
-func TestTheShopCanRunAPromotion(t *testing.T) {
+// TestStore_BannerPromotion: the shop can run a promotion.
+func TestStore_BannerPromotion(t *testing.T) {
 	ctx, _ := admintest.StaffContext(t, pool)
 	s := banners.NewStore(pool)
 
@@ -77,7 +78,8 @@ func TestTheShopCanRunAPromotion(t *testing.T) {
 	}
 }
 
-func TestAPromotionsButtonMustStayOnThisSite(t *testing.T) {
+// TestStore_CreateBannerLocalLink: a promotion's button must stay on this site.
+func TestStore_CreateBannerLocalLink(t *testing.T) {
 	ctx, _ := admintest.StaffContext(t, pool)
 	s := banners.NewStore(pool)
 

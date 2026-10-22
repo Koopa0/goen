@@ -9,7 +9,8 @@ import (
 	"github.com/koopa0/goen/internal/admin/accesstest"
 )
 
-func TestEveryRouteRefusesAnOutsider(t *testing.T) {
+// TestHandler_RoutesRefuseOutsiders: every route refuses an outsider.
+func TestHandler_RoutesRefuseOutsiders(t *testing.T) {
 	t.Parallel()
 	accesstest.RefuseOutsiders(t, func(mux *http.ServeMux, ac *admin.Control) {
 		NewHandler(&Store{}, slog.New(slog.DiscardHandler)).Routes(mux, ac)

@@ -9,9 +9,9 @@ import (
 	"github.com/koopa0/goen/internal/ui/frame"
 )
 
-// TestARefusedBannerMarksItsFieldsAndLinksTheirMessages: the days and the
+// TestBannersRefusedFields: the days and the
 // link refused, each control is marked and described by its own message.
-func TestARefusedBannerMarksItsFieldsAndLinksTheirMessages(t *testing.T) {
+func TestBannersRefusedFields(t *testing.T) {
 	t.Parallel()
 	ctx := i18n.WithLocale(t.Context(), i18n.ZhHant)
 	view := BannersView{Errors: map[string]string{
@@ -48,7 +48,8 @@ func bannerForm(t *testing.T, page string) string {
 	return m
 }
 
-func TestTheBannerEditorKeepsBothLanguagesInOneFormBehindASwitch(t *testing.T) {
+// TestBannersEditorLanguages: the banner editor keeps both languages in one form behind a switch.
+func TestBannersEditorLanguages(t *testing.T) {
 	t.Parallel()
 	ctx := i18n.WithLocale(t.Context(), i18n.ZhHant)
 	form := bannerForm(t, renderComponent(t, ctx, Banners(frame.Page{}, &BannersView{})))
@@ -73,7 +74,8 @@ func TestTheBannerEditorKeepsBothLanguagesInOneFormBehindASwitch(t *testing.T) {
 	}
 }
 
-func TestTheBannerSwitchOpensOnTheLanguageOfTheFirstRefusedField(t *testing.T) {
+// TestBannersSwitchLanguage: the banner switch opens on the language of the first refused field.
+func TestBannersSwitchLanguage(t *testing.T) {
 	t.Parallel()
 	ctx := i18n.WithLocale(t.Context(), i18n.ZhHant)
 	opensOn := func(errs map[string]string) (lang, form string) {

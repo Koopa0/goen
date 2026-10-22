@@ -12,7 +12,8 @@ import (
 	"github.com/koopa0/goen/internal/ui/frame"
 )
 
-func TestCouponStateReflectsRemainingUses(t *testing.T) {
+// TestCoupon_State: a coupon's state reflects the uses remaining.
+func TestCoupon_State(t *testing.T) {
 	t.Parallel()
 	for _, tt := range []struct {
 		name string
@@ -48,7 +49,8 @@ func TestCouponStateReflectsRemainingUses(t *testing.T) {
 	}
 }
 
-func TestCouponTableSeparatesConditionsUsesAndExpiry(t *testing.T) {
+// TestCouponsTableColumns: the coupon table separates conditions, uses and expiry.
+func TestCouponsTableColumns(t *testing.T) {
 	t.Parallel()
 	for _, tt := range []struct {
 		locale     i18n.Locale
@@ -146,7 +148,8 @@ func couponCellText(node *html.Node) string {
 	return strings.Join(strings.Fields(strings.Join(parts, " ")), " ")
 }
 
-func TestCouponListMetersOnlyTheCouponsWithACap(t *testing.T) {
+// TestCouponsUsageMeters: the coupon list meters only the coupons with a cap.
+func TestCouponsUsageMeters(t *testing.T) {
 	t.Parallel()
 
 	markup := renderToString(t, Coupons(frame.Page{Title: "Coupons"}, CouponsView{Rows: []Coupon{
@@ -174,7 +177,8 @@ func TestCouponListMetersOnlyTheCouponsWithACap(t *testing.T) {
 	}
 }
 
-func TestCouponLimitRefusalsDescribeTheirControls(t *testing.T) {
+// TestCouponsLimitRefusals: each coupon limit refusal describes its own control.
+func TestCouponsLimitRefusals(t *testing.T) {
 	t.Parallel()
 	for _, locale := range i18n.Locales() {
 		for _, refused := range [][]string{nil, {"min"}, {"days"}, {"max"}, {"min", "days", "max"}} {

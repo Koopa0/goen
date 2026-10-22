@@ -10,7 +10,8 @@ import (
 )
 
 // From copy_test.go: TestEveryExampleHintReadsInFull, which keeps the product half.
-func TestEveryFAQExampleHintReadsInFull(t *testing.T) {
+// TestFAQExampleHints: every FAQ example hint reads in full.
+func TestFAQExampleHints(t *testing.T) {
 	t.Parallel()
 	for _, tt := range []struct {
 		locale   i18n.Locale
@@ -32,7 +33,8 @@ func TestEveryFAQExampleHintReadsInFull(t *testing.T) {
 
 // From TestDeskRefusalsNameTheirFormAndLinkToTheFirstInvalidControl, which keeps
 // the product half.
-func TestARefusedFAQEditNamesItsFormAndLinksToTheFirstInvalidControl(t *testing.T) {
+// TestFAQRefusalSummary: a refused FAQ edit names its form and links to the first invalid control.
+func TestFAQRefusalSummary(t *testing.T) {
 	t.Parallel()
 	for _, locale := range i18n.Locales() {
 		t.Run(locale.Tag(), func(t *testing.T) {

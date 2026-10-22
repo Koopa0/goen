@@ -21,7 +21,8 @@ import (
 	"github.com/koopa0/goen/internal/i18n"
 )
 
-func TestARefusedStripKeepsTheList(t *testing.T) {
+// TestHandler_CreateBannerRefused: a refused strip keeps the list.
+func TestHandler_CreateBannerRefused(t *testing.T) {
 	p := admintest.Pool(t)
 	staffCtx, _ := admintest.StaffContext(t, p)
 	bannerID := seedStripList(t, staffCtx, p)

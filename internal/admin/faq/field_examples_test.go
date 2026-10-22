@@ -11,7 +11,8 @@ import (
 	"github.com/koopa0/goen/internal/ui/frame"
 )
 
-func TestAdminExamplesStayOutsideRefusedInputs(t *testing.T) {
+// TestFAQFieldExamples: FAQ field examples stay outside refused inputs.
+func TestFAQFieldExamples(t *testing.T) {
 	t.Parallel()
 	for _, locale := range i18n.Locales() {
 		for _, draft := range []struct{ value, refusal string }{{"", ""}, {"Submitted <& value", ""}, {"", "Refused"}, {"Submitted <& value", "Refused"}} {
@@ -108,7 +109,8 @@ func exampleElementByID(n *html.Node, id string) *html.Node {
 	return nil
 }
 
-func TestFAQEnglishFieldsKeepVisibleTranslatedLabelsAndRefusedDrafts(t *testing.T) {
+// TestFAQEnglishFields: the FAQ English fields keep visible translated labels and refused drafts.
+func TestFAQEnglishFields(t *testing.T) {
 	t.Parallel()
 	for _, locale := range i18n.Locales() {
 		for _, draft := range []struct{ name, value, refusal string }{

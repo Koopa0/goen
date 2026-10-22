@@ -13,7 +13,7 @@ import (
 // This test sits apart from view_test.go because its local html would shadow
 // the x/net/html import there.
 
-// TestEveryAdminScreenPutsItsWorkInTheContentColumn holds the frame at the one
+// TestNewsletterContentColumn holds the frame at the one
 // place that can hold it. The rail is a column beside the work from 1024 up,
 // and the rule that puts it there reaches it through the element the work is
 // wrapped in — so a screen that opened .goen-admin itself and dropped its
@@ -24,7 +24,7 @@ import (
 // The three below are screens the rebuild has not reached, chosen for that
 // reason: they are the ones that were wrong, and they get the frame now from
 // the shell rather than from anything they write themselves.
-func TestEveryAdminScreenPutsItsWorkInTheContentColumn(t *testing.T) {
+func TestNewsletterContentColumn(t *testing.T) {
 	t.Parallel()
 	ctx := frame.WithStaff(i18n.WithLocale(t.Context(), i18n.ZhHant), true)
 

@@ -18,12 +18,12 @@ import (
 	"github.com/koopa0/goen/internal/i18n"
 )
 
-// TestTheCreditHistoryLabelsAPostingByItsKindAndShowsAGrantsOwnWords posts one
+// TestHandler_CreditKindLabels posts one
 // of every kind through the doors that write them, plus staff grants whose
 // reasons spell the words the database once wrote for itself. The history must
 // call the system postings by their labels in both languages, and the grants by
 // what staff typed.
-func TestTheCreditHistoryLabelsAPostingByItsKindAndShowsAGrantsOwnWords(t *testing.T) {
+func TestHandler_CreditKindLabels(t *testing.T) {
 	ctx, staffID := admintest.StaffContext(t, pool)
 	s := credits.NewStore(pool)
 

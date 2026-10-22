@@ -23,7 +23,7 @@ func tagHolding(t *testing.T, page, attr string) string {
 // the add form's draft, so the error sat on an empty 新增 field, the stored
 // entry kept its old text, and typing the missing question there published a
 // second copy.
-func TestARefusedFAQEditReturnsToItsOwnEntryNotTheAddForm(t *testing.T) {
+func TestFAQRefusedEdit(t *testing.T) {
 	t.Parallel()
 	v := &FAQView{
 		Rows: []Entry{
@@ -64,7 +64,7 @@ func TestARefusedFAQEditReturnsToItsOwnEntryNotTheAddForm(t *testing.T) {
 }
 
 // The add form still holds its own refusal.
-func TestARefusedFAQAddStaysOnTheAddForm(t *testing.T) {
+func TestFAQRefusedAdd(t *testing.T) {
 	t.Parallel()
 	v := &FAQView{
 		Rows:   []Entry{{ID: "e1", Category: "會員", Question: "q", Answer: "a"}},

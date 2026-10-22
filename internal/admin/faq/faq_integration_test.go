@@ -15,7 +15,8 @@ import (
 	"github.com/koopa0/goen/internal/site"
 )
 
-func TestSupportCanAnswerAQuestionWithoutADeploy(t *testing.T) {
+// TestStore_FAQEntryLifecycle: support can answer a question without a deploy.
+func TestStore_FAQEntryLifecycle(t *testing.T) {
 	ctx, _ := admintest.StaffContext(t, pool)
 	s := faq.NewStore(pool)
 	category := "測試分類-" + uuid.NewString()[:8]
@@ -106,7 +107,8 @@ func TestSupportCanAnswerAQuestionWithoutADeploy(t *testing.T) {
 	}
 }
 
-func TestTwoFAQEntriesInOneCategoryDoNotCollide(t *testing.T) {
+// TestStore_CreateFAQEntryPositions: two FAQ entries in one category do not collide.
+func TestStore_CreateFAQEntryPositions(t *testing.T) {
 	ctx, _ := admintest.StaffContext(t, pool)
 	s := faq.NewStore(pool)
 	category := newFAQCategory(t, ctx, s, "順序分類-"+uuid.NewString()[:8], "")
@@ -141,10 +143,10 @@ func TestTwoFAQEntriesInOneCategoryDoNotCollide(t *testing.T) {
 	}
 }
 
-// TestTwoConcurrentFAQEntriesInOneCategoryTakeDistinctPositions proves the
+// TestStore_CreateFAQEntryConcurrent: two concurrent FAQ entries in one category take distinct positions. It proves the
 // advisory lock is in the statement: without it two staff members adding at once
 // both read the same max(position) and faq_entries_position_key refuses one.
-func TestTwoConcurrentFAQEntriesInOneCategoryTakeDistinctPositions(t *testing.T) {
+func TestStore_CreateFAQEntryConcurrent(t *testing.T) {
 	ctx, _ := admintest.StaffContext(t, pool)
 	category := newFAQCategory(t, ctx, faq.NewStore(pool), "併發分類-"+uuid.NewString()[:8], "")
 	t.Cleanup(func() {

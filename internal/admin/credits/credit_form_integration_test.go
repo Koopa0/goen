@@ -27,11 +27,11 @@ func hiddenField(t *testing.T, body, name string) string {
 	return m[1]
 }
 
-// TestTheCreditFormCarriesItsOperationThroughReviewToTheBalanceNotice follows
+// TestHandler_GrantCreditOperationID follows
 // the form as a browser does: the operation ID the blank form issues is the
 // one the review step carries back, and confirming it lands on ?ok=1 with the
 // new balance.
-func TestTheCreditFormCarriesItsOperationThroughReviewToTheBalanceNotice(t *testing.T) {
+func TestHandler_GrantCreditOperationID(t *testing.T) {
 	ctx, _ := admintest.StaffContext(t, pool)
 	h := credits.NewHandler(credits.NewStore(pool), slog.New(slog.DiscardHandler))
 	email := "form-" + uuid.NewString() + "@example.com"

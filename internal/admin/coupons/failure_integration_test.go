@@ -29,7 +29,8 @@ import (
 	"github.com/koopa0/goen/internal/i18n"
 )
 
-func TestCouponToggleFaultsKeepSavedStateAndRecover(t *testing.T) {
+// TestHandler_SetActiveFaults: coupon toggle faults keep the saved state and the toggle recovers.
+func TestHandler_SetActiveFaults(t *testing.T) {
 	owner := admintest.Pool(t)
 	staff, _ := admintest.StaffContext(t, owner)
 	adminPool := admintest.AdminRolePool(t, owner)
@@ -130,7 +131,8 @@ func couponToggleFault(t *testing.T, ctx context.Context, owner, writing *pgxpoo
 	}
 }
 
-func TestCouponToggleKeepsDatabaseRuleRefusalDistinct(t *testing.T) {
+// TestHandler_SetActiveRuleRefusal: a coupon toggle keeps a database-rule refusal distinct from a fault.
+func TestHandler_SetActiveRuleRefusal(t *testing.T) {
 	owner := admintest.Pool(t)
 	staff, _ := admintest.StaffContext(t, owner)
 	adminPool := admintest.AdminRolePool(t, owner)
@@ -160,7 +162,8 @@ func TestCouponToggleKeepsDatabaseRuleRefusalDistinct(t *testing.T) {
 	}
 }
 
-func TestMissingCouponToggleAnswersNotFound(t *testing.T) {
+// TestHandler_SetActiveMissing: toggling a coupon that does not exist answers not found.
+func TestHandler_SetActiveMissing(t *testing.T) {
 	owner := admintest.Pool(t)
 	staff, _ := admintest.StaffContext(t, owner)
 	adminPool := admintest.AdminRolePool(t, owner)
