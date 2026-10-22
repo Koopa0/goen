@@ -91,12 +91,13 @@ func tracedStorePool(t *testing.T, log *statementLog) *pgxpool.Pool {
 	return p
 }
 
-// TestHandler_ForgotSameWork: Forgot sends the same statements and the same
-// answer for an address with an account and one without, and issues no token
-// itself (the token waits for the outbox worker, which only a real account
-// reaches), so the request cannot be timed apart from outside. Identical
-// answers are not enough: a request that writes a token, a message and a commit
-// for a customer's address and reads one row for a stranger's is timed apart.
+// TestHandler_ForgotSameWork: Forgot sends the same number of statements and
+// the same answer for an address with an account and one without, and issues no
+// token itself (the token waits for the outbox worker, which only a real
+// account reaches). Identical answers are not enough: a request that writes a
+// token, a message and a commit for a customer's address and reads one row for
+// a stranger's is timed apart from outside; the test asserts the statements,
+// not the time.
 func TestHandler_ForgotSameWork(t *testing.T) {
 	ctx := t.Context()
 	known := "forgot-known-" + uuid.NewString() + "@example.com"

@@ -514,11 +514,11 @@ func TestNormaliseUserAgent(t *testing.T) {
 	}
 }
 
-// TestPasswordRefusalNoFormatVerb: no registration field message renders a
-// format verb in either locale. It asserts the RENDERED string rather than the
-// catalogue: only the too-short message carries a verb, and its refusal carries
-// the minimum, so no message renders "%!d(MISSING)" or an unfilled verb beside
-// the field.
+// TestPasswordRefusalNoFormatVerb: none of the registration form's field
+// messages (email, confirmation and password) renders a format verb, in either
+// locale. It asserts the RENDERED string rather than the catalogue: only the
+// too-short message carries a verb, and its refusal carries the minimum, so no
+// message renders "%!d(MISSING)" or an unfilled verb beside the field.
 func TestPasswordRefusalNoFormatVerb(t *testing.T) {
 	t.Parallel()
 
