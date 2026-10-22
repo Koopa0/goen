@@ -37,12 +37,13 @@ func checkRules(t *testing.T, rules map[string]string) {
 	}
 }
 
-// The days goen adds after the statutory return window are its offer, not the
-// customer's right, so they never draw like the statutory days. They are even
-// dashes, a gradient under a transparent border, in forced colours too, where
-// a dashed border paints solid on a short cell. An elapsed day takes its tile
-// from the rule under it and changes only the colour.
-func TestTheSpanAfterAMarkIsDrawnDashed(t *testing.T) {
+// TestBaseCSSPeriodExtraSpanDashed checks that the span after a mark is drawn
+// dashed. The days goen adds after the statutory return window are its offer, not
+// the customer's right, so they never draw like the statutory days. They are even
+// dashes, a gradient under a transparent border, in forced colours too, where a
+// dashed border paints solid on a short cell. An elapsed day takes its tile from
+// the rule under it and changes only the colour.
+func TestBaseCSSPeriodExtraSpanDashed(t *testing.T) {
 	t.Parallel()
 	checkRules(t, map[string]string{
 		"dashes in the track's colour": screenRule(`\.ui-period > i\[data-span="extra"\]`,
@@ -58,9 +59,10 @@ func TestTheSpanAfterAMarkIsDrawnDashed(t *testing.T) {
 	})
 }
 
-// Today's cell is half filled, so a period's last day does not read as over;
-// among the goodwill dashes it is that half cut into the dashes.
-func TestTodaysCellIsHalfFilled(t *testing.T) {
+// TestBaseCSSPeriodTodayHalfFilled checks that today's cell is half filled.
+// Today's cell is half filled, so a period's last day does not read as over; among
+// the goodwill dashes it is that half cut into the dashes.
+func TestBaseCSSPeriodTodayHalfFilled(t *testing.T) {
 	t.Parallel()
 	half := `background: linear-gradient\(90deg, var\(--period-fill\) 50%, var\(--period-track\) 0\) border-box;`
 	forcedHalf := `background:\s*linear-gradient\(CanvasText, CanvasText\) 0 0 / 50% 100% no-repeat border-box,\s*linear-gradient\(GrayText, GrayText\) 100% 50% / 50% 2px no-repeat border-box;`

@@ -25,14 +25,14 @@ var declaredWeights = map[string]string{
 	"Noto Serif TC":   "500",
 }
 
-// TestFontStylesheetMatchesTheEmbeddedFonts is what makes a generated file safe
-// to check in.
+// TestFontsCSSMatchesEmbeddedFonts checks that the font stylesheet matches the
+// embedded fonts. It is what makes a generated file safe to check in.
 //
 // css/app/fonts.css is written by the one-time step in assets/fonts/README, and
 // the digests in it are a copy of something this package computes. A copy goes
 // stale: replace a subset and the sheet still names the old digest, the handler
 // answers no-cache instead of immutable, and nothing else notices. This notices.
-func TestFontStylesheetMatchesTheEmbeddedFonts(t *testing.T) {
+func TestFontsCSSMatchesEmbeddedFonts(t *testing.T) {
 	t.Parallel()
 
 	sheet, err := fs.ReadFile(files, FontsCSS)

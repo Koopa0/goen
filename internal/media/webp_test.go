@@ -17,16 +17,16 @@ import (
 // buffer any of them declares.
 const refusalAllowance = 1 << 20
 
-// TestALosslessWebPIsRefusedBeforeItIsDecoded holds the refusal of every WebP
-// whose decode would run x/image's lossless decoder, and of a chunk list the
-// walk cannot follow to a frame. Each refused file declares a picture whose
-// buffers are megabytes, so a refusal that came from decoding it, or after
-// decoding it, shows in what Normalise allocated. A lossy WebP, with or
-// without a raw alpha chunk, is still accepted.
+// TestNormaliseLosslessWebP checks that a lossless WebP is refused before it is
+// decoded. It holds the refusal of every WebP whose decode would run x/image's
+// lossless decoder, and of a chunk list the walk cannot follow to a frame. Each
+// refused file declares a picture whose buffers are megabytes, so a refusal that
+// came from decoding it, or after decoding it, shows in what Normalise allocated.
+// A lossy WebP, with or without a raw alpha chunk, is still accepted.
 //
 // It is not parallel: it reads the process's allocation counter, which a test
 // running beside it would add to.
-func TestALosslessWebPIsRefusedBeforeItIsDecoded(t *testing.T) {
+func TestNormaliseLosslessWebP(t *testing.T) {
 	const side = 1000
 	lossless := vp8lFrame(side, side, true)
 	for _, tt := range []struct {

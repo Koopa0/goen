@@ -38,8 +38,10 @@ func serveRendition(t *testing.T, h *Handler, digest, width string) *httptest.Re
 	return w
 }
 
-// Asserted through Serve: a cache the handler does not call does nothing.
-func TestARenditionIsRenderedOnceAndThenServedFromMemory(t *testing.T) {
+// TestHandler_ServeRenditionCached checks that a rendition is rendered once and
+// then served from memory. Asserted through Serve: a cache the handler does not
+// call does nothing.
+func TestHandler_ServeRenditionCached(t *testing.T) {
 	t.Parallel()
 
 	var reads atomic.Int64
@@ -81,9 +83,10 @@ func TestARenditionIsRenderedOnceAndThenServedFromMemory(t *testing.T) {
 	}
 }
 
-// A cold URL is where the stampede is. synctest, because a sleep would pass on
-// a fast machine and lie on a slow one.
-func TestConcurrentRequestsForOneRenditionRenderItOnce(t *testing.T) {
+// TestRenderer_RenditionConcurrent checks that concurrent requests for one
+// rendition render it once. A cold URL is where the stampede is. synctest, because
+// a sleep would pass on a fast machine and lie on a slow one.
+func TestRenderer_RenditionConcurrent(t *testing.T) {
 	synctest.Test(t, func(t *testing.T) {
 		const callers = 20
 
@@ -131,9 +134,10 @@ func TestConcurrentRequestsForOneRenditionRenderItOnce(t *testing.T) {
 	})
 }
 
-// Requests for DIFFERENT images, which singleflight cannot collapse, must not
-// all decode at once: each holds a pixel buffer of up to forty million pixels.
-func TestRendersAreBoundedInFlight(t *testing.T) {
+// TestRenderer_RenditionInFlightBound checks that renders are bounded in flight.
+// Requests for DIFFERENT images, which singleflight cannot collapse, must not all
+// decode at once: each holds a pixel buffer of up to forty million pixels.
+func TestRenderer_RenditionInFlightBound(t *testing.T) {
 	synctest.Test(t, func(t *testing.T) {
 		const slots = 2
 		const callers = 8
@@ -180,8 +184,10 @@ func TestRendersAreBoundedInFlight(t *testing.T) {
 	})
 }
 
-// An unbounded map of rendered images is a denial of service from the other side.
-func TestTheCacheIsBoundedAndEvictsTheLeastRecentlyUsed(t *testing.T) {
+// TestRendererCacheEviction checks that the cache is bounded and evicts the least
+// recently used entry. An unbounded map of rendered images is a denial of service
+// from the other side.
+func TestRendererCacheEviction(t *testing.T) {
 	t.Parallel()
 
 	const limit = 500
