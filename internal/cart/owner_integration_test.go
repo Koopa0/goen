@@ -12,10 +12,11 @@ import (
 	"github.com/koopa0/goen/internal/cart"
 )
 
-// TestACartTokenReachesAnOwnedCartOnlyForItsOwner: adoption keeps the token the
-// browser already holds, so the token alone must not reach an account's cart.
-// ErrNotYourCart, not ErrNotFound, is what tells the handler the cookie is stale.
-func TestACartTokenReachesAnOwnedCartOnlyForItsOwner(t *testing.T) {
+// TestStore_ByTokenOwnedCart holds that a cart token reaches an owned cart only
+// for its owner: adoption keeps the token the browser already holds, so the
+// token alone must not reach an account's cart. ErrNotYourCart, not
+// ErrNotFound, is what tells the handler the cookie is stale.
+func TestStore_ByTokenOwnedCart(t *testing.T) {
 	s := cart.NewStore(pool)
 	user := func(label string) uuid.NullUUID {
 		var id uuid.UUID

@@ -26,7 +26,9 @@ import (
 	"github.com/koopa0/goen/internal/order/access"
 )
 
-func TestCartPageDistinguishesUnavailableDeliveryFromALookupFailure(t *testing.T) {
+// TestHandler_PageShippingLookupFailure holds that the cart page tells
+// unavailable delivery from a failed shipping lookup.
+func TestHandler_PageShippingLookupFailure(t *testing.T) {
 	owner := dbtest.Pool(t)
 	seed, err := os.ReadFile("../../seed/dev_catalog.sql")
 	if err != nil {

@@ -9,9 +9,9 @@ import (
 	"github.com/koopa0/goen/internal/policy"
 )
 
-// The privacy policy states how long a guest cart is kept, read from the
-// constant the sweep enforces.
-func TestThePrivacyPolicyStatesTheCartPeriodTheSweepEnforces(t *testing.T) {
+// TestGuestCartRetainPrivacyPolicy: The privacy policy states how long a guest
+// cart is kept, read from the constant the sweep enforces.
+func TestGuestCartRetainPrivacyPolicy(t *testing.T) {
 	t.Parallel()
 
 	days, err := strconv.Atoi(policy.GuestCartRetainDaysText())

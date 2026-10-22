@@ -11,7 +11,9 @@ import (
 	"github.com/koopa0/goen/internal/order/access"
 )
 
-func TestInaccessibleOrderActionsOfferLookupAndSignIn(t *testing.T) {
+// TestHandler_ReorderItemsInaccessible holds that ReorderItems offers the order
+// lookup and sign-in when the order is not accessible to the visitor.
+func TestHandler_ReorderItemsInaccessible(t *testing.T) {
 	t.Parallel()
 	h := &Handler{access: &access.Store{}, log: slog.New(slog.DiscardHandler)}
 	for _, locale := range i18n.Locales() {

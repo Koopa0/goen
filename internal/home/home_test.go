@@ -14,10 +14,10 @@ import (
 	"github.com/koopa0/goen/internal/ui/tone"
 )
 
-// A screen reader says the role description of the hero and of each slide aloud
-// ("Featured, carousel"). It is written in the page's language, not left in
-// English on the Chinese page.
-func TestTheHeroIsDescribedToAScreenReaderInThePagesLanguage(t *testing.T) {
+// TestHeroCarouselRoleDescription: A screen reader says the role description of
+// the hero and of each slide aloud ("Featured, carousel"). It is written in the
+// page's language, not left in English on the Chinese page.
+func TestHeroCarouselRoleDescription(t *testing.T) {
 	t.Parallel()
 	slides := []hero.Slide{
 		{Layout: hero.LayoutSplit, Tone: tone.Mist, Title: "One"},
@@ -57,8 +57,10 @@ func TestTheHeroIsDescribedToAScreenReaderInThePagesLanguage(t *testing.T) {
 	}
 }
 
-// The home page's row of internal/contact's TestMetaLinkPreviewTags, which lives here since the page does.
-func TestTheHomePageSendsItsOwnLinkPreviewTags(t *testing.T) {
+// TestMetaLinkPreviewTags holds that the home page sends its own link-preview
+// tags. The home page's row of internal/contact's TestMetaLinkPreviewTags,
+// which lives here since the page does.
+func TestMetaLinkPreviewTags(t *testing.T) {
 	t.Parallel()
 	ctx := i18n.WithLocale(frame.WithRequestPath(t.Context(), "/c/books"), i18n.ZhHant)
 	head := renderComponent(t, frame.WithSiteOrigin(ctx, "https://goen.test"), frame.Base(Meta(ctx)))
@@ -75,9 +77,10 @@ func TestTheHomePageSendsItsOwnLinkPreviewTags(t *testing.T) {
 	}
 }
 
-// The home page draws the shop rules it is given, as the department page does;
-// what the rules section says is policy's TestRulesSectionStoredRules.
-func TestTheHomePageEndsWithTheShopRules(t *testing.T) {
+// TestPageShopRules holds that the home page ends with the shop rules it is
+// given. The home page draws the shop rules it is given, as the department page
+// does; what the rules section says is policy's TestRulesSectionStoredRules.
+func TestPageShopRules(t *testing.T) {
 	t.Parallel()
 	ctx := i18n.WithLocale(t.Context(), i18n.ZhHant)
 	page := renderComponent(t, ctx, Page(frame.Page{}, View{Rules: policy.Rules{FreeDeliveryCents: 300000}}))

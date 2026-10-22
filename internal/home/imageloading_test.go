@@ -54,7 +54,9 @@ func tileImages(page string) []string {
 	return out
 }
 
-func TestTheHomePageLoadsItsFirstScreenPhotographsAtOnceAndReservesEveryBox(t *testing.T) {
+// TestPageImageLoading holds that the home page loads its first-screen
+// photographs at once and reserves a box for every image.
+func TestPageImageLoading(t *testing.T) {
 	t.Parallel()
 	view := View{
 		Slides: []hero.Slide{

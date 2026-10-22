@@ -5,10 +5,10 @@ import (
 	"time"
 )
 
-// The department of the day follows the shop's calendar, not the server's: one
-// shop day is one department for every visitor, and midnight in the shop's
-// zone moves it on to the next.
-func TestDayIndexRotatesOnTheShopDay(t *testing.T) {
+// TestDayIndexShopDay: The department of the day follows the shop's calendar,
+// not the server's: one shop day is one department for every visitor, and
+// midnight in the shop's zone moves it on to the next.
+func TestDayIndexShopDay(t *testing.T) {
 	t.Parallel()
 
 	// 2026-10-01 15:59 UTC is 23:59 in Taipei; a minute later is the next shop day.
@@ -30,7 +30,9 @@ func TestDayIndexRotatesOnTheShopDay(t *testing.T) {
 	}
 }
 
-func TestDayIndexOfNothingIsZero(t *testing.T) {
+// TestDayIndexEmpty holds that dayIndex returns zero when there are no
+// departments to rotate through.
+func TestDayIndexEmpty(t *testing.T) {
 	t.Parallel()
 	if got := dayIndex(time.Now(), 0); got != 0 {
 		t.Errorf("dayIndex with no departments = %d, want 0", got)

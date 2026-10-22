@@ -18,7 +18,9 @@ import (
 	"github.com/koopa0/goen/internal/ui/frame"
 )
 
-func TestShownDepartmentsNeedListedProducts(t *testing.T) {
+// TestStore_LoadShownDepartments holds that a department is shown in the
+// navigation and the home directory only when it lists products.
+func TestStore_LoadShownDepartments(t *testing.T) {
 	for _, locale := range []i18n.Locale{i18n.ZhHant, i18n.En} {
 		t.Run(string(locale), func(t *testing.T) {
 			ctx := i18n.WithLocale(t.Context(), locale)

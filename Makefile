@@ -168,7 +168,7 @@ check-layout-run:
 	@psql "$$GOEN_DATABASE_URL" -X -q -v env=$(LAYOUT_DIR)/env -f scripts/check-layout.sql \
 		|| { echo 'scripts/check-layout.sql was refused (psql named the statement above); no page was measured' >&2; exit 2; }
 	@node --env-file=$(LAYOUT_DIR)/env scripts/reflow-check.mjs /@1024@en@text200 /@1024@text200 /@320@en@text200 /@320@text200 /@1024@en
-	@CDP_PORT="$${CDP_PORT:-9222}" go test -count=1 -run '^TestCarouselCurrentTabStaysVisibleWithoutMovingThePage$$' ./internal/home
+	@CDP_PORT="$${CDP_PORT:-9222}" go test -count=1 -run '^TestHeroCarouselCurrentTab$$' ./internal/home
 	@node --env-file=$(LAYOUT_DIR)/env --test scripts/reflow-staff-check.test.mjs
 	@CDP_PORT="$${CDP_PORT:-9222}" go test -count=1 -run '^TestGalleryThumbnailsWrapAndKeepNativeSelection$$' ./internal/catalog
 	@CDP_PORT="$${CDP_PORT:-9222}" go test -count=1 -run '^TestStorefrontSectionsAsDrawn$$' ./internal/home

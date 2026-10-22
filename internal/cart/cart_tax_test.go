@@ -10,7 +10,9 @@ import (
 	"github.com/koopa0/goen/internal/ui/frame"
 )
 
-func TestCartMarksOnlyExemptLines(t *testing.T) {
+// TestPageExemptMarker holds that only tax-exempt lines are marked exempt,
+// whether or not the cart mixes tax types.
+func TestPageExemptMarker(t *testing.T) {
 	t.Parallel()
 	for _, locale := range []struct {
 		locale i18n.Locale
@@ -74,7 +76,9 @@ func TestCartMarksOnlyExemptLines(t *testing.T) {
 	}
 }
 
-func TestMixedTaxCartExplainsWhyCheckoutIsUnavailable(t *testing.T) {
+// TestPageMixedTaxBlocksCheckout holds that a cart mixing taxable and exempt
+// lines explains why checkout is unavailable and withholds the checkout link.
+func TestPageMixedTaxBlocksCheckout(t *testing.T) {
 	for _, locale := range []i18n.Locale{i18n.ZhHant, i18n.En} {
 		t.Run(string(locale), func(t *testing.T) {
 			ctx := i18n.WithLocale(t.Context(), locale)

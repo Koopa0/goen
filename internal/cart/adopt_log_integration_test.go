@@ -27,13 +27,13 @@ type adoptionLogRecord struct {
 	Error  string `json:"error"`
 }
 
-// TestAdoptRequestCartLogLevels holds the log level of each way adoption fails:
-// a cart that is not this account's to take is the shopper's situation, so it is
-// a warning; anything the shop could not do is an error. The two races (the cart
-// gains an owner, or disappears, after the cookie resolved to it) are made
-// deterministic by holding the account row, which is the first thing adoption
-// locks.
-func TestAdoptRequestCartLogLevels(t *testing.T) {
+// TestHandler_AdoptRequestCartLogLevels holds the log level of each way
+// adoption fails: a cart that is not this account's to take is the shopper's
+// situation, so it is a warning; anything the shop could not do is an error.
+// The two races (the cart gains an owner, or disappears, after the cookie
+// resolved to it) are made deterministic by holding the account row, which is
+// the first thing adoption locks.
+func TestHandler_AdoptRequestCartLogLevels(t *testing.T) {
 	ctx := t.Context()
 	for _, tt := range []struct {
 		name, level, msg string

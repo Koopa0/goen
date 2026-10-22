@@ -15,10 +15,10 @@ import (
 	"github.com/koopa0/goen/internal/db"
 )
 
-// The home and product pages claim free delivery from the same shipping methods
-// the cart prices, so the claim must be the amount at which the cart's own rule
-// says every method is free.
-func TestTheStorefrontClaimsFreeDeliveryOnlyWhereTheCartDoes(t *testing.T) {
+// TestFreeDeliveryForStorefrontClaim: The home and product pages claim free
+// delivery from the same shipping methods the cart prices, so the claim must be
+// the amount at which the cart's own rule says every method is free.
+func TestFreeDeliveryForStorefrontClaim(t *testing.T) {
 	ctx := t.Context()
 
 	type method struct {
@@ -125,7 +125,9 @@ func TestTheStorefrontClaimsFreeDeliveryOnlyWhereTheCartDoes(t *testing.T) {
 	}
 }
 
-func TestAMethodWithAZoneSurchargeNamesTheZoneInTheCartsChoices(t *testing.T) {
+// TestStore_ShippingChoicesZone holds that ShippingChoices names the zone of a
+// method's surcharge in the cart's shipping choices.
+func TestStore_ShippingChoicesZone(t *testing.T) {
 	ctx := t.Context()
 	var zoneID, methodID, versionID uuid.UUID
 	suffix := strings.ReplaceAll(uuid.NewString(), "-", "")

@@ -11,7 +11,9 @@ import (
 	"github.com/koopa0/goen/internal/cart"
 )
 
-func TestCartIsFoundByTokenNotByID(t *testing.T) {
+// TestStore_ByTokenNotID holds that ByToken finds a cart by its token, and not
+// by its id.
+func TestStore_ByTokenNotID(t *testing.T) {
 	s := cart.NewStore(pool)
 	tok := bearer.New()
 	id, err := s.Create(t.Context(), tok, uuid.NullUUID{})

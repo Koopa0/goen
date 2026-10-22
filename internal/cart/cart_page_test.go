@@ -13,7 +13,10 @@ import (
 	"github.com/koopa0/goen/internal/ui/widget"
 )
 
-func TestCartDeliveryAvailabilityKeepsTheCheckoutDraftEligible(t *testing.T) {
+// TestPageDeliveryAvailability holds that delivery availability never changes
+// checkout eligibility, which would lose a mid-checkout draft; the page only
+// says so.
+func TestPageDeliveryAvailability(t *testing.T) {
 	t.Parallel()
 	for _, locale := range []struct {
 		locale  i18n.Locale
@@ -92,7 +95,9 @@ func TestCartDeliveryAvailabilityKeepsTheCheckoutDraftEligible(t *testing.T) {
 	}
 }
 
-func TestTheCartSummaryEndsOnTheTotal(t *testing.T) {
+// TestPageSummaryEndsOnTotal holds that the cart summary ends on the total,
+// after the shipping row.
+func TestPageSummaryEndsOnTotal(t *testing.T) {
 	t.Parallel()
 	ctx := i18n.WithLocale(t.Context(), i18n.En)
 	v := View{Lines: []Line{{VariantID: "item", Name: "Item", UnitCents: 100, Quantity: 1, Available: 2}}, SubtotalCents: 100, ItemCount: 1}
@@ -111,10 +116,10 @@ func TestTheCartSummaryEndsOnTheTotal(t *testing.T) {
 	}
 }
 
-// TestAShortLineSaysWhatItIsPricedFor holds arithmetic a customer can check: a
-// line the shelf cannot meet is priced for what CAN be supplied, and the page
-// says so rather than leaving a quantity box that disagrees with the total.
-func TestAShortLineSaysWhatItIsPricedFor(t *testing.T) {
+// TestLine_LineTotalShort holds arithmetic a customer can check: a line the
+// shelf cannot meet is priced for what CAN be supplied, and the page says so
+// rather than leaving a quantity box that disagrees with the total.
+func TestLine_LineTotalShort(t *testing.T) {
 	t.Parallel()
 	ctx := i18n.WithLocale(t.Context(), i18n.ZhHant)
 
@@ -141,10 +146,10 @@ func TestAShortLineSaysWhatItIsPricedFor(t *testing.T) {
 	}
 }
 
-// TestCartLineLoadsTheSmallPhoto holds that a 96px thumbnail offers the -400
-// derivative through the same srcset the product cards use, and is told its
-// slot is 96px wide so the browser does not fall back to the 1600px source.
-func TestCartLineLoadsTheSmallPhoto(t *testing.T) {
+// TestCartLineSmallPhoto holds that a 96px thumbnail offers the -400 derivative
+// through the same srcset the product cards use, and is told its slot is 96px
+// wide so the browser does not fall back to the 1600px source.
+func TestCartLineSmallPhoto(t *testing.T) {
 	t.Parallel()
 	const key = "nimbus-buds-pro-01.webp"
 	line := Line{
@@ -160,10 +165,10 @@ func TestCartLineLoadsTheSmallPhoto(t *testing.T) {
 	}
 }
 
-// TestCartLineStillWorksWithScriptingOff holds that the quantity form keeps the
-// submit button and the remove control a browser without script relies on, next
-// to the attribute that lets script apply a change on its own.
-func TestCartLineStillWorksWithScriptingOff(t *testing.T) {
+// TestCartLineNoScript holds that the quantity form keeps the submit button and
+// the remove control a browser without script relies on, next to the attribute
+// that lets script apply a change on its own.
+func TestCartLineNoScript(t *testing.T) {
 	t.Parallel()
 	html := renderToString(t, cartLine(Line{Slug: "buds", Name: "Buds", Quantity: 1, UnitCents: 100}))
 	for _, want := range []string{
@@ -177,12 +182,11 @@ func TestCartLineStillWorksWithScriptingOff(t *testing.T) {
 	}
 }
 
-// TestCartLineUpdateSwapsOnlyWhatChanges holds that the quantity form is an
-// htmx request that replaces the line's text and price, the summary, the
-// notices and the header's cart link, and names neither the thumbnail, the
-// stepper nor the whole list. Naming any of those would repaint what the
-// shopper did not change.
-func TestCartLineUpdateSwapsOnlyWhatChanges(t *testing.T) {
+// TestCartLineUpdateSwap holds that the quantity form is an htmx request that
+// replaces the line's text and price, the summary, the notices and the header's
+// cart link, and names neither the thumbnail, the stepper nor the whole list.
+// Naming any of those would repaint what the shopper did not change.
+func TestCartLineUpdateSwap(t *testing.T) {
 	t.Parallel()
 	const id = "11111111-1111-4111-8111-111111111111"
 	html := renderToString(t, cartLine(Line{VariantID: id, Slug: "buds", Name: "Buds", Quantity: 1, UnitCents: 100}))
@@ -220,7 +224,9 @@ func cartFactsOf(t *testing.T, v View) string {
 	return html[at:end]
 }
 
-func TestTheCartFactLineStatesItemsSubtotalAndFreeDelivery(t *testing.T) {
+// TestView_FactsFreeDelivery holds that the fact line states items, subtotal
+// and free delivery, and says nothing of free delivery where it is not true.
+func TestView_FactsFreeDelivery(t *testing.T) {
 	t.Parallel()
 	lines := []Line{{VariantID: "v", Slug: "s", Name: "x", Quantity: 2, UnitCents: 40000}}
 	for _, tt := range []struct {
@@ -265,7 +271,8 @@ func TestTheCartFactLineStatesItemsSubtotalAndFreeDelivery(t *testing.T) {
 	}
 }
 
-func TestAnEmptyCartHasNoFactLine(t *testing.T) {
+// TestPageEmptyNoFactLine holds that an empty cart prints no fact line.
+func TestPageEmptyNoFactLine(t *testing.T) {
 	t.Parallel()
 	ctx := i18n.WithLocale(t.Context(), i18n.ZhHant)
 	if html := renderToString(t, Page(Meta(ctx), View{})); strings.Contains(html, "ui-statline") {
@@ -273,7 +280,9 @@ func TestAnEmptyCartHasNoFactLine(t *testing.T) {
 	}
 }
 
-func TestASoldOutLineIsNotCountedAndOffersOnlyRemove(t *testing.T) {
+// TestPageSoldOutLine holds that a sold-out line is left out of the count and
+// offers only remove.
+func TestPageSoldOutLine(t *testing.T) {
 	t.Parallel()
 	ctx := i18n.WithLocale(t.Context(), i18n.ZhHant)
 	v := View{
@@ -313,7 +322,9 @@ func TestASoldOutLineIsNotCountedAndOffersOnlyRemove(t *testing.T) {
 	}
 }
 
-func TestTheCartSentenceSaysWhatBlocksCheckout(t *testing.T) {
+// TestView_StockNoticeBlocked holds that the notice says what blocks checkout:
+// a sold-out line before a short one, and nothing when neither blocks.
+func TestView_StockNoticeBlocked(t *testing.T) {
 	t.Parallel()
 	ctx := i18n.WithLocale(t.Context(), i18n.ZhHant)
 	line := Line{VariantID: "v", Slug: "s", Name: "x", Quantity: 1, UnitCents: 100}
@@ -338,7 +349,9 @@ func TestTheCartSentenceSaysWhatBlocksCheckout(t *testing.T) {
 	}
 }
 
-func TestTheCartShowsTheStockHoldUnderCheckout(t *testing.T) {
+// TestPageStockHold holds that the cart shows how long the stock is held, under
+// the checkout button.
+func TestPageStockHold(t *testing.T) {
 	t.Parallel()
 	ctx := i18n.WithLocale(t.Context(), i18n.ZhHant)
 	lines := []Line{{VariantID: "v", Slug: "s", Name: "x", Quantity: 1, UnitCents: 100}}
@@ -348,10 +361,11 @@ func TestTheCartShowsTheStockHoldUnderCheckout(t *testing.T) {
 	}
 }
 
-// TestRemovingALineIsNotBlockedByAQuantityTheShelfCannotMeet: the remove button
-// shares a form with the quantity field, whose max is the stock, so a number
-// typed above it would stop the removal behind a native validation bubble.
-func TestRemovingALineIsNotBlockedByAQuantityTheShelfCannotMeet(t *testing.T) {
+// TestPageRemoveSkipsValidation holds that removing a line is not blocked by a
+// quantity the shelf cannot meet: the remove button shares a form with the
+// quantity field, whose max is the stock, so a number typed above it would stop
+// the removal behind a native validation bubble.
+func TestPageRemoveSkipsValidation(t *testing.T) {
 	t.Parallel()
 	ctx := i18n.WithLocale(t.Context(), i18n.ZhHant)
 	line := Line{VariantID: "v1", Slug: "x", Name: "x", UnitCents: 100000, Quantity: 2, Available: 4}
@@ -366,7 +380,9 @@ func TestRemovingALineIsNotBlockedByAQuantityTheShelfCannotMeet(t *testing.T) {
 	}
 }
 
-func TestTheEnglishItemCountIsTheBareNumber(t *testing.T) {
+// TestView_FactsEnglishItemCount holds that the English item count is the bare
+// number under Items.
+func TestView_FactsEnglishItemCount(t *testing.T) {
 	t.Parallel()
 	ctx := i18n.WithLocale(t.Context(), i18n.En)
 	var b strings.Builder
@@ -380,7 +396,9 @@ func TestTheEnglishItemCountIsTheBareNumber(t *testing.T) {
 	}
 }
 
-func TestTheCartSummaryShippingRowAgreesWithTheFreeDeliveryFact(t *testing.T) {
+// TestPageShippingRowFreeDelivery holds that the cart summary's shipping row
+// agrees with the free-delivery fact.
+func TestPageShippingRowFreeDelivery(t *testing.T) {
 	t.Parallel()
 	lines := []Line{{VariantID: "v", Slug: "s", Name: "x", Quantity: 2, UnitCents: 180000}}
 	for _, tt := range []struct {

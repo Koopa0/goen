@@ -14,7 +14,9 @@ import (
 	"github.com/koopa0/goen/internal/ui/hero"
 )
 
-func TestCarouselDepartmentsNeedListedProducts(t *testing.T) {
+// TestStore_CarouselListedProducts holds that a department takes a carousel
+// slide only when it lists products.
+func TestStore_CarouselListedProducts(t *testing.T) {
 	for _, locale := range []i18n.Locale{i18n.ZhHant, i18n.En} {
 		t.Run(string(locale), func(t *testing.T) {
 			ctx := i18n.WithLocale(t.Context(), locale)

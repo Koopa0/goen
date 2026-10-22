@@ -13,10 +13,10 @@ import (
 	"github.com/koopa0/goen/internal/cart/cartitem"
 )
 
-// TestSignedInCartLookupFallsBackToTheAccountCart holds the HTTP resolution
-// after a merge-adopt: the cookie still names the deleted guest row, and a
-// signed-in add must not mint an unowned cart.
-func TestSignedInCartLookupFallsBackToTheAccountCart(t *testing.T) {
+// TestHandler_LookupCartAccountFallback holds the HTTP resolution after a
+// merge-adopt: the cookie still names the deleted guest row, and a signed-in
+// add must not mint an unowned cart.
+func TestHandler_LookupCartAccountFallback(t *testing.T) {
 	t.Parallel()
 
 	src, err := os.ReadFile("handler.go")
@@ -32,7 +32,9 @@ func TestSignedInCartLookupFallsBackToTheAccountCart(t *testing.T) {
 	}
 }
 
-func TestAddFromTheWishlistComesBackToTheWishlist(t *testing.T) {
+// TestHandler_BackToProductWishlist holds that backToProduct sends an add made
+// from the wishlist back to the wishlist.
+func TestHandler_BackToProductWishlist(t *testing.T) {
 	t.Parallel()
 	back := func(form url.Values) string {
 		req := httptest.NewRequestWithContext(t.Context(), http.MethodPost, "/cart/items", strings.NewReader(form.Encode()))

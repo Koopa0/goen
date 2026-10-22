@@ -5,7 +5,9 @@ import (
 	"testing"
 )
 
-func TestSubCategoryLineNeverStartsALineWithTheDot(t *testing.T) {
+// TestSubCategoryLineNoBreak holds that subCategoryLine never starts a line
+// with the dot: a no-break space comes before each dot.
+func TestSubCategoryLineNoBreak(t *testing.T) {
 	t.Parallel()
 
 	got := subCategoryLine([]string{"Phones", "Laptops", "Accessories"})

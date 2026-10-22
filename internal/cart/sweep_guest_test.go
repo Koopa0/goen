@@ -9,10 +9,10 @@ import (
 	"time"
 )
 
-// A host redeployed more often than the interval must still clear idle guest
-// carts, so the first sweep runs when the loop starts. It is seen through the
-// line it logs when it fails.
-func TestSweepGuestCartsForeverSweepsAtStart(t *testing.T) {
+// TestStore_SweepGuestCartsForeverStart: A host redeployed more often than the
+// interval must still clear idle guest carts, so the first sweep runs when the
+// loop starts. It is seen through the line it logs when it fails.
+func TestStore_SweepGuestCartsForeverStart(t *testing.T) {
 	synctest.Test(t, func(t *testing.T) {
 		var out syncBuffer
 		log := slog.New(slog.NewTextHandler(&out, nil))
@@ -41,10 +41,11 @@ func TestSweepGuestCartsForeverSweepsAtStart(t *testing.T) {
 	})
 }
 
-// The guest-cart period is a policy number: the cart cookie is set once at
-// creation and lives exactly this long, so a shorter retention would delete a
-// cart its owner can still open, and a longer one keeps what nobody can reach.
-func TestGuestCartRetentionIsTheCookieLifetime(t *testing.T) {
+// TestGuestCartRetainCookieLifetime: The guest-cart period is a policy number:
+// the cart cookie is set once at creation and lives exactly this long, so a
+// shorter retention would delete a cart its owner can still open, and a longer
+// one keeps what nobody can reach.
+func TestGuestCartRetainCookieLifetime(t *testing.T) {
 	t.Parallel()
 	if GuestCartRetain != 30*24*time.Hour {
 		t.Errorf("GuestCartRetain = %v, want 30 days", GuestCartRetain)

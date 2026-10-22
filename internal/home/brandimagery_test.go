@@ -21,7 +21,10 @@ func renderIn(t *testing.T, locale i18n.Locale, c templ.Component) string {
 	return b.String()
 }
 
-func TestHomeDepartmentCardsWearTheirToneAndPhotograph(t *testing.T) {
+// TestPageDepartmentCards holds that a home department card wears its tone and
+// its photograph, the photograph with an empty alt because the name beside it
+// is its label.
+func TestPageDepartmentCards(t *testing.T) {
 	t.Parallel()
 	page := renderIn(t, i18n.ZhHant, Page(frame.Page{}, View{Categories: []Category{
 		{Slug: "tech", Name: "3C 數位", Tone: tone.Mist, Photo: widget.Photo{URL: "/static/media/products/department-tech.webp", Srcset: "/static/x-400.webp 400w"}},
