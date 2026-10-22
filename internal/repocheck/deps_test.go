@@ -53,6 +53,7 @@ const (
 	dirUI        = "internal/ui"
 	dirAdmin     = "internal/admin"
 	pkgI18n      = "internal/i18n"
+	pkgFormtext  = "internal/web/formtext"
 	pkgRespond   = "internal/web/respond"
 	pkgSite      = "internal/site"
 	pkgPolicy    = "internal/policy"
@@ -104,6 +105,12 @@ func deskRoot(pkg string) string {
 
 func isDesk(pkg string) bool { return deskRoot(pkg) != "" }
 
+// isLeaf reports whether pkg is on one of the leaf lists the rule "leaves" holds.
+func isLeaf(pkg string) bool {
+	return slices.Contains(importFreeLeaves, pkg) || slices.Contains(i18nOnlyLeaves, pkg) ||
+		slices.Contains(formtextLeaves, pkg)
+}
+
 var (
 	// notDesks are the packages under internal/admin that are not desks.
 	notDesks = []string{pkgAccess, pkgAudit, pkgWorklist, pkgAdmintest}
@@ -144,7 +151,7 @@ var (
 	// importFreeLeaves import no goen package at all.
 	importFreeLeaves = []string{
 		"internal/payment/refund", "internal/web/clientip",
-		"internal/discount/coupon", "internal/product/inventory", "internal/shipping/postcode", "internal/user",
+		"internal/product/inventory", "internal/shipping/postcode", "internal/user",
 		"internal/money", "internal/db", "internal/keyset", "internal/bearer",
 		"internal/email", "internal/cart/cartitem", "internal/product", "internal/web/compress",
 		"internal/web/requestid", "internal/web/siteurl",
@@ -155,6 +162,9 @@ var (
 		"internal/sales", "internal/admin/worklist", "internal/shipping", "internal/credit", "internal/web/formtext",
 		"internal/ui/tone",
 	}
+	// formtextLeaves read a code a person typed: they import nothing from goen
+	// except formtext, which folds its width, and the message catalogue.
+	formtextLeaves = []string{"internal/discount/coupon"}
 	// googleMayImport is all of goen that Google's sign-in client imports:
 	// bearer makes its state and PKCE verifier, siteurl reads the configured
 	// origin its callback is built on.
@@ -170,7 +180,7 @@ var (
 var packageLists = map[string][]string{
 	"uiMayImport": uiMayImport, "storefrontPages": storefrontPages, "siteMayImport": siteMayImport,
 	"policyMayImport": policyMayImport, "campaignMayImport": campaignMayImport,
-	"importFreeLeaves": importFreeLeaves, "i18nOnlyLeaves": i18nOnlyLeaves,
+	"importFreeLeaves": importFreeLeaves, "i18nOnlyLeaves": i18nOnlyLeaves, "formtextLeaves": formtextLeaves,
 	"googleMayImport": googleMayImport, "storemapMayImport": storemapMayImport, "notDesks": notDesks,
 }
 
@@ -204,10 +214,11 @@ var depsRules = []importRule{
 	{
 		name: "leaves",
 		hard: true,
-		pkgs: []string{pkgI18n},
+		pkgs: []string{pkgI18n, pkgFormtext},
 		forbid: func(from, to string) bool {
 			return slices.Contains(importFreeLeaves, from) ||
-				(slices.Contains(i18nOnlyLeaves, from) && to != pkgI18n)
+				(slices.Contains(i18nOnlyLeaves, from) && to != pkgI18n) ||
+				(slices.Contains(formtextLeaves, from) && to != pkgI18n && to != pkgFormtext)
 		},
 		reason: "a vocabulary package can be imported by anything without a cycle",
 	},
@@ -217,8 +228,7 @@ var depsRules = []importRule{
 		pkgs: []string{pkgSite},
 		forbid: func(from, to string) bool {
 			return under(from, pkgSite) && !under(to, pkgSite) &&
-				!slices.Contains(siteMayImport, to) &&
-				!slices.Contains(importFreeLeaves, to) && !slices.Contains(i18nOnlyLeaves, to)
+				!slices.Contains(siteMayImport, to) && !isLeaf(to)
 		},
 		reason: "every storefront page wears site's chrome, so site imports no feature; " +
 			"it reaches one through an interface it declares, as Catalogue reaches the catalogue",
@@ -229,8 +239,7 @@ var depsRules = []importRule{
 		pkgs: []string{pkgPolicy},
 		forbid: func(from, to string) bool {
 			return under(from, pkgPolicy) && !under(to, pkgPolicy) &&
-				!slices.Contains(policyMayImport, to) &&
-				!slices.Contains(importFreeLeaves, to) && !slices.Contains(i18nOnlyLeaves, to)
+				!slices.Contains(policyMayImport, to) && !isLeaf(to)
 		},
 		reason: "the home, department and product pages read the stated rules from policy, so policy imports no feature; " +
 			"a number it states is read from the database or restated beside a test in the package that enforces it",
@@ -241,8 +250,7 @@ var depsRules = []importRule{
 		pkgs: []string{pkgCampaign},
 		forbid: func(from, to string) bool {
 			return under(from, pkgCampaign) && !under(to, pkgCampaign) &&
-				!slices.Contains(campaignMayImport, to) &&
-				!slices.Contains(importFreeLeaves, to) && !slices.Contains(i18nOnlyLeaves, to)
+				!slices.Contains(campaignMayImport, to) && !isLeaf(to)
 		},
 		reason: "the catalogue, home and wishlist pages strike a price with campaign.OnSale and tell a campaign's window with its Schedule and End: " +
 			"campaign imports no feature, so catalog, home and wishlist can import it",
