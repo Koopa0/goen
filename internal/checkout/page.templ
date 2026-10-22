@@ -3,6 +3,7 @@ package checkout
 import (
 	"fmt"
 
+	"github.com/koopa0/goen/internal/discount/coupon"
 	"github.com/koopa0/goen/internal/i18n"
 	"github.com/koopa0/goen/internal/ui/fieldrule"
 	"github.com/koopa0/goen/internal/ui/frame"
@@ -463,7 +464,7 @@ templ Page(p frame.Page, v *View) {
 							}
 							if v.HasCoupon() && v.CouponDiscountCents > 0 {
 								<div class="goen-summary__row">
-									<dt>{ widget.DiscountLabel(ctx, v.CouponApplied) }</dt>
+									<dt>{ coupon.DiscountLabel(ctx, v.CouponApplied) }</dt>
 									<dd class="goen-summary__value">{ v.CouponDiscount() }</dd>
 								</div>
 							}

@@ -1,8 +1,9 @@
 // Package coupon is what a coupon takes off an order and the shape of its
-// code; it holds the kinds, Coupon, Apply and its refusals, Normalise and
-// ValidCode; it does not hold the lookup and redemption that run inside
-// checkout's transaction (cart), a campaign's price strike (campaign) or
-// store credit (credit).
+// code; it holds the kinds, Coupon, Apply and its refusals, the name of the
+// discount line it puts on an order (DiscountLabel), Normalise and ValidCode;
+// it does not hold the lookup and redemption that run inside checkout's
+// transaction (checkout), a campaign's price strike (campaign) or store credit
+// (credit).
 //
 // Checkout prices an order by Apply and the back office stores the codes
 // checkout looks up, so both read the rule and the code shape from here.

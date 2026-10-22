@@ -3,6 +3,7 @@ package orders
 import (
 	"fmt"
 
+	"github.com/koopa0/goen/internal/discount/coupon"
 	"github.com/koopa0/goen/internal/i18n"
 	"github.com/koopa0/goen/internal/order"
 	"github.com/koopa0/goen/internal/order/returns"
@@ -433,7 +434,7 @@ templ Order(p frame.Page, v *OrderView) {
 					</div>
 					if v.Discounted() {
 						<div class="goen-admin__totalrow">
-							<span>{ widget.DiscountLabel(ctx, v.DiscountReason) }</span>
+							<span>{ coupon.DiscountLabel(ctx, v.DiscountReason) }</span>
 							<span class="goen-admin__totalval">{ v.Discount() }</span>
 						</div>
 					}
