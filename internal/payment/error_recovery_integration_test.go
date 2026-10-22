@@ -14,7 +14,9 @@ import (
 	"github.com/koopa0/goen/internal/payment"
 )
 
-func TestDisabledPaymentStartOffersOrderAndContact(t *testing.T) {
+// TestHandler_StartDisabled: With payment disabled, Start offers a way back to
+// the order and to contact.
+func TestHandler_StartDisabled(t *testing.T) {
 	number, _ := order(t, 100000)
 	gateway, err := payment.NewGateway("", "", "http://goen.example")
 	if err != nil {

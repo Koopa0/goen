@@ -7,7 +7,8 @@ import (
 	"github.com/google/go-cmp/cmp"
 )
 
-func TestDurableCaptureRefusalSetIsExact(t *testing.T) {
+// TestDurableCaptureRefusals: The durable capture refusal set is exact.
+func TestDurableCaptureRefusals(t *testing.T) {
 	t.Parallel()
 	want := []string{
 		"payments_capture_matches_order",
@@ -30,7 +31,9 @@ func TestDurableCaptureRefusalSetIsExact(t *testing.T) {
 	}
 }
 
-func TestPaidAttributionRequiresItsTransactionCapability(t *testing.T) {
+// TestAttributeCompleteCaptureNoTx: AttributeCompleteCapture without a
+// transaction capability is refused with ErrNoTransaction.
+func TestAttributeCompleteCaptureNoTx(t *testing.T) {
 	t.Parallel()
 	attributed, err := AttributeCompleteCapture(t.Context(), nil, "cs_test")
 	if attributed || !errors.Is(err, ErrNoTransaction) {

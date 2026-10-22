@@ -16,12 +16,12 @@ import (
 	"github.com/koopa0/goen/internal/payment"
 )
 
-// TestFullyCreditFundedOrderEarnsPointsAfterPicking holds that store credit
-// closing an order posts the same funding-complete effects as a card capture
-// once fulfilment takes it on. Advance is a back-office write: the staff
-// actor has to be on the context, or auditIn refuses the row before
-// CompleteFunding runs.
-func TestFullyCreditFundedOrderEarnsPointsAfterPicking(t *testing.T) {
+// TestCompleteFundingEarnsPoints: A fully credit-funded order earns points
+// after picking. It holds that store credit closing an order posts the same
+// funding-complete effects as a card capture once fulfilment takes it on.
+// Advance is a back-office write: the staff actor has to be on the context, or
+// auditIn refuses the row before CompleteFunding runs.
+func TestCompleteFundingEarnsPoints(t *testing.T) {
 	const cents = int64(50000)
 	userID := creditedUser(t, cents)
 	number, orderID := ownedOrder(t, userID, cents)
@@ -30,10 +30,11 @@ func TestFullyCreditFundedOrderEarnsPointsAfterPicking(t *testing.T) {
 	assertFundingComplete(t, orderID, number, 5, fundingReceipt{amountCents: cents})
 }
 
-// TestAdminRoleCompletesCreditFundingOnPicking drives the live picking door as
-// the production admin role. The suite pool is a superuser and would hide a
-// missing EXECUTE on award_loyalty_points behind a green Advance.
-func TestAdminRoleCompletesCreditFundingOnPicking(t *testing.T) {
+// TestCompleteFundingAdminRole: The admin role completes credit funding on
+// picking. It drives the live picking door as the production admin role. The
+// suite pool is a superuser and would hide a missing EXECUTE on
+// award_loyalty_points behind a green Advance.
+func TestCompleteFundingAdminRole(t *testing.T) {
 	const cents = int64(50000)
 	userID := creditedUser(t, cents)
 	number, orderID := ownedOrder(t, userID, cents)
@@ -59,10 +60,11 @@ func TestAdminRoleCompletesCreditFundingOnPicking(t *testing.T) {
 	assertFundingComplete(t, orderID, number, 5, fundingReceipt{amountCents: cents})
 }
 
-// TestFundingCompleteSideEffectsOnce is the #49 acceptance lock: each funding
-// path posts exactly one paid event, one receipt, and the points the order
-// earns; a second production door must not duplicate any of them.
-func TestFundingCompleteSideEffectsOnce(t *testing.T) {
+// TestCompleteFundingSideEffectsOnce: Funding-complete side effects happen
+// once. It is the #49 acceptance lock: each funding path posts exactly one paid
+// event, one receipt, and the points the order earns; a second production door
+// must not duplicate any of them.
+func TestCompleteFundingSideEffectsOnce(t *testing.T) {
 	const cents = int64(50000)
 	tests := []struct {
 		name       string

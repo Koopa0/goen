@@ -29,10 +29,11 @@ import (
 	"github.com/koopa0/goen/internal/user"
 )
 
-// TestReconciliationRolesHaveOneDoor keeps the webhook alarm monotone. The
-// store may raise it but cannot clear or rewrite it; admin may resolve it only
-// through the function that atomically closes the linked live payment.
-func TestReconciliationRolesHaveOneDoor(t *testing.T) {
+// TestReleasePaymentEventRoles: Reconciliation roles have one door. It keeps
+// the webhook alarm monotone. The store may raise it but cannot clear or
+// rewrite it; admin may resolve it only through the function that atomically
+// closes the linked live payment.
+func TestReleasePaymentEventRoles(t *testing.T) {
 	ctx := t.Context()
 	number, _ := order(t, 105000)
 	session := "cs_role_reconcile_" + uuid.NewString()[:12]
@@ -141,7 +142,9 @@ func TestReconciliationRolesHaveOneDoor(t *testing.T) {
 	}
 }
 
-func TestCompletePaymentResolutionIsAdminOnly(t *testing.T) {
+// TestCompletePaymentResolutionRoles: Complete payment resolution is admin
+// only.
+func TestCompletePaymentResolutionRoles(t *testing.T) {
 	ctx := t.Context()
 	_, orderID := order(t, 105500)
 	providerRef := "cs_complete_role_" + uuid.NewString()[:12]
@@ -200,11 +203,12 @@ func TestCompletePaymentResolutionIsAdminOnly(t *testing.T) {
 	}
 }
 
-// TestPaidCompleteResolutionCannotOpenSecondSession covers the irreversible
-// branch of the operator door. A complete Session confirmed paid is captured
-// through the same database invariants and side effects as a signed webhook;
-// Start must then stop before making any second Stripe Session.
-func TestPaidCompleteResolutionCannotOpenSecondSession(t *testing.T) {
+// TestHandler_StartPaidComplete: A paid complete resolution cannot open a
+// second session. It covers the irreversible branch of the operator door. A
+// complete Session confirmed paid is captured through the same database
+// invariants and side effects as a signed webhook; Start must then stop before
+// making any second Stripe Session.
+func TestHandler_StartPaidComplete(t *testing.T) {
 	ctx := t.Context()
 	const amount = int64(125000)
 
@@ -328,12 +332,13 @@ func TestPaidCompleteResolutionCannotOpenSecondSession(t *testing.T) {
 	assertSideEffects()
 }
 
-// TestAdmittedCompleteSessionsBecomeVisibleAndResolvable covers both ways an
-// already-admitted Checkout can be complete before its webhook arrives. The
-// matching-amount resume and obsolete-amount retirement must both consume the
-// original intent as requires_reconciliation, appear in admin health, and only
-// advance a generation after the explicit unpaid/refunded outcome.
-func TestAdmittedCompleteSessionsBecomeVisibleAndResolvable(t *testing.T) {
+// TestHandler_StartAdmittedComplete: Admitted complete sessions become visible
+// and resolvable. It covers both ways an already-admitted Checkout can be
+// complete before its webhook arrives. The matching-amount resume and
+// obsolete-amount retirement must both consume the original intent as
+// requires_reconciliation, appear in admin health, and only advance a
+// generation after the explicit unpaid/refunded outcome.
+func TestHandler_StartAdmittedComplete(t *testing.T) {
 	for _, tt := range []struct {
 		name            string
 		shippingCents   int64
@@ -487,11 +492,12 @@ func TestAdmittedCompleteSessionsBecomeVisibleAndResolvable(t *testing.T) {
 	}
 }
 
-// TestPaymentReconciliationPinsExpiredStock serializes the stock consequence
-// with the money outcome. An expired hold cannot return to the shelf while a
-// complete Session may be paid; paid attribution commits it with stock still
-// held, while the explicit unpaid/refunded outcome makes release legal again.
-func TestPaymentReconciliationPinsExpiredStock(t *testing.T) {
+// TestRecordCompletePaymentPinsStock: Payment reconciliation pins expired
+// stock. It serializes the stock consequence with the money outcome. An expired
+// hold cannot return to the shelf while a complete Session may be paid; paid
+// attribution commits it with stock still held, while the explicit
+// unpaid/refunded outcome makes release legal again.
+func TestRecordCompletePaymentPinsStock(t *testing.T) {
 	assertNamedConstraint := func(t *testing.T, want string, err error) {
 		t.Helper()
 		pgErr, ok := errors.AsType[*pgconn.PgError](err)
@@ -589,13 +595,14 @@ func TestPaymentReconciliationPinsExpiredStock(t *testing.T) {
 	}
 }
 
-// TestReleasedStockMakesLateMoneyARefundCase fixes the other order-lock
-// outcome from TestPaymentReconciliationPinsExpiredStock. A Session can become
-// complete at Stripe before its deadline while the webhook/recovery write is
-// delayed until after the sweeper. If release wins the order lock, neither the
-// late webhook nor manual paid attribution may manufacture a paid order whose
-// goods are already back on sale.
-func TestReleasedStockMakesLateMoneyARefundCase(t *testing.T) {
+// TestHandler_WebhookReleasedStock: Released stock makes late money a refund
+// case. It fixes the other order-lock outcome from
+// TestRecordCompletePaymentPinsStock. A Session can become complete at Stripe
+// before its deadline while the webhook/recovery write is delayed until after
+// the sweeper. If release wins the order lock, neither the late webhook nor
+// manual paid attribution may manufacture a paid order whose goods are already
+// back on sale.
+func TestHandler_WebhookReleasedStock(t *testing.T) {
 	expireAndSweep := func(t *testing.T, orderID uuid.UUID) {
 		t.Helper()
 		ctx := t.Context()
@@ -765,13 +772,14 @@ func TestReleasedStockMakesLateMoneyARefundCase(t *testing.T) {
 	})
 }
 
-// TestACompleteSessionRejectedAfterItsWebhookAdvancesGeneration exercises the
-// full distributed race: Stripe sends paid before Start can persist the Session,
-// then returns that now-complete Session to Create. The seen-ref fence must not
-// late-link it as payable, and complete must not be mislabeled expired. Its
-// reconciliation row consumes attempt zero so the first post after operator
-// resolution creates attempt one rather than replaying the same paid Session.
-func TestACompleteSessionRejectedAfterItsWebhookAdvancesGeneration(t *testing.T) {
+// TestHandler_StartCompleteRace: A complete session rejected after its webhook
+// advances the idempotency generation. It exercises the full distributed race:
+// Stripe sends paid before Start can persist the Session, then returns that
+// now-complete Session to Create. The seen-ref fence must not late-link it as
+// payable, and complete must not be mislabeled expired. Its reconciliation row
+// consumes attempt zero so the first post after operator resolution creates
+// attempt one rather than replaying the same paid Session.
+func TestHandler_StartCompleteRace(t *testing.T) {
 	ctx := t.Context()
 	const amount = int64(125000)
 	number, orderID := holdableOrder(t, amount)
@@ -955,12 +963,13 @@ func TestACompleteSessionRejectedAfterItsWebhookAdvancesGeneration(t *testing.T)
 	}
 }
 
-// TestCompleteSessionShowsProcessingNotPayAgain locks #136: when Stripe reports
-// a Checkout Session complete but the signed webhook has not posted capture,
-// the customer sees a processing state rather than the ordinary unpaid order
-// with a pay-again CTA. It covers eventual webhook success and the
-// health/reconciliation failure path without implying success before signed capture.
-func TestCompleteSessionShowsProcessingNotPayAgain(t *testing.T) {
+// TestHandler_PageCompleteProcessing: A complete session shows processing, not
+// pay again. It locks #136: when Stripe reports a Checkout Session complete but
+// the signed webhook has not posted capture, the customer sees a processing
+// state rather than the ordinary unpaid order with a pay-again CTA. It covers
+// eventual webhook success and the health/reconciliation failure path without
+// implying success before signed capture.
+func TestHandler_PageCompleteProcessing(t *testing.T) {
 	t.Run("complete session redirects to processing page and webhook resolves it", func(t *testing.T) {
 		ctx := t.Context()
 		const amount = int64(100000)

@@ -9,9 +9,10 @@ import (
 	"github.com/koopa0/goen/internal/ui/frame"
 )
 
-// A NT$100 coupon against NT$80 delivery is two rows, as on the order page,
-// never one net 「已折抵 -NT$20」 that hides both.
-func TestThePayPageListsDeliveryAndTheDiscountApart(t *testing.T) {
+// TestPayDeliveryAndDiscountApart: The pay page lists delivery and the discount
+// apart. A NT$100 coupon against NT$80 delivery is two rows, as on the order
+// page, never one net 「已折抵 -NT$20」 that hides both.
+func TestPayDeliveryAndDiscountApart(t *testing.T) {
 	t.Parallel()
 
 	view := PayView{
@@ -41,7 +42,9 @@ func TestThePayPageListsDeliveryAndTheDiscountApart(t *testing.T) {
 	}
 }
 
-func TestThePayPageNamesStoreCreditAndFreeDelivery(t *testing.T) {
+// TestPayStoreCreditFreeDelivery: The pay page names store credit and free
+// delivery.
+func TestPayStoreCreditFreeDelivery(t *testing.T) {
 	t.Parallel()
 
 	view := PayView{
@@ -68,8 +71,10 @@ func TestThePayPageNamesStoreCreditAndFreeDelivery(t *testing.T) {
 	}
 }
 
-// An unpaid order is 待付款 whether or not a payment can start; 完成付款 above it reads as already paid.
-func TestThePayEyebrowNamesTheOrdersStatus(t *testing.T) {
+// TestPayView_EyebrowKey: The pay eyebrow names the order's status. An unpaid
+// order is 待付款 whether or not a payment can start; 完成付款 above it reads as
+// already paid.
+func TestPayView_EyebrowKey(t *testing.T) {
 	t.Parallel()
 
 	for _, tt := range []struct {
@@ -103,10 +108,11 @@ func payHold(lapsed bool) PayHold {
 	return h
 }
 
+// TestPayHoldInWords: The pay page states the deadline and the hold in words.
 // The hold is said in words on the blue while a payment can start: the deadline
-// first, then when the hold ends. The deadline is said once, so the sentence over
-// the pay button is gone. Nothing is drawn.
-func TestThePayPageStatesTheDeadlineAndTheHoldInWords(t *testing.T) {
+// first, then when the hold ends. The deadline is said once, so the sentence
+// over the pay button is gone. Nothing is drawn.
+func TestPayHoldInWords(t *testing.T) {
 	t.Parallel()
 
 	for _, tt := range []struct {
@@ -158,9 +164,10 @@ func TestThePayPageStatesTheDeadlineAndTheHoldInWords(t *testing.T) {
 	}
 }
 
+// TestPayWindowBlue: The pay window is blue only while a payment can start.
 // Blue means a payment can still start; once none can, the hold's words sit on
 // the neutral ground and name no deadline to start paying.
-func TestThePayWindowIsBlueOnlyWhileAPaymentCanStart(t *testing.T) {
+func TestPayWindowBlue(t *testing.T) {
 	t.Parallel()
 
 	held := payHold(false)
@@ -188,7 +195,8 @@ func TestThePayWindowIsBlueOnlyWhileAPaymentCanStart(t *testing.T) {
 	}
 }
 
-func TestAPayPageWhoseHoldLapsedSaysNothingWasCharged(t *testing.T) {
+// TestPayLapsedHold: A pay page whose hold lapsed says nothing was charged.
+func TestPayLapsedHold(t *testing.T) {
 	t.Parallel()
 
 	view := PayView{
@@ -213,7 +221,8 @@ func TestAPayPageWhoseHoldLapsedSaysNothingWasCharged(t *testing.T) {
 	}
 }
 
-func TestAPayPageWithNoHoldStatesNone(t *testing.T) {
+// TestPayNoHold: A pay page with no stored hold draws no hold window.
+func TestPayNoHold(t *testing.T) {
 	t.Parallel()
 
 	html := renderToString(t, Pay(frame.Page{Title: "Pay"}, PayView{Number: "GOEN-PAY", Enabled: true}))

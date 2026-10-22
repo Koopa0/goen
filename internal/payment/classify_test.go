@@ -8,7 +8,9 @@ import (
 	stripe "github.com/stripe/stripe-go/v86"
 )
 
-func TestEveryActionableWebhookTypeHasOneReadState(t *testing.T) {
+// TestClassifyWebhook: ClassifyWebhook gives every actionable webhook type
+// exactly one read state.
+func TestClassifyWebhook(t *testing.T) {
 	t.Parallel()
 
 	for _, tt := range []struct {
@@ -37,7 +39,9 @@ func TestEveryActionableWebhookTypeHasOneReadState(t *testing.T) {
 	}
 }
 
-func TestARefundFailureIsReadFromItsRefund(t *testing.T) {
+// TestRefundFailureFrom: RefundFailureFrom reads a refund failure from its
+// refund.
+func TestRefundFailureFrom(t *testing.T) {
 	t.Parallel()
 
 	for _, tt := range []struct {
@@ -113,9 +117,11 @@ func TestARefundFailureIsReadFromItsRefund(t *testing.T) {
 	}
 }
 
-// Stripe sends no usable code for some failed refunds; the stored reason is then
-// the bare cause, not the cause with a dangling separator.
-func TestAnUnreconciledReasonCarriesItsDetailOnlyWhenThereIsOne(t *testing.T) {
+// TestWebhookUnreconciled: WebhookUnreconciled carries a detail in the stored
+// reason only when there is one. Stripe sends no usable code for some failed
+// refunds; the stored reason is then the bare cause, not the cause with a
+// dangling separator.
+func TestWebhookUnreconciled(t *testing.T) {
 	t.Parallel()
 	for _, tc := range []struct{ detail, want string }{
 		{"", "refund_failed"},

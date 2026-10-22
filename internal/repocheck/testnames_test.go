@@ -80,6 +80,7 @@ var migratedTestPackages = []string{
 	"internal/order/returns",
 	"internal/order/warranty",
 	"internal/outbox",
+	"internal/payment",
 	"internal/product",
 	"internal/product/copurchase",
 	"internal/product/inventory",
@@ -234,6 +235,15 @@ var testNameExceptions = map[string]map[string]string{
 	"internal/outbox": {
 		"TestOutboxMessagesDedupeKey": "its unit is the unique index outbox_messages_dedupe_key, a SQL object, driven by the test's own INSERT ... ON CONFLICT helper, not by outbox.Enqueue",
 		"TestRescheduleOutboxClock":   "its unit is the SQL statement RescheduleOutbox (a sqlc query, declared in internal/db), run directly in a transaction; Store.Drain is not what it exercises",
+	},
+	"internal/payment": {
+		"TestCompletePaymentResolutionRoles": "the unit is the SQL functions record_complete_payment, attribute_complete_payment_paid and release_complete_payment, called straight under the store and admin roles to show which role may run which; no Go identifier of this package is what the test drives",
+		"TestOpenPaymentRefusals":            "the unit is the SQL posting functions open_payment, capture_payment, record_expired_payment and record_complete_payment, called straight through the pool to bind the constraint each admission refusal names; Store.OpenPayment only sets the fixtures up",
+		"TestRecordCompletePaymentPinsStock": "the unit is the SQL function record_complete_payment held against release_reservation through the order lock, with the back office's paid and unpaid outcomes and the lapse sweeper around it; no Go identifier of this package is what the test drives",
+		"TestRecordExpiredPayment":           "the unit is the SQL function record_expired_payment (the expired-payment tombstone), called through the pool beside capture_payment; Store.OpenPayment only sets the fixtures up",
+		"TestReleasePaymentEventRoles":       "the unit is the SQL functions release_payment_event and mark_payment_event_unreconciled and the grants on payment_webhook_events, driven under the store and admin roles; no Go identifier of this package is what the test drives",
+		"TestUninvoicedOrdersAmountFiled":    "the unit is health.Store.UninvoicedOrders of package health, which this package does not declare; the test lives here for the capture fixtures, and moving it is a reorganisation this pass does not do",
+		"TestUninvoicedOrdersLostDue":        "the unit is health.Store.UninvoicedOrders of package health, which this package does not declare; the test lives here for the capture and credit-funded fixtures, and moving it is a reorganisation this pass does not do",
 	},
 	"internal/product/copurchase": {
 		"TestRefreshCopurchasesOverlap": "its unit is the SQL function refresh_copurchases, called directly through the pool; Store.Refresh is not what it exercises",

@@ -18,10 +18,11 @@ import (
 	"github.com/koopa0/goen/internal/shoptime"
 )
 
-// TestThePayPageOffersPaymentOnlyWhileASessionCanStart walks the page through
-// the order's life: the deadline while a session can start, then no pay form,
-// only the way forward, once none can, and again once the sweeper cancelled it.
-func TestThePayPageOffersPaymentOnlyWhileASessionCanStart(t *testing.T) {
+// TestHandlerStartWindow: The pay page offers payment only while a session can
+// start. It walks the page through the order's life: the deadline while a
+// session can start, then no pay form, only the way forward, once none can, and
+// again once the sweeper cancelled it.
+func TestHandlerStartWindow(t *testing.T) {
 	gateway, calls := gatewayRecordingCalls(t, "cs_window_never_created")
 	h := payment.NewHandler(payment.NewStore(pool), gateway, access.NewStore(pool, false), slog.New(slog.DiscardHandler))
 	for _, tc := range []struct {
@@ -88,7 +89,9 @@ func TestThePayPageOffersPaymentOnlyWhileASessionCanStart(t *testing.T) {
 	}
 }
 
-func TestAnOpenSessionStillResumesAfterTheStartWindowCloses(t *testing.T) {
+// TestHandlerResumeAfterWindow: An open session still resumes after the start
+// window closes.
+func TestHandlerResumeAfterWindow(t *testing.T) {
 	number, id := holdableOrder(t, 100000)
 	hold(t, id, 0, 60*time.Minute, "resume-window:"+number)
 	s := payment.NewStore(pool)
@@ -148,7 +151,9 @@ func assertClosedPayPage(ctx context.Context, t *testing.T, body, number, closed
 	}
 }
 
-func TestTheHoldSpanReadsOnlyTheSweepersCancellationAsLapsed(t *testing.T) {
+// TestStore_OrderHoldSpan: The hold span reads only the sweeper's cancellation
+// as lapsed.
+func TestStore_OrderHoldSpan(t *testing.T) {
 	for _, tc := range []struct {
 		name     string
 		bySystem bool

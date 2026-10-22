@@ -56,7 +56,9 @@ func disputeServer(t *testing.T, sessions map[string]string) *Gateway {
 	return g
 }
 
-func TestDisputesNeedingResponse(t *testing.T) {
+// TestGateway_DisputesNeedingResponse: DisputesNeedingResponse lists the
+// disputes that still need a response.
+func TestGateway_DisputesNeedingResponse(t *testing.T) {
 	t.Parallel()
 	g := disputeServer(t, map[string]string{"pi_needs": "cs_test_needs"})
 	got, err := g.DisputesNeedingResponse(t.Context())
@@ -74,7 +76,9 @@ func TestDisputesNeedingResponse(t *testing.T) {
 	}
 }
 
-func TestDisputesNeedingResponseFailsOnAStripeError(t *testing.T) {
+// TestGateway_DisputesNeedingResponseError: DisputesNeedingResponse fails on a
+// Stripe error, never answering with an empty list.
+func TestGateway_DisputesNeedingResponseError(t *testing.T) {
 	t.Parallel()
 	g, _ := stripeAt(t, func(*call) (int, string) {
 		return http.StatusInternalServerError, `{"error":{"type":"api_error","message":"down"}}`
@@ -85,7 +89,9 @@ func TestDisputesNeedingResponseFailsOnAStripeError(t *testing.T) {
 	}
 }
 
-func TestDisputeURL(t *testing.T) {
+// TestGateway_DisputeURL: DisputeURL names the live dashboard page of a
+// dispute, and the test-mode page for a sandbox key.
+func TestGateway_DisputeURL(t *testing.T) {
 	t.Parallel()
 	live := &Gateway{}
 	test := &Gateway{sandbox: true}

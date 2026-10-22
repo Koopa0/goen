@@ -107,7 +107,10 @@ func checkoutSessionJSON(t *testing.T, id, redirectURL string, status stripe.Che
 	return string(b)
 }
 
-func TestStripeIDContract(t *testing.T) {
+// TestValidStripeID: ValidStripeID accepts an ordinary Stripe id of up to 255
+// characters and refuses an empty or longer one, and one with whitespace or a
+// control character.
+func TestValidStripeID(t *testing.T) {
 	for _, tt := range []struct {
 		name string
 		id   string
@@ -129,7 +132,9 @@ func TestStripeIDContract(t *testing.T) {
 	}
 }
 
-func TestCreateRejectsInvalidProviderSessionIdentities(t *testing.T) {
+// TestGateway_StartSessionInvalidID: StartSession rejects an invalid provider
+// session identity.
+func TestGateway_StartSessionInvalidID(t *testing.T) {
 	for _, id := range []string{"", strings.Repeat("x", 256), " \t", "cs_test\nforged"} {
 		t.Run(strconv.Quote(id), func(t *testing.T) {
 			g, _ := stripeAt(t, func(*call) (int, string) {
@@ -147,7 +152,9 @@ func TestCreateRejectsInvalidProviderSessionIdentities(t *testing.T) {
 	}
 }
 
-func TestCreateReturnsTheDurableIdentityBeforeUsingAnyRedirect(t *testing.T) {
+// TestGateway_StartSessionRedirect: StartSession returns the durable session
+// identity before using any redirect.
+func TestGateway_StartSessionRedirect(t *testing.T) {
 	for _, tt := range []struct {
 		name string
 		url  string
@@ -174,10 +181,11 @@ func TestCreateReturnsTheDurableIdentityBeforeUsingAnyRedirect(t *testing.T) {
 	}
 }
 
-// TestTheSessionRequestCarriesWhatStripeCharges reads the request off the wire.
-// The figures are independent literals, never expressions over the fixture, so
-// an amount wrong at both ends still fails.
-func TestTheSessionRequestCarriesWhatStripeCharges(t *testing.T) {
+// TestGateway_StartSessionRequest: The session request carries what Stripe
+// charges. It reads the request off the wire. The figures are independent
+// literals, never expressions over the fixture, so an amount wrong at both ends
+// still fails.
+func TestGateway_StartSessionRequest(t *testing.T) {
 	g, log := stripeAt(t, func(*call) (int, string) {
 		return http.StatusOK, `{"id":"cs_test_created","object":"checkout.session",` +
 			`"url":"https://checkout.stripe.test/c/pay/cs_test_created","status":"open"}`
@@ -245,10 +253,11 @@ func TestTheSessionRequestCarriesWhatStripeCharges(t *testing.T) {
 	}
 }
 
-// TestAReusedOrderNumberGetsItsOwnSessionKey: order numbers restart with the
-// day's sequence after a database rebuild or the demo's nightly reset, while
-// Stripe keeps a key for 24 hours and refuses it for different parameters.
-func TestAReusedOrderNumberGetsItsOwnSessionKey(t *testing.T) {
+// TestGateway_StartSessionReusedNumber: A reused order number gets its own
+// session key. Order numbers restart with the day's sequence after a database
+// rebuild or the demo's nightly reset, while Stripe keeps a key for 24 hours
+// and refuses it for different parameters.
+func TestGateway_StartSessionReusedNumber(t *testing.T) {
 	g, log := stripeAt(t, func(*call) (int, string) {
 		return http.StatusOK, `{"id":"cs_x","object":"checkout.session","url":"https://x.test","status":"open"}`
 	})
@@ -272,9 +281,9 @@ func TestAReusedOrderNumberGetsItsOwnSessionKey(t *testing.T) {
 	}
 }
 
-// TestTheSessionExpiresWithTheStockHold reads expires_at off the wire; it comes
-// from the reservation.
-func TestTheSessionExpiresWithTheStockHold(t *testing.T) {
+// TestGateway_StartSessionExpiresAt: The session expires with the stock hold.
+// It reads expires_at off the wire; it comes from the reservation.
+func TestGateway_StartSessionExpiresAt(t *testing.T) {
 	g, log := stripeAt(t, func(*call) (int, string) {
 		return http.StatusOK, `{"id":"cs_x","object":"checkout.session","url":"https://x.test","status":"open"}`
 	})
@@ -291,13 +300,14 @@ func TestTheSessionExpiresWithTheStockHold(t *testing.T) {
 	}
 }
 
-// TestTheSessionTotalsWhatTheOrderOwes holds the one invariant Stripe's page
-// has to satisfy: payments_capture_matches_order refuses a capture that is not
-// exactly order_amount_after_credit, so the line items must sum to it.
+// TestGateway_StartSessionTotals: The session totals what the order owes. It
+// holds the one invariant Stripe's page has to satisfy:
+// payments_capture_matches_order refuses a capture that is not exactly
+// order_amount_after_credit, so the line items must sum to it.
 //
-// Both directions: shipping adds to the lines, while a coupon and store
-// credit take away.
-func TestTheSessionTotalsWhatTheOrderOwes(t *testing.T) {
+// Both directions: shipping adds to the lines, while a coupon and store credit
+// take away.
+func TestGateway_StartSessionTotals(t *testing.T) {
 	for _, tt := range []struct {
 		name  string
 		owed  int64
@@ -361,9 +371,9 @@ func TestTheSessionTotalsWhatTheOrderOwes(t *testing.T) {
 	}
 }
 
-// TestTheHostedPageFollowsTheVisitorsLanguage covers the one page in the flow
-// goen does not control.
-func TestTheHostedPageFollowsTheVisitorsLanguage(t *testing.T) {
+// TestGateway_StartSessionLocale: The hosted page follows the visitor's
+// language. It covers the one page in the flow goen does not control.
+func TestGateway_StartSessionLocale(t *testing.T) {
 	for _, tt := range []struct {
 		name   string
 		locale i18n.Locale
@@ -387,10 +397,10 @@ func TestTheHostedPageFollowsTheVisitorsLanguage(t *testing.T) {
 	}
 }
 
-// TestOnlyAnOpenSessionIsResumable is the rule ResumeSession exists for: retain
-// the distinction between complete and expired, and never read an error as a
-// terminal provider state.
-func TestOnlyAnOpenSessionIsResumable(t *testing.T) {
+// TestGateway_ResumeSessionOpenOnly: Only an open session is resumable. It is
+// the rule ResumeSession exists for: retain the distinction between complete
+// and expired, and never read an error as a terminal provider state.
+func TestGateway_ResumeSessionOpenOnly(t *testing.T) {
 	for _, tt := range []struct {
 		name       string
 		status     int
@@ -442,7 +452,9 @@ func TestOnlyAnOpenSessionIsResumable(t *testing.T) {
 	}
 }
 
-func TestResumeRejectsInvalidProviderIdentityOrRedirect(t *testing.T) {
+// TestGateway_ResumeSessionInvalidReply: ResumeSession rejects an invalid
+// provider identity or redirect.
+func TestGateway_ResumeSessionInvalidReply(t *testing.T) {
 	const requested = "cs_requested"
 	for _, tt := range []struct {
 		name string
@@ -476,7 +488,9 @@ func TestResumeRejectsInvalidProviderIdentityOrRedirect(t *testing.T) {
 	}
 }
 
-func TestResumeAcceptsACustomCheckoutDomain(t *testing.T) {
+// TestGateway_ResumeSessionCustomDomain: ResumeSession accepts a custom
+// checkout domain.
+func TestGateway_ResumeSessionCustomDomain(t *testing.T) {
 	const target = "https://pay.goen.example/c/pay/cs_requested"
 	g, _ := stripeAt(t, func(*call) (int, string) {
 		return http.StatusOK, checkoutSessionJSON(t, "cs_requested", target,
@@ -491,7 +505,9 @@ func TestResumeAcceptsACustomCheckoutDomain(t *testing.T) {
 	}
 }
 
-func TestExpireRequiresTheRequestedSessionIdentityInTheReply(t *testing.T) {
+// TestGateway_ExpireSessionReplyID: ExpireSession requires the requested
+// session identity in the reply.
+func TestGateway_ExpireSessionReplyID(t *testing.T) {
 	for _, id := range []string{"", strings.Repeat("x", 256), "cs_someone_else"} {
 		t.Run(strconv.Quote(id), func(t *testing.T) {
 			g, _ := stripeAt(t, func(*call) (int, string) {
@@ -504,9 +520,10 @@ func TestExpireRequiresTheRequestedSessionIdentityInTheReply(t *testing.T) {
 	}
 }
 
-// TestCancellingClosesTheCheckoutAtStripe covers the request that closes a
-// cancelled order's checkout, whose goods are already back on the shelf.
-func TestCancellingClosesTheCheckoutAtStripe(t *testing.T) {
+// TestGateway_ExpireSessionCloses: ExpireSession closes a cancelled order's
+// checkout at Stripe. It covers the request that closes a cancelled order's
+// checkout, whose goods are already back on the shelf.
+func TestGateway_ExpireSessionCloses(t *testing.T) {
 	g, log := stripeAt(t, func(*call) (int, string) {
 		return http.StatusOK, `{"id":"cs_open","object":"checkout.session","status":"expired"}`
 	})
@@ -524,9 +541,10 @@ func TestCancellingClosesTheCheckoutAtStripe(t *testing.T) {
 	}
 }
 
-// TestStripeDecidesWhetherASessionCanBeClosed is the half that is easy to get
-// backwards: a customer who paid two seconds ago looks unpaid from here.
-func TestStripeDecidesWhetherASessionCanBeClosed(t *testing.T) {
+// TestGateway_ExpireSessionRefused: Stripe decides whether a session can be
+// closed. It is the half that is easy to get backwards: a customer who paid two
+// seconds ago looks unpaid from here.
+func TestGateway_ExpireSessionRefused(t *testing.T) {
 	g, _ := stripeAt(t, func(*call) (int, string) {
 		return http.StatusBadRequest, `{"error":{"type":"invalid_request_error",` +
 			`"message":"You may only expire a Checkout Session that is in the open state."}}`
@@ -542,9 +560,10 @@ func TestStripeDecidesWhetherASessionCanBeClosed(t *testing.T) {
 	}
 }
 
-// TestADisabledGatewayMakesNoRequest covers the keyless deployment, where the
-// site still sells and the payment page says payment is not configured.
-func TestADisabledGatewayMakesNoRequest(t *testing.T) {
+// TestGatewayDisabled: A disabled gateway makes no request. It covers the
+// keyless deployment, where the site still sells and the payment page says
+// payment is not configured.
+func TestGatewayDisabled(t *testing.T) {
 	g, err := NewGateway("", "", "https://goen.example")
 	if err != nil {
 		t.Fatalf("NewGateway() error = %v", err)
@@ -565,7 +584,10 @@ func TestADisabledGatewayMakesNoRequest(t *testing.T) {
 	}
 }
 
-func TestStripeReturnURLsUseTheSiteOriginGrammar(t *testing.T) {
+// TestNewGatewayBaseURL: The Stripe return URLs use the site origin grammar:
+// NewGateway refuses a base URL that is not an origin and canonicalises one
+// that is.
+func TestNewGatewayBaseURL(t *testing.T) {
 	if _, err := NewGateway("sk_test_notused", "whsec_notused", "httpx://evil.example"); err == nil {
 		t.Fatal("NewGateway accepted an http-looking non-origin")
 	}
@@ -579,8 +601,10 @@ func TestStripeReturnURLsUseTheSiteOriginGrammar(t *testing.T) {
 	}
 }
 
-// TestTheRequestCarriesTheCallersDeadline proves the context reaches the wire.
-func TestTheRequestCarriesTheCallersDeadline(t *testing.T) {
+// TestGateway_ExpireSessionCancelled: ExpireSession carries the caller's
+// context to Stripe, so a cancelled context fails the request. It proves the
+// context reaches the wire.
+func TestGateway_ExpireSessionCancelled(t *testing.T) {
 	g, log := stripeAt(t, func(*call) (int, string) {
 		return http.StatusOK, `{"id":"cs_1","object":"checkout.session","status":"expired"}`
 	})
@@ -596,7 +620,9 @@ func TestTheRequestCarriesTheCallersDeadline(t *testing.T) {
 	}
 }
 
-func TestCheckoutItemizationRespectsTheProviderLineLimit(t *testing.T) {
+// TestGateway_StartSessionLineLimit: StartSession respects the provider's
+// line-item limit when it itemises a checkout.
+func TestGateway_StartSessionLineLimit(t *testing.T) {
 	for _, tt := range []struct {
 		name     string
 		products int

@@ -14,9 +14,10 @@ import (
 	"github.com/koopa0/goen/internal/payment"
 )
 
-// TestTheSessionExpiryComesFromTheEarliestLiveHold binds payment to stock: the
-// EARLIEST hold is the deadline, never the latest.
-func TestTheSessionExpiryComesFromTheEarliestLiveHold(t *testing.T) {
+// TestStore_OrderEarliestHold: The session expiry comes from the earliest live
+// hold. It binds payment to stock: the EARLIEST hold is the deadline, never the
+// latest.
+func TestStore_OrderEarliestHold(t *testing.T) {
 	ctx := t.Context()
 	s := payment.NewStore(pool)
 	number, id := holdableOrder(t, 60000)
@@ -49,7 +50,9 @@ func TestTheSessionExpiryComesFromTheEarliestLiveHold(t *testing.T) {
 	}
 }
 
-func TestHoldAdmissionUsesTheDatabaseTransactionClock(t *testing.T) {
+// TestOrderHoldExpiryClock: OrderHoldExpiry judges hold admission by the
+// database transaction clock, not the process clock.
+func TestOrderHoldExpiryClock(t *testing.T) {
 	ctx := t.Context()
 	_, orderID := holdableOrder(t, 10000)
 	tx, err := pool.Begin(ctx)

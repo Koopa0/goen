@@ -20,10 +20,11 @@ import (
 	"github.com/koopa0/goen/internal/payment"
 )
 
-// TestAPartCreditOrderIsChargedOnlyWhatItOwes binds the figure the payment page
-// sends to Stripe to the figure this database accepts: charging the gross takes
-// the money and leaves the order unpaid forever.
-func TestAPartCreditOrderIsChargedOnlyWhatItOwes(t *testing.T) {
+// TestStore_OrderPartCredit: A part credit order is charged only what it owes.
+// It binds the figure the payment page sends to Stripe to the figure this
+// database accepts: charging the gross takes the money and leaves the order
+// unpaid forever.
+func TestStore_OrderPartCredit(t *testing.T) {
 	ctx := t.Context()
 	s := payment.NewStore(pool)
 	number, orderID := order(t, 100000)
@@ -58,11 +59,12 @@ func TestAPartCreditOrderIsChargedOnlyWhatItOwes(t *testing.T) {
 	}
 }
 
-// TestAFullyFundedOrderOwesNothing holds what the order read says about an order
-// store credit paid in full: it owes nothing, and Stripe refuses a zero-amount
-// session. It calls no handler. The tests below hold that such an order is
-// turned away from the pay page and from the Stripe start.
-func TestAFullyFundedOrderOwesNothing(t *testing.T) {
+// TestStore_OrderFullyFunded: An order that store credit paid in full owes
+// nothing. It holds what the order read says about an order store credit paid
+// in full: it owes nothing, and Stripe refuses a zero-amount session. It calls
+// no handler. The tests below hold that such an order is turned away from the
+// pay page and from the Stripe start.
+func TestStore_OrderFullyFunded(t *testing.T) {
 	ctx := t.Context()
 	s := payment.NewStore(pool)
 	number, _ := creditFundedOrder(t, creditFundedTotal)
@@ -108,10 +110,11 @@ func payRequest(t *testing.T, method, number string) *http.Request {
 	return req
 }
 
-// TestAFullyFundedOrderIsTurnedAwayFromThePayPage holds the guard in Page: an
-// order that owes nothing is sent on to its order page, and the pay page
-// neither offers payment nor opens an attempt for it.
-func TestAFullyFundedOrderIsTurnedAwayFromThePayPage(t *testing.T) {
+// TestHandler_PageFullyFunded: A fully funded order is turned away from the pay
+// page. It holds the guard in Page: an order that owes nothing is sent on to
+// its order page, and the pay page neither offers payment nor opens an attempt
+// for it.
+func TestHandler_PageFullyFunded(t *testing.T) {
 	number, orderID := creditFundedOrder(t, creditFundedTotal)
 	gateway, calls := gatewayRecordingCalls(t, "cs_must_not_open_"+uuid.NewString()[:12])
 	h := payment.NewHandler(payment.NewStore(pool), gateway, access.NewStore(pool, false),
@@ -132,10 +135,11 @@ func TestAFullyFundedOrderIsTurnedAwayFromThePayPage(t *testing.T) {
 	}
 }
 
-// TestAFullyFundedOrderIsNeverSentToStripe holds the guard in Start: an order
-// that owes nothing is sent on to its order page, with no Checkout Session
-// created at Stripe and no attempt recorded.
-func TestAFullyFundedOrderIsNeverSentToStripe(t *testing.T) {
+// TestHandler_StartFullyFunded: A fully funded order is never sent to Stripe.
+// It holds the guard in Start: an order that owes nothing is sent on to its
+// order page, with no Checkout Session created at Stripe and no attempt
+// recorded.
+func TestHandler_StartFullyFunded(t *testing.T) {
 	number, orderID := creditFundedOrder(t, creditFundedTotal)
 	gateway, calls := gatewayRecordingCalls(t, "cs_must_not_open_"+uuid.NewString()[:12])
 	h := payment.NewHandler(payment.NewStore(pool), gateway, access.NewStore(pool, false),
@@ -176,13 +180,14 @@ func (a *afterOwedRead) TraceQueryEnd(ctx context.Context, _ *pgx.Conn, _ pgx.Tr
 	}
 }
 
-// A fully funded order reads as paid, because Store.Order asks the same
-// order_amount_after_credit for both its total and its paid flag. The two are
-// separate statements, though, so credit handed back between them leaves a
-// total of nothing and a paid flag of false. This holds the second disjunct of
-// the guard in Page and in Start: Paid alone would let that read through to a
-// zero-amount Checkout Session.
-func TestAFullyFundedOrderReadAcrossACreditReversalIsStillTurnedAway(t *testing.T) {
+// TestHandlerFullyFundedReversal: A fully funded order read across a credit
+// reversal is still turned away. A fully funded order reads as paid, because
+// Store.Order asks the same order_amount_after_credit for both its total and
+// its paid flag. The two are separate statements, though, so credit handed back
+// between them leaves a total of nothing and a paid flag of false. This holds
+// the second disjunct of the guard in Page and in Start: Paid alone would let
+// that read through to a zero-amount Checkout Session.
+func TestHandlerFullyFundedReversal(t *testing.T) {
 	for _, tt := range []struct {
 		name   string
 		method string
@@ -242,11 +247,12 @@ func TestAFullyFundedOrderReadAcrossACreditReversalIsStillTurnedAway(t *testing.
 	}
 }
 
-// TestAnOrderStillOwingMoneyIsOfferedPaymentAndSentToStripe is the control for
-// the two tests above: the same order with only part of its total covered by
-// credit gets the pay page, and a Start that opens one Checkout Session and one
-// attempt. Without it, a guard that turned every order away would pass them.
-func TestAnOrderStillOwingMoneyIsOfferedPaymentAndSentToStripe(t *testing.T) {
+// TestHandlerOwingOrderPays: An order still owing money is offered payment and
+// sent to Stripe. It is the control for the two tests above: the same order
+// with only part of its total covered by credit gets the pay page, and a Start
+// that opens one Checkout Session and one attempt. Without it, a guard that
+// turned every order away would pass them.
+func TestHandlerOwingOrderPays(t *testing.T) {
 	number, orderID := creditFundedOrder(t, 20000)
 	session := "cs_owing_order_start_" + uuid.NewString()[:12]
 	gateway, calls := gatewayRecordingCalls(t, session)
@@ -278,9 +284,10 @@ func TestAnOrderStillOwingMoneyIsOfferedPaymentAndSentToStripe(t *testing.T) {
 	}
 }
 
-// TestOrderIsPaidMatchesZeroOwedCreditFunding holds that an order fully covered
-// by store credit reads as paid through the same store the payment page uses.
-func TestOrderIsPaidMatchesZeroOwedCreditFunding(t *testing.T) {
+// TestStore_OrderPaidZeroOwed: Order reads an order that store credit paid in
+// full as paid. It holds that an order fully covered by store credit reads as
+// paid through the same store the payment page uses.
+func TestStore_OrderPaidZeroOwed(t *testing.T) {
 	ctx := t.Context()
 	s := payment.NewStore(pool)
 	number, orderID := order(t, 50000)
@@ -304,9 +311,10 @@ func TestOrderIsPaidMatchesZeroOwedCreditFunding(t *testing.T) {
 	}
 }
 
-// TestPickedCreditFundedPayPageRedirects holds that a credit-funded order in
+// TestHandler_PagePickedCreditFunded: The pay page redirects a picked,
+// credit-funded order to its order page. It holds that a credit-funded order in
 // fulfilment is sent to its order page, not refused as unpaid.
-func TestPickedCreditFundedPayPageRedirects(t *testing.T) {
+func TestHandler_PagePickedCreditFunded(t *testing.T) {
 	ctx := t.Context()
 	number, orderID := order(t, 50000)
 

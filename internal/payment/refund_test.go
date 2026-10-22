@@ -5,9 +5,11 @@ import (
 	"testing"
 )
 
-// A gateway built without a Stripe key holds no client; both refund methods
-// must answer ErrDisabled instead of dereferencing it.
-func TestGatewayRefundWithoutAKeyIsDisabled(t *testing.T) {
+// TestGatewayRefundsDisabled: PaymentIntentFor and Refund on a gateway without
+// a key answer ErrDisabled. A gateway built without a Stripe key holds no
+// client; both refund methods must answer ErrDisabled instead of dereferencing
+// it.
+func TestGatewayRefundsDisabled(t *testing.T) {
 	g, err := NewGateway("", "", "https://goen.test")
 	if err != nil {
 		t.Fatalf("NewGateway: %v", err)

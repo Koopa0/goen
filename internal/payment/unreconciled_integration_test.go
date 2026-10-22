@@ -23,11 +23,12 @@ import (
 	"github.com/koopa0/goen/internal/payment"
 )
 
-// TestAnUnsettledCompletedSessionIsRecordedForAPerson holds the difference
-// between classifying a delayed-method completion and leaving a person
-// something to act on. The payment stays open so a later
-// async_payment_succeeded can still capture through the existing door.
-func TestAnUnsettledCompletedSessionIsRecordedForAPerson(t *testing.T) {
+// TestHandler_WebhookUnsettled: An unsettled completed session is recorded for
+// a person. It holds the difference between classifying a delayed-method
+// completion and leaving a person something to act on. The payment stays open
+// so a later async_payment_succeeded can still capture through the existing
+// door.
+func TestHandler_WebhookUnsettled(t *testing.T) {
 	ctx := t.Context()
 	s := payment.NewStore(pool)
 	var logs bytes.Buffer
@@ -138,10 +139,11 @@ func TestAnUnsettledCompletedSessionIsRecordedForAPerson(t *testing.T) {
 	}
 }
 
-// TestAnUnreadableKnownEventIsRecordedForAPerson drives the signature verifier,
-// handler switch and durable alarm together. The payment row is real and open,
-// so this cannot pass by accidentally taking the unattributed-capture branch.
-func TestAnUnreadableKnownEventIsRecordedForAPerson(t *testing.T) {
+// TestHandler_WebhookUnreadable: An unreadable known event is recorded for a
+// person. It drives the signature verifier, handler switch and durable alarm
+// together. The payment row is real and open, so this cannot pass by
+// accidentally taking the unattributed-capture branch.
+func TestHandler_WebhookUnreadable(t *testing.T) {
 	ctx := t.Context()
 	s := payment.NewStore(pool)
 	var logs bytes.Buffer
@@ -250,12 +252,13 @@ func TestAnUnreadableKnownEventIsRecordedForAPerson(t *testing.T) {
 	}
 }
 
-// TestTheWebhookFlagsMoneyItCannotAttribute proves that a paid Checkout Session
-// with no local payment row is countable, stays unguessed, and is acknowledged
-// with 200 because retrying cannot create the missing attribution. Resolving the
-// operator alarm must not make that already-paid Stripe identity eligible to be
-// attached to a newly active local payment later.
-func TestTheWebhookFlagsMoneyItCannotAttribute(t *testing.T) {
+// TestHandler_WebhookUnattributed: The webhook flags money it cannot attribute.
+// It proves that a paid Checkout Session with no local payment row is
+// countable, stays unguessed, and is acknowledged with 200 because retrying
+// cannot create the missing attribution. Resolving the operator alarm must not
+// make that already-paid Stripe identity eligible to be attached to a newly
+// active local payment later.
+func TestHandler_WebhookUnattributed(t *testing.T) {
 	ctx := t.Context()
 	s := payment.NewStore(pool)
 	var logs bytes.Buffer
@@ -345,11 +348,12 @@ func TestTheWebhookFlagsMoneyItCannotAttribute(t *testing.T) {
 	}
 }
 
-// TestTheWebhookPersistsCapturesLocalInvariantsRefuse proves that verified money
-// is never left only in a retry loop. Neither an amount that differs from the
-// session intent nor an order whose amount changed can become valid when Stripe
-// redelivers the same event, so both must be durable unreconciled outcomes.
-func TestTheWebhookPersistsCapturesLocalInvariantsRefuse(t *testing.T) {
+// TestHandler_WebhookRefusedCapture: The webhook persists a capture the local
+// invariants refuse. It proves that verified money is never left only in a
+// retry loop. Neither an amount that differs from the session intent nor an
+// order whose amount changed can become valid when Stripe redelivers the same
+// event, so both must be durable unreconciled outcomes.
+func TestHandler_WebhookRefusedCapture(t *testing.T) {
 	tests := []struct {
 		name       string
 		captured   int64
@@ -493,10 +497,11 @@ func TestTheWebhookPersistsCapturesLocalInvariantsRefuse(t *testing.T) {
 	}
 }
 
-// TestReachableCaptureConstraintsBecomeDurable binds the classifier to the
-// actual PostgreSQL names. A rename or a constraint removed from the durable
-// set would turn verified money back into a permanent 500/retry loop.
-func TestReachableCaptureConstraintsBecomeDurable(t *testing.T) {
+// TestHandler_WebhookCaptureConstraints: Reachable capture constraints become
+// durable. It binds the classifier to the actual PostgreSQL names. A rename or
+// a constraint removed from the durable set would turn verified money back into
+// a permanent 500/retry loop.
+func TestHandler_WebhookCaptureConstraints(t *testing.T) {
 	tests := []struct {
 		name       string
 		constraint string
@@ -625,10 +630,11 @@ func TestReachableCaptureConstraintsBecomeDurable(t *testing.T) {
 	}
 }
 
-// TestTheWebhookItselfFlagsMoneyForACancelledOrder drives the real handler. The
-// test below drives a callback of its own, so it can only show that the store
-// records the outcome, never that handler.go's switch asks it to.
-func TestTheWebhookItselfFlagsMoneyForACancelledOrder(t *testing.T) {
+// TestHandler_WebhookCancelledOrder: The webhook itself flags money for a
+// cancelled order. It drives the real handler. The test below drives a callback
+// of its own, so it can only show that the store records the outcome, never
+// that handler.go's switch asks it to.
+func TestHandler_WebhookCancelledOrder(t *testing.T) {
 	ctx := t.Context()
 	s := payment.NewStore(pool)
 	var logs bytes.Buffer
@@ -676,8 +682,8 @@ func TestTheWebhookItselfFlagsMoneyForACancelledOrder(t *testing.T) {
 	}
 }
 
-// TestMoneyForACancelledOrderLeavesSomethingToActOn holds the difference
-// between a log line and a record.
+// TestWebhookTx_UnreconciledCancelled: Money for a cancelled order leaves
+// something to act on. It holds the difference between a log line and a record.
 //
 // A slow webhook races a cancel: the capture is refused by
 // payments_refuse_cancelled_order, and the event is still marked processed —
@@ -686,7 +692,7 @@ func TestTheWebhookItselfFlagsMoneyForACancelledOrder(t *testing.T) {
 // on the shelf, so the event is marked UNRECONCILED in the same transaction as
 // the claim: an event may not be recorded as seen unless what it needs is
 // recorded with it.
-func TestMoneyForACancelledOrderLeavesSomethingToActOn(t *testing.T) {
+func TestWebhookTx_UnreconciledCancelled(t *testing.T) {
 	ctx := t.Context()
 	s := payment.NewStore(pool)
 	number, id := order(t, 77700)
