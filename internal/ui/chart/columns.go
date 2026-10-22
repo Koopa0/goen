@@ -539,7 +539,7 @@ func columnTicks(ctx context.Context, cols []Column, grouped, today bool, band f
 		for i, c := range cols {
 			days[i] = c.Day
 		}
-		for _, i := range tickDays(days) {
+		for _, i := range tickDays(days, columnEdge) {
 			picked[i] = true
 		}
 		picked[0] = n <= 7
