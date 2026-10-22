@@ -10,7 +10,10 @@ import (
 	"github.com/koopa0/goen/internal/user"
 )
 
-func TestProfileAndSavedAddressBoundsMatchTheRenderedForms(t *testing.T) {
+// TestProfileInputValidBounds: the profile and saved-address validators accept
+// exactly what the rendered forms allow and refuse what exceeds their maxlength
+// (Address.Validate is read in the same test).
+func TestProfileInputValidBounds(t *testing.T) {
 	t.Parallel()
 
 	if !profileInputValid(strings.Repeat("名", user.MaxNameRunes), strings.Repeat("1", maxPhoneRunes)) {
@@ -83,9 +86,9 @@ func TestProfileAndSavedAddressBoundsMatchTheRenderedForms(t *testing.T) {
 	}
 }
 
-// TestAccountOrderPageRedirectsToCanonical holds that the legacy account order
-// URL forwards to /orders/{number}, where shipment, return and funding live.
-func TestAccountOrderPageRedirectsToCanonical(t *testing.T) {
+// TestHandler_OrderPageRedirect holds that the legacy account order URL
+// forwards to /orders/{number}, where shipment, return and funding live.
+func TestHandler_OrderPageRedirect(t *testing.T) {
 	t.Parallel()
 
 	h := &Handler{log: slog.New(slog.DiscardHandler)}
@@ -105,7 +108,9 @@ func TestAccountOrderPageRedirectsToCanonical(t *testing.T) {
 	}
 }
 
-func TestSavedAddressFoldsFullWidthDigits(t *testing.T) {
+// TestAddress_TrimFullWidthDigits: a saved address folds full-width digits in
+// its phone and postal code to ASCII and then validates.
+func TestAddress_TrimFullWidthDigits(t *testing.T) {
 	a := Address{Name: "王小明", Phone: "０９１２３４５６７８", PostalCode: "１１０", City: "台北市", District: "信義區", Street: "市府路1號"}
 	a.Trim()
 	if a.Phone != "0912345678" || a.PostalCode != "110" {

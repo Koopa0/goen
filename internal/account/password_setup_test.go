@@ -9,7 +9,9 @@ import (
 	"github.com/koopa0/goen/internal/i18n"
 )
 
-func TestGoogleOnlyAccountOffersAMailboxPasswordSetup(t *testing.T) {
+// TestAccountGoogleOnlyPasswordSetup: a Google-only account is offered a
+// password setup by mailbox link, and an account that has a password is not.
+func TestAccountGoogleOnlyPasswordSetup(t *testing.T) {
 	t.Parallel()
 	for _, locale := range i18n.Locales() {
 		for _, hasPassword := range []bool{false, true} {
@@ -92,7 +94,9 @@ func TestGoogleOnlyAccountOffersAMailboxPasswordSetup(t *testing.T) {
 	}
 }
 
-func TestPasswordSetupNoticeNamesTheCurrentMailbox(t *testing.T) {
+// TestAccountPasswordSetupNotice: the password-setup notice names the mailbox
+// the link went to.
+func TestAccountPasswordSetupNotice(t *testing.T) {
 	t.Parallel()
 	for _, locale := range i18n.Locales() {
 		t.Run(locale.Tag(), func(t *testing.T) {

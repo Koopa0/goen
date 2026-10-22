@@ -9,7 +9,9 @@ import (
 	"github.com/koopa0/goen/internal/i18n"
 )
 
-func TestSavedAddressesOfferEditAndNativeDeleteConfirmation(t *testing.T) {
+// TestAccountAddressEditDelete: saved addresses offer an edit link and a native
+// delete confirmation.
+func TestAccountAddressEditDelete(t *testing.T) {
 	t.Parallel()
 	for _, locale := range i18n.Locales() {
 		t.Run(locale.Tag(), func(t *testing.T) {
@@ -69,7 +71,9 @@ func TestSavedAddressesOfferEditAndNativeDeleteConfirmation(t *testing.T) {
 	}
 }
 
-func TestAddressEditKeepsItsDraftAndDefaultWithoutOfferingDefaultChanges(t *testing.T) {
+// TestAccountAddressEditDraft: an address edit keeps its draft and its default
+// without offering to change the default.
+func TestAccountAddressEditDraft(t *testing.T) {
 	t.Parallel()
 	for _, locale := range i18n.Locales() {
 		t.Run(locale.Tag(), func(t *testing.T) {
@@ -121,7 +125,9 @@ func TestAddressEditKeepsItsDraftAndDefaultWithoutOfferingDefaultChanges(t *test
 	}
 }
 
-func TestAddressEmptyStateExplainsTheCheckoutChoice(t *testing.T) {
+// TestAccountAddressEmptyState: the empty address book explains the choice
+// offered at checkout.
+func TestAccountAddressEmptyState(t *testing.T) {
 	t.Parallel()
 	for _, locale := range i18n.Locales() {
 		t.Run(locale.Tag(), func(t *testing.T) {

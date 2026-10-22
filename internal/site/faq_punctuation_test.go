@@ -25,7 +25,9 @@ func faqStrings(src string) []string {
 	return values
 }
 
-func TestTheFAQSeedMatchesLocaleQuestionsAndUsesChinesePunctuationAndNi(t *testing.T) {
+// TestFAQSeedLocaleCopy: the FAQ seed matches its locale questions and uses
+// Chinese punctuation and 你.
+func TestFAQSeedLocaleCopy(t *testing.T) {
 	seed, err := os.ReadFile("../../seed/dev_catalog.sql")
 	if err != nil {
 		t.Fatal(err)

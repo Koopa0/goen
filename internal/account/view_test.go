@@ -17,9 +17,9 @@ import (
 // The tests in this file are the account page's halves of tests that render
 // several pages: each half lives with the page it renders.
 
-// TestAccountOrderHistoryLinksToCanonicalOrderPage holds that the account
-// overview sends readers to /orders/{number}, not a second detail template.
-func TestAccountOrderHistoryLinksToCanonicalOrderPage(t *testing.T) {
+// TestAccountOrderHistoryLinks holds that the account overview sends readers to
+// /orders/{number}, not a second detail template.
+func TestAccountOrderHistoryLinks(t *testing.T) {
 	ctx := i18n.WithLocale(t.Context(), i18n.ZhHant)
 	view := &View{
 		Orders: []AccountOrder{{
@@ -36,7 +36,9 @@ func TestAccountOrderHistoryLinksToCanonicalOrderPage(t *testing.T) {
 	}
 }
 
-func TestAnOrderReturnedInFullIsBadgedRefundedInTheAccount(t *testing.T) {
+// TestAccountOrder_StatusTextRefunded: an order returned in full is badged
+// refunded in the account.
+func TestAccountOrder_StatusTextRefunded(t *testing.T) {
 	ctx := i18n.WithLocale(t.Context(), i18n.ZhHant)
 	row := AccountOrder{Status: order.FulfillmentDelivered, Committed: true, Returned: true}
 	if got := row.StatusText(ctx); got != "已退款" {
@@ -44,9 +46,9 @@ func TestAnOrderReturnedInFullIsBadgedRefundedInTheAccount(t *testing.T) {
 	}
 }
 
-// TestTheAccountListOffersToPayAnUnpaidOrderWhereThatCanBeDone holds the 付款
-// action: only for an order that owes, only where payment is possible.
-func TestTheAccountListOffersToPayAnUnpaidOrderWhereThatCanBeDone(t *testing.T) {
+// TestAccountOrderPayAction holds the 付款 action: only for an order that owes,
+// only where payment is possible.
+func TestAccountOrderPayAction(t *testing.T) {
 	t.Parallel()
 	view := func(enabled bool) *View {
 		return &View{
@@ -105,13 +107,13 @@ var backOfficeEntrances = map[string]string{
 	"the account page's nav": `<a class="goen-account__navitem" href="/admin">`,
 }
 
-// TestOnlyAStaffMemberIsOfferedTheBackOffice holds both halves of the entrance.
-// The back office had no link from anywhere on the site and the only way in was
-// typing the URL; the fix must not become the opposite defect, which is a
-// customer being offered a door that answers 404 — RequireStaff does not
-// disclose that /admin exists, so following it is a dead end that also says the
-// shop has something to hide.
-func TestOnlyAStaffMemberIsOfferedTheBackOffice(t *testing.T) {
+// TestAccountBackOfficeStaffOnly holds both halves of the entrance. The back
+// office had no link from anywhere on the site and the only way in was typing
+// the URL; the fix must not become the opposite defect, which is a customer
+// being offered a door that answers 404 — RequireStaff does not disclose that
+// /admin exists, so following it is a dead end that also says the shop has
+// something to hide.
+func TestAccountBackOfficeStaffOnly(t *testing.T) {
 	t.Parallel()
 
 	for _, locale := range []i18n.Locale{i18n.ZhHant, i18n.En} {

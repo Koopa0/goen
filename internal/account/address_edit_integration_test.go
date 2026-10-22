@@ -19,7 +19,9 @@ import (
 	"github.com/koopa0/goen/internal/i18n"
 )
 
-func TestSavedAddressEditsKeepOwnershipDraftsAndDefaultSelection(t *testing.T) {
+// TestHandler_UpdateAddressOwnership: saved-address edits keep ownership,
+// drafts and the default selection.
+func TestHandler_UpdateAddressOwnership(t *testing.T) {
 	for _, locale := range i18n.Locales() {
 		t.Run(locale.Tag(), func(t *testing.T) {
 			ctx := i18n.WithLocale(t.Context(), locale)

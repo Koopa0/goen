@@ -17,9 +17,9 @@ import (
 	"github.com/koopa0/goen/internal/user"
 )
 
-// TestRawAndDirectAccountWritesRespectRenderedBounds covers both HTTP bypasses
-// of maxlength and callers that enter through Store without a browser.
-func TestRawAndDirectAccountWritesRespectRenderedBounds(t *testing.T) {
+// TestHandler_UpdateProfileBounds covers both HTTP bypasses of maxlength and
+// callers that enter through Store without a browser.
+func TestHandler_UpdateProfileBounds(t *testing.T) {
 	ctx := t.Context()
 	s := account.NewStore(pool)
 	h := account.NewHandler(s, slog.New(slog.DiscardHandler), false, false)

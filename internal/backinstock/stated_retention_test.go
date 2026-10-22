@@ -10,10 +10,11 @@ import (
 	"github.com/koopa0/goen/internal/policy"
 )
 
-// The privacy policy states how long a notified restock alert is kept. It is
-// read from the constant the sweep enforces, and that constant may not outlast
-// the outbox copy of the same address.
-func TestThePrivacyPolicyStatesTheRestockPeriodTheSweepEnforces(t *testing.T) {
+// TestNotifiedRetainStatedInPrivacy: the privacy policy states the restock
+// period the sweep enforces. The privacy policy states how long a notified
+// restock alert is kept. It is read from the constant the sweep enforces, and
+// that constant may not outlast the outbox copy of the same address.
+func TestNotifiedRetainStatedInPrivacy(t *testing.T) {
 	t.Parallel()
 
 	days, err := strconv.Atoi(policy.StockAlertRetainDaysText())

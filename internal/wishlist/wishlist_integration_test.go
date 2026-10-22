@@ -16,10 +16,10 @@ import (
 	"github.com/koopa0/goen/internal/wishlist"
 )
 
-// TestAWishlistRowOffersTheCartOnlyForAProductWithOneVariant: "add to cart"
-// beside a product with a choice of variants would pick one for the customer,
-// so only a product with a single variant, in stock, names one.
-func TestAWishlistRowOffersTheCartOnlyForAProductWithOneVariant(t *testing.T) {
+// TestStore_ItemsSoleVariant: "add to cart" beside a product with a choice of
+// variants would pick one for the customer, so only a product with a single
+// variant, in stock, names one.
+func TestStore_ItemsSoleVariant(t *testing.T) {
 	ctx := t.Context()
 	s := wishlist.NewStore(pool)
 	u := register(t, "wish-"+uuid.NewString()+"@example.com")
@@ -69,10 +69,9 @@ func TestAWishlistRowOffersTheCartOnlyForAProductWithOneVariant(t *testing.T) {
 	}
 }
 
-// TestAMemberSavesAProductToTheWishlistAndReturnsWhereTheyWere drives POST
-// /account/wishlist as a signed-in customer: the product is saved and the
-// browser goes back to the page named in return.
-func TestAMemberSavesAProductToTheWishlistAndReturnsWhereTheyWere(t *testing.T) {
+// TestHandler_UpdateSave drives POST /account/wishlist as a signed-in customer:
+// the product is saved and the browser goes back to the page named in return.
+func TestHandler_UpdateSave(t *testing.T) {
 	ctx := t.Context()
 	s := wishlist.NewStore(pool)
 	u := register(t, "wish-post-"+uuid.NewString()+"@example.com")

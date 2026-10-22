@@ -9,9 +9,10 @@ import (
 	"github.com/koopa0/goen/internal/db/dbtest"
 )
 
-// The windows the stat line states are the schema's, read as the store role the
-// storefront's pages read through.
-func TestRulesStateTheSchemasWindows(t *testing.T) {
+// TestStore_RulesSchemaWindows: the windows the shop rules state are the
+// schema's. The windows the stat line states are the schema's, read as the
+// store role the storefront's pages read through.
+func TestStore_RulesSchemaWindows(t *testing.T) {
 	ctx := t.Context()
 	owner := dbtest.Pool(t)
 	var want Rules

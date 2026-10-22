@@ -18,9 +18,11 @@ import (
 	"github.com/koopa0/goen/internal/i18n"
 )
 
-// /shipping and /payment state the checkout windows the schema names, read
-// through the store role the storefront's pool connects as.
-func TestThePoliciesStateTheSchemasCheckoutWindows(t *testing.T) {
+// TestHandler_ShippingCheckoutWindows: the shipping and payment policies state
+// the checkout windows the schema names. /shipping and /payment state the
+// checkout windows the schema names, read through the store role the
+// storefront's pool connects as.
+func TestHandler_ShippingCheckoutWindows(t *testing.T) {
 	owner := dbtest.Pool(t)
 	var want CheckoutWindows
 	if err := owner.QueryRow(t.Context(), `SELECT checkout_hold_minutes(), checkout_pay_start_minutes()`).

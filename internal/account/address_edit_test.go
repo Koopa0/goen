@@ -13,7 +13,9 @@ import (
 	"github.com/koopa0/goen/internal/user"
 )
 
-func TestAddressEditsRequireAnAccountBeforeReadingInput(t *testing.T) {
+// TestHandler_EditAddressSignedOut: address edit and update require an account
+// before they read any input.
+func TestHandler_EditAddressSignedOut(t *testing.T) {
 	t.Parallel()
 	h := &Handler{log: slog.New(slog.DiscardHandler)}
 	for _, handler := range []http.HandlerFunc{h.EditAddress, h.UpdateAddress} {
@@ -25,7 +27,9 @@ func TestAddressEditsRequireAnAccountBeforeReadingInput(t *testing.T) {
 	}
 }
 
-func TestAddressEditsDoNotReportSuccessWhenTheSavedAddressCannotBeRead(t *testing.T) {
+// TestHandler_EditAddressUnreadable: an address edit or update does not report
+// success when the saved address cannot be read.
+func TestHandler_EditAddressUnreadable(t *testing.T) {
 	t.Parallel()
 	dbPool, err := pgxpool.New(t.Context(), "postgres://nobody@127.0.0.1:1/nothing")
 	if err != nil {

@@ -15,12 +15,12 @@ import (
 	"github.com/koopa0/goen/internal/i18n"
 )
 
-// TestFAQGroupsByCategoryRowInStaffOrder reads /faq from category rows whose
-// position order is the reverse of their names' order, and two of which read
-// "Help" to an English visitor. Grouping or ordering by the name, in SQL or in
-// the handler, puts the headings out of order or merges the two "Help" ones.
-// A rename is one UPDATE, and every entry in the category moves with it.
-func TestFAQGroupsByCategoryRowInStaffOrder(t *testing.T) {
+// TestHandler_FAQStaffOrder reads /faq from category rows whose position order
+// is the reverse of their names' order, and two of which read "Help" to an
+// English visitor. Grouping or ordering by the name, in SQL or in the handler,
+// puts the headings out of order or merges the two "Help" ones. A rename is one
+// UPDATE, and every entry in the category moves with it.
+func TestHandler_FAQStaffOrder(t *testing.T) {
 	pool := dbtest.Pool(t)
 	_, err := pool.Exec(t.Context(), `
 		INSERT INTO faq_categories (id, name, name_en, position) VALUES

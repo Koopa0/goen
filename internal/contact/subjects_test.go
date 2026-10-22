@@ -7,7 +7,9 @@ import (
 	"github.com/koopa0/goen/internal/i18n"
 )
 
-func TestEveryOfferedSubjectIsAcceptedAndTranslated(t *testing.T) {
+// TestChoicesAcceptedAndTranslated: every offered subject is accepted by
+// validation and has a translated label.
+func TestChoicesAcceptedAndTranslated(t *testing.T) {
 	t.Parallel()
 
 	for _, choice := range Choices() {
@@ -34,7 +36,9 @@ func TestEveryOfferedSubjectIsAcceptedAndTranslated(t *testing.T) {
 	}
 }
 
-func TestAnUnknownSubjectIsRefusedBeforeStorage(t *testing.T) {
+// TestStore_CreateUnknownSubject: an unknown subject is refused before any
+// storage call.
+func TestStore_CreateUnknownSubject(t *testing.T) {
 	t.Parallel()
 	if err := (&Store{}).Create(t.Context(), Message{Subject: "An order"}); err == nil {
 		t.Fatal("Create(unknown subject) = nil, want refusal before any database call")

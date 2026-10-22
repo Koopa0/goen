@@ -7,10 +7,10 @@ import (
 	"github.com/koopa0/goen/internal/order"
 )
 
-// TestEveryFulfillmentStatusHasAStorefrontLabel holds the closed set against
-// the chrome: a state with no catalogue entry reaches a customer as its bare
-// id, which is what StatusText only does for a retired audit value.
-func TestEveryFulfillmentStatusHasAStorefrontLabel(t *testing.T) {
+// TestAccountOrder_StatusTextLabels holds the closed set against the chrome: a
+// state with no catalogue entry reaches a customer as its bare id, which is
+// what StatusText only does for a retired audit value.
+func TestAccountOrder_StatusTextLabels(t *testing.T) {
 	t.Parallel()
 
 	for _, locale := range []i18n.Locale{i18n.ZhHant, i18n.En} {
@@ -25,9 +25,9 @@ func TestEveryFulfillmentStatusHasAStorefrontLabel(t *testing.T) {
 	}
 }
 
-// TestAnUnknownFulfillmentStatusRendersAsItself holds that a retired value
-// still paints: append-only history may name a state the shop no longer occupies.
-func TestAnUnknownFulfillmentStatusRendersAsItself(t *testing.T) {
+// TestAccountOrder_StatusTextUnknown holds that a retired value still paints:
+// append-only history may name a state the shop no longer occupies.
+func TestAccountOrder_StatusTextUnknown(t *testing.T) {
 	t.Parallel()
 	const retired order.FulfillmentStatus = "packing"
 	ctx := i18n.WithLocale(t.Context(), i18n.En)

@@ -47,10 +47,10 @@ func (c failingDeals) DealsOnOffer(ctx context.Context) (bool, error) {
 	return false, ctx.Err()
 }
 
-// TestChromeMiddlewareOfAnAbandonedRequestLogsNothing: the banner and nav reads
-// fail with context.Canceled when the visitor leaves; that is no server fault,
-// and the page behind them has no reader.
-func TestChromeMiddlewareOfAnAbandonedRequestLogsNothing(t *testing.T) {
+// TestHandler_WithBannerAbandoned: the banner and nav reads fail with
+// context.Canceled when the visitor leaves; that is no server fault, and the
+// page behind them has no reader.
+func TestHandler_WithBannerAbandoned(t *testing.T) {
 	t.Parallel()
 
 	for name, wrap := range map[string]func(*Handler, http.Handler) http.Handler{
@@ -81,8 +81,9 @@ func TestChromeMiddlewareOfAnAbandonedRequestLogsNothing(t *testing.T) {
 	}
 }
 
-// A failed read hides 優惠 and is logged: a link to a page with nothing on it is the worse mistake.
-func TestAFailedDealsReadHidesTheLinkAndIsLogged(t *testing.T) {
+// TestHandler_DealsOnOfferFailed: a failed read hides 優惠 and is logged: a link
+// to a page with nothing on it is the worse mistake.
+func TestHandler_DealsOnOfferFailed(t *testing.T) {
 	t.Parallel()
 
 	logs := &bytes.Buffer{}
@@ -96,7 +97,9 @@ func TestAFailedDealsReadHidesTheLinkAndIsLogged(t *testing.T) {
 	}
 }
 
-func TestTheCookieCarriesADigestNotTheID(t *testing.T) {
+// TestDismissDigest: the dismissal cookie carries a digest, not the banner's
+// id.
+func TestDismissDigest(t *testing.T) {
 	t.Parallel()
 
 	const id = "019fa72c-dd04-7383-acc5-4c32f889c790"

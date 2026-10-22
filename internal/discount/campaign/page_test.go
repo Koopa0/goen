@@ -69,7 +69,7 @@ func TestTheEmptyCampaignShowsItsIllustrationAsDecoration(t *testing.T) {
 	}
 }
 
-// From TestEveryPageKindSendsItsOwnLinkPreviewTags, which keeps the other pages' rows.
+// From TestMetaLinkPreviewTags, which keeps the other pages' rows.
 func TestTheCampaignPageSendsItsOwnLinkPreviewTags(t *testing.T) {
 	t.Parallel()
 	ctx := i18n.WithLocale(frame.WithRequestPath(t.Context(), "/s/autumn"), i18n.ZhHant)

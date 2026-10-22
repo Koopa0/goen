@@ -9,7 +9,9 @@ import (
 	"github.com/koopa0/goen/internal/account"
 )
 
-func TestTheDefaultAddressCanBeMoved(t *testing.T) {
+// TestStore_MakeDefaultAddress: the default address can be moved to another
+// saved address, leaving exactly one.
+func TestStore_MakeDefaultAddress(t *testing.T) {
 	ctx := t.Context()
 	s := account.NewStore(pool)
 	u := register(t, "movedefault@example.com")
@@ -40,7 +42,9 @@ func TestTheDefaultAddressCanBeMoved(t *testing.T) {
 	}
 }
 
-func TestMovingTheDefaultToSomebodyElsesAddressChangesNothing(t *testing.T) {
+// TestStore_MakeDefaultAddressForeign: moving the default to somebody else's
+// address changes nothing.
+func TestStore_MakeDefaultAddressForeign(t *testing.T) {
 	ctx := t.Context()
 	s := account.NewStore(pool)
 

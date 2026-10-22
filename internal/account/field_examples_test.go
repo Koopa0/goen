@@ -12,7 +12,7 @@ import (
 )
 
 // The address row of internal/contact's
-// TestCustomerExamplesStayOutsideRefusedInputs, with the example text it reads.
+// TestContactExamplesStayOutsideRefusedInputs, with the example text it reads.
 func TestAccountExamplesStayOutsideRefusedInputs(t *testing.T) {
 	t.Parallel()
 	for _, locale := range i18n.Locales() {

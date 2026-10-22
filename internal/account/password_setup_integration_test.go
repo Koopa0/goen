@@ -17,10 +17,9 @@ import (
 	"github.com/koopa0/goen/internal/outbox"
 )
 
-// TestPasswordSetupRefusesALegacyInvalidMailboxWithoutQueueing: auth refuses,
-// and the page it answers with is account's, so the test sits on account's side
-// of the import.
-func TestPasswordSetupRefusesALegacyInvalidMailboxWithoutQueueing(t *testing.T) {
+// TestHandler_RefuseLegacyMailbox: auth refuses, and the page it answers with
+// is account's, so the test sits on account's side of the import.
+func TestHandler_RefuseLegacyMailbox(t *testing.T) {
 	ctx := t.Context()
 	app := accountStorePool(t, "legacy-password-setup")
 	store := auth.NewStore(app)

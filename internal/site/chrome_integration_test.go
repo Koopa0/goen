@@ -45,7 +45,8 @@ func TestMain(m *testing.M) {
 	os.Exit(code)
 }
 
-func TestDismissingOneBannerDoesNotSilenceTheNext(t *testing.T) {
+// TestStore_BannerDismissal: dismissing one banner does not silence the next.
+func TestStore_BannerDismissal(t *testing.T) {
 	ctx := t.Context()
 	s := NewStore(pool)
 
@@ -88,7 +89,9 @@ func TestDismissingOneBannerDoesNotSilenceTheNext(t *testing.T) {
 	}
 }
 
-func TestABannerOutsideItsWindowDoesNotShow(t *testing.T) {
+// TestStore_BannerWindow: a banner outside its window, or switched off, does
+// not show.
+func TestStore_BannerWindow(t *testing.T) {
 	ctx := t.Context()
 	s := NewStore(pool)
 
@@ -124,7 +127,9 @@ func TestABannerOutsideItsWindowDoesNotShow(t *testing.T) {
 	}
 }
 
-func TestAnOffSiteCTAIsDroppedNotRendered(t *testing.T) {
+// TestStore_BannerOffSiteCTA: an off-site call to action is dropped, not
+// rendered.
+func TestStore_BannerOffSiteCTA(t *testing.T) {
 	ctx := t.Context()
 	s := NewStore(pool)
 
@@ -180,12 +185,12 @@ func seedBanner(t *testing.T, message string) string {
 	return id.String()
 }
 
-// A department's header panel shows at most three of its own products, newest
-// first, and only ones that can be bought: the header is on every page, and a
-// sold-out product there is a click that ends at a disabled button. The newest
-// product of the department is sold out for the length of the test, so the rule
-// is exercised by a row it actually removes.
-func TestADepartmentPanelShowsItsNewestBuyableProducts(t *testing.T) {
+// TestStore_NavPanelProducts: a department's header panel shows at most three
+// of its own products, newest first, and only ones that can be bought: the
+// header is on every page, and a sold-out product there is a click that ends at
+// a disabled button. The newest product of the department is sold out for the
+// length of the test, so the rule is exercised by a row it actually removes.
+func TestStore_NavPanelProducts(t *testing.T) {
 	ctx := i18n.WithLocale(t.Context(), i18n.ZhHant)
 
 	const dept = "tech"
@@ -268,7 +273,8 @@ func TestADepartmentPanelShowsItsNewestBuyableProducts(t *testing.T) {
 	}
 }
 
-func TestTheNavCountsEachDepartmentsActiveProducts(t *testing.T) {
+// TestStore_NavCounts: the nav counts each department's active products.
+func TestStore_NavCounts(t *testing.T) {
 	ctx := t.Context()
 	var big, small, sub uuid.UUID
 	for _, c := range []struct {

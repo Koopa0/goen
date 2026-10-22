@@ -9,7 +9,8 @@ import (
 	"github.com/koopa0/goen/internal/ui/frame"
 )
 
-func TestPrivacyDisclosuresRenderOnce(t *testing.T) {
+// TestDocPagePrivacyRenderOnce: each privacy disclosure renders exactly once.
+func TestDocPagePrivacyRenderOnce(t *testing.T) {
 	for _, locale := range []i18n.Locale{i18n.ZhHant, i18n.En} {
 		t.Run(string(locale), func(t *testing.T) {
 			doc := policies["privacy"].For(locale, testWindows)
@@ -34,7 +35,9 @@ func TestPrivacyDisclosuresRenderOnce(t *testing.T) {
 	}
 }
 
-func TestPrivacyDisclosesCollectedAndRetainedData(t *testing.T) {
+// TestDocPagePrivacyDisclosures: the privacy page discloses the data collected
+// and the data retained.
+func TestDocPagePrivacyDisclosures(t *testing.T) {
 	for _, locale := range []i18n.Locale{i18n.ZhHant, i18n.En} {
 		t.Run(string(locale), func(t *testing.T) {
 			doc := policies["privacy"].For(locale, testWindows)
@@ -66,7 +69,9 @@ func TestPrivacyDisclosesCollectedAndRetainedData(t *testing.T) {
 	}
 }
 
-func TestPrivacyThirdPartySectionDisclosesGoogleSignIn(t *testing.T) {
+// TestPoliciesPrivacyGoogleSignIn: the privacy policy's third-party section
+// discloses Google sign-in.
+func TestPoliciesPrivacyGoogleSignIn(t *testing.T) {
 	for _, tc := range []struct {
 		locale  i18n.Locale
 		heading string
@@ -94,12 +99,12 @@ func TestPrivacyThirdPartySectionDisclosesGoogleSignIn(t *testing.T) {
 	}
 }
 
-// TestPrivacyRetentionSectionStatesEachEnforcedPeriod holds the page to the
-// numbers the sweeps enforce: the pages helpers are bound to those constants by a
-// test in each owning package, and this proves each paragraph reads its own
-// helper. The paragraphs are checked one by one because two periods are both 14
-// days, and a number found in the neighbouring paragraph would pass for it.
-func TestPrivacyRetentionSectionStatesEachEnforcedPeriod(t *testing.T) {
+// TestPoliciesPrivacyRetention holds the page to the numbers the sweeps
+// enforce: the pages helpers are bound to those constants by a test in each
+// owning package, and this proves each paragraph reads its own helper. The
+// paragraphs are checked one by one because two periods are both 14 days, and a
+// number found in the neighbouring paragraph would pass for it.
+func TestPoliciesPrivacyRetention(t *testing.T) {
 	for _, tc := range []struct {
 		locale  i18n.Locale
 		heading string

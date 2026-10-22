@@ -8,7 +8,9 @@ import (
 	"github.com/koopa0/goen/internal/i18n"
 )
 
-func TestContactSuccessOffersOnlyTheSignedInReadersOwnOrders(t *testing.T) {
+// TestPanelDoneOwnOrdersLink: the contact success panel offers the own-orders
+// link only to a signed-in reader.
+func TestPanelDoneOwnOrdersLink(t *testing.T) {
 	t.Parallel()
 	for _, locale := range i18n.Locales() {
 		for _, signedIn := range []bool{false, true} {

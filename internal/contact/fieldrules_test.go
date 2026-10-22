@@ -10,9 +10,10 @@ import (
 	"github.com/koopa0/goen/internal/ui/frame"
 )
 
-// What a field says in markup is what the rule says: the pattern, the script's
-// hook and the server's own message, and nothing for a field with no rule.
-func TestARuleWritesItselfIntoTheMarkup(t *testing.T) {
+// TestContactFieldRuleMarkup: what a field says in markup is what the rule
+// says: the pattern, the script's hook and the server's own message, and
+// nothing for a field with no rule.
+func TestContactFieldRuleMarkup(t *testing.T) {
 	t.Parallel()
 	ctx := i18n.WithLocale(t.Context(), i18n.ZhHant)
 	html := renderToString(t, contact.Contact(frame.Page{Title: "contact"}, contact.Form{}))

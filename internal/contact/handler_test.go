@@ -15,7 +15,9 @@ import (
 	"github.com/koopa0/goen/internal/web/ratelimit"
 )
 
-func TestHTMXOverLimitKeepsTheContactPanel(t *testing.T) {
+// TestHandler_SubmitOverLimitHTMX: an htmx submission over the rate limit keeps
+// the contact panel.
+func TestHandler_SubmitOverLimitHTMX(t *testing.T) {
 	h, req := throttledContact(t, true)
 	res := httptest.NewRecorder()
 	h.Submit(res, req)
@@ -46,7 +48,9 @@ func TestHTMXOverLimitKeepsTheContactPanel(t *testing.T) {
 	}
 }
 
-func TestPlainOverLimitIsStillText(t *testing.T) {
+// TestHandler_SubmitOverLimitPlain: a plain submission over the rate limit is
+// still answered as text.
+func TestHandler_SubmitOverLimitPlain(t *testing.T) {
 	h, req := throttledContact(t, false)
 	res := httptest.NewRecorder()
 	h.Submit(res, req)
@@ -98,9 +102,10 @@ func assertRetryAfter(t *testing.T, res *httptest.ResponseRecorder) {
 	}
 }
 
-// An IPv6 sender chooses the low 64 bits of its address freely, so a limit
-// keyed on the whole address is no limit.
-func TestTheContactLimitCoversAWholeIPv6Slash64(t *testing.T) {
+// TestHandler_SubmitIPv6Limit: the contact limit covers a whole IPv6 /64. An
+// IPv6 sender chooses the low 64 bits of its address freely, so a limit keyed
+// on the whole address is no limit.
+func TestHandler_SubmitIPv6Limit(t *testing.T) {
 	limit := ratelimit.New(ratelimit.Config{
 		Every: time.Hour, Burst: 1, TTL: time.Hour, MaxKeys: 8,
 	})
@@ -131,7 +136,9 @@ func TestTheContactLimitCoversAWholeIPv6Slash64(t *testing.T) {
 	}
 }
 
-func TestTheSentPageOffersOrdersOnlyToASignedInSender(t *testing.T) {
+// TestHandler_PageSentOrdersLink: the sent page offers the own-orders link only
+// to a signed-in sender.
+func TestHandler_PageSentOrdersLink(t *testing.T) {
 	for _, signedIn := range []bool{false, true} {
 		h := &Handler{log: slog.New(slog.DiscardHandler)}
 		req := httptest.NewRequestWithContext(i18n.WithLocale(t.Context(), i18n.ZhHant), http.MethodGet, "/contact?sent=1", http.NoBody)

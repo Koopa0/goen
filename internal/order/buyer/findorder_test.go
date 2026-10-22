@@ -11,7 +11,7 @@ import (
 	"github.com/koopa0/goen/internal/ui/frame"
 )
 
-// From TestCustomerExamplesStayOutsideRefusedInputs: the find-order row.
+// From TestContactExamplesStayOutsideRefusedInputs: the find-order row.
 func TestFindOrderExampleStaysOutsideRefusedInputs(t *testing.T) {
 	t.Parallel()
 	for _, locale := range i18n.Locales() {

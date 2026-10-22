@@ -10,7 +10,8 @@ import (
 	"github.com/koopa0/goen/internal/web/siteurl"
 )
 
-func TestTheReturnTargetFallsBackToThisFeaturesOwnPage(t *testing.T) {
+// TestPathOrFallback: the return target falls back to this feature's own page.
+func TestPathOrFallback(t *testing.T) {
 	const fallback = "/"
 	if got := siteurl.PathOr("//evil.example", fallback); got != fallback {
 		t.Errorf("a refused target gave %q, want %q", got, fallback)
@@ -20,7 +21,9 @@ func TestTheReturnTargetFallsBackToThisFeaturesOwnPage(t *testing.T) {
 	}
 }
 
-func TestSetLocaleReturnsToTheSameURLAndRefusesAForeignOne(t *testing.T) {
+// TestHandler_SetLocaleReturn: setting the locale returns to the same URL and
+// refuses a foreign one.
+func TestHandler_SetLocaleReturn(t *testing.T) {
 	t.Parallel()
 
 	tests := []struct {

@@ -52,7 +52,8 @@ func (c *boundedSitemapCatalogue) SitemapProducts(
 	return rows, nil
 }
 
-func TestSitemapBudgetBoundsTheWholeDocument(t *testing.T) {
+// TestHandler_SitemapBudget: the sitemap budget bounds the whole document.
+func TestHandler_SitemapBudget(t *testing.T) {
 	for _, tt := range []struct {
 		name              string
 		catalogue         *boundedSitemapCatalogue
@@ -109,7 +110,8 @@ func TestSitemapBudgetBoundsTheWholeDocument(t *testing.T) {
 	}
 }
 
-func TestSitemapIncludesDurablePublicContent(t *testing.T) {
+// TestHandler_SitemapStaticURLs: the sitemap includes the durable public pages.
+func TestHandler_SitemapStaticURLs(t *testing.T) {
 	h := &Handler{catalogue: &boundedSitemapCatalogue{}, baseURL: "https://shop.example/", log: slog.New(slog.DiscardHandler)}
 	out := httptest.NewRecorder()
 	h.Sitemap(out, httptest.NewRequestWithContext(t.Context(), http.MethodGet, "/sitemap.xml", http.NoBody))

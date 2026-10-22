@@ -20,7 +20,9 @@ import (
 	"github.com/koopa0/goen/internal/user"
 )
 
-func TestRestockNoticeIsIdempotent(t *testing.T) {
+// TestStore_RequestIdempotent: asking for a restock notice again, in any letter
+// case, keeps one pending request.
+func TestStore_RequestIdempotent(t *testing.T) {
 	ctx := t.Context()
 	s := backinstock.NewStore(pool)
 	vid, slug := soldOutVariant(t)
@@ -57,7 +59,9 @@ func TestRestockNoticeIsIdempotent(t *testing.T) {
 	}
 }
 
-func TestANotifiedRequestDoesNotBlockTheNextOne(t *testing.T) {
+// TestStore_RequestAfterNotified: a request that was already notified does not
+// block the next request for the same address.
+func TestStore_RequestAfterNotified(t *testing.T) {
 	ctx := t.Context()
 	s := backinstock.NewStore(pool)
 	vid, slug := soldOutVariant(t)
@@ -88,7 +92,9 @@ func TestANotifiedRequestDoesNotBlockTheNextOne(t *testing.T) {
 	}
 }
 
-func TestRestockNoticeRefusesAnUnusableAddress(t *testing.T) {
+// TestStore_RequestUnusableAddress: a restock notice request refuses an
+// unusable address.
+func TestStore_RequestUnusableAddress(t *testing.T) {
 	ctx := t.Context()
 	s := backinstock.NewStore(pool)
 	vid, slug := soldOutVariant(t)
@@ -104,7 +110,9 @@ func TestRestockNoticeRefusesAnUnusableAddress(t *testing.T) {
 	}
 }
 
-func TestRestockNoticeIsBoundToTheRouteAndASoldOutActiveVariant(t *testing.T) {
+// TestStore_RequestIneligible: a restock notice is bound to the route and to a
+// sold-out, active variant.
+func TestStore_RequestIneligible(t *testing.T) {
 	ctx := t.Context()
 	s := backinstock.NewStore(pool)
 	vid, slug := soldOutVariant(t)
@@ -164,12 +172,12 @@ func TestRestockNoticeIsBoundToTheRouteAndASoldOutActiveVariant(t *testing.T) {
 	}
 }
 
-// TestRestockNoticeAndRestockLinearizeOnVariant covers both serial orders of the
-// stock-notice decision and the movement that makes stock sellable. The notice
-// query must own the variant row while it decides and inserts: otherwise a restock
-// claims before the request commits, and a request queued behind a restock inserts
+// TestStore_RequestRestockRace covers both serial orders of the stock-notice
+// decision and the movement that makes stock sellable. The notice query must
+// own the variant row while it decides and inserts: otherwise a restock claims
+// before the request commits, and a request queued behind a restock inserts
 // from its stale statement snapshot instead of rechecking the committed stock.
-func TestRestockNoticeAndRestockLinearizeOnVariant(t *testing.T) {
+func TestStore_RequestRestockRace(t *testing.T) {
 	t.Run("request wins and restock claims it", func(t *testing.T) {
 		ctx := t.Context()
 		variantID, slug, sku, actorID := stockRaceFixture(t)

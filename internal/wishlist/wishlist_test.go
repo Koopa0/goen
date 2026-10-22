@@ -11,8 +11,9 @@ import (
 	"github.com/koopa0/goen/internal/web/siteurl"
 )
 
+// TestPathOrFallback: the return target falls back to this feature's own page.
 // siteurl.Path owns the rule; the FALLBACK is what differs per caller.
-func TestTheReturnTargetFallsBackToThisFeaturesOwnPage(t *testing.T) {
+func TestPathOrFallback(t *testing.T) {
 	const fallback = "/account/wishlist"
 	if got := siteurl.PathOr("//evil.example", fallback); got != fallback {
 		t.Errorf("a refused target gave %q, want %q", got, fallback)
@@ -22,9 +23,9 @@ func TestTheReturnTargetFallsBackToThisFeaturesOwnPage(t *testing.T) {
 	}
 }
 
-// TestAGuestSavingIsSentBackToTheProduct holds where a refused save lands: the
-// form's validated same-site return path, never a fixed /account/wishlist.
-func TestAGuestSavingIsSentBackToTheProduct(t *testing.T) {
+// TestHandler_UpdateGuestReturn holds where a refused save lands: the form's
+// validated same-site return path, never a fixed /account/wishlist.
+func TestHandler_UpdateGuestReturn(t *testing.T) {
 	t.Parallel()
 
 	tests := []struct {

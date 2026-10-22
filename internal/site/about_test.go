@@ -9,11 +9,12 @@ import (
 	"github.com/koopa0/goen/internal/ui/frame"
 )
 
-// The about page draws goen's mark instead of a photograph: the two rings the
-// name is about, hidden from a screen reader because the heading and lead say
-// it, and no picture to fetch. Its colours come from classes, because the CSP
-// refuses an inline style attribute and the drawing would render black.
-func TestAboutDrawsTheMarkRatherThanAPhotograph(t *testing.T) {
+// TestAboutMark: the about page draws goen's mark instead of a photograph: the
+// two rings the name is about, hidden from a screen reader because the heading
+// and lead say it, and no picture to fetch. Its colours come from classes,
+// because the CSP refuses an inline style attribute and the drawing would
+// render black.
+func TestAboutMark(t *testing.T) {
 	t.Parallel()
 	for _, locale := range []i18n.Locale{i18n.ZhHant, i18n.En} {
 		ctx := i18n.WithLocale(t.Context(), locale)
@@ -37,8 +38,10 @@ func TestAboutDrawsTheMarkRatherThanAPhotograph(t *testing.T) {
 	}
 }
 
-// The about page's row of internal/contact's TestEveryPageKindSendsItsOwnLinkPreviewTags, which lives here since the page does.
-func TestAboutSendsItsOwnLinkPreviewTags(t *testing.T) {
+// TestAboutLinkPreviewTags: the about page sends its own link preview tags. The
+// about page's row of internal/contact's TestMetaLinkPreviewTags, which lives
+// here since the page does.
+func TestAboutLinkPreviewTags(t *testing.T) {
 	t.Parallel()
 	ctx := i18n.WithLocale(frame.WithRequestPath(t.Context(), "/about"), i18n.ZhHant)
 	head := renderComponent(t, frame.WithSiteOrigin(ctx, "https://goen.test"), frame.Base(AboutMeta(ctx)))
@@ -55,8 +58,10 @@ func TestAboutSendsItsOwnLinkPreviewTags(t *testing.T) {
 	}
 }
 
-// The about page's entry of internal/ui/frame' TestFooterContactNoInventedCompany, which lives here since the page does.
-func TestTheAboutPageNamesNoInventedCompanyOrAddress(t *testing.T) {
+// TestAboutNoInventedCompany: the about page names no invented company or
+// address. The about page's entry of internal/ui/frame'
+// TestFooterContactNoInventedCompany, which lives here since the page does.
+func TestAboutNoInventedCompany(t *testing.T) {
 	t.Parallel()
 	for _, locale := range []i18n.Locale{i18n.ZhHant, i18n.En} {
 		ctx := i18n.WithLocale(t.Context(), locale)

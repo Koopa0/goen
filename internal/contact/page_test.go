@@ -12,7 +12,9 @@ import (
 	"github.com/koopa0/goen/internal/ui/frame"
 )
 
-func TestPublicContactUsesTheOwnedEmail(t *testing.T) {
+// TestContactOwnedEmail: the public contact page and footer use the owned email
+// and no unowned contact detail.
+func TestContactOwnedEmail(t *testing.T) {
 	for _, locale := range []i18n.Locale{i18n.ZhHant, i18n.En} {
 		for name, component := range map[string]templ.Component{
 			"contact": contact.Contact(frame.Page{}, contact.Form{}),
@@ -40,7 +42,9 @@ func TestPublicContactUsesTheOwnedEmail(t *testing.T) {
 	}
 }
 
-func TestTheOrderNumberFieldShowsTheFormatGoenIssues(t *testing.T) {
+// TestContactOrderNumberExample: the order number field shows the format goen
+// issues.
+func TestContactOrderNumberExample(t *testing.T) {
 	t.Parallel()
 
 	for _, locale := range []i18n.Locale{i18n.ZhHant, i18n.En} {
@@ -58,10 +62,12 @@ func TestTheOrderNumberFieldShowsTheFormatGoenIssues(t *testing.T) {
 	}
 }
 
-// The form swaps itself for the confirmation, and the button that had focus goes
-// with it. The form names the element that takes focus next; the confirmation has
-// to be that element, a status message the script can focus.
-func TestTheContactConfirmationTakesFocusFromTheFormItReplaces(t *testing.T) {
+// TestPanelConfirmationFocus: the contact confirmation takes focus from the
+// form it replaces. The form swaps itself for the confirmation, and the button
+// that had focus goes with it. The form names the element that takes focus
+// next; the confirmation has to be that element, a status message the script
+// can focus.
+func TestPanelConfirmationFocus(t *testing.T) {
 	t.Parallel()
 
 	for _, locale := range []i18n.Locale{i18n.ZhHant, i18n.En} {

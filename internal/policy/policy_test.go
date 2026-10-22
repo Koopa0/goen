@@ -19,10 +19,10 @@ import (
 	"github.com/koopa0/goen/internal/ui/frame"
 )
 
-// TestHomeRefundTimingDoesNotOutrunReturns holds the home trust strip to the
-// /returns refund clause: a numbered landing window on the home is a second
-// SLA, and the issuer decides.
-func TestHomeRefundTimingDoesNotOutrunReturns(t *testing.T) {
+// TestPoliciesHomeRefundTiming holds the home trust strip to the /returns
+// refund clause: a numbered landing window on the home is a second SLA, and the
+// issuer decides.
+func TestPoliciesHomeRefundTiming(t *testing.T) {
 	t.Parallel()
 
 	doc, ok := policies["returns"]
@@ -67,10 +67,10 @@ func TestHomeRefundTimingDoesNotOutrunReturns(t *testing.T) {
 	}
 }
 
-// TestRefundCopyNamesBothPayoutChannels holds the three surfaces that used to
-// describe every refund as Stripe. compensate_return_with_credit pays the
-// store-credit half, so those sentences cannot stay Stripe-only.
-func TestRefundCopyNamesBothPayoutChannels(t *testing.T) {
+// TestPoliciesRefundChannels holds the three surfaces that used to describe
+// every refund as Stripe. compensate_return_with_credit pays the store-credit
+// half, so those sentences cannot stay Stripe-only.
+func TestPoliciesRefundChannels(t *testing.T) {
 	t.Parallel()
 
 	schema, err := os.ReadFile(filepath.Join("..", "..", "migrations", "001_initial_schema.up.sql"))
@@ -162,10 +162,10 @@ func TestRefundCopyNamesBothPayoutChannels(t *testing.T) {
 	}
 }
 
-// TestNoPolicyPromisesALapsedOrderCanBePaid holds /payment and /shipping to
-// what the hold sweeper does: an order still unpaid when its hold ends is
-// cancelled, and nothing re-reserves its stock.
-func TestNoPolicyPromisesALapsedOrderCanBePaid(t *testing.T) {
+// TestPoliciesLapsedOrderNotPayable holds /payment and /shipping to what the
+// hold sweeper does: an order still unpaid when its hold ends is cancelled, and
+// nothing re-reserves its stock.
+func TestPoliciesLapsedOrderNotPayable(t *testing.T) {
 	t.Parallel()
 	for _, locale := range []i18n.Locale{i18n.ZhHant, i18n.En} {
 		parts := []string{i18n.T(i18n.WithLocale(t.Context(), locale), i18n.KeyShippingHoldBody)}
@@ -186,11 +186,10 @@ func TestNoPolicyPromisesALapsedOrderCanBePaid(t *testing.T) {
 	}
 }
 
-// TestActiveInvoiceFAQDoesNotCallTheIssuerUnbuilt holds /faq to the issuer
-// that is already wired. A missing merchant id is a deployment, not an
-// unfinished product; saying 「尚未完成」 while Gateway.Issue exists is two
-// answers to one customer question.
-func TestActiveInvoiceFAQDoesNotCallTheIssuerUnbuilt(t *testing.T) {
+// TestFAQSeedInvoiceIssuer holds /faq to the issuer that is already wired. A
+// missing merchant id is a deployment, not an unfinished product; saying 「尚未完成」
+// while Gateway.Issue exists is two answers to one customer question.
+func TestFAQSeedInvoiceIssuer(t *testing.T) {
 	t.Parallel()
 
 	g, err := issuer.NewGateway("", "", "", "")
@@ -268,9 +267,9 @@ func sqlStringAfter(t *testing.T, src, marker string) string {
 	return ""
 }
 
-// TestEveryPolicyRouteHasADocument proves every routed policy resolves, and
-// every document is reachable.
-func TestEveryPolicyRouteHasADocument(t *testing.T) {
+// TestPoliciesRoutes proves every routed policy resolves, and every document is
+// reachable.
+func TestPoliciesRoutes(t *testing.T) {
 	// The paths cmd/goen registers to DocPage, which a test here cannot read.
 	routed := []string{"returns", "payment", "warranty", "privacy", "terms"}
 	for _, path := range routed {
@@ -287,9 +286,9 @@ func TestEveryPolicyRouteHasADocument(t *testing.T) {
 	}
 }
 
-// TestThePrivacyPolicyNamesEveryCookie holds a sentence that CLAIMS
-// completeness against the cookies the binary actually sets.
-func TestThePrivacyPolicyNamesEveryCookie(t *testing.T) {
+// TestPoliciesPrivacyCookies holds a sentence that CLAIMS completeness against
+// the cookies the binary actually sets.
+func TestPoliciesPrivacyCookies(t *testing.T) {
 	described := map[string]struct{ zh, en string }{
 		cart.CookieName:              {zh: "購物車", en: "your cart"},
 		auth.SessionCookieName:       {zh: "登入狀態", en: "your sign-in"},
@@ -362,8 +361,8 @@ func hostCookieNames(t *testing.T) []string {
 	return slices.Sorted(maps.Keys(seen))
 }
 
-// TestPolicyDocumentsAreComplete proves no policy renders as an empty page.
-func TestPolicyDocumentsAreComplete(t *testing.T) {
+// TestPoliciesComplete proves no policy renders as an empty page.
+func TestPoliciesComplete(t *testing.T) {
 	for path, stored := range policies {
 		doc := stored.For(i18n.ZhHant, testWindows)
 		t.Run(path, func(t *testing.T) {
@@ -393,8 +392,9 @@ func TestPolicyDocumentsAreComplete(t *testing.T) {
 	}
 }
 
-// The i18n register test cannot reach these documents.
-func TestPolicyDocumentsSayNiNotNin(t *testing.T) {
+// TestPoliciesSayNiNotNin: the policy documents say 你, never 您. The i18n
+// register test cannot reach these documents.
+func TestPoliciesSayNiNotNin(t *testing.T) {
 	for path, doc := range policies {
 		texts := []string{doc.Title, doc.Summary}
 		for _, s := range doc.Sections {
@@ -408,8 +408,8 @@ func TestPolicyDocumentsSayNiNotNin(t *testing.T) {
 	}
 }
 
-// TestUndecidedTermsAreMarkedPending proves a gap does not render as a rule.
-func TestUndecidedTermsAreMarkedPending(t *testing.T) {
+// TestPoliciesUndecidedPending proves a gap does not render as a rule.
+func TestPoliciesUndecidedPending(t *testing.T) {
 	for path, doc := range policies {
 		for _, s := range doc.Sections {
 			for _, para := range append(append([]string{}, s.Body...), s.BodyEn...) {
@@ -424,12 +424,11 @@ func TestUndecidedTermsAreMarkedPending(t *testing.T) {
 	}
 }
 
-// TestReturnsHowToAskDoesNotRequireAReasonUnlessTheFormDoes holds the
-// Chinese /returns "怎麼申請" steps to the form. Consumer Protection
-// Act §19 I needs no reason; the customer textarea has no required,
-// so a Chinese reader told to fill a reason before sending will think
-// a blank is refused.
-func TestReturnsHowToAskDoesNotRequireAReasonUnlessTheFormDoes(t *testing.T) {
+// TestPoliciesReturnsReasonWording holds the Chinese /returns "怎麼申請" steps to
+// the form. Consumer Protection Act §19 I needs no reason; the customer
+// textarea has no required, so a Chinese reader told to fill a reason before
+// sending will think a blank is refused.
+func TestPoliciesReturnsReasonWording(t *testing.T) {
 	t.Parallel()
 
 	zhHow := returnsHowToAsk(t, i18n.ZhHant)
@@ -551,10 +550,10 @@ func returnReasonFieldIsRequired(t *testing.T) bool {
 	return false
 }
 
-// TestEveryPolicyClauseIsTranslated refuses a policy page that goes
-// half-English: /returns states Consumer Protection Act §19, which §18 I 3
-// obliges the trader to provide whatever language the customer reads.
-func TestEveryPolicyClauseIsTranslated(t *testing.T) {
+// TestPoliciesTranslated refuses a policy page that goes half-English: /returns
+// states Consumer Protection Act §19, which §18 I 3 obliges the trader to
+// provide whatever language the customer reads.
+func TestPoliciesTranslated(t *testing.T) {
 	t.Parallel()
 
 	han := func(s string) bool {
@@ -603,10 +602,10 @@ func TestEveryPolicyClauseIsTranslated(t *testing.T) {
 	}
 }
 
-// TestStatutoryTermsAreNotPending proves a RIGHT does not render as a gap. The
+// TestPoliciesStatutoryNotPending proves a RIGHT does not render as a gap. The
 // assertion is POSITIVE because legitimate Pending copy must name the statutory
 // window, so a forbidden-word scan would refuse the correct text.
-func TestStatutoryTermsAreNotPending(t *testing.T) {
+func TestPoliciesStatutoryNotPending(t *testing.T) {
 	// Each entry is a term Taiwanese law fixes, its citation, and the substance
 	// the page must state outside a Pending section — in both languages, because
 	// a right stated in one is stated for one reader.
@@ -685,9 +684,9 @@ func TestStatutoryTermsAreNotPending(t *testing.T) {
 	}
 }
 
-// TestReturnsCountsTheStatutoryWindowInTheStatutesWord holds /returns to 七日,
-// the word §19 I uses, so one page does not call the same right two names.
-func TestReturnsCountsTheStatutoryWindowInTheStatutesWord(t *testing.T) {
+// TestPoliciesReturnsStatuteWord holds /returns to 七日, the word §19 I uses, so
+// one page does not call the same right two names.
+func TestPoliciesReturnsStatuteWord(t *testing.T) {
 	t.Parallel()
 
 	for _, sec := range policies["returns"].Sections {
@@ -699,9 +698,9 @@ func TestReturnsCountsTheStatutoryWindowInTheStatutesWord(t *testing.T) {
 	}
 }
 
-// TestTheShippingPageStatesTheSurchargeItCharges holds that the page says where
-// costs extra, in the visitor's language.
-func TestTheShippingPageStatesTheSurchargeItCharges(t *testing.T) {
+// TestShippingMethod_SurchargeText holds that the page says where costs extra,
+// in the visitor's language.
+func TestShippingMethod_SurchargeText(t *testing.T) {
 	t.Parallel()
 
 	m := ShippingMethod{

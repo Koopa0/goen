@@ -8,7 +8,9 @@ import (
 	"github.com/koopa0/goen/internal/ui/frame"
 )
 
-func TestSeveralDeliverySurchargesReadAsOneList(t *testing.T) {
+// TestShippingMethod_SurchargeTextList: several delivery surcharges read as one
+// list.
+func TestShippingMethod_SurchargeTextList(t *testing.T) {
 	t.Parallel()
 	m := ShippingMethod{Surcharges: []ZoneSurcharge{{Name: "Outlying islands", Cents: 10000}, {Name: "Green Island", Cents: 8000}}}
 	ctx := i18n.WithLocale(t.Context(), i18n.En)
@@ -17,7 +19,8 @@ func TestSeveralDeliverySurchargesReadAsOneList(t *testing.T) {
 	}
 }
 
-func TestThePolicyFooterReadsAsOneSentence(t *testing.T) {
+// TestDocPageFooter: the policy footer reads as one sentence.
+func TestDocPageFooter(t *testing.T) {
 	t.Parallel()
 	for loc, want := range map[i18n.Locale]string{
 		i18n.ZhHant: `還有問題？<a href="/contact">聯絡我們</a>，或看看<a href="/faq">常見問題</a>。`,

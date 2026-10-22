@@ -12,7 +12,9 @@ import (
 	"github.com/koopa0/goen/internal/keyset"
 )
 
-func TestOrderTokenKeepsItsOwnerAndTimestampPrecision(t *testing.T) {
+// TestReadOrderCursorRoundTrip: an order page token keeps its owner and its
+// timestamp precision.
+func TestReadOrderCursorRoundTrip(t *testing.T) {
 	t.Parallel()
 	id := uuid.New()
 	at := time.Date(2026, time.September, 22, 1, 2, 3, 123456000, time.UTC)
@@ -63,7 +65,9 @@ func TestOrderCursorRefusesUnusableTokens(t *testing.T) {
 	}
 }
 
-func TestAnEmptyLaterPageKeepsItsRestartDoor(t *testing.T) {
+// TestOrderBoundEmptyLaterPage: an empty later orders page keeps its way back
+// to the first page, while an empty first page keeps its own empty state.
+func TestOrderBoundEmptyLaterPage(t *testing.T) {
 	t.Parallel()
 	key := func(o *db.UserOrdersRow) (uuid.UUID, time.Time) { return o.ID, o.PlacedAt }
 	_, later := orderBound(orderCursor{Valid: true}, "owner", []db.UserOrdersRow{}, key)

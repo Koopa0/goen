@@ -9,7 +9,9 @@ import (
 	"github.com/koopa0/goen/internal/i18n"
 )
 
-func TestAccountOffersSigningOutOtherDevicesWithoutAPassword(t *testing.T) {
+// TestAccountSignOutOtherDevices: the account page offers signing out other
+// devices as a plain POST that asks for no password.
+func TestAccountSignOutOtherDevices(t *testing.T) {
 	t.Parallel()
 	for _, tt := range []struct {
 		locale i18n.Locale

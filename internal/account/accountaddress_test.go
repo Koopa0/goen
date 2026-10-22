@@ -7,9 +7,10 @@ import (
 	"github.com/koopa0/goen/internal/ui/frame"
 )
 
-// A refused address re-renders with what was typed, the disclosure open and
-// the refused control marked.
-func TestARefusedAddressKeepsItsFields(t *testing.T) {
+// TestAccountRefusedAddressDraft: a refused address keeps its fields. A refused
+// address re-renders with what was typed, the disclosure open and the refused
+// control marked.
+func TestAccountRefusedAddressDraft(t *testing.T) {
 	t.Parallel()
 	html := renderToString(t, Account(frame.Page{Title: "account"}, &View{
 		Email: "a@example.com",

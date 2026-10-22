@@ -13,7 +13,7 @@ import (
 )
 
 // The checkout's rows of internal/contact's
-// TestCustomerExamplesStayOutsideRefusedInputs.
+// TestContactExamplesStayOutsideRefusedInputs.
 func TestCheckoutExamplesStayOutsideRefusedInputs(t *testing.T) {
 	t.Parallel()
 	for _, locale := range i18n.Locales() {
