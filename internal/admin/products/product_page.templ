@@ -26,7 +26,7 @@ templ Products(p frame.Page, v ProductsView) {
 				{ i18n.T(ctx, i18n.KeyAdminPageNewProduct) }
 			}
 		</div>
-		@frame.Announce(v.Notice)
+		@widget.Announce(v.Notice)
 		if v.Empty() && !v.PastEnd {
 			<div class="goen-admin__empty">
 				<p class="goen-admin__emptytitle">{ i18n.T(ctx, i18n.KeyAdminProdEmpty) }</p>
@@ -107,12 +107,12 @@ templ ProductForm(p frame.Page, v ProductView) {
 				</div>
 			}
 		</div>
-		@frame.Announce(v.Notice)
-		@frame.RefusalSummary(frame.SummarizeRefusal(i18n.KeyAdminProdBasics, v.Errors, frame.RefusalField{Key: "name", ID: "p-name"}, frame.RefusalField{Key: "slug", ID: "p-slug"}, frame.RefusalField{Key: "brand", ID: "p-brand"}, frame.RefusalField{Key: "category", ID: "p-category"}, frame.RefusalField{Key: "summary", ID: "p-summary"}, frame.RefusalField{Key: "description", ID: "p-description"}, frame.RefusalField{Key: "name_en", ID: "p-name-en"}, frame.RefusalField{Key: "summary_en", ID: "p-summary-en"}, frame.RefusalField{Key: "description_en", ID: "p-description-en"}, frame.RefusalField{Key: "warranty_months", ID: "p-warranty-months"}))
-		@frame.RefusalSummary(v.VariantRefusal())
-		@frame.RefusalSummary(frame.SummarizeRefusal(i18n.KeyAdminProdOptionAdd, v.Errors, frame.RefusalField{Key: "option", ID: "opt-name"}, frame.RefusalField{Key: "option_en", ID: "opt-name-en"}))
-		@frame.RefusalSummary(frame.SummarizeRefusal(i18n.KeyAdminProdValueAdd, v.Errors, frame.RefusalField{Key: "value", ID: "optval-value"}, frame.RefusalField{Key: "value_en", ID: "optval-value-en"}, frame.RefusalField{Key: "swatch_hex", ID: "optval-swatch"}))
-		@frame.RefusalSummary(frame.SummarizeRefusal(i18n.KeyAdminProdSpecs, v.Errors, frame.RefusalField{Key: "spec_label", ID: "spec-label"}, frame.RefusalField{Key: "spec_value", ID: "spec-value"}, frame.RefusalField{Key: "spec_label_en", ID: "spec-label-en"}, frame.RefusalField{Key: "spec_value_en", ID: "spec-value-en"}))
+		@widget.Announce(v.Notice)
+		@widget.RefusalSummary(widget.SummarizeRefusal(i18n.KeyAdminProdBasics, v.Errors, widget.RefusalField{Key: "name", ID: "p-name"}, widget.RefusalField{Key: "slug", ID: "p-slug"}, widget.RefusalField{Key: "brand", ID: "p-brand"}, widget.RefusalField{Key: "category", ID: "p-category"}, widget.RefusalField{Key: "summary", ID: "p-summary"}, widget.RefusalField{Key: "description", ID: "p-description"}, widget.RefusalField{Key: "name_en", ID: "p-name-en"}, widget.RefusalField{Key: "summary_en", ID: "p-summary-en"}, widget.RefusalField{Key: "description_en", ID: "p-description-en"}, widget.RefusalField{Key: "warranty_months", ID: "p-warranty-months"}))
+		@widget.RefusalSummary(v.VariantRefusal())
+		@widget.RefusalSummary(widget.SummarizeRefusal(i18n.KeyAdminProdOptionAdd, v.Errors, widget.RefusalField{Key: "option", ID: "opt-name"}, widget.RefusalField{Key: "option_en", ID: "opt-name-en"}))
+		@widget.RefusalSummary(widget.SummarizeRefusal(i18n.KeyAdminProdValueAdd, v.Errors, widget.RefusalField{Key: "value", ID: "optval-value"}, widget.RefusalField{Key: "value_en", ID: "optval-value-en"}, widget.RefusalField{Key: "swatch_hex", ID: "optval-swatch"}))
+		@widget.RefusalSummary(widget.SummarizeRefusal(i18n.KeyAdminProdSpecs, v.Errors, widget.RefusalField{Key: "spec_label", ID: "spec-label"}, widget.RefusalField{Key: "spec_value", ID: "spec-value"}, widget.RefusalField{Key: "spec_label_en", ID: "spec-label-en"}, widget.RefusalField{Key: "spec_value_en", ID: "spec-value-en"}))
 		if !v.IsNew {
 			<nav class="goen-admin__sectionnav" aria-label={ i18n.T(ctx, i18n.KeyAdminProdSectionNav) }>
 				<a href="#sec-details">{ i18n.T(ctx, i18n.KeyAdminProdBasics) }</a>

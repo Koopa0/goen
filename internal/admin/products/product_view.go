@@ -13,7 +13,6 @@ import (
 	"github.com/koopa0/goen/internal/keyset"
 	"github.com/koopa0/goen/internal/money"
 	"github.com/koopa0/goen/internal/product"
-	"github.com/koopa0/goen/internal/ui/frame"
 	"github.com/koopa0/goen/internal/ui/widget"
 )
 
@@ -324,12 +323,12 @@ func (i Image) URL() string { return i.Photo.URL() }
 // pixel tiles need; the original is a multi-megabyte download for either.
 func (i Image) Srcset() string { return i.Photo.Srcset() }
 
-func (v *ProductView) VariantRefusal() frame.Refusal {
-	fields := make([]frame.RefusalField, 0, 7+len(v.Options))
-	fields = append(fields, frame.RefusalField{Key: "sku", ID: "v-sku"}, frame.RefusalField{Key: "price", ID: "v-price"}, frame.RefusalField{Key: "compare", ID: "v-compare"})
+func (v *ProductView) VariantRefusal() widget.Refusal {
+	fields := make([]widget.RefusalField, 0, 7+len(v.Options))
+	fields = append(fields, widget.RefusalField{Key: "sku", ID: "v-sku"}, widget.RefusalField{Key: "price", ID: "v-price"}, widget.RefusalField{Key: "compare", ID: "v-compare"})
 	if len(v.Options) > 0 {
-		fields = append(fields, frame.RefusalField{Key: "options", ID: "v-opt-" + v.Options[0].ID})
+		fields = append(fields, widget.RefusalField{Key: "options", ID: "v-opt-" + v.Options[0].ID})
 	}
-	fields = append(fields, frame.RefusalField{Key: "safety", ID: "v-safety"}, frame.RefusalField{Key: "parcel_longest", ID: "v-longest"}, frame.RefusalField{Key: "parcel_sum", ID: "v-sum"}, frame.RefusalField{Key: "parcel_weight", ID: "v-weight"})
-	return frame.SummarizeRefusal(i18n.KeyAdminProdVariantAdd, v.Errors, fields...)
+	fields = append(fields, widget.RefusalField{Key: "safety", ID: "v-safety"}, widget.RefusalField{Key: "parcel_longest", ID: "v-longest"}, widget.RefusalField{Key: "parcel_sum", ID: "v-sum"}, widget.RefusalField{Key: "parcel_weight", ID: "v-weight"})
+	return widget.SummarizeRefusal(i18n.KeyAdminProdVariantAdd, v.Errors, fields...)
 }

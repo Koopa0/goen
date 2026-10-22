@@ -92,11 +92,11 @@ func Slides(p frame.Page, v *HeroView) templ.Component {
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
-			templ_7745c5c3_Err = frame.Announce(v.Notice).Render(ctx, templ_7745c5c3_Buffer)
+			templ_7745c5c3_Err = widget.Announce(v.Notice).Render(ctx, templ_7745c5c3_Buffer)
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
-			templ_7745c5c3_Err = frame.RefusalSummary(frame.SummarizeRefusal(i18n.KeyAdminRefusalHero, v.Errors, frame.RefusalField{Key: "headline", ID: "h-headline"}, frame.RefusalField{Key: "primary", ID: "h-plabel"}, frame.RefusalField{Key: "alt", ID: "h-alt"}, frame.RefusalField{Key: "primaryhref", ID: "h-phref"}, frame.RefusalField{Key: "second", ID: "h-shref"}, frame.RefusalField{Key: "image", ID: "h-image"}, frame.RefusalField{Key: "days", ID: "h-days"})).Render(ctx, templ_7745c5c3_Buffer)
+			templ_7745c5c3_Err = widget.RefusalSummary(widget.SummarizeRefusal(i18n.KeyAdminRefusalHero, v.Errors, widget.RefusalField{Key: "headline", ID: "h-headline"}, widget.RefusalField{Key: "primary", ID: "h-plabel"}, widget.RefusalField{Key: "alt", ID: "h-alt"}, widget.RefusalField{Key: "primaryhref", ID: "h-phref"}, widget.RefusalField{Key: "second", ID: "h-shref"}, widget.RefusalField{Key: "image", ID: "h-image"}, widget.RefusalField{Key: "days", ID: "h-days"})).Render(ctx, templ_7745c5c3_Buffer)
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}

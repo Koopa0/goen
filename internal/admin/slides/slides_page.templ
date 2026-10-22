@@ -19,8 +19,8 @@ templ Slides(p frame.Page, v *HeroView) {
 				</p>
 			</div>
 		</div>
-		@frame.Announce(v.Notice)
-		@frame.RefusalSummary(frame.SummarizeRefusal(i18n.KeyAdminRefusalHero, v.Errors, frame.RefusalField{Key: "headline", ID: "h-headline"}, frame.RefusalField{Key: "primary", ID: "h-plabel"}, frame.RefusalField{Key: "alt", ID: "h-alt"}, frame.RefusalField{Key: "primaryhref", ID: "h-phref"}, frame.RefusalField{Key: "second", ID: "h-shref"}, frame.RefusalField{Key: "image", ID: "h-image"}, frame.RefusalField{Key: "days", ID: "h-days"}))
+		@widget.Announce(v.Notice)
+		@widget.RefusalSummary(widget.SummarizeRefusal(i18n.KeyAdminRefusalHero, v.Errors, widget.RefusalField{Key: "headline", ID: "h-headline"}, widget.RefusalField{Key: "primary", ID: "h-plabel"}, widget.RefusalField{Key: "alt", ID: "h-alt"}, widget.RefusalField{Key: "primaryhref", ID: "h-phref"}, widget.RefusalField{Key: "second", ID: "h-shref"}, widget.RefusalField{Key: "image", ID: "h-image"}, widget.RefusalField{Key: "days", ID: "h-days"}))
 		<section aria-labelledby="live-slides">
 			<h2 class="goen-admin__subhead" id="live-slides">{ i18n.T(ctx, i18n.KeyAdminHomeCarouselHead) }</h2>
 			if v.NoSlides() {

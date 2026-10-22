@@ -23,11 +23,11 @@ templ Taxonomy(p frame.Page, v *TaxonomyView) {
 				</p>
 			</div>
 		</div>
-		@frame.Announce(v.Notice)
+		@widget.Announce(v.Notice)
 		if v.Which == "brands" {
-			@frame.RefusalSummary(frame.SummarizeRefusal(i18n.KeyAdminTaxNewBrand, v.Errors, frame.RefusalField{Key: "name", ID: "brands-name"}, frame.RefusalField{Key: "slug", ID: "brands-slug"}))
+			@widget.RefusalSummary(widget.SummarizeRefusal(i18n.KeyAdminTaxNewBrand, v.Errors, widget.RefusalField{Key: "name", ID: "brands-name"}, widget.RefusalField{Key: "slug", ID: "brands-slug"}))
 		} else if v.Which == "categories" {
-			@frame.RefusalSummary(frame.SummarizeRefusal(i18n.KeyAdminTaxNewCategory, v.Errors, frame.RefusalField{Key: "name", ID: "categories-name"}, frame.RefusalField{Key: "name_en", ID: "categories-name-en"}, frame.RefusalField{Key: "slug", ID: "categories-slug"}, frame.RefusalField{Key: "icon_key", ID: "categories-icon"}, frame.RefusalField{Key: "tone", ID: "categories-tone"}, frame.RefusalField{Key: "parent", ID: "categories-parent"}))
+			@widget.RefusalSummary(widget.SummarizeRefusal(i18n.KeyAdminTaxNewCategory, v.Errors, widget.RefusalField{Key: "name", ID: "categories-name"}, widget.RefusalField{Key: "name_en", ID: "categories-name-en"}, widget.RefusalField{Key: "slug", ID: "categories-slug"}, widget.RefusalField{Key: "icon_key", ID: "categories-icon"}, widget.RefusalField{Key: "tone", ID: "categories-tone"}, widget.RefusalField{Key: "parent", ID: "categories-parent"}))
 		}
 		@widget.Card(widget.CardProps{Class: "goen-admin__section"}) {
 			<h2 class="goen-admin__heading">{ i18n.T(ctx, i18n.KeyAdminTaxBrands) }</h2>

@@ -1,4 +1,4 @@
-package frame
+package widget
 
 import (
 	"context"

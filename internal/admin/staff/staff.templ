@@ -22,7 +22,7 @@ templ Staff(p frame.Page, v StaffView) {
 				}
 			</div>
 		</div>
-		@frame.Announce(v.Notice)
+		@widget.Announce(v.Notice)
 		if v.NoKey {
 			@widget.Notice(widget.NoticeProps{Intent: widget.IntentWarn}) {
 				{ i18n.T(ctx, i18n.KeyTOTPNoKeyNotice) }

@@ -22,7 +22,7 @@ templ Campaigns(p frame.Page, v CampaignsView) {
 				</p>
 			</div>
 		</div>
-		@frame.Announce(v.Notice)
+		@widget.Announce(v.Notice)
 		if v.Empty() && !v.PastEnd {
 			<div class="goen-admin__empty">
 				<p class="goen-admin__emptytitle">{ i18n.T(ctx, i18n.KeyAdminCampEmpty) }</p>
@@ -217,7 +217,7 @@ templ CampaignForm(p frame.Page, v CampaignView) {
 				}
 			</form>
 		</div>
-		@frame.Announce(v.Notice)
+		@widget.Announce(v.Notice)
 		if v.ResultsUnavailable {
 			@widget.Card(widget.CardProps{Class: "goen-admin__section"}) {
 				<h2 class="goen-admin__heading">{ i18n.T(ctx, i18n.KeyAdminCampResults) }</h2>

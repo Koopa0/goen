@@ -17,7 +17,7 @@ templ CategoryForm(p frame.Page, v CategoryView) {
 				<h1 class="ui-page-head__title">{ v.Name }</h1>
 			</div>
 		</div>
-		@frame.Announce(v.Notice)
+		@widget.Announce(v.Notice)
 		@widget.Card(widget.CardProps{Class: "goen-admin__section"}) {
 			<h2 class="goen-admin__heading">{ i18n.T(ctx, i18n.KeyAdminCatImage) }</h2>
 			if v.Image.Has() && v.Image.URL() != "" {

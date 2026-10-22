@@ -96,17 +96,17 @@ func Taxonomy(p frame.Page, v *TaxonomyView) templ.Component {
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
-			templ_7745c5c3_Err = frame.Announce(v.Notice).Render(ctx, templ_7745c5c3_Buffer)
+			templ_7745c5c3_Err = widget.Announce(v.Notice).Render(ctx, templ_7745c5c3_Buffer)
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
 			if v.Which == "brands" {
-				templ_7745c5c3_Err = frame.RefusalSummary(frame.SummarizeRefusal(i18n.KeyAdminTaxNewBrand, v.Errors, frame.RefusalField{Key: "name", ID: "brands-name"}, frame.RefusalField{Key: "slug", ID: "brands-slug"})).Render(ctx, templ_7745c5c3_Buffer)
+				templ_7745c5c3_Err = widget.RefusalSummary(widget.SummarizeRefusal(i18n.KeyAdminTaxNewBrand, v.Errors, widget.RefusalField{Key: "name", ID: "brands-name"}, widget.RefusalField{Key: "slug", ID: "brands-slug"})).Render(ctx, templ_7745c5c3_Buffer)
 				if templ_7745c5c3_Err != nil {
 					return templ_7745c5c3_Err
 				}
 			} else if v.Which == "categories" {
-				templ_7745c5c3_Err = frame.RefusalSummary(frame.SummarizeRefusal(i18n.KeyAdminTaxNewCategory, v.Errors, frame.RefusalField{Key: "name", ID: "categories-name"}, frame.RefusalField{Key: "name_en", ID: "categories-name-en"}, frame.RefusalField{Key: "slug", ID: "categories-slug"}, frame.RefusalField{Key: "icon_key", ID: "categories-icon"}, frame.RefusalField{Key: "tone", ID: "categories-tone"}, frame.RefusalField{Key: "parent", ID: "categories-parent"})).Render(ctx, templ_7745c5c3_Buffer)
+				templ_7745c5c3_Err = widget.RefusalSummary(widget.SummarizeRefusal(i18n.KeyAdminTaxNewCategory, v.Errors, widget.RefusalField{Key: "name", ID: "categories-name"}, widget.RefusalField{Key: "name_en", ID: "categories-name-en"}, widget.RefusalField{Key: "slug", ID: "categories-slug"}, widget.RefusalField{Key: "icon_key", ID: "categories-icon"}, widget.RefusalField{Key: "tone", ID: "categories-tone"}, widget.RefusalField{Key: "parent", ID: "categories-parent"})).Render(ctx, templ_7745c5c3_Buffer)
 				if templ_7745c5c3_Err != nil {
 					return templ_7745c5c3_Err
 				}
