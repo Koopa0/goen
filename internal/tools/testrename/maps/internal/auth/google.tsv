@@ -1,7 +1,0 @@
-file	old	new	unit	source	action	newfile
-internal/auth/google/google_test.go	TestTheAuthorizationURLCarriesEverySecurityParameter	TestClient_AuthorizeURL	Client_AuthorizeURL	hand	rename	
-internal/auth/google/google_test.go	TestTwoSignInsDoNotShareAState	TestClient_AuthorizeURLUnique	Client_AuthorizeURL	hand	rename	
-internal/auth/google/google_test.go	TestAnUnconfiguredClientOffersNothing	TestNewUnconfigured	New	hand	rename	
-internal/auth/google/google_test.go	TestGoogleRedirectUsesTheSiteOriginGrammar	TestNewRedirectOrigin	New	hand	rename	
-internal/auth/google/google_transport_test.go	TestGoogleSignInTalksOnlyToGoogleAndReadsBoundedReplies	TestClient_ExchangeEndpointsBound	Client_Exchange	hand	rename	
-internal/auth/google/google_transport_test.go	TestTheGoogleClientHasADeadlineAndVerifiesTLS	TestNewHTTPClient	New	hand	rename	

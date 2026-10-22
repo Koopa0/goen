@@ -1,3 +1,0 @@
-file	old	new	unit	source	action	newfile
-internal/ui/uitest/uitest_test.go	TestBrowserWithoutVariablesIsAProgrammingError	TestBrowserNoVariables	Browser	hand	rename	
-internal/ui/uitest/uitest_test.go	TestLocalChromeReturnsTheTrimmedPathFromTheResolver	TestLocalChromeResolverPath	LocalChrome	hand	rename	

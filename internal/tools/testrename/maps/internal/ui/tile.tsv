@@ -1,9 +1,0 @@
-file	old	new	unit	source	action	newfile
-internal/ui/tile/tile_test.go	TestACardStrikesItsPriceOnlyOnSale	TestCellStrikesPriceOnlyOnSale	Cell	hand	rename	
-internal/ui/tile/tile_test.go	TestAComparableTileDrawsItsSpecHighlights	TestCellSpecHighlights	Cell	hand	rename	
-internal/ui/tile/tile_test.go	TestATilePhotoAddsNothingToTheNameItsLinkReads	TestCellPhotoDecorative	Cell	hand	rename	
-internal/ui/tile/tile_test.go	TestATileSaysSaleByItsPriceAndNotByAChip	TestCellSaleWithoutChip	Cell	hand	rename	
-internal/ui/tile/tile_test.go	TestColourCountSelectsSingularInItsRenderedText	TestTileColoursCountText	tileColours	hand	rename	
-internal/ui/tile/tile_test.go	TestSoldOutTileSaysSoWithoutABadge	TestCellSoldOut	Cell	hand	rename	
-internal/ui/tile/tile_test.go	TestTileStillEmitsItsOwnGridCell	TestCellGridCell	Cell	hand	rename	
-internal/ui/tile/tile_test.go	TestTileWithoutPhotoKeepsItsWellAndSaysSo	TestCellWithoutPhoto	Cell	hand	rename	

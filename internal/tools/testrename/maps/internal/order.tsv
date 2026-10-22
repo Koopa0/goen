@@ -1,6 +1,0 @@
-file	old	new	unit	source	action	newfile
-internal/order/label_test.go	TestAFundedOrderIsNotBadgedUnpaid	TestFulfillmentStatus_FundedLabel	FulfillmentStatus_FundedLabel	hand	rename	
-internal/order/label_test.go	TestEveryStatusHasACatalogueLabel	TestFulfillmentStatus_LabelCatalogue	FulfillmentStatus_Label	hand	rename	
-internal/order/label_test.go	TestLabelRendersARetiredStatus	TestFulfillmentStatus_LabelRetired	FulfillmentStatus_Label	hand	rename	
-internal/order/label_test.go	TestTheLabelTableIsTheFulfillmentClosedSet	TestFulfillmentStatusesLabels	FulfillmentStatuses	hand	rename	
-internal/order/order_test.go	TestNextStaysInsideTheClosedSet	TestFulfillmentStatus_NextKnown	FulfillmentStatus_Next	hand	rename	

@@ -1,3 +1,0 @@
-file	old	new	unit	source	action	newfile
-internal/product/labelling/labelling_test.go	TestNetUnitSymbolForPiecesUsesTheLocaleCountUnit	TestNetUnit_SymbolPiece	NetUnit_Symbol	hand	rename	
-internal/product/labelling/labelling_test.go	TestTextLimitsMatchTheSchemaChecks	TestFactsTextLimits	Facts	hand	rename	

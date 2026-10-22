@@ -1,3 +1,0 @@
-file	old	new	unit	source	action	newfile
-internal/email/confirmation_test.go	TestConfirmationMaskDoesNotRevealTheLocalPartOrItsLength	TestMask	Mask	hand	rename	
-internal/email/confirmation_test.go	TestConfirmationQueryAcceptsOnlyAMaskedAddress	TestReadMasked	ReadMasked	hand	rename	

@@ -5,6 +5,7 @@ import (
 	"go/ast"
 	"go/parser"
 	"go/token"
+	"io/fs"
 	"maps"
 	"os"
 	"path/filepath"
@@ -21,114 +22,11 @@ import (
 // and no style guide states a number.
 const maxTestNameLen = 40
 
-// migratedTestPackages lists, by directory relative to the repository root,
-// the packages whose test names have been migrated to the convention in
-// CONTRIBUTING.md. Only these packages are checked: a package joins the list in
-// the pull request that renames its tests, so a name cannot drift back, and
-// nothing else in the repository is held to the rule until then.
-//
-// TestMigratedTestNames reads every listed package and fails if one has no
-// tests to read; TestCheckTestNames runs the same checks over fixtures that
-// fail them, so the guard cannot pass without looking.
-var migratedTestPackages = []string{
-	"assets",
-	"cmd/goen",
-	"internal/account",
-	"internal/admin",
-	"internal/admin/audit",
-	"internal/admin/banners",
-	"internal/admin/campaigns",
-	"internal/admin/coupons",
-	"internal/admin/credits",
-	"internal/admin/customers",
-	"internal/admin/dashboard",
-	"internal/admin/faq",
-	"internal/admin/health",
-	"internal/admin/messages",
-	"internal/admin/newsletters",
-	"internal/admin/orders",
-	"internal/admin/products",
-	"internal/admin/questions",
-	"internal/admin/refunds",
-	"internal/admin/reports",
-	"internal/admin/returns",
-	"internal/admin/reviews",
-	"internal/admin/shipping",
-	"internal/admin/slides",
-	"internal/admin/staff",
-	"internal/admin/stock",
-	"internal/admin/taxonomy",
-	"internal/admin/tiers",
-	"internal/admin/twofactor",
-	"internal/admin/warranties",
-	"internal/auth",
-	"internal/auth/google",
-	"internal/backinstock",
-	"internal/bearer",
-	"internal/cart",
-	"internal/catalog",
-	"internal/checkout",
-	"internal/contact",
-	"internal/credit",
-	"internal/db",
-	"internal/db/dbtest",
-	"internal/discount/campaign",
-	"internal/discount/coupon",
-	"internal/email",
-	"internal/home",
-	"internal/i18n",
-	"internal/invoice",
-	"internal/invoice/issuer",
-	"internal/keyset",
-	"internal/letter",
-	"internal/loyalty",
-	"internal/media",
-	"internal/money",
-	"internal/newsletter",
-	"internal/order",
-	"internal/order/access",
-	"internal/order/buyer",
-	"internal/order/cancellation",
-	"internal/order/delivery",
-	"internal/order/returns",
-	"internal/order/warranty",
-	"internal/outbox",
-	"internal/payment",
-	"internal/policy",
-	"internal/product",
-	"internal/product/copurchase",
-	"internal/product/inventory",
-	"internal/product/labelling",
-	"internal/repocheck",
-	"internal/shipping",
-	"internal/shipping/postcode",
-	"internal/shipping/storemap",
-	"internal/shoptime",
-	"internal/site",
-	"internal/ui/chart",
-	"internal/ui/fieldrule",
-	"internal/ui/frame",
-	"internal/ui/icons",
-	"internal/ui/orderstatus",
-	"internal/ui/stockrisk",
-	"internal/ui/tile",
-	"internal/ui/tone",
-	"internal/ui/uitest",
-	"internal/ui/widget",
-	"internal/user",
-	"internal/web/clientip",
-	"internal/web/compress",
-	"internal/web/formtext",
-	"internal/web/probe",
-	"internal/web/ratelimit",
-	"internal/web/requestid",
-	"internal/web/respond",
-	"internal/web/siteurl",
-	"internal/wishlist",
-	"migrations",
-}
+// minTestPackages is the floor under the walk: main has 95 directories holding
+// a _test.go file, so a walk that finds far fewer has stopped looking.
+const minTestPackages = 90
 
-// testNameExceptions is the shrink-only allow list: for a listed package, each
+// testNameExceptions is the shrink-only allow list: for a package, each
 // test that breaks the rule and why. A row is stale, and fails, once its test is
 // renamed or deleted or no longer breaks the rule. Do not add a row to let a
 // new name pass; rename the test. A row belongs here only for a test whose unit
@@ -531,41 +429,74 @@ var testNameExceptions = map[string]map[string]string{
 	},
 }
 
-// TestMigratedTestNames holds every package in migratedTestPackages to the rule
-// that a top-level test name is at most 40 characters after "Test" and starts
-// with the identifier of a function or type the package declares. The second
-// part is checked only for a package that has non-test Go files, because only
-// there is there an identifier to compare with; a package of guards has none
-// and is held to length alone. Whether the identifier is the unit the test
+// TestEveryTestNameFollowsTheRule holds every package with a _test.go file to
+// the rule that a top-level test name is at most 40 characters after "Test" and
+// starts with the identifier of a function or type the package declares. The
+// second part is checked only for a package that has non-test Go files, because
+// only there is there an identifier to compare with; a package of guards has
+// none and is held to length alone. Whether the identifier is the unit the test
 // really exercises is left to review.
 //
+// The packages are found by walking the repository (testPackages), so a new
+// package is held to the rule from its first test; the walk must find at least
+// minTestPackages of them.
+//
 // It is not a count rule: it asks for no number of tests and no coverage.
-func TestMigratedTestNames(t *testing.T) {
+func TestEveryTestNameFollowsTheRule(t *testing.T) {
 	t.Parallel()
-	if len(migratedTestPackages) == 0 {
-		t.Log("no package is listed in migratedTestPackages yet, so nothing is checked")
+	root := repoRoot(t)
+	pkgs, err := testPackages(root)
+	if err != nil {
+		t.Fatalf("walk the repository for test files: %v", err)
 	}
-	for _, problem := range checkTestNames(repoRoot(t), migratedTestPackages, testNameExceptions) {
+	if len(pkgs) < minTestPackages {
+		t.Fatalf("the walk found %d directories holding a _test.go file, want at least %d: it has stopped looking at the repository", len(pkgs), minTestPackages)
+	}
+	for _, problem := range checkTestNames(root, pkgs, testNameExceptions) {
 		t.Error(problem)
 	}
+}
+
+// testPackages returns, slash-separated and relative to root, every directory
+// under root that holds a _test.go file. It skips what the go command skips
+// (skippedDir: names starting with "." or "_", such as the .worktrees and
+// .claude copies of the repository a checkout may hold, testdata, and
+// node_modules) and vendor.
+func testPackages(root string) ([]string, error) {
+	found := map[string]bool{}
+	err := filepath.WalkDir(root, func(path string, d fs.DirEntry, err error) error {
+		if err != nil {
+			return err
+		}
+		if d.IsDir() {
+			if path != root && (skippedDir(d.Name()) || d.Name() == "vendor") {
+				return filepath.SkipDir
+			}
+			return nil
+		}
+		if !strings.HasSuffix(d.Name(), "_test.go") {
+			return nil
+		}
+		rel, relErr := filepath.Rel(root, filepath.Dir(path))
+		if relErr != nil {
+			return relErr
+		}
+		found[filepath.ToSlash(rel)] = true
+		return nil
+	})
+	return slices.Sorted(maps.Keys(found)), err
 }
 
 // checkTestNames returns what is wrong with the test names of each package in
 // pkgs, and with the exceptions that do not hold.
 func checkTestNames(root string, pkgs []string, exceptions map[string]map[string]string) []string {
 	var problems []string
-	listed := map[string]bool{}
 	for _, pkg := range pkgs {
-		if listed[pkg] {
-			problems = append(problems, pkg+" is listed twice in migratedTestPackages")
-			continue
-		}
-		listed[pkg] = true
 		problems = append(problems, checkPackageTestNames(root, pkg, exceptions[pkg])...)
 	}
 	for _, pkg := range slices.Sorted(maps.Keys(exceptions)) {
-		if !listed[pkg] {
-			problems = append(problems, pkg+" has rows in testNameExceptions but is not in migratedTestPackages: delete them")
+		if !slices.Contains(pkgs, pkg) {
+			problems = append(problems, pkg+" has rows in testNameExceptions but holds no _test.go file: delete them")
 		}
 	}
 	return problems
@@ -577,9 +508,10 @@ func checkPackageTestNames(root, pkg string, exceptions map[string]string) []str
 		return []string{fmt.Sprintf("%s: %v", pkg, err)}
 	}
 	if len(tests) == 0 {
-		// A scan that finds nothing is asserting nothing: the walk has stopped
-		// matching, or the package was listed before it had tests.
-		return []string{pkg + " is listed in migratedTestPackages but no top-level test was found in it"}
+		// A scan that finds nothing is asserting nothing: the parse has stopped
+		// matching, or the directory's test files hold only TestMain, helpers,
+		// benchmarks, fuzz targets or examples.
+		return []string{pkg + " holds a _test.go file but no top-level test was found in it"}
 	}
 	var problems []string
 	for _, name := range slices.Sorted(maps.Keys(exceptions)) {
@@ -822,7 +754,11 @@ func TestCheckTestNames(t *testing.T) {
 			if tc.exceptions != nil {
 				exceptions = map[string]map[string]string{"internal/shop": tc.exceptions}
 			}
-			got := checkTestNames(root, []string{"internal/shop"}, exceptions)
+			pkgs, err := testPackages(root)
+			if err != nil || !slices.Equal(pkgs, []string{"internal/shop"}) {
+				t.Fatalf("testPackages(%q) = %q, %v, want [internal/shop]", tc.name, pkgs, err)
+			}
+			got := checkTestNames(root, pkgs, exceptions)
 			if len(got) != len(tc.want) {
 				t.Fatalf("checkTestNames(%q) = %q, want %d problems containing %q", tc.name, got, len(tc.want), tc.want)
 			}
@@ -835,34 +771,47 @@ func TestCheckTestNames(t *testing.T) {
 	}
 }
 
-// TestCheckTestNamesListing covers what a list can get wrong: a package that is
-// not there, one listed twice, and exceptions for a package that is not listed.
-func TestCheckTestNamesListing(t *testing.T) {
+// TestTestPackagesWalk covers what the walk can get wrong: reading a copy of
+// the repository or a fixture it should skip, and missing a nested package. It
+// also covers exceptions for a package the walk did not find.
+func TestTestPackagesWalk(t *testing.T) {
 	t.Parallel()
 	root := t.TempDir()
-	dir := filepath.Join(root, "shop")
-	if err := os.MkdirAll(dir, 0o750); err != nil {
-		t.Fatal(err)
-	}
-	if err := os.WriteFile(filepath.Join(dir, "shop_test.go"), []byte("package shop_test\n\nimport \"testing\"\n\nfunc TestParse(t *testing.T) {}\n"), 0o600); err != nil {
-		t.Fatal(err)
-	}
-	if got := checkTestNames(root, nil, nil); len(got) != 0 {
-		t.Errorf("checkTestNames(root, nil, nil) = %q, want none: the empty list is allowed", got)
-	}
-	for _, tc := range []struct {
-		name       string
-		pkgs       []string
-		exceptions map[string]map[string]string
-		want       string
-	}{
-		{"Missing", []string{"gone"}, nil, "gone: read the package directory"},
-		{"Twice", []string{"shop", "shop"}, nil, "shop is listed twice"},
-		{"Unlisted", []string{"shop"}, map[string]map[string]string{"other": {"TestX": "why"}}, "other has rows in testNameExceptions but is not in migratedTestPackages"},
+	const test = "package x_test\n\nimport \"testing\"\n\nfunc TestParse(t *testing.T) {}\n"
+	for _, file := range []string{
+		"shop/shop_test.go",
+		"shop/cart/cart_test.go",
+		"shop/cart/cart_integration_test.go",
+		"shop/testdata/repo/repo_test.go",
+		".worktrees/copy/shop/shop_test.go",
+		".claude/worktrees/copy/shop/shop_test.go",
+		"_scratch/scratch_test.go",
+		"vendor/example.com/lib/lib_test.go",
+		"node_modules/pkg/pkg_test.go",
 	} {
-		got := checkTestNames(root, tc.pkgs, tc.exceptions)
-		if len(got) != 1 || !strings.Contains(got[0], tc.want) {
-			t.Errorf("checkTestNames(%q) = %q, want one problem containing %q", tc.name, got, tc.want)
+		path := filepath.Join(root, filepath.FromSlash(file))
+		if err := os.MkdirAll(filepath.Dir(path), 0o750); err != nil {
+			t.Fatal(err)
 		}
+		if err := os.WriteFile(path, []byte(test), 0o600); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if err := os.MkdirAll(filepath.Join(root, "notests"), 0o750); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(root, "notests", "notests.go"), []byte("package notests\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	pkgs, err := testPackages(root)
+	if want := []string{"shop", "shop/cart"}; err != nil || !slices.Equal(pkgs, want) {
+		t.Fatalf("testPackages(root) = %q, %v, want %q", pkgs, err, want)
+	}
+	if got := checkTestNames(root, pkgs, nil); len(got) != 0 {
+		t.Errorf("checkTestNames(root, %q, nil) = %q, want none", pkgs, got)
+	}
+	got := checkTestNames(root, pkgs, map[string]map[string]string{"other": {"TestX": "why"}})
+	if want := "other has rows in testNameExceptions but holds no _test.go file"; len(got) != 1 || !strings.Contains(got[0], want) {
+		t.Errorf("checkTestNames(root, %q, exceptions for other) = %q, want one problem containing %q", pkgs, got, want)
 	}
 }

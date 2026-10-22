@@ -1,2 +1,0 @@
-file	old	new	unit	source	action	newfile
-internal/product/copurchase/main_integration_test.go	TestASecondRefreshWhileOneRunsDoesNoWork	TestRefreshCopurchasesOverlap		hand	rename	

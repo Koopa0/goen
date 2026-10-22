@@ -1,2 +1,0 @@
-file	old	new	unit	source	action	newfile
-internal/db/dbtest/backend_integration_test.go	TestBlockedSeesOnlyTheCurrentDatabase	TestBlockedCurrentDatabase	Blocked	hand	rename	

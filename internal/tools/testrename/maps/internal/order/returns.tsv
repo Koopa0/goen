@@ -1,9 +1,0 @@
-file	old	new	unit	source	action	newfile
-internal/order/returns/decision_test.go	TestParseDecisionKindIsAClosedSet	TestParseDecisionKind	ParseDecisionKind	hand	rename	
-internal/order/returns/decision_test.go	TestParseFactIsAClosedSet	TestParseFact	ParseFact	hand	rename	
-internal/order/returns/decision_test.go	TestParsePolicyWindowIsAClosedSet	TestParsePolicyWindow	ParsePolicyWindow	hand	rename	
-internal/order/returns/decision_test.go	TestRequestWindowKeepsMixedLinesMixed	TestRequestWindow	RequestWindow	hand	rename	
-internal/order/returns/decision_test.go	TestReturnResolutionUsesTheDurableCharacterBound	TestValidResolution	ValidResolution	hand	rename	
-internal/order/returns/label_test.go	TestEveryReturnPolicyWindowHasALabel	TestPolicyWindow_Label	PolicyWindow_Label	hand	rename	
-internal/order/returns/label_test.go	TestEveryUnsentReasonHasALabel	TestUnsentReason_Label	UnsentReason_Label	hand	rename	
-internal/order/returns/unsent_test.go	TestUnsentReasonsAreTheSchemasCodes	TestUnsentReasonsMatchSchema	UnsentReasons	hand	rename	

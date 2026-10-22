@@ -465,15 +465,15 @@ not named `http`, which would read as `net/http`.
 - Fail with `Func(input) = got, want want`, and keep going with `t.Error`
   ([useful test failures](https://google.github.io/styleguide/go/decisions#useful-test-failures),
   [Go Code Review Comments](https://go.dev/wiki/CodeReviewComments#useful-test-failures)).
-- `TestMigratedTestNames` in `internal/repocheck` holds the packages listed in
-  `migratedTestPackages` to the naming rule: a name is at most 40 characters
-  after `Test` and, where the package has non-test code, starts with the name of
-  a function or type it declares. The 40 is goen's own limit, near the 99th
-  percentile of the standard library's test names (42); no style guide gives a
-  number. A package joins the list in the pull request that renames its tests,
-  and a test that cannot follow the rule goes in `testNameExceptions` with a
-  reason. That list only shrinks, and a row for a test that was renamed or now
-  follows the rule fails. Other packages are not checked yet.
+- `TestEveryTestNameFollowsTheRule` in `internal/repocheck` holds every
+  package to the naming rule: a name is at most 40 characters after `Test` and,
+  where the package has non-test code, starts with the name of a function or
+  type it declares. The 40 is goen's own limit, near the 99th percentile of the
+  standard library's test names (42); no style guide gives a number. The guard
+  finds the packages by walking the repository for `_test.go` files, so a new
+  package is held to the rule from its first test. A test that cannot follow
+  the rule goes in `testNameExceptions` with a reason. That list only shrinks,
+  and a row for a test that was renamed or now follows the rule fails.
 - Use the external test package (`package foo_test`) unless the test needs
   unexported names or an import cycle forbids it ([test package](https://google.github.io/styleguide/go/decisions#test-package)).
   That default is a goen rule: Google's guide defaults to the same package and
