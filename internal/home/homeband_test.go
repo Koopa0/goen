@@ -5,8 +5,8 @@ import (
 	"testing"
 
 	"github.com/koopa0/goen/internal/i18n"
-	"github.com/koopa0/goen/internal/ui/components"
 	"github.com/koopa0/goen/internal/ui/layouts"
+	"github.com/koopa0/goen/internal/ui/tone"
 )
 
 func TestTheHomeBandIsAShelfWithNoPhotograph(t *testing.T) {
@@ -14,7 +14,7 @@ func TestTheHomeBandIsAShelfWithNoPhotograph(t *testing.T) {
 	ctx := i18n.WithLocale(t.Context(), i18n.ZhHant)
 
 	page := renderComponent(t, ctx, Page(layouts.Page{}, View{Band: &DepartmentBand{
-		Name: "居家生活與廚房", Fact: "廚房 · 寢具", Items: 12, Href: "/c/home", Tone: components.ToneInk, Tiles: tiledShelf(4),
+		Name: "居家生活與廚房", Fact: "廚房 · 寢具", Items: 12, Href: "/c/home", Tone: tone.Ink, Tiles: tiledShelf(4),
 	}}))
 	for _, want := range []string{
 		`class="goen-band goen-band--shelf" data-tone="ink"`,

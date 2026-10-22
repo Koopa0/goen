@@ -10,6 +10,7 @@ import (
 	"github.com/koopa0/goen/internal/ui/components"
 	"github.com/koopa0/goen/internal/ui/layouts"
 	"github.com/koopa0/goen/internal/ui/tile"
+	"github.com/koopa0/goen/internal/ui/tone"
 )
 
 // Summary is a campaign as the strip on /deals lists it.
@@ -31,7 +32,7 @@ type View struct {
 	Schedule Schedule
 	Products []tile.Tile
 	Image    components.Photo
-	Tone     components.Tone
+	Tone     tone.Tone
 }
 
 func (v *View) Empty() bool { return len(v.Products) == 0 }

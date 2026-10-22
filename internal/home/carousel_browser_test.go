@@ -13,6 +13,7 @@ import (
 	"github.com/koopa0/goen/internal/i18n"
 	"github.com/koopa0/goen/internal/ui/components"
 	"github.com/koopa0/goen/internal/ui/layouts"
+	"github.com/koopa0/goen/internal/ui/tone"
 	"github.com/koopa0/goen/internal/ui/uitest"
 )
 
@@ -33,7 +34,7 @@ func TestCarouselCurrentTabStaysVisibleWithoutMovingThePage(t *testing.T) {
 		}
 		view := View{}
 		for _, title := range titles {
-			view.Slides = append(view.Slides, components.HeroSlide{Title: title, Layout: components.SlideSplit, Tone: components.ToneStone})
+			view.Slides = append(view.Slides, components.HeroSlide{Title: title, Layout: components.SlideSplit, Tone: tone.Stone})
 		}
 		w.Header().Set("Content-Type", "text/html; charset=utf-8")
 		if renderErr := Page(layouts.Page{}, view).Render(i18n.WithLocale(r.Context(), locale), w); renderErr != nil {

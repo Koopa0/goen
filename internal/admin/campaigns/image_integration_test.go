@@ -170,7 +170,7 @@ func TestHeaderImageRefusalsKeepBothDescriptions(t *testing.T) {
 					}
 				}
 				admintest.AssertRefusedInput(t, res.Body.String(), tt.field, map[string]string{"c-alt": tt.alt, "c-alt-en": tt.altEn}[tt.field])
-				after, tone, err := s.Image(ctx, slug)
+				after, afterTone, err := s.Image(ctx, slug)
 				if err != nil {
 					t.Fatal(err)
 				}
@@ -178,8 +178,8 @@ func TestHeaderImageRefusalsKeepBothDescriptions(t *testing.T) {
 					t.Errorf("refusal changed saved header (-want +got):\n%s", diff)
 				}
 
-				if tone != baselineTone {
-					t.Errorf("refusal changed saved tone = %q, want %q", tone, baselineTone)
+				if afterTone != baselineTone {
+					t.Errorf("refusal changed saved tone = %q, want %q", afterTone, baselineTone)
 				}
 			})
 		}

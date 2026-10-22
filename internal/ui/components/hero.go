@@ -5,6 +5,7 @@ import (
 	"unicode/utf8"
 
 	"github.com/koopa0/goen/internal/i18n"
+	"github.com/koopa0/goen/internal/ui/tone"
 )
 
 type CTA struct {
@@ -35,7 +36,7 @@ type HeroSlide struct {
 	ID     string
 	Source SlideSource
 	Layout SlideLayout
-	Tone   Tone
+	Tone   tone.Tone
 	Photo  Photo
 	// A width on its own reserves no space, so both are rendered together.
 	PhotoWidth, PhotoHeight int

@@ -18,6 +18,7 @@ import (
 	"github.com/koopa0/goen/internal/policy"
 	"github.com/koopa0/goen/internal/ui/components"
 	"github.com/koopa0/goen/internal/ui/tile"
+	"github.com/koopa0/goen/internal/ui/tone"
 )
 
 type Store struct {
@@ -165,7 +166,7 @@ func (s *Store) listing(ctx context.Context, slug string, f Filters) (ListingVie
 		Crumbs: trail,
 		Theme: &Theme{
 			Children:   childCrumbs(children),
-			Tone:       components.ResolveTone(cat.Tone),
+			Tone:       tone.Resolve(cat.Tone),
 			Comparable: offers[cat.ID],
 			Photo: components.Photo{
 				URL:    photo.URL(),

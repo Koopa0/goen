@@ -22,6 +22,7 @@ import (
 	"github.com/koopa0/goen/internal/ui/components"
 	"github.com/koopa0/goen/internal/ui/layouts"
 	"github.com/koopa0/goen/internal/ui/tile"
+	"github.com/koopa0/goen/internal/ui/tone"
 )
 
 type ProductImage struct {
@@ -218,7 +219,7 @@ type ProductView struct {
 	Related []tile.Tile
 
 	// Tone is the department's; the gallery's mat and the band wear it.
-	Tone components.Tone
+	Tone tone.Tone
 }
 
 // StarHalves keeps an average of 4.5 at four stars and half of the fifth, not five.

@@ -8,6 +8,7 @@ import (
 	"github.com/koopa0/goen/internal/ui/components"
 	"github.com/koopa0/goen/internal/ui/layouts"
 	"github.com/koopa0/goen/internal/ui/tile"
+	"github.com/koopa0/goen/internal/ui/tone"
 )
 
 func TestBandPhotoFallsBackToTheFirstProductThenToNothing(t *testing.T) {
@@ -56,7 +57,7 @@ func TestADepartmentHeadWithNoPhotographAndNoProductDrawsNone(t *testing.T) {
 	t.Parallel()
 	ctx := i18n.WithLocale(t.Context(), i18n.En)
 
-	page := renderComponent(t, ctx, Listing(layouts.Page{}, ListingView{Slug: "c", Name: "Books", Theme: &Theme{Tone: components.ToneBlush}}, nil, nil))
+	page := renderComponent(t, ctx, Listing(layouts.Page{}, ListingView{Slug: "c", Name: "Books", Theme: &Theme{Tone: tone.Blush}}, nil, nil))
 	if strings.Contains(page, "goen-pagehead__photo") {
 		t.Error("a head with neither a department nor a product photograph drew an image")
 	}
@@ -70,7 +71,7 @@ func TestTheDepartmentHeadIsTheBand(t *testing.T) {
 	t.Parallel()
 	ctx := i18n.WithLocale(t.Context(), i18n.En)
 
-	page := renderComponent(t, ctx, Listing(layouts.Page{}, ListingView{Slug: "c", Name: "Books", Theme: &Theme{Tone: components.ToneSage, Photo: components.Photo{URL: "/d.webp"}}}, nil, nil))
+	page := renderComponent(t, ctx, Listing(layouts.Page{}, ListingView{Slug: "c", Name: "Books", Theme: &Theme{Tone: tone.Sage, Photo: components.Photo{URL: "/d.webp"}}}, nil, nil))
 	band := strings.Index(page, `class="goen-band"`)
 	grid := strings.Index(page, `class="goen-band__grid"`)
 	media := strings.Index(page, `class="goen-band__media"`)

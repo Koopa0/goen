@@ -14,6 +14,7 @@ import (
 	"github.com/koopa0/goen/internal/i18n"
 	"github.com/koopa0/goen/internal/ui/components"
 	"github.com/koopa0/goen/internal/ui/tile"
+	"github.com/koopa0/goen/internal/ui/tone"
 )
 
 // ErrNotFound is a campaign that does not exist or is switched off.
@@ -65,7 +66,7 @@ func (s *Store) Campaign(ctx context.Context, slug string) (View, error) {
 			Srcset: photo.Srcset(),
 			Alt:    c.ImageAlt,
 		},
-		Tone: components.ResolveTone(c.Tone),
+		Tone: tone.Resolve(c.Tone),
 	}, nil
 }
 

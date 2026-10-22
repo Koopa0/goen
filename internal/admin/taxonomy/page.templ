@@ -7,6 +7,7 @@ import (
 	"github.com/koopa0/goen/internal/ui/components"
 	"github.com/koopa0/goen/internal/ui/icons"
 	"github.com/koopa0/goen/internal/ui/layouts"
+	"github.com/koopa0/goen/internal/ui/tone"
 )
 
 // Two cards, each holding what it lists and the form that adds to it, because a brand
@@ -160,7 +161,7 @@ templ taxonForm(kind string, title i18n.Key, style components.ButtonStyle, v *Ta
 							<option value={ v.DraftFor(kind, "tone") } selected>{ v.DraftFor(kind,"tone") }</option>
 						}
 						<option value="">{ i18n.T(ctx, i18n.KeyAdminToneInherit) }</option>
-						for _, k := range components.Tones() {
+						for k := range tone.All() {
 							<option value={ string(k) } selected?={ v.DraftFor(kind, "tone") == string(k) }>{ k.Label(ctx) }</option>
 						}
 					</select>
@@ -282,7 +283,7 @@ templ taxonList(kind string, empty i18n.Key, rows []Taxon) {
 									aria-label={ fmt.Sprintf(i18n.T(ctx, i18n.KeyAdminTaxToneOf), t.Name) }
 								>
 									<option value="">{ i18n.T(ctx, i18n.KeyAdminToneInherit) }</option>
-									for _, k := range components.Tones() {
+									for k := range tone.All() {
 										<option value={ string(k) } selected?={ t.Tone == string(k) }>{ k.Label(ctx) }</option>
 									}
 								</select>

@@ -12,6 +12,7 @@ import (
 	"github.com/koopa0/goen/internal/money"
 	"github.com/koopa0/goen/internal/ui/chart"
 	"github.com/koopa0/goen/internal/ui/components"
+	"github.com/koopa0/goen/internal/ui/tone"
 )
 
 type CampaignRow struct {
@@ -109,7 +110,7 @@ type CampaignDraft struct {
 	Tone    string
 }
 
-func (d CampaignDraft) ToneOrStone() components.Tone { return components.ResolveTone(d.Tone) }
+func (d CampaignDraft) ToneOrStone() tone.Tone { return tone.Resolve(d.Tone) }
 
 func (v CampaignsView) Empty() bool { return len(v.Rows) == 0 }
 

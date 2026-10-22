@@ -9,6 +9,7 @@ import (
 	"github.com/koopa0/goen/internal/i18n"
 	"github.com/koopa0/goen/internal/ui/components"
 	"github.com/koopa0/goen/internal/ui/layouts"
+	"github.com/koopa0/goen/internal/ui/tone"
 )
 
 const seedBanner = "campaign-banner-01.webp"
@@ -55,7 +56,7 @@ func TestACampaignHeadCarriesItsTone(t *testing.T) {
 	t.Parallel()
 	ctx := i18n.WithLocale(t.Context(), i18n.En)
 
-	head := renderComponent(t, ctx, campaign.Page(layouts.Page{Title: "c"}, campaign.View{Slug: "c", Title: "Sale", Tone: components.ToneInk}))
+	head := renderComponent(t, ctx, campaign.Page(layouts.Page{Title: "c"}, campaign.View{Slug: "c", Title: "Sale", Tone: tone.Ink}))
 	if !strings.Contains(head, `data-tone="ink"`) {
 		t.Error("the campaign head does not carry its tone")
 	}
