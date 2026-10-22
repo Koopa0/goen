@@ -61,8 +61,9 @@ func queuePages(b keyset.Bound, ctx func(k i18n.Key) string) map[string]struct {
 	}
 }
 
-// From TestAuditFirstPageEmpty.
-func TestOrdersQueueKeepsItsOwnFirstPageEmptyState(t *testing.T) {
+// TestOrdersQueueFirstPageEmpty: the orders queue keeps its own first-page
+// empty state. From TestAuditFirstPageEmpty.
+func TestOrdersQueueFirstPageEmpty(t *testing.T) {
 	t.Parallel()
 	ctx := func(k i18n.Key) string { return i18n.T(i18n.WithLocale(t.Context(), i18n.En), k) }
 	generic := ctx(i18n.KeyPageEmpty)

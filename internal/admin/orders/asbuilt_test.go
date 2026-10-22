@@ -12,7 +12,9 @@ import (
 	"github.com/koopa0/goen/internal/ui/frame"
 )
 
-func TestOnlyAPickupOrderIsToldToCompleteAfterCollection(t *testing.T) {
+// TestOrderPickupCompleteAfterCollection: only a pickup order is told to
+// complete the order after collection.
+func TestOrderPickupCompleteAfterCollection(t *testing.T) {
 	t.Parallel()
 	next := []Transition{{Value: order.FulfillmentCompleted, Label: "x"}}
 	for _, loc := range []i18n.Locale{i18n.ZhHant, i18n.En} {
@@ -35,9 +37,9 @@ func TestOnlyAPickupOrderIsToldToCompleteAfterCollection(t *testing.T) {
 	}
 }
 
-// TestTheAllowanceActionSaysTheCustomerAgreesOnline: the 折讓 is ECPay's online
-// consent, and an open one says who it waits for until when.
-func TestTheAllowanceActionSaysTheCustomerAgreesOnline(t *testing.T) {
+// TestOrderAllowanceAgreesOnline: the 折讓 is ECPay's online consent, and an open
+// one says who it waits for until when.
+func TestOrderAllowanceAgreesOnline(t *testing.T) {
 	t.Parallel()
 	for _, loc := range []i18n.Locale{i18n.ZhHant, i18n.En} {
 		ctx := i18n.WithLocale(t.Context(), loc)

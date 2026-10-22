@@ -6,7 +6,9 @@ import (
 	"testing"
 )
 
-func TestParcelArrivalRejectsInvalidPathsBeforeReachingTheStore(t *testing.T) {
+// TestHandler_DeliverShipmentInvalid: a parcel arrival rejects invalid paths
+// before it reaches the store.
+func TestHandler_DeliverShipmentInvalid(t *testing.T) {
 	t.Parallel()
 	for _, tt := range []struct{ name, number, shipment string }{
 		{name: "bad order", number: "not-an-order", shipment: "11111111-1111-4111-8111-111111111111"},

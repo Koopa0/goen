@@ -23,7 +23,9 @@ import (
 	"github.com/koopa0/goen/internal/order"
 )
 
-func TestLaterParcelArrivalWhileGoodsRemainOutstanding(t *testing.T) {
+// TestHandler_DeliverShipmentLaterParcel: a later parcel's arrival is recorded
+// while goods remain outstanding.
+func TestHandler_DeliverShipmentLaterParcel(t *testing.T) {
 	ctx, staff := admintest.StaffContext(t, pool)
 	actor := uuid.NullUUID{UUID: staff, Valid: true}
 	role := admintest.AdminRolePool(t, pool)

@@ -10,7 +10,9 @@ import (
 	"github.com/koopa0/goen/internal/order"
 )
 
-func TestOrderNextStepSummaryUsesTheFirstApplicableFact(t *testing.T) {
+// TestOrderNextStepSummary: the next-step summary uses the first applicable
+// fact.
+func TestOrderNextStepSummary(t *testing.T) {
 	t.Parallel()
 	for _, tc := range []struct {
 		name   string
@@ -57,7 +59,8 @@ func TestOrderNextStepSummaryUsesTheFirstApplicableFact(t *testing.T) {
 	}
 }
 
-func TestOrderStatusStepsEachHaveTheirOwnPostForm(t *testing.T) {
+// TestOrderStatusStepForms: each order status step has its own POST form.
+func TestOrderStatusStepForms(t *testing.T) {
 	t.Parallel()
 	for _, tc := range []struct {
 		name    string
@@ -175,7 +178,8 @@ func TestOrderStatusStepsEachHaveTheirOwnPostForm(t *testing.T) {
 	}
 }
 
-func TestOrderUnpaidWarningOnlyAppearsForPendingSteps(t *testing.T) {
+// TestOrderUnpaidWarning: the unpaid warning appears only for pending steps.
+func TestOrderUnpaidWarning(t *testing.T) {
 	t.Parallel()
 	for _, tc := range []struct {
 		status order.FulfillmentStatus

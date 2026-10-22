@@ -20,7 +20,9 @@ import (
 	"github.com/koopa0/goen/internal/i18n"
 )
 
-func TestDeliveryCorrectionShowsAbsentControlRefusals(t *testing.T) {
+// TestHandler_CorrectDeliveryAbsentControl: a delivery correction shows the
+// refusal of a control the form does not draw.
+func TestHandler_CorrectDeliveryAbsentControl(t *testing.T) {
 	for _, locale := range []i18n.Locale{i18n.En, i18n.ZhHant} {
 		for _, tc := range []struct {
 			name   string

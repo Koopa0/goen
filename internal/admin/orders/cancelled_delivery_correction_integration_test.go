@@ -20,7 +20,9 @@ import (
 	"github.com/koopa0/goen/internal/order"
 )
 
-func TestCancelledOrderCannotHaveItsDeliveryCorrected(t *testing.T) {
+// TestHandler_CorrectDeliveryCancelled: a cancelled order cannot have its
+// delivery corrected, through the page, the POST, the store or the SQL.
+func TestHandler_CorrectDeliveryCancelled(t *testing.T) {
 	ctx, staff := admintest.StaffContext(t, pool)
 	writer := admintest.AdminRolePool(t, pool)
 	store := admintest.OrderStore(writer, admintest.Refunder{}, nil, nil)

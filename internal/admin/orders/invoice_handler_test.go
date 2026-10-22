@@ -91,7 +91,8 @@ func postAllowance(t *testing.T, h *Handler) *httptest.ResponseRecorder {
 	return res
 }
 
-func TestVoidClaimErrorsAreNotA500(t *testing.T) {
+// TestHandler_VoidInvoiceClaimErrors: void claim errors are not a 500.
+func TestHandler_VoidInvoiceClaimErrors(t *testing.T) {
 	t.Parallel()
 
 	tests := []struct {
@@ -117,7 +118,9 @@ func TestVoidClaimErrorsAreNotA500(t *testing.T) {
 	}
 }
 
-func TestAnUnmappedVoidClaimIsA500(t *testing.T) {
+// TestHandler_VoidInvoiceUnmappedClaim: an unmapped void claim error answers
+// 500.
+func TestHandler_VoidInvoiceUnmappedClaim(t *testing.T) {
 	t.Parallel()
 
 	res := postVoid(t, invoiceNoticeHandler(stubInvoiceWriter{
@@ -129,9 +132,10 @@ func TestAnUnmappedVoidClaimIsA500(t *testing.T) {
 	}
 }
 
-// The notices these redirects name are the order page's, and the root suite
-// checks their words.
-func TestVoidAndAllowanceProviderRefusalDoesNotBlameTaxIDs(t *testing.T) {
+// TestHandler_VoidInvoiceRefusal: a provider refusal of a void or an allowance
+// does not blame tax IDs. The notices these redirects name are the order
+// page's, and the root suite checks their words.
+func TestHandler_VoidInvoiceRefusal(t *testing.T) {
 	t.Parallel()
 
 	voidRes := postVoid(t, invoiceNoticeHandler(stubInvoiceWriter{voidErr: issuer.ErrRejected}), "資料錯誤")
@@ -149,9 +153,10 @@ func TestVoidAndAllowanceProviderRefusalDoesNotBlameTaxIDs(t *testing.T) {
 	}
 }
 
-// An allowance ECPay e-mailed to the buyer is still pending, and the notice says
-// what happens next rather than that the result is unknown.
-func TestAnAllowanceSentToTheBuyerSaysSo(t *testing.T) {
+// TestHandler_FileAllowanceSentToBuyer: an allowance sent to the buyer says so.
+// An allowance ECPay e-mailed to the buyer is still pending, and the notice
+// says what happens next rather than that the result is unknown.
+func TestHandler_FileAllowanceSentToBuyer(t *testing.T) {
 	t.Parallel()
 
 	sent := fmt.Errorf("%w: allowance_awaiting_buyer: %w", issuer.ErrPending, issuer.ErrAwaitingBuyer)
@@ -162,7 +167,9 @@ func TestAnAllowanceSentToTheBuyerSaysSo(t *testing.T) {
 	}
 }
 
-func TestVoidAndAllowanceUnconfiguredIssuerHasItsOwnNotice(t *testing.T) {
+// TestHandler_IssueInvoiceUnconfigured: an unconfigured issuer has its own
+// notice on the issue, void and allowance forms.
+func TestHandler_IssueInvoiceUnconfigured(t *testing.T) {
 	t.Parallel()
 
 	// Store.VoidInvoice / FileAllowance return ErrInvoiceRefused when the writer is gone: a stale POST
@@ -234,7 +241,9 @@ func (w *recordingInvoiceWriter) FileAllowance(
 	return invoice.Document{Kind: "allowance", Number: "2026080715227214"}, nil
 }
 
-func TestAllowanceHTTPDoesNotAcceptCallerControlledMoney(t *testing.T) {
+// TestHandler_FileAllowanceIgnoresAmount: the allowance POST does not accept a
+// caller-controlled amount.
+func TestHandler_FileAllowanceIgnoresAmount(t *testing.T) {
 	ctx := invoiceNoticeContext(t)
 	writer := &recordingInvoiceWriter{}
 	handler := invoiceNoticeHandler(writer)
@@ -280,7 +289,9 @@ func TestAllowanceHTTPDoesNotAcceptCallerControlledMoney(t *testing.T) {
 	}
 }
 
-func TestRefusedIssueItemisationIsANoticeAndOtherFailuresRemainErrors(t *testing.T) {
+// TestHandler_IssueInvoiceRefusedItems: a refused issue itemisation is a notice
+// and other failures remain errors.
+func TestHandler_IssueInvoiceRefusedItems(t *testing.T) {
 	t.Parallel()
 	for _, tc := range []struct {
 		name         string

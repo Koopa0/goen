@@ -10,7 +10,9 @@ import (
 	"github.com/koopa0/goen/internal/invoice"
 )
 
-func TestOnlyUnknownAllowanceAttentionHasEscapedTechnicalDetails(t *testing.T) {
+// TestOrderAllowanceAttentionDetail: only the unknown allowance attention has
+// escaped technical details.
+func TestOrderAllowanceAttentionDetail(t *testing.T) {
 	t.Parallel()
 	for _, tc := range []struct {
 		category string

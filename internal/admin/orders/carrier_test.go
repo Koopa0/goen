@@ -24,7 +24,9 @@ func optionsOffered(t *testing.T, html string) []string {
 	return out
 }
 
-func TestTheDispatchFormOffersOnlyTheCarriersTheOrderCanUse(t *testing.T) {
+// TestOrderDispatchFormCarriers: the dispatch form offers only the carriers the
+// order can use.
+func TestOrderDispatchFormCarriers(t *testing.T) {
 	t.Parallel()
 
 	t.Run("a store order lists its chain's carrier, selected", func(t *testing.T) {

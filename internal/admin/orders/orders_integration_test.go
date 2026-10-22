@@ -32,7 +32,8 @@ import (
 	"github.com/koopa0/goen/internal/user"
 )
 
-func TestAdvanceRefusesAnUnfundedOrder(t *testing.T) {
+// TestStore_AdvanceRefusesUnfunded: Advance refuses an unfunded order.
+func TestStore_AdvanceRefusesUnfunded(t *testing.T) {
 	ctx, _ := admintest.StaffContext(t, pool)
 	s := admintest.OrderStore(pool, admintest.Refunder{}, nil, nil)
 
@@ -49,7 +50,8 @@ func TestAdvanceRefusesAnUnfundedOrder(t *testing.T) {
 	}
 }
 
-func TestAdvanceRefusesAnIllegalTransition(t *testing.T) {
+// TestStore_AdvanceIllegalTransition: Advance refuses an illegal transition.
+func TestStore_AdvanceIllegalTransition(t *testing.T) {
 	ctx := t.Context()
 	s := admintest.OrderStore(pool, admintest.Refunder{}, nil, nil)
 	number := admintest.PlaceUnpaidOrder(t, pool)
@@ -62,10 +64,10 @@ func TestAdvanceRefusesAnIllegalTransition(t *testing.T) {
 	}
 }
 
-// TestAdvanceAnswersALockTimeoutAsAFailure: the order's row lock timing out is
-// the database not answering, and telling staff the rules refused a move that
-// was never evaluated sends them to look for a rule instead of retrying.
-func TestAdvanceAnswersALockTimeoutAsAFailure(t *testing.T) {
+// TestHandler_AdvanceLockTimeout: the order's row lock timing out is the
+// database not answering, and telling staff the rules refused a move that was
+// never evaluated sends them to look for a rule instead of retrying.
+func TestHandler_AdvanceLockTimeout(t *testing.T) {
 	ctx, _ := admintest.StaffContext(t, pool)
 	number := admintest.PlaceUnpaidOrder(t, pool)
 	s := admintest.OrderStore(admintest.LockTimeoutPool(t, pool), admintest.Refunder{}, nil, nil)
@@ -114,7 +116,9 @@ func pickingOrderHoldingStock(t *testing.T) (number string, orderID uuid.UUID) {
 	return number, orderID
 }
 
-func TestShipDoesAllFourWritesOrNone(t *testing.T) {
+// TestStore_ShipWritesAll: a successful Ship records the status, the shipment,
+// its lines, the consumed reservation and the event.
+func TestStore_ShipWritesAll(t *testing.T) {
 	ctx, _ := admintest.StaffContext(t, pool)
 	s := admintest.OrderStore(pool, admintest.Refunder{}, nil, nil)
 	number, orderID := pickingOrderHoldingStock(t)
@@ -191,7 +195,9 @@ func TestShipDoesAllFourWritesOrNone(t *testing.T) {
 	}
 }
 
-func TestShippingIsRefusedForAnOrderThatWasNeverPicked(t *testing.T) {
+// TestStore_ShipNeverPicked: shipping an order that was never picked is
+// refused.
+func TestStore_ShipNeverPicked(t *testing.T) {
 	ctx, staff := admintest.StaffContext(t, pool)
 	s := admintest.OrderStore(pool, admintest.Refunder{}, nil, nil)
 	actor := uuid.NullUUID{UUID: staff, Valid: true}
@@ -272,7 +278,9 @@ func TestShippingIsRefusedForAnOrderThatWasNeverPicked(t *testing.T) {
 	}
 }
 
-func TestShipNeedsACarrierAndATracking(t *testing.T) {
+// TestStore_ShipNeedsCarrierTracking: Ship needs a carrier and a tracking
+// number.
+func TestStore_ShipNeedsCarrierTracking(t *testing.T) {
 	ctx := t.Context()
 	s := admintest.OrderStore(pool, admintest.Refunder{}, nil, nil)
 	number, _ := pickingOrderHoldingStock(t)
@@ -294,7 +302,8 @@ func TestShipNeedsACarrierAndATracking(t *testing.T) {
 	}
 }
 
-func TestAdvanceCannotShip(t *testing.T) {
+// TestStore_AdvanceCannotShip: Advance cannot ship an order.
+func TestStore_AdvanceCannotShip(t *testing.T) {
 	ctx := t.Context()
 	s := admintest.OrderStore(pool, admintest.Refunder{}, nil, nil)
 	number, orderID := pickingOrderHoldingStock(t)
@@ -312,7 +321,8 @@ func TestAdvanceCannotShip(t *testing.T) {
 	}
 }
 
-func TestAdvanceRecordsWhoAndWhen(t *testing.T) {
+// TestStore_AdvanceRecordsWhoWhen: Advance records who made the move and when.
+func TestStore_AdvanceRecordsWhoWhen(t *testing.T) {
 	ctx, _ := admintest.StaffContext(t, pool)
 	s := admintest.OrderStore(pool, admintest.Refunder{}, nil, nil)
 	number, orderID, _ := admintest.PendingOrderHoldingStock(t, pool)
@@ -344,7 +354,9 @@ func TestAdvanceRecordsWhoAndWhen(t *testing.T) {
 	}
 }
 
-func TestCancellingAnOrderInTheBackOfficeReturnsItsStock(t *testing.T) {
+// TestStore_AdvanceCancelReturnsStock: cancelling an order in the back office
+// returns its stock.
+func TestStore_AdvanceCancelReturnsStock(t *testing.T) {
 	ctx := t.Context()
 	s := admintest.OrderStore(admintest.AdminRolePool(t, pool), admintest.Refunder{}, nil, nil)
 
@@ -396,11 +408,12 @@ func TestCancellingAnOrderInTheBackOfficeReturnsItsStock(t *testing.T) {
 	}
 }
 
-// TestBackOfficeCancellationReadsHoldsAfterWinningTheOrderLock is the admin
-// counterpart of the customer cancellation race. The expiry release queues
-// first, changes the reservation while retaining the order lock, then commits;
-// Advance must take its held snapshot only after that commit and still finish.
-func TestBackOfficeCancellationReadsHoldsAfterWinningTheOrderLock(t *testing.T) {
+// TestStore_AdvanceCancelHoldsAfterLock: back-office cancellation reads the
+// holds only after it wins the order lock. It is the admin counterpart of the
+// customer cancellation race. The expiry release queues first, changes the
+// reservation while retaining the order lock, then commits; Advance must take
+// its held snapshot only after that commit and still finish.
+func TestStore_AdvanceCancelHoldsAfterLock(t *testing.T) {
 	ctx := t.Context()
 	var variantID uuid.UUID
 	if err := pool.QueryRow(ctx, `
@@ -493,7 +506,8 @@ func TestBackOfficeCancellationReadsHoldsAfterWinningTheOrderLock(t *testing.T) 
 	}
 }
 
-func TestShippingEnqueuesTheDispatchNotice(t *testing.T) {
+// TestStore_ShipEnqueuesDispatchNotice: shipping enqueues the dispatch notice.
+func TestStore_ShipEnqueuesDispatchNotice(t *testing.T) {
 	ctx := t.Context()
 	s := admintest.OrderStore(pool, admintest.Refunder{}, nil, nil)
 	number := shippableOrder(t, "en")
@@ -613,7 +627,9 @@ func shippableOrderFor(t *testing.T, locale string, pickup bool) string {
 	return number
 }
 
-func TestADeliveryAddressCanBeCorrectedUntilItShips(t *testing.T) {
+// TestStore_CorrectDeliveryUntilShipped: a delivery address can be corrected
+// until the order ships.
+func TestStore_CorrectDeliveryUntilShipped(t *testing.T) {
 	ctx, staffID := admintest.StaffContext(t, pool)
 	s := admintest.OrderStore(pool, admintest.Refunder{}, nil, nil)
 	number := shippableOrder(t, "zh-Hant")
@@ -642,7 +658,9 @@ func TestADeliveryAddressCanBeCorrectedUntilItShips(t *testing.T) {
 	}
 }
 
-func TestCorrectingADeliveryDoesNotWriteTheAddressIntoTheAuditTrail(t *testing.T) {
+// TestStore_CorrectDeliveryAuditNoAddress: correcting a delivery does not write
+// the address into the audit trail.
+func TestStore_CorrectDeliveryAuditNoAddress(t *testing.T) {
 	ctx, _ := admintest.StaffContext(t, pool)
 	s := admintest.OrderStore(pool, admintest.Refunder{}, nil, nil)
 	number := shippableOrder(t, "zh-Hant")
@@ -672,7 +690,9 @@ func TestCorrectingADeliveryDoesNotWriteTheAddressIntoTheAuditTrail(t *testing.T
 	}
 }
 
-func TestCorrectingAPickupOrderCannotTurnItIntoAnAddressOne(t *testing.T) {
+// TestStore_CorrectDeliveryPickupStays: correcting a pickup order cannot turn
+// it into an address order.
+func TestStore_CorrectDeliveryPickupStays(t *testing.T) {
 	ctx, _ := admintest.StaffContext(t, pool)
 	s := admintest.OrderStore(pool, admintest.Refunder{}, nil, nil)
 	number := pickupOrderForCorrection(t)
@@ -751,7 +771,8 @@ func pickupOrderForCorrection(t *testing.T) string {
 	return number
 }
 
-func TestTheBackOfficeCanFindAnOrder(t *testing.T) {
+// TestStore_ListFindsOrder: the back office can find an order by searching.
+func TestStore_ListFindsOrder(t *testing.T) {
 	ctx, _ := admintest.StaffContext(t, pool)
 	s := admintest.OrderStore(pool, admintest.Refunder{}, nil, nil)
 	number, recipient, addr := searchableOrder(t)
@@ -777,7 +798,8 @@ func TestTheBackOfficeCanFindAnOrder(t *testing.T) {
 	}
 }
 
-func TestASearchIgnoresTheStatusFilter(t *testing.T) {
+// TestStore_ListSearchIgnoresStatus: a search ignores the status filter.
+func TestStore_ListSearchIgnoresStatus(t *testing.T) {
 	ctx, _ := admintest.StaffContext(t, pool)
 	s := admintest.OrderStore(pool, admintest.Refunder{}, nil, nil)
 	number, _, _ := searchableOrder(t)
@@ -791,7 +813,8 @@ func TestASearchIgnoresTheStatusFilter(t *testing.T) {
 	}
 }
 
-func TestATooShortSearchIsNotASearch(t *testing.T) {
+// TestStore_ListShortSearch: a search term that is too short is not a search.
+func TestStore_ListShortSearch(t *testing.T) {
 	ctx, _ := admintest.StaffContext(t, pool)
 	s := admintest.OrderStore(pool, admintest.Refunder{}, nil, nil)
 
@@ -804,7 +827,9 @@ func TestATooShortSearchIsNotASearch(t *testing.T) {
 	}
 }
 
-func TestAnErasedOrderIsNotFoundByItsOldAddress(t *testing.T) {
+// TestStore_ListErasedOrderNotFound: an erased order is not found by its old
+// address.
+func TestStore_ListErasedOrderNotFound(t *testing.T) {
 	ctx, _ := admintest.StaffContext(t, pool)
 	s := admintest.OrderStore(pool, admintest.Refunder{}, nil, nil)
 	number, recipient, addr := searchableOrder(t)
@@ -836,9 +861,10 @@ func TestAnErasedOrderIsNotFoundByItsOldAddress(t *testing.T) {
 	}
 }
 
-// TestAnOrderSearchTakesWildcardsLiterally: "%%" passes the two-rune floor, and
-// a typed _ is part of an address, not a stand-in for any character.
-func TestAnOrderSearchTakesWildcardsLiterally(t *testing.T) {
+// TestStore_ListWildcardsLiteral: an order search takes wildcards literally.
+// "%%" passes the two-rune floor, and a typed _ is part of an address, not a
+// stand-in for any character.
+func TestStore_ListWildcardsLiteral(t *testing.T) {
 	ctx, _ := admintest.StaffContext(t, pool)
 	s := admintest.OrderStore(pool, admintest.Refunder{}, nil, nil)
 	underscored, _, _ := searchableOrder(t)
@@ -924,9 +950,9 @@ func searchableOrder(t *testing.T) (number, recipient, addr string) {
 	return number, recipient, addr
 }
 
-// TestTheBackOfficeSeesTheSystemCancelAtThePaymentDeadline: the sweeper's
-// cancellation is the system's, in both languages, and never the customer's.
-func TestTheBackOfficeSeesTheSystemCancelAtThePaymentDeadline(t *testing.T) {
+// TestStore_OrderSweeperCancelBy: the sweeper's cancellation is the system's,
+// in both languages, and never the customer's.
+func TestStore_OrderSweeperCancelBy(t *testing.T) {
 	ctx, _ := admintest.StaffContext(t, pool)
 	s := admintest.OrderStore(pool, admintest.Refunder{}, nil, nil)
 	number := admintest.PlaceUnpaidOrderHolding(t, pool, true)
@@ -961,7 +987,8 @@ func TestTheBackOfficeSeesTheSystemCancelAtThePaymentDeadline(t *testing.T) {
 	}
 }
 
-func TestTheBackOfficeSeesWhoCancelled(t *testing.T) {
+// TestStore_OrderCancelledBy: the back office sees who cancelled an order.
+func TestStore_OrderCancelledBy(t *testing.T) {
 	ctx, _ := admintest.StaffContext(t, pool)
 	customer := buyer.NewStore(pool)
 	s := admintest.OrderStore(pool, admintest.Refunder{}, nil, nil)
@@ -993,7 +1020,9 @@ func TestTheBackOfficeSeesWhoCancelled(t *testing.T) {
 	}
 }
 
-func TestADeliveredOrderMarksItsParcelsDelivered(t *testing.T) {
+// TestStore_AdvanceMarksParcelsDelivered: a delivered order marks its parcels
+// delivered.
+func TestStore_AdvanceMarksParcelsDelivered(t *testing.T) {
 	ctx, staff := admintest.StaffContext(t, pool)
 	s := admintest.OrderStore(pool, admintest.Refunder{}, nil, nil)
 	actor := uuid.NullUUID{UUID: staff, Valid: true}
@@ -1037,7 +1066,9 @@ func TestADeliveredOrderMarksItsParcelsDelivered(t *testing.T) {
 	}
 }
 
-func TestAnOrderCompletedWithoutADeliveryStepStillStampsItsParcels(t *testing.T) {
+// TestStore_AdvanceCompleteStampsParcels: an order completed without a delivery
+// step still stamps its parcels delivered.
+func TestStore_AdvanceCompleteStampsParcels(t *testing.T) {
 	ctx, staff := admintest.StaffContext(t, pool)
 	s := admintest.OrderStore(pool, admintest.Refunder{}, nil, nil)
 	actor := uuid.NullUUID{UUID: staff, Valid: true}
@@ -1061,7 +1092,8 @@ func TestAnOrderCompletedWithoutADeliveryStepStillStampsItsParcels(t *testing.T)
 	}
 }
 
-func TestShippingIsRefusedWhenTheOrderHoldsNoStock(t *testing.T) {
+// TestStore_ShipNoStockHeld: shipping is refused when the order holds no stock.
+func TestStore_ShipNoStockHeld(t *testing.T) {
 	ctx, _ := admintest.StaffContext(t, pool)
 	s := admintest.OrderStore(pool, admintest.Refunder{}, nil, nil)
 	number, orderID := pickingOrderHoldingStock(t)
@@ -1110,7 +1142,8 @@ func deliveredAt(t *testing.T, number string) time.Time {
 	return *at
 }
 
-func TestTheOrderPageShowsTheInvoiceChoice(t *testing.T) {
+// TestStore_OrderInvoiceChoice: the order page shows the invoice choice.
+func TestStore_OrderInvoiceChoice(t *testing.T) {
 	ctx, _ := admintest.StaffContext(t, pool)
 	s := admintest.OrderStore(pool, admintest.Refunder{}, nil, nil)
 	number := admintest.PlaceUnpaidOrder(t, pool)
@@ -1171,7 +1204,8 @@ func shippedFor(t *testing.T, lineID uuid.UUID) int32 {
 	return n
 }
 
-func TestAnOrderCanShipInTwoParcels(t *testing.T) {
+// TestStore_ShipTwoParcels: an order can ship in two parcels.
+func TestStore_ShipTwoParcels(t *testing.T) {
 	ctx, staff := admintest.StaffContext(t, pool)
 	s := admintest.OrderStore(pool, admintest.Refunder{}, nil, nil)
 	actor := uuid.NullUUID{UUID: staff, Valid: true}
@@ -1243,7 +1277,8 @@ func TestAnOrderCanShipInTwoParcels(t *testing.T) {
 	}
 }
 
-func TestAParcelCannotCarryMoreThanRemains(t *testing.T) {
+// TestStore_ShipParcelOverRemains: a parcel cannot carry more than remains.
+func TestStore_ShipParcelOverRemains(t *testing.T) {
 	ctx, staff := admintest.StaffContext(t, pool)
 	s := admintest.OrderStore(pool, admintest.Refunder{}, nil, nil)
 	actor := uuid.NullUUID{UUID: staff, Valid: true}
@@ -1270,7 +1305,8 @@ func TestAParcelCannotCarryMoreThanRemains(t *testing.T) {
 	}
 }
 
-func TestAnEmptyParcelIsRefused(t *testing.T) {
+// TestStore_ShipEmptyParcel: an empty parcel is refused.
+func TestStore_ShipEmptyParcel(t *testing.T) {
 	ctx, staff := admintest.StaffContext(t, pool)
 	s := admintest.OrderStore(pool, admintest.Refunder{}, nil, nil)
 	actor := uuid.NullUUID{UUID: staff, Valid: true}
@@ -1293,7 +1329,8 @@ func TestAnEmptyParcelIsRefused(t *testing.T) {
 	}
 }
 
-func TestEachParcelTellsTheCustomer(t *testing.T) {
+// TestStore_ShipParcelNotices: each parcel tells the customer.
+func TestStore_ShipParcelNotices(t *testing.T) {
 	ctx, staff := admintest.StaffContext(t, pool)
 	s := admintest.OrderStore(pool, admintest.Refunder{}, nil, nil)
 	actor := uuid.NullUUID{UUID: staff, Valid: true}
@@ -1335,20 +1372,18 @@ func TestEachParcelTellsTheCustomer(t *testing.T) {
 	}
 }
 
-// TestAnOrderCannotFinishWhileItStillOwesAParcel keeps stock from being
-// stranded permanently and invisibly.
-//
-// An order ships in as many parcels as it takes, and only the first moves the
+// TestStore_AdvanceOwedParcel: an order cannot finish while it still owes a
+// parcel. It keeps stock from being stranded permanently and invisibly. An
+// order ships in as many parcels as it takes, and only the first moves the
 // status. Finishing one that still owes a parcel would leave the remaining
-// reservations `held` with no door out: release_reservation refuses them by name
-// because a completed order is committed, ExpiredReservations excludes committed
-// orders by predicate, and /admin/health counts expired holds with that same
-// predicate.
-//
-// It refuses rather than releasing: what has not gone out is either still going
-// out — CanShip already allows the second parcel — or it is an abandonment,
-// which is a decision a person makes rather than a side effect of a dropdown.
-func TestAnOrderCannotFinishWhileItStillOwesAParcel(t *testing.T) {
+// reservations `held` with no door out: release_reservation refuses them by
+// name because a completed order is committed, ExpiredReservations excludes
+// committed orders by predicate, and /admin/health counts expired holds with
+// that same predicate. It refuses rather than releasing: what has not gone out
+// is either still going out — CanShip already allows the second parcel — or it
+// is an abandonment, which is a decision a person makes rather than a side
+// effect of a dropdown.
+func TestStore_AdvanceOwedParcel(t *testing.T) {
 	ctx, staff := admintest.StaffContext(t, pool)
 	s := admintest.OrderStore(pool, admintest.Refunder{}, nil, nil)
 	actor := uuid.NullUUID{UUID: staff, Valid: true}
@@ -1416,17 +1451,16 @@ func TestAnOrderCannotFinishWhileItStillOwesAParcel(t *testing.T) {
 	}
 }
 
-// TestTwoCarriersSharingATrackingNumberBothNotify holds the dispatch notice's
-// dedupe key to the fact it deduplicates.
-//
-// order_shipments is unique on (carrier, tracking_number) — the schema's own
-// statement that a tracking number identifies a parcel only alongside who is
-// carrying it. Keyed on the tracking number ALONE, a second shipment with a
-// colliding number from a different carrier meets ON CONFLICT DO NOTHING in the
-// outbox: Ship succeeds, the parcel goes out, and the customer is never told.
-// Two parcels of one ORDER carry two tracking numbers; two parcels of different
-// orders may share one.
-func TestTwoCarriersSharingATrackingNumberBothNotify(t *testing.T) {
+// TestStore_ShipSharedTracking: two carriers sharing a tracking number both
+// notify. It holds the dispatch notice's dedupe key to the fact it
+// deduplicates. order_shipments is unique on (carrier, tracking_number) — the
+// schema's own statement that a tracking number identifies a parcel only
+// alongside who is carrying it. Keyed on the tracking number ALONE, a second
+// shipment with a colliding number from a different carrier meets ON CONFLICT
+// DO NOTHING in the outbox: Ship succeeds, the parcel goes out, and the
+// customer is never told. Two parcels of one ORDER carry two tracking numbers;
+// two parcels of different orders may share one.
+func TestStore_ShipSharedTracking(t *testing.T) {
 	ctx, staff := admintest.StaffContext(t, pool)
 	s := admintest.OrderStore(pool, admintest.Refunder{}, nil, nil)
 	actor := uuid.NullUUID{UUID: staff, Valid: true}
@@ -1461,14 +1495,15 @@ func TestTwoCarriersSharingATrackingNumberBothNotify(t *testing.T) {
 	}
 }
 
-// TestADeliveredOrderCanStillShipWhatItOwes is the exit from a trap that would
-// otherwise have none. orders_legal_transition permits shipped -> delivered with
-// a line still outstanding, deliberately — delivered says the parcels that WENT
-// OUT have arrived — and orders_finished_when_shipped then refuses 'completed'.
-// Without a dispatch form at 'delivered' the order is wedged for ever and the
+// TestStore_ShipAfterDelivered: a delivered order can still ship what it owes.
+// It is the exit from a trap that would otherwise have none.
+// orders_legal_transition permits shipped -> delivered with a line still
+// outstanding, deliberately — delivered says the parcels that WENT OUT have
+// arrived — and orders_finished_when_shipped then refuses 'completed'. Without
+// a dispatch form at 'delivered' the order is wedged for ever and the
 // outstanding line's hold is stranded: release_reservation refuses a committed
 // order, ExpiredReservations excludes it, and /admin/health counts neither.
-func TestADeliveredOrderCanStillShipWhatItOwes(t *testing.T) {
+func TestStore_ShipAfterDelivered(t *testing.T) {
 	ctx, staff := admintest.StaffContext(t, pool)
 	s := admintest.OrderStore(pool, admintest.Refunder{}, nil, nil)
 	actor := uuid.NullUUID{UUID: staff, Valid: true}
@@ -1517,7 +1552,9 @@ func TestADeliveredOrderCanStillShipWhatItOwes(t *testing.T) {
 	}
 }
 
-func TestAPickupOrderDispatchNoticeIsMarkedAsPickup(t *testing.T) {
+// TestStore_EnqueueShippedNoticePickup: the dispatch notice of a pickup order
+// is marked as pickup.
+func TestStore_EnqueueShippedNoticePickup(t *testing.T) {
 	ctx := t.Context()
 	s := admintest.OrderStore(pool, admintest.Refunder{}, nil, nil)
 	number := pickupOrderForCorrection(t)
@@ -1543,7 +1580,9 @@ type fixedInvoices []invoice.Document
 
 func (f fixedInvoices) Documents(context.Context, string) ([]invoice.Document, error) { return f, nil }
 
-func TestTheOrderPageShowsAnInvoiceAtTheTimeTheProviderIssuedIt(t *testing.T) {
+// TestStore_OrderInvoiceIssuedAt: the order page shows an invoice at the time
+// the provider issued it.
+func TestStore_OrderInvoiceIssuedAt(t *testing.T) {
 	ctx := t.Context()
 	number := admintest.PlaceUnpaidOrder(t, pool)
 	issued := time.Date(2026, 9, 30, 9, 30, 0, 0, time.UTC) // ECPay said "2026-09-30 17:30:00" Taipei time
@@ -1558,7 +1597,9 @@ func TestTheOrderPageShowsAnInvoiceAtTheTimeTheProviderIssuedIt(t *testing.T) {
 	}
 }
 
-func TestOrderSearchLabelsAnUnpaidOrderAsAwaitingPayment(t *testing.T) {
+// TestStore_ListUnpaidLabel: order search labels an unpaid order as awaiting
+// payment.
+func TestStore_ListUnpaidLabel(t *testing.T) {
 	ctx := t.Context()
 	s := admintest.OrderStore(pool, admintest.Refunder{}, nil, nil)
 	number := admintest.PlaceUnpaidOrder(t, pool)
@@ -1575,7 +1616,8 @@ func TestOrderSearchLabelsAnUnpaidOrderAsAwaitingPayment(t *testing.T) {
 	}
 }
 
-func TestAdvanceRefusesTheStatusAnOrderAlreadyHas(t *testing.T) {
+// TestStore_AdvanceSameStatus: Advance refuses the status an order already has.
+func TestStore_AdvanceSameStatus(t *testing.T) {
 	ctx, staff := admintest.StaffContext(t, pool)
 	actor := uuid.NullUUID{UUID: staff, Valid: true}
 	s := admintest.OrderStore(pool, admintest.Refunder{}, nil, nil)
@@ -1604,7 +1646,9 @@ func TestAdvanceRefusesTheStatusAnOrderAlreadyHas(t *testing.T) {
 	}
 }
 
-func TestTheStatusStepsOfferOnlyWhatTheDatabaseWillAccept(t *testing.T) {
+// TestStore_OrderStatusSteps: the status steps offer only what the database
+// will accept.
+func TestStore_OrderStatusSteps(t *testing.T) {
 	ctx, staff := admintest.StaffContext(t, pool)
 	s := admintest.OrderStore(pool, admintest.Refunder{}, nil, nil)
 	actor := uuid.NullUUID{UUID: staff, Valid: true}
@@ -1646,7 +1690,8 @@ func TestTheStatusStepsOfferOnlyWhatTheDatabaseWillAccept(t *testing.T) {
 	}
 }
 
-func TestARefusedStatusMoveNamesItsReason(t *testing.T) {
+// TestHandler_AdvanceRefusalReason: a refused status move names its reason.
+func TestHandler_AdvanceRefusalReason(t *testing.T) {
 	ctx, staff := admintest.StaffContext(t, pool)
 	s := admintest.OrderStore(pool, admintest.Refunder{}, nil, nil)
 	h := admintest.OrderDesk(s)
@@ -1680,7 +1725,9 @@ func TestARefusedStatusMoveNamesItsReason(t *testing.T) {
 	}
 }
 
-func TestAnAuditEntryNamesItsOrderAndLinksIt(t *testing.T) {
+// TestStore_ShipAuditEntry: an audit entry for a shipment names its order and
+// links it.
+func TestStore_ShipAuditEntry(t *testing.T) {
 	ctx, staff := admintest.StaffContext(t, pool)
 	s := admintest.OrderStore(pool, admintest.Refunder{}, nil, nil)
 	number := shippableOrder(t, "zh-Hant")
@@ -1704,7 +1751,8 @@ func TestAnAuditEntryNamesItsOrderAndLinksIt(t *testing.T) {
 	t.Errorf("no order.ship entry names %s among %d rows", number, len(view.Rows))
 }
 
-func TestARefusedDispatchKeepsWhatWasTyped(t *testing.T) {
+// TestHandler_ShipRefusedKeepsInput: a refused dispatch keeps what was typed.
+func TestHandler_ShipRefusedKeepsInput(t *testing.T) {
 	ctx, _ := admintest.StaffContext(t, pool)
 	h := admintest.OrderDesk(admintest.OrderStore(pool, admintest.Refunder{}, nil, nil))
 	number, _, lines, _ := admintest.TwoLineOrderWithStock(t, pool, "retype")
@@ -1729,7 +1777,9 @@ func TestARefusedDispatchKeepsWhatWasTyped(t *testing.T) {
 	}
 }
 
-func TestTheOrderPageSaysHowItWasPaidAndWhatWasRefunded(t *testing.T) {
+// TestStore_OrderPaymentAndRefund: the order page says how the order was paid
+// and what was refunded.
+func TestStore_OrderPaymentAndRefund(t *testing.T) {
 	ctx, staff := admintest.StaffContext(t, pool)
 	s := admintest.OrderStore(pool, admintest.Refunder{}, nil, nil)
 	number, orderID, _ := admintest.PaidUnshippedOrder(t, pool, 500000, 0, false)
@@ -1768,10 +1818,12 @@ func TestTheOrderPageSaysHowItWasPaidAndWhatWasRefunded(t *testing.T) {
 	}
 }
 
-// TestTheBackOfficeSaysRefundedOnceEveryUnitsRefundHasSettled holds that the order's header and the queue's row
-// read the fact the shopper's pages do: approval only starts the payout, so an approved return whose card refund has
-// not settled leaves the delivery word, as does a return of part of the order.
-func TestTheBackOfficeSaysRefundedOnceEveryUnitsRefundHasSettled(t *testing.T) {
+// TestStore_OrderRefundedOnSettled: the back office says refunded once every
+// unit's refund has settled. It holds that the order's header and the queue's
+// row read the fact the shopper's pages do: approval only starts the payout, so
+// an approved return whose card refund has not settled leaves the delivery
+// word, as does a return of part of the order.
+func TestStore_OrderRefundedOnSettled(t *testing.T) {
 	ctx, _ := admintest.StaffContext(t, pool)
 	s := admintest.OrderStore(pool, admintest.Refunder{}, nil, nil)
 

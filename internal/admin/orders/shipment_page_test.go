@@ -12,7 +12,9 @@ import (
 	"github.com/koopa0/goen/internal/ui/frame"
 )
 
-func TestLaterParcelArrivalActionBelongsToItsUndeliveredParcel(t *testing.T) {
+// TestOrderLaterParcelArrival: the later-parcel arrival action belongs to its
+// undelivered parcel.
+func TestOrderLaterParcelArrival(t *testing.T) {
 	t.Parallel()
 	for _, locale := range i18n.Locales() {
 		for _, status := range []order.FulfillmentStatus{order.FulfillmentPending, order.FulfillmentPicking, order.FulfillmentShipped, order.FulfillmentDelivered, order.FulfillmentCompleted, order.FulfillmentCancelled} {
@@ -53,7 +55,9 @@ func TestLaterParcelArrivalActionBelongsToItsUndeliveredParcel(t *testing.T) {
 	}
 }
 
-func TestParcelArrivalAuditNamesTheActionInBothLanguages(t *testing.T) {
+// TestEntry_LabelParcelArrival: the audit trail names the parcel arrival action
+// in both languages.
+func TestEntry_LabelParcelArrival(t *testing.T) {
 	t.Parallel()
 	for _, tt := range []struct {
 		locale                  i18n.Locale

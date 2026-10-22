@@ -8,9 +8,10 @@ import (
 	"github.com/koopa0/goen/internal/ui/frame"
 )
 
-// TestARefundedOrderCanFileAnAllowance holds the 折讓 form's door. Without it a
-// customer is refunded while the 統一發票 still records the whole sale.
-func TestARefundedOrderCanFileAnAllowance(t *testing.T) {
+// TestOrderRefundedFileAllowance: a refunded order can file an allowance. It
+// holds the 折讓 form's door. Without it a customer is refunded while the 統一發票
+// still records the whole sale.
+func TestOrderRefundedFileAllowance(t *testing.T) {
 	t.Parallel()
 
 	refunded := OrderView{
@@ -58,7 +59,9 @@ func TestARefundedOrderCanFileAnAllowance(t *testing.T) {
 	}
 }
 
-func TestAnIssuedInvoiceShowsWithoutTheInvoiceService(t *testing.T) {
+// TestOrderIssuedInvoiceShows: an issued invoice shows on the order page
+// without the invoice service.
+func TestOrderIssuedInvoiceShows(t *testing.T) {
 	t.Parallel()
 
 	view := OrderView{

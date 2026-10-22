@@ -15,10 +15,11 @@ func renderOrder(t *testing.T, locale i18n.Locale, v *OrderView) string {
 	return renderComponent(t, ctx, Order(frame.Page{Title: "order"}, v))
 }
 
-// A paid order awaiting fulfilment has one move, so it is one button: a menu of
-// one entry and a second button that reads "update" make staff work out which
-// of the two does the thing.
-func TestAPaidOrderAwaitingFulfilmentStartsPickingWithOneButton(t *testing.T) {
+// TestOrderPickingOneButton: a paid order awaiting fulfilment starts picking
+// with one button. A paid order awaiting fulfilment has one move, so it is one
+// button: a menu of one entry and a second button that reads "update" make
+// staff work out which of the two does the thing.
+func TestOrderPickingOneButton(t *testing.T) {
 	t.Parallel()
 	for _, locale := range []i18n.Locale{i18n.ZhHant, i18n.En} {
 		ctx := i18n.WithLocale(t.Context(), locale)
@@ -42,9 +43,11 @@ func TestAPaidOrderAwaitingFulfilmentStartsPickingWithOneButton(t *testing.T) {
 	}
 }
 
-// The refund before shipment is offered from the paid state, not only from
-// picking: the database admits 'pending' and 'picking' alike.
-func TestAPaidOrderAwaitingFulfilmentOffersTheRefundBeforeShipment(t *testing.T) {
+// TestOrderRefundBeforeShipmentOffer: a paid order awaiting fulfilment offers
+// the refund before shipment. The refund before shipment is offered from the
+// paid state, not only from picking: the database admits 'pending' and
+// 'picking' alike.
+func TestOrderRefundBeforeShipmentOffer(t *testing.T) {
 	t.Parallel()
 	html := renderOrder(t, i18n.En, &OrderView{
 		Number: "GO-1", Status: order.FulfillmentPending, Committed: true, RefundOffered: true,
@@ -55,9 +58,10 @@ func TestAPaidOrderAwaitingFulfilmentOffersTheRefundBeforeShipment(t *testing.T)
 	}
 }
 
+// TestOrderInvoicePanelNoSetting: the invoice panel names no setting to staff.
 // Staff cannot change the server's environment, so the panel says only that
 // e-invoicing is not on.
-func TestTheInvoicePanelNamesNoSettingToStaff(t *testing.T) {
+func TestOrderInvoicePanelNoSetting(t *testing.T) {
 	t.Parallel()
 	for _, locale := range []i18n.Locale{i18n.ZhHant, i18n.En} {
 		html := renderOrder(t, locale, &OrderView{Number: "GO-1", Status: order.FulfillmentPending})
@@ -71,8 +75,10 @@ func TestTheInvoicePanelNamesNoSettingToStaff(t *testing.T) {
 	}
 }
 
-// A cancelled order is not going anywhere, so it offers no form to change where.
-func TestACancelledOrderOffersNoDeliveryCorrection(t *testing.T) {
+// TestOrderCancelledNoCorrection: a cancelled order offers no delivery
+// correction. A cancelled order is not going anywhere, so it offers no form to
+// change where.
+func TestOrderCancelledNoCorrection(t *testing.T) {
 	t.Parallel()
 	for _, correctable := range []bool{true, false} {
 		html := renderOrder(t, i18n.En, &OrderView{Number: "GO-1", Status: order.FulfillmentCancelled, Correctable: correctable})

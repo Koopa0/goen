@@ -91,7 +91,9 @@ func TestValidatedDeliveryPreservesFieldRefusals(t *testing.T) {
 	}
 }
 
-func TestValidatedDeliveryNormalizesOnlyItsSuccessfulCopy(t *testing.T) {
+// TestValidatedDeliveryNormalizes: validating a delivery normalizes only its
+// successful copy.
+func TestValidatedDeliveryNormalizes(t *testing.T) {
 	t.Parallel()
 	for _, tt := range []struct {
 		name string
@@ -135,7 +137,9 @@ func TestValidatedDeliveryNormalizesOnlyItsSuccessfulCopy(t *testing.T) {
 	}
 }
 
-func TestDeliveryFormOfKeepsSubmittedText(t *testing.T) {
+// TestDeliveryFormOfKeepsText: the delivery form keeps the submitted text as it
+// was typed.
+func TestDeliveryFormOfKeepsText(t *testing.T) {
 	t.Parallel()
 	values := url.Values{
 		"email": {" shopper@example.com "}, "recipient": {" Recipient "}, "phone": {" １２３ "},
