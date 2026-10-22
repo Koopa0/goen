@@ -15,7 +15,10 @@ import (
 	"github.com/koopa0/goen/internal/i18n"
 )
 
-func TestOptionFacetsRequireOneVariantForEverySelectedAxisStockAndPrice(t *testing.T) {
+// TestStore_ListingOptionFacets holds that option facets require one variant
+// that matches every selected axis, the stock filter and the price filter
+// together.
+func TestStore_ListingOptionFacets(t *testing.T) {
 	ctx := t.Context()
 	tx, err := pool.Begin(ctx)
 	if err != nil {

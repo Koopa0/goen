@@ -22,7 +22,9 @@ import (
 	"github.com/koopa0/goen/internal/user"
 )
 
-func TestUndeliveredReviewPOSTKeepsTheRawDraftAndExplainsTheRefusal(t *testing.T) {
+// TestHandler_ReviewUndelivered holds that a review POST from a buyer whose
+// order is not delivered keeps the raw draft and explains the refusal.
+func TestHandler_ReviewUndelivered(t *testing.T) {
 	slug := activeSlug(t)
 	for _, locale := range i18n.Locales() {
 		for _, paid := range []bool{false, true} {
@@ -76,7 +78,9 @@ func TestUndeliveredReviewPOSTKeepsTheRawDraftAndExplainsTheRefusal(t *testing.T
 	}
 }
 
-func TestReviewOwnershipTagUsesTheSignedInIdentityEvenWhenNamesMatch(t *testing.T) {
+// TestHandler_ReviewOwnership holds that the ownership tag on a review follows
+// the signed-in identity, even when two reviewers share a name.
+func TestHandler_ReviewOwnership(t *testing.T) {
 	slug := activeSlug(t)
 	for _, locale := range i18n.Locales() {
 		t.Run(locale.Tag(), func(t *testing.T) {
@@ -156,7 +160,9 @@ func TestReviewOwnershipTagUsesTheSignedInIdentityEvenWhenNamesMatch(t *testing.
 	}
 }
 
-func TestQuestionRefusalPOSTKeepsTheDraftAndReturnsToItsSection(t *testing.T) {
+// TestHandler_AskRefusal holds that a refused question POST keeps the draft and
+// returns to its section.
+func TestHandler_AskRefusal(t *testing.T) {
 	slug := activeSlug(t)
 	for _, locale := range i18n.Locales() {
 		t.Run(locale.Tag(), func(t *testing.T) {
@@ -204,7 +210,9 @@ func TestQuestionRefusalPOSTKeepsTheDraftAndReturnsToItsSection(t *testing.T) {
 	}
 }
 
-func TestOverLimitQuestionPOSTNamesTheLimitAndKeepsTheDraft(t *testing.T) {
+// TestHandler_AskOverLimit holds that a question POST over the limit names the
+// limit and keeps the draft.
+func TestHandler_AskOverLimit(t *testing.T) {
 	slug := activeSlug(t)
 	for _, locale := range i18n.Locales() {
 		t.Run(locale.Tag(), func(t *testing.T) {

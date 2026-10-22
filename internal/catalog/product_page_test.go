@@ -22,7 +22,9 @@ import (
 	"github.com/koopa0/goen/internal/ui/tile"
 )
 
-func TestSoldOutGuidanceMatchesAvailableOptionPickers(t *testing.T) {
+// TestProductSoldOutGuidance holds that the sold-out guidance matches the
+// available option pickers.
+func TestProductSoldOutGuidance(t *testing.T) {
 	t.Parallel()
 	for _, locale := range []i18n.Locale{i18n.ZhHant, i18n.En} {
 		for _, tc := range []struct {
@@ -126,7 +128,9 @@ func restockFormProblem(doc *html.Node, selected url.Values, label string) error
 	return nil
 }
 
-func TestTheRestockOracleAcceptsEquivalentMarkupAndRejectsChangedBehavior(t *testing.T) {
+// TestProductRestockOracle holds that the restock oracle accepts equivalent
+// markup and rejects changed behaviour.
+func TestProductRestockOracle(t *testing.T) {
 	t.Parallel()
 	selected := url.Values{"colour": {"blue & white"}, "size": {"XL/2"}}
 	for _, tc := range []struct {
@@ -197,7 +201,9 @@ func setRestockAttribute(n *html.Node, key, value string) {
 	n.Attr = append(n.Attr, html.Attribute{Key: key, Val: value})
 }
 
-func TestWishlistUsesSignInNavigationUntilAuthenticated(t *testing.T) {
+// TestProductWishlistSignIn holds that the wishlist uses sign-in navigation
+// until the shopper is authenticated.
+func TestProductWishlistSignIn(t *testing.T) {
 	t.Parallel()
 	for _, locale := range []i18n.Locale{i18n.ZhHant, i18n.En} {
 		for _, signedIn := range []bool{false, true} {
@@ -252,12 +258,14 @@ func wishlistSignInDestination(t *testing.T, raw, label string) string {
 	return attrValue(link, "href")
 }
 
-// TestTheGalleryRidesTheSwapOnlyWhenAPhotographShowsAValue holds both halves of
-// the swatch's swap. A product whose photographs show it whichever value is
-// chosen keeps its gallery out of the swap; one with a photograph of a single
-// value brings the gallery along, or choosing that value leaves the old picture
-// on screen until a reload.
-func TestTheGalleryRidesTheSwapOnlyWhenAPhotographShowsAValue(t *testing.T) {
+// TestProductGallerySwap holds that the gallery rides the swap only when a
+// photograph shows a value.
+//
+// It holds both halves of the swatch's swap. A product whose photographs show
+// it whichever value is chosen keeps its gallery out of the swap; one with a
+// photograph of a single value brings the gallery along, or choosing that value
+// leaves the old picture on screen until a reload.
+func TestProductGallerySwap(t *testing.T) {
 	t.Parallel()
 	for _, tagged := range []bool{false, true} {
 		name := "untagged"
@@ -324,10 +332,13 @@ func TestTheGalleryRidesTheSwapOnlyWhenAPhotographShowsAValue(t *testing.T) {
 	}
 }
 
+// TestProductSwapControlIDs holds that controls that swap their own region keep
+// a stable id.
+//
 // htmx puts focus back after a swap only on an element it can find again by id,
 // so a control that swaps its own region has to carry one, or focus falls to the
 // body and the next Tab leaves the buy box.
-func TestControlsThatSwapTheirOwnRegionKeepAStableID(t *testing.T) {
+func TestProductSwapControlIDs(t *testing.T) {
 	t.Parallel()
 	view := ProductView{
 		Slug: "sample-product", Name: "Sample", VariantID: "v", SelectionOK: true, Exact: true,
@@ -353,7 +364,9 @@ func TestControlsThatSwapTheirOwnRegionKeepAStableID(t *testing.T) {
 	}
 }
 
-func TestTheReviewFormWarnsBeforeSubmittingAndRefusesToTheForm(t *testing.T) {
+// TestProductReviewFormWarns holds that the review form warns before submitting
+// and refuses to the form.
+func TestProductReviewFormWarns(t *testing.T) {
 	t.Parallel()
 	view := ProductView{Slug: "sample-product", Name: "Sample", SignedIn: true, ReviewStanding: ReviewOpen}
 	var body strings.Builder
@@ -371,7 +384,9 @@ func TestTheReviewFormWarnsBeforeSubmittingAndRefusesToTheForm(t *testing.T) {
 	}
 }
 
-func TestTheReviewFormIsReplacedUntilTheProductArrives(t *testing.T) {
+// TestProductReviewFormUndelivered holds that the review form is replaced until
+// the product arrives.
+func TestProductReviewFormUndelivered(t *testing.T) {
 	t.Parallel()
 	ctx := i18n.WithLocale(t.Context(), i18n.ZhHant)
 	view := ProductView{Slug: "sample-product", Name: "Sample", SignedIn: true, ReviewStanding: ReviewNotDelivered}
@@ -388,7 +403,9 @@ func TestTheReviewFormIsReplacedUntilTheProductArrives(t *testing.T) {
 	}
 }
 
-func TestTheRatingIsAKeyboardOperableStarGroupAndTheHintStatesTheMinimum(t *testing.T) {
+// TestProductRatingStars holds that the rating is a keyboard-operable star
+// group and its hint states the minimum.
+func TestProductRatingStars(t *testing.T) {
 	t.Parallel()
 	ctx := i18n.WithLocale(t.Context(), i18n.ZhHant)
 	view := ProductView{Slug: "sample-product", Name: "Sample", SignedIn: true, ReviewStanding: ReviewOpen}
@@ -412,7 +429,9 @@ func TestTheRatingIsAKeyboardOperableStarGroupAndTheHintStatesTheMinimum(t *test
 	}
 }
 
-func TestTheRestockFormPostsFromTheChosenOptions(t *testing.T) {
+// TestProductView_NotifyAction holds that the restock form posts from the
+// chosen options.
+func TestProductView_NotifyAction(t *testing.T) {
 	t.Parallel()
 	view := ProductView{Slug: "book", Options: []ProductOption{
 		{Name: "顏色", Values: []ProductOptionValue{{Value: "太空銀", Selected: true}, {Value: "黑"}}},
@@ -436,7 +455,9 @@ func renderProduct(t *testing.T, v *ProductView, locale i18n.Locale) string {
 	return body.String()
 }
 
-func TestTheRestockFormStartsWithTheSignedInAddressAndTheConfirmationNamesIt(t *testing.T) {
+// TestProductRestockAddress holds that the restock form starts with the
+// signed-in address and its confirmation names it.
+func TestProductRestockAddress(t *testing.T) {
 	t.Parallel()
 	ctx := i18n.WithLocale(t.Context(), i18n.ZhHant)
 	soldOut := func() ProductView {
@@ -473,7 +494,8 @@ func TestTheRestockFormStartsWithTheSignedInAddressAndTheConfirmationNamesIt(t *
 	}
 }
 
-func TestEverySoldOutIsSaidOnce(t *testing.T) {
+// TestProductSoldOutOnce holds that every sold-out state is said once.
+func TestProductSoldOutOnce(t *testing.T) {
 	t.Parallel()
 	options := []ProductOption{{Name: "顏色", Label: "顏色", Values: []ProductOptionValue{{Value: "黑", Label: "黑"}}}}
 	for name, view := range map[string]ProductView{
@@ -490,7 +512,9 @@ func TestEverySoldOutIsSaidOnce(t *testing.T) {
 	}
 }
 
-func TestAddingToTheCartLeavesTheAddressBarAlone(t *testing.T) {
+// TestProductAddFormNoPush holds that adding to the cart leaves the address bar
+// alone.
+func TestProductAddFormNoPush(t *testing.T) {
 	t.Parallel()
 	view := ProductView{Slug: "book", Name: "Book", SelectionOK: true, VariantID: "v1", Available: 5, AnySellable: true, Sellable: true}
 	got := renderProduct(t, &view, i18n.ZhHant)
@@ -504,7 +528,9 @@ func TestAddingToTheCartLeavesTheAddressBarAlone(t *testing.T) {
 	}
 }
 
-func TestTheChosenOptionIsNamedNextToItsLabel(t *testing.T) {
+// TestProductChosenOption holds that the chosen option is named next to its
+// label.
+func TestProductChosenOption(t *testing.T) {
 	t.Parallel()
 	view := ProductView{
 		Slug: "book", Name: "Book", SelectionOK: true, VariantID: "v1",
@@ -531,7 +557,9 @@ func buyBarMarkup(t *testing.T, v *ProductView) string {
 	return got[i : i+strings.Index(got[i:], "</div>")]
 }
 
-func TestTheBottomBarSubmitsThePagesOwnAddForm(t *testing.T) {
+// TestProductBuyBarSubmit holds that the bottom bar submits the page's own add
+// form.
+func TestProductBuyBarSubmit(t *testing.T) {
 	t.Parallel()
 	view := ProductView{
 		Slug: "book", Name: "Book", SelectionOK: true, Exact: true, Sellable: true, AnySellable: true,
@@ -560,7 +588,9 @@ func TestTheBottomBarSubmitsThePagesOwnAddForm(t *testing.T) {
 	}
 }
 
-func TestTheBottomBarOffersRestockInsteadOfBuyingWhenSoldOut(t *testing.T) {
+// TestProductBuyBarRestock holds that the bottom bar offers restock instead of
+// buying when the product is sold out.
+func TestProductBuyBarRestock(t *testing.T) {
 	t.Parallel()
 	view := ProductView{Slug: "book", Name: "Book", SelectionOK: true, Exact: true, VariantID: "v1"}
 	bar := buyBarMarkup(t, &view)
@@ -575,7 +605,9 @@ func TestTheBottomBarOffersRestockInsteadOfBuyingWhenSoldOut(t *testing.T) {
 	}
 }
 
-func TestTheBottomBarIsEmptyUntilAnOptionIsChosen(t *testing.T) {
+// TestProductBuyBarNoVariant holds that the bottom bar is empty until an option
+// is chosen.
+func TestProductBuyBarNoVariant(t *testing.T) {
 	t.Parallel()
 	view := ProductView{
 		Slug: "book", Name: "Book", SelectionOK: true, AnySellable: true, VariantID: "v1",
@@ -586,7 +618,9 @@ func TestTheBottomBarIsEmptyUntilAnOptionIsChosen(t *testing.T) {
 	}
 }
 
-func TestTheBottomBarSaysWhatAnAddDidWhereTheNoticeIsOutOfSight(t *testing.T) {
+// TestProductBuyBarAdded holds that the bottom bar says what an add did where
+// the notice is out of sight.
+func TestProductBuyBarAdded(t *testing.T) {
 	t.Parallel()
 	ctx := i18n.WithLocale(t.Context(), i18n.ZhHant)
 	view := ProductView{
@@ -599,7 +633,9 @@ func TestTheBottomBarSaysWhatAnAddDidWhereTheNoticeIsOutOfSight(t *testing.T) {
 	}
 }
 
-func TestEverySwapOfTheBuyBoxReplacesTheBottomBarToo(t *testing.T) {
+// TestProductBuyBarSwap holds that every swap of the buy box replaces the
+// bottom bar too.
+func TestProductBuyBarSwap(t *testing.T) {
 	t.Parallel()
 	view := ProductView{
 		Slug: "book", Name: "Book", SelectionOK: true, Exact: true, Sellable: true, AnySellable: true,
@@ -611,7 +647,9 @@ func TestEverySwapOfTheBuyBoxReplacesTheBottomBarToo(t *testing.T) {
 	}
 }
 
-func TestTheBottomBarIsDrivenByAnIntersectionObserver(t *testing.T) {
+// TestBuyBarObserver holds that the bottom bar is driven by an
+// IntersectionObserver.
+func TestBuyBarObserver(t *testing.T) {
 	t.Parallel()
 	src, err := os.ReadFile(filepath.Join("..", "..", "assets", "js", "goen.js"))
 	if err != nil {
@@ -626,7 +664,8 @@ func TestTheBottomBarIsDrivenByAnIntersectionObserver(t *testing.T) {
 	}
 }
 
-func TestAHalfStarIsShownAsAHalf(t *testing.T) {
+// TestProductView_StarHalves holds that a half star is shown as a half.
+func TestProductView_StarHalves(t *testing.T) {
 	t.Parallel()
 	for _, tc := range []struct {
 		rating  float64
@@ -656,7 +695,9 @@ func TestAHalfStarIsShownAsAHalf(t *testing.T) {
 	}
 }
 
-func TestASingleSimilarProductDoesNotMakeARow(t *testing.T) {
+// TestProductRelatedRow holds that a single similar product does not make a
+// row.
+func TestProductRelatedRow(t *testing.T) {
 	t.Parallel()
 	similar := tile.Tile{Slug: "a", Name: "A", PriceCents: 100}
 	one := ProductView{Slug: "x", Name: "X", SelectionOK: true, Related: []tile.Tile{similar}}
@@ -669,7 +710,8 @@ func TestASingleSimilarProductDoesNotMakeARow(t *testing.T) {
 	}
 }
 
-func TestChoosingOptionsIsSaidOnce(t *testing.T) {
+// TestProductChooseOnce holds that the request to choose options is said once.
+func TestProductChooseOnce(t *testing.T) {
 	t.Parallel()
 	view := ProductView{
 		Slug: "tee", Name: "Tee", SelectionOK: true, AnySellable: true,
@@ -681,12 +723,14 @@ func TestChoosingOptionsIsSaidOnce(t *testing.T) {
 	}
 }
 
-// TestANamelessReviewerIsNotBadgedAsABuyer holds the byline apart from the
-// badge. A name is optional at registration and erase_user blanks it, so the
-// fallback byline must not borrow the verified-buyer wording:
-// product_reviews_verified_is_real guards the badge and cannot see a claim
-// made in the author slot.
-func TestANamelessReviewerIsNotBadgedAsABuyer(t *testing.T) {
+// TestProductReview_DisplayAuthorNameless holds that a nameless reviewer is not
+// badged as a buyer.
+//
+// It holds the byline apart from the badge. A name is optional at registration
+// and erase_user blanks it, so the fallback byline must not borrow the
+// verified-buyer wording: product_reviews_verified_is_real guards the badge and
+// cannot see a claim made in the author slot.
+func TestProductReview_DisplayAuthorNameless(t *testing.T) {
 	t.Parallel()
 
 	ctx := i18n.WithLocale(t.Context(), i18n.ZhHant)
@@ -700,7 +744,9 @@ func TestANamelessReviewerIsNotBadgedAsABuyer(t *testing.T) {
 	}
 }
 
-func TestAReviewerIsMaskedTheSameWayForEveryReview(t *testing.T) {
+// TestProductReview_DisplayAuthorMask holds that a reviewer is masked the same
+// way for every review.
+func TestProductReview_DisplayAuthorMask(t *testing.T) {
 	t.Parallel()
 
 	tests := []struct {
@@ -733,10 +779,12 @@ func TestAReviewerIsMaskedTheSameWayForEveryReview(t *testing.T) {
 	}
 }
 
-// TestTheProductPageSaysWhetherItAddedAnything asserts the HTML, because the
-// view model can carry the outcome correctly while the template renders it
-// nowhere.
-func TestTheProductPageSaysWhetherItAddedAnything(t *testing.T) {
+// TestProductAddOutcome holds that the product page says whether it added
+// anything.
+//
+// It asserts the HTML, because the view model can carry the outcome correctly
+// while the template renders it nowhere.
+func TestProductAddOutcome(t *testing.T) {
 	base := func(outcome string) *ProductView {
 		return &ProductView{
 			Slug: "pixelight-9-pro", Name: "Pixelight 9 Pro",
@@ -779,7 +827,9 @@ func TestTheProductPageSaysWhetherItAddedAnything(t *testing.T) {
 	}
 }
 
-func TestQuestionsAndAnswersMaskNamesLikeReviews(t *testing.T) {
+// TestQuestion_WhoMasked holds that questions and answers mask names like
+// reviews.
+func TestQuestion_WhoMasked(t *testing.T) {
 	t.Parallel()
 	ctx := i18n.WithLocale(t.Context(), i18n.ZhHant)
 	if got := (Question{Asker: "王小明"}).Who(ctx); got != "王○○" {

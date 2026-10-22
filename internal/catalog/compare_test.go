@@ -9,7 +9,9 @@ import (
 	"github.com/koopa0/goen/internal/ui/tile"
 )
 
-func TestNormaliseSlugsBoundsAndReportsWhatItDropped(t *testing.T) {
+// TestNormaliseSlugs holds that normaliseSlugs bounds the list and reports what
+// it dropped.
+func TestNormaliseSlugs(t *testing.T) {
 	t.Parallel()
 	got, dropped := normaliseSlugs([]string{"a", "", "a", "b", "c", "d", "e"})
 	if len(got) != 5 || dropped {
@@ -21,9 +23,12 @@ func TestNormaliseSlugsBoundsAndReportsWhatItDropped(t *testing.T) {
 	}
 }
 
-// TestThePickerOffersOnlyProductsNotAlreadyCompared: an "add" for a product
-// already in the comparison is a control that reloads the page unchanged.
-func TestThePickerOffersOnlyProductsNotAlreadyCompared(t *testing.T) {
+// TestCompareCandidates holds that the picker offers only products not already
+// compared.
+//
+// An "add" for a product already in the comparison is a control that reloads
+// the page unchanged.
+func TestCompareCandidates(t *testing.T) {
 	t.Parallel()
 	view := CompareView{Products: []CompareProduct{{Slug: "a"}, {Slug: "b"}}}
 	found := []tile.Tile{{Slug: "a", Name: "A"}, {Slug: "c", Name: "C", Brand: "B"}}
@@ -33,9 +38,12 @@ func TestThePickerOffersOnlyProductsNotAlreadyCompared(t *testing.T) {
 	}
 }
 
-// TestATileCarriesTheBoxOnlyForACategoryThatOffersComparison: the listing and
-// the search read the same set, and a category outside it gets no box.
-func TestATileCarriesTheBoxOnlyForACategoryThatOffersComparison(t *testing.T) {
+// TestTilesComparable holds that tiles and searchTiles carry the compare box
+// only for a category that offers comparison.
+//
+// The listing and the search read the same set, and a category outside it gets
+// no box.
+func TestTilesComparable(t *testing.T) {
 	t.Parallel()
 	yes, no := uuid.New(), uuid.New()
 	offers := map[uuid.UUID]bool{yes: true}
@@ -52,9 +60,11 @@ func TestATileCarriesTheBoxOnlyForACategoryThatOffersComparison(t *testing.T) {
 	}
 }
 
-// TestASuggestionIsDrawnAsAProductTile: the name, brand, price and photograph
-// are what the one-product comparison shows for each.
-func TestASuggestionIsDrawnAsAProductTile(t *testing.T) {
+// TestSuggestionTiles holds that a suggestion is drawn as a product tile.
+//
+// The name, brand, price and photograph are what the one-product comparison
+// shows for each.
+func TestSuggestionTiles(t *testing.T) {
 	t.Parallel()
 	got := suggestionTiles([]db.CompareSuggestionsRow{
 		{Slug: "b", Name: "Bee", Brand: "B", MinPriceCents: 1234, PriceVaries: true, ImageBundledKey: "pixelight-9-pro-01.webp", ImageAlt: "alt"},

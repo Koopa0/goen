@@ -6,7 +6,9 @@ import (
 	"testing"
 )
 
-func TestDropEmptyParamsRedirectsABrowserToTheAddressWithoutThem(t *testing.T) {
+// TestDropEmptyParamsRedirect holds that dropEmptyParams redirects a browser to
+// the address without the empty parameters.
+func TestDropEmptyParamsRedirect(t *testing.T) {
 	t.Parallel()
 	r := httptest.NewRequestWithContext(t.Context(), http.MethodGet, "/c/audio?brand=aurora&min_price=&max_price=&sort=", http.NoBody)
 	w := httptest.NewRecorder()
@@ -18,7 +20,9 @@ func TestDropEmptyParamsRedirectsABrowserToTheAddressWithoutThem(t *testing.T) {
 	}
 }
 
-func TestDropEmptyParamsLeavesACleanQueryAlone(t *testing.T) {
+// TestDropEmptyParamsClean holds that dropEmptyParams leaves a clean query
+// alone.
+func TestDropEmptyParamsClean(t *testing.T) {
 	t.Parallel()
 	r := httptest.NewRequestWithContext(t.Context(), http.MethodGet, "/search?q=pro&sort=rating", http.NoBody)
 	w := httptest.NewRecorder()
@@ -27,7 +31,9 @@ func TestDropEmptyParamsLeavesACleanQueryAlone(t *testing.T) {
 	}
 }
 
-func TestDropEmptyParamsPushesTheCleanAddressForHTMX(t *testing.T) {
+// TestDropEmptyParamsHTMX holds that dropEmptyParams pushes the clean address
+// for htmx.
+func TestDropEmptyParamsHTMX(t *testing.T) {
 	t.Parallel()
 	r := httptest.NewRequestWithContext(t.Context(), http.MethodGet, "/search?q=pro&sort=", http.NoBody)
 	r.Header.Set("HX-Request", "true")
@@ -40,7 +46,9 @@ func TestDropEmptyParamsPushesTheCleanAddressForHTMX(t *testing.T) {
 	}
 }
 
-func TestDropEmptyParamsKeepsTheNamedOnes(t *testing.T) {
+// TestDropEmptyParamsKeep holds that dropEmptyParams keeps the parameters it is
+// told to keep.
+func TestDropEmptyParamsKeep(t *testing.T) {
 	t.Parallel()
 	r := httptest.NewRequestWithContext(t.Context(), http.MethodGet, "/search?q=&sort=", http.NoBody)
 	w := httptest.NewRecorder()

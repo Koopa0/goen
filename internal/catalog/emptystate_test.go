@@ -8,9 +8,12 @@ import (
 	"github.com/koopa0/goen/internal/ui/frame"
 )
 
+// TestListingAndSearchEmptyArt holds that the empty states of the listing and
+// the search show their illustration as decoration.
+//
 // The cart's row of this test is internal/cart's TestPageEmptyIllustration,
 // the campaign's internal/discount/campaign's TestPageEmptyIllustration.
-func TestEmptyStatesShowTheirIllustrationAsDecoration(t *testing.T) {
+func TestListingAndSearchEmptyArt(t *testing.T) {
 	t.Parallel()
 	for name, tt := range map[string]struct {
 		page  string

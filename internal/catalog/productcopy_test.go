@@ -7,16 +7,20 @@ import (
 	"github.com/koopa0/goen/internal/i18n"
 )
 
+// TestProductMetaTitle holds that a product's title is its name and the shop.
+//
 // The seed's product names already carry the brand, so a title that adds it
 // again reads "棲木 石器馬克杯 — 棲木 Restwood · goen".
-func TestAProductTitleIsItsNameAndTheShop(t *testing.T) {
+func TestProductMetaTitle(t *testing.T) {
 	t.Parallel()
 	if got := ProductMeta(&ProductView{Name: "棲木 石器馬克杯", Brand: "棲木 Restwood"}).Title; got != "棲木 石器馬克杯" {
 		t.Errorf("product page title is %q, want the product name alone", got)
 	}
 }
 
-func TestAShopAnswerKeepsASpaceBeforeItsDate(t *testing.T) {
+// TestProductShopAnswerDate holds that a shop answer keeps a space before its
+// date.
+func TestProductShopAnswerDate(t *testing.T) {
 	t.Parallel()
 	v := &ProductView{Name: "Phone", Brand: "Pixelight", Questions: []Question{{
 		Asker: "王小明", Body: "有保固嗎？", Asked: "2026-10-01",
@@ -28,10 +32,13 @@ func TestAShopAnswerKeepsASpaceBeforeItsDate(t *testing.T) {
 	}
 }
 
+// TestProductUntranslatedDescription holds that an untranslated description is
+// marked as Chinese.
+//
 // A description the shop wrote only in Chinese is Chinese prose on an English
 // page, and is marked so (WCAG 3.1.2); a translated one, or a page already in
 // Chinese, carries no lang of its own.
-func TestAnUntranslatedDescriptionIsMarkedChinese(t *testing.T) {
+func TestProductUntranslatedDescription(t *testing.T) {
 	t.Parallel()
 
 	for _, tt := range []struct {

@@ -14,7 +14,9 @@ import (
 	"github.com/koopa0/goen/internal/ui/uitest"
 )
 
-func TestProductOptionContrastInTheBrowser(t *testing.T) {
+// TestProductOptionContrast holds that the product options keep their contrast
+// in a browser.
+func TestProductOptionContrast(t *testing.T) {
 	uitest.Browser(t, "GOEN_CHROME")
 	fixtures := make(map[string]string)
 	for _, locale := range []i18n.Locale{i18n.ZhHant, i18n.En} {

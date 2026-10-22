@@ -12,7 +12,9 @@ import (
 	"github.com/koopa0/goen/internal/shoptime"
 )
 
-func TestExpectedArrivalPrecedesNotificationWithoutOfferingAStocklessPurchase(t *testing.T) {
+// TestProductBuyArrival holds that the expected arrival precedes the
+// notification form without offering a stockless purchase.
+func TestProductBuyArrival(t *testing.T) {
 	t.Parallel()
 	day, ok := shoptime.ParseInputDay("2028-10-15")
 	if !ok {

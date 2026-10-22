@@ -22,9 +22,12 @@ func titleIn(locale i18n.Locale) string {
 	return "秋日選物"
 }
 
+// TestProductStrikesPriceOnSale holds that the product page strikes its price
+// and names the campaign only on sale.
+//
 // Whether a price is on sale is campaign.OnSale's to decide; the page strikes
 // the price and names the campaign only when it is.
-func TestAProductPageStrikesItsPriceOnlyOnSale(t *testing.T) {
+func TestProductStrikesPriceOnSale(t *testing.T) {
 	t.Parallel()
 
 	for _, locale := range []i18n.Locale{i18n.ZhHant, i18n.En} {
@@ -50,9 +53,12 @@ func TestAProductPageStrikesItsPriceOnlyOnSale(t *testing.T) {
 	}
 }
 
+// TestProductCampaignSource holds that the source line names the campaign, what
+// is left of it and its last day.
+//
 // The source line names the campaign, sets apart what is left of it and says its
 // last day, in a sentence that fits how much is left.
-func TestTheSourceLineNamesTheCampaignWhatIsLeftAndItsLastDay(t *testing.T) {
+func TestProductCampaignSource(t *testing.T) {
 	t.Parallel()
 
 	cst := time.FixedZone("CST", 8*3600)

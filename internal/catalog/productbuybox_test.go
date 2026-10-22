@@ -43,7 +43,9 @@ func buyBox(t *testing.T, locale i18n.Locale, v *ProductView) string {
 	return page[i:]
 }
 
-func TestAllSoldOutBuyBoxHasNoStockHold(t *testing.T) {
+// TestProductBuyBoxNoStockHold holds that a buy box with everything sold out
+// states no stock hold.
+func TestProductBuyBoxNoStockHold(t *testing.T) {
 	t.Parallel()
 	for _, locale := range []i18n.Locale{i18n.ZhHant, i18n.En} {
 		ctx := i18n.WithLocale(t.Context(), locale)
@@ -63,7 +65,9 @@ func TestAllSoldOutBuyBoxHasNoStockHold(t *testing.T) {
 	}
 }
 
-func TestSeveralSoldOutOptionsAreAllListedAsSoldOut(t *testing.T) {
+// TestProductBuyBoxSoldOutOptions holds that several sold-out options are all
+// listed as sold out.
+func TestProductBuyBoxSoldOutOptions(t *testing.T) {
 	t.Parallel()
 	for _, locale := range []i18n.Locale{i18n.ZhHant, i18n.En} {
 		ctx := i18n.WithLocale(t.Context(), locale)
@@ -86,7 +90,9 @@ func TestSeveralSoldOutOptionsAreAllListedAsSoldOut(t *testing.T) {
 	}
 }
 
-func TestOneSoldOutOptionHasOnlyTheOneLineNote(t *testing.T) {
+// TestProductBuyBoxOneSoldOut holds that one sold-out option has only the
+// one-line note.
+func TestProductBuyBoxOneSoldOut(t *testing.T) {
 	t.Parallel()
 	for _, locale := range []i18n.Locale{i18n.ZhHant, i18n.En} {
 		ctx := i18n.WithLocale(t.Context(), locale)
@@ -107,7 +113,8 @@ func TestOneSoldOutOptionHasOnlyTheOneLineNote(t *testing.T) {
 	}
 }
 
-func TestOneColourIsAFactNotAFieldset(t *testing.T) {
+// TestProductBuyBoxOneColour holds that one colour is a fact, not a fieldset.
+func TestProductBuyBoxOneColour(t *testing.T) {
 	t.Parallel()
 	v := ProductView{
 		Slug: "book", Name: "Book", Rules: testRules, SelectionOK: true, Exact: true, Sellable: true, AnySellable: true, VariantID: "v",
@@ -127,7 +134,9 @@ func TestOneColourIsAFactNotAFieldset(t *testing.T) {
 	}
 }
 
-func TestBuyBoxFactsFollowWhatTheShopStates(t *testing.T) {
+// TestProductView_BuyFacts holds that the buy box facts follow what the shop
+// states.
+func TestProductView_BuyFacts(t *testing.T) {
 	t.Parallel()
 	ctx := i18n.WithLocale(t.Context(), i18n.ZhHant)
 	for _, tc := range []struct {
@@ -157,7 +166,9 @@ func TestBuyBoxFactsFollowWhatTheShopStates(t *testing.T) {
 	}
 }
 
-func TestHighlightsAreAtMostThreeValues(t *testing.T) {
+// TestProductView_Highlights holds that the highlights are at most three
+// values.
+func TestProductView_Highlights(t *testing.T) {
 	t.Parallel()
 	v := ProductView{Specs: []ProductSpec{{Value: "a"}, {Value: ""}, {Value: "b"}, {Value: "c"}, {Value: "d"}}}
 	if got := strings.Join(v.Highlights(), ","); got != "a,b,c" {
@@ -165,7 +176,9 @@ func TestHighlightsAreAtMostThreeValues(t *testing.T) {
 	}
 }
 
-func TestRefusedRestockWithNoOptionMarksTheUnpickedGroup(t *testing.T) {
+// TestProductBuyBoxRestockNoOption holds that a restock request refused for
+// want of an option marks the unpicked group.
+func TestProductBuyBoxRestockNoOption(t *testing.T) {
 	t.Parallel()
 	for _, locale := range []i18n.Locale{i18n.ZhHant, i18n.En} {
 		ctx := i18n.WithLocale(t.Context(), locale)
@@ -193,8 +206,11 @@ func TestRefusedRestockWithNoOptionMarksTheUnpickedGroup(t *testing.T) {
 	}
 }
 
+// TestProductBuyBoxRestockStockBack holds that a restock refusal for want of an
+// option keeps the address once something is back in stock.
+//
 // Stock can come back between the page and the post: the refusal still carries the form and the address.
-func TestRefusedRestockWithNoOptionKeepsTheAddressOnceSomethingIsBack(t *testing.T) {
+func TestProductBuyBoxRestockStockBack(t *testing.T) {
 	t.Parallel()
 	v := ProductView{
 		Slug: "book", Name: "Book", Rules: testRules, SelectionOK: true, VariantID: "cheapest", AnySellable: true,
@@ -211,7 +227,9 @@ func TestRefusedRestockWithNoOptionKeepsTheAddressOnceSomethingIsBack(t *testing
 	}
 }
 
-func TestWarrantyTermReadsInTheSingularForOneMonth(t *testing.T) {
+// TestProductView_BuyFactsWarranty holds that the warranty term reads in the
+// singular for one month.
+func TestProductView_BuyFactsWarranty(t *testing.T) {
 	t.Parallel()
 	for _, tc := range []struct {
 		locale i18n.Locale

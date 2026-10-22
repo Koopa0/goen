@@ -10,7 +10,9 @@ import (
 	"github.com/koopa0/goen/internal/i18n"
 )
 
-func TestOptionFacetsStayInThePlainCollapsedFilterFormAndRemoveOnlyTheirOwnValue(t *testing.T) {
+// TestListingFiltersOptionFacets holds that option facets stay in the plain
+// collapsed filter form and remove only their own value.
+func TestListingFiltersOptionFacets(t *testing.T) {
 	t.Parallel()
 	ctx := i18n.WithLocale(t.Context(), i18n.En)
 	view := ListingView{Slug: "phones", Name: "Phones", Filtered: true, InStockOnly: true,
@@ -87,7 +89,9 @@ func insideFacetGetForm(n *html.Node) bool {
 	return false
 }
 
-func TestOptionChipIncludesItsTranslatedAxisAndValue(t *testing.T) {
+// TestListingView_AppliedChipsOption holds that an option chip includes its
+// translated axis and value.
+func TestListingView_AppliedChipsOption(t *testing.T) {
 	t.Parallel()
 	for _, tc := range []struct {
 		locale            i18n.Locale

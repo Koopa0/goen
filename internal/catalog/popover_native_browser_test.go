@@ -19,7 +19,10 @@ import (
 	"github.com/koopa0/goen/internal/web/respond"
 )
 
-func TestPopoverPointerAndFocusInNativeBrowsers(t *testing.T) {
+// TestListingPopoverNative holds that the popovers of the listing page, the
+// filter groups and the language menu, keep their pointer and focus behaviour
+// in native browsers.
+func TestListingPopoverNative(t *testing.T) {
 	name, value := uitest.Browser(t, "GOEN_SAFARI_DRIVER_URL", "GOEN_POPOVER_CDP_PORT")
 	var driver, port string
 	if name == "GOEN_SAFARI_DRIVER_URL" {

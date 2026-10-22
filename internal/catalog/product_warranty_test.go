@@ -9,10 +9,14 @@ import (
 	"github.com/koopa0/goen/internal/i18n"
 )
 
-// TestProductWarrantyRendersWithoutDescriptionOrSpecs holds the PDP detail
-// gate apart from warranty. Description and specs are independently optional;
-// nesting warranty inside their guard hid a stated term when both were absent.
-func TestProductWarrantyRendersWithoutDescriptionOrSpecs(t *testing.T) {
+// TestProductWarrantyDetail holds the product page's detail gate apart from the
+// warranty: the warranty renders without a description or specifications, and
+// each of those is optional on its own.
+//
+// It holds the PDP detail gate apart from warranty. Description and specs are
+// independently optional; nesting warranty inside their guard hid a stated term
+// when both were absent.
+func TestProductWarrantyDetail(t *testing.T) {
 	t.Parallel()
 
 	const (

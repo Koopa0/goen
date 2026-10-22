@@ -19,7 +19,9 @@ func renderHead(t *testing.T, p frame.Page) string {
 	return b.String()
 }
 
-func TestProductSharesItsOwnPhotographAndOtherPagesShareTheDefault(t *testing.T) {
+// TestProductMetaPhoto holds that a product shares its own photograph and other
+// pages share the default.
+func TestProductMetaPhoto(t *testing.T) {
 	t.Parallel()
 	with := renderHead(t, ProductMeta(&ProductView{Name: "Phone", Brand: "goen", Images: []ProductImage{
 		{URL: "/static/media/products/p-1600.webp?v=abc", Alt: "front", Width: 1600, Height: 1200},

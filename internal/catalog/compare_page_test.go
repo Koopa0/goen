@@ -10,11 +10,13 @@ import (
 	"github.com/koopa0/goen/internal/ui/tile"
 )
 
-// TestCompareShowsTheTableOnlyWhenThereAreTwoProducts holds Enough() and the
-// markup it gates. One product is the too-few empty state; the table class
-// exists only when there are two columns. A layout row that marks the wrapper
-// would pass either way.
-func TestCompareShowsTheTableOnlyWhenThereAreTwoProducts(t *testing.T) {
+// TestCompareTableNeedsTwo holds that the comparison shows its table only when
+// there are two products.
+//
+// It holds Enough() and the markup it gates. One product is the too-few empty
+// state; the table class exists only when there are two columns. A layout row
+// that marks the wrapper would pass either way.
+func TestCompareTableNeedsTwo(t *testing.T) {
 	t.Parallel()
 
 	page := frame.Page{Title: "比較"}
@@ -58,9 +60,12 @@ func compareOf(slugs ...string) CompareView {
 	return v
 }
 
-// TestTheComparisonIsTheAddress: adding and removing are addresses, so the
-// state is the link and nothing is written.
-func TestTheComparisonIsTheAddress(t *testing.T) {
+// TestCompareView_AddRemoveHref holds that the comparison is the address:
+// AddHref and RemoveHref build the link that includes or leaves out a product.
+//
+// Adding and removing are addresses, so the state is the link and nothing is
+// written.
+func TestCompareView_AddRemoveHref(t *testing.T) {
 	t.Parallel()
 	v := compareOf("a", "b")
 	if got, want := v.AddHref("c"), "/compare?p=a&p=b&p=c"; got != want {
@@ -71,9 +76,11 @@ func TestTheComparisonIsTheAddress(t *testing.T) {
 	}
 }
 
-// TestTheComparisonPageOffersPlainLinksToAddAndRemove: no form posts, no
-// script, and no checkbox that would do nothing.
-func TestTheComparisonPageOffersPlainLinksToAddAndRemove(t *testing.T) {
+// TestCompareAddRemoveLinks holds that the comparison page adds and removes
+// products by plain links.
+//
+// No form posts, no script, and no checkbox that would do nothing.
+func TestCompareAddRemoveLinks(t *testing.T) {
 	t.Parallel()
 	v := compareOf("a", "b")
 	v.Query = "phone"
@@ -97,9 +104,11 @@ func TestTheComparisonPageOffersPlainLinksToAddAndRemove(t *testing.T) {
 	}
 }
 
-// TestAFullComparisonSaysSoAndOffersNoPicker: the maximum is refused with a
-// message, not by silently dropping a product.
-func TestAFullComparisonSaysSoAndOffersNoPicker(t *testing.T) {
+// TestCompareFullNoPicker holds that a full comparison says so and offers no
+// picker.
+//
+// The maximum is refused with a message, not by silently dropping a product.
+func TestCompareFullNoPicker(t *testing.T) {
 	t.Parallel()
 	slugs := make([]string, MaxCompare)
 	for i := range slugs {
@@ -121,10 +130,12 @@ func TestAFullComparisonSaysSoAndOffersNoPicker(t *testing.T) {
 	}
 }
 
-// TestOneProductInTheComparisonInvitesTheNextNotTheDeadEnd: a product page's
-// add link lands here with one product, and the page must let the reader add
-// another rather than tell them to go and find one.
-func TestOneProductInTheComparisonInvitesTheNextNotTheDeadEnd(t *testing.T) {
+// TestCompareOneProductInvites holds that a comparison of one product invites
+// the next rather than ending in a dead end.
+//
+// A product page's add link lands here with one product, and the page must let
+// the reader add another rather than tell them to go and find one.
+func TestCompareOneProductInvites(t *testing.T) {
 	t.Parallel()
 	html := renderToString(t, Compare(frame.Page{Title: "比較"}, compareOf("a")))
 	if !strings.Contains(html, `goen-compare__picker`) {
@@ -138,9 +149,11 @@ func TestOneProductInTheComparisonInvitesTheNextNotTheDeadEnd(t *testing.T) {
 	}
 }
 
-// TestACompareBoxOnlyWhereTheTileIsComparable: the box and the "compare
-// selected" bar come and go together.
-func TestACompareBoxOnlyWhereTheTileIsComparable(t *testing.T) {
+// TestCompareFormComparable holds that a tile carries the compare box only
+// where it is comparable.
+//
+// The box and the "compare selected" bar come and go together.
+func TestCompareFormComparable(t *testing.T) {
 	t.Parallel()
 	ctx := i18n.WithLocale(t.Context(), i18n.ZhHant)
 	candidate := func(comparable bool) tile.Tile {
@@ -164,9 +177,12 @@ func TestACompareBoxOnlyWhereTheTileIsComparable(t *testing.T) {
 	}
 }
 
-// TestACompareRowDiffersWhenTheColumnsDisagree: a spec one product lacks counts
-// as a value of its own, and only a row every product states is marked.
-func TestACompareRowDiffersWhenTheColumnsDisagree(t *testing.T) {
+// TestCompareRow_Differs holds that a compare row differs when its columns
+// disagree.
+//
+// A spec one product lacks counts as a value of its own, and only a row every
+// product states is marked.
+func TestCompareRow_Differs(t *testing.T) {
 	t.Parallel()
 	for _, tt := range []struct {
 		name          string
@@ -189,8 +205,11 @@ func TestACompareRowDiffersWhenTheColumnsDisagree(t *testing.T) {
 	}
 }
 
-// TestADifferingRowIsMarkedAndSaysSoAloud: the weight is not the only signal.
-func TestADifferingRowIsMarkedAndSaysSoAloud(t *testing.T) {
+// TestCompareDifferingRow holds that a differing row is marked and says so
+// aloud.
+//
+// The weight is not the only signal.
+func TestCompareDifferingRow(t *testing.T) {
 	t.Parallel()
 	v := compareOf("a", "b")
 	v.Rows = []CompareRow{
@@ -206,10 +225,13 @@ func TestADifferingRowIsMarkedAndSaysSoAloud(t *testing.T) {
 	}
 }
 
-// TestOneProductOffersWhatToCompareItWith: the lone product is a start, not a
-// dead end — the heading says what to do, each suggestion adds itself by a plain
-// link to the address that includes it, and the shelf is one link away.
-func TestOneProductOffersWhatToCompareItWith(t *testing.T) {
+// TestCompareOneProductSuggests holds that a comparison of one product offers
+// what to compare it with.
+//
+// The lone product is a start, not a dead end — the heading says what to do,
+// each suggestion adds itself by a plain link to the address that includes it,
+// and the shelf is one link away.
+func TestCompareOneProductSuggests(t *testing.T) {
 	t.Parallel()
 	v := compareOf("a")
 	v.Products[0].Category, v.ShelfSlug = "手機", "phones"
@@ -243,10 +265,12 @@ func TestOneProductOffersWhatToCompareItWith(t *testing.T) {
 	}
 }
 
-// TestTheEmptyComparisonLinksToWhereBoxesAreOffered: the empty state tells the
-// shopper to pick products on a list, so the link must be to one that has the
-// box to tick; the home page has none.
-func TestTheEmptyComparisonLinksToWhereBoxesAreOffered(t *testing.T) {
+// TestCompareEmptyLink holds that the empty comparison links to where compare
+// boxes are offered.
+//
+// The empty state tells the shopper to pick products on a list, so the link
+// must be to one that has the box to tick; the home page has none.
+func TestCompareEmptyLink(t *testing.T) {
 	t.Parallel()
 
 	page := frame.Page{Title: "比較"}
@@ -260,9 +284,12 @@ func TestTheEmptyComparisonLinksToWhereBoxesAreOffered(t *testing.T) {
 	}
 }
 
-// TestCompareRowStatesPricesAsTheCardDoes: a product whose variants differ is
-// priced "from", and one on sale shows the struck original price.
-func TestCompareRowStatesPricesAsTheCardDoes(t *testing.T) {
+// TestComparePriceRow holds that the price row of the comparison states prices
+// as the card does.
+//
+// A product whose variants differ is priced "from", and one on sale shows the
+// struck original price.
+func TestComparePriceRow(t *testing.T) {
 	t.Parallel()
 
 	got := renderToString(t, Compare(frame.Page{Title: "比較"}, CompareView{
@@ -278,7 +305,9 @@ func TestCompareRowStatesPricesAsTheCardDoes(t *testing.T) {
 	}
 }
 
-func TestComparisonSaysSoldOutOncePerSoldOutColumn(t *testing.T) {
+// TestCompareSoldOutOnce holds that the comparison says sold out once per
+// sold-out column.
+func TestCompareSoldOutOnce(t *testing.T) {
 	t.Parallel()
 	ctx := i18n.WithLocale(t.Context(), i18n.ZhHant)
 	got := renderComponent(t, ctx, Compare(frame.Page{Title: "比較"}, CompareView{
@@ -292,9 +321,12 @@ func TestComparisonSaysSoldOutOncePerSoldOutColumn(t *testing.T) {
 	}
 }
 
+// TestComparePickerLandmark holds that the comparison picker is a named search
+// landmark.
+//
 // The header search and the comparison picker are both search landmarks on
 // /compare, and two landmarks of one kind need names that tell them apart.
-func TestTheComparePickerIsANamedSearchLandmark(t *testing.T) {
+func TestComparePickerLandmark(t *testing.T) {
 	t.Parallel()
 
 	out := renderComponent(t, i18n.WithLocale(t.Context(), i18n.En), comparePicker(CompareView{}))
@@ -303,7 +335,9 @@ func TestTheComparePickerIsANamedSearchLandmark(t *testing.T) {
 	}
 }
 
-func TestWarrantyTermsStateThePurchasedDuration(t *testing.T) {
+// TestCompareProduct_Warranty holds that the warranty terms state the purchased
+// duration.
+func TestCompareProduct_Warranty(t *testing.T) {
 	t.Parallel()
 	for _, tc := range []struct {
 		locale       i18n.Locale
