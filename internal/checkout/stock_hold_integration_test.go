@@ -183,7 +183,7 @@ func TestCheckoutHoldsStock(t *testing.T) {
 	if err := s.Carts().Add(ctx, id, vid, 1); err != nil {
 		t.Fatalf("add: %v", err)
 	}
-	number, err := placeOrder(t, s, ctx, id, uuid.NullUUID{}, shipID, addr, "", "hold-test-1")
+	number, err := placeOrder(t, s, ctx, id, uuid.NullUUID{}, shipID, addr, "", "hold-test-"+uuid.NewString())
 	if err != nil {
 		t.Fatalf("place: %v", err)
 	}
