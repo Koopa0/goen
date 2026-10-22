@@ -10,7 +10,7 @@ import (
 	"github.com/a-h/templ"
 
 	"github.com/koopa0/goen/internal/i18n"
-	"github.com/koopa0/goen/internal/inventory"
+	"github.com/koopa0/goen/internal/product/inventory"
 )
 
 const stockedAllWindow = 30 * 24 * time.Hour

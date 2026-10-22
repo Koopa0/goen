@@ -8,7 +8,7 @@ import (
 
 	"github.com/jackc/pgx/v5/pgxpool"
 
-	"github.com/koopa0/goen/internal/inventory"
+	"github.com/koopa0/goen/internal/product/inventory"
 )
 
 // recordedCover remembers the window it was asked for and fails the report

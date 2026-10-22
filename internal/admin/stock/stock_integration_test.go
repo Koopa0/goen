@@ -22,8 +22,8 @@ import (
 	"github.com/koopa0/goen/internal/admin/stock"
 	"github.com/koopa0/goen/internal/db"
 	"github.com/koopa0/goen/internal/i18n"
-	"github.com/koopa0/goen/internal/inventory"
 	"github.com/koopa0/goen/internal/order/buyer"
+	"github.com/koopa0/goen/internal/product/inventory"
 	"github.com/koopa0/goen/internal/user"
 )
 

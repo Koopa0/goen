@@ -110,7 +110,7 @@ var (
 	// uiMayImport is what the view layer may import besides itself.
 	uiMayImport = []string{
 		"assets", "internal/i18n", "internal/money", "internal/shoptime",
-		"internal/discount/coupon", "internal/inventory", "internal/invoice", "internal/keyset", "internal/order",
+		"internal/discount/coupon", "internal/product/inventory", "internal/invoice", "internal/keyset", "internal/order",
 		"internal/shipping/postcode", "internal/product", "internal/product/labelling", "internal/payment/refund",
 		"internal/order/returns", "internal/sales", "internal/shipping", "internal/user",
 	}
@@ -144,7 +144,7 @@ var (
 	// importFreeLeaves import no goen package at all.
 	importFreeLeaves = []string{
 		"internal/payment/refund", "internal/web/clientip",
-		"internal/discount/coupon", "internal/inventory", "internal/shipping/postcode", "internal/user",
+		"internal/discount/coupon", "internal/product/inventory", "internal/shipping/postcode", "internal/user",
 		"internal/money", "internal/db", "internal/keyset", "internal/bearer",
 		"internal/email", "internal/cart/cartitem", "internal/product", "internal/web/compress",
 		"internal/web/requestid", "internal/web/siteurl",

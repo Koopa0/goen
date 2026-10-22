@@ -11,7 +11,7 @@ import (
 	"time"
 
 	"github.com/koopa0/goen/internal/i18n"
-	"github.com/koopa0/goen/internal/inventory"
+	"github.com/koopa0/goen/internal/product/inventory"
 	"github.com/koopa0/goen/internal/shoptime"
 	"github.com/koopa0/goen/internal/ui/chart"
 )
