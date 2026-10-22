@@ -9,11 +9,12 @@ import (
 	"testing"
 )
 
-// TestOperationReasonsAreNeverBareStrings keeps every reason the state machine
-// stores a constant of invoice.Reason. The parameter's type alone does not: an
-// untyped string literal converts to it silently, and then the health page has
-// no label for it and no test lists it. So the call sites are read as syntax.
-func TestOperationReasonsAreNeverBareStrings(t *testing.T) {
+// TestStore_OperationReasonsConstant: every reason the state machine stores
+// through retry, alarm or reject is an invoice.Reason constant, never a string
+// literal. The parameter's type alone does not keep it so: an untyped string
+// literal converts to it silently, and then the health page has no label for it
+// and no test lists it. So the call sites are read as syntax.
+func TestStore_OperationReasonsConstant(t *testing.T) {
 	t.Parallel()
 	files, err := filepath.Glob("*.go")
 	if err != nil {

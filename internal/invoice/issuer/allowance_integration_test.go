@@ -18,15 +18,16 @@ import (
 	"github.com/koopa0/goen/internal/invoice"
 )
 
-// TestAnAllowanceIsFiledOncePerPress holds an idempotency key that ECPay does
-// not provide: Issue carries RelateNumber and a repeat is refused with 5070357,
-// while the allowance endpoint carries nothing of the kind. Two presses would
-// put two 折讓 in front of the 財政部 for one refund, and a 統一發票 cannot be
-// edited — the correction is a void and a reissue.
+// TestStore_FileAllowanceOncePerPress: a second press with the same operation
+// identity is an exact replay and never reaches ECPay. ECPay provides no
+// idempotency key for an allowance: Issue carries RelateNumber and a repeat is
+// refused with 5070357, while the allowance endpoint carries nothing of the
+// kind. Two presses would put two 折讓 in front of the 財政部 for one refund, and a
+// 統一發票 cannot be edited — the correction is a void and a reissue.
 //
 // So the claim is written BEFORE the provider is asked, and the unique index on
 // request_key refuses the second press here rather than there.
-func TestAnAllowanceIsFiledOncePerPress(t *testing.T) {
+func TestStore_FileAllowanceOncePerPress(t *testing.T) {
 	ctx := t.Context()
 
 	var filings int
@@ -72,11 +73,13 @@ func TestAnAllowanceIsFiledOncePerPress(t *testing.T) {
 	}
 }
 
-// TestStoreAllowanceFreezesTheAuthoritativeRefund proves there is no amount
-// knob between HTTP and the tax document. The caller supplies only the order
-// and durable operation identity; the claim freezes every whole dollar that
-// has actually gone back before any provider request is built.
-func TestStoreAllowanceFreezesTheAuthoritativeRefund(t *testing.T) {
+// TestStore_FileAllowanceFreezesRefund: the allowance amount is the
+// authoritative refund, frozen in the claim before any provider request is
+// built, and the consent the allowance list reports is kept with it. There is
+// no amount knob between HTTP and the tax document: the caller supplies only
+// the order and durable operation identity, and the claim freezes every whole
+// dollar that has actually gone back.
+func TestStore_FileAllowanceFreezesRefund(t *testing.T) {
 	ctx := t.Context()
 	var sent allowanceRequest
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -142,7 +145,10 @@ func TestStoreAllowanceFreezesTheAuthoritativeRefund(t *testing.T) {
 	}
 }
 
-func TestAllowanceClaimSubtractsPriorNonvoidAllowances(t *testing.T) {
+// TestClaimInvoiceAllowanceSubtractsPrior: claim_invoice_allowance freezes the
+// refund less the prior non-voided allowances: 50000 refunded and 20000 already
+// allowed claim 30000.
+func TestClaimInvoiceAllowanceSubtractsPrior(t *testing.T) {
 	ctx := t.Context()
 	number := invoicedOrderWithRefund(t, 50000)
 	var orderID, originalID uuid.UUID
@@ -191,7 +197,11 @@ func TestAllowanceClaimSubtractsPriorNonvoidAllowances(t *testing.T) {
 	rejectAllowanceTestOperation(t, conn, operationID)
 }
 
-func TestAllowanceClaimRoundsTheCumulativeRefundOnlyOnce(t *testing.T) {
+// TestClaimInvoiceAllowanceRoundsOnce: claim_invoice_allowance rounds the
+// cumulative refund (249 cents) down to whole dollars once, not each refund
+// separately: with 100 already allowed it claims 100 and leaves 49 cents
+// pending.
+func TestClaimInvoiceAllowanceRoundsOnce(t *testing.T) {
 	ctx := t.Context()
 	number := invoicedOrderWithRefund(t, 149)
 	var orderID, originalID, paymentID uuid.UUID
@@ -267,15 +277,16 @@ func rejectAllowanceTestOperation(t *testing.T, conn *pgxpool.Conn, operationID 
 	}
 }
 
-// TestARefusedAllowanceLeavesEveryOtherOrderFilable holds the shape of the
-// number index: a pending claim carries ” to say it has no number yet, so a
-// global unique on `number` would make every claim collide with every other and
-// one provider refusal would leave a stuck claim refusing EVERY 折讓 the shop
-// would ever file — unvoidable, since a void needs a number.
+// TestStore_FileAllowanceRefusalIsolated: a provider refusal of one order's
+// allowance leaves every other order filable, and the refused order too. It
+// holds the shape of the number index: a pending claim carries ” to say it has
+// no number yet, so a global unique on `number` would make every claim collide
+// with every other and one provider refusal would leave a stuck claim refusing
+// EVERY 折讓 the shop would ever file — unvoidable, since a void needs a number.
 //
 // Two orders, deliberately: with one, the claim and the retry collide on the
 // request key and the test proves nothing about the number index.
-func TestARefusedAllowanceLeavesEveryOtherOrderFilable(t *testing.T) {
+func TestStore_FileAllowanceRefusalIsolated(t *testing.T) {
 	ctx := t.Context()
 
 	var refuse bool
@@ -328,12 +339,14 @@ func TestARefusedAllowanceLeavesEveryOtherOrderFilable(t *testing.T) {
 	}
 }
 
-// TestAllowanceTransportAmbiguitySettlesAfterPropagationLag holds the durable
-// recovery path across an ECPay write that may have succeeded before its 502
-// response and a GetAllowanceList read that initially lags that write. The
-// pre-send stamp attributes the later provider candidate to this exact
-// operation; an empty list must keep polling it, never send a second Allowance.
-func TestAllowanceTransportAmbiguitySettlesAfterPropagationLag(t *testing.T) {
+// TestStore_ReconcileOnceAllowanceLag: an allowance whose send ended in a 502
+// settles from the allowance list once the list catches up, without a second
+// send. It holds the durable recovery path across an ECPay write that may have
+// succeeded before its 502 response and a GetAllowanceList read that initially
+// lags that write. The pre-send stamp attributes the later provider candidate
+// to this exact operation; an empty list must keep polling it, never send a
+// second Allowance.
+func TestStore_ReconcileOnceAllowanceLag(t *testing.T) {
 	ctx := t.Context()
 
 	var provider struct {
@@ -491,13 +504,15 @@ func TestAllowanceTransportAmbiguitySettlesAfterPropagationLag(t *testing.T) {
 	}
 }
 
-// TestAMarkedAllowanceIsNeverResentWhileItsLinkMayLive models the sharpest
-// crash window: the durable pre-send stamp committed, but the process died
-// before making the provider call. ECPay lists an online allowance only once
-// the buyer agrees, so an empty list proves neither outcome for as long as the
-// consent link may live: worker polls send nothing and the audited resend is
-// refused. Past the link's life the operation needs a person.
-func TestAMarkedAllowanceIsNeverResentWhileItsLinkMayLive(t *testing.T) {
+// TestStore_ProcessClaimNoResend: an allowance marked sent whose call may never
+// have happened is not sent again while the buyer's consent link may live, and
+// needs a person once it lapses. It models the sharpest crash window: the
+// durable pre-send stamp committed, but the process died before making the
+// provider call. ECPay lists an online allowance only once the buyer agrees, so
+// an empty list proves neither outcome for as long as the consent link may
+// live: worker polls send nothing and the audited resend is refused. Past the
+// link's life the operation needs a person.
+func TestStore_ProcessClaimNoResend(t *testing.T) {
 	ctx := t.Context()
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch r.URL.Path {
@@ -597,11 +612,11 @@ func TestAMarkedAllowanceIsNeverResentWhileItsLinkMayLive(t *testing.T) {
 	}
 }
 
-// TestAnAllowanceReplyNamingAnotherInvoiceNeedsAPerson: ECPay accepting a
-// request yet naming another invoice says nothing about this one, so the
-// operation stops for staff instead of waiting for a buyer, and nothing is
-// sent again.
-func TestAnAllowanceReplyNamingAnotherInvoiceNeedsAPerson(t *testing.T) {
+// TestStore_FileAllowanceReplyMismatch: a reply naming another invoice needs a
+// person. ECPay accepting a request yet naming another invoice says nothing
+// about this one, so the operation stops for staff instead of waiting for a
+// buyer, and nothing is sent again.
+func TestStore_FileAllowanceReplyMismatch(t *testing.T) {
 	ctx := t.Context()
 	var mu sync.Mutex
 	sends := 0
@@ -649,11 +664,13 @@ func TestAnAllowanceReplyNamingAnotherInvoiceNeedsAPerson(t *testing.T) {
 	}
 }
 
-// TestALapsedOnlineAllowanceIsResentOnce: staff may ask a buyer who let the
+// TestStore_ProcessClaimLapsedResend: a lapsed online allowance is resent once,
+// through the audited door, and a refusal because the lapsed request still
+// holds the amount leaves it with a person. Staff may ask a buyer who let the
 // consent link lapse once more, through the same audited door, and only once.
 // ECPay refusing the resend because the lapsed request still holds the amount
 // leaves the operation with a person rather than releasing its claim.
-func TestALapsedOnlineAllowanceIsResentOnce(t *testing.T) {
+func TestStore_ProcessClaimLapsedResend(t *testing.T) {
 	for _, tt := range []struct {
 		name       string
 		held       bool
@@ -749,12 +766,14 @@ func TestALapsedOnlineAllowanceIsResentOnce(t *testing.T) {
 	}
 }
 
-// TestAnUnansweredAllowanceKeepsItsClaim is the other half, and the reason the
-// release above is bound to ErrRejected rather than to any error. A transport
+// TestStore_FileAllowanceUnanswered: an allowance ECPay never answered keeps
+// its claim, so pressing again is still pending and not a second filing. It is
+// the other half of TestStore_FileAllowanceRefusalIsolated, and the reason the
+// release there is bound to ErrRejected rather than to any error. A transport
 // failure says nothing about whether ECPay filed, so the claim must hold: a
 // second press against the same refund would otherwise put two 折讓 in front of
 // the 財政部 for one refund, which is what the request key exists to stop.
-func TestAnUnansweredAllowanceKeepsItsClaim(t *testing.T) {
+func TestStore_FileAllowanceUnanswered(t *testing.T) {
 	ctx := t.Context()
 
 	var down bool
@@ -802,12 +821,13 @@ func TestAnUnansweredAllowanceKeepsItsClaim(t *testing.T) {
 	}
 }
 
-// TestAnAllowanceRelievesACreditRefundToo covers a refund paid wholly in store
-// credit, whose card figure is zero. Read card-only, that order can have no
-// 折讓 filed at all and its 統一發票 goes on recording a sale the shop reversed.
-// It is the fixture that tells the two rules apart: on every other order in
-// this file, "card" and "card + credit" agree.
-func TestAnAllowanceRelievesACreditRefundToo(t *testing.T) {
+// TestStore_FileAllowanceCreditRefund: a refund paid wholly in store credit,
+// whose card figure is zero, still files an allowance for its amount. Read
+// card-only, that order can have no 折讓 filed at all and its 統一發票 goes on
+// recording a sale the shop reversed. It is the fixture that tells the two
+// rules apart: on every other order in this file, "card" and "card + credit"
+// agree.
+func TestStore_FileAllowanceCreditRefund(t *testing.T) {
 	ctx := t.Context()
 
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {

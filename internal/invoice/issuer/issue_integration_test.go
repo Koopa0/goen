@@ -15,7 +15,9 @@ import (
 	"github.com/koopa0/goen/internal/outbox"
 )
 
-func TestCompanyIssueUsesTheRegisteredBuyerSnapshot(t *testing.T) {
+// TestStore_IssueCompanySnapshot: a company Issue sends the registered buyer
+// snapshot (company name and tax ID) under the first RelateNumber.
+func TestStore_IssueCompanySnapshot(t *testing.T) {
 	ctx := t.Context()
 	const (
 		companyName   = "買受股份有限公司"
@@ -62,7 +64,9 @@ func TestCompanyIssueUsesTheRegisteredBuyerSnapshot(t *testing.T) {
 	assertInvoiceFilingSnapshot(t, number, companyName, "issue@goen.invalid", false)
 }
 
-func TestProviderRejectedIssueConsumesItsRelateNumber(t *testing.T) {
+// TestStore_IssueRejectedRelateNumber: a provider-rejected Issue consumes its
+// RelateNumber, so the replacement Issue goes out under the next one.
+func TestStore_IssueRejectedRelateNumber(t *testing.T) {
 	ctx := t.Context()
 	number := orderToInvoice(t, 100000, 0, 0)
 	var sent []issueRequest
@@ -111,10 +115,11 @@ func TestProviderRejectedIssueConsumesItsRelateNumber(t *testing.T) {
 	}
 }
 
-// TestTheReconcilerIssuesTheSystemClaimOnce: the system's claim reaches ECPay
-// through the same /B2CInvoice/Issue path a staff claim does, its audit row
-// names no person but the trigger, and a replayed claim files nothing more.
-func TestTheReconcilerIssuesTheSystemClaimOnce(t *testing.T) {
+// TestStore_ReconcileOnceSystemIssue: the system's claim is issued once. It
+// reaches ECPay through the same /B2CInvoice/Issue path a staff claim does, its
+// audit row names no person but the trigger, and a replayed claim files nothing
+// more.
+func TestStore_ReconcileOnceSystemIssue(t *testing.T) {
 	ctx := t.Context()
 	var filed issueRequest
 	issued := 0
@@ -187,10 +192,10 @@ func TestTheReconcilerIssuesTheSystemClaimOnce(t *testing.T) {
 	}
 }
 
-// TestARefusedSystemIssueWaitsForAPerson: ECPay refusing the buyer's choice
-// ends the system's part. A replayed claim does not try again; the staff
-// button does, under the next RelateNumber.
-func TestARefusedSystemIssueWaitsForAPerson(t *testing.T) {
+// TestStore_ReconcileOnceRefusedIssue: a system issue ECPay refused waits for a
+// person. ECPay refusing the buyer's choice ends the system's part. A replayed
+// claim does not try again; the staff button does, under the next RelateNumber.
+func TestStore_ReconcileOnceRefusedIssue(t *testing.T) {
 	ctx := t.Context()
 	var sent []issueRequest
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {

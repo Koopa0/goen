@@ -30,7 +30,10 @@ func decodesTo[T any](t *testing.T, tp Topic[T], raw string, want T) {
 	}
 }
 
-func TestStoredRowsDecodeUnderTheirTopicsType(t *testing.T) {
+// TestTopicPayloadDecode: the JSON each topic has always stored decodes,
+// through the handler path, into that topic's payload type, including a row
+// queued before a field was dropped.
+func TestTopicPayloadDecode(t *testing.T) {
 	t.Parallel()
 
 	order := uuid.MustParse("6666aaaa-6666-4666-8666-666666666666")
@@ -119,11 +122,12 @@ func TestStoredRowsDecodeUnderTheirTopicsType(t *testing.T) {
 		InvoiceVoidDue{OrderNumber: "GO-1", Trigger: "cancel:GO-1"})
 }
 
-// TestAFundedOrderWritesZeroOwed holds the producer half of the wire: Enqueue
-// stores what json.Marshal writes, and a fully funded order owes 0, which the
-// letter reads as "nothing payable". A zero left out of the JSON would be
+// TestOrderPlacedMarshalZeroOwed: a funded order is stored with owed_cents 0
+// present in its JSON. It holds the producer half of the wire: Enqueue stores
+// what json.Marshal writes, and a fully funded order owes 0, which the letter
+// reads as "nothing payable". A zero left out of the JSON would be
 // indistinguishable from a field nobody wrote.
-func TestAFundedOrderWritesZeroOwed(t *testing.T) {
+func TestOrderPlacedMarshalZeroOwed(t *testing.T) {
 	t.Parallel()
 
 	got, err := json.Marshal(OrderPlaced{
@@ -138,10 +142,11 @@ func TestAFundedOrderWritesZeroOwed(t *testing.T) {
 	}
 }
 
-// TestAPlacedSnapshotIsStoredWithoutTax holds the encoded half of the snapshot:
-// the JSON the order page's confirmation row is written as. Prices include tax,
-// so no tax figure is stored; every other key keeps its name and its place.
-func TestAPlacedSnapshotIsStoredWithoutTax(t *testing.T) {
+// TestPlacedSnapshotMarshal: a PlacedSnapshot marshals with no tax figure and
+// every other key keeping its name and its place. It holds the encoded half of
+// the snapshot: the JSON the order page's confirmation row is written as.
+// Prices include tax, so no tax figure is stored.
+func TestPlacedSnapshotMarshal(t *testing.T) {
 	t.Parallel()
 
 	got, err := json.Marshal(PlacedSnapshot{

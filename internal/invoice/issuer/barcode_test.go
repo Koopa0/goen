@@ -11,7 +11,10 @@ import (
 	"time"
 )
 
-func TestBarcodeCheckRequiresAnExistenceVerdict(t *testing.T) {
+// TestGateway_CheckBarcodeVerdict: CheckBarcode answers exists or missing only
+// for a documented IsExist value; a success without a verdict, an unexpected
+// verdict and a maintenance code are unknown, with an error.
+func TestGateway_CheckBarcodeVerdict(t *testing.T) {
 	for _, tc := range []struct {
 		name    string
 		code    int
@@ -68,7 +71,9 @@ func TestBarcodeCheckRequiresAnExistenceVerdict(t *testing.T) {
 	}
 }
 
-func TestBarcodeCheckDoesNotCallForBadShape(t *testing.T) {
+// TestGateway_CheckBarcodeNoCall: a malformed barcode, or a disabled gateway,
+// answers unknown with an error and does not call the provider.
+func TestGateway_CheckBarcodeNoCall(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(http.ResponseWriter, *http.Request) { t.Error("bad shape reached provider") }))
 	defer server.Close()
 	g, err := NewGateway(testMerchantID, testHashKey, testHashIV, server.URL)
@@ -84,7 +89,9 @@ func TestBarcodeCheckDoesNotCallForBadShape(t *testing.T) {
 	}
 }
 
-func TestBarcodeCheckTransportFailureIsUnknown(t *testing.T) {
+// TestGateway_CheckBarcodeTransportFailure: a provider outage answers unknown
+// with an error, never missing.
+func TestGateway_CheckBarcodeTransportFailure(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) { w.WriteHeader(http.StatusServiceUnavailable) }))
 	defer server.Close()
 	g, err := NewGateway(testMerchantID, testHashKey, testHashIV, server.URL)
@@ -96,7 +103,9 @@ func TestBarcodeCheckTransportFailureIsUnknown(t *testing.T) {
 	}
 }
 
-func TestBarcodeCheckHasAShortDeadline(t *testing.T) {
+// TestGateway_CheckBarcodeDeadline: a provider that never answers is cut off by
+// a deadline within checkout's short budget and answers unknown.
+func TestGateway_CheckBarcodeDeadline(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(_ http.ResponseWriter, r *http.Request) {
 		if _, err := io.Copy(io.Discard, r.Body); err != nil {
 			return

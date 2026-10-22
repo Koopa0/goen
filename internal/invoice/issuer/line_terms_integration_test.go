@@ -16,7 +16,10 @@ import (
 	"github.com/koopa0/goen/internal/invoice"
 )
 
-func TestExemptInvoiceAndAllowanceKeepTheirFrozenLineTerms(t *testing.T) {
+// TestStore_ExemptLineTerms: an exempt invoice and its allowance keep their
+// frozen tax type and unit through issue, settlement, an allowance invalid
+// after a lost response, and a refrozen replacement.
+func TestStore_ExemptLineTerms(t *testing.T) {
 	for _, lostAllowance := range []bool{false, true} {
 		name := "buyer agreed"
 		if lostAllowance {
@@ -236,7 +239,10 @@ func invoiceAdminPool(t *testing.T) *pgxpool.Pool {
 	return adminPool
 }
 
-func TestCanonicalInvoiceDeliveryAndRoundingFollowTheExemptOrder(t *testing.T) {
+// TestCanonicalInvoiceLinesExempt: canonical_invoice_lines keeps the exempt tax
+// type on the item, delivery and rounding lines, and the item's unit on the
+// item.
+func TestCanonicalInvoiceLinesExempt(t *testing.T) {
 	number := ownedOrderToInvoiceWithLineTerms(t, uuid.NullUUID{}, 10050, 8050, 0, invoice.PreferenceMember, "王小明", "", invoice.LineTerms{TaxType: invoice.Exempt, Unit: "包"})
 	rows, err := pool.Query(t.Context(), `SELECT description,tax_type,unit FROM canonical_invoice_lines((SELECT id FROM orders WHERE order_number=$1)) ORDER BY line_position`, number)
 	if err != nil {
@@ -266,7 +272,11 @@ func TestCanonicalInvoiceDeliveryAndRoundingFollowTheExemptOrder(t *testing.T) {
 	}
 }
 
-func TestInvalidationRefreezesTheLocalExemptAllowance(t *testing.T) {
+// TestReconcileInvalidInvoiceAllowanceExempt:
+// reconcile_invalid_invoice_allowance refreezes the replacement of a voided
+// exempt allowance with the exempt tax type and the unit of the allowance, at
+// the new refund amount.
+func TestReconcileInvalidInvoiceAllowanceExempt(t *testing.T) {
 	ctx := t.Context()
 	number := ownedOrderToInvoiceWithLineTerms(t, uuid.NullUUID{}, 10000, 0, 0, invoice.PreferenceMember, "王小明", "", invoice.LineTerms{TaxType: invoice.Exempt, Unit: "包"})
 	addCardRefund(t, number, 7000)
@@ -310,7 +320,10 @@ func TestInvalidationRefreezesTheLocalExemptAllowance(t *testing.T) {
 	}
 }
 
-func TestAllowanceSettlementKeepsItsFrozenTaxTypeAndUnit(t *testing.T) {
+// TestSettleInvoiceAllowanceLineTerms: settle_invoice_allowance and
+// record_invalid_invoice_allowance keep the allowance lines' frozen tax type
+// and unit.
+func TestSettleInvoiceAllowanceLineTerms(t *testing.T) {
 	for _, tc := range []struct {
 		name            string
 		invoiceNumber   string

@@ -7,7 +7,9 @@ import (
 	"github.com/jackc/pgx/v5/pgconn"
 )
 
-func TestVoidClaimConstraintsAreMapped(t *testing.T) {
+// TestMapVoidClaim: a void claim refused by invoice_void_reason is ErrReason,
+// and by invoice_void_target is ErrNotFound.
+func TestMapVoidClaim(t *testing.T) {
 	t.Parallel()
 
 	tests := []struct {
@@ -30,7 +32,9 @@ func TestVoidClaimConstraintsAreMapped(t *testing.T) {
 	}
 }
 
-func TestAnUnmappedVoidClaimStaysUntyped(t *testing.T) {
+// TestMapVoidClaimUnmapped: a constraint mapVoidClaim does not know stays
+// untyped: not ErrReason, ErrNotFound or ErrRejected.
+func TestMapVoidClaimUnmapped(t *testing.T) {
 	t.Parallel()
 
 	err := mapVoidClaim("AB12345678", &pgconn.PgError{
@@ -41,10 +45,10 @@ func TestAnUnmappedVoidClaimStaysUntyped(t *testing.T) {
 	}
 }
 
-// TestADueClaimIsDoneOnlyWhenNothingIsLeftToFile holds the outbox message for
-// an issue the database refused for any other reason: dropping it would leave a
-// paid order uninvoiced with nothing on /admin/health to say so.
-func TestADueClaimIsDoneOnlyWhenNothingIsLeftToFile(t *testing.T) {
+// TestDueClaimOutcome: a due claim is done only when nothing is left to file;
+// any other refusal holds the outbox message. Dropping it would leave a paid
+// order uninvoiced with nothing on /admin/health to say so.
+func TestDueClaimOutcome(t *testing.T) {
 	t.Parallel()
 
 	tests := []struct {

@@ -16,11 +16,13 @@ import (
 	"github.com/koopa0/goen/internal/invoice"
 )
 
-// TestOfferedPreferencesMatchTheDatabaseClosedSet keeps the Go domain type and
-// invoice_preferences CHECK constraints as one contract. A new checkout choice
-// must be admitted here with the fields its semantics require; an arbitrary
-// string must still be refused by the named closed-set constraint.
-func TestOfferedPreferencesMatchTheDatabaseClosedSet(t *testing.T) {
+// TestInvoicePreferencesClosedSet: invoice_preferences stores every preference
+// offered at checkout with the fields it needs, and refuses an unknown type by
+// invoice_preferences_type_known. It keeps the Go domain type and the CHECK
+// constraints as one contract. A new checkout choice must be admitted here with
+// the fields its semantics require; an arbitrary string must still be refused
+// by the named closed-set constraint.
+func TestInvoicePreferencesClosedSet(t *testing.T) {
 	ctx := t.Context()
 	newOrder := func(t *testing.T) uuid.UUID {
 		t.Helper()
@@ -106,10 +108,11 @@ func TestOfferedPreferencesMatchTheDatabaseClosedSet(t *testing.T) {
 	}
 }
 
-// TestTaxIDChecksumAgreesWithTheSchema holds the Go validator and its PL/pgSQL
-// twin to one answer over the cases that bend the rule (a seventh digit of 7)
-// and a seeded random sample, so neither can drift without this failing.
-func TestTaxIDChecksumAgreesWithTheSchema(t *testing.T) {
+// TestValidBusinessTaxID: the SQL function valid_business_tax_id agrees with
+// Go's invoice.ValidTaxID. It holds the Go validator and its PL/pgSQL twin to
+// one answer over the cases that bend the rule (a seventh digit of 7) and a
+// seeded random sample, so neither can drift without this failing.
+func TestValidBusinessTaxID(t *testing.T) {
 	corpus := []string{
 		"", "00000000", "10458575", "04595257", "10458570", "1045857", "104585750",
 		"1045857a", "２０４５８５７５", "04595252", "04595253", "00000007", "00000070",
