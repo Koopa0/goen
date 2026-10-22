@@ -10,7 +10,8 @@ import (
 	"github.com/koopa0/goen/internal/ui/frame"
 )
 
-func TestRefusedParentIsKeptEvenWhenItsCategoryNoLongerExists(t *testing.T) {
+// TestTaxonomyRefusedParentKept: refused parent is kept even when its category no longer exists.
+func TestTaxonomyRefusedParentKept(t *testing.T) {
 	t.Parallel()
 	for _, locale := range i18n.Locales() {
 		t.Run(locale.Tag(), func(t *testing.T) {

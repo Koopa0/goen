@@ -89,7 +89,8 @@ func newProduct(t *testing.T) (id uuid.UUID, slug string) {
 	return id, slug
 }
 
-func TestResultsCountWholeShopDaysAroundTheStartOfTheCampaign(t *testing.T) {
+// TestStore_ResultsShopDays: results count whole shop days around the start of the campaign.
+func TestStore_ResultsShopDays(t *testing.T) {
 	ctx, _ := admintest.StaffContext(t, pool)
 	s := campaigns.NewStore(pool)
 	slug := admintest.CampaignSlug(t)
@@ -158,7 +159,8 @@ func TestResultsCountWholeShopDaysAroundTheStartOfTheCampaign(t *testing.T) {
 	}
 }
 
-func TestACampaignIsNamedInTheReadersLanguageOnItsResults(t *testing.T) {
+// TestStore_DetailLocalizedTitle: a campaign is named in the reader's language on its results.
+func TestStore_DetailLocalizedTitle(t *testing.T) {
 	ctx, _ := admintest.StaffContext(t, pool)
 	s := campaigns.NewStore(pool)
 	slug := admintest.CampaignSlug(t)

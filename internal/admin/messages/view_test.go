@@ -93,7 +93,7 @@ func render(t *testing.T, c templ.Component) string {
 }
 
 // TestMessagesEmptyPage: the messages empty page keeps its restart link.
-// From TestEveryAdminEmptyPageKeepsItsRestartLink.
+// From TestAuditEmptyPageRestartLink.
 func TestMessagesEmptyPage(t *testing.T) {
 	t.Parallel()
 	b := keyset.Bound{PastEnd: true, First: "/admin/products?q=test"}
@@ -107,7 +107,7 @@ func TestMessagesEmptyPage(t *testing.T) {
 }
 
 // TestMessagesFirstPageEmpty: the messages queue keeps its own first-page empty state.
-// From TestEveryQueueKeepsItsOwnFirstPageEmptyState.
+// From TestAuditFirstPageEmpty.
 func TestMessagesFirstPageEmpty(t *testing.T) {
 	t.Parallel()
 	ctx := func(k i18n.Key) string { return i18n.T(i18n.WithLocale(t.Context(), i18n.En), k) }
@@ -122,7 +122,7 @@ func TestMessagesFirstPageEmpty(t *testing.T) {
 }
 
 // TestMessagesNextLink: a messages queue with more rows offers Next.
-// From TestEveryQueueWithMoreRowsOffersNext.
+// From TestAuditFullPageOffersNext.
 func TestMessagesNextLink(t *testing.T) {
 	t.Parallel()
 	ctx := func(k i18n.Key) string { return i18n.T(i18n.WithLocale(t.Context(), i18n.En), k) }

@@ -27,7 +27,8 @@ import (
 	"github.com/koopa0/goen/internal/media"
 )
 
-func TestCategoryDescriptionsSaveWithoutAFileAndRefusalsKeepTheDraft(t *testing.T) {
+// TestHandler_SetCategoryImageAltOnly: category descriptions save without a file and refusals keep the draft.
+func TestHandler_SetCategoryImageAltOnly(t *testing.T) {
 	owner := dbtest.Pool(t)
 	staff, _ := admintest.StaffContext(t, owner)
 	store := taxonomy.NewStore(admintest.AdminRolePool(t, owner))
@@ -182,7 +183,8 @@ func assertCategoryImageRefusal(t *testing.T, body, id, raw string) {
 	}
 }
 
-func TestMissingParentChoiceSurvivesAnUnchangedRetry(t *testing.T) {
+// TestHandler_CreateMissingParent: missing parent choice survives an unchanged retry.
+func TestHandler_CreateMissingParent(t *testing.T) {
 	owner := dbtest.Pool(t)
 	staff, _ := admintest.StaffContext(t, owner)
 	store := taxonomy.NewStore(admintest.AdminRolePool(t, owner))

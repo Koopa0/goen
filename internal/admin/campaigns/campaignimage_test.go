@@ -12,7 +12,8 @@ import (
 
 const seedBanner = "campaign-banner-01.webp"
 
-func TestCampaignImageFormFlagsAWrongFieldForAssistiveTech(t *testing.T) {
+// TestCampaignFormImageErrors: campaign image form flags a wrong field for assistive tech.
+func TestCampaignFormImageErrors(t *testing.T) {
 	t.Parallel()
 	ctx := i18n.WithLocale(t.Context(), i18n.En)
 	page := renderComponent(t, ctx, CampaignForm(frame.Page{Title: "c"}, CampaignView{
@@ -33,7 +34,8 @@ func TestCampaignImageFormFlagsAWrongFieldForAssistiveTech(t *testing.T) {
 	}
 }
 
-func TestTheCampaignPageIsTitledAndEditsItsDatesAndAddsProductsBySearch(t *testing.T) {
+// TestCampaignFormTitleDatesSearch: the campaign page is titled, edits its dates and adds products by search.
+func TestCampaignFormTitleDatesSearch(t *testing.T) {
 	t.Parallel()
 	ctx := i18n.WithLocale(t.Context(), i18n.ZhHant)
 	page := renderComponent(t, ctx, CampaignForm(frame.Page{Title: "c"}, CampaignView{

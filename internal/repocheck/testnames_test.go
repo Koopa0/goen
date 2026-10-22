@@ -33,9 +33,13 @@ const maxTestNameLen = 40
 var migratedTestPackages = []string{
 	"assets",
 	"internal/admin",
+	"internal/admin/audit",
 	"internal/admin/banners",
+	"internal/admin/campaigns",
 	"internal/admin/coupons",
 	"internal/admin/credits",
+	"internal/admin/customers",
+	"internal/admin/dashboard",
 	"internal/admin/faq",
 	"internal/admin/messages",
 	"internal/admin/newsletters",
@@ -43,6 +47,7 @@ var migratedTestPackages = []string{
 	"internal/admin/reviews",
 	"internal/admin/slides",
 	"internal/admin/staff",
+	"internal/admin/taxonomy",
 	"internal/admin/tiers",
 	"internal/admin/warranties",
 	"internal/bearer",
@@ -98,6 +103,9 @@ var testNameExceptions = map[string]map[string]string{
 	"internal/admin/staff": {
 		"TestRequireAdminStaffPage": "its unit is admin.Control.RequireAdmin guarding the staff page's path, declared in package admin; it calls nothing this package declares",
 		"TestUpsertStaffExisting":   "its unit is the upsert_staff SQL function and the users_staff_already_exists constraint, called straight through an admin-role pool; Store.AddStaff is not what it exercises",
+	},
+	"internal/admin/taxonomy": {
+		"TestCategoriesIconKeyKnown": "the unit is the categories_icon_key_known CHECK constraint of the categories table, a SQL object, not a Go identifier: the test inserts rows directly and never calls the Store",
 	},
 	"internal/admin/tiers": {
 		"TestAdminMembershipTiers": "its unit is the AdminMembershipTiers query (internal/admin/tiers/query.sql, generated into internal/db), a SQL object it calls directly in a read-only transaction, not Store.Tiers",

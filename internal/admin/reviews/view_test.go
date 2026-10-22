@@ -42,7 +42,7 @@ func render(t *testing.T, c templ.Component) string {
 }
 
 // TestReviewsEmptyPage: the reviews empty page keeps its restart link.
-// From TestEveryAdminEmptyPageKeepsItsRestartLink.
+// From TestAuditEmptyPageRestartLink.
 func TestReviewsEmptyPage(t *testing.T) {
 	t.Parallel()
 	b := keyset.Bound{PastEnd: true, First: "/admin/products?q=test"}
@@ -56,7 +56,7 @@ func TestReviewsEmptyPage(t *testing.T) {
 }
 
 // TestReviewsFirstPageEmpty: the reviews queue keeps its own first-page empty state.
-// From TestEveryQueueKeepsItsOwnFirstPageEmptyState.
+// From TestAuditFirstPageEmpty.
 func TestReviewsFirstPageEmpty(t *testing.T) {
 	t.Parallel()
 	ctx := func(k i18n.Key) string { return i18n.T(i18n.WithLocale(t.Context(), i18n.En), k) }
@@ -71,7 +71,7 @@ func TestReviewsFirstPageEmpty(t *testing.T) {
 }
 
 // TestReviewsNextLink: a reviews queue with more rows offers Next.
-// From TestEveryQueueWithMoreRowsOffersNext.
+// From TestAuditFullPageOffersNext.
 func TestReviewsNextLink(t *testing.T) {
 	t.Parallel()
 	ctx := func(k i18n.Key) string { return i18n.T(i18n.WithLocale(t.Context(), i18n.En), k) }

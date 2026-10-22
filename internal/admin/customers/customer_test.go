@@ -7,7 +7,8 @@ import (
 	"github.com/koopa0/goen/internal/i18n"
 )
 
-func TestACustomerShowsItsFiguresAsOneStatLine(t *testing.T) {
+// TestCustomerStatLine: a customer shows its figures as one stat line.
+func TestCustomerStatLine(t *testing.T) {
 	t.Parallel()
 	ctx := i18n.WithLocale(t.Context(), i18n.ZhHant)
 	html := renderToString(t, Customer(Meta(ctx), &CustomerView{Orders: 0, SpentCents: 1234500, CreditCents: 0, Points: 12}))

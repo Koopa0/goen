@@ -15,7 +15,7 @@ import (
 )
 
 // TestWarrantiesEmptyPage: the warranties empty page keeps its restart link.
-// From TestEveryAdminEmptyPageKeepsItsRestartLink (row warranty).
+// From TestAuditEmptyPageRestartLink (row warranty).
 func TestWarrantiesEmptyPage(t *testing.T) {
 	t.Parallel()
 	b := keyset.Bound{PastEnd: true, First: "/admin/products?q=test"}
@@ -38,8 +38,8 @@ func queuePage(b keyset.Bound, ctx func(k i18n.Key) string) (page templ.Componen
 }
 
 // TestWarrantiesFirstPageEmpty: the warranty queue keeps its own first-page empty state.
-// From TestEveryQueueKeepsItsOwnFirstPageEmptyState and
-// TestEveryQueueWithMoreRowsOffersNext (row warranty).
+// From TestAuditFirstPageEmpty and
+// TestAuditFullPageOffersNext (row warranty).
 func TestWarrantiesFirstPageEmpty(t *testing.T) {
 	t.Parallel()
 	ctx := func(k i18n.Key) string { return i18n.T(i18n.WithLocale(t.Context(), i18n.En), k) }

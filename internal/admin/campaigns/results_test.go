@@ -7,7 +7,8 @@ import (
 	"github.com/koopa0/goen/internal/shoptime"
 )
 
-func TestResultWindowIsWholeShopDaysAnchoredOnTheCampaign(t *testing.T) {
+// TestResultWindowShopDays: result window is whole shop days anchored on the campaign.
+func TestResultWindowShopDays(t *testing.T) {
 	t.Parallel()
 
 	at := func(s string) time.Time {

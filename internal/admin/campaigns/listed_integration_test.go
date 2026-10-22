@@ -14,9 +14,10 @@ import (
 	"github.com/koopa0/goen/internal/keyset"
 )
 
+// TestStore_ListBuyableAgreement: the shop list, count and back office agree on what is buyable.
 // The shop's list, its count and the back office's reason must agree on which
 // campaign has something to buy.
-func TestTheShopListCountAndBackOfficeAgreeOnWhatIsBuyable(t *testing.T) {
+func TestStore_ListBuyableAgreement(t *testing.T) {
 	ctx, _ := admintest.StaffContext(t, pool)
 	shop := campaign.NewStore(pool)
 	office := campaigns.NewStore(pool)
