@@ -9,7 +9,8 @@ import (
 	"github.com/koopa0/goen/internal/ui/frame"
 )
 
-func TestNoPageNamesAnInventedCompanyOrAddress(t *testing.T) {
+// TestFooterContactNoInventedCompany: no page names an invented company or address.
+func TestFooterContactNoInventedCompany(t *testing.T) {
 	t.Parallel()
 	for _, locale := range []i18n.Locale{i18n.ZhHant, i18n.En} {
 		ctx := i18n.WithLocale(t.Context(), locale)

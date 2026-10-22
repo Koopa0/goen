@@ -25,7 +25,8 @@ func svgOf(t *testing.T, html string) string {
 	return html[start:end]
 }
 
-func TestBarWidthIsScaledToTheMax(t *testing.T) {
+// TestBarPropsWidth: bar width is scaled to the max.
+func TestBarPropsWidth(t *testing.T) {
 	t.Parallel()
 
 	for _, tc := range []struct {
@@ -47,7 +48,8 @@ func TestBarWidthIsScaledToTheMax(t *testing.T) {
 	}
 }
 
-func TestBarFillsATrackWithItsCountAsText(t *testing.T) {
+// TestBarFillsTrack: bar fills a track with its count as text.
+func TestBarFillsTrack(t *testing.T) {
 	t.Parallel()
 
 	got := renderBar(t, BarProps{Value: 20, Max: 40, Label: "20"})
@@ -79,7 +81,8 @@ func TestBarFillsATrackWithItsCountAsText(t *testing.T) {
 	}
 }
 
-func TestBarOfZeroDrawsNoFillButKeepsItsLabel(t *testing.T) {
+// TestBarZeroDrawsNoFill: bar of zero draws no fill but keeps its label.
+func TestBarZeroDrawsNoFill(t *testing.T) {
 	t.Parallel()
 
 	got := renderBar(t, BarProps{Value: 0, Max: 40, Label: "0"})
@@ -91,7 +94,8 @@ func TestBarOfZeroDrawsNoFillButKeepsItsLabel(t *testing.T) {
 	}
 }
 
-func TestCountColumnWidensWithTheScale(t *testing.T) {
+// TestBarWideCountColumn: count column widens with the scale.
+func TestBarWideCountColumn(t *testing.T) {
 	t.Parallel()
 
 	for _, tc := range []struct {
@@ -109,7 +113,8 @@ func TestCountColumnWidensWithTheScale(t *testing.T) {
 	}
 }
 
-func TestMeterWidthIsTheShareOfTheLimit(t *testing.T) {
+// TestMeterPropsWidth: meter width is the share of the limit.
+func TestMeterPropsWidth(t *testing.T) {
 	t.Parallel()
 
 	for _, tc := range []struct {
@@ -129,7 +134,8 @@ func TestMeterWidthIsTheShareOfTheLimit(t *testing.T) {
 	}
 }
 
-func TestMeterDrawsTheUnfilledPartAndKeepsItsCountAsText(t *testing.T) {
+// TestMeterDrawsTrackAndFill: meter draws the unfilled part and keeps its count as text.
+func TestMeterDrawsTrackAndFill(t *testing.T) {
 	t.Parallel()
 
 	var b bytes.Buffer
@@ -160,7 +166,8 @@ func TestMeterDrawsTheUnfilledPartAndKeepsItsCountAsText(t *testing.T) {
 	}
 }
 
-func TestMeterWithNothingUsedDrawsNoFill(t *testing.T) {
+// TestMeterNothingUsedDrawsNoFill: meter with nothing used draws no fill.
+func TestMeterNothingUsedDrawsNoFill(t *testing.T) {
 	t.Parallel()
 
 	var b bytes.Buffer
@@ -172,7 +179,8 @@ func TestMeterWithNothingUsedDrawsNoFill(t *testing.T) {
 	}
 }
 
-func TestMeterDrawsTheLimitLineOnlyWhenAsked(t *testing.T) {
+// TestMeterLimitLine: meter draws the limit line only when asked.
+func TestMeterLimitLine(t *testing.T) {
 	t.Parallel()
 
 	for _, line := range []bool{false, true} {
@@ -195,7 +203,8 @@ func renderRangeBar(t *testing.T, p RangeBarProps) string {
 	return b.String()
 }
 
-func TestRangeBarPositionsAreAPercentageOfTheScale(t *testing.T) {
+// TestRangeBarPropsPosition: range bar positions are a percentage of the scale.
+func TestRangeBarPropsPosition(t *testing.T) {
 	t.Parallel()
 
 	p := RangeBarProps{Max: 90}
@@ -218,7 +227,8 @@ func TestRangeBarPositionsAreAPercentageOfTheScale(t *testing.T) {
 	}
 }
 
-func TestRangeBarDrawsTheValueItsReachAndTheWarningLine(t *testing.T) {
+// TestRangeBarDrawsValueReachMark: range bar draws the value, its reach and the warning line.
+func TestRangeBarDrawsValueReachMark(t *testing.T) {
 	t.Parallel()
 
 	got := renderRangeBar(t, RangeBarProps{Value: 45, High: 72, Mark: 30, Max: 90})
@@ -243,7 +253,8 @@ func TestRangeBarDrawsTheValueItsReachAndTheWarningLine(t *testing.T) {
 	}
 }
 
-func TestRangeBarIsUrgentOnlyWhenAsked(t *testing.T) {
+// TestRangeBarUrgent: range bar is urgent only when asked.
+func TestRangeBarUrgent(t *testing.T) {
 	t.Parallel()
 
 	for _, urgent := range []bool{false, true} {
@@ -254,7 +265,8 @@ func TestRangeBarIsUrgentOnlyWhenAsked(t *testing.T) {
 	}
 }
 
-func TestRangeBarWithoutALengthDrawsNoReach(t *testing.T) {
+// TestRangeBarNoLengthNoReach: range bar without a length draws no reach.
+func TestRangeBarNoLengthNoReach(t *testing.T) {
 	t.Parallel()
 
 	for _, tc := range []struct {

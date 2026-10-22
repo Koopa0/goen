@@ -33,9 +33,11 @@ func adminDetails(t *testing.T, current string) []string {
 
 func isOpen(tag string) bool { return strings.Contains(tag, " open") }
 
+// TestAdminNavStartsClosed: the admin nav starts closed.
+//
 // A phone gets the nav behind its toggle, so the first screen of work is not
 // 23 links; the desk stylesheet is what shows it as a rail.
-func TestTheAdminNavStartsClosed(t *testing.T) {
+func TestAdminNavStartsClosed(t *testing.T) {
 	t.Parallel()
 	for _, screen := range []string{"dashboard", "orders", "stock"} {
 		if tags := adminDetails(t, screen); isOpen(tags[0]) {
@@ -44,9 +46,11 @@ func TestTheAdminNavStartsClosed(t *testing.T) {
 	}
 }
 
+// TestAdminNavQueuesOpenOnDashboard: the queues group is open on the dashboard.
+//
 // The dashboard is where a shift starts and orders and returns are what it
 // starts with, so their group is open there without a click.
-func TestTheQueuesGroupIsOpenOnTheDashboard(t *testing.T) {
+func TestAdminNavQueuesOpenOnDashboard(t *testing.T) {
 	t.Parallel()
 	groups := adminDetails(t, "dashboard")[1:]
 	if !isOpen(groups[0]) {
@@ -71,8 +75,10 @@ func TestAdminNavGroupsDoNotCloseEachOther(t *testing.T) {
 	}
 }
 
+// TestAdminNavCurrentGroupOpen: the group holding the current screen is the one open.
+//
 // Reading a screen opens the group it belongs to, and only that one.
-func TestTheGroupHoldingTheCurrentScreenIsTheOneOpen(t *testing.T) {
+func TestAdminNavCurrentGroupOpen(t *testing.T) {
 	t.Parallel()
 	groups := adminDetails(t, "stock")[1:]
 	for i, g := range groups {

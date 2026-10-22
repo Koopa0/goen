@@ -9,7 +9,8 @@ import (
 	"github.com/koopa0/goen/internal/web/siteurl"
 )
 
-func TestHeadNamesAnAbsoluteShareImageOnlyWhereTheOriginIsKnown(t *testing.T) {
+// TestBaseShareImageNeedsOrigin: head names an absolute share image only where the origin is known.
+func TestBaseShareImageNeedsOrigin(t *testing.T) {
 	t.Parallel()
 	origin, _, ok := siteurl.Origin("https://shop.example/")
 	if !ok {
@@ -41,7 +42,8 @@ func TestHeadNamesAnAbsoluteShareImageOnlyWhereTheOriginIsKnown(t *testing.T) {
 	}
 }
 
-func TestHeadNamesTheFaviconAndTheHomeScreenIcon(t *testing.T) {
+// TestBaseFaviconAndHomeScreenIcon: head names the favicon and the home screen icon.
+func TestBaseFaviconAndHomeScreenIcon(t *testing.T) {
 	t.Parallel()
 	var b strings.Builder
 	if err := Base(Page{Title: "t"}).Render(i18n.WithLocale(t.Context(), i18n.En), &b); err != nil {

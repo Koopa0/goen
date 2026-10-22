@@ -10,10 +10,10 @@ import (
 	"github.com/koopa0/goen/internal/ui/frame"
 )
 
-// TestTheOrderNotFoundPageOffersAWayThrough holds that this 404 offers both
+// TestOrderNotFoundOffersBothLinks holds that this 404 offers both
 // /orders/find and /signin, since the reader is a guest or an account holder
 // and the page cannot tell which.
-func TestTheOrderNotFoundPageOffersAWayThrough(t *testing.T) {
+func TestOrderNotFoundOffersBothLinks(t *testing.T) {
 	html := renderToString(t, frame.OrderNotFound(frame.Page{Title: "404"}))
 
 	for _, want := range []string{"/orders/find", "/signin"} {
