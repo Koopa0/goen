@@ -14,6 +14,18 @@ import (
 	"github.com/koopa0/goen/internal/ui/uitest"
 )
 
+// Every request for an address may find its allowance spent, and is then told
+// the link is on its way. That is true only while the newest link queued when
+// the allowance was last spent is still live.
+func TestAnEmptyResetAllowanceRefillsBeforeItsLinkExpires(t *testing.T) {
+	t.Parallel()
+	if addressMailPace.Every >= ResetTokenTTL {
+		t.Errorf("an address's reset allowance refills every %v and a link lives %v: "+
+			"an owner whose allowance a stranger keeps spent can be told a link is on its way "+
+			"while every link sent has expired", addressMailPace.Every, ResetTokenTTL)
+	}
+}
+
 func TestResetPasswordRefusalsDoNotLeakFormattingDiagnostics(t *testing.T) {
 	t.Parallel()
 	for _, tt := range []struct {

@@ -24,6 +24,8 @@ func TestPasswordSetupRequiresAuthentication(t *testing.T) {
 	}
 }
 
+// The address's reset links were spent by somebody: the owner is answered as
+// ever, and nothing is queued, which a store that cannot be reached proves.
 func TestPasswordSetupSpendsTheCurrentMailboxBudget(t *testing.T) {
 	t.Parallel()
 	limit := ratelimit.New(addressMailPace)
@@ -36,10 +38,10 @@ func TestPasswordSetupSpendsTheCurrentMailboxBudget(t *testing.T) {
 	request := httptest.NewRequestWithContext(ctx, http.MethodPost, "/account/password/setup", strings.NewReader("email=another@example.com"))
 	request.Header.Set("Content-Type", "application/x-www-form-urlencoded")
 	response := httptest.NewRecorder()
-	h := &Handler{resetLimit: limit}
+	h := &Handler{store: deadAccountStore(t), resetLimit: limit, log: slog.New(slog.DiscardHandler)}
 	h.RequestPasswordSetup(response, request)
-	if response.Code != http.StatusTooManyRequests || response.Header().Get("Retry-After") == "" {
-		t.Errorf("spent mailbox setup = %d %q, want 429 with Retry-After", response.Code, response.Header().Get("Retry-After"))
+	if want := "/account?password_setup=sent#password-heading"; response.Code != http.StatusSeeOther || response.Header().Get("Location") != want {
+		t.Errorf("spent mailbox setup = %d %q, want 303 %q", response.Code, response.Header().Get("Location"), want)
 	}
 }
 

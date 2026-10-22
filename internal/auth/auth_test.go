@@ -20,6 +20,7 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 
 	"github.com/koopa0/goen/internal/auth/google"
+	"github.com/koopa0/goen/internal/email"
 	"github.com/koopa0/goen/internal/i18n"
 	"github.com/koopa0/goen/internal/ui/uitest"
 	"github.com/koopa0/goen/internal/user"
@@ -227,17 +228,13 @@ func TestAnOverlongForgotAddressIsAnsweredIdenticallyBeforeTheLimiter(t *testing
 		"email": {longAddr},
 	}, longHandler.Forgot)
 
-	secondNormal := postAccountForm(t, "/forgot", url.Values{
-		"email": {"not-an-address"},
-	}, normalHandler.Forgot)
-	secondOverlong := postAccountForm(t, "/forgot", url.Values{
-		"email": {longAddr},
-	}, longHandler.Forgot)
-	if secondNormal.Code != http.StatusTooManyRequests {
-		t.Fatalf("the bounded fixture's second request status = %d, want 429; the comparison never reached the limiter", secondNormal.Code)
+	// A spent allowance is answered as an unspent one, so the limiter itself is
+	// asked which address became a key.
+	if _, ok := normalHandler.resetLimit.Allow("forgot:not-an-address"); ok {
+		t.Fatal("the bounded fixture's address left no spent key; the comparison never reached the limiter")
 	}
-	if secondOverlong.Code != http.StatusSeeOther {
-		t.Errorf("the overlong fixture's second request status = %d, want the ordinary 303 without a retained limiter key", secondOverlong.Code)
+	if _, ok := longHandler.resetLimit.Allow("forgot:" + email.Clean(longAddr)); !ok {
+		t.Error("the overlong address was kept as a limiter key")
 	}
 	if normal.Code != http.StatusSeeOther || overlong.Code != normal.Code {
 		t.Fatalf("normal/overlong statuses = %d/%d, want both 303", normal.Code, overlong.Code)

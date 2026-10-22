@@ -1,6 +1,7 @@
 package auth
 
 import (
+	"context"
 	"errors"
 	"net/http"
 	"net/url"
@@ -11,7 +12,6 @@ import (
 	"github.com/koopa0/goen/internal/user"
 	"github.com/koopa0/goen/internal/web/compress"
 	"github.com/koopa0/goen/internal/web/formtext"
-	"github.com/koopa0/goen/internal/web/ratelimit"
 	"github.com/koopa0/goen/internal/web/respond"
 )
 
@@ -47,12 +47,7 @@ func (h *Handler) Forgot(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if retryAfter, ok := h.resetLimit.Allow("forgot:" + normalised); !ok {
-		ratelimit.Refuse(r.Context(), w, retryAfter)
-		return
-	}
-
-	if err := h.store.requestReset(r.Context(), addr); err != nil {
+	if err := h.requestResetLink(r.Context(), addr); err != nil {
 		h.log.ErrorContext(r.Context(), "queue password reset request", "error", err)
 		h.serverError(w, r)
 		return
@@ -62,6 +57,24 @@ func (h *Handler) Forgot(w http.ResponseWriter, r *http.Request) {
 		destination = "/forgot?" + url.Values{"sent": {"1"}, "address": {masked}}.Encode()
 	}
 	http.Redirect(w, r, destination, http.StatusSeeOther)
+}
+
+// requestResetLink queues a reset link for addr unless the address has had its
+// allowance of them, and either way the caller answers that the link is on its
+// way. The allowance bounds the mail and never the request. Whoever names the
+// address spends it, so refusing the request would refuse the owner on a
+// stranger's say, and every request that spent it queued a link to the owner,
+// the newest replacing the rest. An empty allowance was last spent within one
+// addressMailPace interval, which is shorter than ResetTokenTTL, so an owner
+// who asks then already has a live link. That is the OWASP Forgot Password
+// Cheat Sheet's rule: bound the requests per account, answer every request
+// alike, and never lock the account out.
+func (h *Handler) requestResetLink(ctx context.Context, addr string) error {
+	if _, ok := h.resetLimit.Allow("forgot:" + email.Clean(addr)); !ok {
+		h.log.WarnContext(ctx, "reset link not queued: the address has had its allowance")
+		return nil
+	}
+	return h.store.requestReset(ctx, addr)
 }
 
 func (h *Handler) RequestPasswordSetup(w http.ResponseWriter, r *http.Request) {
@@ -77,11 +90,7 @@ func (h *Handler) RequestPasswordSetup(w http.ResponseWriter, r *http.Request) {
 		h.refuseOnAccountPage(w, r, i18n.T(r.Context(), i18n.KeyEmailInvalidNotice))
 		return
 	}
-	if retryAfter, allowed := h.resetLimit.Allow("forgot:" + email.Clean(u.Email)); !allowed {
-		ratelimit.Refuse(r.Context(), w, retryAfter)
-		return
-	}
-	if err := h.store.requestReset(r.Context(), u.Email); err != nil {
+	if err := h.requestResetLink(r.Context(), u.Email); err != nil {
 		h.log.ErrorContext(r.Context(), "queue password setup request", "error", err)
 		h.serverError(w, r)
 		return

@@ -295,7 +295,7 @@ func traitList(set map[string]bool) string {
 // loses clearsite or clearcache, and a dropped ratelimit.Guard loses limited,
 // or logged where the handler bounds the same address itself (POST /orders/find,
 // POST /p/{slug}/notify), or its place in the auth group where the handler
-// refuses first (POST /signin, POST /forgot).
+// refuses first (POST /signin).
 func TestStorefrontRouteInventory(t *testing.T) {
 	started := time.Now()
 	rec := &queryRecorder{}

@@ -350,7 +350,7 @@ var storefrontInventory = []inventoryRow{
 	{pattern: "POST /checkout/pickup/return", sample: "/checkout/pickup/return", traits: "nostore visitor"},
 	{pattern: "POST /checkout/pickup/start", sample: "/checkout/pickup/start", traits: "limited logged nav nostore visitor", limiter: "checkout", burst: 30},
 	{pattern: "POST /contact", sample: "/contact", traits: "limited nav nostore visitor", limiter: "contact", burst: 5},
-	{pattern: "POST /forgot", sample: "/forgot", traits: "limited nav nostore visitor", limiter: "auth", burst: 3},
+	{pattern: "POST /forgot", sample: "/forgot", traits: "limited logged nav nostore visitor", limiter: "auth", burst: 20},
 	{pattern: "POST /locale", sample: "/locale", traits: "nav nostore visitor"},
 	{pattern: "POST /newsletter", sample: "/newsletter", traits: "limited logged nav nostore visitor", limiter: "signup", burst: 2},
 	{pattern: "POST /newsletter/confirm", sample: "/newsletter/confirm", traits: "nav nostore visitor"},

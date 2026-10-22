@@ -181,8 +181,8 @@ func TestPasswordSetupSharesTheForgotPasswordMailboxBudget(t *testing.T) {
 	request.AddCookie(sessionCookie(t, cookies))
 	response := httptest.NewRecorder()
 	h.Authenticate(http.HandlerFunc(h.RequestPasswordSetup)).ServeHTTP(response, request)
-	if response.Code != http.StatusTooManyRequests || response.Header().Get("Retry-After") == "" {
-		t.Errorf("setup after spent forgot budget = %d %q, want 429 with Retry-After", response.Code, response.Header().Get("Retry-After"))
+	if response.Code != http.StatusSeeOther || response.Header().Get("Location") != "/account?password_setup=sent#password-heading" {
+		t.Errorf("setup after spent forgot budget = %d %q, want 303 to the sent notice", response.Code, response.Header().Get("Location"))
 	}
 	var requests int
 	if countErr := pool.QueryRow(ctx, `SELECT count(*) FROM outbox_messages WHERE topic = $1 AND payload->>'user_id' = $2`, outbox.TopicPasswordResetRequest.Name(), u.ID).Scan(&requests); countErr != nil {

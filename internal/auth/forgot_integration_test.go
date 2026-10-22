@@ -245,59 +245,77 @@ func TestSpentRegistrationsLeaveAnAddressItsResetLink(t *testing.T) {
 	}
 }
 
-// TestResetRequestsForOneAddressAreBoundedWithoutSayingWhoHasAnAccount: a reset
-// request mails the account at the address whoever asks, so the requests naming
-// one address are bounded at the pace of every other form that mails an
-// address, three and then one every ten minutes. The count is the address's
-// own, so the refusal is the same whether or not it has an account.
-func TestResetRequestsForOneAddressAreBoundedWithoutSayingWhoHasAnAccount(t *testing.T) {
+// TestAStrangersResetRequestsLeaveTheOwnerALiveLink is #2189's reproduction. A
+// reset request mails the account at the address whoever asks, so the links one
+// address is sent are bounded, three and then one every ten minutes. A stranger
+// asking from three networks spends that, and the owner asking next from a
+// fourth is answered as every request is and finds the newest of the
+// stranger's links live in the inbox. The bound is the address's own, so the
+// answer is the same whether or not it has an account.
+func TestAStrangersResetRequestsLeaveTheOwnerALiveLink(t *testing.T) {
 	ctx := t.Context()
-	h := auth.NewHandler(auth.NewStore(pool), nil, nil, slog.New(slog.DiscardHandler), false, nil)
-	known := registerProved(t, auth.NewStore(pool), "forgot-bound-"+uuid.NewString()+"@example.com").Email
+	s := auth.NewStore(pool)
+	h := auth.NewHandler(s, nil, nil, slog.New(slog.DiscardHandler), false, nil)
+	owner := registerProved(t, s, "forgot-bound-"+uuid.NewString()+"@example.com")
 	unknown := "forgot-bound-nobody-" + uuid.NewString() + "@example.com"
-	forgot := func(addr string) *httptest.ResponseRecorder {
+	forgot := func(addr, client string) *httptest.ResponseRecorder {
 		rec := httptest.NewRecorder()
-		h.Forgot(rec, cartForm(ctx, "/forgot", url.Values{"email": {addr}}))
+		req := cartForm(ctx, "/forgot", url.Values{"email": {addr}})
+		req.RemoteAddr = client
+		h.Forgot(rec, req)
 		return rec
 	}
 	// Spent in spellings of one address the form accepts: its capitalisations
 	// and padding name the same mailbox, and none may buy a budget of its own.
-	refusal := func(addr string) *httptest.ResponseRecorder {
+	answers := func(addr string) (first, owners *httptest.ResponseRecorder) {
 		t.Helper()
 		spellings := []string{addr, strings.ToUpper(addr), " " + strings.ToUpper(addr[:1]) + addr[1:] + " "}
 		for i, spelling := range spellings {
-			if rec := forgot(spelling); rec.Code != http.StatusSeeOther {
-				t.Fatalf("reset request %d for %q answered %d, want 303", i+1, spelling, rec.Code)
+			rec := forgot(spelling, "198.51."+strconv.Itoa(i+1)+".9:1")
+			if rec.Code != http.StatusSeeOther {
+				t.Fatalf("the stranger's reset request %d for %q answered %d, want 303", i+1, spelling, rec.Code)
+			}
+			if first == nil {
+				first = rec
 			}
 		}
-		return forgot(strings.ToUpper(addr[:len(addr)/2]) + addr[len(addr)/2:])
+		return first, forgot(strings.ToUpper(addr[:len(addr)/2])+addr[len(addr)/2:], "203.0.113.7:1")
 	}
-	knownRec, unknownRec := refusal(known), refusal(unknown)
+	before := queuedResetRequests(t)
+	strangers, ownerRec := answers(owner.Email)
+	_, unknownRec := answers(unknown)
 
-	if knownRec.Code != http.StatusTooManyRequests || unknownRec.Code != knownRec.Code {
-		t.Fatalf("a fourth reset request for a known and an unknown address answered %d and %d, "+
-			"want 429 for both", knownRec.Code, unknownRec.Code)
+	if ownerRec.Code != strangers.Code || ownerRec.Header().Get("Location") != strangers.Header().Get("Location") {
+		t.Fatalf("the owner's request after the stranger's answered %d %q, want %d %q as the stranger was: "+
+			"the stranger spent the owner's request", ownerRec.Code, ownerRec.Header().Get("Location"),
+			strangers.Code, strangers.Header().Get("Location"))
 	}
-	for name, rec := range map[string]*httptest.ResponseRecorder{"known": knownRec, "unknown": unknownRec} {
-		wait, err := strconv.Atoi(rec.Header().Get("Retry-After"))
-		if err != nil {
-			t.Fatalf("the %s address's refusal carries Retry-After %q", name, rec.Header().Get("Retry-After"))
+	if diff := cmp.Diff(ownerRec.Header(), unknownRec.Header()); diff != "" {
+		t.Errorf("the fourth request for a known and an unknown address differ (-known +unknown):\n%s", diff)
+	}
+
+	var queued []string
+	for key, user := range queuedResetRequests(t) {
+		if _, old := before[key]; !old && user == owner.ID {
+			queued = append(queued, key)
 		}
-		if wait <= 9*60 {
-			t.Errorf("the %s address may ask again in %d s; want the ten-minute pace of every "+
-				"form that mails an address", name, wait)
+	}
+	if len(queued) != 3 {
+		t.Fatalf("four requests queued %d reset links for the account, want 3: the address's bound is gone",
+			len(queued))
+	}
+	for _, key := range queued {
+		if err := auth.IssueQueuedReset(ctx, s, key); err != nil {
+			t.Fatalf("issue the queued reset: %v", err)
 		}
 	}
-	// Retry-After counts down from each address's own first request, so its
-	// value is compared only above.
-	knownHeader, unknownHeader := knownRec.Header().Clone(), unknownRec.Header().Clone()
-	knownHeader.Del("Retry-After")
-	unknownHeader.Del("Retry-After")
-	if diff := cmp.Diff(knownHeader, unknownHeader); diff != "" {
-		t.Errorf("the refusals for a known and an unknown address differ (-known +unknown):\n%s", diff)
+	var live int
+	if err := pool.QueryRow(ctx, `
+		SELECT count(*) FROM password_reset_tokens
+		WHERE user_id = $1 AND used_at IS NULL AND expires_at > now()`, uuid.MustParse(owner.ID)).Scan(&live); err != nil {
+		t.Fatalf("count the account's live reset links: %v", err)
 	}
-	if knownRec.Body.String() != unknownRec.Body.String() {
-		t.Errorf("the refusals for a known and an unknown address answer %q and %q",
-			knownRec.Body.String(), unknownRec.Body.String())
+	if live != 1 {
+		t.Errorf("the account holds %d live reset links, want the newest of the stranger's", live)
 	}
 }
