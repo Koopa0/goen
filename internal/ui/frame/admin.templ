@@ -84,7 +84,11 @@ templ adminBar() {
 //
 // The whole nav is closed behind its summary until the desk width, where the
 // stylesheet shows it as the rail; on a phone it would otherwise fill the screen
-// above every page's first line of work.
+// above every page's first line of work. At the wide breakpoint the stylesheet
+// shows the disclosure's panel through ::details-content and hides its summary,
+// so the rule that closes it for a phone forces it open for a desk. A browser
+// without ::details-content keeps the summary at every width: one tap further,
+// not gone.
 templ adminNav(current string) {
 	@widget.Disclosure(widget.DisclosureProps{
 		Class:   "goen-admin__nav",
