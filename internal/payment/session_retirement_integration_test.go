@@ -22,7 +22,9 @@ import (
 	"github.com/koopa0/goen/internal/payment"
 )
 
-func TestExpiredPaymentTombstoneIsIdempotentAndNeverRegressesCapturedMoney(t *testing.T) {
+// TestRecordExpiredPayment: The record_expired_payment function is idempotent
+// and never regresses captured money.
+func TestRecordExpiredPayment(t *testing.T) {
 	ctx := t.Context()
 
 	t.Run("an uncertain committed open converges to one cancelled row", func(t *testing.T) {
@@ -76,12 +78,13 @@ func TestExpiredPaymentTombstoneIsIdempotentAndNeverRegressesCapturedMoney(t *te
 	})
 }
 
-// TestAnExpiredRejectedSessionConsumesItsIdempotencyGeneration covers the
-// distributed boundary where Stripe creates a Session but open_payment refuses
-// it. Even if persisting the first expiry fails, a retry must observe Stripe's
-// current expired state, cancel the local row it just recovered, and advance to
-// a new idempotency generation rather than redirecting to the dead Session.
-func TestAnExpiredRejectedSessionConsumesItsIdempotencyGeneration(t *testing.T) {
+// TestHandler_StartExpiredRejected: An expired rejected session consumes its
+// idempotency generation. It covers the distributed boundary where Stripe
+// creates a Session but open_payment refuses it. Even if persisting the first
+// expiry fails, a retry must observe Stripe's current expired state, cancel the
+// local row it just recovered, and advance to a new idempotency generation
+// rather than redirecting to the dead Session.
+func TestHandler_StartExpiredRejected(t *testing.T) {
 	ctx := t.Context()
 	s := payment.NewStore(pool)
 	const amount = int64(130000)
@@ -331,12 +334,12 @@ func TestAnExpiredRejectedSessionConsumesItsIdempotencyGeneration(t *testing.T) 
 	}
 }
 
-// TestObsoleteSessionCleanupConvergesAfterALocalWriteFailure proves that a
-// successful provider expiry is not followed by an endless sequence of
-// "already expired" errors when the first local cancellation fails. The retry
-// retrieves current provider state, records cancelled, and only then opens the
-// replacement amount.
-func TestObsoleteSessionCleanupConvergesAfterALocalWriteFailure(t *testing.T) {
+// TestHandler_StartObsoleteWriteFailure: Obsolete session cleanup converges
+// after a local write failure. It proves that a successful provider expiry is
+// not followed by an endless sequence of "already expired" errors when the
+// first local cancellation fails. The retry retrieves current provider state,
+// records cancelled, and only then opens the replacement amount.
+func TestHandler_StartObsoleteWriteFailure(t *testing.T) {
 	ctx := t.Context()
 	s := payment.NewStore(pool)
 	number, orderID := holdableOrder(t, 100000)
@@ -479,11 +482,12 @@ func TestObsoleteSessionCleanupConvergesAfterALocalWriteFailure(t *testing.T) {
 	}
 }
 
-// TestObsoleteSessionCleanupSurvivesAClientDisconnect holds the local record of
-// a retirement against a browser that leaves while Stripe is closing the
-// session. Stripe has already expired it by then, so a cancelled local write
-// leaves goen offering a checkout that can never take money.
-func TestObsoleteSessionCleanupSurvivesAClientDisconnect(t *testing.T) {
+// TestHandler_StartObsoleteDisconnect: Obsolete session cleanup survives a
+// client disconnect. It holds the local record of a retirement against a
+// browser that leaves while Stripe is closing the session. Stripe has already
+// expired it by then, so a cancelled local write leaves goen offering a
+// checkout that can never take money.
+func TestHandler_StartObsoleteDisconnect(t *testing.T) {
 	ctx := t.Context()
 	s := payment.NewStore(pool)
 	number, orderID := holdableOrder(t, 100000)

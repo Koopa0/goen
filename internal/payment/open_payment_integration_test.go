@@ -12,7 +12,8 @@ import (
 	"github.com/koopa0/goen/internal/payment"
 )
 
-func TestOpeningTheSamePaymentTwiceIsOneRow(t *testing.T) {
+// TestStore_OpenPaymentRepeated: Opening the same payment twice is one row.
+func TestStore_OpenPaymentRepeated(t *testing.T) {
 	ctx := t.Context()
 	s := payment.NewStore(pool)
 	number, id := order(t, 50000)
@@ -34,10 +35,11 @@ func TestOpeningTheSamePaymentTwiceIsOneRow(t *testing.T) {
 	}
 }
 
-// TestASecondPaymentAttemptReusesTheOpenSession is the double-charge defect and
-// the read that closes it: open_payment dedupes on (order_id, provider_ref) and
-// every session brings its own id, so two tabs are two real charges.
-func TestASecondPaymentAttemptReusesTheOpenSession(t *testing.T) {
+// TestStore_AttemptReusesSession: A second payment attempt reuses the open
+// session. It is the double-charge defect and the read that closes it:
+// open_payment dedupes on (order_id, provider_ref) and every session brings its
+// own id, so two tabs are two real charges.
+func TestStore_AttemptReusesSession(t *testing.T) {
 	ctx := t.Context()
 	s := payment.NewStore(pool)
 	number, id := order(t, 149900)
@@ -119,7 +121,9 @@ func TestASecondPaymentAttemptReusesTheOpenSession(t *testing.T) {
 	}
 }
 
-func TestOpeningAPaymentIsRefusedOnACancelledOrder(t *testing.T) {
+// TestStore_OpenPaymentCancelledOrder: Opening a payment is refused on a
+// cancelled order.
+func TestStore_OpenPaymentCancelledOrder(t *testing.T) {
 	ctx := t.Context()
 	s := payment.NewStore(pool)
 	number, id := order(t, 88800)
@@ -168,10 +172,11 @@ func TestOpeningAPaymentIsRefusedOnACancelledOrder(t *testing.T) {
 	}
 }
 
-// TestPaymentPostingFunctionsNameEveryAdmissionRefusal binds the error names
-// that Store maps to ErrNotOpenable. A generic refusal is insufficient here:
-// each branch protects a different double-charge or identity invariant.
-func TestPaymentPostingFunctionsNameEveryAdmissionRefusal(t *testing.T) {
+// TestOpenPaymentRefusals: Payment posting functions name every admission
+// refusal. It binds the error names that Store maps to ErrNotOpenable. A
+// generic refusal is insufficient here: each branch protects a different
+// double-charge or identity invariant.
+func TestOpenPaymentRefusals(t *testing.T) {
 	ctx := t.Context()
 	assertConstraint := func(t *testing.T, want string, err error) {
 		t.Helper()

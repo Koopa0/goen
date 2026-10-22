@@ -48,7 +48,9 @@ func relateNumber(orderNumber string, attempt int32) string {
 	return orderNumber + "R" + strconv.FormatInt(int64(attempt), 10)
 }
 
-func TestFilingContextKeepsValuesDropsCancellationAndAddsADeadline(t *testing.T) {
+// TestFilingContext: filingContext keeps the parent's values, drops its
+// cancellation and adds a deadline of filingTimeout.
+func TestFilingContext(t *testing.T) {
 	t.Parallel()
 	synctest.Test(t, func(t *testing.T) {
 		parent := context.WithValue(t.Context(), filingContextKey{}, "request-value")
@@ -77,8 +79,8 @@ func TestFilingContextKeepsValuesDropsCancellationAndAddsADeadline(t *testing.T)
 	})
 }
 
-// TestTheEnvelopeRoundTrips proves seal and open are inverses.
-func TestTheEnvelopeRoundTrips(t *testing.T) {
+// TestGateway_SealOpenRoundTrip: seal and open are inverses.
+func TestGateway_SealOpenRoundTrip(t *testing.T) {
 	g, err := NewGateway(testMerchantID, testHashKey, testHashIV, StagingBaseURL)
 	if err != nil {
 		t.Fatalf("NewGateway: %v", err)
@@ -103,14 +105,15 @@ func TestTheEnvelopeRoundTrips(t *testing.T) {
 	}
 }
 
-// TestTheEnvelopeIsAESNotSomethingElse fixes the wire format against a value
-// computed OUTSIDE this code — the .NET-UrlEncoded form of {"a":1}:
+// TestGateway_SealKnownVector: seal matches a value computed outside this code,
+// so the envelope is AES and not something else. The value is the
+// .NET-UrlEncoded form of {"a":1}:
 //
 //	printf '%%7b%%22a%%22%%3a1%%7d' |
 //	  openssl enc -aes-128-cbc \
 //	    -K $(printf 'ejCk326UnaZWKisg' | xxd -p) \
 //	    -iv $(printf 'q9jcZX8Ib9LM8wYk' | xxd -p) | base64
-func TestTheEnvelopeIsAESNotSomethingElse(t *testing.T) {
+func TestGateway_SealKnownVector(t *testing.T) {
 	const wantSealed = "GnpdFuAYZzKPghwgjwaxrwiQQYnT2LIzACtF7pm98Sk="
 
 	g, err := NewGateway(testMerchantID, testHashKey, testHashIV, StagingBaseURL)
@@ -130,10 +133,11 @@ func TestTheEnvelopeIsAESNotSomethingElse(t *testing.T) {
 	}
 }
 
-// TestDotNetURLEncodeMatchesTheirEncoder holds the step that is easy to get
-// almost right: .NET's UrlEncode lower-cases hex digits and leaves !()* alone,
-// where Go's url.QueryEscape upper-cases and escapes all four.
-func TestDotNetURLEncodeMatchesTheirEncoder(t *testing.T) {
+// TestDotNetURLEncode: dotNetURLEncode matches .NET's encoder. It holds the
+// step that is easy to get almost right: .NET's UrlEncode lower-cases hex
+// digits and leaves !()* alone, where Go's url.QueryEscape upper-cases and
+// escapes all four.
+func TestDotNetURLEncode(t *testing.T) {
 	tests := []struct {
 		name string
 		in   string
@@ -154,10 +158,10 @@ func TestDotNetURLEncodeMatchesTheirEncoder(t *testing.T) {
 	}
 }
 
-// TestPaddingRefusesWhatAThirdPartySends proves the unpad checks rather than
-// trusts: the last byte of a decrypted reply is a length from somebody else's
-// server.
-func TestPaddingRefusesWhatAThirdPartySends(t *testing.T) {
+// TestPkcs7Unpad: pkcs7Unpad refuses bad padding and accepts a valid block. It
+// checks rather than trusts: the last byte of a decrypted reply is a length
+// from somebody else's server.
+func TestPkcs7Unpad(t *testing.T) {
 	tests := []struct {
 		name string
 		in   []byte
@@ -189,8 +193,10 @@ func TestPaddingRefusesWhatAThirdPartySends(t *testing.T) {
 	}
 }
 
-// TestAnUnconfiguredGatewayIssuesNothingAndSaysSo holds the off-switch.
-func TestAnUnconfiguredGatewayIssuesNothingAndSaysSo(t *testing.T) {
+// TestGateway_Disabled: an unconfigured gateway is legal and reports itself
+// disabled, and Issue, Void and RequestAllowance answer ErrDisabled. It holds
+// the off-switch.
+func TestGateway_Disabled(t *testing.T) {
 	g, err := NewGateway("", "", "", "")
 	if err != nil {
 		t.Fatalf("an empty configuration must be legal: %v", err)
@@ -209,9 +215,10 @@ func TestAnUnconfiguredGatewayIssuesNothingAndSaysSo(t *testing.T) {
 	}
 }
 
-// TestHalfAConfigurationDoesNotStart is the other half of the off-switch: a
-// merchant id without its keys cannot sign a request.
-func TestHalfAConfigurationDoesNotStart(t *testing.T) {
+// TestNewGateway_HalfConfiguration: NewGateway refuses credentials that are
+// only partly given or a key of the wrong length. It is the other half of the
+// off-switch: a merchant id without its keys cannot sign a request.
+func TestNewGateway_HalfConfiguration(t *testing.T) {
 	tests := []struct {
 		name              string
 		merchant, key, iv string
@@ -230,7 +237,10 @@ func TestHalfAConfigurationDoesNotStart(t *testing.T) {
 	}
 }
 
-func TestGatewayRefusesUnsafeBaseURLs(t *testing.T) {
+// TestNewGateway_UnsafeBaseURL: NewGateway refuses a base URL with no scheme, a
+// relative one, a non-HTTP one and one that embeds credentials, and accepts an
+// absolute HTTP test endpoint.
+func TestNewGateway_UnsafeBaseURL(t *testing.T) {
 	t.Parallel()
 	for _, baseURL := range []string{
 		"ecpay.example.test",
@@ -251,9 +261,10 @@ func TestGatewayRefusesUnsafeBaseURLs(t *testing.T) {
 	}
 }
 
-// TestIssueRefusesWhatTheProviderWould stops a malformed document reaching
-// ECPay as an error code nobody can act on.
-func TestIssueRefusesWhatTheProviderWould(t *testing.T) {
+// TestGateway_IssueInvalidRequest: Issue refuses a malformed request with
+// ErrRejected. It stops a malformed document reaching ECPay as an error code
+// nobody can act on.
+func TestGateway_IssueInvalidRequest(t *testing.T) {
 	g, err := NewGateway(testMerchantID, testHashKey, testHashIV, StagingBaseURL)
 	if err != nil {
 		t.Fatalf("NewGateway: %v", err)
@@ -314,11 +325,13 @@ func TestIssueRefusesWhatTheProviderWould(t *testing.T) {
 	}
 }
 
-// TestEveryOfferedPreferenceCanBecomeAValidIssueRequest binds the closed set
-// shown at checkout to the issuer's validation rules. Adding a preference is
-// therefore not complete until this test supplies everything that preference
-// semantically requires.
-func TestEveryOfferedPreferenceCanBecomeAValidIssueRequest(t *testing.T) {
+// TestIssueRequest_ValidateOfferedPreferences: every preference offered at
+// checkout can become a valid IssueRequest, an unknown preference is rejected,
+// and OfferedPreferences keeps its display order and cannot be changed by a
+// caller. It binds the closed set shown at checkout to the issuer's validation
+// rules. Adding a preference is therefore not complete until this test supplies
+// everything that preference semantically requires.
+func TestIssueRequest_ValidateOfferedPreferences(t *testing.T) {
 	want := []invoice.Preference{
 		invoice.PreferenceMember,
 		invoice.PreferenceMobile,
@@ -389,9 +402,11 @@ func TestEveryOfferedPreferenceCanBecomeAValidIssueRequest(t *testing.T) {
 	}
 }
 
-// TestTheRequestCarriesWhatTheInvoiceNeeds reads the actual wire bytes off an
-// httptest.Server.
-func TestTheRequestCarriesWhatTheInvoiceNeeds(t *testing.T) {
+// TestGateway_IssueWirePayload: Issue sends whole dollars, tax-inclusive
+// prices, no printing and the customer's mobile barcode, and returns the
+// number, the RandomNumber and the issue time. It reads the actual wire bytes
+// off an httptest.Server.
+func TestGateway_IssueWirePayload(t *testing.T) {
 	var seen issueRequest
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		g, _ := NewGateway(testMerchantID, testHashKey, testHashIV, "")
@@ -466,10 +481,11 @@ func TestTheRequestCarriesWhatTheInvoiceNeeds(t *testing.T) {
 	}
 }
 
-// TestAVoidSendsTheInvoicesOwnIssueDate fixes ECPay's strict Invalid wire
-// field. A mismatched date is reported as 1600003 ("no invoice number"), even
-// when the number itself is right.
-func TestAVoidSendsTheInvoicesOwnIssueDate(t *testing.T) {
+// TestGateway_VoidIssueDate: Void sends the invoice's own issue date, as the
+// Taipei day, and refuses a void with none. It fixes ECPay's strict Invalid
+// wire field. A mismatched date is reported as 1600003 ("no invoice number"),
+// even when the number itself is right.
+func TestGateway_VoidIssueDate(t *testing.T) {
 	var seen invalidRequest
 	calls := 0
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -500,7 +516,9 @@ func TestAVoidSendsTheInvoicesOwnIssueDate(t *testing.T) {
 	}
 }
 
-func TestAVoidRequiresTheExactProviderSuccessIdentity(t *testing.T) {
+// TestGateway_VoidIdentityMismatch: a void success that returns a blank or a
+// different invoice number is errProviderIdentity, not a void.
+func TestGateway_VoidIdentityMismatch(t *testing.T) {
 	for _, returned := range []string{"", "ZZ99999999"} {
 		t.Run(returned, func(t *testing.T) {
 			srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
@@ -550,9 +568,10 @@ func openRequest(t *testing.T, r *http.Request) []byte {
 	return plain
 }
 
-// TestACompanyInvoiceCarriesTheTaxIDAndNoMobileBarcode holds a rule ECPay enforces
-// and a reader would not guess.
-func TestACompanyInvoiceCarriesTheTaxIDAndNoMobileBarcode(t *testing.T) {
+// TestGateway_IssueCompanyInvoice: a company invoice sends the 統編 and the
+// company name, and the member carrier rather than a mobile barcode. It holds a
+// rule ECPay enforces and a reader would not guess.
+func TestGateway_IssueCompanyInvoice(t *testing.T) {
 	var seen issueRequest
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		g, _ := NewGateway(testMerchantID, testHashKey, testHashIV, "")
@@ -592,10 +611,10 @@ func TestACompanyInvoiceCarriesTheTaxIDAndNoMobileBarcode(t *testing.T) {
 	}
 }
 
-// TestAnAllowanceAsksTheBuyerOnline holds the online-consent endpoint. No
-// ReturnURL is sent: goen reads the outcome from the allowance list rather than
-// opening a public endpoint.
-func TestAnAllowanceAsksTheBuyerOnline(t *testing.T) {
+// TestGateway_RequestAllowanceOnline: RequestAllowance posts to the
+// online-consent endpoint with no ReturnURL and AllowanceNotify E. goen reads
+// the outcome from the allowance list rather than opening a public endpoint.
+func TestGateway_RequestAllowanceOnline(t *testing.T) {
 	var path string
 	var sent map[string]any
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -627,7 +646,10 @@ func TestAnAllowanceAsksTheBuyerOnline(t *testing.T) {
 	}
 }
 
-func TestAProviderSuccessMustCarryAValidDocumentIdentity(t *testing.T) {
+// TestGateway_MalformedSuccessPayload: Issue and RequestAllowance refuse a
+// provider success whose document identity is missing or malformed, or that
+// names another invoice.
+func TestGateway_MalformedSuccessPayload(t *testing.T) {
 	t.Parallel()
 
 	issue := func(t *testing.T, res result) error {
@@ -687,10 +709,11 @@ func TestAProviderSuccessMustCarryAValidDocumentIdentity(t *testing.T) {
 	}
 }
 
-// TestAProviderRefusalIsItsOwnError keeps the three failure surfaces apart: a
-// transport failure is worth retrying, an envelope rejection is a bug here, and
-// a document rejection is data a staff member fixes.
-func TestAProviderRefusalIsItsOwnError(t *testing.T) {
+// TestGateway_IssueProviderRefusal: a provider refusal of the document is
+// ErrRejected and carries the provider's reason. It keeps the three failure
+// surfaces apart: a transport failure is worth retrying, an envelope rejection
+// is a bug here, and a document rejection is data a staff member fixes.
+func TestGateway_IssueProviderRefusal(t *testing.T) {
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		reply(t, w, result{RtnCode: 2000006, RtnMsg: "CustomerIdentifier 格式錯誤"})
 	}))
@@ -711,7 +734,10 @@ func TestAProviderRefusalIsItsOwnError(t *testing.T) {
 	}
 }
 
-func TestFetchIssueReadsCompleteProviderTruthAndDocumentedNotFound(t *testing.T) {
+// TestGateway_FetchIssue: FetchIssue reads the relate number, total, random
+// number and lines of a found invoice, and reports the documented not-found
+// answer as not found, without an error.
+func TestGateway_FetchIssue(t *testing.T) {
 	var notFound bool
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if notFound {
@@ -752,7 +778,9 @@ func TestFetchIssueReadsCompleteProviderTruthAndDocumentedNotFound(t *testing.T)
 	}
 }
 
-func TestFetchAllowancesDistinguishesZeroOneAndMultiple(t *testing.T) {
+// TestGateway_FetchAllowances: FetchAllowances returns no allowance for the
+// documented no-data answer, and one or two for a list of one or two.
+func TestGateway_FetchAllowances(t *testing.T) {
 	mode := 0
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		if mode == 0 {
@@ -797,7 +825,10 @@ func TestFetchAllowancesDistinguishesZeroOneAndMultiple(t *testing.T) {
 	}
 }
 
-func TestKnownAllowanceFactsRequireAnExactProviderDocument(t *testing.T) {
+// TestAllowanceKnownFactsMatch: a known local allowance matches only an exact
+// provider document: the original invoice, number, amount, issue time, lines,
+// tax type and unit must all agree.
+func TestAllowanceKnownFactsMatch(t *testing.T) {
 	issuedAt := time.Date(2026, 8, 7, 15, 22, 0, 0, time.UTC)
 	local := knownAllowance{
 		Number: "2026080715227214", AmountCents: 50000,
@@ -843,7 +874,9 @@ func TestKnownAllowanceFactsRequireAnExactProviderDocument(t *testing.T) {
 	}
 }
 
-func TestKnownAllowanceLinesRejectMissingOrUnsupportedTerms(t *testing.T) {
+// TestKnownAllowanceLines: knownAllowanceLines refuses an allowance with no
+// local lines and one with an unsupported zero-rated line.
+func TestKnownAllowanceLines(t *testing.T) {
 	if _, ok := knownAllowanceLines(nil, nil, nil, nil, nil, nil); ok {
 		t.Fatal("an allowance with no local lines was treated as complete")
 	}
@@ -855,7 +888,10 @@ func TestKnownAllowanceLinesRejectMissingOrUnsupportedTerms(t *testing.T) {
 	}
 }
 
-func TestInvalidUnknownAllowanceStillRequiresTheExactFrozenSend(t *testing.T) {
+// TestAllowanceRequestFactsMatch: an invalid provider allowance matches its
+// frozen send only when the original invoice, amount, ordered lines, tax type
+// and unit all agree.
+func TestAllowanceRequestFactsMatch(t *testing.T) {
 	expected := AllowanceRequest{
 		InvoiceNumber: "AB12345678", AmountCents: 50000,
 		Lines: []invoice.Line{{TaxType: invoice.Taxable, Unit: invoice.DefaultUnit,
@@ -897,7 +933,11 @@ func TestInvalidUnknownAllowanceStillRequiresTheExactFrozenSend(t *testing.T) {
 	}
 }
 
-func TestLookupMatchingRejectsEachAuthoritativeFieldIndependently(t *testing.T) {
+// TestIssueMatches: a provider lookup matches an Issue request only while every
+// authoritative field agrees, and each is checked on its own: relate number,
+// issue and invalid status, header amount, and each line's description,
+// quantity, unit price, amount, tax type and unit.
+func TestIssueMatches(t *testing.T) {
 	t.Parallel()
 	request := IssueRequest{
 		OrderNumber: "GO260101000001", CustomerName: "王小明", Email: "a@example.com",
@@ -936,9 +976,11 @@ func TestLookupMatchingRejectsEachAuthoritativeFieldIndependently(t *testing.T) 
 	}
 }
 
-// TestAnUnreadableEnvelopeIsNotADocumentRefusal proves the other half of that
-// split: TransCode is about whether ECPay could READ the request.
-func TestAnUnreadableEnvelopeIsNotADocumentRefusal(t *testing.T) {
+// TestGateway_IssueUnreadableEnvelope: an envelope ECPay could not read is an
+// error but not a document refusal. It is the other half of the split in
+// TestGateway_IssueProviderRefusal: TransCode is about whether ECPay could READ
+// the request.
+func TestGateway_IssueUnreadableEnvelope(t *testing.T) {
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
 		_ = json.NewEncoder(w).Encode(response{TransCode: 0, TransMsg: "MerchantID Error"})
@@ -983,10 +1025,11 @@ func reply(t *testing.T, w http.ResponseWriter, res any) {
 	}
 }
 
-// TestAReissueCarriesADistinctRelateNumber holds ECPay's idempotency key: a
-// repeat is refused with RtnCode 5070357, so the order number alone makes the
-// void-then-reissue correction path impossible.
-func TestAReissueCarriesADistinctRelateNumber(t *testing.T) {
+// TestRelateNumber: the first invoice's relate number is the order number
+// without punctuation, and each reissue adds R and its attempt. It holds
+// ECPay's idempotency key: a repeat is refused with RtnCode 5070357, so the
+// order number alone makes the void-then-reissue correction path impossible.
+func TestRelateNumber(t *testing.T) {
 	tests := []struct {
 		name    string
 		attempt int32
@@ -1005,7 +1048,9 @@ func TestAReissueCarriesADistinctRelateNumber(t *testing.T) {
 	}
 }
 
-func TestIssueItemsStayWithinProviderFieldBounds(t *testing.T) {
+// TestItemsForFieldBounds: itemsFor keeps every line up to MaxIssueItems, in
+// sequence, and cuts an item name to 100 runes.
+func TestItemsForFieldBounds(t *testing.T) {
 	t.Parallel()
 	longName := strings.Repeat("品", 101)
 	lines := make([]invoice.Line, MaxIssueItems)
@@ -1025,7 +1070,8 @@ func TestIssueItemsStayWithinProviderFieldBounds(t *testing.T) {
 	}
 }
 
-func TestECPayTimeIsTaipeiWallClock(t *testing.T) {
+// TestParseECPayTime: ECPay's timestamps are Taipei wall-clock time.
+func TestParseECPayTime(t *testing.T) {
 	t.Parallel()
 
 	got, err := parseECPayTime("2026-10-02 12:42:39")

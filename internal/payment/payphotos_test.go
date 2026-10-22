@@ -12,7 +12,8 @@ import (
 	"github.com/koopa0/goen/internal/ui/frame"
 )
 
-func TestPayLineShowsItsPhotoOrTheEmptyWell(t *testing.T) {
+// TestPayLinePhoto: A pay line shows its photo or the empty well.
+func TestPayLinePhoto(t *testing.T) {
 	t.Parallel()
 	for _, locale := range i18n.Locales() {
 		for _, present := range []bool{true, false} {

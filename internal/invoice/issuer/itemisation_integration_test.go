@@ -12,7 +12,11 @@ import (
 	"github.com/google/uuid"
 )
 
-func TestCommitCountsSyntheticInvoiceItemsAtTheProviderBoundary(t *testing.T) {
+// TestInvoiceIssueItemCount: the database counts the synthetic delivery and
+// rounding lines too, so an order with 999 canonical items commits and one with
+// 1000 is refused by invoice_issue_item_count, for a card payment and for a
+// full store-credit transition.
+func TestInvoiceIssueItemCount(t *testing.T) {
 	for _, tt := range []struct {
 		name           string
 		funding        string
@@ -119,7 +123,10 @@ func TestCommitCountsSyntheticInvoiceItemsAtTheProviderBoundary(t *testing.T) {
 	}
 }
 
-func TestIssueFilesAnItemisationThatSumsToTheHeader(t *testing.T) {
+// TestStore_IssueItemisationSum: Issue files an itemisation that sums to the
+// header, which is what the customer was charged, with a delivery line only
+// where a fee was paid.
+func TestStore_IssueItemisationSum(t *testing.T) {
 	ctx := t.Context()
 
 	var filed issueRequest

@@ -52,10 +52,12 @@ func unreachablePool(t *testing.T) *pgxpool.Pool {
 	return pool
 }
 
-// A process restarted more often than the interval must still sweep, so the
-// first sweep runs when the loop starts and not a whole interval later. The
-// sweep is seen through the line it logs when it fails.
-func TestSweepForeverSweepsAtStart(t *testing.T) {
+// TestStore_SweepForeverSchedule: SweepForever sweeps when its loop starts and
+// again after each SweepInterval. A process restarted more often than the
+// interval must still sweep, so the first sweep runs when the loop starts and
+// not a whole interval later. The sweep is seen through the line it logs when
+// it fails.
+func TestStore_SweepForeverSchedule(t *testing.T) {
 	synctest.Test(t, func(t *testing.T) {
 		var out syncBuffer
 		log := slog.New(slog.NewTextHandler(&out, nil))

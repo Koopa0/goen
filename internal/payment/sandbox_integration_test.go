@@ -15,7 +15,9 @@ import (
 	"github.com/koopa0/goen/internal/payment"
 )
 
-func TestPayPageShowsTestCardGuidanceOnlyForSandboxKeys(t *testing.T) {
+// TestHandler_PageTestCardGuidance: The pay page shows test-card guidance only
+// for sandbox keys.
+func TestHandler_PageTestCardGuidance(t *testing.T) {
 	for _, key := range []string{"sk_test_example", "rk_test_example", "rkcs_test_example", "sk_live_example", "rk_live_example", "unrecognized", ""} {
 		for _, locale := range []i18n.Locale{i18n.ZhHant, i18n.En} {
 			t.Run(key+"/"+string(locale), func(t *testing.T) {

@@ -16,12 +16,12 @@ import (
 	"github.com/koopa0/goen/internal/payment"
 )
 
-// TestCaptureWinningTheOpenRaceRefusesASecondSession covers the window between
-// Handler.Order (which may still have read Paid=false) and OpenPayment. The
-// database recheck under the order lock is the correctness boundary: by the
-// time Stripe has returned a newly-created session, another webhook may already
-// have funded the order.
-func TestCaptureWinningTheOpenRaceRefusesASecondSession(t *testing.T) {
+// TestStore_OpenPaymentCaptureRace: Capture winning the open race refuses a
+// second session. It covers the window between Handler.Order (which may still
+// have read Paid=false) and OpenPayment. The database recheck under the order
+// lock is the correctness boundary: by the time Stripe has returned a
+// newly-created session, another webhook may already have funded the order.
+func TestStore_OpenPaymentCaptureRace(t *testing.T) {
 	ctx := t.Context()
 	s := payment.NewStore(pool)
 	number, id := order(t, 99000)
@@ -71,12 +71,13 @@ func TestCaptureWinningTheOpenRaceRefusesASecondSession(t *testing.T) {
 	}
 }
 
-// TestCaptureLocksTheOrderBeforeThePayment fixes the lock order shared with
-// open_payment. If capture holds the payment row while waiting for the order,
-// an opener can hold that order while its unique-index check waits for the same
-// payment: PostgreSQL must kill one side of the cycle. The NOWAIT probe makes
-// the order explicit rather than hoping a stress loop happens to deadlock.
-func TestCaptureLocksTheOrderBeforeThePayment(t *testing.T) {
+// TestCapturePaymentLockOrder: The capture_payment function locks the order
+// before the payment. It fixes the lock order shared with open_payment. If
+// capture holds the payment row while waiting for the order, an opener can hold
+// that order while its unique-index check waits for the same payment:
+// PostgreSQL must kill one side of the cycle. The NOWAIT probe makes the order
+// explicit rather than hoping a stress loop happens to deadlock.
+func TestCapturePaymentLockOrder(t *testing.T) {
 	ctx := t.Context()
 	s := payment.NewStore(pool)
 	number, id := order(t, 99000)
@@ -130,11 +131,12 @@ func TestCaptureLocksTheOrderBeforeThePayment(t *testing.T) {
 	}
 }
 
-// TestWebhookAndOpenShareProviderReferenceLock proves both outcomes at the
-// network/database boundary. Whichever transaction owns the Stripe reference
-// first becomes visible in full before the other can decide whether the
-// reference has a local payment identity.
-func TestWebhookAndOpenShareProviderReferenceLock(t *testing.T) {
+// TestStore_ProcessWebhookRefLock: A webhook and an open share the provider
+// reference lock. It proves both outcomes at the network/database boundary.
+// Whichever transaction owns the Stripe reference first becomes visible in full
+// before the other can decide whether the reference has a local payment
+// identity.
+func TestStore_ProcessWebhookRefLock(t *testing.T) {
 	type webhookResult struct {
 		claimed bool
 		err     error
@@ -302,7 +304,9 @@ func TestWebhookAndOpenShareProviderReferenceLock(t *testing.T) {
 	})
 }
 
-func TestCancellationAndPaymentOpeningShareTheOrderLock(t *testing.T) {
+// TestStore_OpenPaymentOrderLock: Cancellation and payment opening share the
+// order lock.
+func TestStore_OpenPaymentOrderLock(t *testing.T) {
 	ctx := t.Context()
 
 	t.Run("opening wins and cancellation is refused", func(t *testing.T) {

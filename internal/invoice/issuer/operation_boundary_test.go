@@ -9,7 +9,9 @@ import (
 	"github.com/koopa0/goen/internal/db"
 )
 
-func TestDecodeOperationKeepsTheDurableFactsForEveryKindAndStatus(t *testing.T) {
+// TestDecodeOperationDurableFacts: decodeOperation keeps every durable fact of
+// an operation row, for each kind and status.
+func TestDecodeOperationDurableFacts(t *testing.T) {
 	t.Parallel()
 	for _, kind := range []struct {
 		name string
@@ -34,7 +36,10 @@ func TestDecodeOperationKeepsTheDurableFactsForEveryKindAndStatus(t *testing.T) 
 	}
 }
 
-func TestDecodeOperationRejectsUnknownDatabaseVocabulary(t *testing.T) {
+// TestDecodeOperationUnknownVocabulary: decodeOperation refuses a kind or
+// status the database does not use, naming the operation, and returns nothing
+// the state machine could act on.
+func TestDecodeOperationUnknownVocabulary(t *testing.T) {
 	t.Parallel()
 	for _, tc := range []struct {
 		name, kind, status, want string

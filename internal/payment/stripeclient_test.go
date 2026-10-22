@@ -28,14 +28,15 @@ func gatewayOver(t *testing.T, stripeURL string) *Gateway {
 const openSessionReply = `{"id":"cs_bounded","object":"checkout.session","status":"open",` +
 	`"url":"https://checkout.stripe.com/c/pay/cs_bounded"}`
 
-// TestAStripeReplyPastTheBoundIsRefused holds the read bound on the one
-// provider whose SDK reads a reply whole, and holds that the bound fails the
-// reply rather than cutting it short. A cut reply is invalid JSON, and the SDK
-// quotes the first 500 bytes of invalid JSON into the error goen logs, so a
-// cutting bound would log a customer's email. Each oversized reply is valid
-// JSON with that email in its leading bytes: only the bound can refuse it, and
-// only a failing bound keeps the email out of the error.
-func TestAStripeReplyPastTheBoundIsRefused(t *testing.T) {
+// TestStripeTransportReplyBound: A Stripe reply past the bound is refused. It
+// holds the read bound on the one provider whose SDK reads a reply whole, and
+// holds that the bound fails the reply rather than cutting it short. A cut
+// reply is invalid JSON, and the SDK quotes the first 500 bytes of invalid JSON
+// into the error goen logs, so a cutting bound would log a customer's email.
+// Each oversized reply is valid JSON with that email in its leading bytes: only
+// the bound can refuse it, and only a failing bound keeps the email out of the
+// error.
+func TestStripeTransportReplyBound(t *testing.T) {
 	const customer = "bound-probe@example.com"
 	session := func(pad int) string {
 		return `{"id":"cs_bounded","object":"checkout.session","customer_email":"` + customer +
@@ -86,12 +87,13 @@ func TestAStripeReplyPastTheBoundIsRefused(t *testing.T) {
 	}
 }
 
-// TestAStripeErrorCarriesNoSecretCustomerOrCardFacts holds what a Stripe error
-// can put in goen's logs, which record err on every provider call. Stripe may
-// embed the PaymentIntent, PaymentMethod, SetupIntent or Source an error
-// concerns, and the SDK renders an error as its whole JSON; goen reads only an
-// error's type, code and message, so the embedded objects never reach it.
-func TestAStripeErrorCarriesNoSecretCustomerOrCardFacts(t *testing.T) {
+// TestWithoutEmbeddedObjects: A Stripe error carries no secret, customer or
+// card facts. It holds what a Stripe error can put in goen's logs, which record
+// err on every provider call. Stripe may embed the PaymentIntent,
+// PaymentMethod, SetupIntent or Source an error concerns, and the SDK renders
+// an error as its whole JSON; goen reads only an error's type, code and
+// message, so the embedded objects never reach it.
+func TestWithoutEmbeddedObjects(t *testing.T) {
 	const (
 		intentSecret = "pi_probe_secret_q7Wm2Lx9"
 		setupSecret  = "seti_probe_secret_R4nV8c" //nolint:gosec // G101: a fixture, not a credential
@@ -130,10 +132,10 @@ func TestAStripeErrorCarriesNoSecretCustomerOrCardFacts(t *testing.T) {
 	}
 }
 
-// TestStripeIsReachedOnlyOverVerifiedTLS holds certificate verification on the
-// client that carries the secret key: a server whose certificate no system
-// root vouches for is never sent a request.
-func TestStripeIsReachedOnlyOverVerifiedTLS(t *testing.T) {
+// TestStripeHTTPClientVerifiesTLS: Stripe is reached only over verified TLS. It
+// holds certificate verification on the client that carries the secret key: a
+// server whose certificate no system root vouches for is never sent a request.
+func TestStripeHTTPClientVerifiesTLS(t *testing.T) {
 	var served atomic.Int32
 	srv := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		served.Add(1)
@@ -164,11 +166,11 @@ func TestStripeIsReachedOnlyOverVerifiedTLS(t *testing.T) {
 	}
 }
 
-// TestEveryStripeClientUsesTheBoundedTransport holds that the client goen hands
-// the SDK — finite timeout, bounded replies — is the one under every service
-// goen calls. A client the SDK built for itself would bring its own, unbounded
-// reader.
-func TestEveryStripeClientUsesTheBoundedTransport(t *testing.T) {
+// TestNewStripeClient: Every Stripe client uses the bounded transport. It holds
+// that the client goen hands the SDK — finite timeout, bounded replies — is the
+// one under every service goen calls. A client the SDK built for itself would
+// bring its own, unbounded reader.
+func TestNewStripeClient(t *testing.T) {
 	if stripeHTTPClient.Timeout <= 0 || stripeHTTPClient.Timeout > stripeAttemptTimeout {
 		t.Fatalf("stripeHTTPClient.Timeout = %v, want a finite bound no longer than %v",
 			stripeHTTPClient.Timeout, stripeAttemptTimeout)

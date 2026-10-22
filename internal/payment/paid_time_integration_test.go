@@ -14,7 +14,9 @@ import (
 	"github.com/koopa0/goen/internal/payment"
 )
 
-func TestPaymentAndTimelineKeepTheProviderEventTime(t *testing.T) {
+// TestHandler_WebhookEventTime: The payment and its timeline keep the
+// provider's event time.
+func TestHandler_WebhookEventTime(t *testing.T) {
 	for _, paidEventType := range []string{"checkout.session.completed", "checkout.session.async_payment_succeeded"} {
 		t.Run(paidEventType, func(t *testing.T) {
 			for _, tc := range []struct {

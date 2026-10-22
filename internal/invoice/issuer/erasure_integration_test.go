@@ -15,7 +15,10 @@ import (
 	"github.com/koopa0/goen/internal/invoice"
 )
 
-func TestPendingIssueSettlementPreservesAnErasedFilingActor(t *testing.T) {
+// TestSettleInvoiceIssueErasedActor: settle_invoice_issue, run after the filing
+// actor was erased, keeps the actor's id snapshot and the request id on the
+// operation and on the issue audit row.
+func TestSettleInvoiceIssueErasedActor(t *testing.T) {
 	ctx := t.Context()
 	number := orderToInvoice(t, 100000, 0, 0)
 
@@ -115,7 +118,10 @@ func TestPendingIssueSettlementPreservesAnErasedFilingActor(t *testing.T) {
 	}
 }
 
-func TestErasedCustomerCommittedOrderStillIssuesFromFilingSnapshot(t *testing.T) {
+// TestStore_IssueErasedCustomer: an order committed before its customer was
+// erased still issues from the filing snapshot, and the succeeded operation's
+// payload is scrubbed of the contact.
+func TestStore_IssueErasedCustomer(t *testing.T) {
 	ctx := t.Context()
 	owner := invoiceCustomer(t, "即將刪除的顧客", true)
 	number := ownedOrderToInvoice(t, owner, 100000, 0, 0, invoice.PreferenceMember, "王小明", "")
@@ -168,7 +174,10 @@ func TestErasedCustomerCommittedOrderStillIssuesFromFilingSnapshot(t *testing.T)
 	assertTerminalInvoicePayloadScrubbed(t, operationID, "succeeded")
 }
 
-func TestErasedCustomerRefundStillAllowancesFromFilingSnapshot(t *testing.T) {
+// TestStore_FileAllowanceErasedCustomer: a refund on an order whose customer
+// was erased still files its allowance from the filing snapshot, and the
+// succeeded operation's payload is scrubbed of the contact.
+func TestStore_FileAllowanceErasedCustomer(t *testing.T) {
 	ctx := t.Context()
 	owner := invoiceCustomer(t, "即將刪除的顧客", true)
 	number := invoicedOrderWithRefundFor(t, owner, 50000)
@@ -215,7 +224,11 @@ func TestErasedCustomerRefundStillAllowancesFromFilingSnapshot(t *testing.T) {
 	assertTerminalInvoicePayloadScrubbed(t, operationID, "succeeded")
 }
 
-func TestTerminalInvoiceOperationsScrubDuplicateContactPII(t *testing.T) {
+// TestStore_IssueTerminalScrub: a terminal invoice operation keeps no duplicate
+// of the buyer's name or email in its payload. The first subtest drives
+// Store.Issue to a provider rejection; the second runs erase_user over legacy
+// terminal envelopes directly.
+func TestStore_IssueTerminalScrub(t *testing.T) {
 	t.Run("provider rejection", func(t *testing.T) {
 		ctx := t.Context()
 		number := orderToInvoice(t, 100000, 0, 0)

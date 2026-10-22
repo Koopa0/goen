@@ -53,7 +53,9 @@ func (w *stopAfterFirstLine) Write(p []byte) (int, error) {
 	return n, err
 }
 
-func TestReconcileForeverLogsTheCauseWhenTheLeaseFails(t *testing.T) {
+// TestStore_ReconcileForeverLeaseFailure: when leasing fails, ReconcileForever
+// logs one deferral warning that carries the cause and the zero operation id.
+func TestStore_ReconcileForeverLeaseFailure(t *testing.T) {
 	t.Parallel()
 	cause := errors.New("permission denied for function lease_invoice_operation")
 	s := &Store{q: db.New(failingDB{err: cause}), gateway: &Gateway{}}
@@ -88,7 +90,9 @@ func TestReconcileForeverLogsTheCauseWhenTheLeaseFails(t *testing.T) {
 	}
 }
 
-func TestReconcileOnceNamesTheLeaseStageAndKeepsTheCause(t *testing.T) {
+// TestStore_ReconcileOnceLeaseFailure: when leasing fails, ReconcileOnce
+// returns an error wrapping the cause and the zero result: nothing was leased.
+func TestStore_ReconcileOnceLeaseFailure(t *testing.T) {
 	t.Parallel()
 	cause := errors.New("connection refused")
 	s := &Store{q: db.New(failingDB{err: cause}), gateway: &Gateway{}}

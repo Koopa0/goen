@@ -60,7 +60,9 @@ func enqueue(t *testing.T, topic, key, payload string) {
 	}
 }
 
-func TestDrainDeliversAndStamps(t *testing.T) {
+// TestStore_DrainDelivers: Drain hands a due message to its handler and stamps
+// it delivered, so a second Drain finds nothing.
+func TestStore_DrainDelivers(t *testing.T) {
 	emptyOutbox(t)
 	ctx := t.Context()
 	s := outbox.NewStore(pool, quiet())
@@ -92,7 +94,9 @@ func TestDrainDeliversAndStamps(t *testing.T) {
 	}
 }
 
-func TestAFailedHandlerIsRetriedNotLost(t *testing.T) {
+// TestStore_DrainRecordsFailure: a handler that fails leaves its message
+// undelivered, with the attempt counted and the reason recorded.
+func TestStore_DrainRecordsFailure(t *testing.T) {
 	emptyOutbox(t)
 	ctx := t.Context()
 	s := outbox.NewStore(pool, quiet())
@@ -131,7 +135,9 @@ func TestAFailedHandlerIsRetriedNotLost(t *testing.T) {
 	}
 }
 
-func TestBackoffPushesTheRetryIntoTheFuture(t *testing.T) {
+// TestStore_DrainBacksOff: after a failure the retry is due in the future, so
+// the message is not claimed again at once.
+func TestStore_DrainBacksOff(t *testing.T) {
 	emptyOutbox(t)
 	ctx := t.Context()
 	s := outbox.NewStore(pool, quiet())
@@ -164,7 +170,9 @@ func TestBackoffPushesTheRetryIntoTheFuture(t *testing.T) {
 	}
 }
 
-func TestRescheduleUsesTheDatabaseTransactionClock(t *testing.T) {
+// TestRescheduleOutboxClock: the RescheduleOutbox statement takes the retry
+// time from the database's transaction clock, not from the process clock.
+func TestRescheduleOutboxClock(t *testing.T) {
 	ctx := t.Context()
 	tx, err := pool.Begin(ctx)
 	if err != nil {
@@ -208,9 +216,10 @@ func TestRescheduleUsesTheDatabaseTransactionClock(t *testing.T) {
 	}
 }
 
-// TestAnUnregisteredTopicIsKeptNotDropped: a deployment that publishes what it
-// cannot yet consume must not lose the message.
-func TestAnUnregisteredTopicIsKeptNotDropped(t *testing.T) {
+// TestStore_DrainUnregisteredTopic: a message on a topic with no handler counts
+// as failed and is kept, not dropped and not stamped delivered. A deployment
+// that publishes what it cannot yet consume must not lose the message.
+func TestStore_DrainUnregisteredTopic(t *testing.T) {
 	emptyOutbox(t)
 	ctx := t.Context()
 	s := outbox.NewStore(pool, quiet())
@@ -232,7 +241,9 @@ func TestAnUnregisteredTopicIsKeptNotDropped(t *testing.T) {
 	}
 }
 
-func TestTwoWorkersDoNotDeliverTheSameMessage(t *testing.T) {
+// TestStore_DrainAllTwoWorkers: two stores draining one queue at the same time
+// deliver each message exactly once.
+func TestStore_DrainAllTwoWorkers(t *testing.T) {
 	emptyOutbox(t)
 	ctx := t.Context()
 
@@ -284,9 +295,12 @@ func TestTwoWorkersDoNotDeliverTheSameMessage(t *testing.T) {
 	}
 }
 
-// TestAClaimedMessageIsInvisibleUntilItsLeaseExpires proves the claim takes a
-// lease, not just a row lock — that lock lives only for its own statement.
-func TestAClaimedMessageIsInvisibleUntilItsLeaseExpires(t *testing.T) {
+// TestStore_DrainClaimedDueLater: after a Drain whose handler failed, the
+// message's available_at is in the future, so no other worker can take it. The
+// row is read after the failure's reschedule, so this does not by itself
+// separate the claim's lease (a row lock lives only for its own statement) from
+// the retry time.
+func TestStore_DrainClaimedDueLater(t *testing.T) {
 	emptyOutbox(t)
 	ctx := t.Context()
 	key := uuid.NewString()
@@ -311,11 +325,11 @@ func TestAClaimedMessageIsInvisibleUntilItsLeaseExpires(t *testing.T) {
 	}
 }
 
-// TestALateWorkerCannotSettleAClaimItLost: a worker that overran its lease
-// finds the message claimed again, and whatever its handler concluded, the
-// later claim's state stands — a late reschedule would otherwise hand the
-// message to a third worker while the second is still sending it.
-func TestALateWorkerCannotSettleAClaimItLost(t *testing.T) {
+// TestStore_DrainLostClaim: a worker that overran its lease finds the message
+// claimed again, and whatever its handler concluded, the later claim's state
+// stands — a late reschedule would otherwise hand the message to a third worker
+// while the second is still sending it.
+func TestStore_DrainLostClaim(t *testing.T) {
 	type messageState struct {
 		AvailableAt time.Time
 		Attempts    int32
@@ -379,11 +393,12 @@ func TestALateWorkerCannotSettleAClaimItLost(t *testing.T) {
 	}
 }
 
-// TestTheHandlerIsGivenItsBudget: [outbox.HandlerBudget] is what the lease
-// arithmetic spends on one message, so the delivery path is where it has to be
-// applied. A handler nothing can cut short holds its claim until the lease
-// expires and hands the tail of its own batch to a second replica.
-func TestTheHandlerIsGivenItsBudget(t *testing.T) {
+// TestStore_DrainHandlerBudget: the handler's context carries a deadline of
+// [outbox.HandlerBudget]. That is what the lease arithmetic spends on one
+// message, so the delivery path is where it has to be applied. A handler
+// nothing can cut short holds its claim until the lease expires and hands the
+// tail of its own batch to a second replica.
+func TestStore_DrainHandlerBudget(t *testing.T) {
 	emptyOutbox(t)
 	ctx := t.Context()
 	s := outbox.NewStore(pool, quiet())
@@ -413,7 +428,9 @@ func TestTheHandlerIsGivenItsBudget(t *testing.T) {
 
 var errStopHere = errors.New("handler declined, for the test")
 
-func TestOneTickDrainsABacklogRatherThanOneBatch(t *testing.T) {
+// TestStore_DrainAllBacklog: DrainAll delivers a backlog of more than two
+// batches in one call, instead of one batch per tick.
+func TestStore_DrainAllBacklog(t *testing.T) {
 	emptyOutbox(t)
 	ctx := t.Context()
 
@@ -453,7 +470,9 @@ func TestOneTickDrainsABacklogRatherThanOneBatch(t *testing.T) {
 	}
 }
 
-func TestDrainAllStopsWhenEveryMessageFails(t *testing.T) {
+// TestStore_DrainAllStopsOnFailures: DrainAll returns once a whole batch has
+// failed, instead of claiming the failed batch again inside the same drain.
+func TestStore_DrainAllStopsOnFailures(t *testing.T) {
 	emptyOutbox(t)
 	ctx := t.Context()
 
@@ -500,7 +519,11 @@ func TestDrainAllStopsWhenEveryMessageFails(t *testing.T) {
 	}
 }
 
-func TestEnqueueIsIdempotent(t *testing.T) {
+// TestOutboxMessagesDedupeKey: inserting a message with the same topic and
+// dedupe key again leaves one row. The unit is the unique index
+// outbox_messages_dedupe_key that ON CONFLICT DO NOTHING relies on; the insert
+// is the test helper's, not [outbox.Enqueue]'s.
+func TestOutboxMessagesDedupeKey(t *testing.T) {
 	key := uuid.NewString()
 	for range 3 {
 		enqueue(t, "test.idempotent", key, `{}`)
@@ -515,9 +538,11 @@ func TestEnqueueIsIdempotent(t *testing.T) {
 	}
 }
 
-// TestTheSweepKeepsWhatWentWrongAndDropsWhatWorked: a FAILED message must not be
-// swept, or the queue reports itself empty and /admin/health stops listing it.
-func TestTheSweepKeepsWhatWentWrongAndDropsWhatWorked(t *testing.T) {
+// TestStore_SweepKeepsStuck: Sweep deletes an old delivered message but keeps a
+// fresh delivered one and a stuck one, which Stuck still lists. A FAILED
+// message must not be swept, or the queue reports itself empty and
+// /admin/health stops listing it.
+func TestStore_SweepKeepsStuck(t *testing.T) {
 	emptyOutbox(t)
 	ctx := t.Context()
 	s := outbox.NewStore(pool, slog.New(slog.DiscardHandler))
@@ -577,9 +602,10 @@ func TestTheSweepKeepsWhatWentWrongAndDropsWhatWorked(t *testing.T) {
 	}
 }
 
-// TestTheSweepLeavesAPendingMessageAlone: available_at moves forward on every
-// claim, so a message legitimately waiting can be arbitrarily old by that clock.
-func TestTheSweepLeavesAPendingMessageAlone(t *testing.T) {
+// TestStore_SweepKeepsPending: Sweep leaves a pending message alone however old
+// its available_at is. available_at moves forward on every claim, so a message
+// legitimately waiting can be arbitrarily old by that clock.
+func TestStore_SweepKeepsPending(t *testing.T) {
 	emptyOutbox(t)
 	ctx := t.Context()
 	s := outbox.NewStore(pool, slog.New(slog.DiscardHandler))
@@ -599,10 +625,12 @@ func TestTheSweepLeavesAPendingMessageAlone(t *testing.T) {
 	}
 }
 
-// TestAMessageThatExhaustedItsAttemptsIsRetriedDaily: mail queued during a long
-// provider outage must still go out once the provider is back, so running out of
-// quick retries slows a message down and does not end it.
-func TestAMessageThatExhaustedItsAttemptsIsRetriedDaily(t *testing.T) {
+// TestStore_DrainExhaustedRetriedDaily: a message that exhausted its attempts
+// is retried about a day later and delivered once the handler recovers. Mail
+// queued during a long provider outage must still go out once the provider is
+// back, so running out of quick retries slows a message down and does not end
+// it.
+func TestStore_DrainExhaustedRetriedDaily(t *testing.T) {
 	emptyOutbox(t)
 	ctx := t.Context()
 	s := outbox.NewStore(pool, quiet())
@@ -649,10 +677,11 @@ func TestAMessageThatExhaustedItsAttemptsIsRetriedDaily(t *testing.T) {
 	}
 }
 
-// TestTheSweepDropsAnUndeliveredMessagePastRetain: the payload of a message that
-// never went out can carry a token, so it is bounded by its age like a delivered
-// one; a young undelivered message and a delivered one keep their own rules.
-func TestTheSweepDropsAnUndeliveredMessagePastRetain(t *testing.T) {
+// TestStore_SweepExpiresUndelivered: Sweep drops an undelivered message older
+// than Retain and logs it, while a young undelivered message and delivered ones
+// keep their own rules. The payload of a message that never went out can carry
+// a token, so it is bounded by its age like a delivered one.
+func TestStore_SweepExpiresUndelivered(t *testing.T) {
 	emptyOutbox(t)
 	ctx := t.Context()
 	var logs bytes.Buffer
@@ -751,10 +780,12 @@ func TestTheSweepDropsAnUndeliveredMessagePastRetain(t *testing.T) {
 	}
 }
 
-// TestAMessageSentAsShutdownLandsIsStillStamped: SIGTERM cancels the drain's
-// context between the handler's success and the stamp. The stamp must survive
-// it, or the next process sends the letter again once the lease expires.
-func TestAMessageSentAsShutdownLandsIsStillStamped(t *testing.T) {
+// TestStore_DrainSuccessOnShutdown: a message whose handler succeeded as
+// shutdown cancelled the context is still stamped delivered. SIGTERM cancels
+// the drain's context between the handler's success and the stamp. The stamp
+// must survive it, or the next process sends the letter again once the lease
+// expires.
+func TestStore_DrainSuccessOnShutdown(t *testing.T) {
 	emptyOutbox(t)
 	s := outbox.NewStore(pool, quiet())
 	key := uuid.NewString()
@@ -781,10 +812,11 @@ func TestAMessageSentAsShutdownLandsIsStillStamped(t *testing.T) {
 	}
 }
 
-// TestAFailureAsShutdownLandsIsStillRecorded: the reschedule shares the stamp's
+// TestStore_DrainFailureOnShutdown: a failure that lands as shutdown cancels
+// the context is still recorded on the row. The reschedule shares the stamp's
 // context, and a failure that is not recorded leaves the message claimed until
 // the lease expires with no reason on the row.
-func TestAFailureAsShutdownLandsIsStillRecorded(t *testing.T) {
+func TestStore_DrainFailureOnShutdown(t *testing.T) {
 	emptyOutbox(t)
 	s := outbox.NewStore(pool, quiet())
 	key := uuid.NewString()

@@ -6,7 +6,8 @@ import (
 	"github.com/koopa0/goen/internal/payment"
 )
 
-func TestGatewaySandboxRequiresAnExplicitTestKey(t *testing.T) {
+// TestGateway_Sandbox: Sandbox is true only for an explicit test key.
+func TestGateway_Sandbox(t *testing.T) {
 	for _, tc := range []struct {
 		key  string
 		want bool

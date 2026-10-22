@@ -10,7 +10,11 @@ import (
 	"github.com/koopa0/goen/internal/invoice"
 )
 
-func TestSandboxExemptInvoicePreservesSixCharacterChineseUnit(t *testing.T) {
+// TestGateway_IssueSandboxExemptUnit: against ECPay's public staging service
+// (GOEN_INVOICE_SANDBOX=1), an exempt invoice with a six-character Chinese unit
+// is issued and read back by FetchIssue with the same tax type and unit, then
+// voided.
+func TestGateway_IssueSandboxExemptUnit(t *testing.T) {
 	if os.Getenv("GOEN_INVOICE_SANDBOX") != "1" {
 		t.Skip("requires the public ECPay staging service")
 	}

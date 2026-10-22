@@ -21,7 +21,9 @@ const testWebhookSecret = "whsec_thisisatestsecretforgoenonly" //nolint:gosec //
 // account and this binary move to a newer version.
 const legacyWebhookAPIVersion = "2022-11-15"
 
-func TestStartByUsesTheExistingStripeAdmissionWindow(t *testing.T) {
+// TestStartBy: StartBy backs the last start off the hold's end by the Stripe
+// admission window: the 30-minute session floor and the one-minute margin.
+func TestStartBy(t *testing.T) {
 	until := time.Date(2099, 1, 1, 1, 0, 0, 0, time.UTC)
 	want := time.Date(2099, 1, 1, 0, 29, 0, 0, time.UTC)
 	if got := payment.StartBy(until); !got.Equal(want) {
@@ -70,9 +72,10 @@ func enabledGateway(t *testing.T) *payment.Gateway {
 	return g
 }
 
-// TestWebhookRejectsAForgedSignature proves an unsigned or mis-signed payload is
-// refused, which is the whole security boundary of the endpoint taking money.
-func TestWebhookRejectsAForgedSignature(t *testing.T) {
+// TestGateway_VerifyWebhookForged: VerifyWebhook rejects a forged signature. It
+// proves an unsigned or mis-signed payload is refused, which is the whole
+// security boundary of the endpoint taking money.
+func TestGateway_VerifyWebhookForged(t *testing.T) {
 	g := enabledGateway(t)
 	body, header := signed(t, sessionEvent("evt_1", "cs_test_1", "paid", 199900))
 
@@ -99,10 +102,11 @@ func TestWebhookRejectsAForgedSignature(t *testing.T) {
 	}
 }
 
-// TestWebhookRefusesASignatureOutsideTheTolerance holds the replay window: a
-// genuine signature is evidence only for the five minutes Stripe allows, after
-// which the same bytes are refused as unsigned rather than processed.
-func TestWebhookRefusesASignatureOutsideTheTolerance(t *testing.T) {
+// TestGateway_VerifyWebhookTolerance: VerifyWebhook refuses a signature outside
+// the tolerance. It holds the replay window: a genuine signature is evidence
+// only for the five minutes Stripe allows, after which the same bytes are
+// refused as unsigned rather than processed.
+func TestGateway_VerifyWebhookTolerance(t *testing.T) {
 	g := enabledGateway(t)
 	raw, err := json.Marshal(sessionEvent("evt_window", "cs_test_window", "paid", 199900))
 	if err != nil {
@@ -153,7 +157,8 @@ func otherSecretHeader(t *testing.T, body []byte) string {
 	return p.Header
 }
 
-func TestWebhookAcceptsAGenuineSignature(t *testing.T) {
+// TestGateway_VerifyWebhookGenuine: VerifyWebhook accepts a genuine signature.
+func TestGateway_VerifyWebhookGenuine(t *testing.T) {
 	g := enabledGateway(t)
 	body, header := signed(t, sessionEvent("evt_ok", "cs_test_ok", "paid", 199900))
 
@@ -166,7 +171,9 @@ func TestWebhookAcceptsAGenuineSignature(t *testing.T) {
 	}
 }
 
-func TestWebhookRejectsInvalidDurableEventIdentitiesAfterSignatureVerification(t *testing.T) {
+// TestGateway_VerifyWebhookEventID: VerifyWebhook rejects an invalid durable
+// event identity after verifying the signature.
+func TestGateway_VerifyWebhookEventID(t *testing.T) {
 	g := enabledGateway(t)
 	for _, id := range []string{"", strings.Repeat("x", 256), " \t", "evt_ok\nforged"} {
 		t.Run(id, func(t *testing.T) {
@@ -182,7 +189,9 @@ func TestWebhookRejectsInvalidDurableEventIdentitiesAfterSignatureVerification(t
 	}
 }
 
-func TestInvalidSessionIdentitiesNeverBecomeWebhookObjectReferences(t *testing.T) {
+// TestObjectRefInvalidSessionID: An invalid session identity never becomes a
+// webhook object reference.
+func TestObjectRefInvalidSessionID(t *testing.T) {
 	g := enabledGateway(t)
 	for _, id := range []string{"", strings.Repeat("x", 256), " \t", "cs_test\nforged"} {
 		t.Run(id, func(t *testing.T) {
@@ -216,10 +225,11 @@ func TestInvalidSessionIdentitiesNeverBecomeWebhookObjectReferences(t *testing.T
 	}
 }
 
-// TestWebhookReadsASignedOlderVersionByShape locks the deliberate webhook
-// version policy: api_version is metadata about the immutable event payload,
-// not a reason to reject an otherwise authentic shape this binary understands.
-func TestWebhookReadsASignedOlderVersionByShape(t *testing.T) {
+// TestGateway_VerifyWebhookOlderVersion: VerifyWebhook reads a signed older
+// version by shape. It locks the deliberate webhook version policy: api_version
+// is metadata about the immutable event payload, not a reason to reject an
+// otherwise authentic shape this binary understands.
+func TestGateway_VerifyWebhookOlderVersion(t *testing.T) {
 	g := enabledGateway(t)
 	event := sessionEvent("evt_old_version", "cs_old_version", "paid", 199900)
 	event["api_version"] = legacyWebhookAPIVersion
@@ -254,9 +264,10 @@ func sessionField(ev map[string]any, name string, value any) map[string]any {
 	return ev
 }
 
-// TestOnlyAPaidSessionIsACapture proves an unpaid session is not treated as
-// money received, and that the paid one of EACH event type is.
-func TestOnlyAPaidSessionIsACapture(t *testing.T) {
+// TestCaptureFromPaidSession: Only a paid session is a capture. It proves an
+// unpaid session is not treated as money received, and that the paid one of
+// EACH event type is.
+func TestCaptureFromPaidSession(t *testing.T) {
 	g := enabledGateway(t)
 
 	tests := []struct {
@@ -306,10 +317,11 @@ func TestOnlyAPaidSessionIsACapture(t *testing.T) {
 	}
 }
 
-// TestAKnownEventGoenCannotReadIsNotAnEventItIgnores holds the three webhook
-// states apart: an unhandled type is ordinary, a known and understood event has
-// a branch, and a known event whose object no reader can decode needs a person.
-func TestAKnownEventGoenCannotReadIsNotAnEventItIgnores(t *testing.T) {
+// TestCaptureFromUnreadable: A known event goen cannot read is not an event it
+// ignores. It holds the three webhook states apart: an unhandled type is
+// ordinary, a known and understood event has a branch, and a known event whose
+// object no reader can decode needs a person.
+func TestCaptureFromUnreadable(t *testing.T) {
 	g := enabledGateway(t)
 
 	// ConstructEvent rejects a genuinely truncated signed JSON document before
@@ -434,10 +446,10 @@ func TestAKnownEventGoenCannotReadIsNotAnEventItIgnores(t *testing.T) {
 	}
 }
 
-// TestASessionThatEndsWithNoMoneyIsAbandoned holds the other half of the
-// asynchronous pair. The two readers must not overlap: one cancels a payment
-// and the other posts money.
-func TestASessionThatEndsWithNoMoneyIsAbandoned(t *testing.T) {
+// TestAbandonedSessionFrom: A session that ends with no money is abandoned. It
+// holds the other half of the asynchronous pair. The two readers must not
+// overlap: one cancels a payment and the other posts money.
+func TestAbandonedSessionFrom(t *testing.T) {
 	g := enabledGateway(t)
 
 	tests := []struct {
@@ -469,10 +481,11 @@ func TestASessionThatEndsWithNoMoneyIsAbandoned(t *testing.T) {
 	}
 }
 
-// TestACompletedButUnpaidSessionIsReportedRatherThanIgnored holds the one signal
-// the two readers above deliberately drop: a delayed method's completed session
-// is the only warning goen gets that its stock model has stopped holding.
-func TestACompletedButUnpaidSessionIsReportedRatherThanIgnored(t *testing.T) {
+// TestUnsettledSessionFrom: A completed but unpaid session is reported rather
+// than ignored. It holds the one signal the two readers above deliberately
+// drop: a delayed method's completed session is the only warning goen gets that
+// its stock model has stopped holding.
+func TestUnsettledSessionFrom(t *testing.T) {
 	g := enabledGateway(t)
 
 	tests := []struct {
@@ -537,10 +550,11 @@ func TestACompletedButUnpaidSessionIsReportedRatherThanIgnored(t *testing.T) {
 	}
 }
 
-// TestTheSessionKeyFollowsTheOrderTheAmountAndTheAttempt holds the second line of
-// defence against one order being charged twice: the same three inputs must
-// produce the same string, and the string must move when any of them does.
-func TestTheSessionKeyFollowsTheOrderTheAmountAndTheAttempt(t *testing.T) {
+// TestSessionKey: SessionKey follows the order, the amount and the attempt. It
+// holds the second line of defence against one order being charged twice: the
+// same three inputs must produce the same string, and the string must move when
+// any of them does.
+func TestSessionKey(t *testing.T) {
 	order := uuid.MustParse("0b9d6f3e-2c4a-4e58-9a71-5d3f8e2b1c07")
 	other := uuid.MustParse("7f1e2d3c-4b5a-4968-8776-a5b4c3d2e1f0")
 	tests := []struct {
@@ -570,9 +584,10 @@ func TestTheSessionKeyFollowsTheOrderTheAmountAndTheAttempt(t *testing.T) {
 	}
 }
 
-// TestOtherEventTypesAreNotCaptures proves no other event posts money.
-// `checkout.session.async_payment_succeeded` does NOT belong here: it IS one.
-func TestOtherEventTypesAreNotCaptures(t *testing.T) {
+// TestCaptureFromOtherEvents: Other event types are not captures. It proves no
+// other event posts money. `checkout.session.async_payment_succeeded` does NOT
+// belong here: it IS one.
+func TestCaptureFromOtherEvents(t *testing.T) {
 	g := enabledGateway(t)
 	for _, typ := range []string{
 		"checkout.session.expired",
@@ -596,9 +611,10 @@ func TestOtherEventTypesAreNotCaptures(t *testing.T) {
 	}
 }
 
-// TestGatewayRefusesAKeyWithoutAWebhookSecret proves goen will not start able to
-// take money over an endpoint nothing authenticates.
-func TestGatewayRefusesAKeyWithoutAWebhookSecret(t *testing.T) {
+// TestNewGatewayKeyWithoutSecret: NewGateway refuses a key without a webhook
+// secret. It proves goen will not start able to take money over an endpoint
+// nothing authenticates.
+func TestNewGatewayKeyWithoutSecret(t *testing.T) {
 	_, err := payment.NewGateway("sk_test_something", "", "https://goen.example")
 	if err == nil {
 		t.Fatal("a Stripe key with no webhook secret was accepted")
@@ -608,8 +624,9 @@ func TestGatewayRefusesAKeyWithoutAWebhookSecret(t *testing.T) {
 	}
 }
 
-// TestNoKeyIsNotAnError proves a deployment without Stripe still serves the site.
-func TestNoKeyIsNotAnError(t *testing.T) {
+// TestNewGatewayNoKey: NewGateway without a key is not an error: the gateway is
+// disabled. It proves a deployment without Stripe still serves the site.
+func TestNewGatewayNoKey(t *testing.T) {
 	g, err := payment.NewGateway("", "", "http://127.0.0.1:9700")
 	if err != nil {
 		t.Fatalf("goen refused to start without Stripe: %v", err)
@@ -625,7 +642,9 @@ func TestNoKeyIsNotAnError(t *testing.T) {
 	}
 }
 
-func TestACheckoutEventNamesTheIntentAndNotItsCharge(t *testing.T) {
+// TestCaptureFromPaymentIntent: A checkout event names the intent and not its
+// charge.
+func TestCaptureFromPaymentIntent(t *testing.T) {
 	ev := sessionEvent("evt_card_1", "cs_card_1", "paid", 87000)
 	sessionField(ev, "payment_intent", "pi_3Q1abc")
 	raw, err := json.Marshal(ev)
@@ -642,7 +661,8 @@ func TestACheckoutEventNamesTheIntentAndNotItsCharge(t *testing.T) {
 	}
 }
 
-func TestACardIsLabelledTheWayAPersonReadsIt(t *testing.T) {
+// TestCardLabel: CardLabel labels a card the way a person reads it.
+func TestCardLabel(t *testing.T) {
 	for _, tt := range []struct{ brand, last4, want string }{
 		{"visa", "4242", "Visa •••• 4242"},
 		{"amex", "0005", "American Express •••• 0005"},

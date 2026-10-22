@@ -11,7 +11,9 @@ import (
 	"github.com/koopa0/goen/internal/order/access"
 )
 
-func TestInaccessiblePaymentOffersOrderLookup(t *testing.T) {
+// TestHandler_PageInaccessible: An inaccessible payment page offers the order
+// lookup and sign-in.
+func TestHandler_PageInaccessible(t *testing.T) {
 	t.Parallel()
 	h := &Handler{access: &access.Store{}, log: slog.New(slog.DiscardHandler)}
 	for _, locale := range i18n.Locales() {
@@ -26,7 +28,9 @@ func TestInaccessiblePaymentOffersOrderLookup(t *testing.T) {
 	}
 }
 
-func TestPaymentFailuresKeepTheOrderWithinReach(t *testing.T) {
+// TestHandlerFailurePages: The payment conflict and server error pages keep the
+// order within reach.
+func TestHandlerFailurePages(t *testing.T) {
 	t.Parallel()
 	h := &Handler{log: slog.New(slog.DiscardHandler)}
 	for _, locale := range i18n.Locales() {

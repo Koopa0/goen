@@ -15,10 +15,11 @@ import (
 	"testing"
 )
 
-// TestEveryTopicHasAProducerAndAHandler holds each topic to both ends of the
-// wire. A topic with no handler is worse than absent: it retries until Stuck()
-// surfaces it.
-func TestEveryTopicHasAProducerAndAHandler(t *testing.T) {
+// TestTopicProducerAndHandler: every declared topic has a handler in
+// cmd/goen/main.go and a producer in internal/ or migrations/. It holds each
+// topic to both ends of the wire. A topic with no handler is worse than absent:
+// it retries until Stuck() surfaces it.
+func TestTopicProducerAndHandler(t *testing.T) {
 	t.Parallel()
 
 	declared := topicVars(t)
@@ -170,9 +171,11 @@ var frozenTopics = []string{
 	"order.part_refunded",
 }
 
-// A queued row carries its topic name as text, so the names are stored data:
-// renaming one strands every row already written under it.
-func TestTopicNamesAreFrozen(t *testing.T) {
+// TestTopicNamesFrozen: the declared topic names are exactly the frozen list,
+// with no name declared twice. A queued row carries its topic name as text, so
+// the names are stored data: renaming one strands every row already written
+// under it.
+func TestTopicNamesFrozen(t *testing.T) {
 	t.Parallel()
 
 	declared := topicVars(t)
@@ -229,9 +232,11 @@ func sqlFiles(t *testing.T) []string {
 	return paths
 }
 
-// SQL cannot import a Go constant, so a topic renamed in Go leaves its literal
-// behind and the erase or cleanup that matches it silently matches nothing.
-func TestSQLTopicLiteralsAreRegistered(t *testing.T) {
+// TestTopicSQLLiteralsRegistered: every topic literal in a migration or a
+// query.sql names a topic the package declares. SQL cannot import a Go
+// constant, so a topic renamed in Go leaves its literal behind and the erase or
+// cleanup that matches it silently matches nothing.
+func TestTopicSQLLiteralsRegistered(t *testing.T) {
 	t.Parallel()
 
 	registered := map[string]bool{}
@@ -270,11 +275,12 @@ func TestSQLTopicLiteralsAreRegistered(t *testing.T) {
 	}
 }
 
-// A payload is the stored JSON of its topic, so it is declared here, beside the
-// queue that stores it, and not in a producer or in the letter composer: its
-// tags are a contract with every row already queued, which this package's wire
-// tests hold.
-func TestEveryPayloadIsDeclaredInOutbox(t *testing.T) {
+// TestTopicPayloadTypes: each topic's payload type is declared in package
+// outbox. A payload is the stored JSON of its topic, so it is declared here,
+// beside the queue that stores it, and not in a producer or in the letter
+// composer: its tags are a contract with every row already queued, which this
+// package's wire tests hold.
+func TestTopicPayloadTypes(t *testing.T) {
 	t.Parallel()
 
 	file, err := parser.ParseFile(token.NewFileSet(), "outbox.go", nil, 0)

@@ -8,10 +8,11 @@ import (
 	stripe "github.com/stripe/stripe-go/v86"
 )
 
-// A Stripe endpoint is subscribed to events by hand, and Stripe never sends one
+// TestActionableInEnvExample: Every event goen acts on is in the setup. A
+// Stripe endpoint is subscribed to events by hand, and Stripe never sends one
 // nobody subscribed to: an event goen acts on but the setup does not name is a
 // branch that silently never runs.
-func TestEveryEventGoenActsOnIsInTheSetup(t *testing.T) {
+func TestActionableInEnvExample(t *testing.T) {
 	t.Parallel()
 
 	raw, err := os.ReadFile("../../.env.example")

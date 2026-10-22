@@ -17,11 +17,12 @@ import (
 	"github.com/koopa0/goen/internal/payment"
 )
 
-// TestACaptureQueuesTheInvoiceItOwesOnce: 營業稅法 §32 invoices a prepaid sale
-// when the money arrives, so the capture's own transaction queues the issue and
-// the system claims it under the event that captured the money. A second
-// delivery of that event, and a replayed claim, add nothing.
-func TestACaptureQueuesTheInvoiceItOwesOnce(t *testing.T) {
+// TestWebhookTx_CaptureQueuesInvoice: A capture queues the invoice it owes
+// once. 營業稅法 §32 invoices a prepaid sale when the money arrives, so the
+// capture's own transaction queues the issue and the system claims it under the
+// event that captured the money. A second delivery of that event, and a
+// replayed claim, add nothing.
+func TestWebhookTx_CaptureQueuesInvoice(t *testing.T) {
 	ctx := t.Context()
 	s := payment.NewStore(pool)
 	number, orderID := order(t, 129900)
@@ -65,9 +66,10 @@ func TestACaptureQueuesTheInvoiceItOwesOnce(t *testing.T) {
 	assertSystemIssue(t, number, eventID)
 }
 
-// TestPickingACreditFundedOrderQueuesNoInvoice: the checkout that spent the
-// credit queued it, so picking, where such an order commits, adds none.
-func TestPickingACreditFundedOrderQueuesNoInvoice(t *testing.T) {
+// TestCompleteFundingQueuesNoInvoice: Picking a credit funded order queues no
+// invoice. The checkout that spent the credit queued it, so picking, where such
+// an order commits, adds none.
+func TestCompleteFundingQueuesNoInvoice(t *testing.T) {
 	const cents = int64(50000)
 	ctx := t.Context()
 	userID := creditedUser(t, cents)
@@ -90,12 +92,12 @@ func TestPickingACreditFundedOrderQueuesNoInvoice(t *testing.T) {
 	}
 }
 
-// TestTheHealthPageStatesTheAmountTheIssuerFiles: the amount /admin/health
-// lists for an uninvoiced order is the whole NT$ the issue claim then files.
-// Nothing in the shop writes a total with cents today, but the schema allows
-// one, and on it the health query once stated the raw sum while the issuer
-// floored it (#1933).
-func TestTheHealthPageStatesTheAmountTheIssuerFiles(t *testing.T) {
+// TestUninvoicedOrdersAmountFiled: The health page states the amount the issuer
+// files. The amount /admin/health lists for an uninvoiced order is the whole
+// NT$ the issue claim then files. Nothing in the shop writes a total with cents
+// today, but the schema allows one, and on it the health query once stated the
+// raw sum while the issuer floored it (#1933).
+func TestUninvoicedOrdersAmountFiled(t *testing.T) {
 	ctx := t.Context()
 	s := payment.NewStore(pool)
 	const total, filed = int64(159950), int64(159900)
@@ -140,12 +142,12 @@ func TestTheHealthPageStatesTheAmountTheIssuerFiles(t *testing.T) {
 	}
 }
 
-// TestAPaidOrderWhoseInvoiceDueWasLostIsOnTheHealthPage: /admin/health reads
-// the orders, not the outbox that should have claimed their invoices, so a
-// paid order whose invoice.due is gone is listed until an issue exists. Paid
-// covers a capture and a pending order store credit paid in full at checkout;
-// an order still owing is not paid.
-func TestAPaidOrderWhoseInvoiceDueWasLostIsOnTheHealthPage(t *testing.T) {
+// TestUninvoicedOrdersLostDue: A paid order whose invoice due was lost is on
+// the health page. /admin/health reads the orders, not the outbox that should
+// have claimed their invoices, so a paid order whose invoice.due is gone is
+// listed until an issue exists. Paid covers a capture and a pending order store
+// credit paid in full at checkout; an order still owing is not paid.
+func TestUninvoicedOrdersLostDue(t *testing.T) {
 	ctx := t.Context()
 	s := payment.NewStore(pool)
 	captured, capturedID := order(t, 159900)
