@@ -1,2 +1,0 @@
-file	old	new	unit	source	action	newfile
-internal/bearer/bearer_test.go	TestNewIsUnpredictable	TestNewFormatDistinct	New	hand	rename	

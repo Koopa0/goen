@@ -1,7 +1,0 @@
-file	old	new	unit	source	action	newfile
-internal/keyset/keyset_test.go	TestKeysetTokenKeepsItsScopeAndPrecision	TestNextURLRoundTrip	NextURL	hand	rename	
-internal/keyset/keyset_test.go	TestPageBoundKeepsARestartDoorOnAnEmptyLaterPage	TestPageBoundEmptyPage	PageBound	hand	rename	
-internal/keyset/keyset_test.go	TestPageLimitAsksForOneMoreThanItShows	TestPageLimit	PageLimit	hand	rename	
-internal/keyset/keyset_test.go	TestPageOfSaysWhenThereIsMore	TestPageOf	PageOf	hand	rename	
-internal/keyset/keyset_test.go	TestReadKeysetRefusesMalformedTokens	TestReadMalformed	Read	hand	rename	
-internal/keyset/keyset_test.go	TestResumeKeysetRefusesWhatTheListCannotAccept	TestResumeAcceptable	Resume	hand	rename	

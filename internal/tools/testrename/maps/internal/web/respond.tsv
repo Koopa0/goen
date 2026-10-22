@@ -1,5 +1,0 @@
-file	old	new	unit	source	action	newfile
-internal/web/respond/reload_test.go	TestOnlyARefusedCrossSiteNavigationIsLoadedAgain	TestReloadSameSiteCrossSiteNavigation	ReloadSameSite	hand	rename	
-internal/web/respond/reload_test.go	TestTheNextLoadIsTheRequestsOwnPathAndQuery	TestReloadSameSiteTarget	ReloadSameSite	hand	rename	
-internal/web/respond/respond_test.go	TestComponentFailureOfALiveRequestIsStillA500	TestComponentLiveRequestError	Component	hand	rename	
-internal/web/respond/respond_test.go	TestComponentOfAnAbandonedRequestIsSilent	TestComponentAbandonedRequest	Component	hand	rename	

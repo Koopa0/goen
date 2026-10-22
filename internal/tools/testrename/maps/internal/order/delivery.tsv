@@ -1,5 +1,0 @@
-file	old	new	unit	source	action	newfile
-internal/order/delivery/delivery_test.go	TestAPickupOrderIsNamedByItsChain	TestDetails_Line	Details_Line	hand	rename	
-internal/order/delivery/delivery_test.go	TestDeliveryValidateRejects	TestDetails_ValidateRejects	Details_Validate	hand	rename	
-internal/order/delivery/delivery_test.go	TestTheCheckoutRefusesWhatTheSenderWillRefuse	TestEmailErrorSenderRefusals	emailError	hand	rename	
-internal/order/delivery/delivery_test.go	TestValidateRecipient	TestDetails_ValidateRecipient	Details_ValidateRecipient	hand	rename	

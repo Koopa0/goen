@@ -1,7 +1,0 @@
-file	old	new	unit	source	action	newfile
-internal/ui/stockrisk/stockrisk_test.go	TestAnEstimateUnderADayIsADay	TestRow_EstimateUnderADay	Row_Estimate	hand	rename	
-internal/ui/stockrisk/stockrisk_test.go	TestFigureRangeAndMarkAcrossTheScale	TestDaysCover_FigureRangeUrgent	DaysCover	hand	rename	
-internal/ui/stockrisk/stockrisk_test.go	TestSoldOutSinceNamesTheYearOnlyWhenItIsNotThisOne	TestRow_SoldOutSinceYear	Row_SoldOutSince	hand	rename	
-internal/ui/stockrisk/stockrisk_test.go	TestStockLeadDescribesTheDrawingAsDrawn	TestSectionLead	Section	hand	rename	
-internal/ui/stockrisk/stockrisk_test.go	TestStockRowIsNameAndFactsBesideOneFigure	TestRowsNameFactsFigure	Rows	hand	rename	
-internal/ui/stockrisk/stockrisk_test.go	TestWarningFollowsTheEstimateAndItsWordsTheRange	TestDaysCover_Warning	DaysCover_Warning	hand	rename	

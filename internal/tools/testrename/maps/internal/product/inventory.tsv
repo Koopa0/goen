@@ -1,6 +1,0 @@
-file	old	new	unit	source	action	newfile
-internal/product/inventory/cover_test.go	TestEstimateCountsOrdersNotUnits	TestSales_EstimateOrderCount	Sales_Estimate	hand	rename	
-internal/product/inventory/cover_test.go	TestEstimateDividesByTheDaysInStock	TestSales_EstimateDays	Sales_Estimate	hand	rename	
-internal/product/inventory/cover_test.go	TestEstimateRangeMatchesThePoissonTable	TestSales_EstimateRange	Sales_Estimate	hand	rename	
-internal/product/inventory/cover_test.go	TestEstimateStatesAndDays	TestSales_EstimateState	Sales_Estimate	hand	rename	
-internal/product/inventory/cover_test.go	TestRankKeepsTwoGroupsEachWithItsOwnCap	TestRankGroupCaps	Rank	hand	rename	

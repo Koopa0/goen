@@ -21,7 +21,7 @@ var layerNames = []string{
 	"pages", "testhelper", "types", "ui", "util", "utility", "utils", "view", "views",
 }
 
-// minPackageDirs is the floor for the walk: main has 105 directories holding Go
+// minPackageDirs is the floor for the walk: main has 104 directories holding Go
 // files under internal/ and cmd/, so a walk that found far fewer has not looked
 // at the repository.
 const minPackageDirs = 80

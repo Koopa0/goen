@@ -1,5 +1,0 @@
-file	old	new	unit	source	action	newfile
-internal/shipping/postcode/postcode_test.go	TestDistrictTableMatchesTheCompleteOfficialSnapshot	TestDistrictsSnapshot	Districts	hand	rename	
-internal/shipping/postcode/postcode_test.go	TestDistrictsKeepsEveryPublishedLocality	TestDistricts	Districts	hand	rename	
-internal/shipping/postcode/postcode_test.go	TestDistrictsReturnsAnIndependentCopy	TestDistrictsIndependentCopy	Districts	hand	rename	
-internal/shipping/postcode/postcode_test.go	TestFieldsSplitsOnEveryPrefixSeparator	TestFields	Fields	hand	rename	
