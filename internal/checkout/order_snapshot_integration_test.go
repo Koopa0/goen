@@ -71,7 +71,7 @@ func TestOrderPricesAreCopiedNotReferenced(t *testing.T) {
 		Email: "price@example.com", RecipientName: "王小明", Phone: "0912345678",
 		PostalCode: "110", City: "台北市", District: "信義區", Street: "松高路 1 號",
 	}
-	number, err := placeOrder(t, s, ctx, id, uuid.NullUUID{}, shipID, addr, "", "copied-price-1")
+	number, err := placeOrder(t, s, ctx, id, uuid.NullUUID{}, shipID, addr, "", "copied-price-"+uuid.NewString())
 	if err != nil {
 		t.Fatalf("place: %v", err)
 	}
