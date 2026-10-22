@@ -29,7 +29,16 @@ func TestNormaliseAndValidCode(t *testing.T) {
 		{"-AB", "-AB", false},
 		{"AB C", "AB C", false},
 		{"A_B", "A_B", false},
-		{"ＡＢＣ", "ＡＢＣ", false}, // full-width letters are not folded
+		// A Chinese keyboard left in full-width mode types the code itself.
+		{"ＰＡＩＲ－ＡＭＴ", "PAIR-AMT", true},
+		{"ｐａｉｒ－ａｍｔ", "PAIR-AMT", true},
+		{"ＰＡＩＲ-amt", "PAIR-AMT", true},
+		{"\u3000ＰＡＩＲ－ＡＭＴ\u3000", "PAIR-AMT", true},
+		{"ＰＡＩＲ\u3000ＡＭＴ", "PAIR AMT", false},
+		// Look-alikes stay what they are: the fold is not NFKC.
+		{"РАІR-АМТ", "РАІR-АМТ", false},           // Cyrillic Р, А, І, А, М, Т
+		{"PAIR\u2010AMT", "PAIR\u2010AMT", false}, // hyphen, not hyphen-minus
+		{"ⅠⅠ", "ⅠⅠ", false},                       // Roman numeral one, which NFKC reads as I
 		{"straße", "STRAßE", false},
 		{"折扣10", "折扣10", false},
 	}

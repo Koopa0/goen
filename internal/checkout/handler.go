@@ -666,7 +666,10 @@ func (h *Handler) PlaceOrder(w http.ResponseWriter, r *http.Request) {
 }
 
 // answerPriorCheckout handles the lost-response retry before examining the cart
-// a successful checkout deliberately emptied.
+// a successful checkout deliberately emptied. A double click's second submit
+// can look before the first commits and then read the emptied cart or the
+// spent credit after it does; that commit also recorded the attempt, so
+// PlaceOrder asks again before each refusal such a read can cause.
 func (h *Handler) answerPriorCheckout(
 	w http.ResponseWriter, r *http.Request, cartID uuid.UUID, attemptID checkoutAttemptID,
 ) bool {
@@ -700,6 +703,8 @@ type checkoutSubmission struct {
 	shippingErr  error
 	couponErr    string
 	couponMissed bool
+	attemptID    checkoutAttemptID
+	attemptOK    bool
 }
 
 func (h *Handler) checkoutSubmission(
@@ -739,7 +744,7 @@ func (h *Handler) checkoutSubmission(
 	// Another tab may already have emptied or invalidated this cart; Store
 	// keeps the same rule transactionally.
 	if !view.Cart.CanCheckout() {
-		http.Redirect(w, r, "/cart", http.StatusSeeOther)
+		h.answerCartRefusal(w, r, cartID, attemptID, attemptOK)
 		return nil, false
 	}
 
@@ -793,6 +798,7 @@ func (h *Handler) checkoutSubmission(
 		return &checkoutSubmission{
 			view: view, address: addr, invoice: inv,
 			couponErr: couponErr, couponMissed: missed,
+			attemptID: attemptID, attemptOK: attemptOK,
 		}, true
 	}
 	shippingID, shipErr := uuid.Parse(view.Chosen)
@@ -814,8 +820,20 @@ func (h *Handler) checkoutSubmission(
 	return &checkoutSubmission{
 		view: view, address: addr, invoice: inv,
 		shippingID: shippingID, shippingErr: shipErr, couponErr: couponErr,
-		couponMissed: missed,
+		couponMissed: missed, attemptID: attemptID, attemptOK: attemptOK,
 	}, true
+}
+
+// answerCartRefusal sends a cart that cannot check out back to the cart page,
+// unless this attempt's own order emptied it after PlaceOrder's first look.
+func (h *Handler) answerCartRefusal(
+	w http.ResponseWriter, r *http.Request, cartID uuid.UUID,
+	attemptID checkoutAttemptID, attemptOK bool,
+) {
+	if attemptOK && h.answerPriorCheckout(w, r, cartID, attemptID) {
+		return
+	}
+	http.Redirect(w, r, "/cart", http.StatusSeeOther)
 }
 
 func (h *Handler) validateCheckoutSubmission(
@@ -852,6 +870,9 @@ func (h *Handler) validateCheckoutSubmission(
 		submission.view.Repriced = i18n.T(r.Context(), i18n.KeyCheckoutChanged)
 	}
 	if len(errs) > 0 || submission.view.Repriced != "" {
+		if submission.attemptOK && h.answerPriorCheckout(w, r, cartID, submission.attemptID) {
+			return checkoutQuoteID{}, false
+		}
 		submission.view.Errors = errs
 		h.renderCheckout(w, r, http.StatusUnprocessableEntity, &submission.view)
 		return checkoutQuoteID{}, false

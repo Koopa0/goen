@@ -3,7 +3,9 @@
 package checkout_test
 
 import (
+	"context"
 	"encoding/base64"
+	"errors"
 	"log/slog"
 	"net/http"
 	"net/http/httptest"
@@ -13,11 +15,13 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/jackc/pgx/v5"
 
 	"github.com/koopa0/goen/internal/bearer"
 	"github.com/koopa0/goen/internal/checkout"
 	"github.com/koopa0/goen/internal/order/access"
 	"github.com/koopa0/goen/internal/order/delivery"
+	"github.com/koopa0/goen/internal/user"
 )
 
 func TestPlaceOrderIsIdempotent(t *testing.T) {
@@ -327,5 +331,180 @@ func TestADoubleClickedCheckoutPlacesOneOrder(t *testing.T) {
 	}
 	if orders != 1 {
 		t.Errorf("the key produced %d checkout attempts, want 1", orders)
+	}
+}
+
+// TestADoubleClickThatLosesTheRaceLandsOnTheOrder covers the clicks of one
+// double click that miss the order on their first look and then read the
+// winner's work: they asked for the attempt before the winner committed, and
+// read the emptied cart or the spent credit after (#2245). Each must be answered
+// as a later retry is, with the winner's order, and nothing may be placed, held
+// or spent twice.
+func TestADoubleClickThatLosesTheRaceLandsOnTheOrder(t *testing.T) {
+	for _, tt := range []struct {
+		name   string
+		clicks int
+		credit bool
+		// gate is where the losers first read the winner's work: queued behind
+		// the winner on it, they read it only once the winner has committed.
+		gate string
+	}{
+		{name: "emptied cart", clicks: 2, gate: "cart_items"},
+		{name: "emptied cart, eight clicks", clicks: 8, gate: "cart_items"},
+		{name: "spent credit", clicks: 2, credit: true, gate: "store_credit_entries"},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			raceTheSameAttempt(t, tt.clicks, tt.credit, tt.gate)
+		})
+	}
+}
+
+func raceTheSameAttempt(t *testing.T, clicks int, credit bool, gate string) {
+	t.Helper()
+	ctx := t.Context()
+	base := checkout.NewStore(pool)
+	vid := freshVariant(t, "double-click")
+	var owner uuid.NullUUID
+	var who *user.User
+	if credit {
+		id := creditedCustomer(t, 5000)
+		owner = uuid.NullUUID{UUID: id, Valid: true}
+		who = &user.User{ID: id.String(), Email: "double-click@example.com", Role: user.RoleCustomer}
+	}
+	token := bearer.New()
+	cartID, err := base.Carts().Create(ctx, token, owner)
+	if err != nil {
+		t.Fatalf("create cart: %v", err)
+	}
+	if addErr := base.Carts().Add(ctx, cartID, vid, 1); addErr != nil {
+		t.Fatalf("add: %v", addErr)
+	}
+	shippingID := shipVersionFor(t, "home_delivery")
+	addr := &delivery.Details{
+		Email: "double-click-" + uuid.NewString()[:8] + "@example.com", RecipientName: "王小明",
+		Phone: "0912345678", PostalCode: "110", City: "台北市", District: "信義區", Street: "松高路 1 號",
+	}
+	key := checkoutAttemptKey("double-click-" + uuid.NewString())
+	form := url.Values{
+		"email": {addr.Email}, "name": {addr.RecipientName}, "phone": {addr.Phone},
+		"postal_code": {addr.PostalCode}, "city": {addr.City}, "district": {addr.District},
+		"street":         {addr.Street},
+		"shipping":       {shippingID.String()},
+		"checkout_quote": {checkoutQuote(t, base, cartID, owner, shippingID, addr, "").String()},
+		"idempotency":    {key},
+	}
+	stockBefore := stockOf(t, vid)
+
+	type click struct {
+		app  string
+		res  *httptest.ResponseRecorder
+		done chan error
+	}
+	// Each click has a connection pool of its own, named so the test can see
+	// which lock it waits on.
+	submit := func(name string) *click {
+		c := &click{app: name + "-" + uuid.NewString(), res: httptest.NewRecorder(), done: make(chan error, 1)}
+		p := applicationPool(t, c.app)
+		h := newHandler(checkout.NewStore(p), access.NewStore(p, false), slog.New(slog.DiscardHandler), nil)
+		req := httptest.NewRequestWithContext(ctx, http.MethodPost, "/checkout", strings.NewReader(form.Encode()))
+		req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+		req.AddCookie(&http.Cookie{Name: "goen_cart", Value: token}) //nolint:gosec // G124: dev cart cookie under test
+		if who != nil {
+			req = req.WithContext(user.NewContext(req.Context(), *who))
+		}
+		go func() {
+			h.PlaceOrder(c.res, req)
+			c.done <- nil
+		}()
+		return c
+	}
+
+	// The winner stops just before it records the attempt and empties the cart:
+	// an uncommitted row under the same key makes its INSERT wait.
+	hold, err := pool.Begin(ctx)
+	if err != nil {
+		t.Fatalf("begin hold: %v", err)
+	}
+	defer func() { _ = hold.Rollback(context.WithoutCancel(ctx)) }()
+	if _, holdErr := hold.Exec(ctx,
+		`INSERT INTO checkout_attempts (idempotency_key) VALUES ($1)`, key); holdErr != nil {
+		t.Fatalf("hold the attempt: %v", holdErr)
+	}
+	winner := submit("double-click-winner")
+	waitForApplicationLock(t, winner.app, winner.done)
+
+	// The gate queues behind the winner's lock on the table and the losers queue
+	// behind the gate, so they read it only after the winner commits.
+	gateApp := "double-click-gate-" + uuid.NewString()
+	gatePool := applicationPool(t, gateApp)
+	gated := make(chan error, 1)
+	go func() {
+		tx, beginErr := gatePool.Begin(ctx)
+		if beginErr != nil {
+			gated <- beginErr
+			return
+		}
+		_, lockErr := tx.Exec(ctx, "LOCK TABLE "+pgx.Identifier{gate}.Sanitize()+" IN ACCESS EXCLUSIVE MODE")
+		gated <- errors.Join(lockErr, tx.Rollback(ctx))
+	}()
+	waitForApplicationLock(t, gateApp, gated)
+	losers := make([]*click, clicks-1)
+	for i := range losers {
+		losers[i] = submit("double-click-loser")
+		waitForApplicationLock(t, losers[i].app, losers[i].done)
+	}
+
+	if err = hold.Rollback(ctx); err != nil {
+		t.Fatalf("release the winner: %v", err)
+	}
+	<-winner.done
+	if err = <-gated; err != nil {
+		t.Fatalf("gate: %v", err)
+	}
+	for _, c := range losers {
+		<-c.done
+	}
+
+	placed := winner.res.Header().Get("Location")
+	if winner.res.Code != http.StatusSeeOther || !strings.HasSuffix(placed, "/pay") {
+		t.Fatalf("winner answered %d %q, want 303 to its order's payment; body=%s",
+			winner.res.Code, placed, winner.res.Body.String())
+	}
+	for i, c := range losers {
+		if c.res.Code != http.StatusSeeOther || c.res.Header().Get("Location") != placed {
+			t.Errorf("loser %d answered %d %q, want 303 %q, the order the winner placed",
+				i+1, c.res.Code, c.res.Header().Get("Location"), placed)
+		}
+	}
+
+	var attempts, orders, held int
+	if err := pool.QueryRow(ctx,
+		`SELECT count(*) FROM checkout_attempts WHERE idempotency_key = $1`, key).Scan(&attempts); err != nil {
+		t.Fatalf("count attempts: %v", err)
+	}
+	if err := pool.QueryRow(ctx,
+		`SELECT count(DISTINCT order_id) FROM order_lines WHERE variant_id = $1`, vid).Scan(&orders); err != nil {
+		t.Fatalf("count orders: %v", err)
+	}
+	if err := pool.QueryRow(ctx, `
+		SELECT coalesce(sum(quantity), 0) FROM inventory_reservations
+		WHERE variant_id = $1 AND state = 'held'`, vid).Scan(&held); err != nil {
+		t.Fatalf("sum held units: %v", err)
+	}
+	if attempts != 1 || orders != 1 || held != 1 || stockBefore-stockOf(t, vid) != 1 {
+		t.Errorf("%d clicks left %d attempt(s), %d order(s), %d held unit(s) and took %d from stock; want 1 of each",
+			clicks, attempts, orders, held, stockBefore-stockOf(t, vid))
+	}
+	if credit {
+		var spends int
+		if err := pool.QueryRow(ctx, `
+			SELECT count(*) FROM store_credit_entries e
+			JOIN store_credit_accounts a ON a.id = e.account_id
+			WHERE a.user_id = $1 AND e.amount_cents < 0`, owner.UUID).Scan(&spends); err != nil {
+			t.Fatalf("count credit spends: %v", err)
+		}
+		if spends != 1 {
+			t.Errorf("%d clicks spent credit %d time(s), want once", clicks, spends)
+		}
 	}
 }
