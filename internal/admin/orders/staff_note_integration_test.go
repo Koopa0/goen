@@ -42,7 +42,9 @@ func staffNoteStore(t *testing.T) *orders.Store {
 	return admintest.OrderStore(staffNotePool(t), admintest.Refunder{}, nil, nil)
 }
 
-func TestStaffNoteHTTPRecordsOperationsWithoutContent(t *testing.T) {
+// TestHandler_StaffNoteAuditNoContent: the staff note POST records its
+// operations without the note's content.
+func TestHandler_StaffNoteAuditNoContent(t *testing.T) {
 	ctx, actor := admintest.StaffContext(t, pool)
 	number, orderID, _ := admintest.PendingOrderHoldingStock(t, pool)
 	p := staffNotePool(t)
@@ -114,7 +116,9 @@ func TestStaffNoteHTTPRecordsOperationsWithoutContent(t *testing.T) {
 	}
 }
 
-func TestStaffNoteForUnknownOrderIs404WithoutAudit(t *testing.T) {
+// TestHandler_StaffNoteUnknownOrder: a staff note for an unknown order is 404
+// and leaves no audit entry.
+func TestHandler_StaffNoteUnknownOrder(t *testing.T) {
 	ctx, _ := admintest.StaffContext(t, pool)
 	h := admintest.OrderDesk(staffNoteStore(t))
 	number := "GO-999999-999999"
@@ -135,7 +139,9 @@ func TestStaffNoteForUnknownOrderIs404WithoutAudit(t *testing.T) {
 	}
 }
 
-func TestStaffNoteAuditFailureRollsBackTheNote(t *testing.T) {
+// TestStore_SetStaffNoteAuditFailure: a failed audit write rolls back the staff
+// note.
+func TestStore_SetStaffNoteAuditFailure(t *testing.T) {
 	ctx, _ := admintest.StaffContext(t, pool)
 	number, orderID, _ := admintest.PendingOrderHoldingStock(t, pool)
 	s := staffNoteStore(t)
@@ -157,7 +163,9 @@ func TestStaffNoteAuditFailureRollsBackTheNote(t *testing.T) {
 	}
 }
 
-func TestUnchangedStaffNoteDoesNotInventAnOperation(t *testing.T) {
+// TestStore_SetStaffNoteUnchanged: an unchanged staff note does not invent an
+// operation.
+func TestStore_SetStaffNoteUnchanged(t *testing.T) {
 	ctx, _ := admintest.StaffContext(t, pool)
 	number, orderID, _ := admintest.PendingOrderHoldingStock(t, pool)
 	s := staffNoteStore(t)

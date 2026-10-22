@@ -16,7 +16,8 @@ import (
 	"github.com/koopa0/goen/internal/ui/uitest"
 )
 
-func TestAdminContentDisclosuresWorkWithTheKeyboard(t *testing.T) {
+// TestDisclosuresWorkWithKeyboard: admin content disclosures work with the keyboard.
+func TestDisclosuresWorkWithKeyboard(t *testing.T) {
 	_, port := uitest.Browser(t, "CDP_PORT")
 	root, err := filepath.Abs("../../..")
 	if err != nil {

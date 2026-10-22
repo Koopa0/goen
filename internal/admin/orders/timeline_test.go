@@ -49,7 +49,9 @@ func TestTimelineEntryKeepsARowItCannotLabel(t *testing.T) {
 	}
 }
 
-func TestAnIssueNothingWillSendIsNotInProgress(t *testing.T) {
+// TestTimelineEntryIssueNotInProgress: an issue nothing will send is not in
+// progress.
+func TestTimelineEntryIssueNotInProgress(t *testing.T) {
 	t.Parallel()
 	got := timelineEntry(&db.AdminOrderTimelineRow{Source: "invoice", Kind: "issue", Status: "not_sent"})
 	if got.Status != i18n.KeyAdminTimelineInvoiceNotSent {
@@ -57,7 +59,9 @@ func TestAnIssueNothingWillSendIsNotInProgress(t *testing.T) {
 	}
 }
 
-func TestLogUnrecognizedLogsOnlyUnrecognizedEntries(t *testing.T) {
+// TestLogUnrecognizedOnlyUnrecognized: LogUnrecognized logs only unrecognized
+// entries.
+func TestLogUnrecognizedOnlyUnrecognized(t *testing.T) {
 	t.Parallel()
 	for _, tc := range []struct {
 		name     string
@@ -75,7 +79,9 @@ func TestLogUnrecognizedLogsOnlyUnrecognizedEntries(t *testing.T) {
 	}
 }
 
-func TestTimelineEntryCarriesWhenAnOperationCompleted(t *testing.T) {
+// TestTimelineEntryOperationCompleted: a timeline entry carries when an
+// operation completed.
+func TestTimelineEntryOperationCompleted(t *testing.T) {
 	t.Parallel()
 	created := time.Date(2026, time.October, 5, 10, 0, 0, 0, time.UTC)
 	completed := pgtype.Timestamptz{Time: created.Add(20 * time.Minute), Valid: true}
@@ -95,7 +101,8 @@ func TestTimelineEntryCarriesWhenAnOperationCompleted(t *testing.T) {
 	}
 }
 
-func TestTheAdminTimelineKeepsItsStatusWords(t *testing.T) {
+// TestOrderEventLabelStatusWords: the admin timeline keeps its status words.
+func TestOrderEventLabelStatusWords(t *testing.T) {
 	t.Parallel()
 	ctx := i18n.WithLocale(t.Context(), i18n.ZhHant)
 	key, ok := orderEventLabel(order.EventCancelled)

@@ -31,9 +31,10 @@ import (
 	"github.com/koopa0/goen/internal/media"
 )
 
-// Actual plain POST refusals, across the desks that share the navigation
+// TestDeskRefusalPOSTs: plain POST refusals keep their drafts and locate their
+// form. Actual plain POST refusals, across the desks that share the navigation
 // contract. The raw drafts include blanks, whitespace and unreadable numbers.
-func TestDeskRefusalPOSTsKeepDraftsAndLocateTheirForm(t *testing.T) {
+func TestDeskRefusalPOSTs(t *testing.T) {
 	ctx, _ := admintest.StaffContext(t, pool)
 	log := slog.New(slog.DiscardHandler)
 	images := media.NewHandler(media.NewStore(pool), log)

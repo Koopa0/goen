@@ -51,11 +51,13 @@ func shippedEvents(t *testing.T, orderID uuid.UUID) []shippedEvent {
 	return events
 }
 
-// A shipped event names its parcel and carries no prose: the carrier and the
-// tracking number are the parcel's, and each page writes them in its reader's
-// language. The store ships as the admin role, which is the role that must be
-// allowed to write the new column; the suite's owner pool would not notice.
-func TestAShippedEventNamesItsParcelAndCarriesNoNote(t *testing.T) {
+// TestStore_ShipEventNamesParcel: a shipped event names its parcel and carries
+// no note. A shipped event names its parcel and carries no prose: the carrier
+// and the tracking number are the parcel's, and each page writes them in its
+// reader's language. The store ships as the admin role, which is the role that
+// must be allowed to write the new column; the suite's owner pool would not
+// notice.
+func TestStore_ShipEventNamesParcel(t *testing.T) {
 	ctx, staff := admintest.StaffContext(t, pool)
 	ctx = i18n.WithLocale(ctx, i18n.En)
 	actor := uuid.NullUUID{UUID: staff, Valid: true}

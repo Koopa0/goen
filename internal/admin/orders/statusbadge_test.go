@@ -61,7 +61,9 @@ func wantBadge(t *testing.T, page, word, class string) {
 	}
 }
 
-func TestOrderListPillsFollowTheirGroupAndLeaveOutCommitted(t *testing.T) {
+// TestOrdersListPills: the queue's pills follow their group and leave out
+// committed.
+func TestOrdersListPills(t *testing.T) {
 	t.Parallel()
 	ctx := i18n.WithLocale(t.Context(), i18n.ZhHant)
 	view := View{

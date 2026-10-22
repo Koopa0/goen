@@ -6,7 +6,9 @@ import (
 	"github.com/koopa0/goen/internal/order"
 )
 
-func TestOnlyAnOrderStillGoingSomewhereCanHaveItsDeliveryCorrected(t *testing.T) {
+// TestCorrectable: only an order still going somewhere can have its delivery
+// corrected.
+func TestCorrectable(t *testing.T) {
 	t.Parallel()
 	for status, want := range map[order.FulfillmentStatus]bool{
 		order.FulfillmentPending:   true,

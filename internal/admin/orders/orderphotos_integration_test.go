@@ -24,7 +24,9 @@ import (
 	"github.com/koopa0/goen/internal/payment"
 )
 
-func TestOrderPhotosStayLiveAndUseTheSameOptionPickOnEveryPage(t *testing.T) {
+// TestHandler_OrderPhotosLive: order photos stay live and use the same option
+// pick on every page.
+func TestHandler_OrderPhotosLive(t *testing.T) {
 	ctx, _ := admintest.StaffContext(t, pool)
 	adminPool := admintest.AdminRolePool(t, pool)
 	desk := admintest.OrderStore(adminPool, admintest.Refunder{}, nil, nil)

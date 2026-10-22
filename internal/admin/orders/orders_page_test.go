@@ -15,7 +15,8 @@ import (
 	"github.com/koopa0/goen/internal/ui/frame"
 )
 
-func TestAdminOrdersEmptyCopyMatchesTheQueueContext(t *testing.T) {
+// TestOrdersEmptyCopy: the empty queue's copy matches the queue context.
+func TestOrdersEmptyCopy(t *testing.T) {
 	t.Parallel()
 	ctx := i18n.WithLocale(t.Context(), i18n.ZhHant)
 	render := func(v View) string {
@@ -56,12 +57,13 @@ func TestAdminOrdersEmptyCopyMatchesTheQueueContext(t *testing.T) {
 	})
 }
 
-// TestAPickupOrderCorrectsWithoutAStore locks the shape checkout already
-// writes: the chain is the destination, and the store behind it is filled in
-// by the carrier's picker. An order placed before one exists carries the chain
-// alone, so the correction form must let a staff member save it that way —
-// delivery.Details.Validate refuses one of the two and accepts neither.
-func TestAPickupOrderCorrectsWithoutAStore(t *testing.T) {
+// TestOrderPickupCorrection: a pickup order corrects without a store. It locks
+// the shape checkout already writes: the chain is the destination, and the
+// store behind it is filled in by the carrier's picker. An order placed before
+// one exists carries the chain alone, so the correction form must let a staff
+// member save it that way — delivery.Details.Validate refuses one of the two
+// and accepts neither.
+func TestOrderPickupCorrection(t *testing.T) {
 	t.Parallel()
 	body := renderToString(t, Order(frame.Page{Title: "GO-PICKUP"}, &OrderView{
 		Number:            "GO-PICKUP",
@@ -107,10 +109,10 @@ func tagWithID(t *testing.T, body, id string) string {
 	return body[start : at+end+1]
 }
 
-// TestTheTimelineNamesWhoActed: a staff member by name, an erased one as such
-// and never as the system, and everyone else by kind; under the list, how long
-// mail stays on it.
-func TestTheTimelineNamesWhoActed(t *testing.T) {
+// TestOrderTimelineActors: a staff member by name, an erased one as such and
+// never as the system, and everyone else by kind; under the list, how long mail
+// stays on it.
+func TestOrderTimelineActors(t *testing.T) {
 	t.Parallel()
 	entries := []TimelineEntry{
 		{Label: i18n.KeyStatusPlaced, ActorKind: ActorCustomer},
@@ -152,8 +154,10 @@ func TestTheTimelineNamesWhoActed(t *testing.T) {
 	}
 }
 
-// A positive sale paid wholly with store credit still owes an invoice before picking.
-func TestTheIssueButtonFollowsTheMoney(t *testing.T) {
+// TestOrderView_CanIssueInvoiceCreditPaid: the issue button follows the money.
+// A positive sale paid wholly with store credit still owes an invoice before
+// picking.
+func TestOrderView_CanIssueInvoiceCreditPaid(t *testing.T) {
 	t.Parallel()
 	for _, tt := range []struct {
 		name string
@@ -178,9 +182,11 @@ func TestTheIssueButtonFollowsTheMoney(t *testing.T) {
 	}
 }
 
-// An entry the build cannot label still draws, with its raw source, kind and
-// status and its time, once, and the rest of the page is there.
-func TestTheOrderPageShowsAnUnrecognizedTimelineEntry(t *testing.T) {
+// TestOrderUnrecognizedTimelineEntry: the order page shows an unrecognized
+// timeline entry. An entry the build cannot label still draws, with its raw
+// source, kind and status and its time, once, and the rest of the page is
+// there.
+func TestOrderUnrecognizedTimelineEntry(t *testing.T) {
 	t.Parallel()
 	for _, locale := range []i18n.Locale{i18n.ZhHant, i18n.En} {
 		ctx := i18n.WithLocale(t.Context(), locale)
@@ -204,10 +210,11 @@ func TestTheOrderPageShowsAnUnrecognizedTimelineEntry(t *testing.T) {
 	}
 }
 
-// A mail or invoice operation sits at its creation but is labelled with where
-// it stands now, so both moments are shown: created at one time, and now in a
-// state it reached at another.
-func TestTheTimelineShowsWhenAnOperationWasCreatedAndWhenItCompleted(t *testing.T) {
+// TestOrderTimelineOperationTimes: the timeline shows when an operation was
+// created and when it completed. A mail or invoice operation sits at its
+// creation but is labelled with where it stands now, so both moments are shown:
+// created at one time, and now in a state it reached at another.
+func TestOrderTimelineOperationTimes(t *testing.T) {
 	t.Parallel()
 	entries := []TimelineEntry{
 		{At: "2026-10-05 10:00", DoneAt: "2026-10-05 10:20", Label: i18n.KeyAdminTimelineMailPaid,
@@ -253,7 +260,9 @@ func TestTheTimelineShowsWhenAnOperationWasCreatedAndWhenItCompleted(t *testing.
 	}
 }
 
-func TestDeliveryCorrectionErrorsBelongToTheirControls(t *testing.T) {
+// TestOrderDeliveryErrorsBesideControls: delivery correction errors belong to
+// their controls.
+func TestOrderDeliveryErrorsBesideControls(t *testing.T) {
 	t.Parallel()
 	for _, locale := range []i18n.Locale{i18n.En, i18n.ZhHant} {
 		for _, tc := range []struct {
@@ -341,7 +350,9 @@ func TestDeliveryCorrectionErrorsBelongToTheirControls(t *testing.T) {
 	}
 }
 
-func TestTheTimelineLabelsRefusedInvoiceCodesInBothLanguages(t *testing.T) {
+// TestOrderTimelineRefusedCodes: the timeline labels refused invoice codes in
+// both languages.
+func TestOrderTimelineRefusedCodes(t *testing.T) {
 	t.Parallel()
 	for _, tc := range []struct {
 		name   string

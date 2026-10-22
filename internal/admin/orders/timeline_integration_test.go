@@ -21,11 +21,11 @@ import (
 	"github.com/koopa0/goen/internal/payment"
 )
 
-// TestTheOrderTimelineMergesEverySource builds one order through each source
-// the back office lists and reads them back as one list, oldest first. The
-// mail is queued with the producers' own payload types, so a renamed JSON
-// field drops it from the list.
-func TestTheOrderTimelineMergesEverySource(t *testing.T) {
+// TestStore_OrderTimelineSources: the order timeline merges every source. It
+// builds one order through each source the back office lists and reads them
+// back as one list, oldest first. The mail is queued with the producers' own
+// payload types, so a renamed JSON field drops it from the list.
+func TestStore_OrderTimelineSources(t *testing.T) {
 	ctx, staff := admintest.StaffContext(t, pool)
 	var staffAddress string
 	if err := pool.QueryRow(ctx, `SELECT email FROM users WHERE id = $1`, staff).Scan(&staffAddress); err != nil {
@@ -163,10 +163,12 @@ func TestTheOrderTimelineMergesEverySource(t *testing.T) {
 	}
 }
 
-// A mail and an invoice operation are placed at the moment they were created
-// and carry the moment they were delivered or completed, so the list does not
-// show a finished state at the time of creation.
-func TestTheOrderTimelineCarriesWhenAMailWasDeliveredAndAnOperationCompleted(t *testing.T) {
+// TestStore_OrderTimelineDelivered: the order timeline carries when a mail was
+// delivered and when an operation completed. A mail and an invoice operation
+// are placed at the moment they were created and carry the moment they were
+// delivered or completed, so the list does not show a finished state at the
+// time of creation.
+func TestStore_OrderTimelineDelivered(t *testing.T) {
 	ctx, _ := admintest.StaffContext(t, pool)
 	s := admintest.OrderStore(pool, admintest.Refunder{}, nil, nil)
 	number := admintest.PlaceUnpaidOrder(t, pool)
@@ -222,9 +224,11 @@ func TestTheOrderTimelineCarriesWhenAMailWasDeliveredAndAnOperationCompleted(t *
 	t.Errorf("Order(%s).Timeline has no payment mail among %d entries", number, len(view.Timeline))
 }
 
-// With no 加值中心 the issue a paid sale owes is claimed and waits, as the
-// store's ClaimDue intends; the page must not call that work in progress.
-func TestAnIssueNoProviderWillSendIsNotShownAsInProgress(t *testing.T) {
+// TestStore_OrderIssueNotInProgress: an issue no provider will send is not
+// shown as in progress. With no 加值中心 the issue a paid sale owes is claimed and
+// waits, as the store's ClaimDue intends; the page must not call that work in
+// progress.
+func TestStore_OrderIssueNotInProgress(t *testing.T) {
 	ctx, _ := admintest.StaffContext(t, pool)
 	number, orderID, _ := admintest.PaidUnshippedOrder(t, pool, 500000, 0, true)
 	if _, err := pool.Exec(ctx, `
@@ -261,7 +265,9 @@ func TestAnIssueNoProviderWillSendIsNotShownAsInProgress(t *testing.T) {
 	}
 }
 
-func TestTheOrderTimelineShowsOnlyRefusedInvoiceProviderCodes(t *testing.T) {
+// TestStore_OrderTimelineRefusedCodes: the order timeline shows only the
+// invoice provider's refusal codes.
+func TestStore_OrderTimelineRefusedCodes(t *testing.T) {
 	ctx, staff := admintest.StaffContext(t, pool)
 	s := admintest.OrderStore(pool, admintest.Refunder{}, nil, nil)
 	for _, tc := range []struct {

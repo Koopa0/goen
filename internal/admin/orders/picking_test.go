@@ -11,7 +11,9 @@ import (
 	"github.com/koopa0/goen/internal/ui/frame"
 )
 
-func TestPickingRendersSeparateReadOnlySlipsWithOutstandingQuantities(t *testing.T) {
+// TestPickingSlipsReadOnly: the picking page renders separate read-only slips
+// with their outstanding quantities.
+func TestPickingSlipsReadOnly(t *testing.T) {
 	t.Parallel()
 	for _, locale := range []i18n.Locale{i18n.ZhHant, i18n.En} {
 		ctx := i18n.WithLocale(t.Context(), locale)
@@ -63,7 +65,8 @@ func TestPickingRendersSeparateReadOnlySlipsWithOutstandingQuantities(t *testing
 	}
 }
 
-func TestPickingLinkAppearsOnlyOnThePickingTab(t *testing.T) {
+// TestOrdersPickingLink: the picking link appears only on the picking tab.
+func TestOrdersPickingLink(t *testing.T) {
 	t.Parallel()
 	for _, v := range []View{{Status: QueuePicking}, {Status: QueueReady}, {Status: QueueAll}, {Status: QueuePicking, Term: "GO-ONE", Searched: true}} {
 		out := renderToString(t, Orders(frame.Page{Title: "Orders"}, v))

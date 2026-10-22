@@ -16,7 +16,9 @@ import (
 	"github.com/koopa0/goen/internal/i18n"
 )
 
-func TestDispatchWithARecordedTrackingNumberIsRefusedOnTheField(t *testing.T) {
+// TestHandler_ShipTrackingTaken: a dispatch with an already recorded tracking
+// number is refused on the tracking field.
+func TestHandler_ShipTrackingTaken(t *testing.T) {
 	ctx, staff := admintest.StaffContext(t, pool)
 	s := admintest.OrderStore(pool, admintest.Refunder{}, nil, nil)
 	h := admintest.OrderDesk(s)

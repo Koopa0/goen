@@ -9,7 +9,8 @@ import (
 	"github.com/koopa0/goen/internal/i18n"
 )
 
-func TestBackgroundNavigationDistinguishesKnownCountsFromFailedReads(t *testing.T) {
+// TestWithHealthTaskCount: background navigation distinguishes known counts from failed reads.
+func TestWithHealthTaskCount(t *testing.T) {
 	t.Parallel()
 	for _, locale := range []i18n.Locale{i18n.ZhHant, i18n.En} {
 		for _, tt := range []struct {
