@@ -47,6 +47,7 @@ var migratedTestPackages = []string{
 	"internal/admin/questions",
 	"internal/admin/refunds",
 	"internal/admin/reports",
+	"internal/admin/returns",
 	"internal/admin/reviews",
 	"internal/admin/shipping",
 	"internal/admin/slides",
@@ -75,6 +76,14 @@ var migratedTestPackages = []string{
 	"internal/product/labelling",
 	"internal/shipping/postcode",
 	"internal/shoptime",
+	"internal/ui/fieldrule",
+	"internal/ui/icons",
+	"internal/ui/orderstatus",
+	"internal/ui/stockrisk",
+	"internal/ui/tile",
+	"internal/ui/tone",
+	"internal/ui/uitest",
+	"internal/ui/widget",
 	"internal/user",
 	"internal/web/clientip",
 	"internal/web/compress",
@@ -114,6 +123,12 @@ var testNameExceptions = map[string]map[string]string{
 		"TestRecordRefundSucceededReplay":          "the unit is the SQL function record_refund_succeeded, called straight through the pool, not a Go identifier",
 		"TestReverseReturnPointsErasureLock":       "the unit is the SQL function reverse_return_points, raced against an erasure through the pool, not a Go identifier",
 	},
+	"internal/admin/returns": {
+		"TestCompensateReturnTwice":       "the unit is the SQL function compensate_return_with_credit, called a second time straight through the pool after one Store.Decide; no Go identifier of this package is what the second call exercises",
+		"TestEvaluateApprovalEntitlement": "the unit is returns.Evaluate of internal/order/returns, which this package does not declare; the test sits in this package's decision_test.go and moving it to the policy package is a reorganisation this pass does not do",
+		"TestEvaluateStatutoryRejection":  "the unit is returns.Evaluate of internal/order/returns, which this package does not declare; the test sits in this package's decision_test.go and moving it to the policy package is a reorganisation this pass does not do",
+		"TestReportAtRefundFigure":        "the unit is Store.ReportAt of package reports and the order_refunds view it reads, which this package does not declare; Store.Decide only makes the refund the figure must count",
+	},
 	"internal/admin/reports": {
 		"TestStockDaysCoverRefundedBeforeShipment": "the unit is Store.DaysCover of package stock, which this package does not declare (it declares only the Cover interface it calls through); moving the test there is a reorganisation this pass does not do",
 	},
@@ -149,6 +164,9 @@ var testNameExceptions = map[string]map[string]string{
 	"internal/shoptime": {
 		"TestAmbientFormat":   "its unit is ambientFormat, a helper declared in the guard's test file, not part of the package",
 		"TestNoAmbientFormat": "a repository rule: no .Format( call outside this package renders a time in the process's zone; it reads every source file, and no function of the package is its unit",
+	},
+	"internal/ui/icons": {
+		"TestLineIconsAreSizedByClass": "the unit is the family of line icons: it renders Close, CheckCircle and Smartphone as a sample, so naming it after one of them would claim that icon alone",
 	},
 }
 

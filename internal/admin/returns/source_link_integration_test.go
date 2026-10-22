@@ -18,11 +18,11 @@ import (
 	"github.com/koopa0/goen/internal/i18n"
 )
 
-// TestHandlerQueueFromCreditPosting follows the link a credit posting carries to
-// its return: the queue narrowed to that request shows it and no other, and the
-// payout posting it produced leads to that request, with the order link on the
-// spend that funded it, from a page the admin role reads.
-func TestHandlerQueueFromCreditPosting(t *testing.T) {
+// TestHandler_QueueCreditPosting: the return queue follows the link a credit
+// posting carries to its return. The queue narrowed to that request shows it
+// and no other, and the payout posting it produced leads to that request, with
+// the order link on the spend that funded it, from a page the admin role reads.
+func TestHandler_QueueCreditPosting(t *testing.T) {
 	ctx, _ := admintest.StaffContext(t, pool)
 	first, number, accountID := admintest.CreditFundedReturn(t, pool, 2, 200000)
 	other := returnedOrderAtOn(t, pool, time.Now().Add(-24*time.Hour), time.Now())

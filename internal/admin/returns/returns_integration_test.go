@@ -140,7 +140,8 @@ func deliveredOrderAtOn(t *testing.T, p *pgxpool.Pool, delivered time.Time) (num
 	return number, lineID
 }
 
-func TestAReturnTakesBackItsPointsAndSpend(t *testing.T) {
+// TestStore_DecideLoyaltyReversal: a return takes back its points and spend.
+func TestStore_DecideLoyaltyReversal(t *testing.T) {
 	ctx, _ := admintest.StaffContext(t, pool)
 	s := storeOver(pool, admintest.Refunder{})
 
@@ -244,11 +245,12 @@ func addTierSpend(t *testing.T, userID uuid.UUID, cents int64) {
 	}
 }
 
-// TestAClawbackOnlyFailureRemainsRetryable models the narrow commit boundary
-// after the money and customer timeline have landed but before the separate
-// points posting. A queue derived only from money calls this return complete,
-// hides the retry control, and strands the missing clawback forever.
-func TestAClawbackOnlyFailureRemainsRetryable(t *testing.T) {
+// TestStore_DecideClawbackRetry: a failure of the points clawback alone remains
+// retryable. It models the narrow commit boundary after the money and customer
+// timeline have landed but before the separate points posting. A queue derived
+// only from money calls this return complete, hides the retry control, and
+// strands the missing clawback forever.
+func TestStore_DecideClawbackRetry(t *testing.T) {
 	ctx, staff := admintest.StaffContext(t, pool)
 	actor := uuid.NullUUID{UUID: staff, Valid: true}
 	requestID, orderID, _ := admintest.LoyaltyReturn(t, pool, []int64{1200000}, 0)
@@ -330,12 +332,13 @@ retry:
 	}
 }
 
-// TestASettledReturnCanClawPointsBackAfterOwnerErasure pins the recovery order:
-// card money may settle, the user may then lawfully erase their account, and
-// the separately durable loyalty clawback must still be visible and runnable.
-// The award lot and loyalty account are retained accounting records even though
+// TestStore_DecideClawbackAfterErasure: a settled return can claw its points
+// back after the owner's erasure. It pins the recovery order: card money may
+// settle, the user may then lawfully erase their account, and the separately
+// durable loyalty clawback must still be visible and runnable. The award lot
+// and loyalty account are retained accounting records even though
 // orders.user_id is detached.
-func TestASettledReturnCanClawPointsBackAfterOwnerErasure(t *testing.T) {
+func TestStore_DecideClawbackAfterErasure(t *testing.T) {
 	ctx, staff := admintest.StaffContext(t, pool)
 	actor := uuid.NullUUID{UUID: staff, Valid: true}
 	requestID, orderID, userID := admintest.LoyaltyReturn(t, pool, []int64{1200000}, 0)
@@ -601,7 +604,8 @@ func twoLineOrderForSequentialReturns(t *testing.T) (
 	return orderID, orderNumber, lineIDs
 }
 
-func TestARefundIsWhatTheCustomerPaid(t *testing.T) {
+// TestStore_DecideRefundAmount: a refund is what the customer paid.
+func TestStore_DecideRefundAmount(t *testing.T) {
 	tests := []struct {
 		name  string
 		lines int
@@ -641,7 +645,8 @@ func TestARefundIsWhatTheCustomerPaid(t *testing.T) {
 	}
 }
 
-func TestTheDeliveryFeeIsPaidBackOnce(t *testing.T) {
+// TestStore_DecideDeliveryFeeOnce: the delivery fee is paid back once.
+func TestStore_DecideDeliveryFeeOnce(t *testing.T) {
 	ctx, _ := admintest.StaffContext(t, pool)
 	orderID, number, lines := twoLineOrderForSequentialReturns(t)
 	customerReturns := buyer.NewStore(pool)
@@ -696,7 +701,9 @@ func TestTheDeliveryFeeIsPaidBackOnce(t *testing.T) {
 	}
 }
 
-func TestApprovingAReturnRefundsWhatTheORDERSays(t *testing.T) {
+// TestStore_DecideRefundsOrderAmount: approving a return refunds what the order
+// says.
+func TestStore_DecideRefundsOrderAmount(t *testing.T) {
 	ctx, _ := admintest.StaffContext(t, pool)
 	s := storeOver(pool, admintest.Refunder{})
 	requestID, _ := admintest.ReturnedOrder(t, pool, 1)
@@ -733,7 +740,8 @@ func TestApprovingAReturnRefundsWhatTheORDERSays(t *testing.T) {
 	}
 }
 
-func TestAFailedRefundLeavesARowToReconcile(t *testing.T) {
+// TestStore_DecideFailedRefundRow: a failed refund leaves a row to reconcile.
+func TestStore_DecideFailedRefundRow(t *testing.T) {
 	tests := []struct {
 		name       string
 		refunder   admintest.Refunder
@@ -810,7 +818,8 @@ func TestAFailedRefundLeavesARowToReconcile(t *testing.T) {
 	}
 }
 
-func TestAStalledRefundCanBeRetriedToCompletion(t *testing.T) {
+// TestStore_DecideStalledRetry: a stalled refund can be retried to completion.
+func TestStore_DecideStalledRetry(t *testing.T) {
 	ctx, _ := admintest.StaffContext(t, pool)
 	requestID, _ := admintest.ReturnedOrder(t, pool, 2)
 
@@ -857,11 +866,12 @@ func TestAStalledRefundCanBeRetriedToCompletion(t *testing.T) {
 	}
 }
 
-// TestReturnCompletionWaitsForExactPayoutAndClawback keeps an inspected parcel
-// visible as approved work while its provider claim is ambiguous. Completion is
-// admitted only after the same durable claim succeeds and the corresponding
-// loyalty reversal is present; otherwise completed would hide every retry door.
-func TestReturnCompletionWaitsForExactPayoutAndClawback(t *testing.T) {
+// TestStore_CompleteWaitsForPayout: completing a return waits for its exact
+// payout and its clawback. It keeps an inspected parcel visible as approved
+// work while its provider claim is ambiguous. Completion is admitted only after
+// the same durable claim succeeds and the corresponding loyalty reversal is
+// present; otherwise completed would hide every retry door.
+func TestStore_CompleteWaitsForPayout(t *testing.T) {
 	ctx, staff := admintest.StaffContext(t, pool)
 	actor := uuid.NullUUID{UUID: staff, Valid: true}
 	requestID, _, _ := admintest.LoyaltyReturn(t, pool, []int64{1200000}, 0)
@@ -914,7 +924,9 @@ func TestReturnCompletionWaitsForExactPayoutAndClawback(t *testing.T) {
 	}
 }
 
-func TestAStalledRefundOffersItsRetryInTheQueue(t *testing.T) {
+// TestStore_QueueStalledRefundRetry: a stalled refund offers its retry in the
+// queue.
+func TestStore_QueueStalledRefundRetry(t *testing.T) {
 	ctx := t.Context()
 	isolated := dbtest.Pool(t)
 	seed, err := os.ReadFile("../../../seed/dev_catalog.sql")
@@ -1014,10 +1026,11 @@ func TestAStalledRefundOffersItsRetryInTheQueue(t *testing.T) {
 	})
 }
 
-// TestAnOldRecoverySurvivesTheBoundedReturnQueue proves ordering happens before
-// LIMIT. The returns page is the only retry door; if fifty newer intake rows can
-// hide an approved-but-unpaid return, that customer can remain unpaid forever.
-func TestAnOldRecoverySurvivesTheBoundedReturnQueue(t *testing.T) {
+// TestStore_QueueOldRecoveryBounded: an old recovery survives the bounded
+// return queue. It proves ordering happens before LIMIT. The returns page is
+// the only retry door; if fifty newer intake rows can hide an
+// approved-but-unpaid return, that customer can remain unpaid forever.
+func TestStore_QueueOldRecoveryBounded(t *testing.T) {
 	ctx, _ := admintest.StaffContext(t, pool)
 	requestID, _ := admintest.ReturnedOrder(t, pool, 1)
 	s := storeOver(pool, admintest.Refunder{State: refund.Failed})
@@ -1114,7 +1127,9 @@ func TestAnOldRecoverySurvivesTheBoundedReturnQueue(t *testing.T) {
 		requestID, len(crowdedOrders))
 }
 
-func TestTerminalRefundHTTPUsesThePayoutRecoveryNotice(t *testing.T) {
+// TestHandler_DecideTerminalRefund: a terminal refund over HTTP uses the payout
+// recovery notice.
+func TestHandler_DecideTerminalRefund(t *testing.T) {
 	ctx, _ := admintest.StaffContext(t, pool)
 	requestID, _ := admintest.ReturnedOrder(t, pool, 1)
 	h := handlerOver(storeOver(pool, admintest.Refunder{State: refund.Cancelled}))
@@ -1137,7 +1152,9 @@ func TestTerminalRefundHTTPUsesThePayoutRecoveryNotice(t *testing.T) {
 	}
 }
 
-func TestReturnResolutionOverTheDurableBoundIsRefusedBeforeDecision(t *testing.T) {
+// TestStore_DecideResolutionBound: a return resolution over the durable bound
+// is refused before the decision.
+func TestStore_DecideResolutionBound(t *testing.T) {
 	ctx, _ := admintest.StaffContext(t, pool)
 	requestID, _ := admintest.ReturnedOrder(t, pool, 1)
 	s := storeOver(pool, admintest.Refunder{})
@@ -1171,7 +1188,9 @@ func TestReturnResolutionOverTheDurableBoundIsRefusedBeforeDecision(t *testing.T
 	}
 }
 
-func TestAPendingProviderRefundIsNotRecordedAsSucceeded(t *testing.T) {
+// TestStore_DecidePendingRefund: a pending provider refund is not recorded as
+// succeeded.
+func TestStore_DecidePendingRefund(t *testing.T) {
 	tests := []struct {
 		name  string
 		state refund.Status
@@ -1236,7 +1255,8 @@ func TestAPendingProviderRefundIsNotRecordedAsSucceeded(t *testing.T) {
 	}
 }
 
-func TestRejectingAReturnMovesNoMoney(t *testing.T) {
+// TestStore_DecideRejectNoMoney: rejecting a return moves no money.
+func TestStore_DecideRejectNoMoney(t *testing.T) {
 	ctx, _ := admintest.StaffContext(t, pool)
 	s := storeOver(pool, admintest.Refunder{})
 	requestID := admintest.ReturnedOrderAtWithReason(t, pool,
@@ -1274,7 +1294,8 @@ func TestRejectingAReturnMovesNoMoney(t *testing.T) {
 	}
 }
 
-func TestAReturnIsDecidedOnce(t *testing.T) {
+// TestStore_DecideOnce: a return is decided once.
+func TestStore_DecideOnce(t *testing.T) {
 	ctx, _ := admintest.StaffContext(t, pool)
 	s := storeOver(pool, admintest.Refunder{})
 	requestID, _ := admintest.ReturnedOrder(t, pool, 1)
@@ -1296,7 +1317,9 @@ func TestAReturnIsDecidedOnce(t *testing.T) {
 	}
 }
 
-func TestTheLoserOfTwoSimultaneousDecisionsWritesNoAuditRow(t *testing.T) {
+// TestStore_DecideLoserNoAudit: the loser of two simultaneous decisions writes
+// no audit row.
+func TestStore_DecideLoserNoAudit(t *testing.T) {
 	ctx, _ := admintest.StaffContext(t, pool)
 	s := storeOver(pool, admintest.Refunder{})
 	requestID, _ := admintest.ReturnedOrder(t, pool, 1)
@@ -1372,7 +1395,8 @@ func auditRowsFor(t *testing.T, requestID uuid.UUID) int {
 	return n
 }
 
-func TestARefundCannotExceedWhatWasCaptured(t *testing.T) {
+// TestStore_DecideRefundCap: a refund cannot exceed what was captured.
+func TestStore_DecideRefundCap(t *testing.T) {
 	ctx, _ := admintest.StaffContext(t, pool)
 	s := storeOver(pool, admintest.Refunder{})
 	requestID, orderNumber := admintest.ReturnedOrder(t, pool, 2)
@@ -1415,9 +1439,10 @@ func TestARefundCannotExceedWhatWasCaptured(t *testing.T) {
 	}
 }
 
-// TestAnOverClaimIsRefusedInWordsRatherThanByAConstraint goes through a goodwill refund:
-// a second return meets return_within_shipment first and never reaches this guard.
-func TestAnOverClaimIsRefusedInWordsRatherThanByAConstraint(t *testing.T) {
+// TestStore_DecideOverClaimWords: an over-claim is refused in words rather than
+// by a constraint. It goes through a goodwill refund: a second return meets
+// return_within_shipment first and never reaches this guard.
+func TestStore_DecideOverClaimWords(t *testing.T) {
 	ctx, _ := admintest.StaffContext(t, pool)
 	s := storeOver(pool, admintest.Refunder{})
 	requestID, orderNumber := admintest.ReturnedOrder(t, pool, 2)
@@ -1464,7 +1489,8 @@ func TestAnOverClaimIsRefusedInWordsRatherThanByAConstraint(t *testing.T) {
 	}
 }
 
-func TestTheReturnQueueShowsWhatIsComingBack(t *testing.T) {
+// TestStore_QueueComingBack: the return queue shows what is coming back.
+func TestStore_QueueComingBack(t *testing.T) {
 	ctx, _ := admintest.StaffContext(t, pool)
 	s := storeOver(pool, admintest.Refunder{})
 	requestID, _ := admintest.ReturnedOrder(t, pool, 2)
@@ -1492,7 +1518,8 @@ func TestTheReturnQueueShowsWhatIsComingBack(t *testing.T) {
 	}
 }
 
-func TestTheReturnQueueNamesTheRefundChannels(t *testing.T) {
+// TestStore_QueuePayoutChannels: the return queue names the refund channels.
+func TestStore_QueuePayoutChannels(t *testing.T) {
 	ctx, _ := admintest.StaffContext(t, pool)
 	s := storeOver(pool, admintest.Refunder{})
 
@@ -1581,7 +1608,9 @@ func TestTheReturnQueueNamesTheRefundChannels(t *testing.T) {
 	}
 }
 
-func TestTheReturnQueueUsesAConstantQueryCountForAnyNumberOfApprovedRows(t *testing.T) {
+// TestStore_QueueConstantQueries: the return queue uses a constant number of
+// queries for any number of approved rows.
+func TestStore_QueueConstantQueries(t *testing.T) {
 	ctx := t.Context()
 	isolated := dbtest.Pool(t)
 	seed, err := os.ReadFile("../../../seed/dev_catalog.sql")
@@ -1654,7 +1683,9 @@ func TestTheReturnQueueUsesAConstantQueryCountForAnyNumberOfApprovedRows(t *test
 	t.Logf("Returns() query count = %d (queue, lines, payout facts, assessments)", got)
 }
 
-func TestTheRescissionWindowIsCountedOnTheShopsCalendar(t *testing.T) {
+// TestStore_QueueRescissionWindow: the rescission window is counted on the
+// shop's calendar.
+func TestStore_QueueRescissionWindow(t *testing.T) {
 	isolated := admintest.Pool(t)
 	ctx, _ := admintest.StaffContext(t, isolated)
 	s := storeOver(isolated, admintest.Refunder{})
@@ -1743,7 +1774,8 @@ func TestTheRescissionWindowIsCountedOnTheShopsCalendar(t *testing.T) {
 	}
 }
 
-func TestAReturnPaysBackBothSources(t *testing.T) {
+// TestStore_DecideBothSources: a return pays back both sources.
+func TestStore_DecideBothSources(t *testing.T) {
 	ctx, _ := admintest.StaffContext(t, pool)
 	s := storeOver(pool, admintest.Refunder{})
 	requestID, orderNumber, accountID := admintest.CreditFundedReturn(t, pool, 2, 60000)
@@ -1781,7 +1813,8 @@ func TestAReturnPaysBackBothSources(t *testing.T) {
 	}
 }
 
-func TestAPartialReturnPaysTheCardFirst(t *testing.T) {
+// TestStore_DecidePartialCardFirst: a partial return pays the card first.
+func TestStore_DecidePartialCardFirst(t *testing.T) {
 	ctx, _ := admintest.StaffContext(t, pool)
 	s := storeOver(pool, admintest.Refunder{})
 	requestID, orderNumber, accountID := admintest.CreditFundedReturn(t, pool, 1, 60000)
@@ -1808,7 +1841,8 @@ func TestAPartialReturnPaysTheCardFirst(t *testing.T) {
 	}
 }
 
-func TestAWhollyCreditFundedReturnNeedsNoProvider(t *testing.T) {
+// TestStore_DecideCreditOnly: a wholly credit-funded return needs no provider.
+func TestStore_DecideCreditOnly(t *testing.T) {
 	ctx, _ := admintest.StaffContext(t, pool)
 	s := storeOver(pool, admintest.Refunder{})
 	requestID, orderNumber, accountID := admintest.CreditFundedReturn(t, pool, 2, 200000)
@@ -1833,7 +1867,9 @@ func TestAWhollyCreditFundedReturnNeedsNoProvider(t *testing.T) {
 	}
 }
 
-func TestACreditOnlyRefundIsOnTheCustomersTimeline(t *testing.T) {
+// TestStore_DecideCreditOnlyTimeline: a credit-only refund is on the customer's
+// timeline.
+func TestStore_DecideCreditOnlyTimeline(t *testing.T) {
 	ctx, _ := admintest.StaffContext(t, pool)
 	s := storeOver(pool, admintest.Refunder{})
 	requestID, _, _ := admintest.CreditFundedReturn(t, pool, 2, 200000)
@@ -1867,11 +1903,12 @@ func TestACreditOnlyRefundIsOnTheCustomersTimeline(t *testing.T) {
 	}
 }
 
-// TestAMissingRefundTimelineEventIsRecoveredAfterMoneyCommits injects the
-// boundary where the credit ledger commits but the separately appended customer
-// timeline fails. The approved return must keep offering useful work, recreate
-// exactly one event without paying twice, and only then become completable.
-func TestAMissingRefundTimelineEventIsRecoveredAfterMoneyCommits(t *testing.T) {
+// TestStore_DecideMissingTimelineEvent: a missing refund timeline event is
+// recovered after the money commits. It injects the boundary where the credit
+// ledger commits but the separately appended customer timeline fails. The
+// approved return must keep offering useful work, recreate exactly one event
+// without paying twice, and only then become completable.
+func TestStore_DecideMissingTimelineEvent(t *testing.T) {
 	ctx, staff := admintest.StaffContext(t, pool)
 	actor := uuid.NullUUID{UUID: staff, Valid: true}
 	requestID, _, accountID := admintest.CreditFundedReturn(t, pool, 2, 200000)
@@ -1966,7 +2003,9 @@ func TestAMissingRefundTimelineEventIsRecoveredAfterMoneyCommits(t *testing.T) {
 	}
 }
 
-func TestASplitReturnStillPostsCreditWhenTheCardAttemptTerminates(t *testing.T) {
+// TestStore_DecideSplitCardTerminal: a split return still posts its credit when
+// the card attempt terminates.
+func TestStore_DecideSplitCardTerminal(t *testing.T) {
 	tests := []struct {
 		name     string
 		refunder admintest.Refunder
@@ -2026,7 +2065,9 @@ func TestASplitReturnStillPostsCreditWhenTheCardAttemptTerminates(t *testing.T) 
 	}
 }
 
-func TestASplitRefundWhoseCardIsPendingStillRecordsTheCreditThatLanded(t *testing.T) {
+// TestStore_DecideSplitCardPending: a split refund whose card is pending still
+// records the credit that landed.
+func TestStore_DecideSplitCardPending(t *testing.T) {
 	ctx, _ := admintest.StaffContext(t, pool)
 	s := storeOver(pool, admintest.Refunder{State: refund.Pending})
 	requestID, _, _ := admintest.CreditFundedReturn(t, pool, 2, 60000)
@@ -2080,7 +2121,8 @@ func TestASplitRefundWhoseCardIsPendingStillRecordsTheCreditThatLanded(t *testin
 	}
 }
 
-func TestTheRefundFigureCountsCreditToo(t *testing.T) {
+// TestReportAtRefundFigure: the refund figure counts credit too.
+func TestReportAtRefundFigure(t *testing.T) {
 	ctx, _ := admintest.StaffContext(t, pool)
 	s := storeOver(pool, admintest.Refunder{})
 	figures := reports.NewStore(pool, stock.NewStore(pool))
@@ -2113,7 +2155,9 @@ func TestTheRefundFigureCountsCreditToo(t *testing.T) {
 	}
 }
 
-func TestCompensatingAReturnTwiceGivesCreditOnce(t *testing.T) {
+// TestCompensateReturnTwice: compensating a return twice gives its
+// credit once.
+func TestCompensateReturnTwice(t *testing.T) {
 	ctx, actor := admintest.StaffContext(t, pool)
 	s := storeOver(pool, admintest.Refunder{})
 	requestID, _, accountID := admintest.CreditFundedReturn(t, pool, 2, 200000)
@@ -2262,7 +2306,8 @@ func returnLineID(t *testing.T, requestID uuid.UUID) uuid.UUID {
 	return id
 }
 
-func TestAnInspectedReturnPutsTheSellableUnitsBack(t *testing.T) {
+// TestStore_InspectRestocks: an inspected return puts the sellable units back.
+func TestStore_InspectRestocks(t *testing.T) {
 	ctx, staff := admintest.StaffContext(t, pool)
 	s := storeOver(admintest.AdminRolePool(t, pool), admintest.Refunder{})
 	actor := uuid.NullUUID{UUID: staff, Valid: true}
@@ -2307,7 +2352,9 @@ func TestAnInspectedReturnPutsTheSellableUnitsBack(t *testing.T) {
 	}
 }
 
-func TestAReturnCannotCloseWithAnUninspectedLine(t *testing.T) {
+// TestStore_CompleteUninspected: a return cannot close with an uninspected
+// line.
+func TestStore_CompleteUninspected(t *testing.T) {
 	ctx, staff := admintest.StaffContext(t, pool)
 	s := storeOver(pool, admintest.Refunder{})
 	actor := uuid.NullUUID{UUID: staff, Valid: true}
@@ -2351,7 +2398,8 @@ func TestAReturnCannotCloseWithAnUninspectedLine(t *testing.T) {
 	}
 }
 
-func TestInspectingIsRefusedBeforeApproval(t *testing.T) {
+// TestStore_InspectBeforeApproval: inspecting is refused before approval.
+func TestStore_InspectBeforeApproval(t *testing.T) {
 	ctx, staff := admintest.StaffContext(t, pool)
 	s := storeOver(pool, admintest.Refunder{})
 	actor := uuid.NullUUID{UUID: staff, Valid: true}
@@ -2370,7 +2418,8 @@ func TestInspectingIsRefusedBeforeApproval(t *testing.T) {
 	}
 }
 
-func TestRestockingMoreThanArrivedIsRefused(t *testing.T) {
+// TestStore_InspectRestockOverArrived: restocking more than arrived is refused.
+func TestStore_InspectRestockOverArrived(t *testing.T) {
 	ctx, staff := admintest.StaffContext(t, pool)
 	s := storeOver(pool, admintest.Refunder{})
 	actor := uuid.NullUUID{UUID: staff, Valid: true}
@@ -2393,7 +2442,9 @@ func TestRestockingMoreThanArrivedIsRefused(t *testing.T) {
 	}
 }
 
-func TestALineIsInspectedOnceAndACorrectionIsAnAdjustment(t *testing.T) {
+// TestStore_InspectOnce: a line is inspected once, and a correction is an
+// adjustment.
+func TestStore_InspectOnce(t *testing.T) {
 	ctx, staff := admintest.StaffContext(t, pool)
 	s := storeOver(pool, admintest.Refunder{})
 	actor := uuid.NullUUID{UUID: staff, Valid: true}
@@ -2443,11 +2494,12 @@ func TestALineIsInspectedOnceAndACorrectionIsAnAdjustment(t *testing.T) {
 	}
 }
 
-// TestTheLoserOfTwoSimultaneousDecisionsPostsNoCredit is the same rule with no
-// provider anywhere in it: a wholly credit-funded order has no payment row, so
-// the losing decision's payout would be a single INSERT into the ledger, raising
-// the customer's balance on a return the shop had just refused.
-func TestTheLoserOfTwoSimultaneousDecisionsPostsNoCredit(t *testing.T) {
+// TestStore_DecideLoserNoCredit: the loser of two simultaneous decisions posts
+// no credit. It is the same rule with no provider anywhere in it: a wholly
+// credit-funded order has no payment row, so the losing decision's payout would
+// be a single INSERT into the ledger, raising the customer's balance on a
+// return the shop had just refused.
+func TestStore_DecideLoserNoCredit(t *testing.T) {
 	ctx, _ := admintest.StaffContext(t, pool)
 	s := storeOver(pool, admintest.Refunder{})
 	// WHOLLY credit-funded: no payment row exists, so the payout on this path is
@@ -2486,7 +2538,8 @@ func TestTheLoserOfTwoSimultaneousDecisionsPostsNoCredit(t *testing.T) {
 	}
 }
 
-// TestASplitReturnResumesWhenTheCREDITHalfLanded is the mirror of its neighbour.
+// TestStore_DecideSplitResumeCard: a split return resumes when the credit half
+// landed and the card half is pending. It is the mirror of its neighbour.
 //
 // refundCard answers (ref, RefundPending, nil) for a refund Stripe has accepted
 // and not settled — no error — so payApprovedReturn goes on to post the credit.
@@ -2494,7 +2547,7 @@ func TestTheLoserOfTwoSimultaneousDecisionsPostsNoCredit(t *testing.T) {
 // pressing 同意 again is the only door. splitRefund must therefore exclude this
 // return's own compensation from the credit side, or the retry reads the credit
 // it just posted as credit already returned and refuses the whole payout.
-func TestASplitReturnResumesWhenTheCREDITHalfLanded(t *testing.T) {
+func TestStore_DecideSplitResumeCard(t *testing.T) {
 	ctx, _ := admintest.StaffContext(t, pool)
 	requestID, orderNumber, accountID := admintest.CreditFundedReturn(t, pool, 2, 60000)
 
@@ -2560,11 +2613,12 @@ func TestASplitReturnResumesWhenTheCREDITHalfLanded(t *testing.T) {
 	}
 }
 
-// TestATerminalCardRetrySurvivesErasureAfterCreditLanded proves the two source
-// obligations are independent. Once the exact frozen credit half is posted,
-// erasure may detach the account; a later known-failed card attempt must still
-// get a successor without trying to post credit to an erased customer again.
-func TestATerminalCardRetrySurvivesErasureAfterCreditLanded(t *testing.T) {
+// TestStore_DecideTerminalCardErasure: a terminal card retry survives erasure
+// after the credit landed. It proves the two source obligations are
+// independent. Once the exact frozen credit half is posted, erasure may detach
+// the account; a later known-failed card attempt must still get a successor
+// without trying to post credit to an erased customer again.
+func TestStore_DecideTerminalCardErasure(t *testing.T) {
 	ctx, staffID := admintest.StaffContext(t, pool)
 	requestID, orderNumber, accountID := admintest.CreditFundedReturn(t, pool, 2, 60000)
 	if _, err := pool.Exec(ctx, `
@@ -2624,11 +2678,12 @@ func TestATerminalCardRetrySurvivesErasureAfterCreditLanded(t *testing.T) {
 	}
 }
 
-// TestAProviderRefusalGetsANewDurableAttempt holds the distinction between
-// retrying ambiguity and retrying a known terminal outcome. Ambiguity reuses one
-// provider key; failed/cancelled is immutable evidence and gets a linked next
-// generation with a fresh DB-derived key.
-func TestAProviderRefusalGetsANewDurableAttempt(t *testing.T) {
+// TestStore_DecideRefusalNewAttempt: a provider refusal gets a new durable
+// attempt. It holds the distinction between retrying ambiguity and retrying a
+// known terminal outcome. Ambiguity reuses one provider key; failed/cancelled
+// is immutable evidence and gets a linked next generation with a fresh
+// DB-derived key.
+func TestStore_DecideRefusalNewAttempt(t *testing.T) {
 	ctx, _ := admintest.StaffContext(t, pool)
 	s := admintest.ReturnDesk(pool, admintest.Refunder{State: refund.Failed})
 	requestID, _ := admintest.ReturnedOrder(t, pool, 1)
@@ -2714,8 +2769,8 @@ func TestAProviderRefusalGetsANewDurableAttempt(t *testing.T) {
 	}
 }
 
-// TestASplitReturnResumesTheHalfThatFailed holds the resume gate to BOTH
-// sources.
+// TestStore_DecideSplitResumeFailed: a split return resumes the half that
+// failed. It holds the resume gate to BOTH sources.
 //
 // A return can be paid from card and credit — card first, credit last — and the
 // two commit separately: the card through the provider, the credit as a ledger
@@ -2729,7 +2784,7 @@ func TestAProviderRefusalGetsANewDurableAttempt(t *testing.T) {
 //
 // The half-paid state is CONSTRUCTED rather than raced into: what is under test
 // is the resume, not how the state arose.
-func TestASplitReturnResumesTheHalfThatFailed(t *testing.T) {
+func TestStore_DecideSplitResumeFailed(t *testing.T) {
 	ctx, _ := admintest.StaffContext(t, pool)
 	requestID, orderNumber, accountID := admintest.CreditFundedReturn(t, pool, 2, 60000)
 
