@@ -34,7 +34,8 @@ func TestNewRequiresMaxKeys(t *testing.T) {
 	New(Config{Every: time.Minute, Burst: 1, TTL: time.Hour, MaxKeys: 0})
 }
 
-func TestALongKeyIsNotStoredWhole(t *testing.T) {
+// A long key is not stored whole.
+func TestLimiter_AllowLongKeyClamped(t *testing.T) {
 	l := New(Config{Every: time.Minute, Burst: 1, TTL: time.Hour, MaxKeys: testMaxKeys})
 	l.Allow("account:" + strings.Repeat("a", 64<<10))
 
@@ -45,7 +46,8 @@ func TestALongKeyIsNotStoredWhole(t *testing.T) {
 	}
 }
 
-func TestTwoLongKeysStayDistinct(t *testing.T) {
+// Two long keys stay distinct.
+func TestLimiter_AllowLongKeysDistinct(t *testing.T) {
 	l := New(Config{Every: time.Minute, Burst: 1, TTL: time.Hour, MaxKeys: testMaxKeys})
 	prefix := "account:" + strings.Repeat("a", 64<<10)
 	l.Allow(prefix + "x")
@@ -56,7 +58,8 @@ func TestTwoLongKeysStayDistinct(t *testing.T) {
 	}
 }
 
-func TestALongKeyDoesNotCollideWithItsEncodedForm(t *testing.T) {
+// A long key does not collide with its encoded form.
+func TestLimiter_AllowEncodedKeyCollision(t *testing.T) {
 	l := New(Config{Every: time.Minute, Burst: 1, TTL: time.Hour, MaxKeys: testMaxKeys})
 	longKey := "account:" + strings.Repeat("a", 64<<10)
 	encoded := clampKey(longKey).value
@@ -68,7 +71,8 @@ func TestALongKeyDoesNotCollideWithItsEncodedForm(t *testing.T) {
 	}
 }
 
-func TestTheKeyCountIsCapped(t *testing.T) {
+// The key count is capped.
+func TestLimiter_AllowKeyCountCapped(t *testing.T) {
 	const maxKeys = 100
 	l := New(Config{Every: time.Minute, Burst: 1, TTL: time.Hour, MaxKeys: maxKeys})
 	for i := range 1000 {
@@ -80,9 +84,11 @@ func TestTheKeyCountIsCapped(t *testing.T) {
 	}
 }
 
+// The oldest key makes room at the cap.
+//
 // The empty string is a key like any other, and its stored form is the zero
 // bucketKey, so nothing may read it as "no key to evict".
-func TestTheOldestKeyMakesRoomAtTheCap(t *testing.T) {
+func TestLimiter_AllowEvictsOldestAtCap(t *testing.T) {
 	l := New(Config{Every: time.Minute, Burst: 1, TTL: time.Hour, MaxKeys: 2})
 	l.Allow("")
 	l.Allow("newer")
@@ -95,7 +101,8 @@ func TestTheOldestKeyMakesRoomAtTheCap(t *testing.T) {
 	}
 }
 
-func TestAHitRefreshesTheOldestKey(t *testing.T) {
+// A hit refreshes the oldest key.
+func TestLimiter_AllowHitRefreshesKey(t *testing.T) {
 	l := New(Config{Every: time.Minute, Burst: 1, TTL: time.Hour, MaxKeys: 2})
 	l.Allow("")
 	l.Allow("untouched")
@@ -136,7 +143,8 @@ func held(t *testing.T, l *Limiter, key string) bool {
 	return ok
 }
 
-func TestTheLeastRecentlySeenKeyIsEvictedFirst(t *testing.T) {
+// The least recently seen key is evicted first.
+func TestLimiter_AllowEvictsLeastRecent(t *testing.T) {
 	l := New(Config{Every: time.Minute, Burst: 1, TTL: time.Hour, MaxKeys: 3})
 	l.Allow("a")
 	l.Allow("b")
@@ -156,7 +164,8 @@ func TestTheLeastRecentlySeenKeyIsEvictedFirst(t *testing.T) {
 	}
 }
 
-func TestARecentlySeenKeySurvivesAFloodOfNewKeys(t *testing.T) {
+// A recently seen key survives a flood of new keys.
+func TestLimiter_AllowFloodKeepsBusyKey(t *testing.T) {
 	const maxKeys = 8
 	l := New(Config{Every: time.Minute, Burst: 1, TTL: time.Hour, MaxKeys: maxKeys})
 	l.Allow("busy")
@@ -174,7 +183,8 @@ func TestARecentlySeenKeySurvivesAFloodOfNewKeys(t *testing.T) {
 	}
 }
 
-func TestTheTableNeverExceedsMaxKeys(t *testing.T) {
+// The table never exceeds MaxKeys.
+func TestLimiter_AllowNeverExceedsMaxKeys(t *testing.T) {
 	const maxKeys = 8
 	l := New(Config{Every: time.Minute, Burst: 1, TTL: time.Hour, MaxKeys: maxKeys})
 	for i := range 500 {
@@ -187,7 +197,8 @@ func TestTheTableNeverExceedsMaxKeys(t *testing.T) {
 	}
 }
 
-func TestASweepDropsTheExpiredAndKeepsTheLive(t *testing.T) {
+// A sweep drops the expired keys and keeps the live ones.
+func TestLimiter_AllowSweepExpiredAndLive(t *testing.T) {
 	l := New(Config{Every: time.Minute, Burst: 1, TTL: time.Hour, MaxKeys: testMaxKeys})
 	l.Allow("expired-first")
 	l.Allow("expired-second")
@@ -222,7 +233,7 @@ func TestASweepDropsTheExpiredAndKeepsTheLive(t *testing.T) {
 // machine falls on both, and each keeps its fastest batch, the one the
 // scheduler and the collector disturbed least; the race detector slows both
 // alike.
-func TestAMissAtCapacityCostsTheSameWhateverTheTableSize(t *testing.T) {
+func TestLimiter_AllowMissCostAtCapacity(t *testing.T) {
 	const (
 		small    = 256
 		large    = small * 256 // what cmd/goen configures
@@ -287,7 +298,9 @@ func BenchmarkAllowAtCapacity(b *testing.B) {
 	}
 }
 
-func TestTheSweepIsAmortised(t *testing.T) {
+// The sweep is amortised: ten thousand inserts run no more than the initial
+// sweep.
+func TestLimiter_AllowSweepAmortised(t *testing.T) {
 	l := New(Config{Every: time.Minute, Burst: 1, TTL: time.Hour, MaxKeys: 1 << 20})
 	for i := range 10_000 {
 		l.Allow("key-" + strconv.Itoa(i))
@@ -301,7 +314,8 @@ func TestTheSweepIsAmortised(t *testing.T) {
 	}
 }
 
-func TestTheBurstIsSpentThenRefused(t *testing.T) {
+// The burst is spent and then refused.
+func TestLimiter_AllowBurstThenRefusal(t *testing.T) {
 	l := New(Config{Every: time.Minute, Burst: 3, TTL: time.Hour, MaxKeys: testMaxKeys})
 
 	for i := range 3 {
@@ -333,10 +347,10 @@ func reserveThen(l *Limiter, key string, keep bool) bool {
 	return true
 }
 
-// TestARefundedReservationSpendsNothing: a reservation given back leaves the
+// A refunded reservation spends nothing: a reservation given back leaves the
 // allowance where it was, however often, and a key that has only ever been
 // given back is not tracked; only a kept one is charged.
-func TestARefundedReservationSpendsNothing(t *testing.T) {
+func TestReservation_RefundSpendsNothing(t *testing.T) {
 	l := New(Config{Every: time.Minute, Burst: 2, TTL: time.Hour, MaxKeys: testMaxKeys})
 
 	if !reserveThen(l, "unseen", false) {
@@ -370,10 +384,10 @@ func TestARefundedReservationSpendsNothing(t *testing.T) {
 	}
 }
 
-// TestAnUnsettledReservationCountsAgainstTheNext: a token set aside is gone
+// An unsettled reservation counts against the next: a token set aside is gone
 // until it is given back, so work still in flight cannot be overtaken by more
 // of the same.
-func TestAnUnsettledReservationCountsAgainstTheNext(t *testing.T) {
+func TestLimiter_ReserveUnsettledCounts(t *testing.T) {
 	l := New(Config{Every: time.Minute, Burst: 3, TTL: time.Hour, MaxKeys: testMaxKeys})
 
 	inFlight := make([]*Reservation, 0, 3)
@@ -400,9 +414,9 @@ func TestAnUnsettledReservationCountsAgainstTheNext(t *testing.T) {
 	requireConsistent(t, l)
 }
 
-// TestOnlyTheFirstSettlementCounts: a deferred Refund after a Keep gives
+// Only the first settlement counts: a deferred Refund after a Keep gives
 // nothing back, and a Keep after a Refund charges nothing.
-func TestOnlyTheFirstSettlementCounts(t *testing.T) {
+func TestReservationFirstSettlement(t *testing.T) {
 	l := New(Config{Every: time.Minute, Burst: 1, TTL: time.Hour, MaxKeys: testMaxKeys})
 
 	r, _, ok := l.Reserve("refunded")
@@ -426,10 +440,10 @@ func TestOnlyTheFirstSettlementCounts(t *testing.T) {
 	}
 }
 
-// TestAKeptReservationIsChargedAfterItsKeyWasEvicted: the table may forget a
-// key while its token is set aside; the miss is still charged, to the key as it
+// A kept reservation is charged after its key was evicted: the table may forget
+// a key while its token is set aside; the miss is still charged, to the key as it
 // is tracked when the miss is known.
-func TestAKeptReservationIsChargedAfterItsKeyWasEvicted(t *testing.T) {
+func TestReservation_KeepAfterEviction(t *testing.T) {
 	l := New(Config{Every: time.Minute, Burst: 1, TTL: time.Hour, MaxKeys: 1})
 
 	r, _, ok := l.Reserve("k")
@@ -447,10 +461,10 @@ func TestAKeptReservationIsChargedAfterItsKeyWasEvicted(t *testing.T) {
 	requireConsistent(t, l)
 }
 
-// TestReservationsMadeAtOnceShareOneBurst: the race detector is the first
+// Reservations made at once share one burst: the race detector is the first
 // assertion; the second is that simultaneous reservations are granted no more
 // often than the burst, which a check followed by a later charge would not be.
-func TestReservationsMadeAtOnceShareOneBurst(t *testing.T) {
+func TestLimiter_ReserveSimultaneousBurst(t *testing.T) {
 	const burst = 16
 	l := New(Config{Every: time.Hour, Burst: burst, TTL: time.Hour, MaxKeys: testMaxKeys})
 
@@ -496,10 +510,12 @@ func TestReservationsMadeAtOnceShareOneBurst(t *testing.T) {
 	requireConsistent(t, l)
 }
 
+// A refused attempt does not spend the allowance.
+//
 // In a synctest bubble the fifty refusals share one instant, so a slow or
 // loaded machine cannot refill the bucket between them and pass a refusal off
 // as an allowance.
-func TestARefusedAttemptDoesNotSpendTheAllowance(t *testing.T) {
+func TestLimiter_AllowRefusedSpendsNothing(t *testing.T) {
 	synctest.Test(t, func(t *testing.T) {
 		l := New(Config{Every: 10 * time.Millisecond, Burst: 1, TTL: time.Hour, MaxKeys: testMaxKeys})
 
@@ -522,7 +538,8 @@ func TestARefusedAttemptDoesNotSpendTheAllowance(t *testing.T) {
 	})
 }
 
-func TestKeysAreIndependent(t *testing.T) {
+// Keys are independent of one another.
+func TestLimiter_AllowKeysIndependent(t *testing.T) {
 	l := New(Config{Every: time.Minute, Burst: 1, TTL: time.Hour, MaxKeys: testMaxKeys})
 
 	if _, ok := l.Allow("ip:203.0.113.1"); !ok {
@@ -539,9 +556,11 @@ func TestKeysAreIndependent(t *testing.T) {
 	}
 }
 
+// Idle keys are evicted.
+//
 // Keep setup at one fake instant so slow scheduling cannot expire keys before
 // the idle wait.
-func TestIdleKeysAreEvicted(t *testing.T) {
+func TestLimiter_AllowIdleKeysEvicted(t *testing.T) {
 	synctest.Test(t, func(t *testing.T) {
 		l := New(Config{Every: time.Minute, Burst: 1, TTL: 20 * time.Millisecond, MaxKeys: testMaxKeys})
 
@@ -562,7 +581,8 @@ func TestIdleKeysAreEvicted(t *testing.T) {
 	})
 }
 
-func TestTheLimiterIsSafeUnderConcurrency(t *testing.T) {
+// The limiter is safe under concurrency.
+func TestLimiter_AllowConcurrent(t *testing.T) {
 	l := New(Config{Every: time.Millisecond, Burst: 5, TTL: time.Hour, MaxKeys: testMaxKeys})
 
 	var wg sync.WaitGroup
@@ -582,11 +602,13 @@ func TestTheLimiterIsSafeUnderConcurrency(t *testing.T) {
 	}
 }
 
+// The limiter is safe under concurrency at capacity.
+//
 // At capacity every miss evicts, and after a quiet spell a miss sweeps, so here
 // both run while other goroutines wait on the mutex. The race detector is the
 // first assertion; the table's own invariants, checked after, are the second.
 // synctest, so the quiet spells cost no wall-clock time.
-func TestTheLimiterIsSafeUnderConcurrencyAtCapacity(t *testing.T) {
+func TestLimiter_AllowConcurrentAtCapacity(t *testing.T) {
 	synctest.Test(t, func(t *testing.T) {
 		const (
 			maxKeys = 8
@@ -647,7 +669,9 @@ func requireConsistent(t *testing.T, l *Limiter) {
 	}
 }
 
-func TestGuardAnswers429WithARetryAfter(t *testing.T) {
+// Guard answers 429 with a Retry-After, and a refused request never reaches
+// the handler.
+func TestGuardRefusalRetryAfter(t *testing.T) {
 	l := New(Config{Every: 30 * time.Second, Burst: 1, TTL: time.Hour, MaxKeys: testMaxKeys})
 	reached := 0
 	h := Guard(l, discardLogger(), func(http.ResponseWriter, *http.Request) { reached++ })
@@ -682,7 +706,9 @@ func TestGuardAnswers429WithARetryAfter(t *testing.T) {
 	}
 }
 
-func TestRetryAfterIsNeverZero(t *testing.T) {
+// Retry-After is never zero: a sub-second delay is rounded up, so a client
+// that obeys it is not refused again at once.
+func TestGuardRetryAfterNeverZero(t *testing.T) {
 	// 100ms refill: every refusal's true delay is well under one second.
 	l := New(Config{Every: 100 * time.Millisecond, Burst: 1, TTL: time.Hour, MaxKeys: testMaxKeys})
 	h := Guard(l, discardLogger(), func(http.ResponseWriter, *http.Request) {})
@@ -710,7 +736,9 @@ func TestRetryAfterIsNeverZero(t *testing.T) {
 	}
 }
 
-func TestTheKeyIsTheAddressAndNeverAHeader(t *testing.T) {
+// The key is the address and never a header: forwarded headers on a request
+// do not change its key or buy a fresh allowance.
+func TestLimiter_AllowKeyedByAddress(t *testing.T) {
 	r := httptest.NewRequestWithContext(t.Context(), http.MethodPost, "/signin", http.NoBody)
 	r.RemoteAddr = "203.0.113.9:54321"
 	r.Header.Set("X-Forwarded-For", "198.51.100.1")
@@ -758,9 +786,12 @@ func request(t *testing.T, remoteAddr string, forwarded ...string) *http.Request
 	return r
 }
 
+// A spoofed header buys no fresh allowance: behind a trusted proxy,
+// prepending an address to X-Forwarded-For does not change the client's key.
+//
 // The attack this configuration must not open: one attacker holding an
 // unlimited supply of keys.
-func TestASpoofedHeaderBuysNoFreshAllowance(t *testing.T) {
+func TestLimiter_AllowSpoofedForwardedFor(t *testing.T) {
 	t.Parallel()
 
 	p, err := clientip.ParseProxies("10.0.0.0/8")
@@ -794,7 +825,8 @@ func TestASpoofedHeaderBuysNoFreshAllowance(t *testing.T) {
 	}
 }
 
-func TestAClientKeyIsTheAddressForIPv4AndTheSlash64ForIPv6(t *testing.T) {
+// A client key is the address for IPv4 and the /64 for IPv6.
+func TestClientKey(t *testing.T) {
 	t.Parallel()
 
 	tests := []struct {
@@ -822,7 +854,8 @@ func TestAClientKeyIsTheAddressForIPv4AndTheSlash64ForIPv6(t *testing.T) {
 	}
 }
 
-func TestAClientNetworkIsTheSlash24ForIPv4AndTheSlash64ForIPv6(t *testing.T) {
+// A client network is the /24 for IPv4 and the /64 for IPv6.
+func TestClientNetwork(t *testing.T) {
 	t.Parallel()
 
 	tests := []struct {
@@ -850,7 +883,7 @@ func TestAClientNetworkIsTheSlash24ForIPv4AndTheSlash64ForIPv6(t *testing.T) {
 
 // The network is read from the address the proxy resolution stamped, never from
 // a header of its own, so it trusts exactly what the per-client limits trust.
-func TestAClientNetworkFollowsTheResolvedAddressAndNoHeader(t *testing.T) {
+func TestClientNetworkResolvedAddress(t *testing.T) {
 	t.Parallel()
 
 	r := request(t, "198.51.100.7:1")
@@ -883,7 +916,9 @@ func guarded(t *testing.T, h http.HandlerFunc, remoteAddr string) bool {
 	return w.Code != http.StatusTooManyRequests
 }
 
-func TestAnIPv6ClientCannotBuyAFreshAllowanceByRotatingItsLowBits(t *testing.T) {
+// An IPv6 client cannot buy a fresh allowance by rotating its low bits: Guard
+// keys it on its /64.
+func TestGuardIPv6LowBitRotation(t *testing.T) {
 	t.Parallel()
 
 	l := New(Config{Every: time.Minute, Burst: 1, TTL: time.Hour, MaxKeys: testMaxKeys})
@@ -904,7 +939,8 @@ func TestAnIPv6ClientCannotBuyAFreshAllowanceByRotatingItsLowBits(t *testing.T) 
 	}
 }
 
-func TestDifferentSlash64sDoNotShareABucket(t *testing.T) {
+// Different /64s do not share a bucket.
+func TestGuardDifferentSlash64s(t *testing.T) {
 	t.Parallel()
 
 	l := New(Config{Every: time.Minute, Burst: 1, TTL: time.Hour, MaxKeys: testMaxKeys})
@@ -922,7 +958,9 @@ func TestDifferentSlash64sDoNotShareABucket(t *testing.T) {
 	}
 }
 
-func TestIPv4ClientsKeepTheirOwnBucketsAndTheMappedFormSharesOne(t *testing.T) {
+// IPv4 clients keep their own buckets, and the IPv4-mapped spelling of an
+// address shares its IPv4 bucket.
+func TestGuardIPv4AndMappedBuckets(t *testing.T) {
 	t.Parallel()
 
 	l := New(Config{Every: time.Minute, Burst: 1, TTL: time.Hour, MaxKeys: testMaxKeys})
@@ -950,7 +988,8 @@ func TestIPv4ClientsKeepTheirOwnBucketsAndTheMappedFormSharesOne(t *testing.T) {
 	}
 }
 
-func TestAForwardedIPv6ClientIsKeyedOnItsSlash64(t *testing.T) {
+// A forwarded IPv6 client is keyed on its /64, not on the proxy's address.
+func TestClientKeyForwardedIPv6(t *testing.T) {
 	t.Parallel()
 
 	p, err := clientip.ParseProxies("10.0.0.0/8")
@@ -982,7 +1021,8 @@ func TestAForwardedIPv6ClientIsKeyedOnItsSlash64(t *testing.T) {
 
 func discardLogger() *slog.Logger { return slog.New(slog.DiscardHandler) }
 
-func TestARefusalIsInTheReadersLanguage(t *testing.T) {
+// A refusal is in the reader's language.
+func TestRefuseReaderLanguage(t *testing.T) {
 	t.Parallel()
 
 	for _, locale := range []i18n.Locale{i18n.ZhHant, i18n.En} {

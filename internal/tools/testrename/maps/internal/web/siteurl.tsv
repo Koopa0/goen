@@ -1,0 +1,6 @@
+file	old	new	unit	source	action	newfile
+internal/web/siteurl/siteurl_guard_test.go	TestOnlyPathDecidesASameSitePath	TestPathNoRivalPrefixCheck	Path	hand	rename	
+internal/web/siteurl/siteurl_test.go	TestOriginRefusesWhatIsNotAnOrigin	TestOrigin	Origin	hand	rename	
+internal/web/siteurl/siteurl_test.go	TestPathOrFallsBackRatherThanErroring	TestPathOr	PathOr	hand	rename	
+internal/web/siteurl/siteurl_test.go	TestPathRefusesAnythingButAPathOnThisSite	TestPath	Path	hand	rename	
+internal/web/siteurl/siteurl_test.go	TestValidSlugIsLowerCaseWordsJoinedByHyphens	TestValidSlug	ValidSlug	hand	rename	

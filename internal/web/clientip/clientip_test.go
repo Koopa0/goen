@@ -30,7 +30,10 @@ func request(t *testing.T, remoteAddr string, forwarded ...string) *http.Request
 	return r
 }
 
-func TestNothingIsTrustedUntilSomethingIsConfigured(t *testing.T) {
+// Nothing is trusted until something is configured: an empty or nil Proxies
+// leaves the connection's own address as the client, so an unconfigured
+// deployment never believes a header.
+func TestProxies_ResolveUnconfigured(t *testing.T) {
 	t.Parallel()
 
 	empty, err := ParseProxies("")
@@ -55,8 +58,10 @@ func TestNothingIsTrustedUntilSomethingIsConfigured(t *testing.T) {
 	}
 }
 
+// The rightmost untrusted hop is the client.
+//
 // Taking the leftmost hop — the shape most frameworks ship — hands the client the key.
-func TestTheRightmostUntrustedHopIsTheClient(t *testing.T) {
+func TestProxies_ResolveRightmostHop(t *testing.T) {
 	t.Parallel()
 
 	tests := []struct {
@@ -193,7 +198,8 @@ func TestTheRightmostUntrustedHopIsTheClient(t *testing.T) {
 	}
 }
 
-func TestParseProxiesRefusesWhatCannotBeAConfiguration(t *testing.T) {
+// ParseProxies refuses what cannot be a configuration.
+func TestParseProxies(t *testing.T) {
 	t.Parallel()
 
 	tests := []struct {
@@ -235,10 +241,10 @@ func TestParseProxiesRefusesWhatCannotBeAConfiguration(t *testing.T) {
 	}
 }
 
-// TestOverlapsAsksWhetherAnyAddressInThePrefixIsTrusted is the question
+// Overlaps asks whether any address in the prefix is trusted. It is the question
 // cmd/goen puts to a loopback listener's peers, so it has to answer for a
 // block the trusted set only partly shares and never across address families.
-func TestOverlapsAsksWhetherAnyAddressInThePrefixIsTrusted(t *testing.T) {
+func TestProxies_Overlaps(t *testing.T) {
 	t.Parallel()
 
 	loopback := netip.MustParsePrefix("127.0.0.0/8")
@@ -268,9 +274,11 @@ func TestOverlapsAsksWhetherAnyAddressInThePrefixIsTrusted(t *testing.T) {
 	}
 }
 
+// The address to record keeps all of an IPv6 address.
+//
 // From is what sessions and logs record, so it must keep the whole address
 // while the limiter keys on less.
-func TestTheAddressToRecordKeepsAllOfAnIPv6Address(t *testing.T) {
+func TestFromWholeIPv6Address(t *testing.T) {
 	t.Parallel()
 
 	r := request(t, "[2001:db8:1:2:dead:beef:0:9]:443")

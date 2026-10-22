@@ -14,9 +14,9 @@ import (
 	"github.com/a-h/templ"
 )
 
-// TestComponentOfAnAbandonedRequestIsSilent: a departed caller stops the render
-// with context.Canceled, which is not a server fault and has no reader for a 500.
-func TestComponentOfAnAbandonedRequestIsSilent(t *testing.T) {
+// A component of an abandoned request is silent: a departed caller stops the
+// render with context.Canceled, which is not a server fault and has no reader for a 500.
+func TestComponentAbandonedRequest(t *testing.T) {
 	t.Parallel()
 
 	ctx, cancel := context.WithCancel(t.Context())
@@ -36,9 +36,9 @@ func TestComponentOfAnAbandonedRequestIsSilent(t *testing.T) {
 	}
 }
 
-// TestComponentFailureOfALiveRequestIsStillA500 keeps the guard to the departed
-// caller: a render that fails for goen's own reason is an error and a 500.
-func TestComponentFailureOfALiveRequestIsStillA500(t *testing.T) {
+// A component failure of a live request is still a 500: this keeps the guard to
+// the departed caller: a render that fails for goen's own reason is an error and a 500.
+func TestComponentLiveRequestError(t *testing.T) {
 	t.Parallel()
 
 	r := httptest.NewRequestWithContext(t.Context(), http.MethodGet, "/p/x", http.NoBody)

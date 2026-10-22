@@ -9,11 +9,11 @@ import (
 	"testing"
 )
 
-// TestAFormWhoseTextCannotBeStoredIsRefused: a byte sequence that is not UTF-8 passes
-// every rune-counting validator and is refused only by PostgreSQL, as a 500.
+// A form whose text cannot be stored is refused: a byte sequence that is not
+// UTF-8 passes every rune-counting validator and is refused only by PostgreSQL, as a 500.
 // ParseForm is the one place every form handler reads through, so it refuses
 // the request there, and each caller answers 400.
-func TestAFormWhoseTextCannotBeStoredIsRefused(t *testing.T) {
+func TestParseFormUnstorableText(t *testing.T) {
 	t.Parallel()
 	for _, tt := range []struct {
 		name  string
@@ -48,7 +48,8 @@ func TestAFormWhoseTextCannotBeStoredIsRefused(t *testing.T) {
 	}
 }
 
-func TestParseLongTextFormKeepsTextAndBoundsTheEncodedBody(t *testing.T) {
+// ParseLongTextForm keeps the text and bounds the encoded body.
+func TestParseLongTextForm(t *testing.T) {
 	t.Parallel()
 	for _, tt := range []struct {
 		name          string
@@ -95,7 +96,8 @@ func TestParseLongTextFormKeepsTextAndBoundsTheEncodedBody(t *testing.T) {
 	}
 }
 
-func TestOrdinaryFormsKeepTheirExistingBodyLimit(t *testing.T) {
+// Ordinary forms keep their existing body limit.
+func TestParseFormBodyLimit(t *testing.T) {
 	t.Parallel()
 	r := httptest.NewRequestWithContext(t.Context(), http.MethodPost, "/contact", strings.NewReader("message="+strings.Repeat("x", 64<<10)))
 	r.Header.Set("Content-Type", "application/x-www-form-urlencoded")
