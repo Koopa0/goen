@@ -43,7 +43,9 @@ func TestStatLineRefusesMoreThanFourStats(t *testing.T) {
 	renderStatLine(t, []Stat{s, s, s, s, s}, StatLinePlain)
 }
 
-func TestStatLineJoinsANumberToItsUnitWithANoBreakSpace(t *testing.T) {
+// TestStatCountUnit: a stat line joins a number to its unit with a no-break
+// space.
+func TestStatCountUnit(t *testing.T) {
 	t.Parallel()
 	got := renderStatLine(t, []Stat{{Label: "庫存保留", Value: StatCount(60, "分鐘")}}, StatLinePlain)
 	if want := "60 <small>分鐘</small>"; !strings.Contains(got, want) {

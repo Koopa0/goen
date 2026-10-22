@@ -18,7 +18,10 @@ import (
 	"github.com/koopa0/goen/internal/user"
 )
 
-func TestWarrantyRegistrationRefusalUsesTheStoreCause(t *testing.T) {
+// TestHandler_RegisterRefusalCause: a registration refusal uses the store's
+// cause: the status and page follow the cause, no stored row changes, and no
+// draft that belongs to no authorized line is echoed.
+func TestHandler_RegisterRefusalCause(t *testing.T) {
 	app := warrantyStoreRolePool(t)
 	h := warranty.NewHandler(warranty.NewStore(app), slog.New(slog.DiscardHandler))
 	mux := http.NewServeMux()

@@ -119,10 +119,12 @@ var mailWithLink = &Message{
 	Body: "Open https://goen.test/reset?" + "tok" + "en=cafebabe0123456789 to set a password.\n",
 }
 
-// TestAServerWithoutSTARTTLSReceivesNothingUnlessDevelopmentAllowsIt: the
-// default is the production rule, no encryption means no mail and nothing sent,
-// and the exception is a field only the development switch sets.
-func TestAServerWithoutSTARTTLSReceivesNothingUnlessDevelopmentAllowsIt(t *testing.T) {
+// TestSMTPSender_SendSTARTTLS: a server without STARTTLS receives nothing
+// unless development allows it.
+//
+// The default is the production rule, no encryption means no mail and nothing
+// sent, and the exception is a field only the development switch sets.
+func TestSMTPSender_SendSTARTTLS(t *testing.T) {
 	t.Run("the zero value refuses and sends no MAIL, RCPT or DATA", func(t *testing.T) {
 		sink := newSMTPSink(t, false)
 		err := SMTPSender{Addr: sink.addr, From: "goen@example.com"}.Send(t.Context(), mailWithLink)
@@ -175,10 +177,10 @@ type remoteConn struct {
 
 func (c remoteConn) RemoteAddr() net.Addr { return c.remote }
 
-// TestThePlaintextExceptionIsLoopbackOnly: even with the exception on, a peer
-// that is not a loopback address gets nothing without STARTTLS, whatever name
-// the address was configured under.
-func TestThePlaintextExceptionIsLoopbackOnly(t *testing.T) {
+// TestSMTPSender_SendPlaintextLoopback: even with the exception on, a peer that
+// is not a loopback address gets nothing without STARTTLS, whatever name the
+// address was configured under.
+func TestSMTPSender_SendPlaintextLoopback(t *testing.T) {
 	t.Parallel()
 
 	tests := []struct {

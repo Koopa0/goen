@@ -7,7 +7,9 @@ import (
 	"github.com/koopa0/goen/internal/order/returns"
 )
 
-func TestAStatutoryRequestCannotBeRejectedOnTheDecisionPath(t *testing.T) {
+// TestEvaluateStatutoryRejection: a statutory request cannot be rejected on the
+// decision path.
+func TestEvaluateStatutoryRejection(t *testing.T) {
 	t.Parallel()
 
 	_, err := returns.Evaluate([]returns.LineAssessment{{
@@ -18,7 +20,9 @@ func TestAStatutoryRequestCannotBeRejectedOnTheDecisionPath(t *testing.T) {
 	}
 }
 
-func TestLateApprovalCannotClaimPolicyEntitlement(t *testing.T) {
+// TestEvaluateApprovalEntitlement: a late approval cannot claim policy
+// entitlement, and the entitlement an approval does claim follows its window.
+func TestEvaluateApprovalEntitlement(t *testing.T) {
 	t.Parallel()
 
 	tests := []struct {
@@ -53,7 +57,8 @@ func TestLateApprovalCannotClaimPolicyEntitlement(t *testing.T) {
 	}
 }
 
-func TestFirstExceptionRequiresARecordedReason(t *testing.T) {
+// TestRequireExceptionReason: the first exception requires a recorded reason.
+func TestRequireExceptionReason(t *testing.T) {
 	t.Parallel()
 	tests := []struct {
 		name       string

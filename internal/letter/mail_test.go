@@ -34,10 +34,12 @@ func hasHan(s string) bool {
 	return false
 }
 
-// TestEveryMessageIsSentInThePayloadsLanguage is driven per topic, because each
-// producer records the locale differently: some from a request, some off the
-// order row.
-func TestEveryMessageIsSentInThePayloadsLanguage(t *testing.T) {
+// TestNotifierPayloadLanguage: every message is sent in the language its
+// payload names.
+//
+// TestNotifierPayloadLanguage is driven per topic, because each producer
+// records the locale differently: some from a request, some off the order row.
+func TestNotifierPayloadLanguage(t *testing.T) {
 	t.Parallel()
 
 	send := map[string]func(Notifier, context.Context, string) error{
@@ -120,7 +122,9 @@ func TestEveryMessageIsSentInThePayloadsLanguage(t *testing.T) {
 	}
 }
 
-func TestAnUnknownLocaleFallsBackRatherThanFailing(t *testing.T) {
+// TestNotifier_SendOrderPlacedUnknownLocale: an unknown or empty locale falls
+// back to the default language rather than failing the send.
+func TestNotifier_SendOrderPlacedUnknownLocale(t *testing.T) {
 	t.Parallel()
 
 	for _, tag := range []string{"", "kling-on"} {
@@ -137,10 +141,10 @@ func TestAnUnknownLocaleFallsBackRatherThanFailing(t *testing.T) {
 	}
 }
 
-// TestARestockNoticeIdentifiesTheQueuedVariant: two variants of one product
-// share a name and slug, so only the queued SKU tells the recipient which
-// one came back.
-func TestARestockNoticeIdentifiesTheQueuedVariant(t *testing.T) {
+// TestNotifier_SendRestockNoticeQueuedSKU: a restock notice identifies the
+// queued variant: two variants of one product share a name and slug, so only
+// the queued SKU tells the recipient which one came back.
+func TestNotifier_SendRestockNoticeQueuedSKU(t *testing.T) {
 	t.Parallel()
 
 	n, sink := notifier(t)
@@ -188,10 +192,12 @@ func TestARestockNoticeIdentifiesTheQueuedVariant(t *testing.T) {
 	}
 }
 
-// TestAPlacedLetterNamesWhatIsStillOwed: store credit and a coupon change
-// the amount payable, not the order total. The confirmation must quote the
-// former and drop the pay CTA when nothing remains.
-func TestAPlacedLetterNamesWhatIsStillOwed(t *testing.T) {
+// TestNotifier_SendOrderPlacedOwed: a placed letter names what is still owed,
+// not the order total.
+//
+// Store credit and a coupon change the amount payable, not the order total. The
+// confirmation must quote the former and drop the pay CTA when nothing remains.
+func TestNotifier_SendOrderPlacedOwed(t *testing.T) {
 	t.Parallel()
 
 	const (
@@ -284,7 +290,9 @@ func TestAPlacedLetterNamesWhatIsStillOwed(t *testing.T) {
 	})
 }
 
-func TestTheGreetingDropsAnEmptyName(t *testing.T) {
+// TestNotifier_SendPasswordResetEmptyName: the greeting drops an empty name
+// instead of printing "Hello ,".
+func TestNotifier_SendPasswordResetEmptyName(t *testing.T) {
 	t.Parallel()
 
 	n, sink := notifier(t)
@@ -301,10 +309,14 @@ func TestTheGreetingDropsAnEmptyName(t *testing.T) {
 	}
 }
 
-// TestTheConfirmationCarriesTheStatutoryDisclosure holds Consumer Protection Act
-// §18 II: §18 I's six items must reach the consumer in a form they can STORE,
-// and under §19 III an omission restarts the seven-day rescission window.
-func TestTheConfirmationCarriesTheStatutoryDisclosure(t *testing.T) {
+// TestNotifier_SendOrderPlacedStatutory: the order confirmation carries the
+// statutory disclosure when a seller is configured, and omits it rather than
+// printing a blank seller when none is.
+//
+// TestNotifier_SendOrderPlacedStatutory holds Consumer Protection Act §18 II:
+// §18 I's six items must reach the consumer in a form they can STORE, and under
+// §19 III an omission restarts the seven-day rescission window.
+func TestNotifier_SendOrderPlacedStatutory(t *testing.T) {
 	t.Parallel()
 
 	placed := &outbox.OrderPlaced{
@@ -373,11 +385,11 @@ func TestTheConfirmationCarriesTheStatutoryDisclosure(t *testing.T) {
 	})
 }
 
-// TestNewRefusesAnUnusableNotifier holds the constructor's invariant. Both
+// TestNewRefusesUnusableNotifier holds the constructor's invariant. Both
 // omissions are silent otherwise: a nil sender panics at the first message
 // instead of at wiring, and an empty base URL mails a link that resolves
 // nowhere — a password reset nobody can follow.
-func TestNewRefusesAnUnusableNotifier(t *testing.T) {
+func TestNewRefusesUnusableNotifier(t *testing.T) {
 	t.Parallel()
 
 	tests := []struct {
@@ -403,9 +415,12 @@ func TestNewRefusesAnUnusableNotifier(t *testing.T) {
 	}
 }
 
+// TestNotifier_SendOrderPaidCardBeforeSignOff: the paid letter names the card
+// before the sign-off.
+//
 // The payment line belongs to the letter, above the sign-off; a line after the
 // sign-off reads as a stray.
-func TestThePaidLetterNamesTheCardBeforeTheSignOff(t *testing.T) {
+func TestNotifier_SendOrderPaidCardBeforeSignOff(t *testing.T) {
 	t.Parallel()
 	for locale, line := range map[string]string{"en": "Paid with: Visa •••• 4242", "zh-Hant": "付款方式：Visa •••• 4242"} {
 		n, sink := notifier(t)
@@ -422,9 +437,12 @@ func TestThePaidLetterNamesTheCardBeforeTheSignOff(t *testing.T) {
 	}
 }
 
+// TestNotifier_SendOrderPlacedDividerGap: the disclosure divider is not glued
+// to the link above it.
+//
 // The statutory block opens with a divider, and a link above it keeps a blank
 // line between them.
-func TestTheDisclosureDividerIsNotGluedToTheLinkAboveIt(t *testing.T) {
+func TestNotifier_SendOrderPlacedDividerGap(t *testing.T) {
 	t.Parallel()
 	for _, locale := range []string{"en", "zh-Hant"} {
 		sink := &captured{}
@@ -440,10 +458,13 @@ func TestTheDisclosureDividerIsNotGluedToTheLinkAboveIt(t *testing.T) {
 	}
 }
 
+// TestNotifier_SendOrderPlacedHoldNotice: a placed letter says the items are
+// held only when payment is due.
+//
 // A letter that asks for payment says the items are held only for a time, which
 // is what the later "not paid in time" cancellation relies on; one with nothing
 // owed says nothing of a hold.
-func TestAPlacedLetterSaysTheItemsAreHeldOnlyWhenPaymentIsDue(t *testing.T) {
+func TestNotifier_SendOrderPlacedHoldNotice(t *testing.T) {
 	t.Parallel()
 	for _, owed := range []int64{99900, 0} {
 		for _, locale := range []string{"en", "zh-Hant"} {

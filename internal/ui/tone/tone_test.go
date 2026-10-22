@@ -28,7 +28,8 @@ func TestAllIsTheClosedSet(t *testing.T) {
 	}
 }
 
-func TestAnUnsetOrUnknownToneIsStone(t *testing.T) {
+// TestResolveDefaultsToStone: an unset or unknown tone is stone.
+func TestResolveDefaultsToStone(t *testing.T) {
 	t.Parallel()
 
 	for _, in := range []string{"", "neon", "STONE"} {

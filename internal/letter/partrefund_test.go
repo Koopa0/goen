@@ -8,9 +8,12 @@ import (
 	"github.com/koopa0/goen/internal/outbox"
 )
 
-// The owner's wording for a unit that cannot be sent (#1965), with the
-// letter's values in place. A refund paid from one source names only that one.
-func TestThePartRefundLetterSaysWhatCameBackAndHow(t *testing.T) {
+// TestNotifier_SendOrderPartRefundedWording: the part-refund letter says what
+// came back and how.
+//
+// The owner's wording for a unit that cannot be sent (#1965), with the letter's
+// values in place. A refund paid from one source names only that one.
+func TestNotifier_SendOrderPartRefundedWording(t *testing.T) {
 	t.Parallel()
 	notebook := []notice.PartRefundItem{{Name: "點線筆記本", Label: "A5", Quantity: 2}}
 	for _, tc := range []struct {
@@ -75,7 +78,9 @@ func TestThePartRefundLetterSaysWhatCameBackAndHow(t *testing.T) {
 	}
 }
 
-func TestThePartRefundLetterNeedsARecipientAndItems(t *testing.T) {
+// TestNotifier_SendOrderPartRefundedIncomplete: the part-refund letter is
+// refused without a recipient address or without items.
+func TestNotifier_SendOrderPartRefundedIncomplete(t *testing.T) {
 	t.Parallel()
 	n, sink := notifier(t)
 	for name, l := range map[string]*notice.PartRefund{

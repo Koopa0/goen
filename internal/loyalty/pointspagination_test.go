@@ -9,7 +9,8 @@ import (
 	"github.com/koopa0/goen/internal/ui/frame"
 )
 
-func TestEmptyOlderPointsPageOffersTheFirstPage(t *testing.T) {
+// TestPointsEmptyOlderPage: an empty older points page offers the first page.
+func TestPointsEmptyOlderPage(t *testing.T) {
 	t.Parallel()
 	ctx := i18n.WithLocale(t.Context(), i18n.En)
 	body := renderComponent(t, ctx, Points(frame.Page{Title: "Points"}, PointsView{
@@ -23,7 +24,8 @@ func TestEmptyOlderPointsPageOffersTheFirstPage(t *testing.T) {
 	}
 }
 
-func TestAnEmptyFirstPointsPageKeepsItsOwnSentence(t *testing.T) {
+// TestPointsEmptyFirstPage: an empty first points page keeps its own sentence.
+func TestPointsEmptyFirstPage(t *testing.T) {
 	t.Parallel()
 	ctx := i18n.WithLocale(t.Context(), i18n.En)
 	body := renderComponent(t, ctx, Points(frame.Page{Title: "Points"}, PointsView{}))

@@ -17,7 +17,10 @@ import (
 	"github.com/koopa0/goen/internal/user"
 )
 
-func TestWarrantyRegistrationBindsTheOrderURL(t *testing.T) {
+// TestHandler_RegisterOrderURL: registration binds the order URL: a post is
+// judged against the order in the URL, so a refusal exposes no draft from
+// outside it and leaves that order's input unchanged.
+func TestHandler_RegisterOrderURL(t *testing.T) {
 	app := warrantyStoreRolePool(t)
 	h := warranty.NewHandler(warranty.NewStore(app), slog.New(slog.DiscardHandler))
 	mux := http.NewServeMux()
@@ -96,11 +99,12 @@ func TestWarrantyRegistrationBindsTheOrderURL(t *testing.T) {
 	}
 }
 
-// TestPostingTheRegistrationFormRegistersTheUnitAndReturnsToItsOrder drives
-// POST /account/warranty/{number} for a delivered unit: the registration is
-// stored under the posted serial and the browser lands on the order page's
+// TestHandler_RegisterStoresAndRedirects: posting the registration form
+// registers the unit and returns to its order. It drives POST
+// /account/warranty/{number} for a delivered unit: the registration is stored
+// under the posted serial and the browser lands on the order page's
 // confirmation.
-func TestPostingTheRegistrationFormRegistersTheUnitAndReturnsToItsOrder(t *testing.T) {
+func TestHandler_RegisterStoresAndRedirects(t *testing.T) {
 	f := newFixture(t, 1, 12, parcel{units: 1, arrived: true})
 	h := warranty.NewHandler(warranty.NewStore(pool), slog.New(slog.DiscardHandler))
 

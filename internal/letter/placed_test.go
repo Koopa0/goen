@@ -11,7 +11,10 @@ import (
 	"github.com/koopa0/goen/internal/outbox"
 )
 
-func TestPlacedConfirmationKeepsTheRecordedOrderTerms(t *testing.T) {
+// TestNotifier_SendOrderPlacedTerms: the placed confirmation keeps the order
+// terms recorded at placing (lines, delivery, amounts, funding and payment
+// deadline), with free text escaped in the HTML part.
+func TestNotifier_SendOrderPlacedTerms(t *testing.T) {
 	t.Parallel()
 	for _, locale := range []struct {
 		tag      string
@@ -99,7 +102,9 @@ func TestPlacedConfirmationKeepsTheRecordedOrderTerms(t *testing.T) {
 	}
 }
 
-func TestPlacedConfirmationDiscountRowsFollowTheRecordedReason(t *testing.T) {
+// TestNotifier_SendOrderPlacedDiscount: the placed confirmation's discount row
+// follows the recorded reason, and is absent without a discount.
+func TestNotifier_SendOrderPlacedDiscount(t *testing.T) {
 	t.Parallel()
 	for _, tt := range []struct {
 		name     string
@@ -132,7 +137,10 @@ func TestPlacedConfirmationDiscountRowsFollowTheRecordedReason(t *testing.T) {
 	}
 }
 
-func TestPlacedConfirmationDeadlineIncludesTheLastAdmittedInstant(t *testing.T) {
+// TestNotifier_PlacedConfirmationDeadline: the placed confirmation's payment
+// deadline includes the last admitted instant: it still invites paying at the
+// deadline and says it has passed one instant later.
+func TestNotifier_PlacedConfirmationDeadline(t *testing.T) {
 	t.Parallel()
 	for _, locale := range []struct {
 		tag        string
@@ -183,7 +191,9 @@ func TestPlacedConfirmationDeadlineIncludesTheLastAdmittedInstant(t *testing.T) 
 	}
 }
 
-func TestADelayedPlacedConfirmationDoesNotInviteStartingAnExpiredPayment(t *testing.T) {
+// TestNotifier_SendOrderPlacedDelayed: a delayed placed confirmation does not
+// invite starting a payment whose deadline has passed.
+func TestNotifier_SendOrderPlacedDelayed(t *testing.T) {
 	t.Parallel()
 	for _, tt := range []struct{ locale, want, forbidden string }{
 		{"en", "Check the order's current status before attempting payment.", "Start paying by"},

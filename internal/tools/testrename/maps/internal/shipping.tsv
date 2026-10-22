@@ -1,0 +1,9 @@
+file	old	new	unit	source	action	newfile
+internal/shipping/carrier_test.go	TestTheDeliveryChoicesAreTheKnownClosedSet	TestCarrier_KnownClosedSet	Carrier_Known	hand	rename	
+internal/shipping/carrier_test.go	TestEveryCarrierHasANameInBothLanguages	TestCarrier_NameBothLanguages	Carrier_Name	hand	rename	
+internal/shipping/carrier_test.go	TestTrackingURL	TestCarrier_TrackingURL	Carrier_TrackingURL	hand	rename	
+internal/shipping/carrier_test.go	TestCarriersForNamesTheCarriersAnOrderCanUse	TestCarriersForValidAndImplied	CarriersFor	hand	rename	
+internal/shipping/chain_test.go	TestKnownChainsIsTheClosedSetAndReturnsFreshStorage	TestChainsClosedSetFreshStorage	Chains	hand	rename	
+internal/shipping/chain_test.go	TestOnlyCurrentPickupChainsAreAtCheckout	TestChain_AtCheckout	Chain_AtCheckout	hand	rename	
+internal/shipping/shipping_test.go	TestChainCarrierIsTheSameNamedCarrier	TestChain_Carrier	Chain_Carrier	hand	rename	
+internal/shipping/shipping_test.go	TestCarriersForByChainAndDestination	TestCarriersForChainAndDestination	CarriersFor	hand	rename	

@@ -12,11 +12,11 @@ import (
 	"github.com/koopa0/goen/internal/admin/admintest"
 )
 
-// TestConfirmingTheApprovalOfACreditFundedReturnPaysItBackAsCredit holds the
-// whole HTTP path for an order paid wholly with store credit: no card payment
-// exists, so the approval must reach the customer as credit and not stall
-// waiting for a provider.
-func TestConfirmingTheApprovalOfACreditFundedReturnPaysItBackAsCredit(t *testing.T) {
+// TestHandler_DecideCreditFunded: confirming the approval of a credit-funded
+// return pays it back as credit. It holds the whole HTTP path for an order paid
+// wholly with store credit: no card payment exists, so the approval must reach
+// the customer as credit and not stall waiting for a provider.
+func TestHandler_DecideCreditFunded(t *testing.T) {
 	ctx, _ := admintest.StaffContext(t, pool)
 	h := handlerOver(storeOver(pool, admintest.Refunder{}))
 	requestID, _, accountID := admintest.CreditFundedReturn(t, pool, 2, 200000)
