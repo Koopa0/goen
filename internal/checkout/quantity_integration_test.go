@@ -67,7 +67,7 @@ func TestSetQuantityClampsToWhatCanBeSupplied(t *testing.T) {
 		Email: "setqty-checkout@example.com", RecipientName: "李大華", Phone: "0987654321",
 		PostalCode: "220", City: "新北市", District: "板橋區", Street: "文化路一段 1 號",
 	}
-	if _, err := placeOrder(t, s, ctx, id, uuid.NullUUID{}, shipID, addr, "", "setqty-checkout-1"); err != nil {
+	if _, err := placeOrder(t, s, ctx, id, uuid.NullUUID{}, shipID, addr, "", "setqty-checkout-"+uuid.NewString()); err != nil {
 		t.Fatalf("checkout after set quantity clamp returned error: %v", err)
 	}
 }
