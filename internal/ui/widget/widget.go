@@ -1,10 +1,10 @@
 // Package widget is an element placed inside a page that a person reads or
-// operates, used by two or more packages; it holds buttons, fields, the stepper,
-// badges, notices, the flash result and a refused form's summary, cards,
-// disclosure, breadcrumb and pager, stat lines, photos and empty art; it does
-// not hold the page's surround (ui/frame), drawings to scale (ui/chart), glyphs
-// (ui/icons), the product tile (ui/tile), any stored vocabulary or domain
-// wording (ui/tone, order, refund) or the carousel's slide (ui/hero).
+// operates; it holds buttons, fields, the stepper, badges, notices, the flash
+// result and a refused form's summary, cards, disclosure, breadcrumb and pager,
+// stat lines, photos and empty art; it does not hold the page's surround
+// (ui/frame), drawings to scale (ui/chart), glyphs (ui/icons), the product tile
+// (ui/tile), any stored vocabulary or domain wording (ui/tone, order, refund) or
+// the carousel's slide (ui/hero).
 //
 // A widget owns its classes and its element, never a hard-coded sentence: text
 // arrives as children, as a Props string already taken from internal/i18n, or
