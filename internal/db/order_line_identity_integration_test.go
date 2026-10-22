@@ -7,7 +7,11 @@ import (
 	"testing"
 )
 
-func TestOrderLineIdentityPreservesLocalizedPurchaseSnapshots(t *testing.T) {
+// TestOrderLineLocalizedSnapshot: an order line keeps the localized product
+// name and sku it was bought under after the product is renamed, and a legacy
+// line without a catalogue identity is still accepted, with role store
+// inserting it.
+func TestOrderLineLocalizedSnapshot(t *testing.T) {
 	ctx := t.Context()
 	tx, err := schemaPool(t).Begin(ctx)
 	if err != nil {

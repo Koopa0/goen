@@ -10,7 +10,9 @@ var (
 	sumsAmounts         = regexp.MustCompile(`sum\(\s*-?\s*(\w+\.)?amount_cents\s*\)`)
 )
 
-// TestEveryCreditBalanceReadsTheOneView holds store_credit_balances as the one definition of a balance.
+// TestEveryCreditBalanceReadsTheOneView: every query that reads a store-credit
+// balance reads the view store_credit_balances, the one definition of a
+// balance, except those listed with a reason.
 func TestEveryCreditBalanceReadsTheOneView(t *testing.T) {
 	t.Parallel()
 

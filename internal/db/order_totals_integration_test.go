@@ -4,7 +4,11 @@ package db_test
 
 import "testing"
 
-// TestOrderTotalsWidensNoRolesRead: order_totals is security_invoker, so its
+// TestOrderTotalsWidensNoRolesRead: a role that cannot read a column beneath
+// order_totals cannot read the view: it is security_invoker, so its grant
+// widens no role's read.
+//
+// Order_totals is security_invoker, so its
 // grant lets a role read nothing it could not already read from orders and
 // order_lines. The roles that state totals read it, store also through
 // order_amount_after_credit as every /pay page does. A role that cannot read a

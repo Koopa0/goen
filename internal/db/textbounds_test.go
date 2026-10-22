@@ -120,10 +120,12 @@ var (
 		`(?:\w+\s+IS\s+NULL\s+OR\s+)?(char_length|length|octet_length)\(\s*\w+\s*\)\s*<=\s*(\d+)\s*\)`)
 )
 
-// TestTextBoundsMirrorTheirValidators holds each length CHECK on a column
-// people type into to the limit the Go validator in front of it enforces, in
-// the same unit. The two had drifted: product_questions allowed 1000
-// characters behind a 300-rune form, product_answers 2000 behind 1000.
+// TestTextBoundsMirrorTheirValidators: each length CHECK on a column people
+// type into equals, in the same unit, the limit the Go validator in front of it
+// enforces.
+//
+// The two had drifted: product_questions allowed 1000 characters behind a
+// 300-rune form, product_answers 2000 behind 1000.
 func TestTextBoundsMirrorTheirValidators(t *testing.T) {
 	t.Parallel()
 

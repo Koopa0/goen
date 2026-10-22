@@ -53,6 +53,10 @@ var keptFunctionDoors = []struct {
 	{"store", releaseReservationSig},
 }
 
+// TestUnusedFunctionDoorsStayRevoked: the function doors no production SQL
+// calls stay revoked from the roles that held them, and the kept doors stay
+// granted.
+//
 // TestUnusedFunctionDoorsStayRevoked holds the EXECUTE matrix derived from
 // production SQL: storefront inventory goes through hold/release, fulfilment
 // through consume_reservation_partial, checkout through redeem_coupon.
@@ -71,11 +75,15 @@ func TestUnusedFunctionDoorsStayRevoked(t *testing.T) {
 	}
 }
 
-// TestProductionQueriesOwnTheFunctionExecuteMatrix refuses an EXECUTE grant
+// TestFunctionExecuteMatrix: for the scoped SECURITY DEFINER functions, a role
+// holds EXECUTE exactly when a production query of that role calls the
+// function.
+//
+// TestFunctionExecuteMatrix refuses an EXECUTE grant
 // whose function no production query of that role calls, and refuses a missing
 // grant for a function a production query does call. Owner and test-role
 // statements are not callers.
-func TestProductionQueriesOwnTheFunctionExecuteMatrix(t *testing.T) {
+func TestFunctionExecuteMatrix(t *testing.T) {
 	scoped := []string{
 		"record_inventory_movement",
 		"consume_reservation",
@@ -200,6 +208,9 @@ var keptTableVerbs = []struct {
 	{"store", "warranty_registrations", "INSERT"},
 }
 
+// TestUnusedTableVerbsStayRevoked: a role holds no INSERT, UPDATE or DELETE on
+// a table where no production query of that role uses that verb.
+//
 // TestUnusedTableVerbsStayRevoked is the verb-level lock the table-level write
 // direction guard cannot see: a role that INSERTs a table still held UPDATE or
 // DELETE from the blanket grant.
@@ -269,10 +280,15 @@ func assertRoleStatementDenied(t *testing.T, role, stmt string) {
 	}
 }
 
-// TestAdminContactMessageUpdateIsHandledAtOnly keeps identity and history off
+// TestAdminContactMessagesHandledAt: role admin can UPDATE
+// contact_messages.handled_at, which HandleMessage and ReopenMessage write, but
+// not id or created_at: handling a message rewrites neither identity nor
+// history.
+//
+// TestAdminContactMessagesHandledAt keeps identity and history off
 // the handle/reopen door. A default on id or created_at is an INSERT exemption,
 // not UPDATE authority: HandleMessage and ReopenMessage write handled_at only.
-func TestAdminContactMessageUpdateIsHandledAtOnly(t *testing.T) {
+func TestAdminContactMessagesHandledAt(t *testing.T) {
 	if roleHasColumnPriv(t, "admin", "contact_messages", "id", "UPDATE") {
 		t.Error("admin can UPDATE contact_messages.id; handling a message does not rewrite identity")
 	}
@@ -347,10 +363,13 @@ func TestAdminContactMessageUpdateIsHandledAtOnly(t *testing.T) {
 	}
 }
 
-// TestStoreCannotCallRecordInventoryMovementDirectly keeps the raw stock writer
+// TestStoreCannotRecordMovement: role store cannot execute
+// record_inventory_movement, the raw stock writer, while role admin can.
+//
+// TestStoreCannotRecordMovement keeps the raw stock writer
 // off the storefront pool. Holds and releases reach it through narrower DEFINER
 // doors; admin staff adjust and receive through the primitive on the admin pool.
-func TestStoreCannotCallRecordInventoryMovementDirectly(t *testing.T) {
+func TestStoreCannotRecordMovement(t *testing.T) {
 	assertFunctionPrivilege(t, "store", recordInventoryMovementSig, false)
 	assertFunctionPrivilege(t, "admin", recordInventoryMovementSig, true)
 

@@ -38,12 +38,16 @@ const requiredSearchPath = "SET search_path = pg_catalog, public, pg_temp"
 // finding nothing.
 const minimumFunctionHeaders = 125
 
-// TestMigrationFunctionHeadersStateTheirProperties reads the shipped migrations
+// TestMigrationFunctionHeaders: every function header in the shipped migrations
+// states SECURITY DEFINER and the pinned search_path for itself, because CREATE
+// OR REPLACE resets both when the header omits them.
+//
+// TestMigrationFunctionHeaders reads the shipped migrations
 // in order. A function is re-created in a later migration with CREATE OR
 // REPLACE, which resets SECURITY DEFINER and the pinned search_path to their
 // defaults when the new header leaves them out, so each header has to carry
 // both itself.
-func TestMigrationFunctionHeadersStateTheirProperties(t *testing.T) {
+func TestMigrationFunctionHeaders(t *testing.T) {
 	t.Parallel()
 
 	paths, err := filepath.Glob(filepath.Join("..", "..", "migrations", "*.up.sql"))
@@ -77,9 +81,12 @@ func TestMigrationFunctionHeadersStateTheirProperties(t *testing.T) {
 	}
 }
 
-// TestFunctionHeaderCheckerFixtures proves the checker can fail: each fixture
+// TestCheckFunctionHeaders: checkFunctionHeaders reports each defect it exists
+// to catch and passes the clean fixtures.
+//
+// TestCheckFunctionHeaders proves the checker can fail: each fixture
 // is a defect it exists to catch, and the clean ones must pass.
-func TestFunctionHeaderCheckerFixtures(t *testing.T) {
+func TestCheckFunctionHeaders(t *testing.T) {
 	t.Parallel()
 
 	const definer = "CREATE FUNCTION f() RETURNS int\nLANGUAGE sql SECURITY DEFINER " + requiredSearchPath + " AS $$ SELECT 1 $$;\n"

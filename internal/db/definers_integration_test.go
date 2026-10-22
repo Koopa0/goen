@@ -85,7 +85,10 @@ var definerFunctions = []string{
 	"upsert_staff(text,text,text)",
 }
 
-func TestSecurityDefinerFunctionsAreTheReviewedSet(t *testing.T) {
+// TestSecurityDefinerSet: the SECURITY DEFINER functions of the schema are
+// exactly the reviewed list of 66: a function that gains or loses the attribute
+// fails until the list is edited on purpose.
+func TestSecurityDefinerSet(t *testing.T) {
 	t.Parallel()
 
 	rows, err := schemaPool(t).Query(t.Context(), `

@@ -10,8 +10,12 @@ import (
 	"testing"
 )
 
-// TestEveryTableHasAWriter refuses a table the application never writes: a feature with no door.
-func TestEveryTableHasAWriter(t *testing.T) {
+// TestTablesWritten: every table is written by some statement of the
+// application, except those listed with a reason, so no feature is left without
+// a door.
+//
+// TestTablesWritten refuses a table the application never writes: a feature with no door.
+func TestTablesWritten(t *testing.T) {
 	allowed := map[string]string{
 		"schema_migrations": "golang-migrate's own bookkeeping; the migration runner writes it, never the application",
 	}
@@ -114,8 +118,10 @@ func storedFunctionBodies(t *testing.T) string {
 	return strings.Join(bodies, "\n")
 }
 
-// TestEveryTableIsRead is the mirror: a table written and never read is data collected and never shown.
-func TestEveryTableIsRead(t *testing.T) {
+// TestTablesRead: every table the application writes is also read by some
+// statement, except those listed with a reason, so no data is collected and
+// never shown.
+func TestTablesRead(t *testing.T) {
 	allowed := map[string]string{
 		"loyalty_redemption_operations": "private idempotency state read and locked " +
 			"inside redeem_loyalty_points; the application query invokes that one door",

@@ -100,7 +100,10 @@ type queryCall struct {
 	query  string
 }
 
-// TestEveryQueryIsCalledByItsOwner holds each generated query to the package whose
+// TestQueryCalledByOwner: every generated query is called only from the package
+// whose query.sql declares it, and from at least one recognised call.
+//
+// TestQueryCalledByOwner holds each generated query to the package whose
 // query.sql declares it. sqlc emits every query.sql into this one package, so the
 // compiler lets any store call any query; a call from another directory is
 // coupling that the import policy in internal/repocheck cannot see.
@@ -118,7 +121,7 @@ type queryCall struct {
 // repository's convention and it avoids same-named methods on other types. A call
 // the rule cannot see would make some query look uncalled, so every query must be
 // reached by at least one recognised call.
-func TestEveryQueryIsCalledByItsOwner(t *testing.T) {
+func TestQueryCalledByOwner(t *testing.T) {
 	t.Parallel()
 
 	root := filepath.Join("..", "..")

@@ -15,13 +15,17 @@ import (
 	"github.com/koopa0/goen/internal/db/dbtest"
 )
 
-// TestOrderNumbersAreRandomDistinctAndWellFormed places 1,000 orders as the store
+// TestOrderNumberRandomDistinct: 1,000 orders placed as role store from 8
+// concurrent sessions get distinct, well-formed order numbers that are random
+// rather than a counter in disguise.
+//
+// TestOrderNumberRandomDistinct places 1,000 orders as the store
 // role from 8 concurrent sessions, each in the transaction a checkout uses, so
 // the number comes from the column DEFAULT exactly as it does in production.
 // Every number must be new, match the format, and not be a digit counter in
 // disguise: the digits-only share of a random six-character base32 suffix is
 // 10^6 / 32^6, about 0.09%, so a share above 5% is a sequence.
-func TestOrderNumbersAreRandomDistinctAndWellFormed(t *testing.T) {
+func TestOrderNumberRandomDistinct(t *testing.T) {
 	const (
 		sessions   = 8
 		perSession = 125

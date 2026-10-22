@@ -11,7 +11,9 @@ import (
 	"github.com/koopa0/goen/internal/db/dbtest"
 )
 
-func TestBlockedSeesOnlyTheCurrentDatabase(t *testing.T) {
+// TestBlockedCurrentDatabase: Blocked reports a lock waiter of the caller's own
+// database, and never one of another copy of the template on the same server.
+func TestBlockedCurrentDatabase(t *testing.T) {
 	ctx := t.Context()
 	// Two copies of the template on one server, as two tests of a binary have.
 	pool := dbtest.Pool(t)

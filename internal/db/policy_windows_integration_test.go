@@ -17,14 +17,18 @@ import (
 // dayArithmetic is a window function adding a day count of its own to a date.
 var dayArithmetic = regexp.MustCompile(`[+-]\s*\d+`)
 
-// TestTheReturnWindowsAreNamedOnceInTheSchema pins the two return windows every
+// TestReturnWindows: the return windows live once in the schema:
+// rescission_days() is seven and return_goodwill_days() is fourteen, the
+// numbers every page states.
+//
+// TestReturnWindows pins the two return windows every
 // page states and the return decision applies. The literals are right: the copy
 // promises seven days to cancel (Consumer Protection Act §19, the returns policy,
 // the delivery mail, internal/i18n "七日") and fourteen for an unused return (the
 // returns policy "within 14 days of delivery", the returns desk's "days 8–14"). A
 // change to either function must change that copy in the same PR, and this test
 // is where that is forced.
-func TestTheReturnWindowsAreNamedOnceInTheSchema(t *testing.T) {
+func TestReturnWindows(t *testing.T) {
 	ctx := t.Context()
 	conn := schemaPool(t)
 
@@ -93,12 +97,16 @@ func TestTheReturnWindowsAreNamedOnceInTheSchema(t *testing.T) {
 	})
 }
 
-// TestTheCheckoutWindowsAreTheOnesTheStorefrontEnforces holds every Go copy of
+// TestCheckoutWindowsEnforced: every Go copy of the checkout windows (the hold,
+// the pay window and the payment page's admission rule) equals the schema's
+// checkout_hold_minutes() and checkout_pay_start_minutes().
+//
+// TestCheckoutWindowsEnforced holds every Go copy of
 // the checkout windows to the schema's: the hold the checkout asks
 // hold_inventory for, the pay window, and the payment page's admission rule, which
 // leaves Stripe its session floor out of the hold. The FAQ seed types both
 // numbers, so it is held here too.
-func TestTheCheckoutWindowsAreTheOnesTheStorefrontEnforces(t *testing.T) {
+func TestCheckoutWindowsEnforced(t *testing.T) {
 	ctx := t.Context()
 	conn := schemaPool(t)
 
@@ -149,10 +157,14 @@ func TestTheCheckoutWindowsAreTheOnesTheStorefrontEnforces(t *testing.T) {
 	})
 }
 
-// TestTheStorefrontRolesReadTheNamedWindows runs each window function as the
+// TestWindowFunctionGrants: roles store, admin and reporting can execute the
+// window functions they call in production, so a missing grant fails here and
+// not on the live site.
+//
+// TestWindowFunctionGrants runs each window function as the
 // roles that call it in production. The suites connect as the owner, so a
 // missing grant would pass every other test and fail on the live site.
-func TestTheStorefrontRolesReadTheNamedWindows(t *testing.T) {
+func TestWindowFunctionGrants(t *testing.T) {
 	ctx := t.Context()
 	const returns = `SELECT rescission_days(), return_goodwill_days(),
 		return_window_ends(now()), return_goodwill_ends(now()),

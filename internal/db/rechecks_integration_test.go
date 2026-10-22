@@ -41,11 +41,14 @@ const (
 	hua            = "'5555aaaa-5555-4555-8555-555555555555'"
 )
 
-// TestTheStorefrontOnlyCancelsAPendingOrder: the storefront writes fulfillment_status for
-// one move, pending to cancelled. Every other move, including the ones
-// orders_legal_transition allows, is refused to it, so it cannot report a parcel the back
-// office never recorded.
-func TestTheStorefrontOnlyCancelsAPendingOrder(t *testing.T) {
+// TestOrdersStorefrontCancelsOnly: role store can move an order's
+// fulfillment_status only from pending to cancelled: every other move,
+// including the ones orders_legal_transition allows, is refused by
+// orders_storefront_cancels_only.
+//
+// Every other move, including the ones orders_legal_transition allows, is
+// refused to it, so it cannot report a parcel the back office never recorded.
+func TestOrdersStorefrontCancelsOnly(t *testing.T) {
 	const refused = "orders_storefront_cancels_only"
 	for _, tc := range []struct{ name, stmt string }{
 		{"pending to picking",
@@ -74,10 +77,15 @@ func TestTheStorefrontOnlyCancelsAPendingOrder(t *testing.T) {
 		`UPDATE orders SET fulfillment_status = 'shipped' WHERE id = `+pickingOrder)
 }
 
-// TestAParcelKeepsWhenItShippedAndArrived: return_window_ends, warranty cover and the return
+// TestOrderShipmentsMomentsFrozen: a parcel's shipped_at and delivered_at,
+// which the return window and warranty cover count from, are written once:
+// order_shipments_moments_frozen refuses the owner and role admin a second
+// write.
+//
+// Return_window_ends, warranty cover and the return
 // form count from these two moments. Dispatch writes shipped_at and the delivered stamp
 // writes delivered_at once, where it finds NULL.
-func TestAParcelKeepsWhenItShippedAndArrived(t *testing.T) {
+func TestOrderShipmentsMomentsFrozen(t *testing.T) {
 	const (
 		frozen = "order_shipments_moments_frozen"
 		stamp  = `UPDATE order_shipments SET delivered_at = greatest(now(), shipped_at)
@@ -105,9 +113,14 @@ func TestAParcelKeepsWhenItShippedAndArrived(t *testing.T) {
 	expectAccepted(t, "a re-run stamp changes nothing", stamp+`SET LOCAL ROLE admin; `+stamp)
 }
 
-// TestASentIssueStaysSent: the text freeze reads sent_at, so sent_at and the count it was
+// TestNewsletterIssuesSentStaysSent: a sent newsletter issue keeps its sent_at,
+// recipients and text: newsletter_issues_sent_stays_sent and
+// newsletter_issues_frozen_once_sent refuse the owner and role admin, while the
+// sender's erasure may still clear sent_by.
+//
+// The text freeze reads sent_at, so sent_at and the count it was
 // sent to are frozen with it.
-func TestASentIssueStaysSent(t *testing.T) {
+func TestNewsletterIssuesSentStaysSent(t *testing.T) {
 	const (
 		compose = `SET LOCAL ROLE admin;
 		           INSERT INTO newsletter_issues (subject, body) VALUES ('十月新品', '本月新品上架。');`
@@ -133,10 +146,14 @@ func TestASentIssueStaysSent(t *testing.T) {
 	expectAccepted(t, "the sender is cleared", compose+send+`RESET ROLE; UPDATE newsletter_issues SET sent_by = NULL;`)
 }
 
-// TestAReviewKeepsItsProductAndAuthor: is_verified_purchase is checked against the author's
+// TestProductReviewsSubjectFrozen: a review keeps its product and author once
+// is_verified_purchase is checked against them: product_reviews_subject_frozen
+// refuses the owner and role store.
+//
+// Is_verified_purchase is checked against the author's
 // committed order for that product when it is set, so neither may change afterwards. Erasure
 // clears the author through the foreign key.
-func TestAReviewKeepsItsProductAndAuthor(t *testing.T) {
+func TestProductReviewsSubjectFrozen(t *testing.T) {
 	const (
 		frozen = "product_reviews_subject_frozen"
 		review = `INSERT INTO product_reviews (product_id, user_id, rating, body, is_verified_purchase)
@@ -157,10 +174,15 @@ func TestAReviewKeepsItsProductAndAuthor(t *testing.T) {
 	expectAccepted(t, "the author is erased", review+`SET LOCAL ROLE store; SELECT erase_user(`+ming+`)`)
 }
 
-// TestAnInvoicedCreditOrderKeepsItsTotals: an order store credit pays in full carries no
+// TestOrderMoneyFrozenAfterClaim: once claim_invoice_issue has claimed it, a
+// store-credit-funded order, which carries no payment and stays pending, keeps
+// its totals and locale: orders_money_frozen_once_committed refuses the owner
+// and role store gets insufficient_privilege.
+//
+// An order store credit pays in full carries no
 // payment and stays pending until it is picked, so it is neither committed nor settled. Its
 // issue is claimed before then, from these columns, and from the claim they are the invoice's.
-func TestAnInvoicedCreditOrderKeepsItsTotals(t *testing.T) {
+func TestOrderMoneyFrozenAfterClaim(t *testing.T) {
 	const (
 		funded = mingPendingOrder + `
 			INSERT INTO invoice_preferences (order_id, invoice_type, customer_name, customer_email)

@@ -12,7 +12,11 @@ import (
 	"github.com/koopa0/goen/internal/db"
 )
 
-// TestARolledBackTransactionKeepsItsConnection settles which context a deferred
+// TestRollbackCancelledContext: a rollback on a cancelled context fails and
+// destroys the pooled connection, while one on a detached context succeeds,
+// which is why db.Rollback detaches.
+//
+// TestRollbackCancelledContext settles which context a deferred
 // rollback takes.
 //
 // pgx's Rollback runs `Exec(ctx, "rollback")` and, when that Exec fails, calls
@@ -26,7 +30,7 @@ import (
 // Only the ROLLBACK's own error is asserted: the pool's connection count is the
 // visible consequence, but the suite shares one pool, so a neighbouring test
 // releasing an idle connection moves that number for unrelated reasons.
-func TestARolledBackTransactionKeepsItsConnection(t *testing.T) {
+func TestRollbackCancelledContext(t *testing.T) {
 	for _, tt := range []struct {
 		name string
 		// rollbackCtx builds the context the deferred rollback is given.
@@ -93,7 +97,11 @@ func onePool(t *testing.T) *pgxpool.Pool {
 	return p
 }
 
-// TestRollbackEndsATransactionTheClientAbandoned runs db.Rollback itself, not
+// TestRollbackAbandonedTransaction: db.Rollback ends a transaction whose
+// request was cancelled and returns the same backend to the pool idle and not
+// in a transaction.
+//
+// TestRollbackAbandonedTransaction runs db.Rollback itself, not
 // pgx's Rollback, against the real server after the request's context is
 // cancelled.
 //
@@ -103,7 +111,7 @@ func onePool(t *testing.T) *pgxpool.Pool {
 // free for the next caller. A Rollback that does nothing leaves the connection
 // checked out, so the next acquire times out; one that rolls back on the
 // cancelled context makes pgx destroy the connection, so the pid changes.
-func TestRollbackEndsATransactionTheClientAbandoned(t *testing.T) {
+func TestRollbackAbandonedTransaction(t *testing.T) {
 	p := onePool(t)
 	ctx, cancel := context.WithCancel(t.Context())
 
@@ -149,10 +157,9 @@ func TestRollbackEndsATransactionTheClientAbandoned(t *testing.T) {
 	}
 }
 
-// TestRollbackLeavesACommittedTransactionAlone is why Rollback can be deferred
-// right after Begin: after Commit it must change nothing and leave the
-// connection usable.
-func TestRollbackLeavesACommittedTransactionAlone(t *testing.T) {
+// TestRollbackAfterCommit: db.Rollback after Commit changes nothing and leaves
+// the connection usable, which is why it can be deferred right after Begin.
+func TestRollbackAfterCommit(t *testing.T) {
 	p := onePool(t)
 	ctx := t.Context()
 

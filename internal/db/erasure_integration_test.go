@@ -17,8 +17,8 @@ import (
 // addressSurvivors names any table allowed to keep an erased address, with the reason.
 var addressSurvivors = map[string]string{}
 
-// TestTheLastAdminCannotBeErased holds erase_user to refusing the only admin.
-func TestTheLastAdminCannotBeErased(t *testing.T) {
+// TestEraseUserLastAdmin: erase_user refuses to erase the only admin.
+func TestEraseUserLastAdmin(t *testing.T) {
 	ctx := t.Context()
 	tx, beginErr := schemaPool(t).Begin(ctx)
 	if beginErr != nil {
@@ -59,6 +59,10 @@ func TestTheLastAdminCannotBeErased(t *testing.T) {
 	}
 }
 
+// TestUsersTriggerKeepsOneAdmin: even an owner-issued raw role update or delete
+// cannot remove the only administrator: the users triggers
+// users_keep_one_admin_on_role and users_keep_one_admin_on_delete refuse it.
+//
 // TestUsersTriggerKeepsOneAdmin proves the database-wide fallback, independent
 // of the application functions: even an owner-issued raw role update or delete
 // cannot remove the only administrator.
@@ -110,10 +114,13 @@ func TestUsersTriggerKeepsOneAdmin(t *testing.T) {
 	}
 }
 
-// TestErasureLeavesNoCustomerDetailsInPaymentEvents plants payment events the way a
+// TestEraseUserPaymentEvents: erase_user reduces the payment events of the
+// erased customer, even those loaded before any trigger existed.
+//
+// TestEraseUserPaymentEvents plants payment events the way a
 // restore loads them — before any trigger exists — so the reduction at write time
 // has not touched them, and holds erase_user to reducing the erased customer's.
-func TestErasureLeavesNoCustomerDetailsInPaymentEvents(t *testing.T) {
+func TestEraseUserPaymentEvents(t *testing.T) {
 	ctx := t.Context()
 	tx, err := schemaPool(t).Begin(ctx)
 	if err != nil {
@@ -195,12 +202,17 @@ func TestErasureLeavesNoCustomerDetailsInPaymentEvents(t *testing.T) {
 	}
 }
 
-// TestErasureReachesTheGuestOrdersOfAProvedAddress holds erase_user to treating an
+// TestEraseUserGuestOrders: erase_user treats the guest orders of an address
+// the customer proved as it treats the account's own: delivery details, note
+// and access go, the order stays; three orders the address does not own are
+// left alone.
+//
+// TestEraseUserGuestOrders holds erase_user to treating an
 // order the proved address placed as a guest the way it treats the account's own:
 // delivery details, the customer's note and every browser's access go, and the
 // order stays as the financial record it is. The controls are the three orders the
 // same address must NOT reach.
-func TestErasureReachesTheGuestOrdersOfAProvedAddress(t *testing.T) {
+func TestEraseUserGuestOrders(t *testing.T) {
 	ctx := t.Context()
 	tx, err := schemaPool(t).Begin(ctx)
 	if err != nil {
@@ -322,13 +334,15 @@ func TestErasureReachesTheGuestOrdersOfAProvedAddress(t *testing.T) {
 	}
 }
 
-// TestErasureReadsOnlyTheLowerCaseOutboxKeys holds erase_user to the payload keys
-// every producer writes, "email" and "order_number". A row that names the same
-// address or order under the Go field name ("Email", "OrderNumber") is a shape no
-// binary has queued, and the function carries no fallback for it. The controls
-// are the rows in the real shape, which must go: a function that erased nothing
-// would satisfy the survivors alone.
-func TestErasureReadsOnlyTheLowerCaseOutboxKeys(t *testing.T) {
+// TestEraseUserOutboxKeys: erase_user reads the payload keys every producer
+// writes, email and order_number, and carries no fallback for the Go field
+// names.
+//
+// A row that names the same address or order under the Go field name ("Email",
+// "OrderNumber") is a shape no binary has queued, and the function carries no
+// fallback for it. The controls are the rows in the real shape, which must go:
+// a function that erased nothing would satisfy the survivors alone.
+func TestEraseUserOutboxKeys(t *testing.T) {
 	ctx := t.Context()
 	tx, beginErr := schemaPool(t).Begin(ctx)
 	if beginErr != nil {
@@ -379,12 +393,16 @@ func TestErasureReadsOnlyTheLowerCaseOutboxKeys(t *testing.T) {
 	}
 }
 
-// TestAnAccountEveryForeignKeyNamesCanBeErased references one account from every
+// TestEraseUserForeignKeys: erase_user, run as role store, erases an account
+// that every foreign key to users references: no key's ON DELETE action fires a
+// trigger that refuses.
+//
+// TestEraseUserForeignKeys references one account from every
 // foreign key to users, derived from the catalog so a new one is refused until it
 // is populated here, and erases it as store, the role /account/erase runs as. Each
 // key's ON DELETE action fires the triggers of the table it rewrites, and one of
 // them refusing is a customer who can never leave.
-func TestAnAccountEveryForeignKeyNamesCanBeErased(t *testing.T) {
+func TestEraseUserForeignKeys(t *testing.T) {
 	ctx := t.Context()
 	tx, err := schemaPool(t).Begin(ctx)
 	if err != nil {

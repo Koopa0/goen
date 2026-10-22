@@ -15,16 +15,18 @@ var (
 	variantPrimaryImageView      = regexp.MustCompile(`(?is)\bCREATE\s+VIEW\s+variant_primary_image\b[^;]*;`)
 	// productGallery is the product page's gallery, which orders every
 	// photograph by the same rule; the view is its first.
-	// TestTheLinePhotographIsTheGallerysFirst holds the two together.
+	// TestVariantPrimaryImageFirst holds the two together.
 	productGallery = regexp.MustCompile(`(?s)-- name: ProductImages :many\n[^;]*;`)
 )
 
-// TestEveryLinePhotographReadsTheOneView holds variant_primary_image as the one
-// place that picks a variant's photograph. The rule was written out in four
-// line readers, and the copies had drifted from the product page: they skipped
-// its "untagged before another value's" step and showed the silver watch for
-// the black one (#2141).
-func TestEveryLinePhotographReadsTheOneView(t *testing.T) {
+// TestVariantPrimaryImageOneView: every query that shows a cart or order line's
+// photograph reads variant_primary_image, the one place that picks it, except
+// those listed with a reason.
+//
+// The rule was written out in four line readers, and the copies had drifted
+// from the product page: they skipped its "untagged before another value's"
+// step and showed the silver watch for the black one (#2141).
+func TestVariantPrimaryImageOneView(t *testing.T) {
 	t.Parallel()
 
 	sources := queryFiles(t)

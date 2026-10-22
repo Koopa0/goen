@@ -162,8 +162,9 @@ var expectedForeignKeys = map[string]bool{
 	"wishlist_items_user_id_fkey":                 true,
 }
 
-// TestForeignKeySetIsComplete requires the live foreign keys to equal expectedForeignKeys exactly.
-func TestForeignKeySetIsComplete(t *testing.T) {
+// TestForeignKeysComplete: the live foreign keys equal expectedForeignKeys
+// exactly: a key added or dropped without updating the list fails.
+func TestForeignKeysComplete(t *testing.T) {
 	rows, err := schemaPool(t).Query(t.Context(), `
 		SELECT conname
 		FROM pg_constraint
@@ -198,9 +199,12 @@ func TestForeignKeySetIsComplete(t *testing.T) {
 	}
 }
 
-// TestEveryForeignKeyIsIndexed catches what PostgreSQL does not: it creates no index for a
+// TestForeignKeysIndexed: every foreign key has an index, which PostgreSQL does
+// not create, so a parent delete does not scan the child.
+//
+// TestForeignKeysIndexed catches what PostgreSQL does not: it creates no index for a
 // foreign key, so a parent delete scans the child.
-func TestEveryForeignKeyIsIndexed(t *testing.T) {
+func TestForeignKeysIndexed(t *testing.T) {
 	rows, err := schemaPool(t).Query(t.Context(), `
 		SELECT c.conrelid::regclass::text, c.conname
 		FROM pg_constraint c
@@ -247,11 +251,15 @@ func TestEveryForeignKeyIsIndexed(t *testing.T) {
 	}
 }
 
-// TestEveryForeignKeyToAUserLetsTheAccountBeErased reads every foreign key to
+// TestUserForeignKeysErasable: no foreign key to users refuses the delete
+// erasure makes or sets a NOT NULL column to NULL, so every account can be
+// erased.
+//
+// TestUserForeignKeysErasable reads every foreign key to
 // users from the catalogue. Erasure deletes the users row, so a key that
 // refuses the delete, or that sets a NOT NULL column to NULL, fails erasure for
 // every account it names: a new actor column added that way fails here first.
-func TestEveryForeignKeyToAUserLetsTheAccountBeErased(t *testing.T) {
+func TestUserForeignKeysErasable(t *testing.T) {
 	rows, err := schemaPool(t).Query(t.Context(), `
 		SELECT c.conrelid::regclass::text, c.conname, c.confdeltype::text,
 		       coalesce((
@@ -299,11 +307,15 @@ func TestEveryForeignKeyToAUserLetsTheAccountBeErased(t *testing.T) {
 	}
 }
 
-// TestAnEligibilityFactStaysWithItsAssessment files facts as admin, which holds
+// TestReturnEligibilityFactAssessment: as role admin, an eligibility fact that
+// names another order or another return's line than its assessment is refused
+// rather than read as the wrong return's evidence.
+//
+// TestReturnEligibilityFactAssessment files facts as admin, which holds
 // INSERT on the table directly. A fact is read back by assessment_id alone, as
 // evidence for that return's decision, so one naming another order or another
 // return's line must be refused rather than read as the wrong return's evidence.
-func TestAnEligibilityFactStaysWithItsAssessment(t *testing.T) {
+func TestReturnEligibilityFactAssessment(t *testing.T) {
 	const (
 		// R1 on the paid fixture order, with its shipped line, assessed once. R1 is
 		// then decided so the same order can open R2 on the same line.

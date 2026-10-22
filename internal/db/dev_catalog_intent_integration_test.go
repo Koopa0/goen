@@ -13,7 +13,9 @@ import (
 	"github.com/koopa0/goen/internal/db/dbtest"
 )
 
-func TestDemoCatalogueRequiresExplicitDevelopmentIntent(t *testing.T) {
+// TestDemoCatalogueIntentRequired: seed/dev_catalog.sql refuses to load unless
+// the caller states the development intent explicitly.
+func TestDemoCatalogueIntentRequired(t *testing.T) {
 	seed, err := os.ReadFile("../../seed/dev_catalog.sql")
 	if err != nil {
 		t.Fatal(err)
@@ -56,7 +58,9 @@ func TestDemoCatalogueRequiresExplicitDevelopmentIntent(t *testing.T) {
 	}
 }
 
-func TestDemoCatalogueAcceptsExplicitDevelopmentIntentThroughPsql(t *testing.T) {
+// TestDemoCatalogueIntentAccepted: seed/dev_catalog.sql loads through psql when
+// the caller states the development intent explicitly.
+func TestDemoCatalogueIntentAccepted(t *testing.T) {
 	shop := dbtest.Pool(t)
 	if output, err := runSeed(t, "dev_catalog.sql", shop.Config().ConnString()); err != nil {
 		t.Fatalf("development catalogue seed = %v; output: %s", err, output)

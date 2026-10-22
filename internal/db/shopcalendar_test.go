@@ -18,11 +18,14 @@ var (
 	queryPathInSQLC     = regexp.MustCompile(`(?m)^\s*-\s*["']([^"']+/query\.sql)["']\s*$`)
 )
 
-// TestEveryCalendarDayGoesThroughTheShopsCalendar holds shop_day/shop_today as
-// the one definition of the shop's calendar. It deliberately catches only a
-// timestamptz cast whose identifier is named `at` or ends `_at`; a timestamp
-// column named otherwise is beyond what a source census can infer.
-func TestEveryCalendarDayGoesThroughTheShopsCalendar(t *testing.T) {
+// TestShopDayCalendar: every calendar day in SQL goes through shop_day or
+// shop_today, the one definition of the shop's calendar, rather than a
+// timestamptz cast of a column named at or ending _at.
+//
+// It deliberately catches only a timestamptz cast whose identifier is named
+// `at` or ends `_at`; a timestamp column named otherwise is beyond what a
+// source census can infer.
+func TestShopDayCalendar(t *testing.T) {
 	t.Parallel()
 
 	root := filepath.Join("..", "..")

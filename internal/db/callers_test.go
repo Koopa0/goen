@@ -12,14 +12,17 @@ import (
 	"testing"
 )
 
-// TestEveryGeneratedQueryHasAProductionCaller covers the generated layer that
+// TestGeneratedQueryProductionCaller: every generated sqlc method is called by
+// hand-written production code, so none is dead.
+//
+// TestGeneratedQueryProductionCaller covers the generated layer that
 // x/tools/deadcode treats as live through reflection: does each sqlc method have
 // a direct selector CallExpr in hand-written, non-test production Go?
 //
 // It is not type-aware — a same-named selector on another receiver satisfies it,
 // and a call inside a dead wrapper still counts. make deadcode owns wrapper
 // reachability; this test owns generated methods with zero production calls.
-func TestEveryGeneratedQueryHasAProductionCaller(t *testing.T) {
+func TestGeneratedQueryProductionCaller(t *testing.T) {
 	t.Parallel()
 
 	methods := generatedMethods(t)

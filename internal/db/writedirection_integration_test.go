@@ -157,6 +157,10 @@ func lockedTables(statement string) []string {
 	return out
 }
 
+// TestNoRoleHoldsAWriteItsQueriesNeverMake: every INSERT, UPDATE or DELETE a
+// role holds on a table is a verb its production calls use, so an INSERT cannot
+// justify an UPDATE or DELETE.
+//
 // TestNoRoleHoldsAWriteItsQueriesNeverMake checks each held verb against the
 // production calls on that role, so an INSERT cannot justify UPDATE or DELETE.
 func TestNoRoleHoldsAWriteItsQueriesNeverMake(t *testing.T) {
@@ -212,6 +216,11 @@ func TestNoRoleHoldsAWriteItsQueriesNeverMake(t *testing.T) {
 	}
 }
 
+// TestNoRoleHoldsAColumnWriteItsQueriesNeverMake: every INSERT or UPDATE
+// privilege a role holds on a column is one of the columns its production
+// statements INSERT or UPDATE, verb by verb, unless columnExemptions says
+// otherwise.
+//
 // TestNoRoleHoldsAColumnWriteItsQueriesNeverMake is the same question one level down, a verb
 // at a time: every INSERT or UPDATE privilege a role holds on a column must be one of the
 // columns its production statements INSERT or UPDATE. `store` writes `users` legitimately,
@@ -273,11 +282,15 @@ func TestNoRoleHoldsAColumnWriteItsQueriesNeverMake(t *testing.T) {
 	}
 }
 
-// TestRolesCannotWriteTheColumnsTheirStatementsLeaveAlone runs, as each role, a write of
+// TestRolesCannotWriteFixedColumns: roles store and admin cannot write columns
+// that no statement of theirs writes and other rules read as fixed, such as
+// orders.placed_at, orders.locale or order_shipments.shipped_at.
+//
+// TestRolesCannotWriteFixedColumns runs, as each role, a write of
 // columns no statement of that role writes and that other rules read as fixed. PostgreSQL
 // checks column privileges when it plans a statement, so each case is refused for
 // privilege whether or not a row matches.
-func TestRolesCannotWriteTheColumnsTheirStatementsLeaveAlone(t *testing.T) {
+func TestRolesCannotWriteFixedColumns(t *testing.T) {
 	const order = "'66666666-6666-4666-8666-666666666666'"
 	for _, tc := range []struct{ name, role, stmt string }{
 		{"store UPDATE orders.placed_at", "store",
@@ -325,8 +338,9 @@ var columnExemptions = map[string]string{
 		"zone column, and position only orders the zone list",
 }
 
-// TestNoStaleColumnExemption refuses a columnExemptions entry whose privilege is no longer held.
-func TestNoStaleColumnExemption(t *testing.T) {
+// TestColumnExemptionsNotStale: a columnExemptions entry whose privilege is no
+// longer held is refused.
+func TestColumnExemptionsNotStale(t *testing.T) {
 	ctx := t.Context()
 	for key, why := range columnExemptions {
 		parts := strings.Split(key, ".")
@@ -668,10 +682,13 @@ var backOfficePackages = []string{
 // maintenancePackages run on the pool that does SET ROLE maintenance, which holds no table write.
 var maintenancePackages = []string{"backinstock", "product/copurchase"}
 
-// TestThePoolMapIsComplete refuses a directory that ships a query.sql and is on no pool map, which
+// TestPoolMapComplete: every directory that ships a query.sql is on a pool map,
+// so none is opted out of the role guards.
+//
+// TestPoolMapComplete refuses a directory that ships a query.sql and is on no pool map, which
 // opts it out entirely. An entry covers its own directory and everything below it, so a nested
 // package (order/access) is named by its path and a parent entry (admin) covers its desks.
-func TestThePoolMapIsComplete(t *testing.T) {
+func TestPoolMapComplete(t *testing.T) {
 	named := slices.Concat(storefrontPackages, backOfficePackages, maintenancePackages)
 
 	root := filepath.Join("..", "..", "internal")
@@ -705,8 +722,9 @@ func TestThePoolMapIsComplete(t *testing.T) {
 	}
 }
 
-// TestNoStaleWriteExemption refuses a writeExemptions entry whose privilege is no longer held.
-func TestNoStaleWriteExemption(t *testing.T) {
+// TestWriteExemptionsNotStale: a writeExemptions entry whose privilege is no
+// longer held is refused.
+func TestWriteExemptionsNotStale(t *testing.T) {
 	ctx := t.Context()
 	for key, why := range writeExemptions {
 		role, table, ok := strings.Cut(key, ".")
@@ -743,7 +761,9 @@ func sortedKeys(m map[string][]string) []string {
 	return out
 }
 
-func TestWriteVerbTargetsDistinguishUpserts(t *testing.T) {
+// TestWriteVerbTargetsUpserts: writeVerbTargets counts an INSERT ... ON
+// CONFLICT DO UPDATE as an UPDATE and a plain INSERT as not.
+func TestWriteVerbTargetsUpserts(t *testing.T) {
 	for _, tc := range []struct {
 		sql    string
 		update bool
@@ -759,7 +779,10 @@ func TestWriteVerbTargetsDistinguishUpserts(t *testing.T) {
 	}
 }
 
-func TestWriteVerbTargetsCountRowLocks(t *testing.T) {
+// TestWriteVerbTargetsRowLocks: writeVerbTargets counts only the tables a
+// row-lock clause names as UPDATE targets, not the other tables of the
+// statement.
+func TestWriteVerbTargetsRowLocks(t *testing.T) {
 	for _, tc := range []struct {
 		sql      string
 		locked   []string
@@ -788,7 +811,9 @@ func TestWriteVerbTargetsCountRowLocks(t *testing.T) {
 	}
 }
 
-func TestColumnWritesKeepTheVerbsApart(t *testing.T) {
+// TestColumnWrites: columnWrites keeps the columns a statement inserts apart
+// from the columns it updates.
+func TestColumnWrites(t *testing.T) {
 	for _, tc := range []struct {
 		sql            string
 		table          string

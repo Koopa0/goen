@@ -3,7 +3,7 @@
 package db_test
 
 // One case per constraint. The catalog is the authority on what must be covered:
-// TestEveryCheckConstraintIsExercised and TestEveryUniqueConstraintIsExercised fail on a drift.
+// TestCheckConstraintsExercised and TestUniqueConstraintsExercised fail on a drift.
 
 var checkCases = []checkCase{
 	{

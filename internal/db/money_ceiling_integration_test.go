@@ -16,13 +16,16 @@ import (
 // reason. It is empty: every amount 001 stores is bounded.
 var uncappedMoney = map[string]string{}
 
-// TestEveryMoneyColumnHasACeiling holds money.MaxCents ("the ceiling every
+// TestMoneyColumnCeiling: every *_cents column has a CHECK bounding it at or
+// below money.MaxCents, or a written reason in uncappedMoney.
+//
+// TestMoneyColumnCeiling holds money.MaxCents ("the ceiling every
 // money column carries") to the schema: each *_cents column of each table has a
 // CHECK bounding it at or below that ceiling, or a written reason in
 // uncappedMoney. Six had none. orders.shipping_cents among them let the store
 // role commit a delivery fee of 9e18 cents, and one at bigint's limit made
 // order_totals fail with "bigint out of range" for every list that reads it.
-func TestEveryMoneyColumnHasACeiling(t *testing.T) {
+func TestMoneyColumnCeiling(t *testing.T) {
 	ctx := t.Context()
 	rows, err := schemaPool(t).Query(ctx, `
 		SELECT c.relname, a.attname,
@@ -86,11 +89,15 @@ func TestEveryMoneyColumnHasACeiling(t *testing.T) {
 	}
 }
 
-// TestAnOrderTotalCannotLeaveBigint reproduces the overflow: a delivery fee
+// TestOrderTotalBigintCeiling: an order's delivery fee at bigint's limit is
+// refused even with triggers off, so order_totals never fails with "bigint out
+// of range".
+//
+// TestOrderTotalBigintCeiling reproduces the overflow: a delivery fee
 // at bigint's limit, written with triggers off as a restore or a maintenance
 // script would, made order_totals answer "bigint out of range" for that order
 // and for every list that reads it. A CHECK still applies with triggers off.
-func TestAnOrderTotalCannotLeaveBigint(t *testing.T) {
+func TestOrderTotalBigintCeiling(t *testing.T) {
 	expectRefusal(t, "a delivery fee at bigint's limit, triggers off", `
 		SET LOCAL session_replication_role = replica;
 		INSERT INTO orders (id, shipping_cents, shipping_version_id, shipping_method_code, shipping_method_name)

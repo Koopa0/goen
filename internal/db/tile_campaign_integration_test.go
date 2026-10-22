@@ -12,10 +12,10 @@ import (
 	"github.com/koopa0/goen/internal/db"
 )
 
-// Every query that fills a product card carries the in_campaign predicate as its
-// own copy, so each copy is checked on its own: a product in a running campaign
+// TestTileQueriesInCampaign: every query that fills a product card carries
+// in_campaign as its own copy of the predicate: a product in a running campaign
 // is in a campaign, one in an ended campaign and one in none is not.
-func TestEveryTileQueryCarriesWhetherARunningCampaignFeaturesTheProduct(t *testing.T) {
+func TestTileQueriesInCampaign(t *testing.T) {
 	ctx := t.Context()
 	tx, err := schemaPool(t).Begin(ctx)
 	if err != nil {

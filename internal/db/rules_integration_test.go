@@ -36,14 +36,14 @@ var coveredByNamedTest = map[string]string{
 	"product_variants_lock_catalogue":        "TestStore_AddVariantOptionRace (internal/admin/products)",
 	"loyalty_lot_guard":                      "the loyalty_entries_lot_* rule cases below exercise each branch by its own constraint name",
 	"order_lines_bind_product":               "TestRetiringAPurchasedVariantDoesNotEraseVerifiedPurchase (internal/catalog), TestStore_SetProductInvoiceLineFacts (internal/admin/products)",
-	"product_variants_keep_product_sellable": "TestDeactivatingTheLastVariantIsRefused, TestDeletingTheLastVariantIsRefused",
+	"product_variants_keep_product_sellable": "TestProductVariantsSellableDeactivate, TestProductVariantsSellableDelete",
 	"users_keep_one_admin_on_role":           "TestUsersTriggerKeepsOneAdmin (internal/db)",
 	"users_keep_one_admin_on_delete":         "TestUsersTriggerKeepsOneAdmin (internal/db)",
 	// Exercised where the send is: proving it needs an issue that has actually been sent.
 	"newsletter_issues_frozen_once_sent": "TestStore_SendNewsletterFreezesIssue (internal/admin/newsletters)",
 	// It reduces rather than refuses, so it has no violation to name.
 	"payment_webhook_events_evidence_only": "TestHandler_WebhookKeptEvent " +
-		"(internal/payment), TestErasureLeavesNoCustomerDetailsInPaymentEvents",
+		"(internal/payment), TestEraseUserPaymentEvents",
 	// Its violation needs an order a committed checkout placed, which a case run inside the
 	// fixtures' own transaction cannot have.
 	"order_lines_written_while_placing": "TestOrderLinesWrittenWhilePlacing (internal/checkout)",
@@ -51,11 +51,12 @@ var coveredByNamedTest = map[string]string{
 	"coupon_redemptions_written_while_placing": "TestOrderLinesWrittenWhilePlacing (internal/checkout)",
 	// Its violation needs a paid unsent refund over a live hold, which only
 	// the door and a payout can build.
-	"return_unsent_completes_released": "TestAnUnpaidUnsentRefundNeitherSettlesNorCompletes",
+	"return_unsent_completes_released": "TestSettleUnsentRefundUnpaid",
 }
 
-// TestEveryRuleTriggerIsExercised requires a case for every rule trigger in the catalog.
-func TestEveryRuleTriggerIsExercised(t *testing.T) {
+// TestRuleTriggersExercised: every rule trigger in the catalog has a case in
+// ruleCases, or is named in coveredByNamedTest with the test that covers it.
+func TestRuleTriggersExercised(t *testing.T) {
 	rows, err := schemaPool(t).Query(t.Context(), `
 		SELECT tg.tgname
 		FROM pg_trigger tg
@@ -97,6 +98,9 @@ func TestEveryRuleTriggerIsExercised(t *testing.T) {
 	}
 }
 
+// TestRulesReject: every rule trigger refuses its own violation, and the named
+// rule is what refuses it.
+//
 // TestRulesReject requires each trigger to refuse its own violation, named.
 func TestRulesReject(t *testing.T) {
 	for _, c := range ruleCases {
@@ -113,7 +117,8 @@ func TestRulesReject(t *testing.T) {
 	}
 }
 
-// TestRulesAccept runs the neighbouring legal operation.
+// TestRulesAccept: every rule trigger accepts the neighbouring legal operation
+// of its case.
 func TestRulesAccept(t *testing.T) {
 	for _, c := range ruleCases {
 		if c.accept == "" {
@@ -1833,7 +1838,8 @@ func requireExactlyOne(t *testing.T, what string, err1, err2 error) {
 	}
 }
 
-// TestStockCannotOversell: two buyers take the last unit at once, and exactly one may have it.
+// TestStockCannotOversell: two buyers who take the last unit at once cannot
+// both have it: exactly one is served and stock never goes below zero.
 func TestStockCannotOversell(t *testing.T) {
 	variant := "11110005-0000-4000-8000-000000000001"
 	setup(t, `
@@ -1868,7 +1874,9 @@ func TestStockCannotOversell(t *testing.T) {
 	}
 }
 
-// TestRefundsCannotRacePastCapture issues two refunds of 60% of a capture at once.
+// TestRefundsCannotRacePastCapture: two refunds of 60% of one capture, issued
+// at once, are not both accepted: exactly one succeeds and the refunded total
+// never exceeds the capture.
 func TestRefundsCannotRacePastCapture(t *testing.T) {
 	order := "11110009-0000-4000-8000-000000000001"
 	payment := "1111000a-0000-4000-8000-000000000001"
@@ -1912,8 +1920,9 @@ func TestRefundsCannotRacePastCapture(t *testing.T) {
 	}
 }
 
-// TestStoreCreditCannotRacePastBalance spends the same balance twice at once.
-func TestStoreCreditCannotRacePastBalance(t *testing.T) {
+// TestStoreCreditBalanceRace: two spends of the same store-credit balance
+// issued at once are not both accepted.
+func TestStoreCreditBalanceRace(t *testing.T) {
 	user := "1111000b-0000-4000-8000-000000000001"
 	account := "1111000e-0000-4000-8000-000000000001"
 	setup(t, `
@@ -1945,8 +1954,11 @@ func TestStoreCreditCannotRacePastBalance(t *testing.T) {
 	}
 }
 
-// TestOrderNumbersAreUniqueUnderConcurrency takes many numbers at once.
-func TestOrderNumbersAreUniqueUnderConcurrency(t *testing.T) {
+// TestOrderNumberUniqueRace: order numbers taken by many concurrent
+// transactions are unique.
+//
+// TestOrderNumberUniqueRace takes many numbers at once.
+func TestOrderNumberUniqueRace(t *testing.T) {
 	ctx := t.Context()
 	p := schemaPool(t)
 
@@ -1985,8 +1997,9 @@ func TestOrderNumbersAreUniqueUnderConcurrency(t *testing.T) {
 	}
 }
 
-// TestUpdatedAtIsMaintained covers the bookkeeping trigger the completeness gate excludes.
-func TestUpdatedAtIsMaintained(t *testing.T) {
+// TestSetUpdatedAt: the bookkeeping trigger set_updated_at moves updated_at
+// across an update, which the trigger completeness gate excludes.
+func TestSetUpdatedAt(t *testing.T) {
 	ctx := t.Context()
 	p := schemaPool(t)
 
@@ -2007,7 +2020,8 @@ func TestUpdatedAtIsMaintained(t *testing.T) {
 	}
 }
 
-// TestRefundMustMatchOrder proves a refund cannot relieve one order's return against another's capture.
+// TestRefundMustMatchOrder: a refund cannot relieve one order's return against
+// another order's capture.
 func TestRefundMustMatchOrder(t *testing.T) {
 	// A return request on the UNPAID order against the PAID order's payment: two different orders.
 	err := run(t, `
@@ -2023,7 +2037,8 @@ func TestRefundMustMatchOrder(t *testing.T) {
 	}
 }
 
-// TestReleaseReservationRefusesPaidOrder proves the expiry sweep cannot return a paid order's stock.
+// TestReleaseReservationRefusesPaidOrder: release_reservation, the expiry
+// sweep, cannot return a paid order's stock.
 func TestReleaseReservationRefusesPaidOrder(t *testing.T) {
 	ctx := t.Context()
 	tx, err := schemaPool(t).Begin(ctx)
@@ -2070,6 +2085,10 @@ func TestReleaseReservationRefusesPaidOrder(t *testing.T) {
 	}
 }
 
+// TestHoldInventoryRefusesSettledOrders: hold_inventory holds stock only for a
+// pending checkout: a cancelled or completed order is refused by
+// inventory_hold_needs_pending.
+//
 // TestHoldInventoryRefusesSettledOrders locks that a hold belongs to a
 // pending checkout. A cancelled or completed order has no session that
 // will consume or release a new reservation.
@@ -2124,11 +2143,15 @@ func TestHoldInventoryRefusesSettledOrders(t *testing.T) {
 	})
 }
 
-// TestHoldInventoryHoldsOnlyWhatTheOrderCarries runs as store, the role
+// TestHoldInventoryOrderBound: as role store, hold_inventory holds at most what
+// the named order's own lines carry, less what it already holds or has
+// consumed, and a refusal moves no stock.
+//
+// TestHoldInventoryOrderBound runs as store, the role
 // checkout holds stock as. Any pending order id store can name must not become
 // a handle on the whole shelf: a hold is bounded by that order's own lines,
 // less what it already holds or has consumed, and a refusal moves no stock.
-func TestHoldInventoryHoldsOnlyWhatTheOrderCarries(t *testing.T) {
+func TestHoldInventoryOrderBound(t *testing.T) {
 	const (
 		order = "6666eeee-6666-4666-8666-666666666666"
 		v256  = "44444444-4444-4444-8444-444444444444"
@@ -2223,10 +2246,13 @@ func TestHoldInventoryHoldsOnlyWhatTheOrderCarries(t *testing.T) {
 	refused("again after the line's hold was consumed", hold(v512, 1, "carry-6"))
 }
 
-// TestRedeemCouponCountsTheOrdersCustomer runs as store. The per-customer
+// TestRedeemCouponOrderCustomer: as role store, redeem_coupon enforces the
+// per-customer limit from the order's customer.
+//
+// TestRedeemCouponOrderCustomer runs as store. The per-customer
 // limit reads the customer from the order: an account's order named as a
 // guest's must not be the way past it.
-func TestRedeemCouponCountsTheOrdersCustomer(t *testing.T) {
+func TestRedeemCouponOrderCustomer(t *testing.T) {
 	const (
 		// 王小明 has already used the coupon once, and the limit is one.
 		spent = `UPDATE coupons SET per_customer_limit = 1 WHERE id = 'cccc0009-0000-4000-8000-000000000009';
@@ -2272,12 +2298,14 @@ func TestRedeemCouponCountsTheOrdersCustomer(t *testing.T) {
 	}
 }
 
-// TestAnOrderKeepsTheAccountItWasPlacedBy: spend_store_credit and redeem_coupon
-// both read the customer from the order, so every way of moving that owner is
-// refused. No role holds UPDATE on orders.user_id, and the owner, which every door
-// runs as, is refused by name, including taking it away for one redemption and
+// TestOrderUserFrozen: an order keeps the account it was placed by:
+// spend_store_credit and redeem_coupon both read the customer from the order,
+// so every way of moving that owner is refused.
+//
+// No role holds UPDATE on orders.user_id, and the owner, which every door runs
+// as, is refused by name, including taking it away for one redemption and
 // putting it back.
-func TestAnOrderKeepsTheAccountItWasPlacedBy(t *testing.T) {
+func TestOrderUserFrozen(t *testing.T) {
 	const (
 		ming         = "'55555555-5555-4555-8555-555555555555'"
 		hua          = "'5555aaaa-5555-4555-8555-555555555555'"
@@ -2353,12 +2381,16 @@ func TestAnOrderKeepsTheAccountItWasPlacedBy(t *testing.T) {
 	}
 }
 
-// TestWarrantyCoversOnlyADeliveredUnitForItsBuyer runs as store, the role granted
+// TestWarrantyRegistrationCover: as role store, a warranty registration is
+// refused for nobody, for a unit still to ship and for an order nobody has paid
+// for, the cases RegisterWarranty's WHERE clause refuses.
+//
+// TestWarrantyRegistrationCover runs as store, the role granted
 // INSERT on warranty_registrations, and replays what RegisterWarranty's own WHERE
 // clause refuses: cover for nobody, for a unit still to ship, and for an order
 // nobody has paid for. Erasure clearing the holder is the change a registration
 // still takes.
-func TestWarrantyCoversOnlyADeliveredUnitForItsBuyer(t *testing.T) {
+func TestWarrantyRegistrationCover(t *testing.T) {
 	const register = `SET LOCAL ROLE store;
 		INSERT INTO warranty_registrations (order_line_id, unit_no, user_id, expires_on)
 		VALUES ('%s', %d, %s, current_date + 730);`
@@ -2415,10 +2447,13 @@ func TestWarrantyCoversOnlyADeliveredUnitForItsBuyer(t *testing.T) {
 	}
 }
 
-// TestAnAssessmentNamesItsLiveAssessor runs as admin, which inserts assessments
+// TestReturnEligibilityAssessmentAssessor: as role admin, an assessment that
+// would leave its live assessor untrue is refused by name.
+//
+// TestReturnEligibilityAssessmentAssessor runs as admin, which inserts assessments
 // directly. Either way an insert could leave the live assessor untrue is
 // refused by name; the rule case holds the legal neighbour.
-func TestAnAssessmentNamesItsLiveAssessor(t *testing.T) {
+func TestReturnEligibilityAssessmentAssessor(t *testing.T) {
 	const insert = `SET LOCAL ROLE admin;
 		INSERT INTO return_eligibility_assessments
 			(order_id, return_request_id, version, assessed_by, assessed_by_snapshot, basis)
@@ -2442,10 +2477,13 @@ func TestAnAssessmentNamesItsLiveAssessor(t *testing.T) {
 	}
 }
 
-// TestACancelledOrderIsSettledButNotCommitted holds the line between the two views from the side
+// TestSettledOrderNotCommitted: a cancelled order is in settled_orders but not
+// in committed_orders: its money is frozen while its held stock must come back.
+//
+// TestSettledOrderNotCommitted holds the line between the two views from the side
 // where they disagree: a cancelled order's money is frozen while its held stock must come back,
 // and one predicate answering both leaves those units with no door to the shelf.
-func TestACancelledOrderIsSettledButNotCommitted(t *testing.T) {
+func TestSettledOrderNotCommitted(t *testing.T) {
 	const pending = "6666aaaa-6666-4666-8666-666666666666"
 	cancel := `UPDATE orders SET fulfillment_status = 'cancelled', cancelled_at = now()
 	           WHERE id = '` + pending + `';`
@@ -2552,10 +2590,12 @@ func TestACancelledOrderIsSettledButNotCommitted(t *testing.T) {
 	})
 }
 
-// TestASoldOrderIsCommittedAndNotRefundedBeforeShipment reads sold_orders as the
-// back office does. The refunded order is still committed, which is the window
-// the view exists for.
-func TestASoldOrderIsCommittedAndNotRefundedBeforeShipment(t *testing.T) {
+// TestSoldOrderCommitted: sold_orders, as the back office reads it, keeps an
+// order that was refunded before shipment.
+//
+// The refunded order is still committed, which is the window the view exists
+// for.
+func TestSoldOrderCommitted(t *testing.T) {
 	const (
 		shippedWithReturn = "66666666-6666-4666-8666-666666666666"
 		unpaid            = "6666aaaa-6666-4666-8666-666666666666"
@@ -2612,10 +2652,14 @@ func TestASoldOrderIsCommittedAndNotRefundedBeforeShipment(t *testing.T) {
 	}
 }
 
-// TestCampaignDiscountSurvivesBulkEdits covers the two doors a per-row form of the rule leaves:
+// TestSaleCampaignDiscountBulkEdit: a campaign keeps a discounted variant
+// through a single statement that clears every discount and through a DELETE,
+// the two doors a per-row form of the rule leaves.
+//
+// TestSaleCampaignDiscountBulkEdit covers the two doors a per-row form of the rule leaves:
 // one statement clearing every discount (a BEFORE-row trigger reads the pre-statement snapshot,
 // so each row sees a sibling still discounted), and a DELETE, which UPDATE OF never fires on.
-func TestCampaignDiscountSurvivesBulkEdits(t *testing.T) {
+func TestSaleCampaignDiscountBulkEdit(t *testing.T) {
 	const (
 		product = "33333333-3333-4333-8333-333333333333"
 		// 44444444 is on the settled order's line; 4444aaaa is on none. The DELETE case has to use the
@@ -2657,10 +2701,13 @@ func TestCampaignDiscountSurvivesBulkEdits(t *testing.T) {
 	}
 }
 
-// TestReservationFunctionsShareOrderBeforeVariant pins the cross-function lock
+// TestReservationLockOrder: the reservation functions lock the order before the
+// variant, in source order, so no ABBA deadlock between them can be introduced.
+//
+// TestReservationLockOrder pins the cross-function lock
 // contract. A behavioural test proves the blocking point too, but source order
 // makes an accidental ABBA regression deterministic rather than timing-dependent.
-func TestReservationFunctionsShareOrderBeforeVariant(t *testing.T) {
+func TestReservationLockOrder(t *testing.T) {
 	for _, tc := range []struct {
 		function      string
 		variantMarker string
@@ -2690,11 +2737,14 @@ func TestReservationFunctionsShareOrderBeforeVariant(t *testing.T) {
 	}
 }
 
-// TestEraseUserHonorsThePersonalDataBoundary asserts the ordinary customer and
+// TestEraseUserPersonalData: erase_user clears the ordinary customer and
+// delivery stores and leaves the retained invoice filing snapshot usable.
+//
+// TestEraseUserPersonalData asserts the ordinary customer and
 // delivery stores are clear while the explicitly retained filing snapshot stays
 // usable. invoice_preferences is keyed by ORDER, so neither side can be inferred
 // merely from deleting users.
-func TestEraseUserHonorsThePersonalDataBoundary(t *testing.T) {
+func TestEraseUserPersonalData(t *testing.T) {
 	ctx := t.Context()
 	tx, err := schemaPool(t).Begin(ctx)
 	if err != nil {
@@ -2866,10 +2916,14 @@ func TestEraseUserHonorsThePersonalDataBoundary(t *testing.T) {
 	}
 }
 
-// TestZeroOwedOrderIsCommitted holds one criterion at three exits. A zero-owed order can never
+// TestCommittedOrderZeroOwed: an order that owes nothing is committed at all
+// three exits: its lines and money are frozen and its held stock is not
+// released.
+//
+// TestCommittedOrderZeroOwed holds one criterion at three exits. A zero-owed order can never
 // carry a succeeded payment, so a guard reading "exists a succeeded payment" as "committed"
 // leaves its lines, totals and held stock editable after it has left pending.
-func TestZeroOwedOrderIsCommitted(t *testing.T) {
+func TestCommittedOrderZeroOwed(t *testing.T) {
 	const zeroOwed = "6666bbbb-6666-4666-8666-666666666666"
 
 	t.Run("lines frozen", func(t *testing.T) {
@@ -2946,9 +3000,12 @@ func TestZeroOwedOrderIsCommitted(t *testing.T) {
 	})
 }
 
-// TestCaptureMustMatchOrderTotal refuses an underpay and an overpay and accepts the exact total.
-// The fixture's paid order already carries a matching capture, so this uses the unpaid one.
-func TestCaptureMustMatchOrderTotal(t *testing.T) {
+// TestCapturePaymentOrderTotal: capture_payment refuses an underpay and an
+// overpay of the order's total and accepts the exact amount.
+//
+// The fixture's paid order already carries a matching capture, so this uses the
+// unpaid one.
+func TestCapturePaymentOrderTotal(t *testing.T) {
 	// order 6666aaaa: one line of 3,690,000, no shipping/discount/tax → total 3,690,000.
 	for _, tc := range []struct {
 		name    string
@@ -2977,9 +3034,13 @@ func TestCaptureMustMatchOrderTotal(t *testing.T) {
 	}
 }
 
-// TestGoenAppCannotEraseWebhookLedger proves the app cannot rewrite the dedupe ledger, which
+// TestStoreCannotDeleteWebhookEvents: role store cannot DELETE
+// payment_webhook_events, so a resent event cannot be replayed, but it can
+// still stamp when it processed one.
+//
+// TestStoreCannotDeleteWebhookEvents proves the app cannot rewrite the dedupe ledger, which
 // would let a resent event be processed twice, but can still stamp when it processed one.
-func TestGoenAppCannotEraseWebhookLedger(t *testing.T) {
+func TestStoreCannotDeleteWebhookEvents(t *testing.T) {
 	if goenAppHasTablePriv(t, "payment_webhook_events", "DELETE") {
 		t.Error("store can DELETE payment_webhook_events; a resent event could be replayed")
 	}
@@ -3022,10 +3083,16 @@ func creditedOrder(order, account, spend string, total int) string {
 		order, account, spend, total)
 }
 
-// TestCreditCannotBeReversedWhileCheckoutIsOpen holds the object-authority
+// TestStoreCreditEntryReverseOpenCheckout: store_credit_posting_matches_order
+// refuses reversing the credit spent on an order whose checkout is still open,
+// the object-authority boundary of reverse_order_credit: cancellation changes
+// the order state first, so nobody can disrupt another customer's live
+// checkout.
+//
+// TestStoreCreditEntryReverseOpenCheckout holds the object-authority
 // boundary of reverse_order_credit: cancellation changes the order state first,
 // and there is no role-callable way to disrupt somebody else's live checkout.
-func TestCreditCannotBeReversedWhileCheckoutIsOpen(t *testing.T) {
+func TestStoreCreditEntryReverseOpenCheckout(t *testing.T) {
 	order := "11110040-0000-4000-8000-000000000001"
 	account := "11110041-0000-4000-8000-000000000001"
 	spend := "11110042-0000-4000-8000-000000000001"
@@ -3040,8 +3107,12 @@ func TestCreditCannotBeReversedWhileCheckoutIsOpen(t *testing.T) {
 	}
 }
 
-// TestCreditPostingRespectsOrderState proves store credit cannot be posted to an order out of turn.
-func TestCreditPostingRespectsOrderState(t *testing.T) {
+// TestStoreCreditEntryReversePickedOrder: store_credit_posting_matches_order
+// refuses reversing the credit that fully funds an order already picking, which
+// would un-fund it.
+//
+// TestStoreCreditEntryReversePickedOrder proves store credit cannot be posted to an order out of turn.
+func TestStoreCreditEntryReversePickedOrder(t *testing.T) {
 	order := "11110045-0000-4000-8000-000000000001"
 	account := "11110046-0000-4000-8000-000000000001"
 	spend := "11110047-0000-4000-8000-000000000001"
@@ -3060,9 +3131,13 @@ func TestCreditPostingRespectsOrderState(t *testing.T) {
 	}
 }
 
-// TestCreditReversalCannotRacePastFulfilment: one writer moves a store-credited order into
+// TestStoreCreditEntryReverseFulfilmentRace: moving a credit-funded order into
+// fulfilment and reversing its credit at the same time cannot both succeed:
+// exactly one of them does.
+//
+// One writer moves a store-credited order into
 // fulfilment while another reverses the credit. They share no lock unless the reversal takes it.
-func TestCreditReversalCannotRacePastFulfilment(t *testing.T) {
+func TestStoreCreditEntryReverseFulfilmentRace(t *testing.T) {
 	order := "11110050-0000-4000-8000-000000000001"
 	account := "11110051-0000-4000-8000-000000000001"
 	spend := "11110052-0000-4000-8000-000000000001"
@@ -3082,10 +3157,14 @@ func TestCreditReversalCannotRacePastFulfilment(t *testing.T) {
 	requireExactlyOne(t, "a picked order whose funding credit was reversed", err1, err2)
 }
 
-// TestReversalCannotBeReversed keeps reversals one layer deep: reversing a reversal nets back to
+// TestStoreCreditEntryReverseTwice: store_credit_reversal_single_layer refuses
+// reversing a reversal, which would net back to the spend while escaping the
+// order-state rules, since they find no spend behind a reversal of a reversal.
+//
+// TestStoreCreditEntryReverseTwice keeps reversals one layer deep: reversing a reversal nets back to
 // the spend while escaping the order-state rules, which judge the spend a reversal undoes and find
 // none behind a reversal of a reversal.
-func TestReversalCannotBeReversed(t *testing.T) {
+func TestStoreCreditEntryReverseTwice(t *testing.T) {
 	account := "11110055-0000-4000-8000-000000000001"
 	spend := "11110056-0000-4000-8000-000000000001"
 	rev := "11110057-0000-4000-8000-000000000001"
@@ -3109,7 +3188,7 @@ func TestReversalCannotBeReversed(t *testing.T) {
 
 // TestOrderCannotLeavePendingUnfunded: an unpaid order cannot move from pending to picking, a
 // paid one can, and cancelling from pending is always allowed. The zero-owed third case is
-// funded with no payment row at all and is held by [TestZeroOwedOrderIsCommitted].
+// funded with no payment row at all and is held by [TestCommittedOrderZeroOwed].
 func TestOrderCannotLeavePendingUnfunded(t *testing.T) {
 	err := run(t, `UPDATE orders SET fulfillment_status = 'picking'
 	               WHERE id = '6666aaaa-6666-4666-8666-666666666666';`)
@@ -3198,9 +3277,13 @@ func purge(t *testing.T, stmt string, args ...any) {
 	}
 }
 
-// TestDeactivatingTheLastVariantIsRefused reaches the same bad state from the variant side, the
+// TestProductVariantsSellableDeactivate: product_variants_keep_product_sellable
+// refuses deactivating the last active variant of a published product, the
+// direction a back office reaches it from.
+//
+// TestProductVariantsSellableDeactivate reaches the same bad state from the variant side, the
 // direction a back office actually reaches it from. The rule table covers the publish side.
-func TestDeactivatingTheLastVariantIsRefused(t *testing.T) {
+func TestProductVariantsSellableDeactivate(t *testing.T) {
 	err := run(t, `SET CONSTRAINTS product_variants_keep_product_sellable IMMEDIATE;
 		UPDATE product_variants SET is_active = false
 		WHERE product_id = '33333333-3333-4333-8333-333333333333';`)
@@ -3222,9 +3305,13 @@ func TestDeactivatingTheLastVariantIsRefused(t *testing.T) {
 	}
 }
 
-// TestDeletingTheLastVariantIsRefused covers the DELETE arm, where the trigger has no NEW record
+// TestProductVariantsSellableDelete: product_variants_keep_product_sellable
+// refuses deleting the last variant of a published product, the DELETE arm
+// where the trigger has no NEW record.
+//
+// TestProductVariantsSellableDelete covers the DELETE arm, where the trigger has no NEW record
 // at all: referring to NEW there is a runtime error plpgsql cannot catch at definition time.
-func TestDeletingTheLastVariantIsRefused(t *testing.T) {
+func TestProductVariantsSellableDelete(t *testing.T) {
 	// A product of its own, because deleting the fixture's sold variant is refused
 	// by the durable order-line catalogue foreign key first, and any-refusal would
 	// report the wrong guard.
@@ -3337,9 +3424,10 @@ func TestProductSellabilityCannotRace(t *testing.T) {
 	}
 }
 
-// TestEveryRoleCanReadWhatItsQueriesRead proves a missing GRANT cannot hide behind the owner,
-// who is subject to no REVOKE.
-func TestEveryRoleCanReadWhatItsQueriesRead(t *testing.T) {
+// TestRoleReadsItsQueries: each role can read the views and tables its queries
+// read, so a missing GRANT cannot hide behind the owner, who is subject to no
+// REVOKE.
+func TestRoleReadsItsQueries(t *testing.T) {
 	ctx := t.Context()
 
 	tests := []struct {
@@ -3399,11 +3487,15 @@ func firstRelation(stmt string) string {
 	return "query"
 }
 
-// TestClaimInvoiceIssueRejectsUnsafeRelateNumber exercises the defensive door
+// TestClaimInvoiceIssueRelateNumber: claim_invoice_issue rejects an order
+// number unsafe as a RelateNumber, the defence for a legacy or drifted row the
+// live CHECK makes impossible today.
+//
+// TestClaimInvoiceIssueRelateNumber exercises the defensive door
 // against a legacy/drifted order number. The live CHECK makes such a row
 // impossible today, so the fixture removes that CHECK inside a transaction and
 // rolls the catalogue change back with the row.
-func TestClaimInvoiceIssueRejectsUnsafeRelateNumber(t *testing.T) {
+func TestClaimInvoiceIssueRelateNumber(t *testing.T) {
 	ctx := t.Context()
 	tx, err := schemaPool(t).Begin(ctx)
 	if err != nil {
@@ -3466,7 +3558,11 @@ func TestClaimInvoiceIssueRejectsUnsafeRelateNumber(t *testing.T) {
 	}
 }
 
-// TestEveryRaisedRuleIsAssertedByName keys on the RULE, where the trigger coverage gate
+// TestRaisedRulesAsserted: every rule a trigger function raises is asserted by
+// name in a Go string literal, and a name that exists only in a comment does
+// not count.
+//
+// TestRaisedRulesAsserted keys on the RULE, where the trigger coverage gate
 // keys on the trigger. A trigger function raises as many distinct rules as it has
 // branches — store_credit_guard alone raises four — so deleting one branch removes no
 // trigger and leaves that gate green while the rule stops being enforced.
@@ -3474,7 +3570,7 @@ func TestClaimInvoiceIssueRejectsUnsafeRelateNumber(t *testing.T) {
 // The corpus is pg_proc, not a list, so a rule added to a function body is covered the
 // moment it is written. It asks for the name inside a Go string literal, because a name
 // in a comment is how a guard comes to be satisfied by nothing.
-func TestEveryRaisedRuleIsAssertedByName(t *testing.T) {
+func TestRaisedRulesAsserted(t *testing.T) {
 	rows, err := schemaPool(t).Query(t.Context(), `
 		SELECT DISTINCT m[1]
 		FROM pg_proc p
@@ -3572,7 +3668,10 @@ func goStringLiterals(filename string, src []byte) (map[string]bool, error) {
 	return values, nil
 }
 
-func TestRaisedRuleCoverageIgnoresNamesThatExistOnlyInComments(t *testing.T) {
+// TestGoStringLiterals: goStringLiterals returns the names inside Go string
+// literals and not those in comments, so a rule named only in a comment is not
+// covered.
+func TestGoStringLiterals(t *testing.T) {
 	t.Parallel()
 	values, err := goStringLiterals("comment_only.go", []byte(`package example
 

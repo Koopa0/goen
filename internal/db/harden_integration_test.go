@@ -16,12 +16,15 @@ import (
 	"github.com/koopa0/goen/internal/db/dbtest"
 )
 
-// TestOnlyTheApplicationRolesConnect logs in for real. The suites connect as
+// TestOnlyApplicationRolesConnect: only the application roles can log in and
+// connect, and a login that is only PUBLIC cannot.
+//
+// TestOnlyApplicationRolesConnect logs in for real. The suites connect as
 // the owner, a superuser, whom CONNECT never stops, so only a login of each
 // kind shows who the database lets in: the three _svc logins and a reporting
 // login through the groups they inherit from, and not a login that is only
 // PUBLIC.
-func TestOnlyTheApplicationRolesConnect(t *testing.T) {
+func TestOnlyApplicationRolesConnect(t *testing.T) {
 	owner := dbtest.Pool(t)
 	ctx := t.Context()
 
@@ -103,12 +106,18 @@ func newLogin(t *testing.T, owner *pgxpool.Pool, membership, password string) st
 	return name
 }
 
-// TestHardenSchemaRefusesARoleMigrationsWouldNotCreate: 001 creates its roles
+// TestHardenSchemaForeignRole: harden_schema() refuses, with SQLSTATE 55000
+// naming the role, a pre-existing role that has a power 001 would not have
+// given it (superuser, login, createrole, createdb, replication, bypassrls or a
+// membership); each case runs in a rolled-back transaction because roles belong
+// to the whole server.
+//
+// 001 creates its roles
 // only IF NOT EXISTS, so a cluster that already has one hands it to goen as it
 // is, and the binary assumes it with SET ROLE. Each case gives one role a power
 // 001 would not have given it, inside a transaction that is rolled back, since
 // the roles are the whole server's.
-func TestHardenSchemaRefusesARoleMigrationsWouldNotCreate(t *testing.T) {
+func TestHardenSchemaForeignRole(t *testing.T) {
 	owner := dbtest.Pool(t)
 	var schemaOwner string
 	if err := owner.QueryRow(t.Context(),
@@ -163,11 +172,15 @@ func TestHardenSchemaRefusesARoleMigrationsWouldNotCreate(t *testing.T) {
 	}
 }
 
-// TestAFunctionCreatedAfterTheSweepIsClosed is what a later migration does:
+// TestHardenSchemaLaterFunction: a function a later migration creates with
+// PostgreSQL's defaults is closed to PUBLIC from the moment it exists, and
+// harden_schema() pins its search_path.
+//
+// TestHardenSchemaLaterFunction is what a later migration does:
 // create a function the way PostgreSQL defaults it, with no grant and no
 // search_path, then end on harden_schema(). The default privileges keep it from
 // PUBLIC from the moment it exists; the sweep pins its search_path.
-func TestAFunctionCreatedAfterTheSweepIsClosed(t *testing.T) {
+func TestHardenSchemaLaterFunction(t *testing.T) {
 	owner := dbtest.Pool(t)
 	ctx := t.Context()
 	if _, err := owner.Exec(ctx, `CREATE FUNCTION later_migration_probe() RETURNS int LANGUAGE sql AS 'SELECT 1'`); err != nil {

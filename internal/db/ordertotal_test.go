@@ -17,10 +17,13 @@ var (
 	orderTotalsView = regexp.MustCompile(`(?is)\bCREATE\s+VIEW\s+order_totals\b[^;]*;`)
 )
 
-// TestEveryOrderTotalReadsTheOneView holds order_totals as the one definition
-// of an order's total. It was written out in 27 places, and the copies had
-// already drifted: the health page's whole-NT$ amount divided a numeric sum,
-// so it did not round where the invoice issuer it predicts does (#1933).
+// TestEveryOrderTotalReadsTheOneView: every query that states an order's total
+// reads the view order_totals, the one definition, except those listed with a
+// reason.
+//
+// It was written out in 27 places, and the copies had already drifted: the
+// health page's whole-NT$ amount divided a numeric sum, so it did not round
+// where the invoice issuer it predicts does (#1933).
 func TestEveryOrderTotalReadsTheOneView(t *testing.T) {
 	t.Parallel()
 

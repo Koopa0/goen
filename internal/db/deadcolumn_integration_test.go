@@ -10,8 +10,12 @@ import (
 	"testing"
 )
 
-// TestEveryColumnIsReadOrWritten refuses a column no SQL mentions in a statement naming its table.
-func TestEveryColumnIsReadOrWritten(t *testing.T) {
+// TestColumnsReadOrWritten: every column is mentioned by some SQL statement
+// that names its table, so no column is dead, except those listed with a
+// reason.
+//
+// TestColumnsReadOrWritten refuses a column no SQL mentions in a statement naming its table.
+func TestColumnsReadOrWritten(t *testing.T) {
 	allowed := map[string]string{
 		"user_identities.id": "the unbuilt OAuth sign-in, whole table",
 
