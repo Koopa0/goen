@@ -12,7 +12,9 @@ import (
 	"github.com/koopa0/goen/internal/invoice"
 )
 
-func TestDonationPreferenceSurvivesCanonicalSnapshotAndIssue(t *testing.T) {
+// TestStore_IssueDonationPreference: a donation preference survives the frozen
+// snapshot and reaches the provider as a love code.
+func TestStore_IssueDonationPreference(t *testing.T) {
 	for _, preference := range []invoice.Preference{invoice.PreferenceDonate} {
 		t.Run(string(preference), func(t *testing.T) {
 			ctx := t.Context()

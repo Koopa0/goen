@@ -11,7 +11,10 @@ import (
 	"github.com/koopa0/goen/internal/invoice"
 )
 
-func TestDonationPreferenceReachesTheProviderAsALoveCode(t *testing.T) {
+// TestGateway_IssueDonationLoveCode: a donation preference reaches the provider
+// as the Donation flag and the love code, with no carrier, no printing and no
+// tax ID.
+func TestGateway_IssueDonationLoveCode(t *testing.T) {
 	for _, tt := range []struct {
 		name              string
 		preference        invoice.Preference
@@ -65,7 +68,10 @@ func TestDonationPreferenceReachesTheProviderAsALoveCode(t *testing.T) {
 	}
 }
 
-func TestDonationPreferenceRefusesMalformedProviderRequests(t *testing.T) {
+// TestIssueRequest_ValidateDonation: validation refuses a donation with a
+// missing, short, long or non-digit love code, and one with a mobile barcode or
+// a tax ID.
+func TestIssueRequest_ValidateDonation(t *testing.T) {
 	for _, tt := range []struct {
 		name                     string
 		preference               invoice.Preference

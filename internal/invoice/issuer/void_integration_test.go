@@ -14,10 +14,11 @@ import (
 	"github.com/koopa0/goen/internal/shoptime"
 )
 
-// TestStoreVoidSendsTheRecordedIssueDate holds the Store/Gateway seam: the
-// correct date is already on LiveInvoice and must not be replaced by the time
-// the operator presses void.
-func TestStoreVoidSendsTheRecordedIssueDate(t *testing.T) {
+// TestStore_VoidRecordedIssueDate: Store.Void sends the issue date recorded on
+// the invoice, not the time the operator presses void. It holds the
+// Store/Gateway seam: the correct date is already on LiveInvoice and must not
+// be replaced by the time the operator presses void.
+func TestStore_VoidRecordedIssueDate(t *testing.T) {
 	ctx := t.Context()
 	var seen invalidRequest
 	var issued issueRequest
@@ -115,7 +116,9 @@ func makeVoidableInvoice(
 	}
 }
 
-func TestVoidProviderRejectionReleasesClaimForNewOperation(t *testing.T) {
+// TestStore_VoidProviderRejection: a provider-rejected Void leaves the invoice
+// issued and its claim released, so a new Void can go through and be audited.
+func TestStore_VoidProviderRejection(t *testing.T) {
 	ctx := t.Context()
 	const (
 		invoiceNumber  = "LC12345678"
@@ -218,7 +221,10 @@ func TestVoidProviderRejectionReleasesClaimForNewOperation(t *testing.T) {
 	}
 }
 
-func TestVoidSuccessWithoutExactIdentityNeverChangesLocalDocument(t *testing.T) {
+// TestStore_VoidIdentityMismatch: a void success that names a blank or a
+// different invoice never changes the local document: the operation needs
+// attention (void_success_identity_mismatch) and no audit row is written.
+func TestStore_VoidIdentityMismatch(t *testing.T) {
 	tests := []struct {
 		name           string
 		invoiceNumber  string
@@ -283,7 +289,10 @@ func TestVoidSuccessWithoutExactIdentityNeverChangesLocalDocument(t *testing.T) 
 	}
 }
 
-func TestVoidReconcilerRetriesAfterMarkSentCrash(t *testing.T) {
+// TestStore_ReconcileOnceVoidCrash: a void claimed and marked sent before a
+// crash is retried by ReconcileOnce with the recorded issue date and reason,
+// and then settles with its audit.
+func TestStore_ReconcileOnceVoidCrash(t *testing.T) {
 	ctx := t.Context()
 	const (
 		invoiceNumber = "LF12345678"
@@ -384,7 +393,10 @@ func TestVoidReconcilerRetriesAfterMarkSentCrash(t *testing.T) {
 	}
 }
 
-func TestVoidTransportAmbiguitySettlesFromInvalidLookup(t *testing.T) {
+// TestStore_ReconcileOnceVoidAmbiguity: a void whose send was ambiguous (a 502)
+// is retried once, exactly, and settles when the provider's invoice lookup
+// shows it invalid.
+func TestStore_ReconcileOnceVoidAmbiguity(t *testing.T) {
 	ctx := t.Context()
 	requestID := "void-ambiguity-original"
 	ctx = WithFilingIdentity(ctx, filingActor, requestID)

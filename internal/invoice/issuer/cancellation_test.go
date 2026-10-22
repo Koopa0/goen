@@ -7,7 +7,9 @@ import (
 	"github.com/jackc/pgx/v5/pgconn"
 )
 
-func TestVoidDeadlineIsTheThirteenthAfterThePeriod(t *testing.T) {
+// TestVoidDeadline: the void deadline is the 13th of the month after the
+// invoice's two-month period, at 23:59:59 Taipei time.
+func TestVoidDeadline(t *testing.T) {
 	t.Parallel()
 
 	taipei := time.FixedZone("Asia/Taipei", 8*60*60)
@@ -48,7 +50,9 @@ func TestVoidDeadlineIsTheThirteenthAfterThePeriod(t *testing.T) {
 	}
 }
 
-func TestAVoidIsOfferedUntilTheDeadlineAndNotAfterAnAllowance(t *testing.T) {
+// TestVoidable: a void is offered up to the deadline's last second, and not
+// after an allowance.
+func TestVoidable(t *testing.T) {
 	t.Parallel()
 
 	taipei := time.FixedZone("Asia/Taipei", 8*60*60)
@@ -74,7 +78,10 @@ func TestAVoidIsOfferedUntilTheDeadlineAndNotAfterAnAllowance(t *testing.T) {
 	}
 }
 
-func TestAVoidDueEndsWhereNoVoidCanReachTheInvoice(t *testing.T) {
+// TestVoidDueClaimOutcome: a void-due claim is done where no void can reach the
+// invoice (invoice_void_target, invoice_void_issue_operation) and is not done
+// for any other refusal.
+func TestVoidDueClaimOutcome(t *testing.T) {
 	t.Parallel()
 
 	for constraint, wantDone := range map[string]bool{
@@ -89,7 +96,9 @@ func TestAVoidDueEndsWhereNoVoidCanReachTheInvoice(t *testing.T) {
 	}
 }
 
-func TestTheBuyerHasSeventyTwoHoursToAgree(t *testing.T) {
+// TestBuyerMayStillAgree: the buyer has seventy-two hours from the send to
+// agree, up to the link's last moment and not a second more.
+func TestBuyerMayStillAgree(t *testing.T) {
 	t.Parallel()
 
 	sentAt := time.Date(2026, time.October, 3, 8, 21, 32, 0, time.UTC)

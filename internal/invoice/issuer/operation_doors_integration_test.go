@@ -14,7 +14,10 @@ import (
 	"github.com/jackc/pgx/v5/pgconn"
 )
 
-func TestAdminCannotWriteInvoiceHistoryAroundThePersistenceDoors(t *testing.T) {
+// TestInvoiceDoorPrivileges: admin, and not store, may execute the invoice
+// persistence-door functions, and admin cannot write invoice documents, lines
+// or operations around them.
+func TestInvoiceDoorPrivileges(t *testing.T) {
 	ctx := t.Context()
 	conn, acquireErr := pool.Acquire(ctx)
 	if acquireErr != nil {
@@ -73,7 +76,11 @@ func TestAdminCannotWriteInvoiceHistoryAroundThePersistenceDoors(t *testing.T) {
 	}
 }
 
-func TestIssueSettlementRejectsEachNonCanonicalLineFieldAtomically(t *testing.T) {
+// TestSettleInvoiceIssueLineFields: settle_invoice_issue refuses a description,
+// quantity, unit price, amount or array length that differs from the frozen
+// request (invoice_lines_authoritative) and leaves no document, line or audit
+// row.
+func TestSettleInvoiceIssueLineFields(t *testing.T) {
 	ctx := t.Context()
 	conn, acquireErr := pool.Acquire(ctx)
 	if acquireErr != nil {
@@ -173,7 +180,11 @@ func TestIssueSettlementRejectsEachNonCanonicalLineFieldAtomically(t *testing.T)
 	}
 }
 
-func TestAllowanceSettlementRejectsEachNonCanonicalLineFieldAtomically(t *testing.T) {
+// TestSettleInvoiceAllowanceLineFields: settle_invoice_allowance refuses a
+// description, quantity, unit price or amount that differs from the frozen
+// request (invoice_allowance_line_authoritative) and leaves no document, line
+// or audit row.
+func TestSettleInvoiceAllowanceLineFields(t *testing.T) {
 	ctx := t.Context()
 	conn, acquireErr := pool.Acquire(ctx)
 	if acquireErr != nil {
@@ -264,7 +275,9 @@ func TestAllowanceSettlementRejectsEachNonCanonicalLineFieldAtomically(t *testin
 	}
 }
 
-func TestInvoiceOperationDoorsRejectNullControlInputsByName(t *testing.T) {
+// TestInvoiceDoorNullInputs: the invoice operation doors reject a NULL request
+// id, operation, interval or backoff, each by its own constraint name.
+func TestInvoiceDoorNullInputs(t *testing.T) {
 	ctx := t.Context()
 	issueOrder := orderToInvoice(t, 100000, 0, 0)
 	allowanceOrder := invoicedOrderWithRefund(t, 50000)
@@ -331,7 +344,9 @@ func TestInvoiceOperationDoorsRejectNullControlInputsByName(t *testing.T) {
 	}
 }
 
-func TestInvoiceDoorRuleBranchesFailByTheirExactNames(t *testing.T) {
+// TestInvoiceDoorRuleNames: each rule branch of the invoice doors fails by its
+// own constraint name.
+func TestInvoiceDoorRuleNames(t *testing.T) {
 	ctx := t.Context()
 	conn, err := pool.Acquire(ctx)
 	if err != nil {

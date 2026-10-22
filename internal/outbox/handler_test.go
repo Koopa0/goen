@@ -16,7 +16,9 @@ type testPayload struct {
 	Count int `json:"count"`
 }
 
-func TestHandleJSONDecodesForTypedHandler(t *testing.T) {
+// TestStore_HandleJSONDecodes: a typed handler receives the stored JSON decoded
+// into its type, and a field the type does not know is accepted.
+func TestStore_HandleJSONDecodes(t *testing.T) {
 	t.Parallel()
 
 	store := &Store{handlers: map[string]Handler{}}
@@ -34,7 +36,9 @@ func TestHandleJSONDecodesForTypedHandler(t *testing.T) {
 	}
 }
 
-func TestHandleJSONNamesDecodeFailure(t *testing.T) {
+// TestStore_HandleJSONDecodeError: a payload that does not decode returns an
+// error that names the topic.
+func TestStore_HandleJSONDecodeError(t *testing.T) {
 	t.Parallel()
 
 	store := &Store{handlers: map[string]Handler{}}
@@ -46,7 +50,9 @@ func TestHandleJSONNamesDecodeFailure(t *testing.T) {
 	}
 }
 
-func TestHandleRejectsInvalidRegistration(t *testing.T) {
+// TestStore_HandleInvalidRegistration: Handle and HandleJSON panic on an empty
+// topic, a nil handler and a duplicate topic.
+func TestStore_HandleInvalidRegistration(t *testing.T) {
 	t.Parallel()
 
 	tests := []struct {
@@ -95,14 +101,17 @@ func TestHandleRejectsInvalidRegistration(t *testing.T) {
 	}
 }
 
-// TestALastErrorIsCutOnARuneBoundary. last_error is a PostgreSQL text column and
-// PostgreSQL refuses a byte sequence that is not valid UTF-8:
+// TestTruncateRuneBoundary: truncate cuts on a rune boundary, so its output is
+// valid UTF-8 and within the byte limit, and shorter input is returned
+// unchanged. last_error is a PostgreSQL text column and PostgreSQL refuses a
+// byte sequence that is not valid UTF-8:
 //
 //	ERROR: invalid byte sequence for encoding "UTF8": 0xe5 0xae
 //
 // The write that would fail is the one recording the failure: attempts never
-// increments, so the message retries for ever and never reaches StuckAfterAttempts.
-func TestALastErrorIsCutOnARuneBoundary(t *testing.T) {
+// increments, so the message retries for ever and never reaches
+// StuckAfterAttempts.
+func TestTruncateRuneBoundary(t *testing.T) {
 	t.Parallel()
 
 	for _, tt := range []struct {
@@ -139,10 +148,11 @@ func TestALastErrorIsCutOnARuneBoundary(t *testing.T) {
 	}
 }
 
-// TestAHangingHandlerIsCutOffAtItsBudget. One claim covers [BatchSize] messages
+// TestRunHandlerBudget: a handler that hangs is cut off at HandlerBudget and
+// runHandler returns a deadline error. One claim covers [BatchSize] messages
 // and stays exclusive for [Lease], so a handler that hangs until the lease
 // expires hands the rest of its own batch to a second replica.
-func TestAHangingHandlerIsCutOffAtItsBudget(t *testing.T) {
+func TestRunHandlerBudget(t *testing.T) {
 	synctest.Test(t, func(t *testing.T) {
 		// The fallback is what an unbounded handler looks like from here: it runs
 		// past the lease instead of blocking the bubble for ever.
@@ -169,12 +179,15 @@ func TestAHangingHandlerIsCutOffAtItsBudget(t *testing.T) {
 	})
 }
 
+// TestBackoff: backoff doubles from four seconds up to a ceiling and is always
+// positive and at most an hour, whatever the attempt count.
+//
 // A message that keeps failing is rescheduled with backoff(m.Attempts), and
 // Attempts has no ceiling of its own: the stuck threshold only slows the retry.
 // Each row is an attempt count a long outage reaches; the large ones are where
 // a doubling that is not clamped overflows time.Duration and comes back
 // negative, which reschedules the message into the past.
-func TestBackoffDoublesFromFourSecondsAndStaysPositive(t *testing.T) {
+func TestBackoff(t *testing.T) {
 	t.Parallel()
 	const longest = 2048 * time.Second // attempt 10, where the doubling stops
 	for _, tt := range []struct {

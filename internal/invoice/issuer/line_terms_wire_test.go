@@ -11,7 +11,9 @@ import (
 	"github.com/koopa0/goen/internal/invoice"
 )
 
-func TestIssuingUsesTheFrozenLineTaxTypeAndUnit(t *testing.T) {
+// TestGateway_IssueLineTaxAndUnit: Issue sends each line's frozen tax type and
+// unit, and the exempt header with SpecialTaxType 8 only for exempt lines.
+func TestGateway_IssueLineTaxAndUnit(t *testing.T) {
 	for _, tc := range []struct {
 		name    string
 		tax     invoice.TaxType
@@ -93,7 +95,9 @@ func TestIssuingUsesTheFrozenLineTaxTypeAndUnit(t *testing.T) {
 	}
 }
 
-func TestLookupPreservesTheLineTaxTypeAndUnit(t *testing.T) {
+// TestLookupItem_LineTaxAndUnit: a provider lookup line keeps its tax type and
+// unit.
+func TestLookupItem_LineTaxAndUnit(t *testing.T) {
 	for _, tc := range []struct {
 		name    string
 		wireTax providerDecimal
@@ -114,7 +118,10 @@ func TestLookupPreservesTheLineTaxTypeAndUnit(t *testing.T) {
 	}
 }
 
-func TestProviderNeverReceivesUnsupportedOrMixedLineTerms(t *testing.T) {
+// TestGateway_BadLineTerms: Issue and RequestAllowance refuse mixed or
+// unsupported tax types and a blank, too long or control-character unit
+// locally, so the provider is never called.
+func TestGateway_BadLineTerms(t *testing.T) {
 	for _, mutate := range []struct {
 		name   string
 		change func([]invoice.Line)
