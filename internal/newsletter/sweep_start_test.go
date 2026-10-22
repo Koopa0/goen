@@ -52,10 +52,13 @@ func unreachablePool(t *testing.T) *pgxpool.Pool {
 	return pool
 }
 
+// TestStore_SweepConfirmationsForever: SweepConfirmationsForever sweeps at
+// start and not only after the first interval.
+//
 // A process restarted more often than the interval must still sweep, so the
 // first sweep runs when the loop starts and not a whole interval later. The
 // sweep is seen through the line it logs when it fails.
-func TestSweepConfirmationsForeverSweepsAtStart(t *testing.T) {
+func TestStore_SweepConfirmationsForever(t *testing.T) {
 	synctest.Test(t, func(t *testing.T) {
 		var out syncBuffer
 		log := slog.New(slog.NewTextHandler(&out, nil))
@@ -84,9 +87,12 @@ func TestSweepConfirmationsForeverSweepsAtStart(t *testing.T) {
 	})
 }
 
+// TestConfirmationRetainPeriod: the confirmation retention period is 14 days
+// and at least the link's life.
+//
 // An unanswered request is kept at least as long as its link works and no
 // longer than two weeks. The number is policy, so it is pinned.
-func TestConfirmationRetentionPeriod(t *testing.T) {
+func TestConfirmationRetainPeriod(t *testing.T) {
 	t.Parallel()
 	if ConfirmationRetain != 14*24*time.Hour {
 		t.Errorf("ConfirmationRetain = %v, want 14 days", ConfirmationRetain)

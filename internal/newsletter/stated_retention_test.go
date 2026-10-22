@@ -9,10 +9,13 @@ import (
 	"github.com/koopa0/goen/internal/policy"
 )
 
+// TestConfirmTTLAndRetentionInPolicy: the privacy policy states the newsletter
+// periods the store enforces.
+//
 // The privacy policy states how long a confirmation link works and how long an
 // unconfirmed request is kept. Both are read from the constants the store
 // enforces, so changing one without the other fails here.
-func TestThePrivacyPolicyStatesTheNewsletterPeriodsTheStoreEnforces(t *testing.T) {
+func TestConfirmTTLAndRetentionInPolicy(t *testing.T) {
 	t.Parallel()
 
 	hours, err := strconv.Atoi(policy.NewsletterConfirmHoursText())

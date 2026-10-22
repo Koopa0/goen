@@ -12,7 +12,10 @@ import (
 	"github.com/koopa0/goen/internal/outbox"
 )
 
-func TestNewsletterIssuesCarryOneClickHeaders(t *testing.T) {
+// TestNotifier_SendNewsletterIssueOneClick: newsletter issues carry the
+// one-click List-Unsubscribe headers, with the token escaped and no other
+// header added.
+func TestNotifier_SendNewsletterIssueOneClick(t *testing.T) {
 	t.Parallel()
 	for _, locale := range []i18n.Locale{i18n.ZhHant, i18n.En} {
 		t.Run(string(locale), func(t *testing.T) {
@@ -51,7 +54,10 @@ func TestNewsletterIssuesCarryOneClickHeaders(t *testing.T) {
 	}
 }
 
-func TestNewsletterOneClickRequiresAnHTTPSOrigin(t *testing.T) {
+// TestNotifier_SendNewsletterIssueHTTPS: a newsletter one-click link requires
+// an HTTPS origin: an http or malformed base URL is refused before SMTP is
+// reached.
+func TestNotifier_SendNewsletterIssueHTTPS(t *testing.T) {
 	t.Parallel()
 	for _, base := range []string{"http://goen.test", "https://goen.test\r\nBcc: unwanted@example.net", "https://goen.test>"} {
 		sender := SMTPSender{Addr: "smtp.goen.invalid:587", From: "sender@goen.test"}
@@ -64,7 +70,9 @@ func TestNewsletterOneClickRequiresAnHTTPSOrigin(t *testing.T) {
 	}
 }
 
-func TestHTTPNewsletterIsLoggedForLocalDevelopment(t *testing.T) {
+// TestNotifier_SendNewsletterIssueDevHTTP: an HTTP newsletter is logged, not
+// refused, for local development.
+func TestNotifier_SendNewsletterIssueDevHTTP(t *testing.T) {
 	t.Parallel()
 	var logs bytes.Buffer
 	sender := LogSender{Log: slog.New(slog.NewJSONHandler(&logs, nil))}
@@ -78,7 +86,9 @@ func TestHTTPNewsletterIsLoggedForLocalDevelopment(t *testing.T) {
 	}
 }
 
-func TestSMTPRefusesUnsafeOneClickHeadersBeforeDialling(t *testing.T) {
+// TestSMTPSender_SendUnsafeOneClick: SMTPSender refuses unsafe one-click
+// headers before dialling.
+func TestSMTPSender_SendUnsafeOneClick(t *testing.T) {
 	t.Parallel()
 	for _, link := range []string{
 		"http://goen.test/newsletter/unsubscribe?token=tok",

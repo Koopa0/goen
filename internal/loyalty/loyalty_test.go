@@ -19,7 +19,9 @@ import (
 	"github.com/koopa0/goen/internal/user"
 )
 
-func TestARedemptionNeverKeepsTheRemainder(t *testing.T) {
+// TestRedeemableLeavesRemainder: a redemption never keeps the remainder:
+// Redeemable rounds down to the step and CreditFor prices only that.
+func TestRedeemableLeavesRemainder(t *testing.T) {
 	tests := []struct {
 		balance    int64
 		redeemable int64
@@ -43,7 +45,9 @@ func TestARedemptionNeverKeepsTheRemainder(t *testing.T) {
 	}
 }
 
-func TestTheExchangeIsExactInBothDirections(t *testing.T) {
+// TestCreditForExactExchange: the points-credit exchange is exact in both
+// directions.
+func TestCreditForExactExchange(t *testing.T) {
 	for points := int64(0); points <= 10_000; points += PointsPerCredit {
 		cents := CreditFor(points)
 		if want := points / PointsPerCredit * 100; cents != want {
@@ -55,14 +59,18 @@ func TestTheExchangeIsExactInBothDirections(t *testing.T) {
 	}
 }
 
-func TestANilOperationIdentityIsNotAnEmptyAccount(t *testing.T) {
+// TestStore_RedeemNilOperation: a nil operation identity is refused as
+// ErrInvalidOperation and is not taken for an empty account.
+func TestStore_RedeemNilOperation(t *testing.T) {
 	_, err := (&Store{}).Redeem(t.Context(), uuid.NewString(), MinRedemption, uuid.Nil)
 	if !errors.Is(err, ErrInvalidOperation) {
 		t.Fatalf("nil operation = %v, want ErrInvalidOperation", err)
 	}
 }
 
-func TestAnInvalidOperationIdentityIsNotReportedAsAShortBalance(t *testing.T) {
+// TestStore_RedeemInvalidOperation: an invalid operation identity is not
+// reported as a short balance.
+func TestStore_RedeemInvalidOperation(t *testing.T) {
 	t.Parallel()
 	_, err := (&Store{}).Redeem(t.Context(), uuid.NewString(), 100, uuid.Nil)
 	if !errors.Is(err, ErrInvalidOperation) || errors.Is(err, ErrNoAccount) {
@@ -70,7 +78,9 @@ func TestAnInvalidOperationIdentityIsNotReportedAsAShortBalance(t *testing.T) {
 	}
 }
 
-func TestAMissingAccountIsStillReportedAsAShortBalance(t *testing.T) {
+// TestHandler_RedeemMissingAccount: a redemption for a missing account is still
+// reported to the customer as a short balance.
+func TestHandler_RedeemMissingAccount(t *testing.T) {
 	h := &Handler{store: &Store{}, log: slog.New(slog.DiscardHandler)}
 	req := httptest.NewRequestWithContext(
 		user.NewContext(t.Context(), user.User{ID: "not-a-uuid", Role: user.RoleCustomer}),
@@ -88,7 +98,9 @@ func TestAMissingAccountIsStillReportedAsAShortBalance(t *testing.T) {
 	}
 }
 
-func TestQueryFlagsCannotClaimARedemptionOrNoDebit(t *testing.T) {
+// TestHandler_NoticeForQueryFlags: query flags cannot make the page claim a
+// redemption or a no-debit.
+func TestHandler_NoticeForQueryFlags(t *testing.T) {
 	t.Parallel()
 	h := &Handler{confirmationKey: "test-key"}
 	for _, locale := range []i18n.Locale{i18n.ZhHant, i18n.En} {
@@ -101,7 +113,9 @@ func TestQueryFlagsCannotClaimARedemptionOrNoDebit(t *testing.T) {
 	}
 }
 
-func TestHistoryTokenRefusesAnotherAccountsPosition(t *testing.T) {
+// TestReadHistoryCursorForeign: a history token refuses another account's
+// position.
+func TestReadHistoryCursorForeign(t *testing.T) {
 	t.Parallel()
 	mint := func(c historyCursor) string {
 		body, err := json.Marshal(c)
@@ -134,7 +148,9 @@ func TestHistoryTokenRefusesAnotherAccountsPosition(t *testing.T) {
 	}
 }
 
-func TestPointsHistoryKeepsTheReversalReason(t *testing.T) {
+// TestPointsHistoryEntryReversalReason: a points history entry keeps the reason
+// a reversal was made for, in both languages.
+func TestPointsHistoryEntryReversalReason(t *testing.T) {
 	t.Parallel()
 	for _, tt := range []struct {
 		name   string
@@ -158,7 +174,8 @@ func TestPointsHistoryKeepsTheReversalReason(t *testing.T) {
 	}
 }
 
-func TestPointsAmountRefusalNamesThePublishedRule(t *testing.T) {
+// TestPointsAmountReason: a points amount refusal names the published rule.
+func TestPointsAmountReason(t *testing.T) {
 	t.Parallel()
 	for _, tt := range []struct {
 		locale i18n.Locale

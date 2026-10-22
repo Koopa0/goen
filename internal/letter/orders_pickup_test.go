@@ -7,7 +7,9 @@ import (
 	"github.com/koopa0/goen/internal/outbox"
 )
 
-func TestAPickupDispatchNoticeSaysStorePickup(t *testing.T) {
+// TestNotifier_SendOrderShippedPickup: a pickup dispatch notice says store
+// pickup, and a home-delivery notice does not mention the store.
+func TestNotifier_SendOrderShippedPickup(t *testing.T) {
 	t.Parallel()
 	for locale, store := range map[string]string{"en": "convenience store", "zh-TW": "超商"} {
 		n, sink := notifier(t)
@@ -29,7 +31,10 @@ func TestAPickupDispatchNoticeSaysStorePickup(t *testing.T) {
 	}
 }
 
-func TestADispatchNoticeLinksTheCarriersTrackingPage(t *testing.T) {
+// TestNotifier_SendOrderShippedTracking: a dispatch notice links the carrier's
+// tracking page, and links nothing for a carrier with no confirmed page or a
+// value outside the closed set.
+func TestNotifier_SendOrderShippedTracking(t *testing.T) {
 	t.Parallel()
 	tests := []struct {
 		name, carrier, want, wantName string
