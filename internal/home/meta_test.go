@@ -50,7 +50,7 @@ func TestHomeAndAboutNameTheShopsOwnCategories(t *testing.T) {
 		for _, item := range items {
 			names = append(names, item.Name)
 		}
-		list := frame.JoinList(ctx, names)
+		list := i18n.JoinList(ctx, names)
 		page := renderComponent(t, ctx, site.About(about))
 		if want := `<meta name="description" content="` + html.EscapeString(wantDescription[locale]) + `"`; !strings.Contains(page, want) {
 			t.Errorf("%s about page omits description %q", locale, wantDescription[locale])
