@@ -10,7 +10,9 @@ import (
 	"github.com/koopa0/goen/internal/i18n"
 )
 
-func TestProductRefusalsRenderDetailErrorsAndTheSpecificationDraft(t *testing.T) {
+// TestProductDetailsRefusalDrafts: product refusals render the detail errors and
+// the specification draft.
+func TestProductDetailsRefusalDrafts(t *testing.T) {
 	t.Parallel()
 	for _, locale := range i18n.Locales() {
 		t.Run(locale.Tag(), func(t *testing.T) {

@@ -20,8 +20,8 @@ import (
 	"github.com/koopa0/goen/internal/cart"
 )
 
-// TestMistypedParcelDimension: a mistyped parcel dimension does not become unmeasured.
-func TestMistypedParcelDimension(t *testing.T) {
+// TestHandler_AddVariantMistypedParcel: a mistyped parcel dimension does not become unmeasured.
+func TestHandler_AddVariantMistypedParcel(t *testing.T) {
 	ctx, actor := admintest.StaffContext(t, pool)
 	s := products.NewStore(pool)
 	h := productstest.NewHandler(pool, s)

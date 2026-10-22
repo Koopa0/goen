@@ -29,7 +29,10 @@ import (
 	"github.com/koopa0/goen/internal/wishlist"
 )
 
-func TestTheShopCanPublishAnUnbrandedProduct(t *testing.T) {
+// TestStore_CreateUnbranded: the shop can create and publish an unbranded
+// product, which every catalogue, cart, wishlist and order read then shows
+// without a brand.
+func TestStore_CreateUnbranded(t *testing.T) {
 	p := admintest.Pool(t)
 	ctx, actor := admintest.StaffContext(t, p)
 	store := products.NewStore(p)
@@ -159,7 +162,9 @@ func TestTheShopCanPublishAnUnbrandedProduct(t *testing.T) {
 	}
 }
 
-func TestClearingAProductBrandSurvivesARefusedEdit(t *testing.T) {
+// TestHandler_UpdateClearBrand: clearing a product's brand survives a refused
+// edit.
+func TestHandler_UpdateClearBrand(t *testing.T) {
 	p := admintest.Pool(t)
 	ctx, _ := admintest.StaffContext(t, p)
 	store := products.NewStore(p)

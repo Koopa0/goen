@@ -199,7 +199,7 @@ func exampleElementByID(n *html.Node, id string) *html.Node {
 }
 
 // TestCampaignFormImageRefusal: campaign image refusal renders drafts apart from saved images.
-// From TestImageRefusalRendersDraftsApartFromSavedImages.
+// From TestProductImagesRefusalDrafts.
 func TestCampaignFormImageRefusal(t *testing.T) {
 	t.Parallel()
 	const alt = ` 新照片「正面」 & 側面 `
@@ -292,7 +292,7 @@ func imageDraftControlValue(n *html.Node, attrs map[string]string) string {
 }
 
 // TestCampaignFormRemoveButtons: campaign remove buttons name their record.
-// From TestRemoveButtonsNameTheirRecord.
+// From TestProductImagesRemoveButtons.
 func TestCampaignFormRemoveButtons(t *testing.T) {
 	t.Parallel()
 	for _, locale := range []struct {

@@ -30,7 +30,9 @@ import (
 	"github.com/koopa0/goen/internal/user"
 )
 
-func TestProductLabelRoundTripUsesAdminRoleAndAuditsAtomically(t *testing.T) {
+// TestStore_SetProductLabelRoundTrip: a product label round-trips through the
+// admin role and is audited atomically.
+func TestStore_SetProductLabelRoundTrip(t *testing.T) {
 	owner := admintest.Pool(t)
 	ctx, actor := admintest.StaffContext(t, owner)
 	var id uuid.UUID
@@ -123,7 +125,9 @@ func TestProductLabelRoundTripUsesAdminRoleAndAuditsAtomically(t *testing.T) {
 	}
 }
 
-func TestProductLabelRoutesRefuseCustomersAndKeepInvalidForm(t *testing.T) {
+// TestHandler_ProductLabelRoute: the product label route refuses customers and
+// keeps an invalid form.
+func TestHandler_ProductLabelRoute(t *testing.T) {
 	p := admintest.Pool(t)
 	ctx, _ := admintest.StaffContext(t, p)
 	var slug string
@@ -171,7 +175,9 @@ func TestProductLabelRoutesRefuseCustomersAndKeepInvalidForm(t *testing.T) {
 	}
 }
 
-func TestProductLabelRedirectSurvivesAProductReadFailure(t *testing.T) {
+// TestHandler_ProductLabelReadFailure: the product label redirect survives a
+// product read failure.
+func TestHandler_ProductLabelReadFailure(t *testing.T) {
 	p := admintest.Pool(t)
 	ctx, _ := admintest.StaffContext(t, p)
 	var slug string
@@ -219,7 +225,9 @@ func (refuseFullProductRead) TraceQueryStart(ctx context.Context, _ *pgx.Conn, q
 
 func (refuseFullProductRead) TraceQueryEnd(context.Context, *pgx.Conn, pgx.TraceQueryEndData) {}
 
-func TestProductLabelDatabaseRefusalsKeepTheDraftAndLeaveNoWrite(t *testing.T) {
+// TestHandler_ProductLabelDatabaseRefusal: product label database refusals keep
+// the draft and leave no write.
+func TestHandler_ProductLabelDatabaseRefusal(t *testing.T) {
 	for _, named := range []bool{true, false} {
 		t.Run(strconv.FormatBool(named), func(t *testing.T) {
 			// This test tightens a CHECK, so it needs a database of its own.
@@ -281,7 +289,9 @@ func TestProductLabelDatabaseRefusalsKeepTheDraftAndLeaveNoWrite(t *testing.T) {
 	}
 }
 
-func TestProductLabelWritesDoNotBlockProductReferences(t *testing.T) {
+// TestLockProductLabel: the lock a product label write takes does not block rows
+// that reference the product.
+func TestLockProductLabel(t *testing.T) {
 	owner := admintest.Pool(t)
 	ctx, actor := admintest.StaffContext(t, owner)
 	var slug string

@@ -38,7 +38,9 @@ import (
 	"github.com/koopa0/goen/internal/media/mediatest"
 )
 
-func TestProductEditorRefusalsKeepTheirDraftAndImageControls(t *testing.T) {
+// TestHandler_EditorRefusalsKeepDraft: product editor refusals keep their draft
+// and the image controls.
+func TestHandler_EditorRefusalsKeepDraft(t *testing.T) {
 	staffCtx, _ := admintest.StaffContext(t, pool)
 	p := admintest.AdminRolePool(t, pool)
 	s := products.NewStore(p)
@@ -194,7 +196,9 @@ func assertEditorImageControls(t *testing.T, body, slug, attached, library strin
 	}
 }
 
-func TestProductImageRefusalsKeepDescriptionsAndSelection(t *testing.T) {
+// TestHandler_ImageRefusalsKeepDraft: product image refusals keep the
+// descriptions and the selection.
+func TestHandler_ImageRefusalsKeepDraft(t *testing.T) {
 	staffCtx, _ := admintest.StaffContext(t, pool)
 	p := admintest.AdminRolePool(t, pool)
 	s := products.NewStore(p)
@@ -334,7 +338,9 @@ func productImageAttributes(n *html.Node) map[string]string {
 	return attrs
 }
 
-func TestALosslessWebPUploadIsRefusedWithItsOwnNotice(t *testing.T) {
+// TestHandler_UploadImageLosslessWebP: a lossless WebP upload is refused with
+// its own notice, on both the product form and the hero slide form.
+func TestHandler_UploadImageLosslessWebP(t *testing.T) {
 	staffCtx, _ := admintest.StaffContext(t, pool)
 	p := admintest.AdminRolePool(t, pool)
 	s := products.NewStore(p)
@@ -484,7 +490,9 @@ func assertRefusedProductImageControl(t *testing.T, body, id, value, reason stri
 	}
 }
 
-func TestProductImageAttachmentFailuresAnswer500AndRecover(t *testing.T) {
+// TestHandler_ImageAttachFailureRecovers: a product image attachment that fails
+// answers 500 without a redirect, and the next attempt recovers.
+func TestHandler_ImageAttachFailureRecovers(t *testing.T) {
 	p := admintest.AdminRolePool(t, pool)
 	healthy := products.NewStore(p)
 	images := media.NewStore(p)
@@ -626,7 +634,9 @@ func (tr *catalogueLockTrace) TraceQueryEnd(ctx context.Context, _ *pgx.Conn, da
 	}
 }
 
-func TestImageUploadsKeepStorageFailuresSeparateFromRefusals(t *testing.T) {
+// TestHandler_UploadImageFailureKinds: image uploads keep storage failures
+// separate from refusals.
+func TestHandler_UploadImageFailureKinds(t *testing.T) {
 	owner := admintest.Pool(t)
 	staff, _ := admintest.StaffContext(t, owner)
 	adminPool := admintest.AdminRolePool(t, owner)

@@ -43,7 +43,7 @@ func TestTaxonomyRowSaveButton(t *testing.T) {
 	}
 }
 
-// From TestAnExampleIsItsOwnHintLine.
+// From TestProductFormExampleLine.
 func TestTaxonomyExampleIsItsOwnHintLine(t *testing.T) {
 	t.Parallel()
 	ctx := i18n.WithLocale(t.Context(), i18n.ZhHant)
@@ -61,7 +61,7 @@ func TestTaxonomyExampleIsItsOwnHintLine(t *testing.T) {
 }
 
 // TestTaxonomyExampleHintsInFull: every taxonomy example hint reads in full.
-// From TestEveryExampleHintReadsInFull.
+// From TestProductFormExampleHints.
 func TestTaxonomyExampleHintsInFull(t *testing.T) {
 	t.Parallel()
 	for _, tt := range []struct {
@@ -91,7 +91,7 @@ func TestTaxonomyExampleHintsInFull(t *testing.T) {
 }
 
 // TestCategoryFormImageRefusal: category image refusal renders drafts apart from saved images.
-// From TestImageRefusalRendersDraftsApartFromSavedImages.
+// From TestProductImagesRefusalDrafts.
 func TestCategoryFormImageRefusal(t *testing.T) {
 	t.Parallel()
 	const alt = ` 新照片「正面」 & 側面 `
@@ -184,7 +184,7 @@ func imageDraftControlValue(n *html.Node, attrs map[string]string) string {
 }
 
 // TestTaxonomyRefusalsLinkFirstInvalid: taxonomy refusals name their form and link to the first invalid control.
-// From TestDeskRefusalsNameTheirFormAndLinkToTheFirstInvalidControl.
+// From TestProductFormRefusalSummary.
 func TestTaxonomyRefusalsLinkFirstInvalid(t *testing.T) {
 	t.Parallel()
 	for _, locale := range i18n.Locales() {

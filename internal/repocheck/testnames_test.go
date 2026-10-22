@@ -44,6 +44,7 @@ var migratedTestPackages = []string{
 	"internal/admin/health",
 	"internal/admin/messages",
 	"internal/admin/newsletters",
+	"internal/admin/products",
 	"internal/admin/questions",
 	"internal/admin/refunds",
 	"internal/admin/reports",
@@ -104,6 +105,12 @@ var testNameExceptions = map[string]map[string]string{
 		"TestClosedDatabaseWritesNotRefused":           "a rule across the back-office stores: it closes the database under products and shipping writes and asks that neither answers ErrRefused or ErrNotFound; its units are those stores' methods in other packages, and no identifier of package admin is one of them",
 		"TestEveryAdminQueueReachesBeyondItsFirstPage": "a rule across every back-office queue: it seeds 101 rows and follows each desk's next link through its own handler; the desks are other packages, and no identifier of package admin is its unit",
 		"TestEveryBackOfficeWriteLeavesATrail":         "a rule across the back-office stores: it runs one write of each (stock, product, credit, campaign and the rest) and counts an audit row for every action; the stores are other packages, and no identifier of package admin is its unit",
+	},
+	"internal/admin/products": {
+		"TestLocalizedNameAltText":   "the unit is the SQL function localized_name, which picks an image's alt text by the page's language; the test reads it through the pool after AttachImage stores the two texts, and calls no Go identifier of this package for the result",
+		"TestLockProductInvoiceLine": "the unit is the LockProductInvoiceLine query (internal/admin/products/query.sql, generated into internal/db), a SQL object the test calls directly to hold the lock that Store.SetProductInvoiceLine takes, and it asserts that a row referencing the product stays writable meanwhile; Store.SetProductInvoiceLine is not called",
+		"TestLockProductLabel":       "the unit is the LockProductLabel query (internal/admin/products/query.sql, generated into internal/db), a SQL object the test calls directly to hold the lock that Store.SetProductLabel takes, and it asserts that a row referencing the product stays writable meanwhile; Store.SetProductLabel is not called",
+		"TestParseBoundedCeilings":   "the unit is formtext.ParseBounded of package formtext, called with this desk's own ceilings (MaxWarrantyMonths, safetyStockCeiling and the parcel ceilings of package shipping); this package declares no identifier the test calls, and moving it is a reorganisation this pass does not do",
 	},
 	"internal/admin/refunds": {
 		"TestClaimReturnRefundExecutionConcurrent": "the unit is the SQL function claim_return_refund_execution, called straight through the pool; no Go identifier of this package is what the test drives",

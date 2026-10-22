@@ -23,10 +23,11 @@ import (
 	"github.com/koopa0/goen/internal/admin/products/productstest"
 )
 
-// TestAnUploadedImageCanShowOneOfItsProductsOptionValues walks the two forms
-// that tag a photograph: the upload, and the per-image choice that changes it
-// afterwards, including back to showing the product whichever value is chosen.
-func TestAnUploadedImageCanShowOneOfItsProductsOptionValues(t *testing.T) {
+// TestHandler_UploadImageOptionValue: an uploaded image can show one of its
+// product's option values. It walks the two forms that tag a photograph: the
+// upload, and the per-image choice that changes it afterwards, including back to
+// showing the product whichever value is chosen.
+func TestHandler_UploadImageOptionValue(t *testing.T) {
 	ctx, _ := admintest.StaffContext(t, pool)
 	s := products.NewStore(pool)
 	h := productstest.NewHandler(pool, s)
@@ -81,10 +82,11 @@ func TestAnUploadedImageCanShowOneOfItsProductsOptionValues(t *testing.T) {
 	}
 }
 
-// TestAnImageCannotShowAnotherProductsOptionValue holds the composite key: the
-// value's id alone would satisfy a plain foreign key, and the photograph would
-// then lead the gallery of a product it does not show.
-func TestAnImageCannotShowAnotherProductsOptionValue(t *testing.T) {
+// TestStore_AttachImageForeignOption: an image cannot show another product's
+// option value. It holds the composite key: the value's id alone would satisfy a
+// plain foreign key, and the photograph would then lead the gallery of a product
+// it does not show.
+func TestStore_AttachImageForeignOption(t *testing.T) {
 	ctx, _ := admintest.StaffContext(t, pool)
 	s := products.NewStore(pool)
 	h := productstest.NewHandler(pool, s)

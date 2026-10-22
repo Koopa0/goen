@@ -10,7 +10,9 @@ import (
 	"github.com/koopa0/goen/internal/ui/frame"
 )
 
-func TestProductVariantCountSelectsSingularInTheRenderedPage(t *testing.T) {
+// TestProductsVariantCount: the products page's variant count selects the
+// singular in the rendered page.
+func TestProductsVariantCount(t *testing.T) {
 	t.Parallel()
 	for _, locale := range []i18n.Locale{i18n.ZhHant, i18n.En} {
 		for _, n := range []int32{1, 2} {

@@ -80,7 +80,9 @@ func standingOrder(t *testing.T, productID, variantID uuid.UUID, sku string, uni
 	return orderID
 }
 
-func TestWeeklyUnitsAreThisProductsCommittedLinesOverWholeShopDays(t *testing.T) {
+// TestStore_ProductWeeklyUnits: the weekly units are this product's committed
+// order lines over whole shop days.
+func TestStore_ProductWeeklyUnits(t *testing.T) {
 	slug, productID, variantID, sku := standingProduct(t)
 	_, otherProduct, otherVariant, otherSKU := standingProduct(t)
 
@@ -133,7 +135,8 @@ func TestWeeklyUnitsAreThisProductsCommittedLinesOverWholeShopDays(t *testing.T)
 	}
 }
 
-func TestTheRatingSpreadCountsOnlyVisibleReviews(t *testing.T) {
+// TestStore_ProductRatingSpread: the rating spread counts only visible reviews.
+func TestStore_ProductRatingSpread(t *testing.T) {
 	slug, productID, _, _ := standingProduct(t)
 	for _, r := range []struct {
 		rating int

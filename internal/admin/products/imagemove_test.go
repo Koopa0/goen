@@ -9,9 +9,12 @@ import (
 	"github.com/koopa0/goen/internal/i18n"
 )
 
+// TestProductImagesMoveForms: the image list's move forms post the right image
+// and word.
+//
 // The move forms post the image's own key and one of the three words the store
 // accepts; the first image cannot go earlier, the last cannot go later.
-func TestImageListMoveFormsPostTheRightImageAndWord(t *testing.T) {
+func TestProductImagesMoveForms(t *testing.T) {
 	t.Parallel()
 	keys := []string{strings.Repeat("a1", 32), strings.Repeat("b2", 32), strings.Repeat("c3", 32)}
 	v := ProductView{Slug: "p", Images: []Image{{Photo: assets.Image{Digest: keys[0]}, Alt: "x"}, {Photo: assets.Image{Digest: keys[1]}, Alt: "y"}, {Photo: assets.Image{Digest: keys[2]}, Alt: "z"}}}

@@ -9,7 +9,7 @@ import (
 	"github.com/koopa0/goen/internal/ui/uitest"
 )
 
-// From copy_test.go: TestEveryExampleHintReadsInFull, which keeps the product half.
+// From copy_test.go: TestProductFormExampleHints, which keeps the product half.
 // TestFAQExampleHints: every FAQ example hint reads in full.
 func TestFAQExampleHints(t *testing.T) {
 	t.Parallel()
@@ -31,7 +31,7 @@ func TestFAQExampleHints(t *testing.T) {
 	}
 }
 
-// From TestDeskRefusalsNameTheirFormAndLinkToTheFirstInvalidControl, which keeps
+// From TestProductFormRefusalSummary, which keeps
 // the product half.
 // TestFAQRefusalSummary: a refused FAQ edit names its form and links to the first invalid control.
 func TestFAQRefusalSummary(t *testing.T) {

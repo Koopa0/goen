@@ -204,7 +204,7 @@ func TestRefusedInspectionKeepsBlankAndUnreadableCounts(t *testing.T) {
 	}
 }
 
-// From TestRefusalSummariesCountEachRefusalOnce, which keeps the product half.
+// From TestProductView_VariantRefusal, which keeps the product half.
 func TestInspectionRefusalsCountEachRefusalOnce(t *testing.T) {
 	t.Parallel()
 	view := ReturnsView{

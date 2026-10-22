@@ -7,7 +7,8 @@ import (
 	"github.com/koopa0/goen/internal/i18n"
 )
 
-func TestRefusedLabelFormRetainsOptionalValues(t *testing.T) {
+// TestProductLabelRefusedForm: a refused label form retains its optional values.
+func TestProductLabelRefusedForm(t *testing.T) {
 	t.Parallel()
 	for _, locale := range []i18n.Locale{i18n.ZhHant, i18n.En} {
 		ctx := i18n.WithLocale(t.Context(), locale)

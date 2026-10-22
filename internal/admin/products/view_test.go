@@ -16,8 +16,11 @@ import (
 // The tests in this file are the products halves of tests that render several
 // desks' pages: each half lives with the page it renders.
 
+// TestProductsEmptyRestartLink: the products page keeps its restart link when a
+// page past the end is empty.
+//
 // From TestAuditEmptyPageRestartLink.
-func TestProductsEmptyPageKeepsItsRestartLink(t *testing.T) {
+func TestProductsEmptyRestartLink(t *testing.T) {
 	t.Parallel()
 	b := keyset.Bound{PastEnd: true, First: "/admin/products?q=test"}
 	p := frame.Page{Title: "Pagination"}
@@ -57,8 +60,11 @@ func queuePages(b keyset.Bound, ctx func(k i18n.Key) string) map[string]struct {
 	}
 }
 
+// TestProductsFirstPageEmptyState: the products queue keeps its own empty state
+// on an empty first page.
+//
 // From TestAuditFirstPageEmpty.
-func TestProductsQueueKeepsItsOwnFirstPageEmptyState(t *testing.T) {
+func TestProductsFirstPageEmptyState(t *testing.T) {
 	t.Parallel()
 	ctx := func(k i18n.Key) string { return i18n.T(i18n.WithLocale(t.Context(), i18n.En), k) }
 	generic := ctx(i18n.KeyPageEmpty)
@@ -76,8 +82,10 @@ func TestProductsQueueKeepsItsOwnFirstPageEmptyState(t *testing.T) {
 	}
 }
 
+// TestProductsNextLink: a products queue with more rows offers a Next link.
+//
 // From TestAuditFullPageOffersNext.
-func TestProductsQueueWithMoreRowsOffersNext(t *testing.T) {
+func TestProductsNextLink(t *testing.T) {
 	t.Parallel()
 	ctx := func(k i18n.Key) string { return i18n.T(i18n.WithLocale(t.Context(), i18n.En), k) }
 	for name, c := range queuePages(fullPageBound("/admin/queue"), ctx) {
