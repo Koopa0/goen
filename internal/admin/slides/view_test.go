@@ -16,8 +16,9 @@ import (
 // The tests in this file are the slide halves of tests that render several
 // desks' pages: each half lives with the page it renders.
 
+// TestSlidesImageRefusalDraft: a hero image refusal renders the complete draft.
 // From image_draft_test.go, moved whole.
-func TestHeroImageRefusalRendersTheCompleteDraft(t *testing.T) {
+func TestSlidesImageRefusalDraft(t *testing.T) {
 	t.Parallel()
 	v := HeroView{Draft: HeroDraft{Eyebrow: " 原始副標 ", Headline: " 原始標題 ", Body: " 原始內文 ", PrimaryLabel: " 主按鈕 ", PrimaryHref: "/deals?q=1&sort=price", SecondLabel: " 次按鈕 ", SecondHref: "/about", ImageAlt: " 原始圖片 ", Days: "007", EyebrowEn: " Raw kicker ", HeadlineEn: " Raw title ", BodyEn: " Raw body ", PrimaryLabelEn: " Primary ", SecondLabelEn: " Secondary ", ImageAltEn: " Raw picture "}, Errors: map[string]string{"image": "Replace the image"}}
 	want := map[string]string{"h-eyebrow": " 原始副標 ", "h-headline": " 原始標題 ", "h-body": " 原始內文 ", "h-plabel": " 主按鈕 ", "h-phref": "/deals?q=1&sort=price", "h-slabel": " 次按鈕 ", "h-shref": "/about", "h-alt": " 原始圖片 ", "h-days": "007", "h-eyebrow-en": " Raw kicker ", "h-headline-en": " Raw title ", "h-body-en": " Raw body ", "h-plabel-en": " Primary ", "h-slabel-en": " Secondary ", "h-alt-en": " Raw picture "}
@@ -97,8 +98,9 @@ func imageDraftControlValue(n *html.Node, attrs map[string]string) string {
 
 // From images_test.go, moved whole.
 
+// TestSlidesHeroTiles: admin hero tiles offer the small rendition.
 // The hero list's 160px tiles get the 400px rendition, not the original upload.
-func TestAdminHeroTilesOfferTheSmallRendition(t *testing.T) {
+func TestSlidesHeroTiles(t *testing.T) {
 	t.Parallel()
 	digest := strings.Repeat("cd", 32)
 	v := &HeroView{Rows: []HeroSlide{{ID: "s", Headline: "h", ImageDigest: digest, Active: true}}}
@@ -113,9 +115,10 @@ func TestAdminHeroTilesOfferTheSmallRendition(t *testing.T) {
 	}
 }
 
+// TestSlidesRefusalSummary: a refused slide names its form and links to the first invalid control.
 // From TestDeskRefusalsNameTheirFormAndLinkToTheFirstInvalidControl, which keeps
 // the product half.
-func TestARefusedSlideNamesItsFormAndLinksToTheFirstInvalidControl(t *testing.T) {
+func TestSlidesRefusalSummary(t *testing.T) {
 	t.Parallel()
 	for _, locale := range i18n.Locales() {
 		t.Run(locale.Tag(), func(t *testing.T) {

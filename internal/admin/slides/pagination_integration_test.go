@@ -23,7 +23,8 @@ import (
 	"github.com/koopa0/goen/internal/ui/hero"
 )
 
-func TestEveryScheduledSlideRemainsManageableBeyondExpiredHistory(t *testing.T) {
+// TestHandler_SlidesExpiredHistory: every scheduled slide remains manageable beyond expired history.
+func TestHandler_SlidesExpiredHistory(t *testing.T) {
 	p := admintest.Pool(t)
 	ctx, _ := admintest.StaffContext(t, p)
 	if _, err := p.Exec(ctx, `DELETE FROM hero_slides`); err != nil {

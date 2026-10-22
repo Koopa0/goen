@@ -41,8 +41,9 @@ func render(t *testing.T, c templ.Component) string {
 	return out.String()
 }
 
+// TestReviewsEmptyPage: the reviews empty page keeps its restart link.
 // From TestAuditEmptyPageRestartLink.
-func TestReviewsEmptyPageKeepsItsRestartLink(t *testing.T) {
+func TestReviewsEmptyPage(t *testing.T) {
 	t.Parallel()
 	b := keyset.Bound{PastEnd: true, First: "/admin/products?q=test"}
 	body := render(t, Reviews(frame.Page{Title: "Pagination"}, ReviewsView{Bound: b}))
@@ -54,8 +55,9 @@ func TestReviewsEmptyPageKeepsItsRestartLink(t *testing.T) {
 	}
 }
 
+// TestReviewsFirstPageEmpty: the reviews queue keeps its own first-page empty state.
 // From TestAuditFirstPageEmpty.
-func TestReviewsQueueKeepsItsOwnFirstPageEmptyState(t *testing.T) {
+func TestReviewsFirstPageEmpty(t *testing.T) {
 	t.Parallel()
 	ctx := func(k i18n.Key) string { return i18n.T(i18n.WithLocale(t.Context(), i18n.En), k) }
 	want := ctx(i18n.KeyAdminReviewsEmpty)
@@ -68,8 +70,9 @@ func TestReviewsQueueKeepsItsOwnFirstPageEmptyState(t *testing.T) {
 	}
 }
 
+// TestReviewsNextLink: a reviews queue with more rows offers Next.
 // From TestAuditFullPageOffersNext.
-func TestReviewsQueueWithMoreRowsOffersNext(t *testing.T) {
+func TestReviewsNextLink(t *testing.T) {
 	t.Parallel()
 	ctx := func(k i18n.Key) string { return i18n.T(i18n.WithLocale(t.Context(), i18n.En), k) }
 	body := render(t, Reviews(frame.Page{Title: "Queue"}, ReviewsView{Bound: fullPageBound("/admin/queue")}))

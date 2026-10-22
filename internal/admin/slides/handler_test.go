@@ -17,7 +17,8 @@ import (
 	"github.com/koopa0/goen/internal/web/formtext"
 )
 
-func TestEveryRedirectTheSlideFormsMakeCarriesAMessage(t *testing.T) {
+// TestNoticesCoverRedirects: every redirect the slide forms make carries a message.
+func TestNoticesCoverRedirects(t *testing.T) {
 	t.Parallel()
 	src, err := os.ReadFile("handler.go")
 	if err != nil {
@@ -42,7 +43,8 @@ func TestEveryRedirectTheSlideFormsMakeCarriesAMessage(t *testing.T) {
 	}
 }
 
-func TestUploadErrorsDistinguishBadFormsFromStorageFailures(t *testing.T) {
+// TestHandler_UploadErrorStatus: upload errors distinguish bad forms from storage failures.
+func TestHandler_UploadErrorStatus(t *testing.T) {
 	t.Parallel()
 	for _, locale := range i18n.Locales() {
 		for _, tt := range []struct {
@@ -83,9 +85,10 @@ func TestUploadErrorsDistinguishBadFormsFromStorageFailures(t *testing.T) {
 	}
 }
 
+// TestHandler_UploadAbandoned: an abandoned upload is answered with nothing.
 // A browser that left mid-upload has no one to read a notice: the answer is
 // empty and nothing is logged as a failure.
-func TestAnAbandonedUploadIsAnsweredWithNothing(t *testing.T) {
+func TestHandler_UploadAbandoned(t *testing.T) {
 	t.Parallel()
 	var diagnostics bytes.Buffer
 	h := &Handler{log: slog.New(slog.NewJSONHandler(&diagnostics, nil))}

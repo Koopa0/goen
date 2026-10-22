@@ -15,7 +15,8 @@ import (
 	"github.com/koopa0/goen/internal/outbox"
 )
 
-func TestStaffInvitationCommitsWithANewGrantWithoutRecipientPII(t *testing.T) {
+// TestStore_AddStaffInvitation: a staff invitation commits with a new grant and carries no recipient PII.
+func TestStore_AddStaffInvitation(t *testing.T) {
 	actor, _ := admintest.AdminUser(t, pool)
 	s := staff.NewStore(rolePool(t, "staff-invitation", "admin"))
 	address := "invitation-" + uuid.NewString() + "@example.com"
@@ -75,7 +76,8 @@ func TestStaffInvitationCommitsWithANewGrantWithoutRecipientPII(t *testing.T) {
 	}
 }
 
-func TestFailedStaffAuditLeavesNoInvitation(t *testing.T) {
+// TestStore_AddStaffNoInvitation: a failed staff audit leaves no invitation.
+func TestStore_AddStaffNoInvitation(t *testing.T) {
 	s := staff.NewStore(pool)
 	var before, after int
 	if err := pool.QueryRow(t.Context(), `SELECT count(*) FROM outbox_messages WHERE topic=$1`, outbox.TopicStaffInvitation.Name()).Scan(&before); err != nil {

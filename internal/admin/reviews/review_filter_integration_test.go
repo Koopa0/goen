@@ -24,7 +24,8 @@ import (
 	"github.com/koopa0/goen/internal/keyset"
 )
 
-func TestReviewFilterKeepsTimeOrderHiddenRowsAndKeysetScope(t *testing.T) {
+// TestStore_ReviewsFilter: the review filter keeps time order, hidden rows and keyset scope.
+func TestStore_ReviewsFilter(t *testing.T) {
 	owner := admintest.Pool(t)
 	ctx, _ := admintest.StaffContext(t, owner)
 	want := seedFilteredReviews(ctx, t, owner)

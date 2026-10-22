@@ -12,11 +12,11 @@ import (
 	"github.com/koopa0/goen/internal/db"
 )
 
-// TestTheMembershipPageCountsEachCustomerInTheirOwnBand: the page counts every
+// TestAdminMembershipTiers: the page counts every
 // account in the band member_tier gives it, from one pass over the spend rather
 // than a member_tier call per account (#1934). One customer's only order is
 // older than the window, which a sum over the wrong view would count.
-func TestTheMembershipPageCountsEachCustomerInTheirOwnBand(t *testing.T) {
+func TestAdminMembershipTiers(t *testing.T) {
 	ctx := t.Context()
 	for _, cents := range []int64{1000000, 5000000} {
 		admintest.OrderForCustomer(t, pool, admintest.CreditedAccount(t, pool, 0), cents, true)

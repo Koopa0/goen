@@ -30,7 +30,8 @@ import (
 	"github.com/koopa0/goen/internal/web/ratelimit"
 )
 
-func TestContactSubjectsSurviveWritingAndRenderInBothLanguages(t *testing.T) {
+// TestStore_MessagesContactSubjects: contact subjects survive writing and render in both languages.
+func TestStore_MessagesContactSubjects(t *testing.T) {
 	storePool := contactSubjectStorePool(t)
 	writer := contact.NewStore(storePool)
 	h := contact.NewHandler(writer, ratelimit.New(ratelimit.Config{

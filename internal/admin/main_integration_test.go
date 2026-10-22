@@ -51,7 +51,8 @@ func TestMain(m *testing.M) {
 	os.Exit(code)
 }
 
-func TestTheBackOfficeIsInvisibleToEveryoneButStaff(t *testing.T) {
+// TestControl_RequireStaffOutsiders: the back office is invisible to everyone but staff.
+func TestControl_RequireStaffOutsiders(t *testing.T) {
 	ctx := t.Context()
 
 	var customerID uuid.UUID
@@ -188,7 +189,8 @@ func anyVariantSKU(t *testing.T) string {
 	return sku
 }
 
-func TestParseProtectedWritesDoNotCallInfrastructureARefusal(t *testing.T) {
+// TestClosedDatabaseWritesNotRefused: parse-protected writes do not call an infrastructure failure a refusal.
+func TestClosedDatabaseWritesNotRefused(t *testing.T) {
 	ctx, _ := admintest.StaffContext(t, pool)
 	p := admintest.NamedPool(t, pool, "parse_closed_"+uuid.NewString()[:8])
 	p.Close()
@@ -232,7 +234,8 @@ func TestParseProtectedWritesDoNotCallInfrastructureARefusal(t *testing.T) {
 	}
 }
 
-func TestAMistypedParcelDimensionDoesNotBecomeUnmeasured(t *testing.T) {
+// TestMistypedParcelDimension: a mistyped parcel dimension does not become unmeasured.
+func TestMistypedParcelDimension(t *testing.T) {
 	ctx, actor := admintest.StaffContext(t, pool)
 	s := products.NewStore(pool)
 	h := productstest.NewHandler(pool, s)

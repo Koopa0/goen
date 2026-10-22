@@ -1,0 +1,13 @@
+file	old	new	unit	source	action	newfile
+internal/admin/tiers/handler_test.go	TestEveryRedirectTheFormsMakeCarriesAMessage	TestNoticesCoverRedirects	Notices	hand	rename	
+internal/admin/tiers/members_integration_test.go	TestTheMembershipPageCountsEachCustomerInTheirOwnBand	TestAdminMembershipTiers	AdminMembershipTiers	hand	rename	
+internal/admin/tiers/routes_test.go	TestEveryRouteRefusesAnOutsider	TestHandler_RoutesRefuseOutsiders	Handler_Routes	hand	rename	
+internal/admin/tiers/tiers_integration_test.go	TestATierCannotEarnLessThanNoTier	TestStore_CreateTierBelowBase	Store_CreateTier	hand	rename	
+internal/admin/tiers/tiers_integration_test.go	TestTwoTiersCannotShareAThreshold	TestStore_CreateTierSharedThreshold	Store_CreateTier	hand	rename	
+internal/admin/tiers/tiers_test.go	TestTierDollarAndPercentOverflowIsRefused	TestStore_CreateTierOverflow	Store_CreateTier	hand	rename	
+internal/admin/tiers/view_test.go	TestEveryTiersExampleHintReadsInFull	TestTiersExampleHints	Tiers	hand	rename	
+internal/admin/tiers/view_test.go	TestTierMultipliersRetainBasisPointPrecision	TestTier_Multiplier	Tier_Multiplier	hand	rename	
+internal/admin/tiers/view_test.go	TestTiersExampleIsItsOwnHintLine	TestTiersExampleLine	Tiers	hand	rename	
+internal/admin/tiers/view_test.go	TestTiersMultiplierColumnIsNumeric	TestTiersMultiplierColumn	Tiers	hand	rename	
+internal/admin/tiers/view_test.go	TestTiersRemoveButtonsNameTheirRecord	TestTiersRemoveButtons	Tiers	hand	rename	
+internal/admin/tiers/view_test.go	TestTiersScreenPutsItsWorkInTheContentColumn	TestTiersContentColumn	Tiers	hand	rename	

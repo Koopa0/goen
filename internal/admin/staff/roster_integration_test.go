@@ -23,9 +23,11 @@ import (
 	"github.com/koopa0/goen/internal/web/requestid"
 )
 
-// TestAnotherAdminCanRecoverALostAuthenticator holds the recovery path: another
+// TestStore_RemoveFactorRecovery: another admin can recover a lost authenticator.
+//
+// It holds the recovery path: another
 // admin removes the credential, and there are no printed backup codes.
-func TestAnotherAdminCanRecoverALostAuthenticator(t *testing.T) {
+func TestStore_RemoveFactorRecovery(t *testing.T) {
 	ctx := t.Context()
 	s := staff.NewStore(pool)
 
@@ -50,9 +52,11 @@ func TestAnotherAdminCanRecoverALostAuthenticator(t *testing.T) {
 	}
 }
 
-// TestAnAdminCannotRemoveTheirOwnFactor is the guard that makes the recovery
+// TestStore_RemoveFactorSelf: an admin cannot remove their own factor.
+//
+// It is the guard that makes the recovery
 // path safe: the session doing it is already step-up verified.
-func TestAnAdminCannotRemoveTheirOwnFactor(t *testing.T) {
+func TestStore_RemoveFactorSelf(t *testing.T) {
 	ctx := t.Context()
 	s := staff.NewStore(pool)
 
@@ -69,9 +73,11 @@ func TestAnAdminCannotRemoveTheirOwnFactor(t *testing.T) {
 	}
 }
 
-// TestTheLastAdminCannotBeRevoked. Removing the only admin leaves nobody who
+// TestStore_RevokeStaffLastAdmin: the last admin cannot be revoked.
+//
+// Removing the only admin leaves nobody who
 // can add one back.
-func TestTheLastAdminCannotBeRevoked(t *testing.T) {
+func TestStore_RevokeStaffLastAdmin(t *testing.T) {
 	ctx := t.Context()
 	s := staff.NewStore(pool)
 
@@ -102,8 +108,8 @@ func TestTheLastAdminCannotBeRevoked(t *testing.T) {
 	}
 }
 
-// TestRevokingAccessEndsTheSessionsThatHadIt, for the rest of a session's life.
-func TestRevokingAccessEndsTheSessionsThatHadIt(t *testing.T) {
+// TestStore_RevokeStaffEndsSessions: revoking access ends the sessions that had it, for the rest of a session's life.
+func TestStore_RevokeStaffEndsSessions(t *testing.T) {
 	ctx := t.Context()
 	s := staff.NewStore(pool)
 
@@ -129,9 +135,9 @@ func TestRevokingAccessEndsTheSessionsThatHadIt(t *testing.T) {
 	}
 }
 
-// TestANewColleagueHasNoPassword: they set their own through /forgot, the one
+// TestStore_AddStaffNoPassword: a new colleague has no password; they set their own through /forgot, the one
 // path that proves they own the mailbox.
-func TestANewColleagueHasNoPassword(t *testing.T) {
+func TestStore_AddStaffNoPassword(t *testing.T) {
 	ctx := t.Context()
 	s := staff.NewStore(pool)
 	actor, _ := admintest.AdminUser(t, pool)
@@ -173,10 +179,12 @@ func TestANewColleagueHasNoPassword(t *testing.T) {
 	}
 }
 
-// TestNobodyCanPromoteThemselvesThroughTheStaffForm. AddStaff is an upsert
+// TestStore_AddStaffSelfPromotion: nobody can promote themselves through the staff form.
+//
+// AddStaff is an upsert
 // resolved by address, so POSTing your own email with role=admin is a
 // self-promotion; the case fold is asserted because users_email_key folds too.
-func TestNobodyCanPromoteThemselvesThroughTheStaffForm(t *testing.T) {
+func TestStore_AddStaffSelfPromotion(t *testing.T) {
 	ctx := t.Context()
 	s := staff.NewStore(pool)
 	actor, address := admintest.AdminUser(t, pool)
@@ -216,7 +224,9 @@ func TestNobodyCanPromoteThemselvesThroughTheStaffForm(t *testing.T) {
 	}
 }
 
-// TestPromotingAnUnprovedAccountTakesItsCredential closes a full takeover.
+// TestStore_AddStaffUnprovedAccount: promoting an unproved account takes its credential.
+//
+// It closes a full takeover.
 //
 // goen does not verify an address at registration, so somebody who knows an
 // address is about to be hired can register it FIRST with their own password,
@@ -228,7 +238,7 @@ func TestNobodyCanPromoteThemselvesThroughTheStaffForm(t *testing.T) {
 // A new colleague gets NO password and proves the mailbox through /forgot, and
 // an account that has never proved its address is in exactly that position,
 // whoever created it.
-func TestPromotingAnUnprovedAccountTakesItsCredential(t *testing.T) {
+func TestStore_AddStaffUnprovedAccount(t *testing.T) {
 	ctx := t.Context()
 	s := staff.NewStore(pool)
 	actor, _ := admintest.AdminUser(t, pool)
@@ -281,12 +291,14 @@ func TestPromotingAnUnprovedAccountTakesItsCredential(t *testing.T) {
 	}
 }
 
-// TestPromotingAProvedAccountKeepsIt is the other half, and the reason the rule
+// TestStore_AddStaffProvedAccount: promoting a proved account keeps it.
+//
+// It is the other half, and the reason the rule
 // asks about the ADDRESS rather than about promotion: a verified address
 // provably belongs to whoever reads that mailbox, which is the person being
 // hired. Clearing their password would be friction bought with nothing, in the
 // common case of a shop hiring somebody who already shops there.
-func TestPromotingAProvedAccountKeepsIt(t *testing.T) {
+func TestStore_AddStaffProvedAccount(t *testing.T) {
 	ctx := t.Context()
 	s := staff.NewStore(pool)
 	actor, _ := admintest.AdminUser(t, pool)
@@ -317,14 +329,16 @@ func TestPromotingAProvedAccountKeepsIt(t *testing.T) {
 	}
 }
 
-// TestPromotionEndsTheSessionsOpenedBeforeIt holds the half the credential test
+// TestStore_AddStaffEndsSessions: promotion ends the sessions opened before it.
+//
+// It holds the half the credential test
 // cannot see: secure_promoted_account ends sessions ALWAYS, and not only when
 // it cleared an unproved password.
 //
 // role is read live on every request, so a session opened before the promotion
 // becomes a back-office session the moment the role moves: one the shop had not
 // yet decided to trust with /admin, on whatever machine it was left open.
-func TestPromotionEndsTheSessionsOpenedBeforeIt(t *testing.T) {
+func TestStore_AddStaffEndsSessions(t *testing.T) {
 	ctx := t.Context()
 	s := staff.NewStore(pool)
 	actor, _ := admintest.AdminUser(t, pool)
@@ -362,13 +376,15 @@ func TestPromotionEndsTheSessionsOpenedBeforeIt(t *testing.T) {
 	}
 }
 
-// TestRecoveringAFactorEndsTheSessionsItAdmitted holds the other door into the
+// TestStore_RemoveFactorEndsSessions: recovering a factor ends the sessions it admitted.
+//
+// It holds the other door into the
 // room RevokeStaff already guards. A session carries its own step-up stamp that
 // SessionTOTPVerified trusts for the rest of StepUpWindow, so a session left
 // open keeps the back office for up to twelve hours after the credential it was
 // admitted on was removed — and can use StaffOnly to enrol a replacement of the
 // attacker's own choosing, which is exactly the path this function exists to be.
-func TestRecoveringAFactorEndsTheSessionsItAdmitted(t *testing.T) {
+func TestStore_RemoveFactorEndsSessions(t *testing.T) {
 	ctx := t.Context()
 	s := staff.NewStore(pool)
 
@@ -398,10 +414,12 @@ func TestRecoveringAFactorEndsTheSessionsItAdmitted(t *testing.T) {
 	}
 }
 
-// TestRecoveringAFactorRollsBackWhenSessionRevocationFails proves the factor
+// TestStore_RemoveFactorRollsBack: recovering a factor rolls back when session revocation fails.
+//
+// It proves the factor
 // and the sessions are one security change. A failure after deleting only the
 // factor would leave the exact stepped-up session recovery exists to end.
-func TestRecoveringAFactorRollsBackWhenSessionRevocationFails(t *testing.T) {
+func TestStore_RemoveFactorRollsBack(t *testing.T) {
 	ctx := t.Context()
 	s := staff.NewStore(pool)
 
@@ -460,12 +478,14 @@ func TestRecoveringAFactorRollsBackWhenSessionRevocationFails(t *testing.T) {
 	}
 }
 
-// TestTwoAdminsRevokingEachOtherLeaveOne holds the last-admin guard against a
+// TestStore_RevokeStaffTwoAdmins: two admins revoking each other leave one.
+//
+// It holds the last-admin guard against a
 // read-then-write: counting on the pool and writing separately lets two admins
 // revoking each other both read two, both pass `admins > 1`, and both write.
 // Zero admins has no way back — granting the role needs /admin/staff, which
 // needs an admin.
-func TestTwoAdminsRevokingEachOtherLeaveOne(t *testing.T) {
+func TestStore_RevokeStaffTwoAdmins(t *testing.T) {
 	ctx := t.Context()
 	s := staff.NewStore(pool)
 
@@ -522,11 +542,13 @@ func TestTwoAdminsRevokingEachOtherLeaveOne(t *testing.T) {
 	}
 }
 
-// TestErasureAndRevocationShareTheRosterGuard covers the cross-feature race:
+// TestStore_RevokeStaffErasureRace: erasure and revocation share the roster guard.
+//
+// It covers the cross-feature race:
 // erasing A and revoking B’s admin access must not each observe the other
 // as the remaining administrator. Both application roles enter through their
 // real database doors and are held at the shared guard before either can write.
-func TestErasureAndRevocationShareTheRosterGuard(t *testing.T) {
+func TestStore_RevokeStaffErasureRace(t *testing.T) {
 	ctx := t.Context()
 	a, _ := admintest.AdminUser(t, pool)
 	b, _ := admintest.AdminUser(t, pool)
@@ -584,11 +606,13 @@ func TestErasureAndRevocationShareTheRosterGuard(t *testing.T) {
 	}
 }
 
-// TestStaffAuthorizationChangesLeaveATrail is the lock for #122: each staff
+// TestStore_ChangesLeaveTrail: staff authorization changes leave a trail.
+//
+// It is the lock for #122: each staff
 // form that actually changes authorization or a factor writes one audit row
 // naming the actor and the target. A drop of the record call is a silent
 // back-office grant.
-func TestStaffAuthorizationChangesLeaveATrail(t *testing.T) {
+func TestStore_ChangesLeaveTrail(t *testing.T) {
 	ctx := requestid.With(t.Context(), "req-staff-audit")
 	s := staff.NewStore(pool)
 	actor, _ := admintest.AdminUser(t, pool)
@@ -651,9 +675,9 @@ func TestStaffAuthorizationChangesLeaveATrail(t *testing.T) {
 	}
 }
 
-// TestRefusedStaffChangesLeaveNoTrail: a no-op must not claim a completed
+// TestStore_RefusedChangesLeaveNoTrail: a no-op must not claim a completed
 // authorization change on /admin/audit.
-func TestRefusedStaffChangesLeaveNoTrail(t *testing.T) {
+func TestStore_RefusedChangesLeaveNoTrail(t *testing.T) {
 	ctx := t.Context()
 	s := staff.NewStore(pool)
 	self, selfEmail := admintest.AdminUser(t, pool)
@@ -716,10 +740,10 @@ func TestRefusedStaffChangesLeaveNoTrail(t *testing.T) {
 	}
 }
 
-// TestStaffWriteRollsBackWhenAuditCannotRecord: a grant that cannot be
+// TestStore_AddStaffRollsBack: a grant that cannot be
 // attributed must not land. The missing actor fails the audit FK after the
 // upsert, so seeing no user proves the two statements shared a transaction.
-func TestStaffWriteRollsBackWhenAuditCannotRecord(t *testing.T) {
+func TestStore_AddStaffRollsBack(t *testing.T) {
 	ctx := t.Context()
 	s := staff.NewStore(pool)
 	missing := uuid.NewString()
@@ -747,7 +771,8 @@ func TestStaffWriteRollsBackWhenAuditCannotRecord(t *testing.T) {
 	}
 }
 
-func TestOnlyAnAdminReachesTheStaffPage(t *testing.T) {
+// TestRequireAdminStaffPage: only an admin reaches the staff page.
+func TestRequireAdminStaffPage(t *testing.T) {
 	ctx := t.Context()
 
 	guarded := admintest.BackOffice.RequireAdmin(func(w http.ResponseWriter, _ *http.Request) {
