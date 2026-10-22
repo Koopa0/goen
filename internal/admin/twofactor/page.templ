@@ -2,8 +2,8 @@ package twofactor
 
 import (
 	"github.com/koopa0/goen/internal/i18n"
-	"github.com/koopa0/goen/internal/ui/components"
 	"github.com/koopa0/goen/internal/ui/layouts"
+	"github.com/koopa0/goen/internal/ui/widget"
 )
 
 // One card inside the back office's own chrome: somebody who has not passed the
@@ -18,13 +18,13 @@ import (
 templ TwoFactor(p layouts.Page, v TwoFactorView) {
 	@layouts.Admin(p, "") {
 		<div class="goen-twofa">
-			@components.Card(components.CardProps{Class: "goen-twofa__card"}) {
+			@widget.Card(widget.CardProps{Class: "goen-twofa__card"}) {
 				<h1 class="goen-twofa__title">{ i18n.T(ctx, i18n.KeyAdminPageTwoFactor) }</h1>
 				<p class="goen-twofa__lead">
 					{ i18n.T(ctx, i18n.KeyTwoFALead) }
 				</p>
 				if v.Notice != "" {
-					@components.Notice(components.NoticeProps{Intent: components.IntentAccent}) {
+					@widget.Notice(widget.NoticeProps{Intent: widget.IntentAccent}) {
 						{ v.Notice }
 					}
 				}
@@ -56,10 +56,10 @@ templ TwoFactor(p layouts.Page, v TwoFactorView) {
 					<p class="goen-admin__hint">{ i18n.T(ctx, i18n.KeyTwoFAEnrolMailed) }</p>
 					<form class="goen-twofa__form" method="post" action="/admin/verify/confirm">
 						<div class="goen-admin__field">
-							@components.Label(components.LabelProps{For: "code"}) {
+							@widget.Label(widget.LabelProps{For: "code"}) {
 								{ i18n.T(ctx, i18n.KeyTwoFAEnrolCode) }
 							}
-							@components.Input(components.FieldProps{
+							@widget.Input(widget.FieldProps{
 								ID:    "code",
 								Name:  "code",
 								Class: "goen-twofa__code",
@@ -74,10 +74,10 @@ templ TwoFactor(p layouts.Page, v TwoFactorView) {
 							})
 						</div>
 						<div class="goen-admin__field">
-							@components.Label(components.LabelProps{For: "mailed_code"}) {
+							@widget.Label(widget.LabelProps{For: "mailed_code"}) {
 								{ i18n.T(ctx, i18n.KeyTwoFAEnrolMailedCode) }
 							}
-							@components.Input(components.FieldProps{
+							@widget.Input(widget.FieldProps{
 								ID:    "mailed_code",
 								Name:  "mailed_code",
 								Class: "goen-twofa__code",
@@ -90,8 +90,8 @@ templ TwoFactor(p layouts.Page, v TwoFactorView) {
 								},
 							})
 						</div>
-						@components.Button(components.ButtonProps{
-							ButtonStyle: components.ButtonStylePrimary,
+						@widget.Button(widget.ButtonProps{
+							ButtonStyle: widget.ButtonStylePrimary,
 							Block:       true,
 						}, "submit") {
 							{ i18n.T(ctx, i18n.KeyTwoFAEnrolSubmit) }
@@ -101,8 +101,8 @@ templ TwoFactor(p layouts.Page, v TwoFactorView) {
 					<h2 class="goen-admin__heading">{ i18n.T(ctx, i18n.KeyTwoFAStartHeading) }</h2>
 					<p class="goen-admin__hint">{ i18n.T(ctx, i18n.KeyTwoFAStartBody) }</p>
 					<form method="post" action="/admin/verify/enrol">
-						@components.Button(components.ButtonProps{
-							ButtonStyle: components.ButtonStylePrimary,
+						@widget.Button(widget.ButtonProps{
+							ButtonStyle: widget.ButtonStylePrimary,
 							Block:       true,
 						}, "submit") {
 							{ i18n.T(ctx, i18n.KeyTwoFAStartSubmit) }
@@ -112,10 +112,10 @@ templ TwoFactor(p layouts.Page, v TwoFactorView) {
 					<h2 class="goen-admin__heading">{ i18n.T(ctx, i18n.KeyTwoFAChallengeHeading) }</h2>
 					<form class="goen-twofa__form" method="post" action="/admin/verify">
 						<div class="goen-admin__field">
-							@components.Label(components.LabelProps{For: "code"}) {
+							@widget.Label(widget.LabelProps{For: "code"}) {
 								{ i18n.T(ctx, i18n.KeyTwoFAChallengeCode) }
 							}
-							@components.Input(components.FieldProps{
+							@widget.Input(widget.FieldProps{
 								ID:    "code",
 								Name:  "code",
 								Class: "goen-twofa__code",
@@ -129,8 +129,8 @@ templ TwoFactor(p layouts.Page, v TwoFactorView) {
 								},
 							})
 						</div>
-						@components.Button(components.ButtonProps{
-							ButtonStyle: components.ButtonStylePrimary,
+						@widget.Button(widget.ButtonProps{
+							ButtonStyle: widget.ButtonStylePrimary,
 							Block:       true,
 						}, "submit") {
 							{ i18n.T(ctx, i18n.KeyTwoFAChallengeSubmit) }

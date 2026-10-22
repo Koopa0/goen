@@ -2,13 +2,13 @@ package banners
 
 import (
 	"github.com/koopa0/goen/internal/keyset"
-	"github.com/koopa0/goen/internal/ui/components"
+	"github.com/koopa0/goen/internal/ui/widget"
 )
 
 type BannersView struct {
 	Rows   []Banner
 	Bound  keyset.Bound
-	Notice components.Result
+	Notice widget.Result
 	Errors map[string]string
 	Draft  BannerDraft
 }

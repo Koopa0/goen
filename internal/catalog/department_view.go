@@ -6,8 +6,8 @@ import (
 
 	"github.com/koopa0/goen/internal/discount/campaign"
 	"github.com/koopa0/goen/internal/i18n"
-	"github.com/koopa0/goen/internal/ui/components"
 	"github.com/koopa0/goen/internal/ui/tile"
+	"github.com/koopa0/goen/internal/ui/widget"
 )
 
 const (
@@ -95,7 +95,7 @@ type ColourStory struct {
 
 type ColourPlate struct {
 	Colour, Swatch string
-	Image          components.Photo
+	Image          widget.Photo
 }
 
 // Title names the colours, as the story's own words.

@@ -18,10 +18,10 @@ import (
 	"github.com/koopa0/goen/internal/policy"
 	"github.com/koopa0/goen/internal/shoptime"
 	"github.com/koopa0/goen/internal/site"
-	"github.com/koopa0/goen/internal/ui/components"
 	"github.com/koopa0/goen/internal/ui/hero"
 	"github.com/koopa0/goen/internal/ui/tile"
 	"github.com/koopa0/goen/internal/ui/tone"
+	"github.com/koopa0/goen/internal/ui/widget"
 )
 
 type Store struct {
@@ -167,7 +167,7 @@ func (s *Store) campaignRow(ctx context.Context, c *db.ListedCampaignsRow) (row 
 		Facts:     schedule.Facts,
 		CardFacts: schedule.CardFacts(),
 	}
-	if period, ok := components.DayPeriod(ctx, c.Title, c.StartsAt, c.EndsAt, s.now()); ok {
+	if period, ok := widget.DayPeriod(ctx, c.Title, c.StartsAt, c.EndsAt, s.now()); ok {
 		rowCampaign.Period = &period
 	}
 	return ProductRow{Title: c.Title, Href: "/s/" + c.Slug, Tiles: tiles, Campaign: rowCampaign}, true, nil

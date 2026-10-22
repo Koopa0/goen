@@ -18,12 +18,12 @@ import (
 	"github.com/koopa0/goen/internal/home"
 	"github.com/koopa0/goen/internal/i18n"
 	"github.com/koopa0/goen/internal/policy"
-	"github.com/koopa0/goen/internal/ui/components"
 	"github.com/koopa0/goen/internal/ui/hero"
 	"github.com/koopa0/goen/internal/ui/layouts"
 	"github.com/koopa0/goen/internal/ui/tile"
 	"github.com/koopa0/goen/internal/ui/tone"
 	"github.com/koopa0/goen/internal/ui/uitest"
+	"github.com/koopa0/goen/internal/ui/widget"
 )
 
 // The home page's hero tabs, hero arrows, departments and rules row, the deals
@@ -44,7 +44,7 @@ func TestStorefrontSectionsAsDrawn(t *testing.T) {
 	tones := map[string]tone.Tone{"ink": tone.Ink, "sage": tone.Sage}
 	mux.HandleFunc("GET /home", func(w http.ResponseWriter, r *http.Request) {
 		view := home.View{Rules: policy.Rules{FreeDeliveryCents: 99900, LowestFeeCents: 6000, PickupOffered: true}}
-		photo := components.Photo{URL: assets.Image{BundledKey: "nimbus-band-2-01.webp"}.URL(), Alt: "Headphones on a desk"}
+		photo := widget.Photo{URL: assets.Image{BundledKey: "nimbus-band-2-01.webp"}.URL(), Alt: "Headphones on a desk"}
 		view.Slides = []hero.Slide{
 			{Title: "Technology", Layout: hero.LayoutSplit, Tone: tone.Stone, Photo: photo},
 			{Title: "Everyday essentials", Layout: hero.LayoutSplit, Tone: tone.Ink, Photo: photo, CTA: hero.CTA{Label: "Shop now", Href: "/c/audio"}},
@@ -59,7 +59,7 @@ func TestStorefrontSectionsAsDrawn(t *testing.T) {
 		} {
 			view.Categories = append(view.Categories, home.Category{
 				Slug: c.slug, Name: c.name, Tone: tone.Stone,
-				Photo: components.Photo{URL: assets.Image{BundledKey: c.photo}.URL()},
+				Photo: widget.Photo{URL: assets.Image{BundledKey: c.photo}.URL()},
 			})
 		}
 		if bandTone, ok := tones[r.URL.Query().Get("band")]; ok {
@@ -121,7 +121,7 @@ func TestStorefrontSectionsAsDrawn(t *testing.T) {
 			{Slug: "audio", Name: names[3]}, {Slug: "wearables", Name: names[4]}, {Slug: "accessories", Name: names[5]},
 		}}
 		if query.Get("photo") == "1" {
-			theme.Photo = components.Photo{URL: assets.Image{BundledKey: "nimbus-band-2-01.webp"}.URL(), Alt: "Headphones on a desk"}
+			theme.Photo = widget.Photo{URL: assets.Image{BundledKey: "nimbus-band-2-01.webp"}.URL(), Alt: "Headphones on a desk"}
 		}
 		var head *catalog.DepartmentHead
 		if query.Get("notice") == "1" {

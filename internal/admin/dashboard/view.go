@@ -8,9 +8,9 @@ import (
 	"github.com/koopa0/goen/internal/money"
 	"github.com/koopa0/goen/internal/order"
 	"github.com/koopa0/goen/internal/product/inventory"
-	"github.com/koopa0/goen/internal/ui/components"
 	"github.com/koopa0/goen/internal/ui/layouts"
 	"github.com/koopa0/goen/internal/ui/stockrisk"
+	"github.com/koopa0/goen/internal/ui/widget"
 )
 
 // DashboardView lists the newest orders in Recent whatever their state: filtering it
@@ -64,7 +64,7 @@ type OrderRow struct {
 	Number       string
 	Status       order.FulfillmentStatus
 	StatusText   string
-	StatusIntent components.Intent
+	StatusIntent widget.Intent
 	PlacedAt     string
 	Recipient    string
 	TotalCents   int64

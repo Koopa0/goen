@@ -14,8 +14,8 @@ import (
 	"github.com/koopa0/goen/internal/i18n"
 	"github.com/koopa0/goen/internal/keyset"
 	"github.com/koopa0/goen/internal/order/returns"
-	"github.com/koopa0/goen/internal/ui/components"
 	"github.com/koopa0/goen/internal/ui/layouts"
+	"github.com/koopa0/goen/internal/ui/widget"
 )
 
 // The tests in this file are the returns halves of tests that render several
@@ -70,7 +70,7 @@ func TestEveryReturnStatusHasAGroup(t *testing.T) {
 		if status == returns.StatusRejected {
 			continue
 		}
-		if row.StatusIntent() == components.IntentNeutral {
+		if row.StatusIntent() == widget.IntentNeutral {
 			t.Errorf("%q falls to neutral, the group of states nobody acts on", status)
 		}
 	}
@@ -84,16 +84,16 @@ func TestReturnIntentGroupsEachReturnState(t *testing.T) {
 	for _, tt := range []struct {
 		name string
 		row  Return
-		want components.Intent
+		want widget.Intent
 	}{
-		{"requested", Return{Status: returns.StatusRequested}, components.IntentWarn},
-		{"approved, goods not back", Return{Status: returns.StatusApproved, Lines: waiting}, components.IntentProgress},
-		{"approved, fully inspected", Return{Status: returns.StatusApproved, Lines: inspected}, components.IntentWarn},
-		{"approved, payout outstanding", Return{Status: returns.StatusApproved, Lines: waiting, Decided: true, PayoutOutstanding: true}, components.IntentWarn},
-		{"approved, payout stranded", Return{Status: returns.StatusApproved, Lines: waiting, Decided: true, PayoutOutstanding: true, PayoutBlocked: true}, components.IntentDanger},
-		{"declined", Return{Status: returns.StatusRejected}, components.IntentNeutral},
-		{"completed", Return{Status: returns.StatusCompleted}, components.IntentDone},
-		{"cancelled and refunded", Return{Status: returns.StatusCompleted, BeforeShipment: true}, components.IntentNeutral},
+		{"requested", Return{Status: returns.StatusRequested}, widget.IntentWarn},
+		{"approved, goods not back", Return{Status: returns.StatusApproved, Lines: waiting}, widget.IntentProgress},
+		{"approved, fully inspected", Return{Status: returns.StatusApproved, Lines: inspected}, widget.IntentWarn},
+		{"approved, payout outstanding", Return{Status: returns.StatusApproved, Lines: waiting, Decided: true, PayoutOutstanding: true}, widget.IntentWarn},
+		{"approved, payout stranded", Return{Status: returns.StatusApproved, Lines: waiting, Decided: true, PayoutOutstanding: true, PayoutBlocked: true}, widget.IntentDanger},
+		{"declined", Return{Status: returns.StatusRejected}, widget.IntentNeutral},
+		{"completed", Return{Status: returns.StatusCompleted}, widget.IntentDone},
+		{"cancelled and refunded", Return{Status: returns.StatusCompleted, BeforeShipment: true}, widget.IntentNeutral},
 	} {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()

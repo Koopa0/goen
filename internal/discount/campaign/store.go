@@ -12,9 +12,9 @@ import (
 
 	"github.com/koopa0/goen/internal/db"
 	"github.com/koopa0/goen/internal/i18n"
-	"github.com/koopa0/goen/internal/ui/components"
 	"github.com/koopa0/goen/internal/ui/tile"
 	"github.com/koopa0/goen/internal/ui/tone"
+	"github.com/koopa0/goen/internal/ui/widget"
 )
 
 // ErrNotFound is a campaign that does not exist or is switched off.
@@ -61,7 +61,7 @@ func (s *Store) Campaign(ctx context.Context, slug string) (View, error) {
 		Title:    c.Title,
 		Schedule: NewSchedule(ctx, c.Title, int64(len(rows)), c.StartsAt, c.EndsAt, s.now()),
 		Products: campaignTiles(rows),
-		Image: components.Photo{
+		Image: widget.Photo{
 			URL:    photo.URL(),
 			Srcset: photo.Srcset(),
 			Alt:    c.ImageAlt,

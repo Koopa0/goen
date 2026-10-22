@@ -10,7 +10,7 @@ import (
 	"github.com/koopa0/goen/internal/money"
 	"github.com/koopa0/goen/internal/sales"
 	"github.com/koopa0/goen/internal/ui/chart"
-	"github.com/koopa0/goen/internal/ui/components"
+	"github.com/koopa0/goen/internal/ui/widget"
 )
 
 // WeekDays is how many shop days the dashboard's figures cover.
@@ -61,25 +61,25 @@ func sparklines(ctx context.Context, p chart.SparklineProps) chart.SparklineProp
 
 // WeekStats is the stat line of the last week: revenue and paid orders each set
 // against the week before with their days drawn, then the latest paid order.
-func (v *DashboardView) WeekStats(ctx context.Context) []components.LinkedStat {
+func (v *DashboardView) WeekStats(ctx context.Context) []widget.LinkedStat {
 	const reports = "/admin/reports?days=7"
 	w := &v.Week
-	return []components.LinkedStat{
-		{Stat: components.Stat{
-			Label: i18n.T(ctx, i18n.KeyAdminRepRevenue), Value: components.StatMoney(w.RevenueCents),
+	return []widget.LinkedStat{
+		{Stat: widget.Stat{
+			Label: i18n.T(ctx, i18n.KeyAdminRepRevenue), Value: widget.StatMoney(w.RevenueCents),
 			Note: w.revenueAgainst(ctx), Trend: chart.Sparkline(sparklines(ctx, w.RevenueDays)),
 		}, Href: reports},
-		{Stat: components.Stat{
-			Label: i18n.T(ctx, i18n.KeyAdminRepPaidOrders), Value: components.StatNumber(w.Orders),
+		{Stat: widget.Stat{
+			Label: i18n.T(ctx, i18n.KeyAdminRepPaidOrders), Value: widget.StatNumber(w.Orders),
 			Note: w.ordersAgainst(ctx), Trend: chart.Sparkline(sparklines(ctx, w.OrderDays)),
 		}, Href: reports},
 		v.latestStat(ctx),
 	}
 }
 
-func (v *DashboardView) latestStat(ctx context.Context) components.LinkedStat {
-	stat := components.LinkedStat{
-		Stat: components.Stat{Label: i18n.T(ctx, i18n.KeyAdminQueueLatestPaid), Value: components.StatWord("—")},
+func (v *DashboardView) latestStat(ctx context.Context) widget.LinkedStat {
+	stat := widget.LinkedStat{
+		Stat: widget.Stat{Label: i18n.T(ctx, i18n.KeyAdminQueueLatestPaid), Value: widget.StatWord("—")},
 		Href: "/admin/orders",
 	}
 	switch {
@@ -97,12 +97,12 @@ func (v *DashboardView) latestStat(ctx context.Context) components.LinkedStat {
 
 // elapsedValue is how long ago something was, in its largest whole unit, with
 // the number as the figure and the rest as its unit.
-func elapsedValue(ctx context.Context, d time.Duration) components.StatValue {
+func elapsedValue(ctx context.Context, d time.Duration) widget.StatValue {
 	var key i18n.Key
 	var n int64
 	switch {
 	case d < time.Minute:
-		return components.StatWord(i18n.T(ctx, i18n.KeyAdminQueueAgoNow))
+		return widget.StatWord(i18n.T(ctx, i18n.KeyAdminQueueAgoNow))
 	case d < time.Hour:
 		key, n = i18n.KeyAdminQueueAgoMinutes, int64(d/time.Minute)
 	case d < 24*time.Hour:
@@ -111,5 +111,5 @@ func elapsedValue(ctx context.Context, d time.Duration) components.StatValue {
 		key, n = i18n.KeyAdminQueueAgoDays, int64(d/(24*time.Hour))
 	}
 	figure := strconv.FormatInt(n, 10)
-	return components.StatCount(n, strings.TrimSpace(strings.TrimPrefix(i18n.Count(ctx, key, n, n), figure)))
+	return widget.StatCount(n, strings.TrimSpace(strings.TrimPrefix(i18n.Count(ctx, key, n, n), figure)))
 }

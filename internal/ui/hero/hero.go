@@ -9,8 +9,8 @@ import (
 	"unicode/utf8"
 
 	"github.com/koopa0/goen/internal/i18n"
-	"github.com/koopa0/goen/internal/ui/components"
 	"github.com/koopa0/goen/internal/ui/tone"
+	"github.com/koopa0/goen/internal/ui/widget"
 )
 
 type CTA struct {
@@ -42,15 +42,15 @@ type Slide struct {
 	Source Source
 	Layout Layout
 	Tone   tone.Tone
-	Photo  components.Photo
+	Photo  widget.Photo
 	// A width on its own reserves no space, so both are rendered together.
 	PhotoWidth, PhotoHeight int
 	Title                   string
 	// Fact is the sentence an editor wrote under a scheduled slide's title.
 	Fact string
 	// Stats are the figures a campaign or department slide states about itself.
-	Stats  []components.Stat
-	Period *components.PeriodSpec
+	Stats  []widget.Stat
+	Period *widget.PeriodSpec
 	CTA    CTA
 }
 

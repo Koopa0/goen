@@ -6,8 +6,8 @@ import (
 	"github.com/koopa0/goen/assets"
 	"github.com/koopa0/goen/internal/i18n"
 	"github.com/koopa0/goen/internal/keyset"
-	"github.com/koopa0/goen/internal/ui/components"
 	"github.com/koopa0/goen/internal/ui/hero"
+	"github.com/koopa0/goen/internal/ui/widget"
 )
 
 type HeroSlide struct {
@@ -58,14 +58,14 @@ func (s HeroSlide) NextActive() string {
 }
 
 func (s HeroSlide) ToggleLabel(ctx context.Context) string {
-	return components.ToggleLabel(ctx, s.Active)
+	return widget.ToggleLabel(ctx, s.Active)
 }
 
 type HeroView struct {
 	Bound    keyset.Bound
 	Rows     []HeroSlide
 	Carousel []hero.Slide
-	Notice   components.Result
+	Notice   widget.Result
 	Errors   map[string]string
 	Draft    HeroDraft
 }

@@ -2,14 +2,14 @@ package returns
 
 import (
 	"github.com/koopa0/goen/internal/i18n"
-	"github.com/koopa0/goen/internal/ui/components"
 	"github.com/koopa0/goen/internal/ui/layouts"
+	"github.com/koopa0/goen/internal/ui/widget"
 )
 
 templ ConfirmReturn(p layouts.Page, v ReturnConfirmation) {
 	@layouts.Admin(p, "returns") {
 		<div class="ui-page-head"><h1 class="ui-page-head__title">{ v.Title(ctx) }</h1></div>
-		@components.Card(components.CardProps{Class: "goen-admin__op"}) {
+		@widget.Card(widget.CardProps{Class: "goen-admin__op"}) {
 			<dl class="ui-dl">
 				<div class="ui-dl__row"><dt class="ui-dl__term">{ i18n.T(ctx,i18n.KeyAdminRetConfirmOrder) }</dt><dd class="ui-dl__desc">{ v.OrderNumber }</dd></div>
 				<div class="ui-dl__row"><dt class="ui-dl__term">{ i18n.T(ctx,i18n.KeyAdminRetConfirmReason) }</dt><dd class="ui-dl__desc">{ v.Reason }</dd></div>
@@ -22,16 +22,16 @@ templ ConfirmReturn(p layouts.Page, v ReturnConfirmation) {
 					<label class="ui-label" for="return-resolution">
 						{ i18n.T(ctx,i18n.KeyAdminRetResolution) }
 						if v.Required {
-							@components.RequiredMark()
+							@widget.RequiredMark()
 						}
 					</label>
 					<input class="ui-input" id="return-resolution" name="resolution" maxlength="300" autocomplete="off" value={ v.Resolution } required?={ v.Required }/>
 				</div>
 				<div class="goen-admin__decidebtns">
-					@components.Button(components.ButtonProps{ButtonStyle: components.ButtonStylePrimary, Attrs: templ.Attributes{"name": "confirm", "value": v.Decision}}, "submit") {
+					@widget.Button(widget.ButtonProps{ButtonStyle: widget.ButtonStylePrimary, Attrs: templ.Attributes{"name": "confirm", "value": v.Decision}}, "submit") {
 						{ v.Title(ctx) }
 					}
-					@components.ButtonLink(components.ButtonProps{ButtonStyle: components.ButtonStyleOutline}, "/admin/returns") {
+					@widget.ButtonLink(widget.ButtonProps{ButtonStyle: widget.ButtonStyleOutline}, "/admin/returns") {
 						{ i18n.T(ctx,i18n.KeyAdminRetConfirmBack) }
 					}
 				</div>

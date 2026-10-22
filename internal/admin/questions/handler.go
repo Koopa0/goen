@@ -8,8 +8,8 @@ import (
 	"github.com/koopa0/goen/internal/admin/access"
 	"github.com/koopa0/goen/internal/i18n"
 	"github.com/koopa0/goen/internal/keyset"
-	"github.com/koopa0/goen/internal/ui/components"
 	"github.com/koopa0/goen/internal/ui/layouts"
+	"github.com/koopa0/goen/internal/ui/widget"
 	"github.com/koopa0/goen/internal/user"
 	"github.com/koopa0/goen/internal/web/formtext"
 	"github.com/koopa0/goen/internal/web/respond"
@@ -32,9 +32,9 @@ func (h *Handler) Routes(mux *http.ServeMux, ac *access.Control) {
 	mux.HandleFunc("POST /admin/questions/{id}", ac.RequireStaff(h.AnswerQuestion))
 }
 
-var notices = map[string]components.NoticeEntry{
-	"ok":      components.NoticeDone(i18n.KeyAdminNoticeOK),
-	"refused": components.NoticeRefused(i18n.KeyAdminNoticeRefused),
+var notices = map[string]widget.NoticeEntry{
+	"ok":      widget.NoticeDone(i18n.KeyAdminNoticeOK),
+	"refused": widget.NoticeRefused(i18n.KeyAdminNoticeRefused),
 }
 
 func (h *Handler) Questions(w http.ResponseWriter, r *http.Request) {
@@ -48,7 +48,7 @@ func (h *Handler) Questions(w http.ResponseWriter, r *http.Request) {
 		access.ServerError(w, r, h.log)
 		return
 	}
-	view.Notice = components.NoticeFrom(r, notices)
+	view.Notice = widget.NoticeFrom(r, notices)
 	respond.Component(w, r, h.log, http.StatusOK, Questions(
 		layouts.Page{Title: i18n.T(r.Context(), i18n.KeyAdminPageQuestions)}, view))
 }

@@ -15,8 +15,8 @@ import (
 	"github.com/koopa0/goen/internal/keyset"
 	"github.com/koopa0/goen/internal/money"
 	"github.com/koopa0/goen/internal/shoptime"
-	"github.com/koopa0/goen/internal/ui/components"
 	"github.com/koopa0/goen/internal/ui/layouts"
+	"github.com/koopa0/goen/internal/ui/widget"
 	"github.com/koopa0/goen/internal/web/formtext"
 	"github.com/koopa0/goen/internal/web/respond"
 )
@@ -38,10 +38,10 @@ func (h *Handler) Routes(mux *http.ServeMux, ac *access.Control) {
 	mux.HandleFunc("POST /admin/credits", ac.RequireStaff(h.GrantCredit))
 }
 
-var notices = map[string]components.NoticeEntry{
-	"ok":          components.NoticeDone(i18n.KeyAdminNoticeOK),
-	"refused":     components.NoticeRefused(i18n.KeyAdminNoticeRefused),
-	"creditneeds": components.NoticeRefused(i18n.KeyAdminNoticeCreditNeeds),
+var notices = map[string]widget.NoticeEntry{
+	"ok":          widget.NoticeDone(i18n.KeyAdminNoticeOK),
+	"refused":     widget.NoticeRefused(i18n.KeyAdminNoticeRefused),
+	"creditneeds": widget.NoticeRefused(i18n.KeyAdminNoticeCreditNeeds),
 }
 
 func (h *Handler) Credit(w http.ResponseWriter, r *http.Request) {
@@ -107,16 +107,16 @@ func creditView(ledger Ledger) CreditView {
 
 // creditNotice is noticeFor plus the BALANCE a grant produced: the form is a
 // blank box, so a grant nothing confirms is one somebody makes twice.
-func creditNotice(r *http.Request) components.Result {
+func creditNotice(r *http.Request) widget.Result {
 	if r.URL.Query().Get("ok") != "1" {
-		return components.NoticeFrom(r, notices)
+		return widget.NoticeFrom(r, notices)
 	}
 	balance, err := strconv.ParseInt(r.URL.Query().Get("balance"), 10, 64)
 	if err != nil {
-		return components.NoticeFrom(r, notices)
+		return widget.NoticeFrom(r, notices)
 	}
-	return components.Result{
-		Outcome: components.OutcomeDone,
+	return widget.Result{
+		Outcome: widget.OutcomeDone,
 		Text:    fmt.Sprintf(i18n.T(r.Context(), i18n.KeyAdminNoticeCreditGranted), money.TWD(balance)),
 	}
 }
@@ -203,7 +203,7 @@ func (h *Handler) renderCreditForm(w http.ResponseWriter, r *http.Request, view 
 	view.Rows, view.Bound = shown.Rows, shown.Bound
 	view.FilterCustomerID, view.FilterCustomerName = shown.FilterCustomerID, shown.FilterCustomerName
 	if notice != "" {
-		view.Notice = components.Result{Outcome: components.OutcomeRefused, Text: i18n.T(r.Context(), notice)}
+		view.Notice = widget.Result{Outcome: widget.OutcomeRefused, Text: i18n.T(r.Context(), notice)}
 	}
 	respond.Component(w, r, h.log, status, Credit(layouts.Page{Title: i18n.T(r.Context(), i18n.KeyAdminPageCredit)}, *view))
 }

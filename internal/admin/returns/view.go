@@ -9,7 +9,7 @@ import (
 	"github.com/koopa0/goen/internal/keyset"
 	"github.com/koopa0/goen/internal/money"
 	"github.com/koopa0/goen/internal/order/returns"
-	"github.com/koopa0/goen/internal/ui/components"
+	"github.com/koopa0/goen/internal/ui/widget"
 )
 
 type Return struct {
@@ -82,32 +82,32 @@ func (r *Return) AwaitingGoods() bool {
 // money is owed needs the staff; a payout that must be repaired is an error; an
 // approval still coming back is in progress; a refund before shipment is a
 // cancellation, grey like a cancelled order.
-func (r *Return) standing() (i18n.Key, components.Intent) {
+func (r *Return) standing() (i18n.Key, widget.Intent) {
 	switch r.Status {
 	case returns.StatusRequested:
-		return "", components.IntentWarn
+		return "", widget.IntentWarn
 	case returns.StatusApproved:
 		switch {
 		case r.PayoutStranded():
-			return i18n.KeyAdminReturnRefundFailed, components.IntentDanger
+			return i18n.KeyAdminReturnRefundFailed, widget.IntentDanger
 		case r.CanRetryPayout():
-			return i18n.KeyAdminReturnRefundToResend, components.IntentWarn
+			return i18n.KeyAdminReturnRefundToResend, widget.IntentWarn
 		case r.CanComplete():
-			return i18n.KeyAdminReturnReadyToClose, components.IntentWarn
+			return i18n.KeyAdminReturnReadyToClose, widget.IntentWarn
 		default:
-			return i18n.KeyAdminReturnOnItsWay, components.IntentProgress
+			return i18n.KeyAdminReturnOnItsWay, widget.IntentProgress
 		}
 	case returns.StatusCompleted:
 		if r.BeforeShipment || r.Unsent {
-			return "", components.IntentNeutral
+			return "", widget.IntentNeutral
 		}
-		return "", components.IntentDone
+		return "", widget.IntentDone
 	default:
-		return "", components.IntentNeutral
+		return "", widget.IntentNeutral
 	}
 }
 
-func (r *Return) StatusIntent() components.Intent {
+func (r *Return) StatusIntent() widget.Intent {
 	_, intent := r.standing()
 	return intent
 }
@@ -196,7 +196,7 @@ func (r *Return) Amount() string { return money.TWD(r.AmountCents) }
 // PayoutChannel names the frozen refund sources. Empty until approval, because
 // the allocation does not exist until then.
 func (r *Return) PayoutChannel(ctx context.Context) string {
-	return components.PayoutChannel(ctx, r.CardRefundCents, r.CreditRefundCents)
+	return widget.PayoutChannel(ctx, r.CardRefundCents, r.CreditRefundCents)
 }
 
 func (r *Return) UnitsText() string { return strconv.FormatInt(int64(r.Units), 10) }
@@ -217,7 +217,7 @@ type ReturnsView struct {
 	keyset.Bound
 
 	Rows   []Return
-	Notice components.Result
+	Notice widget.Result
 	// Errors keys as "{returnID}.{field}" so a 422 can mark one row without
 	// painting every other request on the queue.
 	Errors map[string]string

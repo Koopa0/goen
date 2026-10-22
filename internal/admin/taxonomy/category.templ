@@ -2,8 +2,8 @@ package taxonomy
 
 import (
 	"github.com/koopa0/goen/internal/i18n"
-	"github.com/koopa0/goen/internal/ui/components"
 	"github.com/koopa0/goen/internal/ui/layouts"
+	"github.com/koopa0/goen/internal/ui/widget"
 )
 
 // The tone is set on the taxonomy row, beside the name it belongs to.
@@ -18,14 +18,14 @@ templ CategoryForm(p layouts.Page, v CategoryView) {
 			</div>
 		</div>
 		@layouts.Announce(v.Notice)
-		@components.Card(components.CardProps{Class: "goen-admin__section"}) {
+		@widget.Card(widget.CardProps{Class: "goen-admin__section"}) {
 			<h2 class="goen-admin__heading">{ i18n.T(ctx, i18n.KeyAdminCatImage) }</h2>
 			if v.Image.Has() && v.Image.URL() != "" {
 				<img class="goen-admin__heroshot goen-admin__heroshot--category" src={ v.Image.URL() } srcset={ v.Image.Srcset() } sizes="160px" alt={ v.Image.Alt } loading="lazy" width="160" height="107"/>
 				<form method="post" action={ templ.SafeURL(v.ImageRemoveAction()) }>
-					@components.Button(components.ButtonProps{
-						ButtonStyle: components.ButtonStyleOutline,
-						Size:        components.SizeSmall,
+					@widget.Button(widget.ButtonProps{
+						ButtonStyle: widget.ButtonStyleOutline,
+						Size:        widget.SizeSmall,
 					}, "submit") {
 						{ i18n.T(ctx, i18n.KeyAdminRemove) }
 					}
@@ -34,7 +34,7 @@ templ CategoryForm(p layouts.Page, v CategoryView) {
 			// Without enctype a browser posts only the filename.
 			<form class="goen-admin__form" method="post" action={ templ.SafeURL(v.ImageAction()) } enctype="multipart/form-data">
 				<div class="goen-admin__field">
-					@components.Label(components.LabelProps{For: "cat-image"}) {
+					@widget.Label(widget.LabelProps{For: "cat-image"}) {
 						{ i18n.T(ctx, i18n.KeyAdminProdUpload) }
 					}
 					<input
@@ -56,7 +56,7 @@ templ CategoryForm(p layouts.Page, v CategoryView) {
 					}
 				</div>
 				<div class="goen-admin__field">
-					@components.Label(components.LabelProps{For: "cat-alt"}) {
+					@widget.Label(widget.LabelProps{For: "cat-alt"}) {
 						{ i18n.T(ctx, i18n.KeyAdminCatAlt) }
 					}
 					<input
@@ -79,7 +79,7 @@ templ CategoryForm(p layouts.Page, v CategoryView) {
 					}
 				</div>
 				<div class="goen-admin__field">
-					@components.Label(components.LabelProps{For: "cat-alt-en"}) {
+					@widget.Label(widget.LabelProps{For: "cat-alt-en"}) {
 						{ i18n.T(ctx, i18n.KeyAdminCatAltEn) }
 					}
 					<input
@@ -100,8 +100,8 @@ templ CategoryForm(p layouts.Page, v CategoryView) {
 						<p class="ui-error-text" id="cat-alt-en-error" role="alert">{ v.Err("alt_en") }</p>
 					}
 				</div>
-				@components.Button(components.ButtonProps{
-					ButtonStyle: components.ButtonStylePrimary,
+				@widget.Button(widget.ButtonProps{
+					ButtonStyle: widget.ButtonStylePrimary,
 					Class:       "goen-admin__submit",
 				}, "submit") {
 					{ i18n.T(ctx, i18n.KeyAdminProdSave) }

@@ -6,11 +6,11 @@ import (
 
 	"github.com/koopa0/goen/internal/i18n"
 	"github.com/koopa0/goen/internal/policy"
-	"github.com/koopa0/goen/internal/ui/components"
 	"github.com/koopa0/goen/internal/ui/hero"
 	"github.com/koopa0/goen/internal/ui/layouts"
 	"github.com/koopa0/goen/internal/ui/tile"
 	"github.com/koopa0/goen/internal/ui/tone"
+	"github.com/koopa0/goen/internal/ui/widget"
 )
 
 func Meta(ctx context.Context) layouts.Page {
@@ -21,7 +21,7 @@ type Category struct {
 	Slug  string
 	Name  string
 	Tone  tone.Tone
-	Photo components.Photo
+	Photo widget.Photo
 }
 
 // Initial is the first character of the name, which a department without a
@@ -48,10 +48,10 @@ type RowCampaign struct {
 	Tone  tone.Tone
 	Items int64
 	// Facts stand under the heading when the row has no campaign card.
-	Facts []components.Stat
+	Facts []widget.Stat
 	// CardFacts are what is left and when it ends, for the campaign card.
-	CardFacts []components.Stat
-	Period    *components.PeriodSpec
+	CardFacts []widget.Stat
+	Period    *widget.PeriodSpec
 }
 
 // leadPhotoWidth is the narrowest first photograph that holds up at the lead

@@ -11,8 +11,8 @@ import (
 	"github.com/koopa0/goen/internal/keyset"
 	"github.com/koopa0/goen/internal/money"
 	"github.com/koopa0/goen/internal/ui/chart"
-	"github.com/koopa0/goen/internal/ui/components"
 	"github.com/koopa0/goen/internal/ui/tone"
+	"github.com/koopa0/goen/internal/ui/widget"
 )
 
 type CampaignRow struct {
@@ -56,7 +56,7 @@ func (c CampaignRow) ToggleAction() string { return "/admin/campaigns/" + c.Slug
 func (c CampaignRow) NextActive() string { return nextActive(c.Active) }
 
 func (c CampaignRow) ToggleLabel(ctx context.Context) string {
-	return components.ToggleLabel(ctx, c.Active)
+	return widget.ToggleLabel(ctx, c.Active)
 }
 
 type CampaignProduct struct {
@@ -97,7 +97,7 @@ type CampaignsView struct {
 	keyset.Bound
 
 	Rows   []CampaignRow
-	Notice components.Result
+	Notice widget.Result
 	Errors map[string]string
 	Draft  CampaignDraft
 }
@@ -138,8 +138,8 @@ type CampaignView struct {
 	Term     string
 	Matches  []CampaignProduct
 	Products []CampaignProduct
-	Notice   components.Result
-	Image    components.HeaderImage
+	Notice   widget.Result
+	Image    widget.HeaderImage
 	Tone     string
 	Errors   map[string]string
 
@@ -170,7 +170,7 @@ func (v *CampaignView) StateText(ctx context.Context) string {
 }
 
 func (v *CampaignView) ToggleLabel(ctx context.Context) string {
-	return components.ToggleLabel(ctx, v.Active)
+	return widget.ToggleLabel(ctx, v.Active)
 }
 
 func (v *CampaignView) NextActive() string { return nextActive(v.Active) }

@@ -10,10 +10,10 @@ import templruntime "github.com/a-h/templ/runtime"
 
 import (
 	"github.com/koopa0/goen/internal/i18n"
-	"github.com/koopa0/goen/internal/ui/components"
+	"github.com/koopa0/goen/internal/ui/widget"
 )
 
-func Announce(r components.Result) templ.Component {
+func Announce(r widget.Result) templ.Component {
 	return templruntime.GeneratedTemplate(func(templ_7745c5c3_Input templruntime.GeneratedComponentInput) (templ_7745c5c3_Err error) {
 		templ_7745c5c3_W, ctx := templ_7745c5c3_Input.Writer, templ_7745c5c3_Input.Context
 		if templ_7745c5c3_CtxErr := ctx.Err(); templ_7745c5c3_CtxErr != nil {
@@ -43,7 +43,7 @@ func Announce(r components.Result) templ.Component {
 }
 
 // The layout gate finds the order page's notice by the vendored spelling, so the element keeps it (#380 R8).
-func AnnounceOrder(r components.Result) templ.Component {
+func AnnounceOrder(r widget.Result) templ.Component {
 	return templruntime.GeneratedTemplate(func(templ_7745c5c3_Input templruntime.GeneratedComponentInput) (templ_7745c5c3_Err error) {
 		templ_7745c5c3_W, ctx := templ_7745c5c3_Input.Writer, templ_7745c5c3_Input.Context
 		if templ_7745c5c3_CtxErr := ctx.Err(); templ_7745c5c3_CtxErr != nil {
@@ -73,7 +73,7 @@ func AnnounceOrder(r components.Result) templ.Component {
 }
 
 // A refusal or a failure opens with a word, so the outcome does not rest on colour alone.
-func announce(r components.Result, class string) templ.Component {
+func announce(r widget.Result, class string) templ.Component {
 	return templruntime.GeneratedTemplate(func(templ_7745c5c3_Input templruntime.GeneratedComponentInput) (templ_7745c5c3_Err error) {
 		templ_7745c5c3_W, ctx := templ_7745c5c3_Input.Writer, templ_7745c5c3_Input.Context
 		if templ_7745c5c3_CtxErr := ctx.Err(); templ_7745c5c3_CtxErr != nil {
@@ -108,7 +108,7 @@ func announce(r components.Result, class string) templ.Component {
 				}
 				ctx = templ.InitializeContext(ctx)
 				switch r.Outcome {
-				case components.OutcomeRefused:
+				case widget.OutcomeRefused:
 					templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 1, "<strong class=\"goen-notice__lead\">")
 					if templ_7745c5c3_Err != nil {
 						return templ_7745c5c3_Err
@@ -126,7 +126,7 @@ func announce(r components.Result, class string) templ.Component {
 					if templ_7745c5c3_Err != nil {
 						return templ_7745c5c3_Err
 					}
-				case components.OutcomeFailed:
+				case widget.OutcomeFailed:
 					templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 3, "<strong class=\"goen-notice__lead\">")
 					if templ_7745c5c3_Err != nil {
 						return templ_7745c5c3_Err
@@ -160,7 +160,7 @@ func announce(r components.Result, class string) templ.Component {
 				}
 				return nil
 			})
-			templ_7745c5c3_Err = components.Notice(components.NoticeProps{Intent: r.Outcome.Intent(), Class: class}).Render(templ.WithChildren(ctx, templ_7745c5c3_Var4), templ_7745c5c3_Buffer)
+			templ_7745c5c3_Err = widget.Notice(widget.NoticeProps{Intent: r.Outcome.Intent(), Class: class}).Render(templ.WithChildren(ctx, templ_7745c5c3_Var4), templ_7745c5c3_Buffer)
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}

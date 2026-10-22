@@ -9,8 +9,8 @@ import (
 
 	"github.com/koopa0/goen/internal/admin/access"
 	"github.com/koopa0/goen/internal/i18n"
-	"github.com/koopa0/goen/internal/ui/components"
 	"github.com/koopa0/goen/internal/ui/layouts"
+	"github.com/koopa0/goen/internal/ui/widget"
 	"github.com/koopa0/goen/internal/web/formtext"
 	"github.com/koopa0/goen/internal/web/respond"
 )
@@ -33,10 +33,10 @@ func (h *Handler) Routes(mux *http.ServeMux, ac *access.Control) {
 	mux.HandleFunc("POST /admin/tiers/delete", ac.RequireStaff(h.DeleteTier))
 }
 
-var notices = map[string]components.NoticeEntry{
-	"ok":         components.NoticeDone(i18n.KeyAdminNoticeOK),
-	"refused":    components.NoticeRefused(i18n.KeyAdminNoticeRefused),
-	"tiersneeds": components.NoticeRefused(i18n.KeyAdminNoticeTiersNeeds),
+var notices = map[string]widget.NoticeEntry{
+	"ok":         widget.NoticeDone(i18n.KeyAdminNoticeOK),
+	"refused":    widget.NoticeRefused(i18n.KeyAdminNoticeRefused),
+	"tiersneeds": widget.NoticeRefused(i18n.KeyAdminNoticeTiersNeeds),
 }
 
 func (h *Handler) Tiers(w http.ResponseWriter, r *http.Request) {
@@ -46,7 +46,7 @@ func (h *Handler) Tiers(w http.ResponseWriter, r *http.Request) {
 		access.ServerError(w, r, h.log)
 		return
 	}
-	view.Notice = components.NoticeFrom(r, notices)
+	view.Notice = widget.NoticeFrom(r, notices)
 	respond.Component(w, r, h.log, http.StatusOK, Tiers(
 		layouts.Page{Title: i18n.T(r.Context(), i18n.KeyAdminPageTiers)}, view))
 }

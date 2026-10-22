@@ -9,8 +9,8 @@ import (
 	"testing"
 
 	"github.com/koopa0/goen/internal/i18n"
-	"github.com/koopa0/goen/internal/ui/components"
 	"github.com/koopa0/goen/internal/ui/layouts"
+	"github.com/koopa0/goen/internal/ui/widget"
 )
 
 func TestEveryRedirectTheFAQFormsMakeCarriesAMessage(t *testing.T) {
@@ -47,7 +47,7 @@ func TestARedirectedNoticeIsShownAsItsOwnOutcome(t *testing.T) {
 		ctx := i18n.WithLocale(t.Context(), i18n.En)
 		req := httptest.NewRequestWithContext(ctx, http.MethodGet, "/admin/faq?"+tc.query+"=1", http.NoBody)
 		var page strings.Builder
-		if err := FAQ(layouts.Page{Title: "faq"}, &FAQView{Notice: components.NoticeFrom(req, notices)}).Render(ctx, &page); err != nil {
+		if err := FAQ(layouts.Page{Title: "faq"}, &FAQView{Notice: widget.NoticeFrom(req, notices)}).Render(ctx, &page); err != nil {
 			t.Fatal(err)
 		}
 		got := page.String()
@@ -66,9 +66,9 @@ func TestARedirectedNoticeIsShownAsItsOwnOutcome(t *testing.T) {
 
 func TestARedirectedNoticeKeepsItsOutcome(t *testing.T) {
 	t.Parallel()
-	for name, want := range map[string]components.Outcome{
-		"ok":      components.OutcomeDone,
-		"refused": components.OutcomeRefused,
+	for name, want := range map[string]widget.Outcome{
+		"ok":      widget.OutcomeDone,
+		"refused": widget.OutcomeRefused,
 	} {
 		if got := notices[name].Outcome; got != want {
 			t.Errorf("notices[%q].Outcome = %d, want %d", name, got, want)

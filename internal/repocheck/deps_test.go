@@ -133,13 +133,13 @@ var (
 	// leaves: the foundation its pages are built on, and the stat line the home,
 	// department and product pages draw the stated rules in.
 	policyMayImport = []string{
-		"internal/i18n", "internal/web/respond", "internal/ui/components", "internal/ui/layouts",
+		"internal/i18n", "internal/web/respond", "internal/ui/widget", "internal/ui/layouts",
 	}
 	// campaignMayImport is what internal/discount/campaign may import besides itself and
 	// the leaves: the message catalogue, the stat its schedule is told in, and
 	// the foundation its page and /deals are built on, the product tile included.
 	campaignMayImport = []string{
-		"assets", "internal/i18n", "internal/ui/components", "internal/ui/layouts", "internal/ui/tile", "internal/web/respond",
+		"assets", "internal/i18n", "internal/ui/widget", "internal/ui/layouts", "internal/ui/tile", "internal/web/respond",
 	}
 	// importFreeLeaves import no goen package at all.
 	importFreeLeaves = []string{

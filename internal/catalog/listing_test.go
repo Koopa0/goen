@@ -7,10 +7,10 @@ import (
 
 	"github.com/koopa0/goen/internal/i18n"
 	"github.com/koopa0/goen/internal/policy"
-	"github.com/koopa0/goen/internal/ui/components"
 	"github.com/koopa0/goen/internal/ui/layouts"
 	"github.com/koopa0/goen/internal/ui/tile"
 	"github.com/koopa0/goen/internal/ui/tone"
+	"github.com/koopa0/goen/internal/ui/widget"
 )
 
 // TestThePageMarksTheCategoryYouAreIn holds layouts.Page.Nav, which drives the
@@ -396,7 +396,7 @@ func TestTheHeadOffersItsSubcategoriesAndPhotograph(t *testing.T) {
 		Slug: "cases", Name: "Cases", Crumbs: []Crumb{{Slug: "accessories", Name: "Accessories"}},
 		Theme: &Theme{
 			Tone:     tone.Mist,
-			Photo:    components.Photo{URL: "/img/d.webp", Alt: "a desk"},
+			Photo:    widget.Photo{URL: "/img/d.webp", Alt: "a desk"},
 			Children: []Crumb{{Slug: "chargers", Name: "Chargers"}, {Slug: "cases", Name: "Cases"}},
 		},
 	}

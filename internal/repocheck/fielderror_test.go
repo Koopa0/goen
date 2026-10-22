@@ -9,10 +9,10 @@ import (
 	"testing"
 )
 
-// fieldProps matches one components.FieldProps literal, from the brace that
+// fieldProps matches one widget.FieldProps literal, from the brace that
 // opens it to the one that closes it. Nested braces inside are attribute maps,
 // which is why this is not a lazy match to the first closing brace.
-var fieldProps = regexp.MustCompile(`(?s)components\.FieldProps\{(.*?)\n\s*\}\)`)
+var fieldProps = regexp.MustCompile(`(?s)widget\.FieldProps\{(.*?)\n\s*\}\)`)
 
 // TestEveryRefusedFieldStillNamesItsError is the other half of
 // TestEveryRefusedFieldNamesItsError, and it exists because the first half
@@ -21,7 +21,7 @@ var fieldProps = regexp.MustCompile(`(?s)components\.FieldProps\{(.*?)\n\s*\}\)`
 // That test derives its corpus from templates that write aria-invalid
 // themselves. The field components write it instead, from one package away, so
 // a page that marks a field invalid without naming the element carrying the
-// reason is now invisible to it: the attribute is in components.templ, and the
+// reason is now invisible to it: the attribute is in widget.templ, and the
 // decision is here. A screen reader would announce "invalid" and never the
 // reason — the exact failure the original guard was built to refuse.
 //

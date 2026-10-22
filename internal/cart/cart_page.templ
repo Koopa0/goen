@@ -5,8 +5,8 @@ import (
 
 	"github.com/koopa0/goen/assets"
 	"github.com/koopa0/goen/internal/i18n"
-	"github.com/koopa0/goen/internal/ui/components"
 	"github.com/koopa0/goen/internal/ui/layouts"
+	"github.com/koopa0/goen/internal/ui/widget"
 )
 
 templ Page(p layouts.Page, v View) {
@@ -19,7 +19,7 @@ templ Page(p layouts.Page, v View) {
 						if notice := v.StockNotice(ctx); notice != "" {
 							<p id="cart-alert" class="goen-cart__alert">{ notice }</p>
 						}
-						@components.StatLine(v.Facts(ctx), components.StatLinePlain)
+						@widget.StatLine(v.Facts(ctx), widget.StatLinePlain)
 					</div>
 				}
 			</div>
@@ -42,25 +42,25 @@ templ Page(p layouts.Page, v View) {
 							</div>
 						</div>
 					} else {
-						@components.Notice(components.NoticeProps{Intent: components.IntentAccent, ID: "cart-adjustment"}) {
+						@widget.Notice(widget.NoticeProps{Intent: widget.IntentAccent, ID: "cart-adjustment"}) {
 							{ v.Notice }
 						}
 					}
 				}
 				if v.FromReorder() {
-					@components.Notice(components.NoticeProps{Intent: components.IntentAccent}) {
+					@widget.Notice(widget.NoticeProps{Intent: widget.IntentAccent}) {
 						{ v.ReorderText(ctx) }
 					}
 				}
 			</div>
 			if v.Empty() {
 				<div class="goen-empty">
-					@components.EmptyArt(assets.EmptyCartImage)
+					@widget.EmptyArt(assets.EmptyCartImage)
 					<p class="goen-empty__title">{ i18n.T(ctx, i18n.KeyEmptyCart) }</p>
 					<p class="goen-empty__text">{ i18n.T(ctx, i18n.KeyCartEmptyDesc) }</p>
-					@components.ButtonLink(components.ButtonProps{
-						ButtonStyle: components.ButtonStylePrimary,
-						Size:        components.SizeLarge,
+					@widget.ButtonLink(widget.ButtonProps{
+						ButtonStyle: widget.ButtonStylePrimary,
+						Size:        widget.SizeLarge,
 					}, "/") {
 						{ i18n.T(ctx, i18n.KeyCartEmptyLink) }
 					}
@@ -72,7 +72,7 @@ templ Page(p layouts.Page, v View) {
 							@cartLine(l)
 						}
 					</ul>
-					@components.Card(components.CardProps{
+					@widget.Card(widget.CardProps{
 						Class: "goen-cart__summary",
 						Attrs: templ.Attributes{"id": "cart-summary", "aria-labelledby": "summary-heading"},
 					}) {
@@ -94,20 +94,20 @@ templ Page(p layouts.Page, v View) {
 							</div>
 						</dl>
 						if v.MixedTaxTypes {
-							@components.Notice(components.NoticeProps{Intent: components.IntentWarn}) {
+							@widget.Notice(widget.NoticeProps{Intent: widget.IntentWarn}) {
 								{ i18n.T(ctx, i18n.KeyCartMixedTaxTypes) }
 							}
 						}
 						if v.NoDelivery {
-							@components.Notice(components.NoticeProps{Intent: components.IntentWarn, ID: "cart-delivery-unavailable"}) {
+							@widget.Notice(widget.NoticeProps{Intent: widget.IntentWarn, ID: "cart-delivery-unavailable"}) {
 								{ i18n.T(ctx, i18n.KeyShippingUnavailable) }
 							}
 						}
 						<div class="goen-summary__actions">
 							if v.CanCheckout() && !v.NoDelivery {
-								@components.ButtonLink(components.ButtonProps{
-									ButtonStyle: components.ButtonStylePrimary,
-									Size:        components.SizeLarge,
+								@widget.ButtonLink(widget.ButtonProps{
+									ButtonStyle: widget.ButtonStylePrimary,
+									Size:        widget.SizeLarge,
 									Block:       true,
 								}, "/checkout") {
 									{ i18n.T(ctx, i18n.KeyCheckout) }
@@ -134,8 +134,8 @@ templ Page(p layouts.Page, v View) {
 									{ i18n.T(ctx, i18n.KeyCheckout) }
 								</span>
 							}
-							@components.ButtonLink(components.ButtonProps{
-								ButtonStyle: components.ButtonStyleGhost,
+							@widget.ButtonLink(widget.ButtonProps{
+								ButtonStyle: widget.ButtonStyleGhost,
 								Block:       true,
 							}, "/") {
 								{ i18n.T(ctx, i18n.KeyContinue) }
@@ -180,16 +180,16 @@ templ cartLine(l Line) {
 			}
 			<span class="goen-line__meta">{ fmt.Sprintf(i18n.T(ctx, i18n.KeyUnitPrice), l.UnitPrice()) }</span>
 			if l.TaxExempt {
-				@components.Badge(components.BadgeProps{}) {
+				@widget.Badge(widget.BadgeProps{}) {
 					{ i18n.T(ctx, i18n.KeyInvoiceExempt) }
 				}
 			}
 			if l.Unavailable {
-				@components.Badge(components.BadgeProps{Intent: components.IntentDanger}) {
+				@widget.Badge(widget.BadgeProps{Intent: widget.IntentDanger}) {
 					{ i18n.T(ctx, i18n.KeySoldOut) }
 				}
 			} else if l.Short {
-				@components.Badge(components.BadgeProps{Intent: components.IntentWarn}) {
+				@widget.Badge(widget.BadgeProps{Intent: widget.IntentWarn}) {
 					{ fmt.Sprintf(i18n.T(ctx, i18n.KeyOnlyLeft), l.AvailableText()) }
 				}
 			}
@@ -218,7 +218,7 @@ templ cartLine(l Line) {
 			// A sold-out line has nothing to adjust, so removing it is all it offers.
 			if !l.Unavailable {
 				<label class="goen-sr-only" for={ "qty-" + l.VariantID }>{ i18n.T(ctx, i18n.KeyQuantity) }</label>
-				@components.Stepper(components.StepperProps{
+				@widget.Stepper(widget.StepperProps{
 					ID: "qty-" + l.VariantID, Name: "quantity",
 					Value: l.QuantityText(),
 					// Zero removes a line with no script, so the floor is zero here and one on the product page.
@@ -227,17 +227,17 @@ templ cartLine(l Line) {
 					IncreaseLabel: i18n.T(ctx, i18n.KeyQuantityIncrease),
 				})
 				// Shown only where scripting is off: with it on, changing the quantity submits the form.
-				@components.Button(components.ButtonProps{
-					ButtonStyle: components.ButtonStyleOutline,
-					Size:        components.SizeSmall,
+				@widget.Button(widget.ButtonProps{
+					ButtonStyle: widget.ButtonStyleOutline,
+					Size:        widget.SizeSmall,
 					Class:       "goen-line__update",
 				}, "submit") {
 					{ i18n.T(ctx, i18n.KeyUpdate) }
 				}
 			}
-			@components.Button(components.ButtonProps{
-				ButtonStyle: components.ButtonStyleGhost,
-				Size:        components.SizeSmall,
+			@widget.Button(widget.ButtonProps{
+				ButtonStyle: widget.ButtonStyleGhost,
+				Size:        widget.SizeSmall,
 				Class:       "goen-line__remove",
 				// Not dimmed while a quantity request is pending: the request is about the number.
 				Attrs: templ.Attributes{"name": "remove", "value": "1", "data-feedback-skip": true, "formnovalidate": true},

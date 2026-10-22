@@ -7,9 +7,9 @@ import (
 	"github.com/koopa0/goen/assets"
 	"github.com/koopa0/goen/internal/discount/campaign"
 	"github.com/koopa0/goen/internal/i18n"
-	"github.com/koopa0/goen/internal/ui/components"
 	"github.com/koopa0/goen/internal/ui/layouts"
 	"github.com/koopa0/goen/internal/ui/tone"
+	"github.com/koopa0/goen/internal/ui/widget"
 )
 
 const seedBanner = "campaign-banner-01.webp"
@@ -19,7 +19,7 @@ func TestCampaignPageShowsItsHeaderOnlyWhenItHasOne(t *testing.T) {
 	ctx := i18n.WithLocale(t.Context(), i18n.En)
 	with := renderComponent(t, ctx, campaign.Page(layouts.Page{Title: "c"}, campaign.View{
 		Slug: "c", Title: "Sale",
-		Image: components.Photo{
+		Image: widget.Photo{
 			URL: assets.Image{BundledKey: seedBanner}.URL(), Srcset: assets.Image{BundledKey: seedBanner}.Srcset(),
 			Alt: "Products on sale",
 		},

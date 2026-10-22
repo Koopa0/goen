@@ -10,7 +10,7 @@ import (
 	"github.com/google/go-cmp/cmp"
 
 	"github.com/koopa0/goen/internal/i18n"
-	"github.com/koopa0/goen/internal/ui/components"
+	"github.com/koopa0/goen/internal/ui/widget"
 )
 
 func TestEveryRedirectTheShippingFormsMakeCarriesAMessage(t *testing.T) {
@@ -65,8 +65,8 @@ func TestZoneRemovalRefusalsDescribeTheirBlocker(t *testing.T) {
 				{name: "zoneversions", key: i18n.KeyAdminShipZoneHasVersions},
 			} {
 				r := httptest.NewRequestWithContext(ctx, http.MethodGet, "/admin/shipping?"+tt.name+"=1", http.NoBody)
-				got := components.NoticeFrom(r, notices)
-				want := components.Result{Outcome: components.OutcomeRefused, Text: i18n.T(ctx, tt.key)}
+				got := widget.NoticeFrom(r, notices)
+				want := widget.Result{Outcome: widget.OutcomeRefused, Text: i18n.T(ctx, tt.key)}
 				if diff := cmp.Diff(want, got); diff != "" {
 					t.Errorf("Notice(%s) (-want +got):\n%s", tt.name, diff)
 				}

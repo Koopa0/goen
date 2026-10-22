@@ -5,8 +5,8 @@ import (
 	"testing"
 
 	"github.com/koopa0/goen/internal/i18n"
-	"github.com/koopa0/goen/internal/ui/components"
 	"github.com/koopa0/goen/internal/ui/layouts"
+	"github.com/koopa0/goen/internal/ui/widget"
 )
 
 // From TestEveryPageKindSendsItsOwnLinkPreviewTags, which keeps the other pages' rows;
@@ -16,7 +16,7 @@ func TestCatalogPagesSendTheirOwnLinkPreviewTags(t *testing.T) {
 	ctx := i18n.WithLocale(layouts.WithRequestPath(t.Context(), "/c/books"), i18n.ZhHant)
 	department := ListingView{
 		Slug: "books", Name: "書籍",
-		Theme: &Theme{Photo: components.Photo{URL: "/static/media/products/books.webp?v=1", Alt: "書架"}},
+		Theme: &Theme{Photo: widget.Photo{URL: "/static/media/products/books.webp?v=1", Alt: "書架"}},
 	}
 	for name, tt := range map[string]struct {
 		page layouts.Page

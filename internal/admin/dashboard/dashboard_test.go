@@ -12,8 +12,8 @@ import (
 	"github.com/koopa0/goen/internal/product/inventory"
 	"github.com/koopa0/goen/internal/sales"
 	"github.com/koopa0/goen/internal/ui/chart"
-	"github.com/koopa0/goen/internal/ui/components"
 	"github.com/koopa0/goen/internal/ui/stockrisk"
+	"github.com/koopa0/goen/internal/ui/widget"
 )
 
 // TestTheDashboardOpensEveryOrderItLists holds the landing page's reason for
@@ -260,7 +260,7 @@ func TestElapsedValueUsesTheLargestWholeUnit(t *testing.T) {
 		{"days", 49 * time.Hour, i18n.En, "2\u00a0<small>days ago</small>"},
 	} {
 		ctx := i18n.WithLocale(t.Context(), tc.loc)
-		stat := components.GlanceStatLine([]components.LinkedStat{{Stat: components.Stat{Label: "x", Value: elapsedValue(ctx, tc.d)}, Href: "/"}})
+		stat := widget.GlanceStatLine([]widget.LinkedStat{{Stat: widget.Stat{Label: "x", Value: elapsedValue(ctx, tc.d)}, Href: "/"}})
 		if html := renderComponent(t, ctx, stat); !strings.Contains(html, "<dd>"+tc.want) {
 			t.Errorf("%s: elapsedValue(%v) renders %s, want <dd>%s", tc.name, tc.d, html, tc.want)
 		}
@@ -289,7 +289,7 @@ func TestTheWeekStatsKeyTheTwoPeriodsUnderTheirBars(t *testing.T) {
 	t.Parallel()
 	ctx := i18n.WithLocale(t.Context(), i18n.En)
 	view := DashboardView{Week: busyWeek()}
-	html := renderComponent(t, ctx, components.GlanceStatLine(view.WeekStats(ctx)))
+	html := renderComponent(t, ctx, widget.GlanceStatLine(view.WeekStats(ctx)))
 	for _, key := range []string{"Previous 7 days", "Last 7 days"} {
 		if got := strings.Count(html, "<span>"+key+"</span>"); got != 2 {
 			t.Errorf("%q is a key under %d of the two small charts, want 2", key, got)

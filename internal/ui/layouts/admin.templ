@@ -3,8 +3,8 @@ package layouts
 import (
 	"github.com/koopa0/goen/assets"
 	"github.com/koopa0/goen/internal/i18n"
-	"github.com/koopa0/goen/internal/ui/components"
 	"github.com/koopa0/goen/internal/ui/icons"
+	"github.com/koopa0/goen/internal/ui/widget"
 )
 
 // Admin shares the head with [Base] and nothing else: the storefront chrome is a
@@ -63,7 +63,7 @@ templ adminBar() {
 				<a class="goen-adminbar__link" href="/">{ i18n.T(ctx, i18n.KeyBackToShop) }</a>
 				@languageMenu("goen-adminbar__lang", false)
 				<form method="post" action="/signout">
-					@components.Button(components.ButtonProps{ButtonStyle: components.ButtonStyleGhost}, "submit") {
+					@widget.Button(widget.ButtonProps{ButtonStyle: widget.ButtonStyleGhost}, "submit") {
 						{ i18n.T(ctx, i18n.KeySignOut) }
 					}
 				</form>
@@ -86,7 +86,7 @@ templ adminBar() {
 // stylesheet shows it as the rail; on a phone it would otherwise fill the screen
 // above every page's first line of work.
 templ adminNav(current string) {
-	@components.Disclosure(components.DisclosureProps{
+	@widget.Disclosure(widget.DisclosureProps{
 		Class:   "goen-admin__nav",
 		Summary: i18n.T(ctx, i18n.KeyAdminQueueNavLabel),
 	}) {

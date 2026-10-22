@@ -4,8 +4,8 @@ import (
 	"fmt"
 
 	"github.com/koopa0/goen/internal/i18n"
-	"github.com/koopa0/goen/internal/ui/components"
 	"github.com/koopa0/goen/internal/ui/layouts"
+	"github.com/koopa0/goen/internal/ui/widget"
 )
 
 // Nothing on this page loads, so it has no skeleton and no spinner: the handover is a form post.
@@ -27,14 +27,14 @@ templ Pay(p layouts.Page, v PayView) {
 						<p class="goen-pay__deadline">{ lead }</p>
 						<p class="goen-pay__hold">{ note }</p>
 					</div>
-					@components.StatLine(v.Hold.Facts(ctx, v.TotalCents), components.StatLineSmall)
+					@widget.StatLine(v.Hold.Facts(ctx, v.TotalCents), widget.StatLineSmall)
 				} else {
-					@components.StatLine(v.Hold.Facts(ctx, v.TotalCents), components.StatLinePlain)
+					@widget.StatLine(v.Hold.Facts(ctx, v.TotalCents), widget.StatLinePlain)
 				}
 			</div>
 			if v.Cancelled && !v.Closed() {
-				@components.Notice(components.NoticeProps{
-					Intent: components.IntentAccent,
+				@widget.Notice(widget.NoticeProps{
+					Intent: widget.IntentAccent,
 					ID:     "pay-cancelled",
 				}) {
 					{ i18n.T(ctx, i18n.KeyPayCancelled) }
@@ -63,7 +63,7 @@ templ Pay(p layouts.Page, v PayView) {
 					</li>
 				}
 			</ul>
-			@components.Card(components.CardProps{Class: "goen-pay__summary"}) {
+			@widget.Card(widget.CardProps{Class: "goen-pay__summary"}) {
 				<dl class="goen-summary">
 					<div class="goen-summary__row">
 						<dt>{ i18n.T(ctx, i18n.KeySubtotal) }</dt>
@@ -75,7 +75,7 @@ templ Pay(p layouts.Page, v PayView) {
 					</div>
 					if v.Discounted() {
 						<div class="goen-summary__row">
-							<dt>{ components.DiscountLabel(ctx, v.DiscountReason) }</dt>
+							<dt>{ widget.DiscountLabel(ctx, v.DiscountReason) }</dt>
 							<dd class="goen-summary__value">{ v.Discount() }</dd>
 						</div>
 					}
@@ -91,16 +91,16 @@ templ Pay(p layouts.Page, v PayView) {
 					</div>
 				</dl>
 				if v.Closed() {
-					@components.Notice(components.NoticeProps{
-						Intent: components.IntentAccent,
+					@widget.Notice(widget.NoticeProps{
+						Intent: widget.IntentAccent,
 						ID:     "pay-closed",
 					}) {
 						{ i18n.T(ctx, v.ClosedBody()) }
 					}
 					<form method="post" action={ templ.SafeURL("/orders/" + v.Number + "/reorder") }>
-						@components.Button(components.ButtonProps{
-							ButtonStyle: components.ButtonStylePrimary,
-							Size:        components.SizeLarge,
+						@widget.Button(widget.ButtonProps{
+							ButtonStyle: widget.ButtonStylePrimary,
+							Size:        widget.SizeLarge,
 							Block:       true,
 						}, "submit") {
 							{ i18n.T(ctx, i18n.KeyOrderReorder) }
@@ -111,17 +111,17 @@ templ Pay(p layouts.Page, v PayView) {
 					</p>
 				} else if v.Enabled {
 					if v.Sandbox {
-						@components.Notice(components.NoticeProps{
-							Intent: components.IntentAccent,
+						@widget.Notice(widget.NoticeProps{
+							Intent: widget.IntentAccent,
 							ID:     "pay-sandbox",
 						}) {
 							{ i18n.T(ctx, i18n.KeyPaySandbox) }
 						}
 					}
 					<form method="post" action={ templ.SafeURL(v.Action()) }>
-						@components.Button(components.ButtonProps{
-							ButtonStyle: components.ButtonStylePrimary,
-							Size:        components.SizeLarge,
+						@widget.Button(widget.ButtonProps{
+							ButtonStyle: widget.ButtonStylePrimary,
+							Size:        widget.SizeLarge,
 							Block:       true,
 						}, "submit") {
 							{ i18n.T(ctx, i18n.KeyPay) }
@@ -131,21 +131,21 @@ templ Pay(p layouts.Page, v PayView) {
 						{ i18n.T(ctx, i18n.KeyPayStripeNote) }
 					</p>
 				} else {
-					@components.Notice(components.NoticeProps{
-						Intent: components.IntentAccent,
+					@widget.Notice(widget.NoticeProps{
+						Intent: widget.IntentAccent,
 						ID:     "pay-disabled",
 					}) {
 						{ i18n.T(ctx, i18n.KeyPayDisabled) }
 					}
-					@components.ButtonLink(components.ButtonProps{
-						ButtonStyle: components.ButtonStyleGhost,
+					@widget.ButtonLink(widget.ButtonProps{
+						ButtonStyle: widget.ButtonStyleGhost,
 						Block:       true,
 					}, "/contact") {
 						{ i18n.T(ctx, i18n.KeyContact) }
 					}
 				}
-				@components.ButtonLink(components.ButtonProps{
-					ButtonStyle: components.ButtonStyleOutline,
+				@widget.ButtonLink(widget.ButtonProps{
+					ButtonStyle: widget.ButtonStyleOutline,
 					Block:       true,
 				}, templ.SafeURL("/orders/"+v.Number)) {
 					{ i18n.T(ctx, i18n.KeyPayViewOrder) }

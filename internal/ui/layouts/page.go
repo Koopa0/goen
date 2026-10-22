@@ -7,7 +7,7 @@ import (
 	"strings"
 
 	"github.com/koopa0/goen/internal/i18n"
-	"github.com/koopa0/goen/internal/ui/components"
+	"github.com/koopa0/goen/internal/ui/widget"
 )
 
 // htmxConfig is set from the document because a policy that allows no inline script
@@ -64,7 +64,7 @@ type ShareImage struct {
 
 // NewShareImage is p as a page's share image. The pixel size is not known here,
 // so the tags leave it out.
-func NewShareImage(p components.Photo, fallbackAlt string) ShareImage {
+func NewShareImage(p widget.Photo, fallbackAlt string) ShareImage {
 	if !p.Shown() {
 		return ShareImage{}
 	}

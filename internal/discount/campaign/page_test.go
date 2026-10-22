@@ -8,9 +8,9 @@ import (
 	"github.com/koopa0/goen/assets"
 	"github.com/koopa0/goen/internal/discount/campaign"
 	"github.com/koopa0/goen/internal/i18n"
-	"github.com/koopa0/goen/internal/ui/components"
 	"github.com/koopa0/goen/internal/ui/layouts"
 	"github.com/koopa0/goen/internal/ui/tile"
+	"github.com/koopa0/goen/internal/ui/widget"
 )
 
 func renderCampaign(t *testing.T, startsAt, endsAt time.Time) string {
@@ -73,7 +73,7 @@ func TestTheEmptyCampaignShowsItsIllustrationAsDecoration(t *testing.T) {
 func TestTheCampaignPageSendsItsOwnLinkPreviewTags(t *testing.T) {
 	t.Parallel()
 	ctx := i18n.WithLocale(layouts.WithRequestPath(t.Context(), "/s/autumn"), i18n.ZhHant)
-	p := campaign.Meta(ctx, "秋日選物", components.Photo{URL: "/static/media/campaigns/autumn.webp?v=1", Alt: "秋日"})
+	p := campaign.Meta(ctx, "秋日選物", widget.Photo{URL: "/static/media/campaigns/autumn.webp?v=1", Alt: "秋日"})
 	head := renderComponent(t, layouts.WithSiteOrigin(ctx, "https://goen.test"), layouts.Base(p))
 	for _, want := range []string{
 		`og:title" content="秋日選物 · goen"`,
@@ -101,7 +101,7 @@ func TestACampaignIsCalledACampaignInEnglish(t *testing.T) {
 			t.Errorf("i18n.T(%q) = %q, want %q", key, got, want)
 		}
 	}
-	if got := campaign.Meta(ctx, "Autumn", components.Photo{}).Description; got != "Autumn — deals at goen" {
+	if got := campaign.Meta(ctx, "Autumn", widget.Photo{}).Description; got != "Autumn — deals at goen" {
 		t.Errorf("Meta description = %q, want %q", got, "Autumn — deals at goen")
 	}
 }

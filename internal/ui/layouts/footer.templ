@@ -4,9 +4,9 @@ import (
 	"fmt"
 
 	"github.com/koopa0/goen/internal/i18n"
-	"github.com/koopa0/goen/internal/ui/components"
 	"github.com/koopa0/goen/internal/ui/fieldrule"
 	"github.com/koopa0/goen/internal/ui/icons"
+	"github.com/koopa0/goen/internal/ui/widget"
 )
 
 templ Footer(state NewsletterState) {
@@ -116,7 +116,7 @@ templ NewsletterForm(s NewsletterState) {
 		} else {
 			<label class="goen-label goen-footer__signuplabel" for="newsletter-email">{ i18n.T(ctx, i18n.KeyFieldEmail) }</label>
 			<div class="goen-footer__field">
-				@components.Input(components.FieldProps{
+				@widget.Input(widget.FieldProps{
 					ID:        "newsletter-email",
 					Name:      "email",
 					Type:      "email",
@@ -129,7 +129,7 @@ templ NewsletterForm(s NewsletterState) {
 						"maxlength":    "254",
 					}), fieldrule.Message(i18n.KeyEmailMalformed), fieldrule.ErrorID("newsletter-error")),
 				})
-				@components.Button(components.ButtonProps{ButtonStyle: components.ButtonStyleGhost, Attrs: templ.Attributes{"id": "newsletter-submit"}}, "submit") {
+				@widget.Button(widget.ButtonProps{ButtonStyle: widget.ButtonStyleGhost, Attrs: templ.Attributes{"id": "newsletter-submit"}}, "submit") {
 					{ i18n.T(ctx, i18n.KeyNewsletterSubmit) }
 					<span aria-hidden="true">→</span>
 				}

@@ -3,7 +3,7 @@ package newsletters
 import (
 	"strconv"
 
-	"github.com/koopa0/goen/internal/ui/components"
+	"github.com/koopa0/goen/internal/ui/widget"
 )
 
 type NewsletterView struct {
@@ -14,7 +14,7 @@ type NewsletterView struct {
 	Issues        []NewsletterIssue
 	Draft         NewsletterDraft
 	Errors        map[string]string
-	Notice        components.Result
+	Notice        widget.Result
 }
 
 type NewsletterDraft struct {

@@ -5,9 +5,9 @@ import (
 	"strconv"
 
 	"github.com/koopa0/goen/internal/i18n"
-	"github.com/koopa0/goen/internal/ui/components"
 	"github.com/koopa0/goen/internal/ui/layouts"
 	"github.com/koopa0/goen/internal/ui/tile"
+	"github.com/koopa0/goen/internal/ui/widget"
 )
 
 templ Deals(p layouts.Page, v DealsView) {
@@ -26,7 +26,7 @@ templ Deals(p layouts.Page, v DealsView) {
 				</section>
 			}
 			if v.Total == 0 {
-				@components.Notice(components.NoticeProps{}) {
+				@widget.Notice(widget.NoticeProps{}) {
 					{ i18n.T(ctx, i18n.KeyDealsEmpty) }
 				}
 			} else {

@@ -8,8 +8,8 @@ import (
 	"strings"
 
 	"github.com/koopa0/goen/internal/i18n"
-	"github.com/koopa0/goen/internal/ui/components"
 	"github.com/koopa0/goen/internal/ui/layouts"
+	"github.com/koopa0/goen/internal/ui/widget"
 )
 
 type View struct {
@@ -61,30 +61,30 @@ func (f FreeDelivery) Word(ctx context.Context) string {
 }
 
 // Stat is the fact that tells where the cart stands against free delivery; it is absent where the methods on offer disagree.
-func (f FreeDelivery) Stat(ctx context.Context) components.Stat {
+func (f FreeDelivery) Stat(ctx context.Context) widget.Stat {
 	switch f.Kind {
 	case FreeDeliveryShort:
-		return components.Stat{
+		return widget.Stat{
 			Label: i18n.T(ctx, i18n.KeyCartFactToFree),
-			Value: components.StatMoney(f.ShortfallCents),
+			Value: widget.StatMoney(f.ShortfallCents),
 			Note:  fmt.Sprintf(i18n.T(ctx, i18n.KeyShippingFreeOver), twd(f.ThresholdCents)),
 		}
 	case FreeDeliveryReached:
-		s := components.Stat{Label: i18n.T(ctx, i18n.KeyShippingFee), Value: components.StatWord(f.Word(ctx))}
+		s := widget.Stat{Label: i18n.T(ctx, i18n.KeyShippingFee), Value: widget.StatWord(f.Word(ctx))}
 		if f.ThresholdCents > 0 {
 			s.Note = fmt.Sprintf(i18n.T(ctx, i18n.KeyCartFactOver), twd(f.ThresholdCents))
 		}
 		return s
 	default:
-		return components.Stat{}
+		return widget.Stat{}
 	}
 }
 
 // Facts are the cart's totals as they stand: a sold-out line is in neither the count nor the subtotal.
-func (v View) Facts(ctx context.Context) []components.Stat {
-	return []components.Stat{
-		{Label: i18n.T(ctx, i18n.KeyCartFactItems), Value: components.StatCount(v.ItemCount, i18n.T(ctx, i18n.KeyFactUnitItems))},
-		{Label: i18n.T(ctx, i18n.KeySubtotal), Value: components.StatMoney(v.SubtotalCents)},
+func (v View) Facts(ctx context.Context) []widget.Stat {
+	return []widget.Stat{
+		{Label: i18n.T(ctx, i18n.KeyCartFactItems), Value: widget.StatCount(v.ItemCount, i18n.T(ctx, i18n.KeyFactUnitItems))},
+		{Label: i18n.T(ctx, i18n.KeySubtotal), Value: widget.StatMoney(v.SubtotalCents)},
 		v.FreeDelivery.Stat(ctx),
 	}
 }

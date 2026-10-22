@@ -11,8 +11,8 @@ import templruntime "github.com/a-h/templ/runtime"
 import (
 	"github.com/koopa0/goen/assets"
 	"github.com/koopa0/goen/internal/i18n"
-	"github.com/koopa0/goen/internal/ui/components"
 	"github.com/koopa0/goen/internal/ui/icons"
+	"github.com/koopa0/goen/internal/ui/widget"
 )
 
 // Admin shares the head with [Base] and nothing else: the storefront chrome is a
@@ -230,7 +230,7 @@ func adminBar() templ.Component {
 			}
 			return nil
 		})
-		templ_7745c5c3_Err = components.Button(components.ButtonProps{ButtonStyle: components.ButtonStyleGhost}, "submit").Render(templ.WithChildren(ctx, templ_7745c5c3_Var7), templ_7745c5c3_Buffer)
+		templ_7745c5c3_Err = widget.Button(widget.ButtonProps{ButtonStyle: widget.ButtonStyleGhost}, "submit").Render(templ.WithChildren(ctx, templ_7745c5c3_Var7), templ_7745c5c3_Buffer)
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
@@ -1010,7 +1010,7 @@ func adminNav(current string) templ.Component {
 			}
 			return nil
 		})
-		templ_7745c5c3_Err = components.Disclosure(components.DisclosureProps{
+		templ_7745c5c3_Err = widget.Disclosure(widget.DisclosureProps{
 			Class:   "goen-admin__nav",
 			Summary: i18n.T(ctx, i18n.KeyAdminQueueNavLabel),
 		}).Render(templ.WithChildren(ctx, templ_7745c5c3_Var10), templ_7745c5c3_Buffer)

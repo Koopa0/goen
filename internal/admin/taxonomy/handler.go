@@ -10,8 +10,8 @@ import (
 	"github.com/koopa0/goen/internal/admin/access"
 	"github.com/koopa0/goen/internal/i18n"
 	"github.com/koopa0/goen/internal/media"
-	"github.com/koopa0/goen/internal/ui/components"
 	"github.com/koopa0/goen/internal/ui/layouts"
+	"github.com/koopa0/goen/internal/ui/widget"
 	"github.com/koopa0/goen/internal/web/formtext"
 	"github.com/koopa0/goen/internal/web/respond"
 )
@@ -38,10 +38,10 @@ func (h *Handler) Routes(mux *http.ServeMux, ac *access.Control) {
 	mux.HandleFunc("POST /admin/categories/{slug}/image/remove", ac.RequireStaff(h.RemoveCategoryImage))
 }
 
-var notices = map[string]components.NoticeEntry{
-	"ok":      components.NoticeDone(i18n.KeyAdminNoticeOK),
-	"refused": components.NoticeRefused(i18n.KeyAdminNoticeRefused),
-	"inuse":   components.NoticeRefused(i18n.KeyAdminNoticeInUse),
+var notices = map[string]widget.NoticeEntry{
+	"ok":      widget.NoticeDone(i18n.KeyAdminNoticeOK),
+	"refused": widget.NoticeRefused(i18n.KeyAdminNoticeRefused),
+	"inuse":   widget.NoticeRefused(i18n.KeyAdminNoticeInUse),
 }
 
 func (h *Handler) Page(w http.ResponseWriter, r *http.Request) {
@@ -51,7 +51,7 @@ func (h *Handler) Page(w http.ResponseWriter, r *http.Request) {
 		access.ServerError(w, r, h.log)
 		return
 	}
-	view.Notice = components.NoticeFrom(r, notices)
+	view.Notice = widget.NoticeFrom(r, notices)
 	respond.Component(w, r, h.log, http.StatusOK, Taxonomy(
 		layouts.Page{Title: i18n.T(r.Context(), i18n.KeyAdminPageTaxonomy)}, &view))
 }
@@ -135,10 +135,10 @@ func (h *Handler) Edit(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *Handler) EditCategory(w http.ResponseWriter, r *http.Request) {
-	h.renderCategory(w, r, http.StatusOK, components.NoticeFrom(r, notices), nil)
+	h.renderCategory(w, r, http.StatusOK, widget.NoticeFrom(r, notices), nil)
 }
 
-func (h *Handler) renderCategory(w http.ResponseWriter, r *http.Request, status int, notice components.Result, errs map[string]string) {
+func (h *Handler) renderCategory(w http.ResponseWriter, r *http.Request, status int, notice widget.Result, errs map[string]string) {
 	slug := r.PathValue("slug")
 	view, err := h.store.CategoryHeader(r.Context(), slug)
 	if err != nil {
@@ -189,7 +189,7 @@ func (h *Handler) SetCategoryImage(w http.ResponseWriter, r *http.Request) {
 		if utf8.RuneCountInString(strings.TrimSpace(r.PostFormValue("alt_en"))) > MaxAltRunes {
 			field, reason = "alt_en", i18n.KeyFormCampaignAltEnLong
 		}
-		h.renderCategory(w, r, http.StatusUnprocessableEntity, components.Result{}, map[string]string{field: i18n.T(r.Context(), reason)})
+		h.renderCategory(w, r, http.StatusUnprocessableEntity, widget.Result{}, map[string]string{field: i18n.T(r.Context(), reason)})
 	default:
 		h.log.ErrorContext(r.Context(), "set category image", "error", err, "slug", slug)
 		access.ServerError(w, r, h.log)
@@ -222,7 +222,7 @@ func (h *Handler) respondToUploadError(w http.ResponseWriter, r *http.Request, e
 		// The browser went away mid-upload; there is no one to answer.
 	case media.IsRefusal(err):
 		h.log.WarnContext(r.Context(), "category image upload", "error", err, "slug", r.PathValue("slug"))
-		h.renderCategory(w, r, http.StatusUnprocessableEntity, components.Result{}, map[string]string{"image": i18n.T(r.Context(), media.UploadNotice(err))})
+		h.renderCategory(w, r, http.StatusUnprocessableEntity, widget.Result{}, map[string]string{"image": i18n.T(r.Context(), media.UploadNotice(err))})
 	default:
 		h.log.ErrorContext(r.Context(), "category image upload", "error", err, "slug", r.PathValue("slug"))
 		access.ServerError(w, r, h.log)

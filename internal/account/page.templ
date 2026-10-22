@@ -4,9 +4,9 @@ import (
 	"fmt"
 
 	"github.com/koopa0/goen/internal/i18n"
-	"github.com/koopa0/goen/internal/ui/components"
 	"github.com/koopa0/goen/internal/ui/fieldrule"
 	"github.com/koopa0/goen/internal/ui/layouts"
+	"github.com/koopa0/goen/internal/ui/widget"
 )
 
 // A section of this page needs no hint: it is directly below.
@@ -28,23 +28,23 @@ templ Account(p layouts.Page, v *View) {
 					<p class="goen-pagehead__sub">{ v.DisplayName() }</p>
 				</div>
 				<form class="goen-account__headactions" method="post" action="/signout">
-					@components.Button(components.ButtonProps{ButtonStyle: components.ButtonStyleOutline, Class: "ui-btn"}, "submit") {
+					@widget.Button(widget.ButtonProps{ButtonStyle: widget.ButtonStyleOutline, Class: "ui-btn"}, "submit") {
 						{ i18n.T(ctx, i18n.KeySignOut) }
 					}
 				</form>
 			</div>
 			if v.HasNotice() {
-				@components.Notice(components.NoticeProps{Intent: components.IntentAccent, ID: "account-notice"}) {
+				@widget.Notice(widget.NoticeProps{Intent: widget.IntentAccent, ID: "account-notice"}) {
 					{ v.Notice }
 				}
 			}
 			if v.CartAdjusted {
-				@components.Notice(components.NoticeProps{Intent: components.IntentWarn}) {
+				@widget.Notice(widget.NoticeProps{Intent: widget.IntentWarn}) {
 					{ i18n.T(ctx, i18n.KeyCartQuantityAdjusted) }
 				}
 			}
 			if v.ReturnAfterWelcome != "" {
-				@components.ButtonLink(components.ButtonProps{ButtonStyle: components.ButtonStyleOutline}, templ.SafeURL(v.ReturnAfterWelcome)) {
+				@widget.ButtonLink(widget.ButtonProps{ButtonStyle: widget.ButtonStyleOutline}, templ.SafeURL(v.ReturnAfterWelcome)) {
 					{ i18n.T(ctx, i18n.KeyWelcomeReturn) }
 				}
 			}
@@ -116,10 +116,10 @@ templ Account(p layouts.Page, v *View) {
 												<span class="goen-account__ordermeta">
 													{ i18n.Count(ctx, i18n.KeyOrderLineCount, o.LineCount, o.LineCountText()) }
 												</span>
-												@components.StatLine(o.Facts(ctx), components.StatLineSmall)
+												@widget.StatLine(o.Facts(ctx), widget.StatLineSmall)
 											</td>
 											<td role="cell">
-												@components.Badge(components.BadgeProps{Intent: o.BadgeIntent()}) {
+												@widget.Badge(widget.BadgeProps{Intent: o.BadgeIntent()}) {
 													{ o.StatusText(ctx) }
 												}
 												if v.PaymentsEnabled && o.AwaitingPayment() {
@@ -136,17 +136,17 @@ templ Account(p layouts.Page, v *View) {
 								<a href="/">{ i18n.T(ctx, i18n.KeyNoOrdersLink) }</a>
 							</p>
 						}
-						@components.ListPager(v.OrdersBound)
+						@widget.ListPager(v.OrdersBound)
 					</section>
 					<section class="goen-card goen-account__section" aria-labelledby="profile-heading">
 						<h2 class="goen-account__heading" id="profile-heading">{ i18n.T(ctx, i18n.KeyProfile) }</h2>
 						<form class="goen-account__form" method="post" action="/account/profile">
 							<div class="goen-account__fields">
 								<div class="goen-field">
-									@components.Label(components.LabelProps{For: "acct-name"}) {
+									@widget.Label(widget.LabelProps{For: "acct-name"}) {
 										{ i18n.T(ctx, i18n.KeyFieldFullName) }
 									}
-									@components.Input(components.FieldProps{
+									@widget.Input(widget.FieldProps{
 										ID:    "acct-name",
 										Name:  "name",
 										Type:  "text",
@@ -155,10 +155,10 @@ templ Account(p layouts.Page, v *View) {
 									})
 								</div>
 								<div class="goen-field">
-									@components.Label(components.LabelProps{For: "acct-phone"}) {
+									@widget.Label(widget.LabelProps{For: "acct-phone"}) {
 										{ i18n.T(ctx, i18n.KeyFieldPhone) }
 									}
-									@components.Input(components.FieldProps{
+									@widget.Input(widget.FieldProps{
 										ID:    "acct-phone",
 										Name:  "phone",
 										Type:  "tel",
@@ -168,7 +168,7 @@ templ Account(p layouts.Page, v *View) {
 								</div>
 							</div>
 							<div class="goen-account__actions">
-								@components.Button(components.ButtonProps{ButtonStyle: components.ButtonStylePrimary}, "submit") {
+								@widget.Button(widget.ButtonProps{ButtonStyle: widget.ButtonStylePrimary}, "submit") {
 									{ i18n.T(ctx, i18n.KeySave) }
 								}
 							</div>
@@ -184,7 +184,7 @@ templ Account(p layouts.Page, v *View) {
 											<span class="goen-account__addrlabel">
 												{ a.DisplayLabel(ctx) }
 												if a.Default {
-													@components.Badge(components.BadgeProps{}) {
+													@widget.Badge(widget.BadgeProps{}) {
 														{ i18n.T(ctx, i18n.KeyDefaultBadge) }
 													}
 												}
@@ -193,13 +193,13 @@ templ Account(p layouts.Page, v *View) {
 											<span class="goen-account__meta">{ a.Line() }</span>
 										</div>
 										<div class="goen-account__addractions">
-											@components.ButtonLink(components.ButtonProps{ButtonStyle: components.ButtonStyleGhost, Size: components.SizeSmall}, templ.SafeURL("/account/addresses/"+a.ID+"/edit#addresses-heading")) {
+											@widget.ButtonLink(widget.ButtonProps{ButtonStyle: widget.ButtonStyleGhost, Size: widget.SizeSmall}, templ.SafeURL("/account/addresses/"+a.ID+"/edit#addresses-heading")) {
 												{ i18n.T(ctx, i18n.KeyEditAddress) }
 											}
 											if !a.Default {
 												<form method="post" action="/account/addresses/default">
 													<input type="hidden" name="address" value={ a.ID }/>
-													@components.Button(components.ButtonProps{ButtonStyle: components.ButtonStyleGhost, Size: components.SizeSmall}, "submit") {
+													@widget.Button(widget.ButtonProps{ButtonStyle: widget.ButtonStyleGhost, Size: widget.SizeSmall}, "submit") {
 														{ i18n.T(ctx, i18n.KeyMakeDefault) }
 													}
 												</form>
@@ -209,7 +209,7 @@ templ Account(p layouts.Page, v *View) {
 												<p>{ fmt.Sprintf(i18n.T(ctx, i18n.KeyConfirmDeleteAddress), a.DisplayLabel(ctx)) }</p>
 												<form method="post" action="/account/addresses/delete">
 													<input type="hidden" name="address" value={ a.ID }/>
-													@components.Button(components.ButtonProps{ButtonStyle: components.ButtonStyleDanger, Size: components.SizeSmall}, "submit") {
+													@widget.Button(widget.ButtonProps{ButtonStyle: widget.ButtonStyleDanger, Size: widget.SizeSmall}, "submit") {
 														{ i18n.T(ctx, i18n.KeyDeleteAddress) }
 													}
 												</form>
@@ -235,10 +235,10 @@ templ Account(p layouts.Page, v *View) {
 								}
 								<div class="goen-account__fields">
 									<div class="goen-field">
-										@components.Label(components.LabelProps{For: "addr-label"}) {
+										@widget.Label(widget.LabelProps{For: "addr-label"}) {
 											{ i18n.T(ctx, i18n.KeyFieldLabelOpt) }
 										}
-										@components.Input(components.FieldProps{
+										@widget.Input(widget.FieldProps{
 											ID:        "addr-label",
 											Value:     v.AddrValue("label"),
 											Invalid:   v.AddrInvalid("label"),
@@ -253,10 +253,10 @@ templ Account(p layouts.Page, v *View) {
 										}
 									</div>
 									<div class="goen-field">
-										@components.Label(components.LabelProps{For: "addr-name"}) {
+										@widget.Label(widget.LabelProps{For: "addr-name"}) {
 											{ i18n.T(ctx, i18n.KeyFieldRecipient) }
 										}
-										@components.Input(components.FieldProps{
+										@widget.Input(widget.FieldProps{
 											ID:        "addr-name",
 											Value:     v.AddrValue("name"),
 											Invalid:   v.AddrInvalid("name"),
@@ -270,10 +270,10 @@ templ Account(p layouts.Page, v *View) {
 										}
 									</div>
 									<div class="goen-field">
-										@components.Label(components.LabelProps{For: "addr-phone"}) {
+										@widget.Label(widget.LabelProps{For: "addr-phone"}) {
 											{ i18n.T(ctx, i18n.KeyFieldPhoneShort) }
 										}
-										@components.Input(components.FieldProps{
+										@widget.Input(widget.FieldProps{
 											ID:        "addr-phone",
 											Value:     v.AddrValue("phone"),
 											Invalid:   v.AddrInvalid("phone"),
@@ -287,10 +287,10 @@ templ Account(p layouts.Page, v *View) {
 										}
 									</div>
 									<div class="goen-field">
-										@components.Label(components.LabelProps{For: "addr-postal"}) {
+										@widget.Label(widget.LabelProps{For: "addr-postal"}) {
 											{ i18n.T(ctx, i18n.KeyFieldPostalCode) }
 										}
-										@components.Input(components.FieldProps{
+										@widget.Input(widget.FieldProps{
 											ID:        "addr-postal",
 											Value:     v.AddrValue("postal_code"),
 											Invalid:   v.AddrInvalid("postal_code"),
@@ -308,10 +308,10 @@ templ Account(p layouts.Page, v *View) {
 										}
 									</div>
 									<div class="goen-field">
-										@components.Label(components.LabelProps{For: "addr-city"}) {
+										@widget.Label(widget.LabelProps{For: "addr-city"}) {
 											{ i18n.T(ctx, i18n.KeyFieldCity) }
 										}
-										@components.Input(components.FieldProps{
+										@widget.Input(widget.FieldProps{
 											ID:        "addr-city",
 											Value:     v.AddrValue("city"),
 											Invalid:   v.AddrInvalid("city"),
@@ -325,10 +325,10 @@ templ Account(p layouts.Page, v *View) {
 										}
 									</div>
 									<div class="goen-field">
-										@components.Label(components.LabelProps{For: "addr-district"}) {
+										@widget.Label(widget.LabelProps{For: "addr-district"}) {
 											{ i18n.T(ctx, i18n.KeyFieldDistrict) }
 										}
-										@components.Input(components.FieldProps{
+										@widget.Input(widget.FieldProps{
 											ID:        "addr-district",
 											Value:     v.AddrValue("district"),
 											Invalid:   v.AddrInvalid("district"),
@@ -342,10 +342,10 @@ templ Account(p layouts.Page, v *View) {
 										}
 									</div>
 									<div class="goen-field goen-account__field--wide">
-										@components.Label(components.LabelProps{For: "addr-street"}) {
+										@widget.Label(widget.LabelProps{For: "addr-street"}) {
 											{ i18n.T(ctx, i18n.KeyFieldStreet) }
 										}
-										@components.Input(components.FieldProps{
+										@widget.Input(widget.FieldProps{
 											ID:        "addr-street",
 											Value:     v.AddrValue("street"),
 											Invalid:   v.AddrInvalid("street"),
@@ -366,7 +366,7 @@ templ Account(p layouts.Page, v *View) {
 									</label>
 								}
 								<div class="goen-account__actions">
-									@components.Button(components.ButtonProps{ButtonStyle: components.ButtonStylePrimary}, "submit") {
+									@widget.Button(widget.ButtonProps{ButtonStyle: widget.ButtonStylePrimary}, "submit") {
 										{ i18n.T(ctx, i18n.KeySaveAddress) }
 									}
 								</div>
@@ -378,11 +378,11 @@ templ Account(p layouts.Page, v *View) {
 						<p class="goen-account__value">
 							{ v.Email }
 							if v.EmailVerified {
-								@components.Badge(components.BadgeProps{}) {
+								@widget.Badge(widget.BadgeProps{}) {
 									{ i18n.T(ctx, i18n.KeyEmailVerified) }
 								}
 							} else {
-								@components.Badge(components.BadgeProps{Intent: components.IntentWarn}) {
+								@widget.Badge(widget.BadgeProps{Intent: widget.IntentWarn}) {
 									{ i18n.T(ctx, i18n.KeyEmailUnverified) }
 								}
 							}
@@ -391,7 +391,7 @@ templ Account(p layouts.Page, v *View) {
 							<p class="goen-account__meta">{ i18n.T(ctx, i18n.KeyEmailUnverifiedHint) }</p>
 							<form class="goen-account__form" method="post" action="/account/email/resend">
 								<div class="goen-account__actions">
-									@components.Button(components.ButtonProps{ButtonStyle: components.ButtonStyleOutline}, "submit") {
+									@widget.Button(widget.ButtonProps{ButtonStyle: widget.ButtonStyleOutline}, "submit") {
 										{ i18n.T(ctx, i18n.KeyEmailResend) }
 									}
 								</div>
@@ -411,10 +411,10 @@ templ Account(p layouts.Page, v *View) {
 								<p class="goen-account__meta">{ i18n.T(ctx, i18n.KeyEmailChangeHint) }</p>
 								<div class="goen-account__fields">
 									<div class="goen-field">
-										@components.Label(components.LabelProps{For: "new-email"}) {
+										@widget.Label(widget.LabelProps{For: "new-email"}) {
 											{ i18n.T(ctx, i18n.KeyFieldNewEmail) }
 										}
-										@components.Input(components.FieldProps{
+										@widget.Input(widget.FieldProps{
 											ID:    "new-email",
 											Name:  "email",
 											Type:  "email",
@@ -422,10 +422,10 @@ templ Account(p layouts.Page, v *View) {
 										})
 									</div>
 									<div class="goen-field">
-										@components.Label(components.LabelProps{For: "email-current"}) {
+										@widget.Label(widget.LabelProps{For: "email-current"}) {
 											{ i18n.T(ctx, i18n.KeyFieldCurrentPassword) }
 										}
-										@components.Input(components.FieldProps{
+										@widget.Input(widget.FieldProps{
 											ID:    "email-current",
 											Name:  "current",
 											Type:  "password",
@@ -434,7 +434,7 @@ templ Account(p layouts.Page, v *View) {
 									</div>
 								</div>
 								<div class="goen-account__actions">
-									@components.Button(components.ButtonProps{ButtonStyle: components.ButtonStylePrimary}, "submit") {
+									@widget.Button(widget.ButtonProps{ButtonStyle: widget.ButtonStylePrimary}, "submit") {
 										{ i18n.T(ctx, i18n.KeyEmailChange) }
 									}
 								</div>
@@ -445,13 +445,13 @@ templ Account(p layouts.Page, v *View) {
 						if v.GoogleLinked && !v.HasPassword {
 							<h2 class="goen-account__heading" id="password-heading">{ i18n.T(ctx, i18n.KeySetPassword) }</h2>
 							if v.PasswordSetupSent {
-								@components.Notice(components.NoticeProps{Intent: components.IntentAccent, ID: "password-setup-sent"}) {
+								@widget.Notice(widget.NoticeProps{Intent: widget.IntentAccent, ID: "password-setup-sent"}) {
 									{ fmt.Sprintf(i18n.T(ctx, i18n.KeyPasswordSetupSent), v.Email) }
 								}
 							}
 							<form class="goen-account__form" method="post" action="/account/password/setup#password-heading">
 								<div class="goen-account__actions">
-									@components.Button(components.ButtonProps{ButtonStyle: components.ButtonStylePrimary}, "submit") {
+									@widget.Button(widget.ButtonProps{ButtonStyle: widget.ButtonStylePrimary}, "submit") {
 										{ i18n.T(ctx, i18n.KeySendPasswordSetupLink) }
 									}
 								</div>
@@ -463,10 +463,10 @@ templ Account(p layouts.Page, v *View) {
 								<form class="goen-account__form" method="post" action="/account/password">
 									<div class="goen-account__fields">
 										<div class="goen-field goen-account__field--wide">
-											@components.Label(components.LabelProps{For: "pw-current"}) {
+											@widget.Label(widget.LabelProps{For: "pw-current"}) {
 												{ i18n.T(ctx, i18n.KeyFieldCurrentPassword) }
 											}
-											@components.Input(components.FieldProps{
+											@widget.Input(widget.FieldProps{
 												ID:    "pw-current",
 												Name:  "current",
 												Type:  "password",
@@ -474,10 +474,10 @@ templ Account(p layouts.Page, v *View) {
 											})
 										</div>
 										<div class="goen-field">
-											@components.Label(components.LabelProps{For: "pw-new"}) {
+											@widget.Label(widget.LabelProps{For: "pw-new"}) {
 												{ i18n.T(ctx, i18n.KeyFieldNewPassword) }
 											}
-											@components.Input(components.FieldProps{
+											@widget.Input(widget.FieldProps{
 												ID:   "pw-new",
 												Name: "password",
 												Type: "password",
@@ -491,10 +491,10 @@ templ Account(p layouts.Page, v *View) {
 											<p class="goen-account__hint" id="pw-hint">{ i18n.T(ctx, i18n.KeyPasswordHintEndsSessions) }</p>
 										</div>
 										<div class="goen-field">
-											@components.Label(components.LabelProps{For: "pw-confirm"}) {
+											@widget.Label(widget.LabelProps{For: "pw-confirm"}) {
 												{ i18n.T(ctx, i18n.KeyFieldConfirmNewPassword) }
 											}
-											@components.Input(components.FieldProps{
+											@widget.Input(widget.FieldProps{
 												ID:    "pw-confirm",
 												Name:  "confirm",
 												Type:  "password",
@@ -503,7 +503,7 @@ templ Account(p layouts.Page, v *View) {
 										</div>
 									</div>
 									<div class="goen-account__actions">
-										@components.Button(components.ButtonProps{ButtonStyle: components.ButtonStylePrimary}, "submit") {
+										@widget.Button(widget.ButtonProps{ButtonStyle: widget.ButtonStylePrimary}, "submit") {
 											{ i18n.T(ctx, i18n.KeyChangePassword) }
 										}
 									</div>
@@ -518,7 +518,7 @@ templ Account(p layouts.Page, v *View) {
 							if v.CanUnlinkGoogle {
 								<form class="goen-account__form" method="post" action="/account/google/unlink">
 									<div class="goen-account__actions">
-										@components.Button(components.ButtonProps{ButtonStyle: components.ButtonStyleOutline}, "submit") {
+										@widget.Button(widget.ButtonProps{ButtonStyle: widget.ButtonStyleOutline}, "submit") {
 											{ i18n.T(ctx, i18n.KeyUnlinkGoogle) }
 										}
 									</div>
@@ -531,7 +531,7 @@ templ Account(p layouts.Page, v *View) {
 					}
 					<form class="goen-card goen-account__section goen-account__form" method="post" action="/account/sessions/others/end" aria-label={ i18n.T(ctx, i18n.KeySignOutOtherDevices) }>
 						<div class="goen-account__actions">
-							@components.Button(components.ButtonProps{ButtonStyle: components.ButtonStyleOutline}, "submit") {
+							@widget.Button(widget.ButtonProps{ButtonStyle: widget.ButtonStyleOutline}, "submit") {
 								{ i18n.T(ctx, i18n.KeySignOutOtherDevices) }
 							}
 						</div>
@@ -543,10 +543,10 @@ templ Account(p layouts.Page, v *View) {
 							<summary class="goen-account__summary">{ i18n.T(ctx, i18n.KeyEraseDisclosure) }</summary>
 							<form class="goen-account__form" method="post" action="/account/erase">
 								<div class="goen-field">
-									@components.Label(components.LabelProps{For: "erase-confirm"}) {
+									@widget.Label(widget.LabelProps{For: "erase-confirm"}) {
 										{ fmt.Sprintf(i18n.T(ctx, i18n.KeyEraseConfirmLabel), v.Email) }
 									}
-									@components.Input(components.FieldProps{
+									@widget.Input(widget.FieldProps{
 										ID:    "erase-confirm",
 										Name:  "confirm",
 										Type:  "text",
@@ -554,7 +554,7 @@ templ Account(p layouts.Page, v *View) {
 									})
 								</div>
 								<div class="goen-account__actions">
-									@components.Button(components.ButtonProps{ButtonStyle: components.ButtonStyleOutline, Class: "goen-account__erase"}, "submit") {
+									@widget.Button(widget.ButtonProps{ButtonStyle: widget.ButtonStyleOutline, Class: "goen-account__erase"}, "submit") {
 										{ i18n.T(ctx, i18n.KeyEraseSubmit) }
 									}
 								</div>

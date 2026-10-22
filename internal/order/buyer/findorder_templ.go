@@ -12,9 +12,9 @@ import (
 	"fmt"
 
 	"github.com/koopa0/goen/internal/i18n"
-	"github.com/koopa0/goen/internal/ui/components"
 	"github.com/koopa0/goen/internal/ui/fieldrule"
 	"github.com/koopa0/goen/internal/ui/layouts"
+	"github.com/koopa0/goen/internal/ui/widget"
 )
 
 func FindOrder(p layouts.Page, v FindOrderView) templ.Component {
@@ -104,8 +104,8 @@ func FindOrder(p layouts.Page, v FindOrderView) templ.Component {
 					}
 					return nil
 				})
-				templ_7745c5c3_Err = components.Notice(components.NoticeProps{
-					Intent: components.IntentDanger,
+				templ_7745c5c3_Err = widget.Notice(widget.NoticeProps{
+					Intent: widget.IntentDanger,
 					ID:     "find-error",
 				}).Render(templ.WithChildren(ctx, templ_7745c5c3_Var5), templ_7745c5c3_Buffer)
 				if templ_7745c5c3_Err != nil {
@@ -156,11 +156,11 @@ func FindOrder(p layouts.Page, v FindOrderView) templ.Component {
 				}
 				return nil
 			})
-			templ_7745c5c3_Err = components.Label(components.LabelProps{For: "find-number"}).Render(templ.WithChildren(ctx, templ_7745c5c3_Var8), templ_7745c5c3_Buffer)
+			templ_7745c5c3_Err = widget.Label(widget.LabelProps{For: "find-number"}).Render(templ.WithChildren(ctx, templ_7745c5c3_Var8), templ_7745c5c3_Buffer)
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
-			templ_7745c5c3_Err = components.Input(components.FieldProps{
+			templ_7745c5c3_Err = widget.Input(widget.FieldProps{
 				ID:    "find-number",
 				Name:  "number",
 				Type:  "text",
@@ -214,11 +214,11 @@ func FindOrder(p layouts.Page, v FindOrderView) templ.Component {
 				}
 				return nil
 			})
-			templ_7745c5c3_Err = components.Label(components.LabelProps{For: "find-email"}).Render(templ.WithChildren(ctx, templ_7745c5c3_Var11), templ_7745c5c3_Buffer)
+			templ_7745c5c3_Err = widget.Label(widget.LabelProps{For: "find-email"}).Render(templ.WithChildren(ctx, templ_7745c5c3_Var11), templ_7745c5c3_Buffer)
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
-			templ_7745c5c3_Err = components.Input(components.FieldProps{
+			templ_7745c5c3_Err = widget.Input(widget.FieldProps{
 				ID:    "find-email",
 				Name:  "email",
 				Type:  "email",
@@ -258,9 +258,9 @@ func FindOrder(p layouts.Page, v FindOrderView) templ.Component {
 				}
 				return nil
 			})
-			templ_7745c5c3_Err = components.Button(components.ButtonProps{
-				ButtonStyle: components.ButtonStylePrimary,
-				Size:        components.SizeLarge,
+			templ_7745c5c3_Err = widget.Button(widget.ButtonProps{
+				ButtonStyle: widget.ButtonStylePrimary,
+				Size:        widget.SizeLarge,
 				Block:       true,
 			}, "submit").Render(templ.WithChildren(ctx, templ_7745c5c3_Var13), templ_7745c5c3_Buffer)
 			if templ_7745c5c3_Err != nil {

@@ -3,11 +3,11 @@ package products
 import (
 	"github.com/koopa0/goen/internal/i18n"
 	"github.com/koopa0/goen/internal/product/labelling"
-	"github.com/koopa0/goen/internal/ui/components"
+	"github.com/koopa0/goen/internal/ui/widget"
 )
 
 templ productLabel(v ProductView) {
-	@components.Card(components.CardProps{Class: "goen-admin__section", Attrs: templ.Attributes{"id": "sec-label"}}) {
+	@widget.Card(widget.CardProps{Class: "goen-admin__section", Attrs: templ.Attributes{"id": "sec-label"}}) {
 		<h2 class="goen-admin__heading">{ i18n.T(ctx,i18n.KeyProductLabel) }</h2>
 		<form class="goen-admin__form" method="post" action={ templ.URL(v.LabelAction()) }>
 			if v.HasErr("label") {
@@ -95,7 +95,7 @@ templ productLabel(v ProductView) {
 					<p class="ui-error-text" id="label-age-error">{ v.Err("min_age_months") }</p>
 				}
 			</div>
-			@components.Button(components.ButtonProps{ButtonStyle: components.ButtonStyleOutline}, "submit") {
+			@widget.Button(widget.ButtonProps{ButtonStyle: widget.ButtonStyleOutline}, "submit") {
 				{ i18n.T(ctx,i18n.KeyProductLabelSave) }
 			}
 		</form>

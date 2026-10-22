@@ -1,0 +1,16 @@
+package widget
+
+import "github.com/koopa0/goen/internal/i18n"
+
+// TechnicalDetail keeps a machine code (a provider status, a raw error) in a
+// closed "Technical details" disclosure under the plain explanation, so staff
+// read the explanation first and can still copy the code. An empty code
+// renders nothing.
+templ TechnicalDetail(raw string) {
+	if raw != "" {
+		<details class="goen-admin__rawdetail">
+			<summary>{ i18n.T(ctx, i18n.KeyAdminTechnicalDetails) }</summary>
+			<code>{ raw }</code>
+		</details>
+	}
+}

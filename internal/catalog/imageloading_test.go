@@ -5,7 +5,7 @@ import (
 	"testing"
 
 	"github.com/koopa0/goen/internal/i18n"
-	"github.com/koopa0/goen/internal/ui/components"
+	"github.com/koopa0/goen/internal/ui/widget"
 )
 
 func TestADepartmentPageDoesNotLazyLoadItsFirstScreen(t *testing.T) {
@@ -13,7 +13,7 @@ func TestADepartmentPageDoesNotLazyLoadItsFirstScreen(t *testing.T) {
 	ctx := i18n.WithLocale(t.Context(), i18n.ZhHant)
 	view := ListingView{
 		Slug: "tech", Name: "Tech", Products: tiledShelf(16), Total: 30, Page: 1, PageSize: 24,
-		Theme: &Theme{Photo: components.Photo{URL: "/img/tech.webp", Alt: "tech"}},
+		Theme: &Theme{Photo: widget.Photo{URL: "/img/tech.webp", Alt: "tech"}},
 	}
 	page := renderToString(t, Listing(ListingMeta(ctx, view), view, nil, nil))
 

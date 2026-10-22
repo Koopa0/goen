@@ -10,13 +10,13 @@ import (
 	"github.com/koopa0/goen/internal/i18n"
 	"github.com/koopa0/goen/internal/money"
 	"github.com/koopa0/goen/internal/shipping/postcode"
-	"github.com/koopa0/goen/internal/ui/components"
+	"github.com/koopa0/goen/internal/ui/widget"
 )
 
 type ShippingView struct {
 	Methods            []Method
 	Zones              []Zone
-	Notice             components.Result
+	Notice             widget.Result
 	Errors             map[string]string
 	MethodDraft        MethodDraft
 	ZoneDraft          ZoneDraft

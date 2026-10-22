@@ -5,8 +5,8 @@ import (
 	"github.com/koopa0/goen/internal/shipping"
 
 	"github.com/koopa0/goen/internal/i18n"
-	"github.com/koopa0/goen/internal/ui/components"
 	"github.com/koopa0/goen/internal/ui/layouts"
+	"github.com/koopa0/goen/internal/ui/widget"
 )
 
 // A fee is never edited in place: the form publishes a new VERSION, and the card says
@@ -28,19 +28,19 @@ templ Shipping(p layouts.Page, v ShippingView) {
 		@layouts.RefusalSummary(layouts.SummarizeRefusal(i18n.KeyAdminShipAddZone, v.Errors, layouts.RefusalField{Key: "zone_code", ID: "z-code"}, layouts.RefusalField{Key: "zone_name", ID: "z-name"}, layouts.RefusalField{Key: "prefixes", ID: "z-prefixes"}))
 		for _, m := range v.Methods {
 			{{ d := v.VersionValues(&m) }}
-			@components.Card(components.CardProps{Class: "goen-admin__section"}) {
+			@widget.Card(widget.CardProps{Class: "goen-admin__section"}) {
 				<h2 class="goen-admin__heading">
 					{ m.DisplayName(ctx) }
 					if other := m.OtherName(ctx); other != "" {
 						<span class="goen-admin__othername" lang={ otherTag(ctx) }>{ other }</span>
 					}
 					if m.NameEn == "" {
-						@components.Badge(components.BadgeProps{Intent: components.IntentWarn}) {
+						@widget.Badge(widget.BadgeProps{Intent: widget.IntentWarn}) {
 							{ i18n.T(ctx, i18n.KeyAdminUntranslated) }
 						}
 					}
 					if m.PickupUnavailable {
-						@components.Badge(components.BadgeProps{Intent: components.IntentWarn}) {
+						@widget.Badge(widget.BadgeProps{Intent: widget.IntentWarn}) {
 							{ i18n.T(ctx, i18n.KeyAdminShipPickupNotOffered) }
 						}
 					}
@@ -57,7 +57,7 @@ templ Shipping(p layouts.Page, v ShippingView) {
 					<input type="hidden" name="method" value={ m.MethodID }/>
 					<div class="goen-admin__fields">
 						<div class="goen-admin__field">
-							@components.Label(components.LabelProps{For: "name-" + m.MethodID}) {
+							@widget.Label(widget.LabelProps{For: "name-" + m.MethodID}) {
 								{ i18n.T(ctx, i18n.KeyAdminColName) }
 							}
 							<input
@@ -77,7 +77,7 @@ templ Shipping(p layouts.Page, v ShippingView) {
 							}
 						</div>
 						<div class="goen-admin__field">
-							@components.Label(components.LabelProps{For: "carrier-" + m.MethodID}) {
+							@widget.Label(widget.LabelProps{For: "carrier-" + m.MethodID}) {
 								{ i18n.T(ctx, i18n.KeyAdminShipCarrierOptional) }
 							}
 							<input
@@ -89,7 +89,7 @@ templ Shipping(p layouts.Page, v ShippingView) {
 							/>
 						</div>
 						<div class="goen-admin__field">
-							@components.Label(components.LabelProps{For: "name-en-" + m.MethodID}) {
+							@widget.Label(widget.LabelProps{For: "name-en-" + m.MethodID}) {
 								{ i18n.T(ctx, i18n.KeyAdminColNameEn) }
 							}
 							<input
@@ -101,7 +101,7 @@ templ Shipping(p layouts.Page, v ShippingView) {
 							/>
 						</div>
 						<div class="goen-admin__field">
-							@components.Label(components.LabelProps{For: "carrier-en-" + m.MethodID}) {
+							@widget.Label(widget.LabelProps{For: "carrier-en-" + m.MethodID}) {
 								{ i18n.T(ctx, i18n.KeyAdminShipCarrierEn) }
 							}
 							<input
@@ -113,14 +113,14 @@ templ Shipping(p layouts.Page, v ShippingView) {
 							/>
 						</div>
 						<div class="goen-admin__field">
-							@components.Label(components.LabelProps{For: "fee-" + m.MethodID}) {
+							@widget.Label(widget.LabelProps{For: "fee-" + m.MethodID}) {
 								{ i18n.T(ctx, i18n.KeyAdminShipFee) }
 							}
 							<input
 								class="goen-input"
 								id={ "fee-" + m.MethodID }
 								name="fee"
-								type={ components.DollarInputType(d.Fee) }
+								type={ widget.DollarInputType(d.Fee) }
 								min="0"
 								max={ v.FeeLimit() }
 								step="1"
@@ -137,14 +137,14 @@ templ Shipping(p layouts.Page, v ShippingView) {
 							}
 						</div>
 						<div class="goen-admin__field">
-							@components.Label(components.LabelProps{For: "free-" + m.MethodID}) {
+							@widget.Label(widget.LabelProps{For: "free-" + m.MethodID}) {
 								{ i18n.T(ctx, i18n.KeyAdminShipFreeOver) }
 							}
 							<input
 								class="goen-input"
 								id={ "free-" + m.MethodID }
 								name="free_over"
-								type={ components.DollarInputType(d.FreeOver) }
+								type={ widget.DollarInputType(d.FreeOver) }
 								min="0"
 								max={ v.FreeOverLimit() }
 								step="1"
@@ -163,8 +163,8 @@ templ Shipping(p layouts.Page, v ShippingView) {
 					if message := v.VersionRefusal(m.MethodID, "form"); message != "" {
 						<p class="ui-error-text" id={ "version-" + m.MethodID + "-error" } role="alert">{ message }</p>
 					}
-					@components.Button(components.ButtonProps{
-						ButtonStyle: components.ButtonStyleOutline,
+					@widget.Button(widget.ButtonProps{
+						ButtonStyle: widget.ButtonStyleOutline,
 						Class:       "goen-admin__submit",
 					}, "submit") {
 						{ i18n.T(ctx, i18n.KeyAdminShipPublish) }
@@ -173,17 +173,17 @@ templ Shipping(p layouts.Page, v ShippingView) {
 				<form method="post" action={ templ.SafeURL("/admin/shipping/method/" + m.MethodID + "/active") }>
 					if m.Active {
 						<input type="hidden" name="active" value="0"/>
-						@components.Button(components.ButtonProps{
-							ButtonStyle: components.ButtonStyleGhost,
-							Size:        components.SizeSmall,
+						@widget.Button(widget.ButtonProps{
+							ButtonStyle: widget.ButtonStyleGhost,
+							Size:        widget.SizeSmall,
 						}, "submit") {
 							{ i18n.T(ctx, i18n.KeyAdminShipDisable) }
 						}
 					} else {
 						<input type="hidden" name="active" value="1"/>
-						@components.Button(components.ButtonProps{
-							ButtonStyle: components.ButtonStyleOutline,
-							Size:        components.SizeSmall,
+						@widget.Button(widget.ButtonProps{
+							ButtonStyle: widget.ButtonStyleOutline,
+							Size:        widget.SizeSmall,
 						}, "submit") {
 							{ i18n.T(ctx, i18n.KeyAdminShipReenable) }
 						}
@@ -199,7 +199,7 @@ templ Shipping(p layouts.Page, v ShippingView) {
 							<form class="goen-admin__field" method="post" action="/admin/shipping/surcharge">
 								<input type="hidden" name="version" value={ m.VersionID }/>
 								<input type="hidden" name="zone" value={ z.ID }/>
-								@components.Label(components.LabelProps{For: "sur-" + m.VersionID + "-" + z.ID}) {
+								@widget.Label(widget.LabelProps{For: "sur-" + m.VersionID + "-" + z.ID}) {
 									{ z.DisplayName(ctx) }
 									<span class="goen-admin__meta">{ i18n.Count(ctx, i18n.KeyAdminShipPrefixCount, z.PrefixCount, z.PrefixCount) }</span>
 								}
@@ -208,7 +208,7 @@ templ Shipping(p layouts.Page, v ShippingView) {
 										class="goen-input goen-admin__surcharge"
 										id={ "sur-" + m.VersionID + "-" + z.ID }
 										name="amount"
-										type={ components.DollarInputType(v.SurchargeValue(&m, z.ID)) }
+										type={ widget.DollarInputType(v.SurchargeValue(&m, z.ID)) }
 										min="0"
 										max={ v.FeeLimit() }
 										step="1"
@@ -222,9 +222,9 @@ templ Shipping(p layouts.Page, v ShippingView) {
 									if message := v.SurchargeRefusal(m.MethodID, z.ID); message != "" {
 										<p class="ui-error-text" id={ "sur-" + m.VersionID + "-" + z.ID + "-error" }>{ message }</p>
 									}
-									@components.Button(components.ButtonProps{
-										ButtonStyle: components.ButtonStyleOutline,
-										Size:        components.SizeSmall,
+									@widget.Button(widget.ButtonProps{
+										ButtonStyle: widget.ButtonStyleOutline,
+										Size:        widget.SizeSmall,
 									}, "submit") {
 										{ i18n.T(ctx, i18n.KeyAdminShipSet) }
 									}
@@ -239,12 +239,12 @@ templ Shipping(p layouts.Page, v ShippingView) {
 				}
 			}
 		}
-		@components.Card(components.CardProps{Class: "goen-admin__section"}) {
+		@widget.Card(widget.CardProps{Class: "goen-admin__section"}) {
 			<h2 class="goen-admin__heading">{ i18n.T(ctx, i18n.KeyAdminShipAddMethod) }</h2>
 			<form class="goen-admin__form" id="new-method" method="post" action="/admin/shipping/method#new-method">
 				<div class="goen-admin__fields">
 					<div class="goen-admin__field">
-						@components.Label(components.LabelProps{For: "m-code"}) {
+						@widget.Label(widget.LabelProps{For: "m-code"}) {
 							{ i18n.T(ctx, i18n.KeyAdminColCode) }
 						}
 						<input
@@ -269,7 +269,7 @@ templ Shipping(p layouts.Page, v ShippingView) {
 						</div>
 					</div>
 					<div class="goen-admin__field">
-						@components.Label(components.LabelProps{For: "m-destination"}) {
+						@widget.Label(widget.LabelProps{For: "m-destination"}) {
 							{ i18n.T(ctx, i18n.KeyAdminShipDestination) }
 						}
 						<select
@@ -293,7 +293,7 @@ templ Shipping(p layouts.Page, v ShippingView) {
 						</p>
 					</div>
 					<div class="goen-admin__field">
-						@components.Label(components.LabelProps{For: "m-max-longest"}) {
+						@widget.Label(widget.LabelProps{For: "m-max-longest"}) {
 							{ i18n.T(ctx, i18n.KeyAdminShipMaxLongest) }
 						}
 						// Blank is no stated limit; store pickup is 450mm / 1050mm / 10000g (Hi-Life 5000g).
@@ -314,7 +314,7 @@ templ Shipping(p layouts.Page, v ShippingView) {
 						}
 					</div>
 					<div class="goen-admin__field">
-						@components.Label(components.LabelProps{For: "m-max-sum"}) {
+						@widget.Label(widget.LabelProps{For: "m-max-sum"}) {
 							{ i18n.T(ctx, i18n.KeyAdminShipMaxSum) }
 						}
 						<input
@@ -334,7 +334,7 @@ templ Shipping(p layouts.Page, v ShippingView) {
 						}
 					</div>
 					<div class="goen-admin__field">
-						@components.Label(components.LabelProps{For: "m-max-weight"}) {
+						@widget.Label(widget.LabelProps{For: "m-max-weight"}) {
 							{ i18n.T(ctx, i18n.KeyAdminShipMaxWeight) }
 						}
 						<input
@@ -357,7 +357,7 @@ templ Shipping(p layouts.Page, v ShippingView) {
 						</p>
 					</div>
 					<div class="goen-admin__field">
-						@components.Label(components.LabelProps{For: "m-name"}) {
+						@widget.Label(widget.LabelProps{For: "m-name"}) {
 							{ i18n.T(ctx, i18n.KeyAdminColName) }
 						}
 						<input
@@ -377,32 +377,32 @@ templ Shipping(p layouts.Page, v ShippingView) {
 						}
 					</div>
 					<div class="goen-admin__field">
-						@components.Label(components.LabelProps{For: "m-name-en"}) {
+						@widget.Label(widget.LabelProps{For: "m-name-en"}) {
 							{ i18n.T(ctx, i18n.KeyAdminColNameEn) }
 						}
 						<input class="goen-input" id="m-name-en" name="name_en" maxlength="60" value={ v.MethodDraft.NameEn }/>
 					</div>
 					<div class="goen-admin__field">
-						@components.Label(components.LabelProps{For: "m-carrier"}) {
+						@widget.Label(widget.LabelProps{For: "m-carrier"}) {
 							{ i18n.T(ctx, i18n.KeyAdminColCarrier) }
 						}
 						<input class="goen-input" id="m-carrier" name="carrier" maxlength="60" value={ v.MethodDraft.Carrier }/>
 					</div>
 					<div class="goen-admin__field">
-						@components.Label(components.LabelProps{For: "m-carrier-en"}) {
+						@widget.Label(widget.LabelProps{For: "m-carrier-en"}) {
 							{ i18n.T(ctx, i18n.KeyAdminShipCarrierEn) }
 						}
 						<input class="goen-input" id="m-carrier-en" name="carrier_en" maxlength="60" value={ v.MethodDraft.CarrierEn }/>
 					</div>
 					<div class="goen-admin__field">
-						@components.Label(components.LabelProps{For: "m-fee"}) {
+						@widget.Label(widget.LabelProps{For: "m-fee"}) {
 							{ i18n.T(ctx, i18n.KeyAdminShipFee) }
 						}
 						<input
 							class="goen-input"
 							id="m-fee"
 							name="fee"
-							type={ components.DollarInputType(v.MethodDraft.Fee) }
+							type={ widget.DollarInputType(v.MethodDraft.Fee) }
 							min="0"
 							step="1"
 							required
@@ -418,14 +418,14 @@ templ Shipping(p layouts.Page, v ShippingView) {
 						}
 					</div>
 					<div class="goen-admin__field">
-						@components.Label(components.LabelProps{For: "m-free"}) {
+						@widget.Label(widget.LabelProps{For: "m-free"}) {
 							{ i18n.T(ctx, i18n.KeyAdminShipFreeOver) }
 						}
 						<input
 							class="goen-input"
 							id="m-free"
 							name="free_over"
-							type={ components.DollarInputType(v.MethodDraft.FreeOver) }
+							type={ widget.DollarInputType(v.MethodDraft.FreeOver) }
 							min="0"
 							step="1"
 							inputmode="numeric"
@@ -443,15 +443,15 @@ templ Shipping(p layouts.Page, v ShippingView) {
 				<p class="goen-admin__hint">
 					{ i18n.T(ctx, i18n.KeyAdminShipFirstVersion) }
 				</p>
-				@components.Button(components.ButtonProps{
-					ButtonStyle: components.ButtonStylePrimary,
+				@widget.Button(widget.ButtonProps{
+					ButtonStyle: widget.ButtonStylePrimary,
 					Class:       "goen-admin__submit",
 				}, "submit") {
 					{ i18n.T(ctx, i18n.KeyAdminShipAddMethod) }
 				}
 			</form>
 		}
-		@components.Card(components.CardProps{Class: "goen-admin__section"}) {
+		@widget.Card(widget.CardProps{Class: "goen-admin__section"}) {
 			<h2 class="goen-admin__heading" id="shipping-zones-heading">{ i18n.T(ctx, i18n.KeyAdminShipZones) }</h2>
 			<div class="goen-admin__tablewrap">
 				<table class="ui-table goen-admin__table goen-admin__zones" role="table" aria-labelledby="shipping-zones-heading">
@@ -474,7 +474,7 @@ templ Shipping(p layouts.Page, v ShippingView) {
 									}
 									<span class="goen-admin__meta">{ z.Code }</span>
 									if z.NameEn == "" {
-										@components.Badge(components.BadgeProps{Intent: components.IntentWarn}) {
+										@widget.Badge(widget.BadgeProps{Intent: widget.IntentWarn}) {
 											{ i18n.T(ctx, i18n.KeyAdminUntranslated) }
 										}
 									}
@@ -493,9 +493,9 @@ templ Shipping(p layouts.Page, v ShippingView) {
 											}
 										>{ zonePrefixTextareaText(v.ZonePrefixesValue(z)) }</textarea>
 										@zonePrefixDistricts(v.ZonePrefixesValue(z))
-										@components.Button(components.ButtonProps{
-											ButtonStyle: components.ButtonStyleOutline,
-											Size:        components.SizeSmall,
+										@widget.Button(widget.ButtonProps{
+											ButtonStyle: widget.ButtonStyleOutline,
+											Size:        widget.SizeSmall,
 										}, "submit") {
 											{ i18n.T(ctx, i18n.KeyAdminShipSet) }
 										}
@@ -506,9 +506,9 @@ templ Shipping(p layouts.Page, v ShippingView) {
 								</td>
 								<td role="cell" class="goen-admin__cellactions">
 									<form method="post" action={ templ.SafeURL("/admin/shipping/zone/" + z.ID + "/delete") }>
-										@components.Button(components.ButtonProps{
-											ButtonStyle: components.ButtonStyleGhost,
-											Size:        components.SizeSmall,
+										@widget.Button(widget.ButtonProps{
+											ButtonStyle: widget.ButtonStyleGhost,
+											Size:        widget.SizeSmall,
 										}, "submit") {
 											{ i18n.T(ctx, i18n.KeyAdminDelete) }
 										}
@@ -523,7 +523,7 @@ templ Shipping(p layouts.Page, v ShippingView) {
 				<h3 class="goen-admin__subhead">{ i18n.T(ctx, i18n.KeyAdminShipAddZone) }</h3>
 				<div class="goen-admin__fields">
 					<div class="goen-admin__field">
-						@components.Label(components.LabelProps{For: "z-code"}) {
+						@widget.Label(widget.LabelProps{For: "z-code"}) {
 							{ i18n.T(ctx, i18n.KeyAdminColCode) }
 						}
 						<input
@@ -545,7 +545,7 @@ templ Shipping(p layouts.Page, v ShippingView) {
 						<p class="goen-admin__hint">{ fmt.Sprintf(i18n.T(ctx, i18n.KeyAdminExample), "mountain") }</p>
 					</div>
 					<div class="goen-admin__field">
-						@components.Label(components.LabelProps{For: "z-name"}) {
+						@widget.Label(widget.LabelProps{For: "z-name"}) {
 							{ i18n.T(ctx, i18n.KeyAdminColName) }
 						}
 						<input
@@ -565,7 +565,7 @@ templ Shipping(p layouts.Page, v ShippingView) {
 						}
 					</div>
 					<div class="goen-admin__field">
-						@components.Label(components.LabelProps{For: "z-name-en"}) {
+						@widget.Label(widget.LabelProps{For: "z-name-en"}) {
 							{ i18n.T(ctx, i18n.KeyAdminColNameEn) }
 						}
 						<input class="goen-input" id="z-name-en" name="name_en" maxlength="60" value={ v.ZoneDraft.NameEn }/>
@@ -573,7 +573,7 @@ templ Shipping(p layouts.Page, v ShippingView) {
 					</div>
 				</div>
 				<div class="goen-admin__field">
-					@components.Label(components.LabelProps{For: "z-prefixes"}) {
+					@widget.Label(widget.LabelProps{For: "z-prefixes"}) {
 						{ i18n.T(ctx, i18n.KeyAdminShipPrefixes) }
 					}
 					<textarea
@@ -596,8 +596,8 @@ templ Shipping(p layouts.Page, v ShippingView) {
 					</p>
 					<p class="goen-admin__hint">{ fmt.Sprintf(i18n.T(ctx, i18n.KeyAdminExample), "313 546 556") }</p>
 				</div>
-				@components.Button(components.ButtonProps{
-					ButtonStyle: components.ButtonStyleOutline,
+				@widget.Button(widget.ButtonProps{
+					ButtonStyle: widget.ButtonStyleOutline,
 					Class:       "goen-admin__submit",
 				}, "submit") {
 					{ i18n.T(ctx, i18n.KeyAdminShipAddZone) }

@@ -13,8 +13,8 @@ import (
 	"strconv"
 
 	"github.com/koopa0/goen/internal/i18n"
-	"github.com/koopa0/goen/internal/ui/components"
 	"github.com/koopa0/goen/internal/ui/icons"
+	"github.com/koopa0/goen/internal/ui/widget"
 )
 
 // ui-navitem and ui-btn are not leftovers: two assertions in backoffice_test.go
@@ -315,7 +315,7 @@ func Header(p Page) templ.Component {
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
-		templ_7745c5c3_Err = components.Input(components.FieldProps{
+		templ_7745c5c3_Err = widget.Input(widget.FieldProps{
 			ID:    "site-search",
 			Name:  "q",
 			Type:  "search",
@@ -371,8 +371,8 @@ func Header(p Page) templ.Component {
 			}
 			return nil
 		})
-		templ_7745c5c3_Err = components.ButtonLink(components.ButtonProps{
-			ButtonStyle: components.ButtonStyleGhost,
+		templ_7745c5c3_Err = widget.ButtonLink(widget.ButtonProps{
+			ButtonStyle: widget.ButtonStyleGhost,
 			Icon:        true,
 			Attrs:       templ.Attributes{"aria-label": i18n.T(ctx, i18n.KeyAccount)},
 		}, templ.SafeURL("/account")).Render(templ.WithChildren(ctx, templ_7745c5c3_Var17), templ_7745c5c3_Buffer)
@@ -882,8 +882,8 @@ func cartLink() templ.Component {
 			}
 			return nil
 		})
-		templ_7745c5c3_Err = components.ButtonLink(components.ButtonProps{
-			ButtonStyle: components.ButtonStyleGhost,
+		templ_7745c5c3_Err = widget.ButtonLink(widget.ButtonProps{
+			ButtonStyle: widget.ButtonStyleGhost,
 			Icon:        true,
 			Class:       "goen-header__cart",
 			Attrs: templ.Attributes{

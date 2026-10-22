@@ -11,9 +11,9 @@ import templruntime "github.com/a-h/templ/runtime"
 import (
 	"github.com/koopa0/goen/assets"
 	"github.com/koopa0/goen/internal/i18n"
-	"github.com/koopa0/goen/internal/ui/components"
 	"github.com/koopa0/goen/internal/ui/layouts"
 	"github.com/koopa0/goen/internal/ui/tile"
+	"github.com/koopa0/goen/internal/ui/widget"
 )
 
 func Page(p layouts.Page, v View) templ.Component {
@@ -138,12 +138,12 @@ func Page(p layouts.Page, v View) templ.Component {
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
-			templ_7745c5c3_Err = components.StatLine(v.Schedule.Facts, components.StatLinePlain).Render(ctx, templ_7745c5c3_Buffer)
+			templ_7745c5c3_Err = widget.StatLine(v.Schedule.Facts, widget.StatLinePlain).Render(ctx, templ_7745c5c3_Buffer)
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
 			if v.Schedule.HasPeriod {
-				templ_7745c5c3_Err = components.Period(v.Schedule.Period).Render(ctx, templ_7745c5c3_Buffer)
+				templ_7745c5c3_Err = widget.Period(v.Schedule.Period).Render(ctx, templ_7745c5c3_Buffer)
 				if templ_7745c5c3_Err != nil {
 					return templ_7745c5c3_Err
 				}
@@ -157,7 +157,7 @@ func Page(p layouts.Page, v View) templ.Component {
 				if templ_7745c5c3_Err != nil {
 					return templ_7745c5c3_Err
 				}
-				templ_7745c5c3_Err = components.EmptyArt(assets.EmptyCampaignImage).Render(ctx, templ_7745c5c3_Buffer)
+				templ_7745c5c3_Err = widget.EmptyArt(assets.EmptyCampaignImage).Render(ctx, templ_7745c5c3_Buffer)
 				if templ_7745c5c3_Err != nil {
 					return templ_7745c5c3_Err
 				}

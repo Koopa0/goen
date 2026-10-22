@@ -20,8 +20,8 @@ import (
 	"github.com/koopa0/goen/internal/keyset"
 	"github.com/koopa0/goen/internal/order"
 	"github.com/koopa0/goen/internal/payment"
-	"github.com/koopa0/goen/internal/ui/components"
 	"github.com/koopa0/goen/internal/ui/layouts"
+	"github.com/koopa0/goen/internal/ui/widget"
 	"github.com/koopa0/goen/internal/web/formtext"
 	"github.com/koopa0/goen/internal/web/respond"
 )
@@ -63,7 +63,7 @@ func (h *Handler) List(w http.ResponseWriter, r *http.Request) {
 		access.ServerError(w, r, h.log)
 		return
 	}
-	view.Notice = components.NoticeFrom(r, notices)
+	view.Notice = widget.NoticeFrom(r, notices)
 	respond.Component(w, r, h.log, http.StatusOK, Orders(OrdersMeta(r.Context()), view))
 }
 
@@ -81,7 +81,7 @@ func (h *Handler) Order(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	logUnrecognized(r.Context(), h.log, view.Number, view.Timeline)
-	view.Notice = components.NoticeFrom(r, notices)
+	view.Notice = widget.NoticeFrom(r, notices)
 	view.AllowanceOperationID = uuid.NewString()
 	respond.Component(w, r, h.log, http.StatusOK,
 		Order(layouts.Page{Title: fmt.Sprintf(i18n.T(r.Context(), i18n.KeyAdminPageOrder), view.Number)}, &view))
@@ -204,7 +204,7 @@ func (h *Handler) rejectShip(w http.ResponseWriter, r *http.Request, refusal *sh
 		if refusal.notice == i18n.KeyAdminDispatchRefused {
 			text = fmt.Sprintf(text, shipping.Carrier(view.ShipCarrier).Name(r.Context()), view.ShipTracking)
 		}
-		view.Notice = components.Result{Outcome: components.OutcomeRefused, Text: text}
+		view.Notice = widget.Result{Outcome: widget.OutcomeRefused, Text: text}
 	}
 	view.ShipQty = map[string]string{}
 	for i := range view.Shippable {
@@ -272,53 +272,53 @@ func (h *Handler) StaffNote(w http.ResponseWriter, r *http.Request) {
 	http.Redirect(w, r, "/admin/orders/"+number+"?ok=1", http.StatusSeeOther) //nolint:gosec // G710: validated by order.ValidNumber
 }
 
-var notices = map[string]components.NoticeEntry{
-	"ok":              components.NoticeDone(i18n.KeyAdminNoticeOK),
-	"refused":         components.NoticeRefused(i18n.KeyAdminNoticeRefused),
-	"shipped":         components.NoticeDone(i18n.KeyAdminNoticeShipped),
-	"parceldelivered": components.NoticeDone(i18n.KeyAdminNoticeShipmentDelivered),
-	"toolate":         components.NoticeRefused(i18n.KeyAdminNoticeTooLate),
-	"deliveryneeds":   components.NoticeRefused(i18n.KeyAdminNoticeDeliveryNeeds),
-	"paidcancel":      components.NoticeRefused(i18n.KeyAdminNoticePaidCancel),
-	"refunded":        components.NoticeDone(i18n.KeyAdminNoticeRefunded),
-	"refundpending":   components.NoticeFailed(i18n.KeyAdminNoticeRefundPending),
-	"cancelinvoice":   components.NoticeFailed(i18n.KeyAdminNoticeCancelInvoice),
-	"refundretry":     components.NoticeFailed(i18n.KeyAdminNoticeRefundRetry),
-	"cancelretry":     components.NoticeFailed(i18n.KeyAdminNoticeCancelRetry),
-	"refundshipped":   components.NoticeRefused(i18n.KeyAdminNoticeRefundShipped),
-	"refundhasreturn": components.NoticeRefused(i18n.KeyAdminNoticeRefundHasReturn),
-	"refundcancelled": components.NoticeRefused(i18n.KeyAdminNoticeRefundCancelled),
-	"refundunpaid":    components.NoticeRefused(i18n.KeyAdminNoticeRefundUnpaid),
-	"refundchanged":   components.NoticeRefused(i18n.KeyAdminNoticeRefundChanged),
-	"refundpicking":   components.NoticeRefused(i18n.KeyAdminNoticeRefundPicking),
-	"refundreason":    components.NoticeRefused(i18n.KeyAdminRefundErrReason),
-	"refundmismatch":  components.NoticeFailed(i18n.KeyAdminNoticeRefundMismatch),
-	"refundunsure":    components.NoticeFailed(i18n.KeyAdminNoticeRefundUnsure),
-	"unfunded":        components.NoticeRefused(i18n.KeyAdminNoticeUnfunded),
-	"owesparcel":      components.NoticeRefused(i18n.KeyAdminNoticeOwesParcel),
-	"invoiced":        components.NoticeDone(i18n.KeyAdminNoticeInvoiced),
-	"voided":          components.NoticeDone(i18n.KeyAdminNoticeVoided),
-	"hasinvoice":      components.NoticeRefused(i18n.KeyAdminNoticeHasInvoice),
-	"noinvoice":       components.NoticeRefused(i18n.KeyAdminNoticeNoInvoice),
-	"invoicefailed":   components.NoticeFailed(i18n.KeyAdminNoticeInvoiceFailed),
-	"invoicingoff":    components.NoticeRefused(i18n.KeyAdminNoticeInvoicingOff),
-	"invoicepending":  components.NoticeFailed(i18n.KeyAdminNoticeInvoicePending),
-	"allowed":         components.NoticeDone(i18n.KeyAdminNoticeAllowed),
-	"allowsent":       components.NoticeDone(i18n.KeyAdminNoticeAllowSent),
-	"allowtoomuch":    components.NoticeRefused(i18n.KeyAdminNoticeAllowTooMuch),
-	"allowclaimed":    components.NoticeRefused(i18n.KeyAdminNoticeAllowClaimed),
-	"voidreason":      components.NoticeRefused(i18n.KeyAdminNoticeVoidReason),
-	"voidfailed":      components.NoticeFailed(i18n.KeyAdminNoticeVoidFailed),
-	"allowfailed":     components.NoticeFailed(i18n.KeyAdminNoticeAllowFailed),
+var notices = map[string]widget.NoticeEntry{
+	"ok":              widget.NoticeDone(i18n.KeyAdminNoticeOK),
+	"refused":         widget.NoticeRefused(i18n.KeyAdminNoticeRefused),
+	"shipped":         widget.NoticeDone(i18n.KeyAdminNoticeShipped),
+	"parceldelivered": widget.NoticeDone(i18n.KeyAdminNoticeShipmentDelivered),
+	"toolate":         widget.NoticeRefused(i18n.KeyAdminNoticeTooLate),
+	"deliveryneeds":   widget.NoticeRefused(i18n.KeyAdminNoticeDeliveryNeeds),
+	"paidcancel":      widget.NoticeRefused(i18n.KeyAdminNoticePaidCancel),
+	"refunded":        widget.NoticeDone(i18n.KeyAdminNoticeRefunded),
+	"refundpending":   widget.NoticeFailed(i18n.KeyAdminNoticeRefundPending),
+	"cancelinvoice":   widget.NoticeFailed(i18n.KeyAdminNoticeCancelInvoice),
+	"refundretry":     widget.NoticeFailed(i18n.KeyAdminNoticeRefundRetry),
+	"cancelretry":     widget.NoticeFailed(i18n.KeyAdminNoticeCancelRetry),
+	"refundshipped":   widget.NoticeRefused(i18n.KeyAdminNoticeRefundShipped),
+	"refundhasreturn": widget.NoticeRefused(i18n.KeyAdminNoticeRefundHasReturn),
+	"refundcancelled": widget.NoticeRefused(i18n.KeyAdminNoticeRefundCancelled),
+	"refundunpaid":    widget.NoticeRefused(i18n.KeyAdminNoticeRefundUnpaid),
+	"refundchanged":   widget.NoticeRefused(i18n.KeyAdminNoticeRefundChanged),
+	"refundpicking":   widget.NoticeRefused(i18n.KeyAdminNoticeRefundPicking),
+	"refundreason":    widget.NoticeRefused(i18n.KeyAdminRefundErrReason),
+	"refundmismatch":  widget.NoticeFailed(i18n.KeyAdminNoticeRefundMismatch),
+	"refundunsure":    widget.NoticeFailed(i18n.KeyAdminNoticeRefundUnsure),
+	"unfunded":        widget.NoticeRefused(i18n.KeyAdminNoticeUnfunded),
+	"owesparcel":      widget.NoticeRefused(i18n.KeyAdminNoticeOwesParcel),
+	"invoiced":        widget.NoticeDone(i18n.KeyAdminNoticeInvoiced),
+	"voided":          widget.NoticeDone(i18n.KeyAdminNoticeVoided),
+	"hasinvoice":      widget.NoticeRefused(i18n.KeyAdminNoticeHasInvoice),
+	"noinvoice":       widget.NoticeRefused(i18n.KeyAdminNoticeNoInvoice),
+	"invoicefailed":   widget.NoticeFailed(i18n.KeyAdminNoticeInvoiceFailed),
+	"invoicingoff":    widget.NoticeRefused(i18n.KeyAdminNoticeInvoicingOff),
+	"invoicepending":  widget.NoticeFailed(i18n.KeyAdminNoticeInvoicePending),
+	"allowed":         widget.NoticeDone(i18n.KeyAdminNoticeAllowed),
+	"allowsent":       widget.NoticeDone(i18n.KeyAdminNoticeAllowSent),
+	"allowtoomuch":    widget.NoticeRefused(i18n.KeyAdminNoticeAllowTooMuch),
+	"allowclaimed":    widget.NoticeRefused(i18n.KeyAdminNoticeAllowClaimed),
+	"voidreason":      widget.NoticeRefused(i18n.KeyAdminNoticeVoidReason),
+	"voidfailed":      widget.NoticeFailed(i18n.KeyAdminNoticeVoidFailed),
+	"allowfailed":     widget.NoticeFailed(i18n.KeyAdminNoticeAllowFailed),
 
-	"unsentrefunded":   components.NoticeDone(i18n.KeyAdminNoticeUnsentRefunded),
-	"unsentallowance":  components.NoticeFailed(i18n.KeyAdminNoticeUnsentAllowance),
-	"unsentdiffers":    components.NoticeRefused(i18n.KeyAdminNoticeUnsentDiffers),
-	"unsentbounds":     components.NoticeRefused(i18n.KeyAdminNoticeUnsentBounds),
-	"unsentreason":     components.NoticeRefused(i18n.KeyAdminNoticeUnsentReason),
-	"unsentineligible": components.NoticeRefused(i18n.KeyAdminNoticeUnsentIneligible),
-	"unsentundecided":  components.NoticeRefused(i18n.KeyAdminNoticeUnsentUndecided),
-	"unsenthold":       components.NoticeFailed(i18n.KeyAdminNoticeUnsentHold),
+	"unsentrefunded":   widget.NoticeDone(i18n.KeyAdminNoticeUnsentRefunded),
+	"unsentallowance":  widget.NoticeFailed(i18n.KeyAdminNoticeUnsentAllowance),
+	"unsentdiffers":    widget.NoticeRefused(i18n.KeyAdminNoticeUnsentDiffers),
+	"unsentbounds":     widget.NoticeRefused(i18n.KeyAdminNoticeUnsentBounds),
+	"unsentreason":     widget.NoticeRefused(i18n.KeyAdminNoticeUnsentReason),
+	"unsentineligible": widget.NoticeRefused(i18n.KeyAdminNoticeUnsentIneligible),
+	"unsentundecided":  widget.NoticeRefused(i18n.KeyAdminNoticeUnsentUndecided),
+	"unsenthold":       widget.NoticeFailed(i18n.KeyAdminNoticeUnsentHold),
 }
 
 func (h *Handler) CorrectDelivery(w http.ResponseWriter, r *http.Request) {
@@ -395,7 +395,7 @@ func applyDeliveryRefusals(ctx context.Context, view *OrderView, d *DeliveryCorr
 			shown = view.PickupDestination
 		}
 		if !shown && view.Notice.Text == "" {
-			view.Notice = components.Result{Outcome: components.OutcomeRefused, Text: view.DeliveryErrors[field]}
+			view.Notice = widget.Result{Outcome: widget.OutcomeRefused, Text: view.DeliveryErrors[field]}
 		}
 	}
 }

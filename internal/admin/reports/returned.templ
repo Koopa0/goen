@@ -3,7 +3,7 @@ package reports
 import (
 	"github.com/koopa0/goen/internal/i18n"
 	"github.com/koopa0/goen/internal/ui/chart"
-	"github.com/koopa0/goen/internal/ui/components"
+	"github.com/koopa0/goen/internal/ui/widget"
 )
 
 // A product with no returned units is not listed, so an empty list draws
@@ -20,7 +20,7 @@ templ returnedProducts(v *ReportView) {
 		} else {
 			<ul class="goen-report__rows goen-report__rows--returned" role="list">
 				for _, item := range v.Returned {
-					@components.ReportRow(item.Name, item.Href(), item.Brand) {
+					@widget.ReportRow(item.Name, item.Href(), item.Brand) {
 						<div class="goen-report__plot">
 							<p class="goen-report__state">
 								<span class="goen-report__figtext">{ item.Figure(ctx) }</span>

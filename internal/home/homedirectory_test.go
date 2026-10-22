@@ -6,9 +6,9 @@ import (
 	"testing"
 
 	"github.com/koopa0/goen/internal/i18n"
-	"github.com/koopa0/goen/internal/ui/components"
 	"github.com/koopa0/goen/internal/ui/layouts"
 	"github.com/koopa0/goen/internal/ui/tone"
+	"github.com/koopa0/goen/internal/ui/widget"
 )
 
 func departmentsOf(n int) []Category {
@@ -112,9 +112,9 @@ func campaignRow(firstPhotoWidth int32, tiles int) ProductRow {
 		Title: "秋日選物", Href: "/s/autumn", Tiles: shelf,
 		Campaign: &RowCampaign{
 			Tone: tone.Sage, Items: 6,
-			Facts:     []components.Stat{{Label: "商品", Value: components.StatCount(6, "件")}},
-			CardFacts: []components.Stat{{Label: "結束", Value: components.StatCount(3, "天")}},
-			Period:    &components.PeriodSpec{Cells: []components.PeriodCell{{}, {}}, Description: "兩天"},
+			Facts:     []widget.Stat{{Label: "商品", Value: widget.StatCount(6, "件")}},
+			CardFacts: []widget.Stat{{Label: "結束", Value: widget.StatCount(3, "天")}},
+			Period:    &widget.PeriodSpec{Cells: []widget.PeriodCell{{}, {}}, Description: "兩天"},
 		},
 	}
 }

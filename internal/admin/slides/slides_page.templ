@@ -4,8 +4,8 @@ import (
 	"fmt"
 
 	"github.com/koopa0/goen/internal/i18n"
-	"github.com/koopa0/goen/internal/ui/components"
 	"github.com/koopa0/goen/internal/ui/layouts"
+	"github.com/koopa0/goen/internal/ui/widget"
 )
 
 templ Slides(p layouts.Page, v *HeroView) {
@@ -49,7 +49,7 @@ templ Slides(p layouts.Page, v *HeroView) {
 				action="/admin/slides#new-hero"
 				enctype="multipart/form-data"
 			>
-				@components.LangSwitch("hero_lang", false)
+				@widget.LangSwitch("hero_lang", false)
 				<div class="goen-admin__langgroup" data-lang="zh">
 					<div class="ui-field">
 						<label class="ui-label" for="h-headline">{ i18n.T(ctx, i18n.KeyAdminHomeHeadline) }</label>
@@ -237,7 +237,7 @@ templ Slides(p layouts.Page, v *HeroView) {
 						<p class="ui-error-text" id="h-days-error">{ v.Err("days") }</p>
 					}
 				</div>
-				@components.Button(components.ButtonProps{ButtonStyle: components.ButtonStylePrimary}, "submit") {
+				@widget.Button(widget.ButtonProps{ButtonStyle: widget.ButtonStylePrimary}, "submit") {
 					{ i18n.T(ctx, i18n.KeyAdminHomeAdd) }
 				}
 			</form>
@@ -279,7 +279,7 @@ templ Slides(p layouts.Page, v *HeroView) {
 						}
 					</ul>
 				}
-				@components.ListPager(v.Bound, "hero-history")
+				@widget.ListPager(v.Bound, "hero-history")
 			</aside>
 		</div>
 	}

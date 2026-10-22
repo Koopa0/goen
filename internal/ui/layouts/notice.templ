@@ -2,7 +2,7 @@ package layouts
 
 import (
 	"github.com/koopa0/goen/internal/i18n"
-	"github.com/koopa0/goen/internal/ui/components"
+	"github.com/koopa0/goen/internal/ui/widget"
 	"github.com/koopa0/goen/internal/user"
 )
 
@@ -16,11 +16,11 @@ templ Notice(p Page, code, heading, body string, next ...NoticeActions) {
 			<h1 class="notice__title">{ heading }</h1>
 			<p class="notice__body">{ body }</p>
 			<div class="notice__actions">
-				@components.ButtonLink(components.ButtonProps{ButtonStyle: components.ButtonStylePrimary, Size: components.SizeLarge}, templ.URL(actions.Primary.Href)) {
+				@widget.ButtonLink(widget.ButtonProps{ButtonStyle: widget.ButtonStylePrimary, Size: widget.SizeLarge}, templ.URL(actions.Primary.Href)) {
 					{ i18n.T(ctx, actions.Primary.Label) }
 				}
 				if actions.Secondary.Href != "" {
-					@components.ButtonLink(components.ButtonProps{ButtonStyle: components.ButtonStyleOutline, Size: components.SizeLarge}, templ.URL(actions.Secondary.Href)) {
+					@widget.ButtonLink(widget.ButtonProps{ButtonStyle: widget.ButtonStyleOutline, Size: widget.SizeLarge}, templ.URL(actions.Secondary.Href)) {
 						{ i18n.T(ctx, actions.Secondary.Label) }
 					}
 				}

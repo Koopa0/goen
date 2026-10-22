@@ -10,7 +10,7 @@ import (
 
 	"github.com/koopa0/goen/assets"
 	"github.com/koopa0/goen/internal/i18n"
-	"github.com/koopa0/goen/internal/ui/components"
+	"github.com/koopa0/goen/internal/ui/widget"
 )
 
 func TestCartDeliveryAvailabilityKeepsTheCheckoutDraftEligible(t *testing.T) {
@@ -371,7 +371,7 @@ func TestTheEnglishItemCountIsTheBareNumber(t *testing.T) {
 	ctx := i18n.WithLocale(t.Context(), i18n.En)
 	var b strings.Builder
 	facts := View{ItemCount: 2, SubtotalCents: 200}.Facts(ctx)
-	if err := components.StatLine(facts, components.StatLinePlain).Render(ctx, &b); err != nil {
+	if err := widget.StatLine(facts, widget.StatLinePlain).Render(ctx, &b); err != nil {
 		t.Fatalf("render: %v", err)
 	}
 	html := b.String()

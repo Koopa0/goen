@@ -13,8 +13,8 @@ import (
 	"github.com/koopa0/goen/internal/admin/access"
 	"github.com/koopa0/goen/internal/i18n"
 	"github.com/koopa0/goen/internal/outbox"
-	"github.com/koopa0/goen/internal/ui/components"
 	"github.com/koopa0/goen/internal/ui/layouts"
+	"github.com/koopa0/goen/internal/ui/widget"
 	"github.com/koopa0/goen/internal/web/formtext"
 	"github.com/koopa0/goen/internal/web/respond"
 )
@@ -48,11 +48,11 @@ func (h *Handler) Routes(mux *http.ServeMux, ac *access.Control) {
 	mux.HandleFunc("POST /admin/health/reconcile", ac.RequireStaff(h.Reconcile))
 }
 
-var notices = map[string]components.NoticeEntry{
-	"reconciled":    components.NoticeDone(i18n.KeyAdminNoticeReconciled),
-	"invoicequeued": components.NoticeDone(i18n.KeyAdminNoticeInvoiceQueued),
-	"notflagged":    components.NoticeDone(i18n.KeyAdminNoticeNotFlagged),
-	"mustrefund":    components.NoticeRefused(i18n.KeyAdminNoticePaymentMustRefund),
+var notices = map[string]widget.NoticeEntry{
+	"reconciled":    widget.NoticeDone(i18n.KeyAdminNoticeReconciled),
+	"invoicequeued": widget.NoticeDone(i18n.KeyAdminNoticeInvoiceQueued),
+	"notflagged":    widget.NoticeDone(i18n.KeyAdminNoticeNotFlagged),
+	"mustrefund":    widget.NoticeRefused(i18n.KeyAdminNoticePaymentMustRefund),
 }
 
 // Reconcile records an explicit money outcome: an event is released only after full
@@ -172,7 +172,7 @@ func (h *Handler) Page(w http.ResponseWriter, r *http.Request) {
 		access.ServerError(w, r, h.log)
 		return
 	}
-	view.Notice = components.NoticeFrom(r, notices)
+	view.Notice = widget.NoticeFrom(r, notices)
 	view.Pools = h.poolHealth()
 	view.Disputes = readDisputes(r.Context(), h.disputes, disputeReadTimeout, h.log, h.store.OrderNumbersBySession)
 	respond.Component(w, r, h.log, http.StatusOK, Health(

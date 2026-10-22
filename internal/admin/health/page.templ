@@ -5,8 +5,8 @@ import (
 	"time"
 
 	"github.com/koopa0/goen/internal/i18n"
-	"github.com/koopa0/goen/internal/ui/components"
 	"github.com/koopa0/goen/internal/ui/layouts"
+	"github.com/koopa0/goen/internal/ui/widget"
 )
 
 templ Health(p layouts.Page, v *WorkerHealthView) {
@@ -23,21 +23,21 @@ templ Health(p layouts.Page, v *WorkerHealthView) {
 				if v.StaffTaskCount() > 0 {
 					if v.FirstStaffTaskAnchor() != "" {
 						<a href={ templ.SafeURL(v.FirstStaffTaskAnchor()) }>
-							@components.Badge(components.BadgeProps{Intent: components.IntentWarn}) {
+							@widget.Badge(widget.BadgeProps{Intent: widget.IntentWarn}) {
 								{ v.StaffTaskText(ctx) }
 							}
 						</a>
 					} else {
-						@components.Badge(components.BadgeProps{Intent: components.IntentWarn}) {
+						@widget.Badge(widget.BadgeProps{Intent: widget.IntentWarn}) {
 							{ v.StaffTaskText(ctx) }
 						}
 					}
 				} else if v.AllHealthy() {
-					@components.Badge(components.BadgeProps{Intent: components.IntentDone}) {
+					@widget.Badge(widget.BadgeProps{Intent: widget.IntentDone}) {
 						{ i18n.T(ctx, i18n.KeyAdminHPAllClear) }
 					}
 				} else {
-					@components.Badge(components.BadgeProps{Intent: components.IntentWarn}) {
+					@widget.Badge(widget.BadgeProps{Intent: widget.IntentWarn}) {
 						{ i18n.T(ctx, i18n.KeyAdminHPNeedsLook) }
 					}
 				}
@@ -69,17 +69,17 @@ templ Health(p layouts.Page, v *WorkerHealthView) {
 										<tr>
 											<td class="goen-admin__cellkey">{ u.EventID }</td>
 											<td>
-												{ u.TypeText(ctx) }@components.TechnicalDetail(u.Type)
+												{ u.TypeText(ctx) }@widget.TechnicalDetail(u.Type)
 											</td>
 											<td>{ u.Ref }</td>
 											<td>
 												if u.RefundOrderNumber != "" {
 													<a href={ templ.SafeURL("/admin/orders/" + u.RefundOrderNumber) }>{ u.RefundOrderNumber }</a> · { u.RefundAmount() }
 													<span class="goen-admin__meta">{ i18n.T(ctx, i18n.KeyAdminHPRefundFailedAtStripe) }</span>
-													@components.TechnicalDetail(u.Reason)
+													@widget.TechnicalDetail(u.Reason)
 												} else {
 													{ u.ReasonText(ctx) }
-													@components.TechnicalDetail(u.Reason)
+													@widget.TechnicalDetail(u.Reason)
 												}
 											</td>
 											<td>{ u.Since }</td>
@@ -87,9 +87,9 @@ templ Health(p layouts.Page, v *WorkerHealthView) {
 												<form method="post" action="/admin/health/reconcile">
 													<input type="hidden" name="event" value={ u.EventID }/>
 													<input type="hidden" name="event_resolution" value="fully_refunded_or_accounted"/>
-													@components.Button(components.ButtonProps{
-														ButtonStyle: components.ButtonStyleOutline,
-														Size:        components.SizeSmall,
+													@widget.Button(widget.ButtonProps{
+														ButtonStyle: widget.ButtonStyleOutline,
+														Size:        widget.SizeSmall,
 													}, "submit") {
 														{ i18n.T(ctx, i18n.KeyAdminHPEventSafeRelease) }
 													}
@@ -133,9 +133,9 @@ templ Health(p layouts.Page, v *WorkerHealthView) {
 													<form method="post" action="/admin/health/reconcile">
 														<input type="hidden" name="payment" value={ p.ProviderRef }/>
 														<input type="hidden" name="resolution" value="paid"/>
-														@components.Button(components.ButtonProps{
-															ButtonStyle: components.ButtonStyleOutline,
-															Size:        components.SizeSmall,
+														@widget.Button(widget.ButtonProps{
+															ButtonStyle: widget.ButtonStyleOutline,
+															Size:        widget.SizeSmall,
 														}, "submit") {
 															{ i18n.T(ctx, i18n.KeyAdminHPCompletePaid) }
 														}
@@ -144,9 +144,9 @@ templ Health(p layouts.Page, v *WorkerHealthView) {
 												<form method="post" action="/admin/health/reconcile">
 													<input type="hidden" name="payment" value={ p.ProviderRef }/>
 													<input type="hidden" name="resolution" value="unpaid_or_refunded"/>
-													@components.Button(components.ButtonProps{
-														ButtonStyle: components.ButtonStyleOutline,
-														Size:        components.SizeSmall,
+													@widget.Button(widget.ButtonProps{
+														ButtonStyle: widget.ButtonStyleOutline,
+														Size:        widget.SizeSmall,
 													}, "submit") {
 														{ i18n.T(ctx, i18n.KeyAdminHPCompleteSafeToRetry) }
 													}
@@ -187,9 +187,9 @@ templ Health(p layouts.Page, v *WorkerHealthView) {
 									<td>{ o.Since }</td>
 									<td class="goen-admin__cellactions">
 										<form method="post" action={ templ.SafeURL("/admin/orders/" + o.OrderNumber + "/invoice") }>
-											@components.Button(components.ButtonProps{
-												ButtonStyle: components.ButtonStyleOutline,
-												Size:        components.SizeSmall,
+											@widget.Button(widget.ButtonProps{
+												ButtonStyle: widget.ButtonStyleOutline,
+												Size:        widget.SizeSmall,
 											}, "submit") {
 												{ i18n.T(ctx, i18n.KeyAdminQueueIssue) }
 											}
@@ -231,17 +231,17 @@ templ Health(p layouts.Page, v *WorkerHealthView) {
 										<a href={ templ.SafeURL("/admin/orders/" + c.OrderNumber) }>{ c.OrderNumber }</a>
 									</td>
 									<td>
-										{ c.ExplainedKindText(ctx) }@components.TechnicalDetail(c.Kind)
+										{ c.ExplainedKindText(ctx) }@widget.TechnicalDetail(c.Kind)
 									</td>
 									<td class="goen-admin__cellnum">{ c.Amount() }</td>
 									<td>
-										{ c.ExplainedStatusText(ctx) }@components.TechnicalDetail(c.Status)
+										{ c.ExplainedStatusText(ctx) }@widget.TechnicalDetail(c.Status)
 									</td>
 									<td class="goen-admin__cellnum">{ c.AttemptsText() }</td>
 									<td>
 										{ c.ReasonText(ctx) }
 										if c.LastError != "" {
-											@components.TechnicalDetail(c.LastError)
+											@widget.TechnicalDetail(c.LastError)
 										}
 									</td>
 									<td>{ c.Since }</td>
@@ -257,9 +257,9 @@ templ Health(p layouts.Page, v *WorkerHealthView) {
 														{ i18n.T(ctx, i18n.KeyAdminHPAllowanceAbsentConfirm) }
 													}
 												</label>
-												@components.Button(components.ButtonProps{
-													ButtonStyle: components.ButtonStyleOutline,
-													Size:        components.SizeSmall,
+												@widget.Button(widget.ButtonProps{
+													ButtonStyle: widget.ButtonStyleOutline,
+													Size:        widget.SizeSmall,
 												}, "submit") {
 													{ i18n.T(ctx, i18n.KeyAdminHPAllowanceResendAuthorize) }
 												}
@@ -447,11 +447,11 @@ templ healthItem(healthy bool, name, state, note string) {
 		<div class="goen-health__head">
 			<span class="goen-health__name">{ name }</span>
 			if healthy {
-				@components.Badge(components.BadgeProps{Intent: components.IntentDone}) {
+				@widget.Badge(widget.BadgeProps{Intent: widget.IntentDone}) {
 					{ i18n.T(ctx, i18n.KeyAdminHPAllClear) }
 				}
 			} else {
-				@components.Badge(components.BadgeProps{Intent: components.IntentWarn}) {
+				@widget.Badge(widget.BadgeProps{Intent: widget.IntentWarn}) {
 					{ i18n.T(ctx, i18n.KeyAdminHPNeedsLook) }
 				}
 			}

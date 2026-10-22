@@ -5,8 +5,8 @@ import (
 
 	"github.com/koopa0/goen/internal/i18n"
 	"github.com/koopa0/goen/internal/product"
-	"github.com/koopa0/goen/internal/ui/components"
 	"github.com/koopa0/goen/internal/ui/layouts"
+	"github.com/koopa0/goen/internal/ui/widget"
 )
 
 // A table rather than a list of blocks: what a staff member opens this page to do is
@@ -22,7 +22,7 @@ templ Products(p layouts.Page, v ProductsView) {
 				</p>
 				<p class="ui-page-head__sub">{ i18n.Count(ctx, i18n.KeyAdminProdPublished, v.Published, v.Published) }</p>
 			</div>
-			@components.ButtonLink(components.ButtonProps{ButtonStyle: components.ButtonStylePrimary}, "/admin/products/new") {
+			@widget.ButtonLink(widget.ButtonProps{ButtonStyle: widget.ButtonStylePrimary}, "/admin/products/new") {
 				{ i18n.T(ctx, i18n.KeyAdminPageNewProduct) }
 			}
 		</div>
@@ -62,16 +62,16 @@ templ Products(p layouts.Page, v ProductsView) {
 									// stop lining up.
 									<div class="goen-admin__cellbadges">
 										if row.Sellable() {
-											@components.Badge(components.BadgeProps{Intent: components.IntentDone}) {
+											@widget.Badge(widget.BadgeProps{Intent: widget.IntentDone}) {
 												{ row.StatusText }
 											}
 										} else {
-											@components.Badge(components.BadgeProps{Intent: components.IntentNeutral}) {
+											@widget.Badge(widget.BadgeProps{Intent: widget.IntentNeutral}) {
 												{ row.StatusText }
 											}
 										}
 										if !row.Translated {
-											@components.Badge(components.BadgeProps{Intent: components.IntentWarn}) {
+											@widget.Badge(widget.BadgeProps{Intent: widget.IntentWarn}) {
 												{ i18n.T(ctx, i18n.KeyAdminUntranslated) }
 											}
 										}
@@ -83,7 +83,7 @@ templ Products(p layouts.Page, v ProductsView) {
 				</table>
 			</div>
 		}
-		@components.ListPager(v.Bound)
+		@widget.ListPager(v.Bound)
 	}
 }
 
@@ -139,11 +139,11 @@ templ ProductForm(p layouts.Page, v ProductView) {
 }
 
 templ productDetails(v ProductView) {
-	@components.Card(components.CardProps{Class: "goen-admin__section", Attrs: templ.Attributes{"id": "sec-details"}}) {
+	@widget.Card(widget.CardProps{Class: "goen-admin__section", Attrs: templ.Attributes{"id": "sec-details"}}) {
 		<h2 class="goen-admin__heading">{ i18n.T(ctx, i18n.KeyAdminProdBasics) }</h2>
 		<form class="goen-admin__form" method="post" action={ templ.SafeURL(v.Action() + "#sec-details") }>
 			<div class="goen-admin__field">
-				@components.Label(components.LabelProps{For: "p-name"}) {
+				@widget.Label(widget.LabelProps{For: "p-name"}) {
 					{ i18n.T(ctx, i18n.KeyAdminProdName) }
 				}
 				<input
@@ -164,7 +164,7 @@ templ productDetails(v ProductView) {
 			</div>
 			if v.IsNew {
 				<div class="goen-admin__field">
-					@components.Label(components.LabelProps{For: "p-slug"}) {
+					@widget.Label(widget.LabelProps{For: "p-slug"}) {
 						{ i18n.T(ctx, i18n.KeyAdminColSlug) }
 					}
 					<input
@@ -188,7 +188,7 @@ templ productDetails(v ProductView) {
 			}
 			<div class="goen-admin__fields">
 				<div class="goen-admin__field">
-					@components.Label(components.LabelProps{For: "p-brand"}) {
+					@widget.Label(widget.LabelProps{For: "p-brand"}) {
 						{ i18n.T(ctx, i18n.KeyAdminProdBrand) }
 					}
 					<select
@@ -210,7 +210,7 @@ templ productDetails(v ProductView) {
 					}
 				</div>
 				<div class="goen-admin__field">
-					@components.Label(components.LabelProps{For: "p-category"}) {
+					@widget.Label(widget.LabelProps{For: "p-category"}) {
 						{ i18n.T(ctx, i18n.KeyAdminColCategory) }
 					}
 					<select
@@ -234,7 +234,7 @@ templ productDetails(v ProductView) {
 				</div>
 			</div>
 			<div class="goen-admin__field">
-				@components.Label(components.LabelProps{For: "p-summary"}) {
+				@widget.Label(widget.LabelProps{For: "p-summary"}) {
 					{ i18n.T(ctx, i18n.KeyAdminProdSummary) }
 				}
 				<input
@@ -253,7 +253,7 @@ templ productDetails(v ProductView) {
 				}
 			</div>
 			<div class="goen-admin__field">
-				@components.Label(components.LabelProps{For: "p-description"}) {
+				@widget.Label(widget.LabelProps{For: "p-description"}) {
 					{ i18n.T(ctx, i18n.KeyAdminProdDescription) }
 				}
 				<textarea
@@ -271,7 +271,7 @@ templ productDetails(v ProductView) {
 				}
 			</div>
 			<div class="goen-admin__field">
-				@components.Label(components.LabelProps{For: "p-name-en"}) {
+				@widget.Label(widget.LabelProps{For: "p-name-en"}) {
 					{ i18n.T(ctx, i18n.KeyAdminProdNameEn) }
 				}
 				<input
@@ -290,7 +290,7 @@ templ productDetails(v ProductView) {
 				}
 			</div>
 			<div class="goen-admin__field">
-				@components.Label(components.LabelProps{For: "p-summary-en"}) {
+				@widget.Label(widget.LabelProps{For: "p-summary-en"}) {
 					{ i18n.T(ctx, i18n.KeyAdminProdSummaryEn) }
 				}
 				<input
@@ -309,7 +309,7 @@ templ productDetails(v ProductView) {
 				}
 			</div>
 			<div class="goen-admin__field">
-				@components.Label(components.LabelProps{For: "p-description-en"}) {
+				@widget.Label(widget.LabelProps{For: "p-description-en"}) {
 					{ i18n.T(ctx, i18n.KeyAdminProdDescriptionEn) }
 				}
 				<textarea
@@ -328,7 +328,7 @@ templ productDetails(v ProductView) {
 			</div>
 			<div class="goen-admin__fields">
 				<div class="goen-admin__field">
-					@components.Label(components.LabelProps{For: "p-warranty-months"}) {
+					@widget.Label(widget.LabelProps{For: "p-warranty-months"}) {
 						{ i18n.T(ctx, i18n.KeyAdminProdWarrantyMonths) }
 					}
 					<input
@@ -351,14 +351,14 @@ templ productDetails(v ProductView) {
 					</p>
 				</div>
 				<div class="goen-admin__field">
-					@components.Label(components.LabelProps{For: "p-warranty"}) {
+					@widget.Label(widget.LabelProps{For: "p-warranty"}) {
 						{ i18n.T(ctx, i18n.KeyAdminProdWarrantyNote) }
 					}
 					<input class="goen-input" id="p-warranty" name="warranty" maxlength="300" value={ v.WarrantyNote }/>
 				</div>
 			</div>
-			@components.Button(components.ButtonProps{
-				ButtonStyle: components.ButtonStylePrimary,
+			@widget.Button(widget.ButtonProps{
+				ButtonStyle: widget.ButtonStylePrimary,
 				Class:       "goen-admin__submit",
 			}, "submit") {
 				if v.IsNew {
@@ -377,9 +377,9 @@ templ imageMoveForm(v ProductView, digest, move string, label i18n.Key) {
 	<form method="post" action={ templ.SafeURL(v.ImageMoveAction()) }>
 		<input type="hidden" name="digest" value={ digest }/>
 		<input type="hidden" name="move" value={ move }/>
-		@components.Button(components.ButtonProps{
-			ButtonStyle: components.ButtonStyleOutline,
-			Size:        components.SizeSmall,
+		@widget.Button(widget.ButtonProps{
+			ButtonStyle: widget.ButtonStyleOutline,
+			Size:        widget.SizeSmall,
 		}, "submit") {
 			{ i18n.T(ctx, label) }
 		}
@@ -387,7 +387,7 @@ templ imageMoveForm(v ProductView, digest, move string, label i18n.Key) {
 }
 
 templ productImages(v ProductView) {
-	@components.Card(components.CardProps{Class: "goen-admin__section", Attrs: templ.Attributes{"id": "sec-images"}}) {
+	@widget.Card(widget.CardProps{Class: "goen-admin__section", Attrs: templ.Attributes{"id": "sec-images"}}) {
 		<h2 class="goen-admin__heading">{ i18n.T(ctx, i18n.KeyAdminProdImages) }</h2>
 		if v.HasImages() {
 			<ul class="goen-admin__images" role="list">
@@ -409,9 +409,9 @@ templ productImages(v ProductView) {
 								<select class="goen-input" id={ "image-option-" + img.Key() } name="option_value">
 									@imageOptionChoices(v, img.OptionValueID)
 								</select>
-								@components.Button(components.ButtonProps{
-									ButtonStyle: components.ButtonStyleOutline,
-									Size:        components.SizeSmall,
+								@widget.Button(widget.ButtonProps{
+									ButtonStyle: widget.ButtonStyleOutline,
+									Size:        widget.SizeSmall,
 								}, "submit") {
 									{ i18n.T(ctx, i18n.KeyAdminProdSave) }
 								}
@@ -419,9 +419,9 @@ templ productImages(v ProductView) {
 						}
 						<form method="post" action={ templ.SafeURL(v.ImageRemoveAction()) }>
 							<input type="hidden" name="digest" value={ img.Key() }/>
-							@components.Button(components.ButtonProps{
-								ButtonStyle: components.ButtonStyleOutline,
-								Size:        components.SizeSmall,
+							@widget.Button(widget.ButtonProps{
+								ButtonStyle: widget.ButtonStyleOutline,
+								Size:        widget.SizeSmall,
 							}, "submit") {
 								{ i18n.T(ctx, i18n.KeyAdminRemove) }
 								<span class="goen-sr-only">
@@ -449,7 +449,7 @@ templ productImages(v ProductView) {
 			enctype="multipart/form-data"
 		>
 			<div class="goen-admin__field">
-				@components.Label(components.LabelProps{For: "p-image"}) {
+				@widget.Label(widget.LabelProps{For: "p-image"}) {
 					{ i18n.T(ctx, i18n.KeyAdminProdUpload) }
 				}
 				<input
@@ -471,7 +471,7 @@ templ productImages(v ProductView) {
 			</div>
 			<div class="goen-admin__fields">
 				<div class="goen-admin__field">
-					@components.Label(components.LabelProps{For: "p-alt"}) {
+					@widget.Label(widget.LabelProps{For: "p-alt"}) {
 						{ i18n.T(ctx, i18n.KeyAdminAltText) }
 					}
 					<input
@@ -493,7 +493,7 @@ templ productImages(v ProductView) {
 					<p class="goen-admin__hint">{ i18n.T(ctx, i18n.KeyAdminProdAltHint) }</p>
 				</div>
 				<div class="goen-admin__field">
-					@components.Label(components.LabelProps{For: "p-alt-en"}) {
+					@widget.Label(widget.LabelProps{For: "p-alt-en"}) {
 						{ i18n.T(ctx, i18n.KeyAdminProdAltEn) }
 					}
 					<input
@@ -517,7 +517,7 @@ templ productImages(v ProductView) {
 				</div>
 				if v.HasOptions() || v.ImageUploadDraft.OptionValue != "" {
 					<div class="goen-admin__field">
-						@components.Label(components.LabelProps{For: "p-image-option"}) {
+						@widget.Label(widget.LabelProps{For: "p-image-option"}) {
 							{ i18n.T(ctx, i18n.KeyAdminProdImageOption) }
 						}
 						<select
@@ -540,8 +540,8 @@ templ productImages(v ProductView) {
 					</div>
 				}
 			</div>
-			@components.Button(components.ButtonProps{
-				ButtonStyle: components.ButtonStyleOutline,
+			@widget.Button(widget.ButtonProps{
+				ButtonStyle: widget.ButtonStyleOutline,
 				Class:       "goen-admin__submit",
 			}, "submit") {
 				{ i18n.T(ctx, i18n.KeyAdminProdAddImage) }
@@ -597,9 +597,9 @@ templ productImages(v ProductView) {
 							{{ reuseAttrs["aria-describedby"] = "reuse-image-" + img.Key() + "-error" }}
 							<p class="ui-error-text" id={ "reuse-image-" + img.Key() + "-error" } role="alert">{ v.Err("reuse_image") }</p>
 						}
-						@components.Button(components.ButtonProps{
-							ButtonStyle: components.ButtonStyleOutline,
-							Size:        components.SizeSmall,
+						@widget.Button(widget.ButtonProps{
+							ButtonStyle: widget.ButtonStyleOutline,
+							Size:        widget.SizeSmall,
 							Attrs:       reuseAttrs,
 						}, "submit") {
 							{ i18n.T(ctx, i18n.KeyAdminProdReuse) }
@@ -630,7 +630,7 @@ templ imageOptionChoices(v ProductView, chosen string) {
 }
 
 templ productOptions(v ProductView) {
-	@components.Card(components.CardProps{Class: "goen-admin__section", Attrs: templ.Attributes{"id": "sec-options"}}) {
+	@widget.Card(widget.CardProps{Class: "goen-admin__section", Attrs: templ.Attributes{"id": "sec-options"}}) {
 		<h2 class="goen-admin__heading">{ i18n.T(ctx, i18n.KeyAdminProdOptions) }</h2>
 		<p class="goen-admin__hint">
 			{ i18n.T(ctx, i18n.KeyAdminProdOptionsLead) }
@@ -644,7 +644,7 @@ templ productOptions(v ProductView) {
 							if o.Translated() {
 								<span class="goen-admin__meta">{ o.NameEn }</span>
 							} else {
-								@components.Badge(components.BadgeProps{Intent: components.IntentWarn}) {
+								@widget.Badge(widget.BadgeProps{Intent: widget.IntentWarn}) {
 									{ i18n.T(ctx, i18n.KeyAdminUntranslated) }
 								}
 							}
@@ -681,7 +681,7 @@ templ productOptions(v ProductView) {
 				<h3 class="goen-admin__subhead">{ i18n.T(ctx, i18n.KeyAdminProdOptionAdd) }</h3>
 				<div class="goen-admin__fields">
 					<div class="goen-admin__field">
-						@components.Label(components.LabelProps{For: "opt-name"}) {
+						@widget.Label(widget.LabelProps{For: "opt-name"}) {
 							{ i18n.T(ctx, i18n.KeyAdminProdOptionName) }
 						}
 						<input
@@ -703,7 +703,7 @@ templ productOptions(v ProductView) {
 						}
 					</div>
 					<div class="goen-admin__field">
-						@components.Label(components.LabelProps{For: "opt-name-en"}) {
+						@widget.Label(widget.LabelProps{For: "opt-name-en"}) {
 							{ i18n.T(ctx, i18n.KeyAdminProdOptionNameEn) }
 						}
 						<input
@@ -724,8 +724,8 @@ templ productOptions(v ProductView) {
 						}
 					</div>
 				</div>
-				@components.Button(components.ButtonProps{
-					ButtonStyle: components.ButtonStyleOutline,
+				@widget.Button(widget.ButtonProps{
+					ButtonStyle: widget.ButtonStyleOutline,
 					Class:       "goen-admin__submit",
 				}, "submit") {
 					{ i18n.T(ctx, i18n.KeyAdminProdOptionAdd) }
@@ -736,7 +736,7 @@ templ productOptions(v ProductView) {
 			<form class="goen-admin__form" method="post" action={ templ.SafeURL(v.OptionValueAction() + "#sec-options") }>
 				<h3 class="goen-admin__subhead">{ i18n.T(ctx, i18n.KeyAdminProdValueAdd) }</h3>
 				<div class="goen-admin__field">
-					@components.Label(components.LabelProps{For: "optval-option"}) {
+					@widget.Label(widget.LabelProps{For: "optval-option"}) {
 						{ i18n.T(ctx, i18n.KeyAdminProdValueOption) }
 					}
 					<select class="goen-input" id="optval-option" name="option" required>
@@ -747,7 +747,7 @@ templ productOptions(v ProductView) {
 				</div>
 				<div class="goen-admin__fields">
 					<div class="goen-admin__field">
-						@components.Label(components.LabelProps{For: "optval-value"}) {
+						@widget.Label(widget.LabelProps{For: "optval-value"}) {
 							{ i18n.T(ctx, i18n.KeyAdminProdValue) }
 						}
 						<input
@@ -769,7 +769,7 @@ templ productOptions(v ProductView) {
 						}
 					</div>
 					<div class="goen-admin__field">
-						@components.Label(components.LabelProps{For: "optval-value-en"}) {
+						@widget.Label(widget.LabelProps{For: "optval-value-en"}) {
 							{ i18n.T(ctx, i18n.KeyAdminProdValueEn) }
 						}
 						<input
@@ -790,7 +790,7 @@ templ productOptions(v ProductView) {
 						}
 					</div>
 					<div class="goen-admin__field">
-						@components.Label(components.LabelProps{For: "optval-swatch"}) {
+						@widget.Label(widget.LabelProps{For: "optval-swatch"}) {
 							{ i18n.T(ctx, i18n.KeyAdminProdValueSwatch) }
 						}
 						<input
@@ -812,8 +812,8 @@ templ productOptions(v ProductView) {
 						}
 					</div>
 				</div>
-				@components.Button(components.ButtonProps{
-					ButtonStyle: components.ButtonStyleOutline,
+				@widget.Button(widget.ButtonProps{
+					ButtonStyle: widget.ButtonStyleOutline,
 					Class:       "goen-admin__submit",
 				}, "submit") {
 					{ i18n.T(ctx, i18n.KeyAdminProdValueAdd) }
@@ -824,7 +824,7 @@ templ productOptions(v ProductView) {
 }
 
 templ productVariants(v ProductView) {
-	@components.Card(components.CardProps{Class: "goen-admin__section", Attrs: templ.Attributes{"id": "sec-variants"}}) {
+	@widget.Card(widget.CardProps{Class: "goen-admin__section", Attrs: templ.Attributes{"id": "sec-variants"}}) {
 		<h2 class="goen-admin__heading">{ i18n.T(ctx, i18n.KeyAdminProdVariants) }</h2>
 		if len(v.Variants) == 0 {
 			<div class="goen-admin__empty">
@@ -855,7 +855,7 @@ templ productVariants(v ProductView) {
 			<h3 class="goen-admin__subhead">{ i18n.T(ctx, i18n.KeyAdminProdVariantAdd) }</h3>
 			<div class="goen-admin__fields">
 				<div class="goen-admin__field">
-					@components.Label(components.LabelProps{For: "v-sku"}) {
+					@widget.Label(widget.LabelProps{For: "v-sku"}) {
 						SKU
 					}
 					<input
@@ -876,14 +876,14 @@ templ productVariants(v ProductView) {
 					}
 				</div>
 				<div class="goen-admin__field">
-					@components.Label(components.LabelProps{For: "v-price"}) {
+					@widget.Label(widget.LabelProps{For: "v-price"}) {
 						{ i18n.T(ctx, i18n.KeyAdminProdPrice) }
 					}
 					<input
 						class="goen-input"
 						id="v-price"
 						name="price"
-						type={ components.DollarInputType(v.VariantDraft.Price) }
+						type={ widget.DollarInputType(v.VariantDraft.Price) }
 						min="1"
 						step="1"
 						required
@@ -899,14 +899,14 @@ templ productVariants(v ProductView) {
 					}
 				</div>
 				<div class="goen-admin__field">
-					@components.Label(components.LabelProps{For: "v-compare"}) {
+					@widget.Label(widget.LabelProps{For: "v-compare"}) {
 						{ i18n.T(ctx, i18n.KeyAdminProdCompare) }
 					}
 					<input
 						class="goen-input"
 						id="v-compare"
 						name="compare"
-						type={ components.DollarInputType(v.VariantDraft.Compare) }
+						type={ widget.DollarInputType(v.VariantDraft.Compare) }
 						min="0"
 						step="1"
 						inputmode="numeric"
@@ -923,7 +923,7 @@ templ productVariants(v ProductView) {
 				if v.HasOptions() {
 					for _, o := range v.Options {
 						<div class="goen-admin__field">
-							@components.Label(components.LabelProps{For: "v-opt-" + o.ID}) {
+							@widget.Label(widget.LabelProps{For: "v-opt-" + o.ID}) {
 								{ o.Name }
 							}
 							<select
@@ -947,7 +947,7 @@ templ productVariants(v ProductView) {
 					}
 				}
 				<div class="goen-admin__field">
-					@components.Label(components.LabelProps{For: "v-safety"}) {
+					@widget.Label(widget.LabelProps{For: "v-safety"}) {
 						{ i18n.T(ctx, i18n.KeyAdminProdSafety) }
 					}
 					<input
@@ -967,7 +967,7 @@ templ productVariants(v ProductView) {
 					}
 				</div>
 				<div class="goen-admin__field">
-					@components.Label(components.LabelProps{For: "v-longest"}) {
+					@widget.Label(widget.LabelProps{For: "v-longest"}) {
 						{ i18n.T(ctx, i18n.KeyAdminProdLongest) }
 					}
 					<input
@@ -987,7 +987,7 @@ templ productVariants(v ProductView) {
 					}
 				</div>
 				<div class="goen-admin__field">
-					@components.Label(components.LabelProps{For: "v-sum"}) {
+					@widget.Label(widget.LabelProps{For: "v-sum"}) {
 						{ i18n.T(ctx, i18n.KeyAdminProdParcelSum) }
 					}
 					<input
@@ -1007,7 +1007,7 @@ templ productVariants(v ProductView) {
 					}
 				</div>
 				<div class="goen-admin__field">
-					@components.Label(components.LabelProps{For: "v-weight"}) {
+					@widget.Label(widget.LabelProps{For: "v-weight"}) {
 						{ i18n.T(ctx, i18n.KeyAdminProdWeight) }
 					}
 					<input
@@ -1030,8 +1030,8 @@ templ productVariants(v ProductView) {
 			if v.HasOptions() && v.HasErr("options") {
 				<p class="ui-error-text" role="alert">{ v.Err("options") }</p>
 			}
-			@components.Button(components.ButtonProps{
-				ButtonStyle: components.ButtonStyleOutline,
+			@widget.Button(widget.ButtonProps{
+				ButtonStyle: widget.ButtonStyleOutline,
 				Class:       "goen-admin__submit",
 			}, "submit") {
 				{ i18n.T(ctx, i18n.KeyAdminProdVariantAdd) }
@@ -1045,7 +1045,7 @@ templ productVariants(v ProductView) {
 
 // productSpecs is the 規格表 the product page prints, a table because it is one there.
 templ productSpecs(v ProductView) {
-	@components.Card(components.CardProps{Class: "goen-admin__section", Attrs: templ.Attributes{"id": "sec-specs"}}) {
+	@widget.Card(widget.CardProps{Class: "goen-admin__section", Attrs: templ.Attributes{"id": "sec-specs"}}) {
 		<h2 class="goen-admin__heading">{ i18n.T(ctx, i18n.KeyAdminProdSpecs) }</h2>
 		<p class="goen-admin__hint">
 			{ i18n.T(ctx, i18n.KeyAdminProdSpecsLead) }
@@ -1075,7 +1075,7 @@ templ productSpecs(v ProductView) {
 											<span class="goen-admin__meta">{ sp.ValueEn }</span>
 										}
 									} else {
-										@components.Badge(components.BadgeProps{Intent: components.IntentWarn}) {
+										@widget.Badge(widget.BadgeProps{Intent: widget.IntentWarn}) {
 											{ i18n.T(ctx, i18n.KeyAdminUntranslated) }
 										}
 									}
@@ -1083,9 +1083,9 @@ templ productSpecs(v ProductView) {
 								<td class="goen-admin__cellactions">
 									<form method="post" action={ templ.SafeURL(v.SpecRemoveAction()) }>
 										<input type="hidden" name="spec" value={ sp.ID }/>
-										@components.Button(components.ButtonProps{
-											ButtonStyle: components.ButtonStyleGhost,
-											Size:        components.SizeSmall,
+										@widget.Button(widget.ButtonProps{
+											ButtonStyle: widget.ButtonStyleGhost,
+											Size:        widget.SizeSmall,
 										}, "submit") {
 											{ i18n.T(ctx, i18n.KeyAdminRemove) }
 											<span class="goen-sr-only">{ " " + sp.Label }</span>
@@ -1106,7 +1106,7 @@ templ productSpecs(v ProductView) {
 			<h3 class="goen-admin__subhead">{ i18n.T(ctx, i18n.KeyAdminProdSpecAdd) }</h3>
 			<div class="goen-admin__fields">
 				<div class="goen-admin__field">
-					@components.Label(components.LabelProps{For: "spec-label"}) {
+					@widget.Label(widget.LabelProps{For: "spec-label"}) {
 						{ i18n.T(ctx, i18n.KeyAdminProdSpecLabel) }
 					}
 					<input
@@ -1128,7 +1128,7 @@ templ productSpecs(v ProductView) {
 					}
 				</div>
 				<div class="goen-admin__field">
-					@components.Label(components.LabelProps{For: "spec-value"}) {
+					@widget.Label(widget.LabelProps{For: "spec-value"}) {
 						{ i18n.T(ctx, i18n.KeyAdminProdSpecValue) }
 					}
 					<input
@@ -1150,7 +1150,7 @@ templ productSpecs(v ProductView) {
 					}
 				</div>
 				<div class="goen-admin__field">
-					@components.Label(components.LabelProps{For: "spec-label-en"}) {
+					@widget.Label(widget.LabelProps{For: "spec-label-en"}) {
 						{ i18n.T(ctx, i18n.KeyAdminProdSpecLabelEn) }
 					}
 					<input
@@ -1171,7 +1171,7 @@ templ productSpecs(v ProductView) {
 					}
 				</div>
 				<div class="goen-admin__field">
-					@components.Label(components.LabelProps{For: "spec-value-en"}) {
+					@widget.Label(widget.LabelProps{For: "spec-value-en"}) {
 						{ i18n.T(ctx, i18n.KeyAdminProdSpecValueEn) }
 					}
 					<input
@@ -1195,8 +1195,8 @@ templ productSpecs(v ProductView) {
 			<p class="goen-admin__hint">
 				{ i18n.T(ctx, i18n.KeyAdminProdSpecHint) }
 			</p>
-			@components.Button(components.ButtonProps{
-				ButtonStyle: components.ButtonStyleOutline,
+			@widget.Button(widget.ButtonProps{
+				ButtonStyle: widget.ButtonStyleOutline,
 				Class:       "goen-admin__submit",
 			}, "submit") {
 				{ i18n.T(ctx, i18n.KeyAdminProdSpecAdd) }
@@ -1212,24 +1212,24 @@ templ productPublishing(v ProductView) {
 		<form method="post" action={ templ.SafeURL("/admin/products/" + v.Slug + "/status") } aria-label={ i18n.T(ctx, i18n.KeyAdminProdPublishing) }>
 			<div class="goen-admin__decidebtns">
 				if v.CanPublish() {
-					@components.Button(components.ButtonProps{
-						ButtonStyle: components.ButtonStyleOutline,
+					@widget.Button(widget.ButtonProps{
+						ButtonStyle: widget.ButtonStyleOutline,
 						Attrs:       templ.Attributes{"name": "status", "value": string(product.StatusActive)},
 					}, "submit") {
 						{ i18n.T(ctx, i18n.KeyAdminProdPublish) }
 					}
 				}
 				if v.Status == product.StatusActive {
-					@components.Button(components.ButtonProps{
-						ButtonStyle: components.ButtonStyleOutline,
+					@widget.Button(widget.ButtonProps{
+						ButtonStyle: widget.ButtonStyleOutline,
 						Attrs:       templ.Attributes{"name": "status", "value": string(product.StatusDraft)},
 					}, "submit") {
 						{ i18n.T(ctx, i18n.KeyAdminProdUnpublish) }
 					}
 				}
 				if v.Status != product.StatusArchived {
-					@components.Button(components.ButtonProps{
-						ButtonStyle: components.ButtonStyleGhost,
+					@widget.Button(widget.ButtonProps{
+						ButtonStyle: widget.ButtonStyleGhost,
 						Attrs:       templ.Attributes{"name": "status", "value": string(product.StatusArchived)},
 					}, "submit") {
 						{ i18n.T(ctx, i18n.KeyAdminProdArchive) }

@@ -12,7 +12,7 @@ import (
 	"github.com/koopa0/goen/internal/keyset"
 	"github.com/koopa0/goen/internal/money"
 	"github.com/koopa0/goen/internal/ui/chart"
-	"github.com/koopa0/goen/internal/ui/components"
+	"github.com/koopa0/goen/internal/ui/widget"
 )
 
 type Coupon struct {
@@ -115,7 +115,7 @@ type CouponsView struct {
 	keyset.Bound
 
 	Rows   []Coupon
-	Notice components.Result
+	Notice widget.Result
 	Errors map[string]string
 	Draft  CouponDraft
 }

@@ -2,8 +2,8 @@ package staff
 
 import (
 	"github.com/koopa0/goen/internal/i18n"
-	"github.com/koopa0/goen/internal/ui/components"
 	"github.com/koopa0/goen/internal/ui/layouts"
+	"github.com/koopa0/goen/internal/ui/widget"
 )
 
 // Each row's two writes are two forms of one field each, so revoking somebody carries
@@ -24,12 +24,12 @@ templ Staff(p layouts.Page, v StaffView) {
 		</div>
 		@layouts.Announce(v.Notice)
 		if v.NoKey {
-			@components.Notice(components.NoticeProps{Intent: components.IntentWarn}) {
+			@widget.Notice(widget.NoticeProps{Intent: widget.IntentWarn}) {
 				{ i18n.T(ctx, i18n.KeyTOTPNoKeyNotice) }
 			}
 		}
 		if !v.NoKey && !v.AllEnrolled() {
-			@components.Notice(components.NoticeProps{Intent: components.IntentDanger}) {
+			@widget.Notice(widget.NoticeProps{Intent: widget.IntentDanger}) {
 				{ i18n.Count(ctx, i18n.KeyAdminStaffUnenrolled, int64(v.Unenrolled()), v.UnenrolledText()) }
 			}
 		}
@@ -57,11 +57,11 @@ templ Staff(p layouts.Page, v StaffView) {
 							<td>{ RoleLabel(ctx, r.Role) }</td>
 							<td>
 								if r.Enrolled {
-									@components.Badge(components.BadgeProps{Intent: components.IntentDone}) {
+									@widget.Badge(widget.BadgeProps{Intent: widget.IntentDone}) {
 										{ r.State(ctx) }
 									}
 								} else {
-									@components.Badge(components.BadgeProps{Intent: components.IntentWarn}) {
+									@widget.Badge(widget.BadgeProps{Intent: widget.IntentWarn}) {
 										{ r.State(ctx) }
 									}
 								}
@@ -73,9 +73,9 @@ templ Staff(p layouts.Page, v StaffView) {
 									if r.Enrolled {
 										<form method="post" action="/admin/staff/factor">
 											<input type="hidden" name="user" value={ r.ID }/>
-											@components.Button(components.ButtonProps{
-												ButtonStyle: components.ButtonStyleDanger,
-												Size:        components.SizeSmall,
+											@widget.Button(widget.ButtonProps{
+												ButtonStyle: widget.ButtonStyleDanger,
+												Size:        widget.SizeSmall,
 											}, "submit") {
 												{ i18n.T(ctx, i18n.KeyAdminStaffDropFa) }
 											}
@@ -83,9 +83,9 @@ templ Staff(p layouts.Page, v StaffView) {
 									}
 									<form method="post" action="/admin/staff/revoke">
 										<input type="hidden" name="user" value={ r.ID }/>
-										@components.Button(components.ButtonProps{
-											ButtonStyle: components.ButtonStyleDanger,
-											Size:        components.SizeSmall,
+										@widget.Button(widget.ButtonProps{
+											ButtonStyle: widget.ButtonStyleDanger,
+											Size:        widget.SizeSmall,
 										}, "submit") {
 											{ i18n.T(ctx, i18n.KeyAdminStaffRevoke) }
 										}
@@ -97,7 +97,7 @@ templ Staff(p layouts.Page, v StaffView) {
 				</tbody>
 			</table>
 		</div>
-		@components.Card(components.CardProps{Class: "goen-admin__add"}) {
+		@widget.Card(widget.CardProps{Class: "goen-admin__add"}) {
 			<h2 class="goen-admin__heading">{ i18n.T(ctx, i18n.KeyAdminStaffAdd) }</h2>
 			<p class="goen-admin__hint">
 				{ i18n.T(ctx, i18n.KeyAdminStaffAddLead) }
@@ -105,10 +105,10 @@ templ Staff(p layouts.Page, v StaffView) {
 			<form class="goen-admin__form" method="post" action="/admin/staff">
 				<div class="goen-admin__fields">
 					<div class="goen-admin__field">
-						@components.Label(components.LabelProps{For: "staff-email"}) {
+						@widget.Label(widget.LabelProps{For: "staff-email"}) {
 							{ i18n.T(ctx, i18n.KeyAdminStaffEmail) }
 						}
-						@components.Input(components.FieldProps{
+						@widget.Input(widget.FieldProps{
 							ID:      "staff-email",
 							Name:    "email",
 							Type:    "email",
@@ -121,10 +121,10 @@ templ Staff(p layouts.Page, v StaffView) {
 						}
 					</div>
 					<div class="goen-admin__field">
-						@components.Label(components.LabelProps{For: "staff-name"}) {
+						@widget.Label(widget.LabelProps{For: "staff-name"}) {
 							{ i18n.T(ctx, i18n.KeyAdminStaffName) }
 						}
-						@components.Input(components.FieldProps{
+						@widget.Input(widget.FieldProps{
 							ID:    "staff-name",
 							Name:  "name",
 							Value: v.AddName,
@@ -132,7 +132,7 @@ templ Staff(p layouts.Page, v StaffView) {
 						})
 					</div>
 					<div class="goen-admin__field">
-						@components.Label(components.LabelProps{For: "staff-role"}) {
+						@widget.Label(widget.LabelProps{For: "staff-role"}) {
 							{ i18n.T(ctx, i18n.KeyAdminColRole) }
 						}
 						<select class="goen-input" id="staff-role" name="role" required>
@@ -142,7 +142,7 @@ templ Staff(p layouts.Page, v StaffView) {
 						</select>
 					</div>
 				</div>
-				@components.Button(components.ButtonProps{ButtonStyle: components.ButtonStylePrimary, Class: "goen-admin__submit"}, "submit") {
+				@widget.Button(widget.ButtonProps{ButtonStyle: widget.ButtonStylePrimary, Class: "goen-admin__submit"}, "submit") {
 					{ i18n.T(ctx, i18n.KeyAdminAddButton) }
 				}
 			</form>

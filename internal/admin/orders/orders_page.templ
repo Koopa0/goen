@@ -6,8 +6,8 @@ import (
 	"github.com/koopa0/goen/internal/i18n"
 	"github.com/koopa0/goen/internal/order"
 	"github.com/koopa0/goen/internal/order/returns"
-	"github.com/koopa0/goen/internal/ui/components"
 	"github.com/koopa0/goen/internal/ui/layouts"
+	"github.com/koopa0/goen/internal/ui/widget"
 )
 
 // The tabs are links and the selected one is marked with aria-current alone: a second
@@ -32,11 +32,11 @@ templ Orders(p layouts.Page, v View) {
 				placeholder={ i18n.T(ctx, i18n.KeyAdminQueueSearchPlaceholder) }
 				autocomplete="off"
 			/>
-			@components.Button(components.ButtonProps{ButtonStyle: components.ButtonStyleOutline}, "submit") {
+			@widget.Button(widget.ButtonProps{ButtonStyle: widget.ButtonStyleOutline}, "submit") {
 				{ i18n.T(ctx, i18n.KeyAdminSearch) }
 			}
 			if v.Searching() {
-				@components.ButtonLink(components.ButtonProps{ButtonStyle: components.ButtonStyleGhost}, "/admin/orders") {
+				@widget.ButtonLink(widget.ButtonProps{ButtonStyle: widget.ButtonStyleGhost}, "/admin/orders") {
 					{ i18n.T(ctx, i18n.KeyAdminQueueClear) }
 				}
 			}
@@ -47,7 +47,7 @@ templ Orders(p layouts.Page, v View) {
 			</p>
 		}
 		if v.TermTooShort() {
-			@components.Notice(components.NoticeProps{Intent: components.IntentWarn}) {
+			@widget.Notice(widget.NoticeProps{Intent: widget.IntentWarn}) {
 				{ i18n.T(ctx, i18n.KeyAdminQueueSearchShort) }
 			}
 		}
@@ -66,7 +66,7 @@ templ Orders(p layouts.Page, v View) {
 			}
 		</nav>
 		if v.Status == QueuePicking && !v.Searching() {
-			@components.ButtonLink(components.ButtonProps{ButtonStyle: components.ButtonStyleOutline}, "/admin/orders/picking/slips") {
+			@widget.ButtonLink(widget.ButtonProps{ButtonStyle: widget.ButtonStyleOutline}, "/admin/orders/picking/slips") {
 				{ i18n.T(ctx, i18n.KeyAdminPickingSlips) }
 			}
 		}
@@ -94,7 +94,7 @@ templ Orders(p layouts.Page, v View) {
 								</td>
 								<td>
 									<div class="goen-admin__cellbadges">
-										@components.Badge(components.BadgeProps{Intent: o.StatusIntent}) {
+										@widget.Badge(widget.BadgeProps{Intent: o.StatusIntent}) {
 											{ o.StatusText }
 										}
 									</div>
@@ -108,7 +108,7 @@ templ Orders(p layouts.Page, v View) {
 				</table>
 			</div>
 		}
-		@components.ListPager(v.Bound)
+		@widget.ListPager(v.Bound)
 	}
 }
 
@@ -117,9 +117,9 @@ templ Orders(p layouts.Page, v View) {
 // whatever button is nearest.
 templ Order(p layouts.Page, v *OrderView) {
 	@layouts.Admin(p, "orders") {
-		@components.Breadcrumb(components.BreadcrumbProps{
+		@widget.Breadcrumb(widget.BreadcrumbProps{
 			Label: i18n.T(ctx, i18n.KeyBreadcrumb),
-			Crumbs: []components.Crumb{
+			Crumbs: []widget.Crumb{
 				{Label: i18n.T(ctx, i18n.KeyAdminQueueOrders), Href: "/admin/orders"},
 				{Label: v.Number},
 			},
@@ -131,11 +131,11 @@ templ Order(p layouts.Page, v *OrderView) {
 				<p id="order-next-step" class="goen-admin__hint">{ v.nextStepSummary(ctx) }</p>
 			</div>
 			<div class="ui-page-head__actions">
-				@components.Badge(components.BadgeProps{Intent: v.StatusIntent}) {
+				@widget.Badge(widget.BadgeProps{Intent: v.StatusIntent}) {
 					{ v.StatusText }
 				}
 				if v.Committed {
-					@components.Badge(components.BadgeProps{Intent: components.IntentNeutral}) {
+					@widget.Badge(widget.BadgeProps{Intent: widget.IntentNeutral}) {
 						{ i18n.T(ctx, i18n.KeyAdminQueueCommitted) }
 					}
 				}
@@ -146,7 +146,7 @@ templ Order(p layouts.Page, v *OrderView) {
 			<div class="goen-admin__orderpanel">
 				@orderItemsAndDelivery(v)
 				if v.Correctable {
-					@components.Card(components.CardProps{Class: "goen-admin__op"}) {
+					@widget.Card(widget.CardProps{Class: "goen-admin__op"}) {
 						<h2 class="goen-admin__optitle">{ i18n.T(ctx, i18n.KeyAdminQueueDeliverySave) }</h2>
 						<form class="goen-admin__form" method="post" action={ templ.SafeURL("/admin/orders/" + v.Number + "/delivery") }>
 							<div class="goen-admin__row">
@@ -355,14 +355,14 @@ templ Order(p layouts.Page, v *OrderView) {
 							<p class="goen-admin__hint">
 								{ i18n.T(ctx, i18n.KeyAdminQueueDeliveryHint) }
 							</p>
-							@components.Button(components.ButtonProps{ButtonStyle: components.ButtonStyleOutline}, "submit") {
+							@widget.Button(widget.ButtonProps{ButtonStyle: widget.ButtonStyleOutline}, "submit") {
 								{ i18n.T(ctx, i18n.KeyAdminQueueDeliverySave) }
 							}
 						</form>
 					}
 				}
 				if len(v.Shipments) > 0 {
-					@components.Card(components.CardProps{Class: "goen-admin__op"}) {
+					@widget.Card(widget.CardProps{Class: "goen-admin__op"}) {
 						<h2 class="goen-admin__optitle">{ i18n.T(ctx, i18n.KeyAdminQueueDispatch) }</h2>
 						<ul class="goen-admin__timeline" role="list">
 							for _, sh := range v.Shipments {
@@ -374,7 +374,7 @@ templ Order(p layouts.Page, v *OrderView) {
 										<span class="goen-admin__meta">{ fmt.Sprintf(i18n.T(ctx, i18n.KeyAdminQueueDispatched), sh.ShippedAt) }</span>
 										if v.Status == order.FulfillmentDelivered {
 											<form method="post" action={ templ.SafeURL("/admin/orders/" + v.Number + "/shipments/" + sh.ID + "/delivered") }>
-												@components.Button(components.ButtonProps{ButtonStyle: components.ButtonStyleOutline}, "submit") {
+												@widget.Button(widget.ButtonProps{ButtonStyle: widget.ButtonStyleOutline}, "submit") {
 													{ i18n.T(ctx, i18n.KeyAdminMarkDelivered) }
 													<span class="goen-sr-only">{ " " + sh.Tracking }</span>
 												}
@@ -387,7 +387,7 @@ templ Order(p layouts.Page, v *OrderView) {
 					}
 				}
 				if len(v.Timeline) > 0 {
-					@components.Card(components.CardProps{Class: "goen-admin__op"}) {
+					@widget.Card(widget.CardProps{Class: "goen-admin__op"}) {
 						<h2 class="goen-admin__optitle">{ i18n.T(ctx, i18n.KeyAdminQueueTimeline) }</h2>
 						<ul class="goen-admin__timeline" role="list">
 							for _, e := range v.Timeline {
@@ -409,20 +409,20 @@ templ Order(p layouts.Page, v *OrderView) {
 						<p class="goen-admin__hint">{ v.MailKeptText(ctx) }</p>
 					}
 				}
-				@components.Card(components.CardProps{Class: "goen-admin__op"}) {
+				@widget.Card(widget.CardProps{Class: "goen-admin__op"}) {
 					<h2 class="goen-admin__optitle">{ i18n.T(ctx, i18n.KeyAdminQueueStaffNote) }</h2>
 					<form class="goen-admin__form" method="post" action={ templ.SafeURL("/admin/orders/" + v.Number + "/note") }>
 						<label class="goen-sr-only" for="staff-note">{ i18n.T(ctx, i18n.KeyAdminQueueStaffNote) }</label>
 						<textarea class="ui-textarea" id="staff-note" name="note" rows="3" maxlength="1000">{ v.StaffNote }</textarea>
 						<p class="goen-admin__hint">{ i18n.T(ctx, i18n.KeyAdminQueueStaffNoteHint) }</p>
-						@components.Button(components.ButtonProps{ButtonStyle: components.ButtonStyleOutline}, "submit") {
+						@widget.Button(widget.ButtonProps{ButtonStyle: widget.ButtonStyleOutline}, "submit") {
 							{ i18n.T(ctx, i18n.KeyAdminQueueNoteSave) }
 						}
 					</form>
 				}
 			</div>
 			<aside class="goen-admin__orderside">
-				@components.Card(components.CardProps{Class: "goen-admin__ordersummary"}) {
+				@widget.Card(widget.CardProps{Class: "goen-admin__ordersummary"}) {
 					<div class="goen-admin__totalrow">
 						<span>{ i18n.T(ctx, i18n.KeySubtotal) }</span>
 						<span class="goen-admin__totalval">{ v.Subtotal() }</span>
@@ -433,7 +433,7 @@ templ Order(p layouts.Page, v *OrderView) {
 					</div>
 					if v.Discounted() {
 						<div class="goen-admin__totalrow">
-							<span>{ components.DiscountLabel(ctx, v.DiscountReason) }</span>
+							<span>{ widget.DiscountLabel(ctx, v.DiscountReason) }</span>
 							<span class="goen-admin__totalval">{ v.Discount() }</span>
 						</div>
 					}
@@ -452,7 +452,7 @@ templ Order(p layouts.Page, v *OrderView) {
 						</div>
 					}
 				}
-				@components.Card(components.CardProps{Class: "goen-admin__op", Attrs: templ.Attributes{"aria-labelledby": "payment-heading"}}) {
+				@widget.Card(widget.CardProps{Class: "goen-admin__op", Attrs: templ.Attributes{"aria-labelledby": "payment-heading"}}) {
 					<h2 class="goen-admin__optitle" id="payment-heading">{ i18n.T(ctx, i18n.KeyAdminPayTitle) }</h2>
 					if v.Payment.Paid() {
 						<p class="goen-admin__meta">
@@ -484,7 +484,7 @@ templ Order(p layouts.Page, v *OrderView) {
 					}
 				}
 				if v.CanShip {
-					@components.Card(components.CardProps{Class: "goen-admin__op"}) {
+					@widget.Card(widget.CardProps{Class: "goen-admin__op"}) {
 						<h2 class="goen-admin__optitle">{ i18n.T(ctx, i18n.KeyAdminQueueDispatch) }</h2>
 						<form class="goen-admin__form" method="post" action={ templ.SafeURL("/admin/orders/" + v.Number + "/ship") }>
 							<div class="ui-field">
@@ -555,7 +555,7 @@ templ Order(p layouts.Page, v *OrderView) {
 							if v.ShipQtyError != "" {
 								<p id="ship-qty-error" class="ui-error-text" role="alert">{ v.ShipQtyError }</p>
 							}
-							@components.Button(components.ButtonProps{ButtonStyle: components.ButtonStylePrimary, Block: true}, "submit") {
+							@widget.Button(widget.ButtonProps{ButtonStyle: widget.ButtonStylePrimary, Block: true}, "submit") {
 								{ i18n.T(ctx, i18n.KeyAdminQueueDispatch) }
 							}
 							<p class="goen-admin__hint">
@@ -565,16 +565,16 @@ templ Order(p layouts.Page, v *OrderView) {
 					}
 				}
 				if v.RefundOpen || v.RefundOffered {
-					@components.Card(components.CardProps{Class: "goen-admin__op"}) {
+					@widget.Card(widget.CardProps{Class: "goen-admin__op"}) {
 						<h2 class="goen-admin__optitle">{ i18n.T(ctx, i18n.KeyAdminRefundTitle) }</h2>
 						<form class="goen-admin__form" method="post" action={ templ.SafeURL("/admin/orders/" + v.Number + "/refund") }>
 							if v.RefundOpen {
 								<p class="goen-admin__hint">{ i18n.T(ctx, i18n.KeyAdminRefundOpen) }</p>
-								@components.Button(components.ButtonProps{ButtonStyle: components.ButtonStylePrimary, Block: true}, "submit") {
+								@widget.Button(widget.ButtonProps{ButtonStyle: widget.ButtonStylePrimary, Block: true}, "submit") {
 									{ i18n.T(ctx, i18n.KeyAdminRefundResume) }
 								}
 							} else {
-								@components.Button(components.ButtonProps{ButtonStyle: components.ButtonStyleDanger, Block: true}, "submit") {
+								@widget.Button(widget.ButtonProps{ButtonStyle: widget.ButtonStyleDanger, Block: true}, "submit") {
 									{ i18n.T(ctx, i18n.KeyAdminRefundTitle) }
 								}
 								if v.RefundCreditPaid {
@@ -587,7 +587,7 @@ templ Order(p layouts.Page, v *OrderView) {
 					}
 				}
 				if v.UnsentOpen || v.UnsentOffered {
-					@components.Card(components.CardProps{Class: "goen-admin__op", Attrs: templ.Attributes{"aria-labelledby": "unsent-heading"}}) {
+					@widget.Card(widget.CardProps{Class: "goen-admin__op", Attrs: templ.Attributes{"aria-labelledby": "unsent-heading"}}) {
 						<h2 class="goen-admin__optitle" id="unsent-heading">{ i18n.T(ctx, i18n.KeyAdminUnsentTitle) }</h2>
 						<form class="goen-admin__form" method="post" action={ templ.SafeURL("/admin/orders/" + v.Number + "/refund-unsent") }>
 							if v.UnsentOpen {
@@ -596,7 +596,7 @@ templ Order(p layouts.Page, v *OrderView) {
 								for _, l := range v.UnsentOpenLines {
 									<input type="hidden" name={ l.Field() } value={ l.QuantityText() }/>
 								}
-								@components.Button(components.ButtonProps{ButtonStyle: components.ButtonStylePrimary, Block: true}, "submit") {
+								@widget.Button(widget.ButtonProps{ButtonStyle: widget.ButtonStylePrimary, Block: true}, "submit") {
 									{ i18n.T(ctx, i18n.KeyAdminRefundResume) }
 								}
 							} else {
@@ -619,7 +619,7 @@ templ Order(p layouts.Page, v *OrderView) {
 								<div class="ui-field">
 									<label class="ui-label" for="unsent-reason">
 										{ i18n.T(ctx, i18n.KeyAdminUnsentReason) }
-										@components.RequiredMark()
+										@widget.RequiredMark()
 									</label>
 									<select class="ui-select" id="unsent-reason" name="reason" required>
 										<option value="" selected disabled>{ i18n.T(ctx, i18n.KeyAdminUnsentReasonChoose) }</option>
@@ -628,7 +628,7 @@ templ Order(p layouts.Page, v *OrderView) {
 										}
 									</select>
 								</div>
-								@components.Button(components.ButtonProps{ButtonStyle: components.ButtonStyleDanger, Block: true}, "submit") {
+								@widget.Button(widget.ButtonProps{ButtonStyle: widget.ButtonStyleDanger, Block: true}, "submit") {
 									{ i18n.T(ctx, i18n.KeyAdminUnsentTitle) }
 								}
 								<p class="goen-admin__hint">{ i18n.T(ctx, i18n.KeyAdminUnsentHint) }</p>
@@ -637,14 +637,14 @@ templ Order(p layouts.Page, v *OrderView) {
 					}
 				}
 				if v.CanAdvance() {
-					@components.Card(components.CardProps{Class: "goen-admin__op"}) {
+					@widget.Card(widget.CardProps{Class: "goen-admin__op"}) {
 						<h2 class="goen-admin__optitle">{ i18n.T(ctx, i18n.KeyAdminQueueNextStatus) }</h2>
 						<p class="goen-admin__hint">{ i18n.T(ctx, i18n.KeyAdminQueueNextHint) }</p>
 						{{ primary := v.primaryStepIndex() }}
 						if primary >= 0 {
 							<form class="goen-admin__form" method="post" action={ templ.SafeURL("/admin/orders/" + v.Number + "/status") }>
 								<input type="hidden" name="status" value={ string(v.Next[primary].Value) }/>
-								@components.Button(components.ButtonProps{ButtonStyle: components.ButtonStylePrimary, Block: true, Attrs: templ.Attributes{"id": "order-primary-step"}}, "submit") {
+								@widget.Button(widget.ButtonProps{ButtonStyle: widget.ButtonStylePrimary, Block: true, Attrs: templ.Attributes{"id": "order-primary-step"}}, "submit") {
 									{ v.Next[primary].submitLabel(ctx) }
 								}
 							</form>
@@ -656,7 +656,7 @@ templ Order(p layouts.Page, v *OrderView) {
 									if i != primary {
 										<form class="goen-admin__form" method="post" action={ templ.SafeURL("/admin/orders/" + v.Number + "/status") }>
 											<input type="hidden" name="status" value={ string(step.Value) }/>
-											@components.Button(components.ButtonProps{ButtonStyle: components.ButtonStyleOutline, Block: true}, "submit") {
+											@widget.Button(widget.ButtonProps{ButtonStyle: widget.ButtonStyleOutline, Block: true}, "submit") {
 												{ step.submitLabel(ctx) }
 											}
 										</form>
@@ -674,7 +674,7 @@ templ Order(p layouts.Page, v *OrderView) {
 				} else if v.Final() {
 					<p class="goen-admin__hint">{ i18n.T(ctx, i18n.KeyAdminQueueFinal) }</p>
 				}
-				@components.Card(components.CardProps{Class: "goen-admin__op", Attrs: templ.Attributes{"aria-labelledby": "invoice-heading"}}) {
+				@widget.Card(widget.CardProps{Class: "goen-admin__op", Attrs: templ.Attributes{"aria-labelledby": "invoice-heading"}}) {
 					<h2 class="goen-admin__optitle" id="invoice-heading">{ i18n.T(ctx, i18n.KeyAdminDocInvoice) }</h2>
 					if len(v.InvoiceDocuments) > 0 {
 						<ul class="goen-admin__timeline" role="list">
@@ -684,7 +684,7 @@ templ Order(p layouts.Page, v *OrderView) {
 										{ d.KindText(ctx) } { d.Number } · { d.Amount() }
 									</span>
 									if d.Voided() {
-										@components.Badge(components.BadgeProps{Intent: components.IntentWarn}) {
+										@widget.Badge(widget.BadgeProps{Intent: widget.IntentWarn}) {
 											{ i18n.T(ctx, i18n.KeyAdminQueueVoided) }
 										}
 									}
@@ -707,7 +707,7 @@ templ Order(p layouts.Page, v *OrderView) {
 					}
 					if v.AllowanceAttention != "" {
 						<p class="ui-alert ui-alert--error" role="status">{ v.AllowanceAttentionText(ctx) }</p>
-						@components.TechnicalDetail(v.allowanceAttentionDetail())
+						@widget.TechnicalDetail(v.allowanceAttentionDetail())
 					}
 					if !v.InvoicingEnabled {
 						<p class="goen-admin__hint">
@@ -716,7 +716,7 @@ templ Order(p layouts.Page, v *OrderView) {
 					} else {
 						if v.CanIssueInvoice() {
 							<form class="goen-admin__form" method="post" action={ templ.SafeURL("/admin/orders/" + v.Number + "/invoice") }>
-								@components.Button(components.ButtonProps{ButtonStyle: components.ButtonStyleOutline, Block: true}, "submit") {
+								@widget.Button(widget.ButtonProps{ButtonStyle: widget.ButtonStyleOutline, Block: true}, "submit") {
 									{ i18n.T(ctx, i18n.KeyAdminQueueIssue) }
 								}
 								<p class="goen-admin__hint">
@@ -730,7 +730,7 @@ templ Order(p layouts.Page, v *OrderView) {
 									<label class="ui-label" for="void-reason">{ i18n.T(ctx, i18n.KeyAdminQueueVoidReason) }</label>
 									<input class="ui-input" id="void-reason" name="reason" required maxlength="20" autocomplete="off"/>
 								</div>
-								@components.Button(components.ButtonProps{ButtonStyle: components.ButtonStyleDanger, Block: true}, "submit") {
+								@widget.Button(widget.ButtonProps{ButtonStyle: widget.ButtonStyleDanger, Block: true}, "submit") {
 									{ i18n.T(ctx, i18n.KeyAdminQueueVoid) }
 								}
 								<p class="goen-admin__hint">
@@ -741,7 +741,7 @@ templ Order(p layouts.Page, v *OrderView) {
 						if v.CanAllowInvoice() {
 							<form class="goen-admin__form" method="post" action={ templ.SafeURL("/admin/orders/" + v.Number + "/invoice/allowance") }>
 								<input type="hidden" name="operation_id" value={ v.AllowanceOperationID }/>
-								@components.Button(components.ButtonProps{ButtonStyle: components.ButtonStyleOutline, Block: true}, "submit") {
+								@widget.Button(widget.ButtonProps{ButtonStyle: widget.ButtonStyleOutline, Block: true}, "submit") {
 									{ i18n.T(ctx, i18n.KeyAdminQueueAllowance) }
 								}
 								<p class="goen-admin__hint">
@@ -761,7 +761,7 @@ templ Order(p layouts.Page, v *OrderView) {
 }
 
 templ orderItemsAndDelivery(v *OrderView) {
-	@components.Card(components.CardProps{Class: "goen-admin__op"}) {
+	@widget.Card(widget.CardProps{Class: "goen-admin__op"}) {
 		<h2 class="goen-admin__optitle">{ i18n.T(ctx, i18n.KeyAdminQueueItems) }</h2>
 		<ul class="goen-order__lines" role="list">
 			for _, l := range v.Lines {
@@ -789,7 +789,7 @@ templ orderItemsAndDelivery(v *OrderView) {
 			}
 		</ul>
 	}
-	@components.Card(components.CardProps{Class: "goen-admin__op"}) {
+	@widget.Card(widget.CardProps{Class: "goen-admin__op"}) {
 		<h2 class="goen-admin__optitle">{ i18n.T(ctx, i18n.KeyAdminQueueDelivery) }</h2>
 		<dl class="ui-dl">
 			<div class="ui-dl__row">
@@ -817,7 +817,7 @@ templ orderItemsAndDelivery(v *OrderView) {
 		</dl>
 	}
 	if v.HasCustomerNote() {
-		@components.Card(components.CardProps{Class: "goen-admin__op"}) {
+		@widget.Card(widget.CardProps{Class: "goen-admin__op"}) {
 			<h2 class="goen-admin__optitle">{ i18n.T(ctx, i18n.KeyAdminQueueCustomerNote) }</h2>
 			<p class="goen-admin__note">{ v.CustomerNote }</p>
 		}

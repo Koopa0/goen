@@ -13,8 +13,8 @@ import (
 	"github.com/koopa0/goen/internal/i18n"
 	"github.com/koopa0/goen/internal/keyset"
 	"github.com/koopa0/goen/internal/media"
-	"github.com/koopa0/goen/internal/ui/components"
 	"github.com/koopa0/goen/internal/ui/layouts"
+	"github.com/koopa0/goen/internal/ui/widget"
 	"github.com/koopa0/goen/internal/web/formtext"
 	"github.com/koopa0/goen/internal/web/respond"
 )
@@ -44,10 +44,10 @@ func (h *Handler) Routes(mux *http.ServeMux, ac *access.Control) {
 	mux.HandleFunc("POST /admin/campaigns/{slug}/window", ac.RequireStaff(h.SetWindow))
 }
 
-var notices = map[string]components.NoticeEntry{
-	"ok":         components.NoticeDone(i18n.KeyAdminNoticeOK),
-	"refused":    components.NoticeRefused(i18n.KeyAdminNoticeRefused),
-	"nodiscount": components.NoticeRefused(i18n.KeyAdminNoticeNoDiscount),
+var notices = map[string]widget.NoticeEntry{
+	"ok":         widget.NoticeDone(i18n.KeyAdminNoticeOK),
+	"refused":    widget.NoticeRefused(i18n.KeyAdminNoticeRefused),
+	"nodiscount": widget.NoticeRefused(i18n.KeyAdminNoticeNoDiscount),
 }
 
 func (h *Handler) Page(w http.ResponseWriter, r *http.Request) {
@@ -57,7 +57,7 @@ func (h *Handler) Page(w http.ResponseWriter, r *http.Request) {
 		access.ServerError(w, r, h.log)
 		return
 	}
-	view.Notice = components.NoticeFrom(r, notices)
+	view.Notice = widget.NoticeFrom(r, notices)
 	respond.Component(w, r, h.log, http.StatusOK, Campaigns(
 		layouts.Page{Title: i18n.T(r.Context(), i18n.KeyAdminPageCampaigns)}, view))
 }
@@ -98,10 +98,10 @@ func (h *Handler) Create(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *Handler) Edit(w http.ResponseWriter, r *http.Request) {
-	h.render(w, r, http.StatusOK, components.NoticeFrom(r, notices), nil)
+	h.render(w, r, http.StatusOK, widget.NoticeFrom(r, notices), nil)
 }
 
-func (h *Handler) render(w http.ResponseWriter, r *http.Request, status int, notice components.Result, errs map[string]string) {
+func (h *Handler) render(w http.ResponseWriter, r *http.Request, status int, notice widget.Result, errs map[string]string) {
 	slug := r.PathValue("slug")
 	products, err := h.store.Products(r.Context(), slug)
 	if err != nil {
@@ -166,7 +166,7 @@ func (h *Handler) SetWindow(w http.ResponseWriter, r *http.Request) {
 		r.PostFormValue("starts_at"), r.PostFormValue("ends_at"))
 	switch {
 	case err == nil && len(errs) > 0:
-		h.render(w, r, http.StatusUnprocessableEntity, components.Result{}, errs)
+		h.render(w, r, http.StatusUnprocessableEntity, widget.Result{}, errs)
 	case err == nil:
 		//nolint:gosec // G710: slug is the route's own path value
 		http.Redirect(w, r, "/admin/campaigns/"+slug+"?ok=1", http.StatusSeeOther)
@@ -191,7 +191,7 @@ func (h *Handler) SetTone(w http.ResponseWriter, r *http.Request) {
 	case errors.Is(err, ErrNotFound):
 		access.NotFound(w, r, h.log)
 	case errors.Is(err, ErrInvalid):
-		h.render(w, r, http.StatusUnprocessableEntity, components.Result{}, map[string]string{"tone": i18n.T(r.Context(), i18n.KeyFormToneUnknown)})
+		h.render(w, r, http.StatusUnprocessableEntity, widget.Result{}, map[string]string{"tone": i18n.T(r.Context(), i18n.KeyFormToneUnknown)})
 	default:
 		h.log.ErrorContext(r.Context(), "set campaign tone", "error", err, "slug", slug)
 		access.ServerError(w, r, h.log)
@@ -217,7 +217,7 @@ func (h *Handler) SetImage(w http.ResponseWriter, r *http.Request) {
 		if utf8.RuneCountInString(strings.TrimSpace(r.PostFormValue("alt_en"))) > MaxAltRunes {
 			field, reason = "alt_en", i18n.KeyFormCampaignAltEnLong
 		}
-		h.render(w, r, http.StatusUnprocessableEntity, components.Result{}, map[string]string{field: i18n.T(r.Context(), reason)})
+		h.render(w, r, http.StatusUnprocessableEntity, widget.Result{}, map[string]string{field: i18n.T(r.Context(), reason)})
 	default:
 		h.log.ErrorContext(r.Context(), "set campaign image", "error", err, "slug", slug)
 		access.ServerError(w, r, h.log)
@@ -306,7 +306,7 @@ func (h *Handler) respondToUploadError(w http.ResponseWriter, r *http.Request, e
 		// The browser went away mid-upload; there is no one to answer.
 	case media.IsRefusal(err):
 		h.log.WarnContext(r.Context(), "campaign image upload", "error", err, "slug", r.PathValue("slug"))
-		h.render(w, r, http.StatusUnprocessableEntity, components.Result{}, map[string]string{"image": i18n.T(r.Context(), media.UploadNotice(err))})
+		h.render(w, r, http.StatusUnprocessableEntity, widget.Result{}, map[string]string{"image": i18n.T(r.Context(), media.UploadNotice(err))})
 	default:
 		h.log.ErrorContext(r.Context(), "campaign image upload", "error", err, "slug", r.PathValue("slug"))
 		access.ServerError(w, r, h.log)

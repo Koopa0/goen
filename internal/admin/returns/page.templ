@@ -4,8 +4,8 @@ import (
 	"fmt"
 
 	"github.com/koopa0/goen/internal/i18n"
-	"github.com/koopa0/goen/internal/ui/components"
 	"github.com/koopa0/goen/internal/ui/layouts"
+	"github.com/koopa0/goen/internal/ui/widget"
 )
 
 templ Returns(p layouts.Page, v ReturnsView) {
@@ -34,7 +34,7 @@ templ Returns(p layouts.Page, v ReturnsView) {
 						<div class="goen-admin__returninfo">
 							<p class="goen-admin__returnorder"><a href={ templ.SafeURL(r.OrderAction()) }>{ r.OrderNumber }</a></p>
 							<div class="goen-admin__cellbadges">
-								@components.Badge(components.BadgeProps{Intent: r.StatusIntent()}) {
+								@widget.Badge(widget.BadgeProps{Intent: r.StatusIntent()}) {
 									{ r.StatusLabel(ctx) }
 								}
 							</div>
@@ -134,7 +134,7 @@ templ Returns(p layouts.Page, v ReturnsView) {
 										<p class="ui-error-text" id={ "basis-" + r.ID + "-error" }>{ v.FieldRefusal(r.ID, "basis") }</p>
 									</div>
 									<div class="goen-admin__decidebtns">
-										@components.Button(components.ButtonProps{ButtonStyle: components.ButtonStyleOutline}, "submit") {
+										@widget.Button(widget.ButtonProps{ButtonStyle: widget.ButtonStyleOutline}, "submit") {
 											{ i18n.T(ctx, i18n.KeyAdminRetAssessButton) }
 										}
 									</div>
@@ -161,24 +161,24 @@ templ Returns(p layouts.Page, v ReturnsView) {
 								</div>
 								<div class="goen-admin__decidebtns">
 									if !r.Late() {
-										@components.Button(components.ButtonProps{
-											ButtonStyle: components.ButtonStylePrimary,
+										@widget.Button(widget.ButtonProps{
+											ButtonStyle: widget.ButtonStylePrimary,
 											Attrs:       templ.Attributes{"name": "decision", "value": "approved"},
 										}, "submit") {
 											{ i18n.T(ctx, i18n.KeyAdminRetApprove) }
 										}
 									}
 									if (r.Goodwill() || r.Mixed() || r.Late()) && !r.mixedStatutoryApproval() {
-										@components.Button(components.ButtonProps{
-											ButtonStyle: components.ButtonStyleOutline,
+										@widget.Button(widget.ButtonProps{
+											ButtonStyle: widget.ButtonStyleOutline,
 											Attrs:       templ.Attributes{"name": "decision", "value": "exception"},
 										}, "submit") {
 											{ i18n.T(ctx, i18n.KeyAdminRetException) }
 										}
 									}
 									if r.CanReject() {
-										@components.Button(components.ButtonProps{
-											ButtonStyle: components.ButtonStyleOutline,
+										@widget.Button(widget.ButtonProps{
+											ButtonStyle: widget.ButtonStyleOutline,
 											Attrs:       templ.Attributes{"name": "decision", "value": "rejected"},
 										}, "submit") {
 											{ i18n.T(ctx, i18n.KeyAdminRetReject) }
@@ -191,7 +191,7 @@ templ Returns(p layouts.Page, v ReturnsView) {
 								<p class="goen-admin__hint">{ i18n.T(ctx, i18n.KeyAdminRetPayoutOutstanding) }</p>
 								<input type="hidden" name="decision" value="approved"/>
 								<div class="goen-admin__decidebtns">
-									@components.Button(components.ButtonProps{ButtonStyle: components.ButtonStylePrimary}, "submit") {
+									@widget.Button(widget.ButtonProps{ButtonStyle: widget.ButtonStylePrimary}, "submit") {
 										{ i18n.T(ctx, i18n.KeyAdminRetRetryPayout) }
 									}
 								</div>
@@ -210,7 +210,7 @@ templ Returns(p layouts.Page, v ReturnsView) {
 											<input
 												class="ui-input"
 												id={ "recv-" + r.ID + "-" + l.OrderLineID }
-												type={ components.DollarInputType(l.ReceivedField(v.FieldInvalid(r.ID, "inspect"))) }
+												type={ widget.DollarInputType(l.ReceivedField(v.FieldInvalid(r.ID, "inspect"))) }
 												inputmode="numeric"
 												name={ "received_" + l.OrderLineID }
 												value={ l.ReceivedField(v.FieldInvalid(r.ID, "inspect")) }
@@ -232,7 +232,7 @@ templ Returns(p layouts.Page, v ReturnsView) {
 												<input
 													class="ui-input"
 													id={ "stock-" + r.ID + "-" + l.OrderLineID }
-													type={ components.DollarInputType(l.RestockedField(v.FieldInvalid(r.ID, "inspect"))) }
+													type={ widget.DollarInputType(l.RestockedField(v.FieldInvalid(r.ID, "inspect"))) }
 													inputmode="numeric"
 													name={ "restocked_" + l.OrderLineID }
 													value={ l.RestockedField(v.FieldInvalid(r.ID, "inspect")) }
@@ -269,7 +269,7 @@ templ Returns(p layouts.Page, v ReturnsView) {
 									<p class="ui-error-text" id={ "inspect-error-" + r.ID } role="alert">{ v.FieldRefusal(r.ID, "inspect") }</p>
 								}
 								<div class="goen-admin__decidebtns">
-									@components.Button(components.ButtonProps{ButtonStyle: components.ButtonStylePrimary}, "submit") {
+									@widget.Button(widget.ButtonProps{ButtonStyle: widget.ButtonStylePrimary}, "submit") {
 										{ i18n.T(ctx, i18n.KeyAdminRetInspectButton) }
 									}
 								</div>
@@ -285,7 +285,7 @@ templ Returns(p layouts.Page, v ReturnsView) {
 									<input class="ui-input" id={ "done-" + r.ID } name="resolution" maxlength="300" autocomplete="off"/>
 								</div>
 								<div class="goen-admin__decidebtns">
-									@components.Button(components.ButtonProps{ButtonStyle: components.ButtonStylePrimary}, "submit") {
+									@widget.Button(widget.ButtonProps{ButtonStyle: widget.ButtonStylePrimary}, "submit") {
 										{ i18n.T(ctx, i18n.KeyAdminRetCloseButton) }
 									}
 								</div>
@@ -295,7 +295,7 @@ templ Returns(p layouts.Page, v ReturnsView) {
 				}
 			</ul>
 		}
-		@components.ListPager(v.Bound)
+		@widget.ListPager(v.Bound)
 	}
 }
 

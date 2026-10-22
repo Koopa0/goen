@@ -2,9 +2,9 @@ package auth
 
 import (
 	"github.com/koopa0/goen/internal/i18n"
-	"github.com/koopa0/goen/internal/ui/components"
 	"github.com/koopa0/goen/internal/ui/fieldrule"
 	"github.com/koopa0/goen/internal/ui/layouts"
+	"github.com/koopa0/goen/internal/ui/widget"
 )
 
 templ Forgot(p layouts.Page, v ForgotView) {
@@ -14,12 +14,12 @@ templ Forgot(p layouts.Page, v ForgotView) {
 				<h1 class="goen-auth__title">{ i18n.T(ctx, i18n.KeyForgotTitle) }</h1>
 				<p class="goen-auth__lede">{ i18n.T(ctx, i18n.KeyForgotSub) }</p>
 				if v.Sent {
-					@components.Notice(components.NoticeProps{Intent: components.IntentAccent, ID: "forgot-sent"}) {
+					@widget.Notice(widget.NoticeProps{Intent: widget.IntentAccent, ID: "forgot-sent"}) {
 						{ v.SentMessage(ctx) }
 					}
 				}
 				if v.Notice != "" {
-					@components.Notice(components.NoticeProps{Intent: components.IntentWarn}) {
+					@widget.Notice(widget.NoticeProps{Intent: widget.IntentWarn}) {
 						{ v.Notice }
 					}
 				}
@@ -44,10 +44,10 @@ templ Forgot(p layouts.Page, v ForgotView) {
 templ forgotForm(autofocus bool) {
 	<form class="goen-auth__form" method="post" action="/forgot">
 		<div class="goen-field">
-			@components.Label(components.LabelProps{For: "email"}) {
+			@widget.Label(widget.LabelProps{For: "email"}) {
 				{ i18n.T(ctx, i18n.KeyFieldEmail) }
 			}
-			@components.Input(components.FieldProps{
+			@widget.Input(widget.FieldProps{
 				ID:   "email",
 				Name: "email",
 				Type: "email",
@@ -59,7 +59,7 @@ templ forgotForm(autofocus bool) {
 				}),
 			})
 		</div>
-		@components.Button(components.ButtonProps{ButtonStyle: components.ButtonStylePrimary, Size: components.SizeLarge, Block: true}, "submit") {
+		@widget.Button(widget.ButtonProps{ButtonStyle: widget.ButtonStylePrimary, Size: widget.SizeLarge, Block: true}, "submit") {
 			{ i18n.T(ctx, i18n.KeyForgotSubmit) }
 		}
 	</form>
@@ -74,10 +74,10 @@ templ Reset(p layouts.Page, v ResetView) {
 					<form class="goen-auth__form" method="post" action="/reset">
 						<input type="hidden" name="token" value={ v.Token }/>
 						<div class="goen-field">
-							@components.Label(components.LabelProps{For: "password"}) {
+							@widget.Label(widget.LabelProps{For: "password"}) {
 								{ i18n.T(ctx, i18n.KeyFieldNewPassword) }
 							}
-							@components.Input(components.FieldProps{
+							@widget.Input(widget.FieldProps{
 								ID:        "password",
 								Name:      "password",
 								Type:      "password",
@@ -97,10 +97,10 @@ templ Reset(p layouts.Page, v ResetView) {
 							}
 						</div>
 						<div class="goen-field">
-							@components.Label(components.LabelProps{For: "confirm"}) {
+							@widget.Label(widget.LabelProps{For: "confirm"}) {
 								{ i18n.T(ctx, i18n.KeyFieldConfirmPassword) }
 							}
-							@components.Input(components.FieldProps{
+							@widget.Input(widget.FieldProps{
 								ID:        "confirm",
 								Name:      "confirm",
 								Type:      "password",
@@ -118,7 +118,7 @@ templ Reset(p layouts.Page, v ResetView) {
 							}
 						</div>
 						<p class="goen-auth__hint">{ i18n.T(ctx, i18n.KeyResetEndsSessions) }</p>
-						@components.Button(components.ButtonProps{ButtonStyle: components.ButtonStylePrimary, Size: components.SizeLarge, Block: true}, "submit") {
+						@widget.Button(widget.ButtonProps{ButtonStyle: widget.ButtonStylePrimary, Size: widget.SizeLarge, Block: true}, "submit") {
 							{ i18n.T(ctx, i18n.KeyResetTitle) }
 						}
 					</form>

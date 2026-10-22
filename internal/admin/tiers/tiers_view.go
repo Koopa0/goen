@@ -8,12 +8,12 @@ import (
 
 	"github.com/koopa0/goen/internal/i18n"
 	"github.com/koopa0/goen/internal/money"
-	"github.com/koopa0/goen/internal/ui/components"
+	"github.com/koopa0/goen/internal/ui/widget"
 )
 
 type TiersView struct {
 	Rows   []Tier
-	Notice components.Result
+	Notice widget.Result
 }
 
 type Tier struct {

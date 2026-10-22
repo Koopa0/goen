@@ -5,9 +5,9 @@ import (
 	"testing"
 
 	"github.com/koopa0/goen/internal/i18n"
-	"github.com/koopa0/goen/internal/ui/components"
 	"github.com/koopa0/goen/internal/ui/hero"
 	"github.com/koopa0/goen/internal/ui/tone"
+	"github.com/koopa0/goen/internal/ui/widget"
 )
 
 // The carousel draws one slide per entry, with a button only where the slide
@@ -19,9 +19,9 @@ func TestHeroCarouselDrawsItsSlides(t *testing.T) {
 		see := i18n.T(ctx, i18n.KeyHeroCampaignCTA)
 		campaign := hero.Slide{
 			Layout: hero.LayoutPhoto, Tone: tone.Sage, Title: "Autumn desk sale",
-			Stats: []components.Stat{{Label: "Items", Value: components.StatCount(4, "items")}},
+			Stats: []widget.Stat{{Label: "Items", Value: widget.StatCount(4, "items")}},
 			CTA:   hero.CTA{Label: see, Href: "/s/autumn-desk"},
-			Photo: components.Photo{URL: "/static/a.webp", Alt: "a desk"}, PhotoWidth: 1600, PhotoHeight: 600,
+			Photo: widget.Photo{URL: "/static/a.webp", Alt: "a desk"}, PhotoWidth: 1600, PhotoHeight: 600,
 		}
 		department := hero.Slide{Layout: hero.LayoutSplit, Tone: tone.Mist, Title: "Tech", CTA: hero.CTA{Label: see, Href: "/c/tech"}}
 
@@ -97,10 +97,10 @@ func TestHeroCarouselHasNoAutoplay(t *testing.T) {
 func TestACampaignSlideDrawsItsStatsAndItsDayGrid(t *testing.T) {
 	t.Parallel()
 	ctx := i18n.WithLocale(t.Context(), i18n.ZhHant)
-	spec := components.PeriodSpec{Description: "秋日選物：10 月 1 日至 10 月 30 日，共 30 天", TodayLabel: "今天", Cells: []components.PeriodCell{{State: components.CellToday, Label: "10/9"}, {Label: "10/10"}}}
+	spec := widget.PeriodSpec{Description: "秋日選物：10 月 1 日至 10 月 30 日，共 30 天", TodayLabel: "今天", Cells: []widget.PeriodCell{{State: widget.CellToday, Label: "10/9"}, {Label: "10/10"}}}
 	slide := hero.Slide{
 		Layout: hero.LayoutPhoto, Tone: tone.Sage, Title: "年終感謝祭全館滿額再折",
-		Stats:  []components.Stat{{Label: "結束", Value: components.StatDate("10\u00a0月 30\u00a0日", ""), Note: "明天結束"}},
+		Stats:  []widget.Stat{{Label: "結束", Value: widget.StatDate("10\u00a0月 30\u00a0日", ""), Note: "明天結束"}},
 		Period: &spec,
 	}
 	got := renderComponent(t, ctx, Page(Meta(ctx), View{Slides: []hero.Slide{slide}}))

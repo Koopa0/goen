@@ -5,29 +5,29 @@ import (
 	"testing"
 
 	"github.com/koopa0/goen/internal/i18n"
-	"github.com/koopa0/goen/internal/ui/components"
 	"github.com/koopa0/goen/internal/ui/layouts"
 	"github.com/koopa0/goen/internal/ui/tile"
 	"github.com/koopa0/goen/internal/ui/tone"
+	"github.com/koopa0/goen/internal/ui/widget"
 )
 
 func TestBandPhotoFallsBackToTheFirstProductThenToNothing(t *testing.T) {
 	t.Parallel()
 
-	own := components.Photo{URL: "/dept.webp"}
+	own := widget.Photo{URL: "/dept.webp"}
 	first := tile.Tile{ImageURL: "/first.webp", ImageSrcset: "/first-400.webp 400w", ImageAlt: "first"}
 	second := tile.Tile{ImageURL: "/second.webp"}
 
 	for name, tt := range map[string]struct {
-		department components.Photo
+		department widget.Photo
 		products   []tile.Tile
 		wantURL    string
 		wantWell   bool
 	}{
 		"department photograph":   {own, []tile.Tile{first}, "/dept.webp", false},
-		"first product on a well": {components.Photo{}, []tile.Tile{first, second}, "/first.webp", true},
-		"first product has none":  {components.Photo{}, []tile.Tile{{}, second}, "", false},
-		"no products":             {components.Photo{}, nil, "", false},
+		"first product on a well": {widget.Photo{}, []tile.Tile{first, second}, "/first.webp", true},
+		"first product has none":  {widget.Photo{}, []tile.Tile{{}, second}, "", false},
+		"no products":             {widget.Photo{}, nil, "", false},
 	} {
 		got, onWell := bandPhoto(tt.department, tt.products)
 		if got.URL != tt.wantURL || onWell != tt.wantWell {
@@ -71,7 +71,7 @@ func TestTheDepartmentHeadIsTheBand(t *testing.T) {
 	t.Parallel()
 	ctx := i18n.WithLocale(t.Context(), i18n.En)
 
-	page := renderComponent(t, ctx, Listing(layouts.Page{}, ListingView{Slug: "c", Name: "Books", Theme: &Theme{Tone: tone.Sage, Photo: components.Photo{URL: "/d.webp"}}}, nil, nil))
+	page := renderComponent(t, ctx, Listing(layouts.Page{}, ListingView{Slug: "c", Name: "Books", Theme: &Theme{Tone: tone.Sage, Photo: widget.Photo{URL: "/d.webp"}}}, nil, nil))
 	band := strings.Index(page, `class="goen-band"`)
 	grid := strings.Index(page, `class="goen-band__grid"`)
 	media := strings.Index(page, `class="goen-band__media"`)

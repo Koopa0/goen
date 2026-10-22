@@ -1,6 +1,6 @@
 package taxonomy
 
-import "github.com/koopa0/goen/internal/ui/components"
+import "github.com/koopa0/goen/internal/ui/widget"
 
 type CategoryView struct {
 	ImageAltDraft   string
@@ -8,8 +8,8 @@ type CategoryView struct {
 	Slug            string
 	Name            string
 	Tone            string // the category's own; "" inherits its department's
-	Image           components.HeaderImage
-	Notice          components.Result
+	Image           widget.HeaderImage
+	Notice          widget.Result
 	Errors          map[string]string
 }
 

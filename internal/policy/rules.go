@@ -7,7 +7,7 @@ import (
 
 	"github.com/koopa0/goen/internal/i18n"
 	"github.com/koopa0/goen/internal/money"
-	"github.com/koopa0/goen/internal/ui/components"
+	"github.com/koopa0/goen/internal/ui/widget"
 )
 
 // Rules is what the shop states about itself, from where each rule is stored.
@@ -50,43 +50,43 @@ func (s *Store) Rules(ctx context.Context) (Rules, error) {
 	}, nil
 }
 
-func (r Rules) Stats(ctx context.Context) []components.Stat {
-	return []components.Stat{
+func (r Rules) Stats(ctx context.Context) []widget.Stat {
+	return []widget.Stat{
 		r.HoldStat(ctx),
 		r.RescissionStat(ctx),
 		{
 			Label: i18n.T(ctx, i18n.KeyRuleReturn),
-			Value: components.StatCount(r.ReturnDays, i18n.T(ctx, i18n.KeyRuleUnitDays)),
+			Value: widget.StatCount(r.ReturnDays, i18n.T(ctx, i18n.KeyRuleUnitDays)),
 			Note:  i18n.T(ctx, i18n.KeyRuleReturnNote),
 		},
 		r.FreeDeliveryStat(ctx),
 	}
 }
 
-func (r Rules) HoldStat(ctx context.Context) components.Stat {
-	return components.Stat{
+func (r Rules) HoldStat(ctx context.Context) widget.Stat {
+	return widget.Stat{
 		Label: i18n.T(ctx, i18n.KeyRuleHold),
-		Value: components.StatCount(r.HoldMinutes, i18n.T(ctx, i18n.KeyRuleUnitMinutes)),
+		Value: widget.StatCount(r.HoldMinutes, i18n.T(ctx, i18n.KeyRuleUnitMinutes)),
 		Note:  fmt.Sprintf(i18n.T(ctx, i18n.KeyRuleHoldNote), strconv.FormatInt(r.PayStartMinutes, 10)),
 	}
 }
 
-func (r Rules) RescissionStat(ctx context.Context) components.Stat {
-	return components.Stat{
+func (r Rules) RescissionStat(ctx context.Context) widget.Stat {
+	return widget.Stat{
 		Label: i18n.T(ctx, i18n.KeyRuleRescission),
-		Value: components.StatCount(r.RescissionDays, i18n.T(ctx, i18n.KeyRuleUnitDays)),
+		Value: widget.StatCount(r.RescissionDays, i18n.T(ctx, i18n.KeyRuleUnitDays)),
 		Note:  i18n.T(ctx, i18n.KeyRuleRescissionNote),
 	}
 }
 
 // FreeDeliveryStat has no figure where some delivery method never turns free, and a stat with no figure is left out.
-func (r Rules) FreeDeliveryStat(ctx context.Context) components.Stat {
+func (r Rules) FreeDeliveryStat(ctx context.Context) widget.Stat {
 	if r.FreeDeliveryCents <= 0 {
-		return components.Stat{}
+		return widget.Stat{}
 	}
-	return components.Stat{
+	return widget.Stat{
 		Label: i18n.T(ctx, i18n.KeyRuleFreeDelivery),
-		Value: components.StatMoney(r.FreeDeliveryCents),
+		Value: widget.StatMoney(r.FreeDeliveryCents),
 		Note:  fmt.Sprintf(i18n.T(ctx, r.freeDeliveryNoteKey()), money.TWD(r.LowestFeeCents)),
 	}
 }

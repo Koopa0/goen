@@ -8,7 +8,7 @@ import (
 	"github.com/koopa0/goen/internal/i18n"
 	"github.com/koopa0/goen/internal/order"
 	"github.com/koopa0/goen/internal/shoptime"
-	"github.com/koopa0/goen/internal/ui/components"
+	"github.com/koopa0/goen/internal/ui/widget"
 )
 
 func (v *OrderView) now() time.Time {
@@ -38,17 +38,17 @@ func (v *OrderView) SimpleLines() bool {
 func (v *OrderView) SeveralParcels() bool { return len(v.Shipments) > 1 }
 
 // Facts are what the page opens with. A cancelled order has no delivery, so it states the cancellation instead.
-func (v *OrderView) Facts(ctx context.Context) []components.Stat {
+func (v *OrderView) Facts(ctx context.Context) []widget.Stat {
 	now := v.now()
-	placed := components.DateStat(ctx, i18n.T(ctx, i18n.KeyOrderFactPlaced), shoptime.DateOf(v.PlacedAt, now), shoptime.ClockText(v.PlacedAt))
+	placed := widget.DateStat(ctx, i18n.T(ctx, i18n.KeyOrderFactPlaced), shoptime.DateOf(v.PlacedAt, now), shoptime.ClockText(v.PlacedAt))
 	if v.IsCancelled() {
-		facts := []components.Stat{placed, timeStat(ctx, i18n.T(ctx, i18n.KeyOrderFactCancelled), v.cancelledAt(), now)}
+		facts := []widget.Stat{placed, timeStat(ctx, i18n.T(ctx, i18n.KeyOrderFactCancelled), v.cancelledAt(), now)}
 		if v.PaymentState() == PaymentRefunded {
-			facts = append(facts, components.Stat{Label: i18n.T(ctx, i18n.KeyOrderFactRefund), Value: components.StatMoney(v.TotalCents)})
+			facts = append(facts, widget.Stat{Label: i18n.T(ctx, i18n.KeyOrderFactRefund), Value: widget.StatMoney(v.TotalCents)})
 		}
 		return facts
 	}
-	facts := []components.Stat{placed, {Label: i18n.T(ctx, i18n.KeyOrderGrandTotal), Value: components.StatMoney(v.TotalCents)}}
+	facts := []widget.Stat{placed, {Label: i18n.T(ctx, i18n.KeyOrderGrandTotal), Value: widget.StatMoney(v.TotalCents)}}
 	if len(v.Shipments) == 1 && v.Shipments[0].Delivered() {
 		s := v.Shipments[0]
 		label := i18n.T(ctx, i18n.KeyOrderFactDelivered)
@@ -62,11 +62,11 @@ func (v *OrderView) Facts(ctx context.Context) []components.Stat {
 
 // ReturnedFacts are what an order says once every unit is in a return whose refund has settled: the money and
 // the day it was refunded, since the goods may still be on their way back.
-func (v *OrderView) ReturnedFacts(ctx context.Context) []components.Stat {
+func (v *OrderView) ReturnedFacts(ctx context.Context) []widget.Stat {
 	now := v.now()
-	return []components.Stat{
-		components.DateStat(ctx, i18n.T(ctx, i18n.KeyOrderFactRefundDate), shoptime.DateOf(v.Returned.At, now), ""),
-		{Label: i18n.T(ctx, i18n.KeyOrderFactRefund), Value: components.StatMoney(v.Returned.RefundCents)},
+	return []widget.Stat{
+		widget.DateStat(ctx, i18n.T(ctx, i18n.KeyOrderFactRefundDate), shoptime.DateOf(v.Returned.At, now), ""),
+		{Label: i18n.T(ctx, i18n.KeyOrderFactRefund), Value: widget.StatMoney(v.Returned.RefundCents)},
 	}
 }
 
@@ -87,7 +87,7 @@ func (v *OrderView) ParcelsNote(ctx context.Context) string {
 }
 
 // ReturnFacts are the right to cancel as the database counted it for this parcel.
-func (v *OrderView) ReturnFacts(ctx context.Context, s OrderShipment) []components.Stat {
+func (v *OrderView) ReturnFacts(ctx context.Context, s OrderShipment) []widget.Stat {
 	now := v.now()
 	last, end := shoptime.DateOf(s.RescissionEnds, now), shoptime.DateOf(s.GoodwillEnds, now)
 	// On the last day the grid says so; a count of zero would read as the right already gone.
@@ -95,17 +95,17 @@ func (v *OrderView) ReturnFacts(ctx context.Context, s OrderShipment) []componen
 	if left == 0 {
 		left = -1
 	}
-	return []components.Stat{
-		components.DateStat(ctx, i18n.T(ctx, i18n.KeyOrderLastDay), last, ""),
-		{Label: i18n.T(ctx, i18n.KeyOrderDaysLeft), Value: components.StatCount(left, i18n.T(ctx, i18n.KeyFactUnitDays))},
-		components.DateStat(ctx, i18n.T(ctx, i18n.KeyOrderUnusedUntil), end, ""),
+	return []widget.Stat{
+		widget.DateStat(ctx, i18n.T(ctx, i18n.KeyOrderLastDay), last, ""),
+		{Label: i18n.T(ctx, i18n.KeyOrderDaysLeft), Value: widget.StatCount(left, i18n.T(ctx, i18n.KeyFactUnitDays))},
+		widget.DateStat(ctx, i18n.T(ctx, i18n.KeyOrderUnusedUntil), end, ""),
 	}
 }
 
 // ReturnGrid draws the days from the parcel's delivery to the end of unused returns.
-func (v *OrderView) ReturnGrid(ctx context.Context, s OrderShipment) (components.PeriodSpec, bool) {
+func (v *OrderView) ReturnGrid(ctx context.Context, s OrderShipment) (widget.PeriodSpec, bool) {
 	now := v.now()
-	return components.ReturnPeriod(ctx,
+	return widget.ReturnPeriod(ctx,
 		shoptime.DateOf(s.DeliveredAt, now), shoptime.DateOf(s.RescissionEnds, now), shoptime.DateOf(s.GoodwillEnds, now),
 		shoptime.DateOf(now, now), v.Pickup)
 }
@@ -128,7 +128,7 @@ func (v *OrderView) PickupCounted(ctx context.Context) string {
 
 // WarrantyFacts are a line's warranty counted from the parcel that carries it; delivered says whether that
 // parcel has arrived. Before registration only the months are stated, and the cover's end once a unit is registered.
-func (v *OrderView) WarrantyFacts(ctx context.Context, l OrderLine, delivered bool) []components.Stat {
+func (v *OrderView) WarrantyFacts(ctx context.Context, l OrderLine, delivered bool) []widget.Stat {
 	counted, later := i18n.KeyOrderWarrantyFromDelivery, i18n.KeyOrderWarrantyAfterDelivery
 	if v.Pickup {
 		counted, later = i18n.KeyOrderWarrantyFromCollection, i18n.KeyOrderWarrantyAfterCollection
@@ -141,13 +141,13 @@ func (v *OrderView) WarrantyFacts(ctx context.Context, l OrderLine, delivered bo
 	case !v.ShowWarrantyLink:
 		note = fmt.Sprintf(i18n.T(ctx, i18n.KeyOrderWarrantyNote), note, i18n.T(ctx, i18n.KeyOrderWarrantyNeedsAccount))
 	}
-	facts := []components.Stat{{
+	facts := []widget.Stat{{
 		Label: i18n.T(ctx, i18n.KeyOrderWarranty),
-		Value: components.StatCount(int64(l.WarrantyMonths), components.CountUnit(ctx, i18n.KeyUnitMonths, int64(l.WarrantyMonths))),
+		Value: widget.StatCount(int64(l.WarrantyMonths), widget.CountUnit(ctx, i18n.KeyUnitMonths, int64(l.WarrantyMonths))),
 		Note:  note,
 	}}
 	if l.Registered > 0 {
-		facts = append(facts, components.DateStat(ctx, i18n.T(ctx, i18n.KeyOrderWarrantyUntil), shoptime.DateOf(l.WarrantyUntil, v.now()), ""))
+		facts = append(facts, widget.DateStat(ctx, i18n.T(ctx, i18n.KeyOrderWarrantyUntil), shoptime.DateOf(l.WarrantyUntil, v.now()), ""))
 	}
 	return facts
 }
@@ -158,15 +158,15 @@ func (v *OrderView) CanRegister(l OrderLine, delivered bool) bool {
 }
 
 // timeStat is a moment as a stat: its day, with the clock and any further notes beneath.
-func timeStat(ctx context.Context, label string, t, now time.Time, notes ...string) components.Stat {
+func timeStat(ctx context.Context, label string, t, now time.Time, notes ...string) widget.Stat {
 	if t.IsZero() {
-		return components.Stat{Label: label}
+		return widget.Stat{Label: label}
 	}
 	note := shoptime.ClockText(t)
 	for _, n := range notes {
 		note = fmt.Sprintf(i18n.T(ctx, i18n.KeyOrderFactNote), note, n)
 	}
-	return components.DateStat(ctx, label, shoptime.DateOf(t, now), note)
+	return widget.DateStat(ctx, label, shoptime.DateOf(t, now), note)
 }
 
 func (s OrderShipment) DeliveredStamp(ctx context.Context) string {

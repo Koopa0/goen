@@ -6,7 +6,7 @@ import (
 
 	"github.com/koopa0/goen/internal/i18n"
 	"github.com/koopa0/goen/internal/keyset"
-	"github.com/koopa0/goen/internal/ui/components"
+	"github.com/koopa0/goen/internal/ui/widget"
 )
 
 type Question struct {
@@ -58,7 +58,7 @@ type QuestionsView struct {
 
 	Hidden bool
 	Rows   []Question
-	Notice components.Result
+	Notice widget.Result
 }
 
 func (v QuestionsView) Empty() bool { return len(v.Rows) == 0 }

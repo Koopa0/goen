@@ -15,8 +15,8 @@ import (
 	"github.com/koopa0/goen/internal/db"
 	"github.com/koopa0/goen/internal/i18n"
 	"github.com/koopa0/goen/internal/keyset"
-	"github.com/koopa0/goen/internal/ui/components"
 	"github.com/koopa0/goen/internal/ui/layouts"
+	"github.com/koopa0/goen/internal/ui/widget"
 )
 
 // The tests in this file are the campaign halves of tests that render several
@@ -210,7 +210,7 @@ func TestCampaignImageRefusalRendersDraftsApartFromSavedImages(t *testing.T) {
 			want      map[string]string
 			errorID   string
 		}{
-			{name: "campaign", component: CampaignForm(layouts.Page{}, CampaignView{Slug: "c", Image: components.HeaderImage{Image: assets.Image{Digest: saved}, Alt: "Saved description"}, ImageAltDraft: alt, ImageAltEnDraft: altEn, Errors: map[string]string{"image": "Replace the image"}}), want: map[string]string{"c-alt": alt, "c-alt-en": altEn}, errorID: "c-image"},
+			{name: "campaign", component: CampaignForm(layouts.Page{}, CampaignView{Slug: "c", Image: widget.HeaderImage{Image: assets.Image{Digest: saved}, Alt: "Saved description"}, ImageAltDraft: alt, ImageAltEnDraft: altEn, Errors: map[string]string{"image": "Replace the image"}}), want: map[string]string{"c-alt": alt, "c-alt-en": altEn}, errorID: "c-image"},
 		} {
 			t.Run(locale.Tag()+"/"+tt.name, func(t *testing.T) {
 				t.Parallel()
@@ -307,7 +307,7 @@ func TestCampaignRemoveButtonsNameTheirRecord(t *testing.T) {
 			want      map[string]string
 		}{
 			{name: "featured products", component: CampaignForm(layouts.Page{}, CampaignView{Slug: "event", Products: []CampaignProduct{{Slug: "pixelight", Name: "Pixelight <Pro> & more"}, {Slug: "meridian", Name: "Meridian"}}}), action: "/admin/campaigns/event/products", field: "product", want: map[string]string{"pixelight": "Pixelight <Pro> & more", "meridian": "Meridian"}},
-			{name: "campaign image", component: CampaignForm(layouts.Page{}, CampaignView{Slug: "event", Image: components.HeaderImage{Image: assets.Image{Digest: "abababababababababababababababababababababababababababababababab"}, Alt: "Summer <sale>"}}), action: "/admin/campaigns/event/image/remove", want: map[string]string{"": locale.image + " Summer <sale>"}},
+			{name: "campaign image", component: CampaignForm(layouts.Page{}, CampaignView{Slug: "event", Image: widget.HeaderImage{Image: assets.Image{Digest: "abababababababababababababababababababababababababababababababab"}, Alt: "Summer <sale>"}}), action: "/admin/campaigns/event/image/remove", want: map[string]string{"": locale.image + " Summer <sale>"}},
 		} {
 			t.Run(locale.locale.Tag()+"/"+tt.name, func(t *testing.T) {
 				t.Parallel()

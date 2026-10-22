@@ -5,7 +5,7 @@ import (
 	"testing"
 
 	"github.com/koopa0/goen/internal/i18n"
-	"github.com/koopa0/goen/internal/ui/components"
+	"github.com/koopa0/goen/internal/ui/widget"
 )
 
 func TestRefundBeforeShipmentNoticesExplainTheNextAction(t *testing.T) {
@@ -30,7 +30,7 @@ func TestRefundBeforeShipmentNoticesExplainTheNextAction(t *testing.T) {
 		for _, locale := range []i18n.Locale{i18n.ZhHant, i18n.En} {
 			ctx := i18n.WithLocale(t.Context(), locale)
 			req := httptest.NewRequestWithContext(ctx, "GET", "/admin/orders/GO-260929-000102?"+query+"=1", nil)
-			if got := components.NoticeFrom(req, notices).Text; got == "" || got != i18n.T(ctx, key) {
+			if got := widget.NoticeFrom(req, notices).Text; got == "" || got != i18n.T(ctx, key) {
 				t.Errorf("%s %s notice=%q", query, locale, got)
 			}
 		}
@@ -54,7 +54,7 @@ func TestRefundRecoveryNoticesDistinguishSettledMoney(t *testing.T) {
 			t.Parallel()
 			ctx := i18n.WithLocale(t.Context(), tt.locale)
 			req := httptest.NewRequestWithContext(ctx, "GET", "/admin/orders/GO-260929-000102?"+tt.query+"=1", nil)
-			if got := components.NoticeFrom(req, notices).Text; got != tt.want {
+			if got := widget.NoticeFrom(req, notices).Text; got != tt.want {
 				t.Errorf("%s notice = %q, want %q", tt.query, got, tt.want)
 			}
 		})

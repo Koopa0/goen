@@ -5,8 +5,8 @@ import (
 	"strconv"
 
 	"github.com/koopa0/goen/internal/i18n"
-	"github.com/koopa0/goen/internal/ui/components"
 	"github.com/koopa0/goen/internal/ui/icons"
+	"github.com/koopa0/goen/internal/ui/widget"
 )
 
 // ui-navitem and ui-btn are not leftovers: two assertions in backoffice_test.go
@@ -65,7 +65,7 @@ templ Header(p Page) {
 					@icons.Search()
 				</span>
 				<label class="goen-sr-only" for="site-search">{ i18n.T(ctx, i18n.KeySearch) }</label>
-				@components.Input(components.FieldProps{
+				@widget.Input(widget.FieldProps{
 					ID:    "site-search",
 					Name:  "q",
 					Type:  "search",
@@ -81,8 +81,8 @@ templ Header(p Page) {
 					<a class="ui-btn ui-btn--ghost goen-header__backoffice" href="/admin">{ i18n.T(ctx, i18n.KeyBackOffice) }</a>
 				}
 				@languageMenu("goen-header__lang", true)
-				@components.ButtonLink(components.ButtonProps{
-					ButtonStyle: components.ButtonStyleGhost,
+				@widget.ButtonLink(widget.ButtonProps{
+					ButtonStyle: widget.ButtonStyleGhost,
 					Icon:        true,
 					Attrs:       templ.Attributes{"aria-label": i18n.T(ctx, i18n.KeyAccount)},
 				}, templ.SafeURL("/account")) {
@@ -175,8 +175,8 @@ templ departmentPanel(p Page, n NavItem) {
 // the number alone would leave the sentence behind.
 templ cartLink() {
 	{{ count := CartCount(ctx) }}
-	@components.ButtonLink(components.ButtonProps{
-		ButtonStyle: components.ButtonStyleGhost,
+	@widget.ButtonLink(widget.ButtonProps{
+		ButtonStyle: widget.ButtonStyleGhost,
 		Icon:        true,
 		Class:       "goen-header__cart",
 		Attrs: templ.Attributes{

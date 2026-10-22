@@ -4,9 +4,9 @@ import (
 	"fmt"
 
 	"github.com/koopa0/goen/internal/i18n"
-	"github.com/koopa0/goen/internal/ui/components"
 	"github.com/koopa0/goen/internal/ui/icons"
 	"github.com/koopa0/goen/internal/ui/layouts"
+	"github.com/koopa0/goen/internal/ui/widget"
 )
 
 // Two cards down the column rather than a form beside a list: a 320px side column
@@ -30,15 +30,15 @@ templ FAQ(p layouts.Page, v *FAQView) {
 		@layouts.RefusalSummary(layouts.SummarizeRefusal(v.categoryRefusalForm(), v.CategoryErrors, layouts.RefusalField{Key: "name", ID: v.categoryFieldID("name")}, layouts.RefusalField{Key: "name_en", ID: v.categoryFieldID("name_en")}))
 		@layouts.RefusalSummary(layouts.SummarizeRefusal(i18n.KeyAdminRefusalFAQ, v.EditErrors, layouts.RefusalField{Key: "question", ID: "q-" + v.Edit.ID}, layouts.RefusalField{Key: "answer", ID: "a-" + v.Edit.ID}, layouts.RefusalField{Key: "question_en", ID: "qe-" + v.Edit.ID}, layouts.RefusalField{Key: "answer_en", ID: "ae-" + v.Edit.ID}))
 		if v.Untranslated() > 0 {
-			@components.Notice(components.NoticeProps{Intent: components.IntentWarn}) {
+			@widget.Notice(widget.NoticeProps{Intent: widget.IntentWarn}) {
 				{ fmt.Sprintf(i18n.T(ctx, i18n.KeyAdminFaqpNoEnglish), untranslatedText(v)) }
 			}
 		}
-		@components.Card(components.CardProps{Class: "goen-admin__add"}) {
+		@widget.Card(widget.CardProps{Class: "goen-admin__add"}) {
 			<h2 class="goen-admin__heading">{ i18n.T(ctx, i18n.KeyAdminFaqpAdd) }</h2>
 			<form class="goen-admin__form" id="new-faq" method="post" action="/admin/faq#new-faq">
 				<div class="goen-admin__field">
-					@components.Label(components.LabelProps{For: "faq-category"}) {
+					@widget.Label(widget.LabelProps{For: "faq-category"}) {
 						{ i18n.T(ctx, i18n.KeyAdminColCategory) }
 					}
 					// A select, not a name: the entry joins a category row, so a
@@ -67,10 +67,10 @@ templ FAQ(p layouts.Page, v *FAQView) {
 					<p class="goen-admin__hint">{ i18n.T(ctx, i18n.KeyAdminFaqpCategoryHint) }</p>
 				</div>
 				<div class="goen-admin__field">
-					@components.Label(components.LabelProps{For: "faq-question"}) {
+					@widget.Label(widget.LabelProps{For: "faq-question"}) {
 						{ i18n.T(ctx, i18n.KeyAdminFaqpQuestion) }
 					}
-					@components.Input(components.FieldProps{
+					@widget.Input(widget.FieldProps{
 						ID:        "faq-question",
 						Name:      "question",
 						Value:     v.Draft.Question,
@@ -86,10 +86,10 @@ templ FAQ(p layouts.Page, v *FAQView) {
 					}
 				</div>
 				<div class="goen-admin__field">
-					@components.Label(components.LabelProps{For: "faq-answer"}) {
+					@widget.Label(widget.LabelProps{For: "faq-answer"}) {
 						{ i18n.T(ctx, i18n.KeyAdminFaqpAnswer) }
 					}
-					@components.Textarea(components.FieldProps{
+					@widget.Textarea(widget.FieldProps{
 						ID:        "faq-answer",
 						Name:      "answer",
 						Invalid:   v.HasErr("answer"),
@@ -107,10 +107,10 @@ templ FAQ(p layouts.Page, v *FAQView) {
 					}
 				</div>
 				<div class="goen-admin__field">
-					@components.Label(components.LabelProps{For: "faq-question-en"}) {
+					@widget.Label(widget.LabelProps{For: "faq-question-en"}) {
 						{ i18n.T(ctx, i18n.KeyAdminFaqpQuestionEn) }
 					}
-					@components.Input(components.FieldProps{
+					@widget.Input(widget.FieldProps{
 						ID:        "faq-question-en",
 						Name:      "question_en",
 						Value:     v.Draft.QuestionEn,
@@ -123,10 +123,10 @@ templ FAQ(p layouts.Page, v *FAQView) {
 					}
 				</div>
 				<div class="goen-admin__field">
-					@components.Label(components.LabelProps{For: "faq-answer-en"}) {
+					@widget.Label(widget.LabelProps{For: "faq-answer-en"}) {
 						{ i18n.T(ctx, i18n.KeyAdminFaqpAnswerEn) }
 					}
-					@components.Textarea(components.FieldProps{
+					@widget.Textarea(widget.FieldProps{
 						ID:        "faq-answer-en",
 						Name:      "answer_en",
 						Invalid:   v.HasErr("answer_en"),
@@ -140,15 +140,15 @@ templ FAQ(p layouts.Page, v *FAQView) {
 					}
 					<p class="goen-admin__hint">{ i18n.T(ctx, i18n.KeyAdminFaqpEnHint) }</p>
 				</div>
-				@components.Button(components.ButtonProps{
-					ButtonStyle: components.ButtonStylePrimary,
+				@widget.Button(widget.ButtonProps{
+					ButtonStyle: widget.ButtonStylePrimary,
 					Class:       "goen-admin__submit",
 				}, "submit") {
 					{ i18n.T(ctx, i18n.KeyAdminAddButton) }
 				}
 			</form>
 		}
-		@components.Card(components.CardProps{Class: "goen-admin__add"}) {
+		@widget.Card(widget.CardProps{Class: "goen-admin__add"}) {
 			<h2 class="goen-admin__heading">{ i18n.T(ctx, i18n.KeyAdminFaqpCurrent) }</h2>
 			if v.Empty() {
 				<div class="goen-admin__empty">
@@ -166,7 +166,7 @@ templ FAQ(p layouts.Page, v *FAQView) {
 							<div class="goen-modqueue__head">
 								<p class="goen-modqueue__title">{ e.Category }</p>
 								if !e.Translated() {
-									@components.Badge(components.BadgeProps{Intent: components.IntentWarn}) {
+									@widget.Badge(widget.BadgeProps{Intent: widget.IntentWarn}) {
 										{ i18n.T(ctx, i18n.KeyAdminUntranslated) }
 									}
 								}
@@ -174,10 +174,10 @@ templ FAQ(p layouts.Page, v *FAQView) {
 							</div>
 							<form id={ "faq-" + e.ID } class="goen-admin__form" method="post" action={ templ.SafeURL("/admin/faq/" + e.ID + "#faq-" + e.ID) }>
 								<div class="goen-admin__field">
-									@components.Label(components.LabelProps{For: "q-" + e.ID, Class: "goen-sr-only"}) {
+									@widget.Label(widget.LabelProps{For: "q-" + e.ID, Class: "goen-sr-only"}) {
 										{ i18n.T(ctx, i18n.KeyAdminFaqpQuestion) }
 									}
-									@components.Input(components.FieldProps{
+									@widget.Input(widget.FieldProps{
 										ID:        "q-" + e.ID,
 										Name:      "question",
 										Value:     e.Question,
@@ -190,10 +190,10 @@ templ FAQ(p layouts.Page, v *FAQView) {
 									}
 								</div>
 								<div class="goen-admin__field">
-									@components.Label(components.LabelProps{For: "a-" + e.ID, Class: "goen-sr-only"}) {
+									@widget.Label(widget.LabelProps{For: "a-" + e.ID, Class: "goen-sr-only"}) {
 										{ i18n.T(ctx, i18n.KeyAdminFaqpAnswer) }
 									}
-									@components.Textarea(components.FieldProps{
+									@widget.Textarea(widget.FieldProps{
 										ID:        "a-" + e.ID,
 										Name:      "answer",
 										Invalid:   v.RowErr(stored, "answer"),
@@ -207,10 +207,10 @@ templ FAQ(p layouts.Page, v *FAQView) {
 									}
 								</div>
 								<div class="goen-admin__field">
-									@components.Label(components.LabelProps{For: "qe-" + e.ID}) {
+									@widget.Label(widget.LabelProps{For: "qe-" + e.ID}) {
 										{ i18n.T(ctx, i18n.KeyAdminFaqpQuestionEn) }
 									}
-									@components.Input(components.FieldProps{
+									@widget.Input(widget.FieldProps{
 										ID:        "qe-" + e.ID,
 										Name:      "question_en",
 										Value:     e.QuestionEn,
@@ -223,10 +223,10 @@ templ FAQ(p layouts.Page, v *FAQView) {
 									}
 								</div>
 								<div class="goen-admin__field">
-									@components.Label(components.LabelProps{For: "ae-" + e.ID}) {
+									@widget.Label(widget.LabelProps{For: "ae-" + e.ID}) {
 										{ i18n.T(ctx, i18n.KeyAdminFaqpAnswerEn) }
 									}
-									@components.Textarea(components.FieldProps{
+									@widget.Textarea(widget.FieldProps{
 										ID:        "ae-" + e.ID,
 										Name:      "answer_en",
 										Invalid:   v.RowErr(stored, "answer_en"),
@@ -240,16 +240,16 @@ templ FAQ(p layouts.Page, v *FAQView) {
 									}
 								</div>
 								<div class="goen-modqueue__actions">
-									@components.Button(components.ButtonProps{
-										ButtonStyle: components.ButtonStyleOutline,
-										Size:        components.SizeSmall,
+									@widget.Button(widget.ButtonProps{
+										ButtonStyle: widget.ButtonStyleOutline,
+										Size:        widget.SizeSmall,
 										Attrs:       templ.Attributes{"name": "action", "value": "save"},
 									}, "submit") {
 										{ i18n.T(ctx, i18n.KeyAdminFaqpSave) }
 									}
-									@components.Button(components.ButtonProps{
-										ButtonStyle: components.ButtonStyleGhost,
-										Size:        components.SizeSmall,
+									@widget.Button(widget.ButtonProps{
+										ButtonStyle: widget.ButtonStyleGhost,
+										Size:        widget.SizeSmall,
 										Attrs:       templ.Attributes{"name": "action", "value": "delete"},
 									}, "submit") {
 										{ i18n.T(ctx, i18n.KeyAdminDelete) }
@@ -268,7 +268,7 @@ templ FAQ(p layouts.Page, v *FAQView) {
 // FAQCategories is the headings /faq groups its entries under. Each is one row:
 // a rename here moves every entry in it.
 templ FAQCategories(v *FAQView) {
-	@components.Card(components.CardProps{Class: "goen-admin__add"}) {
+	@widget.Card(widget.CardProps{Class: "goen-admin__add"}) {
 		<h2 class="goen-admin__heading" id="faq-categories">{ i18n.T(ctx, i18n.KeyAdminFaqpCategories) }</h2>
 		<p class="goen-admin__hint">{ i18n.T(ctx, i18n.KeyAdminFaqpCategoriesLead) }</p>
 		if len(v.Categories) > 0 {
@@ -282,17 +282,17 @@ templ FAQCategories(v *FAQView) {
 								@faqCategoryField(v, c.ID, "name_en", "fc-name-en-"+c.ID, c.NameEn, i18n.KeyAdminFaqpCategoryEn, "", "", false)
 							</div>
 							<div class="goen-modqueue__actions">
-								@components.Button(components.ButtonProps{
-									ButtonStyle: components.ButtonStyleOutline,
-									Size:        components.SizeSmall,
+								@widget.Button(widget.ButtonProps{
+									ButtonStyle: widget.ButtonStyleOutline,
+									Size:        widget.SizeSmall,
 									Attrs:       templ.Attributes{"name": "action", "value": "save"},
 								}, "submit") {
 									{ i18n.T(ctx, i18n.KeyAdminFaqpSave) }
 								}
 								if !c.InUse {
-									@components.Button(components.ButtonProps{
-										ButtonStyle: components.ButtonStyleGhost,
-										Size:        components.SizeSmall,
+									@widget.Button(widget.ButtonProps{
+										ButtonStyle: widget.ButtonStyleGhost,
+										Size:        widget.SizeSmall,
 										Attrs:       templ.Attributes{"name": "action", "value": "delete"},
 									}, "submit") {
 										{ i18n.T(ctx, i18n.KeyAdminDelete) }
@@ -310,8 +310,8 @@ templ FAQCategories(v *FAQView) {
 				@faqCategoryField(v, "", "name", "faq-new-category-name", draft.Name, i18n.KeyAdminColCategory, fmt.Sprintf(i18n.T(ctx, i18n.KeyFieldExample), i18n.T(ctx, i18n.KeyAdminFaqpCategoryExample)), "", true)
 				@faqCategoryField(v, "", "name_en", "faq-new-category-name-en", draft.NameEn, i18n.KeyAdminFaqpCategoryEn, "", fmt.Sprintf(i18n.T(ctx, i18n.KeyAdminExample), "Orders"), false)
 			</div>
-			@components.Button(components.ButtonProps{
-				ButtonStyle: components.ButtonStylePrimary,
+			@widget.Button(widget.ButtonProps{
+				ButtonStyle: widget.ButtonStylePrimary,
 				Class:       "goen-admin__submit",
 			}, "submit") {
 				{ i18n.T(ctx, i18n.KeyAdminFaqpCategoryAdd) }
@@ -326,10 +326,10 @@ templ FAQCategories(v *FAQView) {
 templ faqCategoryField(v *FAQView, form, field, id, value string, label i18n.Key, example, hint string, required bool) {
 	{{ msg, refused := v.CategoryErr(form, field) }}
 	<div class="goen-admin__field">
-		@components.Label(components.LabelProps{For: id}) {
+		@widget.Label(widget.LabelProps{For: id}) {
 			{ i18n.T(ctx, label) }
 		}
-		@components.Input(components.FieldProps{
+		@widget.Input(widget.FieldProps{
 			ID:        id,
 			Name:      field,
 			Value:     value,

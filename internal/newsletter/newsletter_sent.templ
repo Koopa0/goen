@@ -4,8 +4,8 @@ import (
 	"fmt"
 
 	"github.com/koopa0/goen/internal/i18n"
-	"github.com/koopa0/goen/internal/ui/components"
 	"github.com/koopa0/goen/internal/ui/layouts"
+	"github.com/koopa0/goen/internal/ui/widget"
 )
 
 templ NewsletterSent(p layouts.Page, address string) {
@@ -21,7 +21,7 @@ templ NewsletterSent(p layouts.Page, address string) {
 			</p>
 			<p class="goen-auth__alt"><a href="/#newsletter-form">{ i18n.T(ctx, i18n.KeyEmailReenter) }</a></p>
 			<div class="notice__actions">
-				@components.ButtonLink(components.ButtonProps{ButtonStyle: components.ButtonStylePrimary, Size: components.SizeLarge}, "/") {
+				@widget.ButtonLink(widget.ButtonProps{ButtonStyle: widget.ButtonStylePrimary, Size: widget.SizeLarge}, "/") {
 					{ i18n.T(ctx, i18n.KeyBackToShop) }
 				}
 			</div>

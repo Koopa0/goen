@@ -19,10 +19,10 @@ import (
 	"github.com/koopa0/goen/internal/policy"
 	"github.com/koopa0/goen/internal/product/labelling"
 	"github.com/koopa0/goen/internal/shoptime"
-	"github.com/koopa0/goen/internal/ui/components"
 	"github.com/koopa0/goen/internal/ui/layouts"
 	"github.com/koopa0/goen/internal/ui/tile"
 	"github.com/koopa0/goen/internal/ui/tone"
+	"github.com/koopa0/goen/internal/ui/widget"
 )
 
 type ProductImage struct {
@@ -247,12 +247,12 @@ func (v *ProductView) CategoryTrail() []Crumb {
 
 // Trail leaves the last step without a link: a keyboard would have to pass through a link to
 // where you already are for nothing.
-func (v *ProductView) Trail(ctx context.Context) []components.Crumb {
-	trail := []components.Crumb{{Label: i18n.T(ctx, i18n.KeyHome), Href: "/"}}
+func (v *ProductView) Trail(ctx context.Context) []widget.Crumb {
+	trail := []widget.Crumb{{Label: i18n.T(ctx, i18n.KeyHome), Href: "/"}}
 	for _, c := range v.CategoryTrail() {
-		trail = append(trail, components.Crumb{Label: c.Name, Href: "/c/" + c.Slug})
+		trail = append(trail, widget.Crumb{Label: c.Name, Href: "/c/" + c.Slug})
 	}
-	return append(trail, components.Crumb{Label: v.Name})
+	return append(trail, widget.Crumb{Label: v.Name})
 }
 
 func ProductMeta(v *ProductView) layouts.Page {
@@ -581,12 +581,12 @@ func (v *ProductView) Highlights() []string {
 
 // BuyFacts are the terms the buyer is told beside the button: the warranty the product carries, the
 // shop's right to cancel, the stock hold only while there is stock to hold, and free delivery.
-func (v *ProductView) BuyFacts(ctx context.Context) []components.Stat {
-	stats := make([]components.Stat, 0, 4)
+func (v *ProductView) BuyFacts(ctx context.Context) []widget.Stat {
+	stats := make([]widget.Stat, 0, 4)
 	if v.HasWarranty() {
-		stats = append(stats, components.Stat{
+		stats = append(stats, widget.Stat{
 			Label: i18n.T(ctx, i18n.KeySectionWarranty),
-			Value: components.StatCount(int64(v.WarrantyMonths), components.CountUnit(ctx, i18n.KeyUnitMonths, int64(v.WarrantyMonths))),
+			Value: widget.StatCount(int64(v.WarrantyMonths), widget.CountUnit(ctx, i18n.KeyUnitMonths, int64(v.WarrantyMonths))),
 		})
 	}
 	stats = append(stats, v.Rules.RescissionStat(ctx))

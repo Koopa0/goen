@@ -19,8 +19,8 @@ import (
 	"github.com/koopa0/goen/internal/product/inventory"
 	"github.com/koopa0/goen/internal/sales"
 	"github.com/koopa0/goen/internal/shoptime"
-	"github.com/koopa0/goen/internal/ui/components"
 	"github.com/koopa0/goen/internal/ui/stockrisk"
+	"github.com/koopa0/goen/internal/ui/widget"
 )
 
 // Stock ranks the SKUs by days cover; the stock desk implements it.
@@ -136,9 +136,9 @@ func orderRow(ctx context.Context, o *db.RecentOrdersRow) OrderRow {
 // orderStatus is the word and colour an order carries: an order returned in
 // full, with every refund settled, says so in place of where its delivery
 // stands.
-func orderStatus(ctx context.Context, status order.FulfillmentStatus, o *db.RecentOrdersRow) (string, components.Intent) {
+func orderStatus(ctx context.Context, status order.FulfillmentStatus, o *db.RecentOrdersRow) (string, widget.Intent) {
 	if o.Returned {
-		return i18n.T(ctx, i18n.KeyStatusRefunded), components.IntentNeutral
+		return i18n.T(ctx, i18n.KeyStatusRefunded), widget.IntentNeutral
 	}
-	return status.FundedLabel(ctx, o.Committed, o.OwedCents), components.FundedFulfillmentIntent(status, o.Committed, o.OwedCents)
+	return status.FundedLabel(ctx, o.Committed, o.OwedCents), widget.FundedFulfillmentIntent(status, o.Committed, o.OwedCents)
 }

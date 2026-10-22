@@ -2,8 +2,8 @@ package refunds
 
 import (
 	"github.com/koopa0/goen/internal/i18n"
-	"github.com/koopa0/goen/internal/ui/components"
 	"github.com/koopa0/goen/internal/ui/layouts"
+	"github.com/koopa0/goen/internal/ui/widget"
 )
 
 // ConfirmUnsentRefund is the second step of the refund of units an order will
@@ -11,7 +11,7 @@ import (
 templ ConfirmUnsentRefund(p layouts.Page, v UnsentRefundConfirmation) {
 	@layouts.Admin(p, "orders") {
 		<div class="ui-page-head"><h1 class="ui-page-head__title">{ i18n.T(ctx, i18n.KeyAdminUnsentTitle) }</h1></div>
-		@components.Card(components.CardProps{Class: "goen-admin__op"}) {
+		@widget.Card(widget.CardProps{Class: "goen-admin__op"}) {
 			<dl class="ui-dl">
 				<div class="ui-dl__row"><dt class="ui-dl__term">{ i18n.T(ctx, i18n.KeyAdminRetConfirmOrder) }</dt><dd class="ui-dl__desc">{ v.OrderNumber }</dd></div>
 				<div class="ui-dl__row"><dt class="ui-dl__term">{ i18n.T(ctx, i18n.KeyAdminUnsentConfirmItems) }</dt><dd class="ui-dl__desc">{ v.ItemsText(ctx) }</dd></div>
@@ -33,7 +33,7 @@ templ ConfirmUnsentRefund(p layouts.Page, v UnsentRefundConfirmation) {
 					<div class="ui-field">
 						<label class="ui-label" for="unsent-note">
 							{ i18n.T(ctx, i18n.KeyAdminRetResolution) }
-							@components.RequiredMark()
+							@widget.RequiredMark()
 						</label>
 						<p class="goen-admin__hint" id="unsent-note-hint">{ i18n.T(ctx, i18n.KeyAdminUnsentNoteHint) }</p>
 						<input class="ui-input" id="unsent-note" name="note" required maxlength="300" autocomplete="off" aria-invalid={ v.NoteInvalid } aria-describedby="unsent-note-hint unsent-note-error" value={ v.Note }/>
@@ -43,14 +43,14 @@ templ ConfirmUnsentRefund(p layouts.Page, v UnsentRefundConfirmation) {
 					</div>
 				}
 				<div class="goen-admin__decidebtns">
-					@components.Button(components.ButtonProps{ButtonStyle: components.ButtonStylePrimary, Attrs: templ.Attributes{"name": "confirm", "value": "refund-unsent"}}, "submit") {
+					@widget.Button(widget.ButtonProps{ButtonStyle: widget.ButtonStylePrimary, Attrs: templ.Attributes{"name": "confirm", "value": "refund-unsent"}}, "submit") {
 						if v.Resume {
 							{ i18n.T(ctx, i18n.KeyAdminRefundResume) }
 						} else {
 							{ i18n.T(ctx, i18n.KeyAdminUnsentTitle) }
 						}
 					}
-					@components.ButtonLink(components.ButtonProps{ButtonStyle: components.ButtonStyleOutline}, templ.SafeURL(v.Back())) {
+					@widget.ButtonLink(widget.ButtonProps{ButtonStyle: widget.ButtonStyleOutline}, templ.SafeURL(v.Back())) {
 						{ i18n.T(ctx, i18n.KeyBackToOrder) }
 					}
 				</div>

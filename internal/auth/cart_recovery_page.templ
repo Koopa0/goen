@@ -5,8 +5,8 @@ import (
 
 	"github.com/koopa0/goen/internal/cart/cartitem"
 	"github.com/koopa0/goen/internal/i18n"
-	"github.com/koopa0/goen/internal/ui/components"
 	"github.com/koopa0/goen/internal/ui/layouts"
+	"github.com/koopa0/goen/internal/ui/widget"
 )
 
 templ CartRecovery(p layouts.Page, v CartRecoveryView) {
@@ -14,22 +14,22 @@ templ CartRecovery(p layouts.Page, v CartRecoveryView) {
 		<div class="notice">
 			<h1 class="notice__title">{ i18n.T(ctx, i18n.KeyCartMergeRecoveryTitle) }</h1>
 			if v.Welcome {
-				@components.Notice(components.NoticeProps{Intent: components.IntentAccent}) {
+				@widget.Notice(widget.NoticeProps{Intent: widget.IntentAccent}) {
 					{ i18n.T(ctx, i18n.KeyAccountWelcome) }
 				}
 			}
-			@components.Notice(components.NoticeProps{Intent: components.IntentAccent, ID: "cart-recovery", Class: "ui-alert--info notice__body"}) {
+			@widget.Notice(widget.NoticeProps{Intent: widget.IntentAccent, ID: "cart-recovery", Class: "ui-alert--info notice__body"}) {
 				{ v.Notice }
 			}
 			@cartRecoveryList("cart-recovery-before", i18n.KeyCartRecoveryBeforeSignIn, v.Contents.BeforeSignIn)
 			@cartRecoveryList("cart-recovery-account", i18n.KeyCartRecoveryAccount, v.Contents.Account)
 			<form class="notice__form" method="post" action="/account/cart/retry">
 				<input type="hidden" name="next" value={ v.Next }/>
-				@components.Button(components.ButtonProps{ButtonStyle: components.ButtonStylePrimary, Size: components.SizeLarge, Block: true}, "submit") {
+				@widget.Button(widget.ButtonProps{ButtonStyle: widget.ButtonStylePrimary, Size: widget.SizeLarge, Block: true}, "submit") {
 					{ v.Retry }
 				}
 			</form>
-			@components.ButtonLink(components.ButtonProps{ButtonStyle: components.ButtonStyleOutline, Class: "notice__back"}, "/cart") {
+			@widget.ButtonLink(widget.ButtonProps{ButtonStyle: widget.ButtonStyleOutline, Class: "notice__back"}, "/cart") {
 				{ i18n.T(ctx, i18n.KeyCartRecoveryBack) }
 			}
 		</div>

@@ -7,7 +7,7 @@ import (
 
 	"github.com/koopa0/goen/internal/discount/campaign"
 	"github.com/koopa0/goen/internal/i18n"
-	"github.com/koopa0/goen/internal/ui/components"
+	"github.com/koopa0/goen/internal/ui/widget"
 )
 
 func TestACampaignNamesItsLastDayHoweverFarOff(t *testing.T) {
@@ -48,7 +48,7 @@ func TestTheCampaignEndStatNamesItsLastDayAndTheLastTwoDays(t *testing.T) {
 	ctx := i18n.WithLocale(t.Context(), i18n.ZhHant)
 	now := time.Date(2026, 10, 9, 4, 0, 0, 0, time.UTC)
 	ends := time.Date(2026, 10, 10, 16, 0, 0, 0, time.UTC)
-	got := renderComponent(t, ctx, components.StatLine([]components.Stat{campaign.EndStat(ctx, ends, now)}, components.StatLinePlain))
+	got := renderComponent(t, ctx, widget.StatLine([]widget.Stat{campaign.EndStat(ctx, ends, now)}, widget.StatLinePlain))
 	for _, want := range []string{`datetime="2026-10-10"`, "明天結束"} {
 		if !strings.Contains(got, want) {
 			t.Errorf("end stat omits %s:\n%s", want, got)

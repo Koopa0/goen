@@ -3,11 +3,11 @@ package products
 import (
 	"github.com/koopa0/goen/internal/i18n"
 	"github.com/koopa0/goen/internal/ui/chart"
-	"github.com/koopa0/goen/internal/ui/components"
+	"github.com/koopa0/goen/internal/ui/widget"
 )
 
 templ productStanding(v ProductView) {
-	@components.Card(components.CardProps{Class: "goen-admin__section", Attrs: templ.Attributes{"id": "sec-standing"}}) {
+	@widget.Card(widget.CardProps{Class: "goen-admin__section", Attrs: templ.Attributes{"id": "sec-standing"}}) {
 		<h2 class="goen-admin__heading">{ i18n.T(ctx, i18n.KeyAdminProdStanding) }</h2>
 		<h3 class="goen-admin__subhead">{ i18n.T(ctx, i18n.KeyAdminProdUnitsWeekly) }</h3>
 		if v.Sales.Unavailable {

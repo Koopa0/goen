@@ -14,8 +14,8 @@ import (
 	"github.com/koopa0/goen/internal/i18n"
 	"github.com/koopa0/goen/internal/order"
 	"github.com/koopa0/goen/internal/shoptime"
-	"github.com/koopa0/goen/internal/ui/components"
 	"github.com/koopa0/goen/internal/ui/layouts"
+	"github.com/koopa0/goen/internal/ui/widget"
 	"github.com/koopa0/goen/internal/web/formtext"
 	"github.com/koopa0/goen/internal/web/respond"
 )
@@ -88,7 +88,7 @@ func (h *Handler) DeliverShipment(w http.ResponseWriter, r *http.Request) {
 			access.ServerError(w, r, h.log)
 			return
 		}
-		view.Notice = components.Result{Outcome: components.OutcomeRefused, Text: i18n.T(r.Context(), i18n.KeyAdminShipmentArrivalRefused)}
+		view.Notice = widget.Result{Outcome: widget.OutcomeRefused, Text: i18n.T(r.Context(), i18n.KeyAdminShipmentArrivalRefused)}
 		view.AllowanceOperationID = uuid.NewString()
 		respond.Component(w, r, h.log, http.StatusUnprocessableEntity,
 			Order(layouts.Page{Title: fmt.Sprintf(i18n.T(r.Context(), i18n.KeyAdminPageOrder), number)}, &view))

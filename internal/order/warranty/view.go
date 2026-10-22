@@ -10,7 +10,7 @@ import (
 
 	"github.com/koopa0/goen/internal/i18n"
 	"github.com/koopa0/goen/internal/shoptime"
-	"github.com/koopa0/goen/internal/ui/components"
+	"github.com/koopa0/goen/internal/ui/widget"
 )
 
 type Line struct {
@@ -33,10 +33,10 @@ type Line struct {
 	CoverEnds     *shoptime.Date
 }
 
-func (l Line) serialField(ctx context.Context) components.FieldProps {
+func (l Line) serialField(ctx context.Context) widget.FieldProps {
 	id := "serial-" + l.ID
 	hint := "serial-hint-" + l.ID
-	field := components.FieldProps{
+	field := widget.FieldProps{
 		ID: id, Name: "serial", Type: "text", Value: l.DraftSerial,
 		Invalid: l.SerialRefusal != "", Describes: hint + " " + id + "-error",
 		Attrs: templ.Attributes{
@@ -189,8 +189,8 @@ func (w Warranty) State(ctx context.Context) string {
 }
 
 // Facts is the cover's end, under the name of what it covers.
-func (w Warranty) Facts(ctx context.Context) []components.Stat {
-	return []components.Stat{components.DateStat(ctx, i18n.T(ctx, i18n.KeyOrderWarrantyUntil), w.ExpiresOn, "")}
+func (w Warranty) Facts(ctx context.Context) []widget.Stat {
+	return []widget.Stat{widget.DateStat(ctx, i18n.T(ctx, i18n.KeyOrderWarrantyUntil), w.ExpiresOn, "")}
 }
 
 func (w Warranty) Href() string {

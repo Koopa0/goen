@@ -8,11 +8,11 @@ package catalog
 import "github.com/a-h/templ"
 import templruntime "github.com/a-h/templ/runtime"
 
-import "github.com/koopa0/goen/internal/ui/components"
+import "github.com/koopa0/goen/internal/ui/widget"
 
 // bandMedia is the band's first grid item: the photograph on goen's white,
 // never on the tone. A first-screen photograph is eager; the others are lazy.
-func bandMedia(imgClass, id string, p components.Photo, onWell bool, sizes string, lazy bool) templ.Component {
+func bandMedia(imgClass, id string, p widget.Photo, onWell bool, sizes string, lazy bool) templ.Component {
 	return templruntime.GeneratedTemplate(func(templ_7745c5c3_Input templruntime.GeneratedComponentInput) (templ_7745c5c3_Err error) {
 		templ_7745c5c3_W, ctx := templ_7745c5c3_Input.Writer, templ_7745c5c3_Input.Context
 		if templ_7745c5c3_CtxErr := ctx.Err(); templ_7745c5c3_CtxErr != nil {
