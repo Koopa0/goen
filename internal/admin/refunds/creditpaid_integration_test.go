@@ -83,11 +83,14 @@ func readCreditPaidEffects(t *testing.T, orderID, staff uuid.UUID, number string
 	return e
 }
 
+// TestHandler_RefundBeforeShipmentCreditPaid: refund before shipment cancels a
+// credit paid pending order.
+//
 // A pending order store credit alone paid is not committed until packing, and
 // store_credit_guard refuses to pay its credit back through a return. Its
 // refund before shipment cancels it as its customer could, once, on the admin
 // role's own grants.
-func TestRefundBeforeShipmentCancelsACreditPaidPendingOrder(t *testing.T) {
+func TestHandler_RefundBeforeShipmentCreditPaid(t *testing.T) {
 	ctx, staff := admintest.StaffContext(t, pool)
 	s := refunds.NewStore(admintest.AdminRolePool(t, pool), admintest.Refunder{}, nil)
 	h := refunds.NewHandler(s, nil, slog.New(slog.DiscardHandler))
@@ -174,13 +177,16 @@ func TestRefundBeforeShipmentCancelsACreditPaidPendingOrder(t *testing.T) {
 	check(t, "after the replays")
 }
 
+// TestStore_RefundBeforeShipmentRace: a credit paid cancellation loses to
+// whoever moved the order first.
+//
 // Whoever moved the order while the cancellation waited on its lock, a staff
 // member starting to pack it or its customer cancelling it, wins: the database
 // refuses the cancellation (orders_paid_cancel_needs_refund,
 // orders_history_frozen) and it records nothing. A credit spend reversed in the
 // meantime leaves the order pending, so the cancellation itself reads how the
 // order was paid again under the lock and refuses.
-func TestACreditPaidCancellationLosesToWhoeverMovedTheOrderFirst(t *testing.T) {
+func TestStore_RefundBeforeShipmentRace(t *testing.T) {
 	ctx, staff := admintest.StaffContext(t, pool)
 	s := refunds.NewStore(pool, admintest.Refunder{}, nil)
 	for _, tc := range []struct {
@@ -299,9 +305,12 @@ func TestACreditPaidCancellationLosesToWhoeverMovedTheOrderFirst(t *testing.T) {
 	}
 }
 
+// TestStore_RefundBeforeShipmentCommitted: a committed order is refunded through
+// a return.
+//
 // An order a card paid, or one packing has committed, keeps the refund through
 // a return: the credit spend is never reversed beside it.
-func TestACommittedOrderIsRefundedThroughAReturn(t *testing.T) {
+func TestStore_RefundBeforeShipmentCommitted(t *testing.T) {
 	ctx, staff := admintest.StaffContext(t, pool)
 	s := refunds.NewStore(pool, admintest.Refunder{}, nil)
 	for _, tc := range []struct {

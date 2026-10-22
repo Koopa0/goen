@@ -11,7 +11,9 @@ import (
 	"github.com/koopa0/goen/internal/payment/refund"
 )
 
-func TestASplitRefundedEventWaitsUntilEverySourceSettled(t *testing.T) {
+// TestReturnPayoutSplitEvent: a split refunded event waits until every source
+// has settled.
+func TestReturnPayoutSplitEvent(t *testing.T) {
 	t.Parallel()
 	requestID := uuid.MustParse("018f0df6-57c0-7b31-9c13-b56a9e778f02")
 	tests := []struct {

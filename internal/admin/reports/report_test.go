@@ -15,7 +15,9 @@ import (
 	"github.com/koopa0/goen/internal/ui/stockrisk"
 )
 
-func TestAnEmptySalesWindowStillListsStockAtRisk(t *testing.T) {
+// TestReportEmptyWindowStockRisk: an empty sales window still lists stock at
+// risk.
+func TestReportEmptyWindowStockRisk(t *testing.T) {
 	t.Parallel()
 
 	ctx := i18n.WithLocale(t.Context(), i18n.ZhHant)
@@ -43,9 +45,10 @@ func TestAnEmptySalesWindowStillListsStockAtRisk(t *testing.T) {
 	}
 }
 
-// A window is empty only when it has neither new orders nor refunds: a refund
-// for an older order is the owner's return figure and must not be hidden.
-func TestAReportWindowIsEmptyOnlyWithoutOrdersAndRefunds(t *testing.T) {
+// TestReportView_Empty: a window is empty only when it has neither new orders
+// nor refunds: a refund for an older order is the owner's return figure and must
+// not be hidden.
+func TestReportView_Empty(t *testing.T) {
 	t.Parallel()
 
 	ctx := i18n.WithLocale(t.Context(), i18n.ZhHant)
@@ -84,7 +87,9 @@ func TestAReportWindowIsEmptyOnlyWithoutOrdersAndRefunds(t *testing.T) {
 	}
 }
 
-func TestBestSellerGrossCannotBeMistakenForOrderRevenue(t *testing.T) {
+// TestReportBestSellerGross: best seller gross cannot be mistaken for order
+// revenue.
+func TestReportBestSellerGross(t *testing.T) {
 	t.Parallel()
 	for _, tt := range []struct {
 		locale              i18n.Locale
@@ -109,7 +114,10 @@ func TestBestSellerGrossCannotBeMistakenForOrderRevenue(t *testing.T) {
 	}
 }
 
-func TestReportViewCompletion(t *testing.T) {
+// TestReportView_Completion: completion reads as a count below twenty orders
+// placed and as a percentage from twenty, and is never 0% or 100% unless none or
+// all of the orders committed.
+func TestReportView_Completion(t *testing.T) {
 	t.Parallel()
 
 	tests := []struct {
@@ -139,7 +147,8 @@ func TestReportViewCompletion(t *testing.T) {
 	}
 }
 
-func TestReportSaysTheCountOnceForFewOrders(t *testing.T) {
+// TestReportFewOrdersCount: report says the count once for few orders.
+func TestReportFewOrdersCount(t *testing.T) {
 	t.Parallel()
 
 	ctx := i18n.WithLocale(t.Context(), i18n.En)
@@ -153,7 +162,8 @@ func TestReportSaysTheCountOnceForFewOrders(t *testing.T) {
 	}
 }
 
-func TestBestSellersAreDrawnAsBarsOnOneScale(t *testing.T) {
+// TestReportBestSellersBars: best sellers are drawn as bars on one scale.
+func TestReportBestSellersBars(t *testing.T) {
 	t.Parallel()
 
 	html := renderToString(t, Report(frame.Page{Title: "Reports"}, &ReportView{
@@ -184,7 +194,8 @@ func TestBestSellersAreDrawnAsBarsOnOneScale(t *testing.T) {
 	}
 }
 
-func TestOneSellerDrawsNoBar(t *testing.T) {
+// TestReportOneSeller: one seller draws no bar.
+func TestReportOneSeller(t *testing.T) {
 	t.Parallel()
 
 	html := renderToString(t, Report(frame.Page{Title: "Reports"}, &ReportView{
@@ -199,7 +210,8 @@ func TestOneSellerDrawsNoBar(t *testing.T) {
 	}
 }
 
-func TestNoSellersDrawNoBars(t *testing.T) {
+// TestReportNoSellers: no sellers draw no bars.
+func TestReportNoSellers(t *testing.T) {
 	t.Parallel()
 
 	html := renderToString(t, Report(frame.Page{Title: "Reports"}, &ReportView{
@@ -210,7 +222,9 @@ func TestNoSellersDrawNoBars(t *testing.T) {
 	}
 }
 
-func TestReportSetsEachFigureAgainstThePreviousPeriod(t *testing.T) {
+// TestReportView_AgainstEachFigure: report sets each figure against the previous
+// period.
+func TestReportView_AgainstEachFigure(t *testing.T) {
 	t.Parallel()
 
 	// Orders of 1,000 each, so the sum of squares follows from the count.
@@ -263,7 +277,9 @@ func TestReportSetsEachFigureAgainstThePreviousPeriod(t *testing.T) {
 	}
 }
 
-func TestReportCompletionAgainstThePreviousPeriod(t *testing.T) {
+// TestReportView_CompletionAgainst: report completion against the previous
+// period.
+func TestReportView_CompletionAgainst(t *testing.T) {
 	t.Parallel()
 
 	tests := []struct {
@@ -298,7 +314,9 @@ func TestReportCompletionAgainstThePreviousPeriod(t *testing.T) {
 	}
 }
 
-func TestReportRevenueNeedsMoreThanOrderCountToCallAChange(t *testing.T) {
+// TestReportView_RevenueAgainstNoise: the revenue comparison needs more than the
+// order count to call a change.
+func TestReportView_RevenueAgainstNoise(t *testing.T) {
 	t.Parallel()
 
 	ctx := i18n.WithLocale(t.Context(), i18n.En)
@@ -318,7 +336,8 @@ func TestReportRevenueNeedsMoreThanOrderCountToCallAChange(t *testing.T) {
 	}
 }
 
-func TestReportHeadingNamesBothPeriodsByShopDay(t *testing.T) {
+// TestReportView_Heading: report heading names both periods by shop day.
+func TestReportView_Heading(t *testing.T) {
 	t.Parallel()
 
 	at := func(m time.Month, d int) shoptime.Date {
@@ -361,7 +380,9 @@ func dailyView(orderDays int) ReportView {
 	}
 }
 
-func TestRunningTotalsAreDrawnFromSevenDaysWithOrders(t *testing.T) {
+// TestReportRunningTotalDrawn: running totals are drawn from seven days with
+// orders.
+func TestReportRunningTotalDrawn(t *testing.T) {
 	t.Parallel()
 
 	for _, tc := range []struct {
@@ -385,7 +406,9 @@ func TestRunningTotalsAreDrawnFromSevenDaysWithOrders(t *testing.T) {
 	}
 }
 
-func TestRunningTotalsSaySoWhenTheDaysCouldNotBeRead(t *testing.T) {
+// TestReportRunningTotalUnread: running totals say so when the days could not be
+// read.
+func TestReportRunningTotalUnread(t *testing.T) {
 	t.Parallel()
 
 	ctx := i18n.WithLocale(t.Context(), i18n.En)
@@ -405,7 +428,9 @@ func TestRunningTotalsSaySoWhenTheDaysCouldNotBeRead(t *testing.T) {
 	}
 }
 
-func TestRunningTotalCaptionAndSourceLineUseTheTilesWordingAndTheCutTime(t *testing.T) {
+// TestReportView_RunningTotal: the running total's caption and source line use
+// the tile's wording and the cut time.
+func TestReportView_RunningTotal(t *testing.T) {
 	t.Parallel()
 
 	en := i18n.WithLocale(t.Context(), i18n.En)
@@ -453,7 +478,9 @@ func paidView(n int, at map[int]int64) ReportView {
 	}
 }
 
-func TestPaidOrdersAreToldInASentenceBelowThreeDays(t *testing.T) {
+// TestReportView_PaidBelowThreeDays: paid orders are told in a sentence below
+// three days.
+func TestReportView_PaidBelowThreeDays(t *testing.T) {
 	t.Parallel()
 
 	latest := shoptime.Date{Year: 2026, Month: time.September, Day: 21}
@@ -498,7 +525,9 @@ func paidViewWithLatest(n int, at map[int]int64, latest *shoptime.Date) ReportVi
 	return v
 }
 
-func TestPaidOrdersFromThreeDaysAreColumnsCaptionedByTheirCount(t *testing.T) {
+// TestReportView_PaidColumnsCaption: paid orders from three days are columns
+// captioned by their count.
+func TestReportView_PaidColumnsCaption(t *testing.T) {
 	t.Parallel()
 
 	v := paidView(30, map[int]int64{3: 2, 10: 1, 29: 4})
@@ -522,7 +551,9 @@ func TestPaidOrdersFromThreeDaysAreColumnsCaptionedByTheirCount(t *testing.T) {
 	}
 }
 
-func TestBusiestDayAndItsTies(t *testing.T) {
+// TestReportView_BusiestDayTies: the paid-orders sentence names the busiest day,
+// lists days that tie up to three and counts them beyond that.
+func TestReportView_BusiestDayTies(t *testing.T) {
 	t.Parallel()
 
 	zh, en := i18n.ZhHant, i18n.En
@@ -561,7 +592,9 @@ func TestBusiestDayAndItsTies(t *testing.T) {
 	}
 }
 
-func TestPaidOrdersOfNinetyDaysAreToldByTheSevenDaysTheyAreDrawnIn(t *testing.T) {
+// TestReportView_PaidNinetyDays: paid orders of ninety days are told by the
+// seven days they are drawn in.
+func TestReportView_PaidNinetyDays(t *testing.T) {
 	t.Parallel()
 
 	// 90 days up to 10/5 start on 7/8. The busiest 7 days start on 9/29.
@@ -582,7 +615,9 @@ func TestPaidOrdersOfNinetyDaysAreToldByTheSevenDaysTheyAreDrawnIn(t *testing.T)
 	}
 }
 
-func TestPaidOrdersSaySoWhenTheDaysCouldNotBeRead(t *testing.T) {
+// TestReportPaidOrdersUnread: paid orders say so when the days could not be
+// read.
+func TestReportPaidOrdersUnread(t *testing.T) {
 	t.Parallel()
 
 	ctx := i18n.WithLocale(t.Context(), i18n.En)
@@ -598,7 +633,8 @@ func TestPaidOrdersSaySoWhenTheDaysCouldNotBeRead(t *testing.T) {
 	}
 }
 
-func TestDepartmentsAreDrawnAsBarsOnOneScale(t *testing.T) {
+// TestReportDepartmentsBars: departments are drawn as bars on one scale.
+func TestReportDepartmentsBars(t *testing.T) {
 	t.Parallel()
 
 	html := renderToString(t, Report(frame.Page{Title: "Reports"}, &ReportView{
@@ -619,7 +655,8 @@ func TestDepartmentsAreDrawnAsBarsOnOneScale(t *testing.T) {
 	}
 }
 
-func TestOneDepartmentIsASentenceWithNoBar(t *testing.T) {
+// TestReportOneDepartment: one department is a sentence with no bar.
+func TestReportOneDepartment(t *testing.T) {
 	t.Parallel()
 
 	for _, tt := range []struct {
@@ -653,7 +690,8 @@ func TestOneDepartmentIsASentenceWithNoBar(t *testing.T) {
 	}
 }
 
-func TestNoDepartmentsShowNoDepartmentSection(t *testing.T) {
+// TestReportNoDepartments: no departments show no department section.
+func TestReportNoDepartments(t *testing.T) {
 	t.Parallel()
 
 	html := renderToString(t, Report(frame.Page{Title: "Reports"}, &ReportView{
@@ -664,7 +702,8 @@ func TestNoDepartmentsShowNoDepartmentSection(t *testing.T) {
 	}
 }
 
-func TestSellerFactsCountUnitsInBothLanguages(t *testing.T) {
+// TestSeller_FactsUnits: seller facts count units in both languages.
+func TestSeller_FactsUnits(t *testing.T) {
 	t.Parallel()
 	for _, locale := range []i18n.Locale{i18n.En, i18n.ZhHant} {
 		for _, count := range []int64{0, 1, 2, 1000} {

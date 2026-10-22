@@ -6,7 +6,8 @@ import (
 	"github.com/koopa0/goen/internal/shoptime"
 )
 
-func TestArrivalDateAcceptsOnlyCalendarDaysAndAllowsClearing(t *testing.T) {
+// TestParseArrival: arrival date accepts only calendar days and allows clearing.
+func TestParseArrival(t *testing.T) {
 	t.Parallel()
 	for _, tc := range []struct {
 		raw, want string

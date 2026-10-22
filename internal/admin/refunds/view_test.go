@@ -11,7 +11,9 @@ import (
 	"github.com/koopa0/goen/internal/ui/frame"
 )
 
-func TestRefundConfirmationRepeatsTheTotalItShows(t *testing.T) {
+// TestConfirmRefundRepeatsTotal: the refund confirmation repeats the total it
+// shows.
+func TestConfirmRefundRepeatsTotal(t *testing.T) {
 	t.Parallel()
 	for _, locale := range []i18n.Locale{i18n.ZhHant, i18n.En} {
 		for _, v := range []RefundConfirmation{
@@ -41,9 +43,9 @@ func TestRefundConfirmationRepeatsTheTotalItShows(t *testing.T) {
 	}
 }
 
-// A pending order store credit alone paid is cancelled at once: the
-// confirmation says the credit goes back.
-func TestACreditPaidCancellationConfirmationSaysWhatItDoes(t *testing.T) {
+// TestConfirmRefundCreditPaid: a pending order store credit alone paid is
+// cancelled at once: the confirmation says the credit goes back.
+func TestConfirmRefundCreditPaid(t *testing.T) {
 	t.Parallel()
 	for _, locale := range []i18n.Locale{i18n.ZhHant, i18n.En} {
 		ctx := i18n.WithLocale(t.Context(), locale)
@@ -64,9 +66,10 @@ func TestACreditPaidCancellationConfirmationSaysWhatItDoes(t *testing.T) {
 	}
 }
 
-// The cancellation's confirm page is about a cancellation: its figure is what is
-// refunded for cancelling, and the one field it insists on says so.
-func TestTheCancellationConfirmSaysCancellationAndMarksTheRequiredNote(t *testing.T) {
+// TestConfirmRefundCancellation: the cancellation's confirm page is about a
+// cancellation: its figure is what is refunded for cancelling, and the one field
+// it insists on says so.
+func TestConfirmRefundCancellation(t *testing.T) {
 	t.Parallel()
 	for _, locale := range []i18n.Locale{i18n.ZhHant, i18n.En} {
 		ctx := i18n.WithLocale(t.Context(), locale)

@@ -23,8 +23,10 @@ import (
 
 const stockedAllWindow = 30 * 24 * time.Hour
 
+// TestMovementsEmptyLedger: empty ledger says no movement once.
+//
 // From small_defects_test.go, moved whole.
-func TestEmptyLedgerSaysNoMovementOnce(t *testing.T) {
+func TestMovementsEmptyLedger(t *testing.T) {
 	t.Parallel()
 	v := &MovementsView{SKU: "A-1", Days: []StockDay{{Day: time.Date(2026, 10, 1, 0, 0, 0, 0, time.UTC)}}}
 	body := render(t, Movements(frame.Page{Title: "Movements"}, v))
@@ -36,8 +38,10 @@ func TestEmptyLedgerSaysNoMovementOnce(t *testing.T) {
 	}
 }
 
+// TestVariantsCoverAboveSearch: stock desk lists days cover above the search.
+//
 // From stockrisk_test.go, moved whole.
-func TestStockDeskListsDaysCoverAboveTheSearch(t *testing.T) {
+func TestVariantsCoverAboveSearch(t *testing.T) {
 	t.Parallel()
 
 	for _, loc := range []i18n.Locale{i18n.ZhHant, i18n.En} {
@@ -66,8 +70,10 @@ func TestStockDeskListsDaysCoverAboveTheSearch(t *testing.T) {
 	}
 }
 
+// TestVariantsCoverEmpty: stock desk says so when nothing needs restocking.
+//
 // From stockrisk_test.go, moved whole.
-func TestStockDeskSaysSoWhenNothingNeedsRestocking(t *testing.T) {
+func TestVariantsCoverEmpty(t *testing.T) {
 	t.Parallel()
 
 	ctx := i18n.WithLocale(t.Context(), i18n.En)
@@ -77,8 +83,10 @@ func TestStockDeskSaysSoWhenNothingNeedsRestocking(t *testing.T) {
 	}
 }
 
+// TestVariantsLaterPagesNoCover: stock desk later pages leave days cover out.
+//
 // From stockrisk_test.go, moved whole.
-func TestStockDeskLaterPagesLeaveDaysCoverOut(t *testing.T) {
+func TestVariantsLaterPagesNoCover(t *testing.T) {
 	t.Parallel()
 
 	ctx := i18n.WithLocale(t.Context(), i18n.En)
@@ -88,8 +96,11 @@ func TestStockDeskLaterPagesLeaveDaysCoverOut(t *testing.T) {
 	}
 }
 
-// From TestReportAndStockDeskShareTheDaysCoverSection.
-func TestStockDeskDrawsTheSharedDaysCoverSection(t *testing.T) {
+// TestVariantsSharedCoverSection: stock desk draws the shared days cover
+// section.
+//
+// From TestReportSharedCoverSection.
+func TestVariantsSharedCoverSection(t *testing.T) {
 	t.Parallel()
 
 	ctx := i18n.WithLocale(t.Context(), i18n.En)
@@ -104,8 +115,10 @@ func TestStockDeskDrawsTheSharedDaysCoverSection(t *testing.T) {
 	}
 }
 
+// TestVariantsMovementsRestartLink: stock empty pages keep their restart link.
+//
 // From TestAuditEmptyPageRestartLink.
-func TestStockEmptyPagesKeepTheirRestartLink(t *testing.T) {
+func TestVariantsMovementsRestartLink(t *testing.T) {
 	t.Parallel()
 	b := keyset.Bound{PastEnd: true, First: "/admin/products?q=test"}
 	p := frame.Page{Title: "Pagination"}
@@ -131,8 +144,11 @@ func TestStockEmptyPagesKeepTheirRestartLink(t *testing.T) {
 	}
 }
 
+// TestVariantsMovementsEmptyState: stock queues keep their own first page empty
+// state.
+//
 // From TestAuditFirstPageEmpty.
-func TestStockQueuesKeepTheirOwnFirstPageEmptyState(t *testing.T) {
+func TestVariantsMovementsEmptyState(t *testing.T) {
 	t.Parallel()
 	ctx := func(k i18n.Key) string { return i18n.T(i18n.WithLocale(t.Context(), i18n.En), k) }
 	generic := ctx(i18n.KeyPageEmpty)
@@ -158,8 +174,10 @@ func TestStockQueuesKeepTheirOwnFirstPageEmptyState(t *testing.T) {
 	}
 }
 
+// TestVariantsMovementsOfferNext: stock queues with more rows offer next.
+//
 // From TestAuditFullPageOffersNext.
-func TestStockQueuesWithMoreRowsOfferNext(t *testing.T) {
+func TestVariantsMovementsOfferNext(t *testing.T) {
 	t.Parallel()
 	ctx := func(k i18n.Key) string { return i18n.T(i18n.WithLocale(t.Context(), i18n.En), k) }
 	rows := make([]db.Order, keyset.PageLimit)
@@ -183,8 +201,10 @@ func TestStockQueuesWithMoreRowsOfferNext(t *testing.T) {
 	}
 }
 
+// TestVariantsExamples: stock examples stay outside refused inputs.
+//
 // From the examples test the admin screens once shared.
-func TestStockExamplesStayOutsideRefusedInputs(t *testing.T) {
+func TestVariantsExamples(t *testing.T) {
 	t.Parallel()
 	for _, locale := range i18n.Locales() {
 		for _, draft := range []struct{ value, refusal string }{{"", ""}, {"Submitted <& value", ""}, {"", "Refused"}, {"Submitted <& value", "Refused"}} {
@@ -257,8 +277,11 @@ func TestStockExamplesStayOutsideRefusedInputs(t *testing.T) {
 	}
 }
 
+// TestVariantsRefusalSummary: stock refusal names its form and links to the
+// first invalid control.
+//
 // From TestDeskRefusalsNameTheirFormAndLinkToTheFirstInvalidControl.
-func TestStockRefusalNamesItsFormAndLinksToTheFirstInvalidControl(t *testing.T) {
+func TestVariantsRefusalSummary(t *testing.T) {
 	t.Parallel()
 	for _, locale := range i18n.Locales() {
 		t.Run(locale.Tag(), func(t *testing.T) {

@@ -27,7 +27,9 @@ import (
 	"github.com/koopa0/goen/internal/payment/refund"
 )
 
-func TestRefundCompletionLockFailureOffersResumeAfterSettlement(t *testing.T) {
+// TestHandler_RefundBeforeShipmentLockFailure: refund completion lock failure
+// offers resume after settlement.
+func TestHandler_RefundBeforeShipmentLockFailure(t *testing.T) {
 	ctx, _ := admintest.StaffContext(t, pool)
 	number, orderID, variantID := admintest.PaidUnshippedOrder(t, pool, 900000, 300000, true)
 	var stockHeld int32
@@ -130,7 +132,9 @@ func TestRefundCompletionLockFailureOffersResumeAfterSettlement(t *testing.T) {
 	}
 }
 
-func TestUnpaidRefundBeforeShipmentKeepsThePayoutRecoveryNotice(t *testing.T) {
+// TestHandler_RefundBeforeShipmentRecovery: an unpaid refund before shipment
+// keeps the payout recovery notice.
+func TestHandler_RefundBeforeShipmentRecovery(t *testing.T) {
 	ctx, _ := admintest.StaffContext(t, pool)
 	number, orderID, variantID := admintest.PaidUnshippedOrder(t, pool, 900000, 300000, true)
 	var stockHeld int32
@@ -188,7 +192,9 @@ func assertRefundRecoveryPage(t *testing.T, ctx context.Context, adminPool *pgxp
 	}
 }
 
-func TestRefundCompletionPreservesTheInvoiceRecoveryCause(t *testing.T) {
+// TestHandler_RefundBeforeShipmentInvoiceCause: refund completion preserves the
+// invoice recovery cause.
+func TestHandler_RefundBeforeShipmentInvoiceCause(t *testing.T) {
 	ctx, _ := admintest.StaffContext(t, pool)
 	number, orderID, _ := admintest.PaidUnshippedOrder(t, pool, 900000, 300000, true)
 	if _, err := pool.Exec(ctx, `

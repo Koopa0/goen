@@ -143,12 +143,14 @@ func orderDesk(adminPool *pgxpool.Pool, refunder refunds.Refunder) *orders.Store
 	return admintest.OrderStore(adminPool, refunder, nil, admintest.DisabledInvoiceWriter{})
 }
 
+// TestStore_RefundUnsentPaysBack: an unsent refund pays back what did not ship.
+//
 // Family 1: a card order. The refund is the paid price less the discount
 // share, the remaining hold is released, the refund completes, the order may
 // complete, member_spend drops by it, the points clawback is recorded, and the
 // customer gets one letter and the audit one row; a second press changes
 // nothing.
-func TestAnUnsentRefundPaysBackWhatDidNotShip(t *testing.T) {
+func TestStore_RefundUnsentPaysBack(t *testing.T) {
 	ctx, staff := admintest.StaffContext(t, pool)
 	var sent atomic.Int64
 	refunder := admintest.Refunder{Sent: &sent}
@@ -228,9 +230,11 @@ func TestAnUnsentRefundPaysBackWhatDidNotShip(t *testing.T) {
 	}
 }
 
+// TestStore_RefundUnsentCardFirst: an unsent refund pays the card first.
+//
 // Family 2: a refund larger than the card capture refunds the card first and
 // the rest as credit; a credit-paid order makes no provider call.
-func TestAnUnsentRefundPaysTheCardFirst(t *testing.T) {
+func TestStore_RefundUnsentCardFirst(t *testing.T) {
 	for _, tc := range []struct {
 		name               string
 		cardPaid           int64
@@ -257,9 +261,12 @@ func TestAnUnsentRefundPaysTheCardFirst(t *testing.T) {
 	}
 }
 
+// TestStore_RefundUnsentBounds: an unsent refund is bounded by what did not
+// ship.
+//
 // Family 3: what the door may refund is what did not ship, once; the units it
 // refunds can no longer ship; the unit that shipped can still come back.
-func TestAnUnsentRefundIsBoundedByWhatDidNotShip(t *testing.T) {
+func TestStore_RefundUnsentBounds(t *testing.T) {
 	ctx, _ := admintest.StaffContext(t, pool)
 	s, _ := unsentDesk(t, admintest.Refunder{})
 
@@ -330,10 +337,13 @@ func TestAnUnsentRefundIsBoundedByWhatDidNotShip(t *testing.T) {
 	})
 }
 
+// TestStore_RefundUnsentUnsettled: an unpaid unsent refund neither settles nor
+// completes.
+//
 // Family 4: approved but unsettled. While the card refund is Stripe-pending
 // the units are not given up, the order cannot complete, and settling is
 // refused; the press that finds the money landed finishes it.
-func TestAnUnpaidUnsentRefundNeitherSettlesNorCompletes(t *testing.T) {
+func TestStore_RefundUnsentUnsettled(t *testing.T) {
 	ctx, staff := admintest.StaffContext(t, pool)
 	var sent atomic.Int64
 	pending := admintest.Refunder{State: refund.Pending, Sent: &sent}
@@ -380,9 +390,12 @@ func TestAnUnpaidUnsentRefundNeitherSettlesNorCompletes(t *testing.T) {
 	}
 }
 
+// TestStore_RefundUnsentDeliveryFee: returning the rest after an unsent refund
+// refunds delivery.
+//
 // Family 5: the remainder carries no delivery fee; the return that later takes
 // back everything that arrived does.
-func TestReturningTheRestAfterAnUnsentRefundRefundsDelivery(t *testing.T) {
+func TestStore_RefundUnsentDeliveryFee(t *testing.T) {
 	ctx, _ := admintest.StaffContext(t, pool)
 	refunder := admintest.Refunder{}
 	s, adminPool := unsentDesk(t, refunder)
@@ -416,9 +429,12 @@ func TestReturningTheRestAfterAnUnsentRefundRefundsDelivery(t *testing.T) {
 	}
 }
 
+// TestStore_RefundUnsentWriteOff: a written off unit stays off sale and a
+// withdrawn one comes back.
+//
 // Family 6: a unit written off leaves stock where the hold put it, and tells
 // nobody it is back; a unit the customer withdrew goes back on sale.
-func TestAWrittenOffUnitStaysOffSaleAndAWithdrawnOneComesBack(t *testing.T) {
+func TestStore_RefundUnsentWriteOff(t *testing.T) {
 	for _, reason := range returns.UnsentReasons {
 		t.Run(string(reason), func(t *testing.T) {
 			ctx, _ := admintest.StaffContext(t, pool)
@@ -453,9 +469,10 @@ func TestAWrittenOffUnitStaysOffSaleAndAWithdrawnOneComesBack(t *testing.T) {
 	}
 }
 
-// A press naming other units than the refund already open is refused, before
-// any money moves, instead of paying the open one.
-func TestARepeatPressMustNameTheOpenRefundsUnits(t *testing.T) {
+// TestStore_RefundUnsentRepeatPress: a press naming other units than the refund
+// already open is refused, before any money moves, instead of paying the open
+// one.
+func TestStore_RefundUnsentRepeatPress(t *testing.T) {
 	ctx, _ := admintest.StaffContext(t, pool)
 	var sent atomic.Int64
 	pending := admintest.Refunder{State: refund.Pending, Sent: &sent}
@@ -486,9 +503,9 @@ func TestARepeatPressMustNameTheOpenRefundsUnits(t *testing.T) {
 	}
 }
 
-// The order page offers the door only on a paid order that sent a parcel and
-// still owes units, and offers it for exactly those.
-func TestTheOrderPageOffersTheUnsentRefundForWhatIsOwed(t *testing.T) {
+// TestStore_OfferUnsent: the order page offers the door only on a paid order
+// that sent a parcel and still owes units, and offers it for exactly those.
+func TestStore_OfferUnsent(t *testing.T) {
 	ctx, _ := admintest.StaffContext(t, pool)
 	adminPool := admintest.AdminRolePool(t, pool)
 	desk := orderDesk(adminPool, admintest.Refunder{})
@@ -520,10 +537,11 @@ func TestTheOrderPageOffersTheUnsentRefundForWhatIsOwed(t *testing.T) {
 	}
 }
 
-// The returns queue shows an unsent refund as what it is, and sends staff to
-// the order page rather than offering to inspect units that never left: not
-// while its card refund is pending, and not as a shortfall once it closed.
-func TestTheReturnsQueueSendsAnUnsentRefundToItsOrder(t *testing.T) {
+// TestStore_RefundUnsentReturnsQueue: the returns queue shows an unsent refund
+// as what it is, and sends staff to the order page rather than offering to
+// inspect units that never left: not while its card refund is pending, and not
+// as a shortfall once it closed.
+func TestStore_RefundUnsentReturnsQueue(t *testing.T) {
 	ctx, _ := admintest.StaffContext(t, pool)
 	s, adminPool := unsentDesk(t, admintest.Refunder{State: refund.Pending})
 	o := admintest.PartlyShippedOrder(t, pool, admintest.TwoLineOrderTotal)
@@ -584,10 +602,12 @@ func TestTheReturnsQueueSendsAnUnsentRefundToItsOrder(t *testing.T) {
 	}
 }
 
+// TestHandler_RefundUnsentConfirm: the unsent refund confirms before it pays.
+//
 // Family 9, through the handler: the first POST renders what the refund pays
 // and moves nothing; a bad code or a blank note is refused before money
 // moves; the confirmed POST refunds.
-func TestTheUnsentRefundConfirmsBeforeItPays(t *testing.T) {
+func TestHandler_RefundUnsentConfirm(t *testing.T) {
 	ctx, _ := admintest.StaffContext(t, pool)
 	var sent atomic.Int64
 	s, _ := unsentDesk(t, admintest.Refunder{Sent: &sent})
@@ -664,10 +684,12 @@ func TestTheUnsentRefundConfirmsBeforeItPays(t *testing.T) {
 	}
 }
 
+// TestStore_RefundUnsentAllowance: an unsent refund files its allowance.
+//
 // Family 10: once settled, the refund files a 折讓 against the live invoice
 // for the whole dollars that went back, past ECPay's void window, under the
 // presser's name.
-func TestAnUnsentRefundFilesItsAllowance(t *testing.T) {
+func TestStore_RefundUnsentAllowance(t *testing.T) {
 	ctx, staff := admintest.StaffContext(t, pool)
 	fake, invoices := fakeECPay(t, time.Now().AddDate(0, -4, 0))
 	s := refunds.NewStore(pool, admintest.Refunder{}, invoices)
@@ -705,9 +727,9 @@ func TestAnUnsentRefundFilesItsAllowance(t *testing.T) {
 	}
 }
 
-// An order with no live invoice yet refunds without a 折讓, which staff file
-// from the order page once the invoice exists.
-func TestAnUnsentRefundWithNoInvoiceYetStillRefunds(t *testing.T) {
+// TestStore_RefundUnsentNoInvoice: an order with no live invoice yet refunds
+// without a 折讓, which staff file from the order page once the invoice exists.
+func TestStore_RefundUnsentNoInvoice(t *testing.T) {
 	ctx, _ := admintest.StaffContext(t, pool)
 	_, invoices := fakeECPay(t, time.Now())
 	s := refunds.NewStore(pool, admintest.Refunder{}, invoices)

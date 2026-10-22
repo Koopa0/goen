@@ -25,7 +25,9 @@ import (
 	"github.com/koopa0/goen/internal/shoptime"
 )
 
-func TestMonthlyOrdersCSVMatchesRevenueAndKeepsEverySoldOrder(t *testing.T) {
+// TestHandler_OrdersCSVMonthly: monthly orders CSV matches revenue and keeps
+// every sold order.
+func TestHandler_OrdersCSVMonthly(t *testing.T) {
 	p := admintest.Pool(t)
 	ctx, staff := admintest.StaffContext(t, p)
 	fixtures := []struct {

@@ -38,9 +38,12 @@ func formKeyOf(t *testing.T, s *stock.Store, sku string) string {
 	return ""
 }
 
+// TestStore_AdjustEarlierLevel: an adjustment is accepted when stock returns to
+// an earlier level.
+//
 // Stock returning to a level it was at before must not spend the next form's
 // key: each rendered form carries its own.
-func TestAnAdjustmentIsAcceptedWhenStockReturnsToAnEarlierLevel(t *testing.T) {
+func TestStore_AdjustEarlierLevel(t *testing.T) {
 	ctx, _ := admintest.StaffContext(t, pool)
 	s := stock.NewStore(pool)
 	actor := adminID(t)
@@ -61,9 +64,12 @@ func TestAnAdjustmentIsAcceptedWhenStockReturnsToAnEarlierLevel(t *testing.T) {
 	}
 }
 
+// TestStore_ReceiveEarlierLevel: a goods receipt survives stock returning and a
+// replay is one delivery.
+//
 // The same for a goods receipt, and a replay of an applied receipt is the
 // earlier success, not a second delivery and not a refusal.
-func TestAGoodsReceiptSurvivesStockReturningAndAReplayIsOneDelivery(t *testing.T) {
+func TestStore_ReceiveEarlierLevel(t *testing.T) {
 	ctx, _ := admintest.StaffContext(t, pool)
 	s := stock.NewStore(pool)
 	actor := adminID(t)

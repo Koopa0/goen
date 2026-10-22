@@ -23,7 +23,9 @@ func returnedReport(rows ...ReturnedProduct) *ReportView {
 	}
 }
 
-func TestProductsReturnedMostShowCountsBelowTwentySold(t *testing.T) {
+// TestReportReturnedCountOrRate: the products-returned-most section shows counts
+// below twenty sold and a rate from twenty.
+func TestReportReturnedCountOrRate(t *testing.T) {
 	t.Parallel()
 
 	tests := []struct {
@@ -57,7 +59,9 @@ func TestProductsReturnedMostShowCountsBelowTwentySold(t *testing.T) {
 	}
 }
 
-func TestProductsReturnedMostRateKeepsTheCountsToo(t *testing.T) {
+// TestReportReturnedRateCounts: the products-returned-most rate keeps the counts
+// beside it.
+func TestReportReturnedRateCounts(t *testing.T) {
 	t.Parallel()
 
 	html := renderEnglish(t, Report(frame.Page{Title: "Reports"}, returnedReport(
@@ -69,7 +73,8 @@ func TestProductsReturnedMostRateKeepsTheCountsToo(t *testing.T) {
 	}
 }
 
-func TestProductsReturnedMostBarIsTheRate(t *testing.T) {
+// TestReportReturnedBar: the products-returned-most bar is the rate.
+func TestReportReturnedBar(t *testing.T) {
 	t.Parallel()
 
 	html := renderEnglish(t, Report(frame.Page{Title: "Reports"}, returnedReport(
@@ -89,7 +94,9 @@ func TestProductsReturnedMostBarIsTheRate(t *testing.T) {
 	}
 }
 
-func TestProductsReturnedMostWithNoRowsSaysNothing(t *testing.T) {
+// TestReportReturnedNoRows: the products-returned-most section says nothing when
+// it has no rows.
+func TestReportReturnedNoRows(t *testing.T) {
 	t.Parallel()
 
 	html := renderEnglish(t, Report(frame.Page{Title: "Reports"}, returnedReport()))
@@ -98,7 +105,9 @@ func TestProductsReturnedMostWithNoRowsSaysNothing(t *testing.T) {
 	}
 }
 
-func TestProductsReturnedMostWithOneRowIsASentence(t *testing.T) {
+// TestReportReturnedOneRow: the products-returned-most section is a sentence
+// when it has one row.
+func TestReportReturnedOneRow(t *testing.T) {
 	t.Parallel()
 
 	html := renderEnglish(t, Report(frame.Page{Title: "Reports"}, returnedReport(
@@ -114,7 +123,9 @@ func TestProductsReturnedMostWithOneRowIsASentence(t *testing.T) {
 	}
 }
 
-func TestProductsReturnedMostSaysWhenItCouldNotBeRead(t *testing.T) {
+// TestReportReturnedUnread: the products-returned-most section says so when it
+// could not be read.
+func TestReportReturnedUnread(t *testing.T) {
 	t.Parallel()
 
 	v := returnedReport(ReturnedProduct{Slug: "a", Name: "Alpha", Returned: 2, Sold: 12})
@@ -131,7 +142,9 @@ func TestProductsReturnedMostSaysWhenItCouldNotBeRead(t *testing.T) {
 	}
 }
 
-func TestProductsReturnedMostInChinese(t *testing.T) {
+// TestReturnedProduct_ChineseText: a returned product's counts and share read in
+// Chinese.
+func TestReturnedProduct_ChineseText(t *testing.T) {
 	t.Parallel()
 
 	ctx := i18n.WithLocale(t.Context(), i18n.ZhHant)

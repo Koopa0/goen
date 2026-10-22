@@ -44,9 +44,12 @@ var migratedTestPackages = []string{
 	"internal/admin/messages",
 	"internal/admin/newsletters",
 	"internal/admin/questions",
+	"internal/admin/refunds",
+	"internal/admin/reports",
 	"internal/admin/reviews",
 	"internal/admin/slides",
 	"internal/admin/staff",
+	"internal/admin/stock",
 	"internal/admin/taxonomy",
 	"internal/admin/tiers",
 	"internal/admin/warranties",
@@ -100,9 +103,23 @@ var testNameExceptions = map[string]map[string]string{
 		"TestEveryBackOfficeWriteLeavesATrail":         "a rule across the back-office stores: it runs one write of each (stock, product, credit, campaign and the rest) and counts an audit row for every action; the stores are other packages, and no identifier of package admin is its unit",
 		"TestMistypedParcelDimension":                  "its unit is the products desk's variant form (products.Handler through productstest), declared in internal/admin/products, not in this package; it lives here because this suite owns the shared catalogue database it needs",
 	},
+	"internal/admin/refunds": {
+		"TestClaimReturnRefundExecutionConcurrent": "the unit is the SQL function claim_return_refund_execution, called straight through the pool; no Go identifier of this package is what the test drives",
+		"TestOrderPageIssuedInvoiceNoProvider":     "the unit is Store.Order of package orders, which this package does not declare; moving the test there is a reorganisation this pass does not do",
+		"TestRecordRefundOutcomes":                 "the unit is the SQL functions record_refund_pending, _requires_action, _succeeded, _failed, _cancelled and _api_rejection, called straight through the pool, not a Go identifier",
+		"TestRecordRefundSucceededLockOrder":       "the unit is the SQL function record_refund_succeeded, raced against claim_return_refund_execution through the pool, not a Go identifier",
+		"TestRecordRefundSucceededReplay":          "the unit is the SQL function record_refund_succeeded, called straight through the pool, not a Go identifier",
+		"TestReverseReturnPointsErasureLock":       "the unit is the SQL function reverse_return_points, raced against an erasure through the pool, not a Go identifier",
+	},
+	"internal/admin/reports": {
+		"TestStockDaysCoverRefundedBeforeShipment": "the unit is Store.DaysCover of package stock, which this package does not declare (it declares only the Cover interface it calls through); moving the test there is a reorganisation this pass does not do",
+	},
 	"internal/admin/staff": {
 		"TestRequireAdminStaffPage": "its unit is admin.Control.RequireAdmin guarding the staff page's path, declared in package admin; it calls nothing this package declares",
 		"TestUpsertStaffExisting":   "its unit is the upsert_staff SQL function and the users_staff_already_exists constraint, called straight through an admin-role pool; Store.AddStaff is not what it exercises",
+	},
+	"internal/admin/stock": {
+		"TestProductVariantsRestockNoticesRollback": "the unit is the product_variants_restock_notices trigger, a SQL object, driven by plain UPDATE statements on the admin role's pool, not a Go identifier",
 	},
 	"internal/admin/taxonomy": {
 		"TestCategoriesIconKeyKnown": "the unit is the categories_icon_key_known CHECK constraint of the categories table, a SQL object, not a Go identifier: the test inserts rows directly and never calls the Store",

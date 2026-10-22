@@ -30,7 +30,9 @@ import (
 	"github.com/koopa0/goen/internal/user"
 )
 
-func TestExpectedArrivalIsAuditedAndShownOnlyForTheSelectedSoldOutVariant(t *testing.T) {
+// TestStore_SetArrival: expected arrival is audited and shown only for the
+// selected sold out variant.
+func TestStore_SetArrival(t *testing.T) {
 	owner := admintest.Pool(t)
 	ctx, actor := admintest.StaffContext(t, owner)
 	cfg := owner.Config().Copy()
@@ -217,7 +219,9 @@ func arrivalDay(t *testing.T, raw string) pgtype.Date {
 	return day
 }
 
-func TestArrivalAuditLockDoesNotBlockStockNotifications(t *testing.T) {
+// TestLockVariantAllowsNotifications: arrival audit lock does not block stock
+// notifications.
+func TestLockVariantAllowsNotifications(t *testing.T) {
 	owner := admintest.Pool(t)
 	ctx, _ := admintest.StaffContext(t, owner)
 	var id uuid.UUID
@@ -246,7 +250,8 @@ func TestArrivalAuditLockDoesNotBlockStockNotifications(t *testing.T) {
 	}
 }
 
-func TestArrivalWriteFailuresRemainOperational(t *testing.T) {
+// TestHandler_SetArrivalFailures: arrival write failures remain operational.
+func TestHandler_SetArrivalFailures(t *testing.T) {
 	owner := admintest.Pool(t)
 	ctx, _ := admintest.StaffContext(t, owner)
 	var id uuid.UUID

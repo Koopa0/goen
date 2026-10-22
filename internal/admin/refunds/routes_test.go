@@ -13,16 +13,18 @@ import (
 	"github.com/koopa0/goen/internal/user"
 )
 
-func TestEveryRouteRefusesAnOutsider(t *testing.T) {
+// TestHandler_RoutesRefuseOutsiders: every route refuses an outsider.
+func TestHandler_RoutesRefuseOutsiders(t *testing.T) {
 	t.Parallel()
 	accesstest.RefuseOutsiders(t, func(mux *http.ServeMux, ac *admin.Control) {
 		NewHandler(&Store{}, nil, slog.New(slog.DiscardHandler)).Routes(mux, ac)
 	}, "POST /admin/orders/{number}/refund", "POST /admin/orders/{number}/refund-unsent")
 }
 
-// A money door waits for the session's second factor: staff who have not
-// proved it are sent to prove it, and nothing behind the door runs.
-func TestEveryRouteWaitsForTheSecondFactor(t *testing.T) {
+// TestHandler_RoutesSecondFactor: a money door waits for the session's second
+// factor: staff who have not proved it are sent to prove it, and nothing behind
+// the door runs.
+func TestHandler_RoutesSecondFactor(t *testing.T) {
 	t.Parallel()
 	mux := http.NewServeMux()
 	notVerified := func(*http.Request) (bool, error) { return false, nil }

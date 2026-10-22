@@ -8,7 +8,9 @@ import (
 	"github.com/koopa0/goen/internal/ui/frame"
 )
 
-func TestTheStockListMarksItsFilterAndCarriesItsPlaceInEachForm(t *testing.T) {
+// TestVariantsFilterAndPlace: the stock list marks its filter and carries its
+// place in each form.
+func TestVariantsFilterAndPlace(t *testing.T) {
 	t.Parallel()
 	ctx := i18n.WithLocale(t.Context(), i18n.ZhHant)
 	view := VariantsView{
@@ -34,7 +36,9 @@ func TestTheStockListMarksItsFilterAndCarriesItsPlaceInEachForm(t *testing.T) {
 	}
 }
 
-func TestARefusedAdjustmentKeepsWhatWasTypedAndMarksIt(t *testing.T) {
+// TestVariantsRefusedAdjustment: a refused adjustment keeps what was typed and
+// marks it.
+func TestVariantsRefusedAdjustment(t *testing.T) {
 	t.Parallel()
 	ctx := i18n.WithLocale(t.Context(), i18n.ZhHant)
 	view := VariantsView{Variants: []Variant{
@@ -53,7 +57,9 @@ func TestARefusedAdjustmentKeepsWhatWasTypedAndMarksIt(t *testing.T) {
 	}
 }
 
-func TestTheStockListSearchesAndTellsVariantsApartByTheirOptions(t *testing.T) {
+// TestVariantsSearchAndOptions: the stock list searches and tells variants apart
+// by their options.
+func TestVariantsSearchAndOptions(t *testing.T) {
 	t.Parallel()
 	ctx := i18n.WithLocale(t.Context(), i18n.ZhHant)
 	view := VariantsView{

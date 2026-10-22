@@ -15,7 +15,8 @@ import (
 	"github.com/koopa0/goen/internal/ui/frame"
 )
 
-func TestReceiptRefusalKeepsTheCorrectableForm(t *testing.T) {
+// TestHandler_ReceiptRefusalForm: receipt refusal keeps the correctable form.
+func TestHandler_ReceiptRefusalForm(t *testing.T) {
 	t.Parallel()
 	for _, locale := range i18n.Locales() {
 		for _, tt := range []struct {
@@ -66,7 +67,9 @@ func TestReceiptRefusalKeepsTheCorrectableForm(t *testing.T) {
 	}
 }
 
-func TestFreshReceiptFormHasItsOwnKeyAndNoRefusal(t *testing.T) {
+// TestMovementsFreshReceiptForm: fresh receipt form has its own key and no
+// refusal.
+func TestMovementsFreshReceiptForm(t *testing.T) {
 	t.Parallel()
 	view := MovementsView{SKU: "SKU", Slug: "product", FormID: "first-page"}
 	var body bytes.Buffer

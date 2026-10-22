@@ -14,11 +14,12 @@ import (
 	"github.com/koopa0/goen/internal/ui/frame"
 )
 
-// TestARenamedStaffIsNamedByAddressInTheStockLedger: staff A adjusts a
-// variant's stock, then takes staff B's name. The movement still names A by
-// the address nobody on staff can change, and the page never says B. A display
-// name is whatever its owner last typed on /account/profile.
-func TestARenamedStaffIsNamedByAddressInTheStockLedger(t *testing.T) {
+// TestStore_MovementsRenamedStaff: a renamed staff is named by address in the
+// stock ledger. Staff A adjusts a variant's stock, then takes staff B's name.
+// The movement still names A by the address nobody on staff can change, and the
+// page never says B. A display name is whatever its owner last typed on
+// /account/profile.
+func TestStore_MovementsRenamedStaff(t *testing.T) {
 	suffix := uuid.NewString()[:8]
 	ctx, idA, address := admintest.NamedStaff(t, pool, "Actor "+suffix)
 	colleague := "Colleague " + suffix

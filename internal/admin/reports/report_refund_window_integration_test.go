@@ -19,7 +19,10 @@ import (
 	"github.com/koopa0/goen/internal/i18n"
 )
 
-func TestRefundOnlyReportWindow(t *testing.T) {
+// TestStore_ReportAtRefundOnlyWindow: a refund settled inside the window shows
+// in a report that has no orders, and a pending refund or one settled before the
+// window does not.
+func TestStore_ReportAtRefundOnlyWindow(t *testing.T) {
 	p := admintest.Pool(t)
 	ctx := t.Context()
 	var orderID uuid.UUID
@@ -122,10 +125,11 @@ func TestRefundOnlyReportWindow(t *testing.T) {
 	}
 }
 
-// TestRefundBeforeShipmentLeavesBothReportFigures: an order refunded before
-// shipment leaves Revenue, so its refund is not money gone back from that
-// revenue either. Counted as refunded, the net would take it off twice.
-func TestRefundBeforeShipmentLeavesBothReportFigures(t *testing.T) {
+// TestStore_ReportAtRefundBeforeShipment: refund before shipment leaves both
+// report figures. An order refunded before shipment leaves Revenue, so its
+// refund is not money gone back from that revenue either. Counted as refunded,
+// the net would take it off twice.
+func TestStore_ReportAtRefundBeforeShipment(t *testing.T) {
 	p := admintest.Pool(t)
 	ctx := t.Context()
 	var staff, buyer uuid.UUID
