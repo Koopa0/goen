@@ -207,6 +207,7 @@ var testNameExceptions = map[string]map[string]string{
 		"TestSettleInvoiceAllowanceLineTerms":        "its unit is the SQL functions settle_invoice_allowance and record_invalid_invoice_allowance, called directly as the admin role",
 		"TestSettleInvoiceIssueErasedActor":          "its unit is the SQL function settle_invoice_issue, called directly as the admin role after erase_user; Store.Issue is not what it exercises",
 		"TestSettleInvoiceIssueLineFields":           "its unit is the SQL function settle_invoice_issue, called directly as the admin role; the package declares no identifier for it",
+		"TestTestOrderNumberIsUnique":                "its unit is testOrderNumber, the order-number helper of the integration tests, declared in the test file, so the package declares no identifier for it",
 		"TestValidBusinessTaxID":                     "its unit is the SQL function valid_business_tax_id, held to invoice.ValidTaxID, which package invoice declares; this package declares no identifier for it",
 	},
 	"internal/loyalty": {

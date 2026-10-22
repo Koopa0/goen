@@ -13,9 +13,11 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"log/slog"
 	"net/http"
 	"os"
+	"sync/atomic"
 	"testing"
 
 	"github.com/google/uuid"
@@ -30,6 +32,33 @@ var (
 	pool        *pgxpool.Pool
 	filingActor uuid.UUID
 )
+
+// orderSequence numbers the orders the helpers place, so no two of them in one
+// run (one database per package) can share a number: a random draw from the
+// 900,000 values of a day collided about once in 900 runs (#2320).
+var orderSequence atomic.Uint64
+
+// testOrderNumber is the next order number a helper may use. The day is far
+// from the real calendar, so it cannot meet next_order_number(), and its
+// sequence is six digits, a form orders_number_format accepts. The
+// GO-991229-1000nn numbers written out in operation_doors_integration_test.go
+// are another day.
+func testOrderNumber() string {
+	return fmt.Sprintf("GO-991230-%06d", orderSequence.Add(1))
+}
+
+// TestTestOrderNumberIsUnique: 5,000 numbers from a 900,000-value random draw
+// collide with probability 1-exp(-13.9); from the sequence they never do.
+func TestTestOrderNumberIsUnique(t *testing.T) {
+	seen := make(map[string]bool, 5000)
+	for range 5000 {
+		number := testOrderNumber()
+		if seen[number] {
+			t.Fatalf("order number %s was issued twice", number)
+		}
+		seen[number] = true
+	}
+}
 
 func constraintOf(err error) string {
 	if pgErr, ok := errors.AsType[*pgconn.PgError](err); ok {
@@ -319,12 +348,12 @@ func invoicedOrderWithRefundFor(t *testing.T, owner uuid.NullUUID, refundCents i
 	if err := tx.QueryRow(ctx, `
 		INSERT INTO orders (order_number, user_id, shipping_version_id, shipping_method_code,
 		                    shipping_method_name, shipping_cents, locale, fulfillment_status)
-		SELECT 'GO-991231-' || lpad((floor(random()*900000)+100000)::bigint::text, 6, '0'),
+		SELECT $2::text,
 		       $1, smv.id, sm.code, smv.name, 0, 'zh-Hant', 'pending'
 		FROM shipping_method_versions smv
 		JOIN shipping_methods sm ON sm.id = smv.method_id
 		LIMIT 1
-		RETURNING id::text, order_number`, owner).Scan(&orderID, &number); err != nil {
+		RETURNING id::text, order_number`, owner, testOrderNumber()).Scan(&orderID, &number); err != nil {
 		t.Fatalf("create the order: %v", err)
 	}
 	if _, err := tx.Exec(ctx, `
@@ -463,12 +492,12 @@ func ownedOrderToInvoiceWithLineTerms(
 		INSERT INTO orders (order_number, user_id, shipping_version_id, shipping_method_code,
 		                    shipping_method_name, shipping_cents, discount_cents,
 		                    locale, fulfillment_status)
-		SELECT 'GO-991230-' || lpad((floor(random()*900000)+100000)::bigint::text, 6, '0'),
+		SELECT $4::text,
 		       $3, smv.id, sm.code, smv.name, $1, $2, 'zh-Hant', 'pending'
 		FROM shipping_method_versions smv
 		JOIN shipping_methods sm ON sm.id = smv.method_id
 		LIMIT 1
-		RETURNING id::text, order_number`, shippingCents, discountCents, owner).
+		RETURNING id::text, order_number`, shippingCents, discountCents, owner, testOrderNumber()).
 		Scan(&orderID, &number); err != nil {
 		t.Fatalf("create the order: %v", err)
 	}
