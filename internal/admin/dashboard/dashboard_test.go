@@ -8,8 +8,8 @@ import (
 	"time"
 
 	"github.com/koopa0/goen/internal/i18n"
-	"github.com/koopa0/goen/internal/inventory"
 	"github.com/koopa0/goen/internal/order"
+	"github.com/koopa0/goen/internal/product/inventory"
 	"github.com/koopa0/goen/internal/sales"
 	"github.com/koopa0/goen/internal/ui/chart"
 	"github.com/koopa0/goen/internal/ui/components"
