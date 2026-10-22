@@ -55,7 +55,8 @@ func TestTileColourDots(t *testing.T) {
 	}
 }
 
-func TestSoldOutTileSaysSoWithoutABadge(t *testing.T) {
+// TestCellSoldOut: a sold-out tile says so without a badge.
+func TestCellSoldOut(t *testing.T) {
 	t.Parallel()
 	ctx := i18n.WithLocale(t.Context(), i18n.ZhHant)
 	sold := Tile{Slug: "a", Name: "A", PriceCents: 100000}
@@ -77,7 +78,8 @@ func TestSoldOutTileSaysSoWithoutABadge(t *testing.T) {
 	}
 }
 
-func TestTileWithoutPhotoKeepsItsWellAndSaysSo(t *testing.T) {
+// TestCellWithoutPhoto: a tile without a photo keeps its well and says so.
+func TestCellWithoutPhoto(t *testing.T) {
 	t.Parallel()
 	ctx := i18n.WithLocale(t.Context(), i18n.ZhHant)
 	got := renderComponent(t, ctx, Cell(Tile{Slug: "a", Name: "A", PriceCents: 100000, InStock: true}))
@@ -86,11 +88,14 @@ func TestTileWithoutPhotoKeepsItsWellAndSaysSo(t *testing.T) {
 	}
 }
 
+// TestCellPhotoDecorative: a tile's photo adds nothing to the name its link
+// reads.
+//
 // A tile is one link that reads the brand and the name. Its photo sits inside
 // that link, so a description on the photo is read in front of the name it
 // repeats, and in Chinese on an English page when the product has no English
 // description. The photo is decorative: present, and empty.
-func TestATilePhotoAddsNothingToTheNameItsLinkReads(t *testing.T) {
+func TestCellPhotoDecorative(t *testing.T) {
 	t.Parallel()
 	for _, locale := range i18n.Locales() {
 		t.Run(locale.Tag(), func(t *testing.T) {
@@ -142,7 +147,8 @@ func textOf(n *html.Node) string {
 	return b.String()
 }
 
-func TestAComparableTileDrawsItsSpecHighlights(t *testing.T) {
+// TestCellSpecHighlights: a comparable tile draws its spec highlights.
+func TestCellSpecHighlights(t *testing.T) {
 	t.Parallel()
 	ctx := i18n.WithLocale(t.Context(), i18n.En)
 	got := renderComponent(t, ctx, Cell(Tile{Slug: "a", Name: "A", Comparable: true, Highlights: []string{"14″", "2.8K OLED"}}))
@@ -151,7 +157,8 @@ func TestAComparableTileDrawsItsSpecHighlights(t *testing.T) {
 	}
 }
 
-func TestACardStrikesItsPriceOnlyOnSale(t *testing.T) {
+// TestCellStrikesPriceOnlyOnSale: a card strikes its price only on sale.
+func TestCellStrikesPriceOnlyOnSale(t *testing.T) {
 	t.Parallel()
 
 	ctx := i18n.WithLocale(t.Context(), i18n.ZhHant)
@@ -177,9 +184,10 @@ func TestACardStrikesItsPriceOnlyOnSale(t *testing.T) {
 	}
 }
 
-// TestTileStillEmitsItsOwnGridCell holds other Cell consumers: extracting
-// Card for the wishlist must not drop the list item the grid expects.
-func TestTileStillEmitsItsOwnGridCell(t *testing.T) {
+// TestCellGridCell: a tile still emits its own grid cell. It holds other Cell
+// consumers: extracting Card for the wishlist must not drop the list item the
+// grid expects.
+func TestCellGridCell(t *testing.T) {
 	t.Parallel()
 
 	out := renderComponent(t, i18n.WithLocale(t.Context(), i18n.ZhHant), Cell(Tile{
@@ -197,9 +205,11 @@ func TestTileStillEmitsItsOwnGridCell(t *testing.T) {
 	}
 }
 
+// TestCellSaleWithoutChip: a tile says sale by its price and not by a chip.
+//
 // The struck-through original price already says a product is reduced, so a
 // card carries no "on sale" chip.
-func TestATileSaysSaleByItsPriceAndNotByAChip(t *testing.T) {
+func TestCellSaleWithoutChip(t *testing.T) {
 	t.Parallel()
 	ctx := i18n.WithLocale(t.Context(), i18n.ZhHant)
 	sale := Tile{Slug: "a", Name: "A", Brand: "B", PriceCents: 80000, CompareCents: 100000, InStock: true, OnSale: true}
@@ -212,7 +222,9 @@ func TestATileSaysSaleByItsPriceAndNotByAChip(t *testing.T) {
 	}
 }
 
-func TestColourCountSelectsSingularInItsRenderedText(t *testing.T) {
+// TestTileColoursCountText: the colour count selects the singular in its
+// rendered text.
+func TestTileColoursCountText(t *testing.T) {
 	t.Parallel()
 	for _, locale := range []i18n.Locale{i18n.En, i18n.ZhHant} {
 		for _, n := range []int{0, 1, 2} {

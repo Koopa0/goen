@@ -8,7 +8,9 @@ import (
 	"github.com/google/go-cmp/cmp"
 )
 
-func TestRegistrationRefusalIdentifiesTheFirstInvalidArgument(t *testing.T) {
+// TestStore_RegisterFirstInvalid: a registration refusal identifies the first
+// invalid argument, and every case is refused before a database query.
+func TestStore_RegisterFirstInvalid(t *testing.T) {
 	t.Parallel()
 	const owner = "55555555-5555-4555-8555-555555555555"
 	const line = "66660001-0000-4000-8000-000000000000"

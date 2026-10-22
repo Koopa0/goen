@@ -59,8 +59,11 @@ func wantBadge(t *testing.T, page, word, class string) {
 	}
 }
 
+// TestReturn_StatusIntentNotNeutral: every return status but a declined one has
+// an action group, so none falls to neutral.
+//
 // From statusbadge_test.go, moved whole.
-func TestEveryReturnStatusHasAGroup(t *testing.T) {
+func TestReturn_StatusIntentNotNeutral(t *testing.T) {
 	t.Parallel()
 	for _, status := range returns.Statuses {
 		row := &Return{Status: status}
@@ -76,8 +79,10 @@ func TestEveryReturnStatusHasAGroup(t *testing.T) {
 	}
 }
 
+// TestReturn_StatusIntentGroups: the status intent groups each return state.
+//
 // From statusbadge_test.go, moved whole.
-func TestReturnIntentGroupsEachReturnState(t *testing.T) {
+func TestReturn_StatusIntentGroups(t *testing.T) {
 	t.Parallel()
 	inspected := []ReturnLine{{Inspected: true}}
 	waiting := []ReturnLine{{Inspected: false}}
@@ -104,8 +109,10 @@ func TestReturnIntentGroupsEachReturnState(t *testing.T) {
 	}
 }
 
+// TestReturnsBadgesFollowGroup: the return queue's badges follow their group.
+//
 // From statusbadge_test.go, moved whole.
-func TestReturnQueueBadgesFollowTheirGroup(t *testing.T) {
+func TestReturnsBadgesFollowGroup(t *testing.T) {
 	t.Parallel()
 	inspected := []ReturnLine{{Inspected: true}}
 	waiting := []ReturnLine{{}}
@@ -153,8 +160,12 @@ func TestReturnQueueBadgesFollowTheirGroup(t *testing.T) {
 	}
 }
 
+// TestReturnsBeforeShipmentRow: a refund before shipment is finished on its
+// order page: the queue offers neither the decision nor the inspection, only a
+// link to the order.
+//
 // From refundconfirm_test.go, moved whole.
-func TestARefundBeforeShipmentIsFinishedOnItsOrderPage(t *testing.T) {
+func TestReturnsBeforeShipmentRow(t *testing.T) {
 	t.Parallel()
 	r := &Return{
 		ID: "return", OrderNumber: "GO-260929-000001", Status: "approved", Decided: true,
@@ -176,8 +187,11 @@ func TestARefundBeforeShipmentIsFinishedOnItsOrderPage(t *testing.T) {
 	}
 }
 
+// TestReturnsRefusedInspectionCounts: a refused inspection keeps blank and
+// unreadable counts.
+//
 // From refusal_navigation_test.go, moved whole.
-func TestRefusedInspectionKeepsBlankAndUnreadableCounts(t *testing.T) {
+func TestReturnsRefusedInspectionCounts(t *testing.T) {
 	t.Parallel()
 	for _, raw := range []string{"", " +oops "} {
 		view := ReturnsView{Rows: []Return{{ID: "r1", Status: "approved", Decided: true, Window: "within", Lines: []ReturnLine{{OrderLineID: "l1", Quantity: 2, Restockable: true, DraftReceived: raw, DraftRestocked: raw}}}}, Errors: map[string]string{"r1.inspect": "bad count"}}
@@ -204,8 +218,11 @@ func TestRefusedInspectionKeepsBlankAndUnreadableCounts(t *testing.T) {
 	}
 }
 
+// TestReturnsView_InspectionRefusalsOnce: the inspection refusals count each
+// refusal once.
+//
 // From TestProductView_VariantRefusal, which keeps the product half.
-func TestInspectionRefusalsCountEachRefusalOnce(t *testing.T) {
+func TestReturnsView_InspectionRefusalsOnce(t *testing.T) {
 	t.Parallel()
 	view := ReturnsView{
 		Rows: []Return{{ID: "r1", Lines: []ReturnLine{
@@ -254,8 +271,11 @@ func TestReturnsEmptyPageKeepsItsRestartLink(t *testing.T) {
 	}
 }
 
+// TestReturnsFirstPageEmpty: the returns queue keeps its own first-page empty
+// state.
+//
 // From TestAuditFirstPageEmpty.
-func TestReturnsQueueKeepsItsOwnFirstPageEmptyState(t *testing.T) {
+func TestReturnsFirstPageEmpty(t *testing.T) {
 	t.Parallel()
 	ctx := func(k i18n.Key) string { return i18n.T(i18n.WithLocale(t.Context(), i18n.En), k) }
 	generic := ctx(i18n.KeyPageEmpty)
@@ -304,8 +324,11 @@ func TestReturnsQueueWithMoreRowsOffersNext(t *testing.T) {
 	}
 }
 
+// TestReturnsExamplesOutsideInputs: the field examples of the returns page stay
+// outside refused inputs.
+//
 // From the examples test the admin screens once shared.
-func TestReturnExamplesStayOutsideRefusedInputs(t *testing.T) {
+func TestReturnsExamplesOutsideInputs(t *testing.T) {
 	t.Parallel()
 	for _, locale := range i18n.Locales() {
 		for _, draft := range []struct{ value, refusal string }{{"", ""}, {"Submitted <& value", ""}, {"", "Refused"}, {"Submitted <& value", "Refused"}} {

@@ -143,10 +143,11 @@ func TestWarrantyOrderEmptyHintMatchesWhy(t *testing.T) {
 	}
 }
 
-// TestWarrantyOrderAllRegisteredHasNoFuturePromise locks the all-registered
-// empty banner: the hint is Why()'s already-registered sentence, and the
-// shared title must not promise a later registration.
-func TestWarrantyOrderAllRegisteredHasNoFuturePromise(t *testing.T) {
+// TestWarrantyOrderAllRegistered: an order whose units are all registered has
+// no future promise. It locks the all-registered empty banner: the hint is
+// Why()'s already-registered sentence, and the shared title must not promise a
+// later registration.
+func TestWarrantyOrderAllRegistered(t *testing.T) {
 	t.Parallel()
 	ctx := i18n.WithLocale(t.Context(), i18n.En)
 	html := renderWarrantyInLocale(t, ctx, WarrantyOrder(
@@ -208,10 +209,10 @@ func renderWarrantyInLocale(t *testing.T, ctx context.Context, c templ.Component
 	return b.String()
 }
 
-// TestAFullyReturnedLineDoesNotPromiseRegistrationOnDelivery: the units arrived
-// and were returned, so neither the line nor the empty banner may say the goods
-// have not arrived.
-func TestAFullyReturnedLineDoesNotPromiseRegistrationOnDelivery(t *testing.T) {
+// TestOrderView_EmptyHintReturnedLine: a fully returned line does not promise
+// registration on delivery. The units arrived and were returned, so neither the
+// line nor the empty banner may say the goods have not arrived.
+func TestOrderView_EmptyHintReturnedLine(t *testing.T) {
 	t.Parallel()
 	for _, locale := range []i18n.Locale{i18n.En, i18n.ZhHant} {
 		ctx := i18n.WithLocale(t.Context(), locale)

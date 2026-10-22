@@ -49,6 +49,7 @@ var migratedTestPackages = []string{
 	"internal/admin/questions",
 	"internal/admin/refunds",
 	"internal/admin/reports",
+	"internal/admin/returns",
 	"internal/admin/reviews",
 	"internal/admin/shipping",
 	"internal/admin/slides",
@@ -60,6 +61,8 @@ var migratedTestPackages = []string{
 	"internal/admin/warranties",
 	"internal/bearer",
 	"internal/credit",
+	"internal/discount/campaign",
+	"internal/discount/coupon",
 	"internal/email",
 	"internal/i18n",
 	"internal/invoice",
@@ -71,15 +74,26 @@ var migratedTestPackages = []string{
 	"internal/order/cancellation",
 	"internal/order/delivery",
 	"internal/order/returns",
+	"internal/order/warranty",
 	"internal/payment",
 	"internal/product",
 	"internal/product/copurchase",
 	"internal/product/inventory",
 	"internal/product/labelling",
+	"internal/shipping",
 	"internal/shipping/postcode",
+	"internal/shipping/storemap",
 	"internal/shoptime",
 	"internal/ui/chart",
+	"internal/ui/fieldrule",
 	"internal/ui/frame",
+	"internal/ui/icons",
+	"internal/ui/orderstatus",
+	"internal/ui/stockrisk",
+	"internal/ui/tile",
+	"internal/ui/tone",
+	"internal/ui/uitest",
+	"internal/ui/widget",
 	"internal/user",
 	"internal/web/clientip",
 	"internal/web/compress",
@@ -134,6 +148,12 @@ var testNameExceptions = map[string]map[string]string{
 		"TestRecordRefundSucceededReplay":          "the unit is the SQL function record_refund_succeeded, called straight through the pool, not a Go identifier",
 		"TestReverseReturnPointsErasureLock":       "the unit is the SQL function reverse_return_points, raced against an erasure through the pool, not a Go identifier",
 	},
+	"internal/admin/returns": {
+		"TestCompensateReturnTwice":       "the unit is the SQL function compensate_return_with_credit, called a second time straight through the pool after one Store.Decide; no Go identifier of this package is what the second call exercises",
+		"TestEvaluateApprovalEntitlement": "the unit is returns.Evaluate of internal/order/returns, which this package does not declare; the test sits in this package's decision_test.go and moving it to the policy package is a reorganisation this pass does not do",
+		"TestEvaluateStatutoryRejection":  "the unit is returns.Evaluate of internal/order/returns, which this package does not declare; the test sits in this package's decision_test.go and moving it to the policy package is a reorganisation this pass does not do",
+		"TestReportAtRefundFigure":        "the unit is Store.ReportAt of package reports and the order_refunds view it reads, which this package does not declare; Store.Decide only makes the refund the figure must count",
+	},
 	"internal/admin/reports": {
 		"TestStockDaysCoverRefundedBeforeShipment": "the unit is Store.DaysCover of package stock, which this package does not declare (it declares only the Cover interface it calls through); moving the test there is a reorganisation this pass does not do",
 	},
@@ -152,6 +172,10 @@ var testNameExceptions = map[string]map[string]string{
 	},
 	"internal/admin/twofactor": {
 		"TestRecordTOTPStepConcurrent": "its unit is the SQL statement RecordTOTPStep (a sqlc query, declared in internal/db), driven directly through db.Queries from concurrent goroutines; Store.Verify is only the final check that the spent step is refused, because staggered Verify calls would hide a guard missing from the SQL",
+	},
+	"internal/discount/campaign": {
+		"TestImage_URLHeaderKey":        "the unit is assets.Image.URL and Srcset of package assets, which resolve a campaign's header key as they resolve a product image; this package declares no identifier for it, and moving the test to assets is a reorganisation this pass does not do",
+		"TestSaleCampaignNeedsDiscount": "the unit is the sale_campaign_needs_discount trigger on sale_campaign_products, a SQL object the test provokes by featuring products through the pool, not a Go identifier",
 	},
 	"internal/i18n": {
 		"TestNoHardCodedGenericChrome": "a repository rule: no customer-facing .templ source hard-codes a generic English word; it reads every source file, and no function of the package is its unit",
@@ -175,12 +199,18 @@ var testNameExceptions = map[string]map[string]string{
 	"internal/product/copurchase": {
 		"TestRefreshCopurchasesOverlap": "its unit is the SQL function refresh_copurchases, called directly through the pool; Store.Refresh is not what it exercises",
 	},
+	"internal/shipping/storemap": {
+		"TestPickupNonceComparison": "a repository rule: no source file of this package or of internal/checkout compares a pickup nonce with == or !=; it reads those files, and no one declared identifier is its unit",
+	},
 	"internal/shoptime": {
 		"TestAmbientFormat":   "its unit is ambientFormat, a helper declared in the guard's test file, not part of the package",
 		"TestNoAmbientFormat": "a repository rule: no .Format( call outside this package renders a time in the process's zone; it reads every source file, and no function of the package is its unit",
 	},
 	"internal/ui/frame": {
 		"TestDisclosuresWorkWithKeyboard": "its unit is the back office's content disclosures (the <details> behaviour of the desk stylesheet and goen.js), driven in a real browser by scripts/admin-disclosure-check.mjs against the health and twofactor pages; no identifier of this package declares them, and it uses frame.Page only as a fixture",
+	},
+	"internal/ui/icons": {
+		"TestLineIconsAreSizedByClass": "the unit is the family of line icons: it renders Close, CheckCircle and Smartphone as a sample, so naming it after one of them would claim that icon alone",
 	},
 }
 

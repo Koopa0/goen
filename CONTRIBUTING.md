@@ -80,7 +80,7 @@ make lint              # golangci-lint at the version the Makefile pins
 make test-integration  # every package's integration tests on a real PostgreSQL, needs Docker
 ```
 
-To run one test, name it: `go test -run '^TestPercentCouponDoesNotOverflowAnInRangeSubtotal$' ./internal/discount/coupon`
+To run one test, name it: `go test -run '^TestCoupon_ApplyPercentOverflow$' ./internal/discount/coupon`
 for a unit test, and add `-tags=integration` for one that needs the database
 (Docker must be running; each package starts its own PostgreSQL). A file
 marked `//go:build integration`, such as the Google sign-in callback tests in

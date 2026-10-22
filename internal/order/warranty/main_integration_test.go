@@ -239,9 +239,9 @@ func warrantyParcelTimes(p parcel) (shippedAt time.Time, deliveredAt any) {
 	return shippedAt, delivery
 }
 
-// TestRegistrationIsBoundedByWhatArrived proves cover cannot start before the
-// goods arrive.
-func TestRegistrationIsBoundedByWhatArrived(t *testing.T) {
+// TestStore_RegisterBoundedByArrived: registration is bounded by what arrived.
+// It proves cover cannot start before the goods arrive.
+func TestStore_RegisterBoundedByArrived(t *testing.T) {
 	s := warranty.NewStore(pool)
 
 	tests := []struct {
@@ -272,9 +272,9 @@ func TestRegistrationIsBoundedByWhatArrived(t *testing.T) {
 	}
 }
 
-// TestTheFormOffersNothingWhileTheParcelIsInTransit is the READ side of that
-// boundary.
-func TestTheFormOffersNothingWhileTheParcelIsInTransit(t *testing.T) {
+// TestStore_RegistrableInTransit: the form offers nothing while the parcel is
+// in transit. It is the READ side of that boundary.
+func TestStore_RegistrableInTransit(t *testing.T) {
 	ctx := t.Context()
 	s := warranty.NewStore(pool)
 
@@ -301,8 +301,9 @@ func TestTheFormOffersNothingWhileTheParcelIsInTransit(t *testing.T) {
 	}
 }
 
-// TestAProductWithNoTermCannotBeRegistered proves goen never invents a term.
-func TestAProductWithNoTermCannotBeRegistered(t *testing.T) {
+// TestStore_RegisterNoTerm: a product with no term cannot be registered. It
+// proves goen never invents a term.
+func TestStore_RegisterNoTerm(t *testing.T) {
 	s := warranty.NewStore(pool)
 
 	noTerm := newFixture(t, 1, 0, parcel{units: 1, arrived: true})
@@ -320,9 +321,10 @@ func TestAProductWithNoTermCannotBeRegistered(t *testing.T) {
 	}
 }
 
-// TestTheExpiryRunsFromDeliveryAndNotFromDispatch compares DATES, not a month
-// count: two days do not add a month, so a month-count assertion is blind here.
-func TestTheExpiryRunsFromDeliveryAndNotFromDispatch(t *testing.T) {
+// TestStore_RegisterExpiryFromDelivery: the expiry runs from delivery and not
+// from dispatch. It compares DATES, not a month count: two days do not add a
+// month, so a month-count assertion is blind here.
+func TestStore_RegisterExpiryFromDelivery(t *testing.T) {
 	ctx := t.Context()
 	s := warranty.NewStore(pool)
 	deliveredAt, err := time.Parse(time.RFC3339, "2026-08-25T07:00:00+08:00")
@@ -363,9 +365,10 @@ func TestTheExpiryRunsFromDeliveryAndNotFromDispatch(t *testing.T) {
 	}
 }
 
-// TestThePurchasedPromiseSurvivesCatalogueRetirement proves an order owns the
-// warranty bought: a later catalogue edit or retirement may not rewrite it.
-func TestThePurchasedPromiseSurvivesCatalogueRetirement(t *testing.T) {
+// TestStore_PromiseSurvivesRetirement: the purchased promise survives catalogue
+// retirement. It proves an order owns the warranty bought: a later catalogue
+// edit or retirement may not rewrite it.
+func TestStore_PromiseSurvivesRetirement(t *testing.T) {
 	ctx := t.Context()
 	s := warranty.NewStore(pool)
 	f := newFixture(t, 2, 24, parcel{units: 2, arrived: true})
@@ -451,9 +454,10 @@ func TestThePurchasedPromiseSurvivesCatalogueRetirement(t *testing.T) {
 	}
 }
 
-// TestOnlyTheOwnerCanRegisterOrSee proves the scope is a WHERE clause rather
-// than a check in Go, by posting straight to the store.
-func TestOnlyTheOwnerCanRegisterOrSee(t *testing.T) {
+// TestStore_OwnerScope: only the owner can register or see. It proves the scope
+// is a WHERE clause rather than a check in Go, by posting straight to the
+// store.
+func TestStore_OwnerScope(t *testing.T) {
 	ctx := t.Context()
 	s := warranty.NewStore(pool)
 	mine := newFixture(t, 2, 12, parcel{units: 2, arrived: true})
@@ -475,9 +479,9 @@ func TestOnlyTheOwnerCanRegisterOrSee(t *testing.T) {
 	}
 }
 
-// TestAUnitIsRegisteredOnce proves a unit gets cover once and its neighbours
-// still can.
-func TestAUnitIsRegisteredOnce(t *testing.T) {
+// TestStore_RegisterUnitOnce: a unit is registered once. It proves a unit gets
+// cover once and its neighbours still can.
+func TestStore_RegisterUnitOnce(t *testing.T) {
 	ctx := t.Context()
 	s := warranty.NewStore(pool)
 	f := newFixture(t, 2, 12, parcel{units: 2, arrived: true})
@@ -493,9 +497,10 @@ func TestAUnitIsRegisteredOnce(t *testing.T) {
 	}
 }
 
-// TestASerialNumberIsRegisteredOnceAcrossTheWholeShop proves a mistyped serial
-// is caught, and an absent one is not a duplicate.
-func TestASerialNumberIsRegisteredOnceAcrossTheWholeShop(t *testing.T) {
+// TestStore_RegisterSerialUnique: a serial number is registered once across the
+// whole shop. It proves a mistyped serial is caught, and an absent one is not a
+// duplicate.
+func TestStore_RegisterSerialUnique(t *testing.T) {
 	ctx := t.Context()
 	s := warranty.NewStore(pool)
 	a := newFixture(t, 1, 12, parcel{units: 1, arrived: true})
@@ -520,8 +525,9 @@ func TestASerialNumberIsRegisteredOnceAcrossTheWholeShop(t *testing.T) {
 	}
 }
 
-// TestMineShowsOnlyThisCustomersCover proves the list is scoped to its owner.
-func TestMineShowsOnlyThisCustomersCover(t *testing.T) {
+// TestStore_MineOwnerOnly: Mine shows only this customer's cover. It proves the
+// list is scoped to its owner.
+func TestStore_MineOwnerOnly(t *testing.T) {
 	ctx := t.Context()
 	s := warranty.NewStore(pool)
 	mine := newFixture(t, 1, 12, parcel{units: 1, arrived: true})
@@ -549,10 +555,12 @@ func TestMineShowsOnlyThisCustomersCover(t *testing.T) {
 	}
 }
 
-// TestMineStatesNoCoverForAnOrderReturnedInFull holds that cover registered before a return is not listed as in
-// force once every unit of the order is in a return whose refund has settled, and that a part of the order in one,
-// or an approved return whose card refund has not settled, leaves it.
-func TestMineStatesNoCoverForAnOrderReturnedInFull(t *testing.T) {
+// TestStore_MineReturnedInFull: Mine states no cover for an order returned in
+// full. It holds that cover registered before a return is not listed as in
+// force once every unit of the order is in a return whose refund has settled,
+// and that a part of the order in one, or an approved return whose card refund
+// has not settled, leaves it.
+func TestStore_MineReturnedInFull(t *testing.T) {
 	ctx := t.Context()
 	s := warranty.NewStore(pool)
 
@@ -610,10 +618,10 @@ func TestMineStatesNoCoverForAnOrderReturnedInFull(t *testing.T) {
 	}
 }
 
-// TestEachUnitsCoverStartsWhenItsOwnParcelArrived: with the line split across
-// two parcels, unit 2 is in the second box and must not take the first box's
-// earlier date.
-func TestEachUnitsCoverStartsWhenItsOwnParcelArrived(t *testing.T) {
+// TestStore_RegisterOwnParcelArrival: each unit's cover starts when its own
+// parcel arrived. With the line split across two parcels, unit 2 is in the
+// second box and must not take the first box's earlier date.
+func TestStore_RegisterOwnParcelArrival(t *testing.T) {
 	ctx := t.Context()
 	s := warranty.NewStore(pool)
 	first, err := time.Parse(time.RFC3339, "2026-08-10T12:00:00+08:00")
@@ -660,10 +668,11 @@ func TestEachUnitsCoverStartsWhenItsOwnParcelArrived(t *testing.T) {
 	}
 }
 
-// TestOnlyDecidedReturnsTakeUnitsOffWhatCanBeRegistered: a returned unit can no
-// longer start cover once its return is approved or completed. An open or
-// rejected return takes nothing, and a registration already made is left alone.
-func TestOnlyDecidedReturnsTakeUnitsOffWhatCanBeRegistered(t *testing.T) {
+// TestStore_RegistrableDecidedReturns: only decided returns take units off what
+// can be registered. A returned unit can no longer start cover once its return
+// is approved or completed. An open or rejected return takes nothing, and a
+// registration already made is left alone.
+func TestStore_RegistrableDecidedReturns(t *testing.T) {
 	ctx := t.Context()
 	s := warranty.NewStore(pool)
 
@@ -735,7 +744,11 @@ const approveReturnSQL = `
 	    card_refund_cents = 100000, credit_refund_cents = 0
 	WHERE id = $1`
 
-func TestWarrantySerialRefusalsRetainOnlyTheAuthorizedLine(t *testing.T) {
+// TestHandler_RegisterAuthorizedLineOnly: a serial refusal retains only the
+// authorized line: a refused registration changes no saved row, its page
+// includes no line the customer may not register, and a foreign draft never
+// reaches the response.
+func TestHandler_RegisterAuthorizedLineOnly(t *testing.T) {
 	app := warrantyStoreRolePool(t)
 	s := warranty.NewStore(app)
 	h := warranty.NewHandler(s, slog.Default())
@@ -888,9 +901,10 @@ func warrantyResponseText(n *html.Node) string {
 	return b.String()
 }
 
-// TestAFullyReturnedLineIsNotWaitingOnDelivery: the goods arrived and came
-// back, so the page must say so rather than promise registration on delivery.
-func TestAFullyReturnedLineIsNotWaitingOnDelivery(t *testing.T) {
+// TestStore_RegistrableReturnedLine: a fully returned line is not waiting on
+// delivery. The goods arrived and came back, so the page must say so rather
+// than promise registration on delivery.
+func TestStore_RegistrableReturnedLine(t *testing.T) {
 	ctx := i18n.WithLocale(t.Context(), i18n.En)
 	s := warranty.NewStore(pool)
 	f := newFixture(t, 1, 12, parcel{units: 1, arrived: true})
@@ -945,7 +959,10 @@ func warrantyStoreRolePool(t *testing.T) *pgxpool.Pool {
 	return app
 }
 
-func TestWarrantySerialLengthIsEnforcedForTheStoreRole(t *testing.T) {
+// TestWarrantyRegistrationsSerialLength: the serial length is enforced for the
+// store role by the warranty_registrations_serial_length constraint, which a
+// direct insert does not bypass.
+func TestWarrantyRegistrationsSerialLength(t *testing.T) {
 	app := warrantyStoreRolePool(t)
 	uuidRunes := len(uuid.NewString())
 	for _, tc := range []struct {
@@ -998,7 +1015,10 @@ func TestWarrantySerialLengthIsEnforcedForTheStoreRole(t *testing.T) {
 	}
 }
 
-func TestWarrantyRegistrationSuccessStillRedirects(t *testing.T) {
+// TestHandler_RegisterSerialBoundaries: a successful registration still
+// redirects to its order with a blank serial and with serials of the longest
+// allowed length, ASCII and Unicode, and saves them trimmed.
+func TestHandler_RegisterSerialBoundaries(t *testing.T) {
 	app := warrantyStoreRolePool(t)
 	h := warranty.NewHandler(warranty.NewStore(app), slog.Default())
 	mux := http.NewServeMux()

@@ -8,7 +8,9 @@ import (
 	"github.com/koopa0/goen/internal/ui/frame"
 )
 
-func TestReturnConfirmationOffersOnlyTheSelectedDecision(t *testing.T) {
+// TestConfirmReturnSelectedDecision: the return confirmation offers only the
+// selected decision.
+func TestConfirmReturnSelectedDecision(t *testing.T) {
 	t.Parallel()
 	for _, locale := range []i18n.Locale{i18n.ZhHant, i18n.En} {
 		for _, decision := range []string{"approved", "rejected", "exception"} {
@@ -34,9 +36,12 @@ func TestReturnConfirmationOffersOnlyTheSelectedDecision(t *testing.T) {
 	}
 }
 
+// TestConfirmReturnRequiredMark: the return decision marks its note only when
+// the decision requires one.
+//
 // From orderflow_test.go, moved whole.
 // The return decision marks its note only when the decision needs one.
-func TestTheReturnDecisionMarksTheNoteOnlyWhenItIsRequired(t *testing.T) {
+func TestConfirmReturnRequiredMark(t *testing.T) {
 	t.Parallel()
 	ctx := i18n.WithLocale(t.Context(), i18n.ZhHant)
 	for _, required := range []bool{true, false} {

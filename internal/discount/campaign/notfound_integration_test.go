@@ -15,7 +15,8 @@ import (
 	"github.com/koopa0/goen/internal/i18n"
 )
 
-func TestMissingCampaignOffersCurrentDeals(t *testing.T) {
+// TestHandler_CampaignMissing: a missing campaign offers the current deals.
+func TestHandler_CampaignMissing(t *testing.T) {
 	h := campaign.NewHandler(campaign.NewStore(pool), slog.New(slog.DiscardHandler))
 	for _, locale := range i18n.Locales() {
 		r := httptest.NewRequestWithContext(i18n.WithLocale(t.Context(), locale), http.MethodGet, "/s/missing", http.NoBody)

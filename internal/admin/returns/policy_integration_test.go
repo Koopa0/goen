@@ -25,7 +25,9 @@ import (
 	"github.com/koopa0/goen/internal/order/buyer"
 )
 
-func TestReturnDecisionEnforcesAdvertisedPolicy(t *testing.T) {
+// TestStore_DecideAdvertisedPolicy: a return decision enforces the advertised
+// policy.
+func TestStore_DecideAdvertisedPolicy(t *testing.T) {
 	isolated := admintest.Pool(t)
 	ctx, _ := admintest.StaffContext(t, isolated)
 	s := storeOver(isolated, admintest.Refunder{})
@@ -607,7 +609,9 @@ func TestReturnDecisionEnforcesAdvertisedPolicy(t *testing.T) {
 	})
 }
 
-func TestReviewClearedAssessmentBasisSurvivesRefusal(t *testing.T) {
+// TestStore_AssessBasisSurvivesRefusal: an assessment basis cleared by review
+// survives a refused decision.
+func TestStore_AssessBasisSurvivesRefusal(t *testing.T) {
 	ctx, _ := admintest.StaffContext(t, pool)
 	s := storeOver(pool, admintest.Refunder{})
 	customer := buyer.NewStore(pool)
@@ -743,7 +747,9 @@ func TestReviewClearedAssessmentBasisSurvivesRefusal(t *testing.T) {
 	})
 }
 
-func TestUndeliveredReturnCannotBeDeclinedAndApprovesExactlyOnce(t *testing.T) {
+// TestHandler_DecideUndelivered: an undelivered return cannot be declined and
+// approves exactly once.
+func TestHandler_DecideUndelivered(t *testing.T) {
 	isolated := admintest.Pool(t)
 	staff, _ := admintest.StaffContext(t, isolated)
 	appPool := admintest.AdminRolePool(t, isolated)
@@ -842,7 +848,9 @@ func TestUndeliveredReturnCannotBeDeclinedAndApprovesExactlyOnce(t *testing.T) {
 	}
 }
 
-func TestTwoStaffCannotBothRejectAStatutoryRequest(t *testing.T) {
+// TestStore_DecideStatutoryRace: two staff cannot both reject a statutory
+// request.
+func TestStore_DecideStatutoryRace(t *testing.T) {
 	isolated := admintest.Pool(t)
 	ctx, _ := admintest.StaffContext(t, isolated)
 	s := storeOver(isolated, admintest.Refunder{})
@@ -870,7 +878,9 @@ func TestTwoStaffCannotBothRejectAStatutoryRequest(t *testing.T) {
 	}
 }
 
-func TestTwoStaffStillSerialiseALateException(t *testing.T) {
+// TestStore_DecideLateExceptionRace: two staff still serialise a late
+// exception.
+func TestStore_DecideLateExceptionRace(t *testing.T) {
 	isolated := admintest.Pool(t)
 	ctx, _ := admintest.StaffContext(t, isolated)
 	s := storeOver(isolated, admintest.Refunder{})

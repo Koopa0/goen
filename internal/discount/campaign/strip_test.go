@@ -5,7 +5,8 @@ import (
 	"testing"
 )
 
-func TestTheOffersStripNamesOnlyANearLastDay(t *testing.T) {
+// TestStripNearLastDay: the offers strip names only a near last day.
+func TestStripNearLastDay(t *testing.T) {
 	t.Parallel()
 
 	strip := renderToString(t, strip([]Summary{

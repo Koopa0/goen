@@ -34,7 +34,9 @@ func TestParse(t *testing.T) {
 
 var kindsAdmitted = regexp.MustCompile(`coupons_kind_known CHECK \(kind IN \(([^)]*)\)\)`)
 
-func TestEveryAdmittedKindHasAConstant(t *testing.T) {
+// TestParseSchemaKinds: every admitted kind has a constant: Parse accepts every
+// kind coupons_kind_known admits.
+func TestParseSchemaKinds(t *testing.T) {
 	t.Parallel()
 
 	schema, err := os.ReadFile(filepath.Join("..", "..", "..", "migrations", "001_initial_schema.up.sql"))
@@ -52,7 +54,9 @@ func TestEveryAdmittedKindHasAConstant(t *testing.T) {
 	}
 }
 
-func TestPercentCouponDoesNotOverflowAnInRangeSubtotal(t *testing.T) {
+// TestCoupon_ApplyPercentOverflow: a percent coupon does not overflow an
+// in-range subtotal.
+func TestCoupon_ApplyPercentOverflow(t *testing.T) {
 	t.Parallel()
 
 	coupon := Coupon{Kind: Percent, PercentBP: 10000}
@@ -69,9 +73,10 @@ func TestPercentCouponDoesNotOverflowAnInRangeSubtotal(t *testing.T) {
 	}
 }
 
-// A percentage discount is a whole NT$, rounded up so the shopper never pays
-// more than the percentage allows.
-func TestPercentCouponDiscountIsAWholeYuanRoundedInTheCustomersFavour(t *testing.T) {
+// TestCoupon_ApplyPercentRounding: a percent coupon's discount is a whole yuan,
+// rounded in the customer's favour. A percentage discount is a whole NT$,
+// rounded up so the shopper never pays more than the percentage allows.
+func TestCoupon_ApplyPercentRounding(t *testing.T) {
 	t.Parallel()
 
 	for _, tc := range []struct {
@@ -107,7 +112,8 @@ func TestPercentCouponDiscountIsAWholeYuanRoundedInTheCustomersFavour(t *testing
 	}
 }
 
-func TestApplyRefusesAnUnknownKind(t *testing.T) {
+// TestCoupon_ApplyUnknownKind: Apply refuses an unknown kind.
+func TestCoupon_ApplyUnknownKind(t *testing.T) {
 	t.Parallel()
 
 	_, _, err := Coupon{Code: "ODD", Kind: "bogo"}.Apply(1000, false)
