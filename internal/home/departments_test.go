@@ -5,8 +5,8 @@ import (
 	"testing"
 
 	"github.com/koopa0/goen/internal/i18n"
-	"github.com/koopa0/goen/internal/tone"
 	"github.com/koopa0/goen/internal/ui/components"
+	"github.com/koopa0/goen/internal/ui/tone"
 )
 
 // The carousel draws one slide per entry, with a button only where the slide

@@ -9,7 +9,7 @@ import (
 	"github.com/google/uuid"
 
 	"github.com/koopa0/goen/internal/catalog"
-	"github.com/koopa0/goen/internal/tone"
+	"github.com/koopa0/goen/internal/ui/tone"
 )
 
 const rootDepartmentOf = `

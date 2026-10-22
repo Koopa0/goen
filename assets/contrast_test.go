@@ -9,7 +9,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/koopa0/goen/internal/tone"
+	"github.com/koopa0/goen/internal/ui/tone"
 )
 
 // tokenHex finds a custom property declared as a six-digit hex colour, and

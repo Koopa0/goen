@@ -30,8 +30,8 @@ import (
 	"github.com/koopa0/goen/internal/i18n"
 	"github.com/koopa0/goen/internal/media"
 	"github.com/koopa0/goen/internal/media/mediatest"
-	"github.com/koopa0/goen/internal/tone"
 	"github.com/koopa0/goen/internal/ui/icons"
+	"github.com/koopa0/goen/internal/ui/tone"
 )
 
 func TestANamedParentThatDoesNotExistIsRefused(t *testing.T) {
