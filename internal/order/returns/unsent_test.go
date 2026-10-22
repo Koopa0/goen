@@ -14,7 +14,10 @@ var unsentReasonCheck = regexp.MustCompile(
 
 var quoted = regexp.MustCompile(`'([a-z_]+)'`)
 
-func TestUnsentReasonsAreTheSchemasCodes(t *testing.T) {
+// TestUnsentReasonsMatchSchema checks that UnsentReasons are the codes the
+// schema admits, that ParseUnsentReason reads each back, and that it refuses a
+// typo.
+func TestUnsentReasonsMatchSchema(t *testing.T) {
 	t.Parallel()
 	schema, err := os.ReadFile(filepath.Join("..", "..", "..", "migrations", "001_initial_schema.up.sql"))
 	if err != nil {

@@ -11,7 +11,9 @@ import (
 	"github.com/google/go-cmp/cmp"
 )
 
-func TestDistrictsKeepsEveryPublishedLocality(t *testing.T) {
+// TestDistricts checks that Districts lists the published localities of a
+// postal code prefix and nothing for a prefix that is not one.
+func TestDistricts(t *testing.T) {
 	t.Parallel()
 	for _, tt := range []struct {
 		prefix string
@@ -39,7 +41,9 @@ func TestDistrictsKeepsEveryPublishedLocality(t *testing.T) {
 	}
 }
 
-func TestDistrictsReturnsAnIndependentCopy(t *testing.T) {
+// TestDistrictsIndependentCopy checks that Districts returns a copy the caller
+// can change without changing the table.
+func TestDistrictsIndependentCopy(t *testing.T) {
 	t.Parallel()
 	names := Districts("300")
 	if len(names) != 3 {
@@ -52,7 +56,10 @@ func TestDistrictsReturnsAnIndependentCopy(t *testing.T) {
 	}
 }
 
-func TestDistrictTableMatchesTheCompleteOfficialSnapshot(t *testing.T) {
+// TestDistrictsSnapshot checks that the district table is the complete official
+// snapshot: its hash, its row and postal code counts, and that Districts serves
+// every row.
+func TestDistrictsSnapshot(t *testing.T) {
 	t.Parallel()
 	const wantHash = "fd41b38a82c0d9f7fd6160938e1f32d915a864e15275d1d94b6e31f352156c9f"
 	if got := fmt.Sprintf("%x", sha256.Sum256([]byte(districtCSV))); got != wantHash {
@@ -80,7 +87,8 @@ func TestDistrictTableMatchesTheCompleteOfficialSnapshot(t *testing.T) {
 	}
 }
 
-func TestFieldsSplitsOnEveryPrefixSeparator(t *testing.T) {
+// TestFields checks that Fields splits on every prefix separator.
+func TestFields(t *testing.T) {
 	t.Parallel()
 	got := Fields("100, 300;600\n880\r\n209\t817  819")
 	want := []string{"100", "300", "600", "880", "209", "817", "819"}

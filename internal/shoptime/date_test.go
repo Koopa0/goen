@@ -8,9 +8,11 @@ import (
 	"github.com/koopa0/goen/internal/shoptime"
 )
 
+// TestDateText checks that DateText writes the exact bytes.
+//
 // The no-break spaces keep a date on one line; the plain space after 年 and 月
 // and after the English comma is where it may break.
-func TestDateTextWritesTheExactBytes(t *testing.T) {
+func TestDateText(t *testing.T) {
 	t.Parallel()
 	now := time.Date(2026, 10, 6, 4, 0, 0, 0, time.UTC)
 	for _, tt := range []struct {
@@ -31,7 +33,8 @@ func TestDateTextWritesTheExactBytes(t *testing.T) {
 	}
 }
 
-func TestDateTimeTextAddsTheShopsClock(t *testing.T) {
+// TestDateTimeText checks that DateTimeText adds the shop's clock to the date.
+func TestDateTimeText(t *testing.T) {
 	t.Parallel()
 	now := time.Date(2026, 10, 6, 4, 0, 0, 0, time.UTC)
 	at := time.Date(2026, 10, 30, 10, 0, 0, 0, time.UTC) // 18:00 in Taipei
@@ -45,7 +48,8 @@ func TestDateTimeTextAddsTheShopsClock(t *testing.T) {
 	}
 }
 
-func TestLastDayIsTheDayBeforeAMidnightEnd(t *testing.T) {
+// TestLastDay checks that LastDay is the day before a midnight end.
+func TestLastDay(t *testing.T) {
 	t.Parallel()
 
 	utc := func(y int, m time.Month, d, h, min int) time.Time { return time.Date(y, m, d, h, min, 0, 0, time.UTC) }
@@ -73,7 +77,9 @@ func TestLastDayIsTheDayBeforeAMidnightEnd(t *testing.T) {
 	}
 }
 
-func TestDaysBetweenCountsDays(t *testing.T) {
+// TestDaysBetween checks that DaysBetween counts the days from one shop date to
+// another.
+func TestDaysBetween(t *testing.T) {
 	t.Parallel()
 	d := func(m time.Month, day int) shoptime.Date { return shoptime.Date{Year: 2026, Month: m, Day: day} }
 	for _, tt := range []struct {
@@ -92,9 +98,11 @@ func TestDaysBetweenCountsDays(t *testing.T) {
 	}
 }
 
+// TestDaysLeft checks that DaysLeft counts to the last day.
+//
 // A midnight end is exclusive, so its last day is the day before; a mid-day end
 // is its own last day.
-func TestDaysLeftCountsToTheLastDay(t *testing.T) {
+func TestDaysLeft(t *testing.T) {
 	t.Parallel()
 	taipei := time.FixedZone("CST", 8*3600)
 	now := time.Date(2026, 10, 9, 12, 0, 0, 0, taipei)
@@ -116,7 +124,9 @@ func TestDaysLeftCountsToTheLastDay(t *testing.T) {
 	}
 }
 
-func TestDateLabelIsTheShortForm(t *testing.T) {
+// TestDateLabel checks that DateLabel is the short form of a date, in each
+// locale.
+func TestDateLabel(t *testing.T) {
 	t.Parallel()
 	d := shoptime.Date{Year: 2026, Month: time.October, Day: 30}
 	for locale, want := range map[i18n.Locale]string{i18n.ZhHant: "10/30", i18n.En: "Oct\u00a030"} {
@@ -126,7 +136,9 @@ func TestDateLabelIsTheShortForm(t *testing.T) {
 	}
 }
 
-func TestStampTextIsTheShortDateAndTheShopsClock(t *testing.T) {
+// TestStampText checks that StampText is the short date and the shop's clock,
+// and that ISOStamp writes the shop's offset.
+func TestStampText(t *testing.T) {
 	t.Parallel()
 	at := time.Date(2026, 10, 3, 6, 2, 0, 0, time.UTC) // 14:02 in Taipei
 	for locale, want := range map[i18n.Locale]string{

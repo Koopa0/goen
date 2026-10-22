@@ -9,10 +9,10 @@ import (
 	"unicode"
 )
 
-// TestNoGenericChromeIsHardCoded refuses generic English UI words the code writes
+// TestNoHardCodedGenericChrome refuses generic English UI words the code writes
 // on a customer's screen without going through i18n. Exclusions are by CATEGORY
 // with a reason, never string by string.
-func TestNoGenericChromeIsHardCoded(t *testing.T) {
+func TestNoHardCodedGenericChrome(t *testing.T) {
 	t.Parallel()
 
 	var offenders []string
@@ -37,9 +37,9 @@ func TestNoGenericChromeIsHardCoded(t *testing.T) {
 	}
 }
 
-// TestNoChromeStringIsHardCoded refuses Han the code writes on a customer's
+// TestNoHardCodedHan refuses Han the code writes on a customer's
 // screen. Exclusions are by CATEGORY with a reason, never string by string.
-func TestNoChromeStringIsHardCoded(t *testing.T) {
+func TestNoHardCodedHan(t *testing.T) {
 	t.Parallel()
 
 	var offenders []string
@@ -310,9 +310,10 @@ func itoa(n int) string {
 	return string(b[i:])
 }
 
-// TestThePendingListOnlyHoldsRealDebt stops the list outliving the gap: a file
-// left on it after translation is a file nothing checks any more.
-func TestThePendingListOnlyHoldsRealDebt(t *testing.T) {
+// TestPendingTranslationDebt holds that the pending list only holds real debt.
+// It stops the list outliving the gap: a file left on it after translation is a
+// file nothing checks any more.
+func TestPendingTranslationDebt(t *testing.T) {
 	t.Parallel()
 
 	sources := chromeSources(t)

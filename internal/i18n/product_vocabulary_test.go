@@ -5,13 +5,16 @@ import (
 	"testing"
 )
 
+// TestMessagesProductVocabulary checks that product messages distinguish
+// variants, options and specifications.
+//
 // A variant (款式) is one purchasable combination, an option (選項) is a
 // choice that builds the combinations, and a specification (規格) is a table of
 // facts about the product. #1837 separated the three because the Chinese copy
 // had used them for one another. What this holds is the term each name-like
 // message must use and the other two it must not, so rewording a sentence does
 // not break it and a message that calls an option a specification does.
-func TestProductVocabularyDistinguishesVariantsOptionsAndSpecifications(t *testing.T) {
+func TestMessagesProductVocabulary(t *testing.T) {
 	t.Parallel()
 
 	const variant, option, spec = "款式", "選項", "規格"

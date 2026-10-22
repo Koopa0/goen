@@ -44,7 +44,10 @@ func TestDigestIsNotTheToken(t *testing.T) {
 	}
 }
 
-func TestNewIsUnpredictable(t *testing.T) {
+// TestNewFormatDistinct checks that New makes unpredictable tokens as far as a
+// test can tell: 43 characters of unpadded base64url that hold 32 bytes, with
+// no repeat in 64 tokens.
+func TestNewFormatDistinct(t *testing.T) {
 	t.Parallel()
 
 	seen := make(map[string]bool, 64)

@@ -12,7 +12,10 @@ type testPosition struct {
 	At time.Time
 }
 
-func TestKeysetTokenKeepsItsScopeAndPrecision(t *testing.T) {
+// TestNextURLRoundTrip checks that a token made by NextURL keeps its list's
+// scope and the database timestamp's precision when Read gives it back, and is
+// refused under another scope.
+func TestNextURLRoundTrip(t *testing.T) {
 	t.Parallel()
 	scope := ScopeURL("/admin/orders", "q", "two words & more", "status", "pending")
 	next, ok := NextURL(scope, `{"ID":"a","At":"2026-09-22T01:02:03.123456Z"}`)
@@ -36,7 +39,8 @@ func TestKeysetTokenKeepsItsScopeAndPrecision(t *testing.T) {
 	}
 }
 
-func TestReadKeysetRefusesMalformedTokens(t *testing.T) {
+// TestReadMalformed checks that Read refuses malformed tokens.
+func TestReadMalformed(t *testing.T) {
 	t.Parallel()
 	scope := "/admin/orders"
 	enc := func(s string) string { return base64.RawURLEncoding.EncodeToString([]byte(s)) }
@@ -55,10 +59,10 @@ func TestReadKeysetRefusesMalformedTokens(t *testing.T) {
 	}
 }
 
-// TestPageOfSaysWhenThereIsMore covers the boundary, which is the only place
+// TestPageOf covers the boundary, which is the only place
 // this can be wrong: at exactly a page there is nothing more to say, and at one
 // row past it there is.
-func TestPageOfSaysWhenThereIsMore(t *testing.T) {
+func TestPageOf(t *testing.T) {
 	t.Parallel()
 
 	tests := []struct {
@@ -108,16 +112,21 @@ func TestScopeURLOmitsEmptyFilters(t *testing.T) {
 
 const testPageSize = 50
 
+// TestPageLimit checks that PageLimit asks for one more row than PageSize
+// shows.
+//
 // A query asks for one more row than it shows; a limit equal to the size could
 // never report that anything was left behind.
-func TestPageLimitAsksForOneMoreThanItShows(t *testing.T) {
+func TestPageLimit(t *testing.T) {
 	t.Parallel()
 	if PageLimit != PageSize+1 {
 		t.Errorf("PageLimit = %d and PageSize = %d", PageLimit, PageSize)
 	}
 }
 
-func TestPageBoundKeepsARestartDoorOnAnEmptyLaterPage(t *testing.T) {
+// TestPageBoundEmptyPage checks that PageBound keeps a restart door on an empty
+// later page and leaves an empty first page in its own empty state.
+func TestPageBoundEmptyPage(t *testing.T) {
 	t.Parallel()
 	scope := "/admin/orders"
 	key := func(*int) string { return "" }
@@ -131,7 +140,9 @@ func TestPageBoundKeepsARestartDoorOnAnEmptyLaterPage(t *testing.T) {
 	}
 }
 
-func TestResumeKeysetRefusesWhatTheListCannotAccept(t *testing.T) {
+// TestResumeAcceptable checks that Resume returns a position the list accepts
+// and refuses one the list cannot accept, and a request that carries none.
+func TestResumeAcceptable(t *testing.T) {
 	t.Parallel()
 	const scope = "/admin/x"
 	accept := func(p testPosition) bool { return p.ID != "" }

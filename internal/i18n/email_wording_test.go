@@ -5,7 +5,9 @@ import (
 	"testing"
 )
 
-func TestChineseEmailFieldMessagesUseTheFieldName(t *testing.T) {
+// TestMessagesZhHantEmailField checks that the Chinese messages about the email
+// field use the field's name.
+func TestMessagesZhHantEmailField(t *testing.T) {
 	t.Parallel()
 	ctx := WithLocale(t.Context(), ZhHant)
 	label := T(ctx, KeyFieldEmail)

@@ -5,7 +5,9 @@ import (
 	"testing"
 )
 
-func TestProductLabelRefusalDescribesTheSubmittedFacts(t *testing.T) {
+// TestKeyProductLabelRefused checks that the product label refusal describes
+// the submitted facts, in each locale, without database wording.
+func TestKeyProductLabelRefused(t *testing.T) {
 	t.Parallel()
 	for _, tt := range []struct {
 		locale          Locale

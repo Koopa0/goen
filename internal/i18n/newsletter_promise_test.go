@@ -5,7 +5,9 @@ import (
 	"testing"
 )
 
-func TestNewsletterPromisesOccasionalMailWithUnsubscribe(t *testing.T) {
+// TestMessagesNewsletterPromise checks that the newsletter messages promise
+// occasional mail with a way to leave, and no cadence the shop does not keep.
+func TestMessagesNewsletterPromise(t *testing.T) {
 	for _, locale := range Locales() {
 		ctx := WithLocale(t.Context(), locale)
 		for _, key := range []Key{KeyNewsletterNote, KeyNewsletterConfirmBody, KeyNewsletterDoneBody, KeyMailNewsWelcomeBody} {

@@ -6,7 +6,9 @@ import (
 	"testing"
 )
 
-func TestParsePolicyWindowIsAClosedSet(t *testing.T) {
+// TestParsePolicyWindow checks that ParsePolicyWindow accepts the known windows
+// and nothing else.
+func TestParsePolicyWindow(t *testing.T) {
 	t.Parallel()
 
 	for _, window := range knownPolicyWindows {
@@ -22,7 +24,8 @@ func TestParsePolicyWindowIsAClosedSet(t *testing.T) {
 	}
 }
 
-func TestParseFactIsAClosedSet(t *testing.T) {
+// TestParseFact checks that ParseFact accepts the known facts and nothing else.
+func TestParseFact(t *testing.T) {
 	t.Parallel()
 
 	for _, fact := range []Fact{FactUnknown, FactMet, FactUnmet} {
@@ -38,7 +41,9 @@ func TestParseFactIsAClosedSet(t *testing.T) {
 	}
 }
 
-func TestParseDecisionKindIsAClosedSet(t *testing.T) {
+// TestParseDecisionKind checks that ParseDecisionKind accepts the known kinds
+// and nothing else.
+func TestParseDecisionKind(t *testing.T) {
 	t.Parallel()
 
 	for _, kind := range []DecisionKind{DecisionApprove, DecisionReject, DecisionException} {
@@ -293,7 +298,9 @@ func TestEvaluateEnforcesAdvertisedWindows(t *testing.T) {
 	}
 }
 
-func TestRequestWindowKeepsMixedLinesMixed(t *testing.T) {
+// TestRequestWindow checks that RequestWindow keeps a request of mixed lines
+// mixed.
+func TestRequestWindow(t *testing.T) {
 	t.Parallel()
 
 	if got := RequestWindow([]LineAssessment{
@@ -310,7 +317,9 @@ func TestRequestWindowKeepsMixedLinesMixed(t *testing.T) {
 	}
 }
 
-func TestReturnResolutionUsesTheDurableCharacterBound(t *testing.T) {
+// TestValidResolution checks that ValidResolution holds a return resolution to
+// the durable character bound, counted in characters and not bytes.
+func TestValidResolution(t *testing.T) {
 	t.Parallel()
 	tests := []struct {
 		name string

@@ -10,7 +10,8 @@ import (
 // English. A clock time and the colon of a URL are not punctuation.
 var colonOutsideTokens = regexp.MustCompile(`(?:\D|^):(?:[^/\d]|$)`)
 
-func TestMailKeepsOneColonStylePerLanguage(t *testing.T) {
+// TestMessagesMailColon checks that mail keeps one colon style per language.
+func TestMessagesMailColon(t *testing.T) {
 	t.Parallel()
 
 	seen := 0
@@ -31,7 +32,9 @@ func TestMailKeepsOneColonStylePerLanguage(t *testing.T) {
 	}
 }
 
-func TestEveryLetterLinkSitsOnItsOwnLine(t *testing.T) {
+// TestMessagesMailLinkLine checks that every link in a letter sits on its own
+// line.
+func TestMessagesMailLinkLine(t *testing.T) {
 	t.Parallel()
 
 	for k, m := range messages {

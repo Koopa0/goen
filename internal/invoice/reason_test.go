@@ -62,7 +62,9 @@ var storedReasons = []string{
 	"void_success_identity_mismatch",
 }
 
-func TestReasonValuesAreThePinnedStoredStrings(t *testing.T) {
+// TestReasonStoredValues checks that the Reason values are the pinned stored
+// strings, each held once.
+func TestReasonStoredValues(t *testing.T) {
 	t.Parallel()
 	got := make([]string, 0, len(allReasons))
 	for _, r := range Reasons() {
@@ -86,7 +88,9 @@ func TestReasonValuesAreThePinnedStoredStrings(t *testing.T) {
 	}
 }
 
-func TestEveryReasonFitsTheColumn(t *testing.T) {
+// TestReasonsFitColumn checks that every Reason is non-empty and fits the
+// invoice_operations last_error column.
+func TestReasonsFitColumn(t *testing.T) {
 	t.Parallel()
 	// invoice_operations_last_error_bounded: char_length(last_error) <= 2000.
 	for _, r := range Reasons() {
@@ -96,7 +100,10 @@ func TestEveryReasonFitsTheColumn(t *testing.T) {
 	}
 }
 
-func TestProviderRejectionsAreStoredWithTheirCode(t *testing.T) {
+// TestReason_ProviderRejected checks that issue and allowance provider
+// rejections are stored with their code, report ProviderRejected, and parse
+// back.
+func TestReason_ProviderRejected(t *testing.T) {
 	t.Parallel()
 	for _, tc := range []struct {
 		got  Reason
@@ -114,7 +121,8 @@ func TestProviderRejectionsAreStoredWithTheirCode(t *testing.T) {
 	}
 }
 
-func TestParseReasonAdmitsOnlyKnownText(t *testing.T) {
+// TestParseReason checks that ParseReason admits only known text.
+func TestParseReason(t *testing.T) {
 	t.Parallel()
 	for _, r := range Reasons() {
 		if parsed, ok := ParseReason(string(r)); !ok || parsed != r {
@@ -128,7 +136,9 @@ func TestParseReasonAdmitsOnlyKnownText(t *testing.T) {
 	}
 }
 
-func TestReasonsCannotBeChangedThroughTheirCopy(t *testing.T) {
+// TestReasonsIndependentCopy checks that Reasons returns a copy the caller
+// cannot use to change the package's list.
+func TestReasonsIndependentCopy(t *testing.T) {
 	t.Parallel()
 	first := Reasons()
 	first[0] = "overwritten"
@@ -141,7 +151,9 @@ func TestReasonsCannotBeChangedThroughTheirCopy(t *testing.T) {
 // or test. Each must be a Reason, or the health page cannot explain it.
 var databaseReasons = regexp.MustCompile(`last_error\s*=\s*'([a-z_]+)'`)
 
-func TestEveryReasonTheDatabaseNamesIsAReason(t *testing.T) {
+// TestParseReasonSchemaTexts checks that every last_error text the schema's
+// functions name is a Reason.
+func TestParseReasonSchemaTexts(t *testing.T) {
 	t.Parallel()
 	schema, err := os.ReadFile(filepath.Join("..", "..", "migrations", "001_initial_schema.up.sql"))
 	if err != nil {

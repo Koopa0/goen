@@ -32,14 +32,47 @@ const maxTestNameLen = 40
 // vacuous guard: TestCheckTestNames runs the same checks over fixtures that
 // fail them, and once a package is listed the check fails if the package has
 // no tests to read.
-var migratedTestPackages = []string{}
+var migratedTestPackages = []string{
+	"internal/bearer",
+	"internal/credit",
+	"internal/email",
+	"internal/i18n",
+	"internal/invoice",
+	"internal/keyset",
+	"internal/money",
+	"internal/order",
+	"internal/order/access",
+	"internal/order/cancellation",
+	"internal/order/delivery",
+	"internal/order/returns",
+	"internal/product",
+	"internal/product/copurchase",
+	"internal/product/inventory",
+	"internal/product/labelling",
+	"internal/shipping/postcode",
+	"internal/shoptime",
+	"internal/user",
+}
 
 // testNameExceptions is the shrink-only allow list: for a listed package, each
 // test that breaks the rule and why. A row is stale, and fails, once its test is
 // renamed or deleted or no longer breaks the rule. Do not add a row to let a
 // new name pass; rename the test. A row belongs here only for a test whose unit
 // is not a Go identifier, such as a SQL object or a repository-wide rule.
-var testNameExceptions = map[string]map[string]string{}
+var testNameExceptions = map[string]map[string]string{
+	"internal/i18n": {
+		"TestNoHardCodedGenericChrome": "a repository rule: no customer-facing .templ source hard-codes a generic English word; it reads every source file, and no function of the package is its unit",
+		"TestNoHardCodedHan":           "a repository rule: no customer-facing source file hard-codes a Han string; it reads every source file, and no function of the package is its unit",
+		"TestPendingTranslationDebt":   "a rule about pendingTranslation, a list declared in the test file beside the two rules above, so there is no package identifier to start from",
+	},
+	"internal/product/copurchase": {
+		"TestRefreshCopurchasesOverlap": "its unit is the SQL function refresh_copurchases, called directly through the pool; Store.Refresh is not what it exercises",
+	},
+	"internal/shoptime": {
+		"TestAmbientFormat":   "its unit is ambientFormat, a helper declared in the guard's test file, not part of the package",
+		"TestNoAmbientFormat": "a repository rule: no .Format( call outside this package renders a time in the process's zone; it reads every source file, and no function of the package is its unit",
+	},
+}
 
 // TestMigratedTestNames holds every package in migratedTestPackages to the rule
 // that a top-level test name is at most 40 characters after "Test" and starts

@@ -5,9 +5,12 @@ import (
 	"testing"
 )
 
+// TestMessagesCategoryLabelInName checks that the accessible name of a category
+// control contains its visible label.
+//
 // The accessible name of a category control must contain its visible label
 // (WCAG 2.5.3 Label in Name), or speech control cannot reach it.
-func TestCategoryControlNamesContainTheirVisibleLabel(t *testing.T) {
+func TestMessagesCategoryLabelInName(t *testing.T) {
 	for _, pair := range []struct{ visible, name Key }{
 		{KeyAdminColIcon, KeyAdminTaxIconOf},
 		{KeyAdminColTone, KeyAdminTaxToneOf},

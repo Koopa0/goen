@@ -10,10 +10,10 @@ import (
 	"github.com/koopa0/goen/internal/web/formtext"
 )
 
-// TestDeliveryValidateRejects covers what the server must catch even though the
+// TestDetails_ValidateRejects covers what the server must catch even though the
 // browser was asked to catch it first. Each case is one field, so a failure
 // names the rule that broke.
-func TestDeliveryValidateRejects(t *testing.T) {
+func TestDetails_ValidateRejects(t *testing.T) {
 	t.Parallel()
 
 	valid := Details{
@@ -74,12 +74,12 @@ func TestDeliveryValidateRejects(t *testing.T) {
 	}
 }
 
-// TestValidateRecipient is the one rule for who a parcel goes to and where,
+// TestDetails_ValidateRecipient is the one rule for who a parcel goes to and where,
 // which the checkout and the account's address book both apply. Each input goes
 // through Trim first, as both handlers do, and the want is the message the form
 // shows beside the field ("" for accepted). Validate must say the same, since a
 // saved address is offered at checkout as it was saved.
-func TestValidateRecipient(t *testing.T) {
+func TestDetails_ValidateRecipient(t *testing.T) {
 	t.Parallel()
 
 	valid := Details{
@@ -166,8 +166,9 @@ func firstOn(errs []formtext.FieldRefusal, field string) i18n.Key {
 	return ""
 }
 
-// TestTheCheckoutRefusesWhatTheSenderWillRefuse holds one definition of an
-// email address across the collection point and the delivery point.
+// TestEmailErrorSenderRefusals holds that the checkout refuses what the sender
+// will refuse. It holds one definition of an email address across the
+// collection point and the delivery point.
 //
 // internal/email is that definition — it is what letter.SMTPSender.Send tests
 // before it will send anything. A checkout that accepts more than the sender does
@@ -176,7 +177,7 @@ func firstOn(errs []formtext.FieldRefusal, field string) i18n.Key {
 // parking it on /admin/health. The customer is charged and never hears from the
 // shop, and the confirmation is what carries Consumer Protection Act §18 I's
 // disclosure.
-func TestTheCheckoutRefusesWhatTheSenderWillRefuse(t *testing.T) {
+func TestEmailErrorSenderRefusals(t *testing.T) {
 	t.Parallel()
 
 	// Each is accepted by a hand-rolled "has an @ and a dot" check and refused
@@ -197,10 +198,10 @@ func TestTheCheckoutRefusesWhatTheSenderWillRefuse(t *testing.T) {
 	}
 }
 
-// TestAPickupOrderIsNamedByItsChain holds what the confirmation and the back
-// office show while no store picker exists: the chain is the destination, and a
-// store appears only when one is known.
-func TestAPickupOrderIsNamedByItsChain(t *testing.T) {
+// TestDetails_Line holds that a pickup order is named by its chain. It holds
+// what the confirmation and the back office show while no store picker exists:
+// the chain is the destination, and a store appears only when one is known.
+func TestDetails_Line(t *testing.T) {
 	t.Parallel()
 
 	for _, tt := range []struct {

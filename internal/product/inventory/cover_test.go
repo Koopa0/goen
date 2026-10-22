@@ -8,7 +8,9 @@ import (
 
 const stockedAllWindow = 30 * 24 * time.Hour
 
-func TestEstimateStatesAndDays(t *testing.T) {
+// TestSales_EstimateState checks the State that Sales.Estimate gives: sold out,
+// too few orders, or estimated.
+func TestSales_EstimateState(t *testing.T) {
 	t.Parallel()
 
 	for _, tc := range []struct {
@@ -28,9 +30,12 @@ func TestEstimateStatesAndDays(t *testing.T) {
 	}
 }
 
+// TestSales_EstimateOrderCount checks that Sales.Estimate counts orders, not
+// units, against the few-orders threshold.
+//
 // Ten orders of ten units are 100 units: counted in units the SKU would
 // clear the threshold with one order.
-func TestEstimateCountsOrdersNotUnits(t *testing.T) {
+func TestSales_EstimateOrderCount(t *testing.T) {
 	t.Parallel()
 
 	r := Sales{Sellable: 50, Sold: 100, Orders: 1, InStock: stockedAllWindow}
@@ -39,7 +44,9 @@ func TestEstimateCountsOrdersNotUnits(t *testing.T) {
 	}
 }
 
-func TestEstimateDividesByTheDaysInStock(t *testing.T) {
+// TestSales_EstimateDays checks that Sales.Estimate divides by the days in
+// stock.
+func TestSales_EstimateDays(t *testing.T) {
 	t.Parallel()
 
 	// 30 units over 15 days in stock is 2 a day: 40 sellable last 20 days. Over
@@ -50,9 +57,12 @@ func TestEstimateDividesByTheDaysInStock(t *testing.T) {
 	}
 }
 
+// TestSales_EstimateRange checks that the Low and High of Sales.Estimate match
+// the Poisson table.
+//
 // The 90% interval of 10 orders is 0.54 to 1.70 times the observed rate
 // (analytics.md, Poisson table), so 0.59 to 1.84 times the days.
-func TestEstimateRangeMatchesThePoissonTable(t *testing.T) {
+func TestSales_EstimateRange(t *testing.T) {
 	t.Parallel()
 
 	for _, tc := range []struct {
@@ -77,7 +87,8 @@ func TestEstimateRangeMatchesThePoissonTable(t *testing.T) {
 	}
 }
 
-func TestRankKeepsTwoGroupsEachWithItsOwnCap(t *testing.T) {
+// TestRankGroupCaps checks that Rank keeps two groups, each with its own cap.
+func TestRankGroupCaps(t *testing.T) {
 	t.Parallel()
 
 	at := time.Date(2026, 10, 1, 12, 0, 0, 0, time.UTC)

@@ -8,7 +8,11 @@ import (
 	"github.com/koopa0/goen/internal/i18n"
 )
 
-func TestProductTaxTypesExcludeZeroRated(t *testing.T) {
+// TestProductTaxTypesZeroRated checks that a product's tax types exclude
+// zero-rated: ProductTaxTypes lists only taxable and exempt, and
+// LineTerms.Validate refuses the rest, though TaxType.Known still admits
+// zero-rated.
+func TestProductTaxTypesZeroRated(t *testing.T) {
 	t.Parallel()
 	if !slices.Equal(ProductTaxTypes(), []TaxType{"taxable", "exempt"}) {
 		t.Fatalf("product tax types=%v", ProductTaxTypes())
@@ -33,7 +37,10 @@ func TestProductTaxTypesExcludeZeroRated(t *testing.T) {
 	}
 }
 
-func TestInvoiceUnitsHaveSixCharacterAndControlBounds(t *testing.T) {
+// TestItemUnitBoundsAndTaxLabels checks that an invoice unit is at most six
+// characters with no control character, and that each tax type has a label in
+// both locales.
+func TestItemUnitBoundsAndTaxLabels(t *testing.T) {
 	t.Parallel()
 	for _, unit := range append(CommonItemUnits(), ItemUnit(strings.Repeat("箱", 6)), ItemUnit("自訂")) {
 		if !unit.Valid() {

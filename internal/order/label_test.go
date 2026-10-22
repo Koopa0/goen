@@ -6,8 +6,9 @@ import (
 	"github.com/koopa0/goen/internal/i18n"
 )
 
-// Every status has a catalogue label, in both languages' catalogue.
-func TestEveryStatusHasACatalogueLabel(t *testing.T) {
+// TestFulfillmentStatus_LabelCatalogue checks that every status has a catalogue
+// label, in both languages' catalogue.
+func TestFulfillmentStatus_LabelCatalogue(t *testing.T) {
 	t.Parallel()
 	for _, status := range fulfillmentLabels {
 		if got := status.value.Label(t.Context()); got == "" || got == string(status.value) {
@@ -16,11 +17,12 @@ func TestEveryStatusHasACatalogueLabel(t *testing.T) {
 	}
 }
 
-// TestTheLabelTableIsTheFulfillmentClosedSet holds the two halves together:
-// FulfillmentStatuses is what cart, account and the queue carry, and
-// fulfillmentLabels is what the labels cover, so a state added to one and forgotten in
-// the other is a label that never appears.
-func TestTheLabelTableIsTheFulfillmentClosedSet(t *testing.T) {
+// TestFulfillmentStatusesLabels holds that the label table is the fulfillment
+// closed set. It holds the two halves together: FulfillmentStatuses is what
+// cart, account and the queue carry, and fulfillmentLabels is what the labels
+// cover, so a state added to one and forgotten in the other is a label that
+// never appears.
+func TestFulfillmentStatusesLabels(t *testing.T) {
 	t.Parallel()
 	if len(fulfillmentLabels) != len(FulfillmentStatuses) {
 		t.Fatalf("the label table has %d states, FulfillmentStatuses has %d",
@@ -34,10 +36,10 @@ func TestTheLabelTableIsTheFulfillmentClosedSet(t *testing.T) {
 	}
 }
 
-// TestLabelRendersARetiredStatus holds the reason Label is not a
+// TestFulfillmentStatus_LabelRetired holds the reason Label is not a
 // panic: audit_events is append-only, so a row naming a state the shop no
 // longer occupies must still open.
-func TestLabelRendersARetiredStatus(t *testing.T) {
+func TestFulfillmentStatus_LabelRetired(t *testing.T) {
 	t.Parallel()
 	const retired FulfillmentStatus = "packing"
 	if got := retired.Label(t.Context()); got != string(retired) {
@@ -46,12 +48,13 @@ func TestLabelRendersARetiredStatus(t *testing.T) {
 	}
 }
 
-// TestAFundedOrderIsNotBadgedUnpaid holds the two halves of 'pending' apart: an
-// order stays pending from the moment money arrives until a human picks it, and
-// one paid entirely from store credit has no payment row at all. Committed alone
-// means the shop has taken it on, owed == 0 alone means nothing is due, and
-// either is enough to say it is not awaiting payment.
-func TestAFundedOrderIsNotBadgedUnpaid(t *testing.T) {
+// TestFulfillmentStatus_FundedLabel holds that a funded order is not badged
+// unpaid. It holds the two halves of 'pending' apart: an order stays pending
+// from the moment money arrives until a human picks it, and one paid entirely
+// from store credit has no payment row at all. Committed alone means the shop
+// has taken it on, owed == 0 alone means nothing is due, and either is enough
+// to say it is not awaiting payment.
+func TestFulfillmentStatus_FundedLabel(t *testing.T) {
 	ctx := i18n.WithLocale(t.Context(), i18n.ZhHant)
 	unpaid := i18n.T(ctx, i18n.KeyAdminStatusPending)
 	ready := i18n.T(ctx, i18n.KeyAdminStatusReadyToPick)

@@ -11,7 +11,9 @@ import (
 	"github.com/koopa0/goen/internal/i18n"
 )
 
-func TestNetUnitSymbolForPiecesUsesTheLocaleCountUnit(t *testing.T) {
+// TestNetUnit_SymbolPiece checks that the symbol for pieces is the locale's
+// count unit.
+func TestNetUnit_SymbolPiece(t *testing.T) {
 	t.Parallel()
 	for _, tc := range []struct {
 		locale i18n.Locale
@@ -47,10 +49,10 @@ func TestNetUnitVocabulary(t *testing.T) {
 	}
 }
 
-// TestTextLimitsMatchTheSchemaChecks reads the char_length bound out of each
-// products_label_*_valid CHECK in the initial migration, so the constants cannot
-// drift from the schema.
-func TestTextLimitsMatchTheSchemaChecks(t *testing.T) {
+// TestFactsTextLimits checks that the text limits match the schema's checks. It
+// reads the char_length bound out of each products_label_*_valid CHECK in the
+// initial migration, so the constants cannot drift from the schema.
+func TestFactsTextLimits(t *testing.T) {
 	t.Parallel()
 	schema, err := os.ReadFile(filepath.Join("..", "..", "..", "migrations", "001_initial_schema.up.sql"))
 	if err != nil {

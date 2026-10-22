@@ -7,7 +7,9 @@ import (
 	"github.com/koopa0/goen/internal/email"
 )
 
-func TestConfirmationMaskDoesNotRevealTheLocalPartOrItsLength(t *testing.T) {
+// TestMask checks that Mask does not reveal the local part of an address or its
+// length.
+func TestMask(t *testing.T) {
 	t.Parallel()
 	for _, tt := range []struct{ address, want string }{
 		{address: "  ADA@EXAMPLE.COM ", want: "a***@example.com"},
@@ -29,7 +31,9 @@ func TestConfirmationMaskDoesNotRevealTheLocalPartOrItsLength(t *testing.T) {
 	}
 }
 
-func TestConfirmationQueryAcceptsOnlyAMaskedAddress(t *testing.T) {
+// TestReadMasked checks that the confirmation query accepts only a masked
+// address.
+func TestReadMasked(t *testing.T) {
 	t.Parallel()
 	for _, tt := range []struct{ value, want string }{
 		{value: "a***@example.com", want: "a***@example.com"},

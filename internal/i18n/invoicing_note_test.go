@@ -7,11 +7,11 @@ import (
 	"github.com/koopa0/goen/internal/i18n"
 )
 
-// TestTheInvoicingNoteNamesNoSetting: the note is read by shop staff, who cannot
-// change the server's environment, so an environment variable name in it is
-// a puzzle with no one to ask. The settings are named where an operator reads:
-// the deployment notes.
-func TestTheInvoicingNoteNamesNoSetting(t *testing.T) {
+// TestKeyAdminQueueNoInvoicing checks that the invoicing note names no setting:
+// the note is read by shop staff, who cannot change the server's environment,
+// so an environment variable name in it is a puzzle with no one to ask. The
+// settings are named where an operator reads: the deployment notes.
+func TestKeyAdminQueueNoInvoicing(t *testing.T) {
 	t.Parallel()
 	for _, locale := range []i18n.Locale{i18n.ZhHant, i18n.En} {
 		ctx := i18n.WithLocale(t.Context(), locale)

@@ -12,7 +12,8 @@ import (
 	"testing"
 )
 
-func TestEveryKeyIsTranslatedInEveryLocale(t *testing.T) {
+// TestMessagesTranslated checks that every key is translated in every locale.
+func TestMessagesTranslated(t *testing.T) {
 	if len(messages) == 0 {
 		t.Fatal("the catalogue is empty; this test would pass on nothing")
 	}
@@ -29,7 +30,8 @@ func TestEveryKeyIsTranslatedInEveryLocale(t *testing.T) {
 	}
 }
 
-func TestADuplicateKeyIsRefused(t *testing.T) {
+// TestKeyDuplicatePanics checks that declaring a key id twice is refused.
+func TestKeyDuplicatePanics(t *testing.T) {
 	defer func() {
 		if recover() == nil {
 			t.Error("declaring an id twice did not panic; the later entry would " +
@@ -39,8 +41,11 @@ func TestADuplicateKeyIsRefused(t *testing.T) {
 	key("nav.cart", Message{ZhHant: "第二個", En: "the second one"})
 }
 
+// TestKeyBlankTranslationPanics checks that a message with a blank translation
+// is refused.
+//
 // exhaustruct catches the literal that omits a field; this catches "".
-func TestAMissingTranslationIsRefused(t *testing.T) {
+func TestKeyBlankTranslationPanics(t *testing.T) {
 	defer func() {
 		if recover() == nil {
 			t.Error("a blank translation did not panic")
@@ -54,7 +59,9 @@ var englishQuotesCJK = map[Key]string{
 	"about.name": "explains ご縁, the word the name comes from, so it has to print it",
 }
 
-func TestEnglishIsActuallyEnglish(t *testing.T) {
+// TestMessagesEnglishHasNoHan checks that the English text is English: no Han
+// characters, except in the keys that quote them on purpose.
+func TestMessagesEnglishHasNoHan(t *testing.T) {
 	for k, m := range messages {
 		if why, allowed := englishQuotesCJK[k]; allowed {
 			t.Logf("%s quotes CJK on purpose: %s", k, why)
@@ -70,7 +77,9 @@ func TestEnglishIsActuallyEnglish(t *testing.T) {
 	}
 }
 
-func TestDetectPrefersAnExplicitChoice(t *testing.T) {
+// TestDetect checks that Detect prefers an explicit choice, the cookie, over
+// the Accept-Language header, and reads the header's quality values.
+func TestDetect(t *testing.T) {
 	tests := []struct {
 		name   string
 		cookie string
@@ -119,14 +128,18 @@ func TestDetectPrefersAnExplicitChoice(t *testing.T) {
 	}
 }
 
-func TestAMissingKeyIsVisible(t *testing.T) {
+// TestTMissingKey checks that T renders a missing key as the key itself, so the
+// gap is visible.
+func TestTMissingKey(t *testing.T) {
 	ctx := WithLocale(t.Context(), En)
 	if got := T(ctx, Key("does.not.exist")); got != "does.not.exist" {
 		t.Errorf("a missing key rendered as %q, want the key itself", got)
 	}
 }
 
-func TestTheCookieIsHostScopedWhenSecure(t *testing.T) {
+// TestSetCookie checks that SetCookie host-scopes the locale cookie when secure
+// and does not prefix it otherwise.
+func TestSetCookie(t *testing.T) {
 	w := httptest.NewRecorder()
 	SetCookie(w, En, true)
 	got := w.Header().Get("Set-Cookie")
@@ -155,7 +168,9 @@ func TestTheCookieIsHostScopedWhenSecure(t *testing.T) {
 	}
 }
 
-func TestEveryKeyIsRendered(t *testing.T) {
+// TestKeyRendered checks that every Key declared here is rendered by something
+// outside this package.
+func TestKeyRendered(t *testing.T) {
 	t.Parallel()
 
 	used := sourcesOutsideThisPackage(t)

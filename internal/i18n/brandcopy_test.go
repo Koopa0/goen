@@ -37,7 +37,9 @@ var namedSlogans = []string{
 	"lifestyle store",
 }
 
-func TestNamedStorefrontSlogansAreGone(t *testing.T) {
+// TestMessagesNoNamedSlogans checks that no message carries a named storefront
+// slogan.
+func TestMessagesNoNamedSlogans(t *testing.T) {
 	t.Parallel()
 
 	if len(messages) == 0 {
@@ -68,7 +70,9 @@ var brandCopyJobs = []struct {
 	{name: "newsletter note", key: KeyNewsletterNote},
 }
 
-func TestBrandCopyJobsDoNotShareASentence(t *testing.T) {
+// TestMessagesBrandJobsDistinct checks that the brand copy jobs do not share a
+// sentence in any locale.
+func TestMessagesBrandJobsDistinct(t *testing.T) {
 	t.Parallel()
 
 	for _, l := range Locales() {
