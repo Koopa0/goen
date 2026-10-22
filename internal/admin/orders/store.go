@@ -32,7 +32,7 @@ import (
 	"github.com/koopa0/goen/internal/payment"
 	"github.com/koopa0/goen/internal/payment/refund"
 	"github.com/koopa0/goen/internal/shoptime"
-	"github.com/koopa0/goen/internal/ui/widget"
+	"github.com/koopa0/goen/internal/ui/orderstatus"
 	"github.com/koopa0/goen/internal/web/formtext"
 	"github.com/koopa0/goen/internal/web/requestid"
 )
@@ -84,7 +84,7 @@ func (s *Store) orderRows(ctx context.Context, rows []db.AdminOrdersRow) ([]Orde
 // read from order_totals, as on every page that states one.
 func orderRow(ctx context.Context, o *db.AdminOrdersRow, returned bool) OrderRow {
 	fulfillment := order.FulfillmentStatus(o.FulfillmentStatus)
-	text, intent := orderStatus(ctx, fulfillment, o.Committed, o.OwedCents, returned)
+	text, intent := orderstatus.Badge(ctx, fulfillment, o.Committed, o.OwedCents, returned)
 	return OrderRow{
 		Number:       o.OrderNumber,
 		Status:       fulfillment,
@@ -94,15 +94,6 @@ func orderRow(ctx context.Context, o *db.AdminOrdersRow, returned bool) OrderRow
 		Recipient:    o.Recipient,
 		TotalCents:   o.TotalCents,
 	}
-}
-
-// orderStatus is the word and colour an order carries: an order returned in full, with every refund settled, says
-// so in place of where its delivery stands.
-func orderStatus(ctx context.Context, status order.FulfillmentStatus, committed bool, owedCents int64, returned bool) (string, widget.Intent) {
-	if returned {
-		return i18n.T(ctx, i18n.KeyStatusRefunded), widget.IntentNeutral
-	}
-	return status.FundedLabel(ctx, committed, owedCents), widget.FundedFulfillmentIntent(status, committed, owedCents)
 }
 
 // listPosition is a reader's place in the orders queue. The query builds it as
@@ -210,7 +201,7 @@ func (s *Store) Order(ctx context.Context, number string) (OrderView, error) {
 		return OrderView{}, fmt.Errorf("read returned order: %w", err)
 	}
 	fulfillment := order.FulfillmentStatus(o.FulfillmentStatus)
-	statusText, statusIntent := orderStatus(ctx, fulfillment, o.Committed, o.OwedCents, len(returned) > 0)
+	statusText, statusIntent := orderstatus.Badge(ctx, fulfillment, o.Committed, o.OwedCents, len(returned) > 0)
 	to := delivery.Details{
 		PostalCode: o.PostalCode, City: o.City, District: o.District, Street: o.Street,
 		PickupChain: shipping.Chain(o.PickupChain), PickupStoreCode: o.PickupStoreCode,

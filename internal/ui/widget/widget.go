@@ -4,7 +4,8 @@
 // disclosure, breadcrumb and pager, stat lines, photos and empty art; it does
 // not hold the page's surround (ui/frame), drawings to scale (ui/chart), glyphs
 // (ui/icons), the product tile (ui/tile), any stored vocabulary or domain
-// wording (ui/tone, order, refund) or the carousel's slide (ui/hero).
+// wording (ui/tone, order, refund), an order's status badge (ui/orderstatus)
+// or the carousel's slide (ui/hero).
 //
 // A widget owns its classes and its element, never a hard-coded sentence: text
 // arrives as children, as a Props string already taken from internal/i18n, or

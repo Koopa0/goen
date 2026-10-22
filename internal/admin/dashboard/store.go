@@ -14,13 +14,12 @@ import (
 
 	"github.com/koopa0/goen/internal/admin/worklist"
 	"github.com/koopa0/goen/internal/db"
-	"github.com/koopa0/goen/internal/i18n"
 	"github.com/koopa0/goen/internal/order"
 	"github.com/koopa0/goen/internal/product/inventory"
 	"github.com/koopa0/goen/internal/sales"
 	"github.com/koopa0/goen/internal/shoptime"
+	"github.com/koopa0/goen/internal/ui/orderstatus"
 	"github.com/koopa0/goen/internal/ui/stockrisk"
-	"github.com/koopa0/goen/internal/ui/widget"
 )
 
 // Stock ranks the SKUs by days cover; the stock desk implements it.
@@ -121,7 +120,7 @@ const recentRows = 8
 // read from order_totals, as on every page that states one.
 func orderRow(ctx context.Context, o *db.RecentOrdersRow) OrderRow {
 	fulfillment := order.FulfillmentStatus(o.FulfillmentStatus)
-	text, intent := orderStatus(ctx, fulfillment, o)
+	text, intent := orderstatus.Badge(ctx, fulfillment, o.Committed, o.OwedCents, o.Returned)
 	return OrderRow{
 		Number:       o.OrderNumber,
 		Status:       fulfillment,
@@ -131,14 +130,4 @@ func orderRow(ctx context.Context, o *db.RecentOrdersRow) OrderRow {
 		Recipient:    o.Recipient,
 		TotalCents:   o.TotalCents,
 	}
-}
-
-// orderStatus is the word and colour an order carries: an order returned in
-// full, with every refund settled, says so in place of where its delivery
-// stands.
-func orderStatus(ctx context.Context, status order.FulfillmentStatus, o *db.RecentOrdersRow) (string, widget.Intent) {
-	if o.Returned {
-		return i18n.T(ctx, i18n.KeyStatusRefunded), widget.IntentNeutral
-	}
-	return status.FundedLabel(ctx, o.Committed, o.OwedCents), widget.FundedFulfillmentIntent(status, o.Committed, o.OwedCents)
 }

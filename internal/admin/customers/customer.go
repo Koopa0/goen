@@ -21,7 +21,7 @@ import (
 	"github.com/koopa0/goen/internal/keyset"
 	"github.com/koopa0/goen/internal/order"
 	"github.com/koopa0/goen/internal/shoptime"
-	"github.com/koopa0/goen/internal/ui/widget"
+	"github.com/koopa0/goen/internal/ui/orderstatus"
 	"github.com/koopa0/goen/internal/web/formtext"
 )
 
@@ -151,11 +151,7 @@ func (s *Store) Profile(ctx context.Context, id string) (CustomerView, error) {
 
 func recentOrderRow(ctx context.Context, o *db.AdminCustomerOrdersRow, returned bool) RecentOrder {
 	fulfillment := order.FulfillmentStatus(o.FulfillmentStatus)
-	text := fulfillment.FundedLabel(ctx, o.Committed, o.OwedCents)
-	intent := widget.FundedFulfillmentIntent(fulfillment, o.Committed, o.OwedCents)
-	if returned {
-		text, intent = i18n.T(ctx, i18n.KeyStatusRefunded), widget.IntentNeutral
-	}
+	text, intent := orderstatus.Badge(ctx, fulfillment, o.Committed, o.OwedCents, returned)
 	return RecentOrder{
 		Number:       o.OrderNumber,
 		Status:       fulfillment,
