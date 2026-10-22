@@ -13,7 +13,7 @@ import (
 	"github.com/koopa0/goen/internal/catalog"
 	"github.com/koopa0/goen/internal/i18n"
 	"github.com/koopa0/goen/internal/shipping/storemap"
-	"github.com/koopa0/goen/internal/ui/layouts"
+	"github.com/koopa0/goen/internal/ui/frame"
 	"github.com/koopa0/goen/internal/user"
 	"github.com/koopa0/goen/internal/web/compress"
 	"github.com/koopa0/goen/internal/web/requestid"
@@ -305,7 +305,7 @@ func withLocale(next http.Handler, secure bool) http.Handler {
 		w.Header().Add("Vary", "Accept-Language, Cookie")
 		ctx := i18n.WithLocale(r.Context(), l)
 		// The path and query, so the language switch can send the visitor back.
-		ctx = layouts.WithReturnPath(ctx, localeReturnPath(r))
+		ctx = frame.WithReturnPath(ctx, localeReturnPath(r))
 		next.ServeHTTP(w, r.WithContext(ctx))
 	})
 }
@@ -421,7 +421,7 @@ func withStaffEntrance(next http.Handler) http.Handler {
 			next.ServeHTTP(w, r)
 			return
 		}
-		next.ServeHTTP(w, r.WithContext(layouts.WithStaff(r.Context(), true)))
+		next.ServeHTTP(w, r.WithContext(frame.WithStaff(r.Context(), true)))
 	})
 }
 
@@ -495,7 +495,7 @@ func withSiteOrigin(next http.Handler, baseURL string) http.Handler {
 		return next
 	}
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		ctx := layouts.WithRequestPath(layouts.WithSiteOrigin(r.Context(), origin), r.URL.EscapedPath())
+		ctx := frame.WithRequestPath(frame.WithSiteOrigin(r.Context(), origin), r.URL.EscapedPath())
 		next.ServeHTTP(w, r.WithContext(ctx))
 	})
 }

@@ -5,7 +5,7 @@ import (
 	"testing"
 
 	"github.com/koopa0/goen/internal/i18n"
-	"github.com/koopa0/goen/internal/ui/layouts"
+	"github.com/koopa0/goen/internal/ui/frame"
 	"github.com/koopa0/goen/internal/ui/tone"
 )
 
@@ -13,7 +13,7 @@ func TestTheHomeBandIsAShelfWithNoPhotograph(t *testing.T) {
 	t.Parallel()
 	ctx := i18n.WithLocale(t.Context(), i18n.ZhHant)
 
-	page := renderComponent(t, ctx, Page(layouts.Page{}, View{Band: &DepartmentBand{
+	page := renderComponent(t, ctx, Page(frame.Page{}, View{Band: &DepartmentBand{
 		Name: "居家生活與廚房", Fact: "廚房 · 寢具", Items: 12, Href: "/c/home", Tone: tone.Ink, Tiles: tiledShelf(4),
 	}}))
 	for _, want := range []string{
@@ -43,7 +43,7 @@ func TestTheHomeBandIsAShelfWithNoPhotograph(t *testing.T) {
 
 func TestTheHomeBandWithNoSubCategoriesDrawsNoFactLine(t *testing.T) {
 	t.Parallel()
-	page := renderComponent(t, i18n.WithLocale(t.Context(), i18n.En), Page(layouts.Page{}, View{Band: &DepartmentBand{
+	page := renderComponent(t, i18n.WithLocale(t.Context(), i18n.En), Page(frame.Page{}, View{Band: &DepartmentBand{
 		Name: "Tech", Href: "/c/tech", Tiles: tiledShelf(4),
 	}}))
 	if strings.Contains(page, "goen-band__fact") {
@@ -53,7 +53,7 @@ func TestTheHomeBandWithNoSubCategoriesDrawsNoFactLine(t *testing.T) {
 
 func TestTheDepartmentBandFollowsTheDirectory(t *testing.T) {
 	t.Parallel()
-	page := renderIn(t, i18n.ZhHant, Page(layouts.Page{}, View{
+	page := renderIn(t, i18n.ZhHant, Page(frame.Page{}, View{
 		Categories: departmentsOf(2),
 		Row:        ProductRow{Title: "新到貨", Href: "/search", Tiles: tiledShelf(4)},
 		Band:       &DepartmentBand{Name: "館0", Href: "/c/d0", Tiles: tiledShelf(4)},

@@ -7,7 +7,7 @@ import (
 	"github.com/koopa0/goen/internal/admin/access"
 	"github.com/koopa0/goen/internal/i18n"
 	"github.com/koopa0/goen/internal/keyset"
-	"github.com/koopa0/goen/internal/ui/layouts"
+	"github.com/koopa0/goen/internal/ui/frame"
 	"github.com/koopa0/goen/internal/web/respond"
 )
 
@@ -35,5 +35,5 @@ func (h *Handler) Warranties(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	respond.Component(w, r, h.log, http.StatusOK, Warranties(
-		layouts.Page{Title: i18n.T(r.Context(), i18n.KeyAdminPageWarranty)}, view))
+		frame.Page{Title: i18n.T(r.Context(), i18n.KeyAdminPageWarranty)}, view))
 }

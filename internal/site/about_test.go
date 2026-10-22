@@ -6,7 +6,7 @@ import (
 	"testing"
 
 	"github.com/koopa0/goen/internal/i18n"
-	"github.com/koopa0/goen/internal/ui/layouts"
+	"github.com/koopa0/goen/internal/ui/frame"
 )
 
 // The about page draws goen's mark instead of a photograph: the two rings the
@@ -40,8 +40,8 @@ func TestAboutDrawsTheMarkRatherThanAPhotograph(t *testing.T) {
 // The about page's row of internal/contact's TestEveryPageKindSendsItsOwnLinkPreviewTags, which lives here since the page does.
 func TestAboutSendsItsOwnLinkPreviewTags(t *testing.T) {
 	t.Parallel()
-	ctx := i18n.WithLocale(layouts.WithRequestPath(t.Context(), "/about"), i18n.ZhHant)
-	head := renderComponent(t, layouts.WithSiteOrigin(ctx, "https://goen.test"), layouts.Base(AboutMeta(ctx)))
+	ctx := i18n.WithLocale(frame.WithRequestPath(t.Context(), "/about"), i18n.ZhHant)
+	head := renderComponent(t, frame.WithSiteOrigin(ctx, "https://goen.test"), frame.Base(AboutMeta(ctx)))
 	for _, want := range []string{
 		`og:title" content="` + i18n.T(ctx, i18n.KeyAboutTitle) + ` · goen"`,
 		`og:type" content="website"`,
@@ -55,7 +55,7 @@ func TestAboutSendsItsOwnLinkPreviewTags(t *testing.T) {
 	}
 }
 
-// The about page's entry of internal/ui/layouts' TestNoPageNamesAnInventedCompanyOrAddress, which lives here since the page does.
+// The about page's entry of internal/ui/frame' TestNoPageNamesAnInventedCompanyOrAddress, which lives here since the page does.
 func TestTheAboutPageNamesNoInventedCompanyOrAddress(t *testing.T) {
 	t.Parallel()
 	for _, locale := range []i18n.Locale{i18n.ZhHant, i18n.En} {

@@ -8,7 +8,7 @@ import (
 	"golang.org/x/net/html"
 
 	"github.com/koopa0/goen/internal/i18n"
-	"github.com/koopa0/goen/internal/ui/layouts"
+	"github.com/koopa0/goen/internal/ui/frame"
 )
 
 func TestAdminExamplesStayOutsideRefusedInputs(t *testing.T) {
@@ -37,7 +37,7 @@ func TestAdminExamplesStayOutsideRefusedInputs(t *testing.T) {
 					message, short, cta = "全站滿 NT$3,000 免運", "滿 3,000 免運", "看看"
 					days = "0 表示不設結束日。"
 				}
-				p := layouts.Page{}
+				p := frame.Page{}
 				for _, page := range []struct {
 					name      string
 					component templ.Component

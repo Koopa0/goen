@@ -6,7 +6,7 @@ import (
 
 	"github.com/koopa0/goen/internal/invoice"
 	"github.com/koopa0/goen/internal/order"
-	"github.com/koopa0/goen/internal/ui/layouts"
+	"github.com/koopa0/goen/internal/ui/frame"
 )
 
 // The order page shows the invoice once it is filed and nothing before, and
@@ -14,7 +14,7 @@ import (
 func TestTheOrderPageShowsTheInvoiceOnlyOnceFiled(t *testing.T) {
 	t.Parallel()
 	render := func(inv *OrderInvoice) string {
-		return renderToString(t, Order(layouts.Page{Title: "GO-1"}, &OrderView{
+		return renderToString(t, Order(frame.Page{Title: "GO-1"}, &OrderView{
 			Number: "GO-260929-000001", Status: order.FulfillmentPicking, Committed: true, Invoice: inv,
 		}))
 	}

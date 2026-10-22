@@ -9,7 +9,7 @@ import (
 	"github.com/koopa0/goen/internal/i18n"
 	"github.com/koopa0/goen/internal/invoice"
 	"github.com/koopa0/goen/internal/order"
-	"github.com/koopa0/goen/internal/ui/layouts"
+	"github.com/koopa0/goen/internal/ui/frame"
 )
 
 func TestOnlyAPickupOrderIsToldToCompleteAfterCollection(t *testing.T) {
@@ -21,7 +21,7 @@ func TestOnlyAPickupOrderIsToldToCompleteAfterCollection(t *testing.T) {
 		render := func(pickup bool) string {
 			var b strings.Builder
 			v := &OrderView{Number: "GO-1", Status: "shipped", Next: next, PickupDestination: pickup}
-			if err := Order(layouts.Page{Title: "o"}, v).Render(ctx, &b); err != nil {
+			if err := Order(frame.Page{Title: "o"}, v).Render(ctx, &b); err != nil {
 				t.Fatal(err)
 			}
 			return b.String()
@@ -44,7 +44,7 @@ func TestTheAllowanceActionSaysTheCustomerAgreesOnline(t *testing.T) {
 		render := func(v *OrderView) string {
 			t.Helper()
 			var b strings.Builder
-			if err := Order(layouts.Page{Title: "o"}, v).Render(ctx, &b); err != nil {
+			if err := Order(frame.Page{Title: "o"}, v).Render(ctx, &b); err != nil {
 				t.Fatal(err)
 			}
 			return b.String()

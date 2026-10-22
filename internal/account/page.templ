@@ -5,7 +5,7 @@ import (
 
 	"github.com/koopa0/goen/internal/i18n"
 	"github.com/koopa0/goen/internal/ui/fieldrule"
-	"github.com/koopa0/goen/internal/ui/layouts"
+	"github.com/koopa0/goen/internal/ui/frame"
 	"github.com/koopa0/goen/internal/ui/widget"
 )
 
@@ -19,8 +19,8 @@ templ accountNavItem(href, label, hint string) {
 	</a>
 }
 
-templ Account(p layouts.Page, v *View) {
-	@layouts.Base(p) {
+templ Account(p frame.Page, v *View) {
+	@frame.Base(p) {
 		<div class="goen-account">
 			<div class="goen-account__head ui-page-head">
 				<div class="goen-pagehead">
@@ -64,7 +64,7 @@ templ Account(p layouts.Page, v *View) {
 					@accountNavItem("/account/points", i18n.T(ctx, i18n.KeyLoyaltyPoints), i18n.T(ctx, i18n.KeyLoyaltyPointsHint))
 					@accountNavItem("/account/wishlist", i18n.T(ctx, i18n.KeyWishlistTitle), i18n.T(ctx, i18n.KeyWishlistHint))
 					@accountNavItem("/account/warranty", i18n.T(ctx, i18n.KeyWarrantyTitle), i18n.T(ctx, i18n.KeyWarrantyHint))
-					if layouts.IsStaff(ctx) {
+					if frame.IsStaff(ctx) {
 						@accountNavItem("/admin", i18n.T(ctx, i18n.KeyBackOffice), i18n.T(ctx, i18n.KeyBackOfficeHint))
 					}
 				</nav>

@@ -4,12 +4,12 @@ import (
 	"fmt"
 
 	"github.com/koopa0/goen/internal/i18n"
-	"github.com/koopa0/goen/internal/ui/layouts"
+	"github.com/koopa0/goen/internal/ui/frame"
 	"github.com/koopa0/goen/internal/ui/widget"
 )
 
-templ Slides(p layouts.Page, v *HeroView) {
-	@layouts.Admin(p, "slides") {
+templ Slides(p frame.Page, v *HeroView) {
+	@frame.Admin(p, "slides") {
 		<div class="ui-page-head">
 			<div>
 				<p class="ui-page-head__eyebrow">{ i18n.T(ctx, i18n.KeyAdminEyebrow) }</p>
@@ -19,8 +19,8 @@ templ Slides(p layouts.Page, v *HeroView) {
 				</p>
 			</div>
 		</div>
-		@layouts.Announce(v.Notice)
-		@layouts.RefusalSummary(layouts.SummarizeRefusal(i18n.KeyAdminRefusalHero, v.Errors, layouts.RefusalField{Key: "headline", ID: "h-headline"}, layouts.RefusalField{Key: "primary", ID: "h-plabel"}, layouts.RefusalField{Key: "alt", ID: "h-alt"}, layouts.RefusalField{Key: "primaryhref", ID: "h-phref"}, layouts.RefusalField{Key: "second", ID: "h-shref"}, layouts.RefusalField{Key: "image", ID: "h-image"}, layouts.RefusalField{Key: "days", ID: "h-days"}))
+		@frame.Announce(v.Notice)
+		@frame.RefusalSummary(frame.SummarizeRefusal(i18n.KeyAdminRefusalHero, v.Errors, frame.RefusalField{Key: "headline", ID: "h-headline"}, frame.RefusalField{Key: "primary", ID: "h-plabel"}, frame.RefusalField{Key: "alt", ID: "h-alt"}, frame.RefusalField{Key: "primaryhref", ID: "h-phref"}, frame.RefusalField{Key: "second", ID: "h-shref"}, frame.RefusalField{Key: "image", ID: "h-image"}, frame.RefusalField{Key: "days", ID: "h-days"}))
 		<section aria-labelledby="live-slides">
 			<h2 class="goen-admin__subhead" id="live-slides">{ i18n.T(ctx, i18n.KeyAdminHomeCarouselHead) }</h2>
 			if v.NoSlides() {

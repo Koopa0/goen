@@ -9,7 +9,7 @@ import (
 
 	"github.com/koopa0/goen/internal/i18n"
 	"github.com/koopa0/goen/internal/order"
-	"github.com/koopa0/goen/internal/ui/layouts"
+	"github.com/koopa0/goen/internal/ui/frame"
 )
 
 func TestLaterParcelArrivalActionBelongsToItsUndeliveredParcel(t *testing.T) {
@@ -26,7 +26,7 @@ func TestLaterParcelArrivalActionBelongsToItsUndeliveredParcel(t *testing.T) {
 						{ID: "22222222-2222-4222-8222-222222222222", Carrier: shipping.CarrierBlackCat, Tracking: "SECOND", ShippedAt: "2026-10-12 09:00"},
 					},
 				}
-				page := renderComponent(t, ctx, Order(layouts.Page{}, &view))
+				page := renderComponent(t, ctx, Order(frame.Page{}, &view))
 				label := "Mark delivered"
 				if locale == i18n.ZhHant {
 					label = "標記已送達"
@@ -73,7 +73,7 @@ func TestParcelArrivalAuditNamesTheActionInBothLanguages(t *testing.T) {
 			if got := entry.EntityLabel(ctx); got != tt.entity {
 				t.Errorf("arrival audit entity = %q, want %q", got, tt.entity)
 			}
-			page := renderComponent(t, ctx, audit.Audit(layouts.Page{}, audit.View{Rows: []audit.Entry{entry}}))
+			page := renderComponent(t, ctx, audit.Audit(frame.Page{}, audit.View{Rows: []audit.Entry{entry}}))
 			if !strings.Contains(page, "<dt>"+tt.dateLabel+"</dt>") || !strings.Contains(page, "<dd>2026-10-12 10:00</dd>") {
 				t.Error("arrival audit does not show its labelled delivery time")
 			}

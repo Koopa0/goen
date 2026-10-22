@@ -68,7 +68,7 @@ func TestEveryViewModelFieldIsAssigned(t *testing.T) {
 			"  %s is a view model because the templ component %s reaches it: as a parameter, a "+
 			"field of one, or the result of a method or function it uses. A page that "+
 			"reads the field shows the zero value to everybody — which is what "+
-			"layouts.Page.CartCount did to the cart badge and Page.Nav did to the "+
+			"frame.Page.CartCount did to the cart badge and Page.Nav did to the "+
 			"navigation. Fill it where the view is BUILT, not in each handler, or "+
 			"delete it.", field, model, taken[model].component)
 	}
@@ -179,7 +179,7 @@ type component struct {
 	// takes is the receiver and every parameter's type expression.
 	takes []ast.Expr
 	// calls is every function the component's body calls by name: `bannerFrom(ctx)`
-	// or `layouts.Foo(…)`. A method call is not here; it is followed from the type
+	// or `frame.Foo(…)`. A method call is not here; it is followed from the type
 	// it is called on.
 	calls []*ast.CallExpr
 }
@@ -280,7 +280,7 @@ type viewModel struct {
 //
 // It starts at what a component is handed — the receiver and parameter types —
 // and at what it fetches — the results of the package-level functions its body
-// calls (`bannerFrom(ctx)` reads a layouts.Banner out of the context). From
+// calls (`bannerFrom(ctx)` reads a frame.Banner out of the context). From
 // there it follows the type expressions to their declarations: through pointers,
 // slices, arrays, maps (key and value), channels, func signatures, generic
 // arguments and parentheses; through a named type that is not a struct (`type

@@ -7,7 +7,7 @@ import (
 
 	"github.com/koopa0/goen/internal/shipping"
 
-	"github.com/koopa0/goen/internal/ui/layouts"
+	"github.com/koopa0/goen/internal/ui/frame"
 )
 
 // optionsOffered is every carrier code the dispatch form's select lists.
@@ -29,7 +29,7 @@ func TestTheDispatchFormOffersOnlyTheCarriersTheOrderCanUse(t *testing.T) {
 
 	t.Run("a store order lists its chain's carrier, selected", func(t *testing.T) {
 		t.Parallel()
-		html := renderToString(t, Order(layouts.Page{Title: "GO-1"}, &OrderView{
+		html := renderToString(t, Order(frame.Page{Title: "GO-1"}, &OrderView{
 			Number: "GO-1", CanShip: true,
 			ShipCarriers: []shipping.Carrier{shipping.CarrierFamilyMart}, ShipCarrier: string(shipping.CarrierFamilyMart),
 		}))
@@ -48,7 +48,7 @@ func TestTheDispatchFormOffersOnlyTheCarriersTheOrderCanUse(t *testing.T) {
 	t.Run("a home delivery lists the home carriers and a refused choice stays selected", func(t *testing.T) {
 		t.Parallel()
 		home, _ := shipping.CarriersFor("", shipping.DestinationAddress)
-		html := renderToString(t, Order(layouts.Page{Title: "GO-1"}, &OrderView{
+		html := renderToString(t, Order(frame.Page{Title: "GO-1"}, &OrderView{
 			Number: "GO-1", CanShip: true, ShipCarriers: home, ShipCarrier: string(shipping.CarrierKerryTJ),
 		}))
 		if got := optionsOffered(t, html); len(got) != len(home) {
@@ -67,7 +67,7 @@ func TestTheDispatchFormOffersOnlyTheCarriersTheOrderCanUse(t *testing.T) {
 	t.Run("with nothing implied the placeholder is the selected option", func(t *testing.T) {
 		t.Parallel()
 		home, _ := shipping.CarriersFor("", shipping.DestinationAddress)
-		html := renderToString(t, Order(layouts.Page{Title: "GO-1"}, &OrderView{
+		html := renderToString(t, Order(frame.Page{Title: "GO-1"}, &OrderView{
 			Number: "GO-1", CanShip: true, ShipCarriers: home,
 		}))
 		if !strings.Contains(html, `<option value="" selected`) {

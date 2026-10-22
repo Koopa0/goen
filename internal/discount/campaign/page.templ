@@ -3,13 +3,13 @@ package campaign
 import (
 	"github.com/koopa0/goen/assets"
 	"github.com/koopa0/goen/internal/i18n"
-	"github.com/koopa0/goen/internal/ui/layouts"
+	"github.com/koopa0/goen/internal/ui/frame"
 	"github.com/koopa0/goen/internal/ui/tile"
 	"github.com/koopa0/goen/internal/ui/widget"
 )
 
-templ Page(p layouts.Page, v View) {
-	@layouts.Base(p) {
+templ Page(p frame.Page, v View) {
+	@frame.Base(p) {
 		<div class="goen-listing">
 			<header class="goen-campaign__band">
 				if v.Image.Shown() {

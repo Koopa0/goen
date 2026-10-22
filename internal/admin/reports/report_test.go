@@ -11,7 +11,7 @@ import (
 	"github.com/koopa0/goen/internal/product/inventory"
 	"github.com/koopa0/goen/internal/shoptime"
 	"github.com/koopa0/goen/internal/ui/chart"
-	"github.com/koopa0/goen/internal/ui/layouts"
+	"github.com/koopa0/goen/internal/ui/frame"
 	"github.com/koopa0/goen/internal/ui/stockrisk"
 )
 
@@ -19,7 +19,7 @@ func TestAnEmptySalesWindowStillListsStockAtRisk(t *testing.T) {
 	t.Parallel()
 
 	ctx := i18n.WithLocale(t.Context(), i18n.ZhHant)
-	html := renderToString(t, Report(layouts.Page{Title: "報表"}, &ReportView{
+	html := renderToString(t, Report(frame.Page{Title: "報表"}, &ReportView{
 		Days:    30,
 		Windows: []int32{7, 30, 90},
 		AtRisk:  []stockrisk.Row{{Risk: inventory.Risk{SKU: "RISK-SKU-1", Name: "Shrinking SKU", Slug: "shrinking-sku", Sales: inventory.Sales{Sellable: 2, Sold: 8, Orders: 3}}}},
@@ -73,7 +73,7 @@ func TestAReportWindowIsEmptyOnlyWithoutOrdersAndRefunds(t *testing.T) {
 			if got := tc.view.Empty(); got != tc.wantEmpty {
 				t.Errorf("Empty() = %v, want %v", got, tc.wantEmpty)
 			}
-			html := renderToString(t, Report(layouts.Page{Title: "報表"}, &tc.view))
+			html := renderToString(t, Report(frame.Page{Title: "報表"}, &tc.view))
 			if got := strings.Contains(html, empty); got != tc.wantEmpty {
 				t.Errorf("no-orders state rendered = %v, want %v", got, tc.wantEmpty)
 			}
@@ -97,7 +97,7 @@ func TestBestSellerGrossCannotBeMistakenForOrderRevenue(t *testing.T) {
 			t.Parallel()
 			var b bytes.Buffer
 			view := ReportView{Placed: 1, Orders: 1, Committed: 1, RevenueCents: 90000, Sellers: []Seller{{Name: "Discounted item", Slug: "discounted", Units: 2, RevenueCents: 100000}}}
-			if err := Report(layouts.Page{Title: "Reports"}, &view).Render(i18n.WithLocale(t.Context(), tt.locale), &b); err != nil {
+			if err := Report(frame.Page{Title: "Reports"}, &view).Render(i18n.WithLocale(t.Context(), tt.locale), &b); err != nil {
 				t.Fatal(err)
 			}
 			for _, want := range []string{tt.gross, tt.units, tt.scope, view.Revenue()} {
@@ -143,7 +143,7 @@ func TestReportSaysTheCountOnceForFewOrders(t *testing.T) {
 	t.Parallel()
 
 	ctx := i18n.WithLocale(t.Context(), i18n.En)
-	html := renderComponent(t, ctx, Report(layouts.Page{Title: "Reports"}, &ReportView{
+	html := renderComponent(t, ctx, Report(frame.Page{Title: "Reports"}, &ReportView{
 		Days: 7, Windows: []int32{7, 30, 90}, Placed: 3, Committed: 2, Orders: 2, RevenueCents: 1000,
 	}))
 
@@ -156,7 +156,7 @@ func TestReportSaysTheCountOnceForFewOrders(t *testing.T) {
 func TestBestSellersAreDrawnAsBarsOnOneScale(t *testing.T) {
 	t.Parallel()
 
-	html := renderToString(t, Report(layouts.Page{Title: "Reports"}, &ReportView{
+	html := renderToString(t, Report(frame.Page{Title: "Reports"}, &ReportView{
 		Days: 30, Windows: []int32{7, 30, 90}, Placed: 3, Committed: 3, Orders: 3,
 		Sellers: []Seller{
 			{Slug: "a", Name: "Alpha", Units: 40},
@@ -187,7 +187,7 @@ func TestBestSellersAreDrawnAsBarsOnOneScale(t *testing.T) {
 func TestOneSellerDrawsNoBar(t *testing.T) {
 	t.Parallel()
 
-	html := renderToString(t, Report(layouts.Page{Title: "Reports"}, &ReportView{
+	html := renderToString(t, Report(frame.Page{Title: "Reports"}, &ReportView{
 		Days: 30, Windows: []int32{7, 30, 90}, Placed: 1, Committed: 1, Orders: 1,
 		Sellers: []Seller{{Slug: "a", Name: "Alpha", Units: 40}},
 	}))
@@ -202,7 +202,7 @@ func TestOneSellerDrawsNoBar(t *testing.T) {
 func TestNoSellersDrawNoBars(t *testing.T) {
 	t.Parallel()
 
-	html := renderToString(t, Report(layouts.Page{Title: "Reports"}, &ReportView{
+	html := renderToString(t, Report(frame.Page{Title: "Reports"}, &ReportView{
 		Days: 30, Windows: []int32{7, 30, 90}, Placed: 1, Committed: 1, Orders: 1,
 	}))
 	if strings.Contains(html, "goen-chartbar") {
@@ -372,7 +372,7 @@ func TestRunningTotalsAreDrawnFromSevenDaysWithOrders(t *testing.T) {
 		{7, true},
 	} {
 		v := dailyView(tc.orderDays)
-		html := renderToString(t, Report(layouts.Page{Title: "報表"}, &v))
+		html := renderToString(t, Report(frame.Page{Title: "報表"}, &v))
 		if got := strings.Contains(html, `class="goen-chart"`); got != tc.want {
 			t.Errorf("a period with orders on %d days draws the running totals = %v, want %v", tc.orderDays, got, tc.want)
 		}
@@ -392,7 +392,7 @@ func TestRunningTotalsSaySoWhenTheDaysCouldNotBeRead(t *testing.T) {
 	v := dailyView(7)
 	v.Daily = DailyRevenue{}
 	v.DailyUnavailable = true
-	html := renderComponent(t, ctx, Report(layouts.Page{Title: "Reports"}, &v))
+	html := renderComponent(t, ctx, Report(frame.Page{Title: "Reports"}, &v))
 
 	if want := `<p class="goen-admin__hint" role="status">` + strings.ReplaceAll(i18n.T(ctx, i18n.KeyAdminChartUnavailable), "'", "&#39;") + `</p>`; !strings.Contains(html, want) {
 		t.Errorf("the page does not say the chart is unavailable: want %s", want)
@@ -479,7 +479,7 @@ func TestPaidOrdersAreToldInASentenceBelowThreeDays(t *testing.T) {
 		if v.ShowsPaidColumns() {
 			t.Errorf("%s: columns are drawn for %d days with orders, want a sentence", tc.name, len(tc.view.Paid.Days.Buckets))
 		}
-		html := spaced(renderComponent(t, i18n.WithLocale(t.Context(), tc.locale), Report(layouts.Page{Title: "x"}, &v)))
+		html := spaced(renderComponent(t, i18n.WithLocale(t.Context(), tc.locale), Report(frame.Page{Title: "x"}, &v)))
 		if !strings.Contains(html, `<p class="goen-admin__hint">`+tc.wantSentence+`</p>`) {
 			t.Errorf("%s: the page does not hold the sentence %q in place of the chart", tc.name, tc.wantSentence)
 		}
@@ -506,7 +506,7 @@ func TestPaidOrdersFromThreeDaysAreColumnsCaptionedByTheirCount(t *testing.T) {
 	if got, want := v.PaidSentence(en), "Paid orders came in on 3 days of this period."; got != want {
 		t.Errorf("PaidSentence = %q, want %q", got, want)
 	}
-	html := renderComponent(t, en, Report(layouts.Page{Title: "Reports"}, &v))
+	html := renderComponent(t, en, Report(frame.Page{Title: "Reports"}, &v))
 	for _, want := range []string{
 		"Paid orders per day",
 		`<figcaption class="goen-chart__caption">Paid orders came in on 3 days of this period.</figcaption>`,
@@ -589,7 +589,7 @@ func TestPaidOrdersSaySoWhenTheDaysCouldNotBeRead(t *testing.T) {
 	v := paidView(30, map[int]int64{3: 2, 10: 1, 29: 4})
 	v.Paid = PaidDays{}
 	v.DailyUnavailable = true
-	html := renderComponent(t, ctx, Report(layouts.Page{Title: "Reports"}, &v))
+	html := renderComponent(t, ctx, Report(frame.Page{Title: "Reports"}, &v))
 	if got := strings.Count(html, "This chart&#39;s data is unavailable right now."); got != 2 {
 		t.Errorf("the page says %d times that a chart is unavailable, want once for each of the two", got)
 	}
@@ -601,7 +601,7 @@ func TestPaidOrdersSaySoWhenTheDaysCouldNotBeRead(t *testing.T) {
 func TestDepartmentsAreDrawnAsBarsOnOneScale(t *testing.T) {
 	t.Parallel()
 
-	html := renderToString(t, Report(layouts.Page{Title: "Reports"}, &ReportView{
+	html := renderToString(t, Report(frame.Page{Title: "Reports"}, &ReportView{
 		Days: 30, Windows: []int32{7, 30, 90}, Placed: 3, Committed: 3, Orders: 3,
 		Departments: []Department{
 			{Name: "Audio", SalesCents: 400000},
@@ -640,7 +640,7 @@ func TestOneDepartmentIsASentenceWithNoBar(t *testing.T) {
 				Days: 30, Windows: []int32{7, 30, 90}, Placed: 1, Committed: 1, Orders: 1,
 				Departments: []Department{{Name: name, SalesCents: 400000}},
 			}
-			if err := Report(layouts.Page{Title: "Reports"}, &view).Render(i18n.WithLocale(t.Context(), tt.locale), &b); err != nil {
+			if err := Report(frame.Page{Title: "Reports"}, &view).Render(i18n.WithLocale(t.Context(), tt.locale), &b); err != nil {
 				t.Fatal(err)
 			}
 			if !strings.Contains(b.String(), tt.want) {
@@ -656,7 +656,7 @@ func TestOneDepartmentIsASentenceWithNoBar(t *testing.T) {
 func TestNoDepartmentsShowNoDepartmentSection(t *testing.T) {
 	t.Parallel()
 
-	html := renderToString(t, Report(layouts.Page{Title: "Reports"}, &ReportView{
+	html := renderToString(t, Report(frame.Page{Title: "Reports"}, &ReportView{
 		Days: 30, Windows: []int32{7, 30, 90}, Placed: 1, Committed: 1, Orders: 1,
 	}))
 	if strings.Contains(html, "各館商品銷售額") {

@@ -5,7 +5,7 @@ import (
 
 	"github.com/koopa0/goen/internal/i18n"
 	"github.com/koopa0/goen/internal/ui/chart"
-	"github.com/koopa0/goen/internal/ui/layouts"
+	"github.com/koopa0/goen/internal/ui/frame"
 	"github.com/koopa0/goen/internal/ui/stockrisk"
 	"github.com/koopa0/goen/internal/ui/widget"
 )
@@ -13,8 +13,8 @@ import (
 // The lists are not tables: each cell carries its own label ("%s units", "%s left")
 // because the sentence is what internal/i18n holds, and a column header would be a
 // second name for the same fact.
-templ Report(p layouts.Page, v *ReportView) {
-	@layouts.Admin(p, "reports") {
+templ Report(p frame.Page, v *ReportView) {
+	@frame.Admin(p, "reports") {
 		<div class="ui-page-head">
 			<div>
 				<p class="ui-page-head__eyebrow">{ i18n.T(ctx, i18n.KeyAdminEyebrow) }</p>

@@ -16,7 +16,7 @@ import (
 	"github.com/koopa0/goen/internal/cart/cartitem"
 	"github.com/koopa0/goen/internal/email"
 	"github.com/koopa0/goen/internal/i18n"
-	"github.com/koopa0/goen/internal/ui/layouts"
+	"github.com/koopa0/goen/internal/ui/frame"
 	"github.com/koopa0/goen/internal/user"
 	"github.com/koopa0/goen/internal/web/clientip"
 	"github.com/koopa0/goen/internal/web/compress"
@@ -865,8 +865,8 @@ func cartRecoveryLanding(continuation string) string {
 }
 
 func (h *Handler) serverError(w http.ResponseWriter, r *http.Request) {
-	respond.Component(w, r, h.log, http.StatusInternalServerError, layouts.Notice(
-		layouts.Page{Title: i18n.T(r.Context(), i18n.KeyBusyTitle)}, "",
+	respond.Component(w, r, h.log, http.StatusInternalServerError, frame.Notice(
+		frame.Page{Title: i18n.T(r.Context(), i18n.KeyBusyTitle)}, "",
 		i18n.T(r.Context(), i18n.KeyBusyTitle),
 		i18n.T(r.Context(), i18n.KeyBusyBody)))
 }
@@ -1035,9 +1035,9 @@ func (h *Handler) VerifyPage(w http.ResponseWriter, r *http.Request) {
 	compress.Skip(w)
 	ctx := r.Context()
 	if r.URL.Query().Get("done") == "1" {
-		respond.Component(w, r, h.log, http.StatusOK, layouts.EmailLinkPage(
-			layouts.EmailLinkMeta(i18n.T(ctx, i18n.KeyVerifyDone)),
-			layouts.EmailLinkView{
+		respond.Component(w, r, h.log, http.StatusOK, frame.EmailLinkPage(
+			frame.EmailLinkMeta(i18n.T(ctx, i18n.KeyVerifyDone)),
+			frame.EmailLinkView{
 				Heading: i18n.T(ctx, i18n.KeyVerifyDone),
 				Body:    i18n.T(ctx, i18n.KeyVerifyDoneBody),
 			}))
@@ -1045,18 +1045,18 @@ func (h *Handler) VerifyPage(w http.ResponseWriter, r *http.Request) {
 	}
 	token := r.URL.Query().Get("token")
 	if token == "" {
-		respond.Component(w, r, h.log, http.StatusOK, layouts.EmailLinkPage(
-			layouts.EmailLinkMeta(i18n.T(ctx, i18n.KeyVerifyTitle)),
-			layouts.EmailLinkView{
+		respond.Component(w, r, h.log, http.StatusOK, frame.EmailLinkPage(
+			frame.EmailLinkMeta(i18n.T(ctx, i18n.KeyVerifyTitle)),
+			frame.EmailLinkView{
 				Heading:  i18n.T(ctx, i18n.KeyVerifyTitle),
 				Body:     i18n.T(ctx, i18n.KeyEmailLinkIncomplete),
-				Recovery: layouts.EmailLinkVerify,
+				Recovery: frame.EmailLinkVerify,
 			}))
 		return
 	}
-	respond.Component(w, r, h.log, http.StatusOK, layouts.EmailLinkPage(
-		layouts.EmailLinkMeta(i18n.T(ctx, i18n.KeyVerifyTitle)),
-		layouts.EmailLinkView{
+	respond.Component(w, r, h.log, http.StatusOK, frame.EmailLinkPage(
+		frame.EmailLinkMeta(i18n.T(ctx, i18n.KeyVerifyTitle)),
+		frame.EmailLinkView{
 			Heading: i18n.T(ctx, i18n.KeyVerifyTitle),
 			Body:    i18n.T(ctx, i18n.KeyVerifyBody),
 			Action:  "/verify",
@@ -1096,12 +1096,12 @@ func (h *Handler) Verify(w http.ResponseWriter, r *http.Request) {
 		h.verifyFailed(w, r, i18n.T(ctx, i18n.KeyVerifyDeadTitle), i18n.T(ctx, i18n.KeyEmailStaffFixed))
 	case errors.Is(err, ErrVerifyInvalid):
 		heading := i18n.T(ctx, i18n.KeyEmailLinkDeadTitle)
-		respond.Component(w, r, h.log, http.StatusUnprocessableEntity, layouts.EmailLinkPage(
-			layouts.EmailLinkMeta(heading),
-			layouts.EmailLinkView{
+		respond.Component(w, r, h.log, http.StatusUnprocessableEntity, frame.EmailLinkPage(
+			frame.EmailLinkMeta(heading),
+			frame.EmailLinkView{
 				Heading:  heading,
 				Body:     i18n.T(ctx, i18n.KeyVerifyDeadBody),
-				Recovery: layouts.EmailLinkVerify,
+				Recovery: frame.EmailLinkVerify,
 			}))
 	default:
 		h.log.ErrorContext(ctx, "confirm email verification", "error", err)
@@ -1182,13 +1182,13 @@ func (h *Handler) CompleteRegistration(w http.ResponseWriter, r *http.Request) {
 
 func (h *Handler) registrationDead(w http.ResponseWriter, r *http.Request, next string) {
 	respond.Component(w, r, h.log, http.StatusUnprocessableEntity, RegistrationDead(
-		layouts.Page{Title: i18n.T(r.Context(), i18n.KeyVerifyDeadTitle)}, next))
+		frame.Page{Title: i18n.T(r.Context(), i18n.KeyVerifyDeadTitle)}, next))
 }
 
 func (h *Handler) verifyFailed(w http.ResponseWriter, r *http.Request, heading, body string) {
-	respond.Component(w, r, h.log, http.StatusUnprocessableEntity, layouts.EmailLinkPage(
-		layouts.EmailLinkMeta(heading),
-		layouts.EmailLinkView{Heading: heading, Body: body}))
+	respond.Component(w, r, h.log, http.StatusUnprocessableEntity, frame.EmailLinkPage(
+		frame.EmailLinkMeta(heading),
+		frame.EmailLinkView{Heading: heading, Body: body}))
 }
 
 func oauthOutcome(ctx context.Context, outcome string) map[string]string {
@@ -1294,10 +1294,10 @@ func (h *Handler) GoogleCallback(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *Handler) googleUnavailable(w http.ResponseWriter, r *http.Request) {
-	respond.Component(w, r, h.log, http.StatusNotFound, layouts.Notice(
-		layouts.Page{Title: i18n.T(r.Context(), i18n.KeySignIn)}, "404",
+	respond.Component(w, r, h.log, http.StatusNotFound, frame.Notice(
+		frame.Page{Title: i18n.T(r.Context(), i18n.KeySignIn)}, "404",
 		i18n.T(r.Context(), i18n.KeySignIn), i18n.T(r.Context(), i18n.KeyGoogleUnavailable),
-		layouts.NoticeActions{Primary: layouts.NoticeLink{Href: "/signin", Label: i18n.KeySignIn}}))
+		frame.NoticeActions{Primary: frame.NoticeLink{Href: "/signin", Label: i18n.KeySignIn}}))
 }
 
 func (h *Handler) UnlinkGoogle(w http.ResponseWriter, r *http.Request) {

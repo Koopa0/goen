@@ -14,7 +14,7 @@ import (
 	"github.com/koopa0/goen/internal/order"
 	"github.com/koopa0/goen/internal/order/returns"
 	"github.com/koopa0/goen/internal/payment/refund"
-	"github.com/koopa0/goen/internal/ui/layouts"
+	"github.com/koopa0/goen/internal/ui/frame"
 	"github.com/koopa0/goen/internal/web/formtext"
 	"github.com/koopa0/goen/internal/web/respond"
 )
@@ -114,7 +114,7 @@ func (h *Handler) confirmRefundUnsent(w http.ResponseWriter, r *http.Request, nu
 	default:
 		return false
 	}
-	respond.Component(w, r, h.log, status, ConfirmUnsentRefund(layouts.Page{Title: i18n.T(r.Context(), i18n.KeyAdminUnsentTitle)}, view))
+	respond.Component(w, r, h.log, status, ConfirmUnsentRefund(frame.Page{Title: i18n.T(r.Context(), i18n.KeyAdminUnsentTitle)}, view))
 	return true
 }
 

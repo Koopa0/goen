@@ -15,7 +15,7 @@ import (
 	"github.com/koopa0/goen/internal/admin/products"
 	"github.com/koopa0/goen/internal/admin/staff"
 	"github.com/koopa0/goen/internal/db"
-	"github.com/koopa0/goen/internal/ui/layouts"
+	"github.com/koopa0/goen/internal/ui/frame"
 )
 
 // The audit page names a person by their current address. A display name is
@@ -33,7 +33,7 @@ func renderedTrail(t *testing.T, ctx context.Context) (view audit.View, html str
 		t.Fatalf("Events: %v", err)
 	}
 	var page bytes.Buffer
-	if err := audit.Audit(layouts.Page{}, view).Render(ctx, &page); err != nil {
+	if err := audit.Audit(frame.Page{}, view).Render(ctx, &page); err != nil {
 		t.Fatalf("render the audit page: %v", err)
 	}
 	return view, page.String()

@@ -5,13 +5,13 @@ import (
 
 	"github.com/koopa0/goen/internal/i18n"
 	"github.com/koopa0/goen/internal/product/inventory"
-	"github.com/koopa0/goen/internal/ui/layouts"
+	"github.com/koopa0/goen/internal/ui/frame"
 	"github.com/koopa0/goen/internal/ui/stockrisk"
 	"github.com/koopa0/goen/internal/ui/widget"
 )
 
-templ Variants(p layouts.Page, v VariantsView) {
-	@layouts.Admin(p, "stock") {
+templ Variants(p frame.Page, v VariantsView) {
+	@frame.Admin(p, "stock") {
 		<div class="ui-page-head">
 			<div>
 				<h1 class="ui-page-head__title">{ i18n.T(ctx, i18n.KeyAdminQueueStock) }</h1>
@@ -20,9 +20,9 @@ templ Variants(p layouts.Page, v VariantsView) {
 				</p>
 			</div>
 		</div>
-		@layouts.Announce(v.Notice)
+		@frame.Announce(v.Notice)
 		for _, refusal := range v.Refusals() {
-			@layouts.RefusalSummary(refusal)
+			@frame.RefusalSummary(refusal)
 		}
 		if v.ShowCover {
 			<section class="goen-admin__cover">

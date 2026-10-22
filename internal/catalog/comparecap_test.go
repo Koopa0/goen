@@ -6,7 +6,7 @@ import (
 	"testing"
 
 	"github.com/koopa0/goen/internal/i18n"
-	"github.com/koopa0/goen/internal/ui/layouts"
+	"github.com/koopa0/goen/internal/ui/frame"
 )
 
 // The cap is written once, in MaxCompare; every sentence that names it is
@@ -27,7 +27,7 @@ func TestTheCompareCapIsSaidFromMaxCompareInBothLanguages(t *testing.T) {
 			t.Parallel()
 			ctx := i18n.WithLocale(t.Context(), tt.locale)
 
-			empty := renderComponent(t, ctx, Compare(layouts.Page{Title: "Compare"}, CompareView{StartSlug: "tech"}))
+			empty := renderComponent(t, ctx, Compare(frame.Page{Title: "Compare"}, CompareView{StartSlug: "tech"}))
 			if !strings.Contains(empty, tt.hint) {
 				t.Errorf("the empty comparison in %s does not read %q", tt.locale, tt.hint)
 			}

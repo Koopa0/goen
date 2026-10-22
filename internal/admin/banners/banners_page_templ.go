@@ -12,11 +12,11 @@ import (
 	"fmt"
 
 	"github.com/koopa0/goen/internal/i18n"
-	"github.com/koopa0/goen/internal/ui/layouts"
+	"github.com/koopa0/goen/internal/ui/frame"
 	"github.com/koopa0/goen/internal/ui/widget"
 )
 
-func Banners(p layouts.Page, v *BannersView) templ.Component {
+func Banners(p frame.Page, v *BannersView) templ.Component {
 	return templruntime.GeneratedTemplate(func(templ_7745c5c3_Input templruntime.GeneratedComponentInput) (templ_7745c5c3_Err error) {
 		templ_7745c5c3_W, ctx := templ_7745c5c3_Input.Writer, templ_7745c5c3_Input.Context
 		if templ_7745c5c3_CtxErr := ctx.Err(); templ_7745c5c3_CtxErr != nil {
@@ -92,11 +92,11 @@ func Banners(p layouts.Page, v *BannersView) templ.Component {
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
-			templ_7745c5c3_Err = layouts.Announce(v.Notice).Render(ctx, templ_7745c5c3_Buffer)
+			templ_7745c5c3_Err = frame.Announce(v.Notice).Render(ctx, templ_7745c5c3_Buffer)
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
-			templ_7745c5c3_Err = layouts.RefusalSummary(layouts.SummarizeRefusal(i18n.KeyAdminRefusalBanner, v.Errors, layouts.RefusalField{Key: "message", ID: "b-message"}, layouts.RefusalField{Key: "short", ID: "b-short"}, layouts.RefusalField{Key: "message_en", ID: "b-message-en"}, layouts.RefusalField{Key: "short_en", ID: "b-short-en"}, layouts.RefusalField{Key: "cta", ID: "b-cta-href"}, layouts.RefusalField{Key: "days", ID: "b-days"})).Render(ctx, templ_7745c5c3_Buffer)
+			templ_7745c5c3_Err = frame.RefusalSummary(frame.SummarizeRefusal(i18n.KeyAdminRefusalBanner, v.Errors, frame.RefusalField{Key: "message", ID: "b-message"}, frame.RefusalField{Key: "short", ID: "b-short"}, frame.RefusalField{Key: "message_en", ID: "b-message-en"}, frame.RefusalField{Key: "short_en", ID: "b-short-en"}, frame.RefusalField{Key: "cta", ID: "b-cta-href"}, frame.RefusalField{Key: "days", ID: "b-days"})).Render(ctx, templ_7745c5c3_Buffer)
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
@@ -959,7 +959,7 @@ func Banners(p layouts.Page, v *BannersView) templ.Component {
 			}
 			return nil
 		})
-		templ_7745c5c3_Err = layouts.Admin(p, "banners").Render(templ.WithChildren(ctx, templ_7745c5c3_Var2), templ_7745c5c3_Buffer)
+		templ_7745c5c3_Err = frame.Admin(p, "banners").Render(templ.WithChildren(ctx, templ_7745c5c3_Var2), templ_7745c5c3_Buffer)
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}

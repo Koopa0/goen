@@ -7,7 +7,7 @@ import (
 	"testing"
 
 	"github.com/koopa0/goen/internal/i18n"
-	"github.com/koopa0/goen/internal/ui/layouts"
+	"github.com/koopa0/goen/internal/ui/frame"
 )
 
 // testWindows are not the shop's windows: a page that typed its own number
@@ -27,7 +27,7 @@ func TestPolicyPaymentDeadlines(t *testing.T) {
 			t.Parallel()
 			ctx := i18n.WithLocale(t.Context(), tc.locale)
 			var out strings.Builder
-			if err := DocPage(layouts.Page{}, policies["payment"].For(tc.locale, testWindows)).Render(ctx, &out); err != nil {
+			if err := DocPage(frame.Page{}, policies["payment"].For(tc.locale, testWindows)).Render(ctx, &out); err != nil {
 				t.Fatal(err)
 			}
 			want := fmt.Sprintf(tc.want, "61", "28")
@@ -55,7 +55,7 @@ func TestShippingPolicyDeadlinesAndSurcharge(t *testing.T) {
 				Surcharges: []ZoneSurcharge{{Name: "Outlying islands", Cents: 10000}},
 			}
 			var out strings.Builder
-			if err := Shipping(layouts.Page{}, ShippingView{Methods: []ShippingMethod{method}, Windows: testWindows}).Render(ctx, &out); err != nil {
+			if err := Shipping(frame.Page{}, ShippingView{Methods: []ShippingMethod{method}, Windows: testWindows}).Render(ctx, &out); err != nil {
 				t.Fatal(err)
 			}
 			for _, want := range []string{
@@ -83,7 +83,7 @@ func TestWarrantyRegistrationNamesTheOrderPage(t *testing.T) {
 			t.Parallel()
 			ctx := i18n.WithLocale(t.Context(), tc.locale)
 			var out strings.Builder
-			if err := DocPage(layouts.Page{}, policies["warranty"].For(tc.locale, testWindows)).Render(ctx, &out); err != nil {
+			if err := DocPage(frame.Page{}, policies["warranty"].For(tc.locale, testWindows)).Render(ctx, &out); err != nil {
 				t.Fatal(err)
 			}
 			if !strings.Contains(html.UnescapeString(out.String()), tc.want) {

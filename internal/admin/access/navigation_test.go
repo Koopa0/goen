@@ -16,7 +16,7 @@ import (
 
 	"github.com/koopa0/goen/internal/admin/access"
 	"github.com/koopa0/goen/internal/i18n"
-	"github.com/koopa0/goen/internal/ui/layouts"
+	"github.com/koopa0/goen/internal/ui/frame"
 	"github.com/koopa0/goen/internal/user"
 )
 
@@ -30,11 +30,11 @@ func TestStaffNavigationOnlyOmitsTheAdminOnlyDestination(t *testing.T) {
 			for _, role := range []string{"staff", "admin"} {
 				ctx := user.NewContext(i18n.WithLocale(t.Context(), locale), user.User{Role: user.Role(role)})
 				// A stale presentation hint must not override the authenticated role.
-				ctx = layouts.WithAdmin(ctx, true)
+				ctx = frame.WithAdmin(ctx, true)
 				req := httptest.NewRequestWithContext(ctx, http.MethodGet, "/admin/orders", http.NoBody)
 				res := httptest.NewRecorder()
 				c.RequireStaff(func(w http.ResponseWriter, r *http.Request) {
-					if err := layouts.Admin(layouts.Page{}, "orders").Render(r.Context(), w); err != nil {
+					if err := frame.Admin(frame.Page{}, "orders").Render(r.Context(), w); err != nil {
 						t.Error(err)
 					}
 				})(res, req)
@@ -93,11 +93,11 @@ func TestHealthCountIsReadOnlyAfterStaffAndSecondFactorChecks(t *testing.T) {
 			if tt.role != "" {
 				ctx = user.NewContext(ctx, user.User{Role: user.Role(tt.role)})
 			}
-			ctx = layouts.WithHealthTaskCount(ctx, 99, true)
+			ctx = frame.WithHealthTaskCount(ctx, 99, true)
 			req := httptest.NewRequestWithContext(ctx, http.MethodGet, "/admin/products", http.NoBody)
 			res := httptest.NewRecorder()
 			c.RequireStaff(func(w http.ResponseWriter, r *http.Request) {
-				if err := layouts.Admin(layouts.Page{}, "products").Render(r.Context(), w); err != nil {
+				if err := frame.Admin(frame.Page{}, "products").Render(r.Context(), w); err != nil {
 					t.Error(err)
 				}
 			})(res, req)
@@ -161,7 +161,7 @@ func TestBlockedHealthCountRendersAnUnavailableNavigation(t *testing.T) {
 				})
 				res := httptest.NewRecorder()
 				c.RequireStaff(func(w http.ResponseWriter, r *http.Request) {
-					if renderErr := layouts.Admin(layouts.Page{}, "products").Render(r.Context(), w); renderErr != nil {
+					if renderErr := frame.Admin(frame.Page{}, "products").Render(r.Context(), w); renderErr != nil {
 						t.Error(renderErr)
 					}
 				})(res, httptest.NewRequestWithContext(ctx, http.MethodGet, "/admin/products", http.NoBody))

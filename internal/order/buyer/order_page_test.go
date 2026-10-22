@@ -11,7 +11,7 @@ import (
 	"github.com/koopa0/goen/internal/order"
 	"github.com/koopa0/goen/internal/payment"
 	"github.com/koopa0/goen/internal/shipping"
-	"github.com/koopa0/goen/internal/ui/layouts"
+	"github.com/koopa0/goen/internal/ui/frame"
 )
 
 // TestCanCancelIsAboutFundingNotJustStatus holds that a captured order still at
@@ -52,7 +52,7 @@ func TestTheOrderPageShowsTheDiscountAndWhy(t *testing.T) {
 		ShippingName: "宅配",
 	}
 
-	html := renderToString(t, Order(layouts.Page{Title: "訂單"}, v))
+	html := renderToString(t, Order(frame.Page{Title: "訂單"}, v))
 	for _, want := range []string{"SAVE200", "滿額折抵", "-NT$200"} {
 		if !strings.Contains(html, want) {
 			t.Errorf("the order summary does not mention %q", want)
@@ -63,7 +63,7 @@ func TestTheOrderPageShowsTheDiscountAndWhy(t *testing.T) {
 		Number: "GO-260101-000002", Status: "pending",
 		SubtotalCents: 100000, ShippingCents: 6000, ShippingName: "宅配",
 	}
-	if got := renderToString(t, Order(layouts.Page{Title: "訂單"}, plain)); strings.Contains(got, "-NT$0") {
+	if got := renderToString(t, Order(frame.Page{Title: "訂單"}, plain)); strings.Contains(got, "-NT$0") {
 		t.Error("an order with no discount renders a zero discount row")
 	}
 }
@@ -83,12 +83,12 @@ func TestACreditPaidOrdersCancelSaysItVoidsTheInvoice(t *testing.T) {
 	for _, locale := range []i18n.Locale{i18n.ZhHant, i18n.En} {
 		ctx := i18n.WithLocale(t.Context(), locale)
 		voids := templ.EscapeString(i18n.T(ctx, i18n.KeyOrderCancelVoidsInvoice))
-		if got := renderIn(t, locale, Order(layouts.Page{Title: "order"}, viewOf(106000, 0))); !strings.Contains(got, voids) {
+		if got := renderIn(t, locale, Order(frame.Page{Title: "order"}, viewOf(106000, 0))); !strings.Contains(got, voids) {
 			t.Errorf("%s: the cancel form of a credit-paid order does not say the invoice is voided", locale)
 		}
 		// Unpaid, part paid by credit, and free: none was owed an invoice.
 		for _, uninvoiced := range []*OrderView{viewOf(0, 106000), viewOf(6000, 100000), viewOf(0, 0)} {
-			if got := renderIn(t, locale, Order(layouts.Page{Title: "order"}, uninvoiced)); strings.Contains(got, voids) {
+			if got := renderIn(t, locale, Order(frame.Page{Title: "order"}, uninvoiced)); strings.Contains(got, voids) {
 				t.Errorf("%s: an order with %d credit owing %d says cancelling voids an invoice it never had",
 					locale, uninvoiced.CreditCents, uninvoiced.OwedCents)
 			}
@@ -119,7 +119,7 @@ func TestOnlyAnOrderThatOwesMoneyIsOfferedPayment(t *testing.T) {
 				SubtotalCents: 100000, ShippingCents: 6000, ShippingName: "宅配",
 				Committed: tt.committed, OwedCents: tt.owed, PaymentsEnabled: true,
 			}
-			html := renderToString(t, Order(layouts.Page{Title: "訂單"}, v))
+			html := renderToString(t, Order(frame.Page{Title: "訂單"}, v))
 
 			gotNotice := strings.Contains(html, "尚未付款")
 			gotLink := strings.Contains(html, "/orders/GO-260101-000009/pay")
@@ -142,7 +142,7 @@ func TestADeliveredOrderOffersReturnAndShowsCredit(t *testing.T) {
 		SubtotalCents: 100000, ShippingCents: 6000, ShippingName: "宅配",
 		CreditCents: 50000,
 	}
-	html := renderToString(t, Order(layouts.Page{Title: "訂單"}, v))
+	html := renderToString(t, Order(frame.Page{Title: "訂單"}, v))
 	if !strings.Contains(html, "/orders/GO-260101-000012/return") {
 		t.Error("a delivered order does not link to its return form")
 	}
@@ -187,7 +187,7 @@ func TestADeliveredOrderLinksToItsWarrantyForm(t *testing.T) {
 				v.Shipments = []OrderShipment{parcel}
 			}
 			v.Now = orderNow
-			html := renderToString(t, Order(layouts.Page{Title: "訂單"}, v))
+			html := renderToString(t, Order(frame.Page{Title: "訂單"}, v))
 
 			got := strings.Contains(html, "/account/warranty/GO-260101-000012")
 			if got != tt.want {
@@ -210,7 +210,7 @@ func TestGuestTokenViewerDoesNotSeeWarrantyLink(t *testing.T) {
 			RescissionEnds: orderDay(13), GoodwillEnds: orderDay(20), Lines: []OrderLine{line},
 		}},
 	}
-	html := renderToString(t, Order(layouts.Page{Title: "訂單"}, v))
+	html := renderToString(t, Order(frame.Page{Title: "訂單"}, v))
 	if strings.Contains(html, "/account/warranty/GO-260101-000012") {
 		t.Error("a guest-token viewer sees the account warranty registration link")
 	}
@@ -234,7 +234,7 @@ func TestAFullyFundedOrderIsNotAskedToPay(t *testing.T) {
 			"renders goes to a Stripe session that cannot be created")
 	}
 
-	html := renderToString(t, Order(layouts.Page{Title: "訂單"}, funded))
+	html := renderToString(t, Order(frame.Page{Title: "訂單"}, funded))
 	if strings.Contains(html, "/orders/"+funded.Number+"/pay") {
 		t.Error("the order page offers a payment link for an order that owes nothing")
 	}
@@ -261,7 +261,7 @@ func TestWithoutPaymentsTheOrderPageLeadsNowhereNearThePayPage(t *testing.T) {
 		Number: "GO-260101-000009", Status: order.FulfillmentPending,
 		SubtotalCents: 100000, ShippingCents: 6000, ShippingName: "宅配", OwedCents: 106000,
 	}
-	html := renderToString(t, Order(layouts.Page{Title: "訂單"}, unpaid))
+	html := renderToString(t, Order(frame.Page{Title: "訂單"}, unpaid))
 	if strings.Contains(html, "/orders/GO-260101-000009/pay") {
 		t.Error("the order page links to a payment page the shop cannot serve")
 	}
@@ -282,7 +282,7 @@ func TestTheOrderPageStatesItsOwnState(t *testing.T) {
 	ctx := i18n.WithLocale(t.Context(), i18n.ZhHant)
 	render := func(v *OrderView) string {
 		v.Number = "GO-260101-000020"
-		return renderToString(t, Order(layouts.Page{Title: "訂單"}, v))
+		return renderToString(t, Order(frame.Page{Title: "訂單"}, v))
 	}
 
 	delivered := render(&OrderView{Status: order.FulfillmentDelivered, Committed: true, SubtotalCents: 100000, OwedCents: 100000})
@@ -368,7 +368,7 @@ func TestShowCancelKeepsTheOrderFundingAndHoldFacts(t *testing.T) {
 
 func TestTheOrderHistoryHidesAShippedEventsNote(t *testing.T) {
 	t.Parallel()
-	page := renderToString(t, Order(layouts.Page{Title: "o"}, &OrderView{
+	page := renderToString(t, Order(frame.Page{Title: "o"}, &OrderView{
 		Status: order.FulfillmentCancelled,
 		Timeline: []OrderEvent{
 			{Kind: order.EventShipped, Note: "shipped-note-text"},
@@ -392,7 +392,7 @@ func TestAPaidOrderIsNotBadgedAwaitingPaymentInTheAccount(t *testing.T) {
 		SubtotalCents: 100000, ShippingCents: 6000, ShippingName: "宅配",
 		Committed: true, OwedCents: 106000,
 	}
-	html := renderToString(t, Order(layouts.Page{Title: "訂單"}, view))
+	html := renderToString(t, Order(frame.Page{Title: "訂單"}, view))
 	if strings.Contains(html, "尚未付款") {
 		t.Error("the canonical order page tells a paid customer their order is unpaid")
 	}

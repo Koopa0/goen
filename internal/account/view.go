@@ -12,7 +12,7 @@ import (
 	"github.com/koopa0/goen/internal/loyalty"
 	"github.com/koopa0/goen/internal/order"
 	"github.com/koopa0/goen/internal/shoptime"
-	"github.com/koopa0/goen/internal/ui/layouts"
+	"github.com/koopa0/goen/internal/ui/frame"
 	"github.com/koopa0/goen/internal/ui/widget"
 )
 
@@ -211,8 +211,8 @@ func (v *View) addressLabelAttrs() templ.Attributes {
 	return attrs
 }
 
-func Meta(ctx context.Context) layouts.Page {
-	return layouts.Page{Title: i18n.T(ctx, i18n.KeyAccountTitle)}
+func Meta(ctx context.Context) frame.Page {
+	return frame.Page{Title: i18n.T(ctx, i18n.KeyAccountTitle)}
 }
 
 func (v *View) DisplayName() string {

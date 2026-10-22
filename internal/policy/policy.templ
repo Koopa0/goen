@@ -4,11 +4,11 @@ import (
 	"fmt"
 
 	"github.com/koopa0/goen/internal/i18n"
-	"github.com/koopa0/goen/internal/ui/layouts"
+	"github.com/koopa0/goen/internal/ui/frame"
 )
 
-templ DocPage(p layouts.Page, doc Doc) {
-	@layouts.Base(p) {
+templ DocPage(p frame.Page, doc Doc) {
+	@frame.Base(p) {
 		<div class="goen-doc">
 			<div class="goen-pagehead goen-doc__head">
 				<p class="goen-pagehead__eyebrow">{ i18n.T(ctx, i18n.KeyPolicyEyebrow) }</p>
@@ -42,8 +42,8 @@ templ DocPage(p layouts.Page, doc Doc) {
 	}
 }
 
-templ Shipping(p layouts.Page, v ShippingView) {
-	@layouts.Base(p) {
+templ Shipping(p frame.Page, v ShippingView) {
+	@frame.Base(p) {
 		<div class="goen-doc">
 			<div class="goen-pagehead goen-doc__head">
 				<p class="goen-pagehead__eyebrow">{ i18n.T(ctx, i18n.KeyPolicyEyebrow) }</p>

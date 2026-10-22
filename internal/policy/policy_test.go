@@ -16,7 +16,7 @@ import (
 	"github.com/koopa0/goen/internal/invoice/issuer"
 	"github.com/koopa0/goen/internal/order/access"
 	"github.com/koopa0/goen/internal/shipping/storemap"
-	"github.com/koopa0/goen/internal/ui/layouts"
+	"github.com/koopa0/goen/internal/ui/frame"
 )
 
 // TestHomeRefundTimingDoesNotOutrunReturns holds the home trust strip to the
@@ -518,7 +518,7 @@ func renderReturnsPolicy(t *testing.T, locale i18n.Locale) string {
 	doc = doc.For(locale, testWindows)
 	var b strings.Builder
 	if err := DocPage(
-		layouts.Page{Title: doc.Title, Description: doc.Summary},
+		frame.Page{Title: doc.Title, Description: doc.Summary},
 		doc,
 	).Render(i18n.WithLocale(t.Context(), locale), &b); err != nil {
 		t.Fatalf("render /returns: %v", err)

@@ -10,13 +10,13 @@ import (
 	"github.com/koopa0/goen/internal/admin/audit"
 	"github.com/koopa0/goen/internal/i18n"
 	"github.com/koopa0/goen/internal/keyset"
-	"github.com/koopa0/goen/internal/ui/layouts"
+	"github.com/koopa0/goen/internal/ui/frame"
 )
 
 func TestEveryAdminEmptyPageKeepsItsRestartLink(t *testing.T) {
 	t.Parallel()
 	b := keyset.Bound{PastEnd: true, First: "/admin/products?q=test"}
-	p := layouts.Page{Title: "Pagination"}
+	p := frame.Page{Title: "Pagination"}
 	cases := map[string]templ.Component{
 		"audit": audit.Audit(p, audit.View{Bound: b}),
 	}

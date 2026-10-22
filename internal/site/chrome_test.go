@@ -13,7 +13,7 @@ import (
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgconn"
 
-	"github.com/koopa0/goen/internal/ui/layouts"
+	"github.com/koopa0/goen/internal/ui/frame"
 )
 
 // ctxErrDB fails every statement with the caller's context error, as pgx does
@@ -88,7 +88,7 @@ func TestAFailedDealsReadHidesTheLinkAndIsLogged(t *testing.T) {
 	logs := &bytes.Buffer{}
 	h := &Handler{log: slog.New(slog.NewTextHandler(logs, nil)), deals: failingDeals{err: errors.New("down")}}
 	got := h.dealsOnOffer(t.Context())
-	if got || layouts.HasDeals(withNav(t.Context(), nil, got)) {
+	if got || frame.HasDeals(withNav(t.Context(), nil, got)) {
 		t.Error("a failed deals read still offers the link")
 	}
 	if logs.Len() == 0 {

@@ -7,14 +7,14 @@ import (
 	"github.com/koopa0/goen/internal/i18n"
 	"github.com/koopa0/goen/internal/shoptime"
 	"github.com/koopa0/goen/internal/ui/fieldrule"
+	"github.com/koopa0/goen/internal/ui/frame"
 	"github.com/koopa0/goen/internal/ui/icons"
-	"github.com/koopa0/goen/internal/ui/layouts"
 	"github.com/koopa0/goen/internal/ui/tile"
 	"github.com/koopa0/goen/internal/ui/widget"
 )
 
-templ Product(p layouts.Page, v *ProductView) {
-	@layouts.Base(awaiting(p, layouts.AwaitGallery)) {
+templ Product(p frame.Page, v *ProductView) {
+	@frame.Base(awaiting(p, frame.AwaitGallery)) {
 		<div class="goen-pdp">
 			<div class="goen-pdp__intro">
 				@widget.Breadcrumb(widget.BreadcrumbProps{

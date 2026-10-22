@@ -5,7 +5,7 @@ import (
 	"testing"
 
 	"github.com/koopa0/goen/internal/i18n"
-	"github.com/koopa0/goen/internal/ui/layouts"
+	"github.com/koopa0/goen/internal/ui/frame"
 )
 
 func TestTheNewProductSectionIsNotNamedLikeItsFirstField(t *testing.T) {
@@ -17,7 +17,7 @@ func TestTheNewProductSectionIsNotNamedLikeItsFirstField(t *testing.T) {
 		t.Run(tt.locale.Tag(), func(t *testing.T) {
 			t.Parallel()
 			ctx := i18n.WithLocale(t.Context(), tt.locale)
-			body := renderComponent(t, ctx, ProductForm(layouts.Page{Title: "Product"}, ProductView{IsNew: true}))
+			body := renderComponent(t, ctx, ProductForm(frame.Page{Title: "Product"}, ProductView{IsNew: true}))
 			if want := `<h2 class="goen-admin__heading">` + tt.heading + `</h2>`; !strings.Contains(body, want) {
 				t.Errorf("new product page lacks %q", want)
 			}
@@ -32,7 +32,7 @@ func TestAnExampleIsItsOwnHintLine(t *testing.T) {
 	t.Parallel()
 	ctx := i18n.WithLocale(t.Context(), i18n.ZhHant)
 	pages := map[string]string{
-		"product": renderComponent(t, ctx, ProductForm(layouts.Page{Title: "Product"}, ProductView{IsNew: true})),
+		"product": renderComponent(t, ctx, ProductForm(frame.Page{Title: "Product"}, ProductView{IsNew: true})),
 	}
 	for name, body := range pages {
 		if strings.Contains(body, "。 ") {
@@ -60,7 +60,7 @@ func TestEveryExampleHintReadsInFull(t *testing.T) {
 				body     string
 				examples []string
 			}{
-				"product": {renderComponent(t, ctx, ProductForm(layouts.Page{Title: "Product"}, ProductView{IsNew: true})), []string{"ceramic-mug"}},
+				"product": {renderComponent(t, ctx, ProductForm(frame.Page{Title: "Product"}, ProductView{IsNew: true})), []string{"ceramic-mug"}},
 			} {
 				for _, e := range c.examples {
 					if want := tt.sentence(e); !strings.Contains(c.body, want) {

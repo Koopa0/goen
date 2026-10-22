@@ -9,7 +9,7 @@ import (
 
 	"github.com/koopa0/goen/internal/credit"
 	"github.com/koopa0/goen/internal/i18n"
-	"github.com/koopa0/goen/internal/ui/layouts"
+	"github.com/koopa0/goen/internal/ui/frame"
 )
 
 var inputTag = regexp.MustCompile(`<input[^>]*>`)
@@ -25,7 +25,7 @@ func TestCreditConfirmationShowsWhatWillBeGranted(t *testing.T) {
 			BalanceCents: 34000, GrantCents: 12500, Amount: "125", Reason: "goodwill for a late parcel", OperationID: "op-1",
 		}
 		var body strings.Builder
-		if err := Credit(layouts.Page{Title: "credit"}, v).Render(ctx, &body); err != nil {
+		if err := Credit(frame.Page{Title: "credit"}, v).Render(ctx, &body); err != nil {
 			t.Fatal(err)
 		}
 		visible := inputTag.ReplaceAllString(body.String(), "")
@@ -68,7 +68,7 @@ func TestCreditLedgerLabelsEachKindAndKeepsStaffText(t *testing.T) {
 		ctx := i18n.WithLocale(t.Context(), tt.locale)
 		var body strings.Builder
 		v := CreditView{Rows: []CreditEntry{{Email: "a@example.test", AmountCents: -500, Kind: tt.kind, Reason: tt.reason}}}
-		if err := Credit(layouts.Page{Title: "credit"}, v).Render(ctx, &body); err != nil {
+		if err := Credit(frame.Page{Title: "credit"}, v).Render(ctx, &body); err != nil {
 			t.Fatal(err)
 		}
 		if !strings.Contains(body.String(), "<td>"+tt.want+"</td>") {
@@ -87,7 +87,7 @@ func TestCreditLinksEachRowToItsSources(t *testing.T) {
 	}}
 	for _, locale := range i18n.Locales() {
 		ctx := i18n.WithLocale(t.Context(), locale)
-		body := renderComponent(t, ctx, Credit(layouts.Page{Title: "credit"}, view))
+		body := renderComponent(t, ctx, Credit(frame.Page{Title: "credit"}, view))
 		for name, want := range map[string]string{
 			"customer link":   `href="/admin/customers/customer-a"`,
 			"order link":      `href="/admin/orders/GO-261009-000001"`,
@@ -118,7 +118,7 @@ func TestCreditRunningTotalNamesItsOrder(t *testing.T) {
 	}
 	for _, locale := range i18n.Locales() {
 		ctx := i18n.WithLocale(t.Context(), locale)
-		doc, err := html.Parse(strings.NewReader(renderComponent(t, ctx, Credit(layouts.Page{}, view))))
+		doc, err := html.Parse(strings.NewReader(renderComponent(t, ctx, Credit(frame.Page{}, view))))
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -152,7 +152,7 @@ func TestCreditRunningTotalNamesItsOrder(t *testing.T) {
 		}) {
 			t.Errorf("%s one customer's ledger repeats the customer column", locale.Tag())
 		}
-		body := renderComponent(t, ctx, Credit(layouts.Page{}, view))
+		body := renderComponent(t, ctx, Credit(frame.Page{}, view))
 		for _, want := range []string{`<td class="goen-admin__cellnum">NT$100</td>`, `href="/admin/customers/customer-a">Ada</a>`, `href="/admin/credits">` + html.EscapeString(i18n.T(ctx, i18n.KeyAdminCreditAllCustomers))} {
 			if !strings.Contains(body, want) {
 				t.Errorf("%s one customer's ledger lacks %q", locale.Tag(), want)
@@ -167,7 +167,7 @@ func TestCreditRunningTotalNamesItsOrder(t *testing.T) {
 func TestCreditMarksItsMenuLinkCurrent(t *testing.T) {
 	t.Parallel()
 	ctx := i18n.WithLocale(t.Context(), i18n.En)
-	doc, err := html.Parse(strings.NewReader(renderComponent(t, ctx, Credit(layouts.Page{}, CreditView{}))))
+	doc, err := html.Parse(strings.NewReader(renderComponent(t, ctx, Credit(frame.Page{}, CreditView{}))))
 	if err != nil {
 		t.Fatal(err)
 	}

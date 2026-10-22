@@ -10,7 +10,7 @@ import (
 	"github.com/google/go-cmp/cmp"
 
 	"github.com/koopa0/goen/internal/i18n"
-	"github.com/koopa0/goen/internal/ui/layouts"
+	"github.com/koopa0/goen/internal/ui/frame"
 	"github.com/koopa0/goen/internal/web/formtext"
 )
 
@@ -48,7 +48,7 @@ func TestDeliveryRefusalShowsAnAbsentControlsReason(t *testing.T) {
 					{Field: tc.field, MessageKey: i18n.KeyFieldHasControlChars},
 				})
 				var rendered strings.Builder
-				if err := Order(layouts.Page{Title: view.Number}, &view).Render(ctx, &rendered); err != nil {
+				if err := Order(frame.Page{Title: view.Number}, &view).Render(ctx, &rendered); err != nil {
 					t.Fatal(err)
 				}
 				body := rendered.String()
@@ -88,7 +88,7 @@ func TestDeliveryRefusalKeepsVisibleErrorsBesideTheirControls(t *testing.T) {
 					{Field: "phone", MessageKey: i18n.KeyPhoneRequired},
 				})
 				var rendered strings.Builder
-				if err := Order(layouts.Page{}, &view).Render(ctx, &rendered); err != nil {
+				if err := Order(frame.Page{}, &view).Render(ctx, &rendered); err != nil {
 					t.Fatal(err)
 				}
 				body := rendered.String()

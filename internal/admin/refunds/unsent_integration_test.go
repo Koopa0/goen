@@ -33,7 +33,7 @@ import (
 	"github.com/koopa0/goen/internal/order/returns"
 	"github.com/koopa0/goen/internal/outbox"
 	"github.com/koopa0/goen/internal/payment/refund"
-	"github.com/koopa0/goen/internal/ui/layouts"
+	"github.com/koopa0/goen/internal/ui/frame"
 	"github.com/koopa0/goen/internal/ui/widget"
 )
 
@@ -573,7 +573,7 @@ func TestTheReturnsQueueSendsAnUnsentRefundToItsOrder(t *testing.T) {
 	}
 	var page strings.Builder
 	zh := i18n.WithLocale(ctx, i18n.ZhHant)
-	if err := returndesk.Returns(layouts.Page{Title: "returns"}, returndesk.ReturnsView{Rows: []returndesk.Return{row}}).Render(zh, &page); err != nil {
+	if err := returndesk.Returns(frame.Page{Title: "returns"}, returndesk.ReturnsView{Rows: []returndesk.Return{row}}).Render(zh, &page); err != nil {
 		t.Fatalf("render the queue: %v", err)
 	}
 	door := `<a href="/admin/orders/` + o.Number + `">` + i18n.T(zh, i18n.KeyAdminUnsentTitle) + `</a>`

@@ -6,7 +6,7 @@ import (
 
 	"github.com/koopa0/goen/assets"
 	"github.com/koopa0/goen/internal/i18n"
-	"github.com/koopa0/goen/internal/ui/layouts"
+	"github.com/koopa0/goen/internal/ui/frame"
 	"github.com/koopa0/goen/internal/ui/widget"
 )
 
@@ -15,7 +15,7 @@ const seedBanner = "campaign-banner-01.webp"
 func TestCampaignImageFormFlagsAWrongFieldForAssistiveTech(t *testing.T) {
 	t.Parallel()
 	ctx := i18n.WithLocale(t.Context(), i18n.En)
-	page := renderComponent(t, ctx, CampaignForm(layouts.Page{Title: "c"}, CampaignView{
+	page := renderComponent(t, ctx, CampaignForm(frame.Page{Title: "c"}, CampaignView{
 		Slug:   "c",
 		Errors: map[string]string{"alt": "alt needed", "image": "not an image"},
 		Image:  widget.HeaderImage{Image: assets.Image{BundledKey: seedBanner, Width: 1600}, Alt: "Products on sale"},
@@ -36,7 +36,7 @@ func TestCampaignImageFormFlagsAWrongFieldForAssistiveTech(t *testing.T) {
 func TestTheCampaignPageIsTitledAndEditsItsDatesAndAddsProductsBySearch(t *testing.T) {
 	t.Parallel()
 	ctx := i18n.WithLocale(t.Context(), i18n.ZhHant)
-	page := renderComponent(t, ctx, CampaignForm(layouts.Page{Title: "c"}, CampaignView{
+	page := renderComponent(t, ctx, CampaignForm(frame.Page{Title: "c"}, CampaignView{
 		Slug: "autumn-picks",
 		CampaignDetail: CampaignDetail{
 			Title: "秋季精選", StartsAtInput: "2026-10-01T09:00", EndsAtInput: "2026-10-31T23:59", Active: true,

@@ -4,8 +4,8 @@ import (
 	"fmt"
 
 	"github.com/koopa0/goen/internal/i18n"
+	"github.com/koopa0/goen/internal/ui/frame"
 	"github.com/koopa0/goen/internal/ui/icons"
-	"github.com/koopa0/goen/internal/ui/layouts"
 	"github.com/koopa0/goen/internal/ui/widget"
 )
 
@@ -14,8 +14,8 @@ import (
 // The list keeps the class the layout gate finds the page by
 // (scripts/check-layout.mjs): it marks the page on the LIST, so a run that rendered
 // only the form cannot report the page as covered.
-templ FAQ(p layouts.Page, v *FAQView) {
-	@layouts.Admin(p, "faq") {
+templ FAQ(p frame.Page, v *FAQView) {
+	@frame.Admin(p, "faq") {
 		<div class="ui-page-head">
 			<div>
 				<p class="ui-page-head__eyebrow">{ i18n.T(ctx, i18n.KeyAdminEyebrow) }</p>
@@ -25,10 +25,10 @@ templ FAQ(p layouts.Page, v *FAQView) {
 				</p>
 			</div>
 		</div>
-		@layouts.Announce(v.Notice)
-		@layouts.RefusalSummary(layouts.SummarizeRefusal(i18n.KeyAdminFaqpAdd, v.Errors, layouts.RefusalField{Key: "category", ID: "faq-category"}, layouts.RefusalField{Key: "question", ID: "faq-question"}, layouts.RefusalField{Key: "answer", ID: "faq-answer"}, layouts.RefusalField{Key: "question_en", ID: "faq-question-en"}, layouts.RefusalField{Key: "answer_en", ID: "faq-answer-en"}))
-		@layouts.RefusalSummary(layouts.SummarizeRefusal(v.categoryRefusalForm(), v.CategoryErrors, layouts.RefusalField{Key: "name", ID: v.categoryFieldID("name")}, layouts.RefusalField{Key: "name_en", ID: v.categoryFieldID("name_en")}))
-		@layouts.RefusalSummary(layouts.SummarizeRefusal(i18n.KeyAdminRefusalFAQ, v.EditErrors, layouts.RefusalField{Key: "question", ID: "q-" + v.Edit.ID}, layouts.RefusalField{Key: "answer", ID: "a-" + v.Edit.ID}, layouts.RefusalField{Key: "question_en", ID: "qe-" + v.Edit.ID}, layouts.RefusalField{Key: "answer_en", ID: "ae-" + v.Edit.ID}))
+		@frame.Announce(v.Notice)
+		@frame.RefusalSummary(frame.SummarizeRefusal(i18n.KeyAdminFaqpAdd, v.Errors, frame.RefusalField{Key: "category", ID: "faq-category"}, frame.RefusalField{Key: "question", ID: "faq-question"}, frame.RefusalField{Key: "answer", ID: "faq-answer"}, frame.RefusalField{Key: "question_en", ID: "faq-question-en"}, frame.RefusalField{Key: "answer_en", ID: "faq-answer-en"}))
+		@frame.RefusalSummary(frame.SummarizeRefusal(v.categoryRefusalForm(), v.CategoryErrors, frame.RefusalField{Key: "name", ID: v.categoryFieldID("name")}, frame.RefusalField{Key: "name_en", ID: v.categoryFieldID("name_en")}))
+		@frame.RefusalSummary(frame.SummarizeRefusal(i18n.KeyAdminRefusalFAQ, v.EditErrors, frame.RefusalField{Key: "question", ID: "q-" + v.Edit.ID}, frame.RefusalField{Key: "answer", ID: "a-" + v.Edit.ID}, frame.RefusalField{Key: "question_en", ID: "qe-" + v.Edit.ID}, frame.RefusalField{Key: "answer_en", ID: "ae-" + v.Edit.ID}))
 		if v.Untranslated() > 0 {
 			@widget.Notice(widget.NoticeProps{Intent: widget.IntentWarn}) {
 				{ fmt.Sprintf(i18n.T(ctx, i18n.KeyAdminFaqpNoEnglish), untranslatedText(v)) }

@@ -2,15 +2,15 @@ package staff
 
 import (
 	"github.com/koopa0/goen/internal/i18n"
-	"github.com/koopa0/goen/internal/ui/layouts"
+	"github.com/koopa0/goen/internal/ui/frame"
 	"github.com/koopa0/goen/internal/ui/widget"
 )
 
 // Each row's two writes are two forms of one field each, so revoking somebody carries
 // their id and nothing else: one form with a name attribute per button would let a
 // browser that submits the wrong one act on the wrong person.
-templ Staff(p layouts.Page, v StaffView) {
-	@layouts.Admin(p, "staff") {
+templ Staff(p frame.Page, v StaffView) {
+	@frame.Admin(p, "staff") {
 		<div class="ui-page-head">
 			<div>
 				<p class="ui-page-head__eyebrow">{ i18n.T(ctx, i18n.KeyAdminEyebrow) }</p>
@@ -22,7 +22,7 @@ templ Staff(p layouts.Page, v StaffView) {
 				}
 			</div>
 		</div>
-		@layouts.Announce(v.Notice)
+		@frame.Announce(v.Notice)
 		if v.NoKey {
 			@widget.Notice(widget.NoticeProps{Intent: widget.IntentWarn}) {
 				{ i18n.T(ctx, i18n.KeyTOTPNoKeyNotice) }

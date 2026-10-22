@@ -4,12 +4,12 @@ import (
 	"fmt"
 
 	"github.com/koopa0/goen/internal/i18n"
-	"github.com/koopa0/goen/internal/ui/layouts"
+	"github.com/koopa0/goen/internal/ui/frame"
 	"github.com/koopa0/goen/internal/ui/widget"
 )
 
-templ Warranties(p layouts.Page, v WarrantiesView) {
-	@layouts.Admin(p, "warranties") {
+templ Warranties(p frame.Page, v WarrantiesView) {
+	@frame.Admin(p, "warranties") {
 		<div class="ui-page-head">
 			<div>
 				<p class="ui-page-head__eyebrow">{ i18n.T(ctx, i18n.KeyAdminEyebrow) }</p>

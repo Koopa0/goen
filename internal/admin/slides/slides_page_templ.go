@@ -12,11 +12,11 @@ import (
 	"fmt"
 
 	"github.com/koopa0/goen/internal/i18n"
-	"github.com/koopa0/goen/internal/ui/layouts"
+	"github.com/koopa0/goen/internal/ui/frame"
 	"github.com/koopa0/goen/internal/ui/widget"
 )
 
-func Slides(p layouts.Page, v *HeroView) templ.Component {
+func Slides(p frame.Page, v *HeroView) templ.Component {
 	return templruntime.GeneratedTemplate(func(templ_7745c5c3_Input templruntime.GeneratedComponentInput) (templ_7745c5c3_Err error) {
 		templ_7745c5c3_W, ctx := templ_7745c5c3_Input.Writer, templ_7745c5c3_Input.Context
 		if templ_7745c5c3_CtxErr := ctx.Err(); templ_7745c5c3_CtxErr != nil {
@@ -92,11 +92,11 @@ func Slides(p layouts.Page, v *HeroView) templ.Component {
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
-			templ_7745c5c3_Err = layouts.Announce(v.Notice).Render(ctx, templ_7745c5c3_Buffer)
+			templ_7745c5c3_Err = frame.Announce(v.Notice).Render(ctx, templ_7745c5c3_Buffer)
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
-			templ_7745c5c3_Err = layouts.RefusalSummary(layouts.SummarizeRefusal(i18n.KeyAdminRefusalHero, v.Errors, layouts.RefusalField{Key: "headline", ID: "h-headline"}, layouts.RefusalField{Key: "primary", ID: "h-plabel"}, layouts.RefusalField{Key: "alt", ID: "h-alt"}, layouts.RefusalField{Key: "primaryhref", ID: "h-phref"}, layouts.RefusalField{Key: "second", ID: "h-shref"}, layouts.RefusalField{Key: "image", ID: "h-image"}, layouts.RefusalField{Key: "days", ID: "h-days"})).Render(ctx, templ_7745c5c3_Buffer)
+			templ_7745c5c3_Err = frame.RefusalSummary(frame.SummarizeRefusal(i18n.KeyAdminRefusalHero, v.Errors, frame.RefusalField{Key: "headline", ID: "h-headline"}, frame.RefusalField{Key: "primary", ID: "h-plabel"}, frame.RefusalField{Key: "alt", ID: "h-alt"}, frame.RefusalField{Key: "primaryhref", ID: "h-phref"}, frame.RefusalField{Key: "second", ID: "h-shref"}, frame.RefusalField{Key: "image", ID: "h-image"}, frame.RefusalField{Key: "days", ID: "h-days"})).Render(ctx, templ_7745c5c3_Buffer)
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
@@ -1272,7 +1272,7 @@ func Slides(p layouts.Page, v *HeroView) templ.Component {
 			}
 			return nil
 		})
-		templ_7745c5c3_Err = layouts.Admin(p, "slides").Render(templ.WithChildren(ctx, templ_7745c5c3_Var2), templ_7745c5c3_Buffer)
+		templ_7745c5c3_Err = frame.Admin(p, "slides").Render(templ.WithChildren(ctx, templ_7745c5c3_Var2), templ_7745c5c3_Buffer)
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}

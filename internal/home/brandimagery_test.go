@@ -7,7 +7,7 @@ import (
 	"github.com/a-h/templ"
 
 	"github.com/koopa0/goen/internal/i18n"
-	"github.com/koopa0/goen/internal/ui/layouts"
+	"github.com/koopa0/goen/internal/ui/frame"
 	"github.com/koopa0/goen/internal/ui/tone"
 	"github.com/koopa0/goen/internal/ui/widget"
 )
@@ -23,7 +23,7 @@ func renderIn(t *testing.T, locale i18n.Locale, c templ.Component) string {
 
 func TestHomeDepartmentCardsWearTheirToneAndPhotograph(t *testing.T) {
 	t.Parallel()
-	page := renderIn(t, i18n.ZhHant, Page(layouts.Page{}, View{Categories: []Category{
+	page := renderIn(t, i18n.ZhHant, Page(frame.Page{}, View{Categories: []Category{
 		{Slug: "tech", Name: "3C 數位", Tone: tone.Mist, Photo: widget.Photo{URL: "/static/media/products/department-tech.webp", Srcset: "/static/x-400.webp 400w"}},
 		{Slug: "unlisted", Name: "其他", Tone: tone.Stone},
 	}}))

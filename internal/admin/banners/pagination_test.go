@@ -9,7 +9,7 @@ import (
 
 	"github.com/koopa0/goen/internal/i18n"
 	"github.com/koopa0/goen/internal/keyset"
-	"github.com/koopa0/goen/internal/ui/layouts"
+	"github.com/koopa0/goen/internal/ui/frame"
 )
 
 func TestBannerHistoryHasLabelledNavigationInBothLanguages(t *testing.T) {
@@ -19,7 +19,7 @@ func TestBannerHistoryHasLabelledNavigationInBothLanguages(t *testing.T) {
 			t.Parallel()
 			ctx := i18n.WithLocale(t.Context(), locale)
 			view := BannersView{Bound: keyset.Bound{First: "/admin/banners#banner-history", Next: "/admin/banners?after=banner-token#banner-history"}}
-			doc, err := html.Parse(strings.NewReader(renderComponent(t, ctx, Banners(layouts.Page{}, &view))))
+			doc, err := html.Parse(strings.NewReader(renderComponent(t, ctx, Banners(frame.Page{}, &view))))
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -59,7 +59,7 @@ func TestBannerHistoryHasLabelledNavigationInBothLanguages(t *testing.T) {
 				t.Errorf("queue heading = %q, want %q", label, want)
 			}
 			view.Bound = keyset.Bound{PastEnd: true, First: "/admin/banners#banner-history"}
-			body := renderComponent(t, ctx, Banners(layouts.Page{}, &view))
+			body := renderComponent(t, ctx, Banners(frame.Page{}, &view))
 			if !strings.Contains(body, i18n.T(ctx, i18n.KeyPageEmpty)) {
 				t.Error("a past-end page must explain the empty page")
 			}

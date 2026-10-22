@@ -9,7 +9,7 @@ import (
 	"golang.org/x/net/html"
 
 	"github.com/koopa0/goen/internal/i18n"
-	"github.com/koopa0/goen/internal/ui/layouts"
+	"github.com/koopa0/goen/internal/ui/frame"
 	"github.com/koopa0/goen/internal/ui/uitest"
 )
 
@@ -24,7 +24,7 @@ func TestHeroImageRefusalRendersTheCompleteDraft(t *testing.T) {
 	for _, locale := range i18n.Locales() {
 		t.Run(locale.Tag(), func(t *testing.T) {
 			t.Parallel()
-			assertImageDraftControls(t, renderComponent(t, i18n.WithLocale(t.Context(), locale), Slides(layouts.Page{}, &v)), want, "h-image")
+			assertImageDraftControls(t, renderComponent(t, i18n.WithLocale(t.Context(), locale), Slides(frame.Page{}, &v)), want, "h-image")
 		})
 	}
 }
@@ -103,7 +103,7 @@ func TestAdminHeroTilesOfferTheSmallRendition(t *testing.T) {
 	digest := strings.Repeat("cd", 32)
 	v := &HeroView{Rows: []HeroSlide{{ID: "s", Headline: "h", ImageDigest: digest, Active: true}}}
 	var b strings.Builder
-	if err := Slides(layouts.Page{Title: "Slides"}, v).Render(i18n.WithLocale(t.Context(), i18n.En), &b); err != nil {
+	if err := Slides(frame.Page{Title: "Slides"}, v).Render(i18n.WithLocale(t.Context(), i18n.En), &b); err != nil {
 		t.Fatal(err)
 	}
 	for _, want := range []string{`src="/media/` + digest + `"`, `/media/` + digest + `/400 400w`, `sizes="160px"`} {
@@ -122,7 +122,7 @@ func TestARefusedSlideNamesItsFormAndLinksToTheFirstInvalidControl(t *testing.T)
 			t.Parallel()
 			ctx := i18n.WithLocale(t.Context(), locale)
 			bad := i18n.T(ctx, i18n.KeyAdminNoticeRefused)
-			body := renderComponent(t, ctx, Slides(layouts.Page{}, &HeroView{Errors: map[string]string{"headline": bad, "primary": bad}}))
+			body := renderComponent(t, ctx, Slides(frame.Page{}, &HeroView{Errors: map[string]string{"headline": bad, "primary": bad}}))
 			uitest.AssertRefusalSummary(t, body, uitest.RefusedForm{
 				Action: "/admin/slides#new-hero", Target: "new-hero", First: "h-headline",
 				Title: i18n.T(ctx, i18n.KeyAdminRefusalHero), Count: 2,

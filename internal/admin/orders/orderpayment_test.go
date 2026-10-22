@@ -6,7 +6,7 @@ import (
 
 	"github.com/koopa0/goen/internal/i18n"
 	"github.com/koopa0/goen/internal/order"
-	"github.com/koopa0/goen/internal/ui/layouts"
+	"github.com/koopa0/goen/internal/ui/frame"
 )
 
 func TestTheOrderPageShowsItsPaymentAndEveryRefund(t *testing.T) {
@@ -20,7 +20,7 @@ func TestTheOrderPageShowsItsPaymentAndEveryRefund(t *testing.T) {
 			{Channel: "退回購物金", Amount: "NT$1,870", At: "2026-10-01 09:05"},
 		},
 	}
-	html := renderComponent(t, ctx, Order(layouts.Page{}, &view))
+	html := renderComponent(t, ctx, Order(frame.Page{}, &view))
 
 	for _, want := range []string{
 		i18n.T(ctx, i18n.KeyAdminPayTitle), "Visa •••• 4242", "NT$3,070", "2026-09-30 10:15",
@@ -42,7 +42,7 @@ func TestAnOrderPaidWholeWithCreditSaysSoAndNeverNoPayment(t *testing.T) {
 			Payment: Payment{Method: i18n.T(ctx, i18n.KeyAdminPayMethodCredit)},
 			Next:    []Transition{{Value: order.FulfillmentPicking, Label: "picking"}},
 		}
-		html := renderComponent(t, ctx, Order(layouts.Page{}, &view))
+		html := renderComponent(t, ctx, Order(frame.Page{}, &view))
 		for name, want := range map[string]string{
 			"the payment method":  i18n.T(ctx, i18n.KeyAdminPayMethodCredit),
 			"the credit line":     i18n.T(ctx, i18n.KeyOrderCreditApplied),
@@ -64,7 +64,7 @@ func TestAnOrderPaidWholeWithCreditSaysSoAndNeverNoPayment(t *testing.T) {
 	t.Run("an order credit did not pay shows no credit line", func(t *testing.T) {
 		t.Parallel()
 		ctx := i18n.WithLocale(t.Context(), i18n.En)
-		html := renderComponent(t, ctx, Order(layouts.Page{}, &OrderView{Number: "GO-1", SubtotalCents: 50000, OwedCents: 50000}))
+		html := renderComponent(t, ctx, Order(frame.Page{}, &OrderView{Number: "GO-1", SubtotalCents: 50000, OwedCents: 50000}))
 		if strings.Contains(html, i18n.T(ctx, i18n.KeyOrderCreditApplied)) {
 			t.Error("an order with no credit shows a credit line")
 		}

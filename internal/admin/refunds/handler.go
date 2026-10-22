@@ -14,7 +14,7 @@ import (
 	"github.com/koopa0/goen/internal/order/returns"
 	"github.com/koopa0/goen/internal/payment"
 	"github.com/koopa0/goen/internal/payment/refund"
-	"github.com/koopa0/goen/internal/ui/layouts"
+	"github.com/koopa0/goen/internal/ui/frame"
 	"github.com/koopa0/goen/internal/web/formtext"
 	"github.com/koopa0/goen/internal/web/respond"
 )
@@ -152,7 +152,7 @@ func (h *Handler) confirmRefundBeforeShipment(w http.ResponseWriter, r *http.Req
 	default:
 		return false
 	}
-	respond.Component(w, r, h.log, status, ConfirmRefund(layouts.Page{Title: i18n.T(r.Context(), i18n.KeyAdminRefundTitle)}, view))
+	respond.Component(w, r, h.log, status, ConfirmRefund(frame.Page{Title: i18n.T(r.Context(), i18n.KeyAdminRefundTitle)}, view))
 	return true
 }
 

@@ -7,7 +7,7 @@ import (
 	"testing"
 
 	"github.com/koopa0/goen/internal/i18n"
-	"github.com/koopa0/goen/internal/ui/layouts"
+	"github.com/koopa0/goen/internal/ui/frame"
 	"github.com/koopa0/goen/internal/ui/widget"
 )
 
@@ -78,7 +78,7 @@ func TestARedirectedNoticeIsShownAsItsOwnOutcome(t *testing.T) {
 		req := httptest.NewRequestWithContext(ctx, http.MethodGet, "/admin/orders?"+tc.name+"=1", http.NoBody)
 		var page strings.Builder
 		view := View{Notice: widget.NoticeFrom(req, notices)}
-		if err := Orders(layouts.Page{Title: "orders"}, view).Render(ctx, &page); err != nil {
+		if err := Orders(frame.Page{Title: "orders"}, view).Render(ctx, &page); err != nil {
 			t.Fatal(err)
 		}
 		got := page.String()
@@ -109,7 +109,7 @@ func TestInvoicingOffHasItsOwnSentence(t *testing.T) {
 		req := httptest.NewRequestWithContext(ctx, http.MethodGet, "/admin/orders/G1?"+tc.query+"=1", http.NoBody)
 		var page strings.Builder
 		view := OrderView{Notice: widget.NoticeFrom(req, notices)}
-		if err := Order(layouts.Page{Title: "order"}, &view).Render(ctx, &page); err != nil {
+		if err := Order(frame.Page{Title: "order"}, &view).Render(ctx, &page); err != nil {
 			t.Fatal(err)
 		}
 		if got := strings.Contains(page.String(), off); got != tc.shown {

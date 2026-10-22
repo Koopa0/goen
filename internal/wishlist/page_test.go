@@ -8,7 +8,7 @@ import (
 
 	"github.com/koopa0/goen/internal/cart/cartitem"
 	"github.com/koopa0/goen/internal/i18n"
-	"github.com/koopa0/goen/internal/ui/layouts"
+	"github.com/koopa0/goen/internal/ui/frame"
 	"github.com/koopa0/goen/internal/ui/tile"
 )
 
@@ -64,7 +64,7 @@ func TestEachSavedProductIsOneWishlistListItem(t *testing.T) {
 
 func parseWishlistHTML(t *testing.T, view View) *html.Node {
 	t.Helper()
-	raw := renderToString(t, Page(layouts.Page{Title: "願望清單"}, view))
+	raw := renderToString(t, Page(frame.Page{Title: "願望清單"}, view))
 	doc, err := html.Parse(strings.NewReader(raw))
 	if err != nil {
 		t.Fatalf("parse wishlist HTML: %v", err)
@@ -264,12 +264,12 @@ func TestAddingFromTheWishlistStaysOnItAndSaysWhatHappened(t *testing.T) {
 		{cartitem.AddOutcomeFull, i18n.KeyCartLineLimit},
 	} {
 		ctx := i18n.WithLocale(t.Context(), i18n.ZhHant)
-		got := renderToString(t, Page(layouts.Page{}, View{Products: []Item{saved}, Added: tc.outcome}))
+		got := renderToString(t, Page(frame.Page{}, View{Products: []Item{saved}, Added: tc.outcome}))
 		if !strings.Contains(got, i18n.T(ctx, tc.want)) {
 			t.Errorf("outcome %q renders no %q", tc.outcome, tc.want)
 		}
 	}
-	plain := renderToString(t, Page(layouts.Page{}, View{Products: []Item{saved}}))
+	plain := renderToString(t, Page(frame.Page{}, View{Products: []Item{saved}}))
 	if strings.Contains(plain, `id="added"`) {
 		t.Error("a plain visit shows an add-to-cart notice")
 	}

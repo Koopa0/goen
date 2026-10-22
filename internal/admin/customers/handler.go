@@ -8,7 +8,7 @@ import (
 	"github.com/koopa0/goen/internal/admin/access"
 	"github.com/koopa0/goen/internal/i18n"
 	"github.com/koopa0/goen/internal/keyset"
-	"github.com/koopa0/goen/internal/ui/layouts"
+	"github.com/koopa0/goen/internal/ui/frame"
 	"github.com/koopa0/goen/internal/web/respond"
 )
 
@@ -37,7 +37,7 @@ func (h *Handler) Search(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	respond.Component(w, r, h.log, http.StatusOK, Customers(
-		layouts.Page{Title: i18n.T(r.Context(), i18n.KeyAdminPageCustomers)}, view))
+		frame.Page{Title: i18n.T(r.Context(), i18n.KeyAdminPageCustomers)}, view))
 }
 
 func (h *Handler) Profile(w http.ResponseWriter, r *http.Request) {
@@ -45,11 +45,11 @@ func (h *Handler) Profile(w http.ResponseWriter, r *http.Request) {
 	switch {
 	case err == nil:
 		respond.Component(w, r, h.log, http.StatusOK, Customer(
-			layouts.Page{Title: view.DisplayName()}, &view))
+			frame.Page{Title: view.DisplayName()}, &view))
 	case errors.Is(err, ErrNotFound):
-		respond.Component(w, r, h.log, http.StatusNotFound, layouts.MissingRecord(
-			layouts.Page{Title: i18n.T(r.Context(), i18n.KeyAdminMissingCustomer)},
-			layouts.MissingRecordView{Section: "customers", Heading: i18n.T(r.Context(), i18n.KeyAdminMissingCustomer), Body: i18n.T(r.Context(), i18n.KeyAdminNotFoundBody), BackLabel: i18n.KeyAdminBackCustomers}))
+		respond.Component(w, r, h.log, http.StatusNotFound, frame.MissingRecord(
+			frame.Page{Title: i18n.T(r.Context(), i18n.KeyAdminMissingCustomer)},
+			frame.MissingRecordView{Section: "customers", Heading: i18n.T(r.Context(), i18n.KeyAdminMissingCustomer), Body: i18n.T(r.Context(), i18n.KeyAdminNotFoundBody), BackLabel: i18n.KeyAdminBackCustomers}))
 	default:
 		h.log.ErrorContext(r.Context(), "read customer", "error", err)
 		access.ServerError(w, r, h.log)

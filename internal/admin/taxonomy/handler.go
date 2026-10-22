@@ -10,7 +10,7 @@ import (
 	"github.com/koopa0/goen/internal/admin/access"
 	"github.com/koopa0/goen/internal/i18n"
 	"github.com/koopa0/goen/internal/media"
-	"github.com/koopa0/goen/internal/ui/layouts"
+	"github.com/koopa0/goen/internal/ui/frame"
 	"github.com/koopa0/goen/internal/ui/widget"
 	"github.com/koopa0/goen/internal/web/formtext"
 	"github.com/koopa0/goen/internal/web/respond"
@@ -53,7 +53,7 @@ func (h *Handler) Page(w http.ResponseWriter, r *http.Request) {
 	}
 	view.Notice = widget.NoticeFrom(r, notices)
 	respond.Component(w, r, h.log, http.StatusOK, Taxonomy(
-		layouts.Page{Title: i18n.T(r.Context(), i18n.KeyAdminPageTaxonomy)}, &view))
+		frame.Page{Title: i18n.T(r.Context(), i18n.KeyAdminPageTaxonomy)}, &view))
 }
 
 // Create takes the kind from the path, which the router constrains, never from a form.
@@ -95,7 +95,7 @@ func (h *Handler) Create(w http.ResponseWriter, r *http.Request) {
 		view.Which, view.Errors = kind, errs
 		view.Draft = TaxonDraft(typed)
 		respond.Component(w, r, h.log, http.StatusUnprocessableEntity, Taxonomy(
-			layouts.Page{Title: i18n.T(r.Context(), i18n.KeyAdminPageTaxonomy)}, &view))
+			frame.Page{Title: i18n.T(r.Context(), i18n.KeyAdminPageTaxonomy)}, &view))
 	default:
 		http.Redirect(w, r, "/admin/taxonomy?ok=1", http.StatusSeeOther)
 	}
@@ -155,7 +155,7 @@ func (h *Handler) renderCategory(w http.ResponseWriter, r *http.Request, status 
 	if errs["image"] != "" || errs["alt"] != "" || errs["alt_en"] != "" {
 		view.ImageAltDraft, view.ImageAltEnDraft = r.PostFormValue("alt"), r.PostFormValue("alt_en")
 	}
-	respond.Component(w, r, h.log, status, CategoryForm(layouts.Page{Title: view.Name}, view))
+	respond.Component(w, r, h.log, status, CategoryForm(frame.Page{Title: view.Name}, view))
 }
 
 func (h *Handler) SetCategoryImage(w http.ResponseWriter, r *http.Request) {

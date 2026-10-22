@@ -8,7 +8,7 @@ import (
 
 	"github.com/koopa0/goen/internal/auth"
 	"github.com/koopa0/goen/internal/i18n"
-	"github.com/koopa0/goen/internal/ui/layouts"
+	"github.com/koopa0/goen/internal/ui/frame"
 	"github.com/koopa0/goen/internal/user"
 	"github.com/koopa0/goen/internal/web/formtext"
 	"github.com/koopa0/goen/internal/web/respond"
@@ -147,8 +147,8 @@ func (h *Handler) UpdateProfile(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *Handler) serverError(w http.ResponseWriter, r *http.Request) {
-	respond.Component(w, r, h.log, http.StatusInternalServerError, layouts.Notice(
-		layouts.Page{Title: i18n.T(r.Context(), i18n.KeyBusyTitle)}, "",
+	respond.Component(w, r, h.log, http.StatusInternalServerError, frame.Notice(
+		frame.Page{Title: i18n.T(r.Context(), i18n.KeyBusyTitle)}, "",
 		i18n.T(r.Context(), i18n.KeyBusyTitle),
 		i18n.T(r.Context(), i18n.KeyBusyBody)))
 }
@@ -279,10 +279,10 @@ func (h *Handler) refuseAddressEdit(w http.ResponseWriter, r *http.Request, id s
 }
 
 func (h *Handler) addressNotFound(w http.ResponseWriter, r *http.Request) {
-	respond.Component(w, r, h.log, http.StatusNotFound, layouts.Notice(
-		layouts.Page{Title: i18n.T(r.Context(), i18n.KeyPageNotFoundTitle)}, "404",
+	respond.Component(w, r, h.log, http.StatusNotFound, frame.Notice(
+		frame.Page{Title: i18n.T(r.Context(), i18n.KeyPageNotFoundTitle)}, "404",
 		i18n.T(r.Context(), i18n.KeyPageNotFound), i18n.T(r.Context(), i18n.KeyPageNotFoundBody),
-		layouts.NoticeActions{Primary: layouts.NoticeLink{Href: "/account#addresses-heading", Label: i18n.KeyAddresses}}))
+		frame.NoticeActions{Primary: frame.NoticeLink{Href: "/account#addresses-heading", Label: i18n.KeyAddresses}}))
 }
 
 func (h *Handler) MakeDefaultAddress(w http.ResponseWriter, r *http.Request) {

@@ -22,7 +22,7 @@ import (
 
 	"github.com/koopa0/goen/assets"
 	"github.com/koopa0/goen/internal/payment"
-	"github.com/koopa0/goen/internal/ui/layouts"
+	"github.com/koopa0/goen/internal/ui/frame"
 	"github.com/koopa0/goen/internal/user"
 	"github.com/koopa0/goen/internal/web/compress"
 	"github.com/koopa0/goen/internal/web/siteurl"
@@ -555,7 +555,7 @@ func TestOnlyAStaffMemberGetsTheBackOfficeEntrance(t *testing.T) {
 
 			var got bool
 			h := withStaffEntrance(http.HandlerFunc(func(_ http.ResponseWriter, r *http.Request) {
-				got = layouts.IsStaff(r.Context())
+				got = frame.IsStaff(r.Context())
 			}))
 
 			req := httptest.NewRequestWithContext(t.Context(), http.MethodGet, tt.path, http.NoBody)
@@ -567,7 +567,7 @@ func TestOnlyAStaffMemberGetsTheBackOfficeEntrance(t *testing.T) {
 			h.ServeHTTP(httptest.NewRecorder(), req)
 
 			if got != tt.want {
-				t.Errorf("layouts.IsStaff on %s as %q = %v, want %v",
+				t.Errorf("frame.IsStaff on %s as %q = %v, want %v",
 					tt.path, tt.role, got, tt.want)
 			}
 		})
@@ -615,9 +615,9 @@ func TestLanguageSwitchComparisonJourney(t *testing.T) {
 	var onContext string
 	var renderedHTML string
 	h := withLocale(http.HandlerFunc(func(_ http.ResponseWriter, r *http.Request) {
-		onContext = layouts.ReturnPath(r.Context())
+		onContext = frame.ReturnPath(r.Context())
 		var buf bytes.Buffer
-		if err := layouts.Footer(layouts.NewsletterState{}).Render(r.Context(), &buf); err != nil {
+		if err := frame.Footer(frame.NewsletterState{}).Render(r.Context(), &buf); err != nil {
 			t.Fatalf("render footer: %v", err)
 		}
 		renderedHTML = buf.String()
@@ -627,7 +627,7 @@ func TestLanguageSwitchComparisonJourney(t *testing.T) {
 	h.ServeHTTP(httptest.NewRecorder(), req)
 
 	if onContext != wantReturn {
-		t.Fatalf("layouts.ReturnPath on context = %q, want %q", onContext, wantReturn)
+		t.Fatalf("frame.ReturnPath on context = %q, want %q", onContext, wantReturn)
 	}
 
 	re := regexp.MustCompile(`<input type="hidden" name="return" value="([^"]*)"`)
@@ -933,9 +933,9 @@ func TestSiteOriginReachesTheChromeFromTheConfiguredBaseURL(t *testing.T) {
 	// In the server's order, so the og:url path and the language switch's return
 	// path sit on one context and neither overwrites the other.
 	h := withLocale(withSiteOrigin(http.HandlerFunc(func(_ http.ResponseWriter, r *http.Request) {
-		got = layouts.SiteOrigin(r.Context())
-		path = layouts.RequestPath(r.Context())
-		back = layouts.ReturnPath(r.Context())
+		got = frame.SiteOrigin(r.Context())
+		path = frame.RequestPath(r.Context())
+		back = frame.ReturnPath(r.Context())
 	}), "https://shop.example/"), false)
 	h.ServeHTTP(httptest.NewRecorder(), httptest.NewRequestWithContext(t.Context(), http.MethodGet, "http://evil.example/c/books?page=2", http.NoBody))
 	if got != "https://shop.example" {

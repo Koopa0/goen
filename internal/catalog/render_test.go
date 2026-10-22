@@ -9,7 +9,7 @@ import (
 	"golang.org/x/net/html"
 
 	"github.com/koopa0/goen/internal/i18n"
-	"github.com/koopa0/goen/internal/ui/layouts"
+	"github.com/koopa0/goen/internal/ui/frame"
 )
 
 // The helpers below are the ones the view tests call, with the bodies every
@@ -88,9 +88,9 @@ func nodeText(n *html.Node) string {
 	return b.String()
 }
 
-func renderHeadAt(t *testing.T, ctx context.Context, p layouts.Page) string {
+func renderHeadAt(t *testing.T, ctx context.Context, p frame.Page) string {
 	t.Helper()
-	return renderComponent(t, layouts.WithSiteOrigin(ctx, "https://goen.test"), layouts.Base(p))
+	return renderComponent(t, frame.WithSiteOrigin(ctx, "https://goen.test"), frame.Base(p))
 }
 
 func renderIn(t *testing.T, locale i18n.Locale, c templ.Component) string {

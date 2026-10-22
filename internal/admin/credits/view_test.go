@@ -9,7 +9,7 @@ import (
 	"github.com/koopa0/goen/internal/db"
 	"github.com/koopa0/goen/internal/i18n"
 	"github.com/koopa0/goen/internal/keyset"
-	"github.com/koopa0/goen/internal/ui/layouts"
+	"github.com/koopa0/goen/internal/ui/frame"
 )
 
 // The tests in this file are the credit halves of tests that render several
@@ -20,7 +20,7 @@ func TestCreditEmptyPageKeepsItsRestartLink(t *testing.T) {
 	t.Parallel()
 	b := keyset.Bound{PastEnd: true, First: "/admin/products?q=test"}
 	var out bytes.Buffer
-	if err := Credit(layouts.Page{Title: "Pagination"}, CreditView{Bound: b}).Render(i18n.WithLocale(t.Context(), i18n.En), &out); err != nil {
+	if err := Credit(frame.Page{Title: "Pagination"}, CreditView{Bound: b}).Render(i18n.WithLocale(t.Context(), i18n.En), &out); err != nil {
 		t.Fatal(err)
 	}
 	body := out.String()
@@ -39,7 +39,7 @@ func TestCreditQueueKeepsItsOwnFirstPageEmptyState(t *testing.T) {
 	ctx := func(k i18n.Key) string { return i18n.T(i18n.WithLocale(t.Context(), i18n.En), k) }
 	generic := ctx(i18n.KeyPageEmpty)
 	_, b := keyset.PageBound("/admin/queue", false, []db.Order{}, keyset.PageSize, func(*db.Order) string { return "" })
-	body := renderComponent(t, i18n.WithLocale(t.Context(), i18n.En), Credit(layouts.Page{Title: "Queue"}, CreditView{Bound: b}))
+	body := renderComponent(t, i18n.WithLocale(t.Context(), i18n.En), Credit(frame.Page{Title: "Queue"}, CreditView{Bound: b}))
 	if !strings.Contains(body, html.EscapeString(ctx(i18n.KeyAdminCreditEmpty))) {
 		t.Errorf("the queue's own empty text %q is missing", ctx(i18n.KeyAdminCreditEmpty))
 	}
@@ -54,7 +54,7 @@ func TestCreditQueueWithMoreRowsOffersNext(t *testing.T) {
 	rows := make([]db.Order, keyset.PageLimit)
 	_, b := keyset.PageBound("/admin/queue", false, rows, keyset.PageSize,
 		func(*db.Order) string { return `{"ID":"12345678-1234-1234-1234-123456789abc"}` })
-	body := renderComponent(t, i18n.WithLocale(t.Context(), i18n.En), Credit(layouts.Page{Title: "Queue"}, CreditView{Bound: b}))
+	body := renderComponent(t, i18n.WithLocale(t.Context(), i18n.En), Credit(frame.Page{Title: "Queue"}, CreditView{Bound: b}))
 	if !strings.Contains(body, `rel="next"`) {
 		t.Error("a first page with more rows has no Next link")
 	}

@@ -5,12 +5,12 @@ import (
 
 	"github.com/koopa0/goen/internal/cart/cartitem"
 	"github.com/koopa0/goen/internal/i18n"
-	"github.com/koopa0/goen/internal/ui/layouts"
+	"github.com/koopa0/goen/internal/ui/frame"
 	"github.com/koopa0/goen/internal/ui/widget"
 )
 
-templ CartRecovery(p layouts.Page, v CartRecoveryView) {
-	@layouts.Base(p) {
+templ CartRecovery(p frame.Page, v CartRecoveryView) {
+	@frame.Base(p) {
 		<div class="notice">
 			<h1 class="notice__title">{ i18n.T(ctx, i18n.KeyCartMergeRecoveryTitle) }</h1>
 			if v.Welcome {

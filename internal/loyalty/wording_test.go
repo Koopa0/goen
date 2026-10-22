@@ -5,7 +5,7 @@ import (
 	"testing"
 
 	"github.com/koopa0/goen/internal/i18n"
-	"github.com/koopa0/goen/internal/ui/layouts"
+	"github.com/koopa0/goen/internal/ui/frame"
 )
 
 func TestThePointsRuleNamesTheStepInPoints(t *testing.T) {
@@ -16,7 +16,7 @@ func TestThePointsRuleNamesTheStepInPoints(t *testing.T) {
 	} {
 		ctx := i18n.WithLocale(t.Context(), loc)
 		var b strings.Builder
-		if err := Points(layouts.Page{Title: "p"}, PointsView{PerCredit: 10, Minimum: 20, Redeemable: 40}).Render(ctx, &b); err != nil {
+		if err := Points(frame.Page{Title: "p"}, PointsView{PerCredit: 10, Minimum: 20, Redeemable: 40}).Render(ctx, &b); err != nil {
 			t.Fatal(err)
 		}
 		if !strings.Contains(b.String(), want) {

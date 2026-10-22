@@ -7,7 +7,7 @@ import (
 
 	"github.com/koopa0/goen/internal/admin/access"
 	"github.com/koopa0/goen/internal/i18n"
-	"github.com/koopa0/goen/internal/ui/layouts"
+	"github.com/koopa0/goen/internal/ui/frame"
 	"github.com/koopa0/goen/internal/ui/widget"
 	"github.com/koopa0/goen/internal/web/formtext"
 	"github.com/koopa0/goen/internal/web/respond"
@@ -48,7 +48,7 @@ func (h *Handler) FAQ(w http.ResponseWriter, r *http.Request) {
 	}
 	view.Notice = widget.NoticeFrom(r, notices)
 	respond.Component(w, r, h.log, http.StatusOK, FAQ(
-		layouts.Page{Title: i18n.T(r.Context(), i18n.KeyAdminPageFAQ)}, &view))
+		frame.Page{Title: i18n.T(r.Context(), i18n.KeyAdminPageFAQ)}, &view))
 }
 
 func (h *Handler) CreateFAQ(w http.ResponseWriter, r *http.Request) {
@@ -128,7 +128,7 @@ func (h *Handler) rejectFAQ(
 		view.Draft, view.Errors = typed, errs
 	}
 	respond.Component(w, r, h.log, http.StatusUnprocessableEntity, FAQ(
-		layouts.Page{Title: i18n.T(r.Context(), i18n.KeyAdminPageFAQ)}, &view))
+		frame.Page{Title: i18n.T(r.Context(), i18n.KeyAdminPageFAQ)}, &view))
 }
 
 func (h *Handler) CreateFAQCategory(w http.ResponseWriter, r *http.Request) {
@@ -200,7 +200,7 @@ func (h *Handler) rejectFAQCategory(
 	}
 	view.CategoryErrors = errs
 	respond.Component(w, r, h.log, http.StatusUnprocessableEntity, FAQ(
-		layouts.Page{Title: i18n.T(r.Context(), i18n.KeyAdminPageFAQ)}, &view))
+		frame.Page{Title: i18n.T(r.Context(), i18n.KeyAdminPageFAQ)}, &view))
 }
 
 func (h *Handler) answerRowWrite(w http.ResponseWriter, r *http.Request, what, back string, err error) {

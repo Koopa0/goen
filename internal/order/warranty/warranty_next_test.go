@@ -6,7 +6,7 @@ import (
 
 	"github.com/koopa0/goen/internal/i18n"
 	"github.com/koopa0/goen/internal/shoptime"
-	"github.com/koopa0/goen/internal/ui/layouts"
+	"github.com/koopa0/goen/internal/ui/frame"
 )
 
 func TestWarrantyNextRegistrationRequiresItsOwnDeliveredUnregisteredUnit(t *testing.T) {
@@ -25,7 +25,7 @@ func TestWarrantyNextRegistrationRequiresItsOwnDeliveredUnregisteredUnit(t *test
 			if line.Registrable() {
 				t.Error("a net-delivered count without the next unit's expiry is registrable")
 			}
-			body := renderWarrantyInLocale(t, ctx, WarrantyOrder(layouts.Page{}, OrderView{Number: "GO-NEXT", Lines: []Line{line}}))
+			body := renderWarrantyInLocale(t, ctx, WarrantyOrder(frame.Page{}, OrderView{Number: "GO-NEXT", Lines: []Line{line}}))
 			if strings.Contains(body, `name="unit"`) || strings.Contains(body, `id="serial-next"`) {
 				t.Error("unavailable next ordinal renders a registration form")
 			}
@@ -39,7 +39,7 @@ func TestWarrantyNextRegistrationRequiresItsOwnDeliveredUnregisteredUnit(t *test
 				t.Error("unavailable next unit renders an empty coverage badge")
 			}
 			line.DraftSerial = " Raw & \"serial\" "
-			body = renderWarrantyInLocale(t, ctx, WarrantyOrder(layouts.Page{}, OrderView{Number: "GO-NEXT", Lines: []Line{line}}))
+			body = renderWarrantyInLocale(t, ctx, WarrantyOrder(frame.Page{}, OrderView{Number: "GO-NEXT", Lines: []Line{line}}))
 			attrs := warrantyAttributes(warrantyNodesByID(t, body)["serial-next"])
 			_, readonly := attrs["readonly"]
 			if attrs["value"] != line.DraftSerial || !readonly || strings.Contains(body, `name="unit"`) {
@@ -50,7 +50,7 @@ func TestWarrantyNextRegistrationRequiresItsOwnDeliveredUnregisteredUnit(t *test
 			if !line.Registrable() {
 				t.Fatal("a delivered next unit with an expiry is not registrable")
 			}
-			body = renderWarrantyInLocale(t, ctx, WarrantyOrder(layouts.Page{}, OrderView{Number: "GO-NEXT", Lines: []Line{line}}))
+			body = renderWarrantyInLocale(t, ctx, WarrantyOrder(frame.Page{}, OrderView{Number: "GO-NEXT", Lines: []Line{line}}))
 			if !strings.Contains(body, `name="unit" value="1"`) || !strings.Contains(body, "2027-08-20") || strings.Contains(body, tc.neutral) {
 				t.Error("eligible next unit lost its unit1 form or own-parcel expiry")
 			}

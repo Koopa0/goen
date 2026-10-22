@@ -4,12 +4,12 @@ import (
 	"fmt"
 
 	"github.com/koopa0/goen/internal/i18n"
-	"github.com/koopa0/goen/internal/ui/layouts"
+	"github.com/koopa0/goen/internal/ui/frame"
 	"github.com/koopa0/goen/internal/ui/widget"
 )
 
-templ Returns(p layouts.Page, v ReturnsView) {
-	@layouts.Admin(p, "returns") {
+templ Returns(p frame.Page, v ReturnsView) {
+	@frame.Admin(p, "returns") {
 		<div class="ui-page-head">
 			<div>
 				<p class="ui-page-head__eyebrow">{ i18n.T(ctx, i18n.KeyAdminEyebrow) }</p>
@@ -19,9 +19,9 @@ templ Returns(p layouts.Page, v ReturnsView) {
 				</p>
 			</div>
 		</div>
-		@layouts.Announce(v.Notice)
+		@frame.Announce(v.Notice)
 		for _, refusal := range v.InspectionRefusals() {
-			@layouts.RefusalSummary(refusal)
+			@frame.RefusalSummary(refusal)
 		}
 		if v.Empty() && !v.PastEnd {
 			<div class="goen-admin__empty">

@@ -9,14 +9,14 @@ import (
 
 	"github.com/koopa0/goen/internal/contact"
 	"github.com/koopa0/goen/internal/i18n"
-	"github.com/koopa0/goen/internal/ui/layouts"
+	"github.com/koopa0/goen/internal/ui/frame"
 )
 
 func TestPublicContactUsesTheOwnedEmail(t *testing.T) {
 	for _, locale := range []i18n.Locale{i18n.ZhHant, i18n.En} {
 		for name, component := range map[string]templ.Component{
-			"contact": contact.Contact(layouts.Page{}, contact.Form{}),
-			"footer":  layouts.Footer(layouts.NewsletterState{}),
+			"contact": contact.Contact(frame.Page{}, contact.Form{}),
+			"footer":  frame.Footer(frame.NewsletterState{}),
 		} {
 			t.Run(string(locale)+"/"+name, func(t *testing.T) {
 				var out strings.Builder
@@ -45,7 +45,7 @@ func TestTheOrderNumberFieldShowsTheFormatGoenIssues(t *testing.T) {
 
 	for _, locale := range []i18n.Locale{i18n.ZhHant, i18n.En} {
 		var b strings.Builder
-		if err := contact.Contact(layouts.Page{Title: "contact"}, contact.Form{}).Render(i18n.WithLocale(t.Context(), locale), &b); err != nil {
+		if err := contact.Contact(frame.Page{Title: "contact"}, contact.Form{}).Render(i18n.WithLocale(t.Context(), locale), &b); err != nil {
 			t.Fatal(err)
 		}
 		out := b.String()

@@ -14,7 +14,7 @@ import (
 	"github.com/koopa0/goen/internal/i18n"
 	"github.com/koopa0/goen/internal/keyset"
 	"github.com/koopa0/goen/internal/order/returns"
-	"github.com/koopa0/goen/internal/ui/layouts"
+	"github.com/koopa0/goen/internal/ui/frame"
 	"github.com/koopa0/goen/internal/ui/widget"
 )
 
@@ -138,7 +138,7 @@ func TestReturnQueueBadgesFollowTheirGroup(t *testing.T) {
 				r.row.ID = fmt.Sprintf("r%d", i)
 				r.row.OrderNumber = fmt.Sprintf("GO-%d", i)
 				r.row.Window = "within"
-				page := renderComponent(t, ctx, Returns(layouts.Page{}, ReturnsView{Rows: []Return{r.row}}))
+				page := renderComponent(t, ctx, Returns(frame.Page{}, ReturnsView{Rows: []Return{r.row}}))
 				wantBadge(t, page, r.word, r.class)
 				if got := badgeClasses(t, page, ""); len(got) != 1 {
 					t.Errorf("%q: %d badges on a one-row queue, want 1", r.word, len(got))
@@ -166,7 +166,7 @@ func TestARefundBeforeShipmentIsFinishedOnItsOrderPage(t *testing.T) {
 	}
 	ctx := i18n.WithLocale(t.Context(), i18n.En)
 	var body strings.Builder
-	if err := Returns(layouts.Page{Title: "returns"}, ReturnsView{Rows: []Return{*r}}).Render(ctx, &body); err != nil {
+	if err := Returns(frame.Page{Title: "returns"}, ReturnsView{Rows: []Return{*r}}).Render(ctx, &body); err != nil {
 		t.Fatal(err)
 	}
 	page := body.String()
@@ -181,7 +181,7 @@ func TestRefusedInspectionKeepsBlankAndUnreadableCounts(t *testing.T) {
 	t.Parallel()
 	for _, raw := range []string{"", " +oops "} {
 		view := ReturnsView{Rows: []Return{{ID: "r1", Status: "approved", Decided: true, Window: "within", Lines: []ReturnLine{{OrderLineID: "l1", Quantity: 2, Restockable: true, DraftReceived: raw, DraftRestocked: raw}}}}, Errors: map[string]string{"r1.inspect": "bad count"}}
-		body := renderToString(t, Returns(layouts.Page{}, view))
+		body := renderToString(t, Returns(frame.Page{}, view))
 		doc, err := html.Parse(strings.NewReader(body))
 		if err != nil {
 			t.Fatal(err)
@@ -232,7 +232,7 @@ func refusalAttr(n *html.Node, key string) string {
 func TestReturnsEmptyPageKeepsItsRestartLink(t *testing.T) {
 	t.Parallel()
 	b := keyset.Bound{PastEnd: true, First: "/admin/products?q=test"}
-	p := layouts.Page{Title: "Pagination"}
+	p := frame.Page{Title: "Pagination"}
 	cases := map[string]templ.Component{
 		"returns": Returns(p, ReturnsView{Bound: b}),
 	}
@@ -260,7 +260,7 @@ func TestReturnsQueueKeepsItsOwnFirstPageEmptyState(t *testing.T) {
 	ctx := func(k i18n.Key) string { return i18n.T(i18n.WithLocale(t.Context(), i18n.En), k) }
 	generic := ctx(i18n.KeyPageEmpty)
 	_, b := keyset.PageBound("/admin/queue", false, []db.Order{}, keyset.PageSize, func(*db.Order) string { return "" })
-	p := layouts.Page{Title: "Queue"}
+	p := frame.Page{Title: "Queue"}
 	for name, c := range map[string]struct {
 		page templ.Component
 		want string
@@ -287,7 +287,7 @@ func TestReturnsQueueWithMoreRowsOffersNext(t *testing.T) {
 	rows := make([]db.Order, keyset.PageLimit)
 	_, b := keyset.PageBound("/admin/queue", false, rows, keyset.PageSize,
 		func(*db.Order) string { return `{"ID":"12345678-1234-1234-1234-123456789abc"}` })
-	p := layouts.Page{Title: "Queue"}
+	p := frame.Page{Title: "Queue"}
 	for name, page := range map[string]templ.Component{
 		"returns": Returns(p, ReturnsView{Bound: b}),
 	} {
@@ -327,7 +327,7 @@ func TestReturnExamplesStayOutsideRefusedInputs(t *testing.T) {
 				if locale == i18n.ZhHant {
 					inspection = "例如：外盒破損、配件缺少"
 				}
-				p := layouts.Page{}
+				p := frame.Page{}
 				for _, page := range []struct {
 					name      string
 					component templ.Component

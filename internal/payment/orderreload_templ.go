@@ -13,7 +13,7 @@ import (
 	"github.com/koopa0/goen/internal/i18n"
 )
 
-// Not layouts.Base, like PickupReturn: the page is on screen for an instant.
+// Not frame.Base, like PickupReturn: the page is on screen for an instant.
 // target is the request's own path and query, so it never leaves goen.
 func OrderReload(target string) templ.Component {
 	return templruntime.GeneratedTemplate(func(templ_7745c5c3_Input templruntime.GeneratedComponentInput) (templ_7745c5c3_Err error) {

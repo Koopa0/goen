@@ -7,7 +7,7 @@ on:
       - assets/css/app/app.css
       - scripts/popover-focus-check.mjs
       - internal/catalog/listing.templ
-      - internal/ui/layouts/header.templ
+      - internal/ui/frame/header.templ
       - internal/catalog/popover_native_browser_test.go
       - scripts/popover-safari-check.mjs
       - .github/workflows/popover-interaction.yml

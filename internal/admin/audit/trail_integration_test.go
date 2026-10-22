@@ -15,7 +15,7 @@ import (
 	"github.com/koopa0/goen/internal/admin/products"
 	"github.com/koopa0/goen/internal/admin/staff"
 	"github.com/koopa0/goen/internal/db"
-	"github.com/koopa0/goen/internal/ui/layouts"
+	"github.com/koopa0/goen/internal/ui/frame"
 )
 
 func TestTheTrailCannotBeRewritten(t *testing.T) {
@@ -152,7 +152,7 @@ func TestAStaffGrantNamesThePersonUntilTheAccountIsErased(t *testing.T) {
 			t.Fatalf("Events: %v", err)
 		}
 		var html bytes.Buffer
-		if err := audit.Audit(layouts.Page{}, view).Render(ctx, &html); err != nil {
+		if err := audit.Audit(frame.Page{}, view).Render(ctx, &html); err != nil {
 			t.Fatalf("render the audit page: %v", err)
 		}
 		for i := range view.Rows {

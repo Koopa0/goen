@@ -4,16 +4,16 @@ import (
 	"fmt"
 
 	"github.com/koopa0/goen/internal/i18n"
+	"github.com/koopa0/goen/internal/ui/frame"
 	"github.com/koopa0/goen/internal/ui/icons"
-	"github.com/koopa0/goen/internal/ui/layouts"
 	"github.com/koopa0/goen/internal/ui/tone"
 	"github.com/koopa0/goen/internal/ui/widget"
 )
 
 // Two cards, each holding what it lists and the form that adds to it, because a brand
 // and a category are separate jobs. The one filled button is the category create.
-templ Taxonomy(p layouts.Page, v *TaxonomyView) {
-	@layouts.Admin(p, "taxonomy") {
+templ Taxonomy(p frame.Page, v *TaxonomyView) {
+	@frame.Admin(p, "taxonomy") {
 		<div class="ui-page-head">
 			<div>
 				<p class="ui-page-head__eyebrow">{ i18n.T(ctx, i18n.KeyAdminEyebrow) }</p>
@@ -23,11 +23,11 @@ templ Taxonomy(p layouts.Page, v *TaxonomyView) {
 				</p>
 			</div>
 		</div>
-		@layouts.Announce(v.Notice)
+		@frame.Announce(v.Notice)
 		if v.Which == "brands" {
-			@layouts.RefusalSummary(layouts.SummarizeRefusal(i18n.KeyAdminTaxNewBrand, v.Errors, layouts.RefusalField{Key: "name", ID: "brands-name"}, layouts.RefusalField{Key: "slug", ID: "brands-slug"}))
+			@frame.RefusalSummary(frame.SummarizeRefusal(i18n.KeyAdminTaxNewBrand, v.Errors, frame.RefusalField{Key: "name", ID: "brands-name"}, frame.RefusalField{Key: "slug", ID: "brands-slug"}))
 		} else if v.Which == "categories" {
-			@layouts.RefusalSummary(layouts.SummarizeRefusal(i18n.KeyAdminTaxNewCategory, v.Errors, layouts.RefusalField{Key: "name", ID: "categories-name"}, layouts.RefusalField{Key: "name_en", ID: "categories-name-en"}, layouts.RefusalField{Key: "slug", ID: "categories-slug"}, layouts.RefusalField{Key: "icon_key", ID: "categories-icon"}, layouts.RefusalField{Key: "tone", ID: "categories-tone"}, layouts.RefusalField{Key: "parent", ID: "categories-parent"}))
+			@frame.RefusalSummary(frame.SummarizeRefusal(i18n.KeyAdminTaxNewCategory, v.Errors, frame.RefusalField{Key: "name", ID: "categories-name"}, frame.RefusalField{Key: "name_en", ID: "categories-name-en"}, frame.RefusalField{Key: "slug", ID: "categories-slug"}, frame.RefusalField{Key: "icon_key", ID: "categories-icon"}, frame.RefusalField{Key: "tone", ID: "categories-tone"}, frame.RefusalField{Key: "parent", ID: "categories-parent"}))
 		}
 		@widget.Card(widget.CardProps{Class: "goen-admin__section"}) {
 			<h2 class="goen-admin__heading">{ i18n.T(ctx, i18n.KeyAdminTaxBrands) }</h2>

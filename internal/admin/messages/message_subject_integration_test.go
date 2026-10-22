@@ -26,7 +26,7 @@ import (
 	"github.com/koopa0/goen/internal/contact"
 	"github.com/koopa0/goen/internal/i18n"
 	"github.com/koopa0/goen/internal/keyset"
-	"github.com/koopa0/goen/internal/ui/layouts"
+	"github.com/koopa0/goen/internal/ui/frame"
 	"github.com/koopa0/goen/internal/web/ratelimit"
 )
 
@@ -108,7 +108,7 @@ func TestContactSubjectsSurviveWritingAndRenderInBothLanguages(t *testing.T) {
 						}
 						view.Rows = []messages.Message{row}
 						var rendered bytes.Buffer
-						if err := messages.Messages(layouts.Page{}, view).Render(readCtx, &rendered); err != nil {
+						if err := messages.Messages(frame.Page{}, view).Render(readCtx, &rendered); err != nil {
 							t.Fatalf("render real message view: %v", err)
 						}
 						if got := contactSubjectHeading(t, rendered.String()); got != reader.label {

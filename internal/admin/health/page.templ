@@ -5,12 +5,12 @@ import (
 	"time"
 
 	"github.com/koopa0/goen/internal/i18n"
-	"github.com/koopa0/goen/internal/ui/layouts"
+	"github.com/koopa0/goen/internal/ui/frame"
 	"github.com/koopa0/goen/internal/ui/widget"
 )
 
-templ Health(p layouts.Page, v *WorkerHealthView) {
-	@layouts.Admin(p, "health") {
+templ Health(p frame.Page, v *WorkerHealthView) {
+	@frame.Admin(p, "health") {
 		<div class="ui-page-head">
 			<div>
 				<p class="ui-page-head__eyebrow">{ i18n.T(ctx, i18n.KeyAdminEyebrow) }</p>
@@ -43,7 +43,7 @@ templ Health(p layouts.Page, v *WorkerHealthView) {
 				}
 			</div>
 		</div>
-		@layouts.Announce(v.Notice)
+		@frame.Announce(v.Notice)
 		if len(v.UnreconciledEvents) > 0 || len(v.UnreconciledCompletePayments) > 0 {
 			<div id="events-heading">
 				if len(v.UnreconciledEvents) > 0 {

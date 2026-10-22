@@ -7,7 +7,7 @@ import (
 	"github.com/a-h/templ"
 
 	"github.com/koopa0/goen/internal/i18n"
-	"github.com/koopa0/goen/internal/ui/layouts"
+	"github.com/koopa0/goen/internal/ui/frame"
 )
 
 // This test sits apart from view_test.go because its local html would shadow
@@ -26,27 +26,27 @@ import (
 // the shell rather than from anything they write themselves.
 func TestEveryAdminScreenPutsItsWorkInTheContentColumn(t *testing.T) {
 	t.Parallel()
-	ctx := layouts.WithStaff(i18n.WithLocale(t.Context(), i18n.ZhHant), true)
+	ctx := frame.WithStaff(i18n.WithLocale(t.Context(), i18n.ZhHant), true)
 
 	for name, screen := range map[string]templ.Component{
-		"newsletter": Newsletter(layouts.Page{}, NewsletterView{}),
+		"newsletter": Newsletter(frame.Page{}, NewsletterView{}),
 	} {
 		html := renderComponent(t, ctx, screen)
 
-		frame := strings.Index(html, `<div class="goen-admin">`)
+		grid := strings.Index(html, `<div class="goen-admin">`)
 		rail := strings.Index(html, "goen-admin__nav")
 		column := strings.Index(html, `class="goen-admin__main"`)
 		work := strings.Index(html, `class="ui-page-head"`)
-		if frame < 0 || rail < 0 || column < 0 || work < 0 {
+		if grid < 0 || rail < 0 || column < 0 || work < 0 {
 			t.Fatalf("%s: rendered no back-office frame at all (frame=%d rail=%d "+
 				"column=%d work=%d); the order below would prove nothing",
-				name, frame, rail, column, work)
+				name, grid, rail, column, work)
 		}
-		if frame > rail || rail > column || column > work {
+		if grid > rail || rail > column || column > work {
 			t.Errorf("%s: the frame reads frame=%d rail=%d column=%d work=%d — the "+
 				"work has to open INSIDE the content column, or it is a sibling of "+
 				"the rail and the grid puts the rail on a row of its own",
-				name, frame, rail, column, work)
+				name, grid, rail, column, work)
 		}
 		if n := strings.Count(html, `class="goen-admin__main"`); n != 1 {
 			t.Errorf("%s: %d content columns, want exactly 1 — a second one is a "+

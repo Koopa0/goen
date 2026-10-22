@@ -18,8 +18,8 @@ import (
 	"github.com/koopa0/goen/internal/home"
 	"github.com/koopa0/goen/internal/i18n"
 	"github.com/koopa0/goen/internal/policy"
+	"github.com/koopa0/goen/internal/ui/frame"
 	"github.com/koopa0/goen/internal/ui/hero"
-	"github.com/koopa0/goen/internal/ui/layouts"
 	"github.com/koopa0/goen/internal/ui/tile"
 	"github.com/koopa0/goen/internal/ui/tone"
 	"github.com/koopa0/goen/internal/ui/uitest"
@@ -69,7 +69,7 @@ func TestStorefrontSectionsAsDrawn(t *testing.T) {
 			}
 		}
 		w.Header().Set("Content-Type", "text/html; charset=utf-8")
-		if renderErr := home.Page(layouts.Page{}, view).Render(i18n.WithLocale(r.Context(), i18n.En), w); renderErr != nil {
+		if renderErr := home.Page(frame.Page{}, view).Render(i18n.WithLocale(r.Context(), i18n.En), w); renderErr != nil {
 			t.Errorf("render home fixture: %v", renderErr)
 		}
 	})
@@ -79,7 +79,7 @@ func TestStorefrontSectionsAsDrawn(t *testing.T) {
 			{Slug: "desk", Title: "Desk week", Products: 6},
 		}}}
 		w.Header().Set("Content-Type", "text/html; charset=utf-8")
-		if renderErr := campaign.Deals(layouts.Page{}, view).Render(i18n.WithLocale(r.Context(), i18n.En), w); renderErr != nil {
+		if renderErr := campaign.Deals(frame.Page{}, view).Render(i18n.WithLocale(r.Context(), i18n.En), w); renderErr != nil {
 			t.Errorf("render deals fixture: %v", renderErr)
 		}
 	})
@@ -89,7 +89,7 @@ func TestStorefrontSectionsAsDrawn(t *testing.T) {
 			{Slug: "city-tote", Name: "City tote", PriceCents: 129000, InStock: true, Comparable: true},
 		}}
 		w.Header().Set("Content-Type", "text/html; charset=utf-8")
-		if renderErr := catalog.Search(layouts.Page{}, view).Render(i18n.WithLocale(r.Context(), i18n.En), w); renderErr != nil {
+		if renderErr := catalog.Search(frame.Page{}, view).Render(i18n.WithLocale(r.Context(), i18n.En), w); renderErr != nil {
 			t.Errorf("render search fixture: %v", renderErr)
 		}
 	})
@@ -97,16 +97,16 @@ func TestStorefrontSectionsAsDrawn(t *testing.T) {
 		view := cart.View{ItemCount: 1, SubtotalCents: 89000, Lines: []cart.Line{
 			{VariantID: "tote-natural", Slug: "canvas-tote", Name: "Canvas tote", Quantity: 1, Available: 5, UnitCents: 89000},
 		}}
-		ctx := layouts.WithStaff(i18n.WithLocale(r.Context(), i18n.En), true)
+		ctx := frame.WithStaff(i18n.WithLocale(r.Context(), i18n.En), true)
 		w.Header().Set("Content-Type", "text/html; charset=utf-8")
-		if renderErr := cart.Page(layouts.Page{}, view).Render(ctx, w); renderErr != nil {
+		if renderErr := cart.Page(frame.Page{}, view).Render(ctx, w); renderErr != nil {
 			t.Errorf("render cart fixture: %v", renderErr)
 		}
 	})
 	mux.HandleFunc("GET /c/audio", func(w http.ResponseWriter, r *http.Request) {
 		view := catalog.ListingView{Slug: "audio", Name: "Audio", Filtered: true, InStockOnly: true, Query: "in_stock=1"}
 		w.Header().Set("Content-Type", "text/html; charset=utf-8")
-		if renderErr := catalog.Listing(layouts.Page{}, view, nil, nil).Render(i18n.WithLocale(r.Context(), i18n.En), w); renderErr != nil {
+		if renderErr := catalog.Listing(frame.Page{}, view, nil, nil).Render(i18n.WithLocale(r.Context(), i18n.En), w); renderErr != nil {
 			t.Errorf("render listing fixture: %v", renderErr)
 		}
 	})
@@ -132,7 +132,7 @@ func TestStorefrontSectionsAsDrawn(t *testing.T) {
 		}
 		view := catalog.ListingView{Slug: "phones", Name: names[0], Theme: theme}
 		w.Header().Set("Content-Type", "text/html; charset=utf-8")
-		if renderErr := catalog.Listing(layouts.Page{}, view, nil, head).Render(i18n.WithLocale(r.Context(), locale), w); renderErr != nil {
+		if renderErr := catalog.Listing(frame.Page{}, view, nil, head).Render(i18n.WithLocale(r.Context(), locale), w); renderErr != nil {
 			t.Errorf("render department fixture: %v", renderErr)
 		}
 	})

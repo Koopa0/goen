@@ -6,15 +6,15 @@ import (
 
 	"github.com/koopa0/goen/internal/i18n"
 	"github.com/koopa0/goen/internal/policy"
+	"github.com/koopa0/goen/internal/ui/frame"
 	"github.com/koopa0/goen/internal/ui/hero"
-	"github.com/koopa0/goen/internal/ui/layouts"
 	"github.com/koopa0/goen/internal/ui/tile"
 	"github.com/koopa0/goen/internal/ui/tone"
 	"github.com/koopa0/goen/internal/ui/widget"
 )
 
-func Meta(ctx context.Context) layouts.Page {
-	return layouts.Page{Description: layouts.DescribeDepartments(ctx, i18n.KeyHomeDescription)}
+func Meta(ctx context.Context) frame.Page {
+	return frame.Page{Description: frame.DescribeDepartments(ctx, i18n.KeyHomeDescription)}
 }
 
 type Category struct {

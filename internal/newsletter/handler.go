@@ -11,7 +11,7 @@ import (
 
 	"github.com/koopa0/goen/internal/email"
 	"github.com/koopa0/goen/internal/i18n"
-	"github.com/koopa0/goen/internal/ui/layouts"
+	"github.com/koopa0/goen/internal/ui/frame"
 	"github.com/koopa0/goen/internal/web/compress"
 	"github.com/koopa0/goen/internal/web/formtext"
 	"github.com/koopa0/goen/internal/web/ratelimit"
@@ -94,7 +94,7 @@ func (h *Handler) Submit(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if respond.IsHTMX(r) {
-		respond.Component(w, r, h.log, http.StatusOK, layouts.NewsletterForm(layouts.NewsletterState{Done: true, Email: email.Mask(addr)}))
+		respond.Component(w, r, h.log, http.StatusOK, frame.NewsletterForm(frame.NewsletterState{Done: true, Email: email.Mask(addr)}))
 		return
 	}
 	http.Redirect(w, r, "/newsletter/thanks?"+url.Values{"address": {email.Mask(addr)}}.Encode(), http.StatusSeeOther)
@@ -104,7 +104,7 @@ func (h *Handler) Submit(w http.ResponseWriter, r *http.Request) {
 // acknowledgement must not reveal whether this address subscribed before.
 func (h *Handler) Thanks(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
-	meta := layouts.Page{
+	meta := frame.Page{
 		Title:       i18n.T(ctx, i18n.KeyCheckInbox),
 		Description: i18n.T(ctx, i18n.KeyNewsletterSentMeta),
 	}
@@ -117,9 +117,9 @@ func (h *Handler) ConfirmPage(w http.ResponseWriter, r *http.Request) {
 	compress.Skip(w)
 	ctx := r.Context()
 	if r.URL.Query().Get("done") == "1" {
-		respond.Component(w, r, h.log, http.StatusOK, layouts.EmailLinkPage(
-			layouts.EmailLinkMeta(i18n.T(ctx, i18n.KeyNewsletterDone)),
-			layouts.EmailLinkView{
+		respond.Component(w, r, h.log, http.StatusOK, frame.EmailLinkPage(
+			frame.EmailLinkMeta(i18n.T(ctx, i18n.KeyNewsletterDone)),
+			frame.EmailLinkView{
 				Heading: i18n.T(ctx, i18n.KeyNewsletterDone),
 				Body:    i18n.T(ctx, i18n.KeyNewsletterDoneBody),
 			}))
@@ -127,18 +127,18 @@ func (h *Handler) ConfirmPage(w http.ResponseWriter, r *http.Request) {
 	}
 	token := r.URL.Query().Get("token")
 	if token == "" {
-		respond.Component(w, r, h.log, http.StatusOK, layouts.EmailLinkPage(
-			layouts.EmailLinkMeta(i18n.T(ctx, i18n.KeyNewsletterConfirmTitle)),
-			layouts.EmailLinkView{
+		respond.Component(w, r, h.log, http.StatusOK, frame.EmailLinkPage(
+			frame.EmailLinkMeta(i18n.T(ctx, i18n.KeyNewsletterConfirmTitle)),
+			frame.EmailLinkView{
 				Heading:  i18n.T(ctx, i18n.KeyNewsletterConfirmTitle),
 				Body:     i18n.T(ctx, i18n.KeyEmailLinkIncomplete),
-				Recovery: layouts.EmailLinkSubscribe,
+				Recovery: frame.EmailLinkSubscribe,
 			}))
 		return
 	}
-	respond.Component(w, r, h.log, http.StatusOK, layouts.EmailLinkPage(
-		layouts.EmailLinkMeta(i18n.T(ctx, i18n.KeyNewsletterConfirmTitle)),
-		layouts.EmailLinkView{
+	respond.Component(w, r, h.log, http.StatusOK, frame.EmailLinkPage(
+		frame.EmailLinkMeta(i18n.T(ctx, i18n.KeyNewsletterConfirmTitle)),
+		frame.EmailLinkView{
 			Heading: i18n.T(ctx, i18n.KeyNewsletterConfirmTitle),
 			Body:    i18n.T(ctx, i18n.KeyNewsletterConfirmBody),
 			Action:  "/newsletter/confirm",
@@ -157,7 +157,7 @@ func (h *Handler) Confirm(w http.ResponseWriter, r *http.Request) {
 	_, err := h.store.Confirm(ctx, r.PostFormValue("token"))
 	if err != nil {
 		if errors.Is(err, ErrNotFound) {
-			h.deadLink(w, r, i18n.T(ctx, i18n.KeyNewsletterConfirmDead), layouts.EmailLinkSubscribe)
+			h.deadLink(w, r, i18n.T(ctx, i18n.KeyNewsletterConfirmDead), frame.EmailLinkSubscribe)
 			return
 		}
 		h.log.ErrorContext(ctx, "confirm newsletter", "error", err)
@@ -172,9 +172,9 @@ func (h *Handler) UnsubscribePage(w http.ResponseWriter, r *http.Request) {
 	compress.Skip(w)
 	ctx := r.Context()
 	if r.URL.Query().Get("done") == "1" {
-		respond.Component(w, r, h.log, http.StatusOK, layouts.EmailLinkPage(
-			layouts.EmailLinkMeta(i18n.T(ctx, i18n.KeyNewsletterLeft)),
-			layouts.EmailLinkView{
+		respond.Component(w, r, h.log, http.StatusOK, frame.EmailLinkPage(
+			frame.EmailLinkMeta(i18n.T(ctx, i18n.KeyNewsletterLeft)),
+			frame.EmailLinkView{
 				Heading: i18n.T(ctx, i18n.KeyNewsletterLeft),
 				Body:    i18n.T(ctx, i18n.KeyNewsletterLeftBody),
 			}))
@@ -182,18 +182,18 @@ func (h *Handler) UnsubscribePage(w http.ResponseWriter, r *http.Request) {
 	}
 	token := r.URL.Query().Get("token")
 	if token == "" {
-		respond.Component(w, r, h.log, http.StatusOK, layouts.EmailLinkPage(
-			layouts.EmailLinkMeta(i18n.T(ctx, i18n.KeyNewsletterLeaveTitle)),
-			layouts.EmailLinkView{
+		respond.Component(w, r, h.log, http.StatusOK, frame.EmailLinkPage(
+			frame.EmailLinkMeta(i18n.T(ctx, i18n.KeyNewsletterLeaveTitle)),
+			frame.EmailLinkView{
 				Heading:  i18n.T(ctx, i18n.KeyNewsletterLeaveTitle),
 				Body:     i18n.T(ctx, i18n.KeyEmailLinkIncomplete),
-				Recovery: layouts.EmailLinkContact,
+				Recovery: frame.EmailLinkContact,
 			}))
 		return
 	}
-	respond.Component(w, r, h.log, http.StatusOK, layouts.EmailLinkPage(
-		layouts.EmailLinkMeta(i18n.T(ctx, i18n.KeyNewsletterLeaveTitle)),
-		layouts.EmailLinkView{
+	respond.Component(w, r, h.log, http.StatusOK, frame.EmailLinkPage(
+		frame.EmailLinkMeta(i18n.T(ctx, i18n.KeyNewsletterLeaveTitle)),
+		frame.EmailLinkView{
 			Heading: i18n.T(ctx, i18n.KeyNewsletterLeaveTitle),
 			Body:    i18n.T(ctx, i18n.KeyNewsletterLeaveBody),
 			Action:  "/newsletter/unsubscribe",
@@ -238,7 +238,7 @@ func (h *Handler) Unsubscribe(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if errors.Is(err, ErrNotFound) {
-		h.deadLink(w, r, i18n.T(ctx, i18n.KeyNewsletterLeaveDead), layouts.EmailLinkContact)
+		h.deadLink(w, r, i18n.T(ctx, i18n.KeyNewsletterLeaveDead), frame.EmailLinkContact)
 		return
 	}
 	h.linkFailed(w, r, i18n.T(ctx, i18n.KeyTryAgainTitle), i18n.T(ctx, i18n.KeyTryAgainBody))
@@ -282,17 +282,17 @@ func unsubscribeToken(r *http.Request) (token string, oneClick bool, err error) 
 	return tokens[0], true, nil
 }
 
-func (h *Handler) deadLink(w http.ResponseWriter, r *http.Request, body string, recovery layouts.EmailLinkRecovery) {
+func (h *Handler) deadLink(w http.ResponseWriter, r *http.Request, body string, recovery frame.EmailLinkRecovery) {
 	heading := i18n.T(r.Context(), i18n.KeyEmailLinkDeadTitle)
-	respond.Component(w, r, h.log, http.StatusUnprocessableEntity, layouts.EmailLinkPage(
-		layouts.EmailLinkMeta(heading),
-		layouts.EmailLinkView{Heading: heading, Body: body, Recovery: recovery}))
+	respond.Component(w, r, h.log, http.StatusUnprocessableEntity, frame.EmailLinkPage(
+		frame.EmailLinkMeta(heading),
+		frame.EmailLinkView{Heading: heading, Body: body, Recovery: recovery}))
 }
 
 func (h *Handler) linkFailed(w http.ResponseWriter, r *http.Request, heading, body string) {
-	respond.Component(w, r, h.log, http.StatusUnprocessableEntity, layouts.EmailLinkPage(
-		layouts.EmailLinkMeta(heading),
-		layouts.EmailLinkView{Heading: heading, Body: body}))
+	respond.Component(w, r, h.log, http.StatusUnprocessableEntity, frame.EmailLinkPage(
+		frame.EmailLinkMeta(heading),
+		frame.EmailLinkView{Heading: heading, Body: body}))
 }
 
 // throttled: HTMX swaps the body into the footer form, so it must stay a form;
@@ -307,16 +307,16 @@ func (h *Handler) throttled(w http.ResponseWriter, r *http.Request, addr string,
 }
 
 func (h *Handler) fail(w http.ResponseWriter, r *http.Request, status int, addr, msg string) {
-	state := layouts.NewsletterState{Email: addr}
+	state := frame.NewsletterState{Email: addr}
 	if status == http.StatusUnprocessableEntity {
 		state.FieldRefusal = msg
 	} else {
 		state.Notice = msg
 	}
 	if respond.IsHTMX(r) {
-		respond.Component(w, r, h.log, status, layouts.NewsletterForm(state))
+		respond.Component(w, r, h.log, status, frame.NewsletterForm(state))
 		return
 	}
 	title := i18n.T(r.Context(), i18n.KeyNewsletterFailed)
-	respond.Component(w, r, h.log, status, layouts.Notice(layouts.Page{Title: title, Newsletter: state}, "", title, i18n.T(r.Context(), i18n.KeyNewsletterReviewForm)))
+	respond.Component(w, r, h.log, status, frame.Notice(frame.Page{Title: title, Newsletter: state}, "", title, i18n.T(r.Context(), i18n.KeyNewsletterReviewForm)))
 }

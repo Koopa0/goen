@@ -9,7 +9,7 @@ import (
 
 	"github.com/koopa0/goen/internal/discount/coupon"
 	"github.com/koopa0/goen/internal/i18n"
-	"github.com/koopa0/goen/internal/ui/layouts"
+	"github.com/koopa0/goen/internal/ui/frame"
 )
 
 func TestCouponStateReflectsRemainingUses(t *testing.T) {
@@ -64,7 +64,7 @@ func TestCouponTableSeparatesConditionsUsesAndExpiry(t *testing.T) {
 		t.Run(tt.locale.Tag(), func(t *testing.T) {
 			t.Parallel()
 			ctx := i18n.WithLocale(t.Context(), tt.locale)
-			body := renderComponent(t, ctx, Coupons(layouts.Page{}, CouponsView{Rows: []Coupon{{
+			body := renderComponent(t, ctx, Coupons(frame.Page{}, CouponsView{Rows: []Coupon{{
 				Code: "LIMIT", Kind: coupon.Amount, AmountCents: 10000,
 				MaxRedeem: 1, PerCustomer: 1, Redeemed: 1,
 				Active: true, Current: true, EndsAt: "2027-01-02 11:04",
@@ -149,7 +149,7 @@ func couponCellText(node *html.Node) string {
 func TestCouponListMetersOnlyTheCouponsWithACap(t *testing.T) {
 	t.Parallel()
 
-	markup := renderToString(t, Coupons(layouts.Page{Title: "Coupons"}, CouponsView{Rows: []Coupon{
+	markup := renderToString(t, Coupons(frame.Page{Title: "Coupons"}, CouponsView{Rows: []Coupon{
 		{Code: "HALF", Kind: coupon.Amount, MaxRedeem: 20, PerCustomer: 1, Redeemed: 5, Active: true, Current: true},
 		{Code: "GONE", Kind: coupon.Amount, MaxRedeem: 2, PerCustomer: 1, Redeemed: 2, Active: true, Current: true},
 		{Code: "OPEN", Kind: coupon.Amount, PerCustomer: 1, Redeemed: 9, Active: true, Current: true},
@@ -190,7 +190,7 @@ func TestCouponLimitRefusalsDescribeTheirControls(t *testing.T) {
 				for _, field := range refused {
 					errs[field] = messages[field]
 				}
-				markup := renderComponent(t, ctx, Coupons(layouts.Page{}, CouponsView{
+				markup := renderComponent(t, ctx, Coupons(frame.Page{}, CouponsView{
 					Draft:  CouponDraft{MinSpend: "0100000001", Days: "001000001", MaxRedeem: "001000001", Cap: "", PerCustomer: "01"},
 					Errors: errs,
 				}))

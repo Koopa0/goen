@@ -4,12 +4,12 @@ import (
 	"fmt"
 
 	"github.com/koopa0/goen/internal/i18n"
-	"github.com/koopa0/goen/internal/ui/layouts"
+	"github.com/koopa0/goen/internal/ui/frame"
 	"github.com/koopa0/goen/internal/ui/widget"
 )
 
-templ Order(p layouts.Page, v *OrderView) {
-	@layouts.Base(p) {
+templ Order(p frame.Page, v *OrderView) {
+	@frame.Base(p) {
 		<div class="goen-order">
 			<div class="goen-order__placed">
 				<div class="goen-pagehead">

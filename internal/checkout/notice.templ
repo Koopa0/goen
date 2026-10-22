@@ -2,15 +2,15 @@ package checkout
 
 import (
 	"github.com/koopa0/goen/internal/i18n"
-	"github.com/koopa0/goen/internal/ui/layouts"
+	"github.com/koopa0/goen/internal/ui/frame"
 	"github.com/koopa0/goen/internal/ui/widget"
 )
 
 // PlacementGrantFailed is what the checkout shows when a committed order's access
 // grant could not be written. It is the checkout's own, so it stays out of the
 // shared notice shell.
-templ PlacementGrantFailed(p layouts.Page) {
-	@layouts.Base(p) {
+templ PlacementGrantFailed(p frame.Page) {
+	@frame.Base(p) {
 		<div class="notice">
 			<span class="notice__code" aria-hidden="true">500</span>
 			<h1 class="notice__title">{ i18n.T(ctx, i18n.KeyPlacementGrantFailedTitle) }</h1>

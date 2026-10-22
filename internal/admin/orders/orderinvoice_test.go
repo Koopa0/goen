@@ -5,7 +5,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/koopa0/goen/internal/ui/layouts"
+	"github.com/koopa0/goen/internal/ui/frame"
 )
 
 // TestARefundedOrderCanFileAnAllowance holds the 折讓 form's door. Without it a
@@ -20,7 +20,7 @@ func TestARefundedOrderCanFileAnAllowance(t *testing.T) {
 			{Kind: "invoice", Number: "AA12345678", Status: "issued", AmountCents: 100000},
 		},
 	}
-	html := renderToString(t, Order(layouts.Page{Title: "x"}, &refunded))
+	html := renderToString(t, Order(frame.Page{Title: "x"}, &refunded))
 
 	if !strings.Contains(html, `action="/admin/orders/GO-260721-000387/invoice/allowance"`) {
 		t.Error("a refunded order offers no way to file a 折讓, so the tax document " +
@@ -41,7 +41,7 @@ func TestARefundedOrderCanFileAnAllowance(t *testing.T) {
 	// invitation to invent a figure.
 	nothingBack := refunded
 	nothingBack.RefundedCents = 0
-	if strings.Contains(renderToString(t, Order(layouts.Page{Title: "x"}, &nothingBack)),
+	if strings.Contains(renderToString(t, Order(frame.Page{Title: "x"}, &nothingBack)),
 		"/invoice/allowance") {
 		t.Error("an order with no refund is offered a 折讓 form")
 	}
@@ -52,7 +52,7 @@ func TestARefundedOrderCanFileAnAllowance(t *testing.T) {
 		InvoiceDocument{Kind: "allowance", Number: "2026080715227214",
 			Status: "issued", AmountCents: 30000},
 	)
-	partialHTML := renderToString(t, Order(layouts.Page{Title: "x"}, &partlyRelieved))
+	partialHTML := renderToString(t, Order(frame.Page{Title: "x"}, &partlyRelieved))
 	if !strings.Contains(partialHTML, `NT$549`) {
 		t.Error("the allowance form did not subtract the credit note already filed")
 	}
@@ -67,7 +67,7 @@ func TestAnIssuedInvoiceShowsWithoutTheInvoiceService(t *testing.T) {
 			{Kind: "invoice", Number: "LC97535645", Status: "issued", AmountCents: 100000},
 		},
 	}
-	html := renderToString(t, Order(layouts.Page{Title: "x"}, &view))
+	html := renderToString(t, Order(frame.Page{Title: "x"}, &view))
 
 	if !strings.Contains(html, "LC97535645") {
 		t.Error("an order with an issued invoice hides it while e-invoicing is off")

@@ -8,7 +8,7 @@ import (
 	"strings"
 
 	"github.com/koopa0/goen/internal/i18n"
-	"github.com/koopa0/goen/internal/ui/layouts"
+	"github.com/koopa0/goen/internal/ui/frame"
 	"github.com/koopa0/goen/internal/ui/widget"
 )
 
@@ -129,8 +129,8 @@ func (v View) ReorderText(ctx context.Context) string {
 	}
 }
 
-func Meta(ctx context.Context) layouts.Page {
-	return layouts.Page{Title: i18n.T(ctx, i18n.KeyCart)}
+func Meta(ctx context.Context) frame.Page {
+	return frame.Page{Title: i18n.T(ctx, i18n.KeyCart)}
 }
 
 func (v View) Empty() bool { return len(v.Lines) == 0 }

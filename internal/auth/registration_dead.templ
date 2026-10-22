@@ -4,13 +4,13 @@ import (
 	"net/url"
 
 	"github.com/koopa0/goen/internal/i18n"
+	"github.com/koopa0/goen/internal/ui/frame"
 	"github.com/koopa0/goen/internal/ui/icons"
-	"github.com/koopa0/goen/internal/ui/layouts"
 	"github.com/koopa0/goen/internal/ui/widget"
 )
 
-templ RegistrationDead(p layouts.Page, next string) {
-	@layouts.Base(p) {
+templ RegistrationDead(p frame.Page, next string) {
+	@frame.Base(p) {
 		<div class="notice">
 			<span class="goen-medallion" aria-hidden="true">
 				@icons.Mail()

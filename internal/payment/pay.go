@@ -8,7 +8,7 @@ import (
 
 	"github.com/koopa0/goen/internal/i18n"
 	"github.com/koopa0/goen/internal/shoptime"
-	"github.com/koopa0/goen/internal/ui/layouts"
+	"github.com/koopa0/goen/internal/ui/frame"
 	"github.com/koopa0/goen/internal/ui/widget"
 )
 
@@ -166,8 +166,8 @@ func (v *PayView) Total() string { return twd(v.TotalCents) }
 // Action posts to the order's pay route; the amount is recomputed server-side.
 func (v *PayView) Action() string { return "/orders/" + v.Number + "/pay" }
 
-func PayMeta(ctx context.Context, number string) layouts.Page {
-	return layouts.Page{Title: fmt.Sprintf(i18n.T(ctx, i18n.KeyPayMeta), number)}
+func PayMeta(ctx context.Context, number string) frame.Page {
+	return frame.Page{Title: fmt.Sprintf(i18n.T(ctx, i18n.KeyPayMeta), number)}
 }
 
 func payClock(t time.Time) widget.StatValue {

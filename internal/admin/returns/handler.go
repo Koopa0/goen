@@ -16,7 +16,7 @@ import (
 	"github.com/koopa0/goen/internal/keyset"
 	"github.com/koopa0/goen/internal/order/returns"
 	"github.com/koopa0/goen/internal/payment/refund"
-	"github.com/koopa0/goen/internal/ui/layouts"
+	"github.com/koopa0/goen/internal/ui/frame"
 	"github.com/koopa0/goen/internal/ui/widget"
 	"github.com/koopa0/goen/internal/web/formtext"
 	"github.com/koopa0/goen/internal/web/respond"
@@ -79,7 +79,7 @@ func (h *Handler) Queue(w http.ResponseWriter, r *http.Request) {
 		Notice: widget.NoticeFrom(r, notices),
 	}
 	respond.Component(w, r, h.log, http.StatusOK, Returns(
-		layouts.Page{Title: i18n.T(r.Context(), i18n.KeyAdminPageReturns)}, view))
+		frame.Page{Title: i18n.T(r.Context(), i18n.KeyAdminPageReturns)}, view))
 }
 
 // Decide approves or rejects a return. Approving pays money back, so a refusal
@@ -242,7 +242,7 @@ func (h *Handler) renderReturnRefusal(w http.ResponseWriter, r *http.Request, er
 		overlayDraftFacts(&view.Rows[i], r)
 	}
 	respond.Component(w, r, h.log, http.StatusUnprocessableEntity, Returns(
-		layouts.Page{Title: i18n.T(r.Context(), i18n.KeyAdminPageReturns)}, view))
+		frame.Page{Title: i18n.T(r.Context(), i18n.KeyAdminPageReturns)}, view))
 	return true
 }
 
@@ -271,7 +271,7 @@ func (h *Handler) renderInspection(w http.ResponseWriter, r *http.Request, key i
 		}
 	}
 	respond.Component(w, r, h.log, http.StatusUnprocessableEntity, Returns(
-		layouts.Page{Title: i18n.T(r.Context(), i18n.KeyAdminPageReturns)}, view))
+		frame.Page{Title: i18n.T(r.Context(), i18n.KeyAdminPageReturns)}, view))
 }
 
 func overlayDraftFacts(row *Return, r *http.Request) {
@@ -424,6 +424,6 @@ func (h *Handler) confirmReturnDecision(w http.ResponseWriter, r *http.Request) 
 		return true
 	}
 	view := ReturnConfirmation{ID: row.ID.String(), OrderNumber: row.OrderNumber, Decision: string(kind), Reason: row.Reason, AmountCents: row.RefundableCents, Resolution: resolution, AssessmentVersion: r.PostFormValue("assessment_version"), Required: required, Retry: retry}
-	respond.Component(w, r, h.log, http.StatusOK, ConfirmReturn(layouts.Page{Title: view.Title(r.Context())}, view))
+	respond.Component(w, r, h.log, http.StatusOK, ConfirmReturn(frame.Page{Title: view.Title(r.Context())}, view))
 	return true
 }

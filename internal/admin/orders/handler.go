@@ -20,7 +20,7 @@ import (
 	"github.com/koopa0/goen/internal/keyset"
 	"github.com/koopa0/goen/internal/order"
 	"github.com/koopa0/goen/internal/payment"
-	"github.com/koopa0/goen/internal/ui/layouts"
+	"github.com/koopa0/goen/internal/ui/frame"
 	"github.com/koopa0/goen/internal/ui/widget"
 	"github.com/koopa0/goen/internal/web/formtext"
 	"github.com/koopa0/goen/internal/web/respond"
@@ -71,9 +71,9 @@ func (h *Handler) Order(w http.ResponseWriter, r *http.Request) {
 	view, err := h.store.Order(r.Context(), r.PathValue("number"))
 	if err != nil {
 		if errors.Is(err, ErrNotFound) {
-			respond.Component(w, r, h.log, http.StatusNotFound, layouts.MissingRecord(
-				layouts.Page{Title: i18n.T(r.Context(), i18n.KeyAdminNoOrderTitle)},
-				layouts.MissingRecordView{Section: "orders", Heading: fmt.Sprintf(i18n.T(r.Context(), i18n.KeyAdminNoOrderHead), r.PathValue("number")), Body: i18n.T(r.Context(), i18n.KeyAdminNoOrderBody), BackLabel: i18n.KeyAdminBackOrders, OrderNumber: r.PathValue("number")}))
+			respond.Component(w, r, h.log, http.StatusNotFound, frame.MissingRecord(
+				frame.Page{Title: i18n.T(r.Context(), i18n.KeyAdminNoOrderTitle)},
+				frame.MissingRecordView{Section: "orders", Heading: fmt.Sprintf(i18n.T(r.Context(), i18n.KeyAdminNoOrderHead), r.PathValue("number")), Body: i18n.T(r.Context(), i18n.KeyAdminNoOrderBody), BackLabel: i18n.KeyAdminBackOrders, OrderNumber: r.PathValue("number")}))
 			return
 		}
 		h.log.ErrorContext(r.Context(), "read order", "error", err)
@@ -84,7 +84,7 @@ func (h *Handler) Order(w http.ResponseWriter, r *http.Request) {
 	view.Notice = widget.NoticeFrom(r, notices)
 	view.AllowanceOperationID = uuid.NewString()
 	respond.Component(w, r, h.log, http.StatusOK,
-		Order(layouts.Page{Title: fmt.Sprintf(i18n.T(r.Context(), i18n.KeyAdminPageOrder), view.Number)}, &view))
+		Order(frame.Page{Title: fmt.Sprintf(i18n.T(r.Context(), i18n.KeyAdminPageOrder), view.Number)}, &view))
 }
 
 func (h *Handler) Advance(w http.ResponseWriter, r *http.Request) {
@@ -215,7 +215,7 @@ func (h *Handler) rejectShip(w http.ResponseWriter, r *http.Request, refusal *sh
 	}
 	view.AllowanceOperationID = uuid.NewString()
 	respond.Component(w, r, h.log, http.StatusUnprocessableEntity,
-		Order(layouts.Page{Title: fmt.Sprintf(i18n.T(r.Context(), i18n.KeyAdminPageOrder), view.Number)}, &view))
+		Order(frame.Page{Title: fmt.Sprintf(i18n.T(r.Context(), i18n.KeyAdminPageOrder), view.Number)}, &view))
 }
 
 // parcelLines reads the `qty_<order_line_id>` fields; a nil map means everything
@@ -371,7 +371,7 @@ func (h *Handler) rejectDelivery(w http.ResponseWriter, r *http.Request, d *Deli
 	applyDeliveryRefusals(r.Context(), &view, d, refusals)
 	view.AllowanceOperationID = uuid.NewString()
 	respond.Component(w, r, h.log, http.StatusUnprocessableEntity,
-		Order(layouts.Page{Title: fmt.Sprintf(i18n.T(r.Context(), i18n.KeyAdminPageOrder), view.Number)}, &view))
+		Order(frame.Page{Title: fmt.Sprintf(i18n.T(r.Context(), i18n.KeyAdminPageOrder), view.Number)}, &view))
 }
 
 func applyDeliveryRefusals(ctx context.Context, view *OrderView, d *DeliveryCorrection, refusals []formtext.FieldRefusal) {

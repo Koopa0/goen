@@ -7,7 +7,7 @@ import (
 	"golang.org/x/net/html"
 
 	"github.com/koopa0/goen/internal/i18n"
-	"github.com/koopa0/goen/internal/ui/layouts"
+	"github.com/koopa0/goen/internal/ui/frame"
 )
 
 func TestRefusedParentIsKeptEvenWhenItsCategoryNoLongerExists(t *testing.T) {
@@ -16,7 +16,7 @@ func TestRefusedParentIsKeptEvenWhenItsCategoryNoLongerExists(t *testing.T) {
 		t.Run(locale.Tag(), func(t *testing.T) {
 			t.Parallel()
 			view := &TaxonomyView{Categories: []Taxon{{Slug: "books", Name: "書房"}}, Which: "categories", Draft: TaxonDraft{Parent: "removed-parent"}, Errors: map[string]string{"parent": "No such parent"}}
-			doc, err := html.Parse(strings.NewReader(renderComponent(t, i18n.WithLocale(t.Context(), locale), Taxonomy(layouts.Page{}, view))))
+			doc, err := html.Parse(strings.NewReader(renderComponent(t, i18n.WithLocale(t.Context(), locale), Taxonomy(frame.Page{}, view))))
 			if err != nil {
 				t.Fatal(err)
 			}

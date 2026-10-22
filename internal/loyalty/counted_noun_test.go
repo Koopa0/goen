@@ -6,7 +6,7 @@ import (
 	"testing"
 
 	"github.com/koopa0/goen/internal/i18n"
-	"github.com/koopa0/goen/internal/ui/layouts"
+	"github.com/koopa0/goen/internal/ui/frame"
 )
 
 func TestPointsCountsSelectSingularAtTheirConsumers(t *testing.T) {
@@ -33,7 +33,7 @@ func TestPointsCountsSelectSingularAtTheirConsumers(t *testing.T) {
 				step = fmt.Sprintf("%d 點", n)
 				detail = fmt.Sprintf("點數不足，少扣 %d 點", n)
 			}
-			body := renderComponent(t, ctx, Points(layouts.Page{}, v))
+			body := renderComponent(t, ctx, Points(frame.Page{}, v))
 			for _, want := range []string{">" + using + "</span>", rule, expiring} {
 				if !strings.Contains(body, want) {
 					t.Errorf("Points(%s, %d) does not contain %q", locale, n, want)

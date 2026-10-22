@@ -4,12 +4,12 @@ import (
 	"fmt"
 
 	"github.com/koopa0/goen/internal/i18n"
-	"github.com/koopa0/goen/internal/ui/layouts"
+	"github.com/koopa0/goen/internal/ui/frame"
 	"github.com/koopa0/goen/internal/ui/widget"
 )
 
-templ Returns(p layouts.Page, v ReturnsView) {
-	@layouts.Base(p) {
+templ Returns(p frame.Page, v ReturnsView) {
+	@frame.Base(p) {
 		<div class="goen-returns">
 			<div class="goen-pagehead">
 				<p class="goen-pagehead__eyebrow">{ i18n.T(ctx, i18n.KeyReturnTitle) }</p>

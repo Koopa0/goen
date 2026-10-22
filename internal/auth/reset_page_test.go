@@ -7,7 +7,7 @@ import (
 	"golang.org/x/net/html"
 
 	"github.com/koopa0/goen/internal/i18n"
-	"github.com/koopa0/goen/internal/ui/layouts"
+	"github.com/koopa0/goen/internal/ui/frame"
 )
 
 func TestForgotSentCollapsesResendWithoutAutofocusingItsHiddenInput(t *testing.T) {
@@ -17,7 +17,7 @@ func TestForgotSentCollapsesResendWithoutAutofocusingItsHiddenInput(t *testing.T
 			t.Run(locale.Tag()+"/"+map[bool]string{false: "fresh", true: "sent"}[sent], func(t *testing.T) {
 				t.Parallel()
 				ctx := i18n.WithLocale(t.Context(), locale)
-				body := renderComponent(t, ctx, Forgot(layouts.Page{}, ForgotView{Sent: sent, Address: "a***@example.com"}))
+				body := renderComponent(t, ctx, Forgot(frame.Page{}, ForgotView{Sent: sent, Address: "a***@example.com"}))
 				doc, err := html.Parse(strings.NewReader(body))
 				if err != nil {
 					t.Fatal(err)

@@ -19,7 +19,7 @@ import (
 	"github.com/koopa0/goen/internal/policy"
 	"github.com/koopa0/goen/internal/product/labelling"
 	"github.com/koopa0/goen/internal/shoptime"
-	"github.com/koopa0/goen/internal/ui/layouts"
+	"github.com/koopa0/goen/internal/ui/frame"
 	"github.com/koopa0/goen/internal/ui/tile"
 	"github.com/koopa0/goen/internal/ui/tone"
 	"github.com/koopa0/goen/internal/ui/widget"
@@ -255,12 +255,12 @@ func (v *ProductView) Trail(ctx context.Context) []widget.Crumb {
 	return append(trail, widget.Crumb{Label: v.Name})
 }
 
-func ProductMeta(v *ProductView) layouts.Page {
+func ProductMeta(v *ProductView) frame.Page {
 	desc := v.Summary
 	if desc == "" {
 		desc = v.Name
 	}
-	page := layouts.Page{
+	page := frame.Page{
 		Title: v.Name, Description: desc,
 		Nav: v.RootSlug(),
 	}
@@ -271,7 +271,7 @@ func ProductMeta(v *ProductView) layouts.Page {
 		if alt == "" {
 			alt = v.Name
 		}
-		page.Share = layouts.ShareImage{Path: img.URL, Width: img.Width, Height: img.Height, Alt: alt}
+		page.Share = frame.ShareImage{Path: img.URL, Width: img.Width, Height: img.Height, Alt: alt}
 	}
 	return page
 }

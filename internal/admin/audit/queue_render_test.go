@@ -12,7 +12,7 @@ import (
 	"github.com/koopa0/goen/internal/db"
 	"github.com/koopa0/goen/internal/i18n"
 	"github.com/koopa0/goen/internal/keyset"
-	"github.com/koopa0/goen/internal/ui/layouts"
+	"github.com/koopa0/goen/internal/ui/frame"
 )
 
 // firstPageBound is the bound the stores build for the first page of a
@@ -44,7 +44,7 @@ func queuePages(b keyset.Bound, ctx func(k i18n.Key) string) map[string]struct {
 	page templ.Component
 	want string
 } {
-	p := layouts.Page{Title: "Queue"}
+	p := frame.Page{Title: "Queue"}
 	type c = struct {
 		page templ.Component
 		want string

@@ -6,7 +6,7 @@ import (
 	"strconv"
 	"time"
 
-	"github.com/koopa0/goen/internal/ui/layouts"
+	"github.com/koopa0/goen/internal/ui/frame"
 
 	"github.com/koopa0/goen/internal/i18n"
 	"github.com/koopa0/goen/internal/order/returns"
@@ -95,8 +95,8 @@ func (v ReturnsView) AnyReturnable() bool {
 	return false
 }
 
-func ReturnsMeta(ctx context.Context, number string) layouts.Page {
-	return layouts.Page{Title: fmt.Sprintf(i18n.T(ctx, i18n.KeyReturnMeta), number)}
+func ReturnsMeta(ctx context.Context, number string) frame.Page {
+	return frame.Page{Title: fmt.Sprintf(i18n.T(ctx, i18n.KeyReturnMeta), number)}
 }
 
 func (v ReturnsView) returnWindow(ctx context.Context, parcel OrderShipment) string {

@@ -7,7 +7,7 @@ import (
 	"github.com/koopa0/goen/assets"
 	"github.com/koopa0/goen/internal/discount/campaign"
 	"github.com/koopa0/goen/internal/i18n"
-	"github.com/koopa0/goen/internal/ui/layouts"
+	"github.com/koopa0/goen/internal/ui/frame"
 	"github.com/koopa0/goen/internal/ui/tone"
 	"github.com/koopa0/goen/internal/ui/widget"
 )
@@ -17,7 +17,7 @@ const seedBanner = "campaign-banner-01.webp"
 func TestCampaignPageShowsItsHeaderOnlyWhenItHasOne(t *testing.T) {
 	t.Parallel()
 	ctx := i18n.WithLocale(t.Context(), i18n.En)
-	with := renderComponent(t, ctx, campaign.Page(layouts.Page{Title: "c"}, campaign.View{
+	with := renderComponent(t, ctx, campaign.Page(frame.Page{Title: "c"}, campaign.View{
 		Slug: "c", Title: "Sale",
 		Image: widget.Photo{
 			URL: assets.Image{BundledKey: seedBanner}.URL(), Srcset: assets.Image{BundledKey: seedBanner}.Srcset(),
@@ -32,7 +32,7 @@ func TestCampaignPageShowsItsHeaderOnlyWhenItHasOne(t *testing.T) {
 			t.Errorf("a campaign with a header lacks %q", want)
 		}
 	}
-	without := renderComponent(t, ctx, campaign.Page(layouts.Page{Title: "c"}, campaign.View{Slug: "c", Title: "Sale"}))
+	without := renderComponent(t, ctx, campaign.Page(frame.Page{Title: "c"}, campaign.View{Slug: "c", Title: "Sale"}))
 	if strings.Contains(without, "goen-campaign__header") {
 		t.Error("a campaign with no header still draws one")
 	}
@@ -56,7 +56,7 @@ func TestACampaignHeadCarriesItsTone(t *testing.T) {
 	t.Parallel()
 	ctx := i18n.WithLocale(t.Context(), i18n.En)
 
-	head := renderComponent(t, ctx, campaign.Page(layouts.Page{Title: "c"}, campaign.View{Slug: "c", Title: "Sale", Tone: tone.Ink}))
+	head := renderComponent(t, ctx, campaign.Page(frame.Page{Title: "c"}, campaign.View{Slug: "c", Title: "Sale", Tone: tone.Ink}))
 	if !strings.Contains(head, `data-tone="ink"`) {
 		t.Error("the campaign head does not carry its tone")
 	}

@@ -6,13 +6,13 @@ import (
 
 	"github.com/koopa0/goen/internal/i18n"
 	"github.com/koopa0/goen/internal/order"
-	"github.com/koopa0/goen/internal/ui/layouts"
+	"github.com/koopa0/goen/internal/ui/frame"
 )
 
 func renderOrder(t *testing.T, locale i18n.Locale, v *OrderView) string {
 	t.Helper()
 	ctx := i18n.WithLocale(t.Context(), locale)
-	return renderComponent(t, ctx, Order(layouts.Page{Title: "order"}, v))
+	return renderComponent(t, ctx, Order(frame.Page{Title: "order"}, v))
 }
 
 // A paid order awaiting fulfilment has one move, so it is one button: a menu of

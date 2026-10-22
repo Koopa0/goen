@@ -14,7 +14,7 @@ import (
 	"github.com/koopa0/goen/internal/keyset"
 	"github.com/koopa0/goen/internal/money"
 	"github.com/koopa0/goen/internal/product/inventory"
-	"github.com/koopa0/goen/internal/ui/layouts"
+	"github.com/koopa0/goen/internal/ui/frame"
 	"github.com/koopa0/goen/internal/ui/stockrisk"
 	"github.com/koopa0/goen/internal/ui/widget"
 	"github.com/koopa0/goen/internal/user"
@@ -199,7 +199,7 @@ func (h *Handler) renderReceiptRefusal(w http.ResponseWriter, r *http.Request, v
 	view.QuantityError = i18n.T(r.Context(), key)
 	view.ReceiptKey = r.PostFormValue("idempotency")
 	respond.Component(w, r, h.log, http.StatusUnprocessableEntity, Movements(
-		layouts.Page{Title: view.SKU}, view))
+		frame.Page{Title: view.SKU}, view))
 }
 
 func (h *Handler) SetActive(w http.ResponseWriter, r *http.Request) {
@@ -298,7 +298,7 @@ func (h *Handler) Movements(w http.ResponseWriter, r *http.Request) {
 	case err == nil:
 		view.Notice = widget.NoticeFrom(r, notices)
 		respond.Component(w, r, h.log, http.StatusOK, Movements(
-			layouts.Page{Title: view.SKU}, &view))
+			frame.Page{Title: view.SKU}, &view))
 	case errors.Is(err, ErrNotFound):
 		access.NotFound(w, r, h.log)
 	default:

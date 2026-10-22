@@ -6,7 +6,7 @@ import (
 	"time"
 
 	"github.com/koopa0/goen/internal/i18n"
-	"github.com/koopa0/goen/internal/ui/layouts"
+	"github.com/koopa0/goen/internal/ui/frame"
 )
 
 // A NT$100 coupon against NT$80 delivery is two rows, as on the order page,
@@ -26,7 +26,7 @@ func TestThePayPageListsDeliveryAndTheDiscountApart(t *testing.T) {
 		DiscountCents:  10000,
 		DiscountReason: "ACCEPT100 · 驗收折扣",
 	}
-	html := renderToString(t, Pay(layouts.Page{Title: "Pay"}, view))
+	html := renderToString(t, Pay(frame.Page{Title: "Pay"}, view))
 	for _, want := range []string{
 		"<dt>運費（宅配到府）</dt>", ">NT$80<",
 		"<dt>折扣（ACCEPT100 · 驗收折扣）</dt>", ">-NT$100<",
@@ -54,7 +54,7 @@ func TestThePayPageNamesStoreCreditAndFreeDelivery(t *testing.T) {
 		CreditCents:  20000,
 	}
 	ctx := i18n.WithLocale(t.Context(), i18n.ZhHant)
-	html := renderToString(t, Pay(layouts.Page{Title: "Pay"}, view))
+	html := renderToString(t, Pay(frame.Page{Title: "Pay"}, view))
 	for _, want := range []string{
 		"<dt>" + i18n.T(ctx, i18n.KeyOrderCreditApplied) + "</dt>", ">-NT$200<",
 		">" + i18n.T(ctx, i18n.KeyFreeShipping) + "<", ">NT$800<",
@@ -87,7 +87,7 @@ func TestThePayEyebrowNamesTheOrdersStatus(t *testing.T) {
 		}
 	}
 
-	off := renderToString(t, Pay(layouts.Page{Title: "Pay"}, PayView{Number: "GOEN-PAY"}))
+	off := renderToString(t, Pay(frame.Page{Title: "Pay"}, PayView{Number: "GOEN-PAY"}))
 	if !strings.Contains(off, `<p class="goen-pagehead__eyebrow">待付款</p>`) {
 		t.Error("with payments off the pay page's eyebrow does not say 待付款")
 	}
@@ -124,7 +124,7 @@ func TestThePayPageStatesTheDeadlineAndTheHoldInWords(t *testing.T) {
 			Number: "GOEN-PAY", TotalCents: 149300, Enabled: true, Hold: payHold(false),
 			Lines: []PayLine{{Name: "Nimbus", UnitCents: 149300, Quantity: 1}},
 		}
-		html := renderComponent(t, ctx, Pay(layouts.Page{Title: "Pay"}, view))
+		html := renderComponent(t, ctx, Pay(frame.Page{Title: "Pay"}, view))
 		for _, want := range []string{
 			`<div class="goen-pay__window"><p class="goen-pay__deadline">` + tt.deadline + `</p><p class="goen-pay__hold">` + tt.hold + `</p></div>`,
 			tt.placed, `<time datetime="2026-10-09T14:02">14:02</time>`,
@@ -145,7 +145,7 @@ func TestThePayPageStatesTheDeadlineAndTheHoldInWords(t *testing.T) {
 		}
 
 		view.Hold.StartBy = time.Time{}
-		html = renderComponent(t, ctx, Pay(layouts.Page{Title: "Pay"}, view))
+		html = renderComponent(t, ctx, Pay(frame.Page{Title: "Pay"}, view))
 		if want := `<p class="goen-pay__deadline">` + tt.resumedLead + `</p><p class="goen-pay__hold">` + tt.resumedNote + `</p>`; !strings.Contains(html, want) {
 			t.Errorf("%s: a resumed session does not lead with the hold's end: want %q", tt.locale, want)
 		}
@@ -175,7 +175,7 @@ func TestThePayWindowIsBlueOnlyWhileAPaymentCanStart(t *testing.T) {
 		{"payments off", PayView{Hold: payHold(false)}, true},
 	} {
 		tt.view.Number = "GOEN-PAY"
-		html := renderToString(t, Pay(layouts.Page{Title: "Pay"}, tt.view))
+		html := renderToString(t, Pay(frame.Page{Title: "Pay"}, tt.view))
 		if !strings.Contains(html, "goen-pay__window") {
 			t.Errorf("%s: the pay page does not state the hold", tt.name)
 		}
@@ -195,7 +195,7 @@ func TestAPayPageWhoseHoldLapsedSaysNothingWasCharged(t *testing.T) {
 		Number: "GOEN-PAY", TotalCents: 149300, Closure: PayOrderCancelled, Hold: payHold(true),
 		Lines: []PayLine{{Name: "Nimbus", UnitCents: 149300, Quantity: 1}},
 	}
-	html := renderToString(t, Pay(layouts.Page{Title: "Pay"}, view))
+	html := renderToString(t, Pay(frame.Page{Title: "Pay"}, view))
 	for _, want := range []string{
 		"<dt>送出</dt>", "<dt>自動取消</dt>", `<time datetime="2026-10-09T15:03">15:03</time>`, "庫存保留結束時仍未付款", "<dt>收取金額</dt>", `<small class="ui-statline__pre">NT$</small>0`,
 	} {
@@ -216,7 +216,7 @@ func TestAPayPageWhoseHoldLapsedSaysNothingWasCharged(t *testing.T) {
 func TestAPayPageWithNoHoldStatesNone(t *testing.T) {
 	t.Parallel()
 
-	html := renderToString(t, Pay(layouts.Page{Title: "Pay"}, PayView{Number: "GOEN-PAY", Enabled: true}))
+	html := renderToString(t, Pay(frame.Page{Title: "Pay"}, PayView{Number: "GOEN-PAY", Enabled: true}))
 	for _, unwanted := range []string{"goen-pay__window", "ui-statline", "ui-period"} {
 		if strings.Contains(html, unwanted) {
 			t.Errorf("a pay page with no stored hold draws %s", unwanted)

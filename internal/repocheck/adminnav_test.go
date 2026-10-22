@@ -82,7 +82,7 @@ type adminNavGroup struct {
 func adminNavSource(t *testing.T) (groups []adminNavGroup, standalone []string) {
 	t.Helper()
 
-	body, err := os.ReadFile(filepath.Join(repoRoot(t), "internal", "ui", "layouts", "admin.templ"))
+	body, err := os.ReadFile(filepath.Join(repoRoot(t), "internal", "ui", "frame", "admin.templ"))
 	if err != nil {
 		t.Fatalf("read the back-office layout: %v", err)
 	}
@@ -148,7 +148,7 @@ func adminNavSource(t *testing.T) (groups []adminNavGroup, standalone []string) 
 func adminNavCallers(t *testing.T) []string {
 	t.Helper()
 
-	call := regexp.MustCompile(`layouts\.Admin\(p, "([a-z]+)"\)`)
+	call := regexp.MustCompile(`frame\.Admin\(p, "([a-z]+)"\)`)
 
 	sources := templSources(t)
 	var out []string

@@ -15,7 +15,7 @@ import (
 	"github.com/koopa0/goen/internal/cart/cartitem"
 	"github.com/koopa0/goen/internal/email"
 	"github.com/koopa0/goen/internal/i18n"
-	"github.com/koopa0/goen/internal/ui/layouts"
+	"github.com/koopa0/goen/internal/ui/frame"
 	"github.com/koopa0/goen/internal/user"
 	"github.com/koopa0/goen/internal/web/formtext"
 	"github.com/koopa0/goen/internal/web/ratelimit"
@@ -39,8 +39,8 @@ func (h *Handler) Product(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		h.log.ErrorContext(r.Context(), "load product", "error", err, "slug", slug)
-		respond.Component(w, r, h.log, http.StatusInternalServerError, layouts.Notice(
-			layouts.Page{Title: i18n.T(r.Context(), i18n.KeyCannotLoad)}, "",
+		respond.Component(w, r, h.log, http.StatusInternalServerError, frame.Notice(
+			frame.Page{Title: i18n.T(r.Context(), i18n.KeyCannotLoad)}, "",
 			i18n.T(r.Context(), i18n.KeyCannotLoad),
 			i18n.T(r.Context(), i18n.KeyCannotLoadProduct)))
 		return
@@ -64,8 +64,8 @@ func (h *Handler) Product(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *Handler) productNotFound(w http.ResponseWriter, r *http.Request) {
-	respond.Component(w, r, h.log, http.StatusNotFound, layouts.Notice(
-		layouts.Page{Title: i18n.T(r.Context(), i18n.KeyProductNotFound)}, "404",
+	respond.Component(w, r, h.log, http.StatusNotFound, frame.Notice(
+		frame.Page{Title: i18n.T(r.Context(), i18n.KeyProductNotFound)}, "404",
 		i18n.T(r.Context(), i18n.KeyProductNotFound),
 		i18n.T(r.Context(), i18n.KeyProductNotFoundBody)))
 }
@@ -118,8 +118,8 @@ func (h *Handler) Review(w http.ResponseWriter, r *http.Request) {
 		h.rejectReview(w, r, slug, &draft, errs)
 	default:
 		h.log.ErrorContext(r.Context(), "add review", "error", err, "slug", slug)
-		respond.Component(w, r, h.log, http.StatusInternalServerError, layouts.Notice(
-			layouts.Page{Title: i18n.T(r.Context(), i18n.KeyTryAgainTitle)}, "",
+		respond.Component(w, r, h.log, http.StatusInternalServerError, frame.Notice(
+			frame.Page{Title: i18n.T(r.Context(), i18n.KeyTryAgainTitle)}, "",
 			i18n.T(r.Context(), i18n.KeyTryAgainTitle),
 			i18n.T(r.Context(), i18n.KeyLoggedTryAgain)))
 	}
@@ -169,8 +169,8 @@ func (h *Handler) Notify(w http.ResponseWriter, r *http.Request) {
 		h.rejectNotify(w, r, slug, addr, outcome)
 	default:
 		h.log.ErrorContext(r.Context(), "restock notice", "error", err, "slug", slug)
-		respond.Component(w, r, h.log, http.StatusInternalServerError, layouts.Notice(
-			layouts.Page{Title: i18n.T(r.Context(), i18n.KeyTryAgainTitle)}, "",
+		respond.Component(w, r, h.log, http.StatusInternalServerError, frame.Notice(
+			frame.Page{Title: i18n.T(r.Context(), i18n.KeyTryAgainTitle)}, "",
 			i18n.T(r.Context(), i18n.KeyTryAgainTitle),
 			i18n.T(r.Context(), i18n.KeyTryAgainBody)))
 	}
@@ -193,8 +193,8 @@ func (h *Handler) rejectNotify(w http.ResponseWriter, r *http.Request, slug, add
 			return
 		}
 		h.log.ErrorContext(r.Context(), "reload product", "error", err, "slug", slug)
-		respond.Component(w, r, h.log, http.StatusInternalServerError, layouts.Notice(
-			layouts.Page{Title: i18n.T(r.Context(), i18n.KeyTryAgainTitle)}, "",
+		respond.Component(w, r, h.log, http.StatusInternalServerError, frame.Notice(
+			frame.Page{Title: i18n.T(r.Context(), i18n.KeyTryAgainTitle)}, "",
 			i18n.T(r.Context(), i18n.KeyTryAgainTitle),
 			i18n.T(r.Context(), i18n.KeyTryAgainBody)))
 		return
@@ -210,8 +210,8 @@ func (h *Handler) rejectReview(w http.ResponseWriter, r *http.Request, slug stri
 	view, err := h.store.Product(r.Context(), slug, ParseSelection(r.URL.Query()))
 	if err != nil {
 		h.log.ErrorContext(r.Context(), "reload product", "error", err, "slug", slug)
-		respond.Component(w, r, h.log, http.StatusInternalServerError, layouts.Notice(
-			layouts.Page{Title: i18n.T(r.Context(), i18n.KeyTryAgainTitle)}, "",
+		respond.Component(w, r, h.log, http.StatusInternalServerError, frame.Notice(
+			frame.Page{Title: i18n.T(r.Context(), i18n.KeyTryAgainTitle)}, "",
 			i18n.T(r.Context(), i18n.KeyTryAgainTitle),
 			i18n.T(r.Context(), i18n.KeyTryAgainBody)))
 		return
@@ -284,8 +284,8 @@ func (h *Handler) Ask(w http.ResponseWriter, r *http.Request) {
 		h.rejectAsk(w, r, slug, body, "bad")
 	default:
 		h.log.ErrorContext(r.Context(), "ask question", "error", err, "slug", slug)
-		respond.Component(w, r, h.log, http.StatusInternalServerError, layouts.Notice(
-			layouts.Page{Title: i18n.T(r.Context(), i18n.KeyTryAgainTitle)}, "",
+		respond.Component(w, r, h.log, http.StatusInternalServerError, frame.Notice(
+			frame.Page{Title: i18n.T(r.Context(), i18n.KeyTryAgainTitle)}, "",
 			i18n.T(r.Context(), i18n.KeyTryAgainTitle),
 			i18n.T(r.Context(), i18n.KeyLoggedTryAgain)))
 	}
@@ -295,8 +295,8 @@ func (h *Handler) rejectAsk(w http.ResponseWriter, r *http.Request, slug, body, 
 	view, err := h.store.Product(r.Context(), slug, ParseSelection(r.URL.Query()))
 	if err != nil {
 		h.log.ErrorContext(r.Context(), "reload product", "error", err, "slug", slug)
-		respond.Component(w, r, h.log, http.StatusInternalServerError, layouts.Notice(
-			layouts.Page{Title: i18n.T(r.Context(), i18n.KeyTryAgainTitle)}, "",
+		respond.Component(w, r, h.log, http.StatusInternalServerError, frame.Notice(
+			frame.Page{Title: i18n.T(r.Context(), i18n.KeyTryAgainTitle)}, "",
 			i18n.T(r.Context(), i18n.KeyTryAgainTitle),
 			i18n.T(r.Context(), i18n.KeyTryAgainBody)))
 		return

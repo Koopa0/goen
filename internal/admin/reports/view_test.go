@@ -10,7 +10,7 @@ import (
 
 	"github.com/koopa0/goen/internal/i18n"
 	"github.com/koopa0/goen/internal/product/inventory"
-	"github.com/koopa0/goen/internal/ui/layouts"
+	"github.com/koopa0/goen/internal/ui/frame"
 	"github.com/koopa0/goen/internal/ui/stockrisk"
 )
 
@@ -23,7 +23,7 @@ func TestStockRowsCarryTheirRangeAndWindowInText(t *testing.T) {
 	t.Parallel()
 
 	ctx := i18n.WithLocale(t.Context(), i18n.En)
-	html := renderComponent(t, ctx, Report(layouts.Page{Title: "Reports"}, &ReportView{
+	html := renderComponent(t, ctx, Report(frame.Page{Title: "Reports"}, &ReportView{
 		Days: 7, StockDays: 30, Windows: []int32{7, 30, 90},
 		AtRisk: []stockrisk.Row{{Risk: inventory.Risk{SKU: "OUT-1", Name: "Gone", Slug: "gone"}},
 			{Risk: inventory.Risk{SKU: "EST-1", Name: "Going", Slug: "going", Sales: inventory.Sales{Sellable: 20, Sold: 30, Orders: 15, InStock: stockedAllWindow}}},
@@ -63,12 +63,12 @@ func TestMoreSoldOutLinksToTheStockDeskFilter(t *testing.T) {
 		Days: 30, StockDays: 30, Windows: []int32{7, 30, 90}, MoreSoldOut: 2,
 		AtRisk: []stockrisk.Row{{Risk: inventory.Risk{SKU: "OUT-1", Name: "Gone", Slug: "gone"}}},
 	}
-	html := renderComponent(t, ctx, Report(layouts.Page{Title: "Reports"}, view))
+	html := renderComponent(t, ctx, Report(frame.Page{Title: "Reports"}, view))
 	if want := `<a href="/admin/stock?soldout=1">2 more items sold out</a>`; !strings.Contains(html, want) {
 		t.Errorf("the stock section lacks %s", want)
 	}
 	view.MoreSoldOut = 0
-	if html := renderComponent(t, ctx, Report(layouts.Page{Title: "Reports"}, view)); strings.Contains(html, "/admin/stock?soldout=1") {
+	if html := renderComponent(t, ctx, Report(frame.Page{Title: "Reports"}, view)); strings.Contains(html, "/admin/stock?soldout=1") {
 		t.Error("the stock section links to the sold out filter with none left off")
 	}
 }
@@ -83,7 +83,7 @@ func TestReportAndStockDeskShareTheDaysCoverSection(t *testing.T) {
 	rows := []stockrisk.Row{{Risk: inventory.Risk{SKU: "OUT-1", Name: "Gone", Slug: "gone"}}}
 	section := renderComponent(t, ctx, stockrisk.Section(rows, 0, inventory.CoverWindowDays))
 	for name, page := range map[string]string{
-		"report": renderComponent(t, ctx, Report(layouts.Page{}, &ReportView{Days: 30, Windows: []int32{7, 30, 90}, AtRisk: rows, StockDays: inventory.CoverWindowDays})),
+		"report": renderComponent(t, ctx, Report(frame.Page{}, &ReportView{Days: 30, Windows: []int32{7, 30, 90}, AtRisk: rows, StockDays: inventory.CoverWindowDays})),
 	} {
 		if !strings.Contains(page, section) {
 			t.Errorf("%s does not contain the shared days cover section", name)
@@ -97,7 +97,7 @@ func TestListsShareOneRowSkeleton(t *testing.T) {
 
 	ctx := i18n.WithLocale(t.Context(), i18n.En)
 	stock := renderComponent(t, ctx, stockrisk.Rows([]stockrisk.Row{{Risk: inventory.Risk{SKU: "EST-1", Name: "Going", Slug: "going", Sales: inventory.Sales{Sellable: 14, Sold: 43, Orders: 36, InStock: stockedAllWindow}}}}, 0, 30))
-	report := renderComponent(t, ctx, Report(layouts.Page{Title: "Reports"}, &ReportView{
+	report := renderComponent(t, ctx, Report(frame.Page{Title: "Reports"}, &ReportView{
 		Days: 30, Windows: []int32{7, 30, 90}, Placed: 3, Committed: 3, Orders: 3,
 		Sellers: []Seller{{Slug: "a", Name: "Alpha", Brand: "Aurora", Units: 40}, {Slug: "b", Name: "Beta", Units: 10}},
 	}))

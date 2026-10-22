@@ -1,0 +1,95 @@
+package frame
+
+import (
+	"strconv"
+
+	"github.com/koopa0/goen/assets"
+	"github.com/koopa0/goen/internal/i18n"
+)
+
+templ Base(p Page) {
+	<!DOCTYPE html>
+	<html lang={ i18n.FromContext(ctx).Tag() } class="theme-blue">
+		@documentHead(p, assets.AppCSS) {
+			<meta name="text-scale" content="scale"/>
+		}
+		<body class="goen-shell">
+			<a class="goen-skip" href="#main">{ i18n.T(ctx, i18n.KeySkipToContent) }</a>
+			@promoBanner()
+			@Header(p)
+			<main id="main">
+				{ children... }
+			</main>
+			@Footer(p.Newsletter)
+		</body>
+	</html>
+}
+
+// One templ, not two: every entry is a fact about the document, not the storefront.
+//
+// base.css is linked before the surface's own sheet because source order settles a
+// value set in both, and the surface's sheet is what wins.
+templ documentHead(p Page, surfaceCSS string) {
+	<head>
+		<meta charset="utf-8"/>
+		<meta name="viewport" content="width=device-width, initial-scale=1"/>
+		{ children... }
+		<meta name="htmx-config" content={ htmxConfig }/>
+		<title>{ p.title(ctx) }</title>
+		if p.Description != "" {
+			<meta name="description" content={ p.Description }/>
+		}
+		<meta property="og:title" content={ p.title(ctx) }/>
+		if p.Description != "" {
+			<meta property="og:description" content={ p.Description }/>
+		}
+		<meta property="og:type" content="website"/>
+		<meta property="og:site_name" content={ i18n.T(ctx, i18n.KeySiteName) }/>
+		<meta name="twitter:card" content="summary_large_image"/>
+		if p.StructuredData != "" {
+			@structuredData(p.StructuredData)
+		}
+		// Where no origin is configured the tags are left out rather than sent relative,
+		// which a crawler cannot use.
+		if origin := SiteOrigin(ctx); origin != "" {
+			<meta property="og:url" content={ origin + RequestPath(ctx) }/>
+			if p.Share.Path != "" {
+				<meta property="og:image" content={ origin + p.Share.Path }/>
+				if p.Share.Width > 0 && p.Share.Height > 0 {
+					<meta property="og:image:width" content={ strconv.Itoa(int(p.Share.Width)) }/>
+					<meta property="og:image:height" content={ strconv.Itoa(int(p.Share.Height)) }/>
+				}
+				<meta property="og:image:alt" content={ p.Share.Alt }/>
+			} else {
+				<meta property="og:image" content={ origin + assets.URL(assets.OGDefaultImage) }/>
+				<meta property="og:image:width" content={ strconv.Itoa(assets.OGDefaultWidth) }/>
+				<meta property="og:image:height" content={ strconv.Itoa(assets.OGDefaultHeight) }/>
+				<meta property="og:image:alt" content={ i18n.T(ctx, i18n.KeyOGImageAlt) }/>
+			}
+		}
+		<link rel="icon" href="/favicon.ico" sizes="32x32"/>
+		<link rel="icon" type="image/svg+xml" href={ templ.URL(assets.URL(assets.FaviconSVG)) }/>
+		<link rel="apple-touch-icon" href={ templ.URL(assets.URL(assets.AppleTouchIcon)) }/>
+		// goen's own faces from goen's own origin, so there is no preconnect: the stylesheet
+		// and every file it names arrive on the connection that fetched the page.
+		//
+		// The Latin face is preloaded because every page paints it first and a browser cannot
+		// find a font before it parses the sheet naming it. The Han subsets are not: which
+		// subset a page needs depends on its characters, and a wrong guess costs a file.
+		<link rel="preload" href={ templ.URL(assets.URL(assets.InstrumentSansLatinWOFF2)) } as="font" type="font/woff2" crossorigin/>
+		<link rel="stylesheet" href={ templ.URL(assets.URL(assets.FontsCSS)) }/>
+		<link rel="stylesheet" href={ templ.URL(assets.URL(assets.BaseCSS)) }/>
+		<link rel="stylesheet" href={ templ.URL(assets.URL(surfaceCSS)) }/>
+		if p.Await != AwaitNone {
+			<link rel="expect" href={ templ.URL("#" + p.Await.ID()) } blocking="render"/>
+		}
+		<script src={ templ.URL(assets.URL(assets.TransitionsJS)) }></script>
+		<script src={ templ.URL(assets.URL(assets.HTMXJS)) } defer></script>
+		<script src={ templ.URL(assets.URL(assets.AppJS)) } defer></script>
+	</head>
+}
+
+// Inside templ.Raw because templ treats a <script> body as literal text.
+templ structuredData(doc string) {
+	@templ.Raw(`<script type="application/ld+json">` + doc + `</script>`)
+}

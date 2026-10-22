@@ -8,7 +8,7 @@ import (
 	"github.com/koopa0/goen/assets"
 	"github.com/koopa0/goen/internal/discount/campaign"
 	"github.com/koopa0/goen/internal/i18n"
-	"github.com/koopa0/goen/internal/ui/layouts"
+	"github.com/koopa0/goen/internal/ui/frame"
 	"github.com/koopa0/goen/internal/ui/tile"
 	"github.com/koopa0/goen/internal/ui/widget"
 )
@@ -16,7 +16,7 @@ import (
 func renderCampaign(t *testing.T, startsAt, endsAt time.Time) string {
 	t.Helper()
 	ctx := i18n.WithLocale(t.Context(), i18n.ZhHant)
-	return renderComponent(t, ctx, campaign.Page(layouts.Page{Title: "c"}, campaign.View{
+	return renderComponent(t, ctx, campaign.Page(frame.Page{Title: "c"}, campaign.View{
 		Slug: "c", Title: "秋日選物", Products: []tile.Tile{{Slug: "p", Name: "茶壺", PriceCents: 80000, InStock: true}},
 		Schedule: campaign.NewSchedule(ctx, "秋日選物", 1, startsAt, endsAt, scheduleNow),
 	}))
@@ -62,7 +62,7 @@ func TestACampaignPageStatesItsFactsAndDrawsItsDays(t *testing.T) {
 func TestTheEmptyCampaignShowsItsIllustrationAsDecoration(t *testing.T) {
 	t.Parallel()
 	ctx := i18n.WithLocale(t.Context(), i18n.ZhHant)
-	page := renderComponent(t, ctx, campaign.Page(layouts.Page{}, campaign.View{Title: "x"}))
+	page := renderComponent(t, ctx, campaign.Page(frame.Page{}, campaign.View{Title: "x"}))
 	want := `<img class="goen-empty__art" src="` + assets.URL(assets.EmptyCampaignImage) + `" alt="" width="128" height="96"`
 	if !strings.Contains(page, want) {
 		t.Errorf("campaign empty state omits %s", want)
@@ -72,9 +72,9 @@ func TestTheEmptyCampaignShowsItsIllustrationAsDecoration(t *testing.T) {
 // From TestEveryPageKindSendsItsOwnLinkPreviewTags, which keeps the other pages' rows.
 func TestTheCampaignPageSendsItsOwnLinkPreviewTags(t *testing.T) {
 	t.Parallel()
-	ctx := i18n.WithLocale(layouts.WithRequestPath(t.Context(), "/s/autumn"), i18n.ZhHant)
+	ctx := i18n.WithLocale(frame.WithRequestPath(t.Context(), "/s/autumn"), i18n.ZhHant)
 	p := campaign.Meta(ctx, "秋日選物", widget.Photo{URL: "/static/media/campaigns/autumn.webp?v=1", Alt: "秋日"})
-	head := renderComponent(t, layouts.WithSiteOrigin(ctx, "https://goen.test"), layouts.Base(p))
+	head := renderComponent(t, frame.WithSiteOrigin(ctx, "https://goen.test"), frame.Base(p))
 	for _, want := range []string{
 		`og:title" content="秋日選物 · goen"`,
 		`og:description" content="秋日選物 — goen 優惠"`,

@@ -5,7 +5,7 @@ import (
 	"net/http"
 
 	"github.com/koopa0/goen/internal/i18n"
-	"github.com/koopa0/goen/internal/ui/layouts"
+	"github.com/koopa0/goen/internal/ui/frame"
 	"github.com/koopa0/goen/internal/web/respond"
 )
 
@@ -30,8 +30,8 @@ func (h *Handler) Index(w http.ResponseWriter, r *http.Request) {
 	view, err := h.store.Load(r.Context())
 	if err != nil {
 		h.log.Error("load home page", "error", err)
-		respond.Component(w, r, h.log, http.StatusInternalServerError, layouts.Notice(
-			layouts.Page{Title: i18n.T(r.Context(), i18n.KeyHome)}, "",
+		respond.Component(w, r, h.log, http.StatusInternalServerError, frame.Notice(
+			frame.Page{Title: i18n.T(r.Context(), i18n.KeyHome)}, "",
 			i18n.T(r.Context(), i18n.KeyCannotLoad),
 			i18n.T(r.Context(), i18n.KeyCannotLoadHome)))
 		return

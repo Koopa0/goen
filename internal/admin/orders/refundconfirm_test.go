@@ -7,7 +7,7 @@ import (
 
 	"github.com/koopa0/goen/internal/i18n"
 	"github.com/koopa0/goen/internal/order"
-	"github.com/koopa0/goen/internal/ui/layouts"
+	"github.com/koopa0/goen/internal/ui/frame"
 )
 
 // A pending order store credit alone paid is cancelled at once: the order page
@@ -18,7 +18,7 @@ func TestACreditPaidCancellationSaysWhatItDoes(t *testing.T) {
 		ctx := i18n.WithLocale(t.Context(), locale)
 		var body strings.Builder
 		view := &OrderView{Number: "GO-260929-000001", Status: order.FulfillmentPending, Funded: true, RefundOffered: true, RefundCreditPaid: true}
-		if err := Order(layouts.Page{Title: "order"}, view).Render(ctx, &body); err != nil {
+		if err := Order(frame.Page{Title: "order"}, view).Render(ctx, &body); err != nil {
 			t.Fatal(err)
 		}
 		page := html.UnescapeString(body.String())
@@ -34,7 +34,7 @@ func TestTheOrderPageOffersTheRefundAndResume(t *testing.T) {
 	render := func(v *OrderView) string {
 		t.Helper()
 		var body strings.Builder
-		if err := Order(layouts.Page{Title: "order"}, v).Render(ctx, &body); err != nil {
+		if err := Order(frame.Page{Title: "order"}, v).Render(ctx, &body); err != nil {
 			t.Fatal(err)
 		}
 		return body.String()

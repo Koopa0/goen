@@ -4,12 +4,12 @@ import (
 	"fmt"
 
 	"github.com/koopa0/goen/internal/i18n"
-	"github.com/koopa0/goen/internal/ui/layouts"
+	"github.com/koopa0/goen/internal/ui/frame"
 	"github.com/koopa0/goen/internal/ui/widget"
 )
 
-templ WarrantyList(p layouts.Page, v WarrantyListView) {
-	@layouts.Base(p) {
+templ WarrantyList(p frame.Page, v WarrantyListView) {
+	@frame.Base(p) {
 		<div class="goen-account goen-account--narrow goen-account--warranty">
 			@widget.Breadcrumb(widget.BreadcrumbProps{
 				Label: i18n.T(ctx, i18n.KeyBreadcrumb),
@@ -80,8 +80,8 @@ templ WarrantyList(p layouts.Page, v WarrantyListView) {
 	}
 }
 
-templ WarrantyOrder(p layouts.Page, v OrderView) {
-	@layouts.Base(p) {
+templ WarrantyOrder(p frame.Page, v OrderView) {
+	@frame.Base(p) {
 		<div class="goen-account goen-account--narrow goen-account--warranty">
 			@widget.Breadcrumb(widget.BreadcrumbProps{
 				Label: i18n.T(ctx, i18n.KeyBreadcrumb),

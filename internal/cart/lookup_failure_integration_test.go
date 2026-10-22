@@ -26,7 +26,7 @@ import (
 	"github.com/koopa0/goen/internal/db/dbtest"
 	"github.com/koopa0/goen/internal/i18n"
 	"github.com/koopa0/goen/internal/order/access"
-	"github.com/koopa0/goen/internal/ui/layouts"
+	"github.com/koopa0/goen/internal/ui/frame"
 	"github.com/koopa0/goen/internal/user"
 )
 
@@ -253,7 +253,7 @@ func TestCartLookupFailuresDoNotReplaceOrHideTheBasket(t *testing.T) {
 				var nextErr error
 				route := h.WithCount(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 					continued++
-					count, nextErr = layouts.CartCount(r.Context()), r.Context().Err()
+					count, nextErr = frame.CartCount(r.Context()), r.Context().Err()
 					w.WriteHeader(http.StatusNoContent)
 				}))
 				req := httptest.NewRequestWithContext(requestCtx, http.MethodGet, "/cart", http.NoBody)

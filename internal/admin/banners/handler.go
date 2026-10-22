@@ -8,7 +8,7 @@ import (
 	"github.com/koopa0/goen/internal/admin/access"
 	"github.com/koopa0/goen/internal/i18n"
 	"github.com/koopa0/goen/internal/keyset"
-	"github.com/koopa0/goen/internal/ui/layouts"
+	"github.com/koopa0/goen/internal/ui/frame"
 	"github.com/koopa0/goen/internal/ui/widget"
 	"github.com/koopa0/goen/internal/web/formtext"
 	"github.com/koopa0/goen/internal/web/respond"
@@ -46,7 +46,7 @@ func (h *Handler) Banners(w http.ResponseWriter, r *http.Request) {
 	}
 	view.Notice = widget.NoticeFrom(r, notices)
 	respond.Component(w, r, h.log, http.StatusOK, Banners(
-		layouts.Page{Title: i18n.T(r.Context(), i18n.KeyAdminHomeBanner)}, &view))
+		frame.Page{Title: i18n.T(r.Context(), i18n.KeyAdminHomeBanner)}, &view))
 }
 
 func (h *Handler) CreateBanner(w http.ResponseWriter, r *http.Request) {
@@ -118,5 +118,5 @@ func (h *Handler) rejectBanner(
 		MessageEn: r.PostFormValue("message_en"), ShortEn: r.PostFormValue("short_en"), CTALabelEn: r.PostFormValue("cta_label_en"),
 	}
 	respond.Component(w, r, h.log, http.StatusUnprocessableEntity, Banners(
-		layouts.Page{Title: i18n.T(r.Context(), i18n.KeyAdminHomeBanner)}, &view))
+		frame.Page{Title: i18n.T(r.Context(), i18n.KeyAdminHomeBanner)}, &view))
 }

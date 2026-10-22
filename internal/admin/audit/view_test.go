@@ -10,7 +10,7 @@ import (
 	"unicode"
 
 	"github.com/koopa0/goen/internal/i18n"
-	"github.com/koopa0/goen/internal/ui/layouts"
+	"github.com/koopa0/goen/internal/ui/frame"
 )
 
 func TestProductUpdateAuditLabelIsLocalized(t *testing.T) {
@@ -61,7 +61,7 @@ func TestASystemIssueIsNotReadAsAnErasedAccount(t *testing.T) {
 func TestTheAuditTrailShowsChangesAsRowsNotJSON(t *testing.T) {
 	t.Parallel()
 	ctx := i18n.WithLocale(t.Context(), i18n.En)
-	html := renderComponent(t, ctx, Audit(layouts.Page{}, View{Rows: []Entry{{
+	html := renderComponent(t, ctx, Audit(frame.Page{}, View{Rows: []Entry{{
 		Action: "order.advance", Entity: "orders", Actor: "staff", At: "2026-10-02 10:00",
 		Changes: []Change{{Field: "status", Before: "pending", After: "picking"}},
 	}}}))
@@ -79,7 +79,7 @@ func TestAuditChangesReadAsWordsAndWholeDollars(t *testing.T) {
 	t.Parallel()
 	const customerID = "0b6c3a4e-1111-4222-8333-444455556666"
 	ctx := i18n.WithLocale(t.Context(), i18n.En)
-	html := renderComponent(t, ctx, Audit(layouts.Page{}, View{Rows: []Entry{
+	html := renderComponent(t, ctx, Audit(frame.Page{}, View{Rows: []Entry{
 		{
 			Action: "credit.grant", Entity: "store_credit_entries", Actor: "staff", At: "2026-10-02 10:00",
 			Changes: []Change{{Field: "amount_cents", After: "9999900"}},
@@ -120,7 +120,7 @@ func TestAuditChangesReadAsWordsAndWholeDollars(t *testing.T) {
 func TestAMoneyRowCarriesAVisibleTag(t *testing.T) {
 	t.Parallel()
 	ctx := i18n.WithLocale(t.Context(), i18n.ZhHant)
-	html := renderComponent(t, ctx, Audit(layouts.Page{}, View{Rows: []Entry{
+	html := renderComponent(t, ctx, Audit(frame.Page{}, View{Rows: []Entry{
 		{Action: "credit.grant", Entity: "store_credit_entries", Actor: "staff", Changes: []Change{{Field: "amount_cents", After: "100"}}},
 	}}))
 	if !strings.Contains(html, ">金額</span>") {
@@ -214,7 +214,7 @@ func TestEntryReadsEachRecordedKindAsWords(t *testing.T) {
 			if tt.wantKey != "" {
 				want = i18n.T(ctx, tt.wantKey)
 			}
-			html := renderComponent(t, ctx, Audit(layouts.Page{}, View{Rows: []Entry{tt.entry}}))
+			html := renderComponent(t, ctx, Audit(frame.Page{}, View{Rows: []Entry{tt.entry}}))
 			if !strings.Contains(html, want) {
 				t.Errorf("audit row is missing %q", want)
 			}
@@ -244,7 +244,7 @@ func TestOnlyARowThatRecordsAnAmountSaysMoney(t *testing.T) {
 				t.Errorf("Money() = %v, want %v", got, tt.want)
 			}
 			ctx := i18n.WithLocale(t.Context(), i18n.En)
-			html := renderComponent(t, ctx, Audit(layouts.Page{}, View{Rows: []Entry{tt.entry}}))
+			html := renderComponent(t, ctx, Audit(frame.Page{}, View{Rows: []Entry{tt.entry}}))
 			if got := strings.Contains(html, ">Money<"); got != tt.want {
 				t.Errorf("rendered Money tag = %v, want %v", got, tt.want)
 			}
@@ -285,7 +285,7 @@ func TestAuditUnknownFieldsRetainDetails(t *testing.T) {
 				if changes[0].Label != label || changes[0].Text != tt.text || changes[0].Href != "" {
 					t.Errorf("unknown field = %#v, want label %q and text %q without a link", changes[0], label, tt.text)
 				}
-				rendered := renderComponent(t, ctx, Audit(layouts.Page{}, View{Rows: []Entry{entry}}))
+				rendered := renderComponent(t, ctx, Audit(frame.Page{}, View{Rows: []Entry{entry}}))
 				for _, want := range []string{"<dt>" + stdhtml.EscapeString(label) + "</dt>", "<dd>" + stdhtml.EscapeString(tt.text) + "</dd>"} {
 					if !strings.Contains(rendered, want) {
 						t.Errorf("unknown field is missing %q", want)

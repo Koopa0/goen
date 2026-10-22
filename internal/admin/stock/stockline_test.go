@@ -7,7 +7,7 @@ import (
 
 	"github.com/koopa0/goen/internal/i18n"
 	"github.com/koopa0/goen/internal/product/inventory"
-	"github.com/koopa0/goen/internal/ui/layouts"
+	"github.com/koopa0/goen/internal/ui/frame"
 )
 
 // stockDays is len(levels) shop days ending with the last level; each receipt
@@ -100,7 +100,7 @@ func TestMovementsPageDrawsTheStockLineOnlyWhenTheDaysWereRead(t *testing.T) {
 
 	ctx := i18n.WithLocale(t.Context(), i18n.En)
 	view := func(days []StockDay) string {
-		return renderComponent(t, ctx, Movements(layouts.Page{Title: "Stock"}, &MovementsView{
+		return renderComponent(t, ctx, Movements(frame.Page{Title: "Stock"}, &MovementsView{
 			SKU: "SKU-1", ProductName: "Thing", Slug: "thing", Stock: 6, Safety: 2, FormID: "f", Days: days, Rows: []Movement{{Delta: 2, Reason: inventory.ReasonReceipt}},
 		}))
 	}

@@ -11,7 +11,7 @@ import (
 
 	"github.com/koopa0/goen/assets"
 	"github.com/koopa0/goen/internal/i18n"
-	"github.com/koopa0/goen/internal/ui/layouts"
+	"github.com/koopa0/goen/internal/ui/frame"
 	"github.com/koopa0/goen/internal/ui/widget"
 )
 
@@ -29,7 +29,7 @@ func TestATaxonomyRowSavesWhatItShows(t *testing.T) {
 			t.Parallel()
 			ctx := i18n.WithLocale(t.Context(), tt.locale)
 			view := &TaxonomyView{Brands: []Taxon{{Slug: "saelo", Name: "沙羅"}}}
-			body := renderComponent(t, ctx, Taxonomy(layouts.Page{Title: "Brands"}, view))
+			body := renderComponent(t, ctx, Taxonomy(frame.Page{Title: "Brands"}, view))
 			i := strings.Index(body, `value="rename"`)
 			if i < 0 {
 				t.Fatal("no row save button")
@@ -47,7 +47,7 @@ func TestTaxonomyExampleIsItsOwnHintLine(t *testing.T) {
 	t.Parallel()
 	ctx := i18n.WithLocale(t.Context(), i18n.ZhHant)
 	pages := map[string]string{
-		"taxonomy": renderComponent(t, ctx, Taxonomy(layouts.Page{Title: "Brands"}, &TaxonomyView{})),
+		"taxonomy": renderComponent(t, ctx, Taxonomy(frame.Page{Title: "Brands"}, &TaxonomyView{})),
 	}
 	for name, body := range pages {
 		if strings.Contains(body, "。 ") {
@@ -76,7 +76,7 @@ func TestEveryTaxonomyExampleHintReadsInFull(t *testing.T) {
 				body     string
 				examples []string
 			}{
-				"taxonomy": {renderComponent(t, ctx, Taxonomy(layouts.Page{Title: "Brands"}, &TaxonomyView{})), []string{"north-light", "cookware"}},
+				"taxonomy": {renderComponent(t, ctx, Taxonomy(frame.Page{Title: "Brands"}, &TaxonomyView{})), []string{"north-light", "cookware"}},
 			} {
 				for _, e := range c.examples {
 					if want := tt.sentence(e); !strings.Contains(c.body, want) {
@@ -102,7 +102,7 @@ func TestCategoryImageRefusalRendersDraftsApartFromSavedImages(t *testing.T) {
 			want      map[string]string
 			errorID   string
 		}{
-			{name: "category", component: CategoryForm(layouts.Page{}, CategoryView{Slug: "c", Image: widget.HeaderImage{Image: assets.Image{Digest: saved}, Alt: "Saved description"}, ImageAltDraft: alt, ImageAltEnDraft: altEn, Errors: map[string]string{"image": "Replace the image"}}), want: map[string]string{"cat-alt": alt, "cat-alt-en": altEn}, errorID: "cat-image"},
+			{name: "category", component: CategoryForm(frame.Page{}, CategoryView{Slug: "c", Image: widget.HeaderImage{Image: assets.Image{Digest: saved}, Alt: "Saved description"}, ImageAltDraft: alt, ImageAltEnDraft: altEn, Errors: map[string]string{"image": "Replace the image"}}), want: map[string]string{"cat-alt": alt, "cat-alt-en": altEn}, errorID: "cat-image"},
 		} {
 			t.Run(locale.Tag()+"/"+tt.name, func(t *testing.T) {
 				t.Parallel()
@@ -195,8 +195,8 @@ func TestTaxonomyRefusalsNameTheirFormAndLinkToTheFirstInvalidControl(t *testing
 				title                 i18n.Key
 				count                 int
 			}{
-				{"brand", Taxonomy(layouts.Page{}, &TaxonomyView{Which: "brands", Errors: map[string]string{"name": bad, "slug": bad}}), "/admin/taxonomy/brands#new-brands", "new-brands", "brands-name", i18n.KeyAdminTaxNewBrand, 2},
-				{"category", Taxonomy(layouts.Page{}, &TaxonomyView{Which: "categories", Errors: map[string]string{"icon_key": bad}}), "/admin/taxonomy/categories#new-categories", "new-categories", "categories-icon", i18n.KeyAdminTaxNewCategory, 1},
+				{"brand", Taxonomy(frame.Page{}, &TaxonomyView{Which: "brands", Errors: map[string]string{"name": bad, "slug": bad}}), "/admin/taxonomy/brands#new-brands", "new-brands", "brands-name", i18n.KeyAdminTaxNewBrand, 2},
+				{"category", Taxonomy(frame.Page{}, &TaxonomyView{Which: "categories", Errors: map[string]string{"icon_key": bad}}), "/admin/taxonomy/categories#new-categories", "new-categories", "categories-icon", i18n.KeyAdminTaxNewCategory, 1},
 			}
 			for _, tc := range cases {
 				t.Run(tc.name, func(t *testing.T) {

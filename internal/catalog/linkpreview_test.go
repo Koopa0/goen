@@ -5,7 +5,7 @@ import (
 	"testing"
 
 	"github.com/koopa0/goen/internal/i18n"
-	"github.com/koopa0/goen/internal/ui/layouts"
+	"github.com/koopa0/goen/internal/ui/frame"
 	"github.com/koopa0/goen/internal/ui/widget"
 )
 
@@ -13,13 +13,13 @@ import (
 // the campaign's row is internal/discount/campaign's TestTheCampaignPageSendsItsOwnLinkPreviewTags.
 func TestCatalogPagesSendTheirOwnLinkPreviewTags(t *testing.T) {
 	t.Parallel()
-	ctx := i18n.WithLocale(layouts.WithRequestPath(t.Context(), "/c/books"), i18n.ZhHant)
+	ctx := i18n.WithLocale(frame.WithRequestPath(t.Context(), "/c/books"), i18n.ZhHant)
 	department := ListingView{
 		Slug: "books", Name: "書籍",
 		Theme: &Theme{Photo: widget.Photo{URL: "/static/media/products/books.webp?v=1", Alt: "書架"}},
 	}
 	for name, tt := range map[string]struct {
-		page layouts.Page
+		page frame.Page
 		want []string
 	}{
 		"department": {

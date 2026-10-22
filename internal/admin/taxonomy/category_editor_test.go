@@ -10,7 +10,7 @@ import (
 
 	"github.com/koopa0/goen/assets"
 	"github.com/koopa0/goen/internal/i18n"
-	"github.com/koopa0/goen/internal/ui/layouts"
+	"github.com/koopa0/goen/internal/ui/frame"
 	"github.com/koopa0/goen/internal/ui/widget"
 )
 
@@ -26,7 +26,7 @@ func TestCategoryControlsHaveVisibleHeadingsAndNamedParentChoices(t *testing.T) 
 		t.Run(tt.locale.Tag(), func(t *testing.T) {
 			t.Parallel()
 			view := &TaxonomyView{Categories: []Taxon{{Slug: "kitchen", Name: "廚房"}, {Slug: "books", Name: "書房", Depth: 1}}, Which: "categories", Draft: TaxonDraft{Parent: "books"}, Errors: map[string]string{"name": "Correct the name"}}
-			doc, err := html.Parse(strings.NewReader(renderComponent(t, i18n.WithLocale(t.Context(), tt.locale), Taxonomy(layouts.Page{}, view))))
+			doc, err := html.Parse(strings.NewReader(renderComponent(t, i18n.WithLocale(t.Context(), tt.locale), Taxonomy(frame.Page{}, view))))
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -96,7 +96,7 @@ func TestCategoryImageDescriptionsCanBeSavedWithoutReplacingThePhotograph(t *tes
 				if hasImage {
 					view.Image = widget.HeaderImage{Image: assets.Image{Digest: strings.Repeat("a", 64)}}
 				}
-				doc, err := html.Parse(strings.NewReader(renderComponent(t, i18n.WithLocale(t.Context(), tt.locale), CategoryForm(layouts.Page{}, view))))
+				doc, err := html.Parse(strings.NewReader(renderComponent(t, i18n.WithLocale(t.Context(), tt.locale), CategoryForm(frame.Page{}, view))))
 				if err != nil {
 					t.Fatal(err)
 				}

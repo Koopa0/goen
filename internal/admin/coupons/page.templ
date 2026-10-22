@@ -6,14 +6,14 @@ import (
 	"github.com/koopa0/goen/internal/discount/coupon"
 	"github.com/koopa0/goen/internal/i18n"
 	"github.com/koopa0/goen/internal/ui/chart"
-	"github.com/koopa0/goen/internal/ui/layouts"
+	"github.com/koopa0/goen/internal/ui/frame"
 	"github.com/koopa0/goen/internal/ui/widget"
 )
 
 // Each row leads with its code and whether it works RIGHT NOW: a coupon switched on
 // but past its window is refused at the till while the list says it is fine.
-templ Coupons(p layouts.Page, v CouponsView) {
-	@layouts.Admin(p, "coupons") {
+templ Coupons(p frame.Page, v CouponsView) {
+	@frame.Admin(p, "coupons") {
 		<div class="ui-page-head">
 			<div>
 				<p class="ui-page-head__eyebrow">{ i18n.T(ctx, i18n.KeyAdminEyebrow) }</p>
@@ -23,7 +23,7 @@ templ Coupons(p layouts.Page, v CouponsView) {
 				</p>
 			</div>
 		</div>
-		@layouts.Announce(v.Notice)
+		@frame.Announce(v.Notice)
 		if v.Empty() && !v.PastEnd {
 			<div class="goen-admin__empty">
 				<p class="goen-admin__emptytitle">{ i18n.T(ctx, i18n.KeyAdminCoupEmpty) }</p>

@@ -7,7 +7,7 @@ import (
 	"github.com/google/go-cmp/cmp"
 
 	"github.com/koopa0/goen/internal/i18n"
-	"github.com/koopa0/goen/internal/ui/layouts"
+	"github.com/koopa0/goen/internal/ui/frame"
 	"github.com/koopa0/goen/internal/user"
 )
 
@@ -99,7 +99,7 @@ func TestStaffPageDescribesEnrollment(t *testing.T) {
 					t.Parallel()
 					ctx := i18n.WithLocale(t.Context(), locale.locale)
 					var body strings.Builder
-					if err := Staff(layouts.Page{}, StaffView{Rows: tt.rows, NoKey: tt.noKey}).Render(ctx, &body); err != nil {
+					if err := Staff(frame.Page{}, StaffView{Rows: tt.rows, NoKey: tt.noKey}).Render(ctx, &body); err != nil {
 						t.Fatalf("render staff: %v", err)
 					}
 					got := body.String()

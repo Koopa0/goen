@@ -12,7 +12,7 @@ import (
 
 	"github.com/koopa0/goen/internal/i18n"
 	"github.com/koopa0/goen/internal/order"
-	"github.com/koopa0/goen/internal/ui/layouts"
+	"github.com/koopa0/goen/internal/ui/frame"
 )
 
 func TestAdminOrdersEmptyCopyMatchesTheQueueContext(t *testing.T) {
@@ -63,7 +63,7 @@ func TestAdminOrdersEmptyCopyMatchesTheQueueContext(t *testing.T) {
 // delivery.Details.Validate refuses one of the two and accepts neither.
 func TestAPickupOrderCorrectsWithoutAStore(t *testing.T) {
 	t.Parallel()
-	body := renderToString(t, Order(layouts.Page{Title: "GO-PICKUP"}, &OrderView{
+	body := renderToString(t, Order(frame.Page{Title: "GO-PICKUP"}, &OrderView{
 		Number:            "GO-PICKUP",
 		Correctable:       true,
 		PickupDestination: true,
@@ -128,7 +128,7 @@ func TestTheTimelineNamesWhoActed(t *testing.T) {
 		{i18n.En, []string{"Customer", "Payment provider", "王店長", "Erased account", "System"}, "Mail is kept for 30 days; older mail is not listed here."},
 	} {
 		ctx := i18n.WithLocale(t.Context(), tc.locale)
-		body := renderComponent(t, ctx, Order(layouts.Page{}, &OrderView{
+		body := renderComponent(t, ctx, Order(frame.Page{}, &OrderView{
 			Number: "GO-261004-000001", Timeline: entries, MailKept: 30 * 24 * time.Hour,
 		}))
 		items := strings.Split(body, `class="goen-admin__event"`)[1:]
@@ -291,7 +291,7 @@ func TestDeliveryCorrectionErrorsBelongToTheirControls(t *testing.T) {
 						PostalCode: "110", City: "New city", District: "New district", Street: " Proposed <street> ",
 						PickupChain: tc.chain, PickupStoreCode: "a123", PickupStoreName: ""},
 				}
-				body := renderComponent(t, ctx, Order(layouts.Page{}, &v))
+				body := renderComponent(t, ctx, Order(frame.Page{}, &v))
 				controls := map[string]struct{ id, value string }{
 					"recipient": {"d-recipient", v.Delivery.Recipient}, "phone": {"d-phone", v.Delivery.Phone}, "email": {"d-email", v.Delivery.Email},
 				}

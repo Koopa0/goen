@@ -8,7 +8,7 @@ import (
 
 	"github.com/koopa0/goen/internal/email"
 	"github.com/koopa0/goen/internal/i18n"
-	"github.com/koopa0/goen/internal/ui/layouts"
+	"github.com/koopa0/goen/internal/ui/frame"
 	"github.com/koopa0/goen/internal/user"
 	"github.com/koopa0/goen/internal/web/compress"
 	"github.com/koopa0/goen/internal/web/formtext"
@@ -25,7 +25,7 @@ func (h *Handler) ForgotPage(w http.ResponseWriter, r *http.Request) {
 		view.Notice = i18n.T(r.Context(), i18n.KeyDemoPasswordNoReset)
 	}
 	respond.Component(w, r, h.log, http.StatusOK, Forgot(
-		layouts.Page{Title: i18n.T(r.Context(), i18n.KeyForgotTitle)}, view))
+		frame.Page{Title: i18n.T(r.Context(), i18n.KeyForgotTitle)}, view))
 }
 
 // Forgot answers identically whether or not the address is known.
@@ -103,7 +103,7 @@ func (h *Handler) RequestPasswordSetup(w http.ResponseWriter, r *http.Request) {
 func (h *Handler) ResetPage(w http.ResponseWriter, r *http.Request) {
 	compress.Skip(w)
 	respond.Component(w, r, h.log, http.StatusOK, Reset(
-		layouts.Page{Title: i18n.T(r.Context(), i18n.KeyResetTitle)},
+		frame.Page{Title: i18n.T(r.Context(), i18n.KeyResetTitle)},
 		ResetView{Token: r.URL.Query().Get("token")}))
 }
 
@@ -119,7 +119,7 @@ func (h *Handler) Reset(w http.ResponseWriter, r *http.Request) {
 
 	if password != r.PostFormValue("confirm") {
 		respond.Component(w, r, h.log, http.StatusUnprocessableEntity, Reset(
-			layouts.Page{Title: i18n.T(r.Context(), i18n.KeyResetTitle)},
+			frame.Page{Title: i18n.T(r.Context(), i18n.KeyResetTitle)},
 			ResetView{Token: token, Error: i18n.T(r.Context(), i18n.KeyPasswordMismatch), ErrorField: "confirm"}))
 		return
 	}
@@ -140,11 +140,11 @@ func (h *Handler) Reset(w http.ResponseWriter, r *http.Request) {
 		}
 		errs := formtext.FieldMessages(r.Context(), []formtext.FieldRefusal{refusal})
 		respond.Component(w, r, h.log, http.StatusUnprocessableEntity, Reset(
-			layouts.Page{Title: i18n.T(r.Context(), i18n.KeyResetTitle)},
+			frame.Page{Title: i18n.T(r.Context(), i18n.KeyResetTitle)},
 			ResetView{Token: token, Error: errs["password"]}))
 	case errors.Is(err, ErrResetInvalid):
 		respond.Component(w, r, h.log, http.StatusUnprocessableEntity, Reset(
-			layouts.Page{Title: i18n.T(r.Context(), i18n.KeyEmailLinkDeadTitle)},
+			frame.Page{Title: i18n.T(r.Context(), i18n.KeyEmailLinkDeadTitle)},
 			ResetView{Expired: true}))
 	default:
 		h.log.ErrorContext(r.Context(), "complete password reset", "error", err)

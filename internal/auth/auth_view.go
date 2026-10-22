@@ -8,7 +8,7 @@ import (
 	"github.com/a-h/templ"
 
 	"github.com/koopa0/goen/internal/i18n"
-	"github.com/koopa0/goen/internal/ui/layouts"
+	"github.com/koopa0/goen/internal/ui/frame"
 )
 
 type SignInRecovery uint8
@@ -73,8 +73,8 @@ type RegisterCompleteView struct {
 
 func (v RegisterCompleteView) HasError() bool { return v.Error != "" }
 
-func RegisterCompleteMeta(ctx context.Context) layouts.Page {
-	return layouts.Page{Title: i18n.T(ctx, i18n.KeyRegisterCompleteTitle)}
+func RegisterCompleteMeta(ctx context.Context) frame.Page {
+	return frame.Page{Title: i18n.T(ctx, i18n.KeyRegisterCompleteTitle)}
 }
 
 func (v AuthView) authPageLink(path string) string {
@@ -91,12 +91,12 @@ func (v AuthView) GoogleLink() string {
 	return "/auth/google?next=" + url.QueryEscape(v.Next)
 }
 
-func SignInMeta(ctx context.Context) layouts.Page {
-	return layouts.Page{Title: i18n.T(ctx, i18n.KeySignIn)}
+func SignInMeta(ctx context.Context) frame.Page {
+	return frame.Page{Title: i18n.T(ctx, i18n.KeySignIn)}
 }
 
-func RegisterMeta(ctx context.Context) layouts.Page {
-	return layouts.Page{Title: i18n.T(ctx, i18n.KeyRegister)}
+func RegisterMeta(ctx context.Context) frame.Page {
+	return frame.Page{Title: i18n.T(ctx, i18n.KeyRegister)}
 }
 
 func (v AuthView) PasswordAttrs(attrs templ.Attributes) templ.Attributes {

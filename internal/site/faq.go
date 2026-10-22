@@ -8,7 +8,7 @@ import (
 
 	"github.com/koopa0/goen/internal/db"
 	"github.com/koopa0/goen/internal/i18n"
-	"github.com/koopa0/goen/internal/ui/layouts"
+	"github.com/koopa0/goen/internal/ui/frame"
 	"github.com/koopa0/goen/internal/web/respond"
 )
 
@@ -21,7 +21,7 @@ func (h *Handler) FAQ(w http.ResponseWriter, r *http.Request) {
 	}
 
 	respond.Component(w, r, h.log, http.StatusOK, FAQ(
-		layouts.Page{
+		frame.Page{
 			Title:       i18n.T(r.Context(), i18n.KeyFAQTitle),
 			Description: i18n.T(r.Context(), i18n.KeyFAQDescription),
 		}, faqView(rows)))

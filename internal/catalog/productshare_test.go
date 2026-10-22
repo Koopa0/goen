@@ -6,14 +6,14 @@ import (
 
 	"github.com/koopa0/goen/assets"
 	"github.com/koopa0/goen/internal/i18n"
-	"github.com/koopa0/goen/internal/ui/layouts"
+	"github.com/koopa0/goen/internal/ui/frame"
 )
 
-func renderHead(t *testing.T, p layouts.Page) string {
+func renderHead(t *testing.T, p frame.Page) string {
 	t.Helper()
-	ctx := layouts.WithSiteOrigin(i18n.WithLocale(t.Context(), i18n.ZhHant), "https://goen.test")
+	ctx := frame.WithSiteOrigin(i18n.WithLocale(t.Context(), i18n.ZhHant), "https://goen.test")
 	var b strings.Builder
-	if err := layouts.Base(p).Render(ctx, &b); err != nil {
+	if err := frame.Base(p).Render(ctx, &b); err != nil {
 		t.Fatalf("render: %v", err)
 	}
 	return b.String()

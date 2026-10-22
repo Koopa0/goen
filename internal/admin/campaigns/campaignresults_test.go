@@ -8,7 +8,7 @@ import (
 
 	"github.com/koopa0/goen/internal/i18n"
 	"github.com/koopa0/goen/internal/ui/chart"
-	"github.com/koopa0/goen/internal/ui/layouts"
+	"github.com/koopa0/goen/internal/ui/frame"
 )
 
 // results is days days before a campaign and the first days of it, from 2026-09-22,
@@ -28,7 +28,7 @@ func results(days int, units ...int64) *CampaignResults {
 func renderResults(t *testing.T, locale i18n.Locale, v *CampaignView) string {
 	t.Helper()
 	var b bytes.Buffer
-	if err := CampaignForm(layouts.Page{Title: "c"}, *v).Render(i18n.WithLocale(t.Context(), locale), &b); err != nil {
+	if err := CampaignForm(frame.Page{Title: "c"}, *v).Render(i18n.WithLocale(t.Context(), locale), &b); err != nil {
 		t.Fatalf("CampaignForm.Render: %v", err)
 	}
 	return b.String()

@@ -9,7 +9,7 @@ import (
 	"github.com/koopa0/goen/internal/i18n"
 	"github.com/koopa0/goen/internal/keyset"
 	"github.com/koopa0/goen/internal/media"
-	"github.com/koopa0/goen/internal/ui/layouts"
+	"github.com/koopa0/goen/internal/ui/frame"
 	"github.com/koopa0/goen/internal/ui/widget"
 	"github.com/koopa0/goen/internal/web/formtext"
 	"github.com/koopa0/goen/internal/web/respond"
@@ -49,7 +49,7 @@ func (h *Handler) Slides(w http.ResponseWriter, r *http.Request) {
 	}
 	view.Notice = widget.NoticeFrom(r, notices)
 	respond.Component(w, r, h.log, http.StatusOK, Slides(
-		layouts.Page{Title: i18n.T(r.Context(), i18n.KeyAdminPageHero)}, &view))
+		frame.Page{Title: i18n.T(r.Context(), i18n.KeyAdminPageHero)}, &view))
 }
 
 func (h *Handler) answerRowWrite(w http.ResponseWriter, r *http.Request, what, back string, err error) {
@@ -159,7 +159,7 @@ func (h *Handler) rejectHeroSlide(
 		ImageAltEn: r.PostFormValue("alt_en"),
 	}
 	respond.Component(w, r, h.log, http.StatusUnprocessableEntity, Slides(
-		layouts.Page{Title: i18n.T(r.Context(), i18n.KeyAdminPageHero)}, &view))
+		frame.Page{Title: i18n.T(r.Context(), i18n.KeyAdminPageHero)}, &view))
 }
 
 func (h *Handler) SetHeroActive(w http.ResponseWriter, r *http.Request) {

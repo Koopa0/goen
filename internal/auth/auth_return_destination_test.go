@@ -7,7 +7,7 @@ import (
 	"golang.org/x/net/html"
 
 	"github.com/koopa0/goen/internal/i18n"
-	"github.com/koopa0/goen/internal/ui/layouts"
+	"github.com/koopa0/goen/internal/ui/frame"
 )
 
 func TestAuthLinksKeepTheReturnDestination(t *testing.T) {
@@ -36,9 +36,9 @@ func TestAuthLinksKeepTheReturnDestination(t *testing.T) {
 						key  i18n.Key
 						path string
 					}{
-						{name: "sign in", body: renderComponent(t, ctx, SignIn(layouts.Page{}, view)), key: i18n.KeyNoAccountLink, path: "/register"},
-						{name: "register", body: renderComponent(t, ctx, Register(layouts.Page{}, view)), key: i18n.KeySignIn, path: "/signin"},
-						{name: "other address", body: renderComponent(t, ctx, Register(layouts.Page{}, AuthView{
+						{name: "sign in", body: renderComponent(t, ctx, SignIn(frame.Page{}, view)), key: i18n.KeyNoAccountLink, path: "/register"},
+						{name: "register", body: renderComponent(t, ctx, Register(frame.Page{}, view)), key: i18n.KeySignIn, path: "/signin"},
+						{name: "other address", body: renderComponent(t, ctx, Register(frame.Page{}, AuthView{
 							Next: tt.next, OffersResend: true, Notice: i18n.T(ctx, i18n.KeyRegisterSent),
 						})), key: i18n.KeyRegisterOtherAddress, path: "/register"},
 					} {
