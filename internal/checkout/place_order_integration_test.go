@@ -38,7 +38,7 @@ func TestPlaceOrderEmptiesTheCart(t *testing.T) {
 		Email: "empty@example.com", RecipientName: "李大華", Phone: "0987654321",
 		PostalCode: "220", City: "新北市", District: "板橋區", Street: "文化路一段 1 號",
 	}
-	if _, err := placeOrder(t, s, ctx, id, uuid.NullUUID{}, shipID, addr, "", "empties-cart-1"); err != nil {
+	if _, err := placeOrder(t, s, ctx, id, uuid.NullUUID{}, shipID, addr, "", "empties-cart-"+uuid.NewString()); err != nil {
 		t.Fatalf("place: %v", err)
 	}
 
@@ -64,7 +64,7 @@ func TestPlaceOrderRefusesAFabricatedShippingVersion(t *testing.T) {
 	}
 	if _, err := s.PlaceOrder(
 		ctx, id, uuid.NullUUID{}, uuid.New(), addr, nil, "", checkout.QuoteID{},
-		checkoutAttemptKey("fabricated-1"),
+		checkoutAttemptKey("fabricated-"+uuid.NewString()),
 	); err == nil {
 		t.Error("an order was placed against a shipping version that does not exist")
 	}
@@ -86,7 +86,7 @@ func TestPlaceOrderRefusesAnEmptyCart(t *testing.T) {
 	}
 	if _, err := s.PlaceOrder(
 		ctx, id, uuid.NullUUID{}, shipID, addr, nil, "", checkout.QuoteID{},
-		checkoutAttemptKey("empty-cart-1"),
+		checkoutAttemptKey("empty-cart-"+uuid.NewString()),
 	); err == nil {
 		t.Error("an order was placed from an empty cart")
 	}
@@ -117,7 +117,7 @@ func TestOrderIsAttachedToASignedInCustomer(t *testing.T) {
 		PostalCode: "110", City: "台北市", District: "信義區", Street: "松高路 1 號",
 	}
 	number, err := placeOrder(t, s, ctx, id, uuid.NullUUID{UUID: userID, Valid: true},
-		shipID, addr, "", "owned-test-1")
+		shipID, addr, "", "owned-test-"+uuid.NewString())
 	if err != nil {
 		t.Fatalf("place: %v", err)
 	}

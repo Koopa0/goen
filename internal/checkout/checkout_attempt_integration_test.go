@@ -42,7 +42,7 @@ func TestPlaceOrderIsIdempotent(t *testing.T) {
 		Email: "idem@example.com", RecipientName: "王小明", Phone: "0912345678",
 		PostalCode: "110", City: "台北市", District: "信義區", Street: "松高路 1 號",
 	}
-	key := checkoutAttemptKey("idem-key-test-1")
+	key := checkoutAttemptKey("idem-key-test-" + uuid.NewString())
 	shown := checkoutQuote(t, s, id, uuid.NullUUID{}, shipID, addr, "")
 
 	first, err := s.PlaceOrder(ctx, id, uuid.NullUUID{}, shipID, addr, nil, "", shown, key)
@@ -71,7 +71,7 @@ func TestCheckoutKeyCannotBeReusedByAnotherCart(t *testing.T) {
 	ctx := t.Context()
 	s := checkout.NewStore(pool)
 	shippingID := shipVersionFor(t, "home_delivery")
-	key := checkoutAttemptKey("cross-cart-idempotency-key")
+	key := checkoutAttemptKey("cross-cart-idempotency-key-" + uuid.NewString())
 
 	firstCart := newCart(t, s)
 	if err := s.Carts().Add(ctx, firstCart, freshVariant(t, "key-owner"), 1); err != nil {
