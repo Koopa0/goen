@@ -35,10 +35,12 @@ var chromeNav = []frame.NavItem{
 	}},
 }
 
+// TestFooterLanguageSwitchLang: the language switch labels carry their own language.
+//
 // A screen reader reads a label in the language of the page unless the label
 // says otherwise, so the language control's own names would be read in the
 // wrong voice on the page that most needs them.
-func TestTheLanguageSwitchLabelsCarryTheirOwnLanguage(t *testing.T) {
+func TestFooterLanguageSwitchLang(t *testing.T) {
 	t.Parallel()
 
 	for _, locale := range []i18n.Locale{i18n.ZhHant, i18n.En} {
@@ -53,9 +55,11 @@ func TestTheLanguageSwitchLabelsCarryTheirOwnLanguage(t *testing.T) {
 	}
 }
 
+// TestHeaderFooterFormRoles: no form carries a role it may not have.
+//
 // A form may only take the search, none or presentation roles, so the group the
 // language control needs lives inside it.
-func TestNoFormCarriesARoleItMayNotHave(t *testing.T) {
+func TestHeaderFooterFormRoles(t *testing.T) {
 	t.Parallel()
 
 	header, footer := renderChrome(t, i18n.ZhHant, chromeNav)
@@ -72,11 +76,13 @@ func TestNoFormCarriesARoleItMayNotHave(t *testing.T) {
 	}
 }
 
+// TestHeaderLanguageMenuFooterPair: the language control is a menu in the header and a pair in the footer.
+//
 // The header's language control is one menu button and, once opened, one
 // choice per language, in the bar and again in the drawer, which CSS shows one
 // at a time; the footer keeps its own pair of plain buttons. Neither is a
 // second copy of the other's markup, and the button says which language is on.
-func TestTheLanguageControlIsAMenuInTheHeaderAndAPairInTheFooter(t *testing.T) {
+func TestHeaderLanguageMenuFooterPair(t *testing.T) {
 	t.Parallel()
 
 	for _, locale := range []i18n.Locale{i18n.ZhHant, i18n.En} {
@@ -106,9 +112,11 @@ func TestTheLanguageControlIsAMenuInTheHeaderAndAPairInTheFooter(t *testing.T) {
 	}
 }
 
+// TestHeaderDrawerContents: the drawer carries what the phone bar has no room for.
+//
 // A phone's bar has no room for the wishlist, the account or the language, so
 // the drawer carries them, and it carries a way out that has a name.
-func TestTheDrawerCarriesWhatThePhoneBarHasNoRoomFor(t *testing.T) {
+func TestHeaderDrawerContents(t *testing.T) {
 	t.Parallel()
 
 	for _, locale := range []i18n.Locale{i18n.ZhHant, i18n.En} {
@@ -134,9 +142,11 @@ func TestTheDrawerCarriesWhatThePhoneBarHasNoRoomFor(t *testing.T) {
 	}
 }
 
+// TestHeaderLanguageMenuLang: the language menu choices carry their own language.
+//
 // The menu's choices carry their own language for the same reason the
 // footer's do: each is the language's name for itself.
-func TestTheLanguageMenuChoicesCarryTheirOwnLanguage(t *testing.T) {
+func TestHeaderLanguageMenuLang(t *testing.T) {
 	t.Parallel()
 
 	header, _ := renderChrome(t, i18n.En, chromeNav)
@@ -148,9 +158,11 @@ func TestTheLanguageMenuChoicesCarryTheirOwnLanguage(t *testing.T) {
 	}
 }
 
+// TestHeaderDepartmentPanelNeedsChildren: only a department with children opens a panel.
+//
 // A department with sub-categories opens a panel listing them; one without is
 // a plain link and has no panel to open.
-func TestOnlyADepartmentWithChildrenOpensAPanel(t *testing.T) {
+func TestHeaderDepartmentPanelNeedsChildren(t *testing.T) {
 	t.Parallel()
 
 	header, footer := renderChrome(t, i18n.ZhHant, chromeNav)
@@ -167,7 +179,8 @@ func TestOnlyADepartmentWithChildrenOpensAPanel(t *testing.T) {
 	}
 }
 
-func TestDepartmentPanelUsesOnlyItsConfiguredPhotograph(t *testing.T) {
+// TestDepartmentPanelPhotograph: department panel uses only its configured photograph.
+func TestDepartmentPanelPhotograph(t *testing.T) {
 	t.Parallel()
 	for _, locale := range []i18n.Locale{i18n.ZhHant, i18n.En} {
 		for _, tt := range []struct {
@@ -220,8 +233,10 @@ func renderHeader(t *testing.T, items []frame.NavItem, deals bool, page frame.Pa
 	return b.String()
 }
 
+// TestHeaderDealsLinkOnlyWithDeals: the header offers deals only when there is something to buy.
+//
 // 優惠 is offered when the deals page has something to buy and not otherwise.
-func TestTheHeaderOffersDealsOnlyWhenThereIsSomethingToBuy(t *testing.T) {
+func TestHeaderDealsLinkOnlyWithDeals(t *testing.T) {
 	t.Parallel()
 
 	for _, deals := range []bool{true, false} {
@@ -235,7 +250,8 @@ func TestTheHeaderOffersDealsOnlyWhenThereIsSomethingToBuy(t *testing.T) {
 	}
 }
 
-func TestTheHeaderMarksTheCurrentDealsPage(t *testing.T) {
+// TestHeaderAriaCurrent: the header marks the current deals page.
+func TestHeaderAriaCurrent(t *testing.T) {
 	t.Parallel()
 
 	tests := []struct {
@@ -317,9 +333,11 @@ func TestTheHeaderMarksTheCurrentDealsPage(t *testing.T) {
 	}
 }
 
+// TestHeaderDepartmentRow: the department row is absent for one department and no deals.
+//
 // A shop with one department and nothing on offer has nothing to put in a
 // second row.
-func TestTheDepartmentRowIsAbsentForOneDepartmentAndNoDeals(t *testing.T) {
+func TestHeaderDepartmentRow(t *testing.T) {
 	t.Parallel()
 
 	one := chromeNav[:1]
@@ -341,7 +359,8 @@ func TestTheDepartmentRowIsAbsentForOneDepartmentAndNoDeals(t *testing.T) {
 	}
 }
 
-func TestTheCurrentDepartmentIsMarked(t *testing.T) {
+// TestHeaderCurrentDepartmentMarked: the current department is marked.
+func TestHeaderCurrentDepartmentMarked(t *testing.T) {
 	t.Parallel()
 
 	header := renderHeader(t, chromeNav, false, frame.Page{Nav: "phones"})
@@ -357,9 +376,11 @@ func TestTheCurrentDepartmentIsMarked(t *testing.T) {
 	}
 }
 
+// TestHeaderMenuOneDepartmentNoHeading: the menu of one department has no heading.
+//
 // With one department there is nothing to be a list of: no heading, the
 // department first, and then the deals page.
-func TestTheMenuOfOneDepartmentHasNoHeading(t *testing.T) {
+func TestHeaderMenuOneDepartmentNoHeading(t *testing.T) {
 	t.Parallel()
 
 	for _, items := range [][]frame.NavItem{chromeNav[:1], chromeNav} {
@@ -377,7 +398,8 @@ func TestTheMenuOfOneDepartmentHasNoHeading(t *testing.T) {
 	}
 }
 
-func TestTheMenuPrintsEachDepartmentsProductCount(t *testing.T) {
+// TestHeaderMenuProductCount: the menu prints each department's product count.
+func TestHeaderMenuProductCount(t *testing.T) {
 	t.Parallel()
 
 	header := renderHeader(t, []frame.NavItem{{Slug: "a", Name: "甲", Href: "/c/a", ProductCount: 12}, {Slug: "b", Name: "乙", Href: "/c/b"}}, false, frame.Page{})
@@ -392,9 +414,11 @@ func TestTheMenuPrintsEachDepartmentsProductCount(t *testing.T) {
 	}
 }
 
+// TestFooterGroupsHelpAndDocuments: the footer groups contact with help and the shop's documents together.
+//
 // The footer's columns: contact beside the help pages, and the shop's own
 // documents under their own heading.
-func TestTheFooterGroupsContactWithHelpAndTheShopsDocumentsTogether(t *testing.T) {
+func TestFooterGroupsHelpAndDocuments(t *testing.T) {
 	t.Parallel()
 
 	_, footer := renderChrome(t, i18n.ZhHant, chromeNav)
@@ -426,9 +450,11 @@ func TestTheFooterGroupsContactWithHelpAndTheShopsDocumentsTogether(t *testing.T
 	}
 }
 
+// TestBaseSkipLinkFirstTabStop: the skip link is the first tab stop and names the main landmark.
+//
 // The first thing a keyboard reaches is the way past the header, and what it
 // names exists: a skip link to an id nothing carries does nothing.
-func TestTheSkipLinkIsTheFirstTabStopAndNamesTheMainLandmark(t *testing.T) {
+func TestBaseSkipLinkFirstTabStop(t *testing.T) {
 	t.Parallel()
 
 	var b strings.Builder
@@ -452,11 +478,13 @@ func TestTheSkipLinkIsTheFirstTabStopAndNamesTheMainLandmark(t *testing.T) {
 	}
 }
 
+// TestDepartmentPanelProducts: a department panel offers its products.
+//
 // A department panel offers a few of its products as links of their own, each
 // with its price, so a department with two sub-categories is not an empty
 // sheet. Their pictures are lazy: the panel is display:none until it opens,
 // and an eager image there is a fetch on every page for a panel nobody opened.
-func TestADepartmentPanelOffersItsProducts(t *testing.T) {
+func TestDepartmentPanelProducts(t *testing.T) {
 	t.Parallel()
 
 	header, _ := renderChrome(t, i18n.ZhHant, chromeNav)
@@ -490,9 +518,11 @@ func TestADepartmentPanelOffersItsProducts(t *testing.T) {
 	}
 }
 
+// TestBaseAdminStylesheetLinks: only the back office links its stylesheet.
+//
 // The back office has its own sheet and the storefront's is not loaded there,
 // so a storefront restyle cannot reach /admin; the shop never pays for it.
-func TestOnlyTheBackOfficeLinksItsStylesheet(t *testing.T) {
+func TestBaseAdminStylesheetLinks(t *testing.T) {
 	t.Parallel()
 
 	ctx := i18n.WithLocale(t.Context(), i18n.En)
@@ -541,7 +571,8 @@ func TestOnlyTheBackOfficeLinksItsStylesheet(t *testing.T) {
 	}
 }
 
-func TestTheDepartmentNavigationIsNamedDepartments(t *testing.T) {
+// TestHeaderFooterDepartmentsLabel: the department navigation is named departments.
+func TestHeaderFooterDepartmentsLabel(t *testing.T) {
 	t.Parallel()
 
 	for locale, name := range map[i18n.Locale]string{i18n.ZhHant: "館別", i18n.En: "Departments"} {
@@ -556,7 +587,8 @@ func TestTheDepartmentNavigationIsNamedDepartments(t *testing.T) {
 	}
 }
 
-func TestTheCartCountSitsBesideTheBagAndOnlyWhenThereIsSomethingInIt(t *testing.T) {
+// TestHeaderCartCount: the cart count sits beside the bag and only when there is something in it.
+func TestHeaderCartCount(t *testing.T) {
 	t.Parallel()
 
 	for _, tc := range []struct {

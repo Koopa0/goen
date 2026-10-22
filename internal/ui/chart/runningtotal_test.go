@@ -29,7 +29,8 @@ func filled(n int, each int64) []Bucket {
 	return days(n, values...)
 }
 
-func TestDensityCountsTheBucketsThatAreNotZero(t *testing.T) {
+// TestSeries_Density: density counts the buckets that are not zero.
+func TestSeries_Density(t *testing.T) {
 	t.Parallel()
 
 	for _, tc := range []struct {
@@ -83,7 +84,8 @@ func TestAxisStepKeepsToFiveLines(t *testing.T) {
 	}
 }
 
-func TestTickDaysLabelTheWeekMondaysOrMonthStarts(t *testing.T) {
+// TestTickDays: tick days label the week's Mondays or month starts.
+func TestTickDays(t *testing.T) {
 	t.Parallel()
 
 	starting := func(n int, year int, month time.Month, day int) []time.Time {
@@ -122,12 +124,14 @@ const (
 	readableApart = measuredLabel + measuredLabel/2 + 3
 )
 
+// TestTicksForReadableApart: ticks stay readable apart from the end labels.
+//
 // Whatever day a window starts, no tick is nearer the first day's label or
 // "Today" than two labels need, on the narrowest plot that draws it: minorPlot
 // for a minor tick, narrowPlot for the one that stays on a narrow chart. The
 // start dates cover a year, so every day of a month is where a month's first or
 // a Monday falls near an end, and the date the suite runs on does not matter.
-func TestTicksStayReadableApartFromTheEndLabels(t *testing.T) {
+func TestTicksForReadableApart(t *testing.T) {
 	t.Parallel()
 
 	ctx := i18n.WithLocale(t.Context(), i18n.En)
@@ -173,7 +177,8 @@ func TestCumulativeAddsEachDay(t *testing.T) {
 	}
 }
 
-func TestEndLabelsAreKeptApart(t *testing.T) {
+// TestApart: end labels are kept apart.
+func TestApart(t *testing.T) {
 	t.Parallel()
 
 	for _, tc := range []struct {
@@ -217,7 +222,8 @@ func renderRunningTotal(t *testing.T, p *RunningTotalProps) string {
 	return b.String()
 }
 
-func TestRunningTotalDrawsOnlyFromSevenDaysWithValues(t *testing.T) {
+// TestRunningTotalNeedsSevenDays: running total draws only from seven days with values.
+func TestRunningTotalNeedsSevenDays(t *testing.T) {
 	t.Parallel()
 
 	for _, tc := range []struct {
@@ -240,7 +246,8 @@ func TestRunningTotalDrawsOnlyFromSevenDaysWithValues(t *testing.T) {
 	}
 }
 
-func TestRunningTotalEndsEachLineInItsTotalAndTheTableEndsInBoth(t *testing.T) {
+// TestRunningTotalEndsInTotals: running total ends each line in its total and the table ends in both.
+func TestRunningTotalEndsInTotals(t *testing.T) {
 	t.Parallel()
 
 	got := renderRunningTotal(t, new(fullProps()))
@@ -268,9 +275,11 @@ func TestRunningTotalEndsEachLineInItsTotalAndTheTableEndsInBoth(t *testing.T) {
 	}
 }
 
+// TestRunningTotalTablePreviousDays: running total table names the previous period's days.
+//
 // The table carries what the drawing says, including which day of the previous
 // period each of its figures is for, and says it once.
-func TestRunningTotalTableNamesThePreviousPeriodsDays(t *testing.T) {
+func TestRunningTotalTablePreviousDays(t *testing.T) {
 	t.Parallel()
 
 	p := fullProps()
@@ -293,7 +302,8 @@ func TestRunningTotalTableNamesThePreviousPeriodsDays(t *testing.T) {
 	}
 }
 
-func TestRunningTotalDrawsAnUnfinishedDayOpen(t *testing.T) {
+// TestRunningTotalUnfinishedDayOpen: running total draws an unfinished day open.
+func TestRunningTotalUnfinishedDayOpen(t *testing.T) {
 	t.Parallel()
 
 	partial := renderRunningTotal(t, new(fullProps()))
@@ -312,7 +322,8 @@ func TestRunningTotalDrawsAnUnfinishedDayOpen(t *testing.T) {
 	}
 }
 
-func TestRunningTotalAxisIsOneUnitForEveryLabel(t *testing.T) {
+// TestNewRunningTotalAxisUnit: running total axis is one unit for every label.
+func TestNewRunningTotalAxisUnit(t *testing.T) {
 	t.Parallel()
 
 	p := fullProps()
@@ -336,9 +347,11 @@ func TestRunningTotalAxisIsOneUnitForEveryLabel(t *testing.T) {
 	}
 }
 
+// TestNewRunningTotalAxisLabels: axis labels are the values of their lines.
+//
 // Every label on the axis, read back in the axis' unit, is the value of its
 // line: an axis that prints 0.2萬 for NT$2,500 is a wrong amount.
-func TestAxisLabelsAreTheValuesOfTheirLines(t *testing.T) {
+func TestNewRunningTotalAxisLabels(t *testing.T) {
 	t.Parallel()
 
 	tops := []int64{300, 1_250, 2_500, 99_900, 1_200_000, 1_250_000, 3_300_000, 21_229_200, 1_200_000_000, 12_000_000_000, 120_000_000_000}
@@ -366,7 +379,8 @@ func TestAxisLabelsAreTheValuesOfTheirLines(t *testing.T) {
 	}
 }
 
-func TestRunningTotalHitsEndEachDayWhereItsTotalStands(t *testing.T) {
+// TestRunningTotalHits: running total hits end each day where its total stands.
+func TestRunningTotalHits(t *testing.T) {
 	t.Parallel()
 
 	p := fullProps()

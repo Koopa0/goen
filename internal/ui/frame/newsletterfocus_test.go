@@ -11,9 +11,11 @@ import (
 	"github.com/koopa0/goen/internal/ui/frame"
 )
 
+// TestNewsletterFormSubmitID: the newsletter submit keeps an ID across a swap.
+//
 // The footer form swaps itself on a refusal; htmx restores focus only to an
 // element with an id.
-func TestTheNewsletterSubmitKeepsAnIDAcrossASwap(t *testing.T) {
+func TestNewsletterFormSubmitID(t *testing.T) {
 	t.Parallel()
 	var b strings.Builder
 	if err := frame.NewsletterForm(frame.NewsletterState{}).Render(i18n.WithLocale(t.Context(), i18n.ZhHant), &b); err != nil {
@@ -24,9 +26,11 @@ func TestTheNewsletterSubmitKeepsAnIDAcrossASwap(t *testing.T) {
 	}
 }
 
+// TestNewsletterFormVisibleLabel: the newsletter field has a visible label.
+//
 // A placeholder disappears as soon as the visitor types, so the field is named
 // by a label that stays on screen.
-func TestTheNewsletterFieldHasAVisibleLabel(t *testing.T) {
+func TestNewsletterFormVisibleLabel(t *testing.T) {
 	t.Parallel()
 	var b strings.Builder
 	if err := frame.NewsletterForm(frame.NewsletterState{}).Render(i18n.WithLocale(t.Context(), i18n.ZhHant), &b); err != nil {
@@ -45,9 +49,11 @@ func TestTheNewsletterFieldHasAVisibleLabel(t *testing.T) {
 	}
 }
 
+// TestNewsletterFormButtonInField: the newsletter button sits inside the field.
+//
 // The field and its button are one shape: the stylesheet draws the button
 // inside the field's box, which only works while both sit in the one wrapper.
-func TestTheNewsletterButtonSitsInsideTheField(t *testing.T) {
+func TestNewsletterFormButtonInField(t *testing.T) {
 	t.Parallel()
 	var b strings.Builder
 	if err := frame.NewsletterForm(frame.NewsletterState{}).Render(i18n.WithLocale(t.Context(), i18n.ZhHant), &b); err != nil {
@@ -65,9 +71,11 @@ func TestTheNewsletterButtonSitsInsideTheField(t *testing.T) {
 	}
 }
 
+// TestNewsletterFormActionArrow: the newsletter action is blue text with a decorative arrow.
+//
 // The footer's subscribe is a text action in the field, not the page's filled
 // button, and its arrow is decoration only.
-func TestTheNewsletterActionIsBlueTextWithADecorativeArrow(t *testing.T) {
+func TestNewsletterFormActionArrow(t *testing.T) {
 	t.Parallel()
 	var b strings.Builder
 	if err := frame.NewsletterForm(frame.NewsletterState{}).Render(i18n.WithLocale(t.Context(), i18n.ZhHant), &b); err != nil {
@@ -82,9 +90,11 @@ func TestTheNewsletterActionIsBlueTextWithADecorativeArrow(t *testing.T) {
 	}
 }
 
+// TestNewsletterFormReentryFocus: the newsletter re-entry link names the field that takes focus.
+//
 // The re-entry link swaps itself away with the form; the script hands focus to
 // the id it names, so that id has to exist in the form the swap brings in.
-func TestTheNewsletterReentryLinkNamesTheFieldThatTakesFocus(t *testing.T) {
+func TestNewsletterFormReentryFocus(t *testing.T) {
 	t.Parallel()
 	render := func(s frame.NewsletterState) string {
 		var b strings.Builder
@@ -102,11 +112,13 @@ func TestTheNewsletterReentryLinkNamesTheFieldThatTakesFocus(t *testing.T) {
 	}
 }
 
+// TestNewsletterFormConfirmationFocus: the newsletter confirmation takes focus from the form it replaces.
+//
 // A successful subscription swaps the form for its confirmation, and the submit
 // button that had focus goes with it. The form names the element that takes focus
 // next, and the confirmation has to be that element: a status message the script
 // can focus, which is also how a screen reader is made to read it.
-func TestTheNewsletterConfirmationTakesFocusFromTheFormItReplaces(t *testing.T) {
+func TestNewsletterFormConfirmationFocus(t *testing.T) {
 	t.Parallel()
 	for _, locale := range []i18n.Locale{i18n.ZhHant, i18n.En} {
 		t.Run(string(locale), func(t *testing.T) {

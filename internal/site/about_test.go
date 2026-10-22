@@ -55,7 +55,7 @@ func TestAboutSendsItsOwnLinkPreviewTags(t *testing.T) {
 	}
 }
 
-// The about page's entry of internal/ui/frame' TestNoPageNamesAnInventedCompanyOrAddress, which lives here since the page does.
+// The about page's entry of internal/ui/frame' TestFooterContactNoInventedCompany, which lives here since the page does.
 func TestTheAboutPageNamesNoInventedCompanyOrAddress(t *testing.T) {
 	t.Parallel()
 	for _, locale := range []i18n.Locale{i18n.ZhHant, i18n.En} {

@@ -46,4 +46,4 @@ jobs:
           cat chrome.log
           exit 1
       - name: Native disclosure keyboard regression
-        run: go test -count=1 -v -run '^TestAdminContentDisclosuresWorkWithTheKeyboard$' ./internal/ui/frame
+        run: go test -count=1 -v -run '^TestDisclosuresWorkWithKeyboard$' ./internal/ui/frame

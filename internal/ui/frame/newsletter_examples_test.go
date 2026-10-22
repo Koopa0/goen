@@ -11,7 +11,8 @@ import (
 	"github.com/koopa0/goen/internal/ui/frame"
 )
 
-func TestNewsletterExampleStaysVisibleWithItsDraftAndRefusal(t *testing.T) {
+// TestNewsletterFormExampleHint: newsletter example stays visible with its draft and refusal.
+func TestNewsletterFormExampleHint(t *testing.T) {
 	t.Parallel()
 	for _, locale := range i18n.Locales() {
 		for _, draft := range []struct{ name, value, refusal string }{

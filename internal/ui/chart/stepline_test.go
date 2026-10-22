@@ -36,7 +36,8 @@ func renderStepLine(t *testing.T, p StepLineProps) string {
 	return b.String()
 }
 
-func TestStepLineStepsAtTheDayTheLevelChanges(t *testing.T) {
+// TestNewStepLineSteps: step line steps at the day the level changes.
+func TestNewStepLineSteps(t *testing.T) {
 	t.Parallel()
 
 	got := newStepLine(t.Context(), stepProps()).Line
@@ -46,7 +47,8 @@ func TestStepLineStepsAtTheDayTheLevelChanges(t *testing.T) {
 	}
 }
 
-func TestStepLineDrawsTheSafetyLevelAcrossTheLevelsOfEveryDay(t *testing.T) {
+// TestStepLineDrawsSafetyLevel: step line draws the safety level across the levels of every day.
+func TestStepLineDrawsSafetyLevel(t *testing.T) {
 	t.Parallel()
 
 	got := renderStepLine(t, stepProps())
@@ -66,7 +68,8 @@ func TestStepLineDrawsTheSafetyLevelAcrossTheLevelsOfEveryDay(t *testing.T) {
 	}
 }
 
-func TestStepLineAxisReachesASafetyLevelAboveEveryLevel(t *testing.T) {
+// TestNewStepLineAxisReachesSafety: step line axis reaches a safety level above every level.
+func TestNewStepLineAxisReachesSafety(t *testing.T) {
 	t.Parallel()
 
 	p := stepProps()
@@ -79,7 +82,8 @@ func TestStepLineAxisReachesASafetyLevelAboveEveryLevel(t *testing.T) {
 	}
 }
 
-func TestStepLineMarksEachReceiptAndTheTableSaysSo(t *testing.T) {
+// TestStepLineMarksReceipts: step line marks each receipt and the table says so.
+func TestStepLineMarksReceipts(t *testing.T) {
 	t.Parallel()
 
 	got := renderStepLine(t, stepProps())
@@ -99,9 +103,11 @@ func TestStepLineMarksEachReceiptAndTheTableSaysSo(t *testing.T) {
 	}
 }
 
+// TestStepLineNamesReceiptsWithRoom: step line names only receipts that leave room.
+//
 // Two names closer than their own width would run into each other; the second
 // keeps its mark, and the table has the figure.
-func TestStepLineNamesOnlyReceiptsThatLeaveRoom(t *testing.T) {
+func TestStepLineNamesReceiptsWithRoom(t *testing.T) {
 	t.Parallel()
 
 	p := stepProps()
@@ -124,7 +130,8 @@ func slicesOf(n int, v int64) []int64 {
 	return out
 }
 
-func TestStepLineDrawsAnEmptyShelfAsALineOnTheBaseline(t *testing.T) {
+// TestStepLineEmptyShelf: step line draws an empty shelf as a line on the baseline.
+func TestStepLineEmptyShelf(t *testing.T) {
 	t.Parallel()
 
 	p := stepProps()
@@ -140,7 +147,8 @@ func TestStepLineDrawsAnEmptyShelfAsALineOnTheBaseline(t *testing.T) {
 	}
 }
 
-func TestStepLineSeesNoStyleAndHidesItsDrawingFromAssistiveTechnology(t *testing.T) {
+// TestStepLineNoStyleHidesDrawing: step line sees no style and hides its drawing from assistive technology.
+func TestStepLineNoStyleHidesDrawing(t *testing.T) {
 	t.Parallel()
 
 	got := renderStepLine(t, stepProps())
@@ -162,7 +170,8 @@ func TestStepLineSeesNoStyleAndHidesItsDrawingFromAssistiveTechnology(t *testing
 	}
 }
 
-func TestStepLineWithNoDaysDrawsNothing(t *testing.T) {
+// TestStepLineNoDays: step line with no days draws nothing.
+func TestStepLineNoDays(t *testing.T) {
 	t.Parallel()
 
 	if got := renderStepLine(t, StepLineProps{Caption: "x"}); got != "" {

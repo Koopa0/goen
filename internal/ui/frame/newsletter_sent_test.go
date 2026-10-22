@@ -8,7 +8,8 @@ import (
 	"github.com/koopa0/goen/internal/ui/frame"
 )
 
-func TestInlineNewsletterConfirmationKeepsTheDestinationAndRefetchesItsForm(t *testing.T) {
+// TestNewsletterFormDone: inline newsletter confirmation keeps the destination and refetches its form.
+func TestNewsletterFormDone(t *testing.T) {
 	t.Parallel()
 	for _, locale := range i18n.Locales() {
 		t.Run(locale.Tag(), func(t *testing.T) {

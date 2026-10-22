@@ -11,7 +11,8 @@ import (
 	"github.com/koopa0/goen/internal/user"
 )
 
-func TestOrderNotFoundOffersRecoveryForTheVisitor(t *testing.T) {
+// TestOrderNotFoundRecoveryActions: order not found offers recovery for the visitor.
+func TestOrderNotFoundRecoveryActions(t *testing.T) {
 	t.Parallel()
 	for _, locale := range i18n.Locales() {
 		for _, signedIn := range []bool{false, true} {
@@ -51,7 +52,8 @@ func renderNotice(t *testing.T, c templ.Component, ctx context.Context) string {
 	return b.String()
 }
 
-func TestNotFoundListsTheDepartmentsAndAServerErrorDoesNot(t *testing.T) {
+// TestNoticeDepartmentsOnNotFound: not found lists the departments and a server error does not.
+func TestNoticeDepartmentsOnNotFound(t *testing.T) {
 	t.Parallel()
 	ctx := WithTopNav(i18n.WithLocale(t.Context(), i18n.En), []NavItem{
 		{Slug: "phones", Name: "Phones", Href: "/c/phones"},

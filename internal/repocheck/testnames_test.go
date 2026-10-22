@@ -75,6 +75,8 @@ var migratedTestPackages = []string{
 	"internal/product/labelling",
 	"internal/shipping/postcode",
 	"internal/shoptime",
+	"internal/ui/chart",
+	"internal/ui/frame",
 	"internal/user",
 	"internal/web/clientip",
 	"internal/web/compress",
@@ -149,6 +151,9 @@ var testNameExceptions = map[string]map[string]string{
 	"internal/shoptime": {
 		"TestAmbientFormat":   "its unit is ambientFormat, a helper declared in the guard's test file, not part of the package",
 		"TestNoAmbientFormat": "a repository rule: no .Format( call outside this package renders a time in the process's zone; it reads every source file, and no function of the package is its unit",
+	},
+	"internal/ui/frame": {
+		"TestDisclosuresWorkWithKeyboard": "its unit is the back office's content disclosures (the <details> behaviour of the desk stylesheet and goen.js), driven in a real browser by scripts/admin-disclosure-check.mjs against the health and twofactor pages; no identifier of this package declares them, and it uses frame.Page only as a fixture",
 	},
 }
 
