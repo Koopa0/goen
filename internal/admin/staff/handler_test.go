@@ -14,7 +14,8 @@ import (
 	"github.com/koopa0/goen/internal/user"
 )
 
-func TestEveryRedirectTheStaffFormsMakeCarriesAMessage(t *testing.T) {
+// TestNoticesCoverRedirects: every redirect the staff forms make carries a message.
+func TestNoticesCoverRedirects(t *testing.T) {
 	t.Parallel()
 	src, err := os.ReadFile("handler.go")
 	if err != nil {
@@ -39,7 +40,8 @@ func TestEveryRedirectTheStaffFormsMakeCarriesAMessage(t *testing.T) {
 	}
 }
 
-func TestOnlyAnAdminReachesTheRoster(t *testing.T) {
+// TestHandler_RoutesAdminOnly: only an admin reaches the roster.
+func TestHandler_RoutesAdminOnly(t *testing.T) {
 	t.Parallel()
 	log := slog.New(slog.DiscardHandler)
 	mux := http.NewServeMux()

@@ -27,9 +27,9 @@ import (
 	"github.com/koopa0/goen/internal/media"
 )
 
-// TestSlideRowWritesAnswerAFailureAsAServerError: a database that cannot be
+// TestHandler_HeroWritesClosed: a slide row write answers a failure as a server error. A database that cannot be
 // reached decided nothing, and answering 404 or "refused" says otherwise.
-func TestSlideRowWritesAnswerAFailureAsAServerError(t *testing.T) {
+func TestHandler_HeroWritesClosed(t *testing.T) {
 	ctx, _ := admintest.StaffContext(t, pool)
 	closed := admintest.NamedPool(t, pool, "slides_closed_"+uuid.NewString()[:8])
 	closed.Close()
@@ -54,7 +54,8 @@ func TestSlideRowWritesAnswerAFailureAsAServerError(t *testing.T) {
 	}
 }
 
-func TestSlidesReadFailuresAnswerAsServerErrors(t *testing.T) {
+// TestHandler_SlidesReadFailures: slides read failures answer as server errors.
+func TestHandler_SlidesReadFailures(t *testing.T) {
 	p := admintest.Pool(t)
 	staffCtx, _ := admintest.StaffContext(t, p)
 	heroID := seedSlideSchedule(t, staffCtx, p)

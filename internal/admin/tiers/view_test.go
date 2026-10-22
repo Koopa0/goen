@@ -17,8 +17,9 @@ import (
 // The tests in this file are the tiers halves of tests that render several
 // desks' pages: each half lives with the page it renders.
 
+// TestTiersExampleLine: the tiers example is its own hint line.
 // From TestAnExampleIsItsOwnHintLine.
-func TestTiersExampleIsItsOwnHintLine(t *testing.T) {
+func TestTiersExampleLine(t *testing.T) {
 	t.Parallel()
 	ctx := i18n.WithLocale(t.Context(), i18n.ZhHant)
 	body := renderComponent(t, ctx, Tiers(frame.Page{Title: "Tiers"}, TiersView{}))
@@ -30,8 +31,9 @@ func TestTiersExampleIsItsOwnHintLine(t *testing.T) {
 	}
 }
 
+// TestTiersExampleHints: every tiers example hint reads in full.
 // From TestEveryExampleHintReadsInFull.
-func TestEveryTiersExampleHintReadsInFull(t *testing.T) {
+func TestTiersExampleHints(t *testing.T) {
 	t.Parallel()
 	for _, tt := range []struct {
 		locale   i18n.Locale
@@ -53,8 +55,9 @@ func TestEveryTiersExampleHintReadsInFull(t *testing.T) {
 	}
 }
 
+// TestTiersContentColumn: the tiers screen puts its work in the content column.
 // From TestNewsletterContentColumn.
-func TestTiersScreenPutsItsWorkInTheContentColumn(t *testing.T) {
+func TestTiersContentColumn(t *testing.T) {
 	t.Parallel()
 	ctx := frame.WithStaff(i18n.WithLocale(t.Context(), i18n.ZhHant), true)
 
@@ -82,8 +85,9 @@ func TestTiersScreenPutsItsWorkInTheContentColumn(t *testing.T) {
 	}
 }
 
+// TestTiersRemoveButtons: the tiers remove buttons name their record.
 // From TestRemoveButtonsNameTheirRecord (the "membership tiers" case).
-func TestTiersRemoveButtonsNameTheirRecord(t *testing.T) {
+func TestTiersRemoveButtons(t *testing.T) {
 	t.Parallel()
 	for _, locale := range []struct {
 		locale i18n.Locale
@@ -166,8 +170,9 @@ func TestTiersRemoveButtonsNameTheirRecord(t *testing.T) {
 	}
 }
 
+// TestTiersMultiplierColumn: the tiers multiplier column is numeric.
 // Moved whole from small_defects_test.go.
-func TestTiersMultiplierColumnIsNumeric(t *testing.T) {
+func TestTiersMultiplierColumn(t *testing.T) {
 	t.Parallel()
 	body := render(t, Tiers(frame.Page{Title: "Tiers"}, TiersView{Rows: []Tier{{ID: "1", Code: "gold", Name: "Gold", MinSpend: 10000, MultiplierBP: 11000, Members: 4}}}))
 	if !strings.Contains(body, `<td class="goen-admin__cellnum">1.1`) {
@@ -178,8 +183,9 @@ func TestTiersMultiplierColumnIsNumeric(t *testing.T) {
 	}
 }
 
+// TestTier_Multiplier: tier multipliers retain basis-point precision.
 // From TestMembershipMultipliersRetainBasisPointPrecision (the "staff" format).
-func TestTierMultipliersRetainBasisPointPrecision(t *testing.T) {
+func TestTier_Multiplier(t *testing.T) {
 	t.Parallel()
 	tests := []struct {
 		name string

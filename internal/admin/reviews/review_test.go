@@ -11,7 +11,8 @@ import (
 	"github.com/koopa0/goen/internal/ui/frame"
 )
 
-func TestReviewRowsShowNumericRatingsAndBackOfficeProducts(t *testing.T) {
+// TestReviewsNumericRatings: review rows show numeric ratings and back-office products.
+func TestReviewsNumericRatings(t *testing.T) {
 	t.Parallel()
 	for _, locale := range []i18n.Locale{i18n.ZhHant, i18n.En} {
 		t.Run(string(locale), func(t *testing.T) {
@@ -52,7 +53,8 @@ func TestReviewRowsShowNumericRatingsAndBackOfficeProducts(t *testing.T) {
 	}
 }
 
-func TestReviewFilterSelectionAndEmptyState(t *testing.T) {
+// TestReviewsFilterEmptyState: the review filter shows its selection and its empty state.
+func TestReviewsFilterEmptyState(t *testing.T) {
 	t.Parallel()
 	for _, locale := range []i18n.Locale{i18n.ZhHant, i18n.En} {
 		for _, filtered := range []bool{false, true} {

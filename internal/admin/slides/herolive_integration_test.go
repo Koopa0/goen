@@ -13,9 +13,10 @@ import (
 	"github.com/koopa0/goen/internal/ui/hero"
 )
 
+// TestStore_HeroSlidesCampaign: the slides page carries the campaign slides the storefront shows.
 // The back office shows the carousel the storefront builds, so a campaign that
 // feeds it appears there with its source named.
-func TestTheSlidesPageCarriesTheCampaignSlidesTheStorefrontShows(t *testing.T) {
+func TestStore_HeroSlidesCampaign(t *testing.T) {
 	ctx, _ := admintest.StaffContext(t, pool)
 	s := newStore(pool)
 	// Queued slides come first in the carousel and there is room for three, so

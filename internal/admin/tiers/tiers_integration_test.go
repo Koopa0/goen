@@ -10,7 +10,8 @@ import (
 	"github.com/koopa0/goen/internal/admin/tiers"
 )
 
-func TestTwoTiersCannotShareAThreshold(t *testing.T) {
+// TestStore_CreateTierSharedThreshold: two tiers cannot share a threshold.
+func TestStore_CreateTierSharedThreshold(t *testing.T) {
 	ctx, _ := admintest.StaffContext(t, pool)
 	s := tiers.NewStore(pool)
 
@@ -23,7 +24,8 @@ func TestTwoTiersCannotShareAThreshold(t *testing.T) {
 	}
 }
 
-func TestATierCannotEarnLessThanNoTier(t *testing.T) {
+// TestStore_CreateTierBelowBase: a tier cannot earn less than no tier.
+func TestStore_CreateTierBelowBase(t *testing.T) {
 	ctx, _ := admintest.StaffContext(t, pool)
 	s := tiers.NewStore(pool)
 

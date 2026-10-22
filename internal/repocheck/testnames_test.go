@@ -32,6 +32,7 @@ const maxTestNameLen = 40
 // fail them, so the guard cannot pass without looking.
 var migratedTestPackages = []string{
 	"assets",
+	"internal/admin",
 	"internal/admin/audit",
 	"internal/admin/banners",
 	"internal/admin/campaigns",
@@ -40,12 +41,18 @@ var migratedTestPackages = []string{
 	"internal/admin/customers",
 	"internal/admin/dashboard",
 	"internal/admin/faq",
+	"internal/admin/messages",
 	"internal/admin/newsletters",
 	"internal/admin/questions",
 	"internal/admin/refunds",
 	"internal/admin/reports",
+	"internal/admin/reviews",
+	"internal/admin/slides",
+	"internal/admin/staff",
 	"internal/admin/stock",
 	"internal/admin/taxonomy",
+	"internal/admin/tiers",
+	"internal/admin/warranties",
 	"internal/bearer",
 	"internal/credit",
 	"internal/email",
@@ -90,6 +97,12 @@ var testNameExceptions = map[string]map[string]string{
 		"TestNoStylesheetFetchesFromAnotherOrigin": "a rule of the whole stylesheet set (the style-src 'self' promise): it walks every file under css/, so no one declared identifier is its unit",
 		"TestSharedLayoutRulesAreDeclaredOnce":     "a rule of two stylesheets at once: it counts one selector in AppCSS and one in AdminCSS, so naming it after either would misstate its unit",
 	},
+	"internal/admin": {
+		"TestClosedDatabaseWritesNotRefused":           "a rule across the back-office stores: it closes the database under products and shipping writes and asks that neither answers ErrRefused or ErrNotFound; its units are those stores' methods in other packages, and no identifier of package admin is one of them",
+		"TestEveryAdminQueueReachesBeyondItsFirstPage": "a rule across every back-office queue: it seeds 101 rows and follows each desk's next link through its own handler; the desks are other packages, and no identifier of package admin is its unit",
+		"TestEveryBackOfficeWriteLeavesATrail":         "a rule across the back-office stores: it runs one write of each (stock, product, credit, campaign and the rest) and counts an audit row for every action; the stores are other packages, and no identifier of package admin is its unit",
+		"TestMistypedParcelDimension":                  "its unit is the products desk's variant form (products.Handler through productstest), declared in internal/admin/products, not in this package; it lives here because this suite owns the shared catalogue database it needs",
+	},
 	"internal/admin/refunds": {
 		"TestClaimReturnRefundExecutionConcurrent": "the unit is the SQL function claim_return_refund_execution, called straight through the pool; no Go identifier of this package is what the test drives",
 		"TestOrderPageIssuedInvoiceNoProvider":     "the unit is Store.Order of package orders, which this package does not declare; moving the test there is a reorganisation this pass does not do",
@@ -101,11 +114,18 @@ var testNameExceptions = map[string]map[string]string{
 	"internal/admin/reports": {
 		"TestStockDaysCoverRefundedBeforeShipment": "the unit is Store.DaysCover of package stock, which this package does not declare (it declares only the Cover interface it calls through); moving the test there is a reorganisation this pass does not do",
 	},
+	"internal/admin/staff": {
+		"TestRequireAdminStaffPage": "its unit is admin.Control.RequireAdmin guarding the staff page's path, declared in package admin; it calls nothing this package declares",
+		"TestUpsertStaffExisting":   "its unit is the upsert_staff SQL function and the users_staff_already_exists constraint, called straight through an admin-role pool; Store.AddStaff is not what it exercises",
+	},
 	"internal/admin/stock": {
 		"TestProductVariantsRestockNoticesRollback": "the unit is the product_variants_restock_notices trigger, a SQL object, driven by plain UPDATE statements on the admin role's pool, not a Go identifier",
 	},
 	"internal/admin/taxonomy": {
 		"TestCategoriesIconKeyKnown": "the unit is the categories_icon_key_known CHECK constraint of the categories table, a SQL object, not a Go identifier: the test inserts rows directly and never calls the Store",
+	},
+	"internal/admin/tiers": {
+		"TestAdminMembershipTiers": "its unit is the AdminMembershipTiers query (internal/admin/tiers/query.sql, generated into internal/db), a SQL object it calls directly in a read-only transaction, not Store.Tiers",
 	},
 	"internal/i18n": {
 		"TestNoHardCodedGenericChrome": "a repository rule: no customer-facing .templ source hard-codes a generic English word; it reads every source file, and no function of the package is its unit",

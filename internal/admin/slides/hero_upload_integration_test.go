@@ -26,12 +26,14 @@ import (
 	"github.com/koopa0/goen/internal/media/mediatest"
 )
 
-// TestARefusedHeroSlideStoresNoImage holds the order of the hero form: its copy
+// TestHandler_CreateHeroNoImageStored: a refused hero slide stores no image.
+//
+// It holds the order of the hero form: its copy
 // is checked before its image is decoded, so a slide refused for a missing
 // headline or missing alt text writes nothing to media_objects. The last post
 // is the control: the same image under complete copy is stored, so the
 // absences before it are about the refusal and not about the probe.
-func TestARefusedHeroSlideStoresNoImage(t *testing.T) {
+func TestHandler_CreateHeroNoImageStored(t *testing.T) {
 	ctx, _ := admintest.StaffContext(t, pool)
 	h := handlerOver(newStore(pool))
 	headline := "主視覺" + uuid.NewString()[:8]
@@ -125,7 +127,8 @@ func TestARefusedHeroSlideStoresNoImage(t *testing.T) {
 	}
 }
 
-func TestHeroImageRefusalsKeepTheCompleteDraft(t *testing.T) {
+// TestHandler_CreateHeroImageRefusal: hero image refusals keep the complete draft.
+func TestHandler_CreateHeroImageRefusal(t *testing.T) {
 	staffCtx, _ := admintest.StaffContext(t, pool)
 	p := admintest.AdminRolePool(t, pool)
 	s := newStore(p)
@@ -221,7 +224,8 @@ func TestHeroImageRefusalsKeepTheCompleteDraft(t *testing.T) {
 	}
 }
 
-func TestHeroWithoutASelectedImageStillUsesBuiltInArtwork(t *testing.T) {
+// TestHandler_CreateHeroBuiltInArtwork: a hero without a selected image still uses the built-in artwork.
+func TestHandler_CreateHeroBuiltInArtwork(t *testing.T) {
 	ctx, _ := admintest.StaffContext(t, pool)
 	p := admintest.AdminRolePool(t, pool)
 	s := newStore(p)
@@ -260,7 +264,8 @@ func TestHeroWithoutASelectedImageStillUsesBuiltInArtwork(t *testing.T) {
 	}
 }
 
-func TestARefusedSlideKeepsTheSchedule(t *testing.T) {
+// TestHandler_CreateHeroKeepsSchedule: a refused slide keeps the schedule.
+func TestHandler_CreateHeroKeepsSchedule(t *testing.T) {
 	p := admintest.Pool(t)
 	staffCtx, _ := admintest.StaffContext(t, p)
 	heroID := seedSlideSchedule(t, staffCtx, p)
@@ -424,7 +429,8 @@ func refusedSlideRequest(t *testing.T, ctx context.Context) *http.Request {
 	return req
 }
 
-func TestHeroUploadsKeepStorageFailuresSeparateFromRefusals(t *testing.T) {
+// TestHandler_CreateHeroStorageFault: hero uploads keep storage failures separate from refusals.
+func TestHandler_CreateHeroStorageFault(t *testing.T) {
 	owner := admintest.Pool(t)
 	staff, _ := admintest.StaffContext(t, owner)
 	adminPool := admintest.AdminRolePool(t, owner)
