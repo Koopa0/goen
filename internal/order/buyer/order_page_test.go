@@ -14,9 +14,10 @@ import (
 	"github.com/koopa0/goen/internal/ui/frame"
 )
 
-// TestCanCancelIsAboutFundingNotJustStatus holds that a captured order still at
-// pending is not offered cancel, which CancelOrderByCustomer would refuse.
-func TestCanCancelIsAboutFundingNotJustStatus(t *testing.T) {
+// TestOrderView_CanCancel: CanCancel is about funding, not just status: only an
+// unpaid order that has not started is offered cancel, so a captured order
+// still at pending is not, which CancelOrderByCustomer would refuse.
+func TestOrderView_CanCancel(t *testing.T) {
 	t.Parallel()
 
 	for _, tt := range []struct {
@@ -41,10 +42,12 @@ func TestCanCancelIsAboutFundingNotJustStatus(t *testing.T) {
 	}
 }
 
-// TestTheOrderPageShowsTheDiscountAndWhy asserts the HTML, because the view
-// model can hold every number correctly while the template renders one of them
-// nowhere.
-func TestTheOrderPageShowsTheDiscountAndWhy(t *testing.T) {
+// TestOrderDiscountRow: the order summary shows the discount's reason and
+// amount, and an order with no discount shows no zero-discount row.
+//
+// It asserts the HTML, because the view model can hold every number correctly
+// while the template renders one of them nowhere.
+func TestOrderDiscountRow(t *testing.T) {
 	v := &OrderView{
 		Number: "GO-260101-000001", Status: "pending",
 		SubtotalCents: 100000, ShippingCents: 6000,
@@ -68,10 +71,13 @@ func TestTheOrderPageShowsTheDiscountAndWhy(t *testing.T) {
 	}
 }
 
-// TestACreditPaidOrdersCancelSaysItVoidsTheInvoice: the customer's own press is
-// the consent to voiding the 統一發票, so the form says so in both languages,
-// and only where an invoice was owed.
-func TestACreditPaidOrdersCancelSaysItVoidsTheInvoice(t *testing.T) {
+// TestOrderCancelVoidsInvoice: the cancel form of an order paid wholly by store
+// credit says that cancelling voids the invoice, in both locales, and the form
+// of an unpaid, partly credited or free order does not.
+//
+// The customer's own press is the consent to voiding the 統一發票, so the form says
+// so only where an invoice was owed.
+func TestOrderCancelVoidsInvoice(t *testing.T) {
 	t.Parallel()
 	viewOf := func(creditCents, owedCents int64) *OrderView {
 		return &OrderView{
@@ -96,10 +102,14 @@ func TestACreditPaidOrdersCancelSaysItVoidsTheInvoice(t *testing.T) {
 	}
 }
 
-// TestOnlyAnOrderThatOwesMoneyIsOfferedPayment holds the two funded cases apart:
-// a captured card leaves the order committed and still owing, and a wholly
-// store-credited one owes nothing and is not committed until it leaves pending.
-func TestOnlyAnOrderThatOwesMoneyIsOfferedPayment(t *testing.T) {
+// TestOrderPaymentOffer: an order is offered payment (the unpaid notice and the
+// pay link) only while it owes money: a placed unpaid order is, a captured
+// card, a wholly store-credited order and a cancelled order are not.
+//
+// It holds the two funded cases apart: a captured card leaves the order
+// committed and still owing, and a wholly store-credited one owes nothing and
+// is not committed until it leaves pending.
+func TestOrderPaymentOffer(t *testing.T) {
 	tests := []struct {
 		name      string
 		status    order.FulfillmentStatus
@@ -133,9 +143,10 @@ func TestOnlyAnOrderThatOwesMoneyIsOfferedPayment(t *testing.T) {
 	}
 }
 
-// TestADeliveredOrderOffersReturnAndShowsCredit holds that the canonical order
-// page carries return and store-credit summary for a delivered order.
-func TestADeliveredOrderOffersReturnAndShowsCredit(t *testing.T) {
+// TestOrderDeliveredReturnAndCredit: the order page of a delivered order links
+// to its return form and shows the store credit applied, with its amount, in
+// the summary.
+func TestOrderDeliveredReturnAndCredit(t *testing.T) {
 	ctx := i18n.WithLocale(t.Context(), i18n.ZhHant)
 	v := &OrderView{
 		Number: "GO-260101-000012", Status: order.FulfillmentDelivered,
@@ -154,9 +165,13 @@ func TestADeliveredOrderOffersReturnAndShowsCredit(t *testing.T) {
 	}
 }
 
-// TestADeliveredOrderLinksToItsWarrantyForm holds that a line links to the registration form from the day its
-// parcel arrives, because cover starts when the goods reach somebody, and not before.
-func TestADeliveredOrderLinksToItsWarrantyForm(t *testing.T) {
+// TestOrderWarrantyLink: a line links to the warranty registration form once
+// its parcel is delivered (or the order completed) and not before: pending,
+// picking and shipped orders carry no link.
+//
+// Cover starts when the goods reach somebody, so the link appears from the day
+// the parcel arrives.
+func TestOrderWarrantyLink(t *testing.T) {
 	line := OrderLine{SKU: "S1", Name: "耳機", UnitCents: 100000, Quantity: 1, WarrantyMonths: 12}
 	tests := []struct {
 		name      string
@@ -197,9 +212,9 @@ func TestADeliveredOrderLinksToItsWarrantyForm(t *testing.T) {
 	}
 }
 
-// TestGuestTokenViewerDoesNotSeeWarrantyLink holds that a delivered order read
-// through a guest access token must not expose the account-only registration door.
-func TestGuestTokenViewerDoesNotSeeWarrantyLink(t *testing.T) {
+// TestOrderGuestNoWarrantyLink: a delivered order read through a guest access
+// token shows no link to the account-only warranty registration.
+func TestOrderGuestNoWarrantyLink(t *testing.T) {
 	line := OrderLine{SKU: "S1", Name: "耳機", UnitCents: 100000, Quantity: 1, WarrantyMonths: 12}
 	v := &OrderView{
 		Number: "GO-260101-000012", Status: order.FulfillmentDelivered,
@@ -216,11 +231,14 @@ func TestGuestTokenViewerDoesNotSeeWarrantyLink(t *testing.T) {
 	}
 }
 
-// TestAFullyFundedOrderIsNotAskedToPay covers the funding term of
-// AwaitingPayment. An order paid entirely from store credit, or zeroed by a
-// 100% coupon, is legitimately 'pending' with NO payment row, so status and
-// Committed together still read "unpaid" and only OwedCents tells them apart.
-func TestAFullyFundedOrderIsNotAskedToPay(t *testing.T) {
+// TestOrderView_AwaitingPaymentFunded: AwaitingPayment is false, and the order
+// page offers no pay link, for an order that owes nothing, while the same order
+// owing money is still awaiting payment.
+//
+// An order paid entirely from store credit, or zeroed by a 100% coupon, is
+// legitimately pending with no payment row, so status and Committed together
+// still read unpaid and only OwedCents tells them apart.
+func TestOrderView_AwaitingPaymentFunded(t *testing.T) {
 	t.Parallel()
 
 	funded := &OrderView{
@@ -250,10 +268,13 @@ func TestAFullyFundedOrderIsNotAskedToPay(t *testing.T) {
 	}
 }
 
-// TestWithoutPaymentsTheOrderPageLeadsNowhereNearThePayPage holds the other half
-// of a loop: the pay page of a shop that takes no payment links to the order, so
-// the order must not link back, and the pay page must still offer a way out.
-func TestWithoutPaymentsTheOrderPageLeadsNowhereNearThePayPage(t *testing.T) {
+// TestOrderNoPayLinkWithoutPayments: on a shop that takes no payment the order
+// page does not link to the pay page but still says the order is unpaid, and
+// the pay page offers links to the order and to contact as a way out.
+//
+// The pay page of such a shop links to the order, so the order must not link
+// back.
+func TestOrderNoPayLinkWithoutPayments(t *testing.T) {
 	t.Parallel()
 	ctx := i18n.WithLocale(t.Context(), i18n.ZhHant)
 
@@ -275,9 +296,11 @@ func TestWithoutPaymentsTheOrderPageLeadsNowhereNearThePayPage(t *testing.T) {
 	}
 }
 
-// TestTheOrderPageStatesItsOwnState holds the eyebrow, the payment row and the
-// amount due, each from the order's own facts.
-func TestTheOrderPageStatesItsOwnState(t *testing.T) {
+// TestOrderPageState: the order page states its own state from the order's
+// facts: the eyebrow and payment row of a delivered order, PaymentState across
+// unpaid, captured, credit-funded, cancelled, refunded and partly refunded
+// orders, and store credit listed above an amount due of NT$0.
+func TestOrderPageState(t *testing.T) {
 	t.Parallel()
 	ctx := i18n.WithLocale(t.Context(), i18n.ZhHant)
 	render := func(v *OrderView) string {
@@ -330,7 +353,11 @@ func TestTheOrderPageStatesItsOwnState(t *testing.T) {
 	}
 }
 
-func TestShowCancelKeepsTheOrderFundingAndHoldFacts(t *testing.T) {
+// TestOrderView_ShowCancel: ShowCancel hides the cancel form while a payment
+// return is unresolved inside its hold or its automatic checks are running,
+// while CanCancel follows funding and status alone: captured, cancelled and
+// shipped orders cannot be cancelled.
+func TestOrderView_ShowCancel(t *testing.T) {
 	t.Parallel()
 	now := time.Date(2026, time.October, 7, 12, 0, 0, 0, time.UTC)
 	for _, tt := range []struct {
@@ -366,7 +393,9 @@ func TestShowCancelKeepsTheOrderFundingAndHoldFacts(t *testing.T) {
 	}
 }
 
-func TestTheOrderHistoryHidesAShippedEventsNote(t *testing.T) {
+// TestOrderHistoryShippedNote: the order history leaves out a shipped event's
+// note and prints the note of any other event.
+func TestOrderHistoryShippedNote(t *testing.T) {
 	t.Parallel()
 	page := renderToString(t, Order(frame.Page{Title: "o"}, &OrderView{
 		Status: order.FulfillmentCancelled,
@@ -383,10 +412,13 @@ func TestTheOrderHistoryHidesAShippedEventsNote(t *testing.T) {
 	}
 }
 
-// TestAPaidOrderIsNotBadgedAwaitingPaymentInTheAccount holds the same fact on
-// both signed-in surfaces: the history badge and the detail page's notice. The
-// history badge's half is internal/account's TestAccountOrderPaidIsNotAwaitingPayment.
-func TestAPaidOrderIsNotBadgedAwaitingPaymentInTheAccount(t *testing.T) {
+// TestOrderPaidNotAwaitingPayment: the order page of a captured, committed
+// order does not say it is unpaid.
+//
+// The history badge's half of the same fact is internal/account's
+// TestAccountOrderPaidIsNotAwaitingPayment. This test renders the order page
+// only; it does not drive a signed-in account.
+func TestOrderPaidNotAwaitingPayment(t *testing.T) {
 	view := &OrderView{
 		Number: "GO-260101-000010", Status: order.FulfillmentPending,
 		SubtotalCents: 100000, ShippingCents: 6000, ShippingName: "宅配",

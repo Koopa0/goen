@@ -11,8 +11,12 @@ import (
 	"github.com/koopa0/goen/internal/ui/frame"
 )
 
+// TestFindOrderExampleVisible: on the find-order page the example stays out of
+// the input's placeholder and value however the input was typed or refused, and
+// is a visible description linked by aria-describedby, which no input repeats.
+//
 // From TestContactExamplesStayOutsideRefusedInputs: the find-order row.
-func TestFindOrderExampleStaysOutsideRefusedInputs(t *testing.T) {
+func TestFindOrderExampleVisible(t *testing.T) {
 	t.Parallel()
 	for _, locale := range i18n.Locales() {
 		for _, draft := range []struct{ value, refusal string }{{"", ""}, {"Submitted <& value", ""}, {"", "Refused"}, {"Submitted <& value", "Refused"}} {

@@ -14,7 +14,11 @@ import (
 	"github.com/koopa0/goen/internal/web/ratelimit"
 )
 
-func TestRefusedOrderLookupOffersContactAndKeepsInput(t *testing.T) {
+// TestHandler_FindOrderRefusedRecovery: a refused order lookup (no email)
+// answers 422, keeps the typed order number in the form and links to the
+// contact page with the guidance for a missing confirmation email, in both
+// locales.
+func TestHandler_FindOrderRefusedRecovery(t *testing.T) {
 	t.Parallel()
 	for _, locale := range i18n.Locales() {
 		h := NewHandler(&Store{}, &access.Store{}, slog.New(slog.DiscardHandler),

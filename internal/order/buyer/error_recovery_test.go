@@ -11,7 +11,11 @@ import (
 	"github.com/koopa0/goen/internal/order/access"
 )
 
-func TestInaccessibleOrderActionsOfferLookupAndSignIn(t *testing.T) {
+// TestHandlerInaccessibleOrderRecovery: the order page, the return form and the
+// cancellation answer 404 to a visitor with no grant for the order, with a
+// notice whose first action is the order lookup and which also offers sign-in,
+// in both locales.
+func TestHandlerInaccessibleOrderRecovery(t *testing.T) {
 	t.Parallel()
 	h := &Handler{access: &access.Store{}, log: slog.New(slog.DiscardHandler)}
 	for _, locale := range i18n.Locales() {

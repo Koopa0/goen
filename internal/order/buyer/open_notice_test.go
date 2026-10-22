@@ -7,7 +7,10 @@ import (
 	"github.com/koopa0/goen/internal/web/formtext"
 )
 
-func TestOpenRequestTakesPrecedenceOverStaleFormRefusals(t *testing.T) {
+// TestReturnRefusalsOpenRequest: returnRefusals drops every form refusal
+// (quantity too many, invalid, already open, reason too long) once a request is
+// open, and viewOf then shows no error while keeping the submitted draft.
+func TestReturnRefusalsOpenRequest(t *testing.T) {
 	t.Parallel()
 	order := &ReturnOrder{HasOpen: true, Lines: []ReturnLine{{ID: "line"}}}
 	draft := &returnDraft{Reason: "Kept reason", Quantities: map[string]string{"line": "2"}}

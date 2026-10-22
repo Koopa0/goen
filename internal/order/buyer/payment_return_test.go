@@ -9,7 +9,10 @@ import (
 	"github.com/koopa0/goen/internal/order"
 )
 
-func TestPaymentReturnNeverOverridesTerminalOrFundedState(t *testing.T) {
+// TestPaymentReturnRefreshTerminal: paymentReturnRefresh gives no refresh link
+// to a cancelled, captured, credit-funded or shipped order returning with
+// ?paid=1: a payment return never overrides a terminal or funded state.
+func TestPaymentReturnRefreshTerminal(t *testing.T) {
 	for _, view := range []OrderView{
 		{Number: "ORD-1", Status: order.FulfillmentCancelled, OwedCents: 100},
 		{Number: "ORD-1", Status: order.FulfillmentPending, Committed: true, OwedCents: 100},
@@ -23,7 +26,10 @@ func TestPaymentReturnNeverOverridesTerminalOrFundedState(t *testing.T) {
 	}
 }
 
-func TestPaymentReturnChecksKeepTheReturnMarkerWhenTheyEnd(t *testing.T) {
+// TestPaymentReturnRefreshChecks: paymentReturnRefresh walks an unpaid order's
+// return through confirmation=1, 2 and done and then to no refresh, and the
+// ended checks keep the payment-return hint (PaymentConfirmationPending).
+func TestPaymentReturnRefreshChecks(t *testing.T) {
 	t.Parallel()
 	path := "/orders/ORD-1?paid=1"
 	for _, want := range []string{
@@ -45,7 +51,11 @@ func TestPaymentReturnChecksKeepTheReturnMarkerWhenTheyEnd(t *testing.T) {
 	}
 }
 
-func TestPaymentReturnEndingNeverOverridesTerminalOrFundedState(t *testing.T) {
+// TestPaymentReturnRefreshDoneTerminal: for a finished check
+// (confirmation=done) paymentReturnRefresh gives no refresh link and does not
+// mark the confirmation pending on a cancelled, captured, credit-funded or
+// shipped order.
+func TestPaymentReturnRefreshDoneTerminal(t *testing.T) {
 	t.Parallel()
 	for _, view := range []OrderView{
 		{Number: "ORD-1", Status: order.FulfillmentCancelled, OwedCents: 100},
@@ -60,7 +70,11 @@ func TestPaymentReturnEndingNeverOverridesTerminalOrFundedState(t *testing.T) {
 	}
 }
 
-func TestPaymentReturnCancellationIsIndependentOfTheCheckCounter(t *testing.T) {
+// TestPaymentReturnRefreshShowCancel: whatever the return query says, even a
+// malformed, negative or overflowing check counter, the cancel form is hidden
+// while checks run or have ended inside the hold and shown otherwise, and the
+// return hint never changes the order's funding or cancellation eligibility.
+func TestPaymentReturnRefreshShowCancel(t *testing.T) {
 	t.Parallel()
 	now := time.Date(2026, time.October, 7, 12, 0, 0, 0, time.UTC)
 	for _, tt := range []struct {

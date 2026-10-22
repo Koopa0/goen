@@ -36,7 +36,11 @@ func moveParcels(t *testing.T, stmt string, args ...any) {
 	}
 }
 
-func TestReturnFormReadsTheDeliveredParcelsDatabaseDeadlineAndOnlyTheOpenNotice(t *testing.T) {
+// TestHandlerReturnFormDeadlineAndOpen: the return form shows the delivered
+// parcel's deadline as the database computes it (return_window_ends) with the
+// next-step sentence, and once a request is open a POST answers 422 with only
+// the in-flight notice and the submitted draft, in both locales.
+func TestHandlerReturnFormDeadlineAndOpen(t *testing.T) {
 	ctx := t.Context()
 	number, lineID := shippedOrder(t, 2, 2)
 	delivered := time.Date(2026, time.October, 1, 16, 30, 0, 0, time.UTC)
@@ -93,7 +97,10 @@ func TestReturnFormReadsTheDeliveredParcelsDatabaseDeadlineAndOnlyTheOpenNotice(
 	}
 }
 
-func TestReturnFormTellsAPickupOrderToCountFromCollection(t *testing.T) {
+// TestHandler_ReturnPagePickup: the return form tells a store-pickup order to
+// count the rescission period from collection and a home-delivery order from
+// receipt, in both locales.
+func TestHandler_ReturnPagePickup(t *testing.T) {
 	ctx := t.Context()
 	home, _ := shippedOrder(t, 1, 1)
 	pickup, _ := shippedOrder(t, 1, 1)
