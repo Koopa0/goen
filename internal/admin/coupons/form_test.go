@@ -21,7 +21,8 @@ func formRequest(t *testing.T, values url.Values) *http.Request {
 	return r
 }
 
-func TestCouponDollarInputsAreBoundedBeforeMultiplication(t *testing.T) {
+// TestForm_ValidateDollarOverflow: coupon dollar inputs are bounded before they are multiplied.
+func TestForm_ValidateDollarOverflow(t *testing.T) {
 	t.Parallel()
 	ctx := i18n.WithLocale(t.Context(), i18n.En)
 	errs := (&Form{
@@ -36,7 +37,7 @@ func TestCouponDollarInputsAreBoundedBeforeMultiplication(t *testing.T) {
 // The desk stores the code checkout looks up: a code the desk accepts is the
 // one checkout's Normalise finds, and a code checkout could never find is
 // refused here rather than stored.
-func TestTheDeskStoresTheCodeCheckoutLooksUp(t *testing.T) {
+func TestForm_ValidateCodeMatchesCheckout(t *testing.T) {
 	t.Parallel()
 	ctx := i18n.WithLocale(t.Context(), i18n.En)
 	for _, typed := range []string{"summer-10", "  Spring \t", "\u3000ab\u00a0", "a", "-AB", "AB C", "ＡＢＣ", strings.Repeat("a", 33)} {
@@ -51,7 +52,8 @@ func TestTheDeskStoresTheCodeCheckoutLooksUp(t *testing.T) {
 	}
 }
 
-func TestOptionalNumbersPreserveParseFailures(t *testing.T) {
+// TestFormOfParseFailures: optional numbers preserve their parse failures.
+func TestFormOfParseFailures(t *testing.T) {
 	base := url.Values{
 		"code": {"OK"}, "description": {"test"}, "kind": {"percent"},
 		"value": {"10"}, "cap": {""}, "min": {""}, "max": {""},

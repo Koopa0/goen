@@ -12,7 +12,8 @@ import (
 	"github.com/koopa0/goen/internal/ui/frame"
 )
 
-func TestBannerHistoryHasLabelledNavigationInBothLanguages(t *testing.T) {
+// TestBannersHistoryNavigation: the banner history has labelled navigation in both languages.
+func TestBannersHistoryNavigation(t *testing.T) {
 	t.Parallel()
 	for _, locale := range i18n.Locales() {
 		t.Run(locale.Tag(), func(t *testing.T) {

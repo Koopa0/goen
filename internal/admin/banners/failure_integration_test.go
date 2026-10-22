@@ -26,9 +26,9 @@ import (
 	"github.com/koopa0/goen/internal/i18n"
 )
 
-// TestBannerRowWritesAnswerAFailureAsAServerError: a database that cannot be
+// TestHandler_SetBannerActiveClosed: a banner row write answers a failure as a server error. A database that cannot be
 // reached decided nothing, and answering 404 or "refused" says otherwise.
-func TestBannerRowWritesAnswerAFailureAsAServerError(t *testing.T) {
+func TestHandler_SetBannerActiveClosed(t *testing.T) {
 	ctx, _ := admintest.StaffContext(t, pool)
 	closed := admintest.NamedPool(t, pool, "banners_closed_"+uuid.NewString()[:8])
 	closed.Close()
@@ -44,7 +44,8 @@ func TestBannerRowWritesAnswerAFailureAsAServerError(t *testing.T) {
 	}
 }
 
-func TestBannersReadFailuresAnswerAsServerErrors(t *testing.T) {
+// TestHandler_BannersReadFailures: banner read failures answer as server errors.
+func TestHandler_BannersReadFailures(t *testing.T) {
 	p := admintest.Pool(t)
 	staffCtx, _ := admintest.StaffContext(t, p)
 	bannerID := seedStripList(t, staffCtx, p)

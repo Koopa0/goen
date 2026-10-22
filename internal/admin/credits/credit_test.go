@@ -16,7 +16,8 @@ var inputTag = regexp.MustCompile(`<input[^>]*>`)
 
 // The reviewer approves what the page shows, so the checks read the text with
 // every <input> removed: a value that only rides in a hidden field is not shown.
-func TestCreditConfirmationShowsWhatWillBeGranted(t *testing.T) {
+// TestCreditConfirmation: the credit confirmation shows what will be granted.
+func TestCreditConfirmation(t *testing.T) {
 	t.Parallel()
 	for _, locale := range []i18n.Locale{i18n.ZhHant, i18n.En} {
 		ctx := i18n.WithLocale(t.Context(), locale)
@@ -40,7 +41,8 @@ func TestCreditConfirmationShowsWhatWillBeGranted(t *testing.T) {
 	}
 }
 
-func TestCreditLedgerLabelsEachKindAndKeepsStaffText(t *testing.T) {
+// TestCreditKindLabels: the credit ledger labels each kind and keeps staff text.
+func TestCreditKindLabels(t *testing.T) {
 	t.Parallel()
 	for _, tt := range []struct {
 		locale i18n.Locale
@@ -77,7 +79,8 @@ func TestCreditLedgerLabelsEachKindAndKeepsStaffText(t *testing.T) {
 	}
 }
 
-func TestCreditLinksEachRowToItsSources(t *testing.T) {
+// TestCreditSourceLinks: the credit page links each row to its sources.
+func TestCreditSourceLinks(t *testing.T) {
 	t.Parallel()
 	view := CreditView{Rows: []CreditEntry{
 		{Email: "ada@example.test", CustomerID: "customer-a", Kind: credit.OrderSpend, OrderNumber: "GO-261009-000001", AmountCents: -10000},
@@ -110,7 +113,8 @@ func TestCreditLinksEachRowToItsSources(t *testing.T) {
 	}
 }
 
-func TestCreditRunningTotalNamesItsOrder(t *testing.T) {
+// TestCreditRunningTotalOrder: the credit running total names its order.
+func TestCreditRunningTotalOrder(t *testing.T) {
 	t.Parallel()
 	view := CreditView{
 		FilterCustomerID: "customer-a", FilterCustomerName: "Ada",
@@ -164,7 +168,7 @@ func TestCreditRunningTotalNamesItsOrder(t *testing.T) {
 // The page passes the back-office layout a page name, and the layout compares
 // it with the name on the menu link; nothing else ties the two strings, so a
 // mismatch silently drops the link's current state.
-func TestCreditMarksItsMenuLinkCurrent(t *testing.T) {
+func TestCreditMenuCurrent(t *testing.T) {
 	t.Parallel()
 	ctx := i18n.WithLocale(t.Context(), i18n.En)
 	doc, err := html.Parse(strings.NewReader(renderComponent(t, ctx, Credit(frame.Page{}, CreditView{}))))

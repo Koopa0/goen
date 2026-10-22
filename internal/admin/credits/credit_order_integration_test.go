@@ -22,11 +22,11 @@ import (
 	"github.com/koopa0/goen/internal/i18n"
 )
 
-// TestStoreCreditReversedCommits writes a spend whose transaction started first
+// TestStore_CreditReversedCommits writes a spend whose transaction started first
 // and a grant that started later but commits first, because the grant holds the
 // account lock the spend waits on. The page states totals in recorded-time order
 // and says so; the newest total is still the balance.
-func TestStoreCreditReversedCommits(t *testing.T) {
+func TestStore_CreditReversedCommits(t *testing.T) {
 	owner := admintest.Pool(t)
 	staff, actor := admintest.StaffContext(t, owner)
 	ctx, cancel := context.WithTimeout(staff, 20*time.Second)

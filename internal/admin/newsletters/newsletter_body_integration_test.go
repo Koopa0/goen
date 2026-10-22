@@ -19,7 +19,8 @@ import (
 	"github.com/koopa0/goen/internal/i18n"
 )
 
-func TestNewsletterCompositionAcceptsItsFullTextLimits(t *testing.T) {
+// TestHandler_ComposeNewsletterLimits: newsletter composition accepts its full text limits.
+func TestHandler_ComposeNewsletterLimits(t *testing.T) {
 	for _, tt := range []struct {
 		name string
 		text string

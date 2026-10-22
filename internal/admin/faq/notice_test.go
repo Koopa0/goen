@@ -13,7 +13,8 @@ import (
 	"github.com/koopa0/goen/internal/ui/widget"
 )
 
-func TestEveryRedirectTheFAQFormsMakeCarriesAMessage(t *testing.T) {
+// TestNoticesCoverRedirects: every redirect the FAQ forms make carries a message.
+func TestNoticesCoverRedirects(t *testing.T) {
 	t.Parallel()
 	src, err := os.ReadFile("handler.go")
 	if err != nil {
@@ -38,7 +39,8 @@ func TestEveryRedirectTheFAQFormsMakeCarriesAMessage(t *testing.T) {
 	}
 }
 
-func TestARedirectedNoticeIsShownAsItsOwnOutcome(t *testing.T) {
+// TestFAQNoticeShown: a redirected notice is shown as its own outcome.
+func TestFAQNoticeShown(t *testing.T) {
 	t.Parallel()
 	for _, tc := range []struct {
 		query   string
@@ -64,7 +66,8 @@ func TestARedirectedNoticeIsShownAsItsOwnOutcome(t *testing.T) {
 	}
 }
 
-func TestARedirectedNoticeKeepsItsOutcome(t *testing.T) {
+// TestNoticesOutcome: a redirected notice keeps its outcome.
+func TestNoticesOutcome(t *testing.T) {
 	t.Parallel()
 	for name, want := range map[string]widget.Outcome{
 		"ok":      widget.OutcomeDone,

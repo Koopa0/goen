@@ -14,11 +14,11 @@ import (
 	"github.com/koopa0/goen/internal/ui/frame"
 )
 
-// TestARenamedStaffIsNamedByAddressOnTheirAnswer: staff A answers a question
+// TestStore_QuestionsRenamedStaff: staff A answers a question
 // as the shop, then takes staff B's name. The answer still names A by address
 // and the page never says B. A customer's answer is a different matter: it is
 // labelled by the name that customer gave, which is theirs to change.
-func TestARenamedStaffIsNamedByAddressOnTheirAnswer(t *testing.T) {
+func TestStore_QuestionsRenamedStaff(t *testing.T) {
 	p := admintest.Pool(t)
 	suffix := uuid.NewString()[:8]
 	ctx, idA, address := admintest.NamedStaff(t, p, "Actor "+suffix)

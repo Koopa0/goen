@@ -16,11 +16,11 @@ import (
 	"github.com/koopa0/goen/internal/i18n"
 )
 
-// TestStoreCreditPagesOneCustomer reads one customer's history through the
+// TestStore_CreditOneCustomer reads one customer's history through the
 // admin role: the running total of each posting follows that customer's own
 // ledger, a second page carries on from the first, another customer's postings
 // never appear, and the newest total is the balance store_credit_balances holds.
-func TestStoreCreditPagesOneCustomer(t *testing.T) {
+func TestStore_CreditOneCustomer(t *testing.T) {
 	ctx, _ := admintest.StaffContext(t, pool)
 	reader := admintest.AdminRolePool(t, pool)
 	s := credits.NewStore(reader)

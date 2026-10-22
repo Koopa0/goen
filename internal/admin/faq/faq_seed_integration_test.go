@@ -18,9 +18,9 @@ const (
 	invoiceFAQEn       = "At checkout you can choose a member carrier, a mobile barcode carrier, or a company tax ID, and the electronic invoice is issued automatically against that choice when your payment completes. If the shop has not set up its ECPay credentials, no invoice is issued."
 )
 
-// TestSeededInvoiceFAQMatchesTheWiredIssuer holds the seeded invoice FAQ, as
+// TestFAQSeedInvoice holds the seeded invoice FAQ, as
 // /faq reads it, to Gateway.Issue: deployment-gated, in both locales.
-func TestSeededInvoiceFAQMatchesTheWiredIssuer(t *testing.T) {
+func TestFAQSeedInvoice(t *testing.T) {
 	ctx := t.Context()
 	siteStore := site.NewStore(pool)
 
@@ -91,9 +91,9 @@ const (
 	refundFAQEn       = "As soon as a return is approved we pay it back the way you paid: the card share through Stripe, store credit back to your balance. When a card refund lands depends on your card issuer, usually a few working days; credit is available again at once."
 )
 
-// TestTheSeededRefundFAQNamesThePaymentComposition holds the seeded refund
+// TestFAQSeedRefund holds the seeded refund
 // FAQ, as /faq reads it, to the way a return pays back: card and credit.
-func TestTheSeededRefundFAQNamesThePaymentComposition(t *testing.T) {
+func TestFAQSeedRefund(t *testing.T) {
 	assertRefundFAQLocales(t, site.NewStore(pool), t.Context(), refundFAQZh, refundFAQEn)
 }
 

@@ -15,7 +15,8 @@ import (
 	"github.com/koopa0/goen/internal/admin/credits"
 )
 
-func TestGrantIsBoundedAndPositive(t *testing.T) {
+// TestStore_GrantCreditBounds: a grant is bounded and positive.
+func TestStore_GrantCreditBounds(t *testing.T) {
 	ctx, _ := admintest.StaffContext(t, pool)
 	s := credits.NewStore(pool)
 
@@ -71,7 +72,8 @@ func TestGrantIsBoundedAndPositive(t *testing.T) {
 	}
 }
 
-func TestGrantOperationIsIdempotentAndIdenticalOperationsRemainDistinct(t *testing.T) {
+// TestStore_GrantCreditIdempotent: a grant operation is idempotent and identical operations remain distinct.
+func TestStore_GrantCreditIdempotent(t *testing.T) {
 	ctx, _ := admintest.StaffContext(t, pool)
 	s := credits.NewStore(pool)
 

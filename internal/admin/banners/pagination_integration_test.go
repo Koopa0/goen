@@ -21,7 +21,8 @@ import (
 	"github.com/koopa0/goen/internal/site"
 )
 
-func TestEveryStripRemainsManageableBeyondExpiredHistory(t *testing.T) {
+// TestStore_BannersExpiredHistory: every strip remains manageable beyond the expired history.
+func TestStore_BannersExpiredHistory(t *testing.T) {
 	p := admintest.Pool(t)
 	ctx, _ := admintest.StaffContext(t, p)
 	if _, err := p.Exec(ctx, `DELETE FROM promo_banners`); err != nil {

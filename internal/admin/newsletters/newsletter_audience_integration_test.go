@@ -21,7 +21,8 @@ import (
 	"github.com/koopa0/goen/internal/outbox"
 )
 
-func TestNewsletterAudienceUsesOnlyActiveSubscribers(t *testing.T) {
+// TestStore_SubscriberCountsActive: the newsletter audience uses only active subscribers.
+func TestStore_SubscriberCountsActive(t *testing.T) {
 	owner := dbtest.Pool(t)
 	ctx, staff := admintest.StaffContext(t, owner)
 	admin := admintest.AdminRolePool(t, owner)

@@ -11,7 +11,8 @@ import (
 	"github.com/koopa0/goen/internal/ui/frame"
 )
 
-func TestAdminExamplesStayOutsideRefusedInputs(t *testing.T) {
+// TestBannersFieldExamples: banner field examples stay outside refused inputs.
+func TestBannersFieldExamples(t *testing.T) {
 	t.Parallel()
 	for _, locale := range i18n.Locales() {
 		for _, draft := range []struct{ value, refusal string }{{"", ""}, {"Submitted <& value", ""}, {"", "Refused"}, {"Submitted <& value", "Refused"}} {
