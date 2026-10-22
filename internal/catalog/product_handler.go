@@ -125,11 +125,9 @@ func (h *Handler) Review(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
+// Notify records a restock request. The per-client budget is the route's:
+// [Handler.Routes] puts ratelimit.Guard in front of it.
 func (h *Handler) Notify(w http.ResponseWriter, r *http.Request) {
-	if retryAfter, allowed := h.notifyLimit.Allow(ratelimit.ClientKey(r)); !allowed {
-		ratelimit.Refuse(r.Context(), w, retryAfter)
-		return
-	}
 	if err := formtext.ParseForm(w, r); err != nil {
 		http.Error(w, "400 "+i18n.T(r.Context(), i18n.KeyFormUnreadable), http.StatusBadRequest)
 		return

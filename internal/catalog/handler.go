@@ -19,11 +19,10 @@ import (
 )
 
 type Handler struct {
-	store       *Store
-	log         *slog.Logger
-	baseURL     string
-	askLimit    *ratelimit.Limiter
-	notifyLimit *ratelimit.Limiter
+	store    *Store
+	log      *slog.Logger
+	baseURL  string
+	askLimit *ratelimit.Limiter
 }
 
 func NewHandler(store *Store, log *slog.Logger, baseURL string) *Handler {
@@ -35,17 +34,12 @@ func NewHandler(store *Store, log *slog.Logger, baseURL string) *Handler {
 		askLimit: ratelimit.New(ratelimit.Config{
 			Every: 6 * time.Second, Burst: 10, TTL: time.Hour, MaxKeys: 8_192,
 		}),
-		// Same budget as /contact: the form is anonymous, the mailbox is free
-		// text, and the variant id is on the public page.
-		notifyLimit: ratelimit.New(ratelimit.Config{
-			Every: 5 * time.Minute, Burst: 5, TTL: time.Hour, MaxKeys: 8_192,
-		}),
 	}
 }
 
 // Routes registers browsing, the product page and its three forms. notify
 // bounds the restock form per client before Notify runs; the caller owns that
-// budget.
+// budget, and Notify spends none of its own.
 func (h *Handler) Routes(mux *http.ServeMux, notify *ratelimit.Limiter) {
 	mux.HandleFunc("GET /c/{slug}", h.Listing)
 	mux.HandleFunc("GET /search", h.Search)
