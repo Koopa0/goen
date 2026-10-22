@@ -255,6 +255,48 @@ func TestACodeAnsweredBeforeItsLookupCostsNothing(t *testing.T) {
 	}
 }
 
+// TestAFullWidthCodeIsTheCodeAndSpendsTheSameBudget: a code typed on a Chinese
+// keyboard left in full-width mode is the code it spells, so it applies, and a
+// wrong one is charged like any other: alternating the two widths buys no second
+// allowance.
+func TestAFullWidthCodeIsTheCodeAndSpendsTheSameBudget(t *testing.T) {
+	g := newCouponGuesses(t, "coupon-width")
+	valid := "WIDTH" + strings.ToUpper(uuid.NewString()[:6])
+	insertCoupon(t, valid, "amount", 1000, 0, 0, 0)
+	token := g.guestCart()
+	const client = "198.51.100.66:5000"
+	unknown := i18n.T(t.Context(), i18n.KeyCouponUnknown)
+	// fullWidth spells ASCII as a full-width input method types it.
+	fullWidth := func(s string) string {
+		return strings.Map(func(r rune) rune {
+			if r > ' ' && r <= '~' {
+				return r + 0xFEE0
+			}
+			return r
+		}, s)
+	}
+
+	if res := g.ask(token, client, "\u3000"+fullWidth(strings.ToLower(valid))+"\u3000", nil); res.Code != http.StatusOK ||
+		strings.Contains(res.Body.String(), unknown) {
+		t.Fatalf("the right code typed in full width answered %d or was called unknown", res.Code)
+	}
+	for i := range couponMissBudget {
+		code := "WIDE" + strconv.Itoa(i)
+		if i%2 == 1 {
+			code = fullWidth(code)
+		}
+		if res := g.ask(token, client, code, nil); res.Code != http.StatusOK || !strings.Contains(res.Body.String(), unknown) {
+			t.Fatalf("wrong code %d, %q, answered %d without the unknown-code message", i+1, code, res.Code)
+		}
+	}
+	for _, code := range []string{"WIDEMORE", fullWidth("WIDEMORE")} {
+		if res := g.ask(token, client, code, nil); res.Code != http.StatusTooManyRequests {
+			t.Errorf("after %d wrong codes in both widths, %q answered %d, want 429: "+
+				"a full-width code was not charged", couponMissBudget, code, res.Code)
+		}
+	}
+}
+
 // TestACartsWrongCouponCodesAreBoundedFromEveryClient: signed out, a wrong code
 // is charged to the cart as well as the client, so one cart asking through many
 // addresses has one budget between them.
