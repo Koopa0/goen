@@ -20,7 +20,7 @@ import (
 	"github.com/koopa0/goen/internal/admin/admintest"
 	"github.com/koopa0/goen/internal/db"
 	"github.com/koopa0/goen/internal/i18n"
-	orderaccess "github.com/koopa0/goen/internal/order/access"
+	"github.com/koopa0/goen/internal/order/access"
 	"github.com/koopa0/goen/internal/payment"
 )
 
@@ -63,16 +63,16 @@ func TestHandler_OrderPhotosLive(t *testing.T) {
 		}
 	}
 	payNumber := admintest.PlaceHeldOrder(t, pool, variants[0])
-	access := orderaccess.NewStore(storefrontPool, false)
+	grants := access.NewStore(storefrontPool, false)
 	granted := httptest.NewRecorder()
-	if err := access.Grant(granted, httptest.NewRequestWithContext(ctx, http.MethodGet, "/", nil), payNumber); err != nil {
+	if err := grants.Grant(granted, httptest.NewRequestWithContext(ctx, http.MethodGet, "/", nil), payNumber); err != nil {
 		t.Fatal(err)
 	}
 	gateway, gatewayErr := payment.NewGateway("", "", "https://goen.example")
 	if gatewayErr != nil {
 		t.Fatal(gatewayErr)
 	}
-	paymentPageHandler := payment.NewHandler(pay, gateway, access, slog.New(slog.DiscardHandler))
+	paymentPageHandler := payment.NewHandler(pay, gateway, grants, slog.New(slog.DiscardHandler))
 	type photo struct{ URL, Srcset, Alt string }
 	check := func(keys, zh, en [2]string) {
 		t.Helper()

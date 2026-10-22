@@ -5,7 +5,7 @@ package payment
 import (
 	"context"
 
-	stripe "github.com/stripe/stripe-go/v86"
+	"github.com/stripe/stripe-go/v86"
 )
 
 // NewGatewayAt is NewGateway against a Stripe stand-in at stripeURL, through

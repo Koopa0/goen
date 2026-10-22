@@ -5,7 +5,7 @@ import (
 	"strings"
 	"testing"
 
-	htmlparse "golang.org/x/net/html"
+	nethtml "golang.org/x/net/html"
 
 	"github.com/google/go-cmp/cmp"
 
@@ -35,10 +35,10 @@ func TestRegistrationDead(t *testing.T) {
 				t.Errorf("registration refusal lacks %q or still gives account-page directions", tt.body)
 			}
 			var recovery struct{ Href, Text, Class string }
-			z := htmlparse.NewTokenizer(strings.NewReader(page))
-			for z.Next() != htmlparse.ErrorToken {
+			z := nethtml.NewTokenizer(strings.NewReader(page))
+			for z.Next() != nethtml.ErrorToken {
 				token := z.Token()
-				if token.Data != "a" || token.Type != htmlparse.StartTagToken {
+				if token.Data != "a" || token.Type != nethtml.StartTagToken {
 					continue
 				}
 				for _, attr := range token.Attr {
@@ -52,7 +52,7 @@ func TestRegistrationDead(t *testing.T) {
 				if !strings.Contains(recovery.Class, "--primary") {
 					continue
 				}
-				if z.Next() == htmlparse.TextToken {
+				if z.Next() == nethtml.TextToken {
 					recovery.Text = strings.TrimSpace(string(z.Text()))
 				}
 				break

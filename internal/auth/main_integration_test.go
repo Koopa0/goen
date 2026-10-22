@@ -17,7 +17,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
-	xhtml "golang.org/x/net/html"
+	"golang.org/x/net/html"
 
 	"github.com/koopa0/goen/internal/account"
 	"github.com/koopa0/goen/internal/auth"
@@ -380,7 +380,7 @@ func emailOf(t *testing.T, userID string) string {
 
 func assertSignInPrefill(t *testing.T, body, address string, erasure bool) {
 	t.Helper()
-	doc, err := xhtml.Parse(strings.NewReader(body))
+	doc, err := html.Parse(strings.NewReader(body))
 	if err != nil {
 		t.Fatal(err)
 	}

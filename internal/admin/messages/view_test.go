@@ -8,7 +8,7 @@ import (
 	"testing"
 
 	"github.com/a-h/templ"
-	xhtml "golang.org/x/net/html"
+	nethtml "golang.org/x/net/html"
 
 	"github.com/koopa0/goen/internal/db"
 	"github.com/koopa0/goen/internal/i18n"
@@ -37,14 +37,14 @@ func fullPageBound(scope string) keyset.Bound {
 // badgeClasses returns the class attribute of every badge whose text contains word.
 func badgeClasses(t *testing.T, page, word string) []string {
 	t.Helper()
-	root, err := xhtml.Parse(strings.NewReader(page))
+	root, err := nethtml.Parse(strings.NewReader(page))
 	if err != nil {
 		t.Fatalf("parse: %v", err)
 	}
 	var out []string
-	var walk func(n *xhtml.Node)
-	walk = func(n *xhtml.Node) {
-		if n.Type == xhtml.ElementNode {
+	var walk func(n *nethtml.Node)
+	walk = func(n *nethtml.Node) {
+		if n.Type == nethtml.ElementNode {
 			class := attr(n, "class")
 			if strings.HasPrefix(class, "goen-badge") && strings.Contains(textOf(n), word) {
 				out = append(out, class)
@@ -58,8 +58,8 @@ func badgeClasses(t *testing.T, page, word string) []string {
 	return out
 }
 
-func textOf(n *xhtml.Node) string {
-	if n.Type == xhtml.TextNode {
+func textOf(n *nethtml.Node) string {
+	if n.Type == nethtml.TextNode {
 		return n.Data
 	}
 	var b strings.Builder

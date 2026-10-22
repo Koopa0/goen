@@ -7,7 +7,7 @@ import (
 	"testing"
 
 	"github.com/a-h/templ"
-	xhtml "golang.org/x/net/html"
+	nethtml "golang.org/x/net/html"
 
 	"github.com/koopa0/goen/internal/db"
 	"github.com/koopa0/goen/internal/i18n"
@@ -152,8 +152,8 @@ func TestCouponsFieldExamples(t *testing.T) {
 				} {
 					t.Run(page.name, func(t *testing.T) {
 						markup := renderComponent(t, ctx, page.component)
-						z := xhtml.NewTokenizer(strings.NewReader(markup))
-						for z.Next() != xhtml.ErrorToken {
+						z := nethtml.NewTokenizer(strings.NewReader(markup))
+						for z.Next() != nethtml.ErrorToken {
 							token := z.Token()
 							if token.Data != "input" {
 								continue
@@ -168,7 +168,7 @@ func TestCouponsFieldExamples(t *testing.T) {
 								t.Error("an input repeats aria-describedby")
 							}
 						}
-						doc, err := xhtml.Parse(strings.NewReader(markup))
+						doc, err := nethtml.Parse(strings.NewReader(markup))
 						if err != nil {
 							t.Fatal(err)
 						}
@@ -203,8 +203,8 @@ func TestCouponsFieldExamples(t *testing.T) {
 	}
 }
 
-func exampleElementByID(n *xhtml.Node, id string) *xhtml.Node {
-	if n.Type == xhtml.ElementNode && attr(n, "id") == id {
+func exampleElementByID(n *nethtml.Node, id string) *nethtml.Node {
+	if n.Type == nethtml.ElementNode && attr(n, "id") == id {
 		return n
 	}
 	for child := n.FirstChild; child != nil; child = child.NextSibling {
@@ -215,12 +215,12 @@ func exampleElementByID(n *xhtml.Node, id string) *xhtml.Node {
 	return nil
 }
 
-func attr(n *xhtml.Node, key string) string {
+func attr(n *nethtml.Node, key string) string {
 	v, _ := attrPresent(n, key)
 	return v
 }
 
-func attrPresent(n *xhtml.Node, key string) (string, bool) {
+func attrPresent(n *nethtml.Node, key string) (string, bool) {
 	for _, a := range n.Attr {
 		if a.Key == key {
 			return a.Val, true
@@ -229,8 +229,8 @@ func attrPresent(n *xhtml.Node, key string) (string, bool) {
 	return "", false
 }
 
-func textOf(n *xhtml.Node) string {
-	if n.Type == xhtml.TextNode {
+func textOf(n *nethtml.Node) string {
+	if n.Type == nethtml.TextNode {
 		return n.Data
 	}
 	var b strings.Builder

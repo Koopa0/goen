@@ -3,12 +3,12 @@ package returns
 import (
 	"bytes"
 	"fmt"
-	stdhtml "html"
+	"html"
 	"strings"
 	"testing"
 
 	"github.com/a-h/templ"
-	"golang.org/x/net/html"
+	nethtml "golang.org/x/net/html"
 
 	"github.com/koopa0/goen/internal/db"
 	"github.com/koopa0/goen/internal/i18n"
@@ -24,14 +24,14 @@ import (
 // badgeClasses returns the class attribute of every badge whose text contains word.
 func badgeClasses(t *testing.T, page, word string) []string {
 	t.Helper()
-	root, err := html.Parse(strings.NewReader(page))
+	root, err := nethtml.Parse(strings.NewReader(page))
 	if err != nil {
 		t.Fatalf("parse: %v", err)
 	}
 	var out []string
-	var walk func(n *html.Node)
-	walk = func(n *html.Node) {
-		if n.Type == html.ElementNode {
+	var walk func(n *nethtml.Node)
+	walk = func(n *nethtml.Node) {
+		if n.Type == nethtml.ElementNode {
 			class := attr(n, "class")
 			if strings.HasPrefix(class, "goen-badge") && strings.Contains(textOf(n), word) {
 				out = append(out, class)
@@ -196,7 +196,7 @@ func TestReturnsRefusedInspectionCounts(t *testing.T) {
 	for _, raw := range []string{"", " +oops "} {
 		view := ReturnsView{Rows: []Return{{ID: "r1", Status: "approved", Decided: true, Window: "within", Lines: []ReturnLine{{OrderLineID: "l1", Quantity: 2, Restockable: true, DraftReceived: raw, DraftRestocked: raw}}}}, Errors: map[string]string{"r1.inspect": "bad count"}}
 		body := renderToString(t, Returns(frame.Page{}, view))
-		doc, err := html.Parse(strings.NewReader(body))
+		doc, err := nethtml.Parse(strings.NewReader(body))
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -236,7 +236,7 @@ func TestReturnsView_InspectionRefusalsOnce(t *testing.T) {
 	}
 }
 
-func refusalAttr(n *html.Node, key string) string {
+func refusalAttr(n *nethtml.Node, key string) string {
 	for _, a := range n.Attr {
 		if a.Key == key {
 			return a.Val
@@ -290,7 +290,7 @@ func TestReturnsFirstPageEmpty(t *testing.T) {
 		t.Run(name, func(t *testing.T) {
 			t.Parallel()
 			body := render(t, c.page)
-			if !strings.Contains(body, stdhtml.EscapeString(c.want)) {
+			if !strings.Contains(body, html.EscapeString(c.want)) {
 				t.Errorf("the queue's own empty text %q is missing", c.want)
 			}
 			if strings.Contains(body, generic) {
@@ -360,8 +360,8 @@ func TestReturnsExamplesOutsideInputs(t *testing.T) {
 				} {
 					t.Run(page.name, func(t *testing.T) {
 						markup := renderComponent(t, ctx, page.component)
-						z := html.NewTokenizer(strings.NewReader(markup))
-						for z.Next() != html.ErrorToken {
+						z := nethtml.NewTokenizer(strings.NewReader(markup))
+						for z.Next() != nethtml.ErrorToken {
 							token := z.Token()
 							if token.Data != "input" {
 								continue
@@ -376,7 +376,7 @@ func TestReturnsExamplesOutsideInputs(t *testing.T) {
 								t.Error("an input repeats aria-describedby")
 							}
 						}
-						doc, err := html.Parse(strings.NewReader(markup))
+						doc, err := nethtml.Parse(strings.NewReader(markup))
 						if err != nil {
 							t.Fatal(err)
 						}
@@ -411,8 +411,8 @@ func TestReturnsExamplesOutsideInputs(t *testing.T) {
 	}
 }
 
-func exampleElementByID(n *html.Node, id string) *html.Node {
-	if n.Type == html.ElementNode && attr(n, "id") == id {
+func exampleElementByID(n *nethtml.Node, id string) *nethtml.Node {
+	if n.Type == nethtml.ElementNode && attr(n, "id") == id {
 		return n
 	}
 	for child := n.FirstChild; child != nil; child = child.NextSibling {

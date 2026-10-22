@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"go/ast"
 	"go/parser"
-	gotoken "go/token"
+	"go/token"
 	"log/slog"
 	"net/http"
 	"net/http/httptest"
@@ -663,12 +663,12 @@ func TestHandler_VerifyPageAcknowledgement(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			ctx := i18n.WithLocale(t.Context(), tt.locale)
-			const token = "private-confirmation-token"
+			const tok = "private-confirmation-token"
 			const address = "private-mailbox@example.com"
 			var first string
 			for attempt := range 2 {
 				req := httptest.NewRequestWithContext(ctx, http.MethodGet,
-					tt.path+"?done=1&token="+token+"&email="+address, http.NoBody)
+					tt.path+"?done=1&token="+tok+"&email="+address, http.NoBody)
 				res := httptest.NewRecorder()
 				tt.handler(res, req)
 				if res.Code != http.StatusOK {
@@ -680,7 +680,7 @@ func TestHandler_VerifyPageAcknowledgement(t *testing.T) {
 						t.Errorf("acknowledgement omits %q", want)
 					}
 				}
-				for _, forbidden := range []string{token, address, `name="token"`, `class="notice__form"`, "%s", "%!("} {
+				for _, forbidden := range []string{tok, address, `name="token"`, `class="notice__form"`, "%s", "%!("} {
 					if strings.Contains(body, forbidden) {
 						t.Errorf("acknowledgement contains %q", forbidden)
 					}
@@ -696,10 +696,10 @@ func TestHandler_VerifyPageAcknowledgement(t *testing.T) {
 			}
 			for _, marker := range []string{"", "0", "yes"} {
 				req := httptest.NewRequestWithContext(ctx, http.MethodGet,
-					tt.path+"?token="+token+"&done="+marker, http.NoBody)
+					tt.path+"?token="+tok+"&done="+marker, http.NoBody)
 				res := httptest.NewRecorder()
 				tt.handler(res, req)
-				if res.Code != http.StatusOK || !strings.Contains(res.Body.String(), `name="token" value="`+token+`"`) ||
+				if res.Code != http.StatusOK || !strings.Contains(res.Body.String(), `name="token" value="`+tok+`"`) ||
 					!strings.Contains(res.Body.String(), `method="post" action="`+tt.path+`"`) {
 					t.Errorf("unconfirmed GET done=%q lost the confirmation form: status %d", marker, res.Code)
 				}
@@ -839,7 +839,7 @@ func assertPasswordCostNeverAssigned(t *testing.T) {
 	if err != nil {
 		t.Fatalf("read package directory: %v", err)
 	}
-	fset := gotoken.NewFileSet()
+	fset := token.NewFileSet()
 	declarations := 0
 	for _, e := range entries {
 		name := e.Name()
@@ -860,7 +860,7 @@ func assertPasswordCostNeverAssigned(t *testing.T) {
 			case *ast.RangeStmt:
 				written = []ast.Expr{n.Key, n.Value}
 			case *ast.UnaryExpr:
-				if n.Op == gotoken.AND {
+				if n.Op == token.AND {
 					written = []ast.Expr{n.X}
 				}
 			case *ast.ValueSpec:
@@ -909,7 +909,7 @@ func rootIdent(e ast.Expr) string {
 	}
 }
 
-func assertPasswordCostDeclaredFromConstants(t *testing.T, fset *gotoken.FileSet, spec *ast.ValueSpec) {
+func assertPasswordCostDeclaredFromConstants(t *testing.T, fset *token.FileSet, spec *ast.ValueSpec) {
 	t.Helper()
 
 	if len(spec.Values) != 1 {

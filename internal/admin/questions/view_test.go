@@ -5,7 +5,7 @@ import (
 	"strings"
 	"testing"
 
-	xhtml "golang.org/x/net/html"
+	"golang.org/x/net/html"
 
 	"github.com/koopa0/goen/internal/i18n"
 	"github.com/koopa0/goen/internal/ui/frame"
@@ -14,14 +14,14 @@ import (
 // badgeClasses returns the class attribute of every badge whose text contains word.
 func badgeClasses(t *testing.T, page, word string) []string {
 	t.Helper()
-	root, err := xhtml.Parse(strings.NewReader(page))
+	root, err := html.Parse(strings.NewReader(page))
 	if err != nil {
 		t.Fatalf("parse: %v", err)
 	}
 	var out []string
-	var walk func(n *xhtml.Node)
-	walk = func(n *xhtml.Node) {
-		if n.Type == xhtml.ElementNode {
+	var walk func(n *html.Node)
+	walk = func(n *html.Node) {
+		if n.Type == html.ElementNode {
 			class := attr(n, "class")
 			if strings.HasPrefix(class, "goen-badge") && strings.Contains(textOf(n), word) {
 				out = append(out, class)
@@ -35,8 +35,8 @@ func badgeClasses(t *testing.T, page, word string) []string {
 	return out
 }
 
-func textOf(n *xhtml.Node) string {
-	if n.Type == xhtml.TextNode {
+func textOf(n *html.Node) string {
+	if n.Type == html.TextNode {
 		return n.Data
 	}
 	var b strings.Builder

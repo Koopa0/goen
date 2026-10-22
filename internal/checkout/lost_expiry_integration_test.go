@@ -17,7 +17,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/jackc/pgx/v5/pgxpool"
-	stripe "github.com/stripe/stripe-go/v86"
+	"github.com/stripe/stripe-go/v86"
 
 	"github.com/koopa0/goen/internal/admin/health"
 	"github.com/koopa0/goen/internal/order/access"

@@ -8,7 +8,7 @@ import (
 	"time"
 
 	"github.com/jackc/pgx/v5/pgtype"
-	stripe "github.com/stripe/stripe-go/v86"
+	"github.com/stripe/stripe-go/v86"
 
 	"github.com/koopa0/goen/internal/db"
 )

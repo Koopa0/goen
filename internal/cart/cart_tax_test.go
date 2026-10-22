@@ -4,7 +4,7 @@ import (
 	"strings"
 	"testing"
 
-	htmlparse "golang.org/x/net/html"
+	"golang.org/x/net/html"
 
 	"github.com/koopa0/goen/internal/i18n"
 	"github.com/koopa0/goen/internal/ui/frame"
@@ -34,13 +34,13 @@ func TestPageExemptMarker(t *testing.T) {
 					cart.Lines = append(cart.Lines, Line{VariantID: "taxable", Name: "Taxable item", Quantity: 1, Available: 1})
 				}
 				rendered := renderComponent(t, ctx, Page(Meta(ctx), cart))
-				doc, err := htmlparse.Parse(strings.NewReader(rendered))
+				doc, err := html.Parse(strings.NewReader(rendered))
 				if err != nil {
 					t.Fatal(err)
 				}
 				markers := make(map[string]int)
 				for n := range doc.Descendants() {
-					if n.Type != htmlparse.ElementNode || n.Data != "li" {
+					if n.Type != html.ElementNode || n.Data != "li" {
 						continue
 					}
 					var id string
@@ -54,7 +54,7 @@ func TestPageExemptMarker(t *testing.T) {
 					}
 					markers[id] = 0
 					for child := range n.Descendants() {
-						if child.Type == htmlparse.TextNode && strings.TrimSpace(child.Data) == locale.marker {
+						if child.Type == html.TextNode && strings.TrimSpace(child.Data) == locale.marker {
 							markers[id]++
 						}
 					}

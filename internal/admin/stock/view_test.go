@@ -2,13 +2,13 @@ package stock
 
 import (
 	"bytes"
-	stdhtml "html"
+	"html"
 	"strings"
 	"testing"
 	"time"
 
 	"github.com/a-h/templ"
-	xhtml "golang.org/x/net/html"
+	nethtml "golang.org/x/net/html"
 
 	"github.com/koopa0/goen/internal/db"
 	"github.com/koopa0/goen/internal/i18n"
@@ -49,11 +49,11 @@ func TestVariantsCoverAboveSearch(t *testing.T) {
 		rows := []stockrisk.Row{{Risk: inventory.Risk{SKU: "OUT-1", Name: "Gone", Slug: "gone"}},
 			{Risk: inventory.Risk{SKU: "EST-1", Name: "Going", Slug: "going", Sales: inventory.Sales{Sellable: 20, Sold: 60, Orders: 30, InStock: stockedAllWindow}}},
 		}
-		html := renderComponent(t, ctx, Variants(frame.Page{}, VariantsView{ShowCover: true, AtRisk: rows, MoreSoldOut: 3}))
+		markup := renderComponent(t, ctx, Variants(frame.Page{}, VariantsView{ShowCover: true, AtRisk: rows, MoreSoldOut: 3}))
 
-		heading := strings.Index(html, i18n.T(ctx, i18n.KeyAdminRepStock))
-		search := strings.Index(html, `id="stock-search"`)
-		out, est := strings.Index(html, "OUT-1"), strings.Index(html, "EST-1")
+		heading := strings.Index(markup, i18n.T(ctx, i18n.KeyAdminRepStock))
+		search := strings.Index(markup, `id="stock-search"`)
+		out, est := strings.Index(markup, "OUT-1"), strings.Index(markup, "EST-1")
 		if heading < 0 || search < 0 || heading > search {
 			t.Errorf("%s: days cover heading at %d, search at %d, want the heading first", loc, heading, search)
 		}
@@ -63,7 +63,7 @@ func TestVariantsCoverAboveSearch(t *testing.T) {
 		for _, want := range []string{
 			i18n.Count(ctx, i18n.KeyAdminRepMoreSoldOut, 3, 3), "goen-chartrangebar",
 		} {
-			if !strings.Contains(html, want) {
+			if !strings.Contains(markup, want) {
 				t.Errorf("%s: stock desk lacks %q", loc, want)
 			}
 		}
@@ -77,8 +77,8 @@ func TestVariantsCoverEmpty(t *testing.T) {
 	t.Parallel()
 
 	ctx := i18n.WithLocale(t.Context(), i18n.En)
-	html := renderComponent(t, ctx, Variants(frame.Page{}, VariantsView{ShowCover: true}))
-	if want := i18n.Count(ctx, i18n.KeyAdminRepStockEmpty, inventory.CoverWindowDays, inventory.CoverWindowDays); !strings.Contains(html, want) {
+	markup := renderComponent(t, ctx, Variants(frame.Page{}, VariantsView{ShowCover: true}))
+	if want := i18n.Count(ctx, i18n.KeyAdminRepStockEmpty, inventory.CoverWindowDays, inventory.CoverWindowDays); !strings.Contains(markup, want) {
 		t.Errorf("an empty days cover list does not say %q", want)
 	}
 }
@@ -90,8 +90,8 @@ func TestVariantsLaterPagesNoCover(t *testing.T) {
 	t.Parallel()
 
 	ctx := i18n.WithLocale(t.Context(), i18n.En)
-	html := renderComponent(t, ctx, Variants(frame.Page{}, VariantsView{Variants: []Variant{{SKU: "A-1", ProductName: "x"}}}))
-	if strings.Contains(html, i18n.T(ctx, i18n.KeyAdminRepStock)) {
+	markup := renderComponent(t, ctx, Variants(frame.Page{}, VariantsView{Variants: []Variant{{SKU: "A-1", ProductName: "x"}}}))
+	if strings.Contains(markup, i18n.T(ctx, i18n.KeyAdminRepStock)) {
 		t.Error("a page without ShowCover still lists the days cover section")
 	}
 }
@@ -164,7 +164,7 @@ func TestVariantsMovementsEmptyState(t *testing.T) {
 		t.Run(name, func(t *testing.T) {
 			t.Parallel()
 			body := render(t, c.page)
-			if !strings.Contains(body, stdhtml.EscapeString(c.want)) {
+			if !strings.Contains(body, html.EscapeString(c.want)) {
 				t.Errorf("the queue's own empty text %q is missing", c.want)
 			}
 			if strings.Contains(body, generic) {
@@ -226,8 +226,8 @@ func TestVariantsExamples(t *testing.T) {
 				} {
 					t.Run(page.name, func(t *testing.T) {
 						markup := renderComponent(t, ctx, page.component)
-						z := xhtml.NewTokenizer(strings.NewReader(markup))
-						for z.Next() != xhtml.ErrorToken {
+						z := nethtml.NewTokenizer(strings.NewReader(markup))
+						for z.Next() != nethtml.ErrorToken {
 							token := z.Token()
 							if token.Data != "input" {
 								continue
@@ -242,7 +242,7 @@ func TestVariantsExamples(t *testing.T) {
 								t.Error("an input repeats aria-describedby")
 							}
 						}
-						doc, err := xhtml.Parse(strings.NewReader(markup))
+						doc, err := nethtml.Parse(strings.NewReader(markup))
 						if err != nil {
 							t.Fatal(err)
 						}
@@ -301,15 +301,15 @@ func TestVariantsRefusalSummary(t *testing.T) {
 				t.Run(tc.name, func(t *testing.T) {
 					t.Parallel()
 					body := renderComponent(t, ctx, tc.component)
-					doc, err := xhtml.Parse(strings.NewReader(body))
+					doc, err := nethtml.Parse(strings.NewReader(body))
 					if err != nil {
 						t.Fatal(err)
 					}
-					var alert *xhtml.Node
-					var form, target, first *xhtml.Node
-					ids := map[string]*xhtml.Node{}
+					var alert *nethtml.Node
+					var form, target, first *nethtml.Node
+					ids := map[string]*nethtml.Node{}
 					for n := range doc.Descendants() {
-						if n.Type != xhtml.ElementNode {
+						if n.Type != nethtml.ElementNode {
 							continue
 						}
 						id := refusalAttr(n, "id")
@@ -359,7 +359,7 @@ func TestVariantsRefusalSummary(t *testing.T) {
 						t.Errorf("first invalid control %s is not marked", tc.first)
 					}
 					for n := range doc.Descendants() {
-						if n.Type != xhtml.ElementNode || refusalAttr(n, "aria-invalid") != "true" {
+						if n.Type != nethtml.ElementNode || refusalAttr(n, "aria-invalid") != "true" {
 							continue
 						}
 						describes := strings.Fields(refusalAttr(n, "aria-describedby"))
@@ -378,8 +378,8 @@ func TestVariantsRefusalSummary(t *testing.T) {
 	}
 }
 
-func exampleElementByID(n *xhtml.Node, id string) *xhtml.Node {
-	if n.Type == xhtml.ElementNode && attr(n, "id") == id {
+func exampleElementByID(n *nethtml.Node, id string) *nethtml.Node {
+	if n.Type == nethtml.ElementNode && attr(n, "id") == id {
 		return n
 	}
 	for child := n.FirstChild; child != nil; child = child.NextSibling {
@@ -390,7 +390,7 @@ func exampleElementByID(n *xhtml.Node, id string) *xhtml.Node {
 	return nil
 }
 
-func refusalAttr(n *xhtml.Node, key string) string {
+func refusalAttr(n *nethtml.Node, key string) string {
 	for _, a := range n.Attr {
 		if a.Key == key {
 			return a.Val
@@ -399,28 +399,28 @@ func refusalAttr(n *xhtml.Node, key string) string {
 	return ""
 }
 
-func refusalText(n *xhtml.Node) string {
+func refusalText(n *nethtml.Node) string {
 	if n == nil {
 		return ""
 	}
 	var out strings.Builder
-	if n.Type == xhtml.TextNode {
+	if n.Type == nethtml.TextNode {
 		out.WriteString(n.Data)
 	}
 	for child := range n.Descendants() {
-		if child.Type == xhtml.TextNode {
+		if child.Type == nethtml.TextNode {
 			out.WriteString(child.Data)
 		}
 	}
 	return out.String()
 }
 
-func attr(n *xhtml.Node, key string) string {
+func attr(n *nethtml.Node, key string) string {
 	v, _ := attrPresent(n, key)
 	return v
 }
 
-func attrPresent(n *xhtml.Node, key string) (string, bool) {
+func attrPresent(n *nethtml.Node, key string) (string, bool) {
 	for _, a := range n.Attr {
 		if a.Key == key {
 			return a.Val, true
@@ -429,8 +429,8 @@ func attrPresent(n *xhtml.Node, key string) (string, bool) {
 	return "", false
 }
 
-func textOf(n *xhtml.Node) string {
-	if n.Type == xhtml.TextNode {
+func textOf(n *nethtml.Node) string {
+	if n.Type == nethtml.TextNode {
 		return n.Data
 	}
 	var b strings.Builder

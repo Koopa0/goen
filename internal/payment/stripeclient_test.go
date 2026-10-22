@@ -9,7 +9,7 @@ import (
 	"sync/atomic"
 	"testing"
 
-	stripe "github.com/stripe/stripe-go/v86"
+	"github.com/stripe/stripe-go/v86"
 )
 
 // gatewayOver builds a Gateway exactly as production does, with only Stripe's

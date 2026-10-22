@@ -62,6 +62,7 @@ linters:
     - misspell
     - whitespace
     - recvcheck
+    - importas
 
     # Go version specific
     - copyloopvar
@@ -328,6 +329,30 @@ linters:
     nolintlint:
       require-explanation: true
       require-specific: true
+
+    importas:
+      # CONTRIBUTING, "Import aliases": rename an import only to avoid a
+      # collision, and use the same local name for the same package in every
+      # file (Code Review Comments "Imports"; Google style "Import renaming").
+      # An alias not listed here fails, so each new one is a decision with its
+      # reason written beside it. A listed package is still imported bare
+      # wherever nothing collides: forcing the alias everywhere
+      # (no-unaliased) would rename imports that need no renaming.
+      # templ's generated files write templruntime themselves and are excluded
+      # as generated.
+      no-unaliased: false
+      no-extra-aliases: true
+      alias:
+        # Collides with the standard library's html in a file that imports
+        # both (a view test that parses a page and escapes text). The standard
+        # library keeps its name; this one takes its parent path element, as
+        # the Go tree writes cryptorand "crypto/rand" and mathrand "math/rand".
+        - pkg: golang\.org/x/net/html
+          alias: nethtml
+        # Collides with order/returns in a file that imports both; the desk
+        # takes the alias, <noun>desk (CONTRIBUTING, "Packages").
+        - pkg: github\.com/koopa0/goen/internal/admin/returns
+          alias: returndesk
 
   exclusions:
     generated: lax

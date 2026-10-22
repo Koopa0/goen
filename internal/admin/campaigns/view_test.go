@@ -2,14 +2,14 @@ package campaigns
 
 import (
 	"bytes"
-	stdhtml "html"
+	"html"
 	"slices"
 	"strings"
 	"testing"
 
 	"github.com/a-h/templ"
 	"github.com/google/go-cmp/cmp"
-	"golang.org/x/net/html"
+	nethtml "golang.org/x/net/html"
 
 	"github.com/koopa0/goen/assets"
 	"github.com/koopa0/goen/internal/db"
@@ -65,7 +65,7 @@ func TestCampaignsQueueFirstPageEmpty(t *testing.T) {
 		t.Run(name, func(t *testing.T) {
 			t.Parallel()
 			body := render(t, c.page)
-			if !strings.Contains(body, stdhtml.EscapeString(c.want)) {
+			if !strings.Contains(body, html.EscapeString(c.want)) {
 				t.Errorf("the queue's own empty text %q is missing", c.want)
 			}
 			if strings.Contains(body, generic) {
@@ -135,8 +135,8 @@ func TestCampaignsFieldExamples(t *testing.T) {
 				} {
 					t.Run(page.name, func(t *testing.T) {
 						markup := renderComponent(t, ctx, page.component)
-						z := html.NewTokenizer(strings.NewReader(markup))
-						for z.Next() != html.ErrorToken {
+						z := nethtml.NewTokenizer(strings.NewReader(markup))
+						for z.Next() != nethtml.ErrorToken {
 							token := z.Token()
 							if token.Data != "input" {
 								continue
@@ -151,7 +151,7 @@ func TestCampaignsFieldExamples(t *testing.T) {
 								t.Error("an input repeats aria-describedby")
 							}
 						}
-						doc, err := html.Parse(strings.NewReader(markup))
+						doc, err := nethtml.Parse(strings.NewReader(markup))
 						if err != nil {
 							t.Fatal(err)
 						}
@@ -186,8 +186,8 @@ func TestCampaignsFieldExamples(t *testing.T) {
 	}
 }
 
-func exampleElementByID(n *html.Node, id string) *html.Node {
-	if n.Type == html.ElementNode && attr(n, "id") == id {
+func exampleElementByID(n *nethtml.Node, id string) *nethtml.Node {
+	if n.Type == nethtml.ElementNode && attr(n, "id") == id {
 		return n
 	}
 	for child := n.FirstChild; child != nil; child = child.NextSibling {
@@ -229,7 +229,7 @@ func TestCampaignFormImageRefusal(t *testing.T) {
 
 func assertImageDraftControls(t *testing.T, body string, want map[string]string, errorID string) {
 	t.Helper()
-	doc, err := html.Parse(strings.NewReader(body))
+	doc, err := nethtml.Parse(strings.NewReader(body))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -237,7 +237,7 @@ func assertImageDraftControls(t *testing.T, body string, want map[string]string,
 	marked := false
 	errorShown := false
 	for n := range doc.Descendants() {
-		if n.Type != html.ElementNode {
+		if n.Type != nethtml.ElementNode {
 			continue
 		}
 		attrs := map[string]string{}
@@ -269,7 +269,7 @@ func assertImageDraftControls(t *testing.T, body string, want map[string]string,
 	}
 }
 
-func imageDraftControlValue(n *html.Node, attrs map[string]string) string {
+func imageDraftControlValue(n *nethtml.Node, attrs map[string]string) string {
 	switch n.Data {
 	case "textarea":
 		if n.FirstChild != nil {
@@ -316,20 +316,20 @@ func TestCampaignFormRemoveButtons(t *testing.T) {
 			t.Run(locale.locale.Tag()+"/"+tt.name, func(t *testing.T) {
 				t.Parallel()
 				ctx := i18n.WithLocale(t.Context(), locale.locale)
-				doc, err := html.Parse(strings.NewReader(renderComponent(t, ctx, tt.component)))
+				doc, err := nethtml.Parse(strings.NewReader(renderComponent(t, ctx, tt.component)))
 				if err != nil {
 					t.Fatal(err)
 				}
 				got := map[string]string{}
 				for form := range doc.Descendants() {
-					if form.Type != html.ElementNode || form.Data != "form" || attr(form, "action") != tt.action {
+					if form.Type != nethtml.ElementNode || form.Data != "form" || attr(form, "action") != tt.action {
 						continue
 					}
 					if attr(form, "method") != "post" {
 						t.Errorf("removal form method = %q, want post", attr(form, "method"))
 					}
 					var record string
-					var button *html.Node
+					var button *nethtml.Node
 					for n := range form.Descendants() {
 						if n.Data == "input" && attr(n, "name") == tt.field {
 							record = attr(n, "value")
@@ -344,7 +344,7 @@ func TestCampaignFormRemoveButtons(t *testing.T) {
 					var visible, hidden strings.Builder
 					seenRecord := false
 					for n := button.FirstChild; n != nil; n = n.NextSibling {
-						if n.Type == html.TextNode {
+						if n.Type == nethtml.TextNode {
 							if seenRecord && strings.TrimSpace(n.Data) != "" {
 								t.Errorf("record %q precedes the visible action in the accessible name", record)
 							}
@@ -360,7 +360,7 @@ func TestCampaignFormRemoveButtons(t *testing.T) {
 						}
 						seenRecord = true
 						for text := range n.Descendants() {
-							if text.Type == html.TextNode {
+							if text.Type == nethtml.TextNode {
 								hidden.WriteString(text.Data)
 							}
 						}

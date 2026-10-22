@@ -6,7 +6,7 @@ import (
 	"time"
 
 	"github.com/google/go-cmp/cmp"
-	xhtml "golang.org/x/net/html"
+	"golang.org/x/net/html"
 
 	"github.com/koopa0/goen/internal/i18n"
 	"github.com/koopa0/goen/internal/product/inventory"
@@ -25,7 +25,7 @@ func TestReportStockRows(t *testing.T) {
 	t.Parallel()
 
 	ctx := i18n.WithLocale(t.Context(), i18n.En)
-	html := renderComponent(t, ctx, Report(frame.Page{Title: "Reports"}, &ReportView{
+	markup := renderComponent(t, ctx, Report(frame.Page{Title: "Reports"}, &ReportView{
 		Days: 7, StockDays: 30, Windows: []int32{7, 30, 90},
 		AtRisk: []stockrisk.Row{{Risk: inventory.Risk{SKU: "OUT-1", Name: "Gone", Slug: "gone"}},
 			{Risk: inventory.Risk{SKU: "EST-1", Name: "Going", Slug: "going", Sales: inventory.Sales{Sellable: 20, Sold: 30, Orders: 15, InStock: stockedAllWindow}}},
@@ -44,14 +44,14 @@ func TestReportStockRows(t *testing.T) {
 		"2 orders",
 		"sold in the last 30 days",
 	} {
-		if !strings.Contains(html, want) {
+		if !strings.Contains(markup, want) {
 			t.Errorf("the stock rows lack %q", want)
 		}
 	}
-	if got := strings.Count(html, `<div class="goen-chartrangebar`); got != 1 {
+	if got := strings.Count(markup, `<div class="goen-chartrangebar`); got != 1 {
 		t.Errorf("%d range bars drawn, want 1: only the estimated row has one", got)
 	}
-	if strings.Contains(html, "style=") {
+	if strings.Contains(markup, "style=") {
 		t.Error("the stock rows carry a style attribute")
 	}
 }
@@ -67,12 +67,12 @@ func TestReportMoreSoldOut(t *testing.T) {
 		Days: 30, StockDays: 30, Windows: []int32{7, 30, 90}, MoreSoldOut: 2,
 		AtRisk: []stockrisk.Row{{Risk: inventory.Risk{SKU: "OUT-1", Name: "Gone", Slug: "gone"}}},
 	}
-	html := renderComponent(t, ctx, Report(frame.Page{Title: "Reports"}, view))
-	if want := `<a href="/admin/stock?soldout=1">2 more items sold out</a>`; !strings.Contains(html, want) {
+	markup := renderComponent(t, ctx, Report(frame.Page{Title: "Reports"}, view))
+	if want := `<a href="/admin/stock?soldout=1">2 more items sold out</a>`; !strings.Contains(markup, want) {
 		t.Errorf("the stock section lacks %s", want)
 	}
 	view.MoreSoldOut = 0
-	if html := renderComponent(t, ctx, Report(frame.Page{Title: "Reports"}, view)); strings.Contains(html, "/admin/stock?soldout=1") {
+	if markup := renderComponent(t, ctx, Report(frame.Page{Title: "Reports"}, view)); strings.Contains(markup, "/admin/stock?soldout=1") {
 		t.Error("the stock section links to the sold out filter with none left off")
 	}
 }
@@ -110,13 +110,13 @@ func TestReportListSkeleton(t *testing.T) {
 		Days: 30, Windows: []int32{7, 30, 90}, Placed: 3, Committed: 3, Orders: 3,
 		Sellers: []Seller{{Slug: "a", Name: "Alpha", Brand: "Aurora", Units: 40}, {Slug: "b", Name: "Beta", Units: 10}},
 	}))
-	for name, html := range map[string]string{"stock": stock, "best sellers": report} {
+	for name, markup := range map[string]string{"stock": stock, "best sellers": report} {
 		for _, want := range []string{
 			`<li class="goen-report__row"><div class="goen-report__what"><a class="goen-report__name" href="/admin/products/`,
 			`<p class="goen-report__facts">`,
 			`<div class="goen-report__plot">`,
 		} {
-			if !strings.Contains(html, want) {
+			if !strings.Contains(markup, want) {
 				t.Errorf("%s list lacks the shared row markup %s", name, want)
 			}
 		}
@@ -176,9 +176,9 @@ func TestReturnedProductsTrackScale(t *testing.T) {
 	}
 }
 
-func reviewFollowupDocument(t *testing.T, markup string) *xhtml.Node {
+func reviewFollowupDocument(t *testing.T, markup string) *html.Node {
 	t.Helper()
-	doc, err := xhtml.Parse(strings.NewReader(markup))
+	doc, err := html.Parse(strings.NewReader(markup))
 	if err != nil {
 		t.Fatal(err)
 	}

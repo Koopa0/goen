@@ -13,7 +13,7 @@ import (
 	"unicode"
 	"unicode/utf8"
 
-	stripe "github.com/stripe/stripe-go/v86"
+	"github.com/stripe/stripe-go/v86"
 	"github.com/stripe/stripe-go/v86/webhook"
 
 	"github.com/koopa0/goen/internal/i18n"

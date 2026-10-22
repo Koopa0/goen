@@ -8,7 +8,7 @@ import (
 
 	"github.com/a-h/templ"
 	"github.com/google/go-cmp/cmp"
-	xhtml "golang.org/x/net/html"
+	"golang.org/x/net/html"
 
 	"github.com/koopa0/goen/internal/i18n"
 	"github.com/koopa0/goen/internal/ui/frame"
@@ -106,20 +106,20 @@ func TestTiersRemoveButtons(t *testing.T) {
 			t.Parallel()
 			ctx := i18n.WithLocale(t.Context(), locale.locale)
 			component := Tiers(frame.Page{}, TiersView{Rows: []Tier{{ID: "silver", Name: "Silver & more", Code: "silver"}, {ID: "gold", Name: "Gold", Code: "gold"}}})
-			doc, err := xhtml.Parse(strings.NewReader(renderComponent(t, ctx, component)))
+			doc, err := html.Parse(strings.NewReader(renderComponent(t, ctx, component)))
 			if err != nil {
 				t.Fatal(err)
 			}
 			got := map[string]string{}
 			for form := range doc.Descendants() {
-				if form.Type != xhtml.ElementNode || form.Data != "form" || attr(form, "action") != tt.action {
+				if form.Type != html.ElementNode || form.Data != "form" || attr(form, "action") != tt.action {
 					continue
 				}
 				if attr(form, "method") != "post" {
 					t.Errorf("removal form method = %q, want post", attr(form, "method"))
 				}
 				var record string
-				var button *xhtml.Node
+				var button *html.Node
 				for n := range form.Descendants() {
 					if n.Data == "input" && attr(n, "name") == tt.field {
 						record = attr(n, "value")
@@ -134,7 +134,7 @@ func TestTiersRemoveButtons(t *testing.T) {
 				var visible, hidden strings.Builder
 				seenRecord := false
 				for n := button.FirstChild; n != nil; n = n.NextSibling {
-					if n.Type == xhtml.TextNode {
+					if n.Type == html.TextNode {
 						if seenRecord && strings.TrimSpace(n.Data) != "" {
 							t.Errorf("record %q precedes the visible action in the accessible name", record)
 						}
@@ -150,7 +150,7 @@ func TestTiersRemoveButtons(t *testing.T) {
 					}
 					seenRecord = true
 					for text := range n.Descendants() {
-						if text.Type == xhtml.TextNode {
+						if text.Type == html.TextNode {
 							hidden.WriteString(text.Data)
 						}
 					}

@@ -6,7 +6,7 @@ import (
 	"testing"
 
 	"github.com/google/go-cmp/cmp"
-	htmlparse "golang.org/x/net/html"
+	"golang.org/x/net/html"
 
 	"github.com/koopa0/goen/assets"
 	"github.com/koopa0/goen/internal/i18n"
@@ -50,7 +50,7 @@ func TestPageDeliveryAvailability(t *testing.T) {
 						t.Error("delivery availability changed checkout eligibility, which would lose a mid-checkout draft")
 					}
 					body := renderComponent(t, ctx, Page(Meta(ctx), v))
-					doc, err := htmlparse.Parse(strings.NewReader(body))
+					doc, err := html.Parse(strings.NewReader(body))
 					if err != nil {
 						t.Fatal(err)
 					}
@@ -61,7 +61,7 @@ func TestPageDeliveryAvailability(t *testing.T) {
 					}
 					got := controls{DeliveryNotice: strings.Contains(body, locale.message)}
 					for n := range doc.Descendants() {
-						if n.Type != htmlparse.ElementNode {
+						if n.Type != html.ElementNode {
 							continue
 						}
 						attrs := map[string]string{}
@@ -131,9 +131,9 @@ func TestLine_LineTotalShort(t *testing.T) {
 		t.Errorf("LineTotal() = %q, want %q — the price is for what can be supplied", got, want)
 	}
 
-	html := renderToString(t, Page(Meta(ctx), View{Lines: []Line{short}}))
+	markup := renderToString(t, Page(Meta(ctx), View{Lines: []Line{short}}))
 	said := fmt.Sprintf(i18n.T(ctx, i18n.KeyPricedFor), "2")
-	if !strings.Contains(html, said) {
+	if !strings.Contains(markup, said) {
 		t.Errorf("a line asking for 5 and priced for 2 does not say so; wanted %q", said)
 	}
 
@@ -156,11 +156,11 @@ func TestCartLineSmallPhoto(t *testing.T) {
 		Slug: "buds", Name: "Buds", Quantity: 1, UnitCents: 100,
 		ImageURL: assets.Image{BundledKey: key}.URL(), ImageSrcset: assets.Image{BundledKey: key}.Srcset(), ImageAlt: "Buds",
 	}
-	html := renderToString(t, cartLine(line))
+	markup := renderToString(t, cartLine(line))
 	small := assets.URL("media/products/nimbus-buds-pro-01-400.webp")
 	for _, want := range []string{`srcset="` + small + ` 400w`, `sizes="96px"`, `width="96"`, `height="96"`} {
-		if !strings.Contains(html, want) {
-			t.Errorf("cart line image omits %s:\n%s", want, html)
+		if !strings.Contains(markup, want) {
+			t.Errorf("cart line image omits %s:\n%s", want, markup)
 		}
 	}
 }
@@ -170,14 +170,14 @@ func TestCartLineSmallPhoto(t *testing.T) {
 // that lets script apply a change on its own.
 func TestCartLineNoScript(t *testing.T) {
 	t.Parallel()
-	html := renderToString(t, cartLine(Line{Slug: "buds", Name: "Buds", Quantity: 1, UnitCents: 100}))
+	markup := renderToString(t, cartLine(Line{Slug: "buds", Name: "Buds", Quantity: 1, UnitCents: 100}))
 	for _, want := range []string{
 		`action="/cart/items/update" data-autosubmit`,
 		`goen-line__update" type="submit">更新`,
 		`name="remove" value="1"`,
 	} {
-		if !strings.Contains(html, want) {
-			t.Errorf("cart line omits %s:\n%s", want, html)
+		if !strings.Contains(markup, want) {
+			t.Errorf("cart line omits %s:\n%s", want, markup)
 		}
 	}
 }
@@ -189,7 +189,7 @@ func TestCartLineNoScript(t *testing.T) {
 func TestCartLineUpdateSwap(t *testing.T) {
 	t.Parallel()
 	const id = "11111111-1111-4111-8111-111111111111"
-	html := renderToString(t, cartLine(Line{VariantID: id, Slug: "buds", Name: "Buds", Quantity: 1, UnitCents: 100}))
+	markup := renderToString(t, cartLine(Line{VariantID: id, Slug: "buds", Name: "Buds", Quantity: 1, UnitCents: 100}))
 	for _, want := range []string{
 		`hx-post="/cart/items/update"`,
 		`hx-swap="none"`,
@@ -199,13 +199,13 @@ func TestCartLineUpdateSwap(t *testing.T) {
 		`id="line-body-` + id + `"`,
 		`id="line-money-` + id + `"`,
 	} {
-		if !strings.Contains(html, want) {
-			t.Errorf("cart line omits %s:\n%s", want, html)
+		if !strings.Contains(markup, want) {
+			t.Errorf("cart line omits %s:\n%s", want, markup)
 		}
 	}
 	for _, bad := range []string{`hx-target`, `hx-select=`} {
-		if strings.Contains(html, bad) {
-			t.Errorf("the line form carries %s, which would replace a whole region:\n%s", bad, html)
+		if strings.Contains(markup, bad) {
+			t.Errorf("the line form carries %s, which would replace a whole region:\n%s", bad, markup)
 		}
 	}
 }
@@ -215,13 +215,13 @@ func TestCartLineUpdateSwap(t *testing.T) {
 func cartFactsOf(t *testing.T, v View) string {
 	t.Helper()
 	ctx := i18n.WithLocale(t.Context(), i18n.ZhHant)
-	html := renderToString(t, Page(Meta(ctx), v))
-	at := strings.Index(html, `id="cart-count"`)
-	end := strings.Index(html, `id="cart-notices"`)
+	markup := renderToString(t, Page(Meta(ctx), v))
+	at := strings.Index(markup, `id="cart-count"`)
+	end := strings.Index(markup, `id="cart-notices"`)
 	if at < 0 || end < at {
-		t.Fatalf("the cart has no fact line before its notices: %s", html)
+		t.Fatalf("the cart has no fact line before its notices: %s", markup)
 	}
-	return html[at:end]
+	return markup[at:end]
 }
 
 // TestView_FactsFreeDelivery holds that the fact line states items, subtotal
@@ -275,7 +275,7 @@ func TestView_FactsFreeDelivery(t *testing.T) {
 func TestPageEmptyNoFactLine(t *testing.T) {
 	t.Parallel()
 	ctx := i18n.WithLocale(t.Context(), i18n.ZhHant)
-	if html := renderToString(t, Page(Meta(ctx), View{})); strings.Contains(html, "ui-statline") {
+	if markup := renderToString(t, Page(Meta(ctx), View{})); strings.Contains(markup, "ui-statline") {
 		t.Error("an empty cart prints a fact line")
 	}
 }
@@ -292,18 +292,18 @@ func TestPageSoldOutLine(t *testing.T) {
 		},
 		ItemCount: 2, SubtotalCents: 80000,
 	}
-	html := renderToString(t, Page(Meta(ctx), v))
+	markup := renderToString(t, Page(Meta(ctx), v))
 
-	if !strings.Contains(html, "2\u00a0<small>件</small>") || strings.Contains(html, "3\u00a0<small>件</small>") {
+	if !strings.Contains(markup, "2\u00a0<small>件</small>") || strings.Contains(markup, "3\u00a0<small>件</small>") {
 		t.Error("the sold-out line is counted in 商品 n 件")
 	}
-	if strings.Contains(html, "已無庫存") {
+	if strings.Contains(markup, "已無庫存") {
 		t.Error("the sold-out line still says 已無庫存")
 	}
-	_, afterOpen, found := strings.Cut(html, `id="line-gone"`)
+	_, afterOpen, found := strings.Cut(markup, `id="line-gone"`)
 	gone, _, closed := strings.Cut(afterOpen, "</li>")
 	if !found || !closed {
-		t.Fatalf("the sold-out line is not in the cart: %s", html)
+		t.Fatalf("the sold-out line is not in the cart: %s", markup)
 	}
 	if !strings.Contains(gone, i18n.T(ctx, i18n.KeySoldOut)) {
 		t.Error("the sold-out line itself does not say 已售完")
@@ -314,10 +314,10 @@ func TestPageSoldOutLine(t *testing.T) {
 	if !strings.Contains(gone, "goen-line__remove") {
 		t.Error("the sold-out line cannot be removed")
 	}
-	if !strings.Contains(html, `aria-disabled="true"`) || strings.Contains(html, `href="/checkout"`) {
+	if !strings.Contains(markup, `aria-disabled="true"`) || strings.Contains(markup, `href="/checkout"`) {
 		t.Error("checkout is offered while a line is sold out")
 	}
-	if !strings.Contains(html, `aria-describedby="cart-alert"`) || !strings.Contains(html, `id="cart-alert"`) {
+	if !strings.Contains(markup, `aria-describedby="cart-alert"`) || !strings.Contains(markup, `id="cart-alert"`) {
 		t.Error("the disabled checkout does not point at the sentence that says why")
 	}
 }
@@ -355,8 +355,8 @@ func TestPageStockHold(t *testing.T) {
 	t.Parallel()
 	ctx := i18n.WithLocale(t.Context(), i18n.ZhHant)
 	lines := []Line{{VariantID: "v", Slug: "s", Name: "x", Quantity: 1, UnitCents: 100}}
-	html := renderToString(t, Page(Meta(ctx), View{Lines: lines, HoldMinutes: 61}))
-	if !strings.Contains(html, "庫存保留 61 分鐘") {
+	markup := renderToString(t, Page(Meta(ctx), View{Lines: lines, HoldMinutes: 61}))
+	if !strings.Contains(markup, "庫存保留 61 分鐘") {
 		t.Error("the cart does not say how long the stock is held")
 	}
 }
@@ -369,13 +369,13 @@ func TestPageRemoveSkipsValidation(t *testing.T) {
 	t.Parallel()
 	ctx := i18n.WithLocale(t.Context(), i18n.ZhHant)
 	line := Line{VariantID: "v1", Slug: "x", Name: "x", UnitCents: 100000, Quantity: 2, Available: 4}
-	html := renderToString(t, Page(Meta(ctx), View{Lines: []Line{line}}))
-	i := strings.Index(html, `name="remove"`)
+	markup := renderToString(t, Page(Meta(ctx), View{Lines: []Line{line}}))
+	i := strings.Index(markup, `name="remove"`)
 	if i < 0 {
 		t.Fatal("the line has no remove button")
 	}
-	open := strings.LastIndex(html[:i], "<button")
-	if tag := html[open : i+strings.Index(html[i:], ">")]; !strings.Contains(tag, "formnovalidate") {
+	open := strings.LastIndex(markup[:i], "<button")
+	if tag := markup[open : i+strings.Index(markup[i:], ">")]; !strings.Contains(tag, "formnovalidate") {
 		t.Errorf("the remove button does not skip the form's validation: %s", tag)
 	}
 }
@@ -390,9 +390,9 @@ func TestView_FactsEnglishItemCount(t *testing.T) {
 	if err := widget.StatLine(facts, widget.StatLinePlain).Render(ctx, &b); err != nil {
 		t.Fatalf("render: %v", err)
 	}
-	html := b.String()
-	if !strings.Contains(html, "<dt>Items</dt><dd>2</dd>") || strings.Contains(html, "pcs") {
-		t.Errorf("English item count = %s, want the bare number under Items", html)
+	markup := b.String()
+	if !strings.Contains(markup, "<dt>Items</dt><dd>2</dd>") || strings.Contains(markup, "pcs") {
+		t.Errorf("English item count = %s, want the bare number under Items", markup)
 	}
 }
 
@@ -423,29 +423,29 @@ func TestPageShippingRowFreeDelivery(t *testing.T) {
 		if err := Page(Meta(ctx), v).Render(ctx, &b); err != nil {
 			t.Fatalf("%s: render: %v", tt.name, err)
 		}
-		html := b.String()
+		markup := b.String()
 		if tt.kind == FreeDeliveryReached {
-			facts := html[strings.Index(html, `id="cart-count"`):strings.Index(html, `id="cart-notices"`)]
+			facts := markup[strings.Index(markup, `id="cart-count"`):strings.Index(markup, `id="cart-notices"`)]
 			if !strings.Contains(facts, tt.want) {
 				t.Errorf("%s: fact line lacks %q: %s", tt.name, tt.want, facts)
 			}
 		}
-		at := strings.Index(html, `id="cart-summary"`)
+		at := strings.Index(markup, `id="cart-summary"`)
 		if at < 0 {
-			t.Fatalf("%s: no cart summary: %s", tt.name, html)
+			t.Fatalf("%s: no cart summary: %s", tt.name, markup)
 		}
-		html = html[at:]
-		if end := strings.Index(html, "</dl>"); end > 0 {
-			html = html[:end]
+		markup = markup[at:]
+		if end := strings.Index(markup, "</dl>"); end > 0 {
+			markup = markup[:end]
 		}
-		if !strings.Contains(html, tt.want) {
-			t.Errorf("%s: summary lacks %q: %s", tt.name, tt.want, html)
+		if !strings.Contains(markup, tt.want) {
+			t.Errorf("%s: summary lacks %q: %s", tt.name, tt.want, markup)
 		}
-		if strings.Contains(html, tt.not) {
-			t.Errorf("%s: summary holds %q: %s", tt.name, tt.not, html)
+		if strings.Contains(markup, tt.not) {
+			t.Errorf("%s: summary holds %q: %s", tt.name, tt.not, markup)
 		}
-		if len(tt.zones) == 0 && (strings.Contains(html, "另計") || strings.Contains(html, " extra)")) {
-			t.Errorf("%s: summary names a surcharge zone where there is none: %s", tt.name, html)
+		if len(tt.zones) == 0 && (strings.Contains(markup, "另計") || strings.Contains(markup, " extra)")) {
+			t.Errorf("%s: summary names a surcharge zone where there is none: %s", tt.name, markup)
 		}
 	}
 }

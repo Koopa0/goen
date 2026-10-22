@@ -10,7 +10,7 @@ import (
 	"net/url"
 	"time"
 
-	stripe "github.com/stripe/stripe-go/v86"
+	"github.com/stripe/stripe-go/v86"
 
 	"github.com/koopa0/goen/internal/i18n"
 	"github.com/koopa0/goen/internal/order"
