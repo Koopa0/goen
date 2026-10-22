@@ -101,10 +101,13 @@ func redemptionOperation(t *testing.T, userID string) uuid.UUID {
 	return uuid.New()
 }
 
+// TestStore_RedeemStatementTimeout: an infrastructure failure is not reported
+// as an empty balance: a statement timeout keeps its cause.
+//
 // A timeout while writing store credit says nothing about the points the
 // customer has. The fixture deliberately holds more than the request, or the
 // preflight balance check would pass this test without reaching the write.
-func TestAnInfrastructureFailureIsNotReportedAsAnEmptyBalance(t *testing.T) {
+func TestStore_RedeemStatementTimeout(t *testing.T) {
 	ctx := t.Context()
 	userID, _ := customer(t, 500)
 	operationID := redemptionOperation(t, userID)
@@ -147,7 +150,9 @@ func TestAnInfrastructureFailureIsNotReportedAsAnEmptyBalance(t *testing.T) {
 	}
 }
 
-func TestARedemptionPostsPointsAndCreditTogether(t *testing.T) {
+// TestStore_RedeemPostsPointsAndCredit: a redemption posts points and credit
+// together, once, and an exact replay returns the same credit.
+func TestStore_RedeemPostsPointsAndCredit(t *testing.T) {
 	ctx := t.Context()
 	userID, accountID := customer(t, 0)
 	lots := []struct {
@@ -209,7 +214,9 @@ func TestARedemptionPostsPointsAndCreditTogether(t *testing.T) {
 	}
 }
 
-func TestAnOversizedRedemptionIsRejectedBeforeItClaimsAnOperation(t *testing.T) {
+// TestStore_RedeemOversized: an oversized redemption is rejected before it
+// claims an operation.
+func TestStore_RedeemOversized(t *testing.T) {
 	ctx := t.Context()
 	userID, accountID := customer(t, 100)
 	operationID := redemptionOperation(t, userID)
@@ -237,7 +244,9 @@ func TestAnOversizedRedemptionIsRejectedBeforeItClaimsAnOperation(t *testing.T) 
 	}
 }
 
-func TestAnOversizedRedemptionPOSTKeepsItsDraftWithoutDatabaseEffects(t *testing.T) {
+// TestHandler_RedeemOversized: an oversized redemption POST keeps its draft
+// without database effects.
+func TestHandler_RedeemOversized(t *testing.T) {
 	ctx := t.Context()
 	userID, accountID := customer(t, 100)
 	operationID := redemptionOperation(t, userID)
@@ -274,7 +283,9 @@ func TestAnOversizedRedemptionPOSTKeepsItsDraftWithoutDatabaseEffects(t *testing
 	}
 }
 
-func TestErasingARedeemerRemovesTheOperationButKeepsAnonymousLedgers(t *testing.T) {
+// TestEraseUserRedeemer: erasing a redeemer removes the operation but keeps the
+// anonymous ledgers.
+func TestEraseUserRedeemer(t *testing.T) {
 	ctx := t.Context()
 	userID, accountID := customer(t, 100)
 	owner := uuid.MustParse(userID)
@@ -310,8 +321,10 @@ func TestErasingARedeemerRemovesTheOperationButKeepsAnonymousLedgers(t *testing.
 	}
 }
 
+// TestStore_RedeemExpiredPoints: expired points are not spendable.
+//
 // Expiry is applied on read, never by a job.
-func TestExpiredPointsAreNotSpendable(t *testing.T) {
+func TestStore_RedeemExpiredPoints(t *testing.T) {
 	ctx := t.Context()
 	userID, accountID := customer(t, 0)
 
@@ -336,9 +349,13 @@ func TestExpiredPointsAreNotSpendable(t *testing.T) {
 	}
 }
 
+// TestRedeemLoyaltyPointsAcrossLots: a spent award leaves the balance with it:
+// redeem_loyalty_points allocates a spend across lots by expiry, so no expiry
+// group goes negative.
+//
 // The two lots must expire on different days: if both expired a year from now,
 // every assertion would pass with an unlotted spend and prove nothing.
-func TestASpentAwardLeavesTheBalanceWithIt(t *testing.T) {
+func TestRedeemLoyaltyPointsAcrossLots(t *testing.T) {
 	ctx := t.Context()
 	userID, accountID := customer(t, 0)
 	orderA := orderFor(t, userID, 1000000)
@@ -425,8 +442,11 @@ func TestASpentAwardLeavesTheBalanceWithIt(t *testing.T) {
 	}
 }
 
+// TestRedeemLoyaltyPointsLotOrder: same-day lots have a deterministic FIFO
+// order.
+//
 // The tie-breaks after the expiry date: created_at first, then id.
-func TestSameDayLotsHaveADeterministicFIFOOrder(t *testing.T) {
+func TestRedeemLoyaltyPointsLotOrder(t *testing.T) {
 	for _, tc := range []struct {
 		name        string
 		firstID     uuid.UUID
@@ -485,9 +505,12 @@ func TestSameDayLotsHaveADeterministicFIFOOrder(t *testing.T) {
 	}
 }
 
+// TestStore_HistoryZeroClawback: a zero clawback survives history to rendered
+// HTML.
+//
 // The zero must survive every layer that could turn it back into "no points":
 // query, view model, locale lookup, page component.
-func TestAZeroClawbackSurvivesHistoryToRenderedHTML(t *testing.T) {
+func TestStore_HistoryZeroClawback(t *testing.T) {
 	ctx := t.Context()
 	userID, accountID := customer(t, 0)
 	orderID := orderFor(t, userID, 750000)
@@ -558,7 +581,10 @@ func TestAZeroClawbackSurvivesHistoryToRenderedHTML(t *testing.T) {
 	}
 }
 
-func TestPointsCannotBeSpentFromALapsedLot(t *testing.T) {
+// TestLoyaltyEntriesLapsedLot: points cannot be spent from a lapsed lot: both
+// the posting function and a direct insert are refused by the table's
+// constraints.
+func TestLoyaltyEntriesLapsedLot(t *testing.T) {
 	ctx := t.Context()
 	userID, accountID := customer(t, 0)
 	var lotID uuid.UUID
@@ -583,7 +609,9 @@ func TestPointsCannotBeSpentFromALapsedLot(t *testing.T) {
 	}
 }
 
-func TestAClawbackReversesOnlyTheLotsUnconsumedRemainder(t *testing.T) {
+// TestReverseReturnPointsRemainder: a clawback reverses only the lot's
+// unconsumed remainder, and records a zero row when the lot is wholly consumed.
+func TestReverseReturnPointsRemainder(t *testing.T) {
 	for _, tc := range []struct {
 		name       string
 		spent      int64
@@ -636,7 +664,9 @@ func TestAClawbackReversesOnlyTheLotsUnconsumedRemainder(t *testing.T) {
 	}
 }
 
-func TestReturnPointSlicesFollowAccountLockedPostingOrderDespiteInvertedTimestamps(t *testing.T) {
+// TestReverseReturnPointsPostingOrder: return point slices follow the
+// account-locked posting order despite inverted transaction timestamps.
+func TestReverseReturnPointsPostingOrder(t *testing.T) {
 	ctx := t.Context()
 	userID, accountID := customer(t, 0)
 	orderID, firstReturn, secondReturn := splitReturnOrderFor(t, userID)
@@ -790,9 +820,12 @@ func TestReturnPointSlicesFollowAccountLockedPostingOrderDespiteInvertedTimestam
 	}
 }
 
+// TestAwardLoyaltyPointsOnce: an order is awarded once, however often it is
+// delivered.
+//
 // At-least-once delivery awards exactly once, keyed on the order in the
 // database rather than checked in Go.
-func TestAnOrderIsAwardedOnce(t *testing.T) {
+func TestAwardLoyaltyPointsOnce(t *testing.T) {
 	ctx := t.Context()
 	userID, accountID := customer(t, 0)
 	orderID := orderFor(t, userID, 250000) // NT$2,500 → 25 points
@@ -815,9 +848,11 @@ func TestAnOrderIsAwardedOnce(t *testing.T) {
 	}
 }
 
-// TestAGuestOrderEarnsNothingAndDoesNotError proves a guest capture is not
-// failed by the award, which would make Stripe retry a capture that succeeded.
-func TestAGuestOrderEarnsNothingAndDoesNotError(t *testing.T) {
+// TestAwardLoyaltyPointsGuest: a guest order earns nothing and does not error.
+//
+// TestAwardLoyaltyPointsGuest proves a guest capture is not failed by the
+// award, which would make Stripe retry a capture that succeeded.
+func TestAwardLoyaltyPointsGuest(t *testing.T) {
 	ctx := t.Context()
 	orderID := orderFor(t, "", 250000)
 
@@ -831,7 +866,9 @@ func TestAGuestOrderEarnsNothingAndDoesNotError(t *testing.T) {
 	}
 }
 
-func TestTheLedgerIsAppendOnly(t *testing.T) {
+// TestLoyaltyEntriesAppendOnly: the points ledger is append-only: an UPDATE or
+// DELETE on loyalty_entries is refused.
+func TestLoyaltyEntriesAppendOnly(t *testing.T) {
 	ctx := t.Context()
 	_, accountID := customer(t, 100)
 
@@ -1131,7 +1168,9 @@ func requirePermissionDenied(t *testing.T, err error) {
 	}
 }
 
-func TestMoneyPostingDoorsAreRoleNarrowAndDataAuthoritative(t *testing.T) {
+// TestMoneyPostingDoors: the money posting doors are role-narrow and
+// data-authoritative.
+func TestMoneyPostingDoors(t *testing.T) {
 	ctx := t.Context()
 	userID, accountID := customer(t, 0)
 	owner := uuid.MustParse(userID)
@@ -1379,10 +1418,13 @@ func TestMoneyPostingDoorsAreRoleNarrowAndDataAuthoritative(t *testing.T) {
 	}
 }
 
-// TestTheLoyaltyAllocatorHoldsOnItsOwn proves the account lock is what
-// serialises spends, not PostgreSQL's deadlock detector. With lot-linked spends
-// the allocator discovers the shortfall under that lock.
-func TestTheLoyaltyAllocatorHoldsOnItsOwn(t *testing.T) {
+// TestRedeemLoyaltyPointsRace: the loyalty allocator holds on its own when
+// several spends of the whole balance race.
+//
+// TestRedeemLoyaltyPointsRace proves the account lock is what serialises
+// spends, not PostgreSQL's deadlock detector. With lot-linked spends the
+// allocator discovers the shortfall under that lock.
+func TestRedeemLoyaltyPointsRace(t *testing.T) {
 	ctx := t.Context()
 	userID, accountID := customer(t, 1000)
 
@@ -1453,9 +1495,13 @@ func constraintOf(err error) string {
 	return pgErr.Code
 }
 
+// TestStore_RedeemReturnUnsettled: points are held while an approved return is
+// unpaid: Redeem answers ErrReturnUnsettled until the clawback is posted.
+//
 // Points an approved return will claw back stay put until that return pays out:
-// spent into store credit first, the clawback finds nothing and the shop eats it.
-func TestPointsAreHeldWhileAnApprovedReturnIsUnpaid(t *testing.T) {
+// spent into store credit first, the clawback finds nothing and the shop eats
+// it.
+func TestStore_RedeemReturnUnsettled(t *testing.T) {
 	ctx := t.Context()
 	// Points the customer keeps, so a redemption after the clawback can succeed.
 	userID, accountID := customer(t, 200)

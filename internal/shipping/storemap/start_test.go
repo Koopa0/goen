@@ -55,13 +55,15 @@ func renderToString(t *testing.T, c templ.Component) string {
 	return b.String()
 }
 
-// TestTheMapFormCarriesNothingTheShopperTyped is the PII guard. The checkout
-// form is posted to goen's own start route, which keeps what was typed; the page
-// that route answers is where the browser is handed to the carrier, and its form
-// is the one that must hold nothing of the shopper's. Submitting the checkout
-// form to the carrier itself would hand a third party the shopper's name, phone,
-// e-mail and street address in one request.
-func TestTheMapFormCarriesNothingTheShopperTyped(t *testing.T) {
+// TestStartPageCarriesNoShopperData: the map form on the hand-off page carries
+// only the parameters ECPay's map documents and nothing the shopper typed. It
+// is the PII guard. The checkout form is posted to goen's own start route,
+// which keeps what was typed; the page that route answers is where the browser
+// is handed to the carrier, and its form is the one that must hold nothing of
+// the shopper's. Submitting the checkout form to the carrier itself would hand
+// a third party the shopper's name, phone, e-mail and street address in one
+// request.
+func TestStartPageCarriesNoShopperData(t *testing.T) {
 	t.Parallel()
 
 	html := renderToString(t, StartPage(aMapForm(), "/checkout?draft=1"))

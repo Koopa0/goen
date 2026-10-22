@@ -62,7 +62,9 @@ func subscriberSince(t *testing.T, email string, ageDays int, optOut bool) {
 	}
 }
 
-func TestTheConfirmationSweepDeletesOnlyOldUnansweredRequests(t *testing.T) {
+// TestStore_SweepConfirmationsOldOnly: the confirmation sweep deletes only old
+// unanswered requests, never a subscriber or an opt-out.
+func TestStore_SweepConfirmationsOldOnly(t *testing.T) {
 	t.Parallel()
 	stale, justInside, fresh := addr(t), addr(t), addr(t)
 	subscriber, optedOut := addr(t), addr(t)

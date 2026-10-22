@@ -101,10 +101,10 @@ func letters(text string) map[string]func(context.Context, Notifier) error {
 	}
 }
 
-// TestLettersWritesEveryLetterNotifierSends holds letters to Notifier's Send
-// methods, so a letter added to Notifier is held to the header and link tests
-// below rather than passing them unseen.
-func TestLettersWritesEveryLetterNotifierSends(t *testing.T) {
+// TestNotifierLettersCoverSends holds letters to Notifier's Send methods, so a
+// letter added to Notifier is held to the header and link tests below rather
+// than passing them unseen.
+func TestNotifierLettersCoverSends(t *testing.T) {
 	t.Parallel()
 	table := letters("Alex")
 	notifier := reflect.TypeFor[*Notifier]()
@@ -133,11 +133,11 @@ func wireHeaders(m *Message) []string {
 	return strings.Split(head, "\r\n")
 }
 
-// TestNoTextInALetterCanAddAMailHeader holds the header block of every letter
-// to the fixed headers render writes. A subject, a name, a product name, a card
-// label or a carrier carrying a line break is text in a header or in the body,
-// never a header of its own, and a recipient carrying one is never sent to.
-func TestNoTextInALetterCanAddAMailHeader(t *testing.T) {
+// TestNotifierHeaderInjection holds the header block of every letter to the
+// fixed headers render writes. A subject, a name, a product name, a card label
+// or a carrier carrying a line break is text in a header or in the body, never
+// a header of its own, and a recipient carrying one is never sent to.
+func TestNotifierHeaderInjection(t *testing.T) {
 	t.Parallel()
 	want := []string{"From: ", "To: ", "Subject: ", "Date: ", "Message-ID: ", "MIME-Version: ", "Content-Type: ", "Content-Transfer-Encoding: "}
 
@@ -226,11 +226,11 @@ func TestNoTextInALetterCanAddAMailHeader(t *testing.T) {
 
 var mailedLink = regexp.MustCompile(`https?://[^\s)」）]+`)
 
-// TestEveryMailedLinkStartsAtTheConfiguredOrigin holds that a letter links
-// only to the base URL goen was configured with. Letters are written by the
-// outbox worker, where no request exists, so no Host header can reach one;
-// this keeps that true of every letter goen sends.
-func TestEveryMailedLinkStartsAtTheConfiguredOrigin(t *testing.T) {
+// TestNotifierLinksAtOrigin holds that a letter links only to the base URL goen
+// was configured with. Letters are written by the outbox worker, where no
+// request exists, so no Host header can reach one; this keeps that true of
+// every letter goen sends.
+func TestNotifierLinksAtOrigin(t *testing.T) {
 	t.Parallel()
 	const origin = "https://shop.configured.example"
 

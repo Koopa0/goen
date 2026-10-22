@@ -11,7 +11,10 @@ import (
 	"github.com/koopa0/goen/internal/ui/frame"
 )
 
-func TestWarrantySerialRefusalKeepsOnlyItsOwnDraftAndExplanation(t *testing.T) {
+// TestWarrantyOrderSerialRefusal: a serial refusal keeps only its own draft and
+// explanation: the refused line's input holds the raw draft, is marked invalid
+// and is described by its own error, and its sibling line is unaffected.
+func TestWarrantyOrderSerialRefusal(t *testing.T) {
 	t.Parallel()
 	for _, tc := range []struct {
 		locale  i18n.Locale

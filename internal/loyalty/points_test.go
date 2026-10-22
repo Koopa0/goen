@@ -11,7 +11,9 @@ import (
 	"github.com/koopa0/goen/internal/ui/frame"
 )
 
-func TestAClawbackShowsOnlyTheUnrecoveredShortfall(t *testing.T) {
+// TestPointsEntry_ClawbackShortfall: a clawback shows only the unrecovered
+// shortfall.
+func TestPointsEntry_ClawbackShortfall(t *testing.T) {
 	entry := PointsEntry{
 		Kind: "clawback", Points: -40, RequestedPoints: 100, ShortfallPoints: 60,
 	}
@@ -44,7 +46,9 @@ func TestAClawbackShowsOnlyTheUnrecoveredShortfall(t *testing.T) {
 	}
 }
 
-func TestEveryPointsEntryKindHasACompletePresentation(t *testing.T) {
+// TestPointsEntry_KindPresentation: every points entry kind has a complete
+// presentation.
+func TestPointsEntry_KindPresentation(t *testing.T) {
 	t.Parallel()
 	ctx := i18n.WithLocale(t.Context(), i18n.En)
 
@@ -76,7 +80,8 @@ func TestEveryPointsEntryKindHasACompletePresentation(t *testing.T) {
 	}
 }
 
-func TestPointsRowsNameTheirOrderDatesAndCredit(t *testing.T) {
+// TestPointsLedgerRows: points ledger rows name their order, dates and credit.
+func TestPointsLedgerRows(t *testing.T) {
 	t.Parallel()
 	for _, tt := range []struct {
 		name   string
@@ -117,7 +122,9 @@ func TestPointsRowsNameTheirOrderDatesAndCredit(t *testing.T) {
 	}
 }
 
-func TestPointsRuleNamesTheNumericMinimumAndStep(t *testing.T) {
+// TestPointsRuleMinimumStep: the points rule names the numeric minimum and
+// step, and the amount field is described by it.
+func TestPointsRuleMinimumStep(t *testing.T) {
 	t.Parallel()
 	for _, tt := range []struct {
 		locale i18n.Locale
@@ -167,7 +174,9 @@ func pointsText(n *html.Node) string {
 	return strings.Join(strings.Fields(b.String()), " ")
 }
 
-func TestAnUnknownPointsEntryKindIsAProgrammingError(t *testing.T) {
+// TestPointsEntry_UnknownKind: an unknown points entry kind is a programming
+// error: every presenting method panics.
+func TestPointsEntry_UnknownKind(t *testing.T) {
 	t.Parallel()
 	ctx := i18n.WithLocale(t.Context(), i18n.En)
 	entry := PointsEntry{Kind: "future_kind"}
@@ -190,7 +199,9 @@ func TestAnUnknownPointsEntryKindIsAProgrammingError(t *testing.T) {
 	}
 }
 
-func TestPointsLeadUsesTheCurrentExactMemberMultiplier(t *testing.T) {
+// TestPointsLeadMultiplier: the points page lead uses the member's current
+// multiplier at exact precision.
+func TestPointsLeadMultiplier(t *testing.T) {
 	t.Parallel()
 	for _, tt := range []struct {
 		locale i18n.Locale
@@ -215,7 +226,9 @@ func TestPointsLeadUsesTheCurrentExactMemberMultiplier(t *testing.T) {
 	}
 }
 
-func TestPointsFormRefusalPreservesTheAmountAndOperation(t *testing.T) {
+// TestPointsFormRefusalDraft: a refused points form preserves the typed amount
+// and the operation identity.
+func TestPointsFormRefusalDraft(t *testing.T) {
 	t.Parallel()
 	for _, tt := range []struct {
 		locale i18n.Locale

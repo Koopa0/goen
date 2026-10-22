@@ -11,7 +11,7 @@ import (
 
 // The attribute is what app.css selects the ground on; a head without it is
 // unthemed, and one carrying a tone outside the set would match no rule. The
-// campaign head's half of this test is campaign's TestACampaignHeadCarriesItsTone.
+// campaign head's half of this test is campaign's TestPageHeadTone.
 func TestADepartmentHeadCarriesItsTone(t *testing.T) {
 	t.Parallel()
 	ctx := i18n.WithLocale(t.Context(), i18n.En)

@@ -148,12 +148,12 @@ func lines(s string, page bool) []string {
 	return out
 }
 
-// TestEveryLetterIsSentAsTextAndHTML holds every letter goen writes to its two
-// parts: the text part exactly the text goen composed, and an HTML part that
-// reads the same, line for line — the statutory disclosure included — with the
-// header, every link the text has, and nothing a payload's free text can turn
-// into markup or into a link.
-func TestEveryLetterIsSentAsTextAndHTML(t *testing.T) {
+// TestNotifierTextAndHTMLParts holds every letter goen writes to its two parts:
+// the text part exactly the text goen composed, and an HTML part that reads the
+// same, line for line — the statutory disclosure included — with the header,
+// every link the text has, and nothing a payload's free text can turn into
+// markup or into a link.
+func TestNotifierTextAndHTMLParts(t *testing.T) {
 	t.Parallel()
 	const origin = "https://goen.test"
 	header := `src="` + origin + assets.URL(assets.EmailHeader) + `"`
@@ -219,9 +219,10 @@ func TestEveryLetterIsSentAsTextAndHTML(t *testing.T) {
 	}
 }
 
-// TestTheHTMLPartIsInTheLettersLanguage: lang decides the voice a screen
-// reader reads the letter in.
-func TestTheHTMLPartIsInTheLettersLanguage(t *testing.T) {
+// TestNotifier_SendPasswordResetHTMLLang: the HTML part of a letter is in the
+// letter's language, because lang decides the voice a screen reader reads it
+// in.
+func TestNotifier_SendPasswordResetHTMLLang(t *testing.T) {
 	t.Parallel()
 	for locale, want := range map[string]string{"en": `<html lang="en">`, "zh-Hant": `<html lang="zh-Hant">`} {
 		n, sink := notifier(t)
@@ -234,10 +235,10 @@ func TestTheHTMLPartIsInTheLettersLanguage(t *testing.T) {
 	}
 }
 
-// TestParagraphsFollowTheText: a blank line ends a paragraph, a single break
-// stays a break, and only goen's own URLs become links — without the sentence
-// punctuation around them.
-func TestParagraphsFollowTheText(t *testing.T) {
+// TestParagraphs: a blank line ends a paragraph, a single break stays a break,
+// and only goen's own URLs become links — without the sentence punctuation
+// around them.
+func TestParagraphs(t *testing.T) {
 	t.Parallel()
 	const origin = "https://goen.test"
 	text := "Hello Alex,\r\n\r\n查看訂單：https://goen.test/orders/1\nline two https://goen.test/p/a.\r\r\n\n" +
@@ -259,9 +260,11 @@ func TestParagraphsFollowTheText(t *testing.T) {
 	}
 }
 
-// TestAMultipartLetterEndsEveryLineInCRLF is TestEveryLineOfAMessageEndsInCRLF
-// for the multipart form, which is the one every Notifier letter takes.
-func TestAMultipartLetterEndsEveryLineInCRLF(t *testing.T) {
+// TestRenderMultipartCRLF: a multipart letter ends every line in CRLF.
+//
+// TestRenderMultipartCRLF is TestRenderCRLF for the multipart form, which is
+// the one every Notifier letter takes.
+func TestRenderMultipartCRLF(t *testing.T) {
 	t.Parallel()
 
 	body := "first\rsecond\r\nthird\nfourth\r\r\nfifth\n\rsixth\r"

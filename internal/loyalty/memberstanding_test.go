@@ -7,7 +7,9 @@ import (
 	"github.com/koopa0/goen/internal/i18n"
 )
 
-func TestMembershipMultipliersRetainBasisPointPrecision(t *testing.T) {
+// TestMemberStanding_MultiplierPrecision: membership multipliers retain
+// basis-point precision.
+func TestMemberStanding_MultiplierPrecision(t *testing.T) {
 	t.Parallel()
 	tests := []struct {
 		name string

@@ -18,8 +18,8 @@ func renderHeadAt(t *testing.T, ctx context.Context, p frame.Page) string {
 // TestMetaLinkPreviewTags: the contact page sends its own link preview tags
 // (the other page kinds' rows live in their own packages). The department and
 // product rows are catalog's TestCatalogPagesSendTheirOwnLinkPreviewTags, the
-// campaign's row campaign's TestTheCampaignPageSendsItsOwnLinkPreviewTags, the
-// home row home's TestTheHomePageSendsItsOwnLinkPreviewTags.
+// campaign's row campaign's TestMetaLinkPreview, the home row home's
+// TestTheHomePageSendsItsOwnLinkPreviewTags.
 func TestMetaLinkPreviewTags(t *testing.T) {
 	t.Parallel()
 	ctx := i18n.WithLocale(frame.WithRequestPath(t.Context(), "/c/books"), i18n.ZhHant)

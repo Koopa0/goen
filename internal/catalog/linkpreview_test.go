@@ -10,7 +10,7 @@ import (
 )
 
 // From TestMetaLinkPreviewTags, which keeps the other pages' rows;
-// the campaign's row is internal/discount/campaign's TestTheCampaignPageSendsItsOwnLinkPreviewTags.
+// the campaign's row is internal/discount/campaign's TestMetaLinkPreview.
 func TestCatalogPagesSendTheirOwnLinkPreviewTags(t *testing.T) {
 	t.Parallel()
 	ctx := i18n.WithLocale(frame.WithRequestPath(t.Context(), "/c/books"), i18n.ZhHant)

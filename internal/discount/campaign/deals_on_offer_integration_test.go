@@ -15,7 +15,9 @@ type dealVariant struct {
 	price, compare, stock int // compare 0 is none
 }
 
-func TestDealsOnOfferNeedsARunningCampaignWithSomethingToBuy(t *testing.T) {
+// TestStore_DealsOnOffer: DealsOnOffer needs a running campaign with something
+// to buy.
+func TestStore_DealsOnOffer(t *testing.T) {
 	discounted := dealVariant{price: 1000, compare: 2000, stock: 5}
 	soldOut := dealVariant{price: 1000, compare: 2000, stock: 0}
 	plain := dealVariant{price: 1000, stock: 5}

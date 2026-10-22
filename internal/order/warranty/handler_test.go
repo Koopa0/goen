@@ -7,7 +7,10 @@ import (
 	"github.com/google/go-cmp/cmp"
 )
 
-func TestWarrantyConfirmationSelectsTheRegisteredUnit(t *testing.T) {
+// TestRegisteredUnitFor: the confirmation selects the registered unit: only a
+// success query naming a line and unit the order's rows hold selects one, and
+// every other query selects none.
+func TestRegisteredUnitFor(t *testing.T) {
 	t.Parallel()
 	rows := []Warranty{
 		{LineID: "line-a", Unit: 1, Name: "Phone", Serial: "SN-FIRST"},

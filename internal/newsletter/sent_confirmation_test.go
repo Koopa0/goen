@@ -12,7 +12,9 @@ import (
 	"github.com/koopa0/goen/internal/i18n"
 )
 
-func TestNewsletterThanksReflectsOnlyAMaskedDestinationAndOffersTheLiveForm(t *testing.T) {
+// TestHandler_ThanksMaskedAddress: the newsletter thanks page reflects only a
+// masked destination and offers the live form.
+func TestHandler_ThanksMaskedAddress(t *testing.T) {
 	t.Parallel()
 	h := &Handler{log: slog.New(slog.DiscardHandler)}
 	for _, locale := range i18n.Locales() {

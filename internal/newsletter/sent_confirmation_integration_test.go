@@ -13,7 +13,9 @@ import (
 	"github.com/koopa0/goen/internal/i18n"
 )
 
-func TestNewsletterConfirmationMatchesWhetherItQueuesMailOrAlreadyHasASubscriber(t *testing.T) {
+// TestHandler_SubmitUniformThanks: the newsletter confirmation looks the same
+// whether the request queues mail or the address already has a subscriber.
+func TestHandler_SubmitUniformThanks(t *testing.T) {
 	for _, locale := range i18n.Locales() {
 		for _, htmx := range []bool{false, true} {
 			t.Run(locale.Tag()+"/"+map[bool]string{false: "plain", true: "htmx"}[htmx], func(t *testing.T) {

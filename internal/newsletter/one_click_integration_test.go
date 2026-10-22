@@ -19,7 +19,9 @@ import (
 	"github.com/koopa0/goen/internal/web/ratelimit"
 )
 
-func TestOneClickUnsubscribeUsesTheURLTokenAndIsIdempotent(t *testing.T) {
+// TestHandler_UnsubscribeOneClick: one-click unsubscribe uses the URL token and
+// is idempotent.
+func TestHandler_UnsubscribeOneClick(t *testing.T) {
 	t.Parallel()
 	for _, multipartBody := range []bool{false, true} {
 		t.Run(map[bool]string{false: "form encoded", true: "multipart"}[multipartBody], func(t *testing.T) {
@@ -75,7 +77,9 @@ func TestOneClickUnsubscribeUsesTheURLTokenAndIsIdempotent(t *testing.T) {
 	}
 }
 
-func TestAnURLTokenNeedsTheOneClickMarker(t *testing.T) {
+// TestHandler_UnsubscribeOneClickMarker: a URL token needs the one-click marker
+// to unsubscribe.
+func TestHandler_UnsubscribeOneClickMarker(t *testing.T) {
 	t.Parallel()
 	s, email := store(t), addr(t)
 	if _, err := s.Request(t.Context(), email); err != nil {
@@ -122,7 +126,9 @@ func TestAnURLTokenNeedsTheOneClickMarker(t *testing.T) {
 	}
 }
 
-func TestOneClickDatabaseFailureKeepsTheSubscriptionAndReturns500(t *testing.T) {
+// TestHandler_UnsubscribeOneClickFailure: a one-click database failure keeps
+// the subscription and returns 500.
+func TestHandler_UnsubscribeOneClickFailure(t *testing.T) {
 	t.Parallel()
 	s, email := store(t), addr(t)
 	if _, err := s.Request(t.Context(), email); err != nil {

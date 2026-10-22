@@ -1,0 +1,6 @@
+file	old	new	unit	source	action	newfile
+internal/discount/coupon/code_test.go	TestTheCodeShapeIsTheSchemas	TestValidCodeMatchesSchema	ValidCode	hand	rename	
+internal/discount/coupon/coupon_test.go	TestApplyRefusesAnUnknownKind	TestCoupon_ApplyUnknownKind	Coupon_Apply	hand	rename	
+internal/discount/coupon/coupon_test.go	TestEveryAdmittedKindHasAConstant	TestParseSchemaKinds	Parse	hand	rename	
+internal/discount/coupon/coupon_test.go	TestPercentCouponDiscountIsAWholeYuanRoundedInTheCustomersFavour	TestCoupon_ApplyPercentRounding	Coupon_Apply	hand	rename	
+internal/discount/coupon/coupon_test.go	TestPercentCouponDoesNotOverflowAnInRangeSubtotal	TestCoupon_ApplyPercentOverflow	Coupon_Apply	hand	rename	

@@ -8,12 +8,14 @@ import (
 	"github.com/koopa0/goen/internal/outbox"
 )
 
-// TestTheAccountExistsLetterCarriesNoCapability: a second registration of an
-// address, or a request to move another account to it, is answered in this
-// letter, to its owner, and whoever asked can make it arrive at will. So it
-// points at the two doors the owner already has and carries nothing that opens
-// one, and it says which of the two was attempted.
-func TestTheAccountExistsLetterCarriesNoCapability(t *testing.T) {
+// TestNotifier_SendAccountExistsNoToken: the account-exists letter carries no
+// capability.
+//
+// A second registration of an address, or a request to move another account to
+// it, is answered in this letter, to its owner, and whoever asked can make it
+// arrive at will. So it points at the two doors the owner already has and
+// carries nothing that opens one, and it says which of the two was attempted.
+func TestNotifier_SendAccountExistsNoToken(t *testing.T) {
 	t.Parallel()
 	for _, change := range []bool{false, true} {
 		subject := i18n.KeyMailAccountExistsSubject
@@ -52,11 +54,13 @@ func TestTheAccountExistsLetterCarriesNoCapability(t *testing.T) {
 	}
 }
 
-// TestARegistrationLetterLeadsToThePasswordNotStraightIn: the mailbox alone
-// does not say who registered, so a registration's link goes to the page that
-// asks for the password chosen at registration, never to the page that proves
-// an address on the link alone.
-func TestARegistrationLetterLeadsToThePasswordNotStraightIn(t *testing.T) {
+// TestNotifier_SendAddressVerifyRegistration: a registration letter leads to
+// the password page, not straight in.
+//
+// The mailbox alone does not say who registered, so a registration's link goes
+// to the page that asks for the password chosen at registration, never to the
+// page that proves an address on the link alone.
+func TestNotifier_SendAddressVerifyRegistration(t *testing.T) {
 	t.Parallel()
 	for _, locale := range []string{"en", "zh-TW"} {
 		n, sink := notifier(t)
@@ -81,7 +85,9 @@ func TestARegistrationLetterLeadsToThePasswordNotStraightIn(t *testing.T) {
 	}
 }
 
-func TestStaffInvitationPointsToMailboxProofWithoutACapability(t *testing.T) {
+// TestNotifier_SendStaffInvitationNoToken: a staff invitation points to mailbox
+// proof (the forgot-password flow) without carrying a capability.
+func TestNotifier_SendStaffInvitationNoToken(t *testing.T) {
 	t.Parallel()
 	for _, locale := range []string{"en", "zh-TW"} {
 		n, sink := notifier(t)
@@ -110,7 +116,9 @@ func TestStaffInvitationPointsToMailboxProofWithoutACapability(t *testing.T) {
 	}
 }
 
-func TestTheStaffEnrolmentLetterCarriesTheCodeToTheAccount(t *testing.T) {
+// TestNotifier_SendStaffEnrolmentCode: the staff enrolment letter carries the
+// code to the account's address, and is refused without a recipient.
+func TestNotifier_SendStaffEnrolmentCode(t *testing.T) {
 	t.Parallel()
 	for _, locale := range []string{"en", "zh-TW"} {
 		n, sink := notifier(t)

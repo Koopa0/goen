@@ -7,7 +7,10 @@ import (
 	"github.com/koopa0/goen/internal/discount/campaign"
 )
 
-func TestStateAtJudgesTheWindowByTheInstant(t *testing.T) {
+// TestStateAt: StateAt judges a campaign's window by the instant: not started
+// before the start, running from it, ended from the exclusive end, whatever
+// zone the instant is written in.
+func TestStateAt(t *testing.T) {
 	t.Parallel()
 	start, end := day(2), day(12)
 	taipei := time.FixedZone("Asia/Taipei", 8*60*60)
@@ -30,7 +33,8 @@ func TestStateAtJudgesTheWindowByTheInstant(t *testing.T) {
 	}
 }
 
-func TestOnSaleNeedsACampaignStockAndAHigherComparePrice(t *testing.T) {
+// TestOnSale: OnSale needs a campaign, stock and a higher compare price.
+func TestOnSale(t *testing.T) {
 	t.Parallel()
 	for _, tt := range []struct {
 		name              string
