@@ -9,7 +9,8 @@ import (
 	"github.com/koopa0/goen/internal/db"
 )
 
-func TestFAQGroupsByCategoryRow(t *testing.T) {
+// TestFAQViewGroups: the FAQ groups its entries by category row.
+func TestFAQViewGroups(t *testing.T) {
 	t.Parallel()
 	orders, shipping := uuid.New(), uuid.New()
 	for _, tt := range []struct {

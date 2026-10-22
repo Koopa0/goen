@@ -15,9 +15,10 @@ import (
 	"github.com/koopa0/goen/internal/user"
 )
 
-// TestAccountOrderRowNamesALastDayOnlyWhenOneHolds holds that the history states a last day to cancel only when
-// every unit is in a parcel, every parcel has arrived and all share one day.
-func TestAccountOrderRowNamesALastDayOnlyWhenOneHolds(t *testing.T) {
+// TestStore_OverviewLastDay holds that the history states a last day to cancel
+// only when every unit is in a parcel, every parcel has arrived and all share
+// one day.
+func TestStore_OverviewLastDay(t *testing.T) {
 	s := account.NewStore(pool)
 	owner := register(t, "lastday-"+uuid.NewString()+"@example.invalid")
 	ctx := user.NewContext(i18n.WithLocale(t.Context(), i18n.En), owner)
@@ -107,10 +108,11 @@ func TestAccountOrderRowNamesALastDayOnlyWhenOneHolds(t *testing.T) {
 	}
 }
 
-// TestAccountOrderRowSaysRefundedOnceEveryUnitsRefundHasSettled holds that the history reads the same fact the
-// order page does: approval only starts the payout, so an approved return counts once the payout has written its
-// refunded event or it has nothing to send back, and a part of the order in a return leaves it as it was.
-func TestAccountOrderRowSaysRefundedOnceEveryUnitsRefundHasSettled(t *testing.T) {
+// TestStore_OverviewRefunded holds that the history reads the same fact the
+// order page does: approval only starts the payout, so an approved return
+// counts once the payout has written its refunded event or it has nothing to
+// send back, and a part of the order in a return leaves it as it was.
+func TestStore_OverviewRefunded(t *testing.T) {
 	s := account.NewStore(pool)
 	owner := register(t, "returned-"+uuid.NewString()+"@example.invalid")
 	ctx := user.NewContext(i18n.WithLocale(t.Context(), i18n.En), owner)

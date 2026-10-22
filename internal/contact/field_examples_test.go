@@ -11,11 +11,13 @@ import (
 	"github.com/koopa0/goen/internal/i18n"
 )
 
-// The address book's row of this test is internal/account's
-// TestAccountExamplesStayOutsideRefusedInputs, the find-order row is
-// internal/order/buyer's TestFindOrderExampleStaysOutsideRefusedInputs, and the
-// checkout's rows are internal/checkout's TestCheckoutExamplesStayOutsideRefusedInputs.
-func TestCustomerExamplesStayOutsideRefusedInputs(t *testing.T) {
+// TestContactExamplesStayOutsideRefusedInputs: the contact page's example text
+// stays outside its refused inputs. The address book's row of this test is
+// internal/account's TestAccountExamplesStayOutsideRefusedInputs, the
+// find-order row is internal/order/buyer's
+// TestFindOrderExampleStaysOutsideRefusedInputs, and the checkout's rows are
+// internal/checkout's TestCheckoutExamplesStayOutsideRefusedInputs.
+func TestContactExamplesStayOutsideRefusedInputs(t *testing.T) {
 	t.Parallel()
 	for _, locale := range i18n.Locales() {
 		for _, draft := range []struct{ value, refusal string }{{"", ""}, {"Submitted <& value", ""}, {"", "Refused"}, {"Submitted <& value", "Refused"}} {

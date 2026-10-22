@@ -16,7 +16,10 @@ import (
 	"github.com/koopa0/goen/internal/web/ratelimit"
 )
 
-func TestOrdersAreScopedToTheirOwner(t *testing.T) {
+// TestStore_OverviewOwnerScope: orders are scoped to their owner: the order
+// page answers a stranger 404 and the overview never lists another customer's
+// order.
+func TestStore_OverviewOwnerScope(t *testing.T) {
 	ctx := t.Context()
 	s := account.NewStore(pool)
 	mine := register(t, "mine@example.com")

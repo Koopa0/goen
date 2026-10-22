@@ -11,7 +11,9 @@ import (
 	"github.com/koopa0/goen/internal/web/formtext"
 )
 
-func TestUnreadableAddressRendersTheShopBeforeRouting(t *testing.T) {
+// TestHandler_BadRequestUnreadableAddress: an unreadable address renders the
+// shop's error page before routing.
+func TestHandler_BadRequestUnreadableAddress(t *testing.T) {
 	t.Parallel()
 	h := &Handler{log: slog.New(slog.DiscardHandler)}
 	for _, locale := range i18n.Locales() {

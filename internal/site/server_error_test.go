@@ -10,7 +10,8 @@ import (
 	"github.com/koopa0/goen/internal/i18n"
 )
 
-func TestServerErrorNamesItsHTTPStatus(t *testing.T) {
+// TestHandler_ServerErrorStatus: the server-error page names its HTTP status.
+func TestHandler_ServerErrorStatus(t *testing.T) {
 	t.Parallel()
 	for _, locale := range []i18n.Locale{i18n.ZhHant, i18n.En} {
 		t.Run(locale.Tag(), func(t *testing.T) {

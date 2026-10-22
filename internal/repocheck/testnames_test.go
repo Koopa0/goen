@@ -32,6 +32,7 @@ const maxTestNameLen = 40
 // fail them, so the guard cannot pass without looking.
 var migratedTestPackages = []string{
 	"assets",
+	"internal/account",
 	"internal/admin",
 	"internal/admin/audit",
 	"internal/admin/banners",
@@ -59,7 +60,9 @@ var migratedTestPackages = []string{
 	"internal/admin/tiers",
 	"internal/admin/twofactor",
 	"internal/admin/warranties",
+	"internal/backinstock",
 	"internal/bearer",
+	"internal/contact",
 	"internal/credit",
 	"internal/discount/campaign",
 	"internal/discount/coupon",
@@ -81,6 +84,7 @@ var migratedTestPackages = []string{
 	"internal/order/warranty",
 	"internal/outbox",
 	"internal/payment",
+	"internal/policy",
 	"internal/product",
 	"internal/product/copurchase",
 	"internal/product/inventory",
@@ -89,6 +93,7 @@ var migratedTestPackages = []string{
 	"internal/shipping/postcode",
 	"internal/shipping/storemap",
 	"internal/shoptime",
+	"internal/site",
 	"internal/ui/chart",
 	"internal/ui/fieldrule",
 	"internal/ui/frame",
@@ -108,6 +113,7 @@ var migratedTestPackages = []string{
 	"internal/web/requestid",
 	"internal/web/respond",
 	"internal/web/siteurl",
+	"internal/wishlist",
 }
 
 // testNameExceptions is the shrink-only allow list: for a listed package, each
@@ -178,6 +184,9 @@ var testNameExceptions = map[string]map[string]string{
 	"internal/admin/twofactor": {
 		"TestRecordTOTPStepConcurrent": "its unit is the SQL statement RecordTOTPStep (a sqlc query, declared in internal/db), driven directly through db.Queries from concurrent goroutines; Store.Verify is only the final check that the spent step is refused, because staggered Verify calls would hide a guard missing from the SQL",
 	},
+	"internal/backinstock": {
+		"TestSweepNotifiedStockNotificationsRetention": "the unit is the SQL function sweep_notified_stock_notifications, called straight through the maintenance pool with a zero and a negative retention; Store.Sweep is not what it exercises",
+	},
 	"internal/discount/campaign": {
 		"TestImage_URLHeaderKey":        "the unit is assets.Image.URL and Srcset of package assets, which resolve a campaign's header key as they resolve a product image; this package declares no identifier for it, and moving the test to assets is a reorganisation this pass does not do",
 		"TestSaleCampaignNeedsDiscount": "the unit is the sale_campaign_needs_discount trigger on sale_campaign_products, a SQL object the test provokes by featuring products through the pool, not a Go identifier",
@@ -246,6 +255,12 @@ var testNameExceptions = map[string]map[string]string{
 		"TestUninvoicedOrdersAmountFiled":    "the unit is health.Store.UninvoicedOrders of package health, which this package does not declare; the test lives here for the capture fixtures, and moving it is a reorganisation this pass does not do",
 		"TestUninvoicedOrdersLostDue":        "the unit is health.Store.UninvoicedOrders of package health, which this package does not declare; the test lives here for the capture and credit-funded fixtures, and moving it is a reorganisation this pass does not do",
 	},
+	"internal/policy": {
+		"TestFAQSeedHold":          "the unit is the stock-hold answer of the FAQ seed in seed/dev_catalog.sql, read as text; the package declares no identifier for it",
+		"TestFAQSeedInvoiceIssuer": "the unit is the invoice answer of the FAQ seed in seed/dev_catalog.sql, read as text and held against issuer.Gateway; the package declares no identifier for it",
+		"TestFAQSeedPayment":       "the unit is the payment answer of the FAQ seed in seed/dev_catalog.sql, read as text; the package declares no identifier for it",
+		"TestFAQSeedShopRules":     "the unit is the discount, registration and company-tax-ID answers of the FAQ seed in seed/dev_catalog.sql, read as text; the package declares no identifier for them",
+	},
 	"internal/product/copurchase": {
 		"TestRefreshCopurchasesOverlap": "its unit is the SQL function refresh_copurchases, called directly through the pool; Store.Refresh is not what it exercises",
 	},
@@ -256,11 +271,17 @@ var testNameExceptions = map[string]map[string]string{
 		"TestAmbientFormat":   "its unit is ambientFormat, a helper declared in the guard's test file, not part of the package",
 		"TestNoAmbientFormat": "a repository rule: no .Format( call outside this package renders a time in the process's zone; it reads every source file, and no function of the package is its unit",
 	},
+	"internal/site": {
+		"TestPathOrFallback": "the unit is siteurl.PathOr of package siteurl, called with this feature's own fallback; this package declares no identifier the test calls, and moving it is a reorganisation this pass does not do",
+	},
 	"internal/ui/frame": {
 		"TestDisclosuresWorkWithKeyboard": "its unit is the back office's content disclosures (the <details> behaviour of the desk stylesheet and goen.js), driven in a real browser by scripts/admin-disclosure-check.mjs against the health and twofactor pages; no identifier of this package declares them, and it uses frame.Page only as a fixture",
 	},
 	"internal/ui/icons": {
 		"TestLineIconsAreSizedByClass": "the unit is the family of line icons: it renders Close, CheckCircle and Smartphone as a sample, so naming it after one of them would claim that icon alone",
+	},
+	"internal/wishlist": {
+		"TestPathOrFallback": "the unit is siteurl.PathOr of package siteurl, called with this feature's own fallback; this package declares no identifier the test calls, and moving it is a reorganisation this pass does not do",
 	},
 }
 

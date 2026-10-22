@@ -86,7 +86,7 @@ func (h *Handler) DocPage(w http.ResponseWriter, r *http.Request) {
 
 // notFound is the shop's 404 page, as site.Handler.NotFound renders it. Only a
 // path routed to DocPage without a document reaches it, which
-// TestEveryPolicyRouteHasADocument refuses.
+// TestPoliciesRoutes refuses.
 func (h *Handler) notFound(w http.ResponseWriter, r *http.Request) {
 	respond.Component(w, r, h.log, http.StatusNotFound, frame.Notice(
 		frame.Page{Title: i18n.T(r.Context(), i18n.KeyPageNotFoundTitle)},

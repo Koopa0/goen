@@ -9,7 +9,9 @@ import (
 	"github.com/koopa0/goen/internal/ui/frame"
 )
 
-func TestPublicContactOmitsUnownedSocialDestinations(t *testing.T) {
+// TestContactOmitsUnownedChannels: the public contact page omits social
+// destinations goen does not own.
+func TestContactOmitsUnownedChannels(t *testing.T) {
 	for _, locale := range []i18n.Locale{i18n.ZhHant, i18n.En} {
 		t.Run(string(locale), func(t *testing.T) {
 			var out strings.Builder

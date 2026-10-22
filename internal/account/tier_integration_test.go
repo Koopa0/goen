@@ -12,7 +12,8 @@ import (
 	"github.com/koopa0/goen/internal/user"
 )
 
-func TestATierIsDerivedFromSpendAndNotStored(t *testing.T) {
+// TestStore_OverviewTierDerived: a tier is derived from spend and not stored.
+func TestStore_OverviewTierDerived(t *testing.T) {
 	ctx := t.Context()
 	s := account.NewStore(pool)
 	u := register(t, "tiered-account@example.com")
@@ -134,8 +135,10 @@ func committedOrderFor(t *testing.T, userID string, cents int64) uuid.UUID {
 	return orderID
 }
 
-// Driven through Overview, which is the query the account page actually reads.
-func TestTheMembershipBandReadsInTheVisitorsLanguage(t *testing.T) {
+// TestStore_OverviewBandLocale: the membership band reads in the visitor's
+// language. Driven through Overview, which is the query the account page
+// actually reads.
+func TestStore_OverviewBandLocale(t *testing.T) {
 	ctx := t.Context()
 	s := account.NewStore(pool)
 

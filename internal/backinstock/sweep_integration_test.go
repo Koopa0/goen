@@ -46,7 +46,9 @@ func alertExists(t *testing.T, id uuid.UUID) bool {
 	return n == 1
 }
 
-func TestTheRestockSweepDeletesOnlyAlertsNotifiedBeforeTheCutoff(t *testing.T) {
+// TestStore_SweepCutoff: the restock sweep deletes only the alerts notified
+// before the cutoff.
+func TestStore_SweepCutoff(t *testing.T) {
 	variant := aVariant(t)
 	retainDays := int(backinstock.NotifiedRetain.Hours() / 24)
 
@@ -76,8 +78,9 @@ func TestTheRestockSweepDeletesOnlyAlertsNotifiedBeforeTheCutoff(t *testing.T) {
 	}
 }
 
-// More notified alerts than one batch must all go in one Sweep call.
-func TestTheRestockSweepDrainsMoreThanOneBatch(t *testing.T) {
+// TestStore_SweepBatches: the restock sweep drains more than one batch in one
+// call. More notified alerts than one batch must all go in one Sweep call.
+func TestStore_SweepBatches(t *testing.T) {
 	const marker = "sweep-batch.example.com"
 	count := 2*backinstock.SweepBatch + 1
 	if _, err := pool.Exec(t.Context(), `
@@ -104,9 +107,11 @@ func TestTheRestockSweepDrainsMoreThanOneBatch(t *testing.T) {
 	}
 }
 
-// A zero or negative retention would put the cutoff at or after now; the
-// function refuses it rather than delete an alert whose notice went out a moment ago.
-func TestTheRestockSweepRefusesANonPositiveRetention(t *testing.T) {
+// TestSweepNotifiedStockNotificationsRetention: the restock sweep refuses a
+// non-positive retention. A zero or negative retention would put the cutoff at
+// or after now; the function refuses it rather than delete an alert whose
+// notice went out a moment ago.
+func TestSweepNotifiedStockNotificationsRetention(t *testing.T) {
 	just := alertAt(t, aVariant(t), 0)
 	for _, retain := range []string{"0 seconds", "-1 day"} {
 		_, err := maintenancePool(t).Exec(t.Context(),

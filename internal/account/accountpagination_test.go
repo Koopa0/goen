@@ -8,7 +8,9 @@ import (
 	"github.com/koopa0/goen/internal/keyset"
 )
 
-func TestEmptyOlderOrdersPageOffersLatestOrders(t *testing.T) {
+// TestAccountEmptyOlderOrdersPage: an empty older orders page offers the latest
+// orders and does not claim the customer never ordered.
+func TestAccountEmptyOlderOrdersPage(t *testing.T) {
 	t.Parallel()
 	ctx := i18n.WithLocale(t.Context(), i18n.En)
 	body := renderComponent(t, ctx, Account(Meta(ctx), &View{OrdersBound: keyset.Bound{PastEnd: true, First: "/account#orders-heading"}}))
@@ -20,7 +22,9 @@ func TestEmptyOlderOrdersPageOffersLatestOrders(t *testing.T) {
 	}
 }
 
-func TestAnEmptyFirstOrdersPageStillSaysNoOrdersYet(t *testing.T) {
+// TestAccountEmptyFirstOrdersPage: an empty first orders page still says there
+// are no orders yet.
+func TestAccountEmptyFirstOrdersPage(t *testing.T) {
 	t.Parallel()
 	ctx := i18n.WithLocale(t.Context(), i18n.En)
 	body := renderComponent(t, ctx, Account(Meta(ctx), &View{}))

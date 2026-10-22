@@ -26,10 +26,11 @@ var testRules = Rules{
 	RescissionDays: 8, ReturnDays: 15, HoldMinutes: 61, PayStartMinutes: 28,
 }
 
-// The four rules are read from where goen keeps them, in both languages; the
-// free-delivery threshold is the shop's own figure, and a shop whose methods
-// never turn free states none.
-func TestShopRulesStateTheStoredRules(t *testing.T) {
+// TestRulesSectionStoredRules: the shop rules section states the stored rules
+// in both languages. The four rules are read from where goen keeps them, in
+// both languages; the free-delivery threshold is the shop's own figure, and a
+// shop whose methods never turn free states none.
+func TestRulesSectionStoredRules(t *testing.T) {
 	t.Parallel()
 	for _, locale := range []i18n.Locale{i18n.ZhHant, i18n.En} {
 		page := renderIn(t, locale, RulesSection(testRules))
@@ -57,7 +58,9 @@ func TestShopRulesStateTheStoredRules(t *testing.T) {
 	}
 }
 
-func TestShopRulesOmitFreeDeliveryWhereNoMethodTurnsFree(t *testing.T) {
+// TestRulesSectionNoFreeDelivery: the shop rules omit free delivery where no
+// method turns free.
+func TestRulesSectionNoFreeDelivery(t *testing.T) {
 	t.Parallel()
 	page := renderIn(t, i18n.ZhHant, RulesSection(Rules{}))
 	if n := strings.Count(page, "<dt>"); n != 3 {
@@ -68,7 +71,9 @@ func TestShopRulesOmitFreeDeliveryWhereNoMethodTurnsFree(t *testing.T) {
 	}
 }
 
-func TestShopRulesNamePickupOnlyWhereItIsOffered(t *testing.T) {
+// TestRules_StatsPickupNote: the shop rules name pickup only where it is
+// offered.
+func TestRules_StatsPickupNote(t *testing.T) {
 	t.Parallel()
 	for _, locale := range []i18n.Locale{i18n.ZhHant, i18n.En} {
 		ctx := i18n.WithLocale(t.Context(), locale)

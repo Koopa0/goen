@@ -25,15 +25,21 @@ import (
 	"github.com/koopa0/goen/internal/user"
 )
 
-func TestConcurrentDefaultAddressSelectionsBothSave(t *testing.T) {
+// TestHandler_MakeDefaultAddressRace: two concurrent default-address selections
+// both save.
+func TestHandler_MakeDefaultAddressRace(t *testing.T) {
 	runDefaultAddressRace(t, addressSelection, addressSelection)
 }
 
-func TestConcurrentDefaultAddressAdditionAndSelectionBothSave(t *testing.T) {
+// TestHandler_AddAddressMakeDefaultRace: a concurrent default-address addition
+// and selection both save.
+func TestHandler_AddAddressMakeDefaultRace(t *testing.T) {
 	runDefaultAddressRace(t, addressAddition, addressSelection)
 }
 
-func TestConcurrentDefaultAddressAdditionsBothSave(t *testing.T) {
+// TestHandler_AddAddressRace: two concurrent default-address additions both
+// save.
+func TestHandler_AddAddressRace(t *testing.T) {
 	runDefaultAddressRace(t, addressAddition, addressAddition)
 }
 
@@ -227,7 +233,9 @@ func assertDefaultAddressSaved(t *testing.T, ctx context.Context, done <-chan *h
 	}
 }
 
-func TestDefaultAddressWritesRefuseMissingAccounts(t *testing.T) {
+// TestStore_AddAddressMissingAccount: default-address writes refuse a missing
+// account (AddAddress and MakeDefaultAddress are both read).
+func TestStore_AddAddressMissingAccount(t *testing.T) {
 	s := account.NewStore(pool)
 	a := &account.Address{Name: "Recipient", Phone: "0912345678", PostalCode: "110", City: "Taipei", District: "Xinyi", Street: "1 Test Road", Default: true}
 	err := s.AddAddress(t.Context(), uuid.NewString(), a)

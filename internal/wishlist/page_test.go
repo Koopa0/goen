@@ -12,10 +12,10 @@ import (
 	"github.com/koopa0/goen/internal/ui/tile"
 )
 
-// TestEachSavedProductIsOneWishlistListItem holds the wishlist grid against
-// nested list items. tile.Cell emits li.goen-tile__cell; wrapping @tile.Cell in another
-// li leaves an empty outer item and parks the remove form as a direct ul child.
-func TestEachSavedProductIsOneWishlistListItem(t *testing.T) {
+// TestPageListItems holds the wishlist grid against nested list items.
+// tile.Cell emits li.goen-tile__cell; wrapping @tile.Cell in another li leaves
+// an empty outer item and parks the remove form as a direct ul child.
+func TestPageListItems(t *testing.T) {
 	t.Parallel()
 
 	view := View{
@@ -167,9 +167,9 @@ func attrValue(n *html.Node, key string) string {
 	return ""
 }
 
-// TestAWishlistRowBuysOrSendsToTheProductAndStatesOnlySoldOut: the page that
-// holds what somebody means to buy must let them, and say only when they cannot.
-func TestAWishlistRowBuysOrSendsToTheProductAndStatesOnlySoldOut(t *testing.T) {
+// TestPageRowActions: the page that holds what somebody means to buy must let
+// them, and say only when they cannot.
+func TestPageRowActions(t *testing.T) {
 	t.Parallel()
 
 	const variant = "7f0b6a3e-2c1d-4e5f-8a9b-0c1d2e3f4a5b"
@@ -222,9 +222,9 @@ func TestAWishlistRowBuysOrSendsToTheProductAndStatesOnlySoldOut(t *testing.T) {
 	}
 }
 
-// TestRemovingFromTheWishlistSwapsThePageInPlaceAndStillPosts: script keeps the
-// page where it is; without it the same form posts and redirects.
-func TestRemovingFromTheWishlistSwapsThePageInPlaceAndStillPosts(t *testing.T) {
+// TestPageRemoveForm: script keeps the page where it is; without it the same
+// form posts and redirects.
+func TestPageRemoveForm(t *testing.T) {
 	t.Parallel()
 
 	items := wishlistGrid(t, parseWishlistHTML(t, View{Products: []Item{{Tile: tile.Tile{Slug: "a", Name: "A", InStock: true}}}}))
@@ -251,7 +251,9 @@ func nodeText(n *html.Node) string {
 	return b.String()
 }
 
-func TestAddingFromTheWishlistStaysOnItAndSaysWhatHappened(t *testing.T) {
+// TestPageAddOutcome: adding from the wishlist stays on it and says what
+// happened.
+func TestPageAddOutcome(t *testing.T) {
 	t.Parallel()
 	saved := Item{Tile: tile.Tile{Slug: "mug", Name: "Mug", PriceCents: 100, InStock: true}, SoleVariantID: "v1"}
 	for _, tc := range []struct {
@@ -278,7 +280,8 @@ func TestAddingFromTheWishlistStaysOnItAndSaysWhatHappened(t *testing.T) {
 	}
 }
 
-func TestNoSavedProductOffersAPrimaryButton(t *testing.T) {
+// TestPageNoPrimaryButton: no saved product offers a primary button.
+func TestPageNoPrimaryButton(t *testing.T) {
 	t.Parallel()
 
 	view := View{Products: []Item{

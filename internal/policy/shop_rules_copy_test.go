@@ -19,7 +19,9 @@ func policyBody(t *testing.T, page string, locale i18n.Locale, heading string) s
 	return ""
 }
 
-func TestPaymentPolicySaysDiscountCodesStackWithSales(t *testing.T) {
+// TestPoliciesPaymentDiscountStack: the payment policy says discount codes
+// stack with sales.
+func TestPoliciesPaymentDiscountStack(t *testing.T) {
 	t.Parallel()
 	zh := policyBody(t, "payment", i18n.ZhHant, "折扣碼")
 	en := policyBody(t, "payment", i18n.En, "Discount codes")
@@ -35,7 +37,9 @@ func TestPaymentPolicySaysDiscountCodesStackWithSales(t *testing.T) {
 	}
 }
 
-func TestTermsSayPointsExpireButRedeemedCreditDoesNot(t *testing.T) {
+// TestPoliciesTermsPointsExpiry: the terms say points expire but redeemed
+// credit does not.
+func TestPoliciesTermsPointsExpiry(t *testing.T) {
 	t.Parallel()
 	zh := policyBody(t, "terms", i18n.ZhHant, "點數與購物金")
 	en := policyBody(t, "terms", i18n.En, "Points and store credit")
@@ -47,9 +51,11 @@ func TestTermsSayPointsExpireButRedeemedCreditDoesNot(t *testing.T) {
 	}
 }
 
-// return_goods_refundable_amount takes the returned goods' share of the order
-// discount off the refund; a reader of either language is promised the same sum.
-func TestReturnsRefundTakesOffTheDiscountShareInBothLanguages(t *testing.T) {
+// TestPoliciesReturnsDiscountShare: the returns policy says the refund takes
+// off the discount share, in both languages. return_goods_refundable_amount
+// takes the returned goods' share of the order discount off the refund; a
+// reader of either language is promised the same sum.
+func TestPoliciesReturnsDiscountShare(t *testing.T) {
 	t.Parallel()
 	zh := policyBody(t, "returns", i18n.ZhHant, "退款")
 	en := policyBody(t, "returns", i18n.En, "Refunds")
@@ -61,9 +67,11 @@ func TestReturnsRefundTakesOffTheDiscountShareInBothLanguages(t *testing.T) {
 	}
 }
 
-// open_unsent_refund refunds what a partly shipped order cannot send by the
-// same arithmetic, without a fee, and the rest still ships (#1965).
-func TestReturnsRefundCoversWhatCannotBeSentInBothLanguages(t *testing.T) {
+// TestPoliciesReturnsUnsentRefund: the returns policy says what is refunded for
+// goods that cannot be sent, in both languages. open_unsent_refund refunds what
+// a partly shipped order cannot send by the same arithmetic, without a fee, and
+// the rest still ships (#1965).
+func TestPoliciesReturnsUnsentRefund(t *testing.T) {
 	t.Parallel()
 	zh := policyBody(t, "returns", i18n.ZhHant, "退款")
 	en := policyBody(t, "returns", i18n.En, "Refunds")
@@ -75,7 +83,9 @@ func TestReturnsRefundCoversWhatCannotBeSentInBothLanguages(t *testing.T) {
 	}
 }
 
-func TestWarrantyCollectionDependsOnHowTheOrderWasDelivered(t *testing.T) {
+// TestPoliciesWarrantyCollection: the warranty policy's collection terms depend
+// on how the order was delivered.
+func TestPoliciesWarrantyCollection(t *testing.T) {
 	t.Parallel()
 	zh := policyBody(t, "warranty", i18n.ZhHant, "怎麼送修")
 	en := policyBody(t, "warranty", i18n.En, "Sending something in")
@@ -99,7 +109,8 @@ func TestWarrantyCollectionDependsOnHowTheOrderWasDelivered(t *testing.T) {
 	}
 }
 
-func TestShopRulesFAQSeedStatesTheRules(t *testing.T) {
+// TestFAQSeedShopRules: the FAQ seed states the shop's rules.
+func TestFAQSeedShopRules(t *testing.T) {
 	t.Parallel()
 	seed, err := os.ReadFile("../../seed/dev_catalog.sql")
 	if err != nil {

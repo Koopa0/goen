@@ -11,7 +11,9 @@ import (
 // The checkout applies available credit on its own; no copy may promise a choice.
 var creditChoicePhrases = []string{"選擇使用", "選擇是否使用", "choose to use", "choose to apply", "choose whether to apply"}
 
-func TestPaymentExplainsCreditAndDiscountsSeparately(t *testing.T) {
+// TestPoliciesPaymentSections: the payment policy explains cards, store credit
+// and discount codes separately.
+func TestPoliciesPaymentSections(t *testing.T) {
 	for _, locale := range []i18n.Locale{i18n.ZhHant, i18n.En} {
 		doc := policies["payment"].For(locale, testWindows)
 		want := map[string][]string{"信用卡": {"Stripe", "不會儲存"}, "購物金": {"登入", "可用", "自動", "不足", "信用卡"}, "折扣碼": {"價格折抵", "不是付款方式"}}
@@ -41,7 +43,8 @@ func TestPaymentExplainsCreditAndDiscountsSeparately(t *testing.T) {
 	}
 }
 
-func TestPaymentFAQSeedExplainsTheChoices(t *testing.T) {
+// TestFAQSeedPayment: the payment FAQ seed explains the payment choices.
+func TestFAQSeedPayment(t *testing.T) {
 	seed, err := os.ReadFile("../../seed/dev_catalog.sql")
 	if err != nil {
 		t.Fatal(err)
@@ -65,7 +68,8 @@ func TestPaymentFAQSeedExplainsTheChoices(t *testing.T) {
 	}
 }
 
-func TestHoldFAQSeedStatesTheDeadline(t *testing.T) {
+// TestFAQSeedHold: the stock-hold FAQ seed states the deadline.
+func TestFAQSeedHold(t *testing.T) {
 	seed, err := os.ReadFile("../../seed/dev_catalog.sql")
 	if err != nil {
 		t.Fatal(err)

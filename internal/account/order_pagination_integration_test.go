@@ -18,7 +18,9 @@ import (
 	"github.com/koopa0/goen/internal/user"
 )
 
-func TestAccountOrdersReachEveryOlderOrderWithoutJavaScript(t *testing.T) {
+// TestHandler_OverviewPagination: every older order is reachable from the
+// account overview through plain links, without JavaScript.
+func TestHandler_OverviewPagination(t *testing.T) {
 	s := account.NewStore(pool)
 	owner := register(t, "paged-"+uuid.NewString()+"@example.invalid")
 	other := register(t, "other-paged-"+uuid.NewString()+"@example.invalid")

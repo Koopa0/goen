@@ -10,10 +10,10 @@ import (
 	"github.com/koopa0/goen/internal/wishlist"
 )
 
-// TestAWishlistIsItsOwnersAlone: a saved list is personal data, so one
-// customer's list never shows another's products, and removing a product
-// takes it off the remover's list only.
-func TestAWishlistIsItsOwnersAlone(t *testing.T) {
+// TestStore_ItemsRemoveOwnerScope: a saved list is personal data, so one
+// customer's list never shows another's products, and removing a product takes
+// it off the remover's list only.
+func TestStore_ItemsRemoveOwnerScope(t *testing.T) {
 	ctx := t.Context()
 	s := wishlist.NewStore(pool)
 	alice := register(t, "wish-alice-"+uuid.NewString()+"@example.com")

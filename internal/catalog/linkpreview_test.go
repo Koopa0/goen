@@ -9,7 +9,7 @@ import (
 	"github.com/koopa0/goen/internal/ui/widget"
 )
 
-// From TestEveryPageKindSendsItsOwnLinkPreviewTags, which keeps the other pages' rows;
+// From TestMetaLinkPreviewTags, which keeps the other pages' rows;
 // the campaign's row is internal/discount/campaign's TestMetaLinkPreview.
 func TestCatalogPagesSendTheirOwnLinkPreviewTags(t *testing.T) {
 	t.Parallel()

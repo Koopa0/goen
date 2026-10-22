@@ -86,7 +86,9 @@ func postForm(t *testing.T, h *contact.Handler, form url.Values, htmx bool) *htt
 	return res
 }
 
-func TestSubmitPlainFormRedirects(t *testing.T) {
+// TestHandler_SubmitPlainRedirect: a plain form submission stores the message
+// and redirects to the acknowledgement.
+func TestHandler_SubmitPlainRedirect(t *testing.T) {
 	h := handler(t)
 	res := postForm(t, h, validForm(), false)
 
@@ -112,7 +114,9 @@ func TestSubmitPlainFormRedirects(t *testing.T) {
 	}
 }
 
-func TestSubmitNormalisesBeforeStoring(t *testing.T) {
+// TestHandler_SubmitNormalises: a submission is normalised (email folded and
+// trimmed, name trimmed) before it is stored.
+func TestHandler_SubmitNormalises(t *testing.T) {
 	h := handler(t)
 	form := validForm()
 	form.Set("email", "  Me@Example.COM  ")
@@ -132,7 +136,9 @@ func TestSubmitNormalisesBeforeStoring(t *testing.T) {
 	}
 }
 
-func TestSubmitOmittedOrderRefIsNull(t *testing.T) {
+// TestHandler_SubmitOmittedOrderRef: a submission with an omitted order
+// reference stores NULL, not an empty string.
+func TestHandler_SubmitOmittedOrderRef(t *testing.T) {
 	h := handler(t)
 	form := validForm()
 	form.Set("order_ref", "")
@@ -148,7 +154,9 @@ func TestSubmitOmittedOrderRefIsNull(t *testing.T) {
 	}
 }
 
-func TestSubmitHTMXReturnsPanel(t *testing.T) {
+// TestHandler_SubmitHTMXPanel: an htmx submission returns the panel only,
+// without redirecting.
+func TestHandler_SubmitHTMXPanel(t *testing.T) {
 	h := handler(t)
 	res := postForm(t, h, validForm(), true)
 
@@ -170,7 +178,9 @@ func TestSubmitHTMXReturnsPanel(t *testing.T) {
 	}
 }
 
-func TestSubmitRejectsInvalidWithoutStoring(t *testing.T) {
+// TestHandler_SubmitInvalid: an invalid submission is rejected without storing
+// anything.
+func TestHandler_SubmitInvalid(t *testing.T) {
 	h := handler(t)
 	form := validForm()
 	form.Set("name", "")
@@ -195,7 +205,9 @@ func TestSubmitRejectsInvalidWithoutStoring(t *testing.T) {
 	}
 }
 
-func TestSubmitInvalidHTMXStillReturnsPanel(t *testing.T) {
+// TestHandler_SubmitInvalidHTMX: an invalid htmx submission still returns the
+// panel.
+func TestHandler_SubmitInvalidHTMX(t *testing.T) {
 	h := handler(t)
 	form := validForm()
 	form.Set("message", "")
@@ -212,7 +224,9 @@ func TestSubmitInvalidHTMXStillReturnsPanel(t *testing.T) {
 	}
 }
 
-func TestPageShowsFormAndOfferedSubjects(t *testing.T) {
+// TestHandler_PageForm: the contact page shows the form and the offered
+// subjects.
+func TestHandler_PageForm(t *testing.T) {
 	h := handler(t)
 	req := httptest.NewRequestWithContext(t.Context(), http.MethodGet, "/contact", http.NoBody)
 	res := httptest.NewRecorder()
@@ -233,7 +247,9 @@ func TestPageShowsFormAndOfferedSubjects(t *testing.T) {
 	}
 }
 
-func TestPageShowsAcknowledgementAfterRedirect(t *testing.T) {
+// TestHandler_PageSent: the contact page shows the acknowledgement after the
+// redirect.
+func TestHandler_PageSent(t *testing.T) {
 	h := handler(t)
 	req := httptest.NewRequestWithContext(t.Context(), http.MethodGet, "/contact?sent=1", http.NoBody)
 	res := httptest.NewRecorder()

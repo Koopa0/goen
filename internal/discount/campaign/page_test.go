@@ -73,7 +73,7 @@ func TestPageEmptyIllustration(t *testing.T) {
 }
 
 // TestMetaLinkPreview: the campaign page sends its own link-preview tags. From
-// TestEveryPageKindSendsItsOwnLinkPreviewTags, which keeps the other pages'
+// TestMetaLinkPreviewTags, which keeps the other pages'
 // rows.
 func TestMetaLinkPreview(t *testing.T) {
 	t.Parallel()

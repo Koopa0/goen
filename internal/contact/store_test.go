@@ -7,7 +7,9 @@ import (
 	"github.com/jackc/pgx/v5/pgconn"
 )
 
-func TestDuplicateClassificationStaysInsideTheStoreBoundary(t *testing.T) {
+// TestWrapDuplicate: a duplicate write is classified inside the store boundary:
+// wrap turns the dedupe constraint into the private errDuplicate.
+func TestWrapDuplicate(t *testing.T) {
 	err := wrap("create contact message", &pgconn.PgError{
 		Code: "23505", ConstraintName: "contact_messages_dedupe_key",
 	})

@@ -14,7 +14,9 @@ import (
 // instead of stating these would show.
 var testWindows = CheckoutWindows{HoldMinutes: 61, PayStartMinutes: 28}
 
-func TestPolicyPaymentDeadlines(t *testing.T) {
+// TestDocPagePaymentDeadlines: the payment policy page states the checkout
+// deadlines.
+func TestDocPagePaymentDeadlines(t *testing.T) {
 	t.Parallel()
 	for _, tc := range []struct {
 		locale i18n.Locale
@@ -38,7 +40,9 @@ func TestPolicyPaymentDeadlines(t *testing.T) {
 	}
 }
 
-func TestShippingPolicyDeadlinesAndSurcharge(t *testing.T) {
+// TestShippingDeadlinesSurcharge: the shipping policy page states the payment
+// deadlines and a surcharge that is charged even when delivery is free.
+func TestShippingDeadlinesSurcharge(t *testing.T) {
 	t.Parallel()
 	for _, tc := range []struct {
 		locale           i18n.Locale
@@ -70,7 +74,9 @@ func TestShippingPolicyDeadlinesAndSurcharge(t *testing.T) {
 	}
 }
 
-func TestWarrantyRegistrationNamesTheOrderPage(t *testing.T) {
+// TestDocPageWarrantyRegistration: the warranty policy page says registration
+// happens on the order page.
+func TestDocPageWarrantyRegistration(t *testing.T) {
 	t.Parallel()
 	for _, tc := range []struct {
 		locale i18n.Locale

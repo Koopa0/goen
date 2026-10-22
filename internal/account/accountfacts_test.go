@@ -10,7 +10,9 @@ import (
 	"github.com/koopa0/goen/internal/shoptime"
 )
 
-func TestAccountOrderRowLastDayOnlyWhenOneDayHolds(t *testing.T) {
+// TestAccountOrderLastDay: an order row in the account list shows a last day
+// only when one day holds for the whole order.
+func TestAccountOrderLastDay(t *testing.T) {
 	t.Parallel()
 	ctx := i18n.WithLocale(t.Context(), i18n.ZhHant)
 	placed := shoptime.Date{Year: 2026, Month: time.October, Day: 1}
