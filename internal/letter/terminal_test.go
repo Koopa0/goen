@@ -9,7 +9,10 @@ import (
 	"github.com/koopa0/goen/internal/outbox"
 )
 
-func TestTerminalNoticesDistinguishActorAndReceiptInBothLanguages(t *testing.T) {
+// TestNotifier_SendOrderTerminalKinds: terminal notices distinguish who acted
+// and what happened for each kind in both languages, and do not promise a
+// refund that was not made.
+func TestNotifier_SendOrderTerminalKinds(t *testing.T) {
 	t.Parallel()
 	cases := []struct {
 		kind   outbox.TerminalKind
@@ -44,11 +47,13 @@ func TestTerminalNoticesDistinguishActorAndReceiptInBothLanguages(t *testing.T) 
 	}
 }
 
+// TestNotifier_SendOrderTerminalNoCharge: a cancellation says nothing was
+// charged only when no money arrived.
+//
 // An unpaid order can still have had money reach Stripe after its hold lapsed.
-// Its cancellation must say that money comes back, and must not say nothing
-// was charged; without that money it says nothing was charged and names no
-// refund.
-func TestACancellationSaysNothingWasChargedOnlyWhenNoMoneyArrived(t *testing.T) {
+// Its cancellation must say that money comes back, and must not say nothing was
+// charged; without that money it says nothing was charged and names no refund.
+func TestNotifier_SendOrderTerminalNoCharge(t *testing.T) {
 	t.Parallel()
 	noCharge := map[string][]string{"en": {"not charged", "Nothing was charged"}, "zh-Hant": {"尚未收款", "沒有收取任何款項"}}
 	refund := map[string]string{"en": "refunded in full", "zh-Hant": "全額退還"}
@@ -75,10 +80,13 @@ func TestACancellationSaysNothingWasChargedOnlyWhenNoMoneyArrived(t *testing.T) 
 	}
 }
 
+// TestNotifier_SendOrderTerminalReturnDay: the arrival mail states the last day
+// to return.
+//
 // The delivery and collection mails state the last day of the statutory right
 // of return when the order has a delivered parcel, and no day when it has not.
 // The year is 2099 so the day is never in the shop's current year.
-func TestTheArrivalMailStatesTheLastDayToReturn(t *testing.T) {
+func TestNotifier_SendOrderTerminalReturnDay(t *testing.T) {
 	t.Parallel()
 	day := time.Date(2099, 10, 9, 4, 0, 0, 0, time.UTC)
 	want := map[string]string{"zh-Hant": "2099\u00a0年 10\u00a0月 9\u00a0日", "en": "Oct\u00a09, 2099"}
@@ -107,9 +115,12 @@ func TestTheArrivalMailStatesTheLastDayToReturn(t *testing.T) {
 	}
 }
 
+// TestNotifier_SendOrderTerminalNoReturnDay: a cancellation mail says nothing
+// of the right to return.
+//
 // A payment-deadline cancellation carries no rescission sentence, whatever day
 // the recipient holds.
-func TestACancellationMailSaysNothingOfTheRightToReturn(t *testing.T) {
+func TestNotifier_SendOrderTerminalNoReturnDay(t *testing.T) {
 	t.Parallel()
 	for _, locale := range []string{"en", "zh-Hant"} {
 		n, sink := notifier(t)
@@ -126,9 +137,12 @@ func TestACancellationMailSaysNothingOfTheRightToReturn(t *testing.T) {
 	}
 }
 
+// TestNotifier_SendOrderTerminalArrivalSubject: the arrival subject says what
+// happened.
+//
 // A delivered or collected order's subject says which, in both languages: the
 // words "receipt" and "update" read like a payment receipt.
-func TestTheArrivalSubjectSaysWhatHappened(t *testing.T) {
+func TestNotifier_SendOrderTerminalArrivalSubject(t *testing.T) {
 	t.Parallel()
 	for _, tt := range []struct {
 		kind   outbox.TerminalKind
@@ -151,9 +165,12 @@ func TestTheArrivalSubjectSaysWhatHappened(t *testing.T) {
 	}
 }
 
+// TestNotifier_SendOrderTerminalStoreCredit: a cancellation mentions store
+// credit only as a conditional.
+//
 // Store credit is returned only to someone who applied it, so a cancellation
 // may not claim it was, in either language.
-func TestACancellationMentionsStoreCreditOnlyAsAConditional(t *testing.T) {
+func TestNotifier_SendOrderTerminalStoreCredit(t *testing.T) {
 	t.Parallel()
 	for _, kind := range []outbox.TerminalKind{outbox.TerminalCancelledByCustomer, outbox.TerminalCancelledByPaymentDeadline} {
 		for _, refunded := range []bool{false, true} {
@@ -178,9 +195,12 @@ func TestACancellationMentionsStoreCreditOnlyAsAConditional(t *testing.T) {
 	}
 }
 
-// A shop cancellation that returned money says so; one that returned none
-// sends the reader to the order page and promises nothing.
-func TestAShopCancellationNamesTheRefundOnlyWhenOneWasMade(t *testing.T) {
+// TestNotifier_SendOrderTerminalShopRefund: a shop cancellation names the
+// refund only when one was made.
+//
+// A shop cancellation that returned money says so; one that returned none sends
+// the reader to the order page and promises nothing.
+func TestNotifier_SendOrderTerminalShopRefund(t *testing.T) {
 	t.Parallel()
 	for _, refunded := range []bool{false, true} {
 		for _, locale := range []string{"en", "zh-Hant"} {

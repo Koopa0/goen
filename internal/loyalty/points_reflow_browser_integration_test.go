@@ -14,7 +14,9 @@ import (
 	"github.com/koopa0/goen/internal/ui/uitest"
 )
 
-func TestPointsRedemptionButtonReflowsAtDoubleText(t *testing.T) {
+// TestPointsRedemptionButtonReflows: the points redemption button reflows at
+// double text size.
+func TestPointsRedemptionButtonReflows(t *testing.T) {
 	chrome := uitest.LocalChrome(t)
 	fixtures := make(map[string]string)
 	for _, locale := range []i18n.Locale{i18n.ZhHant, i18n.En} {

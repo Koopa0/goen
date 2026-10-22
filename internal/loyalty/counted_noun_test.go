@@ -9,7 +9,9 @@ import (
 	"github.com/koopa0/goen/internal/ui/frame"
 )
 
-func TestPointsCountsSelectSingularAtTheirConsumers(t *testing.T) {
+// TestPointsViewSingularCounts: a points count of one selects the singular at
+// each place that renders it.
+func TestPointsViewSingularCounts(t *testing.T) {
 	t.Parallel()
 	for _, locale := range []i18n.Locale{i18n.En, i18n.ZhHant} {
 		for _, n := range []int64{1, 2} {

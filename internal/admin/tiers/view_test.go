@@ -184,7 +184,7 @@ func TestTiersMultiplierColumn(t *testing.T) {
 }
 
 // TestTier_Multiplier: tier multipliers retain basis-point precision.
-// From TestMembershipMultipliersRetainBasisPointPrecision (the "staff" format).
+// From TestMemberStanding_MultiplierPrecision (the "staff" format).
 func TestTier_Multiplier(t *testing.T) {
 	t.Parallel()
 	tests := []struct {

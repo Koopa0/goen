@@ -14,7 +14,9 @@ import (
 	"github.com/koopa0/goen/internal/i18n"
 )
 
-func TestRedemptionConfirmationIsBoundToItsConfirmedResultAndOwner(t *testing.T) {
+// TestReadRedemptionConfirmationBinding: a redemption confirmation is bound to
+// its confirmed result and owner, and holds only for its key and its age.
+func TestReadRedemptionConfirmationBinding(t *testing.T) {
 	t.Parallel()
 	const key = "result-test-key"
 	const owner = "a7e579d0-16ed-4994-bc10-b6c8324ecdf7"
@@ -64,7 +66,10 @@ func TestRedemptionConfirmationIsBoundToItsConfirmedResultAndOwner(t *testing.T)
 	}
 }
 
-func TestConfirmedRedemptionNoticeNamesItsPointsAndActualCredit(t *testing.T) {
+// TestHandler_NoticeForConfirmed: a confirmed redemption notice names its
+// points and the credit actually posted, and asserts nothing for another owner
+// or a rotated key.
+func TestHandler_NoticeForConfirmed(t *testing.T) {
 	t.Parallel()
 	const owner = "a7e579d0-16ed-4994-bc10-b6c8324ecdf7"
 	h := &Handler{confirmationKey: "notice-test-key"}
@@ -94,7 +99,9 @@ func TestConfirmedRedemptionNoticeNamesItsPointsAndActualCredit(t *testing.T) {
 	}
 }
 
-func TestRedemptionConfirmationRefusesInvalidConfirmedShapes(t *testing.T) {
+// TestReadRedemptionConfirmationShapes: a redemption confirmation with an
+// invalid confirmed shape is refused.
+func TestReadRedemptionConfirmationShapes(t *testing.T) {
 	t.Parallel()
 	now := time.Unix(1_791_416_400, 0)
 	base := redemptionConfirmation{OperationID: uuid.MustParse("240cc90f-2f42-485c-9cf5-52d21ba4bf75"), Points: 100, CreditCents: 1000, IssuedAt: now.Unix()}

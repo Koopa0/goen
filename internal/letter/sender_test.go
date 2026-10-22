@@ -17,9 +17,11 @@ import (
 	"github.com/koopa0/goen/internal/outbox"
 )
 
-// TestTheEnvelopeSenderIsABareAddress asserts on envelopeFrom, because the only
-// live form of MAIL FROM is inside a required STARTTLS session.
-func TestTheEnvelopeSenderIsABareAddress(t *testing.T) {
+// TestEnvelopeFrom: the envelope sender is a bare address.
+//
+// TestEnvelopeFrom asserts on envelopeFrom, because the only live form of MAIL
+// FROM is inside a required STARTTLS session.
+func TestEnvelopeFrom(t *testing.T) {
 	t.Parallel()
 
 	tests := []struct {
@@ -70,9 +72,10 @@ func TestTheEnvelopeSenderIsABareAddress(t *testing.T) {
 	}
 }
 
-// TestTheFromHeaderKeepsItsDisplayName: the envelope wants a bare address and
-// the header wants the readable form.
-func TestTheFromHeaderKeepsItsDisplayName(t *testing.T) {
+// TestRenderFromDisplayName: the From header keeps its display name.
+//
+// The envelope wants a bare address and the header wants the readable form.
+func TestRenderFromDisplayName(t *testing.T) {
 	t.Parallel()
 
 	const from = "goen <no-reply@goen.example>"
@@ -83,10 +86,12 @@ func TestTheFromHeaderKeepsItsDisplayName(t *testing.T) {
 	}
 }
 
-// TestAMessageCarriesItsDateAndAUniqueMessageID: RFC 5322 requires Date, and the
-// confirmation is a record the consumer keeps; Message-ID is how a receiver
-// threads and de-duplicates.
-func TestAMessageCarriesItsDateAndAUniqueMessageID(t *testing.T) {
+// TestRenderDateAndMessageID: a message carries its date and a unique
+// Message-ID.
+//
+// RFC 5322 requires Date, and the confirmation is a record the consumer keeps;
+// Message-ID is how a receiver threads and de-duplicates.
+func TestRenderDateAndMessageID(t *testing.T) {
 	t.Parallel()
 
 	read := func(m *Message) *mail.Message {
@@ -119,10 +124,12 @@ func TestAMessageCarriesItsDateAndAUniqueMessageID(t *testing.T) {
 	}
 }
 
-// TestEveryLineOfAMessageEndsInCRLF: a body can carry any mix of line breaks —
-// a shop's own text, a customer's note — and the wire must carry exactly one
-// kind, or two servers on the way can read different line ends out of it.
-func TestEveryLineOfAMessageEndsInCRLF(t *testing.T) {
+// TestRenderCRLF: every line of a message ends in CRLF.
+//
+// A body can carry any mix of line breaks — a shop's own text, a customer's
+// note — and the wire must carry exactly one kind, or two servers on the way
+// can read different line ends out of it.
+func TestRenderCRLF(t *testing.T) {
 	t.Parallel()
 
 	body := "first\rsecond\r\nthird\nfourth\r\r\nfifth\n\rsixth\r"
@@ -152,7 +159,9 @@ func TestEveryLineOfAMessageEndsInCRLF(t *testing.T) {
 	}
 }
 
-func TestASenderWithAnUnusableFromNeverOpensASocket(t *testing.T) {
+// TestSMTPSender_SendUnusableFrom: a sender with an unusable From never opens a
+// socket.
+func TestSMTPSender_SendUnusableFrom(t *testing.T) {
 	t.Parallel()
 
 	ln := listener(t)
@@ -213,11 +222,11 @@ func (c *stallFirstSetDeadlineConn) SetDeadline(t time.Time) error {
 	return c.Conn.SetDeadline(t)
 }
 
-// TestAuditSMTPCancellationDuringSocketSetup: cancellation that races the
-// initial socket-deadline install must not be overwritten by the delivery
-// deadline. A hook registered before SetDeadline lets the main goroutine
-// replace the interrupt with the future timeout.
-func TestAuditSMTPCancellationDuringSocketSetup(t *testing.T) {
+// TestSMTPSender_SendCancelDuringSetup: cancellation that races the initial
+// socket-deadline install must not be overwritten by the delivery deadline. A
+// hook registered before SetDeadline lets the main goroutine replace the
+// interrupt with the future timeout.
+func TestSMTPSender_SendCancelDuringSetup(t *testing.T) {
 	t.Parallel()
 
 	ln := listener(t)
@@ -273,10 +282,10 @@ func TestAuditSMTPCancellationDuringSocketSetup(t *testing.T) {
 	}
 }
 
-// TestAuditSMTPCancellationAfterDial: once the TCP connection is up, an
+// TestSMTPSender_SendCancelAfterDial: once the TCP connection is up, an
 // explicit parent cancellation must interrupt the SMTP conversation promptly,
 // not only when the delivery deadline eventually fires.
-func TestAuditSMTPCancellationAfterDial(t *testing.T) {
+func TestSMTPSender_SendCancelAfterDial(t *testing.T) {
 	t.Parallel()
 
 	ln := listener(t)
@@ -372,11 +381,13 @@ func (c *stallFutureDeadlineConn) SetDeadline(t time.Time) error {
 	return c.Conn.SetDeadline(t)
 }
 
-// TestSMTPCancellationSurvivesDeadlineInstall: if the cancellation hook is
-// registered before the delivery deadline, a cancel that fires while the
-// deadline is being installed can be overwritten and leave a silent peer
-// blocking until SendTimeout.
-func TestSMTPCancellationSurvivesDeadlineInstall(t *testing.T) {
+// TestPrepareSMTPConnCancelDuringInstall: an SMTP cancellation survives the
+// delivery-deadline install.
+//
+// If the cancellation hook is registered before the delivery deadline, a cancel
+// that fires while the deadline is being installed can be overwritten and leave
+// a silent peer blocking until SendTimeout.
+func TestPrepareSMTPConnCancelDuringInstall(t *testing.T) {
 	t.Parallel()
 
 	client, server := net.Pipe()
@@ -433,9 +444,12 @@ func TestSMTPCancellationSurvivesDeadlineInstall(t *testing.T) {
 	}
 }
 
-// TestTheSocketHasADeadlineAndNotOnlyTheDial is not synctest: a kernel socket
-// deadline is not a Go timer, so a fake clock does not reach it.
-func TestTheSocketHasADeadlineAndNotOnlyTheDial(t *testing.T) {
+// TestSMTPSender_SendSocketDeadline: the socket has a deadline and not only the
+// dial.
+//
+// TestSMTPSender_SendSocketDeadline is not synctest: a kernel socket deadline
+// is not a Go timer, so a fake clock does not reach it.
+func TestSMTPSender_SendSocketDeadline(t *testing.T) {
 	t.Parallel()
 
 	ln := listener(t)
@@ -487,9 +501,12 @@ func listener(t *testing.T) net.Listener {
 	return ln
 }
 
-// TestTheLogSenderNeverWritesTheBody: the sender returns nil, so the outbox
-// stamps the message delivered while a logged body would hold a live credential.
-func TestTheLogSenderNeverWritesTheBody(t *testing.T) {
+// TestLogSender_SendBody: the log sender never writes the body unless ShowBody
+// is set.
+//
+// The sender returns nil, so the outbox stamps the message delivered while a
+// logged body would hold a live credential.
+func TestLogSender_SendBody(t *testing.T) {
 	t.Parallel()
 
 	// Split so the literal does not read as a secret to gosec.
@@ -541,9 +558,12 @@ func TestTheLogSenderNeverWritesTheBody(t *testing.T) {
 	}
 }
 
-// The outbox worker logs what Send returns. An address that fails validation
-// is still someone's typing, so the refusal names no part of it.
-func TestRefusalToSendDoesNotCarryTheAddress(t *testing.T) {
+// TestSMTPSender_SendRefusalNoAddress: the refusal to send does not carry the
+// address.
+//
+// The outbox worker logs what Send returns. An address that fails validation is
+// still someone's typing, so the refusal names no part of it.
+func TestSMTPSender_SendRefusalNoAddress(t *testing.T) {
 	t.Parallel()
 	const typed = "jane.doe.private@@example.test"
 	err := SMTPSender{Addr: "127.0.0.1:1"}.Send(t.Context(), &Message{To: typed})
@@ -557,9 +577,12 @@ func TestRefusalToSendDoesNotCarryTheAddress(t *testing.T) {
 	}
 }
 
-// TestTheHandlerBudgetIsTheSendersOwnTimeout: [outbox.HandlerBudget] mirrors
-// SendTimeout, and the outbox's lease arithmetic is sized for that budget.
-func TestTheHandlerBudgetIsTheSendersOwnTimeout(t *testing.T) {
+// TestSendTimeoutWithinHandlerBudget: the outbox handler budget covers the
+// sender's own timeout: HandlerBudget is at least SendTimeout.
+//
+// [outbox.HandlerBudget] mirrors SendTimeout, and the outbox's lease arithmetic
+// is sized for that budget.
+func TestSendTimeoutWithinHandlerBudget(t *testing.T) {
 	t.Parallel()
 
 	if outbox.HandlerBudget < SendTimeout {
