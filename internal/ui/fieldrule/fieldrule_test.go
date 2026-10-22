@@ -139,10 +139,11 @@ var tables = map[string][]input{
 	),
 }
 
-// TestNoRuleIsStricterThanItsValidator holds every client rule to the server's
-// own validator: whatever the server accepts, the browser must accept, and the
-// obviously malformed must be refused by both.
-func TestNoRuleIsStricterThanItsValidator(t *testing.T) {
+// TestRuleNotStricterThanServer: no rule is stricter than its validator. It
+// holds every client rule to the server's own validator: whatever the server
+// accepts, the browser must accept, and the obviously malformed must be refused
+// by both.
+func TestRuleNotStricterThanServer(t *testing.T) {
 	t.Parallel()
 	for _, rule := range fieldrule.All {
 		valid, ok := server[rule.Name]
@@ -164,10 +165,13 @@ func TestNoRuleIsStricterThanItsValidator(t *testing.T) {
 	}
 }
 
+// TestRuleWithoutCheckAgrees: rules without a checksum agree with the server on
+// the table.
+//
 // Every value the table says the server accepts is also the shape a rule with
 // no extra Check agrees on exactly: a rule that needs no checksum is as strict
 // as the server on the table, so a loosened pattern shows up here.
-func TestRulesWithoutAChecksumAgreeWithTheServerOnTheTable(t *testing.T) {
+func TestRuleWithoutCheckAgrees(t *testing.T) {
 	t.Parallel()
 	for _, rule := range fieldrule.All {
 		if rule.Check != "" || rule.Name == "email" {
@@ -220,11 +224,12 @@ func classes(pattern string) []string {
 	return out
 }
 
-// TestPatternsAreWrittenForTheBrowsersVFlag holds each pattern to what the v flag
-// reads inside a character class. A pattern the browser cannot compile is
-// ignored silently, so the field it guards would never be refused. Go's regexp
-// accepts all of these, which is why only a check on the source can catch them.
-func TestPatternsAreWrittenForTheBrowsersVFlag(t *testing.T) {
+// TestRulePatternVFlag: patterns are written for the browser's v flag. It holds
+// each pattern to what the v flag reads inside a character class. A pattern the
+// browser cannot compile is ignored silently, so the field it guards would
+// never be refused. Go's regexp accepts all of these, which is why only a check
+// on the source can catch them.
+func TestRulePatternVFlag(t *testing.T) {
 	t.Parallel()
 	doubled := []string{"&&", "!!", "##", "$$", "%%", "**", "++", ",,", "..", "::", ";;", "<<", "==", ">>", "??", "@@", "^^", "``", "~~"}
 	for _, rule := range fieldrule.All {

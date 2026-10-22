@@ -50,7 +50,9 @@ func (f *failedDecisionAudit) TraceQueryEnd(ctx context.Context, _ *pgx.Conn, da
 	}
 }
 
-func TestReturnDecisionAuditFailureDoesNotClaimApproval(t *testing.T) {
+// TestHandler_DecideAuditFailure: a return decision whose audit write fails
+// does not claim approval.
+func TestHandler_DecideAuditFailure(t *testing.T) {
 	for _, locale := range []struct {
 		locale       i18n.Locale
 		title, retry string
@@ -162,7 +164,9 @@ func (f *failedPayoutRead) TraceQueryEnd(ctx context.Context, _ *pgx.Conn, data 
 	}
 }
 
-func TestCommittedReturnPayoutReadFailureOffersRecovery(t *testing.T) {
+// TestHandler_DecidePayoutReadFailure: a committed return whose payout cannot
+// be read offers recovery.
+func TestHandler_DecidePayoutReadFailure(t *testing.T) {
 	for _, locale := range []i18n.Locale{i18n.ZhHant, i18n.En} {
 		for _, phase := range []struct {
 			name  string

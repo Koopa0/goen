@@ -21,7 +21,9 @@ import (
 	"github.com/koopa0/goen/internal/order/returns"
 )
 
-func TestReturnDecisionHTTPRequiresConfirmation(t *testing.T) {
+// TestHandler_DecideNeedsConfirmation: a return decision posted over HTTP
+// requires confirmation.
+func TestHandler_DecideNeedsConfirmation(t *testing.T) {
 	ctx, _ := admintest.StaffContext(t, pool)
 	s := storeOver(pool, admintest.Refunder{})
 	h := handlerOver(s)
@@ -68,7 +70,9 @@ func TestReturnDecisionHTTPRequiresConfirmation(t *testing.T) {
 	}
 }
 
-func TestReturnRejectionRequiresAReasonAtTheStoreBoundary(t *testing.T) {
+// TestStore_DecideRejectionReason: a return rejection requires a reason at the
+// store boundary.
+func TestStore_DecideRejectionReason(t *testing.T) {
 	ctx, _ := admintest.StaffContext(t, pool)
 	s := storeOver(pool, admintest.Refunder{})
 	id, _ := admintest.ReturnedOrder(t, pool, 1)
@@ -82,10 +86,13 @@ func TestReturnRejectionRequiresAReasonAtTheStoreBoundary(t *testing.T) {
 	}
 }
 
+// TestHandler_DecideRejectionReason: a return rejection without a reason is
+// refused at the handler.
+//
 // A confirmed rejection without a reason is refused where the operator is
 // looking: 422 on the queue page, the reason field marked invalid and still
 // holding what was typed, and the return untouched.
-func TestReturnRejectionWithoutAReasonIsRefusedAtTheHandler(t *testing.T) {
+func TestHandler_DecideRejectionReason(t *testing.T) {
 	ctx, _ := admintest.StaffContext(t, pool)
 	s := storeOver(pool, admintest.Refunder{})
 	h := handlerOver(s)
