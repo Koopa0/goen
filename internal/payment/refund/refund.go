@@ -1,11 +1,13 @@
 // Package refund names refunds.status, the closed set refunds_status_known
 // admits; the two outcomes the refund desk and the return desk both tell
 // apart, a refund write the database refused and an approved decision whose
-// refund work is unfinished; and what the refund desk reports to the other
+// refund work is unfinished; what the refund desk reports to the other
 // desks, the refunds an order page offers ([Offer]) and where a return's
-// payout stands ([Payout]). The desks reach one another only through
-// interfaces the consumer declares, so the values and errors those interfaces
-// promise live here, where no desk has to import another.
+// payout stands ([Payout]); and the words both desks name a payout's card and
+// store-credit halves in ([PayoutChannel]). The desks reach one another only
+// through interfaces the consumer declares, so the values and errors those
+// interfaces promise, and the words both write, live here, where no desk has
+// to import another.
 package refund
 
 import (

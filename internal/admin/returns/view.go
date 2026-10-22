@@ -9,6 +9,7 @@ import (
 	"github.com/koopa0/goen/internal/keyset"
 	"github.com/koopa0/goen/internal/money"
 	"github.com/koopa0/goen/internal/order/returns"
+	"github.com/koopa0/goen/internal/payment/refund"
 	"github.com/koopa0/goen/internal/ui/widget"
 )
 
@@ -196,7 +197,7 @@ func (r *Return) Amount() string { return money.TWD(r.AmountCents) }
 // PayoutChannel names the frozen refund sources. Empty until approval, because
 // the allocation does not exist until then.
 func (r *Return) PayoutChannel(ctx context.Context) string {
-	return widget.PayoutChannel(ctx, r.CardRefundCents, r.CreditRefundCents)
+	return refund.PayoutChannel(ctx, r.CardRefundCents, r.CreditRefundCents)
 }
 
 func (r *Return) UnitsText() string { return strconv.FormatInt(int64(r.Units), 10) }
