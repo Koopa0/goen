@@ -12,7 +12,7 @@ import (
 	"golang.org/x/net/html"
 
 	"github.com/koopa0/goen/internal/i18n"
-	"github.com/koopa0/goen/internal/ui/components"
+	"github.com/koopa0/goen/internal/ui/hero"
 	"github.com/koopa0/goen/internal/ui/layouts"
 )
 
@@ -39,7 +39,7 @@ func TestScheduledHeroControlsUseThePageLanguage(t *testing.T) {
 					ctx := i18n.WithLocale(t.Context(), locale)
 					view := HeroView{Rows: []HeroSlide{{ID: "scheduled", Headline: "店家原文", Active: tt.active, InWindow: tt.inWindow}}}
 					if tt.showing {
-						view.Carousel = []components.HeroSlide{{Source: components.SlideScheduled, ID: "scheduled"}}
+						view.Carousel = []hero.Slide{{Source: hero.SourceScheduled, ID: "scheduled"}}
 					}
 					doc, err := html.Parse(strings.NewReader(renderComponent(t, ctx, Slides(layouts.Page{}, &view))))
 					if err != nil {
@@ -114,9 +114,9 @@ func TestScheduledHeroControlsUseThePageLanguage(t *testing.T) {
 func TestTheSlidesPageListsTheSlidesTheStorefrontShowsAndSaysWhereEachComesFrom(t *testing.T) {
 	t.Parallel()
 	ctx := i18n.WithLocale(t.Context(), i18n.ZhHant)
-	view := HeroView{Carousel: []components.HeroSlide{
-		{Source: components.SlideCampaign, Title: "秋季精選", CTA: components.CTA{Label: "看活動", Href: "/s/autumn-picks"}},
-		{Source: components.SlideDepartment, Title: "家電"},
+	view := HeroView{Carousel: []hero.Slide{
+		{Source: hero.SourceCampaign, Title: "秋季精選", CTA: hero.CTA{Label: "看活動", Href: "/s/autumn-picks"}},
+		{Source: hero.SourceDepartment, Title: "家電"},
 	}}
 	page := renderComponent(t, ctx, Slides(layouts.Page{}, &view))
 	for _, want := range []string{
@@ -144,15 +144,15 @@ func TestAScheduledSlideIsShowingOnlyWhenTheStorefrontCarriesIt(t *testing.T) {
 		{ID: "b", Active: false, InWindow: true},
 		{ID: "c", Active: true, InWindow: true},
 	}
-	v := HeroView{Rows: rows, Carousel: []components.HeroSlide{{Source: components.SlideScheduled, ID: "a"}, {Source: components.SlideCampaign}}}
+	v := HeroView{Rows: rows, Carousel: []hero.Slide{{Source: hero.SourceScheduled, ID: "a"}, {Source: hero.SourceCampaign}}}
 	if !v.IsShowing(rows[0]) || v.IsShowing(rows[1]) || v.IsShowing(rows[2]) {
 		t.Errorf("one scheduled slide in the carousel marks a=%v b=%v c=%v", v.IsShowing(rows[0]), v.IsShowing(rows[1]), v.IsShowing(rows[2]))
 	}
-	v.Carousel = []components.HeroSlide{{Source: components.SlideScheduled, ID: "a"}, {Source: components.SlideScheduled, ID: "c"}}
+	v.Carousel = []hero.Slide{{Source: hero.SourceScheduled, ID: "a"}, {Source: hero.SourceScheduled, ID: "c"}}
 	if !v.IsShowing(rows[2]) {
 		t.Error("the second live scheduled slide is in the carousel but not marked")
 	}
-	v.Carousel = []components.HeroSlide{{Source: components.SlideCampaign}}
+	v.Carousel = []hero.Slide{{Source: hero.SourceCampaign}}
 	if v.IsShowing(rows[0]) {
 		t.Error("a scheduled slide is marked while the carousel has none")
 	}
@@ -162,8 +162,8 @@ func TestEverySlideSourceHasItsOwnLabelAndAnUnknownOneIsNotAPanic(t *testing.T) 
 	t.Parallel()
 	for _, loc := range []i18n.Locale{i18n.ZhHant, i18n.En} {
 		ctx := i18n.WithLocale(t.Context(), loc)
-		other := SourceLabel(ctx, components.SlideSource("nowhere"))
-		seen := map[string]components.SlideSource{}
+		other := SourceLabel(ctx, hero.Source("nowhere"))
+		seen := map[string]hero.Source{}
 		for _, src := range declaredSlideSources(t) {
 			label := SourceLabel(ctx, src)
 			if label == "" || label == other {
@@ -177,15 +177,15 @@ func TestEverySlideSourceHasItsOwnLabelAndAnUnknownOneIsNotAPanic(t *testing.T) 
 	}
 }
 
-// declaredSlideSources reads every SlideSource constant from the source, so a
+// declaredSlideSources reads every hero.Source constant from the source, so a
 // constant added without a label fails the label test instead of falling back.
-func declaredSlideSources(t *testing.T) []components.SlideSource {
+func declaredSlideSources(t *testing.T) []hero.Source {
 	t.Helper()
-	file, err := parser.ParseFile(token.NewFileSet(), "../../ui/components/hero.go", nil, 0)
+	file, err := parser.ParseFile(token.NewFileSet(), "../../ui/hero/hero.go", nil, 0)
 	if err != nil {
 		t.Fatal(err)
 	}
-	var sources []components.SlideSource
+	var sources []hero.Source
 	for _, decl := range file.Decls {
 		gen, ok := decl.(*ast.GenDecl)
 		if !ok || gen.Tok != token.CONST {
@@ -196,20 +196,20 @@ func declaredSlideSources(t *testing.T) []components.SlideSource {
 			if !isValue {
 				continue
 			}
-			if id, isIdent := v.Type.(*ast.Ident); !isIdent || id.Name != "SlideSource" {
+			if id, isIdent := v.Type.(*ast.Ident); !isIdent || id.Name != "Source" {
 				continue
 			}
 			for _, value := range v.Values {
 				lit, isLit := value.(*ast.BasicLit)
 				if !isLit || lit.Kind != token.STRING {
-					t.Fatalf("a SlideSource constant is not a string literal: %#v", value)
+					t.Fatalf("a Source constant is not a string literal: %#v", value)
 				}
-				sources = append(sources, components.SlideSource(strings.Trim(lit.Value, `"`)))
+				sources = append(sources, hero.Source(strings.Trim(lit.Value, `"`)))
 			}
 		}
 	}
 	if len(sources) == 0 {
-		t.Fatal("no SlideSource constants found in ../../ui/components/hero.go")
+		t.Fatal("no Source constants found in ../../ui/hero/hero.go")
 	}
 	return sources
 }

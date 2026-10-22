@@ -24,7 +24,7 @@ sql:
       - "internal/admin/twofactor/query.sql"
       - "internal/product/copurchase/query.sql"
       - "internal/backinstock/query.sql"
-      - "internal/warranty/query.sql"
+      - "internal/order/warranty/query.sql"
       - "internal/auth/query.sql"
       - "internal/account/query.sql"
       - "internal/wishlist/query.sql"

@@ -9,7 +9,7 @@ import (
 
 	"github.com/koopa0/goen/internal/i18n"
 	"github.com/koopa0/goen/internal/policy"
-	"github.com/koopa0/goen/internal/ui/components"
+	"github.com/koopa0/goen/internal/ui/hero"
 	"github.com/koopa0/goen/internal/ui/layouts"
 	"github.com/koopa0/goen/internal/ui/tone"
 )
@@ -19,9 +19,9 @@ import (
 // English on the Chinese page.
 func TestTheHeroIsDescribedToAScreenReaderInThePagesLanguage(t *testing.T) {
 	t.Parallel()
-	slides := []components.HeroSlide{
-		{Layout: components.SlideSplit, Tone: tone.Mist, Title: "One"},
-		{Layout: components.SlideSplit, Tone: tone.Mist, Title: "Two"},
+	slides := []hero.Slide{
+		{Layout: hero.LayoutSplit, Tone: tone.Mist, Title: "One"},
+		{Layout: hero.LayoutSplit, Tone: tone.Mist, Title: "Two"},
 	}
 	described := map[i18n.Locale]map[string]bool{}
 	for _, locale := range i18n.Locales() {

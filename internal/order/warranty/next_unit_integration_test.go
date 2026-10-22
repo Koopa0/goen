@@ -15,8 +15,8 @@ import (
 
 	"github.com/koopa0/goen/internal/db"
 	"github.com/koopa0/goen/internal/i18n"
+	"github.com/koopa0/goen/internal/order/warranty"
 	"github.com/koopa0/goen/internal/user"
-	"github.com/koopa0/goen/internal/warranty"
 )
 
 func reverseWarrantyParcels(t *testing.T, laterQuantity int) (fixture, uuid.UUID) {

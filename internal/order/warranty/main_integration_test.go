@@ -25,8 +25,8 @@ import (
 	"github.com/koopa0/goen/internal/db"
 	"github.com/koopa0/goen/internal/db/dbtest"
 	"github.com/koopa0/goen/internal/i18n"
+	"github.com/koopa0/goen/internal/order/warranty"
 	"github.com/koopa0/goen/internal/user"
-	"github.com/koopa0/goen/internal/warranty"
 )
 
 var pool *pgxpool.Pool
@@ -40,7 +40,7 @@ func TestMain(m *testing.M) {
 	}
 	pool = p
 	// The seed supplies shipping_method_versions; the migration creates none.
-	seed, err := os.ReadFile("../../seed/dev_catalog.sql")
+	seed, err := os.ReadFile("../../../seed/dev_catalog.sql")
 	if err != nil {
 		panic(err)
 	}

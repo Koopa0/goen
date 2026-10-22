@@ -6,6 +6,7 @@ import (
 	"github.com/koopa0/goen/internal/i18n"
 	"github.com/koopa0/goen/internal/policy"
 	"github.com/koopa0/goen/internal/ui/components"
+	"github.com/koopa0/goen/internal/ui/hero"
 	"github.com/koopa0/goen/internal/ui/icons"
 	"github.com/koopa0/goen/internal/ui/layouts"
 	"github.com/koopa0/goen/internal/ui/tile"
@@ -53,7 +54,7 @@ templ seeAll(label, href string) {
 // The carousel moves only when the visitor asks: the named tabs are links to
 // the slides, and the arrows and the count are drawn by goen.js. With one slide
 // there is nothing to move between, so none of them are drawn.
-templ heroCarousel(slides []components.HeroSlide) {
+templ heroCarousel(slides []hero.Slide) {
 	<section
 		class="goen-hero"
 		aria-label={ i18n.T(ctx, i18n.KeyHomeFeatured) }

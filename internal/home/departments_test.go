@@ -6,6 +6,7 @@ import (
 
 	"github.com/koopa0/goen/internal/i18n"
 	"github.com/koopa0/goen/internal/ui/components"
+	"github.com/koopa0/goen/internal/ui/hero"
 	"github.com/koopa0/goen/internal/ui/tone"
 )
 
@@ -16,15 +17,15 @@ func TestHeroCarouselDrawsItsSlides(t *testing.T) {
 	for _, locale := range []i18n.Locale{i18n.ZhHant, i18n.En} {
 		ctx := i18n.WithLocale(t.Context(), locale)
 		see := i18n.T(ctx, i18n.KeyHeroCampaignCTA)
-		campaign := components.HeroSlide{
-			Layout: components.SlidePhoto, Tone: tone.Sage, Title: "Autumn desk sale",
+		campaign := hero.Slide{
+			Layout: hero.LayoutPhoto, Tone: tone.Sage, Title: "Autumn desk sale",
 			Stats: []components.Stat{{Label: "Items", Value: components.StatCount(4, "items")}},
-			CTA:   components.CTA{Label: see, Href: "/s/autumn-desk"},
+			CTA:   hero.CTA{Label: see, Href: "/s/autumn-desk"},
 			Photo: components.Photo{URL: "/static/a.webp", Alt: "a desk"}, PhotoWidth: 1600, PhotoHeight: 600,
 		}
-		department := components.HeroSlide{Layout: components.SlideSplit, Tone: tone.Mist, Title: "Tech", CTA: components.CTA{Label: see, Href: "/c/tech"}}
+		department := hero.Slide{Layout: hero.LayoutSplit, Tone: tone.Mist, Title: "Tech", CTA: hero.CTA{Label: see, Href: "/c/tech"}}
 
-		many := renderComponent(t, ctx, Page(Meta(ctx), View{Slides: []components.HeroSlide{campaign, department}}))
+		many := renderComponent(t, ctx, Page(Meta(ctx), View{Slides: []hero.Slide{campaign, department}}))
 		for _, want := range []string{
 			`class="goen-hero__slide goen-hero__slide--photo" data-tone="sage"`,
 			`class="goen-hero__slide goen-hero__slide--split goen-hero__slide--text" data-tone="mist"`,
@@ -51,7 +52,7 @@ func TestHeroCarouselDrawsItsSlides(t *testing.T) {
 			t.Errorf("%s carousel does not link both slide kinds with the one label", locale)
 		}
 
-		one := renderComponent(t, ctx, Page(Meta(ctx), View{Slides: []components.HeroSlide{department}}))
+		one := renderComponent(t, ctx, Page(Meta(ctx), View{Slides: []hero.Slide{department}}))
 		for _, banned := range []string{"goen-hero__controls", "goen-hero__tabs", "data-step", "carousel"} {
 			if strings.Contains(one, banned) {
 				t.Errorf("%s carousel of one slide draws %s", locale, banned)
@@ -72,9 +73,9 @@ func TestHeroCarouselDrawsItsSlides(t *testing.T) {
 // so the markup holds no autoplay switch and no pause button.
 func TestHeroCarouselHasNoAutoplay(t *testing.T) {
 	t.Parallel()
-	slides := []components.HeroSlide{
-		{Layout: components.SlideSplit, Tone: tone.Mist, Title: "Tech"},
-		{Layout: components.SlideSplit, Tone: tone.Sage, Title: "Food"},
+	slides := []hero.Slide{
+		{Layout: hero.LayoutSplit, Tone: tone.Mist, Title: "Tech"},
+		{Layout: hero.LayoutSplit, Tone: tone.Sage, Title: "Food"},
 	}
 	for _, locale := range []i18n.Locale{i18n.ZhHant, i18n.En} {
 		ctx := i18n.WithLocale(t.Context(), locale)
@@ -97,12 +98,12 @@ func TestACampaignSlideDrawsItsStatsAndItsDayGrid(t *testing.T) {
 	t.Parallel()
 	ctx := i18n.WithLocale(t.Context(), i18n.ZhHant)
 	spec := components.PeriodSpec{Description: "秋日選物：10 月 1 日至 10 月 30 日，共 30 天", TodayLabel: "今天", Cells: []components.PeriodCell{{State: components.CellToday, Label: "10/9"}, {Label: "10/10"}}}
-	slide := components.HeroSlide{
-		Layout: components.SlidePhoto, Tone: tone.Sage, Title: "年終感謝祭全館滿額再折",
+	slide := hero.Slide{
+		Layout: hero.LayoutPhoto, Tone: tone.Sage, Title: "年終感謝祭全館滿額再折",
 		Stats:  []components.Stat{{Label: "結束", Value: components.StatDate("10\u00a0月 30\u00a0日", ""), Note: "明天結束"}},
 		Period: &spec,
 	}
-	got := renderComponent(t, ctx, Page(Meta(ctx), View{Slides: []components.HeroSlide{slide}}))
+	got := renderComponent(t, ctx, Page(Meta(ctx), View{Slides: []hero.Slide{slide}}))
 	for _, want := range []string{
 		`<dt>結束</dt>`, `明天結束`, `class="ui-period" role="img" aria-label="秋日選物：10 月 1 日至 10 月 30 日，共 30 天"`,
 		`<b>今天</b>`, `goen-hero__title goen-hero__title--long`,
