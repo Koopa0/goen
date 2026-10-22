@@ -53,7 +53,10 @@ func TestMain(m *testing.M) {
 	os.Exit(code)
 }
 
-func TestHomeShowsCategoriesAndProducts(t *testing.T) {
+// TestHandler_IndexCategoriesProducts holds that Index shows the home page's
+// categories and products; departments fill the carousel only when no slide or
+// campaign does.
+func TestHandler_IndexCategoriesProducts(t *testing.T) {
 	// Departments fill the carousel only when no slide or campaign does.
 	emptyHeroSlides(t)
 	stopCampaigns(t)
@@ -107,7 +110,9 @@ func TestHomeShowsCategoriesAndProducts(t *testing.T) {
 	}
 }
 
-func TestStoreLoadAggregatesTiles(t *testing.T) {
+// TestStore_LoadAggregatesTiles holds that Load aggregates the six root
+// categories into tiles and the product row into four priced tiles.
+func TestStore_LoadAggregatesTiles(t *testing.T) {
 	v, err := home.NewStore(pool).Load(t.Context())
 	if err != nil {
 		t.Fatalf("load: %v", err)
@@ -135,7 +140,9 @@ func TestStoreLoadAggregatesTiles(t *testing.T) {
 	}
 }
 
-func TestADepartmentWithNoListedProductIsNotInTheDirectory(t *testing.T) {
+// TestStore_LoadUnlistedDepartment holds that Load leaves a department with no
+// listed product out of the directory.
+func TestStore_LoadUnlistedDepartment(t *testing.T) {
 	ctx := t.Context()
 	before, err := home.NewStore(pool).Load(ctx)
 	if err != nil {
@@ -185,7 +192,10 @@ func TestADepartmentWithNoListedProductIsNotInTheDirectory(t *testing.T) {
 	}
 }
 
-func TestAnEmptyHeroTableIsAWorkingHomePage(t *testing.T) {
+// TestStore_LoadEmptyHeroTable holds that an empty hero table still gives a
+// working home page: one to three department slides, each with a photograph and
+// a button.
+func TestStore_LoadEmptyHeroTable(t *testing.T) {
 	ctx := t.Context()
 	emptyHeroSlides(t)
 	stopCampaigns(t)
@@ -226,8 +236,10 @@ func firstSlide(t *testing.T, ctx context.Context) hero.Slide {
 	return slides[0]
 }
 
-// The window is judged by the database's clock, which wrote starts_at.
-func TestTheScheduledSlideIsTheOneShown(t *testing.T) {
+// TestStore_LoadScheduledSlide holds that Load shows only the scheduled slide
+// whose window is open. The window is judged by the database's clock, which
+// wrote starts_at.
+func TestStore_LoadScheduledSlide(t *testing.T) {
 	ctx := t.Context()
 	stopCampaigns(t)
 
@@ -274,7 +286,9 @@ func TestTheScheduledSlideIsTheOneShown(t *testing.T) {
 	}
 }
 
-func TestScheduledSlidesKeepTheirQueueOrder(t *testing.T) {
+// TestStore_LoadSlideQueueOrder holds that Load keeps the scheduled slides in
+// their queue order and leaves an inactive one out.
+func TestStore_LoadSlideQueueOrder(t *testing.T) {
 	ctx := t.Context()
 	if _, err := pool.Exec(ctx, `DELETE FROM hero_slides`); err != nil {
 		t.Fatalf("clear: %v", err)
@@ -303,7 +317,9 @@ func TestScheduledSlidesKeepTheirQueueOrder(t *testing.T) {
 	}
 }
 
-func TestTheHeroImageCarriesItsRealWidth(t *testing.T) {
+// TestStore_LoadHeroImageWidth holds that Load gives the hero image the real
+// width of its uploaded media.
+func TestStore_LoadHeroImageWidth(t *testing.T) {
 	ctx := t.Context()
 	if _, err := pool.Exec(ctx, `DELETE FROM hero_slides`); err != nil {
 		t.Fatalf("clear: %v", err)
@@ -336,9 +352,10 @@ func TestTheHeroImageCarriesItsRealWidth(t *testing.T) {
 	}
 }
 
-// The admin form validates these paths too, but direct SQL and old rows still
-// reach the storefront reader.
-func TestAnOffSiteHeroCTAIsDroppedAtReadTime(t *testing.T) {
+// TestStore_LoadOffSiteHeroCTA holds that Load drops an off-site hero button
+// when the slide is read, and keeps the slide. The admin form validates these
+// paths too, but direct SQL and old rows still reach the storefront reader.
+func TestStore_LoadOffSiteHeroCTA(t *testing.T) {
 	ctx := t.Context()
 	emptyHeroSlides(t)
 	var id uuid.UUID
@@ -381,7 +398,9 @@ func stopCampaigns(t *testing.T) {
 	})
 }
 
-func TestRunningCampaignsFollowTheScheduledSlidesSoonestFirst(t *testing.T) {
+// TestStore_LoadCampaignSlideOrder holds that Load puts the running campaigns'
+// slides after the scheduled slides, the one ending soonest first.
+func TestStore_LoadCampaignSlideOrder(t *testing.T) {
 	ctx := t.Context()
 	emptyHeroSlides(t)
 	stopCampaigns(t)
@@ -433,9 +452,10 @@ func TestRunningCampaignsFollowTheScheduledSlidesSoonestFirst(t *testing.T) {
 	}
 }
 
-// A campaign whose featured product is sold out takes no carousel slide and no
-// product row; a sellable product brings both back.
-func TestACampaignWithNothingToBuyTakesNoCarouselSlide(t *testing.T) {
+// TestStore_LoadCampaignNothingToBuy: A campaign whose featured product is sold
+// out takes no carousel slide and no product row; a sellable product brings
+// both back.
+func TestStore_LoadCampaignNothingToBuy(t *testing.T) {
 	ctx := i18n.WithLocale(t.Context(), i18n.ZhHant)
 	emptyHeroSlides(t)
 	stopCampaigns(t)
@@ -531,7 +551,9 @@ func cleanupHeroSlide(t *testing.T, ctx context.Context, id uuid.UUID) {
 	})
 }
 
-func TestTheHeroSpeaksTheVisitorsLanguage(t *testing.T) {
+// TestStore_LoadHeroLocale holds that Load reads the hero slide in the
+// visitor's language.
+func TestStore_LoadHeroLocale(t *testing.T) {
 	ctx := t.Context()
 
 	// Its own slide, at the front of the queue: another test's slide would
@@ -583,9 +605,10 @@ func TestTheHeroSpeaksTheVisitorsLanguage(t *testing.T) {
 	}
 }
 
-// localized_name(NULL, NULL, ...) is NULL while sqlc types the result as
-// non-null, so an uncoalesced wrap fails to scan a slide with no eyebrow.
-func TestASlideWithNoEyebrowStillRenders(t *testing.T) {
+// TestStore_LoadSlideNoEyebrow holds that Load reads a slide that has no
+// eyebrow. localized_name(NULL, NULL, ...) is NULL while sqlc types the result
+// as non-null, so an uncoalesced wrap fails to scan a slide with no eyebrow.
+func TestStore_LoadSlideNoEyebrow(t *testing.T) {
 	ctx := t.Context()
 
 	var id uuid.UUID
@@ -613,9 +636,11 @@ func TestASlideWithNoEyebrowStillRenders(t *testing.T) {
 	}
 }
 
-// free_over_cents lives in shipping_method_versions, which a shop edits at
-// /admin/shipping, so a page stating the figure can drift from the till.
-func TestTheFreeDeliveryStripStatesWhatTheTillCharges(t *testing.T) {
+// TestStore_LoadFreeDeliveryStrip holds that Load makes the free-delivery strip
+// state what the till charges. free_over_cents lives in
+// shipping_method_versions, which a shop edits at /admin/shipping, so a page
+// stating the figure can drift from the till.
+func TestStore_LoadFreeDeliveryStrip(t *testing.T) {
 	ctx := t.Context()
 
 	// A new version, because shipping_method_versions is append-only.
@@ -661,9 +686,11 @@ func TestTheFreeDeliveryStripStatesWhatTheTillCharges(t *testing.T) {
 	}
 }
 
-// fee_cents lives in shipping_method_versions, which a shop edits at
-// /admin/shipping, so a page stating the figure can drift from the till.
-func TestTheFreeDeliveryNoteStatesTheLowestCurrentFee(t *testing.T) {
+// TestHandler_IndexLowestFeeNote holds that Index makes the free-delivery note
+// state the lowest current fee. fee_cents lives in shipping_method_versions,
+// which a shop edits at /admin/shipping, so a page stating the figure can drift
+// from the till.
+func TestHandler_IndexLowestFeeNote(t *testing.T) {
 	ctx := t.Context()
 
 	// A new version, because shipping_method_versions is append-only. Every
@@ -698,12 +725,12 @@ func TestTheFreeDeliveryNoteStatesTheLowestCurrentFee(t *testing.T) {
 	}
 }
 
-// The header and the home tiles read one query, so their order cannot disagree,
-// and two roots sharing a position is refused at the schema:
-// categories_position_key is NULLS NOT DISTINCT precisely because the ROOT
-// categories are the header, and a plain unique index would treat their NULL
-// parents as distinct and allow the pair.
-func TestTheHeaderAndTheTilesAgreeOnOrder(t *testing.T) {
+// TestStore_LoadHeaderTilesOrder: The header and the home tiles read one query,
+// so their order cannot disagree, and two roots sharing a position is refused
+// at the schema: categories_position_key is NULLS NOT DISTINCT precisely
+// because the ROOT categories are the header, and a plain unique index would
+// treat their NULL parents as distinct and allow the pair.
+func TestStore_LoadHeaderTilesOrder(t *testing.T) {
 	ctx := t.Context()
 
 	// Two roots at one position is what CreateCategory's max(position) + 1 can
@@ -757,9 +784,11 @@ func TestTheHeaderAndTheTilesAgreeOnOrder(t *testing.T) {
 	}
 }
 
-// Checkout drops store pickup where the store map is not configured, so the
-// note's floor and wording must describe the home delivery it still offers.
-func TestTheFreeDeliveryNoteDescribesOnlyTheMethodsCheckoutOffers(t *testing.T) {
+// TestHandler_IndexNoteWithoutPickup holds that Index makes the free-delivery
+// note describe only the methods checkout offers. Checkout drops store pickup
+// where the store map is not configured, so the note's floor and wording must
+// describe the home delivery it still offers.
+func TestHandler_IndexNoteWithoutPickup(t *testing.T) {
 	ctx := i18n.WithLocale(t.Context(), i18n.ZhHant)
 
 	// New versions, because shipping_method_versions is append-only and a
@@ -809,9 +838,10 @@ func TestTheFreeDeliveryNoteDescribesOnlyTheMethodsCheckoutOffers(t *testing.T) 
 	}
 }
 
-// A method that is always free charges nothing below any threshold, so the
-// floor the strip states is the cheapest fee that is actually charged.
-func TestTheLowestFeeSkipsAMethodThatIsAlwaysFree(t *testing.T) {
+// TestStore_LoadLowestFeeAlwaysFree: A method that is always free charges
+// nothing below any threshold, so the floor the strip states is the cheapest
+// fee that is actually charged.
+func TestStore_LoadLowestFeeAlwaysFree(t *testing.T) {
 	ctx := i18n.WithLocale(t.Context(), i18n.ZhHant)
 
 	tx, err := pool.Begin(ctx)
@@ -843,9 +873,10 @@ func TestTheLowestFeeSkipsAMethodThatIsAlwaysFree(t *testing.T) {
 	}
 }
 
-// The lead tile is the campaign's first product, so its first photograph's
-// width decides; a photograph whose width was never stored counts as too narrow.
-func TestTheLeadTileFollowsTheFirstPhotographsWidth(t *testing.T) {
+// TestStore_LoadLeadTileWidth: The lead tile is the campaign's first product,
+// so its first photograph's width decides; a photograph whose width was never
+// stored counts as too narrow.
+func TestStore_LoadLeadTileWidth(t *testing.T) {
 	ctx := i18n.WithLocale(t.Context(), i18n.ZhHant)
 	emptyHeroSlides(t)
 	stopCampaigns(t)
@@ -915,9 +946,9 @@ func TestTheLeadTileFollowsTheFirstPhotographsWidth(t *testing.T) {
 	}
 }
 
-// The home page's band is a shelf of four products from a department that
-// holds at least four; it needs no photograph.
-func TestTheDepartmentBandHoldsFourProductsOfAFullDepartment(t *testing.T) {
+// TestStore_LoadDepartmentBand: The home page's band is a shelf of four
+// products from a department that holds at least four; it needs no photograph.
+func TestStore_LoadDepartmentBand(t *testing.T) {
 	view, err := home.NewStore(pool).Load(t.Context())
 	if err != nil {
 		t.Fatalf("load: %v", err)
@@ -933,9 +964,9 @@ func TestTheDepartmentBandHoldsFourProductsOfAFullDepartment(t *testing.T) {
 	}
 }
 
-// The shelf never repeats a product of the row above it, whichever department
-// the day selects.
-func TestTheDepartmentBandNeverRepeatsTheRowsProducts(t *testing.T) {
+// TestStore_LoadBandNoRepeat: The shelf never repeats a product of the row
+// above it, whichever department the day selects.
+func TestStore_LoadBandNoRepeat(t *testing.T) {
 	store := home.NewStore(pool)
 	start := time.Date(2026, 10, 1, 12, 0, 0, 0, time.UTC)
 	for day := range 14 {

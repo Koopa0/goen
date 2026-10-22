@@ -14,7 +14,9 @@ import (
 	"github.com/koopa0/goen/internal/user"
 )
 
-func TestCartRecoveryDoesNotPretendAReadFailureIsAnEmptyBasket(t *testing.T) {
+// TestHandler_RecoveryContentsFailure holds that a failed read of the saved
+// baskets is not shown as an empty basket, through the account's recovery page.
+func TestHandler_RecoveryContentsFailure(t *testing.T) {
 	t.Parallel()
 	dbPool, err := pgxpool.New(t.Context(), "postgres://nobody@127.0.0.1:1/nothing")
 	if err != nil {
@@ -32,7 +34,9 @@ func TestCartRecoveryDoesNotPretendAReadFailureIsAnEmptyBasket(t *testing.T) {
 	}
 }
 
-func TestCartRecoveryDoesNotReadSavedBasketsForASignedOutRequest(t *testing.T) {
+// TestHandler_RecoveryContentsSignedOut holds that RecoveryContents reads no
+// saved basket for a signed-out request: ErrNotFound and no baskets.
+func TestHandler_RecoveryContentsSignedOut(t *testing.T) {
 	t.Parallel()
 	carts := &Handler{}
 	req := httptest.NewRequestWithContext(t.Context(), http.MethodGet, "/account/cart-recovery", http.NoBody)

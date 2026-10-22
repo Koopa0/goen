@@ -8,9 +8,9 @@ import (
 	"github.com/koopa0/goen/internal/cart"
 )
 
-// The cart and checkout pages state the hold and the start window from the view
-// the store builds; those are the schema's.
-func TestTheCartStatesTheSchemasCheckoutWindows(t *testing.T) {
+// TestStore_ViewCheckoutWindows: The cart and checkout pages state the hold and
+// the start window from the view the store builds; those are the schema's.
+func TestStore_ViewCheckoutWindows(t *testing.T) {
 	ctx := t.Context()
 	s := cart.NewStore(pool)
 	id := newCart(t, s)

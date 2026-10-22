@@ -8,7 +8,7 @@ import (
 	"github.com/koopa0/goen/internal/ui/frame"
 )
 
-// The cart's row of this test is internal/cart's TestCartEmptyStateShowsItsIllustration,
+// The cart's row of this test is internal/cart's TestPageEmptyIllustration,
 // the campaign's internal/discount/campaign's TestPageEmptyIllustration.
 func TestEmptyStatesShowTheirIllustrationAsDecoration(t *testing.T) {
 	t.Parallel()

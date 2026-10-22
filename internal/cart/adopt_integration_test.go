@@ -66,11 +66,12 @@ func operationResult(t *testing.T, done <-chan error) error {
 	}
 }
 
-// TestConcurrentFirstAdoptersKeepBothGuestCarts holds the account row before
-// either sign-in starts. Both calls must wait there, which makes the "no account
-// cart exists" observation deterministic rather than scheduler luck. One cart is
-// then adopted and the other merged into it, both through the store role.
-func TestConcurrentFirstAdoptersKeepBothGuestCarts(t *testing.T) {
+// TestStore_AdoptConcurrentFirst holds that two first sign-ins racing keep both
+// guest carts: one cart is adopted and the other merged into it, both through
+// the store role. It holds the account row before either sign-in starts, so
+// both calls must wait there, which makes the "no account cart exists"
+// observation deterministic rather than scheduler luck.
+func TestStore_AdoptConcurrentFirst(t *testing.T) {
 	ctx := t.Context()
 	u := adopter(t, "first-adopters-"+uuid.NewString()+"@example.com")
 	userID := uuid.MustParse(u.ID)
@@ -215,14 +216,15 @@ func sellableVariants(t *testing.T, name string, n int) []uuid.UUID {
 	return ids
 }
 
-// TestAdoptRequestCartMergesWithinTheLineCap fills the account cart one line
+// TestHandler_AdoptRequestCartLineCap holds that a guest cart merges into the
+// account cart only within the line cap. It fills the account cart one line
 // short of issuer.MaxIssueProductLines and signs in with a guest cart holding
 // three products the account lacks and one it has. The merge follows Add: the
 // product the guest added first takes the last free line, the two added after
 // it are left out, the line the account already has still merges, and the
 // caller is told the cart was adjusted. The product kept has the highest id of
 // the three, so a merge in id order would keep another.
-func TestAdoptRequestCartMergesWithinTheLineCap(t *testing.T) {
+func TestHandler_AdoptRequestCartLineCap(t *testing.T) {
 	ctx := t.Context()
 	u := adopter(t, "adopt-line-cap-"+uuid.NewString()+"@example.com")
 	userID := uuid.MustParse(u.ID)

@@ -18,7 +18,10 @@ import (
 	"github.com/koopa0/goen/internal/order/lapse"
 )
 
-func TestReleasingTheLastHoldQueuesRestockNotices(t *testing.T) {
+// TestProductVariantsRestockNoticesLastHold holds that releasing the last hold
+// on a variant queues its restock notices, whether the order was cancelled or
+// its hold expired.
+func TestProductVariantsRestockNoticesLastHold(t *testing.T) {
 	for _, tc := range []struct {
 		name    string
 		expired bool

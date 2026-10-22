@@ -93,8 +93,9 @@ func TestHeroCarouselHasNoAutoplay(t *testing.T) {
 	}
 }
 
-// A campaign slide draws its facts and its grid; a long title steps down.
-func TestACampaignSlideDrawsItsStatsAndItsDayGrid(t *testing.T) {
+// TestHeroCarouselCampaignSlide: A campaign slide draws its facts and its grid;
+// a long title steps down.
+func TestHeroCarouselCampaignSlide(t *testing.T) {
 	t.Parallel()
 	ctx := i18n.WithLocale(t.Context(), i18n.ZhHant)
 	spec := widget.PeriodSpec{Description: "秋日選物：10 月 1 日至 10 月 30 日，共 30 天", TodayLabel: "今天", Cells: []widget.PeriodCell{{State: widget.CellToday, Label: "10/9"}, {Label: "10/10"}}}

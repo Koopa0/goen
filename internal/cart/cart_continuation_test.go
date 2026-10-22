@@ -6,7 +6,10 @@ import (
 	"testing"
 )
 
-func TestCartContinuationRefusesForeignDestinations(t *testing.T) {
+// TestCartContinuationRefusesForeign holds that the continuation after a
+// quantity adjustment follows only a same-site path: a foreign destination, or
+// a next without qty=adjusted, is refused.
+func TestCartContinuationRefusesForeign(t *testing.T) {
 	for _, tt := range []struct{ target, want string }{
 		{"/cart?qty=adjusted&next=%2Fcheckout%23address", "/checkout#address"},
 		{"/cart?qty=adjusted&next=https%3A%2F%2Fevil.example", ""},

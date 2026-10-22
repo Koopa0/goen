@@ -11,7 +11,9 @@ import (
 	"github.com/koopa0/goen/internal/order/buyer"
 )
 
-func TestAGuestCanFindTheirOwnOrderWithTheEmail(t *testing.T) {
+// TestOrderBelongsToEmailMatch holds that buyer.Store.OrderBelongsToEmail finds
+// a guest's own order by its number and email address, in any letter case.
+func TestOrderBelongsToEmailMatch(t *testing.T) {
 	ctx := t.Context()
 	s := buyer.NewStore(pool)
 	number := orderOfVariants(t, map[uuid.UUID]int32{freshVariant(t, "find-mine"): 1})
@@ -52,7 +54,9 @@ func TestAGuestCanFindTheirOwnOrderWithTheEmail(t *testing.T) {
 	}
 }
 
-func TestTheWrongEmailFindsNothing(t *testing.T) {
+// TestOrderBelongsToEmailWrong holds that buyer.Store.OrderBelongsToEmail finds
+// nothing for a wrong or empty email address.
+func TestOrderBelongsToEmailWrong(t *testing.T) {
 	ctx := t.Context()
 	s := buyer.NewStore(pool)
 	number := orderOfVariants(t, map[uuid.UUID]int32{freshVariant(t, "find-wrong"): 1})
@@ -70,7 +74,9 @@ func TestTheWrongEmailFindsNothing(t *testing.T) {
 	}
 }
 
-func TestAnErasedOrderCannotBeFound(t *testing.T) {
+// TestOrderBelongsToEmailErased holds that buyer.Store.OrderBelongsToEmail
+// cannot find an erased order, even by its old address.
+func TestOrderBelongsToEmailErased(t *testing.T) {
 	ctx := t.Context()
 	s := buyer.NewStore(pool)
 	number := orderOfVariants(t, map[uuid.UUID]int32{freshVariant(t, "find-erased"): 1})

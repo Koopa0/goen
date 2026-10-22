@@ -23,7 +23,9 @@ import (
 	"github.com/koopa0/goen/internal/ui/frame"
 )
 
-func TestNavigationFollowsConfiguredDepartmentPhotographs(t *testing.T) {
+// TestStore_LoadDepartmentPhotos holds that the navigation and the home
+// directory follow the photographs the shop configured for its departments.
+func TestStore_LoadDepartmentPhotos(t *testing.T) {
 	for _, locale := range []i18n.Locale{i18n.ZhHant, i18n.En} {
 		t.Run(string(locale), func(t *testing.T) {
 			ctx := i18n.WithLocale(t.Context(), locale)

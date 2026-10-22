@@ -23,10 +23,12 @@ import (
 	"github.com/koopa0/goen/internal/user"
 )
 
-// TestConcurrentSignedInFirstAddsShareOneOwnedCart holds an uncommitted owned
-// row so both HTTP first-adds miss ForUser and wait on carts_one_per_user.
-// Releasing that row lets one insert win; the loser must reread it, not 500.
-func TestConcurrentSignedInFirstAddsShareOneOwnedCart(t *testing.T) {
+// TestHandler_AddItemFirstAddRace holds that two concurrent signed-in first
+// adds share one owned cart instead of failing the loser with a 500. It holds
+// an uncommitted owned row so both HTTP first-adds miss ForUser and wait on
+// carts_one_per_user; releasing that row lets one insert win, and the loser
+// must reread it.
+func TestHandler_AddItemFirstAddRace(t *testing.T) {
 	ctx := t.Context()
 	var userID uuid.UUID
 	if err := pool.QueryRow(ctx, `
@@ -154,7 +156,9 @@ func TestConcurrentSignedInFirstAddsShareOneOwnedCart(t *testing.T) {
 	}
 }
 
-func TestAddToCartReturnsToTheChosenVariant(t *testing.T) {
+// TestHandler_AddItemReturnsToVariant holds that AddItem returns the shopper to
+// the variant they chose on the product page after adding it.
+func TestHandler_AddItemReturnsToVariant(t *testing.T) {
 	const slug = "nimbus-buds-pro"
 	vid := nimbusVariant(t, "雲白")
 	h := cart.NewHandler(cart.NewStore(pool), access.NewStore(pool, false), slog.New(slog.DiscardHandler), false, nil)
@@ -196,7 +200,9 @@ func TestAddToCartReturnsToTheChosenVariant(t *testing.T) {
 	}
 }
 
-func TestAddToCartRefusalKeepsTheChosenVariant(t *testing.T) {
+// TestHandler_AddItemRefusalVariant holds that AddItem keeps the chosen variant
+// on the product page when the add is refused.
+func TestHandler_AddItemRefusalVariant(t *testing.T) {
 	const slug = "aurora-slate-11"
 	vid := soldOutAuroraVariant(t)
 	h := cart.NewHandler(cart.NewStore(pool), access.NewStore(pool, false), slog.New(slog.DiscardHandler), false, nil)
@@ -217,7 +223,10 @@ func TestAddToCartRefusalKeepsTheChosenVariant(t *testing.T) {
 	}
 }
 
-func TestAddToCartRejectsAMismatchedBackSlug(t *testing.T) {
+// TestHandler_AddItemMismatchedBack holds that AddItem sends the shopper to
+// /cart, not to a product page, when the back slug is not the product of the
+// variant added.
+func TestHandler_AddItemMismatchedBack(t *testing.T) {
 	vid := variantOf(t, "nimbus-buds-pro", true)
 	h := cart.NewHandler(cart.NewStore(pool), access.NewStore(pool, false), slog.New(slog.DiscardHandler), false, nil)
 
@@ -289,7 +298,10 @@ func soldOutAuroraVariant(t *testing.T) uuid.UUID {
 	return id
 }
 
-func TestAddRefusesWhatCannotBeSold(t *testing.T) {
+// TestStore_AddUnsellable holds that Add refuses a variant that cannot be sold
+// with ErrUnavailable, recognised before the write rather than left to a
+// constraint violation.
+func TestStore_AddUnsellable(t *testing.T) {
 	s := cart.NewStore(pool)
 	id := newCart(t, s)
 
@@ -309,7 +321,9 @@ func TestAddRefusesWhatCannotBeSold(t *testing.T) {
 	}
 }
 
-func TestAddClampsToWhatCanBeSupplied(t *testing.T) {
+// TestStore_AddClampsToSupply holds that Add clamps an add to what can be
+// supplied.
+func TestStore_AddClampsToSupply(t *testing.T) {
 	ctx := t.Context()
 	s := cart.NewStore(pool)
 
@@ -361,7 +375,9 @@ func TestAddClampsToWhatCanBeSupplied(t *testing.T) {
 	}
 }
 
-func TestAddAdjustedShowsNoticeOnTheProductPage(t *testing.T) {
+// TestHandler_AddItemAdjustedNotice holds that AddItem shows the
+// quantity-adjusted notice on the product page when the add was clamped.
+func TestHandler_AddItemAdjustedNotice(t *testing.T) {
 	ctx := t.Context()
 	s := cart.NewStore(pool)
 	h := cart.NewHandler(s, access.NewStore(pool, false), slog.New(slog.DiscardHandler), false, nil)

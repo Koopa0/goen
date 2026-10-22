@@ -19,7 +19,9 @@ func departmentsOf(n int) []Category {
 	return cats
 }
 
-func TestTheDirectoryIsDrawnWhenItListsMoreThanTheBand(t *testing.T) {
+// TestView_ShowsDirectory holds that the directory is drawn only when it lists
+// more than the band does.
+func TestView_ShowsDirectory(t *testing.T) {
 	t.Parallel()
 	for _, tt := range []struct {
 		name        string
@@ -59,9 +61,10 @@ func TestTheDirectoryIsDrawnWhenItListsMoreThanTheBand(t *testing.T) {
 	}
 }
 
-// With one department and no band drawn, the department is the directory's one
-// tile: the home page never names it only in the header.
-func TestOneDepartmentWithNoBandIsTheDirectorysOneTile(t *testing.T) {
+// TestDepartmentDirectoryOneTile: With one department and no band drawn, the
+// department is the directory's one tile: the home page never names it only in
+// the header.
+func TestDepartmentDirectoryOneTile(t *testing.T) {
 	t.Parallel()
 	page := renderIn(t, i18n.ZhHant, Page(frame.Page{}, View{Categories: departmentsOf(1)}))
 	if !strings.Contains(page, "goen-cats__grid") || !strings.Contains(page, `href="/c/d0"`) {
@@ -69,9 +72,9 @@ func TestOneDepartmentWithNoBandIsTheDirectorysOneTile(t *testing.T) {
 	}
 }
 
-// A tile is the department's name and nothing else: no number of products, no
-// sub-categories.
-func TestADepartmentTileHoldsOnlyItsPictureAndName(t *testing.T) {
+// TestDepartmentTilePictureName: A tile is the department's name and nothing
+// else: no number of products, no sub-categories.
+func TestDepartmentTilePictureName(t *testing.T) {
 	t.Parallel()
 	page := renderIn(t, i18n.ZhHant, Page(frame.Page{}, View{Categories: departmentsOf(2)}))
 	want := `<a class="goen-cat" data-tone="stone" href="/c/d0"><span class="goen-cat__well"><span class="goen-cat__mark" aria-hidden="true">館</span></span> <span class="goen-cat__name">館0</span></a>`
@@ -80,10 +83,10 @@ func TestADepartmentTileHoldsOnlyItsPictureAndName(t *testing.T) {
 	}
 }
 
-// A department without a photograph is its tone and the first character of its
-// name, hidden from a screen reader because the name stands beside it; a
-// department with no tone is stone.
-func TestADepartmentWithoutAPhotographIsItsToneAndFirstCharacter(t *testing.T) {
+// TestDepartmentTileNoPhoto: A department without a photograph is its tone and
+// the first character of its name, hidden from a screen reader because the name
+// stands beside it; a department with no tone is stone.
+func TestDepartmentTileNoPhoto(t *testing.T) {
 	t.Parallel()
 	cats := departmentsOf(3)
 	cats[1] = Category{Slug: "wood", Name: "棲木家居"}
@@ -119,7 +122,9 @@ func campaignRow(firstPhotoWidth int32, tiles int) ProductRow {
 	}
 }
 
-func TestTheLeadTileNeedsAWidePhotographAndFourProducts(t *testing.T) {
+// TestProductRowLeadTile holds that a campaign row gets a lead tile only when
+// its first photograph is wide enough (1200 px) and the row has four products.
+func TestProductRowLeadTile(t *testing.T) {
 	t.Parallel()
 	for _, tt := range []struct {
 		name  string
@@ -156,9 +161,10 @@ func TestTheLeadTileNeedsAWidePhotographAndFourProducts(t *testing.T) {
 	}
 }
 
-// The card's one link is the count: the card is not a second way into the
-// campaign page around the heading's, and nothing in it is a link but that.
-func TestTheCampaignCardIsNotOneBigLink(t *testing.T) {
+// TestProductRowCardLinks: The card's one link is the count: the card is not a
+// second way into the campaign page around the heading's, and nothing in it is
+// a link but that.
+func TestProductRowCardLinks(t *testing.T) {
 	t.Parallel()
 	page := renderIn(t, i18n.ZhHant, Page(frame.Page{}, View{Row: campaignRow(1600, 4)}))
 	start := strings.Index(page, `<li class="goen-rowcard">`)
@@ -180,7 +186,9 @@ func TestTheCampaignCardIsNotOneBigLink(t *testing.T) {
 	}
 }
 
-func TestWithNoCampaignTheRowIsNewInWithNoCard(t *testing.T) {
+// TestProductRowNewIn holds that a row with no campaign is drawn as New in,
+// with no campaign card.
+func TestProductRowNewIn(t *testing.T) {
 	t.Parallel()
 	row := ProductRow{Title: "新到貨", Href: "/search", Tiles: tiledShelf(4)}
 	page := renderIn(t, i18n.ZhHant, Page(frame.Page{}, View{Row: row}))
@@ -196,7 +204,9 @@ func TestWithNoCampaignTheRowIsNewInWithNoCard(t *testing.T) {
 	}
 }
 
-func TestTheNewInLinkSaysProductsInBothLanguages(t *testing.T) {
+// TestProductRowNewInLink holds that the New in link says products in both
+// languages.
+func TestProductRowNewInLink(t *testing.T) {
 	t.Parallel()
 	row := ProductRow{Title: "New in", Href: "/search", Tiles: tiledShelf(4)}
 	page := renderIn(t, i18n.En, Page(frame.Page{}, View{Row: row}))
@@ -205,7 +215,9 @@ func TestTheNewInLinkSaysProductsInBothLanguages(t *testing.T) {
 	}
 }
 
-func TestTheBandLinkCountsTheDepartmentsProducts(t *testing.T) {
+// TestDepartmentBandLinkCount holds that the band link counts the department's
+// products.
+func TestDepartmentBandLinkCount(t *testing.T) {
 	t.Parallel()
 	for locale, want := range map[i18n.Locale]string{i18n.ZhHant: "看全部 20 件", i18n.En: "See all 20 items"} {
 		page := renderIn(t, locale, Page(frame.Page{}, View{Band: &DepartmentBand{

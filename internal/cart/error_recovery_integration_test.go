@@ -20,7 +20,10 @@ import (
 	"github.com/koopa0/goen/internal/user"
 )
 
-func TestSignedInGuestOrderAccessOffersLookupWithoutSignIn(t *testing.T) {
+// TestOrderRoutesSignedInGuest holds that a signed-in customer who reaches a
+// guest order's routes (order, pay, return, cancel, reorder) is offered the
+// order lookup, not sign-in.
+func TestOrderRoutesSignedInGuest(t *testing.T) {
 	number := numberOf(t, heldOrder(t, freshVariant(t, "guest-recovery"), -time.Hour, false))
 	var customerID uuid.UUID
 	if err := pool.QueryRow(t.Context(), `INSERT INTO users (email) VALUES ($1) RETURNING id`, "recovery-"+uuid.NewString()+"@example.com").Scan(&customerID); err != nil {
