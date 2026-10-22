@@ -9,7 +9,7 @@ import (
 
 	"github.com/google/uuid"
 
-	"github.com/koopa0/goen/internal/admin/access"
+	"github.com/koopa0/goen/internal/admin"
 	"github.com/koopa0/goen/internal/i18n"
 	"github.com/koopa0/goen/internal/order"
 	"github.com/koopa0/goen/internal/order/returns"
@@ -45,7 +45,7 @@ func (h *Handler) RefundUnsent(w http.ResponseWriter, r *http.Request) {
 	outcome, ok := unsentNotice(err)
 	if !ok {
 		h.log.ErrorContext(r.Context(), "unsent refund", "order", number, "error", err)
-		access.ServerError(w, r, h.log)
+		admin.ServerError(w, r, h.log)
 		return
 	}
 	if err != nil {
@@ -87,14 +87,14 @@ func unsentRequestOf(r *http.Request) (*UnsentRequest, error) {
 func (h *Handler) confirmRefundUnsent(w http.ResponseWriter, r *http.Request, number string, req *UnsentRequest) bool {
 	preview, err := h.store.UnsentRefundPreview(r.Context(), number, req)
 	if errors.Is(err, ErrNotFound) {
-		access.NotFound(w, r, h.log)
+		admin.NotFound(w, r, h.log)
 		return true
 	}
 	if err != nil {
 		outcome, ok := unsentNotice(err)
 		if !ok {
 			h.log.ErrorContext(r.Context(), "read unsent refund", "order", number, "error", err)
-			access.ServerError(w, r, h.log)
+			admin.ServerError(w, r, h.log)
 			return true
 		}
 		h.log.WarnContext(r.Context(), "unsent refund not offered", "order", number, "error", err)

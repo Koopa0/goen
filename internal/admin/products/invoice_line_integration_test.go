@@ -18,7 +18,7 @@ import (
 	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/jackc/pgx/v5/pgxpool"
 
-	"github.com/koopa0/goen/internal/admin/access"
+	"github.com/koopa0/goen/internal/admin"
 	"github.com/koopa0/goen/internal/admin/admintest"
 	"github.com/koopa0/goen/internal/admin/audit"
 	"github.com/koopa0/goen/internal/admin/products"
@@ -125,7 +125,7 @@ func TestProductInvoiceLineRouteRefusesCustomersAndKeepsInvalidForm(t *testing.T
 		t.Fatal(err)
 	}
 	mux := http.NewServeMux()
-	productstest.NewHandler(p, products.NewStore(p)).Routes(mux, access.New(slog.New(slog.DiscardHandler), nil))
+	productstest.NewHandler(p, products.NewStore(p)).Routes(mux, admin.NewControl(slog.New(slog.DiscardHandler), nil))
 	path := "/admin/products/" + slug + "/invoice-line"
 	for _, role := range []user.Role{"", "customer"} {
 		requestCtx := t.Context()
@@ -175,7 +175,7 @@ func TestProductInvoiceLineRedirectSurvivesAProductReadFailure(t *testing.T) {
 	}
 	handler := productstest.NewHandler(p, products.NewStore(writer))
 	mux := http.NewServeMux()
-	handler.Routes(mux, access.New(slog.New(slog.DiscardHandler), nil))
+	handler.Routes(mux, admin.NewControl(slog.New(slog.DiscardHandler), nil))
 	request := httptest.NewRequestWithContext(ctx, http.MethodPost, "/admin/products/"+slug+"/invoice-line", strings.NewReader("tax_type=exempt&invoice_unit=%E5%8C%85"))
 	request.Header.Set("Content-Type", "application/x-www-form-urlencoded")
 	response := httptest.NewRecorder()

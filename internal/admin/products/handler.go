@@ -13,7 +13,7 @@ import (
 	"github.com/koopa0/goen/assets"
 	"github.com/koopa0/goen/internal/shipping"
 
-	"github.com/koopa0/goen/internal/admin/access"
+	"github.com/koopa0/goen/internal/admin"
 	"github.com/koopa0/goen/internal/i18n"
 	"github.com/koopa0/goen/internal/keyset"
 	"github.com/koopa0/goen/internal/media"
@@ -38,7 +38,7 @@ func NewHandler(store *Store, images *media.Handler, log *slog.Logger) *Handler 
 	return &Handler{store: store, images: images, log: log}
 }
 
-func (h *Handler) Routes(mux *http.ServeMux, ac *access.Control) {
+func (h *Handler) Routes(mux *http.ServeMux, ac *admin.Control) {
 	mux.HandleFunc("GET /admin/products", ac.RequireStaff(h.List))
 	mux.HandleFunc("POST /admin/products", ac.RequireStaff(h.Create))
 	mux.HandleFunc("GET /admin/products/new", ac.RequireStaff(h.New))
@@ -71,7 +71,7 @@ func (h *Handler) List(w http.ResponseWriter, r *http.Request) {
 	view, err := h.store.List(r.Context(), r.URL.Query().Get(keyset.Param))
 	if err != nil {
 		h.log.ErrorContext(r.Context(), "read products", "error", err)
-		access.ServerError(w, r, h.log)
+		admin.ServerError(w, r, h.log)
 		return
 	}
 	view.Notice = widget.NoticeFrom(r, notices)
@@ -83,7 +83,7 @@ func (h *Handler) New(w http.ResponseWriter, r *http.Request) {
 	view, err := h.store.NewForm(r.Context())
 	if err != nil {
 		h.log.ErrorContext(r.Context(), "new product form", "error", err)
-		access.ServerError(w, r, h.log)
+		admin.ServerError(w, r, h.log)
 		return
 	}
 	respond.Component(w, r, h.log, http.StatusOK, ProductForm(
@@ -105,7 +105,7 @@ func (h *Handler) Create(w http.ResponseWriter, r *http.Request) {
 	switch {
 	case err != nil:
 		h.log.ErrorContext(r.Context(), "create product", "error", err)
-		access.ServerError(w, r, h.log)
+		admin.ServerError(w, r, h.log)
 	case len(errs) > 0:
 		h.rejectProduct(w, r, f, errs, true)
 	default:
@@ -162,7 +162,7 @@ func (h *Handler) renderProduct(w http.ResponseWriter, r *http.Request, status i
 			return
 		}
 		h.log.ErrorContext(r.Context(), "read product", "error", err)
-		access.ServerError(w, r, h.log)
+		admin.ServerError(w, r, h.log)
 		return
 	}
 	view.Notice = notice
@@ -187,10 +187,10 @@ func (h *Handler) Update(w http.ResponseWriter, r *http.Request) {
 	errs, err := h.store.Update(r.Context(), f)
 	switch {
 	case errors.Is(err, ErrNotFound):
-		access.NotFound(w, r, h.log)
+		admin.NotFound(w, r, h.log)
 	case err != nil:
 		h.log.ErrorContext(r.Context(), "update product", "error", err)
-		access.ServerError(w, r, h.log)
+		admin.ServerError(w, r, h.log)
 	case len(errs) > 0:
 		h.rejectProduct(w, r, f, errs, false)
 	default:
@@ -211,14 +211,14 @@ func (h *Handler) Publish(w http.ResponseWriter, r *http.Request) {
 		http.Redirect(w, r, "/admin/products/"+slug+"?ok=1", http.StatusSeeOther)
 	case errors.Is(err, ErrNotFound):
 		h.log.WarnContext(r.Context(), "set product status", "slug", slug, "error", err)
-		access.NotFound(w, r, h.log)
+		admin.NotFound(w, r, h.log)
 	case errors.Is(err, ErrRefused):
 		h.log.WarnContext(r.Context(), "set product status", "slug", slug, "error", err)
 		//nolint:gosec // G710: validated by the route's own slug
 		http.Redirect(w, r, "/admin/products/"+slug+"?refused=1", http.StatusSeeOther)
 	default:
 		h.log.ErrorContext(r.Context(), "set product status", "slug", slug, "error", err)
-		access.ServerError(w, r, h.log)
+		admin.ServerError(w, r, h.log)
 	}
 }
 
@@ -237,10 +237,10 @@ func (h *Handler) AddVariant(w http.ResponseWriter, r *http.Request) {
 	errs, err := h.store.AddVariant(r.Context(), slug, f)
 	switch {
 	case errors.Is(err, ErrNotFound):
-		access.NotFound(w, r, h.log)
+		admin.NotFound(w, r, h.log)
 	case err != nil:
 		h.log.ErrorContext(r.Context(), "add variant", "error", err)
-		access.ServerError(w, r, h.log)
+		admin.ServerError(w, r, h.log)
 	case len(errs) > 0:
 		h.editProductWithErrors(w, r, slug, errs, &productDrafts{variant: draft})
 	default:
@@ -336,11 +336,11 @@ func (h *Handler) rejectProduct(w http.ResponseWriter, r *http.Request, f *Form,
 	}
 	if err != nil {
 		if errors.Is(err, ErrNotFound) {
-			access.NotFound(w, r, h.log)
+			admin.NotFound(w, r, h.log)
 			return
 		}
 		h.log.ErrorContext(r.Context(), "rebuild product form", "error", err)
-		access.ServerError(w, r, h.log)
+		admin.ServerError(w, r, h.log)
 		return
 	}
 	view.Slug, view.Name, view.Summary = f.Slug, r.PostFormValue("name"), r.PostFormValue("summary")
@@ -375,7 +375,7 @@ func (h *Handler) UploadImage(w http.ResponseWriter, r *http.Request) {
 		field, key := attachImageRefusal(err, alt)
 		if field == "" {
 			h.log.ErrorContext(r.Context(), "attach image", "error", err, "slug", slug)
-			access.ServerError(w, r, h.log)
+			admin.ServerError(w, r, h.log)
 			return
 		}
 		h.log.WarnContext(r.Context(), "attach image", "error", err, "slug", slug)
@@ -408,7 +408,7 @@ func (h *Handler) ReuseImage(w http.ResponseWriter, r *http.Request) {
 		field, key := attachImageRefusal(err, r.PostFormValue("alt"))
 		if field == "" {
 			h.log.ErrorContext(r.Context(), "attach reused image", "error", err, "slug", slug)
-			access.ServerError(w, r, h.log)
+			admin.ServerError(w, r, h.log)
 			return
 		}
 		h.log.WarnContext(r.Context(), "attach reused image", "error", err, "slug", slug)
@@ -441,7 +441,7 @@ func (h *Handler) SetImageOption(w http.ResponseWriter, r *http.Request) {
 		r.PostFormValue("digest"), r.PostFormValue("option_value")); err != nil {
 		switch {
 		case errors.Is(err, ErrNotFound):
-			access.NotFound(w, r, h.log)
+			admin.NotFound(w, r, h.log)
 		case errors.Is(err, ErrNotThisProductsOption):
 			h.log.WarnContext(r.Context(), "set image option refused", "error", err, "slug", slug)
 			//nolint:gosec // G710: slug is the route's own path value
@@ -452,7 +452,7 @@ func (h *Handler) SetImageOption(w http.ResponseWriter, r *http.Request) {
 			http.Redirect(w, r, "/admin/products/"+slug+"?refused=1", http.StatusSeeOther)
 		default:
 			h.log.ErrorContext(r.Context(), "set image option", "error", err, "slug", slug)
-			access.ServerError(w, r, h.log)
+			admin.ServerError(w, r, h.log)
 		}
 		return
 	}
@@ -468,7 +468,7 @@ func (h *Handler) RemoveImage(w http.ResponseWriter, r *http.Request) {
 	slug := r.PathValue("slug")
 	if err := h.store.DetachImage(r.Context(), slug, r.PostFormValue("digest")); err != nil {
 		if errors.Is(err, ErrNotFound) {
-			access.NotFound(w, r, h.log)
+			admin.NotFound(w, r, h.log)
 			return
 		}
 		if errors.Is(err, ErrRefused) {
@@ -478,7 +478,7 @@ func (h *Handler) RemoveImage(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		h.log.ErrorContext(r.Context(), "detach image", "error", err, "slug", slug)
-		access.ServerError(w, r, h.log)
+		admin.ServerError(w, r, h.log)
 		return
 	}
 	//nolint:gosec // G710: slug is the route's own path value
@@ -497,14 +497,14 @@ func (h *Handler) MoveImage(w http.ResponseWriter, r *http.Request) {
 		//nolint:gosec // G710: slug is the route's own path value
 		http.Redirect(w, r, "/admin/products/"+slug+"?ok=1", http.StatusSeeOther)
 	case errors.Is(err, ErrNotFound):
-		access.NotFound(w, r, h.log)
+		admin.NotFound(w, r, h.log)
 	case errors.Is(err, ErrInvalid):
 		h.log.WarnContext(r.Context(), "move image refused", "error", err, "slug", slug)
 		h.renderProduct(w, r, http.StatusUnprocessableEntity,
 			widget.Result{Outcome: widget.OutcomeRefused, Text: i18n.T(r.Context(), i18n.KeyAdminNoticeImageStale)})
 	default:
 		h.log.ErrorContext(r.Context(), "move image", "error", err, "slug", slug)
-		access.ServerError(w, r, h.log)
+		admin.ServerError(w, r, h.log)
 	}
 }
 
@@ -552,7 +552,7 @@ func (h *Handler) optionWrite(
 			return
 		}
 		if errors.Is(err, ErrNotFound) {
-			access.NotFound(w, r, h.log)
+			admin.NotFound(w, r, h.log)
 			return
 		}
 		if errors.Is(err, ErrRefused) {
@@ -562,7 +562,7 @@ func (h *Handler) optionWrite(
 			return
 		}
 		h.log.ErrorContext(r.Context(), "write product option", "error", err, "slug", slug)
-		access.ServerError(w, r, h.log)
+		admin.ServerError(w, r, h.log)
 	case len(errs) > 0:
 		h.editProductWithErrors(w, r, slug, errs, &productDrafts{variant: draft})
 	default:
@@ -586,14 +586,14 @@ func (h *Handler) AddSpec(w http.ResponseWriter, r *http.Request) {
 	errs, err := h.store.AddSpec(r.Context(), slug, draft)
 	switch {
 	case errors.Is(err, ErrNotFound):
-		access.NotFound(w, r, h.log)
+		admin.NotFound(w, r, h.log)
 	case errors.Is(err, ErrRefused):
 		h.log.WarnContext(r.Context(), "add spec refused", "error", err, "slug", slug)
 		//nolint:gosec // G710: slug is the route's own path value
 		http.Redirect(w, r, "/admin/products/"+slug+"?specfailed=1", http.StatusSeeOther)
 	case err != nil:
 		h.log.ErrorContext(r.Context(), "add spec", "error", err, "slug", slug)
-		access.ServerError(w, r, h.log)
+		admin.ServerError(w, r, h.log)
 	case len(errs) > 0:
 		h.editProductWithErrors(w, r, slug, errs, &productDrafts{spec: draft})
 	default:
@@ -610,7 +610,7 @@ func (h *Handler) RemoveSpec(w http.ResponseWriter, r *http.Request) {
 	slug := r.PathValue("slug")
 	if err := h.store.RemoveSpec(r.Context(), slug, r.PostFormValue("spec")); err != nil {
 		if errors.Is(err, ErrNotFound) {
-			access.NotFound(w, r, h.log)
+			admin.NotFound(w, r, h.log)
 			return
 		}
 		if errors.Is(err, ErrRefused) {
@@ -620,7 +620,7 @@ func (h *Handler) RemoveSpec(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		h.log.ErrorContext(r.Context(), "remove spec", "error", err, "slug", slug)
-		access.ServerError(w, r, h.log)
+		admin.ServerError(w, r, h.log)
 		return
 	}
 	//nolint:gosec // G710: slug is the route's own path value
@@ -640,11 +640,11 @@ func (h *Handler) editProductWithErrors(
 	view, err := h.productView(r.Context(), slug)
 	if err != nil {
 		if errors.Is(err, ErrNotFound) {
-			access.NotFound(w, r, h.log)
+			admin.NotFound(w, r, h.log)
 			return
 		}
 		h.log.ErrorContext(r.Context(), "rebuild product form", "slug", slug, "error", err)
-		access.ServerError(w, r, h.log)
+		admin.ServerError(w, r, h.log)
 		return
 	}
 	view.Errors = errs
@@ -682,6 +682,6 @@ func (h *Handler) respondToUploadError(w http.ResponseWriter, r *http.Request, e
 		h.rejectImageUpload(w, r, "image", media.UploadNotice(err))
 	default:
 		h.log.ErrorContext(r.Context(), "image upload", "error", err, "slug", r.PathValue("slug"))
-		access.ServerError(w, r, h.log)
+		admin.ServerError(w, r, h.log)
 	}
 }

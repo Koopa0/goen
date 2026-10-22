@@ -7,7 +7,7 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/koopa0/goen/internal/admin/access"
+	"github.com/koopa0/goen/internal/admin"
 	"github.com/koopa0/goen/internal/i18n"
 	"github.com/koopa0/goen/internal/ui/frame"
 	"github.com/koopa0/goen/internal/ui/widget"
@@ -27,7 +27,7 @@ func NewHandler(store *Store, log *slog.Logger) *Handler {
 	return &Handler{store: store, log: log}
 }
 
-func (h *Handler) Routes(mux *http.ServeMux, ac *access.Control) {
+func (h *Handler) Routes(mux *http.ServeMux, ac *admin.Control) {
 	mux.HandleFunc("GET /admin/tiers", ac.RequireStaff(h.Tiers))
 	mux.HandleFunc("POST /admin/tiers", ac.RequireStaff(h.CreateTier))
 	mux.HandleFunc("POST /admin/tiers/delete", ac.RequireStaff(h.DeleteTier))
@@ -43,7 +43,7 @@ func (h *Handler) Tiers(w http.ResponseWriter, r *http.Request) {
 	view, err := h.store.Tiers(r.Context())
 	if err != nil {
 		h.log.ErrorContext(r.Context(), "read membership tiers", "error", err)
-		access.ServerError(w, r, h.log)
+		admin.ServerError(w, r, h.log)
 		return
 	}
 	view.Notice = widget.NoticeFrom(r, notices)
@@ -86,6 +86,6 @@ func (h *Handler) redirectTiers(w http.ResponseWriter, r *http.Request, err erro
 		http.Redirect(w, r, "/admin/tiers?refused=1", http.StatusSeeOther)
 	default:
 		h.log.ErrorContext(r.Context(), "change membership tiers", "error", err)
-		access.ServerError(w, r, h.log)
+		admin.ServerError(w, r, h.log)
 	}
 }

@@ -5,7 +5,7 @@ import (
 	"log/slog"
 	"net/http"
 
-	"github.com/koopa0/goen/internal/admin/access"
+	"github.com/koopa0/goen/internal/admin"
 	"github.com/koopa0/goen/internal/admin/audit"
 	"github.com/koopa0/goen/internal/i18n"
 	"github.com/koopa0/goen/internal/ui/frame"
@@ -33,7 +33,7 @@ func NewHandler(store *Store, log *slog.Logger, factorsEnabled bool) *Handler {
 // Routes register under RequireAdmin and not RequireStaff, which accepts `staff`
 // as well: these four promote, revoke, and strip an admin's second factor, and
 // the listing names who has none yet.
-func (h *Handler) Routes(mux *http.ServeMux, ac *access.Control) {
+func (h *Handler) Routes(mux *http.ServeMux, ac *admin.Control) {
 	mux.HandleFunc("GET /admin/staff", ac.RequireAdmin(h.Page))
 	mux.HandleFunc("POST /admin/staff", ac.RequireAdmin(h.Add))
 	mux.HandleFunc("POST /admin/staff/revoke", ac.RequireAdmin(h.Revoke))
@@ -53,7 +53,7 @@ func (h *Handler) Page(w http.ResponseWriter, r *http.Request) {
 	view, err := h.store.Staff(r.Context())
 	if err != nil {
 		h.log.ErrorContext(r.Context(), "read staff 2FA status", "error", err)
-		access.Fault(w, r, h.log)
+		admin.Fault(w, r, h.log)
 		return
 	}
 	view.NoKey = !h.factorsEnabled
@@ -74,7 +74,7 @@ func (h *Handler) Add(w http.ResponseWriter, r *http.Request) {
 		view, readErr := h.store.Staff(r.Context())
 		if readErr != nil {
 			h.log.ErrorContext(r.Context(), "read staff after refused add", "error", readErr)
-			access.Fault(w, r, h.log)
+			admin.Fault(w, r, h.log)
 			return
 		}
 		view.Actor = actorID(r)
@@ -133,6 +133,6 @@ func (h *Handler) redirect(w http.ResponseWriter, r *http.Request, err error) {
 		http.Redirect(w, r, "/admin/staff?notenrolled=1", http.StatusSeeOther)
 	default:
 		h.log.ErrorContext(r.Context(), "change staff", "error", err)
-		access.Fault(w, r, h.log)
+		admin.Fault(w, r, h.log)
 	}
 }

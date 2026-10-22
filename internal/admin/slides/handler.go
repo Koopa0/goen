@@ -5,7 +5,7 @@ import (
 	"log/slog"
 	"net/http"
 
-	"github.com/koopa0/goen/internal/admin/access"
+	"github.com/koopa0/goen/internal/admin"
 	"github.com/koopa0/goen/internal/i18n"
 	"github.com/koopa0/goen/internal/keyset"
 	"github.com/koopa0/goen/internal/media"
@@ -28,7 +28,7 @@ func NewHandler(store *Store, images *media.Handler, log *slog.Logger) *Handler 
 	return &Handler{store: store, images: images, log: log}
 }
 
-func (h *Handler) Routes(mux *http.ServeMux, ac *access.Control) {
+func (h *Handler) Routes(mux *http.ServeMux, ac *admin.Control) {
 	mux.HandleFunc("GET /admin/slides", ac.RequireStaff(h.Slides))
 	mux.HandleFunc("POST /admin/slides", ac.RequireStaff(h.CreateHero))
 	mux.HandleFunc("POST /admin/slides/{id}/active", ac.RequireStaff(h.SetHeroActive))
@@ -44,7 +44,7 @@ func (h *Handler) Slides(w http.ResponseWriter, r *http.Request) {
 	view, err := h.store.HeroSlides(r.Context(), r.URL.Query().Get(keyset.Param))
 	if err != nil {
 		h.log.ErrorContext(r.Context(), "read hero slides", "error", err)
-		access.ServerError(w, r, h.log)
+		admin.ServerError(w, r, h.log)
 		return
 	}
 	view.Notice = widget.NoticeFrom(r, notices)
@@ -58,13 +58,13 @@ func (h *Handler) answerRowWrite(w http.ResponseWriter, r *http.Request, what, b
 		http.Redirect(w, r, back+"?ok=1", http.StatusSeeOther)
 	case errors.Is(err, ErrNotFound):
 		h.log.WarnContext(r.Context(), what, "error", err)
-		access.NotFound(w, r, h.log)
+		admin.NotFound(w, r, h.log)
 	case errors.Is(err, ErrRefused):
 		h.log.WarnContext(r.Context(), what, "error", err)
 		http.Redirect(w, r, back+"?refused=1", http.StatusSeeOther)
 	default:
 		h.log.ErrorContext(r.Context(), what, "error", err)
-		access.ServerError(w, r, h.log)
+		admin.ServerError(w, r, h.log)
 	}
 }
 
@@ -116,7 +116,7 @@ func (h *Handler) CreateHero(w http.ResponseWriter, r *http.Request) {
 	switch {
 	case err != nil:
 		h.log.ErrorContext(r.Context(), "create hero slide", "error", err)
-		access.ServerError(w, r, h.log)
+		admin.ServerError(w, r, h.log)
 	case len(errs) > 0:
 		h.rejectHeroSlide(w, r, f, errs)
 	default:
@@ -135,7 +135,7 @@ func (h *Handler) respondToUploadError(w http.ResponseWriter, r *http.Request, f
 		h.rejectHeroSlide(w, r, f, map[string]string{"image": i18n.T(r.Context(), media.UploadNotice(err))})
 	default:
 		h.log.ErrorContext(r.Context(), "hero image", "error", err)
-		access.ServerError(w, r, h.log)
+		admin.ServerError(w, r, h.log)
 	}
 }
 
@@ -145,7 +145,7 @@ func (h *Handler) rejectHeroSlide(
 	view, err := h.store.HeroSlides(r.Context())
 	if err != nil {
 		h.log.ErrorContext(r.Context(), "read hero slides", "error", err)
-		access.ServerError(w, r, h.log)
+		admin.ServerError(w, r, h.log)
 		return
 	}
 	view.Errors = errs

@@ -318,7 +318,7 @@ CI 執行格式、vet、lint、無用程式碼與生成碼檢查、migration lin
 [auth]: internal/auth
 [google-signin]: internal/auth/google
 [bearer]: internal/bearer
-[access]: internal/admin/access/access.go
+[access]: internal/admin/access.go
 [twofactor]: internal/admin/twofactor
 [ratelimit]: internal/web/ratelimit
 [clientip]: internal/web/clientip/clientip.go

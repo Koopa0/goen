@@ -5,7 +5,7 @@ import (
 	"log/slog"
 	"net/http"
 
-	"github.com/koopa0/goen/internal/admin/access"
+	"github.com/koopa0/goen/internal/admin"
 	"github.com/koopa0/goen/internal/i18n"
 	"github.com/koopa0/goen/internal/ui/frame"
 	"github.com/koopa0/goen/internal/ui/widget"
@@ -25,7 +25,7 @@ func NewHandler(store *Store, log *slog.Logger) *Handler {
 	return &Handler{store: store, log: log}
 }
 
-func (h *Handler) Routes(mux *http.ServeMux, ac *access.Control) {
+func (h *Handler) Routes(mux *http.ServeMux, ac *admin.Control) {
 	mux.HandleFunc("GET /admin/faq", ac.RequireStaff(h.FAQ))
 	mux.HandleFunc("POST /admin/faq", ac.RequireStaff(h.CreateFAQ))
 	mux.HandleFunc("POST /admin/faq/{id}", ac.RequireStaff(h.EditFAQ))
@@ -43,7 +43,7 @@ func (h *Handler) FAQ(w http.ResponseWriter, r *http.Request) {
 	view, err := h.store.FAQ(r.Context())
 	if err != nil {
 		h.log.ErrorContext(r.Context(), "read faq", "error", err)
-		access.ServerError(w, r, h.log)
+		admin.ServerError(w, r, h.log)
 		return
 	}
 	view.Notice = widget.NoticeFrom(r, notices)
@@ -61,7 +61,7 @@ func (h *Handler) CreateFAQ(w http.ResponseWriter, r *http.Request) {
 	switch {
 	case err != nil:
 		h.log.ErrorContext(r.Context(), "create faq entry", "error", err)
-		access.ServerError(w, r, h.log)
+		admin.ServerError(w, r, h.log)
 	case len(errs) > 0:
 		h.rejectFAQ(w, r, f, errs)
 	default:
@@ -85,10 +85,10 @@ func (h *Handler) EditFAQ(w http.ResponseWriter, r *http.Request) {
 	errs, err := h.store.UpdateFAQEntry(r.Context(), f)
 	switch {
 	case errors.Is(err, ErrNotFound):
-		access.NotFound(w, r, h.log)
+		admin.NotFound(w, r, h.log)
 	case err != nil:
 		h.log.ErrorContext(r.Context(), "update faq entry", "error", err)
-		access.ServerError(w, r, h.log)
+		admin.ServerError(w, r, h.log)
 	case len(errs) > 0:
 		h.rejectFAQ(w, r, f, errs)
 	default:
@@ -111,7 +111,7 @@ func (h *Handler) rejectFAQ(
 ) {
 	view, err := h.store.FAQ(r.Context())
 	if err != nil {
-		access.ServerError(w, r, h.log)
+		admin.ServerError(w, r, h.log)
 		return
 	}
 	typed := Entry{
@@ -141,7 +141,7 @@ func (h *Handler) CreateFAQCategory(w http.ResponseWriter, r *http.Request) {
 	switch {
 	case err != nil:
 		h.log.ErrorContext(r.Context(), "create faq category", "error", err)
-		access.ServerError(w, r, h.log)
+		admin.ServerError(w, r, h.log)
 	case len(errs) > 0:
 		h.rejectFAQCategory(w, r, f, errs)
 	default:
@@ -170,10 +170,10 @@ func (h *Handler) EditFAQCategory(w http.ResponseWriter, r *http.Request) {
 	errs, err := h.store.RenameFAQCategory(r.Context(), f)
 	switch {
 	case errors.Is(err, ErrNotFound):
-		access.NotFound(w, r, h.log)
+		admin.NotFound(w, r, h.log)
 	case err != nil:
 		h.log.ErrorContext(r.Context(), "rename faq category", "error", err)
-		access.ServerError(w, r, h.log)
+		admin.ServerError(w, r, h.log)
 	case len(errs) > 0:
 		h.rejectFAQCategory(w, r, f, errs)
 	default:
@@ -192,7 +192,7 @@ func (h *Handler) rejectFAQCategory(
 ) {
 	view, err := h.store.FAQ(r.Context())
 	if err != nil {
-		access.ServerError(w, r, h.log)
+		admin.ServerError(w, r, h.log)
 		return
 	}
 	view.CategoryDraft = FAQCategory{
@@ -209,12 +209,12 @@ func (h *Handler) answerRowWrite(w http.ResponseWriter, r *http.Request, what, b
 		http.Redirect(w, r, back+"?ok=1", http.StatusSeeOther)
 	case errors.Is(err, ErrNotFound):
 		h.log.WarnContext(r.Context(), what, "error", err)
-		access.NotFound(w, r, h.log)
+		admin.NotFound(w, r, h.log)
 	case errors.Is(err, ErrRefused):
 		h.log.WarnContext(r.Context(), what, "error", err)
 		http.Redirect(w, r, back+"?refused=1", http.StatusSeeOther)
 	default:
 		h.log.ErrorContext(r.Context(), what, "error", err)
-		access.ServerError(w, r, h.log)
+		admin.ServerError(w, r, h.log)
 	}
 }

@@ -9,7 +9,7 @@ import (
 	"net/http"
 	"strconv"
 
-	"github.com/koopa0/goen/internal/admin/access"
+	"github.com/koopa0/goen/internal/admin"
 	"github.com/koopa0/goen/internal/db"
 	"github.com/koopa0/goen/internal/i18n"
 	"github.com/koopa0/goen/internal/shoptime"
@@ -29,13 +29,13 @@ func (h *Handler) ordersCSV(w http.ResponseWriter, r *http.Request) {
 	rows, err := h.store.ordersBetween(r.Context(), p)
 	if err != nil {
 		h.log.ErrorContext(r.Context(), "read monthly order export", "error", err)
-		access.ServerError(w, r, h.log)
+		admin.ServerError(w, r, h.log)
 		return
 	}
 	var body bytes.Buffer
 	if err := writeOrdersCSV(&body, r.Context(), rows); err != nil {
 		h.log.ErrorContext(r.Context(), "encode monthly order export", "error", err)
-		access.ServerError(w, r, h.log)
+		admin.ServerError(w, r, h.log)
 		return
 	}
 	w.Header().Set("Content-Type", "text/csv; charset=utf-8")

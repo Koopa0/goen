@@ -19,7 +19,7 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/jackc/pgx/v5/pgxpool"
 
-	"github.com/koopa0/goen/internal/admin/access"
+	"github.com/koopa0/goen/internal/admin"
 	"github.com/koopa0/goen/internal/admin/admintest"
 	"github.com/koopa0/goen/internal/admin/audit"
 	"github.com/koopa0/goen/internal/admin/stock"
@@ -140,7 +140,7 @@ func TestExpectedArrivalIsAuditedAndShownOnlyForTheSelectedSoldOutVariant(t *tes
 
 	log := slog.New(slog.DiscardHandler)
 	handler := stock.NewHandler(s, log)
-	ac := access.New(log, nil)
+	ac := admin.NewControl(log, nil)
 	for _, locale := range []i18n.Locale{i18n.ZhHant, i18n.En} {
 		missing := httptest.NewRequestWithContext(i18n.WithLocale(ctx, locale), http.MethodPost, "/admin/stock/arrival", strings.NewReader("sku=missing-arrival-sku&arrival_on="+tomorrow))
 		missing.Header.Set("Content-Type", "application/x-www-form-urlencoded")
@@ -285,7 +285,7 @@ func TestArrivalWriteFailuresRemainOperational(t *testing.T) {
 				request := httptest.NewRequestWithContext(requestCtx, http.MethodPost, "/admin/stock/arrival", strings.NewReader(form.Encode()))
 				request.Header.Set("Content-Type", "application/x-www-form-urlencoded")
 				response := httptest.NewRecorder()
-				access.New(log, nil).RequireStaff(handler.SetArrival)(response, request)
+				admin.NewControl(log, nil).RequireStaff(handler.SetArrival)(response, request)
 				if response.Code != http.StatusInternalServerError {
 					t.Errorf("%s arrival failure = %d, want 500", failure, response.Code)
 				}

@@ -10,7 +10,7 @@ import (
 
 	"github.com/koopa0/goen/assets"
 	"github.com/koopa0/goen/internal/account"
-	adminaccess "github.com/koopa0/goen/internal/admin/access"
+	"github.com/koopa0/goen/internal/admin"
 	"github.com/koopa0/goen/internal/admin/audit"
 	"github.com/koopa0/goen/internal/admin/banners"
 	"github.com/koopa0/goen/internal/admin/campaigns"
@@ -368,7 +368,7 @@ func backOfficeRoutes(mux *http.ServeMux, cfg *BackOfficeConfig, factorStore *tw
 
 	// The back office. A signed-in customer gets a 404 rather than a 403, which
 	// would confirm that /admin is a real place.
-	backOffice := adminaccess.New(log, stepUp).WithHealthTaskCount(checkup.StaffTaskCount)
+	backOffice := admin.NewControl(log, stepUp).WithHealthTaskCount(checkup.StaffTaskCount)
 	landing.Routes(mux, backOffice)
 	orderDesk.Routes(mux, backOffice)
 	trail.Routes(mux, backOffice)

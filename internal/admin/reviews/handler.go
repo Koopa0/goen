@@ -5,7 +5,7 @@ import (
 	"log/slog"
 	"net/http"
 
-	"github.com/koopa0/goen/internal/admin/access"
+	"github.com/koopa0/goen/internal/admin"
 	"github.com/koopa0/goen/internal/i18n"
 	"github.com/koopa0/goen/internal/keyset"
 	"github.com/koopa0/goen/internal/ui/frame"
@@ -26,7 +26,7 @@ func NewHandler(store *Store, log *slog.Logger) *Handler {
 	return &Handler{store: store, log: log}
 }
 
-func (h *Handler) Routes(mux *http.ServeMux, ac *access.Control) {
+func (h *Handler) Routes(mux *http.ServeMux, ac *admin.Control) {
 	mux.HandleFunc("GET /admin/reviews", ac.RequireStaff(h.Reviews))
 	mux.HandleFunc("POST /admin/reviews/hide", ac.RequireStaff(h.HideReview))
 	mux.HandleFunc("POST /admin/reviews/show", ac.RequireStaff(h.ShowReview))
@@ -45,7 +45,7 @@ func (h *Handler) Reviews(w http.ResponseWriter, r *http.Request) {
 	view, err := h.store.Reviews(r.Context(), filter, r.URL.Query().Get(keyset.Param))
 	if err != nil {
 		h.log.ErrorContext(r.Context(), "read reviews", "error", err)
-		access.ServerError(w, r, h.log)
+		admin.ServerError(w, r, h.log)
 		return
 	}
 	view.Notice = widget.NoticeFrom(r, notices)
@@ -73,6 +73,6 @@ func (h *Handler) setReviewHidden(w http.ResponseWriter, r *http.Request, hidden
 		http.Redirect(w, r, "/admin/reviews?gone=1", http.StatusSeeOther)
 	default:
 		h.log.ErrorContext(r.Context(), "set review hidden", "error", err)
-		access.ServerError(w, r, h.log)
+		admin.ServerError(w, r, h.log)
 	}
 }

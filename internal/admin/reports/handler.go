@@ -10,7 +10,7 @@ import (
 	"strconv"
 	"time"
 
-	"github.com/koopa0/goen/internal/admin/access"
+	"github.com/koopa0/goen/internal/admin"
 	"github.com/koopa0/goen/internal/i18n"
 	"github.com/koopa0/goen/internal/ui/frame"
 	"github.com/koopa0/goen/internal/web/respond"
@@ -28,7 +28,7 @@ func NewHandler(store *Store, log *slog.Logger) *Handler {
 	return &Handler{store: store, log: log}
 }
 
-func (h *Handler) Routes(mux *http.ServeMux, ac *access.Control) {
+func (h *Handler) Routes(mux *http.ServeMux, ac *admin.Control) {
 	mux.HandleFunc("GET /admin/reports", ac.RequireStaff(h.Page))
 	mux.HandleFunc("GET /admin/reports/orders.csv", ac.RequireStaff(h.ordersCSV))
 }
@@ -47,7 +47,7 @@ func (h *Handler) Page(w http.ResponseWriter, r *http.Request) {
 	}
 	if err != nil {
 		h.log.ErrorContext(r.Context(), "read report", "error", err)
-		access.ServerError(w, r, h.log)
+		admin.ServerError(w, r, h.log)
 		return
 	}
 	if view.ReturnedErr != nil && !errors.Is(view.ReturnedErr, context.Canceled) {

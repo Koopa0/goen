@@ -17,7 +17,7 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 
 	"github.com/koopa0/goen/assets"
-	"github.com/koopa0/goen/internal/admin/access/accesstest"
+	"github.com/koopa0/goen/internal/admin/accesstest"
 	"github.com/koopa0/goen/internal/checkout"
 	"github.com/koopa0/goen/internal/payment"
 	"github.com/koopa0/goen/internal/shipping/storemap"

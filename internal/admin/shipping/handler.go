@@ -13,7 +13,7 @@ import (
 
 	"github.com/koopa0/goen/internal/shipping"
 
-	"github.com/koopa0/goen/internal/admin/access"
+	"github.com/koopa0/goen/internal/admin"
 	"github.com/koopa0/goen/internal/i18n"
 	"github.com/koopa0/goen/internal/money"
 	"github.com/koopa0/goen/internal/ui/frame"
@@ -37,7 +37,7 @@ func NewHandler(store *Store, pickupOffered bool, log *slog.Logger) *Handler {
 	return &Handler{store: store, pickupOffered: pickupOffered, log: log}
 }
 
-func (h *Handler) Routes(mux *http.ServeMux, ac *access.Control) {
+func (h *Handler) Routes(mux *http.ServeMux, ac *admin.Control) {
 	mux.HandleFunc("GET /admin/shipping", ac.RequireStaff(h.Page))
 	mux.HandleFunc("POST /admin/shipping/version", ac.RequireStaff(h.PublishVersion))
 	mux.HandleFunc("POST /admin/shipping/surcharge", ac.RequireStaff(h.SetZoneSurcharge))
@@ -70,7 +70,7 @@ func (h *Handler) CreateMethod(w http.ResponseWriter, r *http.Request) {
 	switch {
 	case err != nil:
 		h.log.ErrorContext(r.Context(), "create shipping method", "error", err)
-		access.ServerError(w, r, h.log)
+		admin.ServerError(w, r, h.log)
 	case len(errs) > 0:
 		h.rejectShippingForm(w, r, errs, &shippingDrafts{method: draft})
 	default:
@@ -132,13 +132,13 @@ func (h *Handler) SetMethodActive(w http.ResponseWriter, r *http.Request) {
 		http.Redirect(w, r, "/admin/shipping?ok=1", http.StatusSeeOther)
 	case errors.Is(err, ErrNotFound):
 		h.log.WarnContext(r.Context(), "toggle shipping method", "error", err)
-		access.NotFound(w, r, h.log)
+		admin.NotFound(w, r, h.log)
 	case errors.Is(err, ErrRefused):
 		h.log.WarnContext(r.Context(), "toggle shipping method", "error", err)
 		http.Redirect(w, r, "/admin/shipping?refused=1", http.StatusSeeOther)
 	default:
 		h.log.ErrorContext(r.Context(), "toggle shipping method", "error", err)
-		access.ServerError(w, r, h.log)
+		admin.ServerError(w, r, h.log)
 	}
 }
 
@@ -157,7 +157,7 @@ func (h *Handler) CreateZone(w http.ResponseWriter, r *http.Request) {
 	switch {
 	case err != nil:
 		h.log.ErrorContext(r.Context(), "create shipping zone", "error", err)
-		access.ServerError(w, r, h.log)
+		admin.ServerError(w, r, h.log)
 	case len(errs) > 0:
 		h.rejectShippingForm(w, r, errs, &shippingDrafts{zone: ZoneDraft{
 			Code: r.PostFormValue("code"), Name: r.PostFormValue("name"), NameEn: r.PostFormValue("name_en"), Prefixes: r.PostFormValue("prefixes"),
@@ -177,10 +177,10 @@ func (h *Handler) SetZonePrefixes(w http.ResponseWriter, r *http.Request) {
 	switch {
 	case errors.Is(err, ErrNotFound):
 		h.log.WarnContext(r.Context(), "set zone prefixes", "error", err)
-		access.NotFound(w, r, h.log)
+		admin.NotFound(w, r, h.log)
 	case err != nil:
 		h.log.ErrorContext(r.Context(), "set zone prefixes", "error", err)
-		access.ServerError(w, r, h.log)
+		admin.ServerError(w, r, h.log)
 	case len(errs) > 0:
 		h.rejectShippingForm(w, r, errs, &shippingDrafts{prefixes: ZonePrefixesDraft{
 			ZoneID: zoneID, Prefixes: prefixes,
@@ -212,13 +212,13 @@ func (h *Handler) DeleteZone(w http.ResponseWriter, r *http.Request) {
 		http.Redirect(w, r, "/admin/shipping?ok=1", http.StatusSeeOther)
 	case errors.Is(err, ErrNotFound):
 		h.log.WarnContext(r.Context(), "delete shipping zone", "error", err)
-		access.NotFound(w, r, h.log)
+		admin.NotFound(w, r, h.log)
 	case errors.Is(err, ErrRefused):
 		h.log.WarnContext(r.Context(), "delete shipping zone", "error", err)
 		http.Redirect(w, r, "/admin/shipping?refused=1", http.StatusSeeOther)
 	default:
 		h.log.ErrorContext(r.Context(), "delete shipping zone", "error", err)
-		access.ServerError(w, r, h.log)
+		admin.ServerError(w, r, h.log)
 	}
 }
 
@@ -234,7 +234,7 @@ func (h *Handler) rejectShippingForm(
 ) {
 	view, err := h.shippingView(r.Context())
 	if err != nil {
-		access.ServerError(w, r, h.log)
+		admin.ServerError(w, r, h.log)
 		return
 	}
 	if drafts.version != nil {
@@ -246,7 +246,7 @@ func (h *Handler) rejectShippingForm(
 			}
 		}
 		if !found {
-			access.NotFound(w, r, h.log)
+			admin.NotFound(w, r, h.log)
 			return
 		}
 	}
@@ -289,7 +289,7 @@ func (h *Handler) Page(w http.ResponseWriter, r *http.Request) {
 	view, err := h.shippingView(r.Context())
 	if err != nil {
 		h.log.ErrorContext(r.Context(), "read shipping configuration", "error", err)
-		access.ServerError(w, r, h.log)
+		admin.ServerError(w, r, h.log)
 		return
 	}
 	view.Notice = widget.NoticeFrom(r, notices)
@@ -316,7 +316,7 @@ func (h *Handler) PublishVersion(w http.ResponseWriter, r *http.Request) {
 		h.rejectShippingForm(w, r, map[string]string{"version_form": i18n.T(r.Context(), i18n.KeyAdminShipRefused)}, &shippingDrafts{version: &draft})
 	default:
 		h.log.ErrorContext(r.Context(), "publish shipping version", "error", err)
-		access.ServerError(w, r, h.log)
+		admin.ServerError(w, r, h.log)
 	}
 }
 
@@ -366,25 +366,25 @@ func (h *Handler) SetZoneSurcharge(w http.ResponseWriter, r *http.Request) {
 		h.rejectSurcharge(w, r, i18n.T(r.Context(), i18n.KeyAdminShipRefused))
 	default:
 		h.log.ErrorContext(r.Context(), "set shipping surcharge", "error", err)
-		access.ServerError(w, r, h.log)
+		admin.ServerError(w, r, h.log)
 	}
 }
 
 func (h *Handler) rejectSurcharge(w http.ResponseWriter, r *http.Request, message string) {
 	view, err := h.shippingView(r.Context())
 	if err != nil {
-		access.ServerError(w, r, h.log)
+		admin.ServerError(w, r, h.log)
 		return
 	}
 	versionID, zoneID := r.PostFormValue("version"), r.PostFormValue("zone")
 	methodID, err := h.store.VersionMethod(r.Context(), versionID)
 	if errors.Is(err, ErrNotFound) {
-		access.NotFound(w, r, h.log)
+		admin.NotFound(w, r, h.log)
 		return
 	}
 	if err != nil {
 		h.log.ErrorContext(r.Context(), "read surcharge version method", "error", err)
-		access.ServerError(w, r, h.log)
+		admin.ServerError(w, r, h.log)
 		return
 	}
 	for i := range view.Methods {
@@ -401,7 +401,7 @@ func (h *Handler) rejectSurcharge(w http.ResponseWriter, r *http.Request, messag
 		}
 	}
 	if !zoneFound {
-		access.NotFound(w, r, h.log)
+		admin.NotFound(w, r, h.log)
 		return
 	}
 	view.SurchargeDraft = SurchargeDraft{MethodID: methodID, ZoneID: zoneID, Amount: r.PostFormValue("amount")}

@@ -15,7 +15,7 @@ import (
 	"github.com/google/uuid"
 	"golang.org/x/net/html"
 
-	"github.com/koopa0/goen/internal/admin/access"
+	"github.com/koopa0/goen/internal/admin"
 	"github.com/koopa0/goen/internal/admin/admintest"
 	"github.com/koopa0/goen/internal/admin/banners"
 	"github.com/koopa0/goen/internal/admin/faq"
@@ -38,7 +38,7 @@ func TestDeskRefusalPOSTsKeepDraftsAndLocateTheirForm(t *testing.T) {
 	log := slog.New(slog.DiscardHandler)
 	images := media.NewHandler(media.NewStore(pool), log)
 	mux := http.NewServeMux()
-	ac := access.New(log, func(*http.Request) (bool, error) { return true, nil })
+	ac := admin.NewControl(log, func(*http.Request) (bool, error) { return true, nil })
 	productStore := products.NewStore(pool)
 	productstest.NewHandler(pool, productStore).Routes(mux, ac)
 	stock.NewHandler(stock.NewStore(pool), log).Routes(mux, ac)

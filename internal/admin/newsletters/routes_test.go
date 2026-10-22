@@ -5,13 +5,13 @@ import (
 	"net/http"
 	"testing"
 
-	"github.com/koopa0/goen/internal/admin/access"
-	"github.com/koopa0/goen/internal/admin/access/accesstest"
+	"github.com/koopa0/goen/internal/admin"
+	"github.com/koopa0/goen/internal/admin/accesstest"
 )
 
 func TestEveryRouteRefusesAnOutsider(t *testing.T) {
 	t.Parallel()
-	accesstest.RefuseOutsiders(t, func(mux *http.ServeMux, ac *access.Control) {
+	accesstest.RefuseOutsiders(t, func(mux *http.ServeMux, ac *admin.Control) {
 		NewHandler(&Store{}, slog.New(slog.DiscardHandler)).Routes(mux, ac)
 	},
 		"GET /admin/newsletters", "POST /admin/newsletters", "POST /admin/newsletters/{id}/send")

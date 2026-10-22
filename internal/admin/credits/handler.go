@@ -9,7 +9,7 @@ import (
 
 	"github.com/google/uuid"
 
-	"github.com/koopa0/goen/internal/admin/access"
+	"github.com/koopa0/goen/internal/admin"
 	"github.com/koopa0/goen/internal/credit"
 	"github.com/koopa0/goen/internal/i18n"
 	"github.com/koopa0/goen/internal/keyset"
@@ -33,7 +33,7 @@ func NewHandler(store *Store, log *slog.Logger) *Handler {
 	return &Handler{store: store, log: log}
 }
 
-func (h *Handler) Routes(mux *http.ServeMux, ac *access.Control) {
+func (h *Handler) Routes(mux *http.ServeMux, ac *admin.Control) {
 	mux.HandleFunc("GET /admin/credits", ac.RequireStaff(h.Credit))
 	mux.HandleFunc("POST /admin/credits", ac.RequireStaff(h.GrantCredit))
 }
@@ -47,17 +47,17 @@ var notices = map[string]widget.NoticeEntry{
 func (h *Handler) Credit(w http.ResponseWriter, r *http.Request) {
 	customer, ok := creditFilter(r.URL.Query().Get("customer"))
 	if !ok {
-		access.NotFound(w, r, h.log)
+		admin.NotFound(w, r, h.log)
 		return
 	}
 	ledger, err := h.store.Credit(r.Context(), customer, r.URL.Query().Get(keyset.Param))
 	if errors.Is(err, ErrNotFound) {
-		access.NotFound(w, r, h.log)
+		admin.NotFound(w, r, h.log)
 		return
 	}
 	if err != nil {
 		h.log.ErrorContext(r.Context(), "read credit ledger", "error", err)
-		access.ServerError(w, r, h.log)
+		admin.ServerError(w, r, h.log)
 		return
 	}
 	view := creditView(ledger)
@@ -140,7 +140,7 @@ func (h *Handler) GrantCredit(w http.ResponseWriter, r *http.Request) {
 			h.renderCreditForm(w, r, &view, http.StatusUnprocessableEntity, i18n.KeyAdminCreditUnknown)
 		} else {
 			h.log.ErrorContext(r.Context(), "read credit recipient", "error", err)
-			access.ServerError(w, r, h.log)
+			admin.ServerError(w, r, h.log)
 		}
 		return
 	}
@@ -159,7 +159,7 @@ func (h *Handler) GrantCredit(w http.ResponseWriter, r *http.Request) {
 	}
 	customerID, parseErr := uuid.Parse(view.CustomerID)
 	if parseErr != nil {
-		access.ServerError(w, r, h.log)
+		admin.ServerError(w, r, h.log)
 		return
 	}
 	balance, err := h.store.GrantCredit(r.Context(), customerID, view.GrantCents, view.Reason, operationID)
@@ -179,24 +179,24 @@ func (h *Handler) GrantCredit(w http.ResponseWriter, r *http.Request) {
 		http.Redirect(w, r, "/admin/credits?refused=1", http.StatusSeeOther)
 	default:
 		h.log.ErrorContext(r.Context(), "grant credit", "error", err)
-		access.ServerError(w, r, h.log)
+		admin.ServerError(w, r, h.log)
 	}
 }
 
 func (h *Handler) renderCreditForm(w http.ResponseWriter, r *http.Request, view *CreditView, status int, notice i18n.Key) {
 	customer, ok := creditFilter(view.FilterCustomerID)
 	if !ok {
-		access.NotFound(w, r, h.log)
+		admin.NotFound(w, r, h.log)
 		return
 	}
 	ledger, err := h.store.Credit(r.Context(), customer)
 	if errors.Is(err, ErrNotFound) {
-		access.NotFound(w, r, h.log)
+		admin.NotFound(w, r, h.log)
 		return
 	}
 	if err != nil {
 		h.log.ErrorContext(r.Context(), "read credit ledger", "error", err)
-		access.ServerError(w, r, h.log)
+		admin.ServerError(w, r, h.log)
 		return
 	}
 	shown := creditView(ledger)

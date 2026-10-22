@@ -5,7 +5,7 @@ import (
 	"log/slog"
 	"net/http"
 
-	"github.com/koopa0/goen/internal/admin/access"
+	"github.com/koopa0/goen/internal/admin"
 	"github.com/koopa0/goen/internal/i18n"
 	"github.com/koopa0/goen/internal/keyset"
 	"github.com/koopa0/goen/internal/ui/frame"
@@ -27,7 +27,7 @@ func NewHandler(store *Store, log *slog.Logger) *Handler {
 	return &Handler{store: store, log: log}
 }
 
-func (h *Handler) Routes(mux *http.ServeMux, ac *access.Control) {
+func (h *Handler) Routes(mux *http.ServeMux, ac *admin.Control) {
 	mux.HandleFunc("GET /admin/questions", ac.RequireStaff(h.Questions))
 	mux.HandleFunc("POST /admin/questions/{id}", ac.RequireStaff(h.AnswerQuestion))
 }
@@ -45,7 +45,7 @@ func (h *Handler) Questions(w http.ResponseWriter, r *http.Request) {
 	view, err := h.store.Questions(r.Context(), queue, r.URL.Query().Get(keyset.Param))
 	if err != nil {
 		h.log.ErrorContext(r.Context(), "read questions", "error", err)
-		access.ServerError(w, r, h.log)
+		admin.ServerError(w, r, h.log)
 		return
 	}
 	view.Notice = widget.NoticeFrom(r, notices)
@@ -56,7 +56,7 @@ func (h *Handler) Questions(w http.ResponseWriter, r *http.Request) {
 func (h *Handler) AnswerQuestion(w http.ResponseWriter, r *http.Request) {
 	u, ok := user.FromContext(r.Context())
 	if !ok {
-		access.NotFound(w, r, h.log)
+		admin.NotFound(w, r, h.log)
 		return
 	}
 	if err := formtext.ParseForm(w, r); err != nil {
@@ -88,7 +88,7 @@ func (h *Handler) AnswerQuestion(w http.ResponseWriter, r *http.Request) {
 		http.Redirect(w, r, "/admin/questions?refused=1", http.StatusSeeOther)
 	default:
 		h.log.ErrorContext(r.Context(), "answer question", "error", err)
-		access.ServerError(w, r, h.log)
+		admin.ServerError(w, r, h.log)
 	}
 }
 
@@ -96,7 +96,7 @@ func (h *Handler) rejectAnswer(w http.ResponseWriter, r *http.Request, id string
 	view, err := h.store.Questions(r.Context(), VisibleQuestions)
 	if err != nil {
 		h.log.ErrorContext(r.Context(), "read questions after refused answer", "error", err)
-		access.ServerError(w, r, h.log)
+		admin.ServerError(w, r, h.log)
 		return
 	}
 	for i := range view.Rows {

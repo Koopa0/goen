@@ -10,7 +10,7 @@ import (
 
 	"rsc.io/qr"
 
-	"github.com/koopa0/goen/internal/admin/access"
+	"github.com/koopa0/goen/internal/admin"
 	"github.com/koopa0/goen/internal/i18n"
 	"github.com/koopa0/goen/internal/ui/frame"
 	"github.com/koopa0/goen/internal/user"
@@ -41,10 +41,10 @@ func NewHandler(store *Store, log *slog.Logger) *Handler {
 	}
 }
 
-// Routes registers the second-factor pages behind [access.Control.StaffOnly],
+// Routes registers the second-factor pages behind [admin.Control.StaffOnly],
 // not RequireStaff: RequireStaff sends a staff member who has not passed the
 // second factor here, so these pages behind it would redirect to themselves.
-func (h *Handler) Routes(mux *http.ServeMux, ac *access.Control) {
+func (h *Handler) Routes(mux *http.ServeMux, ac *admin.Control) {
 	mux.HandleFunc("GET /admin/verify", ac.StaffOnly(h.Challenge))
 	mux.HandleFunc("POST /admin/verify", ac.StaffOnly(h.Verify))
 	mux.HandleFunc("POST /admin/verify/enrol", ac.StaffOnly(h.Enrol))
@@ -73,7 +73,7 @@ func (h *Handler) Challenge(w http.ResponseWriter, r *http.Request) {
 			enrolled = false
 		default:
 			h.log.ErrorContext(r.Context(), "read totp state", "error", err)
-			access.Fault(w, r, h.log)
+			admin.Fault(w, r, h.log)
 			return
 		}
 	}
@@ -125,7 +125,7 @@ func (h *Handler) Verify(w http.ResponseWriter, r *http.Request) {
 			return
 		default:
 			h.log.ErrorContext(r.Context(), "verify totp", "error", err)
-			access.Fault(w, r, h.log)
+			admin.Fault(w, r, h.log)
 			return
 		}
 	}
@@ -136,7 +136,7 @@ func (h *Handler) Verify(w http.ResponseWriter, r *http.Request) {
 	}
 	if err := h.store.MarkVerified(r.Context(), session); err != nil {
 		h.log.ErrorContext(r.Context(), "mark session verified", "error", err)
-		access.Fault(w, r, h.log)
+		admin.Fault(w, r, h.log)
 		return
 	}
 	http.Redirect(w, r, "/admin", http.StatusSeeOther)
@@ -170,7 +170,7 @@ func (h *Handler) Enrol(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		h.log.ErrorContext(r.Context(), "begin enrolment", "error", err)
-		access.Fault(w, r, h.log)
+		admin.Fault(w, r, h.log)
 		return
 	}
 	// Rendered rather than redirected to: a redirect would have to carry the
@@ -178,7 +178,7 @@ func (h *Handler) Enrol(w http.ResponseWriter, r *http.Request) {
 	code, err := qr.Encode(uri, qr.M)
 	if err != nil {
 		h.log.ErrorContext(r.Context(), "encode enrolment QR", "error", err)
-		access.Fault(w, r, h.log)
+		admin.Fault(w, r, h.log)
 		return
 	}
 	respond.Component(w, r, h.log, http.StatusOK, TwoFactor(
@@ -215,7 +215,7 @@ func (h *Handler) Confirm(w http.ResponseWriter, r *http.Request) {
 			http.Redirect(w, r, "/admin/verify?badenrol=1", http.StatusSeeOther)
 		default:
 			h.log.ErrorContext(r.Context(), "confirm totp", "error", err)
-			access.Fault(w, r, h.log)
+			admin.Fault(w, r, h.log)
 		}
 		return
 	}
@@ -226,7 +226,7 @@ func (h *Handler) Confirm(w http.ResponseWriter, r *http.Request) {
 	}
 	if err := h.store.MarkVerified(r.Context(), session); err != nil {
 		h.log.ErrorContext(r.Context(), "mark session verified", "error", err)
-		access.Fault(w, r, h.log)
+		admin.Fault(w, r, h.log)
 		return
 	}
 	http.Redirect(w, r, "/admin?enrolled=1", http.StatusSeeOther)

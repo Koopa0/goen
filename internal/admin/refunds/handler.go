@@ -7,7 +7,7 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/koopa0/goen/internal/admin/access"
+	"github.com/koopa0/goen/internal/admin"
 	"github.com/koopa0/goen/internal/db"
 	"github.com/koopa0/goen/internal/i18n"
 	"github.com/koopa0/goen/internal/order"
@@ -34,7 +34,7 @@ func NewHandler(store *Store, sessions payment.SessionCloser, log *slog.Logger) 
 	return &Handler{store: store, sessions: sessions, log: log}
 }
 
-func (h *Handler) Routes(mux *http.ServeMux, ac *access.Control) {
+func (h *Handler) Routes(mux *http.ServeMux, ac *admin.Control) {
 	mux.HandleFunc("POST /admin/orders/{number}/refund", ac.RequireStaff(h.RefundBeforeShipment))
 	mux.HandleFunc("POST /admin/orders/{number}/refund-unsent", ac.RequireStaff(h.RefundUnsent))
 }
@@ -59,7 +59,7 @@ func (h *Handler) RefundBeforeShipment(w http.ResponseWriter, r *http.Request) {
 	outcome, ok := refundNotice(err)
 	if !ok {
 		h.log.ErrorContext(r.Context(), "refund before shipment", "order", number, "error", err)
-		access.ServerError(w, r, h.log)
+		admin.ServerError(w, r, h.log)
 		return
 	}
 	if err == nil {
@@ -126,7 +126,7 @@ func (h *Handler) confirmRefundBeforeShipment(w http.ResponseWriter, r *http.Req
 	preview, err := h.store.RefundPreview(r.Context(), number)
 	switch {
 	case errors.Is(err, ErrNotFound):
-		access.NotFound(w, r, h.log)
+		admin.NotFound(w, r, h.log)
 		return true
 	case errors.Is(err, refund.ErrRefused):
 		outcome, _ := refundNotice(err)
@@ -135,7 +135,7 @@ func (h *Handler) confirmRefundBeforeShipment(w http.ResponseWriter, r *http.Req
 		return true
 	case err != nil:
 		h.log.ErrorContext(r.Context(), "read refund before shipment", "order", number, "error", err)
-		access.ServerError(w, r, h.log)
+		admin.ServerError(w, r, h.log)
 		return true
 	}
 	view := refundConfirmation(number, &preview)

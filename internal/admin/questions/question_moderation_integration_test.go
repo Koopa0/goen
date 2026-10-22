@@ -14,7 +14,7 @@ import (
 
 	"github.com/google/uuid"
 
-	"github.com/koopa0/goen/internal/admin/access"
+	"github.com/koopa0/goen/internal/admin"
 	"github.com/koopa0/goen/internal/admin/admintest"
 	"github.com/koopa0/goen/internal/admin/audit"
 	"github.com/koopa0/goen/internal/admin/questions"
@@ -47,7 +47,7 @@ func TestAdminReadsAnswersAndRestoresQuestionsWithExistingPrivileges(t *testing.
 	}
 	log := slog.New(slog.DiscardHandler)
 	h := questions.NewHandler(s, log)
-	ac := access.New(log, nil)
+	ac := admin.NewControl(log, nil)
 	body := url.Values{"action": {"show"}}
 	req := httptest.NewRequestWithContext(ctx, http.MethodPost, "/admin/questions/"+question.String(), strings.NewReader(body.Encode()))
 	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
@@ -112,7 +112,7 @@ func TestAnswerWithdrawalIsQuestionBoundAndAuditedUnderTheAdminRole(t *testing.T
 	log := slog.New(slog.DiscardHandler)
 	h := questions.NewHandler(s, log)
 	mux := http.NewServeMux()
-	h.Routes(mux, access.New(log, nil))
+	h.Routes(mux, admin.NewControl(log, nil))
 	body := url.Values{"action": {"hide_answer"}, "answer_id": {answer.String()}}
 	req := httptest.NewRequestWithContext(ctx, http.MethodPost, "/admin/questions/"+question.String(), strings.NewReader(body.Encode()))
 	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")

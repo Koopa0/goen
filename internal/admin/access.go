@@ -1,6 +1,9 @@
-// Package access decides who reaches a back-office handler, and gives the
-// back office's 404 and 500 answers.
-package access
+// Package admin is the back office's entrance: who reaches a back-office
+// handler, and the back office's 404 and 500 answers; it holds Control, whose
+// RequireStaff, StaffOnly and RequireAdmin guard every desk's routes, and
+// NotFound, Fault and ServerError; it does not hold any desk's pages or a
+// feature (admin/<desk>).
+package admin
 
 import (
 	"context"
@@ -22,9 +25,9 @@ type Control struct {
 	healthTaskCount func(context.Context) (int64, error)
 }
 
-func New(log *slog.Logger, stepUp func(*http.Request) (bool, error)) *Control {
+func NewControl(log *slog.Logger, stepUp func(*http.Request) (bool, error)) *Control {
 	if log == nil {
-		panic("access: New requires a logger")
+		panic("admin: NewControl requires a logger")
 	}
 	return &Control{log: log, stepUp: stepUp}
 }

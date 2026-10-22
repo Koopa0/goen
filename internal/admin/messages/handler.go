@@ -5,7 +5,7 @@ import (
 	"log/slog"
 	"net/http"
 
-	"github.com/koopa0/goen/internal/admin/access"
+	"github.com/koopa0/goen/internal/admin"
 	"github.com/koopa0/goen/internal/i18n"
 	"github.com/koopa0/goen/internal/keyset"
 	"github.com/koopa0/goen/internal/ui/frame"
@@ -26,7 +26,7 @@ func NewHandler(store *Store, log *slog.Logger) *Handler {
 	return &Handler{store: store, log: log}
 }
 
-func (h *Handler) Routes(mux *http.ServeMux, ac *access.Control) {
+func (h *Handler) Routes(mux *http.ServeMux, ac *admin.Control) {
 	mux.HandleFunc("GET /admin/messages", ac.RequireStaff(h.Messages))
 	mux.HandleFunc("POST /admin/messages/handle", ac.RequireStaff(h.HandleMessage))
 	mux.HandleFunc("POST /admin/messages/reopen", ac.RequireStaff(h.ReopenMessage))
@@ -41,7 +41,7 @@ func (h *Handler) Messages(w http.ResponseWriter, r *http.Request) {
 	view, err := h.store.Messages(r.Context(), r.URL.Query().Get(keyset.Param))
 	if err != nil {
 		h.log.ErrorContext(r.Context(), "read contact messages", "error", err)
-		access.ServerError(w, r, h.log)
+		admin.ServerError(w, r, h.log)
 		return
 	}
 	view.Notice = widget.NoticeFrom(r, notices)
@@ -69,6 +69,6 @@ func (h *Handler) setMessageHandled(w http.ResponseWriter, r *http.Request, hand
 		http.Redirect(w, r, "/admin/messages?gone=1", http.StatusSeeOther)
 	default:
 		h.log.ErrorContext(r.Context(), "set message handled", "error", err)
-		access.ServerError(w, r, h.log)
+		admin.ServerError(w, r, h.log)
 	}
 }

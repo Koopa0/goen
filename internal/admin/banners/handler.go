@@ -5,7 +5,7 @@ import (
 	"log/slog"
 	"net/http"
 
-	"github.com/koopa0/goen/internal/admin/access"
+	"github.com/koopa0/goen/internal/admin"
 	"github.com/koopa0/goen/internal/i18n"
 	"github.com/koopa0/goen/internal/keyset"
 	"github.com/koopa0/goen/internal/ui/frame"
@@ -26,7 +26,7 @@ func NewHandler(store *Store, log *slog.Logger) *Handler {
 	return &Handler{store: store, log: log}
 }
 
-func (h *Handler) Routes(mux *http.ServeMux, ac *access.Control) {
+func (h *Handler) Routes(mux *http.ServeMux, ac *admin.Control) {
 	mux.HandleFunc("GET /admin/banners", ac.RequireStaff(h.Banners))
 	mux.HandleFunc("POST /admin/banners", ac.RequireStaff(h.CreateBanner))
 	mux.HandleFunc("POST /admin/banners/{id}/active", ac.RequireStaff(h.SetBannerActive))
@@ -41,7 +41,7 @@ func (h *Handler) Banners(w http.ResponseWriter, r *http.Request) {
 	view, err := h.store.Banners(r.Context(), r.URL.Query().Get(keyset.Param))
 	if err != nil {
 		h.log.ErrorContext(r.Context(), "read promo banners", "error", err)
-		access.ServerError(w, r, h.log)
+		admin.ServerError(w, r, h.log)
 		return
 	}
 	view.Notice = widget.NoticeFrom(r, notices)
@@ -69,7 +69,7 @@ func (h *Handler) CreateBanner(w http.ResponseWriter, r *http.Request) {
 	switch {
 	case err != nil:
 		h.log.ErrorContext(r.Context(), "create promo banner", "error", err)
-		access.ServerError(w, r, h.log)
+		admin.ServerError(w, r, h.log)
 	case len(errs) > 0:
 		h.rejectBanner(w, r, errs)
 	default:
@@ -92,13 +92,13 @@ func (h *Handler) answerRowWrite(w http.ResponseWriter, r *http.Request, what, b
 		http.Redirect(w, r, back+"?ok=1", http.StatusSeeOther)
 	case errors.Is(err, ErrNotFound):
 		h.log.WarnContext(r.Context(), what, "error", err)
-		access.NotFound(w, r, h.log)
+		admin.NotFound(w, r, h.log)
 	case errors.Is(err, ErrRefused):
 		h.log.WarnContext(r.Context(), what, "error", err)
 		http.Redirect(w, r, back+"?refused=1", http.StatusSeeOther)
 	default:
 		h.log.ErrorContext(r.Context(), what, "error", err)
-		access.ServerError(w, r, h.log)
+		admin.ServerError(w, r, h.log)
 	}
 }
 
@@ -108,7 +108,7 @@ func (h *Handler) rejectBanner(
 	view, err := h.store.Banners(r.Context())
 	if err != nil {
 		h.log.ErrorContext(r.Context(), "read promo banners", "error", err)
-		access.ServerError(w, r, h.log)
+		admin.ServerError(w, r, h.log)
 		return
 	}
 	view.Errors = errs

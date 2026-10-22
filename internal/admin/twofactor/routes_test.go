@@ -8,15 +8,15 @@ import (
 
 	"github.com/google/uuid"
 
-	"github.com/koopa0/goen/internal/admin/access"
-	"github.com/koopa0/goen/internal/admin/access/accesstest"
+	"github.com/koopa0/goen/internal/admin"
+	"github.com/koopa0/goen/internal/admin/accesstest"
 	"github.com/koopa0/goen/internal/user"
 )
 
 func TestEveryRouteRefusesAnOutsider(t *testing.T) {
 	t.Parallel()
 	h := keylessHandler(t)
-	accesstest.RefuseOutsiders(t, func(mux *http.ServeMux, ac *access.Control) {
+	accesstest.RefuseOutsiders(t, func(mux *http.ServeMux, ac *admin.Control) {
 		h.Routes(mux, ac)
 	}, "GET /admin/verify", "POST /admin/verify", "POST /admin/verify/enrol", "POST /admin/verify/confirm")
 }
@@ -28,7 +28,7 @@ func TestEveryRouteOpensBeforeTheSecondFactor(t *testing.T) {
 	t.Parallel()
 	mux := http.NewServeMux()
 	notVerified := func(*http.Request) (bool, error) { return false, nil }
-	keylessHandler(t).Routes(mux, access.New(slog.New(slog.DiscardHandler), notVerified))
+	keylessHandler(t).Routes(mux, admin.NewControl(slog.New(slog.DiscardHandler), notVerified))
 	for _, tt := range []struct {
 		method, path string
 		code         int

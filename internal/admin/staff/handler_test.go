@@ -10,7 +10,7 @@ import (
 
 	"github.com/google/uuid"
 
-	"github.com/koopa0/goen/internal/admin/access"
+	"github.com/koopa0/goen/internal/admin"
 	"github.com/koopa0/goen/internal/user"
 )
 
@@ -43,7 +43,7 @@ func TestOnlyAnAdminReachesTheRoster(t *testing.T) {
 	t.Parallel()
 	log := slog.New(slog.DiscardHandler)
 	mux := http.NewServeMux()
-	NewHandler(&Store{}, log, false).Routes(mux, access.New(log, nil))
+	NewHandler(&Store{}, log, false).Routes(mux, admin.NewControl(log, nil))
 	for _, route := range []struct{ method, path string }{
 		{http.MethodGet, "/admin/staff"},
 		{http.MethodPost, "/admin/staff"},

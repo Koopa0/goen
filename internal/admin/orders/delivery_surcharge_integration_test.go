@@ -24,7 +24,7 @@ import (
 	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/jackc/pgx/v5/pgxpool"
 
-	"github.com/koopa0/goen/internal/admin/access"
+	"github.com/koopa0/goen/internal/admin"
 	"github.com/koopa0/goen/internal/admin/admintest"
 	"github.com/koopa0/goen/internal/admin/audit"
 	"github.com/koopa0/goen/internal/admin/orders"
@@ -253,7 +253,7 @@ func postDeliveryWithStore(ctx context.Context, t *testing.T, s *orders.Store, n
 	r.Header.Set("Content-Type", "application/x-www-form-urlencoded")
 	w := httptest.NewRecorder()
 	mux := http.NewServeMux()
-	admintest.OrderDesk(s).Routes(mux, access.New(slog.New(slog.DiscardHandler), nil))
+	admintest.OrderDesk(s).Routes(mux, admin.NewControl(slog.New(slog.DiscardHandler), nil))
 	mux.ServeHTTP(w, r)
 	return w
 }
