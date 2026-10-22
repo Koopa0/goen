@@ -20,7 +20,7 @@ import (
 	"github.com/koopa0/goen/internal/home"
 	"github.com/koopa0/goen/internal/i18n"
 	"github.com/koopa0/goen/internal/media"
-	"github.com/koopa0/goen/internal/ui/components"
+	"github.com/koopa0/goen/internal/ui/hero"
 )
 
 func TestEveryScheduledSlideRemainsManageableBeyondExpiredHistory(t *testing.T) {
@@ -120,7 +120,7 @@ func TestEveryScheduledSlideRemainsManageableBeyondExpiredHistory(t *testing.T) 
 	post(second, "/admin/slides/"+heroes[20]+"/active", "false")
 	post(second, "/admin/slides/"+heroes[24]+"/promote", "")
 	live, err = shop.Carousel(ctx)
-	if err != nil || len(live) == 0 || live[0].Source != components.SlideScheduled || live[0].ID != heroes[24] {
+	if err != nil || len(live) == 0 || live[0].Source != hero.SourceScheduled || live[0].ID != heroes[24] {
 		t.Fatalf("later-page controls did not change the real carousel: %+v/%v", live, err)
 	}
 	for _, slide := range live {

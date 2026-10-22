@@ -11,7 +11,7 @@ import (
 	"github.com/koopa0/goen/internal/db"
 	"github.com/koopa0/goen/internal/home"
 	"github.com/koopa0/goen/internal/i18n"
-	"github.com/koopa0/goen/internal/ui/components"
+	"github.com/koopa0/goen/internal/ui/hero"
 )
 
 func TestCarouselDepartmentsNeedListedProducts(t *testing.T) {
@@ -106,7 +106,7 @@ func TestCarouselDepartmentsNeedListedProducts(t *testing.T) {
 				case "/c/carousel-empty", "/c/carousel-draft", "/c/carousel-archived":
 					t.Errorf("Carousel() features %q without a listed product", slide.CTA.Href)
 				}
-				if slide.Source != components.SlideDepartment || !slide.Photo.Shown() {
+				if slide.Source != hero.SourceDepartment || !slide.Photo.Shown() {
 					t.Errorf("Carousel() slide = %+v, want a photographed department", slide)
 				}
 				hrefs = append(hrefs, slide.CTA.Href)

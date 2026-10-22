@@ -8,6 +8,7 @@ import (
 	"github.com/koopa0/goen/internal/policy"
 	"github.com/koopa0/goen/internal/tone"
 	"github.com/koopa0/goen/internal/ui/components"
+	"github.com/koopa0/goen/internal/ui/hero"
 	"github.com/koopa0/goen/internal/ui/layouts"
 	"github.com/koopa0/goen/internal/ui/tile"
 )
@@ -87,7 +88,7 @@ type DepartmentBand struct {
 
 type View struct {
 	AccountErased bool
-	Slides        []components.HeroSlide
+	Slides        []hero.Slide
 	Categories    []Category
 	Row           ProductRow
 	Band          *DepartmentBand

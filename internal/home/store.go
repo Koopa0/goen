@@ -20,6 +20,7 @@ import (
 	"github.com/koopa0/goen/internal/site"
 	"github.com/koopa0/goen/internal/tone"
 	"github.com/koopa0/goen/internal/ui/components"
+	"github.com/koopa0/goen/internal/ui/hero"
 	"github.com/koopa0/goen/internal/ui/tile"
 )
 
@@ -85,7 +86,7 @@ func (s *Store) carouselSources(ctx context.Context) (carouselSources, error) {
 
 // Carousel is exported so the back office lists the same slides: cmd/goen
 // hands this store to the slides desk as its slides.Storefront.
-func (s *Store) Carousel(ctx context.Context) ([]components.HeroSlide, error) {
+func (s *Store) Carousel(ctx context.Context) ([]hero.Slide, error) {
 	src, err := s.carouselSources(ctx)
 	if err != nil {
 		return nil, err

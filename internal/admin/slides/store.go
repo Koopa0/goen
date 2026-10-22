@@ -12,7 +12,7 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 
 	"github.com/koopa0/goen/internal/db"
-	"github.com/koopa0/goen/internal/ui/components"
+	"github.com/koopa0/goen/internal/ui/hero"
 )
 
 var (
@@ -26,7 +26,7 @@ var (
 // storefront's home store implements it. The desk lists those slides beside its
 // schedule instead of keeping a copy of the rules that choose them.
 type Storefront interface {
-	Carousel(ctx context.Context) ([]components.HeroSlide, error)
+	Carousel(ctx context.Context) ([]hero.Slide, error)
 }
 
 type Store struct {
