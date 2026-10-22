@@ -7,8 +7,11 @@ import (
 	"github.com/koopa0/goen/internal/db"
 )
 
+// TestTilesColours holds that the tile builders carry the colours of their
+// rows.
+//
 // The deals builder's row is campaign's TestDealTilesCarryTheColoursOfTheirRows.
-func TestTileBuildersCarryTheColoursOfTheirRows(t *testing.T) {
+func TestTilesColours(t *testing.T) {
 	t.Parallel()
 	colours := []string{"#111111", "#222222"}
 

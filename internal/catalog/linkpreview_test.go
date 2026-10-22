@@ -9,9 +9,12 @@ import (
 	"github.com/koopa0/goen/internal/ui/widget"
 )
 
+// TestListingMetaAndProductMeta holds that the department and product pages
+// send their own link preview tags.
+//
 // From TestMetaLinkPreviewTags, which keeps the other pages' rows;
 // the campaign's row is internal/discount/campaign's TestMetaLinkPreview.
-func TestCatalogPagesSendTheirOwnLinkPreviewTags(t *testing.T) {
+func TestListingMetaAndProductMeta(t *testing.T) {
 	t.Parallel()
 	ctx := i18n.WithLocale(frame.WithRequestPath(t.Context(), "/c/books"), i18n.ZhHant)
 	department := ListingView{
@@ -49,7 +52,9 @@ func TestCatalogPagesSendTheirOwnLinkPreviewTags(t *testing.T) {
 	}
 }
 
-func TestADepartmentCarriesNoFillerDescription(t *testing.T) {
+// TestListingMetaNoFiller holds that a department with no subtitle carries no
+// filler description.
+func TestListingMetaNoFiller(t *testing.T) {
 	t.Parallel()
 	ctx := i18n.WithLocale(t.Context(), i18n.ZhHant)
 	head := renderHeadAt(t, ctx, ListingMeta(ctx, ListingView{Slug: "books", Name: "書籍"}))

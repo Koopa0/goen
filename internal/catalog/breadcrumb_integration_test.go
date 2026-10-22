@@ -16,7 +16,9 @@ import (
 	"github.com/koopa0/goen/internal/i18n"
 )
 
-func TestProductBreadcrumbNamesEveryVisibleCategory(t *testing.T) {
+// TestHandler_ProductBreadcrumb holds that the product page's breadcrumb names
+// every visible category of the product, in both languages.
+func TestHandler_ProductBreadcrumb(t *testing.T) {
 	t.Parallel()
 	for _, locale := range []i18n.Locale{i18n.ZhHant, i18n.En} {
 		for _, tt := range []struct {

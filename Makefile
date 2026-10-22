@@ -170,7 +170,7 @@ check-layout-run:
 	@node --env-file=$(LAYOUT_DIR)/env scripts/reflow-check.mjs /@1024@en@text200 /@1024@text200 /@320@en@text200 /@320@text200 /@1024@en
 	@CDP_PORT="$${CDP_PORT:-9222}" go test -count=1 -run '^TestHeroCarouselCurrentTab$$' ./internal/home
 	@node --env-file=$(LAYOUT_DIR)/env --test scripts/reflow-staff-check.test.mjs
-	@CDP_PORT="$${CDP_PORT:-9222}" go test -count=1 -run '^TestGalleryThumbnailsWrapAndKeepNativeSelection$$' ./internal/catalog
+	@CDP_PORT="$${CDP_PORT:-9222}" go test -count=1 -run '^TestProductGalleryThumbnails$$' ./internal/catalog
 	@CDP_PORT="$${CDP_PORT:-9222}" go test -count=1 -run '^TestStorefrontSectionsAsDrawn$$' ./internal/home
 	@node --env-file=$(LAYOUT_DIR)/env scripts/reflow-check.mjs --staff /@1024@en@text200 /@1024@text200 /@320@en@text200 /@320@text200 /@1024@en
 	@CDP_PORT=$${CDP_PORT:-9222} go test -count=1 ./internal/ui/frame -run '^TestDisclosuresWorkWithKeyboard$$'
@@ -180,11 +180,11 @@ check-layout-run:
 	@REFLOW_REQUIRED_SELECTOR='.goen-line--order .ui-statline' node --env-file=$(LAYOUT_DIR)/env scripts/reflow-check.mjs '/account/orders/{RETURN_FORM_ORDER}@320@text200' '/account/orders/{RETURN_FORM_ORDER}@320@en@text200' '/account/orders/{RETURN_FORM_ORDER}@320' '/account/orders/{RETURN_FORM_ORDER}@375@text200' '/account/orders/{RETURN_FORM_ORDER}@375@en@text200'
 	@node --env-file=$(LAYOUT_DIR)/env scripts/filter-feedback-check.mjs
 	@node --env-file=$(LAYOUT_DIR)/env scripts/popover-focus-check.mjs
-	@GOEN_CHROME="$(LAYOUT_CHROME)" go test -tags integration -count=1 -run '^TestProductOptionContrastInTheBrowser$$' ./internal/catalog
+	@GOEN_CHROME="$(LAYOUT_CHROME)" go test -tags integration -count=1 -run '^TestProductOptionContrast$$' ./internal/catalog
 	@CDP_PORT=$${CDP_PORT:-9222} go test -count=1 ./internal/admin/campaigns -run '^TestCampaignFormReflow$$'
-	@GOEN_CHROME="$(LAYOUT_CHROME)" go test -tags integration -count=1 -run '^TestCompetingProductChoicesKeepThePurchaseTogether$$' ./internal/catalog
+	@GOEN_CHROME="$(LAYOUT_CHROME)" go test -tags integration -count=1 -run '^TestProductCompetingChoices$$' ./internal/catalog
 	@node --env-file=$(LAYOUT_DIR)/env scripts/button-icons-check.mjs
-	@GOEN_CHROME="$(LAYOUT_CHROME)" go test -tags integration -count=1 -run '^TestProductChoiceAgainstAnInFlightPurchase$$' ./internal/catalog
+	@GOEN_CHROME="$(LAYOUT_CHROME)" go test -tags integration -count=1 -run '^TestProductInFlightPurchase$$' ./internal/catalog
 	@COLOUR_SLUG='$(COLOUR_SLUG)' COLOUR_VALUE='$(COLOUR_VALUE)' COLOUR_KEY='$(COLOUR_KEY)' \
 		node --env-file=$(LAYOUT_DIR)/env scripts/check-layout.mjs; status=$$?; \
 		kill $$(cat $(LAYOUT_DIR)/pid) 2>/dev/null; sleep 1; rm -rf $(LAYOUT_DIR) 2>/dev/null; \

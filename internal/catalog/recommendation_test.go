@@ -15,7 +15,9 @@ import (
 	"github.com/koopa0/goen/internal/web/requestid"
 )
 
-func TestRecommendationTimeoutLeavesTheParentAndPageBudgetIntact(t *testing.T) {
+// TestRecommendationContextTimeout holds that the recommendation timeout leaves
+// the parent's and the page's budget intact.
+func TestRecommendationContextTimeout(t *testing.T) {
 	for _, parentBudget := range []time.Duration{0, 100 * time.Millisecond, time.Second} {
 		t.Run(parentBudget.String(), func(t *testing.T) {
 			synctest.Test(t, func(t *testing.T) {
@@ -40,7 +42,9 @@ func TestRecommendationTimeoutLeavesTheParentAndPageBudgetIntact(t *testing.T) {
 	}
 }
 
-func TestRecommendationReadsKeepParentCancellation(t *testing.T) {
+// TestRecommendationContextCancel holds that recommendation reads keep the
+// parent's cancellation.
+func TestRecommendationContextCancel(t *testing.T) {
 	parent, stop := context.WithCancel(t.Context())
 	child, cancel := recommendationContext(parent)
 	defer cancel()
@@ -50,7 +54,9 @@ func TestRecommendationReadsKeepParentCancellation(t *testing.T) {
 	}
 }
 
-func TestRecommendationDiagnosticsKeepCorrelationWithoutRawDatabaseErrors(t *testing.T) {
+// TestStore_omitFailedRecommendationLog holds that the diagnostics of a failed
+// recommendation keep their correlation without raw database errors.
+func TestStore_omitFailedRecommendationLog(t *testing.T) {
 	var log bytes.Buffer
 	s := NewStore(ctxErrDB{}, slog.New(slog.NewJSONHandler(&log, nil)))
 	ctx := requestid.With(t.Context(), "req-recommendations")
@@ -75,7 +81,9 @@ func TestRecommendationDiagnosticsKeepCorrelationWithoutRawDatabaseErrors(t *tes
 	}
 }
 
-func TestFailedRecommendationNamesTheReadWhenItsRequestEnds(t *testing.T) {
+// TestStore_omitFailedRecommendationEnd holds that a failed recommendation
+// names the read when its request ends.
+func TestStore_omitFailedRecommendationEnd(t *testing.T) {
 	for _, tc := range []struct {
 		name    string
 		timeout bool

@@ -7,7 +7,9 @@ import (
 	"testing"
 )
 
-func TestOptionFiltersAreBoundedDeduplicatedAndCanonical(t *testing.T) {
+// TestParseFiltersOptions holds that option filters are bounded, deduplicated
+// and canonical.
+func TestParseFiltersOptions(t *testing.T) {
 	t.Parallel()
 	raw := []string{"容量:256GB", "容量:256GB", " 顏色: 曜石黑 ", "", "broken", ":black", "size:", "axis:\x00", "axis:\xff", strings.Repeat("n", 65) + ":v", "size:" + strings.Repeat("v", 65)}
 	f := parseFilters(url.Values{"opt": raw, "unknown": {"discard"}, "page": {"2"}})

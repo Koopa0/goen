@@ -11,7 +11,7 @@ import (
 
 // TestPageEmptyIllustration holds that the cart's empty state shows its
 // illustration as decoration (an empty alt). The cart's row of
-// internal/catalog's TestEmptyStatesShowTheirIllustrationAsDecoration.
+// internal/catalog's TestListingAndSearchEmptyArt.
 func TestPageEmptyIllustration(t *testing.T) {
 	t.Parallel()
 	for name, tt := range map[string]struct {

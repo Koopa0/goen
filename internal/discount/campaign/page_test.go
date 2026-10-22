@@ -61,7 +61,7 @@ func TestPageFactsAndDays(t *testing.T) {
 
 // TestPageEmptyIllustration: the empty campaign shows its illustration as
 // decoration. The other pages' rows of this test are catalog's
-// TestEmptyStatesShowTheirIllustrationAsDecoration.
+// TestListingAndSearchEmptyArt.
 func TestPageEmptyIllustration(t *testing.T) {
 	t.Parallel()
 	ctx := i18n.WithLocale(t.Context(), i18n.ZhHant)

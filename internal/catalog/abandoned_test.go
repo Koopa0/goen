@@ -33,9 +33,12 @@ type ctxErrRow struct{ err error }
 
 func (r ctxErrRow) Scan(...any) error { return r.err }
 
-// TestDetailOfAnAbandonedRequestLogsNothing: a caller that left is not a failed
-// product load, and nobody is there to read a 500.
-func TestDetailOfAnAbandonedRequestLogsNothing(t *testing.T) {
+// TestHandler_ProductAbandoned holds that Product logs nothing for a request
+// whose caller has left.
+//
+// A caller that left is not a failed product load, and nobody is there to read
+// a 500.
+func TestHandler_ProductAbandoned(t *testing.T) {
 	t.Parallel()
 
 	logs := &bytes.Buffer{}
@@ -57,9 +60,11 @@ func TestDetailOfAnAbandonedRequestLogsNothing(t *testing.T) {
 	}
 }
 
-// TestDetailStillLogsALoadThatFailsForGoensReason keeps the guard to the
-// departed caller.
-func TestDetailStillLogsALoadThatFailsForGoensReason(t *testing.T) {
+// TestHandler_ProductStillLogs holds that Product still logs a product load
+// that fails for goen's own reason.
+//
+// It keeps the guard to the departed caller.
+func TestHandler_ProductStillLogs(t *testing.T) {
 	t.Parallel()
 
 	logs := &bytes.Buffer{}

@@ -15,7 +15,9 @@ import (
 	"github.com/koopa0/goen/internal/ui/uitest"
 )
 
-func TestCompetingProductChoicesKeepThePurchaseTogether(t *testing.T) {
+// TestProductCompetingChoices holds that competing product choices keep the
+// purchase together.
+func TestProductCompetingChoices(t *testing.T) {
 	uitest.Browser(t, "GOEN_CHROME")
 	fixtures := make(map[string]string)
 	for index, choice := range []string{"blue", "black", "red"} {

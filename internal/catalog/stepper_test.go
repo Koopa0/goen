@@ -13,8 +13,9 @@ import (
 // quantityField matches the buy form's number input, whatever is drawn around it.
 var quantityField = regexp.MustCompile(`<input[^>]*\bid="quantity"[^>]*>`)
 
-// TestTheQuantityFieldSurvivesItsStepper holds the half of the stepper that is
-// not decoration.
+// TestProductStepperField holds that the quantity field survives its stepper.
+//
+// It holds the half of the stepper that is not decoration.
 //
 // The two buttons beside the field are an enhancement: they carry type="button",
 // they are hidden until a stylesheet is told scripting is on, and a browser
@@ -22,7 +23,7 @@ var quantityField = regexp.MustCompile(`<input[^>]*\bid="quantity"[^>]*>`)
 // the field itself keeps the name the handler reads and the bounds the browser
 // refuses out-of-range values against — which a control that wraps it is exactly
 // the kind of change to lose.
-func TestTheQuantityFieldSurvivesItsStepper(t *testing.T) {
+func TestProductStepperField(t *testing.T) {
 	t.Parallel()
 
 	ctx := i18n.WithLocale(t.Context(), i18n.ZhHant)
@@ -50,10 +51,13 @@ func TestTheQuantityFieldSurvivesItsStepper(t *testing.T) {
 	}
 }
 
-// TestTheStepperButtonsNeverSubmit holds the other half. A button inside a form
-// submits it unless it says otherwise, so a stepper built without type="button"
-// posts the cart line every time somebody adjusts the count.
-func TestTheStepperButtonsNeverSubmit(t *testing.T) {
+// TestProductStepperButtons holds that the stepper buttons never submit the
+// form.
+//
+// It holds the other half. A button inside a form submits it unless it says
+// otherwise, so a stepper built without type="button" posts the cart line every
+// time somebody adjusts the count.
+func TestProductStepperButtons(t *testing.T) {
 	t.Parallel()
 
 	ctx := i18n.WithLocale(t.Context(), i18n.ZhHant)
@@ -78,11 +82,14 @@ func TestTheStepperButtonsNeverSubmit(t *testing.T) {
 	}
 }
 
-// TestTheStepperNeverDisablesTheButtonThatHasFocus reads the script, because
-// nothing else here runs it. The button that reaches a bound is the one with
-// focus, and a disabled focused button sends focus to the body, so a bound is
-// aria-disabled and the click handler ignores it.
-func TestTheStepperNeverDisablesTheButtonThatHasFocus(t *testing.T) {
+// TestStepperFocusScript holds that the stepper never disables the button that
+// has focus.
+//
+// It reads the script, because nothing else here runs it. The button that
+// reaches a bound is the one with focus, and a disabled focused button sends
+// focus to the body, so a bound is aria-disabled and the click handler ignores
+// it.
+func TestStepperFocusScript(t *testing.T) {
 	t.Parallel()
 
 	src, err := os.ReadFile(filepath.Join("..", "..", "assets", "js", "goen.js"))

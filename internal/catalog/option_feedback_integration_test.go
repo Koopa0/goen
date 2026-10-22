@@ -10,7 +10,9 @@ import (
 	"github.com/koopa0/goen/internal/catalog"
 )
 
-func TestUnknownCombinationKeepsTheCataloguePriceAndRecoverableChoices(t *testing.T) {
+// TestStore_ProductUnknownCombination holds that an unknown option combination
+// keeps the catalogue price and recoverable choices.
+func TestStore_ProductUnknownCombination(t *testing.T) {
 	store := catalog.NewStore(pool, slog.New(slog.DiscardHandler))
 	base, err := store.Product(t.Context(), "pixelight-9-pro", nil)
 	if err != nil {
@@ -39,7 +41,9 @@ func TestUnknownCombinationKeepsTheCataloguePriceAndRecoverableChoices(t *testin
 	}
 }
 
-func TestUnpickedProductPhotoMatchesItsFirstColour(t *testing.T) {
+// TestStore_ProductUnpickedPhoto holds that an unpicked product's photo matches
+// its first colour.
+func TestStore_ProductUnpickedPhoto(t *testing.T) {
 	store := catalog.NewStore(pool, slog.New(slog.DiscardHandler))
 	base, err := store.Product(t.Context(), "pixelight-9-pro", nil)
 	if err != nil {

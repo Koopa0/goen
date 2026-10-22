@@ -17,7 +17,9 @@ import (
 	"github.com/koopa0/goen/internal/ui/uitest"
 )
 
-func TestProductChoiceAgainstAnInFlightPurchase(t *testing.T) {
+// TestProductInFlightPurchase holds that a product choice made against an
+// in-flight purchase does not break the purchase.
+func TestProductInFlightPurchase(t *testing.T) {
 	// The script reads both variables itself and chooses between launching a
 	// Chrome and attaching to a running one.
 	uitest.Browser(t, "GOEN_CHROME", "GOEN_PURCHASE_CDP_PORT")

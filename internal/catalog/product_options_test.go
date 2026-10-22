@@ -9,7 +9,9 @@ import (
 	"github.com/koopa0/goen/internal/i18n"
 )
 
-func TestPartiallySoldOutTextOptionHasAVisibleMark(t *testing.T) {
+// TestProductSoldOutTextOption holds that a partially sold-out text option has
+// a visible mark.
+func TestProductSoldOutTextOption(t *testing.T) {
 	t.Parallel()
 	for _, locale := range []i18n.Locale{i18n.ZhHant, i18n.En} {
 		view := ProductView{Slug: "book", Name: "Book", SelectionOK: true, Exact: true, AnySellable: true,
@@ -33,7 +35,9 @@ func TestPartiallySoldOutTextOptionHasAVisibleMark(t *testing.T) {
 	}
 }
 
-func TestSoldOutProductHasNoQuantityStepper(t *testing.T) {
+// TestProductSoldOutNoStepper holds that a sold-out product has no quantity
+// stepper.
+func TestProductSoldOutNoStepper(t *testing.T) {
 	t.Parallel()
 	view := soldOutProduct(nil)
 	box := buyBox(t, i18n.En, &view)
@@ -45,7 +49,9 @@ func TestSoldOutProductHasNoQuantityStepper(t *testing.T) {
 	}
 }
 
-func TestUnpickedColourAndEmptyRelatedProductsOfferNextSteps(t *testing.T) {
+// TestProductNextSteps holds that an unpicked colour and an empty related row
+// each offer a next step.
+func TestProductNextSteps(t *testing.T) {
 	t.Parallel()
 	for _, locale := range []i18n.Locale{i18n.ZhHant, i18n.En} {
 		view := ProductView{Slug: "book", Name: "Book", CategorySlug: "computers", CategoryName: "Computers", SelectionOK: true, AnySellable: true,

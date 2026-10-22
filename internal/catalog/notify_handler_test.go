@@ -13,12 +13,15 @@ import (
 	"github.com/koopa0/goen/internal/web/ratelimit"
 )
 
+// TestHandler_RoutesNotifyLimit holds that the restock route has no budget of
+// its own: it is bounded once, by the limiter Routes is given.
+//
 // The restock form is bounded once, by the limiter Routes is given. The burst
 // here is larger than any budget the handler could carry on its own, so a
 // second copy inside Notify would refuse before the route's does. The burst,
 // the /64 keying and the 429 itself belong to ratelimit and to the route
 // inventory in cmd/goen, which pins the budget the server passes.
-func TestNotifyHasNoBudgetOfItsOwn(t *testing.T) {
+func TestHandler_RoutesNotifyLimit(t *testing.T) {
 	t.Parallel()
 	const burst = 20
 	h := NewHandler(&Store{}, slog.New(slog.DiscardHandler), "https://goen.example")
@@ -46,10 +49,13 @@ func TestNotifyHasNoBudgetOfItsOwn(t *testing.T) {
 	}
 }
 
+// TestHandler_NotifyKeepsSelection holds that Notify's redirect after a refused
+// request keeps the selection the form was posted from.
+//
 // The redirect after a refused request returns to the selection the form was
 // posted from; without it a product with options lands on its generic hint and
 // the refusal is never shown.
-func TestNotifyRedirectKeepsTheSelection(t *testing.T) {
+func TestHandler_NotifyKeepsSelection(t *testing.T) {
 	t.Parallel()
 	h := NewHandler(&Store{}, slog.New(slog.DiscardHandler), "https://goen.example")
 	form := url.Values{"email": {"shopper@gmail"}, "variant": {"not-a-uuid"}}

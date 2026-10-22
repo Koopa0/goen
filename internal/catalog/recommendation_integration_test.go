@@ -387,7 +387,9 @@ func assertRecommendationQueriesDrained(t *testing.T, p *pgxpool.Pool) {
 	}
 }
 
-func TestOptionalRecommendationFailuresPreserveTheProductPage(t *testing.T) {
+// TestHandler_ProductRecommendationFault holds that the failure of an optional
+// recommendation preserves the product page.
+func TestHandler_ProductRecommendationFault(t *testing.T) {
 	p, want, productID := recommendationFixture(t)
 	for _, op := range []struct{ query, operation, missing, retained string }{
 		{"RelatedProducts", "related_products", "related-heading", "also-heading"},
@@ -439,7 +441,9 @@ func TestOptionalRecommendationFailuresPreserveTheProductPage(t *testing.T) {
 	}
 }
 
-func TestHealthyAndEmptyRecommendationsAreNotFailures(t *testing.T) {
+// TestHandler_ProductRecommendationHealthy holds that healthy and empty
+// recommendations are not failures.
+func TestHandler_ProductRecommendationHealthy(t *testing.T) {
 	p, want, productID := recommendationFixture(t)
 	var log bytes.Buffer
 	logger := slog.New(slog.NewJSONHandler(&log, nil))
@@ -467,7 +471,9 @@ func TestHealthyAndEmptyRecommendationsAreNotFailures(t *testing.T) {
 	}
 }
 
-func TestOptionalRecommendationsKeepColdAcquisitionOutsideQueryBudget(t *testing.T) {
+// TestHandler_ProductRecommendationCold holds that optional recommendations
+// keep cold connection acquisition outside the query budget.
+func TestHandler_ProductRecommendationCold(t *testing.T) {
 	p, want, _ := recommendationFixture(t)
 	for _, query := range []string{"RelatedProducts", "BoughtTogether"} {
 		t.Run(query, func(t *testing.T) {
@@ -516,7 +522,9 @@ func TestOptionalRecommendationsKeepColdAcquisitionOutsideQueryBudget(t *testing
 	}
 }
 
-func TestColdRecommendationAcquisitionKeepsParentCancellation(t *testing.T) {
+// TestHandler_ProductColdCancel holds that a cold recommendation acquisition
+// keeps the parent's cancellation.
+func TestHandler_ProductColdCancel(t *testing.T) {
 	p, want, _ := recommendationFixture(t)
 	for _, query := range []string{"RelatedProducts", "BoughtTogether"} {
 		t.Run(query, func(t *testing.T) {
@@ -536,7 +544,9 @@ func TestColdRecommendationAcquisitionKeepsParentCancellation(t *testing.T) {
 	}
 }
 
-func TestRecommendationDegradationKeepsParentAndCoreFailures(t *testing.T) {
+// TestStore_ProductRecommendationErrors holds that the degradation of a
+// recommendation keeps the parent's cancellation and the core failures.
+func TestStore_ProductRecommendationErrors(t *testing.T) {
 	p, want, _ := recommendationFixture(t)
 	ctx, cancel := context.WithCancel(t.Context())
 	defer cancel()
@@ -623,7 +633,9 @@ func (d *saturatedRecommendationRead) TraceAcquireEnd(ctx context.Context, _ *pg
 	}
 }
 
-func TestSaturatedRecommendationAcquisitionPreservesTheProductPage(t *testing.T) {
+// TestHandler_ProductRecommendationSaturated holds that a saturated
+// recommendation acquisition preserves the product page.
+func TestHandler_ProductRecommendationSaturated(t *testing.T) {
 	p, want, productID := recommendationFixture(t)
 	for _, op := range []struct{ query, preceding, operation, missing, retained string }{
 		{"RelatedProducts", "ProductReviews", "related_products", "related-heading", "also-heading"},

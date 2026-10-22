@@ -12,7 +12,9 @@ import (
 	"github.com/koopa0/goen/internal/i18n"
 )
 
-func TestSearchPageLeavesTheHeaderInputBlankWithoutAQuery(t *testing.T) {
+// TestHandler_SearchHeaderBlank holds that the search page leaves the header
+// input blank without a query.
+func TestHandler_SearchHeaderBlank(t *testing.T) {
 	for _, locale := range []i18n.Locale{i18n.En, i18n.ZhHant} {
 		t.Run(locale.Tag(), func(t *testing.T) {
 			body := searchPageInLocale(t, locale, "")
@@ -63,7 +65,9 @@ func searchPageInLocale(t *testing.T, locale i18n.Locale, q string) string {
 	return res.Body.String()
 }
 
-func TestSearchUnicodeWhitespaceIsEmptyForPatternAndDisplay(t *testing.T) {
+// TestSearchPatternUnicodeSpace holds that input of Unicode whitespace only is
+// empty for both the pattern and the display.
+func TestSearchPatternUnicodeSpace(t *testing.T) {
 	ctx := i18n.WithLocale(t.Context(), i18n.En)
 	prompt := i18n.T(ctx, i18n.KeySearchPrompt)
 
@@ -88,7 +92,9 @@ func TestSearchUnicodeWhitespaceIsEmptyForPatternAndDisplay(t *testing.T) {
 	}
 }
 
-func TestSearchKeepsATermWrappedInUnicodeSpaceThenCapsRunes(t *testing.T) {
+// TestSearchPatternEdgeSpace holds that a term wrapped in Unicode space is kept
+// and then capped in runes.
+func TestSearchPatternEdgeSpace(t *testing.T) {
 	q := "\u00a0\u3000pixel\u2003"
 	view := SearchView{Query: trimForDisplay(q)}
 	if view.Query != "pixel" {
@@ -123,7 +129,9 @@ func TestSearchPatternEscapesTypedWildcards(t *testing.T) {
 	}
 }
 
-func TestSearchPatternSplitsOnWhitespaceAndBoundsTheTerms(t *testing.T) {
+// TestSearchPatternTerms holds that SearchPattern splits on whitespace and
+// bounds the terms.
+func TestSearchPatternTerms(t *testing.T) {
 	tests := []struct {
 		name, q, want string
 	}{
@@ -151,7 +159,9 @@ func TestSearchPatternSplitsOnWhitespaceAndBoundsTheTerms(t *testing.T) {
 	}
 }
 
-func TestSearchFoldsFullWidthLettersAndDigits(t *testing.T) {
+// TestSearchPatternFullWidth holds that SearchPattern folds full-width letters
+// and digits.
+func TestSearchPatternFullWidth(t *testing.T) {
 	if got := SearchPattern("Ｐｉｘｅｌ６５Ｗ"); got != "%Pixel65W%" {
 		t.Errorf("SearchPattern = %q, want the folded term", got)
 	}

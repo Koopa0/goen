@@ -6,7 +6,9 @@ import (
 	"github.com/koopa0/goen/internal/ui/tile"
 )
 
-func TestEmptyListingAndSearchDependOnTotalMatches(t *testing.T) {
+// TestListingViewSearchViewEmpty holds that an empty listing and an empty
+// search depend on the total of matches, not on the page's products.
+func TestListingViewSearchViewEmpty(t *testing.T) {
 	t.Parallel()
 	for _, tc := range []struct {
 		name     string

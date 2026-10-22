@@ -2,9 +2,12 @@ package catalog
 
 import "testing"
 
+// TestParseSortUnchosen holds that an unchosen sort is the order of the page
+// asking and is never written into an address.
+//
 // A page's own order is never written into an address, and an unknown value
 // falls back to that order rather than to the other page's.
-func TestAnUnchosenSortIsTheOrderOfThePageAskingAndNeverInTheAddress(t *testing.T) {
+func TestParseSortUnchosen(t *testing.T) {
 	t.Parallel()
 	for _, tt := range []struct {
 		value    string
