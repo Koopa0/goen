@@ -32,7 +32,11 @@ import (
 	"github.com/koopa0/goen/internal/web/requestid"
 )
 
-func TestShippingSurchargesStayWithTheirVersionThroughTheForm(t *testing.T) {
+// TestStore_ConfigurationSurchargeForms: shipping surcharges stay with their
+// version through the form. Configuration attaches each surcharge to its own
+// version whatever the sort order, the page renders each version's amount in
+// its own form, and resubmitting the untouched forms stores the same amounts.
+func TestStore_ConfigurationSurchargeForms(t *testing.T) {
 	for _, tt := range []struct {
 		name     string
 		reversed bool
@@ -184,7 +188,10 @@ func renderedSurchargeForms(t *testing.T, markup, zone string) map[string]url.Va
 	return forms
 }
 
-func TestPublishingAVersionCarriesItsZoneSurcharges(t *testing.T) {
+// TestStore_PublishShippingVersionSurcharges: publishing a version carries its
+// zone surcharges. The new current version charges what the previous one did
+// for a zone, and its base fee is the published one.
+func TestStore_PublishShippingVersionSurcharges(t *testing.T) {
 	ctx, _ := admintest.StaffContext(t, pool)
 	s := shipping.NewStore(pool)
 
@@ -239,7 +246,10 @@ func TestPublishingAVersionCarriesItsZoneSurcharges(t *testing.T) {
 	}
 }
 
-func TestPublishingAVersionKeepsItsEnglishName(t *testing.T) {
+// TestStore_PublishShippingVersionEnglish: publishing a version keeps its
+// English name. An untouched form round-trips name_en and carrier_en and the
+// audit row records them; a deliberately cleared form stores SQL NULLs.
+func TestStore_PublishShippingVersionEnglish(t *testing.T) {
 	ctx, actor := admintest.StaffContext(t, pool)
 	s := shipping.NewStore(pool)
 	code := "english_roundtrip_" + uuid.NewString()[:8]
@@ -378,7 +388,9 @@ func TestPublishingAVersionKeepsItsEnglishName(t *testing.T) {
 	assertAuditTranslations("", "")
 }
 
-func TestAZeroSurchargeClearsTheRowRatherThanStoringZero(t *testing.T) {
+// TestStore_SetZoneSurchargeZero: a zero surcharge clears the row rather than
+// storing zero.
+func TestStore_SetZoneSurchargeZero(t *testing.T) {
 	ctx, _ := admintest.StaffContext(t, pool)
 	s := shipping.NewStore(pool)
 
@@ -410,7 +422,10 @@ func TestAZeroSurchargeClearsTheRowRatherThanStoringZero(t *testing.T) {
 	}
 }
 
-func TestAMethodParcelLimitRefusalKeepsTheRawText(t *testing.T) {
+// TestHandler_CreateMethodParcelRefusal: a method parcel limit refusal keeps
+// the raw text. CreateMethod answers 422 with every parcel field's submitted
+// text in its input, and inserts no method.
+func TestHandler_CreateMethodParcelRefusal(t *testing.T) {
 	ctx, _ := admintest.StaffContext(t, pool)
 	s := shipping.NewStore(pool)
 	h := handlerOver(s)
@@ -481,7 +496,10 @@ func TestAMethodParcelLimitRefusalKeepsTheRawText(t *testing.T) {
 	}
 }
 
-func TestAShopCanOfferAThirdDeliveryMethod(t *testing.T) {
+// TestStore_CreateMethodAtCheckout: a shop can offer a third delivery method.
+// CreateMethod makes exactly one version, checkout offers the method in each
+// locale, and retiring it hides it without deleting the row.
+func TestStore_CreateMethodAtCheckout(t *testing.T) {
 	ctx, _ := admintest.StaffContext(t, pool)
 	s := shipping.NewStore(pool)
 	emptyCart, cartErr := cart.NewStore(pool).Create(ctx, uuid.NewString(), uuid.NullUUID{})
@@ -563,7 +581,10 @@ func TestAShopCanOfferAThirdDeliveryMethod(t *testing.T) {
 	}
 }
 
-func TestAShopCanSayWhichPostalCodesCostMore(t *testing.T) {
+// TestStore_CreateZonePrefixes: a shop can say which postal codes cost more.
+// CreateZone stores the zone's prefixes, and a second zone created with an
+// existing prefix takes it over.
+func TestStore_CreateZonePrefixes(t *testing.T) {
 	ctx, _ := admintest.StaffContext(t, pool)
 	s := shipping.NewStore(pool)
 	code := "remote" + uuid.NewString()[:6]
@@ -617,7 +638,11 @@ func TestAShopCanSayWhichPostalCodesCostMore(t *testing.T) {
 	}
 }
 
-func TestAZonesPostalCodesAreTheWholeSet(t *testing.T) {
+// TestStore_SetZonePrefixesWholeSet: a zone's postal codes are the whole set.
+// SetZonePrefixes replaces the zone's prefixes with the set typed, counting a
+// repeat once in its audit row, moves a prefix from another zone, and clears
+// the zone; CreateZone refuses a blank set.
+func TestStore_SetZonePrefixesWholeSet(t *testing.T) {
 	ctx, actor := admintest.StaffContext(t, pool)
 	s := shipping.NewStore(pool)
 	p := unusedZonePrefixes(t, 6)
@@ -678,7 +703,11 @@ func TestAZonesPostalCodesAreTheWholeSet(t *testing.T) {
 	}
 }
 
-func TestAZonePrefixInfrastructureFailureIsNotADomainRefusal(t *testing.T) {
+// TestHandler_SetZonePrefixesFailures: a zone prefix infrastructure failure is
+// not a domain refusal. A missing zone is ErrNotFound and 404, a cancelled lock
+// wait is an infrastructure error and not a refusal, and a closed database
+// answers 500.
+func TestHandler_SetZonePrefixesFailures(t *testing.T) {
 	ctx, _ := admintest.StaffContext(t, pool)
 	s := shipping.NewStore(pool)
 	p := unusedZonePrefixes(t, 1)
@@ -769,7 +798,11 @@ func TestAZonePrefixInfrastructureFailureIsNotADomainRefusal(t *testing.T) {
 	}
 }
 
-func TestARefusedZonePrefixEditStaysOnItsOwnRow(t *testing.T) {
+// TestHandler_SetZonePrefixesRefused: a refused zone prefix edit stays on its
+// own row. The 422 page keeps the raw text in the refused zone's editor, marks
+// only that editor invalid with a linked error, leaves the neighbour and the
+// create-zone form alone, and changes no stored prefix.
+func TestHandler_SetZonePrefixesRefused(t *testing.T) {
 	ctx, _ := admintest.StaffContext(t, pool)
 	s := shipping.NewStore(pool)
 	p := unusedZonePrefixes(t, 2)
@@ -829,7 +862,11 @@ func TestARefusedZonePrefixEditStaysOnItsOwnRow(t *testing.T) {
 	}
 }
 
-func TestConcurrentZonePrefixSetsCommitOneWholeKnownLastSet(t *testing.T) {
+// TestStore_SetZonePrefixesConcurrent: concurrent zone prefix sets commit one
+// whole, known last set. Two writers queued behind a prefix lock finish one
+// after the other, the stored set is the last writer's whole set, and the audit
+// row names its request.
+func TestStore_SetZonePrefixesConcurrent(t *testing.T) {
 	ctx, _ := admintest.StaffContext(t, pool)
 	seedStore := shipping.NewStore(pool)
 	p := unusedZonePrefixes(t, 4)
@@ -954,7 +991,10 @@ func createZoneWithPrefixes(
 	return id
 }
 
-func TestAZonePrefixMustBeThreeDigits(t *testing.T) {
+// TestStore_CreateZonePrefixShape: a zone prefix must be three digits.
+// CreateZone refuses a list that is not three-digit prefixes. A zone that has
+// prefixes is in use and cannot be deleted until they are cleared.
+func TestStore_CreateZonePrefixShape(t *testing.T) {
 	ctx, _ := admintest.StaffContext(t, pool)
 	s := shipping.NewStore(pool)
 
@@ -992,7 +1032,9 @@ func TestAZonePrefixMustBeThreeDigits(t *testing.T) {
 	}
 }
 
-func TestTheShippingPageSaysWhenCheckoutHidesPickup(t *testing.T) {
+// TestHandler_PagePickupNote: the shipping page says when checkout hides
+// pickup. The pickup-off note appears exactly when no store map is configured.
+func TestHandler_PagePickupNote(t *testing.T) {
 	ctx, _ := admintest.StaffContext(t, pool)
 	s := shipping.NewStore(pool)
 	log := slog.New(slog.DiscardHandler)
@@ -1126,7 +1168,11 @@ func assertZonePrefixAudit(
 	}
 }
 
-func TestStaleSurchargeFormsRefuseSetAndClear(t *testing.T) {
+// TestHandler_SetZoneSurchargeStale: stale surcharge forms refuse set and
+// clear. After a new version is published, a surcharge form captured for the
+// old one answers 422 on the current version's form for both an amount and a
+// clear, changes nothing and writes no audit row; the fresh form saves.
+func TestHandler_SetZoneSurchargeStale(t *testing.T) {
 	for _, locale := range i18n.Locales() {
 		for _, amount := range []string{"200", ""} {
 			t.Run(locale.Tag()+"/amount="+amount, func(t *testing.T) {
@@ -1180,7 +1226,11 @@ func TestStaleSurchargeFormsRefuseSetAndClear(t *testing.T) {
 	}
 }
 
-func TestPublicationAndSurchargeEditsSerialize(t *testing.T) {
+// TestStore_PublishShippingVersionSerialize: publication and surcharge edits
+// serialize. A publish and a surcharge edit queued behind the same method lock
+// run one after the other: an edit after the publication is refused as stale,
+// and a publication after the edit carries its surcharge.
+func TestStore_PublishShippingVersionSerialize(t *testing.T) {
 	for _, publishFirst := range []bool{true, false} {
 		name := "edit_first"
 		if publishFirst {
@@ -1249,7 +1299,11 @@ func TestPublicationAndSurchargeEditsSerialize(t *testing.T) {
 	}
 }
 
-func TestWaitingPublicationBecomesCurrentAndCarriesTheLatestSurcharge(t *testing.T) {
+// TestStore_PublishShippingVersionWaiting: a waiting publication becomes
+// current and carries the latest surcharge. A publish queued behind a lock
+// holder that commits an intervening version ends as the current version and
+// carries the intervening version's surcharge.
+func TestStore_PublishShippingVersionWaiting(t *testing.T) {
 	ctx, _ := admintest.StaffContext(t, pool)
 	method, oldVersion, zone := surchargeFixture(t)
 	app := "waiting-publish-" + method.String()
@@ -1410,7 +1464,11 @@ func assertStaleSurchargeForm(t *testing.T, ctx context.Context, body string, me
 	}
 }
 
-func TestSurchargeChecksTheCurrentVersionAfterItsLockWait(t *testing.T) {
+// TestStore_SetZoneSurchargeStaleAfterWait: a surcharge edit checks the current
+// version after its lock wait. When a newer version commits while the edit
+// waits, the edit is refused as stale; a transaction-time cutoff would exclude
+// that newly committed version.
+func TestStore_SetZoneSurchargeStaleAfterWait(t *testing.T) {
 	ctx, actor := admintest.StaffContext(t, pool)
 	method, oldVersion, zone := surchargeFixture(t)
 	app := "waiting-surcharge-" + method.String()
@@ -1449,7 +1507,11 @@ func TestSurchargeChecksTheCurrentVersionAfterItsLockWait(t *testing.T) {
 	assertSurchargeAudit(t, actor, 0)
 }
 
-func TestZoneRemovalRefusalsKeepTheirCauseAndRows(t *testing.T) {
+// TestHandler_DeleteZoneRefusals: zone removal refusals keep their cause and
+// rows. A zone used by prefixes, by a current or a historical version, or by
+// both answers its own notice, DeleteZone returns a ZoneInUseError naming the
+// use, and nothing is deleted or audited until the blockers are cleared.
+func TestHandler_DeleteZoneRefusals(t *testing.T) {
 	for _, locale := range i18n.Locales() {
 		t.Run(locale.Tag(), func(t *testing.T) {
 			owner := admintest.Pool(t)
@@ -1520,7 +1582,11 @@ func TestZoneRemovalRefusalsKeepTheirCauseAndRows(t *testing.T) {
 	}
 }
 
-func TestZoneRemovalMissingAndUnusedZones(t *testing.T) {
+// TestHandler_DeleteZoneMissingAndUnused: zone removal of a missing or unused
+// zone. A missing or malformed id is ErrNotFound and 404 without a redirect, an
+// unused zone is deleted with one audit row, and the legacy ?inuse=1 notice
+// shows nothing.
+func TestHandler_DeleteZoneMissingAndUnused(t *testing.T) {
 	for _, locale := range i18n.Locales() {
 		t.Run(locale.Tag(), func(t *testing.T) {
 			owner := admintest.Pool(t)
@@ -1642,7 +1708,11 @@ func assertZoneRemovalState(t *testing.T, ctx context.Context, owner *pgxpool.Po
 	}
 }
 
-func TestZoneRemovalInfrastructureFailuresStayServerErrors(t *testing.T) {
+// TestHandler_DeleteZoneQueryFaults: zone removal infrastructure failures stay
+// server errors. A broken zones query makes DeleteZone fail with an
+// infrastructure error and the handler answer 500 without a redirect, deleting
+// and auditing nothing.
+func TestHandler_DeleteZoneQueryFaults(t *testing.T) {
 	for _, locale := range i18n.Locales() {
 		for _, column := range []string{"id", "name"} {
 			t.Run(locale.Tag()+"/"+column, func(t *testing.T) {

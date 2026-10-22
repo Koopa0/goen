@@ -18,7 +18,11 @@ func formRequest(t *testing.T, values url.Values) *http.Request {
 	return r
 }
 
-func TestShippingMoneyParsingDoesNotTurnTyposIntoFreeShipping(t *testing.T) {
+// TestMethodFormOfMoneyTypos: shipping money parsing does not turn typos into
+// free shipping. methodFormOf refuses an empty fee and an unreadable, negative
+// or overflowing fee or free-over amount instead of reading it as zero, while
+// an explicit zero fee and a blank threshold stay legal.
+func TestMethodFormOfMoneyTypos(t *testing.T) {
 	base := url.Values{
 		"code": {"parcel"}, "destination": {"address"}, "name": {"Parcel"},
 		"fee": {"0"}, "free_over": {""},
@@ -47,7 +51,11 @@ func TestShippingMoneyParsingDoesNotTurnTyposIntoFreeShipping(t *testing.T) {
 	}
 }
 
-func TestABlankPrefixSetIsDistinctFromAMissingCreationPrefix(t *testing.T) {
+// TestParsePrefixesBlankSet: a blank prefix set is distinct from a missing
+// creation prefix. parsePrefixes accepts blank text as an empty non-nil set,
+// which replaces a zone's prefixes with none, while parseRequiredPrefixes
+// refuses it when creating a zone.
+func TestParsePrefixesBlankSet(t *testing.T) {
 	set, message := parsePrefixes(t.Context(), "  , ; \n\t")
 	if message != "" {
 		t.Fatalf("blank replacement was refused: %q", message)

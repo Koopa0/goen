@@ -108,12 +108,13 @@ func sameLetters(got, want []bool) bool {
 	return true
 }
 
-// TestWrongCodesLockTheFactorAcrossARestart is the guess the in-memory
-// throttle alone allowed: a burst, a restart that refills it, another burst.
-// The count is in the database, so the restart does not reset it, and once it
-// is reached the right code is refused too. It runs on the back office's own
-// role, so a grant the charge needs and the owner has is missing here.
-func TestWrongCodesLockTheFactorAcrossARestart(t *testing.T) {
+// TestHandler_VerifyLocksAcrossRestart: wrong codes lock the factor across a
+// restart, and once it is locked the right code is refused too. It is the guess
+// the in-memory throttle alone allowed: a burst, a restart that refills it,
+// another burst. The count is in the database, so the restart does not reset
+// it. It runs on the back office's own role, so a grant the charge needs and
+// the owner has is missing here.
+func TestHandler_VerifyLocksAcrossRestart(t *testing.T) {
 	admin := admintest.AdminRolePool(t, pool)
 	userID, address := admintest.AdminUser(t, pool)
 	secret := enrol(t, twofactor.NewStore(admin, testKey, nil), userID, address)
@@ -150,10 +151,11 @@ func TestWrongCodesLockTheFactorAcrossARestart(t *testing.T) {
 	}
 }
 
-// TestAnAcceptedCodeClearsTheWrongOnes: the count is of wrong codes IN A ROW,
-// so the holder's own typos never add up to a lock, and the next wrong code
-// after a right one warns the account again.
-func TestAnAcceptedCodeClearsTheWrongOnes(t *testing.T) {
+// TestStore_VerifyAcceptedClearsCount: an accepted code clears the count of
+// wrong ones. The count is of wrong codes IN A ROW, so the holder's own typos
+// never add up to a lock, and the next wrong code after a right one warns the
+// account again.
+func TestStore_VerifyAcceptedClearsCount(t *testing.T) {
 	admin := admintest.AdminRolePool(t, pool)
 	s := twofactor.NewStore(admin, testKey, nil)
 	userID, address := admintest.AdminUser(t, pool)
@@ -179,11 +181,11 @@ func TestAnAcceptedCodeClearsTheWrongOnes(t *testing.T) {
 	}
 }
 
-// TestTheCapHoldsUnderConcurrentWrongCodes: the count is charged by the
-// statement that reads the credential, so attempts racing past a count read
-// separately cannot each be judged. Exactly MaxFailures codes are judged
-// however many arrive at once.
-func TestTheCapHoldsUnderConcurrentWrongCodes(t *testing.T) {
+// TestStore_VerifyCapUnderConcurrency: the failure cap holds under concurrent
+// wrong codes. The count is charged by the statement that reads the credential,
+// so attempts racing past a count read separately cannot each be judged.
+// Exactly MaxFailures codes are judged however many arrive at once.
+func TestStore_VerifyCapUnderConcurrency(t *testing.T) {
 	cfg := pool.Config().Copy()
 	cfg.MaxConns = 3 * twofactor.MaxFailures
 	wide, err := pgxpool.NewWithConfig(t.Context(), cfg)
@@ -229,10 +231,11 @@ func TestTheCapHoldsUnderConcurrentWrongCodes(t *testing.T) {
 	}
 }
 
-// TestRemovingALockedFactorLetsItsHolderEnrolAgain is the recovery the lock
-// notice names: another admin removes the factor at /admin/staff, and its
-// holder enrols afresh with no count carried over.
-func TestRemovingALockedFactorLetsItsHolderEnrolAgain(t *testing.T) {
+// TestStore_LockedFactorRecovery: removing a locked factor lets its holder
+// enrol again, with no count carried over. It is the recovery the lock notice
+// names: another admin removes the factor at /admin/staff, and its holder
+// enrols afresh.
+func TestStore_LockedFactorRecovery(t *testing.T) {
 	admin := admintest.AdminRolePool(t, pool)
 	s := twofactor.NewStore(admin, testKey, nil)
 	userID, address := admintest.AdminUser(t, pool)

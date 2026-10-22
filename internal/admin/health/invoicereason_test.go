@@ -9,11 +9,12 @@ import (
 	"github.com/koopa0/goen/internal/invoice"
 )
 
-// TestEveryInvoiceReasonHasALabel is the guard between the issuer, which stores
-// an invoice.Reason, and the health page, which explains it. A reason added to
-// the invoice package without a label fails here, in both languages, instead of
-// showing staff "no explanation is available" for a row they must act on.
-func TestEveryInvoiceReasonHasALabel(t *testing.T) {
+// TestInvoiceReasonLabelsCoverReasons: every invoice reason has a label. It is
+// the guard between the issuer, which stores an invoice.Reason, and the health
+// page, which explains it. A reason added to the invoice package without a
+// label fails here, in both languages, instead of showing staff "no explanation
+// is available" for a row they must act on.
+func TestInvoiceReasonLabelsCoverReasons(t *testing.T) {
 	t.Parallel()
 	for _, locale := range i18n.Locales() {
 		ctx := i18n.WithLocale(t.Context(), locale)
@@ -35,9 +36,10 @@ func TestEveryInvoiceReasonHasALabel(t *testing.T) {
 	}
 }
 
-// TestNoInvoiceReasonLabelIsLeftOver is the other direction: a label keyed by a
-// value that is no longer a reason is dead copy which would hide a rename.
-func TestNoInvoiceReasonLabelIsLeftOver(t *testing.T) {
+// TestInvoiceReasonLabelsNoneLeftOver: no invoice reason label is left over. It
+// is the other direction: a label keyed by a value that is no longer a reason
+// is dead copy which would hide a rename.
+func TestInvoiceReasonLabelsNoneLeftOver(t *testing.T) {
 	t.Parallel()
 	known := invoice.Reasons()
 	for _, reason := range slices.Sorted(maps.Keys(invoiceReasonLabels)) {

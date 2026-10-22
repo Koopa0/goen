@@ -422,8 +422,8 @@ func (c StrandedClaim) ExplainedStatusText(ctx context.Context) string {
 
 // invoiceReasonLabels explains each fixed invoice.Reason, keyed by the typed
 // value so that a reason cannot be renamed away from its label unnoticed;
-// TestEveryInvoiceReasonHasALabel fails for a reason which has none. The open
-// family of provider rejections is labelled by ReasonText.
+// TestInvoiceReasonLabelsCoverReasons fails for a reason which has none. The
+// open family of provider rejections is labelled by ReasonText.
 var invoiceReasonLabels = map[invoice.Reason]i18n.Key{
 	invoice.ReasonIssueLookupFailed:                      i18n.KeyAdminHPInvoiceLookupFailed,
 	invoice.ReasonIssuePostSendLookupFailed:              i18n.KeyAdminHPInvoiceLookupFailed,

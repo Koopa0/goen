@@ -34,7 +34,11 @@ var quiet = slog.New(slog.DiscardHandler)
 
 func noOrders(context.Context, []string) (map[string]string, error) { return nil, nil }
 
-func TestReadDisputesMatchesOrdersAndFormatsTheDeadlineInShopTime(t *testing.T) {
+// TestReadDisputesMatchesOrders: readDisputes matches orders and formats the
+// deadline in shop time. Each dispute's checkout session is matched to its
+// order number, a session with no order stays without one, and the response
+// deadline reads in the shop's zone.
+func TestReadDisputesMatchesOrders(t *testing.T) {
 	t.Parallel()
 	// 2026-10-31 23:59:59 UTC is 2026-11-01 07:59 in Taipei.
 	due := time.Date(2026, 10, 31, 23, 59, 59, 0, time.UTC)
@@ -58,7 +62,10 @@ func TestReadDisputesMatchesOrdersAndFormatsTheDeadlineInShopTime(t *testing.T) 
 	}
 }
 
-func TestReadDisputesIsUnknownWhenStripeFailsOrTimesOut(t *testing.T) {
+// TestReadDisputesStripeUnavailable: readDisputes is unknown when Stripe fails
+// or times out. The state is configured and unknown, lists nothing, and does
+// not count as healthy.
+func TestReadDisputesStripeUnavailable(t *testing.T) {
 	t.Parallel()
 	for name, src := range map[string]fakeDisputes{
 		"error":   {err: errors.New("stripe down")},
@@ -77,7 +84,9 @@ func TestReadDisputesIsUnknownWhenStripeFailsOrTimesOut(t *testing.T) {
 	}
 }
 
-func TestReadDisputesWithoutAStripeSourceLeavesTheRowOut(t *testing.T) {
+// TestReadDisputesNoSource: readDisputes without a Stripe source leaves the row
+// out. The state is unconfigured and healthy.
+func TestReadDisputesNoSource(t *testing.T) {
 	t.Parallel()
 	got := readDisputes(t.Context(), nil, time.Second, quiet, noOrders)
 	if got.Configured || !got.Healthy() {
@@ -85,7 +94,10 @@ func TestReadDisputesWithoutAStripeSourceLeavesTheRowOut(t *testing.T) {
 	}
 }
 
-func TestReadDisputesFlagsAFailedOrderLookupInsteadOfClaimingNoOrder(t *testing.T) {
+// TestReadDisputesOrderLookupFails: readDisputes flags a failed order lookup
+// instead of claiming there is no order. The dispute is still listed,
+// OrdersUnknown is set, and the state does not count as healthy.
+func TestReadDisputesOrderLookupFails(t *testing.T) {
 	t.Parallel()
 	src := fakeDisputes{found: []payment.Dispute{{ID: "dp_1", AmountCents: 100, SessionID: "cs_1"}}}
 	got := readDisputes(t.Context(), src, time.Second, quiet,
@@ -98,7 +110,10 @@ func TestReadDisputesFlagsAFailedOrderLookupInsteadOfClaimingNoOrder(t *testing.
 	}
 }
 
-func TestReadDisputesGivesTheOrderLookupItsOwnTimeAfterASlowStripe(t *testing.T) {
+// TestReadDisputesOrderLookupOwnTime: readDisputes gives the order lookup its
+// own time after a slow Stripe. A Stripe read that used up its budget does not
+// leave the order lookup with an expired context.
+func TestReadDisputesOrderLookupOwnTime(t *testing.T) {
 	t.Parallel()
 	src := fakeDisputes{found: []payment.Dispute{{ID: "dp_1", SessionID: "cs_1"}}, delay: 60 * time.Millisecond}
 	got := readDisputes(t.Context(), src, 50*time.Millisecond, quiet,
@@ -113,7 +128,9 @@ func TestReadDisputesGivesTheOrderLookupItsOwnTimeAfterASlowStripe(t *testing.T)
 	}
 }
 
-func TestAnOpenDisputeIsNotHealthy(t *testing.T) {
+// TestDisputeState_HealthyOpenDispute: an open dispute is not healthy. A
+// dispute waiting for a response does not count as healthy.
+func TestDisputeState_HealthyOpenDispute(t *testing.T) {
 	t.Parallel()
 	state := DisputeState{Configured: true, Items: []OpenDispute{{}}}
 	if state.Healthy() {

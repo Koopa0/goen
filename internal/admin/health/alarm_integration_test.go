@@ -34,7 +34,11 @@ func healthHandler(p *pgxpool.Pool) *health.Handler {
 	return health.NewHandler(health.NewStore(p), outbox.NewStore(p, log), nil, nil, log)
 }
 
-func TestTheHealthPageNamesARefundThatDidNotLand(t *testing.T) {
+// TestStore_WorkerHealthOpenRefund: the health page names a refund that did not
+// land. A return refund whose provider call timed out is listed among the open
+// refunds with its order, amount and status, and the refund health reads
+// unhealthy.
+func TestStore_WorkerHealthOpenRefund(t *testing.T) {
 	ctx, _ := admintest.StaffContext(t, pool)
 	s := admintest.ReturnDesk(pool, admintest.Refunder{
 		RefundErr: errors.New("read tcp 1.2.3.4:443: i/o timeout"),
@@ -79,7 +83,11 @@ func TestTheHealthPageNamesARefundThatDidNotLand(t *testing.T) {
 	}
 }
 
-func TestRefundHealthCountExceedsItsBoundedDiagnosticSample(t *testing.T) {
+// TestStore_WorkerHealthRefundSample: the refund health count exceeds its
+// bounded diagnostic sample. OpenRefundCount counts every open refund while
+// OpenRefunds lists at most OpenRefundListLimit, and RefundsText uses the exact
+// count.
+func TestStore_WorkerHealthRefundSample(t *testing.T) {
 	ctx, _ := admintest.StaffContext(t, pool)
 	worker := outbox.NewStore(pool, slog.New(slog.DiscardHandler))
 	before, err := health.NewStore(pool).WorkerHealth(ctx, worker)
@@ -125,11 +133,14 @@ func TestRefundHealthCountExceedsItsBoundedDiagnosticSample(t *testing.T) {
 	}
 }
 
-// TestAnAcknowledgedPaymentLeavesTheAlarm is the other half of flagging one.
-// The refund is at Stripe and nothing here can see it land, so the alarm has an
-// off switch or /admin/health is unhealthy forever after the first arrival —
-// and an alarm that is always on is one nobody reads.
-func TestAnAcknowledgedPaymentLeavesTheAlarm(t *testing.T) {
+// TestStore_ReleasePaymentEventClearsAlarm: an acknowledged payment leaves the
+// alarm. It is the other half of flagging one. The refund is at Stripe and
+// nothing here can see it land, so the alarm has an off switch or /admin/health
+// is unhealthy forever after the first arrival, and an alarm that is always on
+// is one nobody reads. An event named without the safe-release conclusion is
+// refused at the HTTP door, an acknowledgement is audited once, and a second
+// press or an unflagged event is ErrNotFound.
+func TestStore_ReleasePaymentEventClearsAlarm(t *testing.T) {
 	ctx, _ := admintest.StaffContext(t, pool)
 	worker := outbox.NewStore(pool, slog.New(slog.DiscardHandler))
 	baseline, healthErr := health.NewStore(pool).WorkerHealth(ctx, worker)
@@ -258,11 +269,12 @@ func TestAnAcknowledgedPaymentLeavesTheAlarm(t *testing.T) {
 	}
 }
 
-// TestACompletePaymentWithoutAFlaggedEventHasAResolutionDoor covers provider
-// completion before a capture webhook and the understood complete/unpaid event:
-// neither has an unreconciled event row, so the payment state itself must make
-// health unhealthy and give staff an audited, typed way to resolve it.
-func TestACompletePaymentWithoutAFlaggedEventHasAResolutionDoor(t *testing.T) {
+// TestStore_ReconcileCompletePayment: a complete payment without a flagged
+// event has a resolution door. It covers provider completion before a capture
+// webhook and the understood complete/unpaid event: neither has an unreconciled
+// event row, so the payment state itself must make health unhealthy and give
+// staff an audited, typed way to resolve it.
+func TestStore_ReconcileCompletePayment(t *testing.T) {
 	ctx, _ := admintest.StaffContext(t, pool)
 	worker := outbox.NewStore(pool, slog.New(slog.DiscardHandler))
 
@@ -338,11 +350,12 @@ func TestACompletePaymentWithoutAFlaggedEventHasAResolutionDoor(t *testing.T) {
 	}
 }
 
-// TestReleasedStockPaidAttributionReturnsARefundInstruction proves the admin
-// boundary does not turn the capture fence into a generic 500. Health removes
-// the impossible paid action, and a stale form submitted across a concurrent
-// sweep returns an actionable refund notice while leaving reconciliation open.
-func TestReleasedStockPaidAttributionReturnsARefundInstruction(t *testing.T) {
+// TestHandler_ReconcileReleasedStock: paid attribution of a payment whose stock
+// was released returns a refund instruction. It proves the admin boundary does
+// not turn the capture fence into a generic 500. Health removes the impossible
+// paid action, and a stale form submitted across a concurrent sweep returns an
+// actionable refund notice while leaving reconciliation open.
+func TestHandler_ReconcileReleasedStock(t *testing.T) {
 	ctx, _ := admintest.StaffContext(t, pool)
 	number, orderID, _ := admintest.PendingOrderHoldingStock(t, pool)
 	providerRef := "cs_admin_released_stock_" + uuid.NewString()[:12]
@@ -406,11 +419,11 @@ func TestReleasedStockPaidAttributionReturnsARefundInstruction(t *testing.T) {
 	}
 }
 
-// TestARefusedSystemIssueIsOnTheHealthPage: nobody watches an automatic issue,
-// so ECPay refusing it stays in front of a person until a later issue exists. A
-// staff claim's refusal was shown to the person who pressed the button and is
-// not listed.
-func TestARefusedSystemIssueIsOnTheHealthPage(t *testing.T) {
+// TestStore_WorkerHealthRefusedIssue: a refused system issue is on the health
+// page. Nobody watches an automatic issue, so ECPay refusing it stays in front
+// of a person until a later issue exists. A staff claim's refusal was shown to
+// the person who pressed the button and is not listed.
+func TestStore_WorkerHealthRefusedIssue(t *testing.T) {
 	ctx, actor := admintest.StaffContext(t, pool)
 	worker := outbox.NewStore(pool, slog.New(slog.DiscardHandler))
 
@@ -476,15 +489,16 @@ func TestARefusedSystemIssueIsOnTheHealthPage(t *testing.T) {
 	}
 }
 
-// TestAStrandedInvoiceClaimIsOnTheHealthPage holds the alarm and the only
-// auditable recovery door for an aged ambiguous Allowance.
+// TestStore_WorkerHealthStrandedClaim: a stranded invoice claim is on the
+// health page. It holds the alarm and the only auditable recovery door for an
+// aged ambiguous Allowance.
 //
 // A 折讓 claim is taken before ECPay is asked, because their allowance endpoint
-// carries no idempotency field. A call that was not ANSWERED keeps its claim —
-// right, because whether the document was filed is not knowable from here — and
+// carries no idempotency field. A call that was not ANSWERED keeps its claim,
+// right, because whether the document was filed is not knowable from here, and
 // that leaves a row nothing else can resolve, the shape
 // payment_webhook_events.unreconciled already has.
-func TestAStrandedInvoiceClaimIsOnTheHealthPage(t *testing.T) {
+func TestStore_WorkerHealthStrandedClaim(t *testing.T) {
 	ctx, actor := admintest.StaffContext(t, pool)
 	worker := outbox.NewStore(pool, slog.New(slog.DiscardHandler))
 
@@ -634,9 +648,10 @@ func TestAStrandedInvoiceClaimIsOnTheHealthPage(t *testing.T) {
 	}
 }
 
-// The health page counts uploads nothing references; a category's photograph
-// is a reference.
-func TestAUploadHeldByACategoryIsNotCountedUnreferenced(t *testing.T) {
+// TestStore_WorkerHealthCategoryUpload: an upload held by a category is not
+// counted as unreferenced. The health page counts uploads nothing references; a
+// category's photograph is a reference.
+func TestStore_WorkerHealthCategoryUpload(t *testing.T) {
 	ctx, _ := admintest.StaffContext(t, pool)
 	messages := outbox.NewStore(pool, slog.New(slog.DiscardHandler))
 	count := func() int64 {
@@ -675,10 +690,11 @@ func TestAUploadHeldByACategoryIsNotCountedUnreferenced(t *testing.T) {
 	}
 }
 
-// TestALapsedOnlineAllowanceOffersOneResend: an allowance the buyer never
-// agreed to within 72 hours is on the page with the audited resend, worded as
-// asking the buyer again rather than as a request ECPay never received.
-func TestALapsedOnlineAllowanceOffersOneResend(t *testing.T) {
+// TestStore_WorkerHealthLapsedAllowance: a lapsed online allowance offers one
+// resend. An allowance the buyer never agreed to within 72 hours is on the page
+// with the audited resend, worded as asking the buyer again rather than as a
+// request ECPay never received.
+func TestStore_WorkerHealthLapsedAllowance(t *testing.T) {
 	ctx, actor := admintest.StaffContext(t, pool)
 	worker := outbox.NewStore(pool, slog.New(slog.DiscardHandler))
 	number, orderID, _, _ := admintest.TwoLineOrderWithStock(t, pool, "lapsed")
@@ -712,11 +728,13 @@ func TestALapsedOnlineAllowanceOffersOneResend(t *testing.T) {
 	t.Errorf("the lapsed allowance of %s is not on the health page", number)
 }
 
-// An allowance sent to ECPay whose outcome was never recorded (the process
-// stopped between the two) has no error text. It is a stranded claim like any
-// other, offered no resend because nothing says ECPay did not receive it, and
-// it must not take the health page or the task count down with it.
-func TestASentAllowanceWithNoErrorTextIsStillListed(t *testing.T) {
+// TestStore_WorkerHealthAllowanceNoError: a sent allowance with no error text
+// is still listed. An allowance sent to ECPay whose outcome was never recorded
+// (the process stopped between the two) has no error text. It is a stranded
+// claim like any other, offered no resend because nothing says ECPay did not
+// receive it, and it must not take the health page or the task count down with
+// it.
+func TestStore_WorkerHealthAllowanceNoError(t *testing.T) {
 	ctx, actor := admintest.StaffContext(t, pool)
 	worker := outbox.NewStore(pool, slog.New(slog.DiscardHandler))
 	number, orderID, _, _ := admintest.TwoLineOrderWithStock(t, pool, "silent")
@@ -753,10 +771,12 @@ func TestASentAllowanceWithNoErrorTextIsStillListed(t *testing.T) {
 	t.Errorf("the sent allowance of %s is not on the health page", number)
 }
 
-// With no 加值中心 an issue a paid sale owes is claimed and waits for one to be
-// configured (issuer.Store.ClaimDue). It is not stranded, so the page and the
-// dashboard task must not raise it; an operation already sent still is.
-func TestAnIssueWaitingForNoProviderIsNotAStrandedClaim(t *testing.T) {
+// TestStore_WorkerHealthNoProviderIssue: an issue waiting for no provider is
+// not a stranded claim. With no 加值中心 an issue a paid sale owes is claimed and
+// waits for one to be configured (issuer.Store.ClaimDue). It is not stranded,
+// so the page and the dashboard task must not raise it; an operation already
+// sent still is.
+func TestStore_WorkerHealthNoProviderIssue(t *testing.T) {
 	ctx, _ := admintest.StaffContext(t, pool)
 	number, orderID, _ := admintest.PaidUnshippedOrder(t, pool, 500000, 0, true)
 	if _, err := pool.Exec(ctx, `

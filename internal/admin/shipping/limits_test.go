@@ -9,7 +9,10 @@ import (
 	"github.com/koopa0/goen/internal/i18n"
 )
 
-func TestShippingDollarInputsAreBoundedBeforeMultiplication(t *testing.T) {
+// TestNewMethod_ValidateDollarOverflow: shipping dollar inputs are bounded
+// before multiplication. Validate refuses a fee and a free-over amount of
+// MaxInt64 dollars instead of overflowing when they become cents.
+func TestNewMethod_ValidateDollarOverflow(t *testing.T) {
 	t.Parallel()
 	ctx := i18n.WithLocale(t.Context(), i18n.En)
 
@@ -22,7 +25,10 @@ func TestShippingDollarInputsAreBoundedBeforeMultiplication(t *testing.T) {
 	}
 }
 
-func TestMethodParcelLimitsStopAtTheSchemaCeilings(t *testing.T) {
+// TestNewMethod_ValidateParcelCeilings: method parcel limits stop at the schema
+// ceilings. Validate refuses a longest side, three-side sum or weight one above
+// its ceiling and accepts each at the ceiling.
+func TestNewMethod_ValidateParcelCeilings(t *testing.T) {
 	t.Parallel()
 	ctx := i18n.WithLocale(t.Context(), i18n.En)
 	for _, tt := range []struct {

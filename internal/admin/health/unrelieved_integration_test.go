@@ -23,14 +23,15 @@ import (
 	"github.com/koopa0/goen/internal/outbox"
 )
 
-// TestARefundWithNoAllowanceFiledNeedsAPerson: a return paid back to the card
-// or as store credit leaves the order's 統一發票 at the amount before it until a
-// 折讓 is filed, and nothing files one for a return. /admin/health lists the
-// invoice once the money has been back for UnrelievedAfter, with the allowance
-// the order page would file, and the dashboard counts it. A return not yet paid
-// back, or paid back within the margin, owes nothing yet; an allowance in
-// flight belongs to the stranded-claims list; a settled one relieves it.
-func TestARefundWithNoAllowanceFiledNeedsAPerson(t *testing.T) {
+// TestStore_UnrelievedRefunds: a refund with no allowance filed needs a person.
+// A return paid back to the card or as store credit leaves the order's 統一發票 at
+// the amount before it until a 折讓 is filed, and nothing files one for a return.
+// /admin/health lists the invoice once the money has been back for
+// UnrelievedAfter, with the allowance the order page would file, and the
+// dashboard counts it. A return not yet paid back, or paid back within the
+// margin, owes nothing yet; an allowance in flight belongs to the
+// stranded-claims list; a settled one relieves it.
+func TestStore_UnrelievedRefunds(t *testing.T) {
 	// One database of its own, so the dashboard's count is this test's alone.
 	// Each case leaves nothing owed, so the next starts from an empty list.
 	owner := dbtest.Pool(t)

@@ -11,7 +11,10 @@ import (
 	"github.com/koopa0/goen/internal/i18n"
 )
 
-func TestWorkerAgeSecondsSaturateInsteadOfWrappingHealthy(t *testing.T) {
+// TestDurationFromSecondsSaturates: worker age seconds saturate instead of
+// wrapping healthy. durationFromSeconds clamps beyond Go's duration range, so
+// an age that large neither reads as a healthy worker nor renders negative.
+func TestDurationFromSecondsSaturates(t *testing.T) {
 	t.Parallel()
 	got := durationFromSeconds(math.MaxInt64)
 	if got != time.Duration(math.MaxInt64) {
@@ -36,7 +39,11 @@ func TestWorkerAgeSecondsSaturateInsteadOfWrappingHealthy(t *testing.T) {
 	}
 }
 
-func TestEveryRedirectTheReconcileFormMakesCarriesAMessage(t *testing.T) {
+// TestNoticesCoverReconcileRedirects: every redirect the reconcile form makes
+// carries a message. Each ?name=1 that handler.go sends has a notice, and each
+// notice names a parameter some redirect writes; a parser that finds no
+// redirect fails.
+func TestNoticesCoverReconcileRedirects(t *testing.T) {
 	t.Parallel()
 	src, err := os.ReadFile("handler.go")
 	if err != nil {

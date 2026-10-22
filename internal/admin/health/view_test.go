@@ -12,7 +12,11 @@ import (
 	"github.com/koopa0/goen/internal/ui/frame"
 )
 
-func TestWorkerHealthTasksFollowTheHealthPredicates(t *testing.T) {
+// TestWorkerHealthView_Tasks: the worker health tasks follow the health
+// predicates. A healthy view has none, each unhealthy family yields its task
+// with its count, link and age, and expired holds count only above the
+// threshold the health page calls healthy.
+func TestWorkerHealthView_Tasks(t *testing.T) {
 	t.Parallel()
 	if got := (&WorkerHealthView{}).Tasks(); len(got) != 0 {
 		t.Errorf("Tasks() of a healthy view = %v, want none", got)
@@ -89,7 +93,9 @@ func wantBadge(t *testing.T, page, word, class string) {
 	}
 }
 
-func TestHealthItemsAreDoneOrNeedYou(t *testing.T) {
+// TestHealthItemBadges: health items are done or need you. The all-clear item
+// carries the done badge and the item needing a look carries the warn badge.
+func TestHealthItemBadges(t *testing.T) {
 	t.Parallel()
 	ctx := i18n.WithLocale(t.Context(), i18n.ZhHant)
 	// The outbox is healthy by default and the recommendation projection, never built, is not.

@@ -11,7 +11,10 @@ import (
 	"github.com/koopa0/goen/internal/ui/widget"
 )
 
-func TestARedirectedNoticeIsShownAsItsOwnOutcome(t *testing.T) {
+// TestHealthNoticeShown: a redirected notice is shown as its own outcome. The
+// health page renders the sentence for ?notflagged=1 and ?mustrefund=1, with
+// the danger treatment only for the failure.
+func TestHealthNoticeShown(t *testing.T) {
 	t.Parallel()
 	for _, tc := range []struct {
 		query   string
@@ -37,7 +40,9 @@ func TestARedirectedNoticeIsShownAsItsOwnOutcome(t *testing.T) {
 	}
 }
 
-func TestARedirectedNoticeKeepsItsOutcome(t *testing.T) {
+// TestNoticesOutcome: a redirected notice keeps its outcome. The notflagged
+// notice is OutcomeDone.
+func TestNoticesOutcome(t *testing.T) {
 	t.Parallel()
 	for name, want := range map[string]widget.Outcome{
 		"notflagged": widget.OutcomeDone,

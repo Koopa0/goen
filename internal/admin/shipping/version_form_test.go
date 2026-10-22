@@ -14,7 +14,11 @@ import (
 	"github.com/koopa0/goen/internal/money"
 )
 
-func TestVersionFormKeepsRawFieldsAndRefusesTheOwningAmount(t *testing.T) {
+// TestVersionFormOf: the version form keeps its raw fields and refuses the
+// owning amount. versionFormOf returns the submitted text unchanged as the
+// draft, the parsed Version, and a refusal on the fee or threshold field that
+// holds a bad amount.
+func TestVersionFormOf(t *testing.T) {
 	t.Parallel()
 	for _, tt := range []struct {
 		name, fee, threshold, field  string
@@ -77,7 +81,11 @@ func FuzzVersionFormRetainsTheDraftAndBoundsAcceptedAmounts(f *testing.F) {
 	})
 }
 
-func TestShippingAmountRefusalsNameTheMoneyCeiling(t *testing.T) {
+// TestNewMethod_ValidateCeilingMessages: shipping amount refusals name the
+// money ceiling. The fee and free-over refusals state the formatted NT$5,000
+// and NT$100,000,000 ceilings, as NewMethod.Validate words them and as the
+// new-method and version form parsers do.
+func TestNewMethod_ValidateCeilingMessages(t *testing.T) {
 	t.Parallel()
 	for _, locale := range i18n.Locales() {
 		t.Run(locale.Tag(), func(t *testing.T) {
@@ -114,7 +122,10 @@ func TestShippingAmountRefusalsNameTheMoneyCeiling(t *testing.T) {
 	}
 }
 
-func TestVersionNamesFollowTheCreateFormRuneBound(t *testing.T) {
+// TestVersionFormOfNameBound: version names follow the create form's rune
+// bound. versionFormOf refuses a name over sixty runes, or a blank one, exactly
+// when NewMethod.Validate does, and keeps the raw text as the draft.
+func TestVersionFormOfNameBound(t *testing.T) {
 	t.Parallel()
 	for _, tt := range []struct {
 		name, raw string
