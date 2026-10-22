@@ -49,11 +49,11 @@ func TestInvoiceIssueItemCount(t *testing.T) {
 				INSERT INTO orders
 				    (order_number, user_id, shipping_version_id, shipping_method_code,
 				     shipping_method_name, shipping_cents, locale)
-				SELECT 'GO-981231-' || lpad((floor(random()*900000)+100000)::bigint::text, 6, '0'),
+				SELECT $2::text,
 				       $1, smv.id, sm.code, smv.name, 100, 'zh-Hant'
 				FROM shipping_method_versions smv
 				JOIN shipping_methods sm ON sm.id=smv.method_id
-				LIMIT 1 RETURNING id`, userID).Scan(&orderID); err != nil {
+				LIMIT 1 RETURNING id`, userID, testOrderNumber()).Scan(&orderID); err != nil {
 				t.Fatalf("create order: %v", err)
 			}
 			if _, err := tx.Exec(ctx, `
