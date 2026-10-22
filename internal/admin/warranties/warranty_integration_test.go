@@ -19,7 +19,8 @@ import (
 	"github.com/koopa0/goen/internal/order/warranty"
 )
 
-func TestTheShopCanFindAWarrantyTheCustomerRegistered(t *testing.T) {
+// TestStore_WarrantiesSearch: the shop can find a warranty the customer registered, by serial or by order number.
+func TestStore_WarrantiesSearch(t *testing.T) {
 	ctx, _ := admintest.StaffContext(t, pool)
 	serial, number := registeredWarranty(t, "SN-"+strings.ToUpper(uuid.NewString()[:8]), 1)
 
@@ -68,7 +69,8 @@ func TestTheShopCanFindAWarrantyTheCustomerRegistered(t *testing.T) {
 	}
 }
 
-func TestTheWarrantyLookupRefusesToListEverything(t *testing.T) {
+// TestStore_WarrantiesShortTerm: the warranty lookup refuses to list everything.
+func TestStore_WarrantiesShortTerm(t *testing.T) {
 	ctx, _ := admintest.StaffContext(t, pool)
 	registeredWarranty(t, "SN-"+strings.ToUpper(uuid.NewString()[:8]), 1)
 

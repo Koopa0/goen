@@ -22,7 +22,8 @@ func renderStaff(t *testing.T, locale i18n.Locale, c templ.Component) string {
 	return b.String()
 }
 
-func TestStaffRowPrintsAnEmailOnce(t *testing.T) {
+// TestStaffRowEmailOnce: a staff row prints an email once.
+func TestStaffRowEmailOnce(t *testing.T) {
 	t.Parallel()
 	for name, tc := range map[string]struct {
 		row   StaffRow
@@ -88,7 +89,8 @@ func wantBadge(t *testing.T, page, word, class string) {
 	}
 }
 
-func TestStaffEnrollmentBadgesAreDoneOrNeedYou(t *testing.T) {
+// TestStaffEnrollmentBadges: staff enrollment badges are done or need you.
+func TestStaffEnrollmentBadges(t *testing.T) {
 	t.Parallel()
 	ctx := i18n.WithLocale(t.Context(), i18n.ZhHant)
 	view := StaffView{Rows: []StaffRow{
@@ -100,7 +102,8 @@ func TestStaffEnrollmentBadgesAreDoneOrNeedYou(t *testing.T) {
 	wantBadge(t, page, i18n.T(ctx, i18n.KeyAdminTOTPOff), "goen-badge goen-badge--warn")
 }
 
-func TestStaffCountSelectsSingularInTheRenderedPage(t *testing.T) {
+// TestStaffCountSingular: the staff count selects the singular in the rendered page.
+func TestStaffCountSingular(t *testing.T) {
 	t.Parallel()
 	for _, locale := range []i18n.Locale{i18n.ZhHant, i18n.En} {
 		for _, n := range []int32{1, 2} {

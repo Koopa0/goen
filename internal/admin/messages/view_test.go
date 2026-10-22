@@ -92,8 +92,9 @@ func render(t *testing.T, c templ.Component) string {
 	return out.String()
 }
 
+// TestMessagesEmptyPage: the messages empty page keeps its restart link.
 // From TestEveryAdminEmptyPageKeepsItsRestartLink.
-func TestMessagesEmptyPageKeepsItsRestartLink(t *testing.T) {
+func TestMessagesEmptyPage(t *testing.T) {
 	t.Parallel()
 	b := keyset.Bound{PastEnd: true, First: "/admin/products?q=test"}
 	body := render(t, Messages(frame.Page{Title: "Pagination"}, MessagesView{Bound: b}))
@@ -105,8 +106,9 @@ func TestMessagesEmptyPageKeepsItsRestartLink(t *testing.T) {
 	}
 }
 
+// TestMessagesFirstPageEmpty: the messages queue keeps its own first-page empty state.
 // From TestEveryQueueKeepsItsOwnFirstPageEmptyState.
-func TestMessagesQueueKeepsItsOwnFirstPageEmptyState(t *testing.T) {
+func TestMessagesFirstPageEmpty(t *testing.T) {
 	t.Parallel()
 	ctx := func(k i18n.Key) string { return i18n.T(i18n.WithLocale(t.Context(), i18n.En), k) }
 	want := ctx(i18n.KeyAdminMessagesEmpty)
@@ -119,8 +121,9 @@ func TestMessagesQueueKeepsItsOwnFirstPageEmptyState(t *testing.T) {
 	}
 }
 
+// TestMessagesNextLink: a messages queue with more rows offers Next.
 // From TestEveryQueueWithMoreRowsOffersNext.
-func TestMessagesQueueWithMoreRowsOffersNext(t *testing.T) {
+func TestMessagesNextLink(t *testing.T) {
 	t.Parallel()
 	ctx := func(k i18n.Key) string { return i18n.T(i18n.WithLocale(t.Context(), i18n.En), k) }
 	body := render(t, Messages(frame.Page{Title: "Queue"}, MessagesView{Bound: fullPageBound("/admin/queue")}))
@@ -132,7 +135,8 @@ func TestMessagesQueueWithMoreRowsOffersNext(t *testing.T) {
 	}
 }
 
-func TestMessageQueueWaitingAndOverdueNeedYouAndOverdueSaysSo(t *testing.T) {
+// TestMessagesWaitingBadges: in the message queue, waiting and overdue need you, and overdue says so.
+func TestMessagesWaitingBadges(t *testing.T) {
 	t.Parallel()
 	ctx := i18n.WithLocale(t.Context(), i18n.ZhHant)
 	fresh := Message{ID: "fresh", SubjectLabel: "S1", WaitingDays: 0}

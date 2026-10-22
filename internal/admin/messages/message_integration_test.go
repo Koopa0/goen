@@ -22,7 +22,8 @@ import (
 	"github.com/koopa0/goen/internal/keyset"
 )
 
-func TestTheInboxPutsTheLongestWaitFirst(t *testing.T) {
+// TestStore_MessagesOrder: the inbox puts the longest wait first.
+func TestStore_MessagesOrder(t *testing.T) {
 	ctx, _ := admintest.StaffContext(t, pool)
 	s := messages.NewStore(pool)
 
@@ -71,7 +72,8 @@ func TestTheInboxPutsTheLongestWaitFirst(t *testing.T) {
 	}
 }
 
-func TestHandlingAMessageIsReversibleAndAudited(t *testing.T) {
+// TestStore_SetMessageHandledAudited: handling a message is reversible and audited.
+func TestStore_SetMessageHandledAudited(t *testing.T) {
 	ctx, _ := admintest.StaffContext(t, pool)
 	s := messages.NewStore(pool)
 	id := messageAgedDays(t, "來回一次", 1)
@@ -116,7 +118,8 @@ func TestHandlingAMessageIsReversibleAndAudited(t *testing.T) {
 	}
 }
 
-func TestTheInboxDoesNotCopyTheMessageIntoTheAuditTrail(t *testing.T) {
+// TestStore_SetMessageHandledNoCopy: the inbox does not copy the message into the audit trail.
+func TestStore_SetMessageHandledNoCopy(t *testing.T) {
 	ctx, _ := admintest.StaffContext(t, pool)
 	s := messages.NewStore(pool)
 
@@ -146,10 +149,10 @@ func TestTheInboxDoesNotCopyTheMessageIntoTheAuditTrail(t *testing.T) {
 	}
 }
 
-// TestStaleMessageActionsExplainInsteadOfVanishing: a missing id and a stale
+// TestHandler_HandleMessageStale: a missing id and a stale
 // form (already handled) must redirect with ?gone=1 and render that notice,
 // never a bare list or a false success.
-func TestStaleMessageActionsExplainInsteadOfVanishing(t *testing.T) {
+func TestHandler_HandleMessageStale(t *testing.T) {
 	ctx, _ := admintest.StaffContext(t, pool)
 	h := messages.NewHandler(messages.NewStore(pool), slog.New(slog.DiscardHandler))
 	gone := i18n.T(ctx, i18n.KeyAdminNoticeGone)
@@ -192,7 +195,9 @@ func TestStaleMessageActionsExplainInsteadOfVanishing(t *testing.T) {
 	}
 }
 
-// TestABoundedListSaysSoAtTheBoundary is the integration half of the change
+// TestStore_MessagesBoundary: a bounded list says so at the boundary.
+//
+// It is the integration half of the change
 // #400's sibling made: every back-office list reads a page and shows it, and
 // until now no page said so.
 //
@@ -201,7 +206,7 @@ func TestStaleMessageActionsExplainInsteadOfVanishing(t *testing.T) {
 // contact inbox is the fixture because a message needs no product, no order and
 // no customer — every other capped list would need a catalogue built first to
 // prove a property that has nothing to do with catalogues.
-func TestABoundedListSaysSoAtTheBoundary(t *testing.T) {
+func TestStore_MessagesBoundary(t *testing.T) {
 	ctx, _ := admintest.StaffContext(t, pool)
 	s := messages.NewStore(pool)
 

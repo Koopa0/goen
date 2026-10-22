@@ -11,11 +11,13 @@ import (
 	"github.com/koopa0/goen/internal/user"
 )
 
-// TestEveryAcceptedStaffRoleHasALabel holds the two halves of the closed set
+// TestRoleLabelStaffRoles: every accepted staff role has a label.
+//
+// It holds the two halves of the closed set
 // together: user.StaffRoles is what AddStaff accepts and what the form offers, so a
 // role with no catalogue entry reaches an admin as its bare id or panics at
 // render.
-func TestEveryAcceptedStaffRoleHasALabel(t *testing.T) {
+func TestRoleLabelStaffRoles(t *testing.T) {
 	t.Parallel()
 
 	for _, locale := range []i18n.Locale{i18n.ZhHant, i18n.En} {
@@ -30,7 +32,8 @@ func TestEveryAcceptedStaffRoleHasALabel(t *testing.T) {
 	}
 }
 
-func TestStaffEnrollmentCount(t *testing.T) {
+// TestStaffViewEnrollmentCount: the staff view counts unenrolled accounts, as a number, as text and as all enrolled.
+func TestStaffViewEnrollmentCount(t *testing.T) {
 	t.Parallel()
 	type enrollmentCount struct {
 		count int

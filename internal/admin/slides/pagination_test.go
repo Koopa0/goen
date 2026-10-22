@@ -14,7 +14,8 @@ import (
 	"github.com/koopa0/goen/internal/ui/hero"
 )
 
-func TestSlideHistoryHasLabelledNavigationInBothLanguages(t *testing.T) {
+// TestSlidesHistoryNavigation: the slide history has labelled navigation in both languages.
+func TestSlidesHistoryNavigation(t *testing.T) {
 	t.Parallel()
 	for _, locale := range i18n.Locales() {
 		t.Run(locale.Tag(), func(t *testing.T) {
@@ -79,7 +80,8 @@ func historyNavigation(t *testing.T, ctx context.Context, body, heading string) 
 	return links, label
 }
 
-func TestShowingSlideIdentityDoesNotDependOnTheManagementPage(t *testing.T) {
+// TestHeroView_IsShowingLaterPage: showing-slide identity does not depend on the management page.
+func TestHeroView_IsShowingLaterPage(t *testing.T) {
 	t.Parallel()
 	live := HeroSlide{ID: "live-on-second-page", Active: true, InWindow: true}
 	queued := HeroSlide{ID: "queued-on-second-page", Active: true, InWindow: true}

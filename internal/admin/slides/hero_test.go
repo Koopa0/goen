@@ -2,8 +2,10 @@ package slides
 
 import "testing"
 
-// TestAHeroLinkMustBeAPathOnThisSite proves that button cannot be pointed off-site.
-func TestAHeroLinkMustBeAPathOnThisSite(t *testing.T) {
+// TestHeroForm_ValidateLink: a hero link must be a path on this site.
+//
+// It proves that button cannot be pointed off-site.
+func TestHeroForm_ValidateLink(t *testing.T) {
 	tests := []struct {
 		name string
 		href string
@@ -33,8 +35,10 @@ func TestAHeroLinkMustBeAPathOnThisSite(t *testing.T) {
 	}
 }
 
-// TestASecondaryButtonIsBothHalvesOrNeither proves half a button is refused.
-func TestASecondaryButtonIsBothHalvesOrNeither(t *testing.T) {
+// TestHeroForm_ValidateSecondButton: a secondary button is both halves or neither.
+//
+// It proves half a button is refused.
+func TestHeroForm_ValidateSecondButton(t *testing.T) {
 	tests := []struct {
 		name        string
 		label, href string
@@ -59,8 +63,10 @@ func TestASecondaryButtonIsBothHalvesOrNeither(t *testing.T) {
 	}
 }
 
-// TestAnImageWithoutAltTextIsRefused proves an undescribable hero is refused.
-func TestAnImageWithoutAltTextIsRefused(t *testing.T) {
+// TestHeroForm_ValidateImageAlt: an image without alt text is refused.
+//
+// It proves an undescribable hero is refused.
+func TestHeroForm_ValidateImageAlt(t *testing.T) {
 	const digest = "9f86d081884c7d659a2feaa0c55ad015a3bf4f1b2b0b822cd15d6c15b0f00a08"
 
 	withImage := &HeroForm{
