@@ -9,11 +9,11 @@ import (
 	"github.com/koopa0/goen/internal/web/requestid"
 )
 
-// TestTheEchoedRequestIDIsTheOneOnTheContext binds the two ends of one
+// The echoed request ID is the one on the context. It binds the two ends of one
 // identifier: the header a caller correlates on, and the context value the
 // audit trail stamps onto a back-office row. They are one key, so a row and its
 // log lines can be put together.
-func TestTheEchoedRequestIDIsTheOneOnTheContext(t *testing.T) {
+func TestHandler(t *testing.T) {
 	tests := []struct {
 		name     string
 		supplied string

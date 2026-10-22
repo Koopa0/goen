@@ -11,10 +11,12 @@ import (
 	"testing"
 )
 
-// TestOnlyPathDecidesASameSitePath keeps WHATWG rootedness in one place.
+// Path is the only decider of a same-site path: no Go or templ source outside
+// internal/db and this package may test for "/", "//" or `/\` with
+// strings.HasPrefix. That keeps WHATWG rootedness in one place.
 // A second prefix test is not a simpler spelling of this rule; it is a second
 // definition waiting to drift from the browser grammar again.
-func TestOnlyPathDecidesASameSitePath(t *testing.T) {
+func TestPathNoRivalPrefixCheck(t *testing.T) {
 	t.Parallel()
 
 	root := filepath.Clean(filepath.Join("..", "..", ".."))

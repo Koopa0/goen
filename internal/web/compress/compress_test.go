@@ -14,7 +14,8 @@ import (
 	"time"
 )
 
-func TestHTMLIsCompressedForAClientThatAcceptsIt(t *testing.T) {
+// HTML is compressed for a client that accepts it.
+func TestHandlerCompressesHTML(t *testing.T) {
 	body := []byte(strings.Repeat("<p>goen</p>", 3_000))
 	h := Handler(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		w.Header().Set("Content-Type", "text/html; charset=utf-8")
@@ -37,7 +38,9 @@ func TestHTMLIsCompressedForAClientThatAcceptsIt(t *testing.T) {
 	}
 }
 
-func TestAClientThatDoesNotAskGetsIdentityAndVary(t *testing.T) {
+// A client that does not ask for gzip gets identity and Vary, so a shared
+// cache keeps both representations.
+func TestHandlerNoAcceptEncoding(t *testing.T) {
 	body := []byte(strings.Repeat("identity ", 2_000))
 	h := fixedResponse("text/html; charset=utf-8", body)
 
@@ -55,7 +58,8 @@ func TestAClientThatDoesNotAskGetsIdentityAndVary(t *testing.T) {
 	}
 }
 
-func TestGzipNegotiationHonoursQualityAndWildcard(t *testing.T) {
+// Gzip negotiation honours quality values and the wildcard.
+func TestHandlerGzipNegotiation(t *testing.T) {
 	body := []byte(strings.Repeat("negotiated ", 2_000))
 	tests := []struct {
 		name   string
@@ -83,7 +87,8 @@ func TestGzipNegotiationHonoursQualityAndWildcard(t *testing.T) {
 	}
 }
 
-func TestEveryCompressibleMediaTypeIsExplicitAndWorks(t *testing.T) {
+// Every compressible media type is listed explicitly and is compressed.
+func TestCompressibleTypes(t *testing.T) {
 	want := []string{
 		"text/html",
 		"text/css",
@@ -112,7 +117,9 @@ func TestEveryCompressibleMediaTypeIsExplicitAndWorks(t *testing.T) {
 	}
 }
 
-func TestCompressionThresholdIsExact(t *testing.T) {
+// The compression threshold is exact: a body one byte short of it stays
+// identity and one at it is compressed.
+func TestHandlerThreshold(t *testing.T) {
 	for _, size := range []int{1_023, 1_024} {
 		t.Run(strconv.Itoa(size), func(t *testing.T) {
 			body := bytes.Repeat([]byte("x"), size)
@@ -128,7 +135,9 @@ func TestCompressionThresholdIsExact(t *testing.T) {
 	}
 }
 
-func TestAResponseThatAlreadyCarriesAnEncodingIsLeftAlone(t *testing.T) {
+// A response that already carries a Content-Encoding is left alone, so it is
+// never compressed twice.
+func TestHandlerAlreadyEncoded(t *testing.T) {
 	plaintxt := pseudoRandomBytes(30_000)
 	encoded := gzipBytes(t, plaintxt)
 	if len(encoded) < minCompress {
@@ -150,7 +159,8 @@ func TestAResponseThatAlreadyCarriesAnEncodingIsLeftAlone(t *testing.T) {
 	}
 }
 
-func TestAnImageResponseIsNotCompressed(t *testing.T) {
+// An image response is not compressed.
+func TestHandlerImageNotCompressed(t *testing.T) {
 	body := bytes.Repeat([]byte{0x52}, 30_000)
 	res := serveCompressed(t, Handler(fixedResponse("image/webp", body)), "gzip")
 	if got := res.Header().Get("Content-Encoding"); got != "" {
@@ -161,7 +171,8 @@ func TestAnImageResponseIsNotCompressed(t *testing.T) {
 	}
 }
 
-func TestASmallResponseIsNotCompressed(t *testing.T) {
+// A small response is not compressed.
+func TestHandlerSmallResponse(t *testing.T) {
 	body := bytes.Repeat([]byte("s"), 200)
 	res := serveCompressed(t, Handler(fixedResponse("text/html", body)), "gzip")
 	if got := res.Header().Get("Content-Encoding"); got != "" {
@@ -175,7 +186,8 @@ func TestASmallResponseIsNotCompressed(t *testing.T) {
 	}
 }
 
-func TestWritesThatCrossTheThresholdAreCompressedTogether(t *testing.T) {
+// Writes that cross the threshold are compressed together.
+func TestHandlerWritesCrossThreshold(t *testing.T) {
 	first := bytes.Repeat([]byte("a"), 600)
 	second := bytes.Repeat([]byte("b"), 600)
 	h := http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
@@ -192,7 +204,8 @@ func TestWritesThatCrossTheThresholdAreCompressedTogether(t *testing.T) {
 	}
 }
 
-func TestAStatusWithNoBodyEmitsNoGzipEnvelope(t *testing.T) {
+// A status with no body emits no gzip envelope.
+func TestHandlerBodylessStatus(t *testing.T) {
 	for _, status := range []int{http.StatusNoContent, http.StatusNotModified} {
 		t.Run(strconv.Itoa(status), func(t *testing.T) {
 			h := http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
@@ -216,7 +229,9 @@ func TestAStatusWithNoBodyEmitsNoGzipEnvelope(t *testing.T) {
 	}
 }
 
-func TestAPartialResponseIsNotCompressed(t *testing.T) {
+// A partial response is not compressed, whether it is a 206 or a 200 with a
+// Content-Range.
+func TestHandlerPartialContent(t *testing.T) {
 	body := bytes.Repeat([]byte("range "), 2_000)
 	tests := []struct {
 		name         string
@@ -247,7 +262,9 @@ func TestAPartialResponseIsNotCompressed(t *testing.T) {
 	}
 }
 
-func TestInformationalStatusDoesNotCommitTheFinalResponse(t *testing.T) {
+// An informational status does not commit the final response: a 103 passes
+// through and the final response is still compressed.
+func TestHandlerInformationalStatus(t *testing.T) {
 	body := bytes.Repeat([]byte("early hints "), 2_000)
 	underlying := newInformationalWriter()
 	h := Handler(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
@@ -272,7 +289,8 @@ func TestInformationalStatusDoesNotCommitTheFinalResponse(t *testing.T) {
 	}
 }
 
-func TestPrivateMarkerDoesNotLeakOnAnInformationalResponse(t *testing.T) {
+// Skip's private marker does not leak on an informational response.
+func TestSkipMarkerInformational(t *testing.T) {
 	body := bytes.Repeat([]byte("secret "), 2_000)
 	underlying := newInformationalWriter()
 	h := Handler(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
@@ -299,7 +317,9 @@ func TestPrivateMarkerDoesNotLeakOnAnInformationalResponse(t *testing.T) {
 	}
 }
 
-func TestSwitchingProtocolsIsAFinalStatus(t *testing.T) {
+// A 101 Switching Protocols is a final status, so the response is left alone
+// after it.
+func TestHandlerSwitchingProtocols(t *testing.T) {
 	body := bytes.Repeat([]byte("not an upgraded connection "), 100)
 	underlying := newInformationalWriter()
 	h := Handler(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
@@ -320,7 +340,8 @@ func TestSwitchingProtocolsIsAFinalStatus(t *testing.T) {
 	}
 }
 
-func TestInformationalStatusAfterFinalIsIgnored(t *testing.T) {
+// An informational status written after the final status is ignored.
+func TestHandlerInformationalAfterFinal(t *testing.T) {
 	body := bytes.Repeat([]byte("final first "), 2_000)
 	underlying := newInformationalWriter()
 	h := Handler(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
@@ -338,7 +359,9 @@ func TestInformationalStatusAfterFinalIsIgnored(t *testing.T) {
 	}
 }
 
-func TestAPageCarryingASecretIsNotCompressed(t *testing.T) {
+// A page carrying a secret is not compressed: Skip opts it out and its
+// private marker does not leak.
+func TestSkipSecretPage(t *testing.T) {
 	body := []byte(strings.Repeat("secret ", 5_000))
 	h := http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		Skip(w)
@@ -357,7 +380,8 @@ func TestAPageCarryingASecretIsNotCompressed(t *testing.T) {
 	}
 }
 
-func TestThePrivateMarkerDoesNotLeakWhenAHandlerPanics(t *testing.T) {
+// The private marker does not leak when a handler panics.
+func TestSkipMarkerAfterPanic(t *testing.T) {
 	h := Handler(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		Skip(w)
 		panic("test panic")
@@ -372,7 +396,8 @@ func TestThePrivateMarkerDoesNotLeakWhenAHandlerPanics(t *testing.T) {
 	}
 }
 
-func TestThePrivateMarkerDoesNotLeakFromAnEmptyResponse(t *testing.T) {
+// The private marker does not leak from an empty response.
+func TestSkipMarkerEmptyResponse(t *testing.T) {
 	h := Handler(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		Skip(w)
 	}))
@@ -382,7 +407,9 @@ func TestThePrivateMarkerDoesNotLeakFromAnEmptyResponse(t *testing.T) {
 	}
 }
 
-func TestCompressedRepresentationChangesETagAndDropsRanges(t *testing.T) {
+// A compressed representation changes the ETag and drops range support; the
+// identity representation keeps both.
+func TestHandlerGzipETagAndRanges(t *testing.T) {
 	body := []byte(strings.Repeat("entity ", 5_000))
 	h := http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
@@ -414,7 +441,8 @@ func TestCompressedRepresentationChangesETagAndDropsRanges(t *testing.T) {
 	}
 }
 
-func TestAWeakETagRemainsWeakOnTheGzipRepresentation(t *testing.T) {
+// A weak ETag remains weak on the gzip representation.
+func TestHandlerWeakETag(t *testing.T) {
 	body := []byte(strings.Repeat("weak validator ", 2_000))
 	h := http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		w.Header().Set("Content-Type", "text/plain")
@@ -427,7 +455,9 @@ func TestAWeakETagRemainsWeakOnTheGzipRepresentation(t *testing.T) {
 	}
 }
 
-func TestCompressionPreservesAndDeduplicatesVary(t *testing.T) {
+// Compression preserves the existing Vary tokens and deduplicates Accept-
+// Encoding.
+func TestHandlerVary(t *testing.T) {
 	body := []byte(strings.Repeat("vary ", 2_000))
 	h := http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		w.Header().Add("Vary", "Cookie, Accept-Language")
@@ -443,7 +473,8 @@ func TestCompressionPreservesAndDeduplicatesVary(t *testing.T) {
 	}
 }
 
-func TestTheFlusherAndStatusRecorderReachThroughTheCompressor(t *testing.T) {
+// The flusher and the status recorder reach through the compressor.
+func TestHandlerFlushAndStatus(t *testing.T) {
 	recorder := &flushSnapshotRecorder{ResponseRecorder: httptest.NewRecorder()}
 	status := &testStatusRecorder{ResponseWriter: recorder}
 	var flushErr error
@@ -486,7 +517,8 @@ func TestTheFlusherAndStatusRecorderReachThroughTheCompressor(t *testing.T) {
 	}
 }
 
-func TestAnEarlyFlushCommitsABufferedResponseAsIdentity(t *testing.T) {
+// An early Flush commits a buffered response as identity.
+func TestHandlerEarlyFlush(t *testing.T) {
 	recorder := &flushSnapshotRecorder{ResponseRecorder: httptest.NewRecorder()}
 	first := bytes.Repeat([]byte("a"), 600)
 	second := bytes.Repeat([]byte("b"), 2_000)
@@ -519,7 +551,9 @@ func TestAnEarlyFlushCommitsABufferedResponseAsIdentity(t *testing.T) {
 	}
 }
 
-func TestUnwrapLetsResponseControllerReachAWriteDeadline(t *testing.T) {
+// Unwrap lets a ResponseController reach a write deadline on the underlying
+// writer.
+func TestCompressor_Unwrap(t *testing.T) {
 	underlying := &deadlineWriter{ResponseRecorder: httptest.NewRecorder()}
 	var deadlineErr error
 	h := Handler(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {

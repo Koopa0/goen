@@ -26,7 +26,8 @@ func TestHasControlChars(t *testing.T) {
 	}
 }
 
-func TestRefuseUnstorableTurnsBackOnlyWhatPostgreSQLCannotHold(t *testing.T) {
+// RefuseUnstorable turns back only what PostgreSQL cannot hold.
+func TestRefuseUnstorable(t *testing.T) {
 	t.Parallel()
 
 	for _, tt := range []struct {

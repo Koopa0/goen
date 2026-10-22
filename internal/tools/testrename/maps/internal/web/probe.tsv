@@ -1,0 +1,3 @@
+file	old	new	unit	source	action	newfile
+internal/web/probe/probe_test.go	TestLivenessIgnoresTheDatabase	TestHandler_LiveDatabaseDown	Handler_Live	hand	rename	
+internal/web/probe/probe_test.go	TestReadinessDependsOnTheStorefrontPoolAndItsSchema	TestHandler_Ready	Handler_Ready	hand	rename	
