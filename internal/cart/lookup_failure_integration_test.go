@@ -30,7 +30,9 @@ import (
 	"github.com/koopa0/goen/internal/user"
 )
 
-func TestCartLookupFailuresDoNotReplaceOrHideTheBasket(t *testing.T) {
+// TestHandler_LookupCartFailures holds that a failed cart lookup neither
+// replaces nor hides the shopper's basket on any route.
+func TestHandler_LookupCartFailures(t *testing.T) {
 	owner := dbtest.Pool(t)
 	seed, err := os.ReadFile("../../seed/dev_catalog.sql")
 	if err != nil {

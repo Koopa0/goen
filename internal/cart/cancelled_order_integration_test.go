@@ -16,10 +16,11 @@ import (
 	"github.com/koopa0/goen/internal/order/lapse"
 )
 
-// TestACancelledOrdersStockComesBackByEveryDoor. Cancelled is SETTLED and not
-// committed: reading any non-pending status as committed puts a cancelled order
-// on the wrong side of both doors, and its units come back by no route at all.
-func TestACancelledOrdersStockComesBackByEveryDoor(t *testing.T) {
+// TestSweeper_SweepCancelledOrder holds that a cancelled order's stock comes
+// back by every door: cancelled is SETTLED and not committed, and reading any
+// non-pending status as committed puts a cancelled order on the wrong side of
+// both doors, so its units come back by no route at all.
+func TestSweeper_SweepCancelledOrder(t *testing.T) {
 	ctx := t.Context()
 	s := lapse.NewSweeper(pool)
 	vid := freshVariant(t, "stockfix-14")
@@ -91,7 +92,9 @@ func refundAndCancel(t *testing.T, orderID uuid.UUID) {
 	}
 }
 
-func TestTheShoppersTimelineNeverShowsTheProvidersRefundID(t *testing.T) {
+// TestOrderTimelineRefundID holds that the shopper's order timeline never shows
+// the provider's refund id.
+func TestOrderTimelineRefundID(t *testing.T) {
 	ctx := t.Context()
 	vid := freshVariant(t, "refundid-1")
 	orderID := heldOrderFor(t, uuid.NullUUID{}, vid, -time.Hour, true)
@@ -122,7 +125,10 @@ func TestTheShoppersTimelineNeverShowsTheProvidersRefundID(t *testing.T) {
 	}
 }
 
-func TestACancelledOrderIsNotAVerifiedPurchase(t *testing.T) {
+// TestProductReviewsVerifiedIsReal holds that a cancelled order is not a
+// verified purchase: the product_reviews_verified_is_real constraint refuses
+// the badge once the order is cancelled.
+func TestProductReviewsVerifiedIsReal(t *testing.T) {
 	ctx := t.Context()
 	vid := freshVariant(t, "stockfix-15")
 

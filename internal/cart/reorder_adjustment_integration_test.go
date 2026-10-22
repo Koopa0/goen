@@ -17,7 +17,9 @@ import (
 	"github.com/koopa0/goen/internal/order/access"
 )
 
-func TestReorderReportsAdjustedQuantities(t *testing.T) {
+// TestHandler_ReorderItemsAdjusted holds that ReorderItems reports adjusted
+// quantities after a reorder, in the cart page's notice, in each locale.
+func TestHandler_ReorderItemsAdjusted(t *testing.T) {
 	for _, locale := range []i18n.Locale{i18n.En, i18n.ZhHant} {
 		for _, scenario := range []struct {
 			name     string

@@ -19,7 +19,12 @@ import (
 	"github.com/koopa0/goen/internal/order/buyer"
 )
 
-func TestCustomerCancellationKeepsOrdersThatMayStillTakeMoney(t *testing.T) {
+// TestHandler_CancelOrderMayTakeMoney: CancelOrder refuses with 422 and the
+// existing refusal message an order whose payment may still take money
+// (requires_payment, requires_action, processing, requires_reconciliation or an
+// unreconciled webhook event), and leaves the order, its hold, events, notices
+// and stock unchanged.
+func TestHandler_CancelOrderMayTakeMoney(t *testing.T) {
 	for _, status := range []string{"requires_payment", "requires_action", "processing", "requires_reconciliation", "unreconciled_event"} {
 		t.Run(status, func(t *testing.T) {
 			ctx := t.Context()
@@ -74,7 +79,10 @@ func TestCustomerCancellationKeepsOrdersThatMayStillTakeMoney(t *testing.T) {
 	}
 }
 
-func TestCustomerCancellationRereadsPaymentAfterTakingOrderLock(t *testing.T) {
+// TestStore_CancelOrderBehindPaymentOpen: a cancellation waiting on the order
+// lock rereads the payment once a concurrent open_payment commits, answers
+// ErrNotCancellable and leaves the order pending with its hold.
+func TestStore_CancelOrderBehindPaymentOpen(t *testing.T) {
 	ctx := t.Context()
 	orderID := heldOrder(t, freshVariant(t, "cancel-payment-lock"), -10*time.Minute, false)
 	number := numberOf(t, orderID)
@@ -104,7 +112,10 @@ func TestCustomerCancellationRereadsPaymentAfterTakingOrderLock(t *testing.T) {
 	}
 }
 
-func TestCustomerCancellationAfterSessionExpiryReleasesStock(t *testing.T) {
+// TestStore_CancelOrderSessionExpired: CancelOrder cancels an order whose
+// payment session was cancelled, releasing its held stock and writing one event
+// and one notice.
+func TestStore_CancelOrderSessionExpired(t *testing.T) {
 	ctx := t.Context()
 	variant := freshVariant(t, "cancel-expired-session")
 	orderID := heldOrder(t, variant, -10*time.Minute, false)
@@ -132,11 +143,15 @@ func TestCustomerCancellationAfterSessionExpiryReleasesStock(t *testing.T) {
 	}
 }
 
-// TestACancelBehindACaptureIsRefusedNotFailed: capture_payment holds the order
-// lock without updating the row. The customer's cancel waits for it, and must
-// then see the payment and answer ErrNotCancellable rather than reach the
-// transition trigger, whose helper the store role may not execute.
-func TestACancelBehindACaptureIsRefusedNotFailed(t *testing.T) {
+// TestStore_CancelOrderBehindCapture: a cancellation that waits behind a
+// capture is refused with ErrNotCancellable instead of failing in the
+// transition trigger, and the paid order is not cancelled.
+//
+// capture_payment holds the order lock without updating the row. The customer's
+// cancel waits for it, and must then see the payment and answer
+// ErrNotCancellable rather than reach the transition trigger, whose helper the
+// store role may not execute.
+func TestStore_CancelOrderBehindCapture(t *testing.T) {
 	ctx := t.Context()
 	orderID := heldOrder(t, freshVariant(t, "cancel-capture"), time.Hour, false)
 	number := numberOf(t, orderID)

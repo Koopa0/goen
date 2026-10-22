@@ -13,9 +13,10 @@ import (
 	"github.com/koopa0/goen/internal/ui/widget"
 )
 
-// The campaign card says what is left before when it ends, and leaves the count
-// to its link; on the last two days only the end's note remains.
-func TestTheCampaignCardStatesWhatIsLeftThenTheEnd(t *testing.T) {
+// TestStore_CampaignScheduleCard: The campaign card says what is left before
+// when it ends, and leaves the count to its link; on the last two days only the
+// end's note remains.
+func TestStore_CampaignScheduleCard(t *testing.T) {
 	t.Parallel()
 
 	taipei := time.FixedZone("CST", 8*3600)
@@ -46,9 +47,10 @@ func TestTheCampaignCardStatesWhatIsLeftThenTheEnd(t *testing.T) {
 	}
 }
 
-// From two days out a campaign slide states the days left; on the last two days
-// the end's note says so instead, and an end off midnight states its time.
-func TestACampaignSlideStatesWhatTheShopperNeeds(t *testing.T) {
+// TestStore_CampaignStatsSlide: From two days out a campaign slide states the
+// days left; on the last two days the end's note says so instead, and an end
+// off midnight states its time.
+func TestStore_CampaignStatsSlide(t *testing.T) {
 	t.Parallel()
 
 	taipei := time.FixedZone("CST", 8*3600)
@@ -80,7 +82,10 @@ func TestACampaignSlideStatesWhatTheShopperNeeds(t *testing.T) {
 	}
 }
 
-func TestAScheduledSlideTakesTheToneOfWhatItLinksTo(t *testing.T) {
+// TestCarouselSources_ToneOf holds that a scheduled slide takes the tone of
+// what it links to: a campaign's, a department's, and stone for any other or
+// unknown link.
+func TestCarouselSources_ToneOf(t *testing.T) {
 	t.Parallel()
 
 	src := carouselSources{
@@ -101,8 +106,9 @@ var tag = regexp.MustCompile(`<[^>]*>|[ \n\t]+`)
 // text is the rendered markup with its tags and its plain spacing taken out.
 func text(markup string) string { return tag.ReplaceAllString(markup, "") }
 
-// The end date is a time element, so a machine reads the day and the clock too.
-func TestTheEndDateIsATimeElement(t *testing.T) {
+// TestStore_CampaignStatsTimeElement: The end date is a time element, so a
+// machine reads the day and the clock too.
+func TestStore_CampaignStatsTimeElement(t *testing.T) {
 	t.Parallel()
 
 	taipei := time.FixedZone("CST", 8*3600)

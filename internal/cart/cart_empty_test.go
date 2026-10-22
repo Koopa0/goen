@@ -9,9 +9,10 @@ import (
 	"github.com/koopa0/goen/internal/ui/frame"
 )
 
-// The cart's row of internal/catalog's
-// TestEmptyStatesShowTheirIllustrationAsDecoration.
-func TestCartEmptyStateShowsItsIllustration(t *testing.T) {
+// TestPageEmptyIllustration holds that the cart's empty state shows its
+// illustration as decoration (an empty alt). The cart's row of
+// internal/catalog's TestEmptyStatesShowTheirIllustrationAsDecoration.
+func TestPageEmptyIllustration(t *testing.T) {
 	t.Parallel()
 	for name, tt := range map[string]struct {
 		page  string

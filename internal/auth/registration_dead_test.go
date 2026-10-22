@@ -13,7 +13,10 @@ import (
 	"github.com/koopa0/goen/internal/ui/frame"
 )
 
-func TestRegistrationDeadOffersAnotherRegistrationLink(t *testing.T) {
+// TestRegistrationDead: the dead-registration page offers another registration
+// link as a primary button and gives no account-page directions, in both
+// locales.
+func TestRegistrationDead(t *testing.T) {
 	t.Parallel()
 	for _, tt := range []struct {
 		locale i18n.Locale

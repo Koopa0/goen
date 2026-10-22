@@ -17,7 +17,10 @@ import (
 	"github.com/koopa0/goen/internal/order/access"
 )
 
-func TestUpdateItemUnavailableDoesNot500(t *testing.T) {
+// TestHandler_UpdateItemUnavailable holds that UpdateItem redirects with an
+// unavailable notice instead of a 500 when the variant can no longer be sold;
+// the line keeps its quantity.
+func TestHandler_UpdateItemUnavailable(t *testing.T) {
 	ctx := t.Context()
 	s := cart.NewStore(pool)
 	h := cart.NewHandler(s, access.NewStore(pool, false), slog.New(slog.DiscardHandler), false, nil)
@@ -113,7 +116,9 @@ func TestUpdateItemUnavailableDoesNot500(t *testing.T) {
 	}
 }
 
-func TestUpdateItemAdjustedShowsNotice(t *testing.T) {
+// TestHandler_UpdateItemAdjustedNotice holds that UpdateItem shows the
+// quantity-adjusted notice when an update was clamped.
+func TestHandler_UpdateItemAdjustedNotice(t *testing.T) {
 	ctx := t.Context()
 	s := cart.NewStore(pool)
 	h := cart.NewHandler(s, access.NewStore(pool, false), slog.New(slog.DiscardHandler), false, nil)
@@ -167,12 +172,11 @@ func TestUpdateItemAdjustedShowsNotice(t *testing.T) {
 	}
 }
 
-// TestNoPostedQuantityReachesACartOutsideItsBounds holds the cart's quantity
-// at the HTTP boundary: whatever a POST carries — nothing, zero, a negative,
-// a number past int32, or text — a line holds between one and the cart's
-// ceiling and never more than can be supplied, which is the only quantity a
-// checkout quote can then name.
-func TestNoPostedQuantityReachesACartOutsideItsBounds(t *testing.T) {
+// TestHandler_QuantityBounds holds the cart's quantity at the HTTP boundary:
+// whatever a POST carries — nothing, zero, a negative, a number past int32, or
+// text — a line holds between one and the cart's ceiling and never more than
+// can be supplied, which is the only quantity a checkout quote can then name.
+func TestHandler_QuantityBounds(t *testing.T) {
 	ctx := t.Context()
 	s := cart.NewStore(pool)
 	h := cart.NewHandler(s, access.NewStore(pool, false), slog.New(slog.DiscardHandler), false, nil)

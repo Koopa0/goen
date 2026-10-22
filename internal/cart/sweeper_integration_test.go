@@ -14,7 +14,9 @@ import (
 	"github.com/koopa0/goen/internal/order/lapse"
 )
 
-func TestSweepReturnsAbandonedHoldsToTheShelf(t *testing.T) {
+// TestSweeper_SweepAbandonedHolds holds that order/lapse.Sweeper.Sweep returns
+// an abandoned hold's stock to the shelf.
+func TestSweeper_SweepAbandonedHolds(t *testing.T) {
 	ctx := t.Context()
 	s := lapse.NewSweeper(pool)
 	vid := freshVariant(t, "stockfix-2")
@@ -70,10 +72,11 @@ func TestSweepReturnsAbandonedHoldsToTheShelf(t *testing.T) {
 	}
 }
 
-// TestSweepNeverTouchesAPaidOrdersHold. The lock here is the database:
-// release_reservation refuses a committed order's hold anyway, so the query
-// filter this also exercises is defence in depth rather than a lock.
-func TestSweepNeverTouchesAPaidOrdersHold(t *testing.T) {
+// TestSweeper_SweepPaidOrderHold holds that the sweep never touches a paid
+// order's hold. The lock here is the database: release_reservation refuses a
+// committed order's hold anyway, so the query filter this also exercises is
+// defence in depth rather than a lock.
+func TestSweeper_SweepPaidOrderHold(t *testing.T) {
 	ctx := t.Context()
 	s := lapse.NewSweeper(pool)
 	vid := freshVariant(t, "stockfix-3")
@@ -104,10 +107,11 @@ func TestSweepNeverTouchesAPaidOrdersHold(t *testing.T) {
 	}
 }
 
-// TestSweepNeverTouchesAFullyCreditFundedOrdersHold is the half committed_orders
-// cannot answer: a fully store-credited order has no payment row and cannot have
-// one, so the view reports it uncommitted while the customer has paid in full.
-func TestSweepNeverTouchesAFullyCreditFundedOrdersHold(t *testing.T) {
+// TestSweeper_SweepZeroOwedHold holds that the sweep never touches a fully
+// credit-funded order's hold, the half committed_orders cannot answer: a fully
+// store-credited order has no payment row and cannot have one, so the view
+// reports it uncommitted while the customer has paid in full.
+func TestSweeper_SweepZeroOwedHold(t *testing.T) {
 	ctx := t.Context()
 	s := lapse.NewSweeper(pool)
 	vid := freshVariant(t, "stockfix-credit")
@@ -153,7 +157,9 @@ func TestSweepNeverTouchesAFullyCreditFundedOrdersHold(t *testing.T) {
 	}
 }
 
-func TestReleasingAFundedOrdersHoldIsRefusedByName(t *testing.T) {
+// TestReleaseReservationFundedOrder holds that release_reservation refuses a
+// fully credit-funded order's hold, by name.
+func TestReleaseReservationFundedOrder(t *testing.T) {
 	ctx := t.Context()
 	vid := freshVariant(t, "stockfix-credit-door")
 	orderID := creditFundedHeldOrder(t, vid, time.Hour)
@@ -187,7 +193,9 @@ func TestReleasingAFundedOrdersHoldIsRefusedByName(t *testing.T) {
 	}
 }
 
-func TestSweepLeavesUnexpiredHolds(t *testing.T) {
+// TestSweeper_SweepUnexpiredHolds holds that order/lapse.Sweeper.Sweep leaves a
+// hold that has not expired.
+func TestSweeper_SweepUnexpiredHolds(t *testing.T) {
 	ctx := t.Context()
 	s := lapse.NewSweeper(pool)
 	vid := freshVariant(t, "stockfix-4")
@@ -210,7 +218,9 @@ func TestSweepLeavesUnexpiredHolds(t *testing.T) {
 	}
 }
 
-func TestSweepIsIdempotent(t *testing.T) {
+// TestSweeper_SweepIdempotent holds that order/lapse.Sweeper.Sweep releases
+// nothing more on a second sweep.
+func TestSweeper_SweepIdempotent(t *testing.T) {
 	ctx := t.Context()
 	s := lapse.NewSweeper(pool)
 	vid := freshVariant(t, "stockfix-5")
@@ -247,7 +257,9 @@ func TestSweepIsIdempotent(t *testing.T) {
 	}
 }
 
-func TestSweepCountsABenignRefusalAsSkippedNotFailed(t *testing.T) {
+// TestSweeper_SweepBenignRefusal holds that order/lapse.Sweeper.Sweep counts a
+// benign refusal as skipped, not failed.
+func TestSweeper_SweepBenignRefusal(t *testing.T) {
 	ctx := t.Context()
 	vid := freshVariant(t, "stockfix-6")
 

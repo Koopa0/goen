@@ -18,7 +18,10 @@ import (
 	"github.com/koopa0/goen/internal/i18n"
 )
 
-func TestSignInProductReturnNamesOnlyTheRequestedAction(t *testing.T) {
+// TestSignInReturnMessage: signInReturnMessage names only the action the return
+// path stands for (the wishlist action for a wishlist link, the plain sentence
+// otherwise) and exposes no context for an unsafe return path.
+func TestSignInReturnMessage(t *testing.T) {
 	t.Parallel()
 	for _, locale := range i18n.Locales() {
 		t.Run(locale.Tag(), func(t *testing.T) {
@@ -49,7 +52,10 @@ func TestSignInProductReturnNamesOnlyTheRequestedAction(t *testing.T) {
 	}
 }
 
-func TestProductSignInLinksPreserveTheirDistinctIntent(t *testing.T) {
+// TestHandler_SignInPageProductLinks: each sign-in link on a product page keeps
+// its own destination and intent, and SignInPage renders the matching return
+// message for it.
+func TestHandler_SignInPageProductLinks(t *testing.T) {
 	t.Parallel()
 	for _, locale := range i18n.Locales() {
 		t.Run(locale.Tag(), func(t *testing.T) {
@@ -109,7 +115,9 @@ func TestProductSignInLinksPreserveTheirDistinctIntent(t *testing.T) {
 	}
 }
 
-func TestSignInWithoutAPrefillFocusesTheEmail(t *testing.T) {
+// TestHandler_SignInPageFocus: a sign-in page without a prefilled address
+// focuses the email field.
+func TestHandler_SignInPageFocus(t *testing.T) {
 	t.Parallel()
 	for _, target := range []string{"/signin?reset=1", "/signin?reauth=erase"} {
 		t.Run(target, func(t *testing.T) {
@@ -141,7 +149,11 @@ func TestSignInWithoutAPrefillFocusesTheEmail(t *testing.T) {
 	}
 }
 
-func TestSignInContextRejectsMalformedOrUnrelatedSuggestions(t *testing.T) {
+// TestHandler_SignInContextRefused: the sign-in prefill cookie is refused, and
+// consumed, when its suggestion is malformed, and a sign-in for one purpose
+// does not accept a suggestion written for another (a reset sign-in refuses an
+// erasure suggestion).
+func TestHandler_SignInContextRefused(t *testing.T) {
 	h := rateLimitedAccountHandler(deadAccountStore(t))
 	for _, value := range []string{"reset:not-base64!", "other:" + base64.RawURLEncoding.EncodeToString([]byte("suggested@example.com")), "reset:" + base64.RawURLEncoding.EncodeToString([]byte("not an address")), strings.Repeat("a", 513)} {
 		request := httptest.NewRequestWithContext(t.Context(), http.MethodGet, "/signin?reset=1", http.NoBody)
@@ -165,7 +177,10 @@ func TestSignInContextRejectsMalformedOrUnrelatedSuggestions(t *testing.T) {
 	}
 }
 
-func TestARefusedSignInKeepsTheConfiguredWaysIn(t *testing.T) {
+// TestHandler_SignInRefusedWays: a refused sign-in offers Google exactly as the
+// sign-in page does, configured or not, and keeps the submitted address and
+// return path.
+func TestHandler_SignInRefusedWays(t *testing.T) {
 	for _, locale := range []i18n.Locale{i18n.ZhHant, i18n.En} {
 		for _, enabled := range []bool{false, true} {
 			h := rateLimitedAccountHandler(deadAccountStore(t))
@@ -199,7 +214,10 @@ func TestARefusedSignInKeepsTheConfiguredWaysIn(t *testing.T) {
 	}
 }
 
-func TestSignInFeedbackSelectsTheRelevantFields(t *testing.T) {
+// TestHandler_SignInFeedback: SignIn and SignInPage mark only the fields
+// relevant to each failure outcome (bad credentials and each Google outcome) in
+// both locales.
+func TestHandler_SignInFeedback(t *testing.T) {
 	for _, locale := range i18n.Locales() {
 		for _, outcome := range []string{"failed", "state", "collision", "unverified", "demo", "password"} {
 			t.Run(locale.Tag()+"/"+outcome, func(t *testing.T) {
@@ -271,7 +289,9 @@ func TestSignInFeedbackSelectsTheRelevantFields(t *testing.T) {
 	}
 }
 
-func TestSignInExplainsTheWishlistReturn(t *testing.T) {
+// TestHandler_SignInPageWishlist: SignInPage explains a return to the wishlist
+// with the wishlist context sentence, in both locales.
+func TestHandler_SignInPageWishlist(t *testing.T) {
 	for _, locale := range i18n.Locales() {
 		t.Run(locale.Tag(), func(t *testing.T) {
 			h := rateLimitedAccountHandler(deadAccountStore(t))
@@ -289,7 +309,10 @@ func TestSignInExplainsTheWishlistReturn(t *testing.T) {
 	}
 }
 
-func TestSignInPrefillIsPrivateAndConsumed(t *testing.T) {
+// TestHandler_SignInPagePrefill: the sign-in prefill travels in a private
+// cookie, fills the form for its purpose, is consumed by the page that reads it
+// and is not exposed again on refresh without the cookie.
+func TestHandler_SignInPagePrefill(t *testing.T) {
 	for _, purpose := range []signInPurpose{signInAfterReset, signInBeforeErasure} {
 		for _, secure := range []bool{false, true} {
 			t.Run(string(purpose)+"/"+strconv.FormatBool(secure), func(t *testing.T) {

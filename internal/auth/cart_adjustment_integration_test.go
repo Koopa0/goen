@@ -26,7 +26,11 @@ import (
 	"github.com/koopa0/goen/internal/order/delivery"
 )
 
-func TestCartAdjustmentSurvivesAuthenticationAndCheckout(t *testing.T) {
+// TestHandler_CartAdjustmentCheckout: sign-in, registration, Google sign-in and
+// a retry each adopt a guest cart over the stock limit into the account cart at
+// the sellable quantity, land on /cart with the adjusted notice and the
+// continuation kept, and check out at that quantity.
+func TestHandler_CartAdjustmentCheckout(t *testing.T) {
 	for _, mode := range []string{"signin", "register", "google", "retry"} {
 		for _, locale := range []i18n.Locale{i18n.En, i18n.ZhHant} {
 			for _, next := range []string{"/cart", "/cart#items", "/cart?source=signin#items", "/checkout?source=signin#address", "/p/headphones?variant=blue#buy", "/account"} {

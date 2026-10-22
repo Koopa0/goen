@@ -11,11 +11,11 @@ import (
 	"github.com/koopa0/goen/internal/i18n"
 )
 
-// The campaign's row prices a product as the campaign's page does: at its
-// discounted variant when that can be bought, with "from" only while a cheaper
-// variant that can be bought exists. The other rows keep the cheapest variant
-// that can be bought.
-func TestTheCampaignRowPricesTheDiscountedVariant(t *testing.T) {
+// TestHomeTilesCampaignRow: The campaign's row prices a product as the
+// campaign's page does: at its discounted variant when that can be bought, with
+// "from" only while a cheaper variant that can be bought exists. The other rows
+// keep the cheapest variant that can be bought.
+func TestHomeTilesCampaignRow(t *testing.T) {
 	ctx := i18n.WithLocale(t.Context(), i18n.ZhHant)
 	tx, err := pool.Begin(ctx)
 	if err != nil {

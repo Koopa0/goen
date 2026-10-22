@@ -14,10 +14,13 @@ import (
 	"github.com/koopa0/goen/internal/ui/uitest"
 )
 
-// Every request for an address may find its allowance spent, and is then told
-// the link is on its way. That is true only while the newest link queued when
-// the allowance was last spent is still live.
-func TestAnEmptyResetAllowanceRefillsBeforeItsLinkExpires(t *testing.T) {
+// TestAddressMailPace: an address's reset allowance refills
+// (addressMailPace.Every) before a reset link expires (ResetTokenTTL). Every
+// request for an address may find its allowance spent, and is then told the
+// link is on its way; that is true only while the newest link queued when the
+// allowance was last spent is still live, so an owner whose allowance a
+// stranger keeps spent is never left with only expired links.
+func TestAddressMailPace(t *testing.T) {
 	t.Parallel()
 	if addressMailPace.Every >= ResetTokenTTL {
 		t.Errorf("an address's reset allowance refills every %v and a link lives %v: "+
@@ -26,7 +29,11 @@ func TestAnEmptyResetAllowanceRefillsBeforeItsLinkExpires(t *testing.T) {
 	}
 }
 
-func TestResetPasswordRefusalsDoNotLeakFormattingDiagnostics(t *testing.T) {
+// TestHandler_ResetRefusals: Reset refuses a password the form rejects with 422
+// and the catalogue message, with no formatting diagnostics, and keeps the
+// still-live token in the form. Password validation returns before any token
+// read or password write.
+func TestHandler_ResetRefusals(t *testing.T) {
 	t.Parallel()
 	for _, tt := range []struct {
 		name, password, zh, en string
@@ -86,7 +93,10 @@ func TestResetPasswordRefusalsDoNotLeakFormattingDiagnostics(t *testing.T) {
 	}
 }
 
-func TestMissingEmailedAccountLinksOfferRecovery(t *testing.T) {
+// TestHandler_EmailLinkMissingToken: VerifyPage and ResetPage opened without a
+// token answer 200 with an incomplete-link page that points back to where a new
+// link can be asked for, in both locales.
+func TestHandler_EmailLinkMissingToken(t *testing.T) {
 	h := &Handler{log: slog.New(slog.DiscardHandler)}
 	for _, locale := range i18n.Locales() {
 		for _, tt := range []struct {
@@ -119,7 +129,9 @@ func TestMissingEmailedAccountLinksOfferRecovery(t *testing.T) {
 	}
 }
 
-func TestResetGetKeepsAnUncheckedTokenForm(t *testing.T) {
+// TestHandler_ResetPageUnchecked: ResetPage serves the reset form for a token
+// it has not checked and neither validates nor refuses the token on GET.
+func TestHandler_ResetPageUnchecked(t *testing.T) {
 	h := &Handler{log: slog.New(slog.DiscardHandler)}
 	for _, locale := range i18n.Locales() {
 		t.Run(locale.Tag(), func(t *testing.T) {

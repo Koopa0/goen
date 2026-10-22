@@ -6,9 +6,12 @@ import (
 	"testing"
 )
 
-// TestThePendingRegistrationTravelsInAnHttpOnlyCookieScopedToRegister: the sent
-// page needs the address, and a URL is kept by history and proxy logs.
-func TestThePendingRegistrationTravelsInAnHttpOnlyCookieScopedToRegister(t *testing.T) {
+// TestWritePendingRegistration: the pending registration travels in an
+// HttpOnly, Secure, SameSite=Lax cookie scoped to /register that lasts a few
+// minutes, and readPendingRegistration reads it back and refuses a cookie that
+// holds no address. The sent page needs the address, and a URL is kept by
+// history and proxy logs.
+func TestWritePendingRegistration(t *testing.T) {
 	t.Parallel()
 
 	rec := httptest.NewRecorder()

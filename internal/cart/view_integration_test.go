@@ -11,7 +11,9 @@ import (
 	"github.com/koopa0/goen/internal/cart"
 )
 
-func TestCartShowsCurrentPriceAndAvailability(t *testing.T) {
+// TestStore_ViewCurrentPrice holds that View shows a line's current price and
+// availability.
+func TestStore_ViewCurrentPrice(t *testing.T) {
 	ctx := t.Context()
 	s := cart.NewStore(pool)
 	id := newCart(t, s)
@@ -39,10 +41,10 @@ func TestCartShowsCurrentPriceAndAvailability(t *testing.T) {
 	}
 }
 
-// TestACartLineShowsItsOwnColoursPhotograph holds the cart thumbnail to the
-// line's variant: its value's photograph when the shop tagged one, else the
-// product's first, which is the only picture an untagged product has.
-func TestACartLineShowsItsOwnColoursPhotograph(t *testing.T) {
+// TestStore_ViewColourPhoto holds the cart thumbnail to the line's variant: its
+// value's photograph when the shop tagged one, else the product's first, which
+// is the only picture an untagged product has.
+func TestStore_ViewColourPhoto(t *testing.T) {
 	ctx := t.Context()
 	s := cart.NewStore(pool)
 	id := newCart(t, s)
@@ -74,7 +76,9 @@ func TestACartLineShowsItsOwnColoursPhotograph(t *testing.T) {
 	}
 }
 
-func TestTheHeaderBadgeCountsWhatTheCartHolds(t *testing.T) {
+// TestStore_ItemCountBadge holds that ItemCount counts what the cart holds for
+// the header badge.
+func TestStore_ItemCountBadge(t *testing.T) {
 	ctx := t.Context()
 	s := cart.NewStore(pool)
 	id := newCart(t, s)

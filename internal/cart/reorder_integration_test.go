@@ -21,7 +21,9 @@ import (
 	"github.com/koopa0/goen/internal/order/access"
 )
 
-func TestReorderPutsBackWhatCanStillBeBought(t *testing.T) {
+// TestStore_ReorderBuyableLines holds that Reorder puts back only what can
+// still be bought: a retired or emptied variant is skipped.
+func TestStore_ReorderBuyableLines(t *testing.T) {
 	ctx := t.Context()
 	s := cart.NewStore(pool)
 
@@ -69,10 +71,11 @@ func TestReorderPutsBackWhatCanStillBeBought(t *testing.T) {
 	}
 }
 
-// TestInverseReordersShareOneCartLock makes the former A→B/B→A deadlock
-// deterministic. The first reorder pauses after touching A; the second must be
-// waiting on the cart root, not touching B and completing half of a lock cycle.
-func TestInverseReordersShareOneCartLock(t *testing.T) {
+// TestStore_ReorderInverseLock holds that inverse reorders share one cart lock.
+// It makes the former A→B/B→A deadlock deterministic: the first reorder pauses
+// after touching A; the second must be waiting on the cart root, not touching B
+// and completing half of a lock cycle.
+func TestStore_ReorderInverseLock(t *testing.T) {
 	ctx := t.Context()
 	baseStore := cart.NewStore(pool)
 	variantA, variantB, _ := threeVariants(t, "inverse-reorder-lock")
@@ -181,11 +184,12 @@ func TestInverseReordersShareOneCartLock(t *testing.T) {
 	}
 }
 
-// TestReorderRollsBackEveryAddWhenOneWriteFails proves a reorder is one cart
-// change, not a sequence that can strand its prefix. The trigger is scoped to
-// this test's cart and the order's second variant, so the first insert has
-// already succeeded in the transaction when the forced failure occurs.
-func TestReorderRollsBackEveryAddWhenOneWriteFails(t *testing.T) {
+// TestStore_ReorderRollback holds that a reorder rolls back every add when one
+// write fails: it is one cart change, not a sequence that can strand its
+// prefix. The trigger is scoped to this test's cart and the order's second
+// variant, so the first insert has already succeeded in the transaction when
+// the forced failure occurs.
+func TestStore_ReorderRollback(t *testing.T) {
 	ctx := t.Context()
 	s := cart.NewStore(pool)
 	first, second, _ := threeVariants(t, "atomic-reorder")
@@ -255,7 +259,9 @@ func TestReorderRollsBackEveryAddWhenOneWriteFails(t *testing.T) {
 	}
 }
 
-func TestReorderPricesFromTheCatalogueAndNotTheOrder(t *testing.T) {
+// TestStore_ReorderCataloguePrice holds that Reorder prices a reordered line
+// from the catalogue, not from the old order.
+func TestStore_ReorderCataloguePrice(t *testing.T) {
 	ctx := t.Context()
 	s := cart.NewStore(pool)
 	vid, _, _ := threeVariants(t, "reorder-price-fixture")
@@ -289,7 +295,10 @@ func TestReorderPricesFromTheCatalogueAndNotTheOrder(t *testing.T) {
 	}
 }
 
-func TestAStrangerCannotFillTheirCartFromSomebodyElsesOrder(t *testing.T) {
+// TestHandler_ReorderItemsStranger holds that ReorderItems answers a stranger
+// 404 without opening a cart, so the order's contents do not leak by another
+// route, while the browser that placed the order may reorder.
+func TestHandler_ReorderItemsStranger(t *testing.T) {
 	ctx := t.Context()
 	s := cart.NewStore(pool)
 	own, _, _ := threeVariants(t, "reorder-access-fixture")

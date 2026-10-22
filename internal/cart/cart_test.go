@@ -74,10 +74,9 @@ func TestShippingFee(t *testing.T) {
 	}
 }
 
-// TestTheCartSpeaksOfFreeDeliveryOnlyWhereItIsTrueForEveryMethod holds the cart's
-// line to what checkout charges: one amount at which every method on offer turns
-// free, or nothing.
-func TestTheCartSpeaksOfFreeDeliveryOnlyWhereItIsTrueForEveryMethod(t *testing.T) {
+// TestFreeDeliveryFor holds the cart's line to what checkout charges: one
+// amount at which every method on offer turns free, or nothing.
+func TestFreeDeliveryFor(t *testing.T) {
 	t.Parallel()
 
 	home := ShippingChoice{FeeCents: 100, FreeOverCents: 300000}

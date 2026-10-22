@@ -384,13 +384,13 @@ func TestSessionSweeper_SweepNotLostExpiry(t *testing.T) {
 	}
 }
 
-// TestSessionSweeper_SweepWebhookRace: A late expiry webhook and Sweep settling
+// TestSessionSweeper_SweepLateExpiryRace: A late expiry webhook and Sweep settling
 // the same session, in either order, both converge on cancelled without
 // failing, and the credit and coupon come back once. The real event arrives
 // while the sweeper is settling the same session. Both write through the
 // provider reference lock and both converge on cancelled, so whichever holds
 // the lock first, neither fails and the credit and coupon come back once.
-func TestSessionSweeper_SweepWebhookRace(t *testing.T) {
+func TestSessionSweeper_SweepLateExpiryRace(t *testing.T) {
 	// webhook applies the expiry as the handler does, holding its transaction
 	// open after the effect until release.
 	webhook := func(ctx context.Context, p *pgxpool.Pool, ref, eventID string, body []byte,

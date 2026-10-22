@@ -130,7 +130,10 @@ func neverTold(t *testing.T) func(context.Context, *auth.AddressTaken) error {
 	}
 }
 
-func TestRegistrationWelcomeRejectsUnsafeReturnPaths(t *testing.T) {
+// TestHandler_CompleteRegistrationUnsafeNext: following a registration link
+// whose return path is unsafe lands at /account?welcome=1, and the welcome page
+// does not expose the unsafe path.
+func TestHandler_CompleteRegistrationUnsafeNext(t *testing.T) {
 	for _, next := range []string{"https://elsewhere.invalid/checkout", "//elsewhere.invalid/checkout", "/%zzelsewhere.invalid"} {
 		t.Run(next, func(t *testing.T) {
 			s := auth.NewStore(pool)
@@ -156,7 +159,11 @@ func TestRegistrationWelcomeRejectsUnsafeReturnPaths(t *testing.T) {
 	}
 }
 
-func TestRegistrationWelcomePreservesFailedCartAdoptionForRetry(t *testing.T) {
+// TestHandler_CompleteRegistrationRetry: when cart adoption fails after a
+// registration completes (a lock failure), the registration is committed, the
+// guest cart is unchanged, the browser lands on the cart-recovery page that
+// keeps the welcome continuation, and RetryCartAdoption finishes the merge.
+func TestHandler_CompleteRegistrationRetry(t *testing.T) {
 	ctx := t.Context()
 	statements := &statementLog{}
 	appPool := tracedStorePool(t, statements)
@@ -254,11 +261,11 @@ func TestRegistrationWelcomePreservesFailedCartAdoptionForRetry(t *testing.T) {
 	}
 }
 
-// TestRegistrationAnswersTheSameWhetherOrNotTheAddressIsTaken is the
-// registration form's promise not to say who has an account. A taken address
-// and a free one get the same answer, the same headers and no session, from the
-// same statements, and only the mailbox learns which it was.
-func TestRegistrationAnswersTheSameWhetherOrNotTheAddressIsTaken(t *testing.T) {
+// TestHandler_RegisterTakenAddress: Register answers a taken and a free address
+// with the same redirect, headers and body, sets no session and runs the same
+// statements, and only the mailbox learns which it was. This is the
+// registration form's promise not to say who has an account.
+func TestHandler_RegisterTakenAddress(t *testing.T) {
 	ctx := t.Context()
 	taken := "register-taken-" + uuid.NewString() + "@example.com"
 	free := "register-free-" + uuid.NewString() + "@example.com"
@@ -318,11 +325,11 @@ func TestRegistrationAnswersTheSameWhetherOrNotTheAddressIsTaken(t *testing.T) {
 	}
 }
 
-// TestARegistrationIsUsableOnlyOnceItsLinkIsFollowed is the other half: the
-// account a registration creates cannot be signed into with its password until
-// the mailed link is followed with that password, and following it signs that
-// browser in, adopts its cart and lands where the registration was headed.
-func TestARegistrationIsUsableOnlyOnceItsLinkIsFollowed(t *testing.T) {
+// TestHandler_CompleteRegistration: the account a registration creates cannot
+// be signed into with its password until the mailed link is followed with that
+// password, and following it signs that browser in, adopts its cart and lands
+// where the registration was headed.
+func TestHandler_CompleteRegistration(t *testing.T) {
 	ctx := t.Context()
 	appPool := accountStorePool(t, "registration-link")
 	s := auth.NewStore(appPool)
@@ -404,13 +411,14 @@ func TestARegistrationIsUsableOnlyOnceItsLinkIsFollowed(t *testing.T) {
 	}
 }
 
-// TestARegistrationLinkWithoutItsPasswordProvesNothing: the link goes to the
-// mailbox, and the password to whoever registered. Somebody may register an
-// address that is not theirs; if its owner then follows the link and uses the
-// account, their addresses and orders sit behind a password somebody else
-// chose. So the link alone signs nobody in and proves nothing, and neither
-// does it with a password other than the one chosen at registration.
-func TestARegistrationLinkWithoutItsPasswordProvesNothing(t *testing.T) {
+// TestHandler_RegistrationLinkAlone: a registration link without the password
+// chosen at registration proves nothing: it signs nobody in, does not prove the
+// address, and is refused as sign-in refuses a wrong password, with the link
+// kept live and the response left uncompressed. The link goes to the mailbox
+// and the password to whoever registered; somebody may register an address that
+// is not theirs, and if its owner then used the account their addresses and
+// orders would sit behind a password somebody else chose.
+func TestHandler_RegistrationLinkAlone(t *testing.T) {
 	ctx := t.Context()
 	s := auth.NewStore(pool)
 	h := auth.NewHandler(s, nil, nil, slog.New(slog.DiscardHandler), false, nil)
@@ -499,11 +507,12 @@ func TestARegistrationLinkWithoutItsPasswordProvesNothing(t *testing.T) {
 	}
 }
 
-// TestCompletingARegistrationRefusesALinkThatCompletesNone: completion proves an
-// address and signs the browser in on a link and a password. A link that moves
-// a proved account to another address completes no registration, and the
-// account's own password does not make it one.
-func TestCompletingARegistrationRefusesALinkThatCompletesNone(t *testing.T) {
+// TestStore_CompleteRegistrationChangeLink: CompleteRegistration refuses with
+// ErrVerifyInvalid a link that moves a proved account to another address, even
+// with the account's own password, and the account does not move. Completion
+// proves an address and signs the browser in on a link and a password; such a
+// link completes no registration.
+func TestStore_CompleteRegistrationChangeLink(t *testing.T) {
 	ctx := t.Context()
 	s := auth.NewStore(pool)
 	u := registerProved(t, s, "complete-change-"+uuid.NewString()+"@example.com")
@@ -524,10 +533,11 @@ func TestCompletingARegistrationRefusesALinkThatCompletesNone(t *testing.T) {
 	}
 }
 
-// TestRegisteringATakenAddressTellsItsOwnerAndChangesNothing: the answer the
-// form never gives, that the address has an account, goes to the mailbox, and
-// the account keeps its password.
-func TestRegisteringATakenAddressTellsItsOwnerAndChangesNothing(t *testing.T) {
+// TestHandler_RegisterTakenOwner: registering a taken address, in any case,
+// tells the owner once at the account's own address, queues no link into the
+// account and leaves the owner's password working and the intruder's useless.
+// The answer the form never gives goes to the mailbox.
+func TestHandler_RegisterTakenOwner(t *testing.T) {
 	ctx := t.Context()
 	s := auth.NewStore(pool)
 	h := auth.NewHandler(s, nil, nil, slog.New(slog.DiscardHandler), false, nil)
@@ -569,10 +579,11 @@ func TestRegisteringATakenAddressTellsItsOwnerAndChangesNothing(t *testing.T) {
 	}
 }
 
-// TestAResetProvesTheAddressItWasMailedTo: an account that has never proved its
-// address — a new colleague, or a registration whose link was lost — signs in
-// once a reset link, which only that mailbox received, has been spent.
-func TestAResetProvesTheAddressItWasMailedTo(t *testing.T) {
+// TestStore_CompleteResetProvesAddress: spending a reset link proves the
+// address it was mailed to: an account that never proved its address (a new
+// colleague, a registration whose link was lost) signs in with the reset
+// password once the link is spent.
+func TestStore_CompleteResetProvesAddress(t *testing.T) {
 	ctx := t.Context()
 	s := auth.NewStore(pool)
 	addr := "reset-proves-" + uuid.NewString() + "@example.com"
@@ -594,11 +605,11 @@ func TestAResetProvesTheAddressItWasMailedTo(t *testing.T) {
 	}
 }
 
-// TestResendingARegistrationLinkAnswersEveryAddressTheSame: asking again is the
-// form that would say who has an account, so an unproved account, a proved one
-// and an address nobody holds get the same answer, and only the unproved
-// account's mailbox is sent a link.
-func TestResendingARegistrationLinkAnswersEveryAddressTheSame(t *testing.T) {
+// TestHandler_ResendRegistration: ResendRegistration answers an unproved
+// account, a proved one and an address nobody holds identically, and only the
+// unproved account's mailbox is sent a link. Asking again is the form that
+// would say who has an account.
+func TestHandler_ResendRegistration(t *testing.T) {
 	ctx := t.Context()
 	s := auth.NewStore(pool)
 	h := auth.NewHandler(s, nil, nil, slog.New(slog.DiscardHandler), false, nil)
@@ -641,10 +652,11 @@ func TestResendingARegistrationLinkAnswersEveryAddressTheSame(t *testing.T) {
 	}
 }
 
-// TestResendingARegistrationLinkIsBoundedPerAddress: the form mails an address
-// whoever names it, so it spends the budget registration spends for that
-// address instead of opening a second one.
-func TestResendingARegistrationLinkIsBoundedPerAddress(t *testing.T) {
+// TestHandler_ResendRegistrationBound: ResendRegistration spends the budget
+// registration spends for the address instead of opening a second one, so the
+// fourth resend in a row is refused with 429. The form mails an address whoever
+// names it.
+func TestHandler_ResendRegistrationBound(t *testing.T) {
 	ctx := t.Context()
 	h := auth.NewHandler(auth.NewStore(pool), nil, nil, slog.New(slog.DiscardHandler), false, nil)
 	addr := "resend-bounded-" + uuid.NewString() + "@example.com"

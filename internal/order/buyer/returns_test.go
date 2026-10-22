@@ -7,9 +7,9 @@ import (
 	"github.com/koopa0/goen/internal/order/returns"
 )
 
-// TestEveryKnownReturnStatusHasACustomerLabel holds the closed set together:
-// a status with no catalogue entry must render as itself, never panic.
-func TestEveryKnownReturnStatusHasACustomerLabel(t *testing.T) {
+// TestReturnsExisting_StatusText: StatusText gives every known return status a
+// catalogue label, not its raw value, in both locales.
+func TestReturnsExisting_StatusText(t *testing.T) {
 	t.Parallel()
 
 	for _, locale := range []i18n.Locale{i18n.ZhHant, i18n.En} {
@@ -25,7 +25,9 @@ func TestEveryKnownReturnStatusHasACustomerLabel(t *testing.T) {
 	}
 }
 
-func TestUnknownReturnStatusRendersAsItself(t *testing.T) {
+// TestReturnsExisting_StatusTextUnknown: StatusText renders a status with no
+// catalogue entry as itself instead of failing.
+func TestReturnsExisting_StatusTextUnknown(t *testing.T) {
 	t.Parallel()
 
 	ctx := i18n.WithLocale(t.Context(), i18n.En)

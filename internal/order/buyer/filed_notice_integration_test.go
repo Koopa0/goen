@@ -17,7 +17,11 @@ import (
 	"github.com/koopa0/goen/internal/order/buyer"
 )
 
-func TestReturnLandingConfirmsOnlyTheFiledFlagAfterTheNativePOST(t *testing.T) {
+// TestHandler_ReturnPageFiledNotice: after a native return POST redirects to
+// ?filed=1, the return page confirms that the request was sent only for
+// filed=1, while a missing, 0 or unknown flag shows the in-flight notice
+// instead.
+func TestHandler_ReturnPageFiledNotice(t *testing.T) {
 	for _, locale := range i18n.Locales() {
 		t.Run(locale.Tag(), func(t *testing.T) {
 			ctx := i18n.WithLocale(t.Context(), locale)

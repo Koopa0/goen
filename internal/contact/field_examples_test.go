@@ -15,7 +15,7 @@ import (
 // stays outside its refused inputs. The address book's row of this test is
 // internal/account's TestAccountExamplesStayOutsideRefusedInputs, the
 // find-order row is internal/order/buyer's
-// TestFindOrderExampleStaysOutsideRefusedInputs, and the checkout's rows are
+// TestFindOrderExampleVisible, and the checkout's rows are
 // internal/checkout's TestPageExamplesOutsideInputs.
 func TestContactExamplesStayOutsideRefusedInputs(t *testing.T) {
 	t.Parallel()

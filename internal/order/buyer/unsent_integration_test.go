@@ -15,10 +15,14 @@ import (
 	"github.com/koopa0/goen/internal/order/returns"
 )
 
-// The units the shop refunded because it could not send them never reached
-// the customer: they do not use up what the customer may return of what did
-// arrive, and the refund is not a request the customer made.
-func TestAnUnsentRefundLeavesTheShippedUnitsReturnable(t *testing.T) {
+// TestStore_ReturnOrderUnsentRefund: after the shop refunds units it could not
+// send, ReturnOrder still lists the shipped units as returnable and lists no
+// request the customer did not make.
+//
+// The units the shop refunded because it could not send them never reached the
+// customer: they do not use up what the customer may return of what did arrive,
+// and the refund is not a request the customer made.
+func TestStore_ReturnOrderUnsentRefund(t *testing.T) {
 	ctx, _ := admintest.StaffContext(t, pool)
 	o := admintest.PartlyShippedOrder(t, pool, admintest.TwoLineOrderTotal)
 	if err := refunds.NewStore(admintest.AdminRolePool(t, pool), admintest.Refunder{}, nil).RefundUnsent(ctx, o.Number,
@@ -42,10 +46,13 @@ func TestAnUnsentRefundLeavesTheShippedUnitsReturnable(t *testing.T) {
 	}
 }
 
-// The customer's order page after the shop refunded what it could not send:
-// the history says those units were not sent and were refunded, and they are
-// no longer listed as still to come.
-func TestTheOrderPageSaysWhatWasNotSentWasRefunded(t *testing.T) {
+// TestStore_OrderUnsentRefund: after the shop refunds units it could not send,
+// Order no longer lists them as still to come and its history labels the refund
+// as not sent.
+//
+// The history says those units were not sent and were refunded, and they are no
+// longer listed as still to come.
+func TestStore_OrderUnsentRefund(t *testing.T) {
 	ctx, _ := admintest.StaffContext(t, pool)
 	o := admintest.PartlyShippedOrder(t, pool, admintest.TwoLineOrderTotal)
 	s := buyer.NewStore(admintest.StoreRolePool(t, pool))

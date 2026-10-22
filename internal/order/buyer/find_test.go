@@ -13,11 +13,15 @@ import (
 	"github.com/koopa0/goen/internal/web/ratelimit"
 )
 
-// The order lookup answers whether a number and an address belong together,
-// so its limit is all that stands between a client and guessing the address.
-// An IPv6 client chooses the low 64 bits of its address freely, so a limit
-// keyed on the whole address is no limit.
-func TestTheOrderLookupLimitCoversAWholeIPv6Slash64(t *testing.T) {
+// TestHandler_FindOrderIPv6Limit: the order lookup's rate limit keys an IPv6
+// client by its /64, so rotating the low 64 bits earns no fresh allowance while
+// an address in another /64 keeps its own.
+//
+// The order lookup answers whether a number and an address belong together, so
+// its limit is all that stands between a client and guessing the address. An
+// IPv6 client chooses the low 64 bits of its address freely, so a limit keyed
+// on the whole address is no limit.
+func TestHandler_FindOrderIPv6Limit(t *testing.T) {
 	t.Parallel()
 	h := NewHandler(&Store{}, &access.Store{}, slog.New(slog.DiscardHandler), ratelimit.New(ratelimit.Config{
 		Every: time.Hour, Burst: 1, TTL: time.Hour, MaxKeys: 8,

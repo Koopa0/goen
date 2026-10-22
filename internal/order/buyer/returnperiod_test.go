@@ -28,7 +28,12 @@ func shopDate(day int) shoptime.Date {
 	return shoptime.DateOf(shopDay(day), shopDay(day))
 }
 
-func TestReturnPeriodLaysFourteenCellsBetweenTheDatesItIsGiven(t *testing.T) {
+// TestReturnPeriodCells: returnPeriod lays fourteen cells, marks the seventh as
+// the last statutory day, flags cells eight to fourteen as the extension,
+// labels the first, seventh and last with their dates and counts the past and
+// today cells, for a day three days in, the day of receipt and a day after the
+// goodwill.
+func TestReturnPeriodCells(t *testing.T) {
 	t.Parallel()
 	ctx := i18n.WithLocale(t.Context(), i18n.ZhHant)
 
@@ -72,7 +77,9 @@ func TestReturnPeriodLaysFourteenCellsBetweenTheDatesItIsGiven(t *testing.T) {
 	}
 }
 
-func TestReturnPeriodRefusesDatesThatLeaveNoMark(t *testing.T) {
+// TestReturnPeriodNoMark: returnPeriod draws no grid when the last day falls on
+// the day of receipt, which leaves no cell to mark.
+func TestReturnPeriodNoMark(t *testing.T) {
 	t.Parallel()
 	ctx := i18n.WithLocale(t.Context(), i18n.ZhHant)
 	if _, ok := returnPeriod(ctx, shopDate(6), shopDate(6), shopDate(20), shopDate(9), false); ok {

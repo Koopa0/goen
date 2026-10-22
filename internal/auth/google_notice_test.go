@@ -11,7 +11,10 @@ import (
 	"github.com/koopa0/goen/internal/i18n"
 )
 
-func TestDisabledGoogleOffersPasswordSignIn(t *testing.T) {
+// TestHandler_GoogleDisabled: when Google sign-in is not configured,
+// GoogleSignIn and GoogleCallback answer 404 with an HTML page whose recovery
+// action goes to /signin, in both locales.
+func TestHandler_GoogleDisabled(t *testing.T) {
 	t.Parallel()
 	h := &Handler{google: &google.Client{}, log: slog.New(slog.DiscardHandler)}
 	for _, locale := range i18n.Locales() {

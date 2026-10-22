@@ -10,9 +10,10 @@ import (
 	"github.com/koopa0/goen/internal/ui/frame"
 )
 
-// The home and about pages name the shop's departments from the header's
-// category row, so a sentence about them cannot drift from the catalogue.
-func TestHomeAndAboutNameTheShopsOwnCategories(t *testing.T) {
+// TestMetaNamesCategories: The home and about pages name the shop's departments
+// from the header's category row, so a sentence about them cannot drift from
+// the catalogue.
+func TestMetaNamesCategories(t *testing.T) {
 	t.Parallel()
 	nav := map[i18n.Locale][]frame.NavItem{
 		i18n.ZhHant: {{Slug: "books", Name: "書籍"}, {Slug: "kitchen", Name: "廚房用品"}, {Slug: "food", Name: "食品"}},
@@ -68,7 +69,9 @@ func TestHomeAndAboutNameTheShopsOwnCategories(t *testing.T) {
 	}
 }
 
-func TestHomeAndAboutSayNothingAboutCategoriesTheyCannotRead(t *testing.T) {
+// TestMetaNoCategories holds that the home and about pages say nothing about
+// categories they cannot read.
+func TestMetaNoCategories(t *testing.T) {
 	t.Parallel()
 	ctx := i18n.WithLocale(t.Context(), i18n.ZhHant)
 	if d := Meta(ctx).Description; d != "" {

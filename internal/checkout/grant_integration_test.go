@@ -325,9 +325,9 @@ func TestBuyerHandler_OrderPageForgedCookie(t *testing.T) {
 	}
 }
 
-// TestBuyerHandler_OrderPageOtherOrderToken: buyer.Handler.OrderPage answers
+// TestBuyerHandler_OrderPageOtherOrder: buyer.Handler.OrderPage answers
 // 404 to a token granted for another order and leaks nothing of it.
-func TestBuyerHandler_OrderPageOtherOrderToken(t *testing.T) {
+func TestBuyerHandler_OrderPageOtherOrder(t *testing.T) {
 	ctx := t.Context()
 	s := checkout.NewStore(pool)
 	h := buyer.NewHandler(buyer.NewStore(pool), access.NewStore(pool, false), slog.New(slog.DiscardHandler), testLimiter(), false)

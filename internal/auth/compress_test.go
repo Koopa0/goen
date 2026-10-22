@@ -11,7 +11,11 @@ import (
 	"github.com/koopa0/goen/internal/web/compress"
 )
 
-func TestSecretBearingAccountPagesAreNotCompressed(t *testing.T) {
+// TestHandler_SecretPagesNotCompressed: the handlers that put a live token on
+// the page (reset, email verification, registration completion, and a sign-in
+// on the way back to a verification link) answer uncompressed and leak no
+// opt-out marker, so a compression side channel cannot recover the token.
+func TestHandler_SecretPagesNotCompressed(t *testing.T) {
 	h := &Handler{log: slog.New(slog.DiscardHandler)}
 	const token = "live-secret-token-for-compression-test"
 	tests := []struct {

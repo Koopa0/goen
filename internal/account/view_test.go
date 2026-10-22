@@ -72,7 +72,7 @@ func TestAccountOrderPayAction(t *testing.T) {
 }
 
 // The history badge's half of internal/order/buyer's
-// TestAPaidOrderIsNotBadgedAwaitingPaymentInTheAccount, which keeps the order
+// TestOrderPaidNotAwaitingPayment, which keeps the order
 // page's notice.
 func TestAccountOrderPaidIsNotAwaitingPayment(t *testing.T) {
 	paid := AccountOrder{

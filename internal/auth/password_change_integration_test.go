@@ -11,7 +11,10 @@ import (
 	"github.com/koopa0/goen/internal/auth"
 )
 
-func TestChangingPasswordEndsEveryOtherSession(t *testing.T) {
+// TestStore_ChangePasswordEndsSessions: ChangePassword ends the account's
+// sessions, so a stolen session does not outlive the password change meant to
+// end it, and the new password signs in while the old one does not.
+func TestStore_ChangePasswordEndsSessions(t *testing.T) {
 	ctx := t.Context()
 	s := auth.NewStore(pool)
 	u := registerProved(t, s, "rotate@example.com")
@@ -38,7 +41,10 @@ func TestChangingPasswordEndsEveryOtherSession(t *testing.T) {
 	}
 }
 
-func TestChangingPasswordInvalidatesPriorResetTokens(t *testing.T) {
+// TestStore_ChangePasswordResetTokens: a reset token issued before
+// ChangePassword no longer completes (ErrResetInvalid), so a stale reset link
+// cannot overwrite the password chosen in account settings.
+func TestStore_ChangePasswordResetTokens(t *testing.T) {
 	ctx := t.Context()
 	s := auth.NewStore(pool)
 	email := "rotate-reset-" + uuid.NewString() + "@example.com"

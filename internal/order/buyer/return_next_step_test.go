@@ -13,7 +13,10 @@ import (
 	"github.com/koopa0/goen/internal/order/returns"
 )
 
-func TestReturnFormExplainsEachParcelsDeadlineAndNextStep(t *testing.T) {
+// TestReturnsParcelDeadline: the return form shows each parcel's last day of
+// the right to cancel in the order page's own sentence, with the parcel's
+// label, and shows the open request's state, in both locales.
+func TestReturnsParcelDeadline(t *testing.T) {
 	t.Parallel()
 	now := time.Date(2026, time.October, 12, 10, 0, 0, 0, time.UTC)
 	for _, tc := range []struct {
@@ -49,7 +52,10 @@ func TestReturnFormExplainsEachParcelsDeadlineAndNextStep(t *testing.T) {
 	}
 }
 
-func TestReturnFormSaysWhatHappensNextOnlyWhenARequestCanBeSent(t *testing.T) {
+// TestReturnsNextStepSentence: the return form says what happens next only when
+// a request can be sent: not with an open request and not when nothing is
+// returnable.
+func TestReturnsNextStepSentence(t *testing.T) {
 	t.Parallel()
 	for _, tc := range []struct {
 		name string
@@ -77,7 +83,10 @@ func TestReturnFormSaysWhatHappensNextOnlyWhenARequestCanBeSent(t *testing.T) {
 	}
 }
 
-func TestOpenRequestShowsOnlyItsNoticeEvenWithAStaleQuantityRefusal(t *testing.T) {
+// TestReturnsOpenRequestNotice: the return form of an order with an open
+// request shows only the in-flight notice, once, even with a stale quantity
+// refusal on the draft, and keeps the submitted quantity and reason.
+func TestReturnsOpenRequestNotice(t *testing.T) {
 	t.Parallel()
 	for _, locale := range []i18n.Locale{i18n.ZhHant, i18n.En} {
 		ctx := i18n.WithLocale(t.Context(), locale)
@@ -99,7 +108,10 @@ func TestOpenRequestShowsOnlyItsNoticeEvenWithAStaleQuantityRefusal(t *testing.T
 	}
 }
 
-func TestReturnFormUsesTheExistingPendingDeliverySentence(t *testing.T) {
+// TestReturnsPendingDeliverySentence: the return form of an undelivered parcel
+// reuses the order page's sentence for a right to cancel that awaits delivery,
+// in its home-delivery and store-pickup wording and both locales.
+func TestReturnsPendingDeliverySentence(t *testing.T) {
 	t.Parallel()
 	for _, locale := range []i18n.Locale{i18n.ZhHant, i18n.En} {
 		for _, pickup := range []bool{false, true} {
@@ -124,11 +136,15 @@ func TestReturnFormUsesTheExistingPendingDeliverySentence(t *testing.T) {
 	}
 }
 
+// TestReturnsNothingReturnable: the return form of an order with nothing
+// returnable shows the refusal's own sentence (KeyReturnNothingShort) in the
+// return-nothing notice, in both locales.
+//
 // The page cannot tell whether the order may still be cancelled (a paid order
 // that has not shipped may not), and a refunded one has nothing left to cancel,
 // so it states the fact the refusal states and does not send the customer to a
 // button the order page may not show.
-func TestNothingReturnableIsStatedAsTheRefusalStatesIt(t *testing.T) {
+func TestReturnsNothingReturnable(t *testing.T) {
 	t.Parallel()
 	for _, locale := range []i18n.Locale{i18n.ZhHant, i18n.En} {
 		t.Run(string(locale), func(t *testing.T) {

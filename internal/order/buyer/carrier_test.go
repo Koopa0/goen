@@ -16,7 +16,11 @@ import (
 
 var dispatched = time.Date(2026, 10, 1, 1, 0, 0, 0, time.UTC)
 
-func TestTheOrderPageLinksEachParcelToItsCarrier(t *testing.T) {
+// TestOrderCarrierLinks: the order page names each parcel's carrier and links
+// the tracking number only where the carrier's address takes it: Black Cat
+// links the number, HCT links its lookup page beside the number as text, and a
+// carrier with no confirmed tracking page (OK Mart) gets no link.
+func TestOrderCarrierLinks(t *testing.T) {
 	t.Parallel()
 	html := renderToString(t, Order(frame.Page{Title: "訂單"}, &OrderView{
 		Number: "GO-1",
@@ -47,10 +51,14 @@ func TestTheOrderPageLinksEachParcelToItsCarrier(t *testing.T) {
 	}
 }
 
-// A closed set — the carriers, the history's statuses, the page's own chrome —
-// must read in English on an English page. The shop's own entries (a product
-// name, a typed address) are data and are left out of the scan.
-func TestTheEnglishOrderPageHasNoChineseOfItsOwn(t *testing.T) {
+// TestOrderEnglishNoChinese: the English order page shows no Chinese of its
+// own: the carriers, the history's statuses and the page's chrome read in
+// English.
+//
+// A closed set must read in English on an English page. The shop's own entries
+// (a product name, a typed address) are data and the language switch names
+// Chinese in Chinese on purpose, so both are left out of the scan.
+func TestOrderEnglishNoChinese(t *testing.T) {
 	t.Parallel()
 
 	home, _ := shipping.CarriersFor("", shipping.DestinationAddress)

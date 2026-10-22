@@ -221,9 +221,9 @@ func TestStore_PlaceOrderGuestNoCredit(t *testing.T) {
 	}
 }
 
-// TestBuyerStore_CancelOrderCredit: buyer.Store.CancelOrder returns the store
+// TestBuyerStore_CancelOrderReversal: buyer.Store.CancelOrder returns the store
 // credit spent on a cancelled order, once, as a reversal entry.
-func TestBuyerStore_CancelOrderCredit(t *testing.T) {
+func TestBuyerStore_CancelOrderReversal(t *testing.T) {
 	ctx := t.Context()
 	s := buyer.NewStore(pool)
 	userID, accountID := creditedAccount(t, 50000)
@@ -253,9 +253,9 @@ func TestBuyerStore_CancelOrderCredit(t *testing.T) {
 	}
 }
 
-// TestReverseOrderCreditIdempotent: reverse_order_credit returns a cancelled
+// TestReverseOrderLedgerIdempotent: reverse_order_credit returns a cancelled
 // order's credit on the first call and nothing on the next two.
-func TestReverseOrderCreditIdempotent(t *testing.T) {
+func TestReverseOrderLedgerIdempotent(t *testing.T) {
 	ctx := t.Context()
 	userID, accountID := creditedAccount(t, 50000)
 	number := pendingOrderSpendingCredit(t, userID, 20000)
@@ -286,9 +286,9 @@ func TestReverseOrderCreditIdempotent(t *testing.T) {
 	}
 }
 
-// TestReverseOrderCreditShipped: reverse_order_credit refuses a shipped order's
+// TestReverseOrderLedgerShipped: reverse_order_credit refuses a shipped order's
 // credit with store_credit_posting_matches_order and pays nothing.
-func TestReverseOrderCreditShipped(t *testing.T) {
+func TestReverseOrderLedgerShipped(t *testing.T) {
 	ctx := t.Context()
 	userID, accountID := creditedAccount(t, 50000)
 	number := pendingOrderSpendingCredit(t, userID, 20000)

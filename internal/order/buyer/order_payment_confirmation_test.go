@@ -9,7 +9,14 @@ import (
 	"github.com/koopa0/goen/internal/order"
 )
 
-func TestOrderPaymentConfirmationEndingOffersContactInsteadOfPayment(t *testing.T) {
+// TestOrderPaymentConfirmationEnded: an order whose payment-confirmation checks
+// have ended offers contact instead of payment: the notice says the payment is
+// still being confirmed and not to pay again, with the contact link and no pay
+// link or cancel form, in both locales.
+//
+// The stop-updating link keeps the payment-return hint, and an order with no
+// hint and no pending confirmation offers pay and cancel again.
+func TestOrderPaymentConfirmationEnded(t *testing.T) {
 	t.Parallel()
 	for _, tt := range []struct {
 		locale i18n.Locale
@@ -56,7 +63,11 @@ func TestOrderPaymentConfirmationEndingOffersContactInsteadOfPayment(t *testing.
 	}
 }
 
-func TestOrderPaymentReturnCancellationUsesTheStoredDeadline(t *testing.T) {
+// TestOrderPaymentReturnCancelForm: after a payment return the cancel form is
+// shown only when the checks have ended and the stored hold has been reached or
+// never existed, and the pay link is never offered; an ended check keeps its
+// contact link.
+func TestOrderPaymentReturnCancelForm(t *testing.T) {
 	t.Parallel()
 	now := time.Date(2026, time.October, 7, 12, 0, 0, 0, time.UTC)
 	for _, locale := range []i18n.Locale{i18n.ZhHant, i18n.En} {

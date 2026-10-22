@@ -17,7 +17,9 @@ import (
 	"github.com/koopa0/goen/internal/ui/uitest"
 )
 
-func TestCarouselCurrentTabStaysVisibleWithoutMovingThePage(t *testing.T) {
+// TestHeroCarouselCurrentTab holds that the carousel's current tab stays
+// visible without moving the page.
+func TestHeroCarouselCurrentTab(t *testing.T) {
 	_, port := uitest.Browser(t, "CDP_PORT")
 	root, err := filepath.Abs("../..")
 	if err != nil {

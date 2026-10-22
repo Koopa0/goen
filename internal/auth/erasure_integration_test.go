@@ -30,9 +30,11 @@ import (
 	"github.com/koopa0/goen/internal/user"
 )
 
-// Delivery PII is erased, while the minimum immutable filing snapshot remains
-// with the sale so its statutory invoice/allowance lifecycle is not destroyed.
-func TestEraseRemovesPersonalDataAndKeepsTheRecord(t *testing.T) {
+// TestStore_ErasePersonalData: Erase removes the customer's personal data and
+// keeps the sale's record: delivery PII is erased, while the minimum immutable
+// filing snapshot remains with the sale so its statutory invoice/allowance
+// lifecycle is not destroyed.
+func TestStore_ErasePersonalData(t *testing.T) {
 	ctx := t.Context()
 	s := auth.NewStore(pool)
 	u := register(t, s, "gdpr@example.com")
@@ -103,12 +105,14 @@ func TestEraseRemovesPersonalDataAndKeepsTheRecord(t *testing.T) {
 	}
 }
 
-// TestErasureWaitsForAStoreCreditFundedReturn keeps the customer attached to an
-// open claim until the shop has returned the money needed to settle it. The
-// account relation is what lets compensate_return_with_credit identify the
-// owner; erasing it while a requested or approved return is still owed credit
-// would turn a valid return into an orphan the payout door must refuse.
-func TestErasureWaitsForAStoreCreditFundedReturn(t *testing.T) {
+// TestStore_EraseOpenReturn: Erase refuses with ErrOpenReturn while a
+// store-credit-funded return is requested or approved and unpaid, the handler
+// answers 303 /account?erase=return and keeps the session, and erasure goes
+// through once the credit has settled. The account relation is what lets
+// compensate_return_with_credit identify the owner; erasing it while a return
+// is still owed credit would turn a valid return into an orphan the payout door
+// must refuse.
+func TestStore_EraseOpenReturn(t *testing.T) {
 	ctx := t.Context()
 	s := auth.NewStore(pool)
 	u := register(t, s, "erase-open-return-"+uuid.NewString()+"@example.com")
@@ -294,11 +298,11 @@ func assertOpenReturnErasureRolledBack(
 	}
 }
 
-// TestUnverifiedAccountErasureDoesNotClaimTheMailbox keeps account deletion
-// from becoming an address-wide eraser. Registration accepts an unproved email;
-// the account therefore has no authority over guest or independently confirmed
-// records that happen to use the same address.
-func TestUnverifiedAccountErasureDoesNotClaimTheMailbox(t *testing.T) {
+// TestStore_EraseUnverified: erasing an account whose address was never proved
+// leaves the guest and independently confirmed records that use the same
+// address, so account deletion is not an address-wide eraser. Registration
+// accepts an unproved email; the account has no authority over those records.
+func TestStore_EraseUnverified(t *testing.T) {
 	ctx := t.Context()
 	s := auth.NewStore(pool)
 	suffix := strings.ReplaceAll(uuid.NewString(), "-", "")
@@ -382,11 +386,11 @@ func TestUnverifiedAccountErasureDoesNotClaimTheMailbox(t *testing.T) {
 	}
 }
 
-// TestErasureSnapshotsBeforeConcurrentCheckout pauses erase_user after it has
-// cleared every order it can currently see. A signed-in checkout starts in that
-// window. Its user KEY SHARE must wait before taking the cart; erasure can then
-// delete the account and cart, and checkout returns without creating fresh PII.
-func TestErasureSnapshotsBeforeConcurrentCheckout(t *testing.T) {
+// TestStore_EraseCheckoutRace: a signed-in checkout that starts while Erase is
+// paused after clearing the orders it can see waits for the user lock, then
+// returns cart.ErrNotFound and creates no new personal data. Its user KEY SHARE
+// must wait before taking the cart.
+func TestStore_EraseCheckoutRace(t *testing.T) {
 	ctx := t.Context()
 	u := register(t, auth.NewStore(pool), "erase-checkout-"+uuid.NewString()+"@example.com")
 	userID := uuid.MustParse(u.ID)
@@ -487,11 +491,11 @@ func TestErasureSnapshotsBeforeConcurrentCheckout(t *testing.T) {
 	}
 }
 
-// TestConcurrentAdminErasureKeepsOneAdmin holds erase_user's global decision
-// lock so both requests are known to have started. After release, one may erase
-// itself; the other must count the committed survivor state and receive the
-// named last-admin refusal rather than letting both snapshots observe two.
-func TestConcurrentAdminErasureKeepsOneAdmin(t *testing.T) {
+// TestStore_EraseAdminConcurrent: two administrators erasing themselves at once
+// leave one: one erasure succeeds and the other gets the named last-admin
+// refusal instead of both snapshots seeing two. The test holds erase_user's
+// global decision lock so both requests are known to have started.
+func TestStore_EraseAdminConcurrent(t *testing.T) {
 	ctx := t.Context()
 	s := auth.NewStore(pool)
 	first := register(t, s, "erase-admin-a-"+uuid.NewString()+"@example.com")
@@ -571,10 +575,12 @@ func TestConcurrentAdminErasureKeepsOneAdmin(t *testing.T) {
 	}
 }
 
-// TestTheLastAdminIsToldWhyErasureWasRefused: erase_user refuses the only
-// administrator by name, and the page must say so and keep the account usable
-// rather than answer a server error for a request the shop decided to refuse.
-func TestTheLastAdminIsToldWhyErasureWasRefused(t *testing.T) {
+// TestHandler_EraseLastAdmin: Erase refuses the only administrator with
+// ErrLastAdmin, and the handler answers 303 /account?erase=admin and leaves the
+// session and the account alone. erase_user refuses the only administrator by
+// name, and the page must say so and keep the account usable rather than answer
+// a server error for a request the shop decided to refuse.
+func TestHandler_EraseLastAdmin(t *testing.T) {
 	ctx := t.Context()
 	s := auth.NewStore(pool)
 	u := register(t, s, "erase-last-admin-"+uuid.NewString()+"@example.com")
@@ -630,11 +636,12 @@ func TestTheLastAdminIsToldWhyErasureWasRefused(t *testing.T) {
 	}
 }
 
-// TestResetIssueAndErasureCannotSplitTokenFromMessage pauses reset issuance at
-// its outbox insert, after it has locked the account and inserted the token in
-// the same transaction. Erasure must wait, then purge both committed records;
-// if erasure wins before the account lock, reset instead becomes a quiet no-op.
-func TestResetIssueAndErasureCannotSplitTokenFromMessage(t *testing.T) {
+// TestStore_EraseDuringResetIssue: erasure racing reset issuance cannot leave a
+// reset token without its message or the reverse: with issuance paused at its
+// outbox insert, after it has locked the account and inserted the token, Erase
+// waits and then purges both committed records; if erasure wins before the
+// account lock, the reset is a quiet no-op.
+func TestStore_EraseDuringResetIssue(t *testing.T) {
 	ctx := t.Context()
 	email := "reset-erase-" + uuid.NewString() + "@example.com"
 	u := register(t, auth.NewStore(pool), email)
@@ -717,10 +724,11 @@ func TestResetIssueAndErasureCannotSplitTokenFromMessage(t *testing.T) {
 	}
 }
 
-// TestResetCompletionAndErasureUseUserBeforeToken pauses the token spend after
-// completion has locked the account. Erasure must wait on that account instead
-// of holding it while completion holds the token, the former ABBA cycle.
-func TestResetCompletionAndErasureUseUserBeforeToken(t *testing.T) {
+// TestStore_EraseDuringReset: erasure racing CompleteReset takes the account
+// lock before the token, so the two cannot deadlock (the former ABBA cycle):
+// with the token spend paused after completion has locked the account, Erase
+// waits on that account.
+func TestStore_EraseDuringReset(t *testing.T) {
 	ctx := t.Context()
 	email := "complete-erase-" + uuid.NewString() + "@example.com"
 	u := register(t, auth.NewStore(pool), email)
@@ -802,7 +810,12 @@ func TestResetCompletionAndErasureUseUserBeforeToken(t *testing.T) {
 	}
 }
 
-func TestErasurePurgesOnlyItsPendingVerificationMessage(t *testing.T) {
+// TestStore_ErasePendingVerification: Erase purges the erased account's own
+// pending verification message and keeps another account's request for the same
+// unproved address and unrelated transactional mail to it. A pending address
+// has not been proved: neither the other request nor the other mail belongs to
+// the account being erased.
+func TestStore_ErasePendingVerification(t *testing.T) {
 	ctx := t.Context()
 	s := auth.NewStore(pool)
 	u := register(t, s, "verification-erase-old-"+uuid.NewString()+"@goen.invalid")
@@ -862,11 +875,11 @@ func TestErasurePurgesOnlyItsPendingVerificationMessage(t *testing.T) {
 	}
 }
 
-// TestErasureMatchesOutboxRecipientsExactly protects both halves of the
-// recipient predicate. Percent and underscore are legal mailbox characters but
-// SQL pattern wildcards, and an address in a non-recipient field does not make
-// that message the erased customer's mail.
-func TestErasureMatchesOutboxRecipientsExactly(t *testing.T) {
+// TestStore_EraseRecipientMatch: Erase matches outbox recipients exactly:
+// percent and underscore in an address are literal, not SQL pattern wildcards,
+// and an address in a non-recipient field does not make that message the erased
+// customer's mail.
+func TestStore_EraseRecipientMatch(t *testing.T) {
 	ctx := t.Context()
 	s := auth.NewStore(pool)
 	suffix := strings.ReplaceAll(uuid.NewString(), "-", "")
@@ -930,10 +943,11 @@ func TestErasureMatchesOutboxRecipientsExactly(t *testing.T) {
 	}
 }
 
-// TestVerificationAndErasureUseUserBeforeToken pauses token deletion after
-// confirmation has locked the user. Erasure must wait on the user instead of
-// holding it while confirmation holds the verification row.
-func TestVerificationAndErasureUseUserBeforeToken(t *testing.T) {
+// TestStore_EraseDuringConfirm: erasure racing ConfirmVerification takes the
+// user lock before the verification row, so the two cannot deadlock: with token
+// deletion paused after confirmation has locked the user, Erase waits on the
+// user.
+func TestStore_EraseDuringConfirm(t *testing.T) {
 	ctx := t.Context()
 	s := auth.NewStore(pool)
 	u := register(t, s, "verify-race-old-"+uuid.NewString()+"@goen.invalid")
@@ -1016,8 +1030,11 @@ func TestVerificationAndErasureUseUserBeforeToken(t *testing.T) {
 	}
 }
 
-// user_identities cascades on the user, so erase_user reaches it without naming it.
-func TestErasingAnAccountTakesItsIdentities(t *testing.T) {
+// TestStore_EraseIdentities: Erase removes the account's linked Google
+// identities, so the same Google account cannot sign in to the erased account.
+// user_identities cascades on the user, so erase_user reaches it without naming
+// it.
+func TestStore_EraseIdentities(t *testing.T) {
 	ctx := t.Context()
 	s := auth.NewStore(pool)
 	email := "oauth-erase-" + uuid.NewString()[:8] + "@example.com"
@@ -1044,9 +1061,12 @@ func TestErasingAnAccountTakesItsIdentities(t *testing.T) {
 	}
 }
 
-// TestErasureNeedsARecentSignIn keeps a stolen or unattended session from
-// erasing the account: only a session created within EraseSignInWindow may.
-func TestErasureNeedsARecentSignIn(t *testing.T) {
+// TestHandler_EraseRecentSignIn: Erase refuses a session older than
+// EraseSignInWindow, which sends it back through sign-in (303 with
+// reauth=erase), keeps the account and ends the stale session, and erases for a
+// fresh session. A stolen or unattended session cannot erase the account: only
+// a session created within the window may.
+func TestHandler_EraseRecentSignIn(t *testing.T) {
 	ctx := t.Context()
 	s := auth.NewStore(pool)
 	h := auth.NewHandler(s, nil, nil, slog.New(slog.DiscardHandler), false, nil)

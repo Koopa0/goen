@@ -13,7 +13,9 @@ import (
 	"github.com/koopa0/goen/internal/web/ratelimit"
 )
 
-func TestPasswordSetupRequiresAuthentication(t *testing.T) {
+// TestHandler_RequestPasswordSetupAnon: RequestPasswordSetup sends an
+// unauthenticated request to /signin.
+func TestHandler_RequestPasswordSetupAnon(t *testing.T) {
 	t.Parallel()
 	response := httptest.NewRecorder()
 	request := httptest.NewRequestWithContext(t.Context(), http.MethodPost, "/account/password/setup", nil)
@@ -24,9 +26,10 @@ func TestPasswordSetupRequiresAuthentication(t *testing.T) {
 	}
 }
 
-// The address's reset links were spent by somebody: the owner is answered as
-// ever, and nothing is queued, which a store that cannot be reached proves.
-func TestPasswordSetupSpendsTheCurrentMailboxBudget(t *testing.T) {
+// TestHandler_RequestPasswordSetupSpent: once the mailbox's reset links have
+// been spent by somebody, RequestPasswordSetup answers the owner as ever and
+// queues nothing, which a store that cannot be reached proves.
+func TestHandler_RequestPasswordSetupSpent(t *testing.T) {
 	t.Parallel()
 	limit := ratelimit.New(addressMailPace)
 	for range 3 {
@@ -45,7 +48,10 @@ func TestPasswordSetupSpendsTheCurrentMailboxBudget(t *testing.T) {
 	}
 }
 
-func TestPasswordSetupCannotConfirmAFailedMailQueue(t *testing.T) {
+// TestHandler_RequestPasswordSetupFailure: when queueing the setup mail fails,
+// RequestPasswordSetup answers 500 without a confirmation redirect or a
+// completion cookie.
+func TestHandler_RequestPasswordSetupFailure(t *testing.T) {
 	t.Parallel()
 	closed, err := pgxpool.New(t.Context(), "postgres://unused:unused@127.0.0.1:1/unused?sslmode=disable")
 	if err != nil {

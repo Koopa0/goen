@@ -13,12 +13,12 @@ import (
 	"github.com/koopa0/goen/internal/auth/google"
 )
 
-// TestGoogleSignInKeepsTheReturnPathInTheStateCookie starts a sign-in and
-// reads both halves of what it wrote. The return path travels in the state
-// cookie: in the authorisation URL it is an open redirect Google echoes back.
-// The cookie's state is the one the URL carries, and its verifier is the one
-// the URL's PKCE challenge was made from.
-func TestGoogleSignInKeepsTheReturnPathInTheStateCookie(t *testing.T) {
+// TestHandler_GoogleSignInStateCookie: GoogleSignIn keeps the return path in
+// the state cookie and not in the authorisation URL, and the cookie's state and
+// verifier are the ones the URL's state and PKCE challenge were made from. In
+// the authorisation URL the return path would be an open redirect Google echoes
+// back.
+func TestHandler_GoogleSignInStateCookie(t *testing.T) {
 	g, err := google.New("client-id", "client-secret", "https://goen.example")
 	if err != nil {
 		t.Fatalf("google.New: %v", err)
@@ -61,10 +61,11 @@ func TestGoogleSignInKeepsTheReturnPathInTheStateCookie(t *testing.T) {
 	}
 }
 
-// Starting a Google sign-in is bounded per client. An IPv6 client chooses the
-// low 64 bits of its address freely, so a limit keyed on the whole address is
-// no limit.
-func TestTheGoogleSignInLimitCoversAWholeIPv6Slash64(t *testing.T) {
+// TestHandler_GoogleSignInIPv6Limit: starting a Google sign-in is bounded per
+// client network, and an IPv6 client's whole /64 shares one bucket while
+// another /64 has its own. An IPv6 client chooses the low 64 bits of its
+// address freely, so a limit keyed on the whole address is no limit.
+func TestHandler_GoogleSignInIPv6Limit(t *testing.T) {
 	g, err := google.New("client-id", "client-secret", "https://goen.example")
 	if err != nil {
 		t.Fatalf("google.New: %v", err)
@@ -95,7 +96,11 @@ func TestTheGoogleSignInLimitCoversAWholeIPv6Slash64(t *testing.T) {
 	}
 }
 
-func TestTheStateCookieSurvivesTheRedirectAndCarriesNoOpenRedirect(t *testing.T) {
+// TestWriteOAuthState: writeOAuthState sets one __Host- prefixed, HttpOnly,
+// SameSite=Lax cookie that readOAuthState reads back with the state and
+// verifier written, and an off-site return path does not survive it, on the way
+// out as well as on the way in.
+func TestWriteOAuthState(t *testing.T) {
 	w := httptest.NewRecorder()
 	writeOAuthState(w, oauthState{
 		Value: "state-value", Verifier: "verifier-value", Next: "/account",
@@ -140,7 +145,9 @@ func TestTheStateCookieSurvivesTheRedirectAndCarriesNoOpenRedirect(t *testing.T)
 	}
 }
 
-func TestAMissingOrTamperedCookieIsRefused(t *testing.T) {
+// TestReadOAuthState: readOAuthState refuses a missing cookie and one that
+// carries no usable state.
+func TestReadOAuthState(t *testing.T) {
 	tests := []struct {
 		name  string
 		value string

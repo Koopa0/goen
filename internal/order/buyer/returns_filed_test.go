@@ -9,7 +9,11 @@ import (
 	"github.com/koopa0/goen/internal/i18n"
 )
 
-func TestFiledReturnShowsRequestSentInPlaceOfTheOpenRequestNotice(t *testing.T) {
+// TestReturnsFiledNotice: the return form shows the request-sent status in
+// place of the open-request notice only when it is rendered for a just-filed
+// request, and an ordinary open request keeps its in-flight notice and claims
+// no new send.
+func TestReturnsFiledNotice(t *testing.T) {
 	t.Parallel()
 	for _, locale := range i18n.Locales() {
 		for _, filed := range []bool{false, true} {

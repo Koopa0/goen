@@ -54,9 +54,12 @@ func linesOf(t *testing.T, id uuid.UUID) int {
 	return n
 }
 
-// The sweep runs as the store role, the one the worker's pool is, so a missing
-// privilege shows here and not first in production.
-func TestTheGuestCartSweepDeletesOnlyIdleGuestCarts(t *testing.T) {
+// TestStore_SweepGuestCartsIdleOnly holds that SweepGuestCarts deletes only
+// idle guest carts: never an account's cart, never a guest cart with a line
+// added within the retention. The sweep runs as the store role, the one the
+// worker's pool is, so a missing privilege shows here and not first in
+// production.
+func TestStore_SweepGuestCartsIdleOnly(t *testing.T) {
 	variant := variantOf(t, "koto-over-ear", true)
 	var account uuid.UUID
 	if err := pool.QueryRow(t.Context(), `
@@ -106,8 +109,9 @@ func TestTheGuestCartSweepDeletesOnlyIdleGuestCarts(t *testing.T) {
 	}
 }
 
-// More idle carts than one batch must all go in one SweepGuestCarts call.
-func TestTheGuestCartSweepDrainsMoreThanOneBatch(t *testing.T) {
+// TestStore_SweepGuestCartsBatches: More idle carts than one batch must all go
+// in one SweepGuestCarts call.
+func TestStore_SweepGuestCartsBatches(t *testing.T) {
 	const marker = "sweep-batch"
 	count := 2*cart.GuestCartSweepBatch + 1
 	if _, err := pool.Exec(t.Context(), `

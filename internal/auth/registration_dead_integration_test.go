@@ -28,7 +28,10 @@ import (
 	"github.com/koopa0/goen/internal/ui/uitest"
 )
 
-func TestDeadRegistrationLinksOfferRegistrationRecovery(t *testing.T) {
+// TestHandler_CompleteRegistrationDead: a dead (expired or already used)
+// registration link answers 422 with a resend link, gives no account-page
+// directions, echoes neither the mailbox nor the token and starts no session.
+func TestHandler_CompleteRegistrationDead(t *testing.T) {
 	for _, mode := range []string{"used", "expired", "unknown", "expired after lookup"} {
 		for _, locale := range []i18n.Locale{i18n.ZhHant, i18n.En} {
 			t.Run(mode+"/"+string(locale), func(t *testing.T) {
@@ -89,7 +92,12 @@ func TestDeadRegistrationLinksOfferRegistrationRecovery(t *testing.T) {
 	}
 }
 
-func TestRegistrationRecoveryFormResendsWithoutAPendingCookie(t *testing.T) {
+// TestHandler_ResendRegistrationNoCookie: the recovery form of a dead
+// registration link resends a fresh link without a pending-registration cookie,
+// the resend entry claims no mail was sent and offers no address correction
+// until an address is entered, and the resent link completes the registration
+// where it was headed.
+func TestHandler_ResendRegistrationNoCookie(t *testing.T) {
 	for _, locale := range []i18n.Locale{i18n.ZhHant, i18n.En} {
 		for _, tt := range []struct {
 			name, next, wantNext, wantHref string
@@ -174,7 +182,9 @@ func TestRegistrationRecoveryFormResendsWithoutAPendingCookie(t *testing.T) {
 	}
 }
 
-func TestDeadEmailChangeLinksKeepTheirAccountDirections(t *testing.T) {
+// TestHandler_VerifyDeadChangeLink: a dead address-change link answers 422 with
+// the account-page directions and without registration recovery.
+func TestHandler_VerifyDeadChangeLink(t *testing.T) {
 	for _, locale := range []i18n.Locale{i18n.ZhHant, i18n.En} {
 		t.Run(string(locale), func(t *testing.T) {
 			ctx := i18n.WithLocale(t.Context(), locale)

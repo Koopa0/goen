@@ -9,7 +9,9 @@ import (
 	"github.com/koopa0/goen/internal/i18n"
 )
 
-func TestHomeShowsTheErasureResultOnlyWhenRequested(t *testing.T) {
+// TestPageErasureResult holds that the page shows the account-erasure result
+// only when the visit asks for it, in every locale.
+func TestPageErasureResult(t *testing.T) {
 	t.Parallel()
 	for _, locale := range i18n.Locales() {
 		for _, erased := range []bool{false, true} {

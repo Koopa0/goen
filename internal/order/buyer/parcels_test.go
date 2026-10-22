@@ -10,7 +10,11 @@ import (
 	"github.com/koopa0/goen/internal/db"
 )
 
-func TestCutParcelsCountsEachParcelFromItsOwnDelivery(t *testing.T) {
+// TestCutParcelsOwnDelivery: cutParcels gives each parcel its own delivery,
+// rescission and goodwill dates, its own share of each line with the warranty
+// registrations of the units that went in it, and returns the unshipped
+// remainder.
+func TestCutParcelsOwnDelivery(t *testing.T) {
 	t.Parallel()
 	phone, buds, stand := uuid.New(), uuid.New(), uuid.New()
 	first, second := uuid.New(), uuid.New()
@@ -63,9 +67,10 @@ func TestCutParcelsCountsEachParcelFromItsOwnDelivery(t *testing.T) {
 	}
 }
 
-// A unit an unsent refund took back is not waiting for a parcel: the page must not tell the customer it is still to
-// come after the money for it went back.
-func TestCutParcelsLeavesOutUnitsRefundedUnsent(t *testing.T) {
+// TestCutParcelsRefundedUnsent: cutParcels leaves the units an unsent refund
+// took back out of the unshipped list, so the page does not tell the customer
+// they are still to come after the money for them went back.
+func TestCutParcelsRefundedUnsent(t *testing.T) {
 	t.Parallel()
 	pen, notebook := uuid.New(), uuid.New()
 	parcel := uuid.New()

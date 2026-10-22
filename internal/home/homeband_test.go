@@ -9,7 +9,9 @@ import (
 	"github.com/koopa0/goen/internal/ui/tone"
 )
 
-func TestTheHomeBandIsAShelfWithNoPhotograph(t *testing.T) {
+// TestDepartmentBandShelf holds that the home band is drawn as a shelf with no
+// photograph.
+func TestDepartmentBandShelf(t *testing.T) {
 	t.Parallel()
 	ctx := i18n.WithLocale(t.Context(), i18n.ZhHant)
 
@@ -41,7 +43,9 @@ func TestTheHomeBandIsAShelfWithNoPhotograph(t *testing.T) {
 	}
 }
 
-func TestTheHomeBandWithNoSubCategoriesDrawsNoFactLine(t *testing.T) {
+// TestDepartmentBandNoFact holds that no fact line is drawn for a band whose
+// department has no sub-categories.
+func TestDepartmentBandNoFact(t *testing.T) {
 	t.Parallel()
 	page := renderComponent(t, i18n.WithLocale(t.Context(), i18n.En), Page(frame.Page{}, View{Band: &DepartmentBand{
 		Name: "Tech", Href: "/c/tech", Tiles: tiledShelf(4),
@@ -51,7 +55,9 @@ func TestTheHomeBandWithNoSubCategoriesDrawsNoFactLine(t *testing.T) {
 	}
 }
 
-func TestTheDepartmentBandFollowsTheDirectory(t *testing.T) {
+// TestPageSectionOrder holds the order of the home page's sections: the product
+// row, then the departments, then the band.
+func TestPageSectionOrder(t *testing.T) {
 	t.Parallel()
 	page := renderIn(t, i18n.ZhHant, Page(frame.Page{}, View{
 		Categories: departmentsOf(2),

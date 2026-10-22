@@ -19,7 +19,10 @@ import (
 	"github.com/koopa0/goen/internal/order/buyer"
 )
 
-func TestCancellingAnOrderPutsTheStockBack(t *testing.T) {
+// TestStore_CancelOrderReleasesStock: CancelOrder cancels an unpaid held order
+// and puts its held unit back on the shelf: the order ends cancelled and its
+// reservation released.
+func TestStore_CancelOrderReleasesStock(t *testing.T) {
 	ctx := t.Context()
 	s := buyer.NewStore(pool)
 	vid := freshVariant(t, "stockfix-8")
@@ -47,12 +50,16 @@ func TestCancellingAnOrderPutsTheStockBack(t *testing.T) {
 	}
 }
 
-// TestExpiryWinningTheOrderLockDoesNotPoisonCancellation forces the stale-list
-// interleaving: a sweeper queues first on the order, cancellation queues behind
-// it, and the release remains uncommitted long enough to prove cancellation is
-// still waiting. Once it commits, cancellation must take a fresh held snapshot
-// and succeed instead of trying to release the now-settled reservation again.
-func TestExpiryWinningTheOrderLockDoesNotPoisonCancellation(t *testing.T) {
+// TestStore_CancelOrderSweepWonLock: a sweeper's reservation release that wins
+// the order lock does not poison a cancellation waiting behind it: CancelOrder
+// takes a fresh held snapshot and succeeds, and the unit goes back once.
+//
+// It forces the stale-list interleaving: a sweeper queues first on the order,
+// cancellation queues behind it, and the release remains uncommitted long
+// enough to prove cancellation is still waiting. Once it commits, cancellation
+// must take a fresh held snapshot and succeed instead of trying to release the
+// now-settled reservation again.
+func TestStore_CancelOrderSweepWonLock(t *testing.T) {
 	ctx := t.Context()
 	variantID := freshVariant(t, "sweep-before-cancel")
 	orderID := heldOrder(t, variantID, -time.Hour, false)
@@ -131,7 +138,9 @@ func TestExpiryWinningTheOrderLockDoesNotPoisonCancellation(t *testing.T) {
 	}
 }
 
-func TestAFundedOrderCannotBeCancelledByItsCustomer(t *testing.T) {
+// TestStore_CancelOrderFunded: CancelOrder refuses a paid order with
+// ErrNotCancellable and leaves its stock and its pending status untouched.
+func TestStore_CancelOrderFunded(t *testing.T) {
 	ctx := t.Context()
 	s := buyer.NewStore(pool)
 	vid := freshVariant(t, "stockfix-9")
@@ -156,7 +165,9 @@ func TestAFundedOrderCannotBeCancelledByItsCustomer(t *testing.T) {
 	}
 }
 
-func TestCancellingTwiceIsRefusedTheSecondTime(t *testing.T) {
+// TestStore_CancelOrderTwice: a second cancellation of the same order is
+// refused with ErrNotCancellable and does not release its stock again.
+func TestStore_CancelOrderTwice(t *testing.T) {
 	ctx := t.Context()
 	s := buyer.NewStore(pool)
 	vid := freshVariant(t, "stockfix-10")
@@ -175,7 +186,9 @@ func TestCancellingTwiceIsRefusedTheSecondTime(t *testing.T) {
 	}
 }
 
-func TestCancellingAnOrderThatIsBeingPickedIsRefused(t *testing.T) {
+// TestStore_CancelOrderPicking: CancelOrder refuses an order that is being
+// picked with ErrNotCancellable.
+func TestStore_CancelOrderPicking(t *testing.T) {
 	ctx := t.Context()
 	s := buyer.NewStore(pool)
 	vid := freshVariant(t, "stockfix-11")
@@ -192,17 +205,22 @@ func TestCancellingAnOrderThatIsBeingPickedIsRefused(t *testing.T) {
 	}
 }
 
-func TestCancellingAnOrderThatDoesNotExistIsTheSameRefusal(t *testing.T) {
+// TestStore_CancelOrderUnknown: CancelOrder answers an unknown order number
+// with ErrNotCancellable, the refusal an order that cannot be cancelled gets.
+func TestStore_CancelOrderUnknown(t *testing.T) {
 	s := buyer.NewStore(pool)
 	if err := s.CancelOrder(t.Context(), "GO-990101-999999"); !errors.Is(err, buyer.ErrNotCancellable) {
 		t.Errorf("an unknown order answered %v, want ErrNotCancellable", err)
 	}
 }
 
-// TestAFundedOrderWithNoHeldStockIsStillRefused proves the funding guard in
-// CancelOrderByCustomer rather than the one in release_reservation: with stock
-// held the release refuses first, and only the WHERE clause is left here.
-func TestAFundedOrderWithNoHeldStockIsStillRefused(t *testing.T) {
+// TestStore_CancelOrderFundedNoHold: CancelOrder still refuses a funded order
+// whose stock is no longer held, so the funding guard in CancelOrderByCustomer
+// refuses it, and the order stays pending.
+//
+// With stock held the release in release_reservation refuses first, and only
+// the WHERE clause is left here.
+func TestStore_CancelOrderFundedNoHold(t *testing.T) {
 	ctx := t.Context()
 	s := buyer.NewStore(pool)
 	vid := freshVariant(t, "stockfix-12")
@@ -231,7 +249,11 @@ func TestAFundedOrderWithNoHeldStockIsStillRefused(t *testing.T) {
 	}
 }
 
-func TestAStrangerCannotCancelSomebodyElsesOrder(t *testing.T) {
+// TestHandler_CancelOrderStranger: CancelOrder answers a browser without the
+// order's grant with 404 and moves neither the order nor its stock, while the
+// browser that placed the order is redirected with 303 and its stock is
+// released.
+func TestHandler_CancelOrderStranger(t *testing.T) {
 	ctx := t.Context()
 	s := buyer.NewStore(pool)
 	vid := freshVariant(t, "stockfix-13")
@@ -275,7 +297,10 @@ func TestAStrangerCannotCancelSomebodyElsesOrder(t *testing.T) {
 	}
 }
 
-func TestRefusedCancellationLinksBackToTheOrderAndContact(t *testing.T) {
+// TestHandler_CancelOrderRefusedRecovery: a refused cancellation of a paid
+// order answers 422 with a notice linking back to the order and to the contact
+// page without prefilling, and changes no stock, in both locales.
+func TestHandler_CancelOrderRefusedRecovery(t *testing.T) {
 	vid := freshVariant(t, "cancel-recovery")
 	orderID := heldOrder(t, vid, -time.Hour, true)
 	number := numberOf(t, orderID)

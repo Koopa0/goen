@@ -75,14 +75,14 @@ func (b changeBrowser) follow(token string, session *http.Cookie) *httptest.Resp
 	return b.serve(b.h.Verify, cartForm(b.t.Context(), "/verify", url.Values{"token": {token}}), session)
 }
 
-// TestAnAddressChangeLinkProvesNothingForAnyoneButTheAccountThatAsked: anybody
-// may ask to move their own account to an address that is not theirs, and the
-// link goes to that address's owner, who has every reason to confirm that it is
-// theirs. Proved for the asker's account, the address would take the owner's
-// later "Sign in with Google" into an account whose password the asker chose.
-// So the link proves nothing followed signed out, which asks for a sign-in, or
-// signed in as anybody but the account that asked, which is a dead link.
-func TestAnAddressChangeLinkProvesNothingForAnyoneButTheAccountThatAsked(t *testing.T) {
+// TestHandler_VerifyChangeLinkForeign: an address-change link proves the
+// address only for the account that asked: followed signed out it asks for a
+// sign-in, and followed by any other account it is a dead link, and the asker's
+// account never moves. Anybody may ask to move their own account to an address
+// that is not theirs; proved for the asker's account, the address would take
+// the owner's later "Sign in with Google" into an account whose password the
+// asker chose.
+func TestHandler_VerifyChangeLinkForeign(t *testing.T) {
 	ctx := t.Context()
 	s := auth.NewStore(accountStorePool(t, "change-hijack"))
 	b := changeBrowser{t: t, h: auth.NewHandler(s, nil, nil, slog.New(slog.DiscardHandler), false, nil)}
@@ -144,10 +144,11 @@ func TestAnAddressChangeLinkProvesNothingForAnyoneButTheAccountThatAsked(t *test
 	}
 }
 
-// TestAnAddressChangeLinkTakesTheAccountThatAskedBackThroughSignIn is the other
-// half: followed signed out by whoever asked, the link leads through sign-in
-// back to itself, and confirmed there it moves the account.
-func TestAnAddressChangeLinkTakesTheAccountThatAskedBackThroughSignIn(t *testing.T) {
+// TestHandler_VerifyChangeLinkOwn: an address-change link followed signed out
+// by the account that asked leads through sign-in back to itself, and confirmed
+// there it moves the account. This is the other half of
+// TestHandler_VerifyChangeLinkForeign.
+func TestHandler_VerifyChangeLinkOwn(t *testing.T) {
 	ctx := t.Context()
 	s := auth.NewStore(accountStorePool(t, "change-own"))
 	b := changeBrowser{t: t, h: auth.NewHandler(s, nil, nil, slog.New(slog.DiscardHandler), false, nil)}
@@ -191,10 +192,11 @@ func TestAnAddressChangeLinkTakesTheAccountThatAskedBackThroughSignIn(t *testing
 	}
 }
 
-// TestABackOfficeAccountKeepsItsAddress: a staff or admin account does not move
-// itself to another address, whether it asks as staff or follows, after
-// promotion, a link it asked for as a customer.
-func TestABackOfficeAccountKeepsItsAddress(t *testing.T) {
+// TestHandler_ChangeEmailBackOffice: a staff or admin account does not move
+// itself to another address: ChangeEmail refuses it and queues no link, and
+// Verify refuses with 422 a link that an account asked for as a customer and
+// followed after promotion.
+func TestHandler_ChangeEmailBackOffice(t *testing.T) {
 	ctx := t.Context()
 	s := auth.NewStore(accountStorePool(t, "change-staff"))
 	b := changeBrowser{t: t, h: auth.NewHandler(s, nil, nil, slog.New(slog.DiscardHandler), false, nil)}
@@ -244,11 +246,11 @@ func TestABackOfficeAccountKeepsItsAddress(t *testing.T) {
 	})
 }
 
-// TestAnAddressChangeAnswersTheSameWhetherOrNotTheAddressIsTaken: any account
-// may ask to move to any address, so the answer must not say which addresses
-// have an account. A taken address and a free one get the same answer and the
-// same headers, from the same statements.
-func TestAnAddressChangeAnswersTheSameWhetherOrNotTheAddressIsTaken(t *testing.T) {
+// TestHandler_ChangeEmailTakenAddress: ChangeEmail answers a taken and a free
+// address with the same status, headers and body and runs the same number of
+// statements, so the answer does not say which addresses have an account. Any
+// account may ask to move to any address.
+func TestHandler_ChangeEmailTakenAddress(t *testing.T) {
 	ctx := t.Context()
 	asker := registerProved(t, auth.NewStore(pool), "change-probe-"+uuid.NewString()+"@example.com")
 	taken := registerProved(t, auth.NewStore(pool), "change-taken-"+uuid.NewString()+"@example.com").Email
@@ -293,10 +295,12 @@ func TestAnAddressChangeAnswersTheSameWhetherOrNotTheAddressIsTaken(t *testing.T
 	}
 }
 
-// TestOnlyTheMailboxLearnsThatAnAddressHasAnAccount is the worker's half: the
-// link to a free address goes out, and a taken address's owner is told that
-// somebody asked for it instead, with nothing that proves or opens anything.
-func TestOnlyTheMailboxLearnsThatAnAddressHasAnAccount(t *testing.T) {
+// TestStore_DeliverAddressVerifyTaken: DeliverAddressVerify sends the link to a
+// free address, and for an address another account holds tells that account's
+// owner that somebody asked instead, with nothing that proves or opens
+// anything, so only the mailbox learns the address has an account. This is the
+// worker's half of TestHandler_ChangeEmailTakenAddress.
+func TestStore_DeliverAddressVerifyTaken(t *testing.T) {
 	ctx := t.Context()
 	s := auth.NewStore(pool)
 	asker := registerProved(t, s, "change-mail-"+uuid.NewString()+"@example.com")
@@ -346,10 +350,10 @@ func TestOnlyTheMailboxLearnsThatAnAddressHasAnAccount(t *testing.T) {
 	}
 }
 
-// TestAnAddressIsAnotherAccountsWhateverItsCaseButNeverTheAskersOwn: the worker
-// compares addresses as sign-in does, whatever their case, and never counts the
-// account that asked, which may be proving the address it already holds.
-func TestAnAddressIsAnotherAccountsWhateverItsCaseButNeverTheAskersOwn(t *testing.T) {
+// TestStore_DeliverAddressVerifyCase: DeliverAddressVerify compares addresses
+// as sign-in does, whatever their case, and never counts the account that
+// asked, which may be proving the address it already holds.
+func TestStore_DeliverAddressVerifyCase(t *testing.T) {
 	ctx := t.Context()
 	s := auth.NewStore(pool)
 	asker := registerProved(t, s, "Case-Asker-"+uuid.NewString()+"@Example.com")
@@ -400,12 +404,12 @@ func TestAnAddressIsAnotherAccountsWhateverItsCaseButNeverTheAskersOwn(t *testin
 // before the first refusal.
 const addressMailBudget = 3
 
-// TestAnAddressIsMailedABoundedNumberOfTimesWhoeverAsks: every address change
-// mails the address it names, the link or its owner a note that somebody asked
-// for it, and anybody can have an account with their own mailbox. So requests
-// naming one address are bounded per address, however many accounts and
-// clients they come from.
-func TestAnAddressIsMailedABoundedNumberOfTimesWhoeverAsks(t *testing.T) {
+// TestHandler_ChangeEmailAddressBound: requests to change to one address are
+// bounded per address, however many accounts and clients ask, so the form
+// cannot be used to flood one mailbox. Every address change mails the address
+// it names, the link or its owner a note that somebody asked for it, and
+// anybody can have an account with their own mailbox.
+func TestHandler_ChangeEmailAddressBound(t *testing.T) {
 	ctx := t.Context()
 	s := auth.NewStore(accountStorePool(t, "change-bound"))
 	h := auth.NewHandler(s, nil, nil, slog.New(slog.DiscardHandler), false, nil)
@@ -475,12 +479,12 @@ func TestAnAddressIsMailedABoundedNumberOfTimesWhoeverAsks(t *testing.T) {
 	}
 }
 
-// TestARefusalForAnAddressSaysNothingAboutIt: the bound is the address's own
-// count, whoever holds it, so the refusal once it is spent is the same for an
-// address with an account and one without. The budget is spent in the
-// spellings of one address the form accepts, which are its capitalisations:
-// each is the same mailbox, and none may buy a budget of its own.
-func TestARefusalForAnAddressSaysNothingAboutIt(t *testing.T) {
+// TestHandler_ChangeEmailRefusal: once an address's budget is spent,
+// ChangeEmail refuses a taken and a free address identically (429, same headers
+// and body), and each capitalisation of one address draws on the same budget.
+// The bound is the address's own count, whoever holds it, so the refusal says
+// nothing about the address.
+func TestHandler_ChangeEmailRefusal(t *testing.T) {
 	b := changeBrowser{t: t, h: auth.NewHandler(auth.NewStore(pool), nil, nil,
 		slog.New(slog.DiscardHandler), false, nil)}
 	asker := registerProved(t, auth.NewStore(pool), "change-refused-"+uuid.NewString()+"@example.com")
@@ -530,9 +534,10 @@ func TestARefusalForAnAddressSaysNothingAboutIt(t *testing.T) {
 	}
 }
 
-// TestRegistrationAndAnAddressChangeShareOneBudgetPerAddress: both forms mail
-// the address they name, so taking turns between them buys no more letters.
-func TestRegistrationAndAnAddressChangeShareOneBudgetPerAddress(t *testing.T) {
+// TestHandler_RegisterChangeSharedBudget: registration and an address change
+// draw on one budget per address, so taking turns between the two forms buys no
+// more letters. Both forms mail the address they name.
+func TestHandler_RegisterChangeSharedBudget(t *testing.T) {
 	ctx := t.Context()
 	b := changeBrowser{t: t, h: auth.NewHandler(auth.NewStore(pool), nil, nil,
 		slog.New(slog.DiscardHandler), false, nil)}
@@ -562,11 +567,11 @@ func TestRegistrationAndAnAddressChangeShareOneBudgetPerAddress(t *testing.T) {
 	}
 }
 
-// TestALinkThatCanNoLongerBeFollowedIsNeverMailed: by the time the worker
-// reaches a queued link it may have been replaced by a later request, spent, or
-// left to expire. Mailed, it would only be a letter that fails when followed, so
-// nothing is sent and nobody is told.
-func TestALinkThatCanNoLongerBeFollowedIsNeverMailed(t *testing.T) {
+// TestStore_DeliverAddressVerifyDead: DeliverAddressVerify mails nothing and
+// tells nobody when a queued link has been replaced by a later request, spent
+// or left to expire. By the time the worker reaches it, mailed it would only be
+// a letter that fails when followed.
+func TestStore_DeliverAddressVerifyDead(t *testing.T) {
 	for name, kill := range map[string]func(t *testing.T, s *auth.Store, asker user.User, p *outbox.AddressVerify){
 		"replaced by a later request": func(t *testing.T, s *auth.Store, asker user.User, _ *outbox.AddressVerify) {
 			t.Helper()
@@ -628,7 +633,11 @@ func TestALinkThatCanNoLongerBeFollowedIsNeverMailed(t *testing.T) {
 	}
 }
 
-func TestEmailVerificationSuccessfulPostRedirectsBeforeRefresh(t *testing.T) {
+// TestHandler_VerifyPostRedirects: a link opened by GET runs no statement and
+// changes nothing, the confirming POST answers 303 to /verify?done=1 with no
+// cookie before any refresh, the acknowledgement is identical on refresh, and a
+// spent link then answers 422 and changes nothing.
+func TestHandler_VerifyPostRedirects(t *testing.T) {
 	tests := []struct {
 		locale  i18n.Locale
 		heading string
@@ -746,7 +755,10 @@ func TestEmailVerificationSuccessfulPostRedirectsBeforeRefresh(t *testing.T) {
 	}
 }
 
-func TestDeadVerificationLinksOfferRecovery(t *testing.T) {
+// TestHandler_VerifyDeadLink: a dead verification link (expired or spent) is
+// not validated by GET, and a POST answers 422 with a recovery page that does
+// not leak the token and changes no account state.
+func TestHandler_VerifyDeadLink(t *testing.T) {
 	for _, locale := range i18n.Locales() {
 		for _, state := range []string{"expired", "spent"} {
 			t.Run(locale.Tag()+"/"+state, func(t *testing.T) {

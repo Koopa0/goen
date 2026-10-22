@@ -46,4 +46,4 @@ jobs:
           cat chrome.log
           exit 1
       - name: Native slide and tab-row regression
-        run: go test -count=1 -v -run '^TestCarouselCurrentTabStaysVisibleWithoutMovingThePage$' ./internal/home
+        run: go test -count=1 -v -run '^TestHeroCarouselCurrentTab$' ./internal/home

@@ -647,7 +647,9 @@ func factsOf(t *testing.T, number string) cancellationFacts {
 	return f
 }
 
-func TestAReturnFormRefusesABrowserWithoutAGrant(t *testing.T) {
+// TestHandlerReturnNoGrant: ReturnPage and SubmitReturn answer a browser
+// without the order's access grant with 404.
+func TestHandlerReturnNoGrant(t *testing.T) {
 	ctx := t.Context()
 	number, _ := shippedOrder(t, 2, 2)
 	h := buyer.NewHandler(buyer.NewStore(pool), access.NewStore(pool, false),
@@ -668,7 +670,10 @@ func TestAReturnFormRefusesABrowserWithoutAGrant(t *testing.T) {
 	}
 }
 
-func TestReturnableIsWhatShippedNotWhatWasOrdered(t *testing.T) {
+// TestStore_ReturnOrderReturnable: ReturnOrder counts as returnable what
+// shipped, not what was ordered: of three ordered, none shipped gives 0, one
+// shipped gives 1 and all shipped gives 3.
+func TestStore_ReturnOrderReturnable(t *testing.T) {
 	s := buyer.NewStore(pool)
 
 	tests := []struct {
@@ -698,9 +703,14 @@ func TestReturnableIsWhatShippedNotWhatWasOrdered(t *testing.T) {
 	}
 }
 
+// TestReturnRefundableAmount: return_refundable_amount allocates the order's
+// shipping once across partial returns by approval order, not by created_at:
+// the first approved return refunds its lines and the second its line plus the
+// shipping, summing to the order's exact total.
+//
 // The later request deliberately carries an earlier transaction timestamp:
 // payout identity follows the frozen approval decision, not created_at.
-func TestReturnRefundableAmountAllocatesShippingOnceAcrossPartialReturns(t *testing.T) {
+func TestReturnRefundableAmount(t *testing.T) {
 	ctx := t.Context()
 	const shippingCents int64 = 10000
 	orderID, number, lines := shippedTwoLineOrder(t, shippingCents)
@@ -789,11 +799,13 @@ func TestReturnRefundableAmountAllocatesShippingOnceAcrossPartialReturns(t *test
 	}
 }
 
-// TestStoreRoleGuestCardReturnCommitsThroughDeferredOwnerGuard exercises the
-// runtime role, not the migration owner. A guest order has no live account but
-// a card-funded return needs none; the narrow SECURITY DEFINER trigger must be
-// callable and must admit it at the deferred commit.
-func TestStoreRoleGuestCardReturnCommitsThroughDeferredOwnerGuard(t *testing.T) {
+// TestStore_OpenReturnGuestCard: under the store role, OpenReturn commits a
+// guest's card-funded return: the narrow SECURITY DEFINER trigger of the
+// deferred owner guard is callable by that role and admits it.
+//
+// It exercises the runtime role, not the migration owner. A guest order has no
+// live account but a card-funded return needs none.
+func TestStore_OpenReturnGuestCard(t *testing.T) {
 	number, lineID := shippedOrder(t, 1, 1)
 	app := storeApplicationPool(t, "guest-card-return-"+uuid.NewString()[:8])
 	if err := buyer.NewStore(app).OpenReturn(t.Context(), number, uuid.NullUUID{}, &buyer.ReturnRequest{
@@ -804,7 +816,9 @@ func TestStoreRoleGuestCardReturnCommitsThroughDeferredOwnerGuard(t *testing.T) 
 	}
 }
 
-func TestOpenRefusesMoreThanShipped(t *testing.T) {
+// TestStore_OpenReturnMoreThanShipped: OpenReturn refuses a quantity above what
+// shipped with only ErrReturnTooMany and writes no request.
+func TestStore_OpenReturnMoreThanShipped(t *testing.T) {
 	ctx := t.Context()
 	s := buyer.NewStore(pool)
 	number, lineID := shippedOrder(t, 3, 1)
@@ -827,11 +841,16 @@ func TestOpenRefusesMoreThanShipped(t *testing.T) {
 	}
 }
 
-// TestAConcurrentReturnRendersTheFreshQuantity holds a production interleaving:
-// another approved request is invisible to the first form read but commits
-// before its write. return_within_shipment must become ErrReturnTooMany, and the
-// rejection must reread the order rather than advertising the refused ceiling.
-func TestAConcurrentReturnRendersTheFreshQuantity(t *testing.T) {
+// TestHandler_SubmitReturnQuantityRace: SubmitReturn answers a quantity race
+// (another approved request committing first) with 422 and the
+// quantity-too-large refusal, and the re-rendered form shows the fresh ceiling
+// with the submitted quantity and reason.
+//
+// A production interleaving: another approved request is invisible to the first
+// form read but commits before its write. return_within_shipment must become
+// ErrReturnTooMany, and the rejection must reread the order rather than
+// advertising the refused ceiling.
+func TestHandler_SubmitReturnQuantityRace(t *testing.T) {
 	cases := []struct {
 		name      string
 		competing int32
@@ -948,11 +967,18 @@ func TestAConcurrentReturnRendersTheFreshQuantity(t *testing.T) {
 	}
 }
 
-// TestReturnCreditRequiresLiveAccountSerializesGuestReturnAndErasure holds both
-// order-lock interleavings and the aggregate source split. The access grant is
-// already authority to file, so every OpenReturn deliberately carries a null actor;
-// account lifetime must be decided by money sources, not by that actor field.
-func TestReturnCreditRequiresLiveAccountSerializesGuestReturnAndErasure(t *testing.T) {
+// TestReturnCreditRequiresLiveAccount: the constraint trigger
+// return_credit_requires_live_account serialises a credit-funded return with
+// account erasure under the order lock, so whichever commits first the other is
+// refused, and it decides by the aggregate money sources whether a later
+// partial return needs the account.
+//
+// The access grant is already authority to file, so every OpenReturn
+// deliberately carries a null actor; account lifetime must be decided by money
+// sources, not by that actor field. The subtests are the two order-lock
+// interleavings (return first, erasure first), the aggregate credit exposure of
+// two partial returns and the second partial return after erasure.
+func TestReturnCreditRequiresLiveAccount(t *testing.T) {
 	const accountRule = "return_credit_requires_live_account"
 
 	t.Run("return commits before erasure", func(t *testing.T) {
@@ -1150,7 +1176,10 @@ func TestReturnCreditRequiresLiveAccountSerializesGuestReturnAndErasure(t *testi
 	})
 }
 
-func TestOpenWritesHeaderAndLinesTogether(t *testing.T) {
+// TestStore_OpenReturnHeaderAndLines: OpenReturn writes the request header
+// (status requested, the typed reason) and its lines together, and the claimed
+// units are then no longer returnable.
+func TestStore_OpenReturnHeaderAndLines(t *testing.T) {
 	ctx := t.Context()
 	s := buyer.NewStore(pool)
 	number, lineID := shippedOrder(t, 3, 2)
@@ -1191,7 +1220,9 @@ func TestOpenWritesHeaderAndLinesTogether(t *testing.T) {
 	}
 }
 
-func TestOnlyOneOpenRequestAtATime(t *testing.T) {
+// TestStore_OpenReturnSecondOpen: OpenReturn refuses a second request while one
+// is open, with ErrReturnOpen.
+func TestStore_OpenReturnSecondOpen(t *testing.T) {
 	ctx := t.Context()
 	s := buyer.NewStore(pool)
 	number, lineID := shippedOrder(t, 4, 4)
@@ -1206,9 +1237,13 @@ func TestOnlyOneOpenRequestAtATime(t *testing.T) {
 	}
 }
 
+// TestStore_OpenReturnConcurrentOpen: OpenReturn answers ErrReturnOpen to a
+// request that waits on another transaction's uncommitted open request, and one
+// open request survives.
+//
 // The database serialises the two writers; the pool-side pre-check is not what
 // is under test.
-func TestOneOpenReturnPerOrder(t *testing.T) {
+func TestStore_OpenReturnConcurrentOpen(t *testing.T) {
 	ctx := t.Context()
 	orderID, number, lines := shippedTwoLineOrder(t, 0)
 
@@ -1260,8 +1295,12 @@ func TestOneOpenReturnPerOrder(t *testing.T) {
 	}
 }
 
+// TestStore_OpenReturnInvalid: OpenReturn refuses with ErrReturnInvalid a
+// request with no lines, only zero or negative quantities, an unknown line or a
+// control character in the reason.
+//
 // A blank reason is legal (§19 I); a request with no lines is not a return.
-func TestOpenRefusesAnEmptyRequest(t *testing.T) {
+func TestStore_OpenReturnInvalid(t *testing.T) {
 	ctx := t.Context()
 	s := buyer.NewStore(pool)
 	number, lineID := shippedOrder(t, 2, 2)
@@ -1288,7 +1327,10 @@ func TestOpenRefusesAnEmptyRequest(t *testing.T) {
 	}
 }
 
-func TestBlankReasonIsNotBlamedWhenNoItemWasChosen(t *testing.T) {
+// TestHandler_SubmitReturnNoItem: SubmitReturn with no item and a blank reason
+// answers 422 asking for an item and does not blame the legally optional
+// reason.
+func TestHandler_SubmitReturnNoItem(t *testing.T) {
 	ctx := t.Context()
 	number, _ := shippedOrder(t, 2, 2)
 	h := buyer.NewHandler(buyer.NewStore(pool), access.NewStore(pool, false),
@@ -1317,9 +1359,10 @@ func TestBlankReasonIsNotBlamedWhenNoItemWasChosen(t *testing.T) {
 	}
 }
 
-// TestAReturnNeedsNoReason holds Consumer Protection Act §19 I: rescinding
-// inside seven days needs no reason, and §19 V makes that unwaivable.
-func TestAReturnNeedsNoReason(t *testing.T) {
+// TestStore_OpenReturnNoReason: OpenReturn accepts a return with an empty or
+// whitespace-only reason, because Consumer Protection Act §19 I needs none and
+// §19 V makes that unwaivable.
+func TestStore_OpenReturnNoReason(t *testing.T) {
 	ctx := t.Context()
 	s := buyer.NewStore(pool)
 
@@ -1336,9 +1379,12 @@ func TestAReturnNeedsNoReason(t *testing.T) {
 	}
 }
 
-// TestReasonIsBoundedInRunesNotBytes proves the length limit counts characters,
-// so a Chinese customer is not cut off at a third of an English one's room.
-func TestReasonIsBoundedInRunesNotBytes(t *testing.T) {
+// TestStore_OpenReturnReasonRunes: OpenReturn limits the reason to
+// MaxReturnReasonRunes runes, not bytes: 500 runes are accepted and 501 refused
+// with ErrReturnInvalid.
+//
+// So a Chinese customer is not cut off at a third of an English one's room.
+func TestStore_OpenReturnReasonRunes(t *testing.T) {
 	ctx := t.Context()
 	s := buyer.NewStore(pool)
 	number, lineID := shippedOrder(t, 2, 2)
@@ -1360,10 +1406,12 @@ func TestReasonIsBoundedInRunesNotBytes(t *testing.T) {
 	}
 }
 
-// TestARefundBeforeShipmentIsNotListedAsTheCustomersReturn: the shop refunded
-// an order nothing had shipped from; the customer's page says refunded on the
-// order and lists only the requests they made.
-func TestARefundBeforeShipmentIsNotListedAsTheCustomersReturn(t *testing.T) {
+// TestStore_ReturnOrderRefundBeforeShipment: ReturnOrder does not list a refund
+// made before shipment among the customer's requests.
+//
+// The shop refunded an order nothing had shipped from; the customer's page says
+// refunded on the order and lists only the requests they made.
+func TestStore_ReturnOrderRefundBeforeShipment(t *testing.T) {
 	ctx := t.Context()
 	number, _ := shippedOrder(t, 1, 0)
 	var staff uuid.UUID
@@ -1392,7 +1440,12 @@ func TestARefundBeforeShipmentIsNotListedAsTheCustomersReturn(t *testing.T) {
 	}
 }
 
-func TestReturnQuantityRefusalsPreserveTheWholeForm(t *testing.T) {
+// TestHandler_SubmitReturnQuantityRefusal: SubmitReturn refuses a malformed,
+// stale-ceiling or all-zero quantity and an over-long reason with 422,
+// re-renders the whole form (every quantity, the reason, the aria markers and
+// the matching message) and writes no request, while a blank optional reason is
+// accepted with 303.
+func TestHandler_SubmitReturnQuantityRefusal(t *testing.T) {
 	tests := []struct {
 		name, first, later, reason, inputType, refusal string
 		reasonInvalid, quantityInvalid                 bool
@@ -1510,7 +1563,12 @@ func visitReturnNodes(n *html.Node, visit func(*html.Node)) {
 	}
 }
 
-func TestReturnReasonRefusalsIdentifyTheirCauseThroughPOST(t *testing.T) {
+// TestHandler_SubmitReturnReasonRefusal: POSTed through the route, an over-long
+// reason or one with a control character is refused with 422 naming its own
+// cause (the length first when both apply) and no request is written, while a
+// blank or boundary-length reason is accepted with the trimmed reason stored,
+// in both locales.
+func TestHandler_SubmitReturnReasonRefusal(t *testing.T) {
 	for _, locale := range i18n.Locales() {
 		lengthMessage, controlMessage := reasonRefusalMessages(locale)
 		for _, tt := range []struct {
