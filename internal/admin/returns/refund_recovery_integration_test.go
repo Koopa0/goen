@@ -21,7 +21,9 @@ import (
 	"github.com/koopa0/goen/internal/web/requestid"
 )
 
-func TestRefundRecoveryAttributesEveryProviderAttempt(t *testing.T) {
+// TestStore_DecideRecoveryAttribution: refund recovery attributes every
+// provider attempt.
+func TestStore_DecideRecoveryAttribution(t *testing.T) {
 	ctxA, actorA, requestA := admintest.RefundRecoveryStaffContext(t, pool, "actor-a")
 	ctxB, actorB, requestB := admintest.RefundRecoveryStaffContext(t, pool, "actor-b")
 	returnID, _ := admintest.ReturnedOrder(t, pool, 2)
@@ -102,7 +104,9 @@ func TestRefundRecoveryAttributesEveryProviderAttempt(t *testing.T) {
 	}
 }
 
-func TestEveryKnownTerminalRefundOutcomeGetsOneSuccessor(t *testing.T) {
+// TestStore_DecideTerminalSuccessor: every known terminal refund outcome gets
+// exactly one successor.
+func TestStore_DecideTerminalSuccessor(t *testing.T) {
 	tests := []struct {
 		name       string
 		refunder   admintest.Refunder
@@ -183,7 +187,9 @@ func TestEveryKnownTerminalRefundOutcomeGetsOneSuccessor(t *testing.T) {
 	}
 }
 
-func TestRefundRecoveryRequiresActorAndRequestIDBeforeProviderCall(t *testing.T) {
+// TestStore_DecideRequiresActorRequestID: refund recovery requires an actor and
+// a request id before the provider is called.
+func TestStore_DecideRequiresActorRequestID(t *testing.T) {
 	tests := []struct {
 		name    string
 		context func(*testing.T) context.Context
@@ -244,7 +250,9 @@ func TestRefundRecoveryRequiresActorAndRequestIDBeforeProviderCall(t *testing.T)
 	}
 }
 
-func TestRefundAttemptAuditFailureRollsBackClaim(t *testing.T) {
+// TestStore_DecideAttemptAuditRollback: a failed audit of a refund attempt
+// rolls back the claim.
+func TestStore_DecideAttemptAuditRollback(t *testing.T) {
 	ctx, _, requestID := admintest.RefundRecoveryStaffContext(t, pool, "attempt-audit-failure")
 	returnID, _ := admintest.ReturnedOrder(t, pool, 1)
 	installRefundAuditRejector(t, "refund.provider_attempt")
@@ -275,7 +283,9 @@ func TestRefundAttemptAuditFailureRollsBackClaim(t *testing.T) {
 	}
 }
 
-func TestRefundSucceededAuditFailureRollsBackOutcome(t *testing.T) {
+// TestStore_DecideOutcomeAuditRollback: a failed audit of a refund success
+// rolls back the outcome.
+func TestStore_DecideOutcomeAuditRollback(t *testing.T) {
 	ctx, _, requestID := admintest.RefundRecoveryStaffContext(t, pool, "outcome-audit-failure")
 	returnID, _ := admintest.ReturnedOrder(t, pool, 1)
 	installRefundAuditRejector(t, "refund.provider_succeeded")

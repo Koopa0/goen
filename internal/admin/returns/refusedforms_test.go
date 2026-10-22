@@ -8,9 +8,10 @@ import (
 	"github.com/koopa0/goen/internal/ui/frame"
 )
 
-// TestARefusedInspectionKeepsWhatWasTyped holds that a refusal re-renders the
-// counts and the note rather than the form's defaults, and marks the counts.
-func TestARefusedInspectionKeepsWhatWasTyped(t *testing.T) {
+// TestReturnsRefusedInspectionTyped: a refused inspection keeps what was typed.
+// It holds that a refusal re-renders the counts and the note rather than the
+// form's defaults, and marks the counts.
+func TestReturnsRefusedInspectionTyped(t *testing.T) {
 	t.Parallel()
 	ctx := i18n.WithLocale(t.Context(), i18n.ZhHant)
 	view := ReturnsView{

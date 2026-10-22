@@ -42,7 +42,9 @@ type placedOrder struct {
 	lineIDs []uuid.UUID
 }
 
-func TestAnOrderReturnedInPartsIsRefundedWhatItWouldBeAtOnce(t *testing.T) {
+// TestStore_DecidePartsEqualWhole: an order returned in parts is refunded what
+// it would be at once.
+func TestStore_DecidePartsEqualWhole(t *testing.T) {
 	tests := []struct {
 		name  string
 		order discountedOrder

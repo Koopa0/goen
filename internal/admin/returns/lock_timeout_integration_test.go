@@ -12,10 +12,11 @@ import (
 	"github.com/koopa0/goen/internal/admin/returns"
 )
 
-// TestReturnWritesAnswerALockTimeoutAsAFailure: each write locks the return's
-// order first, and that lock timing out is the database not answering, not a
-// rule refusing the return.
-func TestReturnWritesAnswerALockTimeoutAsAFailure(t *testing.T) {
+// TestStore_LockTimeoutFailure: each return write answers a lock timeout as a
+// failure, not as a refusal. Each write locks the return's order first, and
+// that lock timing out is the database not answering, not a rule refusing the
+// return.
+func TestStore_LockTimeoutFailure(t *testing.T) {
 	ctx, actor := admintest.StaffContext(t, pool)
 	staff := uuid.NullUUID{UUID: actor, Valid: true}
 	s := storeOver(admintest.LockTimeoutPool(t, pool), admintest.Refunder{})

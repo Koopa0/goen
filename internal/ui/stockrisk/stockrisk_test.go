@@ -26,7 +26,9 @@ func renderComponent(t *testing.T, ctx context.Context, c templ.Component) strin
 	return b.String()
 }
 
-func TestWarningFollowsTheEstimateAndItsWordsTheRange(t *testing.T) {
+// TestDaysCover_Warning: the warning follows the estimate and its wording
+// follows the range.
+func TestDaysCover_Warning(t *testing.T) {
 	t.Parallel()
 
 	ctx := i18n.WithLocale(t.Context(), i18n.En)
@@ -51,7 +53,8 @@ func TestWarningFollowsTheEstimateAndItsWordsTheRange(t *testing.T) {
 	}
 }
 
-func TestAnEstimateUnderADayIsADay(t *testing.T) {
+// TestRow_EstimateUnderADay: an estimate under a day is a day.
+func TestRow_EstimateUnderADay(t *testing.T) {
 	t.Parallel()
 
 	// 1 sellable at 150 units in 30 days is 0.2 days.
@@ -68,7 +71,9 @@ func TestAnEstimateUnderADayIsADay(t *testing.T) {
 	}
 }
 
-func TestFigureRangeAndMarkAcrossTheScale(t *testing.T) {
+// TestDaysCover_FigureRangeUrgent: the figure, the range and the mark hold
+// across the scale.
+func TestDaysCover_FigureRangeUrgent(t *testing.T) {
 	t.Parallel()
 
 	ctx := i18n.WithLocale(t.Context(), i18n.En)
@@ -100,7 +105,8 @@ func TestFigureRangeAndMarkAcrossTheScale(t *testing.T) {
 	}
 }
 
-func TestStockRowIsNameAndFactsBesideOneFigure(t *testing.T) {
+// TestRowsNameFactsFigure: a stock row is its name and facts beside one figure.
+func TestRowsNameFactsFigure(t *testing.T) {
 	t.Parallel()
 
 	for _, loc := range []i18n.Locale{i18n.ZhHant, i18n.En} {
@@ -153,7 +159,9 @@ func TestStockRowIsNameAndFactsBesideOneFigure(t *testing.T) {
 	}
 }
 
-func TestSoldOutSinceNamesTheYearOnlyWhenItIsNotThisOne(t *testing.T) {
+// TestRow_SoldOutSinceYear: the sold-out date names the year only when it is
+// not this one.
+func TestRow_SoldOutSinceYear(t *testing.T) {
 	t.Parallel()
 
 	readAt := time.Date(2026, time.January, 3, 4, 0, 0, 0, time.UTC)
@@ -174,7 +182,8 @@ func TestSoldOutSinceNamesTheYearOnlyWhenItIsNotThisOne(t *testing.T) {
 	}
 }
 
-func TestStockLeadDescribesTheDrawingAsDrawn(t *testing.T) {
+// TestSectionLead: the stock lead describes the drawing as drawn.
+func TestSectionLead(t *testing.T) {
 	t.Parallel()
 
 	for _, tc := range []struct {

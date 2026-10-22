@@ -12,7 +12,9 @@ import (
 	"github.com/koopa0/goen/internal/ui/frame"
 )
 
-func TestReturnInspectionCountsRestockedUnitsInBothLanguages(t *testing.T) {
+// TestReturnsInspectionRestockedNotice: the inspection notice counts the
+// restocked units in both languages.
+func TestReturnsInspectionRestockedNotice(t *testing.T) {
 	t.Parallel()
 	for _, locale := range []i18n.Locale{i18n.En, i18n.ZhHant} {
 		for _, count := range []int32{0, 1, 2, 1000} {
@@ -38,7 +40,9 @@ func TestReturnInspectionCountsRestockedUnitsInBothLanguages(t *testing.T) {
 	}
 }
 
-func TestPartialReturnInspectionsLabelOnlyTheirOwnControls(t *testing.T) {
+// TestReturnsPartialInspectionLabels: the inspections of partial returns label
+// only their own controls.
+func TestReturnsPartialInspectionLabels(t *testing.T) {
 	t.Parallel()
 	for _, locale := range []i18n.Locale{i18n.ZhHant, i18n.En} {
 		t.Run(string(locale), func(t *testing.T) {
@@ -125,7 +129,8 @@ func TestPartialReturnInspectionsLabelOnlyTheirOwnControls(t *testing.T) {
 	}
 }
 
-func TestPayoutChannelNamesTheFrozenSources(t *testing.T) {
+// TestReturn_PayoutChannel: the payout channel names the frozen sources.
+func TestReturn_PayoutChannel(t *testing.T) {
 	t.Parallel()
 
 	tests := []struct {
@@ -187,7 +192,8 @@ func TestPayoutChannelNamesTheFrozenSources(t *testing.T) {
 	}
 }
 
-func TestTheReturnQueueHTMLNamesTheRefundChannels(t *testing.T) {
+// TestReturnsPayoutChannels: the return queue's HTML names the refund channels.
+func TestReturnsPayoutChannels(t *testing.T) {
 	t.Parallel()
 
 	render := func(t *testing.T, locale i18n.Locale, row Return) string {
@@ -253,7 +259,9 @@ func TestTheReturnQueueHTMLNamesTheRefundChannels(t *testing.T) {
 	})
 }
 
-func TestAnApprovedReturnWithMoneyOutstandingOffersToSendItAgain(t *testing.T) {
+// TestReturnsRowActions: an approved return with money outstanding offers to
+// send it again, and each other row offers only the actions its state allows.
+func TestReturnsRowActions(t *testing.T) {
 	base := func(id string) Return {
 		return Return{
 			ID: id, OrderNumber: "GO-TEST", Status: "approved", StatusText: "已同意",
@@ -434,11 +442,11 @@ func TestAnApprovedReturnWithMoneyOutstandingOffersToSendItAgain(t *testing.T) {
 	})
 }
 
-// TestEachReturnDecisionPostsItsOwnAnswer locks what the three buttons submit.
-// They are one form with one field, and the answer is carried by the button
-// pressed, so a re-skin that drops a name or a value would send every decision
-// as the same one.
-func TestEachReturnDecisionPostsItsOwnAnswer(t *testing.T) {
+// TestReturnsDecisionButtons: each return decision posts its own answer. It
+// locks what the three buttons submit. They are one form with one field, and
+// the answer is carried by the button pressed, so a re-skin that drops a name
+// or a value would send every decision as the same one.
+func TestReturnsDecisionButtons(t *testing.T) {
 	t.Parallel()
 	page := renderToString(t, Returns(frame.Page{Title: "退貨"}, ReturnsView{
 		Rows: []Return{{
@@ -459,7 +467,9 @@ func TestEachReturnDecisionPostsItsOwnAnswer(t *testing.T) {
 	}
 }
 
-func TestReturnQueueProtectsUndeliveredLinesFromRejection(t *testing.T) {
+// TestReturnsUndeliveredNoReject: the return queue protects undelivered lines
+// from rejection.
+func TestReturnsUndeliveredNoReject(t *testing.T) {
 	t.Parallel()
 	for _, locale := range i18n.Locales() {
 		for _, tt := range []struct {
@@ -488,7 +498,9 @@ func TestReturnQueueProtectsUndeliveredLinesFromRejection(t *testing.T) {
 	}
 }
 
-func TestReturnQueueOffersOrdinaryApprovalForProtectedWindows(t *testing.T) {
+// TestReturnsProtectedWindowApproval: the return queue offers ordinary approval
+// for protected windows.
+func TestReturnsProtectedWindowApproval(t *testing.T) {
 	t.Parallel()
 	for _, locale := range i18n.Locales() {
 		for _, tt := range []struct {
@@ -536,7 +548,9 @@ func TestReturnQueueOffersOrdinaryApprovalForProtectedWindows(t *testing.T) {
 	}
 }
 
-func TestEveryReturnRowLinksItsOrderAndOnlyShippedGoodsCanBeShort(t *testing.T) {
+// TestReturnsRowOrderLinkShortfall: every return row links its order, and only
+// shipped goods can be short.
+func TestReturnsRowOrderLinkShortfall(t *testing.T) {
 	t.Parallel()
 	ctx := i18n.WithLocale(t.Context(), i18n.ZhHant)
 	line := ReturnLine{Name: "耳機", Quantity: 1, Inspected: true, Received: 0}

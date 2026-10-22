@@ -17,12 +17,13 @@ import (
 	"github.com/koopa0/goen/internal/db/dbtest"
 )
 
-// TestTwoInspectionsOfOneReturnDoNotDeadlock: the inspection form's lines
-// arrive in map order, so two submissions of one return can name its lines in
-// opposite orders. Both wait on the order here; once it is free, the one that
-// goes first inspects every line and the other is refused as already inspected,
-// rather than each holding a line the other needs.
-func TestTwoInspectionsOfOneReturnDoNotDeadlock(t *testing.T) {
+// TestStore_InspectNoDeadlock: two inspections of one return do not deadlock.
+// The inspection form's lines arrive in map order, so two submissions of one
+// return can name its lines in opposite orders. Both wait on the order here;
+// once it is free, the one that goes first inspects every line and the other is
+// refused as already inspected, rather than each holding a line the other
+// needs.
+func TestStore_InspectNoDeadlock(t *testing.T) {
 	ctx, actor := admintest.StaffContext(t, pool)
 	staff := uuid.NullUUID{UUID: actor, Valid: true}
 	requestID, number, lines := approvedTwoLineReturn(t)
