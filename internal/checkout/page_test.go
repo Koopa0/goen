@@ -10,7 +10,7 @@ import (
 	"github.com/koopa0/goen/internal/shipping"
 
 	"github.com/google/go-cmp/cmp"
-	htmlparse "golang.org/x/net/html"
+	"golang.org/x/net/html"
 
 	"github.com/koopa0/goen/internal/i18n"
 	"github.com/koopa0/goen/internal/invoice"
@@ -34,11 +34,11 @@ func TestPageChoicesInsideForm(t *testing.T) {
 		Invoice:        InvoiceView{Type: "mobile_carrier", MobileBarcode: "/ABC+123"},
 		InvoiceChoices: []InvoiceChoice{{Value: "mobile_carrier", Label: "手機條碼載具"}},
 	}
-	html := renderToString(t, Page(Meta(ctx), &typed))
+	markup := renderToString(t, Page(Meta(ctx), &typed))
 
 	// Everything typed is still in the document, so a re-render returns it.
 	for _, want := range []string{"王小明", "0912345678", "松高路 99 號", "放管理室", "SAVE10", "/ABC+123"} {
-		if !strings.Contains(html, want) {
+		if !strings.Contains(markup, want) {
 			t.Errorf("the checkout does not carry %q back", want)
 		}
 	}
@@ -52,12 +52,12 @@ func TestPageChoicesInsideForm(t *testing.T) {
 		`name="update" value="shipping"`,
 		`name="update" value="invoice"`,
 	} {
-		if !strings.Contains(html, want) {
+		if !strings.Contains(markup, want) {
 			t.Errorf("the checkout does not carry %s — a chooser outside the form "+
 				"cannot preserve what has been typed into it", want)
 		}
 	}
-	if strings.Contains(html, "/checkout?ship=") || strings.Contains(html, "/checkout?invoice=") {
+	if strings.Contains(markup, "/checkout?ship=") || strings.Contains(markup, "/checkout?invoice=") {
 		t.Error("a chooser is still a link carrying only its own parameter")
 	}
 }
@@ -80,13 +80,13 @@ func TestPageChoiceAppliesOnChange(t *testing.T) {
 		SavedAddresses: []SavedAddress{{ID: "addr-1", Label: "家"}},
 		InvoiceChoices: []InvoiceChoice{{Value: "mobile_carrier", Label: "手機條碼載具"}},
 	}
-	html := renderToString(t, Page(Meta(ctx), &view))
+	markup := renderToString(t, Page(Meta(ctx), &view))
 
-	if !strings.Contains(html, `id="checkout-form"`) {
+	if !strings.Contains(markup, `id="checkout-form"`) {
 		t.Fatal("the checkout form has no id, so a swap has nothing to select or to replace")
 	}
 	for _, which := range []string{"shipping", "address", "invoice"} {
-		group := tagCarrying(t, html, `hx-vals="{&#34;update&#34;:&#34;`+which+`&#34;}"`)
+		group := tagCarrying(t, markup, `hx-vals="{&#34;update&#34;:&#34;`+which+`&#34;}"`)
 		for _, want := range []string{
 			`hx-post="/checkout"`,
 			`hx-trigger="change"`,
@@ -101,7 +101,7 @@ func TestPageChoiceAppliesOnChange(t *testing.T) {
 		}
 		// The same request the button makes, or the two ways of applying one
 		// choice have drifted apart and only one of them is tested.
-		if !strings.Contains(html, `name="update" value="`+which+`"`) {
+		if !strings.Contains(markup, `name="update" value="`+which+`"`) {
 			t.Errorf("a chooser sends update=%s, which no button sends", which)
 		}
 	}
@@ -112,7 +112,7 @@ func TestPageChoiceAppliesOnChange(t *testing.T) {
 		`id="address-book"`,
 		`id="invoice_type-mobile_carrier"`,
 	} {
-		if !strings.Contains(html, want) {
+		if !strings.Contains(markup, want) {
 			t.Errorf("no radio carries %s, so the swap answers with the focus lost", want)
 		}
 	}
@@ -134,16 +134,16 @@ func TestPageApplyButtonSection(t *testing.T) {
 		SavedAddresses: []SavedAddress{{ID: "addr-1", Label: "家"}},
 		InvoiceChoices: []InvoiceChoice{{Value: "mobile_carrier", Label: "手機條碼載具"}},
 	}
-	html := renderToString(t, Page(Meta(ctx), &view))
+	markup := renderToString(t, Page(Meta(ctx), &view))
 
 	for _, which := range []string{"shipping", "address", "invoice"} {
-		if !strings.Contains(html, `formaction="/checkout#`+which+`"`) {
+		if !strings.Contains(markup, `formaction="/checkout#`+which+`"`) {
 			t.Errorf("the %s 更新 button does not name its own section, so its answer "+
 				"opens at the top of the form", which)
 		}
 		// The fragment names a section that exists; #376 is what a fragment
 		// aimed at nothing costs.
-		if !strings.Contains(html, `id="`+which+`"`) {
+		if !strings.Contains(markup, `id="`+which+`"`) {
 			t.Errorf("no section carries id=%q for the fragment to land on", which)
 		}
 	}
@@ -165,7 +165,7 @@ func TestPagePickupAsksForChain(t *testing.T) {
 		Destination:  "pickup_point",
 		PickupChains: pickupChains(),
 	}
-	html := renderToString(t, Page(Meta(ctx), &view))
+	markup := renderToString(t, Page(Meta(ctx), &view))
 
 	for _, want := range []string{
 		`type="radio" name="pickup_chain" value="seven_eleven"`,
@@ -176,31 +176,31 @@ func TestPagePickupAsksForChain(t *testing.T) {
 		// shipping and invoice choosers use.
 		`<label class="goen-checkout__ship">`,
 	} {
-		if !strings.Contains(html, want) {
+		if !strings.Contains(markup, want) {
 			t.Errorf("the pickup form does not offer the chain as a radio card: %s", want)
 		}
 	}
 	for _, gone := range []string{`name="pickup_store_code"`, `name="pickup_store_name"`, "<select"} {
-		if strings.Contains(html, gone) {
+		if strings.Contains(markup, gone) {
 			t.Errorf("the pickup form still asks for %s", gone)
 		}
 	}
 }
 
 // tagCarrying is the opening tag of the element that carries needle.
-func tagCarrying(t *testing.T, html, needle string) string {
+func tagCarrying(t *testing.T, markup, needle string) string {
 	t.Helper()
 
-	at := strings.Index(html, needle)
+	at := strings.Index(markup, needle)
 	if at < 0 {
 		t.Fatalf("the rendered checkout carries no %s", needle)
 	}
-	start := strings.LastIndex(html[:at], "<")
-	end := strings.Index(html[at:], ">")
+	start := strings.LastIndex(markup[:at], "<")
+	end := strings.Index(markup[at:], ">")
 	if start < 0 || end < 0 {
 		t.Fatalf("%s is not inside a tag", needle)
 	}
-	return html[start : at+end+1]
+	return markup[start : at+end+1]
 }
 
 // TestView_OffersTheAddressBook: OffersTheAddressBook offers saved street
@@ -322,11 +322,11 @@ func TestPageSummaryVariant(t *testing.T) {
 		Chosen:   "home",
 	}
 	ctx := i18n.WithLocale(t.Context(), i18n.ZhHant)
-	html := renderToString(t, Page(Meta(ctx), &view))
+	markup := renderToString(t, Page(Meta(ctx), &view))
 
 	// The summary specifically, not the page: the line above the fold carries
 	// the label too.
-	_, summary, ok := strings.Cut(html, "goen-checkout__lines")
+	_, summary, ok := strings.Cut(markup, "goen-checkout__lines")
 	if !ok {
 		t.Fatal("the checkout rendered no summary list")
 	}
@@ -368,17 +368,17 @@ func TestPageInvoiceFields(t *testing.T) {
 				Invoice:        InvoiceView{Type: tt.kind},
 				InvoiceChoices: []InvoiceChoice{{Value: "member_carrier", Label: "會員載具"}},
 			}
-			html := renderToString(t, Page(Meta(ctx), &view))
-			if got := strings.Contains(html, `id="invoice_carrier"`); got != tt.wantBarcode {
+			markup := renderToString(t, Page(Meta(ctx), &view))
+			if got := strings.Contains(markup, `id="invoice_carrier"`); got != tt.wantBarcode {
 				t.Errorf("invoice=%q renders the mobile barcode field = %v, want %v", tt.kind, got, tt.wantBarcode)
 			}
-			if got := strings.Contains(html, `id="invoice_donation_code"`); got != tt.wantDonation {
+			if got := strings.Contains(markup, `id="invoice_donation_code"`); got != tt.wantDonation {
 				t.Errorf("invoice=%q renders the donation code field = %v, want %v", tt.kind, got, tt.wantDonation)
 			}
-			if got := strings.Contains(html, `id="invoice_tax_id"`); got != tt.wantTaxID {
+			if got := strings.Contains(markup, `id="invoice_tax_id"`); got != tt.wantTaxID {
 				t.Errorf("invoice=%q renders the 統編 field = %v, want %v", tt.kind, got, tt.wantTaxID)
 			}
-			if got := strings.Contains(html, `id="invoice_company_name"`); got != tt.wantCompanyName {
+			if got := strings.Contains(markup, `id="invoice_company_name"`); got != tt.wantCompanyName {
 				t.Errorf("invoice=%q renders the company-name field = %v, want %v",
 					tt.kind, got, tt.wantCompanyName)
 			}
@@ -394,7 +394,7 @@ func TestPageInvoiceFields(t *testing.T) {
 		Invoice:        InvoiceView{Type: "company"},
 		InvoiceChoices: []InvoiceChoice{{Value: "company", Label: "公司統編"}},
 	}
-	html := renderToString(t, Page(Meta(ctx), &full))
+	markup := renderToString(t, Page(Meta(ctx), &full))
 	for _, want := range []string{
 		`type="radio" name="shipping"`,
 		`type="radio" name="invoice_type"`,
@@ -403,7 +403,7 @@ func TestPageInvoiceFields(t *testing.T) {
 		`name="update" value="shipping"`,
 		`name="update" value="invoice"`,
 	} {
-		if !strings.Contains(html, want) {
+		if !strings.Contains(markup, want) {
 			t.Errorf("the checkout does not carry %s — a chooser outside the form "+
 				"cannot preserve what has been typed into it", want)
 		}
@@ -424,18 +424,18 @@ func TestPageRepricedNotice(t *testing.T) {
 		Shipping: []cart.ShippingChoice{{Code: "home", Name: "宅配到府"}},
 		Repriced: "離島運費另計,已更新為 NT$280。確認後再送出一次。",
 	}
-	html := renderToString(t, Page(Meta(ctx), &view))
+	markup := renderToString(t, Page(Meta(ctx), &view))
 
-	if !strings.Contains(html, view.Repriced) {
+	if !strings.Contains(markup, view.Repriced) {
 		t.Fatal("the re-quote is not shown at all")
 	}
 	// The element carrying it, not merely the words: the string appears the
 	// same either way.
-	_, after, ok := strings.Cut(html, view.Repriced)
+	_, after, ok := strings.Cut(markup, view.Repriced)
 	if !ok {
 		t.Fatal("could not locate the message")
 	}
-	before := html[:len(html)-len(after)-len(view.Repriced)]
+	before := markup[:len(markup)-len(after)-len(view.Repriced)]
 	i := strings.LastIndex(before, "<p ")
 	if i < 0 {
 		t.Fatal("the message is not in a paragraph")
@@ -462,16 +462,16 @@ func TestPageCreditChangedNotice(t *testing.T) {
 		Shipping:      []cart.ShippingChoice{{Code: "home", Name: "宅配到府"}},
 		CreditChanged: "可用購物金已變更為 NT$10。請確認後再送出一次。",
 	}
-	html := renderToString(t, Page(Meta(ctx), &view))
+	markup := renderToString(t, Page(Meta(ctx), &view))
 
-	if !strings.Contains(html, view.CreditChanged) {
+	if !strings.Contains(markup, view.CreditChanged) {
 		t.Fatal("the refreshed credit balance is not shown")
 	}
-	_, after, ok := strings.Cut(html, view.CreditChanged)
+	_, after, ok := strings.Cut(markup, view.CreditChanged)
 	if !ok {
 		t.Fatal("could not locate the refreshed credit message")
 	}
-	before := html[:len(html)-len(after)-len(view.CreditChanged)]
+	before := markup[:len(markup)-len(after)-len(view.CreditChanged)]
 	i := strings.LastIndex(before, "<p ")
 	if i < 0 {
 		t.Fatal("the refreshed credit message is not in a paragraph")
@@ -502,9 +502,9 @@ func TestPageEnterPlacesOrder(t *testing.T) {
 		Chosen:         "s1",
 		InvoiceChoices: []InvoiceChoice{{Value: "member_carrier", Label: "會員載具"}},
 	}
-	html := renderToString(t, Page(Meta(ctx), &view))
+	markup := renderToString(t, Page(Meta(ctx), &view))
 
-	_, form, ok := strings.Cut(html, `action="/checkout"`)
+	_, form, ok := strings.Cut(markup, `action="/checkout"`)
 	if !ok {
 		t.Fatal("the checkout rendered no form")
 	}
@@ -565,7 +565,7 @@ func TestPagePlacementNote(t *testing.T) {
 					view.CouponApplied = "FULL"
 				}
 				body := renderComponent(t, ctx, Page(Meta(ctx), &view))
-				doc, err := htmlparse.Parse(strings.NewReader(body))
+				doc, err := html.Parse(strings.NewReader(body))
 				if err != nil {
 					t.Fatal(err)
 				}
@@ -575,10 +575,10 @@ func TestPagePlacementNote(t *testing.T) {
 					NoteBeforeVisible      bool
 				}
 				var got placementFacts
-				var visible *htmlparse.Node
-				var form *htmlparse.Node
+				var visible *html.Node
+				var form *html.Node
 				for n := range doc.Descendants() {
-					if n.Type == htmlparse.ElementNode && n.Data == "form" && attrValue(n, "id") == "checkout-form" {
+					if n.Type == html.ElementNode && n.Data == "form" && attrValue(n, "id") == "checkout-form" {
 						form = n
 						break
 					}
@@ -587,7 +587,7 @@ func TestPagePlacementNote(t *testing.T) {
 					t.Fatal("checkout has no placement form")
 				}
 				for n := range form.Descendants() {
-					if n.Type != htmlparse.ElementNode || n.Data != "button" || attrValue(n, "type") != "submit" {
+					if n.Type != html.ElementNode || n.Data != "button" || attrValue(n, "type") != "submit" {
 						continue
 					}
 					if attrValue(n, "aria-hidden") == "true" {
@@ -606,7 +606,7 @@ func TestPagePlacementNote(t *testing.T) {
 					if n == visible {
 						seenVisible = true
 					}
-					if n.Type == htmlparse.ElementNode && n.Data == "p" && attrValue(n, "class") == "goen-checkout__note" {
+					if n.Type == html.ElementNode && n.Data == "p" && attrValue(n, "class") == "goen-checkout__note" {
 						got.Note = strings.TrimSpace(nodeText(n))
 						got.Notes++
 						got.NoteBeforeVisible = !seenVisible
@@ -643,24 +643,24 @@ func TestPageChosenOptionChecked(t *testing.T) {
 		Invoice:        InvoiceView{Type: "mobile_carrier"},
 		InvoiceChoices: []InvoiceChoice{{Value: "member_carrier", Label: "會員載具"}, {Value: "mobile_carrier", Label: "手機條碼載具"}},
 	}
-	html := renderToString(t, Page(Meta(ctx), &view))
+	markup := renderToString(t, Page(Meta(ctx), &view))
 
 	for _, want := range []string{`value="ship-2" checked`, `value="mobile_carrier" checked`} {
-		if !strings.Contains(html, want) {
+		if !strings.Contains(markup, want) {
 			t.Errorf("the chosen option does not carry %s — nothing in the document "+
 				"says which one it is, so the card cannot show it and a screen "+
 				"reader cannot announce it", want)
 		}
 	}
 	for _, unwanted := range []string{`value="ship-1" checked`, `value="member_carrier" checked`} {
-		if strings.Contains(html, unwanted) {
+		if strings.Contains(markup, unwanted) {
 			t.Errorf("an option nobody picked renders %s", unwanted)
 		}
 	}
 
 	// And no second marker beside it. A class the server paints onto the chosen
 	// label is a fact stored twice.
-	if strings.Contains(html, "--on") {
+	if strings.Contains(markup, "--on") {
 		t.Error("the chooser still renders a server-side selected class beside the " +
 			"checked radio; two sources for one fact disagree after a press")
 	}
@@ -684,9 +684,9 @@ func TestPageCouponApplyButton(t *testing.T) {
 		Shipping: []cart.ShippingChoice{{VersionID: "s1", Code: "home", Name: "宅配到府"}},
 		Chosen:   "s1",
 	}
-	html := renderToString(t, Page(Meta(ctx), &view))
+	markup := renderToString(t, Page(Meta(ctx), &view))
 
-	_, form, ok := strings.Cut(html, `action="/checkout"`)
+	_, form, ok := strings.Cut(markup, `action="/checkout"`)
 	if !ok {
 		t.Fatal("the checkout rendered no form")
 	}
@@ -735,9 +735,9 @@ func TestPageRecipientControls(t *testing.T) {
 		Profile:       Profile{Email: "me@example.com", Name: "王小明", Phone: "0912345678"},
 		RecipientMe:   true,
 	}
-	html := renderToString(t, Page(Meta(ctx), &view))
+	markup := renderToString(t, Page(Meta(ctx), &view))
 
-	box := tagCarrying(t, html, "data-recipient-me")
+	box := tagCarrying(t, markup, "data-recipient-me")
 	for _, want := range []string{
 		`name="recipient_me"`, "checked", `data-name="王小明"`,
 		`data-phone="0912345678"`, `data-email="me@example.com"`,
@@ -746,30 +746,30 @@ func TestPageRecipientControls(t *testing.T) {
 			t.Errorf("the recipient box lacks %s:\n%s", want, box)
 		}
 	}
-	if !strings.Contains(html, i18n.T(ctx, i18n.KeyRecipientIsMe)) {
+	if !strings.Contains(markup, i18n.T(ctx, i18n.KeyRecipientIsMe)) {
 		t.Error("the recipient box has no label")
 	}
-	if !strings.Contains(html, `name="update" value="recipient"`) {
+	if !strings.Contains(markup, `name="update" value="recipient"`) {
 		t.Error("no button applies the recipient box without scripting")
 	}
 
-	option := tagCarrying(t, html, `value="addr-1"`)
+	option := tagCarrying(t, markup, `value="addr-1"`)
 	if !strings.Contains(option, "selected") {
 		t.Errorf("the chosen saved address is not selected:\n%s", option)
 	}
 	// Choosing applies on the server, which re-quotes delivery for the postal code.
-	if !strings.Contains(tagCarrying(t, html, `name="address"`), `hx-post="/checkout"`) {
+	if !strings.Contains(tagCarrying(t, markup, `name="address"`), `hx-post="/checkout"`) {
 		t.Error("choosing a saved address does not re-render the form, so delivery keeps the old price")
 	}
 	for _, want := range []string{`name="recipient_prev_name"`, `name="recipient_prev_phone"`} {
-		if !strings.Contains(html, want) {
+		if !strings.Contains(markup, want) {
 			t.Errorf("the form does not carry %s, so unticking cannot restore what was there", want)
 		}
 	}
-	if !strings.Contains(html, `value="`+OtherAddress+`"`) || !strings.Contains(html, i18n.T(ctx, i18n.KeyOtherAddress)) {
+	if !strings.Contains(markup, `value="`+OtherAddress+`"`) || !strings.Contains(markup, i18n.T(ctx, i18n.KeyOtherAddress)) {
 		t.Error("there is no 「其他地址」 option for typing a new address")
 	}
-	if !strings.Contains(html, i18n.T(ctx, i18n.KeyChooseSavedAddress)) {
+	if !strings.Contains(markup, i18n.T(ctx, i18n.KeyChooseSavedAddress)) {
 		t.Error("the address select has no label")
 	}
 }
@@ -787,12 +787,12 @@ func TestPageGuestNoControls(t *testing.T) {
 		Shipping: []cart.ShippingChoice{{VersionID: "ship-1", Code: "home", Name: "宅配到府"}},
 		Chosen:   "ship-1",
 	}
-	html := renderToString(t, Page(Meta(ctx), &view))
+	markup := renderToString(t, Page(Meta(ctx), &view))
 	for _, gone := range []string{
 		"data-recipient-me", "recipient_me", "recipient_prev", `name="address"`,
 		i18n.T(ctx, i18n.KeyRecipientIsMe), i18n.T(ctx, i18n.KeyChooseSavedAddress),
 	} {
-		if strings.Contains(html, gone) {
+		if strings.Contains(markup, gone) {
 			t.Errorf("a guest's checkout carries %q", gone)
 		}
 	}
@@ -816,9 +816,9 @@ func TestPageCouponSwap(t *testing.T) {
 	t.Parallel()
 	ctx := i18n.WithLocale(t.Context(), i18n.ZhHant)
 	view := couponTestView()
-	html := renderToString(t, Page(Meta(ctx), &view))
+	markup := renderToString(t, Page(Meta(ctx), &view))
 
-	button := tagCarrying(t, html, `value="coupon"`)
+	button := tagCarrying(t, markup, `value="coupon"`)
 	for _, want := range []string{
 		`hx-post="/checkout"`,
 		`hx-swap="none"`,
@@ -833,7 +833,7 @@ func TestPageCouponSwap(t *testing.T) {
 		}
 	}
 	for _, id := range []string{"coupon", "coupon-message", "summary-totals", "checkout-quote", "coupon-field"} {
-		if !strings.Contains(html, `id="`+id+`"`) {
+		if !strings.Contains(markup, `id="`+id+`"`) {
 			t.Errorf("the page has no element with id %q for the coupon swap", id)
 		}
 	}
@@ -842,7 +842,7 @@ func TestPageCouponSwap(t *testing.T) {
 			t.Errorf("the coupon button names %s, which would replace more than the code and the totals", bad)
 		}
 	}
-	if !strings.Contains(html, `id="coupon-message" aria-live="polite"`) {
+	if !strings.Contains(markup, `id="coupon-message" aria-live="polite"`) {
 		t.Error("the coupon's message is not in a live region, so a refusal is not announced")
 	}
 }
@@ -859,15 +859,15 @@ func TestPageCouponRefusalBanner(t *testing.T) {
 
 	only := couponTestView()
 	only.Errors = map[string]string{"coupon": "找不到這組折扣碼。"}
-	html := renderToString(t, Page(Meta(ctx), &only))
-	if !strings.Contains(html, "折扣碼無法套用：找不到這組折扣碼。") || strings.Contains(html, general) {
+	markup := renderToString(t, Page(Meta(ctx), &only))
+	if !strings.Contains(markup, "折扣碼無法套用：找不到這組折扣碼。") || strings.Contains(markup, general) {
 		t.Error("the banner does not name the coupon refusal")
 	}
 
 	both := couponTestView()
 	both.Errors = map[string]string{"coupon": "找不到這組折扣碼。", "phone": "請填寫聯絡電話"}
-	html = renderToString(t, Page(Meta(ctx), &both))
-	if !strings.Contains(html, general) {
+	markup = renderToString(t, Page(Meta(ctx), &both))
+	if !strings.Contains(markup, general) {
 		t.Error("a form with other refusals lost the general banner")
 	}
 }
@@ -882,8 +882,8 @@ func TestPageFormNovalidateFocus(t *testing.T) {
 	ctx := i18n.WithLocale(t.Context(), i18n.ZhHant)
 
 	fresh := couponTestView()
-	html := renderToString(t, Page(Meta(ctx), &fresh))
-	form := tagCarrying(t, html, `id="checkout-form"`)
+	markup := renderToString(t, Page(Meta(ctx), &fresh))
+	form := tagCarrying(t, markup, `id="checkout-form"`)
 	if !strings.Contains(form, "novalidate") {
 		t.Error("the browser can block a submit with its own bubble for one field and not the others")
 	}
@@ -893,8 +893,8 @@ func TestPageFormNovalidateFocus(t *testing.T) {
 
 	refused := couponTestView()
 	refused.Errors = map[string]string{"phone": "請填寫聯絡電話"}
-	html = renderToString(t, Page(Meta(ctx), &refused))
-	if !strings.Contains(tagCarrying(t, html, `id="checkout-form"`), "data-focus-refused") {
+	markup = renderToString(t, Page(Meta(ctx), &refused))
+	if !strings.Contains(tagCarrying(t, markup, `id="checkout-form"`), "data-focus-refused") {
 		t.Error("a refused form does not ask for focus on its first refusal")
 	}
 

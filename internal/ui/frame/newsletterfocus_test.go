@@ -5,7 +5,7 @@ import (
 	"strings"
 	"testing"
 
-	nethtml "golang.org/x/net/html"
+	"golang.org/x/net/html"
 
 	"github.com/koopa0/goen/internal/i18n"
 	"github.com/koopa0/goen/internal/ui/frame"
@@ -36,15 +36,15 @@ func TestNewsletterFormVisibleLabel(t *testing.T) {
 	if err := frame.NewsletterForm(frame.NewsletterState{}).Render(i18n.WithLocale(t.Context(), i18n.ZhHant), &b); err != nil {
 		t.Fatal(err)
 	}
-	html := b.String()
-	label := regexp.MustCompile(`<label class="([^"]*)" for="newsletter-email">`).FindStringSubmatch(html)
+	markup := b.String()
+	label := regexp.MustCompile(`<label class="([^"]*)" for="newsletter-email">`).FindStringSubmatch(markup)
 	if label == nil {
-		t.Fatalf("no <label for=\"newsletter-email\"> in the newsletter form:\n%s", html)
+		t.Fatalf("no <label for=\"newsletter-email\"> in the newsletter form:\n%s", markup)
 	}
 	if strings.Contains(label[1], "sr-only") {
 		t.Errorf("the newsletter label is visually hidden (class %q)", label[1])
 	}
-	if !strings.Contains(html, `id="newsletter-email"`) {
+	if !strings.Contains(markup, `id="newsletter-email"`) {
 		t.Error("no field has the id the label points at")
 	}
 }
@@ -123,12 +123,12 @@ func TestNewsletterFormConfirmationFocus(t *testing.T) {
 	for _, locale := range []i18n.Locale{i18n.ZhHant, i18n.En} {
 		t.Run(string(locale), func(t *testing.T) {
 			t.Parallel()
-			render := func(s frame.NewsletterState) *nethtml.Node {
+			render := func(s frame.NewsletterState) *html.Node {
 				var b strings.Builder
 				if err := frame.NewsletterForm(s).Render(i18n.WithLocale(t.Context(), locale), &b); err != nil {
 					t.Fatal(err)
 				}
-				doc, err := nethtml.Parse(strings.NewReader(b.String()))
+				doc, err := html.Parse(strings.NewReader(b.String()))
 				if err != nil {
 					t.Fatal(err)
 				}
@@ -136,16 +136,16 @@ func TestNewsletterFormConfirmationFocus(t *testing.T) {
 			}
 			var target string
 			for n := range render(frame.NewsletterState{}).Descendants() {
-				if n.Type == nethtml.ElementNode && n.Data == "form" {
+				if n.Type == html.ElementNode && n.Data == "form" {
 					target = attr(n, "data-focus-after-swap")
 				}
 			}
 			if target == "" {
 				t.Fatal("the newsletter form names no element to take focus after it is swapped away")
 			}
-			var done *nethtml.Node
+			var done *html.Node
 			for n := range render(frame.NewsletterState{Done: true, Email: "a***@example.com"}).Descendants() {
-				if n.Type == nethtml.ElementNode && attr(n, "id") == target {
+				if n.Type == html.ElementNode && attr(n, "id") == target {
 					done = n
 				}
 			}
@@ -162,7 +162,7 @@ func TestNewsletterFormConfirmationFocus(t *testing.T) {
 	}
 }
 
-func attr(n *nethtml.Node, key string) string {
+func attr(n *html.Node, key string) string {
 	for _, a := range n.Attr {
 		if a.Key == key {
 			return a.Val

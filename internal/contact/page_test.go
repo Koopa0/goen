@@ -5,7 +5,7 @@ import (
 	"testing"
 
 	"github.com/a-h/templ"
-	nethtml "golang.org/x/net/html"
+	"golang.org/x/net/html"
 
 	"github.com/koopa0/goen/internal/contact"
 	"github.com/koopa0/goen/internal/i18n"
@@ -21,19 +21,19 @@ func TestContactOwnedEmail(t *testing.T) {
 			"footer":  frame.Footer(frame.NewsletterState{}),
 		} {
 			t.Run(string(locale)+"/"+name, func(t *testing.T) {
-				var out strings.Builder
-				if err := component.Render(i18n.WithLocale(t.Context(), locale), &out); err != nil {
+				var b strings.Builder
+				if err := component.Render(i18n.WithLocale(t.Context(), locale), &b); err != nil {
 					t.Fatal(err)
 				}
-				html := out.String()
-				if !strings.Contains(html, `href="mailto:contact@koopa0.dev">contact@koopa0.dev</a>`) && name == "footer" {
+				out := b.String()
+				if !strings.Contains(out, `href="mailto:contact@koopa0.dev">contact@koopa0.dev</a>`) && name == "footer" {
 					t.Error("footer does not expose the owned mailbox")
 				}
-				if !strings.Contains(html, `href="mailto:contact@koopa0.dev"`) || !strings.Contains(html, `>contact@koopa0.dev<`) {
+				if !strings.Contains(out, `href="mailto:contact@koopa0.dev"`) || !strings.Contains(out, `>contact@koopa0.dev<`) {
 					t.Error("contact destination or visible mailbox is missing")
 				}
 				for _, forbidden := range []string{"support@goen.tw", "02-2700-1234", "tel:+886227001234"} {
-					if strings.Contains(html, forbidden) {
+					if strings.Contains(out, forbidden) {
 						t.Errorf("unowned contact detail %q remains", forbidden)
 					}
 				}
@@ -74,12 +74,12 @@ func TestPanelConfirmationFocus(t *testing.T) {
 		t.Run(string(locale), func(t *testing.T) {
 			t.Parallel()
 			ctx := i18n.WithLocale(t.Context(), locale)
-			render := func(f contact.Form) *nethtml.Node {
+			render := func(f contact.Form) *html.Node {
 				var b strings.Builder
 				if err := contact.Panel(f).Render(ctx, &b); err != nil {
 					t.Fatal(err)
 				}
-				doc, err := nethtml.Parse(strings.NewReader(b.String()))
+				doc, err := html.Parse(strings.NewReader(b.String()))
 				if err != nil {
 					t.Fatal(err)
 				}
@@ -107,25 +107,25 @@ func TestPanelConfirmationFocus(t *testing.T) {
 	}
 }
 
-func elementByTag(n *nethtml.Node, tag string) *nethtml.Node {
+func elementByTag(n *html.Node, tag string) *html.Node {
 	for d := range n.Descendants() {
-		if d.Type == nethtml.ElementNode && d.Data == tag {
+		if d.Type == html.ElementNode && d.Data == tag {
 			return d
 		}
 	}
 	return nil
 }
 
-func elementByID(n *nethtml.Node, id string) *nethtml.Node {
+func elementByID(n *html.Node, id string) *html.Node {
 	for d := range n.Descendants() {
-		if d.Type == nethtml.ElementNode && nodeAttr(d, "id") == id {
+		if d.Type == html.ElementNode && nodeAttr(d, "id") == id {
 			return d
 		}
 	}
 	return nil
 }
 
-func nodeAttr(n *nethtml.Node, key string) string {
+func nodeAttr(n *html.Node, key string) string {
 	for _, a := range n.Attr {
 		if a.Key == key {
 			return a.Val

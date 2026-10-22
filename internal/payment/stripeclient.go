@@ -8,7 +8,7 @@ import (
 	"net/http"
 	"time"
 
-	stripe "github.com/stripe/stripe-go/v86"
+	"github.com/stripe/stripe-go/v86"
 )
 
 // stripeReplyLimit bounds one reply goen reads from Stripe. The SDK reads a

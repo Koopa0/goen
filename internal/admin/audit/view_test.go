@@ -1,7 +1,7 @@
 package audit
 
 import (
-	stdhtml "html"
+	"html"
 	"io/fs"
 	"os"
 	"path/filepath"
@@ -63,16 +63,16 @@ func TestEntry_ActorTextSystem(t *testing.T) {
 func TestAuditChangesAsRows(t *testing.T) {
 	t.Parallel()
 	ctx := i18n.WithLocale(t.Context(), i18n.En)
-	html := renderComponent(t, ctx, Audit(frame.Page{}, View{Rows: []Entry{{
+	markup := renderComponent(t, ctx, Audit(frame.Page{}, View{Rows: []Entry{{
 		Action: "order.advance", Entity: "orders", Actor: "staff", At: "2026-10-02 10:00",
 		Changes: []Change{{Field: "status", Before: "pending", After: "picking"}},
 	}}}))
 	for _, want := range []string{"<dt>Status</dt>", "<dd>Awaiting payment → Picking</dd>"} {
-		if !strings.Contains(html, want) {
+		if !strings.Contains(markup, want) {
 			t.Errorf("audit row is missing %s", want)
 		}
 	}
-	if strings.Contains(html, `{"status"`) || strings.Contains(html, "{&#34;status") {
+	if strings.Contains(markup, `{"status"`) || strings.Contains(markup, "{&#34;status") {
 		t.Error("the audit row prints raw JSON")
 	}
 }
@@ -81,7 +81,7 @@ func TestAuditChangesReadAsWordsAndWholeDollars(t *testing.T) {
 	t.Parallel()
 	const customerID = "0b6c3a4e-1111-4222-8333-444455556666"
 	ctx := i18n.WithLocale(t.Context(), i18n.En)
-	html := renderComponent(t, ctx, Audit(frame.Page{}, View{Rows: []Entry{
+	markup := renderComponent(t, ctx, Audit(frame.Page{}, View{Rows: []Entry{
 		{
 			Action: "credit.grant", Entity: "store_credit_entries", Actor: "staff", At: "2026-10-02 10:00",
 			Changes: []Change{{Field: "amount_cents", After: "9999900"}},
@@ -108,12 +108,12 @@ func TestAuditChangesReadAsWordsAndWholeDollars(t *testing.T) {
 		`<a href="/admin/customers/` + customerID + `">wang@example.test</a>`,
 		"<dt>This record includes the field “odd_key”.</dt>", "<dd>odd</dd>",
 	} {
-		if !strings.Contains(html, want) {
+		if !strings.Contains(markup, want) {
 			t.Errorf("audit page is missing %q", want)
 		}
 	}
 	for _, unwanted := range []string{"_cents", "9999900", "black_cat"} {
-		if strings.Contains(html, unwanted) {
+		if strings.Contains(markup, unwanted) {
 			t.Errorf("audit page still prints %q", unwanted)
 		}
 	}
@@ -123,10 +123,10 @@ func TestAuditChangesReadAsWordsAndWholeDollars(t *testing.T) {
 func TestAuditMoneyTag(t *testing.T) {
 	t.Parallel()
 	ctx := i18n.WithLocale(t.Context(), i18n.ZhHant)
-	html := renderComponent(t, ctx, Audit(frame.Page{}, View{Rows: []Entry{
+	markup := renderComponent(t, ctx, Audit(frame.Page{}, View{Rows: []Entry{
 		{Action: "credit.grant", Entity: "store_credit_entries", Actor: "staff", Changes: []Change{{Field: "amount_cents", After: "100"}}},
 	}}))
-	if !strings.Contains(html, ">金額</span>") {
+	if !strings.Contains(markup, ">金額</span>") {
 		t.Error("a money row has no visible money tag")
 	}
 }
@@ -217,11 +217,11 @@ func TestEntryReadsEachRecordedKindAsWords(t *testing.T) {
 			if tt.wantKey != "" {
 				want = i18n.T(ctx, tt.wantKey)
 			}
-			html := renderComponent(t, ctx, Audit(frame.Page{}, View{Rows: []Entry{tt.entry}}))
-			if !strings.Contains(html, want) {
+			markup := renderComponent(t, ctx, Audit(frame.Page{}, View{Rows: []Entry{tt.entry}}))
+			if !strings.Contains(markup, want) {
 				t.Errorf("audit row is missing %q", want)
 			}
-			if strings.Contains(html, tt.wantNot) {
+			if strings.Contains(markup, tt.wantNot) {
 				t.Errorf("audit row still carries %q", tt.wantNot)
 			}
 		})
@@ -248,8 +248,8 @@ func TestEntry_MoneyAmountsOnly(t *testing.T) {
 				t.Errorf("Money() = %v, want %v", got, tt.want)
 			}
 			ctx := i18n.WithLocale(t.Context(), i18n.En)
-			html := renderComponent(t, ctx, Audit(frame.Page{}, View{Rows: []Entry{tt.entry}}))
-			if got := strings.Contains(html, ">Money<"); got != tt.want {
+			markup := renderComponent(t, ctx, Audit(frame.Page{}, View{Rows: []Entry{tt.entry}}))
+			if got := strings.Contains(markup, ">Money<"); got != tt.want {
 				t.Errorf("rendered Money tag = %v, want %v", got, tt.want)
 			}
 		})
@@ -290,7 +290,7 @@ func TestAuditUnknownFieldsRetainDetails(t *testing.T) {
 					t.Errorf("unknown field = %#v, want label %q and text %q without a link", changes[0], label, tt.text)
 				}
 				rendered := renderComponent(t, ctx, Audit(frame.Page{}, View{Rows: []Entry{entry}}))
-				for _, want := range []string{"<dt>" + stdhtml.EscapeString(label) + "</dt>", "<dd>" + stdhtml.EscapeString(tt.text) + "</dd>"} {
+				for _, want := range []string{"<dt>" + html.EscapeString(label) + "</dt>", "<dd>" + html.EscapeString(tt.text) + "</dd>"} {
 					if !strings.Contains(rendered, want) {
 						t.Errorf("unknown field is missing %q", want)
 					}

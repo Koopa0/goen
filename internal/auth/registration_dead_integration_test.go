@@ -20,7 +20,7 @@ import (
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/jackc/pgx/v5/pgxpool"
-	htmlparse "golang.org/x/net/html"
+	nethtml "golang.org/x/net/html"
 
 	"github.com/koopa0/goen/internal/auth"
 	"github.com/koopa0/goen/internal/bearer"
@@ -251,10 +251,10 @@ func registrationRecoveryCopy(locale i18n.Locale) (body, link string) {
 func registrationRecoveryHref(t *testing.T, page string, locale i18n.Locale) string {
 	t.Helper()
 	_, wantLabel := registrationRecoveryCopy(locale)
-	z := htmlparse.NewTokenizer(strings.NewReader(page))
-	for z.Next() != htmlparse.ErrorToken {
+	z := nethtml.NewTokenizer(strings.NewReader(page))
+	for z.Next() != nethtml.ErrorToken {
 		token := z.Token()
-		if token.Type != htmlparse.StartTagToken || token.Data != "a" {
+		if token.Type != nethtml.StartTagToken || token.Data != "a" {
 			continue
 		}
 		var href string
@@ -263,7 +263,7 @@ func registrationRecoveryHref(t *testing.T, page string, locale i18n.Locale) str
 				href = attr.Val
 			}
 		}
-		if z.Next() == htmlparse.TextToken && strings.TrimSpace(string(z.Text())) == wantLabel {
+		if z.Next() == nethtml.TextToken && strings.TrimSpace(string(z.Text())) == wantLabel {
 			return href
 		}
 	}
@@ -279,25 +279,25 @@ type registrationResendForm struct {
 
 func readRegistrationResendForm(t *testing.T, page, next string) url.Values {
 	t.Helper()
-	root, err := htmlparse.Parse(strings.NewReader(page))
+	root, err := nethtml.Parse(strings.NewReader(page))
 	if err != nil {
 		t.Fatalf("parse the recovered resend page: %v", err)
 	}
 	var got registrationResendForm
 	got.Values = url.Values{}
-	var visit func(*htmlparse.Node, bool)
-	visit = func(n *htmlparse.Node, inForm bool) {
+	var visit func(*nethtml.Node, bool)
+	visit = func(n *nethtml.Node, inForm bool) {
 		attrs := map[string]string{}
 		for _, attr := range n.Attr {
 			attrs[attr.Key] = attr.Val
 		}
-		if n.Type == htmlparse.ElementNode && n.Data == "form" {
+		if n.Type == nethtml.ElementNode && n.Data == "form" {
 			inForm = attrs["action"] == "/register/resend"
 			if inForm {
 				got.Action, got.Method = attrs["action"], attrs["method"]
 			}
 		}
-		if inForm && n.Type == htmlparse.ElementNode {
+		if inForm && n.Type == nethtml.ElementNode {
 			switch n.Data {
 			case "label":
 				got.LabelFor = attrs["for"]

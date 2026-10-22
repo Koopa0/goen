@@ -2,7 +2,7 @@ package refunds
 
 import (
 	"fmt"
-	stdhtml "html"
+	"html"
 	"strings"
 	"testing"
 
@@ -54,7 +54,7 @@ func TestConfirmRefundCreditPaid(t *testing.T) {
 		if err := ConfirmRefund(frame.Page{Title: "refund"}, v).Render(ctx, &body); err != nil {
 			t.Fatal(err)
 		}
-		page := stdhtml.UnescapeString(body.String())
+		page := html.UnescapeString(body.String())
 		if !strings.Contains(page, fmt.Sprintf(i18n.T(ctx, i18n.KeyAdminRefundCreditReturn), money.TWD(500000))) ||
 			!strings.Contains(page, i18n.T(ctx, i18n.KeyAdminRefundCreditCancel)) ||
 			!strings.Contains(page, `name="reason"`) || !strings.Contains(page, `name="total" value="500000"`) {
@@ -73,15 +73,15 @@ func TestConfirmRefundCancellation(t *testing.T) {
 	t.Parallel()
 	for _, locale := range []i18n.Locale{i18n.ZhHant, i18n.En} {
 		ctx := i18n.WithLocale(t.Context(), locale)
-		html := renderComponent(t, ctx, ConfirmRefund(frame.Page{Title: "refund"},
+		markup := renderComponent(t, ctx, ConfirmRefund(frame.Page{Title: "refund"},
 			RefundConfirmation{OrderNumber: "GO-1", TotalCents: 100000}))
-		if !strings.Contains(html, i18n.T(ctx, i18n.KeyAdminRefundConfirmAmount)) {
+		if !strings.Contains(markup, i18n.T(ctx, i18n.KeyAdminRefundConfirmAmount)) {
 			t.Errorf("%s: the amount is not labelled as a cancellation refund", locale)
 		}
-		if strings.Contains(html, i18n.T(ctx, i18n.KeyAdminRetConfirmAmount)) {
+		if strings.Contains(markup, i18n.T(ctx, i18n.KeyAdminRetConfirmAmount)) {
 			t.Errorf("%s: a cancellation is labelled with the return amount", locale)
 		}
-		_, label, _ := strings.Cut(html, `for="refund-reason"`)
+		_, label, _ := strings.Cut(markup, `for="refund-reason"`)
 		label, _, _ = strings.Cut(label, "</label>")
 		if !strings.Contains(label, i18n.T(ctx, i18n.KeyAdminRequiredMark)) {
 			t.Errorf("%s: the required note is not marked required: %s", locale, label)

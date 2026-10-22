@@ -20,7 +20,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
-	htmlnode "golang.org/x/net/html"
+	"golang.org/x/net/html"
 
 	"github.com/koopa0/goen/internal/catalog"
 	"github.com/koopa0/goen/internal/db"
@@ -251,7 +251,7 @@ func recommendationResponse(t *testing.T, ctx context.Context, h *catalog.Handle
 	return res
 }
 
-func findDescendant(n *htmlnode.Node, match func(*htmlnode.Node) bool) *htmlnode.Node {
+func findDescendant(n *html.Node, match func(*html.Node) bool) *html.Node {
 	if n == nil {
 		return nil
 	}
@@ -266,7 +266,7 @@ func findDescendant(n *htmlnode.Node, match func(*htmlnode.Node) bool) *htmlnode
 	return nil
 }
 
-func attrValue(n *htmlnode.Node, name string) string {
+func attrValue(n *html.Node, name string) string {
 	if n != nil {
 		for _, attr := range n.Attr {
 			if attr.Key == name {
@@ -277,11 +277,11 @@ func attrValue(n *htmlnode.Node, name string) string {
 	return ""
 }
 
-func nodeText(n *htmlnode.Node) string {
+func nodeText(n *html.Node) string {
 	if n == nil {
 		return ""
 	}
-	if n.Type == htmlnode.TextNode {
+	if n.Type == html.TextNode {
 		return n.Data
 	}
 	var text strings.Builder
@@ -291,17 +291,17 @@ func nodeText(n *htmlnode.Node) string {
 	return text.String()
 }
 
-func assertBuyBoxIntact(t *testing.T, res *httptest.ResponseRecorder, want *catalog.ProductView) *htmlnode.Node {
+func assertBuyBoxIntact(t *testing.T, res *httptest.ResponseRecorder, want *catalog.ProductView) *html.Node {
 	t.Helper()
 	if res.Code != http.StatusOK {
 		t.Fatalf("optional failure returned %d, want 200", res.Code)
 	}
-	doc, err := htmlnode.Parse(strings.NewReader(res.Body.String()))
+	doc, err := html.Parse(strings.NewReader(res.Body.String()))
 	if err != nil {
 		t.Fatal(err)
 	}
-	buybox := findDescendant(doc, func(n *htmlnode.Node) bool { return attrValue(n, "id") == "buybox" })
-	price := findDescendant(buybox, func(n *htmlnode.Node) bool {
+	buybox := findDescendant(doc, func(n *html.Node) bool { return attrValue(n, "id") == "buybox" })
+	price := findDescendant(buybox, func(n *html.Node) bool {
 		for _, class := range strings.Fields(attrValue(n, "class")) {
 			if class == "goen-pdp__price" {
 				return true
@@ -312,23 +312,23 @@ func assertBuyBoxIntact(t *testing.T, res *httptest.ResponseRecorder, want *cata
 	if !strings.Contains(nodeText(price), want.Price()) {
 		t.Errorf("current price = %q, want %q", nodeText(price), want.Price())
 	}
-	form := findDescendant(buybox, func(n *htmlnode.Node) bool {
+	form := findDescendant(buybox, func(n *html.Node) bool {
 		if n.Data != "form" {
 			return false
 		}
 		action, parseErr := url.Parse(strings.TrimSpace(attrValue(n, "action")))
 		return parseErr == nil && action.Scheme == "" && action.Host == "" && action.Path == "/cart/items"
 	})
-	variant := findDescendant(form, func(n *htmlnode.Node) bool { return n.Data == "input" && attrValue(n, "name") == "variant" })
-	quantity := findDescendant(form, func(n *htmlnode.Node) bool { return n.Data == "input" && attrValue(n, "name") == "quantity" })
+	variant := findDescendant(form, func(n *html.Node) bool { return n.Data == "input" && attrValue(n, "name") == "variant" })
+	quantity := findDescendant(form, func(n *html.Node) bool { return n.Data == "input" && attrValue(n, "name") == "quantity" })
 	if form == nil || !strings.EqualFold(attrValue(form, "method"), http.MethodPost) || attrValue(variant, "value") != want.VariantID || attrValue(quantity, "max") != want.MaxQuantity() {
 		t.Error("optional failure changed the current variant, stock limit or purchase form")
 	}
-	submit := findDescendant(form, func(n *htmlnode.Node) bool { return n.Data == "button" && attrValue(n, "type") == "submit" })
+	submit := findDescendant(form, func(n *html.Node) bool { return n.Data == "button" && attrValue(n, "type") == "submit" })
 	if submit == nil {
 		t.Error("optional failure removed the purchase submit button")
 	}
-	for _, n := range []*htmlnode.Node{variant, quantity, submit} {
+	for _, n := range []*html.Node{variant, quantity, submit} {
 		if n != nil {
 			if owner := attrValue(n, "form"); owner != "" && owner != attrValue(form, "id") {
 				t.Error("purchase control belongs to another form")
@@ -415,7 +415,7 @@ func TestHandler_ProductRecommendationFault(t *testing.T) {
 						t.Error("optional read escaped its bounded request time")
 					}
 					doc := assertBuyBoxIntact(t, res, &want)
-					if findDescendant(doc, func(n *htmlnode.Node) bool { return attrValue(n, "id") == op.missing }) != nil || findDescendant(doc, func(n *htmlnode.Node) bool { return attrValue(n, "id") == op.retained }) == nil {
+					if findDescendant(doc, func(n *html.Node) bool { return attrValue(n, "id") == op.missing }) != nil || findDescendant(doc, func(n *html.Node) bool { return attrValue(n, "id") == op.retained }) == nil {
 						t.Error("optional failure did not omit only its own recommendation section")
 					}
 					assertRecommendationQueriesDrained(t, p)
@@ -450,7 +450,7 @@ func TestHandler_ProductRecommendationHealthy(t *testing.T) {
 	h := catalog.NewHandler(catalog.NewStore(p, logger), logger, "https://goen.example")
 	doc := assertBuyBoxIntact(t, recommendationResponse(t, t.Context(), h, &want), &want)
 	for _, heading := range []string{"related-heading", "also-heading"} {
-		if findDescendant(doc, func(n *htmlnode.Node) bool { return attrValue(n, "id") == heading }) == nil {
+		if findDescendant(doc, func(n *html.Node) bool { return attrValue(n, "id") == heading }) == nil {
 			t.Errorf("healthy recommendations omitted %s", heading)
 		}
 	}
@@ -462,7 +462,7 @@ func TestHandler_ProductRecommendationHealthy(t *testing.T) {
 	}
 	doc = assertBuyBoxIntact(t, recommendationResponse(t, t.Context(), h, &want), &want)
 	for _, heading := range []string{"related-heading", "also-heading"} {
-		if findDescendant(doc, func(n *htmlnode.Node) bool { return attrValue(n, "id") == heading }) != nil {
+		if findDescendant(doc, func(n *html.Node) bool { return attrValue(n, "id") == heading }) != nil {
 			t.Errorf("empty recommendations retained %s", heading)
 		}
 	}
@@ -486,7 +486,7 @@ func TestHandler_ProductRecommendationCold(t *testing.T) {
 			defer cancel()
 			doc := assertBuyBoxIntact(t, recommendationResponse(t, ctx, h, &want), &want)
 			for _, heading := range []string{"related-heading", "also-heading"} {
-				present := findDescendant(doc, func(n *htmlnode.Node) bool { return attrValue(n, "id") == heading }) != nil
+				present := findDescendant(doc, func(n *html.Node) bool { return attrValue(n, "id") == heading }) != nil
 				wantPresent := query == "RelatedProducts" || heading == "also-heading"
 				if present != wantPresent {
 					t.Errorf("cold %s: section %s present = %t, want %t", query, heading, present, wantPresent)
@@ -687,7 +687,7 @@ func TestHandler_ProductRecommendationSaturated(t *testing.T) {
 				t.Errorf("saturated diagnostic = %v, want one product recommendations unavailable record for %s, reason timed_out", record, op.operation)
 			}
 			doc := assertBuyBoxIntact(t, res, &want)
-			if findDescendant(doc, func(n *htmlnode.Node) bool { return attrValue(n, "id") == op.missing }) != nil || findDescendant(doc, func(n *htmlnode.Node) bool { return attrValue(n, "id") == op.retained }) == nil {
+			if findDescendant(doc, func(n *html.Node) bool { return attrValue(n, "id") == op.missing }) != nil || findDescendant(doc, func(n *html.Node) bool { return attrValue(n, "id") == op.retained }) == nil {
 				t.Error("saturated acquisition did not omit only its own recommendation section")
 			}
 

@@ -6,7 +6,7 @@ import (
 	"net/url"
 	"time"
 
-	stripe "github.com/stripe/stripe-go/v86"
+	"github.com/stripe/stripe-go/v86"
 )
 
 // disputeWindow is how far back a dispute is looked for. Stripe's response

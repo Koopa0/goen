@@ -4,7 +4,7 @@ import (
 	"go/ast"
 	"go/parser"
 	"go/token"
-	stdhtml "html"
+	"html"
 	"path/filepath"
 	"strconv"
 	"strings"
@@ -212,7 +212,7 @@ func TestAuditRecordedFieldLabels(t *testing.T) {
 				}
 				entry := Entry{Entity: field.entity, Changes: []Change{{Field: field.field, Before: "before-recorded", After: "after-recorded"}}}
 				rendered := renderComponent(t, ctx, Audit(frame.Page{}, View{Rows: []Entry{entry}}))
-				for _, want := range []string{"<dt>" + stdhtml.EscapeString(label) + "</dt>", "<dd>before-recorded → after-recorded</dd>"} {
+				for _, want := range []string{"<dt>" + html.EscapeString(label) + "</dt>", "<dd>before-recorded → after-recorded</dd>"} {
 					if !strings.Contains(rendered, want) {
 						t.Errorf("recorded %s.%s is missing %q", field.entity, field.field, want)
 					}

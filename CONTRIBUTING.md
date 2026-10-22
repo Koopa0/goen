@@ -368,9 +368,14 @@ renaming.)" ([Google: import renaming](https://google.github.io/styleguide/go/de
 - Rename an import only for a collision ("Avoid renaming imports except to
   avoid a name collision",
   [Code Review Comments](https://go.dev/wiki/CodeReviewComments#imports)), and
-  use the same local name in every file (Google). The `importas` lint with
-  `no-extra-aliases`, which lists each alias with its reason, arrives in a later
-  pull request; until then review holds the rule.
+  use the same local name in every file (Google). The `importas` lint holds
+  both: `.golangci.yml` lists each alias with its reason, and with
+  `no-extra-aliases` an alias not listed fails. A listed package is still
+  imported bare where nothing collides (`no-unaliased` stays off), which review
+  holds. Two are listed: `nethtml` for `golang.org/x/net/html` in a file that
+  also imports the standard library's `html` (the standard library keeps its
+  name; the alias takes the parent path element, as the Go tree writes
+  `cryptorand` and `mathrand`), and `returndesk` above.
 - A clash with a local is solved by renaming the local. Only where the local is
   the better word for its whole scope does the package take Google's "pkg suffix
   (e.g. urlpkg)", registered like any alias. `invoicepkg`, six files behind

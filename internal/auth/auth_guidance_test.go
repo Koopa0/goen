@@ -9,7 +9,7 @@ import (
 	"strings"
 	"testing"
 
-	xhtml "golang.org/x/net/html"
+	nethtml "golang.org/x/net/html"
 
 	"github.com/koopa0/goen/internal/auth"
 	"github.com/koopa0/goen/internal/i18n"
@@ -50,7 +50,7 @@ func (c *authGuidanceCase) get(serve http.HandlerFunc, target string) *httptest.
 }
 
 // mismatch posts two different passwords to serve and wants the 422 refusal.
-func (c *authGuidanceCase) mismatch(serve http.HandlerFunc, target string) *xhtml.Node {
+func (c *authGuidanceCase) mismatch(serve http.HandlerFunc, target string) *nethtml.Node {
 	ctx := i18n.WithLocale(c.t.Context(), c.locale)
 	form := url.Values{"email": {"ada@example.com"}, "password": {"long-password"}, "confirm": {"other-password"}, "token": {"unchecked"}}
 	req := httptest.NewRequestWithContext(ctx, http.MethodPost, target, strings.NewReader(form.Encode()))
@@ -140,9 +140,9 @@ func TestHandler_ResetMismatch(t *testing.T) {
 
 // authGuidanceWantConfirmRefusal wants the mismatch refusal attached to the
 // confirm field alone: the first password is not marked invalid.
-func authGuidanceWantConfirmRefusal(t *testing.T, root *xhtml.Node) {
+func authGuidanceWantConfirmRefusal(t *testing.T, root *nethtml.Node) {
 	t.Helper()
-	var confirm, refusal *xhtml.Node
+	var confirm, refusal *nethtml.Node
 	for n := range root.Descendants() {
 		if n.Data == "input" && authGuidanceAttr(n, "name") == "password" && authGuidanceAttr(n, "aria-invalid") == "true" {
 			t.Error("mismatch marks the first password invalid")
@@ -162,7 +162,7 @@ func authGuidanceWantConfirmRefusal(t *testing.T, root *xhtml.Node) {
 }
 
 // authGuidanceInForm reports whether a tag with the attribute value sits inside a form.
-func authGuidanceInForm(root *xhtml.Node, tag, attr, value string) bool {
+func authGuidanceInForm(root *nethtml.Node, tag, attr, value string) bool {
 	for n := range root.Descendants() {
 		if n.Data != tag || authGuidanceAttr(n, attr) != value {
 			continue
@@ -177,7 +177,7 @@ func authGuidanceInForm(root *xhtml.Node, tag, attr, value string) bool {
 }
 
 // authGuidanceWantHint wants the password input to point at a hint element that exists.
-func authGuidanceWantHint(t *testing.T, root *xhtml.Node) {
+func authGuidanceWantHint(t *testing.T, root *nethtml.Node) {
 	t.Helper()
 	var describedby string
 	ids := map[string]bool{}
@@ -195,7 +195,7 @@ func authGuidanceWantHint(t *testing.T, root *xhtml.Node) {
 }
 
 // authGuidanceWantFocus wants autofocus on the named input and on no other.
-func authGuidanceWantFocus(t *testing.T, root *xhtml.Node, want string) {
+func authGuidanceWantFocus(t *testing.T, root *nethtml.Node, want string) {
 	t.Helper()
 	var focused []string
 	for n := range root.Descendants() {
@@ -212,16 +212,16 @@ func authGuidanceWantFocus(t *testing.T, root *xhtml.Node, want string) {
 	}
 }
 
-func authGuidanceDOM(t *testing.T, body string) *xhtml.Node {
+func authGuidanceDOM(t *testing.T, body string) *nethtml.Node {
 	t.Helper()
-	root, err := xhtml.Parse(strings.NewReader(body))
+	root, err := nethtml.Parse(strings.NewReader(body))
 	if err != nil {
 		t.Fatal(err)
 	}
 	return root
 }
 
-func authGuidanceAttr(n *xhtml.Node, key string) string {
+func authGuidanceAttr(n *nethtml.Node, key string) string {
 	for _, a := range n.Attr {
 		if a.Key == key {
 			return a.Val

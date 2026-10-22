@@ -5,7 +5,7 @@ import (
 	"strings"
 	"testing"
 
-	stripe "github.com/stripe/stripe-go/v86"
+	"github.com/stripe/stripe-go/v86"
 )
 
 // TestActionableInEnvExample: Every event goen acts on is in the setup. A

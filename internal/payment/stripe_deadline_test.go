@@ -11,7 +11,7 @@ import (
 	"testing/synctest"
 	"time"
 
-	stripe "github.com/stripe/stripe-go/v86"
+	"github.com/stripe/stripe-go/v86"
 )
 
 type stripeRequestActivity struct {

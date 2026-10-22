@@ -2,7 +2,7 @@ package catalog
 
 import (
 	"context"
-	htmlpkg "html"
+	"html"
 	"strings"
 	"testing"
 
@@ -130,41 +130,41 @@ func TestProductWarrantyDetail(t *testing.T) {
 				tt.mutate(&v)
 			}
 			ctx := i18n.WithLocale(t.Context(), tt.locale)
-			html := renderProductInLocale(t, ctx, &v)
+			out := renderProductInLocale(t, ctx, &v)
 
-			if got := strings.Contains(html, detailBlock); got != tt.wantDetail {
+			if got := strings.Contains(out, detailBlock); got != tt.wantDetail {
 				t.Errorf("detail block present = %v, want %v", got, tt.wantDetail)
 			}
-			if got := strings.Contains(html, warrantyHeading); got != tt.wantWarranty {
+			if got := strings.Contains(out, warrantyHeading); got != tt.wantWarranty {
 				t.Errorf("warranty heading present = %v, want %v", got, tt.wantWarranty)
 			}
-			if got := strings.Contains(html, warrantyBlock); got != tt.wantWarranty {
+			if got := strings.Contains(out, warrantyBlock); got != tt.wantWarranty {
 				t.Errorf("warranty body present = %v, want %v", got, tt.wantWarranty)
 			}
 			if tt.wantText != nil {
 				for _, want := range tt.wantText(ctx, &v) {
-					if !strings.Contains(html, want) {
+					if !strings.Contains(out, want) {
 						t.Errorf("rendered HTML does not contain %q", want)
 					}
 				}
 			}
 			if !tt.wantWarranty {
-				if strings.Contains(html, warrantyHeading) || strings.Contains(html, warrantyBlock) {
+				if strings.Contains(out, warrantyHeading) || strings.Contains(out, warrantyBlock) {
 					t.Error("rendered an empty warranty section")
 				}
 			}
 			// The fact beside the buy button promises cover, so a product
 			// that states no term must not carry it; a note alone is not a term.
 			// Matched as its own term: the word also reads inside a shop's warranty note.
-			assurance := "<dt>" + htmlpkg.EscapeString(i18n.T(ctx, i18n.KeySectionWarranty)) + "</dt>"
-			if got := strings.Contains(html, assurance); got != v.HasWarranty() {
+			assurance := "<dt>" + html.EscapeString(i18n.T(ctx, i18n.KeySectionWarranty)) + "</dt>"
+			if got := strings.Contains(out, assurance); got != v.HasWarranty() {
 				t.Errorf("warranty assurance present = %v, want %v (months %d)",
 					got, v.HasWarranty(), v.WarrantyMonths)
 			}
-			if v.Description == "" && strings.Contains(html, descHeading) {
+			if v.Description == "" && strings.Contains(out, descHeading) {
 				t.Error("rendered a description section without copy")
 			}
-			if !v.HasSpecs() && strings.Contains(html, specsHeading) {
+			if !v.HasSpecs() && strings.Contains(out, specsHeading) {
 				t.Error("rendered a specs section without rows")
 			}
 		})

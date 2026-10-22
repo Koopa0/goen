@@ -19,7 +19,7 @@ import (
 	"time"
 
 	"github.com/google/uuid"
-	stripe "github.com/stripe/stripe-go/v86"
+	"github.com/stripe/stripe-go/v86"
 
 	"github.com/koopa0/goen/internal/order/access"
 	"github.com/koopa0/goen/internal/payment"
