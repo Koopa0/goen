@@ -20,7 +20,10 @@ func renderToString(t *testing.T, c templ.Component) string {
 	return b.String()
 }
 
-func TestCampaignPaginationKeepsBothBrowsingPositions(t *testing.T) {
+// TestDealsView_PageHref: campaign pagination keeps both browsing positions: a
+// campaign page link keeps the product page, and a product page link keeps the
+// campaign page.
+func TestDealsView_PageHref(t *testing.T) {
 	v := DealsView{Page: 3, PageSize: 24, Total: 100, Campaigns: Listed{Page: 2, PageSize: 6, Total: 13, Rows: []Summary{{Slug: "seventh", Title: "Seventh campaign"}}}}
 	if got := v.CampaignPageHref(3); got != "/deals?campaign_page=3&page=3#campaigns" {
 		t.Errorf("campaign href = %s", got)
@@ -50,7 +53,9 @@ func navLabelled(t *testing.T, html, label string) string {
 	return html[start : start+end]
 }
 
-func TestCampaignPagerKeepsItsEndsVisibleAndTheProductPagerItsLabel(t *testing.T) {
+// TestDealsPagers: the campaign pager keeps its ends visible and the product
+// pager its label.
+func TestDealsPagers(t *testing.T) {
 	ctx := t.Context()
 	campaigns, product := i18n.T(ctx, i18n.KeyCampaignPagination), i18n.T(ctx, i18n.KeyPagination)
 	for _, tt := range []struct {
@@ -73,8 +78,11 @@ func TestCampaignPagerKeepsItsEndsVisibleAndTheProductPagerItsLabel(t *testing.T
 	}
 }
 
-// The nav and the department notice are catalog's TestNothingOfferedIsCalledLimitedTime.
-func TestNothingOfferedIsCalledLimitedTime(t *testing.T) {
+// TestDealsNotCalledLimitedTime: nothing offered is called limited time: the
+// deals title, page, campaign meta, strip and header never say 限時, and the
+// deals title is 優惠. The nav and the department notice are held by the
+// catalog package's test of the same wording.
+func TestDealsNotCalledLimitedTime(t *testing.T) {
 	t.Parallel()
 	ctx := i18n.WithLocale(t.Context(), i18n.ZhHant)
 	var page, list strings.Builder

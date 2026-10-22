@@ -14,7 +14,8 @@ import (
 
 const seedBanner = "campaign-banner-01.webp"
 
-func TestCampaignPageShowsItsHeaderOnlyWhenItHasOne(t *testing.T) {
+// TestPageHeader: a campaign page shows its header only when it has one.
+func TestPageHeader(t *testing.T) {
 	t.Parallel()
 	ctx := i18n.WithLocale(t.Context(), i18n.En)
 	with := renderComponent(t, ctx, campaign.Page(frame.Page{Title: "c"}, campaign.View{
@@ -38,7 +39,10 @@ func TestCampaignPageShowsItsHeaderOnlyWhenItHasOne(t *testing.T) {
 	}
 }
 
-func TestCampaignHeaderKeyResolvesLikeAProductImage(t *testing.T) {
+// TestImage_URLHeaderKey: a campaign header key resolves like a product image:
+// a bundled banner resolves through the image resolver, and an uploaded header
+// to its media path.
+func TestImage_URLHeaderKey(t *testing.T) {
 	t.Parallel()
 	if banner := (assets.Image{BundledKey: seedBanner}); banner.URL() == "" || !strings.Contains(banner.Srcset(), "-800.webp") {
 		t.Fatal("the embedded banner does not resolve through the product image resolver")
@@ -49,10 +53,10 @@ func TestCampaignHeaderKeyResolvesLikeAProductImage(t *testing.T) {
 	}
 }
 
-// The attribute is what app.css selects the ground on; a head without it is
-// unthemed. The department head's half of this test is catalog's
-// TestADepartmentHeadCarriesItsTone.
-func TestACampaignHeadCarriesItsTone(t *testing.T) {
+// TestPageHeadTone: a campaign head carries its tone. The attribute is what
+// app.css selects the ground on; a head without it is unthemed. The department
+// head's half of this test is catalog's TestADepartmentHeadCarriesItsTone.
+func TestPageHeadTone(t *testing.T) {
 	t.Parallel()
 	ctx := i18n.WithLocale(t.Context(), i18n.En)
 

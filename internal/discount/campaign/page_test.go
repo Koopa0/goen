@@ -22,7 +22,8 @@ func renderCampaign(t *testing.T, startsAt, endsAt time.Time) string {
 	}))
 }
 
-func TestACampaignPageStatesItsFactsAndDrawsItsDays(t *testing.T) {
+// TestPageFactsAndDays: a campaign page states its facts and draws its days.
+func TestPageFactsAndDays(t *testing.T) {
 	t.Parallel()
 	tests := []struct {
 		name         string
@@ -58,8 +59,10 @@ func TestACampaignPageStatesItsFactsAndDrawsItsDays(t *testing.T) {
 	}
 }
 
-// The other pages' rows of this test are catalog's TestEmptyStatesShowTheirIllustrationAsDecoration.
-func TestTheEmptyCampaignShowsItsIllustrationAsDecoration(t *testing.T) {
+// TestPageEmptyIllustration: the empty campaign shows its illustration as
+// decoration. The other pages' rows of this test are catalog's
+// TestEmptyStatesShowTheirIllustrationAsDecoration.
+func TestPageEmptyIllustration(t *testing.T) {
 	t.Parallel()
 	ctx := i18n.WithLocale(t.Context(), i18n.ZhHant)
 	page := renderComponent(t, ctx, campaign.Page(frame.Page{}, campaign.View{Title: "x"}))
@@ -69,8 +72,10 @@ func TestTheEmptyCampaignShowsItsIllustrationAsDecoration(t *testing.T) {
 	}
 }
 
-// From TestEveryPageKindSendsItsOwnLinkPreviewTags, which keeps the other pages' rows.
-func TestTheCampaignPageSendsItsOwnLinkPreviewTags(t *testing.T) {
+// TestMetaLinkPreview: the campaign page sends its own link-preview tags. From
+// TestEveryPageKindSendsItsOwnLinkPreviewTags, which keeps the other pages'
+// rows.
+func TestMetaLinkPreview(t *testing.T) {
 	t.Parallel()
 	ctx := i18n.WithLocale(frame.WithRequestPath(t.Context(), "/s/autumn"), i18n.ZhHant)
 	p := campaign.Meta(ctx, "秋日選物", widget.Photo{URL: "/static/media/campaigns/autumn.webp?v=1", Alt: "秋日"})
@@ -90,7 +95,9 @@ func TestTheCampaignPageSendsItsOwnLinkPreviewTags(t *testing.T) {
 	}
 }
 
-func TestACampaignIsCalledACampaignInEnglish(t *testing.T) {
+// TestMetaEnglishWording: a campaign is called a campaign in English, in its
+// not-found copy and in its meta description.
+func TestMetaEnglishWording(t *testing.T) {
 	t.Parallel()
 	ctx := i18n.WithLocale(t.Context(), i18n.En)
 	for key, want := range map[i18n.Key]string{

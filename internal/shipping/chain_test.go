@@ -5,7 +5,10 @@ import (
 	"testing"
 )
 
-func TestKnownChainsIsTheClosedSetAndReturnsFreshStorage(t *testing.T) {
+// TestChainsClosedSetFreshStorage: Chains is the closed set of known chains and
+// returns fresh storage, so changing the result does not change the canonical
+// set.
+func TestChainsClosedSetFreshStorage(t *testing.T) {
 	t.Parallel()
 
 	want := []Chain{ChainSevenEleven, ChainFamilyMart, ChainHiLife, ChainOKMart}
@@ -28,7 +31,10 @@ func TestKnownChainsIsTheClosedSetAndReturnsFreshStorage(t *testing.T) {
 	}
 }
 
-func TestOnlyCurrentPickupChainsAreAtCheckout(t *testing.T) {
+// TestChain_AtCheckout: only the current pickup chains are at checkout:
+// 7-ELEVEN and FamilyMart are, Hi-Life, OK mart, an unknown chain and none are
+// not.
+func TestChain_AtCheckout(t *testing.T) {
 	t.Parallel()
 	for _, tc := range []struct {
 		chain Chain
