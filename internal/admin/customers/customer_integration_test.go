@@ -13,7 +13,8 @@ import (
 	"github.com/koopa0/goen/internal/i18n"
 )
 
-func TestTheBackOfficeCanSeeOneCustomerWhole(t *testing.T) {
+// TestStore_ProfileWhole: the back office can see one customer whole.
+func TestStore_ProfileWhole(t *testing.T) {
 	ctx, _ := admintest.StaffContext(t, pool)
 	s := customers.NewStore(pool)
 	userID := admintest.CreditedAccount(t, pool, 50000)
@@ -32,7 +33,9 @@ func TestTheBackOfficeCanSeeOneCustomerWhole(t *testing.T) {
 		t.Error("the page does not say when they registered")
 	}
 }
-func TestLookingAtACustomerIsRecorded(t *testing.T) {
+
+// TestStore_ProfileAudited: looking at a customer is recorded.
+func TestStore_ProfileAudited(t *testing.T) {
 	ctx, staff := admintest.StaffContext(t, pool)
 	s := customers.NewStore(pool)
 	userID := admintest.CreditedAccount(t, pool, 1000)
@@ -67,7 +70,9 @@ func TestLookingAtACustomerIsRecorded(t *testing.T) {
 		t.Errorf("the trail copied the customer's address into itself: %s", after)
 	}
 }
-func TestACustomerSearchNeedsATerm(t *testing.T) {
+
+// TestStore_SearchNeedsTerm: a customer search needs a term.
+func TestStore_SearchNeedsTerm(t *testing.T) {
 	ctx, _ := admintest.StaffContext(t, pool)
 	s := customers.NewStore(pool)
 
@@ -84,7 +89,9 @@ func TestACustomerSearchNeedsATerm(t *testing.T) {
 		}
 	}
 }
-func TestACustomerIsFoundByTheStartOfTheirAddress(t *testing.T) {
+
+// TestStore_SearchAddressPrefix: a customer is found by the start of their address.
+func TestStore_SearchAddressPrefix(t *testing.T) {
 	ctx, _ := admintest.StaffContext(t, pool)
 	s := customers.NewStore(pool)
 	userID := admintest.CreditedAccount(t, pool, 0)
@@ -115,10 +122,10 @@ func TestACustomerIsFoundByTheStartOfTheirAddress(t *testing.T) {
 	}
 }
 
-// TestACustomerSearchTakesWildcardsLiterally holds the stance that the customer
+// TestStore_SearchWildcards holds the stance that the customer
 // list is searched, never browsed: "%%" passes the two-rune floor and must not
 // list every account, and a typed _ matches only an underscore.
-func TestACustomerSearchTakesWildcardsLiterally(t *testing.T) {
+func TestStore_SearchWildcards(t *testing.T) {
 	ctx, _ := admintest.StaffContext(t, pool)
 	s := customers.NewStore(pool)
 	stem := strings.ReplaceAll(uuid.NewString(), "-", "")
@@ -156,7 +163,9 @@ func TestACustomerSearchTakesWildcardsLiterally(t *testing.T) {
 		t.Error("a typed _ matched a customer whose address has an x there")
 	}
 }
-func TestACustomersSpendCountsOnlyCommittedOrders(t *testing.T) {
+
+// TestStore_ProfileSpend: a customer's spend counts only committed orders.
+func TestStore_ProfileSpend(t *testing.T) {
 	ctx, _ := admintest.StaffContext(t, pool)
 	s := customers.NewStore(pool)
 	userID := admintest.CreditedAccount(t, pool, 0)
@@ -187,7 +196,9 @@ func TestACustomersSpendCountsOnlyCommittedOrders(t *testing.T) {
 		t.Errorf("order count is %d, want 2", view.Orders)
 	}
 }
-func TestAPromotedCustomerIsStillFindable(t *testing.T) {
+
+// TestStore_SearchPromoted: a promoted customer is still findable.
+func TestStore_SearchPromoted(t *testing.T) {
 	ctx, _ := admintest.StaffContext(t, pool)
 	s := customers.NewStore(pool)
 	userID := admintest.CreditedAccount(t, pool, 0)
@@ -226,10 +237,11 @@ func TestAPromotedCustomerIsStillFindable(t *testing.T) {
 	}
 }
 
+// TestStore_ProfileTierSpend: the customer page shows the spend that tiers are judged by.
 // The page and the customer's own account judge tiers by member_spend over the
 // membership window, so the two must show one figure: an order older than the
 // window counts in the lifetime total and not here.
-func TestTheCustomerPageShowsTheSpendTiersAreJudgedBy(t *testing.T) {
+func TestStore_ProfileTierSpend(t *testing.T) {
 	ctx, _ := admintest.StaffContext(t, pool)
 	ctx = i18n.WithLocale(ctx, i18n.ZhHant)
 	s := customers.NewStore(pool)

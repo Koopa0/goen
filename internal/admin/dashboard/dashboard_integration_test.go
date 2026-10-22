@@ -24,10 +24,11 @@ import (
 	"github.com/koopa0/goen/internal/shoptime"
 )
 
+// TestStore_DashboardTaskCounts: the dashboard lists an uninspected return and a stranded claim.
 // The dashboard lists work that waits for a person: a return approved and not
 // yet inspected comes from the desk's own counts, a stranded invoice claim from
 // the health desk, so the list and /admin/health name the same things.
-func TestTheDashboardListsAnUninspectedReturnAndAStrandedClaim(t *testing.T) {
+func TestStore_DashboardTaskCounts(t *testing.T) {
 	isolated := admintest.Pool(t)
 	s := storeOver(isolated, health.NewStore(isolated))
 	count := func(tasks []dashboard.Task, label i18n.Key) int64 {
@@ -87,10 +88,11 @@ func TestTheDashboardListsAnUninspectedReturnAndAStrandedClaim(t *testing.T) {
 	}
 }
 
+// TestStore_DashboardQuestionCount: the dashboard counts questions the shop has not answered.
 // A question counts until the SHOP has answered it, and a customer's reply is
 // not the shop's. It is the queue's own predicate: the tile and /admin/questions
 // must agree.
-func TestTheDashboardCountsQuestionsTheShopHasNotAnswered(t *testing.T) {
+func TestStore_DashboardQuestionCount(t *testing.T) {
 	isolated := admintest.Pool(t)
 	s := storeOver(isolated, health.NewStore(isolated))
 	waiting := func() int64 {
@@ -138,9 +140,10 @@ func TestTheDashboardCountsQuestionsTheShopHasNotAnswered(t *testing.T) {
 	}
 }
 
+// TestHandler_DashboardHealthUnreadable: the dashboard says when the health desk cannot be read.
 // A health desk that cannot be read must not look like one with nothing to
 // report: the dashboard says so instead of dropping the payment and invoice tasks.
-func TestTheDashboardSaysWhenTheHealthDeskCannotBeRead(t *testing.T) {
+func TestHandler_DashboardHealthUnreadable(t *testing.T) {
 	ctx, _ := admintest.StaffContext(t, pool)
 	failing := healthDesk{err: errors.New("health desk down")}
 	notice := i18n.T(ctx, i18n.KeyAdminQueueHealthUnavailable)
@@ -174,9 +177,10 @@ type healthDesk struct {
 
 func (d healthDesk) Tasks(context.Context) ([]worklist.Task, error) { return d.tasks, d.err }
 
+// TestHandler_DashboardDeskTasksFirst: the dashboard lists desk tasks before health tasks.
 // The first row is the one customers wait on: what the order desk counts is
 // listed before what the health desk reports.
-func TestTheDashboardListsDeskTasksBeforeHealthTasks(t *testing.T) {
+func TestHandler_DashboardDeskTasksFirst(t *testing.T) {
 	ctx, _ := admintest.StaffContext(t, pool)
 	if _, err := pool.Exec(ctx, `
 		INSERT INTO product_questions (product_id, body)
@@ -201,10 +205,11 @@ func TestTheDashboardListsDeskTasksBeforeHealthTasks(t *testing.T) {
 	}
 }
 
+// TestStore_DashboardReadyOrderAge: the dashboard ages a ready order from when it was funded.
 // The dashboard ages a ready order from the moment it was funded and the health
 // desk lists the same moment for the same order. The two read it through
 // separate queries, so each case asserts both against one known instant.
-func TestTheDashboardAgesAReadyOrderFromWhenItWasFunded(t *testing.T) {
+func TestStore_DashboardReadyOrderAge(t *testing.T) {
 	isolated := admintest.Pool(t)
 	s := storeOver(isolated, health.NewStore(isolated))
 	desk := health.NewStore(isolated)
@@ -280,9 +285,10 @@ func TestTheDashboardAgesAReadyOrderFromWhenItWasFunded(t *testing.T) {
 	}
 }
 
+// TestStore_DashboardReturnAge: the dashboard ages an uninspected return from its decision.
 // The age of an approved return that nobody has opened starts at the decision,
 // not the request.
-func TestTheDashboardAgesAnUninspectedReturnFromItsDecision(t *testing.T) {
+func TestStore_DashboardReturnAge(t *testing.T) {
 	isolated := admintest.Pool(t)
 	s := storeOver(isolated, health.NewStore(isolated))
 	requestID := admintest.PreapprovedReturn(t, isolated)
@@ -355,10 +361,11 @@ func captureCardPaidAgo(t *testing.T, pool *pgxpool.Pool, ago time.Duration) (nu
 	return number, paidAt
 }
 
+// TestStore_RecentSalesWeek: the dashboard week counts paid orders and names the latest.
 // The last week is the report's figures: a paid order counts on its day and is
 // the latest, and not in the week before; an order still awaiting payment is
 // neither, though it is newer.
-func TestTheDashboardWeekCountsPaidOrdersAndNamesTheLatest(t *testing.T) {
+func TestStore_RecentSalesWeek(t *testing.T) {
 	isolated := admintest.Pool(t)
 	s := storeOver(isolated, health.NewStore(isolated))
 	read := func() sales.Recent {
@@ -400,9 +407,10 @@ func TestTheDashboardWeekCountsPaidOrdersAndNamesTheLatest(t *testing.T) {
 	}
 }
 
+// TestStore_RecentSalesLatestPaid: the latest paid order follows when money came in and skips before shipment refunds.
 // The latest paid order is the one whose money came in last, which is not the
 // one placed last, and an order refunded before shipment is no sale.
-func TestTheLatestPaidOrderFollowsWhenMoneyCameInAndSkipsBeforeShipmentRefunds(t *testing.T) {
+func TestStore_RecentSalesLatestPaid(t *testing.T) {
 	isolated := admintest.Pool(t)
 	s := storeOver(isolated, health.NewStore(isolated))
 	latest := func(store *dashboard.Store) *sales.PaidOrder {
@@ -451,8 +459,9 @@ func TestTheLatestPaidOrderFollowsWhenMoneyCameInAndSkipsBeforeShipmentRefunds(t
 	}
 }
 
+// TestStore_DashboardPickingOrderAge: the dashboard ages a picking order from when it was taken.
 // A picking order is as old as the moment a person took it into picking.
-func TestTheDashboardAgesAPickingOrderFromWhenItWasTaken(t *testing.T) {
+func TestStore_DashboardPickingOrderAge(t *testing.T) {
 	isolated := admintest.Pool(t)
 	s := storeOver(isolated, health.NewStore(isolated))
 	_, orderID := admintest.PaidPickingOrderForUser(t, isolated, admintest.Customer(t, isolated), 100000)

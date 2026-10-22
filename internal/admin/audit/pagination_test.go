@@ -13,7 +13,8 @@ import (
 	"github.com/koopa0/goen/internal/ui/frame"
 )
 
-func TestEveryAdminEmptyPageKeepsItsRestartLink(t *testing.T) {
+// TestAuditEmptyPageRestartLink: every admin empty page keeps its restart link.
+func TestAuditEmptyPageRestartLink(t *testing.T) {
 	t.Parallel()
 	b := keyset.Bound{PastEnd: true, First: "/admin/products?q=test"}
 	p := frame.Page{Title: "Pagination"}

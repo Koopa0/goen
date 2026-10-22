@@ -50,11 +50,11 @@ func rowWithRequest(t *testing.T, view audit.View, requestID string) audit.Entry
 	return audit.Entry{}
 }
 
-// TestARenamedActorIsStillNamedByAddress: staff A changes a product's status,
+// TestStore_EventsRenamedActor: staff A changes a product's status,
 // then takes staff B's name. The row still names A, by the address nobody on
 // staff can change, and nothing on the page says B. Erasing A leaves the row
 // with the id it recorded, as before.
-func TestARenamedActorIsStillNamedByAddress(t *testing.T) {
+func TestStore_EventsRenamedActor(t *testing.T) {
 	suffix := uuid.NewString()[:8]
 	ctxA, idA, addressA := admintest.NamedStaff(t, pool, "Actor "+suffix)
 	colleague := "Colleague " + suffix
@@ -88,10 +88,10 @@ func TestARenamedActorIsStillNamedByAddress(t *testing.T) {
 	}
 }
 
-// TestARenamedStaffTargetIsStillNamedByAddress: the subject of a staff change
+// TestStore_EventsRenamedStaffTarget: the subject of a staff change
 // is looked up when the page renders, so a target who takes a colleague's name
 // would otherwise change whom the grant names.
-func TestARenamedStaffTargetIsStillNamedByAddress(t *testing.T) {
+func TestStore_EventsRenamedStaffTarget(t *testing.T) {
 	ctx, _ := admintest.StaffContext(t, pool)
 	suffix := uuid.NewString()[:8]
 	address := "target-" + suffix + "@goen.invalid"
@@ -126,10 +126,10 @@ func TestARenamedStaffTargetIsStillNamedByAddress(t *testing.T) {
 	}
 }
 
-// TestARenamedCustomerIsStillNamedByAddress: a customer.view row names whose
+// TestStore_EventsRenamedCustomer: a customer.view row names whose
 // record was opened by the customer's current address, not by a name the
 // customer can change afterwards.
-func TestARenamedCustomerIsStillNamedByAddress(t *testing.T) {
+func TestStore_EventsRenamedCustomer(t *testing.T) {
 	ctx, _ := admintest.StaffContext(t, pool)
 	customerID := admintest.Customer(t, pool)
 	var address string

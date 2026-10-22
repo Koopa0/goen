@@ -11,7 +11,8 @@ import (
 	"github.com/koopa0/goen/internal/i18n"
 )
 
-func TestTheDashboardAndTheQueueTabsSplitPendingTheSameWay(t *testing.T) {
+// TestStore_DashboardQueueTabs: the dashboard and the queue tabs split pending the same way.
+func TestStore_DashboardQueueTabs(t *testing.T) {
 	ctx := t.Context()
 	queue := admintest.OrderStore(pool, admintest.Refunder{}, nil, nil)
 	desk := storeOver(pool, health.NewStore(pool))

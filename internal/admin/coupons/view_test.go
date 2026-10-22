@@ -65,7 +65,7 @@ func TestCouponsContentColumn(t *testing.T) {
 	}
 }
 
-// From TestEveryAdminEmptyPageKeepsItsRestartLink.
+// From TestAuditEmptyPageRestartLink.
 // TestCouponsEmptyPage: the coupons empty page keeps its restart link.
 func TestCouponsEmptyPage(t *testing.T) {
 	t.Parallel()
@@ -83,8 +83,8 @@ func TestCouponsEmptyPage(t *testing.T) {
 	}
 }
 
-// From TestEveryQueueKeepsItsOwnFirstPageEmptyState and
-// TestEveryQueueWithMoreRowsOffersNext.
+// From TestAuditFirstPageEmpty and
+// TestAuditFullPageOffersNext.
 // TestCouponsFirstPageEmpty: the coupons queue keeps its own first-page empty state.
 func TestCouponsFirstPageEmpty(t *testing.T) {
 	t.Parallel()

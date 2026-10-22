@@ -124,10 +124,10 @@ var actionLedger = []string{
 	"variant.retire",
 }
 
-// TestEveryActionConstantIsInTheLedger reads the Action constants of action.go
+// TestActionConstantsInLedger reads the Action constants of action.go
 // (only that file: actions written elsewhere are listed by hand and guarded by
-// TestEverySchemaWrittenActionIsInTheLedger) and requires each in actionLedger.
-func TestEveryActionConstantIsInTheLedger(t *testing.T) {
+// TestActionSchemaWritersInLedger) and requires each in actionLedger.
+func TestActionConstantsInLedger(t *testing.T) {
 	t.Parallel()
 
 	declared := declaredActions(t)
@@ -142,11 +142,11 @@ func TestEveryActionConstantIsInTheLedger(t *testing.T) {
 	}
 }
 
-// TestEverySchemaWrittenActionIsInTheLedger covers the actions stored
+// TestActionSchemaWritersInLedger covers the actions stored
 // functions write. A literal action is read from the schema and must be in the
 // ledger. An action built as 'prefix' || value cannot be read as a literal, so
 // each such prefix must have at least one ledger action under it.
-func TestEverySchemaWrittenActionIsInTheLedger(t *testing.T) {
+func TestActionSchemaWritersInLedger(t *testing.T) {
 	t.Parallel()
 
 	literals, prefixes := schemaActions(t)
@@ -167,7 +167,8 @@ func TestEverySchemaWrittenActionIsInTheLedger(t *testing.T) {
 	}
 }
 
-func TestEveryLedgerActionHasAPhrase(t *testing.T) {
+// TestEntry_LabelLedgerBothLocales: every ledger action has a phrase.
+func TestEntry_LabelLedgerBothLocales(t *testing.T) {
 	t.Parallel()
 
 	for _, action := range actionLedger {
@@ -183,7 +184,8 @@ func TestEveryLedgerActionHasAPhrase(t *testing.T) {
 	}
 }
 
-func TestActionLedgerIsSortedWithoutDuplicates(t *testing.T) {
+// TestActionLedgerSorted: the action ledger is sorted without duplicates.
+func TestActionLedgerSorted(t *testing.T) {
 	t.Parallel()
 
 	for i := 1; i < len(actionLedger); i++ {

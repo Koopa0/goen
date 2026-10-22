@@ -14,7 +14,8 @@ import (
 	"github.com/koopa0/goen/internal/ui/widget"
 )
 
-func TestCategoryControlsHaveVisibleHeadingsAndNamedParentChoices(t *testing.T) {
+// TestTaxonomyCategoryControls: category controls have visible headings and named parent choices.
+func TestTaxonomyCategoryControls(t *testing.T) {
 	t.Parallel()
 	for _, tt := range []struct {
 		locale   i18n.Locale
@@ -75,7 +76,8 @@ func TestCategoryControlsHaveVisibleHeadingsAndNamedParentChoices(t *testing.T) 
 	}
 }
 
-func TestCategoryImageDescriptionsCanBeSavedWithoutReplacingThePhotograph(t *testing.T) {
+// TestCategoryFormImageDescriptions: category image descriptions can be saved without replacing the photograph.
+func TestCategoryFormImageDescriptions(t *testing.T) {
 	t.Parallel()
 	for _, tt := range []struct {
 		locale i18n.Locale

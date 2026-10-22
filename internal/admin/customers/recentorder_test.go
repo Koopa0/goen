@@ -26,7 +26,8 @@ func TestRecentOrderRowCarriesTheColourOfItsWord(t *testing.T) {
 	}
 }
 
-func TestRecentOrderRowOfAReturnedOrderSaysRefunded(t *testing.T) {
+// TestRecentOrderRowReturned: recent order row of a returned order says refunded.
+func TestRecentOrderRowReturned(t *testing.T) {
 	t.Parallel()
 	row := db.AdminCustomerOrdersRow{FulfillmentStatus: string(order.FulfillmentDelivered), Committed: true}
 	got := recentOrderRow(t.Context(), &row, true)

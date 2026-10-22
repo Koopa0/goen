@@ -34,7 +34,8 @@ import (
 	"github.com/koopa0/goen/internal/ui/tone"
 )
 
-func TestANamedParentThatDoesNotExistIsRefused(t *testing.T) {
+// TestStore_CreateCategoryMissingParent: a named parent that does not exist is refused.
+func TestStore_CreateCategoryMissingParent(t *testing.T) {
 	ctx, _ := admintest.StaffContext(t, pool)
 	s := taxonomy.NewStore(pool)
 
@@ -59,7 +60,8 @@ func TestANamedParentThatDoesNotExistIsRefused(t *testing.T) {
 	}
 }
 
-func TestACategoryIsCreatedUnderTheParentItNames(t *testing.T) {
+// TestStore_CreateCategoryParent: a category is created under the parent it names.
+func TestStore_CreateCategoryParent(t *testing.T) {
 	ctx, _ := admintest.StaffContext(t, pool)
 	s := taxonomy.NewStore(pool)
 
@@ -89,7 +91,8 @@ func TestACategoryIsCreatedUnderTheParentItNames(t *testing.T) {
 	}
 }
 
-func TestSomethingInUseCannotBeDeleted(t *testing.T) {
+// TestStore_DeleteInUse: something in use cannot be deleted.
+func TestStore_DeleteInUse(t *testing.T) {
 	ctx, _ := admintest.StaffContext(t, pool)
 	s := taxonomy.NewStore(pool)
 
@@ -133,7 +136,8 @@ func TestSomethingInUseCannotBeDeleted(t *testing.T) {
 	}
 }
 
-func TestASlugIsNeverRenamed(t *testing.T) {
+// TestStore_RenameKeepsSlug: a slug is never renamed.
+func TestStore_RenameKeepsSlug(t *testing.T) {
 	ctx, _ := admintest.StaffContext(t, pool)
 	s := taxonomy.NewStore(pool)
 
@@ -158,7 +162,8 @@ func TestASlugIsNeverRenamed(t *testing.T) {
 	}
 }
 
-func TestACategoryCarriesItsEnglishName(t *testing.T) {
+// TestStore_CategoryEnglishName: a category carries its English name.
+func TestStore_CategoryEnglishName(t *testing.T) {
 	ctx, _ := admintest.StaffContext(t, pool)
 	s := taxonomy.NewStore(pool)
 	slug := "tax-en-" + uuid.NewString()[:8]
@@ -221,9 +226,9 @@ func TestACategoryCarriesItsEnglishName(t *testing.T) {
 	}
 }
 
-// TestACategoryCreatedInTheBackOfficeCanCarryAnIcon covers categories.icon_key. The
+// TestStore_CreateCategoryIcon covers categories.icon_key. The
 // icon set is closed and icons.Category has no default arm, so an unknown key is refused.
-func TestACategoryCreatedInTheBackOfficeCanCarryAnIcon(t *testing.T) {
+func TestStore_CreateCategoryIcon(t *testing.T) {
 	ctx, _ := admintest.StaffContext(t, pool)
 	s := taxonomy.NewStore(pool)
 	slug := "iconcat-" + uuid.NewString()[:8]
@@ -304,9 +309,10 @@ func categoryImageRequest(t *testing.T, slug, alt string) *http.Request {
 	return req
 }
 
+// TestStore_CreateCategoryInheritsTheme: a category takes its department's tone and photograph until it sets its own.
 // A sub-category shows its department's tone and photograph: the listing reads
 // them up the trail, so a department set once dresses every page under it.
-func TestACategoryTakesItsDepartmentsToneAndPhotographUntilItSetsItsOwn(t *testing.T) {
+func TestStore_CreateCategoryInheritsTheme(t *testing.T) {
 	ctx, _ := admintest.StaffContext(t, pool)
 	s := taxonomy.NewStore(pool)
 	h := handlerOver(s)
@@ -373,7 +379,8 @@ func TestACategoryTakesItsDepartmentsToneAndPhotographUntilItSetsItsOwn(t *testi
 	}
 }
 
-func TestCategoryIconVocabularyMatchesTheDatabaseConstraint(t *testing.T) {
+// TestCategoriesIconKeyKnown: category icon vocabulary matches the database constraint.
+func TestCategoriesIconKeyKnown(t *testing.T) {
 	ctx := t.Context()
 	tx, err := pool.Begin(ctx)
 	if err != nil {
@@ -407,9 +414,10 @@ func TestCategoryIconVocabularyMatchesTheDatabaseConstraint(t *testing.T) {
 	}
 }
 
+// TestStore_RenameEveryTone: every tone of the closed set is storable.
 // A root with no tone of its own is stone, and a campaign takes any tone of the
 // closed set: the Go set and the schema's CHECK name the same six.
-func TestEveryToneOfTheClosedSetIsStorable(t *testing.T) {
+func TestStore_RenameEveryTone(t *testing.T) {
 	ctx, _ := admintest.StaffContext(t, pool)
 	slug := "tone-" + strings.ReplaceAll(uuid.NewString(), "-", "")[:10]
 	if errs, err := taxonomy.NewStore(pool).CreateCategory(ctx, &taxonomy.Form{Slug: slug, Name: "無色調"}); err != nil || len(errs) > 0 {
@@ -442,7 +450,8 @@ func TestEveryToneOfTheClosedSetIsStorable(t *testing.T) {
 	}
 }
 
-func TestHeaderImageRefusalsKeepBothDescriptions(t *testing.T) {
+// TestHandler_SetCategoryImageRefusals: header image refusals keep both descriptions.
+func TestHandler_SetCategoryImageRefusals(t *testing.T) {
 	staffCtx, _ := admintest.StaffContext(t, pool)
 	p := admintest.AdminRolePool(t, pool)
 	s := taxonomy.NewStore(p)
@@ -524,7 +533,8 @@ func TestHeaderImageRefusalsKeepBothDescriptions(t *testing.T) {
 	}
 }
 
-func TestImageUploadsKeepStorageFailuresSeparateFromRefusals(t *testing.T) {
+// TestHandler_SetCategoryImageStorage: image uploads keep storage failures separate from refusals.
+func TestHandler_SetCategoryImageStorage(t *testing.T) {
 	owner := admintest.Pool(t)
 	staff, _ := admintest.StaffContext(t, owner)
 	adminPool := admintest.AdminRolePool(t, owner)

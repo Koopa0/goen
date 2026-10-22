@@ -52,8 +52,9 @@ func wantBadge(t *testing.T, page, word, class string) {
 	}
 }
 
+// TestDashboardRecentOrderBadge: the dashboard's recent orders follow their group.
 // From statusbadge_test.go, moved whole.
-func TestDashboardAndCustomerRecentOrdersFollowTheirGroup(t *testing.T) {
+func TestDashboardRecentOrderBadge(t *testing.T) {
 	t.Parallel()
 	ctx := i18n.WithLocale(t.Context(), i18n.ZhHant)
 	row := OrderRow{Number: "GO-A", Status: order.FulfillmentPending, StatusText: "待出貨", StatusIntent: widget.IntentWarn}

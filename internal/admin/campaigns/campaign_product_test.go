@@ -9,7 +9,8 @@ import (
 	"github.com/koopa0/goen/internal/ui/frame"
 )
 
-func TestCampaignProductsShowTheOfferInBothListsAndLanguages(t *testing.T) {
+// TestCampaignFormProductOffers: campaign products show the offer in both lists and languages.
+func TestCampaignFormProductOffers(t *testing.T) {
 	t.Parallel()
 	products := []CampaignProduct{
 		{Slug: "on-sale", Name: "Discounted product", Image: assets.Image{Digest: "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"}, HasVariant: true, HasDiscountedVariant: true, PriceCents: 99000, CompareCents: 129000, SellableUnits: 5},

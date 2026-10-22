@@ -18,7 +18,8 @@ import (
 	"github.com/koopa0/goen/internal/admin/campaigns"
 )
 
-func TestFeatureProductUnknownProductReturnsNotFound(t *testing.T) {
+// TestStore_FeatureProductUnknown: feature product unknown product returns not found.
+func TestStore_FeatureProductUnknown(t *testing.T) {
 	ctx, _ := admintest.StaffContext(t, pool)
 	s := campaigns.NewStore(pool)
 	slug := admintest.CampaignSlug(t)
@@ -38,7 +39,8 @@ func TestFeatureProductUnknownProductReturnsNotFound(t *testing.T) {
 	}
 }
 
-func TestFeatureProductAlreadyFeaturedReturnsNotFound(t *testing.T) {
+// TestStore_FeatureProductAlreadyFeatured: feature product already featured returns not found.
+func TestStore_FeatureProductAlreadyFeatured(t *testing.T) {
 	ctx, _ := admintest.StaffContext(t, pool)
 	s := campaigns.NewStore(pool)
 	slug := admintest.CampaignSlug(t)
@@ -56,7 +58,8 @@ func TestFeatureProductAlreadyFeaturedReturnsNotFound(t *testing.T) {
 	}
 }
 
-func TestFeatureProductHandlerNeverOKOnMiss(t *testing.T) {
+// TestHandler_FeatureProductMiss: feature product handler never OK on miss.
+func TestHandler_FeatureProductMiss(t *testing.T) {
 	ctx, _ := admintest.StaffContext(t, pool)
 	s := campaigns.NewStore(pool)
 	h := handlerOver(s)
@@ -128,10 +131,10 @@ func discountedProductSlugs(t *testing.T, n int) []string {
 	return slugs
 }
 
-// TestTwoConcurrentCampaignFeaturesTakeDistinctPositions proves the advisory lock
+// TestStore_FeatureProductConcurrent proves the advisory lock
 // is in the statement: without it two staff members featuring at once both read
 // the same max(position) and sale_campaign_products_position_key refuses one.
-func TestTwoConcurrentCampaignFeaturesTakeDistinctPositions(t *testing.T) {
+func TestStore_FeatureProductConcurrent(t *testing.T) {
 	ctx, _ := admintest.StaffContext(t, pool)
 	slug := admintest.CampaignSlug(t)
 	if _, err := campaigns.NewStore(pool).Create(ctx, &campaigns.Form{

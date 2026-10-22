@@ -14,7 +14,7 @@ import (
 	"github.com/koopa0/goen/internal/ui/frame"
 )
 
-// From TestEveryAdminEmptyPageKeepsItsRestartLink (row warranty).
+// From TestAuditEmptyPageRestartLink (row warranty).
 func TestWarrantyEmptyPageKeepsItsRestartLink(t *testing.T) {
 	t.Parallel()
 	b := keyset.Bound{PastEnd: true, First: "/admin/products?q=test"}
@@ -36,8 +36,8 @@ func queuePage(b keyset.Bound, ctx func(k i18n.Key) string) (page templ.Componen
 		fmt.Sprintf(ctx(i18n.KeyAdminWarrantyNoneFound), term)
 }
 
-// From TestEveryQueueKeepsItsOwnFirstPageEmptyState and
-// TestEveryQueueWithMoreRowsOffersNext (row warranty).
+// From TestAuditFirstPageEmpty and
+// TestAuditFullPageOffersNext (row warranty).
 func TestWarrantyQueueKeepsItsOwnFirstPageEmptyState(t *testing.T) {
 	t.Parallel()
 	ctx := func(k i18n.Key) string { return i18n.T(i18n.WithLocale(t.Context(), i18n.En), k) }

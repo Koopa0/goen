@@ -16,11 +16,11 @@ import (
 	"github.com/koopa0/goen/internal/ui/widget"
 )
 
-// TestTheDashboardOpensEveryOrderItLists holds the landing page's reason for
+// TestDashboardOrderLinks holds the landing page's reason for
 // carrying a queue at all. A row that names an order and does not open it makes
 // a staff member copy the number into the order screen's search box, which is
 // the work the dashboard exists to remove.
-func TestTheDashboardOpensEveryOrderItLists(t *testing.T) {
+func TestDashboardOrderLinks(t *testing.T) {
 	t.Parallel()
 	ctx := i18n.WithLocale(t.Context(), i18n.ZhHant)
 
@@ -53,10 +53,10 @@ func TestTheDashboardOpensEveryOrderItLists(t *testing.T) {
 	})
 }
 
-// TestTheDashboardListsOnlyWhatWaitsForAPerson holds the list the five work
+// TestDashboardWaitingTasks holds the list the five work
 // tiles gave way to: nothing is drawn when nothing waits, and each kind that
 // does is a link to where it is done.
-func TestTheDashboardListsOnlyWhatWaitsForAPerson(t *testing.T) {
+func TestDashboardWaitingTasks(t *testing.T) {
 	t.Parallel()
 	ctx := i18n.WithLocale(t.Context(), i18n.ZhHant)
 
@@ -107,7 +107,8 @@ func TestTheDashboardListsOnlyWhatWaitsForAPerson(t *testing.T) {
 	})
 }
 
-func TestDeskTasksLeaveOutWhatIsNotWaiting(t *testing.T) {
+// TestDashboardView_DeskTasksOmitsIdle: desk tasks leave out what is not waiting.
+func TestDashboardView_DeskTasksOmitsIdle(t *testing.T) {
 	t.Parallel()
 	if got := (&DashboardView{}).DeskTasks(); len(got) != 0 {
 		t.Errorf("DeskTasks() with nothing waiting = %v, want none", got)
@@ -125,10 +126,10 @@ func TestDeskTasksLeaveOutWhatIsNotWaiting(t *testing.T) {
 	}
 }
 
-// TestTheDashboardSaysWhenItCouldNotCheckTheHealthDesk holds that an absent
+// TestDashboardHealthUnavailable holds that an absent
 // payment or invoice task is only read as "nothing to check" when the desk was
 // actually read.
-func TestTheDashboardSaysWhenItCouldNotCheckTheHealthDesk(t *testing.T) {
+func TestDashboardHealthUnavailable(t *testing.T) {
 	t.Parallel()
 	for _, loc := range []i18n.Locale{i18n.ZhHant, i18n.En} {
 		ctx := i18n.WithLocale(t.Context(), loc)
@@ -142,7 +143,8 @@ func TestTheDashboardSaysWhenItCouldNotCheckTheHealthDesk(t *testing.T) {
 	}
 }
 
-func TestAwaitingPaymentAndPickingAreTasks(t *testing.T) {
+// TestDashboardView_DeskTasksOrders: awaiting payment and picking are tasks.
+func TestDashboardView_DeskTasksOrders(t *testing.T) {
 	t.Parallel()
 	want := []Task{
 		{Label: i18n.KeyAdminStatusPicking, Count: 2, Href: "/admin/orders?status=picking", HasAge: true, AgeSeconds: 7200},
@@ -153,7 +155,8 @@ func TestAwaitingPaymentAndPickingAreTasks(t *testing.T) {
 	}
 }
 
-func TestTheDashboardFiguresAreLinkedLabelsBeforeTheirValues(t *testing.T) {
+// TestDashboardFigureLinks: the dashboard figures are linked labels before their values.
+func TestDashboardFigureLinks(t *testing.T) {
 	t.Parallel()
 	ctx := i18n.WithLocale(t.Context(), i18n.ZhHant)
 	html := renderToString(t, Dashboard(Meta(ctx), DashboardView{
@@ -194,7 +197,8 @@ func busyWeek() Week {
 	}
 }
 
-func TestTheDashboardDrawsTheWeekOnlyWhenItHasDaysWithOrders(t *testing.T) {
+// TestDashboardWeekSparklines: the dashboard draws the week only when it has days with orders.
+func TestDashboardWeekSparklines(t *testing.T) {
 	t.Parallel()
 	ctx := i18n.WithLocale(t.Context(), i18n.ZhHant)
 	if html := renderToString(t, Dashboard(Meta(ctx), DashboardView{Week: busyWeek()})); strings.Count(html, "goen-spark__bar ") != 28 {
@@ -207,7 +211,8 @@ func TestTheDashboardDrawsTheWeekOnlyWhenItHasDaysWithOrders(t *testing.T) {
 	}
 }
 
-func TestTheLatestPaidOrderSaysWhatIsKnown(t *testing.T) {
+// TestDashboardLatestPaid: the latest paid order says what is known.
+func TestDashboardLatestPaid(t *testing.T) {
 	t.Parallel()
 	for _, loc := range []i18n.Locale{i18n.ZhHant, i18n.En} {
 		ctx := i18n.WithLocale(t.Context(), loc)
@@ -227,7 +232,8 @@ func TestTheLatestPaidOrderSaysWhatIsKnown(t *testing.T) {
 	}
 }
 
-func TestTheDashboardSaysWhenItCouldNotReadTheWeek(t *testing.T) {
+// TestDashboardWeekUnavailable: the dashboard says when it could not read the week.
+func TestDashboardWeekUnavailable(t *testing.T) {
 	t.Parallel()
 	ctx := i18n.WithLocale(t.Context(), i18n.En)
 	notice := i18n.T(ctx, i18n.KeyAdminQueueWeekUnavailable)
@@ -267,7 +273,8 @@ func TestElapsedValueUsesTheLargestWholeUnit(t *testing.T) {
 	}
 }
 
-func TestTheWeekIsComparedAsTheReportCompares(t *testing.T) {
+// TestWeek_AgainstReport: the week is compared as the report compares.
+func TestWeek_AgainstReport(t *testing.T) {
 	t.Parallel()
 	ctx := i18n.WithLocale(t.Context(), i18n.ZhHant)
 	// 44 against 31 orders is 13 apart, under two standard errors of 75.
@@ -285,7 +292,8 @@ func TestTheWeekIsComparedAsTheReportCompares(t *testing.T) {
 	}
 }
 
-func TestTheWeekStatsKeyTheTwoPeriodsUnderTheirBars(t *testing.T) {
+// TestDashboardView_WeekStatsKeys: the week stats key the two periods under their bars.
+func TestDashboardView_WeekStatsKeys(t *testing.T) {
 	t.Parallel()
 	ctx := i18n.WithLocale(t.Context(), i18n.En)
 	view := DashboardView{Week: busyWeek()}
@@ -297,9 +305,10 @@ func TestTheWeekStatsKeyTheTwoPeriodsUnderTheirBars(t *testing.T) {
 	}
 }
 
+// TestDashboardDaysCover: the dashboard shows the days cover in place of the low stock list.
 // The dashboard's stock section is the days cover, not the low-stock table the
 // sold-out task row already names.
-func TestTheDashboardShowsTheDaysCoverInPlaceOfTheLowStockList(t *testing.T) {
+func TestDashboardDaysCover(t *testing.T) {
 	t.Parallel()
 
 	for _, loc := range []i18n.Locale{i18n.ZhHant, i18n.En} {
@@ -387,7 +396,8 @@ func TestTheDashboardShowsTheDaysCoverInPlaceOfTheLowStockList(t *testing.T) {
 	}
 }
 
-func TestDashboardRunwayKeepsOnlyRowsRunningOutWithinTheLine(t *testing.T) {
+// TestDashboardRunwayWithinLine: dashboard runway keeps only rows running out within the line.
+func TestDashboardRunwayWithinLine(t *testing.T) {
 	t.Parallel()
 
 	// 9 sellable at 30 units over 30 days is 9 days; 45 sellable is 45 days.

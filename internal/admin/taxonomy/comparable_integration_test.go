@@ -12,10 +12,11 @@ import (
 	"github.com/koopa0/goen/internal/admin/taxonomy"
 )
 
+// TestStore_CategoryComparable: only a department stores whether it compares.
 // Only a department answers "compare products here". The answer is written on
 // create and on edit, a sub-category stores none and takes its department's,
 // and each write is audited with the value it made.
-func TestOnlyADepartmentStoresWhetherItCompares(t *testing.T) {
+func TestStore_CategoryComparable(t *testing.T) {
 	ctx, _ := admintest.StaffContext(t, pool)
 	s := taxonomy.NewStore(pool)
 
