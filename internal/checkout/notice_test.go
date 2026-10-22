@@ -8,7 +8,10 @@ import (
 	"github.com/koopa0/goen/internal/ui/frame"
 )
 
-func TestPlacementGrantFailedSpeaksBothLocales(t *testing.T) {
+// TestPlacementGrantFailed: PlacementGrantFailed says in both locales that the
+// order was received but access could not be set up, and offers the find-order
+// link.
+func TestPlacementGrantFailed(t *testing.T) {
 	t.Parallel()
 	tests := []struct {
 		locale i18n.Locale

@@ -16,7 +16,11 @@ import (
 	"github.com/koopa0/goen/internal/order/buyer"
 )
 
-func TestPaymentReturnChecksEndWithoutInvitingAnotherPayment(t *testing.T) {
+// TestBuyerHandler_OrderPagePaymentReturn: buyer.Handler.OrderPage, on the
+// return from payment, checks a bounded number of times and then stops without
+// inviting another payment: while the result is unconfirmed it offers no pay
+// link or cancellation, and it never writes a payment.
+func TestBuyerHandler_OrderPagePaymentReturn(t *testing.T) {
 	for _, locale := range []i18n.Locale{i18n.ZhHant, i18n.En} {
 		t.Run(locale.Tag(), func(t *testing.T) {
 			ctx := i18n.WithLocale(t.Context(), locale)

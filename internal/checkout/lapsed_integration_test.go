@@ -164,7 +164,11 @@ func factsOf(t *testing.T, number string, couponID uuid.UUID) cancellationFacts 
 	return f
 }
 
-func TestTheSweepCancelsAnUnpaidOrderWhoseHoldsLapsed(t *testing.T) {
+// TestSweeper_SweepLapsedOrder: Sweep cancels an unpaid order whose holds
+// lapsed, once however often it runs: one cancelled event and one notice, the
+// credit reversed and the coupon slot freed, and a notice that does not say
+// money was refunded.
+func TestSweeper_SweepLapsedOrder(t *testing.T) {
 	number, accountID, couponID := lapsedOrder(t, "lapsed-cancel")
 	store := storeRolePool(t)
 
@@ -204,10 +208,12 @@ func noticeRefunded(t *testing.T, number string) bool {
 	return refunded
 }
 
-// TestALateRefundedPaymentIsNotCalledNothingCharged: money reached Stripe after
-// the hold lapsed, was refused, and staff refunded it and released the alarm.
-// Whoever cancels the order afterwards, its notice says the money comes back.
-func TestALateRefundedPaymentIsNotCalledNothingCharged(t *testing.T) {
+// TestSweeper_SweepLateRefund: The notice of an order whose late payment was
+// refunded says the money comes back, whether Sweep or the customer cancels the
+// order. Money reached Stripe after the hold lapsed, was refused, and staff
+// refunded it and released the alarm. Whoever cancels the order afterwards, its
+// notice says the money comes back.
+func TestSweeper_SweepLateRefund(t *testing.T) {
 	for _, bySweep := range []bool{true, false} {
 		name := "customer cancel"
 		if bySweep {
@@ -248,9 +254,13 @@ func TestALateRefundedPaymentIsNotCalledNothingCharged(t *testing.T) {
 	}
 }
 
-// TestTheSweepLeavesAnOrderThatMayStillTakeMoney: each case is an expired hold
-// on an order the sweeper must not cancel, because money has arrived or may.
-func TestTheSweepLeavesAnOrderThatMayStillTakeMoney(t *testing.T) {
+// TestSweeper_SweepKeepsMoneyOrders: Sweep does not cancel an order with a
+// lapsed-looking hold when money has arrived or may: a live hold, a paid or
+// credit-paid order, an open, processing or action-requiring payment, a
+// complete session awaiting its webhook, or an unreconciled provider event.
+// Each case is an expired hold on an order the sweeper must not cancel, because
+// money has arrived or may.
+func TestSweeper_SweepKeepsMoneyOrders(t *testing.T) {
 	ctx := t.Context()
 	openPayment := func(t *testing.T, orderID uuid.UUID) string {
 		t.Helper()
@@ -334,10 +344,12 @@ func TestTheSweepLeavesAnOrderThatMayStillTakeMoney(t *testing.T) {
 	}
 }
 
-// TestTheSweepRereadsPaymentsAfterTakingTheOrderLock: open_payment holds the
-// order row, locked but not updated, while the sweeper waits for it. The
-// payment it commits must stop the cancellation.
-func TestTheSweepRereadsPaymentsAfterTakingTheOrderLock(t *testing.T) {
+// TestSweeper_SweepPaymentAfterLock: Sweep rereads payments after taking the
+// order lock, so a payment opened by a transaction that holds the order while
+// the sweeper waits stops the cancellation. open_payment holds the order row,
+// locked but not updated, while the sweeper waits for it. The payment it
+// commits must stop the cancellation.
+func TestSweeper_SweepPaymentAfterLock(t *testing.T) {
 	ctx := t.Context()
 	orderID := heldOrder(t, freshVariant(t, "lapse-lock"), time.Hour, false)
 	number := numberOf(t, orderID)
@@ -377,10 +389,11 @@ func TestTheSweepRereadsPaymentsAfterTakingTheOrderLock(t *testing.T) {
 	}
 }
 
-// TestTheSweepAndTheCustomerCancelOnce: both reach the same lapsed order behind
-// one lock, in either order. Exactly one cancels it, the other stands down
-// without an error, and the credit comes back once.
-func TestTheSweepAndTheCustomerCancelOnce(t *testing.T) {
+// TestSweeper_SweepCustomerCancelRace: When Sweep and the customer's
+// cancellation reach the same lapsed order behind one lock, in either order,
+// exactly one cancels it, the other stands down without an error, and the
+// credit comes back once.
+func TestSweeper_SweepCustomerCancelRace(t *testing.T) {
 	for _, sweepFirst := range []bool{true, false} {
 		name := "customer first"
 		if sweepFirst {

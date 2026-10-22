@@ -14,13 +14,15 @@ var (
 	quotedAttributePattern = regexp.MustCompile(`\b([[:alnum:]_-]+)="([^"]*)"`)
 )
 
-// TestEveryCheckoutFieldTellsTheBrowserWhatItIs derives the controls from the
+// TestPageAutofill: Every text-entry control Page renders in the checkout and
+// address forms carries an explicit autofill decision, a token or off, and the
+// postcode and phone keyboards are right. It derives the controls from the
 // rendered forms, then requires an explicit autofill decision for each one.
 // This deliberately lives in Go rather than scripts/check-layout.mjs: the
 // browser sweep only renders accepted GETs and one claim must not have two
 // independently drifting homes. The address book's rows are internal/account's
 // TestAccountAddressFieldsNameTheirAutofill.
-func TestEveryCheckoutFieldTellsTheBrowserWhatItIs(t *testing.T) {
+func TestPageAutofill(t *testing.T) {
 	t.Parallel()
 
 	want := map[string]string{
@@ -103,7 +105,7 @@ func renderedAutofillControls(t *testing.T) map[string]map[string]string {
 			}
 			if render.checkout {
 				if hint, ok := attributes["enterkeyhint"]; ok {
-					t.Errorf("%s carries enterkeyhint=%q; TestEnterInTheCheckoutPlacesTheOrder proves Enter charges, so next/search would lie", id, hint)
+					t.Errorf("%s carries enterkeyhint=%q; TestPageEnterPlacesOrder proves Enter charges, so next/search would lie", id, hint)
 				}
 			}
 			if previous, ok := controls[id]; ok {

@@ -84,12 +84,13 @@ func elementByID(t *testing.T, html, id string) string {
 	return ""
 }
 
-// TestTheSwapRegionCarriesTheStoreButton is the mutation checkoutChoiceSwap
-// exists for: an in-place choice on the checkout page selects and replaces
-// exactly the element hx-select names, and if that element does not also carry
-// the button that opens the map, 「選擇門市」 is gone once the shopper has
-// changed any chooser in place with scripting on.
-func TestTheSwapRegionCarriesTheStoreButton(t *testing.T) {
+// TestPageSwapRegionStoreButton: The region an in-place choice swaps carries
+// the button that opens the store map, so 「選擇門市」 survives changing a chooser.
+// It is the mutation checkoutChoiceSwap exists for: an in-place choice on the
+// checkout page selects and replaces exactly the element hx-select names, and
+// if that element does not also carry the button that opens the map, 「選擇門市」 is
+// gone once the shopper has changed any chooser in place with scripting on.
+func TestPageSwapRegionStoreButton(t *testing.T) {
 	t.Parallel()
 
 	ctx := i18n.WithLocale(t.Context(), i18n.ZhHant)
@@ -108,11 +109,13 @@ func TestTheSwapRegionCarriesTheStoreButton(t *testing.T) {
 	}
 }
 
-// TestTheStoreButtonSubmitsToGoenAndNeverToTheCarrier holds the structure that
-// replaced the sibling form. The button sits inside the checkout form, so what
-// was typed travels with it, and its formaction is goen's own route: the
-// carrier is only ever reached from the page that route answers.
-func TestTheStoreButtonSubmitsToGoenAndNeverToTheCarrier(t *testing.T) {
+// TestPageStoreButtonSubmitsToGoen: Page puts the store button inside the
+// checkout form and submits it to goen's own start route, and the page carries
+// none of the carrier's form. It holds the structure that replaced the sibling
+// form. The button sits inside the checkout form, so what was typed travels
+// with it, and its formaction is goen's own route: the carrier is only ever
+// reached from the page that route answers.
+func TestPageStoreButtonSubmitsToGoen(t *testing.T) {
 	t.Parallel()
 
 	ctx := i18n.WithLocale(t.Context(), i18n.ZhHant)
@@ -143,12 +146,14 @@ func TestTheStoreButtonSubmitsToGoenAndNeverToTheCarrier(t *testing.T) {
 	}
 }
 
-// TestTheStoreSummaryShowsTheNameAndTheAddress is a SECURITY test, not a
-// layout one. The callback carries no signature and the map is run by the
-// chain, so the shopper reading both before paying is the only control goen has
-// against a substituted store. A change that reduces this to the name alone
-// removes that control in silence.
-func TestTheStoreSummaryShowsTheNameAndTheAddress(t *testing.T) {
+// TestPageStoreSummary: Page shows the chosen store's name, code and address
+// before the place-order button, the only control against a substituted store,
+// and carries the store back to placement without posting the display-only
+// address. It is a SECURITY test, not a layout one. The callback carries no
+// signature and the map is run by the chain, so the shopper reading both before
+// paying is the only control goen has against a substituted store. A change
+// that reduces this to the name alone removes that control in silence.
+func TestPageStoreSummary(t *testing.T) {
 	t.Parallel()
 
 	v := aCheckoutWithAStore()
@@ -182,8 +187,10 @@ func TestTheStoreSummaryShowsTheNameAndTheAddress(t *testing.T) {
 	}
 }
 
-// TestNoStoreYetOffersTheMapAndNothingElse is the first half of R10.
-func TestNoStoreYetOffersTheMapAndNothingElse(t *testing.T) {
+// TestPageNoStoreOffersMap: Page offers the map and nothing else when no store
+// has been chosen: no change-store control and no store fields. It is the first
+// half of R10.
+func TestPageNoStoreOffersMap(t *testing.T) {
 	t.Parallel()
 
 	v := aCheckoutWithAStore()
@@ -205,10 +212,12 @@ func TestNoStoreYetOffersTheMapAndNothingElse(t *testing.T) {
 	}
 }
 
-// TestARefusedStoreIsNeverEchoed holds the second half of R1: the refusal says
-// a store could not be confirmed and repeats nothing that arrived, because what
-// arrived came from a cross-site post anybody can send.
-func TestARefusedStoreIsNeverEchoed(t *testing.T) {
+// TestPageRefusedStoreNotEchoed: Page never echoes a refused store: it says a
+// store could not be confirmed and repeats nothing that arrived. It holds the
+// second half of R1: the refusal says a store could not be confirmed and
+// repeats nothing that arrived, because what arrived came from a cross-site
+// post anybody can send.
+func TestPageRefusedStoreNotEchoed(t *testing.T) {
 	t.Parallel()
 
 	v := aCheckoutWithAStore()
@@ -229,10 +238,11 @@ func TestARefusedStoreIsNeverEchoed(t *testing.T) {
 	}
 }
 
-// TestARefusedStoreSaysTheNextStepAmongTheChains: with no chain chosen there is
-// no map button, so the refusal must sit with the chains, above them, where the
-// shopper's next step is.
-func TestARefusedStoreSaysTheNextStepAmongTheChains(t *testing.T) {
+// TestPageRefusedStoreAmongChains: With no chain chosen, Page shows a refused
+// store's message once, above the chain choices, and draws no store box. With
+// no chain chosen there is no map button, so the refusal must sit with the
+// chains, above them, where the shopper's next step is.
+func TestPageRefusedStoreAmongChains(t *testing.T) {
 	t.Parallel()
 
 	v := aCheckoutWithAStore()
@@ -261,9 +271,10 @@ func TestARefusedStoreSaysTheNextStepAmongTheChains(t *testing.T) {
 	}
 }
 
-// TestAHostileStoreNameCannotBreakOutOfThePage is the rendering half of the
-// same worry: the carrier's page can report any text at all.
-func TestAHostileStoreNameCannotBreakOutOfThePage(t *testing.T) {
+// TestPageHostileStoreName: Page renders a store name that carries markup
+// escaped, never as markup. It is the rendering half of the same worry: the
+// carrier's page can report any text at all.
+func TestPageHostileStoreName(t *testing.T) {
 	t.Parallel()
 
 	const hostile = `"><script>alert(1)</script>`
@@ -281,9 +292,11 @@ func TestAHostileStoreNameCannotBreakOutOfThePage(t *testing.T) {
 	}
 }
 
-// TestNoMapNoButtonAndNoForm is the unconfigured deployment: the checkout asks
-// for a chain and behaves exactly as it did before the map existed.
-func TestNoMapNoButtonAndNoForm(t *testing.T) {
+// TestPageNoMapOffered: With no map offered, Page renders no store-map form,
+// carrier address or choose-store control, and still asks for a chain. It is
+// the unconfigured deployment: the checkout asks for a chain and behaves
+// exactly as it did before the map existed.
+func TestPageNoMapOffered(t *testing.T) {
 	t.Parallel()
 
 	v := aCheckoutWithAStore()

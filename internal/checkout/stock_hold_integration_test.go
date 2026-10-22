@@ -20,7 +20,10 @@ import (
 	"github.com/koopa0/goen/internal/order/delivery"
 )
 
-func TestAnInfrastructureFailureIsNotReportedAsSoldOut(t *testing.T) {
+// TestStore_PlaceOrderTimeoutNotSoldOut: PlaceOrder does not report a statement
+// timeout during the stock hold as sold out: it keeps the PgError 57014 and
+// answers ErrBusy, so the checkout re-renders at 422 rather than 500.
+func TestStore_PlaceOrderTimeoutNotSoldOut(t *testing.T) {
 	ctx := t.Context()
 	cfg, err := pgxpool.ParseConfig(pool.Config().ConnString())
 	if err != nil {
@@ -79,7 +82,10 @@ func TestAnInfrastructureFailureIsNotReportedAsSoldOut(t *testing.T) {
 	}
 }
 
-func TestInventoryConstraintIsReportedAsSoldOut(t *testing.T) {
+// TestStore_PlaceOrderSoldOut: PlaceOrder maps the database's
+// inventory_never_negative refusal, when a competing hold takes the last unit,
+// to cart.ErrUnavailable.
+func TestStore_PlaceOrderSoldOut(t *testing.T) {
 	ctx := t.Context()
 	app := "wave0-inventory-" + uuid.NewString()
 	appPool := applicationPool(t, app)
@@ -139,7 +145,9 @@ func TestInventoryConstraintIsReportedAsSoldOut(t *testing.T) {
 	}
 }
 
-func TestCheckoutHoldsStock(t *testing.T) {
+// TestStore_PlaceOrderHoldsStock: PlaceOrder holds stock for the order: one
+// unit off the variant's stock, one held reservation and one hold movement.
+func TestStore_PlaceOrderHoldsStock(t *testing.T) {
 	ctx := t.Context()
 	s := checkout.NewStore(pool)
 
@@ -223,7 +231,9 @@ func TestCheckoutHoldsStock(t *testing.T) {
 	}
 }
 
-func TestCheckoutLineHoldsShareTheOrderDeadline(t *testing.T) {
+// TestStore_PlaceOrderHoldDeadline: PlaceOrder gives every line's hold the one
+// deadline of the order, checkout_hold_minutes() after placement.
+func TestStore_PlaceOrderHoldDeadline(t *testing.T) {
 	ctx := t.Context()
 	s := checkout.NewStore(pool)
 	a, b, _ := threeVariants(t, "shared-hold-deadline")
@@ -264,10 +274,12 @@ func TestCheckoutLineHoldsShareTheOrderDeadline(t *testing.T) {
 	}
 }
 
-// TestTwoOrdersCannotTakeTheSameLastUnit is the race the hold exists to lose
-// safely. T1's transaction is held OPEN while T2 runs, and both orders are
-// created first because next_order_number() locks the per-day counter row.
-func TestTwoOrdersCannotTakeTheSameLastUnit(t *testing.T) {
+// TestHoldInventoryLastUnit: hold_inventory refuses the second of two orders
+// racing for the last sellable unit with inventory_never_negative once the
+// first commits. It is the race the hold exists to lose safely. T1's
+// transaction is held OPEN while T2 runs, and both orders are created first
+// because next_order_number() locks the per-day counter row.
+func TestHoldInventoryLastUnit(t *testing.T) {
 	ctx := t.Context()
 
 	vid := variantOf(t, "nimbus-band-2")
@@ -390,11 +402,13 @@ func commitBareOrder(t *testing.T, vid uuid.UUID) uuid.UUID {
 	return id
 }
 
-// TestReservationReleaseLocksOrderBeforeReservation holds the shared lock
-// order between expiry sweeping and cancellation. Cancellation already owns
-// the order row when it calls release_reservation; a sweeper that owned the
-// reservation first could close an order↔reservation deadlock cycle.
-func TestReservationReleaseLocksOrderBeforeReservation(t *testing.T) {
+// TestReleaseReservationLockOrder: release_reservation locks the order row
+// before the reservation, the order cancellation and expiry sweeping share, so
+// the two cannot close an order-reservation deadlock cycle. It holds the shared
+// lock order between expiry sweeping and cancellation. Cancellation already
+// owns the order row when it calls release_reservation; a sweeper that owned
+// the reservation first could close an order↔reservation deadlock cycle.
+func TestReleaseReservationLockOrder(t *testing.T) {
 	ctx := t.Context()
 	variantID := freshVariant(t, "release-lock-order")
 	orderID := heldOrder(t, variantID, time.Hour, false)
@@ -445,11 +459,13 @@ func TestReservationReleaseLocksOrderBeforeReservation(t *testing.T) {
 	}
 }
 
-// TestInventoryHoldLocksOrderBeforeVariant proves the other half of the shared
-// order -> reservation/variant contract. Merely relying on the reservation's
-// foreign key would take its weak order lock only after stock had been locked,
-// recreating the release/re-hold ABBA cycle.
-func TestInventoryHoldLocksOrderBeforeVariant(t *testing.T) {
+// TestHoldInventoryLockOrder: hold_inventory locks the order row before the
+// variant, the other half of the shared order-then-stock lock order, so a
+// release and a re-hold cannot close an ABBA cycle. It proves the other half of
+// the shared order -> reservation/variant contract. Merely relying on the
+// reservation's foreign key would take its weak order lock only after stock had
+// been locked, recreating the release/re-hold ABBA cycle.
+func TestHoldInventoryLockOrder(t *testing.T) {
 	ctx := t.Context()
 	variantID := freshVariant(t, "hold-lock-order")
 	orderID := heldOrder(t, variantID, time.Hour, false)

@@ -59,9 +59,9 @@ func checkoutAs(
 	return res.Body.String()
 }
 
-// TestAMemberCheckoutIsFilledFromTheAccount: the recipient is the member by
-// default, from the account's own name, phone and email.
-func TestAMemberCheckoutIsFilledFromTheAccount(t *testing.T) {
+// TestHandler_PageMemberPrefill: Page fills a member's checkout from the
+// account's name, phone and email, and ticks the recipient box.
+func TestHandler_PageMemberPrefill(t *testing.T) {
 	s := checkout.NewStore(pool)
 	h := newHandler(s, access.NewStore(pool, false), slog.New(slog.DiscardHandler), nil)
 	token, u := aMember(t, s, "recipient-member")
@@ -80,7 +80,9 @@ func TestAMemberCheckoutIsFilledFromTheAccount(t *testing.T) {
 	}
 }
 
-func TestAGuestCheckoutHasNeitherControlAndNoPrefill(t *testing.T) {
+// TestHandler_PageGuestNoPrefill: Page offers a guest neither the member's
+// controls nor any prefill.
+func TestHandler_PageGuestNoPrefill(t *testing.T) {
 	s := checkout.NewStore(pool)
 	h := newHandler(s, access.NewStore(pool, false), slog.New(slog.DiscardHandler), nil)
 	// A cart nobody owns: a signed-out request for a member's cart is turned away.
@@ -104,10 +106,10 @@ func TestAGuestCheckoutHasNeitherControlAndNoPrefill(t *testing.T) {
 	}
 }
 
-// TestTheRecipientBoxAppliedByTheServerTicksAndRestores: ticking the box without
-// scripting puts the account's name and phone over what was typed, and the form
-// carries what was there so unticking can put it back.
-func TestTheRecipientBoxAppliedByTheServerTicksAndRestores(t *testing.T) {
+// TestHandler_PlaceOrderRecipientBox: Applying the recipient box without
+// scripting puts the account's name and phone over what was typed and carries
+// what was there, so unticking puts it back.
+func TestHandler_PlaceOrderRecipientBox(t *testing.T) {
 	s := checkout.NewStore(pool)
 	h := newHandler(s, access.NewStore(pool, false), slog.New(slog.DiscardHandler), nil)
 	token, u := aMember(t, s, "recipient-typed")
@@ -155,9 +157,11 @@ func TestTheRecipientBoxAppliedByTheServerTicksAndRestores(t *testing.T) {
 	}
 }
 
-// TestARestoredDraftIsNotOverwrittenByTheAccount: what the member typed before
+// TestHandler_PageDraftKeepsRecipient: Page keeps the recipient a member typed
+// before the map, from the restored draft, instead of overwriting it from the
+// account, and leaves the recipient box unchecked. What the member typed before
 // the map stands, and the box reports that it is not the account's.
-func TestARestoredDraftIsNotOverwrittenByTheAccount(t *testing.T) {
+func TestHandler_PageDraftKeepsRecipient(t *testing.T) {
 	s := checkout.NewStore(pool)
 	h := newHandler(s, access.NewStore(pool, false), slog.New(slog.DiscardHandler), configuredMap(t))
 	token, u := aMember(t, s, "recipient-draft")

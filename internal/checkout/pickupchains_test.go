@@ -7,11 +7,13 @@ import (
 	"github.com/koopa0/goen/internal/shipping"
 )
 
-// TestCheckoutOffersTheChainsTheShopShipsTo holds the two sets apart: a shopper
-// chooses between the chains whose store picker the shop will integrate, and the
-// back office keeps every chain (shipping.Chains), because an order already
-// placed at one of the others still has to be correctable.
-func TestCheckoutOffersTheChainsTheShopShipsTo(t *testing.T) {
+// TestPickupChains: pickupChains offers the chains whose store picker the shop
+// integrates, each known to validation, as a copy the caller cannot change. It
+// holds the two sets apart: a shopper chooses between the chains whose store
+// picker the shop will integrate, and the back office keeps every chain
+// (shipping.Chains), because an order already placed at one of the others still
+// has to be correctable.
+func TestPickupChains(t *testing.T) {
 	t.Parallel()
 
 	want := []shipping.Chain{shipping.ChainSevenEleven, shipping.ChainFamilyMart}

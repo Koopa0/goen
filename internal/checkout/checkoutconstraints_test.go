@@ -6,7 +6,10 @@ import (
 	"github.com/koopa0/goen/internal/ui/fieldrule"
 )
 
-func TestCheckoutAddressConstraintsReachTheForm(t *testing.T) {
+// TestPageAddressConstraints: Page gives the postcode, city and district
+// controls their constraint patterns and attached feedback, and no maxlength
+// the server does not have.
+func TestPageAddressConstraints(t *testing.T) {
 	controls := renderedAutofillControls(t)
 	for id, pattern := range map[string]string{"postal_code": fieldrule.PostalCode.Pattern, "city": `\s*\S(?:.{0,18}\S)?\s*`, "district": `\s*\S(?:.{0,18}\S)?\s*`} {
 		field := controls[id]

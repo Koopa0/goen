@@ -15,10 +15,13 @@ import (
 	"github.com/koopa0/goen/internal/shipping"
 )
 
-// TestTheOrderNamesItsShippingMethodInTheReadersLanguage: the method's name is
-// read from the version the order was priced from, so an English reader is not
-// shown the Chinese name the shop typed, and a Chinese reader still is.
-func TestTheOrderNamesItsShippingMethodInTheReadersLanguage(t *testing.T) {
+// TestBuyerStore_OrderShippingName: buyer.Store.Order names an order's shipping
+// method in the reader's language, from the version the order was priced from:
+// English for an English reader, the Chinese the shop typed for a Chinese one.
+// The method's name is read from the version the order was priced from, so an
+// English reader is not shown the Chinese name the shop typed, and a Chinese
+// reader still is.
+func TestBuyerStore_OrderShippingName(t *testing.T) {
 	ctx := t.Context()
 	s := checkout.NewStore(pool)
 
@@ -64,10 +67,13 @@ func TestTheOrderNamesItsShippingMethodInTheReadersLanguage(t *testing.T) {
 	}
 }
 
-// TestAMethodIsNotOfferedForAParcelItsCarrierRefuses. A method is offered only
-// for a cart its carrier will physically take, PER ITEM and never over the cart
-// total: two things that each fit are two parcels, but one item cannot be split.
-func TestAMethodIsNotOfferedForAParcelItsCarrierRefuses(t *testing.T) {
+// TestCartStore_ShippingChoicesParcel: cart.Store.ShippingChoices offers a
+// method only for a cart its carrier will take, per item and never over the
+// cart total, and does not hide a method for a variant with no measurements. A
+// method is offered only for a cart its carrier will physically take, PER ITEM
+// and never over the cart total: two things that each fit are two parcels, but
+// one item cannot be split.
+func TestCartStore_ShippingChoicesParcel(t *testing.T) {
 	ctx := t.Context()
 	s := checkout.NewStore(pool)
 
@@ -160,7 +166,9 @@ func TestAMethodIsNotOfferedForAParcelItsCarrierRefuses(t *testing.T) {
 	})
 }
 
-func TestTheCheckoutOffersDeliveryInTheVisitorsLanguage(t *testing.T) {
+// TestCartStore_ShippingChoicesLocale: cart.Store.ShippingChoices names the
+// delivery methods in the visitor's language and not in the other.
+func TestCartStore_ShippingChoicesLocale(t *testing.T) {
 	ctx := t.Context()
 	s := checkout.NewStore(pool)
 	// An empty cart: what a method is OFFERED for depends on what is in the basket.

@@ -36,7 +36,10 @@ func encodeState(raw string) string {
 	return base64.RawURLEncoding.EncodeToString([]byte(raw))
 }
 
-func TestPickupRefusalDiagnosticsDoNotExposeSelectionSecrets(t *testing.T) {
+// TestHandler_ApplyReturnedStoreNoSecrets: applyReturnedStore refuses an
+// unmatched selection with 422 and logs the diagnostic flags without the nonce,
+// the cookie's nonce, the store code or the store name.
+func TestHandler_ApplyReturnedStoreNoSecrets(t *testing.T) {
 	t.Parallel()
 	var logs bytes.Buffer
 	h := &Handler{storeMap: testMap(t), log: slog.New(slog.NewJSONHandler(&logs, nil))}
@@ -60,7 +63,9 @@ func TestPickupRefusalDiagnosticsDoNotExposeSelectionSecrets(t *testing.T) {
 	}
 }
 
-func TestMissingPickupNonceIsNotLoggedAsAMatch(t *testing.T) {
+// TestHandler_ApplyReturnedStoreNoNonce: applyReturnedStore answers 422 to a
+// return with no nonce and does not log it as a match.
+func TestHandler_ApplyReturnedStoreNoNonce(t *testing.T) {
 	t.Parallel()
 	var logs bytes.Buffer
 	h := &Handler{storeMap: testMap(t), log: slog.New(slog.NewJSONHandler(&logs, nil))}
@@ -77,7 +82,10 @@ func TestMissingPickupNonceIsNotLoggedAsAMatch(t *testing.T) {
 	}
 }
 
-func TestASingleCookieSurvivesAMismatchedNonce(t *testing.T) {
+// TestHandler_CheckoutChoicesNonceMismatch: A pickup cookie whose nonce differs
+// from the return's keeps its saved choices and its own nonce, and the
+// mismatched store is not honoured.
+func TestHandler_CheckoutChoicesNonceMismatch(t *testing.T) {
 	t.Parallel()
 	const other = "fedcba98765432100000"
 	req := httptest.NewRequestWithContext(t.Context(), http.MethodGet, "/checkout?pickup_n="+other, http.NoBody)

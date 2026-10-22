@@ -19,7 +19,9 @@ import (
 	"github.com/koopa0/goen/internal/order/delivery"
 )
 
-func TestCheckoutPersistsTheDonationPreference(t *testing.T) {
+// TestStore_PlaceOrderDonationPreference: PlaceOrder stores a donation invoice
+// preference with its donation code and no barcode or tax ID.
+func TestStore_PlaceOrderDonationPreference(t *testing.T) {
 	for _, tt := range []struct{ name, kind, barcode, donation string }{
 		{"donation", "donation", "", "00123"},
 	} {
@@ -50,7 +52,10 @@ func TestCheckoutPersistsTheDonationPreference(t *testing.T) {
 	}
 }
 
-func TestCheckoutDonationChoiceRoundTripWithoutScript(t *testing.T) {
+// TestHandler_PlaceOrderDonationRoundTrip: A donation invoice choice survives
+// the form round trip without scripting, and a refused donation code is shown
+// with a 422 and its error.
+func TestHandler_PlaceOrderDonationRoundTrip(t *testing.T) {
 	for _, tt := range []struct{ kind, field, value string }{
 		{"donation", "invoice_donation_code", "00123"},
 	} {

@@ -46,9 +46,9 @@ var coveredByNamedTest = map[string]string{
 		"(internal/payment), TestErasureLeavesNoCustomerDetailsInPaymentEvents",
 	// Its violation needs an order a committed checkout placed, which a case run inside the
 	// fixtures' own transaction cannot have.
-	"order_lines_written_while_placing": "TestAPlacedOrderTakesNoLineFromALaterRequest (internal/checkout)",
+	"order_lines_written_while_placing": "TestOrderLinesWrittenWhilePlacing (internal/checkout)",
 	// The same, for the coupon redemption.
-	"coupon_redemptions_written_while_placing": "TestAPlacedOrderTakesNoLineFromALaterRequest (internal/checkout)",
+	"coupon_redemptions_written_while_placing": "TestOrderLinesWrittenWhilePlacing (internal/checkout)",
 	// Its violation needs a paid unsent refund over a live hold, which only
 	// the door and a payout can build.
 	"return_unsent_completes_released": "TestAnUnpaidUnsentRefundNeitherSettlesNorCompletes",

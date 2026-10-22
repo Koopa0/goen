@@ -77,11 +77,11 @@ func couponTestHandler(s *checkout.Store) *checkout.Handler {
 	return newHandler(s, access.NewStore(pool, false), slog.New(slog.DiscardHandler), nil)
 }
 
-// TestAFreeShippingCodeIsRefusedWhenTheOrderAlreadyShipsFree is #1967 as the
-// shopper meets it: 套用 on a cart over the threshold says the code is not
-// needed, and placing the order with it still typed writes nothing and spends no
-// redemption.
-func TestAFreeShippingCodeIsRefusedWhenTheOrderAlreadyShipsFree(t *testing.T) {
+// TestHandler_PlaceOrderFreeShippingNotNeeded: A free-shipping code on an order
+// that already ships free is refused as not needed, both on 套用 and when
+// placing, and writes nothing and spends no redemption. It is #1967 as the
+// shopper meets it.
+func TestHandler_PlaceOrderFreeShippingNotNeeded(t *testing.T) {
 	ctx := t.Context()
 	s := checkout.NewStore(pool)
 	h := couponTestHandler(s)
@@ -148,11 +148,11 @@ func TestAFreeShippingCodeIsRefusedWhenTheOrderAlreadyShipsFree(t *testing.T) {
 	}
 }
 
-// TestAFreeShippingCodeRefusedOnAFreeOrderStillFreesOneThatPays: Store refuses
-// the code on its own, whatever the form claimed, and the refusal spends
-// nothing, so the single-use code still frees the base rate of an order below
-// the threshold, redeemed once for 0.
-func TestAFreeShippingCodeRefusedOnAFreeOrderStillFreesOneThatPays(t *testing.T) {
+// TestStore_PlaceOrderFreeCodeStillUsable: PlaceOrder refuses a free-shipping
+// code on an order that already ships free with coupon.ErrNotNeeded and spends
+// nothing, whatever the form claimed, so the single-use code still frees the
+// base rate of an order below the threshold, redeemed once for 0.
+func TestStore_PlaceOrderFreeCodeStillUsable(t *testing.T) {
 	ctx := t.Context()
 	s := checkout.NewStore(pool)
 	code := freeShippingCode(t, "STILLTHERE")
@@ -207,11 +207,13 @@ func TestAFreeShippingCodeRefusedOnAFreeOrderStillFreesOneThatPays(t *testing.T)
 	}
 }
 
-// TestAFreeShippingCodeIsRecheckedAgainstTheThresholdWhenPlaced holds the order
-// transaction after the handler accepted the code on a cart below the threshold,
-// then raises the price past it. The order must refuse the code as not needed,
-// as a 422 with the form kept rather than a 500.
-func TestAFreeShippingCodeIsRecheckedAgainstTheThresholdWhenPlaced(t *testing.T) {
+// TestHandler_PlaceOrderFreeShippingRecheck: PlaceOrder rechecks a
+// free-shipping code against the threshold when placing, so a price raised past
+// it after the handler accepted the code refuses the code as not needed, as a
+// 422 with the form kept rather than a 500. The test holds the order
+// transaction after the handler accepted the code on a cart below the
+// threshold, then raises the price.
+func TestHandler_PlaceOrderFreeShippingRecheck(t *testing.T) {
 	ctx := t.Context()
 	appName := "free-shipping-recheck-" + uuid.NewString()
 	s := checkout.NewStore(applicationPool(t, appName))

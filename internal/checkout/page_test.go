@@ -16,10 +16,10 @@ import (
 	"github.com/koopa0/goen/internal/invoice"
 )
 
-// TestEveryCheckoutChoiceSurvivesChangingAnother holds that the choosers are
-// radio groups inside the checkout form, so changing one keeps what was typed
-// into the others and still works with scripting off.
-func TestEveryCheckoutChoiceSurvivesChangingAnother(t *testing.T) {
+// TestPageChoicesInsideForm: Page renders the choosers as radio groups inside
+// the checkout form, so changing one keeps what was typed into the others and
+// still works with scripting off.
+func TestPageChoicesInsideForm(t *testing.T) {
 	t.Parallel()
 	ctx := i18n.WithLocale(t.Context(), i18n.ZhHant)
 
@@ -62,12 +62,14 @@ func TestEveryCheckoutChoiceSurvivesChangingAnother(t *testing.T) {
 	}
 }
 
-// TestChangingACheckoutChoiceAppliesIt holds the scripting-on half of the
-// chooser: changing a radio sends exactly what the 更新 button beside it sends —
-// everything typed, plus the name of the chooser — and the answer replaces the
-// form where it stands. Without it the dot moves and the fields that choice
-// decides are not asked for until a button the page never mentioned is pressed.
-func TestChangingACheckoutChoiceAppliesIt(t *testing.T) {
+// TestPageChoiceAppliesOnChange: Page makes changing a chooser's radio send
+// what its 更新 button sends and replace the form in place, with a focusable id
+// on each radio. It holds the scripting-on half of the chooser: changing a
+// radio sends exactly what the 更新 button beside it sends — everything typed,
+// plus the name of the chooser — and the answer replaces the form where it
+// stands. Without it the dot moves and the fields that choice decides are not
+// asked for until a button the page never mentioned is pressed.
+func TestPageChoiceAppliesOnChange(t *testing.T) {
 	t.Parallel()
 	ctx := i18n.WithLocale(t.Context(), i18n.ZhHant)
 
@@ -116,10 +118,12 @@ func TestChangingACheckoutChoiceAppliesIt(t *testing.T) {
 	}
 }
 
-// TestTheApplyButtonAimsAtTheSectionItChanged holds the scripting-off half. The
-// answer is the whole form again, and a form that opens at its top has taken the
-// customer away from the control they just pressed.
-func TestTheApplyButtonAimsAtTheSectionItChanged(t *testing.T) {
+// TestPageApplyButtonSection: Each 更新 button's formaction on Page names its own
+// section, and that section exists, so a scripting-off answer opens where the
+// customer pressed. It holds the scripting-off half. The answer is the whole
+// form again, and a form that opens at its top has taken the customer away from
+// the control they just pressed.
+func TestPageApplyButtonSection(t *testing.T) {
 	t.Parallel()
 	ctx := i18n.WithLocale(t.Context(), i18n.ZhHant)
 
@@ -145,11 +149,12 @@ func TestTheApplyButtonAimsAtTheSectionItChanged(t *testing.T) {
 	}
 }
 
-// TestThePickupFormAsksForTheChainAndNothingElse holds what 超商取貨 asks for:
-// the chain, as radio cards. Nobody types a store number — shoppers pick a store
-// from the carrier's map — and until that map is integrated the field could only
-// produce refusals.
-func TestThePickupFormAsksForTheChainAndNothingElse(t *testing.T) {
+// TestPagePickupAsksForChain: Page asks for a convenience-store order's chain
+// as radio cards and asks for no store number or name. It holds what 超商取貨 asks
+// for: the chain, as radio cards. Nobody types a store number — shoppers pick a
+// store from the carrier's map — and until that map is integrated the field
+// could only produce refusals.
+func TestPagePickupAsksForChain(t *testing.T) {
 	t.Parallel()
 	ctx := i18n.WithLocale(t.Context(), i18n.ZhHant)
 
@@ -198,9 +203,11 @@ func tagCarrying(t *testing.T, html, needle string) string {
 	return html[start : at+end+1]
 }
 
-// TestTheAddressBookIsOnlyOfferedForAnAddress holds that a saved street address
-// is not offered for a convenience-store pickup, whose form has no such fields.
-func TestTheAddressBookIsOnlyOfferedForAnAddress(t *testing.T) {
+// TestView_OffersTheAddressBook: OffersTheAddressBook offers saved street
+// addresses for an address order with a book, and not for a pickup order or an
+// empty book. It holds that a saved street address is not offered for a
+// convenience-store pickup, whose form has no such fields.
+func TestView_OffersTheAddressBook(t *testing.T) {
 	t.Parallel()
 
 	book := []SavedAddress{{ID: "a"}}
@@ -224,9 +231,10 @@ func TestTheAddressBookIsOnlyOfferedForAnAddress(t *testing.T) {
 	}
 }
 
-// TestTheCheckoutShowsTheRequotedFigure holds that a re-quoted fee beats the
-// mainland estimate the method chooser shows before an address is typed.
-func TestTheCheckoutShowsTheRequotedFigure(t *testing.T) {
+// TestView_ShippingFeeCentsRequoted: ShippingFeeCents shows a re-quoted fee
+// instead of the mainland estimate the method chooser shows before an address
+// is typed.
+func TestView_ShippingFeeCentsRequoted(t *testing.T) {
 	t.Parallel()
 
 	choices := []cart.ShippingChoice{{VersionID: "v1", FeeCents: 8000}}
@@ -243,10 +251,10 @@ func TestTheCheckoutShowsTheRequotedFigure(t *testing.T) {
 	}
 }
 
-// TestTheCheckoutSummaryAddsUpTheWayPlaceOrderDoes holds the summary against
-// cart.priceOrder: a free-delivery coupon pays the base rate and never the
-// outlying-island surcharge, which the fee row states on a line of its own.
-func TestTheCheckoutSummaryAddsUpTheWayPlaceOrderDoes(t *testing.T) {
+// TestView_TotalCentsSurcharge: TotalCents adds up the way PlaceOrder prices: a
+// free-delivery coupon pays the base rate and never the outlying-island
+// surcharge, which the fee row states on its own line.
+func TestView_TotalCentsSurcharge(t *testing.T) {
 	t.Parallel()
 
 	base := func() *View {
@@ -300,9 +308,9 @@ func TestTheCheckoutSummaryAddsUpTheWayPlaceOrderDoes(t *testing.T) {
 	})
 }
 
-// TestTheCheckoutSummaryNamesTheVariant holds that the summary names the
-// variant, on the one screen built to confirm what is about to be paid for.
-func TestTheCheckoutSummaryNamesTheVariant(t *testing.T) {
+// TestPageSummaryVariant: Page names the variant of a line in the order
+// summary, the one screen built to confirm what is about to be paid for.
+func TestPageSummaryVariant(t *testing.T) {
 	t.Parallel()
 
 	view := View{
@@ -328,11 +336,13 @@ func TestTheCheckoutSummaryNamesTheVariant(t *testing.T) {
 	}
 }
 
-// TestTheInvoiceFormAsksForOneThing holds which half of the form exists.
-// 會員載具, 手機條碼載具, 捐贈 and 公司統編 need different information, and Validate()
+// TestPageInvoiceFields: Page renders only the invoice fields the chosen
+// preference needs (mobile barcode, donation code, company name and tax ID),
+// and keeps the three choosers in one form. It holds which half of the form
+// exists. 會員載具, 手機條碼載具, 捐贈 and 公司統編 need different information, and Validate()
 // blanks the field that does not apply, so rendering both would leave the form
 // promising something the server will not demand.
-func TestTheInvoiceFormAsksForOneThing(t *testing.T) {
+func TestPageInvoiceFields(t *testing.T) {
 	t.Parallel()
 	ctx := i18n.WithLocale(t.Context(), i18n.ZhHant)
 
@@ -400,11 +410,12 @@ func TestTheInvoiceFormAsksForOneThing(t *testing.T) {
 	}
 }
 
-// TestAnOffshoreRequoteIsNotAnError holds a re-quote as a notice rather than a
-// field error — the method is chosen above the address, so the fee on screen is
-// a mainland estimate and nothing the customer typed was wrong — while still
+// TestPageRepricedNotice: Page shows a re-quote as a status notice, not as an
+// error the customer made. It holds a re-quote as a notice rather than a field
+// error — the method is chosen above the address, so the fee on screen is a
+// mainland estimate and nothing the customer typed was wrong — while still
 // answering 422, because the submission was not accepted.
-func TestAnOffshoreRequoteIsNotAnError(t *testing.T) {
+func TestPageRepricedNotice(t *testing.T) {
 	t.Parallel()
 	ctx := i18n.WithLocale(t.Context(), i18n.ZhHant)
 
@@ -438,7 +449,10 @@ func TestAnOffshoreRequoteIsNotAnError(t *testing.T) {
 	}
 }
 
-func TestAChangedCreditBalanceHasItsOwnStatusNotice(t *testing.T) {
+// TestPageCreditChangedNotice: Page shows a changed store-credit balance as an
+// informational status notice of its own, not through the shipping Repriced
+// field.
+func TestPageCreditChangedNotice(t *testing.T) {
 	t.Parallel()
 	ctx := i18n.WithLocale(t.Context(), i18n.ZhHant)
 
@@ -471,12 +485,14 @@ func TestAChangedCreditBalanceHasItsOwnStatusNotice(t *testing.T) {
 	}
 }
 
-// TestEnterInTheCheckoutPlacesTheOrder holds a rule the browser applies and no
-// linter can see: HTML makes the FIRST submit button in tree order the one
-// Enter activates in any text field, so a leading submit must place the order
-// rather than a chooser's 更新 re-rendering the form. Asserting ORDER is the
-// whole point: both buttons exist either way.
-func TestEnterInTheCheckoutPlacesTheOrder(t *testing.T) {
+// TestPageEnterPlacesOrder: Page puts an inert order button first in the form,
+// so Enter in any text field places the order rather than a chooser's 更新
+// re-rendering the form. It holds a rule the browser applies and no linter can
+// see: HTML makes the FIRST submit button in tree order the one Enter activates
+// in any text field, so a leading submit must place the order rather than a
+// chooser's 更新 re-rendering the form. Asserting ORDER is the whole point: both
+// buttons exist either way.
+func TestPageEnterPlacesOrder(t *testing.T) {
 	t.Parallel()
 	ctx := i18n.WithLocale(t.Context(), i18n.ZhHant)
 
@@ -512,7 +528,10 @@ func TestEnterInTheCheckoutPlacesTheOrder(t *testing.T) {
 	}
 }
 
-func TestCheckoutExplainsWhatPlacingTheOrderDoes(t *testing.T) {
+// TestPagePlacementNote: Page labels the order button and explains what placing
+// the order does for an amount owed, a part-credited order, a credit-covered
+// order and a zero-by-discount order, in each locale.
+func TestPagePlacementNote(t *testing.T) {
 	t.Parallel()
 	for _, locale := range []struct {
 		locale                                i18n.Locale
@@ -602,13 +621,15 @@ func TestCheckoutExplainsWhatPlacingTheOrderDoes(t *testing.T) {
 	}
 }
 
-// TestTheChosenOptionIsMarkedOnTheRadioAlone holds the single source for "this
-// is the one chosen". The page used to say it twice — a class the server
-// rendered onto the label, and a :has(input:checked) rule following the live
-// control — and the two disagree the moment a shopper presses one, which is
-// #378's first symptom. The checked attribute is what a browser, a screen
-// reader and the stylesheet all read, so it is the one that stays.
-func TestTheChosenOptionIsMarkedOnTheRadioAlone(t *testing.T) {
+// TestPageChosenOptionChecked: Page marks the chosen shipping and invoice
+// option with the radio's checked attribute alone, with no second server-side
+// class. It holds the single source for "this is the one chosen". The page used
+// to say it twice — a class the server rendered onto the label, and a
+// :has(input:checked) rule following the live control — and the two disagree
+// the moment a shopper presses one, which is #378's first symptom. The checked
+// attribute is what a browser, a screen reader and the stylesheet all read, so
+// it is the one that stays.
+func TestPageChosenOptionChecked(t *testing.T) {
 	t.Parallel()
 	ctx := i18n.WithLocale(t.Context(), i18n.ZhHant)
 
@@ -645,14 +666,16 @@ func TestTheChosenOptionIsMarkedOnTheRadioAlone(t *testing.T) {
 	}
 }
 
-// TestACouponCanBeAppliedWithoutPlacingTheOrder holds the control that makes a
-// discount code checkable. The field on its own left the shopper one button —
-// the one that buys — so the only way to learn whether a code worked was to
-// place the order and read the total afterwards.
+// TestPageCouponApplyButton: Page gives the coupon field its own apply button,
+// an update submit that follows the order button so Enter still places the
+// order. It holds the control that makes a discount code checkable. The field
+// on its own left the shopper one button — the one that buys — so the only way
+// to learn whether a code worked was to place the order and read the total
+// afterwards.
 //
 // It is an `update` submit like the three chooser buttons, because it wants the
 // same thing: re-render this form with one more decision applied.
-func TestACouponCanBeAppliedWithoutPlacingTheOrder(t *testing.T) {
+func TestPageCouponApplyButton(t *testing.T) {
 	t.Parallel()
 	ctx := i18n.WithLocale(t.Context(), i18n.ZhHant)
 
@@ -684,17 +707,19 @@ func TestACouponCanBeAppliedWithoutPlacingTheOrder(t *testing.T) {
 	}
 
 	// And it must not become the form's default: Enter in any field still
-	// places the order, which TestEnterInTheCheckoutPlacesTheOrder locks from
+	// places the order, which TestPageEnterPlacesOrder locks from
 	// the other side.
 	if strings.Index(form, `value="coupon"`) < strings.Index(form, i18n.T(ctx, i18n.KeyPlaceOrder)) {
 		t.Error("the coupon button comes before the order button, so Enter applies a code instead of buying")
 	}
 }
 
-// TestARecipientCanBeTheMemberAndAnAddressTheirSavedOne holds the two controls a
-// signed-in customer gets above the recipient fields, with the data each fills
-// from rendered beside it so choosing costs no request.
-func TestARecipientCanBeTheMemberAndAnAddressTheirSavedOne(t *testing.T) {
+// TestPageRecipientControls: Page gives a signed-in customer the recipient box
+// and the saved-address chooser, with the data each fills from rendered beside
+// it. It holds the two controls a signed-in customer gets above the recipient
+// fields, with the data each fills from rendered beside it so choosing costs no
+// request.
+func TestPageRecipientControls(t *testing.T) {
 	t.Parallel()
 	ctx := i18n.WithLocale(t.Context(), i18n.ZhHant)
 
@@ -749,9 +774,11 @@ func TestARecipientCanBeTheMemberAndAnAddressTheirSavedOne(t *testing.T) {
 	}
 }
 
-// TestAGuestIsOfferedNeitherControl: with no account there is no profile and no
-// address book, so the form is the one a guest has always had.
-func TestAGuestIsOfferedNeitherControl(t *testing.T) {
+// TestPageGuestNoControls: Page offers a guest neither the recipient box nor
+// the address book, so the form is the one a guest has always had. With no
+// account there is no profile and no address book, so the form is the one a
+// guest has always had.
+func TestPageGuestNoControls(t *testing.T) {
 	t.Parallel()
 	ctx := i18n.WithLocale(t.Context(), i18n.ZhHant)
 
@@ -779,12 +806,13 @@ func couponTestView() View {
 	}
 }
 
-// TestApplyingACouponSwapsOnlyTheCodeTheTotalsAndTheQuote holds what a script
-// replaces when 套用 is pressed. Each named id must exist in the page, or the
-// swap silently drops it; the quote is among them because the code changes it
-// and a stale one fails the next 送出訂單. The whole summary is not named: it
-// holds the buttons, and replacing them drops the focus.
-func TestApplyingACouponSwapsOnlyTheCodeTheTotalsAndTheQuote(t *testing.T) {
+// TestPageCouponSwap: Page's coupon button swaps only the code, the totals and
+// the quote when 套用 is pressed, and each id it names exists in the page. It
+// holds what a script replaces when 套用 is pressed. Each named id must exist in
+// the page, or the swap silently drops it; the quote is among them because the
+// code changes it and a stale one fails the next 送出訂單. The whole summary is not
+// named: it holds the buttons, and replacing them drops the focus.
+func TestPageCouponSwap(t *testing.T) {
 	t.Parallel()
 	ctx := i18n.WithLocale(t.Context(), i18n.ZhHant)
 	view := couponTestView()
@@ -819,10 +847,12 @@ func TestApplyingACouponSwapsOnlyTheCodeTheTotalsAndTheQuote(t *testing.T) {
 	}
 }
 
-// TestACouponRefusalNamesItselfInTheBanner holds that a form whose only problem
-// is the code does not send the shopper through the fields, while any other
-// refusal keeps the general banner.
-func TestACouponRefusalNamesItselfInTheBanner(t *testing.T) {
+// TestPageCouponRefusalBanner: Page's banner names a coupon refusal when the
+// code is the form's only problem, and keeps the general banner for any other
+// refusal. It holds that a form whose only problem is the code does not send
+// the shopper through the fields, while any other refusal keeps the general
+// banner.
+func TestPageCouponRefusalBanner(t *testing.T) {
 	t.Parallel()
 	ctx := i18n.WithLocale(t.Context(), i18n.ZhHant)
 	general := i18n.T(ctx, i18n.KeyCheckoutHasErrors)
@@ -842,10 +872,12 @@ func TestACouponRefusalNamesItselfInTheBanner(t *testing.T) {
 	}
 }
 
-// TestTheCheckoutFormIsCheckedByTheServerAndFocusesTheFirstRefusal holds that no
-// field is refused by the browser before the server has answered for all of
-// them, and that a refused page says so for the script that moves focus.
-func TestTheCheckoutFormIsCheckedByTheServerAndFocusesTheFirstRefusal(t *testing.T) {
+// TestPageFormNovalidateFocus: Page leaves every field to the server to refuse
+// (novalidate), and a refused page asks the script to move focus to its first
+// refusal. It holds that no field is refused by the browser before the server
+// has answered for all of them, and that a refused page says so for the script
+// that moves focus.
+func TestPageFormNovalidateFocus(t *testing.T) {
 	t.Parallel()
 	ctx := i18n.WithLocale(t.Context(), i18n.ZhHant)
 

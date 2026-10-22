@@ -20,13 +20,16 @@ import (
 	"github.com/koopa0/goen/internal/web/ratelimit"
 )
 
-// TestAnOrderLookupIsBoundedPerAddressFromAnyClient: an address is guessable
-// from outside, so it is the weak half of the pair the lookup asks for, and
-// a bound per client alone is lifted by asking from somewhere else. Each ask
-// here comes from a different client, IPv4 and IPv6 alike; the address runs
-// out anyway, the right number is then refused like a wrong one, and another
-// address from the same clients is untouched.
-func TestAnOrderLookupIsBoundedPerAddressFromAnyClient(t *testing.T) {
+// TestBuyerHandler_FindOrderAddressBound: buyer.Handler.FindOrder bounds the
+// lookups of one address from any client: the address runs out whatever the
+// clients, the right number is then refused like a wrong one, and another
+// address from the same clients is untouched. An address is guessable from
+// outside, so it is the weak half of the pair the lookup asks for, and a bound
+// per client alone is lifted by asking from somewhere else. Each ask here comes
+// from a different client, IPv4 and IPv6 alike; the address runs out anyway,
+// the right number is then refused like a wrong one, and another address from
+// the same clients is untouched.
+func TestBuyerHandler_FindOrderAddressBound(t *testing.T) {
 	ctx := t.Context()
 	s := checkout.NewStore(pool)
 	victim := "find-bound-" + uuid.NewString() + "@example.com"
@@ -94,11 +97,11 @@ func TestAnOrderLookupIsBoundedPerAddressFromAnyClient(t *testing.T) {
 	}
 }
 
-// TestAFullWidthNumberFindsTheOrderAndSpendsTheSameBudget: an order number typed
-// on a Chinese keyboard left in full-width mode is the number it spells, so it
-// finds the order, and a wrong one is charged to the address like any other:
-// alternating the two widths buys no second allowance.
-func TestAFullWidthNumberFindsTheOrderAndSpendsTheSameBudget(t *testing.T) {
+// TestBuyerHandler_FindOrderFullWidth: buyer.Handler.FindOrder finds an order
+// by a number typed on a Chinese keyboard left in full-width mode, and charges
+// a wrong number to the address like any other: alternating the two widths buys
+// no second allowance.
+func TestBuyerHandler_FindOrderFullWidth(t *testing.T) {
 	ctx := t.Context()
 	s := checkout.NewStore(pool)
 	h := buyer.NewHandler(buyer.NewStore(pool), access.NewStore(pool, false), slog.New(slog.DiscardHandler),
@@ -172,12 +175,14 @@ func TestAFullWidthNumberFindsTheOrderAndSpendsTheSameBudget(t *testing.T) {
 	}
 }
 
-// TestTheDaysFirstNumberNoLongerFindsAnOrderAndATypedNumberStillDoes holds the
-// point of random order numbers at the door a stranger uses: knowing a
-// customer's address and the day, the counter's first number of the day,
+// TestBuyerHandler_FindOrderRandomNumber: buyer.Handler.FindOrder does not find
+// an order by the day's first counter number, GO-<day>-000001, while the real
+// number finds it even typed in lower case with its 0 and 1 read as o and l. It
+// holds the point of random order numbers at the door a stranger uses: knowing
+// a customer's address and the day, the counter's first number of the day,
 // GO-<day>-000001, names nothing, while the real number finds the order even
 // typed in lower case with its 0 and 1 read as o and l.
-func TestTheDaysFirstNumberNoLongerFindsAnOrderAndATypedNumberStillDoes(t *testing.T) {
+func TestBuyerHandler_FindOrderRandomNumber(t *testing.T) {
 	ctx := t.Context()
 	s := checkout.NewStore(pool)
 	victim := "find-random-" + uuid.NewString() + "@example.com"

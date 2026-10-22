@@ -58,14 +58,17 @@ func checkoutRegionElement(t *testing.T, html string) string {
 	return ""
 }
 
-// TestSwitchingTheChainInPlaceKeepsTheStoreButton holds the update path
-// PlaceOrder takes when a chooser fires: r.PostFormValue("update") is set, so
-// renderCheckout answers with the fresh render rather than placing an order.
-// That response is exactly what #checkout-region selects and replaces, so it
-// must carry the 「選擇門市」 button, which submits the checkout form to goen's
-// own start route; the chain the shopper has just chosen travels in that form,
-// and the carrier's form is built there, so none is left here to go stale.
-func TestSwitchingTheChainInPlaceKeepsTheStoreButton(t *testing.T) {
+// TestHandler_RenderCheckoutStoreButton: renderCheckout's answer to an in-place
+// chain switch carries, in the region the swap replaces, the button that
+// submits the form to the store-map start route, and carries no carrier form.
+// It holds the update path PlaceOrder takes when a chooser fires:
+// r.PostFormValue("update") is set, so renderCheckout answers with the fresh
+// render rather than placing an order. That response is exactly what
+// #checkout-region selects and replaces, so it must carry the 「選擇門市」 button,
+// which submits the checkout form to goen's own start route; the chain the
+// shopper has just chosen travels in that form, and the carrier's form is built
+// there, so none is left here to go stale.
+func TestHandler_RenderCheckoutStoreButton(t *testing.T) {
 	t.Parallel()
 
 	h := &Handler{

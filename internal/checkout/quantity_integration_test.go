@@ -14,7 +14,11 @@ import (
 	"github.com/koopa0/goen/internal/order/delivery"
 )
 
-func TestSetQuantityClampsToWhatCanBeSupplied(t *testing.T) {
+// TestStore_PlaceOrderAfterClamp: A cart clamped by SetQuantity to what can be
+// supplied checks out without a cart.ErrUnavailable dead end; the clamp itself
+// (ErrQuantityAdjusted and the stored 3 of 10 asked) is asserted first as the
+// precondition.
+func TestStore_PlaceOrderAfterClamp(t *testing.T) {
 	ctx := t.Context()
 	s := checkout.NewStore(pool)
 

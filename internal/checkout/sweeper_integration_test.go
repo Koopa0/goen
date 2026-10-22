@@ -10,7 +10,9 @@ import (
 	"github.com/koopa0/goen/internal/checkout"
 )
 
-func TestTheAttemptSweepKeepsRecentKeys(t *testing.T) {
+// TestStore_SweepAttemptsKeepsRecent: SweepAttempts removes checkout attempts
+// older than the retention and keeps recent ones.
+func TestStore_SweepAttemptsKeepsRecent(t *testing.T) {
 	ctx := t.Context()
 	s := checkout.NewStore(pool)
 

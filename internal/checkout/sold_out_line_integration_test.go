@@ -11,9 +11,10 @@ import (
 	"github.com/koopa0/goen/internal/order/access"
 )
 
-// A sold-out line stays in the cart, is left out of the count and the subtotal,
-// and keeps the shopper out of the checkout until it is removed.
-func TestASoldOutLineIsNotCountedAndBlocksCheckout(t *testing.T) {
+// TestHandler_PageSoldOutLine: A sold-out line stays in the cart, is left out
+// of the item count and the subtotal, and Page sends the shopper back to the
+// cart with a 303 until it is removed.
+func TestHandler_PageSoldOutLine(t *testing.T) {
 	ctx := t.Context()
 	s := checkout.NewStore(pool)
 	h := newHandler(s, access.NewStore(pool, false), slog.New(slog.DiscardHandler), nil)

@@ -11,7 +11,11 @@ import (
 	"github.com/koopa0/goen/internal/order/delivery"
 )
 
-func TestAnOffshoreAddressCostsMoreThanATaipeiOne(t *testing.T) {
+// TestStore_QuoteShippingOffshore: QuoteShipping charges an outlying-island
+// postcode more than a Taipei one and names the surcharge, reads the zone from
+// the first three digits of a five-digit code, and lets a free-delivery order
+// pay only the crossing.
+func TestStore_QuoteShippingOffshore(t *testing.T) {
 	ctx := t.Context()
 	s := checkout.NewStore(pool)
 	version := shipVersionFor(t, "home_delivery")
@@ -64,7 +68,9 @@ func TestAnOffshoreAddressCostsMoreThanATaipeiOne(t *testing.T) {
 	}
 }
 
-func TestAPickupOrderIsNeverInAZone(t *testing.T) {
+// TestStore_QuoteShippingPickup: QuoteShipping prices a pickup order with no
+// surcharge and no zone.
+func TestStore_QuoteShippingPickup(t *testing.T) {
 	ctx := t.Context()
 	s := checkout.NewStore(pool)
 
@@ -77,7 +83,10 @@ func TestAPickupOrderIsNeverInAZone(t *testing.T) {
 	}
 }
 
-func TestAnOrderIsChargedTheZoneItShipsTo(t *testing.T) {
+// TestStore_PlaceOrderZoneCharge: PlaceOrder charges an order the shipping of
+// the zone its address is in: a Kinmen order pays what QuoteShipping quotes for
+// it.
+func TestStore_PlaceOrderZoneCharge(t *testing.T) {
 	ctx := t.Context()
 	s := checkout.NewStore(pool)
 	id := newCart(t, s)
@@ -117,7 +126,10 @@ func TestAnOrderIsChargedTheZoneItShipsTo(t *testing.T) {
 	}
 }
 
-func TestAFreeShippingCouponDoesNotPayForTheCrossing(t *testing.T) {
+// TestStore_PlaceOrderFreeShippingCrossing: PlaceOrder with a free-shipping
+// coupon ships a mainland order free but still charges the outlying-island
+// crossing.
+func TestStore_PlaceOrderFreeShippingCrossing(t *testing.T) {
 	ctx := t.Context()
 	s := checkout.NewStore(pool)
 
