@@ -208,3 +208,21 @@ func TestFirstDayAndQueryDateCountShopDays(t *testing.T) {
 		t.Errorf("QueryDate(%v) = %v, want %v", now, got, want)
 	}
 }
+
+// TestColumnDateReadsTheColumnsOwnDay: the date QueryDate writes reads back as
+// the same shop day, and a date column's day is never moved to the shop's zone,
+// even when the value arrives in a zone east of it.
+func TestColumnDateReadsTheColumnsOwnDay(t *testing.T) {
+	t.Parallel()
+
+	// 00:30 on the 10th in Taipei is still the 9th in UTC.
+	now := time.Date(2026, 9, 9, 16, 30, 0, 0, time.UTC)
+	if got, want := shoptime.ColumnDate(shoptime.QueryDate(now)), (shoptime.Date{Year: 2026, Month: time.September, Day: 10}); got != want {
+		t.Errorf("ColumnDate(QueryDate(%v)) = %+v, want %+v", now, got, want)
+	}
+	// Midnight of the 30th at UTC+14 is the 29th at 18:00 in Taipei.
+	east := time.Date(2026, 10, 30, 0, 0, 0, 0, time.FixedZone("UTC+14", 14*60*60))
+	if got, want := shoptime.ColumnDate(east), (shoptime.Date{Year: 2026, Month: time.October, Day: 30}); got != want {
+		t.Errorf("ColumnDate(%v) = %+v, want %+v", east, got, want)
+	}
+}

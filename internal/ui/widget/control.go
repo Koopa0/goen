@@ -2,12 +2,9 @@ package widget
 
 import (
 	"context"
-	"fmt"
 	"strconv"
-	"time"
 
 	"github.com/koopa0/goen/internal/i18n"
-	"github.com/koopa0/goen/internal/shoptime"
 )
 
 // ToggleLabel names the button that flips a switch: it offers the state the switch is not in.
@@ -29,14 +26,4 @@ func DollarInputType(raw string) string {
 		return "text"
 	}
 	return "number"
-}
-
-// DayOf is the calendar day t falls on in its own zone.
-func DayOf(t time.Time) shoptime.Date {
-	return shoptime.Date{Year: t.Year(), Month: t.Month(), Day: t.Day()}
-}
-
-// DayText is a day as a report heading writes it.
-func DayText(ctx context.Context, d shoptime.Date) string {
-	return fmt.Sprintf(i18n.T(ctx, i18n.KeyAdminRepDay), d.Month.String()[:3], int(d.Month), d.Day)
 }
