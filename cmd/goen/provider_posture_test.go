@@ -33,8 +33,15 @@ func prepare(t *testing.T, change func(*config)) (config, error) {
 	return cfg, err
 }
 
+// TestConfig_PrepareRuntimePostureProvider: prepareRuntimePosture treats a
+// live, unrecognised or whitespace-padded Stripe key as live and refuses each
+// setting listed here (insecure cookies, missing or half ECPay credentials,
+// staging endpoints, a placeholder or unparsable sender, a demo account),
+// naming it and leaking neither the key nor a demo password, while a test key
+// or no key accepts every one.
+//
 // The provider posture follows the Stripe key, never the cookie setting.
-func TestProviderPostureFollowsTheStripeKeyNotSecureCookies(t *testing.T) {
+func TestConfig_PrepareRuntimePostureProvider(t *testing.T) {
 	// Each setting a live key refuses; a test key or no key accepts it.
 	for _, tc := range []struct {
 		name   string
@@ -103,7 +110,10 @@ func TestProviderPostureFollowsTheStripeKeyNotSecureCookies(t *testing.T) {
 	})
 }
 
-func TestStoreMapDefaultFollowsTheStripeKey(t *testing.T) {
+// TestConfig_PrepareRuntimePostureStoreMap: a live Stripe key sets the
+// production store-map URL, and a test key or no key leaves it empty for cart's
+// staging default.
+func TestConfig_PrepareRuntimePostureStoreMap(t *testing.T) {
 	for _, key := range []string{liveKey, "sk_org_fixture", " " + liveKey + " "} {
 		live, err := prepare(t, func(c *config) { liveReady(c); c.StripeAPIKey = key })
 		if err != nil {

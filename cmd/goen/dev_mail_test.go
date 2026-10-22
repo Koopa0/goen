@@ -14,12 +14,16 @@ import (
 // carries. Split so the literal does not read as a secret to gosec.
 const resetLink = "https://goen.test/reset?" + "tok" + "en=cafebabe0123456789"
 
-// TestMailConveniencesExistOnlyInDevelopment reads the switch the way a process
-// does, from the environment through loadConfig, so a change to where the
-// program takes it from is caught here and not in a deployment. Development is
-// GOEN_INSECURE_COOKIES=1 and nothing else: any other value, including an
-// unset one, is the secure posture.
-func TestMailConveniencesExistOnlyInDevelopment(t *testing.T) {
+// TestNewSenderDevelopmentOnly: the mail conveniences (a log sender that prints
+// message bodies, and an SMTP sender that allows plaintext to a loopback relay)
+// exist only when GOEN_INSECURE_COOKIES is exactly 1; unset, empty, 0 and true
+// are the secure posture.
+//
+// It reads the switch the way a process does, from the environment through
+// loadConfig, so a change to where the program takes it from is caught here and
+// not in a deployment. Development is GOEN_INSECURE_COOKIES=1 and nothing else:
+// any other value, including an unset one, is the secure posture.
+func TestNewSenderDevelopmentOnly(t *testing.T) {
 	tests := []struct {
 		name        string
 		insecure    string

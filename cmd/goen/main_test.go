@@ -32,7 +32,10 @@ func validPosture() config {
 	}
 }
 
-func TestLoadConfigPrefersStripeAPIKeyAndAcceptsTheLegacyName(t *testing.T) {
+// TestLoadConfigStripeAPIKey: loadConfig reads the Stripe key from
+// GOEN_STRIPE_API_KEY, falls back to the legacy GOEN_STRIPE_SECRET_KEY when the
+// current name is empty, and prefers the current name when both are set.
+func TestLoadConfigStripeAPIKey(t *testing.T) {
 	t.Setenv("GOEN_DATABASE_URL", "postgres://store.example/goen")
 	t.Setenv("GOEN_LOG_LEVEL", "info")
 
@@ -60,11 +63,15 @@ func TestLoadConfigPrefersStripeAPIKeyAndAcceptsTheLegacyName(t *testing.T) {
 	}
 }
 
-// TestLocalConfigurationIsPreparedBeforeExternalDependencies keeps a bad
-// deployment from touching its database before all local posture and provider
-// configuration is known to be usable. The malformed database URL would be
-// the first error in every row if run reordered those operations.
-func TestLocalConfigurationIsPreparedBeforeExternalDependencies(t *testing.T) {
+// TestRunConfigBeforeDatabase: run refuses a missing TOTP key, a malformed SMTP
+// address, a bad trusted-proxy list, a provider with no webhook secret and half
+// a demo account, each with that setting's own error, before it parses the
+// malformed database URL.
+//
+// It keeps a bad deployment from touching its database before all local posture
+// and provider configuration is known to be usable. The malformed database URL
+// would be the first error in every row if run reordered those operations.
+func TestRunConfigBeforeDatabase(t *testing.T) {
 	tests := []struct {
 		name          string
 		totpKey       string
@@ -125,9 +132,14 @@ func TestLocalConfigurationIsPreparedBeforeExternalDependencies(t *testing.T) {
 	}
 }
 
-// TestStartupRefusesATOTPKeyThatIsNotAKey keeps format validation outside the
-// production-only gate and binds each refusal to the setting that caused it.
-func TestStartupRefusesATOTPKeyThatIsNotAKey(t *testing.T) {
+// TestConfig_PrepareRuntimePostureTOTPKey: prepareRuntimePosture refuses a TOTP
+// key that is a passphrase and not a key in both postures, and a missing one
+// only in production, naming GOEN_TOTP_KEY and never echoing the key; a valid
+// key parses to 32 bytes and a missing development key to nil.
+//
+// It keeps format validation outside the production-only gate and binds each
+// refusal to the setting that caused it.
+func TestConfig_PrepareRuntimePostureTOTPKey(t *testing.T) {
 	tests := []struct {
 		name    string
 		raw     string
@@ -170,10 +182,10 @@ func TestStartupRefusesATOTPKeyThatIsNotAKey(t *testing.T) {
 	}
 }
 
-// TestStartupRefusesAPreviousTOTPKeyThatCannotRotate: the previous key is parsed
-// as strictly as the current one, needs a current key beside it, and must differ
-// from it. Each refusal names GOEN_TOTP_KEY_PREVIOUS.
-func TestStartupRefusesAPreviousTOTPKeyThatCannotRotate(t *testing.T) {
+// TestConfig_PrepareRuntimePostureTOTPPrevious: the previous TOTP key is parsed
+// as strictly as the current one, needs a current key beside it, and must
+// differ from it; each refusal names GOEN_TOTP_KEY_PREVIOUS.
+func TestConfig_PrepareRuntimePostureTOTPPrevious(t *testing.T) {
 	const otherKey = "1f1e1d1c1b1a191817161514131211100f0e0d0c0b0a09080706050403020100"
 	tests := []struct {
 		name          string
@@ -209,10 +221,13 @@ func TestStartupRefusesAPreviousTOTPKeyThatCannotRotate(t *testing.T) {
 	}
 }
 
-// TestAProductionPostureRefusesAnUnconfiguredMailer pins both production
-// refusal and the development warning. Earlier settings are valid in every row
-// so neither can answer for the SMTP rule.
-func TestAProductionPostureRefusesAnUnconfiguredMailer(t *testing.T) {
+// TestConfig_PrepareRuntimePostureSMTP: prepareRuntimePosture refuses a missing
+// GOEN_SMTP_ADDR in production and warns about it in development, and says
+// nothing when it is set.
+//
+// It pins both production refusal and the development warning. Earlier settings
+// are valid in every row so neither can answer for the SMTP rule.
+func TestConfig_PrepareRuntimePostureSMTP(t *testing.T) {
 	tests := []struct {
 		name     string
 		addr     string
@@ -250,10 +265,14 @@ func TestAProductionPostureRefusesAnUnconfiguredMailer(t *testing.T) {
 	}
 }
 
-// TestProductionPostureRefusesAnUnsafeBaseURL covers the posture-specific half
-// of SiteOrigin: shape in every environment, TLS in production, and one
+// TestConfig_PrepareRuntimePostureBaseURL: prepareRuntimePosture refuses a
+// cleartext or non-origin GOEN_BASE_URL in production, accepts cleartext in
+// development, and hands downstream one canonical origin (a trailing slash
+// removed).
+//
+// It covers the posture-specific half of SiteOrigin: TLS in production and one
 // canonical value handed downstream.
-func TestProductionPostureRefusesAnUnsafeBaseURL(t *testing.T) {
+func TestConfig_PrepareRuntimePostureBaseURL(t *testing.T) {
 	tests := []struct {
 		name      string
 		baseURL   string
@@ -292,10 +311,15 @@ func TestProductionPostureRefusesAnUnsafeBaseURL(t *testing.T) {
 	}
 }
 
-// TestAListenAddressWithNoHostIsNotGuessedAsTheOrigin: ":9701" is the usual Go
-// listen address, and "http://" + it would put a host-less origin in every
-// Stripe return URL, emailed link and sitemap location.
-func TestAListenAddressWithNoHostIsNotGuessedAsTheOrigin(t *testing.T) {
+// TestConfig_PrepareRuntimePostureListenAddr: a GOEN_ADDR with no host
+// (":9701", "0.0.0.0:9701", "[::]:9701") is not guessed as the origin: with no
+// GOEN_BASE_URL, prepareRuntimePosture refuses and names GOEN_ADDR and
+// GOEN_BASE_URL.
+//
+// ":9701" is the usual Go listen address, and "http://" + it would put a
+// host-less origin in every Stripe return URL, emailed link and sitemap
+// location.
+func TestConfig_PrepareRuntimePostureListenAddr(t *testing.T) {
 	t.Setenv("GOEN_DATABASE_URL", "postgres://store.example/goen")
 	t.Setenv("GOEN_LOG_LEVEL", "info")
 	t.Setenv("GOEN_INSECURE_COOKIES", "1")
@@ -321,10 +345,13 @@ func TestAListenAddressWithNoHostIsNotGuessedAsTheOrigin(t *testing.T) {
 	}
 }
 
-// TestPostureReportsTheFirstBrokenDependency holds the mandated diagnostic
-// order: TOTP, then SMTP, then the origin. A later arm must never hide the
-// first configuration mistake.
-func TestPostureReportsTheFirstBrokenDependency(t *testing.T) {
+// TestConfig_PrepareRuntimePostureOrder: prepareRuntimePosture reports the
+// first broken setting in the order TOTP key, SMTP address, origin, so a later
+// check never hides an earlier mistake.
+//
+// It holds the mandated diagnostic order: TOTP, then SMTP, then the origin. A
+// later arm must never hide the first configuration mistake.
+func TestConfig_PrepareRuntimePostureOrder(t *testing.T) {
 	tests := []struct {
 		name string
 		cfg  config
@@ -345,12 +372,18 @@ func TestPostureReportsTheFirstBrokenDependency(t *testing.T) {
 	}
 }
 
-// TestATrustListNoPeerOfTheListenerCanMatchIsRefused keeps a proxy list from
-// starting that believes nobody. A loopback listener is reached only from this
-// host's loopback, so a list without a loopback address never reads
-// X-Forwarded-For, and every visitor shares the proxy's one rate-limit bucket.
-// Where the listener's peers cannot be known, nothing is refused.
-func TestATrustListNoPeerOfTheListenerCanMatchIsRefused(t *testing.T) {
+// TestConfig_TrustedProxies: trustedProxies refuses a trusted-proxy list that
+// no peer of the listener can match (a loopback listener with only private
+// networks or only the other loopback family, a localhost listener likewise),
+// naming GOEN_TRUSTED_PROXIES, GOEN_ADDR and the loopback list to use, and
+// accepts every list that a peer of the listener can match.
+//
+// It keeps a proxy list from starting that believes nobody. A loopback listener
+// is reached only from this host's loopback, so a list without a loopback
+// address never reads X-Forwarded-For, and every visitor shares the proxy's one
+// rate-limit bucket. Where the listener's peers cannot be known, nothing is
+// refused.
+func TestConfig_TrustedProxies(t *testing.T) {
 	t.Parallel()
 
 	const private = "10.0.0.0/8,172.16.0.0/12,192.168.0.0/16"
@@ -405,10 +438,12 @@ func TestATrustListNoPeerOfTheListenerCanMatchIsRefused(t *testing.T) {
 	}
 }
 
-// TestTheDemoManifestTrustsItsOwnProxy runs the deployment template's pair
-// through the same startup check, so the template cannot drift back into a
-// list its listener never meets.
-func TestTheDemoManifestTrustsItsOwnProxy(t *testing.T) {
+// TestConfig_TrustedProxiesDemoManifest: the GOEN_ADDR and GOEN_TRUSTED_PROXIES
+// in deploy/demo/manifest.env are both set and are accepted by trustedProxies.
+//
+// It runs the deployment template's pair through the same startup check, so the
+// template cannot drift back into a list its listener never meets.
+func TestConfig_TrustedProxiesDemoManifest(t *testing.T) {
 	t.Parallel()
 
 	raw, err := os.ReadFile(filepath.Join("..", "..", "deploy", "demo", "manifest.env"))
@@ -437,10 +472,16 @@ func TestTheDemoManifestTrustsItsOwnProxy(t *testing.T) {
 	}
 }
 
-// TestAMalformedSMTPAddressIsFatalAndNeverTheLogSender keeps a configured
-// authenticated relay from degrading into the sender whose nil means
-// delivered, while retaining that sender as an explicit development fallback.
-func TestAMalformedSMTPAddressIsFatalAndNeverTheLogSender(t *testing.T) {
+// TestNewSenderSMTPAddr: newSender and newNotifier return an error naming
+// GOEN_SMTP_ADDR, and no sender, for a malformed address beside a user, never
+// degrading to letter.LogSender; a configured relay yields an SMTPSender with
+// its TLS name, no configuration yields a LogSender that shows the body, and a
+// malformed address with no user still yields an SMTPSender.
+//
+// It keeps a configured authenticated relay from degrading into the sender
+// whose nil means delivered, while retaining that sender as an explicit
+// development fallback.
+func TestNewSenderSMTPAddr(t *testing.T) {
 	logBuffer := &bytes.Buffer{}
 	log := slog.New(slog.NewTextHandler(logBuffer, nil))
 
@@ -496,11 +537,14 @@ func TestAMalformedSMTPAddressIsFatalAndNeverTheLogSender(t *testing.T) {
 	}
 }
 
-// TestEveryTopicGoenEnqueuesHasAHandler: a message whose topic has no handler is
-// rescheduled for ever and fails nothing, so the mail it stands for silently
-// never leaves. The topics are read from the outbox package's source, so one is
-// held from the day it is declared rather than from the day somebody lists it.
-func TestEveryTopicGoenEnqueuesHasAHandler(t *testing.T) {
+// TestNewOutboxStoreTopics: every outbox topic declared in internal/outbox has
+// a handler in newOutboxStore.
+//
+// A message whose topic has no handler is rescheduled for ever and fails
+// nothing, so the mail it stands for silently never leaves. The topics are read
+// from the outbox package's source, so one is held from the day it is declared
+// rather than from the day somebody lists it.
+func TestNewOutboxStoreTopics(t *testing.T) {
 	t.Parallel()
 
 	idle, err := pgxpool.New(t.Context(), "postgres://unused:unused@127.0.0.1:1/unused?sslmode=disable")
@@ -526,10 +570,13 @@ func TestEveryTopicGoenEnqueuesHasAHandler(t *testing.T) {
 	}
 }
 
-// TestAnInvoiceDueReachesTheClaimWithoutAProvider: with no 加值中心 the
-// handler still claims, so the operation waits for one to be configured instead
-// of the message being stamped delivered with nothing filed.
-func TestAnInvoiceDueReachesTheClaimWithoutAProvider(t *testing.T) {
+// TestInvoiceDueHandlerNoProvider: with no e-invoice provider configured, the
+// invoice.due handler still reaches the database and returns its error, instead
+// of reporting the message done.
+//
+// With no 加值中心 the handler still claims, so the operation waits for one to be
+// configured instead of the message being stamped delivered with nothing filed.
+func TestInvoiceDueHandlerNoProvider(t *testing.T) {
 	t.Parallel()
 
 	idle, err := pgxpool.New(t.Context(), "postgres://unused:unused@127.0.0.1:1/unused?sslmode=disable")
@@ -548,10 +595,13 @@ func TestAnInvoiceDueReachesTheClaimWithoutAProvider(t *testing.T) {
 	}
 }
 
-// TestAnInvoiceVoidDueReachesTheDatabaseWithoutAProvider: with no 加值中心 the
-// handler still withdraws the issue a cancelled order no longer owes, so it
-// must not report done before asking the database.
-func TestAnInvoiceVoidDueReachesTheDatabaseWithoutAProvider(t *testing.T) {
+// TestInvoiceVoidDueHandlerNoProvider: with no e-invoice provider configured,
+// the invoice.void_due handler still reaches the database and returns its
+// error, instead of reporting the message done.
+//
+// With no 加值中心 the handler still withdraws the issue a cancelled order no
+// longer owes, so it must not report done before asking the database.
+func TestInvoiceVoidDueHandlerNoProvider(t *testing.T) {
 	t.Parallel()
 
 	idle, err := pgxpool.New(t.Context(), "postgres://unused:unused@127.0.0.1:1/unused?sslmode=disable")
@@ -648,9 +698,13 @@ func handled(t *testing.T, outboxStore *outbox.Store, topic string) (registered 
 	return false
 }
 
-// TestAMissingSellerIsAnnouncedAtStartup keeps the omission of the 消保法 §18
-// disclosure from mail visible: with either value blank nothing else says so.
-func TestAMissingSellerIsAnnouncedAtStartup(t *testing.T) {
+// TestWarnSellerUnset: warnSellerUnset logs a WARN naming GOEN_SELLER and
+// GOEN_SELLER_CONTACT when either value is blank, and logs nothing when both
+// are set.
+//
+// It keeps the omission of the 消保法 §18 disclosure from mail visible: with
+// either value blank nothing else says so.
+func TestWarnSellerUnset(t *testing.T) {
 	t.Parallel()
 
 	for name, cfg := range map[string]config{
@@ -677,9 +731,12 @@ func TestAMissingSellerIsAnnouncedAtStartup(t *testing.T) {
 	}
 }
 
-// TestSellerVariablesAreDocumented holds the two names in the files a deployer
-// reads, since the binary's reads are the only other place they appear.
-func TestSellerVariablesAreDocumented(t *testing.T) {
+// TestSellerVariablesDocumented: .env.example and deploy/demo/manifest.env each
+// document GOEN_SELLER= and GOEN_SELLER_CONTACT=.
+//
+// It holds the two names in the files a deployer reads, since the binary's
+// reads are the only other place they appear.
+func TestSellerVariablesDocumented(t *testing.T) {
 	t.Parallel()
 
 	for _, file := range []string{

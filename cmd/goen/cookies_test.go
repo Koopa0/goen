@@ -193,11 +193,14 @@ func goenCookies(pool *pgxpool.Pool) map[string]cookiePin {
 	}
 }
 
-// TestEveryCookieNameIsPinnedByValue is the tripwire on the names a browser
-// holds. It is written to go red when anyone edits a name, however the code
-// around it is later arranged, and to ask for a decision when a new cookie
-// appears.
-func TestEveryCookieNameIsPinnedByValue(t *testing.T) {
+// TestCookieNames: the production source holds exactly the pinned cookie names,
+// and each cookie that can be probed is set with its pinned name, Path, MaxAge,
+// SameSite, HttpOnly and Secure in both the https and the http posture.
+//
+// It is the tripwire on the names a browser holds. It is written to go red when
+// anyone edits a name, however the code around it is later arranged, and to ask
+// for a decision when a new cookie appears.
+func TestCookieNames(t *testing.T) {
 	t.Parallel()
 	pool := idleCookiePool(t)
 	pins := goenCookies(pool)

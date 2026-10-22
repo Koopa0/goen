@@ -51,11 +51,15 @@ func TestMain(m *testing.M) {
 	os.Exit(code)
 }
 
-// TestMaintenancePoolIsReachedAndRoleCheckedAtStartup binds both halves of the
-// independent worker DSN contract. A successful return already owns a live
-// connection running as maintenance; a login that cannot assume that role is
-// rejected by openMaintenancePool itself, not by the first projection refresh.
-func TestMaintenancePoolIsReachedAndRoleCheckedAtStartup(t *testing.T) {
+// TestOpenMaintenancePoolRole: openMaintenancePool returns a pool with a live
+// connection running as maintenance, and refuses a login that cannot assume
+// that role without leaking its DSN credential in the error.
+//
+// It binds both halves of the independent worker DSN contract. A successful
+// return already owns a live connection running as maintenance; a login that
+// cannot assume that role is rejected by openMaintenancePool itself, not by the
+// first projection refresh.
+func TestOpenMaintenancePoolRole(t *testing.T) {
 	ctx := t.Context()
 	maintenancePool, err := openMaintenancePool(ctx, pool.Config().ConnString(), false, quietLog)
 	if err != nil {
@@ -111,11 +115,15 @@ func TestMaintenancePoolIsReachedAndRoleCheckedAtStartup(t *testing.T) {
 	}
 }
 
-// TestEachPoolCarriesItsRoleStatementTimeout is the PostgreSQL-side bound on an
-// acquired connection. storeRequestBudget ends pool waits before WriteTimeout;
-// these figures are independent literals rather than the constants, because a
-// timeout that reaches no session and one nobody chose look the same from here.
-func TestEachPoolCarriesItsRoleStatementTimeout(t *testing.T) {
+// TestOpenPoolStatementTimeout: the pools opened by openPool, openAdminPool and
+// openMaintenancePool carry their role's statement_timeout on the session: 15 s
+// for store, 30 s for admin, 300 s for maintenance.
+//
+// It is the PostgreSQL-side bound on an acquired connection. storeRequestBudget
+// ends pool waits before WriteTimeout; these figures are independent literals
+// rather than the constants, because a timeout that reaches no session and one
+// nobody chose look the same from here.
+func TestOpenPoolStatementTimeout(t *testing.T) {
 	dsn := pool.Config().ConnString()
 	tests := []struct {
 		role   string
@@ -160,7 +168,11 @@ func (t countingTracer) TraceQueryStart(ctx context.Context, _ *pgx.Conn, _ pgx.
 
 func (countingTracer) TraceQueryEnd(context.Context, *pgx.Conn, pgx.TraceQueryEndData) {}
 
-func TestTheRouterKeepsAssetsStatelessAndCompressesPages(t *testing.T) {
+// TestNewRouterAssetsStateless: through the router an asset and an unknown
+// media URL cost no database query, even with session and cart cookies; the
+// asset is served gzipped with nosniff, a Content-Security-Policy and Vary:
+// Accept-Encoding only; and the home page does query and is compressed.
+func TestNewRouterAssetsStateless(t *testing.T) {
 	var queries atomic.Int64
 	poolConfig := pool.Config()
 	poolConfig.ConnConfig.Tracer = countingTracer{queries: &queries}
@@ -245,12 +257,16 @@ func TestTheRouterKeepsAssetsStatelessAndCompressesPages(t *testing.T) {
 	}
 }
 
-// TestTheRouterKeepsNoSignedInPageInAnyCache is withNoStore through the real
-// chain and a real session. The signed-in home page is the case only this test
-// can see: "/" is on no private prefix, so its no-store proves the user
-// Authenticate resolved reaches the middleware. The seed page is the one the
-// Back button must never bring back.
-func TestTheRouterKeepsNoSignedInPageInAnyCache(t *testing.T) {
+// TestNewRouterSignedInNoStore: through the router and a real session, the
+// signed-in home and account pages, the enrolment answer, the back-office
+// redirect and the signed-out checkout redirect carry Cache-Control: no-store,
+// and the signed-out home page carries none.
+//
+// It is withNoStore through the real chain and a real session. The signed-in
+// home page is the case only this test can see: "/" is on no private prefix, so
+// its no-store proves the user Authenticate resolved reaches the middleware.
+// The seed page is the one the Back button must never bring back.
+func TestNewRouterSignedInNoStore(t *testing.T) {
 	ctx := t.Context()
 	gateway, err := payment.NewGateway("", "", "http://127.0.0.1")
 	if err != nil {
@@ -349,12 +365,15 @@ func (s *countingSender) Send(context.Context, *letter.Message) error {
 	return nil
 }
 
-// TestAnUnsubscribeDuringTheDrainStopsTheCopy is the lock on the consent gate
-// in newsletter.Store.DeliverIssue, through the handler main registers. The send
-// freezes one outbox row per subscriber and the queue drains at bulk priority
-// behind every transactional message, so an unsubscribe committing anywhere in
-// that window has to be read at DELIVERY.
-func TestAnUnsubscribeDuringTheDrainStopsTheCopy(t *testing.T) {
+// TestNewsletterIssueHandlerUnsubscribed: newsletterIssueHandler sends an issue
+// to a subscriber on the list, and sends nothing and returns no error once that
+// address has unsubscribed before the next delivery.
+//
+// It is the lock on the consent gate in newsletter.Store.DeliverIssue, through
+// the handler main registers. The send freezes one outbox row per subscriber
+// and the queue drains at bulk priority behind every transactional message, so
+// an unsubscribe committing anywhere in that window has to be read at DELIVERY.
+func TestNewsletterIssueHandlerUnsubscribed(t *testing.T) {
 	ctx := t.Context()
 	subscribers := newsletter.NewStore(pool)
 	sender := &countingSender{}
@@ -398,15 +417,19 @@ func TestAnUnsubscribeDuringTheDrainStopsTheCopy(t *testing.T) {
 	}
 }
 
-// TestTheStoreMapReturnCostsNoDatabaseRoundTrip measures what the routing
-// decision beside it claims. The return route is the one door open to an
-// unauthenticated cross-site POST from anybody, so a chrome query on it is a
-// database round trip an attacker can ask for at no cost to themselves.
+// TestNewRouterStoreMapReturnNoQuery: an anonymous cross-site POST of a
+// store-map callback to the return route is answered 200 with no database
+// query, while the home page on the same router does query.
+//
+// It measures what the routing decision beside it claims. The return route is
+// the one door open to an unauthenticated cross-site POST from anybody, so a
+// chrome query on it is a database round trip an attacker can ask for at no
+// cost to themselves.
 //
 // A predicate test can pin that the route is not a nav path; only a traced pool
 // can show that the middleware still running on it — the session reader and the
 // cart badge — asks the database nothing on a request carrying no cookies.
-func TestTheStoreMapReturnCostsNoDatabaseRoundTrip(t *testing.T) {
+func TestNewRouterStoreMapReturnNoQuery(t *testing.T) {
 	var queries atomic.Int64
 	poolConfig := pool.Config()
 	poolConfig.ConnConfig.Tracer = countingTracer{queries: &queries}
@@ -501,7 +524,12 @@ func (f *healthCountTracer) TraceQueryEnd(ctx context.Context, _ *pgx.Conn, data
 	}
 }
 
-func TestTheRouterReadsHealthCountOnlyForVerifiedStaffAndSurvivesItsFailure(t *testing.T) {
+// TestNewRouterHealthCount: the back office reads its task count (three count
+// queries) only for verified staff, never for an anonymous visitor, a customer
+// or unverified staff, and when any one of the three queries fails the page
+// shows "Task count unavailable" rather than zero, without cancelling the
+// request, and recovers afterwards.
+func TestNewRouterHealthCount(t *testing.T) {
 	ctx := t.Context()
 	trace := &healthCountTracer{}
 	adminPool := admintest.AdminRolePool(t, pool)

@@ -17,7 +17,11 @@ import (
 	"github.com/koopa0/goen/internal/auth"
 )
 
-func TestEachStartupPoolChecksItsSessionLogin(t *testing.T) {
+// TestReachDatabaseLogin: in the secure posture each startup pool (storefront,
+// back office, maintenance) refuses a login that is a superuser or a member of
+// the table owner, naming the variable that configures it, and every pool that
+// does start runs its session as its own role and not as a superuser.
+func TestReachDatabaseLogin(t *testing.T) {
 	var owner string
 	if err := pool.QueryRow(t.Context(), `SELECT pg_get_userbyid(relowner) FROM pg_class WHERE oid = 'public.orders'::regclass`).Scan(&owner); err != nil {
 		t.Fatal(err)

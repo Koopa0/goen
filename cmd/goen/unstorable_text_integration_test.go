@@ -15,12 +15,16 @@ import (
 	"github.com/koopa0/goen/internal/payment"
 )
 
-// TestUnstorableTextNeverReachesTheDatabase is the router against a real
-// PostgreSQL, which refuses a NUL and bytes that are not UTF-8 in any text it
-// is handed. Every route below passes a path value or a query value straight
-// into a query, storefront and back office alike, and each answers 400 rather
-// than the 500 that refusal becomes.
-func TestUnstorableTextNeverReachesTheDatabase(t *testing.T) {
+// TestNewRouterUnstorableTextDatabase: on a real PostgreSQL the router answers
+// 400 with the shop's error page, for a staff session, to a NUL or non-UTF-8
+// value in the query or path of storefront and back-office routes, instead of
+// the 500 that the database's refusal becomes.
+//
+// It is the router against a real PostgreSQL, which refuses a NUL and bytes
+// that are not UTF-8 in any text it is handed. Every route below passes a path
+// value or a query value straight into a query, storefront and back office
+// alike, and each answers 400 rather than the 500 that refusal becomes.
+func TestNewRouterUnstorableTextDatabase(t *testing.T) {
 	ctx := t.Context()
 	gateway, err := payment.NewGateway("", "", "http://127.0.0.1")
 	if err != nil {

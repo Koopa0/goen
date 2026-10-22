@@ -8,7 +8,11 @@ import (
 	"testing"
 )
 
-func TestDatabaseLoginPosture(t *testing.T) {
+// TestCheckDatabaseLogin: checkDatabaseLogin refuses in the secure posture, and
+// warns once in development, about a login that is a superuser or a member of
+// the table or schema owner, naming the pool, the condition and the variable to
+// set, and says nothing for a plain member, for each of the three roles.
+func TestCheckDatabaseLogin(t *testing.T) {
 	t.Parallel()
 	tests := []struct {
 		name          string
@@ -71,7 +75,11 @@ func assertDatabaseLoginRemedy(t *testing.T, message string, role databaseRole, 
 	}
 }
 
-func TestDatabaseLocalePosture(t *testing.T) {
+// TestCheckDatabaseLocale: checkDatabaseLocale refuses in the secure posture,
+// and warns once in development, about any locale provider and locale but the
+// builtin C.UTF-8, naming the pool's variable, the provider and the locale, and
+// says nothing for builtin C.UTF-8, for each of the three roles.
+func TestCheckDatabaseLocale(t *testing.T) {
 	t.Parallel()
 	tests := []struct {
 		name     string

@@ -88,10 +88,16 @@ func crossSitePost(t *testing.T, path string, form url.Values) *http.Request {
 	return req
 }
 
-// TestTheBypassAdmitsExactlyOneMethodAndPath is the lock on goen's only hole in
-// its cross-origin defence. It drives the real router, because the bypass is
-// registered there and a synthetic mux would prove nothing about it.
-func TestTheBypassAdmitsExactlyOneMethodAndPath(t *testing.T) {
+// TestNewRouterStoreMapBypass: with the store map configured the cross-origin
+// bypass admits exactly one method and path: a cross-site POST to the return
+// route is answered 200 with a no-store interstitial that sets no cookie, while
+// its trailing-slash variant and a cross-site POST to /checkout are answered
+// 403, and a callback naming another merchant is answered 400.
+//
+// It is the lock on goen's only hole in its cross-origin defence. It drives the
+// real router, because the bypass is registered there and a synthetic mux would
+// prove nothing about it.
+func TestNewRouterStoreMapBypass(t *testing.T) {
 	t.Parallel()
 	router := storeMapRouter(t, true)
 
@@ -155,9 +161,14 @@ func TestTheBypassAdmitsExactlyOneMethodAndPath(t *testing.T) {
 	})
 }
 
-// TestAnUnconfiguredGoenHasNoReturnRouteAndNoBypass is the other half: with no
-// carrier configured, nothing about main's behaviour moved.
-func TestAnUnconfiguredGoenHasNoReturnRouteAndNoBypass(t *testing.T) {
+// TestNewRouterStoreMapUnconfigured: with no store map configured the return
+// route is not registered and its path has no cross-origin bypass: a cross-site
+// POST is answered 403, a same-site POST 405, and the Content-Security-Policy
+// is byte-identical to main's.
+//
+// It is the other half of TestNewRouterStoreMapBypass: with no carrier
+// configured, nothing about main's behaviour moved.
+func TestNewRouterStoreMapUnconfigured(t *testing.T) {
 	t.Parallel()
 	router := storeMapRouter(t, false)
 
@@ -186,9 +197,13 @@ func TestAnUnconfiguredGoenHasNoReturnRouteAndNoBypass(t *testing.T) {
 	}
 }
 
-// TestThePolicyNamesTheMapOriginOnlyWhenConfigured holds R5: form-action gains
-// exactly one origin, as a DESTINATION, and nothing else about the policy moves.
-func TestThePolicyNamesTheMapOriginOnlyWhenConfigured(t *testing.T) {
+// TestCspWithMapOrigin: cspWith adds exactly one origin to form-action, and
+// leaves every other directive of contentSecurityPolicy unchanged; cspWith("")
+// is contentSecurityPolicy.
+//
+// It holds R5: form-action gains exactly one origin, as a DESTINATION, and
+// nothing else about the policy moves.
+func TestCspWithMapOrigin(t *testing.T) {
 	t.Parallel()
 
 	if got := cspWith(""); got != contentSecurityPolicy {
@@ -240,10 +255,13 @@ func directivesOf(t *testing.T, csp string) map[string]string {
 	return out
 }
 
-// TestTheCheckoutStillTellsTheCarrierNothingAboutItself pins the header that
-// keeps the checkout's own URL — which now carries a store and a nonce — out of
-// the Referer the map request sends.
-func TestTheCheckoutStillTellsTheCarrierNothingAboutItself(t *testing.T) {
+// TestNewRouterCheckoutReferrer: the checkout answers with Referrer-Policy
+// strict-origin-when-cross-origin and, with the store map configured, a
+// Content-Security-Policy that names the map.
+//
+// It pins the header that keeps the checkout's own URL — which now carries a
+// store and a nonce — out of the Referer the map request sends.
+func TestNewRouterCheckoutReferrer(t *testing.T) {
 	t.Parallel()
 	router := storeMapRouter(t, true)
 
@@ -262,9 +280,12 @@ func TestTheCheckoutStillTellsTheCarrierNothingAboutItself(t *testing.T) {
 	}
 }
 
-// TestTheReturnRouteRendersNoChrome pins the routing decision that keeps an
-// anonymous cross-site POST from costing a category query.
-func TestTheReturnRouteRendersNoChrome(t *testing.T) {
+// TestNavPathStoreMapReturn: navPath and storefrontPath are both false for the
+// store-map return route.
+//
+// It pins the routing decision that keeps an anonymous cross-site POST from
+// costing a category query.
+func TestNavPathStoreMapReturn(t *testing.T) {
 	t.Parallel()
 
 	if navPath(storemap.ReturnPath) {

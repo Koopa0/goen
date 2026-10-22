@@ -28,7 +28,12 @@ import (
 	"github.com/koopa0/goen/internal/web/siteurl"
 )
 
-func TestPanicRecoveryUsesProductionRequestTracing(t *testing.T) {
+// TestNewRouterRequestTracing: newRouter returns withRequestTracing(handler,
+// log), so panic recovery sees the request identifier.
+//
+// It reads server.go as text and asserts that line; it does not send a request
+// through the router.
+func TestNewRouterRequestTracing(t *testing.T) {
 	src, err := os.ReadFile("server.go")
 	if err != nil {
 		t.Fatal(err)
@@ -39,11 +44,14 @@ func TestPanicRecoveryUsesProductionRequestTracing(t *testing.T) {
 	}
 }
 
-// TestCheckoutIsGuardedPerClient drives the router: every checkout post looks
-// up the coupon it carries, so the route is bounded per client before the
-// handler runs, generously enough that a shopper changing every chooser on the
-// page is never refused.
-func TestCheckoutIsGuardedPerClient(t *testing.T) {
+// TestNewRouterCheckoutLimit: POST /checkout through the router is refused 429
+// with Retry-After for a client that keeps posting after at least 20 posts were
+// admitted, and another client is not refused.
+//
+// It drives the router: every checkout post looks up the coupon it carries, so
+// the route is bounded per client before the handler runs, generously enough
+// that a shopper changing every chooser on the page is never refused.
+func TestNewRouterCheckoutLimit(t *testing.T) {
 	router := storeMapRouter(t, false)
 	post := func(remote string) *httptest.ResponseRecorder {
 		req := httptest.NewRequestWithContext(t.Context(), http.MethodPost, "/checkout",
@@ -80,11 +88,11 @@ func TestCheckoutIsGuardedPerClient(t *testing.T) {
 	}
 }
 
-// TestTextPostgreSQLCannotStoreIsRefusedBeforeRouting drives the router with
-// the bytes no browser sends and PostgreSQL refuses to hold, in a query value,
-// a query name and a path value, on the storefront and in the back office.
-// Each is answered 400 before any handler reads it.
-func TestTextPostgreSQLCannotStoreIsRefusedBeforeRouting(t *testing.T) {
+// TestNewRouterUnstorableText: the router answers 400 with the shop's 400 page
+// and a recovery link to a query value, query name or path value that is not
+// valid UTF-8 or contains NUL, on the storefront and in the back office, before
+// any handler reads it, and lets text PostgreSQL stores pass.
+func TestNewRouterUnstorableText(t *testing.T) {
 	router := storeMapRouter(t, false)
 	get := func(target string) *httptest.ResponseRecorder {
 		res := httptest.NewRecorder()
@@ -135,7 +143,11 @@ func TestTextPostgreSQLCannotStoreIsRefusedBeforeRouting(t *testing.T) {
 	}
 }
 
-func TestAnAssetRequestNeverReachesPerVisitorMiddleware(t *testing.T) {
+// TestOnlyVisitorPaths: onlyVisitorPaths keeps the per-visitor middleware off
+// static assets, media, /healthz, /readyz and /webhooks/stripe and runs it once
+// on every other path (including /staticky and /mediation), serving the
+// downstream handler once either way.
+func TestOnlyVisitorPaths(t *testing.T) {
 	tests := []struct {
 		path    string
 		wantRan int
@@ -188,7 +200,10 @@ func TestAnAssetRequestNeverReachesPerVisitorMiddleware(t *testing.T) {
 	}
 }
 
-func TestNothingStatelessRendersChrome(t *testing.T) {
+// TestStatelessPrefixes: statelessPrefixes is exactly /static, /media,
+// /healthz, /readyz, /webhooks and /favicon.ico, and every one of them is also
+// in navFreePrefixes and bannerFreePrefixes.
+func TestStatelessPrefixes(t *testing.T) {
 	want := []string{"/static", "/media", "/healthz", "/readyz", "/webhooks", "/favicon.ico"}
 	if !slices.Equal(statelessPrefixes, want) {
 		t.Fatalf("statelessPrefixes = %v, want exactly %v", statelessPrefixes, want)
@@ -205,14 +220,19 @@ func TestNothingStatelessRendersChrome(t *testing.T) {
 	}
 }
 
-// TestMachineReadableFilesRenderNoChrome pins robots.txt and the sitemap to the
-// chrome-free lists. Neither renders a page: internal/site/sitemap.go uses no
-// layout, so a banner read, the category row and the deals check would be spent
-// on every hit for nothing, and a response with no storefront header is not a
-// page anybody browses from, so it offers no speculation rules either.
-// robots.txt stays out of statelessPrefixes on purpose: that list is pinned
-// exactly above, and the sitemap needs the request budget stateless paths skip.
-func TestMachineReadableFilesRenderNoChrome(t *testing.T) {
+// TestNavPathMachineReadable: robots.txt and the sitemap are neither navPath
+// nor storefrontPath, neither they nor any path under a stateless prefix offers
+// speculation rules, and securityHeaders sets no Speculation-Rules header for
+// /healthz and sets one for /p/x.
+//
+// It pins robots.txt and the sitemap to the chrome-free lists. Neither renders
+// a page: internal/site/sitemap.go uses no layout, so a banner read, the
+// category row and the deals check would be spent on every hit for nothing, and
+// a response with no storefront header is not a page anybody browses from, so
+// it offers no speculation rules either. robots.txt stays out of
+// statelessPrefixes on purpose: that list is pinned exactly above, and the
+// sitemap needs the request budget stateless paths skip.
+func TestNavPathMachineReadable(t *testing.T) {
 	t.Parallel()
 
 	for _, path := range []string{"/robots.txt", "/sitemap.xml"} {
@@ -255,7 +275,10 @@ func TestMachineReadableFilesRenderNoChrome(t *testing.T) {
 	}
 }
 
-func TestAnAssetIsNotCompressedTwiceByTheChain(t *testing.T) {
+// TestSecurityHeadersAssetOneGzip: an asset served through compress.Handler and
+// securityHeaders is gzipped exactly once (one Content-Encoding: gzip, and one
+// gunzip yields the stylesheet) and keeps its immutable Cache-Control.
+func TestSecurityHeadersAssetOneGzip(t *testing.T) {
 	h := compress.Handler(securityHeaders(assets.Handler(slog.New(slog.DiscardHandler)), contentSecurityPolicy, false))
 	req := httptest.NewRequestWithContext(t.Context(), http.MethodGet, assets.URL(assets.AppCSS), http.NoBody)
 	req.Header.Set("Accept-Encoding", "gzip")
@@ -284,7 +307,11 @@ func TestAnAssetIsNotCompressedTwiceByTheChain(t *testing.T) {
 	}
 }
 
-func TestTheStaticAssetHandlerOwnsItsEncodingDecision(t *testing.T) {
+// TestStaticAssetHandlerEncoding: staticAssetHandler leaves an asset handler's
+// identity encoding alone under compress.Handler: the response has no
+// Content-Encoding, the private X-Goen-No-Compress marker does not leak, and
+// the body is unchanged.
+func TestStaticAssetHandlerEncoding(t *testing.T) {
 	body := bytes.Repeat([]byte("catalogue chose identity "), 200)
 	asset := http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		w.Header().Set("Content-Type", "text/plain")
@@ -307,7 +334,11 @@ func TestTheStaticAssetHandlerOwnsItsEncodingDecision(t *testing.T) {
 	}
 }
 
-func TestStatusRecorderKeepsTheFinalStatusAfterEarlyHints(t *testing.T) {
+// TestStatusRecorder_WriteHeaderEarlyHints: a statusRecorder forwards 1xx
+// informational headers but records the final status: early hints alone leave
+// the status at 200, a 200 after them is recorded and forwarded, a 103 after
+// the final status is not forwarded, and a 101 followed by a 200 records 101.
+func TestStatusRecorder_WriteHeaderEarlyHints(t *testing.T) {
 	underlying := &statusListWriter{header: make(http.Header)}
 	recorder := &statusRecorder{ResponseWriter: underlying}
 	recorder.WriteHeader(http.StatusEarlyHints)
@@ -384,9 +415,14 @@ func FuzzAssetAndDynamicGzipNegotiationAgree(f *testing.F) {
 	})
 }
 
-// TestWebhookSurvivesTheMiddlewareChain proves Stripe can reach the webhook
-// through goen's CSRF defence while a cross-site browser post still cannot.
-func TestWebhookSurvivesTheMiddlewareChain(t *testing.T) {
+// TestCrossOriginProtectionWebhook: crossOriginProtection admits a POST to
+// /webhooks/stripe that carries no browser headers, as Stripe sends it, and a
+// same-origin one, and refuses a cross-site one.
+//
+// Stripe can reach the webhook through goen's CSRF defence while a cross-site
+// browser post still cannot. The test wraps a bare mux in crossOriginProtection
+// alone, not in the whole middleware chain.
+func TestCrossOriginProtectionWebhook(t *testing.T) {
 	tests := []struct {
 		name        string
 		headers     map[string]string
@@ -434,9 +470,12 @@ func TestWebhookSurvivesTheMiddlewareChain(t *testing.T) {
 	}
 }
 
-// TestCSPAllowsTheHandoverToStripe proves the Content-Security-Policy still
-// permits the redirect that sends a customer to Stripe's card form.
-func TestCSPAllowsTheHandoverToStripe(t *testing.T) {
+// TestContentSecurityPolicyFormAction: the form-action directive of
+// contentSecurityPolicy allows 'self' and https://checkout.stripe.com.
+//
+// It proves the Content-Security-Policy still permits the redirect that sends a
+// customer to Stripe's card form.
+func TestContentSecurityPolicyFormAction(t *testing.T) {
 	var directive string
 	for d := range strings.SplitSeq(contentSecurityPolicy, ";") {
 		if strings.HasPrefix(strings.TrimSpace(d), "form-action") {
@@ -459,16 +498,20 @@ func TestCSPAllowsTheHandoverToStripe(t *testing.T) {
 // of templ's two spellings: style="…" and style={ … }.
 var inlineStyleAttribute = regexp.MustCompile(`(?:^|\s)style\s*=`)
 
-// TestNoTemplateWritesAnInlineStyle holds contentSecurityPolicy's comment to its
-// word. style-src carries no 'unsafe-inline', so a style attribute a template
-// writes is dropped by the browser and the element renders without whatever the
-// attribute carried: a rating bar with no width, a category tree with no indent.
-// A handler test cannot see this — it reads the markup, not the policy that then
-// refuses it — so the two statements are checked against each other here.
+// TestContentSecurityPolicyInlineStyle: no .templ file under internal/ui writes
+// a style attribute while the style-src of contentSecurityPolicy lacks
+// 'unsafe-inline' (the test skips if the policy ever admits it).
+//
+// It holds contentSecurityPolicy's comment to its word. style-src carries no
+// 'unsafe-inline', so a style attribute a template writes is dropped by the
+// browser and the element renders without whatever the attribute carried: a
+// rating bar with no width, a category tree with no indent. A handler test
+// cannot see this — it reads the markup, not the policy that then refuses it —
+// so the two statements are checked against each other here.
 //
 // The guard yields if the policy ever admits inline styles. That is one decision
 // taken in server.go, not something a template may decide by drifting.
-func TestNoTemplateWritesAnInlineStyle(t *testing.T) {
+func TestContentSecurityPolicyInlineStyle(t *testing.T) {
 	t.Parallel()
 
 	if strings.Contains(contentSecurityPolicy, "'unsafe-inline'") {
@@ -528,12 +571,16 @@ func (w *statusListWriter) WriteHeader(status int) {
 
 func (w *statusListWriter) Write(p []byte) (int, error) { return len(p), nil }
 
-// TestOnlyAStaffMemberGetsTheBackOfficeEntrance holds the half the templates
-// cannot see: which requests the chrome is told about at all. The three answers
-// it has to keep apart are a customer (no door), a staff member on the
-// storefront (the door), and a staff member already inside the back office,
-// whose own adminNav row leads everywhere /admin goes.
-func TestOnlyAStaffMemberGetsTheBackOfficeEntrance(t *testing.T) {
+// TestWithStaffEntrance: withStaffEntrance tells the chrome about the
+// back-office door for staff and admin on storefront pages and not for a
+// signed-out visitor, a customer, staff inside /admin or staff on an asset.
+//
+// It holds the half the templates cannot see: which requests the chrome is told
+// about at all. The three answers it has to keep apart are a customer (no
+// door), a staff member on the storefront (the door), and a staff member
+// already inside the back office, whose own adminNav row leads everywhere
+// /admin goes.
+func TestWithStaffEntrance(t *testing.T) {
 	t.Parallel()
 
 	for _, tt := range []struct {
@@ -574,7 +621,10 @@ func TestOnlyAStaffMemberGetsTheBackOfficeEntrance(t *testing.T) {
 	}
 }
 
-func TestLocaleReturnPathKeepsTheQuery(t *testing.T) {
+// TestLocaleReturnPath: localeReturnPath keeps the query of the root, deals,
+// search, listing, product and compare pages, returns a refused review,
+// question or restock notice to its product, and leaves a bad slug alone.
+func TestLocaleReturnPath(t *testing.T) {
 	t.Parallel()
 
 	tests := []struct {
@@ -606,7 +656,10 @@ func TestLocaleReturnPathKeepsTheQuery(t *testing.T) {
 	}
 }
 
-func TestLanguageSwitchComparisonJourney(t *testing.T) {
+// TestWithLocaleComparisonReturn: on a comparison page, withLocale puts the
+// full path and query on the context, the footer's language form carries it as
+// its return value, and siteurl.PathOr accepts it unchanged.
+func TestWithLocaleComparisonReturn(t *testing.T) {
 	t.Parallel()
 
 	const rawURL = "/compare?p=aurora-charger-65&p=aurora-edge-7&q=search-leak"
@@ -647,8 +700,13 @@ func TestLanguageSwitchComparisonJourney(t *testing.T) {
 	}
 }
 
-// TestSpeculationRulesAreOfferedOnlyWhereTheyAreSafe locks both halves of the
-// decision in #400: which pages offer speculation rules, and which never do.
+// TestSpeculates: speculates offers speculation rules for the catalogue, cart,
+// about, search and not-found pages, and withholds them from checkout, order,
+// account, back-office, sign-in and mailed-link pages, assets, media, probes
+// and machine-readable files, and from any POST.
+//
+// It locks both halves of the decision in #400: which pages offer speculation
+// rules, and which never do.
 //
 // Only a page that renders the storefront header offers them, and not every
 // such page: one withNoStore keeps out of the caches is read once, so it offers
@@ -661,7 +719,7 @@ func TestLanguageSwitchComparisonJourney(t *testing.T) {
 // that stops matching is a silent failure — the browser simply prerenders
 // something — so the pages where that would cost the most do not hand the
 // browser a rules document at all.
-func TestSpeculationRulesAreOfferedOnlyWhereTheyAreSafe(t *testing.T) {
+func TestSpeculates(t *testing.T) {
 	t.Parallel()
 
 	// "/no-such-page" is the catch-all 404, which renders the storefront header.
@@ -702,16 +760,20 @@ func TestSpeculationRulesAreOfferedOnlyWhereTheyAreSafe(t *testing.T) {
 	}
 }
 
-// TestEveryUnstoredPageButTheCartOffersNoSpeculation holds unspeculated and
-// unstoredPrefixes together. A page withNoStore keeps out of the caches is read
-// once, so nothing is gained by speculating from it; the cart is the deliberate
-// exception, because shoppers browse from it back into the catalogue (#400).
-// The two lists stay separate and this test is what stops them drifting apart.
+// TestSpeculatesUnstoredPrefixes: speculates is false for every prefix of
+// unstoredPrefixes and below it except /cart, where it is true; /cart appears
+// once and at least 12 prefixes are checked.
+//
+// It holds unspeculated and unstoredPrefixes together. A page withNoStore keeps
+// out of the caches is read once, so nothing is gained by speculating from it;
+// the cart is the deliberate exception, because shoppers browse from it back
+// into the catalogue (#400). The two lists stay separate and this test is what
+// stops them drifting apart.
 //
 // Non-vacuity: 12 is the length of unstoredPrefixes on the tree this was
 // written against; the loop must meet /cart exactly once and check at least
 // that many prefixes.
-func TestEveryUnstoredPageButTheCartOffersNoSpeculation(t *testing.T) {
+func TestSpeculatesUnstoredPrefixes(t *testing.T) {
 	t.Parallel()
 
 	var checked, carts int
@@ -737,13 +799,19 @@ func TestEveryUnstoredPageButTheCartOffersNoSpeculation(t *testing.T) {
 	}
 }
 
-// TestSpeculationRulesRefuseEveryPageWithSomethingToLose reads the rules
-// document itself rather than the middleware, because the document is what the
-// browser obeys. Every path the middleware withholds the header from must also
-// be one the rules refuse to prerender: the two guards are independent, and a
-// link to /account can appear on a page that does offer rules — the header in
-// every storefront page carries a rules document that sees that link.
-func TestSpeculationRulesRefuseEveryPageWithSomethingToLose(t *testing.T) {
+// TestSpeculationRulesRefusals: the speculation-rules document
+// assets/speculation/rules.json has one prerender set with moderate eagerness,
+// no prefetch set, a refusal of /checkout*, /orders/*, /account*, /admin*,
+// /signin* and /register*, and no prerender of /cart.
+//
+// It reads the rules document itself rather than the middleware, because the
+// document is what the browser obeys. The two guards are independent, and a
+// link to /account can appear on a page that does offer rules: the header in
+// every storefront page carries a rules document that sees that link. The test
+// names six prefixes the rules must refuse; it does not read the middleware's
+// list of withheld paths, so a path withheld there but missing from the
+// document is not noticed.
+func TestSpeculationRulesRefusals(t *testing.T) {
 	t.Parallel()
 
 	// From disk rather than through the assets package: the file is the thing
@@ -805,7 +873,11 @@ func TestSpeculationRulesRefuseEveryPageWithSomethingToLose(t *testing.T) {
 	}
 }
 
-// TestAWriteThrowsAwaySpeculationsTakenBeforeIt pins the other half of #400.
+// TestClearSpeculations: a POST, PUT or DELETE through clearSpeculations
+// carries Clear-Site-Data exactly "prefetchCache", "prerenderCache" (never
+// cookies, storage, cache or *), and a GET or HEAD carries none.
+//
+// It pins the other half of #400.
 //
 // A speculated page is a whole document, header included, rendered when the
 // browser asked for it. goen renders the cart's count and the staff/customer
@@ -817,7 +889,7 @@ func TestSpeculationRulesRefuseEveryPageWithSomethingToLose(t *testing.T) {
 // The absence half matters as much: Clear-Site-Data on a page response would
 // throw away the speculations the visitor's own browsing just earned, which is
 // the feature paying for itself and then refunding it.
-func TestAWriteThrowsAwaySpeculationsTakenBeforeIt(t *testing.T) {
+func TestClearSpeculations(t *testing.T) {
 	t.Parallel()
 
 	const want = `"prefetchCache", "prerenderCache"`
@@ -869,12 +941,15 @@ func TestAWriteThrowsAwaySpeculationsTakenBeforeIt(t *testing.T) {
 	}
 }
 
-// TestTheCatalogueStaysEligibleForSpeculation is the inverse of the refusals,
-// and it exists because the first version of the rules carried a
-// selector_matches of "form a" as a precaution — and a listing's compare form
-// wraps the whole tile grid, so that one line silently excluded every product
-// link on the site. The feature was doing nothing and every other test passed.
-func TestTheCatalogueStaysEligibleForSpeculation(t *testing.T) {
+// TestSpeculationRulesCatalogue: the speculation-rules document's single
+// prerender set permits both /p/* and /c/* and still refuses something.
+//
+// It is the inverse of the refusals, and it exists because the first version of
+// the rules carried a selector_matches of "form a" as a precaution — and a
+// listing's compare form wraps the whole tile grid, so that one line silently
+// excluded every product link on the site. The feature was doing nothing and
+// every other test passed.
+func TestSpeculationRulesCatalogue(t *testing.T) {
 	t.Parallel()
 
 	path := filepath.Join("..", "..", "assets", assets.SpeculationRules)
@@ -927,7 +1002,11 @@ func TestTheCatalogueStaysEligibleForSpeculation(t *testing.T) {
 	}
 }
 
-func TestSiteOriginReachesTheChromeFromTheConfiguredBaseURL(t *testing.T) {
+// TestWithSiteOrigin: withSiteOrigin, inside withLocale, puts the configured
+// BaseURL origin (never the request's Host) on the context, with the request's
+// path without its query as the request path and the path with its query as the
+// return path.
+func TestWithSiteOrigin(t *testing.T) {
 	t.Parallel()
 	var got, path, back string
 	// In the server's order, so the og:url path and the language switch's return
@@ -949,14 +1028,19 @@ func TestSiteOriginReachesTheChromeFromTheConfiguredBaseURL(t *testing.T) {
 	}
 }
 
-// TestNoPageForOneVisitorIsKeptByTheBrowser holds both halves of withNoStore.
-// A page kept in the back/forward cache comes back with the Back button after
-// its owner has signed out, so the next person at a shared computer reads an
-// account, a customer list or a second-factor seed, or finds a signed-out
-// visitor's sign-in, registration or password form holding what was typed
-// into it. The anonymous catalogue is the other half: storing nothing there
-// would cost every shopper an instant Back and protect nobody.
-func TestNoPageForOneVisitorIsKeptByTheBrowser(t *testing.T) {
+// TestWithNoStore: withNoStore sets Cache-Control: no-store on account,
+// back-office, signed-in, order-link, cart, checkout, mailed-link and
+// signed-out form pages, and on none of the anonymous catalogue and policy
+// pages.
+//
+// It holds both halves of withNoStore. A page kept in the back/forward cache
+// comes back with the Back button after its owner has signed out, so the next
+// person at a shared computer reads an account, a customer list or a
+// second-factor seed, or finds a signed-out visitor's sign-in, registration or
+// password form holding what was typed into it. The anonymous catalogue is the
+// other half: storing nothing there would cost every shopper an instant Back
+// and protect nobody.
+func TestWithNoStore(t *testing.T) {
 	t.Parallel()
 
 	for _, tt := range []struct {
@@ -1020,11 +1104,15 @@ func TestNoPageForOneVisitorIsKeptByTheBrowser(t *testing.T) {
 	}
 }
 
-// TestOnlyTheSecurePosturePinsHTTPS drives the real router in both postures.
-// With secure cookies goen is behind TLS, and HSTS stops a network that rewrites
-// an http:// link from keeping a visitor in cleartext. Without them it serves
-// http://127.0.0.1, where the header would pin a developer's localhost to https.
-func TestOnlyTheSecurePosturePinsHTTPS(t *testing.T) {
+// TestNewRouterHSTS: the router sends Strict-Transport-Security
+// max-age=31536000; includeSubDomains with secure cookies and none without
+// them.
+//
+// It drives the real router in both postures. With secure cookies goen is
+// behind TLS, and HSTS stops a network that rewrites an http:// link from
+// keeping a visitor in cleartext. Without them it serves http://127.0.0.1,
+// where the header would pin a developer's localhost to https.
+func TestNewRouterHSTS(t *testing.T) {
 	t.Parallel()
 
 	idle, err := pgxpool.New(t.Context(), "postgres://unused:unused@127.0.0.1:1/unused?sslmode=disable")
@@ -1064,10 +1152,13 @@ func TestOnlyTheSecurePosturePinsHTTPS(t *testing.T) {
 	}
 }
 
-// TestSharePreviewNamesTheConfiguredOriginNotTheRequestHost pins withSiteOrigin
-// in the router: a share preview's absolute URL is one a client must not be
-// able to choose by sending a Host header.
-func TestSharePreviewNamesTheConfiguredOriginNotTheRequestHost(t *testing.T) {
+// TestNewRouterSiteOrigin: the router names the configured BaseURL origin and
+// not the request's Host in a page's og:image, and never echoes a Host header
+// of evil.example into the page.
+//
+// It pins withSiteOrigin in the router: a share preview's absolute URL is one a
+// client must not be able to choose by sending a Host header.
+func TestNewRouterSiteOrigin(t *testing.T) {
 	t.Parallel()
 
 	idle, err := pgxpool.New(t.Context(), "postgres://unused:unused@127.0.0.1:1/unused?sslmode=disable")
@@ -1101,12 +1192,16 @@ func TestSharePreviewNamesTheConfiguredOriginNotTheRequestHost(t *testing.T) {
 	}
 }
 
-// TestSigningOutEmptiesTheBrowsersCache pins the second line behind
-// withNoStore: sign-out asks the browser to drop what it holds for this site,
-// and still throws away the speculations the chrome was rendered into. That
-// POST /signout is wrapped in it at all is held by the clearcache trait of
-// TestStorefrontRouteInventory, which watches the router answer.
-func TestSigningOutEmptiesTheBrowsersCache(t *testing.T) {
+// TestClearCacheSignOut: a sign-out wrapped in clearSpeculations and clearCache
+// carries Clear-Site-Data with "cache", "prefetchCache" and "prerenderCache"
+// and never cookies, storage or *.
+//
+// It pins the second line behind withNoStore: sign-out asks the browser to drop
+// what it holds for this site, and still throws away the speculations the
+// chrome was rendered into. That POST /signout is wrapped in it at all is held
+// by the clearcache trait of TestRoutingStorefrontInventory, which watches the
+// router answer.
+func TestClearCacheSignOut(t *testing.T) {
 	t.Parallel()
 
 	signOut := clearSpeculations(clearCache(func(http.ResponseWriter, *http.Request) {}))

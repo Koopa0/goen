@@ -56,13 +56,19 @@ func subjectIs(m letter.Message, key i18n.Key) bool {
 	return false
 }
 
-// TestTheWorkerMailsWhatEachAccountMessageMeans drives account messages, as the
-// forms write them, through the store startWorkers builds. What a forgotten
-// password, a registration or an address change sends is decided by the
-// handler its topic has there, not by the letter alone: an account is sent its
-// reset link, a new address the link that completes it, and an address that
-// already has an account is told so and sent no link.
-func TestTheWorkerMailsWhatEachAccountMessageMeans(t *testing.T) {
+// TestNewOutboxStoreAccountMail: the handlers newOutboxStore gives the account
+// topics send an account its reset link, a new address the link that completes
+// its registration, and the owner of a taken address two notices (a second
+// registration, and another account asking for the address) with no link, and
+// send the account that asked for the address change nothing.
+//
+// It drives account messages, as the forms write them, through the store
+// startWorkers builds. What a forgotten password, a registration or an address
+// change sends is decided by the handler its topic has there, not by the letter
+// alone: an account is sent its reset link, a new address the link that
+// completes it, and an address that already has an account is told so and sent
+// no link.
+func TestNewOutboxStoreAccountMail(t *testing.T) {
 	ctx := t.Context()
 	storePool, err := openPool(ctx, pool.Config().ConnString(), quietLog)
 	if err != nil {

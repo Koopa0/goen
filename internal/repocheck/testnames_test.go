@@ -32,6 +32,7 @@ const maxTestNameLen = 40
 // fail them, so the guard cannot pass without looking.
 var migratedTestPackages = []string{
 	"assets",
+	"cmd/goen",
 	"internal/account",
 	"internal/admin",
 	"internal/admin/audit",
@@ -124,6 +125,7 @@ var migratedTestPackages = []string{
 	"internal/web/respond",
 	"internal/web/siteurl",
 	"internal/wishlist",
+	"migrations",
 }
 
 // testNameExceptions is the shrink-only allow list: for a listed package, each
@@ -139,6 +141,13 @@ var testNameExceptions = map[string]map[string]string{
 		"TestFieldBoundariesHoldContrast":          "a rule of three stylesheets at once: it reads one boundary rule each from AppCSS, AdminCSS and BaseCSS, so naming it after one would misstate its unit",
 		"TestNoStylesheetFetchesFromAnotherOrigin": "a rule of the whole stylesheet set (the style-src 'self' promise): it walks every file under css/, so no one declared identifier is its unit",
 		"TestSharedLayoutRulesAreDeclaredOnce":     "a rule of two stylesheets at once: it counts one selector in AppCSS and one in AdminCSS, so naming it after either would misstate its unit",
+	},
+	"cmd/goen": {
+		"TestCookieNames":               "a rule across every cookie goen sets: it probes the cookie writers of several internal packages (auth, cart, i18n, order/access among them) and walks the production source for the names, so no one identifier of package main is its unit",
+		"TestSellerVariablesDocumented": "a rule about two files a deployer reads, .env.example and deploy/demo/manifest.env: it exercises no function, so no identifier of package main is its unit",
+		"TestSpeculationRulesCatalogue": "its unit is the speculation-rules document assets/speculation/rules.json, read from disk, which is a file and not a Go identifier",
+		"TestSpeculationRulesRefusals":  "its unit is the speculation-rules document assets/speculation/rules.json, read from disk, which is a file and not a Go identifier",
+		"TestStorefrontPatterns":        "its unit is storefrontPatterns, the route walk declared in routeinventory_test.go, not part of the package",
 	},
 	"internal/admin": {
 		"TestClosedDatabaseWritesNotRefused":           "a rule across the back-office stores: it closes the database under products and shipping writes and asks that neither answers ErrRefused or ErrNotFound; its units are those stores' methods in other packages, and no identifier of package admin is one of them",
@@ -516,6 +525,9 @@ var testNameExceptions = map[string]map[string]string{
 	},
 	"internal/wishlist": {
 		"TestPathOrFallback": "the unit is siteurl.PathOr of package siteurl, called with this feature's own fallback; this package declares no identifier the test calls, and moving it is a reorganisation this pass does not do",
+	},
+	"migrations": {
+		"TestFrozenMigrations": "a repository rule: no migration file changes once it has merged, and none is added or removed without frozen saying so; it hashes every file of the directory and exercises no function, so no one declared identifier is its unit",
 	},
 }
 

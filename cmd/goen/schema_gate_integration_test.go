@@ -19,12 +19,19 @@ import (
 	"github.com/koopa0/goen/internal/payment"
 )
 
-// TestStartupAndReadinessRefuseAnotherSchema starts each pool the way
-// production does, through its _svc login, on a database that is or is not
-// the schema this binary embeds. The binary used to start on a database built
-// from an older 001 and answer 500 on the pages that read what it lacked
-// (#1972); secure startup now refuses it and /readyz answers 503.
-func TestStartupAndReadinessRefuseAnotherSchema(t *testing.T) {
+// TestReachDatabaseSchema: each startup pool, opened through its _svc login,
+// starts on a database built from the embedded migrations and, in the secure
+// posture, refuses one that is a migration behind, half-applied, another
+// edition of 001, older than schema_version() or not built by golang-migrate,
+// while development still starts; /readyz answers 200 for the first and 503 for
+// the others.
+//
+// It starts each pool the way production does, through its _svc login, on a
+// database that is or is not the schema this binary embeds. The binary used to
+// start on a database built from an older 001 and answer 500 on the pages that
+// read what it lacked (#1972); secure startup now refuses it and /readyz
+// answers 503.
+func TestReachDatabaseSchema(t *testing.T) {
 	password := strings.ToLower(rand.Text())
 	for _, svc := range []string{"store_svc", "admin_svc", "maintenance_svc"} {
 		// The _svc roles belong to the server and no other test here logs in

@@ -116,8 +116,8 @@ func securityHeaders(next http.Handler, csp string, secure bool) http.Handler {
 //
 // The rules document prerenders only /p/* and /c/*, so none of these is ever a
 // target; this list governs the links on them, which is the second half of the
-// same decision. TestEveryUnstoredPageButTheCartOffersNoSpeculation holds this
-// list and unstoredPrefixes together.
+// same decision. TestSpeculatesUnstoredPrefixes holds this list and
+// unstoredPrefixes together.
 //
 // Prefixes, because every one of them owns its whole subtree.
 var unspeculated = []string{

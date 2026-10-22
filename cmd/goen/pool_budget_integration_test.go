@@ -17,10 +17,14 @@ import (
 	"github.com/koopa0/goen/internal/web/clientip"
 )
 
-// TestStorefrontPoolWaitRespectsRequestBudget exhausts the production storefront
-// pool and proves a real catalog request finishes before the HTTP write
-// deadline because pool acquisition shares the request budget.
-func TestStorefrontPoolWaitRespectsRequestBudget(t *testing.T) {
+// TestNewServerPoolWaitBudget: with the storefront pool exhausted, a catalog
+// request through the handler newServer builds finishes within
+// storeRequestBudget plus a second, with a complete 5xx response, instead of
+// waiting for the pool until the write deadline.
+//
+// Pool acquisition shares the request budget, so the wait ends before the HTTP
+// write deadline.
+func TestNewServerPoolWaitBudget(t *testing.T) {
 	p, err := openPool(t.Context(), pool.Config().ConnString(), quietLog)
 	if err != nil {
 		t.Fatal(err)

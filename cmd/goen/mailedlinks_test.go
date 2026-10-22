@@ -23,7 +23,7 @@ import (
 	"github.com/koopa0/goen/internal/payment"
 )
 
-// capturedMail is the sender of TestEveryMailedLinkReachesARoute: it keeps every
+// capturedMail is the sender of TestRoutingMailedLinks: it keeps every
 // message the composer hands over.
 type capturedMail struct{ sent []*letter.Message }
 
@@ -112,12 +112,16 @@ func mailedHTMLLinks(t *testing.T, part string) []string {
 	return found
 }
 
-// TestEveryMailedLinkReachesARoute connects the two halves of every mailed
-// link: the composer in internal/letter, which builds each URL by string
-// concatenation, and the routes cmd/goen registers. A link in a letter is
-// permanent once the letter is sent, so a route renamed in a feature's Routes,
-// or a path mistyped in the composer, must fail here and not in somebody's
-// inbox years later.
+// TestRoutingMailedLinks: every link in every letter the composer can send is
+// on the base URL, reaches a pattern of production's own mux other than the
+// catch-all, has the query names its table row lists, and every /static/ link
+// is answered 200.
+//
+// It connects the two halves of every mailed link: the composer in
+// internal/letter, which builds each URL by string concatenation, and the
+// routes cmd/goen registers. A link in a letter is permanent once the letter is
+// sent, so a route renamed in a feature's Routes, or a path mistyped in the
+// composer, must fail here and not in somebody's inbox years later.
 //
 // It drives every Send method of letter.Notifier (found by reflection, so a
 // new letter fails until it has a case here) through a capturing sender with
@@ -141,10 +145,9 @@ func mailedHTMLLinks(t *testing.T, part string) []string {
 //     so a status says nothing about routing.
 //
 // The router and its mux are built on an unreachable pool, the way
-// TestOnlyTheSecurePosturePinsHTTPS does, and with no optional provider, so a
-// letter may link only to a route every deployment serves. It reads no source
-// file.
-func TestEveryMailedLinkReachesARoute(t *testing.T) {
+// TestNewRouterHSTS does, and with no optional provider, so a letter may link
+// only to a route every deployment serves. It reads no source file.
+func TestRoutingMailedLinks(t *testing.T) {
 	t.Parallel()
 
 	const (

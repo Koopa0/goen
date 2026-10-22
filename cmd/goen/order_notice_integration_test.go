@@ -13,7 +13,10 @@ import (
 	"github.com/koopa0/goen/internal/outbox"
 )
 
-func TestTerminalWorkerSkipsAnAddressErasedBeforeDelivery(t *testing.T) {
+// TestTerminalOrderHandlerErased: terminalOrderHandler sends one letter to an
+// order's active recipient and nothing, without error, once the order's address
+// has been erased, or for an order that does not exist.
+func TestTerminalOrderHandlerErased(t *testing.T) {
 	ctx := t.Context()
 	var method, version, id uuid.UUID
 	if err := pool.QueryRow(ctx, `INSERT INTO shipping_methods(code) VALUES($1) RETURNING id`, "notice_"+uuid.NewString()[:8]).Scan(&method); err != nil {

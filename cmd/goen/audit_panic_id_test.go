@@ -11,7 +11,10 @@ import (
 	"testing"
 )
 
-func TestAuditPanicRequestID(t *testing.T) {
+// TestWithRequestTracingPanicRequestID: a panicking request is answered 500
+// with an X-Request-Id, a generated one or the accepted incoming one, and the
+// panic's log line carries that same ID.
+func TestWithRequestTracingPanicRequestID(t *testing.T) {
 	panicHandler := http.HandlerFunc(func(http.ResponseWriter, *http.Request) {
 		panic("audit panic")
 	})
@@ -59,10 +62,13 @@ func TestAuditPanicRequestID(t *testing.T) {
 	}
 }
 
-// TestRecoveredPanicCarriesItsStackAndLeavesARequestLine: a panic's message
-// alone names no file or line, and a request that panicked must still appear in
-// the request log, at the 500 recovery sent.
-func TestRecoveredPanicCarriesItsStackAndLeavesARequestLine(t *testing.T) {
+// TestWithRequestTracingPanicStack: a recovered panic's log line carries a
+// stack that names the panicking file, and the request still leaves its own log
+// line, at status 500.
+//
+// A panic's message alone names no file or line, and a request that panicked
+// must still appear in the request log, at the 500 recovery sent.
+func TestWithRequestTracingPanicStack(t *testing.T) {
 	var logs bytes.Buffer
 	log := slog.New(slog.NewJSONHandler(&logs, nil))
 	h := withRequestTracing(http.HandlerFunc(func(http.ResponseWriter, *http.Request) {
@@ -93,9 +99,12 @@ func TestRecoveredPanicCarriesItsStackAndLeavesARequestLine(t *testing.T) {
 	}
 }
 
-// TestRecoveredPanicAfterTheHeaderLeavesTheSentStatus: http.Error after a
-// WriteHeader would append an error body to a response that already said 200.
-func TestRecoveredPanicAfterTheHeaderLeavesTheSentStatus(t *testing.T) {
+// TestWithRequestTracingPanicAfterHeader: a panic after the handler has written
+// a 200 header leaves that 200 and appends no body.
+//
+// http.Error after a WriteHeader would append an error body to a response that
+// already said 200.
+func TestWithRequestTracingPanicAfterHeader(t *testing.T) {
 	h := withRequestTracing(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		w.WriteHeader(http.StatusOK)
 		panic("late panic")
@@ -109,9 +118,13 @@ func TestRecoveredPanicAfterTheHeaderLeavesTheSentStatus(t *testing.T) {
 	}
 }
 
-// TestAbortHandlerIsNotTurnedIntoA500 keeps http.ErrAbortHandler what net/http
-// defines it to be: a request to abandon the response without noise.
-func TestAbortHandlerIsNotTurnedIntoA500(t *testing.T) {
+// TestWithRequestTracingAbortHandler: a handler that panics with
+// http.ErrAbortHandler is panicked again, with no response body and no log
+// line.
+//
+// It keeps http.ErrAbortHandler what net/http defines it to be: a request to
+// abandon the response without noise.
+func TestWithRequestTracingAbortHandler(t *testing.T) {
 	var logs bytes.Buffer
 	h := withRequestTracing(http.HandlerFunc(func(http.ResponseWriter, *http.Request) {
 		panic(http.ErrAbortHandler)
@@ -129,7 +142,10 @@ func TestAbortHandlerIsNotTurnedIntoA500(t *testing.T) {
 	h.ServeHTTP(response, httptest.NewRequestWithContext(t.Context(), http.MethodGet, "/audit", http.NoBody))
 }
 
-func TestMalformedRequestIDIsRejectedBeforePanicRecovery(t *testing.T) {
+// TestWithRequestTracingForgedRequestID: a request ID with a newline in it is
+// replaced by a generated one before the panic is recovered, and the panic is
+// still logged.
+func TestWithRequestTracingForgedRequestID(t *testing.T) {
 	var logs bytes.Buffer
 	log := slog.New(slog.NewJSONHandler(&logs, nil))
 	h := withRequestTracing(http.HandlerFunc(func(http.ResponseWriter, *http.Request) {

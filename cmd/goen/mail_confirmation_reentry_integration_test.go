@@ -16,7 +16,11 @@ import (
 	"github.com/koopa0/goen/internal/payment"
 )
 
-func TestHomepageNewsletterReentryRestoresTheReplacedForm(t *testing.T) {
+// TestNewRouterNewsletterHTMXReentry: after an HTMX newsletter signup replaces
+// the footer form with its sent state, the re-entry link in that state fetches
+// the homepage and restores the empty POST form, twice in a row, in both
+// languages.
+func TestNewRouterNewsletterHTMXReentry(t *testing.T) {
 	for _, language := range []string{"zh-Hant", "en"} {
 		t.Run(language, func(t *testing.T) {
 			router := confirmationRouter(t)
@@ -68,7 +72,11 @@ func TestHomepageNewsletterReentryRestoresTheReplacedForm(t *testing.T) {
 	}
 }
 
-func TestPlainNewsletterConfirmationReentryOpensTheHomepageForm(t *testing.T) {
+// TestNewRouterNewsletterPlainReentry: a plain newsletter signup without
+// scripting redirects to the thanks page, which shows the address masked and
+// never in full, and its re-entry link opens the homepage with the form
+// restored empty, in both languages.
+func TestNewRouterNewsletterPlainReentry(t *testing.T) {
 	for _, language := range []string{"zh-Hant", "en"} {
 		t.Run(language, func(t *testing.T) {
 			router := confirmationRouter(t)

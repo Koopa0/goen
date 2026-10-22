@@ -7,7 +7,11 @@ import (
 	"testing"
 )
 
-func TestSavedAddressEditRoutesRecoverSignedOutRequests(t *testing.T) {
+// TestNewRouterAddressEditSignedOut: a signed-out GET of a saved address's edit
+// page answers 303 to /signin with that page as next, and a signed-out POST to
+// /account/addresses/update answers 303 to /signin, on the router with
+// production wiring and no database.
+func TestNewRouterAddressEditSignedOut(t *testing.T) {
 	t.Parallel()
 	router := storeMapRouter(t, false)
 	for _, route := range []struct {
