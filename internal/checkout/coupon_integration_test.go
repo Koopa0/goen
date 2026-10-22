@@ -38,11 +38,12 @@ func insertCoupon(t *testing.T, code, kind string, amount, percent, minSpend int
 	return code
 }
 
-// TestAPercentCouponOrderIsWholeYuanAndItsInvoiceEqualsTheCapture places an
-// order on a price where 15% leaves cents, captures its amount owed, and files
-// the invoice through the real claim: the order total, the capture and the
-// invoice amount are one whole NT$ figure.
-func TestAPercentCouponOrderIsWholeYuanAndItsInvoiceEqualsTheCapture(t *testing.T) {
+// TestStore_PlaceOrderPercentCoupon: PlaceOrder with a 15% coupon gives a
+// whole-NT$ discount and amount owed, and the invoice the issue claim files
+// equals the capture. It places an order on a price where 15% leaves cents,
+// captures its amount owed, and files the invoice through the real claim: the
+// order total, the capture and the invoice amount are one whole NT$ figure.
+func TestStore_PlaceOrderPercentCoupon(t *testing.T) {
 	ctx := t.Context()
 	s := checkout.NewStore(pool)
 	code := insertCoupon(t, "PCT15", "percent", 0, 1500, 0, 0)
@@ -105,9 +106,11 @@ func TestAPercentCouponOrderIsWholeYuanAndItsInvoiceEqualsTheCapture(t *testing.
 	}
 }
 
-// TestUnknownAndDisabledCouponsLookTheSame: telling somebody a code exists but
-// is switched off confirms which of a shop's codes are real.
-func TestUnknownAndDisabledCouponsLookTheSame(t *testing.T) {
+// TestStore_CouponByCodeDisabledAsUnknown: CouponByCode answers a disabled
+// coupon exactly as it answers an unknown one, coupon.ErrNotFound. Telling
+// somebody a code exists but is switched off confirms which of a shop's codes
+// are real.
+func TestStore_CouponByCodeDisabledAsUnknown(t *testing.T) {
 	ctx := t.Context()
 	s := checkout.NewStore(pool)
 	insertCoupon(t, "SWITCHEDOFF", "amount", 20000, 0, 0, 0)
@@ -123,8 +126,10 @@ func TestUnknownAndDisabledCouponsLookTheSame(t *testing.T) {
 	}
 }
 
-// TestCouponCodeIsCaseInsensitive: a code is read off a card by a human.
-func TestCouponCodeIsCaseInsensitive(t *testing.T) {
+// TestStore_CouponByCodeCase: CouponByCode finds a coupon whatever case its
+// code is typed in and with spaces around it. A code is read off a card by a
+// human.
+func TestStore_CouponByCodeCase(t *testing.T) {
 	ctx := t.Context()
 	s := checkout.NewStore(pool)
 	insertCoupon(t, "MixedCase", "amount", 20000, 0, 0, 0)
@@ -136,9 +141,11 @@ func TestCouponCodeIsCaseInsensitive(t *testing.T) {
 	}
 }
 
-// TestTotalRedemptionLimitIsEnforced. The limit is counted from
-// coupon_redemptions under a lock, never from a counter two checkouts could read.
-func TestTotalRedemptionLimitIsEnforced(t *testing.T) {
+// TestStore_PlaceOrderRedemptionLimit: PlaceOrder redeems a coupon limited to
+// two redemptions for two orders and refuses the rest. The limit is counted
+// from coupon_redemptions under a lock, never from a counter two checkouts
+// could read.
+func TestStore_PlaceOrderRedemptionLimit(t *testing.T) {
 	ctx := t.Context()
 	s := checkout.NewStore(pool)
 	code := insertCoupon(t, "ONLYTWO", "amount", 10000, 0, 0, 2)
@@ -172,8 +179,10 @@ func TestTotalRedemptionLimitIsEnforced(t *testing.T) {
 	}
 }
 
-// TestTheRedemptionMatchesTheOrdersDiscount proves the two numbers are one fact.
-func TestTheRedemptionMatchesTheOrdersDiscount(t *testing.T) {
+// TestStore_PlaceOrderRedemptionAmount: The redemption PlaceOrder records
+// equals the discount of the order, and the coupon takes something off. It
+// proves the two numbers are one fact.
+func TestStore_PlaceOrderRedemptionAmount(t *testing.T) {
 	ctx := t.Context()
 	s := checkout.NewStore(pool)
 	code := insertCoupon(t, "MATCHES", "amount", 20000, 0, 0, 0)
@@ -202,10 +211,12 @@ func TestTheRedemptionMatchesTheOrdersDiscount(t *testing.T) {
 	}
 }
 
-// TestASpentCouponIsRefusedAsItselfRatherThanAsAnUnknownFailure holds the
-// sentinel the checkout handler branches on; anything else is a 500 with the
-// checkout form discarded. CouponByCode reads no limit, so this is not a race.
-func TestASpentCouponIsRefusedAsItselfRatherThanAsAnUnknownFailure(t *testing.T) {
+// TestStore_PlaceOrderCouponUsedUp: PlaceOrder refuses a spent coupon as
+// coupon.ErrUsedUp, the sentinel the checkout handler branches on, though
+// CouponByCode still lets it through. It holds the sentinel the checkout
+// handler branches on; anything else is a 500 with the checkout form discarded.
+// CouponByCode reads no limit, so this is not a race.
+func TestStore_PlaceOrderCouponUsedUp(t *testing.T) {
 	s := checkout.NewStore(pool)
 	code := insertCoupon(t, "SPENTONCE", "amount", 10000, 0, 0, 1)
 
@@ -258,10 +269,12 @@ func placeWithCoupon(t *testing.T, s *checkout.Store, code string, n int) (strin
 		checkoutAttemptKey("coupon-test-"+strconv.Itoa(n)+"-"+uuid.NewString()))
 }
 
-// TestMoneyCeilingStaysInsideExactIntegerArithmetic: the discount is int64 and
-// exact, and it agrees with float64 only while the largest product the schema
-// allows, 10^10 cents by 10^4 basis points, stays inside 2^53.
-func TestMoneyCeilingStaysInsideExactIntegerArithmetic(t *testing.T) {
+// TestCouponsAmountPositive: The money ceiling coupons_amount_positive allows,
+// times the largest basis-point percentage, stays inside the range where
+// integer and float64 arithmetic agree. The discount is int64 and exact, and it
+// agrees with float64 only while the largest product the schema allows, 10^10
+// cents by 10^4 basis points, stays inside 2^53.
+func TestCouponsAmountPositive(t *testing.T) {
 	// Read from the schema rather than restated: a literal here would pass after
 	// somebody raised it.
 	var ceiling int64
@@ -286,10 +299,12 @@ func TestMoneyCeilingStaysInsideExactIntegerArithmetic(t *testing.T) {
 	}
 }
 
-// TestCancellingAnOrderGivesItsCouponSlotBack. coupon_redemptions is append-only
-// with every write revoked, so a slot a cancelled checkout still consumed could
-// be freed by no door. A PENDING unpaid order still counts.
-func TestCancellingAnOrderGivesItsCouponSlotBack(t *testing.T) {
+// TestRedeemCouponCancelledSlot: redeem_coupon counts a pending order's
+// redemption against the limit and gives the slot back once the order is
+// cancelled. coupon_redemptions is append-only with every write revoked, so a
+// slot a cancelled checkout still consumed could be freed by no door. A PENDING
+// unpaid order still counts.
+func TestRedeemCouponCancelledSlot(t *testing.T) {
 	ctx := t.Context()
 
 	var couponID uuid.UUID
@@ -370,9 +385,12 @@ func TestCancellingAnOrderGivesItsCouponSlotBack(t *testing.T) {
 	}
 }
 
-// TestTheCouponWindowUsesOneClock. starts_at defaults to the DATABASE's now(),
-// so comparing it against Go's time.Now() is comparing two clocks.
-func TestTheCouponWindowUsesOneClock(t *testing.T) {
+// TestStore_CouponByCodeWindow: CouponByCode judges a coupon's window against
+// the database's clock: a coupon created this instant is usable, and one that
+// has not started or has ended answers coupon.ErrExpired. starts_at defaults to
+// the DATABASE's now(), so comparing it against Go's time.Now() is comparing
+// two clocks.
+func TestStore_CouponByCodeWindow(t *testing.T) {
 	ctx := t.Context()
 	s := checkout.NewStore(pool)
 

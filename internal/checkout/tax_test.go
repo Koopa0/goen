@@ -14,7 +14,9 @@ import (
 	"github.com/koopa0/goen/internal/order/delivery"
 )
 
-func TestMixedTaxCheckoutUsesTheCartExplanation(t *testing.T) {
+// TestHandler_AnswerPlacementMixedTax: answerPlacement answers a mixed-tax
+// refusal with 422 and the cart's own explanation, in each locale.
+func TestHandler_AnswerPlacementMixedTax(t *testing.T) {
 	for _, locale := range []i18n.Locale{i18n.ZhHant, i18n.En} {
 		t.Run(string(locale), func(t *testing.T) {
 			ctx := i18n.WithLocale(t.Context(), locale)

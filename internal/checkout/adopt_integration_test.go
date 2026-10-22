@@ -83,11 +83,14 @@ func operationResult(t *testing.T, done <-chan error) error {
 	}
 }
 
-// TestCheckoutAndAdoptionShareUserBeforeCartLockOrder pauses checkout after it
-// owns the account cart. Adoption then holds NO KEY UPDATE on the user and waits
-// for that cart. Releasing checkout is safe only because its user KEY SHARE is
-// already held (and compatible); the former cart -> user acquisition deadlocked.
-func TestCheckoutAndAdoptionShareUserBeforeCartLockOrder(t *testing.T) {
+// TestStore_PlaceOrderAdoptionLockOrder: PlaceOrder and cart adoption take the
+// user before the cart, so a checkout paused after it owns the account cart and
+// an adoption waiting for that cart both complete instead of deadlocking. It
+// pauses checkout after it owns the account cart. Adoption then holds NO KEY
+// UPDATE on the user and waits for that cart. Releasing checkout is safe only
+// because its user KEY SHARE is already held (and compatible); the former cart
+// -> user acquisition deadlocked.
+func TestStore_PlaceOrderAdoptionLockOrder(t *testing.T) {
 	ctx := t.Context()
 	u := adopter(t, "checkout-adopt-"+uuid.NewString()+"@example.com")
 	userID := uuid.MustParse(u.ID)

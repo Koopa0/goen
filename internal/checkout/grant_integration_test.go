@@ -27,7 +27,10 @@ import (
 	"github.com/koopa0/goen/internal/payment"
 )
 
-func TestOrderConfirmationIsNotEnumerable(t *testing.T) {
+// TestBuyerHandler_OrderPageEnumeration: buyer.Handler.OrderPage answers a
+// stranger 404 and leaks neither the email nor the address of a placed order,
+// while the browser that placed it gets 200.
+func TestBuyerHandler_OrderPageEnumeration(t *testing.T) {
 	ctx := t.Context()
 	s := checkout.NewStore(pool)
 	id := newCart(t, s)
@@ -79,10 +82,13 @@ func TestOrderConfirmationIsNotEnumerable(t *testing.T) {
 	}
 }
 
-// TestASecondOrderKeepsTheFirstOnesGrantAlive. The cookie is re-issued with a
-// fresh MaxAge on every order while a grant is swept on its own created_at, so
-// equal durations are not equal deadlines unless the second order restarts it.
-func TestASecondOrderKeepsTheFirstOnesGrantAlive(t *testing.T) {
+// TestAccessStore_GrantSecondOrder: access.Store.Grant restarts the clock of a
+// grant the browser carries from an earlier order when it grants a second, so a
+// sweep does not drop the first order's grant while its cookie is still live.
+// The cookie is re-issued with a fresh MaxAge on every order while a grant is
+// swept on its own created_at, so equal durations are not equal deadlines
+// unless the second order restarts it.
+func TestAccessStore_GrantSecondOrder(t *testing.T) {
 	ctx := t.Context()
 	s := checkout.NewStore(pool)
 	h := buyer.NewHandler(buyer.NewStore(pool), access.NewStore(pool, false), slog.New(slog.DiscardHandler), testLimiter(), false)
@@ -149,10 +155,12 @@ func TestASecondOrderKeepsTheFirstOnesGrantAlive(t *testing.T) {
 	}
 }
 
-// TestAStaleCarriedGrantStaysDeadAfterAnotherOrder. TouchOrderAccessGrants must
-// not revive a grant at or past GrantRetain; placing another order with the
-// stale token carried forward must leave the first order unreachable.
-func TestAStaleCarriedGrantStaysDeadAfterAnotherOrder(t *testing.T) {
+// TestAccessStore_GrantStaleCarried: access.Store.Grant does not revive a
+// carried grant at or past the retention when another order is placed, so the
+// first order stays unreachable. TouchOrderAccessGrants must not revive a grant
+// at or past GrantRetain; placing another order with the stale token carried
+// forward must leave the first order unreachable.
+func TestAccessStore_GrantStaleCarried(t *testing.T) {
 	ctx := t.Context()
 	s := checkout.NewStore(pool)
 	h := buyer.NewHandler(buyer.NewStore(pool), access.NewStore(pool, false), slog.New(slog.DiscardHandler), testLimiter(), false)
@@ -211,10 +219,13 @@ func TestAStaleCarriedGrantStaysDeadAfterAnotherOrder(t *testing.T) {
 	}
 }
 
-// TestGrantRetainBoundsOrderAccess. Order access uses the database clock and a
-// strict created_at > now() - retain. One transaction fixes now() across the
-// fixture timestamps and the lookup so the equality case cannot flake.
-func TestGrantRetainBoundsOrderAccess(t *testing.T) {
+// TestOrderAccessibleWithRetain: The OrderAccessibleWith query grants access
+// only while a grant's age is strictly inside access.Retain: one microsecond
+// inside, the exact boundary and one microsecond outside. Order access uses the
+// database clock and a strict created_at > now() - retain. One transaction
+// fixes now() across the fixture timestamps and the lookup so the equality case
+// cannot flake.
+func TestOrderAccessibleWithRetain(t *testing.T) {
 	ctx := t.Context()
 	s := checkout.NewStore(pool)
 	number := placeUnpaidOrderFor(t, s, "retain-bound@example.com")
@@ -269,7 +280,10 @@ func TestGrantRetainBoundsOrderAccess(t *testing.T) {
 	}
 }
 
-func TestAForgedPlacedCookieReachesNothing(t *testing.T) {
+// TestBuyerHandler_OrderPageForgedCookie: buyer.Handler.OrderPage answers 404
+// to a forged goen_placed cookie, which leaks no email, while the browser
+// holding a real token gets 200.
+func TestBuyerHandler_OrderPageForgedCookie(t *testing.T) {
 	ctx := t.Context()
 	s := checkout.NewStore(pool)
 	h := buyer.NewHandler(buyer.NewStore(pool), access.NewStore(pool, false), slog.New(slog.DiscardHandler), testLimiter(), false)
@@ -311,7 +325,9 @@ func TestAForgedPlacedCookieReachesNothing(t *testing.T) {
 	}
 }
 
-func TestATokenReachesOnlyItsOwnOrder(t *testing.T) {
+// TestBuyerHandler_OrderPageOtherOrderToken: buyer.Handler.OrderPage answers
+// 404 to a token granted for another order and leaks nothing of it.
+func TestBuyerHandler_OrderPageOtherOrderToken(t *testing.T) {
 	ctx := t.Context()
 	s := checkout.NewStore(pool)
 	h := buyer.NewHandler(buyer.NewStore(pool), access.NewStore(pool, false), slog.New(slog.DiscardHandler), testLimiter(), false)
@@ -603,10 +619,13 @@ func TestHandler_PlaceOrderGrantFailure(t *testing.T) {
 	}
 }
 
-// TestFindOrderGrantFailureDoesNotRedirectTo404 locks the grant failure
-// handling in FindOrder: if Grant fails, FindOrder must answer 500
-// rather than 303 redirecting to the order page where access would fail.
-func TestFindOrderGrantFailureDoesNotRedirectTo404(t *testing.T) {
+// TestBuyerHandler_FindOrderGrantFailure: buyer.Handler.FindOrder answers 500
+// with the find-order recovery page, not a 303 to an order page where access
+// would fail, when its grant cannot be written, and recovers once it can. It
+// locks the grant failure handling in FindOrder: if Grant fails, FindOrder must
+// answer 500 rather than 303 redirecting to the order page where access would
+// fail.
+func TestBuyerHandler_FindOrderGrantFailure(t *testing.T) {
 	ctx := t.Context()
 	s := checkout.NewStore(pool)
 

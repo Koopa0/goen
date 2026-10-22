@@ -13,11 +13,14 @@ import (
 	"github.com/koopa0/goen/internal/order/delivery"
 )
 
-// TestCheckoutAndReorderSerializeTheCartAggregate fixes the lost-update window
-// between checkout's cart snapshot and ClearCart. Reorder must wait for the
-// checkout transaction, then add to the now-empty cart; otherwise it can report
-// success only for ClearCart to erase items that were never copied to the order.
-func TestCheckoutAndReorderSerializeTheCartAggregate(t *testing.T) {
+// TestStore_PlaceOrderReorderLock: PlaceOrder and cart Reorder serialise on the
+// cart aggregate: Reorder waits for the checkout transaction and then adds to
+// the now-empty cart, so no reordered item is erased by ClearCart or copied
+// into the order. It fixes the lost-update window between checkout's cart
+// snapshot and ClearCart. Reorder must wait for the checkout transaction, then
+// add to the now-empty cart; otherwise it can report success only for ClearCart
+// to erase items that were never copied to the order.
+func TestStore_PlaceOrderReorderLock(t *testing.T) {
 	ctx := t.Context()
 	baseStore := checkout.NewStore(pool)
 	checkoutVariant, reorderedVariant, _ := threeVariants(t, "cart-aggregate-lock")

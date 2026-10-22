@@ -9,9 +9,10 @@ import (
 	"github.com/koopa0/goen/internal/policy"
 )
 
-// The privacy policy states how long a saved checkout draft is kept, read from
-// the constant the sweep enforces.
-func TestThePrivacyPolicyStatesTheDraftPeriodTheSweepEnforces(t *testing.T) {
+// TestDraftTTLMatchesPolicy: The privacy policy states, in hours, the DraftTTL
+// the draft sweep enforces. The privacy policy states how long a saved checkout
+// draft is kept, read from the constant the sweep enforces.
+func TestDraftTTLMatchesPolicy(t *testing.T) {
 	t.Parallel()
 
 	hours, err := strconv.Atoi(policy.CheckoutDraftHoursText())

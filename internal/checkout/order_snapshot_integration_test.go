@@ -14,7 +14,10 @@ import (
 	"github.com/koopa0/goen/internal/order/delivery"
 )
 
-func TestCompanyInvoiceSnapshotsTheRegisteredBuyerNotTheRecipient(t *testing.T) {
+// TestStore_PlaceOrderCompanyInvoice: PlaceOrder snapshots a company invoice's
+// registered buyer name and tax ID in the invoice preference, and the delivery
+// recipient stays the recipient.
+func TestStore_PlaceOrderCompanyInvoice(t *testing.T) {
 	ctx := t.Context()
 	s := checkout.NewStore(storeRolePool(t))
 	cartID := newCart(t, s)
@@ -53,7 +56,10 @@ func TestCompanyInvoiceSnapshotsTheRegisteredBuyerNotTheRecipient(t *testing.T) 
 	}
 }
 
-func TestOrderPricesAreCopiedNotReferenced(t *testing.T) {
+// TestStore_PlaceOrderPricesCopied: PlaceOrder copies prices onto the order:
+// the subtotal read back does not move when the catalogue is repriced
+// afterwards.
+func TestStore_PlaceOrderPricesCopied(t *testing.T) {
 	ctx := t.Context()
 	s := checkout.NewStore(pool)
 	id := newCart(t, s)
@@ -99,10 +105,12 @@ func TestOrderPricesAreCopiedNotReferenced(t *testing.T) {
 	}
 }
 
-// TestAnOrderLineIsSnapshottedInTheBuyersLanguage. order_lines.product_name is
-// a SNAPSHOT, so the language is decided at PLACEMENT by the cart read that
-// localizes; a receipt already sent must not start disagreeing with itself.
-func TestAnOrderLineIsSnapshottedInTheBuyersLanguage(t *testing.T) {
+// TestStore_PlaceOrderLineLocale: PlaceOrder snapshots each order line's
+// product name in the buyer's language at placement, Chinese for a Chinese
+// buyer and English for an English one. order_lines.product_name is a SNAPSHOT,
+// so the language is decided at PLACEMENT by the cart read that localizes; a
+// receipt already sent must not start disagreeing with itself.
+func TestStore_PlaceOrderLineLocale(t *testing.T) {
 	ctx := t.Context()
 	s := checkout.NewStore(pool)
 
@@ -138,10 +146,12 @@ func TestAnOrderLineIsSnapshottedInTheBuyersLanguage(t *testing.T) {
 	}
 }
 
-// TestAnOrderLineSnapshotsTheWarrantyPromise holds the checkout side of the
-// warranty boundary: the immutable order line receives the promise visible at
-// placement, and later catalogue edits cannot reach it.
-func TestAnOrderLineSnapshotsTheWarrantyPromise(t *testing.T) {
+// TestStore_PlaceOrderWarrantySnapshot: PlaceOrder copies the warranty promise
+// visible at placement onto the order line, and a later catalogue edit does not
+// reach it. It holds the checkout side of the warranty boundary: the immutable
+// order line receives the promise visible at placement, and later catalogue
+// edits cannot reach it.
+func TestStore_PlaceOrderWarrantySnapshot(t *testing.T) {
 	ctx := t.Context()
 	s := checkout.NewStore(pool)
 	vid := freshVariant(t, "warranty-promise-snapshot")

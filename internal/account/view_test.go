@@ -170,7 +170,7 @@ func renderAccountPage(t *testing.T, ctx context.Context) string {
 }
 
 // The address book's row of internal/checkout's
-// TestEveryCheckoutFieldTellsTheBrowserWhatItIs, with the rows of its tables
+// TestPageAutofill, with the rows of its tables
 // that name the address book's controls and copies of the helpers it calls.
 func TestAccountAddressFieldsNameTheirAutofill(t *testing.T) {
 	t.Parallel()

@@ -11,7 +11,11 @@ import (
 	"github.com/koopa0/goen/internal/i18n"
 )
 
-func TestCheckoutWithoutDeliveryKeepsTypedDraftAndBlocksPlacement(t *testing.T) {
+// TestPageWithoutDelivery: Page keeps the typed draft and blocks placement when
+// no delivery method is available: the place-order buttons are disabled and the
+// message is shown; with a method available it renders one shipping group and
+// option.
+func TestPageWithoutDelivery(t *testing.T) {
 	for _, locale := range []i18n.Locale{i18n.En, i18n.ZhHant} {
 		for _, available := range []bool{false, true} {
 			name := "unavailable"

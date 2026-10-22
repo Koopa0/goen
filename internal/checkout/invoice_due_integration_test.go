@@ -17,10 +17,12 @@ import (
 	"github.com/koopa0/goen/internal/outbox"
 )
 
-// TestCreditPayingTheWholeOrderQueuesItsInvoiceAtCheckout: credit that pays
+// TestStore_PlaceOrderInvoiceDue: PlaceOrder queues the invoice of an order
+// credit pays in full at checkout, where the invoice is due, and queues none
+// for credit that pays part, which waits for the card. Credit that pays
 // everything is money received at checkout, so the invoice is due then and not
 // when the shop picks the order. Credit that pays part waits for the card.
-func TestCreditPayingTheWholeOrderQueuesItsInvoiceAtCheckout(t *testing.T) {
+func TestStore_PlaceOrderInvoiceDue(t *testing.T) {
 	ctx := t.Context()
 	s := checkout.NewStore(pool)
 	vid := variantOf(t, "koto-over-ear")

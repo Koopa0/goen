@@ -14,7 +14,10 @@ import (
 	"github.com/koopa0/goen/internal/shipping"
 )
 
-func TestThePickupDestinationComesFromTheMethodNotTheForm(t *testing.T) {
+// TestStore_PlaceOrderPickupFromMethod: PlaceOrder takes the destination from
+// the shipping method, not the form: a pickup method keeps the pickup point and
+// no street though the form claims an address.
+func TestStore_PlaceOrderPickupFromMethod(t *testing.T) {
 	ctx := t.Context()
 	s := checkout.NewStore(pool)
 	id := newCart(t, s)
@@ -46,10 +49,12 @@ func TestThePickupDestinationComesFromTheMethodNotTheForm(t *testing.T) {
 	}
 }
 
-// TestAPickupOrderIsPlacedWithTheChainAlone holds what checkout now submits: a
-// convenience-store order carrying no store number and no store name. The
-// columns stay for the day the carrier's picker fills them.
-func TestAPickupOrderIsPlacedWithTheChainAlone(t *testing.T) {
+// TestStore_PlaceOrderPickupChainAlone: PlaceOrder places a convenience-store
+// order that carries only the chain, with no store number, store name or
+// street, and the confirmation names the chain. It holds what checkout now
+// submits: a convenience-store order carrying no store number and no store
+// name. The columns stay for the day the carrier's picker fills them.
+func TestStore_PlaceOrderPickupChainAlone(t *testing.T) {
 	ctx := t.Context()
 	s := checkout.NewStore(pool)
 	id := newCart(t, s)
@@ -85,7 +90,9 @@ func TestAPickupOrderIsPlacedWithTheChainAlone(t *testing.T) {
 	}
 }
 
-func TestAnAddressOrderKeepsNoPickupPoint(t *testing.T) {
+// TestStore_PlaceOrderAddressNoPickup: PlaceOrder keeps the street address of
+// an address order and no pickup point, though the form carried one.
+func TestStore_PlaceOrderAddressNoPickup(t *testing.T) {
 	ctx := t.Context()
 	s := checkout.NewStore(pool)
 	id := newCart(t, s)
@@ -114,7 +121,11 @@ func TestAnAddressOrderKeepsNoPickupPoint(t *testing.T) {
 	}
 }
 
-func TestBothPagesShowWhereAPickupOrderGoes(t *testing.T) {
+// TestBuyerStore_OrderPickupDeliveryTo: buyer.Store.Order names the chain, the
+// store and its code in DeliveryTo for a pickup order placed with all three.
+// The old name said both pages; the test reads the order view's DeliveryTo
+// only.
+func TestBuyerStore_OrderPickupDeliveryTo(t *testing.T) {
 	ctx := t.Context()
 	s := checkout.NewStore(pool)
 	id := newCart(t, s)

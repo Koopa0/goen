@@ -10,7 +10,10 @@ import (
 	"github.com/koopa0/goen/internal/invoice"
 )
 
-func TestCompanyInvoiceChoiceSaysWhereTheInvoiceIsStored(t *testing.T) {
+// TestPageCompanyInvoiceStored: Page shows the note saying where a company
+// invoice is stored when the company type is chosen, and not when the
+// mobile-barcode type is, in each locale.
+func TestPageCompanyInvoiceStored(t *testing.T) {
 	t.Parallel()
 	for _, loc := range []i18n.Locale{i18n.ZhHant, i18n.En} {
 		ctx := i18n.WithLocale(t.Context(), loc)

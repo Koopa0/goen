@@ -111,10 +111,11 @@ func queuedVoidDues(t *testing.T, number string) []outbox.InvoiceVoidDue {
 	return out
 }
 
-// TestACustomersCancelVoidsTheInvoiceTheirCreditPaidFor: the press is the
-// buyer's consent, recorded as their own cancellation, and the void the system
-// claims from it settles; an issue still in flight is issued first.
-func TestACustomersCancelVoidsTheInvoiceTheirCreditPaidFor(t *testing.T) {
+// TestIssuerStore_ClaimVoidDue: ClaimVoidDue claims the void a customer's
+// cancellation of a credit-paid order queued, and ProcessOperation settles it;
+// the press is the buyer's consent, recorded as their own cancellation, and an
+// issue still in flight is issued first.
+func TestIssuerStore_ClaimVoidDue(t *testing.T) {
 	for _, inFlight := range []bool{false, true} {
 		name := "issued"
 		if inFlight {
@@ -185,9 +186,11 @@ func TestACustomersCancelVoidsTheInvoiceTheirCreditPaidFor(t *testing.T) {
 	}
 }
 
-// TestACustomersCancelWithdrawsAnIssueNoProviderWillSend: with no 加值中心 the
-// claim would wait for ever; nothing is sent because nothing can be.
-func TestACustomersCancelWithdrawsAnIssueNoProviderWillSend(t *testing.T) {
+// TestIssuerStore_ClaimVoidDueWithdraw: ClaimVoidDue with no provider
+// configured withdraws the unsent issue of a cancelled order as rejected, with
+// no send attempt and no void. With no 加值中心 the claim would wait for ever;
+// nothing is sent because nothing can be.
+func TestIssuerStore_ClaimVoidDueWithdraw(t *testing.T) {
 	ctx := t.Context()
 	gateway, err := issuer.NewGateway("", "", "", "")
 	if err != nil {
@@ -216,9 +219,11 @@ func TestACustomersCancelWithdrawsAnIssueNoProviderWillSend(t *testing.T) {
 	}
 }
 
-// TestACancelledOrdersInvoiceWaitsForAProviderToVoidIt: a void claimed with no
-// 加值中心 would sit unsent; the health page names the live invoice instead.
-func TestACancelledOrdersInvoiceWaitsForAProviderToVoidIt(t *testing.T) {
+// TestIssuerStore_ClaimVoidDueNoProvider: ClaimVoidDue with no provider
+// configured claims no void for the issued invoice of a cancelled order, so
+// none sits unsent. A void claimed with no 加值中心 would sit unsent; the health
+// page names the live invoice instead.
+func TestIssuerStore_ClaimVoidDueNoProvider(t *testing.T) {
 	ctx := t.Context()
 	_, invoices := fakeECPay(t, time.Now())
 	number := creditPaidOrder(t, invoices, "void-due-unset")
@@ -245,10 +250,12 @@ func TestACancelledOrdersInvoiceWaitsForAProviderToVoidIt(t *testing.T) {
 	}
 }
 
-// TestACustomersCancelPastTheVoidWindowLeavesTheInvoiceForStaff: the
-// cancellation goes through, no void is asked of ECPay once the period is filed,
-// and the back office's health page names the invoice.
-func TestACustomersCancelPastTheVoidWindowLeavesTheInvoiceForStaff(t *testing.T) {
+// TestIssuerStore_ClaimVoidDuePastWindow: ClaimVoidDue claims no void and asks
+// ECPay for none once the invoice's period is filed, and the health page lists
+// the live invoice of the cancelled order for staff. The cancellation goes
+// through, no void is asked of ECPay once the period is filed, and the back
+// office's health page names the invoice.
+func TestIssuerStore_ClaimVoidDuePastWindow(t *testing.T) {
 	ctx := t.Context()
 	fake, invoices := fakeECPay(t, time.Now().AddDate(0, -4, 0))
 	number := creditPaidOrder(t, invoices, "void-due-late")
@@ -291,9 +298,9 @@ func listed(t *testing.T, number string) bool {
 	return false
 }
 
-// TestOnlyACreditPaidOrdersCancelQueuesAVoid: an order nobody paid has no
-// invoice to void.
-func TestOnlyACreditPaidOrdersCancelQueuesAVoid(t *testing.T) {
+// TestBuyerStore_CancelOrderNoVoidDue: buyer.Store.CancelOrder queues no
+// invoice void for an order nobody paid, which has no invoice to void.
+func TestBuyerStore_CancelOrderNoVoidDue(t *testing.T) {
 	number := numberOf(t, heldOrder(t, freshVariant(t, "void-due-unpaid"), -time.Hour, false))
 	if err := buyer.NewStore(storeRolePool(t)).CancelOrder(t.Context(), number); err != nil {
 		t.Fatalf("cancel: %v", err)

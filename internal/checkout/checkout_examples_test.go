@@ -12,9 +12,11 @@ import (
 	"github.com/koopa0/goen/internal/ui/frame"
 )
 
-// The checkout's rows of internal/contact's
+// TestPageExamplesOutsideInputs: Page shows the example of a refused coupon or
+// mobile-barcode field as a visible linked hint, never as a placeholder or in
+// the input's value, in each locale. The checkout's rows of internal/contact's
 // TestContactExamplesStayOutsideRefusedInputs.
-func TestCheckoutExamplesStayOutsideRefusedInputs(t *testing.T) {
+func TestPageExamplesOutsideInputs(t *testing.T) {
 	t.Parallel()
 	for _, locale := range i18n.Locales() {
 		for _, draft := range []struct{ value, refusal string }{{"", ""}, {"Submitted <& value", ""}, {"", "Refused"}, {"Submitted <& value", "Refused"}} {

@@ -21,7 +21,8 @@ import (
 	"github.com/koopa0/goen/internal/user"
 )
 
-func TestPlaceOrderEmptiesTheCart(t *testing.T) {
+// TestStore_PlaceOrderEmptiesCart: PlaceOrder empties the cart it placed.
+func TestStore_PlaceOrderEmptiesCart(t *testing.T) {
 	ctx := t.Context()
 	s := checkout.NewStore(pool)
 	id := newCart(t, s)
@@ -51,7 +52,9 @@ func TestPlaceOrderEmptiesTheCart(t *testing.T) {
 	}
 }
 
-func TestPlaceOrderRefusesAFabricatedShippingVersion(t *testing.T) {
+// TestStore_PlaceOrderUnknownShipping: PlaceOrder refuses a shipping version
+// that does not exist.
+func TestStore_PlaceOrderUnknownShipping(t *testing.T) {
 	ctx := t.Context()
 	s := checkout.NewStore(pool)
 	id := newCart(t, s)
@@ -70,7 +73,8 @@ func TestPlaceOrderRefusesAFabricatedShippingVersion(t *testing.T) {
 	}
 }
 
-func TestPlaceOrderRefusesAnEmptyCart(t *testing.T) {
+// TestStore_PlaceOrderEmptyCart: PlaceOrder refuses an empty cart.
+func TestStore_PlaceOrderEmptyCart(t *testing.T) {
 	ctx := t.Context()
 	s := checkout.NewStore(pool)
 	id := newCart(t, s)
@@ -92,7 +96,11 @@ func TestPlaceOrderRefusesAnEmptyCart(t *testing.T) {
 	}
 }
 
-func TestOrderIsAttachedToASignedInCustomer(t *testing.T) {
+// TestStore_PlaceOrderSignedInOwner: PlaceOrder attaches the order to the
+// signed-in customer: its owner reaches it with or without the cookie, a grant
+// holder who is not signed in reaches it, and neither a signed-in stranger nor
+// a visitor with no grant does.
+func TestStore_PlaceOrderSignedInOwner(t *testing.T) {
 	ctx := t.Context()
 	s := checkout.NewStore(pool)
 
@@ -178,12 +186,14 @@ func TestOrderIsAttachedToASignedInCustomer(t *testing.T) {
 	}
 }
 
-// TestASpentCouponComesBackAsAFieldErrorNotA500 drives the checkout handler,
-// because the branch that maps coupon.ErrUsedUp to a 422 lives there. CouponByCode
-// reads no limit — they are counted under redeem_coupon's lock — so a spent code
-// passes form validation every time and is refused inside the transaction every
-// time, which makes this an ordinary outcome on the buying mainline.
-func TestASpentCouponComesBackAsAFieldErrorNotA500(t *testing.T) {
+// TestHandler_PlaceOrderCouponUsedUp: PlaceOrder answers a spent coupon with
+// 422 and a field error that keeps what the customer typed, not a 500. It
+// drives the checkout handler, because the branch that maps coupon.ErrUsedUp to
+// a 422 lives there. CouponByCode reads no limit — they are counted under
+// redeem_coupon's lock — so a spent code passes form validation every time and
+// is refused inside the transaction every time, which makes this an ordinary
+// outcome on the buying mainline.
+func TestHandler_PlaceOrderCouponUsedUp(t *testing.T) {
 	ctx := t.Context()
 	s := checkout.NewStore(pool)
 

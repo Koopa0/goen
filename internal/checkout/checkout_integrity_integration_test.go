@@ -129,13 +129,13 @@ func (c *integrityCheckout) wrote(t *testing.T, key string) map[string]int {
 	}
 }
 
-// TestCheckoutPlacesNothingOnAQuoteItDidNotRender holds that every figure an
-// order is placed at comes from the server: the price, the quantity, the
-// shipping, the discount and the store credit are rebuilt from locked rows and
-// the submission is accepted only when that rebuild is exactly the quote this
-// checkout rendered. A quote naming anything else is answered 422 and writes no
-// order, no hold, no redemption and no credit movement.
-func TestCheckoutPlacesNothingOnAQuoteItDidNotRender(t *testing.T) {
+// TestHandler_PlaceOrderUnrenderedQuote: PlaceOrder accepts a submission only
+// when the server's rebuild from locked rows is exactly the quote the checkout
+// rendered; any other quote is answered 422 and writes no order, no hold, no
+// redemption and no credit movement. Every figure an order is placed at comes
+// from the server: the price, the quantity, the shipping, the discount and the
+// store credit.
+func TestHandler_PlaceOrderUnrenderedQuote(t *testing.T) {
 	tests := []struct {
 		name string
 		// submit returns what the form carries, given what the checkout renders

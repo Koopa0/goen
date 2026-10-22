@@ -30,7 +30,10 @@ import (
 	"github.com/koopa0/goen/internal/user"
 )
 
-func TestStoreRoleCanLockTheCreditAndCouponQuoteFacts(t *testing.T) {
+// TestStore_PlaceOrderStoreRole: PlaceOrder run as the store role can lock the
+// credit and coupon facts of its quote, so the role holds the privileges the
+// locks take.
+func TestStore_PlaceOrderStoreRole(t *testing.T) {
 	ctx := t.Context()
 	code := insertCoupon(t, "ROLEQUOTE", "amount", 1000, 0, 0, 0)
 	userID := creditedCustomer(t, 5000)
@@ -58,12 +61,14 @@ func TestStoreRoleCanLockTheCreditAndCouponQuoteFacts(t *testing.T) {
 	}
 }
 
-// TestAChangedCreditBalanceReRendersCheckoutWithTheFreshFigure creates the
-// interleaving behind store_credit_never_negative using the production guard:
-// checkout reads the old committed balance, then waits behind a competing
-// debit. Once that debit commits, the customer must see the new figure at 422,
-// not a fictitious sold-out cart, and the same form can be submitted again.
-func TestAChangedCreditBalanceReRendersCheckoutWithTheFreshFigure(t *testing.T) {
+// TestHandler_PlaceOrderCreditChanged: PlaceOrder re-renders the checkout at
+// 422 with the fresh credit figure when a competing debit changes the balance
+// after the quote was read, not as a fictitious sold-out cart, keeps the
+// submitted values, and accepts the same form again once the new quote is
+// confirmed. The test creates the interleaving behind
+// store_credit_never_negative using the production guard: checkout reads the
+// old committed balance, then waits behind a competing debit.
+func TestHandler_PlaceOrderCreditChanged(t *testing.T) {
 	ctx := t.Context()
 	userID := creditedCustomer(t, 5000)
 	app := "wave0-credit-" + uuid.NewString()
@@ -159,11 +164,13 @@ func TestAChangedCreditBalanceReRendersCheckoutWithTheFreshFigure(t *testing.T) 
 	}
 }
 
-// TestCheckoutQuoteGateLinearizesAfterTheCatalogueLock proves a quote is not a
+// TestStore_PlaceOrderPriceRace: PlaceOrder compares the quote against the
+// price that wins the variant lock, answers ErrQuoteChanged for a price changed
+// while it waited, and writes nothing. It proves a quote is not a
 // preflight-only checksum. The browser's old price is valid when submitted;
-// checkout then waits on the variant row and must compare against the price that
-// wins that lock, before creating any durable part of an order.
-func TestCheckoutQuoteGateLinearizesAfterTheCatalogueLock(t *testing.T) {
+// checkout then waits on the variant row and must compare against the price
+// that wins that lock, before creating any durable part of an order.
+func TestStore_PlaceOrderPriceRace(t *testing.T) {
 	ctx := t.Context()
 	variantID := freshVariant(t, "quote-price-race")
 	if _, err := pool.Exec(ctx,
@@ -236,14 +243,15 @@ func TestCheckoutQuoteGateLinearizesAfterTheCatalogueLock(t *testing.T) {
 	}
 }
 
-// TestCheckoutWaitsForAZoneRateEditInFlight: a surcharge is read from rows the
-// back office edits in place, and orders_have_lines prices the order again
-// from them at COMMIT. Checkout holds the zone lock shared from its quote to
-// its COMMIT, and the edit holds it exclusively, so a checkout that meets an
-// edit in flight waits, is then told the price changed, and places at the new
-// one. Without the wait it would price from one surcharge and commit under
-// another, and the storefront's order would be refused.
-func TestCheckoutWaitsForAZoneRateEditInFlight(t *testing.T) {
+// TestStore_PlaceOrderZoneRateEdit: PlaceOrder waits for a zone-rate edit in
+// flight, answers ErrQuoteChanged, and then places at the new rate. A surcharge
+// is read from rows the back office edits in place, and orders_have_lines
+// prices the order again from them at COMMIT. Checkout holds the zone lock
+// shared from its quote to its COMMIT, and the edit holds it exclusively, so a
+// checkout that meets an edit in flight waits, is then told the price changed,
+// and places at the new one. Without the wait it would price from one surcharge
+// and commit under another, and the storefront's order would be refused.
+func TestStore_PlaceOrderZoneRateEdit(t *testing.T) {
 	ctx := t.Context()
 	var methodID, versionID uuid.UUID
 	if err := pool.QueryRow(ctx, `
@@ -341,7 +349,10 @@ func TestCheckoutWaitsForAZoneRateEditInFlight(t *testing.T) {
 	}
 }
 
-func TestCheckoutCouponDefinitionIsReloadedUnderItsRowLock(t *testing.T) {
+// TestStore_PlaceOrderCouponEdit: PlaceOrder reloads the coupon under its row
+// lock, so a coupon deactivated while it waited answers coupon.ErrNotFound and
+// leaves no checkout attempt.
+func TestStore_PlaceOrderCouponEdit(t *testing.T) {
 	ctx := t.Context()
 	code := insertCoupon(t, "LOCKEDCOUPON", "amount", 1000, 0, 0, 0)
 	baseStore := checkout.NewStore(pool)
@@ -401,7 +412,10 @@ func TestCheckoutCouponDefinitionIsReloadedUnderItsRowLock(t *testing.T) {
 	}
 }
 
-func TestCheckoutRejectsMissingOrMalformedQuoteWithoutWrites(t *testing.T) {
+// TestHandler_PlaceOrderBadQuote: PlaceOrder answers 422 to a missing or
+// malformed quote, replaces it with a fresh quote ID and writes no checkout
+// attempt.
+func TestHandler_PlaceOrderBadQuote(t *testing.T) {
 	ctx := t.Context()
 	for _, tt := range []struct {
 		name  string
@@ -461,12 +475,15 @@ func TestCheckoutRejectsMissingOrMalformedQuoteWithoutWrites(t *testing.T) {
 	}
 }
 
-// TestRetiringAProductLinearizesBeforeStaleCartCheckout proves that publication
-// is part of the checkout snapshot, not merely a listing concern. Checkout
-// first owns the variant and waits behind an in-flight retirement's product
-// lock; once retirement commits it must observe archived and refuse the whole
-// cart without silently dropping a line or creating an order.
-func TestRetiringAProductLinearizesBeforeStaleCartCheckout(t *testing.T) {
+// TestStore_PlaceOrderRetiredProduct: PlaceOrder of a cart holding a product
+// retired while it waited answers cart.ErrUnavailable for the whole cart,
+// having locked the variant first, and creates no order and moves no stock. It
+// proves that publication is part of the checkout snapshot, not merely a
+// listing concern. Checkout first owns the variant and waits behind an
+// in-flight retirement's product lock; once retirement commits it must observe
+// archived and refuse the whole cart without silently dropping a line or
+// creating an order.
+func TestStore_PlaceOrderRetiredProduct(t *testing.T) {
 	ctx := t.Context()
 	s := checkout.NewStore(pool)
 	variantID := freshVariant(t, "archived-stale-cart")
@@ -555,12 +572,14 @@ func TestRetiringAProductLinearizesBeforeStaleCartCheckout(t *testing.T) {
 	}
 }
 
-// TestCheckoutAndFeaturedVariantMutationShareTheCatalogueLockOrder pins the
-// variant -> product contract. The admin transaction owns the variant while
+// TestStore_PlaceOrderCatalogueLockOrder: PlaceOrder locks the variant before
+// the product, so a variant mutation whose campaign trigger locks the product
+// completes instead of deadlocking with a checkout, which then follows. It pins
+// the variant -> product contract. The admin transaction owns the variant while
 // checkout waits for it, then runs the campaign trigger that locks the product.
 // If checkout had locked product before waiting for variant, this is an ABBA
 // deadlock; with the shared order the mutation completes and checkout follows.
-func TestCheckoutAndFeaturedVariantMutationShareTheCatalogueLockOrder(t *testing.T) {
+func TestStore_PlaceOrderCatalogueLockOrder(t *testing.T) {
 	ctx := t.Context()
 	variantID := freshVariant(t, "featured-checkout-lock-order")
 	var productID uuid.UUID
@@ -643,11 +662,13 @@ func TestCheckoutAndFeaturedVariantMutationShareTheCatalogueLockOrder(t *testing
 	}
 }
 
-// TestCouponMinimumIsRecheckedWhenCheckoutIsPlaced holds the order transaction
-// after the handler has priced its view, then changes the catalogue price. The
-// order must apply the minimum to the subtotal it reads inside its transaction,
-// not to the earlier view or to state retained by Coupon.
-func TestCouponMinimumIsRecheckedWhenCheckoutIsPlaced(t *testing.T) {
+// TestHandler_PlaceOrderCouponMinimum: PlaceOrder applies a coupon's minimum to
+// the subtotal it reads inside its transaction, so a price lowered after the
+// handler priced its view refuses the coupon at 422, re-renders the form and
+// writes nothing. The test holds the order transaction after the handler has
+// priced its view, then changes the catalogue price; the minimum must not be
+// applied to the earlier view or to state retained by Coupon.
+func TestHandler_PlaceOrderCouponMinimum(t *testing.T) {
 	ctx := t.Context()
 	appName := "coupon-minimum-" + uuid.NewString()
 	s := checkout.NewStore(applicationPool(t, appName))

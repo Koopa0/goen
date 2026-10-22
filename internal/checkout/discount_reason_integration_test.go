@@ -12,7 +12,10 @@ import (
 	"github.com/koopa0/goen/internal/order/buyer"
 )
 
-func TestAnOrderSaysWhyItWasDiscounted(t *testing.T) {
+// TestBuyerStore_OrderDiscountReason: buyer.Store.Order says why an order
+// placed through checkout was discounted: the coupon's code and its
+// description.
+func TestBuyerStore_OrderDiscountReason(t *testing.T) {
 	ctx := t.Context()
 	s := buyer.NewStore(pool)
 
@@ -44,7 +47,9 @@ func TestAnOrderSaysWhyItWasDiscounted(t *testing.T) {
 	}
 }
 
-func TestAnOrderWithNoCouponHasNoReason(t *testing.T) {
+// TestBuyerStore_OrderNoDiscountReason: buyer.Store.Order reports no discount
+// reason for an order with no coupon.
+func TestBuyerStore_OrderNoDiscountReason(t *testing.T) {
 	ctx := t.Context()
 	s := buyer.NewStore(pool)
 	number := orderOfVariants(t, map[uuid.UUID]int32{freshVariant(t, "no-coupon"): 1})

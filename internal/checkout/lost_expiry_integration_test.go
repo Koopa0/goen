@@ -196,13 +196,15 @@ func assertGivenBack(t *testing.T, number, ref string, accountID, couponID uuid.
 	}
 }
 
-// TestALostExpiryStillGivesBackTheCreditAndCoupon is #1966: Stripe never
-// delivers checkout.session.expired for an abandoned part-credit checkout.
-// The hold sweeper alone cannot tell the checkout ended, so it keeps the order;
-// the payment sweeper asks Stripe, and the order then lapses as if the event had
-// come. A session Stripe has not yet expired past its order's hold is expired by
-// goen first.
-func TestALostExpiryStillGivesBackTheCreditAndCoupon(t *testing.T) {
+// TestSessionSweeper_SweepLostExpiry: Sweep settles a part-credit checkout
+// whose Stripe expiry event never arrived, expiring a still-open session
+// itself, so the order is cancelled at its deadline and its credit and coupon
+// come back. It is #1966: Stripe never delivers checkout.session.expired for an
+// abandoned part-credit checkout. The hold sweeper alone cannot tell the
+// checkout ended, so it keeps the order; the payment sweeper asks Stripe, and
+// the order then lapses as if the event had come. A session Stripe has not yet
+// expired past its order's hold is expired by goen first.
+func TestSessionSweeper_SweepLostExpiry(t *testing.T) {
 	for _, atStripe := range []string{"expired", "open"} {
 		t.Run(atStripe, func(t *testing.T) {
 			stripeAPI, gateway := newStripeSessions(t)
@@ -249,9 +251,10 @@ func expiryEvent(t *testing.T, ref string) (eventID string, body []byte, header 
 	return eventID, p.Payload, p.Header
 }
 
-// TestSettlingALapsedCheckoutTwiceChangesNothing: a second pass of either
-// sweeper, and the real event arriving after all, find nothing left to do.
-func TestSettlingALapsedCheckoutTwiceChangesNothing(t *testing.T) {
+// TestSessionSweeper_SweepTwice: A second pass of either sweeper, and the real
+// expiry event arriving after all, find nothing left to do: Stripe is asked
+// once and the order is given back once.
+func TestSessionSweeper_SweepTwice(t *testing.T) {
 	ctx := t.Context()
 	stripeAPI, gateway := newStripeSessions(t)
 	store := storeRolePool(t)
@@ -295,12 +298,15 @@ func TestSettlingALapsedCheckoutTwiceChangesNothing(t *testing.T) {
 	assertGivenBack(t, number, ref, accountID, couponID)
 }
 
-// TestTheSessionSweepLeavesWhatIsNotALostExpiry: each case is a payable
-// checkout on a part-credit, coupon order that the sweeper must not settle, or
-// whose credit and coupon must not come back because money may have arrived.
-// Stripe would answer expired for every session it is asked about, so asking
-// alone would be enough to change the order.
-func TestTheSessionSweepLeavesWhatIsNotALostExpiry(t *testing.T) {
+// TestSessionSweeper_SweepNotLostExpiry: Sweep leaves a payable checkout alone
+// unless its expiry was lost: while the event may still come, once paid, with
+// an unresolved provider event, and when complete at Stripe it neither cancels
+// the order nor returns its credit and coupon. Each case is a payable checkout
+// on a part-credit, coupon order that the sweeper must not settle, or whose
+// credit and coupon must not come back because money may have arrived. Stripe
+// would answer expired for every session it is asked about, so asking alone
+// would be enough to change the order.
+func TestSessionSweeper_SweepNotLostExpiry(t *testing.T) {
 	for _, tc := range []struct {
 		name string
 		// arrange turns a lost-expiry checkout into the case.
@@ -378,11 +384,13 @@ func TestTheSessionSweepLeavesWhatIsNotALostExpiry(t *testing.T) {
 	}
 }
 
-// TestALateExpiryWebhookAndTheSessionSweepSettleOnce: the real event arrives
+// TestSessionSweeper_SweepWebhookRace: A late expiry webhook and Sweep settling
+// the same session, in either order, both converge on cancelled without
+// failing, and the credit and coupon come back once. The real event arrives
 // while the sweeper is settling the same session. Both write through the
-// provider reference lock and both converge on cancelled, so whichever holds the
-// lock first, neither fails and the credit and coupon come back once.
-func TestALateExpiryWebhookAndTheSessionSweepSettleOnce(t *testing.T) {
+// provider reference lock and both converge on cancelled, so whichever holds
+// the lock first, neither fails and the credit and coupon come back once.
+func TestSessionSweeper_SweepWebhookRace(t *testing.T) {
 	// webhook applies the expiry as the handler does, holding its transaction
 	// open after the effect until release.
 	webhook := func(ctx context.Context, p *pgxpool.Pool, ref, eventID string, body []byte,

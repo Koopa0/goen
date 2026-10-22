@@ -12,10 +12,11 @@ import (
 	"github.com/koopa0/goen/internal/i18n"
 )
 
-// TestApplyingACodeOnABlankFormFlagsOnlyTheCode: the shopper pressed 套用 before
-// typing an address, so nothing but the code may be refused, and the banner says
-// which code problem it is.
-func TestApplyingACodeOnABlankFormFlagsOnlyTheCode(t *testing.T) {
+// TestHandler_PlaceOrderApplyBlankForm: Applying a wrong code on a blank form
+// refuses only the code: the coupon field is marked and the banner names the
+// code instead of sending the shopper through the fields. The shopper pressed
+// 套用 before typing an address, so nothing but the code may be refused.
+func TestHandler_PlaceOrderApplyBlankForm(t *testing.T) {
 	g := newCouponGuesses(t, "coupon-blank")
 	form := url.Values{"coupon": {"NOPE123"}, "update": {"coupon"}, "shipping": {g.ship.String()}}
 	req := httptest.NewRequestWithContext(t.Context(), http.MethodPost, "/checkout",

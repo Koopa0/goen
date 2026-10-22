@@ -12,7 +12,11 @@ import (
 	"github.com/koopa0/goen/internal/order/delivery"
 )
 
-func TestStoreRoleRefusesMixedTaxCheckoutWithoutLeavingAnOrder(t *testing.T) {
+// TestStore_PlaceOrderMixedTax: PlaceOrder, run as the store role, refuses a
+// cart that mixes taxable and exempt lines with ErrMixedTaxTypes, leaving no
+// attempt and the cart intact, and places an all-exempt cart with exempt
+// snapshots.
+func TestStore_PlaceOrderMixedTax(t *testing.T) {
 	ctx := t.Context()
 	s := checkout.NewStore(storeRolePool(t))
 	id := newCart(t, s)

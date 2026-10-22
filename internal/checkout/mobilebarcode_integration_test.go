@@ -100,7 +100,10 @@ func (c barcodeCheckout) assertUnplaced(t *testing.T) {
 	}
 }
 
-func TestKnownMissingBarcodeCannotBeOverridden(t *testing.T) {
+// TestHandler_PlaceOrderBarcodeMissing: PlaceOrder refuses at 422 a mobile
+// barcode the provider reports missing, keeps what the shopper typed, and
+// writes no checkout state.
+func TestHandler_PlaceOrderBarcodeMissing(t *testing.T) {
 	checker := &checkoutBarcode{status: issuer.BarcodeMissing}
 	attempt := barcodeCheckoutFor(t, checker)
 	w := attempt.post(t)
@@ -115,7 +118,11 @@ func TestKnownMissingBarcodeCannotBeOverridden(t *testing.T) {
 	attempt.assertUnplaced(t)
 }
 
-func TestProviderFailureDoesNotStopThePlacement(t *testing.T) {
+// TestHandler_PlaceOrderBarcodeProviderDown: PlaceOrder places the order when
+// the barcode provider fails or gives no verdict, logging a failure once
+// without the barcode, and an idempotent retry neither rechecks nor changes the
+// order.
+func TestHandler_PlaceOrderBarcodeProviderDown(t *testing.T) {
 	for name, checker := range map[string]*checkoutBarcode{
 		"provider error": {status: issuer.BarcodeUnknown, err: errors.New("provider unavailable")},
 		"no verdict":     {status: issuer.BarcodeUnknown},
@@ -140,7 +147,10 @@ func TestProviderFailureDoesNotStopThePlacement(t *testing.T) {
 	}
 }
 
-func TestBarcodeCheckRunsOnlyAfterLocalPlacementValidation(t *testing.T) {
+// TestHandler_PlaceOrderBarcodeAfterValidation: PlaceOrder asks the barcode
+// provider only after local validation passes and the form is being placed: a
+// malformed barcode, another refused field or a chooser change never calls it.
+func TestHandler_PlaceOrderBarcodeAfterValidation(t *testing.T) {
 	for _, mode := range []string{"malformed", "other field", "chooser"} {
 		t.Run(mode, func(t *testing.T) {
 			checker := &checkoutBarcode{status: issuer.BarcodeExists}
@@ -162,7 +172,10 @@ func TestBarcodeCheckRunsOnlyAfterLocalPlacementValidation(t *testing.T) {
 	}
 }
 
-func TestAnExistingBarcodeIsFrozenAfterTheCheck(t *testing.T) {
+// TestHandler_PlaceOrderBarcodeExists: PlaceOrder places the order when the
+// provider says the barcode exists, and freezes the barcode in canonical form
+// in the invoice preference.
+func TestHandler_PlaceOrderBarcodeExists(t *testing.T) {
 	checker := &checkoutBarcode{status: issuer.BarcodeExists}
 	attempt := barcodeCheckoutFor(t, checker)
 	w := attempt.post(t)

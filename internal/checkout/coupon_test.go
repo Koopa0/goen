@@ -12,10 +12,13 @@ import (
 	"github.com/koopa0/goen/internal/order/access"
 )
 
-// A wrong coupon code is charged to the client whatever cart it brings. An IPv6
-// client chooses the low 64 bits of its address freely, so a client keyed on
-// the whole address would buy a fresh allowance with every rotation.
-func TestAWrongCouponIsChargedToAWholeIPv6Slash64(t *testing.T) {
+// TestCouponKeysIPv6Slash64: couponKeys charges a wrong coupon code to the
+// client's whole IPv6 /64, so rotating the low 64 bits of an address buys no
+// fresh allowance while another /64 keeps its own. A wrong coupon code is
+// charged to the client whatever cart it brings. An IPv6 client chooses the low
+// 64 bits of its address freely, so a client keyed on the whole address would
+// buy a fresh allowance with every rotation.
+func TestCouponKeysIPv6Slash64(t *testing.T) {
 	t.Parallel()
 	h := NewHandler(&Store{}, &cart.Handler{}, &access.Store{}, slog.New(slog.DiscardHandler), true, nil, nil)
 	// Each ask brings a new cart, so only the client's own key can be spent.

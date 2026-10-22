@@ -18,7 +18,9 @@ import (
 	"github.com/koopa0/goen/internal/user"
 )
 
-func TestTheAddressBookIsScopedToItsOwner(t *testing.T) {
+// TestStore_SavedAddressesOwnerScope: SavedAddresses returns only the saved
+// addresses of the account asked about, never another account's.
+func TestStore_SavedAddressesOwnerScope(t *testing.T) {
 	ctx := t.Context()
 	s := checkout.NewStore(pool)
 
@@ -42,7 +44,9 @@ func TestTheAddressBookIsScopedToItsOwner(t *testing.T) {
 	}
 }
 
-func TestAGuestHasNoAddressBook(t *testing.T) {
+// TestStore_SavedAddressesGuest: SavedAddresses returns nothing for a guest,
+// even when other accounts have saved addresses.
+func TestStore_SavedAddressesGuest(t *testing.T) {
 	s := checkout.NewStore(pool)
 	addressOwner(t, "guestcontrol@example.com", "有人的地址")
 
@@ -73,11 +77,12 @@ func addressOwner(t *testing.T, email, label string) uuid.UUID {
 	return id
 }
 
-// TestPressingUpdateChangesTheChoiceAndPlacesNothing is the SERVER half of the
-// chooser: the 更新 button carries formnovalidate, so without the branch in
-// handler.go a form the customer had already filled in falls straight through
-// and places the order.
-func TestPressingUpdateChangesTheChoiceAndPlacesNothing(t *testing.T) {
+// TestHandler_PlaceOrderUpdatePlacesNothing: Pressing 更新 on a complete form
+// changes the choice and answers 200 with the typed values kept, and places no
+// order and empties no cart. It is the SERVER half of the chooser: the 更新
+// button carries formnovalidate, so without the branch in handler.go a form the
+// customer had already filled in falls straight through and places the order.
+func TestHandler_PlaceOrderUpdatePlacesNothing(t *testing.T) {
 	ctx := t.Context()
 	s := checkout.NewStore(pool)
 
@@ -148,10 +153,12 @@ func TestPressingUpdateChangesTheChoiceAndPlacesNothing(t *testing.T) {
 	}
 }
 
-// TestPickingASavedAddressFillsTheForm covers the address chooser through the
-// real form controls, where the pick has to be the value PostFormValue returns
-// for the name the radios carry.
-func TestPickingASavedAddressFillsTheForm(t *testing.T) {
+// TestHandler_PlaceOrderPickAddress: Picking a saved address that is not the
+// default fills the form from it: the street, city and postal code follow the
+// chosen address, not the default one. It covers the address chooser through
+// the real form controls, where the pick has to be the value PostFormValue
+// returns for the name the radios carry.
+func TestHandler_PlaceOrderPickAddress(t *testing.T) {
 	ctx := t.Context()
 	s := checkout.NewStore(pool)
 
@@ -240,10 +247,12 @@ func TestPickingASavedAddressFillsTheForm(t *testing.T) {
 	}
 }
 
-// TestChangingAnotherChoiceKeepsATypedAddress is why 更新 names its chooser.
+// TestHandler_PlaceOrderTypedAddress: Changing another chooser (the invoice
+// type) keeps an address typed by hand instead of filling from the saved book,
+// and retains the registered buyer fields. It is why 更新 names its chooser.
 // Filling from the book on every re-render would wipe an address somebody had
 // typed by hand the moment they changed their 發票 type.
-func TestChangingAnotherChoiceKeepsATypedAddress(t *testing.T) {
+func TestHandler_PlaceOrderTypedAddress(t *testing.T) {
 	ctx := t.Context()
 	s := checkout.NewStore(pool)
 

@@ -11,7 +11,10 @@ import (
 	"github.com/koopa0/goen/internal/order/delivery"
 )
 
-func TestTheConfirmationMessageCommitsWithTheOrder(t *testing.T) {
+// TestStore_PlaceOrderOutboxMessage: PlaceOrder enqueues the order.placed
+// message in the order's own transaction: a placed order has one, and a
+// checkout that fails after the transaction began leaves none.
+func TestStore_PlaceOrderOutboxMessage(t *testing.T) {
 	ctx := t.Context()
 	s := checkout.NewStore(pool)
 	vid := variantOf(t, "koto-over-ear")

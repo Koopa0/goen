@@ -7,10 +7,13 @@ import (
 	"time"
 )
 
-// The last day of the right of return is the database's, counted in the shop's
-// day: a parcel delivered at 00:30 in Taipei on the 2nd has until the 9th, and
-// the store role the customer's pages read through may call it.
-func TestTheStoreRoleReadsTheLastDayToReturn(t *testing.T) {
+// TestReturnWindowEnds: The store role can call return_window_ends and
+// return_line_policy_window: a parcel delivered at 00:30 in Taipei on the 2nd
+// has until the 9th, and a request on that day is within the window. The last
+// day of the right of return is the database's, counted in the shop's day: a
+// parcel delivered at 00:30 in Taipei on the 2nd has until the 9th, and the
+// store role the customer's pages read through may call it.
+func TestReturnWindowEnds(t *testing.T) {
 	ctx := t.Context()
 	conn := storeApplicationPool(t, "rescission-day")
 	var got time.Time

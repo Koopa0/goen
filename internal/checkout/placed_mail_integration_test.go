@@ -22,7 +22,11 @@ import (
 	"github.com/koopa0/goen/internal/shoptime"
 )
 
-func TestCheckoutQueuesTheCompletePlacedConfirmation(t *testing.T) {
+// TestStore_PlaceOrderPlacedConfirmation: PlaceOrder queues the complete
+// order-placed confirmation, frozen at placement: lines, amounts, discount,
+// credit, delivery, deadlines and funding text, in each locale and destination,
+// unchanged by a replay or a later catalogue edit.
+func TestStore_PlaceOrderPlacedConfirmation(t *testing.T) {
 	for _, locale := range []i18n.Locale{i18n.En, i18n.ZhHant} {
 		for _, kind := range []shipping.Destination{shipping.DestinationAddress, shipping.DestinationPickupPoint} {
 			for _, funding := range []struct {
@@ -182,12 +186,14 @@ func (s *placedConfirmationSink) Send(_ context.Context, m *letter.Message) erro
 	return nil
 }
 
-// TestCheckoutWritesWhatThePlacedLetterStillOwes is the producer half of the
+// TestStore_PlaceOrderPlacedOwed: PlaceOrder writes into the order-placed
+// message what the order still owes: zero for a fully funded order, the
+// remainder for a partly funded one. It is the producer half of the
 // placed-letter owed figure. The renderer already quotes owed_cents; without
 // this, a checkout that writes the order total still mails the pay CTA on a
-// funded order. Both credit cases have to land in the
-// committed payload; one alone lets the other drift.
-func TestCheckoutWritesWhatThePlacedLetterStillOwes(t *testing.T) {
+// funded order. Both credit cases have to land in the committed payload; one
+// alone lets the other drift.
+func TestStore_PlaceOrderPlacedOwed(t *testing.T) {
 	ctx := t.Context()
 	s := checkout.NewStore(pool)
 	shipID := shipVersionFor(t, "home_delivery")

@@ -14,10 +14,12 @@ import (
 	"github.com/koopa0/goen/internal/order/delivery"
 )
 
-// TestCreditIsCappedAtWhatTheOrderOwesAfterTheDiscount. The cap is
-// `subtotal - discount + shipping`: leaving the discount out lets a coupon and a
-// balance spend more credit than the order is worth, which nothing refuses.
-func TestCreditIsCappedAtWhatTheOrderOwesAfterTheDiscount(t *testing.T) {
+// TestStore_PlaceOrderCreditAfterDiscount: PlaceOrder caps store credit at what
+// the order owes after the discount, so a coupon and a balance never spend more
+// credit than the order is worth. The cap is `subtotal - discount + shipping`:
+// leaving the discount out lets a coupon and a balance spend more credit than
+// the order is worth, which nothing refuses.
+func TestStore_PlaceOrderCreditAfterDiscount(t *testing.T) {
 	ctx := t.Context()
 	s := checkout.NewStore(pool)
 
@@ -65,7 +67,11 @@ func TestCreditIsCappedAtWhatTheOrderOwesAfterTheDiscount(t *testing.T) {
 	}
 }
 
-func TestCreditIsSpentInsideTheOrdersOwnTransaction(t *testing.T) {
+// TestStore_PlaceOrderCreditSpent: PlaceOrder spends a customer's whole credit
+// balance on an order that costs more, posting the debit against that order.
+// The test forces no rollback, so it does not itself show that the spend
+// commits or fails with the order.
+func TestStore_PlaceOrderCreditSpent(t *testing.T) {
 	ctx := t.Context()
 	s := checkout.NewStore(pool)
 	vid := variantOf(t, "koto-over-ear")
@@ -115,7 +121,10 @@ func TestCreditIsSpentInsideTheOrdersOwnTransaction(t *testing.T) {
 	}
 }
 
-func TestCreditNeverExceedsWhatTheOrderOwes(t *testing.T) {
+// TestStore_PlaceOrderCreditCapped: PlaceOrder never spends more credit than
+// the order owes, and a fully credited order enters fulfilment with no payment
+// row.
+func TestStore_PlaceOrderCreditCapped(t *testing.T) {
 	ctx := t.Context()
 	s := checkout.NewStore(pool)
 	vid := variantOf(t, "koto-over-ear")
@@ -177,7 +186,9 @@ func TestCreditNeverExceedsWhatTheOrderOwes(t *testing.T) {
 	}
 }
 
-func TestAGuestSpendsNoCredit(t *testing.T) {
+// TestStore_PlaceOrderGuestNoCredit: PlaceOrder for a guest posts no
+// store-credit entry.
+func TestStore_PlaceOrderGuestNoCredit(t *testing.T) {
 	ctx := t.Context()
 	s := checkout.NewStore(pool)
 	vid := variantOf(t, "koto-over-ear")
@@ -210,7 +221,9 @@ func TestAGuestSpendsNoCredit(t *testing.T) {
 	}
 }
 
-func TestCancellingReturnsSpentStoreCredit(t *testing.T) {
+// TestBuyerStore_CancelOrderCredit: buyer.Store.CancelOrder returns the store
+// credit spent on a cancelled order, once, as a reversal entry.
+func TestBuyerStore_CancelOrderCredit(t *testing.T) {
 	ctx := t.Context()
 	s := buyer.NewStore(pool)
 	userID, accountID := creditedAccount(t, 50000)
@@ -240,7 +253,9 @@ func TestCancellingReturnsSpentStoreCredit(t *testing.T) {
 	}
 }
 
-func TestReversingCancelledCreditIsIdempotent(t *testing.T) {
+// TestReverseOrderCreditIdempotent: reverse_order_credit returns a cancelled
+// order's credit on the first call and nothing on the next two.
+func TestReverseOrderCreditIdempotent(t *testing.T) {
 	ctx := t.Context()
 	userID, accountID := creditedAccount(t, 50000)
 	number := pendingOrderSpendingCredit(t, userID, 20000)
@@ -271,7 +286,9 @@ func TestReversingCancelledCreditIsIdempotent(t *testing.T) {
 	}
 }
 
-func TestAShippedOrdersCreditIsNotReversed(t *testing.T) {
+// TestReverseOrderCreditShipped: reverse_order_credit refuses a shipped order's
+// credit with store_credit_posting_matches_order and pays nothing.
+func TestReverseOrderCreditShipped(t *testing.T) {
 	ctx := t.Context()
 	userID, accountID := creditedAccount(t, 50000)
 	number := pendingOrderSpendingCredit(t, userID, 20000)

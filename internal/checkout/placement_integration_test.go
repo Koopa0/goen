@@ -14,15 +14,19 @@ import (
 	"github.com/koopa0/goen/internal/checkout"
 )
 
-// TestAPlacedOrderTakesNoLineFromALaterRequest replays, as store, how a
-// storefront request would take stock off sale against somebody else's order:
-// add a line for another variant to an order checkout has already placed, then
-// hold that variant. Checkout is the neighbour: it writes every line in the
-// transaction that places the order, and it has just done so here as store.
-// A coupon redemption is held to the same transaction: orders_have_lines
-// priced the order's discount and delivery at its COMMIT, and one redeemed
-// afterwards would stand beside money priced without it.
-func TestAPlacedOrderTakesNoLineFromALaterRequest(t *testing.T) {
+// TestOrderLinesWrittenWhilePlacing: order_lines_written_while_placing refuses,
+// to the store role, a line added to an order another transaction placed; the
+// hold on such a line and a coupon redeemed afterwards are refused by
+// inventory_hold_within_order_lines and
+// coupon_redemptions_written_while_placing, and stock does not move. It
+// replays, as store, how a storefront request would take stock off sale against
+// somebody else's order: add a line for another variant to an order checkout
+// has already placed, then hold that variant. Checkout is the neighbour: it
+// writes every line in the transaction that places the order, and it has just
+// done so here as store. A coupon redemption is held to the same transaction:
+// orders_have_lines priced the order's discount and delivery at its COMMIT, and
+// one redeemed afterwards would stand beside money priced without it.
+func TestOrderLinesWrittenWhilePlacing(t *testing.T) {
 	ctx := t.Context()
 	asStore := storeRolePool(t)
 	number := placeUnpaidOrderFor(t, checkout.NewStore(asStore),
@@ -105,10 +109,13 @@ func TestAPlacedOrderTakesNoLineFromALaterRequest(t *testing.T) {
 	}
 }
 
-// TestAnOrderTakesNoLineFromAnotherTransactionThatBeganWithIt: two checkouts
-// can begin at the same instant, so the begin time alone does not say which
+// TestOrderLinesWrittenWhilePlacingSameInstant:
+// order_lines_written_while_placing refuses a line from another transaction
+// that began at the placing transaction's instant, because the transaction's
+// id, not its begin time, says which one placed the order. Two checkouts can
+// begin at the same instant, so the begin time alone does not say which
 // transaction placed an order; the transaction's id does.
-func TestAnOrderTakesNoLineFromAnotherTransactionThatBeganWithIt(t *testing.T) {
+func TestOrderLinesWrittenWhilePlacingSameInstant(t *testing.T) {
 	ctx := t.Context()
 	asStore := storeRolePool(t)
 	number := placeUnpaidOrderFor(t, checkout.NewStore(asStore),
@@ -155,12 +162,14 @@ func TestAnOrderTakesNoLineFromAnotherTransactionThatBeganWithIt(t *testing.T) {
 	}
 }
 
-// TestARestoredOrderTakesNoLineFromTheTransactionThatDrawsItsID: a dump
-// restored into another cluster keeps each order's placed_in_xact as data, and
-// that cluster's transaction counter has not reached those values yet. The
+// TestOrderLinesWrittenWhilePlacingRestored: order_lines_written_while_placing
+// refuses a line from the transaction that draws the id a restored order
+// carries as placed_in_xact, which is not the transaction that placed it. A
+// dump restored into another cluster keeps each order's placed_in_xact as data,
+// and that cluster's transaction counter has not reached those values yet. The
 // transaction that eventually draws one, which store can aim for by spending
 // ids, is not the one that placed the order and takes it no line.
-func TestARestoredOrderTakesNoLineFromTheTransactionThatDrawsItsID(t *testing.T) {
+func TestOrderLinesWrittenWhilePlacingRestored(t *testing.T) {
 	ctx := t.Context()
 	asStore := storeRolePool(t)
 	number := placeUnpaidOrderFor(t, checkout.NewStore(asStore),

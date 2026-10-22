@@ -26,7 +26,11 @@ import (
 	"github.com/koopa0/goen/internal/order/access"
 )
 
-func TestCheckoutWithoutDeliveryRetainsTheTypedDraftAndWritesNothing(t *testing.T) {
+// TestHandler_PlaceOrderNoDelivery: With no delivery method available, whether
+// from the start, before the submit or during placement, Page and PlaceOrder
+// show the known no-delivery state, keep the typed draft, refuse a bad coupon
+// without the delivery fields, log nothing and write nothing.
+func TestHandler_PlaceOrderNoDelivery(t *testing.T) {
 	ownerPool := dbtest.Pool(t)
 	seed, err := os.ReadFile("../../seed/dev_catalog.sql")
 	if err != nil {

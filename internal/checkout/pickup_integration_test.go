@@ -203,9 +203,11 @@ func openPickupCheckout(
 	return res.Body.String(), pickupCookieOf(res), res.Code
 }
 
-// TestAStoreChosenOnTheMapSurvivesTheRoundTripAndReachesTheOrder is the happy
-// path end to end, through the three requests a real browser makes.
-func TestAStoreChosenOnTheMapSurvivesTheRoundTripAndReachesTheOrder(t *testing.T) {
+// TestHandler_PickupRoundTrip: A store chosen on the carrier's map survives the
+// round trip, start, return and refreshed checkout, and reaches the order's
+// destination columns, through the requests a real browser makes. It is the
+// happy path end to end, through the three requests a real browser makes.
+func TestHandler_PickupRoundTrip(t *testing.T) {
 	s := checkout.NewStore(pool)
 	h := newHandler(s, access.NewStore(pool, false), slog.New(slog.DiscardHandler), configuredMap(t))
 	token, shipping := aPickupCart(t, s, "map-roundtrip")
@@ -340,10 +342,13 @@ func placeThisCheckout(
 	return number
 }
 
-// TestAForgedStorePostedFromAnotherSiteEndsWithNoStore is T1. An attacker page
-// auto-posts a store to the return URL in the victim's browser. It cannot know
-// the nonce, so the checkout drops the store and says so without repeating it.
-func TestAForgedStorePostedFromAnotherSiteEndsWithNoStore(t *testing.T) {
+// TestHandler_PickupReturnForgedStore: A store forged by posting to the return
+// URL from another site ends with no store: without the nonce the checkout
+// answers 422, drops the store and says so without repeating it. It is T1. An
+// attacker page auto-posts a store to the return URL in the victim's browser.
+// It cannot know the nonce, so the checkout drops the store and says so without
+// repeating it.
+func TestHandler_PickupReturnForgedStore(t *testing.T) {
 	s := checkout.NewStore(pool)
 	h := newHandler(s, access.NewStore(pool, false), slog.New(slog.DiscardHandler), configuredMap(t))
 	token, shipping := aPickupCart(t, s, "map-forged")
@@ -380,9 +385,10 @@ func TestAForgedStorePostedFromAnotherSiteEndsWithNoStore(t *testing.T) {
 	}
 }
 
-// TestACraftedCheckoutLinkEndsWithNoStore is T2: a link sent to the victim,
-// carrying a store and no nonce at all.
-func TestACraftedCheckoutLinkEndsWithNoStore(t *testing.T) {
+// TestHandler_PageCraftedLink: A crafted checkout link carrying a store and no
+// nonce ends with no store: Page answers 422 and shows none of it. It is T2: a
+// link sent to the victim, carrying a store and no nonce at all.
+func TestHandler_PageCraftedLink(t *testing.T) {
 	s := checkout.NewStore(pool)
 	h := newHandler(s, access.NewStore(pool, false), slog.New(slog.DiscardHandler), configuredMap(t))
 	token, shipping := aPickupCart(t, s, "map-crafted")
@@ -410,10 +416,12 @@ func TestACraftedCheckoutLinkEndsWithNoStore(t *testing.T) {
 	}
 }
 
-// TestPlacingAnOrderWithAnUnvouchedStoreDropsIt is the placement half of the
+// TestHandler_PlaceOrderUnvouchedStore: PlaceOrder with a store no nonce
+// vouches for answers 422 and does not carry the store back in its own hidden
+// inputs, so the next submit cannot place it. It is the placement half of the
 // same rule, which is what stops a 422 re-render from carrying a dropped store
 // back in its own hidden inputs.
-func TestPlacingAnOrderWithAnUnvouchedStoreDropsIt(t *testing.T) {
+func TestHandler_PlaceOrderUnvouchedStore(t *testing.T) {
 	s := checkout.NewStore(pool)
 	h := newHandler(s, access.NewStore(pool, false), slog.New(slog.DiscardHandler), configuredMap(t))
 	token, shipping := aPickupCart(t, s, "map-placement")
@@ -494,9 +502,10 @@ func postPickupCheckout(
 	return res.Code, res.Body.String()
 }
 
-// TestPickupIsOfferedOnlyWhereTheStoreMapIsConfigured holds that checkout does
-// not offer a method that can only be refused.
-func TestPickupIsOfferedOnlyWhereTheStoreMapIsConfigured(t *testing.T) {
+// TestHandler_PlaceOrderPickupOffered: The checkout offers the pickup method
+// only where the store map is configured, so it does not offer a method that
+// can only be refused.
+func TestHandler_PlaceOrderPickupOffered(t *testing.T) {
 	disabled, err := storemap.New("", "", "", "https://goen.test")
 	if err != nil {
 		t.Fatalf("build a disabled map: %v", err)
@@ -523,11 +532,14 @@ func TestPickupIsOfferedOnlyWhereTheStoreMapIsConfigured(t *testing.T) {
 	}
 }
 
-// TestAForgedPickupPostIsRefusedWithOrWithoutTheMap holds that a checkout takes
-// only 7-ELEVEN and 全家, and only with a store chosen on the carrier's map: a
-// hand-written POST naming another chain, or any chain and no store, is a 422
-// whether or not this deployment can open the map.
-func TestAForgedPickupPostIsRefusedWithOrWithoutTheMap(t *testing.T) {
+// TestHandler_PlaceOrderForgedPickup: PlaceOrder refuses at 422 a hand-written
+// pickup POST that names a chain other than 7-ELEVEN or 全家 or names a chain
+// with no store chosen on the map, whether or not the deployment can open the
+// map. It holds that a checkout takes only 7-ELEVEN and 全家, and only with a
+// store chosen on the carrier's map: a hand-written POST naming another chain,
+// or any chain and no store, is a 422 whether or not this deployment can open
+// the map.
+func TestHandler_PlaceOrderForgedPickup(t *testing.T) {
 	disabled, err := storemap.New("", "", "", "https://goen.test")
 	if err != nil {
 		t.Fatalf("build a disabled map: %v", err)
@@ -572,9 +584,11 @@ func TestAForgedPickupPostIsRefusedWithOrWithoutTheMap(t *testing.T) {
 	}
 }
 
-// TestChangingTheChainDropsTheOtherChainsStore holds rule 9: the store belongs
-// to the chain it was chosen at, and a shopper who changes chain has no store.
-func TestChangingTheChainDropsTheOtherChainsStore(t *testing.T) {
+// TestHandler_PlaceOrderChainChange: Changing the chain drops the store chosen
+// at the other chain, and the map is opened for the chain posted with the
+// button. It holds rule 9: the store belongs to the chain it was chosen at, and
+// a shopper who changes chain has no store.
+func TestHandler_PlaceOrderChainChange(t *testing.T) {
 	s := checkout.NewStore(pool)
 	h := newHandler(s, access.NewStore(pool, false), slog.New(slog.DiscardHandler), configuredMap(t))
 	token, shipping := aPickupCart(t, s, "map-chain-change")
@@ -620,7 +634,10 @@ func TestChangingTheChainDropsTheOtherChainsStore(t *testing.T) {
 	}
 }
 
-func TestDuplicatePickupCookiesKeepTheReturnedStoreThroughPlacement(t *testing.T) {
+// TestHandler_PlaceOrderDuplicateCookie: With two pickup cookies, the one whose
+// nonce matches the return keeps the returned store and the invoice choice
+// through placement.
+func TestHandler_PlaceOrderDuplicateCookie(t *testing.T) {
 	s := checkout.NewStore(pool)
 	h := newHandler(s, access.NewStore(pool, false), slog.New(slog.DiscardHandler), configuredMap(t))
 	token, shipping := aPickupCart(t, s, "map-duplicate-cookie")
@@ -674,11 +691,14 @@ func aTypedStart(shipping uuid.UUID, couponCode string) url.Values {
 	return fields
 }
 
-// TestWhatWasTypedSurvivesTheMapRoundTrip is the owner's bug: choose a store on
-// the carrier's map, come back, and the email, phone and everything else typed
-// are gone. The form is posted to the start route, the carrier's page posts the
-// store back, and the checkout it returns to carries the store AND every field.
-func TestWhatWasTypedSurvivesTheMapRoundTrip(t *testing.T) {
+// TestHandler_PickupStartKeepsTyped: What was typed before the map survives the
+// round trip with the chosen store: the start keeps a draft that stays off the
+// carrier's form, and the returned checkout carries every field and applies the
+// coupon. It is the owner's bug: choose a store on the carrier's map, come
+// back, and the email, phone and everything else typed are gone. The form is
+// posted to the start route, the carrier's page posts the store back, and the
+// checkout it returns to carries the store AND every field.
+func TestHandler_PickupStartKeepsTyped(t *testing.T) {
 	s := checkout.NewStore(pool)
 	h := newHandler(s, access.NewStore(pool, false), slog.New(slog.DiscardHandler), configuredMap(t))
 	token, shipping := aPickupCart(t, s, "map-typed")
@@ -731,9 +751,11 @@ func TestWhatWasTypedSurvivesTheMapRoundTrip(t *testing.T) {
 	}
 }
 
-// TestAPlacedOrderClearsTheDraft: what was typed is kept for the trip to the map
-// and for nothing else, so the order it was typed for ends it.
-func TestAPlacedOrderClearsTheDraft(t *testing.T) {
+// TestHandler_PlaceOrderClearsDraft: Placing the order clears the checkout
+// draft, which holds the shopper's address, from the cart. What was typed is
+// kept for the trip to the map and for nothing else, so the order it was typed
+// for ends it.
+func TestHandler_PlaceOrderClearsDraft(t *testing.T) {
 	s := checkout.NewStore(pool)
 	h := newHandler(s, access.NewStore(pool, false), slog.New(slog.DiscardHandler), configuredMap(t))
 	token, shipping := aPickupCart(t, s, "map-draft-cleared")
@@ -764,8 +786,10 @@ func TestAPlacedOrderClearsTheDraft(t *testing.T) {
 	}
 }
 
-// TestADraftExpires: a draft older than its window is as good as none.
-func TestADraftExpires(t *testing.T) {
+// TestHandler_PageDraftExpires: A checkout draft older than its window restores
+// nothing, while the store chosen on the map still comes back. A draft older
+// than its window is as good as none.
+func TestHandler_PageDraftExpires(t *testing.T) {
 	s := checkout.NewStore(pool)
 	h := newHandler(s, access.NewStore(pool, false), slog.New(slog.DiscardHandler), configuredMap(t))
 	token, shipping := aPickupCart(t, s, "map-draft-expired")

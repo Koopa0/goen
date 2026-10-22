@@ -14,10 +14,12 @@ import (
 	"github.com/google/uuid"
 )
 
-// TestRefusedCouponLeavesTheQuoteOfThePageWithoutIt locks that a typed code the
-// shop did not apply does not change the quote: the shopper who clears it must
-// be submitting the page they were shown.
-func TestRefusedCouponLeavesTheQuoteOfThePageWithoutIt(t *testing.T) {
+// TestCheckoutQuoteIDForViewRefusedCoupon: checkoutQuoteIDForView leaves the
+// quote of the page unchanged by a typed code the shop did not apply, while an
+// applied coupon changes it. It locks that a typed code the shop did not apply
+// does not change the quote: the shopper who clears it must be submitting the
+// page they were shown.
+func TestCheckoutQuoteIDForViewRefusedCoupon(t *testing.T) {
 	t.Parallel()
 	cartID := uuid.MustParse("018f0000-0000-7000-8000-000000000001")
 	view := func() *View {
@@ -57,7 +59,10 @@ func TestRefusedCouponLeavesTheQuoteOfThePageWithoutIt(t *testing.T) {
 	}
 }
 
-func TestUnavailableCheckoutDoesNotRenderAnObsoletePickupDestination(t *testing.T) {
+// TestHandler_RenderCheckoutUnavailable: renderCheckout of a view whose chosen
+// method has been withdrawn renders no pickup destination and none of the
+// obsolete quote, falls back to the address fields and answers 200.
+func TestHandler_RenderCheckoutUnavailable(t *testing.T) {
 	h := &Handler{log: slog.New(slog.DiscardHandler)}
 	view := &View{Chosen: "withdrawn-method", QuoteID: "obsolete-quote", Destination: shipping.DestinationPickupPoint}
 	req := httptest.NewRequestWithContext(t.Context(), http.MethodGet, "/checkout", http.NoBody)

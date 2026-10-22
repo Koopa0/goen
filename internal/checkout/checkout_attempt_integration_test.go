@@ -24,7 +24,9 @@ import (
 	"github.com/koopa0/goen/internal/user"
 )
 
-func TestPlaceOrderIsIdempotent(t *testing.T) {
+// TestStore_PlaceOrderIdempotent: PlaceOrder called twice with one idempotency
+// key returns the same order and leaves one checkout attempt.
+func TestStore_PlaceOrderIdempotent(t *testing.T) {
 	ctx := t.Context()
 	s := checkout.NewStore(pool)
 	id := newCart(t, s)
@@ -67,7 +69,10 @@ func TestPlaceOrderIsIdempotent(t *testing.T) {
 	}
 }
 
-func TestCheckoutKeyCannotBeReusedByAnotherCart(t *testing.T) {
+// TestStore_PlaceOrderKeyOtherCart: PlaceOrder refuses an idempotency key
+// another cart already owns, leaving one attempt, no order for the second cart
+// and the second cart unchanged.
+func TestStore_PlaceOrderKeyOtherCart(t *testing.T) {
 	ctx := t.Context()
 	s := checkout.NewStore(pool)
 	shippingID := shipVersionFor(t, "home_delivery")
@@ -126,7 +131,10 @@ func TestCheckoutKeyCannotBeReusedByAnotherCart(t *testing.T) {
 	}
 }
 
-func TestCheckoutReplacesMalformedAttemptIdentityBeforeWriting(t *testing.T) {
+// TestHandler_PlaceOrderBadAttemptID: PlaceOrder answers 422 to a missing or
+// malformed attempt identity, re-renders a fresh canonical one, and writes no
+// order, no cart change and no attempt.
+func TestHandler_PlaceOrderBadAttemptID(t *testing.T) {
 	ctx := t.Context()
 	canonical := checkoutAttemptKey("noncanonical-attempt")
 	for _, tt := range []struct {
@@ -212,7 +220,9 @@ func TestCheckoutReplacesMalformedAttemptIdentityBeforeWriting(t *testing.T) {
 	}
 }
 
-func TestCheckoutHTTPReplayFindsTheSameOrderAfterTheCartIsEmpty(t *testing.T) {
+// TestHandler_PlaceOrderReplay: Replaying a placed checkout form after its cart
+// is empty answers 303 to the same order and writes one attempt.
+func TestHandler_PlaceOrderReplay(t *testing.T) {
 	ctx := t.Context()
 	s := checkout.NewStore(pool)
 	token := bearer.New()
@@ -269,10 +279,13 @@ func TestCheckoutHTTPReplayFindsTheSameOrderAfterTheCartIsEmpty(t *testing.T) {
 	}
 }
 
-// TestADoubleClickedCheckoutPlacesOneOrder covers two requests IN FLIGHT AT
-// ONCE, which the advisory lock on the key serialises. T1's transaction is held
-// OPEN while T2 runs, rather than raced from two goroutines that never overlap.
-func TestADoubleClickedCheckoutPlacesOneOrder(t *testing.T) {
+// TestStore_PlaceOrderKeyLock: PlaceOrder waits on the advisory lock of its
+// idempotency key while another transaction holds it and then places once, so
+// two requests in flight for one key leave one checkout attempt. It covers two
+// requests IN FLIGHT AT ONCE, which the advisory lock on the key serialises.
+// T1's transaction is held OPEN while T2 runs, rather than raced from two
+// goroutines that never overlap.
+func TestStore_PlaceOrderKeyLock(t *testing.T) {
 	ctx := t.Context()
 	s := checkout.NewStore(pool)
 	key := checkoutAttemptKey("double-" + uuid.NewString())
@@ -334,13 +347,13 @@ func TestADoubleClickedCheckoutPlacesOneOrder(t *testing.T) {
 	}
 }
 
-// TestADoubleClickThatLosesTheRaceLandsOnTheOrder covers the clicks of one
-// double click that miss the order on their first look and then read the
+// TestHandler_PlaceOrderLostRace: PlaceOrder answers the losing clicks of one
+// double click with the winner's order, and nothing is placed, held or spent
+// twice. The losers miss the order on their first look and then read the
 // winner's work: they asked for the attempt before the winner committed, and
-// read the emptied cart or the spent credit after (#2245). Each must be answered
-// as a later retry is, with the winner's order, and nothing may be placed, held
-// or spent twice.
-func TestADoubleClickThatLosesTheRaceLandsOnTheOrder(t *testing.T) {
+// read the emptied cart or the spent credit after (#2245). Each must be
+// answered as a later retry is.
+func TestHandler_PlaceOrderLostRace(t *testing.T) {
 	for _, tt := range []struct {
 		name   string
 		clicks int

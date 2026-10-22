@@ -22,12 +22,12 @@ import (
 	"github.com/koopa0/goen/internal/user"
 )
 
-// TestWrongCouponCodesAreBoundedWithoutSayingWhichCodeWasRight: a wrong code and
-// a right one answer differently at checkout, so each shopper may be told a
-// code is wrong only so many times. The refusal comes before the lookup, so a
-// shopper who has run out learns nothing about the next code, right or wrong,
-// and a new cart from the same client starts with nothing.
-func TestWrongCouponCodesAreBoundedWithoutSayingWhichCodeWasRight(t *testing.T) {
+// TestHandler_PlaceOrderCouponClientBudget: Each client may be told a code is
+// wrong only so many times, and a client that has run out learns nothing about
+// the next code, right or wrong; a code that applies is never charged, and a
+// new cart from the same client starts with nothing. A wrong code and a right
+// one answer differently at checkout, and the refusal comes before the lookup.
+func TestHandler_PlaceOrderCouponClientBudget(t *testing.T) {
 	ctx := t.Context()
 	s := checkout.NewStore(pool)
 	vid := freshVariant(t, "coupon-guess")
@@ -182,11 +182,13 @@ func (g *couponGuesses) spendFromManyClients(cartFor func() string, who *user.Us
 	}
 }
 
-// TestWrongCouponCodesSentAtOnceAreBoundedByTheSameBudget: the budget is taken
-// before the lookup, so codes sent together are no cheaper than codes sent one
-// after another. However many arrive at once, no more than the budget are
-// looked up and every other one is refused before it is.
-func TestWrongCouponCodesSentAtOnceAreBoundedByTheSameBudget(t *testing.T) {
+// TestHandler_PlaceOrderCouponBudgetParallel: Wrong coupon codes sent at once
+// are bounded by the same budget as codes sent one after another: no more than
+// the budget are looked up and every other one is refused before it is. The
+// budget is taken before the lookup, so codes sent together are no cheaper than
+// codes sent one after another. However many arrive at once, no more than the
+// budget are looked up and every other one is refused before it is.
+func TestHandler_PlaceOrderCouponBudgetParallel(t *testing.T) {
 	g := newCouponGuesses(t, "coupon-race")
 	token := g.guestCart()
 	unknown := i18n.T(t.Context(), i18n.KeyCouponUnknown)
@@ -220,11 +222,11 @@ func TestWrongCouponCodesSentAtOnceAreBoundedByTheSameBudget(t *testing.T) {
 	}
 }
 
-// TestACodeAnsweredBeforeItsLookupCostsNothing: a checkout carrying a code can
-// be answered before the code is looked up, when the cart was emptied in
-// another tab. Nothing was learned about the code, so the tokens set aside for
-// it go back, and no number of such answers refuses the client a code later.
-func TestACodeAnsweredBeforeItsLookupCostsNothing(t *testing.T) {
+// TestHandler_PlaceOrderCouponUnlooked: A code answered before its lookup,
+// because the cart was emptied in another tab, costs nothing: the tokens set
+// aside for it go back, and no number of such answers refuses the client a code
+// later.
+func TestHandler_PlaceOrderCouponUnlooked(t *testing.T) {
 	g := newCouponGuesses(t, "coupon-unlooked")
 	valid := "UNLOOKED" + strings.ToUpper(uuid.NewString()[:6])
 	insertCoupon(t, valid, "amount", 1000, 0, 0, 0)
@@ -255,11 +257,11 @@ func TestACodeAnsweredBeforeItsLookupCostsNothing(t *testing.T) {
 	}
 }
 
-// TestAFullWidthCodeIsTheCodeAndSpendsTheSameBudget: a code typed on a Chinese
+// TestHandler_PlaceOrderCouponFullWidth: A coupon code typed on a Chinese
 // keyboard left in full-width mode is the code it spells, so it applies, and a
-// wrong one is charged like any other: alternating the two widths buys no second
-// allowance.
-func TestAFullWidthCodeIsTheCodeAndSpendsTheSameBudget(t *testing.T) {
+// wrong one is charged to the same budget as any other: alternating the two
+// widths buys no second allowance.
+func TestHandler_PlaceOrderCouponFullWidth(t *testing.T) {
 	g := newCouponGuesses(t, "coupon-width")
 	valid := "WIDTH" + strings.ToUpper(uuid.NewString()[:6])
 	insertCoupon(t, valid, "amount", 1000, 0, 0, 0)
@@ -297,10 +299,10 @@ func TestAFullWidthCodeIsTheCodeAndSpendsTheSameBudget(t *testing.T) {
 	}
 }
 
-// TestACartsWrongCouponCodesAreBoundedFromEveryClient: signed out, a wrong code
-// is charged to the cart as well as the client, so one cart asking through many
+// TestHandler_PlaceOrderCouponCartBudget: Signed out, a wrong coupon code is
+// charged to the cart as well as the client, so one cart asking through many
 // addresses has one budget between them.
-func TestACartsWrongCouponCodesAreBoundedFromEveryClient(t *testing.T) {
+func TestHandler_PlaceOrderCouponCartBudget(t *testing.T) {
 	g := newCouponGuesses(t, "coupon-cart-key")
 	token := g.guestCart()
 	g.spendFromManyClients(func() string { return token }, nil)
@@ -314,10 +316,10 @@ func TestACartsWrongCouponCodesAreBoundedFromEveryClient(t *testing.T) {
 	}
 }
 
-// TestAnAccountsWrongCouponCodesAreBoundedFromEveryClientAndCart: signed in, a
-// wrong code is charged to the account, so neither a new cart nor a new address
-// buys the account a fresh allowance.
-func TestAnAccountsWrongCouponCodesAreBoundedFromEveryClientAndCart(t *testing.T) {
+// TestHandler_PlaceOrderCouponAccountBudget: Signed in, a wrong coupon code is
+// charged to the account, so neither a new cart nor a new address buys the
+// account a fresh allowance.
+func TestHandler_PlaceOrderCouponAccountBudget(t *testing.T) {
 	g := newCouponGuesses(t, "coupon-account-key")
 	var userID uuid.UUID
 	if err := pool.QueryRow(t.Context(), `INSERT INTO users (email) VALUES ($1) RETURNING id`,

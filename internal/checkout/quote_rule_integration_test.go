@@ -12,15 +12,18 @@ import (
 	"github.com/koopa0/goen/internal/order/delivery"
 )
 
-// TestTheSchemaTakesEveryOrderCheckoutPrices: orders_have_lines prices an order
-// again at COMMIT, from the rules the checkout quote follows, for every role
-// but the owner. So each shape of quote is placed here AS STORE, the role
-// checkout runs as, and must commit with the money the quote gave. The rates
-// are the development catalogue's, read by version id so a version another
-// test publishes cannot move them: home delivery NT$80, pickup NT$60, both free
-// from NT$3,000, and NT$200 more to 離島 (890) by home delivery only. Each unit
-// is NT$1,999.
-func TestTheSchemaTakesEveryOrderCheckoutPrices(t *testing.T) {
+// TestStore_PlaceOrderPricingRules: PlaceOrder, run as the store role, commits
+// every shape of order checkout prices: orders_have_lines prices the order
+// again at COMMIT, and the shipping, discount and amount owed it commits with
+// are the ones the quote gave. orders_have_lines prices an order again at
+// COMMIT, from the rules the checkout quote follows, for every role but the
+// owner. So each shape of quote is placed here AS STORE, the role checkout runs
+// as, and must commit with the money the quote gave. The rates are the
+// development catalogue's, read by version id so a version another test
+// publishes cannot move them: home delivery NT$80, pickup NT$60, both free from
+// NT$3,000, and NT$200 more to 離島 (890) by home delivery only. Each unit is
+// NT$1,999.
+func TestStore_PlaceOrderPricingRules(t *testing.T) {
 	ctx := t.Context()
 	s := checkout.NewStore(storeRolePool(t))
 	const (

@@ -22,13 +22,15 @@ import (
 	"github.com/koopa0/goen/internal/user"
 )
 
-// TestAStripeReturnIsLoadedAgainOnlyWhenTheGateRefusesACrossSiteNavigation
-// covers the cookie columns the unit test cannot: an owner signed in, a
-// browser holding the order's grant, both and neither, on the two pages Stripe
-// sends a customer back to. A request the gate lets through is the page itself
-// whatever Sec-Fetch-Site says; a refused one is loaded again only when it
-// arrived cross-site.
-func TestAStripeReturnIsLoadedAgainOnlyWhenTheGateRefusesACrossSiteNavigation(t *testing.T) {
+// TestStripeReturnPages: The two pages Stripe returns a customer to, the order
+// page and the pay page, are loaded again only when the gate refuses a
+// cross-site navigation, and a missing order answers a cross-site request
+// exactly as an existing one does. It covers the cookie columns the unit test
+// cannot: an owner signed in, a browser holding the order's grant, both and
+// neither, on the two pages Stripe sends a customer back to. A request the gate
+// lets through is the page itself whatever Sec-Fetch-Site says; a refused one
+// is loaded again only when it arrived cross-site.
+func TestStripeReturnPages(t *testing.T) {
 	ctx := t.Context()
 	s := checkout.NewStore(pool)
 	grants := access.NewStore(pool, false)

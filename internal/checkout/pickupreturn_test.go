@@ -13,12 +13,15 @@ import (
 	"github.com/koopa0/goen/internal/shipping/storemap"
 )
 
-// TestTheStoreMapReturnIsWorthNothingToWhoeverDrivesIt holds the one route
-// exempt from the cross-origin defence to its contract: it reads a bounded
-// form and nothing else, answers without setting any cookie or reading this
-// browser's, and cannot be cached. Whether a store is honoured is decided at
-// /checkout against the nonce this browser alone holds.
-func TestTheStoreMapReturnIsWorthNothingToWhoeverDrivesIt(t *testing.T) {
+// TestHandler_PickupReturn: PickupReturn, the one route exempt from the
+// cross-origin defence, reads a bounded form and nothing else, sets no cookie
+// and reads none, answers no-store, and refuses an oversized or unreadable body
+// with 400. It holds the one route exempt from the cross-origin defence to its
+// contract: it reads a bounded form and nothing else, answers without setting
+// any cookie or reading this browser's, and cannot be cached. Whether a store
+// is honoured is decided at /checkout against the nonce this browser alone
+// holds.
+func TestHandler_PickupReturn(t *testing.T) {
 	t.Parallel()
 	h := NewHandler(&Store{}, &cart.Handler{}, &access.Store{}, slog.New(slog.DiscardHandler), true, nil, testMap(t))
 

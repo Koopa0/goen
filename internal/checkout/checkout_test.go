@@ -18,7 +18,11 @@ import (
 	"github.com/koopa0/goen/internal/order/delivery"
 )
 
-func TestCheckoutQuoteIdentityNamesEveryCommercialFact(t *testing.T) {
+// TestCheckoutQuote_IDChangesWithFact: ID changes when any commercial fact of
+// the quote changes: the cart, a line's variant, quantity or unit price, the
+// shipping version or amount, the coupon code, the discount or the credit, even
+// when the gross stays the same.
+func TestCheckoutQuote_IDChangesWithFact(t *testing.T) {
 	t.Parallel()
 	base := Quote{
 		CartID: uuid.MustParse("018f0000-0000-7000-8000-000000000001"),
@@ -76,7 +80,9 @@ func TestCheckoutQuoteIdentityNamesEveryCommercialFact(t *testing.T) {
 	}
 }
 
-func TestCheckoutQuoteIdentityIsCanonicalAndDoesNotAliasLines(t *testing.T) {
+// TestCheckoutQuote_IDCanonical: ID does not depend on the order the lines are
+// presented in, and computing it leaves the caller's lines as they were.
+func TestCheckoutQuote_IDCanonical(t *testing.T) {
 	t.Parallel()
 	first := uuid.MustParse("018f0000-0000-7000-8000-000000000011")
 	second := uuid.MustParse("018f0000-0000-7000-8000-000000000012")
@@ -109,7 +115,10 @@ func TestCheckoutQuoteIdentityIsCanonicalAndDoesNotAliasLines(t *testing.T) {
 	}
 }
 
-func TestCheckoutQuoteRejectsAmbiguousShapes(t *testing.T) {
+// TestCheckoutQuote_IDInvalid: ID refuses a quote of an ambiguous shape: no
+// lines, a repeated variant, a zero quantity, a negative price, a coupon code
+// that is not canonical, a discount with no coupon, or credit above the gross.
+func TestCheckoutQuote_IDInvalid(t *testing.T) {
 	t.Parallel()
 	line := QuoteLine{VariantID: uuid.New(), Quantity: 1, UnitCents: 100}
 	base := Quote{
@@ -141,7 +150,10 @@ func TestCheckoutQuoteRejectsAmbiguousShapes(t *testing.T) {
 	}
 }
 
-func TestCheckoutQuoteIDFormEncodingIsFixedAndCanonical(t *testing.T) {
+// TestParseCheckoutQuoteID: parseCheckoutQuoteID round-trips a quote ID's fixed
+// 43-character form and refuses a malformed one: empty, not base64, padded, or
+// the zero ID.
+func TestParseCheckoutQuoteID(t *testing.T) {
 	t.Parallel()
 	quote := Quote{
 		CartID:            uuid.New(),
@@ -167,7 +179,10 @@ func TestCheckoutQuoteIDFormEncodingIsFixedAndCanonical(t *testing.T) {
 	}
 }
 
-func TestCheckoutAttemptIDFormEncodingIsFixedAndCanonical(t *testing.T) {
+// TestParseCheckoutAttemptID: parseCheckoutAttemptID round-trips the fixed
+// 22-character form newCheckoutAttemptID issues and refuses a malformed one:
+// empty, blank, overlong, padded, not base64, or the zero ID.
+func TestParseCheckoutAttemptID(t *testing.T) {
 	t.Parallel()
 	id, err := newCheckoutAttemptID()
 	if err != nil {
@@ -196,7 +211,11 @@ func TestCheckoutAttemptIDFormEncodingIsFixedAndCanonical(t *testing.T) {
 	}
 }
 
-func TestCheckoutMoneyRejectsEveryOverflowBoundary(t *testing.T) {
+// TestErrCheckoutMoneyOverflow: Every place checkout money can overflow int64
+// answers errCheckoutMoney: a line's multiplication (also one that wraps to a
+// small positive), the subtotal, the shipping total, the gross, and a discount
+// above the gross.
+func TestErrCheckoutMoneyOverflow(t *testing.T) {
 	t.Parallel()
 	tests := []struct {
 		name string
@@ -233,8 +252,10 @@ func TestCheckoutMoneyRejectsEveryOverflowBoundary(t *testing.T) {
 	}
 }
 
-// A blank postcode is a missing answer, not a malformed one.
-func TestABlankPostcodeIsAskedForRatherThanCorrected(t *testing.T) {
+// TestDetails_ValidateBlankPostcode: Details.Validate asks for a blank postcode
+// as a missing answer rather than a malformed one, and calls a short postcode
+// malformed.
+func TestDetails_ValidateBlankPostcode(t *testing.T) {
 	t.Parallel()
 
 	for _, tt := range []struct {
@@ -262,9 +283,10 @@ func TestABlankPostcodeIsAskedForRatherThanCorrected(t *testing.T) {
 	}
 }
 
-// TestAddressValidateAccepts is the control: a Validate that rejected everything
-// would pass every case above.
-func TestAddressValidateAccepts(t *testing.T) {
+// TestDetails_ValidateAccepts: Details.Validate accepts a valid address, a long
+// email with a tag and a convenience-store pickup that has no street. It is the
+// control: a Validate that rejected everything would pass every case above.
+func TestDetails_ValidateAccepts(t *testing.T) {
 	t.Parallel()
 
 	for _, a := range []delivery.Details{
@@ -283,10 +305,10 @@ func TestAddressValidateAccepts(t *testing.T) {
 	}
 }
 
-// TestCheckoutShowsOneMessagePerField locks the reduction a refused checkout
-// renders: a control that broke two rules names the first of them, so the form
-// shows one reason per field rather than a pile.
-func TestCheckoutShowsOneMessagePerField(t *testing.T) {
+// TestCheckoutErrorsOnePerField: checkoutErrors reduces a refused checkout to
+// one message per field: a control that broke two rules names the first of
+// them, so the form shows one reason per field rather than a pile.
+func TestCheckoutErrorsOnePerField(t *testing.T) {
 	t.Parallel()
 
 	ctx := i18n.WithLocale(t.Context(), i18n.ZhHant)
@@ -307,7 +329,9 @@ func TestCheckoutShowsOneMessagePerField(t *testing.T) {
 	}
 }
 
-func TestEveryKnownPickupChainPassesAddressValidation(t *testing.T) {
+// TestDetails_ValidatePickupChain: Details.Validate accepts every known pickup
+// chain and refuses an unknown one with a pickup_chain error.
+func TestDetails_ValidatePickupChain(t *testing.T) {
 	chains := shipping.Chains()
 	if len(chains) == 0 {
 		t.Fatal("shipping.Chains() is empty; the test needs a known chain")
@@ -339,7 +363,11 @@ func TestEveryKnownPickupChainPassesAddressValidation(t *testing.T) {
 	}
 }
 
-func TestInvoiceChoicesMatchCheckoutValidation(t *testing.T) {
+// TestInvoiceChoicesMatchValidate: invoiceChoices offers exactly the
+// preferences the checkout validates, each with a label, and Invoice.Validate
+// accepts every one of them; the test also holds Validate's other outcomes,
+// from an unknown type to the member type clearing the company fields.
+func TestInvoiceChoicesMatchValidate(t *testing.T) {
 	choices := invoiceChoices(i18n.WithLocale(t.Context(), i18n.ZhHant))
 	offered := invoice.OfferedPreferences()
 	if len(choices) != len(offered) {
@@ -403,10 +431,12 @@ func TestInvoiceChoicesMatchCheckoutValidation(t *testing.T) {
 	}
 }
 
-// TestValidateAsksForTheDestinationTheMethodNeeds covers each destination with
-// its own fields and with the OTHER destination's, which is what a customer who
-// filled one section and then switched methods submits.
-func TestValidateAsksForTheDestinationTheMethodNeeds(t *testing.T) {
+// TestDetails_ValidateDestination: Details.Validate asks for the fields of the
+// destination the method needs, with its own fields and with the other
+// destination's, and reports no others. It covers each destination with its own
+// fields and with the OTHER destination's, which is what a customer who filled
+// one section and then switched methods submits.
+func TestDetails_ValidateDestination(t *testing.T) {
 	contact := func(a *delivery.Details) {
 		a.Email, a.RecipientName, a.Phone = "who@example.com", "王小明", "0912345678"
 	}
@@ -479,10 +509,14 @@ func TestValidateAsksForTheDestinationTheMethodNeeds(t *testing.T) {
 	}
 }
 
-// The store codes below are REAL, read from ECPay's own GetStoreList on
-// 2026-08-06: Hi-Life numbers its stores in four characters and 149 of its 1,350
-// lead with a letter, so S884 must stay red under a digits-only rule.
-func TestAPickupStoreCodeIsWhateverTheChainNumbersItsStores(t *testing.T) {
+// TestDetails_ValidateStoreCode: Details.Validate accepts a store code in
+// whatever form the chain numbers its stores, Hi-Life's lettered codes among
+// them and in either case, and refuses a store name typed into the code field
+// or a code that is too long. The store codes below are REAL, read from ECPay's
+// own GetStoreList on 2026-08-06: Hi-Life numbers its stores in four characters
+// and 149 of its 1,350 lead with a letter, so S884 must stay red under a
+// digits-only rule.
+func TestDetails_ValidateStoreCode(t *testing.T) {
 	cases := []struct {
 		name   string
 		chain  shipping.Chain
@@ -540,12 +574,13 @@ func TestAPickupStoreCodeIsWhateverTheChainNumbersItsStores(t *testing.T) {
 	}
 }
 
-// TestPickupStoreCodeAndNameArePairedOrNeither locks the tightened shape of
-// order_private_data_pickup_complete at the form: once the picker writes one
-// of the store code or store name, checkout must refuse a submission that
-// does not also carry the other, rather than let the database be the first
-// thing to say so.
-func TestPickupStoreCodeAndNameArePairedOrNeither(t *testing.T) {
+// TestDetails_ValidateStorePair: Details.Validate refuses a pickup store code
+// with no name and a name with no code, and accepts both or neither. It locks
+// the tightened shape of order_private_data_pickup_complete at the form: once
+// the picker writes one of the store code or store name, checkout must refuse a
+// submission that does not also carry the other, rather than let the database
+// be the first thing to say so.
+func TestDetails_ValidateStorePair(t *testing.T) {
 	t.Parallel()
 
 	base := delivery.Details{
@@ -584,10 +619,12 @@ func TestPickupStoreCodeAndNameArePairedOrNeither(t *testing.T) {
 	}
 }
 
-// TestForDestinationDropsTheOtherHalf. Validation passes on a submission
-// carrying both, so this is what stops the pair reaching
+// TestDetails_DropOtherDestination: DropOtherDestination clears the address of
+// a pickup order and the pickup point of an address order, and keeps the half
+// that belongs to the destination. Validation passes on a submission carrying
+// both, so this is what stops the pair reaching
 // order_private_data_one_destination.
-func TestForDestinationDropsTheOtherHalf(t *testing.T) {
+func TestDetails_DropOtherDestination(t *testing.T) {
 	both := func(to shipping.Destination) *delivery.Details {
 		return &delivery.Details{
 			To: to, Email: "e@example.com", RecipientName: "n", Phone: "0912345678",
@@ -617,9 +654,11 @@ func TestForDestinationDropsTheOtherHalf(t *testing.T) {
 	}
 }
 
-// TestDestinationForRefusesWhatItDoesNotKnow. A method added to
-// shipping_methods with an unknown destination must not collect a street.
-func TestDestinationForRefusesWhatItDoesNotKnow(t *testing.T) {
+// TestParseDestination: shipping.ParseDestination recognises address and
+// pickup_point and refuses any other word, so a method with an unknown
+// destination cannot collect a street. A method added to shipping_methods with
+// an unknown destination must not collect a street.
+func TestParseDestination(t *testing.T) {
 	for _, kind := range []string{"address", "pickup_point"} {
 		if d, ok := shipping.ParseDestination(kind); !ok || string(d) != kind {
 			t.Errorf("shipping.ParseDestination(%q) = %q, %v; want it recognised", kind, d, ok)
@@ -632,10 +671,11 @@ func TestDestinationForRefusesWhatItDoesNotKnow(t *testing.T) {
 	}
 }
 
-// TestFillFromBookPrefersTheNamedAddressAndFallsBackToTheDefault holds both
-// halves: the named address wins, and anything else — a guess, a stale
-// bookmark, an address since deleted — starts from the default.
-func TestFillFromBookPrefersTheNamedAddressAndFallsBackToTheDefault(t *testing.T) {
+// TestFillFromBookNamedOrDefault: fillFromBook fills the form from the named
+// saved address, and from the default one when the name is missing or matches
+// nothing. It holds both halves: the named address wins, and anything else — a
+// guess, a stale bookmark, an address since deleted — starts from the default.
+func TestFillFromBookNamedOrDefault(t *testing.T) {
 	t.Parallel()
 
 	book := []SavedAddress{
@@ -665,8 +705,9 @@ func TestFillFromBookPrefersTheNamedAddressAndFallsBackToTheDefault(t *testing.T
 	}
 }
 
-// TestFillFromBookLeavesAnEmptyBookAlone — a guest gets the form they always got.
-func TestFillFromBookLeavesAnEmptyBookAlone(t *testing.T) {
+// TestFillFromBookEmptyBook: fillFromBook leaves the form as it was when the
+// book is empty, so a guest gets the form they always got.
+func TestFillFromBookEmptyBook(t *testing.T) {
 	t.Parallel()
 	view := View{}
 	addr := delivery.Details{Street: "typed by hand"}
@@ -676,10 +717,11 @@ func TestFillFromBookLeavesAnEmptyBookAlone(t *testing.T) {
 	}
 }
 
-// TestTheQuoteAddsTheSurchargeAfterTheThreshold holds the order the two parts of
-// a delivery charge are combined in: folding the surcharge into the free-over
-// test would make a large order to the outlying islands free to send.
-func TestTheQuoteAddsTheSurchargeAfterTheThreshold(t *testing.T) {
+// TestShippingQuote_Total: Total adds the surcharge to the fee, so a quote
+// whose fee is free still pays the crossing. It holds the order the two parts
+// of a delivery charge are combined in: folding the surcharge into the
+// free-over test would make a large order to the outlying islands free to send.
+func TestShippingQuote_Total(t *testing.T) {
 	t.Parallel()
 
 	for _, tt := range []struct {
@@ -707,7 +749,10 @@ func TestTheQuoteAddsTheSurchargeAfterTheThreshold(t *testing.T) {
 	}
 }
 
-func TestInvoicePreferenceNormalizesOnlyItsOwnFields(t *testing.T) {
+// TestInvoice_ValidateDonation: Validate keeps a donation invoice's own code,
+// trimmed, clears the fields that belong to other preferences, and refuses a
+// malformed donation code.
+func TestInvoice_ValidateDonation(t *testing.T) {
 	donation := Invoice{Type: invoice.PreferenceDonate, DonationCode: " 00123 ", MobileBarcode: "/ABC+123", TaxID: "04595252", CompanyName: "Company"}
 	if errs := donation.Validate(); len(errs) != 0 || donation.DonationCode != "00123" || donation.MobileBarcode != "" || donation.TaxID != "" || donation.CompanyName != "" {
 		t.Fatalf("donation normalization: %+v / %+v", donation, errs)
@@ -718,7 +763,10 @@ func TestInvoicePreferenceNormalizesOnlyItsOwnFields(t *testing.T) {
 	}
 }
 
-func TestCheckoutRefusesPickupThatSkippedTheMapWhateverTheDeployment(t *testing.T) {
+// TestCheckoutErrorsPickupSkippedMap: checkoutErrors refuses a pickup order
+// that skipped the store map, a chain the shop does not offer or a chain with
+// no store chosen, whatever the deployment.
+func TestCheckoutErrorsPickupSkippedMap(t *testing.T) {
 	ctx := i18n.WithLocale(t.Context(), i18n.ZhHant)
 	for name, addr := range map[string]*delivery.Details{
 		"hi_life":  {To: shipping.DestinationPickupPoint, PickupChain: "hi_life", PickupStoreCode: "012345", PickupStoreName: "門市"},
@@ -732,7 +780,10 @@ func TestCheckoutRefusesPickupThatSkippedTheMapWhateverTheDeployment(t *testing.
 	}
 }
 
-func TestFullWidthDigitsAreFoldedBeforeTheCheckoutFieldsAreChecked(t *testing.T) {
+// TestInvoice_ValidateFullWidth: Full-width digits are folded to ASCII before
+// the checkout fields are checked: Trim folds the recipient's phone and
+// postcode, and Invoice.Validate folds the mobile barcode and the tax ID.
+func TestInvoice_ValidateFullWidth(t *testing.T) {
 	addr := delivery.Details{
 		To: shipping.DestinationAddress, Email: "a@example.com", RecipientName: "王小明",
 		Phone: "０９１２３４５６７８", PostalCode: "１１０",
@@ -759,9 +810,10 @@ func TestFullWidthDigitsAreFoldedBeforeTheCheckoutFieldsAreChecked(t *testing.T)
 	}
 }
 
-// TestFillFromBookLeavesTheFormToTheShopperForAnotherAddress: 「其他地址」 is none
-// of the saved ones, so the book fills nothing and the choice is remembered.
-func TestFillFromBookLeavesTheFormToTheShopperForAnotherAddress(t *testing.T) {
+// TestFillFromBookOtherAddress: fillFromBook fills nothing when the shopper
+// chose 「其他地址」, and remembers that choice. 「其他地址」 is none of the saved ones, so
+// the book fills nothing and the choice is remembered.
+func TestFillFromBookOtherAddress(t *testing.T) {
 	t.Parallel()
 	view := View{SavedAddresses: []SavedAddress{
 		{ID: "first", Name: "王小明", Street: "和平東路 1 號", Default: true},
@@ -776,11 +828,13 @@ func TestFillFromBookLeavesTheFormToTheShopperForAnotherAddress(t *testing.T) {
 	}
 }
 
-// TestTheRecipientBoxIsAnExplicitRequestAndUntickingRestores holds the rule for
-// 「收件人同會員資料」: ticking puts the account's name and phone in the fields
-// even over other text, remembering what was there, and unticking puts that
-// back into a field that still holds the account's value.
-func TestTheRecipientBoxIsAnExplicitRequestAndUntickingRestores(t *testing.T) {
+// TestApplyRecipient: applyRecipient puts the account's name and phone in the
+// fields when the recipient box is ticked, remembering what was there, and puts
+// that back on unticking. It holds the rule for 「收件人同會員資料」: ticking puts the
+// account's name and phone in the fields even over other text, remembering what
+// was there, and unticking puts that back into a field that still holds the
+// account's value.
+func TestApplyRecipient(t *testing.T) {
 	t.Parallel()
 	profile := Profile{Email: "me@example.com", Name: "王小明", Phone: "0912345678"}
 
@@ -833,9 +887,10 @@ func TestTheRecipientBoxIsAnExplicitRequestAndUntickingRestores(t *testing.T) {
 	}
 }
 
-// TestAProfileWithoutAPhoneNeverWipesOne: an account with a name and no phone
-// fills the name and leaves the phone alone, and still counts as the member.
-func TestAProfileWithoutAPhoneNeverWipesOne(t *testing.T) {
+// TestApplyRecipientNoPhone: applyRecipient fills the name of an account that
+// has no phone, leaves the phone alone, and still counts the form as the
+// member's.
+func TestApplyRecipientNoPhone(t *testing.T) {
 	t.Parallel()
 	view := View{
 		Profile:     Profile{Email: "me@example.com", Name: "王小明"},
@@ -848,7 +903,10 @@ func TestAProfileWithoutAPhoneNeverWipesOne(t *testing.T) {
 	}
 }
 
-func TestPrefillRecipientNeverOverwritesAndReportsWhetherItIsTheMember(t *testing.T) {
+// TestPrefillRecipient: prefillRecipient fills an empty form from the account,
+// never overwrites another recipient, and reports whether the form is the
+// member's own.
+func TestPrefillRecipient(t *testing.T) {
 	t.Parallel()
 	profile := Profile{Email: "me@example.com", Name: "王小明", Phone: "0912345678"}
 
@@ -876,9 +934,11 @@ func TestPrefillRecipientNeverOverwritesAndReportsWhetherItIsTheMember(t *testin
 	}
 }
 
-// TestABlankCityIsAskedToBeFilledIn holds the wording of a free-text field: the
-// city and district are typed, so neither is asked to be chosen.
-func TestABlankCityIsAskedToBeFilledIn(t *testing.T) {
+// TestDetails_ValidateBlankCity: Details.Validate refuses a blank city with the
+// wording of a free-text field: asked to be filled in, not chosen. It holds the
+// wording of a free-text field: the city and district are typed, so neither is
+// asked to be chosen.
+func TestDetails_ValidateBlankCity(t *testing.T) {
 	t.Parallel()
 
 	addr := delivery.Details{To: shipping.DestinationAddress, PostalCode: "110", District: "信義區", Street: "松高路 1 號"}

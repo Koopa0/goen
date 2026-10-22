@@ -19,11 +19,13 @@ import (
 
 var checkedShipping = regexp.MustCompile(`name="shipping" value="([^"]*)" checked`)
 
-// TestAGuestPlacesTheOrderTheCheckoutRendered follows a first guest checkout
-// as the browser does: the page carries its quote, an attempt ID and a shipping
-// method already chosen; posting exactly those places the order, redirects to
-// its payment page and hands this browser the cookie that opens it.
-func TestAGuestPlacesTheOrderTheCheckoutRendered(t *testing.T) {
+// TestHandler_PlaceOrderGuest: Posting exactly what a guest's rendered checkout
+// carries places the order, redirects to its payment page and hands the browser
+// the cookie that opens it. It follows a first guest checkout as the browser
+// does: the page carries its quote, an attempt ID and a shipping method already
+// chosen; posting exactly those places the order, redirects to its payment page
+// and hands this browser the cookie that opens it.
+func TestHandler_PlaceOrderGuest(t *testing.T) {
 	s := checkout.NewStore(pool)
 	h := newHandler(s, access.NewStore(pool, false), slog.New(slog.DiscardHandler), nil)
 	cartID, token := newCartSession(t, s)
