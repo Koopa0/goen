@@ -13,7 +13,7 @@ import (
 // makefilePin matches a version the Makefile pins, e.g. `SQUAWK_VERSION := 2.64.0`.
 var makefilePin = regexp.MustCompile(`(?m)^([A-Z_]+_VERSION)\s*:=\s*(\S+)\s*$`)
 
-// TestTheWorkflowReadsItsToolPinsFromTheMakefile refuses a version repeated in
+// TestWorkflowToolPinsComeFromMakefile refuses a version repeated in
 // the CI workflow.
 //
 // The Makefile pins each tool and its target version-checks against that pin, so
@@ -21,7 +21,7 @@ var makefilePin = regexp.MustCompile(`(?m)^([A-Z_]+_VERSION)\s*:=\s*(\S+)\s*$`)
 // drifted the first time the Makefile's squawk moved: CI installed 2.63.0
 // against a Makefile demanding 2.64.0, and every push failed on a version check
 // rather than on anything about the code.
-func TestTheWorkflowReadsItsToolPinsFromTheMakefile(t *testing.T) {
+func TestWorkflowToolPinsComeFromMakefile(t *testing.T) {
 	t.Parallel()
 
 	root := repoRoot(t)

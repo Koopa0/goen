@@ -22,11 +22,12 @@ type testMainSource struct {
 	usesMigrationRunner bool
 }
 
-// TestEveryIntegrationSuiteUsesTheMigrationRunner makes the integration-test
-// harness part of the verified corpus. dbtest is the one runner that globs all
+// TestIntegrationSuitesUseMigrationRunner requires every TestMain in the
+// repository to start its database through dbtest, which makes the
+// integration-test harness part of the verified corpus. dbtest is the one runner that globs all
 // *.up.sql files; a copied TestMain that applies one filename goes silently
 // stale the day the next migration is cut.
-func TestEveryIntegrationSuiteUsesTheMigrationRunner(t *testing.T) {
+func TestIntegrationSuitesUseMigrationRunner(t *testing.T) {
 	t.Parallel()
 	root := repoRoot(t)
 	testMains := findTestMains(t, root)

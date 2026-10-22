@@ -9,11 +9,12 @@ import (
 	"testing"
 )
 
-// A customer-facing email input takes its pattern, keyboard and message from
-// internal/ui/fieldrule, so the browser says what the server would. The back
+// TestCustomerEmailFieldsCarrySharedRule requires every customer-facing email
+// input to take its pattern, keyboard and message from internal/ui/fieldrule,
+// so the browser says what the server would. The back
 // office is exempt: its forms are not part of the shopper's checkout. Every
 // template under internal/ is read, wherever the package serving it lives.
-func TestEveryCustomerEmailFieldCarriesTheSharedRule(t *testing.T) {
+func TestCustomerEmailFieldsCarrySharedRule(t *testing.T) {
 	t.Parallel()
 	emailInput := regexp.MustCompile(`Type:\s+"email"`)
 	sources := templSources(t)
