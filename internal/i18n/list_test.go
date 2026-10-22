@@ -1,10 +1,9 @@
-package frame_test
+package i18n_test
 
 import (
 	"testing"
 
 	"github.com/koopa0/goen/internal/i18n"
-	"github.com/koopa0/goen/internal/ui/frame"
 )
 
 func TestJoinListFollowsTheReadersLanguage(t *testing.T) {
@@ -24,7 +23,7 @@ func TestJoinListFollowsTheReadersLanguage(t *testing.T) {
 	}
 	for _, tt := range tests {
 		ctx := i18n.WithLocale(t.Context(), tt.locale)
-		if got := frame.JoinList(ctx, tt.names); got != tt.want {
+		if got := i18n.JoinList(ctx, tt.names); got != tt.want {
 			t.Errorf("%s JoinList(%q) = %q, want %q", tt.locale, tt.names, got, tt.want)
 		}
 	}

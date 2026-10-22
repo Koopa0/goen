@@ -41,16 +41,6 @@ var (
 		En:     "%s: %s extra",
 	})
 
-	KeyListSeparator = key("common.listseparator", Message{
-		ZhHant: "、",
-		En:     ", ",
-	})
-
-	KeyListLastSeparator = key("common.listseparator.last", Message{
-		ZhHant: "、",
-		En:     " and ",
-	})
-
 	KeyShippingTracking = key("shipping.tracking", Message{ZhHant: "出貨與追蹤", En: "Dispatch and tracking"})
 
 	KeyShippingHold = key("shipping.hold", Message{ZhHant: "庫存保留", En: "Stock reservation"})
