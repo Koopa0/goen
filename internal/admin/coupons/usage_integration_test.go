@@ -29,7 +29,8 @@ import (
 	"github.com/koopa0/goen/internal/order/delivery"
 )
 
-func TestCouponUsageReleasesCancelledOrdersAndRetainsTheirHistory(t *testing.T) {
+// TestStore_CouponsUsage: coupon usage releases cancelled orders and retains their history.
+func TestStore_CouponsUsage(t *testing.T) {
 	owner := admintest.Pool(t)
 	ctx, _ := admintest.StaffContext(t, owner)
 	desk := coupons.NewStore(admintest.AdminRolePool(t, owner))
@@ -214,7 +215,8 @@ func assertCouponUsage(t *testing.T, baseCtx context.Context, desk *coupons.Stor
 	}
 }
 
-func TestCouponExpiryKeepsTheShopMinute(t *testing.T) {
+// TestStore_CouponsExpiry: a coupon's expiry keeps the shop's minute.
+func TestStore_CouponsExpiry(t *testing.T) {
 	owner := admintest.Pool(t)
 	ctx, _ := admintest.StaffContext(t, owner)
 	desk := coupons.NewStore(admintest.AdminRolePool(t, owner))

@@ -10,7 +10,8 @@ import (
 
 // From TestDeskRefusalsNameTheirFormAndLinkToTheFirstInvalidControl, which keeps
 // the product half.
-func TestARefusedBannerNamesItsFormAndLinksToTheFirstInvalidControl(t *testing.T) {
+// TestBannersRefusalSummary: a refused banner names its form and links to the first invalid control.
+func TestBannersRefusalSummary(t *testing.T) {
 	t.Parallel()
 	for _, locale := range i18n.Locales() {
 		t.Run(locale.Tag(), func(t *testing.T) {

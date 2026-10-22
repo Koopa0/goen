@@ -27,13 +27,17 @@ const maxTestNameLen = 40
 // the pull request that renames its tests, so a name cannot drift back, and
 // nothing else in the repository is held to the rule until then.
 //
-// The list is empty at first, so TestMigratedTestNames passes today without
-// reading a single file; it says so in its log. That is deliberate and not a
-// vacuous guard: TestCheckTestNames runs the same checks over fixtures that
-// fail them, and once a package is listed the check fails if the package has
-// no tests to read.
+// TestMigratedTestNames reads every listed package and fails if one has no
+// tests to read; TestCheckTestNames runs the same checks over fixtures that
+// fail them, so the guard cannot pass without looking.
 var migratedTestPackages = []string{
 	"assets",
+	"internal/admin/banners",
+	"internal/admin/coupons",
+	"internal/admin/credits",
+	"internal/admin/faq",
+	"internal/admin/newsletters",
+	"internal/admin/questions",
 	"internal/media",
 	"internal/web/clientip",
 	"internal/web/compress",

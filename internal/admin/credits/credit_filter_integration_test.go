@@ -20,12 +20,12 @@ import (
 	"github.com/koopa0/goen/internal/user"
 )
 
-// TestHandlerCreditFilterAccess holds who may read a customer's history and
+// TestHandler_CreditFilterAccess holds who may read a customer's history and
 // what a refused grant keeps. A customer promoted to staff or admin keeps the
 // history they earned, as the grant form's recipient lookup already allows; a signed-out visitor and a customer get no ledger; an unknown
 // filter is a 404; and a refused grant re-renders the filter and the draft
 // without a ledger or audit write.
-func TestHandlerCreditFilterAccess(t *testing.T) {
+func TestHandler_CreditFilterAccess(t *testing.T) {
 	owner := admintest.Pool(t)
 	staff, administrator := admintest.StaffContext(t, owner)
 	reader := admintest.AdminRolePool(t, owner)

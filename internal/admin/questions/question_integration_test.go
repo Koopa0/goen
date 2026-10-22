@@ -15,7 +15,8 @@ import (
 	"github.com/koopa0/goen/internal/catalog"
 )
 
-func TestTheQueuePutsWhatTheShopOwesFirst(t *testing.T) {
+// TestStore_QuestionsOrder: the queue puts what the shop owes first.
+func TestStore_QuestionsOrder(t *testing.T) {
 	ctx, _ := admintest.StaffContext(t, pool)
 	s := questions.NewStore(pool)
 	ps := catalog.NewStore(pool, slog.New(slog.DiscardHandler))
@@ -54,7 +55,8 @@ func TestTheQueuePutsWhatTheShopOwesFirst(t *testing.T) {
 	}
 }
 
-func TestHidingAQuestionIsRecordedAndCannotBeRepeated(t *testing.T) {
+// TestStore_HideQuestion: hiding a question is recorded and cannot be repeated.
+func TestStore_HideQuestion(t *testing.T) {
 	ctx, _ := admintest.StaffContext(t, pool)
 	s := questions.NewStore(pool)
 	ps := catalog.NewStore(pool, slog.New(slog.DiscardHandler))
@@ -76,7 +78,8 @@ func TestHidingAQuestionIsRecordedAndCannotBeRepeated(t *testing.T) {
 	}
 }
 
-func TestAnEmptyOfficialAnswerIsRefused(t *testing.T) {
+// TestStore_AnswerQuestionEmpty: an empty official answer is refused.
+func TestStore_AnswerQuestionEmpty(t *testing.T) {
 	ctx, _ := admintest.StaffContext(t, pool)
 	s := questions.NewStore(pool)
 	ps := catalog.NewStore(pool, slog.New(slog.DiscardHandler))

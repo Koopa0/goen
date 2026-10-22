@@ -51,7 +51,8 @@ func tokenFor(t *testing.T, topic, email, field string) string {
 	return token
 }
 
-func TestASentIssueReachesEveryoneOnTheListExactlyOnce(t *testing.T) {
+// TestStore_SendNewsletterEveryone: a sent issue reaches everyone on the list exactly once.
+func TestStore_SendNewsletterEveryone(t *testing.T) {
 	emptyList(t)
 	ctx := t.Context()
 	s := newsletters.NewStore(pool)
@@ -90,9 +91,9 @@ func TestASentIssueReachesEveryoneOnTheListExactlyOnce(t *testing.T) {
 	}
 }
 
-// TestAnIssueIsSentOnceUnderConcurrency proves the STATEMENT guard: behind one
+// TestStore_SendNewsletterConcurrent proves the STATEMENT guard: behind one
 // barrier every racer passes the Go check, and exactly one may stamp.
-func TestAnIssueIsSentOnceUnderConcurrency(t *testing.T) {
+func TestStore_SendNewsletterConcurrent(t *testing.T) {
 	emptyList(t)
 	ctx := t.Context()
 	s := newsletters.NewStore(pool)
@@ -148,9 +149,9 @@ func TestAnIssueIsSentOnceUnderConcurrency(t *testing.T) {
 	}
 }
 
-// TestABulkSendWaitsBehindTransactionalMail asserts the priority rule through
+// TestStore_SendNewsletterPriority: a bulk send waits behind transactional mail. It asserts the priority rule through
 // the queue's OWN claim; re-implementing its ORDER BY here could not fail.
-func TestABulkSendWaitsBehindTransactionalMail(t *testing.T) {
+func TestStore_SendNewsletterPriority(t *testing.T) {
 	emptyList(t)
 	emptyOutbox(t)
 	ctx := t.Context()
@@ -215,7 +216,8 @@ func TestABulkSendWaitsBehindTransactionalMail(t *testing.T) {
 	}
 }
 
-func TestASentIssueCannotBeRewritten(t *testing.T) {
+// TestStore_SendNewsletterFreezesIssue: a sent issue cannot be rewritten.
+func TestStore_SendNewsletterFreezesIssue(t *testing.T) {
 	emptyList(t)
 	ctx := t.Context()
 	s := newsletters.NewStore(pool)
@@ -272,9 +274,9 @@ func joinList(t *testing.T, email string) string {
 	return tokenFor(t, "newsletter.welcome", email, "unsubscribe_token")
 }
 
-// TestASecondSendIsRefusedSequentially is the deterministic direction of the
+// TestStore_SendNewsletterTwice: a second send is refused when it follows the first. It is the deterministic direction of the
 // same guard; the concurrent test above goes red only sometimes.
-func TestASecondSendIsRefusedSequentially(t *testing.T) {
+func TestStore_SendNewsletterTwice(t *testing.T) {
 	emptyList(t)
 	ctx := t.Context()
 	s := newsletters.NewStore(pool)
@@ -306,7 +308,8 @@ func staffActor(t *testing.T) uuid.NullUUID {
 	return uuid.NullUUID{UUID: id, Valid: true}
 }
 
-func TestASendNeedsAnActor(t *testing.T) {
+// TestStore_SendNewsletterNoActor: a send needs an actor.
+func TestStore_SendNewsletterNoActor(t *testing.T) {
 	emptyList(t)
 	ctx := t.Context()
 	s := newsletters.NewStore(pool)
@@ -325,10 +328,10 @@ func TestASendNeedsAnActor(t *testing.T) {
 	}
 }
 
-// TestComposeRecordsWhoWroteTheDraft locks the staff trail: a draft that is
+// TestStore_ComposeNewsletterRecordsActor locks the staff trail: a draft that is
 // never sent still names who wrote it. The body stays out of audit_events
 // because erase_user cannot reach that table.
-func TestComposeRecordsWhoWroteTheDraft(t *testing.T) {
+func TestStore_ComposeNewsletterRecordsActor(t *testing.T) {
 	ctx := t.Context()
 	s := newsletters.NewStore(pool)
 	actor := staffActor(t)
@@ -371,7 +374,8 @@ func TestComposeRecordsWhoWroteTheDraft(t *testing.T) {
 	}
 }
 
-func TestComposeNeedsAnActor(t *testing.T) {
+// TestStore_ComposeNewsletterNoActor: composing needs an actor.
+func TestStore_ComposeNewsletterNoActor(t *testing.T) {
 	ctx := t.Context()
 	s := newsletters.NewStore(pool)
 	const subject = "沒有操作者的草稿"
@@ -396,7 +400,8 @@ func TestComposeNeedsAnActor(t *testing.T) {
 	}
 }
 
-func TestComposeLeavesNeitherRowWhenAuditFails(t *testing.T) {
+// TestStore_ComposeNewsletterAuditFails: composing leaves neither row behind when the audit write fails.
+func TestStore_ComposeNewsletterAuditFails(t *testing.T) {
 	ctx := t.Context()
 	s := newsletters.NewStore(pool)
 	subject := "不得落地 " + uuid.NewString()[:8]
@@ -426,11 +431,11 @@ func TestComposeLeavesNeitherRowWhenAuditFails(t *testing.T) {
 	}
 }
 
-// TestAnIssueCopyKeepsItsDedupeKey pins the outbox key of one copy of an issue:
+// TestStore_SendNewsletterDedupeKey pins the outbox key of one copy of an issue:
 // the issue id as the send was asked for it, a colon, and the hex SHA-256 of the
 // subscriber's unsubscribe token. A retried send is told apart from a new one
 // only by this key, so it must stay byte for byte what queued rows already carry.
-func TestAnIssueCopyKeepsItsDedupeKey(t *testing.T) {
+func TestStore_SendNewsletterDedupeKey(t *testing.T) {
 	emptyList(t)
 	ctx := t.Context()
 	s := newsletters.NewStore(pool)

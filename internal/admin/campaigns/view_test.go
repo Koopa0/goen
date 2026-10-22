@@ -98,7 +98,7 @@ func TestCampaignsQueueWithMoreRowsOffersNext(t *testing.T) {
 	}
 }
 
-// From TestAdminExamplesStayOutsideRefusedInputs.
+// From the examples test the admin screens once shared.
 func TestCampaignExamplesStayOutsideRefusedInputs(t *testing.T) {
 	t.Parallel()
 	for _, locale := range i18n.Locales() {

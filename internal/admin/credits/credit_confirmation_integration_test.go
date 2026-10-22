@@ -18,7 +18,8 @@ import (
 	"github.com/koopa0/goen/internal/i18n"
 )
 
-func TestCreditGrantRequiresRecipientReviewBeforePosting(t *testing.T) {
+// TestHandler_GrantCreditReview: a credit grant requires the recipient's review before it posts.
+func TestHandler_GrantCreditReview(t *testing.T) {
 	ctx, _ := admintest.StaffContext(t, pool)
 	h := credits.NewHandler(credits.NewStore(pool), slog.New(slog.DiscardHandler))
 	var customer uuid.UUID
@@ -74,7 +75,8 @@ func TestCreditGrantRequiresRecipientReviewBeforePosting(t *testing.T) {
 	}
 }
 
-func TestCreditConfirmationDoesNotFollowAReassignedEmail(t *testing.T) {
+// TestHandler_GrantCreditReassigned: a credit confirmation does not follow an email that was reassigned.
+func TestHandler_GrantCreditReassigned(t *testing.T) {
 	ctx, _ := admintest.StaffContext(t, pool)
 	h := credits.NewHandler(credits.NewStore(pool), slog.New(slog.DiscardHandler))
 	var original, replacement uuid.UUID

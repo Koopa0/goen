@@ -16,7 +16,8 @@ import (
 // desks' pages: each half lives with the page it renders.
 
 // From TestEveryAdminEmptyPageKeepsItsRestartLink.
-func TestCreditEmptyPageKeepsItsRestartLink(t *testing.T) {
+// TestCreditEmptyPage: the credit empty page keeps its restart link.
+func TestCreditEmptyPage(t *testing.T) {
 	t.Parallel()
 	b := keyset.Bound{PastEnd: true, First: "/admin/products?q=test"}
 	var out bytes.Buffer
@@ -34,7 +35,8 @@ func TestCreditEmptyPageKeepsItsRestartLink(t *testing.T) {
 
 // From TestEveryQueueKeepsItsOwnFirstPageEmptyState and
 // TestEveryQueueWithMoreRowsOffersNext.
-func TestCreditQueueKeepsItsOwnFirstPageEmptyState(t *testing.T) {
+// TestCreditFirstPageEmpty: the credit queue keeps its own first-page empty state.
+func TestCreditFirstPageEmpty(t *testing.T) {
 	t.Parallel()
 	ctx := func(k i18n.Key) string { return i18n.T(i18n.WithLocale(t.Context(), i18n.En), k) }
 	generic := ctx(i18n.KeyPageEmpty)
@@ -48,7 +50,8 @@ func TestCreditQueueKeepsItsOwnFirstPageEmptyState(t *testing.T) {
 	}
 }
 
-func TestCreditQueueWithMoreRowsOffersNext(t *testing.T) {
+// TestCreditNextLink: a credit queue with more rows offers a next link.
+func TestCreditNextLink(t *testing.T) {
 	t.Parallel()
 	ctx := func(k i18n.Key) string { return i18n.T(i18n.WithLocale(t.Context(), i18n.En), k) }
 	rows := make([]db.Order, keyset.PageLimit)

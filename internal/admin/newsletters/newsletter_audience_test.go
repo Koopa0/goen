@@ -8,7 +8,8 @@ import (
 	"github.com/koopa0/goen/internal/ui/frame"
 )
 
-func TestNewsletterComposeStatesBothAudienceCounts(t *testing.T) {
+// TestNewsletterAudienceCounts: the newsletter compose page states both audience counts.
+func TestNewsletterAudienceCounts(t *testing.T) {
 	t.Parallel()
 	for _, tt := range []struct {
 		name            string

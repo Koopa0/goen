@@ -15,9 +15,9 @@ import (
 	"github.com/koopa0/goen/internal/admin/faq"
 )
 
-// TestFAQRowWritesAnswerAFailureAsAServerError: a database that cannot be
+// TestHandler_EditFAQClosedDatabase: a FAQ row write answers a failure as a server error. A database that cannot be
 // reached decided nothing, and answering 404 or "refused" says otherwise.
-func TestFAQRowWritesAnswerAFailureAsAServerError(t *testing.T) {
+func TestHandler_EditFAQClosedDatabase(t *testing.T) {
 	ctx, _ := admintest.StaffContext(t, pool)
 	closed := admintest.NamedPool(t, pool, "faq_closed_"+uuid.NewString()[:8])
 	closed.Close()

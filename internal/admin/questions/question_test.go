@@ -11,7 +11,8 @@ import (
 	"github.com/koopa0/goen/internal/ui/frame"
 )
 
-func TestQuestionAnswersKeepListSemanticsAndShowOnlyPresentMetadata(t *testing.T) {
+// TestQuestionsAnswerList: question answers keep list semantics and show only the metadata present.
+func TestQuestionsAnswerList(t *testing.T) {
 	t.Parallel()
 	for _, locale := range []i18n.Locale{i18n.ZhHant, i18n.En} {
 		for _, tt := range []struct {
@@ -70,7 +71,8 @@ func TestQuestionAnswersKeepListSemanticsAndShowOnlyPresentMetadata(t *testing.T
 	}
 }
 
-func TestQuestionQueueShowsEachAnswerWithoutExecutingItsText(t *testing.T) {
+// TestQuestionsAnswerText: the question queue shows each answer without executing its text.
+func TestQuestionsAnswerText(t *testing.T) {
 	for _, locale := range []i18n.Locale{i18n.ZhHant, i18n.En} {
 		t.Run(string(locale), func(t *testing.T) {
 			ctx := i18n.WithLocale(t.Context(), locale)
@@ -91,7 +93,8 @@ func TestQuestionQueueShowsEachAnswerWithoutExecutingItsText(t *testing.T) {
 	}
 }
 
-func TestHiddenQuestionsOfferRestoreWithoutAnAnswerBox(t *testing.T) {
+// TestQuestionsHiddenRestore: hidden questions offer a restore button without an answer box.
+func TestQuestionsHiddenRestore(t *testing.T) {
 	ctx := i18n.WithLocale(t.Context(), i18n.En)
 	view := QuestionsView{Hidden: true, Rows: []Question{{ID: "question", Hidden: true}}}
 	page := renderComponent(t, ctx, Questions(frame.Page{}, view))
@@ -132,7 +135,8 @@ func TestHiddenQuestionsOfferRestoreWithoutAnAnswerBox(t *testing.T) {
 	}
 }
 
-func TestEmptyHiddenQueueDoesNotSayNobodyHasAsked(t *testing.T) {
+// TestQuestionsEmptyHiddenQueue: an empty hidden queue does not say nobody has asked.
+func TestQuestionsEmptyHiddenQueue(t *testing.T) {
 	ctx := i18n.WithLocale(t.Context(), i18n.En)
 	page := renderComponent(t, ctx, Questions(frame.Page{}, QuestionsView{Hidden: true}))
 	if !strings.Contains(page, "No hidden questions") || strings.Contains(page, "Nobody has asked") {

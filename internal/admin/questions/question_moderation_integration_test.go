@@ -21,7 +21,8 @@ import (
 	"github.com/koopa0/goen/internal/keyset"
 )
 
-func TestAdminReadsAnswersAndRestoresQuestionsWithExistingPrivileges(t *testing.T) {
+// TestStore_ShowQuestionAdminRole: the admin role reads answers and restores questions with its existing privileges.
+func TestStore_ShowQuestionAdminRole(t *testing.T) {
 	p := admintest.Pool(t)
 	ctx, actor := admintest.StaffContext(t, p)
 	var question, answer uuid.UUID
@@ -81,7 +82,8 @@ func TestAdminReadsAnswersAndRestoresQuestionsWithExistingPrivileges(t *testing.
 	}
 }
 
-func TestAnswerWithdrawalIsQuestionBoundAndAuditedUnderTheAdminRole(t *testing.T) {
+// TestStore_HideAnswer: an answer withdrawal is bound to its question and audited under the admin role.
+func TestStore_HideAnswer(t *testing.T) {
 	p := admintest.Pool(t)
 	ctx, actor := admintest.StaffContext(t, p)
 	var question, otherQuestion, answer uuid.UUID
@@ -161,7 +163,8 @@ func TestAnswerWithdrawalIsQuestionBoundAndAuditedUnderTheAdminRole(t *testing.T
 	}
 }
 
-func TestHiddenQuestionQueuePagesEveryQuestionNewestFirst(t *testing.T) {
+// TestStore_QuestionsHiddenQueue: the hidden question queue pages every question, newest first.
+func TestStore_QuestionsHiddenQueue(t *testing.T) {
 	p := admintest.Pool(t)
 	ctx := t.Context()
 	const total = keyset.PageSize + 3

@@ -21,7 +21,8 @@ import (
 	"github.com/koopa0/goen/internal/i18n"
 )
 
-func TestCouponLimitRefusalRetainsDraftAndAllowsCorrection(t *testing.T) {
+// TestHandler_CreateLimitRefusal: a refused coupon limit retains the draft and allows a correction.
+func TestHandler_CreateLimitRefusal(t *testing.T) {
 	owner := admintest.Pool(t)
 	staff, _ := admintest.StaffContext(t, owner)
 	desk := coupons.NewStore(admintest.AdminRolePool(t, owner))
