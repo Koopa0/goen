@@ -33,7 +33,9 @@ type noRefund struct{}
 
 func (noRefund) Offer(context.Context, string, int) (refund.Offer, error) { return refund.Offer{}, nil }
 
-func TestThePickingDeskDoesNotOfferShipped(t *testing.T) {
+// TestStore_FillRefundBeforeShipmentNoShip: the picking desk does not offer
+// shipped as a next step.
+func TestStore_FillRefundBeforeShipmentNoShip(t *testing.T) {
 	t.Parallel()
 	s := &Store{refunds: noRefund{}}
 	view := OrderView{Status: order.FulfillmentPicking}
@@ -47,11 +49,12 @@ func TestThePickingDeskDoesNotOfferShipped(t *testing.T) {
 	}
 }
 
-// TestEveryRedirectNoticeHasAMessage asks the question the notice map cannot ask
-// of itself: a handler answering 303 with "?done=1" and no entry here renders a
-// blank page and tells the operator nothing. The map is hand-written; the corpus
-// is the SOURCE, so a new redirect is covered the moment it is written.
-func TestEveryRedirectNoticeHasAMessage(t *testing.T) {
+// TestNoticesEveryRedirectHasMessage: every redirect notice has a message. It
+// asks the question the notice map cannot ask of itself: a handler answering
+// 303 with "?done=1" and no entry here renders a blank page and tells the
+// operator nothing. The map is hand-written; the corpus is the SOURCE, so a new
+// redirect is covered the moment it is written.
+func TestNoticesEveryRedirectHasMessage(t *testing.T) {
 	t.Parallel()
 
 	// The refund before shipment answers on the order page, so its redirects are
@@ -113,10 +116,11 @@ func TestEveryRedirectNoticeHasAMessage(t *testing.T) {
 	}
 }
 
-// TestOnlyTheDispatchFormUsesTheCarrierAndTrackingNotice holds that a refusal
-// names its own screen's problem: the carrier-and-tracking sentence once
-// answered tiers, shipping, store credit, delivery correction and image reuse.
-func TestOnlyTheDispatchFormUsesTheCarrierAndTrackingNotice(t *testing.T) {
+// TestNoticesNeedsOnlyForDispatch: only the dispatch form uses the
+// carrier-and-tracking notice. It holds that a refusal names its own screen's
+// problem: the carrier-and-tracking sentence once answered tiers, shipping,
+// store credit, delivery correction and image reuse.
+func TestNoticesNeedsOnlyForDispatch(t *testing.T) {
 	t.Parallel()
 	for name, m := range notices {
 		if m.Key == i18n.KeyAdminNoticeNeeds && name != "needs" {
@@ -125,7 +129,8 @@ func TestOnlyTheDispatchFormUsesTheCarrierAndTrackingNotice(t *testing.T) {
 	}
 }
 
-func TestTheQueueFiltersAreTheirOwnClosedSet(t *testing.T) {
+// TestParseQueueFilter: the queue filters are their own closed set.
+func TestParseQueueFilter(t *testing.T) {
 	t.Parallel()
 	for _, tab := range queueTabs {
 		if got := ParseQueueFilter(string(tab.filter)); got != tab.filter {
@@ -139,7 +144,8 @@ func TestTheQueueFiltersAreTheirOwnClosedSet(t *testing.T) {
 	}
 }
 
-func TestFundedMeansCommittedOrPaidWholeByCredit(t *testing.T) {
+// TestFunded: funded means committed or paid whole by credit.
+func TestFunded(t *testing.T) {
 	t.Parallel()
 	for _, tt := range []struct {
 		name         string
@@ -162,7 +168,8 @@ func TestFundedMeansCommittedOrPaidWholeByCredit(t *testing.T) {
 	}
 }
 
-func TestPaymentWithoutCardIsReadFromWhatIsOwed(t *testing.T) {
+// TestPaymentWithoutCard: a payment without a card is read from what is owed.
+func TestPaymentWithoutCard(t *testing.T) {
 	t.Parallel()
 	ctx := i18n.WithLocale(t.Context(), i18n.ZhHant)
 	for _, tt := range []struct {

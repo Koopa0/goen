@@ -11,7 +11,9 @@ import (
 	"github.com/koopa0/goen/internal/ui/widget"
 )
 
-func TestARedirectedNoticeIsShownAsItsOwnOutcome(t *testing.T) {
+// TestOrdersRedirectedNotice: the queue shows a redirected notice as its own
+// outcome.
+func TestOrdersRedirectedNotice(t *testing.T) {
 	t.Parallel()
 	want := []struct {
 		name    string
@@ -98,7 +100,9 @@ func TestARedirectedNoticeIsShownAsItsOwnOutcome(t *testing.T) {
 	}
 }
 
-func TestInvoicingOffHasItsOwnSentence(t *testing.T) {
+// TestOrderInvoicingOffSentence: the order page has its own sentence when
+// invoicing is off.
+func TestOrderInvoicingOffSentence(t *testing.T) {
 	t.Parallel()
 	ctx := i18n.WithLocale(t.Context(), i18n.En)
 	off := i18n.T(ctx, i18n.KeyAdminNoticeInvoicingOff)

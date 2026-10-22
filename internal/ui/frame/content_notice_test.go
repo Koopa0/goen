@@ -7,7 +7,8 @@ import (
 	"github.com/koopa0/goen/internal/i18n"
 )
 
-func TestTheFooterNamesTheContentLanguageAndTheGoverningPolicyVersion(t *testing.T) {
+// TestFooterContentNotice: the footer names the content language and the governing policy version.
+func TestFooterContentNotice(t *testing.T) {
 	t.Parallel()
 	for _, tc := range []struct {
 		locale i18n.Locale

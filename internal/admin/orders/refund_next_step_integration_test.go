@@ -14,7 +14,9 @@ import (
 	"github.com/koopa0/goen/internal/order"
 )
 
-func TestOpenedRefundSummaryDoesNotOfferPicking(t *testing.T) {
+// TestStore_OrderOpenedRefundSummary: the summary of an opened refund does not
+// offer picking.
+func TestStore_OrderOpenedRefundSummary(t *testing.T) {
 	owner := admintest.Pool(t)
 	ctx, actor := admintest.StaffContext(t, owner)
 	number, _, _ := admintest.PaidUnshippedOrder(t, owner, 100000, 0, false)

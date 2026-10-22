@@ -11,7 +11,8 @@ import (
 	"github.com/koopa0/goen/internal/i18n"
 )
 
-func TestAdminOrderLineShowsItsPhotoOrTheEmptyWell(t *testing.T) {
+// TestOrderLinePhoto: an admin order line shows its photo or the empty well.
+func TestOrderLinePhoto(t *testing.T) {
 	t.Parallel()
 	for _, locale := range i18n.Locales() {
 		for _, present := range []bool{true, false} {
@@ -72,7 +73,8 @@ func TestAdminOrderLineShowsItsPhotoOrTheEmptyWell(t *testing.T) {
 	}
 }
 
-func TestPickingSlipLinesRenderNoPhotoBlock(t *testing.T) {
+// TestOrderPickingSlipNoPhoto: picking slip lines render no photo block.
+func TestOrderPickingSlipNoPhoto(t *testing.T) {
 	t.Parallel()
 	for _, locale := range i18n.Locales() {
 		t.Run(locale.Tag(), func(t *testing.T) {

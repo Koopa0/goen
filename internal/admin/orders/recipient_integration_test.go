@@ -15,7 +15,9 @@ import (
 	"github.com/koopa0/goen/internal/order/notice"
 )
 
-func TestTerminalRecipientNeverRecoversErasedAddress(t *testing.T) {
+// TestTerminalOrderRecipient: a terminal order's recipient is never recovered
+// from an erased address.
+func TestTerminalOrderRecipient(t *testing.T) {
 	_, id, _ := admintest.PendingOrderHoldingStock(t, pool)
 	q := db.New(pool)
 	if _, err := q.TerminalOrderRecipient(t.Context(), id); err != nil {
@@ -58,9 +60,10 @@ func shippedParcel(t *testing.T) uuid.UUID {
 	return id
 }
 
+// TestRecipients_OfUndelivered: an undelivered parcel has no rescission day.
 // Before any delivery the rescission day is shop_today(), which a reader must
 // not use: the notice and the order page say no day, and the row still scans.
-func TestAnUndeliveredParcelHasNoRescissionDay(t *testing.T) {
+func TestRecipients_OfUndelivered(t *testing.T) {
 	id := shippedParcel(t)
 	to, ok, err := notice.NewRecipients(pool).Of(t.Context(), id)
 	if err != nil || !ok {
@@ -78,7 +81,9 @@ func TestAnUndeliveredParcelHasNoRescissionDay(t *testing.T) {
 	}
 }
 
-func TestADeliveredParcelNamesTheShopDayPlusSeven(t *testing.T) {
+// TestRecipients_OfDelivered: the recipient of a delivered parcel names the
+// shop day plus seven as its rescission day.
+func TestRecipients_OfDelivered(t *testing.T) {
 	id := shippedParcel(t)
 	var want time.Time
 	if err := pool.QueryRow(t.Context(), `
@@ -102,9 +107,10 @@ func TestADeliveredParcelNamesTheShopDayPlusSeven(t *testing.T) {
 	}
 }
 
-// An order with no parcel at all, as a payment-deadline cancellation is: the
+// TestRecipients_OfNoParcel: an order with no parcel has no rescission day. An
+// order with no parcel at all, as a payment-deadline cancellation is: the
 // recipient reads, and carries no day for the cancellation mail to mention.
-func TestAnOrderWithNoParcelHasNoRescissionDay(t *testing.T) {
+func TestRecipients_OfNoParcel(t *testing.T) {
 	_, id, _ := admintest.PendingOrderHoldingStock(t, pool)
 	to, ok, err := notice.NewRecipients(pool).Of(t.Context(), id)
 	if err != nil || !ok {

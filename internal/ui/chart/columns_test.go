@@ -41,7 +41,8 @@ func valued(n int, at map[int]int64) []Bucket {
 	return buckets
 }
 
-func TestColumnsGroupLongSeriesBySevenDaysBackFromTheLast(t *testing.T) {
+// TestSeries_Columns: columns group long series by seven days back from the last.
+func TestSeries_Columns(t *testing.T) {
 	t.Parallel()
 
 	s := Series{Buckets: valued(90, map[int]int64{0: 5, 5: 1, 6: 2, 89: 4})}
@@ -71,7 +72,8 @@ func TestColumnsGroupLongSeriesBySevenDaysBackFromTheLast(t *testing.T) {
 	}
 }
 
-func TestPeaksAreEveryColumnTiedForTheMost(t *testing.T) {
+// TestPeaks: peaks are every column tied for the most.
+func TestPeaks(t *testing.T) {
 	t.Parallel()
 
 	cols := Series{Buckets: valued(10, map[int]int64{1: 9, 4: 3, 8: 9})}.Columns()
@@ -83,7 +85,8 @@ func TestPeaksAreEveryColumnTiedForTheMost(t *testing.T) {
 	}
 }
 
-func TestColumnsDrawsOnlyFromThreeDaysWithOrders(t *testing.T) {
+// TestColumnsNeedThreeDays: columns draw only from three days with orders.
+func TestColumnsNeedThreeDays(t *testing.T) {
 	t.Parallel()
 
 	for _, tc := range []struct {
@@ -105,7 +108,8 @@ func TestColumnsDrawsOnlyFromThreeDaysWithOrders(t *testing.T) {
 	}
 }
 
-func TestColumnsHaveNoBarOnADayWithoutOrders(t *testing.T) {
+// TestColumnsNoBarWithoutOrders: columns have no bar on a day without orders.
+func TestColumnsNoBarWithoutOrders(t *testing.T) {
 	t.Parallel()
 
 	got := renderColumns(t, i18n.En, columnsProps(valued(30, map[int]int64{3: 2, 4: 5, 20: 1, 29: 3})))
@@ -114,7 +118,8 @@ func TestColumnsHaveNoBarOnADayWithoutOrders(t *testing.T) {
 	}
 }
 
-func TestColumnsWithFewDaysLabelEveryBarAndDrawNoAxis(t *testing.T) {
+// TestColumnsFewDaysLabelEveryBar: columns with few days label every bar and draw no axis.
+func TestColumnsFewDaysLabelEveryBar(t *testing.T) {
 	t.Parallel()
 
 	got := renderColumns(t, i18n.En, columnsProps(valued(14, map[int]int64{1: 2, 5: 7, 9: 4, 13: 1})))
@@ -131,7 +136,8 @@ func TestColumnsWithFewDaysLabelEveryBarAndDrawNoAxis(t *testing.T) {
 	}
 }
 
-func TestColumnsWithSevenDaysLabelOnlyTheHighestAndToday(t *testing.T) {
+// TestColumnsLabelHighestAndToday: columns with seven days label only the highest and today.
+func TestColumnsLabelHighestAndToday(t *testing.T) {
 	t.Parallel()
 
 	at := map[int]int64{}
@@ -155,7 +161,8 @@ func TestColumnsWithSevenDaysLabelOnlyTheHighestAndToday(t *testing.T) {
 	}
 }
 
-func TestColumnsDrawTodayOpenWithItsMark(t *testing.T) {
+// TestColumnsTodayOpenWithMark: columns draw today open with its mark.
+func TestColumnsTodayOpenWithMark(t *testing.T) {
 	t.Parallel()
 
 	p := columnsProps(valued(30, map[int]int64{3: 2, 4: 5, 20: 1, 29: 3}))
@@ -176,7 +183,8 @@ func TestColumnsDrawTodayOpenWithItsMark(t *testing.T) {
 	}
 }
 
-func TestColumnsAreHiddenFromAssistiveTechnologyAndSetNoStyle(t *testing.T) {
+// TestColumnsHiddenAndNoStyle: columns are hidden from assistive technology and set no style.
+func TestColumnsHiddenAndNoStyle(t *testing.T) {
 	t.Parallel()
 
 	got := renderColumns(t, i18n.En, columnsProps(valued(30, map[int]int64{3: 2, 4: 5, 20: 1, 29: 3})))
@@ -203,7 +211,8 @@ func campaign(label string, from, to int) Span {
 	return Span{From: day(from), To: day(to), Label: label}
 }
 
-func TestColumnsBracketACampaignAndTheTableNamesItOnEachOfItsDays(t *testing.T) {
+// TestColumnsBracketCampaign: columns bracket a campaign and the table names it on each of its days.
+func TestColumnsBracketCampaign(t *testing.T) {
 	t.Parallel()
 
 	p := columnsProps(valued(30, map[int]int64{3: 2, 4: 5, 20: 1, 29: 3}))
@@ -238,7 +247,8 @@ func TestColumnsBracketACampaignAndTheTableNamesItOnEachOfItsDays(t *testing.T) 
 	}
 }
 
-func TestColumnsEndARunningCampaignAtTodayAndSayWhenItEnds(t *testing.T) {
+// TestColumnsRunningCampaign: columns end a running campaign at today and say when it ends.
+func TestColumnsRunningCampaign(t *testing.T) {
 	t.Parallel()
 
 	p := columnsProps(valued(30, map[int]int64{3: 2, 4: 5, 20: 1, 29: 3}))
@@ -262,7 +272,8 @@ func TestColumnsEndARunningCampaignAtTodayAndSayWhenItEnds(t *testing.T) {
 	}
 }
 
-func TestColumnsOfSevenDaysSayWhichDaysACampaignCoversOfAColumn(t *testing.T) {
+// TestColumnsWeeklyCampaignDays: columns of seven days say which days a campaign covers of a column.
+func TestColumnsWeeklyCampaignDays(t *testing.T) {
 	t.Parallel()
 
 	// The earliest column holds the first six days, the next days 6 to 12, and
@@ -280,7 +291,8 @@ func TestColumnsOfSevenDaysSayWhichDaysACampaignCoversOfAColumn(t *testing.T) {
 	}
 }
 
-func TestColumnsOfSevenDaysNameTheShortEarliestColumnUnderTheChartAndInTheTable(t *testing.T) {
+// TestColumnsWeeklyShortEarliest: columns of seven days name the short earliest column under the chart and in the table.
+func TestColumnsWeeklyShortEarliest(t *testing.T) {
 	t.Parallel()
 
 	got := renderColumns(t, i18n.En, columnsProps(valued(90, map[int]int64{0: 1, 10: 2, 50: 3, 60: 1, 89: 4})))
@@ -299,7 +311,8 @@ func TestColumnsOfSevenDaysNameTheShortEarliestColumnUnderTheChartAndInTheTable(
 	}
 }
 
-func TestColumnTicksLabelTheMondaysAndToday(t *testing.T) {
+// TestColumnTicksLabelMondaysAndToday: column ticks label the Mondays and today.
+func TestColumnTicksLabelMondaysAndToday(t *testing.T) {
 	t.Parallel()
 
 	labels := func(n int) []string {
@@ -320,7 +333,8 @@ func TestColumnTicksLabelTheMondaysAndToday(t *testing.T) {
 	}
 }
 
-func TestColumnTicksKeepTheDaysNearTodayClearOfIt(t *testing.T) {
+// TestColumnTicksClearOfToday: column ticks keep the days near today clear of it.
+func TestColumnTicksClearOfToday(t *testing.T) {
 	t.Parallel()
 
 	type tick struct {
@@ -420,10 +434,12 @@ func TestNameAtKeepsAStripsNameInsideThePlot(t *testing.T) {
 	}
 }
 
+// TestNarrowPlotStripNameQuery: columns drop strip names from a figure narrower than they are fitted to.
+//
 // The names fit a plot of narrowPlot at 12px text and no narrower, so the
 // stylesheet drops them from a figure narrower than that plot and its value
 // axis. The bound is in rem, so that it holds at 200% text too.
-func TestColumnsDropStripNamesFromAFigureNarrowerThanTheyAreFittedTo(t *testing.T) {
+func TestNarrowPlotStripNameQuery(t *testing.T) {
 	t.Parallel()
 
 	sheet, err := os.ReadFile(filepath.Join("..", "..", "..", "assets", "css", "app", "admin.css"))
@@ -459,7 +475,8 @@ func lanesOf(strips []strip) []int {
 	return lanes
 }
 
-func TestColumnsPutCampaignsInLanesByTheDayTheyBegin(t *testing.T) {
+// TestNewColumnsLanes: columns put campaigns in lanes by the day they begin.
+func TestNewColumnsLanes(t *testing.T) {
 	t.Parallel()
 
 	for _, tc := range []struct {
@@ -491,7 +508,8 @@ func TestColumnsPutCampaignsInLanesByTheDayTheyBegin(t *testing.T) {
 	}
 }
 
-func TestColumnsOpenTheEndOfABracketThatIsOffTheChart(t *testing.T) {
+// TestColumnsBracketEndsOffChart: columns open the end of a bracket that is off the chart.
+func TestColumnsBracketEndsOffChart(t *testing.T) {
 	t.Parallel()
 
 	for _, tc := range []struct {
@@ -511,7 +529,8 @@ func TestColumnsOpenTheEndOfABracketThatIsOffTheChart(t *testing.T) {
 	}
 }
 
-func TestColumnsMuteTheNameOfTheDaysBefore(t *testing.T) {
+// TestColumnsMuteDaysBeforeName: columns mute the name of the days before.
+func TestColumnsMuteDaysBeforeName(t *testing.T) {
 	t.Parallel()
 
 	got := renderColumns(t, i18n.En, compared(true))
@@ -523,7 +542,8 @@ func TestColumnsMuteTheNameOfTheDaysBefore(t *testing.T) {
 	}
 }
 
-func TestColumnsBringTheLanesDownToTheColumnsTheyMark(t *testing.T) {
+// TestNewColumnsLanesLowerColumns: columns bring the lanes down to the columns they mark.
+func TestNewColumnsLanesLowerColumns(t *testing.T) {
 	t.Parallel()
 
 	// The axis of 20 leaves a bar of 20 no room under its top, so a value over it
@@ -549,7 +569,8 @@ func TestColumnsBringTheLanesDownToTheColumnsTheyMark(t *testing.T) {
 	}
 }
 
-func TestColumnsKeepLanesApartFromEachOtherAndFromTheValues(t *testing.T) {
+// TestNewColumnsLanesKeptApart: columns keep lanes apart from each other and from the values.
+func TestNewColumnsLanesKeptApart(t *testing.T) {
 	t.Parallel()
 
 	p := columnsProps(valued(30, map[int]int64{3: 2, 4: 5, 20: 20, 29: 3}))
@@ -586,7 +607,8 @@ func TestColumnsKeepLanesApartFromEachOtherAndFromTheValues(t *testing.T) {
 	}
 }
 
-func TestColumnsOfSevenDaysKeepBothSentencesUnderTheChart(t *testing.T) {
+// TestColumnsWeeklyNote: columns of seven days keep both sentences under the chart.
+func TestColumnsWeeklyNote(t *testing.T) {
 	t.Parallel()
 
 	p := columnsProps(valued(90, map[int]int64{0: 1, 10: 2, 50: 3, 60: 1, 89: 4}))
@@ -602,7 +624,8 @@ func TestColumnsOfSevenDaysKeepBothSentencesUnderTheChart(t *testing.T) {
 	}
 }
 
-func TestColumnsNameTheCampaignsThatGotNoLane(t *testing.T) {
+// TestColumnsNameLanelessCampaigns: columns name the campaigns that got no lane.
+func TestColumnsNameLanelessCampaigns(t *testing.T) {
 	t.Parallel()
 
 	p := columnsProps(valued(30, map[int]int64{3: 2, 4: 5, 20: 1, 29: 3}))
@@ -664,7 +687,8 @@ func compared(partial bool) ColumnsProps {
 	return p
 }
 
-func TestColumnsDrawTheDaysBeforeInTheirOwnColourUnderALine(t *testing.T) {
+// TestColumnsDrawDaysBefore: columns draw the days before in their own colour under a line.
+func TestColumnsDrawDaysBefore(t *testing.T) {
 	t.Parallel()
 
 	got := renderColumns(t, i18n.En, compared(true))
@@ -691,7 +715,8 @@ func TestColumnsDrawTheDaysBeforeInTheirOwnColourUnderALine(t *testing.T) {
 	}
 }
 
-func TestColumnsTableSaysWhichDaysAreBeforeAndWhichAreTheCampaign(t *testing.T) {
+// TestColumnsTableDaysBefore: columns table says which days are before and which are the campaign.
+func TestColumnsTableDaysBefore(t *testing.T) {
 	t.Parallel()
 
 	got := renderColumns(t, i18n.En, compared(true))
@@ -709,7 +734,8 @@ func TestColumnsTableSaysWhichDaysAreBeforeAndWhichAreTheCampaign(t *testing.T) 
 	}
 }
 
-func TestColumnsWithoutPreviousDrawNoWindow(t *testing.T) {
+// TestColumnsNoPreviousNoWindow: columns without previous draw no window.
+func TestColumnsNoPreviousNoWindow(t *testing.T) {
 	t.Parallel()
 
 	p := compared(true)
@@ -720,7 +746,8 @@ func TestColumnsWithoutPreviousDrawNoWindow(t *testing.T) {
 	}
 }
 
-func TestColumnsEndingBeforeTodayAreNotMarkedAsToday(t *testing.T) {
+// TestColumnsEndedNotMarkedToday: columns ending before today are not marked as today.
+func TestColumnsEndedNotMarkedToday(t *testing.T) {
 	t.Parallel()
 
 	got := renderColumns(t, i18n.En, compared(false))
@@ -734,7 +761,8 @@ func TestColumnsEndingBeforeTodayAreNotMarkedAsToday(t *testing.T) {
 	}
 }
 
-func TestColumnsHitsNameTheirTableRows(t *testing.T) {
+// TestColumnsHitsNameTableRows: columns hits name their table rows.
+func TestColumnsHitsNameTableRows(t *testing.T) {
 	t.Parallel()
 
 	got := renderColumns(t, i18n.En, columnsProps(valued(30, map[int]int64{3: 2, 9: 5, 20: 1, 29: 4})))

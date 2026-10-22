@@ -17,7 +17,9 @@ import (
 	"github.com/koopa0/goen/internal/i18n"
 )
 
-func TestOrderHeaderAndPickingSlipReadThePurchasedDeliveryMethodInTheReadersLanguage(t *testing.T) {
+// TestHandler_OrderDeliveryMethodLanguage: the order header and the picking
+// slip read the purchased delivery method in the reader's language.
+func TestHandler_OrderDeliveryMethodLanguage(t *testing.T) {
 	for _, tt := range []struct {
 		name        string
 		english     *string

@@ -9,7 +9,9 @@ import (
 	"github.com/koopa0/goen/internal/ui/frame"
 )
 
-func TestTheOrderPageShowsItsPaymentAndEveryRefund(t *testing.T) {
+// TestOrderPaymentAndRefunds: the order page shows its payment and every
+// refund.
+func TestOrderPaymentAndRefunds(t *testing.T) {
 	t.Parallel()
 	ctx := i18n.WithLocale(t.Context(), i18n.ZhHant)
 	view := OrderView{
@@ -32,7 +34,9 @@ func TestTheOrderPageShowsItsPaymentAndEveryRefund(t *testing.T) {
 	}
 }
 
-func TestAnOrderPaidWholeWithCreditSaysSoAndNeverNoPayment(t *testing.T) {
+// TestOrderPaidWholeWithCredit: an order paid whole with credit says so and
+// never says there is no payment.
+func TestOrderPaidWholeWithCredit(t *testing.T) {
 	t.Parallel()
 	for _, locale := range []i18n.Locale{i18n.ZhHant, i18n.En} {
 		ctx := i18n.WithLocale(t.Context(), locale)

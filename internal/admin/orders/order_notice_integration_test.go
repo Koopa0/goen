@@ -23,7 +23,9 @@ func terminalNotice(t *testing.T, id uuid.UUID, want outbox.TerminalKind) {
 	admintest.AssertTerminalNotice(t, pool, id, want, false)
 }
 
-func TestTerminalCancellationNoticesFollowCommittedActor(t *testing.T) {
+// TestStore_AdvanceCancellationNotices: the terminal cancellation notices
+// follow the committed actor.
+func TestStore_AdvanceCancellationNotices(t *testing.T) {
 	ctx, _ := admintest.StaffContext(t, pool)
 	number, id, _ := admintest.PendingOrderHoldingStock(t, pool)
 	if _, err := admintest.OrderStore(pool, admintest.Refunder{}, nil, nil).Advance(ctx, number, "cancelled", uuid.NullUUID{}); err != nil {
@@ -40,7 +42,9 @@ func TestTerminalCancellationNoticesFollowCommittedActor(t *testing.T) {
 	}
 }
 
-func TestTerminalArrivalIsNotRequeuedAfterCompletionOrOutboxRetention(t *testing.T) {
+// TestStore_AdvanceArrivalNotRequeued: a terminal arrival notice is not
+// requeued after completion or after the outbox retention.
+func TestStore_AdvanceArrivalNotRequeued(t *testing.T) {
 	ctx, _ := admintest.StaffContext(t, pool)
 	number, id := pickingOrderHoldingStock(t)
 	s := admintest.OrderStore(pool, admintest.Refunder{}, nil, nil)
@@ -66,7 +70,9 @@ func TestTerminalArrivalIsNotRequeuedAfterCompletionOrOutboxRetention(t *testing
 	}
 }
 
-func TestFailedAdvanceRollsBackItsTerminalNotice(t *testing.T) {
+// TestStore_AdvanceRollbackNotice: a failed Advance rolls back its terminal
+// notice.
+func TestStore_AdvanceRollbackNotice(t *testing.T) {
 	number, id, _ := admintest.PendingOrderHoldingStock(t, pool)
 	ctx := requestid.With(user.NewContext(t.Context(), user.User{ID: uuid.NewString(), Role: user.RoleAdmin}), "missing-audit-actor")
 	if _, err := admintest.OrderStore(pool, admintest.Refunder{}, nil, nil).Advance(ctx, number, "cancelled", uuid.NullUUID{}); err == nil {
@@ -88,7 +94,9 @@ func TestFailedAdvanceRollsBackItsTerminalNotice(t *testing.T) {
 	}
 }
 
-func TestPickupCompletionQueuesCollectionWithoutADeliveryNotice(t *testing.T) {
+// TestStore_AdvancePickupCollection: completing a pickup order queues a
+// collection notice without a delivery notice.
+func TestStore_AdvancePickupCollection(t *testing.T) {
 	ctx, _ := admintest.StaffContext(t, pool)
 	number, id, _ := admintest.PendingOrderHoldingStock(t, pool)
 	if _, err := pool.Exec(t.Context(), `UPDATE orders SET shipping_version_id=v.id,shipping_method_code=sm.code,shipping_method_name=v.name FROM shipping_method_versions v JOIN shipping_methods sm ON sm.id=v.method_id WHERE orders.id=$1 AND sm.destination_kind='pickup_point'`, id); err != nil {

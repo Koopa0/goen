@@ -44,6 +44,7 @@ var migratedTestPackages = []string{
 	"internal/admin/health",
 	"internal/admin/messages",
 	"internal/admin/newsletters",
+	"internal/admin/orders",
 	"internal/admin/products",
 	"internal/admin/questions",
 	"internal/admin/refunds",
@@ -76,6 +77,8 @@ var migratedTestPackages = []string{
 	"internal/product/labelling",
 	"internal/shipping/postcode",
 	"internal/shoptime",
+	"internal/ui/chart",
+	"internal/ui/frame",
 	"internal/user",
 	"internal/web/clientip",
 	"internal/web/compress",
@@ -105,6 +108,16 @@ var testNameExceptions = map[string]map[string]string{
 		"TestClosedDatabaseWritesNotRefused":           "a rule across the back-office stores: it closes the database under products and shipping writes and asks that neither answers ErrRefused or ErrNotFound; its units are those stores' methods in other packages, and no identifier of package admin is one of them",
 		"TestEveryAdminQueueReachesBeyondItsFirstPage": "a rule across every back-office queue: it seeds 101 rows and follows each desk's next link through its own handler; the desks are other packages, and no identifier of package admin is its unit",
 		"TestEveryBackOfficeWriteLeavesATrail":         "a rule across the back-office stores: it runs one write of each (stock, product, credit, campaign and the rest) and counts an audit row for every action; the stores are other packages, and no identifier of package admin is its unit",
+	},
+	"internal/admin/orders": {
+		"TestDeskRefusalPOSTs":                     "a rule across the back-office desks: it posts real refusals to the banners, FAQ, media, products, returns, shipping, slides, stock and taxonomy handlers and asks that each keeps the draft and locates its form; those desks are other packages, and no identifier of package orders is its unit",
+		"TestEntry_LabelParcelArrival":             "the unit is audit.Entry.Label and EntityLabel (and the audit page that renders them) of package audit, which this package does not declare; moving the test there is a reorganisation this pass does not do",
+		"TestFulfillmentStatus_NextMatchesTrigger": "the unit is order.FulfillmentStatus.Next of package order, held against the orders_legal_transition trigger through the database; this package declares neither",
+		"TestNotFoundKeepsStaffInBackOffice":       "the unit is admin.NotFound, declared in package admin, driven through the campaigns, customers, media, orders and products desks; no identifier of package orders is its unit",
+		"TestRecipients_OfDelivered":               "the unit is notice.Recipients.Of of package notice (with the OrderTracking query beside it), which this package does not declare; the test lives here for the shipment fixtures",
+		"TestRecipients_OfNoParcel":                "the unit is notice.Recipients.Of of package notice, which this package does not declare; the test lives here for the order fixtures",
+		"TestRecipients_OfUndelivered":             "the unit is notice.Recipients.Of of package notice (with the OrderTracking query beside it), which this package does not declare; the test lives here for the shipment fixtures",
+		"TestTerminalOrderRecipient":               "the unit is the TerminalOrderRecipient query (a sqlc statement declared in internal/db), called directly through db.Queries, not a Go identifier of this package",
 	},
 	"internal/admin/products": {
 		"TestLocalizedNameAltText":   "the unit is the SQL function localized_name, which picks an image's alt text by the page's language; the test reads it through the pool after AttachImage stores the two texts, and calls no Go identifier of this package for the result",
@@ -155,6 +168,9 @@ var testNameExceptions = map[string]map[string]string{
 	"internal/shoptime": {
 		"TestAmbientFormat":   "its unit is ambientFormat, a helper declared in the guard's test file, not part of the package",
 		"TestNoAmbientFormat": "a repository rule: no .Format( call outside this package renders a time in the process's zone; it reads every source file, and no function of the package is its unit",
+	},
+	"internal/ui/frame": {
+		"TestDisclosuresWorkWithKeyboard": "its unit is the back office's content disclosures (the <details> behaviour of the desk stylesheet and goen.js), driven in a real browser by scripts/admin-disclosure-check.mjs against the health and twofactor pages; no identifier of this package declares them, and it uses frame.Page only as a fixture",
 	},
 }
 

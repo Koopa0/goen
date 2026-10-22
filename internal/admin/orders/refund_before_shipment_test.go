@@ -8,7 +8,9 @@ import (
 	"github.com/koopa0/goen/internal/ui/widget"
 )
 
-func TestRefundBeforeShipmentNoticesExplainTheNextAction(t *testing.T) {
+// TestNoticesRefundNextAction: the refund before shipment's notices explain the
+// next action.
+func TestNoticesRefundNextAction(t *testing.T) {
 	t.Parallel()
 	for query, key := range map[string]i18n.Key{
 		"paidcancel":    i18n.KeyAdminNoticePaidCancel,
@@ -37,7 +39,9 @@ func TestRefundBeforeShipmentNoticesExplainTheNextAction(t *testing.T) {
 	}
 }
 
-func TestRefundRecoveryNoticesDistinguishSettledMoney(t *testing.T) {
+// TestNoticesRefundRecovery: the refund recovery notices distinguish settled
+// money.
+func TestNoticesRefundRecovery(t *testing.T) {
 	t.Parallel()
 	for _, tt := range []struct {
 		name   string

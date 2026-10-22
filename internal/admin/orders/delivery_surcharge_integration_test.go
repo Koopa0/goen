@@ -143,7 +143,9 @@ func zoneRefusal(t *testing.T, err error, want i18n.Key) {
 	}
 }
 
-func TestDeliveryCorrectionRefusesEveryCrossZoneMove(t *testing.T) {
+// TestStore_CorrectDeliveryCrossZone: a delivery correction refuses every move
+// to another zone, whatever the two surcharges are.
+func TestStore_CorrectDeliveryCrossZone(t *testing.T) {
 	// Equal surcharges are still different zones: the rule is zone identity.
 	for _, tc := range []struct {
 		name             string
@@ -170,9 +172,11 @@ func TestDeliveryCorrectionRefusesEveryCrossZoneMove(t *testing.T) {
 	}
 }
 
-// The zone is what the order was priced in; the amount on its row is editable
-// afterwards, and zero deletes the row. Neither may move the boundary.
-func TestEditingASurchargeAfterTheOrderNeverOpensACrossZoneCorrection(t *testing.T) {
+// TestStore_CorrectDeliverySurchargeEdit: editing a surcharge after the order
+// never opens a cross-zone correction. The zone is what the order was priced
+// in; the amount on its row is editable afterwards, and zero deletes the row.
+// Neither may move the boundary.
+func TestStore_CorrectDeliverySurchargeEdit(t *testing.T) {
 	t.Run("island surcharge set to 0 after the order", func(t *testing.T) {
 		f := pricedDeliveryOrder(t, 10000, 0, 10000)
 		ctx, _ := admintest.StaffContext(t, pool)
@@ -202,7 +206,9 @@ func TestEditingASurchargeAfterTheOrderNeverOpensACrossZoneCorrection(t *testing
 	})
 }
 
-func TestSameZoneCorrectionRetainsFrozenPriceAfterMethodRetires(t *testing.T) {
+// TestStore_CorrectDeliveryFrozenPrice: a same-zone correction retains the
+// frozen price after the order's shipping method retires.
+func TestStore_CorrectDeliveryFrozenPrice(t *testing.T) {
 	f := pricedDeliveryOrder(t, 10000, 10000, 0)
 	ctx, _ := admintest.StaffContext(t, pool)
 	if _, err := pool.Exec(ctx, `UPDATE shipping_methods SET is_active=false WHERE id=$1`, f.method); err != nil {
@@ -223,7 +229,9 @@ func TestSameZoneCorrectionRetainsFrozenPriceAfterMethodRetires(t *testing.T) {
 	}
 }
 
-func TestDeliveryCorrectionCannotPlaceAnAbsentOriginalPostcode(t *testing.T) {
+// TestStore_CorrectDeliveryAbsentPostcode: a delivery correction cannot place
+// an address order whose original postcode is absent.
+func TestStore_CorrectDeliveryAbsentPostcode(t *testing.T) {
 	f := pricedDeliveryOrder(t, 0, 10000, 0)
 	ctx, _ := admintest.StaffContext(t, pool)
 	// Both destination groups are individually legal in storage. The method is
@@ -258,7 +266,9 @@ func postDeliveryWithStore(ctx context.Context, t *testing.T, s *orders.Store, n
 	return w
 }
 
-func TestDeliveryZoneRefusalPreservesFormInBothLanguages(t *testing.T) {
+// TestHandler_CorrectDeliveryZoneRefusal: a zone refusal of a delivery
+// correction preserves the form in both languages.
+func TestHandler_CorrectDeliveryZoneRefusal(t *testing.T) {
 	for _, locale := range []i18n.Locale{i18n.En, i18n.ZhHant} {
 		t.Run(string(locale), func(t *testing.T) {
 			f := pricedDeliveryOrder(t, 10000, 10000, 10000)
@@ -297,7 +307,9 @@ func waitForDeliveryLock(t *testing.T, blockerPID uint32) {
 	t.Fatal("correction did not wait for order lock")
 }
 
-func TestDeliveryCorrectionRechecksTerminalStateAfterLock(t *testing.T) {
+// TestStore_CorrectDeliveryTerminalLock: a delivery correction rechecks the
+// order's terminal state after it wins the lock.
+func TestStore_CorrectDeliveryTerminalLock(t *testing.T) {
 	for _, state := range []string{"shipped"} {
 		t.Run(state, func(t *testing.T) {
 			f := pricedDeliveryOrder(t, 0, 0, 0)
@@ -334,7 +346,9 @@ func TestDeliveryCorrectionRechecksTerminalStateAfterLock(t *testing.T) {
 	}
 }
 
-func TestDeliveryCorrectionReadsPostalAfterWaitingForPriorCorrection(t *testing.T) {
+// TestStore_CorrectDeliveryPostalAfterWait: a delivery correction reads the
+// postal code a prior correction committed while it waited.
+func TestStore_CorrectDeliveryPostalAfterWait(t *testing.T) {
 	f := pricedDeliveryOrder(t, 0, 10000, 0)
 	ctx, _ := admintest.StaffContext(t, pool)
 	blocker, err := pool.Begin(ctx)
@@ -364,7 +378,9 @@ func TestDeliveryCorrectionReadsPostalAfterWaitingForPriorCorrection(t *testing.
 	}
 }
 
-func TestMalformedDeliveryPostcodeIsAPostcodeError(t *testing.T) {
+// TestHandler_CorrectDeliveryBadPostcode: a malformed delivery postcode is
+// reported as a postcode error, not as a zone problem.
+func TestHandler_CorrectDeliveryBadPostcode(t *testing.T) {
 	f := pricedDeliveryOrder(t, 0, 10000, 0)
 	ctx, _ := admintest.StaffContext(t, pool)
 	ctx = i18n.WithLocale(ctx, i18n.En)
@@ -386,7 +402,9 @@ func TestMalformedDeliveryPostcodeIsAPostcodeError(t *testing.T) {
 	}
 }
 
-func TestDeliveryCorrectionNonPostalRefusalKeepsDraftAndSavedSummary(t *testing.T) {
+// TestHandler_CorrectDeliveryNonPostal: a non-postal refusal of a delivery
+// correction keeps the draft and the saved summary.
+func TestHandler_CorrectDeliveryNonPostal(t *testing.T) {
 	for _, locale := range []i18n.Locale{i18n.En, i18n.ZhHant} {
 		for _, tc := range []struct {
 			name    string
@@ -514,7 +532,9 @@ func deliveryPrivateSnapshot(t *testing.T, id uuid.UUID) string {
 	return snapshot
 }
 
-func TestDeliveryCorrectionStoreFailureDoesNotRefuseAField(t *testing.T) {
+// TestHandler_CorrectDeliveryStoreFailure: a store failure during a delivery
+// correction does not refuse a field.
+func TestHandler_CorrectDeliveryStoreFailure(t *testing.T) {
 	for _, locale := range []i18n.Locale{i18n.En, i18n.ZhHant} {
 		t.Run(string(locale), func(t *testing.T) {
 			f := pricedDeliveryOrder(t, 0, 0, 0)

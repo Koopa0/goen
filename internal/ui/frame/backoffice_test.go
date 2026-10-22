@@ -23,11 +23,11 @@ var backOfficeEntrances = map[string]string{
 	"the account page's nav": `<a class="goen-account__navitem" href="/admin">`,
 }
 
-// TestTheBackOfficeEntranceIsSiteWideChrome holds where the entrance LIVES. It
+// TestHeaderBackOfficeEntrance holds where the entrance LIVES. It
 // is the header, so it reaches a staff member on whatever page they are on —
 // putting it only on /account would make the shop's own catalogue the long way
 // round to the page that edits it.
-func TestTheBackOfficeEntranceIsSiteWideChrome(t *testing.T) {
+func TestHeaderBackOfficeEntrance(t *testing.T) {
 	t.Parallel()
 	base := i18n.WithLocale(t.Context(), i18n.ZhHant)
 
@@ -41,10 +41,10 @@ func TestTheBackOfficeEntranceIsSiteWideChrome(t *testing.T) {
 	}
 }
 
-// TestTheDesktopHeaderOffersTheBackOffice asserts what the bar itself offers, not
+// TestHeaderDesktopBackOfficeLink asserts what the bar itself offers, not
 // the drawer's copy: a staff member sees a visible text link to /admin with no
 // aria-label to override it, and both staff and customer keep the wishlist heart.
-func TestTheDesktopHeaderOffersTheBackOffice(t *testing.T) {
+func TestHeaderDesktopBackOfficeLink(t *testing.T) {
 	t.Parallel()
 	base := i18n.WithLocale(t.Context(), i18n.ZhHant)
 	const wishlist = `goen-header__action--wide" href="/account/wishlist"`

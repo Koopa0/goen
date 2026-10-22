@@ -14,10 +14,11 @@ import (
 	"github.com/koopa0/goen/internal/order"
 )
 
-// The trigger's legality check raises before every precondition (payment,
-// refund, invoice, parcels), so a refusal under any other constraint means the
-// transition table itself let the pair through.
-func TestNextIsTheTransitionsTheTriggerAllows(t *testing.T) {
+// TestFulfillmentStatus_NextMatchesTrigger: Next is the transitions the trigger
+// allows. The trigger's legality check raises before every precondition
+// (payment, refund, invoice, parcels), so a refusal under any other constraint
+// means the transition table itself let the pair through.
+func TestFulfillmentStatus_NextMatchesTrigger(t *testing.T) {
 	customer := admintest.CreditedAccount(t, pool, 0)
 	orderID := admintest.OrderForCustomer(t, pool, customer, 1000, false)
 

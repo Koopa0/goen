@@ -10,7 +10,8 @@ import (
 	"github.com/koopa0/goen/internal/i18n"
 )
 
-func TestOnlyTheStorefrontHeadOptsIntoOSTextScaling(t *testing.T) {
+// TestBaseAdminTextScaleMeta: only the storefront head opts into OS text scaling.
+func TestBaseAdminTextScaleMeta(t *testing.T) {
 	t.Parallel()
 	for _, locale := range []i18n.Locale{i18n.ZhHant, i18n.En} {
 		for _, surface := range []struct {

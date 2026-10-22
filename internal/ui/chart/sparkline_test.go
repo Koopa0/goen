@@ -5,7 +5,8 @@ import (
 	"testing"
 )
 
-func TestSparklineNeedsThreeDaysWithAValue(t *testing.T) {
+// TestNewSparklineNeedsThreeDays: sparkline needs three days with a value.
+func TestNewSparklineNeedsThreeDays(t *testing.T) {
 	t.Parallel()
 
 	for _, tc := range []struct {
@@ -23,7 +24,8 @@ func TestSparklineNeedsThreeDaysWithAValue(t *testing.T) {
 	}
 }
 
-func TestSparklineDrawsTheUnfinishedDayAsAnOutline(t *testing.T) {
+// TestNewSparklineUnfinishedDay: sparkline draws the unfinished day as an outline.
+func TestNewSparklineUnfinishedDay(t *testing.T) {
 	t.Parallel()
 
 	p := SparklineProps{
@@ -50,7 +52,8 @@ func TestSparklineDrawsTheUnfinishedDayAsAnOutline(t *testing.T) {
 	}
 }
 
-func TestSparklineScalesBothPeriodsTogetherAndSkipsZero(t *testing.T) {
+// TestNewSparklineScalesPeriods: sparkline scales both periods together and skips zero.
+func TestNewSparklineScalesPeriods(t *testing.T) {
 	t.Parallel()
 
 	p := SparklineProps{
