@@ -75,8 +75,8 @@ var assetReaders = map[string]string{
 	"internal/catalog/stepper_test.go#TestTheStepperNeverDisablesTheButtonThatHasFocus":      "T14e",
 }
 
-// TestOnlyListedTestsReadTheStyleSheetsAndScripts keeps tests from matching
-// the text of assets/css and assets/js.
+// TestOnlyListedTestsReadAssets keeps tests from matching the text of
+// assets/css and assets/js.
 //
 // A regular expression over a stylesheet fails when two declarations swap
 // places and stays green when a later rule overrides the one it checked; a
@@ -101,7 +101,7 @@ var assetReaders = map[string]string{
 //	    assets/js (listed at run time, not hard-coded);
 //	(c) a string literal that is exactly ".css", ".js", "css" or "js", the
 //	    spelling of a walk over the sheets.
-func TestOnlyListedTestsReadTheStyleSheetsAndScripts(t *testing.T) {
+func TestOnlyListedTestsReadAssets(t *testing.T) {
 	root := repoRoot(t)
 	embedded := embeddedSheetNames(t, root)
 	readers, parsed := assetReadersIn(t, root, embedded)

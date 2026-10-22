@@ -736,7 +736,7 @@ const restoreSession = async (session) => {
 // (orders_number_format). The serial is that number with the G, O and dash
 // that translate() strips from it in scripts/check-layout.sql, so it can be
 // shorter than the number it came from.
-// TestTheRouteKeyFoldsEveryOrderNumberTheShopDraws holds these two patterns to
+// TestRouteKeyFoldsOrderNumbers holds these two patterns to
 // both.
 const PER_RUN = [
   [/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/gi, '{id}'],
