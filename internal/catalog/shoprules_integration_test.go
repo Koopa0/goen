@@ -13,9 +13,12 @@ import (
 	"github.com/koopa0/goen/internal/i18n"
 )
 
+// TestHandler_ListingDeliveryNote holds that the department page states only
+// the delivery checkout offers.
+//
 // Checkout drops store pickup where the store map is not configured, so the
 // department page's free-delivery note must describe the home delivery it still offers.
-func TestTheDepartmentPageStatesOnlyTheDeliveryCheckoutOffers(t *testing.T) {
+func TestHandler_ListingDeliveryNote(t *testing.T) {
 	ctx := i18n.WithLocale(t.Context(), i18n.ZhHant)
 
 	// New versions, because shipping_method_versions is append-only. The fixture names its own fees.

@@ -9,12 +9,15 @@ import (
 	"github.com/koopa0/goen/internal/i18n"
 )
 
-// TestTheGalleryPicksWithoutScript holds the shape the colour swap and the CSS
-// both read: the radios and their labels are in the markup, and the first <img>
-// in #gallery is a stage shot. The layout gate reads `#gallery img` as the
-// photograph the page opens on, so a thumbnail ahead of it would pass every
-// other check and swap the wrong photograph.
-func TestTheGalleryPicksWithoutScript(t *testing.T) {
+// TestProductGalleryNoScript holds that the gallery picks a photograph without
+// script.
+//
+// It holds the shape the colour swap and the CSS both read: the radios and
+// their labels are in the markup, and the first <img> in #gallery is a stage
+// shot. The layout gate reads `#gallery img` as the photograph the page opens
+// on, so a thumbnail ahead of it would pass every other check and swap the
+// wrong photograph.
+func TestProductGalleryNoScript(t *testing.T) {
 	t.Parallel()
 
 	view := func(n int) *ProductView {
@@ -73,7 +76,9 @@ func TestTheGalleryPicksWithoutScript(t *testing.T) {
 	})
 }
 
-func TestAProductGalleryHasNoLazyPhotographAndReservesEveryBox(t *testing.T) {
+// TestProductGalleryReservesBoxes holds that a product gallery has no lazy
+// photograph and reserves every box.
+func TestProductGalleryReservesBoxes(t *testing.T) {
 	t.Parallel()
 	view := ProductView{Slug: "buds", Name: "Buds"}
 	for i := range 3 {

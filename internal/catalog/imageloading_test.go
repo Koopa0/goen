@@ -8,7 +8,9 @@ import (
 	"github.com/koopa0/goen/internal/ui/widget"
 )
 
-func TestADepartmentPageDoesNotLazyLoadItsFirstScreen(t *testing.T) {
+// TestListingFirstScreenEager holds that a department page does not lazy-load
+// its first screen.
+func TestListingFirstScreenEager(t *testing.T) {
 	t.Parallel()
 	ctx := i18n.WithLocale(t.Context(), i18n.ZhHant)
 	view := ListingView{
@@ -25,7 +27,7 @@ func TestADepartmentPageDoesNotLazyLoadItsFirstScreen(t *testing.T) {
 	}
 	tiles := tileImages(page)
 	// The first eight, the tile's eagerTiles, which stays unexported in ui/tile;
-	// TestTheFirstRowsOfAListingLoadsItsPhotographsEagerly counts the same eight.
+	// TestListingEagerFirstRows counts the same eight.
 	for i, tag := range tiles[:8] {
 		if strings.Contains(tag, `loading="lazy"`) {
 			t.Errorf("tile %d of the first screen is lazy: %s", i, tag)

@@ -35,7 +35,9 @@ type relatedRankingProduct struct {
 	variants   []relatedRankingVariant
 }
 
-func TestRelatedProductsRankContentBeforeRecency(t *testing.T) {
+// TestRelatedProductsRanking holds that related products rank content before
+// recency.
+func TestRelatedProductsRanking(t *testing.T) {
 	tests := []struct {
 		name      string
 		configure func(reference, older, newer *relatedRankingProduct)

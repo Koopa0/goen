@@ -6,10 +6,13 @@ import (
 	"testing"
 )
 
-// TestProductJSONLDIsValidAndSaysWhatMatters proves the block parses and carries
-// price, currency and availability. A malformed block is worse than none: a
-// crawler that chokes on it may discard the page's other signals too.
-func TestProductJSONLDIsValidAndSaysWhatMatters(t *testing.T) {
+// TestProductJSONLDValid holds that the product's JSON-LD block parses and says
+// what matters: price, currency and availability.
+//
+// It proves the block parses and carries price, currency and availability. A
+// malformed block is worse than none: a crawler that chokes on it may discard
+// the page's other signals too.
+func TestProductJSONLDValid(t *testing.T) {
 	v := &ProductView{
 		Slug: "pixelight-9", Name: "Pixelight 9 5G", Summary: "旗艦手機",
 		Brand: "Pixelight", SKU: "PXL-9-1-1",
@@ -61,12 +64,14 @@ func TestProductJSONLDIsValidAndSaysWhatMatters(t *testing.T) {
 	}
 }
 
-// TestJSONLDCannotEscapeItsScriptTag proves a product name cannot close the tag
-// it is written into. The block goes into a <script> with templ.Raw, so
-// anything closing the tag early would put attacker-controlled markup in the
-// document; encoding/json is what prevents it, and swapping it for fmt.Sprintf
-// would stop it being true.
-func TestJSONLDCannotEscapeItsScriptTag(t *testing.T) {
+// TestProductJSONLDScriptTag holds that a product name cannot close the script
+// tag the JSON-LD is written into.
+//
+// It proves a product name cannot close the tag it is written into. The block
+// goes into a <script> with templ.Raw, so anything closing the tag early would
+// put attacker-controlled markup in the document; encoding/json is what
+// prevents it, and swapping it for fmt.Sprintf would stop it being true.
+func TestProductJSONLDScriptTag(t *testing.T) {
 	v := &ProductView{
 		Slug: "x", Brand: "b", SKU: "s", PriceCents: 100,
 		Name: `</script><script>alert(1)</script>`,
@@ -107,7 +112,9 @@ func TestDollarsIsExact(t *testing.T) {
 	}
 }
 
-func TestProductJSONLDOmitsAnAbsentBrand(t *testing.T) {
+// TestProductJSONLDBrand holds that the JSON-LD omits an absent brand and names
+// a present one as a Brand.
+func TestProductJSONLDBrand(t *testing.T) {
 	for _, brand := range []string{"", "Maker"} {
 		view := ProductView{Slug: "generic", Name: "Generic", Brand: brand, SKU: "GENERIC", PriceCents: 10000}
 		var doc map[string]any

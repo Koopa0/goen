@@ -95,9 +95,12 @@ func headerSearchValue(html string) string {
 	return rest[:k]
 }
 
+// TestHandler_ListingDescendants holds that a department's listing includes the
+// products of its descendants.
+//
 // /c/accessories holds no products of its own; chargers and cases hold six
 // between them.
-func TestListingIncludesDescendants(t *testing.T) {
+func TestHandler_ListingDescendants(t *testing.T) {
 	code, body := get(t, "/c/accessories")
 	if code != http.StatusOK {
 		t.Fatalf("status = %d, want 200", code)
@@ -114,10 +117,13 @@ func TestListingIncludesDescendants(t *testing.T) {
 	}
 }
 
+// TestHandler_ListingEveryLevel holds that a department's listing reaches a
+// product at every level below it.
+//
 // tech > accessories > chargers is three levels: the department lists a product
 // two levels down, and a department of the general-merchandise catalogue lists
 // the products of its sub-categories.
-func TestDepartmentListingReachesEveryLevel(t *testing.T) {
+func TestHandler_ListingEveryLevel(t *testing.T) {
 	for slug, name := range map[string]string{
 		"tech":             "Aurora GaN 65W 充電器",
 		"books-stationery": "山茶十二月",
@@ -133,9 +139,12 @@ func TestDepartmentListingReachesEveryLevel(t *testing.T) {
 	}
 }
 
+// TestStore_ListingHeadChildren holds that the head offers the department's
+// children from every page under it.
+//
 // A department's head offers its children as chips, from the department itself
 // and from any sub-category under it, so a shopper in one sees the others.
-func TestTheHeadOffersTheDepartmentsChildrenFromEveryPageUnderIt(t *testing.T) {
+func TestStore_ListingHeadChildren(t *testing.T) {
 	// Tech is the department; accessories sits under it and chargers under that.
 	for _, slug := range []string{"tech", "accessories", "chargers"} {
 		view, err := catalog.NewStore(pool, slog.New(slog.DiscardHandler)).Listing(i18n.WithLocale(t.Context(), i18n.ZhHant), slug, catalog.Filters{})
@@ -153,9 +162,12 @@ func TestTheHeadOffersTheDepartmentsChildrenFromEveryPageUnderIt(t *testing.T) {
 	}
 }
 
+// TestStore_SitemapCategories holds that the sitemap names a department that
+// holds no product itself.
+//
 // A department holds no product itself, so the sitemap must judge it by the
 // products below it.
-func TestSitemapNamesADepartmentThatHoldsNoProductItself(t *testing.T) {
+func TestStore_SitemapCategories(t *testing.T) {
 	rows, err := catalog.NewStore(pool, slog.New(slog.DiscardHandler)).SitemapCategories(t.Context(), 100)
 	if err != nil {
 		t.Fatal(err)
@@ -171,7 +183,9 @@ func TestSitemapNamesADepartmentThatHoldsNoProductItself(t *testing.T) {
 	}
 }
 
-func TestUnknownCategoryIs404(t *testing.T) {
+// TestHandler_ListingUnknown holds that an unknown category answers 404 with no
+// product grid.
+func TestHandler_ListingUnknown(t *testing.T) {
 	code, body := get(t, "/c/no-such-category")
 	if code != http.StatusNotFound {
 		t.Fatalf("status = %d, want 404", code)
@@ -181,9 +195,12 @@ func TestUnknownCategoryIs404(t *testing.T) {
 	}
 }
 
+// TestStore_ListingFacetsOneVariant holds that the facets match one variant:
+// the stock and price filters must hold for the same variant.
+//
 // The fixture has a cheap sold-out variant and an expensive available one, so a
 // query checking the two conditions separately finds one variant for each.
-func TestFacetsMatchOneVariant(t *testing.T) {
+func TestStore_ListingFacetsOneVariant(t *testing.T) {
 	ctx := t.Context()
 	tx, err := pool.Begin(ctx)
 	if err != nil {
@@ -243,9 +260,12 @@ func TestFacetsMatchOneVariant(t *testing.T) {
 	}
 }
 
+// TestStore_ListingInStockSellable holds that the in-stock filter means
+// sellable.
+//
 // record_inventory_movement refuses a hold that would take stock below
 // safety_stock, so a variant sitting at the floor has stock and cannot be sold.
-func TestInStockMeansSellable(t *testing.T) {
+func TestStore_ListingInStockSellable(t *testing.T) {
 	ctx := t.Context()
 	tx, err := pool.Begin(ctx)
 	if err != nil {
@@ -293,7 +313,9 @@ func TestInStockMeansSellable(t *testing.T) {
 	}
 }
 
-func TestSearchEscapesWildcards(t *testing.T) {
+// TestHandler_SearchWildcards holds that the search escapes the wildcards of
+// its query.
+func TestHandler_SearchWildcards(t *testing.T) {
 	// The catalogue states "100%" in three products' text, so a bare % legitimately
 	// finds exactly those; an unescaped one would find every product.
 	code, body := get(t, "/search?q=%25")
@@ -322,7 +344,9 @@ func TestSearchEscapesWildcards(t *testing.T) {
 	}
 }
 
-func TestSearchPageKeepsTheHeaderInputInSyncWithTheHeading(t *testing.T) {
+// TestHandler_SearchHeaderInput holds that the search page keeps the header
+// input in sync with the heading.
+func TestHandler_SearchHeaderInput(t *testing.T) {
 	for _, locale := range []i18n.Locale{i18n.En, i18n.ZhHant} {
 		t.Run(locale.Tag(), func(t *testing.T) {
 			for _, tc := range []struct {
@@ -353,8 +377,11 @@ func TestSearchPageKeepsTheHeaderInputInSyncWithTheHeading(t *testing.T) {
 	}
 }
 
+// TestHandler_SearchLatinChinese holds that the search finds both Latin and
+// Chinese text.
+//
 // Both scripts match by substring.
-func TestSearchFindsLatinAndChinese(t *testing.T) {
+func TestHandler_SearchLatinChinese(t *testing.T) {
 	for _, tc := range []struct{ q, want string }{
 		{"pixel", "Pixelight"},
 		{"耳機", "Koto"},
@@ -372,7 +399,8 @@ func TestSearchFindsLatinAndChinese(t *testing.T) {
 	}
 }
 
-func TestListingPriceIsBuyable(t *testing.T) {
+// TestStore_ListingPriceBuyable holds that a listing's price is a buyable one.
+func TestStore_ListingPriceBuyable(t *testing.T) {
 	ctx := t.Context()
 	tx, err := pool.Begin(ctx)
 	if err != nil {
@@ -481,7 +509,9 @@ func plainSlug(t *testing.T) string {
 	return slug
 }
 
-func TestComparisonIsBoundedDeduplicatedAndForgiving(t *testing.T) {
+// TestStore_CompareBounded holds that a comparison is bounded, deduplicated and
+// forgiving.
+func TestStore_CompareBounded(t *testing.T) {
 	ctx := t.Context()
 	s := catalog.NewStore(pool, slog.New(slog.DiscardHandler))
 	// One past pages.MaxCompare, so the ceiling cases follow the constant.
@@ -517,8 +547,11 @@ func TestComparisonIsBoundedDeduplicatedAndForgiving(t *testing.T) {
 	}
 }
 
+// TestStore_CompareSharedLabel holds that two specifications that share a
+// translation stay two rows.
+//
 // Both locales: only the English labels collide, so Chinese is the control.
-func TestTwoSpecsThatShareATranslationStayTwoRows(t *testing.T) {
+func TestStore_CompareSharedLabel(t *testing.T) {
 	ctx := t.Context()
 	tx, err := pool.Begin(ctx)
 	if err != nil {
@@ -573,7 +606,9 @@ func TestTwoSpecsThatShareATranslationStayTwoRows(t *testing.T) {
 	}
 }
 
-func TestTheColumnsKeepTheOrderTheURLNamed(t *testing.T) {
+// TestStore_CompareColumnOrder holds that the columns keep the order the URL
+// named.
+func TestStore_CompareColumnOrder(t *testing.T) {
 	ctx := t.Context()
 	s := catalog.NewStore(pool, slog.New(slog.DiscardHandler))
 	slugs := activeSlugs(t, 3)
@@ -599,7 +634,9 @@ func TestTheColumnsKeepTheOrderTheURLNamed(t *testing.T) {
 	}
 }
 
-func TestSharedSpecsComeFirstAndGapsAreVisible(t *testing.T) {
+// TestStore_CompareSharedFirst holds that shared specifications come first and
+// gaps are visible.
+func TestStore_CompareSharedFirst(t *testing.T) {
 	ctx := t.Context()
 	s := catalog.NewStore(pool, slog.New(slog.DiscardHandler))
 	a, b := twoProductsWithSpecs(t)
@@ -715,9 +752,12 @@ func twoProductsWithSpecs(t *testing.T) (first, second string) {
 	return first, second
 }
 
+// TestStore_SearchEnglishName holds that the search finds a product by its
+// English name.
+//
 // Matching only the localized column would make the catalogue searchable in one
 // language at a time.
-func TestSearchFindsAProductByItsEnglishName(t *testing.T) {
+func TestStore_SearchEnglishName(t *testing.T) {
 	s := catalog.NewStore(pool, slog.New(slog.DiscardHandler))
 	ctx := t.Context()
 
@@ -747,9 +787,12 @@ func TestSearchFindsAProductByItsEnglishName(t *testing.T) {
 	}
 }
 
+// TestHandler_SearchSpecification holds that the search finds a product by its
+// specification.
+//
 // Specifications are searched in both languages, and a token present only in
 // product_specs matches the product.
-func TestSearchFindsAProductByItsSpecification(t *testing.T) {
+func TestHandler_SearchSpecification(t *testing.T) {
 	code, body := get(t, "/search?q=5000mAh")
 	if code != http.StatusOK {
 		t.Fatalf("status = %d, want 200", code)
@@ -759,10 +802,13 @@ func TestSearchFindsAProductByItsSpecification(t *testing.T) {
 	}
 }
 
+// TestStore_ListingTileVariant holds that a listing tile shows a variant the
+// price filters accept.
+//
 // The tile states a price, the "from" flag and the sale price of a variant the
 // filters accepted; otherwise a product that qualifies through one variant shows
 // another variant's price, outside the range the shopper asked for.
-func TestListingTileShowsAVariantThePriceFiltersAccept(t *testing.T) {
+func TestStore_ListingTileVariant(t *testing.T) {
 	ctx := t.Context()
 	tx, err := pool.Begin(ctx)
 	if err != nil {
@@ -819,9 +865,12 @@ func TestListingTileShowsAVariantThePriceFiltersAccept(t *testing.T) {
 	}
 }
 
+// TestStore_ListingSearchCompareBox holds that only the departments that
+// compare carry the compare box, in a listing and in a search.
+//
 // Only the tech department compares in the seed. Phones sit one level down and
 // inherit it; books sit one level down under a department that does not.
-func TestOnlyTheDepartmentsThatCompareCarryTheBox(t *testing.T) {
+func TestStore_ListingSearchCompareBox(t *testing.T) {
 	ctx := t.Context()
 	s := catalog.NewStore(pool, slog.New(slog.DiscardHandler))
 	for slug, want := range map[string]bool{"phones": true, "accessories": true, "books-stationery": false, "books": false} {
@@ -866,9 +915,12 @@ func TestOnlyTheDepartmentsThatCompareCarryTheBox(t *testing.T) {
 	}
 }
 
+// TestStore_ListingCompareTrail holds that comparison follows the department
+// down its trail.
+//
 // The answer is the nearest one up the trail, so turning a department off turns
 // its shelves off with it, and turning another on reaches its sub-categories.
-func TestComparisonFollowsTheDepartmentDownItsTrail(t *testing.T) {
+func TestStore_ListingCompareTrail(t *testing.T) {
 	ctx := t.Context()
 	tx, err := pool.Begin(ctx)
 	if err != nil {
@@ -897,9 +949,12 @@ func TestComparisonFollowsTheDepartmentDownItsTrail(t *testing.T) {
 	}
 }
 
+// TestStore_CompareEmptyStart holds that an empty comparison points at a
+// department that offers it.
+//
 // With nothing chosen, the comparison page points at a department that offers
 // the box to tick, not at the home page, and at none when no department does.
-func TestAnEmptyComparisonPointsAtADepartmentThatOffersIt(t *testing.T) {
+func TestStore_CompareEmptyStart(t *testing.T) {
 	ctx := t.Context()
 	tx, err := pool.Begin(ctx)
 	if err != nil {
@@ -931,9 +986,12 @@ func TestAnEmptyComparisonPointsAtADepartmentThatOffersIt(t *testing.T) {
 	}
 }
 
+// TestStore_CompareOneSuggestions holds that a comparison of one suggests its
+// shelf, nearest in price first.
+//
 // A comparison of one offers the others on its own shelf, nearest in price
 // first, at most six, never itself and never a product from another shelf.
-func TestAComparisonOfOneSuggestsItsShelfNearestPriceFirst(t *testing.T) {
+func TestStore_CompareOneSuggestions(t *testing.T) {
 	ctx := t.Context()
 	tx, err := pool.Begin(ctx)
 	if err != nil {
@@ -1028,7 +1086,9 @@ func discountedProduct(t *testing.T) string {
 	return slug
 }
 
-func TestACardIsOnSaleOnlyWhileACampaignRunsWithSomethingToBuy(t *testing.T) {
+// TestStore_NewestProductsOnSale holds that a card is on sale only while a
+// campaign runs with something to buy.
+func TestStore_NewestProductsOnSale(t *testing.T) {
 	ctx := t.Context()
 	s := catalog.NewStore(pool, slog.New(slog.DiscardHandler))
 

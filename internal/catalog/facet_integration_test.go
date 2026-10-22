@@ -13,9 +13,12 @@ import (
 	"github.com/koopa0/goen/internal/catalog"
 )
 
+// TestStore_ListingBrandCounts holds that brand counts follow the other filters
+// and not the brand filter.
+//
 // A brand's count is what choosing it would show with the other filters kept,
 // and a chosen brand the other filters empty stays listed so it can be unchosen.
-func TestBrandCountsFollowTheOtherFiltersAndNotTheBrandFilter(t *testing.T) {
+func TestStore_ListingBrandCounts(t *testing.T) {
 	ctx := t.Context()
 	tx, err := pool.Begin(ctx)
 	if err != nil {

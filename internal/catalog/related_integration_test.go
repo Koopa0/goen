@@ -20,7 +20,9 @@ const rootDepartmentOf = `
 	)
 	SELECT slug FROM up WHERE parent_id IS NULL`
 
-func TestRelatedProductsStayInTheDepartmentAndLeadWithTheirSubCategory(t *testing.T) {
+// TestStore_ProductRelated holds that related products stay in the department
+// and lead with their subcategory.
+func TestStore_ProductRelated(t *testing.T) {
 	t.Parallel()
 	rows, err := pool.Query(t.Context(), `SELECT slug, category_id FROM products WHERE status = 'active' ORDER BY slug`)
 	if err != nil {
@@ -96,7 +98,8 @@ func TestRelatedProductsStayInTheDepartmentAndLeadWithTheirSubCategory(t *testin
 	}
 }
 
-func TestAProductLoadsItsDepartmentsTone(t *testing.T) {
+// TestStore_ProductTone holds that a product loads its department's tone.
+func TestStore_ProductTone(t *testing.T) {
 	t.Parallel()
 	view, err := catalog.NewStore(pool, slog.New(slog.DiscardHandler)).Product(t.Context(), "nimbus-buds-pro", catalog.Selection{})
 	if err != nil {

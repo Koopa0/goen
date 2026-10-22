@@ -9,10 +9,13 @@ import (
 	"github.com/koopa0/goen/internal/shoptime"
 )
 
+// TestProductReviewStarsHidden holds that the product page hides a review's
+// star glyphs from assistive technology and says the score in words.
+//
 // A span has no role, so an aria-label on one is ignored and the glyphs are
 // read out as five black stars before the score is read again from the
 // paragraph beside them. The glyphs are hidden and the paragraph is the name.
-func TestReviewStarsAreHiddenFromAssistiveTechnology(t *testing.T) {
+func TestProductReviewStarsHidden(t *testing.T) {
 	t.Parallel()
 
 	v := ProductView{

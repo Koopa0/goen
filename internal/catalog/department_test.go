@@ -34,7 +34,9 @@ func sharedRows(n, products int) []CompareRow {
 	return rows
 }
 
-func TestAComparisonPreviewNeedsTwoProductsAndThreeSharedRows(t *testing.T) {
+// TestNewComparePreviewMinimum holds that a comparison preview needs two
+// products and three shared rows.
+func TestNewComparePreviewMinimum(t *testing.T) {
 	t.Parallel()
 	for _, tt := range []struct {
 		name string
@@ -52,7 +54,9 @@ func TestAComparisonPreviewNeedsTwoProductsAndThreeSharedRows(t *testing.T) {
 	}
 }
 
-func TestAComparisonPreviewHoldsThreeProductsAndSixRows(t *testing.T) {
+// TestNewComparePreviewLimits holds that a comparison preview holds at most
+// three products and six rows.
+func TestNewComparePreviewLimits(t *testing.T) {
 	t.Parallel()
 	got, ok := NewComparePreview("Laptops", previewOf(4, sharedRows(8, 4)...))
 	if !ok {
@@ -71,7 +75,9 @@ func TestAComparisonPreviewHoldsThreeProductsAndSixRows(t *testing.T) {
 	}
 }
 
-func TestTheComparisonPreviewLeavesOutWhatIsNotASpecification(t *testing.T) {
+// TestComparePreviewSpecsOnly holds that the comparison preview leaves out what
+// is not a specification.
+func TestComparePreviewSpecsOnly(t *testing.T) {
 	t.Parallel()
 	ctx := i18n.WithLocale(t.Context(), i18n.En)
 	preview, _ := NewComparePreview("Laptops", previewOf(2, sharedRows(3, 2)...))
@@ -88,7 +94,9 @@ func TestTheComparisonPreviewLeavesOutWhatIsNotASpecification(t *testing.T) {
 	}
 }
 
-func TestTheCampaignNoticeAppearsOnlyWithACampaign(t *testing.T) {
+// TestListingCampaignNotice holds that the campaign notice appears only with a
+// campaign.
+func TestListingCampaignNotice(t *testing.T) {
 	t.Parallel()
 	ctx := i18n.WithLocale(t.Context(), i18n.ZhHant)
 	view := ListingView{Slug: "c", Name: "Books"}
@@ -107,9 +115,11 @@ func TestTheCampaignNoticeAppearsOnlyWithACampaign(t *testing.T) {
 	}
 }
 
+// TestDepartmentNoticeEnd holds that a campaign notice says its end in words.
+//
 // The notice is one line of words: its last day and what is left are said, and
 // nothing is drawn. The arrow keeps to the last words with a no-break space.
-func TestACampaignNoticeSaysItsEndInWords(t *testing.T) {
+func TestDepartmentNoticeEnd(t *testing.T) {
 	t.Parallel()
 	cst := time.FixedZone("CST", 8*3600)
 	now := time.Date(2026, 10, 9, 12, 0, 0, 0, cst)
@@ -175,8 +185,11 @@ func TestACampaignNoticeSaysItsEndInWords(t *testing.T) {
 	}
 }
 
+// TestListingNoticeLastRow holds that the campaign notice is the band's last
+// row.
+//
 // The notice is the band's last row, on the department's tone, not a strip under it.
-func TestTheCampaignNoticeIsTheBandsLastRow(t *testing.T) {
+func TestListingNoticeLastRow(t *testing.T) {
 	t.Parallel()
 	ctx := i18n.WithLocale(t.Context(), i18n.ZhHant)
 	view := ListingView{Slug: "c", Name: "Books", Theme: &Theme{Tone: tone.Sage, Photo: widget.Photo{URL: "/d.webp"}}}
@@ -204,7 +217,9 @@ func TestTheCampaignNoticeIsTheBandsLastRow(t *testing.T) {
 	}
 }
 
-func TestTheEditorialSlotHoldsTheFirstThatApplies(t *testing.T) {
+// TestDepartmentHead_Slot holds that the editorial slot holds the first that
+// applies.
+func TestDepartmentHead_Slot(t *testing.T) {
 	t.Parallel()
 	ctx := i18n.WithLocale(t.Context(), i18n.ZhHant)
 	preview, _ := NewComparePreview("Laptops", previewOf(2, sharedRows(3, 2)...))
@@ -235,7 +250,9 @@ func TestTheEditorialSlotHoldsTheFirstThatApplies(t *testing.T) {
 	}
 }
 
-func TestAComparableDepartmentSaysSoOnItsPage(t *testing.T) {
+// TestListingComparableAttr holds that a comparable department says so on its
+// page.
+func TestListingComparableAttr(t *testing.T) {
 	t.Parallel()
 	ctx := i18n.WithLocale(t.Context(), i18n.En)
 	for _, offered := range []bool{true, false} {
@@ -247,7 +264,9 @@ func TestAComparableDepartmentSaysSoOnItsPage(t *testing.T) {
 	}
 }
 
-func TestTheDepartmentFrontIsTheUnfilteredFirstPage(t *testing.T) {
+// TestListingView_IsFront holds that the department front is the unfiltered
+// first page.
+func TestListingView_IsFront(t *testing.T) {
 	t.Parallel()
 	for _, tt := range []struct {
 		name string

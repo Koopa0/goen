@@ -7,9 +7,11 @@ import (
 	"github.com/koopa0/goen/internal/i18n"
 )
 
-// TestAProductWithNothingLeftSaysSo: the button says 已售完 when nothing is
-// buyable, whether every option is gone or only the chosen combination.
-func TestAProductWithNothingLeftSaysSo(t *testing.T) {
+// TestProductNothingLeft holds that a product with nothing left says so.
+//
+// The button says 已售完 when nothing is buyable, whether every option is gone or
+// only the chosen combination.
+func TestProductNothingLeft(t *testing.T) {
 	t.Parallel()
 	ctx := i18n.WithLocale(t.Context(), i18n.ZhHant)
 	gone := i18n.T(ctx, i18n.KeySoldOut)
@@ -45,10 +47,13 @@ func TestAProductWithNothingLeftSaysSo(t *testing.T) {
 	}
 }
 
-// TestAProductWithNoReviewsCanReceiveItsFirst holds a bootstrap deadlock: the
-// form that writes a review lives inside the reviews section, so gating that
-// section on RatingCount > 0 leaves a new product unable to receive its first.
-func TestAProductWithNoReviewsCanReceiveItsFirst(t *testing.T) {
+// TestProductFirstReview holds that a product with no reviews can receive its
+// first.
+//
+// It holds a bootstrap deadlock: the form that writes a review lives inside the
+// reviews section, so gating that section on RatingCount > 0 leaves a new
+// product unable to receive its first.
+func TestProductFirstReview(t *testing.T) {
 	t.Parallel()
 	ctx := i18n.WithLocale(t.Context(), i18n.ZhHant)
 
@@ -81,10 +86,13 @@ func TestAProductWithNoReviewsCanReceiveItsFirst(t *testing.T) {
 	}
 }
 
-// TestQAAskSurface holds the three Q&A states as one matrix: signed-out
-// visitors get a return to #questions, signed-in visitors get the form
-// without a sign-in hint, and a refused draft stays in the textarea.
-func TestQAAskSurface(t *testing.T) {
+// TestProductAskStates holds the three Q&A states of the product page as one
+// matrix.
+//
+// It holds the three Q&A states as one matrix: signed-out visitors get a return
+// to #questions, signed-in visitors get the form without a sign-in hint, and a
+// refused draft stays in the textarea.
+func TestProductAskStates(t *testing.T) {
 	t.Parallel()
 	ctx := i18n.WithLocale(t.Context(), i18n.ZhHant)
 

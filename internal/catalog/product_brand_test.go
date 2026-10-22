@@ -12,7 +12,9 @@ import (
 	"github.com/koopa0/goen/internal/ui/tile"
 )
 
-func TestProductViewsOmitAnAbsentBrand(t *testing.T) {
+// TestProductCompareAbsentBrand holds that the product page, the product tile
+// and the comparison omit an absent brand.
+func TestProductCompareAbsentBrand(t *testing.T) {
 	for _, locale := range []i18n.Locale{i18n.ZhHant, i18n.En} {
 		for _, brand := range []string{"", "Maker"} {
 			view := ProductView{Slug: "generic", Name: "Generic", Brand: brand, VariantID: "generic-variant"}
@@ -56,7 +58,9 @@ func TestProductViewsOmitAnAbsentBrand(t *testing.T) {
 	}
 }
 
-func TestAnUnbrandedComparisonCandidateHasNoBrandSeparator(t *testing.T) {
+// TestComparePickerNoBrand holds that an unbranded comparison candidate has no
+// brand separator.
+func TestComparePickerNoBrand(t *testing.T) {
 	view := CompareView{Candidates: []CompareCandidate{{Slug: "generic", Name: "Generic"}}}
 	body := renderToString(t, comparePicker(view))
 	if strings.Contains(body, "·") {

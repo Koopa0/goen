@@ -7,9 +7,12 @@ import (
 	"testing"
 )
 
+// TestHandler_ListingCleanAddress holds that a listing form submitted untouched
+// lands on a clean address.
+//
 // An untouched filter form submits min_price=&max_price=&sort=; none of it
 // belongs in an address a shopper shares.
-func TestAListingFormSubmittedUntouchedLandsOnACleanAddress(t *testing.T) {
+func TestHandler_ListingCleanAddress(t *testing.T) {
 	t.Parallel()
 	h := &Handler{store: &Store{}, log: slog.New(slog.DiscardHandler)}
 	req := httptest.NewRequestWithContext(t.Context(), http.MethodGet, "/c/audio?brand=aurora&min_price=&max_price=&sort=", http.NoBody)
@@ -20,9 +23,12 @@ func TestAListingFormSubmittedUntouchedLandsOnACleanAddress(t *testing.T) {
 	}
 }
 
+// TestHandler_SearchBlankQuery holds that a search form submitted blank keeps
+// only its query.
+//
 // A search box submitted blank is still a search: its q stays in the address
 // and the filters beside it, which are empty, go.
-func TestASearchFormSubmittedBlankKeepsOnlyItsQuery(t *testing.T) {
+func TestHandler_SearchBlankQuery(t *testing.T) {
 	t.Parallel()
 	h := &Handler{store: &Store{}, log: slog.New(slog.DiscardHandler)}
 	req := httptest.NewRequestWithContext(t.Context(), http.MethodGet, "/search?q=&min_price=&sort=", http.NoBody)

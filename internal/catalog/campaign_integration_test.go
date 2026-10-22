@@ -11,7 +11,9 @@ import (
 	"github.com/koopa0/goen/internal/catalog"
 )
 
-func TestAProductPageNamesTheCampaignOnlyWhileItRuns(t *testing.T) {
+// TestStore_ProductCampaign holds that Product names a campaign on the product
+// only while the campaign runs.
+func TestStore_ProductCampaign(t *testing.T) {
 	ctx := t.Context()
 	slug := "campaign-" + uuid.NewString()
 	if _, err := pool.Exec(ctx, `

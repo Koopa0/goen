@@ -14,7 +14,9 @@ import (
 	"github.com/koopa0/goen/internal/catalog"
 )
 
-func TestSearchOrdersExplicitFieldRelevanceBeforeRecency(t *testing.T) {
+// TestStore_SearchFieldRelevance holds that Search orders explicit field
+// relevance before recency.
+func TestStore_SearchFieldRelevance(t *testing.T) {
 	ctx := t.Context()
 	tx, err := pool.Begin(ctx)
 	if err != nil {
@@ -70,7 +72,9 @@ func TestSearchOrdersExplicitFieldRelevanceBeforeRecency(t *testing.T) {
 	}
 }
 
-func TestSearchRelevanceTiesUsePublicationThenIdentity(t *testing.T) {
+// TestStore_SearchTies holds that relevance ties in Search are broken by
+// publication, then identity.
+func TestStore_SearchTies(t *testing.T) {
 	ctx := t.Context()
 	tx, err := pool.Begin(ctx)
 	if err != nil {
@@ -115,11 +119,14 @@ func TestSearchRelevanceTiesUsePublicationThenIdentity(t *testing.T) {
 	}
 }
 
+// TestStore_SearchNameSummaryArms holds that Search ranks the Chinese name arm
+// and the English summary arm.
+//
 // The Chinese name column and the English summary column each carry a ranking
 // arm of their own. Every product here leaves the other language empty, so
 // only the arm under test can place it, and each one is older than the
 // products below it: recency alone would order them the other way round.
-func TestSearchRanksTheChineseNameAndEnglishSummaryArms(t *testing.T) {
+func TestStore_SearchNameSummaryArms(t *testing.T) {
 	ctx := t.Context()
 	tx, err := pool.Begin(ctx)
 	if err != nil {
@@ -173,7 +180,9 @@ func TestSearchRanksTheChineseNameAndEnglishSummaryArms(t *testing.T) {
 	}
 }
 
-func TestSearchFindsAProductByItsCategoryNameAndRanksItAboveASummaryMention(t *testing.T) {
+// TestStore_SearchCategoryName holds that Search finds a product by its
+// category name and ranks it above a summary mention.
+func TestStore_SearchCategoryName(t *testing.T) {
 	ctx := t.Context()
 	tx, err := pool.Begin(ctx)
 	if err != nil {
@@ -236,7 +245,9 @@ func TestSearchFindsAProductByItsCategoryNameAndRanksItAboveASummaryMention(t *t
 	}
 }
 
-func TestSearchFindsAProductByAnAncestorCategoryName(t *testing.T) {
+// TestStore_SearchAncestorCategory holds that Search finds a product by an
+// ancestor category name.
+func TestStore_SearchAncestorCategory(t *testing.T) {
 	ctx := t.Context()
 	tx, err := pool.Begin(ctx)
 	if err != nil {
@@ -284,7 +295,9 @@ func TestSearchFindsAProductByAnAncestorCategoryName(t *testing.T) {
 	}
 }
 
-func TestSearchRequiresEveryTermAcrossFieldsInAnyOrder(t *testing.T) {
+// TestStore_SearchEveryTerm holds that Search requires every term across fields
+// in any order.
+func TestStore_SearchEveryTerm(t *testing.T) {
 	ctx := t.Context()
 	tx, err := pool.Begin(ctx)
 	if err != nil {
@@ -367,7 +380,9 @@ func insertSearchFixture(t *testing.T, tx pgx.Tx, name, summary string, priceCen
 	return slug
 }
 
-func TestSearchRanksTheWholeQueryInAnyNameAboveTheTermsInOrderApart(t *testing.T) {
+// TestStore_SearchWholeQuery holds that Search ranks the whole query in any
+// name above the terms found apart.
+func TestStore_SearchWholeQuery(t *testing.T) {
 	ctx := t.Context()
 	tx, err := pool.Begin(ctx)
 	if err != nil {
@@ -398,7 +413,9 @@ func TestSearchRanksTheWholeQueryInAnyNameAboveTheTermsInOrderApart(t *testing.T
 	}
 }
 
-func TestSearchSortReordersAndNewestProductsReadsTheLatestPublished(t *testing.T) {
+// TestStore_SearchSortNewest holds that the sort of Search reorders results and
+// NewestProducts reads the latest published.
+func TestStore_SearchSortNewest(t *testing.T) {
 	ctx := t.Context()
 	tx, err := pool.Begin(ctx)
 	if err != nil {
@@ -441,7 +458,9 @@ func TestSearchSortReordersAndNewestProductsReadsTheLatestPublished(t *testing.T
 	}
 }
 
-func TestSearchHeadphonesFindsTheOverEarAndBudsThroughTheirCategory(t *testing.T) {
+// TestStore_SearchHeadphones holds that searching for headphones finds the
+// over-ear set and the buds through their category.
+func TestStore_SearchHeadphones(t *testing.T) {
 	ctx := t.Context()
 	view, err := catalog.NewStore(pool, slog.New(slog.DiscardHandler)).Search(ctx, catalog.SearchPattern("headphones"), catalog.SortRelevance, 1)
 	if err != nil {

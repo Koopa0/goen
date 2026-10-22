@@ -5,9 +5,13 @@ import (
 	"testing"
 )
 
-// TestTheProductPageAddsToTheComparisonInTheAddress: the control extends the
-// comparison the reader arrived with, and says so when there is no room.
-func TestTheProductPageAddsToTheComparisonInTheAddress(t *testing.T) {
+// TestProductView_CompareHref holds that the product page adds to the
+// comparison in the address: CompareHref extends the comparison the reader
+// arrived with and ComparingFull says when there is no room.
+//
+// The control extends the comparison the reader arrived with, and says so when
+// there is no room.
+func TestProductView_CompareHref(t *testing.T) {
 	t.Parallel()
 	v := &ProductView{Slug: "c", Comparing: []string{"a", "b"}}
 	if got, want := v.CompareHref(), "/compare?p=a&p=b&p=c"; got != want {
@@ -25,9 +29,11 @@ func TestTheProductPageAddsToTheComparisonInTheAddress(t *testing.T) {
 	}
 }
 
-// TestTheProductPageSaysWhenTheComparisonIsFull: the add control disappears at
-// the maximum, so the page has to say why.
-func TestTheProductPageSaysWhenTheComparisonIsFull(t *testing.T) {
+// TestProductComparisonFull holds that the product page says when the
+// comparison is full.
+//
+// The add control disappears at the maximum, so the page has to say why.
+func TestProductComparisonFull(t *testing.T) {
 	t.Parallel()
 	v := &ProductView{Slug: "z", Comparable: true}
 	for i := range MaxCompare {
@@ -39,10 +45,13 @@ func TestTheProductPageSaysWhenTheComparisonIsFull(t *testing.T) {
 	}
 }
 
-// TestTheProductPageOffersComparisonOnlyWhereTheDepartmentDoes: the control is
-// the department's to give. Where it is given it sits with the specs and not in
-// the buy box; where it is not, nothing on the page leads to /compare.
-func TestTheProductPageOffersComparisonOnlyWhereTheDepartmentDoes(t *testing.T) {
+// TestProductComparisonOffered holds that the product page offers comparison
+// only where its department does.
+//
+// The control is the department's to give. Where it is given it sits with the
+// specs and not in the buy box; where it is not, nothing on the page leads to
+// /compare.
+func TestProductComparisonOffered(t *testing.T) {
 	t.Parallel()
 	view := func(comparable bool) *ProductView {
 		return &ProductView{
@@ -73,9 +82,11 @@ func TestTheProductPageOffersComparisonOnlyWhereTheDepartmentDoes(t *testing.T) 
 	}
 }
 
-// TestTheComparisonControlFallsBackWhenThereAreNoSpecs: it must not vanish with
-// the specs accordion it normally sits in.
-func TestTheComparisonControlFallsBackWhenThereAreNoSpecs(t *testing.T) {
+// TestProductComparisonNoSpecs holds that the comparison control falls back to
+// the buy box when there are no specifications.
+//
+// It must not vanish with the specs accordion it normally sits in.
+func TestProductComparisonNoSpecs(t *testing.T) {
 	t.Parallel()
 	v := &ProductView{Name: "N", Slug: "n", Comparable: true, SelectionOK: true}
 	if html := renderToString(t, Product(ProductMeta(v), v)); !strings.Contains(html, `href="/compare?p=n"`) {

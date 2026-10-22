@@ -15,7 +15,9 @@ import (
 	"github.com/koopa0/goen/internal/i18n"
 )
 
-func TestListingAndSearchRedirectPastLastPage(t *testing.T) {
+// TestHandler_ListingSearchPastLast holds that the listing and the search
+// redirect a page past the last to the last page.
+func TestHandler_ListingSearchPastLast(t *testing.T) {
 	store := catalog.NewStore(pool, slog.New(slog.DiscardHandler))
 	ctx := i18n.WithLocale(t.Context(), i18n.En)
 	listing, err := store.Listing(ctx, "phones", catalog.Filters{Page: 1})
@@ -56,7 +58,9 @@ func TestListingAndSearchRedirectPastLastPage(t *testing.T) {
 	}
 }
 
-func TestListingDropsUnknownFiltersButRetainsRealEmptyCombinations(t *testing.T) {
+// TestHandler_ListingUnknownFilters holds that the listing drops unknown
+// filters but retains real combinations that match nothing.
+func TestHandler_ListingUnknownFilters(t *testing.T) {
 	store := catalog.NewStore(pool, slog.New(slog.DiscardHandler))
 	view, err := store.Listing(t.Context(), "phones", catalog.Filters{Page: 1})
 	if err != nil {

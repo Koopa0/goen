@@ -7,7 +7,9 @@ import (
 	"testing"
 )
 
-func TestPastLastPageRedirectKeepsOtherParameters(t *testing.T) {
+// TestRedirectPastLastPage holds that the redirect past the last page keeps the
+// other parameters.
+func TestRedirectPastLastPage(t *testing.T) {
 	t.Parallel()
 	for _, path := range []string{"/c/phones", "/search"} {
 		r := httptest.NewRequestWithContext(t.Context(), http.MethodGet, path+"?page=9&q=pixelight&brand=aurora&opt=colour%3Awhite&sort=price_asc", http.NoBody)
@@ -39,7 +41,9 @@ func TestPastLastPageRedirectKeepsOtherParameters(t *testing.T) {
 	}
 }
 
-func TestUnknownFiltersRedirectWithoutDiscardingKnownZeroCountChoices(t *testing.T) {
+// TestRedirectUnknownFilters holds that the unknown-filter redirect does not
+// discard known choices whose count is zero.
+func TestRedirectUnknownFilters(t *testing.T) {
 	t.Parallel()
 	facets := []FacetGroup{
 		{Kind: FacetBrand, Options: []FacetOption{{Value: "aurora", Count: 0}}},
