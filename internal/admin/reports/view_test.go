@@ -18,8 +18,10 @@ import (
 
 const stockedAllWindow = 30 * 24 * time.Hour
 
+// TestReportStockRows: stock rows carry their range and window in text.
+//
 // From stockrisk_test.go, moved whole.
-func TestStockRowsCarryTheirRangeAndWindowInText(t *testing.T) {
+func TestReportStockRows(t *testing.T) {
 	t.Parallel()
 
 	ctx := i18n.WithLocale(t.Context(), i18n.En)
@@ -54,8 +56,10 @@ func TestStockRowsCarryTheirRangeAndWindowInText(t *testing.T) {
 	}
 }
 
+// TestReportMoreSoldOut: more sold out links to the stock desk filter.
+//
 // From stockrisk_test.go, moved whole.
-func TestMoreSoldOutLinksToTheStockDeskFilter(t *testing.T) {
+func TestReportMoreSoldOut(t *testing.T) {
 	t.Parallel()
 
 	ctx := i18n.WithLocale(t.Context(), i18n.En)
@@ -73,10 +77,13 @@ func TestMoreSoldOutLinksToTheStockDeskFilter(t *testing.T) {
 	}
 }
 
+// TestReportSharedCoverSection: report and stock desk share the days cover
+// section.
+//
 // From stockrisk_test.go, moved whole.
 //
 // The report and the stock desk draw the section from one component.
-func TestReportAndStockDeskShareTheDaysCoverSection(t *testing.T) {
+func TestReportSharedCoverSection(t *testing.T) {
 	t.Parallel()
 
 	ctx := i18n.WithLocale(t.Context(), i18n.En)
@@ -91,8 +98,10 @@ func TestReportAndStockDeskShareTheDaysCoverSection(t *testing.T) {
 	}
 }
 
+// TestReportListSkeleton: lists share one row skeleton.
+//
 // From stockrisk_test.go, moved whole.
-func TestListsShareOneRowSkeleton(t *testing.T) {
+func TestReportListSkeleton(t *testing.T) {
 	t.Parallel()
 
 	ctx := i18n.WithLocale(t.Context(), i18n.En)
@@ -114,8 +123,10 @@ func TestListsShareOneRowSkeleton(t *testing.T) {
 	}
 }
 
+// TestSeller_FactsBrand: seller facts name the brand then what sold.
+//
 // From stockrisk_test.go, moved whole.
-func TestSellerFactsNameTheBrandThenWhatSold(t *testing.T) {
+func TestSeller_FactsBrand(t *testing.T) {
 	t.Parallel()
 
 	ctx := i18n.WithLocale(t.Context(), i18n.En)
@@ -128,8 +139,10 @@ func TestSellerFactsNameTheBrandThenWhatSold(t *testing.T) {
 	}
 }
 
+// TestReturnedProductsTrackScale: returned rate bars share one track scale.
+//
 // From reviewfollowups_test.go, moved whole.
-func TestReturnedRateBarsShareOneTrackScale(t *testing.T) {
+func TestReturnedProductsTrackScale(t *testing.T) {
 	t.Parallel()
 	for _, locale := range i18n.Locales() {
 		ctx := i18n.WithLocale(t.Context(), locale)

@@ -15,10 +15,13 @@ import (
 	"github.com/koopa0/goen/internal/admin/stock"
 )
 
+// TestStore_VariantsSearch: the stock list searches by SKU or name and shows
+// option values.
+//
 // Two variants of one product differ only by an option value, so the list must
 // carry it, and a search by the SKU fragment or the product name must find
 // exactly them, wildcards in the term being plain characters.
-func TestTheStockListSearchesBySKUOrNameAndShowsOptionValues(t *testing.T) {
+func TestStore_VariantsSearch(t *testing.T) {
 	ctx, _ := admintest.StaffContext(t, pool)
 	s := products.NewStore(pool)
 	slug := productstest.Draft(t, ctx, pool, s)

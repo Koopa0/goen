@@ -20,7 +20,8 @@ import (
 	"github.com/koopa0/goen/internal/user"
 )
 
-func TestOrdersExportMonthUsesTheShopCalendar(t *testing.T) {
+// TestExportMonth: the export month follows the shop calendar.
+func TestExportMonth(t *testing.T) {
 	t.Parallel()
 	for _, tt := range []struct{ name, month, from, to string }{
 		{"leap February", "2024-02", "2024-01-31T16:00:00Z", "2024-02-29T16:00:00Z"},
@@ -42,7 +43,9 @@ func TestOrdersExportMonthUsesTheShopCalendar(t *testing.T) {
 	}
 }
 
-func TestOrdersExportRejectsInvalidMonthsBeforeReading(t *testing.T) {
+// TestHandler_OrdersCSVInvalidMonth: the orders export rejects an invalid month
+// before reading anything.
+func TestHandler_OrdersCSVInvalidMonth(t *testing.T) {
 	t.Parallel()
 	for _, query := range []string{"", "month=", "month=2024-2", "month=0000-01", "month=2024-13", "month=2024-00", "month=2024-02-01", "month=2024-02&month=2024-03", "month=2024-02%0A"} {
 		t.Run(query, func(t *testing.T) {
@@ -59,7 +62,9 @@ func TestOrdersExportRejectsInvalidMonthsBeforeReading(t *testing.T) {
 	}
 }
 
-func TestOrdersExportUsesTheStaffAndSecondFactorGuards(t *testing.T) {
+// TestHandler_RoutesOrdersCSVGuards: the orders export sits behind the staff and
+// second factor guards.
+func TestHandler_RoutesOrdersCSVGuards(t *testing.T) {
 	t.Parallel()
 	log := slog.New(slog.DiscardHandler)
 	accesstest.RefuseOutsiders(t, func(mux *http.ServeMux, ac *admin.Control) {
@@ -75,7 +80,9 @@ func TestOrdersExportUsesTheStaffAndSecondFactorGuards(t *testing.T) {
 	}
 }
 
-func TestOrdersCSVKeepsChineseHeadersBOMAndIntegerCents(t *testing.T) {
+// TestWriteOrdersCSV: the orders CSV keeps its Chinese headers, the byte order
+// mark and integer cents.
+func TestWriteOrdersCSV(t *testing.T) {
 	t.Parallel()
 	placed := time.Date(2024, 2, 29, 15, 59, 59, 0, time.UTC)
 	paid := time.Date(2024, 2, 29, 16, 0, 1, 0, time.UTC)
@@ -118,7 +125,9 @@ type refusedCSVWriter struct{}
 
 func (refusedCSVWriter) Write([]byte) (int, error) { return 0, errCSVWrite }
 
-func TestOrdersCSVReturnsWriterFailure(t *testing.T) {
+// TestWriteOrdersCSVWriterFailure: writing the orders CSV returns the writer's
+// failure.
+func TestWriteOrdersCSVWriterFailure(t *testing.T) {
 	t.Parallel()
 	if err := writeOrdersCSV(refusedCSVWriter{}, t.Context(), nil); !errors.Is(err, errCSVWrite) {
 		t.Errorf("writeOrdersCSV() = %v, want writer failure", err)

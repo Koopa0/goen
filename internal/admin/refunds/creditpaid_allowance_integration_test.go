@@ -16,14 +16,15 @@ import (
 	"github.com/koopa0/goen/internal/outbox"
 )
 
-// TestACreditPaidOrderCancelledPastTheVoidWindowCanStillBeAllowed: store credit
-// paid the order, checkout queued its 統一發票, and staff cancel it after the
-// 13th of the following odd month. ECPay no longer voids the invoice, so only an
-// allowance can relieve it, and an allowance may relieve no more than has gone
-// back to the customer. The credit the cancellation gave back is that money: the
-// order page offers the whole invoice, filing it succeeds, and once the buyer
-// agrees the invoice leaves the health page.
-func TestACreditPaidOrderCancelledPastTheVoidWindowCanStillBeAllowed(t *testing.T) {
+// TestStore_RefundBeforeShipmentCreditPaid: a credit paid order cancelled past
+// the void window can still be allowed. Store credit paid the order, checkout
+// queued its 統一發票, and staff cancel it after the 13th of the following odd
+// month. ECPay no longer voids the invoice, so only an allowance can relieve it,
+// and an allowance may relieve no more than has gone back to the customer. The
+// credit the cancellation gave back is that money: the order page offers the
+// whole invoice, filing it succeeds, and once the buyer agrees the invoice
+// leaves the health page.
+func TestStore_RefundBeforeShipmentCreditPaid(t *testing.T) {
 	ctx, staff := admintest.StaffContext(t, pool)
 	fake, invoices := fakeECPay(t, time.Now().AddDate(0, -4, 0))
 	s := refunds.NewStore(pool, admintest.Refunder{}, invoices)

@@ -35,11 +35,14 @@ func moveTo(t *testing.T, key string, when time.Time) {
 	}
 }
 
+// TestStore_MovementsStockDays: stock by day is the column worked back through
+// the ledger.
+//
 // Stock goes back from the column through the ledger, so the fixture writes its
 // movements through the one writer of both and only then moves their dates: a
 // raw INSERT into the ledger would leave it summing to more than the column and
 // every day before it would read too low.
-func TestStockByDayIsTheColumnWorkedBackThroughTheLedger(t *testing.T) {
+func TestStore_MovementsStockDays(t *testing.T) {
 	ctx, _ := admintest.StaffContext(t, pool)
 	s := stock.NewStore(pool)
 	actor := adminID(t)

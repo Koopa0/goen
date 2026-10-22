@@ -5,7 +5,8 @@ import (
 	"time"
 )
 
-func TestTimeInStockCountsOnlyWhatASaleMayTake(t *testing.T) {
+// TestTimeInStock: timeInStock counts only the time a sale may take stock.
+func TestTimeInStock(t *testing.T) {
 	t.Parallel()
 
 	from := time.Date(2026, 9, 1, 0, 0, 0, 0, time.UTC)
@@ -54,7 +55,8 @@ func TestTimeInStockCountsOnlyWhatASaleMayTake(t *testing.T) {
 	}
 }
 
-func TestSoldOutAtIsWhenTheLevelLastFellToSafety(t *testing.T) {
+// TestSoldOutAt: soldOutAt is when the level last fell to the safety stock.
+func TestSoldOutAt(t *testing.T) {
 	t.Parallel()
 
 	from := time.Date(2026, 9, 1, 0, 0, 0, 0, time.UTC)

@@ -6,7 +6,9 @@ import (
 	"testing"
 )
 
-func TestEveryRedirectTheStockFormsMakeCarriesAMessage(t *testing.T) {
+// TestHandler_RedirectNotices: every redirect the stock forms make carries a
+// message.
+func TestHandler_RedirectNotices(t *testing.T) {
 	t.Parallel()
 	src, err := os.ReadFile("handler.go")
 	if err != nil {

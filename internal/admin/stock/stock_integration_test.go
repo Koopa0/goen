@@ -27,7 +27,8 @@ import (
 	"github.com/koopa0/goen/internal/user"
 )
 
-func TestStockMovesOnlyThroughTheLedger(t *testing.T) {
+// TestStore_AdjustThroughLedger: stock moves only through the ledger.
+func TestStore_AdjustThroughLedger(t *testing.T) {
 	ctx, _ := admintest.StaffContext(t, pool)
 	s := stock.NewStore(pool)
 	actor := adminID(t)
@@ -68,7 +69,8 @@ func TestStockMovesOnlyThroughTheLedger(t *testing.T) {
 	}
 }
 
-func TestAdjustmentIsIdempotent(t *testing.T) {
+// TestStore_AdjustIdempotent: an adjustment is idempotent.
+func TestStore_AdjustIdempotent(t *testing.T) {
 	ctx, _ := admintest.StaffContext(t, pool)
 	s := stock.NewStore(pool)
 	actor := adminID(t)
@@ -109,7 +111,8 @@ func TestAdjustmentIsIdempotent(t *testing.T) {
 	}
 }
 
-func TestTheStockLedgerCanBeRead(t *testing.T) {
+// TestStore_Movements: the stock ledger can be read.
+func TestStore_Movements(t *testing.T) {
 	ctx, staff := admintest.StaffContext(t, pool)
 	s := stock.NewStore(pool)
 
@@ -173,7 +176,9 @@ func TestTheStockLedgerCanBeRead(t *testing.T) {
 	}
 }
 
-func TestAReceiptIsFiledAsAReceiptAndNotAnAdjustment(t *testing.T) {
+// TestStore_ReceiveFiledAsReceipt: a receipt is filed as a receipt and not an
+// adjustment.
+func TestStore_ReceiveFiledAsReceipt(t *testing.T) {
 	ctx, _ := admintest.StaffContext(t, pool)
 	s := stock.NewStore(pool)
 	actor := adminID(t)
@@ -215,7 +220,8 @@ func TestAReceiptIsFiledAsAReceiptAndNotAnAdjustment(t *testing.T) {
 	}
 }
 
-func TestAReceiptIsIdempotent(t *testing.T) {
+// TestStore_ReceiveIdempotent: a receipt is idempotent.
+func TestStore_ReceiveIdempotent(t *testing.T) {
 	ctx, _ := admintest.StaffContext(t, pool)
 	s := stock.NewStore(pool)
 	actor := adminID(t)
@@ -255,7 +261,8 @@ func TestAReceiptIsIdempotent(t *testing.T) {
 	}
 }
 
-func TestAReceiptCannotTakeStockAway(t *testing.T) {
+// TestStore_ReceiveNeverTakesStock: a receipt cannot take stock away.
+func TestStore_ReceiveNeverTakesStock(t *testing.T) {
 	ctx, _ := admintest.StaffContext(t, pool)
 	s := stock.NewStore(pool)
 	actor := adminID(t)
@@ -283,7 +290,9 @@ func TestAReceiptCannotTakeStockAway(t *testing.T) {
 	}
 }
 
-func TestARefusedStockAdjustmentKeepsWhatWasTyped(t *testing.T) {
+// TestHandler_AdjustRefusedKeepsInput: a refused stock adjustment keeps what was
+// typed.
+func TestHandler_AdjustRefusedKeepsInput(t *testing.T) {
 	ctx, _ := admintest.StaffContext(t, pool)
 	h := handlerOver(stock.NewStore(pool))
 	var sku string
@@ -306,7 +315,8 @@ func TestARefusedStockAdjustmentKeepsWhatWasTyped(t *testing.T) {
 	}
 }
 
-func TestRestockingTellsEverybodyWhoAsked(t *testing.T) {
+// TestStore_AdjustRestockNotifies: restocking tells everybody who asked.
+func TestStore_AdjustRestockNotifies(t *testing.T) {
 	ctx := t.Context()
 	owner := admintest.Pool(t)
 	s := stock.NewStore(admintest.AdminRolePool(t, owner))
@@ -375,7 +385,9 @@ func TestRestockingTellsEverybodyWhoAsked(t *testing.T) {
 	}
 }
 
-func TestAnAdjustmentBelowTheThresholdTellsNobody(t *testing.T) {
+// TestStore_AdjustBelowThresholdSilent: an adjustment below the threshold tells
+// nobody.
+func TestStore_AdjustBelowThresholdSilent(t *testing.T) {
 	ctx := t.Context()
 	owner := admintest.Pool(t)
 	s := stock.NewStore(admintest.AdminRolePool(t, owner))
@@ -432,7 +444,9 @@ func TestAnAdjustmentBelowTheThresholdTellsNobody(t *testing.T) {
 	}
 }
 
-func TestARestockNoticeNamesTheProductInTheReadersLanguage(t *testing.T) {
+// TestStore_AdjustNoticeLocale: a restock notice names the product in the
+// reader's language.
+func TestStore_AdjustNoticeLocale(t *testing.T) {
 	ctx := t.Context()
 	owner := admintest.Pool(t)
 	s := stock.NewStore(admintest.AdminRolePool(t, owner))
@@ -530,7 +544,9 @@ func emptyTheShelf(t *testing.T, owner *pgxpool.Pool, vid uuid.UUID, key string)
 	}
 }
 
-func TestRetiringTheLastDiscountedVariantIsRefused(t *testing.T) {
+// TestStore_SetActiveLastDiscounted: retiring the last discounted variant is
+// refused.
+func TestStore_SetActiveLastDiscounted(t *testing.T) {
 	ctx := t.Context()
 
 	var sku string
@@ -579,9 +595,10 @@ func TestRetiringTheLastDiscountedVariantIsRefused(t *testing.T) {
 	}
 }
 
-// TestAReleaseInTheLedgerNamesItsOrder drives a RELEASE, the only movement that reaches
-// the order through the reservation: a HOLD stays green with that join deleted.
-func TestAReleaseInTheLedgerNamesItsOrder(t *testing.T) {
+// TestStore_MovementsReleaseOrder: a release in the ledger names its order. It
+// drives a RELEASE, the only movement that reaches the order through the
+// reservation: a HOLD stays green with that join deleted.
+func TestStore_MovementsReleaseOrder(t *testing.T) {
 	ctx, _ := admintest.StaffContext(t, pool)
 	customer := buyer.NewStore(pool)
 
@@ -626,9 +643,10 @@ func TestAReleaseInTheLedgerNamesItsOrder(t *testing.T) {
 	}
 }
 
-// The dashboard's sold-out count and the stock desk's sold-out filter agree: a
-// variant that is not for sale, or whose product is not active, is in neither.
-func TestAVariantNotForSaleIsNeitherCountedNorListedAsSoldOut(t *testing.T) {
+// TestStore_VariantsSoldOutNotForSale: the dashboard's sold-out count and the
+// stock desk's sold-out filter agree: a variant that is not for sale, or whose
+// product is not active, is in neither.
+func TestStore_VariantsSoldOutNotForSale(t *testing.T) {
 	owner := admintest.Pool(t)
 	ctx, _ := admintest.StaffContext(t, owner)
 	s := stock.NewStore(owner)
@@ -681,7 +699,10 @@ func TestAVariantNotForSaleIsNeitherCountedNorListedAsSoldOut(t *testing.T) {
 	}
 }
 
-func TestRetiringPublishedVariantsThroughTheStockRoute(t *testing.T) {
+// TestHandler_SetActiveRetiring: retiring a published product's last active
+// variant through the stock route is refused, and retiring another of its active
+// variants is audited.
+func TestHandler_SetActiveRetiring(t *testing.T) {
 	ctx, _ := admintest.StaffContext(t, pool)
 	adminPool := admintest.AdminRolePool(t, pool)
 	for _, tt := range []struct {

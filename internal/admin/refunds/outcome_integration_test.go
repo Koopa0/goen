@@ -16,7 +16,9 @@ import (
 	"github.com/koopa0/goen/internal/db"
 )
 
-func TestConcurrentTerminalRefundRetriesShareOneSuccessor(t *testing.T) {
+// TestClaimReturnRefundExecutionConcurrent: concurrent retries of a terminal
+// refund share one successor.
+func TestClaimReturnRefundExecutionConcurrent(t *testing.T) {
 	ctxA, actorA, requestA := admintest.RefundRecoveryStaffContext(t, pool, "terminal-race-a")
 	ctxB, actorB, requestB := admintest.RefundRecoveryStaffContext(t, pool, "terminal-race-b")
 	returnID := admintest.PreapprovedReturn(t, pool)
@@ -81,12 +83,12 @@ func TestConcurrentTerminalRefundRetriesShareOneSuccessor(t *testing.T) {
 	}
 }
 
-// TestProviderOutcomeAndRetrySharePaymentBeforeRefund forces the former
-// payment/refund ABBA cycle. The outcome pauses inside its refund UPDATE while a
-// retry claim reaches the same aggregate; success must remain durable and the
-// retry must observe it as settled, not kill either transaction as a deadlock
-// victim.
-func TestProviderOutcomeAndRetrySharePaymentBeforeRefund(t *testing.T) {
+// TestRecordRefundSucceededLockOrder: a provider outcome and a retry claim lock
+// the payment before the refund. It forces the former payment/refund ABBA cycle.
+// The outcome pauses inside its refund UPDATE while a retry claim reaches the
+// same aggregate; success must remain durable and the retry must observe it as
+// settled, not kill either transaction as a deadlock victim.
+func TestRecordRefundSucceededLockOrder(t *testing.T) {
 	ctxA, actorA, requestA := admintest.RefundRecoveryStaffContext(t, pool, "outcome-lock-a")
 	ctxB, actorB, requestB := admintest.RefundRecoveryStaffContext(t, pool, "outcome-lock-b")
 	returnID := admintest.PreapprovedReturn(t, pool)
@@ -219,7 +221,9 @@ func TestProviderOutcomeAndRetrySharePaymentBeforeRefund(t *testing.T) {
 	}
 }
 
-func TestEveryRefundOutcomeDoorRecordsItsProviderFact(t *testing.T) {
+// TestRecordRefundOutcomes: every refund outcome function records its provider
+// fact.
+func TestRecordRefundOutcomes(t *testing.T) {
 	tests := []struct {
 		name          string
 		query         string
@@ -325,7 +329,9 @@ func TestEveryRefundOutcomeDoorRecordsItsProviderFact(t *testing.T) {
 	}
 }
 
-func TestRefundOutcomeExactReplayPreservesHistoryAndContradictionsFailClosed(t *testing.T) {
+// TestRecordRefundSucceededReplay: an exact replay of a refund outcome preserves
+// history, and a contradicting outcome fails closed.
+func TestRecordRefundSucceededReplay(t *testing.T) {
 	ctx, actor, requestID := admintest.RefundRecoveryStaffContext(t, pool, "exact-replay")
 	returnID := admintest.PreapprovedReturn(t, pool)
 	var refundID uuid.UUID

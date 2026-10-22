@@ -17,11 +17,12 @@ import (
 	"github.com/koopa0/goen/internal/db/dbtest"
 )
 
-// TestConcurrentWritesAuditTheValueEachReplaced: two staff change one variant
-// at once. Read before the write's own transaction, both audit rows name the
-// value the variant had before either write, and the trail shows the second
-// change starting from a value it never replaced.
-func TestConcurrentWritesAuditTheValueEachReplaced(t *testing.T) {
+// TestStore_ConcurrentWritesAuditBefore: concurrent writes audit the value each
+// replaced. Two staff change one variant at once. Read before the write's own
+// transaction, both audit rows name the value the variant had before either
+// write, and the trail shows the second change starting from a value it never
+// replaced.
+func TestStore_ConcurrentWritesAuditBefore(t *testing.T) {
 	ctx, _ := admintest.StaffContext(t, pool)
 	actor := adminID(t)
 
@@ -147,11 +148,12 @@ func TestConcurrentWritesAuditTheValueEachReplaced(t *testing.T) {
 	}
 }
 
-// TestRestoringAVariantAuditsTheStateItReplaced: another transaction retires
-// the variant and holds its row while staff restore it. The restore replaces
-// the retired state, so its audit row must say the variant was inactive, which
-// a read before the restore's own transaction does not see.
-func TestRestoringAVariantAuditsTheStateItReplaced(t *testing.T) {
+// TestStore_SetActiveRestoreAudit: restoring a variant audits the state it
+// replaced. Another transaction retires the variant and holds its row while
+// staff restore it. The restore replaces the retired state, so its audit row
+// must say the variant was inactive, which a read before the restore's own
+// transaction does not see.
+func TestStore_SetActiveRestoreAudit(t *testing.T) {
 	ctx, _ := admintest.StaffContext(t, pool)
 
 	// Another active variant keeps the product sellable while this one is

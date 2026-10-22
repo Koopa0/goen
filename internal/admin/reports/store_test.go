@@ -44,7 +44,9 @@ func TestNewStoreRequiresItsReaders(t *testing.T) {
 	}
 }
 
-func TestReportAsksTheCoverForAWholeReportWindow(t *testing.T) {
+// TestStore_ReportAtCoverWindow: report asks the cover for a whole report
+// window.
+func TestStore_ReportAtCoverWindow(t *testing.T) {
 	t.Parallel()
 	now := time.Date(2026, 10, 5, 7, 20, 0, 0, time.UTC)
 	for _, tt := range []struct {

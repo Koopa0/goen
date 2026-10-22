@@ -18,7 +18,8 @@ func refusedBy(constraint string) error {
 	return db.WrapRefusal(fmt.Errorf("a statement: %w", cause), refund.ErrRefused)
 }
 
-func TestRefundNoticeNamesTheCauseOfTheRefusal(t *testing.T) {
+// TestRefundNoticeCause: refundNotice names the cause of the refusal.
+func TestRefundNoticeCause(t *testing.T) {
 	t.Parallel()
 	for _, tc := range []struct {
 		name string
@@ -53,9 +54,11 @@ func TestRefundNoticeNamesTheCauseOfTheRefusal(t *testing.T) {
 	}
 }
 
+// TestRefundNoticeRecoveryFirst: refundNotice keeps recovery ahead of a refusal.
+//
 // A refusal retained as the cause of an approved refund must not read as
 // "nothing moved": recovery keeps its own sentence.
-func TestRefundNoticeKeepsRecoveryAheadOfARefusal(t *testing.T) {
+func TestRefundNoticeRecoveryFirst(t *testing.T) {
 	t.Parallel()
 	for _, tc := range []struct {
 		name string
@@ -73,7 +76,8 @@ func TestRefundNoticeKeepsRecoveryAheadOfARefusal(t *testing.T) {
 	}
 }
 
-func TestWhyNotRefundableNamesWhatTheOrderIs(t *testing.T) {
+// TestWhyNotRefundable: whyNotRefundable names what the order is.
+func TestWhyNotRefundable(t *testing.T) {
 	t.Parallel()
 	for _, tc := range []struct {
 		name string
@@ -96,7 +100,9 @@ func beforeShipmentOf(r db.BeforeShipmentRefundRow) beforeShipment {
 	return beforeShipment{BeforeShipmentRefundRow: r}
 }
 
-func TestRefundNoticeLogsWhatNeedsAPersonAtError(t *testing.T) {
+// TestRefundNoticeLogsAtError: refundNotice logs what needs a person at error
+// level.
+func TestRefundNoticeLogsAtError(t *testing.T) {
 	t.Parallel()
 	for _, tc := range []struct {
 		name string

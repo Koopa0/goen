@@ -12,12 +12,13 @@ import (
 	"github.com/koopa0/goen/internal/order/buyer"
 )
 
-// TestCancellingACreditPaidOrderMovesNoReportFigure holds the owner's ruling on
-// #80: the credit an order gave back when it was cancelled is not a refund of
-// revenue, because that order was never revenue. order_refunds does count it (an
-// allowance may relieve it), so the report must leave it out itself, and the
-// refund figure must not move when the cancellation writes the reversal.
-func TestCancellingACreditPaidOrderMovesNoReportFigure(t *testing.T) {
+// TestStore_ReportAtCreditCancellation: cancelling a credit paid order moves no
+// report figure. It holds the owner's ruling on #80: the credit an order gave
+// back when it was cancelled is not a refund of revenue, because that order was
+// never revenue. order_refunds does count it (an allowance may relieve it), so
+// the report must leave it out itself, and the refund figure must not move when
+// the cancellation writes the reversal.
+func TestStore_ReportAtCreditCancellation(t *testing.T) {
 	ctx := t.Context()
 	s := reports.NewStore(pool, stock.NewStore(pool))
 	number, orderID, _ := admintest.PaidUnshippedOrder(t, pool, 0, 500000, false)

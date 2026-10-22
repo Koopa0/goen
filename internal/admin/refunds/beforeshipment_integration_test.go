@@ -26,7 +26,9 @@ import (
 	"github.com/koopa0/goen/internal/outbox"
 )
 
-func TestRefundBeforeShipmentPaysEveryLegAndCancels(t *testing.T) {
+// TestStore_RefundBeforeShipmentAllLegs: refund before shipment pays every leg
+// and cancels.
+func TestStore_RefundBeforeShipmentAllLegs(t *testing.T) {
 	ctx, _ := admintest.StaffContext(t, pool)
 	var sent atomic.Int64
 	s := refunds.NewStore(admintest.AdminRolePool(t, pool), admintest.Refunder{Sent: &sent}, nil)
@@ -121,7 +123,9 @@ func TestRefundBeforeShipmentPaysEveryLegAndCancels(t *testing.T) {
 	}
 }
 
-func TestRefundBeforeShipmentWaitsForInvoiceCorrection(t *testing.T) {
+// TestStore_RefundBeforeShipmentInvoiceWait: refund before shipment waits for
+// invoice correction.
+func TestStore_RefundBeforeShipmentInvoiceWait(t *testing.T) {
 	ctx, staff := admintest.StaffContext(t, pool)
 	s := refunds.NewStore(pool, admintest.Refunder{}, nil)
 
@@ -223,7 +227,9 @@ func TestRefundBeforeShipmentWaitsForInvoiceCorrection(t *testing.T) {
 	}
 }
 
-func TestRefundBeforeShipmentConfirmsBeforeItPays(t *testing.T) {
+// TestHandler_RefundBeforeShipmentConfirm: refund before shipment confirms
+// before it pays.
+func TestHandler_RefundBeforeShipmentConfirm(t *testing.T) {
 	ctx, _ := admintest.StaffContext(t, pool)
 	var sent atomic.Int64
 	s := refunds.NewStore(pool, admintest.Refunder{Sent: &sent}, nil)
@@ -281,10 +287,11 @@ func TestRefundBeforeShipmentConfirmsBeforeItPays(t *testing.T) {
 	}
 }
 
-// TestAdminCancelClawsBackLoyaltyPoints holds that a paid order the back office
-// cancels — by refunding it before shipment — claws back its award lot,
-// including when the lot was partly or wholly spent before cancellation.
-func TestAdminCancelClawsBackLoyaltyPoints(t *testing.T) {
+// TestStore_RefundBeforeShipmentClawback: an admin cancellation claws back
+// loyalty points. It holds that a paid order the back office cancels — by
+// refunding it before shipment — claws back its award lot, including when the
+// lot was partly or wholly spent before cancellation.
+func TestStore_RefundBeforeShipmentClawback(t *testing.T) {
 	ctx, _ := admintest.StaffContext(t, pool)
 	s := refunds.NewStore(pool, admintest.Refunder{}, nil)
 
@@ -373,11 +380,11 @@ func assertCancelClawback(t *testing.T, orderID uuid.UUID, wantPoints, wantReque
 	}
 }
 
-// TestPointClawbackAndErasureShareOrderBeforeAccount forces the former ABBA
-// window. The clawback pauses at its ledger insert; erasure has already begun.
-// Both must finish in order, with neither PostgreSQL transaction chosen as a
-// deadlock victim.
-func TestPointClawbackAndErasureShareOrderBeforeAccount(t *testing.T) {
+// TestReverseReturnPointsErasureLock: the points clawback and an erasure lock
+// the order before the account. It forces the former ABBA window. The clawback
+// pauses at its ledger insert; erasure has already begun. Both must finish in
+// order, with neither PostgreSQL transaction chosen as a deadlock victim.
+func TestReverseReturnPointsErasureLock(t *testing.T) {
 	ctx := t.Context()
 	requestID, orderID, userID := admintest.LoyaltyReturn(t, pool, []int64{1200000}, 0)
 	if _, err := pool.Exec(ctx, `

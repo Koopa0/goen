@@ -8,7 +8,9 @@ import (
 	"github.com/koopa0/goen/internal/ui/frame"
 )
 
-func TestStockArrivalIsAnOptionalPlainFormAndPreservesARefusedDate(t *testing.T) {
+// TestVariantsArrivalForm: stock arrival is an optional plain form and preserves
+// a refused date.
+func TestVariantsArrivalForm(t *testing.T) {
 	t.Parallel()
 	for _, locale := range []i18n.Locale{i18n.ZhHant, i18n.En} {
 		t.Run(string(locale), func(t *testing.T) {
@@ -31,7 +33,9 @@ func TestStockArrivalIsAnOptionalPlainFormAndPreservesARefusedDate(t *testing.T)
 	}
 }
 
-func TestStockDeskNamesTheVariantListAfterTheCoverSection(t *testing.T) {
+// TestVariantsListAfterCover: stock desk names the variant list after the cover
+// section.
+func TestVariantsListAfterCover(t *testing.T) {
 	t.Parallel()
 	for _, locale := range []i18n.Locale{i18n.ZhHant, i18n.En} {
 		t.Run(string(locale), func(t *testing.T) {

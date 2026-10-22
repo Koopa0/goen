@@ -13,7 +13,9 @@ import (
 	"github.com/koopa0/goen/internal/outbox"
 )
 
-func TestRestockClaimAndOutboxRollBackWithStock(t *testing.T) {
+// TestProductVariantsRestockNoticesRollback: the restock claim and its outbox
+// message roll back with the stock write.
+func TestProductVariantsRestockNoticesRollback(t *testing.T) {
 	owner := admintest.Pool(t)
 	writer := admintest.AdminRolePool(t, owner)
 	ctx := t.Context()
@@ -76,7 +78,9 @@ func TestRestockClaimAndOutboxRollBackWithStock(t *testing.T) {
 	admintest.AssertRestockQueued(t, owner, subscriptions)
 }
 
-func TestReactivatingAStockedVariantQueuesWaitingNotices(t *testing.T) {
+// TestStore_SetActiveRestockNotices: reactivating a stocked variant queues
+// waiting notices.
+func TestStore_SetActiveRestockNotices(t *testing.T) {
 	owner := admintest.Pool(t)
 	ctx, actor := admintest.StaffContext(t, owner)
 	writer := admintest.AdminRolePool(t, owner)

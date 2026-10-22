@@ -78,10 +78,11 @@ func pressRefund(t *testing.T, ctx context.Context, s *refunds.Store, number str
 	return rec.Header().Get("Location")
 }
 
-// TestRefundBeforeShipmentVoidsTheInvoiceBeforeThePayout: inside ECPay's void
-// window the staff member's press voids the system's invoice, under their own
-// name, before any money moves, and cancels the order in the same press.
-func TestRefundBeforeShipmentVoidsTheInvoiceBeforeThePayout(t *testing.T) {
+// TestStore_RefundBeforeShipmentVoid: refund before shipment voids the invoice
+// before the payout. Inside ECPay's void window the staff member's press voids
+// the system's invoice, under their own name, before any money moves, and
+// cancels the order in the same press.
+func TestStore_RefundBeforeShipmentVoid(t *testing.T) {
 	for _, inFlight := range []bool{false, true} {
 		name := "issued"
 		if inFlight {
@@ -133,12 +134,12 @@ func TestRefundBeforeShipmentVoidsTheInvoiceBeforeThePayout(t *testing.T) {
 	}
 }
 
-// TestRefundBeforeShipmentAsksTheBuyerForAnAllowancePastTheVoidWindow: once
-// the period is filed no void is asked for; after the refund the buyer is
-// e-mailed an allowance for it, which lets the order cancel in the same press,
-// and it settles from the list once they agree, keeping goen's copy of that
-// agreement.
-func TestRefundBeforeShipmentAsksTheBuyerForAnAllowancePastTheVoidWindow(t *testing.T) {
+// TestStore_RefundBeforeShipmentAllowance: refund before shipment asks the buyer
+// for an allowance past the void window. Once the period is filed no void is
+// asked for; after the refund the buyer is e-mailed an allowance for it, which
+// lets the order cancel in the same press, and it settles from the list once
+// they agree, keeping goen's copy of that agreement.
+func TestStore_RefundBeforeShipmentAllowance(t *testing.T) {
 	ctx, staff := admintest.StaffContext(t, pool)
 	fake, invoices := fakeECPay(t, time.Now().AddDate(0, -4, 0))
 	var sent atomic.Int64
@@ -186,9 +187,10 @@ func TestRefundBeforeShipmentAsksTheBuyerForAnAllowancePastTheVoidWindow(t *test
 	}
 }
 
-// TestAnAllowanceTheBuyerIgnoresNeedsAPerson: 72 hours after the e-mail with
-// nothing on the list, the operation needs staff and the order page says why.
-func TestAnAllowanceTheBuyerIgnoresNeedsAPerson(t *testing.T) {
+// TestStore_RefundBeforeShipmentLapsed: an allowance the buyer ignores needs a
+// person. 72 hours after the e-mail with nothing on the list, the operation
+// needs staff and the order page says why.
+func TestStore_RefundBeforeShipmentLapsed(t *testing.T) {
 	ctx, _ := admintest.StaffContext(t, pool)
 	_, invoices := fakeECPay(t, time.Now().AddDate(0, -4, 0))
 	s := refunds.NewStore(pool, admintest.Refunder{}, invoices)
@@ -227,9 +229,10 @@ func TestAnAllowanceTheBuyerIgnoresNeedsAPerson(t *testing.T) {
 	}
 }
 
-// TestTheOrderPageShowsAnIssuedInvoiceWithoutAProvider: a shop whose e-invoicing
-// was switched off still shows the invoice it filed, and offers no action on it.
-func TestTheOrderPageShowsAnIssuedInvoiceWithoutAProvider(t *testing.T) {
+// TestOrderPageIssuedInvoiceNoProvider: the order page shows an issued invoice
+// without a provider. A shop whose e-invoicing was switched off still shows the
+// invoice it filed, and offers no action on it.
+func TestOrderPageIssuedInvoiceNoProvider(t *testing.T) {
 	ctx, _ := admintest.StaffContext(t, pool)
 	_, invoices := fakeECPay(t, time.Now())
 	number, orderID := capturedOrderOwingAnInvoice(t, ctx, invoices)
@@ -279,9 +282,10 @@ func dueNow(t *testing.T, ctx context.Context, operationID uuid.UUID) {
 	}
 }
 
-// TestRefundBeforeShipmentWithdrawsAnIssueNothingWillSend: with no 加值中心 the
-// system's claim would wait for ever and hold the cancellation with it.
-func TestRefundBeforeShipmentWithdrawsAnIssueNothingWillSend(t *testing.T) {
+// TestStore_RefundBeforeShipmentWithdraws: refund before shipment withdraws an
+// issue nothing will send. With no 加值中心 the system's claim would wait for ever
+// and hold the cancellation with it.
+func TestStore_RefundBeforeShipmentWithdraws(t *testing.T) {
 	ctx, _ := admintest.StaffContext(t, pool)
 	invoices := issuer.NewStore(pool, &issuer.Gateway{})
 	s := refunds.NewStore(pool, admintest.Refunder{}, invoices)
@@ -304,10 +308,10 @@ func TestRefundBeforeShipmentWithdrawsAnIssueNothingWillSend(t *testing.T) {
 	}
 }
 
-// TestRefundBeforeShipmentPaysOutWhileECPayHangs: a 加值中心 that stops
-// answering takes only its share of the request; the card is refunded and the
-// void waits for the reconciler.
-func TestRefundBeforeShipmentPaysOutWhileECPayHangs(t *testing.T) {
+// TestStore_RefundBeforeShipmentHangs: refund before shipment pays out while
+// ECPay hangs. A 加值中心 that stops answering takes only its share of the request;
+// the card is refunded and the void waits for the reconciler.
+func TestStore_RefundBeforeShipmentHangs(t *testing.T) {
 	staff, _ := admintest.StaffContext(t, pool)
 	fake, invoices := fakeECPay(t, time.Now())
 	var sent atomic.Int64
@@ -332,9 +336,10 @@ func TestRefundBeforeShipmentPaysOutWhileECPayHangs(t *testing.T) {
 	}
 }
 
-// TestRefundBeforeShipmentKeepsAnIssueThatMayHaveReachedECPay: an issue sent
-// before the 加值中心 was unconfigured may exist at ECPay, so it is not withdrawn.
-func TestRefundBeforeShipmentKeepsAnIssueThatMayHaveReachedECPay(t *testing.T) {
+// TestStore_RefundBeforeShipmentKeepsIssue: refund before shipment keeps an
+// issue that may have reached ECPay. An issue sent before the 加值中心 was
+// unconfigured may exist at ECPay, so it is not withdrawn.
+func TestStore_RefundBeforeShipmentKeepsIssue(t *testing.T) {
 	ctx, _ := admintest.StaffContext(t, pool)
 	invoices := issuer.NewStore(pool, &issuer.Gateway{})
 	var sent atomic.Int64
@@ -360,10 +365,11 @@ func TestRefundBeforeShipmentKeepsAnIssueThatMayHaveReachedECPay(t *testing.T) {
 	}
 }
 
-// TestRefundBeforeShipmentAllowsTheRestOfAnInvoiceAnAllowanceRelieves: ECPay
-// refuses a void once an allowance exists, so none is asked for; the rest of
-// the refund goes to the buyer as an allowance instead.
-func TestRefundBeforeShipmentAllowsTheRestOfAnInvoiceAnAllowanceRelieves(t *testing.T) {
+// TestStore_RefundBeforeShipmentPartAllowance: refund before shipment allows the
+// rest of an invoice an allowance relieves. ECPay refuses a void once an
+// allowance exists, so none is asked for; the rest of the refund goes to the
+// buyer as an allowance instead.
+func TestStore_RefundBeforeShipmentPartAllowance(t *testing.T) {
 	ctx, _ := admintest.StaffContext(t, pool)
 	fake, invoices := fakeECPay(t, time.Now())
 	var sent atomic.Int64
@@ -422,10 +428,11 @@ func relievePart(t *testing.T, orderID uuid.UUID, cents int64) {
 	}
 }
 
-// TestTheCancellationCountsAnAllowanceSentToTheBuyer: an allowance ECPay has
-// e-mailed relieves its amount, whether it waits for the buyer or has lapsed;
-// one never sent, or for less than the invoice, does not.
-func TestTheCancellationCountsAnAllowanceSentToTheBuyer(t *testing.T) {
+// TestStore_RefundBeforeShipmentCountsSent: the cancellation counts an allowance
+// sent to the buyer. An allowance ECPay has e-mailed relieves its amount,
+// whether it waits for the buyer or has lapsed; one never sent, or for less than
+// the invoice, does not.
+func TestStore_RefundBeforeShipmentCountsSent(t *testing.T) {
 	ctx, staff := admintest.StaffContext(t, pool)
 	s := refunds.NewStore(pool, admintest.Refunder{}, nil)
 	for _, tt := range []struct {
@@ -468,11 +475,12 @@ func TestTheCancellationCountsAnAllowanceSentToTheBuyer(t *testing.T) {
 	}
 }
 
-// TestASentAllowanceECPayDidNotAcceptStillCancelsAndIsListed: the cancellation
-// counts an allowance once it is sent, whatever ECPay answered. What makes that
-// safe is that the operation is on /admin/health with its reason and the order
-// page says why, rather than that it was e-mailed to the customer.
-func TestASentAllowanceECPayDidNotAcceptStillCancelsAndIsListed(t *testing.T) {
+// TestStore_RefundBeforeShipmentSentAllowance: a sent allowance ECPay did not
+// accept still cancels and is listed. The cancellation counts an allowance once
+// it is sent, whatever ECPay answered. What makes that safe is that the
+// operation is on /admin/health with its reason and the order page says why,
+// rather than that it was e-mailed to the customer.
+func TestStore_RefundBeforeShipmentSentAllowance(t *testing.T) {
 	for _, tt := range []struct {
 		name   string
 		answer issuer.FakeAllowanceAnswer
@@ -547,9 +555,10 @@ func TestASentAllowanceECPayDidNotAcceptStillCancelsAndIsListed(t *testing.T) {
 	}
 }
 
-// An order the refund cannot apply to is told why, before any money moves,
-// instead of the stock-and-campaign sentence the other desks use.
-func TestRefundBeforeShipmentNamesWhyAnUnpaidOrderIsNotRefundable(t *testing.T) {
+// TestStore_RefundBeforeShipmentUnpaid: an order the refund cannot apply to is
+// told why, before any money moves, instead of the stock-and-campaign sentence
+// the other desks use.
+func TestStore_RefundBeforeShipmentUnpaid(t *testing.T) {
 	staff, _ := admintest.StaffContext(t, pool)
 	s := refunds.NewStore(pool, admintest.Refunder{}, nil)
 

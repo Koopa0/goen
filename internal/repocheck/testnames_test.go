@@ -38,6 +38,9 @@ var migratedTestPackages = []string{
 	"internal/admin/faq",
 	"internal/admin/newsletters",
 	"internal/admin/questions",
+	"internal/admin/refunds",
+	"internal/admin/reports",
+	"internal/admin/stock",
 	"internal/bearer",
 	"internal/credit",
 	"internal/email",
@@ -81,6 +84,20 @@ var testNameExceptions = map[string]map[string]string{
 		"TestFieldBoundariesHoldContrast":          "a rule of three stylesheets at once: it reads one boundary rule each from AppCSS, AdminCSS and BaseCSS, so naming it after one would misstate its unit",
 		"TestNoStylesheetFetchesFromAnotherOrigin": "a rule of the whole stylesheet set (the style-src 'self' promise): it walks every file under css/, so no one declared identifier is its unit",
 		"TestSharedLayoutRulesAreDeclaredOnce":     "a rule of two stylesheets at once: it counts one selector in AppCSS and one in AdminCSS, so naming it after either would misstate its unit",
+	},
+	"internal/admin/refunds": {
+		"TestClaimReturnRefundExecutionConcurrent": "the unit is the SQL function claim_return_refund_execution, called straight through the pool; no Go identifier of this package is what the test drives",
+		"TestOrderPageIssuedInvoiceNoProvider":     "the unit is Store.Order of package orders, which this package does not declare; moving the test there is a reorganisation this pass does not do",
+		"TestRecordRefundOutcomes":                 "the unit is the SQL functions record_refund_pending, _requires_action, _succeeded, _failed, _cancelled and _api_rejection, called straight through the pool, not a Go identifier",
+		"TestRecordRefundSucceededLockOrder":       "the unit is the SQL function record_refund_succeeded, raced against claim_return_refund_execution through the pool, not a Go identifier",
+		"TestRecordRefundSucceededReplay":          "the unit is the SQL function record_refund_succeeded, called straight through the pool, not a Go identifier",
+		"TestReverseReturnPointsErasureLock":       "the unit is the SQL function reverse_return_points, raced against an erasure through the pool, not a Go identifier",
+	},
+	"internal/admin/reports": {
+		"TestStockDaysCoverRefundedBeforeShipment": "the unit is Store.DaysCover of package stock, which this package does not declare (it declares only the Cover interface it calls through); moving the test there is a reorganisation this pass does not do",
+	},
+	"internal/admin/stock": {
+		"TestProductVariantsRestockNoticesRollback": "the unit is the product_variants_restock_notices trigger, a SQL object, driven by plain UPDATE statements on the admin role's pool, not a Go identifier",
 	},
 	"internal/i18n": {
 		"TestNoHardCodedGenericChrome": "a repository rule: no customer-facing .templ source hard-codes a generic English word; it reads every source file, and no function of the package is its unit",

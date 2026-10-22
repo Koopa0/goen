@@ -18,7 +18,9 @@ func postedFrom(t *testing.T, form url.Values) *http.Request {
 	return req
 }
 
-func TestAStockWriteReturnsToTheFilterAndPageItWasMadeOn(t *testing.T) {
+// TestStockBackFilterAndPage: a stock write returns to the filter and page it
+// was made on.
+func TestStockBackFilterAndPage(t *testing.T) {
 	t.Parallel()
 	got := stockBack(postedFrom(t, url.Values{"sku": {"A-1"}, "return": {"/admin/stock?soldout=1&after=TOKEN"}}), "ok")
 	if want := "/admin/stock?after=TOKEN&ok=1&soldout=1#row-A-1"; got != want {
@@ -26,7 +28,8 @@ func TestAStockWriteReturnsToTheFilterAndPageItWasMadeOn(t *testing.T) {
 	}
 }
 
-func TestAStockWriteCannotBeSentSomewhereElse(t *testing.T) {
+// TestStockBackRefusesForeign: a stock write cannot be sent somewhere else.
+func TestStockBackRefusesForeign(t *testing.T) {
 	t.Parallel()
 	for _, back := range []string{"https://evil.example/x", "//evil.example/admin/stock", "/admin/orders?soldout=1", "javascript:alert(1)", ""} {
 		got := stockBack(postedFrom(t, url.Values{"sku": {"A-1"}, "return": {back}}), "refused")
@@ -36,7 +39,8 @@ func TestAStockWriteCannotBeSentSomewhereElse(t *testing.T) {
 	}
 }
 
-func TestAStockWriteReturnsToTheSearchItWasMadeUnder(t *testing.T) {
+// TestStockBackSearch: a stock write returns to the search it was made under.
+func TestStockBackSearch(t *testing.T) {
 	t.Parallel()
 	got := stockBack(postedFrom(t, url.Values{"sku": {"A-1"}, "return": {"/admin/stock?q=koto+cbl&after=TOKEN"}}), "ok")
 	if want := "/admin/stock?after=TOKEN&ok=1&q=koto+cbl#row-A-1"; got != want {

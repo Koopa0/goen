@@ -7,7 +7,9 @@ import (
 	"github.com/koopa0/goen/internal/shoptime"
 )
 
-func TestSpansAreWholeShopDaysAndTheSameHoursBefore(t *testing.T) {
+// TestPeriodsWholeShopDays: periods span whole shop days, and the previous
+// period stops at the same hour.
+func TestPeriodsWholeShopDays(t *testing.T) {
 	t.Parallel()
 
 	// 07:20 UTC on 5 October is 15:20 in Taipei, the same shop day; 16:30 UTC
@@ -52,7 +54,8 @@ func TestSpansAreWholeShopDaysAndTheSameHoursBefore(t *testing.T) {
 	}
 }
 
-func TestBothPeriodsSpanAsManyShopDaysAsTheWindow(t *testing.T) {
+// TestPeriodsSameSpan: both periods span as many shop days as the window.
+func TestPeriodsSameSpan(t *testing.T) {
 	t.Parallel()
 
 	for _, now := range []time.Time{
@@ -73,7 +76,8 @@ func TestBothPeriodsSpanAsManyShopDaysAsTheWindow(t *testing.T) {
 	}
 }
 
-func TestOnlyAPeriodCutMidDayEndsOnAPartialDay(t *testing.T) {
+// TestEndsMidDay: only a period cut mid-day ends on a partial day.
+func TestEndsMidDay(t *testing.T) {
 	t.Parallel()
 
 	midnight := shoptime.Midnight(time.Date(2026, 10, 5, 7, 20, 0, 0, time.UTC))

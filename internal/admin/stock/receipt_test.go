@@ -2,9 +2,10 @@ package stock
 
 import "testing"
 
-// TestAReceiptIsAlwaysPositive proves a receipt cannot take stock away, which is
-// what keeps a delivery distinguishable from a correction.
-func TestAReceiptIsAlwaysPositive(t *testing.T) {
+// TestParseReceipt: a receipt is always positive. It proves a receipt cannot
+// take stock away, which is what keeps a delivery distinguishable from a
+// correction.
+func TestParseReceipt(t *testing.T) {
 	tests := []struct {
 		name  string
 		in    string

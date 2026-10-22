@@ -23,7 +23,9 @@ func stockDays(levels []int32, received map[int]int32) []StockDay {
 	return out
 }
 
-func TestStockLineCaptionCountsEachSentenceOnItsOwn(t *testing.T) {
+// TestMovementsView_StockLineCaption: stock line caption counts each sentence on
+// its own.
+func TestMovementsView_StockLineCaption(t *testing.T) {
 	t.Parallel()
 
 	for _, tc := range []struct {
@@ -68,7 +70,9 @@ func TestStockLineCaptionCountsEachSentenceOnItsOwn(t *testing.T) {
 	}
 }
 
-func TestStockLineIsDrawnFromTwoMovementsAndSaidInOneSentenceBelow(t *testing.T) {
+// TestMovementsView_DrawsStockLine: stock line is drawn from two movements and
+// said in one sentence below.
+func TestMovementsView_DrawsStockLine(t *testing.T) {
 	t.Parallel()
 
 	for _, tc := range []struct {
@@ -95,7 +99,9 @@ func TestStockLineIsDrawnFromTwoMovementsAndSaidInOneSentenceBelow(t *testing.T)
 	}
 }
 
-func TestMovementsPageDrawsTheStockLineOnlyWhenTheDaysWereRead(t *testing.T) {
+// TestMovementsStockLineDays: movements page draws the stock line only when the
+// days were read.
+func TestMovementsStockLineDays(t *testing.T) {
 	t.Parallel()
 
 	ctx := i18n.WithLocale(t.Context(), i18n.En)

@@ -7,9 +7,9 @@ import (
 	"github.com/koopa0/goen/internal/order"
 )
 
-// The database admits a refund before shipment from the paid state and from
-// picking; the page offers it in both.
-func TestTheRefundBeforeShipmentIsOfferedFromPaidAndPicking(t *testing.T) {
+// TestBeforeShipmentRefundState: the database admits a refund before shipment
+// from the paid state and from picking; the page offers it in both.
+func TestBeforeShipmentRefundState(t *testing.T) {
 	t.Parallel()
 	for status, want := range map[order.FulfillmentStatus]bool{
 		order.FulfillmentPending:   true,
@@ -31,10 +31,11 @@ func TestTheRefundBeforeShipmentIsOfferedFromPaidAndPicking(t *testing.T) {
 	}
 }
 
-// A pending order store credit alone paid is offered the refund before
-// shipment as its cancellation; once packing commits it, or a return exists,
-// it takes the refund through a return or none at all.
-func TestACreditPaidPendingOrderIsOfferedItsCancellation(t *testing.T) {
+// TestBeforeShipmentRefundStateCreditPaid: a pending order store credit alone
+// paid is offered the refund before shipment as its cancellation; once packing
+// commits it, or a return exists, it takes the refund through a return or none
+// at all.
+func TestBeforeShipmentRefundStateCreditPaid(t *testing.T) {
 	t.Parallel()
 	pending, picking := string(order.FulfillmentPending), string(order.FulfillmentPicking)
 	for _, tc := range []struct {

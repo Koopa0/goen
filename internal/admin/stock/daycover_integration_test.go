@@ -13,9 +13,9 @@ import (
 	"github.com/koopa0/goen/internal/keyset"
 )
 
-// The days cover rows sit where the desk opens: not on a search, the sold out
-// filter or the pages after the first.
-func TestStockDeskListsDaysCoverOnlyWhereItOpens(t *testing.T) {
+// TestHandler_VariantsDaysCover: the days cover rows sit where the desk opens:
+// not on a search, the sold out filter or the pages after the first.
+func TestHandler_VariantsDaysCover(t *testing.T) {
 	ctx, _ := admintest.StaffContext(t, pool)
 	h := handlerOver(stock.NewStore(pool))
 	get := func(target string) string {

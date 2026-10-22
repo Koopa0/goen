@@ -20,7 +20,8 @@ import (
 	"github.com/koopa0/goen/internal/ui/stockrisk"
 )
 
-func TestRevenueCountsOnlyCommittedOrders(t *testing.T) {
+// TestStore_ReportAtRevenue: revenue counts only committed orders.
+func TestStore_ReportAtRevenue(t *testing.T) {
 	ctx := t.Context()
 	s := reports.NewStore(pool, stock.NewStore(pool))
 
@@ -54,6 +55,9 @@ func TestRevenueCountsOnlyCommittedOrders(t *testing.T) {
 	}
 }
 
+// TestStore_ReportAtDatabaseClock: an order just placed is counted by the
+// database's clock, not by a host clock behind it.
+//
 // A report counts the orders placed before the moment it is asked about, and the
 // database stamps an order with its own clock. Asked with a host clock that
 // runs behind the database's, an order made a moment ago is not there yet, so a
@@ -61,7 +65,7 @@ func TestRevenueCountsOnlyCommittedOrders(t *testing.T) {
 // database's clock. This fixes both halves without waiting for a clock that
 // happens to differ: the host 2 ms behind the stamp misses the order, the
 // database's own clock does not.
-func TestAnOrderJustPlacedIsCountedAtTheDatabaseClockNotAHostClockBehindIt(t *testing.T) {
+func TestStore_ReportAtDatabaseClock(t *testing.T) {
 	ctx := t.Context()
 	s := reports.NewStore(pool, stock.NewStore(pool))
 
@@ -96,7 +100,9 @@ func TestAnOrderJustPlacedIsCountedAtTheDatabaseClockNotAHostClockBehindIt(t *te
 		before.Placed, behind.Placed, at.Placed)
 }
 
-func TestBestSellerHistorySurvivesRetirementOfAPurchasedVariant(t *testing.T) {
+// TestStore_ReportAtRetiredVariant: best seller history survives retirement of a
+// purchased variant.
+func TestStore_ReportAtRetiredVariant(t *testing.T) {
 	ctx := t.Context()
 	s := reports.NewStore(pool, stock.NewStore(pool))
 	tx, err := pool.Begin(ctx)
@@ -209,9 +215,12 @@ func TestBestSellerHistorySurvivesRetirementOfAPurchasedVariant(t *testing.T) {
 	assertSeller("after retirement")
 }
 
+// TestStore_ReportAtBestSellersRefunded: best sellers leave out an order
+// refunded before shipment.
+//
 // A refund before shipment cancels the sale, so the product leaves the best
 // sellers while the order is still committed, as the order leaves the revenue.
-func TestBestSellersLeaveOutAnOrderRefundedBeforeShipment(t *testing.T) {
+func TestStore_ReportAtBestSellersRefunded(t *testing.T) {
 	ctx := t.Context()
 	// A week of its own, so no other test's sale outranks this one.
 	now := shopMoment(t, "2021-06-20 15:20:00")
@@ -245,7 +254,9 @@ func TestBestSellersLeaveOutAnOrderRefundedBeforeShipment(t *testing.T) {
 	}
 }
 
-func TestStockCoverLeavesOutAnOrderRefundedBeforeShipment(t *testing.T) {
+// TestStockDaysCoverRefundedBeforeShipment: the stock days cover leaves out an
+// order refunded before shipment.
+func TestStockDaysCoverRefundedBeforeShipment(t *testing.T) {
 	ctx := t.Context()
 	now := shopMoment(t, "2021-07-20 15:20:00")
 	placed := shopMoment(t, "2021-07-17 10:00:00")
@@ -303,7 +314,8 @@ func TestStockCoverLeavesOutAnOrderRefundedBeforeShipment(t *testing.T) {
 	}
 }
 
-func TestTheWindowIsAnAllowlist(t *testing.T) {
+// TestStore_ReportAtWindowAllowlist: the window is an allowlist.
+func TestStore_ReportAtWindowAllowlist(t *testing.T) {
 	ctx := t.Context()
 	s := reports.NewStore(pool, stock.NewStore(pool))
 
@@ -405,7 +417,10 @@ func reportOrderAt(t *testing.T, cents int64, paid bool, placedAt *time.Time) uu
 	return orderID
 }
 
-func TestCommittedCoversAnOrderWithNoPaymentRow(t *testing.T) {
+// TestStore_ReportAtNoPaymentRow: an order with no payment row, one that owes
+// nothing, is counted as committed and adds no revenue. Committed covers an order
+// with no payment row.
+func TestStore_ReportAtNoPaymentRow(t *testing.T) {
 	ctx := t.Context()
 	s := reports.NewStore(pool, stock.NewStore(pool))
 
@@ -443,7 +458,9 @@ func TestCommittedCoversAnOrderWithNoPaymentRow(t *testing.T) {
 	}
 }
 
-func TestStockRowsCapSoldOutAndKeepEstimatesListed(t *testing.T) {
+// TestStore_ReportAtStockRowsCap: stock rows cap sold out and keep estimates
+// listed.
+func TestStore_ReportAtStockRowsCap(t *testing.T) {
 	ctx := t.Context()
 	s := reports.NewStore(pool, stock.NewStore(pool))
 
@@ -508,7 +525,8 @@ func TestStockRowsCapSoldOutAndKeepEstimatesListed(t *testing.T) {
 	}
 }
 
-func TestStockWindowIsWholeShopDays(t *testing.T) {
+// TestStore_ReportAtStockWindow: stock window is whole shop days.
+func TestStore_ReportAtStockWindow(t *testing.T) {
 	ctx := t.Context()
 	s := reports.NewStore(pool, stock.NewStore(pool))
 	now := shopMoment(t, "2024-03-10 15:20:00")
@@ -537,7 +555,8 @@ func TestStockWindowIsWholeShopDays(t *testing.T) {
 	}
 }
 
-func TestStockTimeAndSoldOutComeFromTheLedger(t *testing.T) {
+// TestStore_ReportAtStockLedger: stock time and sold out come from the ledger.
+func TestStore_ReportAtStockLedger(t *testing.T) {
 	ctx := t.Context()
 	s := reports.NewStore(pool, stock.NewStore(pool))
 	now := shopMoment(t, "2024-03-10 15:20:00")
@@ -700,7 +719,9 @@ func orderOnVariant(t *testing.T, variantID uuid.UUID, sku string, units int, pl
 	}
 }
 
-func TestAPeriodIsWholeShopDaysAndThePreviousStopsAtTheSameHour(t *testing.T) {
+// TestStore_ReportAtPeriods: a period is whole shop days and the previous stops
+// at the same hour.
+func TestStore_ReportAtPeriods(t *testing.T) {
 	ctx := t.Context()
 	s := reports.NewStore(pool, stock.NewStore(pool))
 	at := func(wallClock string) time.Time {
@@ -795,11 +816,13 @@ func TestAPeriodIsWholeShopDaysAndThePreviousStopsAtTheSameHour(t *testing.T) {
 	}
 }
 
+// TestStore_ReportAtPaidDaysRevenue: paid by shop day adds up to revenue.
+//
 // Seven shop days up to Sunday 2023-11-12 15:20 start on 11-06, the seven
 // before them on 10-30 and stop at 11-05 15:20. The orders that are left out
 // are each of a different kind, so that a day count that took them in would add
 // to more than the tile.
-func TestPaidByShopDayAddsUpToRevenue(t *testing.T) {
+func TestStore_ReportAtPaidDaysRevenue(t *testing.T) {
 	ctx := t.Context()
 	s := reports.NewStore(pool, stock.NewStore(pool))
 	at := func(wallClock string) time.Time {
@@ -896,7 +919,9 @@ func TestPaidByShopDayAddsUpToRevenue(t *testing.T) {
 	}
 }
 
-func TestReturnedProductsCountOnlyDecidedUnitsOfOrdersPlacedInThePeriod(t *testing.T) {
+// TestStore_ReportAtReturnedProducts: returned products count only decided units
+// of orders placed in the period.
+func TestStore_ReportAtReturnedProducts(t *testing.T) {
 	ctx := t.Context()
 	s := reports.NewStore(pool, stock.NewStore(pool))
 
@@ -1019,9 +1044,12 @@ func returnUnits(t *testing.T, orderID uuid.UUID, qty int, status string) {
 	}
 }
 
+// TestStore_ReportAtPaidDaysOrders: paid orders per day add up to the paid order
+// tile.
+//
 // The same orders as the tile counts, a day at a time: the unpaid order, the
 // one refunded before shipment and the ones outside the period are on no day.
-func TestPaidOrdersPerDayAddUpToThePaidOrderTile(t *testing.T) {
+func TestStore_ReportAtPaidDaysOrders(t *testing.T) {
 	ctx := t.Context()
 	s := reports.NewStore(pool, stock.NewStore(pool))
 	at := func(wallClock string) time.Time {
@@ -1083,7 +1111,8 @@ func TestPaidOrdersPerDayAddUpToThePaidOrderTile(t *testing.T) {
 	}
 }
 
-func TestCampaignsAreThoseOnDuringThePeriod(t *testing.T) {
+// TestStore_ReportAtCampaigns: campaigns are those on during the period.
+func TestStore_ReportAtCampaigns(t *testing.T) {
 	ctx := t.Context()
 	s := reports.NewStore(pool, stock.NewStore(pool))
 	at := func(wallClock string) time.Time {
@@ -1145,7 +1174,9 @@ func TestCampaignsAreThoseOnDuringThePeriod(t *testing.T) {
 	}
 }
 
-func TestAnEmptyPeriodNamesTheLatestPaidOrdersDay(t *testing.T) {
+// TestStore_ReportAtEmptyPeriod: an empty period names the latest paid orders
+// day.
+func TestStore_ReportAtEmptyPeriod(t *testing.T) {
 	ctx := t.Context()
 	s := reports.NewStore(pool, stock.NewStore(pool))
 	at := func(wallClock string) time.Time {
@@ -1193,10 +1224,12 @@ func TestAnEmptyPeriodNamesTheLatestPaidOrdersDay(t *testing.T) {
 	}
 }
 
+// TestStore_ReportAtDepartments: departments add up to the revenue figure.
+//
 // A deeper category counts toward its root. An unpaid order and one refunded
 // before shipment count toward none. Together the departments are the revenue
 // figure, since the orders carry no discount, shipping or tax.
-func TestDepartmentsAddUpToTheRevenueFigure(t *testing.T) {
+func TestStore_ReportAtDepartments(t *testing.T) {
 	ctx := t.Context()
 	s := reports.NewStore(pool, stock.NewStore(pool))
 

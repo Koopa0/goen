@@ -21,7 +21,9 @@ import (
 	"github.com/koopa0/goen/internal/i18n"
 )
 
-func TestReceiptRefusalPreservesDraftAndRetryThroughRegisteredRoutes(t *testing.T) {
+// TestHandler_ReceiveRefusalDraft: receipt refusal preserves draft and retry
+// through registered routes.
+func TestHandler_ReceiveRefusalDraft(t *testing.T) {
 	ctx, _ := admintest.StaffContext(t, pool)
 	staff := admintest.AdminRolePool(t, pool)
 	var role string
@@ -92,7 +94,9 @@ func TestReceiptRefusalPreservesDraftAndRetryThroughRegisteredRoutes(t *testing.
 	}
 }
 
-func TestReceiptConflictStartsANewOperationAfterReviewingTheLedger(t *testing.T) {
+// TestHandler_ReceiveConflict: receipt conflict starts a new operation after
+// reviewing the ledger.
+func TestHandler_ReceiveConflict(t *testing.T) {
 	ctx, actor := admintest.StaffContext(t, pool)
 	staff := admintest.AdminRolePool(t, pool)
 	store := stock.NewStore(staff)
@@ -170,7 +174,9 @@ func TestReceiptConflictStartsANewOperationAfterReviewingTheLedger(t *testing.T)
 	}
 }
 
-func TestReceiptStoreRefusalReturnsToFreshLedgerForm(t *testing.T) {
+// TestHandler_ReceiveStoreRefusal: receipt store refusal returns to fresh ledger
+// form.
+func TestHandler_ReceiveStoreRefusal(t *testing.T) {
 	ctx, _ := admintest.StaffContext(t, pool)
 	staff := admintest.AdminRolePool(t, pool)
 	mux := http.NewServeMux()
