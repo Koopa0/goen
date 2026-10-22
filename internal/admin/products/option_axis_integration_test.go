@@ -21,7 +21,8 @@ import (
 	"github.com/koopa0/goen/internal/i18n"
 )
 
-func TestOptionAxesMustPrecedeVariants(t *testing.T) {
+// TestStore_AddOptionAfterVariants: option axes must precede variants.
+func TestStore_AddOptionAfterVariants(t *testing.T) {
 	ctx, _ := admintest.StaffContext(t, pool)
 	s := products.NewStore(pool)
 	slug := productstest.Draft(t, ctx, pool, s)
@@ -73,7 +74,8 @@ func TestOptionAxesMustPrecedeVariants(t *testing.T) {
 	}
 }
 
-func TestOptionAxisAndVariantCreationSerialize(t *testing.T) {
+// TestStore_AddVariantOptionRace: option axis and variant creation serialize.
+func TestStore_AddVariantOptionRace(t *testing.T) {
 	for _, variantFirst := range []bool{true, false} {
 		name := "axis-first"
 		if variantFirst {
@@ -142,7 +144,9 @@ func TestOptionAxisAndVariantCreationSerialize(t *testing.T) {
 	}
 }
 
-func TestTwoVariantsCannotShareAnOptionCombination(t *testing.T) {
+// TestStore_AddVariantDuplicateCombination: two variants cannot share an option
+// combination.
+func TestStore_AddVariantDuplicateCombination(t *testing.T) {
 	ctx, _ := admintest.StaffContext(t, pool)
 	s := products.NewStore(pool)
 	slug := productstest.Draft(t, ctx, pool, s)

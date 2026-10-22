@@ -79,10 +79,10 @@ func imageOrder(t *testing.T, slug string) []string {
 	return out
 }
 
-// TestABundledPhotographIsEditedByItsFileName: a seeded photograph lives in
+// TestStore_BundledImageEdits: a seeded photograph lives in
 // bundled_key, not media_digest, and the editor still names it by its one key.
 // Run as the admin role, so the column grants are the ones production has.
-func TestABundledPhotographIsEditedByItsFileName(t *testing.T) {
+func TestStore_BundledImageEdits(t *testing.T) {
 	ctx, _ := admintest.StaffContext(t, pool)
 	s := products.NewStore(admintest.AdminRolePool(t, pool))
 	slug, _, _ := imageOrderProduct(t, 0)
@@ -112,9 +112,12 @@ func TestABundledPhotographIsEditedByItsFileName(t *testing.T) {
 	}
 }
 
+// TestStore_MoveImageCoverEverywhere: setting the cover and reordering changes
+// the first image everywhere.
+//
 // With no photograph tagged, the first image is the cover on the product page and
 // on every card.
-func TestSettingTheCoverAndReorderingChangesTheFirstImageEverywhere(t *testing.T) {
+func TestStore_MoveImageCoverEverywhere(t *testing.T) {
 	ctx, _ := admintest.StaffContext(t, pool)
 	s := products.NewStore(pool)
 	slug, token, keys := imageOrderProduct(t, 3)
@@ -175,7 +178,9 @@ func TestSettingTheCoverAndReorderingChangesTheFirstImageEverywhere(t *testing.T
 	}
 }
 
-func TestAStaleImageMoveIsRefusedWith422AndChangesNothing(t *testing.T) {
+// TestHandler_MoveImageStale: a stale image move is refused with 422 and changes
+// nothing.
+func TestHandler_MoveImageStale(t *testing.T) {
 	ctx, _ := admintest.StaffContext(t, pool)
 	ctx = i18n.WithLocale(ctx, i18n.En)
 	slug, _, keys := imageOrderProduct(t, 2)
@@ -210,9 +215,12 @@ func TestAStaleImageMoveIsRefusedWith422AndChangesNothing(t *testing.T) {
 	}
 }
 
+// TestStore_MoveImageConcurrentReorders: concurrent image reorders never
+// duplicate a position.
+//
 // Two reorders of one product queue on its row lock: neither computes from the
 // order the other is about to replace, and no position is ever duplicated.
-func TestConcurrentImageReordersNeverDuplicateAPosition(t *testing.T) {
+func TestStore_MoveImageConcurrentReorders(t *testing.T) {
 	ctx, _ := admintest.StaffContext(t, pool)
 	s := products.NewStore(pool)
 	slug, _, keys := imageOrderProduct(t, 4)
@@ -242,9 +250,12 @@ func TestConcurrentImageReordersNeverDuplicateAPosition(t *testing.T) {
 	}
 }
 
+// TestStore_AttachImageConcurrentMove: concurrent attaches and reorders never
+// collide on a position.
+//
 // An attach computes max(position)+1 and a reorder renumbers every position; both
 // take the product's lock first, so neither can collide with the other.
-func TestConcurrentAttachAndReorderNeverCollideOnPosition(t *testing.T) {
+func TestStore_AttachImageConcurrentMove(t *testing.T) {
 	ctx, _ := admintest.StaffContext(t, pool)
 	s := products.NewStore(pool)
 	slug, _, keys := imageOrderProduct(t, 3)
@@ -280,10 +291,12 @@ func TestConcurrentAttachAndReorderNeverCollideOnPosition(t *testing.T) {
 	}
 }
 
+// TestStore_MoveImageConcurrentUp: concurrent moves up lose no update.
+//
 // Three moves up of the last of four images, fired together: serialised they end
 // with it at the cover; without the product lock they read the same starting
 // order and the moves overwrite each other.
-func TestConcurrentMovesUpLoseNoUpdate(t *testing.T) {
+func TestStore_MoveImageConcurrentUp(t *testing.T) {
 	ctx, _ := admintest.StaffContext(t, pool)
 	s := products.NewStore(pool)
 	slug, _, keys := imageOrderProduct(t, 4)

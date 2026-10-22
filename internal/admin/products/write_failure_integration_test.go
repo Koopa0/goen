@@ -31,7 +31,9 @@ import (
 	"github.com/koopa0/goen/internal/user"
 )
 
-func TestProductWritesReportOnlyCommittedSuccess(t *testing.T) {
+// TestHandler_WritesReportCommitted: the image and specification removal and the
+// option and value adds report only a committed success.
+func TestHandler_WritesReportCommitted(t *testing.T) {
 	staff, _ := admintest.StaffContext(t, pool)
 	p := admintest.AdminRolePool(t, pool)
 	s := products.NewStore(p)
@@ -166,7 +168,9 @@ func productWriteRows(t *testing.T, ctx context.Context, p *pgxpool.Pool, slug s
 	return got
 }
 
-func TestProductWritesAnswerAnUnavailableDatabaseAsAServerError(t *testing.T) {
+// TestHandler_WritesUnavailableDatabase: the image and specification removal and
+// the option and value adds answer an unavailable database as a server error.
+func TestHandler_WritesUnavailableDatabase(t *testing.T) {
 	staff, _ := admintest.StaffContext(t, pool)
 	closed := admintest.NamedPool(t, pool, "product-closed-"+uuid.NewString())
 	closed.Close()
@@ -206,7 +210,9 @@ func TestProductWritesAnswerAnUnavailableDatabaseAsAServerError(t *testing.T) {
 	}
 }
 
-func TestProductWritesKeepDatabaseRuleRefusalsDistinct(t *testing.T) {
+// TestHandler_WritesRuleRefusals: the image and specification removal and the
+// option and value adds keep a database rule refusal distinct from a failure.
+func TestHandler_WritesRuleRefusals(t *testing.T) {
 	owner := admintest.Pool(t)
 	staff, _ := admintest.StaffContext(t, owner)
 	app := admintest.AdminRolePool(t, owner)
@@ -284,7 +290,10 @@ func TestProductWritesKeepDatabaseRuleRefusalsDistinct(t *testing.T) {
 	}
 }
 
-func TestProductEditorWriteFaultsKeepSavedStateAndRecover(t *testing.T) {
+// TestHandler_ImageOptionSpecFaults: a fault (closed pool or row lock) in the
+// image option or add-specification write answers 500, keeps the saved state,
+// and the write recovers once the fault clears.
+func TestHandler_ImageOptionSpecFaults(t *testing.T) {
 	owner := admintest.Pool(t)
 	staff, _ := admintest.StaffContext(t, owner)
 	adminPool := admintest.AdminRolePool(t, owner)
@@ -408,7 +417,9 @@ func assertRecoveredProductWrite(t *testing.T, ctx context.Context, owner *pgxpo
 	}
 }
 
-func TestProductEditorWritesKeepDatabaseRuleRefusalsDistinct(t *testing.T) {
+// TestHandler_ImageOptionSpecRefusals: a database rule refusal of an image
+// option or specification write is kept distinct from a failure.
+func TestHandler_ImageOptionSpecRefusals(t *testing.T) {
 	owner := admintest.Pool(t)
 	staff, _ := admintest.StaffContext(t, owner)
 	adminPool := admintest.AdminRolePool(t, owner)
@@ -449,7 +460,11 @@ func TestProductEditorWritesKeepDatabaseRuleRefusalsDistinct(t *testing.T) {
 	}
 }
 
-func TestProductEditorWriteOutcomesPreserveMissingAndRefusedForms(t *testing.T) {
+// TestHandler_ImageOptionSpecOutcomes: the image option and add-specification
+// writes preserve missing and refused forms: a missing image or product answers
+// 404, a bad option redirects to its notice, and a refused specification keeps
+// its draft.
+func TestHandler_ImageOptionSpecOutcomes(t *testing.T) {
 	owner := admintest.Pool(t)
 	staff, _ := admintest.StaffContext(t, owner)
 	adminPool := admintest.AdminRolePool(t, owner)
@@ -508,7 +523,9 @@ func TestProductEditorWriteOutcomesPreserveMissingAndRefusedForms(t *testing.T) 
 	}
 }
 
-func TestRefusedSpecificationKeepsDraftWhenRatingsAreUnavailable(t *testing.T) {
+// TestHandler_AddSpecRatingsUnavailable: a refused specification keeps its draft
+// when the ratings are unavailable.
+func TestHandler_AddSpecRatingsUnavailable(t *testing.T) {
 	owner := admintest.Pool(t)
 	staff, _ := admintest.StaffContext(t, owner)
 	adminPool := admintest.AdminRolePool(t, owner)

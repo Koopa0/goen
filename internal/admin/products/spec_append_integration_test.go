@@ -21,7 +21,9 @@ import (
 	"github.com/koopa0/goen/internal/db"
 )
 
-func TestOverlappingSpecAdditionsKeepBothSpecifications(t *testing.T) {
+// TestHandler_AddSpecOverlapping: overlapping specification additions keep both
+// specifications.
+func TestHandler_AddSpecOverlapping(t *testing.T) {
 	ctx, actor := admintest.StaffContext(t, pool)
 	ctx, cancel := context.WithTimeout(ctx, 10*time.Second)
 	defer cancel()

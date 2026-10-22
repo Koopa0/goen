@@ -10,8 +10,9 @@ import (
 	"github.com/koopa0/goen/internal/i18n"
 )
 
-// TestARefusedOptionWriteNamesTheFieldTheConstraintRefused holds the answer a
-// staff member gets when the database turns an option write down.
+// TestOptionRefusal: a refused option write names the field the constraint
+// refused. It holds the answer a staff member gets when the database turns an
+// option write down.
 //
 // The handler had one branch for every error: not found. So a value a CHECK
 // refuses told the reader that the product they were editing does not exist,
@@ -24,7 +25,7 @@ import (
 // is why the 404 went unseen. The guard is therefore on the mapping the handler
 // consults, so the day a check here is loosened the answer is still a refusal
 // and not a vanished product.
-func TestARefusedOptionWriteNamesTheFieldTheConstraintRefused(t *testing.T) {
+func TestOptionRefusal(t *testing.T) {
 	t.Parallel()
 	ctx := i18n.WithLocale(t.Context(), i18n.ZhHant)
 

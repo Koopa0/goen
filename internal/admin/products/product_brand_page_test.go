@@ -10,7 +10,9 @@ import (
 	"github.com/koopa0/goen/internal/ui/frame"
 )
 
-func TestARefusedProductFormKeepsTheNoBrandChoice(t *testing.T) {
+// TestProductFormRefusedNoBrand: a refused product form keeps the no-brand
+// choice.
+func TestProductFormRefusedNoBrand(t *testing.T) {
 	for _, tc := range []struct {
 		locale i18n.Locale
 		label  string

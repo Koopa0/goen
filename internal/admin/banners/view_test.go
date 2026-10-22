@@ -8,7 +8,7 @@ import (
 	"github.com/koopa0/goen/internal/ui/uitest"
 )
 
-// From TestDeskRefusalsNameTheirFormAndLinkToTheFirstInvalidControl, which keeps
+// From TestProductFormRefusalSummary, which keeps
 // the product half.
 // TestBannersRefusalSummary: a refused banner names its form and links to the first invalid control.
 func TestBannersRefusalSummary(t *testing.T) {

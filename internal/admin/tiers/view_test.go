@@ -18,7 +18,7 @@ import (
 // desks' pages: each half lives with the page it renders.
 
 // TestTiersExampleLine: the tiers example is its own hint line.
-// From TestAnExampleIsItsOwnHintLine.
+// From TestProductFormExampleLine.
 func TestTiersExampleLine(t *testing.T) {
 	t.Parallel()
 	ctx := i18n.WithLocale(t.Context(), i18n.ZhHant)
@@ -32,7 +32,7 @@ func TestTiersExampleLine(t *testing.T) {
 }
 
 // TestTiersExampleHints: every tiers example hint reads in full.
-// From TestEveryExampleHintReadsInFull.
+// From TestProductFormExampleHints.
 func TestTiersExampleHints(t *testing.T) {
 	t.Parallel()
 	for _, tt := range []struct {
@@ -86,7 +86,7 @@ func TestTiersContentColumn(t *testing.T) {
 }
 
 // TestTiersRemoveButtons: the tiers remove buttons name their record.
-// From TestRemoveButtonsNameTheirRecord (the "membership tiers" case).
+// From TestProductImagesRemoveButtons (the "membership tiers" case).
 func TestTiersRemoveButtons(t *testing.T) {
 	t.Parallel()
 	for _, locale := range []struct {

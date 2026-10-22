@@ -7,7 +7,9 @@ import (
 	"github.com/koopa0/goen/internal/product/labelling"
 )
 
-func TestNetQuantityAndUnitAreOptionalTogether(t *testing.T) {
+// TestValidateLabelNetQuantity: a net quantity and its unit are optional
+// together.
+func TestValidateLabelNetQuantity(t *testing.T) {
 	t.Parallel()
 	for _, tc := range []struct {
 		quantity string
@@ -32,7 +34,8 @@ func TestNetQuantityAndUnitAreOptionalTogether(t *testing.T) {
 	}
 }
 
-func TestLabelTextAndAgeBounds(t *testing.T) {
+// TestValidateLabelTextAndAge: label text and age are bounded.
+func TestValidateLabelTextAndAge(t *testing.T) {
 	t.Parallel()
 	for _, field := range (&LabelInput{}).TextFields() {
 		for _, raw := range []string{strings.Repeat("界", field.Limit+1), "a\n", string([]byte{0xff})} {
@@ -67,7 +70,8 @@ func TestLabelTextAndAgeBounds(t *testing.T) {
 	}
 }
 
-func TestLabelTextLimitsCountTheStoredTrimmedValue(t *testing.T) {
+// TestValidateLabelTrimmed: label text limits count the stored, trimmed value.
+func TestValidateLabelTrimmed(t *testing.T) {
 	t.Parallel()
 	input := LabelInput{
 		Origin:               " " + strings.Repeat("界", 100) + " ",

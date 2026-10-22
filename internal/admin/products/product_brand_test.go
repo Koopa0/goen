@@ -8,7 +8,9 @@ import (
 	"github.com/koopa0/goen/internal/admin/products"
 )
 
-func TestProductFormAcceptsNoBrandButRefusesAnInvalidBrand(t *testing.T) {
+// TestForm_ValidateBrand: the product form accepts no brand but refuses an
+// invalid brand.
+func TestForm_ValidateBrand(t *testing.T) {
 	for _, brand := range []string{"", uuid.NewString(), "not-a-brand-id"} {
 		form := products.Form{Slug: "generic", Name: "Generic", BrandID: brand, CategoryID: uuid.NewString()}
 		errs := form.Validate(t.Context())

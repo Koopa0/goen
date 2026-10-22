@@ -13,7 +13,9 @@ import (
 	"github.com/koopa0/goen/internal/i18n"
 )
 
-func TestImageRefusalRendersDraftsApartFromSavedImages(t *testing.T) {
+// TestProductImagesRefusalDrafts: an image refusal renders the drafts apart from
+// the saved images.
+func TestProductImagesRefusalDrafts(t *testing.T) {
 	t.Parallel()
 	const alt = ` 新照片「正面」 & 側面 `
 	const altEn = ` New photograph "front" & side `
@@ -105,7 +107,9 @@ func imageDraftControlValue(n *html.Node, attrs map[string]string) string {
 	return attrs["value"]
 }
 
-func TestProductImageRefusalMarksTheSubmittedControl(t *testing.T) {
+// TestProductImagesRefusalMarksControl: a product image refusal marks the
+// submitted control.
+func TestProductImagesRefusalMarksControl(t *testing.T) {
 	t.Parallel()
 	for _, locale := range i18n.Locales() {
 		ctx := i18n.WithLocale(t.Context(), locale)

@@ -280,7 +280,7 @@ func TestVariantsExamples(t *testing.T) {
 // TestVariantsRefusalSummary: stock refusal names its form and links to the
 // first invalid control.
 //
-// From TestDeskRefusalsNameTheirFormAndLinkToTheFirstInvalidControl.
+// From TestProductFormRefusalSummary.
 func TestVariantsRefusalSummary(t *testing.T) {
 	t.Parallel()
 	for _, locale := range i18n.Locales() {

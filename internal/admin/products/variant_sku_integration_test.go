@@ -15,7 +15,9 @@ import (
 	"github.com/koopa0/goen/internal/i18n"
 )
 
-func TestAMalformedVariantSKUIsRefusedOnItsFieldAndNothingIsWritten(t *testing.T) {
+// TestHandler_AddVariantMalformedSKU: a malformed variant SKU is refused on its
+// field and nothing is written.
+func TestHandler_AddVariantMalformedSKU(t *testing.T) {
 	staffCtx, _ := admintest.StaffContext(t, pool)
 	ctx := i18n.WithLocale(staffCtx, i18n.En)
 	s := products.NewStore(pool)

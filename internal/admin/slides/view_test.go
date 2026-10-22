@@ -116,7 +116,7 @@ func TestSlidesHeroTiles(t *testing.T) {
 }
 
 // TestSlidesRefusalSummary: a refused slide names its form and links to the first invalid control.
-// From TestDeskRefusalsNameTheirFormAndLinkToTheFirstInvalidControl, which keeps
+// From TestProductFormRefusalSummary, which keeps
 // the product half.
 func TestSlidesRefusalSummary(t *testing.T) {
 	t.Parallel()

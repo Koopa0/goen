@@ -28,7 +28,9 @@ import (
 	"github.com/koopa0/goen/internal/user"
 )
 
-func TestProductInvoiceLineFactsUseAdminRoleAndSnapshotOnOrderLines(t *testing.T) {
+// TestStore_SetProductInvoiceLineFacts: the product invoice line facts are
+// written through the admin role and snapshotted on order lines.
+func TestStore_SetProductInvoiceLineFacts(t *testing.T) {
 	p := admintest.Pool(t)
 	ctx, actor := admintest.StaffContext(t, p)
 	var id, variant uuid.UUID
@@ -117,7 +119,9 @@ func TestProductInvoiceLineFactsUseAdminRoleAndSnapshotOnOrderLines(t *testing.T
 	}
 }
 
-func TestProductInvoiceLineRouteRefusesCustomersAndKeepsInvalidForm(t *testing.T) {
+// TestHandler_ProductInvoiceLineRoute: the product invoice line route refuses
+// customers and keeps an invalid form.
+func TestHandler_ProductInvoiceLineRoute(t *testing.T) {
 	p := admintest.Pool(t)
 	ctx, _ := admintest.StaffContext(t, p)
 	var slug string
@@ -154,7 +158,9 @@ func TestProductInvoiceLineRouteRefusesCustomersAndKeepsInvalidForm(t *testing.T
 	}
 }
 
-func TestProductInvoiceLineRedirectSurvivesAProductReadFailure(t *testing.T) {
+// TestHandler_ProductInvoiceLineReadFailure: the product invoice line redirect
+// survives a product read failure.
+func TestHandler_ProductInvoiceLineReadFailure(t *testing.T) {
 	p := admintest.Pool(t)
 	ctx, _ := admintest.StaffContext(t, p)
 	var slug string
@@ -203,7 +209,9 @@ func (refuseInvoiceFormProductRead) TraceQueryStart(ctx context.Context, _ *pgx.
 func (refuseInvoiceFormProductRead) TraceQueryEnd(context.Context, *pgx.Conn, pgx.TraceQueryEndData) {
 }
 
-func TestProductInvoiceLineWritesDoNotBlockProductReferences(t *testing.T) {
+// TestLockProductInvoiceLine: the lock a product invoice line write takes does
+// not block rows that reference the product.
+func TestLockProductInvoiceLine(t *testing.T) {
 	owner := admintest.Pool(t)
 	ctx, actor := admintest.StaffContext(t, owner)
 	var slug string

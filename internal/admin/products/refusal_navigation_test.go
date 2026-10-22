@@ -11,7 +11,9 @@ import (
 	"github.com/koopa0/goen/internal/ui/frame"
 )
 
-func TestDeskRefusalsNameTheirFormAndLinkToTheFirstInvalidControl(t *testing.T) {
+// TestProductFormRefusalSummary: a desk refusal names its form and links to the
+// first invalid control.
+func TestProductFormRefusalSummary(t *testing.T) {
 	t.Parallel()
 	for _, locale := range i18n.Locales() {
 		t.Run(locale.Tag(), func(t *testing.T) {
@@ -135,7 +137,8 @@ func refusalText(n *html.Node) string {
 	return out.String()
 }
 
-func TestRefusalSummariesCountEachRefusalOnce(t *testing.T) {
+// TestProductView_VariantRefusal: the refusal summary counts each refusal once.
+func TestProductView_VariantRefusal(t *testing.T) {
 	t.Parallel()
 	product := &ProductView{
 		Options: []Option{{ID: "a"}, {ID: "b"}, {ID: "c"}},

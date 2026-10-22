@@ -7,11 +7,11 @@ import (
 	"github.com/koopa0/goen/internal/product"
 )
 
-// TestTheStatusTableIsTheProductClosedSet holds the desk to the closed set:
-// knownStatus admits and statusLabel words exactly the statuses in the table,
-// so a status product.Statuses gains and the table lacks would be refused by
-// the write and panic on the page.
-func TestTheStatusTableIsTheProductClosedSet(t *testing.T) {
+// TestStatusesClosedSet: the status table is the product's closed set. It holds
+// the desk to the closed set: knownStatus admits and statusLabel words exactly
+// the statuses in the table, so a status product.Statuses gains and the table
+// lacks would be refused by the write and panic on the page.
+func TestStatusesClosedSet(t *testing.T) {
 	t.Parallel()
 	got := make([]product.Status, 0, len(statuses))
 	for _, s := range statuses {
