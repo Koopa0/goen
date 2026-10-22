@@ -7933,7 +7933,7 @@ input.goen-check {
 }
 
 /* The empty state's two sentences are compared by the whole class attribute
-   (internal/warranty/warranty_test.go:180,184), so the paragraphs carry the
+   (internal/order/warranty/warranty_test.go:180,184), so the paragraphs carry the
    shared spelling alone and every declaration is made here. */
 .goen-empty .ui-empty__title {
   color: var(--n-900);

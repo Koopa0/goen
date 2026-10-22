@@ -11,7 +11,7 @@ import (
 
 	"github.com/koopa0/goen/internal/db"
 	"github.com/koopa0/goen/internal/i18n"
-	"github.com/koopa0/goen/internal/warranty"
+	"github.com/koopa0/goen/internal/order/warranty"
 )
 
 func TestWarrantyNextExpiryRespectsTheNetDeliveredOrdinalCap(t *testing.T) {

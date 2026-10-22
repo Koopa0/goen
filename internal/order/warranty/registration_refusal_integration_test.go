@@ -14,8 +14,8 @@ import (
 	"github.com/google/go-cmp/cmp"
 
 	"github.com/koopa0/goen/internal/i18n"
+	"github.com/koopa0/goen/internal/order/warranty"
 	"github.com/koopa0/goen/internal/user"
-	"github.com/koopa0/goen/internal/warranty"
 )
 
 func TestWarrantyRegistrationRefusalUsesTheStoreCause(t *testing.T) {

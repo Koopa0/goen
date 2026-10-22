@@ -16,7 +16,7 @@ import (
 	"github.com/koopa0/goen/internal/admin/admintest"
 	"github.com/koopa0/goen/internal/admin/warranties"
 	"github.com/koopa0/goen/internal/keyset"
-	"github.com/koopa0/goen/internal/warranty"
+	"github.com/koopa0/goen/internal/order/warranty"
 )
 
 func TestTheShopCanFindAWarrantyTheCustomerRegistered(t *testing.T) {
