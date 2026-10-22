@@ -47,9 +47,9 @@ func (*failingResponseWriter) Write([]byte) (int, error) {
 }
 func (*failingResponseWriter) WriteHeader(int) {}
 
-// TestRequiredAssetsAreVersioned proves each constant produces the versioned
+// TestURLRequiredAssetsVersioned proves each constant produces the versioned
 // URL the year-long cache header depends on.
-func TestRequiredAssetsAreVersioned(t *testing.T) {
+func TestURLRequiredAssetsVersioned(t *testing.T) {
 	t.Parallel()
 
 	names := []string{
@@ -81,7 +81,8 @@ func TestRequiredAssetsAreVersioned(t *testing.T) {
 	}
 }
 
-func TestURLOfUnknownAssetIsNotVersioned(t *testing.T) {
+// TestURLUnknownAsset checks that the URL of an unknown asset is not versioned.
+func TestURLUnknownAsset(t *testing.T) {
 	t.Parallel()
 
 	got := assets.URL("css/does-not-exist.css")
@@ -90,7 +91,9 @@ func TestURLOfUnknownAssetIsNotVersioned(t *testing.T) {
 	}
 }
 
-func TestABundledImageResolvesToItsEmbeddedFile(t *testing.T) {
+// TestImage_URLBundledKey checks that a bundled image resolves to its embedded
+// file, under a versioned URL.
+func TestImage_URLBundledKey(t *testing.T) {
 	t.Parallel()
 
 	const key = "koto-pad-mini-01.webp"
@@ -104,7 +107,10 @@ func TestABundledImageResolvesToItsEmbeddedFile(t *testing.T) {
 	}
 }
 
-func TestABundledImageOffersItsResponsiveVariants(t *testing.T) {
+// TestImage_SrcsetBundledKey checks that a bundled image offers its responsive
+// variants: the 400 and 800 files and the full-size one, each with its width
+// descriptor.
+func TestImage_SrcsetBundledKey(t *testing.T) {
 	t.Parallel()
 
 	const key = "koto-pad-mini-01.webp"
@@ -123,7 +129,9 @@ func TestABundledImageOffersItsResponsiveVariants(t *testing.T) {
 	}
 }
 
-func TestABundledKeyIsAFileNameNotAPath(t *testing.T) {
+// TestImageBundledKeyIsAFileName checks that a bundled key is a file name and not
+// a path: anything else gives no URL and no srcset.
+func TestImageBundledKeyIsAFileName(t *testing.T) {
 	t.Parallel()
 
 	for _, key := range []string{
@@ -171,7 +179,9 @@ func TestHandlerServesRequestedAsset(t *testing.T) {
 	}
 }
 
-func TestAWriteFailureUsesTheConfiguredRequestLogger(t *testing.T) {
+// TestHandlerWriteFailureLogging checks that a write failure is logged through the
+// configured logger, with the request's context.
+func TestHandlerWriteFailureLogging(t *testing.T) {
 	logHandler := &contextLogHandler{}
 	log := slog.New(logHandler)
 	ctx := context.WithValue(t.Context(), requestMarkerKey{}, "asset-request")
@@ -193,7 +203,9 @@ func TestAWriteFailureUsesTheConfiguredRequestLogger(t *testing.T) {
 	}
 }
 
-func TestAnAssetIsServedPrecompressed(t *testing.T) {
+// TestHandlerGzipPrecompressed checks that an asset is served precompressed to a
+// client that accepts gzip.
+func TestHandlerGzipPrecompressed(t *testing.T) {
 	t.Parallel()
 
 	res := requestAsset(t, assets.AppCSS, "gzip", "")
@@ -217,7 +229,9 @@ func TestAnAssetIsServedPrecompressed(t *testing.T) {
 	}
 }
 
-func TestASmallTextAssetHasOnlyItsIdentityRepresentation(t *testing.T) {
+// TestHandlerSmallAssetIdentityOnly checks that a small text asset has only its
+// identity representation: no gzip, no Vary.
+func TestHandlerSmallAssetIdentityOnly(t *testing.T) {
 	t.Parallel()
 
 	res := requestAsset(t, assets.MarkSVG, "gzip", "")
@@ -232,7 +246,9 @@ func TestASmallTextAssetHasOnlyItsIdentityRepresentation(t *testing.T) {
 	}
 }
 
-func TestAnAssetWithoutAcceptEncodingIsIdentity(t *testing.T) {
+// TestHandlerNoAcceptEncodingIdentity checks that an asset requested without
+// Accept-Encoding is served as identity.
+func TestHandlerNoAcceptEncodingIdentity(t *testing.T) {
 	t.Parallel()
 
 	res := requestAsset(t, assets.AppCSS, "", "")
@@ -250,7 +266,9 @@ func TestAnAssetWithoutAcceptEncodingIsIdentity(t *testing.T) {
 	}
 }
 
-func TestAssetGzipNegotiationHonoursQualityAndWildcard(t *testing.T) {
+// TestHandlerGzipNegotiation checks that gzip negotiation honours quality values
+// and the wildcard.
+func TestHandlerGzipNegotiation(t *testing.T) {
 	t.Parallel()
 
 	tests := []struct {
@@ -277,7 +295,9 @@ func TestAssetGzipNegotiationHonoursQualityAndWildcard(t *testing.T) {
 	}
 }
 
-func TestAnImageIsNotPrecompressed(t *testing.T) {
+// TestHandlerImageNotPrecompressed checks that an image is not precompressed: its
+// bytes do not change when the client advertises gzip.
+func TestHandlerImageNotPrecompressed(t *testing.T) {
 	t.Parallel()
 
 	identity := requestAsset(t, assets.HomeHeroImage, "", "")
@@ -294,7 +314,9 @@ func TestAnImageIsNotPrecompressed(t *testing.T) {
 	}
 }
 
-func TestAnAssetETagDistinguishesEncodings(t *testing.T) {
+// TestHandlerETagPerEncoding checks that an asset's ETag distinguishes its
+// encodings: each validator answers 304 for its own representation only.
+func TestHandlerETagPerEncoding(t *testing.T) {
 	t.Parallel()
 
 	identity := requestAsset(t, assets.AppCSS, "", "")
@@ -342,7 +364,9 @@ func TestAnAssetETagDistinguishesEncodings(t *testing.T) {
 	}
 }
 
-func TestAnAssetMatchesAValidatorOnALaterHeaderLine(t *testing.T) {
+// TestHandlerLaterIfNoneMatchLine checks that an asset matches a validator that
+// arrives on a later If-None-Match header line.
+func TestHandlerLaterIfNoneMatchLine(t *testing.T) {
 	compressed := requestAsset(t, assets.AppCSS, "gzip", "")
 	etag := compressed.Header().Get("ETag")
 	req := httptest.NewRequestWithContext(t.Context(), http.MethodGet, assets.URL(assets.AppCSS), http.NoBody)
@@ -356,7 +380,9 @@ func TestAnAssetMatchesAValidatorOnALaterHeaderLine(t *testing.T) {
 	}
 }
 
-func TestAHeadRequestCarriesTheSelectedRepresentationHeaders(t *testing.T) {
+// TestHandlerHeadRequest checks that a HEAD request carries the headers of the
+// representation a GET selects, and no body.
+func TestHandlerHeadRequest(t *testing.T) {
 	t.Parallel()
 
 	get := requestAsset(t, assets.AppCSS, "gzip", "")
@@ -386,7 +412,9 @@ func TestAHeadRequestCarriesTheSelectedRepresentationHeaders(t *testing.T) {
 	}
 }
 
-func TestHandlerRefusesLongCacheWithoutMatchingVersion(t *testing.T) {
+// TestHandlerLongCacheNeedsVersion checks that Handler refuses the long cache to a
+// request without the matching version, whether it has none or a stale one.
+func TestHandlerLongCacheNeedsVersion(t *testing.T) {
 	t.Parallel()
 
 	tests := []struct {
@@ -415,12 +443,12 @@ func TestHandlerRefusesLongCacheWithoutMatchingVersion(t *testing.T) {
 	}
 }
 
-// TestTheStyleSheetCarriesThePageTransition proves the rules that turn a
-// navigation into a cross-fade reach the browser. They are the whole of #369 —
-// CSS and nothing else — so without this assertion the at-rule could be dropped
-// and every other test here would stay green while every page went back to a
-// hard cut.
-func TestTheStyleSheetCarriesThePageTransition(t *testing.T) {
+// TestAppCSSPageTransition checks that the stylesheet carries the page transition.
+// It proves the rules that turn a navigation into a cross-fade reach the browser.
+// They are the whole of #369 — CSS and nothing else — so without this assertion
+// the at-rule could be dropped and every other test here would stay green while
+// every page went back to a hard cut.
+func TestAppCSSPageTransition(t *testing.T) {
 	t.Parallel()
 
 	res := requestAsset(t, assets.AppCSS, "", "")
@@ -487,9 +515,10 @@ func variesOnAcceptEncoding(h http.Header) bool {
 	return false
 }
 
-// TestTheDemoAccountButtonSignsInWhereScriptRuns: the button is labelled as
-// signing in, so the script that reveals it must also submit the form it fills.
-func TestTheDemoAccountButtonSignsInWhereScriptRuns(t *testing.T) {
+// TestAppJSDemoAccountSignsIn checks that the demo account button signs in where
+// the script runs. The button is labelled as signing in, so the script that
+// reveals it must also submit the form it fills.
+func TestAppJSDemoAccountSignsIn(t *testing.T) {
 	t.Parallel()
 
 	script := requestAsset(t, assets.AppJS, "", "").Body.String()
@@ -508,9 +537,10 @@ func TestTheDemoAccountButtonSignsInWhereScriptRuns(t *testing.T) {
 	}
 }
 
-// TestTheCarouselMovesOnlyOnTheVisitorsInput: nothing starts by itself, so the
-// script holds no timer, no animation hook and no autoplay switch (WCAG 2.2.2).
-func TestTheCarouselMovesOnlyOnTheVisitorsInput(t *testing.T) {
+// TestAppJSCarouselNoAutoplay checks that the carousel moves only on the visitor's
+// input. Nothing starts by itself, so the script holds no timer, no animation hook
+// and no autoplay switch (WCAG 2.2.2).
+func TestAppJSCarouselNoAutoplay(t *testing.T) {
 	t.Parallel()
 
 	script := requestAsset(t, assets.AppJS, "", "").Body.String()
@@ -533,12 +563,12 @@ func TestTheCarouselMovesOnlyOnTheVisitorsInput(t *testing.T) {
 	}
 }
 
-// TestACartQuantityAppliesItselfWhereScriptRuns holds the two halves of one
-// promise: the script submits a quantity form on change, and the stylesheet
-// retires the 更新 button only for a browser that runs it. Dropping either
-// leaves a cart a shopper cannot update, or one with a button that does
-// nothing.
-func TestACartQuantityAppliesItselfWhereScriptRuns(t *testing.T) {
+// TestAppJSCartQuantityAutosubmit checks that a cart quantity applies itself where
+// the script runs. It holds the two halves of one promise: the script submits a
+// quantity form on change, and the stylesheet retires the 更新 button only for a
+// browser that runs it. Dropping either leaves a cart a shopper cannot update, or
+// one with a button that does nothing.
+func TestAppJSCartQuantityAutosubmit(t *testing.T) {
 	t.Parallel()
 
 	script := requestAsset(t, assets.AppJS, "", "").Body.String()
@@ -557,7 +587,9 @@ func TestACartQuantityAppliesItselfWhereScriptRuns(t *testing.T) {
 	}
 }
 
-func TestHandlerRefusesUnknownAndDirectories(t *testing.T) {
+// TestHandlerNotFound checks that Handler refuses unknown files and directories
+// with 404.
+func TestHandlerNotFound(t *testing.T) {
 	t.Parallel()
 
 	tests := []struct {
@@ -584,11 +616,12 @@ func TestHandlerRefusesUnknownAndDirectories(t *testing.T) {
 	}
 }
 
-// TestTheFieldNotTheShapeSaysWhereAnImageIsServed holds the reason Image has
-// two fields: the column a key came from decides whether internal/media serves
-// it, so a bundled key never reaches the media handler whatever it looks like,
-// and an upload never depends on the embedded set.
-func TestTheFieldNotTheShapeSaysWhereAnImageIsServed(t *testing.T) {
+// TestImageDigestVersusBundledKey checks that the field, not the shape of the
+// value, says where an image is served. It holds the reason Image has two fields:
+// the column a key came from decides whether internal/media serves it, so a
+// bundled key never reaches the media handler whatever it looks like, and an
+// upload never depends on the embedded set.
+func TestImageDigestVersusBundledKey(t *testing.T) {
 	t.Parallel()
 	const digest = "9f86d081884c7d659a2feaa0c55ad015a3bf4f1b2b0b822cd15d6c15b0f00a08"
 
@@ -615,7 +648,9 @@ func TestTheFieldNotTheShapeSaysWhereAnImageIsServed(t *testing.T) {
 	}
 }
 
-func TestTheCataloguePhotographsAreEmbedded(t *testing.T) {
+// TestHasCataloguePhotographs checks that the catalogue's photographs are
+// embedded.
+func TestHasCataloguePhotographs(t *testing.T) {
 	t.Parallel()
 
 	for _, name := range []string{
@@ -630,7 +665,8 @@ func TestTheCataloguePhotographsAreEmbedded(t *testing.T) {
 	}
 }
 
-func TestTheFaviconIsServedAtItsFixedName(t *testing.T) {
+// TestAliasFavicon checks that the favicon is served at its fixed name.
+func TestAliasFavicon(t *testing.T) {
 	t.Parallel()
 
 	req := httptest.NewRequestWithContext(t.Context(), http.MethodGet, "/favicon.ico", http.NoBody)
@@ -649,7 +685,9 @@ func TestTheFaviconIsServedAtItsFixedName(t *testing.T) {
 	}
 }
 
-func TestTheTabIconShowsItsInkRingOnADarkTabBar(t *testing.T) {
+// TestFaviconSVGDarkSchemeRule checks that the tab icon shows its ink ring on a
+// dark tab bar, through a dark-scheme rule.
+func TestFaviconSVGDarkSchemeRule(t *testing.T) {
 	t.Parallel()
 
 	req := httptest.NewRequestWithContext(t.Context(), http.MethodGet, assets.URL(assets.FaviconSVG), http.NoBody)
@@ -670,7 +708,8 @@ func TestTheTabIconShowsItsInkRingOnADarkTabBar(t *testing.T) {
 	}
 }
 
-func TestThePageMarkHasNoDarkSchemeRule(t *testing.T) {
+// TestMarkSVGNoDarkSchemeRule checks that the page mark has no dark-scheme rule.
+func TestMarkSVGNoDarkSchemeRule(t *testing.T) {
 	t.Parallel()
 
 	req := httptest.NewRequestWithContext(t.Context(), http.MethodGet, assets.URL(assets.MarkSVG), http.NoBody)

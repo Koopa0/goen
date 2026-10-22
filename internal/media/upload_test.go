@@ -18,11 +18,12 @@ import (
 	"github.com/koopa0/goen/internal/web/formtext"
 )
 
-// TestUploadsBeyondTheSlotsAreRefused holds the bound on decodes at once. Each
-// upload can hold MaxDecodedBytes while it decodes, so an unbounded number of
-// simultaneous uploads is an unbounded amount of memory. synctest, because a
-// sleep would pass on a fast machine and lie on a slow one.
-func TestUploadsBeyondTheSlotsAreRefused(t *testing.T) {
+// TestUploader_StoreBeyondSlots checks that uploads beyond the slots are refused.
+// It holds the bound on decodes at once. Each upload can hold MaxDecodedBytes
+// while it decodes, so an unbounded number of simultaneous uploads is an unbounded
+// amount of memory. synctest, because a sleep would pass on a fast machine and lie
+// on a slow one.
+func TestUploader_StoreBeyondSlots(t *testing.T) {
 	synctest.Test(t, func(t *testing.T) {
 		const slots = 2
 
@@ -81,10 +82,11 @@ func TestUploadsBeyondTheSlotsAreRefused(t *testing.T) {
 	})
 }
 
-// TestAFullUploaderRefusesTheFormAndStoresNothing is the same bound seen from a
-// request: StoreUpload goes through the slots, and a refusal names ErrBusy so
-// the back office can say "try again" rather than "failed".
-func TestAFullUploaderRefusesTheFormAndStoresNothing(t *testing.T) {
+// TestHandler_StoreUploadFullUploader checks that a full uploader refuses the form
+// and stores nothing. It is the same bound seen from a request: StoreUpload goes
+// through the slots, and a refusal names ErrBusy so the back office can say "try
+// again" rather than "failed".
+func TestHandler_StoreUploadFullUploader(t *testing.T) {
 	t.Parallel()
 
 	var stored atomic.Int64
@@ -118,7 +120,8 @@ func TestAFullUploaderRefusesTheFormAndStoresNothing(t *testing.T) {
 	}
 }
 
-func TestUploadRefusalsKeepTheirNotice(t *testing.T) {
+// TestUploadNoticeRefusals checks that upload refusals keep their notice.
+func TestUploadNoticeRefusals(t *testing.T) {
 	t.Parallel()
 	for _, tt := range []struct {
 		name    string
@@ -147,7 +150,8 @@ func TestUploadRefusalsKeepTheirNotice(t *testing.T) {
 	}
 }
 
-func TestNilUploadErrorIsNotARefusal(t *testing.T) {
+// TestIsRefusalNilError checks that a nil upload error is not a refusal.
+func TestIsRefusalNilError(t *testing.T) {
 	t.Parallel()
 	if IsRefusal(nil) {
 		t.Error("nil upload error is a refusal")

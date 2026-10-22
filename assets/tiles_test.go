@@ -6,10 +6,11 @@ import (
 	"testing"
 )
 
-// Two cards share a row only when each track is half the row less half the
-// column gap. A formula that fixes the gap at one value leaves the related
+// TestAppCSSRelatedProductsGap checks that the related products follow the grid's
+// column gap. Two cards share a row only when each track is half the row less half
+// the column gap. A formula that fixes the gap at one value leaves the related
 // products on one column wherever the grid's gap is wider.
-func TestTheRelatedProductsFollowTheGridsColumnGap(t *testing.T) {
+func TestAppCSSRelatedProductsGap(t *testing.T) {
 	t.Parallel()
 
 	sheet, err := fs.ReadFile(files, AppCSS)

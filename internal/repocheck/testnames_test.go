@@ -32,14 +32,31 @@ const maxTestNameLen = 40
 // vacuous guard: TestCheckTestNames runs the same checks over fixtures that
 // fail them, and once a package is listed the check fails if the package has
 // no tests to read.
-var migratedTestPackages = []string{}
+var migratedTestPackages = []string{
+	"assets",
+	"internal/media",
+}
 
 // testNameExceptions is the shrink-only allow list: for a listed package, each
 // test that breaks the rule and why. A row is stale, and fails, once its test is
 // renamed or deleted or no longer breaks the rule. Do not add a row to let a
 // new name pass; rename the test. A row belongs here only for a test whose unit
 // is not a Go identifier, such as a SQL object or a repository-wide rule.
-var testNameExceptions = map[string]map[string]string{}
+var testNameExceptions = map[string]map[string]string{
+	"assets": {
+		"TestEveryCustomPropertyUsedIsDeclared":    "a rule of the whole stylesheet set: it walks every file under css/, so no one declared identifier is its unit",
+		"TestEveryFocusOutlineColourIsTheRing":     "a rule of two stylesheets at once: it reads AppCSS and AdminCSS alike, so naming it after either would misstate its unit",
+		"TestEveryFontFamilyCarriesItsLicence":     "a rule about the embedded font directories and their OFL.txt files, not about a function or type; no declared identifier names fonts/",
+		"TestFieldBoundariesHoldContrast":          "a rule of three stylesheets at once: it reads one boundary rule each from AppCSS, AdminCSS and BaseCSS, so naming it after one would misstate its unit",
+		"TestNoStylesheetFetchesFromAnotherOrigin": "a rule of the whole stylesheet set (the style-src 'self' promise): it walks every file under css/, so no one declared identifier is its unit",
+		"TestSharedLayoutRulesAreDeclaredOnce":     "a rule of two stylesheets at once: it counts one selector in AppCSS and one in AdminCSS, so naming it after either would misstate its unit",
+	},
+	"internal/media": {
+		"TestImage_SrcsetOfUpload":    "the unit is assets.Image.Srcset, which package assets declares; this package declares no identifier for it, and moving the test to assets is a reorganisation this pass does not do",
+		"TestMediaObjectsConstraints": "the unit is the CHECK constraints of the media_objects table, a SQL object, not a Go identifier",
+		"TestMediaObjectsImmutable":   "the unit is the media_objects_immutable trigger, a SQL object, not a Go identifier",
+	},
+}
 
 // TestMigratedTestNames holds every package in migratedTestPackages to the rule
 // that a top-level test name is at most 40 characters after "Test" and starts

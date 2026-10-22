@@ -8,11 +8,12 @@ import (
 	"testing"
 )
 
-// TestAnImageOverTheByteBudgetIsRefusedBeforeItIsDecoded holds MaxDecodedBytes
-// to the header. Every forgery here is inside MaxPixels and carries no pixel
-// data, so ErrTooLarge can only come from the budget: a decode would fail with
-// ErrNotAnImage, and the control of each pair shows exactly that.
-func TestAnImageOverTheByteBudgetIsRefusedBeforeItIsDecoded(t *testing.T) {
+// TestNormaliseDecodeBudget checks that an image over the byte budget is refused
+// before it is decoded. It holds MaxDecodedBytes to the header. Every forgery here
+// is inside MaxPixels and carries no pixel data, so ErrTooLarge can only come from
+// the budget: a decode would fail with ErrNotAnImage, and the control of each pair
+// shows exactly that.
+func TestNormaliseDecodeBudget(t *testing.T) {
 	t.Parallel()
 
 	const side = 6000 // 36 megapixels, under MaxPixels
@@ -64,12 +65,12 @@ func TestAnImageOverTheByteBudgetIsRefusedBeforeItIsDecoded(t *testing.T) {
 	}
 }
 
-// TestAProgressiveJPEGIsCostedAtEveryCoefficient pins the coefficient count to
-// what image/jpeg allocates at 4:2:0: four bytes a pixel of blocks for the
-// component sampled 2x2 and one for each of the others, beside the three-byte
-// planes. image/jpeg sizes the MCU grid from the largest factors, which need
-// not be luma's.
-func TestAProgressiveJPEGIsCostedAtEveryCoefficient(t *testing.T) {
+// TestDecodeCostProgressiveJPEG checks that a progressive JPEG is costed at every
+// coefficient. It pins the coefficient count to what image/jpeg allocates at
+// 4:2:0: four bytes a pixel of blocks for the component sampled 2x2 and one for
+// each of the others, beside the three-byte planes. image/jpeg sizes the MCU grid
+// from the largest factors, which need not be luma's.
+func TestDecodeCostProgressiveJPEG(t *testing.T) {
 	t.Parallel()
 
 	const side = 1600

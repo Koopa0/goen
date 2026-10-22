@@ -6,11 +6,12 @@ import (
 	"testing"
 )
 
-// The carousel's track stretches every slide to the tallest one. A slide
-// without a photograph under 1024px must put its name at the top and the rest
-// at the foot, or its copy sits in the corner of a field of tone as tall as a
-// photograph.
-func TestAHeroSlideWithoutAPhotographIsAPosterBelowDesktop(t *testing.T) {
+// TestAppCSSHeroSlideWithoutPhoto checks that a hero slide without a photograph is
+// a poster below desktop width. The carousel's track stretches every slide to the
+// tallest one. A slide without a photograph under 1024px must put its name at the
+// top and the rest at the foot, or its copy sits in the corner of a field of tone
+// as tall as a photograph.
+func TestAppCSSHeroSlideWithoutPhoto(t *testing.T) {
 	t.Parallel()
 
 	sheet, err := fs.ReadFile(files, AppCSS)
