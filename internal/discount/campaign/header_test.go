@@ -55,7 +55,7 @@ func TestImage_URLHeaderKey(t *testing.T) {
 
 // TestPageHeadTone: a campaign head carries its tone. The attribute is what
 // app.css selects the ground on; a head without it is unthemed. The department
-// head's half of this test is catalog's TestADepartmentHeadCarriesItsTone.
+// head's half of this test is catalog's TestListingHeadTone.
 func TestPageHeadTone(t *testing.T) {
 	t.Parallel()
 	ctx := i18n.WithLocale(t.Context(), i18n.En)

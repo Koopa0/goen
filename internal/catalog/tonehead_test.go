@@ -9,10 +9,12 @@ import (
 	"github.com/koopa0/goen/internal/ui/tone"
 )
 
+// TestListingHeadTone holds that a department head carries its tone.
+//
 // The attribute is what app.css selects the ground on; a head without it is
 // unthemed, and one carrying a tone outside the set would match no rule. The
 // campaign head's half of this test is campaign's TestPageHeadTone.
-func TestADepartmentHeadCarriesItsTone(t *testing.T) {
+func TestListingHeadTone(t *testing.T) {
 	t.Parallel()
 	ctx := i18n.WithLocale(t.Context(), i18n.En)
 

@@ -13,11 +13,14 @@ import (
 	"github.com/koopa0/goen/internal/ui/widget"
 )
 
-// TestThePageMarksTheCategoryYouAreIn holds frame.Page.Nav, which drives the
-// header's aria-current="page". It is set where the page's
-// chrome is BUILT, not by each handler: a field every caller must remember to
-// fill is a field that goes unfilled.
-func TestThePageMarksTheCategoryYouAreIn(t *testing.T) {
+// TestListingMetaProductMetaNav holds that a listing or product page marks the
+// category the shopper is in, through the Nav of its page meta, and a page
+// outside the tree marks nothing.
+//
+// It holds frame.Page.Nav, which drives the header's aria-current="page". It is
+// set where the page's chrome is BUILT, not by each handler: a field every
+// caller must remember to fill is a field that goes unfilled.
+func TestListingMetaProductMetaNav(t *testing.T) {
 	t.Parallel()
 	ctx := i18n.WithLocale(t.Context(), i18n.ZhHant)
 
@@ -67,10 +70,13 @@ func TestThePageMarksTheCategoryYouAreIn(t *testing.T) {
 	}
 }
 
-// TestMobileFiltersStayCollapsedWithoutScript holds the category disclosure: a
-// phone visitor must see products before the full filter form, and the shell is
-// a native <details> so it works when the enhancement file is deleted.
-func TestMobileFiltersStayCollapsedWithoutScript(t *testing.T) {
+// TestListingMobileFilters holds that the mobile filters stay collapsed in a
+// native disclosure without script.
+//
+// It holds the category disclosure: a phone visitor must see products before
+// the full filter form, and the shell is a native <details> so it works when
+// the enhancement file is deleted.
+func TestListingMobileFilters(t *testing.T) {
 	t.Parallel()
 	ctx := i18n.WithLocale(t.Context(), i18n.ZhHant)
 	view := ListingView{
@@ -97,10 +103,13 @@ func TestMobileFiltersStayCollapsedWithoutScript(t *testing.T) {
 	}
 }
 
-// TestTheListingControlsWorkWithoutScript holds the three controls the shopper
-// reaches for: each facet a closed disclosure, the sort a native select inside
-// the GET form beside a submit button, and the next page a link.
-func TestTheListingControlsWorkWithoutScript(t *testing.T) {
+// TestListingControlsNoScript holds that the listing's controls work without
+// script.
+//
+// It holds the three controls the shopper reaches for: each facet a closed
+// disclosure, the sort a native select inside the GET form beside a submit
+// button, and the next page a link.
+func TestListingControlsNoScript(t *testing.T) {
 	t.Parallel()
 	ctx := i18n.WithLocale(t.Context(), i18n.ZhHant)
 	view := ListingView{
@@ -146,9 +155,11 @@ func TestTheListingControlsWorkWithoutScript(t *testing.T) {
 	}
 }
 
-// TestAnEmptyListingHasNoCountAndNoSort: the empty state carries the message, and
-// the toolbar keeps only what can still change the result.
-func TestAnEmptyListingHasNoCountAndNoSort(t *testing.T) {
+// TestListingEmptyToolbar holds that an empty listing has no count and no sort.
+//
+// The empty state carries the message, and the toolbar keeps only what can
+// still change the result.
+func TestListingEmptyToolbar(t *testing.T) {
 	t.Parallel()
 	ctx := i18n.WithLocale(t.Context(), i18n.ZhHant)
 	empty := ListingView{Slug: "audio", Name: "耳機與音響", Filtered: true, InStockOnly: true}
@@ -177,8 +188,10 @@ func TestAnEmptyListingHasNoCountAndNoSort(t *testing.T) {
 	}
 }
 
-// TestTheSearchCountSitsBesideTheSort: the head carries the query only.
-func TestTheSearchCountSitsBesideTheSort(t *testing.T) {
+// TestSearchCountBesideSort holds that the search count sits beside the sort.
+//
+// The head carries the query only.
+func TestSearchCountBesideSort(t *testing.T) {
 	t.Parallel()
 	ctx := i18n.WithLocale(t.Context(), i18n.ZhHant)
 	view := SearchView{
@@ -200,9 +213,12 @@ func TestTheSearchCountSitsBesideTheSort(t *testing.T) {
 	}
 }
 
-// TestFilteredListingFocusesResults holds where a filter submission should
-// leave keyboard focus: on the results region, not back at the page top.
-func TestFilteredListingFocusesResults(t *testing.T) {
+// TestListingFocusesResults holds that a filtered listing puts keyboard focus
+// on its results.
+//
+// It holds where a filter submission should leave keyboard focus: on the
+// results region, not back at the page top.
+func TestListingFocusesResults(t *testing.T) {
 	t.Parallel()
 	ctx := i18n.WithLocale(t.Context(), i18n.ZhHant)
 	view := ListingView{
@@ -240,12 +256,13 @@ func TestFilteredListingFocusesResults(t *testing.T) {
 	}
 }
 
-// TestAComparisonCanBeBuiltFromAListing holds the one path into /compare. The
-// comparison lives in the URL and nowhere else, so every link into it has to
-// carry the set. The listing is where somebody chooses between candidates, so
-// the listing is where the set is built — a GET form, because a comparison
-// writes nothing.
-func TestAComparisonCanBeBuiltFromAListing(t *testing.T) {
+// TestListingCompareForm holds that a comparison can be built from a listing.
+//
+// It holds the one path into /compare. The comparison lives in the URL and
+// nowhere else, so every link into it has to carry the set. The listing is
+// where somebody chooses between candidates, so the listing is where the set is
+// built — a GET form, because a comparison writes nothing.
+func TestListingCompareForm(t *testing.T) {
 	t.Parallel()
 
 	view := ListingView{
@@ -282,10 +299,14 @@ func TestAComparisonCanBeBuiltFromAListing(t *testing.T) {
 	}
 }
 
-// TestACheapestPriceSaysItIsTheCheapest holds a number that reads as a promise:
-// a tile and an unchosen product page both render the cheapest BUYABLE
-// variant's price, so it has to be marked as the bottom of a range.
-func TestACheapestPriceSaysItIsTheCheapest(t *testing.T) {
+// TestListingPriceFrom holds that a cheapest price says it is the cheapest: a
+// listing tile and an unchosen product page both mark the price as a lowest one
+// only where it is.
+//
+// It holds a number that reads as a promise: a tile and an unchosen product
+// page both render the cheapest BUYABLE variant's price, so it has to be marked
+// as the bottom of a range.
+func TestListingPriceFrom(t *testing.T) {
 	t.Parallel()
 	ctx := i18n.WithLocale(t.Context(), i18n.ZhHant)
 	// The whole rendered figure, not a loose word: 最低 beside a price is also
@@ -331,9 +352,12 @@ func TestACheapestPriceSaysItIsTheCheapest(t *testing.T) {
 	}
 }
 
+// TestListingEagerFirstRows holds that the first rows of a listing load their
+// photographs eagerly.
+//
 // The first two rows' photographs are the page's first paint, so they must not
 // wait for layout; everything past them stays lazy.
-func TestTheFirstRowsOfAListingLoadsItsPhotographsEagerly(t *testing.T) {
+func TestListingEagerFirstRows(t *testing.T) {
 	t.Parallel()
 	ctx := i18n.WithLocale(t.Context(), i18n.ZhHant)
 	tiles := make([]tile.Tile, 0, 10)
@@ -364,8 +388,10 @@ func shelf(n int) []tile.Tile {
 	return tiles
 }
 
+// TestListingOneGrid holds that a long shelf is one grid of every product.
+//
 // A long shelf is one grid of every product: nothing is lifted into a lead row.
-func TestALongShelfIsOneGridOfEveryProduct(t *testing.T) {
+func TestListingOneGrid(t *testing.T) {
 	t.Parallel()
 	ctx := i18n.WithLocale(t.Context(), i18n.ZhHant)
 	for name, view := range map[string]ListingView{
@@ -387,9 +413,12 @@ func TestALongShelfIsOneGridOfEveryProduct(t *testing.T) {
 	}
 }
 
+// TestListingHeadSubcategories holds that the head offers its subcategories and
+// photograph.
+//
 // The head offers the department's sub-categories, marks the one the shopper is
 // in, and draws the department's photograph only when it has one.
-func TestTheHeadOffersItsSubcategoriesAndPhotograph(t *testing.T) {
+func TestListingHeadSubcategories(t *testing.T) {
 	t.Parallel()
 	ctx := i18n.WithLocale(t.Context(), i18n.En)
 	view := ListingView{
@@ -422,9 +451,12 @@ func TestTheHeadOffersItsSubcategoriesAndPhotograph(t *testing.T) {
 	}
 }
 
+// TestSearchEmptyDepartments holds that an empty search suggests the
+// departments.
+//
 // A search that finds nothing sends the shopper to the departments, which the
 // header already lists.
-func TestAnEmptySearchSuggestsTheDepartments(t *testing.T) {
+func TestSearchEmptyDepartments(t *testing.T) {
 	t.Parallel()
 	ctx := frame.WithTopNav(i18n.WithLocale(t.Context(), i18n.ZhHant), []frame.NavItem{
 		{Slug: "tech", Name: "3C", Href: "/c/tech"}, {Slug: "fashion", Name: "服飾", Href: "/c/fashion"},
@@ -438,9 +470,12 @@ func TestAnEmptySearchSuggestsTheDepartments(t *testing.T) {
 	}
 }
 
+// TestListingFiltersApply holds that the filters apply themselves and keep
+// their button.
+//
 // A changed filter fetches the page the button would have navigated to, and the
 // button stays in the markup for a browser without script.
-func TestFiltersApplyThemselvesAndKeepTheirButton(t *testing.T) {
+func TestListingFiltersApply(t *testing.T) {
 	t.Parallel()
 	ctx := i18n.WithLocale(t.Context(), i18n.En)
 	view := ListingView{Slug: "audio", Name: "Audio", Products: shelf(2), Total: 2, Filtered: true, InStockOnly: true}
@@ -465,10 +500,13 @@ func TestFiltersApplyThemselvesAndKeepTheirButton(t *testing.T) {
 	}
 }
 
+// TestListingPartialFocus holds that a partial listing never takes focus and
+// the latest change wins.
+//
 // htmx focuses any [autofocus] in swapped content, so a partial render that
 // carried it would pull focus off the control the shopper just changed. The
 // latest change wins, and a failed update has a place to say so.
-func TestAPartialListingNeverTakesFocusAndTheLatestChangeWins(t *testing.T) {
+func TestListingPartialFocus(t *testing.T) {
 	t.Parallel()
 	ctx := i18n.WithLocale(t.Context(), i18n.En)
 	view := ListingView{Slug: "audio", Name: "Audio", Products: shelf(2), Total: 2, Filtered: true, InStockOnly: true}
@@ -488,9 +526,12 @@ func TestAPartialListingNeverTakesFocusAndTheLatestChangeWins(t *testing.T) {
 	}
 }
 
+// TestSearchSortAcrossPages holds that the search offers the listing's sort and
+// keeps it across pages.
+//
 // A search offers the listing's sort control, best match first, and a page of
 // results keeps the chosen order in every pager link.
-func TestSearchOffersTheListingSortAndKeepsItAcrossPages(t *testing.T) {
+func TestSearchSortAcrossPages(t *testing.T) {
 	t.Parallel()
 	ctx := i18n.WithLocale(t.Context(), i18n.En)
 	view := SearchView{Query: "pro", Products: shelf(2), Total: 60, Page: 1, PageSize: 24, Sort: "price_asc"}
@@ -507,7 +548,9 @@ func TestSearchOffersTheListingSortAndKeepsItAcrossPages(t *testing.T) {
 	}
 }
 
-func TestSearchKeepsFailedSortFeedbackOutsideResults(t *testing.T) {
+// TestSearchFailedSortFeedback holds that the search keeps the feedback of a
+// failed sort outside its results.
+func TestSearchFailedSortFeedback(t *testing.T) {
 	t.Parallel()
 	tests := []struct {
 		name   string
@@ -547,8 +590,10 @@ func TestSearchKeepsFailedSortFeedbackOutsideResults(t *testing.T) {
 	}
 }
 
+// TestSearchEmptyNewest holds that an empty search offers the newest products.
+//
 // A search that found nothing offers the newest products besides the departments.
-func TestAnEmptySearchOffersTheNewestProducts(t *testing.T) {
+func TestSearchEmptyNewest(t *testing.T) {
 	t.Parallel()
 	ctx := i18n.WithLocale(t.Context(), i18n.En)
 	newest := shelf(2)
@@ -561,9 +606,12 @@ func TestAnEmptySearchOffersTheNewestProducts(t *testing.T) {
 	}
 }
 
+// TestListingView_AppliedChips holds that each applied filter links to the
+// listing without it.
+//
 // Each applied filter links to the listing without that one filter and nothing
 // else, and names what it removes, because its glyph is only a cross.
-func TestEachAppliedFilterLinksToTheListingWithoutIt(t *testing.T) {
+func TestListingView_AppliedChips(t *testing.T) {
 	t.Parallel()
 	ctx := i18n.WithLocale(t.Context(), i18n.En)
 	view := ListingView{
@@ -595,9 +643,12 @@ func TestEachAppliedFilterLinksToTheListingWithoutIt(t *testing.T) {
 	}
 }
 
+// TestListingPartialBrandCounts holds that a partial listing carries the brand
+// counts for the rail.
+//
 // The rail is not swapped, so a swapped response carries each brand's count on
 // its own; a whole-page response must not, or ids would repeat.
-func TestAPartialListingCarriesTheBrandCountsForTheRail(t *testing.T) {
+func TestListingPartialBrandCounts(t *testing.T) {
 	t.Parallel()
 	ctx := i18n.WithLocale(t.Context(), i18n.En)
 	view := ListingView{Slug: "audio", Name: "Audio", Products: shelf(1), Total: 1, Facets: []FacetGroup{{Label: "Brand", Options: []FacetOption{{Value: "aurora", Label: "Aurora", Count: 3}}}}}
@@ -610,9 +661,12 @@ func TestAPartialListingCarriesTheBrandCountsForTheRail(t *testing.T) {
 	}
 }
 
+// TestListingGroupSelectedCount holds that each filter group says how many of
+// its options are on.
+//
 // A group's name carries how many of its options are on, so a shopper who has
 // closed the group still sees that it filters.
-func TestEachFilterGroupSaysHowManyOfItsOptionsAreOn(t *testing.T) {
+func TestListingGroupSelectedCount(t *testing.T) {
 	t.Parallel()
 	ctx := i18n.WithLocale(t.Context(), i18n.En)
 	view := ListingView{
@@ -636,8 +690,11 @@ func TestEachFilterGroupSaysHowManyOfItsOptionsAreOn(t *testing.T) {
 	}
 }
 
+// TestListingPartialSelected holds that a partial listing carries the selected
+// counts for the rail.
+//
 // The rail is not swapped, so a swapped response carries each badge on its own.
-func TestAPartialListingCarriesTheSelectedCountsForTheRail(t *testing.T) {
+func TestListingPartialSelected(t *testing.T) {
 	t.Parallel()
 	ctx := i18n.WithLocale(t.Context(), i18n.En)
 	view := ListingView{
@@ -656,7 +713,8 @@ func TestAPartialListingCarriesTheSelectedCountsForTheRail(t *testing.T) {
 	}
 }
 
-func TestTheDepartmentPageEndsWithTheShopRules(t *testing.T) {
+// TestListingShopRules holds that the department page ends with the shop rules.
+func TestListingShopRules(t *testing.T) {
 	t.Parallel()
 	rules := policy.Rules{FreeDeliveryCents: 300000}
 	page := renderToString(t, Listing(frame.Page{}, ListingView{Slug: "tech", Name: "3C 數位"}, &rules, nil))

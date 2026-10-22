@@ -14,9 +14,12 @@ var scheduleNow = time.Date(2026, 10, 2, 4, 0, 0, 0, time.UTC)
 
 func day(d int) time.Time { return time.Date(2026, 10, d-1, 16, 0, 0, 0, time.UTC) }
 
+// TestDepartmentNoticeNotLimited holds that nothing offered is called limited
+// time: not the deals link, not the department notice.
+//
 // The deals page, the campaign page and the campaigns strip are campaign's
-// TestNothingOfferedIsCalledLimitedTime.
-func TestNothingOfferedIsCalledLimitedTime(t *testing.T) {
+// TestDealsNotCalledLimitedTime.
+func TestDepartmentNoticeNotLimited(t *testing.T) {
 	t.Parallel()
 	ctx := i18n.WithLocale(t.Context(), i18n.ZhHant)
 	for name, text := range map[string]string{

@@ -23,7 +23,9 @@ func matrix() []Variant {
 	}
 }
 
-func TestReviewControlCharactersAreAttributedToTheirField(t *testing.T) {
+// TestReview_ValidateControlChars holds that Validate attributes control
+// characters to the field that holds them.
+func TestReview_ValidateControlChars(t *testing.T) {
 	tests := []struct {
 		name      string
 		review    Review
@@ -135,7 +137,8 @@ func TestResolve(t *testing.T) {
 	}
 }
 
-func TestResolveRejectsUnknownValues(t *testing.T) {
+// TestResolveUnknown holds that Resolve rejects unknown values.
+func TestResolveUnknown(t *testing.T) {
 	for _, sel := range []Selection{
 		{"顏色": "螢光粉"},
 		{"顏色": "星霧藍", "容量": "1TB"},
@@ -147,7 +150,9 @@ func TestResolveRejectsUnknownValues(t *testing.T) {
 	}
 }
 
-func TestResolveDoesNotReportDuplicateOptionCombinationsAsExact(t *testing.T) {
+// TestResolveDuplicates holds that Resolve does not report duplicate option
+// combinations as exact.
+func TestResolveDuplicates(t *testing.T) {
 	variants := []Variant{
 		{ID: "1", SKU: "DUPLICATE-1", PriceCents: 200, Sellable: true,
 			Options: map[string]string{"colour": "black", "size": "large"}},
@@ -164,7 +169,9 @@ func TestResolveDoesNotReportDuplicateOptionCombinationsAsExact(t *testing.T) {
 	}
 }
 
-func TestBuildOptionsMarksAvailabilityAgainstOtherChoices(t *testing.T) {
+// TestBuildOptionsAvailability holds that BuildOptions marks availability
+// against the other choices.
+func TestBuildOptionsAvailability(t *testing.T) {
 	groups := choices(map[string][]string{
 		"顏色": {"星霧藍", "曜石黑"},
 		"容量": {"256GB", "512GB"},
@@ -195,7 +202,9 @@ func TestBuildOptionsMarksAvailabilityAgainstOtherChoices(t *testing.T) {
 	}
 }
 
-func TestBuildOptionsHrefKeepsOtherChoices(t *testing.T) {
+// TestBuildOptionsHref holds that a value's link from BuildOptions keeps the
+// other choices.
+func TestBuildOptionsHref(t *testing.T) {
 	groups := choices(map[string][]string{"顏色": {"曜石黑"}, "容量": {"256GB", "512GB"}})
 	opts := BuildOptions("phone", groups, []string{"顏色", "容量"},
 		map[string]string{"顏色": "Colour"}, matrix(), Selection{"容量": "512GB"})
@@ -243,7 +252,8 @@ func TestParseSelection(t *testing.T) {
 	}
 }
 
-func TestParseSelectionBoundsInput(t *testing.T) {
+// TestParseSelectionBounds holds that ParseSelection bounds its input.
+func TestParseSelectionBounds(t *testing.T) {
 	long := make([]rune, maxOptionRunes+50)
 	for i := range long {
 		long[i] = '色'
@@ -258,7 +268,9 @@ func TestParseSelectionBoundsInput(t *testing.T) {
 	}
 }
 
-func TestParseSelectionKeepsAllCandidateOptions(t *testing.T) {
+// TestParseSelectionCandidates holds that ParseSelection keeps all candidate
+// options.
+func TestParseSelectionCandidates(t *testing.T) {
 	q := url.Values{
 		"option-11": {"value-11"},
 		"option-10": {"value-10"},
@@ -295,7 +307,9 @@ func TestParseSelectionKeepsAllCandidateOptions(t *testing.T) {
 	}
 }
 
-func TestUnknownQueryKeysDoNotDisplaceKnownOptions(t *testing.T) {
+// TestSelection_OnlyOptionsOfUnknownKeys holds that unknown query keys do not
+// displace known options.
+func TestSelection_OnlyOptionsOfUnknownKeys(t *testing.T) {
 	q := url.Values{
 		"a-unknown-0": {"x"}, "a-unknown-1": {"x"},
 		"a-unknown-2": {"x"}, "a-unknown-3": {"x"},
@@ -315,7 +329,9 @@ func TestUnknownQueryKeysDoNotDisplaceKnownOptions(t *testing.T) {
 	}
 }
 
-func TestOnlyOptionsOfKeepsEveryCatalogueAxis(t *testing.T) {
+// TestSelection_OnlyOptionsOfAxes holds that OnlyOptionsOf keeps every
+// catalogue axis.
+func TestSelection_OnlyOptionsOfAxes(t *testing.T) {
 	const count = 12
 	options := make(map[string]string, count)
 	sel := make(Selection, count)
@@ -332,7 +348,9 @@ func TestOnlyOptionsOfKeepsEveryCatalogueAxis(t *testing.T) {
 	}
 }
 
-func TestOnlyOptionsOfReturnsIndependentSelection(t *testing.T) {
+// TestSelection_OnlyOptionsOfCopy holds that OnlyOptionsOf returns an
+// independent selection.
+func TestSelection_OnlyOptionsOfCopy(t *testing.T) {
 	t.Run("nil stays nil", func(t *testing.T) {
 		var sel Selection
 		if got := sel.OnlyOptionsOf(matrix()); got != nil {
@@ -381,7 +399,9 @@ func choices(in map[string][]string) map[string][]OptionChoice {
 	return out
 }
 
-func TestThePickerShowsLabelsAndSelectsOnIdentity(t *testing.T) {
+// TestBuildOptionsLabels holds that the picker shows labels and selects on
+// identity.
+func TestBuildOptionsLabels(t *testing.T) {
 	t.Parallel()
 
 	groups := map[string][]OptionChoice{
@@ -428,11 +448,13 @@ func TestThePickerShowsLabelsAndSelectsOnIdentity(t *testing.T) {
 	}
 }
 
-// TestThePagesOwnParametersAreNotVariantOptions covers the keys reservedParam
-// does not list: the handler reads ?ask=, ?notify= and the /compare set's ?p=
-// off the same query ParseSelection does. Options are derived from the variants
-// rather than from that denylist.
-func TestThePagesOwnParametersAreNotVariantOptions(t *testing.T) {
+// TestSelection_OnlyOptionsOfPageParams holds that the page's own parameters
+// are not variant options.
+//
+// It covers the keys reservedParam does not list: the handler reads ?ask=,
+// ?notify= and the /compare set's ?p= off the same query ParseSelection does.
+// Options are derived from the variants rather than from that denylist.
+func TestSelection_OnlyOptionsOfPageParams(t *testing.T) {
 	variants := matrix()
 
 	tests := []struct {
@@ -477,7 +499,9 @@ func TestThePagesOwnParametersAreNotVariantOptions(t *testing.T) {
 	}
 }
 
-func TestWithSingleChoicesSelectsWhatHasNoAlternative(t *testing.T) {
+// TestSelection_WithSingleChoices holds that WithSingleChoices selects what has
+// no alternative.
+func TestSelection_WithSingleChoices(t *testing.T) {
 	t.Parallel()
 	groups := map[string][]OptionChoice{
 		"colour":   {{Value: "black"}},
@@ -492,7 +516,9 @@ func TestWithSingleChoicesSelectsWhatHasNoAlternative(t *testing.T) {
 	}
 }
 
-func TestOneColourAndTwoSizesPreselectOnlyTheColour(t *testing.T) {
+// TestSelection_WithSingleChoicesColour holds that one colour and two sizes
+// preselect only the colour.
+func TestSelection_WithSingleChoicesColour(t *testing.T) {
 	t.Parallel()
 	groups := map[string][]OptionChoice{
 		"colour": {{Value: "black"}},

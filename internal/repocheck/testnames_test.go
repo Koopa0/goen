@@ -65,6 +65,7 @@ var migratedTestPackages = []string{
 	"internal/backinstock",
 	"internal/bearer",
 	"internal/cart",
+	"internal/catalog",
 	"internal/checkout",
 	"internal/contact",
 	"internal/credit",
@@ -220,6 +221,12 @@ var testNameExceptions = map[string]map[string]string{
 		"TestSweeper_SweepPaidOrderHold":            "the unit is Sweeper.Sweep of package order/lapse, which this package does not declare; the test sits here from before the sweeper left cart (a paid order's hold is the case it holds), and moving it is a reorganisation this pass does not do",
 		"TestSweeper_SweepUnexpiredHolds":           "the unit is Sweeper.Sweep of package order/lapse, which this package does not declare; the test sits here from before the sweeper left cart, and moving it is a reorganisation this pass does not do",
 		"TestSweeper_SweepZeroOwedHold":             "the unit is Sweeper.Sweep of package order/lapse, which this package does not declare; the test sits here from before the sweeper left cart (a fully credit-funded order's hold is the case it holds), and moving it is a reorganisation this pass does not do",
+	},
+	"internal/catalog": {
+		"TestBuyBarObserver":         "the unit is the buyBar function of assets/js/goen.js, read as text because nothing here runs the script; the package declares no identifier for it",
+		"TestRelatedProductsRanking": "the unit is the sqlc query RelatedProducts of query.sql, called straight through db.Queries on fixtures of its own; the package declares no identifier for it",
+		"TestSeedReviews":            "the unit is the product_reviews rows that seed/dev_catalog.sql loads, read through SQL; the package declares no identifier for them",
+		"TestStepperFocusScript":     "the unit is the quantity stepper of assets/js/goen.js, read as text because nothing here runs the script; the package declares no identifier for it",
 	},
 	"internal/checkout": {
 		"TestAccessStore_GrantSecondOrder":             "the unit is access.Store.Grant of package order/access, a different type from this package's Store; the test lives here for the orders checkout places, and moving it is a reorganisation this pass does not do",

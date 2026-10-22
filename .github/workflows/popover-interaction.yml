@@ -50,7 +50,7 @@ jobs:
           cat safari.log
           exit 1
       - name: Native pointer and keyboard regression
-        run: go test -count=1 -v -run '^TestPopoverPointerAndFocusInNativeBrowsers$' ./internal/catalog
+        run: go test -count=1 -v -run '^TestListingPopoverNative$' ./internal/catalog
       - name: Keep Safari automation output
         if: always()
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
@@ -87,4 +87,4 @@ jobs:
           cat chrome.log
           exit 1
       - name: Native pointer and keyboard regression
-        run: go test -count=1 -v -run '^TestPopoverPointerAndFocusInNativeBrowsers$' ./internal/catalog
+        run: go test -count=1 -v -run '^TestListingPopoverNative$' ./internal/catalog

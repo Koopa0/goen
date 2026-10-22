@@ -9,7 +9,9 @@ import (
 	"github.com/koopa0/goen/internal/product/labelling"
 )
 
-func TestProductLabelRendersWithoutOtherDetails(t *testing.T) {
+// TestProductLabelFactsAlone holds that the product page renders its label
+// facts without any other detail.
+func TestProductLabelFactsAlone(t *testing.T) {
 	t.Parallel()
 	for _, locale := range []i18n.Locale{i18n.ZhHant, i18n.En} {
 		ctx := i18n.WithLocale(t.Context(), locale)
@@ -37,7 +39,9 @@ func TestProductLabelRendersWithoutOtherDetails(t *testing.T) {
 	}
 }
 
-func TestMinimumAgeCountsMonthsInBothLanguages(t *testing.T) {
+// TestProductView_LabelRowsAge holds that the minimum age counts months in both
+// languages.
+func TestProductView_LabelRowsAge(t *testing.T) {
 	t.Parallel()
 	for _, locale := range []i18n.Locale{i18n.En, i18n.ZhHant} {
 		for _, n := range []int16{1, 2} {
@@ -57,7 +61,9 @@ func TestMinimumAgeCountsMonthsInBothLanguages(t *testing.T) {
 	}
 }
 
-func TestLabelRowsKeepZeroAgeAndHideUnsetFields(t *testing.T) {
+// TestProductView_LabelRowsUnset holds that LabelRows keeps a zero age and
+// hides unset fields.
+func TestProductView_LabelRowsUnset(t *testing.T) {
 	t.Parallel()
 	var none ProductView
 	if len(none.LabelRows(t.Context())) != 0 || len((&ProductView{LabelFacts: &labelling.Facts{}}).LabelRows(t.Context())) != 0 {
@@ -74,7 +80,9 @@ func TestLabelRowsKeepZeroAgeAndHideUnsetFields(t *testing.T) {
 	}
 }
 
-func TestDomesticPartyCaptionsIdentifyTheDomesticContact(t *testing.T) {
+// TestProductView_LabelRowsDomestic holds that the domestic party captions
+// identify the domestic contact.
+func TestProductView_LabelRowsDomestic(t *testing.T) {
 	t.Parallel()
 	view := ProductView{LabelFacts: &labelling.Facts{DomesticPartyName: "Maker", DomesticPartyPhone: "0123456789", DomesticPartyAddress: "Address"}}
 	for _, tc := range []struct {

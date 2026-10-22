@@ -7,7 +7,7 @@ import (
 	"github.com/koopa0/goen/internal/db"
 )
 
-// The other builders' rows are catalog's TestTileBuildersCarryTheColoursOfTheirRows.
+// The other builders' rows are catalog's TestTilesColours.
 func TestDealTilesCarryTheColoursOfTheirRows(t *testing.T) {
 	t.Parallel()
 	colours := []string{"#111111", "#222222"}

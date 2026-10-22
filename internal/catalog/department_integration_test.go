@@ -24,10 +24,13 @@ func departmentOf(t *testing.T, productSlug string) string {
 	return slug
 }
 
+// TestStore_DepartmentHeadCampaign holds that a department names a campaign
+// only while it has a featured product to buy.
+//
 // The notice names a campaign only while the department has a featured product to buy:
 // a sold-out one is not an offer, and a campaign that runs elsewhere is not this
 // department's.
-func TestADepartmentNamesACampaignOnlyWhileItHasAFeaturedProductToBuy(t *testing.T) {
+func TestStore_DepartmentHeadCampaign(t *testing.T) {
 	ctx := t.Context()
 	for _, tt := range []struct {
 		name  string
@@ -72,8 +75,11 @@ func TestADepartmentNamesACampaignOnlyWhileItHasAFeaturedProductToBuy(t *testing
 	}
 }
 
+// TestStore_DepartmentHeadNoSlots holds that a department head read without
+// slots is bare.
+//
 // A head read without slots carries no notice and no editorial.
-func TestADepartmentHeadWithoutSlotsIsBare(t *testing.T) {
+func TestStore_DepartmentHeadNoSlots(t *testing.T) {
 	s := catalog.NewStore(pool, slog.New(slog.DiscardHandler))
 	head, err := s.DepartmentHead(t.Context(), departmentOf(t, plainSlug(t)), false, false, nil)
 	if err != nil {
@@ -84,8 +90,11 @@ func TestADepartmentHeadWithoutSlotsIsBare(t *testing.T) {
 	}
 }
 
+// TestStore_ListingHighlights holds that a comparable shelf gives each tile its
+// specification highlights.
+//
 // A department that compares lists its products with two specifications each.
-func TestAComparableShelfGivesEachTileItsSpecHighlights(t *testing.T) {
+func TestStore_ListingHighlights(t *testing.T) {
 	ctx := t.Context()
 	s := catalog.NewStore(pool, slog.New(slog.DiscardHandler))
 	slug, _ := twoProductsWithSpecs(t)

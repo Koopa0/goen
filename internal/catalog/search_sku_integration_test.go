@@ -25,7 +25,9 @@ type skuFixture struct {
 	retiredSKUs                []string
 }
 
-func TestSearchSKUsRankAndPaginateWithoutDuplicateProducts(t *testing.T) {
+// TestStore_SearchSKURank holds that SKU matches rank and paginate in Search
+// without duplicate products.
+func TestStore_SearchSKURank(t *testing.T) {
 	ctx := t.Context()
 	tx, err := pool.Begin(ctx)
 	if err != nil {
@@ -156,10 +158,13 @@ func insertSKUFixture(ctx context.Context, t *testing.T, tx pgx.Tx, f skuFixture
 	return slug
 }
 
+// TestStore_SearchRetiredSKU holds that a retired variant never lifts a ranked
+// SKU match.
+//
 // A retired variant carries no ranking either: these products match only
 // through their summary, so their retired SKUs must not lift them above the
 // exact-name and brand matches.
-func TestRetiredVariantsNeverLiftARankedSKUMatch(t *testing.T) {
+func TestStore_SearchRetiredSKU(t *testing.T) {
 	ctx := t.Context()
 	tx, err := pool.Begin(ctx)
 	if err != nil {

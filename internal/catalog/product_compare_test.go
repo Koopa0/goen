@@ -12,7 +12,9 @@ import (
 	"github.com/koopa0/goen/internal/i18n"
 )
 
-func TestFullComparisonHintLinksToTheSelectedProducts(t *testing.T) {
+// TestProductCompareFullHint holds that the full-comparison hint links to the
+// selected products.
+func TestProductCompareFullHint(t *testing.T) {
 	t.Parallel()
 	for _, locale := range []i18n.Locale{i18n.ZhHant, i18n.En} {
 		t.Run(string(locale), func(t *testing.T) {

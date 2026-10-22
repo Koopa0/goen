@@ -19,7 +19,9 @@ func TestProductNotifyForm_EmailRefusal(t *testing.T) {
 	assertEmailRefusal(t, markup, "notify-email", "請填寫正確的電子郵件。")
 }
 
-func TestBackInStockEmailKeepsAVisibleLabelWhenRefused(t *testing.T) {
+// TestProductNotifyFormLabel holds that the back-in-stock email field keeps a
+// visible label when its address is refused.
+func TestProductNotifyFormLabel(t *testing.T) {
 	t.Parallel()
 	for _, locale := range i18n.Locales() {
 		t.Run(locale.Tag(), func(t *testing.T) {

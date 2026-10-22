@@ -11,7 +11,9 @@ import (
 	"github.com/koopa0/goen/internal/ui/widget"
 )
 
-func TestBandPhotoFallsBackToTheFirstProductThenToNothing(t *testing.T) {
+// TestBandPhoto holds that the band takes the department's photograph, else the
+// first product's photograph on a well, else none.
+func TestBandPhoto(t *testing.T) {
 	t.Parallel()
 
 	own := widget.Photo{URL: "/dept.webp"}
@@ -36,7 +38,9 @@ func TestBandPhotoFallsBackToTheFirstProductThenToNothing(t *testing.T) {
 	}
 }
 
-func TestBandNameStepsDownPastItsLimit(t *testing.T) {
+// TestBandNameLong holds that a department name steps the band's heading down
+// once it is past its limit.
+func TestBandNameLong(t *testing.T) {
 	t.Parallel()
 
 	for name, want := range map[string]bool{
@@ -53,7 +57,10 @@ func TestBandNameStepsDownPastItsLimit(t *testing.T) {
 	}
 }
 
-func TestADepartmentHeadWithNoPhotographAndNoProductDrawsNone(t *testing.T) {
+// TestListingHeadPhoto holds that a department head draws no image when it has
+// neither a department photograph nor a product, and takes its first product's
+// photograph on the well when it has one.
+func TestListingHeadPhoto(t *testing.T) {
 	t.Parallel()
 	ctx := i18n.WithLocale(t.Context(), i18n.En)
 
@@ -67,7 +74,9 @@ func TestADepartmentHeadWithNoPhotographAndNoProductDrawsNone(t *testing.T) {
 	}
 }
 
-func TestTheDepartmentHeadIsTheBand(t *testing.T) {
+// TestListingHeadBand holds that the department head is the band: band, grid,
+// media with the photograph first, then body, in that order.
+func TestListingHeadBand(t *testing.T) {
 	t.Parallel()
 	ctx := i18n.WithLocale(t.Context(), i18n.En)
 

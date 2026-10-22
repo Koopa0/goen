@@ -23,7 +23,8 @@ func bandProduct(photos int) *ProductView {
 	return v
 }
 
-func TestTheGalleryWearsTheDepartmentTone(t *testing.T) {
+// TestProductGalleryTone holds that the gallery wears the department's tone.
+func TestProductGalleryTone(t *testing.T) {
 	t.Parallel()
 	page := renderProduct(t, bandProduct(3), i18n.En)
 	gallery := between(t, page, `class="goen-pdp__gallery"`, `id="buybox"`)
@@ -35,7 +36,9 @@ func TestTheGalleryWearsTheDepartmentTone(t *testing.T) {
 	}
 }
 
-func TestTheBandShowsTheSecondPhotographAndTheDescription(t *testing.T) {
+// TestProductBandSecondPhoto holds that the band shows the second photograph
+// and the description.
+func TestProductBandSecondPhoto(t *testing.T) {
 	t.Parallel()
 	page := renderProduct(t, bandProduct(3), i18n.En)
 	band := between(t, page, `<section class="goen-band goen-band--product"`, `</section>`)
@@ -52,7 +55,9 @@ func TestTheBandShowsTheSecondPhotographAndTheDescription(t *testing.T) {
 	}
 }
 
-func TestTheBandDrawsNoPhotographWithoutASecondOne(t *testing.T) {
+// TestProductBandTextOnly holds that the band draws no photograph without a
+// second one and takes its text-only form.
+func TestProductBandTextOnly(t *testing.T) {
 	t.Parallel()
 	page := renderProduct(t, bandProduct(1), i18n.En)
 	band := between(t, page, `<section class="goen-band goen-band--product`, `</section>`)
@@ -64,7 +69,8 @@ func TestTheBandDrawsNoPhotographWithoutASecondOne(t *testing.T) {
 	}
 }
 
-func TestTheBandNeedsADescription(t *testing.T) {
+// TestProductBandDescription holds that the band needs a description.
+func TestProductBandDescription(t *testing.T) {
 	t.Parallel()
 	v := bandProduct(3)
 	v.Description = ""
@@ -73,7 +79,9 @@ func TestTheBandNeedsADescription(t *testing.T) {
 	}
 }
 
-func TestAReviewDateReadsAsTheShopDateAndKeepsItsISOForm(t *testing.T) {
+// TestProductReviewDate holds that a review date reads as the shop date and
+// keeps its ISO form.
+func TestProductReviewDate(t *testing.T) {
 	t.Parallel()
 	v := bandProduct(1)
 	v.Rating, v.RatingCount = 4, 1
@@ -97,7 +105,9 @@ func TestAReviewDateReadsAsTheShopDateAndKeepsItsISOForm(t *testing.T) {
 	}
 }
 
-func TestTheEmptyReviewsSentenceHasNoPause(t *testing.T) {
+// TestProductReviewsEmptySentence holds that the empty reviews sentence has no
+// pause.
+func TestProductReviewsEmptySentence(t *testing.T) {
 	t.Parallel()
 	for locale, want := range map[i18n.Locale]string{
 		i18n.ZhHant: "還沒有評價。買過這個商品、訂單送達後，就可以在這裡評價。",

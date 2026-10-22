@@ -48,8 +48,11 @@ func getProduct(t *testing.T, slug, query string) (status int, body string) {
 	return res.Code, res.Body.String()
 }
 
-// TestChoosingAVariantHasNoSecondServerPath holds the property that makes the
-// in-place swap safe to keep.
+// TestHandler_ProductSwapSamePath holds that choosing a variant has no second
+// server path: the in-place swap asks for the same URL the link navigates to
+// and gets the same page.
+//
+// It holds the property that makes the in-place swap safe to keep.
 //
 // The option links ask for the same URL they navigate to, and the page keeps
 // only the region that changed. That works because the server answers an htmx
@@ -58,7 +61,7 @@ func getProduct(t *testing.T, slug, query string) (status int, body string) {
 // visitor gets with scripting off. The day someone adds that branch, the
 // scripting-off path and the swapped path stop being the same thing, and this
 // is what notices.
-func TestChoosingAVariantHasNoSecondServerPath(t *testing.T) {
+func TestHandler_ProductSwapSamePath(t *testing.T) {
 	const slug, query = "nimbus-buds-pro", "%E9%A1%8F%E8%89%B2=%E9%9B%B2%E7%99%BD"
 
 	plain := render(t, slug, query, nil)
@@ -106,14 +109,17 @@ func render(t *testing.T, slug, query string, headers map[string]string) *httpte
 	return res
 }
 
-// TestAnUntaggedGalleryIsTheSameForEveryChoice is why a product whose
-// photographs show no option value keeps its gallery out of the swatch's swap.
+// TestHandler_ProductUntaggedGallery holds that a gallery whose photographs
+// show no option value is the same for every choice.
+//
+// It is why a product whose photographs show no option value keeps its gallery
+// out of the swatch's swap.
 //
 // meridian-book-16-pro's photograph is untagged, so every combination of its
 // options is served the same gallery. Selecting it into the swap would tear down
 // an <img> and build an identical one: a cache read, a decode, and an empty
 // frame in between for a picture nobody changed.
-func TestAnUntaggedGalleryIsTheSameForEveryChoice(t *testing.T) {
+func TestHandler_ProductUntaggedGallery(t *testing.T) {
 	for _, slug := range []string{"meridian-book-16-pro"} {
 		t.Run(slug, func(t *testing.T) {
 			_, first := getProduct(t, slug, "")
@@ -134,13 +140,16 @@ func TestAnUntaggedGalleryIsTheSameForEveryChoice(t *testing.T) {
 	}
 }
 
-// TestTheChosenValuesPhotographsLeadTheGallery holds the order the product page
-// puts photographs in: those showing the variant on show, then those showing the
-// product whichever value is chosen, then the other values', each group by
-// position. The variant on show is the chosen one, or the default when nothing is
-// chosen, so the landing page opens on the default variant's colour and not on
-// whichever photograph was uploaded first.
-func TestTheChosenValuesPhotographsLeadTheGallery(t *testing.T) {
+// TestProductGalleryOrder holds that the photographs of the chosen value lead
+// the gallery.
+//
+// It holds the order the product page puts photographs in: those showing the
+// variant on show, then those showing the product whichever value is chosen,
+// then the other values', each group by position. The variant on show is the
+// chosen one, or the default when nothing is chosen, so the landing page opens
+// on the default variant's colour and not on whichever photograph was uploaded
+// first.
+func TestProductGalleryOrder(t *testing.T) {
 	ctx := t.Context()
 	tx, err := pool.Begin(ctx)
 	if err != nil {
@@ -249,7 +258,8 @@ func optionHrefs(t *testing.T, body string) []string {
 
 var optionHref = regexp.MustCompile(`<a [^>]*class="goen-swatch[^"]*"[^>]*href="([^"]+)"`)
 
-func TestDraftProductIs404(t *testing.T) {
+// TestHandler_ProductDraft holds that a draft product answers 404.
+func TestHandler_ProductDraft(t *testing.T) {
 	ctx := t.Context()
 	tx, err := pool.Begin(ctx)
 	if err != nil {
@@ -268,7 +278,9 @@ func TestDraftProductIs404(t *testing.T) {
 	}
 }
 
-func TestVariantSelectionIsAURL(t *testing.T) {
+// TestHandler_ProductVariantURL holds that a variant selection is a URL: the
+// query names the variant and its price.
+func TestHandler_ProductVariantURL(t *testing.T) {
 	for _, tc := range []struct {
 		name      string
 		query     string
@@ -290,7 +302,9 @@ func TestVariantSelectionIsAURL(t *testing.T) {
 	}
 }
 
-func TestPickerMarksUnavailableAgainstOtherChoices(t *testing.T) {
+// TestStore_ProductPickerUnavailable holds that the picker marks a value
+// unavailable against the other choices.
+func TestStore_ProductPickerUnavailable(t *testing.T) {
 	view, err := catalog.NewStore(pool, slog.New(slog.DiscardHandler)).Product(t.Context(), "aurora-slate-11",
 		catalog.Selection{"容量": "128GB"})
 	if err != nil {
@@ -321,7 +335,9 @@ func TestPickerMarksUnavailableAgainstOtherChoices(t *testing.T) {
 	}
 }
 
-func TestSoldOutCombinationCannotBeBought(t *testing.T) {
+// TestHandler_ProductSoldOut holds that a sold-out combination cannot be
+// bought.
+func TestHandler_ProductSoldOut(t *testing.T) {
 	code, body := getProduct(t, "aurora-slate-11", sel("顏色", "曙光金", "容量", "128GB"))
 	if code != http.StatusOK {
 		t.Fatalf("status = %d, want 200", code)
@@ -334,7 +350,9 @@ func TestSoldOutCombinationCannotBeBought(t *testing.T) {
 	}
 }
 
-func TestVariantAtTheSafetyFloorCannotBeBought(t *testing.T) {
+// TestStore_ProductSafetyFloor holds that a variant at the safety floor cannot
+// be bought.
+func TestStore_ProductSafetyFloor(t *testing.T) {
 	ctx := t.Context()
 	tx, err := pool.Begin(ctx)
 	if err != nil {
@@ -363,7 +381,9 @@ func TestVariantAtTheSafetyFloorCannotBeBought(t *testing.T) {
 	}
 }
 
-func TestUnknownCombinationSaysSo(t *testing.T) {
+// TestHandler_ProductUnknownCombination holds that an unknown combination says
+// so and keeps the catalogue's starting price.
+func TestHandler_ProductUnknownCombination(t *testing.T) {
 	code, body := getProduct(t, "pixelight-9-pro", sel("顏色", "螢光粉", "容量", "1TB"))
 	if code != http.StatusOK {
 		t.Fatalf("status = %d, want 200", code)
@@ -379,7 +399,9 @@ func TestUnknownCombinationSaysSo(t *testing.T) {
 	}
 }
 
-func TestPartialSelectionOffersNoButton(t *testing.T) {
+// TestHandler_ProductPartialSelection holds that a partial selection offers no
+// live button and asks for the rest.
+func TestHandler_ProductPartialSelection(t *testing.T) {
 	code, body := getProduct(t, "pixelight-9-pro", sel("顏色", "星霧藍"))
 	if code != http.StatusOK {
 		t.Fatalf("status = %d, want 200", code)
@@ -392,7 +414,9 @@ func TestPartialSelectionOffersNoButton(t *testing.T) {
 	}
 }
 
-func TestDetailShowsWhatThePageIsFor(t *testing.T) {
+// TestHandler_ProductDetail holds that the product detail shows what the page
+// is for.
+func TestHandler_ProductDetail(t *testing.T) {
 	code, body := getProduct(t, "pixelight-9-pro", "")
 	if code != http.StatusOK {
 		t.Fatalf("status = %d, want 200", code)
@@ -413,7 +437,9 @@ func TestDetailShowsWhatThePageIsFor(t *testing.T) {
 	}
 }
 
-func TestOnlyACustomerWhoReceivedTheProductMayReview(t *testing.T) {
+// TestStore_AddReviewDeliveredOnly holds that only a customer who received the
+// product may review it.
+func TestStore_AddReviewDeliveredOnly(t *testing.T) {
 	ctx := t.Context()
 	s := catalog.NewStore(pool, slog.New(slog.DiscardHandler))
 	slug := activeSlug(t)
@@ -471,7 +497,9 @@ func TestOnlyACustomerWhoReceivedTheProductMayReview(t *testing.T) {
 	}
 }
 
-func TestRetiringAPurchasedVariantDoesNotEraseVerifiedPurchase(t *testing.T) {
+// TestStore_AddReviewRetiredVariant holds that retiring a purchased variant
+// does not erase the verified purchase behind a review.
+func TestStore_AddReviewRetiredVariant(t *testing.T) {
 	ctx := t.Context()
 	who := reviewer(t, "retired-variant")
 	tx, beginErr := pool.Begin(ctx)
@@ -616,7 +644,8 @@ func TestRetiringAPurchasedVariantDoesNotEraseVerifiedPurchase(t *testing.T) {
 	}
 }
 
-func TestOneReviewPerPersonPerProduct(t *testing.T) {
+// TestStore_AddReviewOnce holds that a person may review a product only once.
+func TestStore_AddReviewOnce(t *testing.T) {
 	ctx := t.Context()
 	s := catalog.NewStore(pool, slog.New(slog.DiscardHandler))
 	who := reviewer(t, "once")
@@ -645,10 +674,12 @@ func TestOneReviewPerPersonPerProduct(t *testing.T) {
 	}
 }
 
+// TestSeedReviews holds that the seeded reviews read like customers.
+//
 // The seeded reviews are what a demo visitor reads first. Each has a named
 // customer behind it, none is dated in the future, and they spread over more
 // than a month rather than all reading "today".
-func TestTheSeededReviewsReadLikeCustomers(t *testing.T) {
+func TestSeedReviews(t *testing.T) {
 	ctx := t.Context()
 	var total, nameless, future, beforeAccount int
 	var spanDays float64
@@ -680,7 +711,9 @@ func TestTheSeededReviewsReadLikeCustomers(t *testing.T) {
 	}
 }
 
-func TestReviewValidation(t *testing.T) {
+// TestStore_AddReviewValidation holds that AddReview refuses a review that does
+// not validate.
+func TestStore_AddReviewValidation(t *testing.T) {
 	ctx := t.Context()
 	s := catalog.NewStore(pool, slog.New(slog.DiscardHandler))
 	slug := activeSlug(t)
@@ -723,7 +756,9 @@ func TestReviewValidation(t *testing.T) {
 	}
 }
 
-func TestFeedbackCannotTargetAMissingOrInactiveProduct(t *testing.T) {
+// TestStore_AddReviewAskMissing holds that a review or a question cannot target
+// a missing or inactive product.
+func TestStore_AddReviewAskMissing(t *testing.T) {
 	ctx := t.Context()
 	who := reviewer(t, "missing-feedback")
 	missing := "missing-" + uuid.NewString()
@@ -867,7 +902,9 @@ func buy(t *testing.T, userID uuid.UUID, slug string) {
 	}
 }
 
-func TestTheRestockConfirmationNamesOnlyTheAccountsOwnAddress(t *testing.T) {
+// TestHandler_NotifyConfirmation holds that the restock confirmation names only
+// the signed-in account's own address.
+func TestHandler_NotifyConfirmation(t *testing.T) {
 	ctx := t.Context()
 	vid, slug := soldOutVariant(t)
 	h := catalog.NewHandler(catalog.NewStore(pool, slog.New(slog.DiscardHandler)), slog.New(slog.DiscardHandler), "https://goen.example")
@@ -919,7 +956,9 @@ func soldOutVariant(t *testing.T) (id uuid.UUID, slug string) {
 	return id, slug
 }
 
-func TestRecommendationsComeFromTheProjection(t *testing.T) {
+// TestStore_ProductRecommendations holds that recommendations come from the
+// co-purchase projection.
+func TestStore_ProductRecommendations(t *testing.T) {
 	ctx := t.Context()
 	s := catalog.NewStore(pool, slog.New(slog.DiscardHandler))
 
@@ -951,7 +990,9 @@ func TestRecommendationsComeFromTheProjection(t *testing.T) {
 	}
 }
 
-func TestRecommendationsSurviveRetirementOfAPurchasedVariant(t *testing.T) {
+// TestStore_ProductRecommendationsRetired holds that recommendations survive
+// the retirement of a purchased variant.
+func TestStore_ProductRecommendationsRetired(t *testing.T) {
 	ctx := t.Context()
 	s := catalog.NewStore(pool, slog.New(slog.DiscardHandler))
 	a, b := twoProductsBoughtTogether(t, 2)
@@ -998,7 +1039,9 @@ func TestRecommendationsSurviveRetirementOfAPurchasedVariant(t *testing.T) {
 	}
 }
 
-func TestOneSharedOrderIsNotARecommendation(t *testing.T) {
+// TestStore_ProductRecommendationsOneOrder holds that one shared order is not a
+// recommendation.
+func TestStore_ProductRecommendationsOneOrder(t *testing.T) {
 	ctx := t.Context()
 	s := catalog.NewStore(pool, slog.New(slog.DiscardHandler))
 	a, _ := twoProductsBoughtTogether(t, 1)
@@ -1016,7 +1059,9 @@ func TestOneSharedOrderIsNotARecommendation(t *testing.T) {
 	}
 }
 
-func TestAnUncommittedOrderShapesNothing(t *testing.T) {
+// TestStore_ProductRecommendationsUncommitted holds that an uncommitted order
+// shapes no recommendation.
+func TestStore_ProductRecommendationsUncommitted(t *testing.T) {
 	ctx := t.Context()
 	s := catalog.NewStore(pool, slog.New(slog.DiscardHandler))
 	// THREE unpaid orders: one would produce nothing whatever the committed
@@ -1087,7 +1132,9 @@ func twoProductsBoughtTogether(t *testing.T, committed int) (first, second strin
 	return first, second
 }
 
-func TestAnArchivedProductIsNotRecommended(t *testing.T) {
+// TestStore_ProductRecommendationsArchived holds that an archived product is
+// not recommended.
+func TestStore_ProductRecommendationsArchived(t *testing.T) {
 	ctx := t.Context()
 	s := catalog.NewStore(pool, slog.New(slog.DiscardHandler))
 	a, b := twoProductsBoughtTogether(t, 2)
@@ -1177,7 +1224,9 @@ func payFor(t *testing.T, orderID uuid.UUID) {
 	}
 }
 
-func TestAStaffAnswerStaysStaffWhenTheAuthorChangesRole(t *testing.T) {
+// TestStore_ProductStaffAnswer holds that a staff answer stays a staff answer
+// when its author changes role.
+func TestStore_ProductStaffAnswer(t *testing.T) {
 	ctx := t.Context()
 	s := catalog.NewStore(pool, slog.New(slog.DiscardHandler))
 	back := questions.NewStore(pool)
@@ -1229,7 +1278,9 @@ func TestAStaffAnswerStaysStaffWhenTheAuthorChangesRole(t *testing.T) {
 	}
 }
 
-func TestAHiddenQuestionDisappearsWithItsAnswers(t *testing.T) {
+// TestStore_ProductHiddenQuestion holds that a hidden question disappears with
+// its answers.
+func TestStore_ProductHiddenQuestion(t *testing.T) {
 	ctx := t.Context()
 	s := catalog.NewStore(pool, slog.New(slog.DiscardHandler))
 	slug := anyActiveProduct(t)
@@ -1280,10 +1331,12 @@ func TestAHiddenQuestionDisappearsWithItsAnswers(t *testing.T) {
 	}
 }
 
-// TestARejectedQuestionKeepsTheDraft holds the handler arm of the Q&A
-// matrix: an over-limit signed-in POST answers 422 with the submitted body
-// and the field error, not a redirect that empties the textarea.
-func TestARejectedQuestionKeepsTheDraft(t *testing.T) {
+// TestHandler_AskRejected holds that a rejected question keeps the draft.
+//
+// It holds the handler arm of the Q&A matrix: an over-limit signed-in POST
+// answers 422 with the submitted body and the field error, not a redirect that
+// empties the textarea.
+func TestHandler_AskRejected(t *testing.T) {
 	ctx := t.Context()
 	slug := anyActiveProduct(t)
 	customer := newCustomer(t)
@@ -1315,10 +1368,12 @@ func TestARejectedQuestionKeepsTheDraft(t *testing.T) {
 	}
 }
 
-// TestAnAskedQuestionIsStoredAndTheReaderReturnsToTheQuestions holds the
-// success arm of the Q&A handler: a signed-in POST stores the question under
-// the product and redirects to its questions.
-func TestAnAskedQuestionIsStoredAndTheReaderReturnsToTheQuestions(t *testing.T) {
+// TestHandler_AskStored holds that an asked question is stored and the reader
+// returns to the questions.
+//
+// It holds the success arm of the Q&A handler: a signed-in POST stores the
+// question under the product and redirects to its questions.
+func TestHandler_AskStored(t *testing.T) {
 	slug := anyActiveProduct(t)
 	customer := newCustomer(t)
 	const question = "這個有附保固卡嗎？"
@@ -1351,7 +1406,9 @@ func TestAnAskedQuestionIsStoredAndTheReaderReturnsToTheQuestions(t *testing.T) 
 	}
 }
 
-func TestAQuestionIsBoundedInRunesNotBytes(t *testing.T) {
+// TestStore_AskBoundedRunes holds that a question is bounded in runes, not
+// bytes.
+func TestStore_AskBoundedRunes(t *testing.T) {
 	ctx := t.Context()
 	s := catalog.NewStore(pool, slog.New(slog.DiscardHandler))
 	slug := anyActiveProduct(t)
@@ -1426,7 +1483,9 @@ func latestQuestion(t *testing.T) string {
 	return id.String()
 }
 
-func TestASingleHiddenAnswerGoesWithoutTakingTheQuestion(t *testing.T) {
+// TestStore_ProductHiddenAnswer holds that a single hidden answer goes without
+// taking its question.
+func TestStore_ProductHiddenAnswer(t *testing.T) {
 	ctx := t.Context()
 	s := catalog.NewStore(pool, slog.New(slog.DiscardHandler))
 	slug := anyActiveProduct(t)
@@ -1471,7 +1530,9 @@ func TestASingleHiddenAnswerGoesWithoutTakingTheQuestion(t *testing.T) {
 	}
 }
 
-func TestTheProductPageKnowsWhatIsAlreadySaved(t *testing.T) {
+// TestStore_SavedByUser holds that the product page knows what is already saved
+// to the wishlist.
+func TestStore_SavedByUser(t *testing.T) {
 	ctx := t.Context()
 	s := catalog.NewStore(pool, slog.New(slog.DiscardHandler))
 
@@ -1516,7 +1577,9 @@ func waitingAddr(t *testing.T) string {
 	return "waiting-" + strings.ToLower(t.Name()) + "@example.com"
 }
 
-func TestHidingAReviewTakesItOutOfTheScore(t *testing.T) {
+// TestStore_ProductHiddenReviewScore holds that hiding a review takes it out of
+// the score.
+func TestStore_ProductHiddenReviewScore(t *testing.T) {
 	ctx := t.Context()
 	s := catalog.NewStore(pool, slog.New(slog.DiscardHandler))
 	const slug = "pixelight-9-pro"
@@ -1565,7 +1628,9 @@ func TestHidingAReviewTakesItOutOfTheScore(t *testing.T) {
 	}
 }
 
-func TestAHiddenReviewStillBlocksASecondOne(t *testing.T) {
+// TestStore_ReviewStandingHidden holds that a hidden review still blocks a
+// second one from the same author.
+func TestStore_ReviewStandingHidden(t *testing.T) {
 	ctx := t.Context()
 	s := catalog.NewStore(pool, slog.New(slog.DiscardHandler))
 	const slug = "pixelight-9"
@@ -1619,16 +1684,19 @@ func reviewBy(t *testing.T, productID uuid.UUID, address string, rating int) (id
 	return id, body
 }
 
-// TestASimultaneousSecondReviewIsRefusedByName reaches the INSERT's own refusal,
-// the mapping of product_reviews_author_key to ErrAlreadyReviewed: ReviewStanding
-// answers first in every ordinary case, so only two racing submissions get there.
+// TestStore_AddReviewRace holds that a simultaneous second review is refused by
+// name.
+//
+// It reaches the INSERT's own refusal, the mapping of
+// product_reviews_author_key to ErrAlreadyReviewed: ReviewStanding answers
+// first in every ordinary case, so only two racing submissions get there.
 //
 // The race is made deterministic rather than hoped for. T1 inserts the row and
 // holds its transaction OPEN: under read committed the row is invisible, so
 // ReviewStanding passes, and the second INSERT then blocks on the unique index until
 // T1 commits. Two goroutines behind a start channel would finish microseconds
 // apart and never overlap.
-func TestASimultaneousSecondReviewIsRefusedByName(t *testing.T) {
+func TestStore_AddReviewRace(t *testing.T) {
 	ctx := t.Context()
 	s := catalog.NewStore(pool, slog.New(slog.DiscardHandler))
 	who := reviewer(t, "race")
@@ -1708,11 +1776,13 @@ func waitForInsertBehind(t *testing.T, holder int32, pattern string, done <-chan
 	}
 }
 
-// TestLoadIgnoresThePagesOwnParameters holds the WIRING rather than the filter:
-// OnlyOptionsOf has a unit test of its own, and Product's call to it needs one too.
-// It drives the query the restock form's redirect produces, against a product
-// that is in stock.
-func TestLoadIgnoresThePagesOwnParameters(t *testing.T) {
+// TestStore_ProductPageParams holds that loading a product ignores the page's
+// own parameters when it resolves the selection.
+//
+// It holds the WIRING rather than the filter: OnlyOptionsOf has a unit test of
+// its own, and Product's call to it needs one too. It drives the query the
+// restock form's redirect produces, against a product that is in stock.
+func TestStore_ProductPageParams(t *testing.T) {
 	ctx := t.Context()
 	s := catalog.NewStore(pool, slog.New(slog.DiscardHandler))
 	slug := activeSlug(t)
@@ -1753,9 +1823,12 @@ func insertHistoricalCustomerAnswer(ctx context.Context, questionID, userID, bod
 	return err
 }
 
+// TestHandler_NotifyRefused holds that a refused restock request keeps the
+// address and names its cause.
+//
 // A refused restock request re-renders the product at 422 with the address as
 // typed, and says which of two causes it was.
-func TestARefusedRestockRequestKeepsTheAddressAndNamesItsCause(t *testing.T) {
+func TestHandler_NotifyRefused(t *testing.T) {
 	ctx := t.Context()
 	h := catalog.NewHandler(catalog.NewStore(pool, slog.New(slog.DiscardHandler)), slog.New(slog.DiscardHandler), "https://goen.example")
 	// The page's form posts to an action that carries the visitor's selection, so
@@ -1825,9 +1898,12 @@ func TestARefusedRestockRequestKeepsTheAddressAndNamesItsCause(t *testing.T) {
 	}
 }
 
+// TestStore_ProductComparable holds that a product page offers comparison where
+// its department does.
+//
 // A product page offers comparison where its department does: phones inherit it
 // from tech, and a book sits under a department that does not compare.
-func TestAProductPageOffersComparisonWhereItsDepartmentDoes(t *testing.T) {
+func TestStore_ProductComparable(t *testing.T) {
 	ctx := t.Context()
 	store := catalog.NewStore(pool, slog.New(slog.DiscardHandler))
 	for slug, want := range map[string]bool{"pixelight-9-pro": true, "fernway-mountain-tea-seasons": false} {
@@ -1841,7 +1917,9 @@ func TestAProductPageOffersComparisonWhereItsDepartmentDoes(t *testing.T) {
 	}
 }
 
-func TestANotifyRequestWithNoOptionPickedIsRefusedWithTheirAddressKept(t *testing.T) {
+// TestHandler_NotifyNoOption holds that a notify request with no option picked
+// is refused with the address kept.
+func TestHandler_NotifyNoOption(t *testing.T) {
 	_, slug := soldOutVariant(t)
 	h := catalog.NewHandler(catalog.NewStore(pool, slog.New(slog.DiscardHandler)), slog.New(slog.DiscardHandler), "https://goen.example")
 	addr := "keep-" + waitingAddr(t)
@@ -1861,7 +1939,9 @@ func TestANotifyRequestWithNoOptionPickedIsRefusedWithTheirAddressKept(t *testin
 	}
 }
 
-func TestAOneColourProductIsBuyableOnceItsOtherChoiceIsPicked(t *testing.T) {
+// TestStore_ProductOneColour holds that a one-colour product is buyable once
+// its other choice is picked.
+func TestStore_ProductOneColour(t *testing.T) {
 	var slug, option, value string
 	if err := pool.QueryRow(t.Context(), `
 		WITH counts AS (

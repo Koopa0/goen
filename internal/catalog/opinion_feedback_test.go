@@ -10,7 +10,9 @@ import (
 	"github.com/koopa0/goen/internal/i18n"
 )
 
-func TestEmptyReviewsExplainWhoCanReviewWithoutAnInvitationToEveryone(t *testing.T) {
+// TestProductReviewsEmptyWho holds that empty reviews explain who can review,
+// without an invitation to everyone.
+func TestProductReviewsEmptyWho(t *testing.T) {
 	t.Parallel()
 	for _, locale := range i18n.Locales() {
 		for _, standing := range []ReviewStanding{ReviewSignedOut, ReviewNotDelivered, ReviewOpen} {
@@ -34,7 +36,9 @@ func TestEmptyReviewsExplainWhoCanReviewWithoutAnInvitationToEveryone(t *testing
 	}
 }
 
-func TestUndeliveredReviewRefusalKeepsTheDraftAndItsReasonInTheForm(t *testing.T) {
+// TestReviewFormUndelivered holds that the refusal for a review from an
+// undelivered order keeps the draft and its reason in the form.
+func TestReviewFormUndelivered(t *testing.T) {
 	t.Parallel()
 	for _, locale := range i18n.Locales() {
 		t.Run(locale.Tag(), func(t *testing.T) {
@@ -81,7 +85,9 @@ func TestUndeliveredReviewRefusalKeepsTheDraftAndItsReasonInTheForm(t *testing.T
 	}
 }
 
-func TestUndeliveredReviewWithATitleRefusalKeepsItsForm(t *testing.T) {
+// TestReviewFormTitleRefusal holds that a refusal that concerns only the title
+// keeps the form of an undelivered buyer.
+func TestReviewFormTitleRefusal(t *testing.T) {
 	t.Parallel()
 	for _, locale := range i18n.Locales() {
 		t.Run(locale.Tag(), func(t *testing.T) {
@@ -105,7 +111,9 @@ func TestUndeliveredReviewWithATitleRefusalKeepsItsForm(t *testing.T) {
 	}
 }
 
-func TestQuestionFeedbackStaysAtTheQuestionAndKeepsItsLengthHint(t *testing.T) {
+// TestAskFormFeedback holds that question feedback stays at the question and
+// keeps its length hint.
+func TestAskFormFeedback(t *testing.T) {
 	t.Parallel()
 	for _, locale := range i18n.Locales() {
 		for _, refused := range []bool{false, true} {
@@ -152,7 +160,9 @@ func TestQuestionFeedbackStaysAtTheQuestionAndKeepsItsLengthHint(t *testing.T) {
 	}
 }
 
-func TestPostedReviewShowsThanksAndMarksOnlyTheReadersReview(t *testing.T) {
+// TestProductReviewsPosted holds that a posted review shows thanks and marks
+// only the reader's own review.
+func TestProductReviewsPosted(t *testing.T) {
 	t.Parallel()
 	for _, locale := range i18n.Locales() {
 		t.Run(locale.Tag(), func(t *testing.T) {
@@ -186,7 +196,9 @@ func TestPostedReviewShowsThanksAndMarksOnlyTheReadersReview(t *testing.T) {
 	}
 }
 
-func TestSignedOutWishlistActionNamesTheWishlist(t *testing.T) {
+// TestProductLinksSignedOutWishlist holds that the signed-out wishlist action
+// names the wishlist.
+func TestProductLinksSignedOutWishlist(t *testing.T) {
 	t.Parallel()
 	for _, locale := range i18n.Locales() {
 		t.Run(locale.Tag(), func(t *testing.T) {

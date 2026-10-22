@@ -9,9 +9,12 @@ import (
 	"github.com/koopa0/goen/internal/ui/frame"
 )
 
+// TestCompareCapWording holds that the compare cap is said from MaxCompare in
+// both languages.
+//
 // The cap is written once, in MaxCompare; every sentence that names it is
 // checked in both languages.
-func TestTheCompareCapIsSaidFromMaxCompareInBothLanguages(t *testing.T) {
+func TestCompareCapWording(t *testing.T) {
 	t.Parallel()
 
 	most := strconv.Itoa(MaxCompare)
