@@ -15,10 +15,13 @@ import (
 	"github.com/koopa0/goen/internal/order/buyer"
 )
 
-// A database failure on the order lookup, the order page or a cancellation
-// says that the problem was logged, as the return form does. These pages hold
-// no cart, so they must not tell the customer the cart is unavailable.
-func TestOrderPagesNameNoCartWhenTheDatabaseFails(t *testing.T) {
+// TestHandlerDatabaseFailure: when the database fails, the order lookup, the
+// order page and a cancellation answer 500 with a page that says the problem
+// was logged and does not blame the cart, in both locales.
+//
+// These pages hold no cart, so they must not tell the customer the cart is
+// unavailable; the return form already says the problem was logged.
+func TestHandlerDatabaseFailure(t *testing.T) {
 	number, _ := shippedOrder(t, 1, 0)
 	broken := storeRolePool(t)
 	broken.Close()

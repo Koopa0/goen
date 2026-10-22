@@ -78,6 +78,7 @@ var migratedTestPackages = []string{
 	"internal/newsletter",
 	"internal/order",
 	"internal/order/access",
+	"internal/order/buyer",
 	"internal/order/cancellation",
 	"internal/order/delivery",
 	"internal/order/returns",
@@ -241,6 +242,10 @@ var testNameExceptions = map[string]map[string]string{
 		"TestEraseUserNewsletterList":       "the unit is the SQL function erase_user, called through the pool after Store.Request and Store.Confirm have put the address on the list; the test asserts what erasure leaves of the subscriber and its pending confirmation",
 		"TestNewsletterSubscribersNoDelete": "the unit is the privilege of role store on the newsletter_subscribers table, a SQL object: the test sets the role and expects a DELETE refused with insufficient_privilege",
 		"TestNewsletterTablesAdminReadOnly": "the unit is the privileges of role admin on the newsletter_subscribers and newsletter_confirmations tables, SQL objects: the test reads has_table_privilege for INSERT, UPDATE, DELETE and SELECT",
+	},
+	"internal/order/buyer": {
+		"TestReturnCreditRequiresLiveAccount": "the unit is the constraint trigger return_credit_requires_live_account, a SQL object; the test drives it through auth.Store.Erase and Store.OpenReturn at once to race a credit-funded return against account erasure, so no one identifier of package buyer is its unit",
+		"TestReturnRefundableAmount":          "the unit is the SQL function return_refundable_amount; the test calls it directly after opening one request through Store.OpenReturn and inserting the other with SQL, and package buyer declares no identifier for it",
 	},
 	"internal/outbox": {
 		"TestOutboxMessagesDedupeKey": "its unit is the unique index outbox_messages_dedupe_key, a SQL object, driven by the test's own INSERT ... ON CONFLICT helper, not by outbox.Enqueue",

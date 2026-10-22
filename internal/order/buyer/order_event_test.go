@@ -7,7 +7,9 @@ import (
 	"github.com/koopa0/goen/internal/order"
 )
 
-func TestOrderEventLabelsCoverEveryKind(t *testing.T) {
+// TestOrderEvent_LabelKey: LabelKey gives each of the nine event kinds its
+// Traditional Chinese history label.
+func TestOrderEvent_LabelKey(t *testing.T) {
 	t.Parallel()
 	ctx := i18n.WithLocale(t.Context(), i18n.ZhHant)
 	for kind, want := range map[order.EventKind]string{
@@ -27,8 +29,10 @@ func TestOrderEventLabelsCoverEveryKind(t *testing.T) {
 	}
 }
 
-// The refund of units the shop could not send says so; a return's refund does not.
-func TestARefundOfUnsentUnitsIsNamedAsSuch(t *testing.T) {
+// TestOrderEvent_LabelKeyUnsent: the refund event of units the shop could not
+// send takes the not-sent-and-refunded label in both locales, and a return's
+// refund does not.
+func TestOrderEvent_LabelKeyUnsent(t *testing.T) {
 	t.Parallel()
 	for locale, want := range map[i18n.Locale]string{i18n.ZhHant: "無法出貨，已退款", i18n.En: "Not sent — refunded"} {
 		ctx := i18n.WithLocale(t.Context(), locale)

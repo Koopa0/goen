@@ -18,9 +18,10 @@ import (
 	"github.com/google/uuid"
 )
 
-// TestValidateAcceptsABlankReason holds Consumer Protection Act §19 I at
-// the form gate: a blank reason is legal, and the policy page says so.
-func TestValidateAcceptsABlankReason(t *testing.T) {
+// TestReturnRequest_ValidateBlankReason: Validate accepts an empty or
+// whitespace-only reason, because Consumer Protection Act §19 I makes the
+// reason optional at the form gate and the policy page says so.
+func TestReturnRequest_ValidateBlankReason(t *testing.T) {
 	t.Parallel()
 
 	for _, reason := range []string{"", "   \t "} {
@@ -34,7 +35,10 @@ func TestValidateAcceptsABlankReason(t *testing.T) {
 	}
 }
 
-func TestParseWantedDistinguishesQuantityFromMalformedInput(t *testing.T) {
+// TestParseWantedErrorKinds: parseWanted answers a quantity above the line's
+// ceiling with only ErrReturnTooMany and an unknown line with only
+// ErrReturnInvalid, so the two refusals are never confused.
+func TestParseWantedErrorKinds(t *testing.T) {
 	lineID := uuid.New()
 	allowed := map[string]int32{lineID.String(): 1}
 
@@ -48,7 +52,14 @@ func TestParseWantedDistinguishesQuantityFromMalformedInput(t *testing.T) {
 	}
 }
 
-func TestReturnQuantityRefusalsKeepCompleteDrafts(t *testing.T) {
+// TestReturnsQuantityDraft: rendering a refused return quantity keeps the whole
+// draft: the refused field keeps what was typed with its input type, max,
+// aria-invalid and aria-describedby and the matching message, while a later
+// quantity and the reason are kept as typed.
+//
+// Accepted input (an explicit + sign, a valid optional reason) renders with no
+// error markers.
+func TestReturnsQuantityDraft(t *testing.T) {
 	t.Parallel()
 	tests := []struct {
 		name, first, reason, message string
@@ -110,7 +121,12 @@ func TestReturnQuantityRefusalsKeepCompleteDrafts(t *testing.T) {
 	}
 }
 
-func TestReturnRefusalsDistinguishReasonFromEmptySelection(t *testing.T) {
+// TestReturnsReasonRefusal: Returns tells an over-long or control-character
+// reason apart from an empty selection in both locales: each reason fault gets
+// its own message (the length message wins when both apply) and an empty
+// selection gets the form-level message, while a blank or valid optional reason
+// gets none and every draft value is kept.
+func TestReturnsReasonRefusal(t *testing.T) {
 	t.Parallel()
 	for _, locale := range i18n.Locales() {
 		lengthMessage, controlMessage := returnReasonMessages(locale)
@@ -229,7 +245,11 @@ func assertReturnReasonErrorText(t *testing.T, doc *html.Node, want string) {
 	}
 }
 
-func TestReturnReasonBoundaryKeepsValidationPolicy(t *testing.T) {
+// TestReturnRequest_ValidateReasonBoundary: Validate counts the reason in runes
+// after trimming: 500 multibyte runes pass, also padded with whitespace or
+// holding an inner tab, CR or LF, while 501 runes or a forbidden control
+// character fail with ErrReturnInvalid, and Reason is left trimmed either way.
+func TestReturnRequest_ValidateReasonBoundary(t *testing.T) {
 	t.Parallel()
 	for _, tt := range []struct {
 		name, reason string
@@ -317,7 +337,12 @@ func returnAttributes(n *html.Node, keys ...string) map[string]string {
 	return out
 }
 
-func TestReturnDraftRemainsVisibleAfterAvailabilityIsLost(t *testing.T) {
+// TestReturnsDraftAvailabilityLost: when the returnable quantities are
+// exhausted or another request is open by the time a refused form is rendered,
+// the submitted quantities stay visible with max 0, the quantity fields are
+// marked invalid unless the refusal is the open request, and the submit button
+// is disabled.
+func TestReturnsDraftAvailabilityLost(t *testing.T) {
 	t.Parallel()
 	ctx := i18n.WithLocale(t.Context(), i18n.En)
 	original := &ReturnOrder{Number: "GO-RETURN", Lines: []ReturnLine{{ID: "first", Returnable: 3}, {ID: "later", Returnable: 3}}}

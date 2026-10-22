@@ -8,7 +8,10 @@ import (
 	"github.com/koopa0/goen/internal/ui/frame"
 )
 
-func TestFindOrderGrantFailedSpeaksBothLocales(t *testing.T) {
+// TestFindOrderGrantFailedLocales: FindOrderGrantFailed renders its
+// lookup-could-not-be-completed heading in Traditional Chinese and English and
+// links back to the order lookup.
+func TestFindOrderGrantFailedLocales(t *testing.T) {
 	t.Parallel()
 	tests := []struct {
 		locale i18n.Locale

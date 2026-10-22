@@ -47,7 +47,9 @@ func headphones() OrderLine {
 	return OrderLine{SKU: "H1", Name: "耳機", UnitCents: 590000, Quantity: 1, WarrantyMonths: 12}
 }
 
-func TestTheHistoryReadsItsTimesInTheShortForm(t *testing.T) {
+// TestOrderHistoryShortTime: the history prints an event's time in the short
+// form (10/3 14:02) with its Taipei datetime attribute.
+func TestOrderHistoryShortTime(t *testing.T) {
 	t.Parallel()
 	html := orderPage(t, &OrderView{
 		Timeline: []OrderEvent{{Kind: order.EventPlaced, At: time.Date(2026, 10, 3, 6, 2, 0, 0, time.UTC)}},
@@ -57,7 +59,10 @@ func TestTheHistoryReadsItsTimesInTheShortForm(t *testing.T) {
 	}
 }
 
-func TestEachParcelDrawsTheRightToCancelFromItsOwnDelivery(t *testing.T) {
+// TestOrderParcelGrids: each delivered parcel of an order draws its own
+// return-period grid marked with that parcel's own last day, and the parcels
+// are numbered to tell them apart.
+func TestOrderParcelGrids(t *testing.T) {
 	t.Parallel()
 	html := orderPage(t, &OrderView{
 		Status: order.FulfillmentDelivered, ShowWarrantyLink: true,
@@ -80,10 +85,14 @@ func TestEachParcelDrawsTheRightToCancelFromItsOwnDelivery(t *testing.T) {
 
 var periodCell = regexp.MustCompile(`<i(?: [^>]*)?>`)
 
+// TestOrderReturnWindowGoodwill: the return-period track has fourteen cells and
+// marks exactly the last seven as goodwill, whether today falls inside the
+// statutory days or the offer.
+//
 // The seven statutory days are the customer's right and the seven after them
 // goen's offer, so the track marks exactly the offer's cells for the stylesheet
-// to dash, whichever side today falls on.
-func TestTheReturnWindowMarksOnlyTheGoodwillDays(t *testing.T) {
+// to dash.
+func TestOrderReturnWindowGoodwill(t *testing.T) {
 	t.Parallel()
 	for _, delivered := range []int{6, 1} {
 		html := orderPage(t, &OrderView{
@@ -106,7 +115,10 @@ func TestTheReturnWindowMarksOnlyTheGoodwillDays(t *testing.T) {
 	}
 }
 
-func TestAParcelNotYetDeliveredStatesTheRuleAndDrawsNoGrid(t *testing.T) {
+// TestOrderUndeliveredParcel: a parcel not yet delivered draws no return-period
+// grid and states the rule (eight days, counted from the day after receipt),
+// and its line offers no warranty registration before delivery.
+func TestOrderUndeliveredParcel(t *testing.T) {
 	t.Parallel()
 	waiting := OrderShipment{
 		Carrier: shipping.CarrierBlackCat, Tracking: "T9", ShippedAt: orderNow.AddDate(0, 0, -1), RescissionDays: 8,
@@ -127,7 +139,10 @@ func TestAParcelNotYetDeliveredStatesTheRuleAndDrawsNoGrid(t *testing.T) {
 	}
 }
 
-func TestStorePickupCountsFromTheCollection(t *testing.T) {
+// TestOrderPickupCountedFromCollection: a store-pickup order says it was
+// collected, not delivered, and counts the return period from the day of
+// collection.
+func TestOrderPickupCountedFromCollection(t *testing.T) {
 	t.Parallel()
 	html := orderPage(t, &OrderView{
 		Status: order.FulfillmentCompleted, Pickup: true,
@@ -143,7 +158,10 @@ func TestStorePickupCountsFromTheCollection(t *testing.T) {
 	}
 }
 
-func TestACancelledOrderHasNoRightToCancelAndNoReturn(t *testing.T) {
+// TestOrderCancelled: a cancelled order states when it was cancelled and states
+// a refund only if it was paid, and says nothing of a return, the cancellation
+// window, days left, a return's outcome or warranty months.
+func TestOrderCancelled(t *testing.T) {
 	t.Parallel()
 	tests := []struct {
 		name       string
@@ -177,7 +195,11 @@ func TestACancelledOrderHasNoRightToCancelAndNoReturn(t *testing.T) {
 	}
 }
 
-func TestAFullyReturnedOrderDrawsNoGrid(t *testing.T) {
+// TestOrderFullyReturned: the order page of a fully returned order draws no
+// return-period grid and states only the money: the refunded eyebrow, the
+// refund date and amount, and none of the delivered, paid, days-left or
+// return-request wording.
+func TestOrderFullyReturned(t *testing.T) {
 	t.Parallel()
 	html := orderPage(t, &OrderView{
 		Status: order.FulfillmentDelivered, SubtotalCents: 590000, ShowWarrantyLink: true,
@@ -204,7 +226,10 @@ func TestAFullyReturnedOrderDrawsNoGrid(t *testing.T) {
 	}
 }
 
-func TestAGuestSeesTheWarrantyMonthsAndNoRegisterLink(t *testing.T) {
+// TestOrderGuestWarrantyMonths: a viewer without the registration link (a
+// guest) sees the warranty months and that registering needs an account, and is
+// offered no registration link.
+func TestOrderGuestWarrantyMonths(t *testing.T) {
 	t.Parallel()
 	html := orderPage(t, &OrderView{
 		Status: order.FulfillmentDelivered, ShowWarrantyLink: false,
@@ -220,9 +245,12 @@ func TestAGuestSeesTheWarrantyMonthsAndNoRegisterLink(t *testing.T) {
 	}
 }
 
-// A registered warranty states the day its cover ends and draws nothing: a
-// grid of its months would fill one cell and say only "the first month".
-func TestARegisteredWarrantyStatesItsEndInWords(t *testing.T) {
+// TestOrderRegisteredWarranty: a fully registered warranty states the day its
+// cover ends, offers no registration again and draws no period grid for the
+// line, for a year and for ten years alike.
+//
+// A grid of its months would fill one cell and say only the first month.
+func TestOrderRegisteredWarranty(t *testing.T) {
 	t.Parallel()
 	for _, tt := range []struct {
 		name   string
@@ -260,7 +288,10 @@ func TestARegisteredWarrantyStatesItsEndInWords(t *testing.T) {
 	}
 }
 
-func TestTheHeadFactsOfAnOrderWithOneDeliveredParcel(t *testing.T) {
+// TestOrderHeadFacts: the head facts of an order with one delivered parcel
+// state when it was placed, its total, and when and by which carrier it was
+// delivered.
+func TestOrderHeadFacts(t *testing.T) {
 	t.Parallel()
 	html := orderPage(t, &OrderView{
 		Status: order.FulfillmentDelivered, SubtotalCents: 3980000,
@@ -273,7 +304,9 @@ func TestTheHeadFactsOfAnOrderWithOneDeliveredParcel(t *testing.T) {
 	}
 }
 
-func TestDaysLeftIsABareFigureInEnglish(t *testing.T) {
+// TestOrderDaysLeftEnglish: the English order page shows the days left of the
+// return period as a bare figure (1 and 2).
+func TestOrderDaysLeftEnglish(t *testing.T) {
 	t.Parallel()
 	for _, tt := range []struct {
 		name string

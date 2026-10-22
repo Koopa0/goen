@@ -9,9 +9,11 @@ import (
 	"github.com/koopa0/goen/internal/ui/frame"
 )
 
-// The order page shows the invoice once it is filed and nothing before, and
-// never prints a mobile barcode in full.
-func TestTheOrderPageShowsTheInvoiceOnlyOnceFiled(t *testing.T) {
+// TestOrderInvoicePanel: the order page shows the invoice panel only once an
+// invoice is filed, with each invoice and allowance document's number, date,
+// random code, amount and voided mark, and never prints a mobile barcode in
+// full.
+func TestOrderInvoicePanel(t *testing.T) {
 	t.Parallel()
 	render := func(inv *OrderInvoice) string {
 		return renderToString(t, Order(frame.Page{Title: "GO-1"}, &OrderView{
