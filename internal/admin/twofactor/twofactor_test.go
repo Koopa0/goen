@@ -44,10 +44,11 @@ func mustParseKey(t *testing.T, value string) []byte {
 	return key
 }
 
-// TestOnlyThirtyTwoRandomBytesIsAKey pins the configuration grammar and the
-// decoded material: an err-only assertion would admit a normaliser that
-// accepted every passphrase and returned a plausible length.
-func TestOnlyThirtyTwoRandomBytesIsAKey(t *testing.T) {
+// TestParseKey: only thirty-two random bytes is a key. It pins the
+// configuration grammar and the decoded material: an err-only assertion would
+// admit a normaliser that accepted every passphrase and returned a plausible
+// length.
+func TestParseKey(t *testing.T) {
 	hexBytes, err := hex.DecodeString(testHexKey)
 	if err != nil {
 		t.Fatalf("fixture: %v", err)
@@ -152,9 +153,10 @@ func FuzzParseKey(f *testing.F) {
 	})
 }
 
-// TestTheKeyIsTheDecodedBytesAndNotAHashOfThem: the raw decoded bytes are the
-// AES key, and sha256(the environment string) is not.
-func TestTheKeyIsTheDecodedBytesAndNotAHashOfThem(t *testing.T) {
+// TestSecretCipher_SealKeyIsDecodedBytes: the key is the decoded bytes and not
+// a hash of them. The raw decoded bytes are the AES key, and sha256(the
+// environment string) is not.
+func TestSecretCipher_SealKeyIsDecodedBytes(t *testing.T) {
 	decoded := mustParseKey(t, testHexKey)
 	owner := uuid.New()
 	sealed, err := newCipher(decoded, nil).seal([]byte("the stored totp secret"), owner)
@@ -185,9 +187,9 @@ func TestTheKeyIsTheDecodedBytesAndNotAHashOfThem(t *testing.T) {
 	}
 }
 
-// TestAnUnreadableCredentialNoticeSpeaksBothLocales pins the recovery message
-// used by the Verify redirect.
-func TestAnUnreadableCredentialNoticeSpeaksBothLocales(t *testing.T) {
+// TestNoticeForUnreadable: an unreadable-credential notice speaks both locales.
+// It pins the recovery message used by the Verify redirect.
+func TestNoticeForUnreadable(t *testing.T) {
 	tests := []struct {
 		locale i18n.Locale
 		want   string
@@ -208,9 +210,10 @@ func TestAnUnreadableCredentialNoticeSpeaksBothLocales(t *testing.T) {
 	}
 }
 
-// TestCodeMatchesTheRFCTestVectors proves goen agrees with every authenticator
-// app. RFC 6238's table is 8-digit; goen uses the low six, per RFC 4226.
-func TestCodeMatchesTheRFCTestVectors(t *testing.T) {
+// TestCodeRFCVectors: Code matches the RFC 6238 test vectors. It proves goen
+// agrees with every authenticator app. RFC 6238's table is 8-digit; goen uses
+// the low six, per RFC 4226.
+func TestCodeRFCVectors(t *testing.T) {
 	tests := []struct {
 		unix int64
 		want string // the low six digits of the RFC's SHA1 column
@@ -230,7 +233,10 @@ func TestCodeMatchesTheRFCTestVectors(t *testing.T) {
 	}
 }
 
-func TestACodeCannotBeUsedTwice(t *testing.T) {
+// TestVerifyReplay: a code cannot be used twice. Verify refuses a code at or
+// before the last accepted step, so it cannot be replayed for the rest of its
+// window, and refuses a code from an earlier step after a later one.
+func TestVerifyReplay(t *testing.T) {
 	now := time.Unix(1_700_000_000, 0)
 	step := StepAt(now)
 	code := Code(rfcSecret, step)
@@ -254,7 +260,9 @@ func TestACodeCannotBeUsedTwice(t *testing.T) {
 	}
 }
 
-func TestTheSkewWindowIsExactlyOneStep(t *testing.T) {
+// TestVerifySkewWindow: the skew window is exactly one step. Verify accepts the
+// current step and one step either side, and refuses two or more steps away.
+func TestVerifySkewWindow(t *testing.T) {
 	now := time.Unix(1_700_000_000, 0)
 	current := StepAt(now)
 
@@ -281,7 +289,10 @@ func TestTheSkewWindowIsExactlyOneStep(t *testing.T) {
 	}
 }
 
-func TestNothingButASixDigitCodeIsAccepted(t *testing.T) {
+// TestVerifyCodeFormat: nothing but a six-digit code is accepted. Verify
+// refuses codes of the wrong length or characters, and accepts a correct code
+// with the spacing an authenticator app displays.
+func TestVerifyCodeFormat(t *testing.T) {
 	now := time.Unix(1_700_000_000, 0)
 	valid := Code(rfcSecret, StepAt(now))
 
@@ -301,7 +312,11 @@ func TestNothingButASixDigitCodeIsAccepted(t *testing.T) {
 	}
 }
 
-func TestASealedSecretRoundTripsAndIsNotThePlaintext(t *testing.T) {
+// TestSecretCipher_SealRoundTrip: a sealed secret round-trips and is not the
+// plaintext. The stored bytes do not contain the secret, carry the version and
+// key-id header, open to the secret under the current key, and differ on every
+// seal, so no nonce is reused.
+func TestSecretCipher_SealRoundTrip(t *testing.T) {
 	c := newCipher(testCipherKey, nil)
 	owner := uuid.New()
 	secret, err := NewSecret()
@@ -344,9 +359,10 @@ func TestASealedSecretRoundTripsAndIsNotThePlaintext(t *testing.T) {
 	}
 }
 
-// TestASecretSealedForOneOwnerDoesNotOpenForAnother: the owner is in the AAD, so
-// a row copied onto another staff member's does not open there.
-func TestASecretSealedForOneOwnerDoesNotOpenForAnother(t *testing.T) {
+// TestSecretCipher_OpenOtherOwner: a secret sealed for one owner does not open
+// for another. The owner is in the AAD, so a row copied onto another staff
+// member's does not open there.
+func TestSecretCipher_OpenOtherOwner(t *testing.T) {
 	c := newCipher(testCipherKey, nil)
 	a, b := uuid.New(), uuid.New()
 	sealed, err := c.seal(rfcSecret, a)
@@ -362,10 +378,11 @@ func TestASecretSealedForOneOwnerDoesNotOpenForAnother(t *testing.T) {
 	}
 }
 
-// TestARotationOpensTheOldKeyAndSealsUnderTheNewOne walks the key rotation: K1
-// seals, then K2 with K1 as previous opens it and says it is not current, K2
-// alone refuses it, and new seals carry K2's identifier.
-func TestARotationOpensTheOldKeyAndSealsUnderTheNewOne(t *testing.T) {
+// TestSecretCipher_KeyRotation: a rotation opens the old key and seals under
+// the new one. It walks the key rotation: K1 seals, then K2 with K1 as previous
+// opens it and says it is not current, K2 alone refuses it, and new seals carry
+// K2's identifier.
+func TestSecretCipher_KeyRotation(t *testing.T) {
 	k1, k2 := testCipherKey, differentCipherKey
 	owner := uuid.New()
 	sealedUnderK1, err := newCipher(k1, nil).seal(rfcSecret, owner)
@@ -403,9 +420,10 @@ func TestARotationOpensTheOldKeyAndSealsUnderTheNewOne(t *testing.T) {
 	}
 }
 
-// TestAnOldFormatSecretIsRefusedWithTheRecoveryAdvice: a value from before the
-// header existed (nonce ‖ ciphertext under the same key) is told to re-enrol.
-func TestAnOldFormatSecretIsRefusedWithTheRecoveryAdvice(t *testing.T) {
+// TestSecretCipher_OpenOldFormat: an old-format secret is refused with the
+// recovery advice. A value from before the header existed (nonce ‖ ciphertext
+// under the same key) is told to re-enrol.
+func TestSecretCipher_OpenOldFormat(t *testing.T) {
 	block, err := aes.NewCipher(testCipherKey)
 	if err != nil {
 		t.Fatalf("aes: %v", err)
@@ -434,7 +452,11 @@ func TestAnOldFormatSecretIsRefusedWithTheRecoveryAdvice(t *testing.T) {
 	}
 }
 
-func TestATamperedSecretDoesNotOpen(t *testing.T) {
+// TestSecretCipher_OpenTampered: a tampered secret does not open. Flipping a
+// byte of the version, key id, nonce, ciphertext or tag, opening under the
+// wrong key, and opening a truncated value are all refused, the last without
+// panicking.
+func TestSecretCipher_OpenTampered(t *testing.T) {
 	c := newCipher(testCipherKey, nil)
 	owner := uuid.New()
 	secret, _ := NewSecret()
@@ -463,9 +485,10 @@ func TestATamperedSecretDoesNotOpen(t *testing.T) {
 	}
 }
 
-// TestAKeyIdThatCannotTellTheKeysApartIsRefused: the rotation check rejects an
-// identical previous key, and accepts none or a different one.
-func TestAKeyIdThatCannotTellTheKeysApartIsRefused(t *testing.T) {
+// TestCheckKeyRotation: a previous key the key id cannot tell from the current
+// one is refused. The rotation check rejects an identical previous key, and
+// accepts none or a different one.
+func TestCheckKeyRotation(t *testing.T) {
 	if err := CheckKeyRotation(testCipherKey, nil); err != nil {
 		t.Errorf("no previous key refused: %v", err)
 	}
@@ -477,7 +500,9 @@ func TestAKeyIdThatCannotTellTheKeysApartIsRefused(t *testing.T) {
 	}
 }
 
-func TestNoKeyMeansNoStoredSecret(t *testing.T) {
+// TestSecretCipher_NoKey: no key means no stored secret. A cipher without a key
+// is not enabled, and neither seals nor opens.
+func TestSecretCipher_NoKey(t *testing.T) {
 	c := newCipher(nil, nil)
 	if c.enabled() {
 		t.Fatal("a cipher with no key reported itself enabled")
@@ -490,7 +515,11 @@ func TestNoKeyMeansNoStoredSecret(t *testing.T) {
 	}
 }
 
-func TestTheProvisioningURIIsWhatAnAppExpects(t *testing.T) {
+// TestProvisioningURI: the provisioning URI is what an authenticator app
+// expects. It is otpauth://totp with the issuer, digits, period and algorithm,
+// carries the secret as unpadded base32, and an account name with
+// metacharacters cannot break it.
+func TestProvisioningURI(t *testing.T) {
 	secret := []byte("12345678901234567890")
 	uri := ProvisioningURI("staff@goen.example", secret)
 
@@ -545,7 +574,10 @@ func keylessHandler(t *testing.T) *Handler {
 	return NewHandler(NewStore(idle, nil, nil), slog.New(slog.DiscardHandler))
 }
 
-func TestEnrolIsThrottledPerAccount(t *testing.T) {
+// TestHandler_EnrolThrottledPerAccount: Enrol is throttled per account. The
+// eleventh attempt from one account answers 429 while another account is still
+// served.
+func TestHandler_EnrolThrottledPerAccount(t *testing.T) {
 	t.Parallel()
 	h := keylessHandler(t)
 	enrol := func(id string) int {

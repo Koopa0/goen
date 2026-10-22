@@ -14,7 +14,12 @@ import (
 	"github.com/koopa0/goen/internal/ui/frame"
 )
 
-func TestShippingRefusalsKeepTheirOwnDraftAndExplainOnlyTheirOwnControls(t *testing.T) {
+// TestShippingRefusalOwnControls: shipping refusals keep their own draft and
+// explain only their own controls. A refused version keeps its raw draft and
+// marks only the refused control with a linked translated explanation, a
+// refused surcharge marks only its own, and the normal numeric controls keep
+// their bounds.
+func TestShippingRefusalOwnControls(t *testing.T) {
 	t.Parallel()
 	for _, locale := range i18n.Locales() {
 		t.Run(locale.Tag(), func(t *testing.T) {
@@ -78,7 +83,10 @@ func TestShippingRefusalsKeepTheirOwnDraftAndExplainOnlyTheirOwnControls(t *test
 	}
 }
 
-func TestShippingDatabaseRefusalIsAnnouncedOnTheOwningForm(t *testing.T) {
+// TestShippingDatabaseRefusalAlert: a database refusal is announced on the
+// owning form. A version_form error renders a single alert on that method's
+// version form, with the desk's message.
+func TestShippingDatabaseRefusalAlert(t *testing.T) {
 	t.Parallel()
 	for _, locale := range i18n.Locales() {
 		t.Run(locale.Tag(), func(t *testing.T) {

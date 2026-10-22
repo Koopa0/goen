@@ -21,7 +21,13 @@ import (
 	"github.com/koopa0/goen/internal/i18n"
 )
 
-func TestRefusedShippingEditsRetainTheDraftWithoutChangingTheConfiguration(t *testing.T) {
+// TestHandler_RefusedEditsKeepDraft: refused shipping edits retain the draft
+// without changing the configuration. Refused version and surcharge forms
+// answer 422 with the raw text and only the refused control marked, unknown
+// methods, zones and versions answer 404, stale surcharges are refused ahead of
+// range errors, and no refusal changes the configuration or writes an audit
+// row.
+func TestHandler_RefusedEditsKeepDraft(t *testing.T) {
 	p := admintest.Pool(t)
 	ctx, _ := admintest.StaffContext(t, p)
 	var methodID, versionID, zoneID uuid.UUID
@@ -244,7 +250,11 @@ func TestRefusedShippingEditsRetainTheDraftWithoutChangingTheConfiguration(t *te
 	}
 }
 
-func TestShippingNameBoundsAreEnforcedByTheDatabase(t *testing.T) {
+// TestShippingNameBounded: shipping name bounds are enforced by the database.
+// The CHECK constraints shipping_method_versions_name_bounded and
+// shipping_zones_name_bounded accept a name of sixty characters, ASCII or Han,
+// and refuse sixty-one with check_violation.
+func TestShippingNameBounded(t *testing.T) {
 	p := admintest.Pool(t)
 	ctx, _ := admintest.StaffContext(t, p)
 	adminPool := admintest.AdminRolePool(t, p)

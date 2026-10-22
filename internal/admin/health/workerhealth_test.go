@@ -13,7 +13,10 @@ import (
 	"github.com/koopa0/goen/internal/ui/frame"
 )
 
-func TestCancelledRefundHealthStatusIsLocalized(t *testing.T) {
+// TestOpenRefund_StatusTextCancelled: the cancelled refund health status is
+// localized. In each locale StatusText says the provider cancelled the refund
+// attempt and no money moved.
+func TestOpenRefund_StatusTextCancelled(t *testing.T) {
 	t.Parallel()
 	open := OpenRefund{Status: "cancelled"}
 	tests := []struct {
@@ -35,7 +38,11 @@ func TestCancelledRefundHealthStatusIsLocalized(t *testing.T) {
 	}
 }
 
-func TestOpenRefundRowsLinkTheOrderAndExplainManualRecovery(t *testing.T) {
+// TestHealthOpenRefundRows: open refund rows link the order and explain manual
+// recovery. For each refund state, origin (return or other) and locale the row
+// shows the order link, the status, and the next step followed by the recovery
+// sentence.
+func TestHealthOpenRefundRows(t *testing.T) {
 	t.Parallel()
 	states := []struct {
 		name   string
@@ -115,7 +122,10 @@ func TestOpenRefundRowsLinkTheOrderAndExplainManualRecovery(t *testing.T) {
 	}
 }
 
-func TestRefundHealthUsesTheExactCountNotTheBoundedSample(t *testing.T) {
+// TestWorkerHealthView_RefundsExactCount: the refund health uses the exact
+// count, not the bounded sample. With 37 open refunds and 20 listed,
+// RefundsHealthy is false and RefundsText names 37.
+func TestWorkerHealthView_RefundsExactCount(t *testing.T) {
 	t.Parallel()
 	view := WorkerHealthView{
 		OpenRefundCount: 37,
@@ -131,10 +141,10 @@ func TestRefundHealthUsesTheExactCountNotTheBoundedSample(t *testing.T) {
 	}
 }
 
-// TestAPaidOrderWithNoInvoiceOperationIsWork: the page reads unhealthy, says
-// how many there are rather than how many it lists, and puts the order and its
-// issue action in front of the reader.
-func TestAPaidOrderWithNoInvoiceOperationIsWork(t *testing.T) {
+// TestHealthUninvoicedOrder: a paid order with no invoice operation is work.
+// The page reads unhealthy, says how many there are rather than how many it
+// lists, and puts the order and its issue action in front of the reader.
+func TestHealthUninvoicedOrder(t *testing.T) {
 	t.Parallel()
 	view := &WorkerHealthView{CopurchaseEverBuilt: true, CopurchaseStaleAfter: time.Hour}
 	if !view.AllHealthy() {
@@ -157,10 +167,10 @@ func TestAPaidOrderWithNoInvoiceOperationIsWork(t *testing.T) {
 	}
 }
 
-// TestALiveInvoiceOnACancelledOrderIsWork: a cancellation that could not void
-// its invoice leaves staff a correction to make, so the page reads unhealthy,
-// counts them all and links each order.
-func TestALiveInvoiceOnACancelledOrderIsWork(t *testing.T) {
+// TestHealthCancelledOrderInvoice: a live invoice on a cancelled order is work.
+// A cancellation that could not void its invoice leaves staff a correction to
+// make, so the page reads unhealthy, counts them all and links each order.
+func TestHealthCancelledOrderInvoice(t *testing.T) {
 	t.Parallel()
 	view := &WorkerHealthView{CopurchaseEverBuilt: true, CopurchaseStaleAfter: time.Hour}
 	if !view.AllHealthy() {
@@ -185,10 +195,11 @@ func TestALiveInvoiceOnACancelledOrderIsWork(t *testing.T) {
 	}
 }
 
-// TestARefundWithNoAllowanceIsWork: money given back with no 折讓 leaves the
-// invoice overstating the sale, so the page reads unhealthy, counts them all,
-// and links each order, whose page files the allowance.
-func TestARefundWithNoAllowanceIsWork(t *testing.T) {
+// TestHealthUnrelievedRefund: a refund with no allowance is work. Money given
+// back with no 折讓 leaves the invoice overstating the sale, so the page reads
+// unhealthy, counts them all, and links each order, whose page files the
+// allowance.
+func TestHealthUnrelievedRefund(t *testing.T) {
 	t.Parallel()
 	view := &WorkerHealthView{CopurchaseEverBuilt: true, CopurchaseStaleAfter: time.Hour}
 	if !view.AllHealthy() {
@@ -218,9 +229,10 @@ func TestARefundWithNoAllowanceIsWork(t *testing.T) {
 	}
 }
 
-// TestALapsedAllowanceResendAsksTheBuyerAgain: the resend of an allowance the
-// customer never agreed to is not worded as one ECPay never received.
-func TestALapsedAllowanceResendAsksTheBuyerAgain(t *testing.T) {
+// TestHealthLapsedAllowanceResend: a lapsed allowance resend asks the buyer
+// again. The resend of an allowance the customer never agreed to is not worded
+// as one ECPay never received.
+func TestHealthLapsedAllowanceResend(t *testing.T) {
 	t.Parallel()
 	ctx := i18n.WithLocale(t.Context(), i18n.ZhHant)
 	for _, tt := range []struct {
@@ -248,10 +260,11 @@ func TestALapsedAllowanceResendAsksTheBuyerAgain(t *testing.T) {
 	}
 }
 
-// TestARefundStripeFailedNamesItsOrderAndAmount: the alarm for a refund goen
-// recorded as succeeded is worked from the order and the sum to repay, and only
-// that event carries them and the instruction.
-func TestARefundStripeFailedNamesItsOrderAndAmount(t *testing.T) {
+// TestHealthRefundFailedEvent: a refund Stripe failed names its order and
+// amount. The alarm for a refund goen recorded as succeeded is worked from the
+// order and the sum to repay, and only that event carries them and the
+// instruction.
+func TestHealthRefundFailedEvent(t *testing.T) {
 	t.Parallel()
 	ctx := i18n.WithLocale(t.Context(), i18n.ZhHant)
 	view := &WorkerHealthView{UnreconciledEvents: []UnreconciledEvent{
@@ -284,7 +297,11 @@ func TestARefundStripeFailedNamesItsOrderAndAmount(t *testing.T) {
 	}
 }
 
-func TestDisputesRowRendersWhatStripeSaid(t *testing.T) {
+// TestHealthDisputesRow: the disputes row renders what Stripe said. An unknown
+// read, a dispute with no order and no deadline, orders that could not be
+// looked up, no disputes, and no Stripe configured each show their own wording,
+// health state and row presence.
+func TestHealthDisputesRow(t *testing.T) {
 	t.Parallel()
 	ctx := i18n.WithLocale(t.Context(), i18n.ZhHant)
 	healthy := func() *WorkerHealthView {
@@ -346,7 +363,9 @@ func TestDisputesRowRendersWhatStripeSaid(t *testing.T) {
 	}
 }
 
-func TestOpenDisputeAmount(t *testing.T) {
+// TestOpenDispute_Amount: the dispute amount shows the shop currency as money
+// and any other currency as its code only.
+func TestOpenDispute_Amount(t *testing.T) {
 	t.Parallel()
 	tests := []struct {
 		name     string
@@ -369,7 +388,10 @@ func TestOpenDisputeAmount(t *testing.T) {
 	}
 }
 
-func TestHealthDisputeAmountsDoNotExposeForeignMinorUnits(t *testing.T) {
+// TestHealthDisputeAmounts: health dispute amounts do not expose foreign minor
+// units. A USD dispute shows only USD, never its 5000 minor-unit figure, while
+// a TWD dispute shows NT$1,290, in both locales.
+func TestHealthDisputeAmounts(t *testing.T) {
 	t.Parallel()
 	tests := []struct {
 		name   string
@@ -406,7 +428,11 @@ func TestHealthDisputeAmountsDoNotExposeForeignMinorUnits(t *testing.T) {
 	}
 }
 
-func TestStaffTaskCountUsesOnlyTheThreePriorityFamilies(t *testing.T) {
+// TestWorkerHealthView_StaffTaskCount: the staff task count uses only the three
+// priority families. StaffTaskCount adds unreconciled payments, uninvoiced
+// orders and stranded claims, independently of the sample lists and of other
+// work, and StaffTaskText words the singular and plural in each locale.
+func TestWorkerHealthView_StaffTaskCount(t *testing.T) {
 	t.Parallel()
 	view := WorkerHealthView{
 		UnreconciledPayments: 51, UninvoicedCount: 37, StrandedClaimCount: 24,
@@ -436,7 +462,11 @@ func TestStaffTaskCountUsesOnlyTheThreePriorityFamilies(t *testing.T) {
 	}
 }
 
-func TestHealthPrioritizesStaffTablesAndLinksTheirActualFirstAnchor(t *testing.T) {
+// TestHealthStaffTableAnchors: the health page prioritizes staff tables and
+// links their actual first anchor. The first rendered staff table precedes the
+// system details and its anchor appears once, the header count links to it, and
+// the engineering cards sit inside the closed disclosure.
+func TestHealthStaffTableAnchors(t *testing.T) {
 	t.Parallel()
 	for _, tt := range []struct {
 		name   string
@@ -475,7 +505,10 @@ func TestHealthPrioritizesStaffTablesAndLinksTheirActualFirstAnchor(t *testing.T
 	}
 }
 
-func TestHealthKeepsAllOtherWorkOutsideSystemDetails(t *testing.T) {
+// TestHealthWorkOutsideSystemDetails: the health page keeps all other work
+// outside the system details. Every staff section renders in order ahead of the
+// system disclosure, with its forms, links and counts intact.
+func TestHealthWorkOutsideSystemDetails(t *testing.T) {
 	t.Parallel()
 	view := WorkerHealthView{
 		UnreconciledPayments: 2, UninvoicedCount: 3, StrandedClaimCount: 4,
@@ -511,7 +544,10 @@ func TestHealthKeepsAllOtherWorkOutsideSystemDetails(t *testing.T) {
 	}
 }
 
-func TestStaffTaskBadgeDoesNotInventAnAnchorWhenRowsDisappear(t *testing.T) {
+// TestHealthStaffTaskBadgeNoRows: the staff task badge does not invent an
+// anchor when rows disappear. A count without rows stays visible without a link
+// to a table that does not exist.
+func TestHealthStaffTaskBadgeNoRows(t *testing.T) {
 	t.Parallel()
 	view := WorkerHealthView{UnreconciledPayments: 1}
 	html := renderComponent(t, i18n.WithLocale(t.Context(), i18n.En), Health(frame.Page{}, &view))
@@ -520,7 +556,11 @@ func TestStaffTaskBadgeDoesNotInventAnAnchorWhenRowsDisappear(t *testing.T) {
 	}
 }
 
-func TestHealthExplainsKnownAndUnknownCodesBeforeTechnicalDetails(t *testing.T) {
+// TestHealthCodeExplanations: the health page explains known and unknown codes
+// before the technical details. Each event type, reason, claim kind, status and
+// error shows its localized explanation in the same cell as its raw code, which
+// stays inside the technical details.
+func TestHealthCodeExplanations(t *testing.T) {
 	t.Parallel()
 	for _, tt := range []struct {
 		locale i18n.Locale
@@ -558,7 +598,11 @@ func TestHealthExplainsKnownAndUnknownCodesBeforeTechnicalDetails(t *testing.T) 
 	}
 }
 
-func TestHealthyWorkAndPlainCardTitlesRemainInsideSystemStatus(t *testing.T) {
+// TestHealthPlainCardTitles: healthy work and plain card titles remain inside
+// the system status. A healthy page keeps its all-clear state, invents no staff
+// table link, and shows the plain-language card titles and not the technical
+// ones.
+func TestHealthPlainCardTitles(t *testing.T) {
 	t.Parallel()
 	for _, tt := range []struct {
 		locale i18n.Locale
@@ -586,7 +630,11 @@ func TestHealthyWorkAndPlainCardTitlesRemainInsideSystemStatus(t *testing.T) {
 	}
 }
 
-func TestInvoiceReasonCodesDistinguishMissingUnknownAndProviderRejection(t *testing.T) {
+// TestHealthInvoiceReasonCodes: invoice reason codes distinguish missing,
+// unknown and provider rejection. A missing reason, a reason with no label and
+// a provider rejection each render their own wording, the last two beside the
+// raw code in the technical details.
+func TestHealthInvoiceReasonCodes(t *testing.T) {
 	t.Parallel()
 	for _, tt := range []struct {
 		locale                     i18n.Locale
@@ -618,10 +666,11 @@ func TestInvoiceReasonCodesDistinguishMissingUnknownAndProviderRejection(t *test
 	}
 }
 
-// TestHealthKeepsMachineCodesInsideTechnicalDetails: the claim's kind and
-// status read in the page's language, and the raw error category and event
-// reason appear only inside a closed <details>, for whoever matches the log.
-func TestHealthKeepsMachineCodesInsideTechnicalDetails(t *testing.T) {
+// TestHealthMachineCodesInDetails: Health keeps machine codes inside technical
+// details. The claim's kind and status read in the page's language, and the raw
+// error category and event reason appear only inside a closed <details>, for
+// whoever matches the log.
+func TestHealthMachineCodesInDetails(t *testing.T) {
 	t.Parallel()
 	ctx := i18n.WithLocale(t.Context(), i18n.ZhHant)
 	view := &WorkerHealthView{

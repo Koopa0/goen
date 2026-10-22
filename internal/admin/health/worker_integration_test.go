@@ -15,7 +15,10 @@ import (
 	"github.com/koopa0/goen/internal/outbox"
 )
 
-func TestHealthIsDerivedFromTheWorkNotFromAHeartbeat(t *testing.T) {
+// TestStore_WorkerHealthOutbox: health is derived from the work, not from a
+// heartbeat. An empty outbox reads healthy, and a message that has run out of
+// attempts reads unhealthy and is counted as stuck.
+func TestStore_WorkerHealthOutbox(t *testing.T) {
 	ctx := t.Context()
 	s := health.NewStore(pool)
 
@@ -47,7 +50,9 @@ func TestHealthIsDerivedFromTheWorkNotFromAHeartbeat(t *testing.T) {
 	}
 }
 
-func TestAMessageWaitingOnItsBackoffIsNotLate(t *testing.T) {
+// TestStore_WorkerHealthBackoff: a message waiting on its backoff is not late.
+// It is pending, has no overdue age, and the outbox reads healthy.
+func TestStore_WorkerHealthBackoff(t *testing.T) {
 	ctx := t.Context()
 	s := health.NewStore(pool)
 
@@ -75,7 +80,11 @@ func TestAMessageWaitingOnItsBackoffIsNotLate(t *testing.T) {
 	}
 }
 
-func TestNeverRebuiltIsNotTheSameAsJustRebuilt(t *testing.T) {
+// TestStore_WorkerHealthNeverRebuilt: never rebuilt is not the same as just
+// rebuilt. A recommendation projection that never refreshed reads as unbuilt
+// and unhealthy; a rebuild that found no pair of products is still a rebuild
+// and reads healthy.
+func TestStore_WorkerHealthNeverRebuilt(t *testing.T) {
 	ctx := t.Context()
 	s := health.NewStore(pool)
 
@@ -110,7 +119,11 @@ func TestNeverRebuiltIsNotTheSameAsJustRebuilt(t *testing.T) {
 	}
 }
 
-func TestStaffTaskCountDeduplicatesPaymentsAndExceedsTheVisibleSample(t *testing.T) {
+// TestStore_StaffTaskCount: the staff task count deduplicates payments and
+// exceeds the visible sample. It counts a payment once whether or not an event
+// names it, keeps counting past the 50-row event sample, equals the page's own
+// count, and is not changed by an engineering alarm.
+func TestStore_StaffTaskCount(t *testing.T) {
 	fixturePool := dbtest.Pool(t)
 	if err := admintest.LoadCatalogue(t.Context(), fixturePool); err != nil {
 		t.Fatalf("load isolated catalogue: %v", err)

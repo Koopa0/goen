@@ -13,7 +13,11 @@ import (
 	"github.com/koopa0/goen/internal/ui/widget"
 )
 
-func TestEveryRedirectTheShippingFormsMakeCarriesAMessage(t *testing.T) {
+// TestNoticesCoverRedirects: every redirect the shipping forms make carries a
+// message. Each ?name=1 that handler.go sends has a notice, and each notice
+// names a parameter some redirect writes; a parser that finds no redirect
+// fails.
+func TestNoticesCoverRedirects(t *testing.T) {
 	t.Parallel()
 	src, err := os.ReadFile("handler.go")
 	if err != nil {
@@ -38,7 +42,9 @@ func TestEveryRedirectTheShippingFormsMakeCarriesAMessage(t *testing.T) {
 	}
 }
 
-func TestShippingRowRefusalUsesTheDeskMessage(t *testing.T) {
+// TestNoticesRowRefusal: a shipping row refusal uses the desk message. In each
+// locale the notice for ?refused=1 is the shipping desk's own refusal sentence.
+func TestNoticesRowRefusal(t *testing.T) {
 	t.Parallel()
 	for _, locale := range i18n.Locales() {
 		t.Run(locale.Tag(), func(t *testing.T) {
@@ -51,7 +57,10 @@ func TestShippingRowRefusalUsesTheDeskMessage(t *testing.T) {
 	}
 }
 
-func TestZoneRemovalRefusalsDescribeTheirBlocker(t *testing.T) {
+// TestNoticesZoneRemovalBlockers: zone removal refusals describe their blocker.
+// ?zoneprefixes=1 and ?zoneversions=1 each give a refused notice naming what
+// still uses the zone, and no shipping notice uses the taxonomy in-use refusal.
+func TestNoticesZoneRemovalBlockers(t *testing.T) {
 	t.Parallel()
 	for _, locale := range i18n.Locales() {
 		t.Run(locale.Tag(), func(t *testing.T) {

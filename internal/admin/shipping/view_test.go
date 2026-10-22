@@ -18,7 +18,10 @@ import (
 // The tests below render the shipping page next to nothing else; the helpers they use are copies, since a
 // test cannot import another package's.
 
-func TestAMethodWithoutEnglishSaysSoAndMarksTheOtherName(t *testing.T) {
+// TestShippingMethodWithoutEnglish: a method without English says so and marks
+// the other name. The method headings carry one untranslated pill, and the
+// other-language name is marked with its own language.
+func TestShippingMethodWithoutEnglish(t *testing.T) {
 	t.Parallel()
 	view := ShippingView{Methods: []Method{
 		{MethodID: "a", VersionID: "va", Destination: shipping.DestinationAddress, Name: "宅配到府", NameEn: "Home delivery"},
@@ -53,7 +56,10 @@ func TestAMethodWithoutEnglishSaysSoAndMarksTheOtherName(t *testing.T) {
 	}
 }
 
-func TestShippingZonesKeepTableRelationshipsWhenRowsBecomeCards(t *testing.T) {
+// TestShippingZoneTableRoles: shipping zones keep table relationships when rows
+// become cards. The zones table is named by its visible heading, and every row
+// group, row, header and cell keeps its ARIA role and column scope.
+func TestShippingZoneTableRoles(t *testing.T) {
 	t.Parallel()
 	for _, locale := range i18n.Locales() {
 		ctx := i18n.WithLocale(t.Context(), locale)
@@ -99,7 +105,9 @@ func TestShippingZonesKeepTableRelationshipsWhenRowsBecomeCards(t *testing.T) {
 	}
 }
 
-func TestZonePrefixRowsFollowLines(t *testing.T) {
+// TestZonePrefixRows: zone prefix rows follow lines. The editor has at least
+// three rows, and one more than the lines typed beyond that.
+func TestZonePrefixRows(t *testing.T) {
 	t.Parallel()
 	for _, tc := range []struct{ raw, want string }{
 		{"209 210 211 212 880 881 882 883 884 885", "3"},
@@ -112,7 +120,9 @@ func TestZonePrefixRowsFollowLines(t *testing.T) {
 	}
 }
 
-func TestShippingExampleIsItsOwnHintLine(t *testing.T) {
+// TestShippingExampleHintLine: a shipping example is its own hint line. No
+// sentence runs into the next on one line, and the page has an example line.
+func TestShippingExampleHintLine(t *testing.T) {
 	t.Parallel()
 	ctx := i18n.WithLocale(t.Context(), i18n.ZhHant)
 	pages := map[string]string{
@@ -128,7 +138,9 @@ func TestShippingExampleIsItsOwnHintLine(t *testing.T) {
 	}
 }
 
-func TestEveryShippingExampleHintReadsInFull(t *testing.T) {
+// TestShippingExampleHints: every shipping example hint reads in full. Each
+// example renders as a complete hint sentence in each locale.
+func TestShippingExampleHints(t *testing.T) {
 	t.Parallel()
 	for _, tt := range []struct {
 		locale   i18n.Locale
@@ -156,7 +168,11 @@ func TestEveryShippingExampleHintReadsInFull(t *testing.T) {
 	}
 }
 
-func TestShippingRefusalsNameTheirFormAndLinkToTheFirstInvalidControl(t *testing.T) {
+// TestShippingRefusalSummary: shipping refusals name their form and link to the
+// first invalid control. The page-top alert names the form, counts the invalid
+// fields and links to the first, the form posts to its own section, and every
+// invalid control has a description.
+func TestShippingRefusalSummary(t *testing.T) {
 	t.Parallel()
 	for _, locale := range i18n.Locales() {
 		t.Run(locale.Tag(), func(t *testing.T) {

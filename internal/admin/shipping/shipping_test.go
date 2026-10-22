@@ -16,7 +16,10 @@ import (
 	"github.com/koopa0/goen/internal/ui/frame"
 )
 
-func TestShippingStaleSurchargeKeepsTheDraftOnTheCurrentForm(t *testing.T) {
+// TestShippingStaleSurchargeDraft: a stale surcharge keeps its draft on the
+// current form. The refusal and the typed amount land on the current version's
+// form for that zone, and no other form is marked.
+func TestShippingStaleSurchargeDraft(t *testing.T) {
 	t.Parallel()
 	for _, locale := range i18n.Locales() {
 		for _, amount := range []string{"200", ""} {
@@ -74,7 +77,11 @@ func TestShippingStaleSurchargeKeepsTheDraftOnTheCurrentForm(t *testing.T) {
 	}
 }
 
-func TestShippingPickupAvailabilityIsVisibleAtTheMethodHeading(t *testing.T) {
+// TestShippingPickupAvailability: pickup availability is visible at the method
+// heading. An unavailable pickup method shows the warning badge and the setup
+// explanation in each locale, a working pickup method and home delivery show
+// neither, and no internal code leaks.
+func TestShippingPickupAvailability(t *testing.T) {
 	t.Parallel()
 	for _, locale := range []struct {
 		locale i18n.Locale
@@ -153,7 +160,11 @@ func TestShippingPickupAvailabilityIsVisibleAtTheMethodHeading(t *testing.T) {
 	}
 }
 
-func TestShippingZonePrefixesHaveCompleteMultilineEditors(t *testing.T) {
+// TestShippingZonePrefixEditors: zone prefixes have complete multiline editors.
+// Each zone and the new-zone form render a labelled textarea with its district
+// list and one row per line, and a refusal marks only its own editor and keeps
+// the raw text.
+func TestShippingZonePrefixEditors(t *testing.T) {
 	t.Parallel()
 	const islands = "209 210 211 212 880 881 882 883 884 885 890 891 892 893 894 896 951 952"
 	islandDistricts := []string{
@@ -301,7 +312,9 @@ func shippingPrefixNodeText(node *html.Node) string {
 	return text.String()
 }
 
-func TestZonePrefixEntriesListARepeatedPrefixOnce(t *testing.T) {
+// TestZonePrefixEntriesRepeatedPrefix: zone prefix entries list a repeated
+// prefix once.
+func TestZonePrefixEntriesRepeatedPrefix(t *testing.T) {
 	t.Parallel()
 	entries := zonePrefixEntries("100, 300\n100;300 600")
 	got := make([]string, 0, len(entries))
@@ -313,7 +326,10 @@ func TestZonePrefixEntriesListARepeatedPrefixOnce(t *testing.T) {
 	}
 }
 
-func TestShippingNamesAndCountsReadInTheReadersLanguage(t *testing.T) {
+// TestShippingNamesAndCounts: shipping names and counts read in the reader's
+// language. Each locale leads a heading with its own name, shows the other
+// language's name, singular and plural counts, and the untranslated marker.
+func TestShippingNamesAndCounts(t *testing.T) {
 	t.Parallel()
 	view := ShippingView{
 		Methods: []Method{{

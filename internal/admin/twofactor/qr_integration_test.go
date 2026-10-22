@@ -23,7 +23,11 @@ import (
 	"github.com/koopa0/goen/internal/web/compress"
 )
 
-func TestEnrolmentQRMatchesTheOneTimeURI(t *testing.T) {
+// TestHandler_EnrolQRMatchesURI: the enrolment QR code matches the one-time
+// URI. In both locales the inline PNG encodes the displayed provisioning URI,
+// the page has its manual secret and localized QR description, and a later
+// challenge does not repeat the enrolment material.
+func TestHandler_EnrolQRMatchesURI(t *testing.T) {
 	for _, locale := range []i18n.Locale{i18n.ZhHant, i18n.En} {
 		t.Run(locale.Tag(), func(t *testing.T) {
 			s := twofactor.NewStore(pool, testKey, nil)

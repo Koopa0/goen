@@ -34,10 +34,11 @@ func keyID(key []byte) []byte {
 	return digest[:4]
 }
 
-// TestVerifyResealsASecretTheCurrentKeyDidNotOpen finishes a key rotation one
-// sign-in at a time: the first accepted code rewrites the secret under the
-// current key, after which the previous key is no longer needed.
-func TestVerifyResealsASecretTheCurrentKeyDidNotOpen(t *testing.T) {
+// TestStore_VerifyReseals: Verify reseals a secret the current key did not
+// open. It finishes a key rotation one sign-in at a time: the first accepted
+// code rewrites the secret under the current key, after which the previous key
+// is no longer needed.
+func TestStore_VerifyReseals(t *testing.T) {
 	ctx := t.Context()
 	userID, email := admintest.AdminUser(t, pool)
 	secret := enrol(t, twofactor.NewStore(pool, testKey, nil), userID, email)
@@ -66,9 +67,9 @@ func TestVerifyResealsASecretTheCurrentKeyDidNotOpen(t *testing.T) {
 	}
 }
 
-// TestAVerifyRefusedForABadCodeDoesNotReseal: only an accepted code rewrites the
-// stored secret.
-func TestAVerifyRefusedForABadCodeDoesNotReseal(t *testing.T) {
+// TestStore_VerifyBadCodeNoReseal: a Verify refused for a bad code does not
+// reseal. Only an accepted code rewrites the stored secret.
+func TestStore_VerifyBadCodeNoReseal(t *testing.T) {
 	userID, email := admintest.AdminUser(t, pool)
 	enrol(t, twofactor.NewStore(pool, testKey, nil), userID, email)
 	before := storedSecret(t, userID)
@@ -82,10 +83,10 @@ func TestAVerifyRefusedForABadCodeDoesNotReseal(t *testing.T) {
 	}
 }
 
-// TestAMovedRowDoesNotOpenForItsNewOwner: the owner is bound into the sealed
-// secret, so copying one staff member's row onto another's gives the second no
-// factor at all.
-func TestAMovedRowDoesNotOpenForItsNewOwner(t *testing.T) {
+// TestStore_VerifyMovedRow: a moved row does not open for its new owner. The
+// owner is bound into the sealed secret, so copying one staff member's row onto
+// another's gives the second no factor at all.
+func TestStore_VerifyMovedRow(t *testing.T) {
 	ctx := t.Context()
 	s := twofactor.NewStore(pool, testKey, nil)
 	aliceID, aliceEmail := admintest.AdminUser(t, pool)

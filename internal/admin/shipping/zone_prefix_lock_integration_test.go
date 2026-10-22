@@ -16,7 +16,10 @@ import (
 	"github.com/koopa0/goen/internal/db/dbtest"
 )
 
-func TestZonesTradingPrefixesSaveOneAfterTheOther(t *testing.T) {
+// TestStore_SetZonePrefixesTrading: zones trading prefixes save one after the
+// other. Two zones each saving both prefixes queue on the zone-rates lock, and
+// afterwards both prefixes belong to one of the two zones.
+func TestStore_SetZonePrefixesTrading(t *testing.T) {
 	ctx, _ := admintest.StaffContext(t, pool)
 	s := shipping.NewStore(admintest.AdminRolePool(t, pool))
 	p := unusedZonePrefixes(t, 2)
@@ -45,7 +48,10 @@ func TestZonesTradingPrefixesSaveOneAfterTheOther(t *testing.T) {
 	}
 }
 
-func TestANewZoneWaitsForThePrefixAssignments(t *testing.T) {
+// TestStore_CreateZoneWaitsForLock: a new zone waits for the prefix
+// assignments. CreateZone queues on the zone-rates lock while another
+// transaction holds it.
+func TestStore_CreateZoneWaitsForLock(t *testing.T) {
 	ctx, _ := admintest.StaffContext(t, pool)
 	s := shipping.NewStore(admintest.AdminRolePool(t, pool))
 	p := unusedZonePrefixes(t, 1)
@@ -57,12 +63,12 @@ func TestANewZoneWaitsForThePrefixAssignments(t *testing.T) {
 	})
 }
 
-// TestASurchargeEditWaitsForTheZoneRates: what a postcode is charged is its
-// zone's surcharge as much as its prefix, and checkout holds the same lock
-// shared from its quote to its COMMIT, where orders_have_lines prices the order
-// again from both. An edit that skipped it would change the rate under a
-// checkout that has already priced it.
-func TestASurchargeEditWaitsForTheZoneRates(t *testing.T) {
+// TestStore_SetZoneSurchargeWaitsForLock: a surcharge edit waits for the zone
+// rates. What a postcode is charged is its zone's surcharge as much as its
+// prefix, and checkout holds the same lock shared from its quote to its COMMIT,
+// where orders_have_lines prices the order again from both. An edit that
+// skipped it would change the rate under a checkout that has already priced it.
+func TestStore_SetZoneSurchargeWaitsForLock(t *testing.T) {
 	ctx, _ := admintest.StaffContext(t, pool)
 	_, version, zone := surchargeFixture(t)
 	s := shipping.NewStore(admintest.AdminRolePool(t, pool))

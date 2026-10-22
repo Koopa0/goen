@@ -13,7 +13,10 @@ import (
 	"github.com/koopa0/goen/internal/user"
 )
 
-func TestEveryRouteRefusesAnOutsider(t *testing.T) {
+// TestHandler_RoutesRefuseOutsiders: every route refuses an outsider. Each
+// route answers a signed-out visitor and a signed-in customer with the guard's
+// page.
+func TestHandler_RoutesRefuseOutsiders(t *testing.T) {
 	t.Parallel()
 	h := keylessHandler(t)
 	accesstest.RefuseOutsiders(t, func(mux *http.ServeMux, ac *admin.Control) {
@@ -21,10 +24,11 @@ func TestEveryRouteRefusesAnOutsider(t *testing.T) {
 	}, "GET /admin/verify", "POST /admin/verify", "POST /admin/verify/enrol", "POST /admin/verify/confirm")
 }
 
-// These pages are where every other back-office route sends staff who have not
-// passed the second factor, so they must open to them: behind the step-up they
-// would send the same staff member back to themselves forever.
-func TestEveryRouteOpensBeforeTheSecondFactor(t *testing.T) {
+// TestHandler_RoutesOpenBeforeSecondFactor: every route opens before the second
+// factor. These pages are where every other back-office route sends staff who
+// have not passed the second factor, so they must open to them: behind the
+// step-up they would send the same staff member back to themselves forever.
+func TestHandler_RoutesOpenBeforeSecondFactor(t *testing.T) {
 	t.Parallel()
 	mux := http.NewServeMux()
 	notVerified := func(*http.Request) (bool, error) { return false, nil }

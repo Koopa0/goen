@@ -9,10 +9,11 @@ import (
 	"github.com/koopa0/goen/internal/ui/frame"
 )
 
-// TestTheAllowanceResendFormRendersOnlyWhenAuthorizable holds the resend
-// form's markup. The layout job cannot reach it: an operation becomes
-// authorizable only 15 minutes after its last send, and no door backdates one.
-func TestTheAllowanceResendFormRendersOnlyWhenAuthorizable(t *testing.T) {
+// TestHealthAllowanceResendForm: the allowance resend form renders only when
+// the resend is authorizable. It holds the resend form's markup. The layout job
+// cannot reach it: an operation becomes authorizable only 15 minutes after its
+// last send, and no door backdates one.
+func TestHealthAllowanceResendForm(t *testing.T) {
 	t.Parallel()
 	const operation = "01a10697-c708-7b9d-95ec-f699dc0e1a9b"
 	for _, tc := range []struct {

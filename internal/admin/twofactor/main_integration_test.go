@@ -88,7 +88,11 @@ func mailedCode(t *testing.T, address string) string {
 	return code
 }
 
-func TestTheEnrolmentSecretPageIsNotCompressed(t *testing.T) {
+// TestHandler_EnrolNotCompressed: the enrolment page, which shows the secret,
+// is served uncompressed even to a client that accepts gzip, and the private
+// no-compress marker does not leak. The body is checked to be large enough that
+// a missing opt-out would show.
+func TestHandler_EnrolNotCompressed(t *testing.T) {
 	s := twofactor.NewStore(pool, testKey, nil)
 	userID, email := admintest.AdminUser(t, pool)
 	h := twofactor.NewHandler(s, slog.New(slog.DiscardHandler))
@@ -116,9 +120,10 @@ func TestTheEnrolmentSecretPageIsNotCompressed(t *testing.T) {
 	}
 }
 
-// TestACodeIsAcceptedExactlyOnceEvenConcurrently proves the replay guard is in
-// the statement. A sequential test passes with the guard in Go.
-func TestACodeIsAcceptedExactlyOnceEvenConcurrently(t *testing.T) {
+// TestRecordTOTPStepConcurrent: a code is accepted exactly once even when
+// claimed concurrently. It proves the replay guard is in the statement. A
+// sequential test passes with the guard in Go.
+func TestRecordTOTPStepConcurrent(t *testing.T) {
 	ctx := t.Context()
 	s := twofactor.NewStore(pool, testKey, nil)
 	userID, email := admintest.AdminUser(t, pool)
@@ -171,7 +176,12 @@ func TestACodeIsAcceptedExactlyOnceEvenConcurrently(t *testing.T) {
 	}
 }
 
-func TestRestartingEnrolmentInvalidatesTheOldSecret(t *testing.T) {
+// TestStore_BeginRestartReplacesSecret: restarting enrolment invalidates the
+// old secret. After the recovery path removes a proved factor, Begin makes a
+// new secret, a code from the replaced secret is refused, the restarted
+// credential is not confirmed until the new secret is proved, and a code from
+// the new secret then enrols.
+func TestStore_BeginRestartReplacesSecret(t *testing.T) {
 	ctx := t.Context()
 	s := twofactor.NewStore(pool, testKey, nil)
 	userID, email := admintest.AdminUser(t, pool)
@@ -211,10 +221,10 @@ func TestRestartingEnrolmentInvalidatesTheOldSecret(t *testing.T) {
 	}
 }
 
-// TestEnrolmentIsConfirmedOnlyWithTheCodeMailedToTheAccount: a code from the
-// new authenticator does not finish enrolment without the one mailed to the
-// account's address.
-func TestEnrolmentIsConfirmedOnlyWithTheCodeMailedToTheAccount(t *testing.T) {
+// TestHandler_ConfirmNeedsMailedCode: enrolment is confirmed only with the code
+// mailed to the account. A code from the new authenticator does not finish
+// enrolment without the one mailed to the account's address.
+func TestHandler_ConfirmNeedsMailedCode(t *testing.T) {
 	s := twofactor.NewStore(pool, testKey, nil)
 	h := twofactor.NewHandler(s, slog.New(slog.DiscardHandler))
 	userID, email := admintest.AdminUser(t, pool)
@@ -273,7 +283,10 @@ func TestEnrolmentIsConfirmedOnlyWithTheCodeMailedToTheAccount(t *testing.T) {
 	}
 }
 
-func TestAMailedCodeIsFreshLatestAndSingleUse(t *testing.T) {
+// TestStore_ConfirmMailedCode: a mailed code is fresh, the latest and
+// single-use. Confirm refuses, with ErrBadCode, a mailed code already spent,
+// one older than MailedCodeTTL, and one replaced by a restart of enrolment.
+func TestStore_ConfirmMailedCode(t *testing.T) {
 	ctx := t.Context()
 	s := twofactor.NewStore(pool, testKey, nil)
 
@@ -363,7 +376,11 @@ func (r *restartAfterRead) TraceQueryEnd(_ context.Context, _ *pgx.Conn, data pg
 	}
 }
 
-func TestConfirmOnlyConfirmsTheSecretItCheckedTheCodeAgainst(t *testing.T) {
+// TestStore_ConfirmRestartRace: Confirm only confirms the secret it checked the
+// code against. When enrolment restarts between Confirm's read and its write, a
+// code for the first secret is refused and the second secret stays unconfirmed
+// until a code for it is proved.
+func TestStore_ConfirmRestartRace(t *testing.T) {
 	ctx := t.Context()
 	userID, email := admintest.AdminUser(t, pool)
 	other := twofactor.NewStore(pool, testKey, nil)
@@ -417,9 +434,11 @@ func TestConfirmOnlyConfirmsTheSecretItCheckedTheCodeAgainst(t *testing.T) {
 	}
 }
 
-// TestAConfirmedFactorCannotBeReplacedByItsOwnHolder proves a stolen password
-// alone cannot swap the second factor for the attacker's own device.
-func TestAConfirmedFactorCannotBeReplacedByItsOwnHolder(t *testing.T) {
+// TestStore_BeginRefusesConfirmed: a confirmed factor cannot be replaced by its
+// own holder. It proves a stolen password alone cannot swap the second factor
+// for the attacker's own device. The refused Begin leaves the real holder's
+// credential working, and an unconfirmed enrolment can still be restarted.
+func TestStore_BeginRefusesConfirmed(t *testing.T) {
 	ctx := t.Context()
 	s := twofactor.NewStore(pool, testKey, nil)
 	userID, email := admintest.AdminUser(t, pool)
@@ -448,7 +467,10 @@ func TestAConfirmedFactorCannotBeReplacedByItsOwnHolder(t *testing.T) {
 	}
 }
 
-func TestAnUnconfirmedCredentialCannotVerify(t *testing.T) {
+// TestStore_VerifyUnconfirmed: an unconfirmed credential cannot verify. A code
+// for a credential whose enrolment was never confirmed is refused, and Enrolled
+// stays false.
+func TestStore_VerifyUnconfirmed(t *testing.T) {
 	ctx := t.Context()
 	s := twofactor.NewStore(pool, testKey, nil)
 	userID, email := admintest.AdminUser(t, pool)
@@ -472,9 +494,11 @@ func TestAnUnconfirmedCredentialCannotVerify(t *testing.T) {
 	}
 }
 
-// TestAStoredSecretIsNotReadableFromTheDatabase proves a dump alone does not
-// defeat the factor.
-func TestAStoredSecretIsNotReadableFromTheDatabase(t *testing.T) {
+// TestStore_SecretSealedAtRest: a stored secret is not readable from the
+// database. It proves a dump alone does not defeat the factor: the stored value
+// is not the plaintext, and a store holding another key cannot verify against
+// it.
+func TestStore_SecretSealedAtRest(t *testing.T) {
 	ctx := t.Context()
 	s := twofactor.NewStore(pool, testKey, nil)
 	userID, email := admintest.AdminUser(t, pool)
@@ -500,9 +524,11 @@ func TestAStoredSecretIsNotReadableFromTheDatabase(t *testing.T) {
 	}
 }
 
-// TestACredentialSealedUnderAnotherKeyIsNotAWrongCode makes a key rotation
-// legible: no digits can fix a credential the configured key cannot open.
-func TestACredentialSealedUnderAnotherKeyIsNotAWrongCode(t *testing.T) {
+// TestStore_VerifyUnreadableSecret: a credential sealed under another key is
+// not a wrong code. Verify reports ErrSecretUnreadable and not ErrBadCode. It
+// makes a key rotation legible: no digits can fix a credential the configured
+// key cannot open.
+func TestStore_VerifyUnreadableSecret(t *testing.T) {
 	s := twofactor.NewStore(pool, testKey, nil)
 	userID, email := admintest.AdminUser(t, pool)
 	secret := enrol(t, s, userID, email)
@@ -518,10 +544,11 @@ func TestACredentialSealedUnderAnotherKeyIsNotAWrongCode(t *testing.T) {
 	}
 }
 
-// TestAStaleKeyIsExplainedInsteadOfBlamingTheCode covers both handler doors:
-// POST redirects to a stable recovery state, while GET must render that same
-// state directly because its Enrolled read decrypts before POST can run.
-func TestAStaleKeyIsExplainedInsteadOfBlamingTheCode(t *testing.T) {
+// TestHandler_StaleKeyNotice: a stale key is explained instead of blaming the
+// code. It covers both handler doors: POST redirects to a stable recovery
+// state, while GET must render that same state directly because its Enrolled
+// read decrypts before POST can run.
+func TestHandler_StaleKeyNotice(t *testing.T) {
 	s := twofactor.NewStore(pool, testKey, nil)
 	userID, email := admintest.AdminUser(t, pool)
 	enrol(t, s, userID, email)
@@ -562,10 +589,12 @@ func TestAStaleKeyIsExplainedInsteadOfBlamingTheCode(t *testing.T) {
 	}
 }
 
-// TestDatabaseFailuresAreNotReportedAsWrongCodes keeps an operational failure
-// out of the user-correctable branch. Retrying different digits cannot repair a
-// failed security-state write, and calling it a bad code hides the incident.
-func TestDatabaseFailuresAreNotReportedAsWrongCodes(t *testing.T) {
+// TestHandler_FailureNotWrongCode: a database failure is not reported as a
+// wrong code. Verify and Confirm answer 500, not the bad-code redirect, when a
+// security-state write fails. It keeps an operational failure out of the
+// user-correctable branch. Retrying different digits cannot repair a failed
+// security-state write, and calling it a bad code hides the incident.
+func TestHandler_FailureNotWrongCode(t *testing.T) {
 	s := twofactor.NewStore(pool, testKey, nil)
 	h := twofactor.NewHandler(s, slog.New(slog.DiscardHandler))
 
@@ -641,9 +670,10 @@ func forceTOTPUpdateFailure(t *testing.T, userID string) {
 	})
 }
 
-// TestConfirmDoesNotClaimEnrolmentSuccessWhenMarkVerifiedFails: the factor can
-// stay committed, but a failed session stamp is a fault, not /admin?enrolled=1.
-func TestConfirmDoesNotClaimEnrolmentSuccessWhenMarkVerifiedFails(t *testing.T) {
+// TestHandler_ConfirmMarkVerifiedFails: Confirm does not claim enrolment
+// success when MarkVerified fails. The factor can stay committed, but a failed
+// session stamp is a fault, not /admin?enrolled=1.
+func TestHandler_ConfirmMarkVerifiedFails(t *testing.T) {
 	s := twofactor.NewStore(pool, testKey, nil)
 	h := twofactor.NewHandler(s, slog.New(slog.DiscardHandler))
 	userID, email := admintest.AdminUser(t, pool)
@@ -687,9 +717,10 @@ func TestConfirmDoesNotClaimEnrolmentSuccessWhenMarkVerifiedFails(t *testing.T) 
 	}
 }
 
-// TestConfirmWithoutASessionCookieIsNotEnrolmentSuccess: a missing cookie is a
-// signed-out request. Enrolment can stay committed; the 303 is not success.
-func TestConfirmWithoutASessionCookieIsNotEnrolmentSuccess(t *testing.T) {
+// TestHandler_ConfirmWithoutSession: Confirm without a session cookie is not
+// enrolment success. A missing cookie is a signed-out request. Enrolment can
+// stay committed; the 303 is not success.
+func TestHandler_ConfirmWithoutSession(t *testing.T) {
 	s := twofactor.NewStore(pool, testKey, nil)
 	h := twofactor.NewHandler(s, slog.New(slog.DiscardHandler))
 	userID, email := admintest.AdminUser(t, pool)
@@ -765,7 +796,11 @@ func forceSessionMarkFailure(t *testing.T, userID string) {
 	})
 }
 
-func TestSessionVerificationExpires(t *testing.T) {
+// TestStore_SessionVerifiedExpiry: session verification expires. A session is
+// unverified until MarkVerified, verified after it, unverified again once the
+// verification is older than StepUpWindow, and an unknown token is unverified
+// without an error.
+func TestStore_SessionVerifiedExpiry(t *testing.T) {
 	ctx := t.Context()
 	s := twofactor.NewStore(pool, testKey, nil)
 	userID, _ := admintest.AdminUser(t, pool)
@@ -821,7 +856,9 @@ func TestSessionVerificationExpires(t *testing.T) {
 	}
 }
 
-func TestNoKeyMeansNoEnrolment(t *testing.T) {
+// TestStore_BeginNoKey: no key means no enrolment. A store without a key is
+// disabled, Begin returns ErrDisabled, and no credential is written.
+func TestStore_BeginNoKey(t *testing.T) {
 	s := twofactor.NewStore(pool, nil, nil)
 	userID, email := admintest.AdminUser(t, pool)
 
@@ -843,13 +880,14 @@ func TestNoKeyMeansNoEnrolment(t *testing.T) {
 	}
 }
 
-// TestAnUnkeyedDeploymentSaysSoInsteadOf500 holds the page state an
-// unconfigured deployment must reach: an empty key disables the factor the way
-// an empty Stripe key disables payment — off and saying so. Enrolled surfaces
-// ErrDisabled, which is not ErrSecretUnreadable, so a handler that takes its
-// generic failure branch answers 500 and never renders TwoFactor's
-// !Enabled branch, whose whole job is to say the factor is off.
-func TestAnUnkeyedDeploymentSaysSoInsteadOf500(t *testing.T) {
+// TestHandler_ChallengeUnkeyed: an unkeyed deployment says so instead of
+// answering 500. It holds the page state an unconfigured deployment must reach:
+// an empty key disables the factor the way an empty Stripe key disables
+// payment, off and saying so. Enrolled surfaces ErrDisabled, which is not
+// ErrSecretUnreadable, so a handler that takes its generic failure branch
+// answers 500 and never renders TwoFactor's !Enabled branch, whose whole job is
+// to say the factor is off.
+func TestHandler_ChallengeUnkeyed(t *testing.T) {
 	userID, email := admintest.AdminUser(t, pool)
 	h := twofactor.NewHandler(twofactor.NewStore(pool, nil, nil), slog.New(slog.DiscardHandler))
 
