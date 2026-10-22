@@ -8,7 +8,7 @@ import (
 	"time"
 	"unicode/utf8"
 
-	"github.com/koopa0/goen/internal/admin/access"
+	"github.com/koopa0/goen/internal/admin"
 	"github.com/koopa0/goen/internal/db"
 	"github.com/koopa0/goen/internal/i18n"
 	"github.com/koopa0/goen/internal/keyset"
@@ -32,7 +32,7 @@ func NewHandler(store *Store, images *media.Handler, log *slog.Logger) *Handler 
 	return &Handler{store: store, images: images, log: log}
 }
 
-func (h *Handler) Routes(mux *http.ServeMux, ac *access.Control) {
+func (h *Handler) Routes(mux *http.ServeMux, ac *admin.Control) {
 	mux.HandleFunc("GET /admin/campaigns", ac.RequireStaff(h.Page))
 	mux.HandleFunc("POST /admin/campaigns", ac.RequireStaff(h.Create))
 	mux.HandleFunc("GET /admin/campaigns/{slug}", ac.RequireStaff(h.Edit))
@@ -54,7 +54,7 @@ func (h *Handler) Page(w http.ResponseWriter, r *http.Request) {
 	view, err := h.store.List(r.Context(), r.URL.Query().Get(keyset.Param))
 	if err != nil {
 		h.log.ErrorContext(r.Context(), "read campaigns", "error", err)
-		access.ServerError(w, r, h.log)
+		admin.ServerError(w, r, h.log)
 		return
 	}
 	view.Notice = widget.NoticeFrom(r, notices)
@@ -78,11 +78,11 @@ func (h *Handler) Create(w http.ResponseWriter, r *http.Request) {
 	switch {
 	case err != nil:
 		h.log.ErrorContext(r.Context(), "create campaign", "error", err)
-		access.ServerError(w, r, h.log)
+		admin.ServerError(w, r, h.log)
 	case len(errs) > 0:
 		view, readErr := h.store.List(r.Context(), r.URL.Query().Get(keyset.Param))
 		if readErr != nil {
-			access.ServerError(w, r, h.log)
+			admin.ServerError(w, r, h.log)
 			return
 		}
 		view.Errors = errs
@@ -106,7 +106,7 @@ func (h *Handler) render(w http.ResponseWriter, r *http.Request, status int, not
 	products, err := h.store.Products(r.Context(), slug)
 	if err != nil {
 		h.log.ErrorContext(r.Context(), "read campaign products", "error", err)
-		access.ServerError(w, r, h.log)
+		admin.ServerError(w, r, h.log)
 		return
 	}
 	image, toneName, err := h.store.Image(r.Context(), slug)
@@ -118,13 +118,13 @@ func (h *Handler) render(w http.ResponseWriter, r *http.Request, status int, not
 			return
 		}
 		h.log.ErrorContext(r.Context(), "read campaign image", "error", err)
-		access.ServerError(w, r, h.log)
+		admin.ServerError(w, r, h.log)
 		return
 	}
 	detail, err := h.store.Detail(r.Context(), slug)
 	if err != nil {
 		h.log.ErrorContext(r.Context(), "read campaign", "error", err)
-		access.ServerError(w, r, h.log)
+		admin.ServerError(w, r, h.log)
 		return
 	}
 	if errs["window"] != "" {
@@ -134,7 +134,7 @@ func (h *Handler) render(w http.ResponseWriter, r *http.Request, status int, not
 	matches, err := h.store.SearchProducts(r.Context(), slug, term)
 	if err != nil {
 		h.log.ErrorContext(r.Context(), "search campaign products", "error", err)
-		access.ServerError(w, r, h.log)
+		admin.ServerError(w, r, h.log)
 		return
 	}
 	var altDraft, altEnDraft string
@@ -171,10 +171,10 @@ func (h *Handler) SetWindow(w http.ResponseWriter, r *http.Request) {
 		//nolint:gosec // G710: slug is the route's own path value
 		http.Redirect(w, r, "/admin/campaigns/"+slug+"?ok=1", http.StatusSeeOther)
 	case errors.Is(err, ErrNotFound):
-		access.NotFound(w, r, h.log)
+		admin.NotFound(w, r, h.log)
 	default:
 		h.log.ErrorContext(r.Context(), "set campaign window", "error", err, "slug", slug)
-		access.ServerError(w, r, h.log)
+		admin.ServerError(w, r, h.log)
 	}
 }
 
@@ -189,12 +189,12 @@ func (h *Handler) SetTone(w http.ResponseWriter, r *http.Request) {
 		//nolint:gosec // G710: slug is the route's own path value
 		http.Redirect(w, r, "/admin/campaigns/"+slug+"?ok=1", http.StatusSeeOther)
 	case errors.Is(err, ErrNotFound):
-		access.NotFound(w, r, h.log)
+		admin.NotFound(w, r, h.log)
 	case errors.Is(err, ErrInvalid):
 		h.render(w, r, http.StatusUnprocessableEntity, widget.Result{}, map[string]string{"tone": i18n.T(r.Context(), i18n.KeyFormToneUnknown)})
 	default:
 		h.log.ErrorContext(r.Context(), "set campaign tone", "error", err, "slug", slug)
-		access.ServerError(w, r, h.log)
+		admin.ServerError(w, r, h.log)
 	}
 }
 
@@ -211,7 +211,7 @@ func (h *Handler) SetImage(w http.ResponseWriter, r *http.Request) {
 		//nolint:gosec // G710: slug is the route's own path value
 		http.Redirect(w, r, "/admin/campaigns/"+slug+"?ok=1", http.StatusSeeOther)
 	case errors.Is(err, ErrNotFound):
-		access.NotFound(w, r, h.log)
+		admin.NotFound(w, r, h.log)
 	case errors.Is(err, ErrInvalid):
 		field, reason := "alt", i18n.KeyFormHeroAlt
 		if utf8.RuneCountInString(strings.TrimSpace(r.PostFormValue("alt_en"))) > MaxAltRunes {
@@ -220,7 +220,7 @@ func (h *Handler) SetImage(w http.ResponseWriter, r *http.Request) {
 		h.render(w, r, http.StatusUnprocessableEntity, widget.Result{}, map[string]string{field: i18n.T(r.Context(), reason)})
 	default:
 		h.log.ErrorContext(r.Context(), "set campaign image", "error", err, "slug", slug)
-		access.ServerError(w, r, h.log)
+		admin.ServerError(w, r, h.log)
 	}
 }
 
@@ -235,10 +235,10 @@ func (h *Handler) RemoveImage(w http.ResponseWriter, r *http.Request) {
 		//nolint:gosec // G710: slug is the route's own path value
 		http.Redirect(w, r, "/admin/campaigns/"+slug+"?ok=1", http.StatusSeeOther)
 	case errors.Is(err, ErrNotFound):
-		access.NotFound(w, r, h.log)
+		admin.NotFound(w, r, h.log)
 	default:
 		h.log.ErrorContext(r.Context(), "remove campaign image", "error", err, "slug", slug)
-		access.ServerError(w, r, h.log)
+		admin.ServerError(w, r, h.log)
 	}
 }
 
@@ -269,7 +269,7 @@ func (h *Handler) FeatureProduct(w http.ResponseWriter, r *http.Request) {
 		http.Redirect(w, r, back+"?refused=1", http.StatusSeeOther)
 	default:
 		h.log.ErrorContext(r.Context(), "feature product", "campaign", slug, "error", err)
-		access.ServerError(w, r, h.log)
+		admin.ServerError(w, r, h.log)
 	}
 }
 
@@ -288,13 +288,13 @@ func (h *Handler) SetActive(w http.ResponseWriter, r *http.Request) {
 		http.Redirect(w, r, back+"?ok=1", http.StatusSeeOther) //nolint:gosec // G710: slug is the route's own path value
 	case errors.Is(err, ErrNotFound):
 		h.log.WarnContext(r.Context(), "set campaign active", "campaign", slug, "error", err)
-		access.NotFound(w, r, h.log)
+		admin.NotFound(w, r, h.log)
 	case errors.Is(err, ErrRefused):
 		h.log.WarnContext(r.Context(), "set campaign active", "campaign", slug, "error", err)
 		http.Redirect(w, r, back+"?refused=1", http.StatusSeeOther) //nolint:gosec // G710: slug is the route's own path value
 	default:
 		h.log.ErrorContext(r.Context(), "set campaign active", "campaign", slug, "error", err)
-		access.ServerError(w, r, h.log)
+		admin.ServerError(w, r, h.log)
 	}
 }
 
@@ -309,6 +309,6 @@ func (h *Handler) respondToUploadError(w http.ResponseWriter, r *http.Request, e
 		h.render(w, r, http.StatusUnprocessableEntity, widget.Result{}, map[string]string{"image": i18n.T(r.Context(), media.UploadNotice(err))})
 	default:
 		h.log.ErrorContext(r.Context(), "campaign image upload", "error", err, "slug", r.PathValue("slug"))
-		access.ServerError(w, r, h.log)
+		admin.ServerError(w, r, h.log)
 	}
 }

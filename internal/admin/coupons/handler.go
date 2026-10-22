@@ -7,7 +7,7 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/koopa0/goen/internal/admin/access"
+	"github.com/koopa0/goen/internal/admin"
 	"github.com/koopa0/goen/internal/discount/coupon"
 	"github.com/koopa0/goen/internal/i18n"
 	"github.com/koopa0/goen/internal/keyset"
@@ -30,7 +30,7 @@ func NewHandler(store *Store, log *slog.Logger) *Handler {
 	return &Handler{store: store, log: log}
 }
 
-func (h *Handler) Routes(mux *http.ServeMux, ac *access.Control) {
+func (h *Handler) Routes(mux *http.ServeMux, ac *admin.Control) {
 	mux.HandleFunc("GET /admin/coupons", ac.RequireStaff(h.Page))
 	mux.HandleFunc("POST /admin/coupons", ac.RequireStaff(h.Create))
 	mux.HandleFunc("POST /admin/coupons/{code}/active", ac.RequireStaff(h.SetActive))
@@ -45,7 +45,7 @@ func (h *Handler) Page(w http.ResponseWriter, r *http.Request) {
 	view, err := h.store.Coupons(r.Context(), r.URL.Query().Get(keyset.Param))
 	if err != nil {
 		h.log.ErrorContext(r.Context(), "read coupons", "error", err)
-		access.ServerError(w, r, h.log)
+		admin.ServerError(w, r, h.log)
 		return
 	}
 	view.Notice = widget.NoticeFrom(r, notices)
@@ -64,11 +64,11 @@ func (h *Handler) Create(w http.ResponseWriter, r *http.Request) {
 	switch {
 	case err != nil:
 		h.log.ErrorContext(r.Context(), "create coupon", "error", err)
-		access.ServerError(w, r, h.log)
+		admin.ServerError(w, r, h.log)
 	case len(errs) > 0:
 		view, readErr := h.store.Coupons(r.Context(), r.URL.Query().Get(keyset.Param))
 		if readErr != nil {
-			access.ServerError(w, r, h.log)
+			admin.ServerError(w, r, h.log)
 			return
 		}
 		view.Errors = errs
@@ -133,13 +133,13 @@ func (h *Handler) SetActive(w http.ResponseWriter, r *http.Request) {
 		r.PostFormValue("active") == "true"); err != nil {
 		switch {
 		case errors.Is(err, ErrNotFound):
-			access.NotFound(w, r, h.log)
+			admin.NotFound(w, r, h.log)
 		case errors.Is(err, ErrRefused):
 			h.log.WarnContext(r.Context(), "set coupon active refused", "error", err)
 			http.Redirect(w, r, "/admin/coupons?refused=1", http.StatusSeeOther)
 		default:
 			h.log.ErrorContext(r.Context(), "set coupon active", "error", err)
-			access.ServerError(w, r, h.log)
+			admin.ServerError(w, r, h.log)
 		}
 		return
 	}

@@ -1,4 +1,4 @@
-package access_test
+package admin_test
 
 import (
 	"bytes"
@@ -14,7 +14,7 @@ import (
 	"testing/synctest"
 	"time"
 
-	"github.com/koopa0/goen/internal/admin/access"
+	"github.com/koopa0/goen/internal/admin"
 	"github.com/koopa0/goen/internal/i18n"
 	"github.com/koopa0/goen/internal/ui/frame"
 	"github.com/koopa0/goen/internal/user"
@@ -25,7 +25,7 @@ func TestStaffNavigationOnlyOmitsTheAdminOnlyDestination(t *testing.T) {
 	for _, locale := range []i18n.Locale{i18n.ZhHant, i18n.En} {
 		t.Run(locale.Tag(), func(t *testing.T) {
 			t.Parallel()
-			c := access.New(slog.New(slog.DiscardHandler), nil)
+			c := admin.NewControl(slog.New(slog.DiscardHandler), nil)
 			links := map[string][]string{}
 			for _, role := range []string{"staff", "admin"} {
 				ctx := user.NewContext(i18n.WithLocale(t.Context(), locale), user.User{Role: user.Role(role)})
@@ -80,7 +80,7 @@ func TestHealthCountIsReadOnlyAfterStaffAndSecondFactorChecks(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 			reads := 0
-			c := access.New(slog.New(slog.DiscardHandler), func(*http.Request) (bool, error) {
+			c := admin.NewControl(slog.New(slog.DiscardHandler), func(*http.Request) (bool, error) {
 				return tt.verified, tt.factorError
 			}).WithHealthTaskCount(func(context.Context) (int64, error) {
 				reads++
@@ -119,7 +119,7 @@ func TestHealthCountIsReadOnlyAfterStaffAndSecondFactorChecks(t *testing.T) {
 
 func TestSecondFactorRoutesDoNotReadHealthCount(t *testing.T) {
 	t.Parallel()
-	c := access.New(slog.New(slog.DiscardHandler), nil).WithHealthTaskCount(func(context.Context) (int64, error) {
+	c := admin.NewControl(slog.New(slog.DiscardHandler), nil).WithHealthTaskCount(func(context.Context) (int64, error) {
 		t.Fatal("second-factor route read the protected health count")
 		return 0, nil
 	})
@@ -150,7 +150,7 @@ func TestBlockedHealthCountRendersAnUnavailableNavigation(t *testing.T) {
 				ctx = user.NewContext(i18n.WithLocale(ctx, tt.locale), user.User{Role: user.Role("staff")})
 				started := time.Now()
 				var countErr error
-				c := access.New(slog.New(slog.DiscardHandler), nil).WithHealthTaskCount(func(countCtx context.Context) (int64, error) {
+				c := admin.NewControl(slog.New(slog.DiscardHandler), nil).WithHealthTaskCount(func(countCtx context.Context) (int64, error) {
 					deadline, ok := countCtx.Deadline()
 					if !ok || deadline.Sub(started) != 500*time.Millisecond {
 						t.Errorf("count deadline = %v, known = %v, want 500ms from request start", deadline.Sub(started), ok)
@@ -190,7 +190,7 @@ func TestCanceledStaffRequestDoesNotLogAHealthCountFailure(t *testing.T) {
 	cancel()
 	var diagnostics bytes.Buffer
 	var countErr error
-	c := access.New(slog.New(slog.NewTextHandler(&diagnostics, nil)), nil).WithHealthTaskCount(func(countCtx context.Context) (int64, error) {
+	c := admin.NewControl(slog.New(slog.NewTextHandler(&diagnostics, nil)), nil).WithHealthTaskCount(func(countCtx context.Context) (int64, error) {
 		countErr = countCtx.Err()
 		return 0, countErr
 	})

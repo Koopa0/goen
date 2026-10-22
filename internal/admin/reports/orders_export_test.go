@@ -13,8 +13,8 @@ import (
 
 	"github.com/google/go-cmp/cmp"
 
-	"github.com/koopa0/goen/internal/admin/access"
-	"github.com/koopa0/goen/internal/admin/access/accesstest"
+	"github.com/koopa0/goen/internal/admin"
+	"github.com/koopa0/goen/internal/admin/accesstest"
 	"github.com/koopa0/goen/internal/db"
 	"github.com/koopa0/goen/internal/i18n"
 	"github.com/koopa0/goen/internal/user"
@@ -62,11 +62,11 @@ func TestOrdersExportRejectsInvalidMonthsBeforeReading(t *testing.T) {
 func TestOrdersExportUsesTheStaffAndSecondFactorGuards(t *testing.T) {
 	t.Parallel()
 	log := slog.New(slog.DiscardHandler)
-	accesstest.RefuseOutsiders(t, func(mux *http.ServeMux, ac *access.Control) {
+	accesstest.RefuseOutsiders(t, func(mux *http.ServeMux, ac *admin.Control) {
 		NewHandler(&Store{}, log).Routes(mux, ac)
 	}, "GET /admin/reports/orders.csv?month=2024-02")
 	mux := http.NewServeMux()
-	NewHandler(&Store{}, log).Routes(mux, access.New(log, func(*http.Request) (bool, error) { return false, nil }))
+	NewHandler(&Store{}, log).Routes(mux, admin.NewControl(log, func(*http.Request) (bool, error) { return false, nil }))
 	ctx := user.NewContext(t.Context(), user.User{ID: "staff", Role: user.RoleStaff})
 	w := httptest.NewRecorder()
 	mux.ServeHTTP(w, httptest.NewRequestWithContext(ctx, http.MethodGet, "/admin/reports/orders.csv?month=2024-02", nil))

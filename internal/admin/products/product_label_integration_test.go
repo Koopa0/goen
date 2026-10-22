@@ -18,7 +18,7 @@ import (
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 
-	"github.com/koopa0/goen/internal/admin/access"
+	"github.com/koopa0/goen/internal/admin"
 	"github.com/koopa0/goen/internal/admin/admintest"
 	"github.com/koopa0/goen/internal/admin/audit"
 	"github.com/koopa0/goen/internal/admin/products"
@@ -133,7 +133,7 @@ func TestProductLabelRoutesRefuseCustomersAndKeepInvalidForm(t *testing.T) {
 	s := products.NewStore(p)
 	h := productstest.NewHandler(p, s)
 	mux := http.NewServeMux()
-	h.Routes(mux, access.New(slog.New(slog.DiscardHandler), nil))
+	h.Routes(mux, admin.NewControl(slog.New(slog.DiscardHandler), nil))
 	path := "/admin/products/" + slug + "/label"
 	for _, customer := range []bool{false, true} {
 		requestCtx := t.Context()
@@ -192,7 +192,7 @@ func TestProductLabelRedirectSurvivesAProductReadFailure(t *testing.T) {
 	}
 	handler := productstest.NewHandler(p, products.NewStore(writer))
 	mux := http.NewServeMux()
-	handler.Routes(mux, access.New(slog.New(slog.DiscardHandler), nil))
+	handler.Routes(mux, admin.NewControl(slog.New(slog.DiscardHandler), nil))
 	request := httptest.NewRequestWithContext(ctx, http.MethodPost, "/admin/products/"+slug+"/label", strings.NewReader("origin=Redirect+fixture"))
 	request.Header.Set("Content-Type", "application/x-www-form-urlencoded")
 	response := httptest.NewRecorder()
@@ -251,7 +251,7 @@ func TestProductLabelDatabaseRefusalsKeepTheDraftAndLeaveNoWrite(t *testing.T) {
 				t.Fatalf("writer role=%q: %v", role, err)
 			}
 			mux := http.NewServeMux()
-			productstest.NewHandler(owner, products.NewStore(writer)).Routes(mux, access.New(slog.New(slog.DiscardHandler), nil))
+			productstest.NewHandler(owner, products.NewStore(writer)).Routes(mux, admin.NewControl(slog.New(slog.DiscardHandler), nil))
 			for _, locale := range []i18n.Locale{i18n.ZhHant, i18n.En} {
 				req := httptest.NewRequestWithContext(i18n.WithLocale(ctx, locale), http.MethodPost, "/admin/products/"+slug+"/label", strings.NewReader("origin=Taiwan&domestic_party_name=Retained+maker"))
 				req.Header.Set("Content-Type", "application/x-www-form-urlencoded")

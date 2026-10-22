@@ -9,7 +9,7 @@ import (
 	"net/url"
 	"time"
 
-	"github.com/koopa0/goen/internal/admin/access"
+	"github.com/koopa0/goen/internal/admin"
 	"github.com/koopa0/goen/internal/i18n"
 	"github.com/koopa0/goen/internal/keyset"
 	"github.com/koopa0/goen/internal/money"
@@ -34,7 +34,7 @@ func NewHandler(store *Store, log *slog.Logger) *Handler {
 	return &Handler{store: store, log: log}
 }
 
-func (h *Handler) Routes(mux *http.ServeMux, ac *access.Control) {
+func (h *Handler) Routes(mux *http.ServeMux, ac *admin.Control) {
 	mux.HandleFunc("GET /admin/stock", ac.RequireStaff(h.Variants))
 	mux.HandleFunc("GET /admin/stock/{sku}", ac.RequireStaff(h.Movements))
 	mux.HandleFunc("POST /admin/stock/adjust", ac.RequireStaff(h.Adjust))
@@ -55,7 +55,7 @@ func (h *Handler) Variants(w http.ResponseWriter, r *http.Request) {
 	view, err := h.store.Variants(r.Context(), r.URL.Query().Get("soldout") == "1", r.URL.Query().Get("q"), r.URL.Query().Get(keyset.Param))
 	if err != nil {
 		h.log.ErrorContext(r.Context(), "read variants", "error", err)
-		access.ServerError(w, r, h.log)
+		admin.ServerError(w, r, h.log)
 		return
 	}
 	if r.URL.Query().Get(keyset.Param) == "" && view.Term == "" && !view.SoldOutOnly {
@@ -64,7 +64,7 @@ func (h *Handler) Variants(w http.ResponseWriter, r *http.Request) {
 		listed, more, coverErr := h.store.DaysCover(r.Context(), inventory.CoverWindowDays, now)
 		if coverErr != nil {
 			h.log.ErrorContext(r.Context(), "read days cover", "error", coverErr)
-			access.ServerError(w, r, h.log)
+			admin.ServerError(w, r, h.log)
 			return
 		}
 		view.AtRisk, view.MoreSoldOut = stockrisk.NewRows(listed, now), more
@@ -100,7 +100,7 @@ func (h *Handler) Adjust(w http.ResponseWriter, r *http.Request) {
 		h.rejectAdjustment(w, r, i18n.KeyAdminStockAdjustRefused)
 	default:
 		h.log.ErrorContext(r.Context(), "adjust stock", "error", err)
-		access.ServerError(w, r, h.log)
+		admin.ServerError(w, r, h.log)
 	}
 }
 
@@ -126,7 +126,7 @@ func (h *Handler) rejectStockForm(w http.ResponseWriter, r *http.Request, key i1
 	view, err := h.store.Variants(r.Context(), soldOut == "1", term, after)
 	if err != nil {
 		h.log.ErrorContext(r.Context(), "read variants after refused stock form", "error", err)
-		access.ServerError(w, r, h.log)
+		admin.ServerError(w, r, h.log)
 		return
 	}
 	view.Return = stockReturn(soldOut, view.Term, after, "", "")
@@ -177,7 +177,7 @@ func (h *Handler) Receive(w http.ResponseWriter, r *http.Request) {
 		http.Redirect(w, r, back+"?refused=1", http.StatusSeeOther)
 	default:
 		h.log.ErrorContext(r.Context(), "receive stock", "error", err)
-		access.ServerError(w, r, h.log)
+		admin.ServerError(w, r, h.log)
 	}
 }
 
@@ -187,10 +187,10 @@ func (h *Handler) rejectReceipt(w http.ResponseWriter, r *http.Request, key i18n
 	case err == nil:
 		h.renderReceiptRefusal(w, r, &view, key)
 	case errors.Is(err, ErrNotFound):
-		access.NotFound(w, r, h.log)
+		admin.NotFound(w, r, h.log)
 	default:
 		h.log.ErrorContext(r.Context(), "read movements after refused receipt", "error", err)
-		access.ServerError(w, r, h.log)
+		admin.ServerError(w, r, h.log)
 	}
 }
 
@@ -218,7 +218,7 @@ func (h *Handler) SetActive(w http.ResponseWriter, r *http.Request) {
 		http.Redirect(w, r, stockBack(r, "refused"), http.StatusSeeOther) //nolint:gosec // G710: stockBack answers /admin/stock with only an encoded query
 	default:
 		h.log.ErrorContext(r.Context(), "set variant active", "error", err)
-		access.ServerError(w, r, h.log)
+		admin.ServerError(w, r, h.log)
 	}
 }
 
@@ -244,7 +244,7 @@ func (h *Handler) SetPrice(w http.ResponseWriter, r *http.Request) {
 		http.Redirect(w, r, stockBack(r, "refused"), http.StatusSeeOther) //nolint:gosec // G710: stockBack answers /admin/stock with only an encoded query
 	default:
 		h.log.ErrorContext(r.Context(), "set variant price", "error", err)
-		access.ServerError(w, r, h.log)
+		admin.ServerError(w, r, h.log)
 	}
 }
 
@@ -300,10 +300,10 @@ func (h *Handler) Movements(w http.ResponseWriter, r *http.Request) {
 		respond.Component(w, r, h.log, http.StatusOK, Movements(
 			frame.Page{Title: view.SKU}, &view))
 	case errors.Is(err, ErrNotFound):
-		access.NotFound(w, r, h.log)
+		admin.NotFound(w, r, h.log)
 	default:
 		h.log.ErrorContext(r.Context(), "read movements", "error", err)
-		access.ServerError(w, r, h.log)
+		admin.ServerError(w, r, h.log)
 	}
 }
 
@@ -322,9 +322,9 @@ func (h *Handler) SetArrival(w http.ResponseWriter, r *http.Request) {
 	case err == nil:
 		http.Redirect(w, r, stockBack(r, "ok"), http.StatusSeeOther) //nolint:gosec // G710: stockBack answers /admin/stock with only an encoded query
 	case errors.Is(err, ErrNotFound):
-		access.NotFound(w, r, h.log)
+		admin.NotFound(w, r, h.log)
 	default:
 		h.log.ErrorContext(r.Context(), "set variant arrival", "error", err)
-		access.ServerError(w, r, h.log)
+		admin.ServerError(w, r, h.log)
 	}
 }

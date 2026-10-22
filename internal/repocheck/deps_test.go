@@ -47,30 +47,33 @@ type importRule struct {
 	reason string
 }
 
-// The packages and directories the rule predicates name.
+// The packages and directories the rule predicates name. dirAdmin and pkgAdmin
+// are one path in two roles: the back office's directory, matched with under,
+// and the package at its root, matched exactly.
 const (
-	cmdGoen      = "cmd/goen"
-	dirUI        = "internal/ui"
-	dirAdmin     = "internal/admin"
-	pkgI18n      = "internal/i18n"
-	pkgMoney     = "internal/money"
-	pkgFormtext  = "internal/web/formtext"
-	pkgRespond   = "internal/web/respond"
-	pkgSite      = "internal/site"
-	pkgPolicy    = "internal/policy"
-	pkgCampaign  = "internal/discount/campaign"
-	pkgLetter    = "internal/letter"
-	pkgCart      = "internal/cart"
-	pkgCheckout  = "internal/checkout"
-	pkgAccount   = "internal/account"
-	pkgAuth      = "internal/auth"
-	pkgWishlist  = "internal/wishlist"
-	pkgGoogle    = "internal/auth/google"
-	pkgStoremap  = "internal/shipping/storemap"
-	pkgAccess    = "internal/admin/access"
-	pkgAudit     = "internal/admin/audit"
-	pkgWorklist  = "internal/admin/worklist"
-	pkgAdmintest = "internal/admin/admintest"
+	cmdGoen       = "cmd/goen"
+	dirUI         = "internal/ui"
+	dirAdmin      = "internal/admin"
+	pkgAdmin      = "internal/admin"
+	pkgI18n       = "internal/i18n"
+	pkgMoney      = "internal/money"
+	pkgFormtext   = "internal/web/formtext"
+	pkgRespond    = "internal/web/respond"
+	pkgSite       = "internal/site"
+	pkgPolicy     = "internal/policy"
+	pkgCampaign   = "internal/discount/campaign"
+	pkgLetter     = "internal/letter"
+	pkgCart       = "internal/cart"
+	pkgCheckout   = "internal/checkout"
+	pkgAccount    = "internal/account"
+	pkgAuth       = "internal/auth"
+	pkgWishlist   = "internal/wishlist"
+	pkgGoogle     = "internal/auth/google"
+	pkgStoremap   = "internal/shipping/storemap"
+	pkgAccesstest = "internal/admin/accesstest"
+	pkgAudit      = "internal/admin/audit"
+	pkgWorklist   = "internal/admin/worklist"
+	pkgAdmintest  = "internal/admin/admintest"
 )
 
 // exceptions are the edges the rules forbid and the plan has not removed yet:
@@ -88,9 +91,11 @@ func under(pkg, dir string) bool {
 }
 
 // deskRoot returns "internal/admin/<x>" for a desk package and "" for anything
-// else. internal/admin/access, audit, worklist and admintest are not desks: access
-// and audit are the foundation every desk may import, worklist is the vocabulary the
-// desks use to report work for one another, admintest is the shared test fixture.
+// else. The package internal/admin itself is not below dirAdmin, so it is no desk.
+// accesstest, audit, worklist and admintest are not desks either: audit, like
+// internal/admin, is the foundation every desk may import, accesstest is the route
+// check every desk's tests run, worklist is the vocabulary the desks use to report
+// work for one another, admintest is the shared test fixture.
 func deskRoot(pkg string) string {
 	rest, ok := strings.CutPrefix(pkg, dirAdmin+"/")
 	if !ok {
@@ -114,7 +119,7 @@ func isLeaf(pkg string) bool {
 
 var (
 	// notDesks are the packages under internal/admin that are not desks.
-	notDesks = []string{pkgAccess, pkgAudit, pkgWorklist, pkgAdmintest}
+	notDesks = []string{pkgAccesstest, pkgAudit, pkgWorklist, pkgAdmintest}
 	// uiMayImport is what the view layer may import besides itself.
 	uiMayImport = []string{
 		"assets", "internal/i18n", "internal/money", "internal/shoptime",
@@ -342,12 +347,13 @@ var depsRules = []importRule{
 	{
 		name: "foundation",
 		hard: true,
-		pkgs: []string{pkgAccess, pkgAudit},
+		pkgs: []string{pkgAdmin, pkgAccesstest, pkgAudit},
 		dirs: []string{dirAdmin},
 		forbid: func(from, to string) bool {
-			return (under(from, pkgAccess) || under(from, pkgAudit)) && isDesk(to)
+			return (from == pkgAdmin || under(from, pkgAccesstest) || under(from, pkgAudit)) && isDesk(to)
 		},
-		reason: "access and audit are the foundation every desk imports, so they import no desk",
+		reason: "internal/admin and audit are the foundation every desk imports, and accesstest the check every desk's routes run, " +
+			"so they import no desk",
 	},
 	{
 		name: "one way",

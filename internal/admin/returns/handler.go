@@ -10,7 +10,7 @@ import (
 
 	"github.com/google/uuid"
 
-	"github.com/koopa0/goen/internal/admin/access"
+	"github.com/koopa0/goen/internal/admin"
 	"github.com/koopa0/goen/internal/admin/audit"
 	"github.com/koopa0/goen/internal/i18n"
 	"github.com/koopa0/goen/internal/keyset"
@@ -34,7 +34,7 @@ func NewHandler(store *Store, log *slog.Logger) *Handler {
 	return &Handler{store: store, log: log}
 }
 
-func (h *Handler) Routes(mux *http.ServeMux, ac *access.Control) {
+func (h *Handler) Routes(mux *http.ServeMux, ac *admin.Control) {
 	mux.HandleFunc("GET /admin/returns", ac.RequireStaff(h.Queue))
 	mux.HandleFunc("POST /admin/returns/{id}/decide", ac.RequireStaff(h.Decide))
 	mux.HandleFunc("POST /admin/returns/{id}/assess", ac.RequireStaff(h.Assess))
@@ -57,7 +57,7 @@ func (h *Handler) Queue(w http.ResponseWriter, r *http.Request) {
 	if raw := r.URL.Query().Get("request"); raw != "" {
 		request, parseErr := uuid.Parse(raw)
 		if parseErr != nil || request == uuid.Nil {
-			access.NotFound(w, r, h.log)
+			admin.NotFound(w, r, h.log)
 			return
 		}
 		queue, err = h.store.RequestQueue(r.Context(), request, r.URL.Query().Get(keyset.Param))
@@ -66,7 +66,7 @@ func (h *Handler) Queue(w http.ResponseWriter, r *http.Request) {
 	}
 	if err != nil {
 		h.log.ErrorContext(r.Context(), "read return queue", "error", err)
-		access.ServerError(w, r, h.log)
+		admin.ServerError(w, r, h.log)
 		return
 	}
 	for _, issue := range queue.payoutIssues {
@@ -117,7 +117,7 @@ func (h *Handler) Decide(w http.ResponseWriter, r *http.Request) {
 		// recovery land here.
 		h.log.ErrorContext(r.Context(), "decide return",
 			"return", r.PathValue("id"), "error", err)
-		access.ServerError(w, r, h.log)
+		admin.ServerError(w, r, h.log)
 	}
 }
 
@@ -151,7 +151,7 @@ func (h *Handler) Assess(w http.ResponseWriter, r *http.Request) {
 	default:
 		h.log.ErrorContext(r.Context(), "assess return",
 			"return", r.PathValue("id"), "error", err)
-		access.ServerError(w, r, h.log)
+		admin.ServerError(w, r, h.log)
 	}
 }
 
@@ -213,7 +213,7 @@ func (h *Handler) renderReturnRefusal(w http.ResponseWriter, r *http.Request, er
 	queue, readErr := h.store.Queue(r.Context(), r.URL.Query().Get(keyset.Param))
 	if readErr != nil {
 		h.log.ErrorContext(r.Context(), "read return queue after refusal", "error", readErr)
-		access.ServerError(w, r, h.log)
+		admin.ServerError(w, r, h.log)
 		return true
 	}
 	field := refused.Field
@@ -250,7 +250,7 @@ func (h *Handler) renderInspection(w http.ResponseWriter, r *http.Request, key i
 	queue, readErr := h.store.Queue(r.Context(), r.URL.Query().Get(keyset.Param))
 	if readErr != nil {
 		h.log.ErrorContext(r.Context(), "read return queue after refused inspection", "error", readErr)
-		access.ServerError(w, r, h.log)
+		admin.ServerError(w, r, h.log)
 		return
 	}
 	id := r.PathValue("id")
@@ -338,7 +338,7 @@ func (h *Handler) Inspect(w http.ResponseWriter, r *http.Request) {
 	default:
 		h.log.ErrorContext(r.Context(), "inspect return",
 			"return", r.PathValue("id"), "error", err)
-		access.ServerError(w, r, h.log)
+		admin.ServerError(w, r, h.log)
 	}
 }
 
@@ -397,7 +397,7 @@ func (h *Handler) Complete(w http.ResponseWriter, r *http.Request) {
 	default:
 		h.log.ErrorContext(r.Context(), "complete return",
 			"return", r.PathValue("id"), "error", err)
-		access.ServerError(w, r, h.log)
+		admin.ServerError(w, r, h.log)
 	}
 }
 
@@ -419,7 +419,7 @@ func (h *Handler) confirmReturnDecision(w http.ResponseWriter, r *http.Request) 
 		if errors.Is(err, ErrRefused) {
 			http.Redirect(w, r, "/admin/returns?refused=1", http.StatusSeeOther)
 		} else {
-			access.ServerError(w, r, h.log)
+			admin.ServerError(w, r, h.log)
 		}
 		return true
 	}

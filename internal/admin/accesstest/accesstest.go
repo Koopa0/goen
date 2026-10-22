@@ -1,6 +1,10 @@
 // Package accesstest is the check every back-office feature runs on its own
-// routes: that each one is behind the access guard, which a route table moved
-// out of server.go no longer shows in one place.
+// routes, that each one is behind the back office's guard; it holds
+// RefuseOutsiders and RefuseOutsidersOn; it does not hold the back office's
+// integration fixtures (admintest).
+//
+// A route table moved out of server.go no longer shows the guards in one
+// place, so each feature checks its own.
 package accesstest
 
 import (
@@ -13,7 +17,7 @@ import (
 
 	"github.com/google/uuid"
 
-	"github.com/koopa0/goen/internal/admin/access"
+	"github.com/koopa0/goen/internal/admin"
 	"github.com/koopa0/goen/internal/i18n"
 	"github.com/koopa0/goen/internal/user"
 )
@@ -22,10 +26,10 @@ import (
 // out and as a signed-in customer. Both must get the page the guard answers: a
 // route registered without its guard would run the handler, which here has no
 // database behind it, or which may 404 by itself on a path value it refuses.
-func RefuseOutsiders(t *testing.T, register func(*http.ServeMux, *access.Control), routes ...string) {
+func RefuseOutsiders(t *testing.T, register func(*http.ServeMux, *admin.Control), routes ...string) {
 	t.Helper()
 	mux := http.NewServeMux()
-	register(mux, access.New(slog.New(slog.DiscardHandler), nil))
+	register(mux, admin.NewControl(slog.New(slog.DiscardHandler), nil))
 	RefuseOutsidersOn(t, mux, routes...)
 }
 

@@ -12,7 +12,7 @@ import (
 
 	"github.com/google/uuid"
 
-	"github.com/koopa0/goen/internal/admin/access"
+	"github.com/koopa0/goen/internal/admin"
 	"github.com/koopa0/goen/internal/admin/admintest"
 	"github.com/koopa0/goen/internal/admin/warranties"
 	"github.com/koopa0/goen/internal/keyset"
@@ -111,7 +111,7 @@ func TestStore_WarrantiesNextPage(t *testing.T) {
 
 	log := slog.New(slog.DiscardHandler)
 	mux := http.NewServeMux()
-	warranties.NewHandler(store, log).Routes(mux, access.New(log, nil))
+	warranties.NewHandler(store, log).Routes(mux, admin.NewControl(log, nil))
 	rec := httptest.NewRecorder()
 	mux.ServeHTTP(rec, httptest.NewRequestWithContext(ctx, http.MethodGet, first.Next, http.NoBody))
 	if rec.Code != http.StatusOK {

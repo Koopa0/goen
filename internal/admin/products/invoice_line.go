@@ -10,7 +10,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
 
-	"github.com/koopa0/goen/internal/admin/access"
+	"github.com/koopa0/goen/internal/admin"
 	"github.com/koopa0/goen/internal/admin/audit"
 	"github.com/koopa0/goen/internal/db"
 	"github.com/koopa0/goen/internal/i18n"
@@ -72,10 +72,10 @@ func (h *Handler) ProductInvoiceLine(w http.ResponseWriter, r *http.Request) {
 	err := h.store.SetProductInvoiceLine(r.Context(), r.PathValue("slug"), facts)
 	switch {
 	case errors.Is(err, ErrNotFound):
-		access.NotFound(w, r, h.log)
+		admin.NotFound(w, r, h.log)
 	case err != nil:
 		h.log.ErrorContext(r.Context(), "set product invoice", "error", err)
-		access.ServerError(w, r, h.log)
+		admin.ServerError(w, r, h.log)
 	default:
 		slug := r.PathValue("slug")
 		//nolint:gosec // G710: validated by the route's own slug
@@ -86,12 +86,12 @@ func (h *Handler) ProductInvoiceLine(w http.ResponseWriter, r *http.Request) {
 func (h *Handler) rejectProductInvoiceLine(w http.ResponseWriter, r *http.Request, facts invoice.LineTerms, errs map[string]string) {
 	view, err := h.product(r.Context(), r.PathValue("slug"))
 	if errors.Is(err, ErrNotFound) {
-		access.NotFound(w, r, h.log)
+		admin.NotFound(w, r, h.log)
 		return
 	}
 	if err != nil {
 		h.log.ErrorContext(r.Context(), "read refused product invoice", "error", err)
-		access.ServerError(w, r, h.log)
+		admin.ServerError(w, r, h.log)
 		return
 	}
 	view.InvoiceTerms = &facts

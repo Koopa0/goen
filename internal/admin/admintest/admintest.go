@@ -24,7 +24,7 @@ import (
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 
-	"github.com/koopa0/goen/internal/admin/access"
+	"github.com/koopa0/goen/internal/admin"
 	"github.com/koopa0/goen/internal/admin/audit"
 	"github.com/koopa0/goen/internal/db"
 	"github.com/koopa0/goen/internal/db/dbtest"
@@ -35,7 +35,7 @@ import (
 )
 
 // BackOffice wraps a handler as its route in cmd/goen does, with 2FA off.
-var BackOffice = access.New(slog.New(slog.DiscardHandler), nil)
+var BackOffice = admin.NewControl(slog.New(slog.DiscardHandler), nil)
 
 // LoadCatalogue puts the development catalogue into a database dbtest started.
 // A suite's TestMain still calls dbtest.Start itself: internal/db refuses a
@@ -84,7 +84,7 @@ func DatabaseNow(t *testing.T, p *pgxpool.Pool) time.Time {
 }
 
 // StaffContext creates an admin user in p and returns a context that carries it
-// and a request id, as the access wrapper leaves it for a back-office handler.
+// and a request id, as the back office's guard leaves it for a back-office handler.
 func StaffContext(t *testing.T, p *pgxpool.Pool) (context.Context, uuid.UUID) {
 	t.Helper()
 	var id uuid.UUID

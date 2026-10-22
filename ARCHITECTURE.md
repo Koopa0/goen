@@ -318,7 +318,7 @@ CI runs formatting, vet, lint, dead-code and generated-code checks, migration li
 [auth]: internal/auth
 [google-signin]: internal/auth/google
 [bearer]: internal/bearer
-[access]: internal/admin/access/access.go
+[access]: internal/admin/access.go
 [twofactor]: internal/admin/twofactor
 [ratelimit]: internal/web/ratelimit
 [clientip]: internal/web/clientip/clientip.go

@@ -8,14 +8,14 @@ import (
 
 	"github.com/google/uuid"
 
-	"github.com/koopa0/goen/internal/admin/access"
-	"github.com/koopa0/goen/internal/admin/access/accesstest"
+	"github.com/koopa0/goen/internal/admin"
+	"github.com/koopa0/goen/internal/admin/accesstest"
 	"github.com/koopa0/goen/internal/user"
 )
 
 func TestEveryRouteRefusesAnOutsider(t *testing.T) {
 	t.Parallel()
-	accesstest.RefuseOutsiders(t, func(mux *http.ServeMux, ac *access.Control) {
+	accesstest.RefuseOutsiders(t, func(mux *http.ServeMux, ac *admin.Control) {
 		NewHandler(&Store{}, nil, slog.New(slog.DiscardHandler)).Routes(mux, ac)
 	}, "POST /admin/orders/{number}/refund", "POST /admin/orders/{number}/refund-unsent")
 }
@@ -26,7 +26,7 @@ func TestEveryRouteWaitsForTheSecondFactor(t *testing.T) {
 	t.Parallel()
 	mux := http.NewServeMux()
 	notVerified := func(*http.Request) (bool, error) { return false, nil }
-	NewHandler(&Store{}, nil, slog.New(slog.DiscardHandler)).Routes(mux, access.New(slog.New(slog.DiscardHandler), notVerified))
+	NewHandler(&Store{}, nil, slog.New(slog.DiscardHandler)).Routes(mux, admin.NewControl(slog.New(slog.DiscardHandler), notVerified))
 	// An order number the handlers refuse: one that got past the guard would
 	// answer 404 rather than reach a store this test does not have.
 	for _, path := range []string{"/admin/orders/x/refund", "/admin/orders/x/refund-unsent"} {

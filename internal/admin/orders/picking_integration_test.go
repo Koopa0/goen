@@ -16,7 +16,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgxpool"
 
-	"github.com/koopa0/goen/internal/admin/access"
+	"github.com/koopa0/goen/internal/admin"
 	"github.com/koopa0/goen/internal/admin/admintest"
 	"github.com/koopa0/goen/internal/admin/orders"
 	"github.com/koopa0/goen/internal/db"
@@ -159,7 +159,7 @@ func TestPickingTotalsSpanEveryPageAndSubtractRecordedShipments(t *testing.T) {
 	}
 	h := admintest.OrderDesk(s)
 	mux := http.NewServeMux()
-	h.Routes(mux, access.New(slog.New(slog.DiscardHandler), nil))
+	h.Routes(mux, admin.NewControl(slog.New(slog.DiscardHandler), nil))
 	for _, locale := range []i18n.Locale{i18n.ZhHant, i18n.En} {
 		req := httptest.NewRequestWithContext(i18n.WithLocale(ctx, locale), http.MethodGet, "/admin/orders/picking/slips", nil)
 		w := httptest.NewRecorder()

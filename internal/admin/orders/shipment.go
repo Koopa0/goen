@@ -8,7 +8,7 @@ import (
 
 	"github.com/google/uuid"
 
-	"github.com/koopa0/goen/internal/admin/access"
+	"github.com/koopa0/goen/internal/admin"
 	"github.com/koopa0/goen/internal/admin/audit"
 	"github.com/koopa0/goen/internal/db"
 	"github.com/koopa0/goen/internal/i18n"
@@ -85,7 +85,7 @@ func (h *Handler) DeliverShipment(w http.ResponseWriter, r *http.Request) {
 				return
 			}
 			h.log.ErrorContext(r.Context(), "read order after refused parcel arrival", "error", readErr)
-			access.ServerError(w, r, h.log)
+			admin.ServerError(w, r, h.log)
 			return
 		}
 		view.Notice = widget.Result{Outcome: widget.OutcomeRefused, Text: i18n.T(r.Context(), i18n.KeyAdminShipmentArrivalRefused)}
@@ -94,6 +94,6 @@ func (h *Handler) DeliverShipment(w http.ResponseWriter, r *http.Request) {
 			Order(frame.Page{Title: fmt.Sprintf(i18n.T(r.Context(), i18n.KeyAdminPageOrder), number)}, &view))
 	default:
 		h.log.ErrorContext(r.Context(), "record parcel arrival", "error", err)
-		access.ServerError(w, r, h.log)
+		admin.ServerError(w, r, h.log)
 	}
 }

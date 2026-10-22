@@ -7,7 +7,7 @@ import (
 
 	"github.com/google/uuid"
 
-	"github.com/koopa0/goen/internal/admin/access"
+	"github.com/koopa0/goen/internal/admin"
 	"github.com/koopa0/goen/internal/i18n"
 	"github.com/koopa0/goen/internal/invoice/issuer"
 	"github.com/koopa0/goen/internal/order"
@@ -48,7 +48,7 @@ func (h *Handler) IssueInvoice(w http.ResponseWriter, r *http.Request) {
 		http.Redirect(w, r, "/admin/orders/"+number+"?invoicepending=1", http.StatusSeeOther)
 	default:
 		h.log.ErrorContext(r.Context(), "issue invoice", "order", number, "error", err)
-		access.ServerError(w, r, h.log)
+		admin.ServerError(w, r, h.log)
 	}
 }
 
@@ -88,7 +88,7 @@ func (h *Handler) VoidInvoice(w http.ResponseWriter, r *http.Request) {
 		http.Redirect(w, r, orderPage+"?refused=1", http.StatusSeeOther)
 	default:
 		h.log.ErrorContext(r.Context(), "void invoice", "order", number, "error", err)
-		access.ServerError(w, r, h.log)
+		admin.ServerError(w, r, h.log)
 	}
 }
 
@@ -141,6 +141,6 @@ func (h *Handler) FileAllowance(w http.ResponseWriter, r *http.Request) {
 		http.Redirect(w, r, orderPage+"?refused=1", http.StatusSeeOther)
 	default:
 		h.log.ErrorContext(r.Context(), "file invoice allowance", "order", number, "error", err)
-		access.ServerError(w, r, h.log)
+		admin.ServerError(w, r, h.log)
 	}
 }

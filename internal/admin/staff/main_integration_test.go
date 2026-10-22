@@ -31,7 +31,7 @@ func TestMain(m *testing.M) {
 	os.Exit(code)
 }
 
-// asActor is the context the access wrapper leaves for a signed-in admin.
+// asActor is the context the back office's guard leaves for a signed-in admin.
 func asActor(ctx context.Context, id string) context.Context {
 	return user.NewContext(ctx, user.User{ID: id, Role: user.RoleAdmin})
 }

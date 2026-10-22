@@ -14,7 +14,7 @@ import (
 
 	"github.com/google/uuid"
 
-	"github.com/koopa0/goen/internal/admin/access"
+	"github.com/koopa0/goen/internal/admin"
 	"github.com/koopa0/goen/internal/admin/audit"
 	"github.com/koopa0/goen/internal/i18n"
 	"github.com/koopa0/goen/internal/keyset"
@@ -41,7 +41,7 @@ func NewHandler(store *Store, sessions payment.SessionCloser, log *slog.Logger) 
 	return &Handler{store: store, sessions: sessions, log: log}
 }
 
-func (h *Handler) Routes(mux *http.ServeMux, ac *access.Control) {
+func (h *Handler) Routes(mux *http.ServeMux, ac *admin.Control) {
 	mux.HandleFunc("GET /admin/orders", ac.RequireStaff(h.List))
 	mux.HandleFunc("GET /admin/orders/picking/slips", ac.RequireStaff(h.PickingSlips))
 	mux.HandleFunc("GET /admin/orders/{number}", ac.RequireStaff(h.Order))
@@ -60,7 +60,7 @@ func (h *Handler) List(w http.ResponseWriter, r *http.Request) {
 		ParseQueueFilter(r.URL.Query().Get("status")), r.URL.Query().Get("q"), r.URL.Query().Get(keyset.Param))
 	if err != nil {
 		h.log.ErrorContext(r.Context(), "read orders", "error", err)
-		access.ServerError(w, r, h.log)
+		admin.ServerError(w, r, h.log)
 		return
 	}
 	view.Notice = widget.NoticeFrom(r, notices)
@@ -77,7 +77,7 @@ func (h *Handler) Order(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		h.log.ErrorContext(r.Context(), "read order", "error", err)
-		access.ServerError(w, r, h.log)
+		admin.ServerError(w, r, h.log)
 		return
 	}
 	logUnrecognized(r.Context(), h.log, view.Number, view.Timeline)
@@ -116,7 +116,7 @@ func (h *Handler) Advance(w http.ResponseWriter, r *http.Request) {
 		http.Redirect(w, r, "/admin/orders/"+number+"?refused=1", http.StatusSeeOther) //nolint:gosec // G710: validated by order.ValidNumber
 	default:
 		h.log.ErrorContext(r.Context(), "advance order", "error", err)
-		access.ServerError(w, r, h.log)
+		admin.ServerError(w, r, h.log)
 	}
 }
 
@@ -167,7 +167,7 @@ func (h *Handler) Ship(w http.ResponseWriter, r *http.Request) {
 		h.rejectShip(w, r, &shipRefusal{notice: i18n.KeyAdminDispatchRefused})
 	default:
 		h.log.ErrorContext(r.Context(), "ship order", "error", err)
-		access.ServerError(w, r, h.log)
+		admin.ServerError(w, r, h.log)
 	}
 }
 
@@ -185,7 +185,7 @@ func (h *Handler) rejectShip(w http.ResponseWriter, r *http.Request, refusal *sh
 	view, err := h.store.Order(r.Context(), r.PathValue("number"))
 	if err != nil {
 		h.log.ErrorContext(r.Context(), "read order after refused dispatch", "error", err)
-		access.ServerError(w, r, h.log)
+		admin.ServerError(w, r, h.log)
 		return
 	}
 	say := func(k i18n.Key) string {
@@ -266,7 +266,7 @@ func (h *Handler) StaffNote(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		h.log.ErrorContext(r.Context(), "set staff note", "error", err)
-		access.ServerError(w, r, h.log)
+		admin.ServerError(w, r, h.log)
 		return
 	}
 	http.Redirect(w, r, "/admin/orders/"+number+"?ok=1", http.StatusSeeOther) //nolint:gosec // G710: validated by order.ValidNumber
@@ -355,7 +355,7 @@ func (h *Handler) CorrectDelivery(w http.ResponseWriter, r *http.Request) {
 		http.Redirect(w, r, target+"?refused=1", http.StatusSeeOther)
 	default:
 		h.log.ErrorContext(r.Context(), "correct delivery", "error", err)
-		access.ServerError(w, r, h.log)
+		admin.ServerError(w, r, h.log)
 	}
 }
 
@@ -365,7 +365,7 @@ func (h *Handler) rejectDelivery(w http.ResponseWriter, r *http.Request, d *Deli
 	view, err := h.store.Order(r.Context(), r.PathValue("number"))
 	if err != nil {
 		h.log.ErrorContext(r.Context(), "read refused delivery correction", "error", err)
-		access.ServerError(w, r, h.log)
+		admin.ServerError(w, r, h.log)
 		return
 	}
 	applyDeliveryRefusals(r.Context(), &view, d, refusals)

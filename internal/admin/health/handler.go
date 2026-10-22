@@ -10,7 +10,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgxpool"
 
-	"github.com/koopa0/goen/internal/admin/access"
+	"github.com/koopa0/goen/internal/admin"
 	"github.com/koopa0/goen/internal/i18n"
 	"github.com/koopa0/goen/internal/outbox"
 	"github.com/koopa0/goen/internal/ui/frame"
@@ -43,7 +43,7 @@ func NewHandler(
 	return &Handler{store: store, messages: messages, pools: pools, disputes: disputes, log: log}
 }
 
-func (h *Handler) Routes(mux *http.ServeMux, ac *access.Control) {
+func (h *Handler) Routes(mux *http.ServeMux, ac *admin.Control) {
 	mux.HandleFunc("GET /admin/health", ac.RequireStaff(h.Page))
 	mux.HandleFunc("POST /admin/health/reconcile", ac.RequireStaff(h.Reconcile))
 }
@@ -81,7 +81,7 @@ func (h *Handler) Reconcile(w http.ResponseWriter, r *http.Request) {
 		http.Redirect(w, r, "/admin/health?notflagged=1", http.StatusSeeOther)
 	default:
 		h.log.ErrorContext(r.Context(), "reconcile payment", "error", err)
-		access.ServerError(w, r, h.log)
+		admin.ServerError(w, r, h.log)
 	}
 }
 
@@ -169,7 +169,7 @@ func (h *Handler) Page(w http.ResponseWriter, r *http.Request) {
 	view, err := h.store.WorkerHealth(r.Context(), h.messages)
 	if err != nil {
 		h.log.ErrorContext(r.Context(), "read worker health", "error", err)
-		access.ServerError(w, r, h.log)
+		admin.ServerError(w, r, h.log)
 		return
 	}
 	view.Notice = widget.NoticeFrom(r, notices)

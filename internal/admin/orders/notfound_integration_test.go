@@ -12,7 +12,7 @@ import (
 
 	"github.com/google/uuid"
 
-	"github.com/koopa0/goen/internal/admin/access"
+	"github.com/koopa0/goen/internal/admin"
 	"github.com/koopa0/goen/internal/admin/admintest"
 	"github.com/koopa0/goen/internal/admin/campaigns"
 	"github.com/koopa0/goen/internal/admin/customers"
@@ -26,13 +26,13 @@ import (
 func TestMissingRecordsKeepVerifiedStaffInTheBackOffice(t *testing.T) {
 	log := slog.New(slog.DiscardHandler)
 	mux := http.NewServeMux()
-	ac := access.New(log, func(*http.Request) (bool, error) { return true, nil })
+	ac := admin.NewControl(log, func(*http.Request) (bool, error) { return true, nil })
 	admintest.OrderDesk(admintest.OrderStore(pool, admintest.Refunder{}, nil, admintest.DisabledInvoiceWriter{})).Routes(mux, ac)
 	productstest.NewHandler(pool, products.NewStore(pool)).Routes(mux, ac)
 	customers.NewHandler(customers.NewStore(pool), log).Routes(mux, ac)
 	campaigns.NewHandler(campaigns.NewStore(pool), media.NewHandler(media.NewStore(pool), log), log).Routes(mux, ac)
 	unverified := http.NewServeMux()
-	unverifiedAC := access.New(log, func(*http.Request) (bool, error) { return false, nil })
+	unverifiedAC := admin.NewControl(log, func(*http.Request) (bool, error) { return false, nil })
 	admintest.OrderDesk(admintest.OrderStore(pool, admintest.Refunder{}, nil, admintest.DisabledInvoiceWriter{})).Routes(unverified, unverifiedAC)
 	productstest.NewHandler(pool, products.NewStore(pool)).Routes(unverified, unverifiedAC)
 	customers.NewHandler(customers.NewStore(pool), log).Routes(unverified, unverifiedAC)
@@ -90,7 +90,7 @@ func TestMissingRecordsKeepVerifiedStaffInTheBackOffice(t *testing.T) {
 					res := httptest.NewRecorder()
 					mux.ServeHTTP(res, req)
 					want := httptest.NewRecorder()
-					access.NotFound(want, req, log)
+					admin.NotFound(want, req, log)
 					if res.Code != http.StatusNotFound || res.Body.String() != want.Body.String() || strings.Contains(res.Body.String(), `href="/admin`) {
 						t.Error("outsider no longer gets the unchanged storefront 404")
 					}

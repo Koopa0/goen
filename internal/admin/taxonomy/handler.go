@@ -7,7 +7,7 @@ import (
 	"strings"
 	"unicode/utf8"
 
-	"github.com/koopa0/goen/internal/admin/access"
+	"github.com/koopa0/goen/internal/admin"
 	"github.com/koopa0/goen/internal/i18n"
 	"github.com/koopa0/goen/internal/media"
 	"github.com/koopa0/goen/internal/ui/frame"
@@ -29,7 +29,7 @@ func NewHandler(store *Store, images *media.Handler, log *slog.Logger) *Handler 
 	return &Handler{store: store, images: images, log: log}
 }
 
-func (h *Handler) Routes(mux *http.ServeMux, ac *access.Control) {
+func (h *Handler) Routes(mux *http.ServeMux, ac *admin.Control) {
 	mux.HandleFunc("GET /admin/taxonomy", ac.RequireStaff(h.Page))
 	mux.HandleFunc("POST /admin/taxonomy/{kind}", ac.RequireStaff(h.Create))
 	mux.HandleFunc("POST /admin/taxonomy/{kind}/{slug}", ac.RequireStaff(h.Edit))
@@ -48,7 +48,7 @@ func (h *Handler) Page(w http.ResponseWriter, r *http.Request) {
 	view, err := h.store.List(r.Context())
 	if err != nil {
 		h.log.ErrorContext(r.Context(), "read taxonomy", "error", err)
-		access.ServerError(w, r, h.log)
+		admin.ServerError(w, r, h.log)
 		return
 	}
 	view.Notice = widget.NoticeFrom(r, notices)
@@ -85,11 +85,11 @@ func (h *Handler) Create(w http.ResponseWriter, r *http.Request) {
 	switch {
 	case err != nil:
 		h.log.ErrorContext(r.Context(), "create taxon", "error", err, "kind", kind)
-		access.ServerError(w, r, h.log)
+		admin.ServerError(w, r, h.log)
 	case len(errs) > 0:
 		view, readErr := h.store.List(r.Context())
 		if readErr != nil {
-			access.ServerError(w, r, h.log)
+			admin.ServerError(w, r, h.log)
 			return
 		}
 		view.Which, view.Errors = kind, errs
@@ -130,7 +130,7 @@ func (h *Handler) Edit(w http.ResponseWriter, r *http.Request) {
 		http.Redirect(w, r, "/admin/taxonomy?refused=1", http.StatusSeeOther)
 	default:
 		h.log.ErrorContext(r.Context(), "edit taxon", "error", err, "kind", kind)
-		access.ServerError(w, r, h.log)
+		admin.ServerError(w, r, h.log)
 	}
 }
 
@@ -143,11 +143,11 @@ func (h *Handler) renderCategory(w http.ResponseWriter, r *http.Request, status 
 	view, err := h.store.CategoryHeader(r.Context(), slug)
 	if err != nil {
 		if errors.Is(err, ErrNotFound) {
-			access.NotFound(w, r, h.log)
+			admin.NotFound(w, r, h.log)
 			return
 		}
 		h.log.ErrorContext(r.Context(), "read category header", "error", err)
-		access.ServerError(w, r, h.log)
+		admin.ServerError(w, r, h.log)
 		return
 	}
 	view.Notice, view.Errors = notice, errs
@@ -181,7 +181,7 @@ func (h *Handler) SetCategoryImage(w http.ResponseWriter, r *http.Request) {
 		//nolint:gosec // G710: slug is the route's own path value
 		http.Redirect(w, r, "/admin/categories/"+slug+"?ok=1", http.StatusSeeOther)
 	case errors.Is(err, ErrNotFound):
-		access.NotFound(w, r, h.log)
+		admin.NotFound(w, r, h.log)
 	case errors.Is(err, ErrImageRequired):
 		h.respondToUploadError(w, r, media.ErrNotAnImage)
 	case errors.Is(err, ErrInvalid):
@@ -192,7 +192,7 @@ func (h *Handler) SetCategoryImage(w http.ResponseWriter, r *http.Request) {
 		h.renderCategory(w, r, http.StatusUnprocessableEntity, widget.Result{}, map[string]string{field: i18n.T(r.Context(), reason)})
 	default:
 		h.log.ErrorContext(r.Context(), "set category image", "error", err, "slug", slug)
-		access.ServerError(w, r, h.log)
+		admin.ServerError(w, r, h.log)
 	}
 }
 
@@ -207,10 +207,10 @@ func (h *Handler) RemoveCategoryImage(w http.ResponseWriter, r *http.Request) {
 		//nolint:gosec // G710: slug is the route's own path value
 		http.Redirect(w, r, "/admin/categories/"+slug+"?ok=1", http.StatusSeeOther)
 	case errors.Is(err, ErrNotFound):
-		access.NotFound(w, r, h.log)
+		admin.NotFound(w, r, h.log)
 	default:
 		h.log.ErrorContext(r.Context(), "remove category image", "error", err, "slug", slug)
-		access.ServerError(w, r, h.log)
+		admin.ServerError(w, r, h.log)
 	}
 }
 
@@ -225,6 +225,6 @@ func (h *Handler) respondToUploadError(w http.ResponseWriter, r *http.Request, e
 		h.renderCategory(w, r, http.StatusUnprocessableEntity, widget.Result{}, map[string]string{"image": i18n.T(r.Context(), media.UploadNotice(err))})
 	default:
 		h.log.ErrorContext(r.Context(), "category image upload", "error", err, "slug", r.PathValue("slug"))
-		access.ServerError(w, r, h.log)
+		admin.ServerError(w, r, h.log)
 	}
 }

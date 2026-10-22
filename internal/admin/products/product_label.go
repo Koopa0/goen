@@ -15,7 +15,7 @@ import (
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgtype"
 
-	"github.com/koopa0/goen/internal/admin/access"
+	"github.com/koopa0/goen/internal/admin"
 	"github.com/koopa0/goen/internal/admin/audit"
 	"github.com/koopa0/goen/internal/db"
 	"github.com/koopa0/goen/internal/i18n"
@@ -142,13 +142,13 @@ func (h *Handler) ProductLabel(w http.ResponseWriter, r *http.Request) {
 	err := h.store.SetProductLabel(r.Context(), r.PathValue("slug"), input)
 	switch {
 	case errors.Is(err, ErrNotFound):
-		access.NotFound(w, r, h.log)
+		admin.NotFound(w, r, h.log)
 	case errors.Is(err, ErrRefused):
 		h.log.WarnContext(r.Context(), "product label refused", "error", err)
 		h.rejectProductLabel(w, r, input, productLabelRefusal(r.Context(), err))
 	case err != nil:
 		h.log.ErrorContext(r.Context(), "set product label", "error", err)
-		access.ServerError(w, r, h.log)
+		admin.ServerError(w, r, h.log)
 	default:
 		slug := r.PathValue("slug")
 		//nolint:gosec // G710: validated by the route's own slug
@@ -190,12 +190,12 @@ func productLabelRefusal(ctx context.Context, err error) map[string]string {
 func (h *Handler) rejectProductLabel(w http.ResponseWriter, r *http.Request, input *LabelInput, errs map[string]string) {
 	view, err := h.product(r.Context(), r.PathValue("slug"))
 	if errors.Is(err, ErrNotFound) {
-		access.NotFound(w, r, h.log)
+		admin.NotFound(w, r, h.log)
 		return
 	}
 	if err != nil {
 		h.log.ErrorContext(r.Context(), "read refused product label", "error", err)
-		access.ServerError(w, r, h.log)
+		admin.ServerError(w, r, h.log)
 		return
 	}
 	view.LabelInput = input

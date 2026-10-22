@@ -5,7 +5,7 @@ import (
 	"log/slog"
 	"net/http"
 
-	"github.com/koopa0/goen/internal/admin/access"
+	"github.com/koopa0/goen/internal/admin"
 	"github.com/koopa0/goen/internal/admin/audit"
 	"github.com/koopa0/goen/internal/i18n"
 	"github.com/koopa0/goen/internal/ui/frame"
@@ -26,7 +26,7 @@ func NewHandler(store *Store, log *slog.Logger) *Handler {
 	return &Handler{store: store, log: log}
 }
 
-func (h *Handler) Routes(mux *http.ServeMux, ac *access.Control) {
+func (h *Handler) Routes(mux *http.ServeMux, ac *admin.Control) {
 	mux.HandleFunc("GET /admin/newsletters", ac.RequireStaff(h.Newsletter))
 	mux.HandleFunc("POST /admin/newsletters", ac.RequireStaff(h.ComposeNewsletter))
 	mux.HandleFunc("POST /admin/newsletters/{id}/send", ac.RequireStaff(h.SendNewsletter))
@@ -44,7 +44,7 @@ func (h *Handler) Newsletter(w http.ResponseWriter, r *http.Request) {
 	view, err := h.newsletterView(r)
 	if err != nil {
 		h.log.ErrorContext(r.Context(), "read the newsletter", "error", err)
-		access.ServerError(w, r, h.log)
+		admin.ServerError(w, r, h.log)
 		return
 	}
 	view.Notice = widget.NoticeFrom(r, notices)
@@ -64,7 +64,7 @@ func (h *Handler) ComposeNewsletter(w http.ResponseWriter, r *http.Request) {
 		view, err := h.newsletterView(r)
 		if err != nil {
 			h.log.ErrorContext(r.Context(), "read the newsletter", "error", err)
-			access.ServerError(w, r, h.log)
+			admin.ServerError(w, r, h.log)
 			return
 		}
 		view.Draft = NewsletterDraft{Subject: subject, Body: body}
@@ -79,7 +79,7 @@ func (h *Handler) ComposeNewsletter(w http.ResponseWriter, r *http.Request) {
 
 	if _, err := h.store.ComposeNewsletter(r.Context(), subject, body, audit.ActorID(r.Context())); err != nil {
 		h.log.ErrorContext(r.Context(), "compose a newsletter issue", "error", err)
-		access.ServerError(w, r, h.log)
+		admin.ServerError(w, r, h.log)
 		return
 	}
 	http.Redirect(w, r, "/admin/newsletters?saved=1", http.StatusSeeOther)
@@ -94,10 +94,10 @@ func (h *Handler) SendNewsletter(w http.ResponseWriter, r *http.Request) {
 	case errors.Is(err, ErrAlreadySent):
 		http.Redirect(w, r, "/admin/newsletters?already=1", http.StatusSeeOther)
 	case errors.Is(err, ErrNotFound):
-		access.NotFound(w, r, h.log)
+		admin.NotFound(w, r, h.log)
 	default:
 		h.log.ErrorContext(r.Context(), "send a newsletter issue", "error", err)
-		access.ServerError(w, r, h.log)
+		admin.ServerError(w, r, h.log)
 	}
 }
 
