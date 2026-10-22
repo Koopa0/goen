@@ -70,7 +70,7 @@ var queryOwnerExceptions = map[string]string{
 	"internal/account -> ReturnedOrders":         sharedRead,
 	"internal/admin/customers -> ReturnedOrders": sharedRead,
 	"internal/admin/orders -> ReturnedOrders":    sharedRead,
-	"internal/warranty -> ReturnedOrders":        sharedRead,
+	"internal/order/warranty -> ReturnedOrders":  sharedRead,
 	"internal/admin/customers -> MemberStanding": sharedRead,
 	"internal/loyalty -> MemberStanding":         sharedRead,
 	"internal/admin/staff -> UserByEmail":        sharedRead,

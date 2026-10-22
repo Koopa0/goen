@@ -5,9 +5,9 @@ import (
 	"testing"
 
 	"github.com/koopa0/goen/internal/i18n"
+	"github.com/koopa0/goen/internal/order/warranty"
 	"github.com/koopa0/goen/internal/ui/layouts"
 	"github.com/koopa0/goen/internal/ui/tile"
-	"github.com/koopa0/goen/internal/warranty"
 )
 
 // TestCompareShowsTheTableOnlyWhenThereAreTwoProducts holds Enough() and the

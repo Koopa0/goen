@@ -9,7 +9,7 @@ import (
 	"time"
 
 	"github.com/koopa0/goen/internal/i18n"
-	"github.com/koopa0/goen/internal/warranty"
+	"github.com/koopa0/goen/internal/order/warranty"
 )
 
 func TestWarrantyNextExpiryMatchesRegistrationAcrossShopCalendarBoundaries(t *testing.T) {
