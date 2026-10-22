@@ -6,7 +6,7 @@ import (
 
 	"github.com/google/go-cmp/cmp"
 
-	"github.com/koopa0/goen/internal/tone"
+	"github.com/koopa0/goen/internal/ui/tone"
 )
 
 // The schema's CHECK and app.css's [data-tone] blocks name the same six;

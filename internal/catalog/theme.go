@@ -3,8 +3,8 @@ package catalog
 import (
 	"strconv"
 
-	"github.com/koopa0/goen/internal/tone"
 	"github.com/koopa0/goen/internal/ui/components"
+	"github.com/koopa0/goen/internal/ui/tone"
 )
 
 // Theme is what a sub-category page wears: its department's.
