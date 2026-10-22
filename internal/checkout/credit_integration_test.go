@@ -86,7 +86,7 @@ func TestCreditIsSpentInsideTheOrdersOwnTransaction(t *testing.T) {
 		t.Fatalf("add: %v", err)
 	}
 	number, err := placeOrder(t, s, ctx, id,
-		uuid.NullUUID{UUID: userID, Valid: true}, shipID, addr, "", "credit-1")
+		uuid.NullUUID{UUID: userID, Valid: true}, shipID, addr, "", "credit-1-"+uuid.NewString())
 	if err != nil {
 		t.Fatalf("place: %v", err)
 	}
@@ -136,7 +136,7 @@ func TestCreditNeverExceedsWhatTheOrderOwes(t *testing.T) {
 		t.Fatalf("add: %v", err)
 	}
 	number, err := placeOrder(t, s, ctx, id,
-		uuid.NullUUID{UUID: userID, Valid: true}, shipID, addr, "", "credit-2")
+		uuid.NullUUID{UUID: userID, Valid: true}, shipID, addr, "", "credit-2-"+uuid.NewString())
 	if err != nil {
 		t.Fatalf("place: %v", err)
 	}
@@ -195,7 +195,7 @@ func TestAGuestSpendsNoCredit(t *testing.T) {
 	if err := s.Carts().Add(ctx, id, vid, 1); err != nil {
 		t.Fatalf("add: %v", err)
 	}
-	number, err := placeOrder(t, s, ctx, id, uuid.NullUUID{}, shipID, addr, "", "credit-guest")
+	number, err := placeOrder(t, s, ctx, id, uuid.NullUUID{}, shipID, addr, "", "credit-guest-"+uuid.NewString())
 	if err != nil {
 		t.Fatalf("place: %v", err)
 	}

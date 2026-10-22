@@ -31,7 +31,7 @@ func TestThePickupDestinationComesFromTheMethodNotTheForm(t *testing.T) {
 		PickupChain: "family_mart", PickupStoreCode: "012345", PickupStoreName: "台北車站門市",
 	}
 	number, err := placeOrder(t, s, ctx, id, uuid.NullUUID{},
-		shipVersionFor(t, "store_pickup"), addr, "", "dest-pickup-1")
+		shipVersionFor(t, "store_pickup"), addr, "", "dest-pickup-"+uuid.NewString())
 	if err != nil {
 		t.Fatalf("place pickup order: %v", err)
 	}
@@ -63,7 +63,7 @@ func TestAPickupOrderIsPlacedWithTheChainAlone(t *testing.T) {
 		PickupChain: "seven_eleven",
 	}
 	number, err := placeOrder(t, s, ctx, id, uuid.NullUUID{},
-		shipVersionFor(t, "store_pickup"), addr, "", "dest-chain-1")
+		shipVersionFor(t, "store_pickup"), addr, "", "dest-chain-"+uuid.NewString())
 	if err != nil {
 		t.Fatalf("place a pickup order with the chain alone: %v", err)
 	}
@@ -100,7 +100,7 @@ func TestAnAddressOrderKeepsNoPickupPoint(t *testing.T) {
 		PickupChain: "seven_eleven", PickupStoreCode: "987654", PickupStoreName: "光復門市",
 	}
 	number, err := placeOrder(t, s, ctx, id, uuid.NullUUID{},
-		shipVersionFor(t, "home_delivery"), addr, "", "dest-home-1")
+		shipVersionFor(t, "home_delivery"), addr, "", "dest-home-"+uuid.NewString())
 	if err != nil {
 		t.Fatalf("place address order: %v", err)
 	}
@@ -126,7 +126,7 @@ func TestBothPagesShowWhereAPickupOrderGoes(t *testing.T) {
 		PickupChain: "hi_life", PickupStoreCode: "778899", PickupStoreName: "民生門市",
 	}
 	number, err := placeOrder(t, s, ctx, id, uuid.NullUUID{},
-		shipVersionFor(t, "store_pickup"), addr, "", "dest-shown-1")
+		shipVersionFor(t, "store_pickup"), addr, "", "dest-shown-"+uuid.NewString())
 	if err != nil {
 		t.Fatalf("place: %v", err)
 	}
