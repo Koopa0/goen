@@ -5,7 +5,8 @@ import (
 	"testing"
 )
 
-func TestCountReadsTheSingularOnlyForOne(t *testing.T) {
+// TestCount checks that Count reads the singular only for one.
+func TestCount(t *testing.T) {
 	cases := []struct {
 		locale Locale
 		key    Key
@@ -55,7 +56,9 @@ var pluralOnlyOnPurpose = map[Key]string{
 	"points.sub":                  "the number placeholder is a member multiplier modifying \"points rate\", not a count of points",
 }
 
-func TestACountedMessageHasASingular(t *testing.T) {
+// TestMessagesCountedSingular checks that a message that counts something has a
+// singular, registered through countKey, unless it is plural-only on purpose.
+func TestMessagesCountedSingular(t *testing.T) {
 	counted := 0
 	for k, m := range messages {
 		if !aCountedNoun.MatchString(m.En) {

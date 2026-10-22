@@ -2,7 +2,9 @@ package invoice
 
 import "testing"
 
-func TestBusinessTaxIDUsesTheCurrentMOFChecksum(t *testing.T) {
+// TestValidTaxID checks that ValidTaxID uses the current Ministry of Finance
+// checksum.
+func TestValidTaxID(t *testing.T) {
 	t.Parallel()
 	tests := []struct {
 		value string

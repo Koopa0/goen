@@ -1,0 +1,2 @@
+file	old	new	unit	source	action	newfile
+internal/product/product_test.go	TestStatusesAreTheSchemasStatuses	TestStatusesMatchSchema	Statuses	hand	rename	

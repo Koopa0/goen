@@ -5,11 +5,14 @@ import (
 	"testing"
 )
 
+// TestMessagesTierWording checks that the back office names a membership level
+// one way in each language.
+//
 // The back office names a membership level one way in each language: 等級 and
 // "tier". #1192 was the English side drifting to "band" in three strings. The
 // property is the term, not the sentence around it, so rewording a hint does
 // not break this and a "band" in any tier message does.
-func TestMembershipTierWording(t *testing.T) {
+func TestMessagesTierWording(t *testing.T) {
 	t.Parallel()
 
 	for _, k := range []Key{KeyAdminTierColTier, KeyAdminTierAdd, KeyAdminTierNameEnHint} {

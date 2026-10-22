@@ -6,7 +6,8 @@ import (
 	"github.com/koopa0/goen/internal/i18n"
 )
 
-func TestJoinListFollowsTheReadersLanguage(t *testing.T) {
+// TestJoinList checks that JoinList follows the reader's language.
+func TestJoinList(t *testing.T) {
 	t.Parallel()
 	tests := []struct {
 		locale i18n.Locale

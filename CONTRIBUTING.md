@@ -26,7 +26,7 @@ convention:
 - **Chrome follows the reader; content follows the shop.** Every sentence goen
   itself says lives in `internal/i18n`, declared once with both languages.
   Product copy is translated only where the shop has written a translation.
-  `TestNoChromeStringIsHardCoded` refuses a Han literal anywhere else.
+  `TestNoHardCodedHan` refuses a Han literal anywhere else.
 - **All of the CSS is authored here.** `assets/css/app/base.css` carries the
   tokens, the element defaults and the shared primitives; `assets/css/app/app.css`
   owns the storefront and `assets/css/app/admin.css` the back office, which does

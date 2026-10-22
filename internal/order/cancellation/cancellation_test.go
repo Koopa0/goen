@@ -17,10 +17,13 @@ func (m *lastMail) Send(_ context.Context, msg *letter.Message) error {
 	return nil
 }
 
+// TestMayHaveTakenMoneyMail checks that the cancellation mail says nothing was
+// charged only when no payment could have taken money.
+//
 // A customer can cancel while a payment is still open in another tab, so only
 // payments Stripe confirmed took nothing may leave the mail saying so. Every
 // status payments_status_known admits is listed, one order payment at a time.
-func TestTheCancellationMailSaysNothingWasChargedOnlyWhenNoPaymentCouldHave(t *testing.T) {
+func TestMayHaveTakenMoneyMail(t *testing.T) {
 	t.Parallel()
 	for _, tc := range []struct {
 		name     string

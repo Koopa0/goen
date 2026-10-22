@@ -50,11 +50,11 @@ func TestTWD(t *testing.T) {
 	}
 }
 
-// TestTWDNeverEmitsAStraySeparator is the property the table cannot state: no
+// TestTWDStraySeparator is the property the table cannot state: no
 // rendering may begin or end with a separator, or place one against the sign.
 // That is what a signed string fed through the grouping loop produces, and it
 // is what shipped in the mail formatter.
-func TestTWDNeverEmitsAStraySeparator(t *testing.T) {
+func TestTWDStraySeparator(t *testing.T) {
 	t.Parallel()
 
 	for _, cents := range []int64{
@@ -82,7 +82,10 @@ func TestTWDNeverEmitsAStraySeparator(t *testing.T) {
 	}
 }
 
-func TestParsePositiveDollarsBoundsBeforeMultiplying(t *testing.T) {
+// TestParsePositiveDollarsBounds checks that ParsePositiveDollars bounds the
+// dollars before multiplying them into cents, so the largest int64 is refused
+// and not overflowed.
+func TestParsePositiveDollarsBounds(t *testing.T) {
 	t.Parallel()
 	if _, ok := money.ParsePositiveDollars("9223372036854775807", money.MaxCents); ok {
 		t.Fatal("MaxInt64 dollars was multiplied into an apparently valid amount")
@@ -97,11 +100,14 @@ func TestParsePositiveDollarsBoundsBeforeMultiplying(t *testing.T) {
 	}
 }
 
+// TestParsePositiveDollarsCallerCeiling checks that ParsePositiveDollars stops
+// at the ceiling its caller passes.
+//
 // The ceiling is the caller's: a form with a tighter bound than the column
 // (the store-credit grant form, NT$100,000) passes its own. Each row sits on
 // the ceiling or one dollar past it, so a bound compared in the wrong unit or
 // off by one dollar fails.
-func TestParsePositiveDollarsStopsAtTheCallersCeiling(t *testing.T) {
+func TestParsePositiveDollarsCallerCeiling(t *testing.T) {
 	t.Parallel()
 	const grantCeiling = 10_000_000 // cents, NT$100,000
 	for _, tt := range []struct {
@@ -130,7 +136,9 @@ func TestParsePositiveDollarsStopsAtTheCallersCeiling(t *testing.T) {
 	}
 }
 
-func TestParseDollarsTakesBlankAsZeroAndBoundsTheRest(t *testing.T) {
+// TestParseDollars checks that ParseDollars takes a blank as zero and bounds
+// the rest.
+func TestParseDollars(t *testing.T) {
 	t.Parallel()
 	for _, tt := range []struct {
 		in   string
@@ -172,7 +180,9 @@ func TestShort(t *testing.T) {
 	}
 }
 
-func TestShortStopsOnADivisorWithNoFiniteExpansion(t *testing.T) {
+// TestShortNoFiniteExpansion checks that Short returns a bounded string for a
+// divisor with no finite decimal expansion, and does not loop.
+func TestShortNoFiniteExpansion(t *testing.T) {
 	t.Parallel()
 
 	done := make(chan string, 1)

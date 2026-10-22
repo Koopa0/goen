@@ -5,7 +5,9 @@ import (
 	"testing"
 )
 
-func TestDefaultInvoiceMemberExplainsEmailOwnership(t *testing.T) {
+// TestKeyInvoiceMember checks that the default invoice choice explains who owns
+// the email and promises a guest no account.
+func TestKeyInvoiceMember(t *testing.T) {
 	for _, locale := range Locales() {
 		text := T(WithLocale(t.Context(), locale), KeyInvoiceMember)
 		words := []string{"綠界", "結帳時填的電子郵件", "存在", "通知"}

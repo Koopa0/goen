@@ -6,7 +6,9 @@ import (
 	"github.com/koopa0/goen/internal/i18n"
 )
 
-func TestEveryReturnPolicyWindowHasALabel(t *testing.T) {
+// TestPolicyWindow_Label checks that every known policy window has a catalogue
+// label in both locales.
+func TestPolicyWindow_Label(t *testing.T) {
 	t.Parallel()
 	for _, locale := range []i18n.Locale{i18n.ZhHant, i18n.En} {
 		ctx := i18n.WithLocale(t.Context(), locale)
@@ -19,9 +21,9 @@ func TestEveryReturnPolicyWindowHasALabel(t *testing.T) {
 	}
 }
 
-// TestEveryUnsentReasonHasALabel holds the form's closed set against its words:
+// TestUnsentReason_Label holds the form's closed set against its words:
 // a reason with no catalogue entry reaches the staff as its bare code.
-func TestEveryUnsentReasonHasALabel(t *testing.T) {
+func TestUnsentReason_Label(t *testing.T) {
 	t.Parallel()
 	for _, locale := range []i18n.Locale{i18n.ZhHant, i18n.En} {
 		ctx := i18n.WithLocale(t.Context(), locale)

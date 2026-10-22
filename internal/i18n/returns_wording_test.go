@@ -5,7 +5,9 @@ import (
 	"testing"
 )
 
-func TestReturnDeskDoesNotUseOldDecisionOrCreditTerms(t *testing.T) {
+// TestMessagesReturnDeskTerms checks that the return desk messages do not use
+// the old decision or credit terms.
+func TestMessagesReturnDeskTerms(t *testing.T) {
 	t.Parallel()
 	for k, message := range messages {
 		if !strings.HasPrefix(string(k), "admin.ret.") && !strings.HasPrefix(string(k), "admin.return.") && k != KeyAdminNoticeRefundFailed && k != KeyAdminNoticeAssessed && k != KeyPointsReturnUnsettled {

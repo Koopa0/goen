@@ -1,0 +1,6 @@
+file	old	new	unit	source	action	newfile
+internal/money/money_test.go	TestParseDollarsTakesBlankAsZeroAndBoundsTheRest	TestParseDollars	ParseDollars	hand	rename	
+internal/money/money_test.go	TestParsePositiveDollarsBoundsBeforeMultiplying	TestParsePositiveDollarsBounds	ParsePositiveDollars	hand	rename	
+internal/money/money_test.go	TestParsePositiveDollarsStopsAtTheCallersCeiling	TestParsePositiveDollarsCallerCeiling	ParsePositiveDollars	hand	rename	
+internal/money/money_test.go	TestShortStopsOnADivisorWithNoFiniteExpansion	TestShortNoFiniteExpansion	Short	hand	rename	
+internal/money/money_test.go	TestTWDNeverEmitsAStraySeparator	TestTWDStraySeparator	TWD	hand	rename	

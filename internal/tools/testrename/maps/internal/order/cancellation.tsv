@@ -1,0 +1,2 @@
+file	old	new	unit	source	action	newfile
+internal/order/cancellation/cancellation_test.go	TestTheCancellationMailSaysNothingWasChargedOnlyWhenNoPaymentCouldHave	TestMayHaveTakenMoneyMail	MayHaveTakenMoney	hand	rename	

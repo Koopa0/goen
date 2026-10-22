@@ -6,7 +6,8 @@ import (
 	"github.com/koopa0/goen/internal/i18n"
 )
 
-func TestAxisUnitAbbreviatesFromTenThousand(t *testing.T) {
+// TestAxisUnit checks that AxisUnit abbreviates from ten thousand.
+func TestAxisUnit(t *testing.T) {
 	t.Parallel()
 
 	for _, tc := range []struct {

@@ -2,7 +2,9 @@ package order
 
 import "testing"
 
-func TestNextStaysInsideTheClosedSet(t *testing.T) {
+// TestFulfillmentStatus_NextKnown checks that Next stays inside the closed set
+// of known statuses.
+func TestFulfillmentStatus_NextKnown(t *testing.T) {
 	t.Parallel()
 	for _, s := range FulfillmentStatuses {
 		for _, next := range s.Next() {

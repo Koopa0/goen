@@ -5,7 +5,9 @@ import (
 	"testing"
 )
 
-func TestContactDoesNotPromiseAReplyDeadline(t *testing.T) {
+// TestMessagesContactReplyPromise checks that the contact messages promise no
+// reply deadline and say where the reply goes.
+func TestMessagesContactReplyPromise(t *testing.T) {
 	for _, locale := range Locales() {
 		ctx := WithLocale(t.Context(), locale)
 		for _, key := range []Key{KeyContactHours, KeyContactSentBody} {

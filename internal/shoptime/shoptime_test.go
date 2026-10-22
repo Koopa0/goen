@@ -9,7 +9,7 @@ import (
 	"github.com/koopa0/goen/internal/shoptime"
 )
 
-// TestTheShopsClockDoesNotFollowTheProcess is the whole point: the rendering
+// TestDayMinuteSecondProcessZone is the whole point: the rendering
 // must be the same on a developer's machine in Taipei and in the shipped image,
 // which sets no TZ and is therefore UTC. Before this package the two differed
 // by eight hours and only the second one was ever deployed.
@@ -17,7 +17,7 @@ import (
 // The instant chosen is 2026-09-03T20:30:00Z, which is 2026-09-04 04:30 in
 // Taipei — so it crosses a DAY boundary as well as an hour, and a fixture that
 // only crossed an hour would let a Day() that forgot the zone pass.
-func TestTheShopsClockDoesNotFollowTheProcess(t *testing.T) {
+func TestDayMinuteSecondProcessZone(t *testing.T) {
 	instant := time.Date(2026, 9, 3, 20, 30, 0, 0, time.UTC)
 
 	for _, tt := range []struct {
@@ -43,10 +43,10 @@ func TestTheShopsClockDoesNotFollowTheProcess(t *testing.T) {
 	}
 }
 
-// TestTheZoneIsTheOneTheSchemaUses guards the pair that has to agree. shop_day
+// TestZoneMatchesSchema guards the pair that has to agree. shop_day
 // pins Asia/Taipei in SQL; a Go half on a different zone would put the page and
 // the statutory window it renders on two calendars.
-func TestTheZoneIsTheOneTheSchemaUses(t *testing.T) {
+func TestZoneMatchesSchema(t *testing.T) {
 	t.Parallel()
 
 	if shoptime.Zone != "Asia/Taipei" {
@@ -62,10 +62,11 @@ func TestTheZoneIsTheOneTheSchemaUses(t *testing.T) {
 	}
 }
 
-// TestTheZoneDatabaseIsInTheBinary is what makes the rest of this package true
-// in the shipped image. cgr.dev/chainguard/static carries no
-// /usr/share/zoneinfo, so a build that dropped the time/tzdata import would
-// panic on the first page served and pass every test beforehand.
+// TestZoneTzdataImport holds that the zone database is in the binary, which is
+// what makes the rest of this package true in the shipped image.
+// cgr.dev/chainguard/static carries no /usr/share/zoneinfo, so a build that
+// dropped the time/tzdata import would panic on the first page served and pass
+// every test beforehand.
 //
 // It asserts the IMPORT and not a LoadLocation call, and that is the whole
 // design. The first version of this test loaded an obscure zone and checked it
@@ -73,7 +74,7 @@ func TestTheZoneIsTheOneTheSchemaUses(t *testing.T) {
 // is embedded, because time.LoadLocation reads /usr/share/zoneinfo first and
 // only falls back to the embedded copy. Deleting the import left it green, so
 // it was a test that could not fail for the reason it claimed.
-func TestTheZoneDatabaseIsInTheBinary(t *testing.T) {
+func TestZoneTzdataImport(t *testing.T) {
 	t.Parallel()
 
 	src, err := os.ReadFile("shoptime.go")
@@ -95,10 +96,10 @@ func mustLoad(t *testing.T, name string) *time.Location {
 	return loc
 }
 
-// TestAProviderClockIsReadAsTheShopsOwn holds that ECPay's zoneless
+// TestParseSecond holds that ECPay's zoneless
 // "2026-09-30 17:30:00" is 17:30 in Taipei, which is 09:30Z, and renders as
 // 17:30 whatever zone the process carries.
-func TestAProviderClockIsReadAsTheShopsOwn(t *testing.T) {
+func TestParseSecond(t *testing.T) {
 	t.Parallel()
 	got, err := shoptime.ParseSecond("2026-09-30 17:30:00")
 	if err != nil {
@@ -117,7 +118,8 @@ func TestAProviderClockIsReadAsTheShopsOwn(t *testing.T) {
 	}
 }
 
-func TestDateOfIsTheShopDayAndKnowsTheShopYear(t *testing.T) {
+// TestDateOf checks that DateOf is the shop day and knows the shop year.
+func TestDateOf(t *testing.T) {
 	t.Parallel()
 
 	utc := func(y int, m time.Month, d, h int) time.Time { return time.Date(y, m, d, h, 0, 0, 0, time.UTC) }
@@ -139,7 +141,10 @@ func TestDateOfIsTheShopDayAndKnowsTheShopYear(t *testing.T) {
 	}
 }
 
-func TestAFormMinuteIsReadAndWrittenOnTheShopsClock(t *testing.T) {
+// TestInputMinuteRoundTrip checks that a form minute is written by InputMinute
+// and read by ParseInputMinute on the shop's clock, and that a value a
+// datetime-local field does not post is refused.
+func TestInputMinuteRoundTrip(t *testing.T) {
 	instant := time.Date(2026, 9, 3, 20, 30, 0, 0, time.UTC)
 	field := shoptime.InputMinute(instant)
 	if field != "2026-09-04T04:30" {
@@ -156,7 +161,8 @@ func TestAFormMinuteIsReadAndWrittenOnTheShopsClock(t *testing.T) {
 	}
 }
 
-func TestMidnightIsTheStartOfTheShopDay(t *testing.T) {
+// TestMidnight checks that Midnight is the start of the shop day.
+func TestMidnight(t *testing.T) {
 	t.Parallel()
 
 	utc := func(y int, m time.Month, d, h, min int) time.Time { return time.Date(y, m, d, h, min, 0, 0, time.UTC) }
@@ -181,7 +187,8 @@ func TestMidnightIsTheStartOfTheShopDay(t *testing.T) {
 	}
 }
 
-func TestClockIsTheShopsTimeOfDay(t *testing.T) {
+// TestClock checks that Clock is the shop's time of day.
+func TestClock(t *testing.T) {
 	t.Parallel()
 
 	// 07:20 UTC is 15:20 in Taipei, whatever zone the value carries.
@@ -193,7 +200,8 @@ func TestClockIsTheShopsTimeOfDay(t *testing.T) {
 	}
 }
 
-func TestFirstDayAndQueryDateCountShopDays(t *testing.T) {
+// TestFirstDayQueryDate checks that FirstDay and QueryDate count shop days.
+func TestFirstDayQueryDate(t *testing.T) {
 	t.Parallel()
 
 	// 00:30 on the 10th in Taipei is still the 9th in UTC.
@@ -209,10 +217,10 @@ func TestFirstDayAndQueryDateCountShopDays(t *testing.T) {
 	}
 }
 
-// TestColumnDateReadsTheColumnsOwnDay: the date QueryDate writes reads back as
+// TestColumnDate: the date QueryDate writes reads back as
 // the same shop day, and a date column's day is never moved to the shop's zone,
 // even when the value arrives in a zone east of it.
-func TestColumnDateReadsTheColumnsOwnDay(t *testing.T) {
+func TestColumnDate(t *testing.T) {
 	t.Parallel()
 
 	// 00:30 on the 10th in Taipei is still the 9th in UTC.

@@ -6,9 +6,12 @@ import (
 	"unicode"
 )
 
+// TestMessagesZhHantPunctuation checks that Chinese messages write their
+// punctuation full-width.
+//
 // A mark between two ASCII characters is part of a token — 1,000, 09:00, 8:3,
 // a URL, a format verb — and stays as written.
-func TestChinesePunctuationIsFullWidth(t *testing.T) {
+func TestMessagesZhHantPunctuation(t *testing.T) {
 	if len(messages) == 0 {
 		t.Fatal("the catalogue is empty; this test would pass on nothing")
 	}
@@ -20,7 +23,9 @@ func TestChinesePunctuationIsFullWidth(t *testing.T) {
 	}
 }
 
-func TestChineseNeverUsesTheHonorificYou(t *testing.T) {
+// TestMessagesZhHantNoHonorific checks that no Chinese message uses the
+// honorific 您, since goen says 你.
+func TestMessagesZhHantNoHonorific(t *testing.T) {
 	for k, m := range messages {
 		if strings.Contains(m.ZhHant, "您") {
 			t.Errorf("%s says 您 where goen says 你: %q", k, m.ZhHant)
@@ -28,7 +33,9 @@ func TestChineseNeverUsesTheHonorificYou(t *testing.T) {
 	}
 }
 
-func TestChineseNeverUsesDoubleEmDashes(t *testing.T) {
+// TestMessagesZhHantNoDoubleDash checks that no Chinese message uses a double
+// em dash.
+func TestMessagesZhHantNoDoubleDash(t *testing.T) {
 	if len(messages) == 0 {
 		t.Fatal("the catalogue is empty; this test would pass on nothing")
 	}

@@ -11,7 +11,9 @@ import (
 // statusCheck is the list products_status_known admits.
 var statusCheck = regexp.MustCompile(`CONSTRAINT products_status_known CHECK \(status IN \(([^)]*)\)\)`)
 
-func TestStatusesAreTheSchemasStatuses(t *testing.T) {
+// TestStatusesMatchSchema checks that Statuses are the statuses the schema
+// admits.
+func TestStatusesMatchSchema(t *testing.T) {
 	t.Parallel()
 	schema, err := os.ReadFile(filepath.Join("..", "..", "migrations", "001_initial_schema.up.sql"))
 	if err != nil {

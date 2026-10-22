@@ -27,11 +27,12 @@ func TestMain(m *testing.M) {
 	os.Exit(code)
 }
 
-// TestASecondRefreshWhileOneRunsDoesNoWork: two processes overlapping across a
-// restart must not both rebuild the projection. The first call keeps its
-// transaction open, so it holds the advisory lock; the second returns -1 at once
-// and, once the first commits, a later call rebuilds as normal.
-func TestASecondRefreshWhileOneRunsDoesNoWork(t *testing.T) {
+// TestRefreshCopurchasesOverlap checks that a second refresh while one runs
+// does no work: two processes overlapping across a restart must not both
+// rebuild the projection. The first call keeps its transaction open, so it
+// holds the advisory lock; the second returns -1 at once and, once the first
+// commits, a later call rebuilds as normal.
+func TestRefreshCopurchasesOverlap(t *testing.T) {
 	ctx := t.Context()
 
 	tx, err := pool.Begin(ctx)

@@ -25,7 +25,10 @@ func ambientFormat(line string) bool {
 		len(providerUTC.FindAllStringIndex(line, -1))
 }
 
-func TestTheZoneRuleSeesWhatTheOldPatternMissed(t *testing.T) {
+// TestAmbientFormat checks that ambientFormat sees every .Format( call the old
+// pattern missed (a layout in a constant, a variable or a template expression)
+// and lets an explicit .UTC() through.
+func TestAmbientFormat(t *testing.T) {
 	t.Parallel()
 	for line, want := range map[string]bool{
 		`s := t.Format("2006-01-02 15:04")`:    true,
@@ -44,7 +47,8 @@ func TestTheZoneRuleSeesWhatTheOldPatternMissed(t *testing.T) {
 	}
 }
 
-// TestNoTimeIsRenderedInAnUnstatedZone derives its corpus from the tree.
+// TestNoAmbientFormat holds that no time is rendered in an unstated zone, and
+// derives its corpus from the tree.
 //
 // pgx hands back a timestamptz in the process's own zone, so `t.Format(...)`
 // renders in whatever TZ the host sets — Asia/Taipei on a developer's machine
@@ -63,7 +67,7 @@ func TestTheZoneRuleSeesWhatTheOldPatternMissed(t *testing.T) {
 // carries as a bare date parsed as midnight UTC. Those are written with an
 // explicit .UTC() and are recognised by shape rather than by an allowlist of
 // lines, so the exemption cannot go stale against a file that moved.
-func TestNoTimeIsRenderedInAnUnstatedZone(t *testing.T) {
+func TestNoAmbientFormat(t *testing.T) {
 	t.Parallel()
 
 	root := filepath.Join("..", "..")

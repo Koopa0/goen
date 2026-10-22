@@ -6,7 +6,9 @@ import (
 	"testing"
 )
 
-func TestShippingSurchargeRefusalUsesTheDeskTerm(t *testing.T) {
+// TestKeyFormShippingSurcharge checks that the shipping surcharge refusal uses
+// the desk's term, shows the amount and says how to clear the field.
+func TestKeyFormShippingSurcharge(t *testing.T) {
 	t.Parallel()
 	for _, tt := range []struct {
 		locale      Locale
@@ -28,7 +30,10 @@ func TestShippingSurchargeRefusalUsesTheDeskTerm(t *testing.T) {
 	}
 }
 
-func TestShippingRefusalFitsFormsAndRowButtons(t *testing.T) {
+// TestKeyAdminShipRefused checks that the shipping refusal fits both forms and
+// row buttons: it explains the rule and does not ask a row-button user to fill
+// in or submit again.
+func TestKeyAdminShipRefused(t *testing.T) {
 	t.Parallel()
 	for _, tt := range []struct {
 		locale      Locale
