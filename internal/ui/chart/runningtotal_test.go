@@ -101,9 +101,65 @@ func TestTickDaysLabelTheWeekMondaysOrMonthStarts(t *testing.T) {
 		{"a week labels each day between the ends", starting(7, 2026, 9, 7), []int{1, 2, 3, 4, 5}},
 		{"thirty days label the Mondays", starting(30, 2026, 9, 7), []int{7, 14, 21}},
 		{"ninety days label each month's first", starting(90, 2026, 7, 8), []int{24, 55}},
+		// 2026-10-22's report: Aug 1 is the 8th day, 7.8% in, 48px from "Jul 25" on a
+		// 616px plot, and the labels overlap.
+		{"ninety days leave a first too near the first day", starting(90, 2026, 7, 25), []int{38, 68}},
+		{"ninety days leave a first too near today", starting(90, 2026, 7, 10), []int{22, 53}},
+		{"thirty days leave a Monday too near the first day", starting(30, 2026, 9, 4), []int{10, 17, 24}},
 	} {
-		if got := tickDays(tc.days); !slices.Equal(got, tc.want) {
+		if got := tickDays(tc.days, endClear); !slices.Equal(got, tc.want) {
 			t.Errorf("%s: tickDays = %v, want %v", tc.name, got, tc.want)
+		}
+	}
+}
+
+// The labels of the window that failed measure 32.2px and 32.3px at the 12px
+// every text size keeps them to. Two read separately when the second begins 3px
+// after the first ends (the probe's rule), so a tick centred on its day is at
+// least that label, half of one and 3px from the label at either end of the axis.
+const (
+	measuredLabel = 32.3
+	readableApart = measuredLabel + measuredLabel/2 + 3
+)
+
+// Whatever day a window starts, no tick is nearer the first day's label or
+// "Today" than two labels need, on the narrowest plot that draws it: minorPlot
+// for a minor tick, narrowPlot for the one that stays on a narrow chart. The
+// start dates cover a year, so every day of a month is where a month's first or
+// a Monday falls near an end, and the date the suite runs on does not matter.
+func TestTicksStayReadableApartFromTheEndLabels(t *testing.T) {
+	t.Parallel()
+
+	ctx := i18n.WithLocale(t.Context(), i18n.En)
+	first := time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC)
+	for _, n := range []int{7, 30, 90} {
+		fewest := n
+		for start := range 365 {
+			buckets := make([]Bucket, n)
+			for i := range buckets {
+				buckets[i].Day = first.AddDate(0, 0, start+i)
+			}
+			ticks := ticksFor(ctx, buckets)
+			fewest = min(fewest, len(ticks)-2)
+			for _, tk := range ticks[1 : len(ticks)-1] {
+				x, err := strconv.ParseFloat(strings.TrimSuffix(tk.X, "%"), 64)
+				if err != nil {
+					t.Fatalf("tick X %q: %v", tk.X, err)
+				}
+				plot := float64(minorPlot)
+				if !tk.Minor {
+					plot = narrowPlot
+				}
+				if from, to := x/100*plot, (100-x)/100*plot; from < readableApart || to < readableApart {
+					t.Errorf("%d days from %s: %q is %.1fpx from the first day and %.1fpx from today on a %.0fpx plot, want %.1f or more",
+						n, buckets[0].Day.Format(time.DateOnly), tk.Label, from, to, plot, readableApart)
+				}
+			}
+		}
+		// Keeping apart must not strip the axis: a week keeps its five middle days,
+		// a month at least three Mondays, a quarter at least two months' firsts.
+		if want := map[int]int{7: 5, 30: 3, 90: 2}[n]; fewest < want {
+			t.Errorf("%d days: some window labels only %d days between the ends, want %d or more", n, fewest, want)
 		}
 	}
 }

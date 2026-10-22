@@ -236,7 +236,7 @@ func ticksFor(ctx context.Context, buckets []Bucket) []dayTick {
 	for i, b := range buckets {
 		days[i] = b.Day
 	}
-	picked := tickDays(days)
+	picked := tickDays(days, endClear)
 	nearest := -1
 	for _, i := range picked {
 		if nearest < 0 || abs(2*i-n) < abs(2*nearest-n) {
