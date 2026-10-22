@@ -12,7 +12,9 @@ import (
 	"github.com/koopa0/goen/internal/i18n"
 )
 
-func TestForgotConfirmationNamesOnlyTheMaskedSubmittedAddress(t *testing.T) {
+// TestHandler_ForgotPageMasked: ForgotPage names only the masked submitted
+// address (an unmasked or malformed one is not reflected) and sets no cookie.
+func TestHandler_ForgotPageMasked(t *testing.T) {
 	t.Parallel()
 	h := &Handler{log: slog.New(slog.DiscardHandler)}
 	for _, locale := range i18n.Locales() {
@@ -47,7 +49,10 @@ func TestForgotConfirmationNamesOnlyTheMaskedSubmittedAddress(t *testing.T) {
 	}
 }
 
-func TestEmailConfirmationNoticeKeepsTheSubmittedDestinationAndConditionalPromise(t *testing.T) {
+// TestNoticeEmailSent: Notice for a sent address change names the masked
+// destination it was given and otherwise promises only conditionally that the
+// link will arrive.
+func TestNoticeEmailSent(t *testing.T) {
 	t.Parallel()
 	for _, tt := range []struct{ address, want string }{
 		{address: "n***@example.com", want: "If n***@example.com can be used for your account, check that inbox for the confirmation link. It takes effect after you follow the link."},

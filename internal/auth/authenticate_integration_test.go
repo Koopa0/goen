@@ -10,7 +10,9 @@ import (
 	"github.com/koopa0/goen/internal/auth"
 )
 
-func TestPasswordIsNeverStoredInTheClear(t *testing.T) {
+// TestStore_RegisterHashesPassword: a registered account stores an Argon2id
+// hash that verifies the password and never the password itself.
+func TestStore_RegisterHashesPassword(t *testing.T) {
 	s := auth.NewStore(pool)
 	const pw = "a sufficiently long password"
 	u := register(t, s, "clear@example.com")
@@ -31,7 +33,10 @@ func TestPasswordIsNeverStoredInTheClear(t *testing.T) {
 	}
 }
 
-func TestAuthenticateDoesNotDistinguishUnknownFromWrong(t *testing.T) {
+// TestStore_AuthenticateBadCredentials: Authenticate answers a wrong password
+// and an unknown address with the same ErrBadCredentials, so the sign-in form
+// does not reveal which addresses have an account.
+func TestStore_AuthenticateBadCredentials(t *testing.T) {
 	s := auth.NewStore(pool)
 	register(t, s, "enum@example.com")
 
@@ -46,7 +51,10 @@ func TestAuthenticateDoesNotDistinguishUnknownFromWrong(t *testing.T) {
 	}
 }
 
-func TestAnOverLongPasswordIsAlwaysBadCredentials(t *testing.T) {
+// TestStore_AuthenticateOverlong: Authenticate answers a password over
+// MaxPasswordBytes with ErrBadCredentials for a registered and for an absent
+// address alike.
+func TestStore_AuthenticateOverlong(t *testing.T) {
 	s := auth.NewStore(pool)
 	register(t, s, "overlong-password@example.com")
 	password := strings.Repeat("a", auth.MaxPasswordBytes+1)
@@ -58,8 +66,10 @@ func TestAnOverLongPasswordIsAlwaysBadCredentials(t *testing.T) {
 	}
 }
 
-// The unique index is on lower(email).
-func TestAuthenticateIsCaseInsensitiveOnEmail(t *testing.T) {
+// TestStore_AuthenticateEmailCase: Authenticate matches the address
+// case-insensitively, and registering the same address in another case creates
+// no second account. The unique index is on lower(email).
+func TestStore_AuthenticateEmailCase(t *testing.T) {
 	s := auth.NewStore(pool)
 	registerProved(t, s, "Mixed@Example.com")
 

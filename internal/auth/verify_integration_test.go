@@ -13,7 +13,10 @@ import (
 	"github.com/koopa0/goen/internal/outbox"
 )
 
-func TestAnAddressIsProvedByFollowingTheLink(t *testing.T) {
+// TestStore_CompleteRegistrationProves: a freshly registered address reads as
+// unproved until its link is followed with the password chosen at registration,
+// and the link cannot be used twice (ErrVerifyInvalid).
+func TestStore_CompleteRegistrationProves(t *testing.T) {
 	ctx := t.Context()
 	s := auth.NewStore(pool)
 	u := register(t, s, "verify-"+uuid.NewString()+"@goen.invalid")
@@ -45,7 +48,9 @@ func TestAnAddressIsProvedByFollowingTheLink(t *testing.T) {
 	}
 }
 
-func TestAChangeTakesEffectOnlyWhenConfirmed(t *testing.T) {
+// TestStore_ConfirmVerificationChange: an address change stays pending, with
+// the account at its old address, until its link is confirmed.
+func TestStore_ConfirmVerificationChange(t *testing.T) {
 	ctx := t.Context()
 	s := auth.NewStore(pool)
 	old := "before-" + uuid.NewString() + "@goen.invalid"
@@ -73,10 +78,12 @@ func TestAChangeTakesEffectOnlyWhenConfirmed(t *testing.T) {
 	}
 }
 
-// TestChangingEmailInvalidatesResetLinksSentToTheOldMailbox protects the
-// account after mailbox ownership moves: a link already delivered to the old
-// address must not remain password authority for the new identity.
-func TestChangingEmailInvalidatesResetLinksSentToTheOldMailbox(t *testing.T) {
+// TestStore_ConfirmVerificationOldMailbox: confirming an address change
+// invalidates reset links sent to the old mailbox (ErrResetInvalid) and retains
+// no reset message for it, while the account's password keeps working. A link
+// already delivered to the old address must not remain password authority for
+// the new identity after mailbox ownership moves.
+func TestStore_ConfirmVerificationOldMailbox(t *testing.T) {
 	ctx := t.Context()
 	s := auth.NewStore(pool)
 	old := "old-reset-" + uuid.NewString() + "@goen.invalid"
@@ -107,9 +114,11 @@ func TestChangingEmailInvalidatesResetLinksSentToTheOldMailbox(t *testing.T) {
 	}
 }
 
-// users_email_key is the real guard: this requests first, then lets somebody
-// else take the address before the confirmation.
-func TestAChangeToATakenAddressIsRefused(t *testing.T) {
+// TestStore_ConfirmVerificationTaken: confirming a change to an address another
+// account took after the request is refused with ErrEmailTaken and the account
+// keeps its address. users_email_key is the real guard: the test requests
+// first, then lets somebody else take the address before the confirmation.
+func TestStore_ConfirmVerificationTaken(t *testing.T) {
 	ctx := t.Context()
 	s := auth.NewStore(pool)
 	mine := register(t, s, "mine-"+uuid.NewString()+"@goen.invalid")
@@ -126,7 +135,10 @@ func TestAChangeToATakenAddressIsRefused(t *testing.T) {
 	}
 }
 
-func TestAskingAgainLeavesOneLiveLink(t *testing.T) {
+// TestStore_RequestVerificationAgain: asking again for the same address leaves
+// one outstanding request and one queued message, the earlier link is refused
+// with ErrVerifyInvalid and the newest works.
+func TestStore_RequestVerificationAgain(t *testing.T) {
 	ctx := t.Context()
 	s := auth.NewStore(pool)
 	u := register(t, s, "again-"+uuid.NewString()+"@goen.invalid")
@@ -160,7 +172,9 @@ func TestAskingAgainLeavesOneLiveLink(t *testing.T) {
 	}
 }
 
-func TestAnExpiredVerificationIsRefused(t *testing.T) {
+// TestStore_ConfirmVerificationExpired: ConfirmVerification refuses an expired
+// link with ErrVerifyInvalid.
+func TestStore_ConfirmVerificationExpired(t *testing.T) {
 	ctx := t.Context()
 	s := auth.NewStore(pool)
 	u := register(t, s, "expired-"+uuid.NewString()+"@goen.invalid")
@@ -178,7 +192,9 @@ func TestAnExpiredVerificationIsRefused(t *testing.T) {
 	}
 }
 
-func TestRegisteringAsksForTheAddressToBeProved(t *testing.T) {
+// TestStore_RegisterQueuesVerification: Register queues exactly one
+// verification message for a new account.
+func TestStore_RegisterQueuesVerification(t *testing.T) {
 	ctx := t.Context()
 	s := auth.NewStore(pool)
 	addr := "asked-" + uuid.NewString() + "@goen.invalid"

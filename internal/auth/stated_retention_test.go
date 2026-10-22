@@ -9,9 +9,10 @@ import (
 	"github.com/koopa0/goen/internal/policy"
 )
 
-// The privacy policy states how long a sign-in lasts. Sessions are not renewed,
-// so the stated period is the lifetime CreateSession gives and the sweep ends.
-func TestThePrivacyPolicyStatesTheSessionLifetimeTheStoreGrants(t *testing.T) {
+// TestSessionTTL: the sign-in period the privacy policy states equals
+// SessionTTL, the lifetime the store grants and the sweep ends. Sessions are
+// not renewed.
+func TestSessionTTL(t *testing.T) {
 	t.Parallel()
 
 	days, err := strconv.Atoi(policy.SessionDaysText())
@@ -23,9 +24,10 @@ func TestThePrivacyPolicyStatesTheSessionLifetimeTheStoreGrants(t *testing.T) {
 	}
 }
 
-// The privacy policy states how long a browser is remembered after its last
-// sign-in, and how many an account keeps: the numbers sign-in writes.
-func TestThePrivacyPolicyStatesWhatSignInRemembers(t *testing.T) {
+// TestDeviceTTL: the privacy policy states DeviceTTL as how long a browser is
+// remembered after its last sign-in and DevicesPerAccount as how many an
+// account keeps: the numbers sign-in writes.
+func TestDeviceTTL(t *testing.T) {
 	t.Parallel()
 
 	days, err := strconv.Atoi(policy.KnownDeviceDaysText())

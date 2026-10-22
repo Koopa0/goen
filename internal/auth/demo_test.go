@@ -18,7 +18,10 @@ const (
 	demoPassword = "a password every visitor reads"
 )
 
-func TestADemoAccountIsBothSettingsOrNeither(t *testing.T) {
+// TestNewDemoAccount: NewDemoAccount treats no settings as no demo account,
+// refuses half a configuration with an error that says both are needed and does
+// not carry the password, and holds its own address in any case.
+func TestNewDemoAccount(t *testing.T) {
 	none, err := NewDemoAccount("", "")
 	if err != nil || none.Enabled() {
 		t.Fatalf("no settings = (%+v, %v), want no demo account and no error", none, err)
@@ -63,7 +66,10 @@ func demoHandler(t *testing.T) *Handler {
 	return h
 }
 
-func TestTheSignInPageShowsTheDemoAccountOnlyWhenOffered(t *testing.T) {
+// TestHandler_SignInPageDemoAccount: the sign-in page and a refused sign-in
+// print the demo account's address, password and notice, with the fill button
+// hidden until script reveals it, only when a demo account is offered.
+func TestHandler_SignInPageDemoAccount(t *testing.T) {
 	signInPage := func(h *Handler) string {
 		t.Helper()
 		res := httptest.NewRecorder()
@@ -96,11 +102,13 @@ func TestTheSignInPageShowsTheDemoAccountOnlyWhenOffered(t *testing.T) {
 	}
 }
 
-// TestTheDemoAccountIsRefusedEveryChangeThatWouldShutOutTheNextVisitor: every
-// visitor holds this account's password, so none may change how the next one
-// signs in, end the account, or send mail on its behalf. Each refusal comes
-// before the store is asked anything, which the dead store here would fail.
-func TestTheDemoAccountIsRefusedEveryChangeThatWouldShutOutTheNextVisitor(t *testing.T) {
+// TestHandler_DemoAccountRefusals: the handlers refuse the demo account every
+// change that would shut out the next visitor (address, resend, password,
+// erasure, reset link) and refuse no other account. Every visitor holds this
+// account's password, so none may change how the next one signs in, end the
+// account, or send mail on its behalf. Each refusal comes before the store is
+// asked anything, which the dead store here would fail.
+func TestHandler_DemoAccountRefusals(t *testing.T) {
 	h := demoHandler(t)
 	form := url.Values{
 		"current": {demoPassword}, "password": {"a new long password"}, "email": {"elsewhere@goen.example"},
@@ -139,10 +147,11 @@ func TestTheDemoAccountIsRefusedEveryChangeThatWouldShutOutTheNextVisitor(t *tes
 	}
 }
 
-// TestNoVisitorCanThrottleTheDemoAccountForEveryOther: its password is public,
-// so a bound per account protects nothing and a stream of wrong attempts would
-// turn every other visitor away. Any other address keeps its bound.
-func TestNoVisitorCanThrottleTheDemoAccountForEveryOther(t *testing.T) {
+// TestHandler_SignInDemoNotThrottled: SignIn does not throttle repeated wrong
+// attempts at the demo address, while any other address keeps its bound. The
+// demo password is public, so a bound per account protects nothing and a stream
+// of wrong attempts would turn every other visitor away.
+func TestHandler_SignInDemoNotThrottled(t *testing.T) {
 	h := demoHandler(t)
 	h.log = slog.New(slog.DiscardHandler)
 	// Too long to be anyone's password, so the store refuses it as a miss

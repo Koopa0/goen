@@ -90,11 +90,12 @@ func deviceRows(t *testing.T, userID string) int {
 	return n
 }
 
-// TestAKnownDeviceSignsInWhileTheCeilingIsEmpty is #1953's residual: a stranger
-// who keeps the account's ceiling empty refused the owner too. The owner's own
-// browser now signs in; the stranger, and any browser the account has never
-// seen, are still refused.
-func TestAKnownDeviceSignsInWhileTheCeilingIsEmpty(t *testing.T) {
+// TestHandler_SignInKnownDevice: the owner's remembered browser signs in with
+// the right password while a stranger holds the account's failure ceiling
+// empty, and a browser the account has never seen is still refused (429). This
+// is #1953's residual: a stranger who keeps the ceiling empty refused the owner
+// too.
+func TestHandler_SignInKnownDevice(t *testing.T) {
 	h, s := newDeviceHandler(t)
 	owner := registerProved(t, s, "known-device-"+uuid.NewString()+"@example.com")
 	device := signedInDevice(t, h, owner.Email)
@@ -109,9 +110,11 @@ func TestAKnownDeviceSignsInWhileTheCeilingIsEmpty(t *testing.T) {
 	}
 }
 
-// TestADeviceCookieCountsOnlyForItsAccount: a browser remembered for X spends
-// nobody else's budget, so presenting it with Y's address is a stranger's guess.
-func TestADeviceCookieCountsOnlyForItsAccount(t *testing.T) {
+// TestHandler_SignInDeviceOtherAccount: a device cookie remembered for one
+// account spends nobody else's budget: presented with another account's address
+// at that account's empty ceiling it is a stranger's guess and is refused
+// (429).
+func TestHandler_SignInDeviceOtherAccount(t *testing.T) {
 	h, s := newDeviceHandler(t)
 	x := registerProved(t, s, "device-x-"+uuid.NewString()+"@example.com")
 	y := registerProved(t, s, "device-y-"+uuid.NewString()+"@example.com")
@@ -124,11 +127,12 @@ func TestADeviceCookieCountsOnlyForItsAccount(t *testing.T) {
 	}
 }
 
-// TestAStolenDeviceCookieIsForgottenAfterItsMisses: the cookie authenticates
+// TestHandler_SignInDeviceMisses: once DeviceMisses wrong passwords are
+// recorded against a device cookie the account forgets that browser, so a
+// stolen cookie is a stranger's browser again. The cookie authenticates
 // nothing, and what it buys is counted in the database, so a restart does not
-// refill it. Once auth.DeviceMisses wrong passwords are recorded against it, it
-// is a stranger's browser.
-func TestAStolenDeviceCookieIsForgottenAfterItsMisses(t *testing.T) {
+// refill it.
+func TestHandler_SignInDeviceMisses(t *testing.T) {
 	h, s := newDeviceHandler(t)
 	owner := registerProved(t, s, "stolen-device-"+uuid.NewString()+"@example.com")
 	device := signedInDevice(t, h, owner.Email)
@@ -159,9 +163,10 @@ func TestAStolenDeviceCookieIsForgottenAfterItsMisses(t *testing.T) {
 	}
 }
 
-// TestADeviceCookieRotatesOnSignIn: each sign-in replaces the browser's row, so
-// a copy of an older cookie stops counting once its browser signs in again.
-func TestADeviceCookieRotatesOnSignIn(t *testing.T) {
+// TestHandler_SignInDeviceRotates: each sign-in replaces the browser's device
+// row and cookie, so a copy of an older cookie stops counting once its browser
+// signs in again.
+func TestHandler_SignInDeviceRotates(t *testing.T) {
 	h, s := newDeviceHandler(t)
 	owner := registerProved(t, s, "rotate-device-"+uuid.NewString()+"@example.com")
 	first := signedInDevice(t, h, owner.Email)
@@ -184,9 +189,9 @@ func TestADeviceCookieRotatesOnSignIn(t *testing.T) {
 	}
 }
 
-// TestAnAccountRemembersAtMostDevicesPerAccount: the oldest browser goes when
-// one more signs in.
-func TestAnAccountRemembersAtMostDevicesPerAccount(t *testing.T) {
+// TestHandler_SignInDeviceLimit: an account remembers at most DevicesPerAccount
+// browsers: the oldest goes when one more signs in.
+func TestHandler_SignInDeviceLimit(t *testing.T) {
 	h, s := newDeviceHandler(t)
 	owner := registerProved(t, s, "many-devices-"+uuid.NewString()+"@example.com")
 	oldest := signedInDevice(t, h, owner.Email)
@@ -207,10 +212,10 @@ func TestAnAccountRemembersAtMostDevicesPerAccount(t *testing.T) {
 	}
 }
 
-// TestAResetUnlocksANewDevice: a browser the account has never seen gets past a
-// held ceiling through the mailbox, and the reset forgets every browser the old
-// password vouched for.
-func TestAResetUnlocksANewDevice(t *testing.T) {
+// TestHandler_ResetDevice: a browser the account has never seen gets past a
+// held ceiling through a password reset by mail, and the reset forgets every
+// browser the old password vouched for.
+func TestHandler_ResetDevice(t *testing.T) {
 	h, s := newDeviceHandler(t)
 	owner := registerProved(t, s, "reset-device-"+uuid.NewString()+"@example.com")
 	before := signedInDevice(t, h, owner.Email)
@@ -238,10 +243,10 @@ func TestAResetUnlocksANewDevice(t *testing.T) {
 	}
 }
 
-// TestRevokingACredentialForgetsTheBrowsersItVouchedFor: a password change, a
-// sign-out of other devices and erasure each forget the account's browsers;
-// signing out of one keeps it.
-func TestRevokingACredentialForgetsTheBrowsersItVouchedFor(t *testing.T) {
+// TestHandler_RevokeForgetsDevices: a password change, a sign-out of other
+// devices and erasure each forget the account's remembered browsers (a sign-out
+// of other devices keeps this one), and signing out of one browser keeps it.
+func TestHandler_RevokeForgetsDevices(t *testing.T) {
 	t.Run("signing out keeps the browser", func(t *testing.T) {
 		h, s := newDeviceHandler(t)
 		owner := registerProved(t, s, "signout-device-"+uuid.NewString()+"@example.com")
@@ -311,9 +316,11 @@ func TestRevokingACredentialForgetsTheBrowsersItVouchedFor(t *testing.T) {
 	})
 }
 
-// TestTheSweepForgetsLapsedBrowsers: a browser that has not signed in for
-// auth.DeviceTTL is deleted by the session sweep, and a live one is kept.
-func TestTheSweepForgetsLapsedBrowsers(t *testing.T) {
+// TestStore_SweepSessionsDevices: SweepSessions deletes a remembered browser
+// that has not signed in for DeviceTTL and keeps a live one, and a remembered
+// browser lasts DeviceTTL after its sign-in, the period the privacy policy
+// states.
+func TestStore_SweepSessionsDevices(t *testing.T) {
 	h, s := newDeviceHandler(t)
 	owner := registerProved(t, s, "sweep-device-"+uuid.NewString()+"@example.com")
 	lapsed := signedInDevice(t, h, owner.Email)

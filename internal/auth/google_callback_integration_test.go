@@ -21,11 +21,11 @@ import (
 // google.SetHTTPClient, which exists in integration builds alone, so they live
 // here rather than beside the handler's unit tests.
 
-// TestARefusedCodeExchangeLogsOnlyItsStatusAndErrorCode drives a callback
-// whose code Google refuses, and reads what the handler logs. A refusal's body
-// is free text chosen by whoever answered, so only its status and its OAuth
-// error code may reach the log.
-func TestARefusedCodeExchangeLogsOnlyItsStatusAndErrorCode(t *testing.T) {
+// TestHandler_GoogleCallbackRefusalLog: GoogleCallback logs a refused code
+// exchange with its status and its OAuth error code only, never the refusal's
+// body or a malformed code. A refusal's body is free text chosen by whoever
+// answered.
+func TestHandler_GoogleCallbackRefusalLog(t *testing.T) {
 	const kept = "invalid_grant"
 	for name, tt := range map[string]struct {
 		body     string
@@ -98,10 +98,12 @@ type roundTrip func(*http.Request) (*http.Response, error)
 
 func (f roundTrip) RoundTrip(r *http.Request) (*http.Response, error) { return f(r) }
 
-// TestGoogleIsNeverLinkedToTheDemoAccount: a Google sign-in at an account's
-// address links Google to that account, and whoever holds a Google account at
-// the demo address would then sign in with Google alone.
-func TestGoogleIsNeverLinkedToTheDemoAccount(t *testing.T) {
+// TestHandler_GoogleCallbackDemo: a Google sign-in at the demo account's
+// address is not linked to it: the callback lands at /signin?oauth=demo with
+// the notice. A Google sign-in at an account's address links Google to that
+// account, and whoever held a Google account at the demo address would then
+// sign in with Google alone.
+func TestHandler_GoogleCallbackDemo(t *testing.T) {
 	g, err := google.New("client-id", "client-secret", "https://goen.example")
 	if err != nil {
 		t.Fatalf("google.New: %v", err)

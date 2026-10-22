@@ -29,7 +29,11 @@ func (c reportedCarts) RecoveryContents(context.Context, *http.Request) (beforeS
 
 func (reportedCarts) ForgetCart(http.ResponseWriter, *http.Request) {}
 
-func TestCartRecoveryPageListsWhatTheCartReports(t *testing.T) {
+// TestHandler_CartRecoveryPageLists: CartRecoveryPage renders what the cart
+// reports in two sections: the before-sign-in basket with its photo, srcset,
+// label and quantity, and the account basket with a placeholder, without mixing
+// their items.
+func TestHandler_CartRecoveryPageLists(t *testing.T) {
 	t.Parallel()
 	carts := reportedCarts{
 		beforeSignIn: []cartitem.Item{{

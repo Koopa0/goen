@@ -9,7 +9,10 @@ import (
 	"github.com/koopa0/goen/internal/ui/frame"
 )
 
-func TestSignInKeepsTheEmailRuleWithoutAttributingGoogleFailureToIt(t *testing.T) {
+// TestSignInEmailFieldGoogleError: the sign-in email field keeps its email rule
+// attributes, and a Google sign-in failure is not attributed to it (no
+// aria-invalid, no description link).
+func TestSignInEmailFieldGoogleError(t *testing.T) {
 	t.Parallel()
 	ctx := i18n.WithLocale(t.Context(), i18n.En)
 	body := renderComponent(t, ctx, SignIn(SignInMeta(ctx), AuthView{Errors: map[string]string{"oauth": "Google sign-in failed"}}))
@@ -24,10 +27,12 @@ func TestSignInKeepsTheEmailRuleWithoutAttributingGoogleFailureToIt(t *testing.T
 	}
 }
 
-// TestTheSentPageNamesTheAddressAndOffersAResendInsteadOfTheForm: after
-// registering, an empty form with no way to ask again strands whoever lost the
-// message; the registration form must not return under the confirmation.
-func TestTheSentPageNamesTheAddressAndOffersAResendInsteadOfTheForm(t *testing.T) {
+// TestRegisterSentPage: after registering, the page names the address and
+// offers a resend instead of the registration form, and a page without the sent
+// state still shows the form. An empty form with no way to ask again strands
+// whoever lost the message; the registration form must not return under the
+// confirmation.
+func TestRegisterSentPage(t *testing.T) {
 	t.Parallel()
 
 	sent := renderToString(t, Register(frame.Page{Title: "註冊"}, AuthView{
@@ -62,7 +67,9 @@ func TestTheSentPageNamesTheAddressAndOffersAResendInsteadOfTheForm(t *testing.T
 	}
 }
 
-func TestRegistrationResendOnlyOffersAddressCorrectionAfterSending(t *testing.T) {
+// TestRegisterResendCorrection: the resend page offers the address-correction
+// link only once a confirmation has been sent, in both locales.
+func TestRegisterResendCorrection(t *testing.T) {
 	t.Parallel()
 	for _, locale := range []i18n.Locale{i18n.ZhHant, i18n.En} {
 		t.Run(string(locale), func(t *testing.T) {
@@ -99,10 +106,11 @@ func TestRegistrationResendOnlyOffersAddressCorrectionAfterSending(t *testing.T)
 	}
 }
 
-// TestTheRegistrationLinkPageSaysWhyItAsksForAPassword: the password after the
-// mailed link is deliberate, and a person who just clicked the link reads the
-// request as a bug unless the page says so.
-func TestTheRegistrationLinkPageSaysWhyItAsksForAPassword(t *testing.T) {
+// TestRegisterCompleteWhy: the page opened from the mailed registration link
+// says why it asks for a password. The password after the mailed link is
+// deliberate, and a person who just clicked the link reads the request as a bug
+// unless the page says so.
+func TestRegisterCompleteWhy(t *testing.T) {
 	t.Parallel()
 
 	page := renderToString(t, RegisterComplete(frame.Page{Title: "完成註冊"}, RegisterCompleteView{Token: "t"}))

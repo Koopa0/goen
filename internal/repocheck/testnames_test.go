@@ -60,6 +60,8 @@ var migratedTestPackages = []string{
 	"internal/admin/tiers",
 	"internal/admin/twofactor",
 	"internal/admin/warranties",
+	"internal/auth",
+	"internal/auth/google",
 	"internal/backinstock",
 	"internal/bearer",
 	"internal/contact",
@@ -183,6 +185,14 @@ var testNameExceptions = map[string]map[string]string{
 	},
 	"internal/admin/twofactor": {
 		"TestRecordTOTPStepConcurrent": "its unit is the SQL statement RecordTOTPStep (a sqlc query, declared in internal/db), driven directly through db.Queries from concurrent goroutines; Store.Verify is only the final check that the spent step is refused, because staggered Verify calls would hide a guard missing from the SQL",
+	},
+	"internal/auth": {
+		"TestCartStore_AdoptClampsQuantity": "its unit is cart.Store.Adopt, declared in package cart and called directly; the test sits here only because it registers its accounts through this package's Store, and no identifier of package auth is its unit",
+		"TestCartStore_AdoptConcurrent":     "its unit is cart.Store.Adopt, declared in package cart and called directly from two accounts at once; the test sits here only because it registers its accounts through this package's Store, and no identifier of package auth is its unit",
+		"TestCartStore_AdoptForeignCart":    "its unit is cart.Store.Adopt, declared in package cart and called directly with a cart another account owns; the test sits here only because it registers its accounts through this package's Store, and no identifier of package auth is its unit",
+		"TestCartStore_AdoptInactive":       "its unit is cart.Store.Adopt, declared in package cart and called directly; the test sits here only because it registers its accounts through this package's Store, and no identifier of package auth is its unit",
+		"TestCartStore_AdoptMerges":         "its unit is cart.Store.Adopt, declared in package cart and called directly; the test sits here only because it registers its accounts through this package's Store, and no identifier of package auth is its unit",
+		"TestCartStore_AdoptUnavailable":    "its unit is cart.Store.Adopt, declared in package cart and called directly; the test sits here only because it registers its accounts through this package's Store, and no identifier of package auth is its unit",
 	},
 	"internal/backinstock": {
 		"TestSweepNotifiedStockNotificationsRetention": "the unit is the SQL function sweep_notified_stock_notifications, called straight through the maintenance pool with a zero and a negative retention; Store.Sweep is not what it exercises",

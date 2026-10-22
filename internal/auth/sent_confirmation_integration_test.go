@@ -17,7 +17,11 @@ import (
 	"github.com/koopa0/goen/internal/i18n"
 )
 
-func TestForgotConfirmationThroughPlainPostKeepsAccountExistencePrivate(t *testing.T) {
+// TestHandler_ForgotConfirmation: the forgot confirmation reached through a
+// plain POST names only the masked address, sets no cookie, shows the same mask
+// for a known and an unknown account and so does not reveal whether the address
+// has an account.
+func TestHandler_ForgotConfirmation(t *testing.T) {
 	for _, locale := range i18n.Locales() {
 		t.Run(locale.Tag(), func(t *testing.T) {
 			ctx := i18n.WithLocale(t.Context(), locale)
@@ -67,7 +71,11 @@ func TestForgotConfirmationThroughPlainPostKeepsAccountExistencePrivate(t *testi
 	}
 }
 
-func TestEmailChangeConfirmationNamesRequestedTargetBeforeItsWorkerRuns(t *testing.T) {
+// TestHandler_ChangeEmailConfirmation: the address-change confirmation names
+// the requested target, masked, before the outbox worker runs, shows the same
+// mask for a taken and a free target, and re-entry opens the existing change
+// form.
+func TestHandler_ChangeEmailConfirmation(t *testing.T) {
 	for _, locale := range i18n.Locales() {
 		t.Run(locale.Tag(), func(t *testing.T) {
 			ctx := i18n.WithLocale(t.Context(), locale)

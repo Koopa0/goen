@@ -17,7 +17,10 @@ import (
 	"github.com/koopa0/goen/internal/auth"
 )
 
-func TestPasswordConfirmationDoesNotRecordASignIn(t *testing.T) {
+// TestStore_ConfirmPasswordNoSignIn: ConfirmPassword, which re-checks the
+// current password of a signed-in account, records no sign-in: last_login_at
+// moves only when SignIn runs.
+func TestStore_ConfirmPasswordNoSignIn(t *testing.T) {
 	ctx := t.Context()
 	s := auth.NewStore(accountStorePool(t, "password-confirmation"))
 	u := registerProved(t, s, "confirm-password-"+uuid.NewString()+"@example.com")
@@ -45,7 +48,10 @@ func TestPasswordConfirmationDoesNotRecordASignIn(t *testing.T) {
 	}
 }
 
-func TestAccountPasswordConfirmationFormsDoNotRecordASignIn(t *testing.T) {
+// TestHandler_ChangeFormsNoSignIn: the password-change and email-change forms,
+// accepted or refused, confirm the current password without recording a
+// sign-in.
+func TestHandler_ChangeFormsNoSignIn(t *testing.T) {
 	tests := []struct {
 		name     string
 		path     string
@@ -95,7 +101,10 @@ func TestAccountPasswordConfirmationFormsDoNotRecordASignIn(t *testing.T) {
 	}
 }
 
-func TestConfirmPasswordKeepsTheCredentialRefusals(t *testing.T) {
+// TestStore_ConfirmPasswordRefusals: ConfirmPassword refuses with
+// ErrBadCredentials every credential Authenticate would refuse (a wrong
+// password, an unknown address, an account with no password).
+func TestStore_ConfirmPasswordRefusals(t *testing.T) {
 	ctx := t.Context()
 	s := auth.NewStore(accountStorePool(t, "confirmation-refusal"))
 	u := registerProved(t, s, "confirmation-refusal-"+uuid.NewString()+"@example.com")

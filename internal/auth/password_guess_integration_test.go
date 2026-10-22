@@ -42,11 +42,12 @@ func newGuessHandler(t *testing.T) (*auth.Handler, *auth.Store) {
 	return auth.NewHandler(s, nil, nil, slog.New(slog.DiscardHandler), false, nil), s
 }
 
-// TestAStrangersWrongPasswordsDoNotSpendTheOwnersSignIn is the audit's
-// reproduction (finding A1): six wrong passwords from one client, then the
-// right one from another. The account's budget used to be charged by the
-// attempt, so the owner got 429.
-func TestAStrangersWrongPasswordsDoNotSpendTheOwnersSignIn(t *testing.T) {
+// TestHandler_SignInStrangerMisses: six wrong passwords from one client hold
+// that client's network (and its /24) at 429 but do not spend the owner's
+// sign-in: the right password from another client still gets in. This is the
+// audit's reproduction (finding A1): the account's budget used to be charged by
+// the attempt, so the owner got 429.
+func TestHandler_SignInStrangerMisses(t *testing.T) {
 	h, s := newGuessHandler(t)
 	owner := registerProved(t, s, "owner-"+uuid.NewString()+"@example.com")
 
@@ -70,11 +71,12 @@ func TestAStrangersWrongPasswordsDoNotSpendTheOwnersSignIn(t *testing.T) {
 	}
 }
 
-// TestAGuessSpreadOverNetworksMeetsTheAccountCeiling: each network is within its
-// own budget, so the per-network throttle never fires; only the ceiling over
-// the account can stop this, and it must, without turning away the owner who
-// arrives before it is reached.
-func TestAGuessSpreadOverNetworksMeetsTheAccountCeiling(t *testing.T) {
+// TestHandler_SignInSpreadGuess: a guess spread over many networks meets the
+// per-account ceiling (429 even for the right password, since the ceiling is
+// reserved before the hash), while the owner who arrives before it is reached
+// gets in and right passwords are not charged. Each network is within its own
+// budget, so only the ceiling over the account can stop this.
+func TestHandler_SignInSpreadGuess(t *testing.T) {
 	t.Run("the owner within the ceiling gets in", func(t *testing.T) {
 		h, s := newGuessHandler(t)
 		owner := registerProved(t, s, "ceiling-in-"+uuid.NewString()+"@example.com")
@@ -122,10 +124,11 @@ func TestAGuessSpreadOverNetworksMeetsTheAccountCeiling(t *testing.T) {
 	})
 }
 
-// TestAStrangersWrongPasswordsDoNotSpendTheRegistrantsCompletion: completing a
-// registration shares the sign-in budgets, and the registrant who types the
-// password they chose must not be refused for a stranger's failures.
-func TestAStrangersWrongPasswordsDoNotSpendTheRegistrantsCompletion(t *testing.T) {
+// TestHandler_CompleteRegistrationMisses: completing a registration shares the
+// sign-in budgets: a stranger's wrong passwords hold their own network at 429
+// but do not refuse the registrant who types the password they chose from
+// another client.
+func TestHandler_CompleteRegistrationMisses(t *testing.T) {
 	h, s := newGuessHandler(t)
 	addr := "registrant-" + uuid.NewString() + "@example.com"
 	if err := s.Register(t.Context(), &auth.Credentials{

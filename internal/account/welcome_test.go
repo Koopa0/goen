@@ -8,9 +8,8 @@ import (
 	"github.com/koopa0/goen/internal/i18n"
 )
 
-// The account page's half of internal/auth's
-// TestRegistrationWelcomeKeepsTheOriginalActionAndCartRecovery, which keeps the
-// cart recovery page's.
+// The account page's half of internal/auth's TestCartRecoveryWelcome, which
+// keeps the cart recovery page's.
 func TestAccountWelcomeKeepsTheOriginalAction(t *testing.T) {
 	t.Parallel()
 	for _, locale := range i18n.Locales() {

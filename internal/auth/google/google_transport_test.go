@@ -38,12 +38,12 @@ func (s *googleStandIn) RoundTrip(r *http.Request) (*http.Response, error) {
 	}, nil
 }
 
-// TestGoogleSignInTalksOnlyToGoogleAndReadsBoundedReplies holds the OAuth
-// client's outbound half. Both requests go to Google's fixed endpoints and the
-// token request names the configured callback, whatever the callback's code
-// says; and a reply past the bound is refused, not read whole. Each padded
+// TestClient_ExchangeEndpointsBound: Exchange sends both requests to Google's
+// fixed endpoints only, names the configured callback as redirect_uri whatever
+// the callback's code says, and refuses a reply past the size bound instead of
+// reading it whole. This holds the OAuth client's outbound half; each padded
 // reply is otherwise valid, so only the bound can refuse it.
-func TestGoogleSignInTalksOnlyToGoogleAndReadsBoundedReplies(t *testing.T) {
+func TestClient_ExchangeEndpointsBound(t *testing.T) {
 	tests := []struct {
 		name       string
 		standIn    googleStandIn
@@ -86,10 +86,10 @@ func TestGoogleSignInTalksOnlyToGoogleAndReadsBoundedReplies(t *testing.T) {
 	}
 }
 
-// TestTheGoogleClientHasADeadlineAndVerifiesTLS holds the client that carries
-// the client secret: a finite timeout, and the default transport, whose
-// certificate verification is on.
-func TestTheGoogleClientHasADeadlineAndVerifiesTLS(t *testing.T) {
+// TestNewHTTPClient: the HTTP client New builds has a finite timeout and the
+// default transport, whose certificate verification is on. It is the client
+// that carries the client secret.
+func TestNewHTTPClient(t *testing.T) {
 	g, err := New("client-id", "client-secret", "https://goen.example")
 	if err != nil {
 		t.Fatalf("New: %v", err)

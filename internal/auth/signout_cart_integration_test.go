@@ -22,11 +22,12 @@ import (
 	"github.com/koopa0/goen/internal/order/access"
 )
 
-// TestAnAccountCartAnswersOnlyToItsAccount is the shared computer: A adopts a
-// guest cart by registering, signs out and leaves. The browser may still send
-// the cart token, because a client can ignore an expiry, so the token alone
-// must not reach A's cart for a signed-out visitor or for B signing in next.
-func TestAnAccountCartAnswersOnlyToItsAccount(t *testing.T) {
+// TestHandler_SignOutCart: after A signs out on a shared computer, the cart
+// token the browser may still send does not reach A's account cart for a
+// signed-out visitor or for B signing in next: B's /cart, checkout and add all
+// act on B's own cart. A client can ignore an expiry, so the token alone must
+// not reach the cart.
+func TestHandler_SignOutCart(t *testing.T) {
 	ctx := t.Context()
 	appPool := accountStorePool(t, "account-cart-owner")
 	carts := cart.NewHandler(cart.NewStore(appPool), access.NewStore(appPool, false), slog.New(slog.DiscardHandler), false,
@@ -181,11 +182,11 @@ func TestAnAccountCartAnswersOnlyToItsAccount(t *testing.T) {
 	})
 }
 
-// TestSignOutLeavesAGuestCartWithTheBrowser is sign-in that did not adopt the
-// browser's guest cart: the customer is signed in and shopping in a cart no
-// account owns. That cart is the browser's, and the cookie the only way back to
-// it, so sign-out leaves the cookie where it forgets an account's.
-func TestSignOutLeavesAGuestCartWithTheBrowser(t *testing.T) {
+// TestHandler_SignOutGuestCart: SignOut leaves the cart cookie of a guest cart
+// that no account owns with the browser, where it forgets an account's. This is
+// a sign-in that did not adopt the browser's guest cart: the customer is signed
+// in and shopping in a cart the browser alone can reach through the cookie.
+func TestHandler_SignOutGuestCart(t *testing.T) {
 	ctx := t.Context()
 	appPool := accountStorePool(t, "account-guest-cart-kept")
 	carts := cart.NewHandler(cart.NewStore(appPool), access.NewStore(appPool, false), slog.New(slog.DiscardHandler), false,

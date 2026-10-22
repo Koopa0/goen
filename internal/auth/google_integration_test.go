@@ -15,7 +15,10 @@ import (
 	"github.com/koopa0/goen/internal/user"
 )
 
-func TestGoogleSignInCreatesAnAccountWithNoPassword(t *testing.T) {
+// TestStore_SignInWithGoogleNew: SignInWithGoogle creates an account from a
+// verified identity with no password hash, records the address as proved, and a
+// sign-in with an empty password is refused with ErrBadCredentials.
+func TestStore_SignInWithGoogleNew(t *testing.T) {
 	ctx := t.Context()
 	s := auth.NewStore(pool)
 	email := "oauth-new-" + uuid.NewString()[:8] + "@example.com"
@@ -50,7 +53,10 @@ func TestGoogleSignInCreatesAnAccountWithNoPassword(t *testing.T) {
 	}
 }
 
-func TestGoogleSignInIsIdempotentOnTheSubject(t *testing.T) {
+// TestStore_SignInWithGoogleSubject: the same Google subject signs in to the
+// same account every time, even when the address Google reports has changed, so
+// a changed address does not strand the customer with their orders behind it.
+func TestStore_SignInWithGoogleSubject(t *testing.T) {
 	ctx := t.Context()
 	s := auth.NewStore(pool)
 	subject := "google-sub-" + uuid.NewString()[:8]
@@ -77,10 +83,12 @@ func TestGoogleSignInIsIdempotentOnTheSubject(t *testing.T) {
 	}
 }
 
-// TestConcurrentGoogleLinkingReturnsTheDurableExistingOwner makes both
-// callbacks reach the subject lock before either can choose an email account.
-// Whichever verified account wins is acceptable; returning both is not.
-func TestConcurrentGoogleLinkingReturnsTheDurableExistingOwner(t *testing.T) {
+// TestStore_SignInWithGoogleLinkRace: two concurrent callbacks for one Google
+// subject, each able to choose a different verified account at the address,
+// both return the durable subject owner and never two accounts. The test makes
+// both reach the subject lock before either can choose an email account;
+// whichever verified account wins is acceptable, returning both is not.
+func TestStore_SignInWithGoogleLinkRace(t *testing.T) {
 	ctx := t.Context()
 	suffix := uuid.NewString()[:8]
 	subject := "google-race-existing-" + suffix
@@ -156,9 +164,11 @@ func TestConcurrentGoogleLinkingReturnsTheDurableExistingOwner(t *testing.T) {
 	}
 }
 
-// TestConcurrentGoogleSignUpCreatesOnlyTheSubjectOwner covers the create path:
-// the losing callback must not commit and return a second, unlinked account.
-func TestConcurrentGoogleSignUpCreatesOnlyTheSubjectOwner(t *testing.T) {
+// TestStore_SignInWithGoogleSignUpRace: two concurrent first Google sign-ups
+// for one subject leave one account and one identity row and both return the
+// subject's owner. This is the create path: the losing callback must not commit
+// and return a second, unlinked account.
+func TestStore_SignInWithGoogleSignUpRace(t *testing.T) {
 	ctx := t.Context()
 	suffix := uuid.NewString()[:8]
 	subject := "google-race-new-" + suffix
@@ -234,7 +244,11 @@ func TestConcurrentGoogleSignUpCreatesOnlyTheSubjectOwner(t *testing.T) {
 	}
 }
 
-func TestGoogleWillNotLinkToAnUnverifiedAccount(t *testing.T) {
+// TestStore_SignInWithGoogleCollision: SignInWithGoogle refuses with
+// ErrOAuthCollision to link Google to an account whose address was never
+// proved, links no identity and creates no second account, so a registration of
+// someone else's address cannot capture their later Google sign-in.
+func TestStore_SignInWithGoogleCollision(t *testing.T) {
 	ctx := t.Context()
 	s := auth.NewStore(pool)
 	email := "oauth-collide-" + uuid.NewString()[:8] + "@example.com"
@@ -266,7 +280,10 @@ func TestGoogleWillNotLinkToAnUnverifiedAccount(t *testing.T) {
 	}
 }
 
-func TestGoogleLinksToAVerifiedAccount(t *testing.T) {
+// TestStore_SignInWithGoogleLinks: SignInWithGoogle links Google to the
+// existing account at a verified address, and the password keeps working:
+// linking adds a way in rather than replacing one.
+func TestStore_SignInWithGoogleLinks(t *testing.T) {
 	ctx := t.Context()
 	s := auth.NewStore(pool)
 	email := "oauth-verified-" + uuid.NewString()[:8] + "@example.com"
@@ -294,9 +311,11 @@ func TestGoogleLinksToAVerifiedAccount(t *testing.T) {
 	}
 }
 
-// email_verified is false for some Workspace configurations, where the domain
-// administrator controls what the address says.
-func TestGoogleRefusesAnAddressGoogleHasNotVerified(t *testing.T) {
+// TestStore_SignInWithGoogleUnverified: SignInWithGoogle refuses an identity
+// whose address Google has not verified with ErrOAuthUnverified and creates no
+// account. email_verified is false for some Workspace configurations, where the
+// domain administrator controls what the address says.
+func TestStore_SignInWithGoogleUnverified(t *testing.T) {
 	ctx := t.Context()
 	s := auth.NewStore(pool)
 	email := "oauth-unverified-" + uuid.NewString()[:8] + "@example.com"
@@ -318,7 +337,11 @@ func TestGoogleRefusesAnAddressGoogleHasNotVerified(t *testing.T) {
 	}
 }
 
-func TestUnlinkingTheOnlyWayInIsRefused(t *testing.T) {
+// TestStore_UnlinkGoogleLastMethod: UnlinkGoogle refuses with
+// ErrLastSignInMethod when Google is the account's only way in and leaves the
+// identity, and unlinks it once a password is set (the control: a function that
+// refused everything would pass the first half).
+func TestStore_UnlinkGoogleLastMethod(t *testing.T) {
 	ctx := t.Context()
 	s := auth.NewStore(pool)
 	email := "oauth-only-" + uuid.NewString()[:8] + "@example.com"

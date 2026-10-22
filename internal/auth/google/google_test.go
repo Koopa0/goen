@@ -7,7 +7,12 @@ import (
 	"testing"
 )
 
-func TestTheAuthorizationURLCarriesEverySecurityParameter(t *testing.T) {
+// TestClient_AuthorizeURL: AuthorizeURL sends the browser to
+// accounts.google.com over https with a state that matches the one the browser
+// is told to remember, an S256 PKCE challenge that is the SHA-256 of the
+// verifier, the registered callback and response_type=code (the implicit flow
+// would put a token in the URL).
+func TestClient_AuthorizeURL(t *testing.T) {
 	g, err := New("client-id", "client-secret", "https://goen.example")
 	if err != nil {
 		t.Fatalf("New: %v", err)
@@ -49,7 +54,9 @@ func TestTheAuthorizationURLCarriesEverySecurityParameter(t *testing.T) {
 	}
 }
 
-func TestTwoSignInsDoNotShareAState(t *testing.T) {
+// TestClient_AuthorizeURLUnique: every AuthorizeURL call returns its own state
+// and PKCE verifier, so two sign-ins share neither.
+func TestClient_AuthorizeURLUnique(t *testing.T) {
 	g, _ := New("client-id", "client-secret", "https://goen.example")
 	_, first, err := g.AuthorizeURL()
 	if err != nil {
@@ -67,7 +74,11 @@ func TestTwoSignInsDoNotShareAState(t *testing.T) {
 	}
 }
 
-func TestAnUnconfiguredClientOffersNothing(t *testing.T) {
+// TestNewUnconfigured: New accepts an empty configuration as a disabled client
+// that builds no authorisation URL, and refuses a client id without a secret or
+// a secret without a client id. Half a configuration would fail at the
+// exchange, after consent.
+func TestNewUnconfigured(t *testing.T) {
 	g, err := New("", "", "https://goen.example")
 	if err != nil {
 		t.Fatalf("an empty configuration must be legal: %v", err)
@@ -88,7 +99,9 @@ func TestAnUnconfiguredClientOffersNothing(t *testing.T) {
 	}
 }
 
-func TestGoogleRedirectUsesTheSiteOriginGrammar(t *testing.T) {
+// TestNewRedirectOrigin: New refuses a base URL that is not a site origin
+// (httpx://evil.example) and builds the callback from the canonical origin.
+func TestNewRedirectOrigin(t *testing.T) {
 	if _, err := New("client-id", "client-secret", "httpx://evil.example"); err == nil {
 		t.Fatal("New accepted an http-looking non-origin")
 	}
