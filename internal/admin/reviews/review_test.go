@@ -8,7 +8,7 @@ import (
 	"golang.org/x/net/html"
 
 	"github.com/koopa0/goen/internal/i18n"
-	"github.com/koopa0/goen/internal/ui/layouts"
+	"github.com/koopa0/goen/internal/ui/frame"
 )
 
 func TestReviewRowsShowNumericRatingsAndBackOfficeProducts(t *testing.T) {
@@ -19,7 +19,7 @@ func TestReviewRowsShowNumericRatingsAndBackOfficeProducts(t *testing.T) {
 			ctx := i18n.WithLocale(t.Context(), locale)
 			for rating := 1; rating <= 5; rating++ {
 				view := ReviewsView{Rows: []Review{{Slug: "screen", Product: "Screen", Rating: rating}}}
-				page := renderComponent(t, ctx, Reviews(layouts.Page{}, view))
+				page := renderComponent(t, ctx, Reviews(frame.Page{}, view))
 				doc, err := html.Parse(strings.NewReader(page))
 				if err != nil {
 					t.Fatal(err)
@@ -44,7 +44,7 @@ func TestReviewRowsShowNumericRatingsAndBackOfficeProducts(t *testing.T) {
 			if locale == i18n.ZhHant {
 				label = "只看 3 星以下"
 			}
-			page := renderComponent(t, ctx, Reviews(layouts.Page{}, ReviewsView{}))
+			page := renderComponent(t, ctx, Reviews(frame.Page{}, ReviewsView{}))
 			if !strings.Contains(page, label) || !strings.Contains(page, `href="/admin/reviews?rating=3"`) {
 				t.Error("reviews have no three-stars-and-below filter link")
 			}
@@ -60,7 +60,7 @@ func TestReviewFilterSelectionAndEmptyState(t *testing.T) {
 				t.Parallel()
 				ctx := i18n.WithLocale(t.Context(), locale)
 				view := ReviewsView{ThreeStarsAndBelow: filtered}
-				page := renderComponent(t, ctx, Reviews(layouts.Page{}, view))
+				page := renderComponent(t, ctx, Reviews(frame.Page{}, view))
 				doc, err := html.Parse(strings.NewReader(page))
 				if err != nil {
 					t.Fatal(err)

@@ -4,15 +4,15 @@ import (
 	"fmt"
 	"github.com/koopa0/goen/internal/i18n"
 	"github.com/koopa0/goen/internal/ui/chart"
-	"github.com/koopa0/goen/internal/ui/layouts"
+	"github.com/koopa0/goen/internal/ui/frame"
 	"github.com/koopa0/goen/internal/ui/tone"
 	"github.com/koopa0/goen/internal/ui/widget"
 )
 
 // The list leads with whether a campaign is running RIGHT NOW: a switched-on
 // campaign whose window has closed is off to a shopper and on in the list.
-templ Campaigns(p layouts.Page, v CampaignsView) {
-	@layouts.Admin(p, "campaigns") {
+templ Campaigns(p frame.Page, v CampaignsView) {
+	@frame.Admin(p, "campaigns") {
 		<div class="ui-page-head">
 			<div>
 				<p class="ui-page-head__eyebrow">{ i18n.T(ctx, i18n.KeyAdminEyebrow) }</p>
@@ -22,7 +22,7 @@ templ Campaigns(p layouts.Page, v CampaignsView) {
 				</p>
 			</div>
 		</div>
-		@layouts.Announce(v.Notice)
+		@frame.Announce(v.Notice)
 		if v.Empty() && !v.PastEnd {
 			<div class="goen-admin__empty">
 				<p class="goen-admin__emptytitle">{ i18n.T(ctx, i18n.KeyAdminCampEmpty) }</p>
@@ -199,8 +199,8 @@ templ Campaigns(p layouts.Page, v CampaignsView) {
 	}
 }
 
-templ CampaignForm(p layouts.Page, v CampaignView) {
-	@layouts.Admin(p, "campaigns") {
+templ CampaignForm(p frame.Page, v CampaignView) {
+	@frame.Admin(p, "campaigns") {
 		<div class="ui-page-head">
 			<div>
 				<p class="ui-page-head__eyebrow">
@@ -217,7 +217,7 @@ templ CampaignForm(p layouts.Page, v CampaignView) {
 				}
 			</form>
 		</div>
-		@layouts.Announce(v.Notice)
+		@frame.Announce(v.Notice)
 		if v.ResultsUnavailable {
 			@widget.Card(widget.CardProps{Class: "goen-admin__section"}) {
 				<h2 class="goen-admin__heading">{ i18n.T(ctx, i18n.KeyAdminCampResults) }</h2>

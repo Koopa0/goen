@@ -12,7 +12,7 @@ import (
 
 	"github.com/koopa0/goen/internal/admin/access"
 	"github.com/koopa0/goen/internal/i18n"
-	"github.com/koopa0/goen/internal/ui/layouts"
+	"github.com/koopa0/goen/internal/ui/frame"
 	"github.com/koopa0/goen/internal/user"
 	"github.com/koopa0/goen/internal/web/compress"
 	"github.com/koopa0/goen/internal/web/formtext"
@@ -87,7 +87,7 @@ func (h *Handler) Challenge(w http.ResponseWriter, r *http.Request) {
 		Notice:   notice,
 	}
 	respond.Component(w, r, h.log, http.StatusOK, TwoFactor(
-		layouts.Page{Title: i18n.T(r.Context(), i18n.KeyAdminPageTwoFactor)}, view))
+		frame.Page{Title: i18n.T(r.Context(), i18n.KeyAdminPageTwoFactor)}, view))
 }
 
 func (h *Handler) Verify(w http.ResponseWriter, r *http.Request) {
@@ -182,7 +182,7 @@ func (h *Handler) Enrol(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	respond.Component(w, r, h.log, http.StatusOK, TwoFactor(
-		layouts.Page{Title: i18n.T(r.Context(), i18n.KeyAdminPageTwoFactor)}, TwoFactorView{
+		frame.Page{Title: i18n.T(r.Context(), i18n.KeyAdminPageTwoFactor)}, TwoFactorView{
 			Enabled: true, Enrolling: true,
 			Secret: EncodeSecret(secret), URI: uri,
 			QRCode: "data:image/png;base64," + base64.StdEncoding.EncodeToString(code.PNG()),

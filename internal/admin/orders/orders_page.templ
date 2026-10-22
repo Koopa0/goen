@@ -6,21 +6,21 @@ import (
 	"github.com/koopa0/goen/internal/i18n"
 	"github.com/koopa0/goen/internal/order"
 	"github.com/koopa0/goen/internal/order/returns"
-	"github.com/koopa0/goen/internal/ui/layouts"
+	"github.com/koopa0/goen/internal/ui/frame"
 	"github.com/koopa0/goen/internal/ui/widget"
 )
 
 // The tabs are links and the selected one is marked with aria-current alone: a second
 // class saying the same thing is a second source of truth for which tab is on.
-templ Orders(p layouts.Page, v View) {
-	@layouts.Admin(p, "orders") {
+templ Orders(p frame.Page, v View) {
+	@frame.Admin(p, "orders") {
 		<div class="ui-page-head">
 			<div>
 				<p class="ui-page-head__eyebrow">{ i18n.T(ctx, i18n.KeyAdminEyebrow) }</p>
 				<h1 class="ui-page-head__title">{ i18n.T(ctx, i18n.KeyAdminQueueOrders) }</h1>
 			</div>
 		</div>
-		@layouts.Announce(v.Notice)
+		@frame.Announce(v.Notice)
 		<form class="goen-admin__search" method="get" action="/admin/orders">
 			<label class="goen-sr-only" for="order-search">{ i18n.T(ctx, i18n.KeyAdminQueueSearchLabel) }</label>
 			<input
@@ -115,8 +115,8 @@ templ Orders(p layouts.Page, v View) {
 // Each operation is one card with one form and one button: a column of forms sharing
 // a panel reads as one long form, and the staff member who means to dispatch presses
 // whatever button is nearest.
-templ Order(p layouts.Page, v *OrderView) {
-	@layouts.Admin(p, "orders") {
+templ Order(p frame.Page, v *OrderView) {
+	@frame.Admin(p, "orders") {
 		@widget.Breadcrumb(widget.BreadcrumbProps{
 			Label: i18n.T(ctx, i18n.KeyBreadcrumb),
 			Crumbs: []widget.Crumb{
@@ -141,7 +141,7 @@ templ Order(p layouts.Page, v *OrderView) {
 				}
 			</div>
 		</div>
-		@layouts.AnnounceOrder(v.Notice)
+		@frame.AnnounceOrder(v.Notice)
 		<div class="goen-admin__layout">
 			<div class="goen-admin__orderpanel">
 				@orderItemsAndDelivery(v)

@@ -7,7 +7,7 @@ import (
 
 	"github.com/koopa0/goen/internal/i18n"
 	"github.com/koopa0/goen/internal/keyset"
-	"github.com/koopa0/goen/internal/ui/layouts"
+	"github.com/koopa0/goen/internal/ui/frame"
 	"github.com/koopa0/goen/internal/ui/stockrisk"
 	"github.com/koopa0/goen/internal/ui/widget"
 )
@@ -66,8 +66,8 @@ func (v VariantsView) SoldOutHref() string {
 
 func (v VariantsView) Empty() bool { return len(v.Variants) == 0 }
 
-func VariantsMeta(ctx context.Context) layouts.Page {
-	return layouts.Page{Title: i18n.T(ctx, i18n.KeyAdminPageStockList)}
+func VariantsMeta(ctx context.Context) frame.Page {
+	return frame.Page{Title: i18n.T(ctx, i18n.KeyAdminPageStockList)}
 }
 
 func (v *Variant) PriceText() string { return strconv.FormatInt(v.PriceCents/100, 10) }
@@ -86,11 +86,11 @@ func (v *Variant) AdjustKey() string {
 	return "adj:" + v.SKU + ":" + v.FormID
 }
 
-func (v VariantsView) Refusals() []layouts.Refusal {
-	out := make([]layouts.Refusal, 0, len(v.Variants))
+func (v VariantsView) Refusals() []frame.Refusal {
+	out := make([]frame.Refusal, 0, len(v.Variants))
 	for i := range v.Variants {
 		row := &v.Variants[i]
-		out = append(out, layouts.SummarizeRefusal(i18n.KeyAdminRefusalStock, map[string]string{"delta": row.DeltaError}, layouts.RefusalField{Key: "delta", ID: "adj-" + row.SKU}))
+		out = append(out, frame.SummarizeRefusal(i18n.KeyAdminRefusalStock, map[string]string{"delta": row.DeltaError}, frame.RefusalField{Key: "delta", ID: "adj-" + row.SKU}))
 	}
 	return out
 }

@@ -1,0 +1,148 @@
+package frame
+
+import (
+	"fmt"
+
+	"github.com/koopa0/goen/internal/i18n"
+	"github.com/koopa0/goen/internal/ui/fieldrule"
+	"github.com/koopa0/goen/internal/ui/icons"
+	"github.com/koopa0/goen/internal/ui/widget"
+)
+
+templ Footer(state NewsletterState) {
+	<footer class="goen-footer">
+		<div class="goen-footer__grid">
+			<div class="goen-footer__brand">
+				<div class="goen-footer__brandline">
+					@icons.Mark("goen-footer__mark")
+					<span class="goen-footer__wordmark">goen</span>
+				</div>
+				<p class="goen-footer__contact">
+					{ i18n.T(ctx, i18n.KeySupportHours) }
+					<br/>
+					<a class="goen-footer__link" href={ templ.URL("mailto:" + ContactEmail) }>{ ContactEmail }</a>
+				</p>
+			</div>
+			if items := TopNavFrom(ctx); len(items) > 0 {
+				<nav class="goen-footer__links" aria-label={ i18n.T(ctx, i18n.KeyCategoryNav) }>
+					<span class="goen-footer__heading">{ i18n.T(ctx, i18n.KeyCategoryNav) }</span>
+					<ul class="goen-footer__list" role="list">
+						for _, n := range items {
+							<li>
+								<a class="goen-footer__link" href={ templ.URL(n.Href) }>{ n.Name }</a>
+							</li>
+						}
+					</ul>
+				</nav>
+			}
+			@footerColumn(i18n.T(ctx, i18n.KeyFooterHelp), footerHelp[:])
+			@footerColumn(i18n.T(ctx, i18n.KeyFooterAboutTerms), footerAbout[:])
+			<div class="goen-footer__news">
+				<span class="goen-footer__heading">{ i18n.T(ctx, i18n.KeyNewsletter) }</span>
+				<p class="goen-footer__newsnote">{ i18n.T(ctx, i18n.KeyNewsletterNote) }</p>
+				@NewsletterForm(state)
+			</div>
+		</div>
+		<div class="goen-footer__bottom">
+			<div class="goen-footer__bottominner">
+				<span class="goen-footer__copyright">© 2026 goen</span>
+				if i18n.FromContext(ctx) != i18n.Default {
+					<p class="goen-footer__contentnote">{ i18n.T(ctx, i18n.KeyContentNotice) }</p>
+				}
+				// i18n-exempt: a language's own name, shown in both locales on purpose.
+				@languageSwitch("", "繁體中文", "English")
+			</div>
+		</div>
+	</footer>
+}
+
+// The title is a span, not a heading: the footer sits after the page's own outline
+// and a heading would take a level the page has already spent.
+templ footerColumn(title string, links []footerLink) {
+	<nav class="goen-footer__links" aria-label={ title }>
+		<span class="goen-footer__heading">{ title }</span>
+		<ul class="goen-footer__list" role="list">
+			for _, l := range links {
+				<li>
+					<a class="goen-footer__link" href={ templ.URL(l.Href) }>{ l.Label(ctx) }</a>
+				</li>
+			}
+		</ul>
+	</nav>
+}
+
+type NewsletterState struct {
+	Email        string
+	FieldRefusal string
+	Notice       string
+	Done         bool
+}
+
+// The form swaps itself away on submit, and the button that had focus goes with it.
+// data-focus-after-swap hands focus to the confirmation, which also makes a screen
+// reader read it: a live region inserted already holding its text is not reliably
+// announced. A refusal brings in no such element, so htmx's own restore of
+// #newsletter-submit stands. The confirmation's own link names the field instead.
+templ NewsletterForm(s NewsletterState) {
+	<form
+		class="goen-footer__signup"
+		id="newsletter-form"
+		method="post"
+		action="/newsletter"
+		hx-post="/newsletter"
+		hx-target="this"
+		hx-swap="outerHTML"
+		if !s.Done {
+			data-focus-after-swap="newsletter-done"
+		}
+	>
+		if s.Done {
+			<p class="goen-footer__signup-done" id="newsletter-done" role="status" tabindex="-1">
+				if s.Email != "" {
+					{ fmt.Sprintf(i18n.T(ctx, i18n.KeyNewsletterSentTo), s.Email) }
+				} else {
+					{ i18n.T(ctx, i18n.KeyNewsletterInlineDone) }
+				}
+			</p>
+			<a
+				class="goen-footer__link"
+				href="/#newsletter-form"
+				hx-get="/"
+				hx-select="#newsletter-form"
+				hx-target="#newsletter-form"
+				hx-swap="outerHTML"
+				data-focus-after-swap="newsletter-email"
+			>{ i18n.T(ctx, i18n.KeyEmailReenter) }</a>
+		} else {
+			<label class="goen-label goen-footer__signuplabel" for="newsletter-email">{ i18n.T(ctx, i18n.KeyFieldEmail) }</label>
+			<div class="goen-footer__field">
+				@widget.Input(widget.FieldProps{
+					ID:        "newsletter-email",
+					Name:      "email",
+					Type:      "email",
+					Value:     s.Email,
+					Invalid:   s.FieldRefusal != "",
+					Describes: "newsletter-email-example newsletter-error",
+					Attrs: fieldrule.Email.Attrs(ctx, s.emailAttrs(templ.Attributes{
+						"required":     true,
+						"autocomplete": "email",
+						"maxlength":    "254",
+					}), fieldrule.Message(i18n.KeyEmailMalformed), fieldrule.ErrorID("newsletter-error")),
+				})
+				@widget.Button(widget.ButtonProps{ButtonStyle: widget.ButtonStyleGhost, Attrs: templ.Attributes{"id": "newsletter-submit"}}, "submit") {
+					{ i18n.T(ctx, i18n.KeyNewsletterSubmit) }
+					<span aria-hidden="true">→</span>
+				}
+			</div>
+			<p class="goen-footer__newsnote goen-footer__signup-example" id="newsletter-email-example">{ fmt.Sprintf(i18n.T(ctx, i18n.KeyFieldExample), "you@example.com") }</p>
+			if s.Notice != "" {
+				<p class="ui-error-text goen-footer__signup-error" id="newsletter-notice" role="alert">{ s.Notice }</p>
+			}
+			if s.FieldRefusal != "" {
+				<p class="ui-error-text goen-footer__signup-error" id="newsletter-error" role="alert">{ s.FieldRefusal }</p>
+			} else {
+				<p class="ui-error-text goen-footer__signup-error" id="newsletter-error" role="alert" hidden></p>
+			}
+		}
+	</form>
+}

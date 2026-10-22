@@ -4,16 +4,16 @@ import (
 	"fmt"
 
 	"github.com/koopa0/goen/internal/i18n"
+	"github.com/koopa0/goen/internal/ui/frame"
 	"github.com/koopa0/goen/internal/ui/icons"
-	"github.com/koopa0/goen/internal/ui/layouts"
 	"github.com/koopa0/goen/internal/ui/widget"
 )
 
 // The badge carries the rating, because nothing here waits for approval: a review is
 // published as it is written, so the row somebody is looking for is the angry one.
 // A hidden row is not dimmed: fading says "hidden" in a shade nobody has been told to read.
-templ Reviews(p layouts.Page, v ReviewsView) {
-	@layouts.Admin(p, "reviews") {
+templ Reviews(p frame.Page, v ReviewsView) {
+	@frame.Admin(p, "reviews") {
 		<div class="ui-page-head">
 			<div>
 				<p class="ui-page-head__eyebrow">{ i18n.T(ctx, i18n.KeyAdminEyebrow) }</p>
@@ -23,7 +23,7 @@ templ Reviews(p layouts.Page, v ReviewsView) {
 				</p>
 			</div>
 		</div>
-		@layouts.Announce(v.Notice)
+		@frame.Announce(v.Notice)
 		<div class="ui-filterbar goen-admin__tabs">
 			<a
 				class="ui-filter"

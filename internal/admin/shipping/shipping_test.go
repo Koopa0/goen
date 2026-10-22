@@ -13,7 +13,7 @@ import (
 	"golang.org/x/net/html"
 
 	"github.com/koopa0/goen/internal/i18n"
-	"github.com/koopa0/goen/internal/ui/layouts"
+	"github.com/koopa0/goen/internal/ui/frame"
 )
 
 func TestShippingStaleSurchargeKeepsTheDraftOnTheCurrentForm(t *testing.T) {
@@ -34,7 +34,7 @@ func TestShippingStaleSurchargeKeepsTheDraftOnTheCurrentForm(t *testing.T) {
 					SurchargeDraft: SurchargeDraft{MethodID: "one", ZoneID: "offshore", Amount: amount},
 				}
 				var out bytes.Buffer
-				if err := Shipping(layouts.Page{Title: "Shipping"}, view).Render(ctx, &out); err != nil {
+				if err := Shipping(frame.Page{Title: "Shipping"}, view).Render(ctx, &out); err != nil {
 					t.Fatal(err)
 				}
 				doc, err := html.Parse(strings.NewReader(out.String()))
@@ -101,7 +101,7 @@ func TestShippingPickupAvailabilityIsVisibleAtTheMethodHeading(t *testing.T) {
 					Name: "Method name", NameEn: "Method name", Destination: tt.destination, Active: true,
 					PickupUnavailable: tt.unavailable,
 				}}}
-				body := renderComponent(t, ctx, Shipping(layouts.Page{}, view))
+				body := renderComponent(t, ctx, Shipping(frame.Page{}, view))
 				doc, err := html.Parse(strings.NewReader(body))
 				if err != nil {
 					t.Fatal(err)
@@ -201,7 +201,7 @@ func TestShippingZonePrefixesHaveCompleteMultilineEditors(t *testing.T) {
 						view.Errors["prefixes"] = message
 					}
 				}
-				body := renderComponent(t, ctx, Shipping(layouts.Page{}, view))
+				body := renderComponent(t, ctx, Shipping(frame.Page{}, view))
 				forms := shippingPrefixControls(t, body)
 				if len(forms) != 3 {
 					t.Fatalf("prefix editors = %d, want two zones and the new-zone form", len(forms))
@@ -337,7 +337,7 @@ func TestShippingNamesAndCountsReadInTheReadersLanguage(t *testing.T) {
 			t.Parallel()
 			ctx := i18n.WithLocale(t.Context(), tt.locale)
 			var out bytes.Buffer
-			if err := Shipping(layouts.Page{Title: "Shipping"}, view).Render(ctx, &out); err != nil {
+			if err := Shipping(frame.Page{Title: "Shipping"}, view).Render(ctx, &out); err != nil {
 				t.Fatal(err)
 			}
 			page := out.String()

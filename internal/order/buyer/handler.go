@@ -18,7 +18,7 @@ import (
 	"github.com/koopa0/goen/internal/order/access"
 	"github.com/koopa0/goen/internal/order/returns"
 	"github.com/koopa0/goen/internal/payment"
-	"github.com/koopa0/goen/internal/ui/layouts"
+	"github.com/koopa0/goen/internal/ui/frame"
 	"github.com/koopa0/goen/internal/user"
 	"github.com/koopa0/goen/internal/web/formtext"
 	"github.com/koopa0/goen/internal/web/ratelimit"
@@ -124,7 +124,7 @@ func (h *Handler) FindOrder(w http.ResponseWriter, r *http.Request) {
 
 func (h *Handler) findOrderGrantFailed(w http.ResponseWriter, r *http.Request) {
 	respond.Component(w, r, h.log, http.StatusInternalServerError, FindOrderGrantFailed(
-		layouts.Page{Title: i18n.T(r.Context(), i18n.KeyFindOrderGrantFailedTitle)}))
+		frame.Page{Title: i18n.T(r.Context(), i18n.KeyFindOrderGrantFailedTitle)}))
 }
 
 func (h *Handler) rememberOrder(w http.ResponseWriter, r *http.Request, number string) error {
@@ -144,14 +144,14 @@ func (h *Handler) OrderPage(w http.ResponseWriter, r *http.Request) {
 		if respond.ReloadSameSite(w, r, h.log, payment.OrderReload) {
 			return
 		}
-		respond.Component(w, r, h.log, http.StatusNotFound, layouts.OrderNotFound(h.notFoundPage(r)))
+		respond.Component(w, r, h.log, http.StatusNotFound, frame.OrderNotFound(h.notFoundPage(r)))
 		return
 	}
 
 	view, err := h.store.Order(r.Context(), number)
 	if err != nil {
 		if errors.Is(err, ErrNotFound) {
-			respond.Component(w, r, h.log, http.StatusNotFound, layouts.Notice(
+			respond.Component(w, r, h.log, http.StatusNotFound, frame.Notice(
 				h.notFoundPage(r), "404", i18n.T(r.Context(), i18n.KeyOrderNotFound),
 				i18n.T(r.Context(), i18n.KeyOrderGone)))
 			return
@@ -226,12 +226,12 @@ func (h *Handler) CancelOrder(w http.ResponseWriter, r *http.Request) {
 		http.Redirect(w, r, "/orders/"+url.PathEscape(number)+"?cancelled=1", http.StatusSeeOther)
 	case errors.Is(err, ErrNotCancellable):
 		// 422, not a redirect: nothing was written.
-		respond.Component(w, r, h.log, http.StatusUnprocessableEntity, layouts.Notice(
-			layouts.Page{Title: i18n.T(r.Context(), i18n.KeyCancelRefusedTitle)}, "",
+		respond.Component(w, r, h.log, http.StatusUnprocessableEntity, frame.Notice(
+			frame.Page{Title: i18n.T(r.Context(), i18n.KeyCancelRefusedTitle)}, "",
 			i18n.T(r.Context(), i18n.KeyCancelRefusedTitle),
-			i18n.T(r.Context(), i18n.KeyCancelRefusedBody), layouts.NoticeActions{
-				Primary:   layouts.NoticeLink{Href: "/orders/" + url.PathEscape(number), Label: i18n.KeyBackToOrder},
-				Secondary: layouts.NoticeLink{Href: "/contact", Label: i18n.KeyContact},
+			i18n.T(r.Context(), i18n.KeyCancelRefusedBody), frame.NoticeActions{
+				Primary:   frame.NoticeLink{Href: "/orders/" + url.PathEscape(number), Label: i18n.KeyBackToOrder},
+				Secondary: frame.NoticeLink{Href: "/contact", Label: i18n.KeyContact},
 			}))
 	default:
 		h.log.ErrorContext(r.Context(), "cancel order", "error", err)
@@ -358,8 +358,8 @@ func (h *Handler) respondToOpen(
 		h.reject(w, r, o, draft, []formtext.FieldRefusal{{MessageKey: i18n.KeyReturnInvalid}})
 	default:
 		h.log.ErrorContext(r.Context(), "open return request", "order", o.Number, "error", err)
-		respond.Component(w, r, h.log, http.StatusInternalServerError, layouts.Notice(
-			layouts.Page{Title: i18n.T(r.Context(), i18n.KeyTryAgainTitle)}, "",
+		respond.Component(w, r, h.log, http.StatusInternalServerError, frame.Notice(
+			frame.Page{Title: i18n.T(r.Context(), i18n.KeyTryAgainTitle)}, "",
 			i18n.T(r.Context(), i18n.KeyTryAgainTitle),
 			i18n.T(r.Context(), i18n.KeyLoggedTryAgain)))
 	}
@@ -369,8 +369,8 @@ func (h *Handler) reject(w http.ResponseWriter, r *http.Request, o *ReturnOrder,
 	fresh, err := h.store.ReturnOrder(r.Context(), o.Number)
 	if err != nil {
 		h.log.ErrorContext(r.Context(), "refresh order after return refusal", "order", o.Number, "error", err)
-		respond.Component(w, r, h.log, http.StatusInternalServerError, layouts.Notice(
-			layouts.Page{Title: i18n.T(r.Context(), i18n.KeyTryAgainTitle)}, "",
+		respond.Component(w, r, h.log, http.StatusInternalServerError, frame.Notice(
+			frame.Page{Title: i18n.T(r.Context(), i18n.KeyTryAgainTitle)}, "",
 			i18n.T(r.Context(), i18n.KeyTryAgainTitle),
 			i18n.T(r.Context(), i18n.KeyLoggedTryAgain)))
 		return
@@ -394,8 +394,8 @@ func (h *Handler) ownOrder(w http.ResponseWriter, r *http.Request) (*ReturnOrder
 			return nil, false
 		}
 		h.log.ErrorContext(r.Context(), "read order for return", "order", number, "error", err)
-		respond.Component(w, r, h.log, http.StatusInternalServerError, layouts.Notice(
-			layouts.Page{Title: i18n.T(r.Context(), i18n.KeyTryAgainTitle)}, "",
+		respond.Component(w, r, h.log, http.StatusInternalServerError, frame.Notice(
+			frame.Page{Title: i18n.T(r.Context(), i18n.KeyTryAgainTitle)}, "",
 			i18n.T(r.Context(), i18n.KeyTryAgainTitle),
 			i18n.T(r.Context(), i18n.KeyLoggedTryAgain)))
 		return nil, false
@@ -412,19 +412,19 @@ func (h *Handler) allows(r *http.Request, number string) bool {
 }
 
 func (h *Handler) notFound(w http.ResponseWriter, r *http.Request) {
-	respond.Component(w, r, h.log, http.StatusNotFound, layouts.OrderNotFound(h.notFoundPage(r)))
+	respond.Component(w, r, h.log, http.StatusNotFound, frame.OrderNotFound(h.notFoundPage(r)))
 }
 
-func (h *Handler) notFoundPage(r *http.Request) layouts.Page {
-	return layouts.Page{Title: i18n.T(r.Context(), i18n.KeyOrderNotFound)}
+func (h *Handler) notFoundPage(r *http.Request) frame.Page {
+	return frame.Page{Title: i18n.T(r.Context(), i18n.KeyOrderNotFound)}
 }
 
 // tryAgain is the failure page the lookup, the order page and cancelling share
 // with the return form: the cause is in the log, and nothing on these pages is
 // the cart.
 func (h *Handler) tryAgain(w http.ResponseWriter, r *http.Request) {
-	respond.Component(w, r, h.log, http.StatusInternalServerError, layouts.Notice(
-		layouts.Page{Title: i18n.T(r.Context(), i18n.KeyTryAgainTitle)}, "",
+	respond.Component(w, r, h.log, http.StatusInternalServerError, frame.Notice(
+		frame.Page{Title: i18n.T(r.Context(), i18n.KeyTryAgainTitle)}, "",
 		i18n.T(r.Context(), i18n.KeyTryAgainTitle),
 		i18n.T(r.Context(), i18n.KeyLoggedTryAgain)))
 }

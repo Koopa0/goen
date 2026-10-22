@@ -2,11 +2,11 @@ package site
 
 import (
 	"github.com/koopa0/goen/internal/i18n"
-	"github.com/koopa0/goen/internal/ui/layouts"
+	"github.com/koopa0/goen/internal/ui/frame"
 )
 
-templ FAQ(p layouts.Page, v FAQView) {
-	@layouts.Base(p) {
+templ FAQ(p frame.Page, v FAQView) {
+	@frame.Base(p) {
 		<div class="goen-doc">
 			<div class="goen-pagehead goen-doc__head">
 				<p class="goen-pagehead__eyebrow">{ i18n.T(ctx, i18n.KeyPolicyHelp) }</p>

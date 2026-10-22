@@ -4,8 +4,8 @@ import (
 	"fmt"
 
 	"github.com/koopa0/goen/internal/i18n"
+	"github.com/koopa0/goen/internal/ui/frame"
 	"github.com/koopa0/goen/internal/ui/icons"
-	"github.com/koopa0/goen/internal/ui/layouts"
 	"github.com/koopa0/goen/internal/ui/widget"
 )
 
@@ -14,8 +14,8 @@ import (
 // Neither button is primary: a filled button on every row is a screen of them.
 // The list keeps the class the layout gate finds the page by
 // (scripts/check-layout.mjs); the divided list paints it.
-templ Questions(p layouts.Page, v QuestionsView) {
-	@layouts.Admin(p, "questions") {
+templ Questions(p frame.Page, v QuestionsView) {
+	@frame.Admin(p, "questions") {
 		<div class="ui-page-head">
 			<div>
 				<p class="ui-page-head__eyebrow">{ i18n.T(ctx, i18n.KeyAdminEyebrow) }</p>
@@ -31,7 +31,7 @@ templ Questions(p layouts.Page, v QuestionsView) {
 				{ v.OtherQueueLabel(ctx) }
 			}
 		</div>
-		@layouts.Announce(v.Notice)
+		@frame.Announce(v.Notice)
 		if v.Empty() {
 			<div class="goen-admin__empty">
 				<span class="goen-modqueue__emptyicon">

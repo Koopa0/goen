@@ -8,7 +8,7 @@ import (
 	"github.com/a-h/templ"
 
 	"github.com/koopa0/goen/internal/i18n"
-	"github.com/koopa0/goen/internal/ui/layouts"
+	"github.com/koopa0/goen/internal/ui/frame"
 )
 
 // TestWarrantyCopyWaitsForDelivery renders every customer-facing empty/refusal
@@ -42,10 +42,10 @@ func TestWarrantyCopyWaitsForDelivery(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			ctx := i18n.WithLocale(t.Context(), tt.locale)
 			list := renderWarrantyInLocale(t, ctx, WarrantyList(
-				layouts.Page{Title: "Warranty"}, WarrantyListView{},
+				frame.Page{Title: "Warranty"}, WarrantyListView{},
 			))
 			order := renderWarrantyInLocale(t, ctx, WarrantyOrder(
-				layouts.Page{Title: "Warranty"}, OrderView{
+				frame.Page{Title: "Warranty"}, OrderView{
 					Number:  "GOEN-TEST",
 					Refusal: i18n.T(ctx, i18n.KeyWarrantyRefused),
 					Lines: []Line{{
@@ -127,7 +127,7 @@ func TestWarrantyOrderEmptyHintMatchesWhy(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 			html := renderWarrantyInLocale(t, ctx, WarrantyOrder(
-				layouts.Page{Title: "Warranty"}, OrderView{
+				frame.Page{Title: "Warranty"}, OrderView{
 					Number: "GOEN-TEST",
 					Lines:  tt.lines,
 				},
@@ -150,7 +150,7 @@ func TestWarrantyOrderAllRegisteredHasNoFuturePromise(t *testing.T) {
 	t.Parallel()
 	ctx := i18n.WithLocale(t.Context(), i18n.En)
 	html := renderWarrantyInLocale(t, ctx, WarrantyOrder(
-		layouts.Page{Title: "Warranty"}, OrderView{
+		frame.Page{Title: "Warranty"}, OrderView{
 			Number: "GOEN-TEST",
 			Lines: []Line{{
 				ID: "line-1", Name: "Item", Months: 12, HasTerm: true,

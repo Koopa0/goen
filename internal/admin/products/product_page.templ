@@ -5,14 +5,14 @@ import (
 
 	"github.com/koopa0/goen/internal/i18n"
 	"github.com/koopa0/goen/internal/product"
-	"github.com/koopa0/goen/internal/ui/layouts"
+	"github.com/koopa0/goen/internal/ui/frame"
 	"github.com/koopa0/goen/internal/ui/widget"
 )
 
 // A table rather than a list of blocks: what a staff member opens this page to do is
 // find one row among a hundred.
-templ Products(p layouts.Page, v ProductsView) {
-	@layouts.Admin(p, "products") {
+templ Products(p frame.Page, v ProductsView) {
+	@frame.Admin(p, "products") {
 		<div class="ui-page-head">
 			<div>
 				<p class="ui-page-head__eyebrow">{ i18n.T(ctx, i18n.KeyAdminEyebrow) }</p>
@@ -26,7 +26,7 @@ templ Products(p layouts.Page, v ProductsView) {
 				{ i18n.T(ctx, i18n.KeyAdminPageNewProduct) }
 			}
 		</div>
-		@layouts.Announce(v.Notice)
+		@frame.Announce(v.Notice)
 		if v.Empty() && !v.PastEnd {
 			<div class="goen-admin__empty">
 				<p class="goen-admin__emptytitle">{ i18n.T(ctx, i18n.KeyAdminProdEmpty) }</p>
@@ -89,8 +89,8 @@ templ Products(p layouts.Page, v ProductsView) {
 
 // One card per job, because they are done at different times and a single column of
 // forty fields hides which one you are in.
-templ ProductForm(p layouts.Page, v ProductView) {
-	@layouts.Admin(p, "products") {
+templ ProductForm(p frame.Page, v ProductView) {
+	@frame.Admin(p, "products") {
 		<div class="ui-page-head">
 			<div>
 				<p class="ui-page-head__eyebrow">
@@ -107,12 +107,12 @@ templ ProductForm(p layouts.Page, v ProductView) {
 				</div>
 			}
 		</div>
-		@layouts.Announce(v.Notice)
-		@layouts.RefusalSummary(layouts.SummarizeRefusal(i18n.KeyAdminProdBasics, v.Errors, layouts.RefusalField{Key: "name", ID: "p-name"}, layouts.RefusalField{Key: "slug", ID: "p-slug"}, layouts.RefusalField{Key: "brand", ID: "p-brand"}, layouts.RefusalField{Key: "category", ID: "p-category"}, layouts.RefusalField{Key: "summary", ID: "p-summary"}, layouts.RefusalField{Key: "description", ID: "p-description"}, layouts.RefusalField{Key: "name_en", ID: "p-name-en"}, layouts.RefusalField{Key: "summary_en", ID: "p-summary-en"}, layouts.RefusalField{Key: "description_en", ID: "p-description-en"}, layouts.RefusalField{Key: "warranty_months", ID: "p-warranty-months"}))
-		@layouts.RefusalSummary(v.VariantRefusal())
-		@layouts.RefusalSummary(layouts.SummarizeRefusal(i18n.KeyAdminProdOptionAdd, v.Errors, layouts.RefusalField{Key: "option", ID: "opt-name"}, layouts.RefusalField{Key: "option_en", ID: "opt-name-en"}))
-		@layouts.RefusalSummary(layouts.SummarizeRefusal(i18n.KeyAdminProdValueAdd, v.Errors, layouts.RefusalField{Key: "value", ID: "optval-value"}, layouts.RefusalField{Key: "value_en", ID: "optval-value-en"}, layouts.RefusalField{Key: "swatch_hex", ID: "optval-swatch"}))
-		@layouts.RefusalSummary(layouts.SummarizeRefusal(i18n.KeyAdminProdSpecs, v.Errors, layouts.RefusalField{Key: "spec_label", ID: "spec-label"}, layouts.RefusalField{Key: "spec_value", ID: "spec-value"}, layouts.RefusalField{Key: "spec_label_en", ID: "spec-label-en"}, layouts.RefusalField{Key: "spec_value_en", ID: "spec-value-en"}))
+		@frame.Announce(v.Notice)
+		@frame.RefusalSummary(frame.SummarizeRefusal(i18n.KeyAdminProdBasics, v.Errors, frame.RefusalField{Key: "name", ID: "p-name"}, frame.RefusalField{Key: "slug", ID: "p-slug"}, frame.RefusalField{Key: "brand", ID: "p-brand"}, frame.RefusalField{Key: "category", ID: "p-category"}, frame.RefusalField{Key: "summary", ID: "p-summary"}, frame.RefusalField{Key: "description", ID: "p-description"}, frame.RefusalField{Key: "name_en", ID: "p-name-en"}, frame.RefusalField{Key: "summary_en", ID: "p-summary-en"}, frame.RefusalField{Key: "description_en", ID: "p-description-en"}, frame.RefusalField{Key: "warranty_months", ID: "p-warranty-months"}))
+		@frame.RefusalSummary(v.VariantRefusal())
+		@frame.RefusalSummary(frame.SummarizeRefusal(i18n.KeyAdminProdOptionAdd, v.Errors, frame.RefusalField{Key: "option", ID: "opt-name"}, frame.RefusalField{Key: "option_en", ID: "opt-name-en"}))
+		@frame.RefusalSummary(frame.SummarizeRefusal(i18n.KeyAdminProdValueAdd, v.Errors, frame.RefusalField{Key: "value", ID: "optval-value"}, frame.RefusalField{Key: "value_en", ID: "optval-value-en"}, frame.RefusalField{Key: "swatch_hex", ID: "optval-swatch"}))
+		@frame.RefusalSummary(frame.SummarizeRefusal(i18n.KeyAdminProdSpecs, v.Errors, frame.RefusalField{Key: "spec_label", ID: "spec-label"}, frame.RefusalField{Key: "spec_value", ID: "spec-value"}, frame.RefusalField{Key: "spec_label_en", ID: "spec-label-en"}, frame.RefusalField{Key: "spec_value_en", ID: "spec-value-en"}))
 		if !v.IsNew {
 			<nav class="goen-admin__sectionnav" aria-label={ i18n.T(ctx, i18n.KeyAdminProdSectionNav) }>
 				<a href="#sec-details">{ i18n.T(ctx, i18n.KeyAdminProdBasics) }</a>

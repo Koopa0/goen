@@ -26,7 +26,7 @@ import (
 	"github.com/koopa0/goen/internal/db/dbtest"
 	"github.com/koopa0/goen/internal/i18n"
 	"github.com/koopa0/goen/internal/loyalty"
-	"github.com/koopa0/goen/internal/ui/layouts"
+	"github.com/koopa0/goen/internal/ui/frame"
 	"github.com/koopa0/goen/internal/user"
 )
 
@@ -545,7 +545,7 @@ func TestAZeroClawbackSurvivesHistoryToRenderedHTML(t *testing.T) {
 		t.Run(tc.locale.Tag(), func(t *testing.T) {
 			localized := i18n.WithLocale(ctx, tc.locale)
 			var rendered bytes.Buffer
-			if err := loyalty.Points(layouts.Page{}, view).Render(localized, &rendered); err != nil {
+			if err := loyalty.Points(frame.Page{}, view).Render(localized, &rendered); err != nil {
 				t.Fatalf("render history: %v", err)
 			}
 			if !strings.Contains(rendered.String(), tc.want) {

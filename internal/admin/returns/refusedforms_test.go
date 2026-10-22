@@ -5,7 +5,7 @@ import (
 	"testing"
 
 	"github.com/koopa0/goen/internal/i18n"
-	"github.com/koopa0/goen/internal/ui/layouts"
+	"github.com/koopa0/goen/internal/ui/frame"
 )
 
 // TestARefusedInspectionKeepsWhatWasTyped holds that a refusal re-renders the
@@ -23,7 +23,7 @@ func TestARefusedInspectionKeepsWhatWasTyped(t *testing.T) {
 		}},
 		Errors: map[string]string{"r1.inspect": "數量填寫有問題"},
 	}
-	html := renderComponent(t, ctx, Returns(layouts.Page{}, view))
+	html := renderComponent(t, ctx, Returns(frame.Page{}, view))
 
 	for _, want := range []string{
 		`name="restocked_l1" value="3"`, `value="外盒破損"`, `aria-invalid="true"`,

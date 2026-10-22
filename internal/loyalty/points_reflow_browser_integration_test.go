@@ -10,7 +10,7 @@ import (
 	"testing"
 
 	"github.com/koopa0/goen/internal/i18n"
-	"github.com/koopa0/goen/internal/ui/layouts"
+	"github.com/koopa0/goen/internal/ui/frame"
 	"github.com/koopa0/goen/internal/ui/uitest"
 )
 
@@ -21,7 +21,7 @@ func TestPointsRedemptionButtonReflowsAtDoubleText(t *testing.T) {
 		var rendered bytes.Buffer
 		view := PointsView{Redeemable: 200, Minimum: 100, PerCredit: 10}
 		ctx := i18n.WithLocale(t.Context(), locale)
-		if renderErr := Points(layouts.Page{}, view).Render(ctx, &rendered); renderErr != nil {
+		if renderErr := Points(frame.Page{}, view).Render(ctx, &rendered); renderErr != nil {
 			t.Fatal(renderErr)
 		}
 		fixtures[locale.Tag()] = rendered.String()

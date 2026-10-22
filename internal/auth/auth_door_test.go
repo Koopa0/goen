@@ -5,7 +5,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/koopa0/goen/internal/ui/layouts"
+	"github.com/koopa0/goen/internal/ui/frame"
 )
 
 var authPhoto = regexp.MustCompile(`<img[^>]*department-books-stationery[^>]*alt=""`)
@@ -15,7 +15,7 @@ var authPhoto = regexp.MustCompile(`<img[^>]*department-books-stationery[^>]*alt
 // photo (a re-sign-in, forgot) stay a single column.
 func TestSignInAndRegisterOpenWithAPhotoAfterTheForm(t *testing.T) {
 	t.Parallel()
-	page := layouts.Page{Title: "x"}
+	page := frame.Page{Title: "x"}
 	tests := []struct {
 		name  string
 		body  string
@@ -56,7 +56,7 @@ func TestSignInAndRegisterOpenWithAPhotoAfterTheForm(t *testing.T) {
 
 func TestTheForgotLinkFollowsThePasswordField(t *testing.T) {
 	t.Parallel()
-	body := renderToString(t, SignIn(layouts.Page{Title: "x"}, AuthView{}))
+	body := renderToString(t, SignIn(frame.Page{Title: "x"}, AuthView{}))
 	field := strings.Index(body, `id="password"`)
 	link := strings.Index(body, `href="/forgot"`)
 	if field < 0 || link < field {
@@ -66,7 +66,7 @@ func TestTheForgotLinkFollowsThePasswordField(t *testing.T) {
 
 func TestTheDemoAccountTakesTheFocusOffTheEmailField(t *testing.T) {
 	t.Parallel()
-	page := layouts.Page{Title: "x"}
+	page := frame.Page{Title: "x"}
 	focus := func(v AuthView) bool {
 		body := renderToString(t, SignIn(page, v))
 		id := strings.Index(body, `id="email"`)
@@ -90,7 +90,7 @@ func TestTheDemoAccountTakesTheFocusOffTheEmailField(t *testing.T) {
 
 func TestTheReturnSentenceIsALede(t *testing.T) {
 	t.Parallel()
-	body := renderToString(t, SignIn(layouts.Page{Title: "x"}, AuthView{ReturnMessage: "Sign in to go back to your cart."}))
+	body := renderToString(t, SignIn(frame.Page{Title: "x"}, AuthView{ReturnMessage: "Sign in to go back to your cart."}))
 	if !strings.Contains(body, `<p class="goen-auth__lede">Sign in to go back to your cart.</p>`) {
 		t.Error("the return sentence is not in an element with class goen-auth__lede")
 	}

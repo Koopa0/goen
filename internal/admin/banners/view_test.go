@@ -4,7 +4,7 @@ import (
 	"testing"
 
 	"github.com/koopa0/goen/internal/i18n"
-	"github.com/koopa0/goen/internal/ui/layouts"
+	"github.com/koopa0/goen/internal/ui/frame"
 	"github.com/koopa0/goen/internal/ui/uitest"
 )
 
@@ -17,7 +17,7 @@ func TestARefusedBannerNamesItsFormAndLinksToTheFirstInvalidControl(t *testing.T
 			t.Parallel()
 			ctx := i18n.WithLocale(t.Context(), locale)
 			bad := i18n.T(ctx, i18n.KeyAdminNoticeRefused)
-			body := renderComponent(t, ctx, Banners(layouts.Page{}, &BannersView{Errors: map[string]string{"message_en": bad, "cta": bad}}))
+			body := renderComponent(t, ctx, Banners(frame.Page{}, &BannersView{Errors: map[string]string{"message_en": bad, "cta": bad}}))
 			uitest.AssertRefusalSummary(t, body, uitest.RefusedForm{
 				Action: "/admin/banners#new-banner", Target: "new-banner", First: "b-message-en",
 				Title: i18n.T(ctx, i18n.KeyAdminRefusalBanner), Count: 2,

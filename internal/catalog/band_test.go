@@ -5,7 +5,7 @@ import (
 	"testing"
 
 	"github.com/koopa0/goen/internal/i18n"
-	"github.com/koopa0/goen/internal/ui/layouts"
+	"github.com/koopa0/goen/internal/ui/frame"
 	"github.com/koopa0/goen/internal/ui/tile"
 	"github.com/koopa0/goen/internal/ui/tone"
 	"github.com/koopa0/goen/internal/ui/widget"
@@ -57,11 +57,11 @@ func TestADepartmentHeadWithNoPhotographAndNoProductDrawsNone(t *testing.T) {
 	t.Parallel()
 	ctx := i18n.WithLocale(t.Context(), i18n.En)
 
-	page := renderComponent(t, ctx, Listing(layouts.Page{}, ListingView{Slug: "c", Name: "Books", Theme: &Theme{Tone: tone.Blush}}, nil, nil))
+	page := renderComponent(t, ctx, Listing(frame.Page{}, ListingView{Slug: "c", Name: "Books", Theme: &Theme{Tone: tone.Blush}}, nil, nil))
 	if strings.Contains(page, "goen-pagehead__photo") {
 		t.Error("a head with neither a department nor a product photograph drew an image")
 	}
-	withProduct := renderComponent(t, ctx, Listing(layouts.Page{}, ListingView{Slug: "c", Name: "Books", Products: []tile.Tile{{Slug: "p", Name: "P", ImageURL: "/p.webp"}}}, nil, nil))
+	withProduct := renderComponent(t, ctx, Listing(frame.Page{}, ListingView{Slug: "c", Name: "Books", Products: []tile.Tile{{Slug: "p", Name: "P", ImageURL: "/p.webp"}}}, nil, nil))
 	if !strings.Contains(withProduct, `class="goen-band__media goen-band__media--well"`) {
 		t.Error("a head with no department photograph did not take its first product's, on the well")
 	}
@@ -71,7 +71,7 @@ func TestTheDepartmentHeadIsTheBand(t *testing.T) {
 	t.Parallel()
 	ctx := i18n.WithLocale(t.Context(), i18n.En)
 
-	page := renderComponent(t, ctx, Listing(layouts.Page{}, ListingView{Slug: "c", Name: "Books", Theme: &Theme{Tone: tone.Sage, Photo: widget.Photo{URL: "/d.webp"}}}, nil, nil))
+	page := renderComponent(t, ctx, Listing(frame.Page{}, ListingView{Slug: "c", Name: "Books", Theme: &Theme{Tone: tone.Sage, Photo: widget.Photo{URL: "/d.webp"}}}, nil, nil))
 	band := strings.Index(page, `class="goen-band"`)
 	grid := strings.Index(page, `class="goen-band__grid"`)
 	media := strings.Index(page, `class="goen-band__media"`)

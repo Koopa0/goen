@@ -5,14 +5,14 @@ import (
 
 	"github.com/koopa0/goen/internal/i18n"
 	"github.com/koopa0/goen/internal/ui/chart"
-	"github.com/koopa0/goen/internal/ui/layouts"
+	"github.com/koopa0/goen/internal/ui/frame"
 	"github.com/koopa0/goen/internal/ui/widget"
 )
 
 // The table appears only once somebody has searched: listing every customer by
 // default is a page nobody reads and a query nobody wanted.
-templ Customers(p layouts.Page, v CustomersView) {
-	@layouts.Admin(p, "customers") {
+templ Customers(p frame.Page, v CustomersView) {
+	@frame.Admin(p, "customers") {
 		<div class="ui-page-head">
 			<div>
 				<p class="ui-page-head__eyebrow">{ i18n.T(ctx, i18n.KeyAdminEyebrow) }</p>
@@ -87,8 +87,8 @@ templ Customers(p layouts.Page, v CustomersView) {
 	}
 }
 
-templ Customer(p layouts.Page, v *CustomerView) {
-	@layouts.Admin(p, "customers") {
+templ Customer(p frame.Page, v *CustomerView) {
+	@frame.Admin(p, "customers") {
 		@widget.Breadcrumb(widget.BreadcrumbProps{
 			Label: i18n.T(ctx, i18n.KeyBreadcrumb),
 			Crumbs: []widget.Crumb{

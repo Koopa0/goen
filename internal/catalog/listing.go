@@ -7,7 +7,7 @@ import (
 	"strconv"
 
 	"github.com/koopa0/goen/internal/i18n"
-	"github.com/koopa0/goen/internal/ui/layouts"
+	"github.com/koopa0/goen/internal/ui/frame"
 	"github.com/koopa0/goen/internal/ui/tile"
 	"github.com/koopa0/goen/internal/ui/widget"
 )
@@ -117,11 +117,11 @@ func (v ListingView) Trail(ctx context.Context) []widget.Crumb {
 	return append(trail, widget.Crumb{Label: v.Name})
 }
 
-func ListingMeta(ctx context.Context, v ListingView) layouts.Page {
-	return layouts.Page{
+func ListingMeta(ctx context.Context, v ListingView) frame.Page {
+	return frame.Page{
 		Title: v.Name,
 		Nav:   v.RootSlug(),
-		Share: layouts.NewShareImage(v.Theme.Image(), v.Name),
+		Share: frame.NewShareImage(v.Theme.Image(), v.Name),
 	}
 }
 
@@ -278,11 +278,11 @@ func (v SearchView) SortOptions(ctx context.Context) []SortOption {
 	return opts
 }
 
-func SearchMeta(ctx context.Context, q string) layouts.Page {
+func SearchMeta(ctx context.Context, q string) frame.Page {
 	if q == "" {
-		return layouts.Page{Title: i18n.T(ctx, i18n.KeySearchTitle)}
+		return frame.Page{Title: i18n.T(ctx, i18n.KeySearchTitle)}
 	}
-	return layouts.Page{
+	return frame.Page{
 		Title:       fmt.Sprintf(i18n.T(ctx, i18n.KeySearchFor), q),
 		SearchQuery: q,
 	}

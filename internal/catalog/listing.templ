@@ -7,16 +7,16 @@ import (
 	"github.com/koopa0/goen/assets"
 	"github.com/koopa0/goen/internal/i18n"
 	"github.com/koopa0/goen/internal/policy"
-	"github.com/koopa0/goen/internal/ui/layouts"
+	"github.com/koopa0/goen/internal/ui/frame"
 	"github.com/koopa0/goen/internal/ui/tile"
 	"github.com/koopa0/goen/internal/ui/widget"
 )
 
 // rules and head are nil where the page has none to state.
-templ Listing(p layouts.Page, v ListingView, rules *policy.Rules, head *DepartmentHead) {
+templ Listing(p frame.Page, v ListingView, rules *policy.Rules, head *DepartmentHead) {
 	{{ photo, onWell := bandPhoto(v.Theme.Image(), v.Products) }}
-	{{ p = awaitingIf(p, photo.Shown(), layouts.AwaitPageheadPhoto) }}
-	@layouts.Base(p) {
+	{{ p = awaitingIf(p, photo.Shown(), frame.AwaitPageheadPhoto) }}
+	@frame.Base(p) {
 		<div class="goen-listing__head">
 			<div class="goen-pagehead" data-tone={ v.Theme.ToneAttr() }>
 				<div class="goen-band">
@@ -298,8 +298,8 @@ templ showMore(hasPrev, hasNext bool, prev, next, page, pages string) {
 }
 
 // The search has no facets, so there is no filter rail.
-templ Search(p layouts.Page, v SearchView) {
-	@layouts.Base(p) {
+templ Search(p frame.Page, v SearchView) {
+	@frame.Base(p) {
 		<div class="goen-listing goen-listing--search">
 			<div class="goen-pagehead goen-pagehead--search">
 				<h1 class="goen-pagehead__title">
@@ -321,9 +321,9 @@ templ Search(p layouts.Page, v SearchView) {
 					@widget.EmptyArt(assets.EmptySearchImage)
 					<p class="goen-empty__title">{ fmt.Sprintf(i18n.T(ctx, i18n.KeySearchNoResults), v.Query) }</p>
 					<p class="goen-empty__text">{ i18n.T(ctx, i18n.KeySearchNoResultsHint) }</p>
-					if len(layouts.TopNavFrom(ctx)) > 0 {
+					if len(frame.TopNavFrom(ctx)) > 0 {
 						<ul class="goen-empty__links" role="list">
-							for _, n := range layouts.TopNavFrom(ctx) {
+							for _, n := range frame.TopNavFrom(ctx) {
 								<li><a class="goen-pagehead__chip" href={ templ.URL(n.Href) }>{ n.Name }</a></li>
 							}
 						</ul>

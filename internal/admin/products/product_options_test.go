@@ -10,7 +10,7 @@ import (
 	"testing"
 
 	"github.com/koopa0/goen/internal/i18n"
-	"github.com/koopa0/goen/internal/ui/layouts"
+	"github.com/koopa0/goen/internal/ui/frame"
 )
 
 func TestOptionFormIsReplacedByTheNoteOnceAProductHasVariants(t *testing.T) {
@@ -109,7 +109,7 @@ func TestTheProductPageJumpsToItsSectionsAndKeepsItsStatusMovesAtTheTop(t *testi
 	ctx := i18n.WithLocale(t.Context(), i18n.ZhHant)
 	var b strings.Builder
 	view := ProductView{Slug: "p", Status: "active", Variants: []ProductVariant{{SKU: "A"}}}
-	if err := ProductForm(layouts.Page{Title: "p"}, view).Render(ctx, &b); err != nil {
+	if err := ProductForm(frame.Page{Title: "p"}, view).Render(ctx, &b); err != nil {
 		t.Fatal(err)
 	}
 	page := b.String()

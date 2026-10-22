@@ -14,7 +14,7 @@ import (
 	"github.com/koopa0/goen/internal/admin/orders"
 	"github.com/koopa0/goen/internal/i18n"
 	"github.com/koopa0/goen/internal/order"
-	"github.com/koopa0/goen/internal/ui/layouts"
+	"github.com/koopa0/goen/internal/ui/frame"
 )
 
 // The order page names the staff member behind an event, an invoice operation
@@ -39,7 +39,7 @@ func renamedStaff(t *testing.T) (ctxA context.Context, idA uuid.UUID, addressA, 
 func assertNamedByAddress(t *testing.T, ctx context.Context, view *orders.OrderView, address, colleague string) {
 	t.Helper()
 	var html bytes.Buffer
-	if err := orders.Order(layouts.Page{}, view).Render(ctx, &html); err != nil {
+	if err := orders.Order(frame.Page{}, view).Render(ctx, &html); err != nil {
 		t.Fatalf("render the order page: %v", err)
 	}
 	if !strings.Contains(html.String(), address) {

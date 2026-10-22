@@ -7,7 +7,7 @@ import (
 	"strconv"
 
 	"github.com/koopa0/goen/internal/i18n"
-	"github.com/koopa0/goen/internal/ui/layouts"
+	"github.com/koopa0/goen/internal/ui/frame"
 	"github.com/koopa0/goen/internal/ui/tile"
 	"github.com/koopa0/goen/internal/ui/tone"
 	"github.com/koopa0/goen/internal/ui/widget"
@@ -37,11 +37,11 @@ type View struct {
 
 func (v *View) Empty() bool { return len(v.Products) == 0 }
 
-func Meta(ctx context.Context, title string, photo widget.Photo) layouts.Page {
-	return layouts.Page{
+func Meta(ctx context.Context, title string, photo widget.Photo) frame.Page {
+	return frame.Page{
 		Title:       title,
 		Description: fmt.Sprintf(i18n.T(ctx, i18n.KeyCampaignDescription), title),
-		Share:       layouts.NewShareImage(photo, title),
+		Share:       frame.NewShareImage(photo, title),
 	}
 }
 
@@ -70,8 +70,8 @@ type DealsView struct {
 	Campaigns Listed
 }
 
-func DealsMeta(ctx context.Context) layouts.Page {
-	return layouts.Page{Title: i18n.T(ctx, i18n.KeyDealsTitle)}
+func DealsMeta(ctx context.Context) frame.Page {
+	return frame.Page{Title: i18n.T(ctx, i18n.KeyDealsTitle)}
 }
 
 func (v DealsView) TotalText() string { return strconv.FormatInt(v.Total, 10) }

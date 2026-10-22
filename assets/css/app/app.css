@@ -872,7 +872,7 @@ body:has(.goen-hero) .goen-header {
 /* The departments, always on a row of their own under the bar, in either
    language and for any number of them. Wide screens wrap it a department at a
    time; a phone scrolls it sideways and goen.js centres the current one. The
-   `ui-navitem` spelling is kept because `internal/ui/layouts/backoffice_test.go:22`
+   `ui-navitem` spelling is kept because `internal/ui/frame/backoffice_test.go:22`
    locates the drawer's /admin entrance by the whole tag; every declaration
    base.css gives that name is replaced here. The current department is
    underlined as text, not boxed: a border would show on every link in forced

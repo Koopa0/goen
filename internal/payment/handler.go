@@ -16,7 +16,7 @@ import (
 	"github.com/koopa0/goen/internal/order"
 	"github.com/koopa0/goen/internal/order/access"
 	"github.com/koopa0/goen/internal/payment/refund"
-	"github.com/koopa0/goen/internal/ui/layouts"
+	"github.com/koopa0/goen/internal/ui/frame"
 	"github.com/koopa0/goen/internal/web/respond"
 )
 
@@ -684,15 +684,15 @@ func (h *Handler) payableOrder(w http.ResponseWriter, r *http.Request, number st
 }
 
 func (h *Handler) notFound(w http.ResponseWriter, r *http.Request) {
-	respond.Component(w, r, h.log, http.StatusNotFound, layouts.OrderNotFound(
-		layouts.Page{Title: i18n.T(r.Context(), i18n.KeyOrderNotFound)}))
+	respond.Component(w, r, h.log, http.StatusNotFound, frame.OrderNotFound(
+		frame.Page{Title: i18n.T(r.Context(), i18n.KeyOrderNotFound)}))
 }
 
 func (h *Handler) notice(w http.ResponseWriter, r *http.Request, status int, title, heading, body string) {
-	respond.Component(w, r, h.log, status, layouts.Notice(
-		layouts.Page{Title: title}, "", heading, body, layouts.NoticeActions{
-			Primary:   layouts.NoticeLink{Href: "/orders/" + url.PathEscape(r.PathValue("number")), Label: i18n.KeyBackToOrder},
-			Secondary: layouts.NoticeLink{Href: "/contact", Label: i18n.KeyContact},
+	respond.Component(w, r, h.log, status, frame.Notice(
+		frame.Page{Title: title}, "", heading, body, frame.NoticeActions{
+			Primary:   frame.NoticeLink{Href: "/orders/" + url.PathEscape(r.PathValue("number")), Label: i18n.KeyBackToOrder},
+			Secondary: frame.NoticeLink{Href: "/contact", Label: i18n.KeyContact},
 		}))
 }
 

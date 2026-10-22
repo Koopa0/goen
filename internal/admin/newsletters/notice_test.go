@@ -9,7 +9,7 @@ import (
 	"testing"
 
 	"github.com/koopa0/goen/internal/i18n"
-	"github.com/koopa0/goen/internal/ui/layouts"
+	"github.com/koopa0/goen/internal/ui/frame"
 	"github.com/koopa0/goen/internal/ui/widget"
 )
 
@@ -44,7 +44,7 @@ func TestARedirectedNoticeIsShownAsItsOwnOutcome(t *testing.T) {
 		ctx := i18n.WithLocale(t.Context(), i18n.En)
 		req := httptest.NewRequestWithContext(ctx, http.MethodGet, "/admin/newsletters?"+query+"=1", http.NoBody)
 		var page strings.Builder
-		if err := Newsletter(layouts.Page{Title: "newsletters"}, NewsletterView{Notice: widget.NoticeFrom(req, notices)}).Render(ctx, &page); err != nil {
+		if err := Newsletter(frame.Page{Title: "newsletters"}, NewsletterView{Notice: widget.NoticeFrom(req, notices)}).Render(ctx, &page); err != nil {
 			t.Fatal(err)
 		}
 		got := page.String()

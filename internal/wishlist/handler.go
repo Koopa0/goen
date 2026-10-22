@@ -7,7 +7,7 @@ import (
 	"github.com/koopa0/goen/internal/auth"
 	"github.com/koopa0/goen/internal/cart/cartitem"
 	"github.com/koopa0/goen/internal/i18n"
-	"github.com/koopa0/goen/internal/ui/layouts"
+	"github.com/koopa0/goen/internal/ui/frame"
 	"github.com/koopa0/goen/internal/user"
 	"github.com/koopa0/goen/internal/web/formtext"
 	"github.com/koopa0/goen/internal/web/respond"
@@ -50,7 +50,7 @@ func (h *Handler) Page(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	respond.Component(w, r, h.log, http.StatusOK, Page(
-		layouts.Page{Title: i18n.T(r.Context(), i18n.KeyWishlistTitle)}, View{Products: tiles, Added: cartitem.AddOutcome(r.URL.Query().Get("added"))}))
+		frame.Page{Title: i18n.T(r.Context(), i18n.KeyWishlistTitle)}, View{Products: tiles, Added: cartitem.AddOutcome(r.URL.Query().Get("added"))}))
 }
 
 // Update saves the posted product, or removes it when action is "remove", and
@@ -89,8 +89,8 @@ func (h *Handler) Update(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *Handler) serverError(w http.ResponseWriter, r *http.Request) {
-	respond.Component(w, r, h.log, http.StatusInternalServerError, layouts.Notice(
-		layouts.Page{Title: i18n.T(r.Context(), i18n.KeyBusyTitle)}, "",
+	respond.Component(w, r, h.log, http.StatusInternalServerError, frame.Notice(
+		frame.Page{Title: i18n.T(r.Context(), i18n.KeyBusyTitle)}, "",
 		i18n.T(r.Context(), i18n.KeyBusyTitle),
 		i18n.T(r.Context(), i18n.KeyBusyBody)))
 }

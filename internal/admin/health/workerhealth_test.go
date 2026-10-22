@@ -10,7 +10,7 @@ import (
 	"github.com/koopa0/goen/internal/i18n"
 	"github.com/koopa0/goen/internal/money"
 	"github.com/koopa0/goen/internal/payment/refund"
-	"github.com/koopa0/goen/internal/ui/layouts"
+	"github.com/koopa0/goen/internal/ui/frame"
 )
 
 func TestCancelledRefundHealthStatusIsLocalized(t *testing.T) {
@@ -99,7 +99,7 @@ func TestOpenRefundRowsLinkTheOrderAndExplainManualRecovery(t *testing.T) {
 					view := WorkerHealthView{OpenRefunds: []OpenRefund{{
 						OrderNumber: "GO-261006-000004", Key: origin.key, Status: tt.state,
 					}}}
-					html := renderComponent(t, ctx, Health(layouts.Page{}, &view))
+					html := renderComponent(t, ctx, Health(frame.Page{}, &view))
 					for _, want := range []string{
 						`<a href="/admin/orders/GO-261006-000004">GO-261006-000004</a>`,
 						tt.status[index],
@@ -145,7 +145,7 @@ func TestAPaidOrderWithNoInvoiceOperationIsWork(t *testing.T) {
 	if view.AllHealthy() {
 		t.Error("the page reads healthy with a paid order that has no invoice operation")
 	}
-	html := renderToString(t, Health(layouts.Page{Title: "health"}, view))
+	html := renderToString(t, Health(frame.Page{Title: "health"}, view))
 	for _, want := range []string{
 		`href="/admin/orders/GO-261002-000001"`,
 		`action="/admin/orders/GO-261002-000001/invoice"`,
@@ -173,7 +173,7 @@ func TestALiveInvoiceOnACancelledOrderIsWork(t *testing.T) {
 	if view.AllHealthy() {
 		t.Error("the page reads healthy with a live invoice on a cancelled order")
 	}
-	html := renderToString(t, Health(layouts.Page{Title: "health"}, view))
+	html := renderToString(t, Health(frame.Page{Title: "health"}, view))
 	for _, want := range []string{
 		`href="/admin/orders/GO-261002-000002"`,
 		"AB12345678",
@@ -203,7 +203,7 @@ func TestARefundWithNoAllowanceIsWork(t *testing.T) {
 	}
 	for _, locale := range i18n.Locales() {
 		ctx := i18n.WithLocale(t.Context(), locale)
-		html := renderComponent(t, ctx, Health(layouts.Page{Title: "health"}, view))
+		html := renderComponent(t, ctx, Health(frame.Page{Title: "health"}, view))
 		for _, want := range []string{
 			`id="unrelieved-refunds-heading"`,
 			`href="/admin/orders/GO-261002-000003"`,
@@ -240,7 +240,7 @@ func TestALapsedAllowanceResendAsksTheBuyerAgain(t *testing.T) {
 				Operation: "0199aaaa-0000-7000-8000-000000000001", OrderNumber: "GO-261004-000001",
 				Kind: "allowance", Status: "attention", LastError: tt.lastError, CanAuthorizeResend: true,
 			}}}
-			html := renderToString(t, Health(layouts.Page{Title: "health"}, view))
+			html := renderToString(t, Health(frame.Page{Title: "health"}, view))
 			if !strings.Contains(html, i18n.T(ctx, tt.want)) || strings.Contains(html, i18n.T(ctx, tt.not)) {
 				t.Errorf("%s resend is not worded as %q", tt.lastError, i18n.T(ctx, tt.want))
 			}
@@ -265,7 +265,7 @@ func TestARefundStripeFailedNamesItsOrderAndAmount(t *testing.T) {
 			Reason: "unreadable_event: goen could not read a checkout.session.completed it acts on",
 		},
 	}}
-	html := renderToString(t, Health(layouts.Page{Title: "health"}, view))
+	html := renderToString(t, Health(frame.Page{Title: "health"}, view))
 	for _, want := range []string{
 		`href="/admin/orders/GO-261006-000003"`,
 		money.TWD(120000),
@@ -333,7 +333,7 @@ func TestDisputesRowRendersWhatStripeSaid(t *testing.T) {
 			if got := view.AllHealthy(); got != tt.healthy {
 				t.Errorf("AllHealthy() = %v, want %v", got, tt.healthy)
 			}
-			html := renderToString(t, Health(layouts.Page{Title: "health"}, view))
+			html := renderToString(t, Health(frame.Page{Title: "health"}, view))
 			for _, want := range tt.want {
 				if !strings.Contains(html, want) {
 					t.Errorf("the health page does not carry %q", want)
@@ -388,7 +388,7 @@ func TestHealthDisputeAmountsDoNotExposeForeignMinorUnits(t *testing.T) {
 					{URL: "https://dashboard.stripe.com/disputes/dp_twd", AmountCents: 129000, Currency: "twd"},
 				}},
 			}
-			html := renderComponent(t, ctx, Health(layouts.Page{Title: "health"}, view))
+			html := renderComponent(t, ctx, Health(frame.Page{Title: "health"}, view))
 			for _, want := range []string{
 				`<td class="goen-admin__cellnum">USD</td>`,
 				`<td class="goen-admin__cellnum">NT$1,290</td>`,
@@ -452,7 +452,7 @@ func TestHealthPrioritizesStaffTablesAndLinksTheirActualFirstAnchor(t *testing.T
 			t.Run(tt.name+"/"+locale.Tag(), func(t *testing.T) {
 				t.Parallel()
 				ctx := i18n.WithLocale(t.Context(), locale)
-				html := renderComponent(t, ctx, Health(layouts.Page{}, &tt.view))
+				html := renderComponent(t, ctx, Health(frame.Page{}, &tt.view))
 				anchor := `id="` + tt.anchor + `"`
 				first := strings.Index(html, anchor)
 				system := strings.Index(html, `<details class="goen-disclosure goen-admin__queue" id="system-status">`)
@@ -489,7 +489,7 @@ func TestHealthKeepsAllOtherWorkOutsideSystemDetails(t *testing.T) {
 		OpenRefundCount: 6, OpenRefunds: []OpenRefund{{OrderNumber: "GO-refund", Status: refund.Pending}},
 		Pools: []PoolHealth{{Name: "staff pool"}}, Stuck: []StuckMessage{{Key: "stuck_preserved"}},
 	}
-	html := renderComponent(t, i18n.WithLocale(t.Context(), i18n.En), Health(layouts.Page{}, &view))
+	html := renderComponent(t, i18n.WithLocale(t.Context(), i18n.En), Health(frame.Page{}, &view))
 	previous := -1
 	for _, id := range []string{"events-heading", "uninvoiced-heading", "claims-heading", "cancelled-order-invoices-heading", "unrelieved-refunds-heading", "disputes-heading", "refunds-heading", "system-status", "pools-heading", "stuck-heading"} {
 		pos := strings.Index(html, `id="`+id+`"`)
@@ -514,7 +514,7 @@ func TestHealthKeepsAllOtherWorkOutsideSystemDetails(t *testing.T) {
 func TestStaffTaskBadgeDoesNotInventAnAnchorWhenRowsDisappear(t *testing.T) {
 	t.Parallel()
 	view := WorkerHealthView{UnreconciledPayments: 1}
-	html := renderComponent(t, i18n.WithLocale(t.Context(), i18n.En), Health(layouts.Page{}, &view))
+	html := renderComponent(t, i18n.WithLocale(t.Context(), i18n.En), Health(frame.Page{}, &view))
 	if !strings.Contains(html, "1 task needs attention") || strings.Contains(html, `href="#events-heading"`) {
 		t.Error("a count without rows must stay visible without a nonexistent table link")
 	}
@@ -541,7 +541,7 @@ func TestHealthExplainsKnownAndUnknownCodesBeforeTechnicalDetails(t *testing.T) 
 					{Kind: "new_operation", Status: "new_status", LastError: "new_error"},
 				},
 			}
-			html := renderComponent(t, i18n.WithLocale(t.Context(), tt.locale), Health(layouts.Page{}, &view))
+			html := renderComponent(t, i18n.WithLocale(t.Context(), tt.locale), Health(frame.Page{}, &view))
 			codes := []string{"checkout.session.completed", "cancelled_order_capture: detail", "allowance", "attention", "allowance_multiple_unknown_candidates", "new.event", "new_operation", "new_status", "new_reason", "new_error"}
 			labelIndexes := []int{0, 1, 2, 3, 4, 5, 6, 7, 8, 8}
 			for index, code := range codes {
@@ -569,7 +569,7 @@ func TestHealthyWorkAndPlainCardTitlesRemainInsideSystemStatus(t *testing.T) {
 	} {
 		view := WorkerHealthView{CopurchaseEverBuilt: true, CopurchaseStaleAfter: time.Minute}
 		ctx := i18n.WithLocale(t.Context(), tt.locale)
-		html := renderComponent(t, ctx, Health(layouts.Page{}, &view))
+		html := renderComponent(t, ctx, Health(frame.Page{}, &view))
 		if !strings.Contains(html, i18n.T(ctx, i18n.KeyAdminHPAllClear)) || strings.Contains(html, `href="#events-heading"`) {
 			t.Error("healthy page lost its all-clear state or invented a staff table link")
 		}
@@ -601,7 +601,7 @@ func TestInvoiceReasonCodesDistinguishMissingUnknownAndProviderRejection(t *test
 			{LastError: "issue_provider_rejected_2000006"},
 			{LastError: "allowance_provider_rejected_3100010"},
 		}}
-		html := renderComponent(t, ctx, Health(layouts.Page{}, &view))
+		html := renderComponent(t, ctx, Health(frame.Page{}, &view))
 		if !regexp.MustCompile(`<td>\s*` + regexp.QuoteMeta(tt.missing) + `\s*</td>`).MatchString(html) {
 			t.Errorf("missing reason lost its distinct wording %q", tt.missing)
 		}
@@ -634,7 +634,7 @@ func TestHealthKeepsMachineCodesInsideTechnicalDetails(t *testing.T) {
 			Reason: "cancelled_order_capture: money arrived",
 		}},
 	}
-	html := renderToString(t, Health(layouts.Page{Title: "health"}, view))
+	html := renderToString(t, Health(frame.Page{Title: "health"}, view))
 	outside := html
 	for {
 		before, rest, found := strings.Cut(outside, "<details")

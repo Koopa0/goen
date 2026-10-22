@@ -2,14 +2,14 @@ package credits
 
 import (
 	"github.com/koopa0/goen/internal/i18n"
-	"github.com/koopa0/goen/internal/ui/layouts"
+	"github.com/koopa0/goen/internal/ui/frame"
 	"github.com/koopa0/goen/internal/ui/widget"
 )
 
 // The grant is a card of its own because it writes money: sharing a panel with the
 // history it extends invites a reader to take the history for the form's fields.
-templ Credit(p layouts.Page, v CreditView) {
-	@layouts.Admin(p, "credits") {
+templ Credit(p frame.Page, v CreditView) {
+	@frame.Admin(p, "credits") {
 		<div class="ui-page-head">
 			<div>
 				<p class="ui-page-head__eyebrow">{ i18n.T(ctx, i18n.KeyAdminEyebrow) }</p>
@@ -19,7 +19,7 @@ templ Credit(p layouts.Page, v CreditView) {
 				</p>
 			</div>
 		</div>
-		@layouts.Announce(v.Notice)
+		@frame.Announce(v.Notice)
 		if v.Filtered() {
 			<p class="goen-admin__hint">
 				<a href={ templ.SafeURL("/admin/customers/" + v.FilterCustomerID) }>{ v.FilterCustomerName }</a>

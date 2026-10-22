@@ -8,7 +8,7 @@ import (
 	"github.com/koopa0/goen/internal/admin/access"
 	"github.com/koopa0/goen/internal/i18n"
 	"github.com/koopa0/goen/internal/keyset"
-	"github.com/koopa0/goen/internal/ui/layouts"
+	"github.com/koopa0/goen/internal/ui/frame"
 	"github.com/koopa0/goen/internal/ui/widget"
 	"github.com/koopa0/goen/internal/user"
 	"github.com/koopa0/goen/internal/web/formtext"
@@ -50,7 +50,7 @@ func (h *Handler) Questions(w http.ResponseWriter, r *http.Request) {
 	}
 	view.Notice = widget.NoticeFrom(r, notices)
 	respond.Component(w, r, h.log, http.StatusOK, Questions(
-		layouts.Page{Title: i18n.T(r.Context(), i18n.KeyAdminPageQuestions)}, view))
+		frame.Page{Title: i18n.T(r.Context(), i18n.KeyAdminPageQuestions)}, view))
 }
 
 func (h *Handler) AnswerQuestion(w http.ResponseWriter, r *http.Request) {
@@ -106,5 +106,5 @@ func (h *Handler) rejectAnswer(w http.ResponseWriter, r *http.Request, id string
 		}
 	}
 	respond.Component(w, r, h.log, http.StatusUnprocessableEntity, Questions(
-		layouts.Page{Title: i18n.T(r.Context(), i18n.KeyAdminPageQuestions)}, view))
+		frame.Page{Title: i18n.T(r.Context(), i18n.KeyAdminPageQuestions)}, view))
 }

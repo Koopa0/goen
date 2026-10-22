@@ -11,7 +11,7 @@ import (
 	"github.com/koopa0/goen/internal/i18n"
 	"github.com/koopa0/goen/internal/order"
 	"github.com/koopa0/goen/internal/shoptime"
-	"github.com/koopa0/goen/internal/ui/layouts"
+	"github.com/koopa0/goen/internal/ui/frame"
 )
 
 // The tests in this file are the account page's halves of tests that render
@@ -98,7 +98,7 @@ func TestAccountOrderPaidIsNotAwaitingPayment(t *testing.T) {
 // The wide bar's action row is deliberately not one of them, and header.templ
 // carries the measurement: at 1024 the English header has no room left.
 //
-// A copy of the map in internal/ui/layouts/backoffice_test.go, whose header
+// A copy of the map in internal/ui/frame/backoffice_test.go, whose header
 // test reads it.
 var backOfficeEntrances = map[string]string{
 	"the header's drawer":    `<a class="ui-navitem" href="/admin">`,
@@ -118,7 +118,7 @@ func TestOnlyAStaffMemberIsOfferedTheBackOffice(t *testing.T) {
 		t.Run(locale.Tag(), func(t *testing.T) {
 			t.Parallel()
 			base := i18n.WithLocale(t.Context(), locale)
-			staff := renderAccountPage(t, layouts.WithStaff(base, true))
+			staff := renderAccountPage(t, frame.WithStaff(base, true))
 
 			for where, markup := range backOfficeEntrances {
 				if !strings.Contains(staff, markup) {
@@ -142,7 +142,7 @@ func TestOnlyAStaffMemberIsOfferedTheBackOffice(t *testing.T) {
 			// setting the flag unconditionally.
 			for name, ctx := range map[string]context.Context{
 				"no middleware": base,
-				"not staff":     layouts.WithStaff(base, false),
+				"not staff":     frame.WithStaff(base, false),
 			} {
 				customer := renderAccountPage(t, ctx)
 				// Without this the assertion below passes on an empty render,

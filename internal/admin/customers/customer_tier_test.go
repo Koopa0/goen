@@ -5,13 +5,13 @@ import (
 	"testing"
 
 	"github.com/koopa0/goen/internal/i18n"
-	"github.com/koopa0/goen/internal/ui/layouts"
+	"github.com/koopa0/goen/internal/ui/frame"
 )
 
 func renderCustomer(t *testing.T, locale i18n.Locale, v CustomerView) string {
 	t.Helper()
 	var b strings.Builder
-	if err := Customer(layouts.Page{Title: "customer"}, &v).Render(i18n.WithLocale(t.Context(), locale), &b); err != nil {
+	if err := Customer(frame.Page{Title: "customer"}, &v).Render(i18n.WithLocale(t.Context(), locale), &b); err != nil {
 		t.Fatalf("Customer.Render: %v", err)
 	}
 	return b.String()

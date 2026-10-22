@@ -1,15 +1,15 @@
 package catalog
 
-import "github.com/koopa0/goen/internal/ui/layouts"
+import "github.com/koopa0/goen/internal/ui/frame"
 
 // awaiting is p with the first paint held until the element is parsed.
-func awaiting(p layouts.Page, a layouts.Await) layouts.Page {
+func awaiting(p frame.Page, a frame.Await) frame.Page {
 	p.Await = a
 	return p
 }
 
 // awaitingIf is awaiting when the element is drawn, and p unchanged when it is not.
-func awaitingIf(p layouts.Page, drawn bool, a layouts.Await) layouts.Page {
+func awaitingIf(p frame.Page, drawn bool, a frame.Await) frame.Page {
 	if !drawn {
 		return p
 	}

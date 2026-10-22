@@ -5,7 +5,7 @@ import (
 	"testing"
 
 	"github.com/koopa0/goen/internal/i18n"
-	"github.com/koopa0/goen/internal/ui/layouts"
+	"github.com/koopa0/goen/internal/ui/frame"
 )
 
 func TestStockArrivalIsAnOptionalPlainFormAndPreservesARefusedDate(t *testing.T) {
@@ -18,7 +18,7 @@ func TestStockArrivalIsAnOptionalPlainFormAndPreservesARefusedDate(t *testing.T)
 				{SKU: "A", ArrivalInput: "2026-02-30", ArrivalError: i18n.T(ctx, i18n.KeyAdminVariantArrivalError)},
 				{SKU: "B", ArrivalInput: "2026-10-15"},
 			}}
-			html := renderComponent(t, ctx, Variants(layouts.Page{}, view))
+			html := renderComponent(t, ctx, Variants(frame.Page{}, view))
 			for _, want := range []string{i18n.T(ctx, i18n.KeyAdminVariantArrivalSave), `method="post" action="/admin/stock/arrival"`, `type="date" name="arrival_on" value="2026-02-30"`, `for="arrival-A"`, `aria-describedby="arrival-error-A"`, `id="arrival-error-A"`, `value="2026-10-15"`} {
 				if !strings.Contains(html, want) {
 					t.Errorf("form missing %q", want)
@@ -38,7 +38,7 @@ func TestStockDeskNamesTheVariantListAfterTheCoverSection(t *testing.T) {
 			t.Parallel()
 			ctx := i18n.WithLocale(t.Context(), locale)
 			view := VariantsView{ShowCover: true, Variants: []Variant{{SKU: "A"}}}
-			html := renderComponent(t, ctx, Variants(layouts.Page{}, view))
+			html := renderComponent(t, ctx, Variants(frame.Page{}, view))
 			order := []string{
 				`<h2 class="goen-admin__subhead" id="stock">` + i18n.T(ctx, i18n.KeyAdminRepStock),
 				`<section aria-labelledby="stock-list-heading">`,

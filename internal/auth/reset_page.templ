@@ -3,12 +3,12 @@ package auth
 import (
 	"github.com/koopa0/goen/internal/i18n"
 	"github.com/koopa0/goen/internal/ui/fieldrule"
-	"github.com/koopa0/goen/internal/ui/layouts"
+	"github.com/koopa0/goen/internal/ui/frame"
 	"github.com/koopa0/goen/internal/ui/widget"
 )
 
-templ Forgot(p layouts.Page, v ForgotView) {
-	@layouts.Base(p) {
+templ Forgot(p frame.Page, v ForgotView) {
+	@frame.Base(p) {
 		<div class="goen-auth">
 			<div class="goen-auth__panel">
 				<h1 class="goen-auth__title">{ i18n.T(ctx, i18n.KeyForgotTitle) }</h1>
@@ -65,9 +65,9 @@ templ forgotForm(autofocus bool) {
 	</form>
 }
 
-templ Reset(p layouts.Page, v ResetView) {
+templ Reset(p frame.Page, v ResetView) {
 	if v.Usable() {
-		@layouts.Base(p) {
+		@frame.Base(p) {
 			<div class="goen-auth">
 				<div class="goen-auth__panel">
 					<h1 class="goen-auth__title">{ i18n.T(ctx, i18n.KeyResetTitle) }</h1>
@@ -126,6 +126,6 @@ templ Reset(p layouts.Page, v ResetView) {
 			</div>
 		}
 	} else {
-		@layouts.EmailLinkPage(p, v.RecoveryView(ctx))
+		@frame.EmailLinkPage(p, v.RecoveryView(ctx))
 	}
 }

@@ -6,7 +6,7 @@ import (
 
 	"github.com/koopa0/goen/internal/i18n"
 	"github.com/koopa0/goen/internal/order/warranty"
-	"github.com/koopa0/goen/internal/ui/layouts"
+	"github.com/koopa0/goen/internal/ui/frame"
 	"github.com/koopa0/goen/internal/ui/tile"
 )
 
@@ -17,7 +17,7 @@ import (
 func TestCompareShowsTheTableOnlyWhenThereAreTwoProducts(t *testing.T) {
 	t.Parallel()
 
-	page := layouts.Page{Title: "比較"}
+	page := frame.Page{Title: "比較"}
 
 	if (CompareView{Products: []CompareProduct{{Slug: "a"}}}).Enough() {
 		t.Fatal("one product is enough — the empty state would never render")
@@ -78,7 +78,7 @@ func TestTheComparisonPageOffersPlainLinksToAddAndRemove(t *testing.T) {
 	v := compareOf("a", "b")
 	v.Query = "phone"
 	v.Candidates = []CompareCandidate{{Slug: "c", Name: "Cee", Brand: "B"}}
-	html := renderToString(t, Compare(layouts.Page{Title: "比較"}, v))
+	html := renderToString(t, Compare(frame.Page{Title: "比較"}, v))
 	for _, want := range []string{
 		`href="/compare?p=a&amp;p=b&amp;p=c"`, // add
 		`href="/compare?p=b"`,                 // remove a
@@ -105,18 +105,18 @@ func TestAFullComparisonSaysSoAndOffersNoPicker(t *testing.T) {
 	for i := range slugs {
 		slugs[i] = string(rune('a' + i))
 	}
-	full := renderToString(t, Compare(layouts.Page{Title: "比較"}, compareOf(slugs...)))
+	full := renderToString(t, Compare(frame.Page{Title: "比較"}, compareOf(slugs...)))
 	if !strings.Contains(full, `goen-compare__note`) || strings.Contains(full, `goen-compare__picker`) {
 		t.Errorf("a full comparison should show the limit message and no picker")
 	}
-	room := renderToString(t, Compare(layouts.Page{Title: "比較"}, compareOf(slugs[:MaxCompare-1]...)))
+	room := renderToString(t, Compare(frame.Page{Title: "比較"}, compareOf(slugs[:MaxCompare-1]...)))
 	if strings.Contains(room, `role="status"`) || !strings.Contains(room, `goen-compare__picker`) {
 		t.Errorf("a comparison with room should show the picker and no limit message")
 	}
 
 	dropped := compareOf(slugs...)
 	dropped.Dropped = true
-	if !strings.Contains(renderToString(t, Compare(layouts.Page{Title: "比較"}, dropped)), `role="status"`) {
+	if !strings.Contains(renderToString(t, Compare(frame.Page{Title: "比較"}, dropped)), `role="status"`) {
 		t.Error("a link naming too many products dropped some without saying so")
 	}
 }
@@ -126,7 +126,7 @@ func TestAFullComparisonSaysSoAndOffersNoPicker(t *testing.T) {
 // another rather than tell them to go and find one.
 func TestOneProductInTheComparisonInvitesTheNextNotTheDeadEnd(t *testing.T) {
 	t.Parallel()
-	html := renderToString(t, Compare(layouts.Page{Title: "比較"}, compareOf("a")))
+	html := renderToString(t, Compare(frame.Page{Title: "比較"}, compareOf("a")))
 	if !strings.Contains(html, `goen-compare__picker`) {
 		t.Error("one product shows no picker to add another")
 	}
@@ -197,7 +197,7 @@ func TestADifferingRowIsMarkedAndSaysSoAloud(t *testing.T) {
 		{Label: "螢幕", Values: []string{"6.1", "6.7"}, SharedBy: 2},
 		{Label: "重量", Values: []string{"199 g", "199 g"}, SharedBy: 2},
 	}
-	html := renderToString(t, Compare(layouts.Page{Title: "比較"}, v))
+	html := renderToString(t, Compare(frame.Page{Title: "比較"}, v))
 	if strings.Count(html, "is-differs") != 1 {
 		t.Errorf("want exactly the differing row marked, got %d marks", strings.Count(html, "is-differs"))
 	}
@@ -217,7 +217,7 @@ func TestOneProductOffersWhatToCompareItWith(t *testing.T) {
 		{Slug: "b", Name: "Bee", Brand: "B", PriceCents: 1000},
 		{Slug: "c", Name: "Cee", Brand: "C", PriceCents: 2000},
 	}
-	html := renderToString(t, Compare(layouts.Page{Title: "比較"}, v))
+	html := renderToString(t, Compare(frame.Page{Title: "比較"}, v))
 	for _, want := range []string{
 		"選擇要比較的商品",
 		`href="/compare?p=a&amp;p=b"`,
@@ -238,7 +238,7 @@ func TestOneProductOffersWhatToCompareItWith(t *testing.T) {
 
 	two := compareOf("a", "b")
 	two.Suggestions = v.Suggestions
-	if html := renderToString(t, Compare(layouts.Page{Title: "比較"}, two)); strings.Contains(html, "goen-compare__suggest") {
+	if html := renderToString(t, Compare(frame.Page{Title: "比較"}, two)); strings.Contains(html, "goen-compare__suggest") {
 		t.Error("a comparison of two still offers suggestions")
 	}
 }
@@ -249,7 +249,7 @@ func TestOneProductOffersWhatToCompareItWith(t *testing.T) {
 func TestTheEmptyComparisonLinksToWhereBoxesAreOffered(t *testing.T) {
 	t.Parallel()
 
-	page := layouts.Page{Title: "比較"}
+	page := frame.Page{Title: "比較"}
 	with := renderToString(t, Compare(page, CompareView{StartSlug: "tech"}))
 	if !strings.Contains(with, `<a href="/c/tech">`+i18n.T(i18n.WithLocale(t.Context(), i18n.ZhHant), i18n.KeyCompareTooFewLink)+`</a>`) {
 		t.Error("the empty comparison does not link to the department that offers comparison")
@@ -265,7 +265,7 @@ func TestTheEmptyComparisonLinksToWhereBoxesAreOffered(t *testing.T) {
 func TestCompareRowStatesPricesAsTheCardDoes(t *testing.T) {
 	t.Parallel()
 
-	got := renderToString(t, Compare(layouts.Page{Title: "比較"}, CompareView{
+	got := renderToString(t, Compare(frame.Page{Title: "比較"}, CompareView{
 		Products: []CompareProduct{
 			{Slug: "spread", Name: "Spread", PriceCents: 2590000, PriceVaries: true, InStock: true},
 			{Slug: "sale", Name: "Sale", PriceCents: 100000, CompareCents: 150000, InStock: true, OnSale: true},
@@ -281,7 +281,7 @@ func TestCompareRowStatesPricesAsTheCardDoes(t *testing.T) {
 func TestComparisonSaysSoldOutOncePerSoldOutColumn(t *testing.T) {
 	t.Parallel()
 	ctx := i18n.WithLocale(t.Context(), i18n.ZhHant)
-	got := renderComponent(t, ctx, Compare(layouts.Page{Title: "比較"}, CompareView{
+	got := renderComponent(t, ctx, Compare(frame.Page{Title: "比較"}, CompareView{
 		Products: []CompareProduct{
 			{Slug: "a", Name: "A", PriceCents: 100000},
 			{Slug: "b", Name: "B", PriceCents: 100000, InStock: true},

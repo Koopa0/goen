@@ -8,7 +8,7 @@ import (
 	"golang.org/x/net/html"
 
 	"github.com/koopa0/goen/internal/i18n"
-	"github.com/koopa0/goen/internal/ui/layouts"
+	"github.com/koopa0/goen/internal/ui/frame"
 )
 
 func TestAClawbackShowsOnlyTheUnrecoveredShortfall(t *testing.T) {
@@ -142,7 +142,7 @@ func TestPointsRuleNamesTheNumericMinimumAndStep(t *testing.T) {
 
 func pointsDocument(t *testing.T, locale i18n.Locale, view *PointsView) *html.Node {
 	t.Helper()
-	doc, err := html.Parse(strings.NewReader(renderIn(t, locale, Points(layouts.Page{}, *view))))
+	doc, err := html.Parse(strings.NewReader(renderIn(t, locale, Points(frame.Page{}, *view))))
 	if err != nil {
 		t.Fatal(err)
 	}

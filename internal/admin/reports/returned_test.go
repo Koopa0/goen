@@ -8,7 +8,7 @@ import (
 	"github.com/a-h/templ"
 
 	"github.com/koopa0/goen/internal/i18n"
-	"github.com/koopa0/goen/internal/ui/layouts"
+	"github.com/koopa0/goen/internal/ui/frame"
 )
 
 func renderEnglish(t *testing.T, c templ.Component) string {
@@ -42,7 +42,7 @@ func TestProductsReturnedMostShowCountsBelowTwentySold(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 			other := ReturnedProduct{Slug: "z", Name: "Z", Returned: 1, Sold: 5}
-			html := renderEnglish(t, Report(layouts.Page{Title: "Reports"}, returnedReport(tt.row, other)))
+			html := renderEnglish(t, Report(frame.Page{Title: "Reports"}, returnedReport(tt.row, other)))
 			if !strings.Contains(html, tt.want) {
 				t.Errorf("Report with %+v does not say %q", tt.row, tt.want)
 			}
@@ -60,7 +60,7 @@ func TestProductsReturnedMostShowCountsBelowTwentySold(t *testing.T) {
 func TestProductsReturnedMostRateKeepsTheCountsToo(t *testing.T) {
 	t.Parallel()
 
-	html := renderEnglish(t, Report(layouts.Page{Title: "Reports"}, returnedReport(
+	html := renderEnglish(t, Report(frame.Page{Title: "Reports"}, returnedReport(
 		ReturnedProduct{Slug: "a", Name: "Alpha", Returned: 5, Sold: 20},
 		ReturnedProduct{Slug: "b", Name: "Beta", Returned: 2, Sold: 8},
 	)))
@@ -72,7 +72,7 @@ func TestProductsReturnedMostRateKeepsTheCountsToo(t *testing.T) {
 func TestProductsReturnedMostBarIsTheRate(t *testing.T) {
 	t.Parallel()
 
-	html := renderEnglish(t, Report(layouts.Page{Title: "Reports"}, returnedReport(
+	html := renderEnglish(t, Report(frame.Page{Title: "Reports"}, returnedReport(
 		ReturnedProduct{Slug: "a", Name: "Alpha", Returned: 250, Sold: 1000},
 		ReturnedProduct{Slug: "b", Name: "Beta", Returned: 1, Sold: 4},
 		ReturnedProduct{Slug: "c", Name: "Gamma", Returned: 5, Sold: 20},
@@ -92,7 +92,7 @@ func TestProductsReturnedMostBarIsTheRate(t *testing.T) {
 func TestProductsReturnedMostWithNoRowsSaysNothing(t *testing.T) {
 	t.Parallel()
 
-	html := renderEnglish(t, Report(layouts.Page{Title: "Reports"}, returnedReport()))
+	html := renderEnglish(t, Report(frame.Page{Title: "Reports"}, returnedReport()))
 	if strings.Contains(html, "Products returned most") {
 		t.Error("a report with no returned units shows the returns section")
 	}
@@ -101,7 +101,7 @@ func TestProductsReturnedMostWithNoRowsSaysNothing(t *testing.T) {
 func TestProductsReturnedMostWithOneRowIsASentence(t *testing.T) {
 	t.Parallel()
 
-	html := renderEnglish(t, Report(layouts.Page{Title: "Reports"}, returnedReport(
+	html := renderEnglish(t, Report(frame.Page{Title: "Reports"}, returnedReport(
 		ReturnedProduct{Slug: "a", Name: "Alpha", Returned: 2, Sold: 12},
 	)))
 	if !strings.Contains(html, "Only one product had returns: Alpha, 2 / 12 units.") {
@@ -119,7 +119,7 @@ func TestProductsReturnedMostSaysWhenItCouldNotBeRead(t *testing.T) {
 
 	v := returnedReport(ReturnedProduct{Slug: "a", Name: "Alpha", Returned: 2, Sold: 12})
 	v.ReturnedErr = errors.New("read")
-	html := renderEnglish(t, Report(layouts.Page{Title: "Reports"}, v))
+	html := renderEnglish(t, Report(frame.Page{Title: "Reports"}, v))
 	if !strings.Contains(html, "Returns data is unavailable right now.") {
 		t.Error("a failed read does not say so")
 	}

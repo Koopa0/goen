@@ -12,15 +12,15 @@ import (
 	"fmt"
 
 	"github.com/koopa0/goen/internal/i18n"
+	"github.com/koopa0/goen/internal/ui/frame"
 	"github.com/koopa0/goen/internal/ui/icons"
-	"github.com/koopa0/goen/internal/ui/layouts"
 	"github.com/koopa0/goen/internal/ui/tone"
 	"github.com/koopa0/goen/internal/ui/widget"
 )
 
 // Two cards, each holding what it lists and the form that adds to it, because a brand
 // and a category are separate jobs. The one filled button is the category create.
-func Taxonomy(p layouts.Page, v *TaxonomyView) templ.Component {
+func Taxonomy(p frame.Page, v *TaxonomyView) templ.Component {
 	return templruntime.GeneratedTemplate(func(templ_7745c5c3_Input templruntime.GeneratedComponentInput) (templ_7745c5c3_Err error) {
 		templ_7745c5c3_W, ctx := templ_7745c5c3_Input.Writer, templ_7745c5c3_Input.Context
 		if templ_7745c5c3_CtxErr := ctx.Err(); templ_7745c5c3_CtxErr != nil {
@@ -96,17 +96,17 @@ func Taxonomy(p layouts.Page, v *TaxonomyView) templ.Component {
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
-			templ_7745c5c3_Err = layouts.Announce(v.Notice).Render(ctx, templ_7745c5c3_Buffer)
+			templ_7745c5c3_Err = frame.Announce(v.Notice).Render(ctx, templ_7745c5c3_Buffer)
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
 			if v.Which == "brands" {
-				templ_7745c5c3_Err = layouts.RefusalSummary(layouts.SummarizeRefusal(i18n.KeyAdminTaxNewBrand, v.Errors, layouts.RefusalField{Key: "name", ID: "brands-name"}, layouts.RefusalField{Key: "slug", ID: "brands-slug"})).Render(ctx, templ_7745c5c3_Buffer)
+				templ_7745c5c3_Err = frame.RefusalSummary(frame.SummarizeRefusal(i18n.KeyAdminTaxNewBrand, v.Errors, frame.RefusalField{Key: "name", ID: "brands-name"}, frame.RefusalField{Key: "slug", ID: "brands-slug"})).Render(ctx, templ_7745c5c3_Buffer)
 				if templ_7745c5c3_Err != nil {
 					return templ_7745c5c3_Err
 				}
 			} else if v.Which == "categories" {
-				templ_7745c5c3_Err = layouts.RefusalSummary(layouts.SummarizeRefusal(i18n.KeyAdminTaxNewCategory, v.Errors, layouts.RefusalField{Key: "name", ID: "categories-name"}, layouts.RefusalField{Key: "name_en", ID: "categories-name-en"}, layouts.RefusalField{Key: "slug", ID: "categories-slug"}, layouts.RefusalField{Key: "icon_key", ID: "categories-icon"}, layouts.RefusalField{Key: "tone", ID: "categories-tone"}, layouts.RefusalField{Key: "parent", ID: "categories-parent"})).Render(ctx, templ_7745c5c3_Buffer)
+				templ_7745c5c3_Err = frame.RefusalSummary(frame.SummarizeRefusal(i18n.KeyAdminTaxNewCategory, v.Errors, frame.RefusalField{Key: "name", ID: "categories-name"}, frame.RefusalField{Key: "name_en", ID: "categories-name-en"}, frame.RefusalField{Key: "slug", ID: "categories-slug"}, frame.RefusalField{Key: "icon_key", ID: "categories-icon"}, frame.RefusalField{Key: "tone", ID: "categories-tone"}, frame.RefusalField{Key: "parent", ID: "categories-parent"})).Render(ctx, templ_7745c5c3_Buffer)
 				if templ_7745c5c3_Err != nil {
 					return templ_7745c5c3_Err
 				}
@@ -203,7 +203,7 @@ func Taxonomy(p layouts.Page, v *TaxonomyView) templ.Component {
 			}
 			return nil
 		})
-		templ_7745c5c3_Err = layouts.Admin(p, "taxonomy").Render(templ.WithChildren(ctx, templ_7745c5c3_Var2), templ_7745c5c3_Buffer)
+		templ_7745c5c3_Err = frame.Admin(p, "taxonomy").Render(templ.WithChildren(ctx, templ_7745c5c3_Var2), templ_7745c5c3_Buffer)
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}

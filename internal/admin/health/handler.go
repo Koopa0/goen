@@ -13,7 +13,7 @@ import (
 	"github.com/koopa0/goen/internal/admin/access"
 	"github.com/koopa0/goen/internal/i18n"
 	"github.com/koopa0/goen/internal/outbox"
-	"github.com/koopa0/goen/internal/ui/layouts"
+	"github.com/koopa0/goen/internal/ui/frame"
 	"github.com/koopa0/goen/internal/ui/widget"
 	"github.com/koopa0/goen/internal/web/formtext"
 	"github.com/koopa0/goen/internal/web/respond"
@@ -176,7 +176,7 @@ func (h *Handler) Page(w http.ResponseWriter, r *http.Request) {
 	view.Pools = h.poolHealth()
 	view.Disputes = readDisputes(r.Context(), h.disputes, disputeReadTimeout, h.log, h.store.OrderNumbersBySession)
 	respond.Component(w, r, h.log, http.StatusOK, Health(
-		layouts.Page{Title: i18n.T(r.Context(), i18n.KeyAdminPageHealth)}, &view))
+		frame.Page{Title: i18n.T(r.Context(), i18n.KeyAdminPageHealth)}, &view))
 }
 
 func (h *Handler) poolHealth() []PoolHealth {

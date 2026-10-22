@@ -4,12 +4,12 @@ import (
 	"fmt"
 
 	"github.com/koopa0/goen/internal/i18n"
-	"github.com/koopa0/goen/internal/ui/layouts"
+	"github.com/koopa0/goen/internal/ui/frame"
 	"github.com/koopa0/goen/internal/ui/widget"
 )
 
-templ NewsletterSent(p layouts.Page, address string) {
-	@layouts.Base(p) {
+templ NewsletterSent(p frame.Page, address string) {
+	@frame.Base(p) {
 		<div class="notice">
 			<h1 class="notice__title">{ i18n.T(ctx, i18n.KeyCheckInbox) }</h1>
 			<p class="notice__body" role="status">

@@ -1,0 +1,30 @@
+package frame
+
+import (
+	"github.com/koopa0/goen/internal/i18n"
+	"github.com/koopa0/goen/internal/ui/widget"
+)
+
+templ Announce(r widget.Result) {
+	@announce(r, "")
+}
+
+// The layout gate finds the order page's notice by the vendored spelling, so the element keeps it (#380 R8).
+templ AnnounceOrder(r widget.Result) {
+	@announce(r, "ui-alert")
+}
+
+// A refusal or a failure opens with a word, so the outcome does not rest on colour alone.
+templ announce(r widget.Result, class string) {
+	if r.Text != "" {
+		@widget.Notice(widget.NoticeProps{Intent: r.Outcome.Intent(), Class: class}) {
+			switch r.Outcome {
+				case widget.OutcomeRefused:
+					<strong class="goen-notice__lead">{ i18n.T(ctx, i18n.KeyAdminNoticeLeadRefused) }</strong>
+				case widget.OutcomeFailed:
+					<strong class="goen-notice__lead">{ i18n.T(ctx, i18n.KeyAdminNoticeLeadFailed) }</strong>
+			}
+			{ r.Text }
+		}
+	}
+}

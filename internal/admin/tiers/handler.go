@@ -9,7 +9,7 @@ import (
 
 	"github.com/koopa0/goen/internal/admin/access"
 	"github.com/koopa0/goen/internal/i18n"
-	"github.com/koopa0/goen/internal/ui/layouts"
+	"github.com/koopa0/goen/internal/ui/frame"
 	"github.com/koopa0/goen/internal/ui/widget"
 	"github.com/koopa0/goen/internal/web/formtext"
 	"github.com/koopa0/goen/internal/web/respond"
@@ -48,7 +48,7 @@ func (h *Handler) Tiers(w http.ResponseWriter, r *http.Request) {
 	}
 	view.Notice = widget.NoticeFrom(r, notices)
 	respond.Component(w, r, h.log, http.StatusOK, Tiers(
-		layouts.Page{Title: i18n.T(r.Context(), i18n.KeyAdminPageTiers)}, view))
+		frame.Page{Title: i18n.T(r.Context(), i18n.KeyAdminPageTiers)}, view))
 }
 
 func (h *Handler) CreateTier(w http.ResponseWriter, r *http.Request) {

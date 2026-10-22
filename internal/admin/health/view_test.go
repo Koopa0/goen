@@ -9,7 +9,7 @@ import (
 
 	"github.com/koopa0/goen/internal/admin/worklist"
 	"github.com/koopa0/goen/internal/i18n"
-	"github.com/koopa0/goen/internal/ui/layouts"
+	"github.com/koopa0/goen/internal/ui/frame"
 )
 
 func TestWorkerHealthTasksFollowTheHealthPredicates(t *testing.T) {
@@ -93,7 +93,7 @@ func TestHealthItemsAreDoneOrNeedYou(t *testing.T) {
 	t.Parallel()
 	ctx := i18n.WithLocale(t.Context(), i18n.ZhHant)
 	// The outbox is healthy by default and the recommendation projection, never built, is not.
-	page := renderComponent(t, ctx, Health(layouts.Page{}, &WorkerHealthView{}))
+	page := renderComponent(t, ctx, Health(frame.Page{}, &WorkerHealthView{}))
 	wantBadge(t, page, i18n.T(ctx, i18n.KeyAdminHPAllClear), "goen-badge goen-badge--done")
 	wantBadge(t, page, i18n.T(ctx, i18n.KeyAdminHPNeedsLook), "goen-badge goen-badge--warn")
 }

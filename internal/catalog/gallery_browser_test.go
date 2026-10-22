@@ -14,7 +14,7 @@ import (
 
 	"github.com/koopa0/goen/assets"
 	"github.com/koopa0/goen/internal/i18n"
-	"github.com/koopa0/goen/internal/ui/layouts"
+	"github.com/koopa0/goen/internal/ui/frame"
 	"github.com/koopa0/goen/internal/ui/uitest"
 )
 
@@ -50,7 +50,7 @@ func TestGalleryThumbnailsWrapAndKeepNativeSelection(t *testing.T) {
 			})
 		}
 		w.Header().Set("Content-Type", "text/html; charset=utf-8")
-		if renderErr := Product(layouts.Page{}, view).Render(ctx, w); renderErr != nil {
+		if renderErr := Product(frame.Page{}, view).Render(ctx, w); renderErr != nil {
 			t.Errorf("render gallery fixture: %v", renderErr)
 		}
 	})

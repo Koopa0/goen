@@ -6,14 +6,14 @@ import (
 
 	"github.com/koopa0/goen/internal/contact"
 	"github.com/koopa0/goen/internal/i18n"
-	"github.com/koopa0/goen/internal/ui/layouts"
+	"github.com/koopa0/goen/internal/ui/frame"
 )
 
 func TestPublicContactOmitsUnownedSocialDestinations(t *testing.T) {
 	for _, locale := range []i18n.Locale{i18n.ZhHant, i18n.En} {
 		t.Run(string(locale), func(t *testing.T) {
 			var out strings.Builder
-			if err := contact.Contact(layouts.Page{Description: i18n.T(i18n.WithLocale(t.Context(), locale), i18n.KeyContactDescription)}, contact.Form{}).Render(i18n.WithLocale(t.Context(), locale), &out); err != nil {
+			if err := contact.Contact(frame.Page{Description: i18n.T(i18n.WithLocale(t.Context(), locale), i18n.KeyContactDescription)}, contact.Form{}).Render(i18n.WithLocale(t.Context(), locale), &out); err != nil {
 				t.Fatal(err)
 			}
 			body := out.String()

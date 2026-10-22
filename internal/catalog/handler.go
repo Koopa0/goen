@@ -12,7 +12,7 @@ import (
 
 	"github.com/koopa0/goen/internal/i18n"
 	"github.com/koopa0/goen/internal/policy"
-	"github.com/koopa0/goen/internal/ui/layouts"
+	"github.com/koopa0/goen/internal/ui/frame"
 	"github.com/koopa0/goen/internal/ui/tile"
 	"github.com/koopa0/goen/internal/web/ratelimit"
 	"github.com/koopa0/goen/internal/web/respond"
@@ -144,15 +144,15 @@ func (h *Handler) searched(ctx context.Context, pattern, query string, sort Sort
 }
 
 func (h *Handler) notFound(w http.ResponseWriter, r *http.Request) {
-	respond.Component(w, r, h.log, http.StatusNotFound, layouts.Notice(
-		layouts.Page{Title: i18n.T(r.Context(), i18n.KeyCategoryNotFound)}, "404",
+	respond.Component(w, r, h.log, http.StatusNotFound, frame.Notice(
+		frame.Page{Title: i18n.T(r.Context(), i18n.KeyCategoryNotFound)}, "404",
 		i18n.T(r.Context(), i18n.KeyCategoryNotFound),
 		i18n.T(r.Context(), i18n.KeyCategoryNotFoundBody)))
 }
 
 func (h *Handler) serverError(w http.ResponseWriter, r *http.Request) {
-	respond.Component(w, r, h.log, http.StatusInternalServerError, layouts.Notice(
-		layouts.Page{Title: i18n.T(r.Context(), i18n.KeyCannotLoad)}, "500",
+	respond.Component(w, r, h.log, http.StatusInternalServerError, frame.Notice(
+		frame.Page{Title: i18n.T(r.Context(), i18n.KeyCannotLoad)}, "500",
 		i18n.T(r.Context(), i18n.KeyCannotLoad),
 		i18n.T(r.Context(), i18n.KeyCannotLoadListing)))
 }
@@ -239,7 +239,7 @@ func (h *Handler) Compare(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 	respond.Component(w, r, h.log, http.StatusOK, Compare(
-		layouts.Page{
+		frame.Page{
 			Title:       i18n.T(r.Context(), i18n.KeyCompareTitle),
 			Description: i18n.T(r.Context(), i18n.KeyCompareDescription),
 		}, view))

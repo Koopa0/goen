@@ -8,7 +8,7 @@ import (
 
 	"github.com/koopa0/goen/internal/i18n"
 	"github.com/koopa0/goen/internal/order"
-	"github.com/koopa0/goen/internal/ui/layouts"
+	"github.com/koopa0/goen/internal/ui/frame"
 	"github.com/koopa0/goen/internal/ui/widget"
 )
 
@@ -72,7 +72,7 @@ func TestOrderListPillsFollowTheirGroupAndLeaveOutCommitted(t *testing.T) {
 			{Number: "GO-C", Status: order.FulfillmentCompleted, StatusText: "已完成", StatusIntent: widget.IntentDone},
 		},
 	}
-	page := renderComponent(t, ctx, Orders(layouts.Page{}, view))
+	page := renderComponent(t, ctx, Orders(frame.Page{}, view))
 	wantBadge(t, page, "備貨中", "goen-badge goen-badge--progress")
 	wantBadge(t, page, "待出貨", "goen-badge goen-badge--warn")
 	wantBadge(t, page, "已完成", "goen-badge goen-badge--done")
@@ -85,7 +85,7 @@ func TestOrderPageHeadKeepsItsGroupAndCommitted(t *testing.T) {
 	t.Parallel()
 	ctx := i18n.WithLocale(t.Context(), i18n.ZhHant)
 	view := &OrderView{Number: "GO-A", Status: order.FulfillmentShipped, StatusText: "已出貨", StatusIntent: widget.IntentProgress, Committed: true}
-	page := renderComponent(t, ctx, Order(layouts.Page{}, view))
+	page := renderComponent(t, ctx, Order(frame.Page{}, view))
 	wantBadge(t, page, "已出貨", "goen-badge goen-badge--progress")
 	wantBadge(t, page, i18n.T(ctx, i18n.KeyAdminQueueCommitted), "goen-badge")
 }

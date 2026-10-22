@@ -20,7 +20,7 @@ import (
 	"github.com/koopa0/goen/internal/i18n"
 	"github.com/koopa0/goen/internal/media"
 	"github.com/koopa0/goen/internal/site"
-	"github.com/koopa0/goen/internal/ui/layouts"
+	"github.com/koopa0/goen/internal/ui/frame"
 )
 
 func TestNavigationFollowsConfiguredDepartmentPhotographs(t *testing.T) {
@@ -99,7 +99,7 @@ func assertDepartmentPhotograph(t *testing.T, ctx context.Context, store *home.S
 	if err != nil {
 		t.Fatalf("Nav(): %v", err)
 	}
-	var item *layouts.NavItem
+	var item *frame.NavItem
 	for i := range nav {
 		if nav[i].Slug == slug {
 			item = &nav[i]
@@ -136,7 +136,7 @@ func assertDepartmentPhotograph(t *testing.T, ctx context.Context, store *home.S
 		t.Errorf("landing %s photograph = %+v; want %q, %q", slug, photo, url, srcset)
 	}
 	var header strings.Builder
-	if err = layouts.Header(layouts.Page{}).Render(layouts.WithTopNav(ctx, nav), &header); err != nil {
+	if err = frame.Header(frame.Page{}).Render(frame.WithTopNav(ctx, nav), &header); err != nil {
 		t.Fatalf("render header: %v", err)
 	}
 	browse := regexp.MustCompile(`(?s)<a class="goen-dept__browse" href="/c/` + regexp.QuoteMeta(slug) + `">(.*?)</a>`).FindString(header.String())

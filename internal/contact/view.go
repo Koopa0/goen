@@ -6,11 +6,11 @@ import (
 	"github.com/a-h/templ"
 
 	"github.com/koopa0/goen/internal/i18n"
-	"github.com/koopa0/goen/internal/ui/layouts"
+	"github.com/koopa0/goen/internal/ui/frame"
 )
 
-func Meta(ctx context.Context) layouts.Page {
-	return layouts.Page{
+func Meta(ctx context.Context) frame.Page {
+	return frame.Page{
 		Title:       i18n.T(ctx, i18n.KeyContactTitle),
 		Description: i18n.T(ctx, i18n.KeyContactDescription),
 	}

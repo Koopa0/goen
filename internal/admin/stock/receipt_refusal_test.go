@@ -12,7 +12,7 @@ import (
 	"testing"
 
 	"github.com/koopa0/goen/internal/i18n"
-	"github.com/koopa0/goen/internal/ui/layouts"
+	"github.com/koopa0/goen/internal/ui/frame"
 )
 
 func TestReceiptRefusalKeepsTheCorrectableForm(t *testing.T) {
@@ -70,7 +70,7 @@ func TestFreshReceiptFormHasItsOwnKeyAndNoRefusal(t *testing.T) {
 	t.Parallel()
 	view := MovementsView{SKU: "SKU", Slug: "product", FormID: "first-page"}
 	var body bytes.Buffer
-	if err := Movements(layouts.Page{}, &view).Render(t.Context(), &body); err != nil {
+	if err := Movements(frame.Page{}, &view).Render(t.Context(), &body); err != nil {
 		t.Fatal(err)
 	}
 	if !strings.Contains(body.String(), `name="idempotency" value="rcv:SKU:first-page"`) {

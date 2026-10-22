@@ -4,16 +4,16 @@ import (
 	"fmt"
 
 	"github.com/koopa0/goen/internal/i18n"
+	"github.com/koopa0/goen/internal/ui/frame"
 	"github.com/koopa0/goen/internal/ui/icons"
-	"github.com/koopa0/goen/internal/ui/layouts"
 	"github.com/koopa0/goen/internal/ui/widget"
 )
 
 // The figures are divisions rather than links because no screen lists the people
 // they count. Sending is the one decision here, so the only primary control;
 // saving a draft is reversible and takes an outline.
-templ Newsletter(p layouts.Page, v NewsletterView) {
-	@layouts.Admin(p, "newsletters") {
+templ Newsletter(p frame.Page, v NewsletterView) {
+	@frame.Admin(p, "newsletters") {
 		<div class="ui-page-head">
 			<div>
 				<p class="ui-page-head__eyebrow">{ i18n.T(ctx, i18n.KeyAdminEyebrow) }</p>
@@ -23,7 +23,7 @@ templ Newsletter(p layouts.Page, v NewsletterView) {
 				</p>
 			</div>
 		</div>
-		@layouts.Announce(v.Notice)
+		@frame.Announce(v.Notice)
 		<div class="goen-admin__stats">
 			<div class="goen-stat">
 				<span class="goen-stat__label">{ i18n.T(ctx, i18n.KeyAdminNewsOnList) }</span>

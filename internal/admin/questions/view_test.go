@@ -8,7 +8,7 @@ import (
 	xhtml "golang.org/x/net/html"
 
 	"github.com/koopa0/goen/internal/i18n"
-	"github.com/koopa0/goen/internal/ui/layouts"
+	"github.com/koopa0/goen/internal/ui/frame"
 )
 
 // badgeClasses returns the class attribute of every badge whose text contains word.
@@ -65,7 +65,7 @@ func TestQuestionQueueWaitingNeedsYouAndTheCountIsPlainText(t *testing.T) {
 	t.Parallel()
 	ctx := i18n.WithLocale(t.Context(), i18n.ZhHant)
 	view := QuestionsView{Rows: []Question{{ID: "q", ProductName: "P"}}}
-	page := renderComponent(t, ctx, Questions(layouts.Page{}, view))
+	page := renderComponent(t, ctx, Questions(frame.Page{}, view))
 	wantBadge(t, page, i18n.T(ctx, i18n.KeyAdminQWaiting), "goen-badge goen-badge--warn")
 	count := fmt.Sprintf(i18n.T(ctx, i18n.KeyAdminQuestionsWaiting), "1")
 	if !strings.Contains(page, `<p class="goen-admin__headcount">`+count+`</p>`) {
@@ -85,7 +85,7 @@ func TestARefusedAnswerKeepsItsText(t *testing.T) {
 	view := QuestionsView{Rows: []Question{{
 		ID: "q1", Body: "多久到貨?", Draft: "一長串回覆", Error: "回覆不能留白",
 	}}}
-	page := renderComponent(t, ctx, Questions(layouts.Page{}, view))
+	page := renderComponent(t, ctx, Questions(frame.Page{}, view))
 
 	for _, want := range []string{`>一長串回覆</textarea>`, `aria-invalid="true"`, `id="answer-error-q1"`} {
 		if !strings.Contains(page, want) {

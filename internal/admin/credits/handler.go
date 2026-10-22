@@ -15,7 +15,7 @@ import (
 	"github.com/koopa0/goen/internal/keyset"
 	"github.com/koopa0/goen/internal/money"
 	"github.com/koopa0/goen/internal/shoptime"
-	"github.com/koopa0/goen/internal/ui/layouts"
+	"github.com/koopa0/goen/internal/ui/frame"
 	"github.com/koopa0/goen/internal/ui/widget"
 	"github.com/koopa0/goen/internal/web/formtext"
 	"github.com/koopa0/goen/internal/web/respond"
@@ -68,7 +68,7 @@ func (h *Handler) Credit(w http.ResponseWriter, r *http.Request) {
 	view.OperationID = uuid.NewString()
 	view.Notice = creditNotice(r)
 	respond.Component(w, r, h.log, http.StatusOK, Credit(
-		layouts.Page{Title: i18n.T(r.Context(), i18n.KeyAdminPageCredit)}, view))
+		frame.Page{Title: i18n.T(r.Context(), i18n.KeyAdminPageCredit)}, view))
 }
 
 // creditFilter reads the customer a page is narrowed to. Absent is every
@@ -205,5 +205,5 @@ func (h *Handler) renderCreditForm(w http.ResponseWriter, r *http.Request, view 
 	if notice != "" {
 		view.Notice = widget.Result{Outcome: widget.OutcomeRefused, Text: i18n.T(r.Context(), notice)}
 	}
-	respond.Component(w, r, h.log, status, Credit(layouts.Page{Title: i18n.T(r.Context(), i18n.KeyAdminPageCredit)}, *view))
+	respond.Component(w, r, h.log, status, Credit(frame.Page{Title: i18n.T(r.Context(), i18n.KeyAdminPageCredit)}, *view))
 }

@@ -12,7 +12,7 @@ import (
 	"github.com/koopa0/goen/internal/db"
 	"github.com/koopa0/goen/internal/i18n"
 	"github.com/koopa0/goen/internal/keyset"
-	"github.com/koopa0/goen/internal/ui/layouts"
+	"github.com/koopa0/goen/internal/ui/frame"
 )
 
 // The helpers below are copies of the render helpers every page package's
@@ -40,8 +40,8 @@ func render(t *testing.T, c templ.Component) string {
 
 // Meta is the page the tests here wrap their views in: the title is not what
 // they assert, so a fixed one is enough.
-func Meta(ctx context.Context) layouts.Page {
-	return layouts.Page{Title: i18n.T(ctx, i18n.KeyAdminPageDashboard)}
+func Meta(ctx context.Context) frame.Page {
+	return frame.Page{Title: i18n.T(ctx, i18n.KeyAdminPageDashboard)}
 }
 
 // firstPageBound is the bound the stores build for the first page of a

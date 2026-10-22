@@ -3,8 +3,8 @@ package wishlist
 import (
 	"github.com/koopa0/goen/internal/cart/cartitem"
 	"github.com/koopa0/goen/internal/i18n"
+	"github.com/koopa0/goen/internal/ui/frame"
 	"github.com/koopa0/goen/internal/ui/icons"
-	"github.com/koopa0/goen/internal/ui/layouts"
 	"github.com/koopa0/goen/internal/ui/tile"
 	"github.com/koopa0/goen/internal/ui/widget"
 )
@@ -25,8 +25,8 @@ type View struct {
 
 func (v View) Empty() bool { return len(v.Products) == 0 }
 
-templ Page(p layouts.Page, v View) {
-	@layouts.Base(p) {
+templ Page(p frame.Page, v View) {
+	@frame.Base(p) {
 		<div class="goen-listing">
 			<div class="goen-pagehead">
 				<p class="goen-pagehead__eyebrow">{ i18n.T(ctx, i18n.KeyAccountTitle) }</p>

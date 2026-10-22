@@ -4,12 +4,12 @@ import (
 	"github.com/koopa0/goen/assets"
 	"github.com/koopa0/goen/internal/i18n"
 	"github.com/koopa0/goen/internal/ui/fieldrule"
-	"github.com/koopa0/goen/internal/ui/layouts"
+	"github.com/koopa0/goen/internal/ui/frame"
 	"github.com/koopa0/goen/internal/ui/widget"
 )
 
-templ SignIn(p layouts.Page, v AuthView) {
-	@layouts.Base(p) {
+templ SignIn(p frame.Page, v AuthView) {
+	@frame.Base(p) {
 		<div class={ "goen-auth", templ.KV("goen-auth--door", !v.HideRegister) }>
 			<div class="goen-auth__panel">
 				<h1 class="goen-auth__title">{ i18n.T(ctx, i18n.KeySignIn) }</h1>
@@ -150,8 +150,8 @@ templ demoAccountNote(v AuthView) {
 	</section>
 }
 
-templ Register(p layouts.Page, v AuthView) {
-	@layouts.Base(p) {
+templ Register(p frame.Page, v AuthView) {
+	@frame.Base(p) {
 		<div class="goen-auth goen-auth--door">
 			<div class="goen-auth__panel">
 				if v.OffersResend && v.HasNotice() {
@@ -303,8 +303,8 @@ templ Register(p layouts.Page, v AuthView) {
 	}
 }
 
-templ RegisterComplete(p layouts.Page, v RegisterCompleteView) {
-	@layouts.Base(p) {
+templ RegisterComplete(p frame.Page, v RegisterCompleteView) {
+	@frame.Base(p) {
 		<div class="goen-auth">
 			<div class="goen-auth__panel">
 				<h1 class="goen-auth__title">{ i18n.T(ctx, i18n.KeyRegisterCompleteTitle) }</h1>

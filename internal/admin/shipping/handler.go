@@ -16,7 +16,7 @@ import (
 	"github.com/koopa0/goen/internal/admin/access"
 	"github.com/koopa0/goen/internal/i18n"
 	"github.com/koopa0/goen/internal/money"
-	"github.com/koopa0/goen/internal/ui/layouts"
+	"github.com/koopa0/goen/internal/ui/frame"
 	"github.com/koopa0/goen/internal/ui/widget"
 	"github.com/koopa0/goen/internal/web/formtext"
 	"github.com/koopa0/goen/internal/web/respond"
@@ -256,7 +256,7 @@ func (h *Handler) rejectShippingForm(
 		view.VersionDraft = *drafts.version
 	}
 	respond.Component(w, r, h.log, http.StatusUnprocessableEntity, Shipping(
-		layouts.Page{Title: i18n.T(r.Context(), i18n.KeyAdminPageShipping)}, view))
+		frame.Page{Title: i18n.T(r.Context(), i18n.KeyAdminPageShipping)}, view))
 }
 
 // dollars reads a non-negative whole-dollar amount. Optional blanks mean zero;
@@ -294,7 +294,7 @@ func (h *Handler) Page(w http.ResponseWriter, r *http.Request) {
 	}
 	view.Notice = widget.NoticeFrom(r, notices)
 	respond.Component(w, r, h.log, http.StatusOK, Shipping(
-		layouts.Page{Title: i18n.T(r.Context(), i18n.KeyAdminPageShipping)}, view))
+		frame.Page{Title: i18n.T(r.Context(), i18n.KeyAdminPageShipping)}, view))
 }
 
 func (h *Handler) PublishVersion(w http.ResponseWriter, r *http.Request) {
@@ -407,5 +407,5 @@ func (h *Handler) rejectSurcharge(w http.ResponseWriter, r *http.Request, messag
 	view.SurchargeDraft = SurchargeDraft{MethodID: methodID, ZoneID: zoneID, Amount: r.PostFormValue("amount")}
 	view.Errors = map[string]string{"surcharge": message}
 	respond.Component(w, r, h.log, http.StatusUnprocessableEntity, Shipping(
-		layouts.Page{Title: i18n.T(r.Context(), i18n.KeyAdminPageShipping)}, view))
+		frame.Page{Title: i18n.T(r.Context(), i18n.KeyAdminPageShipping)}, view))
 }

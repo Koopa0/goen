@@ -8,7 +8,7 @@ import (
 	"golang.org/x/net/html"
 
 	"github.com/koopa0/goen/internal/i18n"
-	"github.com/koopa0/goen/internal/ui/layouts"
+	"github.com/koopa0/goen/internal/ui/frame"
 	"github.com/koopa0/goen/internal/ui/tile"
 )
 
@@ -20,9 +20,9 @@ func TestProductViewsOmitAnAbsentBrand(t *testing.T) {
 				component templ.Component
 				class     string
 			}{
-				"product": {component: Product(layouts.Page{Title: "Generic"}, &view), class: "goen-pdp__brand"},
+				"product": {component: Product(frame.Page{Title: "Generic"}, &view), class: "goen-pdp__brand"},
 				"tile":    {component: tile.Cell(tile.Tile{Slug: "generic", Name: "Generic", Brand: brand}), class: "goen-tile__brand"},
-				"compare": {component: Compare(layouts.Page{Title: "Compare"}, CompareView{Products: []CompareProduct{
+				"compare": {component: Compare(frame.Page{Title: "Compare"}, CompareView{Products: []CompareProduct{
 					{Slug: "a", Name: "A", Brand: brand}, {Slug: "b", Name: "B", Brand: brand},
 				}}), class: "goen-compare__brand"},
 				"suggestions": {component: compareSuggestions(CompareView{Suggestions: []tile.Tile{{Slug: "generic", Name: "Generic", Brand: brand}}}), class: "goen-compare__brand"},

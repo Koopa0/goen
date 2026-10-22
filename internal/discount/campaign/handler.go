@@ -6,7 +6,7 @@ import (
 	"net/http"
 
 	"github.com/koopa0/goen/internal/i18n"
-	"github.com/koopa0/goen/internal/ui/layouts"
+	"github.com/koopa0/goen/internal/ui/frame"
 	"github.com/koopa0/goen/internal/web/respond"
 )
 
@@ -52,11 +52,11 @@ func (h *Handler) Campaign(w http.ResponseWriter, r *http.Request) {
 	view, err := h.store.Campaign(r.Context(), slug)
 	if err != nil {
 		if errors.Is(err, ErrNotFound) {
-			respond.Component(w, r, h.log, http.StatusNotFound, layouts.Notice(
-				layouts.Page{Title: i18n.T(r.Context(), i18n.KeyCampaignNotFound)}, "404",
+			respond.Component(w, r, h.log, http.StatusNotFound, frame.Notice(
+				frame.Page{Title: i18n.T(r.Context(), i18n.KeyCampaignNotFound)}, "404",
 				i18n.T(r.Context(), i18n.KeyCampaignNotFound),
 				i18n.T(r.Context(), i18n.KeyCampaignNotFoundBody),
-				layouts.NoticeActions{Primary: layouts.NoticeLink{Href: "/deals", Label: i18n.KeyCurrentDeals}}))
+				frame.NoticeActions{Primary: frame.NoticeLink{Href: "/deals", Label: i18n.KeyCurrentDeals}}))
 			return
 		}
 		h.log.ErrorContext(r.Context(), "load campaign", "error", err, "slug", slug)
@@ -67,8 +67,8 @@ func (h *Handler) Campaign(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *Handler) serverError(w http.ResponseWriter, r *http.Request) {
-	respond.Component(w, r, h.log, http.StatusInternalServerError, layouts.Notice(
-		layouts.Page{Title: i18n.T(r.Context(), i18n.KeyCannotLoad)}, "500",
+	respond.Component(w, r, h.log, http.StatusInternalServerError, frame.Notice(
+		frame.Page{Title: i18n.T(r.Context(), i18n.KeyCannotLoad)}, "500",
 		i18n.T(r.Context(), i18n.KeyCannotLoad),
 		i18n.T(r.Context(), i18n.KeyCannotLoadListing)))
 }

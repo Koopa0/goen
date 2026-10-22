@@ -9,7 +9,7 @@ import (
 	"golang.org/x/net/html"
 
 	"github.com/koopa0/goen/internal/i18n"
-	"github.com/koopa0/goen/internal/ui/layouts"
+	"github.com/koopa0/goen/internal/ui/frame"
 	"github.com/koopa0/goen/internal/user"
 )
 
@@ -31,7 +31,7 @@ func TestStaffRowPrintsAnEmailOnce(t *testing.T) {
 		"no name":   {StaffRow{ID: "1", Email: "nameless@example.com", Role: user.RoleStaff}, 1},
 		"with name": {StaffRow{ID: "2", Email: "named@example.com", Role: user.RoleStaff, Name: "Mei"}, 1},
 	} {
-		body := renderStaff(t, i18n.En, Staff(layouts.Page{Title: "Staff"}, StaffView{Rows: []StaffRow{tc.row}}))
+		body := renderStaff(t, i18n.En, Staff(frame.Page{Title: "Staff"}, StaffView{Rows: []StaffRow{tc.row}}))
 		if got := strings.Count(body, tc.row.Email); got != tc.count {
 			t.Errorf("%s: %q appears %d times in the staff list, want %d", name, tc.row.Email, got, tc.count)
 		}
@@ -95,7 +95,7 @@ func TestStaffEnrollmentBadgesAreDoneOrNeedYou(t *testing.T) {
 		{ID: "on", Role: user.RoleStaff, Enrolled: true},
 		{ID: "off", Role: user.RoleStaff},
 	}}
-	page := renderStaff(t, i18n.ZhHant, Staff(layouts.Page{}, view))
+	page := renderStaff(t, i18n.ZhHant, Staff(frame.Page{}, view))
 	wantBadge(t, page, i18n.T(ctx, i18n.KeyAdminTOTPOn), "goen-badge goen-badge--done")
 	wantBadge(t, page, i18n.T(ctx, i18n.KeyAdminTOTPOff), "goen-badge goen-badge--warn")
 }
@@ -115,7 +115,7 @@ func TestStaffCountSelectsSingularInTheRenderedPage(t *testing.T) {
 			for i := range rows {
 				rows[i] = StaffRow{ID: fmt.Sprintf("staff-%d", i), Email: "staff@example.com", Role: user.RoleStaff}
 			}
-			staff := renderStaff(t, locale, Staff(layouts.Page{}, StaffView{Rows: rows}))
+			staff := renderStaff(t, locale, Staff(frame.Page{}, StaffView{Rows: rows}))
 			if !strings.Contains(staff, wantStaff) {
 				t.Errorf("Staff(%s, %d) does not contain %q", locale, n, wantStaff)
 			}

@@ -15,7 +15,7 @@ import (
 	"github.com/koopa0/goen/internal/db"
 	"github.com/koopa0/goen/internal/i18n"
 	"github.com/koopa0/goen/internal/keyset"
-	"github.com/koopa0/goen/internal/ui/layouts"
+	"github.com/koopa0/goen/internal/ui/frame"
 	"github.com/koopa0/goen/internal/ui/widget"
 )
 
@@ -26,7 +26,7 @@ import (
 func TestCampaignsEmptyPageKeepsItsRestartLink(t *testing.T) {
 	t.Parallel()
 	b := keyset.Bound{PastEnd: true, First: "/admin/products?q=test"}
-	p := layouts.Page{Title: "Pagination"}
+	p := frame.Page{Title: "Pagination"}
 	cases := map[string]templ.Component{
 		"campaigns": Campaigns(p, CampaignsView{Bound: b}),
 	}
@@ -54,7 +54,7 @@ func TestCampaignsQueueKeepsItsOwnFirstPageEmptyState(t *testing.T) {
 	ctx := func(k i18n.Key) string { return i18n.T(i18n.WithLocale(t.Context(), i18n.En), k) }
 	generic := ctx(i18n.KeyPageEmpty)
 	_, b := keyset.PageBound("/admin/queue", false, []db.Order{}, keyset.PageSize, func(*db.Order) string { return "" })
-	p := layouts.Page{Title: "Queue"}
+	p := frame.Page{Title: "Queue"}
 	for name, c := range map[string]struct {
 		page templ.Component
 		want string
@@ -81,7 +81,7 @@ func TestCampaignsQueueWithMoreRowsOffersNext(t *testing.T) {
 	rows := make([]db.Order, keyset.PageLimit)
 	_, b := keyset.PageBound("/admin/queue", false, rows, keyset.PageSize,
 		func(*db.Order) string { return `{"ID":"12345678-1234-1234-1234-123456789abc"}` })
-	p := layouts.Page{Title: "Queue"}
+	p := frame.Page{Title: "Queue"}
 	for name, page := range map[string]templ.Component{
 		"campaigns": Campaigns(p, CampaignsView{Bound: b}),
 	} {
@@ -123,7 +123,7 @@ func TestCampaignExamplesStayOutsideRefusedInputs(t *testing.T) {
 					prefix = "例："
 					title = "夏季特賣"
 				}
-				p := layouts.Page{}
+				p := frame.Page{}
 				for _, page := range []struct {
 					name      string
 					component templ.Component
@@ -210,7 +210,7 @@ func TestCampaignImageRefusalRendersDraftsApartFromSavedImages(t *testing.T) {
 			want      map[string]string
 			errorID   string
 		}{
-			{name: "campaign", component: CampaignForm(layouts.Page{}, CampaignView{Slug: "c", Image: widget.HeaderImage{Image: assets.Image{Digest: saved}, Alt: "Saved description"}, ImageAltDraft: alt, ImageAltEnDraft: altEn, Errors: map[string]string{"image": "Replace the image"}}), want: map[string]string{"c-alt": alt, "c-alt-en": altEn}, errorID: "c-image"},
+			{name: "campaign", component: CampaignForm(frame.Page{}, CampaignView{Slug: "c", Image: widget.HeaderImage{Image: assets.Image{Digest: saved}, Alt: "Saved description"}, ImageAltDraft: alt, ImageAltEnDraft: altEn, Errors: map[string]string{"image": "Replace the image"}}), want: map[string]string{"c-alt": alt, "c-alt-en": altEn}, errorID: "c-image"},
 		} {
 			t.Run(locale.Tag()+"/"+tt.name, func(t *testing.T) {
 				t.Parallel()
@@ -306,8 +306,8 @@ func TestCampaignRemoveButtonsNameTheirRecord(t *testing.T) {
 			field     string
 			want      map[string]string
 		}{
-			{name: "featured products", component: CampaignForm(layouts.Page{}, CampaignView{Slug: "event", Products: []CampaignProduct{{Slug: "pixelight", Name: "Pixelight <Pro> & more"}, {Slug: "meridian", Name: "Meridian"}}}), action: "/admin/campaigns/event/products", field: "product", want: map[string]string{"pixelight": "Pixelight <Pro> & more", "meridian": "Meridian"}},
-			{name: "campaign image", component: CampaignForm(layouts.Page{}, CampaignView{Slug: "event", Image: widget.HeaderImage{Image: assets.Image{Digest: "abababababababababababababababababababababababababababababababab"}, Alt: "Summer <sale>"}}), action: "/admin/campaigns/event/image/remove", want: map[string]string{"": locale.image + " Summer <sale>"}},
+			{name: "featured products", component: CampaignForm(frame.Page{}, CampaignView{Slug: "event", Products: []CampaignProduct{{Slug: "pixelight", Name: "Pixelight <Pro> & more"}, {Slug: "meridian", Name: "Meridian"}}}), action: "/admin/campaigns/event/products", field: "product", want: map[string]string{"pixelight": "Pixelight <Pro> & more", "meridian": "Meridian"}},
+			{name: "campaign image", component: CampaignForm(frame.Page{}, CampaignView{Slug: "event", Image: widget.HeaderImage{Image: assets.Image{Digest: "abababababababababababababababababababababababababababababababab"}, Alt: "Summer <sale>"}}), action: "/admin/campaigns/event/image/remove", want: map[string]string{"": locale.image + " Summer <sale>"}},
 		} {
 			t.Run(locale.locale.Tag()+"/"+tt.name, func(t *testing.T) {
 				t.Parallel()

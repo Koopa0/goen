@@ -10,7 +10,7 @@ import (
 	"github.com/koopa0/goen/internal/i18n"
 	"github.com/koopa0/goen/internal/invoice"
 	"github.com/koopa0/goen/internal/order"
-	"github.com/koopa0/goen/internal/ui/layouts"
+	"github.com/koopa0/goen/internal/ui/frame"
 )
 
 func TestAllowanceNoticesRemainVisibleWithoutInvoicingActions(t *testing.T) {
@@ -82,7 +82,7 @@ func TestAllowanceNoticesRemainVisibleWithoutInvoicingActions(t *testing.T) {
 							{Kind: invoice.DocumentAllowance, Number: "CN-PREVIOUS", Status: invoice.DocumentIssued, AmountCents: 20000},
 						}
 					}
-					body := renderComponent(t, ctx, Order(layouts.Page{Title: "GO-ALLOWANCE"}, &view))
+					body := renderComponent(t, ctx, Order(frame.Page{Title: "GO-ALLOWANCE"}, &view))
 					message := tt.message
 					if !provider.enabled && tt.disabledMessage != "" {
 						message = tt.disabledMessage

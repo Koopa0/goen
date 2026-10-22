@@ -6,7 +6,7 @@ import (
 
 	"golang.org/x/net/html"
 
-	"github.com/koopa0/goen/internal/ui/layouts"
+	"github.com/koopa0/goen/internal/ui/frame"
 )
 
 // TestTheAllowanceResendFormRendersOnlyWhenAuthorizable holds the resend
@@ -29,7 +29,7 @@ func TestTheAllowanceResendFormRendersOnlyWhenAuthorizable(t *testing.T) {
 				Status: "pending", AmountCents: 2590000, Attempts: 1, Sends: 1,
 				LastError: "allowance_not_yet_visible", CanAuthorizeResend: tc.authorized,
 			}}}
-			doc, err := html.Parse(strings.NewReader(renderToString(t, Health(layouts.Page{Title: "health"}, view))))
+			doc, err := html.Parse(strings.NewReader(renderToString(t, Health(frame.Page{Title: "health"}, view))))
 			if err != nil {
 				t.Fatalf("parse the health page: %v", err)
 			}

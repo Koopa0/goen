@@ -7,14 +7,14 @@ import (
 
 	"github.com/koopa0/goen/internal/i18n"
 	"github.com/koopa0/goen/internal/site"
-	"github.com/koopa0/goen/internal/ui/layouts"
+	"github.com/koopa0/goen/internal/ui/frame"
 )
 
 // The home and about pages name the shop's departments from the header's
 // category row, so a sentence about them cannot drift from the catalogue.
 func TestHomeAndAboutNameTheShopsOwnCategories(t *testing.T) {
 	t.Parallel()
-	nav := map[i18n.Locale][]layouts.NavItem{
+	nav := map[i18n.Locale][]frame.NavItem{
 		i18n.ZhHant: {{Slug: "books", Name: "書籍"}, {Slug: "kitchen", Name: "廚房用品"}, {Slug: "food", Name: "食品"}},
 		i18n.En:     {{Slug: "books", Name: "Books"}, {Slug: "kitchen", Name: "Kitchen"}, {Slug: "food", Name: "Food"}},
 	}
@@ -23,7 +23,7 @@ func TestHomeAndAboutNameTheShopsOwnCategories(t *testing.T) {
 		i18n.En:     "Departments at goen: Books, Kitchen and Food.",
 	}
 	for locale, items := range nav {
-		ctx := layouts.WithTopNav(i18n.WithLocale(t.Context(), locale), items)
+		ctx := frame.WithTopNav(i18n.WithLocale(t.Context(), locale), items)
 		home, about := Meta(ctx), site.AboutMeta(ctx)
 		if about.Description != wantDescription[locale] {
 			t.Errorf("%s AboutMeta().Description = %q, want %q", locale, about.Description, wantDescription[locale])
@@ -50,7 +50,7 @@ func TestHomeAndAboutNameTheShopsOwnCategories(t *testing.T) {
 		for _, item := range items {
 			names = append(names, item.Name)
 		}
-		list := layouts.JoinList(ctx, names)
+		list := frame.JoinList(ctx, names)
 		page := renderComponent(t, ctx, site.About(about))
 		if want := `<meta name="description" content="` + html.EscapeString(wantDescription[locale]) + `"`; !strings.Contains(page, want) {
 			t.Errorf("%s about page omits description %q", locale, wantDescription[locale])

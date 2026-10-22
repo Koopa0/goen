@@ -4,7 +4,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/koopa0/goen/internal/ui/layouts"
+	"github.com/koopa0/goen/internal/ui/frame"
 )
 
 // tagHolding is the opening tag that carries attr, so an assertion about one
@@ -35,7 +35,7 @@ func TestARefusedFAQEditReturnsToItsOwnEntryNotTheAddForm(t *testing.T) {
 			ID: "e1", Category: "會員", Question: "", Answer: "edited answer",
 		},
 	}
-	page := renderToString(t, FAQ(layouts.Page{Title: "faq"}, v))
+	page := renderToString(t, FAQ(frame.Page{Title: "faq"}, v))
 
 	if strings.Contains(tagHolding(t, page, `id="faq-question"`), "aria-invalid") {
 		t.Error("the add form's question is marked invalid by an edit's refusal")
@@ -71,7 +71,7 @@ func TestARefusedFAQAddStaysOnTheAddForm(t *testing.T) {
 		Errors: map[string]string{"question": "REFUSED-QUESTION"},
 		Draft:  Entry{Category: "會員", Answer: "typed answer"},
 	}
-	page := renderToString(t, FAQ(layouts.Page{Title: "faq"}, v))
+	page := renderToString(t, FAQ(frame.Page{Title: "faq"}, v))
 	if !strings.Contains(tagHolding(t, page, `id="faq-question"`), "aria-invalid") {
 		t.Error("the add form's question is not marked invalid")
 	}

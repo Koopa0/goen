@@ -13,7 +13,7 @@ import (
 	"github.com/koopa0/goen/internal/db"
 	"github.com/koopa0/goen/internal/i18n"
 	"github.com/koopa0/goen/internal/keyset"
-	"github.com/koopa0/goen/internal/ui/layouts"
+	"github.com/koopa0/goen/internal/ui/frame"
 )
 
 // The tests in this file are this desk's halves of tests that render several
@@ -96,7 +96,7 @@ func render(t *testing.T, c templ.Component) string {
 func TestMessagesEmptyPageKeepsItsRestartLink(t *testing.T) {
 	t.Parallel()
 	b := keyset.Bound{PastEnd: true, First: "/admin/products?q=test"}
-	body := render(t, Messages(layouts.Page{Title: "Pagination"}, MessagesView{Bound: b}))
+	body := render(t, Messages(frame.Page{Title: "Pagination"}, MessagesView{Bound: b}))
 	if !strings.Contains(body, `href="/admin/products?q=test"`) || !strings.Contains(body, "First page") {
 		t.Fatal("empty page lost its plain restart link")
 	}
@@ -110,7 +110,7 @@ func TestMessagesQueueKeepsItsOwnFirstPageEmptyState(t *testing.T) {
 	t.Parallel()
 	ctx := func(k i18n.Key) string { return i18n.T(i18n.WithLocale(t.Context(), i18n.En), k) }
 	want := ctx(i18n.KeyAdminMessagesEmpty)
-	body := render(t, Messages(layouts.Page{Title: "Queue"}, MessagesView{Bound: firstPageBound("/admin/queue")}))
+	body := render(t, Messages(frame.Page{Title: "Queue"}, MessagesView{Bound: firstPageBound("/admin/queue")}))
 	if !strings.Contains(body, html.EscapeString(want)) {
 		t.Errorf("the queue's own empty text %q is missing", want)
 	}
@@ -123,7 +123,7 @@ func TestMessagesQueueKeepsItsOwnFirstPageEmptyState(t *testing.T) {
 func TestMessagesQueueWithMoreRowsOffersNext(t *testing.T) {
 	t.Parallel()
 	ctx := func(k i18n.Key) string { return i18n.T(i18n.WithLocale(t.Context(), i18n.En), k) }
-	body := render(t, Messages(layouts.Page{Title: "Queue"}, MessagesView{Bound: fullPageBound("/admin/queue")}))
+	body := render(t, Messages(frame.Page{Title: "Queue"}, MessagesView{Bound: fullPageBound("/admin/queue")}))
 	if !strings.Contains(body, `rel="next"`) {
 		t.Error("a first page with more rows has no Next link")
 	}
@@ -138,7 +138,7 @@ func TestMessageQueueWaitingAndOverdueNeedYouAndOverdueSaysSo(t *testing.T) {
 	fresh := Message{ID: "fresh", SubjectLabel: "S1", WaitingDays: 0}
 	late := Message{ID: "late", SubjectLabel: "S2", WaitingDays: 4}
 	view := MessagesView{Bound: firstPageBound("messages"), Rows: []Message{fresh, late}}
-	page := renderComponent(t, ctx, Messages(layouts.Page{}, view))
+	page := renderComponent(t, ctx, Messages(frame.Page{}, view))
 	wantBadge(t, page, fresh.Waiting(ctx), "goen-badge goen-badge--warn")
 	wantBadge(t, page, late.OverdueText(ctx), "goen-badge goen-badge--warn")
 	if !strings.Contains(late.OverdueText(ctx), "逾時") {

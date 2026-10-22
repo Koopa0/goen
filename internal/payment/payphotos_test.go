@@ -9,7 +9,7 @@ import (
 
 	"github.com/koopa0/goen/assets"
 	"github.com/koopa0/goen/internal/i18n"
-	"github.com/koopa0/goen/internal/ui/layouts"
+	"github.com/koopa0/goen/internal/ui/frame"
 )
 
 func TestPayLineShowsItsPhotoOrTheEmptyWell(t *testing.T) {
@@ -28,7 +28,7 @@ func TestPayLineShowsItsPhotoOrTheEmptyWell(t *testing.T) {
 					line.ImageSrcset = assets.Image{BundledKey: "pixelight-9-pro-02.webp"}.Srcset()
 					line.ImageAlt = alt
 				}
-				doc, err := html.Parse(strings.NewReader(renderComponent(t, i18n.WithLocale(t.Context(), locale), Pay(layouts.Page{Title: "Pay"}, PayView{Number: "GO-1", Lines: []PayLine{line}}))))
+				doc, err := html.Parse(strings.NewReader(renderComponent(t, i18n.WithLocale(t.Context(), locale), Pay(frame.Page{Title: "Pay"}, PayView{Number: "GO-1", Lines: []PayLine{line}}))))
 				if err != nil {
 					t.Fatal(err)
 				}

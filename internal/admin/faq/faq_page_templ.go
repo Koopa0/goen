@@ -12,8 +12,8 @@ import (
 	"fmt"
 
 	"github.com/koopa0/goen/internal/i18n"
+	"github.com/koopa0/goen/internal/ui/frame"
 	"github.com/koopa0/goen/internal/ui/icons"
-	"github.com/koopa0/goen/internal/ui/layouts"
 	"github.com/koopa0/goen/internal/ui/widget"
 )
 
@@ -22,7 +22,7 @@ import (
 // The list keeps the class the layout gate finds the page by
 // (scripts/check-layout.mjs): it marks the page on the LIST, so a run that rendered
 // only the form cannot report the page as covered.
-func FAQ(p layouts.Page, v *FAQView) templ.Component {
+func FAQ(p frame.Page, v *FAQView) templ.Component {
 	return templruntime.GeneratedTemplate(func(templ_7745c5c3_Input templruntime.GeneratedComponentInput) (templ_7745c5c3_Err error) {
 		templ_7745c5c3_W, ctx := templ_7745c5c3_Input.Writer, templ_7745c5c3_Input.Context
 		if templ_7745c5c3_CtxErr := ctx.Err(); templ_7745c5c3_CtxErr != nil {
@@ -98,19 +98,19 @@ func FAQ(p layouts.Page, v *FAQView) templ.Component {
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
-			templ_7745c5c3_Err = layouts.Announce(v.Notice).Render(ctx, templ_7745c5c3_Buffer)
+			templ_7745c5c3_Err = frame.Announce(v.Notice).Render(ctx, templ_7745c5c3_Buffer)
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
-			templ_7745c5c3_Err = layouts.RefusalSummary(layouts.SummarizeRefusal(i18n.KeyAdminFaqpAdd, v.Errors, layouts.RefusalField{Key: "category", ID: "faq-category"}, layouts.RefusalField{Key: "question", ID: "faq-question"}, layouts.RefusalField{Key: "answer", ID: "faq-answer"}, layouts.RefusalField{Key: "question_en", ID: "faq-question-en"}, layouts.RefusalField{Key: "answer_en", ID: "faq-answer-en"})).Render(ctx, templ_7745c5c3_Buffer)
+			templ_7745c5c3_Err = frame.RefusalSummary(frame.SummarizeRefusal(i18n.KeyAdminFaqpAdd, v.Errors, frame.RefusalField{Key: "category", ID: "faq-category"}, frame.RefusalField{Key: "question", ID: "faq-question"}, frame.RefusalField{Key: "answer", ID: "faq-answer"}, frame.RefusalField{Key: "question_en", ID: "faq-question-en"}, frame.RefusalField{Key: "answer_en", ID: "faq-answer-en"})).Render(ctx, templ_7745c5c3_Buffer)
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
-			templ_7745c5c3_Err = layouts.RefusalSummary(layouts.SummarizeRefusal(v.categoryRefusalForm(), v.CategoryErrors, layouts.RefusalField{Key: "name", ID: v.categoryFieldID("name")}, layouts.RefusalField{Key: "name_en", ID: v.categoryFieldID("name_en")})).Render(ctx, templ_7745c5c3_Buffer)
+			templ_7745c5c3_Err = frame.RefusalSummary(frame.SummarizeRefusal(v.categoryRefusalForm(), v.CategoryErrors, frame.RefusalField{Key: "name", ID: v.categoryFieldID("name")}, frame.RefusalField{Key: "name_en", ID: v.categoryFieldID("name_en")})).Render(ctx, templ_7745c5c3_Buffer)
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
-			templ_7745c5c3_Err = layouts.RefusalSummary(layouts.SummarizeRefusal(i18n.KeyAdminRefusalFAQ, v.EditErrors, layouts.RefusalField{Key: "question", ID: "q-" + v.Edit.ID}, layouts.RefusalField{Key: "answer", ID: "a-" + v.Edit.ID}, layouts.RefusalField{Key: "question_en", ID: "qe-" + v.Edit.ID}, layouts.RefusalField{Key: "answer_en", ID: "ae-" + v.Edit.ID})).Render(ctx, templ_7745c5c3_Buffer)
+			templ_7745c5c3_Err = frame.RefusalSummary(frame.SummarizeRefusal(i18n.KeyAdminRefusalFAQ, v.EditErrors, frame.RefusalField{Key: "question", ID: "q-" + v.Edit.ID}, frame.RefusalField{Key: "answer", ID: "a-" + v.Edit.ID}, frame.RefusalField{Key: "question_en", ID: "qe-" + v.Edit.ID}, frame.RefusalField{Key: "answer_en", ID: "ae-" + v.Edit.ID})).Render(ctx, templ_7745c5c3_Buffer)
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
@@ -1255,7 +1255,7 @@ func FAQ(p layouts.Page, v *FAQView) templ.Component {
 			}
 			return nil
 		})
-		templ_7745c5c3_Err = layouts.Admin(p, "faq").Render(templ.WithChildren(ctx, templ_7745c5c3_Var2), templ_7745c5c3_Buffer)
+		templ_7745c5c3_Err = frame.Admin(p, "faq").Render(templ.WithChildren(ctx, templ_7745c5c3_Var2), templ_7745c5c3_Buffer)
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}

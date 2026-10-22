@@ -2,12 +2,12 @@ package returns
 
 import (
 	"github.com/koopa0/goen/internal/i18n"
-	"github.com/koopa0/goen/internal/ui/layouts"
+	"github.com/koopa0/goen/internal/ui/frame"
 	"github.com/koopa0/goen/internal/ui/widget"
 )
 
-templ ConfirmReturn(p layouts.Page, v ReturnConfirmation) {
-	@layouts.Admin(p, "returns") {
+templ ConfirmReturn(p frame.Page, v ReturnConfirmation) {
+	@frame.Admin(p, "returns") {
 		<div class="ui-page-head"><h1 class="ui-page-head__title">{ v.Title(ctx) }</h1></div>
 		@widget.Card(widget.CardProps{Class: "goen-admin__op"}) {
 			<dl class="ui-dl">

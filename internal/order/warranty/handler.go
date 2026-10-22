@@ -9,7 +9,7 @@ import (
 	"strconv"
 
 	"github.com/koopa0/goen/internal/i18n"
-	"github.com/koopa0/goen/internal/ui/layouts"
+	"github.com/koopa0/goen/internal/ui/frame"
 	"github.com/koopa0/goen/internal/user"
 	"github.com/koopa0/goen/internal/web/formtext"
 	"github.com/koopa0/goen/internal/web/respond"
@@ -55,7 +55,7 @@ func (h *Handler) List(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	respond.Component(w, r, h.log, http.StatusOK, WarrantyList(
-		layouts.Page{Title: i18n.T(r.Context(), i18n.KeyWarrantyTitle)},
+		frame.Page{Title: i18n.T(r.Context(), i18n.KeyWarrantyTitle)},
 		WarrantyListView{Rows: rows, Ready: ready}))
 }
 
@@ -71,7 +71,7 @@ func (h *Handler) Order(w http.ResponseWriter, r *http.Request) {
 	}
 	view.RegisteredUnit = registeredUnitFor(r, view.Registered)
 	respond.Component(w, r, h.log, http.StatusOK, WarrantyOrder(
-		layouts.Page{Title: fmt.Sprintf(i18n.T(r.Context(), i18n.KeyWarrantyRegisterMeta), view.Number)}, view))
+		frame.Page{Title: fmt.Sprintf(i18n.T(r.Context(), i18n.KeyWarrantyRegisterMeta), view.Number)}, view))
 }
 
 func (h *Handler) orderView(w http.ResponseWriter, r *http.Request, userID string) (OrderView, bool) {
@@ -80,8 +80,8 @@ func (h *Handler) orderView(w http.ResponseWriter, r *http.Request, userID strin
 		return view, true
 	}
 	if errors.Is(err, ErrNotFound) {
-		respond.Component(w, r, h.log, http.StatusNotFound, layouts.Notice(
-			layouts.Page{Title: i18n.T(r.Context(), i18n.KeyOrderNotFound)}, "404",
+		respond.Component(w, r, h.log, http.StatusNotFound, frame.Notice(
+			frame.Page{Title: i18n.T(r.Context(), i18n.KeyOrderNotFound)}, "404",
 			i18n.T(r.Context(), i18n.KeyOrderNotFound),
 			i18n.T(r.Context(), i18n.KeyWarrantyOrderNotFound)))
 	} else {
@@ -150,12 +150,12 @@ func (h *Handler) rejectRegistration(w http.ResponseWriter, r *http.Request, use
 		break
 	}
 	respond.Component(w, r, h.log, http.StatusUnprocessableEntity, WarrantyOrder(
-		layouts.Page{Title: fmt.Sprintf(i18n.T(r.Context(), i18n.KeyWarrantyRegisterMeta), view.Number)}, view))
+		frame.Page{Title: fmt.Sprintf(i18n.T(r.Context(), i18n.KeyWarrantyRegisterMeta), view.Number)}, view))
 }
 
 func (h *Handler) serverError(w http.ResponseWriter, r *http.Request) {
-	respond.Component(w, r, h.log, http.StatusInternalServerError, layouts.Notice(
-		layouts.Page{Title: i18n.T(r.Context(), i18n.KeyTryAgainTitle)}, "",
+	respond.Component(w, r, h.log, http.StatusInternalServerError, frame.Notice(
+		frame.Page{Title: i18n.T(r.Context(), i18n.KeyTryAgainTitle)}, "",
 		i18n.T(r.Context(), i18n.KeyTryAgainTitle),
 		i18n.T(r.Context(), i18n.KeyTryAgainBody)))
 }

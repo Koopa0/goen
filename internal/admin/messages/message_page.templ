@@ -4,8 +4,8 @@ import (
 	"fmt"
 
 	"github.com/koopa0/goen/internal/i18n"
+	"github.com/koopa0/goen/internal/ui/frame"
 	"github.com/koopa0/goen/internal/ui/icons"
-	"github.com/koopa0/goen/internal/ui/layouts"
 	"github.com/koopa0/goen/internal/ui/widget"
 )
 
@@ -13,8 +13,8 @@ import (
 // the view model writes says both facts, so the row stays legible.
 // The list keeps the class the layout gate finds the page by
 // (scripts/check-layout.mjs); that rule stacks the list.
-templ Messages(p layouts.Page, v MessagesView) {
-	@layouts.Admin(p, "messages") {
+templ Messages(p frame.Page, v MessagesView) {
+	@frame.Admin(p, "messages") {
 		<div class="ui-page-head">
 			<div>
 				<p class="ui-page-head__eyebrow">{ i18n.T(ctx, i18n.KeyAdminEyebrow) }</p>
@@ -27,7 +27,7 @@ templ Messages(p layouts.Page, v MessagesView) {
 				}
 			</div>
 		</div>
-		@layouts.Announce(v.Notice)
+		@frame.Announce(v.Notice)
 		if v.Empty() && !v.PastEnd {
 			<div class="goen-admin__empty">
 				<span class="goen-modqueue__emptyicon">

@@ -7,7 +7,7 @@ import (
 
 	"github.com/koopa0/goen/internal/i18n"
 	"github.com/koopa0/goen/internal/product"
-	"github.com/koopa0/goen/internal/ui/layouts"
+	"github.com/koopa0/goen/internal/ui/frame"
 )
 
 func TestProductVariantCountSelectsSingularInTheRenderedPage(t *testing.T) {
@@ -15,7 +15,7 @@ func TestProductVariantCountSelectsSingularInTheRenderedPage(t *testing.T) {
 	for _, locale := range []i18n.Locale{i18n.ZhHant, i18n.En} {
 		for _, n := range []int32{1, 2} {
 			ctx := i18n.WithLocale(t.Context(), locale)
-			body := renderComponent(t, ctx, Products(layouts.Page{}, ProductsView{
+			body := renderComponent(t, ctx, Products(frame.Page{}, ProductsView{
 				Rows: []Product{{Slug: "product", Name: "product", Status: product.StatusActive, Variants: n, FromCents: 1000}},
 			}))
 			wantVariants := fmt.Sprintf("%d variants · from ", n)

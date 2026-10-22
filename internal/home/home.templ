@@ -5,15 +5,15 @@ import (
 
 	"github.com/koopa0/goen/internal/i18n"
 	"github.com/koopa0/goen/internal/policy"
+	"github.com/koopa0/goen/internal/ui/frame"
 	"github.com/koopa0/goen/internal/ui/hero"
 	"github.com/koopa0/goen/internal/ui/icons"
-	"github.com/koopa0/goen/internal/ui/layouts"
 	"github.com/koopa0/goen/internal/ui/tile"
 	"github.com/koopa0/goen/internal/ui/widget"
 )
 
-templ Page(p layouts.Page, v View) {
-	@layouts.Base(p) {
+templ Page(p frame.Page, v View) {
+	@frame.Base(p) {
 		<h1 class="goen-sr-only">{ i18n.T(ctx, i18n.KeyHomeHeading) }</h1>
 		if v.AccountErased {
 			<div class="goen-home">

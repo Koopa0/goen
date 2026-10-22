@@ -5,7 +5,7 @@ import (
 	"testing"
 
 	"github.com/koopa0/goen/internal/i18n"
-	"github.com/koopa0/goen/internal/ui/layouts"
+	"github.com/koopa0/goen/internal/ui/frame"
 )
 
 func TestTheStockListMarksItsFilterAndCarriesItsPlaceInEachForm(t *testing.T) {
@@ -15,7 +15,7 @@ func TestTheStockListMarksItsFilterAndCarriesItsPlaceInEachForm(t *testing.T) {
 		SoldOutOnly: true, Return: "/admin/stock?soldout=1&after=T",
 		Variants: []Variant{{SKU: "A-1", ProductName: "x"}},
 	}
-	html := renderComponent(t, ctx, Variants(layouts.Page{}, view))
+	html := renderComponent(t, ctx, Variants(frame.Page{}, view))
 
 	// The sidebar marks the stock section itself, so only the filter bar counts.
 	_, afterBar, _ := strings.Cut(html, `ui-filterbar`)
@@ -41,7 +41,7 @@ func TestARefusedAdjustmentKeepsWhatWasTypedAndMarksIt(t *testing.T) {
 		{SKU: "A-1", ProductName: "x", DraftDelta: "12x", DeltaError: "請輸入不為 0 的整數"},
 		{SKU: "B-2", ProductName: "y"},
 	}}
-	html := renderComponent(t, ctx, Variants(layouts.Page{}, view))
+	html := renderComponent(t, ctx, Variants(frame.Page{}, view))
 
 	for _, want := range []string{`name="delta" value="12x"`, `aria-describedby="adj-example-A-1 adj-error-A-1"`, `id="adj-error-A-1"`} {
 		if !strings.Contains(html, want) {
@@ -60,7 +60,7 @@ func TestTheStockListSearchesAndTellsVariantsApartByTheirOptions(t *testing.T) {
 		SoldOutOnly: true, Term: "koto",
 		Variants: []Variant{{SKU: "KOTO-CBL-1", ProductName: "x", Options: []string{"黑", "L"}}},
 	}
-	html := renderComponent(t, ctx, Variants(layouts.Page{}, view))
+	html := renderComponent(t, ctx, Variants(frame.Page{}, view))
 
 	for _, want := range []string{
 		`action="/admin/stock"`, `name="q" value="koto"`, `name="soldout" value="1"`,

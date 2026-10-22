@@ -15,7 +15,7 @@ import (
 	"github.com/koopa0/goen/internal/db"
 	"github.com/koopa0/goen/internal/i18n"
 	"github.com/koopa0/goen/internal/money"
-	"github.com/koopa0/goen/internal/ui/layouts"
+	"github.com/koopa0/goen/internal/ui/frame"
 	"github.com/koopa0/goen/internal/web/formtext"
 	"github.com/koopa0/goen/internal/web/siteurl"
 )
@@ -34,20 +34,20 @@ const dismissMaxAge = 365 * 24 * 60 * 60
 
 // Banner returns nothing when there is nothing to show; dismissed is the digest
 // the request carried.
-func (s *Store) Banner(ctx context.Context, dismissed string) (layouts.Banner, error) {
+func (s *Store) Banner(ctx context.Context, dismissed string) (frame.Banner, error) {
 	row, err := s.q.CurrentPromoBanner(ctx, string(i18n.FromContext(ctx)))
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
 			// No fallback, unlike the hero: a shop with nothing to announce
 			// announces nothing.
-			return layouts.Banner{}, nil
+			return frame.Banner{}, nil
 		}
-		return layouts.Banner{}, fmt.Errorf("read promo banner: %w", err)
+		return frame.Banner{}, fmt.Errorf("read promo banner: %w", err)
 	}
 
 	id := row.ID.String()
 	if dismissed != "" && dismissed == dismissDigest(id) {
-		return layouts.Banner{}, nil
+		return frame.Banner{}, nil
 	}
 
 	// Typed by a person and rendered into an href at the top of every page.
@@ -60,7 +60,7 @@ func (s *Store) Banner(ctx context.Context, dismissed string) (layouts.Banner, e
 		label = ""
 	}
 
-	return layouts.Banner{
+	return frame.Banner{
 		ID: id, Message: row.Message, MessageShort: row.MessageShort,
 		Code: row.Code, CTALabel: label, CTAHref: href,
 	}, nil
@@ -128,7 +128,7 @@ func (h *Handler) WithBanner(next http.Handler) http.Handler {
 			next.ServeHTTP(w, r)
 			return
 		}
-		next.ServeHTTP(w, r.WithContext(layouts.WithBanner(r.Context(), banner)))
+		next.ServeHTTP(w, r.WithContext(frame.WithBanner(r.Context(), banner)))
 	})
 }
 
@@ -149,8 +149,8 @@ func (h *Handler) WithTopNav(next http.Handler) http.Handler {
 	})
 }
 
-func withNav(ctx context.Context, items []layouts.NavItem, deals bool) context.Context {
-	return layouts.WithDeals(layouts.WithTopNav(ctx, items), deals)
+func withNav(ctx context.Context, items []frame.NavItem, deals bool) context.Context {
+	return frame.WithDeals(frame.WithTopNav(ctx, items), deals)
 }
 
 // dealsOnOffer is false when the read fails, like the department row beside it: a link
@@ -186,7 +186,7 @@ func (s *Store) Departments(ctx context.Context) ([]db.RootCategoriesRow, map[uu
 }
 
 // Nav is read by middleware, like Banner, rather than by a page's own handler.
-func (s *Store) Nav(ctx context.Context) ([]layouts.NavItem, error) {
+func (s *Store) Nav(ctx context.Context) ([]frame.NavItem, error) {
 	locale := string(i18n.FromContext(ctx))
 	rows, held, err := s.Departments(ctx)
 	if err != nil {
@@ -196,10 +196,10 @@ func (s *Store) Nav(ctx context.Context) ([]layouts.NavItem, error) {
 	if err != nil {
 		return nil, fmt.Errorf("read nav sub-categories: %w", err)
 	}
-	children := make(map[uuid.UUID][]layouts.NavItem, len(rows))
+	children := make(map[uuid.UUID][]frame.NavItem, len(rows))
 	for i := range subs {
 		c := &subs[i]
-		children[c.ParentID.UUID] = append(children[c.ParentID.UUID], layouts.NavItem{
+		children[c.ParentID.UUID] = append(children[c.ParentID.UUID], frame.NavItem{
 			Slug: c.Slug, Name: c.Name, Href: "/c/" + c.Slug,
 		})
 	}
@@ -207,14 +207,14 @@ func (s *Store) Nav(ctx context.Context) ([]layouts.NavItem, error) {
 	if err != nil {
 		return nil, err
 	}
-	items := make([]layouts.NavItem, 0, len(rows))
+	items := make([]frame.NavItem, 0, len(rows))
 	for i := range rows {
 		r := &rows[i]
 		if held[r.ID] == 0 {
 			continue
 		}
 		photo := assets.Image{Digest: r.ImageDigest, BundledKey: r.ImageBundledKey, Width: int(r.ImageWidth)}
-		items = append(items, layouts.NavItem{
+		items = append(items, frame.NavItem{
 			Slug: r.Slug, Name: r.Name, Href: "/c/" + r.Slug, ProductCount: int(held[r.ID]), Children: children[r.ID], Picks: picks[r.ID],
 			PhotoURL: photo.URL(), PhotoSrcset: photo.Srcset(),
 		})
@@ -222,12 +222,12 @@ func (s *Store) Nav(ctx context.Context) ([]layouts.NavItem, error) {
 	return items, nil
 }
 
-func (s *Store) navPicks(ctx context.Context, locale string) (map[uuid.UUID][]layouts.NavPick, error) {
+func (s *Store) navPicks(ctx context.Context, locale string) (map[uuid.UUID][]frame.NavPick, error) {
 	rows, err := s.q.NavPicks(ctx, locale)
 	if err != nil {
 		return nil, fmt.Errorf("read nav picks: %w", err)
 	}
-	out := make(map[uuid.UUID][]layouts.NavPick)
+	out := make(map[uuid.UUID][]frame.NavPick)
 	for i := range rows {
 		r := &rows[i]
 		photo := assets.Image{Digest: r.ImageDigest, BundledKey: r.ImageBundledKey, Width: int(r.ImageWidth)}
@@ -235,7 +235,7 @@ func (s *Store) navPicks(ctx context.Context, locale string) (map[uuid.UUID][]la
 		if r.PriceVaries {
 			price = fmt.Sprintf(i18n.T(ctx, i18n.KeyFromPrice), price)
 		}
-		out[r.RootID] = append(out[r.RootID], layouts.NavPick{
+		out[r.RootID] = append(out[r.RootID], frame.NavPick{
 			Slug:        r.Slug,
 			Name:        r.Name,
 			Price:       price,

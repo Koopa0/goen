@@ -24,7 +24,7 @@ import (
 	"github.com/koopa0/goen/internal/order/buyer"
 	"github.com/koopa0/goen/internal/order/warranty"
 	"github.com/koopa0/goen/internal/payment"
-	"github.com/koopa0/goen/internal/ui/layouts"
+	"github.com/koopa0/goen/internal/ui/frame"
 )
 
 // These fixtures bind each method-only expression to its production receiver.
@@ -39,8 +39,8 @@ func methodFormActions(t *testing.T) map[string][]string {
 	return map[string][]string{
 		"internal/account/page.templ:v.AddressAction()":                                                      {(&account.View{}).AddressAction(), (&account.View{AddressDraft: &account.AddressDraft{ID: "address"}}).AddressAction()},
 		"internal/admin/products/product_label_page.templ:templ.URL(v.LabelAction())":                        {product.LabelAction()},
-		"internal/ui/layouts/banner.templ:templ.SafeURL(b.DismissAction())":                                  {(layouts.Banner{}).DismissAction()},
-		"internal/ui/layouts/email_link.templ:templ.SafeURL(v.Action)":                                       newsletterFormActions(t),
+		"internal/ui/frame/banner.templ:templ.SafeURL(b.DismissAction())":                                    {(frame.Banner{}).DismissAction()},
+		"internal/ui/frame/email_link.templ:templ.SafeURL(v.Action)":                                         newsletterFormActions(t),
 		"internal/admin/products/product_page.templ:templ.SafeURL(v.Action() + \"#sec-details\")":            {product.Action() + "#sec-details", newProduct.Action() + "#sec-details"},
 		"internal/admin/campaigns/page.templ:templ.SafeURL(v.ToneAction())":                                  {(&campaigns.CampaignView{Slug: "campaign"}).ToneAction()},
 		"internal/admin/campaigns/page.templ:templ.SafeURL(v.WindowAction())":                                {(&campaigns.CampaignView{Slug: "campaign"}).WindowAction()},

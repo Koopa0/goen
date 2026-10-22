@@ -14,7 +14,7 @@ import (
 	"github.com/koopa0/goen/internal/invoice"
 	"github.com/koopa0/goen/internal/shipping"
 	"github.com/koopa0/goen/internal/ui/fieldrule"
-	"github.com/koopa0/goen/internal/ui/layouts"
+	"github.com/koopa0/goen/internal/ui/frame"
 )
 
 // pickupChains are the chains a shopper chooses between: those whose store
@@ -240,8 +240,8 @@ func (v *View) OffersTheAddressBook() bool {
 	return !v.ToPickupPoint() && len(v.SavedAddresses) > 0
 }
 
-func Meta(ctx context.Context) layouts.Page {
-	return layouts.Page{Title: i18n.T(ctx, i18n.KeyCheckoutTitle)}
+func Meta(ctx context.Context) frame.Page {
+	return frame.Page{Title: i18n.T(ctx, i18n.KeyCheckoutTitle)}
 }
 
 func (v *View) Err(field string) string { return v.Errors[field] }

@@ -11,7 +11,7 @@ import (
 	"github.com/koopa0/goen/internal/db"
 	"github.com/koopa0/goen/internal/i18n"
 	"github.com/koopa0/goen/internal/keyset"
-	"github.com/koopa0/goen/internal/ui/layouts"
+	"github.com/koopa0/goen/internal/ui/frame"
 )
 
 // The tests in this file are this desk's halves of tests that render several
@@ -45,7 +45,7 @@ func render(t *testing.T, c templ.Component) string {
 func TestReviewsEmptyPageKeepsItsRestartLink(t *testing.T) {
 	t.Parallel()
 	b := keyset.Bound{PastEnd: true, First: "/admin/products?q=test"}
-	body := render(t, Reviews(layouts.Page{Title: "Pagination"}, ReviewsView{Bound: b}))
+	body := render(t, Reviews(frame.Page{Title: "Pagination"}, ReviewsView{Bound: b}))
 	if !strings.Contains(body, `href="/admin/products?q=test"`) || !strings.Contains(body, "First page") {
 		t.Fatal("empty page lost its plain restart link")
 	}
@@ -59,7 +59,7 @@ func TestReviewsQueueKeepsItsOwnFirstPageEmptyState(t *testing.T) {
 	t.Parallel()
 	ctx := func(k i18n.Key) string { return i18n.T(i18n.WithLocale(t.Context(), i18n.En), k) }
 	want := ctx(i18n.KeyAdminReviewsEmpty)
-	body := render(t, Reviews(layouts.Page{Title: "Queue"}, ReviewsView{Bound: firstPageBound("/admin/queue")}))
+	body := render(t, Reviews(frame.Page{Title: "Queue"}, ReviewsView{Bound: firstPageBound("/admin/queue")}))
 	if !strings.Contains(body, html.EscapeString(want)) {
 		t.Errorf("the queue's own empty text %q is missing", want)
 	}
@@ -72,7 +72,7 @@ func TestReviewsQueueKeepsItsOwnFirstPageEmptyState(t *testing.T) {
 func TestReviewsQueueWithMoreRowsOffersNext(t *testing.T) {
 	t.Parallel()
 	ctx := func(k i18n.Key) string { return i18n.T(i18n.WithLocale(t.Context(), i18n.En), k) }
-	body := render(t, Reviews(layouts.Page{Title: "Queue"}, ReviewsView{Bound: fullPageBound("/admin/queue")}))
+	body := render(t, Reviews(frame.Page{Title: "Queue"}, ReviewsView{Bound: fullPageBound("/admin/queue")}))
 	if !strings.Contains(body, `rel="next"`) {
 		t.Error("a first page with more rows has no Next link")
 	}

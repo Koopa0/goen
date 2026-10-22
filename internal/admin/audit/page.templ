@@ -2,14 +2,14 @@ package audit
 
 import (
 	"github.com/koopa0/goen/internal/i18n"
-	"github.com/koopa0/goen/internal/ui/layouts"
+	"github.com/koopa0/goen/internal/ui/frame"
 	"github.com/koopa0/goen/internal/ui/widget"
 )
 
 // A feed rather than a table: the detail line is a recorded payload of no fixed
 // width, and a column that held one would turn every other row into empty space.
-templ Audit(p layouts.Page, v View) {
-	@layouts.Admin(p, "audit") {
+templ Audit(p frame.Page, v View) {
+	@frame.Admin(p, "audit") {
 		<div class="ui-page-head">
 			<div>
 				<p class="ui-page-head__eyebrow">{ i18n.T(ctx, i18n.KeyAdminEyebrow) }</p>

@@ -10,7 +10,7 @@ import (
 	"github.com/koopa0/goen/internal/invoice"
 	"github.com/koopa0/goen/internal/order"
 	"github.com/koopa0/goen/internal/shipping"
-	"github.com/koopa0/goen/internal/ui/layouts"
+	"github.com/koopa0/goen/internal/ui/frame"
 )
 
 // OrderShipment is one parcel. The right to cancel and the warranty of the lines in it count from its own delivery.
@@ -164,8 +164,8 @@ func (v *OrderView) paymentReturnHoldsCancel() bool {
 // store credit paid it in full, and the invoice was owed then.
 func (v *OrderView) CancelVoidsInvoice() bool { return v.CreditCents > 0 && v.OwedCents == 0 }
 
-func OrderMeta(ctx context.Context, number string) layouts.Page {
-	return layouts.Page{Title: fmt.Sprintf(i18n.T(ctx, i18n.KeyOrderMeta), number)}
+func OrderMeta(ctx context.Context, number string) frame.Page {
+	return frame.Page{Title: fmt.Sprintf(i18n.T(ctx, i18n.KeyOrderMeta), number)}
 }
 
 func (v *OrderView) Subtotal() string { return twd(v.SubtotalCents) }

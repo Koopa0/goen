@@ -5,7 +5,7 @@ import (
 	"testing"
 
 	"github.com/koopa0/goen/internal/i18n"
-	"github.com/koopa0/goen/internal/ui/layouts"
+	"github.com/koopa0/goen/internal/ui/frame"
 )
 
 func TestPlacementGrantFailedSpeaksBothLocales(t *testing.T) {
@@ -19,7 +19,7 @@ func TestPlacementGrantFailedSpeaksBothLocales(t *testing.T) {
 	}
 	for _, tt := range tests {
 		ctx := i18n.WithLocale(t.Context(), tt.locale)
-		html := renderComponent(t, ctx, PlacementGrantFailed(layouts.Page{Title: "test"}))
+		html := renderComponent(t, ctx, PlacementGrantFailed(frame.Page{Title: "test"}))
 		if !strings.Contains(html, tt.want) {
 			t.Errorf("placement grant failure in %s = %q, want %q", tt.locale, html, tt.want)
 		}

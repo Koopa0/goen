@@ -15,7 +15,7 @@ import (
 	"github.com/koopa0/goen/internal/home"
 	"github.com/koopa0/goen/internal/i18n"
 	"github.com/koopa0/goen/internal/site"
-	"github.com/koopa0/goen/internal/ui/layouts"
+	"github.com/koopa0/goen/internal/ui/frame"
 )
 
 func TestShownDepartmentsNeedListedProducts(t *testing.T) {
@@ -109,17 +109,17 @@ func TestShownDepartmentsNeedListedProducts(t *testing.T) {
 					t.Errorf("Load() shown departments mismatch (-want +got):\n%s", diff)
 				}
 
-				pageCtx := layouts.WithTopNav(ctx, nav)
+				pageCtx := frame.WithTopNav(ctx, nav)
 				for _, region := range []struct {
 					name      string
 					component templ.Component
 					class     string
 					label     string
 				}{
-					{"desktop nav", layouts.Header(layouts.Page{}), "goen-header__nav", ""},
-					{"phone menu", layouts.Header(layouts.Page{}), "goen-header__drawer", ""},
-					{"footer", layouts.Footer(layouts.NewsletterState{}), "goen-footer__links", i18n.T(ctx, i18n.KeyCategoryNav)},
-					{"home directory", home.Page(layouts.Page{}, view), "goen-cats__grid", ""},
+					{"desktop nav", frame.Header(frame.Page{}), "goen-header__nav", ""},
+					{"phone menu", frame.Header(frame.Page{}), "goen-header__drawer", ""},
+					{"footer", frame.Footer(frame.NewsletterState{}), "goen-footer__links", i18n.T(ctx, i18n.KeyCategoryNav)},
+					{"home directory", home.Page(frame.Page{}, view), "goen-cats__grid", ""},
 				} {
 					var output strings.Builder
 					if renderErr := region.component.Render(pageCtx, &output); renderErr != nil {

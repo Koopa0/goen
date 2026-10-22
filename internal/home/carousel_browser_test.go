@@ -11,8 +11,8 @@ import (
 
 	"github.com/koopa0/goen/assets"
 	"github.com/koopa0/goen/internal/i18n"
+	"github.com/koopa0/goen/internal/ui/frame"
 	"github.com/koopa0/goen/internal/ui/hero"
-	"github.com/koopa0/goen/internal/ui/layouts"
 	"github.com/koopa0/goen/internal/ui/tone"
 	"github.com/koopa0/goen/internal/ui/uitest"
 )
@@ -37,7 +37,7 @@ func TestCarouselCurrentTabStaysVisibleWithoutMovingThePage(t *testing.T) {
 			view.Slides = append(view.Slides, hero.Slide{Title: title, Layout: hero.LayoutSplit, Tone: tone.Stone})
 		}
 		w.Header().Set("Content-Type", "text/html; charset=utf-8")
-		if renderErr := Page(layouts.Page{}, view).Render(i18n.WithLocale(r.Context(), locale), w); renderErr != nil {
+		if renderErr := Page(frame.Page{}, view).Render(i18n.WithLocale(r.Context(), locale), w); renderErr != nil {
 			t.Errorf("render carousel fixture: %v", renderErr)
 		}
 	})

@@ -4,14 +4,14 @@ import (
 	"fmt"
 
 	"github.com/koopa0/goen/internal/i18n"
+	"github.com/koopa0/goen/internal/ui/frame"
 	"github.com/koopa0/goen/internal/ui/icons"
-	"github.com/koopa0/goen/internal/ui/layouts"
 	"github.com/koopa0/goen/internal/ui/tile"
 	"github.com/koopa0/goen/internal/ui/widget"
 )
 
-templ Compare(p layouts.Page, v CompareView) {
-	@layouts.Base(p) {
+templ Compare(p frame.Page, v CompareView) {
+	@frame.Base(p) {
 		<div class="goen-compare">
 			<div class="goen-pagehead">
 				<p class="goen-pagehead__eyebrow">{ i18n.T(ctx, i18n.KeyCompareTitle) }</p>

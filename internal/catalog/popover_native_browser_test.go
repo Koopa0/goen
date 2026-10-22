@@ -13,7 +13,7 @@ import (
 	"github.com/koopa0/goen/internal/catalog"
 	"github.com/koopa0/goen/internal/i18n"
 	"github.com/koopa0/goen/internal/site"
-	"github.com/koopa0/goen/internal/ui/layouts"
+	"github.com/koopa0/goen/internal/ui/frame"
 	"github.com/koopa0/goen/internal/ui/tile"
 	"github.com/koopa0/goen/internal/ui/uitest"
 	"github.com/koopa0/goen/internal/web/respond"
@@ -40,8 +40,8 @@ func TestPopoverPointerAndFocusInNativeBrowsers(t *testing.T) {
 		if cookie, cookieErr := r.Cookie("goen_locale"); cookieErr == nil {
 			locale = i18n.Parse(cookie.Value)
 		}
-		ctx := layouts.WithReturnPath(i18n.WithLocale(r.Context(), locale), r.URL.RequestURI())
-		ctx = layouts.WithTopNav(ctx, []layouts.NavItem{{Slug: "audio", Name: "Audio", Href: "/c/audio"}})
+		ctx := frame.WithReturnPath(i18n.WithLocale(r.Context(), locale), r.URL.RequestURI())
+		ctx = frame.WithTopNav(ctx, []frame.NavItem{{Slug: "audio", Name: "Audio", Href: "/c/audio"}})
 		if respond.IsHTMX(r) {
 			ctx = catalog.AsPartial(ctx)
 		}
@@ -54,7 +54,7 @@ func TestPopoverPointerAndFocusInNativeBrowsers(t *testing.T) {
 			Products: []tile.Tile{{Slug: "headphones", Name: "Headphones", PriceCents: 10000, InStock: true}},
 		}
 		w.Header().Set("Content-Type", "text/html; charset=utf-8")
-		if renderErr := catalog.Listing(layouts.Page{Title: "Audio", Nav: "audio"}, view, nil, nil).Render(ctx, w); renderErr != nil {
+		if renderErr := catalog.Listing(frame.Page{Title: "Audio", Nav: "audio"}, view, nil, nil).Render(ctx, w); renderErr != nil {
 			t.Errorf("render popover listing: %v", renderErr)
 		}
 	})

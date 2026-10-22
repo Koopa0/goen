@@ -11,14 +11,14 @@ import (
 
 	"github.com/koopa0/goen/internal/i18n"
 	"github.com/koopa0/goen/internal/order"
-	"github.com/koopa0/goen/internal/ui/layouts"
+	"github.com/koopa0/goen/internal/ui/frame"
 )
 
 var dispatched = time.Date(2026, 10, 1, 1, 0, 0, 0, time.UTC)
 
 func TestTheOrderPageLinksEachParcelToItsCarrier(t *testing.T) {
 	t.Parallel()
-	html := renderToString(t, Order(layouts.Page{Title: "訂單"}, &OrderView{
+	html := renderToString(t, Order(frame.Page{Title: "訂單"}, &OrderView{
 		Number: "GO-1",
 		Shipments: []OrderShipment{
 			{Carrier: shipping.CarrierBlackCat, Tracking: "903221488720", ShippedAt: dispatched},
@@ -75,7 +75,7 @@ func TestTheEnglishOrderPageHasNoChineseOfItsOwn(t *testing.T) {
 		Timeline:     timeline,
 		Shipments:    shipments,
 	}
-	out := renderComponent(t, i18n.WithLocale(t.Context(), i18n.En), Order(layouts.Page{Title: "Order"}, v))
+	out := renderComponent(t, i18n.WithLocale(t.Context(), i18n.En), Order(frame.Page{Title: "Order"}, v))
 
 	// 繁體中文 and 繁中 are the language switch naming Chinese in Chinese, on purpose.
 	for _, data := range []string{userData, "Aurora 充電器", "銀", "繁體中文", "繁中"} {

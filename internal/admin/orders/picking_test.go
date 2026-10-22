@@ -8,7 +8,7 @@ import (
 
 	"github.com/koopa0/goen/internal/i18n"
 	"github.com/koopa0/goen/internal/keyset"
-	"github.com/koopa0/goen/internal/ui/layouts"
+	"github.com/koopa0/goen/internal/ui/frame"
 )
 
 func TestPickingRendersSeparateReadOnlySlipsWithOutstandingQuantities(t *testing.T) {
@@ -23,7 +23,7 @@ func TestPickingRendersSeparateReadOnlySlipsWithOutstandingQuantities(t *testing
 				{OutstandingQuantities: true, Number: "GO-TWO", Recipient: "顧客二", Address: "臺南市 2 號", Lines: []Line{{SKU: "SKU-A", Name: "商品 <A>", Quantity: 5, UnitCents: 100}}},
 			},
 		}
-		out := renderComponent(t, ctx, Picking(layouts.Page{Title: "Picking"}, v))
+		out := renderComponent(t, ctx, Picking(frame.Page{Title: "Picking"}, v))
 		if strings.Contains(out, `class="goen-admin__linetotal"`) {
 			t.Errorf("%s: outstanding quantities printed a line total absent from the purchased order", locale)
 		}
@@ -66,7 +66,7 @@ func TestPickingRendersSeparateReadOnlySlipsWithOutstandingQuantities(t *testing
 func TestPickingLinkAppearsOnlyOnThePickingTab(t *testing.T) {
 	t.Parallel()
 	for _, v := range []View{{Status: QueuePicking}, {Status: QueueReady}, {Status: QueueAll}, {Status: QueuePicking, Term: "GO-ONE", Searched: true}} {
-		out := renderToString(t, Orders(layouts.Page{Title: "Orders"}, v))
+		out := renderToString(t, Orders(frame.Page{Title: "Orders"}, v))
 		got := strings.Contains(out, `href="/admin/orders/picking/slips"`)
 		if want := v.Status == QueuePicking && !v.Searched; got != want {
 			t.Errorf("status=%q searched=%t: picking link=%t, want %t", v.Status, v.Searched, got, want)

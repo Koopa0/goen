@@ -4,13 +4,13 @@ import (
 	"fmt"
 
 	"github.com/koopa0/goen/internal/i18n"
-	"github.com/koopa0/goen/internal/ui/layouts"
+	"github.com/koopa0/goen/internal/ui/frame"
 	"github.com/koopa0/goen/internal/ui/widget"
 )
 
 // Nothing on this page loads, so it has no skeleton and no spinner: the handover is a form post.
-templ Pay(p layouts.Page, v PayView) {
-	@layouts.Base(p) {
+templ Pay(p frame.Page, v PayView) {
+	@frame.Base(p) {
 		<div class="goen-pay">
 			<div class="goen-pagehead">
 				<p class="goen-pagehead__eyebrow">{ i18n.T(ctx, v.EyebrowKey()) }</p>

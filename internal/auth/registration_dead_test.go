@@ -10,7 +10,7 @@ import (
 	"github.com/google/go-cmp/cmp"
 
 	"github.com/koopa0/goen/internal/i18n"
-	"github.com/koopa0/goen/internal/ui/layouts"
+	"github.com/koopa0/goen/internal/ui/frame"
 )
 
 func TestRegistrationDeadOffersAnotherRegistrationLink(t *testing.T) {
@@ -27,7 +27,7 @@ func TestRegistrationDeadOffersAnotherRegistrationLink(t *testing.T) {
 		t.Run(string(tt.locale), func(t *testing.T) {
 			t.Parallel()
 			ctx := i18n.WithLocale(t.Context(), tt.locale)
-			page := html.UnescapeString(renderComponent(t, ctx, RegistrationDead(layouts.Page{Title: "Registration"}, "/checkout?stage=delivery")))
+			page := html.UnescapeString(renderComponent(t, ctx, RegistrationDead(frame.Page{Title: "Registration"}, "/checkout?stage=delivery")))
 			if !strings.Contains(page, tt.body) || strings.Contains(page, tt.wrong) {
 				t.Errorf("registration refusal lacks %q or still gives account-page directions", tt.body)
 			}

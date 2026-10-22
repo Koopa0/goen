@@ -9,8 +9,8 @@ import (
 
 	"github.com/koopa0/goen/internal/i18n"
 	"github.com/koopa0/goen/internal/policy"
+	"github.com/koopa0/goen/internal/ui/frame"
 	"github.com/koopa0/goen/internal/ui/hero"
-	"github.com/koopa0/goen/internal/ui/layouts"
 	"github.com/koopa0/goen/internal/ui/tone"
 )
 
@@ -60,8 +60,8 @@ func TestTheHeroIsDescribedToAScreenReaderInThePagesLanguage(t *testing.T) {
 // The home page's row of internal/contact's TestEveryPageKindSendsItsOwnLinkPreviewTags, which lives here since the page does.
 func TestTheHomePageSendsItsOwnLinkPreviewTags(t *testing.T) {
 	t.Parallel()
-	ctx := i18n.WithLocale(layouts.WithRequestPath(t.Context(), "/c/books"), i18n.ZhHant)
-	head := renderComponent(t, layouts.WithSiteOrigin(ctx, "https://goen.test"), layouts.Base(Meta(ctx)))
+	ctx := i18n.WithLocale(frame.WithRequestPath(t.Context(), "/c/books"), i18n.ZhHant)
+	head := renderComponent(t, frame.WithSiteOrigin(ctx, "https://goen.test"), frame.Base(Meta(ctx)))
 	for _, want := range []string{
 		`og:title" content="` + i18n.T(ctx, i18n.KeySiteTitle) + `"`,
 		`og:type" content="website"`,
@@ -80,7 +80,7 @@ func TestTheHomePageSendsItsOwnLinkPreviewTags(t *testing.T) {
 func TestTheHomePageEndsWithTheShopRules(t *testing.T) {
 	t.Parallel()
 	ctx := i18n.WithLocale(t.Context(), i18n.ZhHant)
-	page := renderComponent(t, ctx, Page(layouts.Page{}, View{Rules: policy.Rules{FreeDeliveryCents: 300000}}))
+	page := renderComponent(t, ctx, Page(frame.Page{}, View{Rules: policy.Rules{FreeDeliveryCents: 300000}}))
 	if !strings.Contains(page, `<section class="goen-rules" aria-labelledby="rules-heading">`) {
 		t.Error("home page lacks the shop rules")
 	}

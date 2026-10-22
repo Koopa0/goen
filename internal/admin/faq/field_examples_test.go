@@ -8,7 +8,7 @@ import (
 	"golang.org/x/net/html"
 
 	"github.com/koopa0/goen/internal/i18n"
-	"github.com/koopa0/goen/internal/ui/layouts"
+	"github.com/koopa0/goen/internal/ui/frame"
 )
 
 func TestAdminExamplesStayOutsideRefusedInputs(t *testing.T) {
@@ -35,7 +35,7 @@ func TestAdminExamplesStayOutsideRefusedInputs(t *testing.T) {
 					prefix = "例："
 					category = "訂單"
 				}
-				p := layouts.Page{}
+				p := frame.Page{}
 				for _, page := range []struct {
 					name      string
 					component templ.Component
@@ -126,7 +126,7 @@ func TestFAQEnglishFieldsKeepVisibleTranslatedLabelsAndRefusedDrafts(t *testing.
 					view.EditErrors = map[string]string{"question_en": draft.refusal, "answer_en": draft.refusal}
 				}
 				ctx := i18n.WithLocale(t.Context(), locale)
-				doc, err := html.Parse(strings.NewReader(renderComponent(t, ctx, FAQ(layouts.Page{}, view))))
+				doc, err := html.Parse(strings.NewReader(renderComponent(t, ctx, FAQ(frame.Page{}, view))))
 				if err != nil {
 					t.Fatal(err)
 				}

@@ -8,7 +8,7 @@ import (
 	"github.com/koopa0/goen/internal/money"
 	"github.com/koopa0/goen/internal/order"
 	"github.com/koopa0/goen/internal/product/inventory"
-	"github.com/koopa0/goen/internal/ui/layouts"
+	"github.com/koopa0/goen/internal/ui/frame"
 	"github.com/koopa0/goen/internal/ui/stockrisk"
 	"github.com/koopa0/goen/internal/ui/widget"
 )
@@ -119,8 +119,8 @@ func (v *DashboardView) DeskTasks() []Task {
 	return slices.DeleteFunc(all, func(t Task) bool { return t.Count == 0 })
 }
 
-func Meta(ctx context.Context) layouts.Page {
-	return layouts.Page{Title: i18n.T(ctx, i18n.KeyAdminPageDashboard)}
+func Meta(ctx context.Context) frame.Page {
+	return frame.Page{Title: i18n.T(ctx, i18n.KeyAdminPageDashboard)}
 }
 
 // dashboardRunwayRows is how many of the days cover rows the dashboard lists.

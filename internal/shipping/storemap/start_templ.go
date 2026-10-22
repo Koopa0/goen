@@ -13,7 +13,7 @@ import (
 	"github.com/koopa0/goen/internal/i18n"
 )
 
-// Not layouts.Base, like ReturnPage: no category query. The form holds only
+// Not frame.Base, like ReturnPage: no category query. The form holds only
 // parameters the map documents, never a field the shopper typed; a script submits
 // it at once, and with scripting off the button does. back is the checkout with
 // the draft restored.

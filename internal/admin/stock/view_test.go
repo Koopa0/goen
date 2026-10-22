@@ -14,7 +14,7 @@ import (
 	"github.com/koopa0/goen/internal/i18n"
 	"github.com/koopa0/goen/internal/keyset"
 	"github.com/koopa0/goen/internal/product/inventory"
-	"github.com/koopa0/goen/internal/ui/layouts"
+	"github.com/koopa0/goen/internal/ui/frame"
 	"github.com/koopa0/goen/internal/ui/stockrisk"
 )
 
@@ -27,7 +27,7 @@ const stockedAllWindow = 30 * 24 * time.Hour
 func TestEmptyLedgerSaysNoMovementOnce(t *testing.T) {
 	t.Parallel()
 	v := &MovementsView{SKU: "A-1", Days: []StockDay{{Day: time.Date(2026, 10, 1, 0, 0, 0, 0, time.UTC)}}}
-	body := render(t, Movements(layouts.Page{Title: "Movements"}, v))
+	body := render(t, Movements(frame.Page{Title: "Movements"}, v))
 	if strings.Contains(body, v.NoStockLine(i18n.WithLocale(t.Context(), i18n.En))) {
 		t.Error("an empty ledger also prints the days-without-movement line")
 	}
@@ -45,7 +45,7 @@ func TestStockDeskListsDaysCoverAboveTheSearch(t *testing.T) {
 		rows := []stockrisk.Row{{Risk: inventory.Risk{SKU: "OUT-1", Name: "Gone", Slug: "gone"}},
 			{Risk: inventory.Risk{SKU: "EST-1", Name: "Going", Slug: "going", Sales: inventory.Sales{Sellable: 20, Sold: 60, Orders: 30, InStock: stockedAllWindow}}},
 		}
-		html := renderComponent(t, ctx, Variants(layouts.Page{}, VariantsView{ShowCover: true, AtRisk: rows, MoreSoldOut: 3}))
+		html := renderComponent(t, ctx, Variants(frame.Page{}, VariantsView{ShowCover: true, AtRisk: rows, MoreSoldOut: 3}))
 
 		heading := strings.Index(html, i18n.T(ctx, i18n.KeyAdminRepStock))
 		search := strings.Index(html, `id="stock-search"`)
@@ -71,7 +71,7 @@ func TestStockDeskSaysSoWhenNothingNeedsRestocking(t *testing.T) {
 	t.Parallel()
 
 	ctx := i18n.WithLocale(t.Context(), i18n.En)
-	html := renderComponent(t, ctx, Variants(layouts.Page{}, VariantsView{ShowCover: true}))
+	html := renderComponent(t, ctx, Variants(frame.Page{}, VariantsView{ShowCover: true}))
 	if want := i18n.Count(ctx, i18n.KeyAdminRepStockEmpty, inventory.CoverWindowDays, inventory.CoverWindowDays); !strings.Contains(html, want) {
 		t.Errorf("an empty days cover list does not say %q", want)
 	}
@@ -82,7 +82,7 @@ func TestStockDeskLaterPagesLeaveDaysCoverOut(t *testing.T) {
 	t.Parallel()
 
 	ctx := i18n.WithLocale(t.Context(), i18n.En)
-	html := renderComponent(t, ctx, Variants(layouts.Page{}, VariantsView{Variants: []Variant{{SKU: "A-1", ProductName: "x"}}}))
+	html := renderComponent(t, ctx, Variants(frame.Page{}, VariantsView{Variants: []Variant{{SKU: "A-1", ProductName: "x"}}}))
 	if strings.Contains(html, i18n.T(ctx, i18n.KeyAdminRepStock)) {
 		t.Error("a page without ShowCover still lists the days cover section")
 	}
@@ -96,7 +96,7 @@ func TestStockDeskDrawsTheSharedDaysCoverSection(t *testing.T) {
 	rows := []stockrisk.Row{{Risk: inventory.Risk{SKU: "OUT-1", Name: "Gone", Slug: "gone"}}}
 	section := renderComponent(t, ctx, stockrisk.Section(rows, 0, inventory.CoverWindowDays))
 	for name, page := range map[string]string{
-		"stock desk": renderComponent(t, ctx, Variants(layouts.Page{}, VariantsView{ShowCover: true, AtRisk: rows})),
+		"stock desk": renderComponent(t, ctx, Variants(frame.Page{}, VariantsView{ShowCover: true, AtRisk: rows})),
 	} {
 		if !strings.Contains(page, section) {
 			t.Errorf("%s does not contain the shared days cover section", name)
@@ -108,7 +108,7 @@ func TestStockDeskDrawsTheSharedDaysCoverSection(t *testing.T) {
 func TestStockEmptyPagesKeepTheirRestartLink(t *testing.T) {
 	t.Parallel()
 	b := keyset.Bound{PastEnd: true, First: "/admin/products?q=test"}
-	p := layouts.Page{Title: "Pagination"}
+	p := frame.Page{Title: "Pagination"}
 	cases := map[string]templ.Component{
 		"stock":     Variants(p, VariantsView{Bound: b}),
 		"movements": Movements(p, &MovementsView{Bound: b}),
@@ -137,7 +137,7 @@ func TestStockQueuesKeepTheirOwnFirstPageEmptyState(t *testing.T) {
 	ctx := func(k i18n.Key) string { return i18n.T(i18n.WithLocale(t.Context(), i18n.En), k) }
 	generic := ctx(i18n.KeyPageEmpty)
 	_, b := keyset.PageBound("/admin/queue", false, []db.Order{}, keyset.PageSize, func(*db.Order) string { return "" })
-	p := layouts.Page{Title: "Queue"}
+	p := frame.Page{Title: "Queue"}
 	for name, c := range map[string]struct {
 		page templ.Component
 		want string
@@ -165,7 +165,7 @@ func TestStockQueuesWithMoreRowsOfferNext(t *testing.T) {
 	rows := make([]db.Order, keyset.PageLimit)
 	_, b := keyset.PageBound("/admin/queue", false, rows, keyset.PageSize,
 		func(*db.Order) string { return `{"ID":"12345678-1234-1234-1234-123456789abc"}` })
-	p := layouts.Page{Title: "Queue"}
+	p := frame.Page{Title: "Queue"}
 	for name, page := range map[string]templ.Component{
 		"stock":     Variants(p, VariantsView{Bound: b}),
 		"movements": Movements(p, &MovementsView{Bound: b}),
@@ -196,7 +196,7 @@ func TestStockExamplesStayOutsideRefusedInputs(t *testing.T) {
 				if locale == i18n.ZhHant {
 					prefix = "例："
 				}
-				p := layouts.Page{}
+				p := frame.Page{}
 				for _, page := range []struct {
 					name      string
 					component templ.Component
@@ -272,7 +272,7 @@ func TestStockRefusalNamesItsFormAndLinksToTheFirstInvalidControl(t *testing.T) 
 				title                 i18n.Key
 				count                 int
 			}{
-				{"stock", Variants(layouts.Page{}, VariantsView{Variants: []Variant{{SKU: "TEST-SKU", DraftDelta: " +oops ", DeltaError: bad}}}), "/admin/stock/adjust#row-TEST-SKU", "row-TEST-SKU", "adj-TEST-SKU", i18n.KeyAdminRefusalStock, 1},
+				{"stock", Variants(frame.Page{}, VariantsView{Variants: []Variant{{SKU: "TEST-SKU", DraftDelta: " +oops ", DeltaError: bad}}}), "/admin/stock/adjust#row-TEST-SKU", "row-TEST-SKU", "adj-TEST-SKU", i18n.KeyAdminRefusalStock, 1},
 			}
 			for _, tc := range cases {
 				t.Run(tc.name, func(t *testing.T) {

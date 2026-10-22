@@ -12,7 +12,7 @@ import (
 
 	"github.com/koopa0/goen/internal/i18n"
 	"github.com/koopa0/goen/internal/shipping"
-	"github.com/koopa0/goen/internal/ui/layouts"
+	"github.com/koopa0/goen/internal/ui/frame"
 )
 
 // The tests below render the shipping page next to nothing else; the helpers they use are copies, since a
@@ -33,7 +33,7 @@ func TestAMethodWithoutEnglishSaysSoAndMarksTheOtherName(t *testing.T) {
 			t.Parallel()
 			ctx := i18n.WithLocale(t.Context(), tt.locale)
 			var out bytes.Buffer
-			if err := Shipping(layouts.Page{Title: "Shipping"}, view).Render(ctx, &out); err != nil {
+			if err := Shipping(frame.Page{Title: "Shipping"}, view).Render(ctx, &out); err != nil {
 				t.Fatal(err)
 			}
 			heads := strings.Split(out.String(), `<h2 class="goen-admin__heading">`)
@@ -61,7 +61,7 @@ func TestShippingZonesKeepTableRelationshipsWhenRowsBecomeCards(t *testing.T) {
 			{ID: "mainland", Code: "mainland", Name: "本島", NameEn: "Mainland"},
 			{ID: "offshore", Code: "offshore", Name: "離島", NameEn: "Offshore"},
 		}}
-		doc := reviewFollowupDocument(t, renderComponent(t, ctx, Shipping(layouts.Page{Title: "Shipping"}, view)))
+		doc := reviewFollowupDocument(t, renderComponent(t, ctx, Shipping(frame.Page{Title: "Shipping"}, view)))
 		var table, heading *html.Node
 		for node := range doc.Descendants() {
 			if node.Data == "table" && strings.Contains(attr(node, "class"), "goen-admin__zones") {
@@ -116,7 +116,7 @@ func TestShippingExampleIsItsOwnHintLine(t *testing.T) {
 	t.Parallel()
 	ctx := i18n.WithLocale(t.Context(), i18n.ZhHant)
 	pages := map[string]string{
-		"shipping": renderComponent(t, ctx, Shipping(layouts.Page{Title: "Shipping"}, ShippingView{})),
+		"shipping": renderComponent(t, ctx, Shipping(frame.Page{Title: "Shipping"}, ShippingView{})),
 	}
 	for name, body := range pages {
 		if strings.Contains(body, "。 ") {
@@ -144,7 +144,7 @@ func TestEveryShippingExampleHintReadsInFull(t *testing.T) {
 				body     string
 				examples []string
 			}{
-				"shipping": {renderComponent(t, ctx, Shipping(layouts.Page{Title: "Shipping"}, ShippingView{})), []string{"express_delivery", "mountain", "313 546 556"}},
+				"shipping": {renderComponent(t, ctx, Shipping(frame.Page{Title: "Shipping"}, ShippingView{})), []string{"express_delivery", "mountain", "313 546 556"}},
 			} {
 				for _, e := range c.examples {
 					if want := tt.sentence(e); !strings.Contains(c.body, want) {
@@ -170,8 +170,8 @@ func TestShippingRefusalsNameTheirFormAndLinkToTheFirstInvalidControl(t *testing
 				title                 i18n.Key
 				count                 int
 			}{
-				{"method", Shipping(layouts.Page{}, ShippingView{Errors: map[string]string{"code": bad, "fee": bad}}), "/admin/shipping/method#new-method", "new-method", "m-code", i18n.KeyAdminShipAddMethod, 2},
-				{"zone", Shipping(layouts.Page{}, ShippingView{Errors: map[string]string{"zone_code": bad, "prefixes": bad}}), "/admin/shipping/zone#new-zone", "new-zone", "z-code", i18n.KeyAdminShipAddZone, 2},
+				{"method", Shipping(frame.Page{}, ShippingView{Errors: map[string]string{"code": bad, "fee": bad}}), "/admin/shipping/method#new-method", "new-method", "m-code", i18n.KeyAdminShipAddMethod, 2},
+				{"zone", Shipping(frame.Page{}, ShippingView{Errors: map[string]string{"zone_code": bad, "prefixes": bad}}), "/admin/shipping/zone#new-zone", "new-zone", "z-code", i18n.KeyAdminShipAddZone, 2},
 			}
 			for _, tc := range cases {
 				t.Run(tc.name, func(t *testing.T) {

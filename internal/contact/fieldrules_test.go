@@ -7,7 +7,7 @@ import (
 	"github.com/koopa0/goen/internal/contact"
 	"github.com/koopa0/goen/internal/i18n"
 	"github.com/koopa0/goen/internal/ui/fieldrule"
-	"github.com/koopa0/goen/internal/ui/layouts"
+	"github.com/koopa0/goen/internal/ui/frame"
 )
 
 // What a field says in markup is what the rule says: the pattern, the script's
@@ -15,7 +15,7 @@ import (
 func TestARuleWritesItselfIntoTheMarkup(t *testing.T) {
 	t.Parallel()
 	ctx := i18n.WithLocale(t.Context(), i18n.ZhHant)
-	html := renderToString(t, contact.Contact(layouts.Page{Title: "contact"}, contact.Form{}))
+	html := renderToString(t, contact.Contact(frame.Page{Title: "contact"}, contact.Form{}))
 	rule := fieldrule.Email
 	for _, want := range []string{
 		`data-rule="email"`,

@@ -4,18 +4,18 @@ import (
 	"context"
 
 	"github.com/koopa0/goen/internal/i18n"
-	"github.com/koopa0/goen/internal/ui/layouts"
+	"github.com/koopa0/goen/internal/ui/frame"
 )
 
-func AboutMeta(ctx context.Context) layouts.Page {
-	return layouts.Page{
+func AboutMeta(ctx context.Context) frame.Page {
+	return frame.Page{
 		Title:       i18n.T(ctx, i18n.KeyAboutTitle),
-		Description: layouts.DescribeDepartments(ctx, i18n.KeyAboutDescription),
+		Description: frame.DescribeDepartments(ctx, i18n.KeyAboutDescription),
 	}
 }
 
-templ About(p layouts.Page) {
-	@layouts.Base(p) {
+templ About(p frame.Page) {
+	@frame.Base(p) {
 		<article class="about">
 			@aboutArt()
 			<h1 class="about__title">{ i18n.T(ctx, i18n.KeyAboutTitle) }</h1>
@@ -34,7 +34,7 @@ templ About(p layouts.Page) {
 					<h2 class="about__valuetitle">{ i18n.T(ctx, i18n.KeyAboutWarranty) }</h2>
 					<p class="about__valuebody">{ i18n.T(ctx, i18n.KeyAboutWarrantyBody) }</p>
 				</section>
-				if list := layouts.Departments(ctx); list != "" {
+				if list := frame.Departments(ctx); list != "" {
 					<section class="about__value">
 						<h2 class="about__valuetitle">{ i18n.T(ctx, i18n.KeyAboutCurated) }</h2>
 						<p class="about__valuebody">{ list }</p>

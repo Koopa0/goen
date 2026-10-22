@@ -10,8 +10,8 @@ import (
 
 	"github.com/koopa0/goen/internal/i18n"
 	"github.com/koopa0/goen/internal/keyset"
+	"github.com/koopa0/goen/internal/ui/frame"
 	"github.com/koopa0/goen/internal/ui/hero"
-	"github.com/koopa0/goen/internal/ui/layouts"
 )
 
 func TestSlideHistoryHasLabelledNavigationInBothLanguages(t *testing.T) {
@@ -21,7 +21,7 @@ func TestSlideHistoryHasLabelledNavigationInBothLanguages(t *testing.T) {
 			t.Parallel()
 			ctx := i18n.WithLocale(t.Context(), locale)
 			view := HeroView{Bound: keyset.Bound{First: "/admin/slides#hero-history", Next: "/admin/slides?after=slide-token#hero-history"}}
-			got, label := historyNavigation(t, ctx, renderComponent(t, ctx, Slides(layouts.Page{}, &view)), "hero-history")
+			got, label := historyNavigation(t, ctx, renderComponent(t, ctx, Slides(frame.Page{}, &view)), "hero-history")
 			if diff := cmp.Diff([]string{view.Bound.First, view.Bound.Next}, got); diff != "" {
 				t.Errorf("slide queue navigation (-want +got):\n%s", diff)
 			}
@@ -29,7 +29,7 @@ func TestSlideHistoryHasLabelledNavigationInBothLanguages(t *testing.T) {
 				t.Errorf("queue heading = %q, want %q", label, want)
 			}
 			view.Bound = keyset.Bound{PastEnd: true, First: "/admin/slides#hero-history"}
-			body := renderComponent(t, ctx, Slides(layouts.Page{}, &view))
+			body := renderComponent(t, ctx, Slides(frame.Page{}, &view))
 			if !strings.Contains(body, i18n.T(ctx, i18n.KeyPageEmpty)) {
 				t.Error("a past-end page must explain the empty page")
 			}

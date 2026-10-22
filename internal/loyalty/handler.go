@@ -13,7 +13,7 @@ import (
 	"github.com/koopa0/goen/internal/i18n"
 	"github.com/koopa0/goen/internal/keyset"
 	"github.com/koopa0/goen/internal/money"
-	"github.com/koopa0/goen/internal/ui/layouts"
+	"github.com/koopa0/goen/internal/ui/frame"
 	"github.com/koopa0/goen/internal/user"
 	"github.com/koopa0/goen/internal/web/formtext"
 	"github.com/koopa0/goen/internal/web/respond"
@@ -58,7 +58,7 @@ func (h *Handler) Page(w http.ResponseWriter, r *http.Request) {
 		view.OperationID = uuid.NewString()
 	}
 	respond.Component(w, r, h.log, http.StatusOK, Points(
-		layouts.Page{Title: i18n.T(r.Context(), i18n.KeyPointsTitle)}, view))
+		frame.Page{Title: i18n.T(r.Context(), i18n.KeyPointsTitle)}, view))
 }
 
 func (h *Handler) Redeem(w http.ResponseWriter, r *http.Request) {
@@ -103,8 +103,8 @@ func (h *Handler) Redeem(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *Handler) serverError(w http.ResponseWriter, r *http.Request) {
-	respond.Component(w, r, h.log, http.StatusInternalServerError, layouts.Notice(
-		layouts.Page{Title: i18n.T(r.Context(), i18n.KeyTryAgainTitle)}, "",
+	respond.Component(w, r, h.log, http.StatusInternalServerError, frame.Notice(
+		frame.Page{Title: i18n.T(r.Context(), i18n.KeyTryAgainTitle)}, "",
 		i18n.T(r.Context(), i18n.KeyTryAgainTitle),
 		i18n.T(r.Context(), i18n.KeyTryAgainBody)))
 }
@@ -123,7 +123,7 @@ func (h *Handler) renderRefusal(w http.ResponseWriter, r *http.Request, userID s
 		view.OperationID = uuid.NewString()
 	}
 	respond.Component(w, r, h.log, http.StatusUnprocessableEntity, Points(
-		layouts.Page{Title: i18n.T(r.Context(), i18n.KeyPointsTitle)}, view))
+		frame.Page{Title: i18n.T(r.Context(), i18n.KeyPointsTitle)}, view))
 }
 
 func (h *Handler) noticeFor(r *http.Request, owner string) string {
@@ -161,5 +161,5 @@ func (h *Handler) renderFormRefusal(w http.ResponseWriter, r *http.Request, owne
 	} else {
 		view.OperationID = uuid.NewString()
 	}
-	respond.Component(w, r, h.log, http.StatusUnprocessableEntity, Points(layouts.Page{Title: i18n.T(r.Context(), i18n.KeyPointsTitle)}, view))
+	respond.Component(w, r, h.log, http.StatusUnprocessableEntity, Points(frame.Page{Title: i18n.T(r.Context(), i18n.KeyPointsTitle)}, view))
 }

@@ -11,7 +11,7 @@ import (
 	xhtml "golang.org/x/net/html"
 
 	"github.com/koopa0/goen/internal/i18n"
-	"github.com/koopa0/goen/internal/ui/layouts"
+	"github.com/koopa0/goen/internal/ui/frame"
 )
 
 // The tests in this file are the tiers halves of tests that render several
@@ -21,7 +21,7 @@ import (
 func TestTiersExampleIsItsOwnHintLine(t *testing.T) {
 	t.Parallel()
 	ctx := i18n.WithLocale(t.Context(), i18n.ZhHant)
-	body := renderComponent(t, ctx, Tiers(layouts.Page{Title: "Tiers"}, TiersView{}))
+	body := renderComponent(t, ctx, Tiers(frame.Page{Title: "Tiers"}, TiersView{}))
 	if strings.Contains(body, "。 ") {
 		t.Errorf("tiers page runs a sentence into the next on one line: %q", body[strings.Index(body, "。 ")-20:strings.Index(body, "。 ")+30])
 	}
@@ -43,7 +43,7 @@ func TestEveryTiersExampleHintReadsInFull(t *testing.T) {
 		t.Run(tt.locale.Tag(), func(t *testing.T) {
 			t.Parallel()
 			ctx := i18n.WithLocale(t.Context(), tt.locale)
-			body := renderComponent(t, ctx, Tiers(layouts.Page{Title: "Tiers"}, TiersView{}))
+			body := renderComponent(t, ctx, Tiers(frame.Page{Title: "Tiers"}, TiersView{}))
 			for _, e := range []string{"Silver"} {
 				if want := tt.sentence(e); !strings.Contains(body, want) {
 					t.Errorf("tiers page lacks the hint %s", want)
@@ -56,25 +56,25 @@ func TestEveryTiersExampleHintReadsInFull(t *testing.T) {
 // From TestEveryAdminScreenPutsItsWorkInTheContentColumn.
 func TestTiersScreenPutsItsWorkInTheContentColumn(t *testing.T) {
 	t.Parallel()
-	ctx := layouts.WithStaff(i18n.WithLocale(t.Context(), i18n.ZhHant), true)
+	ctx := frame.WithStaff(i18n.WithLocale(t.Context(), i18n.ZhHant), true)
 
 	name := "tiers"
-	page := renderComponent(t, ctx, Tiers(layouts.Page{}, TiersView{}))
+	page := renderComponent(t, ctx, Tiers(frame.Page{}, TiersView{}))
 
-	frame := strings.Index(page, `<div class="goen-admin">`)
+	grid := strings.Index(page, `<div class="goen-admin">`)
 	rail := strings.Index(page, "goen-admin__nav")
 	column := strings.Index(page, `class="goen-admin__main"`)
 	work := strings.Index(page, `class="ui-page-head"`)
-	if frame < 0 || rail < 0 || column < 0 || work < 0 {
+	if grid < 0 || rail < 0 || column < 0 || work < 0 {
 		t.Fatalf("%s: rendered no back-office frame at all (frame=%d rail=%d "+
 			"column=%d work=%d); the order below would prove nothing",
-			name, frame, rail, column, work)
+			name, grid, rail, column, work)
 	}
-	if frame > rail || rail > column || column > work {
+	if grid > rail || rail > column || column > work {
 		t.Errorf("%s: the frame reads frame=%d rail=%d column=%d work=%d — the "+
 			"work has to open INSIDE the content column, or it is a sibling of "+
 			"the rail and the grid puts the rail on a row of its own",
-			name, frame, rail, column, work)
+			name, grid, rail, column, work)
 	}
 	if n := strings.Count(page, `class="goen-admin__main"`); n != 1 {
 		t.Errorf("%s: %d content columns, want exactly 1 — a second one is a "+
@@ -101,7 +101,7 @@ func TestTiersRemoveButtonsNameTheirRecord(t *testing.T) {
 		t.Run(locale.locale.Tag()+"/"+tt.name, func(t *testing.T) {
 			t.Parallel()
 			ctx := i18n.WithLocale(t.Context(), locale.locale)
-			component := Tiers(layouts.Page{}, TiersView{Rows: []Tier{{ID: "silver", Name: "Silver & more", Code: "silver"}, {ID: "gold", Name: "Gold", Code: "gold"}}})
+			component := Tiers(frame.Page{}, TiersView{Rows: []Tier{{ID: "silver", Name: "Silver & more", Code: "silver"}, {ID: "gold", Name: "Gold", Code: "gold"}}})
 			doc, err := xhtml.Parse(strings.NewReader(renderComponent(t, ctx, component)))
 			if err != nil {
 				t.Fatal(err)
@@ -169,7 +169,7 @@ func TestTiersRemoveButtonsNameTheirRecord(t *testing.T) {
 // Moved whole from small_defects_test.go.
 func TestTiersMultiplierColumnIsNumeric(t *testing.T) {
 	t.Parallel()
-	body := render(t, Tiers(layouts.Page{Title: "Tiers"}, TiersView{Rows: []Tier{{ID: "1", Code: "gold", Name: "Gold", MinSpend: 10000, MultiplierBP: 11000, Members: 4}}}))
+	body := render(t, Tiers(frame.Page{Title: "Tiers"}, TiersView{Rows: []Tier{{ID: "1", Code: "gold", Name: "Gold", MinSpend: 10000, MultiplierBP: 11000, Members: 4}}}))
 	if !strings.Contains(body, `<td class="goen-admin__cellnum">1.1`) {
 		t.Errorf("tiers multiplier cell is not numeric:\n%s", body)
 	}

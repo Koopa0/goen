@@ -13,7 +13,7 @@ type goTestRun struct {
 	line        int // first line of the command
 	last        int // last line of the command
 	pattern     string
-	pkgs        []string // package arguments as written: ./internal/ui/layouts
+	pkgs        []string // package arguments as written: ./internal/ui/frame
 	integration bool     // -tags integration
 }
 

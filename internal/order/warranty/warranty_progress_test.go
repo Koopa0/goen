@@ -7,7 +7,7 @@ import (
 
 	"github.com/koopa0/goen/internal/i18n"
 	"github.com/koopa0/goen/internal/shoptime"
-	"github.com/koopa0/goen/internal/ui/layouts"
+	"github.com/koopa0/goen/internal/ui/frame"
 )
 
 func TestWarrantyTermStatesTheParcelExpiry(t *testing.T) {
@@ -50,7 +50,7 @@ func TestWarrantyRegistrationShowsTheUnitAndRemainingSteps(t *testing.T) {
 		t.Run(locale.locale.Tag(), func(t *testing.T) {
 			t.Parallel()
 			ctx := i18n.WithLocale(t.Context(), locale.locale)
-			body := renderWarrantyInLocale(t, ctx, WarrantyOrder(layouts.Page{}, OrderView{
+			body := renderWarrantyInLocale(t, ctx, WarrantyOrder(frame.Page{}, OrderView{
 				Number: "GO-TEST", Lines: []Line{{ID: "phone", Name: "Pixelight", HasTerm: true, Months: 24, Delivered: 2, Registered: 2, CoverEnds: &end}},
 				RegisteredUnit: &Warranty{Name: "Pixelight", Unit: 2, Serial: "SN-SECOND", ExpiresOn: end},
 			}))
@@ -62,7 +62,7 @@ func TestWarrantyRegistrationShowsTheUnitAndRemainingSteps(t *testing.T) {
 			if strings.Count(body, locale.done) != 1 || strings.Contains(body, i18n.T(ctx, i18n.KeyWarrantyAllDone)) {
 				t.Error("completed registration repeats a line-level completion message")
 			}
-			ready := renderWarrantyInLocale(t, ctx, WarrantyList(layouts.Page{}, WarrantyListView{Ready: []WarrantyReady{
+			ready := renderWarrantyInLocale(t, ctx, WarrantyList(frame.Page{}, WarrantyListView{Ready: []WarrantyReady{
 				{Number: "GO-FIRST", Line: Line{ID: "phone", Name: "Pixelight <Pro>", HasTerm: true, Months: 24, CoverEnds: &end}},
 				{Number: "GO-SECOND", Line: Line{ID: "tablet", Name: "Tablet", HasTerm: true, Months: 24, CoverEnds: &end}},
 			}}))
@@ -74,11 +74,11 @@ func TestWarrantyRegistrationShowsTheUnitAndRemainingSteps(t *testing.T) {
 			if strings.Count(ready, `#serial-`) != 2 {
 				t.Error("ready list does not have one registration link per item")
 			}
-			empty := renderWarrantyInLocale(t, ctx, WarrantyList(layouts.Page{}, WarrantyListView{}))
+			empty := renderWarrantyInLocale(t, ctx, WarrantyList(frame.Page{}, WarrantyListView{}))
 			if strings.Contains(empty, `id="warranty-ready-heading"`) {
 				t.Error("empty ready list has a registration section")
 			}
-			noTerm := renderWarrantyInLocale(t, ctx, WarrantyOrder(layouts.Page{}, OrderView{Number: "GO-NONE", Lines: []Line{{Name: "No cover"}}}))
+			noTerm := renderWarrantyInLocale(t, ctx, WarrantyOrder(frame.Page{}, OrderView{Number: "GO-NONE", Lines: []Line{{Name: "No cover"}}}))
 			if strings.Count(noTerm, i18n.T(ctx, i18n.KeyWarrantyNoTerm)) != 1 {
 				t.Error("no-warranty explanation is duplicated")
 			}

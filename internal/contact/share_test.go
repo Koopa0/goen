@@ -7,12 +7,12 @@ import (
 
 	"github.com/koopa0/goen/internal/contact"
 	"github.com/koopa0/goen/internal/i18n"
-	"github.com/koopa0/goen/internal/ui/layouts"
+	"github.com/koopa0/goen/internal/ui/frame"
 )
 
-func renderHeadAt(t *testing.T, ctx context.Context, p layouts.Page) string {
+func renderHeadAt(t *testing.T, ctx context.Context, p frame.Page) string {
 	t.Helper()
-	return renderComponent(t, layouts.WithSiteOrigin(ctx, "https://goen.test"), layouts.Base(p))
+	return renderComponent(t, frame.WithSiteOrigin(ctx, "https://goen.test"), frame.Base(p))
 }
 
 // The department and product rows are catalog's TestCatalogPagesSendTheirOwnLinkPreviewTags,
@@ -20,9 +20,9 @@ func renderHeadAt(t *testing.T, ctx context.Context, p layouts.Page) string {
 // the home row home's TestTheHomePageSendsItsOwnLinkPreviewTags.
 func TestEveryPageKindSendsItsOwnLinkPreviewTags(t *testing.T) {
 	t.Parallel()
-	ctx := i18n.WithLocale(layouts.WithRequestPath(t.Context(), "/c/books"), i18n.ZhHant)
+	ctx := i18n.WithLocale(frame.WithRequestPath(t.Context(), "/c/books"), i18n.ZhHant)
 	for name, tt := range map[string]struct {
-		page layouts.Page
+		page frame.Page
 		want []string
 	}{
 		"contact": {

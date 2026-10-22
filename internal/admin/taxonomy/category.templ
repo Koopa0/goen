@@ -2,13 +2,13 @@ package taxonomy
 
 import (
 	"github.com/koopa0/goen/internal/i18n"
-	"github.com/koopa0/goen/internal/ui/layouts"
+	"github.com/koopa0/goen/internal/ui/frame"
 	"github.com/koopa0/goen/internal/ui/widget"
 )
 
 // The tone is set on the taxonomy row, beside the name it belongs to.
-templ CategoryForm(p layouts.Page, v CategoryView) {
-	@layouts.Admin(p, "taxonomy") {
+templ CategoryForm(p frame.Page, v CategoryView) {
+	@frame.Admin(p, "taxonomy") {
 		<div class="ui-page-head">
 			<div>
 				<p class="ui-page-head__eyebrow">
@@ -17,7 +17,7 @@ templ CategoryForm(p layouts.Page, v CategoryView) {
 				<h1 class="ui-page-head__title">{ v.Name }</h1>
 			</div>
 		</div>
-		@layouts.Announce(v.Notice)
+		@frame.Announce(v.Notice)
 		@widget.Card(widget.CardProps{Class: "goen-admin__section"}) {
 			<h2 class="goen-admin__heading">{ i18n.T(ctx, i18n.KeyAdminCatImage) }</h2>
 			if v.Image.Has() && v.Image.URL() != "" {

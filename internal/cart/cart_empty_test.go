@@ -6,7 +6,7 @@ import (
 
 	"github.com/koopa0/goen/assets"
 	"github.com/koopa0/goen/internal/i18n"
-	"github.com/koopa0/goen/internal/ui/layouts"
+	"github.com/koopa0/goen/internal/ui/frame"
 )
 
 // The cart's row of internal/catalog's
@@ -17,7 +17,7 @@ func TestCartEmptyStateShowsItsIllustration(t *testing.T) {
 		page  string
 		asset string
 	}{
-		"cart": {renderIn(t, i18n.ZhHant, Page(layouts.Page{}, View{})), assets.EmptyCartImage},
+		"cart": {renderIn(t, i18n.ZhHant, Page(frame.Page{}, View{})), assets.EmptyCartImage},
 	} {
 		want := `<img class="goen-empty__art" src="` + assets.URL(tt.asset) + `" alt="" width="128" height="96"`
 		if !strings.Contains(tt.page, want) {

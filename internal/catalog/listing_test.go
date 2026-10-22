@@ -7,13 +7,13 @@ import (
 
 	"github.com/koopa0/goen/internal/i18n"
 	"github.com/koopa0/goen/internal/policy"
-	"github.com/koopa0/goen/internal/ui/layouts"
+	"github.com/koopa0/goen/internal/ui/frame"
 	"github.com/koopa0/goen/internal/ui/tile"
 	"github.com/koopa0/goen/internal/ui/tone"
 	"github.com/koopa0/goen/internal/ui/widget"
 )
 
-// TestThePageMarksTheCategoryYouAreIn holds layouts.Page.Nav, which drives the
+// TestThePageMarksTheCategoryYouAreIn holds frame.Page.Nav, which drives the
 // header's aria-current="page". It is set where the page's
 // chrome is BUILT, not by each handler: a field every caller must remember to
 // fill is a field that goes unfilled.
@@ -185,7 +185,7 @@ func TestTheSearchCountSitsBesideTheSort(t *testing.T) {
 		Query: "nimbus", Total: 3, Page: 1, PageSize: 20,
 		Products: []tile.Tile{{Slug: "nimbus-buds-pro", Name: "Nimbus Buds Pro", PriceCents: 399000}},
 	}
-	html := renderComponent(t, ctx, Search(layouts.Page{}, view))
+	html := renderComponent(t, ctx, Search(frame.Page{}, view))
 
 	_, form, ok := strings.Cut(html, `<form class="goen-search-sort"`)
 	if !ok {
@@ -426,11 +426,11 @@ func TestTheHeadOffersItsSubcategoriesAndPhotograph(t *testing.T) {
 // header already lists.
 func TestAnEmptySearchSuggestsTheDepartments(t *testing.T) {
 	t.Parallel()
-	ctx := layouts.WithTopNav(i18n.WithLocale(t.Context(), i18n.ZhHant), []layouts.NavItem{
+	ctx := frame.WithTopNav(i18n.WithLocale(t.Context(), i18n.ZhHant), []frame.NavItem{
 		{Slug: "tech", Name: "3C", Href: "/c/tech"}, {Slug: "fashion", Name: "服飾", Href: "/c/fashion"},
 	})
 	view := SearchView{Query: "zzqxv"}
-	html := renderComponent(t, ctx, Search(layouts.Page{}, view))
+	html := renderComponent(t, ctx, Search(frame.Page{}, view))
 	for _, want := range []string{`<a class="goen-pagehead__chip" href="/c/tech">3C</a>`, `href="/c/fashion">服飾</a>`, "搜尋「zzqxv」"} {
 		if !strings.Contains(html, want) {
 			t.Errorf("the empty search lacks %q:\n%s", want, html)
@@ -473,16 +473,16 @@ func TestAPartialListingNeverTakesFocusAndTheLatestChangeWins(t *testing.T) {
 	ctx := i18n.WithLocale(t.Context(), i18n.En)
 	view := ListingView{Slug: "audio", Name: "Audio", Products: shelf(2), Total: 2, Filtered: true, InStockOnly: true}
 
-	whole := renderComponent(t, ctx, Listing(layouts.Page{}, view, nil, nil))
+	whole := renderComponent(t, ctx, Listing(frame.Page{}, view, nil, nil))
 	if !strings.Contains(whole, `id="listing-results" tabindex="-1" autofocus`) {
 		t.Error("a whole filtered page no longer focuses its results")
 	}
-	partial := renderComponent(t, AsPartial(ctx), Listing(layouts.Page{}, view, nil, nil))
+	partial := renderComponent(t, AsPartial(ctx), Listing(frame.Page{}, view, nil, nil))
 	if strings.Contains(partial, "autofocus") {
 		t.Errorf("a partial render carries autofocus:\n%s", partial)
 	}
 	for _, want := range []string{`hx-sync="this:replace"`, `hx-status:5xx="swap:none"`, `class="goen-filters__error" role="alert" hidden`, `<div id="filters-applied"></div>`} {
-		if !strings.Contains(whole, want) && !strings.Contains(renderToString(t, Listing(layouts.Page{}, ListingView{Slug: "a", Name: "A"}, nil, nil)), want) {
+		if !strings.Contains(whole, want) && !strings.Contains(renderToString(t, Listing(frame.Page{}, ListingView{Slug: "a", Name: "A"}, nil, nil)), want) {
 			t.Errorf("missing %q", want)
 		}
 	}
@@ -659,11 +659,11 @@ func TestAPartialListingCarriesTheSelectedCountsForTheRail(t *testing.T) {
 func TestTheDepartmentPageEndsWithTheShopRules(t *testing.T) {
 	t.Parallel()
 	rules := policy.Rules{FreeDeliveryCents: 300000}
-	page := renderToString(t, Listing(layouts.Page{}, ListingView{Slug: "tech", Name: "3C 數位"}, &rules, nil))
+	page := renderToString(t, Listing(frame.Page{}, ListingView{Slug: "tech", Name: "3C 數位"}, &rules, nil))
 	if !strings.Contains(page, `<dl class="ui-statline ui-statline--wide">`) {
 		t.Error("department page lacks the shop rules")
 	}
-	bare := renderToString(t, Listing(layouts.Page{}, ListingView{Slug: "tech", Name: "3C 數位"}, nil, nil))
+	bare := renderToString(t, Listing(frame.Page{}, ListingView{Slug: "tech", Name: "3C 數位"}, nil, nil))
 	if strings.Contains(bare, "ui-statline") {
 		t.Error("a listing given no rules prints a stat line")
 	}

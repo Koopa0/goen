@@ -7,7 +7,7 @@ import (
 	htmlparse "golang.org/x/net/html"
 
 	"github.com/koopa0/goen/internal/i18n"
-	"github.com/koopa0/goen/internal/ui/layouts"
+	"github.com/koopa0/goen/internal/ui/frame"
 )
 
 func TestCartMarksOnlyExemptLines(t *testing.T) {
@@ -82,7 +82,7 @@ func TestMixedTaxCartExplainsWhyCheckoutIsUnavailable(t *testing.T) {
 			if cart.CanCheckout() {
 				t.Error("mixed taxable and exempt cart can check out")
 			}
-			rendered := renderComponent(t, ctx, Page(layouts.Page{Title: "Cart"}, cart))
+			rendered := renderComponent(t, ctx, Page(frame.Page{Title: "Cart"}, cart))
 			if !strings.Contains(rendered, i18n.T(ctx, i18n.KeyCartMixedTaxTypes)) {
 				t.Error("mixed cart has no explanation")
 			}
@@ -93,7 +93,7 @@ func TestMixedTaxCartExplainsWhyCheckoutIsUnavailable(t *testing.T) {
 			if !cart.CanCheckout() {
 				t.Error("one tax type cannot check out")
 			}
-			rendered = renderComponent(t, ctx, Page(layouts.Page{Title: "Cart"}, cart))
+			rendered = renderComponent(t, ctx, Page(frame.Page{Title: "Cart"}, cart))
 			if !strings.Contains(rendered, `href="/checkout"`) || strings.Contains(rendered, i18n.T(ctx, i18n.KeyCartMixedTaxTypes)) {
 				t.Error("single-tax cart did not recover checkout")
 			}

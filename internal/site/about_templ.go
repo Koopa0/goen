@@ -12,17 +12,17 @@ import (
 	"context"
 
 	"github.com/koopa0/goen/internal/i18n"
-	"github.com/koopa0/goen/internal/ui/layouts"
+	"github.com/koopa0/goen/internal/ui/frame"
 )
 
-func AboutMeta(ctx context.Context) layouts.Page {
-	return layouts.Page{
+func AboutMeta(ctx context.Context) frame.Page {
+	return frame.Page{
 		Title:       i18n.T(ctx, i18n.KeyAboutTitle),
-		Description: layouts.DescribeDepartments(ctx, i18n.KeyAboutDescription),
+		Description: frame.DescribeDepartments(ctx, i18n.KeyAboutDescription),
 	}
 }
 
-func About(p layouts.Page) templ.Component {
+func About(p frame.Page) templ.Component {
 	return templruntime.GeneratedTemplate(func(templ_7745c5c3_Input templruntime.GeneratedComponentInput) (templ_7745c5c3_Err error) {
 		templ_7745c5c3_W, ctx := templ_7745c5c3_Input.Writer, templ_7745c5c3_Input.Context
 		if templ_7745c5c3_CtxErr := ctx.Err(); templ_7745c5c3_CtxErr != nil {
@@ -158,7 +158,7 @@ func About(p layouts.Page) templ.Component {
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
-			if list := layouts.Departments(ctx); list != "" {
+			if list := frame.Departments(ctx); list != "" {
 				templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 10, "<section class=\"about__value\"><h2 class=\"about__valuetitle\">")
 				if templ_7745c5c3_Err != nil {
 					return templ_7745c5c3_Err
@@ -196,7 +196,7 @@ func About(p layouts.Page) templ.Component {
 			}
 			return nil
 		})
-		templ_7745c5c3_Err = layouts.Base(p).Render(templ.WithChildren(ctx, templ_7745c5c3_Var2), templ_7745c5c3_Buffer)
+		templ_7745c5c3_Err = frame.Base(p).Render(templ.WithChildren(ctx, templ_7745c5c3_Var2), templ_7745c5c3_Buffer)
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}

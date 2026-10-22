@@ -8,7 +8,7 @@ import (
 
 	"github.com/koopa0/goen/internal/i18n"
 	"github.com/koopa0/goen/internal/shoptime"
-	"github.com/koopa0/goen/internal/ui/layouts"
+	"github.com/koopa0/goen/internal/ui/frame"
 )
 
 func TestWarrantySerialRefusalKeepsOnlyItsOwnDraftAndExplanation(t *testing.T) {
@@ -31,7 +31,7 @@ func TestWarrantySerialRefusalKeepsOnlyItsOwnDraftAndExplanation(t *testing.T) {
 			for i := range view.Lines {
 				view.Lines[i].CoverEnds = &end
 			}
-			body := renderWarrantyInLocale(t, ctx, WarrantyOrder(layouts.Page{}, view))
+			body := renderWarrantyInLocale(t, ctx, WarrantyOrder(frame.Page{}, view))
 			nodes := warrantyNodesByID(t, body)
 			input := nodes["serial-owned"]
 			if input == nil {

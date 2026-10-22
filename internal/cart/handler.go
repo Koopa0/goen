@@ -17,7 +17,7 @@ import (
 	"github.com/koopa0/goen/internal/order/access"
 	"github.com/koopa0/goen/internal/shipping"
 	"github.com/koopa0/goen/internal/shipping/storemap"
-	"github.com/koopa0/goen/internal/ui/layouts"
+	"github.com/koopa0/goen/internal/ui/frame"
 	"github.com/koopa0/goen/internal/user"
 	"github.com/koopa0/goen/internal/web/formtext"
 	"github.com/koopa0/goen/internal/web/respond"
@@ -231,7 +231,7 @@ func (h *Handler) UpdateItem(w http.ResponseWriter, r *http.Request) {
 func (h *Handler) ReorderItems(w http.ResponseWriter, r *http.Request) {
 	number := r.PathValue("number")
 	if !h.allows(r, number) {
-		respond.Component(w, r, h.log, http.StatusNotFound, layouts.OrderNotFound(h.notFoundPage(r)))
+		respond.Component(w, r, h.log, http.StatusNotFound, frame.OrderNotFound(h.notFoundPage(r)))
 		return
 	}
 
@@ -428,14 +428,14 @@ func isSlug(s string) bool {
 }
 
 func (h *Handler) serverError(w http.ResponseWriter, r *http.Request) {
-	respond.Component(w, r, h.log, http.StatusInternalServerError, layouts.Notice(
-		layouts.Page{Title: i18n.T(r.Context(), i18n.KeyTryAgainTitle)}, "",
+	respond.Component(w, r, h.log, http.StatusInternalServerError, frame.Notice(
+		frame.Page{Title: i18n.T(r.Context(), i18n.KeyTryAgainTitle)}, "",
 		i18n.T(r.Context(), i18n.KeyTryAgainTitle),
 		i18n.T(r.Context(), i18n.KeyCartUnavailable)))
 }
 
-func (h *Handler) notFoundPage(r *http.Request) layouts.Page {
-	return layouts.Page{Title: i18n.T(r.Context(), i18n.KeyOrderNotFound)}
+func (h *Handler) notFoundPage(r *http.Request) frame.Page {
+	return frame.Page{Title: i18n.T(r.Context(), i18n.KeyOrderNotFound)}
 }
 
 // RecoveryContents reads the two carts a failed adoption leaves for the
@@ -520,6 +520,6 @@ func (h *Handler) WithCount(next http.Handler) http.Handler {
 			next.ServeHTTP(w, r)
 			return
 		}
-		next.ServeHTTP(w, r.WithContext(layouts.WithCartCount(r.Context(), n)))
+		next.ServeHTTP(w, r.WithContext(frame.WithCartCount(r.Context(), n)))
 	})
 }

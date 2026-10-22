@@ -9,7 +9,7 @@ import (
 
 	"github.com/koopa0/goen/internal/i18n"
 	"github.com/koopa0/goen/internal/invoice"
-	"github.com/koopa0/goen/internal/ui/layouts"
+	"github.com/koopa0/goen/internal/ui/frame"
 )
 
 // The checkout's rows of internal/contact's
@@ -41,8 +41,8 @@ func TestCheckoutExamplesStayOutsideRefusedInputs(t *testing.T) {
 					component templ.Component
 					fields    map[string]string
 				}{
-					{"coupon", Page(layouts.Page{}, &View{CouponCode: typed, Errors: errors("coupon")}), map[string]string{"coupon": coupon}},
-					{"mobile barcode", Page(layouts.Page{}, &View{Invoice: InvoiceView{Type: invoice.PreferenceMobile, MobileBarcode: typed}, Errors: errors("invoice_carrier")}), map[string]string{"invoice_carrier": "/ABC+123"}},
+					{"coupon", Page(frame.Page{}, &View{CouponCode: typed, Errors: errors("coupon")}), map[string]string{"coupon": coupon}},
+					{"mobile barcode", Page(frame.Page{}, &View{Invoice: InvoiceView{Type: invoice.PreferenceMobile, MobileBarcode: typed}, Errors: errors("invoice_carrier")}), map[string]string{"invoice_carrier": "/ABC+123"}},
 				} {
 					t.Run(page.name, func(t *testing.T) {
 						markup := renderComponent(t, ctx, page.component)

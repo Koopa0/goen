@@ -12,8 +12,8 @@ import (
 	"golang.org/x/net/html"
 
 	"github.com/koopa0/goen/internal/i18n"
+	"github.com/koopa0/goen/internal/ui/frame"
 	"github.com/koopa0/goen/internal/ui/hero"
-	"github.com/koopa0/goen/internal/ui/layouts"
 )
 
 func TestScheduledHeroControlsUseThePageLanguage(t *testing.T) {
@@ -41,7 +41,7 @@ func TestScheduledHeroControlsUseThePageLanguage(t *testing.T) {
 					if tt.showing {
 						view.Carousel = []hero.Slide{{Source: hero.SourceScheduled, ID: "scheduled"}}
 					}
-					doc, err := html.Parse(strings.NewReader(renderComponent(t, ctx, Slides(layouts.Page{}, &view))))
+					doc, err := html.Parse(strings.NewReader(renderComponent(t, ctx, Slides(frame.Page{}, &view))))
 					if err != nil {
 						t.Fatal(err)
 					}
@@ -118,7 +118,7 @@ func TestTheSlidesPageListsTheSlidesTheStorefrontShowsAndSaysWhereEachComesFrom(
 		{Source: hero.SourceCampaign, Title: "秋季精選", CTA: hero.CTA{Label: "看活動", Href: "/s/autumn-picks"}},
 		{Source: hero.SourceDepartment, Title: "家電"},
 	}}
-	page := renderComponent(t, ctx, Slides(layouts.Page{}, &view))
+	page := renderComponent(t, ctx, Slides(frame.Page{}, &view))
 	for _, want := range []string{
 		"秋季精選", "/s/autumn-picks", "家電",
 		i18n.T(ctx, i18n.KeyAdminHomeSourceCampaign), i18n.T(ctx, i18n.KeyAdminHomeSourceDepartment),
@@ -131,7 +131,7 @@ func TestTheSlidesPageListsTheSlidesTheStorefrontShowsAndSaysWhereEachComesFrom(
 		t.Error("the page says there is no carousel while it lists slides")
 	}
 
-	empty := renderComponent(t, ctx, Slides(layouts.Page{}, &HeroView{}))
+	empty := renderComponent(t, ctx, Slides(frame.Page{}, &HeroView{}))
 	if !strings.Contains(empty, i18n.T(ctx, i18n.KeyAdminHomeNoSlides)) {
 		t.Error("an empty carousel is not said")
 	}
@@ -226,7 +226,7 @@ func homeForm(t *testing.T, page, action string) string {
 func TestTheHeroEditorKeepsBothLanguagesInOneFormBehindASwitch(t *testing.T) {
 	t.Parallel()
 	ctx := i18n.WithLocale(t.Context(), i18n.ZhHant)
-	page := renderComponent(t, ctx, Slides(layouts.Page{}, &HeroView{}))
+	page := renderComponent(t, ctx, Slides(frame.Page{}, &HeroView{}))
 
 	for _, tc := range []struct {
 		action, switchName string

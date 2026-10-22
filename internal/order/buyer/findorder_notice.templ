@@ -2,15 +2,15 @@ package buyer
 
 import (
 	"github.com/koopa0/goen/internal/i18n"
-	"github.com/koopa0/goen/internal/ui/layouts"
+	"github.com/koopa0/goen/internal/ui/frame"
 	"github.com/koopa0/goen/internal/ui/widget"
 )
 
 // FindOrderGrantFailed is what the order lookup shows when the access grant
 // for an order it found could not be written. It is the lookup's own, so it
 // stays out of the shared notice shell.
-templ FindOrderGrantFailed(p layouts.Page) {
-	@layouts.Base(p) {
+templ FindOrderGrantFailed(p frame.Page) {
+	@frame.Base(p) {
 		<div class="notice">
 			<span class="notice__code" aria-hidden="true">500</span>
 			<h1 class="notice__title">{ i18n.T(ctx, i18n.KeyFindOrderGrantFailedTitle) }</h1>

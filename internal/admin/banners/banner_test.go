@@ -6,7 +6,7 @@ import (
 	"testing"
 
 	"github.com/koopa0/goen/internal/i18n"
-	"github.com/koopa0/goen/internal/ui/layouts"
+	"github.com/koopa0/goen/internal/ui/frame"
 )
 
 // TestARefusedBannerMarksItsFieldsAndLinksTheirMessages: the days and the
@@ -18,7 +18,7 @@ func TestARefusedBannerMarksItsFieldsAndLinksTheirMessages(t *testing.T) {
 		"days": "檔期天數必須介於 0（不限）到 365 天。",
 		"cta":  "連結必須是本站路徑，例如 /deals。",
 	}}
-	page := renderComponent(t, ctx, Banners(layouts.Page{}, &view))
+	page := renderComponent(t, ctx, Banners(frame.Page{}, &view))
 
 	input := func(id string) string {
 		m := regexp.MustCompile(`<input[^>]*\bid="` + id + `"[^>]*>`).FindString(page)
@@ -51,7 +51,7 @@ func bannerForm(t *testing.T, page string) string {
 func TestTheBannerEditorKeepsBothLanguagesInOneFormBehindASwitch(t *testing.T) {
 	t.Parallel()
 	ctx := i18n.WithLocale(t.Context(), i18n.ZhHant)
-	form := bannerForm(t, renderComponent(t, ctx, Banners(layouts.Page{}, &BannersView{})))
+	form := bannerForm(t, renderComponent(t, ctx, Banners(frame.Page{}, &BannersView{})))
 	for _, name := range []string{"message", "short", "cta_label", "message_en", "short_en", "cta_label_en"} {
 		if !regexp.MustCompile(`<(input|textarea)[^>]*\bname="` + name + `"`).MatchString(form) {
 			t.Errorf("no field %q in the form", name)
@@ -77,7 +77,7 @@ func TestTheBannerSwitchOpensOnTheLanguageOfTheFirstRefusedField(t *testing.T) {
 	t.Parallel()
 	ctx := i18n.WithLocale(t.Context(), i18n.ZhHant)
 	opensOn := func(errs map[string]string) (lang, form string) {
-		form = bannerForm(t, renderComponent(t, ctx, Banners(layouts.Page{}, &BannersView{Errors: errs})))
+		form = bannerForm(t, renderComponent(t, ctx, Banners(frame.Page{}, &BannersView{Errors: errs})))
 		if m := regexp.MustCompile(`value="(zh|en)" checked`).FindStringSubmatch(form); m != nil {
 			lang = m[1]
 		}

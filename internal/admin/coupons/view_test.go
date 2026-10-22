@@ -12,7 +12,7 @@ import (
 	"github.com/koopa0/goen/internal/db"
 	"github.com/koopa0/goen/internal/i18n"
 	"github.com/koopa0/goen/internal/keyset"
-	"github.com/koopa0/goen/internal/ui/layouts"
+	"github.com/koopa0/goen/internal/ui/frame"
 )
 
 // The tests in this file are the coupon halves of tests that render several
@@ -23,7 +23,7 @@ func TestTheCouponFormSaysTheLimitIsPerMemberAccount(t *testing.T) {
 	for _, loc := range []i18n.Locale{i18n.ZhHant, i18n.En} {
 		ctx := i18n.WithLocale(t.Context(), loc)
 		var b strings.Builder
-		if err := Coupons(layouts.Page{Title: "c"}, CouponsView{}).Render(ctx, &b); err != nil {
+		if err := Coupons(frame.Page{Title: "c"}, CouponsView{}).Render(ctx, &b); err != nil {
 			t.Fatal(err)
 		}
 		for _, k := range []i18n.Key{i18n.KeyAdminCoupPerCustomer, i18n.KeyAdminCoupPerCustomerHint} {
@@ -37,25 +37,25 @@ func TestTheCouponFormSaysTheLimitIsPerMemberAccount(t *testing.T) {
 // From TestEveryAdminScreenPutsItsWorkInTheContentColumn.
 func TestCouponsScreenPutsItsWorkInTheContentColumn(t *testing.T) {
 	t.Parallel()
-	ctx := layouts.WithStaff(i18n.WithLocale(t.Context(), i18n.ZhHant), true)
+	ctx := frame.WithStaff(i18n.WithLocale(t.Context(), i18n.ZhHant), true)
 
 	name := "coupons"
-	page := renderComponent(t, ctx, Coupons(layouts.Page{}, CouponsView{}))
+	page := renderComponent(t, ctx, Coupons(frame.Page{}, CouponsView{}))
 
-	frame := strings.Index(page, `<div class="goen-admin">`)
+	grid := strings.Index(page, `<div class="goen-admin">`)
 	rail := strings.Index(page, "goen-admin__nav")
 	column := strings.Index(page, `class="goen-admin__main"`)
 	work := strings.Index(page, `class="ui-page-head"`)
-	if frame < 0 || rail < 0 || column < 0 || work < 0 {
+	if grid < 0 || rail < 0 || column < 0 || work < 0 {
 		t.Fatalf("%s: rendered no back-office frame at all (frame=%d rail=%d "+
 			"column=%d work=%d); the order below would prove nothing",
-			name, frame, rail, column, work)
+			name, grid, rail, column, work)
 	}
-	if frame > rail || rail > column || column > work {
+	if grid > rail || rail > column || column > work {
 		t.Errorf("%s: the frame reads frame=%d rail=%d column=%d work=%d — the "+
 			"work has to open INSIDE the content column, or it is a sibling of "+
 			"the rail and the grid puts the rail on a row of its own",
-			name, frame, rail, column, work)
+			name, grid, rail, column, work)
 	}
 	if n := strings.Count(page, `class="goen-admin__main"`); n != 1 {
 		t.Errorf("%s: %d content columns, want exactly 1 — a second one is a "+
@@ -68,7 +68,7 @@ func TestCouponsEmptyPageKeepsItsRestartLink(t *testing.T) {
 	t.Parallel()
 	b := keyset.Bound{PastEnd: true, First: "/admin/products?q=test"}
 	var out bytes.Buffer
-	if err := Coupons(layouts.Page{Title: "Pagination"}, CouponsView{Bound: b}).Render(i18n.WithLocale(t.Context(), i18n.En), &out); err != nil {
+	if err := Coupons(frame.Page{Title: "Pagination"}, CouponsView{Bound: b}).Render(i18n.WithLocale(t.Context(), i18n.En), &out); err != nil {
 		t.Fatal(err)
 	}
 	body := out.String()
@@ -87,7 +87,7 @@ func TestCouponsQueueKeepsItsOwnFirstPageEmptyState(t *testing.T) {
 	ctx := func(k i18n.Key) string { return i18n.T(i18n.WithLocale(t.Context(), i18n.En), k) }
 	generic := ctx(i18n.KeyPageEmpty)
 	_, b := keyset.PageBound("/admin/queue", false, []db.Order{}, keyset.PageSize, func(*db.Order) string { return "" })
-	body := renderComponent(t, i18n.WithLocale(t.Context(), i18n.En), Coupons(layouts.Page{Title: "Queue"}, CouponsView{Bound: b}))
+	body := renderComponent(t, i18n.WithLocale(t.Context(), i18n.En), Coupons(frame.Page{Title: "Queue"}, CouponsView{Bound: b}))
 	if !strings.Contains(body, html.EscapeString(ctx(i18n.KeyAdminCoupEmpty))) {
 		t.Errorf("the queue's own empty text %q is missing", ctx(i18n.KeyAdminCoupEmpty))
 	}
@@ -102,7 +102,7 @@ func TestCouponsQueueWithMoreRowsOffersNext(t *testing.T) {
 	rows := make([]db.Order, keyset.PageLimit)
 	_, b := keyset.PageBound("/admin/queue", false, rows, keyset.PageSize,
 		func(*db.Order) string { return `{"ID":"12345678-1234-1234-1234-123456789abc"}` })
-	body := renderComponent(t, i18n.WithLocale(t.Context(), i18n.En), Coupons(layouts.Page{Title: "Queue"}, CouponsView{Bound: b}))
+	body := renderComponent(t, i18n.WithLocale(t.Context(), i18n.En), Coupons(frame.Page{Title: "Queue"}, CouponsView{Bound: b}))
 	if !strings.Contains(body, `rel="next"`) {
 		t.Error("a first page with more rows has no Next link")
 	}
@@ -136,7 +136,7 @@ func TestCouponExamplesStayOutsideRefusedInputs(t *testing.T) {
 					prefix = "例："
 					discount = "夏季全站折 NT$200"
 				}
-				p := layouts.Page{}
+				p := frame.Page{}
 				for _, page := range []struct {
 					name      string
 					component templ.Component

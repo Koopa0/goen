@@ -15,7 +15,7 @@ import (
 	"strings"
 
 	"github.com/koopa0/goen/internal/i18n"
-	"github.com/koopa0/goen/internal/ui/layouts"
+	"github.com/koopa0/goen/internal/ui/frame"
 	"github.com/koopa0/goen/internal/web/respond"
 )
 
@@ -58,7 +58,7 @@ func (h *Handler) Shipping(w http.ResponseWriter, r *http.Request) {
 	}
 	view := ShippingView{Methods: methods, Windows: windows}
 	respond.Component(w, r, h.log, http.StatusOK, Shipping(
-		layouts.Page{
+		frame.Page{
 			Title:       i18n.T(r.Context(), i18n.KeyShippingTitle),
 			Description: i18n.T(r.Context(), i18n.KeyShippingDescription),
 		}, view))
@@ -81,15 +81,15 @@ func (h *Handler) DocPage(w http.ResponseWriter, r *http.Request) {
 	}
 	doc = doc.For(i18n.FromContext(r.Context()), windows)
 	respond.Component(w, r, h.log, http.StatusOK, DocPage(
-		layouts.Page{Title: doc.Title, Description: doc.Summary}, doc))
+		frame.Page{Title: doc.Title, Description: doc.Summary}, doc))
 }
 
 // notFound is the shop's 404 page, as site.Handler.NotFound renders it. Only a
 // path routed to DocPage without a document reaches it, which
 // TestEveryPolicyRouteHasADocument refuses.
 func (h *Handler) notFound(w http.ResponseWriter, r *http.Request) {
-	respond.Component(w, r, h.log, http.StatusNotFound, layouts.Notice(
-		layouts.Page{Title: i18n.T(r.Context(), i18n.KeyPageNotFoundTitle)},
+	respond.Component(w, r, h.log, http.StatusNotFound, frame.Notice(
+		frame.Page{Title: i18n.T(r.Context(), i18n.KeyPageNotFoundTitle)},
 		"404",
 		i18n.T(r.Context(), i18n.KeyPageNotFound),
 		i18n.T(r.Context(), i18n.KeyPageNotFoundBody),
@@ -97,8 +97,8 @@ func (h *Handler) notFound(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *Handler) serverError(w http.ResponseWriter, r *http.Request) {
-	respond.Component(w, r, h.log, http.StatusInternalServerError, layouts.Notice(
-		layouts.Page{Title: i18n.T(r.Context(), i18n.KeyTryAgainTitle)}, "500",
+	respond.Component(w, r, h.log, http.StatusInternalServerError, frame.Notice(
+		frame.Page{Title: i18n.T(r.Context(), i18n.KeyTryAgainTitle)}, "500",
 		i18n.T(r.Context(), i18n.KeyTryAgainTitle),
 		i18n.T(r.Context(), i18n.KeyLoggedTryAgain)))
 }

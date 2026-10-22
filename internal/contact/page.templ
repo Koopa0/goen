@@ -5,13 +5,13 @@ import (
 
 	"github.com/koopa0/goen/internal/i18n"
 	"github.com/koopa0/goen/internal/ui/fieldrule"
+	"github.com/koopa0/goen/internal/ui/frame"
 	"github.com/koopa0/goen/internal/ui/icons"
-	"github.com/koopa0/goen/internal/ui/layouts"
 	"github.com/koopa0/goen/internal/ui/widget"
 )
 
-templ Contact(p layouts.Page, f Form) {
-	@layouts.Base(p) {
+templ Contact(p frame.Page, f Form) {
+	@frame.Base(p) {
 		<div class="contact">
 			<div class="goen-pagehead">
 				<h1 class="goen-pagehead__title">{ i18n.T(ctx, i18n.KeyContactTitle) }</h1>
@@ -21,7 +21,7 @@ templ Contact(p layouts.Page, f Form) {
 				@Panel(f)
 				<aside class="contact__aside">
 					<div class="contact__methods">
-						@contactMethod("mailto:"+layouts.ContactEmail, i18n.T(ctx, i18n.KeyFieldEmail), layouts.ContactEmail) {
+						@contactMethod("mailto:"+frame.ContactEmail, i18n.T(ctx, i18n.KeyFieldEmail), frame.ContactEmail) {
 							@icons.Mail()
 						}
 					</div>

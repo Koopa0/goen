@@ -18,7 +18,7 @@ import (
 	"github.com/koopa0/goen/internal/cart/cartitem"
 	"github.com/koopa0/goen/internal/contact"
 	"github.com/koopa0/goen/internal/i18n"
-	"github.com/koopa0/goen/internal/ui/layouts"
+	"github.com/koopa0/goen/internal/ui/frame"
 	"github.com/koopa0/goen/internal/ui/tile"
 )
 
@@ -751,7 +751,7 @@ func TestTheProductPageSaysWhetherItAddedAnything(t *testing.T) {
 
 	// The exact words, not just role="status": the page carries other live
 	// regions.
-	added := renderToString(t, Product(layouts.Page{Title: "x"}, base("added")))
+	added := renderToString(t, Product(frame.Page{Title: "x"}, base("added")))
 	if !strings.Contains(added, confirm) {
 		t.Errorf("a successful add renders no confirmation; wanted %q", confirm)
 	}
@@ -763,7 +763,7 @@ func TestTheProductPageSaysWhetherItAddedAnything(t *testing.T) {
 		t.Error("the success confirmation is not exposed as a live status")
 	}
 
-	refused := renderToString(t, Product(layouts.Page{Title: "x"}, base("unavailable")))
+	refused := renderToString(t, Product(frame.Page{Title: "x"}, base("unavailable")))
 	if !strings.Contains(refused, refusal) {
 		t.Errorf("a refused add renders no refusal; wanted %q", refusal)
 	}
@@ -773,7 +773,7 @@ func TestTheProductPageSaysWhetherItAddedAnything(t *testing.T) {
 	}
 
 	// An ordinary visit shows neither.
-	plain := renderToString(t, Product(layouts.Page{Title: "x"}, base("")))
+	plain := renderToString(t, Product(frame.Page{Title: "x"}, base("")))
 	if strings.Contains(plain, confirm) || strings.Contains(plain, refusal) {
 		t.Error("an ordinary page visit renders an add-to-cart message")
 	}

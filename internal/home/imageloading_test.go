@@ -7,8 +7,8 @@ import (
 	"testing"
 
 	"github.com/koopa0/goen/internal/i18n"
+	"github.com/koopa0/goen/internal/ui/frame"
 	"github.com/koopa0/goen/internal/ui/hero"
-	"github.com/koopa0/goen/internal/ui/layouts"
 	"github.com/koopa0/goen/internal/ui/tile"
 	"github.com/koopa0/goen/internal/ui/widget"
 )
@@ -67,7 +67,7 @@ func TestTheHomePageLoadsItsFirstScreenPhotographsAtOnceAndReservesEveryBox(t *t
 		},
 		Row: ProductRow{Title: "Row", Href: "/s/row", Tiles: tiledShelf(10)},
 	}
-	page := renderIn(t, i18n.ZhHant, Page(layouts.Page{}, view))
+	page := renderIn(t, i18n.ZhHant, Page(frame.Page{}, view))
 
 	assertEveryImageReservesItsBox(t, page)
 	for _, tag := range imageTags(page) {

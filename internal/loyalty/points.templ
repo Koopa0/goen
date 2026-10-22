@@ -4,12 +4,12 @@ import (
 	"fmt"
 
 	"github.com/koopa0/goen/internal/i18n"
-	"github.com/koopa0/goen/internal/ui/layouts"
+	"github.com/koopa0/goen/internal/ui/frame"
 	"github.com/koopa0/goen/internal/ui/widget"
 )
 
-templ Points(p layouts.Page, v PointsView) {
-	@layouts.Base(p) {
+templ Points(p frame.Page, v PointsView) {
+	@frame.Base(p) {
 		<div class="goen-account goen-account--narrow">
 			@widget.Breadcrumb(widget.BreadcrumbProps{
 				Label: i18n.T(ctx, i18n.KeyBreadcrumb),

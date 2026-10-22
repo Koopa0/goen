@@ -8,7 +8,7 @@ import (
 	"golang.org/x/net/html"
 
 	"github.com/koopa0/goen/internal/i18n"
-	"github.com/koopa0/goen/internal/ui/layouts"
+	"github.com/koopa0/goen/internal/ui/frame"
 )
 
 func TestQuestionAnswersKeepListSemanticsAndShowOnlyPresentMetadata(t *testing.T) {
@@ -26,7 +26,7 @@ func TestQuestionAnswersKeepListSemanticsAndShowOnlyPresentMetadata(t *testing.T
 				view := QuestionsView{Rows: []Question{{ID: "question", Answers: []Answer{
 					{ID: "answer", Body: "Reply", Author: tt.author, At: "2026-10-08 09:30"},
 				}}}}
-				page := renderComponent(t, ctx, Questions(layouts.Page{}, view))
+				page := renderComponent(t, ctx, Questions(frame.Page{}, view))
 				doc, err := html.Parse(strings.NewReader(page))
 				if err != nil {
 					t.Fatal(err)
@@ -78,7 +78,7 @@ func TestQuestionQueueShowsEachAnswerWithoutExecutingItsText(t *testing.T) {
 				{ID: "official", Body: "Original specification <script>alert(1)</script>", IsStaff: true},
 				{ID: "withdrawn", Body: "Earlier reply", Hidden: true},
 			}}}}
-			page := renderComponent(t, ctx, Questions(layouts.Page{}, view))
+			page := renderComponent(t, ctx, Questions(frame.Page{}, view))
 			for _, text := range []string{"Original specification", "Earlier reply", i18n.T(ctx, i18n.KeyStaffAnswer), i18n.T(ctx, i18n.KeyAdminQHidden)} {
 				if !strings.Contains(page, text) {
 					t.Errorf("answer queue lacks %q", text)
@@ -94,7 +94,7 @@ func TestQuestionQueueShowsEachAnswerWithoutExecutingItsText(t *testing.T) {
 func TestHiddenQuestionsOfferRestoreWithoutAnAnswerBox(t *testing.T) {
 	ctx := i18n.WithLocale(t.Context(), i18n.En)
 	view := QuestionsView{Hidden: true, Rows: []Question{{ID: "question", Hidden: true}}}
-	page := renderComponent(t, ctx, Questions(layouts.Page{}, view))
+	page := renderComponent(t, ctx, Questions(frame.Page{}, view))
 	for _, text := range []string{`method="post"`, `action="/admin/questions/question"`, "Show this question again"} {
 		if !strings.Contains(page, text) {
 			t.Errorf("restore form lacks %q", text)
@@ -134,7 +134,7 @@ func TestHiddenQuestionsOfferRestoreWithoutAnAnswerBox(t *testing.T) {
 
 func TestEmptyHiddenQueueDoesNotSayNobodyHasAsked(t *testing.T) {
 	ctx := i18n.WithLocale(t.Context(), i18n.En)
-	page := renderComponent(t, ctx, Questions(layouts.Page{}, QuestionsView{Hidden: true}))
+	page := renderComponent(t, ctx, Questions(frame.Page{}, QuestionsView{Hidden: true}))
 	if !strings.Contains(page, "No hidden questions") || strings.Contains(page, "Nobody has asked") {
 		t.Error("empty hidden view misstates the visible question queue")
 	}

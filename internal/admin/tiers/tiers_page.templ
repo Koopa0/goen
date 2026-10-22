@@ -4,14 +4,14 @@ import (
 	"fmt"
 
 	"github.com/koopa0/goen/internal/i18n"
-	"github.com/koopa0/goen/internal/ui/layouts"
+	"github.com/koopa0/goen/internal/ui/frame"
 	"github.com/koopa0/goen/internal/ui/widget"
 )
 
 // A table rather than a list: every tier carries the same four facts and a column of
 // thresholds is read down.
-templ Tiers(p layouts.Page, v TiersView) {
-	@layouts.Admin(p, "tiers") {
+templ Tiers(p frame.Page, v TiersView) {
+	@frame.Admin(p, "tiers") {
 		<div class="ui-page-head">
 			<div>
 				<p class="ui-page-head__eyebrow">{ i18n.T(ctx, i18n.KeyAdminEyebrow) }</p>
@@ -21,7 +21,7 @@ templ Tiers(p layouts.Page, v TiersView) {
 				</p>
 			</div>
 		</div>
-		@layouts.Announce(v.Notice)
+		@frame.Announce(v.Notice)
 		if v.Empty() {
 			<div class="goen-admin__empty">
 				<p class="goen-admin__emptytitle">{ i18n.T(ctx, i18n.KeyAdminTierEmpty) }</p>

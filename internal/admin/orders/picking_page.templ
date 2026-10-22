@@ -2,12 +2,12 @@ package orders
 
 import (
 	"github.com/koopa0/goen/internal/i18n"
-	"github.com/koopa0/goen/internal/ui/layouts"
+	"github.com/koopa0/goen/internal/ui/frame"
 	"github.com/koopa0/goen/internal/ui/widget"
 )
 
-templ Picking(p layouts.Page, v *PickingView) {
-	@layouts.Admin(p, "orders") {
+templ Picking(p frame.Page, v *PickingView) {
+	@frame.Admin(p, "orders") {
 		<div class="ui-page-head goen-admin__batchcontrols">
 			<div>
 				<h1 class="ui-page-head__title">{ i18n.T(ctx, i18n.KeyAdminPickingSlips) }</h1>

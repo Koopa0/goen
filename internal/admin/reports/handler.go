@@ -12,7 +12,7 @@ import (
 
 	"github.com/koopa0/goen/internal/admin/access"
 	"github.com/koopa0/goen/internal/i18n"
-	"github.com/koopa0/goen/internal/ui/layouts"
+	"github.com/koopa0/goen/internal/ui/frame"
 	"github.com/koopa0/goen/internal/web/respond"
 )
 
@@ -54,5 +54,5 @@ func (h *Handler) Page(w http.ResponseWriter, r *http.Request) {
 		h.log.ErrorContext(r.Context(), "read returned products", "error", view.ReturnedErr)
 	}
 	respond.Component(w, r, h.log, http.StatusOK, Report(
-		layouts.Page{Title: i18n.T(r.Context(), i18n.KeyAdminPageReports)}, &view))
+		frame.Page{Title: i18n.T(r.Context(), i18n.KeyAdminPageReports)}, &view))
 }

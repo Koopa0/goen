@@ -15,7 +15,7 @@ import (
 	"github.com/koopa0/goen/internal/db"
 	"github.com/koopa0/goen/internal/i18n"
 	"github.com/koopa0/goen/internal/invoice"
-	"github.com/koopa0/goen/internal/ui/layouts"
+	"github.com/koopa0/goen/internal/ui/frame"
 	"github.com/koopa0/goen/internal/web/formtext"
 	"github.com/koopa0/goen/internal/web/respond"
 )
@@ -96,5 +96,5 @@ func (h *Handler) rejectProductInvoiceLine(w http.ResponseWriter, r *http.Reques
 	}
 	view.InvoiceTerms = &facts
 	view.Errors = errs
-	respond.Component(w, r, h.log, http.StatusUnprocessableEntity, ProductForm(layouts.Page{Title: view.Name}, view))
+	respond.Component(w, r, h.log, http.StatusUnprocessableEntity, ProductForm(frame.Page{Title: view.Name}, view))
 }

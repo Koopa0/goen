@@ -11,7 +11,7 @@ import (
 
 	"github.com/koopa0/goen/internal/i18n"
 	"github.com/koopa0/goen/internal/order"
-	"github.com/koopa0/goen/internal/ui/layouts"
+	"github.com/koopa0/goen/internal/ui/frame"
 )
 
 // orderNow is noon on 9 October 2026 in Taipei; a parcel delivered on the 6th has 4 days of the right to cancel left.
@@ -36,7 +36,7 @@ func orderPage(t *testing.T, v *OrderView) string {
 	if v.PlacedAt.IsZero() {
 		v.PlacedAt = time.Date(2026, 10, 3, 6, 2, 0, 0, time.UTC)
 	}
-	return renderToString(t, Order(layouts.Page{Title: "訂單"}, v))
+	return renderToString(t, Order(frame.Page{Title: "訂單"}, v))
 }
 
 var periodMarkup = regexp.MustCompile(`(?s)<div class="ui-period"[^>]*>.*?</div>`)
@@ -291,7 +291,7 @@ func TestDaysLeftIsABareFigureInEnglish(t *testing.T) {
 				Lines:     []OrderLine{headphones()},
 				Shipments: []OrderShipment{deliveredOn(6, headphones())},
 			}
-			html := renderComponent(t, i18n.WithLocale(t.Context(), i18n.En), Order(layouts.Page{Title: "Order"}, v))
+			html := renderComponent(t, i18n.WithLocale(t.Context(), i18n.En), Order(frame.Page{Title: "Order"}, v))
 			if !strings.Contains(html, tt.want) {
 				t.Errorf("days left do not read %q", tt.want)
 			}

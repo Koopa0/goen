@@ -19,7 +19,7 @@ import (
 	"github.com/koopa0/goen/internal/media"
 	"github.com/koopa0/goen/internal/money"
 	"github.com/koopa0/goen/internal/product"
-	"github.com/koopa0/goen/internal/ui/layouts"
+	"github.com/koopa0/goen/internal/ui/frame"
 	"github.com/koopa0/goen/internal/ui/widget"
 	"github.com/koopa0/goen/internal/web/formtext"
 	"github.com/koopa0/goen/internal/web/respond"
@@ -76,7 +76,7 @@ func (h *Handler) List(w http.ResponseWriter, r *http.Request) {
 	}
 	view.Notice = widget.NoticeFrom(r, notices)
 	respond.Component(w, r, h.log, http.StatusOK, Products(
-		layouts.Page{Title: i18n.T(r.Context(), i18n.KeyAdminPageProducts)}, view))
+		frame.Page{Title: i18n.T(r.Context(), i18n.KeyAdminPageProducts)}, view))
 }
 
 func (h *Handler) New(w http.ResponseWriter, r *http.Request) {
@@ -87,7 +87,7 @@ func (h *Handler) New(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	respond.Component(w, r, h.log, http.StatusOK, ProductForm(
-		layouts.Page{Title: i18n.T(r.Context(), i18n.KeyAdminPageNewProduct)}, view))
+		frame.Page{Title: i18n.T(r.Context(), i18n.KeyAdminPageNewProduct)}, view))
 }
 
 func (h *Handler) Create(w http.ResponseWriter, r *http.Request) {
@@ -156,9 +156,9 @@ func (h *Handler) renderProduct(w http.ResponseWriter, r *http.Request, status i
 	view, err := h.productView(r.Context(), r.PathValue("slug"))
 	if err != nil {
 		if errors.Is(err, ErrNotFound) {
-			respond.Component(w, r, h.log, http.StatusNotFound, layouts.MissingRecord(
-				layouts.Page{Title: i18n.T(r.Context(), i18n.KeyAdminMissingProduct)},
-				layouts.MissingRecordView{Section: "products", Heading: i18n.T(r.Context(), i18n.KeyAdminMissingProduct), Body: i18n.T(r.Context(), i18n.KeyAdminNotFoundBody), BackLabel: i18n.KeyAdminBackProducts}))
+			respond.Component(w, r, h.log, http.StatusNotFound, frame.MissingRecord(
+				frame.Page{Title: i18n.T(r.Context(), i18n.KeyAdminMissingProduct)},
+				frame.MissingRecordView{Section: "products", Heading: i18n.T(r.Context(), i18n.KeyAdminMissingProduct), Body: i18n.T(r.Context(), i18n.KeyAdminNotFoundBody), BackLabel: i18n.KeyAdminBackProducts}))
 			return
 		}
 		h.log.ErrorContext(r.Context(), "read product", "error", err)
@@ -168,7 +168,7 @@ func (h *Handler) renderProduct(w http.ResponseWriter, r *http.Request, status i
 	view.Notice = notice
 
 	respond.Component(w, r, h.log, status, ProductForm(
-		layouts.Page{Title: view.Name}, view))
+		frame.Page{Title: view.Name}, view))
 }
 
 func (h *Handler) Update(w http.ResponseWriter, r *http.Request) {
@@ -355,7 +355,7 @@ func (h *Handler) rejectProduct(w http.ResponseWriter, r *http.Request, f *Form,
 	view.BrandID, view.CategoryID = r.PostFormValue("brand"), r.PostFormValue("category")
 	view.Errors = errs
 	respond.Component(w, r, h.log, http.StatusUnprocessableEntity, ProductForm(
-		layouts.Page{Title: view.Title(r.Context())}, view))
+		frame.Page{Title: view.Title(r.Context())}, view))
 }
 
 // UploadImage stores then attaches, deliberately NOT in one transaction: storing is idempotent by content, so a
@@ -651,7 +651,7 @@ func (h *Handler) editProductWithErrors(
 	view.VariantDraft, view.SpecDraft = draft.variant, draft.spec
 	view.ImageUploadDraft, view.ImageReuseDraft = draft.upload, draft.reuse
 	respond.Component(w, r, h.log, http.StatusUnprocessableEntity, ProductForm(
-		layouts.Page{Title: view.Title(r.Context())}, view))
+		frame.Page{Title: view.Title(r.Context())}, view))
 }
 
 func attachImageRefusal(err error, alt string) (string, i18n.Key) {

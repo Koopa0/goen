@@ -11,7 +11,7 @@ import (
 
 	"github.com/koopa0/goen/internal/admin/admintest"
 	"github.com/koopa0/goen/internal/admin/questions"
-	"github.com/koopa0/goen/internal/ui/layouts"
+	"github.com/koopa0/goen/internal/ui/frame"
 )
 
 // TestARenamedStaffIsNamedByAddressOnTheirAnswer: staff A answers a question
@@ -61,7 +61,7 @@ func TestARenamedStaffIsNamedByAddressOnTheirAnswer(t *testing.T) {
 		}
 	}
 	var html bytes.Buffer
-	if err := questions.Questions(layouts.Page{}, view).Render(ctx, &html); err != nil {
+	if err := questions.Questions(frame.Page{}, view).Render(ctx, &html); err != nil {
 		t.Fatalf("render the questions page: %v", err)
 	}
 	if !strings.Contains(html.String(), address) {

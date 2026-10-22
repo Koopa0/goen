@@ -8,7 +8,7 @@ import (
 
 	"github.com/koopa0/goen/internal/i18n"
 	"github.com/koopa0/goen/internal/money"
-	"github.com/koopa0/goen/internal/ui/layouts"
+	"github.com/koopa0/goen/internal/ui/frame"
 )
 
 func TestRefundConfirmationRepeatsTheTotalItShows(t *testing.T) {
@@ -21,7 +21,7 @@ func TestRefundConfirmationRepeatsTheTotalItShows(t *testing.T) {
 		} {
 			ctx := i18n.WithLocale(t.Context(), locale)
 			var body strings.Builder
-			if err := ConfirmRefund(layouts.Page{Title: "refund"}, v).Render(ctx, &body); err != nil {
+			if err := ConfirmRefund(frame.Page{Title: "refund"}, v).Render(ctx, &body); err != nil {
 				t.Fatal(err)
 			}
 			page := body.String()
@@ -49,7 +49,7 @@ func TestACreditPaidCancellationConfirmationSaysWhatItDoes(t *testing.T) {
 		ctx := i18n.WithLocale(t.Context(), locale)
 		var body strings.Builder
 		v := RefundConfirmation{OrderNumber: "GO-260929-000001", TotalCents: 500000, CreditCents: 500000, CreditPaid: true}
-		if err := ConfirmRefund(layouts.Page{Title: "refund"}, v).Render(ctx, &body); err != nil {
+		if err := ConfirmRefund(frame.Page{Title: "refund"}, v).Render(ctx, &body); err != nil {
 			t.Fatal(err)
 		}
 		page := stdhtml.UnescapeString(body.String())
@@ -70,7 +70,7 @@ func TestTheCancellationConfirmSaysCancellationAndMarksTheRequiredNote(t *testin
 	t.Parallel()
 	for _, locale := range []i18n.Locale{i18n.ZhHant, i18n.En} {
 		ctx := i18n.WithLocale(t.Context(), locale)
-		html := renderComponent(t, ctx, ConfirmRefund(layouts.Page{Title: "refund"},
+		html := renderComponent(t, ctx, ConfirmRefund(frame.Page{Title: "refund"},
 			RefundConfirmation{OrderNumber: "GO-1", TotalCents: 100000}))
 		if !strings.Contains(html, i18n.T(ctx, i18n.KeyAdminRefundConfirmAmount)) {
 			t.Errorf("%s: the amount is not labelled as a cancellation refund", locale)
@@ -84,7 +84,7 @@ func TestTheCancellationConfirmSaysCancellationAndMarksTheRequiredNote(t *testin
 			t.Errorf("%s: the required note is not marked required: %s", locale, label)
 		}
 
-		resumed := renderComponent(t, ctx, ConfirmRefund(layouts.Page{Title: "refund"},
+		resumed := renderComponent(t, ctx, ConfirmRefund(frame.Page{Title: "refund"},
 			RefundConfirmation{OrderNumber: "GO-1", TotalCents: 100000, Resume: true}))
 		if strings.Contains(resumed, i18n.T(ctx, i18n.KeyAdminRequiredMark)) {
 			t.Errorf("%s: a resumed refund, which has no note field, marks one required", locale)

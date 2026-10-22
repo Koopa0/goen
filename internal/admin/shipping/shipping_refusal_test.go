@@ -11,7 +11,7 @@ import (
 	"golang.org/x/net/html"
 
 	"github.com/koopa0/goen/internal/i18n"
-	"github.com/koopa0/goen/internal/ui/layouts"
+	"github.com/koopa0/goen/internal/ui/frame"
 )
 
 func TestShippingRefusalsKeepTheirOwnDraftAndExplainOnlyTheirOwnControls(t *testing.T) {
@@ -30,7 +30,7 @@ func TestShippingRefusalsKeepTheirOwnDraftAndExplainOnlyTheirOwnControls(t *test
 				VersionDraft: VersionDraft{MethodID: "owned", Name: " Draft & name ", NameEn: " Draft name EN ", Carrier: " Draft carrier ", CarrierEn: " Draft carrier EN ", Fee: " malformed ", FreeOver: "+1000"},
 				Errors:       map[string]string{"version_fee": fmt.Sprintf(i18n.T(ctx, i18n.KeyFormMethodFee), "NT$5,000")},
 			}
-			body := renderComponent(t, ctx, Shipping(layouts.Page{}, view))
+			body := renderComponent(t, ctx, Shipping(frame.Page{}, view))
 			for id, want := range map[string]string{
 				"name-owned": view.VersionDraft.Name, "name-en-owned": view.VersionDraft.NameEn,
 				"carrier-owned": view.VersionDraft.Carrier, "carrier-en-owned": view.VersionDraft.CarrierEn,
@@ -55,7 +55,7 @@ func TestShippingRefusalsKeepTheirOwnDraftAndExplainOnlyTheirOwnControls(t *test
 			view.VersionDraft = VersionDraft{}
 			view.SurchargeDraft = SurchargeDraft{MethodID: "owned", ZoneID: "zone-a", Amount: " 5010 "}
 			view.Errors = map[string]string{"surcharge": fmt.Sprintf(i18n.T(ctx, i18n.KeyFormShippingSurcharge), "NT$5,000")}
-			body = renderComponent(t, ctx, Shipping(layouts.Page{}, view))
+			body = renderComponent(t, ctx, Shipping(frame.Page{}, view))
 			attrs = shippingControlAttributes(t, body, "sur-owned-version-zone-a")
 			if diff := cmp.Diff([]string{" 5010 ", "text", "true", "sur-owned-version-zone-a-error", "5000"}, []string{attrs["value"], attrs["type"], attrs["aria-invalid"], attrs["aria-describedby"], attrs["max"]}); diff != "" {
 				t.Errorf("refused surcharge attributes (-want +got):\n%s", diff)
@@ -86,7 +86,7 @@ func TestShippingDatabaseRefusalIsAnnouncedOnTheOwningForm(t *testing.T) {
 			ctx := i18n.WithLocale(t.Context(), locale)
 			message := i18n.T(ctx, i18n.KeyAdminShipRefused)
 			view := ShippingView{Methods: []Method{{MethodID: "owned", VersionID: "version", Name: "Stored", Destination: shipping.DestinationAddress}}, VersionDraft: VersionDraft{MethodID: "owned", Name: "Draft", Fee: "100"}, Errors: map[string]string{"version_form": message}}
-			body := renderComponent(t, ctx, Shipping(layouts.Page{}, view))
+			body := renderComponent(t, ctx, Shipping(frame.Page{}, view))
 			doc, err := html.Parse(strings.NewReader(body))
 			if err != nil {
 				t.Fatal(err)

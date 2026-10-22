@@ -14,7 +14,7 @@ import (
 
 	"github.com/koopa0/goen/internal/db"
 	"github.com/koopa0/goen/internal/i18n"
-	"github.com/koopa0/goen/internal/ui/layouts"
+	"github.com/koopa0/goen/internal/ui/frame"
 	"github.com/koopa0/goen/internal/web/respond"
 )
 
@@ -64,8 +64,8 @@ func (h *Handler) About(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *Handler) NotFound(w http.ResponseWriter, r *http.Request) {
-	respond.Component(w, r, h.log, http.StatusNotFound, layouts.Notice(
-		layouts.Page{Title: i18n.T(r.Context(), i18n.KeyPageNotFoundTitle)},
+	respond.Component(w, r, h.log, http.StatusNotFound, frame.Notice(
+		frame.Page{Title: i18n.T(r.Context(), i18n.KeyPageNotFoundTitle)},
 		"404",
 		i18n.T(r.Context(), i18n.KeyPageNotFound),
 		i18n.T(r.Context(), i18n.KeyPageNotFoundBody),
@@ -73,15 +73,15 @@ func (h *Handler) NotFound(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *Handler) BadRequest(w http.ResponseWriter, r *http.Request) {
-	respond.Component(w, r, h.log, http.StatusBadRequest, layouts.Notice(
-		layouts.Page{Title: i18n.T(r.Context(), i18n.KeyAddressUnreadable)}, "400",
+	respond.Component(w, r, h.log, http.StatusBadRequest, frame.Notice(
+		frame.Page{Title: i18n.T(r.Context(), i18n.KeyAddressUnreadable)}, "400",
 		i18n.T(r.Context(), i18n.KeyAddressUnreadable),
 		i18n.T(r.Context(), i18n.KeyAddressRecovery)))
 }
 
 func (h *Handler) serverError(w http.ResponseWriter, r *http.Request) {
-	respond.Component(w, r, h.log, http.StatusInternalServerError, layouts.Notice(
-		layouts.Page{Title: i18n.T(r.Context(), i18n.KeyTryAgainTitle)}, "500",
+	respond.Component(w, r, h.log, http.StatusInternalServerError, frame.Notice(
+		frame.Page{Title: i18n.T(r.Context(), i18n.KeyTryAgainTitle)}, "500",
 		i18n.T(r.Context(), i18n.KeyTryAgainTitle),
 		i18n.T(r.Context(), i18n.KeyLoggedTryAgain)))
 }

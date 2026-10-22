@@ -23,7 +23,7 @@ import (
 	"github.com/koopa0/goen/internal/payment"
 	"github.com/koopa0/goen/internal/shipping"
 	"github.com/koopa0/goen/internal/shipping/storemap"
-	"github.com/koopa0/goen/internal/ui/layouts"
+	"github.com/koopa0/goen/internal/ui/frame"
 	"github.com/koopa0/goen/internal/user"
 	"github.com/koopa0/goen/internal/web/formtext"
 	"github.com/koopa0/goen/internal/web/ratelimit"
@@ -1390,13 +1390,13 @@ func invoiceChoices(ctx context.Context) []InvoiceChoice {
 }
 
 func (h *Handler) serverError(w http.ResponseWriter, r *http.Request) {
-	respond.Component(w, r, h.log, http.StatusInternalServerError, layouts.Notice(
-		layouts.Page{Title: i18n.T(r.Context(), i18n.KeyTryAgainTitle)}, "",
+	respond.Component(w, r, h.log, http.StatusInternalServerError, frame.Notice(
+		frame.Page{Title: i18n.T(r.Context(), i18n.KeyTryAgainTitle)}, "",
 		i18n.T(r.Context(), i18n.KeyTryAgainTitle),
 		i18n.T(r.Context(), i18n.KeyCartUnavailable)))
 }
 
 func (h *Handler) placementGrantFailed(w http.ResponseWriter, r *http.Request) {
 	respond.Component(w, r, h.log, http.StatusInternalServerError, PlacementGrantFailed(
-		layouts.Page{Title: i18n.T(r.Context(), i18n.KeyPlacementGrantFailedTitle)}))
+		frame.Page{Title: i18n.T(r.Context(), i18n.KeyPlacementGrantFailedTitle)}))
 }

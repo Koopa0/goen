@@ -13,14 +13,14 @@ import (
 	"github.com/koopa0/goen/internal/shipping"
 
 	"github.com/koopa0/goen/internal/i18n"
-	"github.com/koopa0/goen/internal/ui/layouts"
+	"github.com/koopa0/goen/internal/ui/frame"
 	"github.com/koopa0/goen/internal/ui/widget"
 )
 
 // A fee is never edited in place: the form publishes a new VERSION, and the card says
 // which version is live and since when, so a reader can see what an order placed
 // yesterday was quoted. The one filled button is the method create.
-func Shipping(p layouts.Page, v ShippingView) templ.Component {
+func Shipping(p frame.Page, v ShippingView) templ.Component {
 	return templruntime.GeneratedTemplate(func(templ_7745c5c3_Input templruntime.GeneratedComponentInput) (templ_7745c5c3_Err error) {
 		templ_7745c5c3_W, ctx := templ_7745c5c3_Input.Writer, templ_7745c5c3_Input.Context
 		if templ_7745c5c3_CtxErr := ctx.Err(); templ_7745c5c3_CtxErr != nil {
@@ -96,15 +96,15 @@ func Shipping(p layouts.Page, v ShippingView) templ.Component {
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
-			templ_7745c5c3_Err = layouts.Announce(v.Notice).Render(ctx, templ_7745c5c3_Buffer)
+			templ_7745c5c3_Err = frame.Announce(v.Notice).Render(ctx, templ_7745c5c3_Buffer)
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
-			templ_7745c5c3_Err = layouts.RefusalSummary(layouts.SummarizeRefusal(i18n.KeyAdminShipAddMethod, v.Errors, layouts.RefusalField{Key: "code", ID: "m-code"}, layouts.RefusalField{Key: "destination", ID: "m-destination"}, layouts.RefusalField{Key: "max_parcel_longest", ID: "m-max-longest"}, layouts.RefusalField{Key: "max_parcel_sum", ID: "m-max-sum"}, layouts.RefusalField{Key: "max_parcel_weight", ID: "m-max-weight"}, layouts.RefusalField{Key: "name", ID: "m-name"}, layouts.RefusalField{Key: "fee", ID: "m-fee"}, layouts.RefusalField{Key: "free_over", ID: "m-free"})).Render(ctx, templ_7745c5c3_Buffer)
+			templ_7745c5c3_Err = frame.RefusalSummary(frame.SummarizeRefusal(i18n.KeyAdminShipAddMethod, v.Errors, frame.RefusalField{Key: "code", ID: "m-code"}, frame.RefusalField{Key: "destination", ID: "m-destination"}, frame.RefusalField{Key: "max_parcel_longest", ID: "m-max-longest"}, frame.RefusalField{Key: "max_parcel_sum", ID: "m-max-sum"}, frame.RefusalField{Key: "max_parcel_weight", ID: "m-max-weight"}, frame.RefusalField{Key: "name", ID: "m-name"}, frame.RefusalField{Key: "fee", ID: "m-fee"}, frame.RefusalField{Key: "free_over", ID: "m-free"})).Render(ctx, templ_7745c5c3_Buffer)
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
-			templ_7745c5c3_Err = layouts.RefusalSummary(layouts.SummarizeRefusal(i18n.KeyAdminShipAddZone, v.Errors, layouts.RefusalField{Key: "zone_code", ID: "z-code"}, layouts.RefusalField{Key: "zone_name", ID: "z-name"}, layouts.RefusalField{Key: "prefixes", ID: "z-prefixes"})).Render(ctx, templ_7745c5c3_Buffer)
+			templ_7745c5c3_Err = frame.RefusalSummary(frame.SummarizeRefusal(i18n.KeyAdminShipAddZone, v.Errors, frame.RefusalField{Key: "zone_code", ID: "z-code"}, frame.RefusalField{Key: "zone_name", ID: "z-name"}, frame.RefusalField{Key: "prefixes", ID: "z-prefixes"})).Render(ctx, templ_7745c5c3_Buffer)
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
@@ -3076,7 +3076,7 @@ func Shipping(p layouts.Page, v ShippingView) templ.Component {
 			}
 			return nil
 		})
-		templ_7745c5c3_Err = layouts.Admin(p, "shipping").Render(templ.WithChildren(ctx, templ_7745c5c3_Var2), templ_7745c5c3_Buffer)
+		templ_7745c5c3_Err = frame.Admin(p, "shipping").Render(templ.WithChildren(ctx, templ_7745c5c3_Var2), templ_7745c5c3_Buffer)
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
