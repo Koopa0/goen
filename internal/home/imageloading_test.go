@@ -8,6 +8,7 @@ import (
 
 	"github.com/koopa0/goen/internal/i18n"
 	"github.com/koopa0/goen/internal/ui/components"
+	"github.com/koopa0/goen/internal/ui/hero"
 	"github.com/koopa0/goen/internal/ui/layouts"
 	"github.com/koopa0/goen/internal/ui/tile"
 )
@@ -56,9 +57,9 @@ func tileImages(page string) []string {
 func TestTheHomePageLoadsItsFirstScreenPhotographsAtOnceAndReservesEveryBox(t *testing.T) {
 	t.Parallel()
 	view := View{
-		Slides: []components.HeroSlide{
-			{Layout: components.SlidePhoto, Photo: components.Photo{URL: "/img/hero.webp", Alt: "hero"}, PhotoWidth: 1600, PhotoHeight: 600, Title: "A"},
-			{Layout: components.SlidePhoto, Photo: components.Photo{URL: "/img/hero2.webp", Alt: "hero"}, PhotoWidth: 1600, PhotoHeight: 600, Title: "B"},
+		Slides: []hero.Slide{
+			{Layout: hero.LayoutPhoto, Photo: components.Photo{URL: "/img/hero.webp", Alt: "hero"}, PhotoWidth: 1600, PhotoHeight: 600, Title: "A"},
+			{Layout: hero.LayoutPhoto, Photo: components.Photo{URL: "/img/hero2.webp", Alt: "hero"}, PhotoWidth: 1600, PhotoHeight: 600, Title: "B"},
 		},
 		Categories: []Category{
 			{Slug: "a", Name: "A", Photo: components.Photo{URL: "/img/a.webp"}},

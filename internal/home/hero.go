@@ -9,6 +9,7 @@ import (
 	"github.com/koopa0/goen/internal/discount/campaign"
 	"github.com/koopa0/goen/internal/i18n"
 	"github.com/koopa0/goen/internal/ui/components"
+	"github.com/koopa0/goen/internal/ui/hero"
 	"github.com/koopa0/goen/internal/ui/tone"
 	"github.com/koopa0/goen/internal/web/siteurl"
 )
@@ -19,20 +20,20 @@ const maxSlides = 3
 // slides runs in the order the shop means it: slides an editor scheduled,
 // campaigns running (soonest-ending first), then departments with a photograph
 // to fill what is left.
-func (s *Store) slides(ctx context.Context, src carouselSources) ([]components.HeroSlide, error) {
+func (s *Store) slides(ctx context.Context, src carouselSources) ([]hero.Slide, error) {
 	locale := i18n.FromContext(ctx)
 	rows, err := s.q.HeroSlides(ctx, db.HeroSlidesParams{Locale: string(locale), MaxSlides: maxSlides})
 	if err != nil {
 		return nil, fmt.Errorf("read hero slides: %w", err)
 	}
 
-	out := make([]components.HeroSlide, 0, maxSlides)
+	out := make([]hero.Slide, 0, maxSlides)
 	for i := range rows {
 		r := &rows[i]
-		slide := components.HeroSlide{
+		slide := hero.Slide{
 			ID:     r.ID.String(),
-			Source: components.SlideScheduled,
-			Layout: components.SlidePhoto,
+			Source: hero.SourceScheduled,
+			Layout: hero.LayoutPhoto,
 			Tone:   tone.Stone,
 			Title:  r.Headline,
 			Fact:   r.Body,
@@ -41,7 +42,7 @@ func (s *Store) slides(ctx context.Context, src carouselSources) ([]components.H
 		// page; direct SQL bypasses the write gate, so a bad link is a slide
 		// with no button rather than a dead one.
 		if href, ok := siteurl.Path(r.PrimaryCtaHref); ok {
-			slide.CTA = components.CTA{Label: r.PrimaryCtaLabel, Href: href}
+			slide.CTA = hero.CTA{Label: r.PrimaryCtaLabel, Href: href}
 			slide.Tone = src.toneOf(href)
 		}
 		if digest := r.MediaDigest.String; digest != "" {
@@ -61,13 +62,13 @@ func (s *Store) slides(ctx context.Context, src carouselSources) ([]components.H
 			return out, nil
 		}
 		c := &src.camps[i]
-		slide := components.HeroSlide{
-			Source: components.SlideCampaign,
-			Layout: components.SlidePhoto,
+		slide := hero.Slide{
+			Source: hero.SourceCampaign,
+			Layout: hero.LayoutPhoto,
 			Tone:   tone.Resolve(c.Tone),
 			Title:  c.Title,
 			Stats:  s.campaignStats(ctx, c),
-			CTA:    components.CTA{Label: i18n.T(ctx, i18n.KeyHeroCampaignCTA), Href: "/s/" + c.Slug},
+			CTA:    hero.CTA{Label: i18n.T(ctx, i18n.KeyHeroCampaignCTA), Href: "/s/" + c.Slug},
 		}
 		if period, ok := components.DayPeriod(ctx, c.Title, c.StartsAt, c.EndsAt, s.now()); ok {
 			slide.Period = &period
@@ -91,9 +92,9 @@ func (s *Store) slides(ctx context.Context, src carouselSources) ([]components.H
 		if !photo.Shown() {
 			continue
 		}
-		out = append(out, components.HeroSlide{
-			Source:     components.SlideDepartment,
-			Layout:     components.SlideSplit,
+		out = append(out, hero.Slide{
+			Source:     hero.SourceDepartment,
+			Layout:     hero.LayoutSplit,
 			Tone:       tone.Resolve(c.Tone),
 			Photo:      photo,
 			PhotoWidth: 1600, PhotoHeight: 1200,
@@ -102,7 +103,7 @@ func (s *Store) slides(ctx context.Context, src carouselSources) ([]components.H
 				{Label: i18n.T(ctx, i18n.KeySlideItems), Value: components.StatCount(src.held[c.ID], i18n.T(ctx, i18n.KeyFactUnitItems))},
 				{Label: i18n.T(ctx, i18n.KeySlideCategories), Value: components.StatCount(int64(len(src.subs[c.ID])), i18n.T(ctx, i18n.KeyFactUnitCategories))},
 			},
-			CTA: components.CTA{Label: i18n.T(ctx, i18n.KeyHeroCampaignCTA), Href: "/c/" + c.Slug},
+			CTA: hero.CTA{Label: i18n.T(ctx, i18n.KeyHeroCampaignCTA), Href: "/c/" + c.Slug},
 		})
 	}
 	return out, nil

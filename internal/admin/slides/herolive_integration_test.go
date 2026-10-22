@@ -10,7 +10,7 @@ import (
 	"github.com/google/uuid"
 
 	"github.com/koopa0/goen/internal/admin/admintest"
-	"github.com/koopa0/goen/internal/ui/components"
+	"github.com/koopa0/goen/internal/ui/hero"
 )
 
 // The back office shows the carousel the storefront builds, so a campaign that
@@ -36,8 +36,8 @@ func TestTheSlidesPageCarriesTheCampaignSlidesTheStorefrontShows(t *testing.T) {
 	}
 	for _, slide := range view.Carousel {
 		if slide.Title == title {
-			if slide.Source != components.SlideCampaign {
-				t.Errorf("source = %q, want %q", slide.Source, components.SlideCampaign)
+			if slide.Source != hero.SourceCampaign {
+				t.Errorf("source = %q, want %q", slide.Source, hero.SourceCampaign)
 			}
 			return
 		}

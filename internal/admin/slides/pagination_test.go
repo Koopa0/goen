@@ -10,7 +10,7 @@ import (
 
 	"github.com/koopa0/goen/internal/i18n"
 	"github.com/koopa0/goen/internal/keyset"
-	"github.com/koopa0/goen/internal/ui/components"
+	"github.com/koopa0/goen/internal/ui/hero"
 	"github.com/koopa0/goen/internal/ui/layouts"
 )
 
@@ -83,9 +83,9 @@ func TestShowingSlideIdentityDoesNotDependOnTheManagementPage(t *testing.T) {
 	t.Parallel()
 	live := HeroSlide{ID: "live-on-second-page", Active: true, InWindow: true}
 	queued := HeroSlide{ID: "queued-on-second-page", Active: true, InWindow: true}
-	v := HeroView{Rows: []HeroSlide{queued, live}, Carousel: []components.HeroSlide{
-		{Source: components.SlideScheduled, ID: "live-on-first-page"},
-		{Source: components.SlideScheduled, ID: live.ID},
+	v := HeroView{Rows: []HeroSlide{queued, live}, Carousel: []hero.Slide{
+		{Source: hero.SourceScheduled, ID: "live-on-first-page"},
+		{Source: hero.SourceScheduled, ID: live.ID},
 	}}
 	if !v.IsShowing(live) || v.IsShowing(queued) || v.IsShowing(HeroSlide{}) {
 		t.Errorf("later-page showing badge: live=%v queued=%v empty=%v", v.IsShowing(live), v.IsShowing(queued), v.IsShowing(HeroSlide{}))

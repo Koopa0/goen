@@ -19,6 +19,7 @@ import (
 	"github.com/koopa0/goen/internal/i18n"
 	"github.com/koopa0/goen/internal/policy"
 	"github.com/koopa0/goen/internal/ui/components"
+	"github.com/koopa0/goen/internal/ui/hero"
 	"github.com/koopa0/goen/internal/ui/layouts"
 	"github.com/koopa0/goen/internal/ui/tile"
 	"github.com/koopa0/goen/internal/ui/tone"
@@ -44,12 +45,12 @@ func TestStorefrontSectionsAsDrawn(t *testing.T) {
 	mux.HandleFunc("GET /home", func(w http.ResponseWriter, r *http.Request) {
 		view := home.View{Rules: policy.Rules{FreeDeliveryCents: 99900, LowestFeeCents: 6000, PickupOffered: true}}
 		photo := components.Photo{URL: assets.Image{BundledKey: "nimbus-band-2-01.webp"}.URL(), Alt: "Headphones on a desk"}
-		view.Slides = []components.HeroSlide{
-			{Title: "Technology", Layout: components.SlideSplit, Tone: tone.Stone, Photo: photo},
-			{Title: "Everyday essentials", Layout: components.SlideSplit, Tone: tone.Ink, Photo: photo, CTA: components.CTA{Label: "Shop now", Href: "/c/audio"}},
-			{Title: "Books & stationery", Layout: components.SlidePhoto, Tone: tone.Sage, Photo: photo},
-			{Title: "Slow mornings", Layout: components.SlideSplit, Tone: tone.Sage, CTA: components.CTA{Label: "See the range", Href: "/c/coffee"}},
-			{Title: "After dark", Layout: components.SlideSplit, Tone: tone.Ink},
+		view.Slides = []hero.Slide{
+			{Title: "Technology", Layout: hero.LayoutSplit, Tone: tone.Stone, Photo: photo},
+			{Title: "Everyday essentials", Layout: hero.LayoutSplit, Tone: tone.Ink, Photo: photo, CTA: hero.CTA{Label: "Shop now", Href: "/c/audio"}},
+			{Title: "Books & stationery", Layout: hero.LayoutPhoto, Tone: tone.Sage, Photo: photo},
+			{Title: "Slow mornings", Layout: hero.LayoutSplit, Tone: tone.Sage, CTA: hero.CTA{Label: "See the range", Href: "/c/coffee"}},
+			{Title: "After dark", Layout: hero.LayoutSplit, Tone: tone.Ink},
 		}
 		for _, c := range []struct{ slug, name, photo string }{
 			{"audio", "Audio", "nimbus-band-2-01.webp"},
