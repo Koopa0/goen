@@ -42,11 +42,12 @@ func gatewayAnswering(t *testing.T, reply string) *Gateway {
 	return g
 }
 
-// TestOnlyAReplySealedUnderTheMerchantKeyIsRead holds the envelope as the only
-// way an ECPay verdict enters goen: the outer TransCode says ECPay could read
-// the request, and the operation's result counts only once it opens under the
-// merchant's own key.
-func TestOnlyAReplySealedUnderTheMerchantKeyIsRead(t *testing.T) {
+// TestGateway_CallSealedUnderMerchantKey: a reply is read only when it is
+// sealed under the merchant's key, not under another key and not in the clear.
+// The envelope is the only way an ECPay verdict enters goen: the outer
+// TransCode says ECPay could read the request, and the operation's result
+// counts only once it opens under the merchant's own key.
+func TestGateway_CallSealedUnderMerchantKey(t *testing.T) {
 	tests := []struct {
 		name  string
 		reply func(t *testing.T) string
@@ -90,20 +91,20 @@ func TestOnlyAReplySealedUnderTheMerchantKeyIsRead(t *testing.T) {
 	}
 }
 
-// TestAnECPayReplyPastTheBoundIsRefused holds the read bound. The oversized
-// reply is a genuine sealed success behind leading whitespace, so only the
-// bound can refuse it.
-func TestAnECPayReplyPastTheBoundIsRefused(t *testing.T) {
+// TestGateway_CallReplyBound: a reply past the read bound is refused. The
+// oversized reply is a genuine sealed success behind leading whitespace, so
+// only the bound can refuse it.
+func TestGateway_CallReplyBound(t *testing.T) {
 	g := gatewayAnswering(t, strings.Repeat(" ", 1<<20)+sealedReply(t, testHashKey, testHashIV))
 	if res, err := g.call[resultStatus](t.Context(), replyProbePath, map[string]string{}); err == nil {
 		t.Fatalf("call() read a reply past the bound whole and returned %+v", res)
 	}
 }
 
-// TestECPayIsReachedOnlyOverVerifiedTLSWithADeadline holds the client under
-// every ECPay call: a finite timeout, and certificate verification, so a
-// server no system root vouches for is never sent a sealed request.
-func TestECPayIsReachedOnlyOverVerifiedTLSWithADeadline(t *testing.T) {
+// TestGateway_CallTLSAndTimeout: the client under every ECPay call has a finite
+// timeout and verifies certificates, so a server no system root vouches for is
+// never sent a sealed request.
+func TestGateway_CallTLSAndTimeout(t *testing.T) {
 	var served atomic.Int32
 	srv := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		served.Add(1)

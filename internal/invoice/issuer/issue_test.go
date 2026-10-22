@@ -26,9 +26,11 @@ func TestBuyerConsentWireForm(t *testing.T) {
 	}
 }
 
-// The settlement function in the schema refuses a consent that lacks any of its
-// keys, so the struct must write every one of them.
-func TestBuyerConsentKeysSatisfyTheSchema(t *testing.T) {
+// TestBuyerConsentSchemaKeys: buyerConsent writes every key the schema's
+// settlement function requires of a consent. The settlement function in the
+// schema refuses a consent that lacks any of its keys, so the struct must write
+// every one of them.
+func TestBuyerConsentSchemaKeys(t *testing.T) {
 	t.Parallel()
 
 	schema, err := os.ReadFile("../../../migrations/001_initial_schema.up.sql")

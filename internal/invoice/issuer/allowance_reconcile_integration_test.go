@@ -18,7 +18,10 @@ import (
 	"github.com/koopa0/goen/internal/invoice"
 )
 
-func TestAllowanceCandidateWithoutSendEvidenceIsAlarmed(t *testing.T) {
+// TestStore_FileAllowanceCandidateAlarm: a provider allowance with no send
+// evidence of ours is alarmed for staff
+// (allowance_candidate_without_send_evidence) and no new send is made.
+func TestStore_FileAllowanceCandidateAlarm(t *testing.T) {
 	ctx := t.Context()
 	var sends int
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -74,7 +77,11 @@ func TestAllowanceCandidateWithoutSendEvidenceIsAlarmed(t *testing.T) {
 	}
 }
 
-func TestProviderInvalidAllowanceIsVoidedAndReplacementIsRefrozen(t *testing.T) {
+// TestStore_FileAllowanceInvalidRefrozen: when ECPay reports an earlier
+// allowance invalid, it is voided locally and the replacement is refrozen at
+// the new authoritative amount before it is sent, then settled once the buyer
+// agrees.
+func TestStore_FileAllowanceInvalidRefrozen(t *testing.T) {
 	ctx := t.Context()
 	const (
 		oldNumber         = "2026080715227271"
@@ -234,7 +241,11 @@ func TestProviderInvalidAllowanceIsVoidedAndReplacementIsRefrozen(t *testing.T) 
 	}
 }
 
-func TestMismatchedKnownProviderInvalidationIsAlarmed(t *testing.T) {
+// TestStore_FileAllowanceInvalidMismatch: a provider invalidation whose facts
+// do not match the known local allowance is alarmed
+// (allowance_known_document_mismatch); the allowance stays issued and no
+// invalidation audit row is written.
+func TestStore_FileAllowanceInvalidMismatch(t *testing.T) {
 	ctx := t.Context()
 	const oldNumber = "2026080715227273"
 	var provider struct {
@@ -332,7 +343,11 @@ func TestMismatchedKnownProviderInvalidationIsAlarmed(t *testing.T) {
 	}
 }
 
-func TestKnownAllowanceStateContradictionsAreAlarmed(t *testing.T) {
+// TestStore_ProcessClaimKnownContradiction: a known allowance whose local and
+// provider states contradict is alarmed with its own reason (a basis changed
+// after the current send, or a local void the provider still holds active),
+// with no send and no invalidation audit.
+func TestStore_ProcessClaimKnownContradiction(t *testing.T) {
 	tests := []struct {
 		name            string
 		refundCents     int64
@@ -435,7 +450,10 @@ func TestKnownAllowanceStateContradictionsAreAlarmed(t *testing.T) {
 	}
 }
 
-func TestInvalidUnknownAllowanceAfterLostSettlementIsRecordedThenReissued(t *testing.T) {
+// TestStore_FileAllowanceInvalidReissued: an allowance ECPay holds as invalid,
+// found after a lost settlement, is recorded as voided history without being
+// resent, and a fresh allowance for the same refund can then be filed.
+func TestStore_FileAllowanceInvalidReissued(t *testing.T) {
 	ctx := t.Context()
 	const (
 		invalidNumber     = "2026080715227276"
@@ -576,7 +594,11 @@ func TestInvalidUnknownAllowanceAfterLostSettlementIsRecordedThenReissued(t *tes
 	}
 }
 
-func TestContradictoryUnknownInvalidAllowanceIsAlarmedWithoutRelease(t *testing.T) {
+// TestStore_ProcessClaimInvalidMismatch: an invalid provider allowance that
+// contradicts the frozen send (another invoice, another amount or other lines)
+// is alarmed as allowance_lookup_mismatch, records no document and is not
+// resent.
+func TestStore_ProcessClaimInvalidMismatch(t *testing.T) {
 	tests := []struct {
 		name         string
 		wrongInvoice bool
@@ -666,7 +688,11 @@ func insertAllowanceOperation(
 	return insertAllowanceOperationWithUnit(t, orderNumber, amountCents, sendAttempts, invoice.DefaultUnit)
 }
 
-func TestInvalidAllowanceReconciliationDoorNamesEveryContradiction(t *testing.T) {
+// TestReconcileInvalidInvoiceAllowance: the reconcile_invalid_invoice_allowance
+// function refuses each contradiction by its own constraint name (original
+// invoice, header, lines and amount), and an amount refusal rolls back the old
+// document's void.
+func TestReconcileInvalidInvoiceAllowance(t *testing.T) {
 	ctx := t.Context()
 	number := invoicedOrderWithRefund(t, 70000)
 	_, originalID, documentID, issuedAt := insertKnownAllowance(

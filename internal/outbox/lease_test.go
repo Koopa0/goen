@@ -7,9 +7,9 @@ import (
 	"github.com/koopa0/goen/internal/outbox"
 )
 
-// TestTheLeaseCoversTheWholeBatch: one lease covers a batch that is delivered
-// SERIALLY.
-func TestTheLeaseCoversTheWholeBatch(t *testing.T) {
+// TestLeaseCoversBatch: a full batch, delivered SERIALLY, fits inside one Lease
+// with LeaseMargin held back.
+func TestLeaseCoversBatch(t *testing.T) {
 	t.Parallel()
 
 	// Each message costs its handler AND the write that records the outcome.

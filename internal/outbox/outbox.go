@@ -99,9 +99,9 @@ const LeaseMargin = time.Minute
 // delivered serially, so BatchSize × (HandlerBudget + SettleBudget) plus
 // LeaseMargin must fit inside Lease, which is fixed by recovery time. At 30s,
 // 5s, 1m and 5m that is the largest batch that fits.
-// [TestTheLeaseCoversTheWholeBatch] is the arithmetic, and it exists because
-// each term has an owner elsewhere: HandlerBudget mirrors the mail sender's
-// timeout and SettleBudget answers the pool's.
+// [TestLeaseCoversBatch] is the arithmetic, and it exists because each term has
+// an owner elsewhere: HandlerBudget mirrors the mail sender's timeout and
+// SettleBudget answers the pool's.
 const BatchSize = 6
 
 // Lease is how long a claimed message stays invisible to other workers, chosen

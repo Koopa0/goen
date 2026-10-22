@@ -36,8 +36,11 @@ type invoiceArithmeticVector struct {
 	want               []canonicalInvoiceRow
 }
 
-// ECPay rejects an item total that differs from SalesAmount with error 5000022.
-func TestTheItemisationSumsToWhatWasCharged(t *testing.T) {
+// TestCanonicalInvoiceLinesSum: the lines canonical_invoice_lines returns sum
+// to what was charged, with the discount allocated in whole dollars, delivery
+// as its own line and a rounding line where a cent has to land. ECPay rejects
+// an item total that differs from SalesAmount with error 5000022.
+func TestCanonicalInvoiceLinesSum(t *testing.T) {
 	for _, tt := range []invoiceArithmeticVector{
 		{
 			name:      "no discount and no delivery",
@@ -118,7 +121,9 @@ func TestTheItemisationSumsToWhatWasCharged(t *testing.T) {
 	}
 }
 
-func TestTheDeliveryFeeIsNeverDiscounted(t *testing.T) {
+// TestCanonicalInvoiceLinesDeliveryFee: canonical_invoice_lines never discounts
+// the delivery fee; the discount comes off the item lines only.
+func TestCanonicalInvoiceLinesDeliveryFee(t *testing.T) {
 	assertCanonicalInvoiceVector(t, invoiceArithmeticVector{
 		items:    []invoiceArithmeticItem{{name: "A", price: 100000, quantity: 1}},
 		discount: 30000, shipping: 8000, wantTotal: 78000,
@@ -129,10 +134,12 @@ func TestTheDeliveryFeeIsNeverDiscounted(t *testing.T) {
 	})
 }
 
-// The largest line the schema stores (order_lines' price and quantity
-// ceilings) under the largest discount it stores (orders_discount_in_range):
-// allocating 1e10 across 9.99e12 multiplies past bigint.
-func TestDiscountAllocationDoesNotOverflowAtSchemaLimits(t *testing.T) {
+// TestCanonicalInvoiceLinesSchemaLimits: canonical_invoice_lines allocates the
+// largest discount over the largest line the schema stores without overflowing
+// bigint. That is order_lines' price and quantity ceilings under
+// orders_discount_in_range: allocating 1e10 across 9.99e12 multiplies past
+// bigint.
+func TestCanonicalInvoiceLinesSchemaLimits(t *testing.T) {
 	assertCanonicalInvoiceVector(t, invoiceArithmeticVector{
 		items:    []invoiceArithmeticItem{{name: "schema-limit", price: 10000000000, quantity: 999}},
 		discount: 10000000000, wantTotal: 9980000000000,
@@ -143,7 +150,10 @@ func TestDiscountAllocationDoesNotOverflowAtSchemaLimits(t *testing.T) {
 	})
 }
 
-func TestEveryLineMultipliesOut(t *testing.T) {
+// TestCanonicalInvoiceLinesMultiply: every line canonical_invoice_lines returns
+// multiplies out (unit price times quantity is its amount), with a rounding
+// line where a discount does not divide.
+func TestCanonicalInvoiceLinesMultiply(t *testing.T) {
 	for _, tt := range []invoiceArithmeticVector{
 		{
 			name:     "three at NT$333 with a discount that does not divide",

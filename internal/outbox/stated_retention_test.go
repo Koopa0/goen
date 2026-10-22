@@ -9,9 +9,11 @@ import (
 	"github.com/koopa0/goen/internal/policy"
 )
 
-// The privacy policy states how long mail records are kept, delivered or not.
-// Both stated periods are the one outbox.Retain the sweep enforces.
-func TestThePrivacyPolicyStatesTheMailRetentionTheSweepEnforces(t *testing.T) {
+// TestRetainMatchesPrivacyPolicy: the mail retention the privacy policy states
+// equals [outbox.Retain]. The policy states how long mail records are kept,
+// delivered or not; both stated periods are the one outbox.Retain the sweep
+// enforces.
+func TestRetainMatchesPrivacyPolicy(t *testing.T) {
 	t.Parallel()
 
 	days, err := strconv.Atoi(policy.MailRetainDaysText())
