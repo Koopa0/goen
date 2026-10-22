@@ -7,7 +7,12 @@ import (
 	"testing"
 )
 
-// TestTheLoyaltyPolicyIsNamedOnceInTheSchema pins the two programme rules the
+// TestLoyaltyPolicyFunctions: the loyalty policy numbers live once in the
+// schema: membership_window_days() and points_lifetime_days() are a year, no
+// reader takes its own window, and award_loyalty_points holds no literal of its
+// own.
+//
+// TestLoyaltyPolicyFunctions pins the two programme rules the
 // loyalty pages and the award path must all read from the schema: how long a
 // customer's spend counts towards their tier, and how long earned points last.
 // The literal is right: the copy promises a year (internal/i18n/points.go "Points
@@ -15,7 +20,7 @@ import (
 // last year" and "Spend over the last year"; internal/i18n/account.go "spent in
 // the last year"). A change to either function must change that copy in the same
 // PR, and this test is where that is forced.
-func TestTheLoyaltyPolicyIsNamedOnceInTheSchema(t *testing.T) {
+func TestLoyaltyPolicyFunctions(t *testing.T) {
 	ctx := t.Context()
 	conn := schemaPool(t)
 

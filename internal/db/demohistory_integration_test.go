@@ -138,9 +138,14 @@ var demoHistoryInvariants = []struct {
 		SELECT provider_ref FROM payments WHERE provider_ref NOT LIKE 'cs\_demo\_%'`},
 }
 
+// TestDemoHistoryInvariants: seed/demo_history.sql writes a history that breaks
+// none of the demo history invariants, ends the day before it was generated,
+// includes cancelled, guest, returned and credit-paid orders, moves no campaign
+// or coupon window and is refused a second run.
+//
 // The history commits thousands of transactions, so it gets a database of its
 // own rather than the suite's shared one.
-func TestDemoHistoryKeepsTheShopsRules(t *testing.T) {
+func TestDemoHistoryInvariants(t *testing.T) {
 	shop := dbtest.Pool(t)
 	ctx := t.Context()
 	seedCatalogue(t, shop)
@@ -204,10 +209,12 @@ func TestDemoHistoryKeepsTheShopsRules(t *testing.T) {
 	t.Run("restored a week later", func(t *testing.T) { assertShiftedToToday(t, shop, ran, ran, 7) })
 }
 
-// The demo holds a few checkouts from before the history; the history leaves
-// them as they were and draws its own numbers beside them. The plan can leave a
-// day without orders, so each of the last seven days has one from before.
-func TestDemoHistoryLeavesEarlierOrdersAsTheyWere(t *testing.T) {
+// TestDemoHistoryEarlierOrders: the demo history leaves the checkouts that
+// exist before it as they were and draws its own numbers beside them.
+//
+// The plan can leave a day without orders, so each of the last seven days has
+// one from before.
+func TestDemoHistoryEarlierOrders(t *testing.T) {
 	shop := dbtest.Pool(t)
 	seedCatalogue(t, shop)
 	addAdmin(t, shop)
@@ -232,6 +239,10 @@ func TestDemoHistoryLeavesEarlierOrdersAsTheyWere(t *testing.T) {
 	}
 }
 
+// TestDemoBackdatingSetsOnlyTimes: the statements of seed/demo_backdating.sql,
+// run in replica mode with foreign keys and the append-only triggers off, set
+// time columns only (and a points lot's expiry), nothing else.
+//
 // seed/demo_backdating.sql's statements run in replica mode, with foreign keys
 // and the append-only triggers off, so they may move times and nothing else:
 // every column they set is a timestamptz, but for a points lot's expiry, the
@@ -302,6 +313,9 @@ var (
 	backdatingTarget = regexp.MustCompile(`(?:^|, )("(?:[^"]|"")+"|[a-z_][a-z0-9_$]*) = `)
 )
 
+// TestDemoHistoryRefuses: seed/demo_history.sql refuses to run without
+// demo_database naming this database, as a role that is not a superuser, over a
+// live payment, or without the seed catalogue or an admin account.
 func TestDemoHistoryRefuses(t *testing.T) {
 	t.Parallel()
 	itself := func(own string) string { return own }

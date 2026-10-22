@@ -14,9 +14,9 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 )
 
-// TestSuiteDatabaseIsBuiltinCollation proves dbtest creates its database on
+// TestSuiteDatabaseCollation proves dbtest creates its database on
 // PostgreSQL's builtin C.UTF-8 locale, which 001 requires.
-func TestSuiteDatabaseIsBuiltinCollation(t *testing.T) {
+func TestSuiteDatabaseCollation(t *testing.T) {
 	var provider, locale string
 	if err := schemaPool(t).QueryRow(t.Context(), `
 		SELECT d.datlocprovider::text, coalesce(d.datlocale, '')
@@ -29,9 +29,9 @@ func TestSuiteDatabaseIsBuiltinCollation(t *testing.T) {
 	}
 }
 
-// TestInitialSchemaRefusesLibcCollation applies 001 to a database on the
+// TestInitialSchemaLibcCollation applies 001 to a database on the
 // operating-system (libc) collation and expects it to refuse.
-func TestInitialSchemaRefusesLibcCollation(t *testing.T) {
+func TestInitialSchemaLibcCollation(t *testing.T) {
 	ctx := t.Context()
 	admin := schemaPool(t)
 

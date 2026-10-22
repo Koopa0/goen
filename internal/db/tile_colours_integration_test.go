@@ -13,11 +13,13 @@ import (
 	"github.com/koopa0/goen/internal/db"
 )
 
-// The nine queries that fill a product card carry the colours the product page's
-// picker offers: the first option all of whose offered values are colours, and a
-// value counts only while an active variant uses it. Each copy of the subquery is
-// checked on its own, so none can drift.
-func TestEveryTileQueryCarriesTheColoursThePickerOffers(t *testing.T) {
+// TestTileQueriesColours: each of the nine queries that fill a product card
+// carries the colours the product page's picker offers, the first option all of
+// whose values are colours, counting a value only while an active variant uses
+// it.
+//
+// Each copy of the subquery is checked on its own, so none can drift.
+func TestTileQueriesColours(t *testing.T) {
 	ctx := t.Context()
 	tx, err := schemaPool(t).Begin(ctx)
 	if err != nil {

@@ -11,8 +11,9 @@ import (
 
 var touchesReviews = regexp.MustCompile(`\bproduct_reviews\b`)
 
-// TestEveryRatingReadsTheVisibleReviews holds visible_reviews as the one definition of a counted review.
-func TestEveryRatingReadsTheVisibleReviews(t *testing.T) {
+// TestVisibleReviewOneView: every rating reads the view visible_reviews, the
+// one definition of a counted review, except those listed with a reason.
+func TestVisibleReviewOneView(t *testing.T) {
 	t.Parallel()
 
 	allowed := map[string]string{

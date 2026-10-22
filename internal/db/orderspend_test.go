@@ -28,14 +28,18 @@ var (
 	asksPerRow = regexp.MustCompile(`(?i)\b(member_(?:tier|spend))\s*\(\s*\w+\.\w+`)
 )
 
-// TestEveryMemberSpendReadsTheOneView holds committed_order_spend as the one
+// TestMemberSpendOneView: every query reads a member's spend from
+// committed_order_spend and places it in a band through membership_tier_for,
+// and none calls member_tier or member_spend once per row.
+//
+// TestMemberSpendOneView holds committed_order_spend as the one
 // definition of what an order counts as spent and membership_tier_for as the
 // one placing of a spend in a band, and refuses a per-row call of member_tier
 // or member_spend over a set. The spend was written out in member_spend and
 // again for the customer page's lifetime figure, and the membership page asked
 // member_tier once per account: 0.37 s at ten thousand accounts against 4 ms
 // from the view (#1934).
-func TestEveryMemberSpendReadsTheOneView(t *testing.T) {
+func TestMemberSpendOneView(t *testing.T) {
 	t.Parallel()
 
 	sources := queryFiles(t)

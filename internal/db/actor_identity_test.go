@@ -12,7 +12,7 @@ var (
 	actorAlias = regexp.MustCompile(`(?is)\bAS\s+(actor|actor_name|staff)\b`)
 )
 
-// TestNoQueryNamesAnActorByTheirDisplayName holds that the back office names
+// TestActorNamedByEmail holds that the back office names
 // the person behind an event by their current email. users.full_name is
 // whatever its owner last typed on /account/profile, so a row that named its
 // actor by it would let a member of staff hand what they did to a colleague.
@@ -26,7 +26,7 @@ var (
 // actor and is not touched by either shape. The second shape cannot see a
 // column of a UNION branch that takes its name from the first branch, so such
 // a column is held by the first shape alone.
-func TestNoQueryNamesAnActorByTheirDisplayName(t *testing.T) {
+func TestActorNamedByEmail(t *testing.T) {
 	t.Parallel()
 
 	inspected := map[string]bool{}

@@ -194,6 +194,10 @@ func shopDaysAgo(days int) string {
 	return shoptime.Day(shoptime.In(time.Now()).AddDate(0, 0, -days))
 }
 
+// TestDemoShiftMovesOnlyTimes: the columns seed/demo_shift_columns.sql lists
+// for seed/demo_shift.sql to move are time columns only, none in a table whose
+// times stay on the real clock and none of the order number counters.
+//
 // seed/demo_shift_columns.sql picks what seed/demo_shift.sql moves in replica
 // mode, with foreign keys and the append-only triggers off: time columns only,
 // none in a table whose times stay on the real clock, and none of the order
@@ -239,6 +243,11 @@ func TestDemoShiftMovesOnlyTimes(t *testing.T) {
 	}
 }
 
+// TestDemoShiftRefuses: seed/demo_shift.sql refuses to run without
+// demo_database naming this database, as a role that is not a superuser, with a
+// missing, malformed or future anchor_day, over a live payment, without the
+// seed catalogue, or when the database is dated before or after the anchor_day
+// it was given.
 func TestDemoShiftRefuses(t *testing.T) {
 	t.Parallel()
 	itself := func(own string) string { return own }
@@ -358,11 +367,15 @@ func TestDemoShiftRefuses(t *testing.T) {
 	}
 }
 
+// TestDemoShiftRefusesSecondRun: seed/demo_shift.sql refuses a second run on
+// the same restore, whether the database holds no history or one whose last
+// order is days before the anchor.
+//
 // A second run on the same restore finds the database dated after the anchor,
 // whatever the history holds: no history at all, as on a local database, or
 // one whose last order is days before the anchor, as when the days before the
 // snapshot drew no orders.
-func TestDemoShiftRefusesASecondRun(t *testing.T) {
+func TestDemoShiftRefusesSecondRun(t *testing.T) {
 	t.Parallel()
 	tests := []struct {
 		name    string
@@ -395,9 +408,10 @@ func TestDemoShiftRefusesASecondRun(t *testing.T) {
 	}
 }
 
-// A history written before the shop's midnight is restored after it: anchored
-// on the day the history ran, the shift brings it to the day after.
-func TestDemoShiftRestoresAHistoryTheDayAfter(t *testing.T) {
+// TestDemoShiftRestoresNextDay: seed/demo_shift.sql brings a history written
+// before the shop's midnight to the day after, anchored on the day the history
+// ran.
+func TestDemoShiftRestoresNextDay(t *testing.T) {
 	t.Parallel()
 	shop := dbtest.Pool(t)
 	seedCatalogue(t, shop)
@@ -409,11 +423,15 @@ func TestDemoShiftRestoresAHistoryTheDayAfter(t *testing.T) {
 	assertShiftedToToday(t, shop, today.AddDate(0, 0, -2), today.AddDate(0, 0, -1), 7)
 }
 
+// TestDemoShiftShippingFromMidnight: after seed/demo_shift.sql, a restore
+// earlier in the day than the seed ran still offers both shipping methods,
+// because every shipping version is in effect from the shop's midnight.
+//
 // The seed ran at some hour of its day and the shift keeps that hour, so a
 // restore earlier in the day than the seed ran must still find both ways to
 // ship: shifted, every shipping version is in effect from the shop's midnight,
 // and checkout offers both methods.
-func TestDemoShiftOffersShippingFromMidnight(t *testing.T) {
+func TestDemoShiftShippingFromMidnight(t *testing.T) {
 	t.Parallel()
 	shop := dbtest.Pool(t)
 	seedCatalogue(t, shop)

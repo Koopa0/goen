@@ -59,7 +59,12 @@ func readDatabaseRow(t *testing.T, pool *pgxpool.Pool, name string) databaseRow 
 	return row
 }
 
-// TestPoolCopiesDatabasePrivileges: the database a test gets must match the
+// TestPoolCopiesDatabasePrivileges: the database Pool returns carries the
+// privileges on the database itself that the migrations set (TEMPORARY taken
+// from PUBLIC, CONNECT given to the application roles), which CREATE DATABASE
+// ... TEMPLATE does not copy.
+//
+// The database a test gets must match the
 // one the migrations ran on. CREATE DATABASE ... TEMPLATE copies the schema but
 // not the privileges on the database itself, and the schema changes those: it
 // takes TEMPORARY from PUBLIC, so that store cannot plant a pg_temp table that
@@ -84,8 +89,9 @@ func TestPoolCopiesDatabasePrivileges(t *testing.T) {
 	}
 }
 
-// TestDatabaseAssumesEachRole: a role pool that silently stayed the owner, a
-// superuser, would pass every privilege the schema withholds.
+// TestDatabaseAssumesEachRole: each role pool Database returns assumes its
+// role: a role pool that silently stayed the owner, a superuser, would pass
+// every privilege the schema withholds.
 func TestDatabaseAssumesEachRole(t *testing.T) {
 	db := dbtest.Database(t)
 	want := db.Owner.Config().ConnConfig.Database

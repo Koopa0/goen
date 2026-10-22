@@ -10,7 +10,9 @@ import (
 	"github.com/koopa0/goen/internal/db"
 )
 
-func TestIsConstraintReadsTheConstraintNameNotTheMessage(t *testing.T) {
+// TestIsConstraint: IsConstraint matches the constraint name on the PgError,
+// through wrapping, and never the message text.
+func TestIsConstraint(t *testing.T) {
 	t.Parallel()
 	violation := fmt.Errorf("insert: %w", &pgconn.PgError{
 		Code: "23505", ConstraintName: "coupons_code_key", Message: "duplicate key"})
@@ -25,7 +27,9 @@ func TestIsConstraintReadsTheConstraintNameNotTheMessage(t *testing.T) {
 	}
 }
 
-func TestWrapRefusalMarksOnlyWhatARuleDecided(t *testing.T) {
+// TestWrapRefusal: WrapRefusal marks an error as a refusal only when a rule
+// decided it.
+func TestWrapRefusal(t *testing.T) {
 	t.Parallel()
 	errRefused := errors.New("desk: refused")
 	for _, tt := range []struct {
@@ -56,7 +60,9 @@ func TestWrapRefusalMarksOnlyWhatARuleDecided(t *testing.T) {
 	}
 }
 
-func TestConstraintNameIsTheNamedConstraintOrEmpty(t *testing.T) {
+// TestConstraintName: ConstraintName returns the name of the violated
+// constraint through a wrapped error, and an empty string for any other error.
+func TestConstraintName(t *testing.T) {
 	t.Parallel()
 	named := &pgconn.PgError{Code: "23505", ConstraintName: "coupons_code_key", Message: "duplicate key"}
 	tests := []struct {

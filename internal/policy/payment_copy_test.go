@@ -78,7 +78,7 @@ func TestFAQSeedHold(t *testing.T) {
 	en := sqlStringAfter(t, string(seed), "'Is the stock held after I order?',")
 	for answer, words := range map[string][]string{
 		// The numbers it states are held to the schema by
-		// TestTheCheckoutWindowsAreTheOnesTheStorefrontEnforces in internal/db.
+		// TestCheckoutWindowsEnforced in internal/db.
 		zh: {"自動取消", "購物金"},
 		en: {"cancelled automatically", "store credit"},
 	} {

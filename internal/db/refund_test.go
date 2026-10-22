@@ -17,9 +17,10 @@ var (
 	)
 )
 
-// TestEveryRefundTotalReadsTheOneView holds order_refunds as the one
-// per-order definition of what went back by card and store credit.
-func TestEveryRefundTotalReadsTheOneView(t *testing.T) {
+// TestOrderRefundOneView: every query that states what went back by card and
+// store credit reads the view order_refunds, the one per-order definition,
+// except those listed with a reason.
+func TestOrderRefundOneView(t *testing.T) {
 	t.Parallel()
 
 	allowed := map[string]string{

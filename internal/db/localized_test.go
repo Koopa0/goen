@@ -22,8 +22,10 @@ var (
 	localizes         = regexp.MustCompile(`localized_name\(`)
 )
 
-// TestEveryCategoryNameIsLocalized holds localized_name as the one definition of a category name.
-func TestEveryCategoryNameIsLocalized(t *testing.T) {
+// TestLocalizedNameCategory: every query that shows a category name goes
+// through localized_name, the one definition, except those listed with a
+// reason.
+func TestLocalizedNameCategory(t *testing.T) {
 	t.Parallel()
 
 	allowed := map[string]string{
@@ -69,8 +71,11 @@ func TestEveryCategoryNameIsLocalized(t *testing.T) {
 	}
 }
 
-// TestEverySpecLabelIsLocalized is the same rule for a spec label and its value.
-func TestEverySpecLabelIsLocalized(t *testing.T) {
+// TestLocalizedNameSpec: every query that shows a spec label and its value goes
+// through localized_name, except those listed with a reason.
+//
+// TestLocalizedNameSpec is the same rule for a spec label and its value.
+func TestLocalizedNameSpec(t *testing.T) {
 	t.Parallel()
 
 	allowed := map[string]string{
@@ -111,8 +116,11 @@ func TestEverySpecLabelIsLocalized(t *testing.T) {
 	}
 }
 
-// TestEveryOptionLabelIsLocalized is the picker's half of the same rule.
-func TestEveryOptionLabelIsLocalized(t *testing.T) {
+// TestLocalizedNameOption: every query that shows an option label goes through
+// localized_name, except those listed with a reason.
+//
+// TestLocalizedNameOption is the picker's half of the same rule.
+func TestLocalizedNameOption(t *testing.T) {
 	t.Parallel()
 
 	allowed := map[string]string{
@@ -162,8 +170,11 @@ func TestEveryOptionLabelIsLocalized(t *testing.T) {
 	}
 }
 
-// TestEveryProductNameIsLocalized is the last of the four.
-func TestEveryProductNameIsLocalized(t *testing.T) {
+// TestLocalizedNameProduct: every query that shows a product name goes through
+// localized_name, except those listed with a reason.
+//
+// TestLocalizedNameProduct is the last of the four.
+func TestLocalizedNameProduct(t *testing.T) {
 	t.Parallel()
 
 	allowed := map[string]string{

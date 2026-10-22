@@ -12,6 +12,8 @@ import (
 	"github.com/koopa0/goen/internal/db/dbtest"
 )
 
+// TestDemoCatalogueRequiresNoProductsOrOrders: seed/dev_catalog.sql refuses a
+// database that already holds products or orders.
 func TestDemoCatalogueRequiresNoProductsOrOrders(t *testing.T) {
 	shop := dbtest.Pool(t)
 	seed, err := os.ReadFile("../../seed/dev_catalog.sql")
@@ -81,6 +83,8 @@ func TestDemoCatalogueRequiresNoProductsOrOrders(t *testing.T) {
 	}
 }
 
+// TestDemoCatalogueLoadsIntoSchemaOnlyShop: seed/dev_catalog.sql loads into a
+// database holding only the schema.
 func TestDemoCatalogueLoadsIntoSchemaOnlyShop(t *testing.T) {
 	shop := dbtest.Pool(t)
 	seedCatalogue(t, shop)

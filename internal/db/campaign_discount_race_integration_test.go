@@ -17,7 +17,11 @@ import (
 	"github.com/koopa0/goen/internal/db/dbtest"
 )
 
-func TestCampaignFeatureAndLastMarkdownRemovalSerialize(t *testing.T) {
+// TestSaleCampaignDiscountRace: featuring a product in a campaign and removing
+// its last markdown take the product lock in turn, so the second writer is
+// refused by sale_campaign_variant_still_valid or sale_campaign_needs_discount
+// and the campaign never ends up featuring a product with no discount.
+func TestSaleCampaignDiscountRace(t *testing.T) {
 	owner := dbtest.Pool(t)
 	var category uuid.UUID
 	if err := owner.QueryRow(t.Context(), `INSERT INTO categories (slug, name) VALUES ('campaign-race', 'Campaign race') RETURNING id`).Scan(&category); err != nil {

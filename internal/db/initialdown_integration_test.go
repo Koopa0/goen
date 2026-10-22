@@ -16,12 +16,16 @@ import (
 	"github.com/koopa0/goen/internal/db/dbtest"
 )
 
-// TestInitialDownRefusesADatabaseWithData runs 001.down as golang-migrate
+// TestInitialDownRefusesData: 001.down refuses a database that holds a shop's
+// data, one holding an order and one holding only a category, and changes no
+// table.
+//
+// TestInitialDownRefusesData runs 001.down as golang-migrate
 // sends it, the whole file in one implicit transaction, on a shop holding one
 // order and on one holding only a category: a shop's data is never undone by a
 // migration, so both are refused and no table changes. The empty database's
 // down is CI's migration round trip.
-func TestInitialDownRefusesADatabaseWithData(t *testing.T) {
+func TestInitialDownRefusesData(t *testing.T) {
 	down := initialDown(t)
 	for _, tc := range []struct {
 		name, data, table string
@@ -70,11 +74,13 @@ func TestInitialDownRefusesADatabaseWithData(t *testing.T) {
 	}
 }
 
-// TestInitialDownSeesARowWrittenAsItRuns: a row committed after 001.down has
-// read its table empty, but before it drops the table, still refuses it. The
-// row is inserted first and committed once the down migration waits on it, so
-// a down migration that drops without locking first would take it.
-func TestInitialDownSeesARowWrittenAsItRuns(t *testing.T) {
+// TestInitialDownConcurrentRow: 001.down still refuses a table when a row is
+// committed after it read the table empty and before it drops it, because it
+// locks first.
+//
+// The row is inserted first and committed once the down migration waits on it,
+// so a down migration that drops without locking first would take it.
+func TestInitialDownConcurrentRow(t *testing.T) {
 	shop := dbtest.Pool(t)
 	ctx := t.Context()
 	writer, err := shop.Begin(ctx)

@@ -4,13 +4,18 @@ package db_test
 
 import "testing"
 
-// TestOnlySignInWritesKnownDevices holds known_devices to the storefront's
+// TestKnownDevicesSignInOnly: role store may issue, count and delete a
+// known_devices row but cannot extend it, move it to another account or issue
+// one already counted down, and roles admin and reporting can neither read nor
+// write one.
+//
+// TestKnownDevicesSignInOnly holds known_devices to the storefront's
 // sign-in. store issues a row with its account and expiry, counts its misses
 // and deletes it, and can neither extend a row's life, move it to another
 // account, nor issue one already counted down. The back office and reporting
 // cannot read a row, let alone write one: a digest beside its account is half of
 // what a stolen cookie needs, and a row is a budget exemption for that account.
-func TestOnlySignInWritesKnownDevices(t *testing.T) {
+func TestKnownDevicesSignInOnly(t *testing.T) {
 	const device = `known_devices (digest, user_id, expires_at)
 		VALUES (sha256('boundary-device'::bytea), ` + ming + `, now() + interval '1 day')`
 	const issued = `INSERT INTO ` + device + `;`
@@ -39,10 +44,14 @@ func TestOnlySignInWritesKnownDevices(t *testing.T) {
 	}
 }
 
-// TestPromotionForgetsTheBrowsersAnAccountRemembered: a browser remembered
+// TestUpsertStaffKnownDevices: upsert_staff forgets the browsers an account
+// remembered before it was promoted to staff, because they were vouched for
+// before the shop decided to trust the account.
+//
+// A browser remembered
 // before the account was given the back office was vouched for by somebody the
 // shop had not yet decided to trust, as its sessions were.
-func TestPromotionForgetsTheBrowsersAnAccountRemembered(t *testing.T) {
+func TestUpsertStaffKnownDevices(t *testing.T) {
 	expectAccepted(t, "promoting ming forgets ming's browsers", `
 		INSERT INTO known_devices (digest, user_id, expires_at)
 		VALUES (sha256('promoted-device'::bytea), `+ming+`, now() + interval '1 day');

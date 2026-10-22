@@ -4,12 +4,14 @@ package db_test
 
 import "testing"
 
-// TestOrderSpendWidensNoRolesRead: committed_order_spend and member_order_spend
-// are security_invoker, so their grants let a role read nothing it could not
-// already read beneath them. store and admin read both, store also through
-// member_tier as the account page and the points award do. reporting has no
-// grant; given one, and the window, it still cannot read either view without
-// a column beneath.
+// TestOrderSpendWidensNoRolesRead: role reporting cannot read
+// committed_order_spend or member_order_spend, and roles store and admin read
+// only what they could already read beneath them: the views are
+// security_invoker.
+//
+// store and admin read both, store also through member_tier as the account page
+// and the points award do. reporting has no grant; given one, and the window,
+// it still cannot read either view without a column beneath.
 func TestOrderSpendWidensNoRolesRead(t *testing.T) {
 	for _, view := range []string{"committed_order_spend", "member_order_spend"} {
 		for _, role := range []string{"store", "admin"} {

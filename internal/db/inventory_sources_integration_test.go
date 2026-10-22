@@ -19,6 +19,10 @@ VALUES ('66666666-6666-4666-8666-666666666666', '88880001-0000-4000-8000-0000000
         '66660003-0000-4000-8000-000000000000', 1);
 `
 
+// TestInventoryMovementSourceParents: an inventory movement's source is known,
+// paired with its id, an existing parent of the right kind and variant, and
+// consistent with its reason, or inventory_movements_source_known, _paired,
+// _parent or _reason refuses it.
 func TestInventoryMovementSourceParents(t *testing.T) {
 	const variant = "44444444-4444-4444-8444-444444444444"
 	const otherVariant = "4444aaaa-4444-4444-8444-444444444444"
@@ -86,7 +90,11 @@ func TestInventoryMovementSourceParents(t *testing.T) {
 	}
 }
 
-func TestInventorySourceRefusalRollsBackStock(t *testing.T) {
+// TestInventoryMovementSourceRollback: a movement refused for its source parent
+// (inventory_movements_source_parent) leaves the variant's stock and its
+// movements unchanged, and an omitted source is refused with
+// inventory_movements_source_known.
+func TestInventoryMovementSourceRollback(t *testing.T) {
 	ctx := t.Context()
 	tx, err := schemaPool(t).Begin(ctx)
 	if err != nil {
@@ -118,7 +126,9 @@ func TestInventorySourceRefusalRollsBackStock(t *testing.T) {
 	}
 }
 
-func TestReturnInventoryHistoryResolvesOrder(t *testing.T) {
+// TestVariantMovementsReturnOrder: VariantMovements resolves the order of a
+// return movement, so a return's stock history names the returned order.
+func TestVariantMovementsReturnOrder(t *testing.T) {
 	ctx := t.Context()
 	tx, err := schemaPool(t).Begin(ctx)
 	if err != nil {

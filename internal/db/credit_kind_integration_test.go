@@ -9,11 +9,16 @@ import (
 	"github.com/jackc/pgx/v5/pgconn"
 )
 
+// TestStoreCreditEntryKind: store_credit_entries.kind follows the idempotency
+// key's prefix and reason belongs to grants only: for every prefix a posting
+// function writes, the CHECKs refuse a kind that disagrees with the key and a
+// reason on anything but a grant.
+//
 // store_credit_entries.kind is generated from the idempotency key, and reason is
 // staff text that only a grant carries. This holds both facts for every prefix a
 // posting function writes, in both directions the CHECKs refuse, which the
 // one-case-per-constraint table cannot show.
-func TestStoreCreditKindFollowsTheKeyAndReasonBelongsToGrants(t *testing.T) {
+func TestStoreCreditEntryKind(t *testing.T) {
 	const account = `'a0000001-0000-4000-8000-000000000000'`
 	const original = `(SELECT id FROM store_credit_entries WHERE idempotency_key = 'grant:fixture')`
 

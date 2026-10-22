@@ -11,7 +11,11 @@ import (
 	"github.com/jackc/pgx/v5/pgconn"
 )
 
-func TestRefundExecutionFunctionsExposeOnlyNarrowAdminDoors(t *testing.T) {
+// TestRefundExecutionDoors: role admin can execute the seven narrow refund
+// doors (claim_return_refund_execution and the record_refund_* functions) but
+// not the private apply_refund_provider_outcome engine, and roles store,
+// reporting and maintenance can execute none of them.
+func TestRefundExecutionDoors(t *testing.T) {
 	narrowDoors := []string{
 		"claim_return_refund_execution(uuid,uuid,text)",
 		"record_refund_pending(uuid,text,uuid,text)",
@@ -47,10 +51,14 @@ func assertFunctionPrivilege(t *testing.T, role, signature string, want bool) {
 	}
 }
 
-// TestOnlyTheDoorOpensARefundBeforeShipment holds the one grant the refund
+// TestOpenRefundBeforeShipmentDoor: role admin alone can execute
+// open_refund_before_shipment, and no role can mark a return as a refund before
+// shipment by writing the column itself.
+//
+// TestOpenRefundBeforeShipmentDoor holds the one grant the refund
 // before shipment added: admin executes the door, and no role can mark a
 // return as one by writing the column itself.
-func TestOnlyTheDoorOpensARefundBeforeShipment(t *testing.T) {
+func TestOpenRefundBeforeShipmentDoor(t *testing.T) {
 	const door = "open_refund_before_shipment(text,text,uuid,text)"
 	assertFunctionPrivilege(t, "admin", door, true)
 	for _, role := range []string{"store", "reporting", "maintenance"} {
@@ -71,10 +79,14 @@ func TestOnlyTheDoorOpensARefundBeforeShipment(t *testing.T) {
 	}
 }
 
-// TestOnlyTheDoorsOpenAndSettleAnUnsentRefund holds the two grants the unsent
+// TestUnsentRefundDoorGrants: role admin alone can execute open_unsent_refund
+// and settle_unsent_refund, and no role can mark a return as unsent by writing
+// the column itself.
+//
+// TestUnsentRefundDoorGrants holds the two grants the unsent
 // refund added: admin executes both doors, no other role executes either, and
 // no role can mark a return as unsent by writing the column itself.
-func TestOnlyTheDoorsOpenAndSettleAnUnsentRefund(t *testing.T) {
+func TestUnsentRefundDoorGrants(t *testing.T) {
 	for _, door := range []string{
 		"open_unsent_refund(text,uuid[],integer[],text,text,uuid,text)",
 		"settle_unsent_refund(uuid,uuid,text)",
@@ -99,12 +111,17 @@ func TestOnlyTheDoorsOpenAndSettleAnUnsentRefund(t *testing.T) {
 	}
 }
 
-// TestADecidedReturnKeepsItsOrderAndReason: settle_unsent_refund reads an
+// TestReturnRequestsClaimFrozen: a decided return request keeps its order and
+// reason: role store gets insufficient_privilege and the owner is refused by
+// return_requests_claim_frozen, including an unsent refund's reason before
+// approval and the statement that decides the request.
+//
+// Settle_unsent_refund reads an
 // unsent refund's reason to write its units off or put them back on sale.
 // The storefront files a customer's request as before and can change no
 // request afterwards; a door, which runs as the owner, cannot change a
 // decided request's order or reason either.
-func TestADecidedReturnKeepsItsOrderAndReason(t *testing.T) {
+func TestReturnRequestsClaimFrozen(t *testing.T) {
 	ctx := t.Context()
 	o := newUnsentOrder(t, unsentOrderTotal)
 	unsentID := o.mustOpen(t, "lost", unsentClaim{o.lineB, 2})

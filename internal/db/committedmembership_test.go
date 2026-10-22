@@ -9,11 +9,14 @@ import (
 
 var committedSubPlan = regexp.MustCompile(`(?is)\bIN\s*\(\s*SELECT\s+(?:[a-z_]+\.)?id\s+FROM\s+committed_orders\b`)
 
-// TestNoQueryTestsOneOrderAgainstTheWholeCommittedView holds the membership
+// TestCommittedOrdersExists: no SQL file tests one order's membership with IN
+// (SELECT ... FROM committed_orders); a correlated EXISTS is required.
+//
+// TestCommittedOrdersExists holds the membership
 // test of a single order to a correlated EXISTS. IN (SELECT ... FROM
 // committed_orders) is planned as a hashed SubPlan over every order and every
 // captured payment, on pages that ask about one.
-func TestNoQueryTestsOneOrderAgainstTheWholeCommittedView(t *testing.T) {
+func TestCommittedOrdersExists(t *testing.T) {
 	t.Parallel()
 	root := filepath.Join("..", "..")
 	for _, path := range calendarSQLFiles(t, root) {

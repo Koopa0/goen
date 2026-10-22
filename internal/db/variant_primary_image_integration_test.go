@@ -35,13 +35,14 @@ INSERT INTO product_images (product_id, bundled_key, alt_text, position, option_
     ('3333aaaa-3333-4333-8333-333333333333', 'line-black.webp', '石墨黑', 2, 'bbbb0092-0000-4000-8000-000000000000');
 `
 
-// TestTheLinePhotographIsTheGallerysFirst holds variant_primary_image to the
-// product page: for every product and every choice on it, including none, the
-// photograph a cart or order line shows is the first the gallery shows for
-// that choice. The line readers once ordered by "shows this variant" and then
-// position, so a variant with no photograph of its own showed another colour's
-// (#2141): here, gold would have shown the silver one.
-func TestTheLinePhotographIsTheGallerysFirst(t *testing.T) {
+// TestVariantPrimaryImageFirst: the photograph variant_primary_image gives a
+// cart or order line is the first the product page's gallery shows for that
+// choice, including none.
+//
+// The line readers once ordered by "shows this variant" and then position, so a
+// variant with no photograph of its own showed another colour's (#2141): here,
+// gold would have shown the silver one.
+func TestVariantPrimaryImageFirst(t *testing.T) {
 	ctx := t.Context()
 	tx, err := schemaPool(t).Begin(ctx)
 	if err != nil {
@@ -119,7 +120,12 @@ func TestTheLinePhotographIsTheGallerysFirst(t *testing.T) {
 	}
 }
 
-// TestVariantPrimaryImageWidensNoRolesRead: the view is security_invoker, so
+// TestVariantPrimaryImageWidensNoRolesRead: variant_primary_image is
+// security_invoker, so its grant widens no role's read: store, admin and
+// reporting read it, and a role that cannot read a table beneath it, such as
+// maintenance, cannot read it.
+//
+// The view is security_invoker, so
 // its grant lets a role read nothing it could not already read from
 // product_images, product_variants and variant_option_values. The readers'
 // roles read it; a role that cannot read a table beneath it cannot read it.

@@ -13,6 +13,10 @@ import (
 	"github.com/jackc/pgx/v5/pgconn"
 )
 
+// TestEveryRoleCanRunItsOwnQueries: every role can run the queries its own code
+// calls: a statement the role's grants refuse fails here unless runExemptions
+// lists it.
+//
 // TestEveryRoleCanRunItsOwnQueries refuses a role that cannot run a query its own code calls.
 func TestEveryRoleCanRunItsOwnQueries(t *testing.T) {
 	ctx := t.Context()
@@ -90,8 +94,9 @@ var runExemptions = map[string]string{
 	"store.PutMedia":                     "only the back office uploads; store serves what is already stored",
 }
 
-// TestNoStaleRunExemption refuses a runExemptions entry the schema has outgrown, by identity.
-func TestNoStaleRunExemption(t *testing.T) {
+// TestRunExemptionsNotStale: a runExemptions entry the schema has outgrown, one
+// whose role can now run the query, is refused.
+func TestRunExemptionsNotStale(t *testing.T) {
 	ctx := t.Context()
 	sql := generatedSQL(t)
 
@@ -129,11 +134,13 @@ func TestNoStaleRunExemption(t *testing.T) {
 	}
 }
 
-// TestNoUnusedRunExemption refuses a runExemptions entry for a query that no
-// package on that role's pool calls any more. The role still cannot run it, so
-// TestNoStaleRunExemption passes; the entry exempts nothing, and it would
-// silently cover the query if code on that pool started calling it.
-func TestNoUnusedRunExemption(t *testing.T) {
+// TestRunExemptionsNotUnused: a runExemptions entry for a query that no package
+// on that role's pool calls any more is refused.
+//
+// The role still cannot run it, so TestRunExemptionsNotStale passes; the entry
+// exempts nothing, and it would silently cover the query if code on that pool
+// started calling it.
+func TestRunExemptionsNotUnused(t *testing.T) {
 	called := map[string]bool{}
 	for _, role := range []string{"store", "admin", "maintenance"} {
 		for _, pkg := range packagesOn(role) {

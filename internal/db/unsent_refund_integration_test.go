@@ -316,11 +316,11 @@ func requireRule(t *testing.T, what string, err error, rule string) {
 	}
 }
 
-// TestAnUnsentRefundPaysBackWhatDidNotShip is the whole path in the schema: the
-// two owed units of line b are refunded at their discounted price, card first,
-// with no delivery; once paid, settling puts them back on sale and completes
-// the refund, and only then may the order complete.
-func TestAnUnsentRefundPaysBackWhatDidNotShip(t *testing.T) {
+// TestUnsentRefundPayout: an unsent refund pays back the unshipped units at
+// their discounted price, card first and without delivery, and once paid,
+// settling puts them back on sale, completes the refund and only then may the
+// order complete.
+func TestUnsentRefundPayout(t *testing.T) {
 	o := newUnsentOrder(t, 208000)
 	spendBefore := unsentInt(t, `SELECT member_spend($1)::int`, o.user)
 	if spendBefore != unsentOrderTotal {
@@ -406,10 +406,10 @@ func TestAnUnsentRefundPaysBackWhatDidNotShip(t *testing.T) {
 	}
 }
 
-// TestReturningTheRestAfterAnUnsentRefundRefundsDelivery: the unsent refund
-// keeps the delivery fee, because a parcel arrived; a later return of all that
-// arrived completes the whole order's rescission and takes the fee back.
-func TestReturningTheRestAfterAnUnsentRefundRefundsDelivery(t *testing.T) {
+// TestUnsentRefundThenReturnRest: an unsent refund keeps the delivery fee
+// because a parcel arrived, and a later return of all that arrived completes
+// the whole order's rescission and takes the fee back.
+func TestUnsentRefundThenReturnRest(t *testing.T) {
 	o := newUnsentOrder(t, 208000)
 	unsentID := o.mustOpen(t, "lost", unsentClaim{o.lineB, 2})
 	o.pay(t, unsentID, "succeeded")
@@ -458,9 +458,12 @@ func TestReturningTheRestAfterAnUnsentRefundRefundsDelivery(t *testing.T) {
 	}
 }
 
-// TestAnUnsentRefundIsBoundedByWhatDidNotShip covers the door's refusals and
+// TestOpenUnsentRefundBounds: open_unsent_refund refuses units that shipped and
+// more than did not ship, and resumes an existing refund.
+//
+// TestOpenUnsentRefundBounds covers the door's refusals and
 // its one resume.
-func TestAnUnsentRefundIsBoundedByWhatDidNotShip(t *testing.T) {
+func TestOpenUnsentRefundBounds(t *testing.T) {
 	o := newUnsentOrder(t, unsentOrderTotal)
 	lineB := []string{o.lineB.String()}
 
@@ -529,9 +532,13 @@ func TestAnUnsentRefundIsBoundedByWhatDidNotShip(t *testing.T) {
 	o.mustOpen(t, "damaged", unsentClaim{o.lineB, 1})
 }
 
-// TestNoParcelCarriesAUnitRefundedUnsent: from approval, before any money has
+// TestUnsentRefundParcelRefused: from approval of an unsent refund, before any
+// money moves, a parcel cannot carry the refunded unit:
+// shipment_within_purchase refuses it.
+//
+// From approval, before any money has
 // moved, the refunded unit is no longer the shop's to send.
-func TestNoParcelCarriesAUnitRefundedUnsent(t *testing.T) {
+func TestUnsentRefundParcelRefused(t *testing.T) {
 	o := newUnsentOrder(t, unsentOrderTotal)
 	o.mustOpen(t, "supplier_failed", unsentClaim{o.lineB, 1})
 
@@ -541,10 +548,10 @@ func TestNoParcelCarriesAUnitRefundedUnsent(t *testing.T) {
 	}
 }
 
-// TestTheShippedUnitStaysReturnable: the unsent half of line b and the half
-// that shipped are counted apart, and the money of the two never adds up to
-// more than the units' share.
-func TestTheShippedUnitStaysReturnable(t *testing.T) {
+// TestUnsentRefundShippedReturnable: the unsent half of a line and the half
+// that shipped are counted apart, so the shipped unit stays returnable and the
+// money of the two never adds up to more than the units' share.
+func TestUnsentRefundShippedReturnable(t *testing.T) {
 	o := newUnsentOrder(t, unsentOrderTotal)
 	o.mustOpen(t, "damaged", unsentClaim{o.lineB, 2})
 
@@ -589,10 +596,14 @@ func TestTheShippedUnitStaysReturnable(t *testing.T) {
 	requireRule(t, "returning the shipped unit twice", err, "return_within_shipment")
 }
 
-// TestAnUnpaidUnsentRefundNeitherSettlesNorCompletes: completion waits for
+// TestSettleUnsentRefundUnpaid: an unsent refund whose money has not moved
+// cannot settle (return_unsent_payout_outstanding) and its order cannot
+// complete (orders_finished_when_shipped).
+//
+// Completion waits for
 // the money, and the refund closes only by settling, which takes its units
 // out of the hold.
-func TestAnUnpaidUnsentRefundNeitherSettlesNorCompletes(t *testing.T) {
+func TestSettleUnsentRefundUnpaid(t *testing.T) {
 	o := newUnsentOrder(t, 208000)
 	returnID := o.mustOpen(t, "damaged", unsentClaim{o.lineB, 2})
 
@@ -645,10 +656,14 @@ func TestAnUnpaidUnsentRefundNeitherSettlesNorCompletes(t *testing.T) {
 	}
 }
 
-// TestAWrittenOffUnitStaysOffSaleAndAWithdrawnOneComesBack: a unit that no
+// TestSettleUnsentRefundRestock: settling an unsent refund keeps a lost or
+// damaged unit out of stock without waking anyone waiting for it, and puts a
+// unit the customer withdrew from back on sale.
+//
+// A unit that no
 // longer exists stays out of stock and wakes no one waiting for it; one the
 // customer withdrew from goes back on sale.
-func TestAWrittenOffUnitStaysOffSaleAndAWithdrawnOneComesBack(t *testing.T) {
+func TestSettleUnsentRefundRestock(t *testing.T) {
 	for _, tt := range []struct {
 		reason   string
 		back     int
@@ -699,10 +714,10 @@ func TestAWrittenOffUnitStaysOffSaleAndAWithdrawnOneComesBack(t *testing.T) {
 	}
 }
 
-// TestAParcelAndAnUnsentRefundCannotTakeTheSameUnit: a parcel's line and the
-// door both lock the order before they count, so whichever commits second
-// sees the first.
-func TestAParcelAndAnUnsentRefundCannotTakeTheSameUnit(t *testing.T) {
+// TestOpenUnsentRefundParcelRace: a parcel's line and open_unsent_refund both
+// lock the order before they count, so whichever commits second sees the first
+// and the same unit is never taken by both.
+func TestOpenUnsentRefundParcelRace(t *testing.T) {
 	for _, parcelFirst := range []bool{true, false} {
 		name := "refund first"
 		if parcelFirst {
@@ -746,9 +761,9 @@ func TestAParcelAndAnUnsentRefundCannotTakeTheSameUnit(t *testing.T) {
 	}
 }
 
-// TestOnlyTheDoorsWriteAnUnsentRefund: the back office writes no claim of its
+// TestUnsentRefundWriteDenied: role admin writes no unsent-refund claim of its
 // own, and no other role can press either door.
-func TestOnlyTheDoorsWriteAnUnsentRefund(t *testing.T) {
+func TestUnsentRefundWriteDenied(t *testing.T) {
 	assertRoleStatementDenied(t, "admin", `
 		INSERT INTO return_request_lines (order_id, return_request_id, order_line_id, quantity)
 		VALUES ('66666666-6666-4666-8666-666666666666', '88880001-0000-4000-8000-000000000000',
@@ -765,10 +780,13 @@ func TestOnlyTheDoorsWriteAnUnsentRefund(t *testing.T) {
 	}
 }
 
-// TestSettlingRefusesAHoldThatNoLongerCoversItsUnits: a line whose hold some
+// TestSettleUnsentRefundStaleHold: settle_unsent_refund refuses a line whose
+// hold some earlier writer settled, rather than completing over it.
+//
+// A line whose hold some
 // earlier writer settled has nothing left to release or write off, and
 // settling says so instead of completing over it.
-func TestSettlingRefusesAHoldThatNoLongerCoversItsUnits(t *testing.T) {
+func TestSettleUnsentRefundStaleHold(t *testing.T) {
 	o := newUnsentOrder(t, unsentOrderTotal)
 	returnID := o.mustOpen(t, "customer_withdrew", unsentClaim{o.lineB, 2})
 	o.pay(t, returnID, "succeeded")

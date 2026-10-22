@@ -17,9 +17,13 @@ type campaignVariant struct {
 	inactive                      bool
 }
 
+// TestCampaignViewsRunningDeals: the views running_campaigns, campaign_deals
+// and listed_campaigns hold a campaign only while it is running and a product
+// only while it is a deal in stock, read as role store.
+//
 // The views are read as store, the role of the pages that ask, so a missing grant
 // fails here too.
-func TestTheCampaignViewsHoldWhatIsRunningAndWhatIsADeal(t *testing.T) {
+func TestCampaignViewsRunningDeals(t *testing.T) {
 	const running = `now() - interval '1 day', now() + interval '1 day', true`
 	deal := campaignVariant{price: 1000, compare: 2000, stock: 5}
 	soldOutDeal := campaignVariant{price: 1000, compare: 2000}

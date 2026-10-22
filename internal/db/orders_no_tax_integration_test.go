@@ -8,12 +8,15 @@ import (
 	"github.com/jackc/pgx/v5"
 )
 
-// TestOrdersCarryNoTaxFigure holds the decision that every price in the shop
+// TestOrderNoTaxColumn: no column of orders adds tax on top of the price,
+// because every price in the shop already includes it.
+//
+// TestOrderNoTaxColumn holds the decision that every price in the shop
 // already includes tax: an order's total is its lines less the discount plus
 // shipping, and no column adds tax on top. The ECPay request says the same
 // (vat='1'), and the Terms promise it. Bringing a tax figure back is a
 // product decision with its own migration, so it must go through this test.
-func TestOrdersCarryNoTaxFigure(t *testing.T) {
+func TestOrderNoTaxColumn(t *testing.T) {
 	ctx := t.Context()
 
 	rows, err := schemaPool(t).Query(ctx, `

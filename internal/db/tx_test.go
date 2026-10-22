@@ -26,7 +26,9 @@ func (r *rollbackRecorder) Rollback(ctx context.Context) error {
 	return nil
 }
 
-func TestRollbackOutlivesTheRequestWithinItsBound(t *testing.T) {
+// TestRollbackOutlivesRequest: db.Rollback still runs after the request's
+// context is cancelled, within its own bound.
+func TestRollbackOutlivesRequest(t *testing.T) {
 	t.Parallel()
 	request, cancel := context.WithCancel(t.Context())
 	cancel()

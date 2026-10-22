@@ -8,8 +8,9 @@ import (
 	"testing"
 )
 
-// TestEveryLocaleParamIsAssigned refuses a localized query called with no locale.
-func TestEveryLocaleParamIsAssigned(t *testing.T) {
+// TestLocaleParamAssigned: every call of a localized query assigns its locale
+// parameter, so none is called with an empty locale.
+func TestLocaleParamAssigned(t *testing.T) {
 	t.Parallel()
 
 	needsLocale := localeParamTypes(t)

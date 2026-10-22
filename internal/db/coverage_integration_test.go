@@ -25,8 +25,9 @@ import (
 // Every test below derives what must be covered from the LIVE CATALOG, so a constraint added
 // to the migration without a case here fails the build.
 
-// TestEveryCheckConstraintIsExercised requires a case for every CHECK PostgreSQL created.
-func TestEveryCheckConstraintIsExercised(t *testing.T) {
+// TestCheckConstraintsExercised: every CHECK constraint PostgreSQL created has
+// a case in checkCases.
+func TestCheckConstraintsExercised(t *testing.T) {
 	live := liveCheckConstraints(t)
 
 	covered := make(map[string]bool, len(checkCases))
@@ -63,6 +64,9 @@ func TestEveryCheckConstraintIsExercised(t *testing.T) {
 	}
 }
 
+// TestCheckConstraintNamesAreUnique: no two CHECK constraints share a name,
+// because the coverage gate keys its cases on the bare constraint name.
+//
 // TestCheckConstraintNamesAreUnique is the precondition the coverage gate relies on: checkCases
 // keys on the bare constraint name, and PostgreSQL permits one to repeat across tables.
 func TestCheckConstraintNamesAreUnique(t *testing.T) {
@@ -102,6 +106,9 @@ func TestCheckConstraintNamesAreUnique(t *testing.T) {
 	}
 }
 
+// TestCheckConstraintsReject: every CHECK constraint refuses its own violation,
+// and the named constraint is what refuses it.
+//
 // TestCheckConstraintsReject requires the NAMED constraint to be what refused each case: one
 // happy with any error counts a statement that tripped an unrelated unique index as proof.
 func TestCheckConstraintsReject(t *testing.T) {
@@ -125,6 +132,9 @@ func TestCheckConstraintsReject(t *testing.T) {
 	}
 }
 
+// TestCheckConstraintsAccept: every CHECK constraint accepts its neighbouring
+// legal value, so a constraint that refuses everything is caught.
+//
 // TestCheckConstraintsAccept runs the neighbouring legal value: a constraint refusing
 // everything is otherwise indistinguishable from a correct one.
 func TestCheckConstraintsAccept(t *testing.T) {
@@ -143,11 +153,15 @@ func TestCheckConstraintsAccept(t *testing.T) {
 	}
 }
 
-// TestChainsMatchTheDatabaseContract binds the persisted closed set to the
+// TestPickupChainKnown: every pickup chain shipping.Chains offers is stored by
+// order_private_data, and an unknown chain is refused by the CHECK
+// order_private_data_pickup_chain_known.
+//
+// TestPickupChainKnown binds the persisted closed set to the
 // schema allowlist. A new form choice is not usable unless the
 // database admits it, and widening the CHECK must not make arbitrary carrier
 // routing codes valid at the write boundary.
-func TestChainsMatchTheDatabaseContract(t *testing.T) {
+func TestPickupChainKnown(t *testing.T) {
 	chains := shipping.Chains()
 	if len(chains) == 0 {
 		t.Fatal("shipping.Chains() is empty; this test would prove nothing")
@@ -203,10 +217,10 @@ func TestChainsMatchTheDatabaseContract(t *testing.T) {
 	}
 }
 
-// TestCarriersMatchDatabaseContract binds the carriers a dispatch can name to
-// the allowlist order_shipments_carrier_known: a carrier the form offers and the
+// TestOrderShipmentsCarrierKnown: every carrier a dispatch can name is admitted
+// by the CHECK order_shipments_carrier_known: a carrier the form offers and the
 // CHECK refuses fails the dispatch that chose it.
-func TestCarriersMatchDatabaseContract(t *testing.T) {
+func TestOrderShipmentsCarrierKnown(t *testing.T) {
 	home, _ := shipping.CarriersFor("", shipping.DestinationAddress)
 	stores, _ := shipping.CarriersFor("", shipping.DestinationPickupPoint)
 	every := slices.Concat(home, stores)
@@ -245,13 +259,15 @@ func TestCarriersMatchDatabaseContract(t *testing.T) {
 	}
 }
 
-// TestContactSubjectsMatchDatabaseContract binds the subjects the contact form
-// offers to the codes contact_messages_subject_known admits. The column holds a
-// code, never display text: the label each reader sees comes from i18n, so a
-// literal with a character outside ASCII in the CHECK is the old display text
-// creeping back, and a code the form offers and the CHECK refuses fails the
-// visitor's message.
-func TestContactSubjectsMatchDatabaseContract(t *testing.T) {
+// TestContactMessagesSubjectKnown: every subject code the contact form offers
+// is admitted by the CHECK contact_messages_subject_known, which holds codes
+// and never display text.
+//
+// The column holds a code, never display text: the label each reader sees comes
+// from i18n, so a literal with a character outside ASCII in the CHECK is the
+// old display text creeping back, and a code the form offers and the CHECK
+// refuses fails the visitor's message.
+func TestContactMessagesSubjectKnown(t *testing.T) {
 	choices := contact.Choices()
 	if len(choices) == 0 {
 		t.Fatal("contact.Choices() is empty; this test would prove nothing")
@@ -284,11 +300,15 @@ func TestContactSubjectsMatchDatabaseContract(t *testing.T) {
 	}
 }
 
-// TestCategoryIconKeysMatchDatabaseContract binds the glyphs the renderer can
+// TestCategoryIconKeyKnown: every key icons.CategoryKeys can draw is admitted
+// by the CHECK categories_icon_key_known, and every key the CHECK admits can be
+// drawn.
+//
+// TestCategoryIconKeyKnown binds the glyphs the renderer can
 // draw to the keys categories_icon_key_known admits. A key the picker offers
 // and the CHECK refuses fails the back-office form that offered it; a key the
 // CHECK admits and the renderer cannot draw is an empty tile.
-func TestCategoryIconKeysMatchDatabaseContract(t *testing.T) {
+func TestCategoryIconKeyKnown(t *testing.T) {
 	keys := icons.CategoryKeys()
 	if len(keys) == 0 {
 		t.Fatal("icons.CategoryKeys() is empty; this test would prove nothing")
@@ -314,8 +334,11 @@ func TestCategoryIconKeysMatchDatabaseContract(t *testing.T) {
 	}
 }
 
-// TestEveryUniqueConstraintIsExercised applies the completeness rule to the unique indexes.
-func TestEveryUniqueConstraintIsExercised(t *testing.T) {
+// TestUniqueConstraintsExercised: every unique index PostgreSQL created has a
+// case in uniqueCases.
+//
+// TestUniqueConstraintsExercised applies the completeness rule to the unique indexes.
+func TestUniqueConstraintsExercised(t *testing.T) {
 	live := liveUniqueIndexes(t)
 
 	covered := make(map[string]bool, len(uniqueCases))
@@ -335,6 +358,9 @@ func TestEveryUniqueConstraintIsExercised(t *testing.T) {
 	}
 }
 
+// TestUniqueConstraintsReject: every unique index refuses its own duplicate,
+// and the named index is what refuses it.
+//
 // TestUniqueConstraintsReject requires each unique index to refuse its own duplicate, by name.
 func TestUniqueConstraintsReject(t *testing.T) {
 	for _, c := range uniqueCases {
@@ -355,9 +381,12 @@ func TestUniqueConstraintsReject(t *testing.T) {
 	}
 }
 
-// TestUniqueConstraintsAdmitTheNeighbour proves each index is scoped as intended: the
+// TestUniqueConstraintsAccept: every unique index admits the near-duplicate
+// that differs in the one dimension it does not cover.
+//
+// TestUniqueConstraintsAccept proves each index is scoped as intended: the
 // near-duplicate differing in the one dimension it does not cover must be accepted.
-func TestUniqueConstraintsAdmitTheNeighbour(t *testing.T) {
+func TestUniqueConstraintsAccept(t *testing.T) {
 	for _, c := range uniqueCases {
 		if c.accept == "" {
 			t.Run(c.index, func(t *testing.T) {
@@ -533,9 +562,14 @@ func goenAppHasTablePriv(t *testing.T, table, priv string) bool {
 	return ok
 }
 
-// TestEveryDefinerWrittenTableIsRevoked enforces exclusive ledger writes and
+// TestDefinerWrittenTablesRevoked: roles store and admin hold no direct INSERT,
+// UPDATE or DELETE on a table a SECURITY DEFINER function writes, unless
+// sharedAppend or sharedCleanup names the overlap with a reason, so the
+// function is the only door.
+//
+// TestDefinerWrittenTablesRevoked enforces exclusive ledger writes and
 // requires an ownership decision for newly discovered cleanup overlaps.
-func TestEveryDefinerWrittenTableIsRevoked(t *testing.T) {
+func TestDefinerWrittenTablesRevoked(t *testing.T) {
 	tables := definerWrittenTables(t)
 	byVerb := map[string][]string{
 		"INSERT": definerTargetTables(t, `INSERT\s+INTO\s+(?:ONLY\s+)?([a-z_][a-z0-9_]*)`),
@@ -722,6 +756,10 @@ func hasTablePriv(t *testing.T, role, table, priv string) bool {
 	return ok
 }
 
+// TestReportingCannotReadCredentialsOrPII: role reporting can read a text
+// column only if it is listed as shop copy, bookkeeping words or published
+// customer words; no other column of readable text is open to it.
+//
 // TestReportingCannotReadCredentialsOrPII is the only counterweight to GRANT SELECT ON ALL
 // TABLES TO reporting: every other privilege guard asks about a write, or asserts positively
 // that a role CAN read, which cannot fail on a grant that is too wide.
@@ -886,6 +924,9 @@ type reportingText struct {
 	why     string
 }
 
+// TestAppendOnlyTablesDenyUpdateDelete: role store holds no UPDATE or DELETE on
+// any table a forbid_change trigger declares append-only.
+//
 // TestAppendOnlyTablesDenyUpdateDelete requires every table a forbid_change trigger declares
 // history to also deny store UPDATE and DELETE. INSERT is not asserted: some are app-appended.
 func TestAppendOnlyTablesDenyUpdateDelete(t *testing.T) {
@@ -926,6 +967,9 @@ func TestAppendOnlyTablesDenyUpdateDelete(t *testing.T) {
 	}
 }
 
+// TestStoreCannotDisableTriggers: role store cannot SET
+// session_replication_role, so it cannot switch every trigger guard off.
+//
 // TestStoreCannotDisableTriggers proves the guards cannot be switched off from the application
 // role: session_replication_role is superuser-only, so the SET must be refused.
 func TestStoreCannotDisableTriggers(t *testing.T) {
@@ -944,10 +988,14 @@ func TestStoreCannotDisableTriggers(t *testing.T) {
 	}
 }
 
-// TestStoreCannotBadgeAProductAnswerAsTheShop binds the grant itself: no
+// TestStoreCannotSetAnswerIsStaff: role store cannot INSERT a product_answers
+// row that names is_staff, so a customer's words cannot be badged as the shop's
+// answer.
+//
+// TestStoreCannotSetAnswerIsStaff binds the grant itself: no
 // storefront code writes an answer, so a raw writer must not be able to turn a
 // customer's words into an official answer by naming is_staff.
-func TestStoreCannotBadgeAProductAnswerAsTheShop(t *testing.T) {
+func TestStoreCannotSetAnswerIsStaff(t *testing.T) {
 	ctx := t.Context()
 	tx, beginErr := schemaPool(t).Begin(ctx)
 	if beginErr != nil {
@@ -977,6 +1025,10 @@ func TestStoreCannotBadgeAProductAnswerAsTheShop(t *testing.T) {
 	}
 }
 
+// TestStoreCannotWriteOrDeleteProductAnswers: role store can neither INSERT nor
+// DELETE product_answers: both fail with insufficient_privilege, including the
+// column-level INSERT a table-level check cannot see.
+//
 // TestStoreCannotWriteOrDeleteProductAnswers holds the revoke itself. Column
 // grants are invisible to the table-level guard, so a leftover INSERT (question_id,
 // user_id, body) would keep a customer write path alive with no query behind it.
@@ -1021,6 +1073,9 @@ func TestStoreCannotWriteOrDeleteProductAnswers(t *testing.T) {
 	}
 }
 
+// TestStoreIsNotSuperuser: role store is not a superuser: is_superuser is off
+// after SET ROLE store, so the REVOKEs bind it.
+//
 // TestStoreIsNotSuperuser proves SET ROLE store drops superuser: a superuser session ignores
 // every REVOKE above.
 func TestStoreIsNotSuperuser(t *testing.T) {
@@ -1043,6 +1098,9 @@ func TestStoreIsNotSuperuser(t *testing.T) {
 	}
 }
 
+// TestStoreHasNoTempPrivilege: role store has no TEMP privilege on the
+// database, so it cannot create the pg_temp table that shadows a guard's.
+//
 // TestStoreHasNoTempPrivilege locks the other half of the pg_temp fix: with TEMP revoked,
 // store cannot create the shadowing table at all, independent of search_path pinning.
 func TestStoreHasNoTempPrivilege(t *testing.T) {
@@ -1056,10 +1114,13 @@ func TestStoreHasNoTempPrivilege(t *testing.T) {
 	}
 }
 
-// TestEveryStoredFunctionEndsSearchPathWithPgTemp holds pg_temp LAST in every function's
+// TestFunctionSearchPathPgTemp: every stored function ends its pinned
+// search_path with pg_temp, which is searched first when not listed.
+//
+// TestFunctionSearchPathPgTemp holds pg_temp LAST in every function's
 // search_path: it is searched FIRST for relations unless listed explicitly, so a pin of
 // "pg_catalog, public" reads as fixed and leaves the shadow open. Every language, not plpgsql.
-func TestEveryStoredFunctionEndsSearchPathWithPgTemp(t *testing.T) {
+func TestFunctionSearchPathPgTemp(t *testing.T) {
 	rows, err := schemaPool(t).Query(t.Context(), `
 		SELECT p.proname,
 		       (SELECT cfg FROM unnest(coalesce(p.proconfig, '{}')) cfg
@@ -1103,10 +1164,14 @@ func TestEveryStoredFunctionEndsSearchPathWithPgTemp(t *testing.T) {
 	}
 }
 
-// TestSearchPathPinDefeatsTempShadowing plants a decoy pg_temp.categories and writes a cycle,
+// TestFunctionSearchPathTempShadow: a decoy pg_temp.categories cannot shadow
+// the table a guard function reads, because every function pins its
+// search_path.
+//
+// TestFunctionSearchPathTempShadow plants a decoy pg_temp.categories and writes a cycle,
 // which the guard misses if it reads the decoy. It runs as the OWNER because `store` holds no
 // write on categories to reach it with.
-func TestSearchPathPinDefeatsTempShadowing(t *testing.T) {
+func TestFunctionSearchPathTempShadow(t *testing.T) {
 	ctx := t.Context()
 	tx, err := schemaPool(t).Begin(ctx)
 	if err != nil {
@@ -1135,6 +1200,11 @@ func TestSearchPathPinDefeatsTempShadowing(t *testing.T) {
 	}
 }
 
+// TestStoreCannotDeleteUsers: role store cannot DELETE users nor UPDATE or
+// INSERT users.role, so a request can neither bypass erase_user nor make itself
+// an admin, while it can still update the columns it needs (password_hash,
+// full_name, phone, email).
+//
 // TestStoreCannotDeleteUsers locks the erasure path: a direct DELETE leaves delivery PII on
 // the orders behind, so DELETE is revoked and erase_user is the only door.
 func TestStoreCannotDeleteUsers(t *testing.T) {
@@ -1158,7 +1228,10 @@ func TestStoreCannotDeleteUsers(t *testing.T) {
 	}
 }
 
-func TestStoreCannotRewriteTheInvoiceFilingSnapshot(t *testing.T) {
+// TestStoreInvoicePreferencesInsertOnly: role store can INSERT
+// invoice_preferences, which checkout needs, but cannot UPDATE it, so a
+// storefront request cannot rewrite the tax filing identity after checkout.
+func TestStoreInvoicePreferencesInsertOnly(t *testing.T) {
 	if goenAppHasTablePriv(t, "invoice_preferences", "UPDATE") {
 		t.Error("store can UPDATE invoice_preferences; a storefront request could rewrite the tax filing identity after checkout")
 	}
@@ -1167,10 +1240,13 @@ func TestStoreCannotRewriteTheInvoiceFilingSnapshot(t *testing.T) {
 	}
 }
 
-// TestAdminStaffWritesUseNarrowFunctions keeps roster mutation behind the two
-// SECURITY DEFINER doors that own lock order, credential neutralisation and
-// session cleanup. A column grant would let a future query split those acts.
-func TestAdminStaffWritesUseNarrowFunctions(t *testing.T) {
+// TestAdminCannotWriteStaffColumns: role admin cannot INSERT or UPDATE
+// users.email, users.full_name or users.role directly: roster changes go
+// through the two SECURITY DEFINER doors that own lock order, credential
+// neutralisation and session cleanup.
+//
+// A column grant would let a future query split those acts.
+func TestAdminCannotWriteStaffColumns(t *testing.T) {
 	for _, column := range []string{"email", "full_name", "role"} {
 		for _, privilege := range []string{"INSERT", "UPDATE"} {
 			if roleHasColumnPriv(t, "admin", "users", column, privilege) {
@@ -1214,9 +1290,12 @@ func goenAppHasColumnPriv(t *testing.T, table, column, priv string) bool {
 	return ok
 }
 
-// TestNoStoredFunctionIsPublicExecute refuses a PUBLIC EXECUTE grant: reporting could otherwise
+// TestFunctionsNotPublicExecute: no stored function grants EXECUTE to PUBLIC,
+// so role reporting cannot call a SECURITY DEFINER posting function.
+//
+// TestFunctionsNotPublicExecute refuses a PUBLIC EXECUTE grant: reporting could otherwise
 // call a SECURITY DEFINER posting function and write stock through it.
-func TestNoStoredFunctionIsPublicExecute(t *testing.T) {
+func TestFunctionsNotPublicExecute(t *testing.T) {
 	rows, err := schemaPool(t).Query(t.Context(), `
 		SELECT p.proname
 		FROM pg_proc p
@@ -1263,6 +1342,11 @@ var adminForbiddenTables = []string{
 	"loyalty_redemption_operations",
 }
 
+// TestAdminCannotWriteMoneyOrStockDirectly: role admin holds no INSERT, UPDATE
+// or DELETE on payments, refunds, inventory_movements, inventory_reservations,
+// store_credit_entries, audit_events or loyalty_redemption_operations: the back
+// office reaches them through functions.
+//
 // TestAdminCannotWriteMoneyOrStockDirectly is the back office's half: `admin` is a wider set
 // than store, not an unbounded one.
 func TestAdminCannotWriteMoneyOrStockDirectly(t *testing.T) {
@@ -1281,6 +1365,10 @@ func TestAdminCannotWriteMoneyOrStockDirectly(t *testing.T) {
 	}
 }
 
+// TestAdminCannotSetStockQuantity: role admin cannot UPDATE
+// product_variants.stock_quantity, though it can still update price_cents: only
+// record_inventory_movement moves stock.
+//
 // TestAdminCannotSetStockQuantity is the narrower rule a table-level grant silently defeats:
 // PostgreSQL reads table-level UPDATE as permission on every column, so a column-level REVOKE
 // written against one does nothing while reading as a rule.
@@ -1313,6 +1401,9 @@ func TestAdminCannotSetStockQuantity(t *testing.T) {
 	}
 }
 
+// TestAdminIsNotASuperuser: role admin is not a superuser: is_superuser is off
+// after SET ROLE admin, so the REVOKEs bind it.
+//
 // TestAdminIsNotASuperuser is the same guard the connecting role gets.
 func TestAdminIsNotASuperuser(t *testing.T) {
 	ctx := t.Context()
@@ -1345,9 +1436,11 @@ func roleHasColumnPriv(t *testing.T, role, table, column, priv string) bool {
 	return ok
 }
 
-// TestNoRoleCanWriteStockDirectly proves stock has one door, per role and per VERB: with UPDATE
-// revoked and INSERT left alone, admin conjures a variant carrying stock at birth.
-func TestNoRoleCanWriteStockDirectly(t *testing.T) {
+// TestRolesCannotWriteStockQuantity: roles store, admin and reporting cannot
+// INSERT or UPDATE product_variants.stock_quantity, each verb on its own, since
+// with UPDATE revoked and INSERT left alone admin could conjure a variant
+// carrying stock at birth: stock moves only through record_inventory_movement.
+func TestRolesCannotWriteStockQuantity(t *testing.T) {
 	for _, role := range []string{"store", "admin", "reporting"} {
 		for _, priv := range []string{"INSERT", "UPDATE"} {
 			t.Run(role+"/"+priv, func(t *testing.T) {
@@ -1369,6 +1462,10 @@ func TestNoRoleCanWriteStockDirectly(t *testing.T) {
 	}
 }
 
+// TestAdminHasNoDirectWriteToMoney: role admin holds no INSERT, UPDATE or
+// DELETE on payments, refunds, inventory_movements, inventory_reservations,
+// store_credit_entries or loyalty_redemption_operations.
+//
 // TestAdminHasNoDirectWriteToMoney is the back office's mirror of the store money revokes.
 func TestAdminHasNoDirectWriteToMoney(t *testing.T) {
 	adminForbidden := []string{
@@ -1391,9 +1488,12 @@ func TestAdminHasNoDirectWriteToMoney(t *testing.T) {
 	}
 }
 
-// TestNoGrantNamesARoleThatDoesNotExistYet reads the ordering out of the file. PostgreSQL is
+// TestGrantsAfterRoleCreation: migration 001 creates each role before any GRANT
+// names it.
+//
+// TestGrantsAfterRoleCreation reads the ordering out of the file. PostgreSQL is
 // the real lock — the migration fails outright — but its error names the role, not the line.
-func TestNoGrantNamesARoleThatDoesNotExistYet(t *testing.T) {
+func TestGrantsAfterRoleCreation(t *testing.T) {
 	schema, err := os.ReadFile("../../migrations/001_initial_schema.up.sql")
 	if err != nil {
 		t.Fatalf("read schema: %v", err)
@@ -1440,7 +1540,10 @@ func lineOf(src string, offset int) int {
 	return strings.Count(src[:offset], "\n") + 1
 }
 
-func TestDefinerCorpusIncludesUpdateAndDelete(t *testing.T) {
+// TestDefinerWrittenTables: definerWrittenTables counts tables a SECURITY
+// DEFINER function only updates or only deletes from, and not a write in a
+// comment.
+func TestDefinerWrittenTables(t *testing.T) {
 	ctx := t.Context()
 	_, err := pool.Exec(ctx, `
 		CREATE TABLE public.guard_update_only (value integer);
@@ -1482,7 +1585,10 @@ func TestDefinerCorpusIncludesUpdateAndDelete(t *testing.T) {
 	}
 }
 
-func TestDefinerCorpusIncludesDynamicSQL(t *testing.T) {
+// TestDynamicDefiners: dynamicDefiners lists the SECURITY DEFINER functions
+// that run dynamic SQL, whether created that way or altered to it, and ignores
+// commented-out and invoker functions.
+func TestDynamicDefiners(t *testing.T) {
 	ctx := t.Context()
 	before := dynamicDefiners(t)
 	_, err := pool.Exec(ctx, `
@@ -1560,9 +1666,12 @@ func TestDefinerCorpusIncludesDynamicSQL(t *testing.T) {
 	}
 }
 
+// TestInvoiceUnitDomain: every column that holds an invoice unit refuses what
+// invoice_unit_valid refuses.
+//
 // The invoice unit is one domain; each column that holds one and the function that
 // compares a provider payload to it must refuse what the domain refuses.
-func TestInvoiceUnitDomainRefusesBadUnits(t *testing.T) {
+func TestInvoiceUnitDomain(t *testing.T) {
 	statements := map[string]string{
 		"products":               `INSERT INTO products (brand_id,category_id,slug,name,status,invoice_unit) VALUES ('11111111-1111-4111-8111-111111111111','22222222-2222-4222-8222-222222222222','invoice-facts-case','Invoice fixture','draft',%s);`,
 		"order_lines":            `INSERT INTO order_lines (order_id,sku,product_name,unit_price_cents,quantity,position,invoice_unit) VALUES ('6666aaaa-6666-4666-8666-666666666666','SNAPSHOT','Snapshot',100,1,5,%s);`,
@@ -1596,7 +1705,10 @@ func TestInvoiceUnitDomainRefusesBadUnits(t *testing.T) {
 	}
 }
 
-func TestInvoiceOperationLinesMatchRefusesBadUnits(t *testing.T) {
+// TestInvoiceOperationLinesMatchUnit: the SQL function
+// invoice_operation_lines_match accepts a unit of six characters and refuses
+// seven, a control character, a blank and an absent one.
+func TestInvoiceOperationLinesMatchUnit(t *testing.T) {
 	for _, unit := range []struct {
 		name string
 		json string

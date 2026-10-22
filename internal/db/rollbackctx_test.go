@@ -33,7 +33,10 @@ func unboundedRollback(line string) bool {
 		len(boundedRollback.FindAllStringIndex(line, -1))
 }
 
-func TestTheRollbackRuleSeesWhatTheOldPatternMissed(t *testing.T) {
+// TestUnboundedRollback: unboundedRollback flags a raw Rollback call on the
+// request's context or a cleanup context, however it is written, and not
+// db.Rollback or a comment.
+func TestUnboundedRollback(t *testing.T) {
 	t.Parallel()
 	for line, want := range map[string]bool{
 		`defer func() { _ = tx.Rollback(ctx) }()`:                              true,
@@ -52,7 +55,10 @@ func TestTheRollbackRuleSeesWhatTheOldPatternMissed(t *testing.T) {
 	}
 }
 
-// TestEveryRollbackOutlivesItsRequest derives its corpus from the tree rather
+// TestRollbackCallsDetached: no rollback in the tree runs on the request's own
+// context: each goes through db.Rollback, which is detached and bounded.
+//
+// TestRollbackCallsDetached derives its corpus from the tree rather
 // than a list, so a store written next week is covered the day it is written.
 //
 // pgx's Rollback runs `Exec(ctx, "rollback")`, and on failure calls conn.die()
@@ -63,7 +69,7 @@ func TestTheRollbackRuleSeesWhatTheOldPatternMissed(t *testing.T) {
 // pooled connection is destroyed. Detached with no deadline instead, a ROLLBACK
 // to a server that stopped answering holds its goroutine and connection until
 // TCP gives up. db.Rollback is detached and bounded.
-func TestEveryRollbackOutlivesItsRequest(t *testing.T) {
+func TestRollbackCallsDetached(t *testing.T) {
 	t.Parallel()
 
 	root := filepath.Join("..", "..")
@@ -109,7 +115,7 @@ func TestEveryRollbackOutlivesItsRequest(t *testing.T) {
 // handsOffItsTransaction lists the functions allowed to open a transaction
 // without ending it, each keyed "path/to/file.go:Func" with the reason. It
 // is shrink-only: an entry that stops being needed fails
-// TestEveryTransactionIsRolledBack, so the list cannot go stale. It is empty
+// TestTransactionsRolledBack, so the list cannot go stale. It is empty
 // because every transaction in the tree is ended by the function that opened
 // it. Add an entry only for a helper that returns the transaction to a caller
 // that owns the rollback, and name that caller in the reason.
@@ -244,7 +250,10 @@ func transactionsIn(path string, src any) (opened int, bare []openedTx, err erro
 	return opened, bare, nil
 }
 
-func TestTheTransactionRuleSeesAMissingRollback(t *testing.T) {
+// TestTransactionsIn: transactionsIn counts the transactions a function opens
+// and names those with no rollback, including a result thrown away or returned,
+// and ignores a Begin that is not a transaction.
+func TestTransactionsIn(t *testing.T) {
 	t.Parallel()
 	for _, tt := range []struct {
 		name, body string
@@ -281,7 +290,10 @@ func TestTheTransactionRuleSeesAMissingRollback(t *testing.T) {
 	}
 }
 
-// TestEveryTransactionIsRolledBack closes the hole TestEveryRollbackOutlivesItsRequest
+// TestTransactionsRolledBack: every function that opens a transaction rolls it
+// back by name, deferred or explicit, in its own body or a closure inside it.
+//
+// TestTransactionsRolledBack closes the hole TestRollbackCallsDetached
 // leaves: that test judges the rollbacks that exist, so a Begin whose rollback
 // was never written, or was deleted, has no line to judge. A transaction that is
 // neither committed nor rolled back keeps its pooled connection and its row
@@ -293,8 +305,8 @@ func TestTheTransactionRuleSeesAMissingRollback(t *testing.T) {
 // must roll it back by name (db.Rollback(ctx, tx) or tx.Rollback(ctx)) in its
 // own body or a closure inside it, deferred or explicit. Only the call is
 // judged here; that it goes through db.Rollback is the neighbouring test's
-// job, and what db.Rollback does is TestRollbackOutlivesTheRequestWithinItsBound's.
-func TestEveryTransactionIsRolledBack(t *testing.T) {
+// job, and what db.Rollback does is TestRollbackOutlivesRequest's.
+func TestTransactionsRolledBack(t *testing.T) {
 	t.Parallel()
 
 	root := filepath.Join("..", "..")

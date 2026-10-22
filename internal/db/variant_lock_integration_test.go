@@ -15,7 +15,11 @@ import (
 	"github.com/koopa0/goen/internal/db/dbtest"
 )
 
-// TestAStockLockHoldsBackStockWritersButNotCarts holds each lock a variant is
+// TestVariantStockLock: each row lock a variant is taken under makes a stock
+// movement wait but not a cart insert, because FOR NO KEY UPDATE admits the
+// cart's FOR KEY SHARE and FOR UPDATE does not.
+//
+// TestVariantStockLock holds each lock a variant is
 // taken under, through the query and role that take it, in an open
 // transaction. Meanwhile another shopper puts the same SKU in their cart, and
 // the stock desk moves its stock.
@@ -24,7 +28,7 @@ import (
 // FOR NO KEY UPDATE admits that and FOR UPDATE does not (PostgreSQL, "Explicit
 // Locking", row-level lock modes), so the cart must not wait. The stock
 // movement must wait: keeping the stock writers out is what each lock is for.
-func TestAStockLockHoldsBackStockWritersButNotCarts(t *testing.T) {
+func TestVariantStockLock(t *testing.T) {
 	staff := stockLockStaff(t)
 	for _, tc := range []struct {
 		name string
