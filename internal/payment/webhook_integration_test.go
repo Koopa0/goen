@@ -92,11 +92,12 @@ func openOrder(t *testing.T, s *payment.Store, cents int64, label string) (numbe
 	return number, id, session
 }
 
-// TestACaptureInAnotherCurrencyNeverMarksTheOrderPaid holds that the amount a
-// session reports is money only in the currency the order is priced in. The
-// same number of another currency's minor units is verified money that goen
-// did not ask for: it must stay an operator's alarm, never a paid order.
-func TestACaptureInAnotherCurrencyNeverMarksTheOrderPaid(t *testing.T) {
+// TestHandler_WebhookOtherCurrency: A capture in another currency never marks
+// the order paid. It holds that the amount a session reports is money only in
+// the currency the order is priced in. The same number of another currency's
+// minor units is verified money that goen did not ask for: it must stay an
+// operator's alarm, never a paid order.
+func TestHandler_WebhookOtherCurrency(t *testing.T) {
 	tests := []struct {
 		name     string
 		currency any // nil drops the field from the session
@@ -163,11 +164,11 @@ func TestACaptureInAnotherCurrencyNeverMarksTheOrderPaid(t *testing.T) {
 	}
 }
 
-// TestAWebhookThatDoesNotVerifyChangesNothing holds the endpoint's whole
-// boundary: bytes Stripe did not sign within the tolerance are refused before
-// anything is recorded, so the claim that would make a genuine retry look
-// already processed is never taken either.
-func TestAWebhookThatDoesNotVerifyChangesNothing(t *testing.T) {
+// TestHandler_WebhookUnverified: A webhook that does not verify changes
+// nothing. It holds the endpoint's whole boundary: bytes Stripe did not sign
+// within the tolerance are refused before anything is recorded, so the claim
+// that would make a genuine retry look already processed is never taken either.
+func TestHandler_WebhookUnverified(t *testing.T) {
 	ctx := t.Context()
 	s := payment.NewStore(pool)
 	h := payment.NewHandler(s, enabledGateway(t), access.NewStore(pool, false),
@@ -267,10 +268,11 @@ func TestAWebhookThatDoesNotVerifyChangesNothing(t *testing.T) {
 	}
 }
 
-// TestARedeliveredEventChangesStateOnce holds at-least-once delivery to one
-// effect: the same signed bytes delivered again are acknowledged and change
-// nothing, and a second event about the same paid session posts nothing more.
-func TestARedeliveredEventChangesStateOnce(t *testing.T) {
+// TestHandler_WebhookRedelivered: A redelivered event changes state once. It
+// holds at-least-once delivery to one effect: the same signed bytes delivered
+// again are acknowledged and change nothing, and a second event about the same
+// paid session posts nothing more.
+func TestHandler_WebhookRedelivered(t *testing.T) {
 	ctx := t.Context()
 	s := payment.NewStore(pool)
 	h := payment.NewHandler(s, enabledGateway(t), access.NewStore(pool, false),
@@ -322,11 +324,11 @@ func TestARedeliveredEventChangesStateOnce(t *testing.T) {
 	}
 }
 
-// TestOnlyTheEventsGoenActsOnMoveMoney holds the event-type allowlist at the
-// door. A signed event of any other type is recorded and acknowledged, and
-// never marks the order paid, however much its object looks like a paid
-// Checkout Session for a payment goen opened.
-func TestOnlyTheEventsGoenActsOnMoveMoney(t *testing.T) {
+// TestHandler_WebhookOtherEvents: Only the events goen acts on move money. It
+// holds the event-type allowlist at the door. A signed event of any other type
+// is recorded and acknowledged, and never marks the order paid, however much
+// its object looks like a paid Checkout Session for a payment goen opened.
+func TestHandler_WebhookOtherEvents(t *testing.T) {
 	ctx := t.Context()
 	s := payment.NewStore(pool)
 	h := payment.NewHandler(s, enabledGateway(t), access.NewStore(pool, false),
@@ -362,10 +364,11 @@ func TestOnlyTheEventsGoenActsOnMoveMoney(t *testing.T) {
 	}
 }
 
-// TestAnEventForASessionGoenNeverOpenedTouchesNoPayment holds attribution to
-// goen's own payment rows. An event naming a session goen never created
-// invents no payment and closes none of the payments goen did open.
-func TestAnEventForASessionGoenNeverOpenedTouchesNoPayment(t *testing.T) {
+// TestHandler_WebhookUnknownSession: An event for a session goen never opened
+// touches no payment. It holds attribution to goen's own payment rows. An event
+// naming a session goen never created invents no payment and closes none of the
+// payments goen did open.
+func TestHandler_WebhookUnknownSession(t *testing.T) {
 	ctx := t.Context()
 	s := payment.NewStore(pool)
 	h := payment.NewHandler(s, enabledGateway(t), access.NewStore(pool, false),
@@ -413,12 +416,13 @@ func TestAnEventForASessionGoenNeverOpenedTouchesNoPayment(t *testing.T) {
 	}
 }
 
-// TestTheWebhookLogsNoSecretSignatureOrCustomerData holds what an operator can
-// read in the logs of the one endpoint that takes money. Every outcome is
-// driven — refused, stale, captured, redelivered, refused capture and
-// unattributed — at DEBUG, and no logged value may carry the signing secret, a
-// signature, the payload, or the customer and card facts inside it.
-func TestTheWebhookLogsNoSecretSignatureOrCustomerData(t *testing.T) {
+// TestHandler_WebhookLogs: The webhook logs no secret, signature or customer
+// data. It holds what an operator can read in the logs of the one endpoint that
+// takes money. Every outcome is driven — refused, stale, captured, redelivered,
+// refused capture and unattributed — at DEBUG, and no logged value may carry
+// the signing secret, a signature, the payload, or the customer and card facts
+// inside it.
+func TestHandler_WebhookLogs(t *testing.T) {
 	ctx := t.Context()
 	s := payment.NewStore(pool)
 	var logs bytes.Buffer
@@ -564,11 +568,12 @@ func walkLogValues(prefix string, value any, visit func(key, text string)) {
 	}
 }
 
-// TestAPaidCheckoutRecordsTheCardStripeReports holds the card facts on the
-// payment row. Stripe's checkout event names the PaymentIntent as a bare id and
-// never carries its charge, so the brand and last four only exist after one
-// read of the intent with its charge expanded.
-func TestAPaidCheckoutRecordsTheCardStripeReports(t *testing.T) {
+// TestHandler_WebhookCardFacts: A paid checkout records the card Stripe
+// reports. It holds the card facts on the payment row. Stripe's checkout event
+// names the PaymentIntent as a bare id and never carries its charge, so the
+// brand and last four only exist after one read of the intent with its charge
+// expanded.
+func TestHandler_WebhookCardFacts(t *testing.T) {
 	ctx := t.Context()
 	s := payment.NewStore(pool)
 	var expanded atomic.Bool
@@ -617,9 +622,9 @@ func TestAPaidCheckoutRecordsTheCardStripeReports(t *testing.T) {
 	}
 }
 
-// TestTheWebhookRoutesEachEventToItsEffect is the HTTP-level lock on the routing
-// switch in handler.go.
-func TestTheWebhookRoutesEachEventToItsEffect(t *testing.T) {
+// TestHandler_WebhookRouting: The webhook routes each event to its effect. It
+// is the HTTP-level lock on the routing switch in handler.go.
+func TestHandler_WebhookRouting(t *testing.T) {
 	ctx := t.Context()
 	s := payment.NewStore(pool)
 	h := payment.NewHandler(s, enabledGateway(t), access.NewStore(pool, false),
@@ -737,12 +742,12 @@ func TestTheWebhookRoutesEachEventToItsEffect(t *testing.T) {
 	}
 }
 
-// TestAPaymentEventIsKeptWithoutTheCustomersDetails holds the stored copy of a
-// verified event to evidence: which event it was and what it said about the
-// money, never who paid. The capture, its attribution and the redelivery are
-// asserted as well, because a reduction that broke any of them would cost more
-// than the copy it saves.
-func TestAPaymentEventIsKeptWithoutTheCustomersDetails(t *testing.T) {
+// TestHandler_WebhookKeptEvent: A payment event is kept without the customer's
+// details. It holds the stored copy of a verified event to evidence: which
+// event it was and what it said about the money, never who paid. The capture,
+// its attribution and the redelivery are asserted as well, because a reduction
+// that broke any of them would cost more than the copy it saves.
+func TestHandler_WebhookKeptEvent(t *testing.T) {
 	ctx := t.Context()
 	s := payment.NewStore(pool)
 	h := payment.NewHandler(s, enabledGateway(t), access.NewStore(pool, false),

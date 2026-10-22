@@ -110,7 +110,9 @@ var stripeCleanupPaths = []struct {
 	{name: "expire rejected session", expireRejected: true},
 }
 
-func TestStripeRetriesStayWithinTheCleanupDeadline(t *testing.T) {
+// TestHandlerCleanupDeadline: Stripe retries during obsolete-session cleanup
+// stay within the shared cleanup deadline.
+func TestHandlerCleanupDeadline(t *testing.T) {
 	for _, mode := range stripeStallModes {
 		t.Run(mode.name, func(t *testing.T) {
 			for _, path := range stripeCleanupPaths {
@@ -153,7 +155,9 @@ func TestStripeRetriesStayWithinTheCleanupDeadline(t *testing.T) {
 	}
 }
 
-func TestStripeCancellationEndsTheActiveRetryBeforeReturning(t *testing.T) {
+// TestGateway_ResumeSessionCancel: Cancelling the context ends the active
+// Stripe retry before ResumeSession returns.
+func TestGateway_ResumeSessionCancel(t *testing.T) {
 	for _, mode := range stripeStallModes {
 		t.Run(mode.name, func(t *testing.T) {
 			synctest.Test(t, func(t *testing.T) {

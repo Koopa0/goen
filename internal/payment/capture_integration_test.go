@@ -14,9 +14,9 @@ import (
 	"github.com/koopa0/goen/internal/payment"
 )
 
-// TestCaptureMarksTheOrderPaid is the happy path, end to end through the real
-// SECURITY DEFINER functions.
-func TestCaptureMarksTheOrderPaid(t *testing.T) {
+// TestWebhookTx_CapturePaysOrder: A capture marks the order paid. It is the
+// happy path, end to end through the real SECURITY DEFINER functions.
+func TestWebhookTx_CapturePaysOrder(t *testing.T) {
 	ctx := t.Context()
 	s := payment.NewStore(pool)
 	number, id := order(t, 199900)
@@ -69,9 +69,10 @@ func TestCaptureMarksTheOrderPaid(t *testing.T) {
 	}
 }
 
-// TestReplayedWebhookIsProcessedOnce proves a redelivered event is claimed only
-// on its first arrival. Stripe delivers at least once, not exactly once.
-func TestReplayedWebhookIsProcessedOnce(t *testing.T) {
+// TestStore_ProcessWebhookReplay: A replayed webhook is processed once. It
+// proves a redelivered event is claimed only on its first arrival. Stripe
+// delivers at least once, not exactly once.
+func TestStore_ProcessWebhookReplay(t *testing.T) {
 	ctx := t.Context()
 	s := payment.NewStore(pool)
 	ev := &payment.WebhookEvent{
@@ -113,9 +114,10 @@ func TestReplayedWebhookIsProcessedOnce(t *testing.T) {
 	}
 }
 
-// TestAFailedEffectLeavesTheEventReprocessable holds the claim to its effect: a
-// claim that commits alone tells Stripe's retry the event is already seen.
-func TestAFailedEffectLeavesTheEventReprocessable(t *testing.T) {
+// TestStore_ProcessWebhookEffectFails: A failed effect leaves the event
+// reprocessable. It holds the claim to its effect: a claim that commits alone
+// tells Stripe's retry the event is already seen.
+func TestStore_ProcessWebhookEffectFails(t *testing.T) {
 	ctx := t.Context()
 	s := payment.NewStore(pool)
 	ev := &payment.WebhookEvent{
@@ -167,11 +169,12 @@ func TestAFailedEffectLeavesTheEventReprocessable(t *testing.T) {
 	}
 }
 
-// TestWebhookCapabilityCannotOperateAnotherProviderReference binds the lock to
-// the callback capability. An event for A must not capture B: ProcessWebhook
-// holds only A's advisory lock, so accepting B would reopen the exact identity
-// race the provider-ref fence closes.
-func TestWebhookCapabilityCannotOperateAnotherProviderReference(t *testing.T) {
+// TestWebhookTx_CaptureOtherReference: A webhook capability cannot operate
+// another provider reference. It binds the lock to the callback capability. An
+// event for A must not capture B: ProcessWebhook holds only A's advisory lock,
+// so accepting B would reopen the exact identity race the provider-ref fence
+// closes.
+func TestWebhookTx_CaptureOtherReference(t *testing.T) {
 	ctx := t.Context()
 	s := payment.NewStore(pool)
 	number, _ := order(t, 76000)
@@ -217,9 +220,10 @@ func TestWebhookCapabilityCannotOperateAnotherProviderReference(t *testing.T) {
 	}
 }
 
-// TestTheSchemaRefusesACaptureThatIsNotWhatTheOrderOwes proves the trigger, not
-// the Go check, stops a capture for the wrong figure.
-func TestTheSchemaRefusesACaptureThatIsNotWhatTheOrderOwes(t *testing.T) {
+// TestCapturePaymentWrongAmount: The schema refuses a capture that is not what
+// the order owes. It proves the trigger, not the Go check, stops a capture for
+// the wrong figure.
+func TestCapturePaymentWrongAmount(t *testing.T) {
 	ctx := t.Context()
 	s := payment.NewStore(pool)
 	number, id := order(t, 199900)
@@ -254,10 +258,11 @@ func TestTheSchemaRefusesACaptureThatIsNotWhatTheOrderOwes(t *testing.T) {
 	_ = id
 }
 
-// TestCaptureRefusesAnAmountThatIsNotTheIntent covers what the schema's guard
-// cannot: payments_capture_matches_order compares the capture to what the order
-// owes NOW, and the Go check to what the session was opened for.
-func TestCaptureRefusesAnAmountThatIsNotTheIntent(t *testing.T) {
+// TestWebhookTx_CaptureAmountNotIntent: A capture refuses an amount that is not
+// the intent. It covers what the schema's guard cannot:
+// payments_capture_matches_order compares the capture to what the order owes
+// NOW, and the Go check to what the session was opened for.
+func TestWebhookTx_CaptureAmountNotIntent(t *testing.T) {
 	ctx := t.Context()
 	s := payment.NewStore(pool)
 	number, id := order(t, 100000)
@@ -291,9 +296,10 @@ func TestCaptureRefusesAnAmountThatIsNotTheIntent(t *testing.T) {
 	}
 }
 
-// TestCaptureWithNoCardDetails proves a capture succeeds when Stripe sends no
-// card brand or last4, because unknown is NULL and never "".
-func TestCaptureWithNoCardDetails(t *testing.T) {
+// TestWebhookTx_CaptureNoCardDetails: A capture with no card details succeeds.
+// It proves a capture succeeds when Stripe sends no card brand or last4,
+// because unknown is NULL and never "".
+func TestWebhookTx_CaptureNoCardDetails(t *testing.T) {
 	ctx := t.Context()
 	s := payment.NewStore(pool)
 	number, _ := order(t, 88800)
@@ -321,7 +327,9 @@ func TestCaptureWithNoCardDetails(t *testing.T) {
 	}
 }
 
-func TestCaptureForAnUnknownSessionIsNotFound(t *testing.T) {
+// TestWebhookTx_CaptureUnknownSession: A capture for an unknown session is not
+// found.
+func TestWebhookTx_CaptureUnknownSession(t *testing.T) {
 	s := payment.NewStore(pool)
 	_, err := captureThroughWebhook(t, s, payment.Capture{SessionID: "cs_never_opened", AmountRecv: 100})
 	if err == nil {
@@ -332,9 +340,10 @@ func TestCaptureForAnUnknownSessionIsNotFound(t *testing.T) {
 	}
 }
 
-// TestACaptureIsRefusedForACancelledOrder holds the guard that binds money to the
-// order's own state: start a payment, cancel in the other tab, pay at Stripe.
-func TestACaptureIsRefusedForACancelledOrder(t *testing.T) {
+// TestWebhookTx_CaptureCancelledOrder: A capture is refused for a cancelled
+// order. It holds the guard that binds money to the order's own state: start a
+// payment, cancel in the other tab, pay at Stripe.
+func TestWebhookTx_CaptureCancelledOrder(t *testing.T) {
 	ctx := t.Context()
 	s := payment.NewStore(pool)
 	number, id := order(t, 88800)
@@ -375,9 +384,10 @@ func TestACaptureIsRefusedForACancelledOrder(t *testing.T) {
 	}
 }
 
-// TestStoreCannotWriteASucceededPaymentDirectly proves the store role cannot
-// forge a payment, which is the privilege boundary every guard above rests on.
-func TestStoreCannotWriteASucceededPaymentDirectly(t *testing.T) {
+// TestStoreRoleCannotForgePayment: The store role cannot write a succeeded
+// payment directly. It proves the store role cannot forge a payment, which is
+// the privilege boundary every guard above rests on.
+func TestStoreRoleCannotForgePayment(t *testing.T) {
 	ctx := t.Context()
 	number, id := order(t, 12345)
 	_ = number
@@ -434,9 +444,10 @@ func TestStoreCannotWriteASucceededPaymentDirectly(t *testing.T) {
 	}
 }
 
-// TestPickupOrderCanBePaid holds that a convenience-store pickup order reaches
-// the till: payments_require_complete_order has to name BOTH destinations.
-func TestPickupOrderCanBePaid(t *testing.T) {
+// TestWebhookTx_CapturePickupOrder: A pickup order can be paid. It holds that a
+// convenience-store pickup order reaches the till:
+// payments_require_complete_order has to name BOTH destinations.
+func TestWebhookTx_CapturePickupOrder(t *testing.T) {
 	ctx := t.Context()
 	s := payment.NewStore(pool)
 	number, _ := pickupOrder(t, 120000)

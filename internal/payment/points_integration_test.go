@@ -16,9 +16,10 @@ import (
 	"github.com/koopa0/goen/internal/payment"
 )
 
-// TestPointsAreMultipliedByTheCustomersTier holds the rate an order earns at:
-// the multiplier comes from the spend the customer had BEFORE this order.
-func TestPointsAreMultipliedByTheCustomersTier(t *testing.T) {
+// TestWebhookTx_CaptureTierMultiplier: Points are multiplied by the customer's
+// tier. It holds the rate an order earns at: the multiplier comes from the
+// spend the customer had BEFORE this order.
+func TestWebhookTx_CaptureTierMultiplier(t *testing.T) {
 	ctx := t.Context()
 	s := payment.NewStore(pool)
 
@@ -49,11 +50,11 @@ func TestPointsAreMultipliedByTheCustomersTier(t *testing.T) {
 	}
 }
 
-// TestConcurrentCapturesSerializeTierAwards holds the per-member lock between
-// two different paid orders. Without it, both award statements can read the
-// same pre-payment spend and mint at the base rate even though one payment must
-// precede the other.
-func TestConcurrentCapturesSerializeTierAwards(t *testing.T) {
+// TestCapturePaymentTierAwards: Concurrent captures serialize tier awards. It
+// holds the per-member lock between two different paid orders. Without it, both
+// award statements can read the same pre-payment spend and mint at the base
+// rate even though one payment must precede the other.
+func TestCapturePaymentTierAwards(t *testing.T) {
 	ctx := t.Context()
 	const orderCents = int64(1200000) // NT$12,000.
 
@@ -194,10 +195,11 @@ func payForOwnedOrder(t *testing.T, s *payment.Store, userID uuid.UUID, cents in
 	return points
 }
 
-// TestAnOrderThatEarnsNothingIsStillCaptured is the customer-order sibling of
-// loyalty's guest-order precedent: neither kind of zero award may abort money
-// that Stripe has already captured.
-func TestAnOrderThatEarnsNothingIsStillCaptured(t *testing.T) {
+// TestWebhookTx_CaptureZeroAward: An order that earns nothing is still
+// captured. It is the customer-order sibling of loyalty's guest-order
+// precedent: neither kind of zero award may abort money that Stripe has already
+// captured.
+func TestWebhookTx_CaptureZeroAward(t *testing.T) {
 	ctx := t.Context()
 	s := payment.NewStore(pool)
 	var userID uuid.UUID
@@ -249,9 +251,9 @@ func TestAnOrderThatEarnsNothingIsStillCaptured(t *testing.T) {
 	}
 }
 
-// TestTheAwardedPointsUseWholeHundreds binds every integer boundary to the
-// database's single production definition.
-func TestTheAwardedPointsUseWholeHundreds(t *testing.T) {
+// TestWebhookTx_CaptureWholeHundreds: The awarded points use whole hundreds. It
+// binds every integer boundary to the database's single production definition.
+func TestWebhookTx_CaptureWholeHundreds(t *testing.T) {
 	for _, cents := range []int64{4999, 5000, 9999, 10000, 19999, 100000, 2590000} {
 		t.Run(strconv.FormatInt(cents, 10), func(t *testing.T) {
 			var userID uuid.UUID

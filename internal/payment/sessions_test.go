@@ -25,10 +25,11 @@ func (o *sessionCloseObservation) ExpireSession(ctx context.Context, _ string) e
 	return nil
 }
 
-// TestPostCommitSessionExpiryOwnsItsContext proves a disconnected request does
-// not cancel cleanup for an already-committed order, while that cleanup still
-// receives a finite, short lifetime.
-func TestPostCommitSessionExpiryOwnsItsContext(t *testing.T) {
+// TestCloseSessionsOwnsContext: Post commit session expiry owns its context. It
+// proves a disconnected request does not cancel cleanup for an
+// already-committed order, while that cleanup still receives a finite, short
+// lifetime.
+func TestCloseSessionsOwnsContext(t *testing.T) {
 	requestCtx, cancelRequest := context.WithCancel(t.Context())
 	cancelRequest()
 	if requestCtx.Err() == nil {
@@ -54,7 +55,8 @@ func TestPostCommitSessionExpiryOwnsItsContext(t *testing.T) {
 	}
 }
 
-func TestHoldTTLIncludesTheWholePaymentSafetyBudget(t *testing.T) {
+// TestHoldTTL: Hold TTL includes the whole payment safety budget.
+func TestHoldTTL(t *testing.T) {
 	t.Parallel()
 	if minSessionLifetime != 30*time.Minute {
 		t.Errorf("minSessionLifetime = %s, want 30m", minSessionLifetime)

@@ -92,7 +92,9 @@ func validStripeRefundFixture(
 	}
 }
 
-func TestGatewayRefundExpandsTheCheckoutPaymentIntent(t *testing.T) {
+// TestGateway_PaymentIntentForExpands: PaymentIntentFor expands the checkout
+// session's payment intent.
+func TestGateway_PaymentIntentForExpands(t *testing.T) {
 	r, log := refundStripeAt(t, func(*refundStripeCall) (int, string) {
 		return http.StatusOK, `{
 			"id":"cs_test_order_7",
@@ -125,7 +127,9 @@ func TestGatewayRefundExpandsTheCheckoutPaymentIntent(t *testing.T) {
 	}
 }
 
-func TestGatewayRefundRejectsInvalidCheckoutAndPaymentIntentIdentities(t *testing.T) {
+// TestGateway_PaymentIntentForInvalidIDs: PaymentIntentFor rejects an invalid
+// checkout or payment intent identity.
+func TestGateway_PaymentIntentForInvalidIDs(t *testing.T) {
 	for _, tt := range []struct {
 		name      string
 		sessionID string
@@ -158,7 +162,9 @@ func TestGatewayRefundRejectsInvalidCheckoutAndPaymentIntentIdentities(t *testin
 	}
 }
 
-func TestGatewayRefundRejectsInvalidLocalProviderIdentitiesBeforeCallingStripe(t *testing.T) {
+// TestGatewayRefundLocalIDs: PaymentIntentFor and Refund reject invalid local
+// provider identities before calling Stripe.
+func TestGatewayRefundLocalIDs(t *testing.T) {
 	r, log := refundStripeAt(t, func(*refundStripeCall) (int, string) {
 		t.Fatal("an invalid identity reached Stripe")
 		return http.StatusInternalServerError, `{}`
@@ -174,7 +180,9 @@ func TestGatewayRefundRejectsInvalidLocalProviderIdentitiesBeforeCallingStripe(t
 	}
 }
 
-func TestGatewayRefundFindsAnExistingRequestAcrossRefundPages(t *testing.T) {
+// TestGateway_RefundFindsExisting: Refund finds an existing request across
+// refund pages.
+func TestGateway_RefundFindsExisting(t *testing.T) {
 	const (
 		intentID   = "pi_paid_order_9"
 		requestKey = "return:request-9"
@@ -237,7 +245,9 @@ func TestGatewayRefundFindsAnExistingRequestAcrossRefundPages(t *testing.T) {
 	}
 }
 
-func TestGatewayRefundRefusesMultipleProviderRefundsForOneRequestKey(t *testing.T) {
+// TestGateway_RefundDuplicateRequestKey: Refund refuses multiple provider
+// refunds for one request key.
+func TestGateway_RefundDuplicateRequestKey(t *testing.T) {
 	r, log := refundStripeAt(t, func(*refundStripeCall) (int, string) {
 		return http.StatusOK, `{
 			"object":"list","url":"/v1/refunds","has_more":false,
@@ -270,7 +280,9 @@ func TestGatewayRefundRefusesMultipleProviderRefundsForOneRequestKey(t *testing.
 	}
 }
 
-func TestGatewayRefundRejectsMismatchedListedRefundFacts(t *testing.T) {
+// TestGateway_RefundMismatchedListed: Refund rejects mismatched listed refund
+// facts.
+func TestGateway_RefundMismatchedListed(t *testing.T) {
 	const (
 		intentID   = "pi_paid"
 		requestKey = "return:request"
@@ -324,7 +336,9 @@ func TestGatewayRefundRejectsMismatchedListedRefundFacts(t *testing.T) {
 	}
 }
 
-func TestGatewayRefundRejectsInvalidListedRefundIdentities(t *testing.T) {
+// TestGateway_RefundInvalidListedID: Refund rejects an invalid listed refund
+// identity.
+func TestGateway_RefundInvalidListedID(t *testing.T) {
 	for _, id := range []string{"", strings.Repeat("x", 256), " \t", "re_good\nforged"} {
 		t.Run(id, func(t *testing.T) {
 			r, log := refundStripeAt(t, func(*refundStripeCall) (int, string) {
@@ -350,7 +364,8 @@ func TestGatewayRefundRejectsInvalidListedRefundIdentities(t *testing.T) {
 	}
 }
 
-func TestGatewayRefundCreatesTheRequestedRefundIdempotently(t *testing.T) {
+// TestGateway_RefundCreates: Refund creates the requested refund idempotently.
+func TestGateway_RefundCreates(t *testing.T) {
 	request := 0
 	r, log := refundStripeAt(t, func(call *refundStripeCall) (int, string) {
 		request++
@@ -415,7 +430,9 @@ func TestGatewayRefundCreatesTheRequestedRefundIdempotently(t *testing.T) {
 	}
 }
 
-func TestGatewayRefundRejectsMismatchedCreatedRefundFacts(t *testing.T) {
+// TestGateway_RefundMismatchedCreated: Refund rejects mismatched created refund
+// facts.
+func TestGateway_RefundMismatchedCreated(t *testing.T) {
 	const (
 		intentID   = "pi_paid"
 		requestKey = "return:request"
@@ -478,7 +495,9 @@ func TestGatewayRefundRejectsMismatchedCreatedRefundFacts(t *testing.T) {
 	}
 }
 
-func TestOnlyARefundCreateRejectionGetsTheStableRejectionSentinel(t *testing.T) {
+// TestGateway_RefundRejectionSentinel: Only a refund create rejection gets the
+// stable rejection sentinel.
+func TestGateway_RefundRejectionSentinel(t *testing.T) {
 	const rejection = `{"error":{"type":"invalid_request_error",` +
 		`"code":"charge_already_refunded","message":"already refunded"}}`
 
@@ -521,7 +540,9 @@ func TestOnlyARefundCreateRejectionGetsTheStableRejectionSentinel(t *testing.T) 
 	})
 }
 
-func TestGatewayRefundRejectsInvalidCreatedRefundIdentities(t *testing.T) {
+// TestGateway_RefundInvalidCreatedID: Refund rejects an invalid created refund
+// identity.
+func TestGateway_RefundInvalidCreatedID(t *testing.T) {
 	for _, id := range []string{"", strings.Repeat("x", 256), " \t", "re_good\nforged"} {
 		t.Run(id, func(t *testing.T) {
 			request := 0
@@ -555,7 +576,9 @@ func TestGatewayRefundRejectsInvalidCreatedRefundIdentities(t *testing.T) {
 	}
 }
 
-func TestGatewayRefundCancelsTheHTTPCallWithItsContext(t *testing.T) {
+// TestGateway_PaymentIntentForCancel: PaymentIntentFor cancels the HTTP call
+// with its context.
+func TestGateway_PaymentIntentForCancel(t *testing.T) {
 	started := make(chan struct{})
 	r, _ := refundStripeAt(t, func(call *refundStripeCall) (int, string) {
 		close(started)

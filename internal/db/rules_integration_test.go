@@ -42,7 +42,7 @@ var coveredByNamedTest = map[string]string{
 	// Exercised where the send is: proving it needs an issue that has actually been sent.
 	"newsletter_issues_frozen_once_sent": "TestStore_SendNewsletterFreezesIssue (internal/admin/newsletters)",
 	// It reduces rather than refuses, so it has no violation to name.
-	"payment_webhook_events_evidence_only": "TestAPaymentEventIsKeptWithoutTheCustomersDetails " +
+	"payment_webhook_events_evidence_only": "TestHandler_WebhookKeptEvent " +
 		"(internal/payment), TestErasureLeavesNoCustomerDetailsInPaymentEvents",
 	// Its violation needs an order a committed checkout placed, which a case run inside the
 	// fixtures' own transaction cannot have.

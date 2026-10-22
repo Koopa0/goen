@@ -36,7 +36,9 @@ func TestCheckoutRedirectURL(t *testing.T) {
 	}
 }
 
-func TestAnUnsafeCheckoutURLNeverRedirects(t *testing.T) {
+// TestHandler_toCheckoutUnsafeURL: Handler.toCheckout never redirects to an
+// unsafe checkout URL.
+func TestHandler_toCheckoutUnsafeURL(t *testing.T) {
 	h := &Handler{log: slog.New(slog.DiscardHandler)}
 	for _, raw := range []string{
 		"http://pay.goen.example/c/pay/cs_test_a1b2",
@@ -60,7 +62,9 @@ func TestAnUnsafeCheckoutURLNeverRedirects(t *testing.T) {
 	}
 }
 
-func TestACustomCheckoutDomainRedirects(t *testing.T) {
+// TestHandler_toCheckoutCustomDomain: Handler.toCheckout redirects to a custom
+// checkout domain.
+func TestHandler_toCheckoutCustomDomain(t *testing.T) {
 	h := &Handler{log: slog.New(slog.DiscardHandler)}
 	rec := httptest.NewRecorder()
 	req := httptest.NewRequestWithContext(

@@ -12,9 +12,10 @@ import (
 	"github.com/koopa0/goen/internal/payment"
 )
 
-// TestACaptureEnqueuesTheReceipt holds that money arriving produces a receipt,
-// written in the capture's own transaction.
-func TestACaptureEnqueuesTheReceipt(t *testing.T) {
+// TestWebhookTx_CaptureEnqueuesReceipt: A capture enqueues the receipt. It
+// holds that money arriving produces a receipt, written in the capture's own
+// transaction.
+func TestWebhookTx_CaptureEnqueuesReceipt(t *testing.T) {
 	ctx := t.Context()
 	s := payment.NewStore(pool)
 	number, _ := order(t, 149900)
@@ -58,9 +59,9 @@ func TestACaptureEnqueuesTheReceipt(t *testing.T) {
 	}
 }
 
-// TestARedeliveredWebhookSendsOneReceipt holds the dedupe key that turns
-// at-least-once delivery into one email.
-func TestARedeliveredWebhookSendsOneReceipt(t *testing.T) {
+// TestWebhookTx_CaptureRedelivered: A redelivered webhook sends one receipt. It
+// holds the dedupe key that turns at-least-once delivery into one email.
+func TestWebhookTx_CaptureRedelivered(t *testing.T) {
 	ctx := t.Context()
 	s := payment.NewStore(pool)
 	number, _ := order(t, 99900)

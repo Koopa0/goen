@@ -122,10 +122,11 @@ func storeWebhook(t *testing.T) *payment.Handler {
 		access.NewStore(pool, false), slog.New(slog.DiscardHandler))
 }
 
-// TestARefundStripeFailedAfterGoenRecordedItSucceededAlarmsOnce holds the one
-// case goen must surface: the customer was told the money went back, the bank
-// returned it, and only a person can repay them.
-func TestARefundStripeFailedAfterGoenRecordedItSucceededAlarmsOnce(t *testing.T) {
+// TestHandler_WebhookRefundFailedAlarm: A refund Stripe failed after goen
+// recorded it succeeded alarms once. It holds the one case goen must surface:
+// the customer was told the money went back, the bank returned it, and only a
+// person can repay them.
+func TestHandler_WebhookRefundFailedAlarm(t *testing.T) {
 	ctx := t.Context()
 	h := storeWebhook(t)
 	refund := refundIssuedByGoen(t, "succeeded")
@@ -211,11 +212,12 @@ func TestARefundStripeFailedAfterGoenRecordedItSucceededAlarmsOnce(t *testing.T)
 	}
 }
 
-// TestARefundFailureRaisesNoAlarmUnlessGoenRecordedTheRefundSucceeded holds
-// the two failures goen records and leaves: a refund goen still lists as open,
-// and one goen cannot attribute by its own provider reference, however much
-// the event's metadata names one of goen's refunds.
-func TestARefundFailureRaisesNoAlarmUnlessGoenRecordedTheRefundSucceeded(t *testing.T) {
+// TestHandler_WebhookRefundFailedQuiet: A refund failure raises no alarm unless
+// goen recorded the refund succeeded. It holds the two failures goen records
+// and leaves: a refund goen still lists as open, and one goen cannot attribute
+// by its own provider reference, however much the event's metadata names one of
+// goen's refunds.
+func TestHandler_WebhookRefundFailedQuiet(t *testing.T) {
 	tests := []struct {
 		name   string
 		status string
