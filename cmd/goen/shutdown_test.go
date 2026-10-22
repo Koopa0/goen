@@ -9,10 +9,12 @@ import (
 	"time"
 )
 
-// TestShutdownCancelsWhatOutlivesTheGrace: a request still running when the
-// grace ends must be cancelled, or the pool closes that follow wait on its
-// connection for as long as it runs.
-func TestShutdownCancelsWhatOutlivesTheGrace(t *testing.T) {
+// TestShutdownGraceExpired: shutdown returns the grace's DeadlineExceeded and
+// cancels a request that is still running when the grace ends.
+//
+// A request still running when the grace ends must be cancelled, or the pool
+// closes that follow wait on its connection for as long as it runs.
+func TestShutdownGraceExpired(t *testing.T) {
 	t.Parallel()
 	started, cancelled := make(chan struct{}), make(chan struct{})
 	srv := &http.Server{

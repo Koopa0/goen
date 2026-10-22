@@ -15,7 +15,12 @@ import (
 	"github.com/koopa0/goen/internal/user"
 )
 
-func TestStaffInvitationRegrantSurvivesRetainedDelivery(t *testing.T) {
+// TestStaffInvitationHandlerRegrant: staffInvitationHandler mails an invitation
+// once, nothing if the invitation is revoked before delivery, and after a
+// revoke and a second grant mails a second invitation, whether the revoke came
+// before or after the first delivery; adding active staff again is
+// staff.ErrAlreadyStaff.
+func TestStaffInvitationHandlerRegrant(t *testing.T) {
 	for _, revokeBeforeDelivery := range []bool{true, false} {
 		name := "delivered-before-revoke"
 		if revokeBeforeDelivery {

@@ -8,7 +8,9 @@ import (
 	"time"
 )
 
-func TestAuditRequestBudgetSetsDeadline(t *testing.T) {
+// TestWithRequestBudgetDeadline: a storefront request reaches its handler with
+// a context deadline that is live and no further away than storeRequestBudget.
+func TestWithRequestBudgetDeadline(t *testing.T) {
 	ctxCh := make(chan context.Context, 1)
 	h := withRequestBudget(http.HandlerFunc(func(_ http.ResponseWriter, r *http.Request) {
 		ctxCh <- r.Context()
@@ -29,7 +31,9 @@ func TestAuditRequestBudgetSetsDeadline(t *testing.T) {
 	}
 }
 
-func TestAuditStatelessRoutesSkipRequestBudget(t *testing.T) {
+// TestWithRequestBudgetStateless: a stateless route (/healthz) reaches its
+// handler with no context deadline.
+func TestWithRequestBudgetStateless(t *testing.T) {
 	ctxCh := make(chan context.Context, 1)
 	h := withRequestBudget(http.HandlerFunc(func(_ http.ResponseWriter, r *http.Request) {
 		ctxCh <- r.Context()

@@ -31,11 +31,14 @@ func (c *capturingSender) Send(_ context.Context, m *letter.Message) error {
 	return nil
 }
 
-// The order.part_refunded letter is read at delivery on the store pool, from
-// the order and the settled refund: the outbox row names neither address nor
-// amount, so an erasure before delivery leaves nothing to send and erase_user
-// needs no change.
-func TestThePartRefundWorkerReadsTheLetterAtDelivery(t *testing.T) {
+// TestPartRefundHandlerAtDelivery: partRefundHandler reads the
+// order.part_refunded letter at delivery from the order and the settled refund,
+// mails the order's address the items and the amount refunded, and sends
+// nothing, without error, once the order's address has been erased.
+//
+// The outbox row names neither address nor amount, so an erasure before
+// delivery leaves nothing to send and erase_user needs no change.
+func TestPartRefundHandlerAtDelivery(t *testing.T) {
 	owner := admintest.Pool(t)
 	ctx, _ := admintest.StaffContext(t, owner)
 	o := admintest.PartlyShippedOrder(t, owner, 0)
@@ -90,10 +93,11 @@ func TestThePartRefundWorkerReadsTheLetterAtDelivery(t *testing.T) {
 	}
 }
 
-// The refund door is behind goen's cross-site defence: a cross-site browser
-// post is refused before anything reads the session, while the same post from
-// the shop's own pages reaches the back office's guard.
-func TestTheUnsentRefundDoorRefusesACrossSitePost(t *testing.T) {
+// TestNewRouterUnsentRefundCrossSite: a cross-site POST to
+// /admin/orders/{number}/refund-unsent is refused with 403 before anything
+// reads the session, and the same POST marked same-origin reaches the back
+// office's guard, which answers 404 to a signed-out visitor.
+func TestNewRouterUnsentRefundCrossSite(t *testing.T) {
 	gateway, err := payment.NewGateway("", "", "http://127.0.0.1")
 	if err != nil {
 		t.Fatalf("build disabled payment gateway: %v", err)

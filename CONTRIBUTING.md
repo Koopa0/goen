@@ -507,7 +507,7 @@ not named `http`, which would read as `net/http`.
 ### Migrations
 
 `migrations/001` is frozen, and so is every migration once it merges:
-`TestFrozenMigrationsAreUnchanged` in `migrations` holds each file to the
+`TestFrozenMigrations` in `migrations` holds each file to the
 SHA-256 it merged with. golang-migrate records only the version a database has
 reached, so an edit to a migration never reaches a database already past it.
 A change is a new migration:

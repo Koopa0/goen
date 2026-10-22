@@ -225,7 +225,18 @@ func secondAdmin(t *testing.T, w *doorWorld) {
 	}
 }
 
-func TestStaffPasswordAloneCannotUseTheAccountDoorsThatEndOrReplaceTheAccount(t *testing.T) {
+// TestNewRouterStepUpPasswordOnly: the four account doors that end or replace
+// an account (erase, password change, end other sessions, unlink Google) refuse
+// a staff or admin session that has not passed the second factor, with 303 to
+// /admin/verify, and leave the account, its credentials and its sessions
+// unchanged.
+//
+// The second factor guards /admin, but the password alone opens /account, and a
+// staff account is the same users row. The test drives the real router, on the
+// real store and admin roles, as an enrolled admin or staff member whose
+// session came from the password alone, after checking that /admin turns that
+// session away, which is what makes the doors a bypass rather than a feature.
+func TestNewRouterStepUpPasswordOnly(t *testing.T) {
 	w := newDoorWorld(t, pool, doorTOTPKey)
 	secondAdmin(t, w)
 
@@ -264,7 +275,10 @@ func TestStaffPasswordAloneCannotUseTheAccountDoorsThatEndOrReplaceTheAccount(t 
 	}
 }
 
-func TestStaffWhoPassedTheSecondFactorUsesTheAccountDoors(t *testing.T) {
+// TestNewRouterStepUpVerified: a staff or admin session that has passed the
+// second factor is served by each of the four account doors, and the action
+// takes effect.
+func TestNewRouterStepUpVerified(t *testing.T) {
 	w := newDoorWorld(t, pool, doorTOTPKey)
 	secondAdmin(t, w)
 
@@ -287,7 +301,10 @@ func TestStaffWhoPassedTheSecondFactorUsesTheAccountDoors(t *testing.T) {
 	}
 }
 
-func TestACustomerSeesNoChangeOnTheAccountDoors(t *testing.T) {
+// TestNewRouterStepUpCustomer: an ordinary customer is served by each of the
+// four account doors (erase, password change, end other sessions, unlink
+// Google) as before: 303 to the door's landing, and the action taken.
+func TestNewRouterStepUpCustomer(t *testing.T) {
 	w := newDoorWorld(t, pool, doorTOTPKey)
 
 	for _, d := range doors() {
@@ -305,9 +322,14 @@ func TestACustomerSeesNoChangeOnTheAccountDoors(t *testing.T) {
 	}
 }
 
+// TestNewRouterStepUpNoFactor: with no TOTP key configured, /admin admits a
+// password-only admin session and each of the four account doors serves it and
+// takes effect: the doors add no gate the deployment lacks.
+//
 // With no TOTP key the deployment has no second factor, /admin lets a
-// password-only staff session in, and the doors must not invent a gate it lacks.
-func TestWithoutASecondFactorTheAccountDoorsAskStaffForNothingMore(t *testing.T) {
+// password-only staff session in, and the doors must not invent a gate it
+// lacks.
+func TestNewRouterStepUpNoFactor(t *testing.T) {
 	w := newDoorWorld(t, pool, nil)
 	secondAdmin(t, w)
 
@@ -328,9 +350,14 @@ func TestWithoutASecondFactorTheAccountDoorsAskStaffForNothingMore(t *testing.T)
 	}
 }
 
-// The last-admin protection is the database's, and a verified session must still
-// meet it: step-up opens the door, it does not widen what the door may do.
-func TestAVerifiedSoleAdminStillCannotEraseTheLastAdmin(t *testing.T) {
+// TestNewRouterStepUpLastAdmin: a verified sole admin who erases the account is
+// sent to /account?erase=admin and the account remains: the database's
+// last-admin rule still applies after step-up.
+//
+// The last-admin protection is the database's, and a verified session must
+// still meet it: step-up opens the door, it does not widen what the door may
+// do.
+func TestNewRouterStepUpLastAdmin(t *testing.T) {
 	owner := dbtest.Pool(t)
 	w := newDoorWorld(t, owner, doorTOTPKey)
 	u := w.newUser(t, "admin")

@@ -219,7 +219,10 @@ func patternPath(pattern string) string {
 	return path
 }
 
-func TestStorefrontPatternsAreReadFromTheSource(t *testing.T) {
+// TestStorefrontPatterns: the route walk finds at least 90 storefront patterns,
+// including GET /cart, POST on the store-map return path and GET /static/, and
+// none that begins with /admin.
+func TestStorefrontPatterns(t *testing.T) {
 	t.Parallel()
 
 	patterns := storefrontPatterns(t)
@@ -237,7 +240,7 @@ func TestStorefrontPatternsAreReadFromTheSource(t *testing.T) {
 	}
 	for _, pattern := range patterns {
 		if strings.HasPrefix(patternPath(pattern), "/admin") {
-			t.Errorf("%q is a back-office route: TestEveryBackOfficeRouteRefusesAnOutsider owns those", pattern)
+			t.Errorf("%q is a back-office route: TestRoutingBackOfficeOutsider owns those", pattern)
 		}
 	}
 }
@@ -456,10 +459,15 @@ func idleInventoryMux(t *testing.T) *http.ServeMux {
 	return mux
 }
 
-// TestEveryStorefrontRouteHasAnInventoryRow fails the moment a storefront route
-// is added, removed or renamed without its row: the walk's pattern count is
-// compared with the table's, name by name, with no database needed.
-func TestEveryStorefrontRouteHasAnInventoryRow(t *testing.T) {
+// TestRoutingInventoryRows: storefrontInventory has exactly one row for each
+// storefront pattern the source registers, each row's sample reaches its own
+// pattern on production's mux and not the catch-all, and the walk's pattern
+// count equals the row count.
+//
+// It fails the moment a storefront route is added, removed or renamed without
+// its row: the walk's pattern count is compared with the table's, name by name,
+// with no database needed.
+func TestRoutingInventoryRows(t *testing.T) {
 	t.Parallel()
 
 	checkInventoryCoversTheRoutes(t, idleInventoryMux(t))
@@ -473,12 +481,14 @@ func TestEveryStorefrontRouteHasAnInventoryRow(t *testing.T) {
 // desks would otherwise ask the mux about no route and pass.
 const backOfficeRouteFloor = 100
 
-// TestEveryBackOfficeRouteRefusesAnOutsider asks production's own mux each
-// /admin route the source registers, signed out and as a customer, and wants
-// the guard's 404 page from both. A desk's own routes_test.go checks only the
-// routes it is given, so a route added to a desk without the staff wrapper, or
-// without a line in that list, is caught here.
-func TestEveryBackOfficeRouteRefusesAnOutsider(t *testing.T) {
+// TestRoutingBackOfficeOutsider: every /admin pattern the source registers is
+// answered with the guard's 404 page by production's own mux to a signed-out
+// visitor and to a customer.
+//
+// A desk's own routes_test.go checks only the routes it is given, so a route
+// added to a desk without the staff wrapper, or without a line in that list, is
+// caught here.
+func TestRoutingBackOfficeOutsider(t *testing.T) {
 	t.Parallel()
 
 	routes := backOfficePatterns(t)

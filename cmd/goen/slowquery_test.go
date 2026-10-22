@@ -32,14 +32,18 @@ func runTraced(t *testing.T, took time.Duration, sql string, args ...any) string
 
 const namedStatement = "-- name: OrdersByEmail :many\nSELECT * FROM orders WHERE email = $1"
 
-func TestTheTracerStaysQuietBelowTheThreshold(t *testing.T) {
+// TestSlowQueryTracerBelowThreshold: a statement shorter than
+// slowQueryThreshold logs nothing.
+func TestSlowQueryTracerBelowThreshold(t *testing.T) {
 	t.Parallel()
 	if got := runTraced(t, slowQueryThreshold-time.Millisecond, namedStatement, "x"); got != "" {
 		t.Errorf("a statement under %v logged %q", slowQueryThreshold, got)
 	}
 }
 
-func TestTheTracerWarnsAtTheThresholdNamingStatementDurationAndPool(t *testing.T) {
+// TestSlowQueryTracerAtThreshold: a statement of slowQueryThreshold logs a WARN
+// naming the statement, its duration and the pool.
+func TestSlowQueryTracerAtThreshold(t *testing.T) {
 	t.Parallel()
 	got := runTraced(t, slowQueryThreshold, namedStatement, "x")
 	for _, want := range []string{
@@ -51,7 +55,9 @@ func TestTheTracerWarnsAtTheThresholdNamingStatementDurationAndPool(t *testing.T
 	}
 }
 
-func TestTheTracerNeverLogsArgumentsOrStatementText(t *testing.T) {
+// TestSlowQueryTracerNoArgsOrSQL: the log line of a slow statement carries
+// neither its arguments nor its statement text, only its sqlc name.
+func TestSlowQueryTracerNoArgsOrSQL(t *testing.T) {
 	t.Parallel()
 	got := runTraced(t, 2*time.Second, namedStatement, "alice@example.com", 4242)
 	for _, leaked := range []string{"alice@example.com", "4242", "SELECT", "email"} {
@@ -64,7 +70,9 @@ func TestTheTracerNeverLogsArgumentsOrStatementText(t *testing.T) {
 	}
 }
 
-func TestAStatementWithoutASqlcNameIsLoggedAsUnnamed(t *testing.T) {
+// TestSlowQueryTracerUnnamed: a statement with no sqlc name is logged as
+// statement=unnamed, and its text is not logged.
+func TestSlowQueryTracerUnnamed(t *testing.T) {
 	t.Parallel()
 	got := runTraced(t, time.Second, "SELECT 1 WHERE 'secret@example.com' = ''")
 	if !strings.Contains(got, "statement=unnamed") || strings.Contains(got, "secret@example.com") {
@@ -72,7 +80,10 @@ func TestAStatementWithoutASqlcNameIsLoggedAsUnnamed(t *testing.T) {
 	}
 }
 
-func TestSlowQueriesKeepTheirOwnRequestIDsAndOmitBackgroundIdentity(t *testing.T) {
+// TestSlowQueryTracerRequestIDs: slow queries started under different request
+// IDs each log their own request_id, one started with none logs none, and no
+// line carries the arguments, the SQL or the error text.
+func TestSlowQueryTracerRequestIDs(t *testing.T) {
 	t.Parallel()
 	var out bytes.Buffer
 	tr := newSlowQueryTracer(slog.New(slog.NewTextHandler(&out, nil)), "store")
@@ -115,7 +126,10 @@ func TestSlowQueriesKeepTheirOwnRequestIDsAndOmitBackgroundIdentity(t *testing.T
 	}
 }
 
-func TestSlowAcquiresWarnAt100MillisecondsWithoutErrorText(t *testing.T) {
+// TestSlowQueryTracerAcquireThreshold: an acquire warns from 100 ms and not
+// before, with its duration, pool and whether it failed, and without the error
+// text or a request ID, whatever the error.
+func TestSlowQueryTracerAcquireThreshold(t *testing.T) {
 	t.Parallel()
 	privateErr := errors.New("connect postgres://customer:private-password@db:5432/shop: private@example.com")
 	for _, tc := range []struct {
@@ -169,7 +183,10 @@ func TestSlowAcquiresWarnAt100MillisecondsWithoutErrorText(t *testing.T) {
 	}
 }
 
-func TestSlowAcquiresKeepSeparateClocksAndRequestIDs(t *testing.T) {
+// TestSlowQueryTracerAcquireClocks: overlapping acquires keep separate clocks
+// and request IDs: each warns with its own duration and its own request_id, and
+// an acquire with no request ID logs none.
+func TestSlowQueryTracerAcquireClocks(t *testing.T) {
 	t.Parallel()
 	var out bytes.Buffer
 	tr := newSlowQueryTracer(slog.New(slog.NewTextHandler(&out, nil)), "store")
@@ -204,7 +221,9 @@ func TestSlowAcquiresKeepSeparateClocksAndRequestIDs(t *testing.T) {
 	}
 }
 
-func TestAcquireEndWithoutStartStaysQuiet(t *testing.T) {
+// TestSlowQueryTracerAcquireNoStart: TraceAcquireEnd for an acquire that never
+// started logs nothing.
+func TestSlowQueryTracerAcquireNoStart(t *testing.T) {
 	t.Parallel()
 	var out bytes.Buffer
 	tr := newSlowQueryTracer(slog.New(slog.NewTextHandler(&out, nil)), "maintenance")

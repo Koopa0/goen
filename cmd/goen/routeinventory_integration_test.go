@@ -278,12 +278,18 @@ func traitList(set map[string]bool) string {
 	return strings.Join(slices.Sorted(maps.Keys(set)), " ")
 }
 
-// TestStorefrontRouteInventory sends one anonymous request to every storefront
-// pattern through the real router on real pools and compares what the chain did
-// to it with the row in storefrontInventory. It then sends each row a burst
-// from one address on a router of its own, and compares how many were admitted,
-// whether the refusal was logged, and which rows spend one budget, with the
-// row's traits, burst and limiter.
+// TestRoutingStorefrontInventory: every storefront route behaves as its row in
+// storefrontInventory says through the real router on real pools: the traits
+// the chain gave an anonymous request, and, for a burst from one address, the
+// limiter's burst, whether the refusal was logged and which rows spend one
+// budget.
+//
+// It sends one anonymous request to every storefront pattern through the real
+// router on real pools and compares what the chain did to it with the row in
+// storefrontInventory. It then sends each row a burst from one address on a
+// router of its own, and compares how many were admitted, whether the refusal
+// was logged, and which rows spend one budget, with the row's traits, burst and
+// limiter.
 //
 // The table records what a request gets, not which layer gave it, so it sees
 // a wrapper only when removing it changes that. Every per-route wrapper in the
@@ -296,7 +302,7 @@ func traitList(set map[string]bool) string {
 // or logged where the handler bounds the same address itself (POST /orders/find,
 // POST /p/{slug}/notify), or its place in the auth group where the handler
 // refuses first (POST /signin).
-func TestStorefrontRouteInventory(t *testing.T) {
+func TestRoutingStorefrontInventory(t *testing.T) {
 	started := time.Now()
 	rec := &queryRecorder{}
 

@@ -13,7 +13,10 @@ import (
 	"github.com/koopa0/goen/internal/payment"
 )
 
-func TestShopperReadinessSurvivesAdminPoolSaturationAndFailure(t *testing.T) {
+// TestNewRouterReadyz: /readyz stays 200 "ready" while the admin pool is
+// saturated and then closed, and answers 503 "storefront database unreachable"
+// only when the store pool is closed, while /healthz still answers 200.
+func TestNewRouterReadyz(t *testing.T) {
 	store, err := openPool(t.Context(), pool.Config().ConnString(), quietLog)
 	if err != nil {
 		t.Fatalf("open store pool: %v", err)

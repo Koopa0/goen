@@ -9,7 +9,11 @@ import (
 	"github.com/koopa0/goen/internal/email"
 )
 
-func TestPasswordSetupSharesTheForgotPasswordClientBudget(t *testing.T) {
+// TestNewRouterPasswordSetupBudget: POST /forgot and POST
+// /account/password/setup spend one per-client budget: a client that exhausts
+// either is answered 429 with Retry-After on the other, and another client is
+// not refused.
+func TestNewRouterPasswordSetupBudget(t *testing.T) {
 	t.Parallel()
 	for _, setupFirst := range []bool{false, true} {
 		name := "forgot exhausts setup"

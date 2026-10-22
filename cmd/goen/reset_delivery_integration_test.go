@@ -23,7 +23,12 @@ import (
 	"github.com/koopa0/goen/internal/outbox"
 )
 
-func TestResetMailDeliverySkipsObsoleteTokens(t *testing.T) {
+// TestNewOutboxStoreResetObsolete: the reset-mail handler newOutboxStore builds
+// reads the reset token at delivery: a live token is mailed, an expired, spent
+// or unknown one is skipped with no mail, when a request is superseded only the
+// latest token is mailed, and every message is marked delivered after one
+// attempt.
+func TestNewOutboxStoreResetObsolete(t *testing.T) {
 	for _, state := range []string{"live", "expired", "spent", "superseded", "unknown"} {
 		t.Run(state, func(t *testing.T) {
 			f := newResetDeliveryFixture(t, nil)
@@ -57,7 +62,11 @@ func TestResetMailDeliverySkipsObsoleteTokens(t *testing.T) {
 	}
 }
 
-func TestResetMailRetryRechecksTokenAfterSMTPRecovers(t *testing.T) {
+// TestNewOutboxStoreResetRetry: a reset mail that failed on SMTP is retried and
+// rechecks its token: after recovery a live token, or the latest of two
+// requests, is mailed, an expired one is skipped, and the message is delivered
+// on its second attempt.
+func TestNewOutboxStoreResetRetry(t *testing.T) {
 	for _, state := range []string{"live", "expired", "superseded"} {
 		t.Run(state, func(t *testing.T) {
 			f := newResetDeliveryFixture(t, nil)
@@ -90,7 +99,10 @@ func TestResetMailRetryRechecksTokenAfterSMTPRecovers(t *testing.T) {
 	}
 }
 
-func TestResetMailTokenReadFailureRemainsRetryable(t *testing.T) {
+// TestNewOutboxStoreResetReadFailure: a failed read of the reset token at
+// delivery (a cancelled driver query) leaves the message undelivered and
+// retryable, and the retry mails the working link on the second attempt.
+func TestNewOutboxStoreResetReadFailure(t *testing.T) {
 	fault := &resetReadCancellation{}
 	f := newResetDeliveryFixture(t, fault)
 	mail := f.issue(t)

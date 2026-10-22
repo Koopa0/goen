@@ -33,9 +33,9 @@ var frozen = map[string]string{
 // applies.
 var migrationName = regexp.MustCompile(`^(\d+)_(.*)\.(down|up)\.(.*)$`)
 
-// TestFrozenMigrationsAreUnchanged: no migration changes once it has merged,
-// and none is added or removed without frozen saying so.
-func TestFrozenMigrationsAreUnchanged(t *testing.T) {
+// TestFrozenMigrations: no migration changes once it has merged, and none is
+// added or removed without frozen saying so.
+func TestFrozenMigrations(t *testing.T) {
 	entries, err := os.ReadDir(".")
 	if err != nil {
 		t.Fatal(err)
@@ -67,9 +67,9 @@ func TestFrozenMigrationsAreUnchanged(t *testing.T) {
 	}
 }
 
-// TestInitialRecordsItsDigest: the digest 001 records is the one Digest
-// computes from it, so a database built from 001 passes the binary's check.
-func TestInitialRecordsItsDigest(t *testing.T) {
+// TestDigestInitialRecorded: the digest 001 records is the one Digest computes
+// from it, so a database built from 001 passes the binary's check.
+func TestDigestInitialRecorded(t *testing.T) {
 	src, err := os.ReadFile(initial)
 	if err != nil {
 		t.Fatal(err)
@@ -83,9 +83,9 @@ func TestInitialRecordsItsDigest(t *testing.T) {
 	}
 }
 
-// TestDigestSkipsOnlyItsOwnField: rewriting the recorded digest leaves the
-// computed one alone, and any other change moves it.
-func TestDigestSkipsOnlyItsOwnField(t *testing.T) {
+// TestDigest: rewriting the recorded digest leaves the computed one alone, any
+// other change moves it, and a source with two digest lines is refused.
+func TestDigest(t *testing.T) {
 	const line = "    digest := '%s';\n"
 	src := []byte("SELECT 1;\n" + strings.ReplaceAll(line, "%s", strings.Repeat("a", 64)) + "SELECT 2;\n")
 	base, recorded, err := Digest(src)
@@ -131,8 +131,12 @@ func (q querier) QueryRow(context.Context, string, ...any) pgx.Row { return q.ro
 
 func ptr[T any](v T) *T { return &v }
 
-// TestCheckRefusesEveryOtherSchema is the gate /readyz and startup apply.
-func TestCheckRefusesEveryOtherSchema(t *testing.T) {
+// TestSchema_Check: Check accepts the schema it was built with and a newer
+// migration, and refuses a migration behind, another edition of 001, a
+// half-applied migration, a database with no golang-migrate row or no
+// schema_version(), and an unreachable database. It is the gate /readyz and
+// startup apply.
+func TestSchema_Check(t *testing.T) {
 	want := Schema{Digest: strings.Repeat("1", 64), Version: 2}
 	for _, tc := range []struct {
 		name    string
@@ -160,9 +164,9 @@ func TestCheckRefusesEveryOtherSchema(t *testing.T) {
 	}
 }
 
-// TestBuiltIsTheEmbeddedMigrations: the binary's expectation is read from the
-// files it embeds, not from a constant that could fall behind them.
-func TestBuiltIsTheEmbeddedMigrations(t *testing.T) {
+// TestBuilt: the binary's expectation is read from the files it embeds, not
+// from a constant that could fall behind them.
+func TestBuilt(t *testing.T) {
 	s, err := Built()
 	if err != nil {
 		t.Fatal(err)

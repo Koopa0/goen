@@ -17,7 +17,12 @@ import (
 	"github.com/koopa0/goen/internal/payment"
 )
 
-func TestSchemaOnlyShopRendersStorefrontAndBackOffice(t *testing.T) {
+// TestNewRouterEmptyShop: on a database with the schema and one owner account
+// and no products, orders or customers, the router renders every storefront and
+// back-office page listed here as an HTML document in English and Traditional
+// Chinese, answers 404 for an unknown category, and adds no product, order or
+// user row.
+func TestNewRouterEmptyShop(t *testing.T) {
 	ctx := t.Context()
 	owner := dbtest.Pool(t)
 	assertCounts := func(wantUsers int) {
