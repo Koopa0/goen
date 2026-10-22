@@ -13,7 +13,9 @@ import (
 	"github.com/koopa0/goen/internal/ui/frame"
 )
 
-func TestAllowanceNoticesRemainVisibleWithoutInvoicingActions(t *testing.T) {
+// TestOrderAllowanceNoticesVisible: the allowance notices remain visible when
+// the order page offers no invoicing actions.
+func TestOrderAllowanceNoticesVisible(t *testing.T) {
 	t.Parallel()
 	for _, language := range []struct {
 		locale      i18n.Locale

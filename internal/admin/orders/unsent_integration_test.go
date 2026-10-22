@@ -16,10 +16,11 @@ import (
 	"github.com/koopa0/goen/internal/payment/refund"
 )
 
-// A unit an unsent refund claims is no longer owed a parcel the moment the
-// refund is approved: the ship form, the picking slip and the picking totals
-// all stop asking for it.
-func TestUnitsRefundedUnsentAreNoLongerOwedAParcel(t *testing.T) {
+// TestStore_OrderUnsentRefundedUnits: units refunded unsent are no longer owed
+// a parcel. A unit an unsent refund claims is no longer owed a parcel the
+// moment the refund is approved: the ship form, the picking slip and the
+// picking totals all stop asking for it.
+func TestStore_OrderUnsentRefundedUnits(t *testing.T) {
 	owner := admintest.Pool(t)
 	ctx, _ := admintest.StaffContext(t, owner)
 	adminPool := admintest.AdminRolePool(t, owner)
@@ -66,10 +67,11 @@ func TestUnitsRefundedUnsentAreNoLongerOwedAParcel(t *testing.T) {
 	owed(t, 1)
 }
 
-// The schema refuses a parcel line carrying a unit an unsent refund took,
-// which the ship form no longer offers; if one reaches it all the same, staff
-// meet the quantity notice and not a failed page.
-func TestAParcelLineTheSchemaRefusesIsAQuantityNotice(t *testing.T) {
+// TestStore_FillParcelSchemaRefusal: a parcel line the schema refuses is a
+// quantity notice. The schema refuses a parcel line carrying a unit an unsent
+// refund took, which the ship form no longer offers; if one reaches it all the
+// same, staff meet the quantity notice and not a failed page.
+func TestStore_FillParcelSchemaRefusal(t *testing.T) {
 	ctx, _ := admintest.StaffContext(t, pool)
 	adminPool := admintest.AdminRolePool(t, pool)
 	pending := admintest.Refunder{State: refund.Pending}

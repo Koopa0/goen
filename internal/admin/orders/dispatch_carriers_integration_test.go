@@ -20,9 +20,11 @@ import (
 	"github.com/koopa0/goen/internal/i18n"
 )
 
-// The dispatch form lists what the order can use and selects what it implies:
-// a store order's chain carries it, and a home delivery names no carrier code.
-func TestTheOrderPageCarriesTheCarriersTheDispatchFormOffers(t *testing.T) {
+// TestStore_OrderDispatchCarriers: the order page carries the carriers the
+// dispatch form offers. The dispatch form lists what the order can use and
+// selects what it implies: a store order's chain carries it, and a home
+// delivery names no carrier code.
+func TestStore_OrderDispatchCarriers(t *testing.T) {
 	ctx, _ := admintest.StaffContext(t, pool)
 	s := admintest.OrderStore(pool, admintest.Refunder{}, nil, nil)
 
@@ -56,10 +58,11 @@ func shipmentCount(t *testing.T, number string) int {
 	return n
 }
 
-// The server holds what the form narrows: a home delivery cannot be dispatched
-// with a store chain's carrier, nor a store order with a home carrier, whatever
-// a crafted post names.
-func TestADispatchWithACarrierTheOrderCannotUseIsRefused(t *testing.T) {
+// TestHandler_ShipCarrierMismatch: a dispatch with a carrier the order cannot
+// use is refused. The server holds what the form narrows: a home delivery
+// cannot be dispatched with a store chain's carrier, nor a store order with a
+// home carrier, whatever a crafted post names.
+func TestHandler_ShipCarrierMismatch(t *testing.T) {
 	ctx, staff := admintest.StaffContext(t, pool)
 	s := admintest.OrderStore(pool, admintest.Refunder{}, nil, nil)
 	actor := uuid.NullUUID{UUID: staff, Valid: true}

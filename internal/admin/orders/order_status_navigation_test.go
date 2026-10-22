@@ -9,7 +9,9 @@ import (
 	"github.com/koopa0/goen/internal/i18n"
 )
 
-func TestOrderStatusNavigationIsNamedInBothLanguages(t *testing.T) {
+// TestOrdersStatusNavigation: the status navigation of the queue is named in
+// both languages.
+func TestOrdersStatusNavigation(t *testing.T) {
 	t.Parallel()
 	for _, tc := range []struct {
 		locale i18n.Locale

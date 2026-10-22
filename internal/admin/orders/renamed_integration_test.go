@@ -50,9 +50,9 @@ func assertNamedByAddress(t *testing.T, ctx context.Context, view *orders.OrderV
 	}
 }
 
-// TestARenamedStaffIsNamedByAddressOnTheOrderEvents: the order_events branch of
-// the timeline.
-func TestARenamedStaffIsNamedByAddressOnTheOrderEvents(t *testing.T) {
+// TestStore_OrderRenamedStaffEvents: a renamed staff member is named by address
+// on the order events. The order_events branch of the timeline.
+func TestStore_OrderRenamedStaffEvents(t *testing.T) {
 	ctx, idA, address, colleague := renamedStaff(t)
 	s := admintest.OrderStore(pool, admintest.Refunder{}, nil, nil)
 	number, _, _ := admintest.PaidUnshippedOrder(t, pool, 500000, 0, false)
@@ -80,9 +80,10 @@ func TestARenamedStaffIsNamedByAddressOnTheOrderEvents(t *testing.T) {
 	assertNamedByAddress(t, ctx, &view, address, colleague)
 }
 
-// TestARenamedStaffIsNamedByAddressOnTheInvoiceOperations: the invoice_operations
-// branch of the timeline.
-func TestARenamedStaffIsNamedByAddressOnTheInvoiceOperations(t *testing.T) {
+// TestStore_OrderRenamedStaffInvoice: a renamed staff member is named by
+// address on the invoice operations. The invoice_operations branch of the
+// timeline.
+func TestStore_OrderRenamedStaffInvoice(t *testing.T) {
 	ctx, idA, address, colleague := renamedStaff(t)
 	s := admintest.OrderStore(pool, admintest.Refunder{}, nil, nil)
 	number, orderID, _ := admintest.PaidUnshippedOrder(t, pool, 500000, 0, false)
@@ -119,9 +120,10 @@ func TestARenamedStaffIsNamedByAddressOnTheInvoiceOperations(t *testing.T) {
 	assertNamedByAddress(t, ctx, &view, address, colleague)
 }
 
-// TestARenamedStaffIsNamedByAddressOnACardRefund: the refund row whose staff
-// member is read from the audit trail.
-func TestARenamedStaffIsNamedByAddressOnACardRefund(t *testing.T) {
+// TestStore_OrderRenamedStaffCardRefund: a renamed staff member is named by
+// address on a card refund. The refund row whose staff member is read from the
+// audit trail.
+func TestStore_OrderRenamedStaffCardRefund(t *testing.T) {
 	ctx, idA, address, colleague := renamedStaff(t)
 	s := admintest.OrderStore(pool, admintest.Refunder{}, nil, nil)
 	number, orderID, _ := admintest.PaidUnshippedOrder(t, pool, 500000, 0, false)
@@ -153,9 +155,10 @@ func TestARenamedStaffIsNamedByAddressOnACardRefund(t *testing.T) {
 	assertNamedByAddress(t, ctx, &view, address, colleague)
 }
 
-// TestARenamedStaffIsNamedByAddressOnACreditRefund: the refund row whose staff
-// member is the store-credit entry's own actor.
-func TestARenamedStaffIsNamedByAddressOnACreditRefund(t *testing.T) {
+// TestStore_OrderRenamedStaffCreditRefund: a renamed staff member is named by
+// address on a credit refund. The refund row whose staff member is the
+// store-credit entry's own actor.
+func TestStore_OrderRenamedStaffCreditRefund(t *testing.T) {
 	ctx, idA, address, colleague := renamedStaff(t)
 	s := admintest.OrderStore(pool, admintest.Refunder{}, nil, nil)
 	number, orderID, _ := admintest.PaidUnshippedOrder(t, pool, 500000, 0, false)

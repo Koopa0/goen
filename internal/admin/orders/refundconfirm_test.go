@@ -10,9 +10,11 @@ import (
 	"github.com/koopa0/goen/internal/ui/frame"
 )
 
-// A pending order store credit alone paid is cancelled at once: the order page
-// does not promise a refund that waits on the card and the invoice.
-func TestACreditPaidCancellationSaysWhatItDoes(t *testing.T) {
+// TestOrderCreditPaidCancellation: a cancellation of an order paid by credit
+// says what it does. A pending order store credit alone paid is cancelled at
+// once: the order page does not promise a refund that waits on the card and the
+// invoice.
+func TestOrderCreditPaidCancellation(t *testing.T) {
 	t.Parallel()
 	for _, locale := range []i18n.Locale{i18n.ZhHant, i18n.En} {
 		ctx := i18n.WithLocale(t.Context(), locale)
@@ -28,7 +30,8 @@ func TestACreditPaidCancellationSaysWhatItDoes(t *testing.T) {
 	}
 }
 
-func TestTheOrderPageOffersTheRefundAndResume(t *testing.T) {
+// TestOrderRefundAndResume: the order page offers the refund and its resume.
+func TestOrderRefundAndResume(t *testing.T) {
 	t.Parallel()
 	ctx := i18n.WithLocale(t.Context(), i18n.En)
 	render := func(v *OrderView) string {

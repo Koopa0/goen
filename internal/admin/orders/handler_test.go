@@ -10,9 +10,10 @@ import (
 	"github.com/koopa0/goen/internal/ui/widget"
 )
 
-// The void and allowance forms redirect here with these notices, whose words
-// must not send staff after the fields only the issue form collects.
-func TestVoidAndAllowanceNoticesDoNotBlameTaxIDs(t *testing.T) {
+// TestNoticesVoidAllowanceNoTaxIDs: the void and allowance notices do not blame
+// tax IDs. The void and allowance forms redirect here with these notices, whose
+// words must not send staff after the fields only the issue form collects.
+func TestNoticesVoidAllowanceNoTaxIDs(t *testing.T) {
 	t.Parallel()
 	ctx := i18n.WithLocale(t.Context(), i18n.ZhHant)
 	for _, name := range []string{"voidfailed", "allowfailed", "voidreason"} {
@@ -29,9 +30,10 @@ func TestVoidAndAllowanceNoticesDoNotBlameTaxIDs(t *testing.T) {
 	}
 }
 
-// An invoice write with no provider configured redirects with refused, so its
+// TestNoticesRefusedNoProvider: the refused notice names no provider. An
+// invoice write with no provider configured redirects with refused, so its
 // words must not name a provider that was never called.
-func TestTheRefusedNoticeNamesNoProvider(t *testing.T) {
+func TestNoticesRefusedNoProvider(t *testing.T) {
 	t.Parallel()
 	req := httptest.NewRequestWithContext(i18n.WithLocale(t.Context(), i18n.ZhHant), http.MethodGet,
 		"/admin/orders/GO-260901-000001?refused=1", nil)

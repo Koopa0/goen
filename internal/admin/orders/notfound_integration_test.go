@@ -23,7 +23,9 @@ import (
 	"github.com/koopa0/goen/internal/user"
 )
 
-func TestMissingRecordsKeepVerifiedStaffInTheBackOffice(t *testing.T) {
+// TestNotFoundKeepsStaffInBackOffice: a missing record keeps verified staff in
+// the back office, and an outsider gets the storefront 404.
+func TestNotFoundKeepsStaffInBackOffice(t *testing.T) {
 	log := slog.New(slog.DiscardHandler)
 	mux := http.NewServeMux()
 	ac := admin.NewControl(log, func(*http.Request) (bool, error) { return true, nil })

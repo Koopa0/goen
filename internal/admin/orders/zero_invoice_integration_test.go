@@ -11,7 +11,9 @@ import (
 	"github.com/koopa0/goen/internal/invoice/issuer"
 )
 
-func TestAZeroGrossInvoicePostIsRefusedBeforeTheProviderIsCalled(t *testing.T) {
+// TestHandler_IssueInvoiceZeroGross: a zero-gross invoice POST is refused
+// before the provider is called.
+func TestHandler_IssueInvoiceZeroGross(t *testing.T) {
 	ctx, _ := admintest.StaffContext(t, pool)
 	number := admintest.PlaceUnpaidOrder(t, pool)
 	if _, err := pool.Exec(ctx, `UPDATE orders SET discount_cents = 500000 WHERE order_number = $1`, number); err != nil {

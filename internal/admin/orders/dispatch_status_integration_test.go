@@ -25,13 +25,12 @@ import (
 	"github.com/koopa0/goen/internal/outbox"
 )
 
-// TestADispatchTheOrderMovedPastIsRefused: the dispatch reads the order's status
-// without a lock, so another staff member can complete or cancel the order
-// before the parcel is recorded. shipment_order_in_fulfilment refuses it under
-// the order's lock. The order no longer takes a dispatch, so the refusal names
-// the carrier and tracking number staff typed: the parcel may already be out of
-// the door.
-func TestADispatchTheOrderMovedPastIsRefused(t *testing.T) {
+// TestHandler_ShipOrderMovedOn: the dispatch reads the order's status without a
+// lock, so another staff member can complete or cancel the order before the
+// parcel is recorded. shipment_order_in_fulfilment refuses it under the order's
+// lock. The order no longer takes a dispatch, so the refusal names the carrier
+// and tracking number staff typed: the parcel may already be out of the door.
+func TestHandler_ShipOrderMovedOn(t *testing.T) {
 	ctx, staff := admintest.StaffContext(t, pool)
 	cases := []struct {
 		name  string

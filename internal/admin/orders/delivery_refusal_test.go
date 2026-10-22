@@ -14,7 +14,9 @@ import (
 	"github.com/koopa0/goen/internal/web/formtext"
 )
 
-func TestDeliveryRefusalShowsAnAbsentControlsReason(t *testing.T) {
+// TestApplyDeliveryRefusalsAbsentControl: a delivery refusal shows the reason
+// of a control that is absent from the page.
+func TestApplyDeliveryRefusalsAbsentControl(t *testing.T) {
 	t.Parallel()
 	for _, locale := range []i18n.Locale{i18n.En, i18n.ZhHant} {
 		for _, tc := range []struct {
@@ -75,7 +77,9 @@ func TestDeliveryRefusalShowsAnAbsentControlsReason(t *testing.T) {
 	}
 }
 
-func TestDeliveryRefusalKeepsVisibleErrorsBesideTheirControls(t *testing.T) {
+// TestApplyDeliveryRefusalsVisible: a delivery refusal keeps its visible errors
+// beside their controls.
+func TestApplyDeliveryRefusalsVisible(t *testing.T) {
 	t.Parallel()
 	for _, locale := range []i18n.Locale{i18n.En, i18n.ZhHant} {
 		for _, pickupDestination := range []bool{false, true} {

@@ -25,7 +25,9 @@ import (
 	"github.com/koopa0/goen/internal/user"
 )
 
-func TestPickingTotalsSpanEveryPageAndSubtractRecordedShipments(t *testing.T) {
+// TestStore_PickingTotals: picking totals span every page and subtract the
+// recorded shipments.
+func TestStore_PickingTotals(t *testing.T) {
 	owner := admintest.Pool(t)
 	ctx, staff := admintest.StaffContext(t, owner)
 	wantNumbers := make([]string, 0, 55)
@@ -185,7 +187,9 @@ func TestPickingTotalsSpanEveryPageAndSubtractRecordedShipments(t *testing.T) {
 	}
 }
 
-func TestPickingExcludesOrdersBeingRefundedBeforeShipment(t *testing.T) {
+// TestStore_PickingExcludesRefunding: picking excludes orders being refunded
+// before shipment.
+func TestStore_PickingExcludesRefunding(t *testing.T) {
 	owner := admintest.Pool(t)
 	ctx, staff := admintest.StaffContext(t, owner)
 	adminPool := admintest.AdminRolePool(t, owner)
@@ -229,7 +233,8 @@ func TestPickingExcludesOrdersBeingRefundedBeforeShipment(t *testing.T) {
 	}
 }
 
-func TestPickingReadsTheCustomerNote(t *testing.T) {
+// TestStore_PickingCustomerNote: picking reads the customer's note.
+func TestStore_PickingCustomerNote(t *testing.T) {
 	owner := admintest.Pool(t)
 	ctx, _ := admintest.StaffContext(t, owner)
 	pickingFixtureOrder(t, owner, "NOTE-PICK", 1, 0, true)
@@ -245,7 +250,8 @@ func TestPickingReadsTheCustomerNote(t *testing.T) {
 	}
 }
 
-func TestPickingSlipsStartWithTheOldestOrder(t *testing.T) {
+// TestStore_PickingOldestFirst: picking slips start with the oldest order.
+func TestStore_PickingOldestFirst(t *testing.T) {
 	owner := admintest.Pool(t)
 	ctx, _ := admintest.StaffContext(t, owner)
 	want := make([]string, 0, 3)

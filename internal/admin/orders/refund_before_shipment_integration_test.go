@@ -27,7 +27,8 @@ import (
 	"github.com/koopa0/goen/internal/payment/refund"
 )
 
-func TestPaidOrderCannotBeCancelledDirectly(t *testing.T) {
+// TestStore_AdvancePaidNotCancelled: a paid order cannot be cancelled directly.
+func TestStore_AdvancePaidNotCancelled(t *testing.T) {
 	ctx, _ := admintest.StaffContext(t, pool)
 	refunder := admintest.Refunder{}
 	s := admintest.OrderStore(pool, refunder, nil, nil)
@@ -127,9 +128,11 @@ func TestPaidOrderCannotBeCancelledDirectly(t *testing.T) {
 	})
 }
 
-// A pending order store credit paid in full is not committed in the database,
-// yet cancelling it by status would return the credit with no confirmation.
-func TestAPendingOrderPaidWholeWithCreditIsNotCancelledByStatus(t *testing.T) {
+// TestStore_AdvanceCreditPaidNotCancelled: a pending order paid whole with
+// store credit is not cancelled by status. A pending order store credit paid in
+// full is not committed in the database, yet cancelling it by status would
+// return the credit with no confirmation.
+func TestStore_AdvanceCreditPaidNotCancelled(t *testing.T) {
 	ctx, _ := admintest.StaffContext(t, pool)
 	s := admintest.OrderStore(pool, admintest.Refunder{}, nil, nil)
 	number, orderID, _ := admintest.PaidUnshippedOrder(t, pool, 0, 500000, false)
@@ -166,7 +169,9 @@ func TestAPendingOrderPaidWholeWithCreditIsNotCancelledByStatus(t *testing.T) {
 	}
 }
 
-func TestRefundBeforeShipmentStaysOpenUntilRefundSettles(t *testing.T) {
+// TestStore_OrderRefundStaysOpen: a refund before shipment stays open until its
+// refund settles.
+func TestStore_OrderRefundStaysOpen(t *testing.T) {
 	ctx, staff := admintest.StaffContext(t, pool)
 	actor := uuid.NullUUID{UUID: staff, Valid: true}
 
@@ -241,9 +246,10 @@ func waitBlockedBehind(t *testing.T, holder int, pattern string, done <-chan str
 	t.Fatalf("%s never waited on backend %d", pattern, holder)
 }
 
-// TestRefundBeforeShipmentAndDispatchSerialize holds the order lock both
-// writers take: whichever commits first, the other sees it.
-func TestRefundBeforeShipmentAndDispatchSerialize(t *testing.T) {
+// TestStore_ShipRefundLock: a refund before shipment and a dispatch serialize
+// on the order lock. It holds the order lock both writers take: whichever
+// commits first, the other sees it.
+func TestStore_ShipRefundLock(t *testing.T) {
 	ctx, staff := admintest.StaffContext(t, pool)
 	actor := uuid.NullUUID{UUID: staff, Valid: true}
 	refunder := admintest.Refunder{}
@@ -318,9 +324,9 @@ func TestRefundBeforeShipmentAndDispatchSerialize(t *testing.T) {
 	}
 }
 
-// TestRefundBeforeShipmentNoticesNameTheNextStep follows each redirect to the
-// order page in both languages.
-func TestRefundBeforeShipmentNoticesNameTheNextStep(t *testing.T) {
+// TestHandler_OrderRefundNotices: the refund before shipment's notices name the
+// next step. It follows each redirect to the order page in both languages.
+func TestHandler_OrderRefundNotices(t *testing.T) {
 	ctx, _ := admintest.StaffContext(t, pool)
 	refunder := admintest.Refunder{}
 	h := admintest.OrderDesk(admintest.OrderStore(pool, refunder, nil, nil))
