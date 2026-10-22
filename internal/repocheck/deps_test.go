@@ -53,6 +53,7 @@ const (
 	dirUI        = "internal/ui"
 	dirAdmin     = "internal/admin"
 	pkgI18n      = "internal/i18n"
+	pkgMoney     = "internal/money"
 	pkgFormtext  = "internal/web/formtext"
 	pkgRespond   = "internal/web/respond"
 	pkgSite      = "internal/site"
@@ -108,7 +109,7 @@ func isDesk(pkg string) bool { return deskRoot(pkg) != "" }
 // isLeaf reports whether pkg is on one of the leaf lists the rule "leaves" holds.
 func isLeaf(pkg string) bool {
 	return slices.Contains(importFreeLeaves, pkg) || slices.Contains(i18nOnlyLeaves, pkg) ||
-		slices.Contains(formtextLeaves, pkg)
+		slices.Contains(formtextLeaves, pkg) || slices.Contains(moneyLeaves, pkg)
 }
 
 var (
@@ -150,7 +151,7 @@ var (
 	}
 	// importFreeLeaves import no goen package at all.
 	importFreeLeaves = []string{
-		"internal/payment/refund", "internal/web/clientip",
+		"internal/web/clientip",
 		"internal/product/inventory", "internal/shipping/postcode", "internal/user",
 		"internal/money", "internal/db", "internal/keyset", "internal/bearer",
 		"internal/email", "internal/cart/cartitem", "internal/product", "internal/web/compress",
@@ -165,6 +166,9 @@ var (
 	// formtextLeaves read a code a person typed: they import nothing from goen
 	// except formtext, which folds its width, and the message catalogue.
 	formtextLeaves = []string{"internal/discount/coupon"}
+	// moneyLeaves name an amount in a sentence: they import nothing from goen
+	// except money, which writes the amount, and the message catalogue.
+	moneyLeaves = []string{"internal/payment/refund"}
 	// googleMayImport is all of goen that Google's sign-in client imports:
 	// bearer makes its state and PKCE verifier, siteurl reads the configured
 	// origin its callback is built on.
@@ -181,6 +185,7 @@ var packageLists = map[string][]string{
 	"uiMayImport": uiMayImport, "storefrontPages": storefrontPages, "siteMayImport": siteMayImport,
 	"policyMayImport": policyMayImport, "campaignMayImport": campaignMayImport,
 	"importFreeLeaves": importFreeLeaves, "i18nOnlyLeaves": i18nOnlyLeaves, "formtextLeaves": formtextLeaves,
+	"moneyLeaves":     moneyLeaves,
 	"googleMayImport": googleMayImport, "storemapMayImport": storemapMayImport, "notDesks": notDesks,
 }
 
@@ -214,11 +219,12 @@ var depsRules = []importRule{
 	{
 		name: "leaves",
 		hard: true,
-		pkgs: []string{pkgI18n, pkgFormtext},
+		pkgs: []string{pkgI18n, pkgFormtext, pkgMoney},
 		forbid: func(from, to string) bool {
 			return slices.Contains(importFreeLeaves, from) ||
 				(slices.Contains(i18nOnlyLeaves, from) && to != pkgI18n) ||
-				(slices.Contains(formtextLeaves, from) && to != pkgI18n && to != pkgFormtext)
+				(slices.Contains(formtextLeaves, from) && to != pkgI18n && to != pkgFormtext) ||
+				(slices.Contains(moneyLeaves, from) && to != pkgI18n && to != pkgMoney)
 		},
 		reason: "a vocabulary package can be imported by anything without a cycle",
 	},
