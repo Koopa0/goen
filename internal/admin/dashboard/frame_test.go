@@ -19,7 +19,7 @@ var storefrontChrome = map[string]string{
 	"the header's product search":    `action="/search"`,
 }
 
-// TestTheBackOfficeRendersNoStorefrontChrome holds the two shells apart. Every
+// TestDashboardNoStorefrontChrome holds the two shells apart. Every
 // admin screen used to come through the storefront's, so a staff member working
 // a queue was shown a category row, a product search, a wishlist, a cart and a
 // newsletter signup on every page — and a newsletter form on /admin is not only
@@ -28,7 +28,7 @@ var storefrontChrome = map[string]string{
 // The storefront half of the assertion is the half that matters in a year: a
 // shell that stopped rendering the search and the signup everywhere would
 // otherwise pass this as a back-office win.
-func TestTheBackOfficeRendersNoStorefrontChrome(t *testing.T) {
+func TestDashboardNoStorefrontChrome(t *testing.T) {
 	t.Parallel()
 	ctx := frame.WithStaff(i18n.WithLocale(t.Context(), i18n.ZhHant), true)
 

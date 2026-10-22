@@ -22,7 +22,7 @@ import (
 // The tests in this file are the campaign halves of tests that render several
 // desks' pages: each half lives with the page it renders.
 
-// From TestEveryAdminEmptyPageKeepsItsRestartLink.
+// From TestAuditEmptyPageRestartLink.
 func TestCampaignsEmptyPageKeepsItsRestartLink(t *testing.T) {
 	t.Parallel()
 	b := keyset.Bound{PastEnd: true, First: "/admin/products?q=test"}
@@ -48,8 +48,9 @@ func TestCampaignsEmptyPageKeepsItsRestartLink(t *testing.T) {
 	}
 }
 
-// From TestEveryQueueKeepsItsOwnFirstPageEmptyState.
-func TestCampaignsQueueKeepsItsOwnFirstPageEmptyState(t *testing.T) {
+// TestCampaignsQueueFirstPageEmpty: campaigns queue keeps its own first page empty state.
+// From TestAuditFirstPageEmpty.
+func TestCampaignsQueueFirstPageEmpty(t *testing.T) {
 	t.Parallel()
 	ctx := func(k i18n.Key) string { return i18n.T(i18n.WithLocale(t.Context(), i18n.En), k) }
 	generic := ctx(i18n.KeyPageEmpty)
@@ -74,7 +75,7 @@ func TestCampaignsQueueKeepsItsOwnFirstPageEmptyState(t *testing.T) {
 	}
 }
 
-// From TestEveryQueueWithMoreRowsOffersNext.
+// From TestAuditFullPageOffersNext.
 func TestCampaignsQueueWithMoreRowsOffersNext(t *testing.T) {
 	t.Parallel()
 	ctx := func(k i18n.Key) string { return i18n.T(i18n.WithLocale(t.Context(), i18n.En), k) }
@@ -98,8 +99,9 @@ func TestCampaignsQueueWithMoreRowsOffersNext(t *testing.T) {
 	}
 }
 
+// TestCampaignsFieldExamples: campaign examples stay outside refused inputs.
 // From the examples test the admin screens once shared.
-func TestCampaignExamplesStayOutsideRefusedInputs(t *testing.T) {
+func TestCampaignsFieldExamples(t *testing.T) {
 	t.Parallel()
 	for _, locale := range i18n.Locales() {
 		for _, draft := range []struct{ value, refusal string }{{"", ""}, {"Submitted <& value", ""}, {"", "Refused"}, {"Submitted <& value", "Refused"}} {
@@ -196,8 +198,9 @@ func exampleElementByID(n *html.Node, id string) *html.Node {
 	return nil
 }
 
+// TestCampaignFormImageRefusal: campaign image refusal renders drafts apart from saved images.
 // From TestImageRefusalRendersDraftsApartFromSavedImages.
-func TestCampaignImageRefusalRendersDraftsApartFromSavedImages(t *testing.T) {
+func TestCampaignFormImageRefusal(t *testing.T) {
 	t.Parallel()
 	const alt = ` 新照片「正面」 & 側面 `
 	const altEn = ` New photograph "front" & side `
@@ -288,8 +291,9 @@ func imageDraftControlValue(n *html.Node, attrs map[string]string) string {
 	return attrs["value"]
 }
 
+// TestCampaignFormRemoveButtons: campaign remove buttons name their record.
 // From TestRemoveButtonsNameTheirRecord.
-func TestCampaignRemoveButtonsNameTheirRecord(t *testing.T) {
+func TestCampaignFormRemoveButtons(t *testing.T) {
 	t.Parallel()
 	for _, locale := range []struct {
 		locale i18n.Locale

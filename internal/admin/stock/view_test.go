@@ -117,7 +117,7 @@ func TestVariantsSharedCoverSection(t *testing.T) {
 
 // TestVariantsMovementsRestartLink: stock empty pages keep their restart link.
 //
-// From TestEveryAdminEmptyPageKeepsItsRestartLink.
+// From TestAuditEmptyPageRestartLink.
 func TestVariantsMovementsRestartLink(t *testing.T) {
 	t.Parallel()
 	b := keyset.Bound{PastEnd: true, First: "/admin/products?q=test"}
@@ -147,7 +147,7 @@ func TestVariantsMovementsRestartLink(t *testing.T) {
 // TestVariantsMovementsEmptyState: stock queues keep their own first page empty
 // state.
 //
-// From TestEveryQueueKeepsItsOwnFirstPageEmptyState.
+// From TestAuditFirstPageEmpty.
 func TestVariantsMovementsEmptyState(t *testing.T) {
 	t.Parallel()
 	ctx := func(k i18n.Key) string { return i18n.T(i18n.WithLocale(t.Context(), i18n.En), k) }
@@ -176,7 +176,7 @@ func TestVariantsMovementsEmptyState(t *testing.T) {
 
 // TestVariantsMovementsOfferNext: stock queues with more rows offer next.
 //
-// From TestEveryQueueWithMoreRowsOffersNext.
+// From TestAuditFullPageOffersNext.
 func TestVariantsMovementsOfferNext(t *testing.T) {
 	t.Parallel()
 	ctx := func(k i18n.Key) string { return i18n.T(i18n.WithLocale(t.Context(), i18n.En), k) }

@@ -5,7 +5,8 @@ import (
 	"testing"
 )
 
-func TestAuditChangesReadsFieldsNotJSON(t *testing.T) {
+// TestChangesReadFields: audit changes read fields, not JSON.
+func TestChangesReadFields(t *testing.T) {
 	t.Parallel()
 	for _, tt := range []struct {
 		name          string

@@ -18,7 +18,8 @@ import (
 	"github.com/koopa0/goen/internal/media"
 )
 
-func TestCategoryImageTextDistinguishesAMissingCategoryFromAMissingPhotograph(t *testing.T) {
+// TestHandler_SetCategoryImageMissing: category image text distinguishes a missing category from a missing photograph.
+func TestHandler_SetCategoryImageMissing(t *testing.T) {
 	owner := dbtest.Pool(t)
 	staff, _ := admintest.StaffContext(t, owner)
 	app := admintest.AdminRolePool(t, owner)

@@ -16,7 +16,7 @@ import (
 	"github.com/koopa0/goen/internal/i18n"
 )
 
-// TestEveryAuditActionHasALabel reads the vocabulary out of the const block
+// TestEntry_LabelDeclaredActions reads the vocabulary out of the const block
 // that declares it, so an action added next week is covered the day it is
 // written.
 //
@@ -31,7 +31,7 @@ import (
 // a few are string literals inside a schema function and have no Go constant at
 // all, because declaring one so a parser could see it would be a dead
 // identifier. Reading the migration is what covers those without inventing one.
-func TestEveryAuditActionHasALabel(t *testing.T) {
+func TestEntry_LabelDeclaredActions(t *testing.T) {
 	t.Parallel()
 
 	literals, _ := schemaActions(t)
@@ -144,10 +144,10 @@ func declaredActions(t *testing.T) []string {
 	return out
 }
 
-// TestEveryAuditedTableHasAnEntityLabel reads the tables the application writes
+// TestEntry_EntityLabelAuditedTables reads the tables the application writes
 // into the trail, so one added next week is covered the day it is written.
 // Without a label the subject line shows the table name.
-func TestEveryAuditedTableHasAnEntityLabel(t *testing.T) {
+func TestEntry_EntityLabelAuditedTables(t *testing.T) {
 	t.Parallel()
 
 	pattern := regexp.MustCompile(`(?:Table|EntityTable):\s*"([a-z_]+)"`)

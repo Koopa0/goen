@@ -11,7 +11,8 @@ import (
 	"github.com/koopa0/goen/internal/admin/products/productstest"
 )
 
-func TestTheCampaignProductSearchOffersWhatIsNotFeaturedYet(t *testing.T) {
+// TestStore_SearchProductsUnfeatured: the campaign product search offers what is not featured yet.
+func TestStore_SearchProductsUnfeatured(t *testing.T) {
 	ctx, _ := admintest.StaffContext(t, pool)
 	s := products.NewStore(pool)
 	slug := admintest.CampaignSlug(t)
@@ -53,7 +54,8 @@ func TestTheCampaignProductSearchOffersWhatIsNotFeaturedYet(t *testing.T) {
 	}
 }
 
-func TestCampaignProductListsUseTheStorefrontVariantAndSellableStock(t *testing.T) {
+// TestStore_ProductListsVariantStock: campaign product lists use the storefront variant and sellable stock.
+func TestStore_ProductListsVariantStock(t *testing.T) {
 	ctx, _ := admintest.StaffContext(t, pool)
 	slug := productstest.Draft(t, ctx, pool, products.NewStore(pool))
 	for position, variant := range []struct {

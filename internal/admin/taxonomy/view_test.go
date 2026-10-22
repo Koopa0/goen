@@ -18,8 +18,9 @@ import (
 // The tests in this file are the taxonomy halves of tests that render several
 // desks' pages: each half lives with the page it renders.
 
+// TestTaxonomyRowSaveButton: a taxonomy row saves what it shows.
 // From copy_test.go; it rendered only the taxonomy page, so it moved whole.
-func TestATaxonomyRowSavesWhatItShows(t *testing.T) {
+func TestTaxonomyRowSaveButton(t *testing.T) {
 	t.Parallel()
 	for _, tt := range []struct {
 		locale i18n.Locale
@@ -59,8 +60,9 @@ func TestTaxonomyExampleIsItsOwnHintLine(t *testing.T) {
 	}
 }
 
+// TestTaxonomyExampleHintsInFull: every taxonomy example hint reads in full.
 // From TestEveryExampleHintReadsInFull.
-func TestEveryTaxonomyExampleHintReadsInFull(t *testing.T) {
+func TestTaxonomyExampleHintsInFull(t *testing.T) {
 	t.Parallel()
 	for _, tt := range []struct {
 		locale   i18n.Locale
@@ -88,8 +90,9 @@ func TestEveryTaxonomyExampleHintReadsInFull(t *testing.T) {
 	}
 }
 
+// TestCategoryFormImageRefusal: category image refusal renders drafts apart from saved images.
 // From TestImageRefusalRendersDraftsApartFromSavedImages.
-func TestCategoryImageRefusalRendersDraftsApartFromSavedImages(t *testing.T) {
+func TestCategoryFormImageRefusal(t *testing.T) {
 	t.Parallel()
 	const alt = ` 新照片「正面」 & 側面 `
 	const altEn = ` New photograph "front" & side `
@@ -180,8 +183,9 @@ func imageDraftControlValue(n *html.Node, attrs map[string]string) string {
 	return attrs["value"]
 }
 
+// TestTaxonomyRefusalsLinkFirstInvalid: taxonomy refusals name their form and link to the first invalid control.
 // From TestDeskRefusalsNameTheirFormAndLinkToTheFirstInvalidControl.
-func TestTaxonomyRefusalsNameTheirFormAndLinkToTheFirstInvalidControl(t *testing.T) {
+func TestTaxonomyRefusalsLinkFirstInvalid(t *testing.T) {
 	t.Parallel()
 	for _, locale := range i18n.Locales() {
 		t.Run(locale.Tag(), func(t *testing.T) {

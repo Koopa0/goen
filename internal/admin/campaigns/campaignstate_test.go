@@ -6,7 +6,8 @@ import (
 	"github.com/koopa0/goen/internal/i18n"
 )
 
-func TestARunningCampaignWithNothingOnSaleSaysItIsHiddenFromTheShop(t *testing.T) {
+// TestCampaignRow_StateNothingOnSale: a running campaign with nothing on sale says it is hidden from the shop.
+func TestCampaignRow_StateNothingOnSale(t *testing.T) {
 	t.Parallel()
 	tests := []struct {
 		name string

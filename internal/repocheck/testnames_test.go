@@ -32,15 +32,20 @@ const maxTestNameLen = 40
 // fail them, so the guard cannot pass without looking.
 var migratedTestPackages = []string{
 	"assets",
+	"internal/admin/audit",
 	"internal/admin/banners",
+	"internal/admin/campaigns",
 	"internal/admin/coupons",
 	"internal/admin/credits",
+	"internal/admin/customers",
+	"internal/admin/dashboard",
 	"internal/admin/faq",
 	"internal/admin/newsletters",
 	"internal/admin/questions",
 	"internal/admin/refunds",
 	"internal/admin/reports",
 	"internal/admin/stock",
+	"internal/admin/taxonomy",
 	"internal/bearer",
 	"internal/credit",
 	"internal/email",
@@ -98,6 +103,9 @@ var testNameExceptions = map[string]map[string]string{
 	},
 	"internal/admin/stock": {
 		"TestProductVariantsRestockNoticesRollback": "the unit is the product_variants_restock_notices trigger, a SQL object, driven by plain UPDATE statements on the admin role's pool, not a Go identifier",
+	},
+	"internal/admin/taxonomy": {
+		"TestCategoriesIconKeyKnown": "the unit is the categories_icon_key_known CHECK constraint of the categories table, a SQL object, not a Go identifier: the test inserts rows directly and never calls the Store",
 	},
 	"internal/i18n": {
 		"TestNoHardCodedGenericChrome": "a repository rule: no customer-facing .templ source hard-codes a generic English word; it reads every source file, and no function of the package is its unit",
