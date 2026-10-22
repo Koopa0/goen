@@ -73,7 +73,7 @@ themselves are wider, read with fontTools' fvar table on the files as vendored:
 Figures come from Instrument Sans, whose lightest weight is 400, so text set at
 350 draws its digits and Latin at 400 while Noto Sans TC draws Han glyphs at
 350. That pairing is deliberate: the Han stroke at 350 matches Instrument Sans
-at 400 (see the ruling on #1333). TestFontStylesheetMatchesTheEmbeddedFonts
+at 400 (see the ruling on #1333). TestFontsCSSMatchesEmbeddedFonts
 holds the declared ranges.
 
 Instrument Sans keeps only its Latin subsets. Google serves it in no other
@@ -116,7 +116,7 @@ only place the unicode-ranges are published. To take a new revision:
      unicode-range, `font-display: swap`, and a src of
      /static/fonts/<family>/<subset>.woff2?v=<first 12 hex of the file's sha256>.
 
-  4. `go test ./assets/` — TestFontStylesheetMatchesTheEmbeddedFonts compares
+  4. `go test ./assets/` — TestFontsCSSMatchesEmbeddedFonts compares
      every digest in the sheet against the embedded file and fails on a file
      that no rule names.
 

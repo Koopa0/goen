@@ -58,7 +58,8 @@ func samplePNG(t *testing.T, w, h int) []byte {
 	return buf.Bytes()
 }
 
-func TestTheSamePictureIsOneRow(t *testing.T) {
+// TestStore_PutSamePicture checks that the same picture is stored as one row.
+func TestStore_PutSamePicture(t *testing.T) {
 	ctx := t.Context()
 	s := media.NewStore(pool)
 	body := samplePNG(t, 120, 80)
@@ -86,8 +87,9 @@ func TestTheSamePictureIsOneRow(t *testing.T) {
 	}
 }
 
+// TestStore_BytesRoundTrip checks that the stored bytes are served back unchanged.
 // The digest is never re-derived on read, so corruption would be silent.
-func TestTheStoredBytesAreServedBackUnchanged(t *testing.T) {
+func TestStore_BytesRoundTrip(t *testing.T) {
 	ctx := t.Context()
 	s := media.NewStore(pool)
 
@@ -114,8 +116,10 @@ func TestTheStoredBytesAreServedBackUnchanged(t *testing.T) {
 	}
 }
 
-// A year-long immutable Cache-Control makes a rewritten digest unfixable.
-func TestAStoredImageCannotBeRewritten(t *testing.T) {
+// TestMediaObjectsImmutable checks that the database refuses to rewrite a stored
+// image (the media_objects_immutable trigger) and still lets it be deleted. A
+// year-long immutable Cache-Control makes a rewritten digest unfixable.
+func TestMediaObjectsImmutable(t *testing.T) {
 	ctx := t.Context()
 	obj, err := media.NewStore(pool).Put(ctx, bytes.NewReader(samplePNG(t, 60, 60)))
 	if err != nil {
@@ -138,8 +142,10 @@ func TestAStoredImageCannotBeRewritten(t *testing.T) {
 	}
 }
 
-// Each rule fires where it cannot be bypassed; the Go side checks these too.
-func TestTheSchemaRefusesAnInconsistentRow(t *testing.T) {
+// TestMediaObjectsConstraints checks that the schema refuses an inconsistent
+// media_objects row, each case by the constraint it breaks. Each rule fires where
+// it cannot be bypassed; the Go side checks these too.
+func TestMediaObjectsConstraints(t *testing.T) {
 	ctx := t.Context()
 	tests := []struct {
 		name       string
@@ -201,8 +207,9 @@ func constraintOf(err error) string {
 	return err.Error()
 }
 
-// An upload nothing points at goes away; one something points at does not.
-func TestAbandonedUploadsAreReclaimed(t *testing.T) {
+// TestStore_SweepAbandonedUploads checks that Sweep reclaims abandoned uploads. An
+// upload nothing points at goes away; one something points at does not.
+func TestStore_SweepAbandonedUploads(t *testing.T) {
 	ctx := t.Context()
 	s := media.NewStore(pool)
 	log := slog.New(slog.DiscardHandler)
@@ -272,9 +279,10 @@ func TestAbandonedUploadsAreReclaimed(t *testing.T) {
 	}
 }
 
-// TestAHeroSlidesImageIsNotReclaimed covers the referencing column that is
-// easy to forget; a delete that missed it would blank the front page.
-func TestAHeroSlidesImageIsNotReclaimed(t *testing.T) {
+// TestStore_SweepHeroSlideImage checks that a hero slide's image is not reclaimed.
+// It covers the referencing column that is easy to forget; a delete that missed it
+// would blank the front page.
+func TestStore_SweepHeroSlideImage(t *testing.T) {
 	ctx := t.Context()
 	s := media.NewStore(pool)
 
@@ -300,9 +308,10 @@ func TestAHeroSlidesImageIsNotReclaimed(t *testing.T) {
 	}
 }
 
-// TestACampaignsHeaderImageIsNotReclaimed covers the third referencing column:
-// a delete that missed it would blank a campaign page's header.
-func TestACampaignsHeaderImageIsNotReclaimed(t *testing.T) {
+// TestStore_SweepCampaignHeader checks that a campaign's header image is not
+// reclaimed. It covers the third referencing column: a delete that missed it would
+// blank a campaign page's header.
+func TestStore_SweepCampaignHeader(t *testing.T) {
 	ctx := t.Context()
 	s := media.NewStore(pool)
 
@@ -328,9 +337,10 @@ func TestACampaignsHeaderImageIsNotReclaimed(t *testing.T) {
 	}
 }
 
-// TestACategorysHeaderPhotographIsNotReclaimed covers the fourth referencing
-// column: a delete that missed it would blank a department page's photograph.
-func TestACategorysHeaderPhotographIsNotReclaimed(t *testing.T) {
+// TestStore_SweepCategoryPhoto checks that a category's header photograph is not
+// reclaimed. It covers the fourth referencing column: a delete that missed it
+// would blank a department page's photograph.
+func TestStore_SweepCategoryPhoto(t *testing.T) {
 	ctx := t.Context()
 	s := media.NewStore(pool)
 
@@ -395,15 +405,16 @@ func ageUploads(t *testing.T, digests ...string) {
 	}
 }
 
-// TestAnUploadAttachedMidSweepSurvivesIt holds the window between the two
-// statements the sweep is made of.
+// TestStore_ReclaimAttachedMidSweep checks that an upload attached mid-sweep
+// survives the sweep. It holds the window between the two statements the sweep is
+// made of.
 //
 // The attach has COMMITTED before the delete runs, so the reference predicate
 // repeated inside the DELETE is what answers; the foreign keys are the backstop,
-// and the attach still in flight is the ...AttachedDuringTheDeleteSurvivesIt
+// and the attach still in flight is the ...InFlight
 // tests' window. The interleaving is DRIVEN rather than hoped for: the candidate
 // list is taken first, the attach commits, and only then is the delete asked for.
-func TestAnUploadAttachedMidSweepSurvivesIt(t *testing.T) {
+func TestStore_ReclaimAttachedMidSweep(t *testing.T) {
 	ctx := t.Context()
 	s := media.NewStore(pool)
 
@@ -485,12 +496,13 @@ func TestAnUploadAttachedMidSweepSurvivesIt(t *testing.T) {
 	}
 }
 
-// TestADepartmentPhotographAttachedDuringTheDeleteSurvivesIt holds the window
-// the repeated predicate cannot: an attach still IN FLIGHT when the sweeper's
-// DELETE runs, which that DELETE's snapshot cannot see. categories_media_digest_fk
-// closes it — the attach holds a lock the DELETE waits on, and the delete is
-// refused once the attach commits.
-func TestADepartmentPhotographAttachedDuringTheDeleteSurvivesIt(t *testing.T) {
+// TestStore_ReclaimDepartmentPhotoInFlight checks that a department photograph
+// attached during the delete survives it. It holds the window the repeated
+// predicate cannot: an attach still IN FLIGHT when the sweeper's DELETE runs,
+// which that DELETE's snapshot cannot see. categories_media_digest_fk closes it —
+// the attach holds a lock the DELETE waits on, and the delete is refused once the
+// attach commits.
+func TestStore_ReclaimDepartmentPhotoInFlight(t *testing.T) {
 	ctx := t.Context()
 	photo, err := media.NewStore(pool).Put(ctx, bytes.NewReader(samplePNG(t, 78, 58)))
 	if err != nil {
@@ -521,9 +533,10 @@ func TestADepartmentPhotographAttachedDuringTheDeleteSurvivesIt(t *testing.T) {
 	}
 }
 
-// TestAHeroImageAttachedDuringTheDeleteSurvivesIt is the same window for the
-// slide CreateHeroSlide inserts, closed by hero_slides_media_digest_fk.
-func TestAHeroImageAttachedDuringTheDeleteSurvivesIt(t *testing.T) {
+// TestStore_ReclaimHeroImageInFlight checks that a hero image attached during the
+// delete survives it. It is the same window for the slide CreateHeroSlide inserts,
+// closed by hero_slides_media_digest_fk.
+func TestStore_ReclaimHeroImageInFlight(t *testing.T) {
 	ctx := t.Context()
 	hero, err := media.NewStore(pool).Put(ctx, bytes.NewReader(samplePNG(t, 79, 59)))
 	if err != nil {
@@ -550,9 +563,10 @@ func TestAHeroImageAttachedDuringTheDeleteSurvivesIt(t *testing.T) {
 	}
 }
 
-// TestACampaignHeaderAttachedDuringTheDeleteSurvivesIt is the same window for
-// the header SetCampaignImage writes, closed by sale_campaigns_media_digest_fk.
-func TestACampaignHeaderAttachedDuringTheDeleteSurvivesIt(t *testing.T) {
+// TestStore_ReclaimCampaignHeaderInFlight checks that a campaign header attached
+// during the delete survives it. It is the same window for the header
+// SetCampaignImage writes, closed by sale_campaigns_media_digest_fk.
+func TestStore_ReclaimCampaignHeaderInFlight(t *testing.T) {
 	ctx := t.Context()
 	header, err := media.NewStore(pool).Put(ctx, bytes.NewReader(samplePNG(t, 80, 60)))
 	if err != nil {
@@ -582,9 +596,10 @@ func TestACampaignHeaderAttachedDuringTheDeleteSurvivesIt(t *testing.T) {
 	}
 }
 
-// TestAProductImageAttachedDuringTheDeleteSurvivesIt is the same window for the
-// photograph AttachProductImage inserts, closed by product_images_media_digest_fk.
-func TestAProductImageAttachedDuringTheDeleteSurvivesIt(t *testing.T) {
+// TestStore_ReclaimProductImageInFlight checks that a product image attached
+// during the delete survives it. It is the same window for the photograph
+// AttachProductImage inserts, closed by product_images_media_digest_fk.
+func TestStore_ReclaimProductImageInFlight(t *testing.T) {
 	ctx := t.Context()
 	photo, err := media.NewStore(pool).Put(ctx, bytes.NewReader(samplePNG(t, 81, 61)))
 	if err != nil {
@@ -703,7 +718,9 @@ func reclaimDuringAttach(t *testing.T, digest, attachSQL string) (bool, error) {
 	return got.gone, got.err
 }
 
-func TestOriginalImagePoolWaitEndsBeforeTheWriteDeadline(t *testing.T) {
+// TestHandler_ServeOriginalPoolWait checks that the wait for a pool connection to
+// serve an original image ends before the write deadline.
+func TestHandler_ServeOriginalPoolWait(t *testing.T) {
 	config := pool.Config().Copy()
 	config.MaxConns = 1
 	config.MinConns = 0
@@ -770,7 +787,9 @@ func TestOriginalImagePoolWaitEndsBeforeTheWriteDeadline(t *testing.T) {
 	}
 }
 
-func TestOriginalImageResponsesPreserveBytesAndCallerCancellation(t *testing.T) {
+// TestHandler_ServeOriginalResponse checks that original image responses preserve
+// the stored bytes and the caller's cancellation.
+func TestHandler_ServeOriginalResponse(t *testing.T) {
 	s := media.NewStore(pool)
 	obj, err := s.Put(t.Context(), bytes.NewReader(samplePNG(t, 137, 89)))
 	if err != nil {

@@ -36,7 +36,8 @@ func letters(img image.Image) []string {
 	return rows
 }
 
-func TestOrientTurnsThePixelsAsEXIFSays(t *testing.T) {
+// TestOrient checks that orient turns the pixels as the EXIF orientation says.
+func TestOrient(t *testing.T) {
 	t.Parallel()
 
 	tests := []struct {
@@ -99,7 +100,9 @@ func withOrientation(t *testing.T, jpegData []byte, o uint16, order tiffOrder) [
 	return append(out, jpegData[2:]...)
 }
 
-func TestExifOrientationIsReadInEitherByteOrder(t *testing.T) {
+// TestExifOrientation checks that the EXIF orientation is read in either byte
+// order.
+func TestExifOrientation(t *testing.T) {
 	t.Parallel()
 
 	base := jpegBytes(t, 12, 8)
@@ -121,9 +124,10 @@ func TestExifOrientationIsReadInEitherByteOrder(t *testing.T) {
 	}
 }
 
-// A portrait phone photo is stored as landscape pixels with Orientation 6; the
-// uploader saw it upright, so the stored copy must be too.
-func TestNormaliseStoresWhatTheUploaderSaw(t *testing.T) {
+// TestNormaliseAppliesOrientation checks that Normalise stores what the uploader
+// saw. A portrait phone photo is stored as landscape pixels with Orientation 6;
+// the uploader saw it upright, so the stored copy must be too.
+func TestNormaliseAppliesOrientation(t *testing.T) {
 	t.Parallel()
 
 	var buf bytes.Buffer

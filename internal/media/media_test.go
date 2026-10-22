@@ -39,7 +39,9 @@ func jpegBytes(t *testing.T, w, h int) []byte {
 	return buf.Bytes()
 }
 
-func TestAnUploadIsReEncodedNotStored(t *testing.T) {
+// TestNormaliseReEncodesUpload checks that an upload is re-encoded and not stored
+// as it came.
+func TestNormaliseReEncodesUpload(t *testing.T) {
 	clean := pngBytes(t, 40, 30)
 
 	// A real PNG with junk appended: still decodes, and the trailer is where a
@@ -66,7 +68,9 @@ func TestAnUploadIsReEncodedNotStored(t *testing.T) {
 	}
 }
 
-func TestTheDigestIsOfWhatIsServed(t *testing.T) {
+// TestNormaliseDigestOfOutput checks that the digest is of what is served: the
+// output, not the upload.
+func TestNormaliseDigestOfOutput(t *testing.T) {
 	clean := pngBytes(t, 20, 20)
 	withTrailer := append(append([]byte{}, clean...), []byte("junk")...)
 
@@ -91,8 +95,9 @@ func TestTheDigestIsOfWhatIsServed(t *testing.T) {
 	}
 }
 
+// TestNormaliseRejectsNonImages checks that nothing but an image is accepted.
 // Every case here could be posted as image/png with a .png name.
-func TestNothingButAnImageIsAccepted(t *testing.T) {
+func TestNormaliseRejectsNonImages(t *testing.T) {
 	tests := []struct {
 		name string
 		body []byte
@@ -116,8 +121,10 @@ func TestNothingButAnImageIsAccepted(t *testing.T) {
 	}
 }
 
-// The header bound must run before any pixel buffer is allocated.
-func TestADecompressionBombIsRefusedBeforeItIsAllocated(t *testing.T) {
+// TestNormaliseDecompressionBomb checks that a decompression bomb is refused
+// before it is allocated. The header bound must run before any pixel buffer is
+// allocated.
+func TestNormaliseDecompressionBomb(t *testing.T) {
 	// Built by hand rather than encoded, because encoding one would itself
 	// allocate the buffer this test is about.
 	bomb := forgedPNGHeader(50000, 50000)
@@ -147,7 +154,9 @@ func TestADecompressionBombIsRefusedBeforeItIsAllocated(t *testing.T) {
 	}
 }
 
-func TestNormalizedOutputHasItsOwnByteCap(t *testing.T) {
+// TestNormaliseDecodedOutputCap checks that the normalized output has its own byte
+// cap.
+func TestNormaliseDecodedOutputCap(t *testing.T) {
 	t.Parallel()
 	if err := storedSizeOK(MaxStoredBytes); err != nil {
 		t.Fatalf("the exact normalized-output ceiling was refused: %v", err)
@@ -164,7 +173,9 @@ func TestNormalizedOutputHasItsOwnByteCap(t *testing.T) {
 	}
 }
 
-func TestDecodedBoundsAreRefusedBeforeEncoding(t *testing.T) {
+// TestNormaliseDecodedBounds checks that decoded bounds are refused before
+// encoding.
+func TestNormaliseDecodedBounds(t *testing.T) {
 	t.Parallel()
 
 	called := false
@@ -229,8 +240,9 @@ func crcOf(b []byte) []byte {
 	return be32(crc)
 }
 
-// The stored format comes from the decode, never from a client header.
-func TestTheOutputFormatIsGoensChoice(t *testing.T) {
+// TestNormaliseOutputFormat checks that the output format is goen's choice. The
+// stored format comes from the decode, never from a client header.
+func TestNormaliseOutputFormat(t *testing.T) {
 	tests := []struct {
 		name string
 		body []byte
@@ -263,8 +275,9 @@ func gifBytes(t *testing.T, w, h int) []byte {
 	return buf.Bytes()
 }
 
+// TestNormaliseByteSize checks that ByteSize describes the stored bytes.
 // media_objects_size_matches enforces the same thing in the schema.
-func TestByteSizeDescribesTheStoredBytes(t *testing.T) {
+func TestNormaliseByteSize(t *testing.T) {
 	obj, data, err := Normalise(bytes.NewReader(pngBytes(t, 64, 48)))
 	if err != nil {
 		t.Fatalf("refused: %v", err)
@@ -274,9 +287,10 @@ func TestByteSizeDescribesTheStoredBytes(t *testing.T) {
 	}
 }
 
-// A bare candidate mixed with w-descriptors is an HTML parse error, and the
-// full-size image then drops out silently.
-func TestSrcsetNeverMisleadsTheBrowser(t *testing.T) {
+// TestImage_SrcsetOfUpload checks that the srcset of an uploaded image never
+// misleads the browser. A bare candidate mixed with w-descriptors is an HTML parse
+// error, and the full-size image then drops out silently.
+func TestImage_SrcsetOfUpload(t *testing.T) {
 	const d = "9f86d081884c7d659a2feaa0c55ad015a3bf4f1b2b0b822cd15d6c15b0f00a08"
 
 	tests := []struct {
@@ -326,8 +340,10 @@ func TestSrcsetNeverMisleadsTheBrowser(t *testing.T) {
 	}
 }
 
-// The width allowlist bounds the work an anonymous request can ask for.
-func TestResizeNeverUpscalesAndOnlyServesKnownWidths(t *testing.T) {
+// TestResizeKnownWidthsNoUpscale checks that Resize never upscales and serves only
+// the known widths. The width allowlist bounds the work an anonymous request can
+// ask for.
+func TestResizeKnownWidthsNoUpscale(t *testing.T) {
 	original := pngBytes(t, 1200, 900)
 	_, stored, err := Normalise(bytes.NewReader(original))
 	if err != nil {
@@ -370,9 +386,10 @@ func TestResizeNeverUpscalesAndOnlyServesKnownWidths(t *testing.T) {
 	}
 }
 
-// Nothing is displayed wider than 2400px, so a larger upload is stored at 2400
-// on its longest side, aspect ratio kept.
-func TestALargeUploadIsStoredAtDisplaySize(t *testing.T) {
+// TestNormaliseLongestSide checks that a large upload is stored at display size,
+// its longest side at most 2400px. Nothing is displayed wider than 2400px, so a
+// larger upload is stored at 2400 on its longest side, aspect ratio kept.
+func TestNormaliseLongestSide(t *testing.T) {
 	t.Parallel()
 	for _, tt := range []struct {
 		name         string
@@ -404,8 +421,9 @@ func TestALargeUploadIsStoredAtDisplaySize(t *testing.T) {
 	}
 }
 
-// A 2400px upload is wide enough that its 1600 rendition is a real reduction.
-func TestA1600RenditionIsRendered(t *testing.T) {
+// TestResize1600Rendition checks that a 1600 rendition is rendered. A 2400px
+// upload is wide enough that its 1600 rendition is a real reduction.
+func TestResize1600Rendition(t *testing.T) {
 	t.Parallel()
 	_, stored, err := Normalise(bytes.NewReader(jpegBytes(t, 2400, 1600)))
 	if err != nil {
@@ -424,12 +442,12 @@ func TestA1600RenditionIsRendered(t *testing.T) {
 	}
 }
 
-// TestAnUploadFormWhoseTextCannotBeStoredIsRefused: the image is optional on a hero
-// slide, so an upload form with no file still has its text fields stored, and
-// one that is not UTF-8 would reach PostgreSQL. The hero slide's handler calls
-// OpenUpload itself, so the refusal is held there as well as through
-// StoreUpload.
-func TestAnUploadFormWhoseTextCannotBeStoredIsRefused(t *testing.T) {
+// TestHandlerUploadUnstorableText checks that an upload form whose text cannot be
+// stored is refused. The image is optional on a hero slide, so an upload form with
+// no file still has its text fields stored, and one that is not UTF-8 would reach
+// PostgreSQL. The hero slide's handler calls OpenUpload itself, so the refusal is
+// held there as well as through StoreUpload.
+func TestHandlerUploadUnstorableText(t *testing.T) {
 	h := &Handler{}
 	for _, tt := range []struct {
 		name string
@@ -485,9 +503,10 @@ func transparentGIFBytes(t *testing.T, w, h int) []byte {
 	return buf.Bytes()
 }
 
-// A transparent pixel written as JPEG comes out black, so an upload with alpha
-// is stored as PNG and keeps its transparent ground.
-func TestAnUploadWithAlphaKeepsItAsPNG(t *testing.T) {
+// TestNormaliseAlphaStaysPNG checks that an upload with alpha is kept as a PNG. A
+// transparent pixel written as JPEG comes out black, so an upload with alpha is
+// stored as PNG and keeps its transparent ground.
+func TestNormaliseAlphaStaysPNG(t *testing.T) {
 	obj, data, err := Normalise(bytes.NewReader(transparentGIFBytes(t, 20, 20)))
 	if err != nil {
 		t.Fatalf("refused: %v", err)

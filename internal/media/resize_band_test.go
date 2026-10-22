@@ -12,13 +12,13 @@ import (
 	"golang.org/x/image/draw"
 )
 
-// TestNoScaleHoldsMoreThanOneBandOfScratch is the bound on the resize's scratch
-// memory. A call to x/image/draw's kernel scaler holds 32 bytes per destination
-// column per source row, so a single call over the whole image grows with the
-// source rather than with what goen keeps: 485 MB for a 6320px square. Every
-// call is recorded here, and none may span more than a band of the axis it is
-// not reducing.
-func TestNoScaleHoldsMoreThanOneBandOfScratch(t *testing.T) {
+// TestFitLongestSideWithBandScratch checks that no scale holds more than one band
+// of scratch. It is the bound on the resize's scratch memory. A call to
+// x/image/draw's kernel scaler holds 32 bytes per destination column per source
+// row, so a single call over the whole image grows with the source rather than
+// with what goen keeps: 485 MB for a 6320px square. Every call is recorded here,
+// and none may span more than a band of the axis it is not reducing.
+func TestFitLongestSideWithBandScratch(t *testing.T) {
 	t.Parallel()
 
 	const w, h, limit = 1000, 700, 400
@@ -43,10 +43,11 @@ func TestNoScaleHoldsMoreThanOneBandOfScratch(t *testing.T) {
 	}
 }
 
-// TestARenditionHoldsNoMoreThanOneBandOfScratch is the same bound on the
-// rendition an anonymous visitor asks for at /media/{digest}/{width}: every
-// scale Resize makes spans at most a band of the axis it is not reducing.
-func TestARenditionHoldsNoMoreThanOneBandOfScratch(t *testing.T) {
+// TestResizeWithBandScratch checks that a rendition holds no more than one band of
+// scratch. It is the same bound on the rendition an anonymous visitor asks for at
+// /media/{digest}/{width}: every scale Resize makes spans at most a band of the
+// axis it is not reducing.
+func TestResizeWithBandScratch(t *testing.T) {
 	t.Parallel()
 
 	const w, h, width = 1000, 700, 400
@@ -81,10 +82,10 @@ func TestARenditionHoldsNoMoreThanOneBandOfScratch(t *testing.T) {
 	}
 }
 
-// TestRendersRunNoWiderThanTheirMemoryBoundOnAnyMachine: a render's memory is
-// set by the stored image, not by the machine, so more cores must not mean
-// more renders at once.
-func TestRendersRunNoWiderThanTheirMemoryBoundOnAnyMachine(t *testing.T) {
+// TestRenderSlotsFor checks that renders run no wider than their memory bound on
+// any machine. A render's memory is set by the stored image, not by the machine,
+// so more cores must not mean more renders at once.
+func TestRenderSlotsFor(t *testing.T) {
 	t.Parallel()
 
 	for procs, want := range map[int]int{0: 1, 1: 1, 2: 2, 4: maxRenderSlots, 64: maxRenderSlots} {
@@ -97,12 +98,12 @@ func TestRendersRunNoWiderThanTheirMemoryBoundOnAnyMachine(t *testing.T) {
 	}
 }
 
-// TestTheHandlersRendersRunNoWiderThanTheBound holds the bound where requests
-// meet it: the renderer NewHandler builds. It is built on a machine with more
-// cores than the bound, so a renderer sized by the core count is caught
-// whatever machine runs the test. Not parallel, because GOMAXPROCS is the
-// process's.
-func TestTheHandlersRendersRunNoWiderThanTheBound(t *testing.T) {
+// TestNewHandlerRenderSlots checks that the handler's renders run no wider than
+// the bound. It holds the bound where requests meet it: the renderer NewHandler
+// builds. It is built on a machine with more cores than the bound, so a renderer
+// sized by the core count is caught whatever machine runs the test. Not parallel,
+// because GOMAXPROCS is the process's.
+func TestNewHandlerRenderSlots(t *testing.T) {
 	defer runtime.GOMAXPROCS(runtime.GOMAXPROCS(8 * maxRenderSlots))
 	h := NewHandler(&Store{}, slog.New(slog.DiscardHandler))
 	if got := cap(h.renditions.slots); got != renderSlots {
@@ -128,13 +129,13 @@ func (s recordingScaler) Scale(
 	s.real.Scale(dst, dr, src, sr, op, opts)
 }
 
-// TestScalingInBandsDrawsWhatOneScaleDraws holds the bands to the picture one
-// call would draw. The sizes are not multiples of resizeBand, so the shorter
-// last band of each pass is in it. The waves are steep enough that a band
-// shifted by one row or column moves a pixel by far more than the one level the
-// intermediate image's rounding accounts for, and gentle enough that no
-// overshoot is clipped in between.
-func TestScalingInBandsDrawsWhatOneScaleDraws(t *testing.T) {
+// TestFitLongestSideBandsMatchOneScale checks that scaling in bands draws what one
+// scale draws. It holds the bands to the picture one call would draw. The sizes
+// are not multiples of resizeBand, so the shorter last band of each pass is in it.
+// The waves are steep enough that a band shifted by one row or column moves a
+// pixel by far more than the one level the intermediate image's rounding accounts
+// for, and gentle enough that no overshoot is clipped in between.
+func TestFitLongestSideBandsMatchOneScale(t *testing.T) {
 	t.Parallel()
 
 	const w, h = 1000, 700
