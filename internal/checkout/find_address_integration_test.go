@@ -94,6 +94,84 @@ func TestAnOrderLookupIsBoundedPerAddressFromAnyClient(t *testing.T) {
 	}
 }
 
+// TestAFullWidthNumberFindsTheOrderAndSpendsTheSameBudget: an order number typed
+// on a Chinese keyboard left in full-width mode is the number it spells, so it
+// finds the order, and a wrong one is charged to the address like any other:
+// alternating the two widths buys no second allowance.
+func TestAFullWidthNumberFindsTheOrderAndSpendsTheSameBudget(t *testing.T) {
+	ctx := t.Context()
+	s := checkout.NewStore(pool)
+	h := buyer.NewHandler(buyer.NewStore(pool), access.NewStore(pool, false), slog.New(slog.DiscardHandler),
+		ratelimit.New(ratelimit.Config{Every: time.Millisecond, Burst: 1000, TTL: time.Hour, MaxKeys: 1000}),
+		false)
+	find := func(orderNumber, addr string) *httptest.ResponseRecorder {
+		req := httptest.NewRequestWithContext(ctx, http.MethodPost, "/orders/find",
+			strings.NewReader(url.Values{"number": {orderNumber}, "email": {addr}}.Encode()))
+		req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+		req.RemoteAddr = "192.0.2.1:4000"
+		res := httptest.NewRecorder()
+		h.FindOrder(res, req)
+		return res
+	}
+	// fullWidth spells ASCII as a full-width input method types it.
+	fullWidth := func(s string) string {
+		return strings.Map(func(r rune) rune {
+			if r > ' ' && r <= '~' {
+				return r + 0xFEE0
+			}
+			return r
+		}, s)
+	}
+
+	victim := "find-wide-" + uuid.NewString() + "@example.com"
+	number := placeUnpaidOrderFor(t, s, victim)
+	if res := find("\u3000"+fullWidth(strings.ToLower(number))+"\u3000", victim); res.Code != http.StatusSeeOther ||
+		res.Header().Get("Location") != "/orders/"+number {
+		t.Fatalf("the right number typed in full width answered %d to %q, want 303 to /orders/%s",
+			res.Code, res.Header().Get("Location"), number)
+	}
+
+	// asksUntilRefused asks the same wrong number about one address, in the
+	// widths wrong gives, and counts the asks the address took.
+	asksUntilRefused := func(addr string, wrong func(i int) string) int {
+		t.Helper()
+		for i := range 20 {
+			switch res := find(wrong(i), addr); res.Code {
+			case http.StatusTooManyRequests:
+				return i + 1
+			case http.StatusUnprocessableEntity:
+			default:
+				t.Fatalf("a wrong number answered %d, want the uniform 422", res.Code)
+			}
+		}
+		t.Fatalf("20 lookups of %s were never refused", addr)
+		return 0
+	}
+	const wrong = "GO-000101-000001"
+	control := asksUntilRefused("find-wide-control-"+uuid.NewString()+"@example.com",
+		func(int) string { return wrong })
+	if control < 3 {
+		t.Fatalf("the address was refused at ask %d; a customer retyping a number needs a few", control)
+	}
+	alternating := "find-wide-alt-" + uuid.NewString() + "@example.com"
+	altNumber := placeUnpaidOrderFor(t, s, alternating)
+	got := asksUntilRefused(alternating, func(i int) string {
+		if i%2 == 1 {
+			return fullWidth(wrong)
+		}
+		return wrong
+	})
+	if got != control {
+		t.Errorf("alternating widths refused the address at ask %d, one width at ask %d: "+
+			"a full-width spelling is charged differently", got, control)
+	}
+	for _, typed := range []string{altNumber, fullWidth(altNumber)} {
+		if res := find(typed, alternating); res.Code != http.StatusTooManyRequests {
+			t.Errorf("once the address ran out, the right number %q answered %d, want 429", typed, res.Code)
+		}
+	}
+}
+
 // TestTheDaysFirstNumberNoLongerFindsAnOrderAndATypedNumberStillDoes holds the
 // point of random order numbers at the door a stranger uses: knowing a
 // customer's address and the day, the counter's first number of the day,
