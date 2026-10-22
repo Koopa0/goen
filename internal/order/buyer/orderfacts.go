@@ -105,9 +105,63 @@ func (v *OrderView) ReturnFacts(ctx context.Context, s OrderShipment) []widget.S
 // ReturnGrid draws the days from the parcel's delivery to the end of unused returns.
 func (v *OrderView) ReturnGrid(ctx context.Context, s OrderShipment) (widget.PeriodSpec, bool) {
 	now := v.now()
-	return widget.ReturnPeriod(ctx,
+	return returnPeriod(ctx,
 		shoptime.DateOf(s.DeliveredAt, now), shoptime.DateOf(s.RescissionEnds, now), shoptime.DateOf(s.GoodwillEnds, now),
 		shoptime.DateOf(now, now), v.Pickup)
+}
+
+// returnPeriod is the right to return a parcel, drawn from the day after it was received to the last day goen
+// takes unused goods back: one cell a day, the mark on lastDay, the days after it the extension. The dates are
+// the database's own; pickup says the parcel was collected rather than delivered. ok is false when no cell
+// would lie between the two ends.
+func returnPeriod(ctx context.Context, received, lastDay, goodwillEnd, today shoptime.Date, pickup bool) (widget.PeriodSpec, bool) {
+	total := shoptime.DaysBetween(received, goodwillEnd)
+	mark := shoptime.DaysBetween(received, lastDay) - 1
+	if total < 1 || total > widget.MaxPeriodCells || mark < 0 || mark >= total {
+		return widget.PeriodSpec{}, false
+	}
+	// The first cell is the day after receipt, so today is the cell before it on the day of receipt.
+	at := shoptime.DaysBetween(received, today) - 1
+
+	cells := make([]widget.PeriodCell, total)
+	for i := range cells {
+		switch {
+		case i < at:
+			cells[i].State = widget.CellPast
+		case i == at:
+			cells[i].State = widget.CellToday
+		}
+		cells[i].Extra = i > mark
+	}
+	cells[mark].Mark = true
+	cells[0].Label = shoptime.DateLabel(ctx, received.AddDays(1))
+	cells[mark].Label = shoptime.DateLabel(ctx, lastDay)
+	cells[total-1].Label = shoptime.DateLabel(ctx, goodwillEnd)
+
+	receipt := i18n.KeyOrderReceivedOn
+	if pickup {
+		receipt = i18n.KeyOrderCollectedOn
+	}
+	got, last, end := fmt.Sprintf(i18n.T(ctx, receipt), shoptime.DateText(ctx, received)), shoptime.DateText(ctx, lastDay), shoptime.DateText(ctx, goodwillEnd)
+	var description string
+	switch left := shoptime.DaysBetween(today, lastDay); {
+	case at < 0:
+		description = fmt.Sprintf(i18n.T(ctx, i18n.KeyPeriodReturnStarts), got, last, end)
+	case left > 0:
+		description = i18n.Count(ctx, i18n.KeyPeriodReturnRunning, int64(left), got, last, end, shoptime.DateText(ctx, today), at+1, left)
+	case left == 0:
+		description = fmt.Sprintf(i18n.T(ctx, i18n.KeyPeriodReturnLastDay), got, last, end)
+	case at < total:
+		description = fmt.Sprintf(i18n.T(ctx, i18n.KeyPeriodReturnGoodwill), got, last, end)
+	default:
+		description = fmt.Sprintf(i18n.T(ctx, i18n.KeyPeriodReturnOver), got, last, end)
+	}
+	return widget.PeriodSpec{
+		Cells:        cells,
+		Description:  description,
+		TodayLabel:   i18n.T(ctx, i18n.KeyPeriodToday),
+		TodayAtStart: at < 0,
+	}, true
 }
 
 // ReturnPending is what a parcel that has not arrived says in place of dates.
