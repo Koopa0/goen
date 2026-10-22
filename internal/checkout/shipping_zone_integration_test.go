@@ -90,7 +90,7 @@ func TestAnOrderIsChargedTheZoneItShipsTo(t *testing.T) {
 		PostalCode: "890", City: "金門縣", District: "金城鎮", Street: "民生路 1 號",
 	}
 	number, err := placeOrder(t, s, ctx, id, uuid.NullUUID{},
-		shipVersionFor(t, "home_delivery"), addr, "", "zone-order-1")
+		shipVersionFor(t, "home_delivery"), addr, "", "zone-order-"+uuid.NewString())
 	if err != nil {
 		t.Fatalf("place: %v", err)
 	}
@@ -141,7 +141,7 @@ func TestAFreeShippingCouponDoesNotPayForTheCrossing(t *testing.T) {
 			shipVersionFor(t, "home_delivery"), &delivery.Details{
 				Email: "ship@example.com", RecipientName: "測試", Phone: "0912345678",
 				PostalCode: postal, City: city, District: district, Street: "路 1 號",
-			}, "FREESHIPZONE", key)
+			}, "FREESHIPZONE", key+"-"+uuid.NewString())
 		if err != nil {
 			t.Fatalf("place: %v", err)
 		}

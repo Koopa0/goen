@@ -30,7 +30,7 @@ func TestTheConfirmationMessageCommitsWithTheOrder(t *testing.T) {
 	if err := s.Carts().Add(ctx, id, vid, 1); err != nil {
 		t.Fatalf("add: %v", err)
 	}
-	number, err := placeOrder(t, s, ctx, id, uuid.NullUUID{}, shipID, addr, "", "outbox-ok")
+	number, err := placeOrder(t, s, ctx, id, uuid.NullUUID{}, shipID, addr, "", "outbox-ok-"+uuid.NewString())
 	if err != nil {
 		t.Fatalf("place: %v", err)
 	}
@@ -53,7 +53,7 @@ func TestTheConfirmationMessageCommitsWithTheOrder(t *testing.T) {
 	}
 	if _, err := s.PlaceOrder(
 		ctx, failed, uuid.NullUUID{}, uuid.New(), addr, nil, "", checkout.QuoteID{},
-		checkoutAttemptKey("outbox-fail"),
+		checkoutAttemptKey("outbox-fail-"+uuid.NewString()),
 	); err == nil {
 		t.Fatal("a fabricated shipping version was accepted")
 	}
