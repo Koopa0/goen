@@ -7,7 +7,9 @@ var (
 
 	KeyChartToday = key("chart.today", Message{ZhHant: "今天", En: "Today"})
 
-	// A day on an axis; same arguments as KeyAdminRepDay.
+	// A day as a chart writes it (chart.DayLabel), on its axis and in the
+	// sentences a page writes about it: %[1]s is the month's English
+	// abbreviation, %[2]d its number, %[3]d the day.
 	KeyChartAxisDay = key("chart.axis.day", Message{ZhHant: "%[2]d/%[3]d", En: "%[1]s %[3]d"})
 
 	// A campaign's name on a strip that runs past the last day drawn:

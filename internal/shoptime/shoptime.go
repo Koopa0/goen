@@ -56,6 +56,12 @@ func QueryDate(t time.Time) time.Time {
 	return time.Date(y, m, d, 0, 0, 0, 0, time.UTC)
 }
 
+// ColumnDate is the Date a date column holds: t's own calendar fields, never
+// moved to the shop's zone; QueryDate's inverse.
+func ColumnDate(t time.Time) Date {
+	return Date{Year: t.Year(), Month: t.Month(), Day: t.Day()}
+}
+
 // DayIf is Day for a timestamp that may be absent, as a nullable column is: the
 // empty string when it is.
 func DayIf(t time.Time, present bool) string {
