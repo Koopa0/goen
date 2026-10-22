@@ -148,7 +148,9 @@ func pointsContent(n *html.Node) string {
 	return strings.Join(strings.Fields(b.String()), " ")
 }
 
-func TestPointsRedemptionShowsOnlyTheConfirmedCreditAndReplaysOnce(t *testing.T) {
+// TestHandler_RedeemConfirmedOnce: a points redemption shows only the confirmed
+// credit and replays once.
+func TestHandler_RedeemConfirmedOnce(t *testing.T) {
 	application := pointsStorePool(t)
 	for _, tt := range []struct {
 		locale i18n.Locale
@@ -199,7 +201,9 @@ func TestPointsRedemptionShowsOnlyTheConfirmedCreditAndReplaysOnce(t *testing.T)
 	}
 }
 
-func TestPointsFormRefusalsKeepTheDraftWithoutAnyMoneyEffectAndRecover(t *testing.T) {
+// TestHandler_RedeemRefusalKeepsDraft: points form refusals keep the draft
+// without any money effect, and the form recovers.
+func TestHandler_RedeemRefusalKeepsDraft(t *testing.T) {
 	application := pointsStorePool(t)
 	for _, locale := range i18n.Locales() {
 		for _, tt := range []struct {
@@ -264,7 +268,9 @@ func TestPointsFormRefusalsKeepTheDraftWithoutAnyMoneyEffectAndRecover(t *testin
 	}
 }
 
-func TestPointsBackendFailureMakesNoConfirmationOrNoDebitClaim(t *testing.T) {
+// TestHandler_RedeemBackendFailure: a backend failure makes neither a
+// confirmation claim nor a no-debit claim.
+func TestHandler_RedeemBackendFailure(t *testing.T) {
 	application := pointsStorePool(t)
 	failed := pointsStorePool(t)
 	owner, accountID := customer(t, 200)
@@ -281,9 +287,12 @@ func TestPointsBackendFailureMakesNoConfirmationOrNoDebitClaim(t *testing.T) {
 	}
 }
 
+// TestHandler_RedeemUserWithoutAccount: a points redemption by a customer
+// without an account is a short balance and leaves no operation claim.
+//
 // The database refuses these three for reasons a customer or a retried form can
 // cause. None is a server fault, and none may leave a claim or a spend behind.
-func TestPointsRedemptionOfACustomerWithoutAnAccountIsAShortBalance(t *testing.T) {
+func TestHandler_RedeemUserWithoutAccount(t *testing.T) {
 	application := pointsStorePool(t)
 	var owner uuid.UUID
 	if err := pool.QueryRow(t.Context(), `
@@ -333,7 +342,9 @@ func requireFormRefusal(t *testing.T, res *httptest.ResponseRecorder) {
 	}
 }
 
-func TestPointsRedemptionRefusesAnotherCustomersOperationInTheForm(t *testing.T) {
+// TestHandler_RedeemForeignOperation: a points redemption refuses another
+// customer's operation identity in the form.
+func TestHandler_RedeemForeignOperation(t *testing.T) {
 	application := pointsStorePool(t)
 	_, owner, ownerAccount, operation, points := redeemedOnce(t, application)
 	other, otherAccount := customer(t, 200)
@@ -345,7 +356,9 @@ func TestPointsRedemptionRefusesAnotherCustomersOperationInTheForm(t *testing.T)
 	requirePointsEffects(t, owner, ownerAccount, pointsEffects{Balance: 100, Operations: 1, Spent: -100, Credit: 1000})
 }
 
-func TestPointsRedemptionRefusesAReplayWithOtherPointsInTheFormAndKeepsTheReplay(t *testing.T) {
+// TestHandler_RedeemReplayOtherPoints: a points redemption refuses a replay
+// with other points in the form and keeps the exact replay working.
+func TestHandler_RedeemReplayOtherPoints(t *testing.T) {
 	application := pointsStorePool(t)
 	journey, owner, account, operation, _ := redeemedOnce(t, application)
 	spent := pointsEffects{Balance: 100, Operations: 1, Spent: -100, Credit: 1000}

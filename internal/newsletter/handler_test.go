@@ -21,7 +21,9 @@ import (
 	"github.com/koopa0/goen/internal/web/ratelimit"
 )
 
-func TestSecretBearingNewsletterPagesAreNotCompressed(t *testing.T) {
+// TestHandler_PagesNotCompressed: secret-bearing newsletter pages are not
+// compressed.
+func TestHandler_PagesNotCompressed(t *testing.T) {
 	h := &Handler{log: slog.New(slog.DiscardHandler)}
 	const token = "newsletter-token-that-must-stay-uncompressed"
 	tests := []struct {
@@ -56,7 +58,9 @@ func TestSecretBearingNewsletterPagesAreNotCompressed(t *testing.T) {
 	}
 }
 
-func TestHTMXOverLimitKeepsTheFooterForm(t *testing.T) {
+// TestHandler_SubmitHTMXOverLimit: an HTMX submission over the limit keeps the
+// footer form.
+func TestHandler_SubmitHTMXOverLimit(t *testing.T) {
 	const addr = "me@example.com"
 	tests := []struct {
 		name  string
@@ -117,7 +121,9 @@ func TestHTMXOverLimitKeepsTheFooterForm(t *testing.T) {
 	}
 }
 
-func TestPlainOverLimitIsStillText(t *testing.T) {
+// TestHandler_SubmitPlainOverLimit: a plain submission over the limit is still
+// a text refusal.
+func TestHandler_SubmitPlainOverLimit(t *testing.T) {
 	limit := ratelimit.New(ratelimit.Config{
 		Every: time.Hour, Burst: 1, TTL: time.Hour, MaxKeys: 8,
 	})
@@ -164,7 +170,9 @@ func assertRetryAfter(t *testing.T, res *httptest.ResponseRecorder) {
 	}
 }
 
-func TestInvalidUnsubscribeOffersTheOwnedMailbox(t *testing.T) {
+// TestHandler_UnsubscribeInvalid: an invalid unsubscribe link offers the owned
+// mailbox.
+func TestHandler_UnsubscribeInvalid(t *testing.T) {
 	h := &Handler{store: &Store{}, log: slog.New(slog.DiscardHandler)}
 	for _, locale := range []i18n.Locale{i18n.ZhHant, i18n.En} {
 		t.Run(string(locale), func(t *testing.T) {
@@ -186,9 +194,11 @@ func TestInvalidUnsubscribeOffersTheOwnedMailbox(t *testing.T) {
 	}
 }
 
+// TestHandler_SubmitIPv6Slash64: the newsletter limit covers a whole IPv6 /64.
+//
 // An IPv6 sender chooses the low 64 bits of its address freely, so a limit
 // keyed on the whole address is no limit.
-func TestTheNewsletterLimitCoversAWholeIPv6Slash64(t *testing.T) {
+func TestHandler_SubmitIPv6Slash64(t *testing.T) {
 	limit := ratelimit.New(ratelimit.Config{
 		Every: time.Hour, Burst: 1, TTL: time.Hour, MaxKeys: 8,
 	})
@@ -216,7 +226,8 @@ func TestTheNewsletterLimitCoversAWholeIPv6Slash64(t *testing.T) {
 	}
 }
 
-func TestRefusedAddressesRenderTheirMessage(t *testing.T) {
+// TestHandler_SubmitRefusedAddress: refused addresses render their message.
+func TestHandler_SubmitRefusedAddress(t *testing.T) {
 	for _, locale := range []i18n.Locale{i18n.ZhHant, i18n.En} {
 		t.Run(string(locale), func(t *testing.T) {
 			ctx := i18n.WithLocale(t.Context(), locale)
@@ -272,7 +283,9 @@ func TestRefusedAddressesRenderTheirMessage(t *testing.T) {
 	}
 }
 
-func TestNewsletterFailuresDoNotRefuseTheAddress(t *testing.T) {
+// TestHandler_FailureNotRefusal: newsletter failures (storage and throttle) do
+// not refuse the address.
+func TestHandler_FailureNotRefusal(t *testing.T) {
 	for _, locale := range []i18n.Locale{i18n.ZhHant, i18n.En} {
 		for _, tt := range []struct {
 			name   string
@@ -415,7 +428,9 @@ func newsletterDisplayedMessageCount(t *testing.T, body, message string) int {
 	return count
 }
 
-func TestConfirmationAcknowledgementsAreSafeToRefresh(t *testing.T) {
+// TestHandler_AcknowledgementRefresh: confirmation acknowledgements are safe to
+// refresh.
+func TestHandler_AcknowledgementRefresh(t *testing.T) {
 	h := &Handler{log: slog.New(slog.DiscardHandler)}
 	tests := []struct {
 		name    string
@@ -481,7 +496,9 @@ func TestConfirmationAcknowledgementsAreSafeToRefresh(t *testing.T) {
 	}
 }
 
-func TestMissingEmailedNewsletterLinksOfferRecovery(t *testing.T) {
+// TestHandler_MissingLinkRecovery: a missing emailed newsletter link offers
+// recovery.
+func TestHandler_MissingLinkRecovery(t *testing.T) {
 	h := &Handler{log: slog.New(slog.DiscardHandler)}
 	for _, locale := range i18n.Locales() {
 		for _, tt := range []struct {
@@ -514,7 +531,9 @@ func TestMissingEmailedNewsletterLinksOfferRecovery(t *testing.T) {
 	}
 }
 
-func TestNewsletterInfrastructureFailuresKeepTheirOwnState(t *testing.T) {
+// TestHandler_LinkFailedState: newsletter infrastructure failures keep their
+// own state and do not claim that the emailed link is dead.
+func TestHandler_LinkFailedState(t *testing.T) {
 	h := &Handler{log: slog.New(slog.DiscardHandler)}
 	for _, locale := range i18n.Locales() {
 		t.Run(locale.Tag(), func(t *testing.T) {
@@ -533,7 +552,8 @@ func TestNewsletterInfrastructureFailuresKeepTheirOwnState(t *testing.T) {
 	}
 }
 
-func TestInvalidNewsletterConfirmationOffersSignup(t *testing.T) {
+// TestHandler_ConfirmInvalid: an invalid newsletter confirmation offers signup.
+func TestHandler_ConfirmInvalid(t *testing.T) {
 	h := &Handler{store: &Store{}, log: slog.New(slog.DiscardHandler)}
 	for _, locale := range i18n.Locales() {
 		t.Run(locale.Tag(), func(t *testing.T) {

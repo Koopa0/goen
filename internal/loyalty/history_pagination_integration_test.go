@@ -20,7 +20,9 @@ import (
 	"github.com/koopa0/goen/internal/user"
 )
 
-func TestPointsPaginationKeepsWholeSpendsAndOlderClawbacksReachable(t *testing.T) {
+// TestStore_HistoryGroupsPaginate: points pagination keeps whole spends
+// together and keeps older clawbacks reachable.
+func TestStore_HistoryGroupsPaginate(t *testing.T) {
 	userID, accountID := customer(t, 0)
 	orderID := orderFor(t, userID, 10000)
 	ctx := user.NewContext(i18n.WithLocale(t.Context(), i18n.En), user.User{ID: userID})
@@ -131,10 +133,13 @@ func assertHistoryCursorSurvivesInsertion(t *testing.T, s *loyalty.Store, userID
 	}
 }
 
+// TestStore_HistoryForeignToken: a foreign points token never shows another
+// account's entries.
+//
 // A position token carries only ordering values; whose entries are read comes
-// from the signed-in user. A token minted for someone else, or for another list,
-// must never surface the other account's entries.
-func TestAForeignPointsTokenNeverShowsAnotherAccountsEntries(t *testing.T) {
+// from the signed-in user. A token minted for someone else, or for another
+// list, must never surface the other account's entries.
+func TestStore_HistoryForeignToken(t *testing.T) {
 	ownerID, ownerAccount := customer(t, 0)
 	otherID, otherAccount := customer(t, 0)
 	ctx := i18n.WithLocale(t.Context(), i18n.En)

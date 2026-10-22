@@ -9,7 +9,9 @@ import (
 	"github.com/koopa0/goen/internal/ui/frame"
 )
 
-func TestThePointsPageSaysWhatExpiresAndWhatDoesNot(t *testing.T) {
+// TestPointsExpiryTerms: the points page states the expiry rule: what expires
+// and what does not.
+func TestPointsExpiryTerms(t *testing.T) {
 	t.Parallel()
 	for _, loc := range []i18n.Locale{i18n.ZhHant, i18n.En} {
 		ctx := i18n.WithLocale(t.Context(), loc)

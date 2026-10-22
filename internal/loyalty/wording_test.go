@@ -8,7 +8,8 @@ import (
 	"github.com/koopa0/goen/internal/ui/frame"
 )
 
-func TestThePointsRuleNamesTheStepInPoints(t *testing.T) {
+// TestPointsRuleStepInPoints: the points rule names the step in points.
+func TestPointsRuleStepInPoints(t *testing.T) {
 	t.Parallel()
 	for loc, want := range map[i18n.Locale]string{
 		i18n.ZhHant: "最少 20 點，每次以 10 點為單位兌換",

@@ -7,10 +7,13 @@ import (
 	"github.com/koopa0/goen/internal/newsletter"
 )
 
+// TestStore_RequestRefusalNoAddress: a request refusal does not carry the
+// address.
+//
 // The error of a refused request is logged by the handler. It names the step
 // and never echoes the address the visitor typed, which may be a real one with
 // a slip in it.
-func TestRequestRefusalDoesNotCarryTheAddress(t *testing.T) {
+func TestStore_RequestRefusalNoAddress(t *testing.T) {
 	t.Parallel()
 	const typed = "jane.doe.private@@example.test"
 	// A zero Store is enough: the address is judged before the database is.

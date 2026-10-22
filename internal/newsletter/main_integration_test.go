@@ -106,7 +106,9 @@ func tokenFor(t *testing.T, topic, email, field string) string {
 	return token
 }
 
-func TestAnAddressIsNotOnTheListUntilItSaysSo(t *testing.T) {
+// TestStore_ConfirmDoubleOptIn: an address is not on the list until its mailbox
+// says so.
+func TestStore_ConfirmDoubleOptIn(t *testing.T) {
 	t.Parallel()
 	s, email := store(t), addr(t)
 
@@ -139,7 +141,9 @@ func TestAnAddressIsNotOnTheListUntilItSaysSo(t *testing.T) {
 	}
 }
 
-func TestTheConfirmationLinkIsSpentByTheStatement(t *testing.T) {
+// TestStore_ConfirmSpentOnce: the confirmation link is spent by the statement
+// that confirms.
+func TestStore_ConfirmSpentOnce(t *testing.T) {
 	t.Parallel()
 	s, email := store(t), addr(t)
 
@@ -156,9 +160,11 @@ func TestTheConfirmationLinkIsSpentByTheStatement(t *testing.T) {
 	}
 }
 
-// TestAnExpiredConfirmationIsRefused judges the window by the clock that wrote
+// TestStore_ConfirmExpired: an expired confirmation is refused.
+//
+// TestStore_ConfirmExpired judges the window by the clock that wrote
 // expires_at.
-func TestAnExpiredConfirmationIsRefused(t *testing.T) {
+func TestStore_ConfirmExpired(t *testing.T) {
 	t.Parallel()
 	s, email := store(t), addr(t)
 
@@ -184,7 +190,9 @@ func TestAnExpiredConfirmationIsRefused(t *testing.T) {
 	}
 }
 
-func TestASecondSubmissionDoesNotMailAnActiveSubscriber(t *testing.T) {
+// TestStore_RequestActiveSubscriber: a second submission does not mail an
+// active subscriber.
+func TestStore_RequestActiveSubscriber(t *testing.T) {
 	t.Parallel()
 	s, email := store(t), addr(t)
 
@@ -211,7 +219,8 @@ func TestASecondSubmissionDoesNotMailAnActiveSubscriber(t *testing.T) {
 	}
 }
 
-func TestOneMailboxHoldsOneLiveLink(t *testing.T) {
+// TestStore_RequestOneLiveLink: one mailbox holds one live link, the newest.
+func TestStore_RequestOneLiveLink(t *testing.T) {
 	t.Parallel()
 	s, email := store(t), addr(t)
 
@@ -236,7 +245,9 @@ func TestOneMailboxHoldsOneLiveLink(t *testing.T) {
 	}
 }
 
-func TestUnsubscribingIsIdempotent(t *testing.T) {
+// TestStore_UnsubscribeIdempotent: unsubscribing is idempotent and keeps the
+// first opt-out time.
+func TestStore_UnsubscribeIdempotent(t *testing.T) {
 	t.Parallel()
 	s, email := store(t), addr(t)
 
@@ -290,7 +301,8 @@ func TestUnsubscribingIsIdempotent(t *testing.T) {
 	}
 }
 
-func TestAnUnknownUnsubscribeTokenIsRefused(t *testing.T) {
+// TestStore_UnsubscribeUnknownToken: an unknown unsubscribe token is refused.
+func TestStore_UnsubscribeUnknownToken(t *testing.T) {
 	t.Parallel()
 	s := store(t)
 
@@ -300,7 +312,9 @@ func TestAnUnknownUnsubscribeTokenIsRefused(t *testing.T) {
 	}
 }
 
-func TestReSubscribingAfterOptingOutNeedsTheMailboxAgain(t *testing.T) {
+// TestStore_RequestResubscribe: re-subscribing after opting out needs the
+// mailbox again.
+func TestStore_RequestResubscribe(t *testing.T) {
 	t.Parallel()
 	s, email := store(t), addr(t)
 
@@ -336,7 +350,9 @@ func TestReSubscribingAfterOptingOutNeedsTheMailboxAgain(t *testing.T) {
 	}
 }
 
-func TestTheWelcomeMailCarriesAWorkingUnsubscribeLink(t *testing.T) {
+// TestStore_ConfirmWelcomeToken: the welcome mail carries a working unsubscribe
+// link.
+func TestStore_ConfirmWelcomeToken(t *testing.T) {
 	t.Parallel()
 	s, email := store(t), addr(t)
 
@@ -360,9 +376,11 @@ func TestTheWelcomeMailCarriesAWorkingUnsubscribeLink(t *testing.T) {
 	}
 }
 
-// TestARefusedRequestMailsNothing is scoped to ONE address, because a global
-// count in a parallel suite is order-dependent.
-func TestARefusedRequestMailsNothing(t *testing.T) {
+// TestStore_RequestRefusedMailsNothing: a refused request mails nothing.
+//
+// TestStore_RequestRefusedMailsNothing is scoped to ONE address, because a
+// global count in a parallel suite is order-dependent.
+func TestStore_RequestRefusedMailsNothing(t *testing.T) {
 	t.Parallel()
 	s := store(t)
 
@@ -374,9 +392,12 @@ func TestARefusedRequestMailsNothing(t *testing.T) {
 	}
 }
 
-// TestErasureTakesTheAddressOffTheList: the newsletter keys on the ADDRESS, so
-// no cascade off the user row reaches it.
-func TestErasureTakesTheAddressOffTheList(t *testing.T) {
+// TestEraseUserNewsletterList: erasure takes the address off the newsletter
+// list and drops its pending confirmation.
+//
+// The newsletter keys on the ADDRESS, so no cascade off the user row reaches
+// it.
+func TestEraseUserNewsletterList(t *testing.T) {
 	t.Parallel()
 	s := store(t)
 	email := addr(t)
@@ -414,9 +435,12 @@ func TestErasureTakesTheAddressOffTheList(t *testing.T) {
 	}
 }
 
-// TestTheAppCannotDeleteASubscriber proves the suppression record is not a
+// TestNewsletterSubscribersNoDelete: the app cannot delete a subscriber: role
+// store has no DELETE on newsletter_subscribers.
+//
+// TestNewsletterSubscribersNoDelete proves the suppression record is not a
 // handler's to remove: erase_user is the one door.
-func TestTheAppCannotDeleteASubscriber(t *testing.T) {
+func TestNewsletterSubscribersNoDelete(t *testing.T) {
 	t.Parallel()
 	email := addr(t)
 
@@ -443,9 +467,12 @@ func TestTheAppCannotDeleteASubscriber(t *testing.T) {
 	}
 }
 
-// TestTheShopCannotAddToItsOwnList is what double opt-in MEANS at the privilege
-// layer: admin holds SELECT and nothing else.
-func TestTheShopCannotAddToItsOwnList(t *testing.T) {
+// TestNewsletterTablesAdminReadOnly: the shop cannot add to its own list: role
+// admin holds only SELECT on the newsletter tables.
+//
+// TestNewsletterTablesAdminReadOnly is what double opt-in MEANS at the
+// privilege layer: admin holds SELECT and nothing else.
+func TestNewsletterTablesAdminReadOnly(t *testing.T) {
 	t.Parallel()
 
 	tx, err := pool.Begin(t.Context())
@@ -480,12 +507,15 @@ func TestTheShopCannotAddToItsOwnList(t *testing.T) {
 	}
 }
 
-// TestAnUnsubscribeAfterTheSendIsHonouredAtDelivery re-reads consent at
-// delivery. Send freezes the recipient list into one outbox row per subscriber,
-// and an issue goes out at BulkPriority behind every transactional message,
-// eight at a time on a five-second tick — so the window between enqueue and
-// delivery is minutes to hours.
-func TestAnUnsubscribeAfterTheSendIsHonouredAtDelivery(t *testing.T) {
+// TestStore_StillSubscribedAfterOptOut: an unsubscribe after the send is
+// honoured at delivery.
+//
+// TestStore_StillSubscribedAfterOptOut re-reads consent at delivery. Send
+// freezes the recipient list into one outbox row per subscriber, and an issue
+// goes out at BulkPriority behind every transactional message, eight at a time
+// on a five-second tick — so the window between enqueue and delivery is minutes
+// to hours.
+func TestStore_StillSubscribedAfterOptOut(t *testing.T) {
 	ctx := t.Context()
 	s := newsletter.NewStore(pool)
 
@@ -526,7 +556,9 @@ func TestAnUnsubscribeAfterTheSendIsHonouredAtDelivery(t *testing.T) {
 	}
 }
 
-func TestNewsletterSuccessfulPostsRedirectBeforeRefresh(t *testing.T) {
+// TestHandler_PostRedirectsBeforeRefresh: successful newsletter confirm and
+// unsubscribe POSTs redirect before a refresh can repeat them.
+func TestHandler_PostRedirectsBeforeRefresh(t *testing.T) {
 	for _, locale := range []i18n.Locale{i18n.En, i18n.ZhHant} {
 		for _, operation := range []string{"confirm", "unsubscribe"} {
 			t.Run(string(locale)+"/"+operation, func(t *testing.T) {
@@ -684,7 +716,8 @@ func TestNewsletterSuccessfulPostsRedirectBeforeRefresh(t *testing.T) {
 	}
 }
 
-func TestDeadNewsletterLinksOfferRecovery(t *testing.T) {
+// TestHandler_DeadLinkRecovery: dead newsletter links offer recovery.
+func TestHandler_DeadLinkRecovery(t *testing.T) {
 	for _, locale := range i18n.Locales() {
 		for _, state := range []string{"expired-confirm", "spent-confirm", "unknown-unsubscribe"} {
 			t.Run(locale.Tag()+"/"+state, func(t *testing.T) {
