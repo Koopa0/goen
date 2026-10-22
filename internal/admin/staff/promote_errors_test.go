@@ -38,10 +38,11 @@ type failedRow struct{ err error }
 
 func (r failedRow) Scan(...any) error { return r.err }
 
+// TestPromoteStaffErrorsOmitAddress: AddStaff's database errors do not carry the address.
 // The staff handler logs what AddStaff returns at ERROR. A database that is
 // failing must not put the new colleague's address there; the audit rows
 // already keep ids and not addresses (#1897).
-func TestAddStaffDatabaseErrorsDoNotCarryTheAddress(t *testing.T) {
+func TestPromoteStaffErrorsOmitAddress(t *testing.T) {
 	t.Parallel()
 	const address = "new.colleague.private@example.test"
 	cause := errors.New("connection reset by peer")

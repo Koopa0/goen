@@ -15,7 +15,8 @@ import (
 	"github.com/koopa0/goen/internal/i18n"
 )
 
-func TestACampaignsDatesAndStateAreEditedOnItsOwnPage(t *testing.T) {
+// TestStore_SetWindowEdits: a campaign's dates and state are edited on its own page.
+func TestStore_SetWindowEdits(t *testing.T) {
 	ctx, _ := admintest.StaffContext(t, pool)
 	s := campaigns.NewStore(pool)
 	slug := admintest.CampaignSlug(t)
@@ -53,7 +54,8 @@ func TestACampaignsDatesAndStateAreEditedOnItsOwnPage(t *testing.T) {
 	}
 }
 
-func TestEditingACampaignsDatesRecordsTheOldAndTheNewOnes(t *testing.T) {
+// TestStore_SetWindowAudited: editing a campaign's dates records the old and the new ones.
+func TestStore_SetWindowAudited(t *testing.T) {
 	ctx, actor := admintest.StaffContext(t, pool)
 	s := campaigns.NewStore(pool)
 	slug := admintest.CampaignSlug(t)

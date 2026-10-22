@@ -15,7 +15,8 @@ import (
 	"github.com/koopa0/goen/internal/i18n"
 )
 
-func TestCampaignEnglishTitleReachesStorefront(t *testing.T) {
+// TestHandler_CreateEnglishTitle: campaign English title reaches storefront.
+func TestHandler_CreateEnglishTitle(t *testing.T) {
 	for _, titleEn := range []string{"Summer selection", ""} {
 		ctx, _ := admintest.StaffContext(t, pool)
 		store := campaigns.NewStore(pool)
@@ -49,7 +50,8 @@ func TestCampaignEnglishTitleReachesStorefront(t *testing.T) {
 	}
 }
 
-func TestCampaignEnglishTitleRefusalPreservesDraft(t *testing.T) {
+// TestHandler_CreateEnglishTitleRefused: campaign English title refusal preserves draft.
+func TestHandler_CreateEnglishTitleRefused(t *testing.T) {
 	ctx, _ := admintest.StaffContext(t, pool)
 	handler := handlerOver(campaigns.NewStore(pool))
 	title := strings.Repeat("e", 61)

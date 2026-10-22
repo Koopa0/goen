@@ -54,9 +54,10 @@ func queuePages(b keyset.Bound, ctx func(k i18n.Key) string) map[string]struct {
 	}
 }
 
+// TestAuditFirstPageEmpty: every queue keeps its own first page empty state.
 // A queue with nothing in it on its first page says what that means for that
 // queue; the generic "no entries on this page" is only for a later page.
-func TestEveryQueueKeepsItsOwnFirstPageEmptyState(t *testing.T) {
+func TestAuditFirstPageEmpty(t *testing.T) {
 	t.Parallel()
 	ctx := func(k i18n.Key) string { return i18n.T(i18n.WithLocale(t.Context(), i18n.En), k) }
 	generic := ctx(i18n.KeyPageEmpty)
@@ -74,8 +75,9 @@ func TestEveryQueueKeepsItsOwnFirstPageEmptyState(t *testing.T) {
 	}
 }
 
+// TestAuditFullPageOffersNext: every queue with more rows offers next.
 // A full first page points at the next one.
-func TestEveryQueueWithMoreRowsOffersNext(t *testing.T) {
+func TestAuditFullPageOffersNext(t *testing.T) {
 	t.Parallel()
 	ctx := func(k i18n.Key) string { return i18n.T(i18n.WithLocale(t.Context(), i18n.En), k) }
 	for name, c := range queuePages(fullPageBound("/admin/queue"), ctx) {

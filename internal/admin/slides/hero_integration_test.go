@@ -12,9 +12,11 @@ import (
 	"github.com/koopa0/goen/internal/admin/slides"
 )
 
-// TestTwoConcurrentHeroSlidesTakeDistinctPositions proves the advisory lock is in
+// TestStore_CreateHeroSlideConcurrent: two concurrent hero slides take distinct positions.
+//
+// It proves the advisory lock is in
 // the statement: without it hero_slides_position_key refuses the loser.
-func TestTwoConcurrentHeroSlidesTakeDistinctPositions(t *testing.T) {
+func TestStore_CreateHeroSlideConcurrent(t *testing.T) {
 	ctx, _ := admintest.StaffContext(t, pool)
 	t.Cleanup(func() {
 		//nolint:usetesting // t.Context is already cancelled in Cleanup
@@ -82,11 +84,13 @@ func TestTwoConcurrentHeroSlidesTakeDistinctPositions(t *testing.T) {
 	}
 }
 
-// TestABlankHeroTranslationFallsBackToTheChinese proves the desk and the
+// TestStore_CreateHeroSlideBlankEnglish: a blank hero translation falls back to the Chinese.
+//
+// It proves the desk and the
 // hero_slides *_en_present CHECKs agree: English copy typed as spaces is
 // stored as NULL, which localized_name reads as "not translated", rather
 // than refused by the database or stored as an empty line.
-func TestABlankHeroTranslationFallsBackToTheChinese(t *testing.T) {
+func TestStore_CreateHeroSlideBlankEnglish(t *testing.T) {
 	ctx, _ := admintest.StaffContext(t, pool)
 	const headline = "譯文留白的主視覺"
 	t.Cleanup(func() {

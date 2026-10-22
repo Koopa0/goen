@@ -20,7 +20,8 @@ import (
 	"github.com/koopa0/goen/internal/user"
 )
 
-func TestExistingStaffDatabaseConstraint(t *testing.T) {
+// TestUpsertStaffExisting: the upsert_staff database function refuses an existing staff account with users_staff_already_exists.
+func TestUpsertStaffExisting(t *testing.T) {
 	adminPool := rolePool(t, "duplicate-staff-constraint", "admin")
 	for _, existingRole := range []string{"staff", "admin"} {
 		for _, requestedRole := range []string{"staff", "admin"} {
@@ -43,7 +44,8 @@ func TestExistingStaffDatabaseConstraint(t *testing.T) {
 	}
 }
 
-func TestAddingExistingStaffPreservesTheirAccount(t *testing.T) {
+// TestStore_AddStaffExisting: adding existing staff preserves their account.
+func TestStore_AddStaffExisting(t *testing.T) {
 	actor, _ := admintest.AdminUser(t, pool)
 	s := staff.NewStore(rolePool(t, "duplicate-staff", "admin"))
 	for _, existingRole := range []string{"staff", "admin"} {
@@ -86,7 +88,8 @@ func TestAddingExistingStaffPreservesTheirAccount(t *testing.T) {
 	}
 }
 
-func TestConcurrentStaffAddsGrantOnce(t *testing.T) {
+// TestStore_AddStaffConcurrent: concurrent staff adds grant once.
+func TestStore_AddStaffConcurrent(t *testing.T) {
 	actor, _ := admintest.AdminUser(t, pool)
 	address := "concurrent-add-" + uuid.NewString() + "@goen.invalid"
 	stores := []*staff.Store{
@@ -124,7 +127,8 @@ func TestConcurrentStaffAddsGrantOnce(t *testing.T) {
 	}
 }
 
-func TestDuplicateStaffFormRetainsInputAndExplainsRefusal(t *testing.T) {
+// TestHandler_AddDuplicate: a duplicate staff form retains its input and explains the refusal.
+func TestHandler_AddDuplicate(t *testing.T) {
 	actor, actorEmail := admintest.AdminUser(t, pool)
 	_, address := admintest.AdminUser(t, pool)
 	h := staff.NewHandler(staff.NewStore(rolePool(t, "duplicate-staff-form", "admin")),

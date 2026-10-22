@@ -10,7 +10,8 @@ import (
 	"github.com/koopa0/goen/internal/ui/uitest"
 )
 
-func TestCampaignEditorReflowsInBothLanguages(t *testing.T) {
+// TestCampaignFormReflow: campaign editor reflows in both languages.
+func TestCampaignFormReflow(t *testing.T) {
 	_, debuggingPort := uitest.Browser(t, "CDP_PORT")
 	fixtures := t.TempDir()
 	view := CampaignView{

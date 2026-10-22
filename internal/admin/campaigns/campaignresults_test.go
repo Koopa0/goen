@@ -34,7 +34,8 @@ func renderResults(t *testing.T, locale i18n.Locale, v *CampaignView) string {
 	return b.String()
 }
 
-func TestCampaignResultsAreDrawnFromThreeDaysAndTenUnitsBeforeAndDuring(t *testing.T) {
+// TestCampaignResults_Drawn: campaign results are drawn from three days and ten units before and during.
+func TestCampaignResults_Drawn(t *testing.T) {
 	t.Parallel()
 
 	tests := []struct {
@@ -58,7 +59,8 @@ func TestCampaignResultsAreDrawnFromThreeDaysAndTenUnitsBeforeAndDuring(t *testi
 	}
 }
 
-func TestCampaignResultsSentencesCountBeforeAndDuringEachInItsOwnPlural(t *testing.T) {
+// TestCampaignResults_FactsPlurals: campaign results sentences count before and during each in its own plural.
+func TestCampaignResults_FactsPlurals(t *testing.T) {
 	t.Parallel()
 
 	ctx := i18n.WithLocale(t.Context(), i18n.En)
@@ -81,7 +83,8 @@ func TestCampaignResultsSentencesCountBeforeAndDuringEachInItsOwnPlural(t *testi
 	}
 }
 
-func TestCampaignPageDrawsTheDaysOrSaysThemInASentence(t *testing.T) {
+// TestCampaignFormResultsChart: campaign page draws the days or says them in a sentence.
+func TestCampaignFormResultsChart(t *testing.T) {
 	t.Parallel()
 
 	drawn := renderResults(t, i18n.En, &CampaignView{Slug: "autumn", Results: results(3, 1, 1, 1, 2, 2, 3)})
@@ -119,7 +122,8 @@ func TestCampaignPageDrawsTheDaysOrSaysThemInASentence(t *testing.T) {
 	}
 }
 
-func TestCampaignResultsNoteSaysWhatIsCountedAndUpToWhenTodayIsGoing(t *testing.T) {
+// TestCampaignResults_Note: campaign results note says what is counted and up to when today is going.
+func TestCampaignResults_Note(t *testing.T) {
 	t.Parallel()
 
 	ctx := i18n.WithLocale(t.Context(), i18n.En)

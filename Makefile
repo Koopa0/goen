@@ -181,7 +181,7 @@ check-layout-run:
 	@node --env-file=$(LAYOUT_DIR)/env scripts/filter-feedback-check.mjs
 	@node --env-file=$(LAYOUT_DIR)/env scripts/popover-focus-check.mjs
 	@GOEN_CHROME="$(LAYOUT_CHROME)" go test -tags integration -count=1 -run '^TestProductOptionContrastInTheBrowser$$' ./internal/catalog
-	@CDP_PORT=$${CDP_PORT:-9222} go test -count=1 ./internal/admin/campaigns -run '^TestCampaignEditorReflowsInBothLanguages$$'
+	@CDP_PORT=$${CDP_PORT:-9222} go test -count=1 ./internal/admin/campaigns -run '^TestCampaignFormReflow$$'
 	@GOEN_CHROME="$(LAYOUT_CHROME)" go test -tags integration -count=1 -run '^TestCompetingProductChoicesKeepThePurchaseTogether$$' ./internal/catalog
 	@node --env-file=$(LAYOUT_DIR)/env scripts/button-icons-check.mjs
 	@GOEN_CHROME="$(LAYOUT_CHROME)" go test -tags integration -count=1 -run '^TestProductChoiceAgainstAnInFlightPurchase$$' ./internal/catalog

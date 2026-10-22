@@ -104,7 +104,7 @@ func TestStockDeskDrawsTheSharedDaysCoverSection(t *testing.T) {
 	}
 }
 
-// From TestEveryAdminEmptyPageKeepsItsRestartLink.
+// From TestAuditEmptyPageRestartLink.
 func TestStockEmptyPagesKeepTheirRestartLink(t *testing.T) {
 	t.Parallel()
 	b := keyset.Bound{PastEnd: true, First: "/admin/products?q=test"}
@@ -131,7 +131,7 @@ func TestStockEmptyPagesKeepTheirRestartLink(t *testing.T) {
 	}
 }
 
-// From TestEveryQueueKeepsItsOwnFirstPageEmptyState.
+// From TestAuditFirstPageEmpty.
 func TestStockQueuesKeepTheirOwnFirstPageEmptyState(t *testing.T) {
 	t.Parallel()
 	ctx := func(k i18n.Key) string { return i18n.T(i18n.WithLocale(t.Context(), i18n.En), k) }
@@ -158,7 +158,7 @@ func TestStockQueuesKeepTheirOwnFirstPageEmptyState(t *testing.T) {
 	}
 }
 
-// From TestEveryQueueWithMoreRowsOffersNext.
+// From TestAuditFullPageOffersNext.
 func TestStockQueuesWithMoreRowsOfferNext(t *testing.T) {
 	t.Parallel()
 	ctx := func(k i18n.Key) string { return i18n.T(i18n.WithLocale(t.Context(), i18n.En), k) }

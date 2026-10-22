@@ -20,7 +20,8 @@ import (
 	"github.com/koopa0/goen/internal/user"
 )
 
-func TestStaffNavigationOnlyOmitsTheAdminOnlyDestination(t *testing.T) {
+// TestControl_RequireStaffNavigation: staff navigation omits only the admin-only destination.
+func TestControl_RequireStaffNavigation(t *testing.T) {
 	t.Parallel()
 	for _, locale := range []i18n.Locale{i18n.ZhHant, i18n.En} {
 		t.Run(locale.Tag(), func(t *testing.T) {
@@ -59,7 +60,8 @@ func TestStaffNavigationOnlyOmitsTheAdminOnlyDestination(t *testing.T) {
 	}
 }
 
-func TestHealthCountIsReadOnlyAfterStaffAndSecondFactorChecks(t *testing.T) {
+// TestControl_RequireStaffHealthCount: the health count is read only after the staff and second-factor checks.
+func TestControl_RequireStaffHealthCount(t *testing.T) {
 	t.Parallel()
 	for _, tt := range []struct {
 		name, role              string
@@ -117,7 +119,8 @@ func TestHealthCountIsReadOnlyAfterStaffAndSecondFactorChecks(t *testing.T) {
 	}
 }
 
-func TestSecondFactorRoutesDoNotReadHealthCount(t *testing.T) {
+// TestControl_StaffOnlyNoHealthCount: second-factor routes do not read the health count.
+func TestControl_StaffOnlyNoHealthCount(t *testing.T) {
 	t.Parallel()
 	c := admin.NewControl(slog.New(slog.DiscardHandler), nil).WithHealthTaskCount(func(context.Context) (int64, error) {
 		t.Fatal("second-factor route read the protected health count")
@@ -133,7 +136,8 @@ func TestSecondFactorRoutesDoNotReadHealthCount(t *testing.T) {
 	}
 }
 
-func TestBlockedHealthCountRendersAnUnavailableNavigation(t *testing.T) {
+// TestControl_RequireStaffBlockedCount: a blocked health count renders an unavailable navigation.
+func TestControl_RequireStaffBlockedCount(t *testing.T) {
 	t.Parallel()
 	for _, tt := range []struct {
 		locale        i18n.Locale
@@ -182,7 +186,8 @@ func TestBlockedHealthCountRendersAnUnavailableNavigation(t *testing.T) {
 	}
 }
 
-func TestCanceledStaffRequestDoesNotLogAHealthCountFailure(t *testing.T) {
+// TestControl_RequireStaffCanceled: a canceled staff request does not log a health count failure.
+func TestControl_RequireStaffCanceled(t *testing.T) {
 	t.Parallel()
 	ctx, cancel := context.WithCancel(t.Context())
 	defer cancel()

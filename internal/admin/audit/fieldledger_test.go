@@ -22,7 +22,7 @@ import (
 // row; add one, with its label, in the PR that first writes the pair.
 //
 // What holds it: a Go writer can record only a declared Field, and
-// TestEveryFieldIsInTheLedger needs every Field's key in some row here; SQL
+// TestFieldKeysInLedger needs every Field's key in some row here; SQL
 // writers are read pair by pair (TestAuditSQLProducerFieldsAreInTheLedger).
 // Nothing checks the table a Go writer records a Field under, so a desk that
 // records an existing Field on a new table adds that row by hand.
@@ -222,12 +222,12 @@ func TestAuditRecordedFieldLabels(t *testing.T) {
 	}
 }
 
-// TestEveryAuditLabelIsInTheLedger keeps the labels and the ledger covering
+// TestAuditFieldsInLedger keeps the labels and the ledger covering
 // each other: a label with no ledger row means a stored key that may still sit
 // in old rows has lost its record, or that a row was deleted while its label
 // stayed. A bare label key is matched by any ledger row with that field; a
 // "table.key" label by that exact row.
-func TestEveryAuditLabelIsInTheLedger(t *testing.T) {
+func TestAuditFieldsInLedger(t *testing.T) {
 	t.Parallel()
 	pairs := make(map[string]bool, len(auditLedger))
 	fields := make(map[string]bool, len(auditLedger))
@@ -252,10 +252,10 @@ func TestEveryAuditLabelIsInTheLedger(t *testing.T) {
 	}
 }
 
-// TestEveryFieldIsInTheLedger holds the keys a Go writer can record to the
+// TestFieldKeysInLedger holds the keys a Go writer can record to the
 // ledger, which gives each a label on /admin/audit. A Field misspelt where it
 // is declared would store a new key under an old name; it fails here.
-func TestEveryFieldIsInTheLedger(t *testing.T) {
+func TestFieldKeysInLedger(t *testing.T) {
 	t.Parallel()
 	fields := make(map[string]bool, len(auditLedger))
 	for _, row := range auditLedger {

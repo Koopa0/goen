@@ -18,7 +18,8 @@ import (
 	"github.com/koopa0/goen/internal/ui/frame"
 )
 
-func TestTheTrailCannotBeRewritten(t *testing.T) {
+// TestAuditEventsAppendOnly: the audit trail cannot be rewritten.
+func TestAuditEventsAppendOnly(t *testing.T) {
 	ctx, _ := admintest.StaffContext(t, pool)
 	if err := products.NewStore(pool).
 		SetStatus(ctx, admintest.AnyProductSlug(t, pool), "draft"); err != nil {
@@ -53,9 +54,9 @@ func TestTheTrailCannotBeRewritten(t *testing.T) {
 	}
 }
 
-// TestASystemAuditRowIsReadAsTheSystem: a system row carries no user and no
+// TestStore_EventsSystemAuditRow: a system row carries no user and no
 // snapshot, which must neither break the trail nor read as an erased account.
-func TestASystemAuditRowIsReadAsTheSystem(t *testing.T) {
+func TestStore_EventsSystemAuditRow(t *testing.T) {
 	ctx, _ := admintest.StaffContext(t, pool)
 	trigger := "evt_audit_" + uuid.NewString()
 	if _, err := pool.Exec(ctx, `
@@ -93,9 +94,9 @@ func customerViewRow(t *testing.T, ctx context.Context, customerID uuid.UUID) (a
 	return audit.Entry{}, false
 }
 
-// TestACustomerViewNamesTheCustomerUntilTheAccountIsErased: the audit row
+// TestStore_EventsCustomerView: the audit row
 // outlives the account, and once it is gone the page has only the recorded id.
-func TestACustomerViewNamesTheCustomerUntilTheAccountIsErased(t *testing.T) {
+func TestStore_EventsCustomerView(t *testing.T) {
 	ctx, _ := admintest.StaffContext(t, pool)
 	customerID := admintest.Customer(t, pool)
 	err := audit.Run(ctx, pool, audit.Event{
@@ -130,11 +131,11 @@ func TestACustomerViewNamesTheCustomerUntilTheAccountIsErased(t *testing.T) {
 	}
 }
 
-// TestAStaffGrantNamesThePersonUntilTheAccountIsErased: the grant row holds the
+// TestStore_EventsStaffGrant: the grant row holds the
 // target's id and the role, never the address. The page looks the address up
 // when it renders, so erasing the account leaves a row that still shows, with
 // no subject and no email anywhere.
-func TestAStaffGrantNamesThePersonUntilTheAccountIsErased(t *testing.T) {
+func TestStore_EventsStaffGrant(t *testing.T) {
 	ctx, _ := admintest.StaffContext(t, pool)
 	address := "granted-" + uuid.NewString()[:8] + "@goen.invalid"
 	if _, err := staff.NewStore(pool).AddStaff(ctx, address, "被授權同事", "staff"); err != nil {

@@ -16,7 +16,8 @@ import (
 	"github.com/koopa0/goen/internal/ui/hero"
 )
 
-func TestScheduledHeroControlsUseThePageLanguage(t *testing.T) {
+// TestSlidesScheduledControls: scheduled hero controls use the page language.
+func TestSlidesScheduledControls(t *testing.T) {
 	t.Parallel()
 	for _, locale := range i18n.Locales() {
 		t.Run(locale.Tag(), func(t *testing.T) {
@@ -111,7 +112,8 @@ func TestScheduledHeroControlsUseThePageLanguage(t *testing.T) {
 	}
 }
 
-func TestTheSlidesPageListsTheSlidesTheStorefrontShowsAndSaysWhereEachComesFrom(t *testing.T) {
+// TestSlidesCarouselSources: the slides page lists the slides the storefront shows and says where each comes from.
+func TestSlidesCarouselSources(t *testing.T) {
 	t.Parallel()
 	ctx := i18n.WithLocale(t.Context(), i18n.ZhHant)
 	view := HeroView{Carousel: []hero.Slide{
@@ -137,7 +139,8 @@ func TestTheSlidesPageListsTheSlidesTheStorefrontShowsAndSaysWhereEachComesFrom(
 	}
 }
 
-func TestAScheduledSlideIsShowingOnlyWhenTheStorefrontCarriesIt(t *testing.T) {
+// TestHeroView_IsShowingCarousel: a scheduled slide is showing only when the storefront carries it.
+func TestHeroView_IsShowingCarousel(t *testing.T) {
 	t.Parallel()
 	rows := []HeroSlide{
 		{ID: "a", Active: true, InWindow: true},
@@ -158,7 +161,8 @@ func TestAScheduledSlideIsShowingOnlyWhenTheStorefrontCarriesIt(t *testing.T) {
 	}
 }
 
-func TestEverySlideSourceHasItsOwnLabelAndAnUnknownOneIsNotAPanic(t *testing.T) {
+// TestSourceLabelEverySource: every slide source has its own label and an unknown one is not a panic.
+func TestSourceLabelEverySource(t *testing.T) {
 	t.Parallel()
 	for _, loc := range []i18n.Locale{i18n.ZhHant, i18n.En} {
 		ctx := i18n.WithLocale(t.Context(), loc)
@@ -223,7 +227,8 @@ func homeForm(t *testing.T, page, action string) string {
 	return m
 }
 
-func TestTheHeroEditorKeepsBothLanguagesInOneFormBehindASwitch(t *testing.T) {
+// TestSlidesHeroEditorLanguages: the hero editor keeps both languages in one form behind a switch.
+func TestSlidesHeroEditorLanguages(t *testing.T) {
 	t.Parallel()
 	ctx := i18n.WithLocale(t.Context(), i18n.ZhHant)
 	page := renderComponent(t, ctx, Slides(frame.Page{}, &HeroView{}))

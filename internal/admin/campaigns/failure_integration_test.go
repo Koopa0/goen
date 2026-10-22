@@ -19,10 +19,10 @@ import (
 	"github.com/koopa0/goen/internal/admin/campaigns"
 )
 
-// TestCampaignWritesAnswerAFailureAsAServerError: a database that cannot be
+// TestHandler_WritesClosedDatabase: a database that cannot be
 // reached decided nothing, and answering "no discount" or "refused" sends staff
 // looking for a rule.
-func TestCampaignWritesAnswerAFailureAsAServerError(t *testing.T) {
+func TestHandler_WritesClosedDatabase(t *testing.T) {
 	ctx, _ := admintest.StaffContext(t, pool)
 	closed := admintest.NamedPool(t, pool, "campaign_closed_"+uuid.NewString()[:8])
 	closed.Close()
@@ -48,9 +48,9 @@ func TestCampaignWritesAnswerAFailureAsAServerError(t *testing.T) {
 	}
 }
 
-// TestSetActiveAnswersAMissingCampaignAsNotFound: a slug no campaign has is
+// TestHandler_SetActiveMissing: a slug no campaign has is
 // 404, not a refusal and not a server failure.
-func TestSetActiveAnswersAMissingCampaignAsNotFound(t *testing.T) {
+func TestHandler_SetActiveMissing(t *testing.T) {
 	ctx, _ := admintest.StaffContext(t, pool)
 	slug := admintest.CampaignSlug(t)
 	req := httptest.NewRequestWithContext(ctx, http.MethodPost, "/admin/campaigns/"+slug,
@@ -64,9 +64,9 @@ func TestSetActiveAnswersAMissingCampaignAsNotFound(t *testing.T) {
 	}
 }
 
-// TestACampaignWriteBehindALockIsNotARefusal: the write's own statement timing
+// TestStore_SetActiveLockTimeout: the write's own statement timing
 // out on a row lock is the database not answering, not a rule refusing it.
-func TestACampaignWriteBehindALockIsNotARefusal(t *testing.T) {
+func TestStore_SetActiveLockTimeout(t *testing.T) {
 	ctx, _ := admintest.StaffContext(t, pool)
 	slug := admintest.CampaignSlug(t)
 	if _, err := campaigns.NewStore(pool).Create(ctx, &campaigns.Form{Slug: slug, Title: "鎖定測試", Days: 7}); err != nil {

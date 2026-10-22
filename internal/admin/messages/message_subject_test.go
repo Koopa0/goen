@@ -7,7 +7,8 @@ import (
 	"github.com/koopa0/goen/internal/i18n"
 )
 
-func TestSubjectLabelUsesTheReadersLanguage(t *testing.T) {
+// TestSubjectLabelLanguage: the subject label uses the reader's language.
+func TestSubjectLabelLanguage(t *testing.T) {
 	t.Parallel()
 	for _, tc := range []struct {
 		subject contact.Subject
@@ -38,7 +39,8 @@ func TestSubjectLabelUsesTheReadersLanguage(t *testing.T) {
 	}
 }
 
-func TestSubjectLabelRefusesAnUnknownCategory(t *testing.T) {
+// TestSubjectLabelUnknown: the subject label refuses an unknown category.
+func TestSubjectLabelUnknown(t *testing.T) {
 	t.Parallel()
 	got, err := subjectLabel(t.Context(), "An order")
 	if got != "" || err == nil {

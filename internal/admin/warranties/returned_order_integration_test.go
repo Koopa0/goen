@@ -14,7 +14,8 @@ import (
 	"github.com/koopa0/goen/internal/order/warranty"
 )
 
-func TestWarrantyStatusSaysRefundedOnceTheWholeOrdersRefundHasSettled(t *testing.T) {
+// TestStore_WarrantiesRefundedState: the warranty status says refunded once the whole order's refund has settled.
+func TestStore_WarrantiesRefundedState(t *testing.T) {
 	for _, tc := range []struct {
 		name         string
 		quantity     int32

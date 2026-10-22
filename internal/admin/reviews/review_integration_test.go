@@ -19,7 +19,8 @@ import (
 	"github.com/koopa0/goen/internal/i18n"
 )
 
-func TestHidingAReviewIsReversibleAndAudited(t *testing.T) {
+// TestStore_SetReviewHiddenAudited: hiding a review is reversible and audited.
+func TestStore_SetReviewHiddenAudited(t *testing.T) {
 	ctx, _ := admintest.StaffContext(t, pool)
 	s := reviews.NewStore(pool)
 	reviewID := someReview(t)
@@ -64,7 +65,8 @@ func TestHidingAReviewIsReversibleAndAudited(t *testing.T) {
 	}
 }
 
-func TestTheReviewQueueShowsHiddenOnes(t *testing.T) {
+// TestStore_ReviewsShowsHidden: the review queue shows hidden reviews.
+func TestStore_ReviewsShowsHidden(t *testing.T) {
 	ctx, _ := admintest.StaffContext(t, pool)
 	s := reviews.NewStore(pool)
 	reviewID := someReview(t)
@@ -94,10 +96,10 @@ func TestTheReviewQueueShowsHiddenOnes(t *testing.T) {
 	}
 }
 
-// TestStaleReviewActionsExplainInsteadOfVanishing: a missing id and a stale
+// TestHandler_HideReviewStale: a missing id and a stale
 // form (already hidden) must redirect with ?gone=1 and render that notice,
 // never a bare list or a false success.
-func TestStaleReviewActionsExplainInsteadOfVanishing(t *testing.T) {
+func TestHandler_HideReviewStale(t *testing.T) {
 	ctx, _ := admintest.StaffContext(t, pool)
 	h := reviews.NewHandler(reviews.NewStore(pool), slog.New(slog.DiscardHandler))
 	gone := i18n.T(ctx, i18n.KeyAdminNoticeGone)

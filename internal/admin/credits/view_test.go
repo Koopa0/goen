@@ -15,7 +15,7 @@ import (
 // The tests in this file are the credit halves of tests that render several
 // desks' pages: each half lives with the page it renders.
 
-// From TestEveryAdminEmptyPageKeepsItsRestartLink.
+// From TestAuditEmptyPageRestartLink.
 // TestCreditEmptyPage: the credit empty page keeps its restart link.
 func TestCreditEmptyPage(t *testing.T) {
 	t.Parallel()
@@ -33,8 +33,8 @@ func TestCreditEmptyPage(t *testing.T) {
 	}
 }
 
-// From TestEveryQueueKeepsItsOwnFirstPageEmptyState and
-// TestEveryQueueWithMoreRowsOffersNext.
+// From TestAuditFirstPageEmpty and
+// TestAuditFullPageOffersNext.
 // TestCreditFirstPageEmpty: the credit queue keeps its own first-page empty state.
 func TestCreditFirstPageEmpty(t *testing.T) {
 	t.Parallel()

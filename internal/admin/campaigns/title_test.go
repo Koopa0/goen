@@ -5,7 +5,8 @@ import (
 	"testing"
 )
 
-func TestCampaignEnglishTitleIsOptionalAndBounded(t *testing.T) {
+// TestForm_ValidateEnglishTitle: campaign English title is optional and bounded.
+func TestForm_ValidateEnglishTitle(t *testing.T) {
 	for _, tt := range []struct {
 		title   string
 		invalid bool

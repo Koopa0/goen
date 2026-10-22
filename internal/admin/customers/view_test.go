@@ -54,7 +54,7 @@ func wantBadge(t *testing.T, page, word, class string) {
 	}
 }
 
-// From TestDashboardAndCustomerRecentOrdersFollowTheirGroup, which keeps the dashboard half.
+// From TestDashboardRecentOrderBadge, which keeps the dashboard half.
 func TestCustomerRecentOrdersFollowTheirGroup(t *testing.T) {
 	t.Parallel()
 	ctx := i18n.WithLocale(t.Context(), i18n.ZhHant)
@@ -63,7 +63,7 @@ func TestCustomerRecentOrdersFollowTheirGroup(t *testing.T) {
 	wantBadge(t, customer, "待出貨", "goen-badge goen-badge--warn")
 }
 
-// From TestEveryAdminEmptyPageKeepsItsRestartLink (row customers).
+// From TestAuditEmptyPageRestartLink (row customers).
 func TestCustomerEmptyPageKeepsItsRestartLink(t *testing.T) {
 	t.Parallel()
 	b := keyset.Bound{PastEnd: true, First: "/admin/products?q=test"}
@@ -85,9 +85,10 @@ func queuePage(b keyset.Bound, ctx func(k i18n.Key) string) (page templ.Componen
 		fmt.Sprintf(ctx(i18n.KeyAdminCustNoneFound), term)
 }
 
-// From TestEveryQueueKeepsItsOwnFirstPageEmptyState and
-// TestEveryQueueWithMoreRowsOffersNext (row customers).
-func TestCustomerQueueKeepsItsOwnFirstPageEmptyState(t *testing.T) {
+// TestCustomerQueueFirstPageEmpty: customer queue keeps its own first page empty state.
+// From TestAuditFirstPageEmpty and
+// TestAuditFullPageOffersNext (row customers).
+func TestCustomerQueueFirstPageEmpty(t *testing.T) {
 	t.Parallel()
 	ctx := func(k i18n.Key) string { return i18n.T(i18n.WithLocale(t.Context(), i18n.En), k) }
 	generic := ctx(i18n.KeyPageEmpty)

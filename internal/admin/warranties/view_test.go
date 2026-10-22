@@ -14,8 +14,9 @@ import (
 	"github.com/koopa0/goen/internal/ui/frame"
 )
 
-// From TestEveryAdminEmptyPageKeepsItsRestartLink (row warranty).
-func TestWarrantyEmptyPageKeepsItsRestartLink(t *testing.T) {
+// TestWarrantiesEmptyPage: the warranties empty page keeps its restart link.
+// From TestAuditEmptyPageRestartLink (row warranty).
+func TestWarrantiesEmptyPage(t *testing.T) {
 	t.Parallel()
 	b := keyset.Bound{PastEnd: true, First: "/admin/products?q=test"}
 	body := renderComponent(t, i18n.WithLocale(t.Context(), i18n.En),
@@ -36,9 +37,10 @@ func queuePage(b keyset.Bound, ctx func(k i18n.Key) string) (page templ.Componen
 		fmt.Sprintf(ctx(i18n.KeyAdminWarrantyNoneFound), term)
 }
 
-// From TestEveryQueueKeepsItsOwnFirstPageEmptyState and
-// TestEveryQueueWithMoreRowsOffersNext (row warranty).
-func TestWarrantyQueueKeepsItsOwnFirstPageEmptyState(t *testing.T) {
+// TestWarrantiesFirstPageEmpty: the warranty queue keeps its own first-page empty state.
+// From TestAuditFirstPageEmpty and
+// TestAuditFullPageOffersNext (row warranty).
+func TestWarrantiesFirstPageEmpty(t *testing.T) {
 	t.Parallel()
 	ctx := func(k i18n.Key) string { return i18n.T(i18n.WithLocale(t.Context(), i18n.En), k) }
 	generic := ctx(i18n.KeyPageEmpty)
@@ -53,7 +55,8 @@ func TestWarrantyQueueKeepsItsOwnFirstPageEmptyState(t *testing.T) {
 	}
 }
 
-func TestWarrantyQueueWithMoreRowsOffersNext(t *testing.T) {
+// TestWarrantiesNextLink: a warranty queue with more rows offers Next.
+func TestWarrantiesNextLink(t *testing.T) {
 	t.Parallel()
 	ctx := func(k i18n.Key) string { return i18n.T(i18n.WithLocale(t.Context(), i18n.En), k) }
 	rows := make([]db.Order, keyset.PageLimit)

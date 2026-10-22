@@ -7,7 +7,8 @@ import (
 	"github.com/koopa0/goen/internal/ui/icons"
 )
 
-func TestTaxonomyIconValidationMatchesTheRenderer(t *testing.T) {
+// TestForm_ValidateIconKeys: taxonomy icon validation matches the renderer.
+func TestForm_ValidateIconKeys(t *testing.T) {
 	t.Parallel()
 	ctx := i18n.WithLocale(t.Context(), i18n.En)
 
