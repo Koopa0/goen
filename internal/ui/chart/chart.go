@@ -1,10 +1,18 @@
-// Package chart draws data as inline SVG. It only draws: sentences, thresholds
-// and the table that is each chart's text equivalent belong to the page.
+// Package chart draws data as inline SVG. Each chart writes its own text
+// equivalent, the table, and the notes on what its drawing leaves out (a
+// shorter first column, campaigns shaded without a name), and names a day as
+// its axis does (DayLabel). Sentences about the data, and the thresholds that
+// judge it, belong to the page.
 package chart
 
 import (
+	"context"
+	"fmt"
 	"strconv"
 	"time"
+
+	"github.com/koopa0/goen/internal/i18n"
+	"github.com/koopa0/goen/internal/shoptime"
 )
 
 // minBarWidth keeps a positive value visible when it is far below the longest,
@@ -43,6 +51,13 @@ func (p BarProps) wide() bool { return p.Max >= wideScale }
 type Bucket struct {
 	Day   time.Time
 	Value int64
+}
+
+// DayLabel is d as a chart writes a day: on its axis, in its table's row
+// headings and its strip labels, and in a page's sentences about the chart,
+// so the page names the chart's days the same way: 10/30 or Oct 30.
+func DayLabel(ctx context.Context, d shoptime.Date) string {
+	return fmt.Sprintf(i18n.T(ctx, i18n.KeyChartAxisDay), d.Month.String()[:3], int(d.Month), d.Day)
 }
 
 // Series is a run of consecutive shop days under one legend label. Partial says

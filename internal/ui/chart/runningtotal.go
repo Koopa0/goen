@@ -9,6 +9,7 @@ import (
 
 	"github.com/koopa0/goen/internal/i18n"
 	"github.com/koopa0/goen/internal/money"
+	"github.com/koopa0/goen/internal/shoptime"
 )
 
 const (
@@ -224,8 +225,9 @@ func apart(a, b, low, high float64) (movedA, movedB float64) {
 	return a, b
 }
 
+// axisDay is a bucket's day, a date column's value, as DayLabel writes it.
 func axisDay(ctx context.Context, day time.Time) string {
-	return fmt.Sprintf(i18n.T(ctx, i18n.KeyChartAxisDay), day.Month().String()[:3], int(day.Month()), day.Day())
+	return DayLabel(ctx, shoptime.ColumnDate(day))
 }
 
 // ticksFor labels the axis: the first day, the days tickDays picks, and today

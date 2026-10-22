@@ -15,9 +15,6 @@ var (
 		En:     "No orders at all in this period",
 	})
 
-	// %[1]s is the month's English abbreviation, %[2]d its number, %[3]d the day.
-	KeyAdminRepDay = key("admin.rep.day", Message{ZhHant: "%[2]d/%[3]d", En: "%[1]s %[3]d"})
-
 	// The period's first and last day, then the previous period's.
 	KeyAdminRepPeriods = key("admin.rep.periods", Message{ZhHant: "%s–%s · 對照 %s–%s", En: "%s–%s · against %s–%s"})
 
