@@ -40,9 +40,12 @@ func passwordHashOf(t *testing.T, addr string) string {
 	return hash
 }
 
-// TestTheDemoAccountIsEnsuredAtEveryStart runs on the storefront role, the one
-// goen starts with: no grant or definer function exists for the demo account.
-func TestTheDemoAccountIsEnsuredAtEveryStart(t *testing.T) {
+// TestStore_EnsureDemoAccount: EnsureDemoAccount creates the demo account at
+// the first start, leaves a matching password and a visitor's session alone at
+// the next, and restores the configured password, ending sessions, when someone
+// changed it. It runs on the storefront role, the one goen starts with: no
+// grant or definer function exists for the demo account.
+func TestStore_EnsureDemoAccount(t *testing.T) {
 	ctx := t.Context()
 	s := auth.NewStore(accountStorePool(t, "demo-ensure"))
 	addr := "demo-" + uuid.NewString() + "@example.com"
@@ -102,10 +105,11 @@ func TestTheDemoAccountIsEnsuredAtEveryStart(t *testing.T) {
 	}
 }
 
-// TestProcessesStartingTogetherEnsureOneDemoAccount is the nightly restore: every
-// replica restarts at once on a database without the account, each reads no
-// row, and each inserts. All of them must start, and the account is made once.
-func TestProcessesStartingTogetherEnsureOneDemoAccount(t *testing.T) {
+// TestStore_EnsureDemoAccountConcurrent: replicas that start together on a
+// database without the demo account all succeed and the account is made once.
+// This is the nightly restore: every replica restarts at once, each reads no
+// row, and each inserts.
+func TestStore_EnsureDemoAccountConcurrent(t *testing.T) {
 	ctx := t.Context()
 	addr := "demo-race-" + uuid.NewString() + "@example.com"
 	d := demoAccount(t, addr, sharedPassword)
@@ -153,7 +157,11 @@ func TestProcessesStartingTogetherEnsureOneDemoAccount(t *testing.T) {
 	}
 }
 
-func TestTheDemoAddressRegisteredButUnprovedBecomesTheDemoAccount(t *testing.T) {
+// TestStore_EnsureDemoAccountUnproved: an unproved registration at the demo
+// address becomes the demo account: the operator's password signs in and the
+// registrant's no longer does, so squatting the address cannot hold the demo
+// account.
+func TestStore_EnsureDemoAccountUnproved(t *testing.T) {
 	ctx := t.Context()
 	addr := "demo-unproved-" + uuid.NewString() + "@example.com"
 	register(t, auth.NewStore(pool), addr)
@@ -170,9 +178,11 @@ func TestTheDemoAddressRegisteredButUnprovedBecomesTheDemoAccount(t *testing.T) 
 	}
 }
 
-// TestAStaffAddressIsNeverMadeTheDemoAccount: the password would be printed on
-// the sign-in page, and the storefront role cannot take staff away.
-func TestAStaffAddressIsNeverMadeTheDemoAccount(t *testing.T) {
+// TestStore_EnsureDemoAccountStaff: EnsureDemoAccount refuses a staff member's
+// address with ErrDemoAccountIsStaff and leaves the staff member's own password
+// working. The demo password would be printed on the sign-in page, and the
+// storefront role cannot take staff away.
+func TestStore_EnsureDemoAccountStaff(t *testing.T) {
 	ctx := t.Context()
 	addr := "demo-staff-" + uuid.NewString() + "@example.com"
 	u := registerProved(t, auth.NewStore(pool), addr)
@@ -190,10 +200,13 @@ func TestAStaffAddressIsNeverMadeTheDemoAccount(t *testing.T) {
 	}
 }
 
-// TestTheDemoAccountRefusesWhatWouldShutOutTheNextVisitorAndKeepsTheRest drives
-// the handlers through Authenticate, signed in as the demo account and as an
-// ordinary one.
-func TestTheDemoAccountRefusesWhatWouldShutOutTheNextVisitorAndKeepsTheRest(t *testing.T) {
+// TestHandler_DemoAccountFixed: with a real store, the demo account is refused
+// a change of address, a resend, a change of password and erasure (303 to
+// /account?demo=fixed), nothing is mailed, and the sign-in page prints its
+// credentials, while the profile and address saves still work and an ordinary
+// account keeps every change. It drives the handlers through Authenticate,
+// signed in as the demo account and as an ordinary one.
+func TestHandler_DemoAccountFixed(t *testing.T) {
 	ctx := t.Context()
 	s := auth.NewStore(pool)
 	demoAddr := "demo-shared-" + uuid.NewString() + "@example.com"
@@ -281,7 +294,10 @@ func TestTheDemoAccountRefusesWhatWouldShutOutTheNextVisitorAndKeepsTheRest(t *t
 	}
 }
 
-func TestAResetLinkIsNeverQueuedForTheDemoAccount(t *testing.T) {
+// TestHandler_ForgotDemoAccount: Forgot queues no reset link for the demo
+// account while it queues one for an ordinary account, and registering the demo
+// address answers as any taken address does and does not set a password.
+func TestHandler_ForgotDemoAccount(t *testing.T) {
 	ctx := t.Context()
 	s := auth.NewStore(pool)
 	demoAddr := "demo-forgot-" + uuid.NewString() + "@example.com"

@@ -9,9 +9,11 @@ import (
 	"github.com/koopa0/goen/internal/outbox"
 )
 
-// The error of a refused verification request is logged by the handler. It names
-// the user and never echoes the address that was submitted.
-func TestVerificationRefusalCarriesTheUserNotTheAddress(t *testing.T) {
+// TestStore_QueueVerificationError: the error of a refused verification request
+// names the user and never echoes the address that was submitted, which the
+// handler logs. A zero Store is enough: the address is judged before the
+// database is.
+func TestStore_QueueVerificationError(t *testing.T) {
 	t.Parallel()
 	const typed = "jane.doe.private@@example.test"
 	user := uuid.New()

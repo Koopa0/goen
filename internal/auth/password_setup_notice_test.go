@@ -10,7 +10,10 @@ import (
 	"github.com/koopa0/goen/internal/user"
 )
 
-func TestPasswordSetupNoticeRequiresTheCurrentAccountAndMailbox(t *testing.T) {
+// TestConsumePasswordSetupNoticeAccount: ConsumePasswordSetupNotice reports the
+// completion notice only for the account and mailbox the cookie was written
+// for, and expires the cookie on the account path.
+func TestConsumePasswordSetupNoticeAccount(t *testing.T) {
 	t.Parallel()
 	const receipt = "MTExMTExMTEtMTExMS00MTExLTgxMTEtMTExMTExMTExMTExfHNob3BwZXJAZXhhbXBsZS5jb20"
 	for _, tc := range []struct {
@@ -45,7 +48,10 @@ func TestPasswordSetupNoticeRequiresTheCurrentAccountAndMailbox(t *testing.T) {
 	}
 }
 
-func TestPasswordSetupNoticeIsConsumedFromTheBrowserJar(t *testing.T) {
+// TestConsumePasswordSetupNoticeOnce: the password-setup notice is a
+// short-lived deployment cookie that is shown once and consumed from the
+// browser jar.
+func TestConsumePasswordSetupNoticeOnce(t *testing.T) {
 	t.Parallel()
 	person := user.User{ID: "11111111-1111-4111-8111-111111111111", Email: "shopper@example.com"}
 	for _, secure := range []bool{false, true} {

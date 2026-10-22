@@ -10,7 +10,10 @@ import (
 	"github.com/koopa0/goen/internal/ui/frame"
 )
 
-func TestForgotSentCollapsesResendWithoutAutofocusingItsHiddenInput(t *testing.T) {
+// TestForgotSentResend: the forgot page's sent state keeps its resend form in a
+// closed native disclosure and does not autofocus the closed form, while the
+// fresh page keeps its single open form with its initial focus.
+func TestForgotSentResend(t *testing.T) {
 	t.Parallel()
 	for _, locale := range i18n.Locales() {
 		for _, sent := range []bool{false, true} {

@@ -10,7 +10,10 @@ import (
 	"github.com/koopa0/goen/internal/ui/frame"
 )
 
-func TestAuthLinksKeepTheReturnDestination(t *testing.T) {
+// TestAuthViewNextInLinks: the sign-in and registration pages carry the return
+// destination (Next) into their links to each other, escaped, for an empty,
+// plain, query-and-fragment and non-ASCII destination in each locale.
+func TestAuthViewNextInLinks(t *testing.T) {
 	t.Parallel()
 	for _, locale := range i18n.Locales() {
 		t.Run(locale.Tag(), func(t *testing.T) {

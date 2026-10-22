@@ -24,7 +24,12 @@ import (
 	"github.com/koopa0/goen/internal/i18n"
 )
 
-func TestAccountMutationsDistinguishWrongPasswordFromAuthenticationFailure(t *testing.T) {
+// TestHandler_MutationAuthFailure: ChangePassword and ChangeEmail answer a
+// wrong current password with 303 /account?password=wrong and no error log, but
+// a failed credential read with a generic 500 page that leaks neither the
+// password nor the cause and one ERROR record that names the cause without the
+// password; either way the password, address, session and cookie are untouched.
+func TestHandler_MutationAuthFailure(t *testing.T) {
 	type accountMutationFacts struct {
 		OriginalPassword, OriginalEmail, NoLastLogin bool
 		Sessions, EmailLinks                         int64

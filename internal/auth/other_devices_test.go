@@ -14,7 +14,9 @@ import (
 	"github.com/koopa0/goen/internal/user"
 )
 
-func TestAccountNoticeConfirmsOtherDevicesWereSignedOut(t *testing.T) {
+// TestNoticeOtherDevices: Notice confirms that the other devices were signed
+// out only for other_devices=signed_out, in both locales.
+func TestNoticeOtherDevices(t *testing.T) {
 	t.Parallel()
 	for _, tt := range []struct {
 		locale i18n.Locale
@@ -43,7 +45,10 @@ func TestAccountNoticeConfirmsOtherDevicesWereSignedOut(t *testing.T) {
 	}
 }
 
-func TestSigningOutOtherDevicesRequiresCurrentAuthentication(t *testing.T) {
+// TestHandler_SignOutOtherDevicesNoAuth: SignOutOtherDevices answers a request
+// that has no verified user or no current session cookie with 303 to /signin
+// and ends no session.
+func TestHandler_SignOutOtherDevicesNoAuth(t *testing.T) {
 	t.Parallel()
 	for _, tt := range []struct {
 		name    string

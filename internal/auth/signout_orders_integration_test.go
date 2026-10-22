@@ -24,14 +24,13 @@ import (
 	"github.com/koopa0/goen/internal/web/ratelimit"
 )
 
-// TestSigningOutEndsTheBrowsersAccessToItsOrders is the shared computer again:
-// the browser holds proof of access to an order placed signed in and to one
-// placed as a guest before, each a page with a name, an address and a phone
-// number and buttons that cancel, pay and return. Signing out must leave the
-// next person at it no way into either. The browser may still send the old
-// cookie, because a client can ignore an expiry, so the proof itself has to
-// stop working; proving access again, through the order lookup, still works.
-func TestSigningOutEndsTheBrowsersAccessToItsOrders(t *testing.T) {
+// TestHandler_SignOutOrders: signing out ends the browser's access to the
+// orders it placed, signed in or as a guest: the old placed cookie is expired
+// and stops working (404) even if the browser still sends it, while proving
+// access again through the order lookup works. This is the shared computer:
+// each order page carries a name, an address, a phone number and buttons that
+// cancel, pay and return.
+func TestHandler_SignOutOrders(t *testing.T) {
 	ctx := t.Context()
 	appPool := accountStorePool(t, "signout-orders")
 	shop := checkout.NewStore(appPool)
@@ -285,11 +284,11 @@ func (p *placedOrders) forgotten(step string, rec *httptest.ResponseRecorder) {
 	}
 }
 
-// TestASessionEndedFromAnotherDeviceEndsTheBrowsersAccessToItsOrders: the
-// browser never signs out, and the next request that brings its cookie finds
-// the session gone. The browser keeps no more of the orders than sign-out
-// would leave it.
-func TestASessionEndedFromAnotherDeviceEndsTheBrowsersAccessToItsOrders(t *testing.T) {
+// TestHandler_AuthenticateEndedSession: a session ended from another device
+// ends the browser's access to its orders on the next request that brings its
+// cookie, as sign-out would. The browser never signs out; the next request
+// finds the session gone.
+func TestHandler_AuthenticateEndedSession(t *testing.T) {
 	p := newPlacedOrders(t, "session-end")
 	session := p.signIn()
 	if err := p.accounts.EndSession(t.Context(), session.Value); err != nil {
@@ -302,13 +301,13 @@ func TestASessionEndedFromAnotherDeviceEndsTheBrowsersAccessToItsOrders(t *testi
 	p.forgotten("the next request", p.serve(noContent, req))
 }
 
-// TestASessionThatExpiresEndsTheBrowsersAccessToItsOrders is the browser a
-// session expires in, which sends a cookie only while its Max-Age lasts. An
-// order placed at the session's last moment keeps its proof for the placed
-// cookie's whole life after that, and until that proof's last day the browser
-// must still present the session's cookie: nothing else tells goen the session
-// it was proof for has ended.
-func TestASessionThatExpiresEndsTheBrowsersAccessToItsOrders(t *testing.T) {
+// TestHandler_AuthenticateExpiredSession: an expired session ends the browser's
+// access to its orders. A browser sends the session cookie only while its
+// Max-Age lasts, and an order placed at the session's last moment keeps its
+// proof for the placed cookie's whole life, so until that proof's last day the
+// browser must still present the session's cookie: nothing else tells goen the
+// session it was proof for has ended.
+func TestHandler_AuthenticateExpiredSession(t *testing.T) {
 	ctx := t.Context()
 	p := newPlacedOrders(t, "session-expiry")
 	signedIn := httptest.NewRecorder()
@@ -334,10 +333,10 @@ func TestASessionThatExpiresEndsTheBrowsersAccessToItsOrders(t *testing.T) {
 
 func noContent(w http.ResponseWriter, _ *http.Request) { w.WriteHeader(http.StatusNoContent) }
 
-// TestAStaleSessionAtErasureEndsTheBrowsersAccessToItsOrders: erasure asks a
-// session older than its window to sign in again and ends it first, which is a
-// session ending like any other.
-func TestAStaleSessionAtErasureEndsTheBrowsersAccessToItsOrders(t *testing.T) {
+// TestHandler_EraseStaleSessionOrders: Erase asks a session older than its
+// window to sign in again and ends it first, which ends the browser's access to
+// its orders like any other session ending.
+func TestHandler_EraseStaleSessionOrders(t *testing.T) {
 	p := newPlacedOrders(t, "erase-stale")
 	session := p.signIn()
 	if _, err := pool.Exec(t.Context(), `
@@ -355,9 +354,11 @@ func TestAStaleSessionAtErasureEndsTheBrowsersAccessToItsOrders(t *testing.T) {
 	p.forgotten("erasure with a stale session", rec)
 }
 
-// TestABrowserThatNeverSignedInKeepsItsOrders: a guest's own proof is its only
-// way back to its orders, and nothing here ends a session it never had.
-func TestABrowserThatNeverSignedInKeepsItsOrders(t *testing.T) {
+// TestHandler_AuthenticateNeverSignedIn: a browser that never signed in keeps
+// access to the orders it placed as a guest, and is sent no cookie change. A
+// guest's own proof is its only way back to its orders, and nothing here ends a
+// session it never had.
+func TestHandler_AuthenticateNeverSignedIn(t *testing.T) {
 	p := newPlacedOrders(t, "never-signed-in")
 	req := httptest.NewRequestWithContext(t.Context(), http.MethodGet, "/", http.NoBody)
 	req.AddCookie(p.placed)

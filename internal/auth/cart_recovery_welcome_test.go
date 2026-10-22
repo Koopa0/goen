@@ -8,9 +8,11 @@ import (
 	"github.com/koopa0/goen/internal/i18n"
 )
 
-// The account page's half of this test is internal/account's
-// TestAccountWelcomeKeepsTheOriginalAction.
-func TestRegistrationWelcomeKeepsTheOriginalActionAndCartRecovery(t *testing.T) {
+// TestCartRecoveryWelcome: after registration the cart-recovery page keeps the
+// welcome sentence, the retry action, the original destination and the
+// merge-failed notice. The account page's half of this test is
+// internal/account's TestAccountWelcomeKeepsTheOriginalAction.
+func TestCartRecoveryWelcome(t *testing.T) {
 	t.Parallel()
 	for _, locale := range i18n.Locales() {
 		t.Run(locale.Tag(), func(t *testing.T) {

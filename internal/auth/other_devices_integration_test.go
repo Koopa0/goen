@@ -21,7 +21,10 @@ import (
 	"github.com/koopa0/goen/internal/user"
 )
 
-func TestSigningOutOtherDevicesKeepsTheCurrentSessionAndOtherUsers(t *testing.T) {
+// TestHandler_SignOutOtherDevices: SignOutOtherDevices ends the account's other
+// sessions and keeps the current session, its cookie and other users' sessions,
+// answers a failed write with 500 and no success redirect, and repeats safely.
+func TestHandler_SignOutOtherDevices(t *testing.T) {
 	for _, googleOnly := range []bool{false, true} {
 		for _, locale := range i18n.Locales() {
 			name := "password/" + locale.Tag()

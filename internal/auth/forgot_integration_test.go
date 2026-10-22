@@ -91,13 +91,14 @@ func tracedStorePool(t *testing.T, log *statementLog) *pgxpool.Pool {
 	return p
 }
 
-// TestForgotDoesTheSameWorkWhetherOrNotTheAddressHasAnAccount holds /forgot to
-// the promise its answer makes. Identical answers are not enough: a request
-// that writes a token, a message and a commit for a customer's address and
-// reads one row for a stranger's is timed apart from outside. So the request
-// sends the same statements for both, and the token waits for the outbox
-// worker, which only a real account reaches.
-func TestForgotDoesTheSameWorkWhetherOrNotTheAddressHasAnAccount(t *testing.T) {
+// TestHandler_ForgotSameWork: Forgot sends the same number of statements and
+// the same answer for an address with an account and one without, and issues no
+// token itself (the token waits for the outbox worker, which only a real
+// account reaches). Identical answers are not enough: a request that writes a
+// token, a message and a commit for a customer's address and reads one row for
+// a stranger's is timed apart from outside; the test asserts the statements,
+// not the time.
+func TestHandler_ForgotSameWork(t *testing.T) {
 	ctx := t.Context()
 	known := "forgot-known-" + uuid.NewString() + "@example.com"
 	unknown := "forgot-unknown-" + uuid.NewString() + "@example.com"
@@ -200,11 +201,11 @@ func queuedResetRequests(t *testing.T) map[string]string {
 	return out
 }
 
-// TestSpentRegistrationsLeaveAnAddressItsResetLink: anybody may register an
-// address, and a reset is how its owner takes back an account somebody else
-// registered there. Reset requests are counted apart from registrations and
-// address changes, so spending those for the address does not stop the reset.
-func TestSpentRegistrationsLeaveAnAddressItsResetLink(t *testing.T) {
+// TestHandler_ForgotSpentRegistrations: an address whose registration budget is
+// spent still gets its reset link, so an intruder who registers an address over
+// and over cannot stop its owner taking the account back. Reset requests are
+// counted apart from registrations and address changes.
+func TestHandler_ForgotSpentRegistrations(t *testing.T) {
 	ctx := t.Context()
 	h := auth.NewHandler(auth.NewStore(pool), nil, nil, slog.New(slog.DiscardHandler), false, nil)
 	addr := "forgot-apart-" + uuid.NewString() + "@example.com"
@@ -245,14 +246,12 @@ func TestSpentRegistrationsLeaveAnAddressItsResetLink(t *testing.T) {
 	}
 }
 
-// TestAStrangersResetRequestsLeaveTheOwnerALiveLink is #2189's reproduction. A
-// reset request mails the account at the address whoever asks, so the links one
-// address is sent are bounded, three and then one every ten minutes. A stranger
-// asking from three networks spends that, and the owner asking next from a
-// fourth is answered as every request is and finds the newest of the
-// stranger's links live in the inbox. The bound is the address's own, so the
-// answer is the same whether or not it has an account.
-func TestAStrangersResetRequestsLeaveTheOwnerALiveLink(t *testing.T) {
+// TestHandler_ForgotStrangerRequests: reset requests a stranger spends on an
+// address from several networks are bounded (three, then one every ten
+// minutes), and the owner's next request is answered as every request is, with
+// the newest link live in the inbox, the same whether or not the address has an
+// account. This is #2189's reproduction.
+func TestHandler_ForgotStrangerRequests(t *testing.T) {
 	ctx := t.Context()
 	s := auth.NewStore(pool)
 	h := auth.NewHandler(s, nil, nil, slog.New(slog.DiscardHandler), false, nil)

@@ -13,7 +13,9 @@ import (
 	"github.com/koopa0/goen/internal/i18n"
 )
 
-func TestSignInConfirmsOnlyThePasswordChangeFlag(t *testing.T) {
+// TestHandler_SignInPageChanged: SignInPage shows the password-changed status
+// only for changed=1, in both locales.
+func TestHandler_SignInPageChanged(t *testing.T) {
 	t.Parallel()
 	h := &Handler{google: &google.Client{}, log: slog.New(slog.DiscardHandler)}
 	for _, locale := range i18n.Locales() {

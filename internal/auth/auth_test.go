@@ -28,7 +28,11 @@ import (
 	"github.com/koopa0/goen/internal/web/ratelimit"
 )
 
-func TestPasswordHashingRoundTrips(t *testing.T) {
+// TestHashPassword: a password hashes to a salted hash that verifies against it
+// and not against a wrong or empty password, and the hash does not contain the
+// password. Two hashes of one password differ, or one rainbow table would cover
+// every account that shares it.
+func TestHashPassword(t *testing.T) {
 	t.Parallel()
 
 	const pw = "correct horse battery"
@@ -62,7 +66,9 @@ func TestPasswordHashingRoundTrips(t *testing.T) {
 	}
 }
 
-func TestHashCarriesItsParameters(t *testing.T) {
+// TestHashPasswordParameters: the encoded hash is an Argon2id string that
+// carries its version, memory, time and parallelism parameters in six fields.
+func TestHashPasswordParameters(t *testing.T) {
 	t.Parallel()
 
 	h, err := HashPassword("a password long enough")
@@ -79,7 +85,10 @@ func TestHashCarriesItsParameters(t *testing.T) {
 	}
 }
 
-func TestVerifyRejectsMalformedHashes(t *testing.T) {
+// TestVerifyPasswordMalformedHash: VerifyPassword refuses a stored hash that is
+// empty, malformed, of another algorithm or version, has unparseable parameters
+// or encodings, or has extra fields.
+func TestVerifyPasswordMalformedHash(t *testing.T) {
 	t.Parallel()
 
 	for _, h := range []string{
@@ -99,7 +108,11 @@ func TestVerifyRejectsMalformedHashes(t *testing.T) {
 	}
 }
 
-func TestVerifyRejectsUnsafeArgonParameters(t *testing.T) {
+// TestVerifyPasswordUnsafeCost: VerifyPassword refuses a stored hash whose
+// Argon2 cost is zero (zero passes or lanes would panic) or unbounded in
+// memory, passes or lanes, so a planted hash cannot make verification exhaust
+// the server.
+func TestVerifyPasswordUnsafeCost(t *testing.T) {
 	t.Parallel()
 
 	tests := []struct {
@@ -137,10 +150,12 @@ func TestVerifyRejectsUnsafeArgonParameters(t *testing.T) {
 	}
 }
 
-// A password over MaxPasswordBytes is refused before the read, or a 513-byte
-// probe separates a password account from an unknown or identity-only account.
-// The closed pool makes the ordering deterministic without a timing assertion.
-func TestAnOverLongPasswordIsRefusedBeforeTheRead(t *testing.T) {
+// TestStore_OverlongPasswordNoRead: Authenticate and ConfirmPassword answer a
+// password over MaxPasswordBytes with ErrBadCredentials before reading the
+// database, so a 513-byte probe cannot separate a password account from an
+// unknown or identity-only account. The closed pool makes the ordering
+// deterministic without a timing assertion.
+func TestStore_OverlongPasswordNoRead(t *testing.T) {
 	t.Parallel()
 
 	pool, err := pgxpool.New(t.Context(), "postgres://nobody@127.0.0.1:1/nothing")
@@ -173,7 +188,11 @@ func TestAnOverLongPasswordIsRefusedBeforeTheRead(t *testing.T) {
 	}
 }
 
-func TestAnOverlongSignInAddressSkipsTheLimiterAndUsesTheOrdinaryFailure(t *testing.T) {
+// TestHandler_SignInOverlongAddress: SignIn answers an over-long address with
+// the same 422 page and headers as an ordinary bad credential and keeps no
+// limiter key for it (a second request is not throttled), so a huge address
+// cannot fill the limiter or be told apart from a wrong password.
+func TestHandler_SignInOverlongAddress(t *testing.T) {
 	store := deadAccountStore(t)
 	normalHandler := rateLimitedAccountHandler(store)
 	longHandler := rateLimitedAccountHandler(store)
@@ -215,7 +234,10 @@ func TestAnOverlongSignInAddressSkipsTheLimiterAndUsesTheOrdinaryFailure(t *test
 	}
 }
 
-func TestAnOverlongForgotAddressIsAnsweredIdenticallyBeforeTheLimiter(t *testing.T) {
+// TestHandler_ForgotOverlongAddress: Forgot answers an over-long address
+// exactly as it answers an unusable one (303, same headers, same body) and
+// keeps no limiter key for it.
+func TestHandler_ForgotOverlongAddress(t *testing.T) {
 	store := deadAccountStore(t)
 	normalHandler := rateLimitedAccountHandler(store)
 	longHandler := rateLimitedAccountHandler(store)
@@ -266,11 +288,13 @@ func rateLimitedAccountHandler(store *Store) *Handler {
 	}
 }
 
-// TestRegistrationsOfOneAddressAreBounded: a registration mails the address it
-// names, whether or not that address has an account, so the form must not be a
-// way to fill one inbox. The bound is keyed on the address as the rules read it
-// and refuses every address the same way.
-func TestRegistrationsOfOneAddressAreBounded(t *testing.T) {
+// TestHandler_RegisterAddressBound: Register refuses a fourth registration of
+// one address with 429 and a Retry-After over nine minutes, however the address
+// is cased or padded, and still accepts another address, so the form cannot be
+// used to fill one inbox. A registration mails the address it names whether or
+// not that address has an account; the bound refuses every address the same
+// way.
+func TestHandler_RegisterAddressBound(t *testing.T) {
 	h := NewHandler(deadAccountStore(t), nil, nil, slog.New(slog.DiscardHandler), false, nil)
 	const password = "a sufficiently long password"
 	register := func(addr string) *httptest.ResponseRecorder {
@@ -321,9 +345,11 @@ func bodyWithSubmittedEmailHidden(t *testing.T, body, addr string) string {
 	return strings.Replace(body, needle, `value="<submitted-email>"`, 1)
 }
 
-// TestSignInKeepsItsAccountFallback locks the caller's choice. siteurl.Path
-// owns what is safe; account owns where a refused post-sign-in redirect lands.
-func TestSignInKeepsItsAccountFallback(t *testing.T) {
+// TestHandler_SignInPageNextFallback: SignInPage carries /account as the next
+// destination when the requested redirect (//\/evil.example) is refused.
+// siteurl.Path owns what is safe; the sign-in page owns where a refused
+// post-sign-in redirect lands.
+func TestHandler_SignInPageNextFallback(t *testing.T) {
 	t.Parallel()
 
 	h := &Handler{log: slog.New(slog.DiscardHandler), google: &google.Client{}}
@@ -364,7 +390,11 @@ func TestPasswordError(t *testing.T) {
 	}
 }
 
-func TestValidateRegistration(t *testing.T) {
+// TestCredentials_ValidateRegistration: ValidateRegistration accepts a valid
+// registration and refuses a missing or malformed email, a short password, a
+// mismatched confirmation and a control character in the name or email, each on
+// its own field.
+func TestCredentials_ValidateRegistration(t *testing.T) {
 	t.Parallel()
 
 	good := Credentials{
@@ -416,7 +446,11 @@ func TestValidateRegistration(t *testing.T) {
 	}
 }
 
-func TestNormaliseGoogleIdentityBoundsProviderData(t *testing.T) {
+// TestNormaliseGoogleIdentity: normaliseGoogleIdentity trims the display name
+// and refuses an identity whose subject is empty, padded or too long, whose
+// address is malformed or whose address Google has not verified, but drops an
+// oversized name instead of refusing the sign-in.
+func TestNormaliseGoogleIdentity(t *testing.T) {
 	t.Parallel()
 
 	valid := google.Identity{
@@ -453,7 +487,11 @@ func TestNormaliseGoogleIdentityBoundsProviderData(t *testing.T) {
 	}
 }
 
-func TestUserAgentDecorationIsBoundedWithoutRejectingTheSession(t *testing.T) {
+// TestNormaliseUserAgent: normaliseUserAgent keeps a sane user agent (trimmed,
+// any UTF-8 within the ceiling) and returns the empty label for one that is
+// over the ceiling, holds a newline or is not valid UTF-8, so the stored label
+// is bounded and a bad header costs the session its label, not an error.
+func TestNormaliseUserAgent(t *testing.T) {
 	t.Parallel()
 	if got := normaliseUserAgent("  browser/1  "); got != "browser/1" {
 		t.Errorf("normaliseUserAgent trimmed value = %q", got)
@@ -476,11 +514,12 @@ func TestUserAgentDecorationIsBoundedWithoutRejectingTheSession(t *testing.T) {
 	}
 }
 
-// TestNoFieldMessageLeaksAFormatVerb asserts the RENDERED string rather than the
-// catalogue: only the too-short message carries a format verb, and its refusal
-// carries the minimum, so no message renders "%!d(MISSING)" or an unfilled verb
-// beside the field.
-func TestNoFieldMessageLeaksAFormatVerb(t *testing.T) {
+// TestPasswordRefusalNoFormatVerb: none of the registration form's field
+// messages (email, confirmation and password) renders a format verb, in either
+// locale. It asserts the RENDERED string rather than the catalogue: only the
+// too-short message carries a verb, and its refusal carries the minimum, so no
+// message renders "%!d(MISSING)" or an unfilled verb beside the field.
+func TestPasswordRefusalNoFormatVerb(t *testing.T) {
 	t.Parallel()
 
 	passwords := map[string]string{
@@ -527,7 +566,9 @@ func TestNoFieldMessageLeaksAFormatVerb(t *testing.T) {
 	}
 }
 
-func TestAccountNoticeExplainsWhyAnOpenReturnBlocksErasure(t *testing.T) {
+// TestNoticeEraseOpenReturn: Notice explains that an open return blocks erasure
+// when the account page is opened with erase=return.
+func TestNoticeEraseOpenReturn(t *testing.T) {
 	t.Parallel()
 
 	for _, locale := range []i18n.Locale{i18n.ZhHant, i18n.En} {
@@ -540,7 +581,9 @@ func TestAccountNoticeExplainsWhyAnOpenReturnBlocksErasure(t *testing.T) {
 	}
 }
 
-func TestAccountNoticeExplainsWhyTheLastAdminCannotBeErased(t *testing.T) {
+// TestNoticeEraseLastAdmin: Notice explains that the last administrator cannot
+// be erased when the account page is opened with erase=admin.
+func TestNoticeEraseLastAdmin(t *testing.T) {
 	t.Parallel()
 
 	for _, locale := range []i18n.Locale{i18n.ZhHant, i18n.En} {
@@ -553,7 +596,10 @@ func TestAccountNoticeExplainsWhyTheLastAdminCannotBeErased(t *testing.T) {
 	}
 }
 
-func TestCartRecoveryLandingPreservesContinuation(t *testing.T) {
+// TestCartRecoveryLanding: cartRecoveryLanding carries a safe continuation into
+// the cart-recovery URL and replaces an unsafe one (//evil.example) with
+// /account.
+func TestCartRecoveryLanding(t *testing.T) {
 	t.Parallel()
 
 	tests := []struct {
@@ -573,7 +619,10 @@ func TestCartRecoveryLandingPreservesContinuation(t *testing.T) {
 	}
 }
 
-func TestAdjustedCartLandingKeepsContinuation(t *testing.T) {
+// TestCartAdoptionLanding: cartAdoptionLanding sends an adjusted cart to /cart
+// with qty=adjusted and the continuation kept, an unchanged adoption to its
+// target, and a failed adoption to cart recovery.
+func TestCartAdoptionLanding(t *testing.T) {
 	for _, tt := range []struct{ target, want string }{
 		{"/cart#items", "/cart?qty=adjusted#items"},
 		{"/cart?source=signin#items", "/cart?qty=adjusted&source=signin#items"},
@@ -594,7 +643,11 @@ func TestAdjustedCartLandingKeepsContinuation(t *testing.T) {
 	}
 }
 
-func TestConfirmationAcknowledgementsAreSafeToRefresh(t *testing.T) {
+// TestHandler_VerifyPageAcknowledgement: VerifyPage answers the done=1
+// acknowledgement with a page that carries no token, address or cookie and is
+// identical on refresh, while a request without the done marker keeps the
+// confirmation form and does not claim completion.
+func TestHandler_VerifyPageAcknowledgement(t *testing.T) {
 	h := &Handler{log: slog.New(slog.DiscardHandler)}
 	tests := []struct {
 		name    string
@@ -658,7 +711,10 @@ func TestConfirmationAcknowledgementsAreSafeToRefresh(t *testing.T) {
 	}
 }
 
-func TestInvalidVerificationOffersEmailResend(t *testing.T) {
+// TestHandler_VerifyInvalidToken: Verify answers a post without a valid token
+// with a 422 dead-link page that points back to the account email section for a
+// new link, in both locales.
+func TestHandler_VerifyInvalidToken(t *testing.T) {
 	h := &Handler{store: &Store{}, log: slog.New(slog.DiscardHandler)}
 	for _, locale := range i18n.Locales() {
 		t.Run(locale.Tag(), func(t *testing.T) {
@@ -679,7 +735,10 @@ func TestInvalidVerificationOffersEmailResend(t *testing.T) {
 	}
 }
 
-func TestVerificationInfrastructureFailuresKeepTheirOwnState(t *testing.T) {
+// TestHandler_VerifyFailedTryAgain: verifyFailed with the try-again wording
+// renders the notice state with a 422 and does not claim the emailed link is
+// dead.
+func TestHandler_VerifyFailedTryAgain(t *testing.T) {
 	h := &Handler{log: slog.New(slog.DiscardHandler)}
 	for _, locale := range i18n.Locales() {
 		t.Run(locale.Tag(), func(t *testing.T) {
@@ -698,7 +757,10 @@ func TestVerificationInfrastructureFailuresKeepTheirOwnState(t *testing.T) {
 	}
 }
 
-func TestRegistrationLandingKeepsTheNextStepAfterWelcome(t *testing.T) {
+// TestRegistrationLanding: registrationLanding sends a new account to its
+// welcome page, keeping a safe next step and the cart-adoption outcome
+// (adjusted, failed) and dropping an external one.
+func TestRegistrationLanding(t *testing.T) {
 	for _, tt := range []struct {
 		name, next, want string
 		adoption         cartAdoption
@@ -717,11 +779,12 @@ func TestRegistrationLandingKeepsTheNextStepAfterWelcome(t *testing.T) {
 	}
 }
 
-// TestPasswordCostIsOWASPSecondOption locks the work factor of every stored
-// password hash. HashPassword reads passwordCost, which is declared from these
-// constants and which only export_test.go may lower, so a change here changes
-// what production spends per sign-in and what an attacker must spend per guess.
-func TestPasswordCostIsOWASPSecondOption(t *testing.T) {
+// TestPasswordCost: the Argon2id cost of every stored password hash stays at
+// the OWASP second option (m=64 MiB, t=3, p=4). HashPassword reads
+// passwordCost, which is declared from these constants and which only
+// export_test.go may lower, so a change here changes what production spends per
+// sign-in and what an attacker must spend per guess.
+func TestPasswordCost(t *testing.T) {
 	// No t.Parallel: the third check swaps the package variable.
 	const reference = "OWASP Password Storage Cheat Sheet, Argon2id second option: " +
 		"m=64 MiB (65536 KiB), t=3, p=4; change it deliberately, not by accident"
@@ -875,10 +938,13 @@ func assertPasswordCostDeclaredFromConstants(t *testing.T, fset *gotoken.FileSet
 	}
 }
 
-// TestSignInMissesAreChargedPerNetworkAndInTotal: a miss is any password the
-// store refuses before it reads the database, so this runs on a dead pool.
-// The integration tests prove the right password still gets in.
-func TestSignInMissesAreChargedPerNetworkAndInTotal(t *testing.T) {
+// TestHandler_SignInMissLimits: SignIn charges wrong-password misses against a
+// per-account budget for each network (a /24) and a total ceiling across
+// networks, so neither one network nor a guess spread over many gets unlimited
+// tries at an account. A miss is any password the store refuses before it reads
+// the database, so this runs on a dead pool; the integration tests prove the
+// right password still gets in.
+func TestHandler_SignInMissLimits(t *testing.T) {
 	h := NewHandler(deadAccountStore(t), nil, nil, slog.New(slog.DiscardHandler), false, nil)
 	miss := strings.Repeat("x", MaxPasswordBytes+1)
 	signInFrom := func(remoteAddr, addr string) int {

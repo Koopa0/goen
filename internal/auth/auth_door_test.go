@@ -10,10 +10,11 @@ import (
 
 var authPhoto = regexp.MustCompile(`<img[^>]*department-books-stationery[^>]*alt=""`)
 
-// TestSignInAndRegisterOpenWithAPhotoAfterTheForm: the photo is decoration, so
-// it follows the form in the document, and the pages that carry no
-// photo (a re-sign-in, forgot) stay a single column.
-func TestSignInAndRegisterOpenWithAPhotoAfterTheForm(t *testing.T) {
+// TestSignInPhotoAfterForm: the sign-in and registration pages carry their
+// photo after the form in the document and fetch it lazily, and the pages that
+// carry no photo (a re-sign-in, forgot) stay a single column. The photo is
+// decoration, so it follows the form.
+func TestSignInPhotoAfterForm(t *testing.T) {
 	t.Parallel()
 	page := frame.Page{Title: "x"}
 	tests := []struct {
@@ -54,7 +55,9 @@ func TestSignInAndRegisterOpenWithAPhotoAfterTheForm(t *testing.T) {
 	}
 }
 
-func TestTheForgotLinkFollowsThePasswordField(t *testing.T) {
+// TestSignInForgotLinkAfterField: the sign-in page places the forgot-password
+// link after the password field.
+func TestSignInForgotLinkAfterField(t *testing.T) {
 	t.Parallel()
 	body := renderToString(t, SignIn(frame.Page{Title: "x"}, AuthView{}))
 	field := strings.Index(body, `id="password"`)
@@ -64,7 +67,9 @@ func TestTheForgotLinkFollowsThePasswordField(t *testing.T) {
 	}
 }
 
-func TestTheDemoAccountTakesTheFocusOffTheEmailField(t *testing.T) {
+// TestSignInDemoAccountFocus: the sign-in page autofocuses the email field
+// without a demo account and gives the focus up when one is offered.
+func TestSignInDemoAccountFocus(t *testing.T) {
 	t.Parallel()
 	page := frame.Page{Title: "x"}
 	focus := func(v AuthView) bool {
@@ -88,7 +93,9 @@ func TestTheDemoAccountTakesTheFocusOffTheEmailField(t *testing.T) {
 	}
 }
 
-func TestTheReturnSentenceIsALede(t *testing.T) {
+// TestSignInReturnLede: the sign-in page shows the return message in the lede
+// paragraph.
+func TestSignInReturnLede(t *testing.T) {
 	t.Parallel()
 	body := renderToString(t, SignIn(frame.Page{Title: "x"}, AuthView{ReturnMessage: "Sign in to go back to your cart."}))
 	if !strings.Contains(body, `<p class="goen-auth__lede">Sign in to go back to your cart.</p>`) {

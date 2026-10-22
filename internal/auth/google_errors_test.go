@@ -39,11 +39,12 @@ type failedRow struct{ err error }
 
 func (r failedRow) Scan(...any) error { return r.err }
 
-// Handlers log the error that SignInWithGoogle returns at ERROR, and a failing
-// database is exactly when every Google sign-in would write its customer's
-// address there. The error names the step and wraps the cause; it never carries
-// the address.
-func TestGoogleSignInDatabaseErrorsDoNotCarryTheAddress(t *testing.T) {
+// TestGoogleLinkCandidateErrors: the errors googleLinkCandidate returns name
+// the failing step and wrap the database cause but never carry the customer's
+// address. Handlers log the error that SignInWithGoogle returns at ERROR, and a
+// failing database is exactly when every Google sign-in would write its
+// customer's address there.
+func TestGoogleLinkCandidateErrors(t *testing.T) {
 	t.Parallel()
 	const address = "jane.doe.private@example.test"
 	cause := errors.New("connection reset by peer")

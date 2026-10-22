@@ -22,7 +22,10 @@ import (
 	"github.com/koopa0/goen/internal/order/access"
 )
 
-func TestAdoptCartMergesRatherThanReplaces(t *testing.T) {
+// TestCartStore_AdoptMerges: cart.Store.Adopt sums a guest cart's lines into
+// the account cart rather than replacing them, keeps guest-only lines, and
+// deletes the guest cart so the next sign-in cannot adopt it again.
+func TestCartStore_AdoptMerges(t *testing.T) {
 	ctx := t.Context()
 	s := auth.NewStore(pool)
 	u := register(t, s, "merge@example.com")
@@ -94,7 +97,10 @@ func TestAdoptCartMergesRatherThanReplaces(t *testing.T) {
 	}
 }
 
-func TestAdoptCartMergeClampsCombinedQuantity(t *testing.T) {
+// TestCartStore_AdoptClampsQuantity: cart.Store.Adopt clamps a merged line to
+// the sellable quantity (stock less safety stock) and reports
+// ErrQuantityAdjusted.
+func TestCartStore_AdoptClampsQuantity(t *testing.T) {
 	ctx := t.Context()
 	s := auth.NewStore(pool)
 	u := register(t, s, "merge-clamp-"+uuid.NewString()+"@example.com")
@@ -165,7 +171,9 @@ func TestAdoptCartMergeClampsCombinedQuantity(t *testing.T) {
 	}
 }
 
-func TestAdoptUnavailableGuestLinePreservesBothCarts(t *testing.T) {
+// TestCartStore_AdoptUnavailable: cart.Store.Adopt refuses with ErrMergeRefused
+// when a guest line is out of stock and leaves both carts as they were.
+func TestCartStore_AdoptUnavailable(t *testing.T) {
 	ctx := t.Context()
 	s := auth.NewStore(pool)
 	u := register(t, s, "merge-refuse-"+uuid.NewString()+"@example.com")
@@ -251,10 +259,11 @@ func TestAdoptUnavailableGuestLinePreservesBothCarts(t *testing.T) {
 	}
 }
 
-// TestAdoptRefusesInactiveLinesWithoutTouchingEitherCart holds the rejection
-// for a line that can no longer be sold at all: the guest's cart, and the
-// account's when it has one, keep every line at its original quantity.
-func TestAdoptRefusesInactiveLinesWithoutTouchingEitherCart(t *testing.T) {
+// TestCartStore_AdoptInactive: cart.Store.Adopt refuses with ErrMergeRefused a
+// guest line whose variant or product can no longer be sold, and the guest's
+// cart, and the account's when it has one, keep every line at its original
+// quantity.
+func TestCartStore_AdoptInactive(t *testing.T) {
 	ctx := t.Context()
 	s := auth.NewStore(pool)
 
@@ -370,10 +379,12 @@ func TestAdoptRefusesInactiveLinesWithoutTouchingEitherCart(t *testing.T) {
 	}
 }
 
-// TestAMergedCartIsVisibleAfterSignInWithTheDeletedGuestCookie holds the
-// storefront path: sign-in adopt deletes the guest row, the browser cookie
-// still names it, and GET /cart must show the surviving account cart.
-func TestAMergedCartIsVisibleAfterSignInWithTheDeletedGuestCookie(t *testing.T) {
+// TestHandler_SignInMergedCart: SignIn adopts the guest cart, and GET /cart
+// with the guest cookie that now names a deleted row shows the merged account
+// cart. This is the storefront path: sign-in adopt deletes the guest row, the
+// browser cookie still names it, and /cart must show the surviving account
+// cart.
+func TestHandler_SignInMergedCart(t *testing.T) {
 	ctx := t.Context()
 	accounts := auth.NewStore(pool)
 	u := registerProved(t, accounts, "merge-cookie-"+uuid.NewString()+"@example.com")
@@ -454,11 +465,11 @@ func TestAMergedCartIsVisibleAfterSignInWithTheDeletedGuestCookie(t *testing.T) 
 	}
 }
 
-// TestFailedCartAdoptionOnSignInShowsNoticeAndPreservesBothCarts holds that a
-// reversible adoption failure still signs the customer in, lands them on the
-// recovery page for any safe continuation, and leaves both eligible carts intact
-// until POST retry succeeds.
-func TestFailedCartAdoptionOnSignInShowsNoticeAndPreservesBothCarts(t *testing.T) {
+// TestHandler_SignInFailedAdoption: when cart adoption fails reversibly (the
+// guest cart is locked), SignIn still signs the customer in and lands on the
+// recovery page for any safe continuation, and both carts stay intact until
+// RetryCartAdoption succeeds.
+func TestHandler_SignInFailedAdoption(t *testing.T) {
 	ctx := t.Context()
 	accounts := auth.NewStore(pool)
 	u := registerProved(t, accounts, "adopt-fail-"+uuid.NewString()+"@example.com")
@@ -603,11 +614,12 @@ func TestFailedCartAdoptionOnSignInShowsNoticeAndPreservesBothCarts(t *testing.T
 	}
 }
 
-// TestAdoptCartRefusesGuestCartOwnedByAnotherAccount holds that a cart already
-// attached to someone else is never recovered through sign-in or POST retry.
-// The browser's token names no cart this account may use, so there is nothing
-// to adopt and nothing to recover: both land where they were going.
-func TestAdoptCartRefusesGuestCartOwnedByAnotherAccount(t *testing.T) {
+// TestHandler_AdoptForeignGuestCart: SignIn and RetryCartAdoption never adopt
+// or recover a guest cart already attached to another account; both land where
+// the customer was going and the other account's cart keeps its owner and
+// lines. The browser's token names no cart this account may use, so there is
+// nothing to adopt and nothing to recover.
+func TestHandler_AdoptForeignGuestCart(t *testing.T) {
 	ctx := t.Context()
 	accounts := auth.NewStore(pool)
 	u := registerProved(t, accounts, "adopt-refuse-"+uuid.NewString()+"@example.com")
@@ -708,11 +720,12 @@ func TestAdoptCartRefusesGuestCartOwnedByAnotherAccount(t *testing.T) {
 	}
 }
 
-// TestAdoptCartNeverTakesAnotherAccountsCart calls the store directly with a
-// cart another account owns, as a sign-in that lost a race for it would. The
-// lines are sellable, so nothing but the ownership guard stands between that
-// call and the other account's cart being merged away or taken over.
-func TestAdoptCartNeverTakesAnotherAccountsCart(t *testing.T) {
+// TestCartStore_AdoptForeignCart: cart.Store.Adopt, called directly with a cart
+// another account owns, as a sign-in that lost a race for it would, answers
+// ErrNotFound and leaves that cart, its owner and its lines alone. The lines
+// are sellable, so nothing but the ownership guard stands between that call and
+// the other account's cart being merged away or taken over.
+func TestCartStore_AdoptForeignCart(t *testing.T) {
 	ctx := t.Context()
 	accounts := auth.NewStore(pool)
 	ownVariant := sellableVariant(t, ctx)
@@ -785,11 +798,12 @@ func TestAdoptCartNeverTakesAnotherAccountsCart(t *testing.T) {
 	}
 }
 
-// TestTwoAccountsCannotAdoptTheSameGuestCart holds the shared cart after each
-// transaction has locked its own user, so both make the first-adopter decision
-// before either can update the cart. The winner keeps the cart; the loser must
-// observe its new owner under the cart lock and leave it untouched.
-func TestTwoAccountsCannotAdoptTheSameGuestCart(t *testing.T) {
+// TestCartStore_AdoptConcurrent: two accounts adopting the same guest cart at
+// once cannot both take it: one succeeds and the other gets ErrNotFound and
+// leaves the cart with the winner. Both transactions lock their own user before
+// either can update the cart; the loser must observe the new owner under the
+// cart lock and leave the cart untouched.
+func TestCartStore_AdoptConcurrent(t *testing.T) {
 	ctx := t.Context()
 	s := auth.NewStore(pool)
 	firstUser := register(t, s, "shared-guest-a-"+uuid.NewString()+"@example.com")

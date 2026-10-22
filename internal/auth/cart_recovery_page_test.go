@@ -11,7 +11,11 @@ import (
 	"github.com/koopa0/goen/internal/i18n"
 )
 
-func TestCartRecoveryListsBothCartsBeforeTheNativeRetry(t *testing.T) {
+// TestCartRecoveryBothCarts: the cart-recovery page lists the before-sign-in
+// and the account cart as labelled lists with photos, says the carts were not
+// combined, and offers the existing native retry POST with the original
+// destination and a visible link back to the cart, ahead of any script.
+func TestCartRecoveryBothCarts(t *testing.T) {
 	t.Parallel()
 	for _, locale := range i18n.Locales() {
 		t.Run(locale.Tag(), func(t *testing.T) {

@@ -23,7 +23,10 @@ import (
 	"github.com/koopa0/goen/internal/bearer"
 )
 
-func TestSessionsAreStoredHashed(t *testing.T) {
+// TestStore_StartSessionHashed: StartSession stores only a hash of the session
+// token (a leak of the table would not hand over live sessions), SessionUser
+// resolves the token, and a near-miss token finds no session.
+func TestStore_StartSessionHashed(t *testing.T) {
 	s := auth.NewStore(pool)
 	u := register(t, s, "session@example.com")
 
@@ -50,7 +53,10 @@ func TestSessionsAreStoredHashed(t *testing.T) {
 	}
 }
 
-func TestUnsafeUserAgentDoesNotRefuseOrDecorateASession(t *testing.T) {
+// TestStore_StartSessionUserAgent: StartSession neither refuses a session nor
+// stores a label for an unsafe user agent, and keeps one at exactly the
+// ceiling.
+func TestStore_StartSessionUserAgent(t *testing.T) {
 	ctx := t.Context()
 	s := auth.NewStore(pool)
 	u := register(t, s, "session-user-agent-"+uuid.NewString()+"@example.com")
@@ -102,7 +108,9 @@ func TestUnsafeUserAgentDoesNotRefuseOrDecorateASession(t *testing.T) {
 	}
 }
 
-func TestExpiredSessionIsNobody(t *testing.T) {
+// TestStore_SessionUserExpired: SessionUser answers ErrNotFound for an expired
+// session although its row is still there.
+func TestStore_SessionUserExpired(t *testing.T) {
 	ctx := t.Context()
 	s := auth.NewStore(pool)
 	u := register(t, s, "expired@example.com")
@@ -133,7 +141,9 @@ func TestExpiredSessionIsNobody(t *testing.T) {
 	}
 }
 
-func TestSessionExpiryUsesTheDatabaseClockAndTTL(t *testing.T) {
+// TestStore_StartSessionExpiry: a session's expiry is derived from the row's
+// database creation clock and the session TTL, at least a day away.
+func TestStore_StartSessionExpiry(t *testing.T) {
 	ctx := t.Context()
 	s := auth.NewStore(pool)
 	u := register(t, s, "ttl@example.com")
@@ -170,10 +180,11 @@ func (w *statusRecorder) WriteHeader(status int) {
 	w.ResponseRecorder.WriteHeader(status)
 }
 
-// TestSessionWriteFailureDoesNotFallThroughToRedirect proves all three entry
-// paths stop after startSession writes its 500. net/http keeps the first status
-// code, so a second WriteHeader is what this observes.
-func TestSessionWriteFailureDoesNotFallThroughToRedirect(t *testing.T) {
+// TestHandler_StartSessionFailure: when the session write fails, sign-in,
+// registration completion and the Google callback each answer one 500 and write
+// no redirect. net/http keeps the first status code, so a second WriteHeader is
+// what this observes.
+func TestHandler_StartSessionFailure(t *testing.T) {
 	s := auth.NewStore(pool)
 	h := auth.NewHandler(s, nil, nil, slog.New(slog.DiscardHandler), false, nil)
 	existing := registerProved(t, s, "session-failure-signin-"+uuid.NewString()+"@example.com")
@@ -319,7 +330,9 @@ func forceSessionInsertFailure(t *testing.T) {
 	})
 }
 
-func TestExpiredSessionsArePruned(t *testing.T) {
+// TestStore_SweepSessions: SweepSessions deletes expired sessions and keeps a
+// live one.
+func TestStore_SweepSessions(t *testing.T) {
 	ctx := t.Context()
 	s := auth.NewStore(pool)
 	u := register(t, s, "pruned@example.com")

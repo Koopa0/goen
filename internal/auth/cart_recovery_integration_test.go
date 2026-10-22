@@ -20,7 +20,11 @@ import (
 	"github.com/koopa0/goen/internal/user"
 )
 
-func TestCartRecoveryReadsBothBasketsWithoutChangingOrExposingAnotherAccount(t *testing.T) {
+// TestHandler_CartRecoveryPageReads: CartRecoveryPage lists the account's cart
+// and the before-sign-in basket the browser's guest cookie still names, shows
+// only the current account's items, writes no cookie and changes no quantity.
+// An absent or already owned cookie exposes no before-sign-in basket.
+func TestHandler_CartRecoveryPageReads(t *testing.T) {
 	for _, locale := range i18n.Locales() {
 		t.Run(locale.Tag(), func(t *testing.T) {
 			ctx := i18n.WithLocale(t.Context(), locale)

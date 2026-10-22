@@ -16,11 +16,13 @@ import (
 	"github.com/koopa0/goen/internal/auth"
 )
 
-// A second-factor check that cannot be answered refuses: the four doors that
-// end, replace or re-credential a staff account must not read "I could not tell"
-// as "verified". The cmd/goen tests drive the real predicate; this one drives a
-// predicate that fails, which the real one only does when the database does.
-func TestStaffDoorsRefuseWhenTheSecondFactorCannotBeRead(t *testing.T) {
+// TestHandler_StepUpFailure: the four doors that end, replace or re-credential
+// a staff account answer 500 with no redirect when the second-factor check
+// cannot be answered, and change no account or session. A check that cannot be
+// answered refuses: "I could not tell" must not read as "verified". The
+// cmd/goen tests drive the real predicate; this one drives a predicate that
+// fails, which the real one only does when the database does.
+func TestHandler_StepUpFailure(t *testing.T) {
 	failing := func(*http.Request) (bool, error) { return false, errors.New("sessions unreachable") }
 
 	for _, door := range []struct {
@@ -72,10 +74,11 @@ func TestStaffDoorsRefuseWhenTheSecondFactorCannotBeRead(t *testing.T) {
 	}
 }
 
-// The profile and the other self-service edits stay open to a staff account that
-// has not passed the second factor: they neither end an account, nor change how
-// it signs in, nor reach anything the back office guards.
-func TestStaffProfileEditNeedsNoSecondFactor(t *testing.T) {
+// TestHandler_StepUpProfileEdit: the profile and the other self-service edits
+// stay open to a staff account that has not passed the second factor: they
+// neither end an account, nor change how it signs in, nor reach anything the
+// back office guards.
+func TestHandler_StepUpProfileEdit(t *testing.T) {
 	appPool := accountStorePool(t, "staff-profile")
 	s := auth.NewStore(appPool)
 	u := registerProved(t, s, "step-up-profile-"+uuid.NewString()+"@example.com")

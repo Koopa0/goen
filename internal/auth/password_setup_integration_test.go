@@ -21,7 +21,12 @@ import (
 	"github.com/koopa0/goen/internal/outbox"
 )
 
-func TestGoogleOnlyPasswordSetupUsesTheCurrentMailboxAndExistingReset(t *testing.T) {
+// TestHandler_RequestPasswordSetup: a Google-only account asks for a password
+// by mail: the request queues the existing reset for the account's current
+// mailbox only (a forged email query queues nothing for another account), adds
+// no password without mailbox proof, and after the mailed link is spent the
+// account can set a password and unlink Google.
+func TestHandler_RequestPasswordSetup(t *testing.T) {
 	for _, locale := range i18n.Locales() {
 		t.Run(locale.Tag(), func(t *testing.T) {
 			ctx := i18n.WithLocale(t.Context(), locale)
@@ -154,7 +159,10 @@ func TestGoogleOnlyPasswordSetupUsesTheCurrentMailboxAndExistingReset(t *testing
 	}
 }
 
-func TestPasswordSetupSharesTheForgotPasswordMailboxBudget(t *testing.T) {
+// TestHandler_RequestPasswordSetupBudget: RequestPasswordSetup shares the
+// forgot-password budget of the account's mailbox: once forgot requests have
+// spent it, a setup request is answered as usual and queues nothing more.
+func TestHandler_RequestPasswordSetupBudget(t *testing.T) {
 	ctx := t.Context()
 	s := auth.NewStore(accountStorePool(t, "password-setup-mailbox-limit"))
 	u, err := s.SignInWithGoogle(ctx, google.Identity{

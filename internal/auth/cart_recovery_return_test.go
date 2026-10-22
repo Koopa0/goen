@@ -5,7 +5,9 @@ import (
 	"testing"
 )
 
-func TestTheCartRecoveryPageReturnsToTheCart(t *testing.T) {
+// TestCartRecoveryReturnsToCart: the cart-recovery page's back link returns to
+// the cart.
+func TestCartRecoveryReturnsToCart(t *testing.T) {
 	t.Parallel()
 	html := renderToString(t, CartRecovery(CartRecoveryMeta(t.Context()), CartRecoveryView{Next: "/account", Notice: "n", Retry: "r"}))
 	back := tagCarrying(t, html, "notice__back")

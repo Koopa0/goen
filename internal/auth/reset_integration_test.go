@@ -41,7 +41,9 @@ func plantLiveResetToken(t *testing.T, userID string) string {
 	return token
 }
 
-func TestAResetTokenIsSpentExactlyOnce(t *testing.T) {
+// TestStore_CompleteResetOnce: concurrent CompleteReset calls with one token
+// succeed exactly once, and every other racer fails for the right reason.
+func TestStore_CompleteResetOnce(t *testing.T) {
 	ctx := t.Context()
 	s := auth.NewStore(pool)
 	register(t, s, "spendonce@example.com")
@@ -79,7 +81,9 @@ func TestAResetTokenIsSpentExactlyOnce(t *testing.T) {
 	}
 }
 
-func TestAnExpiredResetTokenIsRefused(t *testing.T) {
+// TestStore_CompleteResetExpired: CompleteReset refuses an expired token with
+// ErrResetInvalid and does not change the password.
+func TestStore_CompleteResetExpired(t *testing.T) {
 	ctx := t.Context()
 	s := auth.NewStore(pool)
 	register(t, s, "expiredreset@example.com")
@@ -111,7 +115,10 @@ func TestAnExpiredResetTokenIsRefused(t *testing.T) {
 	}
 }
 
-func TestAReplacementResetLinkInvalidatesTheEarlierToken(t *testing.T) {
+// TestStore_CompleteResetReplaced: a newer reset link replaces the earlier one:
+// one unused token remains, the earlier link is refused with ErrResetInvalid
+// and does not change the password, and the latest link works.
+func TestStore_CompleteResetReplaced(t *testing.T) {
 	ctx := t.Context()
 	s := auth.NewStore(pool)
 	email := "replace-reset-" + uuid.NewString() + "@example.com"
@@ -149,7 +156,10 @@ func TestAReplacementResetLinkInvalidatesTheEarlierToken(t *testing.T) {
 	}
 }
 
-func TestAResetInvalidatesSiblingTokensAndSessions(t *testing.T) {
+// TestStore_CompleteResetSiblings: a completed reset invalidates the account's
+// other reset tokens and ends its sessions, so an older link or a stolen
+// session does not outlive it.
+func TestStore_CompleteResetSiblings(t *testing.T) {
 	ctx := t.Context()
 	s := auth.NewStore(pool)
 	u := register(t, s, "siblings@example.com")
@@ -179,10 +189,11 @@ func TestAResetInvalidatesSiblingTokensAndSessions(t *testing.T) {
 	}
 }
 
-// TestConcurrentResetIssuanceLeavesOneLiveToken holds the account until both
-// replacement requests have reached it. They serialize on the user row so
-// exactly one unused token remains, and only that token can complete.
-func TestConcurrentResetIssuanceLeavesOneLiveToken(t *testing.T) {
+// TestStore_IssueResetConcurrent: two concurrent reset requests for one account
+// serialize on the user row and leave exactly one unused token, and only that
+// token can complete. The test holds the account until both requests have
+// reached it.
+func TestStore_IssueResetConcurrent(t *testing.T) {
 	ctx := t.Context()
 	s := auth.NewStore(pool)
 	email := "replace-race-" + uuid.NewString() + "@example.com"
@@ -269,11 +280,12 @@ func TestConcurrentResetIssuanceLeavesOneLiveToken(t *testing.T) {
 	}
 }
 
-// TestConcurrentSiblingResetsSerializeOnTheAccount holds the user row until
-// both already-issued sibling links have reached it. Only one token may change
-// the password; that winner invalidates the sibling before the second request
-// can spend it.
-func TestConcurrentSiblingResetsSerializeOnTheAccount(t *testing.T) {
+// TestStore_CompleteResetConcurrent: two already-issued sibling links completed
+// at once serialize on the account: one succeeds and changes the password, and
+// the other is refused as invalid because the winner invalidates the sibling
+// before it can be spent. The test holds the user row until both have reached
+// it.
+func TestStore_CompleteResetConcurrent(t *testing.T) {
 	ctx := t.Context()
 	s := auth.NewStore(pool)
 	u := register(t, s, "sibling-race-"+uuid.NewString()+"@example.com")
@@ -327,7 +339,11 @@ func TestConcurrentSiblingResetsSerializeOnTheAccount(t *testing.T) {
 	}
 }
 
-func TestBeginResetSaysNothingAboutWhoHasAnAccount(t *testing.T) {
+// TestStore_RequestResetQuiet: a reset request for an address nobody holds, or
+// one that is unusable, errors nowhere and queues no message, while a real
+// address queues a reset token, so the request says nothing about who has an
+// account.
+func TestStore_RequestResetQuiet(t *testing.T) {
 	ctx := t.Context()
 	s := auth.NewStore(pool)
 	register(t, s, "real@example.com")
@@ -354,7 +370,9 @@ func TestBeginResetSaysNothingAboutWhoHasAnAccount(t *testing.T) {
 	}
 }
 
-func TestAResetTokenIsStoredHashed(t *testing.T) {
+// TestStore_IssueResetHashed: a reset token is stored as its digest and the raw
+// token appears nowhere in the table.
+func TestStore_IssueResetHashed(t *testing.T) {
 	ctx := t.Context()
 	s := auth.NewStore(pool)
 	register(t, s, "hashedreset@example.com")
@@ -378,7 +396,10 @@ func TestAResetTokenIsStoredHashed(t *testing.T) {
 	}
 }
 
-func TestAWeakNewPasswordIsRefusedWithoutSpendingTheToken(t *testing.T) {
+// TestStore_CompleteResetWeakPassword: CompleteReset refuses a short new
+// password with ErrInvalidPassword without spending the token, which still
+// completes with a good password.
+func TestStore_CompleteResetWeakPassword(t *testing.T) {
 	ctx := t.Context()
 	s := auth.NewStore(pool)
 	register(t, s, "weakreset@example.com")
@@ -392,7 +413,10 @@ func TestAWeakNewPasswordIsRefusedWithoutSpendingTheToken(t *testing.T) {
 	}
 }
 
-func TestTheSweepDropsDeadResetTokensAndKeepsLiveOnes(t *testing.T) {
+// TestStore_SweepSessionsResetTokens: SweepSessions deletes reset tokens that
+// were spent or expired long ago and keeps a live one and one spent just now
+// (inside the grace window support can still answer).
+func TestStore_SweepSessionsResetTokens(t *testing.T) {
 	ctx := t.Context()
 	s := auth.NewStore(pool)
 	u := register(t, s, "sweep-"+uuid.NewString()+"@goen.invalid")
@@ -436,7 +460,11 @@ func TestTheSweepDropsDeadResetTokensAndKeepsLiveOnes(t *testing.T) {
 	}
 }
 
-func TestSuccessfulResetReturnsToThePrivatePrefilledSignIn(t *testing.T) {
+// TestHandler_ResetPrefill: a successful Reset answers 303 /signin?reset=1 with
+// the address prefilled through a private cookie that the sign-in page
+// consumes, the new password works and the old one does not, and a spent link
+// answers 422 with no prefill cookie.
+func TestHandler_ResetPrefill(t *testing.T) {
 	ctx := t.Context()
 	s := auth.NewStore(accountStorePool(t, "reset-prefill-"+uuid.NewString()))
 	u := registerProved(t, s, "reset-prefill-"+uuid.NewString()+"@example.com")
@@ -475,7 +503,10 @@ func TestSuccessfulResetReturnsToThePrivatePrefilledSignIn(t *testing.T) {
 	}
 }
 
-func TestDeadResetLinksOfferRecovery(t *testing.T) {
+// TestHandler_ResetDeadLink: a dead reset link (expired or spent) is not
+// validated by GET, and a POST answers 422 with a recovery page that does not
+// leak the token and changes no account state or password.
+func TestHandler_ResetDeadLink(t *testing.T) {
 	for _, locale := range i18n.Locales() {
 		for _, state := range []string{"expired", "spent"} {
 			t.Run(locale.Tag()+"/"+state, func(t *testing.T) {
