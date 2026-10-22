@@ -164,13 +164,13 @@ var (
 	}
 	// i18nOnlyLeaves import nothing from goen except the message catalogue.
 	i18nOnlyLeaves = []string{
-		"internal/invoice", "internal/order", "internal/product/labelling", "internal/order/returns", "internal/shoptime", "internal/ui/fieldrule",
+		"internal/invoice", "internal/product/labelling", "internal/order/returns", "internal/shoptime", "internal/ui/fieldrule",
 		"internal/sales", "internal/admin/worklist", "internal/shipping", "internal/credit", "internal/web/formtext",
 		"internal/ui/tone",
 	}
 	// formtextLeaves read a code a person typed: they import nothing from goen
 	// except formtext, which folds its width, and the message catalogue.
-	formtextLeaves = []string{"internal/discount/coupon"}
+	formtextLeaves = []string{"internal/discount/coupon", "internal/order"}
 	// moneyLeaves name an amount in a sentence: they import nothing from goen
 	// except money, which writes the amount, and the message catalogue.
 	moneyLeaves = []string{"internal/payment/refund"}

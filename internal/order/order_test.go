@@ -73,6 +73,18 @@ func TestNormalizeNumber(t *testing.T) {
 		{"empty", "", ""},
 		{"only space", "   ", ""},
 		{"a dotless i is not an I", "GO-261014-ABCDı", ""},
+		// A Chinese keyboard left in full-width mode types the number itself.
+		{"typed in full width", "ＧＯ－２６１０１４－ＡＢＣＤＥＦ", "GO-261014-ABCDEF"},
+		{"typed in full width lower case", "ｇｏ－２６１０１４－ａｂｃｄｅｆ", "GO-261014-ABCDEF"},
+		{"half and full width mixed", "ＧＯ-261014－ABCDＥＦ", "GO-261014-ABCDEF"},
+		{"surrounded by ideographic space", "\u3000ＧＯ－２６１０１４－ＡＢＣＤＥＦ\u3000", "GO-261014-ABCDEF"},
+		{"full-width look-alikes after the prefix", "ＧＯ－２６ＩＯ１４－０ＯＩＬ１Ｋ", "GO-261014-00111K"},
+		{"a full-width zero is not the prefix O", "Ｇ０－２６１０１４－ＡＢＣＤＥＦ", ""},
+		{"an ideographic space is not a dash", "ＧＯ－２６１０１４\u3000ＡＢＣＤＥＦ", ""},
+		// The fold is not NFKC, and look-alikes of the number's characters stay refused.
+		{"Cyrillic look-alikes", "GO-261014-АВСDEF", ""},
+		{"a Unicode hyphen is not a dash", "GO\u2010261014-ABCDEF", ""},
+		{"a Roman numeral is not an I", "GO-261014-ABCDEⅠ", ""},
 	} {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
