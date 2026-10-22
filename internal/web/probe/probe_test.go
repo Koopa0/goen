@@ -13,7 +13,8 @@ type stubPinger struct{ err error }
 
 func (p stubPinger) Ping(context.Context) error { return p.err }
 
-func TestReadinessDependsOnTheStorefrontPoolAndItsSchema(t *testing.T) {
+// Readiness depends on the storefront pool and its schema.
+func TestHandler_Ready(t *testing.T) {
 	t.Parallel()
 	for _, tc := range []struct {
 		name       string
@@ -41,7 +42,8 @@ func TestReadinessDependsOnTheStorefrontPoolAndItsSchema(t *testing.T) {
 	}
 }
 
-func TestLivenessIgnoresTheDatabase(t *testing.T) {
+// Liveness ignores the database.
+func TestHandler_LiveDatabaseDown(t *testing.T) {
 	t.Parallel()
 	h := NewHandler(slog.New(slog.DiscardHandler), stubPinger{err: errors.New("down")}, func(context.Context) error { return errors.New("down") })
 	res := httptest.NewRecorder()

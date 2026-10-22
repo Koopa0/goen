@@ -5,7 +5,8 @@ import (
 	"testing"
 )
 
-func TestParseCountTakesBlankAsZeroAndRefusesTheRest(t *testing.T) {
+// ParseCount takes blank as zero and refuses the rest.
+func TestParseCount(t *testing.T) {
 	t.Parallel()
 	for _, tt := range []struct {
 		in   string
@@ -23,7 +24,8 @@ func TestParseCountTakesBlankAsZeroAndRefusesTheRest(t *testing.T) {
 	}
 }
 
-func TestASearchTermIsTrimmedAndCutToItsBound(t *testing.T) {
+// A search term is trimmed and cut to its bound.
+func TestSearchTerm(t *testing.T) {
 	t.Parallel()
 	if got := SearchTerm("  koto  "); got != "koto" {
 		t.Errorf("SearchTerm = %q, want the trimmed term", got)
@@ -34,7 +36,8 @@ func TestASearchTermIsTrimmedAndCutToItsBound(t *testing.T) {
 	}
 }
 
-func TestAMalformedCountIsInvalidAndNotZero(t *testing.T) {
+// A malformed count is invalid, not zero.
+func TestParseCountOrInvalid(t *testing.T) {
 	t.Parallel()
 	for in, want := range map[string]int32{"": 0, "5": 5, "12o": -1, "-3": -1, "1000001": -1} {
 		if got := ParseCountOrInvalid(in); got != want {
