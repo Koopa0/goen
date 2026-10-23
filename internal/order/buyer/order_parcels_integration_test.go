@@ -1,6 +1,6 @@
 //go:build integration
 
-package checkout_test
+package buyer_test
 
 import (
 	"fmt"
@@ -14,14 +14,14 @@ import (
 	"github.com/koopa0/goen/internal/order/buyer"
 )
 
-// TestBuyerStore_OrderParcelDays: The parcel of buyer.Store.Order carries the
+// TestStore_OrderParcelDays: The parcel of Store.Order carries the
 // database's return window: its rescission days equal rescission_days(), and
 // return_line_policy_window reads within, goodwill and after at the ends of the
 // grid and the day after each. It holds that the grid's two ends are the ones
 // the return decision enforces: asked on each end and the day after it,
 // return_line_policy_window reads within, goodwill and after where the page
 // draws the mark and the end of the grid.
-func TestBuyerStore_OrderParcelDays(t *testing.T) {
+func TestStore_OrderParcelDays(t *testing.T) {
 	ctx := i18n.WithLocale(t.Context(), i18n.En)
 	s := checkout.NewStore(pool)
 	number := checkouttest.PlaceUnpaidOrderFor(t, pool, s, "parcel@example.com")
@@ -196,14 +196,14 @@ func payFor(t *testing.T, number string) {
 	}
 }
 
-// TestBuyerStore_OrderRefundedSettled: buyer.Store.Order reads refunded only
+// TestStore_OrderRefundedSettled: Store.Order reads refunded only
 // once a return's refund has settled, and a refund before shipment returns
 // nothing. It holds what the order page calls fully returned. An approved
 // return has only started its payout: until its card refund has succeeded and
 // the payout has written the refunded event, the money has not been sent and
 // the order keeps its own words. A return with nothing to send back, or a
 // completed one, has settled; a refund before shipment returned nothing.
-func TestBuyerStore_OrderRefundedSettled(t *testing.T) {
+func TestStore_OrderRefundedSettled(t *testing.T) {
 	ctx := i18n.WithLocale(t.Context(), i18n.En)
 	s := checkout.NewStore(pool)
 
@@ -284,7 +284,7 @@ func TestBuyerStore_OrderRefundedSettled(t *testing.T) {
 	}
 }
 
-// TestBuyerStore_OrderSecondReturn: buyer.Store.Order keeps reading paid while
+// TestStore_OrderSecondReturn: Store.Order keeps reading paid while
 // a second return's refund is unsettled, even when the first return is
 // refunded, and reads refunded on the later event's day for both amounts once
 // the second settles. It holds that a return's settlement is its own. Two
@@ -293,7 +293,7 @@ func TestBuyerStore_OrderRefundedSettled(t *testing.T) {
 // first return's event says nothing about the second, so the order still reads
 // as paid until the second refund settles too; then it is refunded on the day
 // of the later event, for both amounts.
-func TestBuyerStore_OrderSecondReturn(t *testing.T) {
+func TestStore_OrderSecondReturn(t *testing.T) {
 	ctx := i18n.WithLocale(t.Context(), i18n.En)
 	s := checkout.NewStore(pool)
 	number := checkouttest.PlaceOrderOfUnits(t, pool, s, "two-returns@example.com", 2)

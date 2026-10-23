@@ -1,8 +1,9 @@
 //go:build integration
 
-package checkout_test
+package buyer_test
 
 import (
+	"context"
 	"fmt"
 	"log/slog"
 	"net/http"
@@ -13,15 +14,17 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/jackc/pgx/v5"
 
 	"github.com/koopa0/goen/internal/checkout"
 	"github.com/koopa0/goen/internal/checkout/checkouttest"
+	"github.com/koopa0/goen/internal/i18n"
 	"github.com/koopa0/goen/internal/order/access"
 	"github.com/koopa0/goen/internal/order/buyer"
 	"github.com/koopa0/goen/internal/web/ratelimit"
 )
 
-// TestBuyerHandler_FindOrderAddressBound: buyer.Handler.FindOrder bounds the
+// TestHandler_FindOrderAddressBound: Handler.FindOrder bounds the
 // lookups of one address from any client: the address runs out whatever the
 // clients, the right number is then refused like a wrong one, and another
 // address from the same clients is untouched. An address is guessable from
@@ -30,7 +33,7 @@ import (
 // from a different client, IPv4 and IPv6 alike; the address runs out anyway,
 // the right number is then refused like a wrong one, and another address from
 // the same clients is untouched.
-func TestBuyerHandler_FindOrderAddressBound(t *testing.T) {
+func TestHandler_FindOrderAddressBound(t *testing.T) {
 	ctx := t.Context()
 	s := checkout.NewStore(pool)
 	victim := "find-bound-" + uuid.NewString() + "@example.com"
@@ -98,11 +101,11 @@ func TestBuyerHandler_FindOrderAddressBound(t *testing.T) {
 	}
 }
 
-// TestBuyerHandler_FindOrderFullWidth: buyer.Handler.FindOrder finds an order
+// TestHandler_FindOrderFullWidth: Handler.FindOrder finds an order
 // by a number typed on a Chinese keyboard left in full-width mode, and charges
 // a wrong number to the address like any other: alternating the two widths buys
 // no second allowance.
-func TestBuyerHandler_FindOrderFullWidth(t *testing.T) {
+func TestHandler_FindOrderFullWidth(t *testing.T) {
 	ctx := t.Context()
 	s := checkout.NewStore(pool)
 	h := buyer.NewHandler(buyer.NewStore(pool), access.NewStore(pool, false), slog.New(slog.DiscardHandler),
@@ -176,14 +179,14 @@ func TestBuyerHandler_FindOrderFullWidth(t *testing.T) {
 	}
 }
 
-// TestBuyerHandler_FindOrderRandomNumber: buyer.Handler.FindOrder does not find
+// TestHandler_FindOrderRandomNumber: Handler.FindOrder does not find
 // an order by the day's first counter number, GO-<day>-000001, while the real
 // number finds it even typed in lower case with its 0 and 1 read as o and l. It
 // holds the point of random order numbers at the door a stranger uses: knowing
 // a customer's address and the day, the counter's first number of the day,
 // GO-<day>-000001, names nothing, while the real number finds the order even
 // typed in lower case with its 0 and 1 read as o and l.
-func TestBuyerHandler_FindOrderRandomNumber(t *testing.T) {
+func TestHandler_FindOrderRandomNumber(t *testing.T) {
 	ctx := t.Context()
 	s := checkout.NewStore(pool)
 	victim := "find-random-" + uuid.NewString() + "@example.com"
@@ -220,5 +223,139 @@ func TestBuyerHandler_FindOrderRandomNumber(t *testing.T) {
 	res := find(" " + typed + " ")
 	if res.Code != http.StatusSeeOther || res.Header().Get("Location") != "/orders/"+number {
 		t.Errorf("%q answered %d to %q, want 303 to /orders/%s", typed, res.Code, res.Header().Get("Location"), number)
+	}
+}
+
+// TestHandler_FindOrderGrantFailure: Handler.FindOrder answers 500
+// with the find-order recovery page, not a 303 to an order page where access
+// would fail, when its grant cannot be written, and recovers once it can. It
+// locks the grant failure handling in FindOrder: if Grant fails, FindOrder must
+// answer 500 rather than 303 redirecting to the order page where access would
+// fail.
+func TestHandler_FindOrderGrantFailure(t *testing.T) {
+	ctx := t.Context()
+	s := checkout.NewStore(pool)
+
+	orderNumber := checkouttest.PlaceUnpaidOrderFor(t, pool, s, "find-grant-fail@example.com")
+
+	suffix := strings.ReplaceAll(uuid.NewString(), "-", "")
+	fnName := pgx.Identifier{"test_fail_find_grant_" + suffix}.Sanitize()
+	trgName := pgx.Identifier{"test_fail_find_grant_" + suffix}.Sanitize()
+	if _, err := pool.Exec(ctx, fmt.Sprintf(`
+		CREATE FUNCTION %s() RETURNS trigger LANGUAGE plpgsql AS $body$
+		BEGIN
+			RAISE EXCEPTION 'simulated find grant insert failure';
+		END
+		$body$;
+		CREATE TRIGGER %s BEFORE INSERT ON order_access_grants
+		FOR EACH ROW EXECUTE FUNCTION %s()`,
+		fnName, trgName, fnName)); err != nil {
+		t.Fatalf("install find grant trigger: %v", err)
+	}
+	t.Cleanup(func() {
+		cleanupCtx, cancel := context.WithTimeout(context.WithoutCancel(t.Context()), 5*time.Second)
+		defer cancel()
+		if _, err := pool.Exec(cleanupCtx, fmt.Sprintf(
+			"DROP TRIGGER IF EXISTS %s ON order_access_grants; DROP FUNCTION IF EXISTS %s()",
+			trgName, fnName)); err != nil {
+			t.Errorf("remove find grant trigger: %v", err)
+		}
+	})
+
+	form := url.Values{
+		"number": {orderNumber},
+		"email":  {"find-grant-fail@example.com"},
+	}
+	req := httptest.NewRequestWithContext(ctx, http.MethodPost, "/orders/find",
+		strings.NewReader(form.Encode()))
+	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+
+	h := buyer.NewHandler(buyer.NewStore(pool), access.NewStore(pool, false), slog.New(slog.DiscardHandler), testLimiter(), false)
+
+	res := httptest.NewRecorder()
+	h.FindOrder(res, req)
+
+	if res.Code == http.StatusSeeOther {
+		t.Fatalf("find order with grant failure answered 303 (Location: %q), want 500",
+			res.Header().Get("Location"))
+	}
+	if res.Code != http.StatusInternalServerError {
+		t.Fatalf("find order answered %d, want 500 Internal Server Error", res.Code)
+	}
+	assertFindOrderGrantFailurePage(t, res.Body.String())
+	for _, c := range res.Result().Cookies() {
+		if c.Name == "goen_placed" {
+			t.Fatal("find order grant failure response issued a goen_placed cookie")
+		}
+	}
+
+	// Remove failure trigger to simulate recovery.
+	if _, err := pool.Exec(ctx, fmt.Sprintf(
+		"DROP TRIGGER IF EXISTS %s ON order_access_grants; DROP FUNCTION IF EXISTS %s()",
+		trgName, fnName)); err != nil {
+		t.Fatalf("remove find grant trigger: %v", err)
+	}
+
+	// Retry find order.
+	recoveredRes := httptest.NewRecorder()
+	h.FindOrder(recoveredRes, req)
+
+	if recoveredRes.Code != http.StatusSeeOther {
+		t.Fatalf("recovered find order answered %d, want 303", recoveredRes.Code)
+	}
+	wantLocation := "/orders/" + url.PathEscape(orderNumber)
+	if recoveredRes.Header().Get("Location") != wantLocation {
+		t.Fatalf("recovered find order Location = %q, want %q", recoveredRes.Header().Get("Location"), wantLocation)
+	}
+	var recoveredCookie *http.Cookie
+	for _, c := range recoveredRes.Result().Cookies() {
+		if c.Name == "goen_placed" {
+			recoveredCookie = c
+			break
+		}
+	}
+	if recoveredCookie == nil {
+		t.Fatal("recovered find order set no goen_placed cookie")
+	}
+
+	orderReq := httptest.NewRequestWithContext(ctx, http.MethodGet, wantLocation, http.NoBody)
+	orderReq.SetPathValue("number", orderNumber)
+	orderReq.AddCookie(recoveredCookie)
+	orderRes := httptest.NewRecorder()
+	h.OrderPage(orderRes, orderReq)
+	if orderRes.Code != http.StatusOK {
+		t.Fatalf("recovered find-order cookie could not reach order page: %d", orderRes.Code)
+	}
+
+	stranger := httptest.NewRequestWithContext(ctx, http.MethodGet, wantLocation, http.NoBody)
+	stranger.SetPathValue("number", orderNumber)
+	strangerRes := httptest.NewRecorder()
+	h.OrderPage(strangerRes, stranger)
+	if strangerRes.Code != http.StatusNotFound {
+		t.Fatalf("unrelated browser reached order page after find-order recovery: %d, want 404",
+			strangerRes.Code)
+	}
+
+	forged := httptest.NewRequestWithContext(ctx, http.MethodGet, wantLocation, http.NoBody)
+	forged.SetPathValue("number", orderNumber)
+	forged.AddCookie(&http.Cookie{Name: "goen_placed", Value: orderNumber}) //nolint:gosec // G124: forgery under test
+	forgedRes := httptest.NewRecorder()
+	h.OrderPage(forgedRes, forged)
+	if forgedRes.Code != http.StatusNotFound {
+		t.Fatalf("order number alone in cookie reached order page: %d, want 404", forgedRes.Code)
+	}
+}
+
+func assertFindOrderGrantFailurePage(t *testing.T, body string) {
+	t.Helper()
+	if !strings.Contains(body, "/orders/find") {
+		t.Fatal("find-order grant failure did not offer find-order recovery")
+	}
+	zh := i18n.T(i18n.WithLocale(t.Context(), i18n.ZhHant), i18n.KeyFindOrderGrantFailedBody)
+	if !strings.Contains(body, zh) {
+		t.Fatalf("find-order grant failure body missing recovery copy: %q", body)
+	}
+	if strings.Contains(body, i18n.T(i18n.WithLocale(t.Context(), i18n.ZhHant), i18n.KeyPlacementGrantFailedBody)) {
+		t.Fatal("find-order grant failure reused placement recovery copy")
 	}
 }

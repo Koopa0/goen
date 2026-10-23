@@ -433,6 +433,25 @@ func placedBy(t *testing.T, req *http.Request, number string) {
 	}
 }
 
+// placedCookie issues a REAL access token through the same grant the checkout
+// writes: a fixture putting the order NUMBER in the cookie would assert a
+// forgeable design rather than the rule.
+func placedCookie(t *testing.T, number string) *http.Cookie {
+	t.Helper()
+	w := httptest.NewRecorder()
+	r := httptest.NewRequestWithContext(t.Context(), http.MethodGet, "/", http.NoBody)
+	if err := access.NewStore(pool, false).Grant(w, r, number); err != nil {
+		t.Fatalf("grant access to %s: %v", number, err)
+	}
+	for _, c := range w.Result().Cookies() {
+		if c.Name == "goen_placed" {
+			return c
+		}
+	}
+	t.Fatalf("Grant set no goen_placed cookie")
+	return nil
+}
+
 func applicationPool(t *testing.T, name string) *pgxpool.Pool {
 	t.Helper()
 	cfg, err := pgxpool.ParseConfig(pool.Config().ConnString())

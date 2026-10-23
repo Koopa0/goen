@@ -14,6 +14,7 @@ import (
 
 	"github.com/google/uuid"
 
+	"github.com/koopa0/goen/internal/checkout/checkouttest"
 	"github.com/koopa0/goen/internal/i18n"
 	"github.com/koopa0/goen/internal/order/access"
 	"github.com/koopa0/goen/internal/order/buyer"
@@ -343,4 +344,36 @@ func orderRecoveryActions(t *testing.T, body, primary string) string {
 		t.Errorf("primary recovery href=%q, want %q", href, primary)
 	}
 	return actions
+}
+
+// TestStore_CancelOrderReversal: Store.CancelOrder returns the store
+// credit spent on a cancelled order, once, as a reversal entry.
+func TestStore_CancelOrderReversal(t *testing.T) {
+	ctx := t.Context()
+	s := buyer.NewStore(pool)
+	userID, accountID := checkouttest.CreditedAccount(t, pool, 50000)
+
+	number := ordertest.PendingOrderSpendingCredit(t, pool, userID, 20000)
+	if got := checkouttest.CreditBalance(t, pool, accountID); got != 30000 {
+		t.Fatalf("balance after spending = %d, want 30000", got)
+	}
+
+	if err := s.CancelOrder(ctx, number); err != nil {
+		t.Fatalf("Cancel: %v", err)
+	}
+
+	if got := checkouttest.CreditBalance(t, pool, accountID); got != 50000 {
+		t.Errorf("balance after cancelling = %d, want 50000 — the credit spent on a "+
+			"cancelled order has to come back, the same way the stock does", got)
+	}
+	var reversals int
+	if err := pool.QueryRow(ctx, `
+		SELECT count(*) FROM store_credit_entries e
+		JOIN store_credit_entries orig ON orig.id = e.reverses_id
+		WHERE orig.account_id = $1`, accountID).Scan(&reversals); err != nil {
+		t.Fatalf("count reversals: %v", err)
+	}
+	if reversals != 1 {
+		t.Errorf("%d reversal entries, want 1", reversals)
+	}
 }

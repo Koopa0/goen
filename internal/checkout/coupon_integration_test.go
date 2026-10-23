@@ -5,7 +5,6 @@ package checkout_test
 import (
 	"context"
 	"errors"
-	"strconv"
 	"testing"
 
 	"github.com/google/uuid"
@@ -13,8 +12,6 @@ import (
 	"github.com/koopa0/goen/internal/checkout"
 	"github.com/koopa0/goen/internal/checkout/checkouttest"
 	"github.com/koopa0/goen/internal/discount/coupon"
-	"github.com/koopa0/goen/internal/order/delivery"
-	"github.com/koopa0/goen/internal/order/ordertest"
 )
 
 // insertCoupon inserts one and returns its code.
@@ -50,7 +47,7 @@ func TestStore_PlaceOrderPercentCoupon(t *testing.T) {
 	s := checkout.NewStore(pool)
 	code := insertCoupon(t, "PCT15", "percent", 0, 1500, 0, 0)
 
-	number, err := placeWithCoupon(t, s, code, 0)
+	number, err := checkouttest.PlaceWithCoupon(t, pool, s, code, 0)
 	if err != nil {
 		t.Fatalf("place: %v", err)
 	}
@@ -160,7 +157,7 @@ func TestStore_PlaceOrderRedemptionLimit(t *testing.T) {
 			lastErr = err
 			continue
 		}
-		if _, err := placeWithCoupon(t, s, code, i); err != nil {
+		if _, err := checkouttest.PlaceWithCoupon(t, pool, s, code, i); err != nil {
 			lastErr = err
 			continue
 		}
@@ -193,7 +190,7 @@ func TestStore_PlaceOrderRedemptionAmount(t *testing.T) {
 	if err != nil {
 		t.Fatalf("find: %v", err)
 	}
-	number, err := placeWithCoupon(t, s, code, 0)
+	number, err := checkouttest.PlaceWithCoupon(t, pool, s, code, 0)
 	if err != nil {
 		t.Fatalf("place: %v", err)
 	}
@@ -226,7 +223,7 @@ func TestStore_PlaceOrderCouponUsedUp(t *testing.T) {
 	if err != nil {
 		t.Fatalf("find: %v", err)
 	}
-	if _, placeErr := placeWithCoupon(t, s, code, 1); placeErr != nil {
+	if _, placeErr := checkouttest.PlaceWithCoupon(t, pool, s, code, 1); placeErr != nil {
 		t.Fatalf("the first order should have gone through: %v", placeErr)
 	}
 
@@ -237,38 +234,12 @@ func TestStore_PlaceOrderCouponUsedUp(t *testing.T) {
 			"or this test is not exercising the transactional refusal: %v", err)
 	}
 
-	_, err = placeWithCoupon(t, s, code, 2)
+	_, err = checkouttest.PlaceWithCoupon(t, pool, s, code, 2)
 	if !errors.Is(err, coupon.ErrUsedUp) {
 		t.Fatalf("redeeming a spent coupon = %v, want coupon.ErrUsedUp — the "+
 			"checkout handler branches on this sentinel, and anything else is a "+
 			"500 with the customer's address discarded", err)
 	}
-}
-
-// placeWithCoupon places an order carrying a coupon and returns its number. Its
-// own variant per call, because placing an order consumes stock and a shared
-// seeded row fails under -shuffle.
-func placeWithCoupon(t *testing.T, s *checkout.Store, code string, n int) (string, error) {
-	t.Helper()
-	ctx := t.Context()
-
-	var shipID uuid.UUID
-	if err := pool.QueryRow(ctx,
-		`SELECT id FROM shipping_method_versions ORDER BY effective_at LIMIT 1`).Scan(&shipID); err != nil {
-		t.Fatalf("shipping: %v", err)
-	}
-	vid := ordertest.FreshVariant(t, pool, "coupon-order")
-	id := checkouttest.NewCart(t, s)
-	if err := s.Carts().Add(ctx, id, vid, 1); err != nil {
-		t.Fatalf("add: %v", err)
-	}
-	addr := &delivery.Details{
-		Email: "cp@example.com", RecipientName: "王小明", Phone: "0912345678",
-		PostalCode: "110", City: "台北市", District: "信義區", Street: "路 1 號",
-	}
-	quote := checkouttest.Quote(t, s, id, uuid.NullUUID{}, shipID, addr, code)
-	return s.PlaceOrder(ctx, id, uuid.NullUUID{}, shipID, addr, nil, code, quote,
-		checkouttest.AttemptKey("coupon-test-"+strconv.Itoa(n)+"-"+uuid.NewString()))
 }
 
 // TestCouponsAmountPositive: The money ceiling coupons_amount_positive allows,

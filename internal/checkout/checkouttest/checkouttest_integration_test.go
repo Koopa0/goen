@@ -3,6 +3,7 @@
 package checkouttest_test
 
 import (
+	"strings"
 	"testing"
 
 	"github.com/google/uuid"
@@ -76,6 +77,28 @@ func TestPlaceOrder(t *testing.T) {
 	}
 	if got := scalar[int](t, `SELECT count(*) FROM orders WHERE order_number = $1`, number); got != 1 {
 		t.Errorf("%d orders numbered %s, want 1", got, number)
+	}
+}
+
+// TestPlaceWithCoupon holds that the order redeemed the coupon in the placing
+// transaction and was discounted by its amount.
+func TestPlaceWithCoupon(t *testing.T) {
+	code := "SMOKE" + strings.ToUpper(uuid.NewString()[:6])
+	couponID := scalar[uuid.UUID](t, `
+		INSERT INTO coupons (code, description, kind, amount_cents)
+		VALUES ($1, '煙霧測試', 'amount', 20000) RETURNING id`, code)
+
+	number, err := checkouttest.PlaceWithCoupon(t, pool, checkout.NewStore(pool), code, 0)
+	if err != nil {
+		t.Fatalf("place with %s: %v", code, err)
+	}
+	if got := scalar[int](t, `
+		SELECT count(*) FROM coupon_redemptions c JOIN orders o ON o.id = c.order_id
+		WHERE o.order_number = $1 AND c.coupon_id = $2`, number, couponID); got != 1 {
+		t.Errorf("%d redemptions of the coupon, want 1", got)
+	}
+	if got := scalar[int64](t, `SELECT discount_cents FROM orders WHERE order_number = $1`, number); got != 20000 {
+		t.Errorf("discount = %d cents, want 20000", got)
 	}
 }
 
