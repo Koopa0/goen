@@ -20,6 +20,7 @@ import (
 	"github.com/stripe/stripe-go/v86"
 
 	"github.com/koopa0/goen/internal/admin/health"
+	"github.com/koopa0/goen/internal/checkout/checkouttest"
 	"github.com/koopa0/goen/internal/order/access"
 	"github.com/koopa0/goen/internal/outbox"
 	"github.com/koopa0/goen/internal/payment"
@@ -111,7 +112,7 @@ func (s *stripeSessions) asked(id string) int {
 func lostExpiryOrder(t *testing.T, label string, ago time.Duration) (number, ref string, accountID, couponID uuid.UUID) {
 	t.Helper()
 	ctx := t.Context()
-	number, accountID, couponID = lapsedOrder(t, label)
+	number, accountID, couponID = checkouttest.PlaceLapsed(t, pool, label)
 	var owed int64
 	if err := pool.QueryRow(ctx, `
 		SELECT order_amount_after_credit(id) FROM orders WHERE order_number = $1`, number).Scan(&owed); err != nil {
@@ -185,7 +186,7 @@ func assertGivenBack(t *testing.T, number, ref string, accountID, couponID uuid.
 	if f.reversals != 1 || f.couponSlotsHeld != 0 {
 		t.Errorf("%d credit reversals and %d coupon slots held; want 1 and 0", f.reversals, f.couponSlotsHeld)
 	}
-	if got := creditBalance(t, accountID); got != 30000 {
+	if got := checkouttest.CreditBalance(t, pool, accountID); got != 30000 {
 		t.Errorf("balance = %d, want the 30000 spent on the order back", got)
 	}
 	if got := paymentStatus(t, ref); got != "cancelled" {
@@ -216,9 +217,9 @@ func TestSessionSweeper_SweepLostExpiry(t *testing.T) {
 
 			sweepAs(t, store)
 			f := factsOf(t, number, couponID)
-			if f.status != "pending" || f.couponSlotsHeld != 1 || creditBalance(t, accountID) != 0 {
+			if f.status != "pending" || f.couponSlotsHeld != 1 || checkouttest.CreditBalance(t, pool, accountID) != 0 {
 				t.Fatalf("with the checkout still payable the hold sweeper left %s with %d coupon slots and balance %d; "+
-					"want pending, 1 and 0", f.status, f.couponSlotsHeld, creditBalance(t, accountID))
+					"want pending, 1 and 0", f.status, f.couponSlotsHeld, checkouttest.CreditBalance(t, pool, accountID))
 			}
 			if got := lapsedCheckouts(t); got != before+1 {
 				t.Fatalf("health counts %d unsettled lapsed checkouts, want %d", got, before+1)
@@ -376,9 +377,9 @@ func TestSessionSweeper_SweepNotLostExpiry(t *testing.T) {
 				t.Errorf("the order was cancelled: status %s, %d cancelled events, %d credit reversals",
 					f.status, f.events, f.reversals)
 			}
-			if f.couponSlotsHeld != 1 || creditBalance(t, accountID) != 0 {
+			if f.couponSlotsHeld != 1 || checkouttest.CreditBalance(t, pool, accountID) != 0 {
 				t.Errorf("%d coupon slots held and balance %d; want the coupon and credit still on the order",
-					f.couponSlotsHeld, creditBalance(t, accountID))
+					f.couponSlotsHeld, checkouttest.CreditBalance(t, pool, accountID))
 			}
 		})
 	}

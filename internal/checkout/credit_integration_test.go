@@ -10,8 +10,10 @@ import (
 	"github.com/jackc/pgx/v5/pgconn"
 
 	"github.com/koopa0/goen/internal/checkout"
+	"github.com/koopa0/goen/internal/checkout/checkouttest"
 	"github.com/koopa0/goen/internal/order/buyer"
 	"github.com/koopa0/goen/internal/order/delivery"
+	"github.com/koopa0/goen/internal/order/ordertest"
 )
 
 // TestStore_PlaceOrderCreditAfterDiscount: PlaceOrder caps store credit at what
@@ -28,10 +30,10 @@ func TestStore_PlaceOrderCreditAfterDiscount(t *testing.T) {
 		VALUES ('CREDITCAP', '測試折抵', 'amount', 30000, 0)`); err != nil {
 		t.Fatalf("create the coupon: %v", err)
 	}
-	userID := creditedCustomer(t, 10000000) // NT$100,000 — far above the order
+	userID := ordertest.CreditedCustomer(t, pool, 10000000) // NT$100,000 — far above the order
 
-	id := newCart(t, s)
-	if err := s.Carts().Add(ctx, id, freshVariant(t, "creditcap"), 1); err != nil {
+	id := checkouttest.NewCart(t, s)
+	if err := s.Carts().Add(ctx, id, ordertest.FreshVariant(t, pool, "creditcap"), 1); err != nil {
 		t.Fatalf("add: %v", err)
 	}
 	_, err := s.CouponByCode(ctx, "CREDITCAP")
@@ -39,7 +41,7 @@ func TestStore_PlaceOrderCreditAfterDiscount(t *testing.T) {
 		t.Fatalf("find the coupon: %v", err)
 	}
 
-	number, err := placeOrder(t, s, ctx, id, uuid.NullUUID{UUID: userID, Valid: true},
+	number, err := checkouttest.PlaceOrder(t, s, ctx, id, uuid.NullUUID{UUID: userID, Valid: true},
 		shipVersionFor(t, "home_delivery"), &delivery.Details{
 			Email: "creditcap@example.com", RecipientName: "王小明", Phone: "0912345678",
 			PostalCode: "110", City: "台北市", District: "信義區", Street: "松高路 1 號",
@@ -75,7 +77,7 @@ func TestStore_PlaceOrderCreditSpent(t *testing.T) {
 	ctx := t.Context()
 	s := checkout.NewStore(pool)
 	vid := variantOf(t, "koto-over-ear")
-	userID := creditedCustomer(t, 300000) // NT$3,000
+	userID := ordertest.CreditedCustomer(t, pool, 300000) // NT$3,000
 
 	var shipID uuid.UUID
 	if err := pool.QueryRow(ctx,
@@ -87,11 +89,11 @@ func TestStore_PlaceOrderCreditSpent(t *testing.T) {
 		PostalCode: "110", City: "台北市", District: "信義區", Street: "松高路 1 號",
 	}
 
-	id := newCart(t, s)
+	id := checkouttest.NewCart(t, s)
 	if err := s.Carts().Add(ctx, id, vid, 1); err != nil {
 		t.Fatalf("add: %v", err)
 	}
-	number, err := placeOrder(t, s, ctx, id,
+	number, err := checkouttest.PlaceOrder(t, s, ctx, id,
 		uuid.NullUUID{UUID: userID, Valid: true}, shipID, addr, "", "credit-1-"+uuid.NewString())
 	if err != nil {
 		t.Fatalf("place: %v", err)
@@ -128,7 +130,7 @@ func TestStore_PlaceOrderCreditCapped(t *testing.T) {
 	ctx := t.Context()
 	s := checkout.NewStore(pool)
 	vid := variantOf(t, "koto-over-ear")
-	userID := creditedCustomer(t, 100000000) // NT$1,000,000: far more than any order
+	userID := ordertest.CreditedCustomer(t, pool, 100000000) // NT$1,000,000: far more than any order
 
 	var shipID uuid.UUID
 	if err := pool.QueryRow(ctx,
@@ -140,11 +142,11 @@ func TestStore_PlaceOrderCreditCapped(t *testing.T) {
 		PostalCode: "110", City: "台北市", District: "信義區", Street: "松高路 1 號",
 	}
 
-	id := newCart(t, s)
+	id := checkouttest.NewCart(t, s)
 	if err := s.Carts().Add(ctx, id, vid, 1); err != nil {
 		t.Fatalf("add: %v", err)
 	}
-	number, err := placeOrder(t, s, ctx, id,
+	number, err := checkouttest.PlaceOrder(t, s, ctx, id,
 		uuid.NullUUID{UUID: userID, Valid: true}, shipID, addr, "", "credit-2-"+uuid.NewString())
 	if err != nil {
 		t.Fatalf("place: %v", err)
@@ -202,11 +204,11 @@ func TestStore_PlaceOrderGuestNoCredit(t *testing.T) {
 		Email: "g@example.com", RecipientName: "王小明", Phone: "0912345678",
 		PostalCode: "110", City: "台北市", District: "信義區", Street: "松高路 1 號",
 	}
-	id := newCart(t, s)
+	id := checkouttest.NewCart(t, s)
 	if err := s.Carts().Add(ctx, id, vid, 1); err != nil {
 		t.Fatalf("add: %v", err)
 	}
-	number, err := placeOrder(t, s, ctx, id, uuid.NullUUID{}, shipID, addr, "", "credit-guest-"+uuid.NewString())
+	number, err := checkouttest.PlaceOrder(t, s, ctx, id, uuid.NullUUID{}, shipID, addr, "", "credit-guest-"+uuid.NewString())
 	if err != nil {
 		t.Fatalf("place: %v", err)
 	}
@@ -226,10 +228,10 @@ func TestStore_PlaceOrderGuestNoCredit(t *testing.T) {
 func TestBuyerStore_CancelOrderReversal(t *testing.T) {
 	ctx := t.Context()
 	s := buyer.NewStore(pool)
-	userID, accountID := creditedAccount(t, 50000)
+	userID, accountID := checkouttest.CreditedAccount(t, pool, 50000)
 
 	number := pendingOrderSpendingCredit(t, userID, 20000)
-	if got := creditBalance(t, accountID); got != 30000 {
+	if got := checkouttest.CreditBalance(t, pool, accountID); got != 30000 {
 		t.Fatalf("balance after spending = %d, want 30000", got)
 	}
 
@@ -237,7 +239,7 @@ func TestBuyerStore_CancelOrderReversal(t *testing.T) {
 		t.Fatalf("Cancel: %v", err)
 	}
 
-	if got := creditBalance(t, accountID); got != 50000 {
+	if got := checkouttest.CreditBalance(t, pool, accountID); got != 50000 {
 		t.Errorf("balance after cancelling = %d, want 50000 — the credit spent on a "+
 			"cancelled order has to come back, the same way the stock does", got)
 	}
@@ -257,7 +259,7 @@ func TestBuyerStore_CancelOrderReversal(t *testing.T) {
 // order's credit on the first call and nothing on the next two.
 func TestReverseOrderLedgerIdempotent(t *testing.T) {
 	ctx := t.Context()
-	userID, accountID := creditedAccount(t, 50000)
+	userID, accountID := checkouttest.CreditedAccount(t, pool, 50000)
 	number := pendingOrderSpendingCredit(t, userID, 20000)
 
 	var orderID uuid.UUID
@@ -281,7 +283,7 @@ func TestReverseOrderLedgerIdempotent(t *testing.T) {
 			t.Errorf("call %d returned %d cents, want %d", i+1, returned, want)
 		}
 	}
-	if got := creditBalance(t, accountID); got != 50000 {
+	if got := checkouttest.CreditBalance(t, pool, accountID); got != 50000 {
 		t.Errorf("balance after three reversals = %d, want 50000", got)
 	}
 }
@@ -290,7 +292,7 @@ func TestReverseOrderLedgerIdempotent(t *testing.T) {
 // credit with store_credit_posting_matches_order and pays nothing.
 func TestReverseOrderLedgerShipped(t *testing.T) {
 	ctx := t.Context()
-	userID, accountID := creditedAccount(t, 50000)
+	userID, accountID := checkouttest.CreditedAccount(t, pool, 50000)
 	number := pendingOrderSpendingCredit(t, userID, 20000)
 
 	// Through the real transitions: orders_check_transition refuses pending →
@@ -311,7 +313,7 @@ func TestReverseOrderLedgerShipped(t *testing.T) {
 		t.Errorf("reversing a shipped order's credit = %v, want "+
 			"store_credit_posting_matches_order", err)
 	}
-	if got := creditBalance(t, accountID); got != 30000 {
+	if got := checkouttest.CreditBalance(t, pool, accountID); got != 30000 {
 		t.Errorf("balance = %d, want 30000 — the refusal must not have paid anything", got)
 	}
 }

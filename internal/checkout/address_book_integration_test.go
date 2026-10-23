@@ -14,6 +14,7 @@ import (
 
 	"github.com/koopa0/goen/internal/bearer"
 	"github.com/koopa0/goen/internal/checkout"
+	"github.com/koopa0/goen/internal/checkout/checkouttest"
 	"github.com/koopa0/goen/internal/order/access"
 	"github.com/koopa0/goen/internal/user"
 )
@@ -107,7 +108,7 @@ func TestHandler_PlaceOrderUpdatePlacesNothing(t *testing.T) {
 		"postal_code": {"110"}, "city": {"台北市"}, "district": {"信義區"},
 		"street":      {"松高路 68 號"},
 		"shipping":    {shipID.String()},
-		"idempotency": {checkoutAttemptKey("upd-" + uuid.NewString())},
+		"idempotency": {checkouttest.AttemptKey("upd-" + uuid.NewString())},
 		"update":      {"1"},
 	}
 	req := httptest.NewRequestWithContext(ctx, http.MethodPost, "/checkout",

@@ -17,11 +17,13 @@ import (
 
 	"github.com/koopa0/goen/internal/bearer"
 	"github.com/koopa0/goen/internal/checkout"
+	"github.com/koopa0/goen/internal/checkout/checkouttest"
 	"github.com/koopa0/goen/internal/i18n"
 	"github.com/koopa0/goen/internal/invoice"
 	"github.com/koopa0/goen/internal/invoice/issuer"
 	"github.com/koopa0/goen/internal/order/access"
 	"github.com/koopa0/goen/internal/order/delivery"
+	"github.com/koopa0/goen/internal/order/ordertest"
 )
 
 type checkoutBarcode struct {
@@ -55,7 +57,7 @@ func barcodeCheckoutFor(t *testing.T, checker *checkoutBarcode) barcodeCheckout 
 	if err != nil {
 		t.Fatal(err)
 	}
-	variant := freshVariant(t, "carrier-"+uuid.NewString())
+	variant := ordertest.FreshVariant(t, pool, "carrier-"+uuid.NewString())
 	if err := s.Carts().Add(t.Context(), id, variant, 1); err != nil {
 		t.Fatal(err)
 	}
@@ -63,15 +65,15 @@ func barcodeCheckoutFor(t *testing.T, checker *checkoutBarcode) barcodeCheckout 
 	form := url.Values{
 		"email": {"carrier@example.com"}, "name": {"王小明"}, "phone": {"0912345678"},
 		"postal_code": {"110"}, "city": {"台北市"}, "district": {"信義區"}, "street": {"松仁路 200 號"}, "note": {"please ring"},
-		"shipping": {shipID.String()}, "idempotency": {checkoutAttemptKey(uuid.NewString())},
+		"shipping": {shipID.String()}, "idempotency": {checkouttest.AttemptKey(uuid.NewString())},
 		"invoice_type": {string(invoice.PreferenceMobile)}, "invoice_carrier": {" /abc+123 "},
-		"checkout_quote": {checkoutQuote(t, s, id, uuid.NullUUID{}, shipID, &delivery.Details{PostalCode: "110"}, "").String()},
+		"checkout_quote": {checkouttest.Quote(t, s, id, uuid.NullUUID{}, shipID, &delivery.Details{PostalCode: "110"}, "").String()},
 	}
 	logs := &bytes.Buffer{}
 	return barcodeCheckout{
 		logs:    logs,
 		handler: newHandler(s, access.NewStore(pool, false), slog.New(slog.NewTextHandler(logs, nil)), nil, checker),
-		form:    form, token: token, variant: variant, stock: stockOf(t, variant), id: id,
+		form:    form, token: token, variant: variant, stock: ordertest.StockOf(t, pool, variant), id: id,
 	}
 }
 
@@ -95,7 +97,7 @@ func (c barcodeCheckout) assertUnplaced(t *testing.T) {
 	if err := pool.QueryRow(t.Context(), `SELECT count(*) FROM cart_items WHERE cart_id = $1`, c.id).Scan(&lines); err != nil {
 		t.Fatal(err)
 	}
-	if attempts != 0 || lines != 1 || stockOf(t, c.variant) != c.stock {
+	if attempts != 0 || lines != 1 || ordertest.StockOf(t, pool, c.variant) != c.stock {
 		t.Fatalf("refusal wrote checkout state: attempts=%d cart lines=%d", attempts, lines)
 	}
 }

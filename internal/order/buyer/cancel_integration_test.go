@@ -17,6 +17,7 @@ import (
 	"github.com/koopa0/goen/internal/i18n"
 	"github.com/koopa0/goen/internal/order/access"
 	"github.com/koopa0/goen/internal/order/buyer"
+	"github.com/koopa0/goen/internal/order/ordertest"
 )
 
 // TestStore_CancelOrderReleasesStock: CancelOrder cancels an unpaid held order
@@ -25,17 +26,17 @@ import (
 func TestStore_CancelOrderReleasesStock(t *testing.T) {
 	ctx := t.Context()
 	s := buyer.NewStore(pool)
-	vid := freshVariant(t, "stockfix-8")
+	vid := ordertest.FreshVariant(t, pool, "stockfix-8")
 
-	orderID := heldOrder(t, vid, -time.Hour, false) // held, not yet expired, unpaid
-	number := numberOf(t, orderID)
-	held := stockOf(t, vid)
+	orderID := ordertest.HeldOrder(t, pool, vid, -time.Hour, false) // held, not yet expired, unpaid
+	number := ordertest.NumberOf(t, pool, orderID)
+	held := ordertest.StockOf(t, pool, vid)
 
 	if err := s.CancelOrder(ctx, number); err != nil {
 		t.Fatalf("cancel: %v", err)
 	}
 
-	if got := stockOf(t, vid); got != held+1 {
+	if got := ordertest.StockOf(t, pool, vid); got != held+1 {
 		t.Errorf("stock is %d after cancelling, want %d — the hold was not released", got, held+1)
 	}
 	var status, state string
@@ -61,10 +62,10 @@ func TestStore_CancelOrderReleasesStock(t *testing.T) {
 // now-settled reservation again.
 func TestStore_CancelOrderSweepWonLock(t *testing.T) {
 	ctx := t.Context()
-	variantID := freshVariant(t, "sweep-before-cancel")
-	orderID := heldOrder(t, variantID, -time.Hour, false)
-	number := numberOf(t, orderID)
-	before := stockOf(t, variantID)
+	variantID := ordertest.FreshVariant(t, pool, "sweep-before-cancel")
+	orderID := ordertest.HeldOrder(t, pool, variantID, -time.Hour, false)
+	number := ordertest.NumberOf(t, pool, orderID)
+	before := ordertest.StockOf(t, pool, variantID)
 	var reservationID uuid.UUID
 	if err := pool.QueryRow(ctx, `
 		SELECT id FROM inventory_reservations
@@ -123,7 +124,7 @@ func TestStore_CancelOrderSweepWonLock(t *testing.T) {
 		t.Fatalf("cancel after sweep won the lock: %v", err)
 	}
 
-	if got := stockOf(t, variantID); got != before+1 {
+	if got := ordertest.StockOf(t, pool, variantID); got != before+1 {
 		t.Errorf("stock is %d after one release, want %d", got, before+1)
 	}
 	var status, state string
@@ -143,16 +144,16 @@ func TestStore_CancelOrderSweepWonLock(t *testing.T) {
 func TestStore_CancelOrderFunded(t *testing.T) {
 	ctx := t.Context()
 	s := buyer.NewStore(pool)
-	vid := freshVariant(t, "stockfix-9")
+	vid := ordertest.FreshVariant(t, pool, "stockfix-9")
 
-	orderID := heldOrder(t, vid, -time.Hour, true) // paid
-	number := numberOf(t, orderID)
-	before := stockOf(t, vid)
+	orderID := ordertest.HeldOrder(t, pool, vid, -time.Hour, true) // paid
+	number := ordertest.NumberOf(t, pool, orderID)
+	before := ordertest.StockOf(t, pool, vid)
 
 	if err := s.CancelOrder(ctx, number); !errors.Is(err, buyer.ErrNotCancellable) {
 		t.Fatalf("a paid order was cancellable: %v", err)
 	}
-	if got := stockOf(t, vid); got != before {
+	if got := ordertest.StockOf(t, pool, vid); got != before {
 		t.Errorf("stock moved to %d on a refused cancellation, want %d", got, before)
 	}
 	var status string
@@ -170,18 +171,18 @@ func TestStore_CancelOrderFunded(t *testing.T) {
 func TestStore_CancelOrderTwice(t *testing.T) {
 	ctx := t.Context()
 	s := buyer.NewStore(pool)
-	vid := freshVariant(t, "stockfix-10")
+	vid := ordertest.FreshVariant(t, pool, "stockfix-10")
 
-	number := numberOf(t, heldOrder(t, vid, -time.Hour, false))
+	number := ordertest.NumberOf(t, pool, ordertest.HeldOrder(t, pool, vid, -time.Hour, false))
 	if err := s.CancelOrder(ctx, number); err != nil {
 		t.Fatalf("first cancel: %v", err)
 	}
-	after := stockOf(t, vid)
+	after := ordertest.StockOf(t, pool, vid)
 
 	if err := s.CancelOrder(ctx, number); !errors.Is(err, buyer.ErrNotCancellable) {
 		t.Errorf("the second cancellation was accepted: %v", err)
 	}
-	if got := stockOf(t, vid); got != after {
+	if got := ordertest.StockOf(t, pool, vid); got != after {
 		t.Errorf("the second cancellation moved stock to %d, want %d — it released twice", got, after)
 	}
 }
@@ -191,10 +192,10 @@ func TestStore_CancelOrderTwice(t *testing.T) {
 func TestStore_CancelOrderPicking(t *testing.T) {
 	ctx := t.Context()
 	s := buyer.NewStore(pool)
-	vid := freshVariant(t, "stockfix-11")
+	vid := ordertest.FreshVariant(t, pool, "stockfix-11")
 
-	orderID := heldOrder(t, vid, -time.Hour, true) // funded, so it may leave pending
-	number := numberOf(t, orderID)
+	orderID := ordertest.HeldOrder(t, pool, vid, -time.Hour, true) // funded, so it may leave pending
+	number := ordertest.NumberOf(t, pool, orderID)
 	if _, err := pool.Exec(ctx,
 		`UPDATE orders SET fulfillment_status = 'picking' WHERE id = $1`, orderID); err != nil {
 		t.Fatalf("move to picking: %v", err)
@@ -223,10 +224,10 @@ func TestStore_CancelOrderUnknown(t *testing.T) {
 func TestStore_CancelOrderFundedNoHold(t *testing.T) {
 	ctx := t.Context()
 	s := buyer.NewStore(pool)
-	vid := freshVariant(t, "stockfix-12")
+	vid := ordertest.FreshVariant(t, pool, "stockfix-12")
 
-	orderID := heldOrder(t, vid, -time.Hour, true) // funded
-	number := numberOf(t, orderID)
+	orderID := ordertest.HeldOrder(t, pool, vid, -time.Hour, true) // funded
+	number := ordertest.NumberOf(t, pool, orderID)
 	var reservation uuid.UUID
 	if err := pool.QueryRow(ctx,
 		`SELECT id FROM inventory_reservations WHERE order_id = $1`, orderID).Scan(&reservation); err != nil {
@@ -256,10 +257,10 @@ func TestStore_CancelOrderFundedNoHold(t *testing.T) {
 func TestHandler_CancelOrderStranger(t *testing.T) {
 	ctx := t.Context()
 	s := buyer.NewStore(pool)
-	vid := freshVariant(t, "stockfix-13")
-	orderID := heldOrder(t, vid, -time.Hour, false)
-	number := numberOf(t, orderID)
-	before := stockOf(t, vid)
+	vid := ordertest.FreshVariant(t, pool, "stockfix-13")
+	orderID := ordertest.HeldOrder(t, pool, vid, -time.Hour, false)
+	number := ordertest.NumberOf(t, pool, orderID)
+	before := ordertest.StockOf(t, pool, vid)
 
 	h := buyer.NewHandler(s, access.NewStore(pool, false), slog.New(slog.DiscardHandler), testLimiter(), false)
 
@@ -279,7 +280,7 @@ func TestHandler_CancelOrderStranger(t *testing.T) {
 	if status != "pending" {
 		t.Errorf("a stranger moved the order to %s", status)
 	}
-	if got := stockOf(t, vid); got != before {
+	if got := ordertest.StockOf(t, pool, vid); got != before {
 		t.Errorf("a stranger's cancellation moved stock to %d, want %d", got, before)
 	}
 
@@ -292,7 +293,7 @@ func TestHandler_CancelOrderStranger(t *testing.T) {
 	if ok.Code != http.StatusSeeOther {
 		t.Fatalf("the browser that placed the order got %d, want 303", ok.Code)
 	}
-	if got := stockOf(t, vid); got != before+1 {
+	if got := ordertest.StockOf(t, pool, vid); got != before+1 {
 		t.Errorf("the accepted cancellation left stock at %d, want %d", got, before+1)
 	}
 }
@@ -301,12 +302,12 @@ func TestHandler_CancelOrderStranger(t *testing.T) {
 // order answers 422 with a notice linking back to the order and to the contact
 // page without prefilling, and changes no stock, in both locales.
 func TestHandler_CancelOrderRefusedRecovery(t *testing.T) {
-	vid := freshVariant(t, "cancel-recovery")
-	orderID := heldOrder(t, vid, -time.Hour, true)
-	number := numberOf(t, orderID)
+	vid := ordertest.FreshVariant(t, pool, "cancel-recovery")
+	orderID := ordertest.HeldOrder(t, pool, vid, -time.Hour, true)
+	number := ordertest.NumberOf(t, pool, orderID)
 	appPool := storeRolePool(t)
 	h := buyer.NewHandler(buyer.NewStore(appPool), access.NewStore(appPool, false), slog.New(slog.DiscardHandler), testLimiter(), false)
-	before := stockOf(t, vid)
+	before := ordertest.StockOf(t, pool, vid)
 	for _, locale := range i18n.Locales() {
 		r := httptest.NewRequestWithContext(i18n.WithLocale(t.Context(), locale), http.MethodPost, "/orders/"+number+"/cancel", http.NoBody)
 		r.SetPathValue("number", number)
@@ -324,7 +325,7 @@ func TestHandler_CancelOrderRefusedRecovery(t *testing.T) {
 			t.Error("refused cancellation has no back-to-order label")
 		}
 	}
-	if got := stockOf(t, vid); got != before {
+	if got := ordertest.StockOf(t, pool, vid); got != before {
 		t.Errorf("refused cancellation changed stock from %d to %d", before, got)
 	}
 }

@@ -9,7 +9,9 @@ import (
 	"github.com/google/uuid"
 
 	"github.com/koopa0/goen/internal/checkout"
+	"github.com/koopa0/goen/internal/checkout/checkouttest"
 	"github.com/koopa0/goen/internal/order/delivery"
+	"github.com/koopa0/goen/internal/order/ordertest"
 )
 
 // TestStore_PlaceOrderPricingRules: PlaceOrder, run as the store role, commits
@@ -88,12 +90,12 @@ func TestStore_PlaceOrderPricingRules(t *testing.T) {
 		{"a free-delivery code to a pickup counter", pickup, store, 1, freeDelivery, 0, 0},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
-			id := newCart(t, s)
-			if err := s.Carts().Add(ctx, id, freshVariant(t, "quote-rule"), tc.units); err != nil {
+			id := checkouttest.NewCart(t, s)
+			if err := s.Carts().Add(ctx, id, ordertest.FreshVariant(t, pool, "quote-rule"), tc.units); err != nil {
 				t.Fatalf("add: %v", err)
 			}
 			to := tc.to
-			number, err := placeOrder(t, s, ctx, id, uuid.NullUUID{},
+			number, err := checkouttest.PlaceOrder(t, s, ctx, id, uuid.NullUUID{},
 				uuid.MustParse(tc.version), &to, tc.coupon, "quote-rule-"+uuid.NewString())
 			if err != nil {
 				t.Fatalf("the storefront could not place an order checkout priced: %v", err)

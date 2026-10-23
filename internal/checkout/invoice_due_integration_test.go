@@ -12,8 +12,10 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 
 	"github.com/koopa0/goen/internal/checkout"
+	"github.com/koopa0/goen/internal/checkout/checkouttest"
 	"github.com/koopa0/goen/internal/invoice/issuer"
 	"github.com/koopa0/goen/internal/order/delivery"
+	"github.com/koopa0/goen/internal/order/ordertest"
 	"github.com/koopa0/goen/internal/outbox"
 )
 
@@ -33,12 +35,12 @@ func TestStore_PlaceOrderInvoiceDue(t *testing.T) {
 	}
 	place := func(creditCents int64, key string) string {
 		t.Helper()
-		userID := creditedCustomer(t, creditCents)
-		id := newCart(t, s)
+		userID := ordertest.CreditedCustomer(t, pool, creditCents)
+		id := checkouttest.NewCart(t, s)
 		if err := s.Carts().Add(ctx, id, vid, 1); err != nil {
 			t.Fatalf("add: %v", err)
 		}
-		number, err := placeOrder(t, s, ctx, id, uuid.NullUUID{UUID: userID, Valid: true}, shipID,
+		number, err := checkouttest.PlaceOrder(t, s, ctx, id, uuid.NullUUID{UUID: userID, Valid: true}, shipID,
 			&delivery.Details{
 				Email: "due@example.com", RecipientName: "王小明", Phone: "0912345678",
 				PostalCode: "110", City: "台北市", District: "信義區", Street: "松高路 1 號",

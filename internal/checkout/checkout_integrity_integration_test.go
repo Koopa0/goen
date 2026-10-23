@@ -14,8 +14,10 @@ import (
 
 	"github.com/koopa0/goen/internal/bearer"
 	"github.com/koopa0/goen/internal/checkout"
+	"github.com/koopa0/goen/internal/checkout/checkouttest"
 	"github.com/koopa0/goen/internal/order/access"
 	"github.com/koopa0/goen/internal/order/delivery"
+	"github.com/koopa0/goen/internal/order/ordertest"
 	"github.com/koopa0/goen/internal/user"
 )
 
@@ -37,13 +39,13 @@ func newIntegrityCheckout(t *testing.T) *integrityCheckout {
 	t.Helper()
 	ctx := t.Context()
 	s := checkout.NewStore(pool)
-	userID := creditedCustomer(t, 5000)
+	userID := ordertest.CreditedCustomer(t, pool, 5000)
 	token := bearer.New()
 	cartID, err := s.Carts().Create(ctx, token, uuid.NullUUID{UUID: userID, Valid: true})
 	if err != nil {
 		t.Fatalf("create cart: %v", err)
 	}
-	variant := freshVariant(t, "integrity")
+	variant := ordertest.FreshVariant(t, pool, "integrity")
 	if err := s.Carts().Add(ctx, cartID, variant, 2); err != nil {
 		t.Fatalf("add: %v", err)
 	}
@@ -67,7 +69,7 @@ func (c *integrityCheckout) owner() uuid.NullUUID {
 // facts is what the checkout genuinely renders for this cart with couponCode.
 func (c *integrityCheckout) facts(t *testing.T, couponCode string) checkout.Quote {
 	t.Helper()
-	return checkoutQuoteFacts(t, c.s, c.cartID, c.owner(), c.shipID, c.addr, couponCode)
+	return checkouttest.QuoteFacts(t, c.s, c.cartID, c.owner(), c.shipID, c.addr, couponCode)
 }
 
 // post submits the checkout form carrying quote and couponField, as this
@@ -80,7 +82,7 @@ func (c *integrityCheckout) post(
 	if err != nil {
 		t.Fatalf("hash the submitted quote: %v", err)
 	}
-	key = checkoutAttemptKey("integrity-" + uuid.NewString())
+	key = checkouttest.AttemptKey("integrity-" + uuid.NewString())
 	form := url.Values{
 		"email": {c.addr.Email}, "name": {c.addr.RecipientName}, "phone": {c.addr.Phone},
 		"postal_code": {c.addr.PostalCode}, "city": {c.addr.City},

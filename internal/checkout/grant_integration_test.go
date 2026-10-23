@@ -19,11 +19,13 @@ import (
 
 	"github.com/koopa0/goen/internal/bearer"
 	"github.com/koopa0/goen/internal/checkout"
+	"github.com/koopa0/goen/internal/checkout/checkouttest"
 	"github.com/koopa0/goen/internal/db"
 	"github.com/koopa0/goen/internal/i18n"
 	"github.com/koopa0/goen/internal/order/access"
 	"github.com/koopa0/goen/internal/order/buyer"
 	"github.com/koopa0/goen/internal/order/delivery"
+	"github.com/koopa0/goen/internal/order/ordertest"
 	"github.com/koopa0/goen/internal/payment"
 )
 
@@ -33,8 +35,8 @@ import (
 func TestBuyerHandler_OrderPageEnumeration(t *testing.T) {
 	ctx := t.Context()
 	s := checkout.NewStore(pool)
-	id := newCart(t, s)
-	if err := s.Carts().Add(ctx, id, freshVariant(t, "confirmation-enumeration"), 1); err != nil {
+	id := checkouttest.NewCart(t, s)
+	if err := s.Carts().Add(ctx, id, ordertest.FreshVariant(t, pool, "confirmation-enumeration"), 1); err != nil {
 		t.Fatalf("add: %v", err)
 	}
 	var shipID uuid.UUID
@@ -46,7 +48,7 @@ func TestBuyerHandler_OrderPageEnumeration(t *testing.T) {
 		Email: "enumerate@example.com", RecipientName: "王小明", Phone: "0912345678",
 		PostalCode: "110", City: "台北市", District: "信義區", Street: "松高路 1 號",
 	}
-	number, err := placeOrder(t, s, ctx, id, uuid.NullUUID{}, shipID, addr, "", "enum-test-"+uuid.NewString())
+	number, err := checkouttest.PlaceOrder(t, s, ctx, id, uuid.NullUUID{}, shipID, addr, "", "enum-test-"+uuid.NewString())
 	if err != nil {
 		t.Fatalf("place: %v", err)
 	}
@@ -93,9 +95,9 @@ func TestAccessStore_GrantSecondOrder(t *testing.T) {
 	s := checkout.NewStore(pool)
 	h := buyer.NewHandler(buyer.NewStore(pool), access.NewStore(pool, false), slog.New(slog.DiscardHandler), testLimiter(), false)
 
-	first := placeUnpaidOrderFor(t, s, "twice@example.com")
+	first := checkouttest.PlaceUnpaidOrderFor(t, pool, s, "twice@example.com")
 	firstCookie := placedCookie(t, first)
-	second := placeUnpaidOrderFor(t, s, "twice@example.com")
+	second := checkouttest.PlaceUnpaidOrderFor(t, pool, s, "twice@example.com")
 
 	retain := access.Retain.String()
 	// Just inside the window: close enough to expiry that sweep would drop the row
@@ -175,7 +177,7 @@ func TestAccessStore_GrantStaleCarried(t *testing.T) {
 		{name: "just_outside", offset: "-1 microsecond"},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
-			first := placeUnpaidOrderFor(t, s, tc.name+"@example.com")
+			first := checkouttest.PlaceUnpaidOrderFor(t, pool, s, tc.name+"@example.com")
 			firstCookie := placedCookie(t, first)
 
 			if _, err := pool.Exec(ctx, `
@@ -186,7 +188,7 @@ func TestAccessStore_GrantStaleCarried(t *testing.T) {
 				t.Fatalf("age the first grant: %v", err)
 			}
 
-			second := placeUnpaidOrderFor(t, s, tc.name+"@example.com")
+			second := checkouttest.PlaceUnpaidOrderFor(t, pool, s, tc.name+"@example.com")
 			w := httptest.NewRecorder()
 			r := httptest.NewRequestWithContext(ctx, http.MethodGet, "/", http.NoBody)
 			r.AddCookie(firstCookie)
@@ -228,7 +230,7 @@ func TestAccessStore_GrantStaleCarried(t *testing.T) {
 func TestOrderAccessibleWithRetain(t *testing.T) {
 	ctx := t.Context()
 	s := checkout.NewStore(pool)
-	number := placeUnpaidOrderFor(t, s, "retain-bound@example.com")
+	number := checkouttest.PlaceUnpaidOrderFor(t, pool, s, "retain-bound@example.com")
 	cookie := placedCookie(t, number)
 	token := cookie.Value
 	if i := strings.IndexByte(token, '.'); i >= 0 {
@@ -287,7 +289,7 @@ func TestBuyerHandler_OrderPageForgedCookie(t *testing.T) {
 	ctx := t.Context()
 	s := checkout.NewStore(pool)
 	h := buyer.NewHandler(buyer.NewStore(pool), access.NewStore(pool, false), slog.New(slog.DiscardHandler), testLimiter(), false)
-	number := placeUnpaidOrderFor(t, s, "forged@example.com")
+	number := checkouttest.PlaceUnpaidOrderFor(t, pool, s, "forged@example.com")
 
 	// The VICTIM's own browser holds a REAL grant before the attack starts: without
 	// it the access query's EXISTS is false whatever the digest comparison does, and
@@ -332,8 +334,8 @@ func TestBuyerHandler_OrderPageOtherOrder(t *testing.T) {
 	s := checkout.NewStore(pool)
 	h := buyer.NewHandler(buyer.NewStore(pool), access.NewStore(pool, false), slog.New(slog.DiscardHandler), testLimiter(), false)
 
-	mine := placeUnpaidOrderFor(t, s, "mine@example.com")
-	theirs := placeUnpaidOrderFor(t, s, "theirs@example.com")
+	mine := checkouttest.PlaceUnpaidOrderFor(t, pool, s, "mine@example.com")
+	theirs := checkouttest.PlaceUnpaidOrderFor(t, pool, s, "theirs@example.com")
 
 	placedCookie(t, theirs)
 
@@ -428,7 +430,7 @@ func TestHandler_PlaceOrderGrantFailure(t *testing.T) {
 			var firstOrder string
 			var firstCookie *http.Cookie
 			if tt.carried {
-				firstOrder = placeUnpaidOrderFor(t, s, "carried-touch@example.com")
+				firstOrder = checkouttest.PlaceUnpaidOrderFor(t, pool, s, "carried-touch@example.com")
 				firstCookie = placedCookie(t, firstOrder)
 			}
 
@@ -456,8 +458,8 @@ func TestHandler_PlaceOrderGrantFailure(t *testing.T) {
 				"postal_code": {addr.PostalCode}, "city": {addr.City}, "district": {addr.District},
 				"street":         {addr.Street},
 				"shipping":       {shipID.String()},
-				"checkout_quote": {checkoutQuote(t, s, cartID, uuid.NullUUID{}, shipID, addr, "").String()},
-				"idempotency":    {checkoutAttemptKey("grant-" + tt.name + "-" + uuid.NewString())},
+				"checkout_quote": {checkouttest.Quote(t, s, cartID, uuid.NullUUID{}, shipID, addr, "").String()},
+				"idempotency":    {checkouttest.AttemptKey("grant-" + tt.name + "-" + uuid.NewString())},
 			}
 			placeRequest := func() *http.Request {
 				req := httptest.NewRequestWithContext(ctx, http.MethodPost, "/checkout",
@@ -629,7 +631,7 @@ func TestBuyerHandler_FindOrderGrantFailure(t *testing.T) {
 	ctx := t.Context()
 	s := checkout.NewStore(pool)
 
-	orderNumber := placeUnpaidOrderFor(t, s, "find-grant-fail@example.com")
+	orderNumber := checkouttest.PlaceUnpaidOrderFor(t, pool, s, "find-grant-fail@example.com")
 
 	suffix := strings.ReplaceAll(uuid.NewString(), "-", "")
 	fnName := pgx.Identifier{"test_fail_find_grant_" + suffix}.Sanitize()

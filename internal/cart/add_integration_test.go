@@ -20,6 +20,7 @@ import (
 	"github.com/koopa0/goen/internal/catalog"
 	"github.com/koopa0/goen/internal/i18n"
 	"github.com/koopa0/goen/internal/order/access"
+	"github.com/koopa0/goen/internal/order/ordertest"
 	"github.com/koopa0/goen/internal/user"
 )
 
@@ -37,7 +38,7 @@ func TestHandler_AddItemFirstAddRace(t *testing.T) {
 		RETURNING id`).Scan(&userID); err != nil {
 		t.Fatalf("register: %v", err)
 	}
-	firstVariant, secondVariant, _ := variantsOf(t, "signed-in-first-add", 2)
+	firstVariant, secondVariant, _ := ordertest.VariantsOf(t, pool, "signed-in-first-add", 2)
 
 	blocker, beginErr := pool.Begin(ctx)
 	if beginErr != nil {
@@ -327,7 +328,7 @@ func TestStore_AddClampsToSupply(t *testing.T) {
 	ctx := t.Context()
 	s := cart.NewStore(pool)
 
-	vid := freshVariant(t, "stockfix-1")
+	vid := ordertest.FreshVariant(t, pool, "stockfix-1")
 	var wasStock, wasSafety int32
 	if err := pool.QueryRow(ctx,
 		`SELECT stock_quantity, safety_stock FROM product_variants WHERE id = $1`,
@@ -382,7 +383,7 @@ func TestHandler_AddItemAdjustedNotice(t *testing.T) {
 	s := cart.NewStore(pool)
 	h := cart.NewHandler(s, access.NewStore(pool, false), slog.New(slog.DiscardHandler), false, nil)
 
-	vid := freshVariant(t, "stockfix-add-notice")
+	vid := ordertest.FreshVariant(t, pool, "stockfix-add-notice")
 	var slug string
 	var wasStock, wasSafety int32
 	if err := pool.QueryRow(ctx, `

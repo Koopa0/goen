@@ -9,7 +9,9 @@ import (
 	"github.com/google/uuid"
 
 	"github.com/koopa0/goen/internal/checkout"
+	"github.com/koopa0/goen/internal/checkout/checkouttest"
 	"github.com/koopa0/goen/internal/order/delivery"
+	"github.com/koopa0/goen/internal/order/ordertest"
 )
 
 // TestStore_PlaceOrderMixedTax: PlaceOrder, run as the store role, refuses a
@@ -19,9 +21,9 @@ import (
 func TestStore_PlaceOrderMixedTax(t *testing.T) {
 	ctx := t.Context()
 	s := checkout.NewStore(storeRolePool(t))
-	id := newCart(t, s)
-	taxable := freshVariant(t, "taxable-cart")
-	exempt := freshVariant(t, "exempt-cart")
+	id := checkouttest.NewCart(t, s)
+	taxable := ordertest.FreshVariant(t, pool, "taxable-cart")
+	exempt := ordertest.FreshVariant(t, pool, "exempt-cart")
 	if _, err := pool.Exec(ctx, `UPDATE products SET tax_type='exempt', invoice_unit='包' WHERE id=(SELECT product_id FROM product_variants WHERE id=$1)`, exempt); err != nil {
 		t.Fatal(err)
 	}
@@ -44,8 +46,8 @@ func TestStore_PlaceOrderMixedTax(t *testing.T) {
 		}
 	}
 	addr := &delivery.Details{Email: "tax@example.com", RecipientName: "王小明", Phone: "0912345678", PostalCode: "110", City: "台北市", District: "信義區", Street: "松高路 1 號"}
-	key := checkoutAttemptKey("mixed-tax-" + uuid.NewString())
-	_, err = placeOrder(t, s, ctx, id, uuid.NullUUID{}, shipVersionFor(t, "home_delivery"), addr, "", key)
+	key := checkouttest.AttemptKey("mixed-tax-" + uuid.NewString())
+	_, err = checkouttest.PlaceOrder(t, s, ctx, id, uuid.NullUUID{}, shipVersionFor(t, "home_delivery"), addr, "", key)
 	if !errors.Is(err, checkout.ErrMixedTaxTypes) {
 		t.Fatalf("mixed checkout=%v, want mixed-tax refusal", err)
 	}
@@ -67,7 +69,7 @@ func TestStore_PlaceOrderMixedTax(t *testing.T) {
 	if err != nil || view.MixedTaxTypes || !view.CanCheckout() {
 		t.Fatalf("all-exempt cart: %+v: %v", view, err)
 	}
-	number, err := placeOrder(t, s, ctx, id, uuid.NullUUID{}, shipVersionFor(t, "home_delivery"), addr, "", key)
+	number, err := checkouttest.PlaceOrder(t, s, ctx, id, uuid.NullUUID{}, shipVersionFor(t, "home_delivery"), addr, "", key)
 	if err != nil {
 		t.Fatalf("all-exempt checkout=%v", err)
 	}
