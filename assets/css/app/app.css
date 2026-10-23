@@ -5819,7 +5819,7 @@ input.goen-check {
   }
 }
 
-/* Department and campaign tone. data-tone is one of the closed set pages.Tone
+/* Department and campaign tone. data-tone is one of the closed set tone.Tone
    names, on the page head; a custom property is never set inline because
    style-src has no 'unsafe-inline'. Only these properties vary: accent, type,
    radii and buttons do not. A tone never touches a photograph's edge: wherever

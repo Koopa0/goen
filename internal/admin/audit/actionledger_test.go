@@ -13,7 +13,7 @@ import (
 // sorted. audit_events is append-only and erase_user does not reach it, so an
 // action stays here after the code stops writing it: old rows still name it,
 // and /admin/audit must keep a phrase for it. Never delete an entry; add one,
-// with its phrase in pages.actionLabels, in the PR that first writes the
+// with its phrase in actionLabels, in the PR that first writes the
 // action. It holds:
 //   - every Action constant in action.go;
 //   - the actions stored functions write: invoice.allowance_provider_invalid,
@@ -137,7 +137,7 @@ func TestActionConstantsInLedger(t *testing.T) {
 	}
 	for _, action := range declared {
 		if !slices.Contains(actionLedger, action) {
-			t.Errorf("Action %q is not in actionLedger: add it, sorted (audit_events keeps it forever), and give it a phrase in pages.actionLabels", action)
+			t.Errorf("Action %q is not in actionLedger: add it, sorted (audit_events keeps it forever), and give it a phrase in actionLabels", action)
 		}
 	}
 }
@@ -152,7 +152,7 @@ func TestActionSchemaWritersInLedger(t *testing.T) {
 	literals, prefixes := schemaActions(t)
 	for _, action := range literals {
 		if !slices.Contains(actionLedger, action) {
-			t.Errorf("schema writes action %q, which is not in actionLedger: add it, sorted, and give it a phrase in pages.actionLabels", action)
+			t.Errorf("schema writes action %q, which is not in actionLedger: add it, sorted, and give it a phrase in actionLabels", action)
 		}
 	}
 	// 'invoice.' and 'refund.provider_' on fac167bf.
@@ -177,7 +177,7 @@ func TestEntry_LabelLedgerBothLocales(t *testing.T) {
 				t.Parallel()
 				ctx := i18n.WithLocale(t.Context(), locale)
 				if got := (audit.Entry{Action: action}).Label(ctx); got == action {
-					t.Errorf("Label(%q) in %s is the raw code: the action has no staff-facing phrase (add it to pages.actionLabels)", action, locale)
+					t.Errorf("Label(%q) in %s is the raw code: the action has no staff-facing phrase (add it to actionLabels)", action, locale)
 				}
 			})
 		}

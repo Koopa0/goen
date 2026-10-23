@@ -182,7 +182,7 @@ func TestEntry_EntityLabelAuditedTables(t *testing.T) {
 	}
 	if len(missing) > 0 {
 		sort.Strings(missing)
-		t.Errorf("table(s) shown by their database name on /admin/audit:\n  %s\nAdd a key to internal/i18n/audit_entity.go and an entry to pages.entityLabels.",
+		t.Errorf("table(s) shown by their database name on /admin/audit:\n  %s\nAdd a key to internal/i18n/audit_entity.go and an entry to entityLabels.",
 			strings.Join(missing, "\n  "))
 	}
 }

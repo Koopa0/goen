@@ -270,7 +270,7 @@ func TestConfig_PrepareRuntimePostureSMTP(t *testing.T) {
 // development, and hands downstream one canonical origin (a trailing slash
 // removed).
 //
-// It covers the posture-specific half of SiteOrigin: TLS in production and one
+// It covers the posture-specific half of siteurl.Origin: TLS in production and one
 // canonical value handed downstream.
 func TestConfig_PrepareRuntimePostureBaseURL(t *testing.T) {
 	tests := []struct {

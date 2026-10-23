@@ -248,7 +248,7 @@ func (i *OrderInvoice) ChoiceText(ctx context.Context) string {
 	case invoice.PreferenceCompany:
 		return fmt.Sprintf(i18n.T(ctx, i18n.KeyAdminInvoiceTaxID), i.TaxID)
 	default:
-		panic("pages: no label for invoice type " + string(i.Type))
+		panic("buyer: no label for invoice type " + string(i.Type))
 	}
 }
 

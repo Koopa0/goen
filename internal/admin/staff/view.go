@@ -16,7 +16,7 @@ func RoleLabel(ctx context.Context, r user.Role) string {
 	case user.RoleAdmin:
 		return i18n.T(ctx, i18n.KeyAdminRoleAdmin)
 	default:
-		panic("pages: no label for staff role " + string(r))
+		panic("staff: no label for staff role " + string(r))
 	}
 }
 

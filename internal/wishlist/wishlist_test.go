@@ -39,7 +39,7 @@ func TestHandler_UpdateGuestReturn(t *testing.T) {
 			want: "/signin?next=/p/pixelight-9-pro",
 		},
 		{
-			// An off-site return is what SitePathOr exists to refuse, and the
+			// An off-site return is what siteurl.PathOr exists to refuse, and the
 			// wishlist is the honest fallback rather than somebody else's host.
 			name: "an off-site return is refused",
 			ret:  "https://evil.example/steal",
