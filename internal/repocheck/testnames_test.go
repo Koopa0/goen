@@ -170,10 +170,6 @@ var testNameExceptions = map[string]map[string]string{
 		"TestReturnWindowEnds":                         "the unit is the SQL functions return_window_ends and return_line_policy_window, called as the store role; this package declares no identifier for them",
 		"TestReverseOrderLedgerIdempotent":             "the unit is the SQL function reverse_order_credit, called directly through the pool on an order the test's own fixture built; this package declares no identifier for it",
 		"TestReverseOrderLedgerShipped":                "the unit is the SQL function reverse_order_credit, called directly through the pool on an order the test's own fixture built; this package declares no identifier for it",
-		"TestSessionSweeper_SweepLateExpiryRace":       "the unit is payment.SessionSweeper.Sweep of package payment, which this package does not declare; the test lives here for the part-credit orders checkout places, and moving it is a reorganisation this pass does not do",
-		"TestSessionSweeper_SweepLostExpiry":           "the unit is payment.SessionSweeper.Sweep of package payment, which this package does not declare; the test lives here for the part-credit orders checkout places, and moving it is a reorganisation this pass does not do",
-		"TestSessionSweeper_SweepNotLostExpiry":        "the unit is payment.SessionSweeper.Sweep of package payment, which this package does not declare; the test lives here for the part-credit orders checkout places, and moving it is a reorganisation this pass does not do",
-		"TestSessionSweeper_SweepTwice":                "the unit is payment.SessionSweeper.Sweep of package payment, which this package does not declare; the test lives here for the part-credit orders checkout places, and moving it is a reorganisation this pass does not do",
 		"TestStripeReturnPages":                        "the unit is the two pages Stripe sends a customer back to, buyer.Handler.OrderPage and payment.Handler.Page, held to one cross-site reload rule; both are other packages' handlers, and no identifier of this package is its unit",
 	},
 	"internal/db": {

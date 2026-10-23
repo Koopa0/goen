@@ -1,6 +1,6 @@
 //go:build integration
 
-package checkout_test
+package payment_test
 
 import (
 	"bytes"
