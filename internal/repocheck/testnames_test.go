@@ -392,8 +392,6 @@ var testNameExceptions = map[string]map[string]string{
 		"TestRecordCompletePaymentPinsStock": "the unit is the SQL function record_complete_payment held against release_reservation through the order lock, with the back office's paid and unpaid outcomes and the lapse sweeper around it; no Go identifier of this package is what the test drives",
 		"TestRecordExpiredPayment":           "the unit is the SQL function record_expired_payment (the expired-payment tombstone), called through the pool beside capture_payment; Store.OpenPayment only sets the fixtures up",
 		"TestReleasePaymentEventRoles":       "the unit is the SQL functions release_payment_event and mark_payment_event_unreconciled and the grants on payment_webhook_events, driven under the store and admin roles; no Go identifier of this package is what the test drives",
-		"TestUninvoicedOrdersAmountFiled":    "the unit is health.Store.UninvoicedOrders of package health, which this package does not declare; the test lives here for the capture fixtures, and moving it is a reorganisation this pass does not do",
-		"TestUninvoicedOrdersLostDue":        "the unit is health.Store.UninvoicedOrders of package health, which this package does not declare; the test lives here for the capture and credit-funded fixtures, and moving it is a reorganisation this pass does not do",
 	},
 	"internal/policy": {
 		"TestFAQSeedHold":          "the unit is the stock-hold answer of the FAQ seed in seed/dev_catalog.sql, read as text; the package declares no identifier for it",

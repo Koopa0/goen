@@ -11,7 +11,6 @@ import (
 	"github.com/jackc/pgx/v5"
 
 	"github.com/koopa0/goen/internal/admin/admintest"
-	"github.com/koopa0/goen/internal/admin/health"
 	"github.com/koopa0/goen/internal/invoice/issuer"
 	"github.com/koopa0/goen/internal/outbox"
 	"github.com/koopa0/goen/internal/payment"
@@ -89,123 +88,6 @@ func TestCompleteFundingQueuesNoInvoice(t *testing.T) {
 	}
 	if queued != 0 {
 		t.Errorf("picking queued %d invoice.due messages, want 0", queued)
-	}
-}
-
-// TestUninvoicedOrdersAmountFiled: The health page states the amount the issuer
-// files. The amount /admin/health lists for an uninvoiced order is the whole
-// NT$ the issue claim then files. Nothing in the shop writes a total with cents
-// today, but the schema allows one, and on it the health query once stated the
-// raw sum while the issuer floored it (#1933).
-func TestUninvoicedOrdersAmountFiled(t *testing.T) {
-	ctx := t.Context()
-	s := payment.NewStore(pool)
-	const total, filed = int64(159950), int64(159900)
-	number, id := order(t, total)
-	preferMemberInvoice(t, id)
-	session := "cs_fraction_" + number
-	if err := s.OpenPayment(ctx, number, session, total); err != nil {
-		t.Fatalf("open: %v", err)
-	}
-	if _, err := captureThroughWebhook(t, s, payment.Capture{SessionID: session, AmountRecv: total}); err != nil {
-		t.Fatalf("capture: %v", err)
-	}
-	if tag, err := pool.Exec(ctx,
-		`DELETE FROM outbox_messages WHERE topic = $1 AND dedupe_key = $2`,
-		outbox.TopicInvoiceDue.Name(), number); err != nil || tag.RowsAffected() != 1 {
-		t.Fatalf("delete the queued invoice.due of %s: %d rows, %v", number, tag.RowsAffected(), err)
-	}
-
-	orders, _, err := health.NewStore(adminRolePool(t)).UninvoicedOrders(ctx, 0)
-	if err != nil {
-		t.Fatalf("read paid orders with no invoice operation: %v", err)
-	}
-	listed := int64(-1)
-	for _, o := range orders {
-		if o.OrderNumber == number {
-			listed = o.AmountCents
-		}
-	}
-	if listed != filed {
-		t.Errorf("/admin/health lists %s at %d cents, want the %d the issuer files", number, listed, filed)
-	}
-
-	claimDue(t, outbox.InvoiceDue{OrderNumber: number, Trigger: "evt_fraction_" + number})
-	var claimed int64
-	if err := pool.QueryRow(ctx,
-		`SELECT amount_cents FROM invoice_operations WHERE order_id = $1 AND kind = 'issue'`,
-		id).Scan(&claimed); err != nil {
-		t.Fatalf("read the issue claim of %s: %v", number, err)
-	}
-	if claimed != filed {
-		t.Errorf("the issue claim of %s files %d cents, want %d", number, claimed, filed)
-	}
-}
-
-// TestUninvoicedOrdersLostDue: A paid order whose invoice due was lost is on
-// the health page. /admin/health reads the orders, not the outbox that should
-// have claimed their invoices, so a paid order whose invoice.due is gone is
-// listed until an issue exists. Paid covers a capture and a pending order store
-// credit paid in full at checkout; an order still owing is not paid.
-func TestUninvoicedOrdersLostDue(t *testing.T) {
-	ctx := t.Context()
-	s := payment.NewStore(pool)
-	captured, capturedID := order(t, 159900)
-	preferMemberInvoice(t, capturedID)
-	session := "cs_uninvoiced_" + captured
-	if err := s.OpenPayment(ctx, captured, session, 159900); err != nil {
-		t.Fatalf("open: %v", err)
-	}
-	if _, err := captureThroughWebhook(t, s, payment.Capture{SessionID: session, AmountRecv: 159900}); err != nil {
-		t.Fatalf("capture: %v", err)
-	}
-	if tag, err := pool.Exec(ctx,
-		`DELETE FROM outbox_messages WHERE topic = $1 AND dedupe_key = $2`,
-		outbox.TopicInvoiceDue.Name(), captured); err != nil || tag.RowsAffected() != 1 {
-		t.Fatalf("delete the queued invoice.due of %s: %d rows, %v", captured, tag.RowsAffected(), err)
-	}
-
-	// Credit spent outside checkout queues nothing: the message is as lost as
-	// a deleted one.
-	const credit = int64(50000)
-	creditPaid, creditPaidID := ownedOrder(t, creditedUser(t, credit), credit)
-	preferMemberInvoice(t, creditPaidID)
-	spendCreditOnOrder(t, creditPaidID, -credit)
-	owing, _ := order(t, 70000)
-
-	backOffice := health.NewStore(adminRolePool(t))
-	listed := func(number string) bool {
-		t.Helper()
-		orders, total, err := backOffice.UninvoicedOrders(ctx, 0)
-		if err != nil {
-			t.Fatalf("read paid orders with no invoice operation: %v", err)
-		}
-		if total < int64(len(orders)) {
-			t.Errorf("total %d is below the %d orders listed", total, len(orders))
-		}
-		for _, o := range orders {
-			if o.OrderNumber == number {
-				return true
-			}
-		}
-		return false
-	}
-	if !listed(captured) {
-		t.Errorf("%s was captured, its invoice.due is gone, and /admin/health does not list it", captured)
-	}
-	if !listed(creditPaid) {
-		t.Errorf("store credit paid all of pending %s, it has no invoice operation, and "+
-			"/admin/health does not list it", creditPaid)
-	}
-	if listed(owing) {
-		t.Errorf("%s still owes its whole total and is listed as paid", owing)
-	}
-
-	for _, number := range []string{captured, creditPaid} {
-		claimDue(t, outbox.InvoiceDue{OrderNumber: number, Trigger: "evt_reissued_" + number})
-		if listed(number) {
-			t.Errorf("%s is still listed once it holds an issue operation", number)
-		}
 	}
 }
 
