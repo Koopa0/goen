@@ -41,10 +41,10 @@ func TestWarrantyCopyWaitsForDelivery(t *testing.T) {
 	} {
 		t.Run(tt.name, func(t *testing.T) {
 			ctx := i18n.WithLocale(t.Context(), tt.locale)
-			list := renderWarrantyInLocale(t, ctx, WarrantyList(
-				frame.Page{Title: "Warranty"}, WarrantyListView{},
+			list := renderWarrantyInLocale(t, ctx, List(
+				frame.Page{Title: "Warranty"}, ListView{},
 			))
-			order := renderWarrantyInLocale(t, ctx, WarrantyOrder(
+			order := renderWarrantyInLocale(t, ctx, Order(
 				frame.Page{Title: "Warranty"}, OrderView{
 					Number:  "GOEN-TEST",
 					Refusal: i18n.T(ctx, i18n.KeyWarrantyRefused),
@@ -68,10 +68,10 @@ func TestWarrantyCopyWaitsForDelivery(t *testing.T) {
 	}
 }
 
-// TestWarrantyOrderEmptyHintMatchesWhy locks the empty banner to the same
+// TestOrderEmptyHintMatchesWhy locks the empty banner to the same
 // reasons Why() already names. The delivery sentence is only true when every
 // line is still waiting to arrive.
-func TestWarrantyOrderEmptyHintMatchesWhy(t *testing.T) {
+func TestOrderEmptyHintMatchesWhy(t *testing.T) {
 	t.Parallel()
 	ctx := i18n.WithLocale(t.Context(), i18n.En)
 	afterShipping := i18n.T(ctx, i18n.KeyWarrantyAfterShipping)
@@ -126,7 +126,7 @@ func TestWarrantyOrderEmptyHintMatchesWhy(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
-			html := renderWarrantyInLocale(t, ctx, WarrantyOrder(
+			html := renderWarrantyInLocale(t, ctx, Order(
 				frame.Page{Title: "Warranty"}, OrderView{
 					Number: "GOEN-TEST",
 					Lines:  tt.lines,
@@ -143,14 +143,14 @@ func TestWarrantyOrderEmptyHintMatchesWhy(t *testing.T) {
 	}
 }
 
-// TestWarrantyOrderAllRegistered: an order whose units are all registered has
+// TestOrderAllRegistered: an order whose units are all registered has
 // no future promise. It locks the all-registered empty banner: the hint is
 // Why()'s already-registered sentence, and the shared title must not promise a
 // later registration.
-func TestWarrantyOrderAllRegistered(t *testing.T) {
+func TestOrderAllRegistered(t *testing.T) {
 	t.Parallel()
 	ctx := i18n.WithLocale(t.Context(), i18n.En)
-	html := renderWarrantyInLocale(t, ctx, WarrantyOrder(
+	html := renderWarrantyInLocale(t, ctx, Order(
 		frame.Page{Title: "Warranty"}, OrderView{
 			Number: "GOEN-TEST",
 			Lines: []Line{{

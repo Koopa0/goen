@@ -131,7 +131,7 @@ func (h *Handler) Thanks(w http.ResponseWriter, r *http.Request) {
 		Title:       i18n.T(ctx, i18n.KeyCheckInbox),
 		Description: i18n.T(ctx, i18n.KeyNewsletterSentMeta),
 	}
-	respond.Component(w, r, h.log, http.StatusOK, NewsletterSent(meta, email.ReadMasked(r.URL.Query().Get("address"))))
+	respond.Component(w, r, h.log, http.StatusOK, Sent(meta, email.ReadMasked(r.URL.Query().Get("address"))))
 }
 
 // ConfirmPage echoes the token into a form rather than acting on it: a

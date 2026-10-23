@@ -15,7 +15,7 @@ import (
 	"github.com/koopa0/goen/internal/ui/widget"
 )
 
-func SignIn(p frame.Page, v AuthView) templ.Component {
+func SignIn(p frame.Page, v View) templ.Component {
 	return templruntime.GeneratedTemplate(func(templ_7745c5c3_Input templruntime.GeneratedComponentInput) (templ_7745c5c3_Err error) {
 		templ_7745c5c3_W, ctx := templ_7745c5c3_Input.Writer, templ_7745c5c3_Input.Context
 		if templ_7745c5c3_CtxErr := ctx.Err(); templ_7745c5c3_CtxErr != nil {
@@ -533,7 +533,7 @@ func authDoor() templ.Component {
 }
 
 // Credentials as plain text for a browser without scripting; goen.js reveals the button that fills and submits the form.
-func demoAccountNote(v AuthView) templ.Component {
+func demoAccountNote(v View) templ.Component {
 	return templruntime.GeneratedTemplate(func(templ_7745c5c3_Input templruntime.GeneratedComponentInput) (templ_7745c5c3_Err error) {
 		templ_7745c5c3_W, ctx := templ_7745c5c3_Input.Writer, templ_7745c5c3_Input.Context
 		if templ_7745c5c3_CtxErr := ctx.Err(); templ_7745c5c3_CtxErr != nil {
@@ -681,7 +681,7 @@ func demoAccountNote(v AuthView) templ.Component {
 	})
 }
 
-func Register(p frame.Page, v AuthView) templ.Component {
+func Register(p frame.Page, v View) templ.Component {
 	return templruntime.GeneratedTemplate(func(templ_7745c5c3_Input templruntime.GeneratedComponentInput) (templ_7745c5c3_Err error) {
 		templ_7745c5c3_W, ctx := templ_7745c5c3_Input.Writer, templ_7745c5c3_Input.Context
 		if templ_7745c5c3_CtxErr := ctx.Err(); templ_7745c5c3_CtxErr != nil {

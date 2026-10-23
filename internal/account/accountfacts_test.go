@@ -10,9 +10,9 @@ import (
 	"github.com/koopa0/goen/internal/shoptime"
 )
 
-// TestAccountOrderLastDay: an order row in the account list shows a last day
+// TestOrderLastDay: an order row in the account list shows a last day
 // only when one day holds for the whole order.
-func TestAccountOrderLastDay(t *testing.T) {
+func TestOrderLastDay(t *testing.T) {
 	t.Parallel()
 	ctx := i18n.WithLocale(t.Context(), i18n.ZhHant)
 	placed := shoptime.Date{Year: 2026, Month: time.October, Day: 1}
@@ -27,7 +27,7 @@ func TestAccountOrderLastDay(t *testing.T) {
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
-			view := &View{Orders: []AccountOrder{{
+			view := &View{Orders: []Order{{
 				Number: "GO-261001-000001", Status: order.FulfillmentShipped, PlacedAt: placed, TotalCents: 106000,
 				LineCount: 1, OneLastDay: tc.delivered, LastDay: lastDay,
 			}}}

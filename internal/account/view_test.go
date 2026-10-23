@@ -17,12 +17,12 @@ import (
 // The tests in this file are the account page's halves of tests that render
 // several pages: each half lives with the page it renders.
 
-// TestAccountOrderHistoryLinks holds that the account overview sends readers to
+// TestOrderHistoryLinks holds that the account overview sends readers to
 // /orders/{number}, not a second detail template.
-func TestAccountOrderHistoryLinks(t *testing.T) {
+func TestOrderHistoryLinks(t *testing.T) {
 	ctx := i18n.WithLocale(t.Context(), i18n.ZhHant)
 	view := &View{
-		Orders: []AccountOrder{{
+		Orders: []Order{{
 			Number: "GO-260101-000012", Status: order.FulfillmentDelivered,
 			PlacedAt: shoptime.Date{Year: 2026, Month: time.January, Day: 1}, TotalCents: 106000, LineCount: 1,
 		}},
@@ -36,24 +36,24 @@ func TestAccountOrderHistoryLinks(t *testing.T) {
 	}
 }
 
-// TestAccountOrder_StatusTextRefunded: an order returned in full is badged
+// TestOrder_StatusTextRefunded: an order returned in full is badged
 // refunded in the account.
-func TestAccountOrder_StatusTextRefunded(t *testing.T) {
+func TestOrder_StatusTextRefunded(t *testing.T) {
 	ctx := i18n.WithLocale(t.Context(), i18n.ZhHant)
-	row := AccountOrder{Status: order.FulfillmentDelivered, Committed: true, Returned: true}
+	row := Order{Status: order.FulfillmentDelivered, Committed: true, Returned: true}
 	if got := row.StatusText(ctx); got != "已退款" {
-		t.Errorf("AccountOrder{delivered, Returned}.StatusText = %q, want 已退款", got)
+		t.Errorf("Order{delivered, Returned}.StatusText = %q, want 已退款", got)
 	}
 }
 
-// TestAccountOrderPayAction holds the 付款 action: only for an order that owes,
+// TestOrderPayAction holds the 付款 action: only for an order that owes,
 // only where payment is possible.
-func TestAccountOrderPayAction(t *testing.T) {
+func TestOrderPayAction(t *testing.T) {
 	t.Parallel()
 	view := func(enabled bool) *View {
 		return &View{
 			PaymentsEnabled: enabled,
-			Orders: []AccountOrder{
+			Orders: []Order{
 				{Number: "GO-260101-000011", Status: order.FulfillmentPending, OwedCents: 100},
 				{Number: "GO-260101-000010", Status: order.FulfillmentPending, Committed: true, OwedCents: 100},
 			},
@@ -74,12 +74,12 @@ func TestAccountOrderPayAction(t *testing.T) {
 // The history badge's half of internal/order/buyer's
 // TestOrderPaidNotAwaitingPayment, which keeps the order
 // page's notice.
-func TestAccountOrderPaidIsNotAwaitingPayment(t *testing.T) {
-	paid := AccountOrder{
+func TestOrderPaidIsNotAwaitingPayment(t *testing.T) {
+	paid := Order{
 		Number: "GO-260101-000010", Status: "pending", PlacedAt: shoptime.Date{Year: 2026, Month: time.January, Day: 1},
 		TotalCents: 106000, LineCount: 1, Committed: true, OwedCents: 106000,
 	}
-	unpaid := AccountOrder{
+	unpaid := Order{
 		Number: "GO-260101-000011", Status: "pending", PlacedAt: shoptime.Date{Year: 2026, Month: time.January, Day: 1},
 		TotalCents: 106000, LineCount: 1, Committed: false, OwedCents: 106000,
 	}

@@ -200,18 +200,18 @@ func (w Warranty) Href() string {
 	return "/p/" + w.Slug
 }
 
-type WarrantyListView struct {
+type ListView struct {
 	Rows  []Warranty
-	Ready []WarrantyReady
+	Ready []Ready
 }
 
-type WarrantyReady struct {
+type Ready struct {
 	Number string
 	Line   Line
 }
 
-func (w WarrantyReady) Href() string {
+func (w Ready) Href() string {
 	return "/account/warranty/" + w.Number + "#serial-" + w.Line.ID
 }
 
-func (v WarrantyListView) Empty() bool { return len(v.Rows) == 0 }
+func (v ListView) Empty() bool { return len(v.Rows) == 0 }

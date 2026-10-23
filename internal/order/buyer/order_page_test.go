@@ -416,7 +416,7 @@ func TestOrderHistoryShippedNote(t *testing.T) {
 // order does not say it is unpaid.
 //
 // The history badge's half of the same fact is internal/account's
-// TestAccountOrderPaidIsNotAwaitingPayment. This test renders the order page
+// TestOrderPaidIsNotAwaitingPayment. This test renders the order page
 // only; it does not drive a signed-in account.
 func TestOrderPaidNotAwaitingPayment(t *testing.T) {
 	view := &OrderView{

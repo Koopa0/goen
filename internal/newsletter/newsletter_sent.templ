@@ -8,7 +8,7 @@ import (
 	"github.com/koopa0/goen/internal/ui/widget"
 )
 
-templ NewsletterSent(p frame.Page, address string) {
+templ Sent(p frame.Page, address string) {
 	@frame.Base(p) {
 		<div class="notice">
 			<h1 class="notice__title">{ i18n.T(ctx, i18n.KeyCheckInbox) }</h1>

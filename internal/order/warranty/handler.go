@@ -54,9 +54,9 @@ func (h *Handler) List(w http.ResponseWriter, r *http.Request) {
 		h.serverError(w, r)
 		return
 	}
-	respond.Component(w, r, h.log, http.StatusOK, WarrantyList(
+	respond.Component(w, r, h.log, http.StatusOK, List(
 		frame.Page{Title: i18n.T(r.Context(), i18n.KeyWarrantyTitle)},
-		WarrantyListView{Rows: rows, Ready: ready}))
+		ListView{Rows: rows, Ready: ready}))
 }
 
 func (h *Handler) Order(w http.ResponseWriter, r *http.Request) {
@@ -70,7 +70,7 @@ func (h *Handler) Order(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	view.RegisteredUnit = registeredUnitFor(r, view.Registered)
-	respond.Component(w, r, h.log, http.StatusOK, WarrantyOrder(
+	respond.Component(w, r, h.log, http.StatusOK, Order(
 		frame.Page{Title: fmt.Sprintf(i18n.T(r.Context(), i18n.KeyWarrantyRegisterMeta), view.Number)}, view))
 }
 
@@ -149,7 +149,7 @@ func (h *Handler) rejectRegistration(w http.ResponseWriter, r *http.Request, use
 		}
 		break
 	}
-	respond.Component(w, r, h.log, http.StatusUnprocessableEntity, WarrantyOrder(
+	respond.Component(w, r, h.log, http.StatusUnprocessableEntity, Order(
 		frame.Page{Title: fmt.Sprintf(i18n.T(r.Context(), i18n.KeyWarrantyRegisterMeta), view.Number)}, view))
 }
 

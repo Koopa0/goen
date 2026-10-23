@@ -290,7 +290,7 @@ func (h *Handler) SignInPage(w http.ResponseWriter, r *http.Request) {
 	}
 	// next can be a live link back to /verify; never compress it.
 	compress.Skip(w)
-	view := h.signInView(AuthView{
+	view := h.signInView(View{
 		Next:          siteurl.PathOr(r.URL.Query().Get("next"), "/account"),
 		ReturnMessage: signInReturnMessage(r.Context(), r.URL.Query().Get("next")),
 		GoogleSignIn:  h.google.Enabled(),
@@ -411,7 +411,7 @@ func (h *Handler) countDeviceMiss(r *http.Request, device []byte) {
 func (h *Handler) signInFailed(w http.ResponseWriter, r *http.Request, addr, next string) {
 	compress.Skip(w)
 	respond.Component(w, r, h.log, http.StatusUnprocessableEntity,
-		SignIn(SignInMeta(r.Context()), h.signInView(AuthView{
+		SignIn(SignInMeta(r.Context()), h.signInView(View{
 			Email: addr, Next: next, ReturnMessage: signInReturnMessage(r.Context(), r.PostFormValue("next")),
 			HideRegister: r.PostFormValue("reauth") == "erase", PasswordFocus: true,
 			GoogleSignIn: h.google.Enabled(),
@@ -497,7 +497,7 @@ func signInReturnMessage(ctx context.Context, next string) string {
 	return i18n.T(ctx, key)
 }
 
-func (h *Handler) signInView(v AuthView) AuthView {
+func (h *Handler) signInView(v View) View {
 	v.DemoEmail, v.DemoPassword = h.demo.email, h.demo.password
 	return v
 }
@@ -508,7 +508,7 @@ func (h *Handler) RegisterPage(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	q := r.URL.Query()
-	view := AuthView{Next: siteurl.PathOr(q.Get("next"), "/account")}
+	view := View{Next: siteurl.PathOr(q.Get("next"), "/account")}
 	view.OffersResend = q.Get("resend") == "1" || q.Get("sent") == "1"
 	if q.Get("sent") == "1" {
 		view.Notice = i18n.T(r.Context(), i18n.KeyRegisterSent)
@@ -624,7 +624,7 @@ func (h *Handler) Register(w http.ResponseWriter, r *http.Request) {
 	c.Trim()
 	next := siteurl.PathOr(r.PostFormValue("next"), "/account")
 
-	view := AuthView{Email: c.Email, Name: c.Name, Next: next}
+	view := View{Email: c.Email, Name: c.Name, Next: next}
 	if errs := formtext.FieldMessages(r.Context(), c.ValidateRegistration()); len(errs) > 0 {
 		view.Errors = errs
 		respond.Component(w, r, h.log, http.StatusUnprocessableEntity,

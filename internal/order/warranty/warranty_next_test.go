@@ -9,10 +9,10 @@ import (
 	"github.com/koopa0/goen/internal/ui/frame"
 )
 
-// TestWarrantyOrderNextUnit: the next registration requires its own delivered,
+// TestOrderNextUnit: the next registration requires its own delivered,
 // unregistered unit: without the next unit's expiry the order shows one neutral
 // state and no form, and with it the form, unit and own-parcel expiry.
-func TestWarrantyOrderNextUnit(t *testing.T) {
+func TestOrderNextUnit(t *testing.T) {
 	t.Parallel()
 	for _, tc := range []struct {
 		locale  i18n.Locale
@@ -28,7 +28,7 @@ func TestWarrantyOrderNextUnit(t *testing.T) {
 			if line.Registrable() {
 				t.Error("a net-delivered count without the next unit's expiry is registrable")
 			}
-			body := renderWarrantyInLocale(t, ctx, WarrantyOrder(frame.Page{}, OrderView{Number: "GO-NEXT", Lines: []Line{line}}))
+			body := renderWarrantyInLocale(t, ctx, Order(frame.Page{}, OrderView{Number: "GO-NEXT", Lines: []Line{line}}))
 			if strings.Contains(body, `name="unit"`) || strings.Contains(body, `id="serial-next"`) {
 				t.Error("unavailable next ordinal renders a registration form")
 			}
@@ -42,7 +42,7 @@ func TestWarrantyOrderNextUnit(t *testing.T) {
 				t.Error("unavailable next unit renders an empty coverage badge")
 			}
 			line.DraftSerial = " Raw & \"serial\" "
-			body = renderWarrantyInLocale(t, ctx, WarrantyOrder(frame.Page{}, OrderView{Number: "GO-NEXT", Lines: []Line{line}}))
+			body = renderWarrantyInLocale(t, ctx, Order(frame.Page{}, OrderView{Number: "GO-NEXT", Lines: []Line{line}}))
 			attrs := warrantyAttributes(warrantyNodesByID(t, body)["serial-next"])
 			_, readonly := attrs["readonly"]
 			if attrs["value"] != line.DraftSerial || !readonly || strings.Contains(body, `name="unit"`) {
@@ -53,7 +53,7 @@ func TestWarrantyOrderNextUnit(t *testing.T) {
 			if !line.Registrable() {
 				t.Fatal("a delivered next unit with an expiry is not registrable")
 			}
-			body = renderWarrantyInLocale(t, ctx, WarrantyOrder(frame.Page{}, OrderView{Number: "GO-NEXT", Lines: []Line{line}}))
+			body = renderWarrantyInLocale(t, ctx, Order(frame.Page{}, OrderView{Number: "GO-NEXT", Lines: []Line{line}}))
 			if !strings.Contains(body, `name="unit" value="1"`) || !strings.Contains(body, "2027-08-20") || strings.Contains(body, tc.neutral) {
 				t.Error("eligible next unit lost its unit1 form or own-parcel expiry")
 			}

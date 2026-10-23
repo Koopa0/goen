@@ -8,7 +8,7 @@ import (
 	"github.com/koopa0/goen/internal/ui/widget"
 )
 
-templ WarrantyList(p frame.Page, v WarrantyListView) {
+templ List(p frame.Page, v ListView) {
 	@frame.Base(p) {
 		<div class="goen-account goen-account--narrow goen-account--warranty">
 			@widget.Breadcrumb(widget.BreadcrumbProps{
@@ -80,7 +80,7 @@ templ WarrantyList(p frame.Page, v WarrantyListView) {
 	}
 }
 
-templ WarrantyOrder(p frame.Page, v OrderView) {
+templ Order(p frame.Page, v OrderView) {
 	@frame.Base(p) {
 		<div class="goen-account goen-account--narrow goen-account--warranty">
 			@widget.Breadcrumb(widget.BreadcrumbProps{
