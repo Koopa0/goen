@@ -19,10 +19,10 @@ import (
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgconn"
 
-	"github.com/koopa0/goen/assets"
 	"github.com/koopa0/goen/internal/admin/questions"
 	"github.com/koopa0/goen/internal/catalog"
 	"github.com/koopa0/goen/internal/db/dbtest"
+	"github.com/koopa0/goen/internal/picture"
 	"github.com/koopa0/goen/internal/user"
 )
 
@@ -179,10 +179,10 @@ func TestProductGalleryOrder(t *testing.T) {
 		t.Fatalf("add a late untagged photograph: %v", err)
 	}
 
-	first := assets.Image{BundledKey: "pixelight-9-pro-01.webp"}.URL()
-	late := assets.Image{BundledKey: "nimbus-buds-pro-01.webp"}.URL()
-	black := assets.Image{BundledKey: "pixelight-9-pro-02.webp"}.URL()
-	blue := assets.Image{BundledKey: "aurora-edge-7-01.webp"}.URL()
+	first := picture.Image{BundledKey: "pixelight-9-pro-01.webp"}.URL()
+	late := picture.Image{BundledKey: "nimbus-buds-pro-01.webp"}.URL()
+	black := picture.Image{BundledKey: "pixelight-9-pro-02.webp"}.URL()
+	blue := picture.Image{BundledKey: "aurora-edge-7-01.webp"}.URL()
 	for _, tc := range []struct {
 		name string
 		sel  catalog.Selection

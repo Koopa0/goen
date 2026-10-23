@@ -10,10 +10,10 @@ import (
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
 
-	"github.com/koopa0/goen/assets"
 	"github.com/koopa0/goen/internal/db"
 	"github.com/koopa0/goen/internal/discount/campaign"
 	"github.com/koopa0/goen/internal/i18n"
+	"github.com/koopa0/goen/internal/picture"
 	"github.com/koopa0/goen/internal/product/labelling"
 	"github.com/koopa0/goen/internal/shoptime"
 	"github.com/koopa0/goen/internal/ui/tile"
@@ -241,7 +241,7 @@ func (s *Store) loadPresentation(ctx context.Context, p *db.ProductBySlugRow, vi
 		return fmt.Errorf("read images of %q: %w", p.Slug, err)
 	}
 	for _, img := range images {
-		photo := assets.Image{Digest: img.ImageDigest, BundledKey: img.ImageBundledKey, Width: int(img.Width)}
+		photo := picture.Image{Digest: img.ImageDigest, BundledKey: img.ImageBundledKey, Width: int(img.Width)}
 		u := photo.URL()
 		if u == "" {
 			continue
@@ -319,7 +319,7 @@ func (s *Store) loadOpinion(ctx context.Context, p *db.ProductBySlugRow, view *P
 	}
 	for i := range related {
 		r := &related[i]
-		photo := assets.Image{Digest: r.ImageDigest, BundledKey: r.ImageBundledKey, Width: int(r.ImageWidth)}
+		photo := picture.Image{Digest: r.ImageDigest, BundledKey: r.ImageBundledKey, Width: int(r.ImageWidth)}
 		view.Related = append(view.Related, tile.Tile{
 			Slug: r.Slug, Name: r.Name, Brand: r.Brand,
 			PriceCents: r.MinPriceCents, PriceVaries: r.PriceVaries,
@@ -358,7 +358,7 @@ func (s *Store) boughtTogether(ctx context.Context, productID uuid.UUID) ([]tile
 	out := make([]tile.Tile, 0, len(rows))
 	for i := range rows {
 		r := &rows[i]
-		photo := assets.Image{Digest: r.ImageDigest, BundledKey: r.ImageBundledKey, Width: int(r.ImageWidth)}
+		photo := picture.Image{Digest: r.ImageDigest, BundledKey: r.ImageBundledKey, Width: int(r.ImageWidth)}
 		out = append(out, tile.Tile{
 			Slug:         r.Slug,
 			Name:         r.Name,

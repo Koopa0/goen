@@ -7,10 +7,10 @@ import (
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgxpool"
 
-	"github.com/koopa0/goen/assets"
 	"github.com/koopa0/goen/internal/db"
 	"github.com/koopa0/goen/internal/discount/campaign"
 	"github.com/koopa0/goen/internal/i18n"
+	"github.com/koopa0/goen/internal/picture"
 	"github.com/koopa0/goen/internal/ui/tile"
 )
 
@@ -41,7 +41,7 @@ func (s *Store) Items(ctx context.Context, userID string) ([]Item, error) {
 	out := make([]Item, 0, len(rows))
 	for i := range rows {
 		r := &rows[i]
-		photo := assets.Image{Digest: r.ImageDigest, BundledKey: r.ImageBundledKey, Width: int(r.ImageWidth)}
+		photo := picture.Image{Digest: r.ImageDigest, BundledKey: r.ImageBundledKey, Width: int(r.ImageWidth)}
 		var soleVariant string
 		if r.SoleVariantID != uuid.Nil {
 			soleVariant = r.SoleVariantID.String()

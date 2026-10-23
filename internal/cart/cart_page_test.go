@@ -10,6 +10,7 @@ import (
 
 	"github.com/koopa0/goen/assets"
 	"github.com/koopa0/goen/internal/i18n"
+	"github.com/koopa0/goen/internal/picture"
 	"github.com/koopa0/goen/internal/ui/widget"
 )
 
@@ -154,7 +155,7 @@ func TestCartLineSmallPhoto(t *testing.T) {
 	const key = "nimbus-buds-pro-01.webp"
 	line := Line{
 		Slug: "buds", Name: "Buds", Quantity: 1, UnitCents: 100,
-		ImageURL: assets.Image{BundledKey: key}.URL(), ImageSrcset: assets.Image{BundledKey: key}.Srcset(), ImageAlt: "Buds",
+		ImageURL: picture.Image{BundledKey: key}.URL(), ImageSrcset: picture.Image{BundledKey: key}.Srcset(), ImageAlt: "Buds",
 	}
 	markup := renderToString(t, cartLine(line))
 	small := assets.URL("media/products/nimbus-buds-pro-01-400.webp")

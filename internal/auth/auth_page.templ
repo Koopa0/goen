@@ -1,8 +1,8 @@
 package auth
 
 import (
-	"github.com/koopa0/goen/assets"
 	"github.com/koopa0/goen/internal/i18n"
+	"github.com/koopa0/goen/internal/picture"
 	"github.com/koopa0/goen/internal/ui/fieldrule"
 	"github.com/koopa0/goen/internal/ui/frame"
 	"github.com/koopa0/goen/internal/ui/widget"
@@ -107,8 +107,8 @@ templ SignIn(p frame.Page, v AuthView) {
 templ authDoor() {
 	<div class="goen-auth__media">
 		<img
-			src={ assets.Image{BundledKey: "department-books-stationery.webp"}.URL() }
-			srcset={ assets.Image{BundledKey: "department-books-stationery.webp"}.Srcset() }
+			src={ picture.Image{BundledKey: "department-books-stationery.webp"}.URL() }
+			srcset={ picture.Image{BundledKey: "department-books-stationery.webp"}.Srcset() }
 			sizes="(min-width: 64rem) 57vw, 1px"
 			alt=""
 			width="1600"

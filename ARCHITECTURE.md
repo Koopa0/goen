@@ -270,7 +270,7 @@ CI runs formatting, vet, lint, dead-code and generated-code checks, migration li
 | Database authority | [Schema][schema], [sqlc configuration][sqlc], [conformance tests][conformance], [`internal/admin/audit`][audit], [`internal/db/dbtest`][dbtest] |
 | Browsing and derived data | [`internal/catalog`][catalog-store], [`internal/discount/campaign`][campaign], [`internal/ui/tile`][tile], [`internal/backinstock`][backinstock], [`internal/home`][home-store], [`internal/product/copurchase`][copurchase], [reports][reports] |
 | Language, money, time | [`internal/i18n`][i18n], [`internal/money`][money], [`internal/shoptime`][shoptime] |
-| Assets and media | [`assets`][assets], [`internal/media`][media-render] |
+| Assets and media | [`assets`][assets], [`internal/picture`][picture], [`internal/media`][media-render] |
 | Identity and browser security | [`internal/auth`][auth], [`internal/auth/google`][google-signin], [`internal/bearer`][bearer], [staff access][access], [`internal/admin/twofactor`][twofactor], [`internal/web/ratelimit`][ratelimit], [`internal/web/clientip`][clientip], [`internal/web/siteurl`][siteurl] |
 | Operations | [Health queries][health-sql], [probes][probe], [slow-query tracer][slowquery], [Makefile][makefile], [CI][workflows] |
 
@@ -336,6 +336,7 @@ CI runs formatting, vet, lint, dead-code and generated-code checks, migration li
 [copurchase]: internal/product/copurchase/store.go
 [reports]: internal/admin/reports/store.go
 [assets]: assets/assets.go
+[picture]: internal/picture/picture.go
 [media-render]: internal/media/render.go
 [media-handler]: internal/media/handler.go
 [health]: internal/admin/health

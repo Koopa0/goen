@@ -7,11 +7,11 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/koopa0/goen/assets"
 	"github.com/koopa0/goen/internal/i18n"
 	"github.com/koopa0/goen/internal/invoice"
 	"github.com/koopa0/goen/internal/keyset"
 	"github.com/koopa0/goen/internal/money"
+	"github.com/koopa0/goen/internal/picture"
 	"github.com/koopa0/goen/internal/product"
 	"github.com/koopa0/goen/internal/ui/widget"
 )
@@ -300,7 +300,7 @@ func (v *ProductView) invoiceTerms() invoice.LineTerms {
 }
 
 type Image struct {
-	Photo assets.Image
+	Photo picture.Image
 	Alt   string
 	// OptionValueID is the option value this photograph shows, empty when it
 	// shows the product whichever value is chosen.

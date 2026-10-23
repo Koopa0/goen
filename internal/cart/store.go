@@ -13,7 +13,6 @@ import (
 	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/jackc/pgx/v5/pgxpool"
 
-	"github.com/koopa0/goen/assets"
 	"github.com/koopa0/goen/internal/bearer"
 	"github.com/koopa0/goen/internal/cart/cartitem"
 	"github.com/koopa0/goen/internal/db"
@@ -21,6 +20,7 @@ import (
 	"github.com/koopa0/goen/internal/invoice"
 	"github.com/koopa0/goen/internal/invoice/issuer"
 	"github.com/koopa0/goen/internal/payment"
+	"github.com/koopa0/goen/internal/picture"
 	"github.com/koopa0/goen/internal/product"
 )
 
@@ -273,7 +273,7 @@ func (s *Store) View(ctx context.Context, cartID uuid.UUID) (View, error) {
 	}
 	for i := range rows {
 		r := &rows[i]
-		photo := assets.Image{Digest: r.ImageDigest, BundledKey: r.ImageBundledKey, Width: int(r.ImageWidth)}
+		photo := picture.Image{Digest: r.ImageDigest, BundledKey: r.ImageBundledKey, Width: int(r.ImageWidth)}
 		if r.TaxType != rows[0].TaxType {
 			view.MixedTaxTypes = true
 		}
@@ -328,7 +328,7 @@ func (s *Store) Items(ctx context.Context, cartID uuid.UUID) ([]cartitem.Item, e
 	items := make([]cartitem.Item, 0, len(rows))
 	for i := range rows {
 		r := &rows[i]
-		photo := assets.Image{Digest: r.ImageDigest, BundledKey: r.ImageBundledKey, Width: int(r.ImageWidth)}
+		photo := picture.Image{Digest: r.ImageDigest, BundledKey: r.ImageBundledKey, Width: int(r.ImageWidth)}
 		items = append(items, cartitem.Item{
 			VariantID:   r.VariantID,
 			Name:        r.Name,

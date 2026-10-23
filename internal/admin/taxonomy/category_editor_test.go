@@ -8,8 +8,8 @@ import (
 	"github.com/google/go-cmp/cmp"
 	"golang.org/x/net/html"
 
-	"github.com/koopa0/goen/assets"
 	"github.com/koopa0/goen/internal/i18n"
+	"github.com/koopa0/goen/internal/picture"
 	"github.com/koopa0/goen/internal/ui/frame"
 	"github.com/koopa0/goen/internal/ui/widget"
 )
@@ -96,7 +96,7 @@ func TestCategoryFormImageDescriptions(t *testing.T) {
 				t.Parallel()
 				view := CategoryView{Slug: "books"}
 				if hasImage {
-					view.Image = widget.HeaderImage{Image: assets.Image{Digest: strings.Repeat("a", 64)}}
+					view.Image = widget.HeaderImage{Image: picture.Image{Digest: strings.Repeat("a", 64)}}
 				}
 				doc, err := html.Parse(strings.NewReader(renderComponent(t, i18n.WithLocale(t.Context(), tt.locale), CategoryForm(frame.Page{}, view))))
 				if err != nil {
