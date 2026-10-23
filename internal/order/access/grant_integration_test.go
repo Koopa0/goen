@@ -3,6 +3,7 @@
 package access_test
 
 import (
+	"errors"
 	"log/slog"
 	"net/http"
 	"net/http/httptest"
@@ -215,5 +216,21 @@ func TestOrderAccessibleWithRetain(t *testing.T) {
 				t.Errorf("OrderAccessibleWith = %v, want %v", ok, tc.want)
 			}
 		})
+	}
+}
+
+// TestStore_GrantUnknownOrder: Store.Grant for a number that names no order
+// answers ErrNotFound and sets no cookie, so a caller cannot hand a browser a
+// token that opens nothing.
+func TestStore_GrantUnknownOrder(t *testing.T) {
+	w := httptest.NewRecorder()
+	r := httptest.NewRequestWithContext(t.Context(), http.MethodGet, "/", http.NoBody)
+
+	err := access.NewStore(pool, false).Grant(w, r, "GO-000000-NOSUCH")
+	if !errors.Is(err, access.ErrNotFound) {
+		t.Fatalf("Grant for an unknown order = %v, want ErrNotFound", err)
+	}
+	if cookies := w.Result().Cookies(); len(cookies) != 0 {
+		t.Errorf("Grant for an unknown order set %d cookies, want none", len(cookies))
 	}
 }
