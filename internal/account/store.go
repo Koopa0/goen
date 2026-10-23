@@ -83,7 +83,7 @@ func (s *Store) Overview(ctx context.Context, u user.User, after ...string) (Vie
 	now := time.Now()
 	for i := range orders {
 		o := &orders[i]
-		view.Orders = append(view.Orders, AccountOrder{
+		view.Orders = append(view.Orders, Order{
 			Number:     o.OrderNumber,
 			Status:     order.FulfillmentStatus(o.FulfillmentStatus),
 			PlacedAt:   shoptime.DateOf(o.PlacedAt, now),

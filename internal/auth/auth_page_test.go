@@ -15,7 +15,7 @@ import (
 func TestSignInEmailFieldGoogleError(t *testing.T) {
 	t.Parallel()
 	ctx := i18n.WithLocale(t.Context(), i18n.En)
-	body := renderComponent(t, ctx, SignIn(SignInMeta(ctx), AuthView{Errors: map[string]string{"oauth": "Google sign-in failed"}}))
+	body := renderComponent(t, ctx, SignIn(SignInMeta(ctx), View{Errors: map[string]string{"oauth": "Google sign-in failed"}}))
 	input := regexp.MustCompile(`<input[^>]*id="email"[^>]*>`).FindString(body)
 	for _, want := range []string{`type="email"`, `data-rule="email"`, `autocomplete="email"`, `required`} {
 		if !strings.Contains(input, want) {
@@ -35,7 +35,7 @@ func TestSignInEmailFieldGoogleError(t *testing.T) {
 func TestRegisterSentPage(t *testing.T) {
 	t.Parallel()
 
-	sent := renderToString(t, Register(frame.Page{Title: "註冊"}, AuthView{
+	sent := renderToString(t, Register(frame.Page{Title: "註冊"}, View{
 		OffersResend: true, Email: "ada@example.com", Next: "/account",
 		Notice: "確認信已寄到 ada@example.com",
 	}))
@@ -53,12 +53,12 @@ func TestRegisterSentPage(t *testing.T) {
 	}
 
 	// Without the cookie the page asks for the address instead of naming it.
-	anon := renderToString(t, Register(frame.Page{Title: "註冊"}, AuthView{OffersResend: true, Next: "/account"}))
+	anon := renderToString(t, Register(frame.Page{Title: "註冊"}, View{OffersResend: true, Next: "/account"}))
 	if !strings.Contains(anon, `action="/register/resend"`) || !strings.Contains(anon, `type="email"`) {
 		t.Error("the sent page without an address does not ask for one")
 	}
 
-	fresh := renderToString(t, Register(frame.Page{Title: "註冊"}, AuthView{Next: "/account"}))
+	fresh := renderToString(t, Register(frame.Page{Title: "註冊"}, View{Next: "/account"}))
 	if strings.Contains(fresh, `action="/register/resend"`) {
 		t.Error("the registration page offers a resend before anything was sent")
 	}
@@ -88,7 +88,7 @@ func TestRegisterResendCorrection(t *testing.T) {
 				{name: "sent", notice: i18n.T(ctx, i18n.KeyRegisterSent), sent: true},
 			} {
 				t.Run(tt.name, func(t *testing.T) {
-					page := renderComponent(t, ctx, Register(frame.Page{Title: "Registration"}, AuthView{
+					page := renderComponent(t, ctx, Register(frame.Page{Title: "Registration"}, View{
 						OffersResend: true, Next: "/account", Notice: tt.notice,
 					}))
 					if !strings.Contains(page, `action="/register/resend"`) || !strings.Contains(page, `type="email"`) {
@@ -125,7 +125,7 @@ func TestRegisterSentHeading(t *testing.T) {
 		t.Run(locale.Tag(), func(t *testing.T) {
 			t.Parallel()
 			ctx := i18n.WithLocale(t.Context(), locale)
-			sent := renderComponent(t, ctx, Register(RegisterMeta(ctx), AuthView{OffersResend: true, Email: "ada@example.com", Notice: "ada@example.com"}))
+			sent := renderComponent(t, ctx, Register(RegisterMeta(ctx), View{OffersResend: true, Email: "ada@example.com", Notice: "ada@example.com"}))
 			heading := "Check your inbox"
 			if locale == i18n.ZhHant {
 				heading = "\u8acb\u5230\u4fe1\u7bb1\u6536\u4fe1"
@@ -133,7 +133,7 @@ func TestRegisterSentHeading(t *testing.T) {
 			if !strings.Contains(sent, `<h1 class="goen-auth__title">`+heading+`</h1>`) || !strings.Contains(sent, `href="/register"`) || !strings.Contains(sent, "ada@example.com") {
 				t.Error("Register() sent state lost the inbox heading, destination or re-entry")
 			}
-			fresh := renderComponent(t, ctx, Register(RegisterMeta(ctx), AuthView{}))
+			fresh := renderComponent(t, ctx, Register(RegisterMeta(ctx), View{}))
 			if strings.Contains(fresh, `<h1 class="goen-auth__title">`+heading+`</h1>`) {
 				t.Error("Register() asks a new visitor to check their inbox")
 			}

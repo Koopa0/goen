@@ -10,10 +10,10 @@ import (
 	"github.com/koopa0/goen/internal/ui/frame"
 )
 
-// TestAuthViewNextInLinks: the sign-in and registration pages carry the return
+// TestViewNextInLinks: the sign-in and registration pages carry the return
 // destination (Next) into their links to each other, escaped, for an empty,
 // plain, query-and-fragment and non-ASCII destination in each locale.
-func TestAuthViewNextInLinks(t *testing.T) {
+func TestViewNextInLinks(t *testing.T) {
 	t.Parallel()
 	for _, locale := range i18n.Locales() {
 		t.Run(locale.Tag(), func(t *testing.T) {
@@ -32,7 +32,7 @@ func TestAuthViewNextInLinks(t *testing.T) {
 				t.Run(tt.name, func(t *testing.T) {
 					t.Parallel()
 					ctx := i18n.WithLocale(t.Context(), locale)
-					view := AuthView{Next: tt.next}
+					view := View{Next: tt.next}
 					for _, page := range []struct {
 						name string
 						body string
@@ -41,7 +41,7 @@ func TestAuthViewNextInLinks(t *testing.T) {
 					}{
 						{name: "sign in", body: renderComponent(t, ctx, SignIn(frame.Page{}, view)), key: i18n.KeyNoAccountLink, path: "/register"},
 						{name: "register", body: renderComponent(t, ctx, Register(frame.Page{}, view)), key: i18n.KeySignIn, path: "/signin"},
-						{name: "other address", body: renderComponent(t, ctx, Register(frame.Page{}, AuthView{
+						{name: "other address", body: renderComponent(t, ctx, Register(frame.Page{}, View{
 							Next: tt.next, OffersResend: true, Notice: i18n.T(ctx, i18n.KeyRegisterSent),
 						})), key: i18n.KeyRegisterOtherAddress, path: "/register"},
 					} {

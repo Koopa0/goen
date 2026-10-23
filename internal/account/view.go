@@ -16,7 +16,7 @@ import (
 	"github.com/koopa0/goen/internal/ui/widget"
 )
 
-type AccountOrder struct {
+type Order struct {
 	Number     string
 	Status     order.FulfillmentStatus
 	PlacedAt   shoptime.Date
@@ -33,7 +33,7 @@ type AccountOrder struct {
 
 // Facts are what a row of the history says about its order. The last day to cancel is counted from each parcel's
 // delivery, so the row names one only when the whole order has the same.
-func (o AccountOrder) Facts(ctx context.Context) []widget.Stat {
+func (o Order) Facts(ctx context.Context) []widget.Stat {
 	facts := []widget.Stat{
 		widget.DateStat(ctx, i18n.T(ctx, i18n.KeyOrderFactPlaced), o.PlacedAt, ""),
 		{Label: i18n.T(ctx, i18n.KeyOrderGrandTotal), Value: widget.StatMoney(o.TotalCents)},
@@ -44,13 +44,13 @@ func (o AccountOrder) Facts(ctx context.Context) []widget.Stat {
 	return facts
 }
 
-func (o AccountOrder) LineCountText() string { return strconv.FormatInt(o.LineCount, 10) }
+func (o Order) LineCountText() string { return strconv.FormatInt(o.LineCount, 10) }
 
-func (o AccountOrder) AwaitingPayment() bool {
+func (o Order) AwaitingPayment() bool {
 	return order.AwaitingPayment(o.Status, o.Committed, o.OwedCents)
 }
 
-func (o AccountOrder) StatusText(ctx context.Context) string {
+func (o Order) StatusText(ctx context.Context) string {
 	if o.Returned {
 		return i18n.T(ctx, i18n.KeyStatusRefunded)
 	}
@@ -78,7 +78,7 @@ func (o AccountOrder) StatusText(ctx context.Context) string {
 
 // BadgeIntent colours only two states: one the shopper must act on and one that ended
 // without a delivery. The rest is progress, not something to look at.
-func (o AccountOrder) BadgeIntent() widget.Intent {
+func (o Order) BadgeIntent() widget.Intent {
 	switch {
 	case o.Status == order.FulfillmentCancelled:
 		return widget.IntentDanger
@@ -125,7 +125,7 @@ type View struct {
 	Email                      string
 	Name                       string
 	Phone                      string
-	Orders                     []AccountOrder
+	Orders                     []Order
 	OrdersBound                keyset.Bound
 	Addresses                  []AddressView
 	CreditCents                int64

@@ -45,7 +45,7 @@ func (r SignInRecovery) Label(ctx context.Context) string {
 	}
 }
 
-type AuthView struct {
+type View struct {
 	ReturnMessage string
 	HideRegister  bool
 	PasswordFocus bool
@@ -63,7 +63,7 @@ type AuthView struct {
 	DemoPassword string
 }
 
-func (v AuthView) OffersDemoAccount() bool { return v.DemoEmail != "" }
+func (v View) OffersDemoAccount() bool { return v.DemoEmail != "" }
 
 type RegisterCompleteView struct {
 	Token string
@@ -77,14 +77,14 @@ func RegisterCompleteMeta(ctx context.Context) frame.Page {
 	return frame.Page{Title: i18n.T(ctx, i18n.KeyRegisterCompleteTitle)}
 }
 
-func (v AuthView) authPageLink(path string) string {
+func (v View) authPageLink(path string) string {
 	if v.Next == "" || v.Next == "/account" {
 		return path
 	}
 	return path + "?next=" + url.QueryEscape(v.Next)
 }
 
-func (v AuthView) GoogleLink() string {
+func (v View) GoogleLink() string {
 	if v.Next == "" {
 		return "/auth/google"
 	}
@@ -99,17 +99,17 @@ func RegisterMeta(ctx context.Context) frame.Page {
 	return frame.Page{Title: i18n.T(ctx, i18n.KeyRegister)}
 }
 
-func (v AuthView) PasswordAttrs(attrs templ.Attributes) templ.Attributes {
+func (v View) PasswordAttrs(attrs templ.Attributes) templ.Attributes {
 	if !v.HasErr("password") {
 		attrs["aria-describedby"] = "password-hint"
 	}
 	return attrs
 }
 
-func (v AuthView) Err(field string) string { return v.Errors[field] }
+func (v View) Err(field string) string { return v.Errors[field] }
 
-func (v AuthView) HasErr(field string) bool { return v.Errors[field] != "" }
+func (v View) HasErr(field string) bool { return v.Errors[field] != "" }
 
-func (v AuthView) AnyErrors() bool { return len(v.Errors) > 0 }
+func (v View) AnyErrors() bool { return len(v.Errors) > 0 }
 
-func (v AuthView) HasNotice() bool { return v.Notice != "" }
+func (v View) HasNotice() bool { return v.Notice != "" }

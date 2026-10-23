@@ -22,10 +22,10 @@ func TestSignInPhotoAfterForm(t *testing.T) {
 		body  string
 		photo bool
 	}{
-		{"sign in", renderToString(t, SignIn(page, AuthView{GoogleSignIn: true})), true},
-		{"register", renderToString(t, Register(page, AuthView{})), true},
-		{"register sent", renderToString(t, Register(page, AuthView{OffersResend: true, Email: "a@example.com", Notice: "sent"})), true},
-		{"re-sign-in", renderToString(t, SignIn(page, AuthView{HideRegister: true})), false},
+		{"sign in", renderToString(t, SignIn(page, View{GoogleSignIn: true})), true},
+		{"register", renderToString(t, Register(page, View{})), true},
+		{"register sent", renderToString(t, Register(page, View{OffersResend: true, Email: "a@example.com", Notice: "sent"})), true},
+		{"re-sign-in", renderToString(t, SignIn(page, View{HideRegister: true})), false},
 		{"forgot", renderToString(t, Forgot(page, ForgotView{})), false},
 	}
 	for _, tt := range tests {
@@ -59,7 +59,7 @@ func TestSignInPhotoAfterForm(t *testing.T) {
 // link after the password field.
 func TestSignInForgotLinkAfterField(t *testing.T) {
 	t.Parallel()
-	body := renderToString(t, SignIn(frame.Page{Title: "x"}, AuthView{}))
+	body := renderToString(t, SignIn(frame.Page{Title: "x"}, View{}))
 	field := strings.Index(body, `id="password"`)
 	link := strings.Index(body, `href="/forgot"`)
 	if field < 0 || link < field {
@@ -72,7 +72,7 @@ func TestSignInForgotLinkAfterField(t *testing.T) {
 func TestSignInDemoAccountFocus(t *testing.T) {
 	t.Parallel()
 	page := frame.Page{Title: "x"}
-	focus := func(v AuthView) bool {
+	focus := func(v View) bool {
 		body := renderToString(t, SignIn(page, v))
 		id := strings.Index(body, `id="email"`)
 		if id < 0 {
@@ -85,10 +85,10 @@ func TestSignInDemoAccountFocus(t *testing.T) {
 		end := id + strings.Index(body[id:], ">")
 		return strings.Contains(body[start:end], "autofocus")
 	}
-	if !focus(AuthView{}) {
+	if !focus(View{}) {
 		t.Error("the email field lost its focus with no demo account")
 	}
-	if focus(AuthView{DemoEmail: "demo@example.com", DemoPassword: "x"}) {
+	if focus(View{DemoEmail: "demo@example.com", DemoPassword: "x"}) {
 		t.Error("the email field takes the focus above a demo account")
 	}
 }
@@ -97,7 +97,7 @@ func TestSignInDemoAccountFocus(t *testing.T) {
 // paragraph.
 func TestSignInReturnLede(t *testing.T) {
 	t.Parallel()
-	body := renderToString(t, SignIn(frame.Page{Title: "x"}, AuthView{ReturnMessage: "Sign in to go back to your cart."}))
+	body := renderToString(t, SignIn(frame.Page{Title: "x"}, View{ReturnMessage: "Sign in to go back to your cart."}))
 	if !strings.Contains(body, `<p class="goen-auth__lede">Sign in to go back to your cart.</p>`) {
 		t.Error("the return sentence is not in an element with class goen-auth__lede")
 	}

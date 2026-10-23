@@ -11,10 +11,10 @@ import (
 	"github.com/koopa0/goen/internal/ui/frame"
 )
 
-// TestWarrantyOrderSerialRefusal: a serial refusal keeps only its own draft and
+// TestOrderSerialRefusal: a serial refusal keeps only its own draft and
 // explanation: the refused line's input holds the raw draft, is marked invalid
 // and is described by its own error, and its sibling line is unaffected.
-func TestWarrantyOrderSerialRefusal(t *testing.T) {
+func TestOrderSerialRefusal(t *testing.T) {
 	t.Parallel()
 	for _, tc := range []struct {
 		locale  i18n.Locale
@@ -34,7 +34,7 @@ func TestWarrantyOrderSerialRefusal(t *testing.T) {
 			for i := range view.Lines {
 				view.Lines[i].CoverEnds = &end
 			}
-			body := renderWarrantyInLocale(t, ctx, WarrantyOrder(frame.Page{}, view))
+			body := renderWarrantyInLocale(t, ctx, Order(frame.Page{}, view))
 			nodes := warrantyNodesByID(t, body)
 			input := nodes["serial-owned"]
 			if input == nil {

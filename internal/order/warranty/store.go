@@ -100,7 +100,7 @@ func warrantyCoverEnd(date time.Time, hasExpiry bool) *shoptime.Date {
 	return &day
 }
 
-func (s *Store) Ready(ctx context.Context, userID string) ([]WarrantyReady, error) {
+func (s *Store) Ready(ctx context.Context, userID string) ([]Ready, error) {
 	owner, err := uuid.Parse(userID)
 	if err != nil {
 		return nil, ErrNotFound
@@ -111,12 +111,12 @@ func (s *Store) Ready(ctx context.Context, userID string) ([]WarrantyReady, erro
 	if err != nil {
 		return nil, err
 	}
-	ready := make([]WarrantyReady, 0, len(rows))
+	ready := make([]Ready, 0, len(rows))
 	for i := range rows {
 		row := &rows[i]
 		line := warrantyLine(row)
 		if line.Registrable() && line.CoverEnds != nil {
-			ready = append(ready, WarrantyReady{Number: row.OrderNumber, Line: line})
+			ready = append(ready, Ready{Number: row.OrderNumber, Line: line})
 		}
 	}
 	return ready, nil

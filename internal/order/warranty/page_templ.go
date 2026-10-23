@@ -15,7 +15,7 @@ import (
 	"github.com/koopa0/goen/internal/ui/widget"
 )
 
-func WarrantyList(p frame.Page, v WarrantyListView) templ.Component {
+func List(p frame.Page, v ListView) templ.Component {
 	return templruntime.GeneratedTemplate(func(templ_7745c5c3_Input templruntime.GeneratedComponentInput) (templ_7745c5c3_Err error) {
 		templ_7745c5c3_W, ctx := templ_7745c5c3_Input.Writer, templ_7745c5c3_Input.Context
 		if templ_7745c5c3_CtxErr := ctx.Err(); templ_7745c5c3_CtxErr != nil {
@@ -452,7 +452,7 @@ func WarrantyList(p frame.Page, v WarrantyListView) templ.Component {
 	})
 }
 
-func WarrantyOrder(p frame.Page, v OrderView) templ.Component {
+func Order(p frame.Page, v OrderView) templ.Component {
 	return templruntime.GeneratedTemplate(func(templ_7745c5c3_Input templruntime.GeneratedComponentInput) (templ_7745c5c3_Err error) {
 		templ_7745c5c3_W, ctx := templ_7745c5c3_Input.Writer, templ_7745c5c3_Input.Context
 		if templ_7745c5c3_CtxErr := ctx.Err(); templ_7745c5c3_CtxErr != nil {
