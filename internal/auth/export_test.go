@@ -74,3 +74,10 @@ func LettersLeft(h *Handler, key string) int {
 	}
 	return len(held)
 }
+
+// WithStore is h answering from s instead, sharing every limiter with h.
+func WithStore(h *Handler, s *Store) *Handler {
+	c := *h
+	c.store = s
+	return &c
+}

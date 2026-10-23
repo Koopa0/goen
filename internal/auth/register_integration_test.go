@@ -18,6 +18,7 @@ import (
 	"github.com/google/go-cmp/cmp"
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgconn"
+	"github.com/jackc/pgx/v5/pgxpool"
 
 	"github.com/koopa0/goen/internal/account"
 	"github.com/koopa0/goen/internal/auth"
@@ -801,5 +802,79 @@ func TestHandler_ResendRegistrationRefund(t *testing.T) {
 	}
 	if left := auth.LettersLeft(h, "resend:"+addr); left != addressMailBudget {
 		t.Errorf("resends that sent nothing left %d of the address's %d links", left, addressMailBudget)
+	}
+}
+
+// TestHandler_ResendRegistrationFailedWrite: resends whose write fails answer
+// 500 and give back what they reserved, so the resends after them for the same
+// unproved account each send their link.
+func TestHandler_ResendRegistrationFailedWrite(t *testing.T) {
+	s := auth.NewStore(pool)
+	h := auth.NewHandler(s, nil, nil, slog.New(slog.DiscardHandler), false, nil)
+	closed, err := pgxpool.NewWithConfig(t.Context(), pool.Config().Copy())
+	if err != nil {
+		t.Fatal(err)
+	}
+	closed.Close()
+	failing := auth.WithStore(h, auth.NewStore(closed))
+	addr := "resend-failed-" + uuid.NewString() + "@example.com"
+	register(t, s, addr)
+
+	for i := range addressMailBudget {
+		rec := httptest.NewRecorder()
+		failing.ResendRegistration(rec, cartForm(t.Context(), "/register/resend", url.Values{"email": {addr}}))
+		if rec.Code != http.StatusInternalServerError {
+			t.Fatalf("resend %d through a closed pool answered %d, want 500", i+1, rec.Code)
+		}
+	}
+	for i := range addressMailBudget {
+		resendRegistration(t, h, addr)
+		if got := followUpRegistrations(t, s, addr, neverTold(t)); got != 1 {
+			t.Fatalf("resend %d after the failed writes queued %d links, want 1", i+1, got)
+		}
+	}
+}
+
+// TestHandler_RegisterResendApart: registration and its resend have
+// allowances of their own. Once registrations of an address have spent theirs,
+// a resend for it still sends its link; once resends have spent theirs, a
+// registration of the address still sends its letter.
+func TestHandler_RegisterResendApart(t *testing.T) {
+	ctx := t.Context()
+	s := auth.NewStore(pool)
+	h := auth.NewHandler(s, nil, nil, slog.New(slog.DiscardHandler), false, nil)
+	anyLetter := func(context.Context, *auth.AddressTaken) error { return nil }
+	registration := func(addr string) {
+		t.Helper()
+		rec := httptest.NewRecorder()
+		h.Register(rec, registrationForm(ctx, addr, "a sufficiently long password", "/account"))
+		if rec.Code != http.StatusSeeOther {
+			t.Fatalf("registering %s answered %d, want 303", addr, rec.Code)
+		}
+	}
+
+	registered := "apart-registered-" + uuid.NewString() + "@example.com"
+	for range addressMailBudget {
+		registration(registered)
+	}
+	if got := followUpRegistrations(t, s, registered, anyLetter); got != addressMailBudget {
+		t.Fatalf("%d registrations queued %d letters, want %d", addressMailBudget, got, addressMailBudget)
+	}
+	resendRegistration(t, h, registered)
+	if got := followUpRegistrations(t, s, registered, neverTold(t)); got != 1 {
+		t.Errorf("a resend after the registrations queued %d links, want 1", got)
+	}
+
+	resent := "apart-resent-" + uuid.NewString() + "@example.com"
+	register(t, s, resent)
+	for range addressMailBudget {
+		resendRegistration(t, h, resent)
+	}
+	if got := followUpRegistrations(t, s, resent, neverTold(t)); got != addressMailBudget {
+		t.Fatalf("%d resends queued %d links, want %d", addressMailBudget, got, addressMailBudget)
+	}
+	registration(resent)
+	if got := followUpRegistrations(t, s, resent, anyLetter); got != 1 {
+		t.Errorf("a registration after the resends queued %d letters, want 1", got)
 	}
 }
