@@ -23,6 +23,7 @@ import (
 	"github.com/koopa0/goen/internal/db"
 	"github.com/koopa0/goen/internal/db/dbtest"
 	"github.com/koopa0/goen/internal/money"
+	"github.com/koopa0/goen/internal/order/ordertest"
 	"github.com/koopa0/goen/internal/outbox"
 )
 
@@ -296,8 +297,8 @@ func TestStore_RefundBeforeShipmentClawback(t *testing.T) {
 	s := refunds.NewStore(pool, admintest.Refunder{}, nil)
 
 	t.Run("untouched lot", func(t *testing.T) {
-		userID := admintest.Customer(t, pool)
-		number, orderID := admintest.PaidPickingOrderForUser(t, pool, userID, 1200000)
+		userID := ordertest.Customer(t, pool)
+		number, orderID := ordertest.PaidPickingOrderForUser(t, pool, userID, 1200000)
 		cancelPaidOrder(t, s, ctx, number)
 		assertCancelClawback(t, orderID, -120, 120)
 	})
@@ -311,8 +312,8 @@ func TestStore_RefundBeforeShipmentClawback(t *testing.T) {
 		{"wholly consumed records a zero row", 120, 0},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
-			userID := admintest.Customer(t, pool)
-			number, orderID := admintest.PaidPickingOrderForUser(t, pool, userID, 1200000)
+			userID := ordertest.Customer(t, pool)
+			number, orderID := ordertest.PaidPickingOrderForUser(t, pool, userID, 1200000)
 			if _, err := pool.Exec(ctx,
 				`SELECT redeem_loyalty_points($1, $2, $3)`,
 				userID, tc.spent, uuid.New()); err != nil {
@@ -324,8 +325,8 @@ func TestStore_RefundBeforeShipmentClawback(t *testing.T) {
 	}
 
 	t.Run("refuses before cancelled", func(t *testing.T) {
-		userID := admintest.Customer(t, pool)
-		_, pickingID := admintest.PaidPickingOrderForUser(t, pool, userID, 500000)
+		userID := ordertest.Customer(t, pool)
+		_, pickingID := ordertest.PaidPickingOrderForUser(t, pool, userID, 500000)
 		var replay int64
 		earlyErr := pool.QueryRow(ctx, `SELECT reverse_order_points($1)`, pickingID).Scan(&replay)
 		if earlyErr == nil {

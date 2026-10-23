@@ -8,6 +8,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"net/url"
+	"strconv"
 	"strings"
 	"testing"
 
@@ -48,5 +49,30 @@ func TestHandler_ResendVerification(t *testing.T) {
 				t.Errorf("resent verification address=%q, want unchanged %q", got, person.Email)
 			}
 		})
+	}
+}
+
+// TestHandler_ResendVerificationBound: one account's resend past its allowance
+// is refused with 429 and the account's own Retry-After.
+func TestHandler_ResendVerificationBound(t *testing.T) {
+	store := auth.NewStore(pool)
+	browser := changeBrowser{t: t, h: auth.NewHandler(store, nil, nil, slog.New(slog.DiscardHandler), false, nil)}
+	session := browser.signIn(registerProved(t, store, "verify-bound-"+uuid.NewString()+"@example.com").Email)
+	resend := func() *httptest.ResponseRecorder {
+		request := httptest.NewRequestWithContext(t.Context(), http.MethodPost, "/account/email/resend", nil)
+		return browser.serve(browser.h.ResendVerification, request, session)
+	}
+
+	for i := range accountMailBudget {
+		if code := resend().Code; code != http.StatusSeeOther {
+			t.Fatalf("resend %d answered %d, want 303", i+1, code)
+		}
+	}
+	refused := resend()
+	if refused.Code != http.StatusTooManyRequests {
+		t.Errorf("the resend past the account's allowance answered %d, want 429", refused.Code)
+	} else if wait, err := strconv.Atoi(refused.Header().Get("Retry-After")); err != nil || wait <= 19*60 {
+		t.Errorf("a refused account may ask again in %q s; want the twenty-minute pace",
+			refused.Header().Get("Retry-After"))
 	}
 }

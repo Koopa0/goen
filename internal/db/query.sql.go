@@ -8346,12 +8346,13 @@ func (q *Queries) EnqueuePasswordResetRequest(ctx context.Context, arg EnqueuePa
 	return err
 }
 
-const enqueueRegistrationResend = `-- name: EnqueueRegistrationResend :exec
+const enqueueRegistrationResend = `-- name: EnqueueRegistrationResend :one
 INSERT INTO outbox_messages (topic, dedupe_key, payload)
 SELECT $1::text, $2::text,
        jsonb_build_object('user_id', u.id, 'created', true, 'locale', $3::text, 'next', $4::text)
 FROM (VALUES (true)) AS request (queued)
 LEFT JOIN users u ON lower(u.email) = lower($5::text) AND u.email_verified_at IS NULL
+RETURNING (payload->>'user_id' IS NOT NULL)::boolean AS named
 `
 
 type EnqueueRegistrationResendParams struct {
@@ -8365,16 +8366,19 @@ type EnqueueRegistrationResendParams struct {
 // Asking again for a registration link is this one INSERT whatever the
 // address: the account is looked up inside it, and names nobody unless it is
 // registered and still unproved, so an address with no account, or one already
-// proved, costs the request what any other does.
-func (q *Queries) EnqueueRegistrationResend(ctx context.Context, arg EnqueueRegistrationResendParams) error {
-	_, err := q.db.Exec(ctx, enqueueRegistrationResend,
+// proved, costs the request what any other does. named says whether it named an
+// account, which is whether a link will be sent.
+func (q *Queries) EnqueueRegistrationResend(ctx context.Context, arg EnqueueRegistrationResendParams) (bool, error) {
+	row := q.db.QueryRow(ctx, enqueueRegistrationResend,
 		arg.Topic,
 		arg.DedupeKey,
 		arg.Locale,
 		arg.Next,
 		arg.Email,
 	)
-	return err
+	var named bool
+	err := row.Scan(&named)
+	return named, err
 }
 
 const eraseUser = `-- name: EraseUser :exec

@@ -15,6 +15,7 @@ import (
 	"github.com/koopa0/goen/internal/admin/products"
 	"github.com/koopa0/goen/internal/admin/staff"
 	"github.com/koopa0/goen/internal/db"
+	"github.com/koopa0/goen/internal/order/ordertest"
 	"github.com/koopa0/goen/internal/ui/frame"
 )
 
@@ -98,7 +99,7 @@ func customerViewRow(t *testing.T, ctx context.Context, customerID uuid.UUID) (a
 // outlives the account, and once it is gone the page has only the recorded id.
 func TestStore_EventsCustomerView(t *testing.T) {
 	ctx, _ := admintest.StaffContext(t, pool)
-	customerID := admintest.Customer(t, pool)
+	customerID := ordertest.Customer(t, pool)
 	err := audit.Run(ctx, pool, audit.Event{
 		Action: audit.ActionViewCustomer, Table: "users", ID: audit.EntityID(customerID),
 		After: audit.State{audit.FieldUserID: customerID.String()},

@@ -14,6 +14,7 @@ import (
 	"github.com/koopa0/goen/internal/admin/orders"
 	"github.com/koopa0/goen/internal/i18n"
 	"github.com/koopa0/goen/internal/order"
+	"github.com/koopa0/goen/internal/order/ordertest"
 	"github.com/koopa0/goen/internal/ui/frame"
 )
 
@@ -162,7 +163,7 @@ func TestStore_OrderRenamedStaffCreditRefund(t *testing.T) {
 	ctx, idA, address, colleague := renamedStaff(t)
 	s := admintest.OrderStore(pool, admintest.Refunder{}, nil, nil)
 	number, orderID, _ := admintest.PaidUnshippedOrder(t, pool, 500000, 0, false)
-	customer := admintest.Customer(t, pool)
+	customer := ordertest.Customer(t, pool)
 	if _, err := pool.Exec(ctx, `SELECT post_store_credit($1, 120000, NULL, $2, $3, $4)`,
 		customer, orderID, "return-credit:"+orderID.String(), idA); err != nil {
 		t.Fatalf("A refunds to store credit: %v", err)

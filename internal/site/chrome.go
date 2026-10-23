@@ -11,10 +11,10 @@ import (
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
 
-	"github.com/koopa0/goen/assets"
 	"github.com/koopa0/goen/internal/db"
 	"github.com/koopa0/goen/internal/i18n"
 	"github.com/koopa0/goen/internal/money"
+	"github.com/koopa0/goen/internal/picture"
 	"github.com/koopa0/goen/internal/ui/frame"
 	"github.com/koopa0/goen/internal/web/formtext"
 	"github.com/koopa0/goen/internal/web/siteurl"
@@ -213,7 +213,7 @@ func (s *Store) Nav(ctx context.Context) ([]frame.NavItem, error) {
 		if held[r.ID] == 0 {
 			continue
 		}
-		photo := assets.Image{Digest: r.ImageDigest, BundledKey: r.ImageBundledKey, Width: int(r.ImageWidth)}
+		photo := picture.Image{Digest: r.ImageDigest, BundledKey: r.ImageBundledKey, Width: int(r.ImageWidth)}
 		items = append(items, frame.NavItem{
 			Slug: r.Slug, Name: r.Name, Href: "/c/" + r.Slug, ProductCount: int(held[r.ID]), Children: children[r.ID], Picks: picks[r.ID],
 			PhotoURL: photo.URL(), PhotoSrcset: photo.Srcset(),
@@ -230,7 +230,7 @@ func (s *Store) navPicks(ctx context.Context, locale string) (map[uuid.UUID][]fr
 	out := make(map[uuid.UUID][]frame.NavPick)
 	for i := range rows {
 		r := &rows[i]
-		photo := assets.Image{Digest: r.ImageDigest, BundledKey: r.ImageBundledKey, Width: int(r.ImageWidth)}
+		photo := picture.Image{Digest: r.ImageDigest, BundledKey: r.ImageBundledKey, Width: int(r.ImageWidth)}
 		price := money.TWD(r.PriceCents)
 		if r.PriceVaries {
 			price = fmt.Sprintf(i18n.T(ctx, i18n.KeyFromPrice), price)

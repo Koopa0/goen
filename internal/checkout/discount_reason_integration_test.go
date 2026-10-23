@@ -10,6 +10,7 @@ import (
 
 	"github.com/koopa0/goen/internal/checkout"
 	"github.com/koopa0/goen/internal/order/buyer"
+	"github.com/koopa0/goen/internal/order/ordertest"
 )
 
 // TestBuyerStore_OrderDiscountReason: buyer.Store.Order says why an order
@@ -52,7 +53,7 @@ func TestBuyerStore_OrderDiscountReason(t *testing.T) {
 func TestBuyerStore_OrderNoDiscountReason(t *testing.T) {
 	ctx := t.Context()
 	s := buyer.NewStore(pool)
-	number := orderOfVariants(t, map[uuid.UUID]int32{freshVariant(t, "no-coupon"): 1})
+	number := ordertest.OrderOfVariants(t, pool, map[uuid.UUID]int32{ordertest.FreshVariant(t, pool, "no-coupon"): 1})
 
 	view, err := s.Order(ctx, number)
 	if err != nil {

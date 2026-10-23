@@ -16,63 +16,12 @@ import (
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 
-	"github.com/koopa0/goen/internal/checkout"
+	"github.com/koopa0/goen/internal/checkout/checkouttest"
 	"github.com/koopa0/goen/internal/order/buyer"
-	"github.com/koopa0/goen/internal/order/delivery"
 	"github.com/koopa0/goen/internal/order/lapse"
+	"github.com/koopa0/goen/internal/order/ordertest"
 	"github.com/koopa0/goen/internal/outbox"
 )
-
-// lapsedOrder places an order through the real checkout for a customer who
-// spends credit and a single-use coupon on it, then ages its holds past expiry.
-func lapsedOrder(t *testing.T, label string) (number string, accountID, couponID uuid.UUID) {
-	t.Helper()
-	ctx := t.Context()
-	s := checkout.NewStore(pool)
-	vid := freshVariant(t, label)
-	userID, accountID := creditedAccount(t, 30000)
-	code := "LAPSE-" + strings.ToUpper(uuid.NewString()[:8])
-	if err := pool.QueryRow(ctx, `
-		INSERT INTO coupons (code, description, kind, amount_cents, max_redemptions, per_customer_limit)
-		VALUES ($1, '只能用一次', 'amount', 20000, 1, 1)
-		RETURNING id`, code).Scan(&couponID); err != nil {
-		t.Fatalf("create coupon: %v", err)
-	}
-	var shipID uuid.UUID
-	if err := pool.QueryRow(ctx,
-		`SELECT id FROM shipping_method_versions ORDER BY effective_at LIMIT 1`).Scan(&shipID); err != nil {
-		t.Fatalf("shipping: %v", err)
-	}
-	addr := &delivery.Details{
-		Email: "lapsed@example.com", RecipientName: "王小明", Phone: "0912345678",
-		PostalCode: "110", City: "台北市", District: "信義區", Street: "松高路 1 號",
-	}
-	cartID := newCart(t, s)
-	if err := s.Carts().Add(ctx, cartID, vid, 1); err != nil {
-		t.Fatalf("add: %v", err)
-	}
-	number, err := placeOrder(t, s, ctx, cartID, uuid.NullUUID{UUID: userID, Valid: true},
-		shipID, addr, code, label+"-"+uuid.NewString())
-	if err != nil {
-		t.Fatalf("place: %v", err)
-	}
-	if got := creditBalance(t, accountID); got != 0 {
-		t.Fatalf("balance after checkout = %d, want 0; the fixture spends no credit", got)
-	}
-	expireHolds(t, number)
-	return number, accountID, couponID
-}
-
-func expireHolds(t *testing.T, number string) {
-	t.Helper()
-	tag, err := pool.Exec(t.Context(), `
-		UPDATE inventory_reservations
-		SET created_at = now() - interval '2 hours', expires_at = now() - interval '1 minute'
-		WHERE order_id = (SELECT id FROM orders WHERE order_number = $1)`, number)
-	if err != nil || tag.RowsAffected() == 0 {
-		t.Fatalf("expire holds of %s: %v (%d rows)", number, err, tag.RowsAffected())
-	}
-}
 
 // storeApplicationPool connects as the role the sweeper runs as in production,
 // under a name waitForApplicationLock can find.
@@ -169,7 +118,7 @@ func factsOf(t *testing.T, number string, couponID uuid.UUID) cancellationFacts 
 // credit reversed and the coupon slot freed, and a notice that does not say
 // money was refunded.
 func TestSweeper_SweepLapsedOrder(t *testing.T) {
-	number, accountID, couponID := lapsedOrder(t, "lapsed-cancel")
+	number, accountID, couponID := checkouttest.PlaceLapsed(t, pool, "lapsed-cancel")
 	store := storeRolePool(t)
 
 	for range 2 {
@@ -185,7 +134,7 @@ func TestSweeper_SweepLapsedOrder(t *testing.T) {
 		if f.couponSlotsHeld != 0 {
 			t.Errorf("the cancelled order still holds %d coupon slots", f.couponSlotsHeld)
 		}
-		if got := creditBalance(t, accountID); got != 30000 {
+		if got := checkouttest.CreditBalance(t, pool, accountID); got != 30000 {
 			t.Errorf("balance after the sweep = %d, want the 30000 spent on the order back", got)
 		}
 		if noticeRefunded(t, number) {
@@ -221,8 +170,8 @@ func TestSweeper_SweepLateRefund(t *testing.T) {
 		}
 		t.Run(name, func(t *testing.T) {
 			ctx := t.Context()
-			orderID := heldOrder(t, freshVariant(t, "lapse-refunded"), time.Hour, false)
-			number := numberOf(t, orderID)
+			orderID := ordertest.HeldOrder(t, pool, ordertest.FreshVariant(t, pool, "lapse-refunded"), time.Hour, false)
+			number := ordertest.NumberOf(t, pool, orderID)
 			ref := "cs_lapse_refund_" + strings.ReplaceAll(uuid.NewString(), "-", "")[:12]
 			if _, err := pool.Exec(ctx, `SELECT open_payment($1, $2, 100000)`, orderID, ref); err != nil {
 				t.Fatalf("open payment: %v", err)
@@ -276,25 +225,25 @@ func TestSweeper_SweepKeepsMoneyOrders(t *testing.T) {
 	}{
 		{"hold still live", func(t *testing.T, vid uuid.UUID) uuid.UUID {
 			t.Helper()
-			return heldOrder(t, vid, -10*time.Minute, false)
+			return ordertest.HeldOrder(t, pool, vid, -10*time.Minute, false)
 		}},
 		{"paid", func(t *testing.T, vid uuid.UUID) uuid.UUID {
 			t.Helper()
-			return heldOrder(t, vid, time.Hour, true)
+			return ordertest.HeldOrder(t, pool, vid, time.Hour, true)
 		}},
 		{"paid in full with store credit", func(t *testing.T, vid uuid.UUID) uuid.UUID {
 			t.Helper()
-			return creditFundedHeldOrder(t, vid, time.Hour)
+			return ordertest.CreditFundedHeldOrder(t, pool, vid, time.Hour)
 		}},
 		{"checkout session open", func(t *testing.T, vid uuid.UUID) uuid.UUID {
 			t.Helper()
-			id := heldOrder(t, vid, time.Hour, false)
+			id := ordertest.HeldOrder(t, pool, vid, time.Hour, false)
 			openPayment(t, id)
 			return id
 		}},
 		{"payment requires action", func(t *testing.T, vid uuid.UUID) uuid.UUID {
 			t.Helper()
-			id := heldOrder(t, vid, time.Hour, false)
+			id := ordertest.HeldOrder(t, pool, vid, time.Hour, false)
 			if _, err := pool.Exec(ctx, `UPDATE payments SET status = 'requires_action' WHERE provider_ref = $1`, openPayment(t, id)); err != nil {
 				t.Fatal(err)
 			}
@@ -302,7 +251,7 @@ func TestSweeper_SweepKeepsMoneyOrders(t *testing.T) {
 		}},
 		{"payment processing", func(t *testing.T, vid uuid.UUID) uuid.UUID {
 			t.Helper()
-			id := heldOrder(t, vid, time.Hour, false)
+			id := ordertest.HeldOrder(t, pool, vid, time.Hour, false)
 			if _, err := pool.Exec(ctx, `UPDATE payments SET status = 'processing' WHERE provider_ref = $1`, openPayment(t, id)); err != nil {
 				t.Fatal(err)
 			}
@@ -310,7 +259,7 @@ func TestSweeper_SweepKeepsMoneyOrders(t *testing.T) {
 		}},
 		{"complete session awaiting its webhook", func(t *testing.T, vid uuid.UUID) uuid.UUID {
 			t.Helper()
-			id := heldOrder(t, vid, time.Hour, false)
+			id := ordertest.HeldOrder(t, pool, vid, time.Hour, false)
 			ref := "cs_lapse_complete_" + strings.ReplaceAll(uuid.NewString(), "-", "")[:12]
 			if _, err := pool.Exec(ctx, `SELECT record_complete_payment($1, $2, 100000)`, id, ref); err != nil {
 				t.Fatal(err)
@@ -319,7 +268,7 @@ func TestSweeper_SweepKeepsMoneyOrders(t *testing.T) {
 		}},
 		{"unreconciled provider event", func(t *testing.T, vid uuid.UUID) uuid.UUID {
 			t.Helper()
-			id := heldOrder(t, vid, time.Hour, false)
+			id := ordertest.HeldOrder(t, pool, vid, time.Hour, false)
 			ref := openPayment(t, id)
 			if _, err := pool.Exec(ctx, `SELECT cancel_payment($1)`, ref); err != nil {
 				t.Fatal(err)
@@ -334,9 +283,9 @@ func TestSweeper_SweepKeepsMoneyOrders(t *testing.T) {
 		}},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
-			id := tc.order(t, freshVariant(t, "lapse-keep"))
+			id := tc.order(t, ordertest.FreshVariant(t, pool, "lapse-keep"))
 			sweepAs(t, storeRolePool(t))
-			f := factsOf(t, numberOf(t, id), uuid.Nil)
+			f := factsOf(t, ordertest.NumberOf(t, pool, id), uuid.Nil)
 			if f.status == "cancelled" || f.events != 0 || f.notices != 0 {
 				t.Errorf("the sweep cancelled it: status %s, %d cancelled events, %d notices", f.status, f.events, f.notices)
 			}
@@ -351,8 +300,8 @@ func TestSweeper_SweepKeepsMoneyOrders(t *testing.T) {
 // commits must stop the cancellation.
 func TestSweeper_SweepPaymentAfterLock(t *testing.T) {
 	ctx := t.Context()
-	orderID := heldOrder(t, freshVariant(t, "lapse-lock"), time.Hour, false)
-	number := numberOf(t, orderID)
+	orderID := ordertest.HeldOrder(t, pool, ordertest.FreshVariant(t, pool, "lapse-lock"), time.Hour, false)
+	number := ordertest.NumberOf(t, pool, orderID)
 	if _, err := pool.Exec(ctx, `
 		SELECT release_reservation(id) FROM inventory_reservations
 		WHERE order_id = $1 AND state = 'held'`, orderID); err != nil {
@@ -401,7 +350,7 @@ func TestSweeper_SweepCustomerCancelRace(t *testing.T) {
 		}
 		t.Run(name, func(t *testing.T) {
 			ctx := t.Context()
-			number, accountID, couponID := lapsedOrder(t, "lapse-race")
+			number, accountID, couponID := checkouttest.PlaceLapsed(t, pool, "lapse-race")
 			if _, err := pool.Exec(ctx, `
 				SELECT release_reservation(r.id) FROM inventory_reservations r
 				JOIN orders o ON o.id = r.order_id
@@ -463,7 +412,7 @@ func TestSweeper_SweepCustomerCancelRace(t *testing.T) {
 				t.Errorf("race left status %s, %d cancelled events, %d notices, %d credit reversals; want cancelled and 1 of each",
 					f.status, f.events, f.notices, f.reversals)
 			}
-			if got := creditBalance(t, accountID); got != 30000 {
+			if got := checkouttest.CreditBalance(t, pool, accountID); got != 30000 {
 				t.Errorf("balance after the race = %d, want 30000", got)
 			}
 		})

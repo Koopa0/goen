@@ -28,17 +28,18 @@ var randReaders = map[string]string{ //nolint:gosec // G101: the key names the f
 // internal/bearer, keyed like randReaders, with why it does not digest a bearer
 // token.
 var sha256Users = map[string]string{
-	"internal/auth/google/google.go#AuthorizeURL":      "PKCE S256 code challenge (RFC 7636 section 4.2)",
-	"internal/admin/twofactor/crypt.go#newKeyedAEAD":   "key identifier written into a stored TOTP secret's header",
-	"internal/admin/twofactor/store.go#mailedCodeHash": "digest of a mailed one-time code",
-	"internal/checkout/checkout.go#ID":                 "checkout quote identity",
-	"internal/site/chrome.go#dismissDigest":            "promo-dismiss cookie value",
-	"internal/media/decode.go#normaliseDecoded":        "content address",
-	"internal/web/ratelimit/ratelimit.go#clampKey":     "bounded limiter key",
-	"internal/catalog/facets.go#CountID":               "HTML id",
-	"internal/catalog/facets.go#SelectedID":            "HTML id",
-	"assets/assets.go#index":                           "asset fingerprint",
-	"migrations/migrations.go#Digest":                  "digest of migrations/001 a database records",
+	"internal/auth/google/google.go#AuthorizeURL":               "PKCE S256 code challenge (RFC 7636 section 4.2)",
+	"internal/admin/twofactor/crypt.go#newKeyedAEAD":            "key identifier written into a stored TOTP secret's header",
+	"internal/admin/twofactor/store.go#mailedCodeHash":          "digest of a mailed one-time code",
+	"internal/checkout/checkout.go#ID":                          "checkout quote identity",
+	"internal/checkout/checkouttest/checkouttest.go#AttemptKey": "test label to a checkout attempt identity",
+	"internal/site/chrome.go#dismissDigest":                     "promo-dismiss cookie value",
+	"internal/media/decode.go#normaliseDecoded":                 "content address",
+	"internal/web/ratelimit/ratelimit.go#clampKey":              "bounded limiter key",
+	"internal/catalog/facets.go#CountID":                        "HTML id",
+	"internal/catalog/facets.go#SelectedID":                     "HTML id",
+	"assets/assets.go#index":                                    "asset fingerprint",
+	"migrations/migrations.go#Digest":                           "digest of migrations/001 a database records",
 }
 
 // TestBearerMintAndDigestOnlyInBearer refuses a second

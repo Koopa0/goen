@@ -12,6 +12,7 @@ import (
 	"github.com/jackc/pgx/v5/pgconn"
 
 	"github.com/koopa0/goen/internal/order/lapse"
+	"github.com/koopa0/goen/internal/order/ordertest"
 )
 
 // TestSweeper_SweepAbandonedHolds holds that order/lapse.Sweeper.Sweep returns
@@ -19,7 +20,7 @@ import (
 func TestSweeper_SweepAbandonedHolds(t *testing.T) {
 	ctx := t.Context()
 	s := lapse.NewSweeper(pool)
-	vid := freshVariant(t, "stockfix-2")
+	vid := ordertest.FreshVariant(t, pool, "stockfix-2")
 
 	var before int32
 	if err := pool.QueryRow(ctx,
@@ -27,7 +28,7 @@ func TestSweeper_SweepAbandonedHolds(t *testing.T) {
 		t.Fatalf("read stock: %v", err)
 	}
 
-	orderID := heldOrder(t, vid, time.Hour, false)
+	orderID := ordertest.HeldOrder(t, pool, vid, time.Hour, false)
 
 	var mid int32
 	if err := pool.QueryRow(ctx,
@@ -79,11 +80,11 @@ func TestSweeper_SweepAbandonedHolds(t *testing.T) {
 func TestSweeper_SweepPaidOrderHold(t *testing.T) {
 	ctx := t.Context()
 	s := lapse.NewSweeper(pool)
-	vid := freshVariant(t, "stockfix-3")
+	vid := ordertest.FreshVariant(t, pool, "stockfix-3")
 
 	// Expired AND paid: without the expiry this passes with the funding check gone.
-	paidOrder := heldOrder(t, vid, time.Hour, true)
-	abandoned := heldOrder(t, vid, time.Hour, false)
+	paidOrder := ordertest.HeldOrder(t, pool, vid, time.Hour, true)
+	abandoned := ordertest.HeldOrder(t, pool, vid, time.Hour, false)
 
 	if _, _, err := s.Sweep(ctx, slog.New(slog.DiscardHandler)); err != nil {
 		t.Fatalf("sweep: %v", err)
@@ -114,7 +115,7 @@ func TestSweeper_SweepPaidOrderHold(t *testing.T) {
 func TestSweeper_SweepZeroOwedHold(t *testing.T) {
 	ctx := t.Context()
 	s := lapse.NewSweeper(pool)
-	vid := freshVariant(t, "stockfix-credit")
+	vid := ordertest.FreshVariant(t, pool, "stockfix-credit")
 
 	var before int32
 	if err := pool.QueryRow(ctx,
@@ -122,8 +123,8 @@ func TestSweeper_SweepZeroOwedHold(t *testing.T) {
 		t.Fatalf("read stock: %v", err)
 	}
 
-	funded := creditFundedHeldOrder(t, vid, time.Hour)
-	abandoned := heldOrder(t, vid, time.Hour, false)
+	funded := ordertest.CreditFundedHeldOrder(t, pool, vid, time.Hour)
+	abandoned := ordertest.HeldOrder(t, pool, vid, time.Hour, false)
 
 	if _, _, err := s.Sweep(ctx, slog.New(slog.DiscardHandler)); err != nil {
 		t.Fatalf("sweep: %v", err)
@@ -161,8 +162,8 @@ func TestSweeper_SweepZeroOwedHold(t *testing.T) {
 // fully credit-funded order's hold, by name.
 func TestReleaseReservationFundedOrder(t *testing.T) {
 	ctx := t.Context()
-	vid := freshVariant(t, "stockfix-credit-door")
-	orderID := creditFundedHeldOrder(t, vid, time.Hour)
+	vid := ordertest.FreshVariant(t, pool, "stockfix-credit-door")
+	orderID := ordertest.CreditFundedHeldOrder(t, pool, vid, time.Hour)
 
 	var reservationID uuid.UUID
 	if err := pool.QueryRow(ctx,
@@ -198,10 +199,10 @@ func TestReleaseReservationFundedOrder(t *testing.T) {
 func TestSweeper_SweepUnexpiredHolds(t *testing.T) {
 	ctx := t.Context()
 	s := lapse.NewSweeper(pool)
-	vid := freshVariant(t, "stockfix-4")
+	vid := ordertest.FreshVariant(t, pool, "stockfix-4")
 
 	// -(-10 minutes) is ten minutes in the FUTURE: still holding.
-	fresh := heldOrder(t, vid, -10*time.Minute, false)
+	fresh := ordertest.HeldOrder(t, pool, vid, -10*time.Minute, false)
 
 	if _, _, err := s.Sweep(ctx, slog.New(slog.DiscardHandler)); err != nil {
 		t.Fatalf("sweep: %v", err)
@@ -223,8 +224,8 @@ func TestSweeper_SweepUnexpiredHolds(t *testing.T) {
 func TestSweeper_SweepIdempotent(t *testing.T) {
 	ctx := t.Context()
 	s := lapse.NewSweeper(pool)
-	vid := freshVariant(t, "stockfix-5")
-	orderID := heldOrder(t, vid, time.Hour, false)
+	vid := ordertest.FreshVariant(t, pool, "stockfix-5")
+	orderID := ordertest.HeldOrder(t, pool, vid, time.Hour, false)
 
 	first, firstSkipped, err := s.Sweep(ctx, slog.New(slog.DiscardHandler))
 	if err != nil {
@@ -261,11 +262,11 @@ func TestSweeper_SweepIdempotent(t *testing.T) {
 // benign refusal as skipped, not failed.
 func TestSweeper_SweepBenignRefusal(t *testing.T) {
 	ctx := t.Context()
-	vid := freshVariant(t, "stockfix-6")
+	vid := ordertest.FreshVariant(t, pool, "stockfix-6")
 
 	// Expired, and paid — the benign case: a sweeper whose query filter is gone
 	// still sees it, and release_reservation refuses it.
-	paid := heldOrder(t, vid, time.Hour, true)
+	paid := ordertest.HeldOrder(t, pool, vid, time.Hour, true)
 
 	// Reach past the query, so the refusal happens rather than being filtered out.
 	var reservationID uuid.UUID

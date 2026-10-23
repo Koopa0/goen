@@ -24,6 +24,7 @@ import (
 	"github.com/koopa0/goen/internal/db/dbtest"
 	"github.com/koopa0/goen/internal/i18n"
 	"github.com/koopa0/goen/internal/order"
+	"github.com/koopa0/goen/internal/order/ordertest"
 	"github.com/koopa0/goen/internal/payment/refund"
 )
 
@@ -80,7 +81,7 @@ func TestStore_AdvancePaidNotCancelled(t *testing.T) {
 	}
 
 	t.Run("unpaid cancel is unchanged", func(t *testing.T) {
-		number, orderID, _ := admintest.PendingOrderHoldingStock(t, pool)
+		number, orderID, _ := ordertest.PendingOrderHoldingStock(t, pool)
 		view, err := s.Order(ctx, number)
 		if err != nil {
 			t.Fatalf("read order: %v", err)

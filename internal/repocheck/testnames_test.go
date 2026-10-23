@@ -321,7 +321,7 @@ var testNameExceptions = map[string]map[string]string{
 		"TestWriteVerbTargetsUpserts":                    "the unit is writeVerbTargets, a helper declared in a test file of this package, so the package declares no identifier for it",
 	},
 	"internal/discount/campaign": {
-		"TestImage_URLHeaderKey":        "the unit is assets.Image.URL and Srcset of package assets, which resolve a campaign's header key as they resolve a product image; this package declares no identifier for it, and moving the test to assets is a reorganisation this pass does not do",
+		"TestImage_URLHeaderKey":        "the unit is picture.Image.URL and Srcset of package picture, which resolve a campaign's header key as they resolve a product image; this package declares no identifier for it, and moving the test to picture is a reorganisation this pass does not do",
 		"TestSaleCampaignNeedsDiscount": "the unit is the sale_campaign_needs_discount trigger on sale_campaign_products, a SQL object the test provokes by featuring products through the pool, not a Go identifier",
 	},
 	"internal/home": {
@@ -370,7 +370,6 @@ var testNameExceptions = map[string]map[string]string{
 		"TestReverseReturnPointsRemainder":    "the unit is the SQL function reverse_return_points, called straight through the pool after award_loyalty_points and redeem_loyalty_points; no Go identifier of this package is what the test drives",
 	},
 	"internal/media": {
-		"TestImage_SrcsetOfUpload":    "the unit is assets.Image.Srcset, which package assets declares; this package declares no identifier for it, and moving the test to assets is a reorganisation this pass does not do",
 		"TestMediaObjectsConstraints": "the unit is the CHECK constraints of the media_objects table, a SQL object, not a Go identifier",
 		"TestMediaObjectsImmutable":   "the unit is the media_objects_immutable trigger, a SQL object, not a Go identifier",
 	},

@@ -19,8 +19,10 @@ import (
 
 	"github.com/koopa0/goen/internal/bearer"
 	"github.com/koopa0/goen/internal/checkout"
+	"github.com/koopa0/goen/internal/checkout/checkouttest"
 	"github.com/koopa0/goen/internal/order/access"
 	"github.com/koopa0/goen/internal/order/delivery"
+	"github.com/koopa0/goen/internal/order/ordertest"
 	"github.com/koopa0/goen/internal/user"
 )
 
@@ -29,7 +31,7 @@ import (
 func TestStore_PlaceOrderIdempotent(t *testing.T) {
 	ctx := t.Context()
 	s := checkout.NewStore(pool)
-	id := newCart(t, s)
+	id := checkouttest.NewCart(t, s)
 	if err := s.Carts().Add(ctx, id, variantOf(t, "pixelight-9-pro"), 1); err != nil {
 		t.Fatalf("add: %v", err)
 	}
@@ -44,8 +46,8 @@ func TestStore_PlaceOrderIdempotent(t *testing.T) {
 		Email: "idem@example.com", RecipientName: "王小明", Phone: "0912345678",
 		PostalCode: "110", City: "台北市", District: "信義區", Street: "松高路 1 號",
 	}
-	key := checkoutAttemptKey("idem-key-test-" + uuid.NewString())
-	shown := checkoutQuote(t, s, id, uuid.NullUUID{}, shipID, addr, "")
+	key := checkouttest.AttemptKey("idem-key-test-" + uuid.NewString())
+	shown := checkouttest.Quote(t, s, id, uuid.NullUUID{}, shipID, addr, "")
 
 	first, err := s.PlaceOrder(ctx, id, uuid.NullUUID{}, shipID, addr, nil, "", shown, key)
 	if err != nil {
@@ -76,17 +78,17 @@ func TestStore_PlaceOrderKeyOtherCart(t *testing.T) {
 	ctx := t.Context()
 	s := checkout.NewStore(pool)
 	shippingID := shipVersionFor(t, "home_delivery")
-	key := checkoutAttemptKey("cross-cart-idempotency-key-" + uuid.NewString())
+	key := checkouttest.AttemptKey("cross-cart-idempotency-key-" + uuid.NewString())
 
-	firstCart := newCart(t, s)
-	if err := s.Carts().Add(ctx, firstCart, freshVariant(t, "key-owner"), 1); err != nil {
+	firstCart := checkouttest.NewCart(t, s)
+	if err := s.Carts().Add(ctx, firstCart, ordertest.FreshVariant(t, pool, "key-owner"), 1); err != nil {
 		t.Fatalf("add first cart: %v", err)
 	}
 	firstAddress := &delivery.Details{
 		Email: "key-owner@example.com", RecipientName: "王小明", Phone: "0912345678",
 		PostalCode: "110", City: "台北市", District: "信義區", Street: "松高路 1 號",
 	}
-	firstQuote := checkoutQuote(
+	firstQuote := checkouttest.Quote(
 		t, s, firstCart, uuid.NullUUID{}, shippingID, firstAddress, "",
 	)
 	if _, err := s.PlaceOrder(
@@ -95,15 +97,15 @@ func TestStore_PlaceOrderKeyOtherCart(t *testing.T) {
 		t.Fatalf("place first cart: %v", err)
 	}
 
-	secondCart := newCart(t, s)
-	if err := s.Carts().Add(ctx, secondCart, freshVariant(t, "key-collision"), 1); err != nil {
+	secondCart := checkouttest.NewCart(t, s)
+	if err := s.Carts().Add(ctx, secondCart, ordertest.FreshVariant(t, pool, "key-collision"), 1); err != nil {
 		t.Fatalf("add second cart: %v", err)
 	}
 	secondAddress := &delivery.Details{
 		Email: "key-collision@example.com", RecipientName: "李大華", Phone: "0987654321",
 		PostalCode: "110", City: "台北市", District: "信義區", Street: "松仁路 2 號",
 	}
-	secondQuote := checkoutQuote(
+	secondQuote := checkouttest.Quote(
 		t, s, secondCart, uuid.NullUUID{}, shippingID, secondAddress, "",
 	)
 	if _, err := s.PlaceOrder(
@@ -136,7 +138,7 @@ func TestStore_PlaceOrderKeyOtherCart(t *testing.T) {
 // order, no cart change and no attempt.
 func TestHandler_PlaceOrderBadAttemptID(t *testing.T) {
 	ctx := t.Context()
-	canonical := checkoutAttemptKey("noncanonical-attempt")
+	canonical := checkouttest.AttemptKey("noncanonical-attempt")
 	for _, tt := range []struct {
 		name  string
 		value string
@@ -153,7 +155,7 @@ func TestHandler_PlaceOrderBadAttemptID(t *testing.T) {
 			if err != nil {
 				t.Fatalf("create cart: %v", err)
 			}
-			if err := s.Carts().Add(ctx, cartID, freshVariant(t, "bad-attempt-"+tt.name), 1); err != nil {
+			if err := s.Carts().Add(ctx, cartID, ordertest.FreshVariant(t, pool, "bad-attempt-"+tt.name), 1); err != nil {
 				t.Fatalf("add: %v", err)
 			}
 			shippingID := shipVersionFor(t, "home_delivery")
@@ -167,7 +169,7 @@ func TestHandler_PlaceOrderBadAttemptID(t *testing.T) {
 				"postal_code": {addr.PostalCode}, "city": {addr.City},
 				"district": {addr.District}, "street": {addr.Street},
 				"shipping":       {shippingID.String()},
-				"checkout_quote": {checkoutQuote(t, s, cartID, uuid.NullUUID{}, shippingID, addr, "").String()},
+				"checkout_quote": {checkouttest.Quote(t, s, cartID, uuid.NullUUID{}, shippingID, addr, "").String()},
 				"idempotency":    {tt.value},
 			}
 			req := httptest.NewRequestWithContext(
@@ -230,7 +232,7 @@ func TestHandler_PlaceOrderReplay(t *testing.T) {
 	if err != nil {
 		t.Fatalf("create cart: %v", err)
 	}
-	if err := s.Carts().Add(ctx, cartID, freshVariant(t, "http-replay"), 1); err != nil {
+	if err := s.Carts().Add(ctx, cartID, ordertest.FreshVariant(t, pool, "http-replay"), 1); err != nil {
 		t.Fatalf("add: %v", err)
 	}
 	shippingID := shipVersionFor(t, "home_delivery")
@@ -238,13 +240,13 @@ func TestHandler_PlaceOrderReplay(t *testing.T) {
 		Email: "replay@example.com", RecipientName: "王小明", Phone: "0912345678",
 		PostalCode: "110", City: "台北市", District: "信義區", Street: "松高路 1 號",
 	}
-	key := checkoutAttemptKey("http-replay-" + uuid.NewString())
+	key := checkouttest.AttemptKey("http-replay-" + uuid.NewString())
 	form := url.Values{
 		"email": {addr.Email}, "name": {addr.RecipientName}, "phone": {addr.Phone},
 		"postal_code": {addr.PostalCode}, "city": {addr.City}, "district": {addr.District},
 		"street":         {addr.Street},
 		"shipping":       {shippingID.String()},
-		"checkout_quote": {checkoutQuote(t, s, cartID, uuid.NullUUID{}, shippingID, addr, "").String()},
+		"checkout_quote": {checkouttest.Quote(t, s, cartID, uuid.NullUUID{}, shippingID, addr, "").String()},
 		"idempotency":    {key},
 	}
 	request := func() *http.Request {
@@ -288,8 +290,8 @@ func TestHandler_PlaceOrderReplay(t *testing.T) {
 func TestStore_PlaceOrderKeyLock(t *testing.T) {
 	ctx := t.Context()
 	s := checkout.NewStore(pool)
-	key := checkoutAttemptKey("double-" + uuid.NewString())
-	vid := freshVariant(t, "doubleclick")
+	key := checkouttest.AttemptKey("double-" + uuid.NewString())
+	vid := ordertest.FreshVariant(t, pool, "doubleclick")
 
 	// T1 takes the lock on the key by hand and HOLDS it, which is the state a first
 	// checkout is in between its lock and its commit.
@@ -303,13 +305,13 @@ func TestStore_PlaceOrderKeyLock(t *testing.T) {
 		t.Fatalf("T1 take the lock: %v", err)
 	}
 
-	id := newCart(t, s)
+	id := checkouttest.NewCart(t, s)
 	if err := s.Carts().Add(ctx, id, vid, 1); err != nil {
 		t.Fatalf("add: %v", err)
 	}
 	placed := make(chan error, 1)
 	go func() {
-		_, placeErr := placeOrder(t, s, ctx, id, uuid.NullUUID{},
+		_, placeErr := checkouttest.PlaceOrder(t, s, ctx, id, uuid.NullUUID{},
 			shipVersionFor(t, "home_delivery"), &delivery.Details{
 				Email: "double@example.com", RecipientName: "王小明", Phone: "0912345678",
 				PostalCode: "110", City: "台北市", District: "信義區", Street: "松高路 1 號",
@@ -376,11 +378,11 @@ func raceTheSameAttempt(t *testing.T, clicks int, credit bool, gate string) {
 	t.Helper()
 	ctx := t.Context()
 	base := checkout.NewStore(pool)
-	vid := freshVariant(t, "double-click")
+	vid := ordertest.FreshVariant(t, pool, "double-click")
 	var owner uuid.NullUUID
 	var who *user.User
 	if credit {
-		id := creditedCustomer(t, 5000)
+		id := ordertest.CreditedCustomer(t, pool, 5000)
 		owner = uuid.NullUUID{UUID: id, Valid: true}
 		who = &user.User{ID: id.String(), Email: "double-click@example.com", Role: user.RoleCustomer}
 	}
@@ -397,16 +399,16 @@ func raceTheSameAttempt(t *testing.T, clicks int, credit bool, gate string) {
 		Email: "double-click-" + uuid.NewString()[:8] + "@example.com", RecipientName: "王小明",
 		Phone: "0912345678", PostalCode: "110", City: "台北市", District: "信義區", Street: "松高路 1 號",
 	}
-	key := checkoutAttemptKey("double-click-" + uuid.NewString())
+	key := checkouttest.AttemptKey("double-click-" + uuid.NewString())
 	form := url.Values{
 		"email": {addr.Email}, "name": {addr.RecipientName}, "phone": {addr.Phone},
 		"postal_code": {addr.PostalCode}, "city": {addr.City}, "district": {addr.District},
 		"street":         {addr.Street},
 		"shipping":       {shippingID.String()},
-		"checkout_quote": {checkoutQuote(t, base, cartID, owner, shippingID, addr, "").String()},
+		"checkout_quote": {checkouttest.Quote(t, base, cartID, owner, shippingID, addr, "").String()},
 		"idempotency":    {key},
 	}
-	stockBefore := stockOf(t, vid)
+	stockBefore := ordertest.StockOf(t, pool, vid)
 
 	type click struct {
 		app  string
@@ -504,9 +506,9 @@ func raceTheSameAttempt(t *testing.T, clicks int, credit bool, gate string) {
 		WHERE variant_id = $1 AND state = 'held'`, vid).Scan(&held); err != nil {
 		t.Fatalf("sum held units: %v", err)
 	}
-	if attempts != 1 || orders != 1 || held != 1 || stockBefore-stockOf(t, vid) != 1 {
+	if attempts != 1 || orders != 1 || held != 1 || stockBefore-ordertest.StockOf(t, pool, vid) != 1 {
 		t.Errorf("%d clicks left %d attempt(s), %d order(s), %d held unit(s) and took %d from stock; want 1 of each",
-			clicks, attempts, orders, held, stockBefore-stockOf(t, vid))
+			clicks, attempts, orders, held, stockBefore-ordertest.StockOf(t, pool, vid))
 	}
 	if credit {
 		var spends int

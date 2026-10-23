@@ -11,6 +11,7 @@ import (
 
 	"github.com/koopa0/goen/internal/admin/admintest"
 	"github.com/koopa0/goen/internal/admin/questions"
+	"github.com/koopa0/goen/internal/order/ordertest"
 	"github.com/koopa0/goen/internal/ui/frame"
 )
 
@@ -34,7 +35,7 @@ func TestStore_QuestionsRenamedStaff(t *testing.T) {
 	if err := s.AnswerQuestion(ctx, question.String(), idA.String(), "Yes, in two blues."); err != nil {
 		t.Fatalf("A answers as the shop: %v", err)
 	}
-	customer := admintest.Customer(t, p)
+	customer := ordertest.Customer(t, p)
 	if _, err := p.Exec(ctx, `INSERT INTO product_answers (question_id, user_id, body, is_staff)
 		VALUES ($1, $2, 'Mine is navy.', false)`, question, customer); err != nil {
 		t.Fatalf("a customer answers: %v", err)

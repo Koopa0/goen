@@ -14,6 +14,7 @@ import (
 
 	"github.com/koopa0/goen/assets"
 	"github.com/koopa0/goen/internal/i18n"
+	"github.com/koopa0/goen/internal/picture"
 	"github.com/koopa0/goen/internal/ui/frame"
 	"github.com/koopa0/goen/internal/ui/uitest"
 )
@@ -48,7 +49,7 @@ func TestProductGalleryThumbnails(t *testing.T) {
 		view := &ProductView{Slug: "gallery-fixture", Name: "Gallery fixture"}
 		for i := range count {
 			view.Images = append(view.Images, ProductImage{
-				URL: assets.Image{BundledKey: images[i]}.URL(), Alt: fmt.Sprintf("Photo %d", i+1),
+				URL: picture.Image{BundledKey: images[i]}.URL(), Alt: fmt.Sprintf("Photo %d", i+1),
 			})
 		}
 		w.Header().Set("Content-Type", "text/html; charset=utf-8")

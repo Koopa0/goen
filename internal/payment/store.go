@@ -15,12 +15,12 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/jackc/pgx/v5/pgxpool"
 
-	"github.com/koopa0/goen/assets"
 	"github.com/koopa0/goen/internal/db"
 	"github.com/koopa0/goen/internal/i18n"
 	"github.com/koopa0/goen/internal/invoice/issuer"
 	"github.com/koopa0/goen/internal/outbox"
 	"github.com/koopa0/goen/internal/payment/refund"
+	"github.com/koopa0/goen/internal/picture"
 )
 
 // Store holds the pool rather than a DBTX because processing a webhook spans
@@ -102,7 +102,7 @@ func (s *Store) Order(ctx context.Context, number string) (*Order, error) {
 	for i := range lines {
 		l := &lines[i]
 		o.Lines = append(o.Lines, Line{
-			Image:     assets.Image{Digest: l.ImageDigest, BundledKey: l.ImageBundledKey, Width: int(l.ImageWidth)},
+			Image:     picture.Image{Digest: l.ImageDigest, BundledKey: l.ImageBundledKey, Width: int(l.ImageWidth)},
 			ImageAlt:  l.ImageAlt,
 			Name:      l.ProductName,
 			Label:     l.VariantLabel.String,

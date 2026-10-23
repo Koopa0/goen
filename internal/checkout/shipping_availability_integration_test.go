@@ -21,6 +21,7 @@ import (
 	"golang.org/x/net/html"
 
 	"github.com/koopa0/goen/internal/checkout"
+	"github.com/koopa0/goen/internal/checkout/checkouttest"
 	"github.com/koopa0/goen/internal/db/dbtest"
 	"github.com/koopa0/goen/internal/i18n"
 	"github.com/koopa0/goen/internal/order/access"
@@ -72,7 +73,7 @@ func TestHandler_PlaceOrderNoDelivery(t *testing.T) {
 				if _, err := ownerPool.Exec(ctx, "UPDATE shipping_methods SET is_active = true"); err != nil {
 					t.Fatal(err)
 				}
-				id, token := newCartSession(t, s)
+				id, token := checkouttest.NewCartSession(t, s)
 				if err := s.Carts().Add(ctx, id, variant, 1); err != nil {
 					t.Fatal(err)
 				}

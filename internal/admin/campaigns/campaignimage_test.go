@@ -4,8 +4,8 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/koopa0/goen/assets"
 	"github.com/koopa0/goen/internal/i18n"
+	"github.com/koopa0/goen/internal/picture"
 	"github.com/koopa0/goen/internal/ui/frame"
 	"github.com/koopa0/goen/internal/ui/widget"
 )
@@ -19,7 +19,7 @@ func TestCampaignFormImageErrors(t *testing.T) {
 	page := renderComponent(t, ctx, CampaignForm(frame.Page{Title: "c"}, CampaignView{
 		Slug:   "c",
 		Errors: map[string]string{"alt": "alt needed", "image": "not an image"},
-		Image:  widget.HeaderImage{Image: assets.Image{BundledKey: seedBanner, Width: 1600}, Alt: "Products on sale"},
+		Image:  widget.HeaderImage{Image: picture.Image{BundledKey: seedBanner, Width: 1600}, Alt: "Products on sale"},
 	}))
 	for _, want := range []string{
 		`aria-describedby="c-alt-error"`, `aria-describedby="c-image-error"`, `alt needed`, `not an image`,

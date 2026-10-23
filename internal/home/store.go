@@ -11,10 +11,10 @@ import (
 
 	"github.com/google/uuid"
 
-	"github.com/koopa0/goen/assets"
 	"github.com/koopa0/goen/internal/db"
 	"github.com/koopa0/goen/internal/discount/campaign"
 	"github.com/koopa0/goen/internal/i18n"
+	"github.com/koopa0/goen/internal/picture"
 	"github.com/koopa0/goen/internal/policy"
 	"github.com/koopa0/goen/internal/shoptime"
 	"github.com/koopa0/goen/internal/site"
@@ -240,7 +240,7 @@ func (s *Store) tiles(ctx context.Context, campaignID, department uuid.NullUUID,
 	out := make([]tile.Tile, 0, len(rows))
 	for i := range rows {
 		t := &rows[i]
-		photo := assets.Image{Digest: t.ImageDigest, BundledKey: t.ImageBundledKey, Width: int(t.ImageWidth)}
+		photo := picture.Image{Digest: t.ImageDigest, BundledKey: t.ImageBundledKey, Width: int(t.ImageWidth)}
 		out = append(out, tile.Tile{
 			Slug:         t.Slug,
 			Name:         t.Name,

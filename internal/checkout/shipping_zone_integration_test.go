@@ -8,7 +8,9 @@ import (
 	"github.com/google/uuid"
 
 	"github.com/koopa0/goen/internal/checkout"
+	"github.com/koopa0/goen/internal/checkout/checkouttest"
 	"github.com/koopa0/goen/internal/order/delivery"
+	"github.com/koopa0/goen/internal/order/ordertest"
 )
 
 // TestStore_QuoteShippingOffshore: QuoteShipping charges an outlying-island
@@ -28,7 +30,7 @@ func TestStore_QuoteShippingOffshore(t *testing.T) {
 	if err != nil {
 		t.Fatalf("quote for Kinmen: %v", err)
 	}
-	kinmenTotal, taipeiTotal := quoteTotal(t, kinmen), quoteTotal(t, taipei)
+	kinmenTotal, taipeiTotal := checkouttest.QuoteTotal(t, kinmen), checkouttest.QuoteTotal(t, taipei)
 	if kinmenTotal <= taipeiTotal {
 		t.Errorf("金門 costs %d and 台北 costs %d — the surcharge is not applied",
 			kinmenTotal, taipeiTotal)
@@ -43,7 +45,7 @@ func TestStore_QuoteShippingOffshore(t *testing.T) {
 	if err != nil {
 		t.Fatalf("quote for a five-digit Kinmen code: %v", err)
 	}
-	fullTotal := quoteTotal(t, full)
+	fullTotal := checkouttest.QuoteTotal(t, full)
 	if fullTotal != kinmenTotal {
 		t.Errorf("89052 costs %d and 890 costs %d — the prefix is not being taken",
 			fullTotal, kinmenTotal)
@@ -57,7 +59,7 @@ func TestStore_QuoteShippingOffshore(t *testing.T) {
 	if err != nil {
 		t.Fatalf("quote for a large Kinmen order: %v", err)
 	}
-	freeTaipeiTotal, freeKinmenTotal := quoteTotal(t, freeTaipei), quoteTotal(t, freeKinmen)
+	freeTaipeiTotal, freeKinmenTotal := checkouttest.QuoteTotal(t, freeTaipei), checkouttest.QuoteTotal(t, freeKinmen)
 	if freeTaipeiTotal != 0 {
 		t.Errorf("a large 台北 order pays %d, want free", freeTaipeiTotal)
 	}
@@ -89,8 +91,8 @@ func TestStore_QuoteShippingPickup(t *testing.T) {
 func TestStore_PlaceOrderZoneCharge(t *testing.T) {
 	ctx := t.Context()
 	s := checkout.NewStore(pool)
-	id := newCart(t, s)
-	if err := s.Carts().Add(ctx, id, freshVariant(t, "stockfix-16"), 1); err != nil {
+	id := checkouttest.NewCart(t, s)
+	if err := s.Carts().Add(ctx, id, ordertest.FreshVariant(t, pool, "stockfix-16"), 1); err != nil {
 		t.Fatalf("add: %v", err)
 	}
 
@@ -98,7 +100,7 @@ func TestStore_PlaceOrderZoneCharge(t *testing.T) {
 		Email: "kinmen@example.com", RecipientName: "金門", Phone: "0912345678",
 		PostalCode: "890", City: "金門縣", District: "金城鎮", Street: "民生路 1 號",
 	}
-	number, err := placeOrder(t, s, ctx, id, uuid.NullUUID{},
+	number, err := checkouttest.PlaceOrder(t, s, ctx, id, uuid.NullUUID{},
 		shipVersionFor(t, "home_delivery"), addr, "", "zone-order-"+uuid.NewString())
 	if err != nil {
 		t.Fatalf("place: %v", err)
@@ -117,7 +119,7 @@ func TestStore_PlaceOrderZoneCharge(t *testing.T) {
 	if err != nil {
 		t.Fatalf("re-quote: %v", err)
 	}
-	wantTotal := quoteTotal(t, want)
+	wantTotal := checkouttest.QuoteTotal(t, want)
 	if charged != wantTotal {
 		t.Errorf("the order was charged %d, want %d", charged, wantTotal)
 	}
@@ -141,15 +143,15 @@ func TestStore_PlaceOrderFreeShippingCrossing(t *testing.T) {
 
 	place := func(postal, city, district, key string) int64 {
 		t.Helper()
-		id := newCart(t, s)
-		if err := s.Carts().Add(ctx, id, freshVariant(t, "stockfix-17"), 1); err != nil {
+		id := checkouttest.NewCart(t, s)
+		if err := s.Carts().Add(ctx, id, ordertest.FreshVariant(t, pool, "stockfix-17"), 1); err != nil {
 			t.Fatalf("add: %v", err)
 		}
 		_, err := s.CouponByCode(ctx, "FREESHIPZONE")
 		if err != nil {
 			t.Fatalf("find the coupon: %v", err)
 		}
-		number, err := placeOrder(t, s, ctx, id, uuid.NullUUID{},
+		number, err := checkouttest.PlaceOrder(t, s, ctx, id, uuid.NullUUID{},
 			shipVersionFor(t, "home_delivery"), &delivery.Details{
 				Email: "ship@example.com", RecipientName: "測試", Phone: "0912345678",
 				PostalCode: postal, City: city, District: district, Street: "路 1 號",

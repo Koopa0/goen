@@ -300,12 +300,13 @@ func TestTransactionsIn(t *testing.T) {
 // locks until the server's idle-in-transaction timeout, or for ever without one.
 //
 // It parses every non-test Go file under internal/ and cmd/, except generated
-// templ output. That includes internal/admin/admintest, whose files are not
-// _test.go but open transactions for tests. A function that opens a transaction
-// must roll it back by name (db.Rollback(ctx, tx) or tx.Rollback(ctx)) in its
-// own body or a closure inside it, deferred or explicit. Only the call is
-// judged here; that it goes through db.Rollback is the neighbouring test's
-// job, and what db.Rollback does is TestRollbackOutlivesRequest's.
+// templ output. That includes the test-helper packages (internal/admin/admintest,
+// internal/order/ordertest), whose files are not _test.go but open transactions
+// for tests. A function that opens a transaction must roll it back by name
+// (db.Rollback(ctx, tx) or tx.Rollback(ctx)) in its own body or a closure inside
+// it, deferred or explicit. Only the call is judged here; that it goes through
+// db.Rollback is the neighbouring test's job, and what db.Rollback does is
+// TestRollbackOutlivesRequest's.
 func TestTransactionsRolledBack(t *testing.T) {
 	t.Parallel()
 

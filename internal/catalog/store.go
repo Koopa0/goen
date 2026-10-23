@@ -10,11 +10,11 @@ import (
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
 
-	"github.com/koopa0/goen/assets"
 	"github.com/koopa0/goen/internal/backinstock"
 	"github.com/koopa0/goen/internal/db"
 	"github.com/koopa0/goen/internal/discount/campaign"
 	"github.com/koopa0/goen/internal/i18n"
+	"github.com/koopa0/goen/internal/picture"
 	"github.com/koopa0/goen/internal/policy"
 	"github.com/koopa0/goen/internal/ui/tile"
 	"github.com/koopa0/goen/internal/ui/tone"
@@ -159,7 +159,7 @@ func (s *Store) listing(ctx context.Context, slug string, f Filters) (ListingVie
 		return ListingView{}, nil, err
 	}
 
-	photo := assets.Image{Digest: cat.ImageDigest, BundledKey: cat.ImageBundledKey, Width: int(cat.ImageWidth)}
+	photo := picture.Image{Digest: cat.ImageDigest, BundledKey: cat.ImageBundledKey, Width: int(cat.ImageWidth)}
 	view := ListingView{
 		Slug:   slug,
 		Name:   cat.Name,
@@ -302,7 +302,7 @@ func tiles(rows []db.CategoryListingRow, offers map[uuid.UUID]bool) []tile.Tile 
 	out := make([]tile.Tile, 0, len(rows))
 	for i := range rows {
 		r := &rows[i]
-		photo := assets.Image{Digest: r.ImageDigest, BundledKey: r.ImageBundledKey, Width: int(r.ImageWidth)}
+		photo := picture.Image{Digest: r.ImageDigest, BundledKey: r.ImageBundledKey, Width: int(r.ImageWidth)}
 		out = append(out, tile.Tile{
 			Slug:         r.Slug,
 			Name:         r.Name,
@@ -331,7 +331,7 @@ func searchTiles(rows []db.SearchProductsRow, offers map[uuid.UUID]bool) []tile.
 	out := make([]tile.Tile, 0, len(rows))
 	for i := range rows {
 		r := &rows[i]
-		photo := assets.Image{Digest: r.ImageDigest, BundledKey: r.ImageBundledKey, Width: int(r.ImageWidth)}
+		photo := picture.Image{Digest: r.ImageDigest, BundledKey: r.ImageBundledKey, Width: int(r.ImageWidth)}
 		out = append(out, tile.Tile{
 			Slug:         r.Slug,
 			Name:         r.Name,
