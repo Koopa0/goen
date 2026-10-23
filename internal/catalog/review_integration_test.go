@@ -1,52 +1,17 @@
 //go:build integration
 
-package cart_test
+package catalog_test
 
 import (
 	"errors"
-	"strings"
 	"testing"
 	"time"
 
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgconn"
 
-	"github.com/koopa0/goen/internal/order/buyer"
 	"github.com/koopa0/goen/internal/order/ordertest"
 )
-
-// TestOrderTimelineRefundID holds that the shopper's order timeline never shows
-// the provider's refund id.
-func TestOrderTimelineRefundID(t *testing.T) {
-	ctx := t.Context()
-	vid := ordertest.FreshVariant(t, pool, "refundid-1")
-	orderID := ordertest.HeldOrderFor(t, pool, uuid.NullUUID{}, vid, -time.Hour, true)
-	ordertest.RefundedAndCancelled(t, pool, orderID)
-
-	var number, staffNote string
-	if err := pool.QueryRow(ctx, `
-		SELECT o.order_number, e.note FROM orders o
-		JOIN order_events e ON e.order_id = o.id AND e.kind = 'refunded'
-		WHERE o.id = $1`, orderID).Scan(&number, &staffNote); err != nil || !strings.HasPrefix(staffNote, "re_") {
-		t.Fatalf("the fixture must keep the refund id on the event: %q, %v", staffNote, err)
-	}
-	view, err := buyer.NewStore(pool).Order(ctx, number)
-	if err != nil {
-		t.Fatalf("order: %v", err)
-	}
-	var sawRefund bool
-	for _, e := range view.Timeline {
-		if e.Kind == "refunded" {
-			sawRefund = true
-		}
-		if strings.Contains(e.Note, "re_") {
-			t.Errorf("%s event shows the provider refund id %q", e.Kind, e.Note)
-		}
-	}
-	if !sawRefund {
-		t.Error("the refunded event is missing from the shopper's timeline")
-	}
-}
 
 // TestProductReviewsVerifiedIsReal holds that a cancelled order is not a
 // verified purchase: the product_reviews_verified_is_real constraint refuses
@@ -57,7 +22,8 @@ func TestProductReviewsVerifiedIsReal(t *testing.T) {
 
 	var userID uuid.UUID
 	if err := pool.QueryRow(ctx,
-		`INSERT INTO users (email) VALUES ('cancelbadge@example.com') RETURNING id`).Scan(&userID); err != nil {
+		`INSERT INTO users (email) VALUES ($1) RETURNING id`,
+		"cancelbadge-"+uuid.NewString()+"@example.com").Scan(&userID); err != nil {
 		t.Fatalf("create user: %v", err)
 	}
 	orderID := ordertest.HeldOrderFor(t, pool, uuid.NullUUID{UUID: userID, Valid: true}, vid, -time.Hour, true) // funded
