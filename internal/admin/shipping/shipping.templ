@@ -12,7 +12,7 @@ import (
 // A fee is never edited in place: the form publishes a new VERSION, and the card says
 // which version is live and since when, so a reader can see what an order placed
 // yesterday was quoted. The one filled button is the method create.
-templ Shipping(p frame.Page, v ShippingView) {
+templ Shipping(p frame.Page, v View) {
 	@frame.Admin(p, "shipping") {
 		<div class="ui-page-head">
 			<div>

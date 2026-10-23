@@ -50,11 +50,11 @@ func resume(scope string, after []string) (position, bool) {
 	return keyset.Resume(scope, after, func(p position) bool { return p.ID != uuid.Nil })
 }
 
-func (s *Store) Search(ctx context.Context, term string, after ...string) (CustomersView, error) {
+func (s *Store) Search(ctx context.Context, term string, after ...string) (View, error) {
 	term = strings.TrimSpace(term)
 	scope := keyset.ScopeURL("/admin/customers", "q", term)
 	from, resumed := resume(scope, after)
-	view := CustomersView{Term: term}
+	view := View{Term: term}
 	if utf8.RuneCountInString(term) < formtext.MinSearchRunes {
 		return view, nil
 	}
@@ -64,7 +64,7 @@ func (s *Store) Search(ctx context.Context, term string, after ...string) (Custo
 		EscapedTerm: db.EscapeLike(term), RowLimit: keyset.PageLimit,
 	})
 	if err != nil {
-		return CustomersView{}, fmt.Errorf("search customers: %w", err)
+		return View{}, fmt.Errorf("search customers: %w", err)
 	}
 	rows, bound := keyset.PageBound(scope, resumed, rows, keyset.PageSize, func(r *db.AdminSearchCustomersRow) string { return r.PageCursor })
 	view.Bound = bound

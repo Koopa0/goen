@@ -44,7 +44,7 @@ func TestBannersFieldExamples(t *testing.T) {
 					component templ.Component
 					fields    map[string]string
 				}{
-					{"strip", Banners(p, &BannersView{
+					{"strip", Banners(p, &View{
 						Draft:  BannerDraft{Message: typed, Short: typed, CTALabel: typed, MessageEn: typed, CTALabelEn: typed, CTAHref: typed, Code: typed, Days: typed},
 						Errors: errors("message", "short", "message_en", "cta", "days"),
 					}), map[string]string{

@@ -19,7 +19,7 @@ import (
 )
 
 // Every figure and every task is a link: a count on its own says there is work and not where it is.
-func Dashboard(p frame.Page, v DashboardView) templ.Component {
+func Dashboard(p frame.Page, v View) templ.Component {
 	return templruntime.GeneratedTemplate(func(templ_7745c5c3_Input templruntime.GeneratedComponentInput) (templ_7745c5c3_Err error) {
 		templ_7745c5c3_W, ctx := templ_7745c5c3_Input.Writer, templ_7745c5c3_Input.Context
 		if templ_7745c5c3_CtxErr := ctx.Err(); templ_7745c5c3_CtxErr != nil {

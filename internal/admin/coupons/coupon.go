@@ -147,20 +147,20 @@ type position struct {
 	At   time.Time
 }
 
-func (s *Store) Coupons(ctx context.Context, after ...string) (CouponsView, error) {
+func (s *Store) Coupons(ctx context.Context, after ...string) (View, error) {
 	const scope = "/admin/coupons"
 	from, resumed := keyset.Resume(scope, after, func(p position) bool { return p.ID != uuid.Nil })
 	rows, err := s.q.AdminCoupons(ctx, db.AdminCouponsParams{HasCursor: resumed, AfterRank: from.Rank, AfterAt: from.At, AfterID: from.ID, RowLimit: keyset.PageLimit})
 	if err != nil {
-		return CouponsView{}, fmt.Errorf("read coupons: %w", err)
+		return View{}, fmt.Errorf("read coupons: %w", err)
 	}
 	rows, bound := keyset.PageBound(scope, resumed, rows, keyset.PageSize, func(r *db.AdminCouponsRow) string { return r.PageCursor })
-	view := CouponsView{Bound: bound}
+	view := View{Bound: bound}
 	for i := range rows {
 		r := &rows[i]
 		kind, ok := coupon.Parse(r.Kind)
 		if !ok {
-			return CouponsView{}, fmt.Errorf("read coupons: coupon %s has unknown kind %q", r.Code, r.Kind)
+			return View{}, fmt.Errorf("read coupons: coupon %s has unknown kind %q", r.Code, r.Kind)
 		}
 		endsAt := ""
 		if r.EndsAt.Valid {

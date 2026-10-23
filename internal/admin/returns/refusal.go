@@ -5,7 +5,7 @@ import (
 	"github.com/koopa0/goen/internal/ui/widget"
 )
 
-func (v ReturnsView) InspectionRefusals() []widget.Refusal {
+func (v View) InspectionRefusals() []widget.Refusal {
 	out := make([]widget.Refusal, 0, len(v.Rows))
 	for i := range v.Rows {
 		row := &v.Rows[i]

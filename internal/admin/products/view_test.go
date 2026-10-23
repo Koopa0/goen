@@ -25,7 +25,7 @@ func TestProductsEmptyRestartLink(t *testing.T) {
 	b := keyset.Bound{PastEnd: true, First: "/admin/products?q=test"}
 	p := frame.Page{Title: "Pagination"}
 	cases := map[string]templ.Component{
-		"products": Products(p, ProductsView{Bound: b}),
+		"products": Products(p, View{Bound: b}),
 	}
 	for name, c := range cases {
 		t.Run(name, func(t *testing.T) {
@@ -56,7 +56,7 @@ func queuePages(b keyset.Bound, ctx func(k i18n.Key) string) map[string]struct {
 		want string
 	}
 	return map[string]c{
-		"products": {Products(p, ProductsView{Bound: b}), ctx(i18n.KeyAdminProdEmpty)},
+		"products": {Products(p, View{Bound: b}), ctx(i18n.KeyAdminProdEmpty)},
 	}
 }
 

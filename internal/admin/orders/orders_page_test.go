@@ -20,7 +20,7 @@ func TestOrdersEmptyCopy(t *testing.T) {
 	t.Parallel()
 	ctx := i18n.WithLocale(t.Context(), i18n.ZhHant)
 	render := func(v View) string {
-		return renderToString(t, Orders(OrdersMeta(ctx), v))
+		return renderToString(t, Orders(Meta(ctx), v))
 	}
 
 	t.Run("a search miss names the term and not the status filter", func(t *testing.T) {
@@ -63,11 +63,11 @@ func TestSearchForm_Clear(t *testing.T) {
 	t.Parallel()
 	ctx := i18n.WithLocale(t.Context(), i18n.ZhHant)
 	clearLink := `>` + i18n.T(ctx, i18n.KeyAdminQueueClear) + `</a>`
-	searched := renderToString(t, Orders(OrdersMeta(ctx), View{Term: "GO-ONE", Searched: true}))
+	searched := renderToString(t, Orders(Meta(ctx), View{Term: "GO-ONE", Searched: true}))
 	if !strings.Contains(searched, clearLink) || !strings.Contains(searched, `value="GO-ONE"`) {
 		t.Errorf("a searched queue lacks its Clear link or the term: %s", searched)
 	}
-	if plain := renderToString(t, Orders(OrdersMeta(ctx), View{})); strings.Contains(plain, clearLink) {
+	if plain := renderToString(t, Orders(Meta(ctx), View{})); strings.Contains(plain, clearLink) {
 		t.Error("a queue nobody searched offers to clear the search")
 	}
 	missing := renderToString(t, orderNotFound(frame.Page{}, frame.MissingRecordView{Section: "orders", BackLabel: i18n.KeyAdminBackOrders}, "GO-ONE"))

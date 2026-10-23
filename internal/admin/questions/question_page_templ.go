@@ -21,7 +21,7 @@ import (
 // Neither button is primary: a filled button on every row is a screen of them.
 // The list keeps the class the layout gate finds the page by
 // (scripts/check-layout.mjs); the divided list paints it.
-func Questions(p frame.Page, v QuestionsView) templ.Component {
+func Questions(p frame.Page, v View) templ.Component {
 	return templruntime.GeneratedTemplate(func(templ_7745c5c3_Input templruntime.GeneratedComponentInput) (templ_7745c5c3_Err error) {
 		templ_7745c5c3_W, ctx := templ_7745c5c3_Input.Writer, templ_7745c5c3_Input.Context
 		if templ_7745c5c3_CtxErr := ctx.Err(); templ_7745c5c3_CtxErr != nil {

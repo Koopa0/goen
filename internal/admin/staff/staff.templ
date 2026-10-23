@@ -9,7 +9,7 @@ import (
 // Each row's two writes are two forms of one field each, so revoking somebody carries
 // their id and nothing else: one form with a name attribute per button would let a
 // browser that submits the wrong one act on the wrong person.
-templ Staff(p frame.Page, v StaffView) {
+templ Staff(p frame.Page, v View) {
 	@frame.Admin(p, "staff") {
 		<div class="ui-page-head">
 			<div>

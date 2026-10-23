@@ -91,18 +91,18 @@ func (f *CategoryForm) Validate(ctx context.Context) map[string]string {
 	return errs
 }
 
-func (s *Store) FAQ(ctx context.Context) (FAQView, error) {
+func (s *Store) FAQ(ctx context.Context) (View, error) {
 	rows, err := s.q.AdminFAQEntries(ctx, MaxFAQEntries)
 	if err != nil {
-		return FAQView{}, fmt.Errorf("read faq entries: %w", err)
+		return View{}, fmt.Errorf("read faq entries: %w", err)
 	}
 	cats, err := s.q.AdminFAQCategories(ctx)
 	if err != nil {
-		return FAQView{}, fmt.Errorf("read faq categories: %w", err)
+		return View{}, fmt.Errorf("read faq categories: %w", err)
 	}
-	view := FAQView{
+	view := View{
 		Rows:       make([]Entry, 0, len(rows)),
-		Categories: make([]FAQCategory, 0, len(cats)),
+		Categories: make([]Category, 0, len(cats)),
 	}
 	for i := range rows {
 		r := &rows[i]
@@ -114,7 +114,7 @@ func (s *Store) FAQ(ctx context.Context) (FAQView, error) {
 	}
 	for i := range cats {
 		c := &cats[i]
-		view.Categories = append(view.Categories, FAQCategory{
+		view.Categories = append(view.Categories, Category{
 			ID: c.ID.String(), Name: c.Name, NameEn: c.NameEn, InUse: c.InUse,
 		})
 	}

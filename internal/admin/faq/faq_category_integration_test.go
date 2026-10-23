@@ -19,11 +19,11 @@ import (
 	"github.com/koopa0/goen/internal/site"
 )
 
-// TestFAQCategoryOneRow walks the desk's category forms as the
+// TestCategoryOneRow walks the desk's category forms as the
 // back office's own database role, and reads /faq as the storefront's: a
 // category is made once, entries are filed under it by id, a rename moves every
 // one of them in both languages, and a category with entries is not deleted.
-func TestFAQCategoryOneRow(t *testing.T) {
+func TestCategoryOneRow(t *testing.T) {
 	staffCtx, _ := admintest.StaffContext(t, pool)
 	desk := faq.NewStore(admintest.AdminRolePool(t, pool))
 	h := handlerOver(desk)

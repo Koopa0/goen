@@ -13,10 +13,10 @@ import (
 	"github.com/koopa0/goen/internal/ui/widget"
 )
 
-// DashboardView lists the newest orders in Recent whatever their state: filtering it
+// View lists the newest orders in Recent whatever their state: filtering it
 // to one state would answer what the tiles above already answer, and hide the order
 // somebody walked over to ask about.
-type DashboardView struct {
+type View struct {
 	PendingOrders int64
 	ReadyOrders   int64
 	// ReadyOldestSeconds and the other *OldestSeconds are how long the oldest
@@ -105,7 +105,7 @@ func (t Task) AgeText(ctx context.Context) string {
 
 // DeskTasks lists what the order desk itself counts, leaving out each kind with
 // nothing waiting.
-func (v *DashboardView) DeskTasks() []Task {
+func (v *View) DeskTasks() []Task {
 	all := []Task{
 		{Label: i18n.KeyAdminStatusReadyToPick, Count: v.ReadyOrders, Href: "/admin/orders?status=ready", HasAge: true, AgeSeconds: v.ReadyOldestSeconds},
 		{Label: i18n.KeyAdminStatusPicking, Count: v.PickingOrders, Href: "/admin/orders?status=picking", HasAge: true, AgeSeconds: v.PickingOldestSeconds},
@@ -138,13 +138,13 @@ const (
 	RunwayNothingInStock
 )
 
-// DashboardRunway keeps the first rows of a ranked days cover list that run out
+// Runway keeps the first rows of a ranked days cover list that run out
 // within the warning line: the sold-out task row already counts the sold out
 // ones and links to them, and an estimate past the line is not what the
 // section's title promises. cut reports that rows were left off; basis tells an
 // empty list apart: nothing is running out, nothing can be estimated yet, or
 // nothing that sold in the window is left in stock.
-func DashboardRunway(listed []stockrisk.Row) (kept []stockrisk.Row, cut bool, basis RunwayBasis) {
+func Runway(listed []stockrisk.Row) (kept []stockrisk.Row, cut bool, basis RunwayBasis) {
 	inStock := false
 	for i := range listed {
 		cover := listed[i].Estimate()

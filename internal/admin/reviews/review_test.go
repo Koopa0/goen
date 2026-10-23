@@ -19,7 +19,7 @@ func TestReviewsNumericRatings(t *testing.T) {
 			t.Parallel()
 			ctx := i18n.WithLocale(t.Context(), locale)
 			for rating := 1; rating <= 5; rating++ {
-				view := ReviewsView{Rows: []Review{{Slug: "screen", Product: "Screen", Rating: rating}}}
+				view := View{Rows: []Review{{Slug: "screen", Product: "Screen", Rating: rating}}}
 				page := renderComponent(t, ctx, Reviews(frame.Page{}, view))
 				doc, err := html.Parse(strings.NewReader(page))
 				if err != nil {
@@ -45,7 +45,7 @@ func TestReviewsNumericRatings(t *testing.T) {
 			if locale == i18n.ZhHant {
 				label = "只看 3 星以下"
 			}
-			page := renderComponent(t, ctx, Reviews(frame.Page{}, ReviewsView{}))
+			page := renderComponent(t, ctx, Reviews(frame.Page{}, View{}))
 			if !strings.Contains(page, label) || !strings.Contains(page, `href="/admin/reviews?rating=3"`) {
 				t.Error("reviews have no three-stars-and-below filter link")
 			}
@@ -61,7 +61,7 @@ func TestReviewsFilterEmptyState(t *testing.T) {
 			t.Run(fmt.Sprintf("%s/filtered=%t", locale, filtered), func(t *testing.T) {
 				t.Parallel()
 				ctx := i18n.WithLocale(t.Context(), locale)
-				view := ReviewsView{ThreeStarsAndBelow: filtered}
+				view := View{ThreeStarsAndBelow: filtered}
 				page := renderComponent(t, ctx, Reviews(frame.Page{}, view))
 				doc, err := html.Parse(strings.NewReader(page))
 				if err != nil {

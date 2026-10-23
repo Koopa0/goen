@@ -19,7 +19,7 @@ import (
 // A fee is never edited in place: the form publishes a new VERSION, and the card says
 // which version is live and since when, so a reader can see what an order placed
 // yesterday was quoted. The one filled button is the method create.
-func Shipping(p frame.Page, v ShippingView) templ.Component {
+func Shipping(p frame.Page, v View) templ.Component {
 	return templruntime.GeneratedTemplate(func(templ_7745c5c3_Input templruntime.GeneratedComponentInput) (templ_7745c5c3_Err error) {
 		templ_7745c5c3_W, ctx := templ_7745c5c3_Input.Writer, templ_7745c5c3_Input.Context
 		if templ_7745c5c3_CtxErr := ctx.Err(); templ_7745c5c3_CtxErr != nil {

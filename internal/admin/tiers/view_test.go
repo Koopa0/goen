@@ -22,7 +22,7 @@ import (
 func TestTiersExampleLine(t *testing.T) {
 	t.Parallel()
 	ctx := i18n.WithLocale(t.Context(), i18n.ZhHant)
-	body := renderComponent(t, ctx, Tiers(frame.Page{Title: "Tiers"}, TiersView{}))
+	body := renderComponent(t, ctx, Tiers(frame.Page{Title: "Tiers"}, View{}))
 	if strings.Contains(body, "。 ") {
 		t.Errorf("tiers page runs a sentence into the next on one line: %q", body[strings.Index(body, "。 ")-20:strings.Index(body, "。 ")+30])
 	}
@@ -45,7 +45,7 @@ func TestTiersExampleHints(t *testing.T) {
 		t.Run(tt.locale.Tag(), func(t *testing.T) {
 			t.Parallel()
 			ctx := i18n.WithLocale(t.Context(), tt.locale)
-			body := renderComponent(t, ctx, Tiers(frame.Page{Title: "Tiers"}, TiersView{}))
+			body := renderComponent(t, ctx, Tiers(frame.Page{Title: "Tiers"}, View{}))
 			for _, e := range []string{"Silver"} {
 				if want := tt.sentence(e); !strings.Contains(body, want) {
 					t.Errorf("tiers page lacks the hint %s", want)
@@ -62,7 +62,7 @@ func TestTiersContentColumn(t *testing.T) {
 	ctx := frame.WithStaff(i18n.WithLocale(t.Context(), i18n.ZhHant), true)
 
 	name := "tiers"
-	page := renderComponent(t, ctx, Tiers(frame.Page{}, TiersView{}))
+	page := renderComponent(t, ctx, Tiers(frame.Page{}, View{}))
 
 	grid := strings.Index(page, `<div class="goen-admin">`)
 	rail := strings.Index(page, "goen-admin__nav")
@@ -105,7 +105,7 @@ func TestTiersRemoveButtons(t *testing.T) {
 		t.Run(locale.locale.Tag()+"/"+tt.name, func(t *testing.T) {
 			t.Parallel()
 			ctx := i18n.WithLocale(t.Context(), locale.locale)
-			component := Tiers(frame.Page{}, TiersView{Rows: []Tier{{ID: "silver", Name: "Silver & more", Code: "silver"}, {ID: "gold", Name: "Gold", Code: "gold"}}})
+			component := Tiers(frame.Page{}, View{Rows: []Tier{{ID: "silver", Name: "Silver & more", Code: "silver"}, {ID: "gold", Name: "Gold", Code: "gold"}}})
 			doc, err := html.Parse(strings.NewReader(renderComponent(t, ctx, component)))
 			if err != nil {
 				t.Fatal(err)
@@ -174,7 +174,7 @@ func TestTiersRemoveButtons(t *testing.T) {
 // Moved whole from small_defects_test.go.
 func TestTiersMultiplierColumn(t *testing.T) {
 	t.Parallel()
-	body := render(t, Tiers(frame.Page{Title: "Tiers"}, TiersView{Rows: []Tier{{ID: "1", Code: "gold", Name: "Gold", MinSpend: 10000, MultiplierBP: 11000, Members: 4}}}))
+	body := render(t, Tiers(frame.Page{Title: "Tiers"}, View{Rows: []Tier{{ID: "1", Code: "gold", Name: "Gold", MinSpend: 10000, MultiplierBP: 11000, Members: 4}}}))
 	if !strings.Contains(body, `<td class="goen-admin__cellnum">1.1`) {
 		t.Errorf("tiers multiplier cell is not numeric:\n%s", body)
 	}

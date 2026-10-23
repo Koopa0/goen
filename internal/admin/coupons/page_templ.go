@@ -19,7 +19,7 @@ import (
 
 // Each row leads with its code and whether it works RIGHT NOW: a coupon switched on
 // but past its window is refused at the till while the list says it is fine.
-func Coupons(p frame.Page, v CouponsView) templ.Component {
+func Coupons(p frame.Page, v View) templ.Component {
 	return templruntime.GeneratedTemplate(func(templ_7745c5c3_Input templruntime.GeneratedComponentInput) (templ_7745c5c3_Err error) {
 		templ_7745c5c3_W, ctx := templ_7745c5c3_Input.Writer, templ_7745c5c3_Input.Context
 		if templ_7745c5c3_CtxErr := ctx.Err(); templ_7745c5c3_CtxErr != nil {

@@ -44,12 +44,12 @@ func resume(scope string, after []string) (position, bool) {
 	return keyset.Resume(scope, after, func(p position) bool { return p.ID != uuid.Nil })
 }
 
-func (s *Store) Warranties(ctx context.Context, term string, after ...string) (WarrantiesView, error) {
+func (s *Store) Warranties(ctx context.Context, term string, after ...string) (View, error) {
 	// Uppercased: a serial is typed off a label and a shift key is not a failed lookup.
 	term = strings.ToUpper(strings.TrimSpace(term))
 	scope := keyset.ScopeURL("/admin/warranties", "q", term)
 	from, resumed := resume(scope, after)
-	view := WarrantiesView{Term: term}
+	view := View{Term: term}
 	if utf8.RuneCountInString(term) < formtext.MinSearchRunes {
 		return view, nil
 	}
@@ -59,7 +59,7 @@ func (s *Store) Warranties(ctx context.Context, term string, after ...string) (W
 		Term: term, RowLimit: keyset.PageLimit,
 	})
 	if err != nil {
-		return WarrantiesView{}, fmt.Errorf("search warranties: %w", err)
+		return View{}, fmt.Errorf("search warranties: %w", err)
 	}
 	rows, bound := keyset.PageBound(scope, resumed, rows, keyset.PageSize, func(r *db.AdminSearchWarrantiesRow) string { return r.PageCursor })
 	view.Bound = bound
@@ -69,7 +69,7 @@ func (s *Store) Warranties(ctx context.Context, term string, after ...string) (W
 	}
 	returned, err := s.q.ReturnedOrders(ctx, ids)
 	if err != nil {
-		return WarrantiesView{}, fmt.Errorf("read returned warranty orders: %w", err)
+		return View{}, fmt.Errorf("read returned warranty orders: %w", err)
 	}
 	for i := range rows {
 		r := &rows[i]

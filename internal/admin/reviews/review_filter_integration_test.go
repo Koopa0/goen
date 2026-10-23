@@ -117,7 +117,7 @@ func seedFilteredReviews(ctx context.Context, t *testing.T, owner *pgxpool.Pool)
 	return want
 }
 
-func checkReviewFilterGET(ctx context.Context, t *testing.T, store *reviews.Store, first reviews.ReviewsView) {
+func checkReviewFilterGET(ctx context.Context, t *testing.T, store *reviews.Store, first reviews.View) {
 	t.Helper()
 	handler := reviews.NewHandler(store, slog.New(slog.DiscardHandler))
 	for _, locale := range []i18n.Locale{i18n.ZhHant, i18n.En} {

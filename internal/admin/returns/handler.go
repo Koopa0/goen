@@ -73,7 +73,7 @@ func (h *Handler) Queue(w http.ResponseWriter, r *http.Request) {
 		h.log.ErrorContext(r.Context(), "return payout no longer fits its sources",
 			"return_id", issue.returnID, "error", issue.err)
 	}
-	view := ReturnsView{
+	view := View{
 		Bound:  queue.Bound,
 		Rows:   queue.Rows,
 		Notice: widget.NoticeFrom(r, notices),
@@ -224,7 +224,7 @@ func (h *Handler) renderReturnRefusal(w http.ResponseWriter, r *http.Request, er
 	if field == "basis" {
 		msg = i18n.T(r.Context(), i18n.KeyAdminRetErrBasis)
 	}
-	view := ReturnsView{
+	view := View{
 		Bound:  queue.Bound,
 		Rows:   queue.Rows,
 		Errors: map[string]string{r.PathValue("id") + "." + field: msg},
@@ -254,7 +254,7 @@ func (h *Handler) renderInspection(w http.ResponseWriter, r *http.Request, key i
 		return
 	}
 	id := r.PathValue("id")
-	view := ReturnsView{
+	view := View{
 		Bound:  queue.Bound,
 		Rows:   queue.Rows,
 		Errors: map[string]string{id + ".inspect": i18n.T(r.Context(), key)},

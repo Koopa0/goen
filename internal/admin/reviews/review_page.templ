@@ -12,7 +12,7 @@ import (
 // The badge carries the rating, because nothing here waits for approval: a review is
 // published as it is written, so the row somebody is looking for is the angry one.
 // A hidden row is not dimmed: fading says "hidden" in a shade nobody has been told to read.
-templ Reviews(p frame.Page, v ReviewsView) {
+templ Reviews(p frame.Page, v View) {
 	@frame.Admin(p, "reviews") {
 		<div class="ui-page-head">
 			<div>

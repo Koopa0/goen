@@ -17,7 +17,7 @@ import (
 
 // A table rather than a list: every tier carries the same four facts and a column of
 // thresholds is read down.
-func Tiers(p frame.Page, v TiersView) templ.Component {
+func Tiers(p frame.Page, v View) templ.Component {
 	return templruntime.GeneratedTemplate(func(templ_7745c5c3_Input templruntime.GeneratedComponentInput) (templ_7745c5c3_Err error) {
 		templ_7745c5c3_W, ctx := templ_7745c5c3_Input.Writer, templ_7745c5c3_Input.Context
 		if templ_7745c5c3_CtxErr := ctx.Err(); templ_7745c5c3_CtxErr != nil {

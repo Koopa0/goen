@@ -19,7 +19,7 @@ import (
 
 // Two cards, each holding what it lists and the form that adds to it, because a brand
 // and a category are separate jobs. The one filled button is the category create.
-func Taxonomy(p frame.Page, v *TaxonomyView) templ.Component {
+func Taxonomy(p frame.Page, v *View) templ.Component {
 	return templruntime.GeneratedTemplate(func(templ_7745c5c3_Input templruntime.GeneratedComponentInput) (templ_7745c5c3_Err error) {
 		templ_7745c5c3_W, ctx := templ_7745c5c3_Input.Writer, templ_7745c5c3_Input.Context
 		if templ_7745c5c3_CtxErr := ctx.Err(); templ_7745c5c3_CtxErr != nil {
@@ -211,7 +211,7 @@ func Taxonomy(p frame.Page, v *TaxonomyView) templ.Component {
 }
 
 // taxonForm's fields keep the ids and names the handler and its tests read.
-func taxonForm(kind string, title i18n.Key, style widget.ButtonStyle, v *TaxonomyView) templ.Component {
+func taxonForm(kind string, title i18n.Key, style widget.ButtonStyle, v *View) templ.Component {
 	return templruntime.GeneratedTemplate(func(templ_7745c5c3_Input templruntime.GeneratedComponentInput) (templ_7745c5c3_Err error) {
 		templ_7745c5c3_W, ctx := templ_7745c5c3_Input.Writer, templ_7745c5c3_Input.Context
 		if templ_7745c5c3_CtxErr := ctx.Err(); templ_7745c5c3_CtxErr != nil {

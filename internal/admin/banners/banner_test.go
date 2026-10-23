@@ -14,7 +14,7 @@ import (
 func TestBannersRefusedFields(t *testing.T) {
 	t.Parallel()
 	ctx := i18n.WithLocale(t.Context(), i18n.ZhHant)
-	view := BannersView{Errors: map[string]string{
+	view := View{Errors: map[string]string{
 		"days": "檔期天數必須介於 0（不限）到 365 天。",
 		"cta":  "連結必須是本站路徑，例如 /deals。",
 	}}
@@ -52,7 +52,7 @@ func bannerForm(t *testing.T, page string) string {
 func TestBannersEditorLanguages(t *testing.T) {
 	t.Parallel()
 	ctx := i18n.WithLocale(t.Context(), i18n.ZhHant)
-	form := bannerForm(t, renderComponent(t, ctx, Banners(frame.Page{}, &BannersView{})))
+	form := bannerForm(t, renderComponent(t, ctx, Banners(frame.Page{}, &View{})))
 	for _, name := range []string{"message", "short", "cta_label", "message_en", "short_en", "cta_label_en"} {
 		if !regexp.MustCompile(`<(input|textarea)[^>]*\bname="` + name + `"`).MatchString(form) {
 			t.Errorf("no field %q in the form", name)
@@ -79,7 +79,7 @@ func TestBannersSwitchLanguage(t *testing.T) {
 	t.Parallel()
 	ctx := i18n.WithLocale(t.Context(), i18n.ZhHant)
 	opensOn := func(errs map[string]string) (lang, form string) {
-		form = bannerForm(t, renderComponent(t, ctx, Banners(frame.Page{}, &BannersView{Errors: errs})))
+		form = bannerForm(t, renderComponent(t, ctx, Banners(frame.Page{}, &View{Errors: errs})))
 		if m := regexp.MustCompile(`value="(zh|en)" checked`).FindStringSubmatch(form); m != nil {
 			lang = m[1]
 		}

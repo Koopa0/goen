@@ -13,7 +13,7 @@ import (
 // the view model writes says both facts, so the row stays legible.
 // The list keeps the class the layout gate finds the page by
 // (scripts/check-layout.mjs); that rule stacks the list.
-templ Messages(p frame.Page, v MessagesView) {
+templ Messages(p frame.Page, v View) {
 	@frame.Admin(p, "messages") {
 		<div class="ui-page-head">
 			<div>

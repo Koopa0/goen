@@ -23,7 +23,7 @@ func TestFAQExampleHints(t *testing.T) {
 		t.Run(tt.locale.Tag(), func(t *testing.T) {
 			t.Parallel()
 			ctx := i18n.WithLocale(t.Context(), tt.locale)
-			body := renderComponent(t, ctx, FAQ(frame.Page{Title: "FAQ"}, &FAQView{}))
+			body := renderComponent(t, ctx, FAQ(frame.Page{Title: "FAQ"}, &View{}))
 			if want := tt.sentence("Orders"); !strings.Contains(body, want) {
 				t.Errorf("faq page lacks the hint %s", want)
 			}
@@ -41,7 +41,7 @@ func TestFAQRefusalSummary(t *testing.T) {
 			t.Parallel()
 			ctx := i18n.WithLocale(t.Context(), locale)
 			bad := i18n.T(ctx, i18n.KeyAdminNoticeRefused)
-			body := renderComponent(t, ctx, FAQ(frame.Page{}, &FAQView{
+			body := renderComponent(t, ctx, FAQ(frame.Page{}, &View{
 				Rows:       []Entry{{ID: "faq1", Question: "stored", Answer: "stored"}},
 				Edit:       Entry{ID: "faq1", Question: "", Answer: " kept ", QuestionEn: "bad"},
 				EditErrors: map[string]string{"question": bad, "question_en": bad},

@@ -30,7 +30,7 @@ func TestOrdersStatusNavigation(t *testing.T) {
 					{Value: QueuePicking, Label: i18n.T(ctx, i18n.KeyAdminStatusPicking), Count: 2, Selected: true},
 				},
 			}
-			body := renderComponent(t, ctx, Orders(OrdersMeta(ctx), view))
+			body := renderComponent(t, ctx, Orders(Meta(ctx), view))
 			doc, err := html.Parse(strings.NewReader(body))
 			if err != nil {
 				t.Fatal(err)

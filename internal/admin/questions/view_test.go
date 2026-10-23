@@ -65,7 +65,7 @@ func wantBadge(t *testing.T, page, word, class string) {
 func TestQuestionsWaitingBadge(t *testing.T) {
 	t.Parallel()
 	ctx := i18n.WithLocale(t.Context(), i18n.ZhHant)
-	view := QuestionsView{Rows: []Question{{ID: "q", ProductName: "P"}}}
+	view := View{Rows: []Question{{ID: "q", ProductName: "P"}}}
 	page := renderComponent(t, ctx, Questions(frame.Page{}, view))
 	wantBadge(t, page, i18n.T(ctx, i18n.KeyAdminQWaiting), "goen-badge goen-badge--warn")
 	count := fmt.Sprintf(i18n.T(ctx, i18n.KeyAdminQuestionsWaiting), "1")
@@ -83,7 +83,7 @@ func TestQuestionsWaitingBadge(t *testing.T) {
 func TestQuestionsRefusedAnswer(t *testing.T) {
 	t.Parallel()
 	ctx := i18n.WithLocale(t.Context(), i18n.ZhHant)
-	view := QuestionsView{Rows: []Question{{
+	view := View{Rows: []Question{{
 		ID: "q1", Body: "多久到貨?", Draft: "一長串回覆", Error: "回覆不能留白",
 	}}}
 	page := renderComponent(t, ctx, Questions(frame.Page{}, view))

@@ -16,7 +16,7 @@ import (
 // Each row's two writes are two forms of one field each, so revoking somebody carries
 // their id and nothing else: one form with a name attribute per button would let a
 // browser that submits the wrong one act on the wrong person.
-func Staff(p frame.Page, v StaffView) templ.Component {
+func Staff(p frame.Page, v View) templ.Component {
 	return templruntime.GeneratedTemplate(func(templ_7745c5c3_Input templruntime.GeneratedComponentInput) (templ_7745c5c3_Err error) {
 		templ_7745c5c3_W, ctx := templ_7745c5c3_Input.Writer, templ_7745c5c3_Input.Context
 		if templ_7745c5c3_CtxErr := ctx.Err(); templ_7745c5c3_CtxErr != nil {

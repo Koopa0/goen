@@ -42,7 +42,7 @@ func TestFAQFieldExamples(t *testing.T) {
 					component templ.Component
 					fields    map[string]string
 				}{
-					{"FAQ category", FAQ(p, &FAQView{CategoryDraft: FAQCategory{Name: typed}, CategoryErrors: errors("name")}), map[string]string{"faq-new-category-name": prefix + category}},
+					{"FAQ category", FAQ(p, &View{CategoryDraft: Category{Name: typed}, CategoryErrors: errors("name")}), map[string]string{"faq-new-category-name": prefix + category}},
 				} {
 					t.Run(page.name, func(t *testing.T) {
 						markup := renderComponent(t, ctx, page.component)
@@ -122,7 +122,7 @@ func TestFAQEnglishFields(t *testing.T) {
 			t.Run(locale.Tag()+"/"+draft.name, func(t *testing.T) {
 				t.Parallel()
 				entry := Entry{ID: "existing", QuestionEn: draft.value, AnswerEn: draft.value}
-				view := &FAQView{Rows: []Entry{entry}}
+				view := &View{Rows: []Entry{entry}}
 				if draft.refusal != "" {
 					view.Edit = entry
 					view.EditErrors = map[string]string{"question_en": draft.refusal, "answer_en": draft.refusal}

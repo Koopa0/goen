@@ -8,7 +8,7 @@ import (
 	"github.com/koopa0/goen/internal/keyset"
 )
 
-type WarrantiesView struct {
+type View struct {
 	keyset.Bound
 
 	Term     string
@@ -31,11 +31,11 @@ type WarrantyRow struct {
 	InForce       bool
 }
 
-func (v WarrantiesView) Searching() bool { return v.Searched }
+func (v View) Searching() bool { return v.Searched }
 
-func (v WarrantiesView) TermTooShort() bool { return v.Term != "" && !v.Searched }
+func (v View) TermTooShort() bool { return v.Term != "" && !v.Searched }
 
-func (v WarrantiesView) Empty() bool { return len(v.Rows) == 0 }
+func (v View) Empty() bool { return len(v.Rows) == 0 }
 
 func (r WarrantyRow) UnitText() string { return strconv.Itoa(r.Unit) }
 

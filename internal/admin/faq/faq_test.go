@@ -25,7 +25,7 @@ func tagHolding(t *testing.T, page, attr string) string {
 // second copy.
 func TestFAQRefusedEdit(t *testing.T) {
 	t.Parallel()
-	v := &FAQView{
+	v := &View{
 		Rows: []Entry{
 			{ID: "e1", Category: "會員", Question: "stored question", Answer: "stored answer"},
 			{ID: "e2", Category: "運送", Question: "other question", Answer: "other answer"},
@@ -66,7 +66,7 @@ func TestFAQRefusedEdit(t *testing.T) {
 // The add form still holds its own refusal.
 func TestFAQRefusedAdd(t *testing.T) {
 	t.Parallel()
-	v := &FAQView{
+	v := &View{
 		Rows:   []Entry{{ID: "e1", Category: "會員", Question: "q", Answer: "a"}},
 		Errors: map[string]string{"question": "REFUSED-QUESTION"},
 		Draft:  Entry{Category: "會員", Answer: "typed answer"},

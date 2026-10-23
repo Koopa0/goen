@@ -32,8 +32,8 @@ func TestRoleLabelStaffRoles(t *testing.T) {
 	}
 }
 
-// TestStaffViewEnrollmentCount: the staff view counts unenrolled accounts, as a number, as text and as all enrolled.
-func TestStaffViewEnrollmentCount(t *testing.T) {
+// TestViewEnrollmentCount: the staff view counts unenrolled accounts, as a number, as text and as all enrolled.
+func TestViewEnrollmentCount(t *testing.T) {
 	t.Parallel()
 	type enrollmentCount struct {
 		count int
@@ -42,17 +42,17 @@ func TestStaffViewEnrollmentCount(t *testing.T) {
 	}
 	for _, tt := range []struct {
 		name string
-		rows []StaffRow
+		rows []Row
 		want enrollmentCount
 	}{
 		{name: "empty", want: enrollmentCount{count: 0, text: "0", all: true}},
-		{name: "all enrolled", rows: []StaffRow{{Enrolled: true}, {Enrolled: true}}, want: enrollmentCount{count: 0, text: "0", all: true}},
-		{name: "mixed", rows: []StaffRow{{Enrolled: true}, {Enrolled: false}, {Enrolled: false}}, want: enrollmentCount{count: 2, text: "2", all: false}},
-		{name: "none enrolled", rows: []StaffRow{{Enrolled: false}, {Enrolled: false}}, want: enrollmentCount{count: 2, text: "2", all: false}},
+		{name: "all enrolled", rows: []Row{{Enrolled: true}, {Enrolled: true}}, want: enrollmentCount{count: 0, text: "0", all: true}},
+		{name: "mixed", rows: []Row{{Enrolled: true}, {Enrolled: false}, {Enrolled: false}}, want: enrollmentCount{count: 2, text: "2", all: false}},
+		{name: "none enrolled", rows: []Row{{Enrolled: false}, {Enrolled: false}}, want: enrollmentCount{count: 2, text: "2", all: false}},
 	} {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
-			v := StaffView{Rows: tt.rows}
+			v := View{Rows: tt.rows}
 			got := enrollmentCount{count: v.Unenrolled(), text: v.UnenrolledText(), all: v.AllEnrolled()}
 			if diff := cmp.Diff(tt.want, got, cmp.AllowUnexported(enrollmentCount{})); diff != "" {
 				t.Errorf("staff enrollment count (-want +got):\n%s", diff)
@@ -89,20 +89,20 @@ func TestStaffPageDescribesEnrollment(t *testing.T) {
 			t.Parallel()
 			for _, tt := range []struct {
 				name       string
-				rows       []StaffRow
+				rows       []Row
 				noKey      bool
 				unenrolled bool
 			}{
-				{name: "mixed", rows: []StaffRow{{Role: user.RoleStaff, Enrolled: true}, {Role: user.RoleStaff}, {Role: user.RoleAdmin}}, unenrolled: true},
-				{name: "all enrolled", rows: []StaffRow{{Role: user.RoleStaff, Enrolled: true}}},
-				{name: "local without key", rows: []StaffRow{{Role: user.RoleStaff, Enrolled: true}}, noKey: true},
-				{name: "local without key and unenrolled", rows: []StaffRow{{Role: user.RoleStaff}}, noKey: true},
+				{name: "mixed", rows: []Row{{Role: user.RoleStaff, Enrolled: true}, {Role: user.RoleStaff}, {Role: user.RoleAdmin}}, unenrolled: true},
+				{name: "all enrolled", rows: []Row{{Role: user.RoleStaff, Enrolled: true}}},
+				{name: "local without key", rows: []Row{{Role: user.RoleStaff, Enrolled: true}}, noKey: true},
+				{name: "local without key and unenrolled", rows: []Row{{Role: user.RoleStaff}}, noKey: true},
 			} {
 				t.Run(tt.name, func(t *testing.T) {
 					t.Parallel()
 					ctx := i18n.WithLocale(t.Context(), locale.locale)
 					var body strings.Builder
-					if err := Staff(frame.Page{}, StaffView{Rows: tt.rows, NoKey: tt.noKey}).Render(ctx, &body); err != nil {
+					if err := Staff(frame.Page{}, View{Rows: tt.rows, NoKey: tt.noKey}).Render(ctx, &body); err != nil {
 						t.Fatalf("render staff: %v", err)
 					}
 					got := body.String()

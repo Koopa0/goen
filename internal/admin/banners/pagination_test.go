@@ -19,7 +19,7 @@ func TestBannersHistoryNavigation(t *testing.T) {
 		t.Run(locale.Tag(), func(t *testing.T) {
 			t.Parallel()
 			ctx := i18n.WithLocale(t.Context(), locale)
-			view := BannersView{Bound: keyset.Bound{First: "/admin/banners#banner-history", Next: "/admin/banners?after=banner-token#banner-history"}}
+			view := View{Bound: keyset.Bound{First: "/admin/banners#banner-history", Next: "/admin/banners?after=banner-token#banner-history"}}
 			doc, err := html.Parse(strings.NewReader(renderComponent(t, ctx, Banners(frame.Page{}, &view))))
 			if err != nil {
 				t.Fatal(err)

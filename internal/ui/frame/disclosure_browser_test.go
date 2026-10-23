@@ -35,7 +35,7 @@ func TestDisclosuresWorkWithKeyboard(t *testing.T) {
 		case "/health":
 			component = health.Health(frame.Page{}, &health.WorkerHealthView{})
 		case "/twofactor":
-			component = twofactor.TwoFactor(frame.Page{}, twofactor.TwoFactorView{
+			component = twofactor.TwoFactor(frame.Page{}, twofactor.View{
 				Enabled: true, Enrolling: true, URI: "otpauth://totp/goen:disclosure-fixture",
 			})
 		default:

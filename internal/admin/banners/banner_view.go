@@ -5,7 +5,7 @@ import (
 	"github.com/koopa0/goen/internal/ui/widget"
 )
 
-type BannersView struct {
+type View struct {
 	Rows   []Banner
 	Bound  keyset.Bound
 	Notice widget.Result
@@ -42,15 +42,15 @@ type BannerDraft struct {
 
 // InEnglish is whether the banner form opens on its English fields: only
 // when every refusal is in them, so no refused field starts hidden.
-func (v *BannersView) InEnglish() bool {
+func (v *View) InEnglish() bool {
 	if v.HasErr("message") || v.HasErr("short") {
 		return false
 	}
 	return v.HasErr("message_en") || v.HasErr("short_en")
 }
 
-func (v *BannersView) HasBanners() bool { return len(v.Rows) > 0 }
+func (v *View) HasBanners() bool { return len(v.Rows) > 0 }
 
-func (v *BannersView) HasErr(f string) bool { _, ok := v.Errors[f]; return ok }
+func (v *View) HasErr(f string) bool { _, ok := v.Errors[f]; return ok }
 
-func (v *BannersView) Err(f string) string { return v.Errors[f] }
+func (v *View) Err(f string) string { return v.Errors[f] }

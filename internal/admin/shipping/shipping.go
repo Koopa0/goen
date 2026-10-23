@@ -13,7 +13,7 @@ import (
 	"github.com/koopa0/goen/internal/ui/widget"
 )
 
-type ShippingView struct {
+type View struct {
 	Methods            []Method
 	Zones              []Zone
 	Notice             widget.Result
@@ -39,7 +39,7 @@ type SurchargeDraft struct {
 	Amount   string
 }
 
-func (v *ShippingView) VersionValues(m *Method) VersionDraft {
+func (v *View) VersionValues(m *Method) VersionDraft {
 	if v.VersionDraft.MethodID == m.MethodID {
 		return v.VersionDraft
 	}
@@ -47,29 +47,29 @@ func (v *ShippingView) VersionValues(m *Method) VersionDraft {
 		Carrier: m.Carrier, CarrierEn: m.CarrierEn, Fee: m.FeeDollars(), FreeOver: m.FreeOverDollars()}
 }
 
-func (v *ShippingView) VersionRefusal(methodID, field string) string {
+func (v *View) VersionRefusal(methodID, field string) string {
 	if v.VersionDraft.MethodID == methodID {
 		return v.Errors["version_"+field]
 	}
 	return ""
 }
 
-func (v *ShippingView) SurchargeValue(m *Method, zoneID string) string {
+func (v *View) SurchargeValue(m *Method, zoneID string) string {
 	if v.SurchargeDraft.MethodID == m.MethodID && v.SurchargeDraft.ZoneID == zoneID {
 		return v.SurchargeDraft.Amount
 	}
 	return m.SurchargeDollars(zoneID)
 }
 
-func (v *ShippingView) SurchargeRefusal(methodID, zoneID string) string {
+func (v *View) SurchargeRefusal(methodID, zoneID string) string {
 	if v.SurchargeDraft.MethodID == methodID && v.SurchargeDraft.ZoneID == zoneID {
 		return v.Errors["surcharge"]
 	}
 	return ""
 }
 
-func (v *ShippingView) FeeLimit() string      { return strconv.FormatInt(v.FeeMaxDollars, 10) }
-func (v *ShippingView) FreeOverLimit() string { return strconv.FormatInt(v.FreeOverMaxDollars, 10) }
+func (v *View) FeeLimit() string      { return strconv.FormatInt(v.FeeMaxDollars, 10) }
+func (v *View) FreeOverLimit() string { return strconv.FormatInt(v.FreeOverMaxDollars, 10) }
 
 type MethodDraft struct {
 	Code, Destination             string
@@ -88,18 +88,18 @@ type ZonePrefixesDraft struct {
 	Prefixes string
 }
 
-func (v *ShippingView) HasErr(f string) bool { _, ok := v.Errors[f]; return ok }
+func (v *View) HasErr(f string) bool { _, ok := v.Errors[f]; return ok }
 
-func (v *ShippingView) Err(f string) string { return v.Errors[f] }
+func (v *View) Err(f string) string { return v.Errors[f] }
 
-func (v *ShippingView) ZonePrefixesValue(z Zone) string {
+func (v *View) ZonePrefixesValue(z Zone) string {
 	if v.PrefixDraft.ZoneID == z.ID {
 		return v.PrefixDraft.Prefixes
 	}
 	return z.Prefixes
 }
 
-func (v *ShippingView) PickupSelected() bool {
+func (v *View) PickupSelected() bool {
 	return shipping.Destination(v.MethodDraft.Destination) == shipping.DestinationPickupPoint
 }
 

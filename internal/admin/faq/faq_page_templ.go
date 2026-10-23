@@ -21,7 +21,7 @@ import (
 // The list keeps the class the layout gate finds the page by
 // (scripts/check-layout.mjs): it marks the page on the LIST, so a run that rendered
 // only the form cannot report the page as covered.
-func FAQ(p frame.Page, v *FAQView) templ.Component {
+func FAQ(p frame.Page, v *View) templ.Component {
 	return templruntime.GeneratedTemplate(func(templ_7745c5c3_Input templruntime.GeneratedComponentInput) (templ_7745c5c3_Err error) {
 		templ_7745c5c3_W, ctx := templ_7745c5c3_Input.Writer, templ_7745c5c3_Input.Context
 		if templ_7745c5c3_CtxErr := ctx.Err(); templ_7745c5c3_CtxErr != nil {
@@ -1248,7 +1248,7 @@ func FAQ(p frame.Page, v *FAQView) templ.Component {
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
-			templ_7745c5c3_Err = FAQCategories(v).Render(ctx, templ_7745c5c3_Buffer)
+			templ_7745c5c3_Err = Categories(v).Render(ctx, templ_7745c5c3_Buffer)
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
@@ -1262,9 +1262,9 @@ func FAQ(p frame.Page, v *FAQView) templ.Component {
 	})
 }
 
-// FAQCategories is the headings /faq groups its entries under. Each is one row:
+// Categories is the headings /faq groups its entries under. Each is one row:
 // a rename here moves every entry in it.
-func FAQCategories(v *FAQView) templ.Component {
+func Categories(v *View) templ.Component {
 	return templruntime.GeneratedTemplate(func(templ_7745c5c3_Input templruntime.GeneratedComponentInput) (templ_7745c5c3_Err error) {
 		templ_7745c5c3_W, ctx := templ_7745c5c3_Input.Writer, templ_7745c5c3_Input.Context
 		if templ_7745c5c3_CtxErr := ctx.Err(); templ_7745c5c3_CtxErr != nil {
@@ -1518,7 +1518,7 @@ func FAQCategories(v *FAQView) templ.Component {
 // faqCategoryField is one name of a category form (form "" is the add form).
 // A non-empty example is linked to the input whether or not it was refused; a
 // hint is shown beside it unlinked, as the add form's English hints are.
-func faqCategoryField(v *FAQView, form, field, id, value string, label i18n.Key, example, hint string, required bool) templ.Component {
+func faqCategoryField(v *View, form, field, id, value string, label i18n.Key, example, hint string, required bool) templ.Component {
 	return templruntime.GeneratedTemplate(func(templ_7745c5c3_Input templruntime.GeneratedComponentInput) (templ_7745c5c3_Err error) {
 		templ_7745c5c3_W, ctx := templ_7745c5c3_Input.Writer, templ_7745c5c3_Input.Context
 		if templ_7745c5c3_CtxErr := ctx.Err(); templ_7745c5c3_CtxErr != nil {

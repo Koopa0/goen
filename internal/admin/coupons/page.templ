@@ -12,7 +12,7 @@ import (
 
 // Each row leads with its code and whether it works RIGHT NOW: a coupon switched on
 // but past its window is refused at the till while the list says it is fine.
-templ Coupons(p frame.Page, v CouponsView) {
+templ Coupons(p frame.Page, v View) {
 	@frame.Admin(p, "coupons") {
 		<div class="ui-page-head">
 			<div>

@@ -24,7 +24,7 @@ func TestCouponsPerMemberLimit(t *testing.T) {
 	for _, loc := range []i18n.Locale{i18n.ZhHant, i18n.En} {
 		ctx := i18n.WithLocale(t.Context(), loc)
 		var b strings.Builder
-		if err := Coupons(frame.Page{Title: "c"}, CouponsView{}).Render(ctx, &b); err != nil {
+		if err := Coupons(frame.Page{Title: "c"}, View{}).Render(ctx, &b); err != nil {
 			t.Fatal(err)
 		}
 		for _, k := range []i18n.Key{i18n.KeyAdminCoupPerCustomer, i18n.KeyAdminCoupPerCustomerHint} {
@@ -42,7 +42,7 @@ func TestCouponsContentColumn(t *testing.T) {
 	ctx := frame.WithStaff(i18n.WithLocale(t.Context(), i18n.ZhHant), true)
 
 	name := "coupons"
-	page := renderComponent(t, ctx, Coupons(frame.Page{}, CouponsView{}))
+	page := renderComponent(t, ctx, Coupons(frame.Page{}, View{}))
 
 	grid := strings.Index(page, `<div class="goen-admin">`)
 	rail := strings.Index(page, "goen-admin__nav")
@@ -71,7 +71,7 @@ func TestCouponsEmptyPage(t *testing.T) {
 	t.Parallel()
 	b := keyset.Bound{PastEnd: true, First: "/admin/products?q=test"}
 	var out bytes.Buffer
-	if err := Coupons(frame.Page{Title: "Pagination"}, CouponsView{Bound: b}).Render(i18n.WithLocale(t.Context(), i18n.En), &out); err != nil {
+	if err := Coupons(frame.Page{Title: "Pagination"}, View{Bound: b}).Render(i18n.WithLocale(t.Context(), i18n.En), &out); err != nil {
 		t.Fatal(err)
 	}
 	body := out.String()
@@ -91,7 +91,7 @@ func TestCouponsFirstPageEmpty(t *testing.T) {
 	ctx := func(k i18n.Key) string { return i18n.T(i18n.WithLocale(t.Context(), i18n.En), k) }
 	generic := ctx(i18n.KeyPageEmpty)
 	_, b := keyset.PageBound("/admin/queue", false, []db.Order{}, keyset.PageSize, func(*db.Order) string { return "" })
-	body := renderComponent(t, i18n.WithLocale(t.Context(), i18n.En), Coupons(frame.Page{Title: "Queue"}, CouponsView{Bound: b}))
+	body := renderComponent(t, i18n.WithLocale(t.Context(), i18n.En), Coupons(frame.Page{Title: "Queue"}, View{Bound: b}))
 	if !strings.Contains(body, html.EscapeString(ctx(i18n.KeyAdminCoupEmpty))) {
 		t.Errorf("the queue's own empty text %q is missing", ctx(i18n.KeyAdminCoupEmpty))
 	}
@@ -107,7 +107,7 @@ func TestCouponsNextLink(t *testing.T) {
 	rows := make([]db.Order, keyset.PageLimit)
 	_, b := keyset.PageBound("/admin/queue", false, rows, keyset.PageSize,
 		func(*db.Order) string { return `{"ID":"12345678-1234-1234-1234-123456789abc"}` })
-	body := renderComponent(t, i18n.WithLocale(t.Context(), i18n.En), Coupons(frame.Page{Title: "Queue"}, CouponsView{Bound: b}))
+	body := renderComponent(t, i18n.WithLocale(t.Context(), i18n.En), Coupons(frame.Page{Title: "Queue"}, View{Bound: b}))
 	if !strings.Contains(body, `rel="next"`) {
 		t.Error("a first page with more rows has no Next link")
 	}
@@ -148,7 +148,7 @@ func TestCouponsFieldExamples(t *testing.T) {
 					component templ.Component
 					fields    map[string]string
 				}{
-					{"coupon", Coupons(p, CouponsView{Draft: CouponDraft{Code: typed, Description: typed, PerCustomer: typed}, Errors: errors("code", "description", "percustomer")}), map[string]string{"c-code": prefix + "SUMMER20", "c-description": prefix + discount, "c-percustomer": prefix + "1"}},
+					{"coupon", Coupons(p, View{Draft: CouponDraft{Code: typed, Description: typed, PerCustomer: typed}, Errors: errors("code", "description", "percustomer")}), map[string]string{"c-code": prefix + "SUMMER20", "c-description": prefix + discount, "c-percustomer": prefix + "1"}},
 				} {
 					t.Run(page.name, func(t *testing.T) {
 						markup := renderComponent(t, ctx, page.component)

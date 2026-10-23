@@ -18,7 +18,7 @@ import (
 
 // The table appears only once somebody has searched: listing every customer by
 // default is a page nobody reads and a query nobody wanted.
-func Customers(p frame.Page, v CustomersView) templ.Component {
+func Customers(p frame.Page, v View) templ.Component {
 	return templruntime.GeneratedTemplate(func(templ_7745c5c3_Input templruntime.GeneratedComponentInput) (templ_7745c5c3_Err error) {
 		templ_7745c5c3_W, ctx := templ_7745c5c3_Input.Writer, templ_7745c5c3_Input.Context
 		if templ_7745c5c3_CtxErr := ctx.Err(); templ_7745c5c3_CtxErr != nil {

@@ -48,7 +48,7 @@ type MovementsView struct {
 	Stock         int32
 	Safety        int32
 	Rows          []Movement
-	Days          []StockDay
+	Days          []Day
 	Notice        widget.Result
 	FormID        string
 	DraftQuantity string

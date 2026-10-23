@@ -19,7 +19,7 @@ import (
 // The badge carries the rating, because nothing here waits for approval: a review is
 // published as it is written, so the row somebody is looking for is the angry one.
 // A hidden row is not dimmed: fading says "hidden" in a shade nobody has been told to read.
-func Reviews(p frame.Page, v ReviewsView) templ.Component {
+func Reviews(p frame.Page, v View) templ.Component {
 	return templruntime.GeneratedTemplate(func(templ_7745c5c3_Input templruntime.GeneratedComponentInput) (templ_7745c5c3_Err error) {
 		templ_7745c5c3_W, ctx := templ_7745c5c3_Input.Writer, templ_7745c5c3_Input.Context
 		if templ_7745c5c3_CtxErr := ctx.Err(); templ_7745c5c3_CtxErr != nil {

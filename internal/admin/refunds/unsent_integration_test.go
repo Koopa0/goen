@@ -591,7 +591,7 @@ func TestStore_RefundUnsentReturnsQueue(t *testing.T) {
 	}
 	var page strings.Builder
 	zh := i18n.WithLocale(ctx, i18n.ZhHant)
-	if err := returndesk.Returns(frame.Page{Title: "returns"}, returndesk.ReturnsView{Rows: []returndesk.Return{row}}).Render(zh, &page); err != nil {
+	if err := returndesk.Returns(frame.Page{Title: "returns"}, returndesk.View{Rows: []returndesk.Return{row}}).Render(zh, &page); err != nil {
 		t.Fatalf("render the queue: %v", err)
 	}
 	door := `<a href="/admin/orders/` + o.Number + `">` + i18n.T(zh, i18n.KeyAdminUnsentTitle) + `</a>`

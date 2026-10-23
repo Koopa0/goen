@@ -214,7 +214,7 @@ func (r *Return) InspectAction() string { return "/admin/returns/" + r.ID + "/in
 
 func (r *Return) CompleteAction() string { return "/admin/returns/" + r.ID + "/complete" }
 
-type ReturnsView struct {
+type View struct {
 	keyset.Bound
 
 	Rows   []Return
@@ -224,18 +224,18 @@ type ReturnsView struct {
 	Errors map[string]string
 }
 
-func (v ReturnsView) FieldRefusal(returnID, field string) string {
+func (v View) FieldRefusal(returnID, field string) string {
 	if v.Errors == nil {
 		return ""
 	}
 	return v.Errors[returnID+"."+field]
 }
 
-func (v ReturnsView) FieldInvalid(returnID, field string) bool {
+func (v View) FieldInvalid(returnID, field string) bool {
 	return v.FieldRefusal(returnID, field) != ""
 }
 
-func (v ReturnsView) Empty() bool { return len(v.Rows) == 0 }
+func (v View) Empty() bool { return len(v.Rows) == 0 }
 
 type ReturnLine struct {
 	SKU         string

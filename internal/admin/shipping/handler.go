@@ -273,7 +273,7 @@ func dollars(v string, blankOK bool) (int64, bool) {
 // shippingView is the configuration with each pickup-point method marked as not
 // offered where checkout hides it: a method listed here with a disable button
 // reads as live, and the same condition as the checkout is what keeps it true.
-func (h *Handler) shippingView(ctx context.Context) (ShippingView, error) {
+func (h *Handler) shippingView(ctx context.Context) (View, error) {
 	view, err := h.store.Configuration(ctx)
 	if err != nil {
 		return view, err

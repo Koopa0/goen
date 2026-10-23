@@ -53,7 +53,7 @@ func (q Question) ProductHref() string { return "/p/" + q.ProductSlug }
 
 func (q Question) AnswerAction() string { return "/admin/questions/" + q.ID }
 
-type QuestionsView struct {
+type View struct {
 	keyset.Bound
 
 	Hidden bool
@@ -61,9 +61,9 @@ type QuestionsView struct {
 	Notice widget.Result
 }
 
-func (v QuestionsView) Empty() bool { return len(v.Rows) == 0 }
+func (v View) Empty() bool { return len(v.Rows) == 0 }
 
-func (v QuestionsView) Waiting() int {
+func (v View) Waiting() int {
 	n := 0
 	for i := range v.Rows {
 		if v.Rows[i].Waiting() {
@@ -73,7 +73,7 @@ func (v QuestionsView) Waiting() int {
 	return n
 }
 
-func (v QuestionsView) WaitingText() string { return strconv.Itoa(v.Waiting()) }
+func (v View) WaitingText() string { return strconv.Itoa(v.Waiting()) }
 
 type QuestionAction string
 
@@ -103,21 +103,21 @@ func (q Question) VisibilityLabel(ctx context.Context) string {
 	return i18n.T(ctx, i18n.KeyAdminQuestionHide)
 }
 
-func (v QuestionsView) OtherQueueHref() string {
+func (v View) OtherQueueHref() string {
 	if v.Hidden {
 		return "/admin/questions"
 	}
 	return "/admin/questions?hidden=1"
 }
 
-func (v QuestionsView) OtherQueueLabel(ctx context.Context) string {
+func (v View) OtherQueueLabel(ctx context.Context) string {
 	if v.Hidden {
 		return i18n.T(ctx, i18n.KeyAdminQuestionsVisible)
 	}
 	return i18n.T(ctx, i18n.KeyAdminQuestionsHidden)
 }
 
-func (v QuestionsView) EmptyLabel(ctx context.Context) string {
+func (v View) EmptyLabel(ctx context.Context) string {
 	if v.Hidden {
 		return i18n.T(ctx, i18n.KeyAdminQuestionsHiddenEmpty)
 	}

@@ -23,9 +23,9 @@ type Entry struct {
 	UpdatedAt  string
 }
 
-// FAQCategory is a heading on /faq. InUse holds it: the database refuses to
+// Category is a heading on /faq. InUse holds it: the database refuses to
 // delete a category that still has entries, so the desk does not offer it.
-type FAQCategory struct {
+type Category struct {
 	ID     string
 	Name   string
 	NameEn string
@@ -34,7 +34,7 @@ type FAQCategory struct {
 
 func (e Entry) Translated() bool { return e.AnswerEn != "" }
 
-type FAQView struct {
+type View struct {
 	Rows   []Entry
 	Notice widget.Result
 	Errors map[string]string
@@ -45,16 +45,16 @@ type FAQView struct {
 	Edit       Entry
 	EditErrors map[string]string
 
-	Categories []FAQCategory
+	Categories []Category
 	// CategoryDraft and CategoryErrors are a refused category form: the add
 	// form when CategoryDraft.ID is empty, else the listed category it names.
-	CategoryDraft  FAQCategory
+	CategoryDraft  Category
 	CategoryErrors map[string]string
 }
 
 // Listed is the entry as its own form shows it: the refused submission when
 // this is the entry whose edit was refused, otherwise what is stored.
-func (v *FAQView) Listed(e *Entry) Entry {
+func (v *View) Listed(e *Entry) Entry {
 	if v.Edit.ID != e.ID {
 		return *e
 	}
@@ -63,20 +63,20 @@ func (v *FAQView) Listed(e *Entry) Entry {
 	return out
 }
 
-func (v *FAQView) RowErr(e *Entry, f string) bool {
+func (v *View) RowErr(e *Entry, f string) bool {
 	_, refused := v.EditErrors[f]
 	return refused && v.Edit.ID == e.ID
 }
 
-func (v *FAQView) Empty() bool { return len(v.Rows) == 0 }
+func (v *View) Empty() bool { return len(v.Rows) == 0 }
 
-func (v *FAQView) HasErr(f string) bool { _, ok := v.Errors[f]; return ok }
+func (v *View) HasErr(f string) bool { _, ok := v.Errors[f]; return ok }
 
-func (v *FAQView) Err(f string) string { return v.Errors[f] }
+func (v *View) Err(f string) string { return v.Errors[f] }
 
 // ListedCategory is the category as its own form shows it: the refused
 // submission when this is the category whose rename was refused.
-func (v *FAQView) ListedCategory(c *FAQCategory) FAQCategory {
+func (v *View) ListedCategory(c *Category) Category {
 	if v.CategoryDraft.ID != c.ID {
 		return *c
 	}
@@ -87,7 +87,7 @@ func (v *FAQView) ListedCategory(c *FAQCategory) FAQCategory {
 
 // CategoryErr is the refusal of field f on the category form id names ("" for
 // the add form).
-func (v *FAQView) CategoryErr(id, f string) (string, bool) {
+func (v *View) CategoryErr(id, f string) (string, bool) {
 	if v.CategoryDraft.ID != id {
 		return "", false
 	}
@@ -95,14 +95,14 @@ func (v *FAQView) CategoryErr(id, f string) (string, bool) {
 	return msg, ok
 }
 
-func (v *FAQView) newCategoryDraft() FAQCategory {
+func (v *View) newCategoryDraft() Category {
 	if v.CategoryDraft.ID != "" {
-		return FAQCategory{}
+		return Category{}
 	}
 	return v.CategoryDraft
 }
 
-func (v *FAQView) categoryDescribedBy(id, f, base string) string {
+func (v *View) categoryDescribedBy(id, f, base string) string {
 	if _, ok := v.CategoryErr(id, f); ok {
 		return strings.TrimSpace(base + " " + categoryErrID(id, f))
 	}
@@ -116,7 +116,7 @@ func categoryErrID(id, f string) string {
 	return "faq-category-err-" + f + "-" + id
 }
 
-func (v *FAQView) Untranslated() int {
+func (v *View) Untranslated() int {
 	n := 0
 	for i := range v.Rows {
 		if !v.Rows[i].Translated() {
@@ -126,10 +126,10 @@ func (v *FAQView) Untranslated() int {
 	return n
 }
 
-func untranslatedText(v *FAQView) string { return strconv.Itoa(v.Untranslated()) }
+func untranslatedText(v *View) string { return strconv.Itoa(v.Untranslated()) }
 
 // categoryRefusalForm names the refused category form in the page's summary.
-func (v *FAQView) categoryRefusalForm() i18n.Key {
+func (v *View) categoryRefusalForm() i18n.Key {
 	if v.CategoryDraft.ID == "" {
 		return i18n.KeyAdminFaqpCategoryAdd
 	}
@@ -137,7 +137,7 @@ func (v *FAQView) categoryRefusalForm() i18n.Key {
 }
 
 // categoryFieldID is the input of field f on the refused category form.
-func (v *FAQView) categoryFieldID(f string) string {
+func (v *View) categoryFieldID(f string) string {
 	id := v.CategoryDraft.ID
 	switch {
 	case id == "" && f == "name":

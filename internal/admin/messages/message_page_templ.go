@@ -20,7 +20,7 @@ import (
 // the view model writes says both facts, so the row stays legible.
 // The list keeps the class the layout gate finds the page by
 // (scripts/check-layout.mjs); that rule stacks the list.
-func Messages(p frame.Page, v MessagesView) templ.Component {
+func Messages(p frame.Page, v View) templ.Component {
 	return templruntime.GeneratedTemplate(func(templ_7745c5c3_Input templruntime.GeneratedComponentInput) (templ_7745c5c3_Err error) {
 		templ_7745c5c3_W, ctx := templ_7745c5c3_Input.Writer, templ_7745c5c3_Input.Context
 		if templ_7745c5c3_CtxErr := ctx.Err(); templ_7745c5c3_CtxErr != nil {
