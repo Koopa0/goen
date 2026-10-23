@@ -266,7 +266,7 @@ func TestElapsedValueUsesTheLargestWholeUnit(t *testing.T) {
 		{"days", 49 * time.Hour, i18n.En, "2\u00a0<small>days ago</small>"},
 	} {
 		ctx := i18n.WithLocale(t.Context(), tc.loc)
-		stat := widget.GlanceStatLine([]widget.LinkedStat{{Stat: widget.Stat{Label: "x", Value: elapsedValue(ctx, tc.d)}, Href: "/"}})
+		stat := widget.StatLine([]widget.Stat{{Label: "x", Value: elapsedValue(ctx, tc.d), LabelHref: "/"}}, widget.StatLineGlance)
 		if html := renderComponent(t, ctx, stat); !strings.Contains(html, "<dd>"+tc.want) {
 			t.Errorf("%s: elapsedValue(%v) renders %s, want <dd>%s", tc.name, tc.d, html, tc.want)
 		}
@@ -297,7 +297,7 @@ func TestDashboardView_WeekStatsKeys(t *testing.T) {
 	t.Parallel()
 	ctx := i18n.WithLocale(t.Context(), i18n.En)
 	view := DashboardView{Week: busyWeek()}
-	html := renderComponent(t, ctx, widget.GlanceStatLine(view.WeekStats(ctx)))
+	html := renderComponent(t, ctx, widget.StatLine(view.WeekStats(ctx), widget.StatLineGlance))
 	for _, key := range []string{"Previous 7 days", "Last 7 days"} {
 		if got := strings.Count(html, "<span>"+key+"</span>"); got != 2 {
 			t.Errorf("%q is a key under %d of the two small charts, want 2", key, got)

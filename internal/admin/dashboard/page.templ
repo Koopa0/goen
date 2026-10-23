@@ -48,7 +48,7 @@ templ Dashboard(p frame.Page, v DashboardView) {
 			if v.WeekUnavailable {
 				<p class="goen-admin__hint" role="status">{ i18n.T(ctx, i18n.KeyAdminQueueWeekUnavailable) }</p>
 			} else {
-				@widget.GlanceStatLine(v.WeekStats(ctx))
+				@widget.StatLine(v.WeekStats(ctx), widget.StatLineGlance)
 			}
 		</section>
 		<section class="goen-admin__queue" aria-labelledby="orders-heading">

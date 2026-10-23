@@ -6,8 +6,9 @@ templ Announce(r Result) {
 	@announce(r, "")
 }
 
-// The layout gate finds the order page's notice by the vendored spelling, so the element keeps it (#380 R8).
-templ AnnounceOrder(r Result) {
+// AnnounceAlert is Announce in the shared ui-alert spelling: the print view hides it and the layout gate finds
+// the order screen's notice by it (#380 R8).
+templ AnnounceAlert(r Result) {
 	@announce(r, "ui-alert")
 }
 

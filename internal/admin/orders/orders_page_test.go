@@ -57,6 +57,25 @@ func TestOrdersEmptyCopy(t *testing.T) {
 	})
 }
 
+// TestSearchForm_Clear: the queue being searched offers the way back to the whole queue, and the page of an order
+// that is not there keeps the number asked for and offers none.
+func TestSearchForm_Clear(t *testing.T) {
+	t.Parallel()
+	ctx := i18n.WithLocale(t.Context(), i18n.ZhHant)
+	clearLink := `>` + i18n.T(ctx, i18n.KeyAdminQueueClear) + `</a>`
+	searched := renderToString(t, Orders(OrdersMeta(ctx), View{Term: "GO-ONE", Searched: true}))
+	if !strings.Contains(searched, clearLink) || !strings.Contains(searched, `value="GO-ONE"`) {
+		t.Errorf("a searched queue lacks its Clear link or the term: %s", searched)
+	}
+	if plain := renderToString(t, Orders(OrdersMeta(ctx), View{})); strings.Contains(plain, clearLink) {
+		t.Error("a queue nobody searched offers to clear the search")
+	}
+	missing := renderToString(t, orderNotFound(frame.Page{}, frame.MissingRecordView{Section: "orders", BackLabel: i18n.KeyAdminBackOrders}, "GO-ONE"))
+	if strings.Contains(missing, clearLink) || !strings.Contains(missing, `id="order-search"`) || !strings.Contains(missing, `value="GO-ONE"`) {
+		t.Errorf("the missing order page must keep the number in the search and offer no Clear: %s", missing)
+	}
+}
+
 // TestOrderPickupCorrection: a pickup order corrects without a store. It locks
 // the shape checkout already writes: the chain is the destination, and the
 // store behind it is filled in by the carrier's picker. An order placed before

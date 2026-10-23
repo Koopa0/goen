@@ -11,6 +11,38 @@ import (
 	"github.com/koopa0/goen/internal/ui/widget"
 )
 
+// searchForm is the order number search. A queue that is being searched offers the way back to the whole queue;
+// the page of an order that is not there keeps the number asked for, and has no queue to go back to.
+templ searchForm(term string, clearable bool) {
+	<form class="goen-admin__search" method="get" action="/admin/orders">
+		<label class="goen-sr-only" for="order-search">{ i18n.T(ctx, i18n.KeyAdminQueueSearchLabel) }</label>
+		<input
+			class="ui-input"
+			id="order-search"
+			type="search"
+			name="q"
+			value={ term }
+			placeholder={ i18n.T(ctx, i18n.KeyAdminQueueSearchPlaceholder) }
+			autocomplete="off"
+		/>
+		@widget.Button(widget.ButtonProps{ButtonStyle: widget.ButtonStyleOutline}, "submit") {
+			{ i18n.T(ctx, i18n.KeyAdminSearch) }
+		}
+		if clearable {
+			@widget.ButtonLink(widget.ButtonProps{ButtonStyle: widget.ButtonStyleGhost}, "/admin/orders") {
+				{ i18n.T(ctx, i18n.KeyAdminQueueClear) }
+			}
+		}
+	</form>
+}
+
+// orderNotFound is the page of an order number nobody holds, with that number in the search field.
+templ orderNotFound(p frame.Page, v frame.MissingRecordView, number string) {
+	@frame.MissingRecord(p, v) {
+		@searchForm(number, false)
+	}
+}
+
 // The tabs are links and the selected one is marked with aria-current alone: a second
 // class saying the same thing is a second source of truth for which tab is on.
 templ Orders(p frame.Page, v View) {
@@ -22,26 +54,7 @@ templ Orders(p frame.Page, v View) {
 			</div>
 		</div>
 		@widget.Announce(v.Notice)
-		<form class="goen-admin__search" method="get" action="/admin/orders">
-			<label class="goen-sr-only" for="order-search">{ i18n.T(ctx, i18n.KeyAdminQueueSearchLabel) }</label>
-			<input
-				class="ui-input"
-				id="order-search"
-				type="search"
-				name="q"
-				value={ v.Term }
-				placeholder={ i18n.T(ctx, i18n.KeyAdminQueueSearchPlaceholder) }
-				autocomplete="off"
-			/>
-			@widget.Button(widget.ButtonProps{ButtonStyle: widget.ButtonStyleOutline}, "submit") {
-				{ i18n.T(ctx, i18n.KeyAdminSearch) }
-			}
-			if v.Searching() {
-				@widget.ButtonLink(widget.ButtonProps{ButtonStyle: widget.ButtonStyleGhost}, "/admin/orders") {
-					{ i18n.T(ctx, i18n.KeyAdminQueueClear) }
-				}
-			}
-		</form>
+		@searchForm(v.Term, v.Searching())
 		if v.Searching() {
 			<p class="goen-admin__hint">
 				{ fmt.Sprintf(i18n.T(ctx, i18n.KeyAdminQueueSearchNote), v.Term) }
@@ -142,7 +155,7 @@ templ Order(p frame.Page, v *OrderView) {
 				}
 			</div>
 		</div>
-		@widget.AnnounceOrder(v.Notice)
+		@widget.AnnounceAlert(v.Notice)
 		<div class="goen-admin__layout">
 			<div class="goen-admin__orderpanel">
 				@orderItemsAndDelivery(v)

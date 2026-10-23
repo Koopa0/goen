@@ -5,6 +5,8 @@ import (
 	"github.com/koopa0/goen/internal/ui/widget"
 )
 
+// MissingRecord is the back-office page for a record that is not there. What a desk can offer in its place,
+// such as the order desk's search, is its children and is drawn between the heading and the way back.
 templ MissingRecord(p Page, v MissingRecordView) {
 	@Admin(p, v.Section) {
 		<div class="ui-page-head">
@@ -14,15 +16,7 @@ templ MissingRecord(p Page, v MissingRecordView) {
 				<p class="ui-page-head__sub">{ v.Body }</p>
 			</div>
 		</div>
-		if v.OrderNumber != "" {
-			<form class="goen-admin__search" method="get" action="/admin/orders">
-				<label class="goen-sr-only" for="order-search">{ i18n.T(ctx, i18n.KeyAdminQueueSearchLabel) }</label>
-				<input class="ui-input" id="order-search" type="search" name="q" value={ v.OrderNumber } placeholder={ i18n.T(ctx, i18n.KeyAdminQueueSearchPlaceholder) } autocomplete="off"/>
-				@widget.Button(widget.ButtonProps{ButtonStyle: widget.ButtonStyleOutline}, "submit") {
-					{ i18n.T(ctx, i18n.KeyAdminSearch) }
-				}
-			</form>
-		}
+		{ children... }
 		@widget.ButtonLink(widget.ButtonProps{ButtonStyle: widget.ButtonStylePrimary}, templ.URL("/admin/"+v.Section)) {
 			{ i18n.T(ctx, v.BackLabel) }
 		}

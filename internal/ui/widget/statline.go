@@ -21,6 +21,10 @@ const (
 	StatLinePairs StatLineVariant = "pairs"
 	// StatLineSmall is a line that sits under a name, as a product's warranty does.
 	StatLineSmall StatLineVariant = "s"
+	// StatLineGlance is a line of figures on a dashboard, each label a link to the screen that answers it. Every
+	// stat needs a LabelHref: a figure on a dashboard is a question somebody is about to ask, and a figure that
+	// does not answer it makes them find the screen in the navigation.
+	StatLineGlance StatLineVariant = "glance"
 )
 
 func (v StatLineVariant) class() string {
@@ -33,7 +37,7 @@ func (v StatLineVariant) class() string {
 // Stat is one labelled figure. Note says how the figure is counted, in at most two lines.
 // Trend is a drawing under the note; the line holds it without importing what draws it.
 // LabelHref, when set, makes the label a link to the screen that explains the figure; the figure stays outside
-// the link, as in GlanceStatLine, so the link's name says what it opens.
+// the link, so the link's name says what it opens. StatLineGlance requires it.
 type Stat struct {
 	Label     string
 	Value     StatValue
@@ -138,37 +142,17 @@ func checkCount(n int) {
 	}
 }
 
-func shown(stats []Stat) []Stat {
+// shown panics on a glance stat with no LabelHref, whether or not it has a figure: every LabelHref is a route
+// built in code, so an empty one is a programmer error, like regexp.MustCompile.
+func shown(stats []Stat, variant StatLineVariant) []Stat {
 	checkCount(len(stats))
 	out := make([]Stat, 0, len(stats))
 	for i := range stats {
+		if variant == StatLineGlance && stats[i].LabelHref == "" {
+			panic("widget: a glance stat needs a LabelHref")
+		}
 		if stats[i].Value.present() {
 			out = append(out, stats[i])
-		}
-	}
-	return out
-}
-
-// LinkedStat is a stat whose label opens the screen that answers it. Href is required: a figure on a
-// dashboard is a question somebody is about to ask, and a figure that does not answer it makes them
-// find the screen in the navigation.
-// An empty Href panics: every Href is a route built in code, so an empty one is a programmer error, like regexp.MustCompile.
-type LinkedStat struct {
-	Stat
-
-	Href string
-}
-
-func shownLinked(stats []LinkedStat) []LinkedStat {
-	checkCount(len(stats))
-	out := make([]LinkedStat, 0, len(stats))
-	for i := range stats {
-		s := &stats[i]
-		if s.Href == "" {
-			panic("widget: a linked stat needs an Href")
-		}
-		if s.Value.present() {
-			out = append(out, *s)
 		}
 	}
 	return out
