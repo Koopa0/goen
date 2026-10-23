@@ -14,6 +14,11 @@ internal/ui/uitest.refusedPage # reason: indexes the rendered page for the share
 internal/ui/uitest.summarizes # reason: finds the page-top alert for the shared refusal-summary test assertion; deadcode excludes its test callers
 internal/ui/uitest.formBefore # reason: the summary-precedes-forms check of the shared refusal-summary test assertion; deadcode excludes its test callers
 internal/ui/uitest.assertInvalidControlsDescribed # reason: the described-controls check of the shared refusal-summary test assertion; deadcode excludes its test callers
+internal/ui/uitest.AssertRefusedInput # reason: the refused-input assertion of the back office's integration tests (desks' *_integration_test.go), which deadcode does not analyse; the untagged production build never calls it
+internal/ui/uitest.AssertTextNumberControl # reason: the text-number control assertion called only from desks' integration tests, which deadcode does not analyse
+internal/ui/uitest.InputAttribute # reason: reads one attribute of an input tag for the desks' integration tests and for AssertRefusedInput and AssertTextNumberControl; deadcode excludes the test callers
+internal/ui/uitest.InputElementByID # reason: finds an input tag by id for the desks' integration tests and for AssertRefusedInput and AssertTextNumberControl; deadcode excludes the test callers
+internal/ui/uitest.TextareaByID # reason: finds a textarea by id for the desks' integration tests; deadcode excludes those callers
 internal/ui/uitest.Browser # reason: the one browser-test skip helper, called only from _browser_test.go files, which deadcode does not analyse
 internal/ui/uitest.LocalChrome # reason: the skip helper of the browser test that resolves Chrome itself, called only from a test file, which deadcode does not analyse
 internal/ui/uitest.repoRoot # reason: locates scripts/ for LocalChrome, which deadcode reaches only from test files it does not analyse

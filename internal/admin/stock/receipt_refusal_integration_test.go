@@ -19,6 +19,7 @@ import (
 	"github.com/koopa0/goen/internal/admin/admintest"
 	"github.com/koopa0/goen/internal/admin/stock"
 	"github.com/koopa0/goen/internal/i18n"
+	"github.com/koopa0/goen/internal/ui/uitest"
 )
 
 // TestHandler_ReceiveRefusalDraft: receipt refusal preserves draft and retry
@@ -65,8 +66,8 @@ func TestHandler_ReceiveRefusalDraft(t *testing.T) {
 					t.Fatalf("refused receipt = %d %q, want 422 without redirect", refused.Code, refused.Header().Get("Location"))
 				}
 				body := refused.Body.String()
-				admintest.AssertRefusedInput(t, body, "receive-qty", tt.raw)
-				admintest.AssertTextNumberControl(t, body, "receive-qty")
+				uitest.AssertRefusedInput(t, body, "receive-qty", tt.raw)
+				uitest.AssertTextNumberControl(t, body, "receive-qty")
 				if !strings.Contains(body, i18n.T(requestCtx, tt.errorKey)) {
 					t.Errorf("receipt refusal lacks localized reason %q", i18n.T(requestCtx, tt.errorKey))
 				}
@@ -239,7 +240,7 @@ func postReceipt(ctx context.Context, mux *http.ServeMux, form url.Values) *http
 func receiptKey(t *testing.T, body string) string {
 	t.Helper()
 	input := regexp.MustCompile(`<input[^>]*name="idempotency"[^>]*>`).FindString(body)
-	key := admintest.InputAttribute(t, input, "value")
+	key := uitest.InputAttribute(t, input, "value")
 	if key == "" {
 		t.Fatal("receipt form has no operation identity")
 	}

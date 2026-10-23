@@ -20,6 +20,7 @@ import (
 	"github.com/koopa0/goen/internal/admin/products/productstest"
 	"github.com/koopa0/goen/internal/i18n"
 	"github.com/koopa0/goen/internal/media"
+	"github.com/koopa0/goen/internal/ui/uitest"
 	"github.com/koopa0/goen/internal/user"
 )
 
@@ -77,8 +78,8 @@ func TestNotFoundKeepsStaffInBackOffice(t *testing.T) {
 						t.Error("missing record renders storefront chrome")
 					}
 					if tc.list == "/admin/orders" {
-						input := admintest.InputElementByID(t, body, "order-search")
-						if admintest.InputAttribute(t, input, "value") != number || !strings.Contains(body, `method="get" action="/admin/orders"`) {
+						input := uitest.InputElementByID(t, body, "order-search")
+						if uitest.InputAttribute(t, input, "value") != number || !strings.Contains(body, `method="get" action="/admin/orders"`) {
 							t.Error("missing order does not retain the number in a GET search")
 						}
 					}

@@ -152,8 +152,8 @@ func TestStore_Movements(t *testing.T) {
 	if newest.Delta != 7 {
 		t.Errorf("the newest movement is %d, want +7", newest.Delta)
 	}
-	if newest.Reason != inventory.ReasonAdjustment || newest.ReasonText(ctx) != "人工調整" {
-		t.Errorf("the movement reads as %q / %q", newest.Reason, newest.ReasonText(ctx))
+	if newest.Reason != inventory.ReasonAdjustment || newest.Reason.Label(ctx) != "人工調整" {
+		t.Errorf("the movement reads as %q / %q", newest.Reason, newest.Reason.Label(ctx))
 	}
 	if newest.By(ctx) == "系統" {
 		t.Error("a hand adjustment is attributed to the system")

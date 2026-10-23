@@ -13,6 +13,7 @@ import (
 	"github.com/koopa0/goen/internal/admin/products"
 	"github.com/koopa0/goen/internal/admin/products/productstest"
 	"github.com/koopa0/goen/internal/i18n"
+	"github.com/koopa0/goen/internal/ui/uitest"
 )
 
 // TestHandler_AddVariantMalformedSKU: a malformed variant SKU is refused on its
@@ -50,7 +51,7 @@ func TestHandler_AddVariantMalformedSKU(t *testing.T) {
 			t.Fatalf("SKU %q answered %d, want 422", sku, res.Code)
 		}
 		body := res.Body.String()
-		admintest.AssertRefusedInput(t, body, "v-sku", sku)
+		uitest.AssertRefusedInput(t, body, "v-sku", sku)
 		if !strings.Contains(body, i18n.T(ctx, i18n.KeyFormSKUFormat)) {
 			t.Errorf("SKU %q: the format sentence is absent", sku)
 		}
