@@ -54,7 +54,7 @@ func (m Movement) ReasonText(ctx context.Context) string {
 	case inventory.ReasonAdjustment:
 		return i18n.T(ctx, i18n.KeyAdminMoveAdjustment)
 	default:
-		panic("pages: no label for inventory movement reason " + string(m.Reason))
+		panic("stock: no label for inventory movement reason " + string(m.Reason))
 	}
 }
 

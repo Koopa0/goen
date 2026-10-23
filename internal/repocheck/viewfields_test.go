@@ -26,9 +26,9 @@ import (
 func TestEveryViewModelFieldIsAssigned(t *testing.T) {
 	t.Parallel()
 
-	allowed := map[string]string{
-		goenModule + "/internal/admin/customers.CustomersView.Notice": "REPORTED: neither assigned nor rendered, unlike every other back-office Notice",
-	}
+	// Keyed <import path>.Type.Field, with the reason as the value. Nothing is
+	// exempt today; an entry that nothing needs fails below.
+	allowed := map[string]string{}
 
 	templates := templSources(t)
 	packages := viewModelPackages(templates)

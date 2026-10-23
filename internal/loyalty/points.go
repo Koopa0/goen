@@ -51,7 +51,7 @@ func (e PointsEntry) Earned() bool {
 	case PointsSpent, PointsClawedBack:
 		return false
 	default:
-		panic("pages: unknown points entry kind: " + string(e.Kind))
+		panic("loyalty: unknown points entry kind: " + string(e.Kind))
 	}
 }
 
@@ -62,7 +62,7 @@ func (e PointsEntry) Amount() string {
 	case PointsSpent, PointsClawedBack:
 		return strconv.FormatInt(e.Points, 10)
 	default:
-		panic("pages: unknown points entry kind: " + string(e.Kind))
+		panic("loyalty: unknown points entry kind: " + string(e.Kind))
 	}
 }
 
@@ -84,7 +84,7 @@ func (e PointsEntry) What(ctx context.Context) string {
 		}
 		return i18n.T(ctx, i18n.KeyPointsClawback)
 	default:
-		panic("pages: unknown points entry kind: " + string(e.Kind))
+		panic("loyalty: unknown points entry kind: " + string(e.Kind))
 	}
 }
 
@@ -98,7 +98,7 @@ func (e PointsEntry) Detail(ctx context.Context) string {
 		}
 		return ""
 	default:
-		panic("pages: unknown points entry kind: " + string(e.Kind))
+		panic("loyalty: unknown points entry kind: " + string(e.Kind))
 	}
 }
 

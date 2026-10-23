@@ -19,7 +19,6 @@ type CustomersView struct {
 	Term     string
 	Searched bool
 	Rows     []CustomerRow
-	Notice   widget.Result
 }
 
 type CustomerRow struct {

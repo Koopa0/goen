@@ -65,8 +65,9 @@ func TestEveryRefusedFieldNamesItsError(t *testing.T) {
 	}
 
 	// A pattern that matched nothing would report a clean sweep of an empty set.
-	if covered < 10 {
-		t.Errorf("only %d templates were examined; the corpus is 13 files deep", covered)
+	const floor = 10
+	if covered < floor {
+		t.Errorf("only %d templates were examined, want at least %d: the walk stopped reaching them", covered, floor)
 	}
 }
 

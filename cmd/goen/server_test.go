@@ -696,7 +696,7 @@ func TestWithLocaleComparisonReturn(t *testing.T) {
 	// Verify the return target resolves through the same-site redirect guard.
 	redirectTarget := siteurl.PathOr(extractedReturn, "/")
 	if redirectTarget != wantReturn {
-		t.Fatalf("SitePathOr(%q) = %q, want %q", extractedReturn, redirectTarget, wantReturn)
+		t.Fatalf("siteurl.PathOr(%q) = %q, want %q", extractedReturn, redirectTarget, wantReturn)
 	}
 }
 

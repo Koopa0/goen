@@ -514,7 +514,7 @@ func plainSlug(t *testing.T) string {
 func TestStore_CompareBounded(t *testing.T) {
 	ctx := t.Context()
 	s := catalog.NewStore(pool, slog.New(slog.DiscardHandler))
-	// One past pages.MaxCompare, so the ceiling cases follow the constant.
+	// One past catalog.MaxCompare, so the ceiling cases follow the constant.
 	slugs := activeSlugs(t, catalog.MaxCompare+1)
 
 	tests := []struct {

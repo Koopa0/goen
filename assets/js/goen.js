@@ -621,7 +621,7 @@
     const ruled = (target) => target instanceof HTMLInputElement &&
       (target.hasAttribute("data-rule") || target.hasAttribute("data-checkout-constraint"));
 
-    // goen's web.FoldWidth: full-width ASCII and the ideographic space.
+    // goen's formtext.FoldWidth: full-width ASCII and the ideographic space.
     const fold = (text) => text
       .replace(/[\uFF01-\uFF5E]/gu, (c) => String.fromCharCode(c.charCodeAt(0) - 0xFEE0))
       .replace(/\u3000/gu, " ");

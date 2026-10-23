@@ -129,7 +129,7 @@ func (v *TaxonomyView) DraftFor(which, field string) string {
 		}
 		return ""
 	default:
-		panic("pages: TaxonomyView.DraftFor: unknown field " + field)
+		panic("taxonomy: TaxonomyView.DraftFor: unknown field " + field)
 	}
 }
 

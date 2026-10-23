@@ -167,7 +167,7 @@ func (m *Method) DestinationText(ctx context.Context) string {
 	case shipping.DestinationPickupPoint:
 		return i18n.T(ctx, i18n.KeyAdminDestPickup)
 	default:
-		panic("pages: no label for destination kind " + string(m.Destination))
+		panic("shipping: no label for destination kind " + string(m.Destination))
 	}
 }
 

@@ -361,7 +361,7 @@ func (v *OrderView) InvoiceText(ctx context.Context) string {
 	case invoice.PreferenceCompany:
 		return fmt.Sprintf(i18n.T(ctx, i18n.KeyAdminInvoiceTaxID), v.InvoiceTaxID)
 	default:
-		panic("pages: no label for invoice type " + string(v.InvoiceType))
+		panic("orders: no label for invoice type " + string(v.InvoiceType))
 	}
 }
 
