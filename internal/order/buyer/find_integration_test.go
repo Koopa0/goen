@@ -1,6 +1,6 @@
 //go:build integration
 
-package cart_test
+package buyer_test
 
 import (
 	"strings"
@@ -12,9 +12,9 @@ import (
 	"github.com/koopa0/goen/internal/order/ordertest"
 )
 
-// TestOrderBelongsToEmailMatch holds that buyer.Store.OrderBelongsToEmail finds
+// TestStore_OrderBelongsToEmailMatch holds that Store.OrderBelongsToEmail finds
 // a guest's own order by its number and email address, in any letter case.
-func TestOrderBelongsToEmailMatch(t *testing.T) {
+func TestStore_OrderBelongsToEmailMatch(t *testing.T) {
 	ctx := t.Context()
 	s := buyer.NewStore(pool)
 	number := ordertest.OrderOfVariants(t, pool, map[uuid.UUID]int32{ordertest.FreshVariant(t, pool, "find-mine"): 1})
@@ -55,9 +55,9 @@ func TestOrderBelongsToEmailMatch(t *testing.T) {
 	}
 }
 
-// TestOrderBelongsToEmailWrong holds that buyer.Store.OrderBelongsToEmail finds
+// TestStore_OrderBelongsToEmailWrong holds that Store.OrderBelongsToEmail finds
 // nothing for a wrong or empty email address.
-func TestOrderBelongsToEmailWrong(t *testing.T) {
+func TestStore_OrderBelongsToEmailWrong(t *testing.T) {
 	ctx := t.Context()
 	s := buyer.NewStore(pool)
 	number := ordertest.OrderOfVariants(t, pool, map[uuid.UUID]int32{ordertest.FreshVariant(t, pool, "find-wrong"): 1})
@@ -75,9 +75,9 @@ func TestOrderBelongsToEmailWrong(t *testing.T) {
 	}
 }
 
-// TestOrderBelongsToEmailErased holds that buyer.Store.OrderBelongsToEmail
+// TestStore_OrderBelongsToEmailErased holds that Store.OrderBelongsToEmail
 // cannot find an erased order, even by its old address.
-func TestOrderBelongsToEmailErased(t *testing.T) {
+func TestStore_OrderBelongsToEmailErased(t *testing.T) {
 	ctx := t.Context()
 	s := buyer.NewStore(pool)
 	number := ordertest.OrderOfVariants(t, pool, map[uuid.UUID]int32{ordertest.FreshVariant(t, pool, "find-erased"): 1})

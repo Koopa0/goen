@@ -87,26 +87,12 @@ var testNameExceptions = map[string]map[string]string{
 	"internal/admin/twofactor": {
 		"TestRecordTOTPStepConcurrent": "its unit is the SQL statement RecordTOTPStep (a sqlc query, declared in internal/db), driven directly through db.Queries from concurrent goroutines; Store.Verify is only the final check that the spent step is refused, because staggered Verify calls would hide a guard missing from the SQL",
 	},
-	"internal/auth": {
-		"TestCartStore_AdoptClampsQuantity": "its unit is cart.Store.Adopt, declared in package cart and called directly; the test sits here only because it registers its accounts through this package's Store, and no identifier of package auth is its unit",
-		"TestCartStore_AdoptConcurrent":     "its unit is cart.Store.Adopt, declared in package cart and called directly from two accounts at once; the test sits here only because it registers its accounts through this package's Store, and no identifier of package auth is its unit",
-		"TestCartStore_AdoptForeignCart":    "its unit is cart.Store.Adopt, declared in package cart and called directly with a cart another account owns; the test sits here only because it registers its accounts through this package's Store, and no identifier of package auth is its unit",
-		"TestCartStore_AdoptInactive":       "its unit is cart.Store.Adopt, declared in package cart and called directly; the test sits here only because it registers its accounts through this package's Store, and no identifier of package auth is its unit",
-		"TestCartStore_AdoptMerges":         "its unit is cart.Store.Adopt, declared in package cart and called directly; the test sits here only because it registers its accounts through this package's Store, and no identifier of package auth is its unit",
-		"TestCartStore_AdoptUnavailable":    "its unit is cart.Store.Adopt, declared in package cart and called directly; the test sits here only because it registers its accounts through this package's Store, and no identifier of package auth is its unit",
-	},
 	"internal/backinstock": {
 		"TestSweepNotifiedStockNotificationsRetention": "the unit is the SQL function sweep_notified_stock_notifications, called straight through the maintenance pool with a zero and a negative retention; Store.Sweep is not what it exercises",
 	},
 	"internal/cart": {
-		"TestOrderBelongsToEmailErased":             "the unit is Store.OrderBelongsToEmail of package buyer, which this package does not declare; the test sits here for the order fixtures, and moving it is a reorganisation this pass does not do",
-		"TestOrderBelongsToEmailMatch":              "the unit is Store.OrderBelongsToEmail of package buyer, which this package does not declare; the test sits here for the order fixtures, and moving it is a reorganisation this pass does not do",
-		"TestOrderBelongsToEmailWrong":              "the unit is Store.OrderBelongsToEmail of package buyer, which this package does not declare; the test sits here for the order fixtures, and moving it is a reorganisation this pass does not do",
 		"TestOrderRoutesSignedInGuest":              "the unit is five order routes of three packages at once (buyer OrderPage, ReturnPage and CancelOrder, payment Page, and this package's ReorderItems), each asked for the same recovery actions; ReorderItems is one of the five, so no identifier of this package is its unit",
-		"TestOrderTimelineRefundID":                 "the unit is Store.Order of package buyer (the Timeline it returns), which this package does not declare; the test sits here for the cancelled-order fixture, and moving it is a reorganisation this pass does not do",
-		"TestProductReviewsVerifiedIsReal":          "the unit is the product_reviews_verified_is_real constraint of the product_reviews table, a SQL object the test provokes by claiming the verified badge for a cancelled order, not a Go identifier",
 		"TestProductVariantsRestockNoticesLastHold": "the unit is the product_variants_restock_notices trigger, a SQL object, fired by releasing the last hold through Sweeper.Sweep of package order/lapse and Handler.CancelOrder of package buyer; this package declares neither",
-		"TestReleaseReservationFundedOrder":         "the unit is the SQL function release_reservation, called straight through the pool on a fully credit-funded order's hold; no Go identifier of this package is what the test drives",
 	},
 	"internal/catalog": {
 		"TestBuyBarObserver":         "the unit is the buyBar function of assets/js/goen.js, read as text because nothing here runs the script; the package declares no identifier for it",
@@ -347,6 +333,9 @@ var testNameExceptions = map[string]map[string]string{
 	"internal/order/buyer": {
 		"TestReturnCreditRequiresLiveAccount": "the unit is the constraint trigger return_credit_requires_live_account, a SQL object; the test drives it through auth.Store.Erase and Store.OpenReturn at once to race a credit-funded return against account erasure, so no one identifier of package buyer is its unit",
 		"TestReturnRefundableAmount":          "the unit is the SQL function return_refundable_amount; the test calls it directly after opening one request through Store.OpenReturn and inserting the other with SQL, and package buyer declares no identifier for it",
+	},
+	"internal/order/lapse": {
+		"TestReleaseReservationFundedOrder": "the unit is the SQL function release_reservation, called straight through the pool on a fully credit-funded order's hold; it is a SQL object, not a Go identifier",
 	},
 	"internal/order/notice": {
 		"TestTerminalOrderRecipient": "the unit is the TerminalOrderRecipient query (internal/order/notice/query.sql, generated into internal/db), a SQL object the test calls directly through db.Queries; package notice declares no identifier of that name",
