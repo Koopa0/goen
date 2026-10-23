@@ -270,7 +270,7 @@ CI 執行格式、vet、lint、無用程式碼與生成碼檢查、migration lin
 | 資料庫權限 | [schema][schema]、[sqlc 設定][sqlc]、[一致性測試][conformance]、[`internal/admin/audit`][audit]、[`internal/db/dbtest`][dbtest] |
 | 瀏覽與衍生資料 | [`internal/catalog`][catalog-store]、[`internal/discount/campaign`][campaign]、[`internal/ui/tile`][tile]、[`internal/backinstock`][backinstock]、[`internal/home`][home-store]、[`internal/product/copurchase`][copurchase]、[報表][reports] |
 | 語言、金額與時間 | [`internal/i18n`][i18n]、[`internal/money`][money]、[`internal/shoptime`][shoptime] |
-| 資產與媒體 | [`assets`][assets]、[`internal/media`][media-render] |
+| 資產與媒體 | [`assets`][assets]、[`internal/picture`][picture]、[`internal/media`][media-render] |
 | 身分與瀏覽器安全 | [`internal/auth`][auth]、[`internal/auth/google`][google-signin]、[`internal/bearer`][bearer]、[員工存取][access]、[`internal/admin/twofactor`][twofactor]、[`internal/web/ratelimit`][ratelimit]、[`internal/web/clientip`][clientip]、[`internal/web/siteurl`][siteurl] |
 | 維運 | [健康查詢][health-sql]、[探針][probe]、[慢查詢紀錄][slowquery]、[Makefile][makefile]、[CI][workflows] |
 
@@ -336,6 +336,7 @@ CI 執行格式、vet、lint、無用程式碼與生成碼檢查、migration lin
 [copurchase]: internal/product/copurchase/store.go
 [reports]: internal/admin/reports/store.go
 [assets]: assets/assets.go
+[picture]: internal/picture/picture.go
 [media-render]: internal/media/render.go
 [media-handler]: internal/media/handler.go
 [health]: internal/admin/health

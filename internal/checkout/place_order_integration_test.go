@@ -14,10 +14,12 @@ import (
 
 	"github.com/koopa0/goen/internal/bearer"
 	"github.com/koopa0/goen/internal/checkout"
+	"github.com/koopa0/goen/internal/checkout/checkouttest"
 	"github.com/koopa0/goen/internal/i18n"
 	"github.com/koopa0/goen/internal/order/access"
 	"github.com/koopa0/goen/internal/order/buyer"
 	"github.com/koopa0/goen/internal/order/delivery"
+	"github.com/koopa0/goen/internal/order/ordertest"
 	"github.com/koopa0/goen/internal/user"
 )
 
@@ -25,8 +27,8 @@ import (
 func TestStore_PlaceOrderEmptiesCart(t *testing.T) {
 	ctx := t.Context()
 	s := checkout.NewStore(pool)
-	id := newCart(t, s)
-	if err := s.Carts().Add(ctx, id, freshVariant(t, "empties-cart"), 1); err != nil {
+	id := checkouttest.NewCart(t, s)
+	if err := s.Carts().Add(ctx, id, ordertest.FreshVariant(t, pool, "empties-cart"), 1); err != nil {
 		t.Fatalf("add: %v", err)
 	}
 
@@ -39,7 +41,7 @@ func TestStore_PlaceOrderEmptiesCart(t *testing.T) {
 		Email: "empty@example.com", RecipientName: "李大華", Phone: "0987654321",
 		PostalCode: "220", City: "新北市", District: "板橋區", Street: "文化路一段 1 號",
 	}
-	if _, err := placeOrder(t, s, ctx, id, uuid.NullUUID{}, shipID, addr, "", "empties-cart-"+uuid.NewString()); err != nil {
+	if _, err := checkouttest.PlaceOrder(t, s, ctx, id, uuid.NullUUID{}, shipID, addr, "", "empties-cart-"+uuid.NewString()); err != nil {
 		t.Fatalf("place: %v", err)
 	}
 
@@ -57,8 +59,8 @@ func TestStore_PlaceOrderEmptiesCart(t *testing.T) {
 func TestStore_PlaceOrderUnknownShipping(t *testing.T) {
 	ctx := t.Context()
 	s := checkout.NewStore(pool)
-	id := newCart(t, s)
-	if err := s.Carts().Add(ctx, id, freshVariant(t, "fabricated-shipping-version"), 1); err != nil {
+	id := checkouttest.NewCart(t, s)
+	if err := s.Carts().Add(ctx, id, ordertest.FreshVariant(t, pool, "fabricated-shipping-version"), 1); err != nil {
 		t.Fatalf("add: %v", err)
 	}
 	addr := &delivery.Details{
@@ -67,7 +69,7 @@ func TestStore_PlaceOrderUnknownShipping(t *testing.T) {
 	}
 	if _, err := s.PlaceOrder(
 		ctx, id, uuid.NullUUID{}, uuid.New(), addr, nil, "", checkout.QuoteID{},
-		checkoutAttemptKey("fabricated-"+uuid.NewString()),
+		checkouttest.AttemptKey("fabricated-"+uuid.NewString()),
 	); err == nil {
 		t.Error("an order was placed against a shipping version that does not exist")
 	}
@@ -77,7 +79,7 @@ func TestStore_PlaceOrderUnknownShipping(t *testing.T) {
 func TestStore_PlaceOrderEmptyCart(t *testing.T) {
 	ctx := t.Context()
 	s := checkout.NewStore(pool)
-	id := newCart(t, s)
+	id := checkouttest.NewCart(t, s)
 
 	var shipID uuid.UUID
 	if err := pool.QueryRow(ctx,
@@ -90,7 +92,7 @@ func TestStore_PlaceOrderEmptyCart(t *testing.T) {
 	}
 	if _, err := s.PlaceOrder(
 		ctx, id, uuid.NullUUID{}, shipID, addr, nil, "", checkout.QuoteID{},
-		checkoutAttemptKey("empty-cart-"+uuid.NewString()),
+		checkouttest.AttemptKey("empty-cart-"+uuid.NewString()),
 	); err == nil {
 		t.Error("an order was placed from an empty cart")
 	}
@@ -111,8 +113,8 @@ func TestStore_PlaceOrderSignedInOwner(t *testing.T) {
 		t.Fatalf("create user: %v", err)
 	}
 
-	id := newCart(t, s)
-	if err := s.Carts().Add(ctx, id, freshVariant(t, "attached-order"), 1); err != nil {
+	id := checkouttest.NewCart(t, s)
+	if err := s.Carts().Add(ctx, id, ordertest.FreshVariant(t, pool, "attached-order"), 1); err != nil {
 		t.Fatalf("add: %v", err)
 	}
 	var shipID uuid.UUID
@@ -124,7 +126,7 @@ func TestStore_PlaceOrderSignedInOwner(t *testing.T) {
 		Email: "owned@example.com", RecipientName: "王小明", Phone: "0912345678",
 		PostalCode: "110", City: "台北市", District: "信義區", Street: "松高路 1 號",
 	}
-	number, err := placeOrder(t, s, ctx, id, uuid.NullUUID{UUID: userID, Valid: true},
+	number, err := checkouttest.PlaceOrder(t, s, ctx, id, uuid.NullUUID{UUID: userID, Valid: true},
 		shipID, addr, "", "owned-test-"+uuid.NewString())
 	if err != nil {
 		t.Fatalf("place: %v", err)
@@ -206,7 +208,7 @@ func TestHandler_PlaceOrderCouponUsedUp(t *testing.T) {
 
 	// Spend the only slot through the door a checkout uses, so the state under
 	// test is one the application can actually produce.
-	spender := newCart(t, s)
+	spender := checkouttest.NewCart(t, s)
 	variant := variantOf(t, "pixelight-9-pro")
 	if err := s.Carts().Add(ctx, spender, variant, 1); err != nil {
 		t.Fatalf("add: %v", err)
@@ -224,7 +226,7 @@ func TestHandler_PlaceOrderCouponUsedUp(t *testing.T) {
 		Email: "spender@example.com", RecipientName: "王小明", Phone: "0912345678",
 		PostalCode: "110", City: "台北市", District: "信義區", Street: "松高路 1 號",
 	}
-	if _, placeErr := placeOrder(t, s, ctx, spender, uuid.NullUUID{}, shipID, addr, code,
+	if _, placeErr := checkouttest.PlaceOrder(t, s, ctx, spender, uuid.NullUUID{}, shipID, addr, code,
 		"coupon-spend-"+code); placeErr != nil {
 		t.Fatalf("spend the slot: %v", placeErr)
 	}
@@ -245,8 +247,8 @@ func TestHandler_PlaceOrderCouponUsedUp(t *testing.T) {
 		"street":         {"松仁路 100 號"},
 		"shipping":       {shipID.String()},
 		"coupon":         {code},
-		"checkout_quote": {checkoutQuote(t, s, second, uuid.NullUUID{}, shipID, &delivery.Details{PostalCode: "110"}, code).String()},
-		"idempotency":    {checkoutAttemptKey("late-" + uuid.NewString())},
+		"checkout_quote": {checkouttest.Quote(t, s, second, uuid.NullUUID{}, shipID, &delivery.Details{PostalCode: "110"}, code).String()},
+		"idempotency":    {checkouttest.AttemptKey("late-" + uuid.NewString())},
 	}
 	req := httptest.NewRequestWithContext(ctx, http.MethodPost, "/checkout",
 		strings.NewReader(form.Encode()))

@@ -3,9 +3,9 @@ package slides
 import (
 	"context"
 
-	"github.com/koopa0/goen/assets"
 	"github.com/koopa0/goen/internal/i18n"
 	"github.com/koopa0/goen/internal/keyset"
+	"github.com/koopa0/goen/internal/picture"
 	"github.com/koopa0/goen/internal/ui/hero"
 	"github.com/koopa0/goen/internal/ui/widget"
 )
@@ -39,12 +39,12 @@ func (s HeroSlide) ImageURL() string {
 	if s.ImageDigest == "" {
 		return ""
 	}
-	return assets.MediaURL(s.ImageDigest)
+	return picture.MediaURL(s.ImageDigest)
 }
 
 // Srcset offers the 400px rendition to the back office's 160px tile; the
 // original upload is a multi-megabyte download for it.
-func (s HeroSlide) Srcset() string { return assets.UploadedRenditionSrcset(s.ImageDigest, 400) }
+func (s HeroSlide) Srcset() string { return picture.UploadedRenditionSrcset(s.ImageDigest, 400) }
 
 func (s HeroSlide) ToggleAction() string { return "/admin/slides/" + s.ID + "/active" }
 

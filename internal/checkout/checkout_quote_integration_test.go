@@ -21,12 +21,14 @@ import (
 	"github.com/koopa0/goen/internal/bearer"
 	"github.com/koopa0/goen/internal/cart"
 	"github.com/koopa0/goen/internal/checkout"
+	"github.com/koopa0/goen/internal/checkout/checkouttest"
 	"github.com/koopa0/goen/internal/db"
 	"github.com/koopa0/goen/internal/discount/coupon"
 	"github.com/koopa0/goen/internal/i18n"
 	"github.com/koopa0/goen/internal/money"
 	"github.com/koopa0/goen/internal/order/access"
 	"github.com/koopa0/goen/internal/order/delivery"
+	"github.com/koopa0/goen/internal/order/ordertest"
 	"github.com/koopa0/goen/internal/user"
 )
 
@@ -36,14 +38,14 @@ import (
 func TestStore_PlaceOrderStoreRole(t *testing.T) {
 	ctx := t.Context()
 	code := insertCoupon(t, "ROLEQUOTE", "amount", 1000, 0, 0, 0)
-	userID := creditedCustomer(t, 5000)
+	userID := ordertest.CreditedCustomer(t, pool, 5000)
 	s := checkout.NewStore(storeRolePool(t))
 	token := bearer.New()
 	cartID, err := s.Carts().Create(ctx, token, uuid.NullUUID{UUID: userID, Valid: true})
 	if err != nil {
 		t.Fatalf("store role creates cart: %v", err)
 	}
-	if err := s.Carts().Add(ctx, cartID, freshVariant(t, "store-role-quote"), 1); err != nil {
+	if err := s.Carts().Add(ctx, cartID, ordertest.FreshVariant(t, pool, "store-role-quote"), 1); err != nil {
 		t.Fatalf("store role adds cart line: %v", err)
 	}
 	shippingID := shipVersionFor(t, "home_delivery")
@@ -52,10 +54,10 @@ func TestStore_PlaceOrderStoreRole(t *testing.T) {
 		PostalCode: "110", City: "台北市", District: "信義區", Street: "松高路 1 號",
 	}
 	owner := uuid.NullUUID{UUID: userID, Valid: true}
-	shown := checkoutQuote(t, s, cartID, owner, shippingID, addr, code)
+	shown := checkouttest.Quote(t, s, cartID, owner, shippingID, addr, code)
 	if _, err := s.PlaceOrder(
 		ctx, cartID, owner, shippingID, addr, nil, code, shown,
-		checkoutAttemptKey("role-quote-"+uuid.NewString()),
+		checkouttest.AttemptKey("role-quote-"+uuid.NewString()),
 	); err != nil {
 		t.Fatalf("store role places locked credit+coupon quote: %v", err)
 	}
@@ -70,7 +72,7 @@ func TestStore_PlaceOrderStoreRole(t *testing.T) {
 // old committed balance, then waits behind a competing debit.
 func TestHandler_PlaceOrderCreditChanged(t *testing.T) {
 	ctx := t.Context()
-	userID := creditedCustomer(t, 5000)
+	userID := ordertest.CreditedCustomer(t, pool, 5000)
 	app := "wave0-credit-" + uuid.NewString()
 	appPool := applicationPool(t, app)
 	s := checkout.NewStore(appPool)
@@ -79,17 +81,17 @@ func TestHandler_PlaceOrderCreditChanged(t *testing.T) {
 	if err != nil {
 		t.Fatalf("create customer cart: %v", err)
 	}
-	if addErr := s.Carts().Add(ctx, id, freshVariant(t, "credit-balance-race"), 1); addErr != nil {
+	if addErr := s.Carts().Add(ctx, id, ordertest.FreshVariant(t, pool, "credit-balance-race"), 1); addErr != nil {
 		t.Fatalf("add: %v", addErr)
 	}
 	shipID := shipVersionFor(t, "home_delivery")
-	key := checkoutAttemptKey("credit-race-" + uuid.NewString())
+	key := checkouttest.AttemptKey("credit-race-" + uuid.NewString())
 	checkoutAddress := &delivery.Details{
 		Email: "credit-race@example.com", RecipientName: "王小明", Phone: "0912345678",
 		PostalCode: "110", City: "台北市", District: "信義區", Street: "松高路 88 號",
 	}
 	owner := uuid.NullUUID{UUID: userID, Valid: true}
-	shown := checkoutQuote(t, s, id, owner, shipID, checkoutAddress, "")
+	shown := checkouttest.Quote(t, s, id, owner, shipID, checkoutAddress, "")
 	form := url.Values{
 		"email": {"credit-race@example.com"}, "name": {"王小明"}, "phone": {"0912345678"},
 		"postal_code": {"110"}, "city": {"台北市"}, "district": {"信義區"},
@@ -154,7 +156,7 @@ func TestHandler_PlaceOrderCreditChanged(t *testing.T) {
 		t.Errorf("changed credit redirected to %q instead of keeping checkout visible", loc)
 	}
 
-	form.Set("checkout_quote", checkoutQuote(t, s, id, owner, shipID, checkoutAddress, "").String())
+	form.Set("checkout_quote", checkouttest.Quote(t, s, id, owner, shipID, checkoutAddress, "").String())
 	second := httptest.NewRecorder()
 	h.PlaceOrder(second, newRequest())
 	if second.Code != http.StatusSeeOther || second.Header().Get("Location") == "/cart" ||
@@ -172,13 +174,13 @@ func TestHandler_PlaceOrderCreditChanged(t *testing.T) {
 // that wins that lock, before creating any durable part of an order.
 func TestStore_PlaceOrderPriceRace(t *testing.T) {
 	ctx := t.Context()
-	variantID := freshVariant(t, "quote-price-race")
+	variantID := ordertest.FreshVariant(t, pool, "quote-price-race")
 	if _, err := pool.Exec(ctx,
 		`UPDATE product_variants SET price_cents = 100000 WHERE id = $1`, variantID); err != nil {
 		t.Fatalf("set displayed price: %v", err)
 	}
 	baseStore := checkout.NewStore(pool)
-	cartID := newCart(t, baseStore)
+	cartID := checkouttest.NewCart(t, baseStore)
 	if err := baseStore.Carts().Add(ctx, cartID, variantID, 1); err != nil {
 		t.Fatalf("add: %v", err)
 	}
@@ -191,7 +193,7 @@ func TestStore_PlaceOrderPriceRace(t *testing.T) {
 	appName := "checkout-quote-price-" + uuid.NewString()
 	checkoutPool := applicationPool(t, appName)
 	checkoutStore := checkout.NewStore(checkoutPool)
-	shown := checkoutQuote(
+	shown := checkouttest.Quote(
 		t, checkoutStore, cartID, uuid.NullUUID{}, shippingID, addr, "",
 	)
 
@@ -205,7 +207,7 @@ func TestStore_PlaceOrderPriceRace(t *testing.T) {
 		t.Fatalf("lock variant: %v", lockErr)
 	}
 
-	key := checkoutAttemptKey("quote-price-" + uuid.NewString())
+	key := checkouttest.AttemptKey("quote-price-" + uuid.NewString())
 	done := make(chan error, 1)
 	go func() {
 		_, placeErr := checkoutStore.PlaceOrder(
@@ -295,15 +297,15 @@ func TestStore_PlaceOrderZoneRateEdit(t *testing.T) {
 	}
 	t.Cleanup(asStore.Close)
 	checkoutStore := checkout.NewStore(asStore)
-	cartID := newCart(t, checkoutStore)
-	if addErr := checkoutStore.Carts().Add(ctx, cartID, freshVariant(t, "zone-rate-race"), 1); addErr != nil {
+	cartID := checkouttest.NewCart(t, checkoutStore)
+	if addErr := checkoutStore.Carts().Add(ctx, cartID, ordertest.FreshVariant(t, pool, "zone-rate-race"), 1); addErr != nil {
 		t.Fatalf("add: %v", addErr)
 	}
 	addr := &delivery.Details{
 		Email: "zone-race@example.com", RecipientName: "王小明", Phone: "0912345678",
 		PostalCode: "890", City: "金門縣", District: "金城鎮", Street: "民生路 1 號",
 	}
-	shown := checkoutQuote(t, checkoutStore, cartID, uuid.NullUUID{}, versionID, addr, "")
+	shown := checkouttest.Quote(t, checkoutStore, cartID, uuid.NullUUID{}, versionID, addr, "")
 
 	edit, err := pool.Begin(ctx)
 	if err != nil {
@@ -323,7 +325,7 @@ func TestStore_PlaceOrderZoneRateEdit(t *testing.T) {
 	done := make(chan error, 1)
 	go func() {
 		_, placeErr := checkoutStore.PlaceOrder(ctx, cartID, uuid.NullUUID{}, versionID, addr, nil, "",
-			shown, checkoutAttemptKey("zone-rate-"+uuid.NewString()))
+			shown, checkouttest.AttemptKey("zone-rate-"+uuid.NewString()))
 		done <- placeErr
 	}()
 	waitForApplicationLock(t, appName, done)
@@ -334,7 +336,7 @@ func TestStore_PlaceOrderZoneRateEdit(t *testing.T) {
 		t.Fatalf("a checkout priced before the edit returned %v, want ErrQuoteChanged", placeErr)
 	}
 
-	number, err := placeOrder(t, checkoutStore, ctx, cartID, uuid.NullUUID{}, versionID, addr, "",
+	number, err := checkouttest.PlaceOrder(t, checkoutStore, ctx, cartID, uuid.NullUUID{}, versionID, addr, "",
 		"zone-rate-again-"+uuid.NewString())
 	if err != nil {
 		t.Fatalf("place at the new rate: %v", err)
@@ -356,8 +358,8 @@ func TestStore_PlaceOrderCouponEdit(t *testing.T) {
 	ctx := t.Context()
 	code := insertCoupon(t, "LOCKEDCOUPON", "amount", 1000, 0, 0, 0)
 	baseStore := checkout.NewStore(pool)
-	cartID := newCart(t, baseStore)
-	if err := baseStore.Carts().Add(ctx, cartID, freshVariant(t, "coupon-definition-race"), 1); err != nil {
+	cartID := checkouttest.NewCart(t, baseStore)
+	if err := baseStore.Carts().Add(ctx, cartID, ordertest.FreshVariant(t, pool, "coupon-definition-race"), 1); err != nil {
 		t.Fatalf("add: %v", err)
 	}
 	shippingID := shipVersionFor(t, "home_delivery")
@@ -369,7 +371,7 @@ func TestStore_PlaceOrderCouponEdit(t *testing.T) {
 	appName := "checkout-coupon-definition-" + uuid.NewString()
 	checkoutPool := applicationPool(t, appName)
 	checkoutStore := checkout.NewStore(checkoutPool)
-	shown := checkoutQuote(
+	shown := checkouttest.Quote(
 		t, checkoutStore, cartID, uuid.NullUUID{}, shippingID, addr, code,
 	)
 
@@ -383,7 +385,7 @@ func TestStore_PlaceOrderCouponEdit(t *testing.T) {
 		t.Fatalf("lock coupon: %v", err)
 	}
 
-	key := checkoutAttemptKey("coupon-definition-" + uuid.NewString())
+	key := checkouttest.AttemptKey("coupon-definition-" + uuid.NewString())
 	done := make(chan error, 1)
 	go func() {
 		_, placeErr := checkoutStore.PlaceOrder(
@@ -431,11 +433,11 @@ func TestHandler_PlaceOrderBadQuote(t *testing.T) {
 			if err != nil {
 				t.Fatalf("create cart: %v", err)
 			}
-			if err := s.Carts().Add(ctx, cartID, freshVariant(t, "bad-quote-"+tt.name), 1); err != nil {
+			if err := s.Carts().Add(ctx, cartID, ordertest.FreshVariant(t, pool, "bad-quote-"+tt.name), 1); err != nil {
 				t.Fatalf("add: %v", err)
 			}
 			shippingID := shipVersionFor(t, "home_delivery")
-			key := checkoutAttemptKey("bad-quote-" + uuid.NewString())
+			key := checkouttest.AttemptKey("bad-quote-" + uuid.NewString())
 			form := url.Values{
 				"email": {"quote@example.com"}, "name": {"王小明"}, "phone": {"0912345678"},
 				"postal_code": {"110"}, "city": {"台北市"}, "district": {"信義區"},
@@ -486,17 +488,17 @@ func TestHandler_PlaceOrderBadQuote(t *testing.T) {
 func TestStore_PlaceOrderRetiredProduct(t *testing.T) {
 	ctx := t.Context()
 	s := checkout.NewStore(pool)
-	variantID := freshVariant(t, "archived-stale-cart")
+	variantID := ordertest.FreshVariant(t, pool, "archived-stale-cart")
 	var productID uuid.UUID
 	if err := pool.QueryRow(ctx,
 		`SELECT product_id FROM product_variants WHERE id = $1`, variantID).Scan(&productID); err != nil {
 		t.Fatalf("read product: %v", err)
 	}
-	cartID := newCart(t, s)
+	cartID := checkouttest.NewCart(t, s)
 	if err := s.Carts().Add(ctx, cartID, variantID, 1); err != nil {
 		t.Fatalf("add active product: %v", err)
 	}
-	stockBefore := stockOf(t, variantID)
+	stockBefore := ordertest.StockOf(t, pool, variantID)
 	shippingID := shipVersionFor(t, "home_delivery")
 
 	retirement, err := pool.Begin(ctx)
@@ -515,14 +517,14 @@ func TestStore_PlaceOrderRetiredProduct(t *testing.T) {
 		Email: "retired@example.com", RecipientName: "王小明", Phone: "0912345678",
 		PostalCode: "110", City: "台北市", District: "信義區", Street: "松高路 1 號",
 	}
-	shown := checkoutQuote(
+	shown := checkouttest.Quote(
 		t, checkoutStore, cartID, uuid.NullUUID{}, shippingID, checkoutAddress, "",
 	)
 	checkoutDone := make(chan error, 1)
 	go func() {
 		_, placeErr := checkoutStore.PlaceOrder(
 			ctx, cartID, uuid.NullUUID{}, shippingID, checkoutAddress, nil, "", shown,
-			checkoutAttemptKey("retired-product:"+uuid.NewString()))
+			checkouttest.AttemptKey("retired-product:"+uuid.NewString()))
 		checkoutDone <- placeErr
 	}()
 	waitForApplicationLock(t, "checkout-behind-product-retirement", checkoutDone)
@@ -559,7 +561,7 @@ func TestStore_PlaceOrderRetiredProduct(t *testing.T) {
 	if len(view.Lines) != 1 || !view.Lines[0].Unavailable {
 		t.Errorf("archived product cart view = %+v, want one unavailable line", view.Lines)
 	}
-	if got := stockOf(t, variantID); got != stockBefore {
+	if got := ordertest.StockOf(t, pool, variantID); got != stockBefore {
 		t.Errorf("retired checkout moved stock from %d to %d", stockBefore, got)
 	}
 	var orders int
@@ -581,7 +583,7 @@ func TestStore_PlaceOrderRetiredProduct(t *testing.T) {
 // deadlock; with the shared order the mutation completes and checkout follows.
 func TestStore_PlaceOrderCatalogueLockOrder(t *testing.T) {
 	ctx := t.Context()
-	variantID := freshVariant(t, "featured-checkout-lock-order")
+	variantID := ordertest.FreshVariant(t, pool, "featured-checkout-lock-order")
 	var productID uuid.UUID
 	if err := pool.QueryRow(ctx,
 		`SELECT product_id FROM product_variants WHERE id = $1`, variantID).Scan(&productID); err != nil {
@@ -606,7 +608,7 @@ func TestStore_PlaceOrderCatalogueLockOrder(t *testing.T) {
 	}
 
 	s := checkout.NewStore(pool)
-	cartID := newCart(t, s)
+	cartID := checkouttest.NewCart(t, s)
 	if err := s.Carts().Add(ctx, cartID, variantID, 1); err != nil {
 		t.Fatalf("add featured variant: %v", err)
 	}
@@ -628,14 +630,14 @@ func TestStore_PlaceOrderCatalogueLockOrder(t *testing.T) {
 		Email: "featured@example.com", RecipientName: "王小明", Phone: "0912345678",
 		PostalCode: "110", City: "台北市", District: "信義區", Street: "松高路 1 號",
 	}
-	shown := checkoutQuote(
+	shown := checkouttest.Quote(
 		t, checkoutStore, cartID, uuid.NullUUID{}, shippingID, checkoutAddress, "",
 	)
 	checkoutDone := make(chan error, 1)
 	go func() {
 		_, placeErr := checkoutStore.PlaceOrder(
 			ctx, cartID, uuid.NullUUID{}, shippingID, checkoutAddress, nil, "", shown,
-			checkoutAttemptKey("featured-lock-order:"+uuid.NewString()))
+			checkouttest.AttemptKey("featured-lock-order:"+uuid.NewString()))
 		checkoutDone <- placeErr
 	}()
 	waitForApplicationLock(t, "checkout-behind-featured-variant", checkoutDone)
@@ -673,7 +675,7 @@ func TestHandler_PlaceOrderCouponMinimum(t *testing.T) {
 	appName := "coupon-minimum-" + uuid.NewString()
 	s := checkout.NewStore(applicationPool(t, appName))
 
-	vid := freshVariant(t, "coupon-minimum-race")
+	vid := ordertest.FreshVariant(t, pool, "coupon-minimum-race")
 	if _, err := pool.Exec(ctx,
 		`UPDATE product_variants SET price_cents = 200000 WHERE id = $1`, vid); err != nil {
 		t.Fatalf("set preview price: %v", err)
@@ -705,7 +707,7 @@ func TestHandler_PlaceOrderCouponMinimum(t *testing.T) {
 	}
 
 	shipID := shipVersionFor(t, "home_delivery")
-	key := checkoutAttemptKey("coupon-minimum-" + uuid.NewString())
+	key := checkouttest.AttemptKey("coupon-minimum-" + uuid.NewString())
 	var ordersBefore int
 	if err := pool.QueryRow(ctx, `SELECT count(*) FROM orders`).Scan(&ordersBefore); err != nil {
 		t.Fatalf("count orders before checkout: %v", err)
@@ -729,7 +731,7 @@ func TestHandler_PlaceOrderCouponMinimum(t *testing.T) {
 		"street":         {"松仁路 200 號"},
 		"shipping":       {shipID.String()},
 		"coupon":         {code},
-		"checkout_quote": {checkoutQuote(t, s, cartID, uuid.NullUUID{}, shipID, &delivery.Details{PostalCode: "110"}, code).String()},
+		"checkout_quote": {checkouttest.Quote(t, s, cartID, uuid.NullUUID{}, shipID, &delivery.Details{PostalCode: "110"}, code).String()},
 		"idempotency":    {key},
 	}
 	req := httptest.NewRequestWithContext(ctx, http.MethodPost, "/checkout",

@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/koopa0/goen/internal/checkout"
+	"github.com/koopa0/goen/internal/checkout/checkouttest"
 	"github.com/koopa0/goen/internal/db"
 	"github.com/koopa0/goen/internal/i18n"
 	"github.com/koopa0/goen/internal/order/buyer"
@@ -23,7 +24,7 @@ import (
 func TestBuyerStore_OrderParcelDays(t *testing.T) {
 	ctx := i18n.WithLocale(t.Context(), i18n.En)
 	s := checkout.NewStore(pool)
-	number := placeUnpaidOrderFor(t, s, "parcel@example.com")
+	number := checkouttest.PlaceUnpaidOrderFor(t, pool, s, "parcel@example.com")
 
 	tx, err := pool.Begin(ctx)
 	if err != nil {
@@ -223,7 +224,7 @@ func TestBuyerStore_OrderRefundedSettled(t *testing.T) {
 		{"completed", "completed", "succeeded", false, true, true},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
-			number := placeUnpaidOrderFor(t, s, fmt.Sprintf("settled-%d@example.com", i))
+			number := checkouttest.PlaceUnpaidOrderFor(t, pool, s, fmt.Sprintf("settled-%d@example.com", i))
 			payFor(t, number)
 			returnID := returnOf(t, number, tc.status, false)
 			if tc.zero {
@@ -276,7 +277,7 @@ func TestBuyerStore_OrderRefundedSettled(t *testing.T) {
 		})
 	}
 
-	cancelled := placeUnpaidOrderFor(t, s, "cancelled@example.com")
+	cancelled := checkouttest.PlaceUnpaidOrderFor(t, pool, s, "cancelled@example.com")
 	returnOf(t, cancelled, "completed", true)
 	if refunded, err := buyer.NewStore(pool).Order(ctx, cancelled); err != nil || refunded.Returned != nil {
 		t.Errorf("a refund before shipment: Returned = %+v, err %v; want nil", refunded.Returned, err)
@@ -295,7 +296,7 @@ func TestBuyerStore_OrderRefundedSettled(t *testing.T) {
 func TestBuyerStore_OrderSecondReturn(t *testing.T) {
 	ctx := i18n.WithLocale(t.Context(), i18n.En)
 	s := checkout.NewStore(pool)
-	number := placeOrderOfUnits(t, s, "two-returns@example.com", 2)
+	number := checkouttest.PlaceOrderOfUnits(t, pool, s, "two-returns@example.com", 2)
 	payFor(t, number)
 
 	oneUnit := func() string {

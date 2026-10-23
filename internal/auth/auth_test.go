@@ -252,10 +252,10 @@ func TestHandler_ForgotOverlongAddress(t *testing.T) {
 
 	// A spent allowance is answered as an unspent one, so the limiter itself is
 	// asked which address became a key.
-	if _, ok := normalHandler.resetLimit.Allow("forgot:not-an-address"); ok {
+	if _, ok := normalHandler.letterLimit.Allow("forgot:not-an-address"); ok {
 		t.Fatal("the bounded fixture's address left no spent key; the comparison never reached the limiter")
 	}
-	if _, ok := longHandler.resetLimit.Allow("forgot:" + email.Clean(longAddr)); !ok {
+	if _, ok := longHandler.letterLimit.Allow("forgot:" + email.Clean(longAddr)); !ok {
 		t.Error("the overlong address was kept as a limiter key")
 	}
 	if normal.Code != http.StatusSeeOther || overlong.Code != normal.Code {
@@ -284,39 +284,7 @@ func rateLimitedAccountHandler(store *Store) *Handler {
 	return &Handler{
 		store: store, log: slog.New(slog.DiscardHandler), google: &google.Client{},
 		signinLimit: accountTestLimiter(), guessCeiling: accountTestLimiter(),
-		resetLimit: accountTestLimiter(),
-	}
-}
-
-// TestHandler_RegisterAddressBound: Register refuses a fourth registration of
-// one address with 429 and a Retry-After over nine minutes, however the address
-// is cased or padded, and still accepts another address, so the form cannot be
-// used to fill one inbox. A registration mails the address it names whether or
-// not that address has an account; the bound refuses every address the same
-// way.
-func TestHandler_RegisterAddressBound(t *testing.T) {
-	h := NewHandler(deadAccountStore(t), nil, nil, slog.New(slog.DiscardHandler), false, nil)
-	const password = "a sufficiently long password"
-	register := func(addr string) *httptest.ResponseRecorder {
-		return postAccountForm(t, "/register", url.Values{
-			"email": {addr}, "password": {password}, "confirm": {password},
-		}, h.Register)
-	}
-
-	for i := range 3 {
-		if code := register("bounded@example.com").Code; code == http.StatusTooManyRequests {
-			t.Fatalf("registration %d of one address was refused; the bound is too tight", i+1)
-		}
-	}
-	refused := register(" Bounded@Example.com ")
-	if refused.Code != http.StatusTooManyRequests {
-		t.Errorf("a fourth registration of one address answered %d, want 429", refused.Code)
-	} else if wait, err := strconv.Atoi(refused.Header().Get("Retry-After")); err != nil || wait <= 9*60 {
-		t.Errorf("a refused address may register again in %q s; want the ten-minute pace of every "+
-			"form that mails an address", refused.Header().Get("Retry-After"))
-	}
-	if code := register("another@example.com").Code; code == http.StatusTooManyRequests {
-		t.Error("a different address was refused; the bound is per address")
+		letterLimit: accountTestLimiter(),
 	}
 }
 

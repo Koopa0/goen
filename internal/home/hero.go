@@ -4,10 +4,10 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/koopa0/goen/assets"
 	"github.com/koopa0/goen/internal/db"
 	"github.com/koopa0/goen/internal/discount/campaign"
 	"github.com/koopa0/goen/internal/i18n"
+	"github.com/koopa0/goen/internal/picture"
 	"github.com/koopa0/goen/internal/ui/hero"
 	"github.com/koopa0/goen/internal/ui/tone"
 	"github.com/koopa0/goen/internal/ui/widget"
@@ -46,7 +46,7 @@ func (s *Store) slides(ctx context.Context, src carouselSources) ([]hero.Slide, 
 			slide.Tone = src.toneOf(href)
 		}
 		if digest := r.MediaDigest.String; digest != "" {
-			photo := assets.Image{Digest: digest, Width: int(r.ImageWidth)}
+			photo := picture.Image{Digest: digest, Width: int(r.ImageWidth)}
 			slide.Photo = widget.Photo{
 				URL:    photo.URL(),
 				Srcset: photo.Srcset(),
@@ -123,12 +123,12 @@ func campaignPhoto(c *db.ListedCampaignsRow) (widget.Photo, bool) {
 	if c.ImageDigest == "" && c.ImageBundledKey == "" {
 		return widget.Photo{}, false
 	}
-	photo := assets.Image{Digest: c.ImageDigest, BundledKey: c.ImageBundledKey, Width: int(c.ImageWidth)}
+	photo := picture.Image{Digest: c.ImageDigest, BundledKey: c.ImageBundledKey, Width: int(c.ImageWidth)}
 	return widget.Photo{URL: photo.URL(), Srcset: photo.Srcset(), Alt: c.ImageAlt}, true
 }
 
 func departmentPhoto(c *db.RootCategoriesRow) widget.Photo {
-	photo := assets.Image{Digest: c.ImageDigest, BundledKey: c.ImageBundledKey, Width: int(c.ImageWidth)}
+	photo := picture.Image{Digest: c.ImageDigest, BundledKey: c.ImageBundledKey, Width: int(c.ImageWidth)}
 	url := photo.URL()
 	if url == "" {
 		return widget.Photo{}

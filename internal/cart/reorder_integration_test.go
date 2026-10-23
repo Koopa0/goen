@@ -19,6 +19,7 @@ import (
 
 	"github.com/koopa0/goen/internal/cart"
 	"github.com/koopa0/goen/internal/order/access"
+	"github.com/koopa0/goen/internal/order/ordertest"
 )
 
 // TestStore_ReorderBuyableLines holds that Reorder puts back only what can
@@ -27,9 +28,9 @@ func TestStore_ReorderBuyableLines(t *testing.T) {
 	ctx := t.Context()
 	s := cart.NewStore(pool)
 
-	live, retired, empty := threeVariants(t, "reorder-fixture")
+	live, retired, empty := ordertest.ThreeVariants(t, pool, "reorder-fixture")
 
-	number := orderOfVariants(t, map[uuid.UUID]int32{live: 2, retired: 1, empty: 1})
+	number := ordertest.OrderOfVariants(t, pool, map[uuid.UUID]int32{live: 2, retired: 1, empty: 1})
 
 	// One variant is retired and one emptied AFTER the order, which is what an order
 	// from last year has.
@@ -78,9 +79,9 @@ func TestStore_ReorderBuyableLines(t *testing.T) {
 func TestStore_ReorderInverseLock(t *testing.T) {
 	ctx := t.Context()
 	baseStore := cart.NewStore(pool)
-	variantA, variantB, _ := threeVariants(t, "inverse-reorder-lock")
-	orderAB := orderOfVariants(t, map[uuid.UUID]int32{variantA: 1, variantB: 1})
-	orderBA := orderOfVariants(t, map[uuid.UUID]int32{variantA: 1, variantB: 1})
+	variantA, variantB, _ := ordertest.ThreeVariants(t, pool, "inverse-reorder-lock")
+	orderAB := ordertest.OrderOfVariants(t, pool, map[uuid.UUID]int32{variantA: 1, variantB: 1})
+	orderBA := ordertest.OrderOfVariants(t, pool, map[uuid.UUID]int32{variantA: 1, variantB: 1})
 	setPositions := func(t *testing.T, number string, first, second uuid.UUID) {
 		t.Helper()
 		if _, err := pool.Exec(ctx, `UPDATE order_lines SET position = position + 100
@@ -192,8 +193,8 @@ func TestStore_ReorderInverseLock(t *testing.T) {
 func TestStore_ReorderRollback(t *testing.T) {
 	ctx := t.Context()
 	s := cart.NewStore(pool)
-	first, second, _ := threeVariants(t, "atomic-reorder")
-	number := orderOfVariants(t, map[uuid.UUID]int32{first: 1, second: 1})
+	first, second, _ := ordertest.ThreeVariants(t, pool, "atomic-reorder")
+	number := ordertest.OrderOfVariants(t, pool, map[uuid.UUID]int32{first: 1, second: 1})
 	basket := newCart(t, s)
 
 	var failVariant uuid.UUID
@@ -264,8 +265,8 @@ func TestStore_ReorderRollback(t *testing.T) {
 func TestStore_ReorderCataloguePrice(t *testing.T) {
 	ctx := t.Context()
 	s := cart.NewStore(pool)
-	vid, _, _ := threeVariants(t, "reorder-price-fixture")
-	number := orderOfVariants(t, map[uuid.UUID]int32{vid: 1})
+	vid, _, _ := ordertest.ThreeVariants(t, pool, "reorder-price-fixture")
+	number := ordertest.OrderOfVariants(t, pool, map[uuid.UUID]int32{vid: 1})
 
 	if _, err := pool.Exec(ctx,
 		`UPDATE product_variants SET price_cents = price_cents + 100000 WHERE id = $1`,
@@ -301,8 +302,8 @@ func TestStore_ReorderCataloguePrice(t *testing.T) {
 func TestHandler_ReorderItemsStranger(t *testing.T) {
 	ctx := t.Context()
 	s := cart.NewStore(pool)
-	own, _, _ := threeVariants(t, "reorder-access-fixture")
-	number := orderOfVariants(t, map[uuid.UUID]int32{own: 1})
+	own, _, _ := ordertest.ThreeVariants(t, pool, "reorder-access-fixture")
+	number := ordertest.OrderOfVariants(t, pool, map[uuid.UUID]int32{own: 1})
 
 	h := cart.NewHandler(s, access.NewStore(pool, false), slog.New(slog.DiscardHandler), false, nil)
 

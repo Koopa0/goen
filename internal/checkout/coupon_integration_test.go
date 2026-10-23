@@ -11,8 +11,10 @@ import (
 	"github.com/google/uuid"
 
 	"github.com/koopa0/goen/internal/checkout"
+	"github.com/koopa0/goen/internal/checkout/checkouttest"
 	"github.com/koopa0/goen/internal/discount/coupon"
 	"github.com/koopa0/goen/internal/order/delivery"
+	"github.com/koopa0/goen/internal/order/ordertest"
 )
 
 // insertCoupon inserts one and returns its code.
@@ -255,8 +257,8 @@ func placeWithCoupon(t *testing.T, s *checkout.Store, code string, n int) (strin
 		`SELECT id FROM shipping_method_versions ORDER BY effective_at LIMIT 1`).Scan(&shipID); err != nil {
 		t.Fatalf("shipping: %v", err)
 	}
-	vid := freshVariant(t, "coupon-order")
-	id := newCart(t, s)
+	vid := ordertest.FreshVariant(t, pool, "coupon-order")
+	id := checkouttest.NewCart(t, s)
 	if err := s.Carts().Add(ctx, id, vid, 1); err != nil {
 		t.Fatalf("add: %v", err)
 	}
@@ -264,9 +266,9 @@ func placeWithCoupon(t *testing.T, s *checkout.Store, code string, n int) (strin
 		Email: "cp@example.com", RecipientName: "王小明", Phone: "0912345678",
 		PostalCode: "110", City: "台北市", District: "信義區", Street: "路 1 號",
 	}
-	quote := checkoutQuote(t, s, id, uuid.NullUUID{}, shipID, addr, code)
+	quote := checkouttest.Quote(t, s, id, uuid.NullUUID{}, shipID, addr, code)
 	return s.PlaceOrder(ctx, id, uuid.NullUUID{}, shipID, addr, nil, code, quote,
-		checkoutAttemptKey("coupon-test-"+strconv.Itoa(n)+"-"+uuid.NewString()))
+		checkouttest.AttemptKey("coupon-test-"+strconv.Itoa(n)+"-"+uuid.NewString()))
 }
 
 // TestCouponsAmountPositive: The money ceiling coupons_amount_positive allows,

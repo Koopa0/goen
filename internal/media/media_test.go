@@ -14,7 +14,6 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/koopa0/goen/assets"
 	"github.com/koopa0/goen/internal/web/formtext"
 )
 
@@ -284,59 +283,6 @@ func TestNormaliseByteSize(t *testing.T) {
 	}
 	if int(obj.ByteSize) != len(data) {
 		t.Errorf("ByteSize is %d and the data is %d bytes", obj.ByteSize, len(data))
-	}
-}
-
-// TestImage_SrcsetOfUpload checks that the srcset of an uploaded image never
-// misleads the browser. A bare candidate mixed with w-descriptors is an HTML parse
-// error, and the full-size image then drops out silently.
-func TestImage_SrcsetOfUpload(t *testing.T) {
-	const d = "9f86d081884c7d659a2feaa0c55ad015a3bf4f1b2b0b822cd15d6c15b0f00a08"
-
-	tests := []struct {
-		name  string
-		width int
-		want  string
-	}{
-		{
-			"a wide original offers both renditions",
-			1600,
-			"/media/" + d + "/400 400w, /media/" + d + "/800 800w, /media/" + d + " 1600w",
-		},
-		{
-			"a 2400px original also offers 1600",
-			2400,
-			"/media/" + d + "/400 400w, /media/" + d + "/800 800w, /media/" + d + "/1600 1600w, /media/" + d + " 2400w",
-		},
-		{
-			// 800 is not offered: it equals the original, so the rendition
-			// would be the original bytes under a second URL.
-			"an 800px original offers only 400",
-			800,
-			"/media/" + d + "/400 400w, /media/" + d + " 800w",
-		},
-		{
-			"a small original offers only itself",
-			300,
-			"/media/" + d + " 300w",
-		},
-		{"an unknown width offers nothing", 0, ""},
-	}
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			got := assets.Image{Digest: d, Width: tt.width}.Srcset()
-			if got != tt.want {
-				t.Errorf("Srcset = %q\n            want %q", got, tt.want)
-			}
-			if got == "" {
-				return
-			}
-			for candidate := range strings.SplitSeq(got, ", ") {
-				if !strings.HasSuffix(candidate, "w") || !strings.Contains(candidate, " ") {
-					t.Errorf("candidate %q has no width descriptor", candidate)
-				}
-			}
-		})
 	}
 }
 

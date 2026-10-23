@@ -14,9 +14,11 @@ import (
 
 	"github.com/koopa0/goen/internal/bearer"
 	"github.com/koopa0/goen/internal/checkout"
+	"github.com/koopa0/goen/internal/checkout/checkouttest"
 	"github.com/koopa0/goen/internal/invoice"
 	"github.com/koopa0/goen/internal/order/access"
 	"github.com/koopa0/goen/internal/order/delivery"
+	"github.com/koopa0/goen/internal/order/ordertest"
 )
 
 // TestStore_PlaceOrderDonationPreference: PlaceOrder stores a donation invoice
@@ -28,16 +30,16 @@ func TestStore_PlaceOrderDonationPreference(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			ctx := t.Context()
 			s := checkout.NewStore(storeRolePool(t))
-			cartID := newCart(t, s)
-			if err := s.Carts().Add(ctx, cartID, freshVariant(t, "invoice-"+tt.name), 1); err != nil {
+			cartID := checkouttest.NewCart(t, s)
+			if err := s.Carts().Add(ctx, cartID, ordertest.FreshVariant(t, pool, "invoice-"+tt.name), 1); err != nil {
 				t.Fatal(err)
 			}
 			shippingID := shipVersionFor(t, "home_delivery")
 			addr := &delivery.Details{Email: "buyer@example.com", RecipientName: "Buyer", Phone: "0912345678", PostalCode: "110", City: "台北市", District: "信義區", Street: "松高路 1 號"}
 			// The type is the value the checkout radio group submits.
 			inv := &checkout.Invoice{Type: invoice.Preference(tt.kind), MobileBarcode: tt.barcode, DonationCode: tt.donation}
-			shown := checkoutQuote(t, s, cartID, uuid.NullUUID{}, shippingID, addr, "")
-			number, err := s.PlaceOrder(ctx, cartID, uuid.NullUUID{}, shippingID, addr, inv, "", shown, checkoutAttemptKey("invoice-"+uuid.NewString()))
+			shown := checkouttest.Quote(t, s, cartID, uuid.NullUUID{}, shippingID, addr, "")
+			number, err := s.PlaceOrder(ctx, cartID, uuid.NullUUID{}, shippingID, addr, inv, "", shown, checkouttest.AttemptKey("invoice-"+uuid.NewString()))
 			if err != nil {
 				t.Fatalf("PlaceOrder: %v", err)
 			}
@@ -67,7 +69,7 @@ func TestHandler_PlaceOrderDonationRoundTrip(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			if err := s.Carts().Add(ctx, id, freshVariant(t, "invoice-form-"+strings.ReplaceAll(tt.kind, "_", "-")), 1); err != nil {
+			if err := s.Carts().Add(ctx, id, ordertest.FreshVariant(t, pool, "invoice-form-"+strings.ReplaceAll(tt.kind, "_", "-")), 1); err != nil {
 				t.Fatal(err)
 			}
 			h := newHandler(s, access.NewStore(pool, false), slog.New(slog.DiscardHandler), nil)

@@ -10,15 +10,15 @@ import (
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
 
-	"github.com/koopa0/goen/internal/admin/admintest"
 	"github.com/koopa0/goen/internal/db"
 	"github.com/koopa0/goen/internal/order/notice"
+	"github.com/koopa0/goen/internal/order/ordertest"
 )
 
 // TestTerminalOrderRecipient: a terminal order's recipient is never recovered
 // from an erased address.
 func TestTerminalOrderRecipient(t *testing.T) {
-	_, id, _ := admintest.PendingOrderHoldingStock(t, pool)
+	_, id, _ := ordertest.PendingOrderHoldingStock(t, pool)
 	q := db.New(pool)
 	if _, err := q.TerminalOrderRecipient(t.Context(), id); err != nil {
 		t.Fatal(err)
@@ -34,7 +34,7 @@ func TestTerminalOrderRecipient(t *testing.T) {
 func shippedParcel(t *testing.T) uuid.UUID {
 	t.Helper()
 	ctx := t.Context()
-	_, id := admintest.PaidPickingOrderForUser(t, pool, admintest.Customer(t, pool), 10000)
+	_, id := ordertest.PaidPickingOrderForUser(t, pool, ordertest.Customer(t, pool), 10000)
 	tx, err := pool.Begin(ctx)
 	if err != nil {
 		t.Fatal(err)
@@ -111,7 +111,7 @@ func TestRecipients_OfDelivered(t *testing.T) {
 // order with no parcel at all, as a payment-deadline cancellation is: the
 // recipient reads, and carries no day for the cancellation mail to mention.
 func TestRecipients_OfNoParcel(t *testing.T) {
-	_, id, _ := admintest.PendingOrderHoldingStock(t, pool)
+	_, id, _ := ordertest.PendingOrderHoldingStock(t, pool)
 	to, ok, err := notice.NewRecipients(pool).Of(t.Context(), id)
 	if err != nil || !ok {
 		t.Fatalf("Recipients.Of = %v, %t", err, ok)

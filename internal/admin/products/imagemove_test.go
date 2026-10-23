@@ -5,8 +5,8 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/koopa0/goen/assets"
 	"github.com/koopa0/goen/internal/i18n"
+	"github.com/koopa0/goen/internal/picture"
 )
 
 // TestProductImagesMoveForms: the image list's move forms post the right image
@@ -17,7 +17,7 @@ import (
 func TestProductImagesMoveForms(t *testing.T) {
 	t.Parallel()
 	keys := []string{strings.Repeat("a1", 32), strings.Repeat("b2", 32), strings.Repeat("c3", 32)}
-	v := ProductView{Slug: "p", Images: []Image{{Photo: assets.Image{Digest: keys[0]}, Alt: "x"}, {Photo: assets.Image{Digest: keys[1]}, Alt: "y"}, {Photo: assets.Image{Digest: keys[2]}, Alt: "z"}}}
+	v := ProductView{Slug: "p", Images: []Image{{Photo: picture.Image{Digest: keys[0]}, Alt: "x"}, {Photo: picture.Image{Digest: keys[1]}, Alt: "y"}, {Photo: picture.Image{Digest: keys[2]}, Alt: "z"}}}
 	var b strings.Builder
 	if err := productImages(v).Render(i18n.WithLocale(t.Context(), i18n.En), &b); err != nil {
 		t.Fatal(err)

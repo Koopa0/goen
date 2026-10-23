@@ -13,9 +13,11 @@ import (
 
 	"github.com/koopa0/goen/internal/admin/health"
 	"github.com/koopa0/goen/internal/checkout"
+	"github.com/koopa0/goen/internal/checkout/checkouttest"
 	"github.com/koopa0/goen/internal/invoice/issuer"
 	"github.com/koopa0/goen/internal/order/buyer"
 	"github.com/koopa0/goen/internal/order/delivery"
+	"github.com/koopa0/goen/internal/order/ordertest"
 	"github.com/koopa0/goen/internal/outbox"
 )
 
@@ -30,12 +32,12 @@ func creditPaidOrder(t *testing.T, invoices *issuer.Store, slug string) string {
 		`SELECT id FROM shipping_method_versions ORDER BY effective_at LIMIT 1`).Scan(&shipID); err != nil {
 		t.Fatalf("shipping: %v", err)
 	}
-	userID := creditedCustomer(t, 100000000)
-	id := newCart(t, s)
-	if err := s.Carts().Add(ctx, id, freshVariant(t, slug), 1); err != nil {
+	userID := ordertest.CreditedCustomer(t, pool, 100000000)
+	id := checkouttest.NewCart(t, s)
+	if err := s.Carts().Add(ctx, id, ordertest.FreshVariant(t, pool, slug), 1); err != nil {
 		t.Fatalf("add: %v", err)
 	}
-	number, err := placeOrder(t, s, ctx, id, uuid.NullUUID{UUID: userID, Valid: true}, shipID,
+	number, err := checkouttest.PlaceOrder(t, s, ctx, id, uuid.NullUUID{UUID: userID, Valid: true}, shipID,
 		&delivery.Details{
 			Email: "void-due@example.com", RecipientName: "王小明", Phone: "0912345678",
 			PostalCode: "110", City: "台北市", District: "信義區", Street: "松高路 1 號",
@@ -301,7 +303,7 @@ func listed(t *testing.T, number string) bool {
 // TestBuyerStore_CancelOrderNoVoidDue: buyer.Store.CancelOrder queues no
 // invoice void for an order nobody paid, which has no invoice to void.
 func TestBuyerStore_CancelOrderNoVoidDue(t *testing.T) {
-	number := numberOf(t, heldOrder(t, freshVariant(t, "void-due-unpaid"), -time.Hour, false))
+	number := ordertest.NumberOf(t, pool, ordertest.HeldOrder(t, pool, ordertest.FreshVariant(t, pool, "void-due-unpaid"), -time.Hour, false))
 	if err := buyer.NewStore(storeRolePool(t)).CancelOrder(t.Context(), number); err != nil {
 		t.Fatalf("cancel: %v", err)
 	}

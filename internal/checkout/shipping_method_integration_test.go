@@ -9,9 +9,11 @@ import (
 	"github.com/google/uuid"
 
 	"github.com/koopa0/goen/internal/checkout"
+	"github.com/koopa0/goen/internal/checkout/checkouttest"
 	"github.com/koopa0/goen/internal/i18n"
 	"github.com/koopa0/goen/internal/order/buyer"
 	"github.com/koopa0/goen/internal/order/delivery"
+	"github.com/koopa0/goen/internal/order/ordertest"
 	"github.com/koopa0/goen/internal/shipping"
 )
 
@@ -38,7 +40,7 @@ func TestBuyerStore_OrderShippingName(t *testing.T) {
 		t.Fatalf("create version: %v", err)
 	}
 
-	id := newCart(t, s)
+	id := checkouttest.NewCart(t, s)
 	if err := s.Carts().Add(ctx, id, variantOf(t, "pixelight-9-pro"), 1); err != nil {
 		t.Fatalf("add: %v", err)
 	}
@@ -47,7 +49,7 @@ func TestBuyerStore_OrderShippingName(t *testing.T) {
 		Email: "named@example.com", RecipientName: "林小美", Phone: "0955666777",
 		PickupChain: "seven_eleven",
 	}
-	number, err := placeOrder(t, s, ctx, id, uuid.NullUUID{}, versionID, addr, "",
+	number, err := checkouttest.PlaceOrder(t, s, ctx, id, uuid.NullUUID{}, versionID, addr, "",
 		"named-"+uuid.NewString()[:8])
 	if err != nil {
 		t.Fatalf("place: %v", err)
@@ -91,7 +93,7 @@ func TestCartStore_ShippingChoicesParcel(t *testing.T) {
 		t.Fatalf("create version: %v", err)
 	}
 
-	small, big, _ := variantsOf(t, "parcel", 3)
+	small, big, _ := ordertest.VariantsOf(t, pool, "parcel", 3)
 	if _, err := pool.Exec(ctx, `
 		UPDATE product_variants SET parcel_longest_mm = 180, parcel_sum_mm = 320, parcel_weight_g = 400
 		WHERE id = $1`, small); err != nil {
@@ -118,7 +120,7 @@ func TestCartStore_ShippingChoicesParcel(t *testing.T) {
 	}
 
 	t.Run("a parcel that fits", func(t *testing.T) {
-		id := newCart(t, s)
+		id := checkouttest.NewCart(t, s)
 		if err := s.Carts().Add(ctx, id, small, 1); err != nil {
 			t.Fatalf("add: %v", err)
 		}
@@ -128,7 +130,7 @@ func TestCartStore_ShippingChoicesParcel(t *testing.T) {
 	})
 
 	t.Run("a parcel that does not", func(t *testing.T) {
-		id := newCart(t, s)
+		id := checkouttest.NewCart(t, s)
 		if err := s.Carts().Add(ctx, id, big, 1); err != nil {
 			t.Fatalf("add: %v", err)
 		}
@@ -139,7 +141,7 @@ func TestCartStore_ShippingChoicesParcel(t *testing.T) {
 	})
 
 	t.Run("one that fits beside one that does not", func(t *testing.T) {
-		id := newCart(t, s)
+		id := checkouttest.NewCart(t, s)
 		if err := s.Carts().Add(ctx, id, small, 1); err != nil {
 			t.Fatalf("add small: %v", err)
 		}
@@ -153,8 +155,8 @@ func TestCartStore_ShippingChoicesParcel(t *testing.T) {
 	})
 
 	t.Run("an unmeasured variant is refused by nothing", func(t *testing.T) {
-		id := newCart(t, s)
-		unmeasured := freshVariant(t, "parcel")
+		id := checkouttest.NewCart(t, s)
+		unmeasured := ordertest.FreshVariant(t, pool, "parcel")
 		if err := s.Carts().Add(ctx, id, unmeasured, 1); err != nil {
 			t.Fatalf("add: %v", err)
 		}
@@ -172,7 +174,7 @@ func TestCartStore_ShippingChoicesLocale(t *testing.T) {
 	ctx := t.Context()
 	s := checkout.NewStore(pool)
 	// An empty cart: what a method is OFFERED for depends on what is in the basket.
-	id := newCart(t, s)
+	id := checkouttest.NewCart(t, s)
 
 	for _, tt := range []struct {
 		name   string

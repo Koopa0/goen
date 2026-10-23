@@ -11,7 +11,9 @@ import (
 
 	"github.com/koopa0/goen/internal/cart"
 	"github.com/koopa0/goen/internal/checkout"
+	"github.com/koopa0/goen/internal/checkout/checkouttest"
 	"github.com/koopa0/goen/internal/order/delivery"
+	"github.com/koopa0/goen/internal/order/ordertest"
 )
 
 // TestStore_PlaceOrderAfterClamp: A cart clamped by SetQuantity to what can be
@@ -22,7 +24,7 @@ func TestStore_PlaceOrderAfterClamp(t *testing.T) {
 	ctx := t.Context()
 	s := checkout.NewStore(pool)
 
-	vid := freshVariant(t, "stockfix-setqty")
+	vid := ordertest.FreshVariant(t, pool, "stockfix-setqty")
 	var wasStock, wasSafety int32
 	if err := pool.QueryRow(ctx,
 		`SELECT stock_quantity, safety_stock FROM product_variants WHERE id = $1`,
@@ -41,7 +43,7 @@ func TestStore_PlaceOrderAfterClamp(t *testing.T) {
 	}
 
 	// 3 can be sold: 5 on hand less safety stock of 2.
-	id := newCart(t, s)
+	id := checkouttest.NewCart(t, s)
 	if err := s.Carts().Add(ctx, id, vid, 1); err != nil {
 		t.Fatalf("add: %v", err)
 	}
@@ -71,7 +73,7 @@ func TestStore_PlaceOrderAfterClamp(t *testing.T) {
 		Email: "setqty-checkout@example.com", RecipientName: "李大華", Phone: "0987654321",
 		PostalCode: "220", City: "新北市", District: "板橋區", Street: "文化路一段 1 號",
 	}
-	if _, err := placeOrder(t, s, ctx, id, uuid.NullUUID{}, shipID, addr, "", "setqty-checkout-"+uuid.NewString()); err != nil {
+	if _, err := checkouttest.PlaceOrder(t, s, ctx, id, uuid.NullUUID{}, shipID, addr, "", "setqty-checkout-"+uuid.NewString()); err != nil {
 		t.Fatalf("checkout after set quantity clamp returned error: %v", err)
 	}
 }

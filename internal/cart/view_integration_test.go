@@ -7,8 +7,9 @@ import (
 
 	"github.com/google/uuid"
 
-	"github.com/koopa0/goen/assets"
 	"github.com/koopa0/goen/internal/cart"
+	"github.com/koopa0/goen/internal/order/ordertest"
+	"github.com/koopa0/goen/internal/picture"
 )
 
 // TestStore_ViewCurrentPrice holds that View shows a line's current price and
@@ -17,7 +18,7 @@ func TestStore_ViewCurrentPrice(t *testing.T) {
 	ctx := t.Context()
 	s := cart.NewStore(pool)
 	id := newCart(t, s)
-	vid := freshVariant(t, "current-price")
+	vid := ordertest.FreshVariant(t, pool, "current-price")
 
 	if err := s.Add(ctx, id, vid, 2); err != nil {
 		t.Fatalf("add: %v", err)
@@ -66,8 +67,8 @@ func TestStore_ViewColourPhoto(t *testing.T) {
 		t.Fatalf("cart holds %d lines, want 2", len(view.Lines))
 	}
 	want := map[string]string{
-		"PXL-9P-2-1": assets.Image{BundledKey: "pixelight-9-pro-02.webp"}.URL(), // 曜石黑, tagged by the seed
-		"PXL-9P-1-1": assets.Image{BundledKey: "pixelight-9-pro-01.webp"}.URL(), // 星霧藍, the product's first
+		"PXL-9P-2-1": picture.Image{BundledKey: "pixelight-9-pro-02.webp"}.URL(), // 曜石黑, tagged by the seed
+		"PXL-9P-1-1": picture.Image{BundledKey: "pixelight-9-pro-01.webp"}.URL(), // 星霧藍, the product's first
 	}
 	for _, line := range view.Lines {
 		if line.ImageURL != want[line.SKU] {
@@ -82,7 +83,7 @@ func TestStore_ItemCountBadge(t *testing.T) {
 	ctx := t.Context()
 	s := cart.NewStore(pool)
 	id := newCart(t, s)
-	a, b, _ := threeVariants(t, "badgefix")
+	a, b, _ := ordertest.ThreeVariants(t, pool, "badgefix")
 
 	count := func() int {
 		t.Helper()

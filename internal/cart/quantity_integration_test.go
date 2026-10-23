@@ -15,6 +15,7 @@ import (
 	"github.com/koopa0/goen/internal/cart"
 	"github.com/koopa0/goen/internal/i18n"
 	"github.com/koopa0/goen/internal/order/access"
+	"github.com/koopa0/goen/internal/order/ordertest"
 )
 
 // TestHandler_UpdateItemUnavailable holds that UpdateItem redirects with an
@@ -49,7 +50,7 @@ func TestHandler_UpdateItemUnavailable(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			// A sibling stays sellable: a product with nothing left to sell
 			// cannot stay active, and this test is about the variant.
-			vid, _, _ := threeVariants(t, "stockfix-unavail")
+			vid, _, _ := ordertest.ThreeVariants(t, pool, "stockfix-unavail")
 			var wasStock, wasSafety int32
 			if err := pool.QueryRow(ctx,
 				`SELECT stock_quantity, safety_stock FROM product_variants WHERE id = $1`,
@@ -123,7 +124,7 @@ func TestHandler_UpdateItemAdjustedNotice(t *testing.T) {
 	s := cart.NewStore(pool)
 	h := cart.NewHandler(s, access.NewStore(pool, false), slog.New(slog.DiscardHandler), false, nil)
 
-	vid := freshVariant(t, "stockfix-update-notice")
+	vid := ordertest.FreshVariant(t, pool, "stockfix-update-notice")
 	var wasStock, wasSafety int32
 	if err := pool.QueryRow(ctx,
 		`SELECT stock_quantity, safety_stock FROM product_variants WHERE id = $1`,
@@ -187,7 +188,7 @@ func TestHandler_QuantityBounds(t *testing.T) {
 	} {
 		t.Run(strconv.Quote(quantity), func(t *testing.T) {
 			cartID, token := newCartSession(t, s)
-			variant := freshVariant(t, "quantity-bounds")
+			variant := ordertest.FreshVariant(t, pool, "quantity-bounds")
 
 			for _, route := range []struct {
 				path  string

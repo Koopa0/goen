@@ -11,9 +11,9 @@ import (
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
 
-	"github.com/koopa0/goen/assets"
 	"github.com/koopa0/goen/internal/admin/audit"
 	"github.com/koopa0/goen/internal/db"
+	"github.com/koopa0/goen/internal/picture"
 )
 
 const MaxAltRunes = 200
@@ -209,7 +209,7 @@ func (s *Store) Images(ctx context.Context, slug string) ([]Image, error) {
 	for i := range rows {
 		r := &rows[i]
 		img := Image{
-			Photo: assets.Image{Digest: r.ImageDigest, BundledKey: r.ImageBundledKey, Width: int(r.Width.Int32)},
+			Photo: picture.Image{Digest: r.ImageDigest, BundledKey: r.ImageBundledKey, Width: int(r.Width.Int32)},
 			Alt:   r.AltText,
 		}
 		if r.OptionValueID.Valid {

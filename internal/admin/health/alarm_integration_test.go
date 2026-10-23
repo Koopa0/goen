@@ -26,6 +26,7 @@ import (
 	"github.com/koopa0/goen/internal/admin/taxonomy"
 	"github.com/koopa0/goen/internal/i18n"
 	"github.com/koopa0/goen/internal/invoice/issuer"
+	"github.com/koopa0/goen/internal/order/ordertest"
 	"github.com/koopa0/goen/internal/outbox"
 )
 
@@ -357,7 +358,7 @@ func TestStore_ReconcileCompletePayment(t *testing.T) {
 // actionable refund notice while leaving reconciliation open.
 func TestHandler_ReconcileReleasedStock(t *testing.T) {
 	ctx, _ := admintest.StaffContext(t, pool)
-	number, orderID, _ := admintest.PendingOrderHoldingStock(t, pool)
+	number, orderID, _ := ordertest.PendingOrderHoldingStock(t, pool)
 	providerRef := "cs_admin_released_stock_" + uuid.NewString()[:12]
 	if _, err := pool.Exec(ctx,
 		`SELECT open_payment($1, $2, 100000)`, orderID, providerRef); err != nil {
@@ -456,9 +457,9 @@ func TestStore_WorkerHealthRefusedIssue(t *testing.T) {
 		return false
 	}
 
-	systemNumber, systemOrder := admintest.PaidPickingOrderForUser(t, pool, admintest.Customer(t, pool), 100000)
+	systemNumber, systemOrder := ordertest.PaidPickingOrderForUser(t, pool, ordertest.Customer(t, pool), 100000)
 	refuse(systemNumber, systemOrder, "system")
-	staffNumber, staffOrder := admintest.PaidPickingOrderForUser(t, pool, admintest.Customer(t, pool), 100000)
+	staffNumber, staffOrder := ordertest.PaidPickingOrderForUser(t, pool, ordertest.Customer(t, pool), 100000)
 	refuse(staffNumber, staffOrder, "staff")
 	creditNumber, creditOrder, _ := admintest.PaidUnshippedOrder(t, pool, 0, 100000, false)
 	refuse(creditNumber, creditOrder, "system")

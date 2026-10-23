@@ -76,17 +76,22 @@ func (s *Store) Register(ctx context.Context, c *Credentials, next string) error
 	return nil
 }
 
-func (s *Store) ResendRegistration(ctx context.Context, addr, next string) error {
-	if err := s.q.EnqueueRegistrationResend(ctx, db.EnqueueRegistrationResendParams{
+// ResendRegistration queues another registration link for addr, which is sent
+// only when addr has an account that is still unproved. named reports whether
+// it did; it is for charging what the link costs, and the caller must answer
+// alike whatever it says.
+func (s *Store) ResendRegistration(ctx context.Context, addr, next string) (named bool, err error) {
+	named, err = s.q.EnqueueRegistrationResend(ctx, db.EnqueueRegistrationResendParams{
 		Topic:     outbox.TopicRegistration.Name(),
 		DedupeKey: "registration:" + uuid.NewString(),
 		Locale:    i18n.FromContext(ctx).Tag(),
 		Next:      next,
 		Email:     addr,
-	}); err != nil {
-		return fmt.Errorf("queue registration resend: %w", err)
+	})
+	if err != nil {
+		return false, fmt.Errorf("queue registration resend: %w", err)
 	}
-	return nil
+	return named, nil
 }
 
 // AddressTaken is the account to tell that somebody tried to take its address:
