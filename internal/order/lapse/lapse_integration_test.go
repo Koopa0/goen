@@ -1,6 +1,6 @@
 //go:build integration
 
-package checkout_test
+package lapse_test
 
 import (
 	"bytes"
@@ -13,7 +13,6 @@ import (
 	"time"
 
 	"github.com/google/uuid"
-	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 
 	"github.com/koopa0/goen/internal/checkout/checkouttest"
@@ -22,28 +21,6 @@ import (
 	"github.com/koopa0/goen/internal/order/ordertest"
 	"github.com/koopa0/goen/internal/outbox"
 )
-
-// storeApplicationPool connects as the role the sweeper runs as in production,
-// under a name waitForApplicationLock can find.
-func storeApplicationPool(t *testing.T, name string) *pgxpool.Pool {
-	t.Helper()
-	cfg, err := pgxpool.ParseConfig(pool.Config().ConnString())
-	if err != nil {
-		t.Fatalf("parse store-role pool config: %v", err)
-	}
-	cfg.MaxConns = 2
-	cfg.ConnConfig.RuntimeParams["application_name"] = name
-	cfg.AfterConnect = func(ctx context.Context, conn *pgx.Conn) error {
-		_, execErr := conn.Exec(ctx, `SET ROLE store`)
-		return execErr
-	}
-	p, err := pgxpool.NewWithConfig(t.Context(), cfg)
-	if err != nil {
-		t.Fatalf("open store-role pool: %v", err)
-	}
-	t.Cleanup(p.Close)
-	return p
-}
 
 // sweepLog keeps what one sweep logged, so a failure the sweeper only logs is
 // still a failure here.
