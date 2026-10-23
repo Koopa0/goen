@@ -63,7 +63,7 @@ func TestParseDestination(t *testing.T) {
 			t.Errorf("ParseDestination(%q) = %q, %v; want %q", in, got, ok, want)
 		}
 	}
-	for _, in := range []string{"", "Address", "store", "pickup"} {
+	for _, in := range []string{"", "Address", "store", "pickup", "depot"} {
 		if got, ok := ParseDestination(in); ok || got != "" {
 			t.Errorf("ParseDestination(%q) = %q, %v; want refused", in, got, ok)
 		}
