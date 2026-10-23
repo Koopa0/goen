@@ -53,12 +53,12 @@ type importRule struct {
 const (
 	cmdGoen       = "cmd/goen"
 	dirUI         = "internal/ui"
+	dirWeb        = "internal/web"
 	dirAdmin      = "internal/admin"
 	pkgAdmin      = "internal/admin"
 	pkgI18n       = "internal/i18n"
 	pkgMoney      = "internal/money"
 	pkgFormtext   = "internal/web/formtext"
-	pkgRespond    = "internal/web/respond"
 	pkgSite       = "internal/site"
 	pkgPolicy     = "internal/policy"
 	pkgCampaign   = "internal/discount/campaign"
@@ -111,6 +111,16 @@ func deskRoot(pkg string) string {
 
 func isDesk(pkg string) bool { return deskRoot(pkg) != "" }
 
+// importedFrom reports whether a package in dir, or below it, imports to.
+func importedFrom(g importGraph, dir, to string) bool {
+	for from, tos := range g.edges {
+		if _, ok := tos[to]; ok && under(from, dir) {
+			return true
+		}
+	}
+	return false
+}
+
 // isLeaf reports whether pkg is on one of the leaf lists the rule "leaves" holds.
 func isLeaf(pkg string) bool {
 	return slices.Contains(importFreeLeaves, pkg) || slices.Contains(i18nOnlyLeaves, pkg) ||
@@ -120,12 +130,11 @@ func isLeaf(pkg string) bool {
 var (
 	// notDesks are the packages under internal/admin that are not desks.
 	notDesks = []string{pkgAccesstest, pkgAudit, pkgWorklist, pkgAdmintest}
-	// uiMayImport is what the view layer may import besides itself.
+	// uiMayImport is what the shared visual language (internal/ui/…) may import
+	// besides itself.
 	uiMayImport = []string{
-		"assets", "internal/i18n", "internal/money", "internal/shoptime",
-		"internal/discount/coupon", "internal/product/inventory", "internal/invoice", "internal/keyset", "internal/order",
-		"internal/shipping/postcode", "internal/product", "internal/product/labelling", "internal/payment/refund",
-		"internal/order/returns", "internal/sales", "internal/shipping", "internal/user",
+		"assets", "internal/i18n", "internal/keyset", "internal/money", "internal/order",
+		"internal/product/inventory", "internal/shoptime", "internal/user",
 	}
 	// storefrontPages are the packages that serve storefront pages. The rule
 	// that uses them leaves out, on purpose: internal/contact (admin/messages
@@ -160,7 +169,7 @@ var (
 		"internal/product/inventory", "internal/shipping/postcode", "internal/user",
 		"internal/money", "internal/db", "internal/keyset", "internal/bearer",
 		"internal/email", "internal/cart/cartitem", "internal/product", "internal/web/compress",
-		"internal/web/requestid", "internal/web/siteurl",
+		"internal/web/requestid", "internal/web/siteurl", "internal/web/probe",
 	}
 	// i18nOnlyLeaves import nothing from goen except the message catalogue.
 	i18nOnlyLeaves = []string{
@@ -194,6 +203,14 @@ var packageLists = map[string][]string{
 	"googleMayImport": googleMayImport, "storemapMayImport": storemapMayImport, "notDesks": notDesks,
 }
 
+// mayImportFrom names, for each *MayImport list in packageLists, the directory
+// whose packages it admits imports for. An entry no edge from there uses widens
+// its rule silently, so TestDependencies fails it as it fails a stale exception.
+var mayImportFrom = map[string]string{
+	"uiMayImport": dirUI, "siteMayImport": pkgSite, "policyMayImport": pkgPolicy,
+	"campaignMayImport": pkgCampaign, "googleMayImport": pkgGoogle, "storemapMayImport": pkgStoremap,
+}
+
 // depsRules is the repository's whole package-graph policy, in one place, in the
 // shape of the standard library's go/build deps_test.go.
 var depsRules = []importRule{
@@ -203,15 +220,17 @@ var depsRules = []importRule{
 		forbid: func(from, to string) bool {
 			return under(from, dirUI) && !under(to, dirUI) && !slices.Contains(uiMayImport, to)
 		},
-		reason: "the view layer never reaches request plumbing, the database, a feature or a desk",
+		reason: "the shared visual language (internal/ui/…) never reaches request plumbing, the database, a feature or a desk",
 	},
 	{
-		name: "respond",
-		pkgs: []string{pkgRespond, pkgI18n},
+		name: "web",
+		pkgs: []string{pkgI18n},
+		dirs: []string{dirWeb},
 		forbid: func(from, to string) bool {
-			return from == pkgRespond && to != pkgI18n
+			return under(from, dirWeb) && !under(to, dirWeb) && to != pkgI18n
 		},
-		reason: "request plumbing does not depend on the view layer",
+		reason: "request plumbing (internal/web/…) imports nothing from goen but itself and the message catalogue: " +
+			"no feature, desk or part of the shared visual language (internal/ui/…)",
 	},
 	{
 		name: "i18n",
@@ -502,6 +521,19 @@ func TestDependencies(t *testing.T) {
 		for _, name := range names {
 			if !g.scanned[name] {
 				problems = append(problems, fmt.Sprintf("%s: %q names no package: rename or delete the entry", list, name))
+			}
+		}
+		if !strings.HasSuffix(list, "MayImport") {
+			continue
+		}
+		from, ok := mayImportFrom[list]
+		if !ok {
+			problems = append(problems, list+": name the directory it admits imports for in mayImportFrom")
+			continue
+		}
+		for _, name := range names {
+			if !importedFrom(g, from, name) {
+				problems = append(problems, fmt.Sprintf("%s: %q is imported by nothing under %s: delete the allowance", list, name, from))
 			}
 		}
 	}
