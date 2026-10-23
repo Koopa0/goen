@@ -1,6 +1,6 @@
 //go:build integration
 
-package checkout_test
+package buyer_test
 
 import (
 	"strings"
@@ -9,14 +9,15 @@ import (
 	"github.com/google/uuid"
 
 	"github.com/koopa0/goen/internal/checkout"
+	"github.com/koopa0/goen/internal/checkout/checkouttest"
 	"github.com/koopa0/goen/internal/order/buyer"
 	"github.com/koopa0/goen/internal/order/ordertest"
 )
 
-// TestBuyerStore_OrderDiscountReason: buyer.Store.Order says why an order
+// TestStore_OrderDiscountReason: Store.Order says why an order
 // placed through checkout was discounted: the coupon's code and its
 // description.
-func TestBuyerStore_OrderDiscountReason(t *testing.T) {
+func TestStore_OrderDiscountReason(t *testing.T) {
 	ctx := t.Context()
 	s := buyer.NewStore(pool)
 
@@ -28,7 +29,7 @@ func TestBuyerStore_OrderDiscountReason(t *testing.T) {
 	}
 
 	// Through checkout, which redeems in the transaction that places the order.
-	number, err := placeWithCoupon(t, checkout.NewStore(pool), code, 0)
+	number, err := checkouttest.PlaceWithCoupon(t, pool, checkout.NewStore(pool), code, 0)
 	if err != nil {
 		t.Fatalf("place with %s: %v", code, err)
 	}
@@ -48,9 +49,9 @@ func TestBuyerStore_OrderDiscountReason(t *testing.T) {
 	}
 }
 
-// TestBuyerStore_OrderNoDiscountReason: buyer.Store.Order reports no discount
+// TestStore_OrderNoDiscountReason: Store.Order reports no discount
 // reason for an order with no coupon.
-func TestBuyerStore_OrderNoDiscountReason(t *testing.T) {
+func TestStore_OrderNoDiscountReason(t *testing.T) {
 	ctx := t.Context()
 	s := buyer.NewStore(pool)
 	number := ordertest.OrderOfVariants(t, pool, map[uuid.UUID]int32{ordertest.FreshVariant(t, pool, "no-coupon"): 1})

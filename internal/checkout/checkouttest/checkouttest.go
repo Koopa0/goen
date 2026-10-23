@@ -15,6 +15,7 @@ import (
 	"context"
 	"crypto/sha256"
 	"encoding/base64"
+	"strconv"
 	"strings"
 	"testing"
 
@@ -289,4 +290,30 @@ func ExpireHolds(t *testing.T, pool *pgxpool.Pool, number string) {
 	if err != nil || tag.RowsAffected() == 0 {
 		t.Fatalf("expire holds of %s: %v (%d rows)", number, err, tag.RowsAffected())
 	}
+}
+
+// PlaceWithCoupon places an order carrying a coupon and returns its number. Its
+// own variant per call, because placing an order consumes stock and a shared
+// seeded row fails under -shuffle.
+func PlaceWithCoupon(t *testing.T, pool *pgxpool.Pool, s *checkout.Store, code string, n int) (string, error) {
+	t.Helper()
+	ctx := t.Context()
+
+	var shipID uuid.UUID
+	if err := pool.QueryRow(ctx,
+		`SELECT id FROM shipping_method_versions ORDER BY effective_at LIMIT 1`).Scan(&shipID); err != nil {
+		t.Fatalf("shipping: %v", err)
+	}
+	vid := ordertest.FreshVariant(t, pool, "coupon-order")
+	id := NewCart(t, s)
+	if err := s.Carts().Add(ctx, id, vid, 1); err != nil {
+		t.Fatalf("add: %v", err)
+	}
+	addr := &delivery.Details{
+		Email: "cp@example.com", RecipientName: "王小明", Phone: "0912345678",
+		PostalCode: "110", City: "台北市", District: "信義區", Street: "路 1 號",
+	}
+	quote := Quote(t, s, id, uuid.NullUUID{}, shipID, addr, code)
+	return s.PlaceOrder(ctx, id, uuid.NullUUID{}, shipID, addr, nil, code, quote,
+		AttemptKey("coupon-test-"+strconv.Itoa(n)+"-"+uuid.NewString()))
 }

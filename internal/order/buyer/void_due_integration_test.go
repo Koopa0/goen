@@ -1,6 +1,6 @@
 //go:build integration
 
-package checkout_test
+package buyer_test
 
 import (
 	"encoding/json"
@@ -35,9 +35,9 @@ func queuedVoidDues(t *testing.T, number string) []outbox.InvoiceVoidDue {
 	return out
 }
 
-// TestBuyerStore_CancelOrderNoVoidDue: buyer.Store.CancelOrder queues no
+// TestStore_CancelOrderNoVoidDue: Store.CancelOrder queues no
 // invoice void for an order nobody paid, which has no invoice to void.
-func TestBuyerStore_CancelOrderNoVoidDue(t *testing.T) {
+func TestStore_CancelOrderNoVoidDue(t *testing.T) {
 	number := ordertest.NumberOf(t, pool, ordertest.HeldOrder(t, pool, ordertest.FreshVariant(t, pool, "void-due-unpaid"), -time.Hour, false))
 	if err := buyer.NewStore(storeRolePool(t)).CancelOrder(t.Context(), number); err != nil {
 		t.Fatalf("cancel: %v", err)

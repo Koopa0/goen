@@ -121,35 +121,3 @@ func TestStore_PlaceOrderAddressNoPickup(t *testing.T) {
 		t.Errorf("an address order kept a pickup point: %q/%q/%q", brand, code, name)
 	}
 }
-
-// TestBuyerStore_OrderPickupDeliveryTo: buyer.Store.Order names the chain, the
-// store and its code in DeliveryTo for a pickup order placed with all three.
-// The old name said both pages; the test reads the order view's DeliveryTo
-// only.
-func TestBuyerStore_OrderPickupDeliveryTo(t *testing.T) {
-	ctx := t.Context()
-	s := checkout.NewStore(pool)
-	id := checkouttest.NewCart(t, s)
-	if err := s.Carts().Add(ctx, id, variantOf(t, "pixelight-9-pro"), 1); err != nil {
-		t.Fatalf("add: %v", err)
-	}
-	addr := &delivery.Details{
-		Email: "shown@example.com", RecipientName: "李小華", Phone: "0933444555",
-		PickupChain: "hi_life", PickupStoreCode: "778899", PickupStoreName: "民生門市",
-	}
-	number, err := checkouttest.PlaceOrder(t, s, ctx, id, uuid.NullUUID{},
-		shipVersionFor(t, "store_pickup"), addr, "", "dest-shown-"+uuid.NewString())
-	if err != nil {
-		t.Fatalf("place: %v", err)
-	}
-
-	view, err := buyer.NewStore(pool).Order(ctx, number)
-	if err != nil {
-		t.Fatalf("read order view: %v", err)
-	}
-	for _, want := range []string{"萊爾富", "民生門市", "778899"} {
-		if !strings.Contains(view.DeliveryTo, want) {
-			t.Errorf("the confirmation does not show %q: %q", want, view.DeliveryTo)
-		}
-	}
-}

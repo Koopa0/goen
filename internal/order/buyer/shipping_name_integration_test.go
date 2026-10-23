@@ -1,6 +1,6 @@
 //go:build integration
 
-package checkout_test
+package buyer_test
 
 import (
 	"testing"
@@ -12,16 +12,17 @@ import (
 	"github.com/koopa0/goen/internal/i18n"
 	"github.com/koopa0/goen/internal/order/buyer"
 	"github.com/koopa0/goen/internal/order/delivery"
+	"github.com/koopa0/goen/internal/order/ordertest"
 	"github.com/koopa0/goen/internal/shipping"
 )
 
-// TestBuyerStore_OrderShippingName: buyer.Store.Order names an order's shipping
+// TestStore_OrderShippingName: Store.Order names an order's shipping
 // method in the reader's language, from the version the order was priced from:
 // English for an English reader, the Chinese the shop typed for a Chinese one.
 // The method's name is read from the version the order was priced from, so an
 // English reader is not shown the Chinese name the shop typed, and a Chinese
 // reader still is.
-func TestBuyerStore_OrderShippingName(t *testing.T) {
+func TestStore_OrderShippingName(t *testing.T) {
 	ctx := t.Context()
 	s := checkout.NewStore(pool)
 
@@ -39,7 +40,7 @@ func TestBuyerStore_OrderShippingName(t *testing.T) {
 	}
 
 	id := checkouttest.NewCart(t, s)
-	if err := s.Carts().Add(ctx, id, variantOf(t, "pixelight-9-pro"), 1); err != nil {
+	if err := s.Carts().Add(ctx, id, ordertest.FreshVariant(t, pool, "shipping-name"), 1); err != nil {
 		t.Fatalf("add: %v", err)
 	}
 	addr := &delivery.Details{
