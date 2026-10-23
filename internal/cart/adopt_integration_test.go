@@ -845,3 +845,38 @@ func TestStore_AdoptConcurrent(t *testing.T) {
 		t.Errorf("loser carts / preserved quantity = %d/%d, want 0/4", loserCarts, quantity)
 	}
 }
+
+// TestStore_AdoptFirstClampsQuantity: Store.Adopt, for an account with no cart
+// yet, takes the guest cart as it stands but caps a line to the sellable
+// quantity (stock less safety stock) and reports ErrQuantityAdjusted. This is
+// the first-adoption path, which clampGuestCartLines serves; the merge path is
+// TestStore_AdoptClampsQuantity's.
+func TestStore_AdoptFirstClampsQuantity(t *testing.T) {
+	ctx := t.Context()
+	u := adopter(t, "first-clamp-"+uuid.NewString()+"@example.com")
+	vid := ordertest.FreshVariant(t, pool, "adopt-first-clamp")
+	if _, err := pool.Exec(ctx,
+		`UPDATE product_variants SET stock_quantity = 5, safety_stock = 2 WHERE id = $1`,
+		vid); err != nil {
+		t.Fatalf("fixture: %v", err)
+	}
+
+	var guestCart uuid.UUID
+	if err := pool.QueryRow(ctx,
+		`INSERT INTO carts (digest) VALUES ($1) RETURNING id`,
+		bearer.Digest("first-clamp-guest-"+u.ID)).Scan(&guestCart); err != nil {
+		t.Fatalf("guest cart: %v", err)
+	}
+	if _, err := pool.Exec(ctx,
+		`INSERT INTO cart_items (cart_id, variant_id, quantity) VALUES ($1, $2, 4)`,
+		guestCart, vid); err != nil {
+		t.Fatalf("guest line: %v", err)
+	}
+
+	if err := cart.NewStore(pool).Adopt(ctx, u.ID, guestCart); !errors.Is(err, cart.ErrQuantityAdjusted) {
+		t.Fatalf("first adoption over stock returned %v, want ErrQuantityAdjusted", err)
+	}
+	if got := cartItemQuantity(t, guestCart, vid); got != 3 {
+		t.Errorf("adopted quantity = %d, want 3 (4 clamped to sellable 3)", got)
+	}
+}
