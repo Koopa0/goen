@@ -10,9 +10,9 @@ import (
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
 
-	"github.com/koopa0/goen/assets"
 	"github.com/koopa0/goen/internal/admin/audit"
 	"github.com/koopa0/goen/internal/db"
+	"github.com/koopa0/goen/internal/picture"
 	"github.com/koopa0/goen/internal/ui/widget"
 )
 
@@ -31,7 +31,7 @@ func (s *Store) CategoryHeader(ctx context.Context, slug string) (CategoryView, 
 	return CategoryView{
 		Slug: slug, Name: row.Name, Tone: row.Tone,
 		Image: widget.HeaderImage{
-			Image: assets.Image{Digest: row.ImageDigest, BundledKey: row.ImageBundledKey, Width: int(row.ImageWidth)},
+			Image: picture.Image{Digest: row.ImageDigest, BundledKey: row.ImageBundledKey, Width: int(row.ImageWidth)},
 			Alt:   row.ImageAlt, AltEn: row.ImageAltEn,
 		},
 	}, nil

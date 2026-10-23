@@ -16,12 +16,12 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 	"golang.org/x/net/html"
 
-	"github.com/koopa0/goen/assets"
 	"github.com/koopa0/goen/internal/admin/admintest"
 	"github.com/koopa0/goen/internal/db"
 	"github.com/koopa0/goen/internal/i18n"
 	"github.com/koopa0/goen/internal/order/access"
 	"github.com/koopa0/goen/internal/payment"
+	"github.com/koopa0/goen/internal/picture"
 )
 
 // TestHandler_OrderPhotosLive: order photos stay live and use the same option
@@ -84,7 +84,7 @@ func TestHandler_OrderPhotosLive(t *testing.T) {
 			}
 			want := make([]photo, 2)
 			for i, key := range keys {
-				want[i] = photo{URL: assets.Image{BundledKey: key}.URL(), Srcset: assets.Image{BundledKey: key}.Srcset(), Alt: alt[i]}
+				want[i] = photo{URL: picture.Image{BundledKey: key}.URL(), Srcset: picture.Image{BundledKey: key}.Srcset(), Alt: alt[i]}
 			}
 			customerLines, err := db.New(storefrontPool).OrderPageLines(localeCtx, db.OrderPageLinesParams{OrderID: orderID, Locale: locale.Tag()})
 			if err != nil {
@@ -102,7 +102,7 @@ func TestHandler_OrderPhotosLive(t *testing.T) {
 			admin := make([]photo, 0, len(adminView.Lines))
 			paymentPage := make([]photo, 0, len(payOrder.Lines))
 			for _, line := range customerLines {
-				image := assets.Image{Digest: line.ImageDigest, BundledKey: line.ImageBundledKey, Width: int(line.ImageWidth)}
+				image := picture.Image{Digest: line.ImageDigest, BundledKey: line.ImageBundledKey, Width: int(line.ImageWidth)}
 				customer = append(customer, photo{URL: image.URL(), Srcset: image.Srcset(), Alt: line.ImageAlt})
 			}
 			for _, line := range adminView.Lines {

@@ -4,9 +4,9 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/koopa0/goen/assets"
 	"github.com/koopa0/goen/internal/discount/campaign"
 	"github.com/koopa0/goen/internal/i18n"
+	"github.com/koopa0/goen/internal/picture"
 	"github.com/koopa0/goen/internal/ui/frame"
 	"github.com/koopa0/goen/internal/ui/tone"
 	"github.com/koopa0/goen/internal/ui/widget"
@@ -21,12 +21,12 @@ func TestPageHeader(t *testing.T) {
 	with := renderComponent(t, ctx, campaign.Page(frame.Page{Title: "c"}, campaign.View{
 		Slug: "c", Title: "Sale",
 		Image: widget.Photo{
-			URL: assets.Image{BundledKey: seedBanner}.URL(), Srcset: assets.Image{BundledKey: seedBanner}.Srcset(),
+			URL: picture.Image{BundledKey: seedBanner}.URL(), Srcset: picture.Image{BundledKey: seedBanner}.Srcset(),
 			Alt: "Products on sale",
 		},
 	}))
 	for _, want := range []string{
-		`class="goen-campaign__header"`, `src="` + assets.Image{BundledKey: seedBanner}.URL() + `"`,
+		`class="goen-campaign__header"`, `src="` + picture.Image{BundledKey: seedBanner}.URL() + `"`,
 		`alt="Products on sale"`, "-400.webp", " 400w", ` width="1600"`,
 	} {
 		if !strings.Contains(with, want) {
@@ -44,11 +44,11 @@ func TestPageHeader(t *testing.T) {
 // to its media path.
 func TestImage_URLHeaderKey(t *testing.T) {
 	t.Parallel()
-	if banner := (assets.Image{BundledKey: seedBanner}); banner.URL() == "" || !strings.Contains(banner.Srcset(), "-800.webp") {
+	if banner := (picture.Image{BundledKey: seedBanner}); banner.URL() == "" || !strings.Contains(banner.Srcset(), "-800.webp") {
 		t.Fatal("the embedded banner does not resolve through the product image resolver")
 	}
 	digest := strings.Repeat("ef", 32)
-	if got := (assets.Image{Digest: digest}).URL(); got != "/media/"+digest {
+	if got := (picture.Image{Digest: digest}).URL(); got != "/media/"+digest {
 		t.Fatalf("an uploaded header resolves to %q", got)
 	}
 }

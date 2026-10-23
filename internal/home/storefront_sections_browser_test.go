@@ -17,6 +17,7 @@ import (
 	"github.com/koopa0/goen/internal/discount/campaign"
 	"github.com/koopa0/goen/internal/home"
 	"github.com/koopa0/goen/internal/i18n"
+	"github.com/koopa0/goen/internal/picture"
 	"github.com/koopa0/goen/internal/policy"
 	"github.com/koopa0/goen/internal/ui/frame"
 	"github.com/koopa0/goen/internal/ui/hero"
@@ -44,7 +45,7 @@ func TestStorefrontSectionsAsDrawn(t *testing.T) {
 	tones := map[string]tone.Tone{"ink": tone.Ink, "sage": tone.Sage}
 	mux.HandleFunc("GET /home", func(w http.ResponseWriter, r *http.Request) {
 		view := home.View{Rules: policy.Rules{FreeDeliveryCents: 99900, LowestFeeCents: 6000, PickupOffered: true}}
-		photo := widget.Photo{URL: assets.Image{BundledKey: "nimbus-band-2-01.webp"}.URL(), Alt: "Headphones on a desk"}
+		photo := widget.Photo{URL: picture.Image{BundledKey: "nimbus-band-2-01.webp"}.URL(), Alt: "Headphones on a desk"}
 		view.Slides = []hero.Slide{
 			{Title: "Technology", Layout: hero.LayoutSplit, Tone: tone.Stone, Photo: photo},
 			{Title: "Everyday essentials", Layout: hero.LayoutSplit, Tone: tone.Ink, Photo: photo, CTA: hero.CTA{Label: "Shop now", Href: "/c/audio"}},
@@ -59,7 +60,7 @@ func TestStorefrontSectionsAsDrawn(t *testing.T) {
 		} {
 			view.Categories = append(view.Categories, home.Category{
 				Slug: c.slug, Name: c.name, Tone: tone.Stone,
-				Photo: widget.Photo{URL: assets.Image{BundledKey: c.photo}.URL()},
+				Photo: widget.Photo{URL: picture.Image{BundledKey: c.photo}.URL()},
 			})
 		}
 		if bandTone, ok := tones[r.URL.Query().Get("band")]; ok {
@@ -121,7 +122,7 @@ func TestStorefrontSectionsAsDrawn(t *testing.T) {
 			{Slug: "audio", Name: names[3]}, {Slug: "wearables", Name: names[4]}, {Slug: "accessories", Name: names[5]},
 		}}
 		if query.Get("photo") == "1" {
-			theme.Photo = widget.Photo{URL: assets.Image{BundledKey: "nimbus-band-2-01.webp"}.URL(), Alt: "Headphones on a desk"}
+			theme.Photo = widget.Photo{URL: picture.Image{BundledKey: "nimbus-band-2-01.webp"}.URL(), Alt: "Headphones on a desk"}
 		}
 		var head *catalog.DepartmentHead
 		if query.Get("notice") == "1" {
@@ -151,7 +152,7 @@ func TestStorefrontSectionsAsDrawn(t *testing.T) {
 		}
 		if r.URL.Query().Get("photo") == "1" {
 			view.Images = []catalog.ProductImage{{
-				URL: assets.Image{BundledKey: "nimbus-band-2-01.webp"}.URL(), Alt: "A mug", Width: 1600, Height: 1200,
+				URL: picture.Image{BundledKey: "nimbus-band-2-01.webp"}.URL(), Alt: "A mug", Width: 1600, Height: 1200,
 			}}
 		}
 		w.Header().Set("Content-Type", "text/html; charset=utf-8")

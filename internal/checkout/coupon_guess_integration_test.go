@@ -19,6 +19,7 @@ import (
 	"github.com/koopa0/goen/internal/checkout"
 	"github.com/koopa0/goen/internal/i18n"
 	"github.com/koopa0/goen/internal/order/access"
+	"github.com/koopa0/goen/internal/order/ordertest"
 	"github.com/koopa0/goen/internal/user"
 )
 
@@ -30,7 +31,7 @@ import (
 func TestHandler_PlaceOrderCouponClientBudget(t *testing.T) {
 	ctx := t.Context()
 	s := checkout.NewStore(pool)
-	vid := freshVariant(t, "coupon-guess")
+	vid := ordertest.FreshVariant(t, pool, "coupon-guess")
 	valid := "GUESSRIGHT" + strings.ToUpper(uuid.NewString()[:6])
 	insertCoupon(t, valid, "amount", 1000, 0, 0, 0)
 	ship := shipVersionFor(t, "home_delivery")
@@ -130,7 +131,7 @@ func newCouponGuesses(t *testing.T, label string) *couponGuesses {
 	return &couponGuesses{
 		t: t, s: s,
 		h:    newHandler(s, access.NewStore(pool, false), slog.New(slog.DiscardHandler), nil),
-		vid:  freshVariant(t, label),
+		vid:  ordertest.FreshVariant(t, pool, label),
 		ship: shipVersionFor(t, "home_delivery"),
 	}
 }

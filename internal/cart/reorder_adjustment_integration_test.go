@@ -15,6 +15,7 @@ import (
 	"github.com/koopa0/goen/internal/cart"
 	"github.com/koopa0/goen/internal/i18n"
 	"github.com/koopa0/goen/internal/order/access"
+	"github.com/koopa0/goen/internal/order/ordertest"
 )
 
 // TestHandler_ReorderItemsAdjusted holds that ReorderItems reports adjusted
@@ -29,7 +30,7 @@ func TestHandler_ReorderItemsAdjusted(t *testing.T) {
 			t.Run(string(locale)+"/"+scenario.name, func(t *testing.T) {
 				ctx := i18n.WithLocale(t.Context(), locale)
 				s := cart.NewStore(storeRolePool(t))
-				live, empty, _ := threeVariants(t, "reorder-adjustment")
+				live, empty, _ := ordertest.ThreeVariants(t, pool, "reorder-adjustment")
 				if _, err := pool.Exec(ctx, `SELECT record_inventory_movement($1,-7,'adjustment',$2,'admin',NULL,NULL)`, live, "reorder-cap:"+live.String()); err != nil {
 					t.Fatal(err)
 				}
@@ -38,7 +39,7 @@ func TestHandler_ReorderItemsAdjusted(t *testing.T) {
 					lines[empty] = 1
 					emptyTheShelfFor(t, empty)
 				}
-				number := orderOfVariants(t, lines)
+				number := ordertest.OrderOfVariants(t, pool, lines)
 				basket, token := newCartSession(t, s)
 				if err := s.Add(ctx, basket, live, scenario.existing); err != nil {
 					t.Fatal(err)

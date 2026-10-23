@@ -10,6 +10,7 @@ import (
 	"unicode/utf8"
 
 	"github.com/koopa0/goen/internal/order/delivery"
+	"github.com/koopa0/goen/internal/picture"
 	"github.com/koopa0/goen/internal/shipping"
 
 	"github.com/google/uuid"
@@ -17,7 +18,6 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/jackc/pgx/v5/pgxpool"
 
-	"github.com/koopa0/goen/assets"
 	"github.com/koopa0/goen/internal/admin/audit"
 	"github.com/koopa0/goen/internal/credit"
 	"github.com/koopa0/goen/internal/db"
@@ -261,7 +261,7 @@ func (s *Store) Order(ctx context.Context, number string) (OrderView, error) {
 	}
 	for i := range lines {
 		l := &lines[i]
-		photo := assets.Image{Digest: l.ImageDigest, BundledKey: l.ImageBundledKey, Width: int(l.ImageWidth)}
+		photo := picture.Image{Digest: l.ImageDigest, BundledKey: l.ImageBundledKey, Width: int(l.ImageWidth)}
 		view.Lines = append(view.Lines, Line{
 			SKU: l.SKU, Name: l.ProductName, Label: l.VariantLabel.String,
 			UnitCents: l.UnitPriceCents, Quantity: l.Quantity,

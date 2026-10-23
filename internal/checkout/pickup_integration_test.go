@@ -18,6 +18,7 @@ import (
 	"github.com/koopa0/goen/internal/checkout"
 	"github.com/koopa0/goen/internal/i18n"
 	"github.com/koopa0/goen/internal/order/access"
+	"github.com/koopa0/goen/internal/order/ordertest"
 	"github.com/koopa0/goen/internal/shipping/storemap"
 	"github.com/koopa0/goen/internal/user"
 )
@@ -47,7 +48,7 @@ func aPickupCart(t *testing.T, s *checkout.Store, label string) (token string, s
 	if err != nil {
 		t.Fatalf("create cart: %v", err)
 	}
-	if err := s.Carts().Add(t.Context(), cartID, freshVariant(t, label), 1); err != nil {
+	if err := s.Carts().Add(t.Context(), cartID, ordertest.FreshVariant(t, pool, label), 1); err != nil {
 		t.Fatalf("add: %v", err)
 	}
 	return tok, shipVersionFor(t, "store_pickup")

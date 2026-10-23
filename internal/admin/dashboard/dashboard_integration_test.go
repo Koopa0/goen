@@ -20,6 +20,7 @@ import (
 	"github.com/koopa0/goen/internal/admin/worklist"
 	"github.com/koopa0/goen/internal/db"
 	"github.com/koopa0/goen/internal/i18n"
+	"github.com/koopa0/goen/internal/order/ordertest"
 	"github.com/koopa0/goen/internal/sales"
 	"github.com/koopa0/goen/internal/shoptime"
 )
@@ -61,7 +62,7 @@ func TestStore_DashboardTaskCounts(t *testing.T) {
 	}
 
 	admintest.PreapprovedReturn(t, isolated)
-	number, orderID := admintest.PaidPickingOrderForUser(t, isolated, admintest.Customer(t, isolated), 100000)
+	number, orderID := ordertest.PaidPickingOrderForUser(t, isolated, ordertest.Customer(t, isolated), 100000)
 	if _, execErr := isolated.Exec(t.Context(), `
 		INSERT INTO invoice_operations
 		    (order_id, kind, provider_key, amount_cents, request_payload,
@@ -337,7 +338,7 @@ func captureCardPaidAgo(t *testing.T, pool *pgxpool.Pool, ago time.Duration) (nu
 	t.Helper()
 	ctx := t.Context()
 	const cents = 8000
-	orderID := admintest.OrderForCustomer(t, pool, admintest.Customer(t, pool), cents, false)
+	orderID := admintest.OrderForCustomer(t, pool, ordertest.Customer(t, pool), cents, false)
 	paidAt = time.Now().Add(-ago).Truncate(time.Second)
 	ref := "cs_age_" + orderID.String()
 	if _, err := pool.Exec(ctx, `SELECT open_payment($1, $2, $3::bigint)`, orderID, ref, int64(cents)); err != nil {
@@ -385,7 +386,7 @@ func TestStore_RecentSalesWeek(t *testing.T) {
 		t.Errorf("days drawn = %d, want 14, a day without orders included", got)
 	}
 
-	number, _ := admintest.PaidPickingOrderForUser(t, isolated, admintest.Customer(t, isolated), 100000)
+	number, _ := ordertest.PaidPickingOrderForUser(t, isolated, ordertest.Customer(t, isolated), 100000)
 	admintest.PlaceUnpaidOrder(t, isolated)
 
 	recent := read()
@@ -464,7 +465,7 @@ func TestStore_RecentSalesLatestPaid(t *testing.T) {
 func TestStore_DashboardPickingOrderAge(t *testing.T) {
 	isolated := admintest.Pool(t)
 	s := storeOver(isolated, health.NewStore(isolated))
-	_, orderID := admintest.PaidPickingOrderForUser(t, isolated, admintest.Customer(t, isolated), 100000)
+	_, orderID := ordertest.PaidPickingOrderForUser(t, isolated, ordertest.Customer(t, isolated), 100000)
 	if _, err := isolated.Exec(t.Context(), `
 		INSERT INTO order_events (order_id, kind, occurred_at) VALUES ($1, 'picking', now() - interval '2 days')`,
 		orderID); err != nil {

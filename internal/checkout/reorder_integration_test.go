@@ -10,7 +10,9 @@ import (
 
 	"github.com/koopa0/goen/internal/cart"
 	"github.com/koopa0/goen/internal/checkout"
+	"github.com/koopa0/goen/internal/checkout/checkouttest"
 	"github.com/koopa0/goen/internal/order/delivery"
+	"github.com/koopa0/goen/internal/order/ordertest"
 )
 
 // TestStore_PlaceOrderReorderLock: PlaceOrder and cart Reorder serialise on the
@@ -23,9 +25,9 @@ import (
 func TestStore_PlaceOrderReorderLock(t *testing.T) {
 	ctx := t.Context()
 	baseStore := checkout.NewStore(pool)
-	checkoutVariant, reorderedVariant, _ := threeVariants(t, "cart-aggregate-lock")
-	sourceOrder := orderOfVariants(t, map[uuid.UUID]int32{reorderedVariant: 2})
-	basket := newCart(t, baseStore)
+	checkoutVariant, reorderedVariant, _ := ordertest.ThreeVariants(t, pool, "cart-aggregate-lock")
+	sourceOrder := ordertest.OrderOfVariants(t, pool, map[uuid.UUID]int32{reorderedVariant: 2})
+	basket := checkouttest.NewCart(t, baseStore)
 	if err := baseStore.Carts().Add(ctx, basket, checkoutVariant, 1); err != nil {
 		t.Fatalf("add checkout line: %v", err)
 	}
@@ -50,7 +52,7 @@ func TestStore_PlaceOrderReorderLock(t *testing.T) {
 		Email: "aggregate@example.com", RecipientName: "購物車鎖", Phone: "0912345678",
 		PostalCode: "110", City: "台北市", District: "信義區", Street: "松高路 1 號",
 	}
-	shown := checkoutQuote(
+	shown := checkouttest.Quote(
 		t, checkoutStore, basket, uuid.NullUUID{}, shippingVersionID, checkoutAddress, "",
 	)
 	checkoutDone := make(chan error, 1)
@@ -62,7 +64,7 @@ func TestStore_PlaceOrderReorderLock(t *testing.T) {
 			uuid.NullUUID{},
 			shippingVersionID,
 			checkoutAddress, nil, "", shown,
-			checkoutAttemptKey("checkout-cart-aggregate-"+uuid.NewString()),
+			checkouttest.AttemptKey("checkout-cart-aggregate-"+uuid.NewString()),
 		)
 		checkoutNumber <- number
 		checkoutDone <- placeErr

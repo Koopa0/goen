@@ -7,8 +7,8 @@ import (
 	"github.com/google/go-cmp/cmp"
 	"golang.org/x/net/html"
 
-	"github.com/koopa0/goen/assets"
 	"github.com/koopa0/goen/internal/i18n"
+	"github.com/koopa0/goen/internal/picture"
 	"github.com/koopa0/goen/internal/ui/frame"
 )
 
@@ -25,8 +25,8 @@ func TestPayLinePhoto(t *testing.T) {
 					alt = "The blue product, front view"
 				}
 				if present {
-					line.ImageURL = assets.Image{BundledKey: "pixelight-9-pro-02.webp"}.URL()
-					line.ImageSrcset = assets.Image{BundledKey: "pixelight-9-pro-02.webp"}.Srcset()
+					line.ImageURL = picture.Image{BundledKey: "pixelight-9-pro-02.webp"}.URL()
+					line.ImageSrcset = picture.Image{BundledKey: "pixelight-9-pro-02.webp"}.Srcset()
 					line.ImageAlt = alt
 				}
 				doc, err := html.Parse(strings.NewReader(renderComponent(t, i18n.WithLocale(t.Context(), locale), Pay(frame.Page{Title: "Pay"}, PayView{Number: "GO-1", Lines: []PayLine{line}}))))

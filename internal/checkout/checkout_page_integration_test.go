@@ -14,7 +14,9 @@ import (
 	"github.com/google/uuid"
 
 	"github.com/koopa0/goen/internal/checkout"
+	"github.com/koopa0/goen/internal/checkout/checkouttest"
 	"github.com/koopa0/goen/internal/order/access"
+	"github.com/koopa0/goen/internal/order/ordertest"
 )
 
 var checkedShipping = regexp.MustCompile(`name="shipping" value="([^"]*)" checked`)
@@ -28,8 +30,8 @@ var checkedShipping = regexp.MustCompile(`name="shipping" value="([^"]*)" checke
 func TestHandler_PlaceOrderGuest(t *testing.T) {
 	s := checkout.NewStore(pool)
 	h := newHandler(s, access.NewStore(pool, false), slog.New(slog.DiscardHandler), nil)
-	cartID, token := newCartSession(t, s)
-	if err := s.Carts().Add(t.Context(), cartID, freshVariant(t, "rendered"), 1); err != nil {
+	cartID, token := checkouttest.NewCartSession(t, s)
+	if err := s.Carts().Add(t.Context(), cartID, ordertest.FreshVariant(t, pool, "rendered"), 1); err != nil {
 		t.Fatalf("add: %v", err)
 	}
 

@@ -9,9 +9,11 @@ import (
 	"github.com/google/uuid"
 
 	"github.com/koopa0/goen/internal/checkout"
+	"github.com/koopa0/goen/internal/checkout/checkouttest"
 	"github.com/koopa0/goen/internal/i18n"
 	"github.com/koopa0/goen/internal/order/buyer"
 	"github.com/koopa0/goen/internal/order/delivery"
+	"github.com/koopa0/goen/internal/order/ordertest"
 )
 
 // TestStore_PlaceOrderCompanyInvoice: PlaceOrder snapshots a company invoice's
@@ -20,8 +22,8 @@ import (
 func TestStore_PlaceOrderCompanyInvoice(t *testing.T) {
 	ctx := t.Context()
 	s := checkout.NewStore(storeRolePool(t))
-	cartID := newCart(t, s)
-	if err := s.Carts().Add(ctx, cartID, freshVariant(t, "company-invoice-buyer"), 1); err != nil {
+	cartID := checkouttest.NewCart(t, s)
+	if err := s.Carts().Add(ctx, cartID, ordertest.FreshVariant(t, pool, "company-invoice-buyer"), 1); err != nil {
 		t.Fatalf("add company invoice line: %v", err)
 	}
 	shippingID := shipVersionFor(t, "home_delivery")
@@ -32,10 +34,10 @@ func TestStore_PlaceOrderCompanyInvoice(t *testing.T) {
 	inv := &checkout.Invoice{
 		Type: "company", CompanyName: "買受股份有限公司", TaxID: "04595252",
 	}
-	shown := checkoutQuote(t, s, cartID, uuid.NullUUID{}, shippingID, addr, "")
+	shown := checkouttest.Quote(t, s, cartID, uuid.NullUUID{}, shippingID, addr, "")
 	number, err := s.PlaceOrder(
 		ctx, cartID, uuid.NullUUID{}, shippingID, addr, inv, "", shown,
-		checkoutAttemptKey("company-invoice-buyer-"+uuid.NewString()),
+		checkouttest.AttemptKey("company-invoice-buyer-"+uuid.NewString()),
 	)
 	if err != nil {
 		t.Fatalf("place company invoice order: %v", err)
@@ -62,7 +64,7 @@ func TestStore_PlaceOrderCompanyInvoice(t *testing.T) {
 func TestStore_PlaceOrderPricesCopied(t *testing.T) {
 	ctx := t.Context()
 	s := checkout.NewStore(pool)
-	id := newCart(t, s)
+	id := checkouttest.NewCart(t, s)
 	vid := variantOf(t, "koto-over-ear")
 	if err := s.Carts().Add(ctx, id, vid, 1); err != nil {
 		t.Fatalf("add: %v", err)
@@ -77,7 +79,7 @@ func TestStore_PlaceOrderPricesCopied(t *testing.T) {
 		Email: "price@example.com", RecipientName: "王小明", Phone: "0912345678",
 		PostalCode: "110", City: "台北市", District: "信義區", Street: "松高路 1 號",
 	}
-	number, err := placeOrder(t, s, ctx, id, uuid.NullUUID{}, shipID, addr, "", "copied-price-"+uuid.NewString())
+	number, err := checkouttest.PlaceOrder(t, s, ctx, id, uuid.NullUUID{}, shipID, addr, "", "copied-price-"+uuid.NewString())
 	if err != nil {
 		t.Fatalf("place: %v", err)
 	}
@@ -154,7 +156,7 @@ func TestStore_PlaceOrderLineLocale(t *testing.T) {
 func TestStore_PlaceOrderWarrantySnapshot(t *testing.T) {
 	ctx := t.Context()
 	s := checkout.NewStore(pool)
-	vid := freshVariant(t, "warranty-promise-snapshot")
+	vid := ordertest.FreshVariant(t, pool, "warranty-promise-snapshot")
 	const originalNote = "Original checkout promise"
 
 	var productID uuid.UUID
@@ -204,7 +206,7 @@ func placeOrderInLocale(
 ) string {
 	t.Helper()
 
-	id := newCart(t, s)
+	id := checkouttest.NewCart(t, s)
 	if err := s.Carts().Add(ctx, id, vid, 1); err != nil {
 		t.Fatalf("add: %v", err)
 	}
@@ -218,7 +220,7 @@ func placeOrderInLocale(
 		Email: "snapshot@example.com", RecipientName: "王小明", Phone: "0912345678",
 		PostalCode: "110", City: "台北市", District: "信義區", Street: "松高路 1 號",
 	}
-	number, err := placeOrder(t, s, ctx, id, uuid.NullUUID{}, shipID, addr, "",
+	number, err := checkouttest.PlaceOrder(t, s, ctx, id, uuid.NullUUID{}, shipID, addr, "",
 		"snapshot-"+key+"-"+uuid.NewString()[:8])
 	if err != nil {
 		t.Fatalf("place: %v", err)

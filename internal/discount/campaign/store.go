@@ -8,10 +8,9 @@ import (
 
 	"github.com/jackc/pgx/v5"
 
-	"github.com/koopa0/goen/assets"
-
 	"github.com/koopa0/goen/internal/db"
 	"github.com/koopa0/goen/internal/i18n"
+	"github.com/koopa0/goen/internal/picture"
 	"github.com/koopa0/goen/internal/ui/tile"
 	"github.com/koopa0/goen/internal/ui/tone"
 	"github.com/koopa0/goen/internal/ui/widget"
@@ -55,7 +54,7 @@ func (s *Store) Campaign(ctx context.Context, slug string) (View, error) {
 	if err != nil {
 		return View{}, fmt.Errorf("read campaign products: %w", err)
 	}
-	photo := assets.Image{Digest: c.ImageDigest, BundledKey: c.ImageBundledKey, Width: int(c.ImageWidth)}
+	photo := picture.Image{Digest: c.ImageDigest, BundledKey: c.ImageBundledKey, Width: int(c.ImageWidth)}
 	return View{
 		Slug:     c.Slug,
 		Title:    c.Title,
@@ -129,7 +128,7 @@ func campaignTiles(rows []db.CampaignProductsRow) []tile.Tile {
 	out := make([]tile.Tile, 0, len(rows))
 	for i := range rows {
 		r := &rows[i]
-		photo := assets.Image{Digest: r.ImageDigest, BundledKey: r.ImageBundledKey, Width: int(r.ImageWidth)}
+		photo := picture.Image{Digest: r.ImageDigest, BundledKey: r.ImageBundledKey, Width: int(r.ImageWidth)}
 		out = append(out, tile.Tile{
 			Slug:         r.Slug,
 			Name:         r.Name,
@@ -159,7 +158,7 @@ func dealTiles(rows []db.DealProductsRow) []tile.Tile {
 	out := make([]tile.Tile, 0, len(rows))
 	for i := range rows {
 		r := &rows[i]
-		photo := assets.Image{Digest: r.ImageDigest, BundledKey: r.ImageBundledKey, Width: int(r.ImageWidth)}
+		photo := picture.Image{Digest: r.ImageDigest, BundledKey: r.ImageBundledKey, Width: int(r.ImageWidth)}
 		out = append(out, tile.Tile{
 			Slug:         r.Slug,
 			Name:         r.Name,

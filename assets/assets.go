@@ -1,4 +1,7 @@
-// Package assets embeds goen's static files and serves them under [Prefix].
+// Package assets is goen's static files, embedded in the binary and served
+// under [Prefix]; it holds the stylesheets, scripts, fonts, brand marks and
+// bundled photographs with their versioned URLs; it does not hold an image a
+// page shows or the URLs of uploads, which are package picture.
 //
 // Every asset URL carries a ?v= content digest, so a changed file is fetched
 // immediately while an unchanged one stays cached for a year. The names
@@ -82,12 +85,11 @@ const (
 	OGDefaultHeight = 630
 )
 
-const productMediaPrefix = "media/products/"
-
 // requiredMedia is the photography the storefront names by file: the six
 // department photographs (1600px, each with a -800 and a -400 rendition) and
 // the campaign headers. The headers sit under media/products/ because a
-// campaign's bundled_key is resolved as a product photograph's is, by Image.
+// campaign's bundled_key is resolved as a product photograph's is, by
+// picture.Image.
 var requiredMedia = append(departmentMedia(
 	"books-stationery", "home-living", "beauty", "fashion", "food-drink", "tech",
 ),
@@ -202,87 +204,6 @@ func Has(name string) bool {
 	return ok
 }
 
-// An Image names a picture the shop shows, as the image columns store it: an
-// upload internal/media serves, by its digest (a media_digest column), or a
-// photograph embedded under media/products, by its file name (a bundled_key
-// column). The schema lets a row hold at most one of the two, so a reader
-// copies both columns and never tells them apart by their shape. The zero
-// Image is no picture.
-type Image struct {
-	// Digest is an upload's media_objects digest. When both it and BundledKey
-	// are set, as no row can be, Digest is the picture, as coalesce(media_digest,
-	// bundled_key) would choose.
-	Digest string
-	// BundledKey is the name of a file in assets/media/products/.
-	BundledKey string
-	// Width is an upload's stored width in pixels, which its candidate set
-	// needs. A bundled photograph's renditions are pre-built, so it is not
-	// consulted for one.
-	Width int
-}
-
-// URL is the image's public URL, or "" when there is nothing to serve.
-//
-// A bundled key is a file name, not a path: that boundary is enforced here so
-// catalogue data cannot escape the products directory or select another
-// embedded asset. A key naming a file that is not embedded also yields "" —
-// the catalogue can declare its imagery before the artwork exists, and a
-// broken image is worse than the tile's placeholder.
-func (i Image) URL() string {
-	if i.Digest != "" {
-		return MediaURL(i.Digest)
-	}
-	name := productImageName(i.BundledKey)
-	if !Has(name) {
-		return ""
-	}
-	return URL(name)
-}
-
-// Srcset is the image's candidate set, or "" when there is none to offer: an
-// upload's renditions narrower than its stored width, or a bundled
-// photograph's pre-built 400, 800 and 1600 pixel-wide files.
-func (i Image) Srcset() string {
-	if i.Digest != "" {
-		return mediaSrcset(i.Digest, i.Width)
-	}
-	return bundledSrcset(i.BundledKey)
-}
-
-// bundledSrcset returns the 400, 800 and 1600 pixel-wide renditions for a
-// valid embedded product image. The bundled file itself remains the 1600px
-// source; the two derived filenames are an asset-pipeline detail.
-func bundledSrcset(key string) string {
-	fullName := productImageName(key)
-	if !Has(fullName) {
-		return ""
-	}
-
-	dot := strings.LastIndexByte(key, '.')
-	if dot <= 0 {
-		return URL(fullName) + " 1600w"
-	}
-	stem, ext := key[:dot], key[dot:]
-	smallName := productMediaPrefix + stem + "-400" + ext
-	mediumName := productMediaPrefix + stem + "-800" + ext
-	if !Has(smallName) || !Has(mediumName) {
-		return URL(fullName) + " 1600w"
-	}
-	return URL(smallName) + " 400w, " +
-		URL(mediumName) + " 800w, " +
-		URL(fullName) + " 1600w"
-}
-
-func productImageName(key string) string {
-	if key == "" ||
-		key == "." ||
-		key == ".." ||
-		strings.ContainsAny(key, `/\?#`) {
-		return ""
-	}
-	return productMediaPrefix + key
-}
-
 // Handler serves the embedded assets. It answers only files: a directory path
 // is a 404 rather than a listing.
 func Handler(log *slog.Logger) http.Handler {
@@ -369,64 +290,4 @@ func ifNoneMatch(r *http.Request, etag string) bool {
 		}
 	}
 	return false
-}
-
-// mediaWidths is the fixed allowlist of renditions an uploaded image may be
-// requested at, in ascending order.
-//
-// An allowlist, not a range, and that is the security property: rendering costs
-// CPU proportional to the output, so an open width parameter is a denial of
-// service that costs the attacker one request.
-var mediaWidths = [...]int{400, 800, 1600}
-
-func KnownWidth(w int) bool { return slices.Contains(mediaWidths[:], w) }
-
-func MediaURL(digest string) string { return "/media/" + digest }
-
-func MediaRenditionURL(digest string, width int) string {
-	return "/media/" + digest + "/" + strconv.Itoa(width)
-}
-
-// UploadedRenditionSrcset is the single candidate for a small tile whose source
-// width is not stored: the given width's rendition of the upload with this
-// digest, and "" when there is none.
-func UploadedRenditionSrcset(digest string, width int) string {
-	if digest == "" {
-		return ""
-	}
-	return MediaRenditionURL(digest, width) + " " + strconv.Itoa(width) + "w"
-}
-
-// mediaSrcset is the candidate set for an uploaded image, derived from the
-// digest and the original's width alone.
-//
-// Two rules, both of which MISLEAD a browser rather than merely wasting bytes
-// when broken:
-//
-//   - Every candidate carries a `w` descriptor. HTML allows all-w, all-x, or a
-//     single bare candidate; a bare one mixed with `w` candidates is a parse
-//     error, and the full-size image drops silently out of the set.
-//   - A rendition appears only if it is NARROWER than the original. goen never
-//     upscales, so an 800w candidate for a 600px image would serve 600 pixels
-//     while telling the browser it received 800 — and the browser chooses and
-//     lays out on that number.
-func mediaSrcset(digest string, originalWidth int) string {
-	if originalWidth <= 0 {
-		return ""
-	}
-	var b strings.Builder
-	for _, w := range mediaWidths {
-		if w >= originalWidth {
-			continue
-		}
-		b.WriteString(MediaRenditionURL(digest, w))
-		b.WriteString(" ")
-		b.WriteString(strconv.Itoa(w))
-		b.WriteString("w, ")
-	}
-	b.WriteString(MediaURL(digest))
-	b.WriteString(" ")
-	b.WriteString(strconv.Itoa(originalWidth))
-	b.WriteString("w")
-	return b.String()
 }
