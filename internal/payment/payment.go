@@ -12,7 +12,7 @@ import (
 
 	"github.com/google/uuid"
 
-	"github.com/koopa0/goen/assets"
+	"github.com/koopa0/goen/internal/picture"
 )
 
 var (
@@ -119,7 +119,7 @@ type HoldSpan struct {
 
 // Line keeps the recorded names and prices; only its photo follows the current catalogue.
 type Line struct {
-	Image     assets.Image
+	Image     picture.Image
 	ImageAlt  string
 	Name      string
 	Label     string

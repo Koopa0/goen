@@ -56,8 +56,10 @@ const (
 	dirWeb        = "internal/web"
 	dirAdmin      = "internal/admin"
 	pkgAdmin      = "internal/admin"
+	pkgAssets     = "assets"
 	pkgI18n       = "internal/i18n"
 	pkgMoney      = "internal/money"
+	pkgPicture    = "internal/picture"
 	pkgFormtext   = "internal/web/formtext"
 	pkgSite       = "internal/site"
 	pkgPolicy     = "internal/policy"
@@ -134,7 +136,7 @@ var (
 	// besides itself.
 	uiMayImport = []string{
 		"assets", "internal/i18n", "internal/keyset", "internal/money", "internal/order",
-		"internal/product/inventory", "internal/shoptime", "internal/user",
+		"internal/picture", "internal/product/inventory", "internal/shoptime", "internal/user",
 	}
 	// storefrontPages are the packages that serve storefront pages. The rule
 	// that uses them leaves out, on purpose: internal/contact (admin/messages
@@ -147,9 +149,10 @@ var (
 		"internal/newsletter", "internal/policy", "internal/site", "internal/wishlist",
 	}
 	// siteMayImport is what internal/site may import besides itself and the
-	// leaves: the foundation every storefront page is built on.
+	// leaves: the foundation every storefront page is built on, and the picture
+	// of a department in the navigation.
 	siteMayImport = []string{
-		"assets", "internal/i18n", "internal/web/respond", "internal/ui/frame",
+		"internal/i18n", "internal/picture", "internal/web/respond", "internal/ui/frame",
 	}
 	// policyMayImport is what internal/policy may import besides itself and the
 	// leaves: the foundation its pages are built on, and the stat line the home,
@@ -159,9 +162,10 @@ var (
 	}
 	// campaignMayImport is what internal/discount/campaign may import besides itself and
 	// the leaves: the message catalogue, the stat its schedule is told in, and
-	// the foundation its page and /deals are built on, the product tile included.
+	// the foundation its page and /deals are built on, the product tile included,
+	// and the header picture it resolves.
 	campaignMayImport = []string{
-		"assets", "internal/i18n", "internal/ui/widget", "internal/ui/frame", "internal/ui/tile", "internal/web/respond",
+		"assets", "internal/i18n", "internal/picture", "internal/ui/widget", "internal/ui/frame", "internal/ui/tile", "internal/web/respond",
 	}
 	// importFreeLeaves import no goen package at all.
 	importFreeLeaves = []string{
@@ -284,6 +288,16 @@ var depsRules = []importRule{
 		},
 		reason: "the catalogue, home and wishlist pages strike a price with campaign.OnSale and tell a campaign's window with its Schedule and End: " +
 			"campaign imports no feature, so catalog, home and wishlist can import it",
+	},
+	{
+		name: "picture",
+		hard: true,
+		pkgs: []string{pkgPicture, pkgAssets},
+		forbid: func(from, to string) bool {
+			return under(from, pkgPicture) && to != pkgAssets
+		},
+		reason: "internal/media serves the uploads picture names and every page that shows an image imports picture, " +
+			"so picture imports only assets, the embedded files it names: no media, feature or desk",
 	},
 	{
 		name: "desks",

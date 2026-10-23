@@ -6,10 +6,10 @@ import (
 	"strconv"
 	"time"
 
-	"github.com/koopa0/goen/assets"
 	"github.com/koopa0/goen/internal/i18n"
 	"github.com/koopa0/goen/internal/keyset"
 	"github.com/koopa0/goen/internal/money"
+	"github.com/koopa0/goen/internal/picture"
 	"github.com/koopa0/goen/internal/ui/chart"
 	"github.com/koopa0/goen/internal/ui/tone"
 	"github.com/koopa0/goen/internal/ui/widget"
@@ -62,7 +62,7 @@ func (c CampaignRow) ToggleLabel(ctx context.Context) string {
 type CampaignProduct struct {
 	Slug          string
 	Name          string
-	Image         assets.Image
+	Image         picture.Image
 	PriceCents    int64
 	CompareCents  int64
 	SellableUnits int64

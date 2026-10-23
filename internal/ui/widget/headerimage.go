@@ -1,11 +1,11 @@
 package widget
 
-import "github.com/koopa0/goen/assets"
+import "github.com/koopa0/goen/internal/picture"
 
 // HeaderImage is the picture at the head of a page and its descriptions in each language.
 // Image is the zero Image when there is none.
 type HeaderImage struct {
-	Image assets.Image
+	Image picture.Image
 	Alt   string
 	AltEn string
 }

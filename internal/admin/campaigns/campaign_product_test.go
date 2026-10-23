@@ -4,8 +4,8 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/koopa0/goen/assets"
 	"github.com/koopa0/goen/internal/i18n"
+	"github.com/koopa0/goen/internal/picture"
 	"github.com/koopa0/goen/internal/ui/frame"
 )
 
@@ -13,7 +13,7 @@ import (
 func TestCampaignFormProductOffers(t *testing.T) {
 	t.Parallel()
 	products := []CampaignProduct{
-		{Slug: "on-sale", Name: "Discounted product", Image: assets.Image{Digest: "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"}, HasVariant: true, HasDiscountedVariant: true, PriceCents: 99000, CompareCents: 129000, SellableUnits: 5},
+		{Slug: "on-sale", Name: "Discounted product", Image: picture.Image{Digest: "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"}, HasVariant: true, HasDiscountedVariant: true, PriceCents: 99000, CompareCents: 129000, SellableUnits: 5},
 		{Slug: "sold-out", Name: "Unavailable product", HasVariant: true, HasDiscountedVariant: true, PriceCents: 199000, CompareCents: 299000},
 		{Slug: "plain-selected", Name: "Available regular variant with a sold-out discount", HasVariant: true, HasDiscountedVariant: true, PriceCents: 70000, SellableUnits: 3},
 		{Slug: "no-original", Name: "Draft without original price", HasVariant: true, Draft: true, PriceCents: 50000, SellableUnits: 1},

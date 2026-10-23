@@ -9,7 +9,7 @@ import (
 
 	"golang.org/x/image/draw"
 
-	"github.com/koopa0/goen/assets"
+	"github.com/koopa0/goen/internal/picture"
 )
 
 // Resize bounds nothing but the width it accepts; the renderer in render.go is
@@ -22,7 +22,7 @@ func resizeWith(
 	data []byte, contentType string, width int,
 	newScaler func(dw, dh, sw, sh int) draw.Scaler,
 ) ([]byte, error) {
-	if !assets.KnownWidth(width) {
+	if !picture.KnownWidth(width) {
 		return nil, fmt.Errorf("media: %d is not a rendition goen offers", width)
 	}
 	src, _, err := image.Decode(bytes.NewReader(data))

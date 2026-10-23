@@ -14,8 +14,8 @@ import (
 	"strconv"
 	"time"
 
-	"github.com/koopa0/goen/assets"
 	"github.com/koopa0/goen/internal/i18n"
+	"github.com/koopa0/goen/internal/picture"
 	"github.com/koopa0/goen/internal/web/formtext"
 )
 
@@ -66,7 +66,7 @@ func (h *Handler) Serve(w http.ResponseWriter, r *http.Request) {
 	width := 0
 	if raw := r.PathValue("width"); raw != "" {
 		parsed, err := strconv.Atoi(raw)
-		if err != nil || !assets.KnownWidth(parsed) {
+		if err != nil || !picture.KnownWidth(parsed) {
 			http.NotFound(w, r)
 			return
 		}

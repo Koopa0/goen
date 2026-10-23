@@ -4,8 +4,8 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/koopa0/goen/assets"
 	"github.com/koopa0/goen/internal/i18n"
+	"github.com/koopa0/goen/internal/picture"
 )
 
 // TestProductImagesThumbnails: the admin product images resolve seed and
@@ -20,8 +20,8 @@ func TestProductImagesThumbnails(t *testing.T) {
 	digest := strings.Repeat("ab", 32)
 	v := ProductView{
 		Slug:    "p",
-		Images:  []Image{{Photo: assets.Image{BundledKey: seedKey, Width: 1600}, Alt: "seed"}},
-		Library: []Image{{Photo: assets.Image{Digest: digest, Width: 1600}}},
+		Images:  []Image{{Photo: picture.Image{BundledKey: seedKey, Width: 1600}, Alt: "seed"}},
+		Library: []Image{{Photo: picture.Image{Digest: digest, Width: 1600}}},
 	}
 	var b strings.Builder
 	if err := productImages(v).Render(i18n.WithLocale(t.Context(), i18n.En), &b); err != nil {
@@ -32,8 +32,8 @@ func TestProductImagesThumbnails(t *testing.T) {
 	if strings.Contains(page, `src="/media/`+seedKey) {
 		t.Errorf("the seed image is still built as /media/%s, which is a 404", seedKey)
 	}
-	seedSrc := assets.Image{BundledKey: seedKey}.URL()
-	small := strings.Split(strings.Split(assets.Image{BundledKey: seedKey}.Srcset(), " 400w")[0], ", ")[0]
+	seedSrc := picture.Image{BundledKey: seedKey}.URL()
+	small := strings.Split(strings.Split(picture.Image{BundledKey: seedKey}.Srcset(), " 400w")[0], ", ")[0]
 	if !strings.HasPrefix(seedSrc, "/static/") || !strings.Contains(small, "-400") {
 		t.Fatalf("test premise: seed URL %q, 400 rendition %q", seedSrc, small)
 	}
