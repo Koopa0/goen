@@ -72,7 +72,7 @@ func TestHandler_GoogleSignInIPv6Limit(t *testing.T) {
 	}
 	h := &Handler{
 		log: slog.New(slog.DiscardHandler), google: g,
-		signinLimit: accountTestLimiter(), resetLimit: accountTestLimiter(),
+		signinLimit: accountTestLimiter(), letterLimit: accountTestLimiter(),
 	}
 
 	start := func(remoteAddr string) int {

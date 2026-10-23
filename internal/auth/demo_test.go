@@ -61,7 +61,7 @@ func demoHandler(t *testing.T) *Handler {
 		t.Fatalf("NewDemoAccount: %v", err)
 	}
 	h := rateLimitedAccountHandler(deadAccountStore(t))
-	h.mailLimit = accountTestLimiter()
+	h.accountMailLimit = accountTestLimiter()
 	h.OfferDemoAccount(d)
 	return h
 }

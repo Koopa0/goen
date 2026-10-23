@@ -70,8 +70,7 @@ func (h *Handler) Forgot(w http.ResponseWriter, r *http.Request) {
 // Cheat Sheet's rule: bound the requests per account, answer every request
 // alike, and never lock the account out.
 func (h *Handler) requestResetLink(ctx context.Context, addr string) error {
-	if _, ok := h.resetLimit.Allow("forgot:" + email.Clean(addr)); !ok {
-		h.log.WarnContext(ctx, "reset link not queued: the address has had its allowance")
+	if !h.mayMail(ctx, "forgot", addr) {
 		return nil
 	}
 	return h.store.requestReset(ctx, addr)

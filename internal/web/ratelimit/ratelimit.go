@@ -14,7 +14,9 @@
 // known to be right. A shared key that bounds what is sent to that person, a
 // mail, need not refuse anyone: when it is empty, answer as if it were sent and
 // send nothing. That locks nobody out only while what was sent already serves
-// whoever asks, as the newest of a run of reset links does.
+// whoever asks, as the newest of a run of reset links does. Such a key, charged
+// by a request that may send nothing, is reserved and refunded when nothing is
+// sent, so it counts only what was sent.
 //
 // Every request runs under one mutex, and some keys are chosen by the client,
 // so a client that can fill the table must not also be able to make each of its
