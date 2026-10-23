@@ -56,7 +56,7 @@ templ Movements(p frame.Page, v *MovementsView) {
 							<tr>
 								<td class="goen-admin__cellkey">{ m.At }</td>
 								<td class={ "goen-admin__cellnum", templ.KV("goen-admin__in", m.In()) }>{ m.DeltaText() }</td>
-								<td>{ m.ReasonText(ctx) }</td>
+								<td>{ m.Reason.Label(ctx) }</td>
 								<td>
 									if m.HasOrder() {
 										<a href={ templ.SafeURL("/admin/orders/" + m.OrderNumber) }>{ m.OrderNumber }</a>
