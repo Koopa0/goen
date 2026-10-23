@@ -458,11 +458,17 @@ func TestEveryTestNameFollowsTheRule(t *testing.T) {
 }
 
 // testPackages returns, slash-separated and relative to root, every directory
-// under root that holds a _test.go file. It skips what the go command skips
-// (skippedDir: names starting with "." or "_", such as the .worktrees and
+// under root that holds a _test.go file.
+func testPackages(root string) ([]string, error) {
+	return goDirs(root, func(name string) bool { return strings.HasSuffix(name, "_test.go") })
+}
+
+// goDirs returns, slash-separated and relative to root, every directory under
+// root that holds a file whose name keep accepts. It skips what the go command
+// skips (skippedDir: names starting with "." or "_", such as the .worktrees and
 // .claude copies of the repository a checkout may hold, testdata, and
 // node_modules) and vendor.
-func testPackages(root string) ([]string, error) {
+func goDirs(root string, keep func(name string) bool) ([]string, error) {
 	found := map[string]bool{}
 	err := filepath.WalkDir(root, func(path string, d fs.DirEntry, err error) error {
 		if err != nil {
@@ -474,7 +480,7 @@ func testPackages(root string) ([]string, error) {
 			}
 			return nil
 		}
-		if !strings.HasSuffix(d.Name(), "_test.go") {
+		if !keep(d.Name()) {
 			return nil
 		}
 		rel, relErr := filepath.Rel(root, filepath.Dir(path))

@@ -207,14 +207,14 @@ integration-build-check:
 # present and future, so a template added outside internal/ui is generated,
 # checked and formatted without a Makefile edit.
 gen:
-	go tool templ generate -path internal
+	go tool templ generate -include-version=false -path internal
 
 # The committed *_templ.go must match the .templ sources. Nothing else checks
 # it: `gen` runs before every other target and would quietly repair a stale
 # projection, so a drifted generated file would only ever be noticed as a
 # surprising diff.
 templ-check:
-	go tool templ generate -check -path internal
+	go tool templ generate -include-version=false -check -path internal
 
 # Vulnerability scan of the module graph and the code that actually reaches it.
 # govulncheck reports only vulnerabilities on a call path from this binary,
