@@ -1,6 +1,6 @@
 //go:build integration
 
-package orders_test
+package admin_test
 
 import (
 	"bytes"

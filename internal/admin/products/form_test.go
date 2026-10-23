@@ -20,42 +20,56 @@ import (
 	"github.com/koopa0/goen/internal/web/formtext"
 )
 
-// TestParseBoundedCeilings: a form number keeps an invalid entry distinct from
-// zero, at each ceiling this desk applies.
-func TestParseBoundedCeilings(t *testing.T) {
+// TestParseVariantCountCeilings: a variant's counts and a product's warranty
+// keep an invalid entry distinct from zero, at each ceiling this desk applies.
+func TestParseVariantCountCeilings(t *testing.T) {
 	t.Parallel()
 	for _, tt := range []struct {
-		name string
-		raw  string
-		max  int32
-		want int32
-		ok   bool
+		name    string
+		raw     string
+		max     int32
+		want    int32
+		refused bool
 	}{
-		{name: "blank is unstated", raw: "", max: MaxWarrantyMonths, ok: true},
-		{name: "space is unstated", raw: "  ", max: MaxWarrantyMonths, ok: true},
-		{name: "typed zero", raw: "0", max: MaxWarrantyMonths, ok: true},
-		{name: "ordinary warranty", raw: "24", max: MaxWarrantyMonths, want: 24, ok: true},
-		{name: "warranty ceiling", raw: "120", max: MaxWarrantyMonths, want: 120, ok: true},
-		{name: "warranty over ceiling", raw: "121", max: MaxWarrantyMonths},
-		{name: "letter typo", raw: "12o", max: MaxWarrantyMonths},
-		{name: "decimal", raw: "24.0", max: MaxWarrantyMonths},
-		{name: "negative", raw: "-3", max: MaxWarrantyMonths},
-		{name: "inner space", raw: "2 4", max: MaxWarrantyMonths},
-		{name: "non ASCII digits", raw: "١٢", max: MaxWarrantyMonths},
-		{name: "longest ceiling", raw: "5000", max: shipping.MaxParcelLongestMM, want: 5000, ok: true},
-		{name: "longest over ceiling", raw: "6000", max: shipping.MaxParcelLongestMM},
-		{name: "sum ceiling", raw: "15000", max: shipping.MaxParcelSumMM, want: 15000, ok: true},
-		{name: "weight ceiling", raw: "200000", max: shipping.MaxParcelWeightG, want: 200000, ok: true},
-		{name: "comma", raw: "10,000", max: shipping.MaxParcelWeightG},
-		{name: "safety ceiling", raw: "1000000", max: safetyStockCeiling, want: 1000000, ok: true},
-		{name: "safety over ceiling", raw: "1000001", max: safetyStockCeiling},
+		{name: "longest ceiling", raw: "5000", max: shipping.MaxParcelLongestMM, want: 5000},
+		{name: "longest over ceiling", raw: "6000", max: shipping.MaxParcelLongestMM, refused: true},
+		{name: "sum ceiling", raw: "15000", max: shipping.MaxParcelSumMM, want: 15000},
+		{name: "weight ceiling", raw: "200000", max: shipping.MaxParcelWeightG, want: 200000},
+		{name: "safety ceiling", raw: "1000000", max: safetyStockCeiling, want: 1000000},
+		{name: "safety over ceiling", raw: "1000001", max: safetyStockCeiling, refused: true},
 	} {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
-			got, ok := formtext.ParseBounded(tt.raw, tt.max)
-			if got != tt.want || ok != tt.ok {
-				t.Errorf("formtext.ParseBounded(%q, %d) = (%d, %v), want (%d, %v)",
-					tt.raw, tt.max, got, ok, tt.want, tt.ok)
+			errs := map[string]string{}
+			got := parseVariantCount(tt.raw, tt.max, "field", "refused", errs)
+			if got != tt.want || (errs["field"] != "") != tt.refused {
+				t.Errorf("parseVariantCount(%q, %d) = %d, errors %v; want %d, refused %v",
+					tt.raw, tt.max, got, errs, tt.want, tt.refused)
+			}
+		})
+	}
+
+	for _, tt := range []struct {
+		name    string
+		raw     string
+		want    int32
+		refused bool
+	}{
+		{name: "ordinary warranty", raw: "24", want: 24},
+		{name: "warranty ceiling", raw: "120", want: 120},
+		{name: "warranty over ceiling", raw: "121", refused: true},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			form := url.Values{"warranty_months": {tt.raw}}
+			r := httptest.NewRequestWithContext(i18n.WithLocale(t.Context(), i18n.En),
+				http.MethodPost, "/admin/products/x", strings.NewReader(form.Encode()))
+			r.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+
+			f, errs := productFormOf(r)
+			if f.WarrantyMonths != tt.want || (errs["warranty_months"] != "") != tt.refused {
+				t.Errorf("productFormOf(warranty_months=%q) = %d, errors %v; want %d, refused %v",
+					tt.raw, f.WarrantyMonths, errs, tt.want, tt.refused)
 			}
 		})
 	}

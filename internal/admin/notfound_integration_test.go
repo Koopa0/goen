@@ -1,6 +1,6 @@
 //go:build integration
 
-package orders_test
+package admin_test
 
 import (
 	"html"
@@ -24,9 +24,9 @@ import (
 	"github.com/koopa0/goen/internal/user"
 )
 
-// TestNotFoundKeepsStaffInBackOffice: a missing record keeps verified staff in
+// TestNotFound_KeepsStaffInBackOffice: a missing record keeps verified staff in
 // the back office, and an outsider gets the storefront 404.
-func TestNotFoundKeepsStaffInBackOffice(t *testing.T) {
+func TestNotFound_KeepsStaffInBackOffice(t *testing.T) {
 	log := slog.New(slog.DiscardHandler)
 	mux := http.NewServeMux()
 	ac := admin.NewControl(log, func(*http.Request) (bool, error) { return true, nil })

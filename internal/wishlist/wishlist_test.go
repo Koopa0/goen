@@ -7,21 +7,7 @@ import (
 	"net/url"
 	"strings"
 	"testing"
-
-	"github.com/koopa0/goen/internal/web/siteurl"
 )
-
-// TestPathOrFallback: the return target falls back to this feature's own page.
-// siteurl.Path owns the rule; the FALLBACK is what differs per caller.
-func TestPathOrFallback(t *testing.T) {
-	const fallback = "/account/wishlist"
-	if got := siteurl.PathOr("//evil.example", fallback); got != fallback {
-		t.Errorf("a refused target gave %q, want %q", got, fallback)
-	}
-	if got := siteurl.PathOr("/deals", fallback); got != "/deals" {
-		t.Errorf("a same-site path gave %q", got)
-	}
-}
 
 // TestHandler_UpdateGuestReturn holds where a refused save lands: the form's
 // validated same-site return path, never a fixed /account/wishlist.

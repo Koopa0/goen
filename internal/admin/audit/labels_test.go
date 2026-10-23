@@ -14,6 +14,7 @@ import (
 
 	"github.com/koopa0/goen/internal/admin/audit"
 	"github.com/koopa0/goen/internal/i18n"
+	"github.com/koopa0/goen/internal/ui/frame"
 )
 
 // TestEntry_LabelDeclaredActions reads the vocabulary out of the const block
@@ -184,5 +185,39 @@ func TestEntry_EntityLabelAuditedTables(t *testing.T) {
 		sort.Strings(missing)
 		t.Errorf("table(s) shown by their database name on /admin/audit:\n  %s\nAdd a key to internal/i18n/audit_entity.go and an entry to entityLabels.",
 			strings.Join(missing, "\n  "))
+	}
+}
+
+// TestEntry_LabelParcelArrival: the audit trail names the parcel arrival action
+// in both languages.
+func TestEntry_LabelParcelArrival(t *testing.T) {
+	t.Parallel()
+	for _, tt := range []struct {
+		locale                  i18n.Locale
+		want, entity, dateLabel string
+	}{
+		{locale: i18n.ZhHant, want: "標記包裹已送達", entity: "包裹", dateLabel: "送達時間"},
+		{locale: i18n.En, want: "Mark parcel delivered", entity: "Parcel", dateLabel: "Delivered at"},
+	} {
+		t.Run(tt.locale.Tag(), func(t *testing.T) {
+			t.Parallel()
+			ctx := i18n.WithLocale(t.Context(), tt.locale)
+			entry := audit.Entry{Action: "shipment.delivered", Entity: "order_shipments",
+				Changes: []audit.Change{{Field: "delivered_at", After: "2026-10-12 10:00"}}}
+			if got := entry.Label(ctx); got != tt.want {
+				t.Errorf("arrival audit label = %q, want %q", got, tt.want)
+			}
+			if got := entry.EntityLabel(ctx); got != tt.entity {
+				t.Errorf("arrival audit entity = %q, want %q", got, tt.entity)
+			}
+			var rendered strings.Builder
+			if err := audit.Audit(frame.Page{}, audit.View{Rows: []audit.Entry{entry}}).Render(ctx, &rendered); err != nil {
+				t.Fatalf("render: %v", err)
+			}
+			page := rendered.String()
+			if !strings.Contains(page, "<dt>"+tt.dateLabel+"</dt>") || !strings.Contains(page, "<dd>2026-10-12 10:00</dd>") {
+				t.Error("arrival audit does not show its labelled delivery time")
+			}
+		})
 	}
 }

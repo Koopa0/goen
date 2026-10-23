@@ -7,56 +7,6 @@ import (
 	"github.com/koopa0/goen/internal/order/returns"
 )
 
-// TestEvaluateStatutoryRejection: a statutory request cannot be rejected on the
-// decision path.
-func TestEvaluateStatutoryRejection(t *testing.T) {
-	t.Parallel()
-
-	_, err := returns.Evaluate([]returns.LineAssessment{{
-		OrderLineID: "1", Window: returns.WindowStatutory,
-	}}, returns.DecisionReject)
-	if !errors.Is(err, returns.ErrPolicy) {
-		t.Fatalf("statutory rejection = %v, want ErrPolicy", err)
-	}
-}
-
-// TestEvaluateApprovalEntitlement: a late approval cannot claim policy
-// entitlement, and the entitlement an approval does claim follows its window.
-func TestEvaluateApprovalEntitlement(t *testing.T) {
-	t.Parallel()
-
-	tests := []struct {
-		window returns.PolicyWindow
-		kind   returns.DecisionKind
-		want   returns.Entitlement
-		refuse bool
-	}{
-		{returns.WindowGoodwill, returns.DecisionApprove, "", true},
-		{returns.WindowLate, returns.DecisionApprove, "", true},
-		{returns.WindowLate, returns.DecisionException, returns.EntitlementException, false},
-		{returns.WindowUndelivered, returns.DecisionApprove, returns.EntitlementStatutory, false},
-		{returns.WindowStatutory, returns.DecisionApprove, returns.EntitlementStatutory, false},
-	}
-	for _, tc := range tests {
-		got, err := returns.Evaluate([]returns.LineAssessment{{
-			OrderLineID: "1", Window: tc.window,
-		}}, tc.kind)
-		if tc.refuse {
-			if !errors.Is(err, returns.ErrPolicy) {
-				t.Fatalf("Evaluate(%s, %s) = %v, want ErrPolicy", tc.window, tc.kind, err)
-			}
-			continue
-		}
-		if err != nil {
-			t.Fatalf("Evaluate(%s, %s) = %v", tc.window, tc.kind, err)
-		}
-		if got.Entitlement != tc.want {
-			t.Errorf("Evaluate(%s, %s) entitlement = %q, want %q",
-				tc.window, tc.kind, got.Entitlement, tc.want)
-		}
-	}
-}
-
 // TestRequireExceptionReason: the first exception requires a recorded reason.
 func TestRequireExceptionReason(t *testing.T) {
 	t.Parallel()

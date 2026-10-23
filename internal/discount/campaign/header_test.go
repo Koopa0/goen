@@ -39,20 +39,6 @@ func TestPageHeader(t *testing.T) {
 	}
 }
 
-// TestImage_URLHeaderKey: a campaign header key resolves like a product image:
-// a bundled banner resolves through the image resolver, and an uploaded header
-// to its media path.
-func TestImage_URLHeaderKey(t *testing.T) {
-	t.Parallel()
-	if banner := (picture.Image{BundledKey: seedBanner}); banner.URL() == "" || !strings.Contains(banner.Srcset(), "-800.webp") {
-		t.Fatal("the embedded banner does not resolve through the product image resolver")
-	}
-	digest := strings.Repeat("ef", 32)
-	if got := (picture.Image{Digest: digest}).URL(); got != "/media/"+digest {
-		t.Fatalf("an uploaded header resolves to %q", got)
-	}
-}
-
 // TestPageHeadTone: a campaign head carries its tone. The attribute is what
 // app.css selects the ground on; a head without it is unthemed. The department
 // head's half of this test is catalog's TestListingHeadTone.

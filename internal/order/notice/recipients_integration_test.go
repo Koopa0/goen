@@ -1,6 +1,6 @@
 //go:build integration
 
-package orders_test
+package notice_test
 
 import (
 	"errors"
