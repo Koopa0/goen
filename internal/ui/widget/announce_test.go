@@ -48,6 +48,19 @@ func TestAnnounceTreatsEachOutcomeApart(t *testing.T) {
 	}
 }
 
+func TestAnnounceAlert_UsesTheAlertSpelling(t *testing.T) {
+	t.Parallel()
+	ctx := i18n.WithLocale(t.Context(), i18n.ZhHant)
+	result := widget.Result{Outcome: widget.OutcomeRefused, Text: "the sentence"}
+	alert, plain := render(t, ctx, widget.AnnounceAlert(result)), render(t, ctx, widget.Announce(result))
+	if !strings.Contains(alert, "ui-alert") || strings.Contains(plain, "ui-alert") {
+		t.Errorf("AnnounceAlert = %s\nAnnounce = %s\nwant ui-alert on the first and not on the second", alert, plain)
+	}
+	if strip := strings.ReplaceAll(alert, " ui-alert", ""); strip != plain {
+		t.Errorf("AnnounceAlert differs from Announce by more than the ui-alert class:\n%s\n%s", alert, plain)
+	}
+}
+
 func TestAnnounceShowsNothingWithoutASentence(t *testing.T) {
 	t.Parallel()
 	if got := render(t, i18n.WithLocale(t.Context(), i18n.ZhHant), widget.Announce(widget.Result{})); got != "" {

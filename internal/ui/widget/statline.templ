@@ -2,26 +2,12 @@ package widget
 
 // The label comes before the figure in the document, so a screen reader hears what is counted first.
 templ StatLine(stats []Stat, variant StatLineVariant) {
-	if items := shown(stats); len(items) > 0 {
+	if items := shown(stats, variant); len(items) > 0 {
 		<dl class={ variant.class() }>
 			for _, s := range items {
 				<div>
 					@statLabel(s.Label, s.LabelHref)
 					@statValue(s)
-				</div>
-			}
-		</dl>
-	}
-}
-
-// GlanceStatLine is a stat line whose labels link; the figure stays outside the link.
-templ GlanceStatLine(stats []LinkedStat) {
-	if items := shownLinked(stats); len(items) > 0 {
-		<dl class="ui-statline ui-statline--glance">
-			for _, s := range items {
-				<div>
-					@statLabel(s.Label, s.Href)
-					@statValue(s.Stat)
 				</div>
 			}
 		</dl>

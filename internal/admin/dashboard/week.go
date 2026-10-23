@@ -61,26 +61,26 @@ func sparklines(ctx context.Context, p chart.SparklineProps) chart.SparklineProp
 
 // WeekStats is the stat line of the last week: revenue and paid orders each set
 // against the week before with their days drawn, then the latest paid order.
-func (v *DashboardView) WeekStats(ctx context.Context) []widget.LinkedStat {
+func (v *DashboardView) WeekStats(ctx context.Context) []widget.Stat {
 	const reports = "/admin/reports?days=7"
 	w := &v.Week
-	return []widget.LinkedStat{
-		{Stat: widget.Stat{
+	return []widget.Stat{
+		{
 			Label: i18n.T(ctx, i18n.KeyAdminRepRevenue), Value: widget.StatMoney(w.RevenueCents),
-			Note: w.revenueAgainst(ctx), Trend: chart.Sparkline(sparklines(ctx, w.RevenueDays)),
-		}, Href: reports},
-		{Stat: widget.Stat{
+			Note: w.revenueAgainst(ctx), Trend: chart.Sparkline(sparklines(ctx, w.RevenueDays)), LabelHref: reports,
+		},
+		{
 			Label: i18n.T(ctx, i18n.KeyAdminRepPaidOrders), Value: widget.StatNumber(w.Orders),
-			Note: w.ordersAgainst(ctx), Trend: chart.Sparkline(sparklines(ctx, w.OrderDays)),
-		}, Href: reports},
+			Note: w.ordersAgainst(ctx), Trend: chart.Sparkline(sparklines(ctx, w.OrderDays)), LabelHref: reports,
+		},
 		v.latestStat(ctx),
 	}
 }
 
-func (v *DashboardView) latestStat(ctx context.Context) widget.LinkedStat {
-	stat := widget.LinkedStat{
-		Stat: widget.Stat{Label: i18n.T(ctx, i18n.KeyAdminQueueLatestPaid), Value: widget.StatWord("—")},
-		Href: "/admin/orders",
+func (v *DashboardView) latestStat(ctx context.Context) widget.Stat {
+	stat := widget.Stat{
+		Label: i18n.T(ctx, i18n.KeyAdminQueueLatestPaid), Value: widget.StatWord("—"),
+		LabelHref: "/admin/orders",
 	}
 	switch {
 	case v.LatestUnavailable:
@@ -90,7 +90,7 @@ func (v *DashboardView) latestStat(ctx context.Context) widget.LinkedStat {
 	default:
 		stat.Value = elapsedValue(ctx, v.Latest.Elapsed)
 		stat.Note = v.Latest.Number + " · " + money.TWD(v.Latest.TotalCents)
-		stat.Href = "/admin/orders/" + v.Latest.Number
+		stat.LabelHref = "/admin/orders/" + v.Latest.Number
 	}
 	return stat
 }

@@ -38,8 +38,9 @@ func Announce(r Result) templ.Component {
 	})
 }
 
-// The layout gate finds the order page's notice by the vendored spelling, so the element keeps it (#380 R8).
-func AnnounceOrder(r Result) templ.Component {
+// AnnounceAlert is Announce in the shared ui-alert spelling: the print view hides it and the layout gate finds
+// the order screen's notice by it (#380 R8).
+func AnnounceAlert(r Result) templ.Component {
 	return templruntime.GeneratedTemplate(func(templ_7745c5c3_Input templruntime.GeneratedComponentInput) (templ_7745c5c3_Err error) {
 		templ_7745c5c3_W, ctx := templ_7745c5c3_Input.Writer, templ_7745c5c3_Input.Context
 		if templ_7745c5c3_CtxErr := ctx.Err(); templ_7745c5c3_CtxErr != nil {
@@ -112,7 +113,7 @@ func announce(r Result, class string) templ.Component {
 					var templ_7745c5c3_Var5 string
 					templ_7745c5c3_Var5, templ_7745c5c3_Err = templ.JoinStringErrs(i18n.T(ctx, i18n.KeyAdminNoticeLeadRefused))
 					if templ_7745c5c3_Err != nil {
-						return templ.Error{Err: templ_7745c5c3_Err, FileName: `ui/widget/announce.templ`, Line: 20, Col: 84}
+						return templ.Error{Err: templ_7745c5c3_Err, FileName: `ui/widget/announce.templ`, Line: 21, Col: 84}
 					}
 					_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var5))
 					if templ_7745c5c3_Err != nil {
@@ -130,7 +131,7 @@ func announce(r Result, class string) templ.Component {
 					var templ_7745c5c3_Var6 string
 					templ_7745c5c3_Var6, templ_7745c5c3_Err = templ.JoinStringErrs(i18n.T(ctx, i18n.KeyAdminNoticeLeadFailed))
 					if templ_7745c5c3_Err != nil {
-						return templ.Error{Err: templ_7745c5c3_Err, FileName: `ui/widget/announce.templ`, Line: 22, Col: 83}
+						return templ.Error{Err: templ_7745c5c3_Err, FileName: `ui/widget/announce.templ`, Line: 23, Col: 83}
 					}
 					_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var6))
 					if templ_7745c5c3_Err != nil {
@@ -148,7 +149,7 @@ func announce(r Result, class string) templ.Component {
 				var templ_7745c5c3_Var7 string
 				templ_7745c5c3_Var7, templ_7745c5c3_Err = templ.JoinStringErrs(r.Text)
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `ui/widget/announce.templ`, Line: 24, Col: 11}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `ui/widget/announce.templ`, Line: 25, Col: 11}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var7))
 				if templ_7745c5c3_Err != nil {

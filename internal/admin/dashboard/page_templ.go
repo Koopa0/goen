@@ -250,7 +250,7 @@ func Dashboard(p frame.Page, v DashboardView) templ.Component {
 					return templ_7745c5c3_Err
 				}
 			} else {
-				templ_7745c5c3_Err = widget.GlanceStatLine(v.WeekStats(ctx)).Render(ctx, templ_7745c5c3_Buffer)
+				templ_7745c5c3_Err = widget.StatLine(v.WeekStats(ctx), widget.StatLineGlance).Render(ctx, templ_7745c5c3_Buffer)
 				if templ_7745c5c3_Err != nil {
 					return templ_7745c5c3_Err
 				}
