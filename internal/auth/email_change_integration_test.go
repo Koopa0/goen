@@ -20,6 +20,7 @@ import (
 	"github.com/google/go-cmp/cmp"
 	"github.com/google/go-cmp/cmp/cmpopts"
 	"github.com/google/uuid"
+	"github.com/jackc/pgx/v5"
 
 	"github.com/koopa0/goen/internal/account"
 	"github.com/koopa0/goen/internal/auth"
@@ -400,15 +401,19 @@ func TestStore_DeliverAddressVerifyCase(t *testing.T) {
 	}
 }
 
-// addressMailBudget is how many requests naming one address NewHandler takes
-// before the first refusal.
-const addressMailBudget = 3
+// addressMailBudget is how many letters one flow sends one address before its
+// allowance runs out, and accountMailBudget how many one account asks for:
+// NewHandler's addressMailPace and accountMailPace.
+const (
+	addressMailBudget = 3
+	accountMailBudget = 3
+)
 
-// TestHandler_ChangeEmailAddressBound: requests to change to one address are
-// bounded per address, however many accounts and clients ask, so the form
-// cannot be used to flood one mailbox. Every address change mails the address
-// it names, the link or its owner a note that somebody asked for it, and
-// anybody can have an account with their own mailbox.
+// TestHandler_ChangeEmailAddressBound: requests to change to one address send
+// it a bounded number of letters, however many accounts and clients ask, and
+// every request is answered alike. Every address change mails the address it
+// names, the link or its owner a note that somebody asked for it, and anybody
+// can have an account with their own mailbox.
 func TestHandler_ChangeEmailAddressBound(t *testing.T) {
 	ctx := t.Context()
 	s := auth.NewStore(accountStorePool(t, "change-bound"))
@@ -419,17 +424,21 @@ func TestHandler_ChangeEmailAddressBound(t *testing.T) {
 	b := changeBrowser{t: t, h: h}
 	owner := registerProved(t, auth.NewStore(pool), "change-bound-owner-"+uuid.NewString()+"@example.com")
 
-	// deliver hands the asker's queued message to the worker's half, and
-	// reports whether the address's owner was told.
+	// deliver hands the asker's queued message, if it has one, to the worker's
+	// half, and reports whether the address's owner was told.
 	deliver := func(askerID string) bool {
 		t.Helper()
 		var payload []byte
-		if err := pool.QueryRow(ctx, `
+		err := pool.QueryRow(ctx, `
 			UPDATE outbox_messages m SET delivered_at = now()
 			FROM email_verifications v
 			WHERE m.topic = $1 AND m.delivered_at IS NULL
 			  AND m.dedupe_key = 'verify:' || encode(v.digest, 'hex') AND v.user_id = $2
-			RETURNING m.payload`, outbox.TopicEmailVerify.Name(), uuid.MustParse(askerID)).Scan(&payload); err != nil {
+			RETURNING m.payload`, outbox.TopicEmailVerify.Name(), uuid.MustParse(askerID)).Scan(&payload)
+		if errors.Is(err, pgx.ErrNoRows) {
+			return false
+		}
+		if err != nil {
 			t.Fatalf("take the queued message: %v", err)
 		}
 		var p outbox.AddressVerify
@@ -448,12 +457,14 @@ func TestHandler_ChangeEmailAddressBound(t *testing.T) {
 		return told
 	}
 
+	// Each account asks as often as its own allowance lets it, so together
+	// they ask more often than the address's allowance, which is what binds.
 	letters := 0
-	const accounts, perAccount = 3, 10
+	const accounts = 3
 	for a := range accounts {
 		asker := registerProved(t, auth.NewStore(pool), "change-bound-asker-"+uuid.NewString()+"@example.com")
 		session := b.signIn(asker.Email)
-		for range perAccount {
+		for range accountMailBudget {
 			req := cartForm(ctx, "/account/email", url.Values{
 				"email": {owner.Email}, "current": {"a sufficiently long password"},
 			})
@@ -461,109 +472,70 @@ func TestHandler_ChangeEmailAddressBound(t *testing.T) {
 			req.AddCookie(session)
 			rec := httptest.NewRecorder()
 			h.Authenticate(route).ServeHTTP(rec, req)
-			switch {
-			case rec.Code == http.StatusSeeOther && rec.Header().Get("Location") == "/account?address=c%2A%2A%2A%40example.com&email=sent":
-				if deliver(asker.ID) {
-					letters++
-				}
-			case rec.Code == http.StatusTooManyRequests && rec.Header().Get("Retry-After") != "":
-			default:
-				t.Fatalf("a change request answered %d to %q", rec.Code, rec.Header().Get("Location"))
+			if rec.Code != http.StatusSeeOther || rec.Header().Get("Location") != "/account?address=c%2A%2A%2A%40example.com&email=sent" {
+				t.Fatalf("a change request answered %d to %q, want 303 to the sent notice",
+					rec.Code, rec.Header().Get("Location"))
+			}
+			if deliver(asker.ID) {
+				letters++
 			}
 		}
 	}
-	if letters > addressMailBudget {
-		t.Errorf("%d accounts on %d clients made one customer's address receive %d letters; "+
-			"one address may be mailed at most %d times before the first refusal",
+	if letters != addressMailBudget {
+		t.Errorf("%d accounts on %d clients made one customer's address receive %d letters, want %d",
 			accounts, accounts, letters, addressMailBudget)
 	}
 }
 
-// TestHandler_ChangeEmailRefusal: once an address's budget is spent,
-// ChangeEmail refuses a taken and a free address identically (429, same headers
-// and body), and each capitalisation of one address draws on the same budget.
-// The bound is the address's own count, whoever holds it, so the refusal says
-// nothing about the address.
-func TestHandler_ChangeEmailRefusal(t *testing.T) {
-	b := changeBrowser{t: t, h: auth.NewHandler(auth.NewStore(pool), nil, nil,
-		slog.New(slog.DiscardHandler), false, nil)}
-	asker := registerProved(t, auth.NewStore(pool), "change-refused-"+uuid.NewString()+"@example.com")
-	taken := registerProved(t, auth.NewStore(pool), "change-refused-taken-"+uuid.NewString()+"@example.com").Email
-	free := "change-refused-free-" + uuid.NewString() + "@example.com"
+// TestHandler_RegisterChangeApart: address changes that spend an address's
+// allowance of change letters leave its registration letters whole, so a
+// registration of the address still sends its letter.
+func TestHandler_RegisterChangeApart(t *testing.T) {
+	s := auth.NewStore(pool)
+	b := changeBrowser{t: t, h: auth.NewHandler(s, nil, nil, slog.New(slog.DiscardHandler), false, nil)}
+	asker := registerProved(t, s, "apart-asker-"+uuid.NewString()+"@example.com")
 	session := b.signIn(asker.Email)
+	addr := "apart-" + uuid.NewString() + "@example.com"
 
-	refusal := func(addr string) *httptest.ResponseRecorder {
-		t.Helper()
-		spellings := []string{addr, strings.ToUpper(addr), strings.ToUpper(addr[:1]) + addr[1:]}
-		for i := range addressMailBudget {
-			spelling := spellings[i%len(spellings)]
-			if rec := b.askToMove(session, spelling); rec.Code != http.StatusSeeOther {
-				t.Fatalf("request %d naming %s answered %d, want 303", i+1, spelling, rec.Code)
-			}
-		}
-		return b.askToMove(session, strings.ToUpper(addr[:len(addr)/2])+addr[len(addr)/2:])
-	}
-	takenRec, freeRec := refusal(taken), refusal(free)
-
-	if takenRec.Code != http.StatusTooManyRequests || freeRec.Code != takenRec.Code {
-		t.Fatalf("once spent, a taken and a free address answered %d and %d, want 429 for both",
-			takenRec.Code, freeRec.Code)
-	}
-	for _, rec := range []*httptest.ResponseRecorder{takenRec, freeRec} {
-		wait, err := strconv.Atoi(rec.Header().Get("Retry-After"))
-		if err != nil {
-			t.Errorf("a refusal carries Retry-After %q", rec.Header().Get("Retry-After"))
-			continue
-		}
-		if wait <= 9*60 {
-			t.Errorf("a refused address may be asked for again in %d s; want the ten-minute pace "+
-				"of every form that mails an address", wait)
+	for i := range addressMailBudget {
+		if code := b.askToMove(session, addr).Code; code != http.StatusSeeOther {
+			t.Fatalf("change request %d answered %d, want 303", i+1, code)
 		}
 	}
-	// Retry-After counts down from each address's own first request, so its
-	// value is compared only for presence.
-	takenHeader, freeHeader := takenRec.Header().Clone(), freeRec.Header().Clone()
-	takenHeader.Del("Retry-After")
-	freeHeader.Del("Retry-After")
-	if diff := cmp.Diff(takenHeader, freeHeader); diff != "" {
-		t.Errorf("the refusals for a taken and a free address differ (-taken +free):\n%s", diff)
+	rec := httptest.NewRecorder()
+	b.h.Register(rec, registrationForm(t.Context(), addr, "a sufficiently long password", "/account"))
+	if rec.Code != http.StatusSeeOther {
+		t.Fatalf("registering the address answered %d, want 303", rec.Code)
 	}
-	if takenRec.Body.String() != freeRec.Body.String() {
-		t.Errorf("the refusals for a taken and a free address answer %q and %q",
-			takenRec.Body.String(), freeRec.Body.String())
+	if got := followUpRegistrations(t, s, addr, neverTold(t)); got != 1 {
+		t.Errorf("the registration after the change requests queued %d letters, want 1", got)
 	}
 }
 
-// TestHandler_RegisterChangeSharedBudget: registration and an address change
-// draw on one budget per address, so taking turns between the two forms buys no
-// more letters. Both forms mail the address they name.
-func TestHandler_RegisterChangeSharedBudget(t *testing.T) {
-	ctx := t.Context()
-	b := changeBrowser{t: t, h: auth.NewHandler(auth.NewStore(pool), nil, nil,
-		slog.New(slog.DiscardHandler), false, nil)}
-	asker := registerProved(t, auth.NewStore(pool), "shared-budget-asker-"+uuid.NewString()+"@example.com")
-	session := b.signIn(asker.Email)
-	addr := "shared-budget-" + uuid.NewString() + "@example.com"
-	register := func() int {
-		rec := httptest.NewRecorder()
-		b.h.Register(rec, registrationForm(ctx, addr, "a sufficiently long password", "/account"))
-		return rec.Code
-	}
+// TestHandler_ChangeEmailAccountBound: one account's change request past its
+// allowance, each to a different address, is refused with 429 and the
+// account's own Retry-After, and another account is still answered.
+func TestHandler_ChangeEmailAccountBound(t *testing.T) {
+	s := auth.NewStore(pool)
+	b := changeBrowser{t: t, h: auth.NewHandler(s, nil, nil, slog.New(slog.DiscardHandler), false, nil)}
+	asker := b.signIn(registerProved(t, s, "account-bound-"+uuid.NewString()+"@example.com").Email)
+	another := b.signIn(registerProved(t, s, "account-bound-another-"+uuid.NewString()+"@example.com").Email)
+	elsewhere := func() string { return "account-bound-to-" + uuid.NewString() + "@example.com" }
 
-	for i := range addressMailBudget - 1 {
-		if code := register(); code != http.StatusSeeOther {
-			t.Fatalf("registration %d of the address answered %d, want 303", i+1, code)
+	for i := range accountMailBudget {
+		if code := b.askToMove(asker, elsewhere()).Code; code != http.StatusSeeOther {
+			t.Fatalf("change request %d answered %d, want 303", i+1, code)
 		}
 	}
-	if code := b.askToMove(session, addr).Code; code != http.StatusSeeOther {
-		t.Fatalf("the change request that spends the last of the budget answered %d, want 303", code)
+	refused := b.askToMove(asker, elsewhere())
+	if refused.Code != http.StatusTooManyRequests {
+		t.Errorf("the account's change request past its allowance answered %d, want 429", refused.Code)
+	} else if wait, err := strconv.Atoi(refused.Header().Get("Retry-After")); err != nil || wait <= 19*60 {
+		t.Errorf("a refused account may ask again in %q s; want the twenty-minute pace",
+			refused.Header().Get("Retry-After"))
 	}
-	if code := b.askToMove(session, addr).Code; code != http.StatusTooManyRequests {
-		t.Errorf("a change request past the address's budget answered %d, want 429", code)
-	}
-	if code := register(); code != http.StatusTooManyRequests {
-		t.Errorf("a registration past the address's budget answered %d, want 429: the change "+
-			"requests were not counted against it", code)
+	if code := b.askToMove(another, elsewhere()).Code; code != http.StatusSeeOther {
+		t.Errorf("another account's change request answered %d, want 303", code)
 	}
 }
 

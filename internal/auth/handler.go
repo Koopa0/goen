@@ -51,18 +51,13 @@ type Handler struct {
 	// guessCeiling bounds, per account, the guesses that missed, from every
 	// network together: the bound on a guess spread over many networks.
 	guessCeiling *ratelimit.Limiter
-	// resetLimit bounds the reset links an address is sent, and has a budget of
-	// its own: spending the registration and change budget for an address must
-	// not stop its owner getting a reset link. It never refuses a request; see
-	// [Handler.requestResetLink].
-	resetLimit *ratelimit.Limiter
-	store      *Store
-	carts      Carts
-	grants     Grants
-	log        *slog.Logger
-	secure     bool
-	google     *google.Client
-	demo       DemoAccount
+	store        *Store
+	carts        Carts
+	grants       Grants
+	log          *slog.Logger
+	secure       bool
+	google       *google.Client
+	demo         DemoAccount
 	// stepUp reports whether the request's session passed the second factor; nil
 	// is a deployment with none. See [Handler.RequireStepUpFromStaff].
 	stepUp func(*http.Request) (bool, error)
@@ -70,11 +65,17 @@ type Handler struct {
 	// [Handler.RefuseOnAccountPage].
 	refuseOnAccountPage func(w http.ResponseWriter, r *http.Request, notice string)
 
-	// mailLimit bounds, per address, the forms that mail an address whoever
-	// names it: each mails the address whether or not it has an account, so
-	// without it either form is a way to fill somebody else's inbox. One budget
-	// for both, so using the two does not double it.
-	mailLimit *ratelimit.Limiter
+	// letterLimit bounds the letters one address is sent by each flow that
+	// mails the address it is given, keyed by the flow and the address:
+	// "register:", "resend:", "change:" and "forgot:". Each flow has an
+	// allowance of its own and spends it only on the letters it sends. It never
+	// refuses a request: once a flow has had its allowance, the request is
+	// answered as if its letter were sent and nothing is queued, so the newest
+	// letter already sent stays the live one. See [Handler.mayMail].
+	letterLimit *ratelimit.Limiter
+	// accountMailLimit bounds, per signed-in account, the letters it asks to be
+	// sent to any address, and refuses visibly: only that account spends it.
+	accountMailLimit *ratelimit.Limiter
 }
 
 func NewHandler(store *Store, carts Carts, grants Grants, log *slog.Logger, secure bool, googleSignIn *google.Client) *Handler {
@@ -100,8 +101,8 @@ func NewHandler(store *Store, carts Carts, grants Grants, log *slog.Logger, secu
 		guessCeiling: ratelimit.New(ratelimit.Config{
 			Every: 90 * time.Second, Burst: 10, TTL: time.Hour, MaxKeys: 65_536,
 		}),
-		resetLimit: ratelimit.New(addressMailPace),
-		mailLimit:  ratelimit.New(addressMailPace),
+		letterLimit:      ratelimit.New(addressMailPace),
+		accountMailLimit: ratelimit.New(accountMailPace),
 	}
 }
 
@@ -219,6 +220,30 @@ func (h *Handler) refuseDemoChange(w http.ResponseWriter, r *http.Request, u use
 // somebody retyping or asking again needs.
 var addressMailPace = ratelimit.Config{
 	Every: 10 * time.Minute, Burst: 3, TTL: time.Hour, MaxKeys: 65_536,
+}
+
+// accountMailPace is three at once, then one every twenty minutes: slower
+// than addressMailPace on purpose, so the address's allowance is what bounds
+// one account's letters to one address.
+var accountMailPace = ratelimit.Config{
+	Every: 20 * time.Minute, Burst: 3, TTL: time.Hour, MaxKeys: 65_536,
+}
+
+// mayMail reports whether flow may send addr another letter, and spends one of
+// its allowance if so. When it may not, the caller answers as if the letter
+// were sent and queues nothing. attrs go into the log line, which never names
+// the address.
+func (h *Handler) mayMail(ctx context.Context, flow, addr string, attrs ...any) bool {
+	if _, ok := h.letterLimit.Allow(flow + ":" + email.Clean(addr)); ok {
+		return true
+	}
+	h.letterWithheld(ctx, flow, attrs...)
+	return false
+}
+
+func (h *Handler) letterWithheld(ctx context.Context, flow string, attrs ...any) {
+	h.log.WarnContext(ctx, "letter not queued: the address has had its allowance",
+		append([]any{"flow", flow}, attrs...)...)
 }
 
 func (h *Handler) Authenticate(next http.Handler) http.Handler {
@@ -512,18 +537,34 @@ func (h *Handler) ResendRegistration(w http.ResponseWriter, r *http.Request) {
 		http.Redirect(w, r, "/register?"+url.Values{"next": {next}}.Encode(), http.StatusSeeOther)
 		return
 	}
-	if retryAfter, ok := h.mailLimit.Allow("mail:" + addr); !ok {
-		clearPendingRegistration(w, h.secure)
-		ratelimit.Refuse(r.Context(), w, retryAfter)
-		return
-	}
-	if err := h.store.ResendRegistration(r.Context(), addr, next); err != nil {
+	if err := h.queueResend(r.Context(), addr, next); err != nil {
 		h.log.ErrorContext(r.Context(), "resend registration", "error", err)
 		h.serverError(w, r)
 		return
 	}
 	writePendingRegistration(w, addr, next, h.secure)
 	http.Redirect(w, r, "/register?sent=1&again=1", http.StatusSeeOther)
+}
+
+// queueResend queues another registration link for addr unless the address
+// has had its allowance of them, and either way the caller answers that it is
+// on its way. Only a resend that sends a link spends the allowance: one is
+// reserved before the store is asked, since a link queued now would replace
+// the live one even when it is never sent, and given back unless the store
+// named an account to send it to.
+func (h *Handler) queueResend(ctx context.Context, addr, next string) error {
+	reserved, _, ok := h.letterLimit.Reserve("resend:" + addr)
+	if !ok {
+		h.letterWithheld(ctx, "resend")
+		return nil
+	}
+	named, err := h.store.ResendRegistration(ctx, addr, next)
+	if err != nil || !named {
+		reserved.Refund()
+		return err
+	}
+	reserved.Keep()
+	return nil
 }
 
 // The address is personal data on a page nobody signs in to, so it expires with
@@ -591,16 +632,14 @@ func (h *Handler) Register(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// After validation, so only an address the rules accept becomes a key.
-	if retryAfter, ok := h.mailLimit.Allow("mail:" + email.Clean(c.Email)); !ok {
-		ratelimit.Refuse(r.Context(), w, retryAfter)
-		return
-	}
-
-	if err := h.store.Register(r.Context(), c, next); err != nil {
-		h.log.ErrorContext(r.Context(), "register", "error", err)
-		h.serverError(w, r)
-		return
+	// After validation, so only an address the rules accept becomes a key. Every
+	// registration mails the address it names, so each spends its allowance.
+	if h.mayMail(r.Context(), "register", c.Email) {
+		if err := h.store.Register(r.Context(), c, next); err != nil {
+			h.log.ErrorContext(r.Context(), "register", "error", err)
+			h.serverError(w, r)
+			return
+		}
 	}
 	writePendingRegistration(w, email.Clean(c.Email), next, h.secure)
 	http.Redirect(w, r, "/register?sent=1", http.StatusSeeOther)
@@ -996,19 +1035,20 @@ func (h *Handler) ChangeEmail(w http.ResponseWriter, r *http.Request) {
 		http.Redirect(w, r, "/account?email=invalid", http.StatusSeeOther)
 		return
 	}
-	// After validation, so only an address the rules accept becomes a key, and
-	// on the address's own count, so the refusal says nothing about its holder.
-	if retryAfter, ok := h.mailLimit.Allow("mail:" + email.Clean(addr)); !ok {
+	// After validation, so only an address the rules accept becomes a key.
+	if retryAfter, ok := h.accountMailLimit.Allow("account:" + u.ID); !ok {
 		ratelimit.Refuse(r.Context(), w, retryAfter)
 		return
 	}
 
-	// The same answer whether or not the address has an account: only the
-	// mailbox is told which, by the outbox worker.
-	if err := h.store.requestVerification(r.Context(), u.ID, addr); err != nil {
-		h.log.ErrorContext(r.Context(), "request email verification", "error", err)
-		h.serverError(w, r)
-		return
+	// The same answer whether or not the address has an account, or has had its
+	// allowance: only the mailbox is told which, by the outbox worker.
+	if h.mayMail(r.Context(), "change", addr, "user_id", u.ID) {
+		if err := h.store.requestVerification(r.Context(), u.ID, addr); err != nil {
+			h.log.ErrorContext(r.Context(), "request email verification", "error", err)
+			h.serverError(w, r)
+			return
+		}
 	}
 	http.Redirect(w, r, "/account?"+url.Values{"email": {"sent"}, "address": {email.Mask(addr)}}.Encode(), http.StatusSeeOther)
 }
@@ -1020,6 +1060,10 @@ func (h *Handler) ResendVerification(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if h.refuseDemoChange(w, r, u) {
+		return
+	}
+	if retryAfter, ok := h.accountMailLimit.Allow("account:" + u.ID); !ok {
+		ratelimit.Refuse(r.Context(), w, retryAfter)
 		return
 	}
 	if err := h.store.requestVerification(r.Context(), u.ID, u.Email); err != nil {

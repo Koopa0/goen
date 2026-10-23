@@ -201,27 +201,26 @@ func queuedResetRequests(t *testing.T) map[string]string {
 	return out
 }
 
-// TestHandler_ForgotSpentRegistrations: an address whose registration budget is
-// spent still gets its reset link, so an intruder who registers an address over
-// and over cannot stop its owner taking the account back. Reset requests are
-// counted apart from registrations and address changes.
+// TestHandler_ForgotSpentRegistrations: an address whose allowance of
+// registration letters is spent still gets its reset link, so registering an
+// address over and over cannot keep its owner from taking the account back.
+// Reset links are counted apart from registrations and address changes.
 func TestHandler_ForgotSpentRegistrations(t *testing.T) {
 	ctx := t.Context()
-	h := auth.NewHandler(auth.NewStore(pool), nil, nil, slog.New(slog.DiscardHandler), false, nil)
+	s := auth.NewStore(pool)
+	h := auth.NewHandler(s, nil, nil, slog.New(slog.DiscardHandler), false, nil)
 	addr := "forgot-apart-" + uuid.NewString() + "@example.com"
-	register := func() int {
+	for i := range addressMailBudget + 1 {
 		rec := httptest.NewRecorder()
 		h.Register(rec, registrationForm(ctx, addr, "an intruder's long password", "/account"))
-		return rec.Code
-	}
-	for i := range 3 {
-		if code := register(); code != http.StatusSeeOther {
-			t.Fatalf("registration %d of the address answered %d, want 303", i+1, code)
+		if rec.Code != http.StatusSeeOther {
+			t.Fatalf("registration %d of the address answered %d, want 303", i+1, rec.Code)
 		}
 	}
-	if code := register(); code != http.StatusTooManyRequests {
-		t.Fatalf("a fourth registration answered %d, want 429; the address's registration budget "+
-			"is not spent, so the check below proves nothing", code)
+	told := func(context.Context, *auth.AddressTaken) error { return nil }
+	if got := followUpRegistrations(t, s, addr, told); got != addressMailBudget {
+		t.Fatalf("%d registrations queued %d letters, want %d; the address's registration allowance "+
+			"is not spent, so the check below proves nothing", addressMailBudget+1, got, addressMailBudget)
 	}
 	var owner string
 	if err := pool.QueryRow(ctx, `SELECT id::text FROM users WHERE lower(email) = lower($1)`, addr).

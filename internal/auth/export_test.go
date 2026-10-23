@@ -9,6 +9,7 @@ import (
 	"github.com/jackc/pgx/v5"
 
 	"github.com/koopa0/goen/internal/outbox"
+	"github.com/koopa0/goen/internal/web/ratelimit"
 )
 
 // BeginReset runs a forgotten-password request through both of its halves:
@@ -55,3 +56,28 @@ func RequestVerification(ctx context.Context, s *Store, userID, email string) er
 // test binary. Production cannot call it: export_test.go is never linked
 // into the program.
 func LowerPasswordCostForTests() { passwordCost = argon2Cost{time: 1, memory: 1024, threads: 1} }
+
+// LettersLeft is how many more letters key's flow may send its address now,
+// such as "resend:" and the address. It reserves every one and gives them all
+// back, so asking spends nothing.
+func LettersLeft(h *Handler, key string) int {
+	var held []*ratelimit.Reservation
+	for {
+		r, _, ok := h.letterLimit.Reserve(key)
+		if !ok {
+			break
+		}
+		held = append(held, r)
+	}
+	for _, r := range held {
+		r.Refund()
+	}
+	return len(held)
+}
+
+// WithStore is h answering from s instead, sharing every limiter with h.
+func WithStore(h *Handler, s *Store) *Handler {
+	c := *h
+	c.store = s
+	return &c
+}
