@@ -7,6 +7,10 @@
 // the fake provider has to SEAL its replies with the gateway's own AES envelope,
 // and seal is unexported by design. Re-implementing the cipher in a test would
 // be a second copy of the thing most worth having exactly one of.
+//
+// The tests that place an order through checkout are the exception: checkout
+// imports this package, so they are external (void_due_integration_test.go)
+// and reach this suite's database through SuitePool.
 package issuer
 
 import (
