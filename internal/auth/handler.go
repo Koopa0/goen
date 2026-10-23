@@ -222,9 +222,9 @@ var addressMailPace = ratelimit.Config{
 	Every: 10 * time.Minute, Burst: 3, TTL: time.Hour, MaxKeys: 65_536,
 }
 
-// accountMailPace is three at once, then one every twenty minutes. It refills
-// slower than addressMailPace on purpose, so one account's requests alone
-// cannot keep an address's allowance spent.
+// accountMailPace is three at once, then one every twenty minutes: slower
+// than addressMailPace on purpose, so the address's allowance is what bounds
+// one account's letters to one address.
 var accountMailPace = ratelimit.Config{
 	Every: 20 * time.Minute, Burst: 3, TTL: time.Hour, MaxKeys: 65_536,
 }
