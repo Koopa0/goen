@@ -271,3 +271,25 @@ func followPayWithCookie(
 		t.Fatalf("issued cookie could not reach pay page for %s: %d", number, res.Code)
 	}
 }
+
+// storeApplicationPool connects as the role the sweeper runs as in production,
+// under a name waitForApplicationLock can find.
+func storeApplicationPool(t *testing.T, name string) *pgxpool.Pool {
+	t.Helper()
+	cfg, err := pgxpool.ParseConfig(pool.Config().ConnString())
+	if err != nil {
+		t.Fatalf("parse store-role pool config: %v", err)
+	}
+	cfg.MaxConns = 2
+	cfg.ConnConfig.RuntimeParams["application_name"] = name
+	cfg.AfterConnect = func(ctx context.Context, conn *pgx.Conn) error {
+		_, execErr := conn.Exec(ctx, `SET ROLE store`)
+		return execErr
+	}
+	p, err := pgxpool.NewWithConfig(t.Context(), cfg)
+	if err != nil {
+		t.Fatalf("open store-role pool: %v", err)
+	}
+	t.Cleanup(p.Close)
+	return p
+}

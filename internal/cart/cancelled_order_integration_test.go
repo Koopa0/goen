@@ -4,7 +4,6 @@ package cart_test
 
 import (
 	"errors"
-	"log/slog"
 	"strings"
 	"testing"
 	"time"
@@ -13,51 +12,8 @@ import (
 	"github.com/jackc/pgx/v5/pgconn"
 
 	"github.com/koopa0/goen/internal/order/buyer"
-	"github.com/koopa0/goen/internal/order/lapse"
 	"github.com/koopa0/goen/internal/order/ordertest"
 )
-
-// TestSweeper_SweepCancelledOrder holds that a cancelled order's stock comes
-// back by every door: cancelled is SETTLED and not committed, and reading any
-// non-pending status as committed puts a cancelled order on the wrong side of
-// both doors, so its units come back by no route at all.
-func TestSweeper_SweepCancelledOrder(t *testing.T) {
-	ctx := t.Context()
-	s := lapse.NewSweeper(pool)
-	vid := ordertest.FreshVariant(t, pool, "stockfix-14")
-
-	orderID := ordertest.HeldOrder(t, pool, vid, time.Hour, true) // expired hold, paid
-	ordertest.RefundedAndCancelled(t, pool, orderID)
-
-	var before int32
-	if err := pool.QueryRow(ctx,
-		`SELECT stock_quantity FROM product_variants WHERE id = $1`, vid).Scan(&before); err != nil {
-		t.Fatalf("read stock: %v", err)
-	}
-
-	released, _, err := s.Sweep(ctx, slog.New(slog.DiscardHandler))
-	if err != nil {
-		t.Fatalf("sweep: %v", err)
-	}
-	if released == 0 {
-		t.Fatal("the sweeper released nothing — a cancelled order's hold is still unreachable")
-	}
-
-	var after int32
-	var state string
-	if err := pool.QueryRow(ctx, `
-		SELECT pv.stock_quantity,
-		       (SELECT r.state FROM inventory_reservations r WHERE r.order_id = $2 LIMIT 1)
-		FROM product_variants pv WHERE pv.id = $1`, vid, orderID).Scan(&after, &state); err != nil {
-		t.Fatalf("read stock after: %v", err)
-	}
-	if after != before+1 {
-		t.Errorf("stock is %d after the sweep, want %d", after, before+1)
-	}
-	if state != "released" {
-		t.Errorf("the hold is %s, want released", state)
-	}
-}
 
 // TestOrderTimelineRefundID holds that the shopper's order timeline never shows
 // the provider's refund id.

@@ -1,0 +1,298 @@
+//go:build integration
+
+package lapse_test
+
+import (
+	"errors"
+	"log/slog"
+	"testing"
+	"time"
+
+	"github.com/google/uuid"
+	"github.com/jackc/pgx/v5/pgconn"
+
+	"github.com/koopa0/goen/internal/order/lapse"
+	"github.com/koopa0/goen/internal/order/ordertest"
+)
+
+// TestSweeper_SweepAbandonedHolds holds that Sweeper.Sweep returns
+// an abandoned hold's stock to the shelf.
+func TestSweeper_SweepAbandonedHolds(t *testing.T) {
+	ctx := t.Context()
+	s := lapse.NewSweeper(pool)
+	vid := ordertest.FreshVariant(t, pool, "stockfix-2")
+
+	var before int32
+	if err := pool.QueryRow(ctx,
+		`SELECT stock_quantity FROM product_variants WHERE id = $1`, vid).Scan(&before); err != nil {
+		t.Fatalf("read stock: %v", err)
+	}
+
+	orderID := ordertest.HeldOrder(t, pool, vid, time.Hour, false)
+
+	var mid int32
+	if err := pool.QueryRow(ctx,
+		`SELECT stock_quantity FROM product_variants WHERE id = $1`, vid).Scan(&mid); err != nil {
+		t.Fatalf("read stock: %v", err)
+	}
+	if before-mid != 1 {
+		t.Fatalf("holding one unit moved stock %d to %d; the fixture is wrong", before, mid)
+	}
+
+	if _, _, err := s.Sweep(ctx, slog.New(slog.DiscardHandler)); err != nil {
+		t.Fatalf("sweep: %v", err)
+	}
+
+	var after int32
+	if err := pool.QueryRow(ctx,
+		`SELECT stock_quantity FROM product_variants WHERE id = $1`, vid).Scan(&after); err != nil {
+		t.Fatalf("read stock: %v", err)
+	}
+	if after != before {
+		t.Errorf("stock is %d after sweeping an expired hold, want %d — the unit "+
+			"never came back", after, before)
+	}
+
+	var state string
+	if err := pool.QueryRow(ctx,
+		`SELECT state FROM inventory_reservations WHERE order_id = $1`, orderID).Scan(&state); err != nil {
+		t.Fatalf("read reservation: %v", err)
+	}
+	if state != "released" {
+		t.Errorf("reservation is %q, want released", state)
+	}
+
+	var movements int
+	if err := pool.QueryRow(ctx, `
+		SELECT count(*) FROM inventory_movements
+		WHERE variant_id = $1 AND reason = 'release'`, vid).Scan(&movements); err != nil {
+		t.Fatalf("read movements: %v", err)
+	}
+	if movements == 0 {
+		t.Error("stock came back with no movement recorded")
+	}
+}
+
+// TestSweeper_SweepPaidOrderHold holds that the sweep never touches a paid
+// order's hold. The lock here is the database: release_reservation refuses a
+// committed order's hold anyway, so the query filter this also exercises is
+// defence in depth rather than a lock.
+func TestSweeper_SweepPaidOrderHold(t *testing.T) {
+	ctx := t.Context()
+	s := lapse.NewSweeper(pool)
+	vid := ordertest.FreshVariant(t, pool, "stockfix-3")
+
+	// Expired AND paid: without the expiry this passes with the funding check gone.
+	paidOrder := ordertest.HeldOrder(t, pool, vid, time.Hour, true)
+	abandoned := ordertest.HeldOrder(t, pool, vid, time.Hour, false)
+
+	if _, _, err := s.Sweep(ctx, slog.New(slog.DiscardHandler)); err != nil {
+		t.Fatalf("sweep: %v", err)
+	}
+
+	var paidState, abandonedState string
+	if err := pool.QueryRow(ctx,
+		`SELECT state FROM inventory_reservations WHERE order_id = $1`, paidOrder).Scan(&paidState); err != nil {
+		t.Fatalf("read paid reservation: %v", err)
+	}
+	if err := pool.QueryRow(ctx,
+		`SELECT state FROM inventory_reservations WHERE order_id = $1`, abandoned).Scan(&abandonedState); err != nil {
+		t.Fatalf("read abandoned reservation: %v", err)
+	}
+	if paidState != "held" {
+		t.Errorf("a PAID order's hold is %q after a sweep, want held — its stock "+
+			"is now sellable twice", paidState)
+	}
+	if abandonedState != "released" {
+		t.Errorf("the abandoned hold is %q, want released", abandonedState)
+	}
+}
+
+// TestSweeper_SweepZeroOwedHold holds that the sweep never touches a fully
+// credit-funded order's hold, the half committed_orders cannot answer: a fully
+// store-credited order has no payment row and cannot have one, so the view
+// reports it uncommitted while the customer has paid in full.
+func TestSweeper_SweepZeroOwedHold(t *testing.T) {
+	ctx := t.Context()
+	s := lapse.NewSweeper(pool)
+	vid := ordertest.FreshVariant(t, pool, "stockfix-credit")
+
+	var before int32
+	if err := pool.QueryRow(ctx,
+		`SELECT stock_quantity FROM product_variants WHERE id = $1`, vid).Scan(&before); err != nil {
+		t.Fatalf("read stock: %v", err)
+	}
+
+	funded := ordertest.CreditFundedHeldOrder(t, pool, vid, time.Hour)
+	abandoned := ordertest.HeldOrder(t, pool, vid, time.Hour, false)
+
+	if _, _, err := s.Sweep(ctx, slog.New(slog.DiscardHandler)); err != nil {
+		t.Fatalf("sweep: %v", err)
+	}
+
+	var fundedState, abandonedState string
+	if err := pool.QueryRow(ctx,
+		`SELECT state FROM inventory_reservations WHERE order_id = $1`, funded).Scan(&fundedState); err != nil {
+		t.Fatalf("read funded reservation: %v", err)
+	}
+	if err := pool.QueryRow(ctx,
+		`SELECT state FROM inventory_reservations WHERE order_id = $1`, abandoned).Scan(&abandonedState); err != nil {
+		t.Fatalf("read abandoned reservation: %v", err)
+	}
+	if fundedState != "held" {
+		t.Errorf("a fully store-credited order's hold is %q after a sweep, want held — "+
+			"the customer paid for it and its stock is now sellable twice", fundedState)
+	}
+	if abandonedState != "released" {
+		t.Errorf("the abandoned hold is %q, want released", abandonedState)
+	}
+
+	var after int32
+	if err := pool.QueryRow(ctx,
+		`SELECT stock_quantity FROM product_variants WHERE id = $1`, vid).Scan(&after); err != nil {
+		t.Fatalf("read stock: %v", err)
+	}
+	if want := before - 1; after != want {
+		t.Errorf("stock is %d after the sweep, want %d — the funded order's unit "+
+			"went back on the shelf", after, want)
+	}
+}
+
+// TestSweeper_SweepUnexpiredHolds holds that Sweeper.Sweep leaves a
+// hold that has not expired.
+func TestSweeper_SweepUnexpiredHolds(t *testing.T) {
+	ctx := t.Context()
+	s := lapse.NewSweeper(pool)
+	vid := ordertest.FreshVariant(t, pool, "stockfix-4")
+
+	// -(-10 minutes) is ten minutes in the FUTURE: still holding.
+	fresh := ordertest.HeldOrder(t, pool, vid, -10*time.Minute, false)
+
+	if _, _, err := s.Sweep(ctx, slog.New(slog.DiscardHandler)); err != nil {
+		t.Fatalf("sweep: %v", err)
+	}
+
+	var state string
+	if err := pool.QueryRow(ctx,
+		`SELECT state FROM inventory_reservations WHERE order_id = $1`, fresh).Scan(&state); err != nil {
+		t.Fatalf("read reservation: %v", err)
+	}
+	if state != "held" {
+		t.Errorf("an unexpired hold is %q after a sweep, want held — the customer "+
+			"lost the item while paying for it", state)
+	}
+}
+
+// TestSweeper_SweepIdempotent holds that Sweeper.Sweep releases
+// nothing more on a second sweep.
+func TestSweeper_SweepIdempotent(t *testing.T) {
+	ctx := t.Context()
+	s := lapse.NewSweeper(pool)
+	vid := ordertest.FreshVariant(t, pool, "stockfix-5")
+	orderID := ordertest.HeldOrder(t, pool, vid, time.Hour, false)
+
+	first, firstSkipped, err := s.Sweep(ctx, slog.New(slog.DiscardHandler))
+	if err != nil {
+		t.Fatalf("first sweep: %v", err)
+	}
+	if first == 0 {
+		t.Fatal("the first sweep released nothing; the fixture is wrong")
+	}
+	if firstSkipped != 0 {
+		t.Errorf("the first sweep skipped %d, want 0", firstSkipped)
+	}
+	second, _, err := s.Sweep(ctx, slog.New(slog.DiscardHandler))
+	if err != nil {
+		t.Fatalf("second sweep: %v", err)
+	}
+	if second != 0 {
+		t.Errorf("the second sweep released %d rows, want 0", second)
+	}
+
+	var releases int
+	if err := pool.QueryRow(ctx, `
+		SELECT count(*) FROM inventory_movements
+		WHERE source_id = (SELECT id FROM inventory_reservations WHERE order_id = $1)
+		  AND reason = 'release'`, orderID).Scan(&releases); err != nil {
+		t.Fatalf("count movements: %v", err)
+	}
+	if releases != 1 {
+		t.Errorf("%d release movements for one reservation, want 1 — the stock "+
+			"came back more than once", releases)
+	}
+}
+
+// TestSweeper_SweepBenignRefusal holds that Sweeper.Sweep counts a
+// benign refusal as skipped, not failed.
+func TestSweeper_SweepBenignRefusal(t *testing.T) {
+	ctx := t.Context()
+	vid := ordertest.FreshVariant(t, pool, "stockfix-6")
+
+	// Expired, and paid — the benign case: a sweeper whose query filter is gone
+	// still sees it, and release_reservation refuses it.
+	paid := ordertest.HeldOrder(t, pool, vid, time.Hour, true)
+
+	// Reach past the query, so the refusal happens rather than being filtered out.
+	var reservationID uuid.UUID
+	if err := pool.QueryRow(ctx,
+		`SELECT id FROM inventory_reservations WHERE order_id = $1`, paid).Scan(&reservationID); err != nil {
+		t.Fatalf("find reservation: %v", err)
+	}
+	_, err := pool.Exec(ctx, `SELECT release_reservation($1)`, reservationID)
+	if err == nil {
+		t.Fatal("release_reservation accepted a committed order's hold")
+	}
+	pgErr, ok := errors.AsType[*pgconn.PgError](err)
+	if !ok || pgErr.ConstraintName != "inventory_reservation_committed_no_release" {
+		t.Fatalf("refused by %v, want inventory_reservation_committed_no_release", err)
+	}
+	if !lapse.BenignSweepFailure(err) {
+		t.Error("the sweeper would count this refusal as a failure; it is the sweeper being safe")
+	}
+
+	if lapse.BenignSweepFailure(errors.New("connection reset")) {
+		t.Error("an ordinary error was classified as benign")
+	}
+}
+
+// TestSweeper_SweepCancelledOrder holds that a cancelled order's stock comes
+// back by every door: cancelled is SETTLED and not committed, and reading any
+// non-pending status as committed puts a cancelled order on the wrong side of
+// both doors, so its units come back by no route at all.
+func TestSweeper_SweepCancelledOrder(t *testing.T) {
+	ctx := t.Context()
+	s := lapse.NewSweeper(pool)
+	vid := ordertest.FreshVariant(t, pool, "stockfix-14")
+
+	orderID := ordertest.HeldOrder(t, pool, vid, time.Hour, true) // expired hold, paid
+	ordertest.RefundedAndCancelled(t, pool, orderID)
+
+	var before int32
+	if err := pool.QueryRow(ctx,
+		`SELECT stock_quantity FROM product_variants WHERE id = $1`, vid).Scan(&before); err != nil {
+		t.Fatalf("read stock: %v", err)
+	}
+
+	released, _, err := s.Sweep(ctx, slog.New(slog.DiscardHandler))
+	if err != nil {
+		t.Fatalf("sweep: %v", err)
+	}
+	if released == 0 {
+		t.Fatal("the sweeper released nothing — a cancelled order's hold is still unreachable")
+	}
+
+	var after int32
+	var state string
+	if err := pool.QueryRow(ctx, `
+		SELECT pv.stock_quantity,
+		       (SELECT r.state FROM inventory_reservations r WHERE r.order_id = $2 LIMIT 1)
+		FROM product_variants pv WHERE pv.id = $1`, vid, orderID).Scan(&after, &state); err != nil {
+		t.Fatalf("read stock after: %v", err)
+	}
+	if after != before+1 {
+		t.Errorf("stock is %d after the sweep, want %d", after, before+1)
+	}
+	if state != "released" {
+		t.Errorf("the hold is %s, want released", state)
+	}
+}
