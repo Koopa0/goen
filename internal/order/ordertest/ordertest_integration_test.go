@@ -198,6 +198,25 @@ func TestPaidPickingOrderForUser(t *testing.T) {
 	}
 }
 
+// TestPendingOrderSpendingCredit holds that the order is pending, belongs to the
+// customer, and spent the credit it names from their ledger.
+func TestPendingOrderSpendingCredit(t *testing.T) {
+	user := ordertest.CreditedCustomer(t, pool, 50000)
+	number := ordertest.PendingOrderSpendingCredit(t, pool, user, 20000)
+
+	if got := scalar[string](t, `SELECT fulfillment_status FROM orders WHERE order_number = $1`, number); got != "pending" {
+		t.Errorf("status = %q, want pending", got)
+	}
+	if got := scalar[uuid.UUID](t, `SELECT user_id FROM orders WHERE order_number = $1`, number); got != user {
+		t.Errorf("owner = %v, want %v", got, user)
+	}
+	if got := scalar[int64](t, `
+		SELECT coalesce(sum(e.amount_cents), 0) FROM store_credit_entries e
+		JOIN orders o ON o.id = e.order_id WHERE o.order_number = $1`, number); got != -20000 {
+		t.Errorf("credit posted to the order = %d cents, want -20000", got)
+	}
+}
+
 // TestCustomer holds that the customer is a customer with no order.
 func TestCustomer(t *testing.T) {
 	id := ordertest.Customer(t, pool)

@@ -458,3 +458,51 @@ func PaidPickingOrderForUser(t *testing.T, pool *pgxpool.Pool, userID uuid.UUID,
 	}
 	return number, orderID
 }
+
+// PendingOrderSpendingCredit places a pending unpaid order for userID that
+// spends `cents` of their credit — the state a cancellation acts on.
+func PendingOrderSpendingCredit(t *testing.T, pool *pgxpool.Pool, userID uuid.UUID, cents int64) string {
+	t.Helper()
+	ctx := t.Context()
+
+	// One transaction: orders_has_lines is DEFERRED, so an order and its lines have
+	// to commit together.
+	tx, err := pool.Begin(ctx)
+	if err != nil {
+		t.Fatalf("begin: %v", err)
+	}
+	defer db.Rollback(ctx, tx)
+
+	var orderID uuid.UUID
+	var number string
+	if err := tx.QueryRow(ctx, `
+		INSERT INTO orders (order_number, user_id, shipping_version_id,
+		                    shipping_method_code, shipping_method_name, shipping_cents)
+		SELECT next_order_number(), $1, v.id, sm.code, v.name, 0
+		FROM shipping_method_versions v JOIN shipping_methods sm ON sm.id = v.method_id
+		ORDER BY v.effective_at LIMIT 1
+		RETURNING id, order_number`, userID).Scan(&orderID, &number); err != nil {
+		t.Fatalf("create order: %v", err)
+	}
+	if _, err := tx.Exec(ctx, `
+		INSERT INTO order_lines (order_id, sku, product_name, unit_price_cents, quantity)
+		VALUES ($1, 'CREDIT-SKU', '測試商品', $2, 1)`, orderID, cents); err != nil {
+		t.Fatalf("create line: %v", err)
+	}
+	if _, err := tx.Exec(ctx, `
+		INSERT INTO order_private_data (order_id, email, recipient_name, phone,
+		                                postal_code, city, district, street)
+		VALUES ($1, 'credit@example.com', '額度', '0912345678', '110', '台北市', '信義區', '路 1 號')`,
+		orderID); err != nil {
+		t.Fatalf("create private data: %v", err)
+	}
+	if _, err := tx.Exec(ctx,
+		`SELECT post_store_credit($1, $2, NULL, $3, $4, NULL)`,
+		userID, -cents, orderID, "order:"+orderID.String()); err != nil {
+		t.Fatalf("spend credit: %v", err)
+	}
+	if err := tx.Commit(ctx); err != nil {
+		t.Fatalf("commit the fixture: %v", err)
+	}
+	return number
+}
