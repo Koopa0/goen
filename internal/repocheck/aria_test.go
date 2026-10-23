@@ -148,17 +148,23 @@ func guardedBlocks(src, field string) []string {
 	}
 }
 
+// fieldComponents is the one template the aria checks leave out: widget.templ,
+// the shared field components.
+const fieldComponents = "internal/ui/widget/widget.templ"
+
 // ariaTemplates is every template under internal/ that writes its own markup,
-// which is all of them except the shared field components. Those write
-// aria-invalid from a Go expression (aria-describedby={ p.Describes }) that the
-// describedby pattern above cannot read; their contract, that Invalid is always
-// paired with Describes, is checked at every call site by
-// TestEveryRefusedFieldStillNamesItsError.
+// which is all of them except widget.templ, the shared field components. Those
+// write aria-invalid from a Go expression (aria-describedby={ p.Describes }) that
+// the describedby pattern above cannot read; their contract, that Invalid is
+// always paired with Describes, is checked at every call site by
+// TestEveryRefusedFieldStillNamesItsError. A rename of that file stops the test
+// rather than leaving the exemption on nothing.
 func ariaTemplates(t *testing.T) map[string]string {
 	t.Helper()
 	sources := templSources(t)
-	maps.DeleteFunc(sources, func(name, _ string) bool {
-		return strings.HasPrefix(name, "internal/ui/widget/")
-	})
+	if _, ok := sources[fieldComponents]; !ok {
+		t.Fatalf("%s is gone: point fieldComponents at the shared field components", fieldComponents)
+	}
+	delete(sources, fieldComponents)
 	return sources
 }
