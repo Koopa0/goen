@@ -8,6 +8,7 @@ import (
 	"github.com/google/uuid"
 
 	"github.com/koopa0/goen/internal/checkout"
+	"github.com/koopa0/goen/internal/checkout/checkouttest"
 )
 
 // TestStore_SweepAttemptsKeepsRecent: SweepAttempts removes checkout attempts
@@ -24,8 +25,8 @@ func TestStore_SweepAttemptsKeepsRecent(t *testing.T) {
 			t.Fatalf("plant %s: %v", key, err)
 		}
 	}
-	old := checkoutAttemptKey("sweep-old-" + uuid.NewString())
-	recent := checkoutAttemptKey("sweep-recent-" + uuid.NewString())
+	old := checkouttest.AttemptKey("sweep-old-" + uuid.NewString())
+	recent := checkouttest.AttemptKey("sweep-recent-" + uuid.NewString())
 	plant(old, "60 days")
 	plant(recent, "1 hour")
 

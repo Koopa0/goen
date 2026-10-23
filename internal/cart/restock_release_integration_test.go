@@ -16,6 +16,7 @@ import (
 	"github.com/koopa0/goen/internal/order/access"
 	"github.com/koopa0/goen/internal/order/buyer"
 	"github.com/koopa0/goen/internal/order/lapse"
+	"github.com/koopa0/goen/internal/order/ordertest"
 )
 
 // TestProductVariantsRestockNoticesLastHold holds that releasing the last hold
@@ -28,7 +29,7 @@ func TestProductVariantsRestockNoticesLastHold(t *testing.T) {
 	}{{name: "cancelled"}, {name: "expired", expired: true}} {
 		t.Run(tc.name, func(t *testing.T) {
 			ctx := t.Context()
-			variant := freshVariant(t, "restock-last-hold")
+			variant := ordertest.FreshVariant(t, pool, "restock-last-hold")
 			if _, err := pool.Exec(ctx,
 				`UPDATE product_variants SET safety_stock = 9 WHERE id = $1`, variant); err != nil {
 				t.Fatal(err)
@@ -37,9 +38,9 @@ func TestProductVariantsRestockNoticesLastHold(t *testing.T) {
 			if tc.expired {
 				age = time.Hour
 			}
-			orderID := heldOrder(t, variant, age, false)
-			number := numberOf(t, orderID)
-			if stock := stockOf(t, variant); stock != 9 {
+			orderID := ordertest.HeldOrder(t, pool, variant, age, false)
+			number := ordertest.NumberOf(t, pool, orderID)
+			if stock := ordertest.StockOf(t, pool, variant); stock != 9 {
 				t.Fatalf("held shelf stock = %d, want safety stock 9", stock)
 			}
 			var slug string
@@ -85,7 +86,7 @@ func TestProductVariantsRestockNoticesLastHold(t *testing.T) {
 					t.Fatalf("cancel = %d, body=%s", res.Code, res.Body.String())
 				}
 			}
-			if stock := stockOf(t, variant); stock != 10 {
+			if stock := ordertest.StockOf(t, pool, variant); stock != 10 {
 				t.Fatalf("released shelf stock = %d, want 10 above safety stock 9", stock)
 			}
 			var waiting, queued int

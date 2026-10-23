@@ -16,7 +16,9 @@ import (
 	"github.com/koopa0/goen/internal/bearer"
 	"github.com/koopa0/goen/internal/cart"
 	"github.com/koopa0/goen/internal/checkout"
+	"github.com/koopa0/goen/internal/checkout/checkouttest"
 	"github.com/koopa0/goen/internal/order/delivery"
+	"github.com/koopa0/goen/internal/order/ordertest"
 	"github.com/koopa0/goen/internal/user"
 )
 
@@ -96,7 +98,7 @@ func TestStore_PlaceOrderAdoptionLockOrder(t *testing.T) {
 	userID := uuid.MustParse(u.ID)
 	owner := uuid.NullUUID{UUID: userID, Valid: true}
 
-	checkoutVariant, guestVariant, _ := threeVariants(t, "adopt-checkout")
+	checkoutVariant, guestVariant, _ := ordertest.ThreeVariants(t, pool, "adopt-checkout")
 
 	var accountCart, guestCart uuid.UUID
 	if err := pool.QueryRow(ctx, `
@@ -129,7 +131,7 @@ func TestStore_PlaceOrderAdoptionLockOrder(t *testing.T) {
 		Email: u.Email, RecipientName: "王小明", Phone: "0912345678",
 		PostalCode: "110", City: "台北市", District: "信義區", Street: "松高路 1 號",
 	}
-	shown := checkoutQuote(t, checkout.NewStore(pool), accountCart, owner, shippingID, addr, "")
+	shown := checkouttest.Quote(t, checkout.NewStore(pool), accountCart, owner, shippingID, addr, "")
 
 	blocker, err := pool.Begin(ctx)
 	if err != nil {
@@ -151,7 +153,7 @@ func TestStore_PlaceOrderAdoptionLockOrder(t *testing.T) {
 		var placeErr error
 		orderNumber, placeErr = checkoutStore.PlaceOrder(
 			ctx, accountCart, owner, shippingID, addr, nil, "", shown,
-			checkoutAttemptKey("checkout-adopt-"+suffix),
+			checkouttest.AttemptKey("checkout-adopt-"+suffix),
 		)
 		checkoutDone <- placeErr
 	}()

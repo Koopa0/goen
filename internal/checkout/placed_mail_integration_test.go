@@ -10,7 +10,9 @@ import (
 	"testing"
 	"time"
 
+	"github.com/koopa0/goen/internal/checkout/checkouttest"
 	"github.com/koopa0/goen/internal/letter"
+	"github.com/koopa0/goen/internal/order/ordertest"
 	"github.com/koopa0/goen/internal/outbox"
 	"github.com/koopa0/goen/internal/shipping"
 
@@ -72,7 +74,7 @@ func TestStore_PlaceOrderPlacedConfirmation(t *testing.T) {
 					couponCode := insertCoupon(t, "MAIL"+strings.ToUpper(uuid.NewString()[:8]), "amount", funding.discount, 0, 0, 0)
 					owner := uuid.NullUUID{}
 					if funding.balance > 0 {
-						owner = uuid.NullUUID{UUID: creditedCustomer(t, funding.balance), Valid: true}
+						owner = uuid.NullUUID{UUID: ordertest.CreditedCustomer(t, pool, funding.balance), Valid: true}
 					}
 					addr := &delivery.Details{To: kind, Email: "placed-snapshot@example.com", RecipientName: "Alex", Phone: "0912345678", PostalCode: "110", City: "Taipei", District: "Xinyi", Street: "Recorded Road 1", Note: "Recorded delivery note"}
 					deliveryTo := "110 TaipeiXinyiRecorded Road 1"
@@ -81,12 +83,12 @@ func TestStore_PlaceOrderPlacedConfirmation(t *testing.T) {
 						addr.DropOtherDestination()
 						deliveryTo = "7-ELEVEN Recorded store(012345)"
 					}
-					id := newCart(t, s)
+					id := checkouttest.NewCart(t, s)
 					if err := s.Carts().Add(ctx, id, variant, 2); err != nil {
 						t.Fatalf("add: %v", err)
 					}
-					quote := checkoutQuote(t, s, id, owner, shipID, addr, couponCode)
-					attempt := checkoutAttemptKey("placed-contract-" + uuid.NewString())
+					quote := checkouttest.Quote(t, s, id, owner, shipID, addr, couponCode)
+					attempt := checkouttest.AttemptKey("placed-contract-" + uuid.NewString())
 					number, placeErr := s.PlaceOrder(ctx, id, owner, shipID, addr, nil, couponCode, quote, attempt)
 					if placeErr != nil {
 						t.Fatalf("PlaceOrder(): %v", placeErr)
@@ -203,12 +205,12 @@ func TestStore_PlaceOrderPlacedOwed(t *testing.T) {
 	}
 
 	t.Run("fully funded writes zero", func(t *testing.T) {
-		userID := creditedCustomer(t, 10_000_000)
-		id := newCart(t, s)
-		if err := s.Carts().Add(ctx, id, freshVariant(t, "placed-mail-full"), 1); err != nil {
+		userID := ordertest.CreditedCustomer(t, pool, 10_000_000)
+		id := checkouttest.NewCart(t, s)
+		if err := s.Carts().Add(ctx, id, ordertest.FreshVariant(t, pool, "placed-mail-full"), 1); err != nil {
 			t.Fatalf("add: %v", err)
 		}
-		number, err := placeOrder(t, s, ctx, id,
+		number, err := checkouttest.PlaceOrder(t, s, ctx, id,
 			uuid.NullUUID{UUID: userID, Valid: true}, shipID, addr, "",
 			"placed-mail-full-"+uuid.NewString())
 		if err != nil {
@@ -230,12 +232,12 @@ func TestStore_PlaceOrderPlacedOwed(t *testing.T) {
 		// NT$1,000 against a NT$1,999 line, so shipping cannot make this a
 		// full cover and the remainder cannot be the order total.
 		const credit = int64(100000)
-		userID := creditedCustomer(t, credit)
-		id := newCart(t, s)
-		if err := s.Carts().Add(ctx, id, freshVariant(t, "placed-mail-part"), 1); err != nil {
+		userID := ordertest.CreditedCustomer(t, pool, credit)
+		id := checkouttest.NewCart(t, s)
+		if err := s.Carts().Add(ctx, id, ordertest.FreshVariant(t, pool, "placed-mail-part"), 1); err != nil {
 			t.Fatalf("add: %v", err)
 		}
-		number, err := placeOrder(t, s, ctx, id,
+		number, err := checkouttest.PlaceOrder(t, s, ctx, id,
 			uuid.NullUUID{UUID: userID, Valid: true}, shipID, addr, "",
 			"placed-mail-part-"+uuid.NewString())
 		if err != nil {

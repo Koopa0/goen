@@ -12,6 +12,7 @@ import (
 	"github.com/koopa0/goen/internal/admin/admintest"
 	"github.com/koopa0/goen/internal/admin/health"
 	"github.com/koopa0/goen/internal/db/dbtest"
+	"github.com/koopa0/goen/internal/order/ordertest"
 	"github.com/koopa0/goen/internal/outbox"
 )
 
@@ -158,13 +159,13 @@ func TestStore_StaffTaskCount(t *testing.T) {
 			}
 		}
 	}
-	_, uninvoicedID := admintest.PaidPickingOrderForUser(t, fixturePool, admintest.Customer(t, fixturePool), 100000)
+	_, uninvoicedID := ordertest.PaidPickingOrderForUser(t, fixturePool, ordertest.Customer(t, fixturePool), 100000)
 	if _, ageErr := fixturePool.Exec(ctx, `
 		INSERT INTO order_events (order_id, kind, occurred_at)
 		VALUES ($1, 'paid', now() - interval '30 minutes')`, uninvoicedID); ageErr != nil {
 		t.Fatalf("age the paid order: %v", ageErr)
 	}
-	_, claimOrder := admintest.PaidPickingOrderForUser(t, fixturePool, admintest.Customer(t, fixturePool), 100000)
+	_, claimOrder := ordertest.PaidPickingOrderForUser(t, fixturePool, ordertest.Customer(t, fixturePool), 100000)
 	if _, claimErr := fixturePool.Exec(ctx, `
 		INSERT INTO invoice_operations (order_id, kind, provider_key, amount_cents, request_payload,
 		    actor_user_id, actor_id_snapshot, actor_kind, request_id, status, last_error)

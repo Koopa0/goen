@@ -9,6 +9,7 @@ import (
 	"github.com/google/uuid"
 
 	"github.com/koopa0/goen/internal/checkout"
+	"github.com/koopa0/goen/internal/checkout/checkouttest"
 	"github.com/koopa0/goen/internal/order/buyer"
 	"github.com/koopa0/goen/internal/order/delivery"
 	"github.com/koopa0/goen/internal/shipping"
@@ -20,7 +21,7 @@ import (
 func TestStore_PlaceOrderPickupFromMethod(t *testing.T) {
 	ctx := t.Context()
 	s := checkout.NewStore(pool)
-	id := newCart(t, s)
+	id := checkouttest.NewCart(t, s)
 	if err := s.Carts().Add(ctx, id, variantOf(t, "pixelight-9-pro"), 1); err != nil {
 		t.Fatalf("add: %v", err)
 	}
@@ -33,7 +34,7 @@ func TestStore_PlaceOrderPickupFromMethod(t *testing.T) {
 		PostalCode: "110", City: "台北市", District: "信義區", Street: "松高路 1 號",
 		PickupChain: "family_mart", PickupStoreCode: "012345", PickupStoreName: "台北車站門市",
 	}
-	number, err := placeOrder(t, s, ctx, id, uuid.NullUUID{},
+	number, err := checkouttest.PlaceOrder(t, s, ctx, id, uuid.NullUUID{},
 		shipVersionFor(t, "store_pickup"), addr, "", "dest-pickup-"+uuid.NewString())
 	if err != nil {
 		t.Fatalf("place pickup order: %v", err)
@@ -57,7 +58,7 @@ func TestStore_PlaceOrderPickupFromMethod(t *testing.T) {
 func TestStore_PlaceOrderPickupChainAlone(t *testing.T) {
 	ctx := t.Context()
 	s := checkout.NewStore(pool)
-	id := newCart(t, s)
+	id := checkouttest.NewCart(t, s)
 	if err := s.Carts().Add(ctx, id, variantOf(t, "pixelight-9-pro"), 1); err != nil {
 		t.Fatalf("add: %v", err)
 	}
@@ -67,7 +68,7 @@ func TestStore_PlaceOrderPickupChainAlone(t *testing.T) {
 		Email: "chain@example.com", RecipientName: "林小美", Phone: "0955666777",
 		PickupChain: "seven_eleven",
 	}
-	number, err := placeOrder(t, s, ctx, id, uuid.NullUUID{},
+	number, err := checkouttest.PlaceOrder(t, s, ctx, id, uuid.NullUUID{},
 		shipVersionFor(t, "store_pickup"), addr, "", "dest-chain-"+uuid.NewString())
 	if err != nil {
 		t.Fatalf("place a pickup order with the chain alone: %v", err)
@@ -95,7 +96,7 @@ func TestStore_PlaceOrderPickupChainAlone(t *testing.T) {
 func TestStore_PlaceOrderAddressNoPickup(t *testing.T) {
 	ctx := t.Context()
 	s := checkout.NewStore(pool)
-	id := newCart(t, s)
+	id := checkouttest.NewCart(t, s)
 	if err := s.Carts().Add(ctx, id, variantOf(t, "pixelight-9-pro"), 1); err != nil {
 		t.Fatalf("add: %v", err)
 	}
@@ -106,7 +107,7 @@ func TestStore_PlaceOrderAddressNoPickup(t *testing.T) {
 		PostalCode: "106", City: "台北市", District: "大安區", Street: "復興南路一段 1 號",
 		PickupChain: "seven_eleven", PickupStoreCode: "987654", PickupStoreName: "光復門市",
 	}
-	number, err := placeOrder(t, s, ctx, id, uuid.NullUUID{},
+	number, err := checkouttest.PlaceOrder(t, s, ctx, id, uuid.NullUUID{},
 		shipVersionFor(t, "home_delivery"), addr, "", "dest-home-"+uuid.NewString())
 	if err != nil {
 		t.Fatalf("place address order: %v", err)
@@ -128,7 +129,7 @@ func TestStore_PlaceOrderAddressNoPickup(t *testing.T) {
 func TestBuyerStore_OrderPickupDeliveryTo(t *testing.T) {
 	ctx := t.Context()
 	s := checkout.NewStore(pool)
-	id := newCart(t, s)
+	id := checkouttest.NewCart(t, s)
 	if err := s.Carts().Add(ctx, id, variantOf(t, "pixelight-9-pro"), 1); err != nil {
 		t.Fatalf("add: %v", err)
 	}
@@ -136,7 +137,7 @@ func TestBuyerStore_OrderPickupDeliveryTo(t *testing.T) {
 		Email: "shown@example.com", RecipientName: "李小華", Phone: "0933444555",
 		PickupChain: "hi_life", PickupStoreCode: "778899", PickupStoreName: "民生門市",
 	}
-	number, err := placeOrder(t, s, ctx, id, uuid.NullUUID{},
+	number, err := checkouttest.PlaceOrder(t, s, ctx, id, uuid.NullUUID{},
 		shipVersionFor(t, "store_pickup"), addr, "", "dest-shown-"+uuid.NewString())
 	if err != nil {
 		t.Fatalf("place: %v", err)

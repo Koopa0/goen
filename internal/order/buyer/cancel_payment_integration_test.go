@@ -17,6 +17,7 @@ import (
 	"github.com/koopa0/goen/internal/i18n"
 	"github.com/koopa0/goen/internal/order/access"
 	"github.com/koopa0/goen/internal/order/buyer"
+	"github.com/koopa0/goen/internal/order/ordertest"
 )
 
 // TestHandler_CancelOrderMayTakeMoney: CancelOrder refuses with 422 and the
@@ -28,9 +29,9 @@ func TestHandler_CancelOrderMayTakeMoney(t *testing.T) {
 	for _, status := range []string{"requires_payment", "requires_action", "processing", "requires_reconciliation", "unreconciled_event"} {
 		t.Run(status, func(t *testing.T) {
 			ctx := t.Context()
-			variant := freshVariant(t, "cancel-payment-guard")
-			orderID := heldOrder(t, variant, -10*time.Minute, false)
-			number := numberOf(t, orderID)
+			variant := ordertest.FreshVariant(t, pool, "cancel-payment-guard")
+			orderID := ordertest.HeldOrder(t, pool, variant, -10*time.Minute, false)
+			number := ordertest.NumberOf(t, pool, orderID)
 			ref := "cs_cancel_guard_" + uuid.NewString()
 			if _, err := pool.Exec(ctx, `SELECT open_payment($1, $2, 100000)`, orderID, ref); err != nil {
 				t.Fatal(err)
@@ -57,7 +58,7 @@ func TestHandler_CancelOrderMayTakeMoney(t *testing.T) {
 			}
 			appPool := storeRolePool(t)
 			h := buyer.NewHandler(buyer.NewStore(appPool), access.NewStore(appPool, false), slog.New(slog.DiscardHandler), testLimiter(), false)
-			before := stockOf(t, variant)
+			before := ordertest.StockOf(t, pool, variant)
 			for _, locale := range i18n.Locales() {
 				localized := i18n.WithLocale(ctx, locale)
 				req := httptest.NewRequestWithContext(localized, http.MethodPost, "/orders/"+number+"/cancel", http.NoBody)
@@ -72,7 +73,7 @@ func TestHandler_CancelOrderMayTakeMoney(t *testing.T) {
 			if f := factsOf(t, number); f.status != "pending" || f.heldHolds != 1 || f.events != 0 || f.notices != 0 || f.reversals != 0 {
 				t.Errorf("refused cancellation changed order or effects: %+v", f)
 			}
-			if got := stockOf(t, variant); got != before {
+			if got := ordertest.StockOf(t, pool, variant); got != before {
 				t.Errorf("refused cancellation changed stock: %d, want %d", got, before)
 			}
 		})
@@ -84,8 +85,8 @@ func TestHandler_CancelOrderMayTakeMoney(t *testing.T) {
 // ErrNotCancellable and leaves the order pending with its hold.
 func TestStore_CancelOrderBehindPaymentOpen(t *testing.T) {
 	ctx := t.Context()
-	orderID := heldOrder(t, freshVariant(t, "cancel-payment-lock"), -10*time.Minute, false)
-	number := numberOf(t, orderID)
+	orderID := ordertest.HeldOrder(t, pool, ordertest.FreshVariant(t, pool, "cancel-payment-lock"), -10*time.Minute, false)
+	number := ordertest.NumberOf(t, pool, orderID)
 	opener, err := pool.Begin(ctx)
 	if err != nil {
 		t.Fatal(err)
@@ -117,8 +118,8 @@ func TestStore_CancelOrderBehindPaymentOpen(t *testing.T) {
 // and one notice.
 func TestStore_CancelOrderSessionExpired(t *testing.T) {
 	ctx := t.Context()
-	variant := freshVariant(t, "cancel-expired-session")
-	orderID := heldOrder(t, variant, -10*time.Minute, false)
+	variant := ordertest.FreshVariant(t, pool, "cancel-expired-session")
+	orderID := ordertest.HeldOrder(t, pool, variant, -10*time.Minute, false)
 	ref := "cs_cancel_expired_" + uuid.NewString()
 	if _, err := pool.Exec(ctx, `SELECT open_payment($1, $2, 100000)`, orderID, ref); err != nil {
 		t.Fatal(err)
@@ -126,19 +127,19 @@ func TestStore_CancelOrderSessionExpired(t *testing.T) {
 	if _, err := pool.Exec(ctx, `SELECT cancel_payment($1)`, ref); err != nil {
 		t.Fatal(err)
 	}
-	otherID := heldOrder(t, freshVariant(t, "cancel-expired-session-other"), -10*time.Minute, false)
+	otherID := ordertest.HeldOrder(t, pool, ordertest.FreshVariant(t, pool, "cancel-expired-session-other"), -10*time.Minute, false)
 	if _, err := pool.Exec(ctx, `SELECT open_payment($1, $2, 100000)`, otherID, "cs_cancel_other_"+uuid.NewString()); err != nil {
 		t.Fatal(err)
 	}
-	before := stockOf(t, variant)
-	number := numberOf(t, orderID)
+	before := ordertest.StockOf(t, pool, variant)
+	number := ordertest.NumberOf(t, pool, orderID)
 	if err := buyer.NewStore(storeRolePool(t)).CancelOrder(ctx, number); err != nil {
 		t.Fatalf("cancel after session expiry: %v", err)
 	}
 	if f := factsOf(t, number); f.status != "cancelled" || f.heldHolds != 0 || f.events != 1 || f.notices != 1 {
 		t.Errorf("expired-session cancellation effects: %+v", f)
 	}
-	if got := stockOf(t, variant); got != before+1 {
+	if got := ordertest.StockOf(t, pool, variant); got != before+1 {
 		t.Errorf("stock after cancellation = %d, want %d", got, before+1)
 	}
 }
@@ -153,8 +154,8 @@ func TestStore_CancelOrderSessionExpired(t *testing.T) {
 // store role may not execute.
 func TestStore_CancelOrderBehindCapture(t *testing.T) {
 	ctx := t.Context()
-	orderID := heldOrder(t, freshVariant(t, "cancel-capture"), time.Hour, false)
-	number := numberOf(t, orderID)
+	orderID := ordertest.HeldOrder(t, pool, ordertest.FreshVariant(t, pool, "cancel-capture"), time.Hour, false)
+	number := ordertest.NumberOf(t, pool, orderID)
 	session := "cs_cancel_capture_" + strings.ReplaceAll(uuid.NewString(), "-", "")[:12]
 	if _, err := pool.Exec(ctx, `SELECT open_payment($1, $2, 100000)`, orderID, session); err != nil {
 		t.Fatalf("open payment: %v", err)

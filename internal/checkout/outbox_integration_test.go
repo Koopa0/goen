@@ -8,6 +8,7 @@ import (
 	"github.com/google/uuid"
 
 	"github.com/koopa0/goen/internal/checkout"
+	"github.com/koopa0/goen/internal/checkout/checkouttest"
 	"github.com/koopa0/goen/internal/order/delivery"
 )
 
@@ -29,11 +30,11 @@ func TestStore_PlaceOrderOutboxMessage(t *testing.T) {
 		PostalCode: "110", City: "台北市", District: "信義區", Street: "路 1 號",
 	}
 
-	id := newCart(t, s)
+	id := checkouttest.NewCart(t, s)
 	if err := s.Carts().Add(ctx, id, vid, 1); err != nil {
 		t.Fatalf("add: %v", err)
 	}
-	number, err := placeOrder(t, s, ctx, id, uuid.NullUUID{}, shipID, addr, "", "outbox-ok-"+uuid.NewString())
+	number, err := checkouttest.PlaceOrder(t, s, ctx, id, uuid.NullUUID{}, shipID, addr, "", "outbox-ok-"+uuid.NewString())
 	if err != nil {
 		t.Fatalf("place: %v", err)
 	}
@@ -50,13 +51,13 @@ func TestStore_PlaceOrderOutboxMessage(t *testing.T) {
 	// A fabricated shipping version is refused AFTER the transaction has begun,
 	// which is the window a message written outside it would survive.
 	before := countMessages(t)
-	failed := newCart(t, s)
+	failed := checkouttest.NewCart(t, s)
 	if err := s.Carts().Add(ctx, failed, vid, 1); err != nil {
 		t.Fatalf("add: %v", err)
 	}
 	if _, err := s.PlaceOrder(
 		ctx, failed, uuid.NullUUID{}, uuid.New(), addr, nil, "", checkout.QuoteID{},
-		checkoutAttemptKey("outbox-fail-"+uuid.NewString()),
+		checkouttest.AttemptKey("outbox-fail-"+uuid.NewString()),
 	); err == nil {
 		t.Fatal("a fabricated shipping version was accepted")
 	}

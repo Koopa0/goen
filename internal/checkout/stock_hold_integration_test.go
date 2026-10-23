@@ -16,8 +16,10 @@ import (
 
 	"github.com/koopa0/goen/internal/cart"
 	"github.com/koopa0/goen/internal/checkout"
+	"github.com/koopa0/goen/internal/checkout/checkouttest"
 	"github.com/koopa0/goen/internal/db/dbtest"
 	"github.com/koopa0/goen/internal/order/delivery"
+	"github.com/koopa0/goen/internal/order/ordertest"
 )
 
 // TestStore_PlaceOrderTimeoutNotSoldOut: PlaceOrder does not report a statement
@@ -36,8 +38,8 @@ func TestStore_PlaceOrderTimeoutNotSoldOut(t *testing.T) {
 	}
 	t.Cleanup(timeoutPool.Close)
 	s := checkout.NewStore(timeoutPool)
-	id := newCart(t, s)
-	vid := freshVariant(t, "infra-is-not-sold-out")
+	id := checkouttest.NewCart(t, s)
+	vid := ordertest.FreshVariant(t, pool, "infra-is-not-sold-out")
 	if addErr := s.Carts().Add(ctx, id, vid, 1); addErr != nil {
 		t.Fatalf("add: %v", addErr)
 	}
@@ -60,7 +62,7 @@ func TestStore_PlaceOrderTimeoutNotSoldOut(t *testing.T) {
 		Email: "infra@example.com", RecipientName: "王小明", Phone: "0912345678",
 		PostalCode: "110", City: "台北市", District: "信義區", Street: "松高路 1 號",
 	}
-	_, err = placeOrder(t, s, ctx, id, uuid.NullUUID{}, shipVersionFor(t, "home_delivery"),
+	_, err = checkouttest.PlaceOrder(t, s, ctx, id, uuid.NullUUID{}, shipVersionFor(t, "home_delivery"),
 		addr, "", "infra-not-sold-out-"+uuid.NewString())
 	if errors.Is(err, cart.ErrUnavailable) {
 		t.Fatalf("a statement timeout was reported as sold-out inventory: %v", err)
@@ -90,13 +92,13 @@ func TestStore_PlaceOrderSoldOut(t *testing.T) {
 	app := "wave0-inventory-" + uuid.NewString()
 	appPool := applicationPool(t, app)
 	s := checkout.NewStore(appPool)
-	vid := freshVariant(t, "named-inventory-refusal")
+	vid := ordertest.FreshVariant(t, pool, "named-inventory-refusal")
 	if _, err := pool.Exec(ctx, `
 		SELECT record_inventory_movement($1, -9, 'adjustment', $2, 'admin', NULL, NULL)`,
 		vid, "leave-one:"+vid.String()); err != nil {
 		t.Fatalf("leave one unit: %v", err)
 	}
-	id := newCart(t, s)
+	id := checkouttest.NewCart(t, s)
 	if err := s.Carts().Add(ctx, id, vid, 1); err != nil {
 		t.Fatalf("add last unit: %v", err)
 	}
@@ -120,7 +122,7 @@ func TestStore_PlaceOrderSoldOut(t *testing.T) {
 	shipID := shipVersionFor(t, "home_delivery")
 	done := make(chan error, 1)
 	go func() {
-		_, placeErr := placeOrder(t, s, ctx, id, uuid.NullUUID{}, shipID,
+		_, placeErr := checkouttest.PlaceOrder(t, s, ctx, id, uuid.NullUUID{}, shipID,
 			addr, "", "named-inventory-"+uuid.NewString())
 		done <- placeErr
 	}()
@@ -187,11 +189,11 @@ func TestStore_PlaceOrderHoldsStock(t *testing.T) {
 		t.Fatalf("read stock: %v", err)
 	}
 
-	id := newCart(t, s)
+	id := checkouttest.NewCart(t, s)
 	if err := s.Carts().Add(ctx, id, vid, 1); err != nil {
 		t.Fatalf("add: %v", err)
 	}
-	number, err := placeOrder(t, s, ctx, id, uuid.NullUUID{}, shipID, addr, "", "hold-test-"+uuid.NewString())
+	number, err := checkouttest.PlaceOrder(t, s, ctx, id, uuid.NullUUID{}, shipID, addr, "", "hold-test-"+uuid.NewString())
 	if err != nil {
 		t.Fatalf("place: %v", err)
 	}
@@ -236,8 +238,8 @@ func TestStore_PlaceOrderHoldsStock(t *testing.T) {
 func TestStore_PlaceOrderHoldDeadline(t *testing.T) {
 	ctx := t.Context()
 	s := checkout.NewStore(pool)
-	a, b, _ := threeVariants(t, "shared-hold-deadline")
-	cartID := newCart(t, s)
+	a, b, _ := ordertest.ThreeVariants(t, pool, "shared-hold-deadline")
+	cartID := checkouttest.NewCart(t, s)
 	for _, variantID := range []uuid.UUID{a, b} {
 		if err := s.Carts().Add(ctx, cartID, variantID, 1); err != nil {
 			t.Fatalf("add variant %s: %v", variantID, err)
@@ -249,7 +251,7 @@ func TestStore_PlaceOrderHoldDeadline(t *testing.T) {
 		Email: "shared-hold@example.com", RecipientName: "王小明", Phone: "0912345678",
 		PostalCode: "110", City: "台北市", District: "信義區", Street: "松高路 1 號",
 	}
-	number, err := placeOrder(t, s, ctx, cartID, uuid.NullUUID{}, shippingID, addr, "",
+	number, err := checkouttest.PlaceOrder(t, s, ctx, cartID, uuid.NullUUID{}, shippingID, addr, "",
 		"shared-hold-"+uuid.NewString())
 	if err != nil {
 		t.Fatalf("place order: %v", err)
@@ -410,8 +412,8 @@ func commitBareOrder(t *testing.T, vid uuid.UUID) uuid.UUID {
 // the reservation first could close an order↔reservation deadlock cycle.
 func TestReleaseReservationLockOrder(t *testing.T) {
 	ctx := t.Context()
-	variantID := freshVariant(t, "release-lock-order")
-	orderID := heldOrder(t, variantID, time.Hour, false)
+	variantID := ordertest.FreshVariant(t, pool, "release-lock-order")
+	orderID := ordertest.HeldOrder(t, pool, variantID, time.Hour, false)
 	var reservationID uuid.UUID
 	if err := pool.QueryRow(ctx, `
 		SELECT id FROM inventory_reservations
@@ -467,8 +469,8 @@ func TestReleaseReservationLockOrder(t *testing.T) {
 // been locked, recreating the release/re-hold ABBA cycle.
 func TestHoldInventoryLockOrder(t *testing.T) {
 	ctx := t.Context()
-	variantID := freshVariant(t, "hold-lock-order")
-	orderID := heldOrder(t, variantID, time.Hour, false)
+	variantID := ordertest.FreshVariant(t, pool, "hold-lock-order")
+	orderID := ordertest.HeldOrder(t, pool, variantID, time.Hour, false)
 	var oldReservationID uuid.UUID
 	if err := pool.QueryRow(ctx, `
 		SELECT id FROM inventory_reservations

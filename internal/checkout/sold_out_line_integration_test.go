@@ -8,7 +8,9 @@ import (
 	"testing"
 
 	"github.com/koopa0/goen/internal/checkout"
+	"github.com/koopa0/goen/internal/checkout/checkouttest"
 	"github.com/koopa0/goen/internal/order/access"
+	"github.com/koopa0/goen/internal/order/ordertest"
 )
 
 // TestHandler_PageSoldOutLine: A sold-out line stays in the cart, is left out
@@ -18,9 +20,9 @@ func TestHandler_PageSoldOutLine(t *testing.T) {
 	ctx := t.Context()
 	s := checkout.NewStore(pool)
 	h := newHandler(s, access.NewStore(pool, false), slog.New(slog.DiscardHandler), nil)
-	cartID, token := newCartSession(t, s)
+	cartID, token := checkouttest.NewCartSession(t, s)
 
-	kept, gone, _ := variantsOf(t, "soldout-line", 2)
+	kept, gone, _ := ordertest.VariantsOf(t, pool, "soldout-line", 2)
 	if err := s.Carts().Add(ctx, cartID, kept, 2); err != nil {
 		t.Fatalf("add the line that stays: %v", err)
 	}

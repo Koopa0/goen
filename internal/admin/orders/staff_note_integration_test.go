@@ -19,6 +19,7 @@ import (
 	"github.com/koopa0/goen/internal/admin/admintest"
 	"github.com/koopa0/goen/internal/admin/audit"
 	"github.com/koopa0/goen/internal/admin/orders"
+	"github.com/koopa0/goen/internal/order/ordertest"
 	"github.com/koopa0/goen/internal/user"
 )
 
@@ -46,7 +47,7 @@ func staffNoteStore(t *testing.T) *orders.Store {
 // operations without the note's content.
 func TestHandler_StaffNoteAuditNoContent(t *testing.T) {
 	ctx, actor := admintest.StaffContext(t, pool)
-	number, orderID, _ := admintest.PendingOrderHoldingStock(t, pool)
+	number, orderID, _ := ordertest.PendingOrderHoldingStock(t, pool)
 	p := staffNotePool(t)
 	h := admintest.OrderDesk(admintest.OrderStore(p, admintest.Refunder{}, nil, nil))
 	for _, step := range []struct{ note, action string }{
@@ -143,7 +144,7 @@ func TestHandler_StaffNoteUnknownOrder(t *testing.T) {
 // note.
 func TestStore_SetStaffNoteAuditFailure(t *testing.T) {
 	ctx, _ := admintest.StaffContext(t, pool)
-	number, orderID, _ := admintest.PendingOrderHoldingStock(t, pool)
+	number, orderID, _ := ordertest.PendingOrderHoldingStock(t, pool)
 	s := staffNoteStore(t)
 	if err := s.SetStaffNote(ctx, number, "keep this note"); err != nil {
 		t.Fatal(err)
@@ -167,7 +168,7 @@ func TestStore_SetStaffNoteAuditFailure(t *testing.T) {
 // operation.
 func TestStore_SetStaffNoteUnchanged(t *testing.T) {
 	ctx, _ := admintest.StaffContext(t, pool)
-	number, orderID, _ := admintest.PendingOrderHoldingStock(t, pool)
+	number, orderID, _ := ordertest.PendingOrderHoldingStock(t, pool)
 	s := staffNoteStore(t)
 	for range 2 {
 		if err := s.SetStaffNote(ctx, number, "one note"); err != nil {

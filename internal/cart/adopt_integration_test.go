@@ -18,6 +18,7 @@ import (
 	"github.com/koopa0/goen/internal/cart"
 	"github.com/koopa0/goen/internal/invoice/issuer"
 	"github.com/koopa0/goen/internal/order/access"
+	"github.com/koopa0/goen/internal/order/ordertest"
 	"github.com/koopa0/goen/internal/user"
 )
 
@@ -78,7 +79,7 @@ func TestStore_AdoptConcurrentFirst(t *testing.T) {
 
 	// Variants of this test's own: the cart tests share one database, and the
 	// checkout test below spends stock.
-	firstVariant, secondVariant, _ := threeVariants(t, "adopt-first")
+	firstVariant, secondVariant, _ := ordertest.ThreeVariants(t, pool, "adopt-first")
 
 	guest := func(label string, variantID uuid.UUID, quantity int32) uuid.UUID {
 		t.Helper()

@@ -6,6 +6,7 @@ import (
 	"testing"
 
 	"github.com/koopa0/goen/internal/cart"
+	"github.com/koopa0/goen/internal/order/ordertest"
 )
 
 // TestStore_ViewCheckoutWindows: The cart and checkout pages state the hold and
@@ -14,7 +15,7 @@ func TestStore_ViewCheckoutWindows(t *testing.T) {
 	ctx := t.Context()
 	s := cart.NewStore(pool)
 	id := newCart(t, s)
-	if err := s.Add(ctx, id, freshVariant(t, "stated-windows"), 1); err != nil {
+	if err := s.Add(ctx, id, ordertest.FreshVariant(t, pool, "stated-windows"), 1); err != nil {
 		t.Fatalf("add: %v", err)
 	}
 	view, err := s.View(ctx, id)
