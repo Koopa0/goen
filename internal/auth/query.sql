@@ -63,13 +63,15 @@ ON CONFLICT ((lower(email))) DO NOTHING;
 -- Asking again for a registration link is this one INSERT whatever the
 -- address: the account is looked up inside it, and names nobody unless it is
 -- registered and still unproved, so an address with no account, or one already
--- proved, costs the request what any other does.
--- name: EnqueueRegistrationResend :exec
+-- proved, costs the request what any other does. named says whether it named an
+-- account, which is whether a link will be sent.
+-- name: EnqueueRegistrationResend :one
 INSERT INTO outbox_messages (topic, dedupe_key, payload)
 SELECT @topic::text, @dedupe_key::text,
        jsonb_build_object('user_id', u.id, 'created', true, 'locale', @locale::text, 'next', @next::text)
 FROM (VALUES (true)) AS request (queued)
-LEFT JOIN users u ON lower(u.email) = lower(@email::text) AND u.email_verified_at IS NULL;
+LEFT JOIN users u ON lower(u.email) = lower(@email::text) AND u.email_verified_at IS NULL
+RETURNING (payload->>'user_id' IS NOT NULL)::boolean AS named;
 
 -- The registrant's half of completing a registration: the password chosen when
 -- the account was made.
