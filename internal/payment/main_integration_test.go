@@ -388,3 +388,64 @@ func gatewayAt(t *testing.T, stripeURL string) *payment.Gateway {
 	}
 	return gateway
 }
+
+func storeRolePool(t *testing.T) *pgxpool.Pool {
+	t.Helper()
+	cfg, err := pgxpool.ParseConfig(pool.Config().ConnString())
+	if err != nil {
+		t.Fatalf("parse store-role pool config: %v", err)
+	}
+	cfg.MaxConns = 2
+	cfg.AfterConnect = func(ctx context.Context, conn *pgx.Conn) error {
+		_, execErr := conn.Exec(ctx, `SET ROLE store`)
+		return execErr
+	}
+	p, err := pgxpool.NewWithConfig(t.Context(), cfg)
+	if err != nil {
+		t.Fatalf("open store-role pool: %v", err)
+	}
+	t.Cleanup(p.Close)
+	return p
+}
+
+func waitForApplicationLock(t *testing.T, name string, done <-chan error) {
+	t.Helper()
+	deadline := time.Now().Add(15 * time.Second)
+	for {
+		select {
+		case err := <-done:
+			t.Fatalf("%s returned before reaching the intended database lock: %v", name, err)
+		default:
+		}
+		_, waiting, err := dbtest.Blocked(t.Context(), pool, dbtest.Match{Application: name})
+		if err == nil && waiting {
+			return
+		}
+		if time.Now().After(deadline) {
+			t.Fatalf("%s never blocked on the intended database lock: %v", name, err)
+		}
+		time.Sleep(5 * time.Millisecond)
+	}
+}
+
+// storeApplicationPool connects as the role the sweeper runs as in production,
+// under a name waitForApplicationLock can find.
+func storeApplicationPool(t *testing.T, name string) *pgxpool.Pool {
+	t.Helper()
+	cfg, err := pgxpool.ParseConfig(pool.Config().ConnString())
+	if err != nil {
+		t.Fatalf("parse store-role pool config: %v", err)
+	}
+	cfg.MaxConns = 2
+	cfg.ConnConfig.RuntimeParams["application_name"] = name
+	cfg.AfterConnect = func(ctx context.Context, conn *pgx.Conn) error {
+		_, execErr := conn.Exec(ctx, `SET ROLE store`)
+		return execErr
+	}
+	p, err := pgxpool.NewWithConfig(t.Context(), cfg)
+	if err != nil {
+		t.Fatalf("open store-role pool: %v", err)
+	}
+	t.Cleanup(p.Close)
+	return p
+}

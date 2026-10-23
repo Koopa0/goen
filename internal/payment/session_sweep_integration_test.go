@@ -1,6 +1,6 @@
 //go:build integration
 
-package checkout_test
+package payment_test
 
 import (
 	"bytes"
@@ -22,6 +22,7 @@ import (
 	"github.com/koopa0/goen/internal/admin/health"
 	"github.com/koopa0/goen/internal/checkout/checkouttest"
 	"github.com/koopa0/goen/internal/order/access"
+	"github.com/koopa0/goen/internal/order/lapse"
 	"github.com/koopa0/goen/internal/outbox"
 	"github.com/koopa0/goen/internal/payment"
 )
@@ -490,4 +491,86 @@ func TestSessionSweeper_SweepLateExpiryRace(t *testing.T) {
 		sweepAs(t, storeRolePool(t))
 		assertGivenBack(t, number, ref, accountID, couponID)
 	})
+}
+
+// sweepLog keeps what one sweep logged, so a failure the sweeper only logs is
+// still a failure here.
+type sweepLog struct {
+	mu  sync.Mutex
+	buf bytes.Buffer
+}
+
+func (l *sweepLog) Write(p []byte) (int, error) {
+	l.mu.Lock()
+	defer l.mu.Unlock()
+	return l.buf.Write(p)
+}
+
+func (l *sweepLog) errors() string {
+	l.mu.Lock()
+	defer l.mu.Unlock()
+	var out []string
+	for line := range strings.SplitSeq(l.buf.String(), "\n") {
+		if strings.Contains(line, "level=ERROR") {
+			out = append(out, line)
+		}
+	}
+	return strings.Join(out, "\n")
+}
+
+func sweepAs(t *testing.T, p *pgxpool.Pool) {
+	t.Helper()
+	var logged sweepLog
+	if _, _, err := lapse.NewSweeper(p).Sweep(t.Context(), slog.New(slog.NewTextHandler(&logged, nil))); err != nil {
+		t.Fatalf("sweep: %v", err)
+	}
+	if failures := logged.errors(); failures != "" {
+		t.Fatalf("sweep logged failures:\n%s", failures)
+	}
+}
+
+type cancellationFacts struct {
+	status                          string
+	events, notices, reversals      int
+	couponSlotsHeld, heldHolds      int
+	deadlineNotices, customerNotice int
+}
+
+func factsOf(t *testing.T, number string, couponID uuid.UUID) cancellationFacts {
+	t.Helper()
+	var f cancellationFacts
+	if err := pool.QueryRow(t.Context(), `
+		SELECT o.fulfillment_status,
+		       (SELECT count(*) FROM order_events e WHERE e.order_id = o.id AND e.kind = 'cancelled'),
+		       (SELECT count(*) FROM outbox_messages m WHERE m.topic = $2 AND m.payload->>'order_id' = o.id::text),
+		       (SELECT count(*) FROM outbox_messages m WHERE m.topic = $2 AND m.payload->>'order_id' = o.id::text AND m.payload->>'kind' = $3),
+		       (SELECT count(*) FROM outbox_messages m WHERE m.topic = $2 AND m.payload->>'order_id' = o.id::text AND m.payload->>'kind' = $4),
+		       (SELECT count(*) FROM store_credit_entries r
+		          JOIN store_credit_entries spend ON spend.id = r.reverses_id
+		         WHERE spend.order_id = o.id),
+		       (SELECT count(*) FROM coupon_redemptions cr JOIN orders co ON co.id = cr.order_id
+		         WHERE cr.coupon_id = $5 AND co.fulfillment_status <> 'cancelled'),
+		       (SELECT count(*) FROM inventory_reservations r WHERE r.order_id = o.id AND r.state = 'held')
+		FROM orders o WHERE o.order_number = $1`,
+		number, outbox.TopicOrderTerminal.Name(), string(outbox.TerminalCancelledByPaymentDeadline),
+		string(outbox.TerminalCancelledByCustomer), couponID).Scan(
+		&f.status, &f.events, &f.notices, &f.deadlineNotices, &f.customerNotice,
+		&f.reversals, &f.couponSlotsHeld, &f.heldHolds); err != nil {
+		t.Fatalf("read cancellation facts of %s: %v", number, err)
+	}
+	return f
+}
+
+// noticeRefunded is what the order's terminal notice tells the mail worker.
+func noticeRefunded(t *testing.T, number string) bool {
+	t.Helper()
+	var refunded bool
+	if err := pool.QueryRow(t.Context(), `
+		SELECT (m.payload->>'refunded')::boolean
+		FROM outbox_messages m JOIN orders o ON m.payload->>'order_id' = o.id::text
+		WHERE m.topic = $1 AND o.order_number = $2`,
+		outbox.TopicOrderTerminal.Name(), number).Scan(&refunded); err != nil {
+		t.Fatalf("read the terminal notice of %s: %v", number, err)
+	}
+	return refunded
 }
