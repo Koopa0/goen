@@ -61,63 +61,38 @@ func TestHandler_PagesNotCompressed(t *testing.T) {
 // TestHandler_SubmitHTMXOverLimit: an HTMX submission over the limit keeps the
 // footer form.
 func TestHandler_SubmitHTMXOverLimit(t *testing.T) {
-	const addr = "me@example.com"
-	tests := []struct {
-		name  string
-		spend func(*ratelimit.Limiter, *http.Request)
-	}{
-		{
-			name: "per-IP",
-			spend: func(l *ratelimit.Limiter, r *http.Request) {
-				if _, ok := l.Allow(ratelimit.ClientKey(r)); !ok {
-					t.Fatal("setup could not spend the per-IP token")
-				}
-			},
-		},
-		{
-			name: "per-address",
-			spend: func(l *ratelimit.Limiter, _ *http.Request) {
-				if _, ok := l.Allow("newsletter:" + addr); !ok {
-					t.Fatal("setup could not spend the per-address token")
-				}
-			},
-		},
+	limit := ratelimit.New(ratelimit.Config{
+		Every: time.Hour, Burst: 1, TTL: time.Hour, MaxKeys: 8,
+	})
+	h := &Handler{limit: limit, log: slog.New(slog.DiscardHandler)}
+	req := newsletterSubmit(t, "me@example.com", true)
+	if _, ok := limit.Allow(ratelimit.ClientKey(req)); !ok {
+		t.Fatal("setup could not spend the per-IP token")
 	}
 
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			limit := ratelimit.New(ratelimit.Config{
-				Every: time.Hour, Burst: 1, TTL: time.Hour, MaxKeys: 8,
-			})
-			h := &Handler{limit: limit, log: slog.New(slog.DiscardHandler)}
-			req := newsletterSubmit(t, addr, true)
-			tt.spend(limit, req)
+	res := httptest.NewRecorder()
+	h.Submit(res, req)
 
-			res := httptest.NewRecorder()
-			h.Submit(res, req)
-
-			if res.Code != http.StatusTooManyRequests {
-				t.Fatalf("status = %d, want 429", res.Code)
-			}
-			if ct := res.Header().Get("Content-Type"); !strings.Contains(ct, "text/html") {
-				t.Errorf("Content-Type = %q, want HTML so htmx can swap the form", ct)
-			}
-			assertRetryAfter(t, res)
-			body := res.Body.String()
-			if strings.HasPrefix(strings.TrimSpace(body), "429 ") {
-				t.Fatalf("body is the plain refusal, which htmx would swap over the form:\n%s", body)
-			}
-			if strings.Contains(body, "<html") {
-				t.Error("htmx response contains a full document; want the footer form only")
-			}
-			if !strings.Contains(body, `id="newsletter-form"`) {
-				t.Error("body is missing the footer form")
-			}
-			want := i18n.T(i18n.WithLocale(t.Context(), i18n.ZhHant), i18n.KeyTooManyRequests)
-			if !strings.Contains(body, want) {
-				t.Errorf("body does not name the retry:\n%s", body)
-			}
-		})
+	if res.Code != http.StatusTooManyRequests {
+		t.Fatalf("status = %d, want 429", res.Code)
+	}
+	if ct := res.Header().Get("Content-Type"); !strings.Contains(ct, "text/html") {
+		t.Errorf("Content-Type = %q, want HTML so htmx can swap the form", ct)
+	}
+	assertRetryAfter(t, res)
+	body := res.Body.String()
+	if strings.HasPrefix(strings.TrimSpace(body), "429 ") {
+		t.Fatalf("body is the plain refusal, which htmx would swap over the form:\n%s", body)
+	}
+	if strings.Contains(body, "<html") {
+		t.Error("htmx response contains a full document; want the footer form only")
+	}
+	if !strings.Contains(body, `id="newsletter-form"`) {
+		t.Error("body is missing the footer form")
+	}
+	want := i18n.T(i18n.WithLocale(t.Context(), i18n.ZhHant), i18n.KeyTooManyRequests)
+	if !strings.Contains(body, want) {
+		t.Errorf("body does not name the retry:\n%s", body)
 	}
 }
 
@@ -295,7 +270,6 @@ func TestHandler_FailureNotRefusal(t *testing.T) {
 		}{
 			{name: "storage plain", status: http.StatusInternalServerError, addr: "good@example.com"},
 			{name: "storage htmx", status: http.StatusInternalServerError, addr: "good@example.com", htmx: true},
-			{name: "throttle address", status: http.StatusTooManyRequests, addr: "good@example.com", htmx: true},
 			{name: "throttle IP", status: http.StatusTooManyRequests, htmx: true},
 		} {
 			t.Run(string(locale)+"/"+tt.name, func(t *testing.T) {
@@ -306,7 +280,7 @@ func TestHandler_FailureNotRefusal(t *testing.T) {
 				message := i18n.T(ctx, i18n.KeyNewsletterRetry)
 				if tt.status == http.StatusTooManyRequests {
 					message = i18n.T(ctx, i18n.KeyTooManyRequests)
-					h.throttled(res, req, tt.addr, time.Minute)
+					h.throttled(res, req, time.Minute)
 					assertRetryAfter(t, res)
 				} else {
 					h.fail(res, req, tt.status, tt.addr, message)
