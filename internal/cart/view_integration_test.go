@@ -8,6 +8,7 @@ import (
 	"github.com/google/uuid"
 
 	"github.com/koopa0/goen/internal/cart"
+	"github.com/koopa0/goen/internal/order/ordertest"
 	"github.com/koopa0/goen/internal/picture"
 )
 
@@ -17,7 +18,7 @@ func TestStore_ViewCurrentPrice(t *testing.T) {
 	ctx := t.Context()
 	s := cart.NewStore(pool)
 	id := newCart(t, s)
-	vid := freshVariant(t, "current-price")
+	vid := ordertest.FreshVariant(t, pool, "current-price")
 
 	if err := s.Add(ctx, id, vid, 2); err != nil {
 		t.Fatalf("add: %v", err)
@@ -82,7 +83,7 @@ func TestStore_ItemCountBadge(t *testing.T) {
 	ctx := t.Context()
 	s := cart.NewStore(pool)
 	id := newCart(t, s)
-	a, b, _ := threeVariants(t, "badgefix")
+	a, b, _ := ordertest.ThreeVariants(t, pool, "badgefix")
 
 	count := func() int {
 		t.Helper()

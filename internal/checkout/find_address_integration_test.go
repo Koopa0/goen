@@ -15,6 +15,7 @@ import (
 	"github.com/google/uuid"
 
 	"github.com/koopa0/goen/internal/checkout"
+	"github.com/koopa0/goen/internal/checkout/checkouttest"
 	"github.com/koopa0/goen/internal/order/access"
 	"github.com/koopa0/goen/internal/order/buyer"
 	"github.com/koopa0/goen/internal/web/ratelimit"
@@ -33,7 +34,7 @@ func TestBuyerHandler_FindOrderAddressBound(t *testing.T) {
 	ctx := t.Context()
 	s := checkout.NewStore(pool)
 	victim := "find-bound-" + uuid.NewString() + "@example.com"
-	number := placeUnpaidOrderFor(t, s, victim)
+	number := checkouttest.PlaceUnpaidOrderFor(t, pool, s, victim)
 	// A per-client bound too loose to be what refuses anything below.
 	h := buyer.NewHandler(buyer.NewStore(pool), access.NewStore(pool, false), slog.New(slog.DiscardHandler),
 		ratelimit.New(ratelimit.Config{Every: time.Millisecond, Burst: 1000, TTL: time.Hour, MaxKeys: 1000}),
@@ -127,7 +128,7 @@ func TestBuyerHandler_FindOrderFullWidth(t *testing.T) {
 	}
 
 	victim := "find-wide-" + uuid.NewString() + "@example.com"
-	number := placeUnpaidOrderFor(t, s, victim)
+	number := checkouttest.PlaceUnpaidOrderFor(t, pool, s, victim)
 	if res := find("\u3000"+fullWidth(strings.ToLower(number))+"\u3000", victim); res.Code != http.StatusSeeOther ||
 		res.Header().Get("Location") != "/orders/"+number {
 		t.Fatalf("the right number typed in full width answered %d to %q, want 303 to /orders/%s",
@@ -157,7 +158,7 @@ func TestBuyerHandler_FindOrderFullWidth(t *testing.T) {
 		t.Fatalf("the address was refused at ask %d; a customer retyping a number needs a few", control)
 	}
 	alternating := "find-wide-alt-" + uuid.NewString() + "@example.com"
-	altNumber := placeUnpaidOrderFor(t, s, alternating)
+	altNumber := checkouttest.PlaceUnpaidOrderFor(t, pool, s, alternating)
 	got := asksUntilRefused(alternating, func(i int) string {
 		if i%2 == 1 {
 			return fullWidth(wrong)
@@ -186,7 +187,7 @@ func TestBuyerHandler_FindOrderRandomNumber(t *testing.T) {
 	ctx := t.Context()
 	s := checkout.NewStore(pool)
 	victim := "find-random-" + uuid.NewString() + "@example.com"
-	placed := placeUnpaidOrderFor(t, s, victim)
+	placed := checkouttest.PlaceUnpaidOrderFor(t, pool, s, victim)
 	// A draw can hold no 0 or 1 to misread, so the order takes a number that
 	// holds both: the draw's day and 01 with four hex characters.
 	number := placed[:len("GO-YYMMDD-")] + "01" + strings.ToUpper(uuid.NewString()[:4])

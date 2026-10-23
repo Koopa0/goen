@@ -14,6 +14,7 @@ import (
 
 	"github.com/koopa0/goen/internal/order/buyer"
 	"github.com/koopa0/goen/internal/order/lapse"
+	"github.com/koopa0/goen/internal/order/ordertest"
 )
 
 // TestSweeper_SweepCancelledOrder holds that a cancelled order's stock comes
@@ -23,10 +24,10 @@ import (
 func TestSweeper_SweepCancelledOrder(t *testing.T) {
 	ctx := t.Context()
 	s := lapse.NewSweeper(pool)
-	vid := freshVariant(t, "stockfix-14")
+	vid := ordertest.FreshVariant(t, pool, "stockfix-14")
 
-	orderID := heldOrder(t, vid, time.Hour, true) // expired hold, paid
-	refundAndCancel(t, orderID)
+	orderID := ordertest.HeldOrder(t, pool, vid, time.Hour, true) // expired hold, paid
+	ordertest.RefundedAndCancelled(t, pool, orderID)
 
 	var before int32
 	if err := pool.QueryRow(ctx,
@@ -58,47 +59,13 @@ func TestSweeper_SweepCancelledOrder(t *testing.T) {
 	}
 }
 
-// refundAndCancel cancels a paid order the one way the schema admits: a full
-// refund before shipment whose card refund has settled.
-func refundAndCancel(t *testing.T, orderID uuid.UUID) {
-	t.Helper()
-	ctx := t.Context()
-	var staff, returnID uuid.UUID
-	if err := pool.QueryRow(ctx, `
-		INSERT INTO users (email, role)
-		VALUES ('refund-' || gen_random_uuid() || '@goen.invalid', 'staff') RETURNING id`).Scan(&staff); err != nil {
-		t.Fatalf("create staff: %v", err)
-	}
-	if err := pool.QueryRow(ctx, `
-		SELECT open_refund_before_shipment(order_number, 'test', $2, 'test')
-		FROM orders WHERE id = $1`, orderID, staff).Scan(&returnID); err != nil {
-		t.Fatalf("refund before shipment: %v", err)
-	}
-	for _, stmt := range []string{
-		`INSERT INTO refunds (payment_id, return_request_id, request_key, status, amount_cents,
-		                      reason, provider_ref, succeeded_at)
-		 SELECT p.id, r.id, 'return:' || r.id, 'succeeded', r.card_refund_cents,
-		        r.resolution, 're_' || r.id, now()
-		 FROM return_requests r JOIN payments p ON p.order_id = r.order_id AND p.status = 'succeeded'
-		 WHERE r.id = $1`,
-		`INSERT INTO order_events (order_id, kind, note, return_request_id)
-		 SELECT order_id, 'refunded', 're_' || id, id FROM return_requests WHERE id = $1`,
-		`UPDATE orders SET fulfillment_status = 'cancelled', cancelled_at = now()
-		 WHERE id = (SELECT order_id FROM return_requests WHERE id = $1)`,
-	} {
-		if _, err := pool.Exec(ctx, stmt, returnID); err != nil {
-			t.Fatalf("settle the refund and cancel: %v", err)
-		}
-	}
-}
-
 // TestOrderTimelineRefundID holds that the shopper's order timeline never shows
 // the provider's refund id.
 func TestOrderTimelineRefundID(t *testing.T) {
 	ctx := t.Context()
-	vid := freshVariant(t, "refundid-1")
-	orderID := heldOrderFor(t, uuid.NullUUID{}, vid, -time.Hour, true)
-	refundAndCancel(t, orderID)
+	vid := ordertest.FreshVariant(t, pool, "refundid-1")
+	orderID := ordertest.HeldOrderFor(t, pool, uuid.NullUUID{}, vid, -time.Hour, true)
+	ordertest.RefundedAndCancelled(t, pool, orderID)
 
 	var number, staffNote string
 	if err := pool.QueryRow(ctx, `
@@ -130,14 +97,14 @@ func TestOrderTimelineRefundID(t *testing.T) {
 // the badge once the order is cancelled.
 func TestProductReviewsVerifiedIsReal(t *testing.T) {
 	ctx := t.Context()
-	vid := freshVariant(t, "stockfix-15")
+	vid := ordertest.FreshVariant(t, pool, "stockfix-15")
 
 	var userID uuid.UUID
 	if err := pool.QueryRow(ctx,
 		`INSERT INTO users (email) VALUES ('cancelbadge@example.com') RETURNING id`).Scan(&userID); err != nil {
 		t.Fatalf("create user: %v", err)
 	}
-	orderID := heldOrderFor(t, uuid.NullUUID{UUID: userID, Valid: true}, vid, -time.Hour, true) // funded
+	orderID := ordertest.HeldOrderFor(t, pool, uuid.NullUUID{UUID: userID, Valid: true}, vid, -time.Hour, true) // funded
 
 	var productID uuid.UUID
 	if err := pool.QueryRow(ctx,
@@ -162,7 +129,7 @@ func TestProductReviewsVerifiedIsReal(t *testing.T) {
 		t.Fatalf("clear review: %v", err)
 	}
 
-	refundAndCancel(t, orderID)
+	ordertest.RefundedAndCancelled(t, pool, orderID)
 	err := review()
 	pgErr, ok := errors.AsType[*pgconn.PgError](err)
 	if !ok || pgErr.ConstraintName != "product_reviews_verified_is_real" {

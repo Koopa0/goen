@@ -15,9 +15,11 @@ import (
 	"github.com/google/uuid"
 
 	"github.com/koopa0/goen/internal/checkout"
+	"github.com/koopa0/goen/internal/checkout/checkouttest"
 	"github.com/koopa0/goen/internal/order/access"
 	"github.com/koopa0/goen/internal/order/buyer"
 	"github.com/koopa0/goen/internal/order/delivery"
+	"github.com/koopa0/goen/internal/order/ordertest"
 	"github.com/koopa0/goen/internal/payment"
 	"github.com/koopa0/goen/internal/user"
 )
@@ -136,8 +138,8 @@ func placeOwnedOrder(t *testing.T, s *checkout.Store) (owner uuid.UUID, number s
 		"reload-"+uuid.NewString()+"@example.com").Scan(&owner); err != nil {
 		t.Fatalf("create user: %v", err)
 	}
-	id := newCart(t, s)
-	if err := s.Carts().Add(ctx, id, freshVariant(t, "owned-order"), 1); err != nil {
+	id := checkouttest.NewCart(t, s)
+	if err := s.Carts().Add(ctx, id, ordertest.FreshVariant(t, pool, "owned-order"), 1); err != nil {
 		t.Fatalf("add: %v", err)
 	}
 	var shipID uuid.UUID
@@ -149,7 +151,7 @@ func placeOwnedOrder(t *testing.T, s *checkout.Store) (owner uuid.UUID, number s
 		Email: "reload@example.com", RecipientName: "王小明", Phone: "0912345678",
 		PostalCode: "110", City: "台北市", District: "信義區", Street: "松高路 1 號",
 	}
-	number, err := placeOrder(t, s, ctx, id, uuid.NullUUID{UUID: owner, Valid: true},
+	number, err := checkouttest.PlaceOrder(t, s, ctx, id, uuid.NullUUID{UUID: owner, Valid: true},
 		shipID, addr, "", "reload-"+uuid.NewString())
 	if err != nil {
 		t.Fatalf("place: %v", err)

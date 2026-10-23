@@ -16,6 +16,7 @@ import (
 	"github.com/koopa0/goen/internal/bearer"
 	"github.com/koopa0/goen/internal/cart"
 	"github.com/koopa0/goen/internal/order/access"
+	"github.com/koopa0/goen/internal/order/ordertest"
 )
 
 // adoptionLogRecord is the one line AdoptRequestCart writes for a cart it could
@@ -72,7 +73,7 @@ func TestHandler_AdoptRequestCartLogLevels(t *testing.T) {
 				t.Fatal(err)
 			}
 			// A sibling keeps the product listed when the guest line is retired.
-			variant, _, _ := threeVariants(t, "aurora")
+			variant, _, _ := ordertest.ThreeVariants(t, pool, "aurora")
 			if _, err := pool.Exec(ctx, `INSERT INTO cart_items (cart_id, variant_id, quantity) VALUES ($1, $2, 1)`,
 				guestCart, variant); err != nil {
 				t.Fatal(err)

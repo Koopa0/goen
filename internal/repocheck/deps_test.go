@@ -76,6 +76,11 @@ const (
 	pkgAudit      = "internal/admin/audit"
 	pkgWorklist   = "internal/admin/worklist"
 	pkgAdmintest  = "internal/admin/admintest"
+	pkgDB         = "internal/db"
+	pkgDbtest     = "internal/db/dbtest"
+	pkgUitest     = "internal/ui/uitest"
+	pkgOrdertest  = "internal/order/ordertest"
+	pkgCheckoutt  = "internal/checkout/checkouttest"
 )
 
 // exceptions are the edges the rules forbid and the plan has not removed yet:
@@ -132,6 +137,10 @@ func isLeaf(pkg string) bool {
 var (
 	// notDesks are the packages under internal/admin that are not desks.
 	notDesks = []string{pkgAccesstest, pkgAudit, pkgWorklist, pkgAdmintest}
+	// testHelpers are the packages that exist for tests: a test imports them, and
+	// production code does not. Each one is named for the package it serves with
+	// "test" appended, as net/http/httptest serves net/http.
+	testHelpers = []string{pkgAccesstest, pkgAdmintest, pkgDbtest, pkgUitest, pkgOrdertest, pkgCheckoutt}
 	// uiMayImport is what the shared visual language (internal/ui/…) may import
 	// besides itself.
 	uiMayImport = []string{
@@ -205,6 +214,7 @@ var packageLists = map[string][]string{
 	"importFreeLeaves": importFreeLeaves, "i18nOnlyLeaves": i18nOnlyLeaves, "formtextLeaves": formtextLeaves,
 	"moneyLeaves":     moneyLeaves,
 	"googleMayImport": googleMayImport, "storemapMayImport": storemapMayImport, "notDesks": notDesks,
+	"testHelpers": testHelpers,
 }
 
 // mayImportFrom names, for each *MayImport list in packageLists, the directory
@@ -387,6 +397,26 @@ var depsRules = []importRule{
 		},
 		reason: "internal/admin and audit are the foundation every desk imports, and accesstest the check every desk's routes run, " +
 			"so they import no desk",
+	},
+	{
+		name: "test helpers",
+		hard: true,
+		pkgs: testHelpers,
+		forbid: func(from, to string) bool {
+			return slices.Contains(testHelpers, to) && !slices.Contains(testHelpers, from)
+		},
+		reason: "a test-helper package is imported by test files and by other test-helper packages only: " +
+			"a production file importing one would build its fixtures into the shop",
+	},
+	{
+		name: "ordertest",
+		hard: true,
+		pkgs: []string{pkgOrdertest, pkgDB},
+		forbid: func(from, to string) bool {
+			return from == pkgOrdertest && to != pkgDB
+		},
+		reason: "ordertest writes orders with SQL and imports only the database package, so a test in any package, " +
+			"internal suites included, can import it without a cycle; an order placed through checkout is checkouttest's",
 	},
 	{
 		name: "one way",

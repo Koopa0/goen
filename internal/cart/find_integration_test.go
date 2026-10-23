@@ -9,6 +9,7 @@ import (
 	"github.com/google/uuid"
 
 	"github.com/koopa0/goen/internal/order/buyer"
+	"github.com/koopa0/goen/internal/order/ordertest"
 )
 
 // TestOrderBelongsToEmailMatch holds that buyer.Store.OrderBelongsToEmail finds
@@ -16,7 +17,7 @@ import (
 func TestOrderBelongsToEmailMatch(t *testing.T) {
 	ctx := t.Context()
 	s := buyer.NewStore(pool)
-	number := orderOfVariants(t, map[uuid.UUID]int32{freshVariant(t, "find-mine"): 1})
+	number := ordertest.OrderOfVariants(t, pool, map[uuid.UUID]int32{ordertest.FreshVariant(t, pool, "find-mine"): 1})
 
 	var addr string
 	if err := pool.QueryRow(ctx, `
@@ -59,7 +60,7 @@ func TestOrderBelongsToEmailMatch(t *testing.T) {
 func TestOrderBelongsToEmailWrong(t *testing.T) {
 	ctx := t.Context()
 	s := buyer.NewStore(pool)
-	number := orderOfVariants(t, map[uuid.UUID]int32{freshVariant(t, "find-wrong"): 1})
+	number := ordertest.OrderOfVariants(t, pool, map[uuid.UUID]int32{ordertest.FreshVariant(t, pool, "find-wrong"): 1})
 
 	for _, addr := range []string{
 		"somebody-else@example.com",
@@ -79,7 +80,7 @@ func TestOrderBelongsToEmailWrong(t *testing.T) {
 func TestOrderBelongsToEmailErased(t *testing.T) {
 	ctx := t.Context()
 	s := buyer.NewStore(pool)
-	number := orderOfVariants(t, map[uuid.UUID]int32{freshVariant(t, "find-erased"): 1})
+	number := ordertest.OrderOfVariants(t, pool, map[uuid.UUID]int32{ordertest.FreshVariant(t, pool, "find-erased"): 1})
 
 	var addr string
 	if err := pool.QueryRow(ctx, `

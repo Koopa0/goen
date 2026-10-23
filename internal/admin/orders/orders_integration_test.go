@@ -17,6 +17,7 @@ import (
 	"github.com/koopa0/goen/internal/order"
 	"github.com/koopa0/goen/internal/order/buyer"
 	"github.com/koopa0/goen/internal/order/lapse"
+	"github.com/koopa0/goen/internal/order/ordertest"
 	"github.com/koopa0/goen/internal/outbox"
 
 	"github.com/google/go-cmp/cmp"
@@ -93,7 +94,7 @@ func TestHandler_AdvanceLockTimeout(t *testing.T) {
 func pickingOrderHoldingStock(t *testing.T) (number string, orderID uuid.UUID) {
 	t.Helper()
 	ctx := t.Context()
-	number, orderID, _ = admintest.PendingOrderHoldingStock(t, pool)
+	number, orderID, _ = ordertest.PendingOrderHoldingStock(t, pool)
 
 	tx, err := pool.Begin(ctx)
 	if err != nil {
@@ -201,7 +202,7 @@ func TestStore_ShipNeverPicked(t *testing.T) {
 	ctx, staff := admintest.StaffContext(t, pool)
 	s := admintest.OrderStore(pool, admintest.Refunder{}, nil, nil)
 	actor := uuid.NullUUID{UUID: staff, Valid: true}
-	number, orderID, variantID := admintest.PendingOrderHoldingStock(t, pool)
+	number, orderID, variantID := ordertest.PendingOrderHoldingStock(t, pool)
 
 	var stockBefore int32
 	if err := pool.QueryRow(ctx,
@@ -325,7 +326,7 @@ func TestStore_AdvanceCannotShip(t *testing.T) {
 func TestStore_AdvanceRecordsWhoWhen(t *testing.T) {
 	ctx, _ := admintest.StaffContext(t, pool)
 	s := admintest.OrderStore(pool, admintest.Refunder{}, nil, nil)
-	number, orderID, _ := admintest.PendingOrderHoldingStock(t, pool)
+	number, orderID, _ := ordertest.PendingOrderHoldingStock(t, pool)
 
 	var staff uuid.UUID
 	if err := pool.QueryRow(ctx, `

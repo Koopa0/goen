@@ -17,10 +17,12 @@ import (
 
 	"github.com/koopa0/goen/internal/bearer"
 	"github.com/koopa0/goen/internal/checkout"
+	"github.com/koopa0/goen/internal/checkout/checkouttest"
 	"github.com/koopa0/goen/internal/discount/coupon"
 	"github.com/koopa0/goen/internal/i18n"
 	"github.com/koopa0/goen/internal/order/access"
 	"github.com/koopa0/goen/internal/order/delivery"
+	"github.com/koopa0/goen/internal/order/ordertest"
 )
 
 // overTheThreshold is above the seeded home-delivery 滿 NT$3,000 免運, so the base
@@ -45,7 +47,7 @@ func redemptionsOf(t *testing.T, code string) int {
 
 func pricedVariant(t *testing.T, label string, cents int64) uuid.UUID {
 	t.Helper()
-	vid := freshVariant(t, label)
+	vid := ordertest.FreshVariant(t, pool, label)
 	if _, err := pool.Exec(t.Context(),
 		`UPDATE product_variants SET price_cents = $2 WHERE id = $1`, vid, cents); err != nil {
 		t.Fatalf("price %s: %v", label, err)
@@ -103,7 +105,7 @@ func TestHandler_PlaceOrderFreeShippingNotNeeded(t *testing.T) {
 		"street":      {addr.Street},
 		"shipping":    {ship.String()},
 		"coupon":      {code},
-		"idempotency": {checkoutAttemptKey("already-free-" + uuid.NewString())},
+		"idempotency": {checkouttest.AttemptKey("already-free-" + uuid.NewString())},
 		"update":      {"coupon"},
 	}
 	notNeeded := i18n.T(ctx, i18n.KeyCouponNotNeeded)
@@ -158,13 +160,13 @@ func TestStore_PlaceOrderFreeCodeStillUsable(t *testing.T) {
 	code := freeShippingCode(t, "STILLTHERE")
 	ship := shipVersionFor(t, "home_delivery")
 
-	free := newCart(t, s)
+	free := checkouttest.NewCart(t, s)
 	if err := s.Carts().Add(ctx, free, pricedVariant(t, "still-there-free", overTheThreshold), 1); err != nil {
 		t.Fatalf("add: %v", err)
 	}
 	// What a page that accepted the code would have quoted: the code named and
 	// nothing changed by it.
-	facts := checkoutQuoteFacts(t, s, free, uuid.NullUUID{}, ship, mainlandAddress(""), "")
+	facts := checkouttest.QuoteFacts(t, s, free, uuid.NullUUID{}, ship, mainlandAddress(""), "")
 	if facts.ShippingCents != 0 {
 		t.Fatalf("the fixture order pays %d delivery — it is not over the threshold", facts.ShippingCents)
 	}
@@ -174,7 +176,7 @@ func TestStore_PlaceOrderFreeCodeStillUsable(t *testing.T) {
 		t.Fatalf("build quote: %v", err)
 	}
 	_, err = s.PlaceOrder(ctx, free, uuid.NullUUID{}, ship, mainlandAddress("free@example.com"),
-		nil, code, quote, checkoutAttemptKey("still-there-free-"+code))
+		nil, code, quote, checkouttest.AttemptKey("still-there-free-"+code))
 	if !errors.Is(err, coupon.ErrNotNeeded) {
 		t.Fatalf("placing a free-delivery order with a free-shipping code = %v, want coupon.ErrNotNeeded", err)
 	}
@@ -182,11 +184,11 @@ func TestStore_PlaceOrderFreeCodeStillUsable(t *testing.T) {
 		t.Fatalf("the refused order left %d redemptions, want 0", n)
 	}
 
-	paying := newCart(t, s)
-	if addErr := s.Carts().Add(ctx, paying, freshVariant(t, "still-there-paying"), 1); addErr != nil {
+	paying := checkouttest.NewCart(t, s)
+	if addErr := s.Carts().Add(ctx, paying, ordertest.FreshVariant(t, pool, "still-there-paying"), 1); addErr != nil {
 		t.Fatalf("add: %v", addErr)
 	}
-	number, err := placeOrder(t, s, ctx, paying, uuid.NullUUID{}, ship,
+	number, err := checkouttest.PlaceOrder(t, s, ctx, paying, uuid.NullUUID{}, ship,
 		mainlandAddress("paying@example.com"), code, "still-there-paying-"+code)
 	if err != nil {
 		t.Fatalf("the single-use code is no longer usable on an order that needs it: %v", err)
@@ -220,7 +222,7 @@ func TestHandler_PlaceOrderFreeShippingRecheck(t *testing.T) {
 	h := couponTestHandler(s)
 	code := freeShippingCode(t, "RECHECK")
 
-	vid := freshVariant(t, "free-shipping-recheck")
+	vid := ordertest.FreshVariant(t, pool, "free-shipping-recheck")
 	token := bearer.New()
 	cartID, err := s.Carts().Create(ctx, token, uuid.NullUUID{})
 	if err != nil {
@@ -230,7 +232,7 @@ func TestHandler_PlaceOrderFreeShippingRecheck(t *testing.T) {
 		t.Fatalf("add: %v", addErr)
 	}
 	ship := shipVersionFor(t, "home_delivery")
-	key := checkoutAttemptKey("free-shipping-recheck-" + uuid.NewString())
+	key := checkouttest.AttemptKey("free-shipping-recheck-" + uuid.NewString())
 	addr := mainlandAddress("recheck@example.com")
 	form := url.Values{
 		"email": {addr.Email}, "name": {addr.RecipientName}, "phone": {addr.Phone},
@@ -238,7 +240,7 @@ func TestHandler_PlaceOrderFreeShippingRecheck(t *testing.T) {
 		"street":         {"松仁路 300 號"},
 		"shipping":       {ship.String()},
 		"coupon":         {code},
-		"checkout_quote": {checkoutQuote(t, s, cartID, uuid.NullUUID{}, ship, &delivery.Details{PostalCode: "110"}, code).String()},
+		"checkout_quote": {checkouttest.Quote(t, s, cartID, uuid.NullUUID{}, ship, &delivery.Details{PostalCode: "110"}, code).String()},
 		"idempotency":    {key},
 	}
 

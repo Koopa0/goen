@@ -12,6 +12,7 @@ import (
 	"github.com/jackc/pgx/v5/pgconn"
 
 	"github.com/koopa0/goen/internal/checkout"
+	"github.com/koopa0/goen/internal/checkout/checkouttest"
 )
 
 // TestOrderLinesWrittenWhilePlacing: order_lines_written_while_placing refuses,
@@ -29,7 +30,7 @@ import (
 func TestOrderLinesWrittenWhilePlacing(t *testing.T) {
 	ctx := t.Context()
 	asStore := storeRolePool(t)
-	number := placeUnpaidOrderFor(t, checkout.NewStore(asStore),
+	number := checkouttest.PlaceUnpaidOrderFor(t, pool, checkout.NewStore(asStore),
 		"placed-lines-"+uuid.NewString()[:8]+"@example.com")
 
 	var orderID, target uuid.UUID
@@ -118,7 +119,7 @@ func TestOrderLinesWrittenWhilePlacing(t *testing.T) {
 func TestOrderLinesWrittenWhilePlacingSameInstant(t *testing.T) {
 	ctx := t.Context()
 	asStore := storeRolePool(t)
-	number := placeUnpaidOrderFor(t, checkout.NewStore(asStore),
+	number := checkouttest.PlaceUnpaidOrderFor(t, pool, checkout.NewStore(asStore),
 		"same-instant-"+uuid.NewString()[:8]+"@example.com")
 
 	var orderID, target uuid.UUID
@@ -172,7 +173,7 @@ func TestOrderLinesWrittenWhilePlacingSameInstant(t *testing.T) {
 func TestOrderLinesWrittenWhilePlacingRestored(t *testing.T) {
 	ctx := t.Context()
 	asStore := storeRolePool(t)
-	number := placeUnpaidOrderFor(t, checkout.NewStore(asStore),
+	number := checkouttest.PlaceUnpaidOrderFor(t, pool, checkout.NewStore(asStore),
 		"restored-lines-"+uuid.NewString()[:8]+"@example.com")
 
 	var orderID, target uuid.UUID

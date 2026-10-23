@@ -15,6 +15,7 @@ import (
 	"github.com/koopa0/goen/internal/admin/products"
 	"github.com/koopa0/goen/internal/admin/staff"
 	"github.com/koopa0/goen/internal/db"
+	"github.com/koopa0/goen/internal/order/ordertest"
 	"github.com/koopa0/goen/internal/ui/frame"
 )
 
@@ -131,7 +132,7 @@ func TestStore_EventsRenamedStaffTarget(t *testing.T) {
 // customer can change afterwards.
 func TestStore_EventsRenamedCustomer(t *testing.T) {
 	ctx, _ := admintest.StaffContext(t, pool)
-	customerID := admintest.Customer(t, pool)
+	customerID := ordertest.Customer(t, pool)
 	var address string
 	if err := pool.QueryRow(ctx, `SELECT email FROM users WHERE id = $1`, customerID).Scan(&address); err != nil {
 		t.Fatalf("read the customer's address: %v", err)

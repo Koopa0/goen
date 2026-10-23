@@ -11,9 +11,11 @@ import (
 	"time"
 
 	"github.com/koopa0/goen/internal/checkout"
+	"github.com/koopa0/goen/internal/checkout/checkouttest"
 	"github.com/koopa0/goen/internal/i18n"
 	"github.com/koopa0/goen/internal/order/access"
 	"github.com/koopa0/goen/internal/order/buyer"
+	"github.com/koopa0/goen/internal/order/ordertest"
 )
 
 // TestBuyerHandler_OrderPagePaymentReturn: buyer.Handler.OrderPage, on the
@@ -33,7 +35,7 @@ func TestBuyerHandler_OrderPagePaymentReturn(t *testing.T) {
 			orders := buyer.NewStore(asStore)
 			// A shop that takes payment, which is what shows the pay link.
 			h := buyer.NewHandler(orders, access.NewStore(asStore, false), slog.New(slog.DiscardHandler), testLimiter(), true)
-			number := placeUnpaidOrderFor(t, s, "return@example.com")
+			number := checkouttest.PlaceUnpaidOrderFor(t, pool, s, "return@example.com")
 			cookie := placedCookie(t, number)
 			path := "/orders/" + number
 			get := func(target string, authorized bool) *httptest.ResponseRecorder {
@@ -165,10 +167,10 @@ func TestBuyerHandler_OrderPagePaymentReturn(t *testing.T) {
 				}
 			}
 
-			number = placeUnpaidOrderFor(t, s, "return-expiry@example.com")
+			number = checkouttest.PlaceUnpaidOrderFor(t, pool, s, "return-expiry@example.com")
 			cookie = placedCookie(t, number)
 			path = "/orders/" + number
-			expireHolds(t, number)
+			checkouttest.ExpireHolds(t, pool, number)
 			expired, err := orders.Order(ctx, number)
 			if err != nil || !expired.AwaitingPayment() || !expired.CanCancel() || !expired.HoldUntil.Before(expired.Now) {
 				t.Fatalf("expired but unswept order lost its factual cancellation eligibility: %+v, %v", expired, err)
@@ -190,7 +192,7 @@ func TestBuyerHandler_OrderPagePaymentReturn(t *testing.T) {
 				}
 			}
 
-			number = placeUnpaidOrderFor(t, s, "return-no-hold@example.com")
+			number = checkouttest.PlaceUnpaidOrderFor(t, pool, s, "return-no-hold@example.com")
 			cookie = placedCookie(t, number)
 			path = "/orders/" + number
 			deleted, err := pool.Exec(ctx, `DELETE FROM inventory_reservations WHERE order_id = (SELECT id FROM orders WHERE order_number = $1)`, number)
@@ -218,7 +220,7 @@ func TestBuyerHandler_OrderPagePaymentReturn(t *testing.T) {
 				}
 			}
 
-			fundedID := creditFundedHeldOrder(t, freshVariant(t, "return-funded"), -time.Hour)
+			fundedID := ordertest.CreditFundedHeldOrder(t, pool, ordertest.FreshVariant(t, pool, "return-funded"), -time.Hour)
 			if numberErr := pool.QueryRow(ctx, `SELECT order_number FROM orders WHERE id = $1`, fundedID).Scan(&number); numberErr != nil {
 				t.Fatalf("read funded order number: %v", numberErr)
 			}

@@ -16,6 +16,7 @@ import (
 	"github.com/koopa0/goen/internal/bearer"
 	"github.com/koopa0/goen/internal/checkout"
 	"github.com/koopa0/goen/internal/order/access"
+	"github.com/koopa0/goen/internal/order/ordertest"
 	"github.com/koopa0/goen/internal/user"
 )
 
@@ -35,7 +36,7 @@ func aMember(t *testing.T, s *checkout.Store, label string) (token string, u use
 	if err != nil {
 		t.Fatalf("create cart: %v", err)
 	}
-	if err := s.Carts().Add(t.Context(), cartID, freshVariant(t, label), 1); err != nil {
+	if err := s.Carts().Add(t.Context(), cartID, ordertest.FreshVariant(t, pool, label), 1); err != nil {
 		t.Fatalf("add: %v", err)
 	}
 	return tok, user.User{ID: userID.String(), Email: email, Name: "王小明", Role: user.RoleCustomer}
@@ -91,7 +92,7 @@ func TestHandler_PageGuestNoPrefill(t *testing.T) {
 	if err != nil {
 		t.Fatalf("create cart: %v", err)
 	}
-	if err := s.Carts().Add(t.Context(), cartID, freshVariant(t, "recipient-guest"), 1); err != nil {
+	if err := s.Carts().Add(t.Context(), cartID, ordertest.FreshVariant(t, pool, "recipient-guest"), 1); err != nil {
 		t.Fatalf("add: %v", err)
 	}
 
