@@ -166,7 +166,7 @@ var (
 	// importFreeLeaves import no goen package at all.
 	importFreeLeaves = []string{
 		"internal/web/clientip",
-		"internal/product/inventory", "internal/shipping/postcode", "internal/user",
+		"internal/shipping/postcode", "internal/user",
 		"internal/money", "internal/db", "internal/keyset", "internal/bearer",
 		"internal/email", "internal/cart/cartitem", "internal/product", "internal/web/compress",
 		"internal/web/requestid", "internal/web/siteurl", "internal/web/probe",
@@ -175,7 +175,7 @@ var (
 	i18nOnlyLeaves = []string{
 		"internal/invoice", "internal/product/labelling", "internal/order/returns", "internal/shoptime", "internal/ui/fieldrule",
 		"internal/sales", "internal/admin/worklist", "internal/shipping", "internal/credit", "internal/web/formtext",
-		"internal/ui/tone",
+		"internal/ui/tone", "internal/product/inventory",
 	}
 	// formtextLeaves read a code a person typed: they import nothing from goen
 	// except formtext, which folds its width, and the message catalogue.

@@ -39,25 +39,6 @@ func (m Movement) By(ctx context.Context) string {
 	return m.Actor
 }
 
-func (m Movement) ReasonText(ctx context.Context) string {
-	switch m.Reason {
-	case inventory.ReasonReceipt:
-		return i18n.T(ctx, i18n.KeyAdminMoveReceipt)
-	case inventory.ReasonHold:
-		return i18n.T(ctx, i18n.KeyAdminMoveHold)
-	case inventory.ReasonSale:
-		return i18n.T(ctx, i18n.KeyAdminMoveSale)
-	case inventory.ReasonRelease:
-		return i18n.T(ctx, i18n.KeyAdminMoveRelease)
-	case inventory.ReasonReturn:
-		return i18n.T(ctx, i18n.KeyAdminMoveReturn)
-	case inventory.ReasonAdjustment:
-		return i18n.T(ctx, i18n.KeyAdminMoveAdjustment)
-	default:
-		panic("pages: no label for inventory movement reason " + string(m.Reason))
-	}
-}
-
 type MovementsView struct {
 	keyset.Bound
 
