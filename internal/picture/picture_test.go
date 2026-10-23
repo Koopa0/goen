@@ -25,22 +25,25 @@ func TestImage_URLBundledKey(t *testing.T) {
 
 // TestImage_SrcsetBundledKey checks that a bundled image offers its responsive
 // variants: the 400 and 800 files and the full-size one, each with its width
-// descriptor.
+// descriptor. The keys are a product photo and a campaign banner: a campaign's
+// header key resolves through the same resolver as a product image.
 func TestImage_SrcsetBundledKey(t *testing.T) {
 	t.Parallel()
 
-	const key = "koto-pad-mini-01.webp"
-	got := picture.Image{BundledKey: key}.Srcset()
-	for _, want := range []string{
-		"/static/media/products/koto-pad-mini-01-400.webp?",
-		" 400w, ",
-		"/static/media/products/koto-pad-mini-01-800.webp?",
-		" 800w, ",
-		"/static/media/products/koto-pad-mini-01.webp?",
-		" 1600w",
-	} {
-		if !strings.Contains(got, want) {
-			t.Errorf("Image{BundledKey: %q}.Srcset() = %q; missing %q", key, got, want)
+	for _, key := range []string{"koto-pad-mini-01.webp", "campaign-banner-01.webp"} {
+		stem := strings.TrimSuffix(key, ".webp")
+		got := picture.Image{BundledKey: key}.Srcset()
+		for _, want := range []string{
+			"/static/media/products/" + stem + "-400.webp?",
+			" 400w, ",
+			"/static/media/products/" + stem + "-800.webp?",
+			" 800w, ",
+			"/static/media/products/" + stem + ".webp?",
+			" 1600w",
+		} {
+			if !strings.Contains(got, want) {
+				t.Errorf("Image{BundledKey: %q}.Srcset() = %q; missing %q", key, got, want)
+			}
 		}
 	}
 }

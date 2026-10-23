@@ -298,6 +298,56 @@ func TestEvaluateEnforcesAdvertisedWindows(t *testing.T) {
 	}
 }
 
+// TestEvaluateStatutoryRejection: a statutory request cannot be rejected on the
+// decision path.
+func TestEvaluateStatutoryRejection(t *testing.T) {
+	t.Parallel()
+
+	_, err := Evaluate([]LineAssessment{{
+		OrderLineID: "1", Window: WindowStatutory,
+	}}, DecisionReject)
+	if !errors.Is(err, ErrPolicy) {
+		t.Fatalf("statutory rejection = %v, want ErrPolicy", err)
+	}
+}
+
+// TestEvaluateApprovalEntitlement: a late approval cannot claim policy
+// entitlement, and the entitlement an approval does claim follows its window.
+func TestEvaluateApprovalEntitlement(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		window PolicyWindow
+		kind   DecisionKind
+		want   Entitlement
+		refuse bool
+	}{
+		{WindowGoodwill, DecisionApprove, "", true},
+		{WindowLate, DecisionApprove, "", true},
+		{WindowLate, DecisionException, EntitlementException, false},
+		{WindowUndelivered, DecisionApprove, EntitlementStatutory, false},
+		{WindowStatutory, DecisionApprove, EntitlementStatutory, false},
+	}
+	for _, tc := range tests {
+		got, err := Evaluate([]LineAssessment{{
+			OrderLineID: "1", Window: tc.window,
+		}}, tc.kind)
+		if tc.refuse {
+			if !errors.Is(err, ErrPolicy) {
+				t.Fatalf("Evaluate(%s, %s) = %v, want ErrPolicy", tc.window, tc.kind, err)
+			}
+			continue
+		}
+		if err != nil {
+			t.Fatalf("Evaluate(%s, %s) = %v", tc.window, tc.kind, err)
+		}
+		if got.Entitlement != tc.want {
+			t.Errorf("Evaluate(%s, %s) entitlement = %q, want %q",
+				tc.window, tc.kind, got.Entitlement, tc.want)
+		}
+	}
+}
+
 // TestRequestWindow checks that RequestWindow keeps a request of mixed lines
 // mixed.
 func TestRequestWindow(t *testing.T) {

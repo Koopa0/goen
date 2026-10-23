@@ -49,24 +49,14 @@ var testNameExceptions = map[string]map[string]string{
 	},
 	"internal/admin": {
 		"TestClosedDatabaseWritesNotRefused":           "a rule across the back-office stores: it closes the database under products and shipping writes and asks that neither answers ErrRefused or ErrNotFound; its units are those stores' methods in other packages, and no identifier of package admin is one of them",
+		"TestDeskRefusalPOSTs":                         "a rule across the back-office desks: it posts real refusals to the banners, FAQ, products, returns, shipping, slides, stock and taxonomy handlers and asks that each keeps the draft and locates its form; those desks are other packages, and no identifier of package admin is its unit",
 		"TestEveryAdminQueueReachesBeyondItsFirstPage": "a rule across every back-office queue: it seeds 101 rows and follows each desk's next link through its own handler; the desks are other packages, and no identifier of package admin is its unit",
 		"TestEveryBackOfficeWriteLeavesATrail":         "a rule across the back-office stores: it runs one write of each (stock, product, credit, campaign and the rest) and counts an audit row for every action; the stores are other packages, and no identifier of package admin is its unit",
-	},
-	"internal/admin/orders": {
-		"TestDeskRefusalPOSTs":                     "a rule across the back-office desks: it posts real refusals to the banners, FAQ, media, products, returns, shipping, slides, stock and taxonomy handlers and asks that each keeps the draft and locates its form; those desks are other packages, and no identifier of package orders is its unit",
-		"TestEntry_LabelParcelArrival":             "the unit is audit.Entry.Label and EntityLabel (and the audit page that renders them) of package audit, which this package does not declare; moving the test there is a reorganisation this pass does not do",
-		"TestFulfillmentStatus_NextMatchesTrigger": "the unit is order.FulfillmentStatus.Next of package order, held against the orders_legal_transition trigger through the database; this package declares neither",
-		"TestNotFoundKeepsStaffInBackOffice":       "the unit is admin.NotFound, declared in package admin, driven through the campaigns, customers, media, orders and products desks; no identifier of package orders is its unit",
-		"TestRecipients_OfDelivered":               "the unit is notice.Recipients.Of of package notice (with the OrderTracking query beside it), which this package does not declare; the test lives here for the shipment fixtures",
-		"TestRecipients_OfNoParcel":                "the unit is notice.Recipients.Of of package notice, which this package does not declare; the test lives here for the order fixtures",
-		"TestRecipients_OfUndelivered":             "the unit is notice.Recipients.Of of package notice (with the OrderTracking query beside it), which this package does not declare; the test lives here for the shipment fixtures",
-		"TestTerminalOrderRecipient":               "the unit is the TerminalOrderRecipient query (a sqlc statement declared in internal/db), called directly through db.Queries, not a Go identifier of this package",
 	},
 	"internal/admin/products": {
 		"TestLocalizedNameAltText":   "the unit is the SQL function localized_name, which picks an image's alt text by the page's language; the test reads it through the pool after AttachImage stores the two texts, and calls no Go identifier of this package for the result",
 		"TestLockProductInvoiceLine": "the unit is the LockProductInvoiceLine query (internal/admin/products/query.sql, generated into internal/db), a SQL object the test calls directly to hold the lock that Store.SetProductInvoiceLine takes, and it asserts that a row referencing the product stays writable meanwhile; Store.SetProductInvoiceLine is not called",
 		"TestLockProductLabel":       "the unit is the LockProductLabel query (internal/admin/products/query.sql, generated into internal/db), a SQL object the test calls directly to hold the lock that Store.SetProductLabel takes, and it asserts that a row referencing the product stays writable meanwhile; Store.SetProductLabel is not called",
-		"TestParseBoundedCeilings":   "the unit is formtext.ParseBounded of package formtext, called with this desk's own ceilings (MaxWarrantyMonths, safetyStockCeiling and the parcel ceilings of package shipping); this package declares no identifier the test calls, and moving it is a reorganisation this pass does not do",
 	},
 	"internal/admin/refunds": {
 		"TestClaimReturnRefundExecutionConcurrent": "the unit is the SQL function claim_return_refund_execution, called straight through the pool; no Go identifier of this package is what the test drives",
@@ -77,17 +67,13 @@ var testNameExceptions = map[string]map[string]string{
 		"TestReverseReturnPointsErasureLock":       "the unit is the SQL function reverse_return_points, raced against an erasure through the pool, not a Go identifier",
 	},
 	"internal/admin/returns": {
-		"TestCompensateReturnTwice":       "the unit is the SQL function compensate_return_with_credit, called a second time straight through the pool after one Store.Decide; no Go identifier of this package is what the second call exercises",
-		"TestEvaluateApprovalEntitlement": "the unit is returns.Evaluate of internal/order/returns, which this package does not declare; the test sits in this package's decision_test.go and moving it to the policy package is a reorganisation this pass does not do",
-		"TestEvaluateStatutoryRejection":  "the unit is returns.Evaluate of internal/order/returns, which this package does not declare; the test sits in this package's decision_test.go and moving it to the policy package is a reorganisation this pass does not do",
-		"TestReportAtRefundFigure":        "the unit is Store.ReportAt of package reports and the order_refunds view it reads, which this package does not declare; Store.Decide only makes the refund the figure must count",
+		"TestCompensateReturnTwice": "the unit is the SQL function compensate_return_with_credit, called a second time straight through the pool after one Store.Decide; no Go identifier of this package is what the second call exercises",
 	},
 	"internal/admin/reports": {
 		"TestStockDaysCoverRefundedBeforeShipment": "the unit is Store.DaysCover of package stock, which this package does not declare (it declares only the Cover interface it calls through); moving the test there is a reorganisation this pass does not do",
 	},
 	"internal/admin/staff": {
-		"TestRequireAdminStaffPage": "its unit is admin.Control.RequireAdmin guarding the staff page's path, declared in package admin; it calls nothing this package declares",
-		"TestUpsertStaffExisting":   "its unit is the upsert_staff SQL function and the users_staff_already_exists constraint, called straight through an admin-role pool; Store.AddStaff is not what it exercises",
+		"TestUpsertStaffExisting": "its unit is the upsert_staff SQL function and the users_staff_already_exists constraint, called straight through an admin-role pool; Store.AddStaff is not what it exercises",
 	},
 	"internal/admin/stock": {
 		"TestProductVariantsRestockNoticesRollback": "the unit is the product_variants_restock_notices trigger, a SQL object, driven by plain UPDATE statements on the admin role's pool, not a Go identifier",
@@ -192,6 +178,7 @@ var testNameExceptions = map[string]map[string]string{
 		"TestNoRoleHoldsAColumnWriteItsQueriesNeverMake": "the unit is the column privileges of each role held to its production statements, SQL objects, not Go identifiers; the name is also 42 characters after Test. It stays because a comment in migrations/001 cites it and 001 cannot be edited without changing its schema digest, so the rename waits for the 001 change that retargets the comment",
 		"TestNoRoleHoldsAWriteItsQueriesNeverMake":       "the unit is the table privileges of each role held to its production statements, SQL objects, not Go identifiers. The name stays because a comment in migrations/001 cites it and 001 cannot be edited without changing its schema digest, so the rename waits for the 001 change that retargets the comment",
 		"TestOnlyApplicationRolesConnect":                "the unit is the CONNECT privilege on the database and the application roles, SQL objects, not Go identifiers",
+		"TestOrdersLegalTransitionMirrorsNext":           "the unit is the orders_legal_transition trigger, a SQL object, held against order.FulfillmentStatus.Next; the trigger has no Go identifier",
 		"TestOrdersStorefrontCancelsOnly":                "the unit is the trigger orders_storefront_cancels_only and its grants, SQL objects, not Go identifiers",
 		"TestPickupChainKnown":                           "the unit is the CHECK order_private_data_pickup_chain_known held to shipping.Chains; the constraint is SQL and no identifier of this package names it",
 		"TestPoolMapComplete":                            "the unit is the pool maps declared in a test file of this package and the directory tree, a repository rule; no Go identifier of this package declares them",
@@ -253,7 +240,6 @@ var testNameExceptions = map[string]map[string]string{
 		"TestWriteVerbTargetsUpserts":                    "the unit is writeVerbTargets, a helper declared in a test file of this package, so the package declares no identifier for it",
 	},
 	"internal/discount/campaign": {
-		"TestImage_URLHeaderKey":        "the unit is picture.Image.URL and Srcset of package picture, which resolve a campaign's header key as they resolve a product image; this package declares no identifier for it, and moving the test to picture is a reorganisation this pass does not do",
 		"TestSaleCampaignNeedsDiscount": "the unit is the sale_campaign_needs_discount trigger on sale_campaign_products, a SQL object the test provokes by featuring products through the pool, not a Go identifier",
 	},
 	"internal/home": {
@@ -325,6 +311,9 @@ var testNameExceptions = map[string]map[string]string{
 		"TestReleaseReservationFundedOrder": "the unit is the SQL function release_reservation, called straight through the pool on a fully credit-funded order's hold; it is a SQL object, not a Go identifier",
 		"TestReleaseReservationLockOrder":   "the unit is the SQL function release_reservation, called through the pool of the sweeper's role to hold its lock order; it is a SQL object, not a Go identifier",
 	},
+	"internal/order/notice": {
+		"TestTerminalOrderRecipient": "the unit is the TerminalOrderRecipient query (internal/order/notice/query.sql, generated into internal/db), a SQL object the test calls directly through db.Queries; package notice declares no identifier of that name",
+	},
 	"internal/outbox": {
 		"TestOutboxMessagesDedupeKey": "its unit is the unique index outbox_messages_dedupe_key, a SQL object, driven by the test's own INSERT ... ON CONFLICT helper, not by outbox.Enqueue",
 		"TestRescheduleOutboxClock":   "its unit is the SQL statement RescheduleOutbox (a sqlc query, declared in internal/db), run directly in a transaction; Store.Drain is not what it exercises",
@@ -352,17 +341,11 @@ var testNameExceptions = map[string]map[string]string{
 		"TestAmbientFormat":   "its unit is ambientFormat, a helper declared in the guard's test file, not part of the package",
 		"TestNoAmbientFormat": "a repository rule: no .Format( call outside this package renders a time in the process's zone; it reads every source file, and no function of the package is its unit",
 	},
-	"internal/site": {
-		"TestPathOrFallback": "the unit is siteurl.PathOr of package siteurl, called with this feature's own fallback; this package declares no identifier the test calls, and moving it is a reorganisation this pass does not do",
-	},
 	"internal/ui/frame": {
 		"TestDisclosuresWorkWithKeyboard": "its unit is the back office's content disclosures (the <details> behaviour of the desk stylesheet and goen.js), driven in a real browser by scripts/admin-disclosure-check.mjs against the health and twofactor pages; no identifier of this package declares them, and it uses frame.Page only as a fixture",
 	},
 	"internal/ui/icons": {
 		"TestLineIconsAreSizedByClass": "the unit is the family of line icons: it renders Close, CheckCircle and Smartphone as a sample, so naming it after one of them would claim that icon alone",
-	},
-	"internal/wishlist": {
-		"TestPathOrFallback": "the unit is siteurl.PathOr of package siteurl, called with this feature's own fallback; this package declares no identifier the test calls, and moving it is a reorganisation this pass does not do",
 	},
 	"migrations": {
 		"TestFrozenMigrations": "a repository rule: no migration file changes once it has merged, and none is added or removed without frozen saying so; it hashes every file of the directory and exercises no function, so no one declared identifier is its unit",
