@@ -1,6 +1,7 @@
 package newsletter
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"log/slog"
@@ -26,7 +27,8 @@ type Handler struct {
 
 // NewHandler takes limit for Submit, which spends two disjoint keys, the client
 // IP and "newsletter:"+the address, since neither sees the attack the other
-// bounds.
+// bounds. The address key must earn a token back well within [ConfirmTTL]; see
+// [Handler.requestConfirmation].
 func NewHandler(store *Store, limit *ratelimit.Limiter, log *slog.Logger) *Handler {
 	if store == nil || limit == nil || log == nil {
 		panic("newsletter: NewHandler requires a store, a limiter and a logger")
@@ -56,7 +58,7 @@ func (h *Handler) Submit(w http.ResponseWriter, r *http.Request) {
 	if retryAfter, ok := h.limit.Allow(ratelimit.ClientKey(r)); !ok {
 		h.log.WarnContext(r.Context(), "rate limited",
 			"path", r.URL.Path, "retry_after_seconds", int(retryAfter.Seconds()+1))
-		h.throttled(w, r, "", retryAfter)
+		h.throttled(w, r, retryAfter)
 		return
 	}
 
@@ -79,15 +81,7 @@ func (h *Handler) Submit(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Keyed on the address and BEFORE the write: unbounded, the form mails a
-	// confirmation to whoever is typed into it, as often as the button is
-	// pressed.
-	if retryAfter, ok := h.limit.Allow("newsletter:" + addr); !ok {
-		h.throttled(w, r, addr, retryAfter)
-		return
-	}
-
-	if _, err := h.store.Request(r.Context(), addr); err != nil {
+	if err := h.requestConfirmation(r.Context(), addr); err != nil {
 		h.log.ErrorContext(r.Context(), "request newsletter confirmation", "error", err)
 		h.fail(w, r, http.StatusInternalServerError, addr, i18n.T(r.Context(), i18n.KeyNewsletterRetry))
 		return
@@ -98,6 +92,33 @@ func (h *Handler) Submit(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	http.Redirect(w, r, "/newsletter/thanks?"+url.Values{"address": {email.Mask(addr)}}.Encode(), http.StatusSeeOther)
+}
+
+// requestConfirmation queues a confirmation for addr unless the address has had
+// its allowance of them, and either way the caller answers that the mail is on
+// its way. The allowance bounds the mail and never the request, and only the
+// confirmations it queues spend it: a request that queues nothing, because the
+// address is subscribed or the write failed, gives its token back. Every
+// confirmation that spent it went to the address, the newest replacing the
+// rest, and an empty allowance was last spent within one interval of the limit,
+// which is shorter than ConfirmTTL, so whoever asks then already has a live
+// link. That is the rule the ratelimit package states for a shared key that
+// bounds what is sent, and the one /forgot follows.
+func (h *Handler) requestConfirmation(ctx context.Context, addr string) error {
+	// Reserved BEFORE the write: unbounded, the form mails a confirmation to
+	// whoever is typed into it, as often as the button is pressed.
+	allowance, _, ok := h.limit.Reserve("newsletter:" + addr)
+	if !ok {
+		h.log.WarnContext(ctx, "newsletter confirmation not queued: the address has had its allowance")
+		return nil
+	}
+	outcome, err := h.store.Request(ctx, addr)
+	if err != nil || outcome != Requested {
+		allowance.Refund()
+		return err
+	}
+	allowance.Keep()
+	return nil
 }
 
 // Thanks answers the plain POST. Active subscriptions enqueue no letter; the
@@ -296,11 +317,12 @@ func (h *Handler) linkFailed(w http.ResponseWriter, r *http.Request, heading, bo
 }
 
 // throttled: HTMX swaps the body into the footer form, so it must stay a form;
-// a plain request can stay text.
-func (h *Handler) throttled(w http.ResponseWriter, r *http.Request, addr string, retryAfter time.Duration) {
+// a plain request can stay text. The form arrives empty: the client is refused
+// before its form is read.
+func (h *Handler) throttled(w http.ResponseWriter, r *http.Request, retryAfter time.Duration) {
 	if respond.IsHTMX(r) {
 		ratelimit.SetRetryAfter(w, retryAfter)
-		h.fail(w, r, http.StatusTooManyRequests, addr, i18n.T(r.Context(), i18n.KeyTooManyRequests))
+		h.fail(w, r, http.StatusTooManyRequests, "", i18n.T(r.Context(), i18n.KeyTooManyRequests))
 		return
 	}
 	ratelimit.Refuse(r.Context(), w, retryAfter)
