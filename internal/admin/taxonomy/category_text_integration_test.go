@@ -25,6 +25,7 @@ import (
 	"github.com/koopa0/goen/internal/db/dbtest"
 	"github.com/koopa0/goen/internal/i18n"
 	"github.com/koopa0/goen/internal/media"
+	"github.com/koopa0/goen/internal/ui/uitest"
 )
 
 // TestHandler_SetCategoryImageAltOnly: category descriptions save without a file and refusals keep the draft.
@@ -85,8 +86,8 @@ func TestHandler_SetCategoryImageAltOnly(t *testing.T) {
 				t.Fatalf("saved category returned %d, want200", get.Code)
 			}
 			for id, want := range map[string]string{"cat-alt": "原始說明", "cat-alt-en": "Original description"} {
-				input := admintest.InputElementByID(t, get.Body.String(), id)
-				if got := admintest.InputAttribute(t, input, "value"); got != want {
+				input := uitest.InputElementByID(t, get.Body.String(), id)
+				if got := uitest.InputAttribute(t, input, "value"); got != want {
 					t.Errorf("GET %s = %q, want %q", id, got, want)
 				}
 			}
@@ -128,8 +129,8 @@ func TestHandler_SetCategoryImageAltOnly(t *testing.T) {
 					}
 					assertCategoryImageRefusal(t, res.Body.String(), tt.field, map[string]string{"cat-alt": tt.alt, "cat-alt-en": tt.altEn}[tt.field])
 					for id, value := range map[string]string{"cat-alt": tt.alt, "cat-alt-en": tt.altEn} {
-						input := admintest.InputElementByID(t, res.Body.String(), id)
-						if got := admintest.InputAttribute(t, input, "value"); got != value {
+						input := uitest.InputElementByID(t, res.Body.String(), id)
+						if got := uitest.InputAttribute(t, input, "value"); got != value {
 							t.Errorf("refused %s = %q,want%q", id, got, value)
 						}
 					}
@@ -168,14 +169,14 @@ func TestHandler_SetCategoryImageAltOnly(t *testing.T) {
 
 func assertCategoryImageRefusal(t *testing.T, body, id, raw string) {
 	t.Helper()
-	input := admintest.InputElementByID(t, body, id)
+	input := uitest.InputElementByID(t, body, id)
 	want := map[string]string{"value": raw, "aria-invalid": "true"}
-	got := map[string]string{"value": admintest.InputAttribute(t, input, "value"), "aria-invalid": admintest.InputAttribute(t, input, "aria-invalid")}
+	got := map[string]string{"value": uitest.InputAttribute(t, input, "value"), "aria-invalid": uitest.InputAttribute(t, input, "aria-invalid")}
 	if diff := cmp.Diff(want, got); diff != "" {
 		t.Errorf("refused category image field%s (-want +got):\n%s", id, diff)
 	}
 	errorID := id + "-error"
-	if !slices.Contains(strings.Fields(admintest.InputAttribute(t, input, "aria-describedby")), errorID) {
+	if !slices.Contains(strings.Fields(uitest.InputAttribute(t, input, "aria-describedby")), errorID) {
 		t.Errorf("refused%s is not linked to%s", id, errorID)
 	}
 	if !regexp.MustCompile(`<p[^>]*id="` + regexp.QuoteMeta(errorID) + `"[^>]*>[^<]+</p>`).MatchString(body) {

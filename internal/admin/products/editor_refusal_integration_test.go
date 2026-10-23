@@ -36,6 +36,7 @@ import (
 	"github.com/koopa0/goen/internal/i18n"
 	"github.com/koopa0/goen/internal/media"
 	"github.com/koopa0/goen/internal/media/mediatest"
+	"github.com/koopa0/goen/internal/ui/uitest"
 )
 
 // TestHandler_EditorRefusalsKeepDraft: product editor refusals keep their draft
@@ -91,13 +92,13 @@ func TestHandler_EditorRefusalsKeepDraft(t *testing.T) {
 				assertEditorImageControls(t, body, slug, attached, library)
 				switch tt.name {
 				case "specification":
-					admintest.AssertRefusedInput(t, body, "spec-label", tt.form.Get("label"))
+					uitest.AssertRefusedInput(t, body, "spec-label", tt.form.Get("label"))
 					for id, field := range map[string]string{"spec-value": "value", "spec-label-en": "label_en", "spec-value-en": "value_en"} {
-						input := admintest.InputElementByID(t, body, id)
-						if got := admintest.InputAttribute(t, input, "value"); got != tt.form.Get(field) {
+						input := uitest.InputElementByID(t, body, id)
+						if got := uitest.InputAttribute(t, input, "value"); got != tt.form.Get(field) {
 							t.Errorf("specification field %q=%q, want raw %q", field, got, tt.form.Get(field))
 						}
-						if admintest.InputAttribute(t, input, "aria-invalid") != "" {
+						if uitest.InputAttribute(t, input, "aria-invalid") != "" {
 							t.Errorf("unrefused spec field %q inherited an error", field)
 						}
 					}
@@ -105,7 +106,7 @@ func TestHandler_EditorRefusalsKeepDraft(t *testing.T) {
 						t.Error("duplicate specification explanation is absent")
 					}
 				case "detail":
-					admintest.AssertRefusedInput(t, body, "p-summary", tt.form.Get("summary"))
+					uitest.AssertRefusedInput(t, body, "p-summary", tt.form.Get("summary"))
 					doc, err := html.Parse(strings.NewReader(body))
 					if err != nil {
 						t.Fatal(err)
@@ -259,8 +260,8 @@ func TestHandler_ImageRefusalsKeepDraft(t *testing.T) {
 					errorID = "reuse-" + strings.ReplaceAll(tt.field, "_", "-") + "-" + library
 				}
 				for id, want := range map[string]string{altID: tt.alt, altEnID: tt.altEn} {
-					input := admintest.InputElementByID(t, res.Body.String(), id)
-					if got := admintest.InputAttribute(t, input, "value"); got != want {
+					input := uitest.InputElementByID(t, res.Body.String(), id)
+					if got := uitest.InputAttribute(t, input, "value"); got != want {
 						t.Errorf("image draft %q = %q, want %q", id, got, want)
 					}
 				}
@@ -416,7 +417,7 @@ func TestHandler_UploadImageLosslessWebP(t *testing.T) {
 				if res.Code != http.StatusUnprocessableEntity {
 					t.Fatalf("lossless upload = %d, want 422", res.Code)
 				}
-				admintest.AssertRefusedInput(t, res.Body.String(), tt.inputID, "")
+				uitest.AssertRefusedInput(t, res.Body.String(), tt.inputID, "")
 				doc, err := html.Parse(strings.NewReader(res.Body.String()))
 				if err != nil {
 					t.Fatal(err)
@@ -742,16 +743,16 @@ func assertUploadFailure(t *testing.T, ctx context.Context, body, diagnostics st
 			t.Error("malformed multipart text did not show the bad-form response")
 		}
 	case 422:
-		input := admintest.InputElementByID(t, body, "p-image")
-		if admintest.InputAttribute(t, input, "aria-invalid") != "true" || admintest.InputAttribute(t, input, "aria-describedby") != "p-image-error" {
+		input := uitest.InputElementByID(t, body, "p-image")
+		if uitest.InputAttribute(t, input, "aria-invalid") != "true" || uitest.InputAttribute(t, input, "aria-describedby") != "p-image-error" {
 			t.Error("corrupt file must flag only its image control with the linked refusal")
 		}
 		if !strings.Contains(body, i18n.T(ctx, i18n.KeyAdminNoticeNotImage)) {
 			t.Error("corrupt upload did not retain the image refusal")
 		}
 		for id, want := range map[string]string{"p-alt": alt, "p-alt-en": " English description "} {
-			input := admintest.InputElementByID(t, body, id)
-			if got := admintest.InputAttribute(t, input, "value"); got != want {
+			input := uitest.InputElementByID(t, body, id)
+			if got := uitest.InputAttribute(t, input, "value"); got != want {
 				t.Errorf("refused image draft %s = %q, want raw %q", id, got, want)
 			}
 		}

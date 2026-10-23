@@ -24,6 +24,7 @@ import (
 	"github.com/koopa0/goen/internal/i18n"
 	"github.com/koopa0/goen/internal/media"
 	"github.com/koopa0/goen/internal/media/mediatest"
+	"github.com/koopa0/goen/internal/ui/uitest"
 )
 
 // TestHandler_CreateHeroNoImageStored: a refused hero slide stores no image.
@@ -211,7 +212,7 @@ func TestHandler_CreateHeroImageRefusal(t *testing.T) {
 				if diff := cmp.Diff(want, got); diff != "" {
 					t.Errorf("hero upload draft (-want +got):\n%s", diff)
 				}
-				admintest.AssertRefusedInput(t, res.Body.String(), tt.errorID, "")
+				uitest.AssertRefusedInput(t, res.Body.String(), tt.errorID, "")
 				after, err := s.HeroSlides(ctx)
 				if err != nil {
 					t.Fatal(err)
@@ -298,8 +299,8 @@ func TestHandler_CreateHeroKeepsSchedule(t *testing.T) {
 			}
 			assertSlideSchedule(t, ctx, res.Body.String(), heroID)
 			assertHomeExampleRefusal(t, res.Body.String(), "h-headline")
-			draft := admintest.InputElementByID(t, res.Body.String(), "h-plabel")
-			if got := admintest.InputAttribute(t, draft, "value"); got != " Draft primary " {
+			draft := uitest.InputElementByID(t, res.Body.String(), "h-plabel")
+			if got := uitest.InputAttribute(t, draft, "value"); got != " Draft primary " {
 				t.Errorf("refused slide draft = %q, want %q", got, " Draft primary ")
 			}
 			if diff := cmp.Diff(before, state()); diff != "" {
@@ -311,12 +312,12 @@ func TestHandler_CreateHeroKeepsSchedule(t *testing.T) {
 
 func assertHomeExampleRefusal(t *testing.T, body, id string) {
 	t.Helper()
-	input := admintest.InputElementByID(t, body, id)
+	input := uitest.InputElementByID(t, body, id)
 	type inputFacts struct{ Value, Invalid, Descriptions string }
 	got := inputFacts{
-		Value:        admintest.InputAttribute(t, input, "value"),
-		Invalid:      admintest.InputAttribute(t, input, "aria-invalid"),
-		Descriptions: admintest.InputAttribute(t, input, "aria-describedby"),
+		Value:        uitest.InputAttribute(t, input, "value"),
+		Invalid:      uitest.InputAttribute(t, input, "aria-invalid"),
+		Descriptions: uitest.InputAttribute(t, input, "aria-describedby"),
 	}
 	want := inputFacts{Invalid: "true", Descriptions: id + "-example " + id + "-error"}
 	if diff := cmp.Diff(want, got); diff != "" {
@@ -564,13 +565,13 @@ func assertHeroUploadFailure(t *testing.T, ctx context.Context, res *httptest.Re
 			t.Error("malformed multipart text did not show the bad-form response")
 		}
 	case 422:
-		admintest.AssertRefusedInput(t, body, "h-image", "")
+		uitest.AssertRefusedInput(t, body, "h-image", "")
 		if !strings.Contains(body, i18n.T(ctx, i18n.KeyAdminNoticeNotImage)) || !strings.Contains(diagnostics, `"level":"WARN"`) {
 			t.Error("corrupt upload did not retain the image refusal and Warn diagnostic")
 		}
 		for field, id := range map[string]string{"headline": "h-headline", "headline_en": "h-headline-en", "alt": "h-alt", "alt_en": "h-alt-en", "days": "h-days"} {
-			input := admintest.InputElementByID(t, body, id)
-			if got := admintest.InputAttribute(t, input, "value"); got != fields[field] {
+			input := uitest.InputElementByID(t, body, id)
+			if got := uitest.InputAttribute(t, input, "value"); got != fields[field] {
 				t.Errorf("refused image draft %s = %q, want raw %q", id, got, fields[field])
 			}
 		}

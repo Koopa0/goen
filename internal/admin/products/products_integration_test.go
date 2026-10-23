@@ -25,6 +25,7 @@ import (
 	"github.com/koopa0/goen/internal/admin/products"
 	"github.com/koopa0/goen/internal/admin/products/productstest"
 	"github.com/koopa0/goen/internal/product"
+	"github.com/koopa0/goen/internal/ui/uitest"
 	"github.com/koopa0/goen/internal/user"
 	"github.com/koopa0/goen/internal/web/requestid"
 )
@@ -665,17 +666,17 @@ func TestHandler_AddOptionValueSwatch(t *testing.T) {
 				t.Fatalf("AddOptionValue(swatch_hex=%q) status = %d, want 422", tt.raw, res.Code)
 			}
 			body := res.Body.String()
-			input := admintest.InputElementByID(t, body, "optval-swatch")
-			if got := admintest.InputAttribute(t, input, "aria-invalid"); got != "true" {
+			input := uitest.InputElementByID(t, body, "optval-swatch")
+			if got := uitest.InputAttribute(t, input, "aria-invalid"); got != "true" {
 				t.Errorf("colour field aria-invalid = %q, want true", got)
 			}
-			if got := admintest.InputAttribute(t, input, "aria-describedby"); got != "optval-swatch-error" {
+			if got := uitest.InputAttribute(t, input, "aria-describedby"); got != "optval-swatch-error" {
 				t.Errorf("colour field aria-describedby = %q, want the error's id", got)
 			}
 			if !regexp.MustCompile(`<p[^>]*id="optval-swatch-error"[^>]*>[^<]+</p>`).MatchString(body) {
 				t.Error("the refusal names no reason beside the colour field")
 			}
-			if strings.Contains(admintest.InputElementByID(t, body, "optval-value"), `aria-invalid`) {
+			if strings.Contains(uitest.InputElementByID(t, body, "optval-value"), `aria-invalid`) {
 				t.Error("a bad colour marked the value field invalid too")
 			}
 		})
@@ -894,8 +895,8 @@ func TestHandler_UpdateMistypedWarranty(t *testing.T) {
 		t.Errorf("UpdateProduct(warranty_months=%q) status = %d, want 422", "12o", res.Code)
 	} else {
 		body := res.Body.String()
-		admintest.AssertRefusedInput(t, body, "p-warranty-months", "12o")
-		admintest.AssertTextNumberControl(t, body, "p-warranty-months")
+		uitest.AssertRefusedInput(t, body, "p-warranty-months", "12o")
+		uitest.AssertTextNumberControl(t, body, "p-warranty-months")
 	}
 
 	var months *int32
@@ -927,7 +928,7 @@ func TestHandler_AddVariantShortParcelSum(t *testing.T) {
 	if res.Code != http.StatusUnprocessableEntity {
 		t.Errorf("AddVariant(parcel_sum < parcel_longest) status = %d, want 422", res.Code)
 	} else {
-		admintest.AssertRefusedInput(t, res.Body.String(), "v-sum", "499")
+		uitest.AssertRefusedInput(t, res.Body.String(), "v-sum", "499")
 	}
 	var count int
 	if err := pool.QueryRow(ctx,

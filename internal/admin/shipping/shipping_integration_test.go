@@ -29,6 +29,7 @@ import (
 	"github.com/koopa0/goen/internal/db"
 	"github.com/koopa0/goen/internal/i18n"
 	"github.com/koopa0/goen/internal/shipping/storemap"
+	"github.com/koopa0/goen/internal/ui/uitest"
 	"github.com/koopa0/goen/internal/web/requestid"
 )
 
@@ -466,14 +467,14 @@ func TestHandler_CreateMethodParcelRefusal(t *testing.T) {
 					tt.field, tt.raw, res.Code)
 			} else {
 				body := res.Body.String()
-				admintest.AssertRefusedInput(t, body, tt.id, tt.raw)
+				uitest.AssertRefusedInput(t, body, tt.id, tt.raw)
 				for id, field := range map[string]string{
 					"m-max-longest": "max_parcel_longest",
 					"m-max-sum":     "max_parcel_sum",
 					"m-max-weight":  "max_parcel_weight",
 				} {
-					admintest.AssertTextNumberControl(t, body, id)
-					if got := admintest.InputAttribute(t, admintest.InputElementByID(t, body, id), "value"); got != form.Get(field) {
+					uitest.AssertTextNumberControl(t, body, id)
+					if got := uitest.InputAttribute(t, uitest.InputElementByID(t, body, id), "value"); got != form.Get(field) {
 						t.Errorf("input %q value = %q, want submitted %q", id, got, form.Get(field))
 					}
 				}
@@ -823,15 +824,15 @@ func TestHandler_SetZonePrefixesRefused(t *testing.T) {
 
 	body := res.Body.String()
 	targetID := "pre-" + zoneA.String()
-	target, targetText := admintest.TextareaByID(t, body, targetID)
+	target, targetText := uitest.TextareaByID(t, body, targetID)
 	if targetText != raw {
 		t.Errorf("target row text = %q, want raw %q", targetText, raw)
 	}
-	if admintest.InputAttribute(t, target, "aria-invalid") != "true" {
+	if uitest.InputAttribute(t, target, "aria-invalid") != "true" {
 		t.Errorf("target row is not marked aria-invalid: %s", target)
 	}
 	errorID := targetID + "-error"
-	if got := admintest.InputAttribute(t, target, "aria-describedby"); got != errorID {
+	if got := uitest.InputAttribute(t, target, "aria-describedby"); got != errorID {
 		t.Errorf("target aria-describedby = %q, want %q", got, errorID)
 	}
 	if !regexp.MustCompile(`<p[^>]*id="` + regexp.QuoteMeta(errorID) + `"[^>]*>[^<]+</p>`).
@@ -839,14 +840,14 @@ func TestHandler_SetZonePrefixesRefused(t *testing.T) {
 		t.Errorf("no nonempty error element resolves %q", errorID)
 	}
 
-	neighbour, neighbourText := admintest.TextareaByID(t, body, "pre-"+zoneB.String())
+	neighbour, neighbourText := uitest.TextareaByID(t, body, "pre-"+zoneB.String())
 	if neighbourText != p[1] {
 		t.Errorf("neighbour text = %q, want database value %q", neighbourText, p[1])
 	}
 	if strings.Contains(neighbour, "aria-invalid") {
 		t.Errorf("neighbour row inherited the target error: %s", neighbour)
 	}
-	create, createText := admintest.TextareaByID(t, body, "z-prefixes")
+	create, createText := uitest.TextareaByID(t, body, "z-prefixes")
 	if strings.Contains(create, "aria-invalid") || createText == raw {
 		t.Errorf("create-zone field inherited an existing-row refusal: %s", create)
 	}
@@ -1450,7 +1451,7 @@ func surchargeWriterPool(t *testing.T, p *pgxpool.Pool, app string) *pgxpool.Poo
 
 func assertStaleSurchargeForm(t *testing.T, ctx context.Context, body string, method, current, zone uuid.UUID, amount string) {
 	t.Helper()
-	admintest.AssertRefusedInput(t, body, "sur-"+current.String()+"-"+zone.String(), amount)
+	uitest.AssertRefusedInput(t, body, "sur-"+current.String()+"-"+zone.String(), amount)
 	if !strings.Contains(body, i18n.T(ctx, i18n.KeyAdminShipVersionChanged)) {
 		t.Error("stale refusal explanation is absent")
 	}
@@ -1458,8 +1459,8 @@ func assertStaleSurchargeForm(t *testing.T, ctx context.Context, body string, me
 	if diff := cmp.Diff(url.Values{"version": {current.String()}, "zone": {zone.String()}, "amount": {amount}}, fresh); diff != "" {
 		t.Errorf("current resubmission form (-want +got):\n%s", diff)
 	}
-	feeInput := admintest.InputElementByID(t, body, "fee-"+method.String())
-	if got := admintest.InputAttribute(t, feeInput, "value"); got != "90" {
+	feeInput := uitest.InputElementByID(t, body, "fee-"+method.String())
+	if got := uitest.InputAttribute(t, feeInput, "value"); got != "90" {
 		t.Errorf("current fee=%q, want 90", got)
 	}
 }
