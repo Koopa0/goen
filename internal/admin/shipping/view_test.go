@@ -23,7 +23,7 @@ import (
 // other-language name is marked with its own language.
 func TestShippingMethodWithoutEnglish(t *testing.T) {
 	t.Parallel()
-	view := ShippingView{Methods: []Method{
+	view := View{Methods: []Method{
 		{MethodID: "a", VersionID: "va", Destination: shipping.DestinationAddress, Name: "宅配到府", NameEn: "Home delivery"},
 		{MethodID: "b", VersionID: "vb", Destination: shipping.DestinationAddress, Name: "超商取貨"},
 	}}
@@ -63,7 +63,7 @@ func TestShippingZoneTableRoles(t *testing.T) {
 	t.Parallel()
 	for _, locale := range i18n.Locales() {
 		ctx := i18n.WithLocale(t.Context(), locale)
-		view := ShippingView{Zones: []Zone{
+		view := View{Zones: []Zone{
 			{ID: "mainland", Code: "mainland", Name: "本島", NameEn: "Mainland"},
 			{ID: "offshore", Code: "offshore", Name: "離島", NameEn: "Offshore"},
 		}}
@@ -126,7 +126,7 @@ func TestShippingExampleHintLine(t *testing.T) {
 	t.Parallel()
 	ctx := i18n.WithLocale(t.Context(), i18n.ZhHant)
 	pages := map[string]string{
-		"shipping": renderComponent(t, ctx, Shipping(frame.Page{Title: "Shipping"}, ShippingView{})),
+		"shipping": renderComponent(t, ctx, Shipping(frame.Page{Title: "Shipping"}, View{})),
 	}
 	for name, body := range pages {
 		if strings.Contains(body, "。 ") {
@@ -156,7 +156,7 @@ func TestShippingExampleHints(t *testing.T) {
 				body     string
 				examples []string
 			}{
-				"shipping": {renderComponent(t, ctx, Shipping(frame.Page{Title: "Shipping"}, ShippingView{})), []string{"express_delivery", "mountain", "313 546 556"}},
+				"shipping": {renderComponent(t, ctx, Shipping(frame.Page{Title: "Shipping"}, View{})), []string{"express_delivery", "mountain", "313 546 556"}},
 			} {
 				for _, e := range c.examples {
 					if want := tt.sentence(e); !strings.Contains(c.body, want) {
@@ -186,8 +186,8 @@ func TestShippingRefusalSummary(t *testing.T) {
 				title                 i18n.Key
 				count                 int
 			}{
-				{"method", Shipping(frame.Page{}, ShippingView{Errors: map[string]string{"code": bad, "fee": bad}}), "/admin/shipping/method#new-method", "new-method", "m-code", i18n.KeyAdminShipAddMethod, 2},
-				{"zone", Shipping(frame.Page{}, ShippingView{Errors: map[string]string{"zone_code": bad, "prefixes": bad}}), "/admin/shipping/zone#new-zone", "new-zone", "z-code", i18n.KeyAdminShipAddZone, 2},
+				{"method", Shipping(frame.Page{}, View{Errors: map[string]string{"code": bad, "fee": bad}}), "/admin/shipping/method#new-method", "new-method", "m-code", i18n.KeyAdminShipAddMethod, 2},
+				{"zone", Shipping(frame.Page{}, View{Errors: map[string]string{"zone_code": bad, "prefixes": bad}}), "/admin/shipping/zone#new-zone", "new-zone", "z-code", i18n.KeyAdminShipAddZone, 2},
 			}
 			for _, tc := range cases {
 				t.Run(tc.name, func(t *testing.T) {

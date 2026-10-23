@@ -23,9 +23,9 @@ const (
 	ThreeStarsAndBelowReviews
 )
 
-func (s *Store) Reviews(ctx context.Context, filter ReviewFilter, after ...string) (ReviewsView, error) {
+func (s *Store) Reviews(ctx context.Context, filter ReviewFilter, after ...string) (View, error) {
 	if filter != AllReviews && filter != ThreeStarsAndBelowReviews {
-		return ReviewsView{}, ErrInvalid
+		return View{}, ErrInvalid
 	}
 	threeStarsAndBelow := filter == ThreeStarsAndBelowReviews
 	scope := "/admin/reviews"
@@ -35,10 +35,10 @@ func (s *Store) Reviews(ctx context.Context, filter ReviewFilter, after ...strin
 	from, resumed := keyset.Resume(scope, after, func(p position) bool { return p.ID != uuid.Nil })
 	rows, err := s.q.AdminReviews(ctx, db.AdminReviewsParams{ThreeStarsAndBelow: threeStarsAndBelow, HasCursor: resumed, AfterAt: from.At, AfterID: from.ID, RowLimit: keyset.PageLimit})
 	if err != nil {
-		return ReviewsView{}, fmt.Errorf("read reviews: %w", err)
+		return View{}, fmt.Errorf("read reviews: %w", err)
 	}
 	rows, bound := keyset.PageBound(scope, resumed, rows, keyset.PageSize, func(r *db.AdminReviewsRow) string { return r.PageCursor })
-	view := ReviewsView{
+	view := View{
 		ThreeStarsAndBelow: threeStarsAndBelow,
 		Bound:              bound,
 		Rows:               make([]Review, 0, len(rows)),

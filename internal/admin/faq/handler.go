@@ -195,7 +195,7 @@ func (h *Handler) rejectFAQCategory(
 		admin.ServerError(w, r, h.log)
 		return
 	}
-	view.CategoryDraft = FAQCategory{
+	view.CategoryDraft = Category{
 		ID: f.ID, Name: r.PostFormValue("name"), NameEn: r.PostFormValue("name_en"),
 	}
 	view.CategoryErrors = errs

@@ -67,10 +67,10 @@ func NewStore(pool *pgxpool.Pool) *Store {
 	return &Store{pool: pool, q: db.New(pool)}
 }
 
-func (s *Store) Configuration(ctx context.Context) (ShippingView, error) {
+func (s *Store) Configuration(ctx context.Context) (View, error) {
 	rows, err := s.q.AdminShippingMethods(ctx)
 	if err != nil {
-		return ShippingView{}, fmt.Errorf("read shipping methods: %w", err)
+		return View{}, fmt.Errorf("read shipping methods: %w", err)
 	}
 
 	versionIDs := make([]uuid.UUID, 0, len(rows))
@@ -79,7 +79,7 @@ func (s *Store) Configuration(ctx context.Context) (ShippingView, error) {
 	}
 	zoneRows, err := s.q.AdminVersionZones(ctx, versionIDs)
 	if err != nil {
-		return ShippingView{}, fmt.Errorf("read version zones: %w", err)
+		return View{}, fmt.Errorf("read version zones: %w", err)
 	}
 	surcharges := make(map[uuid.UUID][]ZoneSurcharge, len(versionIDs))
 	for i := range zoneRows {
@@ -90,7 +90,7 @@ func (s *Store) Configuration(ctx context.Context) (ShippingView, error) {
 		})
 	}
 
-	view := ShippingView{FeeMaxDollars: MaxFee / 100, FreeOverMaxDollars: money.MaxCents / 100}
+	view := View{FeeMaxDollars: MaxFee / 100, FreeOverMaxDollars: money.MaxCents / 100}
 	for i := range rows {
 		m := &rows[i]
 		method := Method{
@@ -110,7 +110,7 @@ func (s *Store) Configuration(ctx context.Context) (ShippingView, error) {
 
 	zones, err := s.q.AdminShippingZones(ctx)
 	if err != nil {
-		return ShippingView{}, fmt.Errorf("read shipping zones: %w", err)
+		return View{}, fmt.Errorf("read shipping zones: %w", err)
 	}
 	for i := range zones {
 		z := &zones[i]

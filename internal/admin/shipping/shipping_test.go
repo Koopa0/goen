@@ -27,7 +27,7 @@ func TestShippingStaleSurchargeDraft(t *testing.T) {
 				t.Parallel()
 				ctx := i18n.WithLocale(t.Context(), locale)
 				message := i18n.T(ctx, i18n.KeyAdminShipVersionChanged)
-				view := ShippingView{
+				view := View{
 					Methods: []Method{
 						{MethodID: "one", VersionID: "current", Destination: shipping.DestinationAddress, Surcharges: []ZoneSurcharge{{ZoneID: "offshore", Cents: 10000}, {ZoneID: "other", Cents: 30000}}},
 						{MethodID: "two", VersionID: "neighbour", Destination: shipping.DestinationAddress, Surcharges: []ZoneSurcharge{{ZoneID: "offshore", Cents: 40000}}},
@@ -103,7 +103,7 @@ func TestShippingPickupAvailability(t *testing.T) {
 			t.Run(locale.locale.Tag()+"/"+tt.name, func(t *testing.T) {
 				t.Parallel()
 				ctx := i18n.WithLocale(t.Context(), locale.locale)
-				view := ShippingView{Methods: []Method{{
+				view := View{Methods: []Method{{
 					MethodID: "method", VersionID: "version", Code: "internal_method_code",
 					Name: "Method name", NameEn: "Method name", Destination: tt.destination, Active: true,
 					PickupUnavailable: tt.unavailable,
@@ -192,7 +192,7 @@ func TestShippingZonePrefixEditors(t *testing.T) {
 			t.Run(locale.Tag()+"/"+tt.name, func(t *testing.T) {
 				t.Parallel()
 				ctx := i18n.WithLocale(t.Context(), locale)
-				view := ShippingView{Zones: []Zone{
+				view := View{Zones: []Zone{
 					{ID: "islands", Name: "Islands", NameEn: "Islands", Prefixes: islands},
 					{ID: "neighbour", Name: "Neighbour", NameEn: "Neighbour", Prefixes: "100"},
 				}, Errors: map[string]string{}}
@@ -331,7 +331,7 @@ func TestZonePrefixEntriesRepeatedPrefix(t *testing.T) {
 // language's name, singular and plural counts, and the untranslated marker.
 func TestShippingNamesAndCounts(t *testing.T) {
 	t.Parallel()
-	view := ShippingView{
+	view := View{
 		Methods: []Method{{
 			MethodID: "home", VersionID: "v1", Destination: shipping.DestinationAddress,
 			Name: "宅配到府", NameEn: "Home delivery", EffectiveAt: "2026-10-07", VersionCount: 1,

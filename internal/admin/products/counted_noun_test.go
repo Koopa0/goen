@@ -17,7 +17,7 @@ func TestProductsVariantCount(t *testing.T) {
 	for _, locale := range []i18n.Locale{i18n.ZhHant, i18n.En} {
 		for _, n := range []int32{1, 2} {
 			ctx := i18n.WithLocale(t.Context(), locale)
-			body := renderComponent(t, ctx, Products(frame.Page{}, ProductsView{
+			body := renderComponent(t, ctx, Products(frame.Page{}, View{
 				Rows: []Product{{Slug: "product", Name: "product", Status: product.StatusActive, Variants: n, FromCents: 1000}},
 			}))
 			wantVariants := fmt.Sprintf("%d variants · from ", n)

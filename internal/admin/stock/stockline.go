@@ -14,9 +14,9 @@ import (
 // arrive.
 const minLineMovements = 2
 
-// StockDay is one shop day of a variant's ledger: the stock at its close, the
+// Day is one shop day of a variant's ledger: the stock at its close, the
 // units received that day and how many movements, receipts among them, it held.
-type StockDay struct {
+type Day struct {
 	Day      time.Time
 	Stock    int32
 	Received int32

@@ -20,8 +20,8 @@ func RoleLabel(ctx context.Context, r user.Role) string {
 	}
 }
 
-type StaffView struct {
-	Rows     []StaffRow
+type View struct {
+	Rows     []Row
 	Roles    []user.Role
 	Notice   widget.Result
 	NoKey    bool
@@ -32,7 +32,7 @@ type StaffView struct {
 	AddError string
 }
 
-type StaffRow struct {
+type Row struct {
 	ID       string
 	Email    string
 	Name     string
@@ -40,23 +40,23 @@ type StaffRow struct {
 	Enrolled bool
 }
 
-func (r StaffRow) DisplayName() string {
+func (r Row) DisplayName() string {
 	if r.Name == "" {
 		return r.Email
 	}
 	return r.Name
 }
 
-func (r StaffRow) State(ctx context.Context) string {
+func (r Row) State(ctx context.Context) string {
 	if r.Enrolled {
 		return i18n.T(ctx, i18n.KeyAdminTOTPOn)
 	}
 	return i18n.T(ctx, i18n.KeyAdminTOTPOff)
 }
 
-func (v StaffView) IsActor(r StaffRow) bool { return r.ID == v.Actor }
+func (v View) IsActor(r Row) bool { return r.ID == v.Actor }
 
-func (v StaffView) Unenrolled() int {
+func (v View) Unenrolled() int {
 	n := 0
 	for _, r := range v.Rows {
 		if !r.Enrolled {
@@ -66,6 +66,6 @@ func (v StaffView) Unenrolled() int {
 	return n
 }
 
-func (v StaffView) UnenrolledText() string { return strconv.Itoa(v.Unenrolled()) }
+func (v View) UnenrolledText() string { return strconv.Itoa(v.Unenrolled()) }
 
-func (v StaffView) AllEnrolled() bool { return v.Unenrolled() == 0 }
+func (v View) AllEnrolled() bool { return v.Unenrolled() == 0 }

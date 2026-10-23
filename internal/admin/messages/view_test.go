@@ -97,7 +97,7 @@ func render(t *testing.T, c templ.Component) string {
 func TestMessagesEmptyPage(t *testing.T) {
 	t.Parallel()
 	b := keyset.Bound{PastEnd: true, First: "/admin/products?q=test"}
-	body := render(t, Messages(frame.Page{Title: "Pagination"}, MessagesView{Bound: b}))
+	body := render(t, Messages(frame.Page{Title: "Pagination"}, View{Bound: b}))
 	if !strings.Contains(body, `href="/admin/products?q=test"`) || !strings.Contains(body, "First page") {
 		t.Fatal("empty page lost its plain restart link")
 	}
@@ -112,7 +112,7 @@ func TestMessagesFirstPageEmpty(t *testing.T) {
 	t.Parallel()
 	ctx := func(k i18n.Key) string { return i18n.T(i18n.WithLocale(t.Context(), i18n.En), k) }
 	want := ctx(i18n.KeyAdminMessagesEmpty)
-	body := render(t, Messages(frame.Page{Title: "Queue"}, MessagesView{Bound: firstPageBound("/admin/queue")}))
+	body := render(t, Messages(frame.Page{Title: "Queue"}, View{Bound: firstPageBound("/admin/queue")}))
 	if !strings.Contains(body, html.EscapeString(want)) {
 		t.Errorf("the queue's own empty text %q is missing", want)
 	}
@@ -126,7 +126,7 @@ func TestMessagesFirstPageEmpty(t *testing.T) {
 func TestMessagesNextLink(t *testing.T) {
 	t.Parallel()
 	ctx := func(k i18n.Key) string { return i18n.T(i18n.WithLocale(t.Context(), i18n.En), k) }
-	body := render(t, Messages(frame.Page{Title: "Queue"}, MessagesView{Bound: fullPageBound("/admin/queue")}))
+	body := render(t, Messages(frame.Page{Title: "Queue"}, View{Bound: fullPageBound("/admin/queue")}))
 	if !strings.Contains(body, `rel="next"`) {
 		t.Error("a first page with more rows has no Next link")
 	}
@@ -141,7 +141,7 @@ func TestMessagesWaitingBadges(t *testing.T) {
 	ctx := i18n.WithLocale(t.Context(), i18n.ZhHant)
 	fresh := Message{ID: "fresh", SubjectLabel: "S1", WaitingDays: 0}
 	late := Message{ID: "late", SubjectLabel: "S2", WaitingDays: 4}
-	view := MessagesView{Bound: firstPageBound("messages"), Rows: []Message{fresh, late}}
+	view := View{Bound: firstPageBound("messages"), Rows: []Message{fresh, late}}
 	page := renderComponent(t, ctx, Messages(frame.Page{}, view))
 	wantBadge(t, page, fresh.Waiting(ctx), "goen-badge goen-badge--warn")
 	wantBadge(t, page, late.OverdueText(ctx), "goen-badge goen-badge--warn")

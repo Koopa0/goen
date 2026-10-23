@@ -59,6 +59,6 @@ func TestDashboardRecentOrderBadge(t *testing.T) {
 	ctx := i18n.WithLocale(t.Context(), i18n.ZhHant)
 	row := OrderRow{Number: "GO-A", Status: order.FulfillmentPending, StatusText: "待出貨", StatusIntent: widget.IntentWarn}
 
-	dashboard := renderComponent(t, ctx, Dashboard(Meta(ctx), DashboardView{Recent: []OrderRow{row}}))
+	dashboard := renderComponent(t, ctx, Dashboard(Meta(ctx), View{Recent: []OrderRow{row}}))
 	wantBadge(t, dashboard, "待出貨", "goen-badge goen-badge--warn")
 }

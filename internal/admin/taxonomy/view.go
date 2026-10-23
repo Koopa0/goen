@@ -60,7 +60,7 @@ func (t Taxon) DepthText() string {
 	return strconv.Itoa(t.Depth)
 }
 
-type TaxonomyView struct {
+type View struct {
 	Brands     []Taxon
 	Categories []Taxon
 	Notice     widget.Result
@@ -79,7 +79,7 @@ type TaxonDraft struct {
 	Comparable bool
 }
 
-func (v *TaxonomyView) HasErr(which, field string) bool {
+func (v *View) HasErr(which, field string) bool {
 	if v.Which != which {
 		return false
 	}
@@ -87,14 +87,14 @@ func (v *TaxonomyView) HasErr(which, field string) bool {
 	return ok
 }
 
-func (v *TaxonomyView) Err(which, field string) string {
+func (v *View) Err(which, field string) string {
 	if v.Which != which {
 		return ""
 	}
 	return v.Errors[field]
 }
 
-func (v *TaxonomyView) missingParentChoice() string {
+func (v *View) missingParentChoice() string {
 	if v.Which != "categories" || v.Draft.Parent == "" {
 		return ""
 	}
@@ -106,7 +106,7 @@ func (v *TaxonomyView) missingParentChoice() string {
 	return v.Draft.Parent
 }
 
-func (v *TaxonomyView) DraftFor(which, field string) string {
+func (v *View) DraftFor(which, field string) string {
 	if v.Which != which {
 		return ""
 	}
@@ -129,7 +129,7 @@ func (v *TaxonomyView) DraftFor(which, field string) string {
 		}
 		return ""
 	default:
-		panic("taxonomy: TaxonomyView.DraftFor: unknown field " + field)
+		panic("taxonomy: View.DraftFor: unknown field " + field)
 	}
 }
 

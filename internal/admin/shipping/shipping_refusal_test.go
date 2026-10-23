@@ -25,7 +25,7 @@ func TestShippingRefusalOwnControls(t *testing.T) {
 		t.Run(locale.Tag(), func(t *testing.T) {
 			t.Parallel()
 			ctx := i18n.WithLocale(t.Context(), locale)
-			view := ShippingView{
+			view := View{
 				FeeMaxDollars: 5000, FreeOverMaxDollars: 100000000,
 				Methods: []Method{
 					{MethodID: "owned", VersionID: "owned-version", Destination: shipping.DestinationAddress, Name: "Stored", FeeCents: 10000},
@@ -93,7 +93,7 @@ func TestShippingDatabaseRefusalAlert(t *testing.T) {
 			t.Parallel()
 			ctx := i18n.WithLocale(t.Context(), locale)
 			message := i18n.T(ctx, i18n.KeyAdminShipRefused)
-			view := ShippingView{Methods: []Method{{MethodID: "owned", VersionID: "version", Name: "Stored", Destination: shipping.DestinationAddress}}, VersionDraft: VersionDraft{MethodID: "owned", Name: "Draft", Fee: "100"}, Errors: map[string]string{"version_form": message}}
+			view := View{Methods: []Method{{MethodID: "owned", VersionID: "version", Name: "Stored", Destination: shipping.DestinationAddress}}, VersionDraft: VersionDraft{MethodID: "owned", Name: "Draft", Fee: "100"}, Errors: map[string]string{"version_form": message}}
 			body := renderComponent(t, ctx, Shipping(frame.Page{}, view))
 			doc, err := html.Parse(strings.NewReader(body))
 			if err != nil {

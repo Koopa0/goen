@@ -32,7 +32,7 @@ func TestDashboardNoStorefrontChrome(t *testing.T) {
 	t.Parallel()
 	ctx := frame.WithStaff(i18n.WithLocale(t.Context(), i18n.ZhHant), true)
 
-	admin := renderComponent(t, ctx, Dashboard(frame.Page{}, DashboardView{}))
+	admin := renderComponent(t, ctx, Dashboard(frame.Page{}, View{}))
 	// Without this the loop below passes on an empty render, which is the false
 	// green a page that failed to build gives.
 	if !strings.Contains(admin, `class="goen-admin"`) {

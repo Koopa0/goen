@@ -12,10 +12,10 @@ import (
 
 // stockDays is len(levels) shop days ending with the last level; each receipt
 // is a day received[i] units arrived on, as one movement.
-func stockDays(levels []int32, received map[int]int32) []StockDay {
-	out := make([]StockDay, len(levels))
+func stockDays(levels []int32, received map[int]int32) []Day {
+	out := make([]Day, len(levels))
 	for i, level := range levels {
-		out[i] = StockDay{Day: time.Date(2026, 9, 1+i, 0, 0, 0, 0, time.UTC), Stock: level}
+		out[i] = Day{Day: time.Date(2026, 9, 1+i, 0, 0, 0, 0, time.UTC), Stock: level}
 		if units := received[i]; units > 0 {
 			out[i].Received, out[i].Receipts, out[i].Moves = units, 1, 1
 		}
@@ -105,7 +105,7 @@ func TestMovementsStockLineDays(t *testing.T) {
 	t.Parallel()
 
 	ctx := i18n.WithLocale(t.Context(), i18n.En)
-	view := func(days []StockDay) string {
+	view := func(days []Day) string {
 		return renderComponent(t, ctx, Movements(frame.Page{Title: "Stock"}, &MovementsView{
 			SKU: "SKU-1", ProductName: "Thing", Slug: "thing", Stock: 6, Safety: 2, FormID: "f", Days: days, Rows: []Movement{{Delta: 2, Reason: inventory.ReasonReceipt}},
 		}))

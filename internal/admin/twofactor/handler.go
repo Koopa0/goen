@@ -81,7 +81,7 @@ func (h *Handler) Challenge(w http.ResponseWriter, r *http.Request) {
 	if errors.Is(err, ErrSecretUnreadable) {
 		notice = i18n.T(r.Context(), i18n.KeyTOTPSecretUnreadable)
 	}
-	view := TwoFactorView{
+	view := View{
 		Enabled:  h.store.Enabled(),
 		Enrolled: enrolled,
 		Notice:   notice,
@@ -182,7 +182,7 @@ func (h *Handler) Enrol(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	respond.Component(w, r, h.log, http.StatusOK, TwoFactor(
-		frame.Page{Title: i18n.T(r.Context(), i18n.KeyAdminPageTwoFactor)}, TwoFactorView{
+		frame.Page{Title: i18n.T(r.Context(), i18n.KeyAdminPageTwoFactor)}, View{
 			Enabled: true, Enrolling: true,
 			Secret: EncodeSecret(secret), URI: uri,
 			QRCode: "data:image/png;base64," + base64.StdEncoding.EncodeToString(code.PNG()),

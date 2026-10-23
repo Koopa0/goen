@@ -93,7 +93,7 @@ func (p CampaignProduct) stockText(ctx context.Context) string {
 	return i18n.Count(ctx, i18n.KeyAdminCampProductStock, p.SellableUnits, p.SellableUnits)
 }
 
-type CampaignsView struct {
+type View struct {
 	keyset.Bound
 
 	Rows   []CampaignRow
@@ -112,11 +112,11 @@ type CampaignDraft struct {
 
 func (d CampaignDraft) ToneOrStone() tone.Tone { return tone.Resolve(d.Tone) }
 
-func (v CampaignsView) Empty() bool { return len(v.Rows) == 0 }
+func (v View) Empty() bool { return len(v.Rows) == 0 }
 
-func (v CampaignsView) HasErr(f string) bool { _, ok := v.Errors[f]; return ok }
+func (v View) HasErr(f string) bool { _, ok := v.Errors[f]; return ok }
 
-func (v CampaignsView) Err(f string) string { return v.Errors[f] }
+func (v View) Err(f string) string { return v.Errors[f] }
 
 // CampaignDetail is what the edit page reads of a campaign. The dates are
 // datetime-local field values, not display text.

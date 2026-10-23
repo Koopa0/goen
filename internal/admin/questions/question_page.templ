@@ -14,7 +14,7 @@ import (
 // Neither button is primary: a filled button on every row is a screen of them.
 // The list keeps the class the layout gate finds the page by
 // (scripts/check-layout.mjs); the divided list paints it.
-templ Questions(p frame.Page, v QuestionsView) {
+templ Questions(p frame.Page, v View) {
 	@frame.Admin(p, "questions") {
 		<div class="ui-page-head">
 			<div>

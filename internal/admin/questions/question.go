@@ -32,9 +32,9 @@ type questionPosition struct {
 	At   time.Time
 }
 
-func (s *Store) Questions(ctx context.Context, queue QuestionQueue, after ...string) (QuestionsView, error) {
+func (s *Store) Questions(ctx context.Context, queue QuestionQueue, after ...string) (View, error) {
 	if queue != VisibleQuestions && queue != HiddenQuestions {
-		return QuestionsView{}, ErrInvalid
+		return View{}, ErrInvalid
 	}
 	showHidden := queue == HiddenQuestions
 	scope := keyset.ScopeURL("/admin/questions", "hidden", "")
@@ -44,10 +44,10 @@ func (s *Store) Questions(ctx context.Context, queue QuestionQueue, after ...str
 	from, resumed := keyset.Resume(scope, after, func(p questionPosition) bool { return p.ID != uuid.Nil })
 	rows, err := s.q.AdminQuestions(ctx, db.AdminQuestionsParams{Hidden: showHidden, HasCursor: resumed, AfterRank: from.Rank, AfterAt: from.At, AfterID: from.ID, RowLimit: keyset.PageLimit})
 	if err != nil {
-		return QuestionsView{}, fmt.Errorf("read questions: %w", err)
+		return View{}, fmt.Errorf("read questions: %w", err)
 	}
 	rows, bound := keyset.PageBound(scope, resumed, rows, keyset.PageSize, func(r *db.AdminQuestionsRow) string { return r.PageCursor })
-	view := QuestionsView{Bound: bound, Hidden: showHidden}
+	view := View{Bound: bound, Hidden: showHidden}
 	ids := make([]uuid.UUID, 0, len(rows))
 	index := make(map[uuid.UUID]int, len(rows))
 	for i := range rows {
@@ -66,7 +66,7 @@ func (s *Store) Questions(ctx context.Context, queue QuestionQueue, after ...str
 	}
 	answers, err := s.q.AdminQuestionAnswers(ctx, ids)
 	if err != nil {
-		return QuestionsView{}, fmt.Errorf("read question answers: %w", err)
+		return View{}, fmt.Errorf("read question answers: %w", err)
 	}
 	for i := range answers {
 		a := &answers[i]

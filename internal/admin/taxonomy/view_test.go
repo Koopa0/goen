@@ -29,7 +29,7 @@ func TestTaxonomyRowSaveButton(t *testing.T) {
 		t.Run(tt.locale.Tag(), func(t *testing.T) {
 			t.Parallel()
 			ctx := i18n.WithLocale(t.Context(), tt.locale)
-			view := &TaxonomyView{Brands: []Taxon{{Slug: "saelo", Name: "沙羅"}}}
+			view := &View{Brands: []Taxon{{Slug: "saelo", Name: "沙羅"}}}
 			body := renderComponent(t, ctx, Taxonomy(frame.Page{Title: "Brands"}, view))
 			i := strings.Index(body, `value="rename"`)
 			if i < 0 {
@@ -48,7 +48,7 @@ func TestTaxonomyExampleIsItsOwnHintLine(t *testing.T) {
 	t.Parallel()
 	ctx := i18n.WithLocale(t.Context(), i18n.ZhHant)
 	pages := map[string]string{
-		"taxonomy": renderComponent(t, ctx, Taxonomy(frame.Page{Title: "Brands"}, &TaxonomyView{})),
+		"taxonomy": renderComponent(t, ctx, Taxonomy(frame.Page{Title: "Brands"}, &View{})),
 	}
 	for name, body := range pages {
 		if strings.Contains(body, "。 ") {
@@ -78,7 +78,7 @@ func TestTaxonomyExampleHintsInFull(t *testing.T) {
 				body     string
 				examples []string
 			}{
-				"taxonomy": {renderComponent(t, ctx, Taxonomy(frame.Page{Title: "Brands"}, &TaxonomyView{})), []string{"north-light", "cookware"}},
+				"taxonomy": {renderComponent(t, ctx, Taxonomy(frame.Page{Title: "Brands"}, &View{})), []string{"north-light", "cookware"}},
 			} {
 				for _, e := range c.examples {
 					if want := tt.sentence(e); !strings.Contains(c.body, want) {
@@ -199,8 +199,8 @@ func TestTaxonomyRefusalsLinkFirstInvalid(t *testing.T) {
 				title                 i18n.Key
 				count                 int
 			}{
-				{"brand", Taxonomy(frame.Page{}, &TaxonomyView{Which: "brands", Errors: map[string]string{"name": bad, "slug": bad}}), "/admin/taxonomy/brands#new-brands", "new-brands", "brands-name", i18n.KeyAdminTaxNewBrand, 2},
-				{"category", Taxonomy(frame.Page{}, &TaxonomyView{Which: "categories", Errors: map[string]string{"icon_key": bad}}), "/admin/taxonomy/categories#new-categories", "new-categories", "categories-icon", i18n.KeyAdminTaxNewCategory, 1},
+				{"brand", Taxonomy(frame.Page{}, &View{Which: "brands", Errors: map[string]string{"name": bad, "slug": bad}}), "/admin/taxonomy/brands#new-brands", "new-brands", "brands-name", i18n.KeyAdminTaxNewBrand, 2},
+				{"category", Taxonomy(frame.Page{}, &View{Which: "categories", Errors: map[string]string{"icon_key": bad}}), "/admin/taxonomy/categories#new-categories", "new-categories", "categories-icon", i18n.KeyAdminTaxNewCategory, 1},
 			}
 			for _, tc := range cases {
 				t.Run(tc.name, func(t *testing.T) {

@@ -24,7 +24,7 @@ func TestQuestionsAnswerList(t *testing.T) {
 			t.Run(string(locale)+"/"+tt.name, func(t *testing.T) {
 				t.Parallel()
 				ctx := i18n.WithLocale(t.Context(), locale)
-				view := QuestionsView{Rows: []Question{{ID: "question", Answers: []Answer{
+				view := View{Rows: []Question{{ID: "question", Answers: []Answer{
 					{ID: "answer", Body: "Reply", Author: tt.author, At: "2026-10-08 09:30"},
 				}}}}
 				page := renderComponent(t, ctx, Questions(frame.Page{}, view))
@@ -76,7 +76,7 @@ func TestQuestionsAnswerText(t *testing.T) {
 	for _, locale := range []i18n.Locale{i18n.ZhHant, i18n.En} {
 		t.Run(string(locale), func(t *testing.T) {
 			ctx := i18n.WithLocale(t.Context(), locale)
-			view := QuestionsView{Rows: []Question{{ID: "question", Answers: []Answer{
+			view := View{Rows: []Question{{ID: "question", Answers: []Answer{
 				{ID: "official", Body: "Original specification <script>alert(1)</script>", IsStaff: true},
 				{ID: "withdrawn", Body: "Earlier reply", Hidden: true},
 			}}}}
@@ -96,7 +96,7 @@ func TestQuestionsAnswerText(t *testing.T) {
 // TestQuestionsHiddenRestore: hidden questions offer a restore button without an answer box.
 func TestQuestionsHiddenRestore(t *testing.T) {
 	ctx := i18n.WithLocale(t.Context(), i18n.En)
-	view := QuestionsView{Hidden: true, Rows: []Question{{ID: "question", Hidden: true}}}
+	view := View{Hidden: true, Rows: []Question{{ID: "question", Hidden: true}}}
 	page := renderComponent(t, ctx, Questions(frame.Page{}, view))
 	for _, text := range []string{`method="post"`, `action="/admin/questions/question"`, "Show this question again"} {
 		if !strings.Contains(page, text) {
@@ -138,7 +138,7 @@ func TestQuestionsHiddenRestore(t *testing.T) {
 // TestQuestionsEmptyHiddenQueue: an empty hidden queue does not say nobody has asked.
 func TestQuestionsEmptyHiddenQueue(t *testing.T) {
 	ctx := i18n.WithLocale(t.Context(), i18n.En)
-	page := renderComponent(t, ctx, Questions(frame.Page{}, QuestionsView{Hidden: true}))
+	page := renderComponent(t, ctx, Questions(frame.Page{}, View{Hidden: true}))
 	if !strings.Contains(page, "No hidden questions") || strings.Contains(page, "Nobody has asked") {
 		t.Error("empty hidden view misstates the visible question queue")
 	}

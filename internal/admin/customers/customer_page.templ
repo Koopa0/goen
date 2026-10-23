@@ -11,7 +11,7 @@ import (
 
 // The table appears only once somebody has searched: listing every customer by
 // default is a page nobody reads and a query nobody wanted.
-templ Customers(p frame.Page, v CustomersView) {
+templ Customers(p frame.Page, v View) {
 	@frame.Admin(p, "customers") {
 		<div class="ui-page-head">
 			<div>

@@ -11,7 +11,7 @@ import (
 
 // A table rather than a list of blocks: what a staff member opens this page to do is
 // find one row among a hundred.
-templ Products(p frame.Page, v ProductsView) {
+templ Products(p frame.Page, v View) {
 	@frame.Admin(p, "products") {
 		<div class="ui-page-head">
 			<div>

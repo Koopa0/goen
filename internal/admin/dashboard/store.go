@@ -54,12 +54,12 @@ func NewStore(pool *pgxpool.Pool, stock Stock, health Health, sold Sales) *Store
 	return &Store{q: db.New(pool), stock: stock, health: health, sales: sold}
 }
 
-func (s *Store) Dashboard(ctx context.Context) (DashboardView, error) {
+func (s *Store) Dashboard(ctx context.Context) (View, error) {
 	sum, err := s.q.AdminSummary(ctx)
 	if err != nil {
-		return DashboardView{}, fmt.Errorf("read summary: %w", err)
+		return View{}, fmt.Errorf("read summary: %w", err)
 	}
-	view := DashboardView{
+	view := View{
 		PendingOrders:             sum.PendingOrders,
 		ReadyOrders:               sum.ReadyOrders,
 		ReadyOldestSeconds:        sum.ReadyOldestSeconds,
@@ -81,7 +81,7 @@ func (s *Store) Dashboard(ctx context.Context) (DashboardView, error) {
 	// hides the order somebody is standing at the counter asking about.
 	recent, err := s.q.RecentOrders(ctx, recentRows)
 	if err != nil {
-		return DashboardView{}, fmt.Errorf("read recent orders: %w", err)
+		return View{}, fmt.Errorf("read recent orders: %w", err)
 	}
 	rows := make([]OrderRow, len(recent))
 	for i := range recent {
@@ -92,9 +92,9 @@ func (s *Store) Dashboard(ctx context.Context) (DashboardView, error) {
 	now := time.Now()
 	listed, _, err := s.stock.DaysCover(ctx, inventory.CoverWindowDays, now)
 	if err != nil {
-		return DashboardView{}, fmt.Errorf("read days cover: %w", err)
+		return View{}, fmt.Errorf("read days cover: %w", err)
 	}
-	view.Runway, view.RunwayCut, view.RunwayBasis = DashboardRunway(stockrisk.NewRows(listed, now))
+	view.Runway, view.RunwayCut, view.RunwayBasis = Runway(stockrisk.NewRows(listed, now))
 	view.Tasks = view.DeskTasks()
 	return view, nil
 }

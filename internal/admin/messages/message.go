@@ -17,15 +17,15 @@ import (
 	"github.com/koopa0/goen/internal/shoptime"
 )
 
-func (s *Store) Messages(ctx context.Context, after ...string) (MessagesView, error) {
+func (s *Store) Messages(ctx context.Context, after ...string) (View, error) {
 	const scope = "/admin/messages"
 	from, resumed := keyset.Resume(scope, after, func(p messagePosition) bool { return p.ID != uuid.Nil })
 	rows, err := s.q.AdminMessages(ctx, db.AdminMessagesParams{HasCursor: resumed, AfterRank: from.Rank, AfterAt: from.At, AfterID: from.ID, RowLimit: keyset.PageLimit})
 	if err != nil {
-		return MessagesView{}, fmt.Errorf("read contact messages: %w", err)
+		return View{}, fmt.Errorf("read contact messages: %w", err)
 	}
 	rows, bound := keyset.PageBound(scope, resumed, rows, keyset.PageSize, func(r *db.AdminMessagesRow) string { return r.PageCursor })
-	view := MessagesView{
+	view := View{
 		Bound: bound,
 		Rows:  make([]Message, 0, len(rows)),
 	}
@@ -33,7 +33,7 @@ func (s *Store) Messages(ctx context.Context, after ...string) (MessagesView, er
 		m := &rows[i]
 		label, labelErr := subjectLabel(ctx, contact.Subject(m.Subject))
 		if labelErr != nil {
-			return MessagesView{}, fmt.Errorf("read contact messages: %w", labelErr)
+			return View{}, fmt.Errorf("read contact messages: %w", labelErr)
 		}
 		view.Rows = append(view.Rows, Message{
 			ID: m.ID.String(), Name: m.Name, Email: m.Email, SubjectLabel: label,

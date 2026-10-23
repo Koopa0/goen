@@ -46,7 +46,7 @@ func (p Product) Href() string { return "/admin/products/" + p.Slug }
 
 func (p Product) Sellable() bool { return p.Status == product.StatusActive && p.Variants > 0 }
 
-type ProductsView struct {
+type View struct {
 	keyset.Bound
 
 	Rows []Product
@@ -55,7 +55,7 @@ type ProductsView struct {
 	Notice    widget.Result
 }
 
-func (v ProductsView) Empty() bool { return len(v.Rows) == 0 }
+func (v View) Empty() bool { return len(v.Rows) == 0 }
 
 type ProductVariant struct {
 	SKU          string

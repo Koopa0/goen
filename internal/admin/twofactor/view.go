@@ -1,6 +1,6 @@
 package twofactor
 
-type TwoFactorView struct {
+type View struct {
 	Enabled   bool
 	Enrolled  bool
 	Enrolling bool
@@ -11,11 +11,11 @@ type TwoFactorView struct {
 	Notice string
 }
 
-func (v TwoFactorView) NeedsEnrolment() bool { return v.Enabled && !v.Enrolled && !v.Enrolling }
+func (v View) NeedsEnrolment() bool { return v.Enabled && !v.Enrolled && !v.Enrolling }
 
-func (v TwoFactorView) CanVerify() bool { return v.Enabled && v.Enrolled && !v.Enrolling }
+func (v View) CanVerify() bool { return v.Enabled && v.Enrolled && !v.Enrolling }
 
-func (v TwoFactorView) SecretGroups() []string {
+func (v View) SecretGroups() []string {
 	const group = 4
 	out := make([]string, 0, len(v.Secret)/group+1)
 	for i := 0; i < len(v.Secret); i += group {

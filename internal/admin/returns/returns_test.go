@@ -21,7 +21,7 @@ func TestReturnsInspectionRestockedNotice(t *testing.T) {
 			t.Run(fmt.Sprintf("%s/%d", locale, count), func(t *testing.T) {
 				t.Parallel()
 				ctx := i18n.WithLocale(t.Context(), locale)
-				rendered := renderComponent(t, ctx, Returns(frame.Page{}, ReturnsView{
+				rendered := renderComponent(t, ctx, Returns(frame.Page{}, View{
 					Rows: []Return{{ID: "inspected", OrderNumber: "GO-INSPECTED", Status: returns.StatusApproved, Window: "within",
 						Lines: []ReturnLine{{OrderLineID: "line", Quantity: count, Inspected: true, Restocked: count}}}},
 				}))
@@ -47,7 +47,7 @@ func TestReturnsPartialInspectionLabels(t *testing.T) {
 	for _, locale := range []i18n.Locale{i18n.ZhHant, i18n.En} {
 		t.Run(string(locale), func(t *testing.T) {
 			t.Parallel()
-			rendered := renderComponent(t, i18n.WithLocale(t.Context(), locale), Returns(frame.Page{}, ReturnsView{
+			rendered := renderComponent(t, i18n.WithLocale(t.Context(), locale), Returns(frame.Page{}, View{
 				Rows: []Return{
 					{ID: "return-a", OrderNumber: "GO-SHARED", Status: "approved", Decided: true, Window: "within", Units: 1,
 						Lines: []ReturnLine{{OrderLineID: "shared-line", Quantity: 1, Restockable: true}}},
@@ -199,7 +199,7 @@ func TestReturnsPayoutChannels(t *testing.T) {
 	render := func(t *testing.T, locale i18n.Locale, row Return) string {
 		t.Helper()
 		var b strings.Builder
-		if err := Returns(frame.Page{Title: "退貨"}, ReturnsView{
+		if err := Returns(frame.Page{Title: "退貨"}, View{
 			Rows: []Return{row},
 		}).Render(i18n.WithLocale(t.Context(), locale), &b); err != nil {
 			t.Fatalf("render: %v", err)
@@ -270,7 +270,7 @@ func TestReturnsRowActions(t *testing.T) {
 	}
 	render := func(t *testing.T, row Return) string {
 		t.Helper()
-		return renderToString(t, Returns(frame.Page{Title: "退貨"}, ReturnsView{
+		return renderToString(t, Returns(frame.Page{Title: "退貨"}, View{
 			Rows: []Return{row},
 		}))
 	}
@@ -402,7 +402,7 @@ func TestReturnsRowActions(t *testing.T) {
 		row.Decided = false
 		row.Window = "after"
 		row.Resolution = "   "
-		page := renderToString(t, Returns(frame.Page{Title: "退貨"}, ReturnsView{
+		page := renderToString(t, Returns(frame.Page{Title: "退貨"}, View{
 			Rows:   []Return{row},
 			Errors: map[string]string{"except-row.resolution": "need a reason"},
 		}))
@@ -448,7 +448,7 @@ func TestReturnsRowActions(t *testing.T) {
 // or a value would send every decision as the same one.
 func TestReturnsDecisionButtons(t *testing.T) {
 	t.Parallel()
-	page := renderToString(t, Returns(frame.Page{Title: "退貨"}, ReturnsView{
+	page := renderToString(t, Returns(frame.Page{Title: "退貨"}, View{
 		Rows: []Return{{
 			ID: "open-row", OrderNumber: "GO-OPEN", Status: "requested",
 			StatusText: "待處理", Window: "goodwill", Reason: "不合用",
@@ -487,7 +487,7 @@ func TestReturnsUndeliveredNoReject(t *testing.T) {
 		} {
 			t.Run(locale.Tag()+"/"+tt.name, func(t *testing.T) {
 				t.Parallel()
-				page := renderComponent(t, i18n.WithLocale(t.Context(), locale), Returns(frame.Page{}, ReturnsView{
+				page := renderComponent(t, i18n.WithLocale(t.Context(), locale), Returns(frame.Page{}, View{
 					Rows: []Return{{ID: "open-row", OrderNumber: "GO-OPEN", Status: returns.StatusRequested, Window: tt.window, Lines: tt.lines}},
 				}))
 				if got := strings.Contains(page, `name="decision" value="rejected"`); got != tt.wantReject {
@@ -521,7 +521,7 @@ func TestReturnsProtectedWindowApproval(t *testing.T) {
 			t.Run(locale.Tag()+"/"+tt.name, func(t *testing.T) {
 				t.Parallel()
 				ctx := i18n.WithLocale(t.Context(), locale)
-				page := renderComponent(t, ctx, Returns(frame.Page{}, ReturnsView{
+				page := renderComponent(t, ctx, Returns(frame.Page{}, View{
 					Rows: []Return{{ID: "open-row", OrderNumber: "GO-OPEN", Status: returns.StatusRequested, Window: tt.window, Lines: tt.lines}},
 				}))
 				if !strings.Contains(page, `name="decision" value="approved"`) {
@@ -554,7 +554,7 @@ func TestReturnsRowOrderLinkShortfall(t *testing.T) {
 	t.Parallel()
 	ctx := i18n.WithLocale(t.Context(), i18n.ZhHant)
 	line := ReturnLine{Name: "耳機", Quantity: 1, Inspected: true, Received: 0}
-	view := ReturnsView{Rows: []Return{
+	view := View{Rows: []Return{
 		{ID: "shipped", OrderNumber: "GO-260930-000012", Window: "goodwill", Lines: []ReturnLine{line}},
 		{ID: "unshipped", OrderNumber: "GO-260930-000011", Window: "goodwill", BeforeShipment: true, Lines: []ReturnLine{line}},
 	}}

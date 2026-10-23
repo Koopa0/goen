@@ -40,12 +40,12 @@ func NewStore(pool *pgxpool.Pool) *Store {
 
 const MaxTierMultiplierBP = 30000
 
-func (s *Store) Tiers(ctx context.Context) (TiersView, error) {
+func (s *Store) Tiers(ctx context.Context) (View, error) {
 	rows, err := s.q.AdminMembershipTiers(ctx)
 	if err != nil {
-		return TiersView{}, fmt.Errorf("read membership tiers: %w", err)
+		return View{}, fmt.Errorf("read membership tiers: %w", err)
 	}
-	view := TiersView{Rows: make([]Tier, 0, len(rows))}
+	view := View{Rows: make([]Tier, 0, len(rows))}
 	for i := range rows {
 		t := &rows[i]
 		view.Rows = append(view.Rows, Tier{

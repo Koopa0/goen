@@ -145,7 +145,7 @@ func TestReturnsBadgesFollowGroup(t *testing.T) {
 				r.row.ID = fmt.Sprintf("r%d", i)
 				r.row.OrderNumber = fmt.Sprintf("GO-%d", i)
 				r.row.Window = "within"
-				page := renderComponent(t, ctx, Returns(frame.Page{}, ReturnsView{Rows: []Return{r.row}}))
+				page := renderComponent(t, ctx, Returns(frame.Page{}, View{Rows: []Return{r.row}}))
 				wantBadge(t, page, r.word, r.class)
 				if got := badgeClasses(t, page, ""); len(got) != 1 {
 					t.Errorf("%q: %d badges on a one-row queue, want 1", r.word, len(got))
@@ -177,7 +177,7 @@ func TestReturnsBeforeShipmentRow(t *testing.T) {
 	}
 	ctx := i18n.WithLocale(t.Context(), i18n.En)
 	var body strings.Builder
-	if err := Returns(frame.Page{Title: "returns"}, ReturnsView{Rows: []Return{*r}}).Render(ctx, &body); err != nil {
+	if err := Returns(frame.Page{Title: "returns"}, View{Rows: []Return{*r}}).Render(ctx, &body); err != nil {
 		t.Fatal(err)
 	}
 	page := body.String()
@@ -194,7 +194,7 @@ func TestReturnsBeforeShipmentRow(t *testing.T) {
 func TestReturnsRefusedInspectionCounts(t *testing.T) {
 	t.Parallel()
 	for _, raw := range []string{"", " +oops "} {
-		view := ReturnsView{Rows: []Return{{ID: "r1", Status: "approved", Decided: true, Window: "within", Lines: []ReturnLine{{OrderLineID: "l1", Quantity: 2, Restockable: true, DraftReceived: raw, DraftRestocked: raw}}}}, Errors: map[string]string{"r1.inspect": "bad count"}}
+		view := View{Rows: []Return{{ID: "r1", Status: "approved", Decided: true, Window: "within", Lines: []ReturnLine{{OrderLineID: "l1", Quantity: 2, Restockable: true, DraftReceived: raw, DraftRestocked: raw}}}}, Errors: map[string]string{"r1.inspect": "bad count"}}
 		body := renderToString(t, Returns(frame.Page{}, view))
 		doc, err := nethtml.Parse(strings.NewReader(body))
 		if err != nil {
@@ -218,13 +218,13 @@ func TestReturnsRefusedInspectionCounts(t *testing.T) {
 	}
 }
 
-// TestReturnsView_InspectionRefusalsOnce: the inspection refusals count each
+// TestView_InspectionRefusalsOnce: the inspection refusals count each
 // refusal once.
 //
 // From TestProductView_VariantRefusal, which keeps the product half.
-func TestReturnsView_InspectionRefusalsOnce(t *testing.T) {
+func TestView_InspectionRefusalsOnce(t *testing.T) {
 	t.Parallel()
-	view := ReturnsView{
+	view := View{
 		Rows: []Return{{ID: "r1", Lines: []ReturnLine{
 			{OrderLineID: "l1", Restockable: true}, {OrderLineID: "l2", Restockable: true},
 		}}},
@@ -251,7 +251,7 @@ func TestReturnsEmptyPageKeepsItsRestartLink(t *testing.T) {
 	b := keyset.Bound{PastEnd: true, First: "/admin/products?q=test"}
 	p := frame.Page{Title: "Pagination"}
 	cases := map[string]templ.Component{
-		"returns": Returns(p, ReturnsView{Bound: b}),
+		"returns": Returns(p, View{Bound: b}),
 	}
 	for name, c := range cases {
 		t.Run(name, func(t *testing.T) {
@@ -285,7 +285,7 @@ func TestReturnsFirstPageEmpty(t *testing.T) {
 		page templ.Component
 		want string
 	}{
-		"returns": {Returns(p, ReturnsView{Bound: b}), ctx(i18n.KeyAdminRetEmpty)},
+		"returns": {Returns(p, View{Bound: b}), ctx(i18n.KeyAdminRetEmpty)},
 	} {
 		t.Run(name, func(t *testing.T) {
 			t.Parallel()
@@ -309,7 +309,7 @@ func TestReturnsQueueWithMoreRowsOffersNext(t *testing.T) {
 		func(*db.Order) string { return `{"ID":"12345678-1234-1234-1234-123456789abc"}` })
 	p := frame.Page{Title: "Queue"}
 	for name, page := range map[string]templ.Component{
-		"returns": Returns(p, ReturnsView{Bound: b}),
+		"returns": Returns(p, View{Bound: b}),
 	} {
 		t.Run(name, func(t *testing.T) {
 			t.Parallel()
@@ -356,7 +356,7 @@ func TestReturnsExamplesOutsideInputs(t *testing.T) {
 					component templ.Component
 					fields    map[string]string
 				}{
-					{"return inspection", Returns(p, ReturnsView{Rows: []Return{{ID: "request", Status: returns.StatusApproved, Window: returns.WindowStatutory, Decided: true, Lines: []ReturnLine{{OrderLineID: "line", Quantity: 1, DraftNote: typed}}}}, Errors: errors("request.inspect")}), map[string]string{"note-request-line": inspection}},
+					{"return inspection", Returns(p, View{Rows: []Return{{ID: "request", Status: returns.StatusApproved, Window: returns.WindowStatutory, Decided: true, Lines: []ReturnLine{{OrderLineID: "line", Quantity: 1, DraftNote: typed}}}}, Errors: errors("request.inspect")}), map[string]string{"note-request-line": inspection}},
 				} {
 					t.Run(page.name, func(t *testing.T) {
 						markup := renderComponent(t, ctx, page.component)

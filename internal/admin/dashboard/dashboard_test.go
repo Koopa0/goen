@@ -26,7 +26,7 @@ func TestDashboardOrderLinks(t *testing.T) {
 
 	t.Run("a listed order is a link to itself", func(t *testing.T) {
 		t.Parallel()
-		html := renderToString(t, Dashboard(Meta(ctx), DashboardView{
+		html := renderToString(t, Dashboard(Meta(ctx), View{
 			Recent: []OrderRow{{
 				Number:     "GO-260918-000001",
 				Status:     order.FulfillmentShipped,
@@ -46,7 +46,7 @@ func TestDashboardOrderLinks(t *testing.T) {
 
 	t.Run("an empty queue says so rather than showing an empty table", func(t *testing.T) {
 		t.Parallel()
-		html := renderToString(t, Dashboard(Meta(ctx), DashboardView{}))
+		html := renderToString(t, Dashboard(Meta(ctx), View{}))
 		if !strings.Contains(html, i18n.T(ctx, i18n.KeyAdminQueueNoneYet)) {
 			t.Error("an order-less dashboard does not say there are no orders yet")
 		}
@@ -62,7 +62,7 @@ func TestDashboardWaitingTasks(t *testing.T) {
 
 	t.Run("nothing waiting draws no list", func(t *testing.T) {
 		t.Parallel()
-		html := renderToString(t, Dashboard(Meta(ctx), DashboardView{}))
+		html := renderToString(t, Dashboard(Meta(ctx), View{}))
 		if strings.Contains(html, i18n.T(ctx, i18n.KeyAdminQueueTasksHeading)) || strings.Contains(html, "goen-admin__task") {
 			t.Error("an idle dashboard draws a task list")
 		}
@@ -70,7 +70,7 @@ func TestDashboardWaitingTasks(t *testing.T) {
 
 	t.Run("each task is a link with its count", func(t *testing.T) {
 		t.Parallel()
-		html := renderToString(t, Dashboard(Meta(ctx), DashboardView{Tasks: []Task{
+		html := renderToString(t, Dashboard(Meta(ctx), View{Tasks: []Task{
 			{Label: i18n.KeyAdminQueueTaskClaims, Count: 52, Href: "/admin/health#claims-heading", HasAge: true, AgeSeconds: 0},
 			{Label: i18n.KeyAdminQueueStatQuestions, Count: 7, Href: "/admin/questions", HasAge: true, AgeSeconds: 3*86400 + 1},
 			{Label: i18n.KeyAdminQueueStatSoldOut, Count: 2, Href: "/admin/reports#stock"},
@@ -97,7 +97,7 @@ func TestDashboardWaitingTasks(t *testing.T) {
 
 	t.Run("a task that is wrong rather than waiting is marked", func(t *testing.T) {
 		t.Parallel()
-		html := renderToString(t, Dashboard(Meta(ctx), DashboardView{Tasks: []Task{
+		html := renderToString(t, Dashboard(Meta(ctx), View{Tasks: []Task{
 			{Label: i18n.KeyAdminQueueTaskPayments, Count: 1, Href: "/admin/health#events-heading", Alert: true},
 			{Label: i18n.KeyAdminQueueStatMessages, Count: 1, Href: "/admin/messages"},
 		}}))
@@ -107,13 +107,13 @@ func TestDashboardWaitingTasks(t *testing.T) {
 	})
 }
 
-// TestDashboardView_DeskTasksOmitsIdle: desk tasks leave out what is not waiting.
-func TestDashboardView_DeskTasksOmitsIdle(t *testing.T) {
+// TestView_DeskTasksOmitsIdle: desk tasks leave out what is not waiting.
+func TestView_DeskTasksOmitsIdle(t *testing.T) {
 	t.Parallel()
-	if got := (&DashboardView{}).DeskTasks(); len(got) != 0 {
+	if got := (&View{}).DeskTasks(); len(got) != 0 {
 		t.Errorf("DeskTasks() with nothing waiting = %v, want none", got)
 	}
-	v := &DashboardView{
+	v := &View{
 		UninspectedReturns: 2, UninspectedReturnsOldestSeconds: 90,
 		UnansweredQuestions: 1, UnansweredQuestionsOldestSeconds: 30,
 	}
@@ -135,7 +135,7 @@ func TestDashboardHealthUnavailable(t *testing.T) {
 		ctx := i18n.WithLocale(t.Context(), loc)
 		notice := i18n.T(ctx, i18n.KeyAdminQueueHealthUnavailable)
 		for _, unavailable := range []bool{true, false} {
-			html := renderComponent(t, ctx, Dashboard(Meta(ctx), DashboardView{HealthUnavailable: unavailable}))
+			html := renderComponent(t, ctx, Dashboard(Meta(ctx), View{HealthUnavailable: unavailable}))
 			if got := strings.Contains(html, notice); got != unavailable {
 				t.Errorf("Dashboard(HealthUnavailable=%v) in %v shows the notice = %v", unavailable, loc, got)
 			}
@@ -143,14 +143,14 @@ func TestDashboardHealthUnavailable(t *testing.T) {
 	}
 }
 
-// TestDashboardView_DeskTasksOrders: awaiting payment and picking are tasks.
-func TestDashboardView_DeskTasksOrders(t *testing.T) {
+// TestView_DeskTasksOrders: awaiting payment and picking are tasks.
+func TestView_DeskTasksOrders(t *testing.T) {
 	t.Parallel()
 	want := []Task{
 		{Label: i18n.KeyAdminStatusPicking, Count: 2, Href: "/admin/orders?status=picking", HasAge: true, AgeSeconds: 7200},
 		{Label: i18n.KeyAdminQueueStatPending, Count: 4, Href: "/admin/orders?status=pending"},
 	}
-	if got := (&DashboardView{PendingOrders: 4, PickingOrders: 2, PickingOldestSeconds: 7200}).DeskTasks(); !slices.Equal(got, want) {
+	if got := (&View{PendingOrders: 4, PickingOrders: 2, PickingOldestSeconds: 7200}).DeskTasks(); !slices.Equal(got, want) {
 		t.Errorf("DeskTasks() = %v, want %v", got, want)
 	}
 }
@@ -159,7 +159,7 @@ func TestDashboardView_DeskTasksOrders(t *testing.T) {
 func TestDashboardFigureLinks(t *testing.T) {
 	t.Parallel()
 	ctx := i18n.WithLocale(t.Context(), i18n.ZhHant)
-	html := renderToString(t, Dashboard(Meta(ctx), DashboardView{
+	html := renderToString(t, Dashboard(Meta(ctx), View{
 		Week:   busyWeek(),
 		Latest: &LatestPaid{Number: "GO-261005-000006", TotalCents: 128000, Elapsed: 38 * time.Minute},
 	}))
@@ -201,12 +201,12 @@ func busyWeek() Week {
 func TestDashboardWeekSparklines(t *testing.T) {
 	t.Parallel()
 	ctx := i18n.WithLocale(t.Context(), i18n.ZhHant)
-	if html := renderToString(t, Dashboard(Meta(ctx), DashboardView{Week: busyWeek()})); strings.Count(html, "goen-spark__bar ") != 28 {
+	if html := renderToString(t, Dashboard(Meta(ctx), View{Week: busyWeek()})); strings.Count(html, "goen-spark__bar ") != 28 {
 		t.Errorf("a busy week draws %d bars, want 28: two figures of 14 days", strings.Count(html, "goen-spark__bar "))
 	}
 	sparse := Week{Orders: 2, RevenueCents: 20000, RevenueSquares: 1, Previous: sales.Period{Orders: 1, RevenueCents: 10000}}
 	sparse.OrderDays.Current.Buckets = []chart.Bucket{{Value: 1}, {Value: 1}}
-	if html := renderToString(t, Dashboard(Meta(ctx), DashboardView{Week: sparse})); strings.Contains(html, "goen-spark") {
+	if html := renderToString(t, Dashboard(Meta(ctx), View{Week: sparse})); strings.Contains(html, "goen-spark") {
 		t.Error("a week with orders on two days draws a sparkline")
 	}
 }
@@ -218,12 +218,12 @@ func TestDashboardLatestPaid(t *testing.T) {
 		ctx := i18n.WithLocale(t.Context(), loc)
 		for _, tc := range []struct {
 			name string
-			view DashboardView
+			view View
 			want string
 		}{
-			{"never paid", DashboardView{}, i18n.T(ctx, i18n.KeyAdminQueueLatestNone)},
-			{"unreadable", DashboardView{LatestUnavailable: true}, i18n.T(ctx, i18n.KeyAdminQueueLatestUnavailable)},
-			{"paid", DashboardView{Latest: &LatestPaid{Number: "GO-1", TotalCents: 128000}}, "GO-1 · NT$1,280"},
+			{"never paid", View{}, i18n.T(ctx, i18n.KeyAdminQueueLatestNone)},
+			{"unreadable", View{LatestUnavailable: true}, i18n.T(ctx, i18n.KeyAdminQueueLatestUnavailable)},
+			{"paid", View{Latest: &LatestPaid{Number: "GO-1", TotalCents: 128000}}, "GO-1 · NT$1,280"},
 		} {
 			if html := renderComponent(t, ctx, Dashboard(Meta(ctx), tc.view)); !strings.Contains(html, tc.want) {
 				t.Errorf("%s in %v: the dashboard does not say %q", tc.name, loc, tc.want)
@@ -238,7 +238,7 @@ func TestDashboardWeekUnavailable(t *testing.T) {
 	ctx := i18n.WithLocale(t.Context(), i18n.En)
 	notice := i18n.T(ctx, i18n.KeyAdminQueueWeekUnavailable)
 	for _, unavailable := range []bool{true, false} {
-		html := renderComponent(t, ctx, Dashboard(Meta(ctx), DashboardView{WeekUnavailable: unavailable}))
+		html := renderComponent(t, ctx, Dashboard(Meta(ctx), View{WeekUnavailable: unavailable}))
 		if got := strings.Contains(html, notice); got != unavailable {
 			t.Errorf("Dashboard(WeekUnavailable=%v) shows the notice = %v", unavailable, got)
 		}
@@ -292,11 +292,11 @@ func TestWeek_AgainstReport(t *testing.T) {
 	}
 }
 
-// TestDashboardView_WeekStatsKeys: the week stats key the two periods under their bars.
-func TestDashboardView_WeekStatsKeys(t *testing.T) {
+// TestView_WeekStatsKeys: the week stats key the two periods under their bars.
+func TestView_WeekStatsKeys(t *testing.T) {
 	t.Parallel()
 	ctx := i18n.WithLocale(t.Context(), i18n.En)
-	view := DashboardView{Week: busyWeek()}
+	view := View{Week: busyWeek()}
 	html := renderComponent(t, ctx, widget.StatLine(view.WeekStats(ctx), widget.StatLineGlance))
 	for _, key := range []string{"Previous 7 days", "Last 7 days"} {
 		if got := strings.Count(html, "<span>"+key+"</span>"); got != 2 {
@@ -313,12 +313,12 @@ func TestDashboardDaysCover(t *testing.T) {
 
 	for _, loc := range []i18n.Locale{i18n.ZhHant, i18n.En} {
 		ctx := i18n.WithLocale(t.Context(), loc)
-		render := func(v DashboardView) string { return renderComponent(t, ctx, Dashboard(Meta(ctx), v)) }
+		render := func(v View) string { return renderComponent(t, ctx, Dashboard(Meta(ctx), v)) }
 
 		t.Run(string(loc)+" sold out row opens the report", func(t *testing.T) {
 			t.Parallel()
-			view := DashboardView{SoldOut: 3}
-			html := render(DashboardView{Tasks: view.DeskTasks()})
+			view := View{SoldOut: 3}
+			html := render(View{Tasks: view.DeskTasks()})
 			if !strings.Contains(html, `href="/admin/reports#stock"`) || !strings.Contains(html, i18n.T(ctx, i18n.KeyAdminQueueStatSoldOut)) {
 				t.Error("the sold-out task row does not link to the report's stock section")
 			}
@@ -333,7 +333,7 @@ func TestDashboardDaysCover(t *testing.T) {
 				{Risk: inventory.Risk{SKU: "FEW-1", Name: "Rare", Slug: "rare", Sales: inventory.Sales{Sellable: 4, Sold: 6, Orders: 3, InStock: stockedAllWindow}}},
 				{Risk: inventory.Risk{SKU: "EST-1", Name: "Going", Slug: "going", Sales: inventory.Sales{Sellable: 20, Sold: 60, Orders: 30, InStock: stockedAllWindow}}},
 			}
-			html := render(DashboardView{Runway: rows})
+			html := render(View{Runway: rows})
 			for _, want := range []string{
 				`id="runway-heading"`, "FEW-1", "EST-1", `href="/admin/products/going"`,
 				i18n.T(ctx, i18n.KeyAdminRepFewSold), "goen-chartrangebar",
@@ -345,7 +345,7 @@ func TestDashboardDaysCover(t *testing.T) {
 			if strings.Contains(html, i18n.T(ctx, i18n.KeyAdminQueueRunwayRest)) {
 				t.Error("the runway says there is more in the report although no row was left off")
 			}
-			if rest := render(DashboardView{Runway: rows, RunwayCut: true}); !strings.Contains(rest, i18n.T(ctx, i18n.KeyAdminQueueRunwayRest)) {
+			if rest := render(View{Runway: rows, RunwayCut: true}); !strings.Contains(rest, i18n.T(ctx, i18n.KeyAdminQueueRunwayRest)) {
 				t.Error("rows were left off and the runway does not point to the report")
 			}
 		})
@@ -360,15 +360,15 @@ func TestDashboardDaysCover(t *testing.T) {
 
 			for _, tc := range []struct {
 				name string
-				view DashboardView
+				view View
 				want []string
 				not  []string
 			}{
-				{"estimated and none running out", DashboardView{SoldOut: 3, RunwayBasis: RunwayEstimated}, []string{none, all}, []string{unknown, noStock}},
-				{"nothing can be estimated", DashboardView{SoldOut: 3}, []string{unknown, all}, []string{none, noStock}},
-				{"everything is sold out", DashboardView{SoldOut: 3, RunwayBasis: RunwayNothingInStock}, []string{noStock, all}, []string{none, unknown}},
-				{"rows listed", DashboardView{Runway: going, RunwayBasis: RunwayEstimated}, []string{all}, []string{none, unknown, i18n.T(ctx, i18n.KeyAdminQueueRunwayRest)}},
-				{"rows left off", DashboardView{Runway: going, RunwayCut: true, RunwayBasis: RunwayEstimated}, []string{i18n.T(ctx, i18n.KeyAdminQueueRunwayRest)}, []string{none, unknown, all}},
+				{"estimated and none running out", View{SoldOut: 3, RunwayBasis: RunwayEstimated}, []string{none, all}, []string{unknown, noStock}},
+				{"nothing can be estimated", View{SoldOut: 3}, []string{unknown, all}, []string{none, noStock}},
+				{"everything is sold out", View{SoldOut: 3, RunwayBasis: RunwayNothingInStock}, []string{noStock, all}, []string{none, unknown}},
+				{"rows listed", View{Runway: going, RunwayBasis: RunwayEstimated}, []string{all}, []string{none, unknown, i18n.T(ctx, i18n.KeyAdminQueueRunwayRest)}},
+				{"rows left off", View{Runway: going, RunwayCut: true, RunwayBasis: RunwayEstimated}, []string{i18n.T(ctx, i18n.KeyAdminQueueRunwayRest)}, []string{none, unknown, all}},
 			} {
 				html := render(tc.view)
 				for _, want := range tc.want {
@@ -386,7 +386,7 @@ func TestDashboardDaysCover(t *testing.T) {
 				}
 			}
 
-			html := render(DashboardView{SoldOut: 3})
+			html := render(View{SoldOut: 3})
 			for _, gone := range []string{"goen-report__rows", "goen-chartrangebar", `id="low-heading"`, "/admin/stock/", "/admin/stock?soldout=1"} {
 				if strings.Contains(html, gone) {
 					t.Errorf("the dashboard with nothing to estimate renders %q", gone)
@@ -396,8 +396,8 @@ func TestDashboardDaysCover(t *testing.T) {
 	}
 }
 
-// TestDashboardRunwayWithinLine: dashboard runway keeps only rows running out within the line.
-func TestDashboardRunwayWithinLine(t *testing.T) {
+// TestRunwayWithinLine: dashboard runway keeps only rows running out within the line.
+func TestRunwayWithinLine(t *testing.T) {
 	t.Parallel()
 
 	// 9 sellable at 30 units over 30 days is 9 days; 45 sellable is 45 days.
@@ -446,9 +446,9 @@ func TestDashboardRunwayWithinLine(t *testing.T) {
 		{"five running out", runningOut(5), []string{"RUN-0", "RUN-1", "RUN-2", "RUN-3", "RUN-4"}, false, RunwayEstimated},
 		{"a later row does not count as one left off", append(runningOut(5), later(2)...), []string{"RUN-0", "RUN-1", "RUN-2", "RUN-3", "RUN-4"}, false, RunwayEstimated},
 	} {
-		kept, cut, basis := DashboardRunway(tc.listed)
+		kept, cut, basis := Runway(tc.listed)
 		if got := skus(kept); !slices.Equal(got, tc.want) || cut != tc.wantCut || basis != tc.wantBasis {
-			t.Errorf("%s: DashboardRunway kept %v, cut %t, basis %d, want %v, cut %t, basis %d", tc.name, got, cut, basis, tc.want, tc.wantCut, tc.wantBasis)
+			t.Errorf("%s: Runway kept %v, cut %t, basis %d, want %v, cut %t, basis %d", tc.name, got, cut, basis, tc.want, tc.wantCut, tc.wantBasis)
 		}
 	}
 }

@@ -28,7 +28,7 @@ const stockedAllWindow = 30 * 24 * time.Hour
 // From small_defects_test.go, moved whole.
 func TestMovementsEmptyLedger(t *testing.T) {
 	t.Parallel()
-	v := &MovementsView{SKU: "A-1", Days: []StockDay{{Day: time.Date(2026, 10, 1, 0, 0, 0, 0, time.UTC)}}}
+	v := &MovementsView{SKU: "A-1", Days: []Day{{Day: time.Date(2026, 10, 1, 0, 0, 0, 0, time.UTC)}}}
 	body := render(t, Movements(frame.Page{Title: "Movements"}, v))
 	if strings.Contains(body, v.NoStockLine(i18n.WithLocale(t.Context(), i18n.En))) {
 		t.Error("an empty ledger also prints the days-without-movement line")

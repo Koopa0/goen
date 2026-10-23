@@ -10,7 +10,7 @@ import (
 
 // A table rather than a list: every tier carries the same four facts and a column of
 // thresholds is read down.
-templ Tiers(p frame.Page, v TiersView) {
+templ Tiers(p frame.Page, v View) {
 	@frame.Admin(p, "tiers") {
 		<div class="ui-page-head">
 			<div>

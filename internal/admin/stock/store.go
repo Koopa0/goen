@@ -338,7 +338,7 @@ func (s *Store) Movements(ctx context.Context, sku string, now time.Time, after 
 const LineDays = 90
 
 // readStockDays is the variant's last LineDays shop days up to now.
-func readStockDays(ctx context.Context, q *db.Queries, sku string, now time.Time) ([]StockDay, error) {
+func readStockDays(ctx context.Context, q *db.Queries, sku string, now time.Time) ([]Day, error) {
 	first := shoptime.FirstDay(now, LineDays)
 	rows, err := q.VariantStockByDay(ctx, db.VariantStockByDayParams{
 		SKU: sku, FromAt: first, FirstDay: shoptime.QueryDate(first), LastDay: shoptime.QueryDate(now),
@@ -346,9 +346,9 @@ func readStockDays(ctx context.Context, q *db.Queries, sku string, now time.Time
 	if err != nil {
 		return nil, fmt.Errorf("read stock by day of %s: %w", sku, err)
 	}
-	days := make([]StockDay, len(rows))
+	days := make([]Day, len(rows))
 	for i, r := range rows {
-		days[i] = StockDay{Day: r.Day, Stock: r.Stock, Received: r.Received, Receipts: r.Receipts, Moves: r.Moves}
+		days[i] = Day{Day: r.Day, Stock: r.Stock, Received: r.Received, Receipts: r.Receipts, Moves: r.Moves}
 	}
 	return days, nil
 }

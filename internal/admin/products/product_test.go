@@ -22,7 +22,7 @@ func TestProductsPublishedCount(t *testing.T) {
 		{i18n.En, 0, "0 products published"},
 	} {
 		ctx := i18n.WithLocale(t.Context(), tc.loc)
-		if html := renderComponent(t, ctx, Products(Meta(ctx), ProductsView{Published: tc.n})); !strings.Contains(html, tc.want) {
+		if html := renderComponent(t, ctx, Products(Meta(ctx), View{Published: tc.n})); !strings.Contains(html, tc.want) {
 			t.Errorf("Products(Published=%d) in %v does not say %q", tc.n, tc.loc, tc.want)
 		}
 	}

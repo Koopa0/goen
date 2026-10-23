@@ -46,7 +46,7 @@ func render(t *testing.T, c templ.Component) string {
 func TestReviewsEmptyPage(t *testing.T) {
 	t.Parallel()
 	b := keyset.Bound{PastEnd: true, First: "/admin/products?q=test"}
-	body := render(t, Reviews(frame.Page{Title: "Pagination"}, ReviewsView{Bound: b}))
+	body := render(t, Reviews(frame.Page{Title: "Pagination"}, View{Bound: b}))
 	if !strings.Contains(body, `href="/admin/products?q=test"`) || !strings.Contains(body, "First page") {
 		t.Fatal("empty page lost its plain restart link")
 	}
@@ -61,7 +61,7 @@ func TestReviewsFirstPageEmpty(t *testing.T) {
 	t.Parallel()
 	ctx := func(k i18n.Key) string { return i18n.T(i18n.WithLocale(t.Context(), i18n.En), k) }
 	want := ctx(i18n.KeyAdminReviewsEmpty)
-	body := render(t, Reviews(frame.Page{Title: "Queue"}, ReviewsView{Bound: firstPageBound("/admin/queue")}))
+	body := render(t, Reviews(frame.Page{Title: "Queue"}, View{Bound: firstPageBound("/admin/queue")}))
 	if !strings.Contains(body, html.EscapeString(want)) {
 		t.Errorf("the queue's own empty text %q is missing", want)
 	}
@@ -75,7 +75,7 @@ func TestReviewsFirstPageEmpty(t *testing.T) {
 func TestReviewsNextLink(t *testing.T) {
 	t.Parallel()
 	ctx := func(k i18n.Key) string { return i18n.T(i18n.WithLocale(t.Context(), i18n.En), k) }
-	body := render(t, Reviews(frame.Page{Title: "Queue"}, ReviewsView{Bound: fullPageBound("/admin/queue")}))
+	body := render(t, Reviews(frame.Page{Title: "Queue"}, View{Bound: fullPageBound("/admin/queue")}))
 	if !strings.Contains(body, `rel="next"`) {
 		t.Error("a first page with more rows has no Next link")
 	}

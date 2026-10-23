@@ -98,17 +98,17 @@ type listPosition struct {
 	ID uuid.UUID
 }
 
-func (s *Store) List(ctx context.Context, after ...string) (ProductsView, error) {
+func (s *Store) List(ctx context.Context, after ...string) (View, error) {
 	scope := "/admin/products"
 	from, resumed := keyset.Resume(scope, after, func(p listPosition) bool { return p.ID != uuid.Nil })
 	rows, err := s.q.AdminProducts(ctx, db.AdminProductsParams{HasCursor: resumed, AfterAt: from.At, AfterID: from.ID, RowLimit: keyset.PageLimit})
 	if err != nil {
-		return ProductsView{}, fmt.Errorf("read products: %w", err)
+		return View{}, fmt.Errorf("read products: %w", err)
 	}
 	rows, bound := keyset.PageBound(scope, resumed, rows, keyset.PageSize, func(r *db.AdminProductsRow) string { return r.PageCursor })
-	view := ProductsView{Bound: bound}
+	view := View{Bound: bound}
 	if view.Published, err = s.q.PublishedProductCount(ctx); err != nil {
-		return ProductsView{}, fmt.Errorf("count published products: %w", err)
+		return View{}, fmt.Errorf("count published products: %w", err)
 	}
 	for i := range rows {
 		r := &rows[i]

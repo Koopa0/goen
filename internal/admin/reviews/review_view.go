@@ -9,7 +9,7 @@ import (
 	"github.com/koopa0/goen/internal/ui/widget"
 )
 
-type ReviewsView struct {
+type View struct {
 	keyset.Bound
 
 	Rows               []Review
@@ -30,14 +30,14 @@ type Review struct {
 	Author   string
 }
 
-func (v ReviewsView) Empty() bool { return len(v.Rows) == 0 }
+func (v View) Empty() bool { return len(v.Rows) == 0 }
 
 func (r Review) Stars() string {
 	n := max(0, min(r.Rating, 5))
 	return strings.Repeat("★", n) + strings.Repeat("☆", 5-n)
 }
 
-func (v ReviewsView) EmptyLabel(ctx context.Context) string {
+func (v View) EmptyLabel(ctx context.Context) string {
 	if v.ThreeStarsAndBelow {
 		return i18n.T(ctx, i18n.KeyAdminReviewsFilteredEmpty)
 	}

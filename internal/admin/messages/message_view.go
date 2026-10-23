@@ -10,7 +10,7 @@ import (
 	"github.com/koopa0/goen/internal/ui/widget"
 )
 
-type MessagesView struct {
+type View struct {
 	keyset.Bound
 
 	Rows   []Message
@@ -29,9 +29,9 @@ type Message struct {
 	WaitingDays  int
 }
 
-func (v MessagesView) Empty() bool { return len(v.Rows) == 0 }
+func (v View) Empty() bool { return len(v.Rows) == 0 }
 
-func (v MessagesView) OpenCount() int {
+func (v View) OpenCount() int {
 	n := 0
 	for i := range v.Rows {
 		if !v.Rows[i].Handled {
@@ -41,7 +41,7 @@ func (v MessagesView) OpenCount() int {
 	return n
 }
 
-func (v MessagesView) OpenCountText() string { return strconv.Itoa(v.OpenCount()) }
+func (v View) OpenCountText() string { return strconv.Itoa(v.OpenCount()) }
 
 func (m Message) HasOrderRef() bool { return m.OrderRef != "" }
 

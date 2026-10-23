@@ -26,7 +26,7 @@ func TestTaxonomyCategoryControls(t *testing.T) {
 	} {
 		t.Run(tt.locale.Tag(), func(t *testing.T) {
 			t.Parallel()
-			view := &TaxonomyView{Categories: []Taxon{{Slug: "kitchen", Name: "廚房"}, {Slug: "books", Name: "書房", Depth: 1}}, Which: "categories", Draft: TaxonDraft{Parent: "books"}, Errors: map[string]string{"name": "Correct the name"}}
+			view := &View{Categories: []Taxon{{Slug: "kitchen", Name: "廚房"}, {Slug: "books", Name: "書房", Depth: 1}}, Which: "categories", Draft: TaxonDraft{Parent: "books"}, Errors: map[string]string{"name": "Correct the name"}}
 			doc, err := html.Parse(strings.NewReader(renderComponent(t, i18n.WithLocale(t.Context(), tt.locale), Taxonomy(frame.Page{}, view))))
 			if err != nil {
 				t.Fatal(err)

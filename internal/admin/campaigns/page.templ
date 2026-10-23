@@ -11,7 +11,7 @@ import (
 
 // The list leads with whether a campaign is running RIGHT NOW: a switched-on
 // campaign whose window has closed is off to a shopper and on in the list.
-templ Campaigns(p frame.Page, v CampaignsView) {
+templ Campaigns(p frame.Page, v View) {
 	@frame.Admin(p, "campaigns") {
 		<div class="ui-page-head">
 			<div>

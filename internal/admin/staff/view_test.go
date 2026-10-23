@@ -22,17 +22,17 @@ func renderStaff(t *testing.T, locale i18n.Locale, c templ.Component) string {
 	return b.String()
 }
 
-// TestStaffRowEmailOnce: a staff row prints an email once.
-func TestStaffRowEmailOnce(t *testing.T) {
+// TestRowEmailOnce: a staff row prints an email once.
+func TestRowEmailOnce(t *testing.T) {
 	t.Parallel()
 	for name, tc := range map[string]struct {
-		row   StaffRow
+		row   Row
 		count int
 	}{
-		"no name":   {StaffRow{ID: "1", Email: "nameless@example.com", Role: user.RoleStaff}, 1},
-		"with name": {StaffRow{ID: "2", Email: "named@example.com", Role: user.RoleStaff, Name: "Mei"}, 1},
+		"no name":   {Row{ID: "1", Email: "nameless@example.com", Role: user.RoleStaff}, 1},
+		"with name": {Row{ID: "2", Email: "named@example.com", Role: user.RoleStaff, Name: "Mei"}, 1},
 	} {
-		body := renderStaff(t, i18n.En, Staff(frame.Page{Title: "Staff"}, StaffView{Rows: []StaffRow{tc.row}}))
+		body := renderStaff(t, i18n.En, Staff(frame.Page{Title: "Staff"}, View{Rows: []Row{tc.row}}))
 		if got := strings.Count(body, tc.row.Email); got != tc.count {
 			t.Errorf("%s: %q appears %d times in the staff list, want %d", name, tc.row.Email, got, tc.count)
 		}
@@ -93,7 +93,7 @@ func wantBadge(t *testing.T, page, word, class string) {
 func TestStaffEnrollmentBadges(t *testing.T) {
 	t.Parallel()
 	ctx := i18n.WithLocale(t.Context(), i18n.ZhHant)
-	view := StaffView{Rows: []StaffRow{
+	view := View{Rows: []Row{
 		{ID: "on", Role: user.RoleStaff, Enrolled: true},
 		{ID: "off", Role: user.RoleStaff},
 	}}
@@ -114,11 +114,11 @@ func TestStaffCountSingular(t *testing.T) {
 			if locale == i18n.ZhHant {
 				wantStaff = fmt.Sprintf("還有 %d 個帳號尚未設定", n)
 			}
-			rows := make([]StaffRow, n)
+			rows := make([]Row, n)
 			for i := range rows {
-				rows[i] = StaffRow{ID: fmt.Sprintf("staff-%d", i), Email: "staff@example.com", Role: user.RoleStaff}
+				rows[i] = Row{ID: fmt.Sprintf("staff-%d", i), Email: "staff@example.com", Role: user.RoleStaff}
 			}
-			staff := renderStaff(t, locale, Staff(frame.Page{}, StaffView{Rows: rows}))
+			staff := renderStaff(t, locale, Staff(frame.Page{}, View{Rows: rows}))
 			if !strings.Contains(staff, wantStaff) {
 				t.Errorf("Staff(%s, %d) does not contain %q", locale, n, wantStaff)
 			}

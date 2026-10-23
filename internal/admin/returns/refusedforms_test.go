@@ -14,7 +14,7 @@ import (
 func TestReturnsRefusedInspectionTyped(t *testing.T) {
 	t.Parallel()
 	ctx := i18n.WithLocale(t.Context(), i18n.ZhHant)
-	view := ReturnsView{
+	view := View{
 		Rows: []Return{{
 			ID: "r1", OrderNumber: "GO-260930-000012", Status: "approved", Window: "within", Decided: true,
 			Lines: []ReturnLine{{

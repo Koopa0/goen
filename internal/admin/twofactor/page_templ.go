@@ -22,7 +22,7 @@ import (
 //
 // The code field keeps the one-time-code autofill token, the numeric keyboard
 // and the pattern the handler validates against.
-func TwoFactor(p frame.Page, v TwoFactorView) templ.Component {
+func TwoFactor(p frame.Page, v View) templ.Component {
 	return templruntime.GeneratedTemplate(func(templ_7745c5c3_Input templruntime.GeneratedComponentInput) (templ_7745c5c3_Err error) {
 		templ_7745c5c3_W, ctx := templ_7745c5c3_Input.Writer, templ_7745c5c3_Input.Context
 		if templ_7745c5c3_CtxErr := ctx.Err(); templ_7745c5c3_CtxErr != nil {

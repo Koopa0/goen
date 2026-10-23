@@ -67,7 +67,7 @@ func healthTasks(tasks []worklist.Task) []Task {
 // A latest paid order that could not be read leaves the week standing and says
 // so; any other error leaves the week out, which is not the same as a week
 // without orders.
-func showWeek(view *DashboardView, recent sales.Recent, err error) {
+func showWeek(view *View, recent sales.Recent, err error) {
 	if err != nil && !errors.Is(err, sales.ErrLatestPaid) {
 		view.WeekUnavailable = true
 		return

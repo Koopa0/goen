@@ -49,21 +49,21 @@ func TestShowWeekKeepsTheWeekWhenOnlyLatestFails(t *testing.T) {
 		name   string
 		recent sales.Recent
 		err    error
-		want   DashboardView
+		want   View
 	}{
-		{"read", paid, nil, DashboardView{
+		{"read", paid, nil, View{
 			Week: week, Latest: &LatestPaid{Number: "GO-261013-ABCDEF", TotalCents: 30000, Elapsed: 90 * time.Minute},
 		}},
-		{"never paid", recent, nil, DashboardView{Week: week}},
-		{"latest unreadable", recent, fmt.Errorf("%w: %w", sales.ErrLatestPaid, down), DashboardView{
+		{"never paid", recent, nil, View{Week: week}},
+		{"latest unreadable", recent, fmt.Errorf("%w: %w", sales.ErrLatestPaid, down), View{
 			Week: week, LatestUnavailable: true,
 		}},
-		{"unreadable", sales.Recent{}, fmt.Errorf("read the week's revenue: %w", down), DashboardView{WeekUnavailable: true}},
+		{"unreadable", sales.Recent{}, fmt.Errorf("read the week's revenue: %w", down), View{WeekUnavailable: true}},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
-			var got DashboardView
+			var got View
 			showWeek(&got, tt.recent, tt.err)
 			if diff := cmp.Diff(tt.want, got); diff != "" {
 				t.Errorf("showWeek mismatch (-want +got):\n%s", diff)

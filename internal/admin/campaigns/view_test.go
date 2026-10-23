@@ -28,7 +28,7 @@ func TestCampaignsEmptyPageKeepsItsRestartLink(t *testing.T) {
 	b := keyset.Bound{PastEnd: true, First: "/admin/products?q=test"}
 	p := frame.Page{Title: "Pagination"}
 	cases := map[string]templ.Component{
-		"campaigns": Campaigns(p, CampaignsView{Bound: b}),
+		"campaigns": Campaigns(p, View{Bound: b}),
 	}
 	for name, c := range cases {
 		t.Run(name, func(t *testing.T) {
@@ -60,7 +60,7 @@ func TestCampaignsQueueFirstPageEmpty(t *testing.T) {
 		page templ.Component
 		want string
 	}{
-		"campaigns": {Campaigns(p, CampaignsView{Bound: b}), ctx(i18n.KeyAdminCampEmpty)},
+		"campaigns": {Campaigns(p, View{Bound: b}), ctx(i18n.KeyAdminCampEmpty)},
 	} {
 		t.Run(name, func(t *testing.T) {
 			t.Parallel()
@@ -84,7 +84,7 @@ func TestCampaignsQueueWithMoreRowsOffersNext(t *testing.T) {
 		func(*db.Order) string { return `{"ID":"12345678-1234-1234-1234-123456789abc"}` })
 	p := frame.Page{Title: "Queue"}
 	for name, page := range map[string]templ.Component{
-		"campaigns": Campaigns(p, CampaignsView{Bound: b}),
+		"campaigns": Campaigns(p, View{Bound: b}),
 	} {
 		t.Run(name, func(t *testing.T) {
 			t.Parallel()
@@ -131,7 +131,7 @@ func TestCampaignsFieldExamples(t *testing.T) {
 					component templ.Component
 					fields    map[string]string
 				}{
-					{"campaign", Campaigns(p, CampaignsView{Draft: CampaignDraft{Title: typed, Slug: typed}, Errors: errors("title", "slug")}), map[string]string{"k-title": prefix + title, "k-slug": prefix + "summer-sale"}},
+					{"campaign", Campaigns(p, View{Draft: CampaignDraft{Title: typed, Slug: typed}, Errors: errors("title", "slug")}), map[string]string{"k-title": prefix + title, "k-slug": prefix + "summer-sale"}},
 				} {
 					t.Run(page.name, func(t *testing.T) {
 						markup := renderComponent(t, ctx, page.component)

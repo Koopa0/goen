@@ -82,17 +82,17 @@ func (f *Form) Validate(ctx context.Context) map[string]string {
 	return errs
 }
 
-func (s *Store) List(ctx context.Context) (TaxonomyView, error) {
+func (s *Store) List(ctx context.Context) (View, error) {
 	brands, err := s.q.ManagedBrands(ctx)
 	if err != nil {
-		return TaxonomyView{}, fmt.Errorf("read brands: %w", err)
+		return View{}, fmt.Errorf("read brands: %w", err)
 	}
 	cats, err := s.q.ManagedCategories(ctx)
 	if err != nil {
-		return TaxonomyView{}, fmt.Errorf("read categories: %w", err)
+		return View{}, fmt.Errorf("read categories: %w", err)
 	}
 
-	view := TaxonomyView{}
+	view := View{}
 	for i := range brands {
 		b := &brands[i]
 		view.Brands = append(view.Brands, Taxon{

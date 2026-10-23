@@ -61,7 +61,7 @@ func sparklines(ctx context.Context, p chart.SparklineProps) chart.SparklineProp
 
 // WeekStats is the stat line of the last week: revenue and paid orders each set
 // against the week before with their days drawn, then the latest paid order.
-func (v *DashboardView) WeekStats(ctx context.Context) []widget.Stat {
+func (v *View) WeekStats(ctx context.Context) []widget.Stat {
 	const reports = "/admin/reports?days=7"
 	w := &v.Week
 	return []widget.Stat{
@@ -77,7 +77,7 @@ func (v *DashboardView) WeekStats(ctx context.Context) []widget.Stat {
 	}
 }
 
-func (v *DashboardView) latestStat(ctx context.Context) widget.Stat {
+func (v *View) latestStat(ctx context.Context) widget.Stat {
 	stat := widget.Stat{
 		Label: i18n.T(ctx, i18n.KeyAdminQueueLatestPaid), Value: widget.StatWord("—"),
 		LabelHref: "/admin/orders",

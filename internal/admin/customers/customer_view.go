@@ -13,7 +13,7 @@ import (
 	"github.com/koopa0/goen/internal/ui/widget"
 )
 
-type CustomersView struct {
+type View struct {
 	keyset.Bound
 
 	Term     string
@@ -30,11 +30,11 @@ type CustomerRow struct {
 	Orders   int64
 }
 
-func (v CustomersView) Searching() bool { return v.Searched }
+func (v View) Searching() bool { return v.Searched }
 
-func (v CustomersView) TermTooShort() bool { return v.Term != "" && !v.Searched }
+func (v View) TermTooShort() bool { return v.Term != "" && !v.Searched }
 
-func (v CustomersView) Empty() bool { return len(v.Rows) == 0 }
+func (v View) Empty() bool { return len(v.Rows) == 0 }
 
 func (r CustomerRow) OrdersText() string { return strconv.FormatInt(r.Orders, 10) }
 

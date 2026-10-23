@@ -12,7 +12,7 @@ import (
 
 // Two cards, each holding what it lists and the form that adds to it, because a brand
 // and a category are separate jobs. The one filled button is the category create.
-templ Taxonomy(p frame.Page, v *TaxonomyView) {
+templ Taxonomy(p frame.Page, v *View) {
 	@frame.Admin(p, "taxonomy") {
 		<div class="ui-page-head">
 			<div>
@@ -43,7 +43,7 @@ templ Taxonomy(p frame.Page, v *TaxonomyView) {
 }
 
 // taxonForm's fields keep the ids and names the handler and its tests read.
-templ taxonForm(kind string, title i18n.Key, style widget.ButtonStyle, v *TaxonomyView) {
+templ taxonForm(kind string, title i18n.Key, style widget.ButtonStyle, v *View) {
 	<form id={ "new-" + kind } class="goen-admin__form" method="post" action={ templ.SafeURL("/admin/taxonomy/" + kind + "#new-" + kind) }>
 		<h3 class="goen-admin__subhead">{ i18n.T(ctx, title) }</h3>
 		if v.HasErr(kind, "form") {

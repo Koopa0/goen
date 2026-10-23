@@ -18,7 +18,7 @@ import (
 
 // A table rather than a list of blocks: what a staff member opens this page to do is
 // find one row among a hundred.
-func Products(p frame.Page, v ProductsView) templ.Component {
+func Products(p frame.Page, v View) templ.Component {
 	return templruntime.GeneratedTemplate(func(templ_7745c5c3_Input templruntime.GeneratedComponentInput) (templ_7745c5c3_Err error) {
 		templ_7745c5c3_W, ctx := templ_7745c5c3_Input.Writer, templ_7745c5c3_Input.Context
 		if templ_7745c5c3_CtxErr := ctx.Err(); templ_7745c5c3_CtxErr != nil {

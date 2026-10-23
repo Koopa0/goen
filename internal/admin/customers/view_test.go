@@ -68,7 +68,7 @@ func TestCustomerEmptyPageKeepsItsRestartLink(t *testing.T) {
 	t.Parallel()
 	b := keyset.Bound{PastEnd: true, First: "/admin/products?q=test"}
 	body := renderComponent(t, i18n.WithLocale(t.Context(), i18n.En),
-		Customers(frame.Page{Title: "Pagination"}, CustomersView{Bound: b, Searched: true, Term: "test"}))
+		Customers(frame.Page{Title: "Pagination"}, View{Bound: b, Searched: true, Term: "test"}))
 	if !strings.Contains(body, `href="/admin/products?q=test"`) || !strings.Contains(body, "First page") {
 		t.Fatal("empty page lost its plain restart link")
 	}
@@ -81,7 +81,7 @@ func TestCustomerEmptyPageKeepsItsRestartLink(t *testing.T) {
 // sentence its own empty first page says.
 func queuePage(b keyset.Bound, ctx func(k i18n.Key) string) (page templ.Component, empty string) {
 	term := "ZZ99"
-	return Customers(frame.Page{Title: "Queue"}, CustomersView{Bound: b, Searched: true, Term: term}),
+	return Customers(frame.Page{Title: "Queue"}, View{Bound: b, Searched: true, Term: term}),
 		fmt.Sprintf(ctx(i18n.KeyAdminCustNoneFound), term)
 }
 

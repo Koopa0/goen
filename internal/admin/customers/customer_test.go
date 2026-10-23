@@ -52,7 +52,7 @@ func TestCustomerUnverifiedEmailBadge(t *testing.T) {
 	ctx := i18n.WithLocale(t.Context(), i18n.ZhHant)
 	badge := `<span class="goen-badge">` + i18n.T(ctx, i18n.KeyAdminCustEmailUnconfirmed) + `</span>`
 	profile := renderComponent(t, ctx, Customer(Meta(ctx), &CustomerView{ID: "c1", Email: "ada@example.test"}))
-	list := renderComponent(t, ctx, Customers(Meta(ctx), CustomersView{Term: "ada", Searched: true, Rows: []CustomerRow{{ID: "c1", Email: "ada@example.test"}}}))
+	list := renderComponent(t, ctx, Customers(Meta(ctx), View{Term: "ada", Searched: true, Rows: []CustomerRow{{ID: "c1", Email: "ada@example.test"}}}))
 	for name, body := range map[string]string{"profile": profile, "search result": list} {
 		if !strings.Contains(body, badge) {
 			t.Errorf("%s lacks the neutral unverified badge %q", name, badge)
@@ -68,7 +68,7 @@ func TestCustomersShortSearchHint(t *testing.T) {
 	t.Parallel()
 	for _, locale := range i18n.Locales() {
 		ctx := i18n.WithLocale(t.Context(), locale)
-		body := renderComponent(t, ctx, Customers(Meta(ctx), CustomersView{Term: "a"}))
+		body := renderComponent(t, ctx, Customers(Meta(ctx), View{Term: "a"}))
 		for name, want := range map[string]string{
 			"hint under the box":   `<p class="goen-admin__hint" id="customer-search-hint">` + i18n.T(ctx, i18n.KeyAdminSearchShort) + `</p>`,
 			"input names the hint": `aria-describedby="customer-search-hint"`,
@@ -80,7 +80,7 @@ func TestCustomersShortSearchHint(t *testing.T) {
 		if strings.Contains(body, `role="status"`) {
 			t.Errorf("%s short search is still announced as a notice", locale.Tag())
 		}
-		ok := renderComponent(t, ctx, Customers(Meta(ctx), CustomersView{Term: "ab", Searched: true}))
+		ok := renderComponent(t, ctx, Customers(Meta(ctx), View{Term: "ab", Searched: true}))
 		if strings.Contains(ok, "customer-search-hint") {
 			t.Errorf("%s search that ran still points at a hint", locale.Tag())
 		}

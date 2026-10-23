@@ -18,7 +18,7 @@ import (
 
 // The list leads with whether a campaign is running RIGHT NOW: a switched-on
 // campaign whose window has closed is off to a shopper and on in the list.
-func Campaigns(p frame.Page, v CampaignsView) templ.Component {
+func Campaigns(p frame.Page, v View) templ.Component {
 	return templruntime.GeneratedTemplate(func(templ_7745c5c3_Input templruntime.GeneratedComponentInput) (templ_7745c5c3_Err error) {
 		templ_7745c5c3_W, ctx := templ_7745c5c3_Input.Writer, templ_7745c5c3_Input.Context
 		if templ_7745c5c3_CtxErr := ctx.Err(); templ_7745c5c3_CtxErr != nil {

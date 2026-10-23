@@ -493,7 +493,7 @@ func (v *OrderView) MailKeptText(ctx context.Context) string {
 	return fmt.Sprintf(i18n.T(ctx, i18n.KeyAdminTimelineMailKept), i18n.Count(ctx, i18n.KeyAdminDays, int64(days), days))
 }
 
-func OrdersMeta(ctx context.Context) frame.Page {
+func Meta(ctx context.Context) frame.Page {
 	return frame.Page{Title: i18n.T(ctx, i18n.KeyAdminPageOrderList)}
 }
 

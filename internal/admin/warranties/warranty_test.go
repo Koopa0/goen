@@ -10,7 +10,7 @@ import (
 func TestWarrantiesLinkTheirCustomer(t *testing.T) {
 	t.Parallel()
 	ctx := i18n.WithLocale(t.Context(), i18n.ZhHant)
-	v := WarrantiesView{Term: "SN-1", Searched: true, Rows: []WarrantyRow{
+	v := View{Term: "SN-1", Searched: true, Rows: []WarrantyRow{
 		{Serial: "SN-1", Order: "GO-1", CustomerID: "c1", CustomerName: "Ada"},
 		{Serial: "SN-2", Order: "GO-2"},
 	}}
@@ -32,7 +32,7 @@ func TestWarrantiesLinkTheirCustomer(t *testing.T) {
 func TestWarrantiesShortSearchHint(t *testing.T) {
 	t.Parallel()
 	ctx := i18n.WithLocale(t.Context(), i18n.En)
-	body := renderComponent(t, ctx, Warranties(Meta(ctx), WarrantiesView{Term: "a"}))
+	body := renderComponent(t, ctx, Warranties(Meta(ctx), View{Term: "a"}))
 	for _, want := range []string{
 		`<p class="goen-admin__hint" id="warranty-search-hint">Please enter at least two characters.</p>`,
 		`aria-describedby="warranty-search-hint"`,

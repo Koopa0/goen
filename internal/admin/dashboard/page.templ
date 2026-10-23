@@ -12,7 +12,7 @@ import (
 )
 
 // Every figure and every task is a link: a count on its own says there is work and not where it is.
-templ Dashboard(p frame.Page, v DashboardView) {
+templ Dashboard(p frame.Page, v View) {
 	@frame.Admin(p, "dashboard") {
 		<div class="ui-page-head">
 			<div>

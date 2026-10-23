@@ -220,17 +220,17 @@ func whyRevokeMatchedNothing(ctx context.Context, q *db.Queries, target uuid.UUI
 	return ErrInvalidStaff
 }
 
-func (s *Store) Staff(ctx context.Context) (StaffView, error) {
+func (s *Store) Staff(ctx context.Context) (View, error) {
 	rows, err := s.q.StaffTOTPStatus(ctx)
 	if err != nil {
-		return StaffView{}, fmt.Errorf("read staff 2FA status: %w", err)
+		return View{}, fmt.Errorf("read staff 2FA status: %w", err)
 	}
-	view := StaffView{Rows: make([]StaffRow, 0, len(rows))}
+	view := View{Rows: make([]Row, 0, len(rows))}
 	// Cloned: a slice of the package-level array would let a caller write through it.
 	view.Roles = slices.Clone(user.StaffRoles[:])
 	for i := range rows {
 		r := &rows[i]
-		view.Rows = append(view.Rows, StaffRow{
+		view.Rows = append(view.Rows, Row{
 			ID: r.ID.String(), Email: r.Email, Name: r.FullName,
 			Role: user.Role(r.Role), Enrolled: r.Enrolled,
 		})

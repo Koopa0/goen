@@ -168,7 +168,7 @@ func contactSubjectStorePool(t *testing.T) *pgxpool.Pool {
 	return p
 }
 
-func contactSubjectRow(t *testing.T, ctx context.Context, desk *messages.Store, email string) (messages.MessagesView, messages.Message) {
+func contactSubjectRow(t *testing.T, ctx context.Context, desk *messages.Store, email string) (messages.View, messages.Message) {
 	t.Helper()
 	after := ""
 	for {

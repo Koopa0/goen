@@ -11,7 +11,7 @@ import (
 	"github.com/koopa0/goen/internal/ui/widget"
 )
 
-type TiersView struct {
+type View struct {
 	Rows   []Tier
 	Notice widget.Result
 }
@@ -40,4 +40,4 @@ func (t Tier) Multiplier(ctx context.Context) string {
 
 func (t Tier) MembersText() string { return strconv.FormatInt(t.Members, 10) }
 
-func (v TiersView) Empty() bool { return len(v.Rows) == 0 }
+func (v View) Empty() bool { return len(v.Rows) == 0 }

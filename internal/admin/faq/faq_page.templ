@@ -14,7 +14,7 @@ import (
 // The list keeps the class the layout gate finds the page by
 // (scripts/check-layout.mjs): it marks the page on the LIST, so a run that rendered
 // only the form cannot report the page as covered.
-templ FAQ(p frame.Page, v *FAQView) {
+templ FAQ(p frame.Page, v *View) {
 	@frame.Admin(p, "faq") {
 		<div class="ui-page-head">
 			<div>
@@ -261,13 +261,13 @@ templ FAQ(p frame.Page, v *FAQView) {
 				</ul>
 			}
 		}
-		@FAQCategories(v)
+		@Categories(v)
 	}
 }
 
-// FAQCategories is the headings /faq groups its entries under. Each is one row:
+// Categories is the headings /faq groups its entries under. Each is one row:
 // a rename here moves every entry in it.
-templ FAQCategories(v *FAQView) {
+templ Categories(v *View) {
 	@widget.Card(widget.CardProps{Class: "goen-admin__add"}) {
 		<h2 class="goen-admin__heading" id="faq-categories">{ i18n.T(ctx, i18n.KeyAdminFaqpCategories) }</h2>
 		<p class="goen-admin__hint">{ i18n.T(ctx, i18n.KeyAdminFaqpCategoriesLead) }</p>
@@ -323,7 +323,7 @@ templ FAQCategories(v *FAQView) {
 // faqCategoryField is one name of a category form (form "" is the add form).
 // A non-empty example is linked to the input whether or not it was refused; a
 // hint is shown beside it unlinked, as the add form's English hints are.
-templ faqCategoryField(v *FAQView, form, field, id, value string, label i18n.Key, example, hint string, required bool) {
+templ faqCategoryField(v *View, form, field, id, value string, label i18n.Key, example, hint string, required bool) {
 	{{ msg, refused := v.CategoryErr(form, field) }}
 	<div class="goen-admin__field">
 		@widget.Label(widget.LabelProps{For: id}) {

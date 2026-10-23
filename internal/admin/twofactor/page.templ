@@ -15,7 +15,7 @@ import (
 //
 // The code field keeps the one-time-code autofill token, the numeric keyboard
 // and the pattern the handler validates against.
-templ TwoFactor(p frame.Page, v TwoFactorView) {
+templ TwoFactor(p frame.Page, v View) {
 	@frame.Admin(p, "") {
 		<div class="goen-twofa">
 			@widget.Card(widget.CardProps{Class: "goen-twofa__card"}) {

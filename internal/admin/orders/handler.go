@@ -64,7 +64,7 @@ func (h *Handler) List(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	view.Notice = widget.NoticeFrom(r, notices)
-	respond.Component(w, r, h.log, http.StatusOK, Orders(OrdersMeta(r.Context()), view))
+	respond.Component(w, r, h.log, http.StatusOK, Orders(Meta(r.Context()), view))
 }
 
 func (h *Handler) Order(w http.ResponseWriter, r *http.Request) {

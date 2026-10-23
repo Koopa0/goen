@@ -111,7 +111,7 @@ func (c Coupon) ToggleLabel(ctx context.Context) string {
 	return i18n.T(ctx, i18n.KeyAdminToggleOn)
 }
 
-type CouponsView struct {
+type View struct {
 	keyset.Bound
 
 	Rows   []Coupon
@@ -139,8 +139,8 @@ func (d CouponDraft) IsKind(k coupon.Kind) bool {
 	return d.Kind == k
 }
 
-func (v *CouponsView) Empty() bool { return len(v.Rows) == 0 }
+func (v *View) Empty() bool { return len(v.Rows) == 0 }
 
-func (v *CouponsView) HasErr(f string) bool { _, ok := v.Errors[f]; return ok }
+func (v *View) HasErr(f string) bool { _, ok := v.Errors[f]; return ok }
 
-func (v *CouponsView) Err(f string) string { return v.Errors[f] }
+func (v *View) Err(f string) string { return v.Errors[f] }
