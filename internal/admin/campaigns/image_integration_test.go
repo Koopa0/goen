@@ -26,6 +26,7 @@ import (
 	"github.com/koopa0/goen/internal/i18n"
 	"github.com/koopa0/goen/internal/media"
 	"github.com/koopa0/goen/internal/media/mediatest"
+	"github.com/koopa0/goen/internal/ui/uitest"
 )
 
 func campaignImageRequest(t *testing.T, slug, alt string) *http.Request {
@@ -166,12 +167,12 @@ func TestHandler_SetImageRefusals(t *testing.T) {
 					t.Fatalf("refused header = %d, want 422", res.Code)
 				}
 				for id, want := range map[string]string{"c-alt": tt.alt, "c-alt-en": tt.altEn} {
-					input := admintest.InputElementByID(t, res.Body.String(), id)
-					if got := admintest.InputAttribute(t, input, "value"); got != want {
+					input := uitest.InputElementByID(t, res.Body.String(), id)
+					if got := uitest.InputAttribute(t, input, "value"); got != want {
 						t.Errorf("draft %q = %q, want %q", id, got, want)
 					}
 				}
-				admintest.AssertRefusedInput(t, res.Body.String(), tt.field, map[string]string{"c-alt": tt.alt, "c-alt-en": tt.altEn}[tt.field])
+				uitest.AssertRefusedInput(t, res.Body.String(), tt.field, map[string]string{"c-alt": tt.alt, "c-alt-en": tt.altEn}[tt.field])
 				after, afterTone, err := s.Image(ctx, slug)
 				if err != nil {
 					t.Fatal(err)
@@ -298,16 +299,16 @@ func assertUploadFailure(t *testing.T, ctx context.Context, body, diagnostics st
 			t.Error("malformed multipart text did not show the bad-form response")
 		}
 	case 422:
-		input := admintest.InputElementByID(t, body, "c-image")
-		if admintest.InputAttribute(t, input, "aria-invalid") != "true" || admintest.InputAttribute(t, input, "aria-describedby") != "c-image-error" {
+		input := uitest.InputElementByID(t, body, "c-image")
+		if uitest.InputAttribute(t, input, "aria-invalid") != "true" || uitest.InputAttribute(t, input, "aria-describedby") != "c-image-error" {
 			t.Error("corrupt file must flag only its image control with the linked refusal")
 		}
 		if !strings.Contains(body, i18n.T(ctx, i18n.KeyAdminNoticeNotImage)) {
 			t.Error("corrupt upload did not retain the image refusal")
 		}
 		for id, want := range map[string]string{"c-alt": alt, "c-alt-en": " English description "} {
-			input := admintest.InputElementByID(t, body, id)
-			if got := admintest.InputAttribute(t, input, "value"); got != want {
+			input := uitest.InputElementByID(t, body, id)
+			if got := uitest.InputAttribute(t, input, "value"); got != want {
 				t.Errorf("refused image draft %s = %q, want raw %q", id, got, want)
 			}
 		}

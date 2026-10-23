@@ -32,6 +32,7 @@ import (
 	"github.com/koopa0/goen/internal/media/mediatest"
 	"github.com/koopa0/goen/internal/ui/icons"
 	"github.com/koopa0/goen/internal/ui/tone"
+	"github.com/koopa0/goen/internal/ui/uitest"
 )
 
 // TestStore_CreateCategoryMissingParent: a named parent that does not exist is refused.
@@ -515,8 +516,8 @@ func TestHandler_SetCategoryImageRefusals(t *testing.T) {
 					t.Fatalf("refused header = %d, want 422", res.Code)
 				}
 				for id, want := range map[string]string{"cat-alt": tt.alt, "cat-alt-en": tt.altEn} {
-					input := admintest.InputElementByID(t, res.Body.String(), id)
-					if got := admintest.InputAttribute(t, input, "value"); got != want {
+					input := uitest.InputElementByID(t, res.Body.String(), id)
+					if got := uitest.InputAttribute(t, input, "value"); got != want {
 						t.Errorf("draft %q = %q, want %q", id, got, want)
 					}
 				}
@@ -643,16 +644,16 @@ func assertUploadFailure(t *testing.T, ctx context.Context, body, diagnostics st
 			t.Error("malformed multipart text did not show the bad-form response")
 		}
 	case 422:
-		input := admintest.InputElementByID(t, body, "cat-image")
-		if admintest.InputAttribute(t, input, "aria-invalid") != "true" || admintest.InputAttribute(t, input, "aria-describedby") != "cat-image-error" {
+		input := uitest.InputElementByID(t, body, "cat-image")
+		if uitest.InputAttribute(t, input, "aria-invalid") != "true" || uitest.InputAttribute(t, input, "aria-describedby") != "cat-image-error" {
 			t.Error("corrupt file must flag only its image control with the linked refusal")
 		}
 		if !strings.Contains(body, i18n.T(ctx, i18n.KeyAdminNoticeNotImage)) {
 			t.Error("corrupt upload did not retain the image refusal")
 		}
 		for id, want := range map[string]string{"cat-alt": alt, "cat-alt-en": " English description "} {
-			input := admintest.InputElementByID(t, body, id)
-			if got := admintest.InputAttribute(t, input, "value"); got != want {
+			input := uitest.InputElementByID(t, body, id)
+			if got := uitest.InputAttribute(t, input, "value"); got != want {
 				t.Errorf("refused image draft %s = %q, want raw %q", id, got, want)
 			}
 		}

@@ -27,6 +27,7 @@ import (
 	"github.com/koopa0/goen/internal/db"
 	"github.com/koopa0/goen/internal/i18n"
 	"github.com/koopa0/goen/internal/product/labelling"
+	"github.com/koopa0/goen/internal/ui/uitest"
 	"github.com/koopa0/goen/internal/user"
 )
 
@@ -270,7 +271,7 @@ func TestHandler_ProductLabelDatabaseRefusal(t *testing.T) {
 					t.Fatalf("%s named=%v: refused status=%d lost draft", locale, named, response.Code)
 				}
 				if named {
-					input := admintest.InputElementByID(t, body, "label-origin")
+					input := uitest.InputElementByID(t, body, "label-origin")
 					if !strings.Contains(input, `aria-invalid="true"`) || !strings.Contains(input, `aria-describedby="label-origin-error"`) || !strings.Contains(body, i18n.T(i18n.WithLocale(ctx, locale), i18n.KeyProductLabelTextInvalid)) {
 						t.Fatalf("%s: missing origin refusal: %s", locale, input)
 					}

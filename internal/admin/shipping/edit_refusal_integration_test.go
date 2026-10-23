@@ -19,6 +19,7 @@ import (
 	"github.com/koopa0/goen/internal/admin/admintest"
 	"github.com/koopa0/goen/internal/admin/shipping"
 	"github.com/koopa0/goen/internal/i18n"
+	"github.com/koopa0/goen/internal/ui/uitest"
 )
 
 // TestHandler_RefusedEditsKeepDraft: refused shipping edits retain the draft
@@ -98,17 +99,17 @@ func TestHandler_RefusedEditsKeepDraft(t *testing.T) {
 					t.Fatalf("refused version status=%d, want 422", res.Code)
 				}
 				body := res.Body.String()
-				admintest.AssertRefusedInput(t, body, tt.inputID+methodID.String(), tt.raw)
+				uitest.AssertRefusedInput(t, body, tt.inputID+methodID.String(), tt.raw)
 				for field, id := range map[string]string{"name": "name-", "name_en": "name-en-", "carrier": "carrier-", "carrier_en": "carrier-en-", "fee": "fee-", "free_over": "free-"} {
-					attrs := admintest.InputElementByID(t, body, id+methodID.String())
-					if got := admintest.InputAttribute(t, attrs, "value"); got != values.Get(field) {
+					attrs := uitest.InputElementByID(t, body, id+methodID.String())
+					if got := uitest.InputAttribute(t, attrs, "value"); got != values.Get(field) {
 						t.Errorf("%s=%q, want raw %q", field, got, values.Get(field))
 					}
-					if field != tt.field && admintest.InputAttribute(t, attrs, "aria-invalid") != "" {
+					if field != tt.field && uitest.InputAttribute(t, attrs, "aria-invalid") != "" {
 						t.Errorf("version refusal leaked to %s", field)
 					}
 				}
-				if attrs := admintest.InputElementByID(t, body, "m-fee"); admintest.InputAttribute(t, attrs, "aria-invalid") != "" {
+				if attrs := uitest.InputElementByID(t, body, "m-fee"); uitest.InputAttribute(t, attrs, "aria-invalid") != "" {
 					t.Error("version refusal leaked to the new-method form")
 				}
 			})
@@ -123,8 +124,8 @@ func TestHandler_RefusedEditsKeepDraft(t *testing.T) {
 			if res.Code != http.StatusUnprocessableEntity {
 				t.Fatalf("database version refusal status=%d, want 422", res.Code)
 			}
-			input := admintest.InputElementByID(t, res.Body.String(), "name-"+methodID.String())
-			if admintest.InputAttribute(t, input, "value") != "Database refusal" || !strings.Contains(res.Body.String(), `id="version-`+methodID.String()+`-error" role="alert"`) || !strings.Contains(res.Body.String(), i18n.T(i18n.WithLocale(ctx, locale), i18n.KeyAdminShipRefused)) {
+			input := uitest.InputElementByID(t, res.Body.String(), "name-"+methodID.String())
+			if uitest.InputAttribute(t, input, "value") != "Database refusal" || !strings.Contains(res.Body.String(), `id="version-`+methodID.String()+`-error" role="alert"`) || !strings.Contains(res.Body.String(), i18n.T(i18n.WithLocale(ctx, locale), i18n.KeyAdminShipRefused)) {
 				t.Error("database version refusal lost its draft or owning-form explanation")
 			}
 		})
@@ -135,7 +136,7 @@ func TestHandler_RefusedEditsKeepDraft(t *testing.T) {
 				if res.Code != http.StatusUnprocessableEntity {
 					t.Fatalf("refused surcharge status=%d, want 422", res.Code)
 				}
-				admintest.AssertRefusedInput(t, res.Body.String(), "sur-"+versionID.String()+"-"+zoneID.String(), amount)
+				uitest.AssertRefusedInput(t, res.Body.String(), "sur-"+versionID.String()+"-"+zoneID.String(), amount)
 				message := fmt.Sprintf(i18n.T(i18n.WithLocale(ctx, locale), i18n.KeyFormShippingSurcharge), "NT$5,000")
 				if amount == "4999" {
 					message = i18n.T(i18n.WithLocale(ctx, locale), i18n.KeyAdminShipRefused)
@@ -224,7 +225,7 @@ func TestHandler_RefusedEditsKeepDraft(t *testing.T) {
 					t.Fatalf("stale surcharge status=%d, want 422", res.Code)
 				}
 				body := res.Body.String()
-				admintest.AssertRefusedInput(t, body, "sur-"+currentVersion.String()+"-"+zoneID.String(), amount)
+				uitest.AssertRefusedInput(t, body, "sur-"+currentVersion.String()+"-"+zoneID.String(), amount)
 				message := i18n.T(i18n.WithLocale(ctx, locale), i18n.KeyAdminShipVersionChanged)
 				if strings.Count(body, message) != 1 {
 					t.Errorf("stale surcharge explanations=%d, want one owning-control explanation", strings.Count(body, message))

@@ -28,6 +28,7 @@ import (
 	"github.com/koopa0/goen/internal/db"
 	"github.com/koopa0/goen/internal/i18n"
 	"github.com/koopa0/goen/internal/media"
+	"github.com/koopa0/goen/internal/ui/uitest"
 	"github.com/koopa0/goen/internal/user"
 )
 
@@ -137,9 +138,9 @@ func TestHandler_WritesReportCommitted(t *testing.T) {
 				if status == http.StatusUnprocessableEntity {
 					switch scenario {
 					case "option-refused":
-						admintest.AssertRefusedInput(t, res.Body.String(), "opt-name", "")
+						uitest.AssertRefusedInput(t, res.Body.String(), "opt-name", "")
 					case "value-refused":
-						admintest.AssertRefusedInput(t, res.Body.String(), "optval-swatch", form.Get("swatch_hex"))
+						uitest.AssertRefusedInput(t, res.Body.String(), "optval-swatch", form.Get("swatch_hex"))
 					case "value-missing":
 						if !strings.Contains(res.Body.String(), i18n.T(ctx, i18n.KeyFormOptionMissing)) {
 							t.Error("stale option must retain its existing refusal message")
@@ -510,10 +511,10 @@ func TestHandler_ImageOptionSpecOutcomes(t *testing.T) {
 					t.Errorf("missing/refused product write changed saved rows or audit (-want +got):\n%s", diff)
 				}
 				if status == http.StatusUnprocessableEntity {
-					admintest.AssertRefusedInput(t, response.Body.String(), "spec-label", form.Get("label"))
+					uitest.AssertRefusedInput(t, response.Body.String(), "spec-label", form.Get("label"))
 					for id, field := range map[string]string{"spec-value": "value", "spec-label-en": "label_en", "spec-value-en": "value_en"} {
-						input := admintest.InputElementByID(t, response.Body.String(), id)
-						if got := admintest.InputAttribute(t, input, "value"); got != form.Get(field) {
+						input := uitest.InputElementByID(t, response.Body.String(), id)
+						if got := uitest.InputAttribute(t, input, "value"); got != form.Get(field) {
 							t.Errorf("refused %s draft = %q, want %q", id, got, form.Get(field))
 						}
 					}
@@ -572,9 +573,9 @@ func TestHandler_AddSpecRatingsUnavailable(t *testing.T) {
 			if response.Code != http.StatusUnprocessableEntity || response.Header().Get("Location") != "" {
 				t.Fatalf("spec refusal with unavailable ratings = %d to %q, want 422 without Location", response.Code, response.Header().Get("Location"))
 			}
-			admintest.AssertRefusedInput(t, response.Body.String(), "spec-label", form.Get("label"))
-			input := admintest.InputElementByID(t, response.Body.String(), "spec-value")
-			if got := admintest.InputAttribute(t, input, "value"); got != form.Get("value") {
+			uitest.AssertRefusedInput(t, response.Body.String(), "spec-label", form.Get("label"))
+			input := uitest.InputElementByID(t, response.Body.String(), "spec-value")
+			if got := uitest.InputAttribute(t, input, "value"); got != form.Get("value") {
 				t.Errorf("refused spec value = %q, want raw %q", got, form.Get("value"))
 			}
 			if !strings.Contains(diagnostics.String(), `level=ERROR msg="read product sales and reviews"`) {
