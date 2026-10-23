@@ -14,6 +14,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/jackc/pgx/v5/pgxpool"
+
 	"github.com/koopa0/goen/internal/bearer"
 	"github.com/koopa0/goen/internal/i18n"
 	"github.com/koopa0/goen/internal/newsletter"
@@ -101,9 +103,10 @@ func plainThanksBody(ctx context.Context, t *testing.T, mux *http.ServeMux, res 
 }
 
 // TestHandler_SubmitAllowanceSpentOnMail: the subscription allowance is spent
-// on the confirmation mails it sends. A submission that sends none leaves it
-// whole, and one made once it is spent is answered as sent, sends nothing and
-// leaves the live link working.
+// on the confirmation mails it sends. A submission that sends none, for a
+// subscribed address or through a failed write, leaves it whole, and one made
+// once it is spent is answered as sent, sends nothing and leaves the live link
+// working.
 func TestHandler_SubmitAllowanceSpentOnMail(t *testing.T) {
 	const allowance = 2 // signupLimit's burst in cmd/goen
 	for _, htmx := range []bool{false, true} {
@@ -111,14 +114,15 @@ func TestHandler_SubmitAllowanceSpentOnMail(t *testing.T) {
 			ctx := i18n.WithLocale(t.Context(), i18n.ZhHant)
 			s := store(t)
 			// Refilling once an hour, so nothing comes back while the test runs.
-			h := newsletter.NewHandler(newsletter.NewStore(storeRolePool(t)), ratelimit.New(ratelimit.Config{
+			limit := ratelimit.New(ratelimit.Config{
 				Every: time.Hour, Burst: allowance, TTL: time.Hour, MaxKeys: 64,
-			}), slog.New(slog.DiscardHandler))
+			})
+			h := newsletter.NewHandler(newsletter.NewStore(storeRolePool(t)), limit, slog.New(slog.DiscardHandler))
 			network := 0
 			// submit posts from a network of its own each time, so only the
 			// address's allowance is shared, and reports the answer as the
 			// visitor sees it: the redirect, or the swapped-in form.
-			submit := func(address string) (status int, answer string) {
+			submitTo := func(handler *newsletter.Handler, address string) (status int, answer string) {
 				t.Helper()
 				network++
 				req := httptest.NewRequestWithContext(ctx, http.MethodPost, "/newsletter",
@@ -129,11 +133,15 @@ func TestHandler_SubmitAllowanceSpentOnMail(t *testing.T) {
 					req.Header.Set("HX-Request", "true")
 				}
 				res := httptest.NewRecorder()
-				h.Submit(res, req)
+				handler.Submit(res, req)
 				if htmx {
 					return res.Code, res.Body.String()
 				}
 				return res.Code, res.Header().Get("Location")
+			}
+			submit := func(address string) (status int, answer string) {
+				t.Helper()
+				return submitTo(h, address)
 			}
 			wantStatus := map[bool]int{false: http.StatusSeeOther, true: http.StatusOK}[htmx]
 
@@ -202,6 +210,30 @@ func TestHandler_SubmitAllowanceSpentOnMail(t *testing.T) {
 				}
 				if onList, _ := subscribed(t, pending); !onList {
 					t.Error("confirming the last link sent did not subscribe the address")
+				}
+			})
+
+			t.Run("failed write", func(t *testing.T) {
+				closed, err := pgxpool.NewWithConfig(t.Context(), pool.Config().Copy())
+				if err != nil {
+					t.Fatal(err)
+				}
+				closed.Close()
+				failing := newsletter.NewHandler(newsletter.NewStore(closed), limit, slog.New(slog.DiscardHandler))
+				address := addr(t)
+				for i := range allowance {
+					if status, _ := submitTo(failing, address); status != http.StatusInternalServerError {
+						t.Fatalf("submission %d through a closed pool = %d, want 500", i+1, status)
+					}
+				}
+				for i := range allowance {
+					if status, _ := submit(address); status != wantStatus {
+						t.Fatalf("submission %d after the failed writes = %d, want %d", i+1, status, wantStatus)
+					}
+				}
+				if got := enqueued(t, "newsletter.confirm", address); got != allowance {
+					t.Errorf("confirmations = %d after the failed writes, want %d: "+
+						"the writes that failed spent the allowance", got, allowance)
 				}
 			})
 		})

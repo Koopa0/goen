@@ -100,10 +100,12 @@ func (h *Handler) Submit(w http.ResponseWriter, r *http.Request) {
 // confirmations it queues spend it: a request that queues nothing, because the
 // address is subscribed or the write failed, gives its token back. Every
 // confirmation that spent it went to the address, the newest replacing the
-// rest, and an empty allowance was last spent within one interval of the limit,
-// which is shorter than ConfirmTTL, so whoever asks then already has a live
-// link. That is the rule the ratelimit package states for a shared key that
-// bounds what is sent, and the one /forgot follows.
+// rest, so an empty allowance means one was mailed there within the last
+// interval of the limit, far shorter than ConfirmTTL. That link is live unless
+// it has been used since; an address that confirmed and left within the
+// interval waits for the refill to be mailed again. That is the rule the
+// ratelimit package states for a shared key that bounds what is sent, and the
+// one /forgot follows.
 func (h *Handler) requestConfirmation(ctx context.Context, addr string) error {
 	// Reserved BEFORE the write: unbounded, the form mails a confirmation to
 	// whoever is typed into it, as often as the button is pressed.
