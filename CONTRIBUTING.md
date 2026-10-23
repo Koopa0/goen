@@ -314,7 +314,12 @@ them too.
    reads `Package x is …; it holds …; it does not hold …`, and the last clause
    names the nearest sibling a reader would otherwise look in. The glossary row
    carries the same sentence. A package that cannot be given one fails the name
-   test. Not every existing comment has this form yet; each package in the
+   test. `TestEveryPackageDocNamesItsPackage` holds every package to the first
+   sentence ("Command x" for a main package) and fails a generated file that
+   carries a package comment of its own: `make gen` passes
+   `-include-version=false` to templ because its `// templ: version:` line,
+   directly above `package`, otherwise became the summary of 23 packages. Not
+   every existing glossary row has the full form yet; each package in the
    glossary takes it when it is created or moved.
 6. **An exported name does not repeat its package.** "if you are in package
    chubby, you don't need type ChubbyFile, which clients will write as
