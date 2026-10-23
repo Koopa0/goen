@@ -16,6 +16,7 @@ import (
 	"github.com/koopa0/goen/internal/db/dbtest"
 	"github.com/koopa0/goen/internal/i18n"
 	"github.com/koopa0/goen/internal/media"
+	"github.com/koopa0/goen/internal/ui/uitest"
 )
 
 // TestHandler_SetCategoryImageMissing: category image text distinguishes a missing category from a missing photograph.
@@ -61,8 +62,8 @@ func TestHandler_SetCategoryImageMissing(t *testing.T) {
 						t.Fatalf("alt-only %s = %d, want %d", tc.slug, response.Code, tc.status)
 					}
 					if tc.status == http.StatusUnprocessableEntity {
-						input := admintest.InputElementByID(t, response.Body.String(), "cat-alt")
-						if got := admintest.InputAttribute(t, input, "value"); got != " Retained description " {
+						input := uitest.InputElementByID(t, response.Body.String(), "cat-alt")
+						if got := uitest.InputAttribute(t, input, "value"); got != " Retained description " {
 							t.Errorf("alt draft = %q, want original input", got)
 						}
 					}

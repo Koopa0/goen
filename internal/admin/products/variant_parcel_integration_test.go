@@ -18,6 +18,7 @@ import (
 	"github.com/koopa0/goen/internal/admin/shipping"
 	"github.com/koopa0/goen/internal/admin/stock"
 	"github.com/koopa0/goen/internal/cart"
+	"github.com/koopa0/goen/internal/ui/uitest"
 )
 
 // TestHandler_AddVariantMistypedParcel: a mistyped parcel dimension does not become unmeasured.
@@ -61,18 +62,18 @@ func TestHandler_AddVariantMistypedParcel(t *testing.T) {
 				t.Errorf("AddVariant(%s=%q) status = %d, want 422", tt.field, tt.raw, res.Code)
 			} else {
 				body := res.Body.String()
-				admintest.AssertRefusedInput(t, body, tt.id, tt.raw)
+				uitest.AssertRefusedInput(t, body, tt.id, tt.raw)
 				for id, field := range map[string]string{
 					"v-sku": "sku", "v-price": "price", "v-compare": "compare",
 					"v-safety": "safety", "v-longest": "parcel_longest",
 					"v-sum": "parcel_sum", "v-weight": "parcel_weight",
 				} {
-					if got := admintest.InputAttribute(t, admintest.InputElementByID(t, body, id), "value"); got != form.Get(field) {
+					if got := uitest.InputAttribute(t, uitest.InputElementByID(t, body, id), "value"); got != form.Get(field) {
 						t.Errorf("input %q value = %q, want submitted %q", id, got, form.Get(field))
 					}
 				}
 				for _, id := range []string{"v-safety", "v-longest", "v-sum", "v-weight"} {
-					admintest.AssertTextNumberControl(t, body, id)
+					uitest.AssertTextNumberControl(t, body, id)
 				}
 			}
 			var count int

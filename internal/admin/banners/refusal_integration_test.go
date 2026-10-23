@@ -19,6 +19,7 @@ import (
 	"github.com/koopa0/goen/internal/admin/admintest"
 	"github.com/koopa0/goen/internal/admin/banners"
 	"github.com/koopa0/goen/internal/i18n"
+	"github.com/koopa0/goen/internal/ui/uitest"
 )
 
 // TestHandler_CreateBannerRefused: a refused strip keeps the list.
@@ -53,8 +54,8 @@ func TestHandler_CreateBannerRefused(t *testing.T) {
 			}
 			assertStripList(t, ctx, res.Body.String(), bannerID)
 			assertExampleRefusal(t, res.Body.String(), "b-message")
-			draft := admintest.InputElementByID(t, res.Body.String(), "b-short")
-			if got := admintest.InputAttribute(t, draft, "value"); got != "Draft strip" {
+			draft := uitest.InputElementByID(t, res.Body.String(), "b-short")
+			if got := uitest.InputAttribute(t, draft, "value"); got != "Draft strip" {
 				t.Errorf("refused strip draft = %q, want %q", got, "Draft strip")
 			}
 			if diff := cmp.Diff(before, state()); diff != "" {
@@ -66,12 +67,12 @@ func TestHandler_CreateBannerRefused(t *testing.T) {
 
 func assertExampleRefusal(t *testing.T, body, id string) {
 	t.Helper()
-	input := admintest.InputElementByID(t, body, id)
+	input := uitest.InputElementByID(t, body, id)
 	type inputFacts struct{ Value, Invalid, Descriptions string }
 	got := inputFacts{
-		Value:        admintest.InputAttribute(t, input, "value"),
-		Invalid:      admintest.InputAttribute(t, input, "aria-invalid"),
-		Descriptions: admintest.InputAttribute(t, input, "aria-describedby"),
+		Value:        uitest.InputAttribute(t, input, "value"),
+		Invalid:      uitest.InputAttribute(t, input, "aria-invalid"),
+		Descriptions: uitest.InputAttribute(t, input, "aria-describedby"),
 	}
 	want := inputFacts{Invalid: "true", Descriptions: id + "-example " + id + "-error"}
 	if diff := cmp.Diff(want, got); diff != "" {

@@ -14,6 +14,7 @@ import (
 	"time"
 
 	"github.com/koopa0/goen/internal/admin/admintest"
+	"github.com/koopa0/goen/internal/ui/uitest"
 
 	"github.com/google/go-cmp/cmp"
 	"github.com/google/uuid"
@@ -655,12 +656,12 @@ func TestStore_AssessBasisSurvivesRefusal(t *testing.T) {
 	assertRefusedBasis := func(t *testing.T, body string, requestID uuid.UUID, want string) {
 		t.Helper()
 		id := "basis-" + requestID.String()
-		input := admintest.InputElementByID(t, body, id)
-		if got := admintest.InputAttribute(t, input, "value"); got != want {
+		input := uitest.InputElementByID(t, body, id)
+		if got := uitest.InputAttribute(t, input, "value"); got != want {
 			t.Fatalf("refused assessment draft basis=%q invalid=%q; want submitted %q and invalid=true",
-				got, admintest.InputAttribute(t, input, "aria-invalid"), want)
+				got, uitest.InputAttribute(t, input, "aria-invalid"), want)
 		}
-		if admintest.InputAttribute(t, input, "aria-invalid") != "true" {
+		if uitest.InputAttribute(t, input, "aria-invalid") != "true" {
 			t.Fatalf("basis %q was not marked aria-invalid", id)
 		}
 	}
@@ -737,11 +738,11 @@ func TestStore_AssessBasisSurvivesRefusal(t *testing.T) {
 		}
 		body := res.Body.String()
 		id := "basis-" + requestID.String()
-		input := admintest.InputElementByID(t, body, id)
-		if got := admintest.InputAttribute(t, input, "value"); got != storedBasis {
+		input := uitest.InputElementByID(t, body, id)
+		if got := uitest.InputAttribute(t, input, "value"); got != storedBasis {
 			t.Fatalf("decision-only refusal basis = %q, want saved %q", got, storedBasis)
 		}
-		if admintest.InputAttribute(t, input, "aria-invalid") == "true" {
+		if uitest.InputAttribute(t, input, "aria-invalid") == "true" {
 			t.Fatalf("decision-only refusal marked basis %q invalid", id)
 		}
 	})
@@ -821,8 +822,8 @@ func TestHandler_DecideUndelivered(t *testing.T) {
 				if !strings.Contains(res.Body.String(), wantMessage) {
 					t.Errorf("refusal does not contain %q", wantMessage)
 				}
-				field := admintest.InputElementByID(t, res.Body.String(), "res-"+id.String())
-				if got := admintest.InputAttribute(t, field, "value"); got != "Recorded decision" {
+				field := uitest.InputElementByID(t, res.Body.String(), "res-"+id.String())
+				if got := uitest.InputAttribute(t, field, "value"); got != "Recorded decision" {
 					t.Errorf("refused resolution = %q, want Recorded decision", got)
 				}
 				if diff := cmp.Diff(decisionState{Status: "requested"}, state()); diff != "" {

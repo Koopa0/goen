@@ -17,6 +17,7 @@ import (
 	"github.com/koopa0/goen/internal/admin/audit"
 	"github.com/koopa0/goen/internal/admin/credits"
 	"github.com/koopa0/goen/internal/i18n"
+	"github.com/koopa0/goen/internal/ui/uitest"
 	"github.com/koopa0/goen/internal/user"
 )
 
@@ -102,8 +103,8 @@ func TestHandler_CreditFilterAccess(t *testing.T) {
 				t.Errorf("%s %s invalid grant = %d, want 422", locale.Tag(), target.role, refused.Code)
 			}
 			for _, field := range []struct{ input, want string }{{"credit-email", target.email}, {"credit-amount", "0"}, {"credit-reason", "Retain refused draft"}} {
-				input := admintest.InputElementByID(t, refused.Body.String(), field.input)
-				if got := admintest.InputAttribute(t, input, "value"); got != field.want {
+				input := uitest.InputElementByID(t, refused.Body.String(), field.input)
+				if got := uitest.InputAttribute(t, input, "value"); got != field.want {
 					t.Errorf("%s draft %s = %q, want %q", locale.Tag(), field.input, got, field.want)
 				}
 			}

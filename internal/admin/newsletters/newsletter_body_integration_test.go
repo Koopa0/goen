@@ -17,6 +17,7 @@ import (
 	"github.com/koopa0/goen/internal/admin/admintest"
 	"github.com/koopa0/goen/internal/admin/newsletters"
 	"github.com/koopa0/goen/internal/i18n"
+	"github.com/koopa0/goen/internal/ui/uitest"
 )
 
 // TestHandler_ComposeNewsletterLimits: newsletter composition accepts its full text limits.
@@ -72,7 +73,7 @@ func TestHandler_ComposeNewsletterLimits(t *testing.T) {
 				if res.Code != http.StatusUnprocessableEntity {
 					t.Fatalf("over-limit newsletter (%s) status=%d, want 422", locale.Tag(), res.Code)
 				}
-				admintest.AssertRefusedInput(t, res.Body.String(), "issue-subject", refusedSubject)
+				uitest.AssertRefusedInput(t, res.Body.String(), "issue-subject", refusedSubject)
 				doc, err := html.Parse(strings.NewReader(res.Body.String()))
 				if err != nil {
 					t.Fatal(err)
