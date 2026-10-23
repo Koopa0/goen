@@ -17,7 +17,8 @@
 //   - each package imports only what its place in the import graph allows, and
 //     no package is named for a layer;
 //   - every test name follows the naming convention, every package comment
-//     begins "Package <name>", and no exported identifier is left unreferenced;
+//     begins "Package <name>", no exported name repeats its package, and no
+//     exported identifier is left unreferenced;
 //   - LIKE escaping and constraint names live only in internal/db, bearer
 //     tokens are minted and digested only in internal/bearer, and no error
 //     string formats a person's address;

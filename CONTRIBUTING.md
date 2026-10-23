@@ -327,11 +327,13 @@ them too.
    ([Code Review Comments](https://go.dev/wiki/CodeReviewComments#package-names));
    "redundant information between the two should be reduced or eliminated"
    ([Google: repetition](https://google.github.io/styleguide/go/decisions#repetitive-with-package)).
-   So `contact.Form`, not `contact.ContactForm`. The one type a package is named
-   for may take its name (`ring.Ring`, `user.User`, `coupon.Coupon`), and a
+   So `contact.Form`, not `contact.ContactForm`. The one type or page a package is
+   named for may take its name (`ring.Ring`, `user.User`, `banners.Banners`), and a
    compound package's type may repeat its last part (`cookiejar.Jar`,
-   `tabwriter.Writer`, `cartitem.Item`). Say "repetitive", not "stutter"
-   (Google's editors ask for this).
+   `tabwriter.Writer`, `cartitem.Item`). `TestNoExportedNameRepeatsItsPackage`
+   holds every exported package-level name to this, templ components included;
+   its exceptions are names a generator chooses (sqlc's `db.DBTX`), each with
+   its reason. Say "repetitive", not "stutter" (Google's editors ask for this).
 
 **A domain package is singular; the back-office desk over it is the plural of
 the records staff work there.** `order` is the vocabulary of an order and
