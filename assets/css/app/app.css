@@ -8560,7 +8560,7 @@ input.goen-check {
    would show as a second beige beside the head wherever the photograph is
    missing. */
 .goen-campaign__band {
-  border-radius: 16px;
+  border-radius: var(--r-hero);
   display: grid;
   gap: 0;
   overflow: hidden;
