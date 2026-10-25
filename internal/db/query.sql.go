@@ -9013,7 +9013,7 @@ type HomeTilesRow struct {
 // in the position the back office set, a department's products, or the newest
 // of the shop. A NULL filter is no filter. status = 'active' is a literal, not
 // a parameter, so the partial index stays usable. A product that can be bought
-// and has a photograph comes before one that cannot, whatever the order within.
+// and has a photograph comes first; within each group the order below holds.
 func (q *Queries) HomeTiles(ctx context.Context, arg HomeTilesParams) ([]HomeTilesRow, error) {
 	rows, err := q.db.Query(ctx, homeTiles,
 		arg.Locale,

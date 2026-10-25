@@ -103,7 +103,7 @@ func TestHomeTilesCampaignRow(t *testing.T) {
 
 	read := func(campaignID uuid.NullUUID) map[string]db.HomeTilesRow {
 		rows, readErr := db.New(tx).HomeTiles(ctx, db.HomeTilesParams{
-			Locale: string(i18n.ZhHant), CampaignID: campaignID, MaxTiles: 500,
+			Locale: string(i18n.ZhHant), CampaignID: campaignID, MaxTiles: 50,
 		})
 		if readErr != nil {
 			t.Fatalf("read tiles: %v", readErr)
@@ -129,7 +129,7 @@ func TestHomeTilesCampaignRow(t *testing.T) {
 			}
 			n, ok := newest[slugs[i]]
 			if !ok {
-				t.Fatalf("the newest row does not show the product published last")
+				t.Fatalf("the newest row does not show the product")
 			}
 			if n.TilePriceCents != tt.wantNewest || n.CompareAtPriceCents.Int64 != tt.wantNewestCompare {
 				t.Errorf("newest row tile = %d against %d; want %d against %d",

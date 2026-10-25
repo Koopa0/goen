@@ -4,7 +4,7 @@
 -- in the position the back office set, a department's products, or the newest
 -- of the shop. A NULL filter is no filter. status = 'active' is a literal, not
 -- a parameter, so the partial index stays usable. A product that can be bought
--- and has a photograph comes before one that cannot, whatever the order within.
+-- and has a photograph comes first; within each group the order below holds.
 -- name: HomeTiles :many
 WITH RECURSIVE d AS (
     SELECT c.id FROM categories c WHERE c.id = sqlc.narg(department_id)::uuid

@@ -1104,6 +1104,7 @@ func productRow(r ProductRow) templ.Component {
 }
 
 // The last two days say so whole; before that the last day and the days left.
+// The dot stays with the day, so a wrapped line never starts with one.
 func campaignEnds(e campaign.End) templ.Component {
 	return templruntime.GeneratedTemplate(func(templ_7745c5c3_Input templruntime.GeneratedComponentInput) (templ_7745c5c3_Err error) {
 		templ_7745c5c3_W, ctx := templ_7745c5c3_Input.Writer, templ_7745c5c3_Input.Context
@@ -1138,7 +1139,7 @@ func campaignEnds(e campaign.End) templ.Component {
 			var templ_7745c5c3_Var53 string
 			templ_7745c5c3_Var53, templ_7745c5c3_Err = templ.ResolveAttributeValue(e.Datetime())
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `home/home.templ`, Line: 235, Col: 56}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `home/home.templ`, Line: 236, Col: 56}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var53)
 			if templ_7745c5c3_Err != nil {
@@ -1151,7 +1152,7 @@ func campaignEnds(e campaign.End) templ.Component {
 			var templ_7745c5c3_Var54 string
 			templ_7745c5c3_Var54, templ_7745c5c3_Err = templ.JoinStringErrs(e.Left(ctx))
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `home/home.templ`, Line: 235, Col: 72}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `home/home.templ`, Line: 236, Col: 72}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var54))
 			if templ_7745c5c3_Err != nil {
@@ -1169,7 +1170,7 @@ func campaignEnds(e campaign.End) templ.Component {
 			var templ_7745c5c3_Var55 string
 			templ_7745c5c3_Var55, templ_7745c5c3_Err = templ.JoinStringErrs(before)
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `home/home.templ`, Line: 237, Col: 42}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `home/home.templ`, Line: 238, Col: 42}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var55))
 			if templ_7745c5c3_Err != nil {
@@ -1182,7 +1183,7 @@ func campaignEnds(e campaign.End) templ.Component {
 			var templ_7745c5c3_Var56 string
 			templ_7745c5c3_Var56, templ_7745c5c3_Err = templ.ResolveAttributeValue(e.Datetime())
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `home/home.templ`, Line: 237, Col: 73}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `home/home.templ`, Line: 238, Col: 73}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var56)
 			if templ_7745c5c3_Err != nil {
@@ -1195,7 +1196,7 @@ func campaignEnds(e campaign.End) templ.Component {
 			var templ_7745c5c3_Var57 string
 			templ_7745c5c3_Var57, templ_7745c5c3_Err = templ.JoinStringErrs(e.Day(ctx))
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `home/home.templ`, Line: 237, Col: 88}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `home/home.templ`, Line: 238, Col: 88}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var57))
 			if templ_7745c5c3_Err != nil {
@@ -1208,13 +1209,13 @@ func campaignEnds(e campaign.End) templ.Component {
 			var templ_7745c5c3_Var58 string
 			templ_7745c5c3_Var58, templ_7745c5c3_Err = templ.JoinStringErrs(after)
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `home/home.templ`, Line: 237, Col: 131}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `home/home.templ`, Line: 238, Col: 131}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var58))
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
-			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 98, "</span></span> <span class=\"goen-home__dot\" aria-hidden=\"true\">·</span> <span class=\"goen-home__left\">")
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 98, "</span>&nbsp;<span class=\"goen-home__dot\" aria-hidden=\"true\">·</span></span> <span class=\"goen-home__left\">")
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}

@@ -160,9 +160,9 @@ func TestProductRowCampaignEnds(t *testing.T) {
 		datetime string
 		not      string
 	}{
-		{"days left", i18n.ZhHant, time.Date(2026, 10, 13, 0, 0, 0, 0, taipei), "至10\u00a0月12\u00a0日·剩\u00a03\u00a0天", `<time datetime="2026-10-12">`, ""},
-		{"days left in English", i18n.En, time.Date(2026, 10, 13, 0, 0, 0, 0, taipei), "untilOct\u00a012,·3\u00a0daysleft", `<time datetime="2026-10-12">`, ""},
-		{"ends at a time of day", i18n.ZhHant, time.Date(2026, 10, 13, 18, 0, 0, 0, taipei), "至10\u00a0月13\u00a0日18:00·剩\u00a04\u00a0天", `<time datetime="2026-10-13T18:00">`, ""},
+		{"days left", i18n.ZhHant, time.Date(2026, 10, 13, 0, 0, 0, 0, taipei), "至10\u00a0月12\u00a0日&nbsp;·剩\u00a03\u00a0天", `<time datetime="2026-10-12">`, ""},
+		{"days left in English", i18n.En, time.Date(2026, 10, 13, 0, 0, 0, 0, taipei), "untilOct\u00a012,&nbsp;·3\u00a0daysleft", `<time datetime="2026-10-12">`, ""},
+		{"ends at a time of day", i18n.ZhHant, time.Date(2026, 10, 13, 18, 0, 0, 0, taipei), "至10\u00a0月13\u00a0日18:00&nbsp;·剩\u00a04\u00a0天", `<time datetime="2026-10-13T18:00">`, ""},
 		{"tomorrow", i18n.ZhHant, time.Date(2026, 10, 11, 0, 0, 0, 0, taipei), "明天結束", `<time class="goen-home__left" datetime="2026-10-10">`, "至"},
 	} {
 		page := renderIn(t, tt.locale, Page(frame.Page{}, View{Row: campaignRow(4, tt.endsAt)}))
@@ -172,6 +172,9 @@ func TestProductRowCampaignEnds(t *testing.T) {
 		}
 		if !strings.Contains(head, tt.datetime) {
 			t.Errorf("%s: the heading lacks %s: %s", tt.name, tt.datetime, head)
+		}
+		if dot := strings.Index(head, `<span class="goen-home__dot"`); tt.not == "" && !strings.HasSuffix(head[:max(dot, 0)], "&nbsp;") {
+			t.Errorf("%s: the dot does not follow a no-break space inside the day's span: %s", tt.name, head)
 		}
 		if tt.not != "" && strings.Contains(text(head), tt.not) {
 			t.Errorf("%s: the heading holds %q: %q", tt.name, tt.not, text(head))

@@ -915,8 +915,8 @@ func TestStore_LoadRowOrder(t *testing.T) {
 			           'order-' || gen_random_uuid(), '排序商品', 'active', now()
 			    RETURNING id, slug
 			), v AS (
-			    INSERT INTO product_variants (product_id, sku, price_cents, stock_quantity, safety_stock, position)
-			    SELECT p.id, 'ORDER-' || upper(replace(gen_random_uuid()::text, '-', '')), 1000, $1, 0, 0 FROM p
+			    INSERT INTO product_variants (product_id, sku, price_cents, compare_at_price_cents, stock_quantity, safety_stock, position)
+			    SELECT p.id, 'ORDER-' || upper(replace(gen_random_uuid()::text, '-', '')), 1000, 2000, $1, 0, 0 FROM p
 			)
 			SELECT id, slug FROM p`, p.stock).Scan(&id, &slug); err != nil {
 			t.Fatalf("%s: create product: %v", p.name, err)
