@@ -469,14 +469,14 @@ th {
    the section around it, which is what decides the level announced. */
 .goen-card {
   background: var(--n-50);
-  border-radius: var(--r-lg);
+  border-radius: 16px;
   padding: 1.5rem;
 }
 
 .goen-notice {
   background: var(--elevated);
   border: 1px solid transparent;
-  border-radius: var(--r-md);
+  border-radius: 12px;
   color: var(--fg-muted);
   font-size: var(--fs-14);
   margin: 0;
@@ -1056,7 +1056,7 @@ body:has(.goen-hero) .goen-header {
 .goen-dept__well {
   aspect-ratio: 1;
   background: var(--photo);
-  border-radius: var(--r-lg);
+  border-radius: 12px;
   display: block;
   margin-bottom: 0.5rem;
   overflow: hidden;
@@ -1138,7 +1138,7 @@ body:has(.goen-hero) .goen-header {
   .goen-dept__photo {
     aspect-ratio: 4 / 3;
     background: var(--photo);
-    border-radius: var(--r-lg);
+    border-radius: 12px;
     display: block;
     object-fit: cover;
     width: 15rem;
@@ -1393,7 +1393,7 @@ body:has(.goen-hero) .goen-header {
 .goen-langmenu__panel {
   background: var(--n-0);
   border: 1px solid var(--n-200);
-  border-radius: var(--r-lg);
+  border-radius: 16px;
   box-shadow: var(--sh-lg);
   min-width: 11rem;
   padding: 4px;
@@ -1407,7 +1407,7 @@ body:has(.goen-hero) .goen-header {
   align-items: center;
   background: none;
   border: 0;
-  border-radius: var(--r-md);
+  border-radius: 12px;
   color: var(--n-700);
   cursor: pointer;
   display: flex;
@@ -2896,9 +2896,15 @@ body:has(.goen-hero) .goen-header {
 .goen-tile__media {
   aspect-ratio: 1;
   background: var(--photo);
-  border-radius: var(--r-lg);
+  border-radius: 12px;
   overflow: hidden;
   position: relative;
+}
+
+@media (min-width: 48rem) {
+  .goen-tile__media {
+    border-radius: 16px;
+  }
 }
 
 .goen-tile__img {
@@ -3901,7 +3907,7 @@ input.goen-check {
 
 .goen-compare__scroll {
   border: 1px solid var(--border);
-  border-radius: var(--r-lg);
+  border-radius: 16px;
   overflow-x: auto;
   position: relative;
 }
@@ -3940,7 +3946,7 @@ input.goen-check {
 }
 
 .goen-compare__image {
-  border-radius: var(--r-md);
+  border-radius: 8px;
   height: 96px;
   margin: 0;
   object-fit: cover;
@@ -4147,7 +4153,7 @@ input.goen-check {
 .goen-story__well {
   aspect-ratio: 4 / 3;
   background: var(--well);
-  border-radius: var(--r-md);
+  border-radius: 12px;
   overflow: hidden;
 }
 
@@ -4261,11 +4267,17 @@ input.goen-check {
 .goen-compare__suggestmedia {
   aspect-ratio: 1;
   background: var(--photo);
-  border-radius: var(--r-lg);
+  border-radius: 12px;
   display: block;
   margin-bottom: 0.75rem;
   overflow: hidden;
   width: 100%;
+}
+
+@media (min-width: 48rem) {
+  .goen-compare__suggestmedia {
+    border-radius: 16px;
+  }
 }
 
 .goen-compare__suggestmedia img {
@@ -4435,7 +4447,7 @@ input.goen-check {
   .goen-filters__prices {
     background: var(--n-0);
     border: 1px solid var(--n-200);
-    border-radius: var(--r-lg);
+    border-radius: 16px;
     box-shadow: 0 16px 32px -16px rgb(0 0 0 / 0.2);
     left: 0;
     margin: 0;
@@ -4444,6 +4456,10 @@ input.goen-check {
     position: absolute;
     top: calc(100% + 0.75rem);
     z-index: 4;
+  }
+
+  .goen-filters__options .goen-filters__option {
+    border-radius: 4px;
   }
 
   .goen-filters__end .goen-filters__apply {
@@ -4569,7 +4585,7 @@ input.goen-check {
 .goen-pdp__thumbimg {
   aspect-ratio: 4 / 3;
   background: var(--photo);
-  border-radius: 2px;
+  border-radius: 8px;
   display: block;
   height: auto;
   object-fit: contain;
@@ -5517,7 +5533,7 @@ input.goen-check {
 /* The review form is the one panel on the page: --n-50 ground, no border. */
 .goen-pdp__reviewform {
   background: var(--n-50);
-  border-radius: var(--r-lg);
+  border-radius: 16px;
   max-width: 40rem; /* content-box: the form inside is as wide as .goen-qa__form */
   padding: 1.5rem;
 }
@@ -5778,7 +5794,7 @@ input.goen-check {
    the background. */
 .goen-pay__window {
   background: var(--accent-faint);
-  border-radius: var(--r-lg);
+  border-radius: 16px;
   margin-top: var(--s-6);
   outline: 1px solid transparent;
   padding: 1.25rem 1.5rem;
@@ -5894,7 +5910,7 @@ input.goen-check {
 
 .goen-pagehead[data-tone] {
   background: var(--tone-ground);
-  border-radius: var(--r-lg);
+  border-radius: 16px;
   padding: 1.25rem 1rem;
 }
 
@@ -6009,7 +6025,7 @@ input.goen-check {
   align-self: start;
   aspect-ratio: 1 / 1;
   background: var(--photo);
-  border-radius: var(--r-md);
+  border-radius: 8px;
   display: block;
   overflow: hidden;
   width: 100%;
@@ -6039,7 +6055,7 @@ input.goen-check {
 
 .goen-cart__alert {
   background: var(--warn-bg);
-  border-radius: var(--r-md);
+  border-radius: 12px;
   color: var(--warn);
   font-size: var(--fs-14);
   margin: 0;
@@ -6427,7 +6443,7 @@ input.goen-check {
   align-items: flex-start;
   background: var(--n-0);
   border: 1px solid var(--n-300);
-  border-radius: var(--r-lg);
+  border-radius: 12px;
   box-sizing: border-box;
   color: inherit;
   container: ship / inline-size;
@@ -6556,7 +6572,7 @@ input.goen-check {
 .goen-pickup {
   background: var(--elevated);
   border: 1px solid transparent;
-  border-radius: var(--r-md);
+  border-radius: 12px;
   display: flex;
   flex-direction: column;
   gap: 8px;
@@ -7209,7 +7225,7 @@ input.goen-check {
 .goen-auth__demo {
   background: var(--accent-faint);
   border: 1px solid transparent;
-  border-radius: var(--r-lg);
+  border-radius: 16px;
   color: var(--muted);
   display: flex;
   flex-direction: column;
@@ -7470,7 +7486,7 @@ input.goen-check {
    of its own. */
 .goen-account__credit {
   background: var(--n-50);
-  border-radius: var(--r-lg);
+  border-radius: 16px;
   display: flex;
   flex-direction: column;
   gap: 0.125rem;
@@ -7723,7 +7739,7 @@ input.goen-check {
 
 .goen-points__figure {
   background: var(--n-50);
-  border-radius: var(--r-lg);
+  border-radius: 16px;
   display: flex;
   flex-direction: column;
   gap: 0.25rem;
@@ -8186,7 +8202,7 @@ input.goen-check {
 .about__art {
   aspect-ratio: 16 / 9;
   background: var(--tone-ground);
-  border-radius: var(--r-lg);
+  border-radius: 16px;
   display: block;
   height: auto;
   width: 100%;
@@ -8544,7 +8560,7 @@ input.goen-check {
    would show as a second beige beside the head wherever the photograph is
    missing. */
 .goen-campaign__band {
-  border-radius: var(--r-lg);
+  border-radius: 16px;
   display: grid;
   gap: 0;
   overflow: hidden;
