@@ -17,7 +17,7 @@ import (
 	"github.com/koopa0/goen/internal/ui/widget"
 )
 
-type OrderRow struct {
+type Row struct {
 	Number       string
 	Status       order.FulfillmentStatus
 	StatusText   string
@@ -27,7 +27,7 @@ type OrderRow struct {
 	TotalCents   int64
 }
 
-func (o OrderRow) Total() string { return money.TWD(o.TotalCents) }
+func (o Row) Total() string { return money.TWD(o.TotalCents) }
 
 type Transition struct {
 	Value order.FulfillmentStatus
@@ -65,7 +65,7 @@ type View struct {
 	Term     string
 	Searched bool
 	Status   QueueFilter
-	Orders   []OrderRow
+	Orders   []Row
 	Tabs     []StatusTab
 	Notice   widget.Result
 }
@@ -86,7 +86,7 @@ func (v View) EmptyText(ctx context.Context) string {
 	return i18n.T(ctx, i18n.KeyAdminQueueEmpty)
 }
 
-func (o OrderRow) RecipientText(ctx context.Context) string {
+func (o Row) RecipientText(ctx context.Context) string {
 	if o.Recipient == "" {
 		return i18n.T(ctx, i18n.KeyAdminErasedRecipient)
 	}

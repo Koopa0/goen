@@ -10,7 +10,7 @@ import (
 func TestWarrantiesLinkTheirCustomer(t *testing.T) {
 	t.Parallel()
 	ctx := i18n.WithLocale(t.Context(), i18n.ZhHant)
-	v := View{Term: "SN-1", Searched: true, Rows: []WarrantyRow{
+	v := View{Term: "SN-1", Searched: true, Rows: []Row{
 		{Serial: "SN-1", Order: "GO-1", CustomerID: "c1", CustomerName: "Ada"},
 		{Serial: "SN-2", Order: "GO-2"},
 	}}

@@ -41,7 +41,7 @@ func NewStore(pool *pgxpool.Pool) *Store {
 	return &Store{pool: pool, q: db.New(pool)}
 }
 
-func (s *Store) creditRecipient(ctx context.Context, view *CreditView) error {
+func (s *Store) creditRecipient(ctx context.Context, view *View) error {
 	user, err := s.q.CustomerByEmail(ctx, strings.TrimSpace(view.Email))
 	if errors.Is(err, pgx.ErrNoRows) {
 		return ErrNotFound
@@ -57,7 +57,7 @@ func (s *Store) creditRecipient(ctx context.Context, view *CreditView) error {
 	return nil
 }
 
-func validateCreditGrant(view *CreditView) (uuid.UUID, bool) {
+func validateCreditGrant(view *View) (uuid.UUID, bool) {
 	cents, amountOK := money.ParsePositiveDollars(view.Amount, MaxCreditGrant)
 	view.GrantCents = cents
 	view.AmountInvalid = !amountOK

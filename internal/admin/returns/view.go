@@ -14,7 +14,7 @@ import (
 )
 
 type Return struct {
-	Lines       []ReturnLine
+	Lines       []Line
 	ID          string
 	OrderNumber string
 	Status      returns.Status
@@ -237,7 +237,7 @@ func (v View) FieldInvalid(returnID, field string) bool {
 
 func (v View) Empty() bool { return len(v.Rows) == 0 }
 
-type ReturnLine struct {
+type Line struct {
 	SKU         string
 	Name        string
 	Label       string
@@ -258,14 +258,14 @@ type ReturnLine struct {
 	DraftReceived, DraftRestocked, DraftNote string
 }
 
-func (l *ReturnLine) ReceivedField(refused bool) string {
+func (l *Line) ReceivedField(refused bool) string {
 	if refused || l.DraftReceived != "" {
 		return l.DraftReceived
 	}
 	return l.MaxQuantityText()
 }
 
-func (l *ReturnLine) RestockedField(refused bool) string {
+func (l *Line) RestockedField(refused bool) string {
 	if refused || l.DraftRestocked != "" {
 		return l.DraftRestocked
 	}
@@ -274,7 +274,7 @@ func (l *ReturnLine) RestockedField(refused bool) string {
 
 // FactValue is the radio this line currently holds. Unknown is the default
 // so a first visit cannot look pre-ticked as met.
-func (l *ReturnLine) FactValue(name string) string {
+func (l *Line) FactValue(name string) string {
 	var got string
 	switch name {
 	case "unused":
@@ -290,27 +290,27 @@ func (l *ReturnLine) FactValue(name string) string {
 	return got
 }
 
-func (l *ReturnLine) FactChecked(name, value string) bool {
+func (l *Line) FactChecked(name, value string) bool {
 	return l.FactValue(name) == value
 }
 
-func (l *ReturnLine) ReceivedText() string {
+func (l *Line) ReceivedText() string {
 	return strconv.FormatInt(int64(l.Received), 10)
 }
 
-func (l *ReturnLine) RestockedText() string {
+func (l *Line) RestockedText() string {
 	return strconv.FormatInt(int64(l.Restocked), 10)
 }
 
-func (l *ReturnLine) MaxQuantityText() string {
+func (l *Line) MaxQuantityText() string {
 	return strconv.FormatInt(int64(l.Quantity), 10)
 }
 
-func (l *ReturnLine) Shortfall() bool { return l.Inspected && l.Received < l.Quantity }
+func (l *Line) Shortfall() bool { return l.Inspected && l.Received < l.Quantity }
 
-func (l *ReturnLine) Scrapped() bool { return l.Inspected && l.Restocked < l.Received }
+func (l *Line) Scrapped() bool { return l.Inspected && l.Restocked < l.Received }
 
-func (l *ReturnLine) Line() string {
+func (l *Line) Line() string {
 	name := l.Name
 	if l.Label != "" {
 		name += " · " + l.Label
@@ -318,9 +318,9 @@ func (l *ReturnLine) Line() string {
 	return name + " × " + strconv.FormatInt(int64(l.Quantity), 10)
 }
 
-func (l *ReturnLine) UnitPrice() string { return money.TWD(l.UnitCents) }
+func (l *Line) UnitPrice() string { return money.TWD(l.UnitCents) }
 
-type ReturnConfirmation struct {
+type Confirmation struct {
 	ID                string
 	OrderNumber       string
 	Decision          string
@@ -332,7 +332,7 @@ type ReturnConfirmation struct {
 	Retry             bool
 }
 
-func (v ReturnConfirmation) Title(ctx context.Context) string {
+func (v Confirmation) Title(ctx context.Context) string {
 	switch v.Decision {
 	case "rejected":
 		return i18n.T(ctx, i18n.KeyAdminRetConfirmReject)
@@ -346,6 +346,6 @@ func (v ReturnConfirmation) Title(ctx context.Context) string {
 	}
 }
 
-func (v ReturnConfirmation) Amount() string { return money.TWD(v.AmountCents) }
+func (v Confirmation) Amount() string { return money.TWD(v.AmountCents) }
 
-func (v ReturnConfirmation) Action() string { return "/admin/returns/" + v.ID + "/decide" }
+func (v Confirmation) Action() string { return "/admin/returns/" + v.ID + "/decide" }

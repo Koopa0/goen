@@ -8,9 +8,9 @@ import (
 	"github.com/koopa0/goen/internal/ui/frame"
 )
 
-// TestProductFormNewSection: the new product section is not named like its first
+// TestProductNewSection: the new product section is not named like its first
 // field.
-func TestProductFormNewSection(t *testing.T) {
+func TestProductNewSection(t *testing.T) {
 	t.Parallel()
 	for _, tt := range []struct {
 		locale  i18n.Locale
@@ -19,7 +19,7 @@ func TestProductFormNewSection(t *testing.T) {
 		t.Run(tt.locale.Tag(), func(t *testing.T) {
 			t.Parallel()
 			ctx := i18n.WithLocale(t.Context(), tt.locale)
-			body := renderComponent(t, ctx, ProductForm(frame.Page{Title: "Product"}, ProductView{IsNew: true}))
+			body := renderComponent(t, ctx, Product(frame.Page{Title: "Product"}, ProductView{IsNew: true}))
 			if want := `<h2 class="goen-admin__heading">` + tt.heading + `</h2>`; !strings.Contains(body, want) {
 				t.Errorf("new product page lacks %q", want)
 			}
@@ -30,12 +30,12 @@ func TestProductFormNewSection(t *testing.T) {
 	}
 }
 
-// TestProductFormExampleLine: an example is its own hint line.
-func TestProductFormExampleLine(t *testing.T) {
+// TestProductExampleLine: an example is its own hint line.
+func TestProductExampleLine(t *testing.T) {
 	t.Parallel()
 	ctx := i18n.WithLocale(t.Context(), i18n.ZhHant)
 	pages := map[string]string{
-		"product": renderComponent(t, ctx, ProductForm(frame.Page{Title: "Product"}, ProductView{IsNew: true})),
+		"product": renderComponent(t, ctx, Product(frame.Page{Title: "Product"}, ProductView{IsNew: true})),
 	}
 	for name, body := range pages {
 		if strings.Contains(body, "。 ") {
@@ -47,8 +47,8 @@ func TestProductFormExampleLine(t *testing.T) {
 	}
 }
 
-// TestProductFormExampleHints: every example hint reads in full.
-func TestProductFormExampleHints(t *testing.T) {
+// TestProductExampleHints: every example hint reads in full.
+func TestProductExampleHints(t *testing.T) {
 	t.Parallel()
 	for _, tt := range []struct {
 		locale   i18n.Locale
@@ -64,7 +64,7 @@ func TestProductFormExampleHints(t *testing.T) {
 				body     string
 				examples []string
 			}{
-				"product": {renderComponent(t, ctx, ProductForm(frame.Page{Title: "Product"}, ProductView{IsNew: true})), []string{"ceramic-mug"}},
+				"product": {renderComponent(t, ctx, Product(frame.Page{Title: "Product"}, ProductView{IsNew: true})), []string{"ceramic-mug"}},
 			} {
 				for _, e := range c.examples {
 					if want := tt.sentence(e); !strings.Contains(c.body, want) {

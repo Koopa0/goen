@@ -16,7 +16,7 @@ import (
 func TestConfirmRefundRepeatsTotal(t *testing.T) {
 	t.Parallel()
 	for _, locale := range []i18n.Locale{i18n.ZhHant, i18n.En} {
-		for _, v := range []RefundConfirmation{
+		for _, v := range []Confirmation{
 			{OrderNumber: "GO-260929-000001", TotalCents: 1200000, CardCents: 900000, CreditCents: 300000},
 			{OrderNumber: "GO-260929-000001", TotalCents: 1200000, CardCents: 900000, CreditCents: 300000, ReasonInvalid: true},
 			{OrderNumber: "GO-260929-000001", TotalCents: 1200000, CardCents: 900000, CreditCents: 300000, Resume: true},
@@ -50,7 +50,7 @@ func TestConfirmRefundCreditPaid(t *testing.T) {
 	for _, locale := range []i18n.Locale{i18n.ZhHant, i18n.En} {
 		ctx := i18n.WithLocale(t.Context(), locale)
 		var body strings.Builder
-		v := RefundConfirmation{OrderNumber: "GO-260929-000001", TotalCents: 500000, CreditCents: 500000, CreditPaid: true}
+		v := Confirmation{OrderNumber: "GO-260929-000001", TotalCents: 500000, CreditCents: 500000, CreditPaid: true}
 		if err := ConfirmRefund(frame.Page{Title: "refund"}, v).Render(ctx, &body); err != nil {
 			t.Fatal(err)
 		}
@@ -74,7 +74,7 @@ func TestConfirmRefundCancellation(t *testing.T) {
 	for _, locale := range []i18n.Locale{i18n.ZhHant, i18n.En} {
 		ctx := i18n.WithLocale(t.Context(), locale)
 		markup := renderComponent(t, ctx, ConfirmRefund(frame.Page{Title: "refund"},
-			RefundConfirmation{OrderNumber: "GO-1", TotalCents: 100000}))
+			Confirmation{OrderNumber: "GO-1", TotalCents: 100000}))
 		if !strings.Contains(markup, i18n.T(ctx, i18n.KeyAdminRefundConfirmAmount)) {
 			t.Errorf("%s: the amount is not labelled as a cancellation refund", locale)
 		}
@@ -88,7 +88,7 @@ func TestConfirmRefundCancellation(t *testing.T) {
 		}
 
 		resumed := renderComponent(t, ctx, ConfirmRefund(frame.Page{Title: "refund"},
-			RefundConfirmation{OrderNumber: "GO-1", TotalCents: 100000, Resume: true}))
+			Confirmation{OrderNumber: "GO-1", TotalCents: 100000, Resume: true}))
 		if strings.Contains(resumed, i18n.T(ctx, i18n.KeyAdminRequiredMark)) {
 			t.Errorf("%s: a resumed refund, which has no note field, marks one required", locale)
 		}

@@ -21,9 +21,9 @@ type Sales struct {
 	Unavailable bool
 }
 
-// ProductRatings is the visible reviews of a product: how many there are, their
+// Ratings is the visible reviews of a product: how many there are, their
 // average, and how many gave each star, from five stars to one.
-type ProductRatings struct {
+type Ratings struct {
 	Count       int64
 	Average     float64
 	Stars       [5]int64
@@ -92,11 +92,11 @@ func (s Sales) Sentence(ctx context.Context) string {
 }
 
 // ShowsSpread reports whether there are reviews enough to draw the spread.
-func (r ProductRatings) ShowsSpread() bool { return r.Count >= MinReviewsForSpread }
+func (r Ratings) ShowsSpread() bool { return r.Count >= MinReviewsForSpread }
 
 // Sentence says how the reviews stand: the lead of the spread, or, under five
 // reviews, the reviews that were given.
-func (r ProductRatings) Sentence(ctx context.Context) string {
+func (r Ratings) Sentence(ctx context.Context) string {
 	count := i18n.Count(ctx, i18n.KeyReviewCount, r.Count, strconv.FormatInt(r.Count, 10))
 	switch {
 	case r.Count == 0:
@@ -121,7 +121,7 @@ type RatingRow struct {
 
 // Rows are the stars from five to one, each with the bar's scale: the most
 // reviews any star has.
-func (r ProductRatings) Rows() (rows []RatingRow, most int64) {
+func (r Ratings) Rows() (rows []RatingRow, most int64) {
 	for i, n := range r.Stars {
 		rows = append(rows, RatingRow{Stars: 5 - i, Count: n})
 		most = max(most, n)
