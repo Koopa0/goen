@@ -61,23 +61,7 @@ func (s *Store) slides(ctx context.Context, src carouselSources) ([]hero.Slide, 
 		if len(out) == maxSlides {
 			return out, nil
 		}
-		c := &src.camps[i]
-		slide := hero.Slide{
-			Source: hero.SourceCampaign,
-			Layout: hero.LayoutPhoto,
-			Tone:   tone.Resolve(c.Tone),
-			Title:  c.Title,
-			Stats:  s.campaignStats(ctx, c),
-			CTA:    hero.CTA{Label: i18n.T(ctx, i18n.KeyHeroCampaignCTA), Href: "/s/" + c.Slug},
-		}
-		if period, ok := widget.DayPeriod(ctx, c.Title, c.StartsAt, c.EndsAt, s.now()); ok {
-			slide.Period = &period
-		}
-		if photo, ok := campaignPhoto(c); ok {
-			slide.Photo = photo
-			slide.PhotoWidth, slide.PhotoHeight = 1600, 600
-		}
-		out = append(out, slide)
+		out = append(out, s.campaignSlide(ctx, &src.camps[i]))
 	}
 
 	for i := range src.cats {
@@ -109,13 +93,26 @@ func (s *Store) slides(ctx context.Context, src carouselSources) ([]hero.Slide, 
 	return out, nil
 }
 
-// campaignStats is the fact line of a campaign the query lists, which is always running.
-func (s *Store) campaignStats(ctx context.Context, c *db.ListedCampaignsRow) []widget.Stat {
-	return s.campaignSchedule(ctx, c).Facts
-}
-
-func (s *Store) campaignSchedule(ctx context.Context, c *db.ListedCampaignsRow) campaign.Schedule {
-	return campaign.NewSchedule(ctx, c.Title, c.Products, c.StartsAt, c.EndsAt, s.now())
+// campaignSlide is a campaign the query lists, which is always running: its name, the phrase of its end,
+// the track of its days and the way to its products.
+func (s *Store) campaignSlide(ctx context.Context, c *db.ListedCampaignsRow) hero.Slide {
+	now := s.now()
+	slide := hero.Slide{
+		Source: hero.SourceCampaign,
+		Layout: hero.LayoutPhoto,
+		Tone:   tone.Resolve(c.Tone),
+		Title:  c.Title,
+		Ends:   campaign.Ends(campaign.NewEnd(c.EndsAt, now)),
+		CTA:    hero.CTA{Label: i18n.T(ctx, i18n.KeyHeroCampaignCTA), Href: "/s/" + c.Slug},
+	}
+	if period, ok := widget.DayPeriod(ctx, c.Title, c.StartsAt, c.EndsAt, now); ok {
+		slide.Period = &period
+	}
+	if photo, ok := campaignPhoto(c); ok {
+		slide.Photo = photo
+		slide.PhotoWidth, slide.PhotoHeight = 1600, 600
+	}
+	return slide
 }
 
 // campaignPhoto is a campaign's header photograph, and false when it has none.

@@ -28,7 +28,13 @@ templ Page(p frame.Page, v View) {
 				}
 				<div class="goen-pagehead" data-tone={ v.Tone.Attr() }>
 					<h1 class="goen-pagehead__title">{ v.Title }</h1>
-					@widget.StatLine(v.Schedule.Facts, widget.StatLinePlain)
+					if v.Schedule.End != nil {
+						<p class="goen-pagehead__when">
+							@Ends(*v.Schedule.End)
+						</p>
+					} else {
+						@widget.StatLine(v.Schedule.Facts, widget.StatLinePlain)
+					}
 					if v.Schedule.HasPeriod {
 						@widget.Period(v.Schedule.Period)
 					}

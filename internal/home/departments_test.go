@@ -3,7 +3,9 @@ package home
 import (
 	"strings"
 	"testing"
+	"time"
 
+	"github.com/koopa0/goen/internal/discount/campaign"
 	"github.com/koopa0/goen/internal/i18n"
 	"github.com/koopa0/goen/internal/ui/hero"
 	"github.com/koopa0/goen/internal/ui/tone"
@@ -17,7 +19,7 @@ func TestHeroCarouselDrawsItsSlides(t *testing.T) {
 	for _, locale := range []i18n.Locale{i18n.ZhHant, i18n.En} {
 		ctx := i18n.WithLocale(t.Context(), locale)
 		see := i18n.T(ctx, i18n.KeyHeroCampaignCTA)
-		campaign := hero.Slide{
+		running := hero.Slide{
 			Layout: hero.LayoutPhoto, Tone: tone.Sage, Title: "Autumn desk sale",
 			Stats: []widget.Stat{{Label: "Items", Value: widget.StatCount(4, "items")}},
 			CTA:   hero.CTA{Label: see, Href: "/s/autumn-desk"},
@@ -25,7 +27,7 @@ func TestHeroCarouselDrawsItsSlides(t *testing.T) {
 		}
 		department := hero.Slide{Layout: hero.LayoutSplit, Tone: tone.Mist, Title: "Tech", CTA: hero.CTA{Label: see, Href: "/c/tech"}}
 
-		many := renderComponent(t, ctx, Page(Meta(ctx), View{Slides: []hero.Slide{campaign, department}}))
+		many := renderComponent(t, ctx, Page(Meta(ctx), View{Slides: []hero.Slide{running, department}}))
 		for _, want := range []string{
 			`class="goen-hero__slide goen-hero__slide--photo" data-tone="sage"`,
 			`class="goen-hero__slide goen-hero__slide--split goen-hero__slide--text" data-tone="mist"`,
@@ -93,20 +95,20 @@ func TestHeroCarouselHasNoAutoplay(t *testing.T) {
 	}
 }
 
-// TestHeroCarouselCampaignSlide: A campaign slide draws its facts and its grid;
-// a long title steps down.
+// TestHeroCarouselCampaignSlide: A campaign slide says its end in one phrase and
+// draws its grid; a long title steps down.
 func TestHeroCarouselCampaignSlide(t *testing.T) {
 	t.Parallel()
 	ctx := i18n.WithLocale(t.Context(), i18n.ZhHant)
 	spec := widget.PeriodSpec{Description: "秋日選物：10 月 1 日至 10 月 30 日，共 30 天", TodayLabel: "今天", Cells: []widget.PeriodCell{{State: widget.CellToday, Label: "10/9"}, {Label: "10/10"}}}
 	slide := hero.Slide{
 		Layout: hero.LayoutPhoto, Tone: tone.Sage, Title: "年終感謝祭全館滿額再折",
-		Stats:  []widget.Stat{{Label: "結束", Value: widget.StatDate("10\u00a0月 30\u00a0日", ""), Note: "明天結束"}},
+		Ends:   campaign.Ends(campaign.NewEnd(time.Date(2026, 10, 11, 0, 0, 0, 0, time.FixedZone("CST", 8*3600)), time.Date(2026, 10, 9, 12, 0, 0, 0, time.FixedZone("CST", 8*3600)))),
 		Period: &spec,
 	}
 	got := renderComponent(t, ctx, Page(Meta(ctx), View{Slides: []hero.Slide{slide}}))
 	for _, want := range []string{
-		`<dt>結束</dt>`, `明天結束`, `class="ui-period" role="img" aria-label="秋日選物：10 月 1 日至 10 月 30 日，共 30 天"`,
+		`<p class="goen-hero__when">`, `明天結束`, `class="ui-period" role="img" aria-label="秋日選物：10 月 1 日至 10 月 30 日，共 30 天"`,
 		`<b>今天</b>`, `goen-hero__title goen-hero__title--long`,
 	} {
 		if !strings.Contains(got, want) {
