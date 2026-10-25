@@ -47,17 +47,18 @@ func TestEndsOn(t *testing.T) {
 	}
 }
 
-// TestEndStat: the campaign end stat names its last day and the last two days.
+// TestEndStat: the campaign end stat names its last day, and says nothing of how soon.
 func TestEndStat(t *testing.T) {
 	t.Parallel()
 	ctx := i18n.WithLocale(t.Context(), i18n.ZhHant)
 	now := time.Date(2026, 10, 9, 4, 0, 0, 0, time.UTC)
 	ends := time.Date(2026, 10, 10, 16, 0, 0, 0, time.UTC)
 	got := renderComponent(t, ctx, widget.StatLine([]widget.Stat{campaign.EndStat(ctx, ends, now)}, widget.StatLinePlain))
-	for _, want := range []string{`datetime="2026-10-10"`, "明天結束"} {
-		if !strings.Contains(got, want) {
-			t.Errorf("end stat omits %s:\n%s", want, got)
-		}
+	if want := `datetime="2026-10-10"`; !strings.Contains(got, want) {
+		t.Errorf("end stat omits %s:\n%s", want, got)
+	}
+	if strings.Contains(got, "明天結束") {
+		t.Errorf("end stat says the campaign ends tomorrow:\n%s", got)
 	}
 }
 

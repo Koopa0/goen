@@ -1978,6 +1978,7 @@ body:has(.goen-hero) .goen-header {
    the number. Where the box is narrower than that, at large text on a phone, the
    unit may wrap instead of widening the page. */
 .goen-ends__until {
+  position: relative; /* its screen-reader text is absolute; a scroller clips it only when it is positioned inside */
   white-space: nowrap;
 }
 
@@ -2003,8 +2004,8 @@ body:has(.goen-hero) .goen-header {
 /* Standing alone the English phrase begins a sentence; inside the notice and the
    offers row it follows words. */
 .goen-home__ends::first-letter,
-.goen-hero__when::first-letter,
-.goen-pagehead__when::first-letter {
+.goen-hero__ends::first-letter,
+.goen-pagehead__ends::first-letter {
   text-transform: uppercase;
 }
 
@@ -2144,7 +2145,7 @@ body:has(.goen-hero) .goen-header {
   color: var(--tone-text);
 }
 
-.goen-hero__when {
+.goen-hero__ends {
   color: var(--tone-muted);
   container-type: inline-size;
   font-size: var(--fs-16);
@@ -2152,7 +2153,7 @@ body:has(.goen-hero) .goen-header {
   margin: 0;
 }
 
-.goen-hero__when .goen-ends__left {
+.goen-hero__ends .goen-ends__left {
   color: var(--tone-text);
 }
 
@@ -3870,6 +3871,10 @@ input.goen-check {
   color: var(--fg-muted);
   container-type: inline-size;
   font-size: var(--fs-12);
+}
+
+.goen-campaigns__meta > [aria-hidden] {
+  margin-inline: 0.25em;
 }
 
 .goen-campaigns__meta .goen-ends__left {
@@ -5757,7 +5762,7 @@ input.goen-check {
 
 /* A campaign's end in one phrase; the box is the container its day unit wraps
    against. */
-.goen-pagehead__when {
+.goen-pagehead__ends {
   color: var(--fg-muted);
   container-type: inline-size;
   font-size: var(--fs-16);
@@ -5959,7 +5964,7 @@ input.goen-check {
 
 .goen-pagehead[data-tone] .goen-pagehead__sub,
 .goen-pagehead[data-tone] .goen-pagehead__eyebrow,
-.goen-pagehead[data-tone] .goen-pagehead__when {
+.goen-pagehead[data-tone] .goen-pagehead__ends {
   color: var(--tone-muted);
 }
 
@@ -8581,7 +8586,7 @@ input.goen-check {
 }
 
 .goen-campaign__band .ui-statline,
-.goen-campaign__band .goen-pagehead__when {
+.goen-campaign__band .goen-pagehead__ends {
   margin-top: 1rem;
 }
 

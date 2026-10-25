@@ -17,8 +17,8 @@ type Schedule struct {
 	// End is set only while the campaign runs.
 	End   *End
 	Facts []widget.Stat
-	// Ends is one of Facts' own stats.
-	Ends      widget.Stat
+	// EndFact is the one of Facts that states the last day; it is set only with Facts.
+	EndFact   widget.Stat
 	Period    widget.PeriodSpec
 	HasPeriod bool
 }
@@ -28,8 +28,7 @@ type Schedule struct {
 func NewSchedule(ctx context.Context, title string, items int64, startsAt, endsAt, now time.Time) Schedule {
 	state := StateAt(startsAt, endsAt, now)
 	count := widget.Stat{Label: i18n.T(ctx, i18n.KeySlideItems), Value: widget.StatCount(items, i18n.T(ctx, i18n.KeyFactUnitItems))}
-	ends := EndStat(ctx, endsAt, now)
-	schedule := Schedule{Ends: ends}
+	var schedule Schedule
 
 	switch state {
 	case NotStarted:
@@ -38,11 +37,12 @@ func NewSchedule(ctx context.Context, title string, items int64, startsAt, endsA
 			Label: i18n.T(ctx, i18n.KeyCampaignStarts),
 			Value: widget.StatDate(shoptime.DateText(ctx, first), "").WithDatetime(first.ISO()),
 		}
-		schedule.Ends.Note = ""
-		schedule.Facts = []widget.Stat{starts, schedule.Ends, count}
+		schedule.EndFact = EndStat(ctx, endsAt, now)
+		schedule.Facts = []widget.Stat{starts, schedule.EndFact, count}
 	case Ended:
-		schedule.Ends.Note = i18n.T(ctx, i18n.KeyCampaignEnded)
-		schedule.Facts = []widget.Stat{schedule.Ends, count}
+		schedule.EndFact = EndStat(ctx, endsAt, now)
+		schedule.EndFact.Note = i18n.T(ctx, i18n.KeyCampaignEnded)
+		schedule.Facts = []widget.Stat{schedule.EndFact, count}
 	default:
 		end := NewEnd(endsAt, now)
 		schedule.End = &end
