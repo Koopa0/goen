@@ -7,6 +7,8 @@
 //
 // It also declares the payload every topic carries, because that payload is
 // stored: a row queued today is decoded by whichever binary delivers it.
+//
+// It does not hold composing a letter or sending it over SMTP (letter).
 package outbox
 
 import (

@@ -4,7 +4,9 @@
 // period is set against the period before it. The desks reach one another
 // only through interfaces the consumer declares, so the values and the error
 // those interfaces promise, and the comparison the report and the dashboard
-// both write, live here, where no desk has to import another.
+// both write, live here, where no desk has to import another. It does not hold
+// the work that waits for a person (admin/worklist) or the report that reads
+// the figures (admin/reports).
 package sales
 
 import (
