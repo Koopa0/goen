@@ -191,9 +191,11 @@ store before anything else.
   `internal/db/queryowners_test.go` lists the remaining exceptions, which may
   only shrink.
 - Package imports are policy, and `internal/repocheck/deps_test.go` is the whole
-  of it: vocabulary packages such as `order`, `money` and `shipping` import no
-  goen package; a back-office desk is imported only by `cmd/goen`, and reaches
-  another desk through an interface it declares; nothing outside
+  of it: a vocabulary package is a leaf with a fixed list of what it may
+  import (`money` and `email` import no goen package, `shipping` and `credit`
+  only `i18n`, `order` only `i18n` and `web/formtext`, `payment/refund` only
+  `i18n` and `money`); a back-office desk is imported only by `cmd/goen`, and
+  reaches another desk through an interface it declares; nothing outside
   `internal/admin` and `cmd/goen` imports a back-office package. Each rule's
   reason is printed when it fails.
 - A page body lives in the feature that renders it: put its `.templ` beside
@@ -255,13 +257,11 @@ about file size" and offers a rule of thumb, not a number: "it is usually not a
 good idea to have a single file with many thousands of lines in it, or having
 many tiny files" (package size).
 
-So the large feature packages (`cart`, `admin/orders`, `auth`, `payment`,
-`catalog`, `order/buyer`) are not a defect by their size. Page bodies have
-finished moving into their features (the templ/Go move, D13), so one pass now
-reads them against the name test, and each split it finds is filed as its own
-issue; #2184 tracks the pass. Which package may
-import which is a separate rule, held by `internal/repocheck/deps_test.go` as
-described above.
+So the large feature packages (`catalog`, `i18n`, `auth`, `admin/orders`,
+`checkout`) are not a defect by their size. The name-test pass over the eight
+largest found no package to split. A split is filed as its own issue when a
+package fails the name test. Which package may import which is a separate rule,
+held by `internal/repocheck/deps_test.go` as described above.
 
 #### Naming
 
