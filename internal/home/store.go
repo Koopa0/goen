@@ -21,7 +21,6 @@ import (
 	"github.com/koopa0/goen/internal/ui/hero"
 	"github.com/koopa0/goen/internal/ui/tile"
 	"github.com/koopa0/goen/internal/ui/tone"
-	"github.com/koopa0/goen/internal/ui/widget"
 )
 
 type Store struct {
@@ -160,16 +159,7 @@ func (s *Store) campaignRow(ctx context.Context, c *db.ListedCampaignsRow) (row 
 	if err != nil || len(tiles) == 0 {
 		return ProductRow{}, false, err
 	}
-	schedule := s.campaignSchedule(ctx, c)
-	rowCampaign := &RowCampaign{
-		Tone:      tone.Resolve(c.Tone),
-		Items:     c.Products,
-		Facts:     schedule.Facts,
-		CardFacts: schedule.CardFacts(),
-	}
-	if period, ok := widget.DayPeriod(ctx, c.Title, c.StartsAt, c.EndsAt, s.now()); ok {
-		rowCampaign.Period = &period
-	}
+	rowCampaign := &RowCampaign{Items: c.Products, End: campaign.NewEnd(c.EndsAt, s.now())}
 	return ProductRow{Title: c.Title, Href: "/s/" + c.Slug, Tiles: tiles, Campaign: rowCampaign}, true, nil
 }
 

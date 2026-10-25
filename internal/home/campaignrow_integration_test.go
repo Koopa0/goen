@@ -103,7 +103,7 @@ func TestHomeTilesCampaignRow(t *testing.T) {
 
 	read := func(campaignID uuid.NullUUID) map[string]db.HomeTilesRow {
 		rows, readErr := db.New(tx).HomeTiles(ctx, db.HomeTilesParams{
-			Locale: string(i18n.ZhHant), CampaignID: campaignID, MaxTiles: 50,
+			Locale: string(i18n.ZhHant), CampaignID: campaignID, MaxTiles: 500,
 		})
 		if readErr != nil {
 			t.Fatalf("read tiles: %v", readErr)

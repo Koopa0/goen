@@ -3,7 +3,8 @@
 -- One tile query for the three rows the home page draws: a campaign's products
 -- in the position the back office set, a department's products, or the newest
 -- of the shop. A NULL filter is no filter. status = 'active' is a literal, not
--- a parameter, so the partial index stays usable.
+-- a parameter, so the partial index stays usable. A product that can be bought
+-- and has a photograph comes before one that cannot, whatever the order within.
 -- name: HomeTiles :many
 WITH RECURSIVE d AS (
     SELECT c.id FROM categories c WHERE c.id = sqlc.narg(department_id)::uuid
@@ -116,7 +117,12 @@ WHERE p.status = 'active'
       WHERE cp.campaign_id = sqlc.narg(campaign_id)::uuid AND cp.product_id = p.id
   ))
   AND (sqlc.narg(department_id)::uuid IS NULL OR p.category_id IN (SELECT d.id FROM d))
-ORDER BY (SELECT cp.position FROM sale_campaign_products cp
+ORDER BY NOT (EXISTS (
+             SELECT 1 FROM product_variants sv
+             WHERE sv.product_id = p.id AND sv.is_active
+               AND sv.stock_quantity > sv.safety_stock
+         ) AND num_nonnulls(img.media_digest, img.bundled_key) > 0),
+         (SELECT cp.position FROM sale_campaign_products cp
           WHERE cp.campaign_id = sqlc.narg(campaign_id)::uuid AND cp.product_id = p.id) NULLS LAST,
          p.published_at DESC, p.id
 LIMIT @max_tiles::integer;

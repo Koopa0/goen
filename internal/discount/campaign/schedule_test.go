@@ -2,7 +2,6 @@ package campaign_test
 
 import (
 	"context"
-	"slices"
 	"strings"
 	"testing"
 	"time"
@@ -27,34 +26,6 @@ func renderComponent(t *testing.T, ctx context.Context, c templ.Component) strin
 		t.Fatalf("render: %v", err)
 	}
 	return b.String()
-}
-
-// TestSchedule_CardFacts: card facts put days left before the end and omit it
-// in the last two days.
-func TestSchedule_CardFacts(t *testing.T) {
-	t.Parallel()
-	ctx := i18n.WithLocale(t.Context(), i18n.ZhHant)
-	for _, tt := range []struct {
-		name   string
-		endsAt time.Time
-		want   []string
-	}{
-		{"days left", day(11), []string{"剩餘", "結束"}},
-		{"tomorrow", day(4), []string{"結束"}},
-	} {
-		schedule := campaign.NewSchedule(ctx, "秋日選物", 3, day(1), tt.endsAt, scheduleNow)
-		facts := schedule.CardFacts()
-		got := make([]string, 0, len(facts))
-		for i := range facts {
-			got = append(got, facts[i].Label)
-		}
-		if !slices.Equal(got, tt.want) {
-			t.Errorf("%s: CardFacts labels = %q, want %q", tt.name, got, tt.want)
-		}
-		if tt.name == "tomorrow" && facts[0].Note != "明天結束" {
-			t.Errorf("tomorrow: the end's note = %q, want 明天結束", facts[0].Note)
-		}
-	}
 }
 
 // TestNewScheduleFacts: a fact names what it counts once: each rendered fact

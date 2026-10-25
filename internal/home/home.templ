@@ -3,6 +3,7 @@ package home
 import (
 	"fmt"
 
+	"github.com/koopa0/goen/internal/discount/campaign"
 	"github.com/koopa0/goen/internal/i18n"
 	"github.com/koopa0/goen/internal/policy"
 	"github.com/koopa0/goen/internal/ui/frame"
@@ -201,57 +202,41 @@ templ departmentTile(c Category) {
 	</a>
 }
 
-// A running campaign's row is its products and its facts. With a lead the
-// first product is the 2×2 tile on the campaign's tone and the facts are the
-// eighth cell, a card whose only link is the count; without one the facts stand
-// under the heading. With no campaign the row is the newest products.
+// A running campaign's row is its products under a heading that says which
+// campaign it is, the last day and how many products it holds. With no campaign
+// the row is the newest products. The row is a sample of a longer list: the
+// link carries the rest.
 templ productRow(r ProductRow) {
 	if len(r.Tiles) > 0 {
 		<section class="goen-home__section" aria-labelledby="row-heading">
 			<div class="goen-home__head">
 				@heading("row-heading", r.Title)
-				if !r.HasLead() {
-					if r.Campaign != nil {
-						@seeAll(i18n.Count(ctx, i18n.KeyHomeSeeAllCount, r.Campaign.Items, r.Campaign.Items), r.Href)
-					} else {
-						@seeAll(i18n.T(ctx, i18n.KeyHomeNewInCTA), r.Href)
-					}
+				if r.Campaign != nil {
+					@campaignEnds(r.Campaign.End)
+					@seeAll(i18n.Count(ctx, i18n.KeyHomeSeeAllCount, r.Campaign.Items, r.Campaign.Items), r.Href)
+				} else {
+					@seeAll(i18n.T(ctx, i18n.KeyHomeNewInCTA), r.Href)
 				}
 			</div>
-			if r.Campaign != nil && !r.HasLead() {
-				<div class="goen-home__facts">
-					@widget.StatLine(r.Campaign.Facts, widget.StatLinePlain)
-					if r.Campaign.Period != nil {
-						@widget.Period(*r.Campaign.Period)
-					}
-				</div>
-			}
-			if r.HasLead() {
-				<ul class="goen-tiles__grid goen-tiles__grid--lead" data-tone={ r.Campaign.Tone.Attr() } role="list">
-					for i, t := range r.Shelf() {
-						if i == 0 {
-							<li class="goen-tile__cell goen-tile__cell--lead">
-								@tile.Card(t)
-							</li>
-						} else {
-							@tile.Cell(t)
-						}
-					}
-					<li class="goen-rowcard">
-						@widget.StatLine(r.Campaign.CardFacts, widget.StatLinePlain)
-						if r.Campaign.Period != nil {
-							@widget.Period(*r.Campaign.Period)
-						}
-						@seeAll(i18n.Count(ctx, i18n.KeyHomeSeeAllCount, r.Campaign.Items, r.Campaign.Items), r.Href)
-					</li>
-				</ul>
-			} else {
-				<ul class="goen-tiles__grid" role="list">
-					for _, t := range r.Shelf() {
-						@tile.Cell(t)
-					}
-				</ul>
-			}
+			<ul class="goen-tiles__grid goen-home__row" role="list">
+				for _, t := range r.Shelf() {
+					@tile.Cell(t)
+				}
+			</ul>
 		</section>
 	}
+}
+
+// The last two days say so whole; before that the last day and the days left.
+templ campaignEnds(e campaign.End) {
+	{{ before, after := e.Until(ctx) }}
+	<p class="goen-home__ends">
+		if e.EndsByTomorrow() {
+			<time class="goen-home__left" datetime={ e.Datetime() }>{ e.Left(ctx) }</time>
+		} else {
+			<span class="goen-home__until">{ before }<time datetime={ e.Datetime() }>{ e.Day(ctx) }</time><span class="goen-sr-only">{ after }</span></span>
+			<span class="goen-home__dot" aria-hidden="true">·</span>
+			<span class="goen-home__left">{ e.Left(ctx) }</span>
+		}
+	</p>
 }

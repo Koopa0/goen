@@ -13,40 +13,6 @@ import (
 	"github.com/koopa0/goen/internal/ui/widget"
 )
 
-// TestStore_CampaignScheduleCard: The campaign card says what is left before
-// when it ends, and leaves the count to its link; on the last two days only the
-// end's note remains.
-func TestStore_CampaignScheduleCard(t *testing.T) {
-	t.Parallel()
-
-	taipei := time.FixedZone("CST", 8*3600)
-	now := time.Date(2026, 10, 9, 12, 0, 0, 0, taipei)
-	s := &Store{now: func() time.Time { return now }}
-	ctx := i18n.WithLocale(t.Context(), i18n.ZhHant)
-	for _, tt := range []struct {
-		name   string
-		endsAt time.Time
-		want   []string
-	}{
-		{"three days", time.Date(2026, 10, 12, 18, 0, 0, 0, taipei), []string{"剩餘3\u00a0天", "結束10\u00a0月12\u00a0日\u00a018:00"}},
-		{"last day", time.Date(2026, 10, 10, 0, 0, 0, 0, taipei), []string{"結束10\u00a0月9\u00a0日今天結束"}},
-	} {
-		schedule := s.campaignSchedule(ctx, &db.ListedCampaignsRow{EndsAt: tt.endsAt, Products: 6})
-		stats := schedule.CardFacts()
-		got := make([]string, 0, len(stats))
-		for i := range stats {
-			var b strings.Builder
-			if err := widget.StatLine(stats[i:i+1], widget.StatLinePlain).Render(ctx, &b); err != nil {
-				t.Fatal(err)
-			}
-			got = append(got, text(b.String()))
-		}
-		if !slices.Equal(got, tt.want) {
-			t.Errorf("%s: %q, want %q", tt.name, got, tt.want)
-		}
-	}
-}
-
 // TestStore_CampaignStatsSlide: From two days out a campaign slide states the
 // days left; on the last two days the end's note says so instead, and an end
 // off midnight states its time.
