@@ -65,9 +65,15 @@ func stripeAt(t *testing.T, h func(*call) (int, string)) (*Gateway, *[]call) {
 	}))
 	t.Cleanup(srv.Close)
 
+	return gatewayAt(srv.URL, nil), &log
+}
+
+// gatewayAt returns a Gateway whose Stripe traffic goes to endpoint over hc, or over
+// the SDK's default client when hc is nil.
+func gatewayAt(endpoint string, hc *http.Client) *Gateway {
 	noRetries := int64(0)
 	backend := stripe.GetBackendWithConfig(stripe.APIBackend, &stripe.BackendConfig{
-		URL: stripe.String(srv.URL), MaxNetworkRetries: &noRetries,
+		URL: stripe.String(endpoint), MaxNetworkRetries: &noRetries, HTTPClient: hc,
 	})
 	// Shaped like Stripe's so the SDK builds an ordinary Authorization header.
 	const testKey = "sk_test_notarealkey"
@@ -77,7 +83,7 @@ func stripeAt(t *testing.T, h func(*call) (int, string)) (*Gateway, *[]call) {
 		})),
 		webhookSecret: "whsec_notusedbythesetests",
 		baseURL:       "https://goen.example",
-	}, &log
+	}
 }
 
 // anOrder owes more than its lines, so the remainder line is always exercised.
