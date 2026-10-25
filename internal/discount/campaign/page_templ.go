@@ -138,7 +138,7 @@ func Page(p frame.Page, v View) templ.Component {
 				return templ_7745c5c3_Err
 			}
 			if v.Schedule.End != nil {
-				templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 11, "<p class=\"goen-pagehead__when\">")
+				templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 11, "<p class=\"goen-pagehead__ends\">")
 				if templ_7745c5c3_Err != nil {
 					return templ_7745c5c3_Err
 				}

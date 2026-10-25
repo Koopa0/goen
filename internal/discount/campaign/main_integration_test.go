@@ -346,9 +346,9 @@ func TestStore_CampaignWindow(t *testing.T) {
 			if view.Schedule.End != nil {
 				t.Errorf("Campaign(%s) says the phrase of its end, which a campaign not running has no sentence for", slug)
 			}
-			if first := view.Schedule.Facts[0].Label; first != i18n.T(ctx, tt.wantFirst) || view.Schedule.Ends.Note != tt.wantNote {
+			if first := view.Schedule.Facts[0].Label; first != i18n.T(ctx, tt.wantFirst) || view.Schedule.EndFact.Note != tt.wantNote {
 				t.Errorf("Campaign(%s) leads with %q and notes the end %q, want %q and %q",
-					slug, first, view.Schedule.Ends.Note, i18n.T(ctx, tt.wantFirst), tt.wantNote)
+					slug, first, view.Schedule.EndFact.Note, i18n.T(ctx, tt.wantFirst), tt.wantNote)
 			}
 		})
 	}

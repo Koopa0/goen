@@ -73,8 +73,7 @@ func TestNewScheduleFacts(t *testing.T) {
 }
 
 // TestNewScheduleStates holds that only a running campaign has the phrase of its
-// end: one not started and one ended keep the fact line, and an ended campaign
-// never says it ends today.
+// end: one not started and one ended keep the fact line.
 func TestNewScheduleStates(t *testing.T) {
 	t.Parallel()
 	ctx := i18n.WithLocale(t.Context(), i18n.ZhHant)

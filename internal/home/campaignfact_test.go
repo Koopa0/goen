@@ -45,7 +45,7 @@ func TestStore_CampaignSlideEnds(t *testing.T) {
 				StartsAt: now.AddDate(0, 0, -3), EndsAt: tt.endsAt, Products: 6,
 			})
 			page := renderComponent(t, ctx, heroCarousel([]hero.Slide{slide}))
-			start := strings.Index(page, `<p class="goen-hero__when">`)
+			start := strings.Index(page, `<p class="goen-hero__ends">`)
 			if start < 0 {
 				t.Fatalf("the campaign slide has no phrase of its end:\n%s", page)
 			}

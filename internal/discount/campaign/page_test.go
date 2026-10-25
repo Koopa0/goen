@@ -33,11 +33,11 @@ func TestPageFactsAndDays(t *testing.T) {
 		want, absent []string
 		filled       int
 	}{
-		{"running", day(1), day(11), []string{`<p class="goen-pagehead__when">`, "至 10\u00a0月 10\u00a0日", "剩\u00a08\u00a0天"}, []string{"<dt>", "開始", "已結束", "限時"}, 1},
+		{"running", day(1), day(11), []string{`<p class="goen-pagehead__ends">`, "至 10\u00a0月 10\u00a0日", "剩\u00a08\u00a0天"}, []string{"<dt>", "開始", "已結束", "限時"}, 1},
 		{"one day left", day(1), day(4), []string{"明天結束"}, []string{"<dt>", "已結束"}, 1},
 		{"last day", day(1), day(3), []string{"今天結束"}, []string{"<dt>", "已結束"}, 1},
-		{"not started", day(5), day(9), []string{"<dt>開始</dt>", "<dt>結束</dt>", "<dt>商品</dt>", "10\u00a0月 5\u00a0日", "還沒開始"}, []string{"已結束", "<dt>剩餘</dt>", "goen-pagehead__when", `data-cell`}, 0},
-		{"ended", day(-8), day(2), []string{"已結束", "<dt>結束</dt>", "已結束。"}, []string{"<dt>開始</dt>", "<dt>剩餘</dt>", "今天結束", "goen-pagehead__when", `data-cell="today"`}, 10},
+		{"not started", day(5), day(9), []string{"<dt>開始</dt>", "<dt>結束</dt>", "<dt>商品</dt>", "10\u00a0月 5\u00a0日", "還沒開始"}, []string{"已結束", "<dt>剩餘</dt>", "goen-pagehead__ends", `data-cell`}, 0},
+		{"ended", day(-8), day(2), []string{"已結束", "<dt>結束</dt>", "已結束。"}, []string{"<dt>開始</dt>", "<dt>剩餘</dt>", "今天結束", "goen-pagehead__ends", `data-cell="today"`}, 10},
 	}
 	for _, tt := range tests {
 		got := renderCampaign(t, tt.startsAt, tt.endsAt)
@@ -125,10 +125,10 @@ func TestPageHeadSaysPeriodInOnePhrase(t *testing.T) {
 		title  string
 		phrase string
 	}{
-		{i18n.ZhHant, "秋日選物", "至 10 月 10 日"},
-		{i18n.ZhHant, "年終感謝祭全館滿額再折活動最後加碼", "至 10 月 10 日"},
-		{i18n.En, "Autumn desk week", "until Oct 10,"},
-		{i18n.En, "The year-end thank-you sale with the largest discounts of the season", "until Oct 10,"},
+		{i18n.ZhHant, "秋日選物", "至 10\u00a0月 10\u00a0日"},
+		{i18n.ZhHant, "年終感謝祭全館滿額再折活動最後加碼", "至 10\u00a0月 10\u00a0日"},
+		{i18n.En, "Autumn desk week", "until Oct\u00a010,"},
+		{i18n.En, "The year-end thank-you sale with the largest discounts of the season", "until Oct\u00a010,"},
 	} {
 		ctx := i18n.WithLocale(t.Context(), tt.locale)
 		got := renderComponent(t, ctx, campaign.Page(frame.Page{Title: "c"}, campaign.View{
@@ -136,7 +136,7 @@ func TestPageHeadSaysPeriodInOnePhrase(t *testing.T) {
 			Schedule: campaign.NewSchedule(ctx, tt.title, 1, day(1), day(11), scheduleNow),
 		}))
 		title := strings.Index(got, `<h1 class="goen-pagehead__title">`+tt.title)
-		when := strings.Index(got, `<p class="goen-pagehead__when">`)
+		when := strings.Index(got, `<p class="goen-pagehead__ends">`)
 		track := strings.Index(got, `class="ui-period"`)
 		if title < 0 || when < title || track < when {
 			t.Errorf("%s %q: head reads title %d, phrase %d, track %d; want them in that order", tt.locale, tt.title, title, when, track)

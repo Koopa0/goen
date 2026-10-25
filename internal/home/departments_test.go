@@ -21,7 +21,7 @@ func TestHeroCarouselDrawsItsSlides(t *testing.T) {
 		see := i18n.T(ctx, i18n.KeyHeroCampaignCTA)
 		running := hero.Slide{
 			Layout: hero.LayoutPhoto, Tone: tone.Sage, Title: "Autumn desk sale",
-			Stats: []widget.Stat{{Label: "Items", Value: widget.StatCount(4, "items")}},
+			Ends:  campaign.Ends(campaign.NewEnd(time.Date(2026, 10, 30, 0, 0, 0, 0, time.UTC), time.Date(2026, 10, 9, 0, 0, 0, 0, time.UTC))),
 			CTA:   hero.CTA{Label: see, Href: "/s/autumn-desk"},
 			Photo: widget.Photo{URL: "/static/a.webp", Alt: "a desk"}, PhotoWidth: 1600, PhotoHeight: 600,
 		}
@@ -108,7 +108,7 @@ func TestHeroCarouselCampaignSlide(t *testing.T) {
 	}
 	got := renderComponent(t, ctx, Page(Meta(ctx), View{Slides: []hero.Slide{slide}}))
 	for _, want := range []string{
-		`<p class="goen-hero__when">`, `明天結束`, `class="ui-period" role="img" aria-label="秋日選物：10 月 1 日至 10 月 30 日，共 30 天"`,
+		`<p class="goen-hero__ends">`, `明天結束`, `class="ui-period" role="img" aria-label="秋日選物：10 月 1 日至 10 月 30 日，共 30 天"`,
 		`<b>今天</b>`, `goen-hero__title goen-hero__title--long`,
 	} {
 		if !strings.Contains(got, want) {
