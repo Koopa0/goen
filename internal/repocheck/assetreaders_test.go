@@ -21,7 +21,7 @@ import (
 //     locks (serving, caching, compression, the fonts licence, the CSP
 //     origin, which sheet a shell links).
 //   - "T14b" ... "T14e" name the task that replaces the text match with a
-//     check of behaviour in a real browser, and "#380" the goilerplate
+//     check of behaviour in a real browser, and "#380" the storefront
 //     rebuild that re-keys the check onto semantic tokens. Each of those
 //     rows is deleted by the task that names it; the list only shrinks.
 var assetReaders = map[string]string{
