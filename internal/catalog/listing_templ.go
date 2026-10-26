@@ -73,7 +73,7 @@ func Listing(p frame.Page, v ListingView, rules *policy.Rules, head *DepartmentH
 				return templ_7745c5c3_Err
 			}
 			if photo.Shown() {
-				templ_7745c5c3_Err = bandMedia("goen-pagehead__photo", "pagehead-photo", photo, onWell, "(min-width: 48rem) 57vw, 100vw", false).Render(ctx, templ_7745c5c3_Buffer)
+				templ_7745c5c3_Err = bandMedia("goen-pagehead__photo", "pagehead-photo", photo, onWell, "(min-width: 48rem) 57vw, 100vw").Render(ctx, templ_7745c5c3_Buffer)
 				if templ_7745c5c3_Err != nil {
 					return templ_7745c5c3_Err
 				}

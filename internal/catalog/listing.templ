@@ -22,7 +22,7 @@ templ Listing(p frame.Page, v ListingView, rules *policy.Rules, head *Department
 				<div class="goen-band">
 					<div class="goen-band__grid">
 						if photo.Shown() {
-							@bandMedia("goen-pagehead__photo", "pagehead-photo", photo, onWell, "(min-width: 48rem) 57vw, 100vw", false)
+							@bandMedia("goen-pagehead__photo", "pagehead-photo", photo, onWell, "(min-width: 48rem) 57vw, 100vw")
 						}
 						<div class="goen-band__body goen-pagehead__text">
 							@widget.Breadcrumb(widget.BreadcrumbProps{

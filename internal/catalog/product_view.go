@@ -21,7 +21,6 @@ import (
 	"github.com/koopa0/goen/internal/shoptime"
 	"github.com/koopa0/goen/internal/ui/frame"
 	"github.com/koopa0/goen/internal/ui/tile"
-	"github.com/koopa0/goen/internal/ui/tone"
 	"github.com/koopa0/goen/internal/ui/widget"
 )
 
@@ -217,9 +216,6 @@ type ProductView struct {
 	AlsoBought   []tile.Tile
 
 	Related []tile.Tile
-
-	// Tone is the department's; the gallery's mat and the band wear it.
-	Tone tone.Tone
 }
 
 // StarHalves keeps an average of 4.5 at four stars and half of the fifth, not five.
@@ -322,14 +318,6 @@ func (v *ProductView) MaxQuantity() string {
 }
 
 func (v *ProductView) HasImages() bool { return len(v.Images) > 0 }
-
-// BandPhoto is the second photograph: the first is the gallery's.
-func (v *ProductView) BandPhoto() (ProductImage, bool) {
-	if len(v.Images) < 2 {
-		return ProductImage{}, false
-	}
-	return v.Images[1], true
-}
 
 // GalleryFollowsChoice is true only when a photograph shows one value: only then can choosing another reorder the gallery.
 func (v *ProductView) GalleryFollowsChoice() bool {

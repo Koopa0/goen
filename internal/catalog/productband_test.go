@@ -7,13 +7,13 @@ import (
 
 	"github.com/koopa0/goen/internal/i18n"
 	"github.com/koopa0/goen/internal/shoptime"
-	"github.com/koopa0/goen/internal/ui/tone"
 )
 
 func bandProduct(photos int) *ProductView {
 	v := &ProductView{
 		Name: "Restwood Mug", Brand: "Restwood", Slug: "restwood-mug", Description: "A stoneware mug.",
-		SelectionOK: true, Exact: true, Sellable: true, AnySellable: true, PriceCents: 43200, Tone: tone.Mist,
+		SelectionOK: true, Exact: true, Sellable: true, AnySellable: true, PriceCents: 43200,
+		Specs: []ProductSpec{{Label: "Capacity", Value: "350 ml"}},
 	}
 	for i := range photos {
 		v.Images = append(v.Images, ProductImage{
@@ -23,59 +23,55 @@ func bandProduct(photos int) *ProductView {
 	return v
 }
 
-// TestProductGalleryTone holds that the gallery wears the department's tone.
-func TestProductGalleryTone(t *testing.T) {
+// TestProductGalleryUntoned holds that the gallery wears no department tone.
+func TestProductGalleryUntoned(t *testing.T) {
 	t.Parallel()
 	page := renderProduct(t, bandProduct(3), i18n.En)
 	gallery := between(t, page, `class="goen-pdp__gallery"`, `id="buybox"`)
-	if !strings.Contains(gallery, `data-tone="mist"`) {
-		t.Errorf("the gallery does not carry the department's tone: %.120s", gallery)
+	if strings.Contains(gallery, "data-tone") {
+		t.Errorf("the gallery carries a tone: %.120s", gallery)
 	}
 	if strings.Contains(gallery, "style=") {
 		t.Error("the gallery draws a style attribute")
 	}
 }
 
-// TestProductBandSecondPhoto holds that the band shows the second photograph
-// and the description.
-func TestProductBandSecondPhoto(t *testing.T) {
+// TestProductDescriptionPlain holds that the description is a plain section
+// ahead of the specifications, whatever the number of photographs.
+func TestProductDescriptionPlain(t *testing.T) {
 	t.Parallel()
-	page := renderProduct(t, bandProduct(3), i18n.En)
-	band := between(t, page, `<section class="goen-band goen-band--product"`, `</section>`)
-	for _, want := range []string{`data-tone="mist"`, `src="/media/p/b.webp"`, `loading="lazy"`, `width="800"`, `id="desc-heading"`, "A stoneware mug."} {
-		if !strings.Contains(band, want) {
-			t.Errorf("the band does not contain %q", want)
+	for _, photos := range []int{1, 3} {
+		page := renderProduct(t, bandProduct(photos), i18n.En)
+		const section = `<section class="goen-pdp__desc" aria-labelledby="desc-heading">`
+		more := strings.Index(page, `<div class="goen-pdp__more">`)
+		start := strings.Index(page, section)
+		specs := strings.Index(page, `id="specs-heading"`)
+		if more < 0 || start < more || start > specs {
+			t.Errorf("%d photographs: the description is not between the start of the details and the specifications", photos)
+		}
+		desc := between(t, page, section, `</section>`)
+		if !strings.Contains(desc, "A stoneware mug.") {
+			t.Errorf("%d photographs: the section does not hold the description", photos)
+		}
+		for _, unwanted := range []string{"<img", "data-tone", "goen-pdp__brand"} {
+			if strings.Contains(desc, unwanted) {
+				t.Errorf("%d photographs: the description section holds %q", photos, unwanted)
+			}
+		}
+		if strings.Contains(page, "goen-band") {
+			t.Errorf("%d photographs: the page draws a band", photos)
 		}
 	}
-	if strings.Contains(band, "/media/p/a.webp") || strings.Contains(band, "/media/p/c.webp") {
-		t.Error("the band shows a photograph other than the second")
-	}
-	if buy := strings.Index(page, `id="buybox"`); strings.Index(page, `goen-band--product`) < buy {
-		t.Error("the band is above the buy box")
-	}
 }
 
-// TestProductBandTextOnly holds that the band draws no photograph without a
-// second one and takes its text-only form.
-func TestProductBandTextOnly(t *testing.T) {
-	t.Parallel()
-	page := renderProduct(t, bandProduct(1), i18n.En)
-	band := between(t, page, `<section class="goen-band goen-band--product`, `</section>`)
-	if strings.Contains(band, "<img") || strings.Contains(band, "goen-band__media") {
-		t.Error("a band with no second photograph draws a media column")
-	}
-	if !strings.Contains(band, "goen-band--text") {
-		t.Error("a band with no photograph does not take its text-only form")
-	}
-}
-
-// TestProductBandDescription holds that the band needs a description.
-func TestProductBandDescription(t *testing.T) {
+// TestProductDescriptionNone holds that a product with no description draws no
+// section for it.
+func TestProductDescriptionNone(t *testing.T) {
 	t.Parallel()
 	v := bandProduct(3)
 	v.Description = ""
-	if page := renderProduct(t, v, i18n.En); strings.Contains(page, "goen-band") {
-		t.Error("a product with no description draws a band")
+	if page := renderProduct(t, v, i18n.En); strings.Contains(page, "desc-heading") {
+		t.Error("a product with no description draws its section")
 	}
 }
 
