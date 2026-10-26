@@ -103,7 +103,7 @@ func TestHandler_TakesPayment(t *testing.T) {
 		"gateway has key": {keyed, true},
 	} {
 		t.Run(name, func(t *testing.T) {
-			if got := (&Handler{sessions: tt.gateway}).TakesPayment(); got != tt.want {
+			if got := (&Handler{payments: tt.gateway}).TakesPayment(); got != tt.want {
 				t.Errorf("TakesPayment() = %v, want %v", got, tt.want)
 			}
 		})

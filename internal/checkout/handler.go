@@ -37,9 +37,9 @@ type Handler struct {
 	access *access.Store
 	log    *slog.Logger
 	secure bool
-	// sessions is nil or disabled on a deployment with no Stripe key, where the
+	// payments is nil or disabled on a deployment with no Stripe key, where the
 	// checkout takes no payment.
-	sessions *payment.Gateway
+	payments *payment.Gateway
 	// storeMap is nil or disabled on a deployment with no carrier, where the
 	// checkout offers no pickup.
 	storeMap       *storemap.Client
@@ -54,11 +54,11 @@ type MobileBarcodeChecker interface {
 	CheckBarcode(context.Context, string) (issuer.BarcodeStatus, error)
 }
 
-// NewHandler reads a nil or disabled sessions as no provider configured, and a
+// NewHandler reads a nil or disabled payments as no provider configured, and a
 // nil or disabled storeMap as no carrier, so the checkout offers no pickup; an
 // omitted checker keeps local shape validation where there is no invoice gateway.
 func NewHandler(store *Store, carts *cart.Handler, grants *access.Store, log *slog.Logger, secure bool,
-	sessions *payment.Gateway, storeMap *storemap.Client, checkers ...MobileBarcodeChecker,
+	payments *payment.Gateway, storeMap *storemap.Client, checkers ...MobileBarcodeChecker,
 ) *Handler {
 	if store == nil || carts == nil || grants == nil || log == nil {
 		panic("checkout: NewHandler requires a store, the cart, an access check and a logger")
@@ -73,7 +73,7 @@ func NewHandler(store *Store, carts *cart.Handler, grants *access.Store, log *sl
 	return &Handler{
 		barcodeChecker: checker,
 		store:          store, carts: carts, access: grants, log: log, secure: secure,
-		sessions: sessions, storeMap: storeMap,
+		payments: payments, storeMap: storeMap,
 		// Twenty wrong codes before the first refusal, then one every two
 		// minutes: more than a shopper retyping a code from a flyer needs.
 		couponMisses: ratelimit.New(ratelimit.Config{
@@ -103,7 +103,7 @@ func (h *Handler) Routes(mux *http.ServeMux, submissions *ratelimit.Limiter) {
 }
 
 // TakesPayment holds where a payment key is configured.
-func (h *Handler) TakesPayment() bool { return h.sessions != nil && h.sessions.Enabled() }
+func (h *Handler) TakesPayment() bool { return h.payments != nil && h.payments.Enabled() }
 
 func (h *Handler) Page(w http.ResponseWriter, r *http.Request) {
 	cartID, ok := h.carts.Require(w, r)
