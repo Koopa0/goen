@@ -16,26 +16,30 @@ import (
 	"github.com/koopa0/goen/internal/ui/widget"
 )
 
-// DepartmentHead reads what a department page says under its band. The campaign notice and the
-// editorial slot are read only when slots is true, which is the unfiltered first page: a page
-// of filtered results is not the department's front. compared is whether the department
-// puts its products side by side.
-func (s *Store) DepartmentHead(ctx context.Context, slug string, compared, slots bool, offers map[uuid.UUID]bool) (*DepartmentHead, error) {
+// DepartmentHead reads what a department page says under its band. Only the department's front
+// has a head: a page of filtered results, or a later page, is not the front and gets an empty one.
+// The campaign notice is read for every front; the editorial slot (the comparison when the
+// department compares its products, else the colour story) only when the front has the
+// products to carry it, see ListingView.HasEditorial.
+func (s *Store) DepartmentHead(ctx context.Context, v ListingView, offers map[uuid.UUID]bool) (*DepartmentHead, error) {
 	head := &DepartmentHead{}
-	if !slots {
+	if !v.IsFront() {
 		return head, nil
 	}
 	var err error
-	if head.Notice, err = s.departmentNotice(ctx, slug); err != nil {
+	if head.Notice, err = s.departmentNotice(ctx, v.Slug); err != nil {
 		return nil, err
 	}
-	if compared {
-		if head.Preview, err = s.comparePreview(ctx, slug, offers); err != nil {
+	if !v.HasEditorial() {
+		return head, nil
+	}
+	if v.Theme.Comparable {
+		if head.Preview, err = s.comparePreview(ctx, v.Slug, offers); err != nil {
 			return nil, err
 		}
 	}
 	if head.Preview == nil {
-		if head.Story, err = s.colourStory(ctx, slug); err != nil {
+		if head.Story, err = s.colourStory(ctx, v.Slug); err != nil {
 			return nil, err
 		}
 	}
