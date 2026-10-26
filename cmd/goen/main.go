@@ -900,7 +900,7 @@ func startWorkers(ctx context.Context, d workerDeps) {
 	// Before the hold sweeper can cancel a lapsed order, its checkout must be
 	// closed: by Stripe's event, or by this sweeper asking Stripe when the event
 	// never came. With no Stripe key no checkout was ever opened.
-	if d.payments != nil && d.payments.Enabled() {
+	if d.payments.Enabled() {
 		d.run(func() {
 			payment.NewSessionSweeper(payment.NewStore(d.pool), d.payments).SweepForever(ctx, d.log)
 		})

@@ -13,12 +13,6 @@ import (
 // disputeReadTimeout keeps the health page from waiting on Stripe.
 const disputeReadTimeout = 4 * time.Second
 
-// DisputeSource is Stripe's view of the disputes the shop has yet to answer.
-type DisputeSource interface {
-	DisputesNeedingResponse(ctx context.Context) ([]payment.Dispute, error)
-	DisputeURL(id string) string
-}
-
 // OrderNumbersBySession maps Checkout Session ids to the order number of the
 // goen payment that opened each; a session goen never recorded is absent.
 func (s *Store) OrderNumbersBySession(ctx context.Context, sessionIDs []string) (map[string]string, error) {
@@ -36,15 +30,15 @@ func (s *Store) OrderNumbersBySession(ctx context.Context, sessionIDs []string) 
 // readDisputes never reports "none" for a read that did not finish: a failure
 // or timeout is Unknown.
 func readDisputes(
-	ctx context.Context, src DisputeSource, timeout time.Duration, log *slog.Logger,
+	ctx context.Context, gateway *payment.Gateway, timeout time.Duration, log *slog.Logger,
 	orders func(ctx context.Context, sessionIDs []string) (map[string]string, error),
 ) DisputeState {
-	if src == nil {
+	if !gateway.Enabled() {
 		return DisputeState{}
 	}
 	stripeCtx, cancelStripe := context.WithTimeout(ctx, timeout)
 	defer cancelStripe()
-	found, err := src.DisputesNeedingResponse(stripeCtx)
+	found, err := gateway.DisputesNeedingResponse(stripeCtx)
 	if err != nil {
 		log.WarnContext(ctx, "read disputes from Stripe", "error", err)
 		return DisputeState{Configured: true, Unknown: true}
@@ -68,7 +62,7 @@ func readDisputes(
 		}
 	}
 	return DisputeState{
-		Configured: true, OrdersUnknown: ordersUnknown, Items: openDisputes(found, matched, src.DisputeURL),
+		Configured: true, OrdersUnknown: ordersUnknown, Items: openDisputes(found, matched, gateway.DisputeURL),
 	}
 }
 
