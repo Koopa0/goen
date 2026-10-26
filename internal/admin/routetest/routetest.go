@@ -1,11 +1,11 @@
-// Package accesstest is the check every back-office feature runs on its own
+// Package routetest is the check every back-office feature runs on its own
 // routes, that each one is behind the back office's guard; it holds
 // RefuseOutsiders and RefuseOutsidersOn; it does not hold the back office's
 // integration fixtures (admintest).
 //
 // A route table moved out of server.go no longer shows the guards in one
 // place, so each feature checks its own.
-package accesstest
+package routetest
 
 import (
 	"context"

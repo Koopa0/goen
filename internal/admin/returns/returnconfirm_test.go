@@ -15,7 +15,7 @@ func TestConfirmReturnSelectedDecision(t *testing.T) {
 	for _, locale := range []i18n.Locale{i18n.ZhHant, i18n.En} {
 		for _, decision := range []string{"approved", "rejected", "exception"} {
 			ctx := i18n.WithLocale(t.Context(), locale)
-			v := ReturnConfirmation{ID: "return-id", OrderNumber: "order-number", Decision: decision, Reason: "customer reason", Resolution: "staff explanation", AmountCents: 12500, Required: decision != "approved"}
+			v := Confirmation{ID: "return-id", OrderNumber: "order-number", Decision: decision, Reason: "customer reason", Resolution: "staff explanation", AmountCents: 12500, Required: decision != "approved"}
 			var body strings.Builder
 			if err := ConfirmReturn(frame.Page{Title: v.Title(ctx)}, v).Render(ctx, &body); err != nil {
 				t.Fatal(err)
@@ -46,7 +46,7 @@ func TestConfirmReturnRequiredMark(t *testing.T) {
 	ctx := i18n.WithLocale(t.Context(), i18n.ZhHant)
 	for _, required := range []bool{true, false} {
 		html := renderComponent(t, ctx, ConfirmReturn(frame.Page{Title: "r"},
-			ReturnConfirmation{ID: "id", OrderNumber: "GO-1", Decision: "rejected", Required: required}))
+			Confirmation{ID: "id", OrderNumber: "GO-1", Decision: "rejected", Required: required}))
 		if got := strings.Contains(html, i18n.T(ctx, i18n.KeyAdminRequiredMark)); got != required {
 			t.Errorf("required=%t but the mark is shown=%t", required, got)
 		}

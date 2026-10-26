@@ -119,9 +119,9 @@ func TestStore_RecentOrdersMatchTheQueue(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Dashboard: %v", err)
 	}
-	listed := map[string]orders.OrderRow{}
+	listed := map[string]orders.Row{}
 	for _, row := range view.Recent {
-		listed[row.Number] = orders.OrderRow(row)
+		listed[row.Number] = orders.Row(row)
 	}
 	for name, number := range numbers {
 		onDashboard, ok := listed[number]

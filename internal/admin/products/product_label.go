@@ -200,7 +200,7 @@ func (h *Handler) rejectProductLabel(w http.ResponseWriter, r *http.Request, inp
 	}
 	view.LabelInput = input
 	view.Errors = errs
-	respond.Component(w, r, h.log, http.StatusUnprocessableEntity, ProductForm(frame.Page{Title: view.Name}, view))
+	respond.Component(w, r, h.log, http.StatusUnprocessableEntity, Product(frame.Page{Title: view.Name}, view))
 }
 
 // validateLabel reports each field of the labelling form that the store would

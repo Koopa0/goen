@@ -21,7 +21,7 @@ type Choice struct {
 	Label string
 }
 
-type Product struct {
+type Row struct {
 	Slug       string
 	Name       string
 	Status     product.Status
@@ -33,23 +33,23 @@ type Product struct {
 	Translated bool
 }
 
-func (p Product) From() string {
+func (p Row) From() string {
 	if p.Variants == 0 || p.FromCents == 0 {
 		return "—"
 	}
 	return money.TWD(p.FromCents)
 }
 
-func (p Product) VariantsText() string { return strconv.FormatInt(int64(p.Variants), 10) }
+func (p Row) VariantsText() string { return strconv.FormatInt(int64(p.Variants), 10) }
 
-func (p Product) Href() string { return "/admin/products/" + p.Slug }
+func (p Row) Href() string { return "/admin/products/" + p.Slug }
 
-func (p Product) Sellable() bool { return p.Status == product.StatusActive && p.Variants > 0 }
+func (p Row) Sellable() bool { return p.Status == product.StatusActive && p.Variants > 0 }
 
 type View struct {
 	keyset.Bound
 
-	Rows []Product
+	Rows []Row
 	// Published is how many products the shop sells now, over every page of Rows.
 	Published int64
 	Notice    widget.Result
@@ -57,7 +57,7 @@ type View struct {
 
 func (v View) Empty() bool { return len(v.Rows) == 0 }
 
-type ProductVariant struct {
+type Variant struct {
 	SKU          string
 	PriceCents   int64
 	CompareCents int64
@@ -67,18 +67,18 @@ type ProductVariant struct {
 	Options      []string
 }
 
-func (v ProductVariant) OptionText() string { return strings.Join(v.Options, " · ") }
+func (v Variant) OptionText() string { return strings.Join(v.Options, " · ") }
 
-func (v ProductVariant) Price() string { return money.TWD(v.PriceCents) }
+func (v Variant) Price() string { return money.TWD(v.PriceCents) }
 
-func (v ProductVariant) Compare() string {
+func (v Variant) Compare() string {
 	if v.CompareCents == 0 {
 		return ""
 	}
 	return money.TWD(v.CompareCents)
 }
 
-func (v ProductVariant) StockText(ctx context.Context) string {
+func (v Variant) StockText(ctx context.Context) string {
 	sellable := max(v.Stock-v.SafetyStock, 0)
 	return fmt.Sprintf(i18n.T(ctx, i18n.KeyAdminStockOf), v.Stock, sellable)
 }
@@ -105,7 +105,7 @@ type ProductView struct {
 	Library           []Image
 	Brands            []Choice
 	Categories        []Choice
-	Variants          []ProductVariant
+	Variants          []Variant
 	Options           []Option
 	Specs             []Spec
 	Errors            map[string]string
@@ -113,16 +113,16 @@ type ProductView struct {
 	VariantDraft      VariantDraft
 	SpecDraft         SpecDraft
 	Sales             Sales
-	Ratings           ProductRatings
-	ImageUploadDraft  ProductImageUploadDraft
-	ImageReuseDraft   ProductImageReuseDraft
+	Ratings           Ratings
+	ImageUploadDraft  ImageUploadDraft
+	ImageReuseDraft   ImageReuseDraft
 }
 
-type ProductImageUploadDraft struct {
+type ImageUploadDraft struct {
 	Alt, AltEn, OptionValue string
 }
 
-type ProductImageReuseDraft struct {
+type ImageReuseDraft struct {
 	Digest, Alt, AltEn string
 }
 

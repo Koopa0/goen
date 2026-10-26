@@ -66,7 +66,7 @@ func (p ReturnedProduct) Figure(ctx context.Context) string {
 }
 
 // ReturnedOne is the sentence that stands where a single product's bar would.
-func (v *ReportView) ReturnedOne(ctx context.Context) string {
+func (v *View) ReturnedOne(ctx context.Context) string {
 	p := v.Returned[0]
 	return fmt.Sprintf(i18n.T(ctx, i18n.KeyAdminRepReturnedOne), p.Name, p.Counts(ctx))
 }

@@ -86,7 +86,7 @@ func (h *Handler) New(w http.ResponseWriter, r *http.Request) {
 		admin.ServerError(w, r, h.log)
 		return
 	}
-	respond.Component(w, r, h.log, http.StatusOK, ProductForm(
+	respond.Component(w, r, h.log, http.StatusOK, Product(
 		frame.Page{Title: i18n.T(r.Context(), i18n.KeyAdminPageNewProduct)}, view))
 }
 
@@ -167,7 +167,7 @@ func (h *Handler) renderProduct(w http.ResponseWriter, r *http.Request, status i
 	}
 	view.Notice = notice
 
-	respond.Component(w, r, h.log, status, ProductForm(
+	respond.Component(w, r, h.log, status, Product(
 		frame.Page{Title: view.Name}, view))
 }
 
@@ -354,7 +354,7 @@ func (h *Handler) rejectProduct(w http.ResponseWriter, r *http.Request, f *Form,
 	view.DescriptionEn = r.PostFormValue("description_en")
 	view.BrandID, view.CategoryID = r.PostFormValue("brand"), r.PostFormValue("category")
 	view.Errors = errs
-	respond.Component(w, r, h.log, http.StatusUnprocessableEntity, ProductForm(
+	respond.Component(w, r, h.log, http.StatusUnprocessableEntity, Product(
 		frame.Page{Title: view.Title(r.Context())}, view))
 }
 
@@ -421,13 +421,13 @@ func (h *Handler) ReuseImage(w http.ResponseWriter, r *http.Request) {
 
 func (h *Handler) rejectImageUpload(w http.ResponseWriter, r *http.Request, field string, key i18n.Key) {
 	h.editProductWithErrors(w, r, r.PathValue("slug"), map[string]string{field: i18n.T(r.Context(), key)}, &productDrafts{
-		upload: ProductImageUploadDraft{Alt: r.PostFormValue("alt"), AltEn: r.PostFormValue("alt_en"), OptionValue: r.PostFormValue("option_value")},
+		upload: ImageUploadDraft{Alt: r.PostFormValue("alt"), AltEn: r.PostFormValue("alt_en"), OptionValue: r.PostFormValue("option_value")},
 	})
 }
 
 func (h *Handler) rejectImageReuse(w http.ResponseWriter, r *http.Request, field string, key i18n.Key) {
 	h.editProductWithErrors(w, r, r.PathValue("slug"), map[string]string{"reuse_" + field: i18n.T(r.Context(), key)}, &productDrafts{
-		reuse: ProductImageReuseDraft{Digest: r.PostFormValue("digest"), Alt: r.PostFormValue("alt"), AltEn: r.PostFormValue("alt_en")},
+		reuse: ImageReuseDraft{Digest: r.PostFormValue("digest"), Alt: r.PostFormValue("alt"), AltEn: r.PostFormValue("alt_en")},
 	})
 }
 
@@ -630,8 +630,8 @@ func (h *Handler) RemoveSpec(w http.ResponseWriter, r *http.Request) {
 type productDrafts struct {
 	variant VariantDraft
 	spec    SpecDraft
-	upload  ProductImageUploadDraft
-	reuse   ProductImageReuseDraft
+	upload  ImageUploadDraft
+	reuse   ImageReuseDraft
 }
 
 func (h *Handler) editProductWithErrors(
@@ -650,7 +650,7 @@ func (h *Handler) editProductWithErrors(
 	view.Errors = errs
 	view.VariantDraft, view.SpecDraft = draft.variant, draft.spec
 	view.ImageUploadDraft, view.ImageReuseDraft = draft.upload, draft.reuse
-	respond.Component(w, r, h.log, http.StatusUnprocessableEntity, ProductForm(
+	respond.Component(w, r, h.log, http.StatusUnprocessableEntity, Product(
 		frame.Page{Title: view.Title(r.Context())}, view))
 }
 

@@ -10,7 +10,7 @@ import (
 	"github.com/koopa0/goen/internal/ui/widget"
 )
 
-type CreditEntry struct {
+type Entry struct {
 	Email       string
 	AmountCents int64
 	Kind        credit.Kind
@@ -27,24 +27,24 @@ type CreditEntry struct {
 	RunningTotalCents int64
 }
 
-func (e CreditEntry) ReasonText(ctx context.Context) string {
+func (e Entry) ReasonText(ctx context.Context) string {
 	return credit.Reason(ctx, e.Kind, e.Reason)
 }
 
-func (e CreditEntry) Amount() string {
+func (e Entry) Amount() string {
 	if e.AmountCents < 0 {
 		return "-" + money.TWD(-e.AmountCents)
 	}
 	return "+" + money.TWD(e.AmountCents)
 }
 
-func (e CreditEntry) IsSpend() bool { return e.AmountCents < 0 }
+func (e Entry) IsSpend() bool { return e.AmountCents < 0 }
 
-func (e CreditEntry) CustomerHref() string { return "/admin/customers/" + e.CustomerID }
+func (e Entry) CustomerHref() string { return "/admin/customers/" + e.CustomerID }
 
 // SourceHref is the return a payout settles, else the order a posting belongs
 // to, and empty for a posting with neither.
-func (e CreditEntry) SourceHref() string {
+func (e Entry) SourceHref() string {
 	switch {
 	case e.ReturnID != "":
 		return keyset.ScopeURL("/admin/returns", "request", e.ReturnID)
@@ -55,12 +55,12 @@ func (e CreditEntry) SourceHref() string {
 	}
 }
 
-func (e CreditEntry) RunningTotal() string { return money.TWD(e.RunningTotalCents) }
+func (e Entry) RunningTotal() string { return money.TWD(e.RunningTotalCents) }
 
-type CreditView struct {
+type View struct {
 	keyset.Bound
 
-	Rows   []CreditEntry
+	Rows   []Entry
 	Notice widget.Result
 	Email  string
 	Reason string
@@ -83,17 +83,17 @@ type CreditView struct {
 	FilterCustomerName string
 }
 
-func (v *CreditView) Filtered() bool { return v.FilterCustomerID != "" }
+func (v *View) Filtered() bool { return v.FilterCustomerID != "" }
 
-func (v *CreditView) Empty() bool { return len(v.Rows) == 0 }
+func (v *View) Empty() bool { return len(v.Rows) == 0 }
 
-func (e CreditEntry) Who(ctx context.Context) string {
+func (e Entry) Who(ctx context.Context) string {
 	if e.Email == "" {
 		return i18n.T(ctx, i18n.KeyAdminErasedShort)
 	}
 	return e.Email
 }
 
-func (v *CreditView) Balance() string { return money.TWD(v.BalanceCents) }
+func (v *View) Balance() string { return money.TWD(v.BalanceCents) }
 
-func (v *CreditView) GrantAmount() string { return money.TWD(v.GrantCents) }
+func (v *View) GrantAmount() string { return money.TWD(v.GrantCents) }

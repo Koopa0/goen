@@ -52,7 +52,7 @@ func TestCustomerUnverifiedEmailBadge(t *testing.T) {
 	ctx := i18n.WithLocale(t.Context(), i18n.ZhHant)
 	badge := `<span class="goen-badge">` + i18n.T(ctx, i18n.KeyAdminCustEmailUnconfirmed) + `</span>`
 	profile := renderComponent(t, ctx, Customer(Meta(ctx), &CustomerView{ID: "c1", Email: "ada@example.test"}))
-	list := renderComponent(t, ctx, Customers(Meta(ctx), View{Term: "ada", Searched: true, Rows: []CustomerRow{{ID: "c1", Email: "ada@example.test"}}}))
+	list := renderComponent(t, ctx, Customers(Meta(ctx), View{Term: "ada", Searched: true, Rows: []Row{{ID: "c1", Email: "ada@example.test"}}}))
 	for name, body := range map[string]string{"profile": profile, "search result": list} {
 		if !strings.Contains(body, badge) {
 			t.Errorf("%s lacks the neutral unverified badge %q", name, badge)

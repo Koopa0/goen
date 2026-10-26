@@ -30,7 +30,7 @@ func TestStore_ReviewsFilter(t *testing.T) {
 	ctx, _ := admintest.StaffContext(t, owner)
 	want := seedFilteredReviews(ctx, t, owner)
 	store := reviews.NewStore(admintest.AdminRolePool(t, owner))
-	first, err := store.Reviews(ctx, reviews.ThreeStarsAndBelowReviews)
+	first, err := store.Reviews(ctx, reviews.FilterThreeStarsAndBelow)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -45,7 +45,7 @@ func TestStore_ReviewsFilter(t *testing.T) {
 		t.Fatal("next page loses the rating filter")
 	}
 	token := next.Query().Get(keyset.Param)
-	last, err := store.Reviews(ctx, reviews.ThreeStarsAndBelowReviews, token)
+	last, err := store.Reviews(ctx, reviews.FilterThreeStarsAndBelow, token)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -67,7 +67,7 @@ func TestStore_ReviewsFilter(t *testing.T) {
 	if !hidden {
 		t.Error("filtered queue loses hidden reviews")
 	}
-	all, err := store.Reviews(ctx, reviews.AllReviews, token)
+	all, err := store.Reviews(ctx, reviews.FilterAll, token)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -78,7 +78,7 @@ func TestStore_ReviewsFilter(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	restarted, err := store.Reviews(ctx, reviews.ThreeStarsAndBelowReviews, unfilteredNext.Query().Get(keyset.Param))
+	restarted, err := store.Reviews(ctx, reviews.FilterThreeStarsAndBelow, unfilteredNext.Query().Get(keyset.Param))
 	if err != nil {
 		t.Fatal(err)
 	}

@@ -86,7 +86,7 @@ templ Questions(p frame.Page, v View) {
 											if !answer.Hidden {
 												<form method="post" action={ templ.SafeURL(q.AnswerAction()) }>
 													<input type="hidden" name="answer_id" value={ answer.ID }/>
-													@widget.Button(widget.ButtonProps{ButtonStyle: widget.ButtonStyleGhost, Size: widget.SizeSmall, Attrs: templ.Attributes{"name": "action", "value": string(QuestionHideAnswerAction)}}, "submit") {
+													@widget.Button(widget.ButtonProps{ButtonStyle: widget.ButtonStyleGhost, Size: widget.SizeSmall, Attrs: templ.Attributes{"name": "action", "value": string(ActionHideAnswer)}}, "submit") {
 														{ i18n.T(ctx, i18n.KeyAdminAnswerHide) }
 													}
 												</form>
@@ -125,7 +125,7 @@ templ Questions(p frame.Page, v View) {
 									@widget.Button(widget.ButtonProps{
 										ButtonStyle: widget.ButtonStyleOutline,
 										Size:        widget.SizeSmall,
-										Attrs:       templ.Attributes{"name": "action", "value": string(QuestionAnswerAction)},
+										Attrs:       templ.Attributes{"name": "action", "value": string(ActionAnswer)},
 									}, "submit") {
 										{ i18n.T(ctx, i18n.KeyAdminQuestionSend) }
 									}

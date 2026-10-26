@@ -32,7 +32,7 @@ func TestRefusedIfNoRowRefusesOnlyAMissingRow(t *testing.T) {
 	}
 }
 
-func TestOrderRowCarriesTheColourOfItsWord(t *testing.T) {
+func TestRowCarriesTheColourOfItsWord(t *testing.T) {
 	t.Parallel()
 	row := orderRow(t.Context(), &db.AdminOrdersRow{FulfillmentStatus: string(order.FulfillmentPicking), Committed: true}, false)
 	if row.StatusIntent != widget.IntentProgress {
