@@ -9,7 +9,7 @@ import (
 	"github.com/google/uuid"
 
 	"github.com/koopa0/goen/internal/admin"
-	"github.com/koopa0/goen/internal/admin/accesstest"
+	"github.com/koopa0/goen/internal/admin/routetest"
 	"github.com/koopa0/goen/internal/user"
 )
 
@@ -19,7 +19,7 @@ import (
 func TestHandler_RoutesRefuseOutsiders(t *testing.T) {
 	t.Parallel()
 	h := keylessHandler(t)
-	accesstest.RefuseOutsiders(t, func(mux *http.ServeMux, ac *admin.Control) {
+	routetest.RefuseOutsiders(t, func(mux *http.ServeMux, ac *admin.Control) {
 		h.Routes(mux, ac)
 	}, "GET /admin/verify", "POST /admin/verify", "POST /admin/verify/enrol", "POST /admin/verify/confirm")
 }

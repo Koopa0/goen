@@ -17,7 +17,7 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 
 	"github.com/koopa0/goen/assets"
-	"github.com/koopa0/goen/internal/admin/accesstest"
+	"github.com/koopa0/goen/internal/admin/routetest"
 	"github.com/koopa0/goen/internal/checkout"
 	"github.com/koopa0/goen/internal/payment"
 	"github.com/koopa0/goen/internal/shipping/storemap"
@@ -495,5 +495,5 @@ func TestRoutingBackOfficeOutsider(t *testing.T) {
 	if len(routes) < backOfficeRouteFloor {
 		t.Fatalf("found %d back-office patterns, want at least %d: the walk reads too little", len(routes), backOfficeRouteFloor)
 	}
-	accesstest.RefuseOutsidersOn(t, idleInventoryMux(t), routes...)
+	routetest.RefuseOutsidersOn(t, idleInventoryMux(t), routes...)
 }
