@@ -103,7 +103,7 @@ func collectSources(t *testing.T, root string, out map[string]string) {
 			return err
 		}
 		if d.IsDir() {
-			// A test-helper package (admintest, accesstest) holds fixture data, as *_test.go does.
+			// A test-helper package (admintest, routetest) holds fixture data, as *_test.go does.
 			if d.Name() == "db" || (path != root && strings.HasSuffix(d.Name(), "test")) {
 				return filepath.SkipDir
 			}
