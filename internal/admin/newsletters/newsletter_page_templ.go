@@ -19,7 +19,7 @@ import (
 // The figures are divisions rather than links because no screen lists the people
 // they count. Sending is the one decision here, so the only primary control;
 // saving a draft is reversible and takes an outline.
-func Newsletter(p frame.Page, v NewsletterView) templ.Component {
+func Newsletter(p frame.Page, v View) templ.Component {
 	return templruntime.GeneratedTemplate(func(templ_7745c5c3_Input templruntime.GeneratedComponentInput) (templ_7745c5c3_Err error) {
 		templ_7745c5c3_W, ctx := templ_7745c5c3_Input.Writer, templ_7745c5c3_Input.Context
 		if templ_7745c5c3_CtxErr := ctx.Err(); templ_7745c5c3_CtxErr != nil {

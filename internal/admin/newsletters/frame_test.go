@@ -29,7 +29,7 @@ func TestNewsletterContentColumn(t *testing.T) {
 	ctx := frame.WithStaff(i18n.WithLocale(t.Context(), i18n.ZhHant), true)
 
 	for name, screen := range map[string]templ.Component{
-		"newsletter": Newsletter(frame.Page{}, NewsletterView{}),
+		"newsletter": Newsletter(frame.Page{}, View{}),
 	} {
 		html := renderComponent(t, ctx, screen)
 

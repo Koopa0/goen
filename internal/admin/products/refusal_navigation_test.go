@@ -11,9 +11,9 @@ import (
 	"github.com/koopa0/goen/internal/ui/frame"
 )
 
-// TestProductFormRefusalSummary: a desk refusal names its form and links to the
+// TestProductRefusalSummary: a desk refusal names its form and links to the
 // first invalid control.
-func TestProductFormRefusalSummary(t *testing.T) {
+func TestProductRefusalSummary(t *testing.T) {
 	t.Parallel()
 	for _, locale := range i18n.Locales() {
 		t.Run(locale.Tag(), func(t *testing.T) {
@@ -27,10 +27,10 @@ func TestProductFormRefusalSummary(t *testing.T) {
 				title                 i18n.Key
 				count                 int
 			}{
-				{"details", ProductForm(frame.Page{}, ProductView{Slug: "test", Name: "", Summary: "kept", Errors: map[string]string{"name": bad, "summary": bad}}), "/admin/products/test#sec-details", "sec-details", "p-name", i18n.KeyAdminProdBasics, 2},
-				{"variant", ProductForm(frame.Page{}, ProductView{Slug: "test", VariantDraft: VariantDraft{SKU: "", Price: "wrong"}, Errors: map[string]string{"sku": bad, "price": bad}}), "/admin/products/test/variants#sec-variants", "sec-variants", "v-sku", i18n.KeyAdminProdVariantAdd, 2},
-				{"option", ProductForm(frame.Page{}, ProductView{Slug: "test", Errors: map[string]string{"option": bad}}), "/admin/products/test/options#sec-options", "sec-options", "opt-name", i18n.KeyAdminProdOptionAdd, 1},
-				{"spec", ProductForm(frame.Page{}, ProductView{Slug: "test", Errors: map[string]string{"spec_label": bad, "spec_value": bad}}), "/admin/products/test/specs#sec-specs", "sec-specs", "spec-label", i18n.KeyAdminProdSpecs, 2},
+				{"details", Product(frame.Page{}, ProductView{Slug: "test", Name: "", Summary: "kept", Errors: map[string]string{"name": bad, "summary": bad}}), "/admin/products/test#sec-details", "sec-details", "p-name", i18n.KeyAdminProdBasics, 2},
+				{"variant", Product(frame.Page{}, ProductView{Slug: "test", VariantDraft: VariantDraft{SKU: "", Price: "wrong"}, Errors: map[string]string{"sku": bad, "price": bad}}), "/admin/products/test/variants#sec-variants", "sec-variants", "v-sku", i18n.KeyAdminProdVariantAdd, 2},
+				{"option", Product(frame.Page{}, ProductView{Slug: "test", Errors: map[string]string{"option": bad}}), "/admin/products/test/options#sec-options", "sec-options", "opt-name", i18n.KeyAdminProdOptionAdd, 1},
+				{"spec", Product(frame.Page{}, ProductView{Slug: "test", Errors: map[string]string{"spec_label": bad, "spec_value": bad}}), "/admin/products/test/specs#sec-specs", "sec-specs", "spec-label", i18n.KeyAdminProdSpecs, 2},
 			}
 			for _, tc := range cases {
 				t.Run(tc.name, func(t *testing.T) {

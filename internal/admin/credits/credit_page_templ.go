@@ -15,7 +15,7 @@ import (
 
 // The grant is a card of its own because it writes money: sharing a panel with the
 // history it extends invites a reader to take the history for the form's fields.
-func Credit(p frame.Page, v CreditView) templ.Component {
+func Credit(p frame.Page, v View) templ.Component {
 	return templruntime.GeneratedTemplate(func(templ_7745c5c3_Input templruntime.GeneratedComponentInput) (templ_7745c5c3_Err error) {
 		templ_7745c5c3_W, ctx := templ_7745c5c3_Input.Writer, templ_7745c5c3_Input.Context
 		if templ_7745c5c3_CtxErr := ctx.Err(); templ_7745c5c3_CtxErr != nil {

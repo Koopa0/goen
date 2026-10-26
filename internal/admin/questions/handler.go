@@ -38,9 +38,9 @@ var notices = map[string]widget.NoticeEntry{
 }
 
 func (h *Handler) Questions(w http.ResponseWriter, r *http.Request) {
-	queue := VisibleQuestions
+	queue := QueueVisible
 	if r.URL.Query().Get("hidden") == "1" {
-		queue = HiddenQuestions
+		queue = QueueHidden
 	}
 	view, err := h.store.Questions(r.Context(), queue, r.URL.Query().Get(keyset.Param))
 	if err != nil {
@@ -66,14 +66,14 @@ func (h *Handler) AnswerQuestion(w http.ResponseWriter, r *http.Request) {
 	id := r.PathValue("id")
 
 	var err error
-	switch QuestionAction(r.PostFormValue("action")) {
-	case QuestionHideAction:
+	switch Action(r.PostFormValue("action")) {
+	case ActionHide:
 		err = h.store.HideQuestion(r.Context(), id)
-	case QuestionShowAction:
+	case ActionShow:
 		err = h.store.ShowQuestion(r.Context(), id)
-	case QuestionHideAnswerAction:
+	case ActionHideAnswer:
 		err = h.store.HideAnswer(r.Context(), id, r.PostFormValue("answer_id"))
-	case QuestionAnswerAction, "":
+	case ActionAnswer, "":
 		err = h.store.AnswerQuestion(r.Context(), id, u.ID, r.PostFormValue("body"))
 	default:
 		err = ErrNotFound
@@ -93,7 +93,7 @@ func (h *Handler) AnswerQuestion(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *Handler) rejectAnswer(w http.ResponseWriter, r *http.Request, id string) {
-	view, err := h.store.Questions(r.Context(), VisibleQuestions)
+	view, err := h.store.Questions(r.Context(), QueueVisible)
 	if err != nil {
 		h.log.ErrorContext(r.Context(), "read questions after refused answer", "error", err)
 		admin.ServerError(w, r, h.log)

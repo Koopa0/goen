@@ -12,11 +12,11 @@ import (
 
 const seedBanner = "campaign-banner-01.webp"
 
-// TestCampaignFormImageErrors: campaign image form flags a wrong field for assistive tech.
-func TestCampaignFormImageErrors(t *testing.T) {
+// TestCampaignImageErrors: campaign image form flags a wrong field for assistive tech.
+func TestCampaignImageErrors(t *testing.T) {
 	t.Parallel()
 	ctx := i18n.WithLocale(t.Context(), i18n.En)
-	page := renderComponent(t, ctx, CampaignForm(frame.Page{Title: "c"}, CampaignView{
+	page := renderComponent(t, ctx, Campaign(frame.Page{Title: "c"}, CampaignView{
 		Slug:   "c",
 		Errors: map[string]string{"alt": "alt needed", "image": "not an image"},
 		Image:  widget.HeaderImage{Image: picture.Image{BundledKey: seedBanner, Width: 1600}, Alt: "Products on sale"},
@@ -34,17 +34,17 @@ func TestCampaignFormImageErrors(t *testing.T) {
 	}
 }
 
-// TestCampaignFormTitleDatesSearch: the campaign page is titled, edits its dates and adds products by search.
-func TestCampaignFormTitleDatesSearch(t *testing.T) {
+// TestCampaignTitleDatesSearch: the campaign page is titled, edits its dates and adds products by search.
+func TestCampaignTitleDatesSearch(t *testing.T) {
 	t.Parallel()
 	ctx := i18n.WithLocale(t.Context(), i18n.ZhHant)
-	page := renderComponent(t, ctx, CampaignForm(frame.Page{Title: "c"}, CampaignView{
+	page := renderComponent(t, ctx, Campaign(frame.Page{Title: "c"}, CampaignView{
 		Slug: "autumn-picks",
-		CampaignDetail: CampaignDetail{
+		Detail: Detail{
 			Title: "秋季精選", StartsAtInput: "2026-10-01T09:00", EndsAtInput: "2026-10-31T23:59", Active: true,
 		},
 		Term:    "mug",
-		Matches: []CampaignProduct{{Slug: "ceramic-mug", Name: "陶瓷馬克杯", HasVariant: true, HasDiscountedVariant: true, PriceCents: 99000, CompareCents: 129000, SellableUnits: 1}},
+		Matches: []Product{{Slug: "ceramic-mug", Name: "陶瓷馬克杯", HasVariant: true, HasDiscountedVariant: true, PriceCents: 99000, CompareCents: 129000, SellableUnits: 1}},
 	}))
 	_, afterH1, _ := strings.Cut(page, `<h1 class="ui-page-head__title">`)
 	if h1, _, _ := strings.Cut(afterH1, "</h1>"); h1 != "秋季精選" {

@@ -156,8 +156,8 @@ func (h *Handler) confirmRefundBeforeShipment(w http.ResponseWriter, r *http.Req
 	return true
 }
 
-func refundConfirmation(number string, p *Preview) RefundConfirmation {
-	return RefundConfirmation{
+func refundConfirmation(number string, p *Preview) Confirmation {
+	return Confirmation{
 		OrderNumber: number, TotalCents: p.TotalCents,
 		CardCents: p.CardCents, CreditCents: p.CreditCents,
 		Resume: p.Open, CreditPaid: p.CreditPaid,

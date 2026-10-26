@@ -57,7 +57,7 @@ type View struct {
 }
 
 // OrderRow is one of the newest orders as the dashboard lists it. It is a copy
-// of the orders queue's row (orders.OrderRow): the two pages show the same
+// of the orders queue's row (orders.Row): the two pages show the same
 // order the same way. TestStore_RecentOrdersMatchTheQueue converts one into
 // the other, so their fields cannot drift apart.
 type OrderRow struct {

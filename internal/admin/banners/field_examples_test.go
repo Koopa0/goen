@@ -45,7 +45,7 @@ func TestBannersFieldExamples(t *testing.T) {
 					fields    map[string]string
 				}{
 					{"strip", Banners(p, &View{
-						Draft:  BannerDraft{Message: typed, Short: typed, CTALabel: typed, MessageEn: typed, CTALabelEn: typed, CTAHref: typed, Code: typed, Days: typed},
+						Draft:  Draft{Message: typed, Short: typed, CTALabel: typed, MessageEn: typed, CTALabelEn: typed, CTAHref: typed, Code: typed, Days: typed},
 						Errors: errors("message", "short", "message_en", "cta", "days"),
 					}), map[string]string{
 						"b-message": prefix + message, "b-short": prefix + short, "b-cta-label": prefix + cta, "b-message-en": prefix + "Free delivery over NT$3,000", "b-cta-label-en": prefix + "Shop", "b-cta-href": prefix + "/deals", "b-code": prefix + "FREESHIP", "b-days": days,

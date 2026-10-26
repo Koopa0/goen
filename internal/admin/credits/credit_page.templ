@@ -8,7 +8,7 @@ import (
 
 // The grant is a card of its own because it writes money: sharing a panel with the
 // history it extends invites a reader to take the history for the form's fields.
-templ Credit(p frame.Page, v CreditView) {
+templ Credit(p frame.Page, v View) {
 	@frame.Admin(p, "credits") {
 		<div class="ui-page-head">
 			<div>

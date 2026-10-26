@@ -26,7 +26,7 @@ const MaxBannerRunes = 60
 // carousel slide, and KeyFormRunDays states it to staff.
 const MaxDays = 365
 
-type BannerForm struct {
+type Form struct {
 	Message    string
 	Short      string
 	Code       string
@@ -38,7 +38,7 @@ type BannerForm struct {
 	Days       int32
 }
 
-func (f *BannerForm) Validate(ctx context.Context) map[string]string {
+func (f *Form) Validate(ctx context.Context) map[string]string {
 	f.Message = strings.TrimSpace(f.Message)
 	f.Short = strings.TrimSpace(f.Short)
 	f.Code = strings.TrimSpace(f.Code)
@@ -107,7 +107,7 @@ func (s *Store) Banners(ctx context.Context, after ...string) (View, error) {
 	return out, nil
 }
 
-func (s *Store) CreateBanner(ctx context.Context, f *BannerForm) (map[string]string, error) {
+func (s *Store) CreateBanner(ctx context.Context, f *Form) (map[string]string, error) {
 	if errs := f.Validate(ctx); len(errs) > 0 {
 		return errs, nil
 	}
