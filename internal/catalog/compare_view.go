@@ -70,11 +70,13 @@ type CompareRow struct {
 }
 
 func (r CompareRow) Value(i int) string {
-	if i < 0 || i >= len(r.Values) || r.Values[i] == "" {
+	if !r.Stated(i) {
 		return "—"
 	}
 	return r.Values[i]
 }
+
+func (r CompareRow) Stated(i int) bool { return i >= 0 && i < len(r.Values) && r.Values[i] != "" }
 
 func (r CompareRow) Comparable(products int) bool { return r.SharedBy >= products }
 
