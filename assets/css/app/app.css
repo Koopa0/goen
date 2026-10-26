@@ -1691,11 +1691,14 @@ body:has(.goen-hero) .goen-header {
   font-weight: var(--fw-semibold);
 }
 
+/* The address is one unbreakable word; at 200% text in the five-column footer it
+   otherwise runs into the next column (WCAG 1.4.4). */
 .goen-footer__contact {
   color: var(--n-500);
   font-size: var(--fs-14);
   line-height: var(--lh-read);
   margin: 1rem 0 0;
+  overflow-wrap: anywhere;
 }
 
 .goen-footer__links {
