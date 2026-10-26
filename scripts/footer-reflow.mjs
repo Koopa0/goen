@@ -41,7 +41,7 @@ export async function checkFooterReflow({ origin, send, evaluate, navigate }) {
             }
           }
         }
-        return { lang: document.documentElement.lang, width: document.documentElement.clientWidth,
+        return { lang: document.documentElement.lang, width: window.innerWidth,
           email: email?.textContent, links: links.length,
           emailRight: Math.max(0, ...mine.map((r) => r.right)),
           brandRight: brand ? brand.getBoundingClientRect().right : 0, hits };
