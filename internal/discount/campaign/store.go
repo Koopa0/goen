@@ -96,7 +96,7 @@ func (s *Store) Listed(ctx context.Context, page int) (Listed, error) {
 		c := &rows[i]
 		view.Rows = append(view.Rows, Summary{
 			Slug: c.Slug, Title: c.Title, Products: c.Products,
-			EndsOn: EndsOn(ctx, c.EndsAt, s.now()),
+			End: NewEnd(c.EndsAt, s.now()),
 		})
 	}
 	return view, nil

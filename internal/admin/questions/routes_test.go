@@ -6,14 +6,14 @@ import (
 	"testing"
 
 	"github.com/koopa0/goen/internal/admin"
-	"github.com/koopa0/goen/internal/admin/accesstest"
+	"github.com/koopa0/goen/internal/admin/routetest"
 )
 
 // TestHandler_RoutesRefuseOutsiders: every route refuses an outsider.
 func TestHandler_RoutesRefuseOutsiders(t *testing.T) {
 	t.Parallel()
 	log := slog.New(slog.DiscardHandler)
-	accesstest.RefuseOutsiders(t, func(mux *http.ServeMux, ac *admin.Control) {
+	routetest.RefuseOutsiders(t, func(mux *http.ServeMux, ac *admin.Control) {
 		NewHandler(&Store{}, log).Routes(mux, ac)
 	}, "GET /admin/questions", "POST /admin/questions/{id}")
 }

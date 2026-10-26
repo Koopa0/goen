@@ -51,38 +51,38 @@ type importRule struct {
 // are one path in two roles: the back office's directory, matched with under,
 // and the package at its root, matched exactly.
 const (
-	cmdGoen       = "cmd/goen"
-	dirUI         = "internal/ui"
-	dirWeb        = "internal/web"
-	dirAdmin      = "internal/admin"
-	pkgAdmin      = "internal/admin"
-	pkgAssets     = "assets"
-	pkgI18n       = "internal/i18n"
-	pkgMoney      = "internal/money"
-	pkgPicture    = "internal/picture"
-	pkgFormtext   = "internal/web/formtext"
-	pkgSite       = "internal/site"
-	pkgPolicy     = "internal/policy"
-	pkgCampaign   = "internal/discount/campaign"
-	pkgLetter     = "internal/letter"
-	pkgCart       = "internal/cart"
-	pkgCheckout   = "internal/checkout"
-	pkgAccount    = "internal/account"
-	pkgAuth       = "internal/auth"
-	pkgWishlist   = "internal/wishlist"
-	pkgGoogle     = "internal/auth/google"
-	pkgStoremap   = "internal/shipping/storemap"
-	pkgAccesstest = "internal/admin/accesstest"
-	pkgAudit      = "internal/admin/audit"
-	pkgWorklist   = "internal/admin/worklist"
-	pkgAdmintest  = "internal/admin/admintest"
-	pkgDB         = "internal/db"
-	pkgDbtest     = "internal/db/dbtest"
-	pkgUitest     = "internal/ui/uitest"
-	pkgOrdertest  = "internal/order/ordertest"
-	pkgCheckoutt  = "internal/checkout/checkouttest"
-	pkgMediatest  = "internal/media/mediatest"
-	pkgProductst  = "internal/admin/products/productstest"
+	cmdGoen      = "cmd/goen"
+	dirUI        = "internal/ui"
+	dirWeb       = "internal/web"
+	dirAdmin     = "internal/admin"
+	pkgAdmin     = "internal/admin"
+	pkgAssets    = "assets"
+	pkgI18n      = "internal/i18n"
+	pkgMoney     = "internal/money"
+	pkgPicture   = "internal/picture"
+	pkgFormtext  = "internal/web/formtext"
+	pkgSite      = "internal/site"
+	pkgPolicy    = "internal/policy"
+	pkgCampaign  = "internal/discount/campaign"
+	pkgLetter    = "internal/letter"
+	pkgCart      = "internal/cart"
+	pkgCheckout  = "internal/checkout"
+	pkgAccount   = "internal/account"
+	pkgAuth      = "internal/auth"
+	pkgWishlist  = "internal/wishlist"
+	pkgGoogle    = "internal/auth/google"
+	pkgStoremap  = "internal/shipping/storemap"
+	pkgRoutetest = "internal/admin/routetest"
+	pkgAudit     = "internal/admin/audit"
+	pkgWorklist  = "internal/admin/worklist"
+	pkgAdmintest = "internal/admin/admintest"
+	pkgDB        = "internal/db"
+	pkgDbtest    = "internal/db/dbtest"
+	pkgUitest    = "internal/ui/uitest"
+	pkgOrdertest = "internal/order/ordertest"
+	pkgCheckoutt = "internal/checkout/checkouttest"
+	pkgMediatest = "internal/media/mediatest"
+	pkgProductst = "internal/admin/products/productstest"
 )
 
 // exceptions are the edges the rules forbid and the plan has not removed yet:
@@ -101,8 +101,8 @@ func under(pkg, dir string) bool {
 
 // deskRoot returns "internal/admin/<x>" for a desk package and "" for anything
 // else. The package internal/admin itself is not below dirAdmin, so it is no desk.
-// accesstest, audit, worklist and admintest are not desks either: audit, like
-// internal/admin, is the foundation every desk may import, accesstest is the route
+// routetest, audit, worklist and admintest are not desks either: audit, like
+// internal/admin, is the foundation every desk may import, routetest is the route
 // check every desk's tests run, worklist is the vocabulary the desks use to report
 // work for one another, admintest is the shared test fixture.
 func deskRoot(pkg string) string {
@@ -138,11 +138,11 @@ func isLeaf(pkg string) bool {
 
 var (
 	// notDesks are the packages under internal/admin that are not desks.
-	notDesks = []string{pkgAccesstest, pkgAudit, pkgWorklist, pkgAdmintest}
+	notDesks = []string{pkgRoutetest, pkgAudit, pkgWorklist, pkgAdmintest}
 	// testHelpers are the packages that exist for tests: a test imports them, and
 	// production code does not. Each one is named for the package it serves with
 	// "test" appended, as net/http/httptest serves net/http.
-	testHelpers = []string{pkgAccesstest, pkgAdmintest, pkgDbtest, pkgUitest, pkgOrdertest, pkgCheckoutt, pkgMediatest, pkgProductst}
+	testHelpers = []string{pkgRoutetest, pkgAdmintest, pkgDbtest, pkgUitest, pkgOrdertest, pkgCheckoutt, pkgMediatest, pkgProductst}
 	// uiMayImport is what the shared visual language (internal/ui/…) may import
 	// besides itself.
 	uiMayImport = []string{
@@ -392,12 +392,12 @@ var depsRules = []importRule{
 	{
 		name: "foundation",
 		hard: true,
-		pkgs: []string{pkgAdmin, pkgAccesstest, pkgAudit},
+		pkgs: []string{pkgAdmin, pkgRoutetest, pkgAudit},
 		dirs: []string{dirAdmin},
 		forbid: func(from, to string) bool {
-			return (from == pkgAdmin || under(from, pkgAccesstest) || under(from, pkgAudit)) && isDesk(to)
+			return (from == pkgAdmin || under(from, pkgRoutetest) || under(from, pkgAudit)) && isDesk(to)
 		},
-		reason: "internal/admin and audit are the foundation every desk imports, and accesstest the check every desk's routes run, " +
+		reason: "internal/admin and audit are the foundation every desk imports, and routetest the check every desk's routes run, " +
 			"so they import no desk",
 	},
 	{
