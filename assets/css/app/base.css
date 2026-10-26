@@ -398,7 +398,7 @@ body {
   --border: var(--line);
   --border-faint: var(--n-100);
   --border-strong: var(--line-2);
-  /* Controls need 3:1 against their ground: 5.7:1 on white, 5.2:1 on n-100. */
+  /* Controls need 3:1 against their ground: 3.66:1 on white, 3.33:1 on n-100. */
   --control-boundary: var(--edge);
   --elevated: var(--n-100);
   --overlay: var(--n-100);
