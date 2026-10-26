@@ -1976,26 +1976,40 @@ body:has(.goen-hero) .goen-header {
   margin: 0.25rem 0 0;
 }
 
-.goen-home__until {
+/* The phrase a campaign's end is said in (campaign.Ends): the last day and its
+   dot are one unit that does not break, and the days left do not break inside
+   the number. Where the box is narrower than that, at large text on a phone, the
+   unit may wrap instead of widening the page. */
+.goen-ends__until {
+  position: relative; /* its screen-reader text is absolute; a scroller clips it only when it is positioned inside */
   white-space: nowrap;
 }
 
-/* The day and its dot are one unit; where the head is narrower than that, at
-   large text on a phone, the unit may wrap instead of widening the page. */
 @container (width < 20rem) {
-  .goen-home__until {
+  .goen-ends__until {
     white-space: normal;
   }
 }
 
-.goen-home__dot {
+.goen-ends__dot {
   margin-inline: 0.25em;
 }
 
-.goen-home__left {
-  color: var(--fg);
+.goen-ends__left {
   font-weight: var(--fw-medium);
   word-break: keep-all;
+}
+
+.goen-home__ends .goen-ends__left {
+  color: var(--fg);
+}
+
+/* Standing alone the English phrase begins a sentence; inside the notice and the
+   offers row it follows words. */
+.goen-home__ends::first-letter,
+.goen-hero__ends::first-letter,
+.goen-pagehead__ends::first-letter {
+  text-transform: uppercase;
 }
 
 .goen-home__more {
@@ -2131,6 +2145,18 @@ body:has(.goen-hero) .goen-header {
 /* The slide's ink comes from its tone, so a statline and a period read on every
    ground, the dark one included. */
 .goen-hero__slide {
+  color: var(--tone-text);
+}
+
+.goen-hero__ends {
+  color: var(--tone-muted);
+  container-type: inline-size;
+  font-size: var(--fs-16);
+  line-height: 1.5;
+  margin: 0;
+}
+
+.goen-hero__ends .goen-ends__left {
   color: var(--tone-text);
 }
 
@@ -3846,7 +3872,16 @@ input.goen-check {
 
 .goen-campaigns__meta {
   color: var(--fg-muted);
+  container-type: inline-size;
   font-size: var(--fs-12);
+}
+
+.goen-campaigns__meta > [aria-hidden] {
+  margin-inline: 0.25em;
+}
+
+.goen-campaigns__meta .goen-ends__left {
+  color: var(--fg);
 }
 
 /* The comparison table. It scrolls inside its own box so the PAGE never moves
@@ -4003,23 +4038,16 @@ input.goen-check {
   margin-inline-end: var(--s-2);
 }
 
-.goen-deptnotice__until {
+.goen-deptnotice .goen-ends__until {
   color: var(--tone-muted);
-  white-space: nowrap;
 }
 
-.goen-deptnotice__name > [aria-hidden="true"],
-.goen-deptnotice__until > [aria-hidden="true"] {
+.goen-deptnotice__name > [aria-hidden="true"] {
   color: var(--tone-muted);
   margin-inline: 0.25em;
 }
 
-.goen-deptnotice__left {
-  font-weight: var(--fw-medium);
-  word-break: keep-all;
-}
-
-.goen-deptnotice__left > [aria-hidden] {
+.goen-deptnotice .goen-ends__left > [aria-hidden] {
   color: var(--tone-mark);
 }
 
@@ -5735,6 +5763,16 @@ input.goen-check {
   font-size: var(--fs-14);
 }
 
+/* A campaign's end in one phrase; the box is the container its day unit wraps
+   against. */
+.goen-pagehead__ends {
+  color: var(--fg-muted);
+  container-type: inline-size;
+  font-size: var(--fs-16);
+  line-height: 1.5;
+  margin: 0;
+}
+
 .goen-pagehead__sub,
 .goen-order__meta {
   color: var(--fg-muted);
@@ -5928,8 +5966,13 @@ input.goen-check {
 }
 
 .goen-pagehead[data-tone] .goen-pagehead__sub,
-.goen-pagehead[data-tone] .goen-pagehead__eyebrow {
+.goen-pagehead[data-tone] .goen-pagehead__eyebrow,
+.goen-pagehead[data-tone] .goen-pagehead__ends {
   color: var(--tone-muted);
+}
+
+.goen-pagehead[data-tone] .goen-ends__left {
+  color: var(--tone-text);
 }
 
 .goen-cart__layout,
@@ -8545,7 +8588,8 @@ input.goen-check {
   text-wrap: balance;
 }
 
-.goen-campaign__band .ui-statline {
+.goen-campaign__band .ui-statline,
+.goen-campaign__band .goen-pagehead__ends {
   margin-top: 1rem;
 }
 

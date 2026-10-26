@@ -18,7 +18,7 @@ type Summary struct {
 	Slug     string
 	Title    string
 	Products int64
-	EndsOn   string
+	End      End
 }
 
 func (c Summary) Href() string { return "/s/" + c.Slug }

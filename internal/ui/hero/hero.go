@@ -8,6 +8,8 @@ import (
 	"strconv"
 	"unicode/utf8"
 
+	"github.com/a-h/templ"
+
 	"github.com/koopa0/goen/internal/i18n"
 	"github.com/koopa0/goen/internal/ui/tone"
 	"github.com/koopa0/goen/internal/ui/widget"
@@ -48,8 +50,10 @@ type Slide struct {
 	Title                   string
 	// Fact is the sentence an editor wrote under a scheduled slide's title.
 	Fact string
-	// Stats are the figures a campaign or department slide states about itself.
-	Stats  []widget.Stat
+	// Stats are the figures a department slide states about itself.
+	Stats []widget.Stat
+	// Ends is the phrase a campaign slide says its end in.
+	Ends   templ.Component
 	Period *widget.PeriodSpec
 	CTA    CTA
 }

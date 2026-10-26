@@ -310,10 +310,11 @@ func TestStore_CampaignWindow(t *testing.T) {
 	if err := feature(t, running, discountedSlug(t)); err != nil {
 		t.Fatalf("feature: %v", err)
 	}
-	// What the fact line leads with, and what it notes on the end, says which
-	// state campaign.NewSchedule laid the page out for.
-	if view, err := s.Campaign(ctx, running); err != nil || view.Schedule.Facts[0].Label != i18n.T(ctx, i18n.KeySlideItems) {
-		t.Fatalf("a running campaign = facts %+v, %v; want its item count first", view.Schedule.Facts, err)
+	// Whether the page has the phrase of its end or a fact line, and what the
+	// fact line leads with, says which state campaign.NewSchedule laid the page
+	// out for.
+	if view, err := s.Campaign(ctx, running); err != nil || view.Schedule.End == nil || len(view.Schedule.Facts) != 0 {
+		t.Fatalf("a running campaign = end %+v, facts %+v, %v; want the phrase of its end and no facts", view.Schedule.End, view.Schedule.Facts, err)
 	}
 
 	tests := []struct {
@@ -342,9 +343,12 @@ func TestStore_CampaignWindow(t *testing.T) {
 			if err != nil {
 				t.Fatalf("Campaign(%s) = %v, want the page", slug, err)
 			}
-			if first := view.Schedule.Facts[0].Label; first != i18n.T(ctx, tt.wantFirst) || view.Schedule.Ends.Note != tt.wantNote {
+			if view.Schedule.End != nil {
+				t.Errorf("Campaign(%s) says the phrase of its end, which a campaign not running has no sentence for", slug)
+			}
+			if first := view.Schedule.Facts[0].Label; first != i18n.T(ctx, tt.wantFirst) || view.Schedule.EndFact.Note != tt.wantNote {
 				t.Errorf("Campaign(%s) leads with %q and notes the end %q, want %q and %q",
-					slug, first, view.Schedule.Ends.Note, i18n.T(ctx, tt.wantFirst), tt.wantNote)
+					slug, first, view.Schedule.EndFact.Note, i18n.T(ctx, tt.wantFirst), tt.wantNote)
 			}
 		})
 	}

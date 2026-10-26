@@ -169,7 +169,7 @@ func TestDepartmentNoticeEnd(t *testing.T) {
 			if day == nil || attrValue(day, "datetime") != tt.time {
 				t.Errorf("the notice's time element reads datetime %q, want %q", attrValue(day, "datetime"), tt.time)
 			}
-			left := findDescendant(link, func(n *html.Node) bool { return hasClass(n, "goen-deptnotice__left") })
+			left := findDescendant(link, func(n *html.Node) bool { return hasClass(n, "goen-ends__left") })
 			if left == nil || nodeText(left) != tt.left+"\u00a0\u2192" {
 				t.Error("the notice does not set apart what is left, with the arrow kept to it")
 			}

@@ -1,0 +1,18 @@
+package campaign
+
+// Ends says when a running campaign ends, in one phrase: its last day and what is left of it, or the whole
+// of it on the last two days. The caller supplies the element around it and what it is read against; the
+// children stay with the last words, so a line never wraps to begin with a dot or an arrow.
+templ Ends(e End) {
+	{{ before, after := e.Until(ctx) }}
+	if e.EndsByTomorrow() {
+		<span class="goen-ends__left">
+			<time datetime={ e.Datetime() }>{ e.Left(ctx) }</time>{ children... }
+		</span>
+	} else {
+		<span class="goen-ends__until">{ before }<time datetime={ e.Datetime() }>{ e.Day(ctx) }</time><span class="goen-sr-only">{ after }</span>&nbsp;<span class="goen-ends__dot" aria-hidden="true">·</span></span>
+		<span class="goen-ends__left">
+			{ e.Left(ctx) }{ children... }
+		</span>
+	}
+}
