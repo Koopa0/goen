@@ -14,19 +14,10 @@ import (
 // lays it out for the state the campaign is in.
 type Schedule struct {
 	Facts []widget.Stat
-	// Ends and DaysLeft are Facts' own stats; DaysLeft has no value in the last two days and outside the window.
-	Ends, DaysLeft widget.Stat
-	Period         widget.PeriodSpec
-	HasPeriod      bool
-}
-
-// CardFacts are what is left, when it is shown, and then when it ends: the
-// facts of a card whose item count is its link.
-func (s *Schedule) CardFacts() []widget.Stat {
-	if s.DaysLeft.Label == "" {
-		return []widget.Stat{s.Ends}
-	}
-	return []widget.Stat{s.DaysLeft, s.Ends}
+	// Ends is one of Facts' own stats.
+	Ends      widget.Stat
+	Period    widget.PeriodSpec
+	HasPeriod bool
 }
 
 // NewSchedule states a campaign of items products running from startsAt
@@ -51,12 +42,9 @@ func NewSchedule(ctx context.Context, title string, items int64, startsAt, endsA
 		schedule.Facts = []widget.Stat{schedule.Ends, count}
 	default:
 		// The last two days say so in the end's note instead.
-		if left := shoptime.DaysLeft(now, endsAt); left > 1 {
-			schedule.DaysLeft = widget.Stat{Label: i18n.T(ctx, i18n.KeySlideDaysLeft), Value: widget.StatCount(int64(left), i18n.T(ctx, i18n.KeyFactUnitDays))}
-		}
 		schedule.Facts = []widget.Stat{count, schedule.Ends}
-		if schedule.DaysLeft.Label != "" {
-			schedule.Facts = append(schedule.Facts, schedule.DaysLeft)
+		if left := shoptime.DaysLeft(now, endsAt); left > 1 {
+			schedule.Facts = append(schedule.Facts, widget.Stat{Label: i18n.T(ctx, i18n.KeySlideDaysLeft), Value: widget.StatCount(int64(left), i18n.T(ctx, i18n.KeyFactUnitDays))})
 		}
 	}
 	schedule.Period, schedule.HasPeriod = widget.DayPeriod(ctx, title, startsAt, endsAt, now)

@@ -1958,6 +1958,43 @@ body:has(.goen-hero) .goen-header {
   }
 }
 
+/* A campaign's name takes its own line; the last day and the link share the
+   next, and wrap under each other when a long name or large text leaves no
+   room. */
+.goen-home__head:has(> .goen-home__ends) > .goen-home__heading {
+  flex: 1 0 100%;
+}
+
+.goen-home__ends {
+  color: var(--fg-muted);
+  flex: 1 1 auto;
+  font-size: var(--fs-15);
+  line-height: 1.5;
+  margin: 0.25rem 0 0;
+}
+
+.goen-home__until {
+  white-space: nowrap;
+}
+
+/* The day and its dot are one unit; where the head is narrower than that, at
+   large text on a phone, the unit may wrap instead of widening the page. */
+@container (width < 20rem) {
+  .goen-home__until {
+    white-space: normal;
+  }
+}
+
+.goen-home__dot {
+  margin-inline: 0.25em;
+}
+
+.goen-home__left {
+  color: var(--fg);
+  font-weight: var(--fw-medium);
+  word-break: keep-all;
+}
+
 .goen-home__more {
   align-items: center;
   color: var(--accent-text);
@@ -3110,95 +3147,11 @@ input.goen-check {
   }
 }
 
-/* ---------- Home product row ----------
-   A campaign with at least four products whose first photograph is wide enough:
-   the first product is a 2×2 tile on the campaign's tone, three more cards, and
-   the campaign card as the eighth cell. Under 1024px the lead takes a full row
-   and the card a full row after the cards. */
-
-.goen-home__facts {
-  margin: calc(var(--s-3) * -1) 0 var(--s-6);
-}
-
-.goen-tiles__grid--lead > .goen-tile__cell--lead,
-.goen-tiles__grid--lead > .goen-rowcard {
-  grid-column: 1 / -1;
-}
-
-.goen-tile__cell--lead .goen-tile__media {
-  aspect-ratio: 4 / 3;
-  background: var(--tone-ground);
-}
-
-.goen-tile__cell--lead .goen-tile__img {
-  background: var(--photo);
-  border-radius: var(--r-md);
-  height: calc(100% - 2 * var(--s-5));
-  inset: var(--s-5) auto auto var(--s-5);
-  padding: 0;
-  position: absolute;
-  width: calc(100% - 2 * var(--s-5));
-}
-
-.goen-tile__cell--lead .goen-tile__name,
-.goen-tile__cell--lead .goen-tile__price {
-  font-size: var(--fs-18);
-}
-
-.goen-rowcard {
-  background: var(--tone-ground);
-  border-radius: var(--r-lg);
-  color: var(--tone-text);
-  display: flex;
-  flex-direction: column;
-  gap: var(--s-2);
-  min-width: 0;
-  padding: var(--s-4) var(--s-5);
-}
-
-.goen-rowcard .ui-statline dt,
-.goen-rowcard .ui-statline dd small,
-.goen-rowcard .ui-statline__note {
-  color: var(--tone-muted);
-}
-
-.goen-tiles__grid--lead[data-tone] .ui-period {
-  --period-fill: var(--tone-mark);
-}
-
-.goen-tiles__grid--lead[data-tone="ink"] .ui-period {
-  --period-track: var(--period-track-on-ink);
-}
-
-.goen-rowcard > .ui-period {
-  margin-top: var(--s-2);
-}
-
-.goen-rowcard .goen-home__more {
-  align-self: flex-start;
-  color: var(--tone-mark);
-  margin-top: auto;
-  white-space: normal;
-}
-
-@media (min-width: 64rem) {
-  .goen-tiles__grid--lead > .goen-tile__cell--lead {
-    grid-column: 1 / 3;
-    grid-row: 1 / 3;
-  }
-
-  .goen-tiles__grid--lead > .goen-rowcard {
-    grid-column: auto;
-  }
-
-  .goen-tile__cell--lead .goen-tile__media {
-    aspect-ratio: auto;
-    flex: 1;
-    min-height: 16rem;
-  }
-
-  .goen-tile__cell--lead .goen-tile__body {
-    flex: none;
+/* The home row is a sample of a longer list, drawn in whole rows: at three
+   columns the fourth product would stand alone, so the link carries it. */
+@media (min-width: 768px) and (max-width: 1023.98px) {
+  .goen-home__row > li:nth-child(n + 4) {
+    display: none;
   }
 }
 
@@ -5886,7 +5839,6 @@ input.goen-check {
 }
 
 .goen-promo,
-.goen-tiles__grid--lead[data-tone="ink"] > .goen-rowcard,
 .goen-campaign__band .goen-pagehead[data-tone="ink"],
 .goen-listing__head .goen-pagehead[data-tone="ink"] .goen-band__body,
 .goen-listing__head .goen-pagehead[data-tone="ink"] .goen-deptnotice,
