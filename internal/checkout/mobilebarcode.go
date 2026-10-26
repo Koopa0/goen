@@ -13,10 +13,10 @@ import (
 // Local fields, the quote and a prior successful attempt are handled before
 // this point, so an idempotent retry never asks.
 func (h *Handler) checkMobileBarcode(w http.ResponseWriter, r *http.Request, inv *Invoice, view *View) bool {
-	if !inv.Type.NeedsMobileBarcode() || h.barcodeChecker == nil {
+	if !inv.Type.NeedsMobileBarcode() || !h.invoiceGateway.Enabled() {
 		return true
 	}
-	status, err := h.barcodeChecker.CheckBarcode(r.Context(), inv.MobileBarcode)
+	status, err := h.invoiceGateway.CheckBarcode(r.Context(), inv.MobileBarcode)
 	if err != nil {
 		h.log.WarnContext(r.Context(), "check mobile barcode", "error", err)
 		return true

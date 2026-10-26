@@ -19,6 +19,7 @@ import (
 	"github.com/koopa0/goen/internal/cart"
 	"github.com/koopa0/goen/internal/checkout"
 	"github.com/koopa0/goen/internal/db/dbtest"
+	"github.com/koopa0/goen/internal/invoice/issuer"
 	"github.com/koopa0/goen/internal/order/access"
 	"github.com/koopa0/goen/internal/payment"
 	"github.com/koopa0/goen/internal/shipping/storemap"
@@ -84,10 +85,10 @@ func variantOf(t *testing.T, slug string) uuid.UUID {
 // store and one store map, as cmd/goen builds the two; it takes no payment.
 func newHandler(
 	s *checkout.Store, grants *access.Store, log *slog.Logger,
-	storeMap *storemap.Client, checkers ...checkout.MobileBarcodeChecker,
+	storeMap *storemap.Client, invoiceGateway *issuer.Gateway,
 ) *checkout.Handler {
 	return checkout.NewHandler(s, cart.NewHandler(s.Carts(), grants, log, false, storeMap),
-		grants, log, false, nil, storeMap, checkers...)
+		grants, log, false, nil, storeMap, invoiceGateway)
 }
 
 func applicationPool(t *testing.T, name string) *pgxpool.Pool {

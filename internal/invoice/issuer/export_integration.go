@@ -40,6 +40,8 @@ type FakeECPay struct {
 	calls           map[string]int
 	holdInvalid     bool
 	allowanceAnswer FakeAllowanceAnswer
+	barcodeAnswer   FakeBarcodeAnswer
+	lastBarcode     string
 }
 
 // FakeAllowanceAnswer is how FakeECPay answers AllowanceByCollegiate.
@@ -55,6 +57,21 @@ const (
 	FakeAllowanceOtherInvoice
 	// FakeAllowanceAmountHeld answers 2000034: an earlier request holds the amount.
 	FakeAllowanceAmountHeld
+)
+
+// FakeBarcodeAnswer is how FakeECPay answers CheckBarcode.
+type FakeBarcodeAnswer int
+
+const (
+	// FakeBarcodeExists says the mobile barcode is registered.
+	FakeBarcodeExists FakeBarcodeAnswer = iota
+	// FakeBarcodeMissing says it is not.
+	FakeBarcodeMissing
+	// FakeBarcodeNoVerdict succeeds without saying either, as the Ministry's
+	// maintenance window does.
+	FakeBarcodeNoVerdict
+	// FakeBarcodeUnavailable fails at the gateway.
+	FakeBarcodeUnavailable
 )
 
 type fakeAllowance struct {
@@ -120,6 +137,20 @@ func (f *FakeECPay) AnswerAllowances(answer FakeAllowanceAnswer) {
 	f.allowanceAnswer = answer
 }
 
+// AnswerBarcodes sets how every later CheckBarcode is answered.
+func (f *FakeECPay) AnswerBarcodes(answer FakeBarcodeAnswer) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	f.barcodeAnswer = answer
+}
+
+// LastBarcode is the barcode the latest CheckBarcode asked about.
+func (f *FakeECPay) LastBarcode() string {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	return f.lastBarcode
+}
+
 // Calls is how many requests reached path, such as "/B2CInvoice/Invalid".
 func (f *FakeECPay) Calls(path string) int {
 	f.mu.Lock()
@@ -146,7 +177,8 @@ func (f *FakeECPay) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	f.mu.Lock()
 	f.calls[r.URL.Path]++
 	hold := f.holdInvalid && r.URL.Path == "/B2CInvoice/Invalid"
-	dropped := f.allowanceAnswer == FakeAllowanceNoReply && r.URL.Path == "/B2CInvoice/AllowanceByCollegiate"
+	dropped := (f.allowanceAnswer == FakeAllowanceNoReply && r.URL.Path == "/B2CInvoice/AllowanceByCollegiate") ||
+		(f.barcodeAnswer == FakeBarcodeUnavailable && r.URL.Path == "/B2CInvoice/CheckBarcode")
 	f.mu.Unlock()
 	if hold {
 		<-r.Context().Done()
@@ -187,6 +219,7 @@ type fakeRequest struct {
 	AllowanceAmount int64
 	NotifyMail      string
 	Items           json.RawMessage
+	BarCode         string
 }
 
 func (f *FakeECPay) answer(path string, req *fakeRequest) (map[string]any, bool) {
@@ -224,6 +257,16 @@ func (f *FakeECPay) answer(path string, req *fakeRequest) (map[string]any, bool)
 		return f.answerAllowanceRequest(req), true
 	case "/B2CInvoice/GetAllowanceList":
 		return f.answerAllowanceList(invoiceNumber), true
+	case "/B2CInvoice/CheckBarcode":
+		f.lastBarcode = req.BarCode
+		switch f.barcodeAnswer {
+		case FakeBarcodeMissing:
+			return map[string]any{"RtnCode": 1, "RtnMsg": "ok", "IsExist": "N"}, true
+		case FakeBarcodeNoVerdict:
+			return map[string]any{"RtnCode": 1, "RtnMsg": "ok"}, true
+		case FakeBarcodeExists, FakeBarcodeUnavailable:
+		}
+		return map[string]any{"RtnCode": 1, "RtnMsg": "ok", "IsExist": "Y"}, true
 	}
 	return nil, false
 }

@@ -116,7 +116,7 @@ func TestHandler_PlaceOrderUpdatePlacesNothing(t *testing.T) {
 	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
 	req.AddCookie(&http.Cookie{Name: "goen_cart", Value: token}) //nolint:gosec // G124: dev cart cookie under test
 
-	h := newHandler(s, access.NewStore(pool, false), slog.New(slog.DiscardHandler), nil)
+	h := newHandler(s, access.NewStore(pool, false), slog.New(slog.DiscardHandler), nil, nil)
 
 	res := httptest.NewRecorder()
 	h.PlaceOrder(res, req)
@@ -220,7 +220,7 @@ func TestHandler_PlaceOrderPickAddress(t *testing.T) {
 	req.AddCookie(&http.Cookie{Name: "goen_cart", Value: token}) //nolint:gosec // G124: dev cart cookie under test
 	req = req.WithContext(user.NewContext(ctx, user.User{ID: userID.String(), Role: user.RoleCustomer}))
 
-	h := newHandler(s, access.NewStore(pool, false), slog.New(slog.DiscardHandler), nil)
+	h := newHandler(s, access.NewStore(pool, false), slog.New(slog.DiscardHandler), nil, nil)
 
 	res := httptest.NewRecorder()
 	h.PlaceOrder(res, req)
@@ -302,7 +302,7 @@ func TestHandler_PlaceOrderTypedAddress(t *testing.T) {
 	req.AddCookie(&http.Cookie{Name: "goen_cart", Value: token}) //nolint:gosec // G124: dev cart cookie under test
 	req = req.WithContext(user.NewContext(ctx, user.User{ID: userID.String(), Role: user.RoleCustomer}))
 
-	h := newHandler(s, access.NewStore(pool, false), slog.New(slog.DiscardHandler), nil)
+	h := newHandler(s, access.NewStore(pool, false), slog.New(slog.DiscardHandler), nil, nil)
 
 	res := httptest.NewRecorder()
 	h.PlaceOrder(res, req)

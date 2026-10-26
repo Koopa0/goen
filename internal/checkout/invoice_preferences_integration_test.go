@@ -72,7 +72,7 @@ func TestHandler_PlaceOrderDonationRoundTrip(t *testing.T) {
 			if err := s.Carts().Add(ctx, id, ordertest.FreshVariant(t, pool, "invoice-form-"+strings.ReplaceAll(tt.kind, "_", "-")), 1); err != nil {
 				t.Fatal(err)
 			}
-			h := newHandler(s, access.NewStore(pool, false), slog.New(slog.DiscardHandler), nil)
+			h := newHandler(s, access.NewStore(pool, false), slog.New(slog.DiscardHandler), nil, nil)
 			form := url.Values{"shipping": {shipVersionFor(t, "home_delivery").String()}, "invoice_type": {tt.kind}, tt.field: {tt.value}, "update": {"invoice"}}
 			for _, refused := range []bool{false, true} {
 				if refused {

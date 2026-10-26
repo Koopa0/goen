@@ -19,7 +19,7 @@ import (
 func TestHandler_PageSoldOutLine(t *testing.T) {
 	ctx := t.Context()
 	s := checkout.NewStore(pool)
-	h := newHandler(s, access.NewStore(pool, false), slog.New(slog.DiscardHandler), nil)
+	h := newHandler(s, access.NewStore(pool, false), slog.New(slog.DiscardHandler), nil, nil)
 	cartID, token := checkouttest.NewCartSession(t, s)
 
 	kept, gone, _ := ordertest.VariantsOf(t, pool, "soldout-line", 2)
